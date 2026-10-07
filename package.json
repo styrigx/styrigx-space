@@ -1,0 +1,42 @@
+{
+  "name": "my-portfolio",
+  "version": "1.0.0",
+  "description": "Jesus Bonete — backend developer portfolio. A fully static Astro site with Tailwind CSS.",
+  "author": {
+    "name": "Jesus Bonete"
+  },
+  "scripts": {
+    "build": "astro build",
+    "check": "astro check",
+    "cv:fonts": "node scripts/build-cv-fonts.mjs",
+    "cv:pdf": "astro build && node scripts/generate-cv.mjs",
+    "dev": "astro dev",
+    "format": "prettier -w . --cache",
+    "preview": "astro preview",
+    "start": "astro dev",
+    "test": "node --test \"scripts/**/*.test.mjs\" \"src/**/*.test.ts\"",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/check": "^0.9.10",
+    "@tailwindcss/vite": "^4",
+    "astro": "^7.3.5",
+    "sharp": "^0.35.5",
+    "tailwindcss": "^4.3.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "pdf-lib": "^1.17.1",
+    "prettier": "^3.9.9",
+    "prettier-plugin-astro": "^1.1.0",
+    "prettier-plugin-tailwindcss": "^0.8.1",
+    "puppeteer": "^25.12.0",
+    "subset-font": "^2.9.0",
+    "typescript": "^6.0.3"
+  },
+  "type": "module",
+  "packageManager": "pnpm@8.15.5",
+  "engines": {
+    "node": "24.x"
+  }
+}
