@@ -1,0 +1,31 @@
+entries:
+  - name: 博客
+    url: https://blog.styrigx.com
+    desc: Sloan Gray 的个人博客 · 中英双语
+    icon: pen
+    external: true
+  - name: 邀请码站
+    url: https://muse-invite.styrigx.com
+    desc: Muse 邀请码免费共享站
+    icon: ticket
+    external: true
+  - name: muse-playbook
+    url: https://github.com/styrigx/muse-playbook
+    desc: 501 条 Muse 实用技巧与真实用例
+    icon: book
+    external: true
+  - name: textbook-playbook
+    url: https://github.com/styrigx/textbook-playbook
+    desc: 专业教材条目式中文知识库
+    icon: book
+    external: true
+  - name: 导航
+    url: /links/
+    desc: 我的书签导航
+    icon: compass
+    external: false
+  - name: GitHub
+    url: https://github.com/styrigx
+    desc: 开源项目主页
+    icon: brands/github
+    external: true

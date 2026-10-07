@@ -1,0 +1,26 @@
+title: 'Styrigx'
+baseURL: 'https://styrigx.com/'
+defaultContentLanguage: zh
+defaultContentLanguageInSubdir: false
+hasCJKLanguage: true
+languages:
+  zh:
+    languageName: 中文
+    weight: 1
+  en:
+    languageName: English
+    weight: 2
+theme: []
+
+build:
+  writeStats: true
+enableRobotsTXT: true
+enableEmoji: true
+
+markup:
+  goldmark:
+    renderer:
+      unsafe: true
+
+params:
+  description: 'Sloan Gray 的个人门户'

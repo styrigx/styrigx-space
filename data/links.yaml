@@ -1,0 +1,34 @@
+- category: 我的站点
+  sites:
+    - name: 博客
+      url: https://blog.styrigx.com
+      desc: Sloan Gray 的个人博客
+      icon: pen
+    - name: 邀请码站
+      url: https://muse-invite.styrigx.com
+      desc: Muse 邀请码免费共享
+      icon: ticket
+    - name: GitHub
+      url: https://github.com/styrigx
+      desc: 开源项目
+      icon: github
+    - name: X
+      url: https://x.com/styrigx
+      desc: 日常动态
+      icon: x
+- category: 常用工具
+  sites:
+    - name: Cloudflare
+      url: https://dash.cloudflare.com
+      desc: 域名与 CDN 管理
+      icon: cloud
+    - name: GitHub
+      url: https://github.com
+      desc: 代码托管
+      icon: github
+- category: 学习资源
+  sites:
+    - name: MDN
+      url: https://developer.mozilla.org
+      desc: Web 开发文档
+      icon: book

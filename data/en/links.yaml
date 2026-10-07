@@ -1,0 +1,16 @@
+- category: My Sites
+  sites:
+    - name: Blog
+      url: https://blog.styrigx.com
+      desc: Personal blog
+    - name: Invite Board
+      url: https://muse-invite.styrigx.com
+      desc: Muse invite codes
+    - name: GitHub
+      url: https://github.com/styrigx
+      desc: Open source
+- category: Tools
+  sites:
+    - name: Cloudflare
+      url: https://dash.cloudflare.com
+      desc: Domain & CDN

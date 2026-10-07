@@ -1,0 +1,16 @@
+- name: Muse 邀请码共享站
+  url: https://muse-invite.styrigx.com
+  desc: 邀请码免费共享，抽码小游戏。
+  icon: ticket
+- name: muse-playbook
+  url: https://github.com/styrigx/muse-playbook
+  desc: 501 条 Muse 实用技巧与真实用例。
+  icon: book
+- name: textbook-playbook
+  url: https://github.com/styrigx/textbook-playbook
+  desc: 专业教材条目式中文知识库。
+  icon: book
+- name: Mihomo 规则集
+  url: https://mihomo-mrs.styrigx.com
+  desc: 自用代理规则集订阅。
+  icon: globe

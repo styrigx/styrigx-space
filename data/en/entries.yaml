@@ -1,0 +1,25 @@
+entries:
+  - name: Blog
+    url: https://blog.styrigx.com
+    desc: Sloan Gray's personal blog
+    external: true
+  - name: Invite Board
+    url: https://muse-invite.styrigx.com
+    desc: Free Muse invite code sharing
+    external: true
+  - name: muse-playbook
+    url: https://github.com/styrigx/muse-playbook
+    desc: 501 practical Muse tips
+    external: true
+  - name: textbook-playbook
+    url: https://github.com/styrigx/textbook-playbook
+    desc: Textbook knowledge base in Chinese
+    external: true
+  - name: Links
+    url: /en/links/
+    desc: My bookmark navigation
+    external: false
+  - name: GitHub
+    url: https://github.com/styrigx
+    desc: Open source projects
+    external: true

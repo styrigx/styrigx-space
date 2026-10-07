@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="{{ .Lang }}" class="scroll-smooth">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ if .IsHome }}Styrigx{{ else }}{{ .Title }} | Styrigx{{ end }}</title>
+<meta name="description" content="{{ .Site.Params.description }}">
+<link rel="stylesheet" href="/css/main.css">
+<script>if(localStorage.theme==='dark'||(!('theme' in localStorage)&&matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}</script>
+</head>
+<body class="bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen">
+<nav class="border-b border-gray-200 dark:border-gray-800">
+  <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+    <a href="/" class="font-bold text-xl">Styrigx</a>
+    <div class="flex items-center gap-6 text-sm">
+{{ if eq .Lang "en" }}
+      <a href="/en/" class="hover:text-indigo-600">Home</a>
+      <a href="/en/links/" class="hover:text-indigo-600">Links</a>
+      <a href="https://blog.styrigx.com" target="_blank" rel="noopener" class="hover:text-indigo-600">Blog</a>
+      <a href="/" class="hover:text-indigo-600">中文</a>
+      {{ else }}
+      <a href="/" class="hover:text-indigo-600">首页</a>
+      <a href="/links/" class="hover:text-indigo-600">导航</a>
+      <a href="https://blog.styrigx.com" target="_blank" rel="noopener" class="hover:text-indigo-600">博客</a>
+      <a href="/en/" class="hover:text-indigo-600">EN</a>
+      {{ end }}
+      <button onclick="document.documentElement.classList.toggle('dark');localStorage.theme=document.documentElement.classList.contains('dark')?'dark':'light'" class="p-1" aria-label="切换主题">🌓</button>
+    </div>
+  </div>
+</nav>
+<main>{{ block "main" . }}{{ end }}</main>
+<footer class="border-t border-gray-200 dark:border-gray-800 mt-16">
+  <div class="max-w-6xl mx-auto px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+    © 2026 Styrigx · Sloan Gray
+  </div>
+</footer>
+</body>
+</html>

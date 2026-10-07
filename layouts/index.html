@@ -1,0 +1,88 @@
+{{ define "main" }}
+{{ $isEn := eq .Lang "en" }}
+{{ $entries := site.Data.entries.entries }}
+{{ $books := site.Data.books }}
+{{ $music := site.Data.music }}
+{{ $collections := site.Data.collections }}
+{{ if $isEn }}{{ $entries = site.Data.en.entries.entries }}{{ $books = site.Data.en.books }}{{ end }}
+<!-- Hero -->
+<section class="max-w-4xl mx-auto px-6 pt-16 pb-8 text-center">
+  <div class="w-32 h-32 mx-auto rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white text-4xl font-bold mb-6">S</div>
+  <h1 class="text-4xl font-bold mb-3">Styrigx</h1>
+  <p class="text-lg text-gray-600 dark:text-gray-300 mb-2">{{ if $isEn }}To understand the world, take it apart; to believe in it, put it back together.{{ else }}拆开世界是为了看懂它，再把它装回去是为了相信它。{{ end }}</p>
+  <p class="text-sm text-gray-500 dark:text-gray-400 italic mb-6">{{ if $isEn }}{{ else }}To understand the world, take it apart; to believe in it, put it back together.{{ end }}</p>
+  <div class="flex gap-5 justify-center">
+    <a href="https://github.com/styrigx" target="_blank" rel="noopener" class="text-gray-600 dark:text-gray-300 hover:text-indigo-600" aria-label="GitHub">
+      <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.55v-2.15c-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.75 2.69 1.25 3.35.95.1-.74.4-1.25.72-1.53-2.55-.29-5.23-1.28-5.23-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.69 5.38-5.25 5.67.41.35.77 1.05.77 2.12v3.15c0 .3.21.67.8.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z"/></svg>
+    </a>
+    <a href="https://x.com/styrigx" target="_blank" rel="noopener" class="text-gray-600 dark:text-gray-300 hover:text-indigo-600" aria-label="X">
+      <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M18.24 2.25h3.31l-7.23 8.26 8.5 11.24h-6.66l-5.21-6.82-5.97 6.82H1.67l7.73-8.84L1.25 2.25h6.83l4.71 6.23zm-1.16 17.52h1.83L7.08 4.13H5.12z"/></svg>
+    </a>
+  </div>
+</section>
+
+<!-- 精选入口 -->
+<section class="max-w-5xl mx-auto px-6 py-8">
+  <h2 class="mb-6 text-2xl font-bold text-center">{{ if $isEn }}Featured{{ else }}精选入口{{ end }}</h2>
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+    {{ range $i, $e := $entries }}
+    <a href="{{ $e.url }}" {{ if $e.external }}target="_blank" rel="noopener"{{ end }}
+       class="group rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all {{ if eq $i 0 }}ring-2 ring-indigo-500/60{{ end }}">
+      <div class="font-semibold group-hover:text-indigo-600 dark:group-hover:text-indigo-300">{{ $e.name }}</div>
+      <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ $e.desc }}</div>
+    </a>
+    {{ end }}
+  </div>
+</section>
+
+<!-- 书单 -->
+<section class="max-w-5xl mx-auto px-6 py-8">
+  <h2 class="mb-6 text-2xl font-bold text-center">{{ if $isEn }}Bookshelf{{ else }}书单{{ end }}</h2>
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-5">
+    {{ range $books }}
+    <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm">
+      <div class="w-full aspect-[3/4] rounded-lg bg-gradient-to-br from-amber-100 to-orange-200 dark:from-amber-900/40 dark:to-orange-900/40 flex items-center justify-center p-3">
+        <span class="text-center text-sm font-medium line-clamp-4">{{ .title }}</span>
+      </div>
+      <div class="mt-3 font-semibold text-sm truncate">{{ .title }}</div>
+      <div class="text-xs text-gray-500">{{ .author }}</div>
+      {{ with .comment }}<div class="mt-2 text-xs text-gray-600 dark:text-gray-300 line-clamp-3">{{ . }}</div>{{ end }}
+    </div>
+    {{ end }}
+  </div>
+</section>
+
+<!-- 歌单 -->
+<section class="max-w-5xl mx-auto px-6 py-8">
+  <h2 class="mb-6 text-2xl font-bold text-center">{{ if $isEn }}Playlist{{ else }}歌单{{ end }}</h2>
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
+    {{ range $music }}
+    <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm">
+      <div class="w-full aspect-square rounded-lg bg-gradient-to-br from-violet-100 to-fuchsia-200 dark:from-violet-900/40 dark:to-fuchsia-900/40 flex items-center justify-center p-3">
+        <span class="text-center text-sm font-medium line-clamp-3">{{ .title }}</span>
+      </div>
+      <div class="mt-3 font-semibold text-sm truncate">{{ .title }}</div>
+      {{ with .artist }}<div class="text-xs text-gray-500">{{ . }}</div>{{ end }}
+      {{ with .comment }}<div class="mt-2 text-xs text-gray-600 dark:text-gray-300 line-clamp-2">{{ . }}</div>{{ end }}
+    </div>
+    {{ end }}
+  </div>
+</section>
+
+<!-- 收藏 -->
+<section class="max-w-5xl mx-auto px-6 py-8">
+  <h2 class="mb-6 text-2xl font-bold text-center">{{ if $isEn }}Collections{{ else }}收藏{{ end }}</h2>
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+    {{ range $collections }}
+    <a href="{{ .url }}" target="_blank" rel="noopener" class="group rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all">
+      <div class="font-semibold group-hover:text-emerald-600 dark:group-hover:text-emerald-300">{{ .name }}</div>
+      <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ .desc }}</div>
+    </a>
+    {{ end }}
+  </div>
+</section>
+
+<section class="text-center py-10">
+  <a href="{{ if $isEn }}/en/links/{{ else }}/links/{{ end }}" class="inline-block rounded-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-8 py-3 transition-colors">{{ if $isEn }}Bookmarks →{{ else }}书签导航 →{{ end }}</a>
+</section>
+{{ end }}

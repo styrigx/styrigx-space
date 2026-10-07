@@ -13,18 +13,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: '0.162.0'
+          extended: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm install
+
+      - name: Build CSS
+        run: npx tailwindcss -i assets/css/main.css -o static/css/main.css --minify
 
       - name: Build site
-        run: bun run build
+        run: hugo --minify
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=styrigx-portal --commit-dirty=true
+          command: pages deploy public --project-name=styrigx-portal --commit-dirty=true
