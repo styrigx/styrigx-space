@@ -5,7 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ if .IsHome }}Styrigx{{ else }}{{ .Title }} | Styrigx{{ end }}</title>
 <meta name="description" content="{{ .Site.Params.description }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/main.css">
+<style>h1,h2,h3{letter-spacing:-0.02em}body{line-height:1.6}</style>
 <script>if(localStorage.theme==='dark'||(!('theme' in localStorage)&&matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}</script>
 </head>
 <body class="bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen">
@@ -14,15 +18,15 @@
     <a href="/" class="font-bold text-xl">Styrigx</a>
     <div class="flex items-center gap-6 text-sm">
 {{ if eq .Lang "en" }}
-      <a href="/en/" class="hover:text-indigo-600">Home</a>
-      <a href="/en/links/" class="hover:text-indigo-600">Links</a>
-      <a href="https://blog.styrigx.com" target="_blank" rel="noopener" class="hover:text-indigo-600">Blog</a>
-      <a href="/" class="hover:text-indigo-600">中文</a>
+      <a href="/en/" class="hover:text-blue-600">Home</a>
+      <a href="/en/links/" class="hover:text-blue-600">Links</a>
+      <a href="https://blog.styrigx.com" target="_blank" rel="noopener" class="hover:text-blue-600">Blog</a>
+      <a href="/" class="hover:text-blue-600">中文</a>
       {{ else }}
-      <a href="/" class="hover:text-indigo-600">首页</a>
-      <a href="/links/" class="hover:text-indigo-600">导航</a>
-      <a href="https://blog.styrigx.com" target="_blank" rel="noopener" class="hover:text-indigo-600">博客</a>
-      <a href="/en/" class="hover:text-indigo-600">EN</a>
+      <a href="/" class="hover:text-blue-600">首页</a>
+      <a href="/links/" class="hover:text-blue-600">导航</a>
+      <a href="https://blog.styrigx.com" target="_blank" rel="noopener" class="hover:text-blue-600">博客</a>
+      <a href="/en/" class="hover:text-blue-600">EN</a>
       {{ end }}
       <button onclick="document.documentElement.classList.toggle('dark');localStorage.theme=document.documentElement.classList.contains('dark')?'dark':'light'" class="p-1" aria-label="切换主题">🌓</button>
     </div>
