@@ -6,16 +6,16 @@
   <h1 class="mb-6 text-3xl font-bold text-center">{{ .Title }}</h1>
   <div class="mb-8 max-w-md mx-auto">
     <input id="links-search" type="search" placeholder="{{ if $isEn }}Search bookmarks…{{ else }}搜索书签…{{ end }}"
-      class="w-full rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-4 py-2.5 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+      class="w-full rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-4 py-2.5 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
   </div>
   <div class="flex flex-wrap gap-2 justify-center mb-10">
     {{ range $i, $c := $links }}
-    <a href="#cat-{{ $i }}" class="rounded-full px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-600 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 hover:border-indigo-400 transition-colors">{{ $c.category }}</a>
+    <a href="#cat-{{ $i }}" class="rounded-full px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-600 hover:bg-blue-100 dark:hover:bg-blue-900/40 hover:border-blue-400 transition-colors">{{ $c.category }}</a>
     {{ end }}
   </div>
   {{ range $i, $c := $links }}
   <section id="cat-{{ $i }}" class="mb-10 link-category">
-    <h2 class="mb-4 text-lg font-semibold border-l-4 border-indigo-500 pl-3">{{ $c.category }}</h2>
+    <h2 class="mb-4 text-lg font-semibold border-l-4 border-blue-500 pl-3">{{ $c.category }}</h2>
     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
       {{ range $c.sites }}
       <a href="{{ .url }}" target="_blank" rel="noopener" data-name="{{ .name }}" data-desc="{{ .desc | default "" }}"
