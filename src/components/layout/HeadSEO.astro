@@ -1,0 +1,60 @@
+---
+import '@/styles/globals.css'
+import { LANGS, pagePath, type Lang, type PageId } from '@/i18n'
+
+interface Props {
+  title?: string | undefined
+  description?: string | undefined
+  ogImage?: URL | undefined
+  /** When given, every language version of the page is announced to crawlers. */
+  alternates?: { lang: Lang; page: PageId } | undefined
+}
+
+// Astro.site is set in astro.config.mjs; the fallback only matters in isolation.
+const canonicalURL = new URL(
+  Astro.url.pathname,
+  Astro.site ?? 'https://xexubonete.dev',
+)
+
+const {
+  title,
+  description,
+  alternates,
+  ogImage = new URL(
+    'https://img.icons8.com/?size=100&id=9918&format=png&color=000000',
+  ),
+} = Astro.props
+---
+
+<meta charset="utf-8" />
+<meta name="robots" content="index, follow" />
+<meta name="googlebot" content="index, follow" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="generator" content={Astro.generator} />
+<meta name="color-scheme" content="light dark" />
+<link rel="canonical" href={canonicalURL} />
+<link rel="icon" type="image/png" href="/me.png" />
+{alternates &&
+  LANGS.map((lang) => (
+    <link
+      rel="alternate"
+      hreflang={lang}
+      href={new URL(pagePath(lang, alternates.page), canonicalURL)}
+    />
+  ))}
+
+<title>{title}</title>
+<meta name="title" content={title} />
+<meta name="description" content={description} />
+
+<meta property="og:type" content="website" />
+<meta property="og:url" content={canonicalURL} />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:image" content={ogImage} />
+
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:url" content={canonicalURL} />
+<meta property="twitter:title" content={title} />
+<meta property="twitter:description" content={description} />
+<meta property="twitter:image" content={ogImage} />
