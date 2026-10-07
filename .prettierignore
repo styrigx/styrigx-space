@@ -1,6 +1,15 @@
-dist/
-node_modules/
-.netlify/
-.astro/
+# dependencies / lockfiles (Dependabot regenerates these; never format)
 pnpm-lock.yaml
-.redesign-shots/
+package-lock.json
+yarn.lock
+node_modules/
+
+# build / generated
+dist/
+.astro/
+.vercel/
+
+# env / OS
+.env
+.env.*
+.DS_Store

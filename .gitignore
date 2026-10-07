@@ -2,7 +2,8 @@
 dist/
 # generated types
 .astro/
-.vercel/
+.idea/
+
 # dependencies
 node_modules/
 
@@ -19,5 +20,3 @@ pnpm-debug.log*
 
 # macOS-specific files
 .DS_Store
-
-preview/

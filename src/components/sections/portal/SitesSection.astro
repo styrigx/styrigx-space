@@ -1,0 +1,56 @@
+---
+import Icon from '@components/ui/icons/Icon.astro';
+
+interface Site {
+  title: string;
+  description: string;
+  url: string;
+  icon: 'books' | 'sparks' | 'githubMark' | 'x';
+}
+
+interface Props {
+  title?: string;
+  subTitle?: string;
+  sites: Site[];
+}
+
+const { title, subTitle, sites } = Astro.props;
+---
+
+<section class="mx-auto max-w-[85rem] px-4 py-10 sm:px-6 lg:px-8 lg:py-14 2xl:max-w-full">
+  <div class="mx-auto mb-10 max-w-2xl text-center lg:mb-14">
+    {title && (
+      <h2 class="text-2xl font-bold text-balance text-neutral-800 md:text-3xl dark:text-neutral-200">
+        {title}
+      </h2>
+    )}
+    {subTitle && (
+      <p class="mt-2 text-pretty text-neutral-600 dark:text-neutral-400">
+        {subTitle}
+      </p>
+    )}
+  </div>
+
+  <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+    {sites.map(site => (
+      <a
+        href={site.url}
+        class="group flex flex-col rounded-xl border border-neutral-200 bg-white p-6 transition-all hover:-translate-y-1 hover:shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
+      >
+        <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-yellow-500/10 text-yellow-500 dark:text-yellow-400">
+          <Icon name={site.icon} class="h-6 w-6" title={site.title} />
+        </div>
+        <h3 class="text-lg font-semibold text-neutral-800 dark:text-neutral-200">
+          {site.title}
+        </h3>
+        <p class="mt-2 flex-1 text-sm text-pretty text-neutral-600 dark:text-neutral-400">
+          {site.description}
+        </p>
+        <span class="mt-4 inline-flex items-center gap-1 text-sm font-medium text-yellow-600 dark:text-yellow-400">
+          Visit
+          <Icon name="arrowRight" class="h-4 w-4 transition-transform group-hover:translate-x-1" />
+        </span>
+      </a>
+    ))}
+  </div>
+</section>
