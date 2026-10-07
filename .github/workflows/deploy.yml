@@ -38,4 +38,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy public --project-name=styrigx-portal --commit-dirty=true
+          command: pages deploy public --project-name=styrigx-space --commit-dirty=true
