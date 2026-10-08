@@ -1,0 +1,30 @@
+- name: Muse Invite Board
+  url: https://muse-invite.styrigx.com
+  desc: Free Muse invite codes, with a mini lottery game.
+  icon: ticket
+  stage: budding
+  tags: [AI, Tools]
+- name: muse-playbook
+  url: https://github.com/styrigx/muse-playbook
+  desc: 501 practical Muse tips and real-world use cases.
+  icon: book
+  stage: evergreen
+  tags: [AI, Open source]
+- name: textbook-playbook
+  url: https://github.com/styrigx/textbook-playbook
+  desc: Textbook knowledge base in structured Chinese entries.
+  icon: book
+  stage: evergreen
+  tags: [Learning, Open source]
+- name: Mihomo Rulesets
+  url: https://mihomo-mrs.styrigx.com
+  desc: Personal proxy ruleset subscription.
+  icon: globe
+  stage: budding
+  tags: [Tools, Network]
+- name: Styrigx's Space
+  url: https://styrigx.com
+  desc: This site itself, a digital-garden style personal portal, still growing.
+  icon: compass
+  stage: seedling
+  tags: [Site]

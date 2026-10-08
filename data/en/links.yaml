@@ -49,7 +49,7 @@
     - name: Broadcom Support
       url: https://support.broadcom.com
       desc: VMware & software downloads
-- category: Network Test
+- category: Network Tests
   sites:
     - name: IPLeak
       url: https://ipleak.net

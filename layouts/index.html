@@ -1,12 +1,12 @@
 {{ define "main" }}
-{{ $isEn := eq .Lang "en" }}
+{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 {{ $profile := site.Data.profile }}
 {{ $books := site.Data.books }}
 {{ $music := site.Data.music }}
 {{ $collections := site.Data.collections }}
 {{ $now := site.Data.now }}
 {{ $linksUrl := "/links/" }}{{ $home := "/" }}
-{{ if $isEn }}{{ $books = site.Data.en.books }}{{ $music = site.Data.en.music }}{{ $now = site.Data.en.now }}{{ $linksUrl = "/en/links/" }}{{ $home = "/en/" }}{{ end }}
+{{ if $isEn }}{{ $books = site.Data.en.books }}{{ $music = site.Data.en.music }}{{ $collections = site.Data.en.collections }}{{ $now = site.Data.en.now }}{{ $linksUrl = "/en/links/" }}{{ $home = "/en/" }}{{ end }}
 {{ $motto := $profile.motto_zh }}{{ if $isEn }}{{ $motto = $profile.motto_en }}{{ end }}
 
 <!-- Hero -->
@@ -60,7 +60,14 @@
       {{ $l := findRESubmatch "(?s)<link>(.*?)</link>" . }}
       {{ $d := findRESubmatch "(\\d{2}) (\\w{3}) (\\d{4})" . }}
       {{ if and $t $l $d }}
-        {{ $posts = $posts | append (dict "title" (index (index $t 0) 1) "link" (index (index $l 0) 1) "date" (printf "%s %s %s" (index (index $d 0) 1) (index (index $d 0) 2) (index (index $d 0) 3))) }}
+        {{ $day := index (index $d 0) 1 }}{{ $mon := index (index $d 0) 2 }}{{ $yr := index (index $d 0) 3 }}
+        {{ $monNum := dict "Jan" "1" "Feb" "2" "Mar" "3" "Apr" "4" "May" "5" "Jun" "6" "Jul" "7" "Aug" "8" "Sep" "9" "Oct" "10" "Nov" "11" "Dec" "12" }}
+        {{ $m := index $monNum $mon }}
+        {{ $dayTrim := strings.TrimLeft "0" $day }}
+        {{ $dateZh := printf "%s年%s月%s日" $yr $m $dayTrim }}
+        {{ $dateEn := printf "%s %s, %s" $mon $dayTrim $yr }}
+        {{ $dateStr := cond $isEn $dateEn $dateZh }}
+        {{ $posts = $posts | append (dict "title" (index (index $t 0) 1) "link" (index (index $l 0) 1) "date" $dateStr) }}
       {{ end }}
     {{ end }}
   {{ end }}

@@ -1,10 +1,11 @@
 <!DOCTYPE html>
-<html lang="{{ .Lang }}" class="scroll-smooth">
+<html lang="{{ if or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}en{{ else }}zh{{ end }}" class="scroll-smooth">
 <head>
+{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ if .IsHome }}Styrigx{{ else }}{{ .Title }} | Styrigx{{ end }}</title>
-<meta name="description" content="{{ .Site.Params.description }}">
+<meta name="description" content="{{ if $isEn }}Sloan Gray’s personal portal{{ else }}{{ .Site.Params.description }}{{ end }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -23,7 +24,6 @@ body{line-height:1.6}
 <script>if(localStorage.theme==='dark'||(!('theme' in localStorage)&&matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}</script>
 </head>
 <body class="bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen antialiased">
-{{ $isEn := eq .Lang "en" }}
 {{ $profile := site.Data.profile }}
 {{ $home := "/" }}{{ if $isEn }}{{ $home = "/en/" }}{{ end }}
 
@@ -45,7 +45,7 @@ body{line-height:1.6}
       <kbd class="text-xs bg-gray-200/70 dark:bg-gray-700/70 rounded px-1.5 py-0.5 font-sans">⌘K</kbd>
     </button>
     <div class="flex items-center gap-4 sm:gap-6 text-sm font-medium">
-      <button id="search-open-m" class="sm:hidden p-1 text-gray-600 dark:text-gray-300" aria-label="搜索">{{ partial "icon.html" "search" }}</button>
+      <button id="search-open-m" class="sm:hidden p-1 text-gray-600 dark:text-gray-300" aria-label="{{ if $isEn }}Search{{ else }}搜索{{ end }}">{{ partial "icon.html" "search" }}</button>
 {{ if $isEn }}
       <a href="/en/" class="hidden sm:inline text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Home</a>
       <a href="/en/links/" class="hidden sm:inline text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Links</a>
@@ -57,7 +57,7 @@ body{line-height:1.6}
       <a href="https://blog.styrigx.com" target="_blank" rel="noopener" class="hidden sm:inline text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">博客</a>
       <a href="/en/" class="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">EN</a>
 {{ end }}
-      <button id="theme-toggle" aria-label="切换主题" class="w-9 h-9 rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+      <button id="theme-toggle" aria-label="{{ if $isEn }}Toggle theme{{ else }}切换主题{{ end }}" class="w-9 h-9 rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
         <svg width="20" height="20" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/></svg>
         <svg width="20" height="20" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0012 21.75a9.753 9.753 0 009.752-6.748z"/></svg>
       </button>
@@ -93,7 +93,7 @@ body{line-height:1.6}
 {{ $collections := site.Data.collections }}
 {{ $links := site.Data.links }}
 {{ if $isEn }}
-  {{ $entries = site.Data.en.entries.entries }}{{ $books = site.Data.en.books }}{{ $links = site.Data.en.links }}
+  {{ $entries = site.Data.en.entries.entries }}{{ $books = site.Data.en.books }}{{ $music = site.Data.en.music }}{{ $collections = site.Data.en.collections }}{{ $links = site.Data.en.links }}
 {{ end }}
 {{ $cFeatured := "精选" }}{{ $cBook := "书单" }}{{ $cMusic := "歌单" }}{{ $cColl := "收藏" }}{{ $cLink := "书签" }}
 {{ if $isEn }}{{ $cFeatured = "Featured" }}{{ $cBook = "Books" }}{{ $cMusic = "Music" }}{{ $cColl = "Collections" }}{{ $cLink = "Links" }}{{ end }}
@@ -127,7 +127,7 @@ body{line-height:1.6}
   function render(q){
     q=q.trim().toLowerCase();sel=-1;
     var hits=data.filter(function(x){return !q||(x.t+' '+x.d).toLowerCase().indexOf(q)!==-1}).slice(0,12);
-    if(!hits.length){box.innerHTML='<div class="px-4 py-8 text-center text-sm text-gray-400">无结果</div>';return}
+    if(!hits.length){var noRes=document.documentElement.lang==='en'?'No results':'无结果';box.innerHTML='<div class="px-4 py-8 text-center text-sm text-gray-400">'+noRes+'</div>';return}
     box.innerHTML=hits.map(function(x){
       return '<a href="'+x.u+'" class="flex items-center gap-3 rounded-xl px-4 py-3 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">'
         +'<span class="flex-1 min-w-0"><span class="block font-medium truncate">'+esc(x.t)+'</span>'
