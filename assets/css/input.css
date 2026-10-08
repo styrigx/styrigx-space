@@ -1078,3 +1078,36 @@ body.sgx-locked #dex-dock{transform:translateX(-50%) scale(.96);transition:trans
 }
 .reduced-motion .sgx-lock-halo{animation:none}
 .reduced-motion #sgx-lock.sgx-lock-out{transform:none}
+
+/* ============================================================
+   2.3.14.6：搜索胶囊跟键盘走（无跳动）＋ 语音输入提示弹窗
+   ============================================================ */
+/* 无 VirtualKeyboard API 时：rAF + transform 把胶囊放到 visualViewport 底边，不加 transition；
+   .open 的 bottom/left/right/width 保持收起态几何，由 JS 内联样式驱动 */
+.sgx-cap.sgx-kb-sync,.sgx-cap.sgx-kb-sync.open{transition:none}
+.sgx-cap.sgx-kb-sync.open{bottom:calc(88px + env(safe-area-inset-bottom,0px));left:50%;right:auto;transform:translateX(-50%);width:min(64vw,300px)}
+/* 有 VirtualKeyboard API（Chrome）时：overlaysContent 让键盘悬浮不顶页面，
+   胶囊 bottom 直接跟 env(keyboard-inset-height) 走，不加 transition；宽度由 JS 内联插值 */
+.sgx-vk .sgx-cap.open{bottom:calc(env(keyboard-inset-height,0px) + 12px + env(safe-area-inset-bottom,0px));transition:none;left:50%;right:auto;transform:translateX(-50%)}
+/* 浏览器弹层地址栏：同样的无跳动处理（只保留 transform/opacity 的开场动画，去掉 bottom 过渡） */
+.sgx-vk .brw-ov.open .brw-ov-barwrap{bottom:calc(env(keyboard-inset-height,0px) + 12px + env(safe-area-inset-bottom,0px));transition:transform .28s cubic-bezier(.32,.72,.35,1),opacity .25s ease}
+.sgx-vk .brw-ov-top{transition:transform .28s cubic-bezier(.32,.72,.35,1),opacity .25s ease}
+.brw-ov.sgx-kb-sync .brw-ov-barwrap{transition:transform .28s cubic-bezier(.32,.72,.35,1),opacity .25s ease}
+.brw-ov.sgx-kb-sync .brw-ov-top{transition:transform .28s cubic-bezier(.32,.72,.35,1),opacity .25s ease}
+/* 语音输入提示弹窗：半透明灰色遮罩（200ms 淡入）＋ 底部白色圆角卡片（250ms ease-out 滑上） */
+.sgx-vs-ov{position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.2);opacity:0;transition:opacity .2s ease}
+.sgx-vs-ov.show{opacity:1}
+.sgx-vs-card{position:absolute;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom,0px));height:72px;background:#fff;border-radius:28px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 14px 0 20px;box-shadow:0 12px 32px rgba(0,0,0,.18);transform:translateY(120%);transition:transform .25s ease-out}
+.sgx-vs-ov.show .sgx-vs-card{transform:none}
+.dark .sgx-vs-card{background:#26262b}
+.layout-dex .sgx-vs-card{left:50%;right:auto;width:min(480px,calc(100vw - 16px));transform:translate(-50%,120%)}
+.layout-dex .sgx-vs-ov.show .sgx-vs-card{transform:translate(-50%,0)}
+.sgx-vs-tx{min-width:0;flex:1}
+.sgx-vs-l1{font-size:17px;color:var(--m-on-surface);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sgx-vs-l2{font-size:13px;color:var(--m-on-surface-variant);margin-top:2px}
+.sgx-vs-btn{position:relative;width:44px;height:44px;border-radius:50%;background:var(--m-primary);color:#fff;border:0;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sgx-vs-btn svg{width:22px;height:22px;display:block}
+.sgx-vs-btn.listening::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid color-mix(in srgb,var(--m-primary) 45%,transparent);animation:sgx-vs-halo 1.4s ease-out infinite}
+@keyframes sgx-vs-halo{0%{transform:scale(.92);opacity:.9}70%{transform:scale(1.12);opacity:.3}100%{transform:scale(1.18);opacity:0}}
+.reduced-motion .sgx-vs-ov,.reduced-motion .sgx-vs-card{transition:none}
+.reduced-motion .sgx-vs-btn.listening::after{animation:none}

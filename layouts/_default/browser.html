@@ -120,6 +120,7 @@
   </section>
 </div>
 
+{{ partial "sgx-voice-sheet.html" . }}
 <script>
 /* favicon 取不到时用首字母圆形占位 */
 window.__favFallback=function(img,name){
@@ -170,12 +171,12 @@ window.__favFallback=function(img,name){
 
   /* ============ 2.3.12.1 弹出层开/关：磨砂蒙层，点蒙层空白处或返回键淡出关闭 ============ */
   var ovOpen=false;
-  function openOverlay(){
+  function openOverlay(opts){
     if(ovOpen)return;ovOpen=true;
     try{history.pushState({brwOv:1},'')}catch(e){}
     overlay.classList.add('open');
     renderSuggest();
-    setTimeout(function(){try{input.focus({preventScroll:true})}catch(e){}},180);
+    if(!opts||opts.focus!==false){setTimeout(function(){try{input.focus({preventScroll:true})}catch(e){}},180)}
     stickKb();
   }
   function closeOverlay(fromPop){
@@ -186,25 +187,53 @@ window.__favFallback=function(img,name){
     unstickKb();
     if(!fromPop){try{history.back()}catch(e){}}
   }
-  if(addrbar)addrbar.addEventListener('click',openOverlay);
+  if(addrbar)addrbar.addEventListener('click',function(){openOverlay()});
   overlay.addEventListener('click',function(e){if(e.target===overlay)closeOverlay(false)});
   document.addEventListener('keydown',function(e){if(e.key==='Escape'&&ovOpen)closeOverlay(false)});
   window.addEventListener('popstate',function(){if(ovOpen)closeOverlay(true)});
 
-  /* ============ 键盘贴合：地址栏贴键盘（visualViewport） ============ */
+  /* ============ 键盘贴合：地址栏贴键盘，无跳动（2.3.14.6） ============
+     有 VirtualKeyboard API（Chrome）：overlaysContent 让键盘悬浮不顶页面，
+     barwrap bottom 直接跟 env(keyboard-inset-height)，不加 bottom transition。
+     无 VK API：visualViewport resize/scroll → rAF 更新 --sgx-kb，不加 transition。 */
   var vv=window.visualViewport;
+  var useVK=false;
+  try{
+    if(navigator.virtualKeyboard&&('overlaysContent' in navigator.virtualKeyboard)){
+      navigator.virtualKeyboard.overlaysContent=true;useVK=true;
+    }
+  }catch(e){}
   function stickKb(){
+    if(useVK){
+      document.documentElement.classList.add('sgx-vk');
+      var onGeo=function(e){
+        var h=0;try{h=(e.target&&e.target.boundingRect&&e.target.boundingRect.height)||0}catch(_){}
+        h=Math.max(0,h);
+        document.documentElement.style.setProperty('--sgx-kb',Math.round(h)+'px');
+        overlay.classList.toggle('kb-open',h>100);
+      };
+      try{navigator.virtualKeyboard.addEventListener('geometrychange',onGeo)}catch(e){}
+      overlay._vkGeo=onGeo;
+      return;
+    }
     if(!vv)return;
+    overlay.classList.add('sgx-kb-sync');
+    var raf=0;
     function upd(){
+      raf=0;
       var h=Math.max(0,window.innerHeight-vv.height-vv.offsetTop);
       document.documentElement.style.setProperty('--sgx-kb',h+'px');
       overlay.classList.toggle('kb-open', h > 100);
     }
-    vv.addEventListener('resize',upd);vv.addEventListener('scroll',upd);
-    overlay._vvUpd=upd;upd();
+    function sched(){if(!raf)raf=requestAnimationFrame(upd)}
+    vv.addEventListener('resize',sched);vv.addEventListener('scroll',sched);
+    overlay._vvSched=sched;upd();
   }
   function unstickKb(){
-    if(vv&&overlay._vvUpd){vv.removeEventListener('resize',overlay._vvUpd);vv.removeEventListener('scroll',overlay._vvUpd)}
+    document.documentElement.classList.remove('sgx-vk');
+    overlay.classList.remove('sgx-kb-sync');
+    if(overlay._vkGeo){try{navigator.virtualKeyboard.removeEventListener('geometrychange',overlay._vkGeo)}catch(e){}overlay._vkGeo=null}
+    if(vv&&overlay._vvSched){vv.removeEventListener('resize',overlay._vvSched);vv.removeEventListener('scroll',overlay._vvSched);overlay._vvSched=null}
     document.documentElement.style.setProperty('--sgx-kb','0px');
     overlay.classList.remove('kb-open');
   }
@@ -271,46 +300,36 @@ window.__favFallback=function(img,name){
     });
   });
 
-  /* ============ 语音输入（统一 __sgxVoice：识别文字填入并展示站内建议，不自动跳外部引擎） ============ */
-  if(window.__sgxVoice && micBtn){
-    window.__sgxVoice(micBtn, {
-      input: input,
-      onResult: function(){
-        renderSuggest(); showSuggest(); input.focus();
-      }
-    });
-  }
+  /* ============ 语音输入（2.3.14.6）：走共享语音弹窗；识别文字填入并展示站内建议 ============
+     只检测 SpeechRecognition 接口是否存在，不按浏览器 UA 判断；不支持则按钮不渲染 */
+  (function(){
+    var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(micBtn&&SR){
+      micBtn.style.display='';
+      micBtn.addEventListener('click',function(e){
+        e.stopPropagation();
+        window.__sgxVoiceSheet({onFinal:function(t){
+          input.value=t;renderSuggest();showSuggest();
+          try{input.focus({preventScroll:true})}catch(e2){}
+        }});
+      });
+    }
+  })();
 
-  /* ============ 底部地址栏胶囊麦克风（2.3.14.1）：点麦克风先打开弹出层再听写 ============ */
-  /* 只检测 SpeechRecognition 接口是否存在，不按浏览器 UA 判断；不支持则不渲染，无空位、无报错；
-     拒绝权限等错误静默恢复原状 */
+  /* ============ 底部地址栏胶囊麦克风（2.3.14.6）：点麦克风先打开弹出层，再走共享语音弹窗 ============ */
+  /* 只检测 SpeechRecognition 接口是否存在，不按浏览器 UA 判断；不支持则不渲染，无空位、无报错 */
   (function(){
     var pillMic = addrbar ? addrbar.querySelector('[data-mic]') : null;
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if(!pillMic || !SR) return;
     pillMic.style.display = '';
-    var rec = null;
     pillMic.addEventListener('click', function(e){
       e.stopPropagation();
-      if(rec){ try{rec.stop()}catch(err){} rec = null; return; }
-      try{
-        openOverlay();
-        var en = document.documentElement.lang === 'en';
-        rec = new SR();
-        rec.lang = en ? 'en-US' : 'zh-CN';
-        rec.interimResults = false; rec.maxAlternatives = 1;
-        pillMic.classList.add('sgx-mic-on');
-        rec.onresult = function(ev){
-          var t = '';
-          try{ t = String(ev.results[0][0].transcript || '').trim(); }catch(err){}
-          if(t){ input.value = t; renderSuggest(); showSuggest(); try{ input.focus({preventScroll:true}); }catch(e2){} }
-        };
-        var done = function(){ pillMic.classList.remove('sgx-mic-on'); rec = null; };
-        rec.onend = done;
-        rec.onerror = done;
-        rec.start();
-        setTimeout(function(){ if(rec){ try{rec.stop()}catch(err){} } }, 8000);
-      }catch(err){ pillMic.classList.remove('sgx-mic-on'); rec = null; }
+      openOverlay({focus:false});
+      window.__sgxVoiceSheet({onFinal:function(t){
+        input.value = t; renderSuggest(); showSuggest();
+        try{ input.focus({preventScroll:true}); }catch(e2){}
+      }});
     });
   })();
 
