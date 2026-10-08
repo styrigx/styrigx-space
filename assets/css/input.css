@@ -915,28 +915,6 @@ body.sgx-cap-pad main{padding-bottom:calc(180px + env(safe-area-inset-bottom,0px
 .brw-ov-btn svg{width:22px;height:22px}
 #brw-engine-ic{display:inline-flex;align-items:center;justify-content:center}
 
-/* ---------- 效果4：大标题折叠 ---------- */
-.sgx85-hero{position:relative;display:flex;align-items:flex-end;justify-content:center;
-  min-height:25vh;min-height:25svh;padding:0 24px calc(20px + env(safe-area-inset-top,0px));padding-top:calc(76px + env(safe-area-inset-top,0px));
-  overflow:hidden}
-.layout-dex .sgx85-hero{min-height:16vh}
-.sgx85-hero-title{font-size:clamp(34px,9vw,44px);font-weight:800;color:var(--m-primary);text-align:center;
-  line-height:1.15;letter-spacing:-.01em;margin:0;
-  transform-origin:center bottom;will-change:transform,opacity}
-.sgx85-hero-sub{font-size:15px;color:var(--m-on-surface-variant);text-align:center;margin:8px 0 0}
-/* 折叠后的小标题顶栏：一级页无返回箭头，标题居左 */
-.sgx85-minibar{position:fixed;top:0;left:0;right:0;z-index:60;
-  display:flex;align-items:center;justify-content:flex-start;height:calc(56px + env(safe-area-inset-top,0px));
-  padding-top:env(safe-area-inset-top,0px);padding-left:20px;padding-right:20px;
-  background:color-mix(in srgb,var(--m-background) 82%,transparent);
-  backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);
-  border-bottom:1px solid rgba(0,0,0,0.05);
-  opacity:0;pointer-events:none;transform:translateY(-8px);transition:opacity .2s ease,transform .2s ease}
-.dark .sgx85-minibar{border-bottom-color:rgba(255,255,255,0.06)}
-.sgx85-minibar.show{opacity:1;pointer-events:auto;transform:none}
-.reduced-motion .sgx85-minibar{transition:none}
-.sgx85-minibar-title{font-size:17px;font-weight:700;color:var(--m-on-surface)}
-
 /* ---------- 效果5：One UI 控件 ---------- */
 .sgx85-group{margin:0 16px 12px;border-radius:1.5rem;overflow:hidden;
   background:var(--m-container-lowest);border:1px solid rgba(0,0,0,0.03)}
@@ -988,7 +966,7 @@ body.sgx-cap-pad main{padding-bottom:calc(180px + env(safe-area-inset-bottom,0px
 @keyframes sgx85-slidein{from{transform:translateX(48px);opacity:.4}to{transform:none;opacity:1}}
 .reduced-motion .sgx85-subpage{animation:none}
 @media (prefers-reduced-motion:reduce){
-  .sgx85-pill,.sgx-cap,.sgx-cap-results,.brw-ov,.brw-ov-top,.brw-ov-barwrap,.sgx85-minibar,.sgx85-switch .tk,.sgx85-switch .kn{transition:none !important;animation:none !important}
+  .sgx85-pill,.sgx-cap,.sgx-cap-results,.brw-ov,.brw-ov-top,.brw-ov-barwrap,.sgx85-switch .tk,.sgx85-switch .kn{transition:none !important;animation:none !important}
 }
 
 /* ===== 2.3.14 首页锁屏 ===== */
