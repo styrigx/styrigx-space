@@ -104,12 +104,12 @@ function __applyLayout(){
   if(window.__dexLayoutChanged){try{window.__dexLayoutChanged(m)}catch(e){}}
 }
 __applyLayout();
-/* 手机子页面标题区高度 = 实际可见高度 × 0.42。
+/* 手机子页面标题区高度 = 实际可见高度 × 0.25。
    只在首次加载和横竖屏切换时更新；滚动时浏览器地址栏伸缩不跟着变。 */
 window.__setHeadH=function(){
   if(!document.documentElement.classList.contains('layout-phone'))return;
   var h=window.innerHeight||0;
-  if(h>0)document.documentElement.style.setProperty('--head-h',Math.round(h*0.42)+'px');
+  if(h>0)document.documentElement.style.setProperty('--head-h',Math.round(h*0.25)+'px');
 }
 window.__setHeadH();
 (function(){

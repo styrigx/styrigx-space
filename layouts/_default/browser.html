@@ -3,7 +3,7 @@
 {{ $links := site.Data.links }}
 {{ if $isEn }}{{ $links = site.Data.en.links }}{{ end }}
 <div class="max-w-[1100px] mx-auto px-4 pb-40">
-  {{ partial "subpage-head.html" (dict "title" (cond $isEn "Internet" "浏览器") "sub" (cond $isEn "Search and bookmarks" "搜索与书签") "isEn" $isEn) }}
+  {{ partial "subpage-head.html" (dict "title" (cond $isEn "Internet" "浏览器") "sub" (cond $isEn "Search and bookmarks" "搜索与书签") "isEn" $isEn "noBack" true) }}
 
   <!-- 2.3.12.1 效果3：地址栏胶囊（底部悬浮，点击弹出磨砂搜索层） -->
   <button type="button" id="brw-addrbar" class="sgx85-pill" aria-label="{{ cond $isEn "Search or type URL" "搜索或输入网址" }}">

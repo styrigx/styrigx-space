@@ -214,6 +214,9 @@ main {
 body { display: flex; flex-direction: column; min-height: 100dvh; }
 main { flex: 1 0 auto; }
 footer { padding-bottom: calc(var(--dock-h) + env(safe-area-inset-bottom, 0px)); }
+/* 2.3.12.1 返工点3：有搜索胶囊的页面，页脚底部留白 = 胶囊高 52px + Dock 高 64px + 24px，
+   版权行完整露出在胶囊上方，不被压住 */
+body.sgx-cap-pad footer{padding-bottom:calc(52px + var(--dock-h) + 24px + env(safe-area-inset-bottom,0px))}
 .layout-dex footer { padding-bottom: env(safe-area-inset-bottom, 0px); }
 
 /* ===== 顶栏：透明无底色无线，直接融在背景里；手机、DeX 全局显示 ===== */
@@ -262,12 +265,13 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
 .subpage-head{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;
   text-align:center;min-height:38vh;min-height:38svh;
   padding:calc(76px + env(safe-area-inset-top,0px)) 20px 32px}
-/* 手机：标题区高度 = 实际可见高度 × 0.42（JS 写 --head-h，只在加载/横竖屏更新；兜底 42svh）。
-   标题区从屏幕顶部开始（顶栏透明叠在上面），大标题在区内居中偏下约 55%，
-   第一个内容模块顶边自然落在屏幕 42%–45% 处。 */
-.layout-phone .subpage-head{min-height:var(--head-h,max(300px,42svh));
-  padding-top:calc(var(--nav-h,64px) + 20px + env(safe-area-inset-top,0px))}
-.layout-phone .subpage-hero{position:relative;top:calc(var(--head-h,42svh)*0.05)}
+/* 手机：标题区高度 = 实际可见高度 × 0.25（JS 写 --head-h，只在加载/横竖屏更新；兜底 25svh）。
+   标题区从屏幕顶部开始（顶栏透明叠在上面），大标题沉底：标题区整体约 25% 屏高，
+   标题下方到第一块内容不超过 32px（head 的 padding-bottom）。折叠动画逻辑不变。 */
+.layout-phone .subpage-head{min-height:var(--head-h,max(200px,25svh));
+  padding-top:calc(var(--nav-h,64px) + 20px + env(safe-area-inset-top,0px));
+  justify-content:flex-end}
+.layout-phone .subpage-hero{position:relative;top:0}
 .layout-phone .subpage-back{top:calc(var(--nav-h,64px) + 12px + env(safe-area-inset-top,0px))}
 .layout-phone .subpage-actions{top:calc(var(--nav-h,64px) + 12px + env(safe-area-inset-top,0px))}
 .layout-dex .subpage-head{min-height:25vh;min-height:25svh;padding-top:calc(64px + env(safe-area-inset-top,0px))}
@@ -901,7 +905,7 @@ body.sgx-cap-pad main{padding-bottom:calc(176px + env(safe-area-inset-bottom,0px
 
 /* ---------- 效果4：大标题折叠 ---------- */
 .sgx85-hero{position:relative;display:flex;align-items:flex-end;justify-content:center;
-  min-height:32vh;padding:0 24px calc(20px + env(safe-area-inset-top,0px));padding-top:calc(76px + env(safe-area-inset-top,0px));
+  min-height:25vh;min-height:25svh;padding:0 24px calc(20px + env(safe-area-inset-top,0px));padding-top:calc(76px + env(safe-area-inset-top,0px));
   overflow:hidden}
 .layout-dex .sgx85-hero{min-height:16vh}
 .sgx85-hero-title{font-size:clamp(34px,9vw,44px);font-weight:800;color:var(--m-primary);text-align:center;

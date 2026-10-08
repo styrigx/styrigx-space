@@ -17,7 +17,7 @@
   (dict "id" "mysites" "label" (cond $isEn "My Sites" "我的站点")) }}
 
 <div class="max-w-[1100px] mx-auto px-4">
-  {{ partial "subpage-head.html" (dict "title" .Title "sub" (cond $isEn "Apps on this site" "站内应用") "isEn" $isEn) }}
+  {{ partial "subpage-head.html" (dict "title" .Title "sub" (cond $isEn "Apps on this site" "站内应用") "isEn" $isEn "noBack" true) }}
 
   <!-- 分类芯片（单行横滑） -->
   <div id="store-chips" class="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 py-3" role="group" aria-label="{{ cond $isEn "Filter apps" "筛选应用" }}">

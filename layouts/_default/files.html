@@ -58,7 +58,7 @@
 {{ $i18n := dict "filesBase" $filesBase "setUrl" $setUrl "types" $typeMeta "defaults" $defaults "str" $str }}
 
 <div class="max-w-[1100px] mx-auto px-4">
-  {{ partial "subpage-head.html" (dict "title" .Title "sub" (cond $isEn "Site index" "全站内容索引") "isEn" $isEn "actions" ($moreBtn | safeHTML)) }}
+  {{ partial "subpage-head.html" (dict "title" .Title "sub" (cond $isEn "Site index" "全站内容索引") "isEn" $isEn "noBack" true "actions" ($moreBtn | safeHTML)) }}
   <button type="button" id="files-more-float" class="files-more-float" aria-label="{{ if $isEn }}More options{{ else }}更多选项{{ end }}">{{ $dots | safeHTML }}</button>
 
   <!-- 主页模式 -->

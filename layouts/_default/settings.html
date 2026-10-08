@@ -9,7 +9,7 @@
   (dict "id" "rose" "c" "#984061" "zh" "蔷薇" "en" "Rose")
 }}
 
-<div class="set-layout max-w-2xl mx-auto pb-28">
+<div class="set-layout max-w-2xl mx-auto px-4 pb-28">
     <!-- 2.3.12.1 效果4：大标题折叠（一级页无返回箭头，标题文字/副标题与 2.3.11 一致） -->
     <div class="sgx85-hero" id="set-hero">
       <div>
@@ -65,16 +65,6 @@
       </nav>
     </aside>
     <div class="set-main min-w-0">
-    <!-- 个人卡片（2.3.11，手机端显示，双栏下左栏已有）：姓名在左、头像在右 -->
-    <section class="sm:hidden widget bg-m-container-lowest border border-m-outline p-5 flex items-center gap-4 mb-7 animate-fade-up" style="animation-delay:.06s">
-      <div class="flex-1 min-w-0">
-        <p class="text-lg font-bold truncate">Sloan Gray</p>
-        <p class="text-sm text-m-on-surface-variant">Styrigx</p>
-      </div>
-      {{ if $avatar }}{{ $a := $avatar.Fill "160x160 webp" }}
-      <img src="{{ $a.RelPermalink }}" alt="Sloan Gray" width="64" height="64" class="w-16 h-16 rounded-full object-cover ring-2 ring-m-outline shrink-0">
-      {{ end }}
-    </section>
 
     <!-- 第一组：显示 -->
     <div class="set-group scroll-mt-24" id="sg-display">
