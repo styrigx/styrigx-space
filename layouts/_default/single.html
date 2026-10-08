@@ -40,9 +40,13 @@
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {{ range $c.sites }}
           {{ $host := (urls.Parse .url).Host }}
+          {{ $iconUrl := printf "https://www.google.com/s2/favicons?domain=%s&sz=64" $host }}
+          {{ if or (eq $host "blog.styrigx.com") (eq $host "muse-invite.styrigx.com") }}
+            {{ $iconUrl = printf "https://%s/favicon.ico" $host }}
+          {{ end }}
           <a href="{{ .url }}" target="_blank" rel="noopener" data-name="{{ .name }}" data-desc="{{ .desc | default "" }}"
              class="link-card group flex items-center gap-3 rounded-[1.25rem] border border-m-outline bg-m-container-lowest px-3.5 py-3 shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:border-m-primary active:scale-[0.98] transition-all">
-            <img src="https://www.google.com/s2/favicons?domain={{ $host }}&sz=64" alt="" loading="lazy"
+            <img src="{{ $iconUrl }}" alt="" loading="lazy"
                  class="w-9 h-9 rounded-xl shrink-0 bg-m-container-high object-contain p-0.5" onerror="this.style.display='none'">
             <span class="min-w-0">
               <span class="block font-medium text-sm truncate group-hover:text-m-primary transition-colors">{{ .name }}</span>

@@ -13,7 +13,19 @@
 <link rel="icon" href="/favicon-32x32.png" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="stylesheet" href="{{ (resources.Get "css/main.css" | minify | fingerprint).RelPermalink }}">
-<script>if(localStorage.theme==='dark'||(!('theme' in localStorage)&&matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}</script>
+<script>
+/* 用户偏好预读：在渲染前应用，避免闪烁 */
+(function(){
+  try{
+    var t=localStorage.getItem('theme');
+    if(t==='dark'||(!t&&matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}
+    /* 字体大小偏好（第二批设置页用） */
+    var fs=localStorage.getItem('sgx-font-size');
+    if(fs==='large'){document.documentElement.style.fontSize='112.5%'}
+    else if(fs==='small'){document.documentElement.style.fontSize='87.5%'}
+  }catch(e){}
+})();
+</script>
 </head>
 <body class="text-m-on-surface min-h-screen antialiased">
 {{ $profile := site.Data.profile }}
@@ -36,7 +48,15 @@
       <button id="search-open-m" class="w-9 h-9 rounded-full flex items-center justify-center text-m-on-surface-variant hover:bg-m-container transition-colors" aria-label="{{ if $isEn }}Search{{ else }}搜索{{ end }}">{{ partial "icon.html" "search" }}</button>
       <a href="{{ $home }}" class="hidden sm:inline-block px-3 py-1.5 rounded-full hover:bg-m-container transition-colors text-m-on-surface-variant">{{ if $isEn }}Home{{ else }}首页{{ end }}</a>
       <a href="{{ if $isEn }}/en/links/{{ else }}/links/{{ end }}" class="hidden sm:inline-block px-3 py-1.5 rounded-full hover:bg-m-container transition-colors text-m-on-surface-variant">{{ if $isEn }}Links{{ else }}导航{{ end }}</a>
-      <a href="{{ if $isEn }}/en/{{ else }}/{{ end }}" class="px-3 py-1.5 rounded-full hover:bg-m-container transition-colors text-m-on-surface-variant font-medium">{{ if $isEn }}中文{{ else }}EN{{ end }}</a>
+      {{/* 语言切换：跳到对应语言的同一页面 */}}
+      {{ $langUrl := "/en/" }}{{ $langLabel := "EN" }}
+      {{ if $isEn }}
+        {{ $langUrl = "/" }}{{ $langLabel = "中文" }}
+        {{ if hasPrefix .RelPermalink "/en/links/" }}{{ $langUrl = "/links/" }}{{ end }}
+      {{ else }}
+        {{ if hasPrefix .RelPermalink "/links/" }}{{ $langUrl = "/en/links/" }}{{ end }}
+      {{ end }}
+      <a href="{{ $langUrl }}" class="px-3 py-1.5 rounded-full hover:bg-m-container transition-colors text-m-on-surface-variant font-medium">{{ $langLabel }}</a>
       <button id="theme-toggle" aria-label="{{ if $isEn }}Toggle theme{{ else }}切换主题{{ end }}" class="w-9 h-9 rounded-full flex items-center justify-center text-m-on-surface-variant hover:bg-m-container transition-colors">
         <svg width="20" height="20" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/></svg>
         <svg width="20" height="20" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0012 21.75a9.753 9.753 0 009.752-6.748z"/></svg>
@@ -124,7 +144,7 @@ document.getElementById('theme-toggle').addEventListener('click',function(){
 });
 </script>
 
-<main class="pb-28 sm:pb-32">{{ block "main" . }}{{ end }}</main>
+<main>{{ block "main" . }}{{ end }}</main>
 <footer class="relative z-10 border-t border-m-outline mt-4">
   <div class="max-w-[1100px] mx-auto px-6 py-8 text-center">
     <p class="text-xs text-m-on-surface-variant">© {{ site.Params.since }}–<span id="copy-year">{{ now.Year }}</span> Sloan Gray</p>

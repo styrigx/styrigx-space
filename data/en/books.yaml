@@ -1,20 +1,20 @@
 - title: To Live
   author: Yu Hua
-  cover: https://covers.openlibrary.org/b/id/6823968-L.jpg
+  cover: images/books/book_01.webp
   comment: Resilience grown from suffering.
 - title: Ordinary World
   author: Lu Yao
-  cover: https://covers.openlibrary.org/b/id/13949263-L.jpg
+  cover: images/books/book_02.webp
   comment: An epic of the yellow earth.
 - title: The Great Gatsby
   author: F. Scott Fitzgerald
-  cover: https://covers.openlibrary.org/b/id/10590366-L.jpg
+  cover: images/books/book_03.webp
   comment: The green light across the bay.
 - title: Signals and Systems (2nd Edition)
   author: Oppenheim
-  cover: https://covers.openlibrary.org/b/id/14380640-L.jpg
+  cover: images/books/book_04.webp
   comment: The classic reference, organized into a structured knowledge base.
 - title: The Calculus Lifesaver
   author: Adrian Banner
-  cover: https://covers.openlibrary.org/b/id/9321899-L.jpg
+  cover: images/books/book_05.webp
   comment: The friendliest calculus introduction, also organized into a knowledge base.

@@ -1,20 +1,20 @@
 - title: 活着
   author: 余华
-  cover: https://covers.openlibrary.org/b/id/6823968-L.jpg
+  cover: images/books/book_01.webp
   comment: 苦难里长出来的韧性，读完很久都忘不掉。
 - title: 平凡的世界
   author: 路遥
-  cover: https://covers.openlibrary.org/b/id/13949263-L.jpg
+  cover: images/books/book_02.webp
   comment: 黄土地上的史诗，孙少平是很多人心里的自己。
 - title: 了不起的盖茨比
   author: 菲茨杰拉德
-  cover: https://covers.openlibrary.org/b/id/10590366-L.jpg
+  cover: images/books/book_03.webp
   comment: 隔海望绿灯——关于梦想与幻灭的永恒寓言。
 - title: 信号与系统（第2版）
   author: 奥本海姆
-  cover: https://covers.openlibrary.org/b/id/14380640-L.jpg
+  cover: images/books/book_04.webp
   comment: 工具书里的经典，条目式知识库已整理。
 - title: 普林斯顿微积分读本
   author: 阿德里安·班纳
-  cover: https://covers.openlibrary.org/b/id/9321899-L.jpg
+  cover: images/books/book_05.webp
   comment: 微积分入门最友好的那本，同样已整理成知识库。

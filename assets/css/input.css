@@ -130,9 +130,26 @@ h1, h2, h3 { letter-spacing: -0.02em; }
   box-shadow: 0 1px 2px rgba(0,0,0,.4), 0 12px 32px -12px rgba(0,0,0,.5);
 }
 
+/* ===== 双时钟：昼夜配色 ===== */
+.clock-half { transition: background-color .5s ease, color .5s ease; }
+.clock-day { background: var(--m-container-lowest); color: var(--m-on-surface); }
+.clock-day .clock-sub { color: var(--m-on-surface-variant); }
+.clock-night { background: linear-gradient(150deg, #3d3672 0%, #25224a 70%, #1d1b3d 100%); color: #ffffff; }
+.clock-night .clock-sub { color: rgba(255,255,255,.72); }
+.clock-night .clock-div { border-color: rgba(255,255,255,.15); }
+
 /* ===== Dock 按钮 ===== */
 .dock-btn {
   @apply w-12 h-12 rounded-full flex items-center justify-center text-m-on-surface-variant hover:bg-m-container active:scale-90 transition-all shrink-0;
+}
+
+/* ===== main 底部留白：避开悬浮 Dock ===== */
+main {
+  --dock-h: 64px;
+  padding-bottom: calc(var(--dock-h) + 24px + env(safe-area-inset-bottom, 0px));
+}
+@media (min-width: 640px) {
+  main { padding-bottom: 10rem; }
 }
 
 /* ===== 减少动态偏好 ===== */
