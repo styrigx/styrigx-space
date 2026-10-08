@@ -8,11 +8,15 @@
 <div id="sgx-cap-{{ $page }}" class="sgx-cap" role="search">
   <svg class="sgx-cap-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
   <input id="sgx-cap-input-{{ $page }}" type="search" autocomplete="off" enterkeyhint="search" placeholder="{{ $ph }}" aria-label="{{ $ph }}">
+  <button type="button" class="sgx-cap-mic" data-mic aria-label="{{ if $isEn }}Voice search{{ else }}语音搜索{{ end }}" style="display:none">
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-5a3.5 3.5 0 1 0-7 0v5A3.5 3.5 0 0 0 12 15zm6-3.5a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.94V22h2v-2.06A8 8 0 0 0 20 11.5h-2z"/></svg>
+  </button>
 </div>
 {{ if $panel }}<div id="sgx-cap-results-{{ $page }}" class="sgx-cap-results" hidden></div>{{ end }}
 <script>
 (function(){
   var page='{{ $page }}', usePanel={{ if $panel }}true{{ else }}false{{ end }};
+  var isEn={{ if $isEn }}true{{ else }}false{{ end }};
   var cap=document.getElementById('sgx-cap-'+page),
       input=document.getElementById('sgx-cap-input-'+page),
       panel=usePanel?document.getElementById('sgx-cap-results-'+page):null;
@@ -65,6 +69,35 @@
     panel.addEventListener('click',function(e){
       var t=e.target.closest('a,button');
       if(t)setTimeout(close,80);
+    });
+  }
+  /* 语音输入（2.3.14.1）：Web Speech API。只检测接口是否存在，不按浏览器 UA 判断；
+     不支持则麦克风不渲染（无空位、无报错）；拒绝权限等错误静默恢复原状 */
+  var mic=cap.querySelector('[data-mic]');
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(mic&&SR){
+    mic.style.display='';
+    var rec=null;
+    mic.addEventListener('click',function(e){
+      e.stopPropagation();
+      if(rec){try{rec.stop()}catch(err){}rec=null;return}
+      try{
+        if(!opened)open();
+        rec=new SR();
+        rec.lang=isEn?'en-US':'zh-CN';
+        rec.interimResults=false;rec.maxAlternatives=1;
+        mic.classList.add('sgx-mic-on');
+        rec.onresult=function(ev){
+          var t='';
+          try{t=String(ev.results[0][0].transcript||'').trim()}catch(err){}
+          if(t){input.value=t;doSearch()}
+        };
+        var recDone=function(){mic.classList.remove('sgx-mic-on');rec=null};
+        rec.onend=recDone;
+        rec.onerror=recDone;
+        rec.start();
+        setTimeout(function(){if(rec){try{rec.stop()}catch(err){}}},8000);
+      }catch(err){mic.classList.remove('sgx-mic-on');rec=null}
     });
   }
   /* 页面底部留白：胶囊不压内容，最后一项能完整滚出 */

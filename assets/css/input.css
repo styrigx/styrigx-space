@@ -214,9 +214,9 @@ main {
 body { display: flex; flex-direction: column; min-height: 100dvh; }
 main { flex: 1 0 auto; }
 footer { padding-bottom: calc(var(--dock-h) + env(safe-area-inset-bottom, 0px)); }
-/* 2.3.12.1 返工点3：有搜索胶囊的页面，页脚底部留白 = 胶囊高 52px + Dock 高 64px + 24px，
+/* 2.3.12.1 返工点3：有搜索胶囊的页面，页脚底部留白 = 胶囊高 56px + Dock 高 64px + 24px，
    版权行完整露出在胶囊上方，不被压住 */
-body.sgx-cap-pad footer{padding-bottom:calc(52px + var(--dock-h) + 24px + env(safe-area-inset-bottom,0px))}
+body.sgx-cap-pad footer{padding-bottom:calc(56px + var(--dock-h) + 24px + env(safe-area-inset-bottom,0px))}
 .layout-dex footer { padding-bottom: env(safe-area-inset-bottom, 0px); }
 
 /* ===== 顶栏：透明无底色无线，直接融在背景里；手机、DeX 全局显示 ===== */
@@ -815,13 +815,18 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
 /* ---------- 效果1+2：底部搜索胶囊（胶囊本身就是输入框） ---------- */
 .sgx85-pill{position:fixed;left:50%;transform:translateX(-50%);z-index:41;
   bottom:calc(88px + env(safe-area-inset-bottom,0px));
-  display:flex;align-items:center;gap:10px;padding:0 18px 0 16px;height:52px;border-radius:999px;
+  display:flex;align-items:center;gap:10px;padding:0 20px;height:56px;border-radius:999px;
+  width:min(64vw,300px);
   background:rgba(255,255,255,0.88);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);
   border:1px solid rgba(0,0,0,0.05);box-shadow:0 8px 24px rgba(0,0,0,0.12);
-  color:var(--m-on-surface-variant);font-size:15px;white-space:nowrap;cursor:pointer;border:0;
+  color:var(--m-on-surface-variant);font-size:17px;white-space:nowrap;cursor:pointer;border:0;
   transition:transform .22s ease,opacity .22s ease}
 .dark .sgx85-pill{background:rgba(32,32,36,0.88);border-color:rgba(255,255,255,0.07)}
-.sgx85-pill svg{width:20px;height:20px;flex-shrink:0}
+.sgx85-pill svg{width:22px;height:22px;flex-shrink:0}
+/* 地址栏胶囊麦克风（2.3.14.1）：只检测 SpeechRecognition 接口是否存在，不按 UA 判断；不支持则不渲染 */
+.sgx85-pill .sgx85-pill-mic{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;margin-left:auto;color:inherit}
+.sgx85-pill .sgx85-pill-mic svg{width:22px;height:22px;display:block}
+.sgx85-pill .sgx85-pill-mic.sgx-mic-on{color:var(--m-primary);animation:sgx-mic-pulse 1.4s ease-out infinite}
 .sgx85-pill:active{transform:translateX(-50%) scale(.97)}
 .layout-dex .sgx85-pill{max-width:420px}
 .reduced-motion .sgx85-pill{transition:none}
@@ -830,20 +835,25 @@ body.addrbar-top .sgx85-pill{top:calc(var(--nav-h) + 12px + env(safe-area-inset-
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
   .sgx85-pill{background:#fff}.dark .sgx85-pill{background:#202024}
 }
-/* 可输入的搜索胶囊：平时是窄胶囊，聚焦时拉满宽并用 --sgx-kb 贴键盘 */
+/* 可输入的搜索胶囊：平时是窄胶囊，聚焦时拉满宽并用 --sgx-kb 贴键盘（2.3.14.1：64% 屏宽/300px 上限，56px 高） */
 .sgx-cap{position:fixed;left:50%;transform:translateX(-50%);z-index:41;
   bottom:calc(88px + env(safe-area-inset-bottom,0px));
-  display:flex;align-items:center;gap:10px;height:52px;border-radius:999px;
-  padding:0 18px 0 16px;
+  display:flex;align-items:center;gap:10px;height:56px;border-radius:999px;
+  padding:0 20px;width:min(64vw,300px);
   background:rgba(255,255,255,0.88);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);
   border:1px solid rgba(0,0,0,0.05);box-shadow:0 8px 24px rgba(0,0,0,0.12);
   transition:bottom .25s ease,left .25s ease,right .25s ease,transform .25s ease,border-radius .25s ease,width .25s ease}
 .dark .sgx-cap{background:rgba(32,32,36,0.88);border-color:rgba(255,255,255,0.07)}
-.sgx-cap-ic{width:20px;height:20px;flex-shrink:0;color:var(--m-on-surface-variant)}
-.sgx-cap input{width:72px;flex:none;min-width:0;background:transparent;border:0;outline:none;
-  font-size:15px;color:var(--m-on-surface);padding:0}
+.sgx-cap-ic{width:22px;height:22px;flex-shrink:0;color:var(--m-on-surface-variant)}
+.sgx-cap input{flex:1;min-width:0;background:transparent;border:0;outline:none;
+  font-size:17px;color:var(--m-on-surface);padding:0}
 .sgx-cap input::placeholder{color:var(--m-on-surface-variant)}
-.sgx-cap.open{left:16px;right:16px;transform:none;border-radius:28px;
+/* 胶囊麦克风（2.3.14.1）：只检测 SpeechRecognition 接口是否存在，不按 UA 判断；不支持则不渲染 */
+.sgx-cap-mic{display:inline-flex;align-items:center;justify-content:center;background:none;border:0;padding:0;margin:0;cursor:pointer;color:var(--m-on-surface-variant);flex-shrink:0}
+.sgx-cap-mic svg{width:22px;height:22px;display:block}
+.sgx-cap-mic.sgx-mic-on{color:var(--m-primary);animation:sgx-mic-pulse 1.4s ease-out infinite}
+.reduced-motion .sgx-cap-mic.sgx-mic-on{animation:none}
+.sgx-cap.open{left:16px;right:16px;transform:none;border-radius:28px;width:auto;
   bottom:calc(var(--sgx-kb) + 12px + env(safe-area-inset-bottom,0px))}
 .sgx-cap.open input{flex:1;width:auto}
 .layout-dex .sgx-cap.open{left:50%;right:auto;transform:translateX(-50%);width:min(480px,calc(100vw - 32px))}
@@ -853,7 +863,7 @@ body.addrbar-top .sgx85-pill{top:calc(var(--nav-h) + 12px + env(safe-area-inset-
 }
 /* 胶囊结果浮层：贴键盘的胶囊上方，2.3.11 式结果 + 淡入 */
 .sgx-cap-results{position:fixed;left:16px;right:16px;z-index:41;
-  bottom:calc(var(--sgx-kb) + 76px + env(safe-area-inset-bottom,0px));
+  bottom:calc(var(--sgx-kb) + 80px + env(safe-area-inset-bottom,0px));
   max-height:min(44vh,420px);overflow-y:auto;-webkit-overflow-scrolling:touch;
   border-radius:1.5rem;padding:8px;
   background:rgba(255,255,255,0.94);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);
@@ -863,8 +873,8 @@ body.addrbar-top .sgx85-pill{top:calc(var(--nav-h) + 12px + env(safe-area-inset-
 .sgx-cap-results.sgx-fade{animation:sgx-fadein .22s ease}
 @keyframes sgx-fadein{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .reduced-motion .sgx-cap-results.sgx-fade{animation:none}
-/* 页面底部留白：胶囊不压内容，最后一项能完整滚出 */
-body.sgx-cap-pad main{padding-bottom:calc(176px + env(safe-area-inset-bottom,0px)) !important}
+/* 页面底部留白：胶囊不压内容，最后一项能完整滚出（2.3.14.1：跟随胶囊高度 56px） */
+body.sgx-cap-pad main{padding-bottom:calc(180px + env(safe-area-inset-bottom,0px)) !important}
 
 /* ---------- 效果3：浏览器磨砂弹出层 ---------- */
 .brw-ov{position:fixed;inset:0;z-index:120;

@@ -9,6 +9,9 @@
   <button type="button" id="brw-addrbar" class="sgx85-pill" aria-label="{{ cond $isEn "Search or type URL" "搜索或输入网址" }}">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
     <span>{{ cond $isEn "Search or type URL" "搜索或输入网址" }}</span>
+    <span class="sgx85-pill-mic" data-mic style="display:none" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-5a3.5 3.5 0 1 0-7 0v5A3.5 3.5 0 0 0 12 15zm6-3.5a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.94V22h2v-2.06A8 8 0 0 0 20 11.5h-2z"/></svg>
+    </span>
   </button>
 
   <!-- 2.3.12.1 效果3：磨砂弹出层。背后磨砂半透明蒙层；顶部内容卡从上方轻滑淡入（放 2.3.11 式建议列表）；
@@ -245,6 +248,39 @@ window.__favFallback=function(img,name){
       }
     });
   }
+
+  /* ============ 底部地址栏胶囊麦克风（2.3.14.1）：点麦克风先打开弹出层再听写 ============ */
+  /* 只检测 SpeechRecognition 接口是否存在，不按浏览器 UA 判断；不支持则不渲染，无空位、无报错；
+     拒绝权限等错误静默恢复原状 */
+  (function(){
+    var pillMic = addrbar ? addrbar.querySelector('[data-mic]') : null;
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!pillMic || !SR) return;
+    pillMic.style.display = '';
+    var rec = null;
+    pillMic.addEventListener('click', function(e){
+      e.stopPropagation();
+      if(rec){ try{rec.stop()}catch(err){} rec = null; return; }
+      try{
+        openOverlay();
+        var en = document.documentElement.lang === 'en';
+        rec = new SR();
+        rec.lang = en ? 'en-US' : 'zh-CN';
+        rec.interimResults = false; rec.maxAlternatives = 1;
+        pillMic.classList.add('sgx-mic-on');
+        rec.onresult = function(ev){
+          var t = '';
+          try{ t = String(ev.results[0][0].transcript || '').trim(); }catch(err){}
+          if(t){ input.value = t; renderSuggest(); showSuggest(); try{ input.focus({preventScroll:true}); }catch(e2){} }
+        };
+        var done = function(){ pillMic.classList.remove('sgx-mic-on'); rec = null; };
+        rec.onend = done;
+        rec.onerror = done;
+        rec.start();
+        setTimeout(function(){ if(rec){ try{rec.stop()}catch(err){} } }, 8000);
+      }catch(err){ pillMic.classList.remove('sgx-mic-on'); rec = null; }
+    });
+  })();
 
   /* ============ 站内搜索索引：/files-index.json 为主，内联 #search-index 兜底 ============ */
   var TYPE_META = {
