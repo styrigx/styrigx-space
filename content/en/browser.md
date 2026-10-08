@@ -1,0 +1,4 @@
+---
+title: 'Internet'
+layout: browser
+---

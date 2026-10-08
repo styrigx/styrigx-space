@@ -19,10 +19,10 @@ entries:
     desc: 专业教材条目式中文知识库
     icon: book
     external: true
-  - name: 导航
-    url: /links/
-    desc: 我的书签导航
-    icon: compass
+  - name: 浏览器
+    url: /browser/
+    desc: 站内搜索与书签导航
+    icon: browser
     external: false
   - name: GitHub
     url: https://github.com/styrigx

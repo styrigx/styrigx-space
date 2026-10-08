@@ -15,9 +15,9 @@ entries:
     url: https://github.com/styrigx/textbook-playbook
     desc: Textbook knowledge base in Chinese
     external: true
-  - name: Links
-    url: /en/links/
-    desc: My bookmark navigation
+  - name: Internet
+    url: /en/browser/
+    desc: Site search and bookmarks
     external: false
   - name: GitHub
     url: https://github.com/styrigx

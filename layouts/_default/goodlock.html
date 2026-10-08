@@ -10,15 +10,7 @@
 }}
 
 <div class="max-w-[1100px] mx-auto px-4">
-  <!-- 大标题头部（下沉式） -->
-  <header id="gl-hero" class="page-hero flex flex-col items-center justify-center text-center py-10 animate-fade-up">
-    <h1 class="text-6xl sm:text-7xl font-extrabold text-m-primary tracking-tight">Good Lock</h1>
-    <p class="mt-4 text-m-on-surface-variant text-sm">{{ if $isEn }}Experimental modules. Flip a switch, it works everywhere.{{ else }}实验性功能模块。打开开关，全站生效。{{ end }}</p>
-  </header>
-  <!-- 滚动时的小标题栏 -->
-  <div id="gl-minibar" class="fixed left-1/2 z-40 opacity-0 pointer-events-none transition-all duration-300" style="top:66px;transform:translate(-50%,-8px)">
-    <div class="glass border border-m-outline rounded-full px-5 py-2 text-sm font-semibold shadow-md whitespace-nowrap">Good Lock</div>
-  </div>
+  {{ partial "subpage-head.html" (dict "title" "Good Lock" "sub" (cond $isEn "Experimental modules. Flip a switch, it works everywhere." "实验性功能模块。打开开关，全站生效。") "isEn" $isEn) }}
 
   <div class="max-w-2xl mx-auto pb-28">
     {{ range $i, $m := $mods }}
@@ -72,19 +64,6 @@
   });
   paintParallaxAuth();
 
-  /* 小标题栏 */
-  (function(){
-    var bar=document.getElementById('gl-minibar'),hero=document.getElementById('gl-hero');
-    if(!bar||!hero)return;
-    function onScroll(){
-      var show=window.scrollY>hero.offsetHeight*0.55;
-      bar.style.opacity=show?'1':'0';
-      bar.style.transform=show?'translate(-50%,0)':'translate(-50%,-8px)';
-      bar.style.pointerEvents=show?'auto':'none';
-    }
-    window.addEventListener('scroll',onScroll,{passive:true});
-    onScroll();
-  })();
 })();
 </script>
 {{ end }}

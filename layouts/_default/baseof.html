@@ -17,6 +17,7 @@
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" href="/favicon-32x32.png" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="search" type="application/opensearchdescription+xml" title="Styrigx" href="/opensearch.xml">
 <link rel="stylesheet" href="{{ (resources.Get "css/main.css" | minify | fingerprint).RelPermalink }}">
 <script>
 /* 用户偏好预读：在渲染前应用，避免闪烁 */
@@ -63,7 +64,7 @@
 })();
 </script>
 <script>
-/* 桌面布局：auto/phone/dex —— 断点 <640 手机 / ≥640 DeX（含桌面模式/平板/电脑） */
+/* 桌面布局：auto/phone/dex —— 断点 <840 手机 / ≥840 DeX（含桌面模式/平板/电脑） */
 function __layoutMode(){
   var m=null;
   try{
@@ -72,7 +73,7 @@ function __layoutMode(){
   }catch(e){}
   if(m==='phone'||m==='dex')return m;
   var w=window.innerWidth||1280;
-  return w<640?'phone':'dex';
+  return w<840?'phone':'dex';
 }
 function __applyLayout(){
   var d=document.documentElement,m=__layoutMode();
@@ -93,14 +94,14 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 </head>
 {{ $setUrl0 := "/settings/" }}{{ if $isEn }}{{ $setUrl0 = "/en/settings/" }}{{ end }}
 {{ $glUrl0 := "/goodlock/" }}{{ if $isEn }}{{ $glUrl0 = "/en/goodlock/" }}{{ end }}
-<body class="text-m-on-surface min-h-screen antialiased{{ if .IsHome }} has-dock{{ end }}" data-page="{{ if eq .RelPermalink "/links/" }}links{{ else if eq .RelPermalink "/en/links/" }}links{{ else if eq .RelPermalink $setUrl0 }}settings{{ else if eq .RelPermalink $glUrl0 }}goodlock{{ end }}">
+<body class="text-m-on-surface min-h-screen antialiased{{ if .IsHome }} has-dock{{ end }}{{ if not .IsHome }} subpage{{ end }}" data-page="{{ if or (eq .RelPermalink "/browser/") (eq .RelPermalink "/en/browser/") }}browser{{ else if eq .RelPermalink $setUrl0 }}settings{{ else if eq .RelPermalink $glUrl0 }}goodlock{{ end }}">
 {{ $profile := site.Data.profile }}
 {{ $home := "/" }}{{ if $isEn }}{{ $home = "/en/" }}{{ end }}
-{{ $linksUrl := "/links/" }}{{ if $isEn }}{{ $linksUrl = "/en/links/" }}{{ end }}
+{{ $linksUrl := "/browser/" }}{{ if $isEn }}{{ $linksUrl = "/en/browser/" }}{{ end }}
 {{ $setUrl := $setUrl0 }}{{ $glUrl := $glUrl0 }}
 
-<!-- 状态栏式导航（fixed，高度由 JS 量取写入 --nav-h） -->
-<nav id="site-nav" class="z-50 glass border-b border-m-outline">
+<!-- 顶栏：透明无底色无线，直接融在背景里（DeX 下为磨砂玻璃 + 中间搜索框） -->
+<nav id="site-nav" class="z-50">
   <div class="max-w-[1100px] mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
     <a href="{{ $home }}" class="flex items-center gap-2 font-bold text-[15px] shrink-0 whitespace-nowrap">
       {{ $navAvatar := resources.Get "images/avatar.png" }}
@@ -112,17 +113,13 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
       {{ end }}
       <span>Styrigx</span>
     </a>
-    <span id="nav-context" class="hidden text-[15px] font-bold text-m-on-surface-variant whitespace-nowrap"></span>
-    <!-- 顶栏常驻搜索（≥640px）：输入即在下方展开结果 -->
-    <div class="hidden sm:flex flex-1 justify-center min-w-0 px-1">
-      <div class="relative w-full max-w-[480px] min-w-[200px]" id="nav-search">
-        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-m-on-surface-variant pointer-events-none">{{ partial "icon.html" "search" }}</span>
-        <input id="nav-search-input" type="text" autocomplete="off"
-          placeholder="{{ if $isEn }}Search bookmarks, books, music…{{ else }}搜书签、书、歌、收藏…{{ end }}"
-          class="w-full rounded-full bg-m-container border border-m-outline pl-11 pr-14 py-2 text-sm outline-none placeholder:text-m-on-surface-variant focus:ring-2 focus:ring-m-primary">
-        <kbd class="absolute right-4 top-1/2 -translate-y-1/2 text-[11px] text-m-on-surface-variant bg-m-container-lowest border border-m-outline rounded px-1.5 py-0.5 pointer-events-none">⌘K</kbd>
-        <div id="nav-search-drop" class="absolute left-0 right-0 top-full mt-2 rounded-2xl border border-m-outline bg-m-container-lowest shadow-2xl overflow-hidden hidden max-h-[60vh] overflow-y-auto p-2"></div>
-      </div>
+    <!-- 顶栏常驻搜索（仅 DeX）：点击进 /browser/ 并聚焦地址栏 -->
+    <div id="nav-search-wrap" class="flex-1 justify-center min-w-0 px-1">
+      <button type="button" id="nav-search-fake" class="w-full max-w-[480px] min-w-[200px] mx-auto flex items-center gap-3 rounded-full bg-m-container border border-m-outline pl-4 pr-4 py-2 text-sm text-m-on-surface-variant text-left">
+        <span class="shrink-0">{{ partial "icon.html" "search" }}</span>
+        <span class="flex-1 truncate">{{ if $isEn }}Search bookmarks, books, music…{{ else }}搜书签、书、歌、收藏…{{ end }}</span>
+        <kbd class="text-[11px] bg-m-container-lowest border border-m-outline rounded px-1.5 py-0.5 shrink-0">⌘K</kbd>
+      </button>
     </div>
   </div>
 </nav>
@@ -139,28 +136,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 })();
 </script>
 
-<!-- 全站搜索：手机=全屏搜索页，桌面=顶栏搜索框下拉 -->
-<div id="search-modal" class="fixed inset-0 z-[100] hidden" style="display:none">
-  <div class="absolute inset-0 bg-black/40 backdrop-blur-sm hidden sm:block" data-search-close></div>
-  <div class="search-wrap relative max-w-xl mx-auto mt-20 sm:mt-28 px-4">
-    <div class="search-panel rounded-[1.75rem] border border-m-outline bg-m-container-lowest shadow-2xl overflow-hidden">
-      <div class="search-handle" data-search-close></div>
-      <div class="search-head flex items-center gap-2 px-3 sm:px-5 py-3 sm:py-4 border-b border-m-outline">
-        <button type="button" data-search-close class="sm:hidden w-10 h-10 rounded-full inline-flex items-center justify-center text-m-on-surface-variant active:bg-m-container shrink-0" aria-label="{{ if $isEn }}Back{{ else }}返回{{ end }}">{{ partial "icon.html" "arrow-left" }}</button>
-        <span class="text-m-on-surface-variant hidden sm:block">{{ partial "icon.html" "search" }}</span>
-        <input id="search-input" type="text" autocomplete="off" enterkeyhint="search" placeholder="{{ if $isEn }}Search bookmarks, books, music…{{ else }}搜书签、书、歌、收藏…{{ end }}"
-          class="flex-1 min-w-0 bg-transparent outline-none text-base placeholder:text-m-on-surface-variant">
-        <button data-search-close class="hidden sm:block text-m-on-surface-variant hover:text-m-on-surface shrink-0">{{ partial "icon.html" "x-mark" }}</button>
-      </div>
-      <div id="search-results" class="search-results max-h-80 overflow-y-auto p-2"></div>
-      <div class="search-hints px-5 py-3 border-t border-m-outline text-xs text-m-on-surface-variant hidden sm:flex gap-4">
-        <span><kbd class="bg-m-container rounded px-1">↑↓</kbd> {{ if $isEn }}navigate{{ else }}选择{{ end }}</span>
-        <span><kbd class="bg-m-container rounded px-1">↵</kbd> {{ if $isEn }}open{{ else }}打开{{ end }}</span>
-        <span><kbd class="bg-m-container rounded px-1">esc</kbd> {{ if $isEn }}close{{ else }}关闭{{ end }}</span>
-      </div>
-    </div>
-  </div>
-</div>
+<!-- 全站搜索已并入 /browser/（旧 #search-modal 已删除） -->
 
 <!-- 通用 bottom sheet / 居中弹窗 -->
 <div id="sheet-wrap" class="fixed inset-0 z-[110] hidden">
@@ -226,122 +202,72 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
   (dict "id" "edgeglow" "zh" "边缘光效" "en" "Edge glow" "dzh" "悬停小组件时的主色流光" "den" "Primary-color glow on widget hover")
 }}
 {{ range $glMods }}{{ $idx = $idx | append (dict "t" (cond $isEn .en .zh) "d" (cond $isEn .den .dzh) "u" (print $glUrl "#mod-" .id) "c" $cGl) }}{{ end }}
+{{/* 博客文章（构建时抓 RSS，失败则跳过） */}}
+{{ $cBlog := cond $isEn "Blog" "博客" }}
+{{ with resources.GetRemote "https://blog.styrigx.com/rss.xml" }}
+  {{ range findRE "(?s)<item>.*?</item>" .Content }}
+    {{ $bt := findRESubmatch "(?s)<title>(.*?)</title>" . }}
+    {{ $bl := findRESubmatch "(?s)<link>(.*?)</link>" . }}
+    {{ if and $bt $bl }}
+      {{ $btitle := (index (index $bt 0) 1) | replaceRE "<!\\[CDATA\\[(.*?)\\]\\]>" "$1" | htmlUnescape }}
+      {{ $idx = $idx | append (dict "t" $btitle "d" (cond $isEn "Blog article" "博客文章") "u" (index (index $bl 0) 1) "c" $cBlog) }}
+    {{ end }}
+  {{ end }}
+{{ end }}
 <script id="search-index" type="application/json">{{ (dict "items" $idx) | jsonify | safeJS }}</script>
 <script>
+/* ===== 全站搜索：统一走 /browser/ ===== */
 (function(){
-  var modal=document.getElementById('search-modal'),input=document.getElementById('search-input'),
-      box=document.getElementById('search-results'),data=[],sel=-1;
-  try{data=JSON.parse(document.getElementById('search-index').textContent).items||[]}catch(e){}
-  var FEAT=document.documentElement.lang==='en'?'Featured':'精选';
-  var NORES=document.documentElement.lang==='en'?'No results':'无结果';
-  function isMobile(){return window.matchMedia('(max-width:639px)').matches}
-  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
-  function hitsFor(q){
-    q=q.trim().toLowerCase();
-    if(!q)return data.filter(function(x){return x.c===FEAT}).slice(0,8);
-    return data.filter(function(x){return (x.t+' '+x.d).toLowerCase().indexOf(q)!==-1}).slice(0,12);
-  }
-  function hitHTML(x){
-    return '<a href="'+x.u+'" class="flex items-center gap-3 rounded-2xl px-4 py-3 hover:bg-m-primary-container transition-colors">'
-      +'<span class="flex-1 min-w-0"><span class="block font-medium truncate">'+esc(x.t)+'</span>'
-      +(x.d?'<span class="block text-xs text-m-on-surface-variant truncate">'+esc(x.d)+'</span>':'')+'</span>'
-      +'<span class="text-[11px] shrink-0 text-m-on-primary-container bg-m-primary-container rounded-full px-2 py-0.5">'+esc(x.c)+'</span></a>';
-  }
-  function renderList(q,el){
-    var hits=hitsFor(q);
-    if(!hits.length){el.innerHTML='<div class="px-4 py-8 text-center text-sm text-m-on-surface-variant">'+NORES+'</div>';return[]}
-    el.innerHTML=hits.map(hitHTML).join('');
-    return Array.prototype.slice.call(el.querySelectorAll('a'));
-  }
-  /* ---- 全屏搜索（手机） ---- */
-  var histPushed=false,closing=false;
-  function fitPanel(){
-    var panel=modal.querySelector('.search-panel');
-    if(!panel)return;
-    if(isMobile()&&window.visualViewport){panel.style.height=window.visualViewport.height+'px'}
-    else{panel.style.height=''}
-  }
-  function open(){
-    if(!modal.classList.contains('hidden'))return;
-    modal.classList.remove('hidden');modal.style.display='';
-    input.value='';sel=-1;renderList('',box);
-    closing=false;
-    setTimeout(function(){input.focus()},60);
-    fitPanel();
-    if(isMobile()&&!histPushed){try{history.pushState({sgxSearch:1},'');histPushed=true}catch(e){}}
-  }
-  function doClose(){
-    modal.classList.add('hidden');modal.style.display='none';
-    var panel=modal.querySelector('.search-panel');if(panel)panel.style.height='';
-  }
-  function close(){
-    if(closing)return;
-    if(histPushed){closing=true;try{history.back()}catch(e){histPushed=false;closing=false;doClose()}return}
-    doClose();
-  }
-  window.addEventListener('popstate',function(){
-    if(histPushed||closing){histPushed=false;closing=false;doClose()}
-  });
-  if(window.visualViewport){window.visualViewport.addEventListener('resize',function(){
-    if(!modal.classList.contains('hidden'))fitPanel();
-  })}
-  /* 手机右滑关闭 */
-  (function(){
-    var sx=null,syy=null;
-    modal.addEventListener('touchstart',function(e){if(e.touches.length===1){sx=e.touches[0].clientX;syy=e.touches[0].clientY}},{passive:true});
-    modal.addEventListener('touchend',function(e){
-      if(sx===null)return;
-      var dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-syy;sx=null;
-      if(dx>80&&Math.abs(dy)<50&&isMobile())close();
-    },{passive:true});
-  })();
-  window.__openSearch=function(){
-    if(window.matchMedia('(min-width:640px)').matches){
-      var ni=document.getElementById('nav-search-input');
-      if(ni){ni.focus();return}
-    }
-    open();
-  };
-  modal.querySelectorAll('[data-search-close]').forEach(function(el){el.addEventListener('click',close)});
-  input.addEventListener('input',function(){sel=-1;renderList(input.value,box)});
-  /* ---- 顶栏搜索下拉（≥640px） ---- */
-  var nsi=document.getElementById('nav-search-input'),nsd=document.getElementById('nav-search-drop'),nsel=-1;
-  function dropHide(){if(nsd)nsd.classList.add('hidden')}
-  function dropShow(){if(!nsd)return;nsel=-1;renderList(nsi.value,nsd);nsd.classList.remove('hidden')}
-  function nshl(items){items.forEach(function(a,i){a.classList.toggle('bg-m-primary-container',i===nsel)});if(items[nsel])items[nsel].scrollIntoView({block:'nearest'})}
-  if(nsi&&nsd){
-    nsi.addEventListener('input',dropShow);
-    nsi.addEventListener('focus',dropShow);
-    document.addEventListener('click',function(e){if(!e.target.closest('#nav-search'))dropHide()});
-    nsi.addEventListener('keydown',function(e){
-      if(e.key==='Escape'){e.stopPropagation();dropHide();nsi.blur();return}
-      var items=nsd.querySelectorAll('a');
-      if(e.key==='ArrowDown'){e.preventDefault();nsel=Math.min(nsel+1,items.length-1);nshl(items)}
-      else if(e.key==='ArrowUp'){e.preventDefault();nsel=Math.max(nsel-1,0);nshl(items)}
-      else if(e.key==='Enter'&&nsel>=0&&items[nsel]){items[nsel].click()}
-    });
-  }
+  var en=document.documentElement.lang==='en';
+  var bUrl=en?'/en/browser/':'/browser/';
+  window.__openSearch=function(){ location.href=bUrl+'#focus'; };
+  function goBrowser(){ location.href=bUrl+'#focus'; }
+  var fake=document.getElementById('nav-search-fake');
+  if(fake)fake.addEventListener('click',goBrowser);
   document.addEventListener('keydown',function(e){
     if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){
-      e.preventDefault();
-      if(window.matchMedia('(min-width:640px)').matches){
-        var ni=document.getElementById('nav-search-input');
-        if(!ni)return;
-        if(document.activeElement===ni){ni.blur();dropHide()}else{ni.focus()}
-      }else{
-        modal.classList.contains('hidden')?open():close();
-      }
-      return;
+      var t=e.target;
+      if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;
+      e.preventDefault();goBrowser();
     }
-    if(e.key==='Escape'&&!modal.classList.contains('hidden')){close();return}
-    if(modal.classList.contains('hidden'))return;
-    var items=box.querySelectorAll('a');
-    if(e.key==='ArrowDown'){e.preventDefault();sel=Math.min(sel+1,items.length-1);hl(items)}
-    if(e.key==='ArrowUp'){e.preventDefault();sel=Math.max(sel-1,0);hl(items)}
-    if(e.key==='Enter'&&sel>=0&&items[sel]){items[sel].click()}
   });
-  function hl(items){items.forEach(function(a,i){a.classList.toggle('bg-m-primary-container',i===sel)});if(items[sel])items[sel].scrollIntoView({block:'nearest'})}
 })();
+/* ===== 子页面返回键：有站内历史则 back，否则回对应语言首页 ===== */
+(function(){
+  var en=document.documentElement.lang==='en';
+  var home=en?'/en/':'/';
+  function goBack(){
+    try{
+      if(document.referrer&&new URL(document.referrer).origin===location.origin){history.back();return}
+    }catch(e){}
+    location.href=home;
+  }
+  /* 事件委托：按钮在 <main> 里，脚本可能先执行 */
+  document.addEventListener('click',function(e){
+    var b=e.target.closest&&e.target.closest('[data-go-back]');
+    if(b)goBack();
+  });
+  /* 滚过标题区后显示悬浮返回键；页面太短不能滚动时不显示 */
+  function initBackFloat(){
+    var head=document.querySelector('[data-subpage-head]');
+    var floats=document.querySelectorAll('.subpage-back-float');
+    if(!head||!floats.length)return;
+    function onScroll(){
+      var canScroll=document.documentElement.scrollHeight>window.innerHeight+10;
+      var show=canScroll&&window.scrollY>head.offsetHeight*0.55;
+      floats.forEach(function(f){f.classList.toggle('show',!!show)});
+    }
+    window.addEventListener('scroll',onScroll,{passive:true});
+    window.addEventListener('resize',onScroll);
+    onScroll();
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',initBackFloat);
+  }else{
+    initBackFloat();
+  }
+})();
+
 /* ===== 主题模式（浅色/深色/跟随系统）===== */
 window.__applyTheme=function(){
   var m=null;try{m=localStorage.getItem('sgx-theme-mode')}catch(e){}
@@ -481,7 +407,7 @@ try{
       var t=e.target;
       if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;
       if(e.metaKey||e.ctrlKey||e.altKey)return;
-      var home=en?'/en/':'/',links=en?'/en/links/':'/links/',set=en?'/en/settings/':'/settings/';
+      var home=en?'/en/':'/',links=en?'/en/browser/':'/browser/',set=en?'/en/settings/':'/settings/';
       if(pending){
         pending=false;if(timer)clearTimeout(timer);
         var map={'h':home,'l':links,'b':'https://blog.styrigx.com','s':set};
@@ -495,7 +421,7 @@ try{
         if(window.__openSheet)window.__openSheet({title:en?'Keyboard shortcuts':'快捷键',html:
           '<div class="px-2 pb-2 text-sm space-y-2">'
           +'<div class="flex justify-between"><span><kbd class="kbd">g</kbd> <kbd class="kbd">h</kbd></span><span class="text-m-on-surface-variant">'+(en?'Home':'首页')+'</span></div>'
-          +'<div class="flex justify-between"><span><kbd class="kbd">g</kbd> <kbd class="kbd">l</kbd></span><span class="text-m-on-surface-variant">'+(en?'Bookmarks':'导航')+'</span></div>'
+          +'<div class="flex justify-between"><span><kbd class="kbd">g</kbd> <kbd class="kbd">l</kbd></span><span class="text-m-on-surface-variant">'+(en?'Internet':'浏览器')+'</span></div>'
           +'<div class="flex justify-between"><span><kbd class="kbd">g</kbd> <kbd class="kbd">b</kbd></span><span class="text-m-on-surface-variant">'+(en?'Blog':'博客')+'</span></div>'
           +'<div class="flex justify-between"><span><kbd class="kbd">g</kbd> <kbd class="kbd">s</kbd></span><span class="text-m-on-surface-variant">'+(en?'Settings':'设置')+'</span></div>'
           +'</div>'});
@@ -511,7 +437,7 @@ try{
   function areaOf(){var p=location.pathname;
     if(p==='/goodlock/'||p==='/en/goodlock/')return 'goodlock';
     if(p==='/settings/'||p==='/en/settings/')return 'settings';
-    if(p==='/links/'||p==='/en/links/')return 'links';
+    if(p==='/browser/'||p==='/en/browser/')return 'browser';
     return 'home';}
   var today=dayStr(new Date()),sessStart=Date.now(),sessArea=areaOf();
   function wellLoad(){try{var v=JSON.parse(get('sgx-well-v')||'null');if(v&&v.day===today)return v}catch(e){}return{day:today,min:0,areas:{}}}
@@ -551,7 +477,7 @@ try{
 
 <main>{{ block "main" . }}{{ end }}</main>
 <div id="bedtime-veil" aria-hidden="true"></div>
-<footer class="relative z-10 border-t border-m-outline mt-4">
+<footer class="relative z-10 mt-4">
   <div class="max-w-[1100px] mx-auto px-6 py-8 text-center">
     <p class="text-xs text-m-on-surface-variant">© {{ site.Params.since }}–<span id="copy-year">{{ now.Year }}</span> Sloan Gray</p>
     <script>document.getElementById('copy-year').textContent=new Date().getFullYear();</script>
@@ -566,7 +492,7 @@ try{
   (dict "name" "textbook-playbook" "name2" "textbook-playbook" "url" "https://github.com/styrigx/textbook-playbook" "icon" "book" "ext" true "bg" "bg-m-warm-container" "fg" "text-m-on-warm-container")
   (dict "name" "GitHub" "name2" "GitHub" "url" "https://github.com/styrigx" "icon" "brands/github" "ext" true "bg" "bg-m-container-highest" "fg" "text-m-on-surface")
   (dict "name" "X" "name2" "X" "url" "https://x.com/styrigx" "icon" "x-logo" "ext" true "bg" "bg-m-container-highest" "fg" "text-m-on-surface")
-  (dict "name" (cond $isEn "Bookmarks" "导航") "name2" "Bookmarks 导航 links" "url" $linksUrl "icon" "compass" "bg" "bg-m-accent-container" "fg" "text-m-on-accent-container")
+  (dict "name" (cond $isEn "Internet" "浏览器") "name2" "Internet 浏览器 browser links 书签" "url" $linksUrl "icon" "browser" "bg" "" "fg" "")
   (dict "name" (cond $isEn "Email" "邮件") "name2" "Email 邮件 mail" "url" "mailto:styrigx@gmail.com" "icon" "mail" "bg" "bg-m-rose-container" "fg" "text-m-on-rose-container")
   (dict "name" (cond $isEn "Books" "书单") "name2" "Books 书单 books" "url" (print $home "books/") "icon" "book" "bg" "bg-m-secondary-container" "fg" "text-m-on-secondary-container")
   (dict "name" (cond $isEn "Playlist" "歌单") "name2" "Playlist 歌单 music" "url" (print $home "music/") "icon" "music" "bg" "bg-m-warm-container" "fg" "text-m-on-warm-container")
@@ -580,8 +506,8 @@ try{
     <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="5" r="2.2"/><circle cx="12" cy="5" r="2.2"/><circle cx="19" cy="5" r="2.2"/><circle cx="5" cy="12" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="19" cy="12" r="2.2"/><circle cx="5" cy="19" r="2.2"/><circle cx="12" cy="19" r="2.2"/><circle cx="19" cy="19" r="2.2"/></svg>
   </button>
   <div class="dex-pinned">
-    <a href="{{ $linksUrl }}" class="dex-tbtn" aria-label="{{ if $isEn }}Bookmarks{{ else }}导航{{ end }}" title="{{ if $isEn }}Bookmarks{{ else }}导航{{ end }}">{{ partial "icon.html" "compass" }}</a>
-    <a href="{{ $setUrl }}" class="dex-tbtn" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}" title="{{ if $isEn }}Settings{{ else }}设置{{ end }}">{{ partial "icon.html" "gear" }}</a>
+    <a href="{{ $linksUrl }}" class="dex-tbtn" data-dexpage="browser" aria-label="{{ if $isEn }}Internet{{ else }}浏览器{{ end }}" title="{{ if $isEn }}Internet{{ else }}浏览器{{ end }}"><span class="dex-tbtn-ic">{{ partial "icon.html" "browser" }}</span></a>
+    <a href="{{ $setUrl }}" class="dex-tbtn" data-dexpage="settings" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}" title="{{ if $isEn }}Settings{{ else }}设置{{ end }}">{{ partial "icon.html" "gear" }}</a>
   </div>
   <div class="dex-recent">
     <span class="dex-sep" aria-hidden="true"></span>
@@ -598,7 +524,66 @@ try{
   </div>
 </div>
 
-<!-- DeX 迷你音乐控制窗 -->
+<!-- 手机悬浮 Dock：只留 浏览器 / 设置（<840px，全站） -->
+<div class="dock" id="phone-dock" role="navigation" aria-label="{{ if $isEn }}Navigation{{ else }}导航栏{{ end }}">
+  <span class="dock-pill" id="dock-pill" aria-hidden="true"></span>
+  <a href="{{ $linksUrl }}" class="dock-btn" data-dock="browser" aria-label="{{ if $isEn }}Internet{{ else }}浏览器{{ end }}">
+    <span class="dock-ic">{{ partial "icon.html" "browser" }}</span><span class="dock-label">{{ if $isEn }}Internet{{ else }}浏览器{{ end }}</span>
+  </a>
+  <a href="{{ $setUrl }}" class="dock-btn" data-dock="settings" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}">
+    <span class="dock-ic">{{ partial "icon.html" "gear" }}</span><span class="dock-label">{{ if $isEn }}Settings{{ else }}设置{{ end }}</span>
+  </a>
+</div>
+
+<!-- 上下边缘柔和模糊渐隐 -->
+<div id="edge-top" aria-hidden="true"></div>
+<div id="edge-bottom" aria-hidden="true"></div>
+
+<script>
+/* ===== 手机悬浮 Dock：滚动隐藏 + 选中高亮块滑动 ===== */
+(function(){
+  var dock=document.getElementById('phone-dock'),pill=document.getElementById('dock-pill');
+  if(!dock)return;
+  function reduced(){return document.documentElement.classList.contains('reduced-motion')}
+  /* 选中态：首页不选中任何一个 */
+  function paintActive(){
+    var pg=document.body.getAttribute('data-page');
+    var btns=dock.querySelectorAll('.dock-btn');
+    var active=null;
+    btns.forEach(function(b){
+      var on=b.getAttribute('data-dock')===pg;
+      b.classList.toggle('dock-active',on);
+      if(on)active=b;
+    });
+    if(active){
+      pill.style.display='';
+      pill.style.left=(active.offsetLeft+6)+'px';
+      pill.style.width=(active.offsetWidth-12)+'px';
+    }else{
+      pill.style.display='none';
+    }
+  }
+  paintActive();
+  window.addEventListener('resize',paintActive);
+  /* 滚动时隐藏，停 0.6s 后或滚到底时出现；减弱动效时不隐藏 */
+  var t=null;
+  var ssBar=document.getElementById('settings-searchbar-wrap');
+  function show(){dock.classList.remove('dock-hide');if(ssBar)ssBar.classList.remove('ss-hide')}
+  window.addEventListener('scroll',function(){
+    if(reduced())return;
+    dock.classList.add('dock-hide');
+    if(ssBar)ssBar.classList.add('ss-hide');
+    if(t)clearTimeout(t);
+    t=setTimeout(show,600);
+  },{passive:true});
+  /* DeX 模式下确保隐藏（CSS 已处理，这里兜底清状态） */
+  var prevHook=window.__dexLayoutChanged;
+  window.__dexLayoutChanged=function(m){
+    if(prevHook)prevHook(m);
+    if(m!=='dex')paintActive();
+  };
+})();
+</script>
 <div id="dex-music-pop" class="hidden" role="dialog" aria-label="{{ if $isEn }}Now playing controls{{ else }}播放控制{{ end }}">
   <img id="dmp-cover" src="" alt="" class="dmp-cover">
   <div class="dmp-meta">
@@ -631,7 +616,11 @@ try{
     <div id="dex-drawer-grid">
       {{ range $dexApps }}
       <a href="{{ .url }}" {{ if .ext }}target="_blank" rel="noopener"{{ end }} data-name="{{ .name2 }}" class="dex-app" aria-label="{{ .name }}">
+        {{ if eq .icon "browser" }}
+        <span class="dex-app-ic dex-app-ic-full">{{ partial "icon.html" .icon }}</span>
+        {{ else }}
         <span class="dex-app-ic {{ .bg }} {{ .fg }}">{{ partial "icon.html" .icon }}</span>
+        {{ end }}
         <span class="dex-app-name">{{ .name }}</span>
       </a>
       {{ end }}
@@ -662,7 +651,7 @@ window.__iconSvg={
   pen:'{{ partial "icon.html" "pen" }}',
   ticket:'{{ partial "icon.html" "ticket" }}',
   book:'{{ partial "icon.html" "book" }}',
-  compass:'{{ partial "icon.html" "compass" }}',
+  browser:'{{ partial "icon.html" "browser" }}',
   gear:'{{ partial "icon.html" "gear" }}',
   gift:'{{ partial "icon.html" "gift" }}',
   mail:'{{ partial "icon.html" "mail" }}',
@@ -706,7 +695,7 @@ window.__iconSvg={
     if(host===location.hostname){
       if(path.indexOf('/goodlock')===0)return ic('gift','bg-m-accent-container text-m-on-accent-container');
       if(path.indexOf('/settings')===0)return ic('gear','bg-m-container-highest text-m-on-surface');
-      if(path.indexOf('/links')===0)return ic('compass','bg-m-accent-container text-m-on-accent-container');
+      if(path.indexOf('/browser')===0)return{favicon:'',icon:'browser',cls:''};
       return null;
     }
     if(host==='blog.styrigx.com')return ic('pen','bg-m-primary-container text-m-on-primary-container');
@@ -746,7 +735,7 @@ window.__iconSvg={
     if(!pg)return;
     document.querySelectorAll('#dex-taskbar .dex-pinned .dex-tbtn, #dex-recent-list .dex-rec').forEach(function(a){
       var href=a.getAttribute('href')||'';
-      if((pg==='links'&&href.indexOf('/links')>=0)||(pg==='settings'&&href.indexOf('/settings')>=0)||(pg==='goodlock'&&href.indexOf('/goodlock')>=0))a.classList.add('active');
+      if((pg==='browser'&&href.indexOf('/browser')>=0)||(pg==='settings'&&href.indexOf('/settings')>=0)||(pg==='goodlock'&&href.indexOf('/goodlock')>=0))a.classList.add('active');
     });
   })();
 

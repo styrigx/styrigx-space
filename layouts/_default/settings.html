@@ -10,11 +10,7 @@
 }}
 
 <div class="max-w-[1100px] mx-auto px-4">
-  <!-- 大标题头部（手机端） -->
-  <header id="settings-hero" class="page-hero flex flex-col items-center justify-center text-center py-10 animate-fade-up">
-    <h1 class="text-6xl sm:text-7xl font-extrabold text-m-primary tracking-tight">{{ if $isEn }}Settings{{ else }}设置{{ end }}</h1>
-    <p class="mt-4 text-m-on-surface-variant text-sm">{{ if $isEn }}Make it yours.{{ else }}调成你的样子。{{ end }}</p>
-  </header>
+  {{ partial "subpage-head.html" (dict "title" (cond $isEn "Settings" "设置") "sub" (cond $isEn "Make it yours." "调成你的样子。") "isEn" $isEn) }}
 
   <div class="set-layout max-w-2xl mx-auto pb-28">
     <!-- 平板/桌面双栏：左侧分类 -->
@@ -29,7 +25,6 @@
           <p class="text-xs text-m-on-surface-variant">Styrigx</p>
         </div>
       </div>
-      <input id="set-search" type="search" autocomplete="off" placeholder="{{ if $isEn }}Search settings…{{ else }}搜索设置…{{ end }}" aria-label="{{ if $isEn }}Search settings{{ else }}搜索设置{{ end }}">
       <nav class="flex flex-col gap-1" id="set-cat-nav">
         <button type="button" class="set-cat" data-cat="display">
           <span class="set-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "moon" }}</span>
@@ -168,6 +163,12 @@
         <span class="set-ic bg-m-warm-container text-m-on-warm-container">{{ partial "icon.html" "thermo" }}</span>
         <span class="flex-1 font-medium">{{ if $isEn }}Weather{{ else }}天气{{ end }}</span>
         <span id="wx-val" class="text-sm text-m-on-surface-variant">℃</span>
+        {{ partial "icon.html" "chev-r" }}
+      </div>
+      <div class="set-row" id="row-engine" role="button" tabindex="0">
+        <span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "search" }}</span>
+        <span class="flex-1 font-medium">{{ if $isEn }}Search engine{{ else }}搜索引擎{{ end }}</span>
+        <span id="engine-val" class="text-sm text-m-on-surface-variant">Google</span>
         {{ partial "icon.html" "chev-r" }}
       </div>
     </section>
@@ -438,11 +439,26 @@
   });
   paintLayout();
 
+  /* ---- 搜索引擎（和浏览器页共用同一个 localStorage key） ---- */
+  var ENGINES=[
+    {id:'google',name:'Google'},
+    {id:'bing',name:'Bing'},
+    {id:'duckduckgo',name:'DuckDuckGo'},
+    {id:'yahoo',name:'Yahoo'},
+    {id:'ecosia',name:'Ecosia'}
+  ];
+  function engineNameById(id){
+    for(var i=0;i<ENGINES.length;i++){if(ENGINES[i].id===id)return ENGINES[i].name}
+    return 'Google';
+  }
+  function engineName(){var e=get('sgx-search-engine')||'google';return engineNameById(e)}
+
   /* ---- 常规管理行：当前值 ---- */
   function paintManage(){
     $('lang-val').textContent=en?'English':'中文';
     $('dt-val').textContent=firstCity()+' · '+secondCity();
     $('wx-val').textContent=get('sgx-temp-unit')==='f'?'℉':'℃';
+    $('engine-val').textContent=engineName();
   }
   paintManage();
 
@@ -579,6 +595,18 @@
   }
   rowToggle('row-weather',openWeather);
 
+  /* ---- 搜索引擎选择（ENGINES 定义见“常规管理行”上方） ---- */
+  rowToggle('row-engine',function(){
+    var cur=get('sgx-search-engine')||'google';
+    window.__openSheet({title:en?'Search engine':'搜索引擎',options:
+      ENGINES.map(function(e){return {label:e.name,value:e.id,checked:e.id===cur}}),
+      onPick:function(v){
+        set('sgx-search-engine',v==='google'?null:v);
+        paintManage();
+        window.dispatchEvent(new Event('sgx-settings-changed'));
+      }});
+  });
+
   /* ---- 减弱动效 ---- */
   function paintMotion(){setSwitch('sw-motion',get('sgx-reduced-motion')==='1')}
   rowToggle('row-motion',function(){
@@ -680,16 +708,12 @@
       if(setLayout)setLayout.classList.remove('single-cat');
       document.querySelectorAll('.set-group').forEach(function(g){g.classList.remove('active');g.style.display=''});
       document.querySelectorAll('#set-cat-nav .set-cat').forEach(function(b){b.classList.remove('active');b.style.display=''});
-      var si=$('set-search');if(si)si.value='';
-      clearMarks();
       return;
     }
     showCat(catFromHash(),true);
   }
   document.querySelectorAll('#set-cat-nav .set-cat').forEach(function(b){
     b.addEventListener('click',function(){
-      var si=$('set-search');if(si)si.value='';
-      clearSearch();
       showCat(b.getAttribute('data-cat'));
     });
   });
@@ -697,73 +721,7 @@
   if(mqWide.addEventListener)mqWide.addEventListener('change',applyMode);
   else if(mqWide.addListener)mqWide.addListener(applyMode);
 
-  /* ---- 左栏搜索：过滤分类 + 高亮右栏设置项 ---- */
-  var setSearch=$('set-search');
-  function clearMarks(){
-    document.querySelectorAll('.set-main mark.smk').forEach(function(m){
-      m.replaceWith(document.createTextNode(m.textContent));
-    });
-  }
-  function clearSearch(){
-    clearMarks();
-    document.querySelectorAll('#set-cat-nav .set-cat').forEach(function(b){b.style.display=''});
-    document.querySelectorAll('.set-group').forEach(function(g){g.style.display=''});
-    if(mqWide.matches)showCat(catFromHash(),true);
-  }
-  function markText(root,q){
-    var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode:function(n){
-      if(!n.nodeValue||n.nodeValue.toLowerCase().indexOf(q)<0)return NodeFilter.FILTER_REJECT;
-      var p=n.parentNode;
-      if(!p||(p.closest&&p.closest('script,style')))return NodeFilter.FILTER_REJECT;
-      return NodeFilter.FILTER_ACCEPT;
-    }});
-    var nodes=[];
-    while(walker.nextNode())nodes.push(walker.currentNode);
-    nodes.forEach(function(n){
-      var idx=n.nodeValue.toLowerCase().indexOf(q);
-      if(idx<0)return;
-      var frag=document.createDocumentFragment();
-      frag.appendChild(document.createTextNode(n.nodeValue.slice(0,idx)));
-      var mk=document.createElement('mark');mk.className='smk';mk.textContent=n.nodeValue.slice(idx,idx+q.length);
-      frag.appendChild(mk);
-      frag.appendChild(document.createTextNode(n.nodeValue.slice(idx+q.length)));
-      n.parentNode.replaceChild(frag,n);
-    });
-  }
-  if(setSearch){
-    setSearch.addEventListener('input',function(){
-      var q=setSearch.value.trim().toLowerCase();
-      clearMarks();
-      if(!q){clearSearch();return}
-      if(setLayout)setLayout.classList.remove('single-cat');
-      CATS.forEach(function(c){
-        var g=document.getElementById(c.el);if(!g)return;
-        var btn=document.querySelector('#set-cat-nav .set-cat[data-cat="'+c.id+'"]');
-        var match=g.textContent.toLowerCase().indexOf(q)>=0;
-        g.style.display=match?'':'none';
-        if(btn)btn.style.display=match?'':'none';
-        if(match)markText(g,q);
-      });
-    });
-    setSearch.addEventListener('keydown',function(e){
-      if(e.key==='Escape'){setSearch.value='';clearSearch();setSearch.blur()}
-    });
-  }
   applyMode();
-
-  /* ---- 手机端：收缩标题放进顶栏左侧 ---- */
-  (function(){
-    var hero=$('settings-hero'),ctx=document.getElementById('nav-context');
-    if(!hero||!ctx)return;
-    function onScroll(){
-      var show=!mqWide.matches&&window.scrollY>hero.offsetHeight*0.55;
-      if(show){ctx.textContent=en?'Settings':'设置';ctx.classList.remove('hidden')}
-      else{ctx.textContent='';ctx.classList.add('hidden')}
-    }
-    window.addEventListener('scroll',onScroll,{passive:true});
-    window.addEventListener('resize',onScroll);
-    onScroll();
-  })();
 
   /* ---- 全屏搜索索引（手机三星样式搜索条用） ---- */
   var SETIDX=[
@@ -781,6 +739,7 @@
     {t:en?'Weather':'天气',d:en?'General management':'常规管理',cat:'manage',el:'row-weather'},
     {t:en?'Temperature unit':'温度单位',d:en?'Weather':'天气',cat:'manage',el:'row-weather'},
     {t:en?'Show weather widget':'显示天气小组件',d:en?'Weather':'天气',cat:'manage',el:'row-weather'},
+    {t:en?'Search engine':'搜索引擎',d:en?'General management':'常规管理',cat:'manage',el:'row-engine'},
     {t:en?'Reduce motion':'减弱动效',d:en?'Accessibility':'辅助功能',cat:'accessibility',el:'row-motion'},
     {t:'Good Lock',d:en?'Advanced features':'高级功能',cat:'advanced',el:'row-goodlock'},
     {t:en?'Digital wellbeing':'数字健康',d:'',cat:'wellbeing',el:'sg-wellbeing'},
@@ -888,7 +847,7 @@
     ovi.addEventListener('input',function(){renderOverlay(ovi.value)});
     ovi.addEventListener('keydown',function(e){if(e.key==='Escape'){ovi.value='';renderOverlay('')}});
     document.addEventListener('keydown',function(e){
-      if(e.key==='Escape'&&!ov.classList.contains('hidden')&&!mqWide.matches)closeOverlay();
+      if(e.key==='Escape'&&!ov.classList.contains('hidden'))closeOverlay();
     });
   }
 })();

@@ -16,17 +16,7 @@
   {{ end }}
 {{ end }}
 <div class="max-w-[1200px] mx-auto px-4">
-  <!-- 大标题头部 -->
-  <header id="page-hero" class="page-hero flex flex-col items-center justify-center text-center py-10">
-    <h1 class="text-5xl sm:text-6xl font-extrabold text-m-primary tracking-tight">{{ .Title }}</h1>
-    <p class="mt-4 text-m-on-surface-variant text-sm sm:text-base"><span class="msg-hover">{{ if $isEn }}Hover for notes{{ else }}悬停看批注{{ end }}</span><span class="msg-tap">{{ if $isEn }}Tap for notes{{ else }}点击看批注{{ end }}</span> · {{ len $items }}{{ if $isEn }}{{ if eq $kind "books" }} books{{ else }} songs{{ end }}{{ else }}{{ if eq $kind "books" }} 本{{ else }} 首{{ end }}{{ end }}</p>
-    {{ if eq $kind "music" }}
-    <p class="mt-2 text-xs text-m-on-surface-variant">{{ if $isEn }}Log in to Spotify for full tracks, or listen on YouTube.{{ else }}登录 Spotify 可听完整版，也可以去 YouTube 听。{{ end }}</p>
-    {{ end }}
-  </header>
-  <!-- 滚动时的小标题栏 -->
-  <div id="page-minibar" class="fixed left-1/2 z-40 opacity-0 pointer-events-none transition-all duration-300" style="top:calc(var(--nav-h) + 16px);transform:translate(-50%,-8px)">
-    <div class="glass border border-m-outline rounded-full px-5 py-2 text-sm font-semibold shadow-md whitespace-nowrap">{{ .Title }}</div>
+  {{ partial "subpage-head.html" (dict "title" .Title "sub" (cond $isEn "Tap a cover for notes." "点击封面看批注。") "isEn" $isEn) }}
   </div>
   <!-- 封面网格：手机 2 列 / 平板 3–4 列 / DeX 5–6 列 -->
   <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6 gap-4 sm:gap-5 pb-16">
@@ -53,18 +43,6 @@
 </div>
 <script>
 (function(){
-  /* 大标题收缩 → 顶栏小标题 */
-  var bar=document.getElementById('page-minibar'),hero=document.getElementById('page-hero');
-  if(bar&&hero){
-    function onScroll(){
-      var show=window.scrollY>hero.offsetHeight*0.55;
-      bar.style.opacity=show?'1':'0';
-      bar.style.transform=show?'translate(-50%,0)':'translate(-50%,-8px)';
-      bar.style.pointerEvents=show?'auto':'none';
-    }
-    window.addEventListener('scroll',onScroll,{passive:true});
-    onScroll();
-  }
   /* 触屏点封面 → bottom sheet 看批注；桌面端悬停已由 CSS 处理 */
   var en=document.documentElement.lang==='en';
   var coarse=window.matchMedia('(hover: none)').matches;

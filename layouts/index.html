@@ -5,8 +5,8 @@
 {{ $music := site.Data.music }}
 {{ $collections := site.Data.collections }}
 {{ $now := site.Data.now }}
-{{ $linksUrl := "/links/" }}{{ $home := "/" }}
-{{ if $isEn }}{{ $books = site.Data.en.books }}{{ $music = site.Data.en.music }}{{ $collections = site.Data.en.collections }}{{ $now = site.Data.en.now }}{{ $linksUrl = "/en/links/" }}{{ $home = "/en/" }}{{ end }}
+{{ $linksUrl := "/browser/" }}{{ $home := "/" }}
+{{ if $isEn }}{{ $books = site.Data.en.books }}{{ $music = site.Data.en.music }}{{ $collections = site.Data.en.collections }}{{ $now = site.Data.en.now }}{{ $linksUrl = "/en/browser/" }}{{ $home = "/en/" }}{{ end }}
 {{ $motto := $profile.motto_zh }}{{ if $isEn }}{{ $motto = $profile.motto_en }}{{ end }}
 
 {{/* 构建时抓取博客 RSS，取最新 3 篇 */}}
@@ -56,7 +56,7 @@
   (dict "name" "textbook-playbook" "url" "https://github.com/styrigx/textbook-playbook" "icon" "book" "bg" "bg-m-warm-container" "fg" "text-m-on-warm-container")
   (dict "name" "GitHub" "url" "https://github.com/styrigx" "icon" "brands/github" "bg" "bg-m-container-highest" "fg" "text-m-on-surface")
   (dict "name" "X" "url" "https://x.com/styrigx" "icon" "x-logo" "bg" "bg-m-container-highest" "fg" "text-m-on-surface")
-  (dict "name" (cond $isEn "Bookmarks" "导航") "url" $linksUrl "icon" "compass" "bg" "bg-m-accent-container" "fg" "text-m-on-accent-container")
+  (dict "name" (cond $isEn "Internet" "浏览器") "url" $linksUrl "icon" "browser" "bg" "" "fg" "")
   (dict "name" (cond $isEn "Email" "邮件") "url" "mailto:styrigx@gmail.com" "icon" "mail" "bg" "bg-m-rose-container" "fg" "text-m-on-rose-container")
   (dict "name" "Good Lock" "url" (cond $isEn "/en/goodlock/" "/goodlock/") "icon" "gift" "bg" "bg-m-accent-container" "fg" "text-m-on-accent-container")
 }}
@@ -280,7 +280,11 @@
       {{ range $i, $a := $apps }}
       <a href="{{ $a.url }}" {{ if hasPrefix $a.url "http" }}target="_blank" rel="noopener"{{ end }}
          class="app-tile flex flex-col items-center gap-1.5 py-1 active:scale-90 transition-transform animate-fade-up" style="animation-delay:{{ add 400 (mul $i 35) }}ms">
+        {{ if eq $a.icon "browser" }}
+        <span class="w-14 h-14 sm:w-16 sm:h-16 shrink-0 drop-shadow-sm">{{ partial "icon.html" $a.icon }}</span>
+        {{ else }}
         <span class="w-14 h-14 sm:w-16 sm:h-16 rounded-[1.1rem] {{ $a.bg }} {{ $a.fg }} flex items-center justify-center shadow-sm">{{ partial "icon.html" $a.icon }}</span>
+        {{ end }}
         <span class="text-[11px] leading-tight text-center text-m-on-surface-variant dark:text-m-on-surface max-w-[4.75rem] break-words">{{ $a.name }}</span>
       </a>
       {{ end }}
@@ -441,14 +445,7 @@
   </div>
 </div>
 
-<!-- Dock（手机）：只留 导航 / 搜索 / 设置 -->
-<div class="dock fixed bottom-0 inset-x-0 z-40 sm:inset-x-auto sm:left-1/2 sm:bottom-6 sm:-translate-x-1/2">
-  <div class="glass border-t sm:border border-m-outline sm:rounded-full px-4 py-1.5 flex items-center justify-evenly sm:justify-center sm:gap-6">
-    <a href="{{ $linksUrl }}" class="dock-btn dock-item" data-dock="links" aria-label="{{ if $isEn }}Bookmarks{{ else }}导航{{ end }}">{{ partial "icon.html" "compass" }}<span class="dock-label">{{ if $isEn }}Links{{ else }}导航{{ end }}</span></a>
-    <button id="dock-search" class="dock-btn dock-item" data-dock="search" aria-label="{{ if $isEn }}Search{{ else }}搜索{{ end }}">{{ partial "icon.html" "search" }}<span class="dock-label">{{ if $isEn }}Search{{ else }}搜索{{ end }}</span></button>
-    <a href="{{ if $isEn }}/en/settings/{{ else }}/settings/{{ end }}" class="dock-btn dock-item" data-dock="settings" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}">{{ partial "icon.html" "gear" }}<span class="dock-label">{{ if $isEn }}Settings{{ else }}设置{{ end }}</span></a>
-  </div>
-</div>
+<!-- 手机悬浮 Dock 已移入 baseof（全站） -->
 
 <style>
 /* 桌面端默认显示悬停文案，触屏显示点击文案 */
@@ -754,16 +751,6 @@
     document.getElementById('np-next').addEventListener('click',function(){step(1)});
     btnPlay.addEventListener('click',function(){playing?pause():play()});
   }
-  /* Dock 搜索 */
-  var ds=document.getElementById('dock-search');
-  if(ds)ds.addEventListener('click',function(){window.__openSearch&&window.__openSearch()});
-  /* Dock 当前页主色胶囊高亮 */
-  try{
-    var pg=document.body.getAttribute('data-page');
-    if(pg)document.querySelectorAll('.dock-item[data-dock]').forEach(function(b){
-      if(b.getAttribute('data-dock')===pg)b.classList.add('dock-active');
-    });
-  }catch(e){}
   /* 首页刷新回到顶部 */
   if('scrollRestoration' in history){history.scrollRestoration='manual';}
   window.scrollTo(0,0);

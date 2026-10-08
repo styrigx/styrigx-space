@@ -1,0 +1,14 @@
+{{/* 子页面统一标题区（One UI 8.5 设置风格）：
+   顶部：返回箭头 + 大标题（32px 加粗），无背景；
+   滚过标题区后：左上角悬浮圆形磨砂玻璃返回键（.subpage-back-float.show 由 baseof 的 JS 切换）。
+   用法：{{ partial "subpage-head.html" (dict "title" .Title "sub" "副标题" "isEn" $isEn) }} */}}
+{{ $en := .isEn }}
+<header class="subpage-head" data-subpage-head>
+  <button type="button" class="subpage-back" data-go-back aria-label="{{ if $en }}Back{{ else }}返回{{ end }}">{{ partial "icon.html" "arrow-left" }}</button>
+  <div class="min-w-0">
+    <h1 class="subpage-title">{{ .title }}</h1>
+    {{ with .sub }}<p class="subpage-sub">{{ . }}</p>{{ end }}
+  </div>
+  {{ with .actions }}<div class="subpage-actions">{{ . }}</div>{{ end }}
+</header>
+<button type="button" class="subpage-back-float" data-go-back aria-label="{{ if $en }}Back{{ else }}返回{{ end }}">{{ partial "icon.html" "arrow-left" }}</button>

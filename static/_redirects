@@ -2,3 +2,5 @@
 /tp    https://github.com/styrigx/textbook-playbook    301
 /gh    https://github.com/styrigx                     301
 /gh/*  https://github.com/styrigx/:splat               301
+/links/  /browser/  301
+/en/links/  /en/browser/  301
