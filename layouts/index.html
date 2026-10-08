@@ -286,21 +286,23 @@
 
   <!-- 收藏 · 数字花园 -->
   <section id="garden" class="pt-14 scroll-mt-24">
-    <div class="mb-8">
+    <div class="sec-hero mb-8">
       <p class="text-sm font-semibold text-m-primary uppercase tracking-widest mb-2">{{ if $isEn }}Garden{{ else }}花园{{ end }}</p>
       <h2 class="text-3xl sm:text-4xl font-bold">{{ if $isEn }}Digital Garden{{ else }}收藏{{ end }}</h2>
       <p class="mt-3 text-m-on-surface-variant">{{ if $isEn }}Things I grow and keep.{{ else }}我种下、养着的东西。{{ end }}</p>
     </div>
     {{ $tags := slice }}{{ range $collections }}{{ range .tags }}{{ $tags = $tags | append . }}{{ end }}{{ end }}{{ $tags = $tags | uniq }}
+    <div class="chipbar">
     <div class="flex flex-wrap items-center gap-2 mb-4" id="garden-filters">
       <button data-tag="" class="garden-pill rounded-full px-4 py-1.5 text-sm font-medium bg-m-primary text-m-on-primary transition-colors">{{ if $isEn }}All{{ else }}全部{{ end }}</button>
       {{ range $tags }}<button data-tag="{{ . }}" class="garden-pill rounded-full px-4 py-1.5 text-sm font-medium border border-m-outline text-m-on-surface-variant hover:border-m-primary transition-colors">{{ . }}</button>{{ end }}
     </div>
-    <div class="flex flex-wrap items-center gap-2 mb-3" id="garden-stage-filters">
+    <div class="flex flex-wrap items-center gap-2" id="garden-stage-filters">
       <button data-stage="" class="stage-pill rounded-full px-4 py-1.5 text-sm font-medium bg-m-primary text-m-on-primary transition-colors">{{ if $isEn }}All stages{{ else }}全部状态{{ end }}</button>
       <button data-stage="seedling" class="stage-pill rounded-full px-4 py-1.5 text-sm font-medium border border-m-outline text-m-on-surface-variant hover:border-m-primary transition-colors">🌱 {{ if $isEn }}Seedling{{ else }}幼苗{{ end }}</button>
       <button data-stage="budding" class="stage-pill rounded-full px-4 py-1.5 text-sm font-medium border border-m-outline text-m-on-surface-variant hover:border-m-primary transition-colors">🌿 {{ if $isEn }}Budding{{ else }}长成{{ end }}</button>
       <button data-stage="evergreen" class="stage-pill rounded-full px-4 py-1.5 text-sm font-medium border border-m-outline text-m-on-surface-variant hover:border-m-primary transition-colors">🌳 {{ if $isEn }}Evergreen{{ else }}常青{{ end }}</button>
+    </div>
     </div>
     <p class="text-xs text-m-on-surface-variant mb-8">
       {{ if $isEn }}🌱 seedling: just sprouted · 🌿 budding: actively growing · 🌳 evergreen: long-term maintained{{ else }}🌱 幼苗：刚发芽 · 🌿 长成：持续生长中 · 🌳 常青：长期维护{{ end }}
@@ -338,11 +340,12 @@
 
 <!-- Dock -->
 <div class="dock fixed bottom-0 inset-x-0 z-40 sm:inset-x-auto sm:left-1/2 sm:bottom-6 sm:-translate-x-1/2">
-  <div class="glass border-t sm:border border-m-outline sm:rounded-full px-8 py-2 flex items-center justify-around sm:justify-center sm:gap-6">
+  <div class="glass border-t sm:border border-m-outline sm:rounded-full px-6 py-2 flex items-center justify-around sm:justify-center sm:gap-5">
     <a href="https://blog.styrigx.com" target="_blank" rel="noopener" class="dock-btn" aria-label="{{ if $isEn }}Blog{{ else }}博客{{ end }}">{{ partial "icon.html" "pen" }}</a>
     <a href="https://github.com/styrigx" target="_blank" rel="noopener" class="dock-btn" aria-label="GitHub">{{ partial "icon.html" "brands/github" }}</a>
     <a href="{{ $linksUrl }}" class="dock-btn" aria-label="{{ if $isEn }}Bookmarks{{ else }}导航{{ end }}">{{ partial "icon.html" "compass" }}</a>
     <button id="dock-search" class="dock-btn" aria-label="{{ if $isEn }}Search{{ else }}搜索{{ end }}">{{ partial "icon.html" "search" }}</button>
+    <a href="{{ if $isEn }}/en/settings/{{ else }}/settings/{{ end }}" class="dock-btn" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}">{{ partial "icon.html" "gear" }}</a>
   </div>
 </div>
 
@@ -372,11 +375,15 @@
     var MOON='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
     var localTz='UTC';
     try{localTz=Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC'}catch(e){}
-    /* 第二时区：localStorage 可配（设置页第二批），默认洛杉矶；访客在洛杉矶则显示北京 */
-    var remoteTz='America/Los_Angeles';
-    try{var s=localStorage.getItem('sgx-tz2');if(s)remoteTz=s}catch(e){}
-    if(remoteTz===localTz){remoteTz=(localTz==='Asia/Shanghai')?'America/Los_Angeles':'Asia/Shanghai'}
-    else if(localTz==='America/Los_Angeles'&&remoteTz==='America/Los_Angeles'){remoteTz='Asia/Shanghai'}
+    function remoteTzNow(){
+      /* 第二时区：localStorage 可配（设置页），默认洛杉矶；访客在洛杉矶则显示北京 */
+      var remoteTz='America/Los_Angeles';
+      try{var s=localStorage.getItem('sgx-tz2');if(s)remoteTz=s}catch(e){}
+      if(remoteTz===localTz){remoteTz=(localTz==='Asia/Shanghai')?'America/Los_Angeles':'Asia/Shanghai'}
+      else if(localTz==='America/Los_Angeles'&&remoteTz==='America/Los_Angeles'){remoteTz='Asia/Shanghai'}
+      return remoteTz;
+    }
+    function hour12Now(){try{return localStorage.getItem('sgx-hour12')==='12'}catch(e){return false}}
     function cityName(tz){var m=en?CITY.en:CITY.zh;return m[tz]||(en?'Local':'本地')}
     function tzOffsetMin(tz,d){
       try{
@@ -385,21 +392,22 @@
         return Math.round((tzd-utc)/60000);
       }catch(e){return 0}
     }
-    function parts(tz,d){
+    function parts(tz,d,h12){
       try{
-        var f=new Intl.DateTimeFormat('en-US',{timeZone:tz,hour12:false,weekday:'short',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+        var f=new Intl.DateTimeFormat('en-US',{timeZone:tz,hour12:h12,weekday:'short',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
         var p={};f.formatToParts(d).forEach(function(x){p[x.type]=x.value});
         var h=parseInt(p.hour,10);if(h===24)h=0;
-        return {h:h,mi:p.minute,wd:p.weekday,mo:p.month,day:p.day};
+        return {h:h,mi:p.minute,ap:p.dayPeriod||'',wd:p.weekday,mo:p.month,day:p.day};
       }catch(e){return null}
     }
     var WD_ZH={'Sun':'周日','Mon':'周一','Tue':'周二','Wed':'周三','Thu':'周四','Fri':'周五','Sat':'周六'};
-    function renderHalf(pre,tz,d){
-      var q=parts(tz,d);if(!q)return 0;
+    function renderHalf(pre,tz,d,h12){
+      var q=parts(tz,d,h12);if(!q)return 0;
       var isDay=q.h>=6&&q.h<18;
       document.getElementById(pre+'-icon').innerHTML=isDay?SUN:MOON;
       document.getElementById(pre+'-city').textContent=cityName(tz);
-      document.getElementById(pre+'-time').textContent=String(q.h).padStart(2,'0')+':'+q.mi;
+      var hh=h12?(q.h%12===0?12:q.h%12):q.h;
+      document.getElementById(pre+'-time').textContent=String(hh).padStart(2,'0')+':'+q.mi+(h12?' '+q.ap:'');
       document.getElementById(pre+'-date').textContent=en?(q.wd+', '+q.mo+'/'+q.day):(q.mo+'月'+q.day+'日 '+WD_ZH[q.wd]);
       var half=document.getElementById(pre==='clk-l'?'clk-l':'clk-r');
       half.classList.toggle('clock-night',!isDay);
@@ -407,16 +415,17 @@
       return q.h;
     }
     function tick(){
-      var d=new Date();
-      renderHalf('clk-l',localTz,d);
-      renderHalf('clk-r',remoteTz,d);
-      var diffH=Math.round((tzOffsetMin(remoteTz,d)-tzOffsetMin(localTz,d))/60);
+      var d=new Date(),h12=hour12Now(),rtz=remoteTzNow();
+      renderHalf('clk-l',localTz,d,h12);
+      renderHalf('clk-r',rtz,d,h12);
+      var diffH=Math.round((tzOffsetMin(rtz,d)-tzOffsetMin(localTz,d))/60);
       var el=document.getElementById('clk-r-diff');
       if(diffH===0){el.textContent=en?'Same time':'同一时区'}
       else if(diffH>0){el.textContent=en?diffH+' hrs ahead':'+'+diffH+' 小时'}
       else{el.textContent=en?(-diffH)+' hrs behind':diffH+' 小时'}
     }
     tick();setInterval(tick,60000);
+    window.addEventListener('sgx-settings-changed',tick);
   })();
 
   /* 天气 */
@@ -445,19 +454,28 @@
       if(code>=51)return'linear-gradient(135deg,#3d5f8f,#1d2f4d)';
       return'linear-gradient(135deg,#6b8aa5,#3d5a75)';
     }
+    function tempUnit(){try{return localStorage.getItem('sgx-temp-unit')==='f'?'f':'c'}catch(e){return 'c'}}
+    function fmtT(c){return tempUnit()==='f'?Math.round(c*9/5+32):Math.round(c)}
     function render(d){
+      try{if(localStorage.getItem('sgx-weather-show')==='0'){root.classList.add('hidden');return}}catch(e){}
       var cur=d.current,day=d.daily;
       var isDay=cur.is_day===1;
       var info=wmoInfo(cur.weather_code,isDay);
       root.style.background=bgFor(cur.weather_code,isDay);
       document.getElementById('wx-city').textContent=d.city||(en?'Los Angeles':'洛杉矶');
-      document.getElementById('wx-temp').textContent=Math.round(cur.temperature_2m)+'°';
+      document.getElementById('wx-temp').textContent=fmtT(cur.temperature_2m)+'°';
       document.getElementById('wx-icon').textContent=info.icon;
       document.getElementById('wx-desc').textContent=info.desc;
-      var hi=Math.round(day.temperature_2m_max[0]),lo=Math.round(day.temperature_2m_min[0]);
+      var hi=fmtT(day.temperature_2m_max[0]),lo=fmtT(day.temperature_2m_min[0]);
       document.getElementById('wx-hilo').textContent=(en?'H:':'最高 ')+hi+'°  '+(en?'L:':'最低 ')+lo+'°';
       root.classList.remove('hidden');
     }
+    window.__renderWeather=function(){
+      var c=cached();
+      if(c)render(c);
+      else{try{if(localStorage.getItem('sgx-weather-show')==='0')root.classList.add('hidden')}catch(e){}}
+    };
+    window.addEventListener('sgx-settings-changed',window.__renderWeather);
     function cached(){
       try{var c=JSON.parse(sessionStorage.getItem(CACHE));if(c&&Date.now()-c.ts<30*60*1000)return c.data}catch(e){}
       return null;
@@ -503,12 +521,22 @@
 })();
 </script>
 <script>
-// 触屏：点击封面切换短评显示
+// 触屏：手机上用 bottom sheet 显示批注，大屏触屏仍用封面浮层
 (function() {
+  var isMobile=function(){return window.matchMedia('(max-width:639px)').matches};
+  var en=document.documentElement.lang==='en';
+  function openCommentSheet(title,comment){
+    if(!window.__openSheet)return;
+    window.__openSheet({title:title,html:'<p class="text-sm leading-relaxed text-m-on-surface px-1">'+comment.replace(/</g,'&lt;')+'</p>'});
+  }
   if (window.matchMedia('(hover: none)').matches) {
     document.querySelectorAll('.cover-toggle').forEach(function(el) {
       var isLink = el.tagName === 'A';
+      var commentEl=el.querySelector('.cover-comment p');
+      var comment=commentEl?commentEl.textContent:'';
+      var title=el.getAttribute('aria-label')||'';
       function toggle(e) {
+        if(isMobile()&&comment){ if(e)e.preventDefault(); openCommentSheet(title,comment); return; }
         if (el.classList.contains('comment-open')) {
           if (!isLink) { el.classList.remove('comment-open'); }
         } else {

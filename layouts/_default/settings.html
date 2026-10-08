@@ -1,0 +1,368 @@
+{{ define "main" }}
+{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+{{ $avatar := resources.Get "images/avatar.png" }}
+{{ $palettes := slice
+  (dict "id" "lake" "c" "#2f5f86" "zh" "湖蓝" "en" "Lake blue")
+  (dict "id" "forest" "c" "#2f6b4f" "zh" "山绿" "en" "Forest")
+  (dict "id" "terra" "c" "#8a4b2d" "zh" "陶土" "en" "Terracotta")
+  (dict "id" "violet" "c" "#6750a4" "zh" "紫" "en" "Violet")
+  (dict "id" "rose" "c" "#984061" "zh" "蔷薇" "en" "Rose")
+}}
+
+<div class="max-w-[1100px] mx-auto px-4">
+  <!-- 大标题头部 -->
+  <header id="settings-hero" class="page-hero flex flex-col items-center justify-center text-center py-10 animate-fade-up">
+    <h1 class="text-6xl sm:text-7xl font-extrabold text-m-primary tracking-tight">{{ if $isEn }}Settings{{ else }}设置{{ end }}</h1>
+    <p class="mt-4 text-m-on-surface-variant text-sm">{{ if $isEn }}Make it yours.{{ else }}调成你的样子。{{ end }}</p>
+  </header>
+  <!-- 滚动时的小标题栏 -->
+  <div id="settings-minibar" class="fixed left-1/2 z-40 opacity-0 pointer-events-none transition-all duration-300" style="top:66px;transform:translate(-50%,-8px)">
+    <div class="glass border border-m-outline rounded-full px-5 py-2 text-sm font-semibold shadow-md whitespace-nowrap">{{ if $isEn }}Settings{{ else }}设置{{ end }}</div>
+  </div>
+
+  <div class="max-w-2xl mx-auto pb-28">
+    <!-- 个人卡片 -->
+    <section class="widget bg-m-container-lowest border border-m-outline p-5 flex items-center gap-4 mb-7 animate-fade-up" style="animation-delay:.06s">
+      {{ if $avatar }}{{ $a := $avatar.Fill "160x160 webp" }}
+      <img src="{{ $a.RelPermalink }}" alt="Sloan Gray" width="64" height="64" class="w-16 h-16 rounded-full object-cover ring-2 ring-m-outline shrink-0">
+      {{ end }}
+      <div class="min-w-0">
+        <p class="text-lg font-bold truncate">Sloan Gray</p>
+        <p class="text-sm text-m-on-surface-variant">Styrigx</p>
+      </div>
+    </section>
+
+    <!-- 第一组：显示 -->
+    <h2 class="px-2 mb-2 text-sm font-semibold text-m-on-surface-variant">{{ if $isEn }}Display{{ else }}显示{{ end }}</h2>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.1s">
+      <div class="p-5">
+        <div class="grid grid-cols-2 gap-3" id="theme-previews">
+          <div>
+            <button type="button" class="theme-prev w-full" data-mode="light" aria-pressed="false" aria-label="{{ if $isEn }}Light{{ else }}浅色{{ end }}">
+              <div class="p-2.5" style="background:linear-gradient(135deg,#dbeaf7,#f5f8fa)">
+                <div class="rounded-lg bg-white shadow-sm p-2 space-y-1.5">
+                  <div class="h-2 rounded-full bg-slate-300 w-2/3"></div>
+                  <div class="h-6 rounded-md bg-blue-100"></div>
+                  <div class="h-6 rounded-md bg-slate-100"></div>
+                </div>
+              </div>
+            </button>
+            <p class="text-center text-xs mt-2 text-m-on-surface-variant">{{ if $isEn }}Light{{ else }}浅色{{ end }}</p>
+          </div>
+          <div>
+            <button type="button" class="theme-prev w-full" data-mode="dark" aria-pressed="false" aria-label="{{ if $isEn }}Dark{{ else }}深色{{ end }}">
+              <div class="p-2.5" style="background:linear-gradient(135deg,#14324a,#0e1318)">
+                <div class="rounded-lg shadow-sm p-2 space-y-1.5" style="background:#1a2027">
+                  <div class="h-2 rounded-full bg-slate-600 w-2/3"></div>
+                  <div class="h-6 rounded-md" style="background:#1e4767"></div>
+                  <div class="h-6 rounded-md" style="background:#242b34"></div>
+                </div>
+              </div>
+            </button>
+            <p class="text-center text-xs mt-2 text-m-on-surface-variant">{{ if $isEn }}Dark{{ else }}深色{{ end }}</p>
+          </div>
+        </div>
+      </div>
+      <div class="set-row" id="row-system" role="button" tabindex="0">
+        <span class="set-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "moon" }}</span>
+        <span class="flex-1 font-medium">{{ if $isEn }}Follow system{{ else }}跟随系统{{ end }}</span>
+        <span class="switch" id="sw-system" role="switch" aria-checked="false" aria-label="{{ if $isEn }}Follow system{{ else }}跟随系统{{ end }}"><span class="knob"></span></span>
+      </div>
+      <div class="set-row" id="row-lang" role="button" tabindex="0">
+        <span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "globe" }}</span>
+        <span class="flex-1 font-medium">{{ if $isEn }}Language{{ else }}语言{{ end }}</span>
+        <span id="lang-val" class="text-sm text-m-on-surface-variant">{{ if $isEn }}English{{ else }}中文{{ end }}</span>
+        {{ partial "icon.html" "chev-r" }}
+      </div>
+    </section>
+
+    <!-- 第二组：壁纸和主题 -->
+    <h2 class="px-2 mb-2 text-sm font-semibold text-m-on-surface-variant">{{ if $isEn }}Wallpaper & theme{{ else }}壁纸和主题{{ end }}</h2>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.14s">
+      <div class="p-5">
+        <p class="text-sm font-medium mb-3">{{ if $isEn }}Theme color{{ else }}主色{{ end }}</p>
+        <div class="flex gap-4 flex-wrap" id="palette-dots">
+          {{ range $palettes }}
+          <div class="flex flex-col items-center gap-1.5">
+            <button type="button" class="swatch" data-palette="{{ .id }}" style="background:{{ .c }}" aria-pressed="false" aria-label="{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}"></button>
+            <span class="text-[11px] text-m-on-surface-variant">{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}</span>
+          </div>
+          {{ end }}
+        </div>
+        <p class="text-xs text-m-on-surface-variant mt-3">{{ if $isEn }}Default is sampled from the avatar photo.{{ else }}默认从头像照片取色。{{ end }}</p>
+      </div>
+      <div class="p-5 pt-2">
+        <p class="text-sm font-medium mb-3">{{ if $isEn }}Font size{{ else }}字体大小{{ end }}</p>
+        <div class="seg" id="seg-font" role="group" aria-label="{{ if $isEn }}Font size{{ else }}字体大小{{ end }}">
+          <button type="button" data-v="small" aria-pressed="false">{{ if $isEn }}Small{{ else }}小{{ end }}</button>
+          <button type="button" data-v="standard" aria-pressed="false">{{ if $isEn }}Standard{{ else }}标准{{ end }}</button>
+          <button type="button" data-v="large" aria-pressed="false">{{ if $isEn }}Large{{ else }}大{{ end }}</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 第三组：时钟和天气 -->
+    <h2 class="px-2 mb-2 text-sm font-semibold text-m-on-surface-variant">{{ if $isEn }}Clock & weather{{ else }}时钟和天气{{ end }}</h2>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.18s">
+      <div class="set-row" id="row-tz" role="button" tabindex="0">
+        <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "clock" }}</span>
+        <span class="flex-1 font-medium">{{ if $isEn }}Second timezone{{ else }}第二时区{{ end }}</span>
+        <span id="tz-val" class="text-sm text-m-on-surface-variant">--</span>
+        {{ partial "icon.html" "chev-r" }}
+      </div>
+      <div class="p-5">
+        <p class="text-sm font-medium mb-3">{{ if $isEn }}Hour format{{ else }}小时制{{ end }}</p>
+        <div class="seg" id="seg-hour" role="group" aria-label="{{ if $isEn }}Hour format{{ else }}小时制{{ end }}">
+          <button type="button" data-v="12" aria-pressed="false">{{ if $isEn }}12-hour{{ else }}12 小时制{{ end }}</button>
+          <button type="button" data-v="24" aria-pressed="false">{{ if $isEn }}24-hour{{ else }}24 小时制{{ end }}</button>
+        </div>
+      </div>
+      <div class="p-5 pt-2">
+        <p class="text-sm font-medium mb-3">{{ if $isEn }}Temperature unit{{ else }}温度单位{{ end }}</p>
+        <div class="seg" id="seg-temp" role="group" aria-label="{{ if $isEn }}Temperature unit{{ else }}温度单位{{ end }}">
+          <button type="button" data-v="c" aria-pressed="false">℃</button>
+          <button type="button" data-v="f" aria-pressed="false">℉</button>
+        </div>
+      </div>
+      <div class="set-row no-ic" id="row-wxshow" role="button" tabindex="0">
+        <span class="flex-1 font-medium">{{ if $isEn }}Show weather widget{{ else }}显示天气小组件{{ end }}</span>
+        <span class="switch" id="sw-wxshow" role="switch" aria-checked="true" aria-label="{{ if $isEn }}Show weather widget{{ else }}显示天气小组件{{ end }}"><span class="knob"></span></span>
+      </div>
+    </section>
+
+    <!-- 第四组：通用 -->
+    <h2 class="px-2 mb-2 text-sm font-semibold text-m-on-surface-variant">{{ if $isEn }}General{{ else }}通用{{ end }}</h2>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.22s">
+      <div class="set-row" id="row-motion" role="button" tabindex="0">
+        <span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "motion" }}</span>
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}Reduce motion{{ else }}减弱动效{{ end }}</span>
+          <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Minimize animations{{ else }}减少动画效果{{ end }}</span>
+        </span>
+        <span class="switch" id="sw-motion" role="switch" aria-checked="false" aria-label="{{ if $isEn }}Reduce motion{{ else }}减弱动效{{ end }}"><span class="knob"></span></span>
+      </div>
+      {{/* 第三批占位：数字健康 / Good Lock，先隐藏 */}}
+      <div class="set-row hidden" id="row-wellbeing">
+        <span class="set-ic bg-m-warm-container text-m-on-warm-container">{{ partial "icon.html" "info" }}</span>
+        <span class="flex-1 font-medium">{{ if $isEn }}Digital wellbeing{{ else }}数字健康{{ end }}</span>
+        {{ partial "icon.html" "chev-r" }}
+      </div>
+      <div class="set-row hidden" id="row-goodlock">
+        <span class="set-ic bg-m-rose-container text-m-on-rose-container">{{ partial "icon.html" "motion" }}</span>
+        <span class="flex-1 font-medium">Good Lock</span>
+        {{ partial "icon.html" "chev-r" }}
+      </div>
+    </section>
+
+    <!-- 第五组：关于 -->
+    <h2 class="px-2 mb-2 text-sm font-semibold text-m-on-surface-variant">{{ if $isEn }}About{{ else }}关于本站{{ end }}</h2>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.26s">
+      <div class="set-row no-ic">
+        <span class="flex-1 font-medium">{{ if $isEn }}Version{{ else }}版本{{ end }}</span>
+        <span class="text-sm text-m-on-surface-variant">{{ site.Params.version }}</span>
+      </div>
+      <div class="set-row no-ic">
+        <span class="flex-1 font-medium">{{ if $isEn }}Built at{{ else }}构建时间{{ end }}</span>
+        <span class="text-sm text-m-on-surface-variant font-mono">{{ now.Format "2006-01-02 15:04" }}</span>
+      </div>
+      <a class="set-row no-ic" href="https://github.com/styrigx/styrigx-space" target="_blank" rel="noopener">
+        <span class="flex-1 font-medium">GitHub {{ if $isEn }}repository{{ else }}仓库{{ end }}</span>
+        {{ partial "icon.html" "chev-r" }}
+      </a>
+      <a class="set-row no-ic" href="https://blog.styrigx.com" target="_blank" rel="noopener">
+        <span class="flex-1 font-medium">{{ if $isEn }}Blog{{ else }}博客{{ end }}</span>
+        {{ partial "icon.html" "chev-r" }}
+      </a>
+      <div class="set-row no-ic" id="row-reset" role="button" tabindex="0">
+        <span class="flex-1 font-medium text-red-600 dark:text-red-400">{{ if $isEn }}Reset all settings{{ else }}重置所有设置{{ end }}</span>
+      </div>
+    </section>
+  </div>
+
+  <!-- 底部搜索条 -->
+  <div class="fixed bottom-6 inset-x-0 z-30 flex justify-center pointer-events-none px-4">
+    <button type="button" id="settings-searchbar" class="pointer-events-auto widget bg-m-container-lowest border border-m-outline pl-5 pr-6 py-3.5 flex items-center gap-3 shadow-lg active:scale-[0.98] transition-transform w-full max-w-md">
+      <span class="text-m-on-surface-variant">{{ partial "icon.html" "search" }}</span>
+      <span class="text-m-on-surface-variant text-sm">{{ if $isEn }}Search settings…{{ else }}搜索设置…{{ end }}</span>
+    </button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var en=document.documentElement.lang==='en';
+  var $=function(id){return document.getElementById(id)};
+  function get(k){try{return localStorage.getItem(k)}catch(e){return null}}
+  function set(k,v){try{if(v===null||v===undefined){localStorage.removeItem(k)}else{localStorage.setItem(k,v)}}catch(e){}}
+  function setSwitch(id,on){var el=$(id);if(el)el.setAttribute('aria-checked',on?'true':'false')}
+  function rowToggle(id,fn){
+    var r=$(id);if(!r)return;
+    function go(){fn()}
+    r.addEventListener('click',go);
+    r.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}});
+  }
+  var TZS=[
+    {id:'America/Los_Angeles',label:en?'Los Angeles':'洛杉矶'},
+    {id:'America/New_York',label:en?'New York':'纽约'},
+    {id:'Europe/London',label:en?'London':'伦敦'},
+    {id:'Asia/Tokyo',label:en?'Tokyo':'东京'},
+    {id:'Asia/Hong_Kong',label:en?'Hong Kong':'香港'},
+    {id:'Asia/Seoul',label:en?'Seoul':'首尔'}
+  ];
+  function tzLabel(id){for(var i=0;i<TZS.length;i++){if(TZS[i].id===id)return TZS[i].label}return id}
+
+  /* ---- 主题模式 ---- */
+  function curMode(){return get('sgx-theme-mode')||get('theme')||'system'}
+  function paintTheme(){
+    var m=curMode();
+    document.querySelectorAll('#theme-previews .theme-prev').forEach(function(b){
+      b.setAttribute('aria-pressed',b.getAttribute('data-mode')===m?'true':'false');
+    });
+    setSwitch('sw-system',m==='system');
+  }
+  document.querySelectorAll('#theme-previews .theme-prev').forEach(function(b){
+    b.addEventListener('click',function(){window.__setThemeMode(b.getAttribute('data-mode'));paintTheme()});
+  });
+  rowToggle('row-system',function(){
+    var m=curMode();
+    if(m==='system'){window.__setThemeMode(document.documentElement.classList.contains('dark')?'dark':'light')}
+    else{window.__setThemeMode('system')}
+    paintTheme();
+  });
+  window.addEventListener('sgx-theme-changed',paintTheme);
+  paintTheme();
+
+  /* ---- 语言 ---- */
+  $('row-lang').addEventListener('click',function(){
+    window.__openSheet({title:en?'Language':'语言',options:[
+      {label:'中文',value:'zh',checked:!en},
+      {label:'English',value:'en',checked:en}
+    ],onPick:function(v){location.href=v==='en'?'{{ "/en/settings/" }}':'{{ "/settings/" }}'}});
+  });
+
+  /* ---- 主色色板 ---- */
+  function curPalette(){return get('sgx-palette')||'lake'}
+  function paintPalette(){
+    var p=curPalette();
+    document.querySelectorAll('#palette-dots .swatch').forEach(function(b){
+      b.setAttribute('aria-pressed',b.getAttribute('data-palette')===p?'true':'false');
+    });
+  }
+  document.querySelectorAll('#palette-dots .swatch').forEach(function(b){
+    b.addEventListener('click',function(){
+      var p=b.getAttribute('data-palette');
+      set('sgx-palette',p==='lake'?null:p);
+      var d=document.documentElement;
+      if(p==='lake'){d.removeAttribute('data-palette')}else{d.setAttribute('data-palette',p)}
+      paintPalette();
+      window.dispatchEvent(new Event('sgx-settings-changed'));
+    });
+  });
+  paintPalette();
+
+  /* ---- 字体大小 ---- */
+  function paintFont(){
+    var v=get('sgx-font-size')||'standard';
+    document.querySelectorAll('#seg-font button').forEach(function(b){
+      b.setAttribute('aria-pressed',b.getAttribute('data-v')===v?'true':'false');
+    });
+  }
+  document.querySelectorAll('#seg-font button').forEach(function(b){
+    b.addEventListener('click',function(){
+      var v=b.getAttribute('data-v');
+      set('sgx-font-size',v==='standard'?null:v);
+      var d=document.documentElement;
+      d.style.fontSize=v==='large'?'112.5%':(v==='small'?'87.5%':'');
+      paintFont();
+    });
+  });
+  paintFont();
+
+  /* ---- 第二时区 ---- */
+  function paintTz(){$('tz-val').textContent=tzLabel(get('sgx-tz2')||'America/Los_Angeles')}
+  $('row-tz').addEventListener('click',function(){
+    var cur=get('sgx-tz2')||'America/Los_Angeles';
+    window.__openSheet({title:en?'Second timezone':'第二时区',
+      options:TZS.map(function(t){return{label:t.label,value:t.id,checked:t.id===cur}}),
+      onPick:function(v){set('sgx-tz2',v);paintTz();window.dispatchEvent(new Event('sgx-settings-changed'))}});
+  });
+  paintTz();
+
+  /* ---- 小时制 ---- */
+  function paintHour(){
+    var v=get('sgx-hour12')||'24';
+    document.querySelectorAll('#seg-hour button').forEach(function(b){
+      b.setAttribute('aria-pressed',b.getAttribute('data-v')===v?'true':'false');
+    });
+  }
+  document.querySelectorAll('#seg-hour button').forEach(function(b){
+    b.addEventListener('click',function(){
+      set('sgx-hour12',b.getAttribute('data-v'));
+      paintHour();window.dispatchEvent(new Event('sgx-settings-changed'));
+    });
+  });
+  paintHour();
+
+  /* ---- 温度单位 ---- */
+  function paintTemp(){
+    var v=get('sgx-temp-unit')||'c';
+    document.querySelectorAll('#seg-temp button').forEach(function(b){
+      b.setAttribute('aria-pressed',b.getAttribute('data-v')===v?'true':'false');
+    });
+  }
+  document.querySelectorAll('#seg-temp button').forEach(function(b){
+    b.addEventListener('click',function(){
+      set('sgx-temp-unit',b.getAttribute('data-v'));
+      paintTemp();window.dispatchEvent(new Event('sgx-settings-changed'));
+    });
+  });
+  paintTemp();
+
+  /* ---- 天气显示 ---- */
+  function paintWxShow(){setSwitch('sw-wxshow',get('sgx-weather-show')!=='0')}
+  rowToggle('row-wxshow',function(){
+    var on=get('sgx-weather-show')==='0';
+    set('sgx-weather-show',on?'1':'0');
+    paintWxShow();window.dispatchEvent(new Event('sgx-settings-changed'));
+  });
+  paintWxShow();
+
+  /* ---- 减弱动效 ---- */
+  function paintMotion(){setSwitch('sw-motion',get('sgx-reduced-motion')==='1')}
+  rowToggle('row-motion',function(){
+    var on=get('sgx-reduced-motion')!=='1';
+    set('sgx-reduced-motion',on?'1':null);
+    document.documentElement.classList.toggle('reduced-motion',on);
+    paintMotion();
+  });
+  paintMotion();
+
+  /* ---- 重置 ---- */
+  rowToggle('row-reset',function(){
+    try{
+      var ks=[];for(var i=0;i<localStorage.length;i++){ks.push(localStorage.key(i))}
+      ks.forEach(function(k){if(k.indexOf('sgx-')===0||k==='theme')localStorage.removeItem(k)});
+    }catch(e){}
+    location.reload();
+  });
+
+  /* ---- 小标题栏 ---- */
+  (function(){
+    var bar=$('settings-minibar'),hero=$('settings-hero');
+    if(!bar||!hero)return;
+    function onScroll(){
+      var show=window.scrollY>hero.offsetHeight*0.55;
+      bar.style.opacity=show?'1':'0';
+      bar.style.transform=show?'translate(-50%,0)':'translate(-50%,-8px)';
+      bar.style.pointerEvents=show?'auto':'none';
+    }
+    window.addEventListener('scroll',onScroll,{passive:true});
+    onScroll();
+  })();
+
+  /* ---- 底部搜索条 ---- */
+  var sb=$('settings-searchbar');
+  if(sb)sb.addEventListener('click',function(){window.__openSearch&&window.__openSearch()});
+})();
+</script>
+{{ end }}

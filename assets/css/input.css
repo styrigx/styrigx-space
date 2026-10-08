@@ -157,3 +157,204 @@ main {
   .animate-fade-up { animation: none !important; }
   *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
+
+/* ===== 预设色板 · 完整 Material 3 亮/暗色阶 ===== */
+[data-palette="forest"] {
+  --m-primary: #2f6b4f; --m-on-primary: #ffffff;
+  --m-primary-container: #b3f0d2; --m-on-primary-container: #062d1c;
+  --m-secondary: #4d6357; --m-on-secondary: #ffffff;
+  --m-secondary-container: #cde8da; --m-on-secondary-container: #0a1f16;
+  --m-tertiary: #3a646f; --m-on-tertiary: #ffffff;
+  --m-tertiary-container: #bcebf2; --m-on-tertiary-container: #001f26;
+  --m-wallpaper:
+    radial-gradient(120% 80% at 20% 0%, #d9f0e2 0%, transparent 60%),
+    radial-gradient(100% 70% at 90% 10%, #d3e8f5 0%, transparent 55%),
+    radial-gradient(120% 90% at 50% 100%, #e6f0d8 0%, transparent 60%),
+    #f4f8f5;
+}
+.dark[data-palette="forest"] {
+  --m-primary: #98d8b4; --m-on-primary: #073525;
+  --m-primary-container: #1d4d34; --m-on-primary-container: #b3f0d2;
+  --m-secondary: #b1ccc0; --m-on-secondary: #0c2921;
+  --m-secondary-container: #334b42; --m-on-secondary-container: #cde8da;
+  --m-tertiary: #a0cfd9; --m-on-tertiary: #003641;
+  --m-tertiary-container: #1f4c55; --m-on-tertiary-container: #bcebf2;
+  --m-wallpaper:
+    radial-gradient(120% 80% at 20% 0%, #12291d 0%, transparent 60%),
+    radial-gradient(100% 70% at 90% 10%, #14324a 0%, transparent 55%),
+    radial-gradient(120% 90% at 50% 100%, #1c2b1a 0%, transparent 60%),
+    #0e1512;
+}
+[data-palette="terra"] {
+  --m-primary: #8a4b2d; --m-on-primary: #ffffff;
+  --m-primary-container: #ffdbcb; --m-on-primary-container: #3a1a0c;
+  --m-secondary: #6e5b4e; --m-on-secondary: #ffffff;
+  --m-secondary-container: #f5ded2; --m-on-secondary-container: #2a1a12;
+  --m-tertiary: #5f6135; --m-on-tertiary: #ffffff;
+  --m-tertiary-container: #e4e7b8; --m-on-tertiary-container: #1a1c00;
+  --m-wallpaper:
+    radial-gradient(120% 80% at 20% 0%, #f7e4d4 0%, transparent 60%),
+    radial-gradient(100% 70% at 90% 10%, #f2e8c8 0%, transparent 55%),
+    radial-gradient(120% 90% at 50% 100%, #efdcf0 0%, transparent 60%),
+    #faf6f2;
+}
+.dark[data-palette="terra"] {
+  --m-primary: #f4b795; --m-on-primary: #4d230e;
+  --m-primary-container: #6d3a20; --m-on-primary-container: #ffdbcb;
+  --m-secondary: #d8c2b2; --m-on-secondary: #3b2d22;
+  --m-secondary-container: #4e3d31; --m-on-secondary-container: #f5ded2;
+  --m-tertiary: #c8cba0; --m-on-tertiary: #30330a;
+  --m-tertiary-container: #474a21; --m-on-tertiary-container: #e4e7b8;
+  --m-wallpaper:
+    radial-gradient(120% 80% at 20% 0%, #2e1c12 0%, transparent 60%),
+    radial-gradient(100% 70% at 90% 10%, #2b2415 0%, transparent 55%),
+    radial-gradient(120% 90% at 50% 100%, #2c1f2e 0%, transparent 60%),
+    #141110;
+}
+[data-palette="violet"] {
+  --m-primary: #6750a4; --m-on-primary: #ffffff;
+  --m-primary-container: #e9ddff; --m-on-primary-container: #220f53;
+  --m-secondary: #615b71; --m-on-secondary: #ffffff;
+  --m-secondary-container: #e6def2; --m-on-secondary-container: #1e192b;
+  --m-tertiary: #7e525d; --m-on-tertiary: #ffffff;
+  --m-tertiary-container: #ffd9e1; --m-on-tertiary-container: #32101d;
+  --m-wallpaper:
+    radial-gradient(120% 80% at 20% 0%, #e6dcf7 0%, transparent 60%),
+    radial-gradient(100% 70% at 90% 10%, #dbeaf7 0%, transparent 55%),
+    radial-gradient(120% 90% at 50% 100%, #f6d7de 0%, transparent 60%),
+    #f7f5fa;
+}
+.dark[data-palette="violet"] {
+  --m-primary: #d0bcff; --m-on-primary: #371e73;
+  --m-primary-container: #4f378a; --m-on-primary-container: #e9ddff;
+  --m-secondary: #cbc2db; --m-on-secondary: #332d41;
+  --m-secondary-container: #4a4458; --m-on-secondary-container: #e6def2;
+  --m-tertiary: #efb8c8; --m-on-tertiary: #4a2532;
+  --m-tertiary-container: #633b48; --m-on-tertiary-container: #ffd9e1;
+  --m-wallpaper:
+    radial-gradient(120% 80% at 20% 0%, #241d3d 0%, transparent 60%),
+    radial-gradient(100% 70% at 90% 10%, #14324a 0%, transparent 55%),
+    radial-gradient(120% 90% at 50% 100%, #311d28 0%, transparent 60%),
+    #121016;
+}
+[data-palette="rose"] {
+  --m-primary: #984061; --m-on-primary: #ffffff;
+  --m-primary-container: #ffd9e2; --m-on-primary-container: #3e001d;
+  --m-secondary: #74565f; --m-on-secondary: #ffffff;
+  --m-secondary-container: #ffdae1; --m-on-secondary-container: #2b151b;
+  --m-tertiary: #7c5636; --m-on-tertiary: #ffffff;
+  --m-tertiary-container: #ffdcbd; --m-on-tertiary-container: #2e1500;
+  --m-wallpaper:
+    radial-gradient(120% 80% at 20% 0%, #f6d7de 0%, transparent 60%),
+    radial-gradient(100% 70% at 90% 10%, #f3dfc4 0%, transparent 55%),
+    radial-gradient(120% 90% at 50% 100%, #e8e2f4 0%, transparent 60%),
+    #faf5f6;
+}
+.dark[data-palette="rose"] {
+  --m-primary: #ffb1c8; --m-on-primary: #5e1133;
+  --m-primary-container: #7a2949; --m-on-primary-container: #ffd9e2;
+  --m-secondary: #e3bdc6; --m-on-secondary: #422930;
+  --m-secondary-container: #5a3a42; --m-on-secondary-container: #ffdae1;
+  --m-tertiary: #efbd8f; --m-on-tertiary: #4a2800;
+  --m-tertiary-container: #5f3d1f; --m-on-tertiary-container: #ffdcbd;
+  --m-wallpaper:
+    radial-gradient(120% 80% at 20% 0%, #331420 0%, transparent 60%),
+    radial-gradient(100% 70% at 90% 10%, #3a2a14 0%, transparent 55%),
+    radial-gradient(120% 90% at 50% 100%, #2b2345 0%, transparent 60%),
+    #161114;
+}
+
+/* ===== One UI 开关 ===== */
+.switch{position:relative;width:52px;height:32px;border-radius:999px;background:var(--m-container-highest);border:1px solid var(--m-outline);transition:background .25s,border-color .25s;flex-shrink:0}
+.switch .knob{position:absolute;top:50%;left:4px;transform:translateY(-50%);width:22px;height:22px;border-radius:999px;background:var(--m-on-surface-variant);transition:left .25s,background .25s,width .18s}
+.switch:active .knob{width:28px}
+.switch[aria-checked="true"]{background:var(--m-primary);border-color:var(--m-primary)}
+.switch[aria-checked="true"] .knob{left:calc(100% - 26px);background:var(--m-on-primary)}
+.switch[aria-checked="true"]:active .knob{left:calc(100% - 32px)}
+
+/* ===== 分段选择 ===== */
+.seg{display:flex;background:var(--m-container);border-radius:999px;padding:4px;gap:2px}
+.seg button{flex:1;border-radius:999px;padding:8px 4px;font-size:13px;font-weight:600;color:var(--m-on-surface-variant);transition:all .2s;min-height:40px}
+.seg button[aria-pressed="true"]{background:var(--m-container-lowest);color:var(--m-on-surface);box-shadow:0 1px 3px rgba(0,0,0,.18)}
+
+/* ===== 色板圆点 ===== */
+.swatch{width:52px;height:52px;border-radius:999px;border:3px solid transparent;transition:transform .18s,border-color .18s;flex-shrink:0}
+.swatch:active{transform:scale(.9)}
+.swatch[aria-pressed="true"]{border-color:var(--m-primary);box-shadow:0 0 0 2px var(--m-container-lowest),0 0 0 4px var(--m-primary)}
+
+/* ===== 设置行 ===== */
+.set-row{position:relative;display:flex;align-items:center;gap:14px;width:100%;padding:14px 20px;min-height:60px;text-align:left}
+.set-row + .set-row::before{content:'';position:absolute;top:0;left:68px;right:0;border-top:1px solid color-mix(in srgb,var(--m-outline) 55%,transparent)}
+.set-row.no-ic + .set-row.no-ic::before{left:20px}
+.set-ic{width:40px;height:40px;border-radius:999px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+/* ===== 主题预览卡 ===== */
+.theme-prev{border-radius:1.25rem;border:2px solid transparent;overflow:hidden;transition:border-color .2s,transform .15s;background:var(--m-container-low)}
+.theme-prev:active{transform:scale(.97)}
+.theme-prev[aria-pressed="true"]{border-color:var(--m-primary)}
+
+/* ===== Bottom sheet（手机）/ 居中弹窗（桌面） ===== */
+#sheet-panel{transition:transform .32s cubic-bezier(.22,1,.36,1),opacity .25s}
+@media (max-width:639px){
+  #sheet-panel{position:absolute;left:0;right:0;bottom:0;max-height:72vh;border-radius:1.75rem 1.75rem 0 0;
+    background:var(--m-container-lowest);display:flex;flex-direction:column;transform:translateY(102%)}
+  #sheet-wrap.open #sheet-panel{transform:translateY(0)}
+  .sheet-handle{width:40px;height:5px;border-radius:999px;background:var(--m-outline);margin:10px auto 2px;flex-shrink:0}
+}
+@media (min-width:640px){
+  #sheet-wrap{display:flex;align-items:center;justify-content:center;padding:1rem}
+  #sheet-panel{position:relative;width:100%;max-width:22rem;border-radius:1.75rem;background:var(--m-container-lowest);
+    border:1px solid var(--m-outline);box-shadow:0 24px 64px -16px rgba(0,0,0,.35);opacity:0;transform:scale(.96) translateY(8px);max-height:80vh;display:flex;flex-direction:column}
+  #sheet-wrap.open #sheet-panel{opacity:1;transform:none}
+  .sheet-handle{display:none}
+}
+#sheet-wrap{opacity:0;transition:opacity .25s}
+#sheet-wrap.open{opacity:1}
+.sheet-opt{display:flex;align-items:center;gap:12px;width:100%;padding:14px 20px;min-height:56px;text-align:left;border-radius:1rem}
+.sheet-opt:active{background:var(--m-container)}
+.sheet-opt + .sheet-opt{border-top:1px solid color-mix(in srgb,var(--m-outline) 45%,transparent)}
+
+/* ===== ⌘K 搜索：手机变 bottom sheet ===== */
+@media (max-width:639px){
+  #search-modal .search-wrap{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:flex-end;padding:0;max-width:none;margin:0}
+  #search-modal .search-panel{margin:0;max-width:none;width:100%;border-radius:1.75rem 1.75rem 0 0;border-left:0;border-right:0;border-bottom:0;
+    max-height:86vh;max-height:86dvh;display:flex;flex-direction:column;overflow:hidden}
+  #search-modal .search-results{order:1;flex:1 1 auto;min-height:0}
+  #search-modal .search-head{order:2;border-top:1px solid var(--m-outline);border-bottom:0}
+  #search-modal .search-hints{order:3}
+  #search-modal .search-handle{display:block;width:40px;height:5px;border-radius:999px;background:var(--m-outline);margin:10px auto 0;flex-shrink:0}
+}
+@media (min-width:640px){
+  #search-modal .search-handle{display:none}
+}
+
+/* ===== 吸底 chip 条（手机，Dock 上方） ===== */
+body:not(.has-dock) main{--dock-h:0px}
+@media (max-width:639px){
+  .chipbar{position:sticky;z-index:30;margin:0 -1rem;padding:.6rem 1rem;bottom:calc(var(--dock-h,64px) + 14px + env(safe-area-inset-bottom,0px));
+    background:color-mix(in srgb,var(--m-surface) 84%,transparent);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+    border-top:1px solid var(--m-outline)}
+  .chipbar > div{margin-bottom:0 !important}
+}
+
+/* ===== 手机触控区域 ===== */
+@media (max-width:639px){
+  #site-nav .nav-act{min-width:48px;min-height:48px;display:inline-flex;align-items:center;justify-content:center}
+  .garden-pill,.stage-pill{min-height:48px;display:inline-flex;align-items:center}
+  #search-results a{min-height:48px}
+  .app-tile{min-height:48px}
+}
+
+/* ===== 用户减弱动效（localStorage） ===== */
+.reduced-motion .animate-fade-up{animation:none !important}
+.reduced-motion *, .reduced-motion *::before, .reduced-motion *::after{transition-duration:.01ms !important;animation-duration:.01ms !important}
+
+/* ===== 设置页大标题收缩 ===== */
+#settings-minibar{transition:opacity .25s,transform .25s}
+.page-hero{min-height:30vh;min-height:30svh}
+
+/* ===== 二级区域大标题头部（手机） ===== */
+@media (max-width:639px){
+  .sec-hero{min-height:30vh;min-height:30svh;display:flex;flex-direction:column;justify-content:center;text-align:center}
+  .sec-hero h2{font-size:2.9rem !important;line-height:1.15}
+}

@@ -17,22 +17,29 @@
 /* 用户偏好预读：在渲染前应用，避免闪烁 */
 (function(){
   try{
-    var t=localStorage.getItem('theme');
-    if(t==='dark'||(!t&&matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}
-    /* 字体大小偏好（第二批设置页用） */
+    var d=document.documentElement;
+    var m=localStorage.getItem('sgx-theme-mode')||localStorage.getItem('theme');
+    if(m==='dark'||(!m&&matchMedia('(prefers-color-scheme: dark)').matches)){d.classList.add('dark')}
+    if(m==='light'){d.classList.remove('dark')}
+    /* 字体大小偏好 */
     var fs=localStorage.getItem('sgx-font-size');
-    if(fs==='large'){document.documentElement.style.fontSize='112.5%'}
-    else if(fs==='small'){document.documentElement.style.fontSize='87.5%'}
+    if(fs==='large'){d.style.fontSize='112.5%'}
+    else if(fs==='small'){d.style.fontSize='87.5%'}
+    /* 主色色板 */
+    var p=localStorage.getItem('sgx-palette');
+    if(p&&p!=='lake'){d.setAttribute('data-palette',p)}
+    /* 减弱动效 */
+    if(localStorage.getItem('sgx-reduced-motion')==='1'){d.classList.add('reduced-motion')}
   }catch(e){}
 })();
 </script>
 </head>
-<body class="text-m-on-surface min-h-screen antialiased">
+<body class="text-m-on-surface min-h-screen antialiased{{ if .IsHome }} has-dock{{ end }}">
 {{ $profile := site.Data.profile }}
 {{ $home := "/" }}{{ if $isEn }}{{ $home = "/en/" }}{{ end }}
 
 <!-- 状态栏式导航 -->
-<nav class="sticky top-0 z-50 glass border-b border-m-outline">
+<nav id="site-nav" class="sticky top-0 z-50 glass border-b border-m-outline">
   <div class="max-w-[1100px] mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
     <a href="{{ $home }}" class="flex items-center gap-2 font-bold text-[15px] shrink-0">
       {{ $navAvatar := resources.Get "images/avatar.png" }}
@@ -45,19 +52,25 @@
       <span>Styrigx</span>
     </a>
     <div class="flex items-center gap-1 sm:gap-2 text-sm">
-      <button id="search-open-m" class="w-9 h-9 rounded-full flex items-center justify-center text-m-on-surface-variant hover:bg-m-container transition-colors" aria-label="{{ if $isEn }}Search{{ else }}搜索{{ end }}">{{ partial "icon.html" "search" }}</button>
-      <a href="{{ $home }}" class="hidden sm:inline-block px-3 py-1.5 rounded-full hover:bg-m-container transition-colors text-m-on-surface-variant">{{ if $isEn }}Home{{ else }}首页{{ end }}</a>
-      <a href="{{ if $isEn }}/en/links/{{ else }}/links/{{ end }}" class="hidden sm:inline-block px-3 py-1.5 rounded-full hover:bg-m-container transition-colors text-m-on-surface-variant">{{ if $isEn }}Links{{ else }}导航{{ end }}</a>
-      {{/* 语言切换：跳到对应语言的同一页面 */}}
-      {{ $langUrl := "/en/" }}{{ $langLabel := "EN" }}
+      <button id="search-open-m" class="nav-act w-9 h-9 rounded-full flex items-center justify-center text-m-on-surface-variant hover:bg-m-container transition-colors" aria-label="{{ if $isEn }}Search{{ else }}搜索{{ end }}">{{ partial "icon.html" "search" }}</button>
+      <a href="{{ $home }}" class="nav-act hidden sm:inline-flex px-3 py-1.5 rounded-full hover:bg-m-container transition-colors text-m-on-surface-variant">{{ if $isEn }}Home{{ else }}首页{{ end }}</a>
+      <a href="{{ if $isEn }}/en/links/{{ else }}/links/{{ end }}" class="nav-act hidden sm:inline-flex px-3 py-1.5 rounded-full hover:bg-m-container transition-colors text-m-on-surface-variant">{{ if $isEn }}Links{{ else }}导航{{ end }}</a>
+      {{/* 语言切换：bottom sheet 选择，跳到对应语言的同一页面 */}}
+      {{ $urlZh := .RelPermalink }}{{ $urlEn := .RelPermalink }}
       {{ if $isEn }}
-        {{ $langUrl = "/" }}{{ $langLabel = "中文" }}
-        {{ if hasPrefix .RelPermalink "/en/links/" }}{{ $langUrl = "/links/" }}{{ end }}
+        {{ $urlZh = "/" }}
+        {{ if hasPrefix .RelPermalink "/en/links/" }}{{ $urlZh = "/links/" }}{{ end }}
+        {{ if hasPrefix .RelPermalink "/en/settings/" }}{{ $urlZh = "/settings/" }}{{ end }}
       {{ else }}
-        {{ if hasPrefix .RelPermalink "/links/" }}{{ $langUrl = "/en/links/" }}{{ end }}
+        {{ $urlEn = "/en/" }}
+        {{ if hasPrefix .RelPermalink "/links/" }}{{ $urlEn = "/en/links/" }}{{ end }}
+        {{ if hasPrefix .RelPermalink "/settings/" }}{{ $urlEn = "/en/settings/" }}{{ end }}
       {{ end }}
-      <a href="{{ $langUrl }}" class="px-3 py-1.5 rounded-full hover:bg-m-container transition-colors text-m-on-surface-variant font-medium">{{ $langLabel }}</a>
-      <button id="theme-toggle" aria-label="{{ if $isEn }}Toggle theme{{ else }}切换主题{{ end }}" class="w-9 h-9 rounded-full flex items-center justify-center text-m-on-surface-variant hover:bg-m-container transition-colors">
+      {{ $langLabel := "EN" }}{{ if $isEn }}{{ $langLabel = "中文" }}{{ end }}
+      <button id="lang-btn" data-cur="{{ if $isEn }}en{{ else }}zh{{ end }}" data-url-zh="{{ $urlZh }}" data-url-en="{{ $urlEn }}"
+        class="nav-act px-3 py-1.5 rounded-full hover:bg-m-container transition-colors text-m-on-surface-variant font-medium inline-flex items-center gap-1.5">{{ partial "icon.html" "globe" }}<span>{{ $langLabel }}</span></button>
+      <a href="{{ if $isEn }}/en/settings/{{ else }}/settings/{{ end }}" class="nav-act w-9 h-9 rounded-full inline-flex items-center justify-center text-m-on-surface-variant hover:bg-m-container transition-colors" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}">{{ partial "icon.html" "gear" }}</a>
+      <button id="theme-toggle" aria-label="{{ if $isEn }}Toggle theme{{ else }}切换主题{{ end }}" class="nav-act w-9 h-9 rounded-full flex items-center justify-center text-m-on-surface-variant hover:bg-m-container transition-colors">
         <svg width="20" height="20" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/></svg>
         <svg width="20" height="20" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0012 21.75a9.753 9.753 0 009.752-6.748z"/></svg>
       </button>
@@ -68,21 +81,32 @@
 <!-- 全站搜索 -->
 <div id="search-modal" class="fixed inset-0 z-[100] hidden" style="display:none">
   <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" data-search-close></div>
-  <div class="relative max-w-xl mx-auto mt-20 sm:mt-28 px-4">
-    <div class="rounded-[1.75rem] border border-m-outline bg-m-container-lowest shadow-2xl overflow-hidden">
-      <div class="flex items-center gap-3 px-5 py-4 border-b border-m-outline">
+  <div class="search-wrap relative max-w-xl mx-auto mt-20 sm:mt-28 px-4">
+    <div class="search-panel rounded-[1.75rem] border border-m-outline bg-m-container-lowest shadow-2xl overflow-hidden">
+      <div class="search-handle" data-search-close></div>
+      <div class="search-head flex items-center gap-3 px-5 py-4 border-b border-m-outline">
         <span class="text-m-on-surface-variant">{{ partial "icon.html" "search" }}</span>
         <input id="search-input" type="text" autocomplete="off" placeholder="{{ if $isEn }}Search bookmarks, books, music…{{ else }}搜书签、书、歌、收藏…{{ end }}"
           class="flex-1 bg-transparent outline-none text-base placeholder:text-m-on-surface-variant">
         <button data-search-close class="text-m-on-surface-variant hover:text-m-on-surface">{{ partial "icon.html" "x-mark" }}</button>
       </div>
-      <div id="search-results" class="max-h-80 overflow-y-auto p-2"></div>
-      <div class="px-5 py-3 border-t border-m-outline text-xs text-m-on-surface-variant flex gap-4">
+      <div id="search-results" class="search-results max-h-80 overflow-y-auto p-2"></div>
+      <div class="search-hints px-5 py-3 border-t border-m-outline text-xs text-m-on-surface-variant flex gap-4">
         <span><kbd class="bg-m-container rounded px-1">↑↓</kbd> {{ if $isEn }}navigate{{ else }}选择{{ end }}</span>
         <span><kbd class="bg-m-container rounded px-1">↵</kbd> {{ if $isEn }}open{{ else }}打开{{ end }}</span>
         <span><kbd class="bg-m-container rounded px-1">esc</kbd> {{ if $isEn }}close{{ else }}关闭{{ end }}</span>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- 通用 bottom sheet / 居中弹窗 -->
+<div id="sheet-wrap" class="fixed inset-0 z-[110] hidden">
+  <div class="absolute inset-0 bg-black/40" data-sheet-close></div>
+  <div id="sheet-panel" class="overflow-hidden">
+    <div class="sheet-handle" data-sheet-close></div>
+    <p id="sheet-title" class="px-5 pt-2 pb-1 text-sm font-semibold text-m-on-surface-variant"></p>
+    <div id="sheet-body" class="overflow-y-auto px-2 pb-4"></div>
   </div>
 </div>
 
@@ -103,6 +127,13 @@
 {{ range $m := $music }}{{ $idx = $idx | append (dict "t" $m.title "d" (print ($m.artist | default "") " " ($m.comment | default "")) "u" (print $home "#music") "c" $cMusic) }}{{ end }}
 {{ range $c := $collections }}{{ $idx = $idx | append (dict "t" $c.name "d" ($c.desc | default "") "u" $c.url "c" $cColl) }}{{ end }}
 {{ range $cat := $links }}{{ range $s := $cat.sites }}{{ $idx = $idx | append (dict "t" $s.name "d" ($s.desc | default "") "u" $s.url "c" (print $cLink " · " $cat.category)) }}{{ end }}{{ end }}
+{{/* 设置页与常用设置项 */}}
+{{ $setUrl := "/settings/" }}{{ if $isEn }}{{ $setUrl = "/en/settings/" }}{{ end }}
+{{ $cSet := cond $isEn "Settings" "设置" }}
+{{ $idx = $idx | append (dict "t" $cSet "d" (cond $isEn "Theme, language, wallpaper" "主题、语言、壁纸") "u" $setUrl "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Dark mode" "深色模式") "d" $cSet "u" $setUrl "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Language" "语言") "d" $cSet "u" $setUrl "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Wallpaper & theme color" "壁纸和主题色") "d" $cSet "u" $setUrl "c" $cSet) }}
 <script id="search-index" type="application/json">{{ (dict "items" $idx) | jsonify | safeJS }}</script>
 <script>
 (function(){
@@ -138,10 +169,99 @@
   function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
   input.addEventListener('input',function(){render(input.value)});
 })();
+/* ===== 主题模式（浅色/深色/跟随系统）===== */
+window.__applyTheme=function(){
+  var m=null;try{m=localStorage.getItem('sgx-theme-mode')||localStorage.getItem('theme')}catch(e){}
+  var dark=m==='dark'||(!m&&window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.classList.toggle('dark',dark);
+  return dark;
+};
+window.__setThemeMode=function(mode){
+  try{
+    localStorage.setItem('sgx-theme-mode',mode);
+    if(mode==='system'){localStorage.removeItem('theme')}else{localStorage.setItem('theme',mode)}
+  }catch(e){}
+  window.__applyTheme();
+  window.dispatchEvent(new Event('sgx-theme-changed'));
+};
+try{
+  var mq=window.matchMedia('(prefers-color-scheme: dark)');
+  (mq.addEventListener||mq.addListener).call(mq,'change',function(){
+    var m=null;try{m=localStorage.getItem('sgx-theme-mode')}catch(e){}
+    if(!m||m==='system')window.__applyTheme();
+  });
+}catch(e){}
 document.getElementById('theme-toggle').addEventListener('click',function(){
-  var dark=document.documentElement.classList.toggle('dark');
-  localStorage.theme=dark?'dark':'light';
+  window.__setThemeMode(document.documentElement.classList.contains('dark')?'light':'dark');
 });
+
+/* ===== 通用 bottom sheet ===== */
+(function(){
+  var wrap=document.getElementById('sheet-wrap'),panel=document.getElementById('sheet-panel'),
+      title=document.getElementById('sheet-title'),body=document.getElementById('sheet-body');
+  function close(){wrap.classList.remove('open');setTimeout(function(){wrap.classList.add('hidden')},260)}
+  window.__closeSheet=close;
+  window.__openSheet=function(opts){
+    opts=opts||{};
+    title.textContent=opts.title||'';
+    title.style.display=opts.title?'':'none';
+    body.innerHTML='';
+    if(opts.html){
+      var d=document.createElement('div');d.className='px-3 pb-2';d.innerHTML=opts.html;body.appendChild(d);
+    }else{
+      (opts.options||[]).forEach(function(o){
+        var b=document.createElement('button');
+        b.className='sheet-opt';b.setAttribute('type','button');
+        b.innerHTML='<span class="flex-1 min-w-0"><span class="block font-medium truncate">'+o.label+'</span>'
+          +(o.sub?'<span class="block text-xs text-m-on-surface-variant truncate">'+o.sub+'</span>':'')+'</span>'
+          +(o.checked?'<span class="text-m-primary">✓</span>':'');
+        b.addEventListener('click',function(){close();if(opts.onPick)opts.onPick(o.value)});
+        body.appendChild(b);
+      });
+    }
+    wrap.classList.remove('hidden');
+    requestAnimationFrame(function(){requestAnimationFrame(function(){wrap.classList.add('open')})});
+  };
+  wrap.querySelectorAll('[data-sheet-close]').forEach(function(el){el.addEventListener('click',close)});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!wrap.classList.contains('hidden'))close()});
+  /* 手机下滑关闭 */
+  var sy=null;
+  panel.addEventListener('touchstart',function(e){if(e.touches.length===1)sy=e.touches[0].clientY},{passive:true});
+  panel.addEventListener('touchmove',function(e){
+    if(sy===null||e.touches.length!==1)return;
+    var dy=e.touches[0].clientY-sy;
+    if(dy>90&&panel.scrollTop<=0&&window.matchMedia('(max-width:639px)').matches){sy=null;close()}
+  },{passive:true});
+})();
+
+/* ===== 语言选择 ===== */
+(function(){
+  var btn=document.getElementById('lang-btn');
+  if(!btn)return;
+  btn.addEventListener('click',function(){
+    var en=document.documentElement.lang==='en';
+    window.__openSheet({
+      title:en?'Language':'语言',
+      options:[
+        {label:'中文',sub:'Chinese',value:btn.getAttribute('data-url-zh'),checked:btn.getAttribute('data-cur')==='zh'},
+        {label:'English',sub:'英语',value:btn.getAttribute('data-url-en'),checked:btn.getAttribute('data-cur')==='en'}
+      ],
+      onPick:function(url){if(url)location.href=url}
+    });
+  });
+})();
+
+/* ===== 搜索手机下滑关闭 ===== */
+(function(){
+  var modal=document.getElementById('search-modal');
+  var sy=null;
+  modal.addEventListener('touchstart',function(e){if(e.touches.length===1)sy=e.touches[0].clientY},{passive:true});
+  modal.addEventListener('touchmove',function(e){
+    if(sy===null||e.touches.length!==1)return;
+    var dy=e.touches[0].clientY-sy;
+    if(dy>90&&window.matchMedia('(max-width:639px)').matches){sy=null;modal.classList.add('hidden');modal.style.display='none'}
+  },{passive:true});
+})();
 </script>
 
 <main>{{ block "main" . }}{{ end }}</main>
