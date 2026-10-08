@@ -725,25 +725,25 @@ mark.smk{background:var(--m-primary-container);color:var(--m-on-primary-containe
 /* 顶栏入口当前页面高亮 */
 
 /* ============================================================
-   统一搜索条（2.3.5）：browser / files / settings 同一视觉组件
-   尺寸 width min(100% - 32px, 560px)，高 52px，全圆角；
-   材质磨砂玻璃 + 细边 + 软阴影；手机悬浮 Dock 上方，DeX 在大标题下方
+   统一搜索条（2.3.5.1）：browser / files / settings 同一视觉组件
+   尺寸 width min(100% - 32px, 480px)，高 48px，全圆角；
+   材质磨砂玻璃 + 细边 + 柔和阴影；手机悬浮 Dock 上方 12px，DeX 在大标题下方
    ============================================================ */
-.sgx-searchbar{display:flex;align-items:center;gap:2px;width:min(100% - 32px,560px);height:52px;border-radius:999px;
+.sgx-searchbar{display:flex;align-items:center;gap:2px;width:min(100% - 32px,480px);height:48px;border-radius:999px;
   padding:0 6px 0 4px;margin-left:auto;margin-right:auto;
   background:rgba(255,255,255,0.85);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);
-  border:1px solid rgba(0,0,0,0.04);box-shadow:0 6px 20px rgba(0,0,0,0.10);
+  border:1px solid rgba(0,0,0,0.04);box-shadow:0 4px 14px rgba(0,0,0,0.08);
   transition:transform .22s ease,opacity .22s ease}
 .dark .sgx-searchbar{background:rgba(30,30,34,0.85);border-color:rgba(255,255,255,0.06)}
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .sgx-searchbar{background:#fff}.dark .sgx-searchbar{background:#1e1e20}
 }
 .reduced-motion .sgx-searchbar{transition:none}
-.sgx-sb-btn{width:44px;height:44px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;
+.sgx-sb-btn{width:36px;height:36px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;
   color:var(--m-on-surface-variant);flex-shrink:0;background:transparent;border:0;cursor:pointer}
 .sgx-sb-btn:active{background:rgba(0,0,0,.05)}
 .sgx-sb-btn svg{width:20px;height:20px}
-.sgx-sb-open{flex:1;min-width:0;height:100%;display:flex;align-items:center;gap:10px;padding-left:14px;text-align:left;
+.sgx-sb-open{flex:1;min-width:0;height:100%;display:flex;align-items:center;gap:10px;padding-left:14px;text-align:left;border-radius:999px;
   color:var(--m-on-surface-variant);background:transparent;border:0;cursor:pointer}
 .sgx-sb-open:active{transform:scale(.985)}
 .sgx-sb-lead{display:inline-flex;flex-shrink:0}

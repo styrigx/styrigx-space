@@ -295,10 +295,15 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
     var b=e.target.closest&&e.target.closest('[data-go-back]');
     if(b){e.preventDefault();goBack()}
   });
-  /* Dock 在 App 之间切换用 replace，不累积历史（document 委托，Dock HTML 在脚本之后） */
+  /* Dock 在 App 之间切换：子页面用 replace 不累积历史；主页用普通跳转保留历史。
+     目标：任意 Dock 切换后 history.length 不超过「进入前 +1」，系统返回一次回主页。 */
   document.addEventListener('click',function(e){
     var a=e.target.closest&&e.target.closest('#phone-dock a[href],#dex-dock a[href]');
-    if(a){e.preventDefault();location.replace(a.getAttribute('href'))}
+    if(!a)return;
+    var p=location.pathname;
+    var isHome=(p==='/'||p==='/en'||p==='/en/');
+    if(isHome)return; /* 主页：不拦截，普通跳转 */
+    e.preventDefault();location.replace(a.getAttribute('href'));
   });
   /* 直接打开 App 页：最多插入一次主页历史，保证系统返回一次回到主页。
      历史永远只有「主页 → 当前 App」两条，再返回一次就离开网站。
@@ -679,30 +684,30 @@ window.__sgxVoice=function(btn,opts){
 <div class="dock" id="phone-dock" role="navigation" aria-label="{{ if $isEn }}Navigation{{ else }}导航栏{{ end }}">
   <span class="dock-pill" id="dock-pill" aria-hidden="true"></span>
   <a href="{{ $filesUrl }}" class="dock-btn" data-dock="files" aria-label="{{ if $isEn }}My Files{{ else }}我的文件{{ end }}">
-    <span class="dock-ic">{{ partial "icon.html" "files" }}</span><span class="dock-label">{{ if $isEn }}My Files{{ else }}我的文件{{ end }}</span>
+    <span class="dock-ic">{{ partial "icon.html" (dict "name" "files" "uid" "pd") }}</span><span class="dock-label">{{ if $isEn }}My Files{{ else }}我的文件{{ end }}</span>
   </a>
   <a href="{{ $linksUrl }}" class="dock-btn" data-dock="browser" aria-label="{{ if $isEn }}Internet{{ else }}浏览器{{ end }}">
-    <span class="dock-ic">{{ partial "icon.html" "browser" }}</span><span class="dock-label">{{ if $isEn }}Internet{{ else }}浏览器{{ end }}</span>
+    <span class="dock-ic">{{ partial "icon.html" (dict "name" "browser" "uid" "pd") }}</span><span class="dock-label">{{ if $isEn }}Internet{{ else }}浏览器{{ end }}</span>
   </a>
   <a href="{{ $setUrl }}" class="dock-btn" data-dock="settings" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}">
-    <span class="dock-ic">{{ partial "icon.html" "gear-solid" }}</span><span class="dock-label">{{ if $isEn }}Settings{{ else }}设置{{ end }}</span>
+    <span class="dock-ic">{{ partial "icon.html" (dict "name" "gear-solid" "uid" "pd") }}</span><span class="dock-label">{{ if $isEn }}Settings{{ else }}设置{{ end }}</span>
   </a>
 </div>
 
 <!-- DeX 底部居中 Dock（≥980px）：应用抽屉 / 我的文件 / 浏览器 / 设置 -->
 <div id="dex-dock" role="navigation" aria-label="{{ if $isEn }}Navigation{{ else }}导航栏{{ end }}">
   <button type="button" id="dex-dock-drawer" class="dex-dock-btn" aria-label="{{ if $isEn }}App drawer{{ else }}应用抽屉{{ end }}" title="{{ if $isEn }}App drawer{{ else }}应用抽屉{{ end }}">
-    <span class="dex-dock-ic">{{ partial "icon.html" "drawer" }}</span>
+    <span class="dex-dock-ic">{{ partial "icon.html" (dict "name" "drawer" "uid" "dd") }}</span>
     <span class="dex-dock-dot" aria-hidden="true"></span>
   </button>
   <a href="{{ $filesUrl }}" class="dex-dock-btn" data-navpage="files" aria-label="{{ if $isEn }}My Files{{ else }}我的文件{{ end }}" title="{{ if $isEn }}My Files{{ else }}我的文件{{ end }}">
-    <span class="dex-dock-ic">{{ partial "icon.html" "files" }}</span><span class="dex-dock-dot" aria-hidden="true"></span>
+    <span class="dex-dock-ic">{{ partial "icon.html" (dict "name" "files" "uid" "dd") }}</span><span class="dex-dock-dot" aria-hidden="true"></span>
   </a>
   <a href="{{ $linksUrl }}" class="dex-dock-btn" data-navpage="browser" aria-label="{{ if $isEn }}Internet{{ else }}浏览器{{ end }}" title="{{ if $isEn }}Internet{{ else }}浏览器{{ end }}">
-    <span class="dex-dock-ic">{{ partial "icon.html" "browser" }}</span><span class="dex-dock-dot" aria-hidden="true"></span>
+    <span class="dex-dock-ic">{{ partial "icon.html" (dict "name" "browser" "uid" "dd") }}</span><span class="dex-dock-dot" aria-hidden="true"></span>
   </a>
   <a href="{{ $setUrl }}" class="dex-dock-btn" data-navpage="settings" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}" title="{{ if $isEn }}Settings{{ else }}设置{{ end }}">
-    <span class="dex-dock-ic">{{ partial "icon.html" "gear-solid" }}</span><span class="dex-dock-dot" aria-hidden="true"></span>
+    <span class="dex-dock-ic">{{ partial "icon.html" (dict "name" "gear-solid" "uid" "dd") }}</span><span class="dex-dock-dot" aria-hidden="true"></span>
   </a>
 </div>
 
@@ -785,14 +790,14 @@ window.__sgxVoice=function(btn,opts){
         class="w-full rounded-full border border-m-outline bg-m-container px-5 py-3 text-sm outline-none placeholder:text-m-on-surface-variant focus:ring-2 focus:ring-m-primary">
     </div>
     <div id="dex-drawer-grid">
-      {{ range $dexApps }}
-      <a href="{{ .url }}" {{ if .ext }}target="_blank" rel="noopener"{{ end }} data-name="{{ .name2 }}" class="dex-app" aria-label="{{ .name }}">
-        {{ if or (eq .icon "brands/github") (eq .icon "x-logo") }}
-        <span class="dex-app-ic {{ .bg }} {{ .fg }}">{{ partial "icon.html" .icon }}</span>
+      {{ range $di, $da := $dexApps }}
+      <a href="{{ $da.url }}" {{ if $da.ext }}target="_blank" rel="noopener"{{ end }} data-name="{{ $da.name2 }}" class="dex-app" aria-label="{{ $da.name }}">
+        {{ if or (eq $da.icon "brands/github") (eq $da.icon "x-logo") }}
+        <span class="dex-app-ic {{ $da.bg }} {{ $da.fg }}">{{ partial "icon.html" $da.icon }}</span>
         {{ else }}
-        <span class="dex-app-ic dex-app-ic-full">{{ partial "icon.html" .icon }}</span>
+        <span class="dex-app-ic dex-app-ic-full">{{ partial "icon.html" (dict "name" $da.icon "uid" (printf "dw%d" $di)) }}</span>
         {{ end }}
-        <span class="dex-app-name">{{ .name }}</span>
+        <span class="dex-app-name">{{ $da.name }}</span>
       </a>
       {{ end }}
     </div>
@@ -952,6 +957,15 @@ window.__sgxVoice=function(btn,opts){
       grid.querySelectorAll('a').forEach(function(a){
         a.style.display=(!q||(a.dataset.name||'').toLowerCase().indexOf(q)!==-1)?'':'none';
       });
+    });
+    /* 抽屉内跳转：主页用普通跳转，子页面用 replace（与 Dock 一致） */
+    grid.addEventListener('click',function(e){
+      var a=e.target.closest&&e.target.closest('a[href]');
+      if(!a||a.target==='_blank')return;
+      var p=location.pathname;
+      var isHome=(p==='/'||p==='/en'||p==='/en/');
+      if(isHome)return;
+      e.preventDefault();location.replace(a.getAttribute('href'));
     });
   })();
 

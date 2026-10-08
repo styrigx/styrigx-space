@@ -13,8 +13,8 @@
   (dict "id" "post" "label" (cond $isEn "Posts" "文章") "icon" "pen" "fg" "text-m-primary")
   (dict "id" "book" "label" (cond $isEn "Books" "书") "icon" "book" "fg" "text-m-secondary")
   (dict "id" "music" "label" (cond $isEn "Music" "音乐") "icon" "music" "fg" "text-m-warm")
-  (dict "id" "link" "label" (cond $isEn "Bookmarks" "书签") "icon" "globe" "fg" "text-m-accent")
-  (dict "id" "app" "label" (cond $isEn "Apps" "应用") "icon" "" "fg" "text-m-tertiary") }}
+  (dict "id" "link" "label" (cond $isEn "Bookmarks" "书签") "icon" "bookmark-solid" "fg" "text-m-accent")
+  (dict "id" "app" "label" (cond $isEn "Apps" "应用") "icon" "appgrid-solid" "fg" "text-m-tertiary") }}
 
 {{ $typeMeta := slice
   (dict "id" "post" "label" (cond $isEn "Posts" "文章") "bar" "bg-m-primary" "fg" "text-m-primary" "icon" "pen")
@@ -89,7 +89,7 @@
         {{ range $cats }}
         <a href="{{ $filesBase }}?type={{ .id }}" class="flex flex-col items-center gap-1.5 py-2 active:scale-95 transition-transform" aria-label="{{ .label }}">
           <span class="files-cat-ic w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-m-container flex items-center justify-center {{ .fg }}">
-            {{ if .icon }}{{ partial "icon.html" .icon }}{{ else }}{{ $appGrid | safeHTML }}{{ end }}
+            {{ partial "icon.html" .icon }}
           </span>
           <span class="text-xs text-m-on-surface-variant">{{ .label }}</span>
         </a>
@@ -229,6 +229,7 @@
 </div>
 
 
+<style>
 /* ===== 我的文件（页面私有样式） ===== */
 .files-more-btn{width:44px;height:44px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;color:var(--m-on-surface);flex-shrink:0}
 .files-more-btn:hover{background:rgba(0,0,0,.05)}

@@ -257,7 +257,7 @@
         {{ if or (eq $a.icon "brands/github") (eq $a.icon "x-logo") }}
         <span class="w-12 h-12 rounded-[1.1rem] {{ $a.bg }} {{ $a.fg }} flex items-center justify-center shadow-sm">{{ partial "icon.html" $a.icon }}</span>
         {{ else }}
-        <span class="w-12 h-12 shrink-0 drop-shadow-sm">{{ partial "icon.html" $a.icon }}</span>
+        <span class="w-12 h-12 shrink-0 drop-shadow-sm">{{ partial "icon.html" (dict "name" $a.icon "uid" (printf "hg%d" $i)) }}</span>
         {{ end }}
         <span class="text-[11px] leading-tight text-center text-m-on-surface-variant dark:text-m-on-surface max-w-[4.75rem] break-words">{{ $a.name }}</span>
       </a>
