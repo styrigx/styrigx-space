@@ -8,6 +8,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/favicon-32x32.png" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="stylesheet" href="{{ (resources.Get "css/main.css" | minify | fingerprint).RelPermalink }}">
 <style>
 h1,h2,h3{letter-spacing:-0.02em}
@@ -27,8 +30,10 @@ body{line-height:1.6}
 <nav class="sticky top-0 z-50 border-b border-gray-200/60 dark:border-gray-800/60 bg-white/75 dark:bg-gray-950/75 backdrop-blur-xl backdrop-saturate-150">
   <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
     <a href="{{ $home }}" class="flex items-center gap-2.5 font-bold text-lg shrink-0">
-      {{ with $profile.avatar }}
-      <img src="{{ . }}" alt="Styrigx" class="w-8 h-8 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-700">
+      {{ $navAvatar := resources.Get "images/avatar.png" }}
+      {{ if $navAvatar }}
+      {{ $navAvatarWebp := $navAvatar.Fill "64x64 webp" }}
+      <img src="{{ $navAvatarWebp.RelPermalink }}" alt="Styrigx" width="32" height="32" class="w-8 h-8 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-700">
       {{ else }}
       <span class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-white text-sm font-bold flex items-center justify-center">S</span>
       {{ end }}

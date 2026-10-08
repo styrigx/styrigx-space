@@ -19,8 +19,10 @@
   </div>
   <div class="relative max-w-5xl mx-auto px-6 pt-20 sm:pt-28 pb-16 sm:pb-24 text-center">
     <div class="animate-fade-up" style="animation-delay:.05s">
-      {{ with $profile.avatar }}
-      <img src="{{ . }}" alt="Styrigx" class="w-28 h-28 sm:w-32 sm:h-32 mx-auto rounded-full object-cover ring-4 ring-white dark:ring-gray-800 shadow-xl mb-8">
+      {{ $avatar := resources.Get "images/avatar.png" }}
+      {{ if $avatar }}
+      {{ $avatarWebp := $avatar.Fill "256x256 webp" }}
+      <img src="{{ $avatarWebp.RelPermalink }}" alt="Styrigx" width="128" height="128" class="w-28 h-28 sm:w-32 sm:h-32 mx-auto rounded-full object-cover ring-4 ring-white dark:ring-gray-800 shadow-xl mb-8">
       {{ else }}
       <div class="w-28 h-28 sm:w-32 sm:h-32 mx-auto rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-5xl font-bold ring-4 ring-white dark:ring-gray-800 shadow-xl mb-8">S</div>
       {{ end }}
