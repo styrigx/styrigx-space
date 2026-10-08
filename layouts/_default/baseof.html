@@ -750,7 +750,8 @@ window.__sgxVoice=function(btn,opts){
   {{ $dexApps = $dexApps | append (dict "name" $sa.name "name2" (print $sa.name " " $sa.desc) "url" $sa.url "icon" $sa.icon "bg" "" "fg" "" "ext" $sa.ext "appid" $sa.id) }}
 {{ end }}
 
-<!-- 手机悬浮 Dock：我的文件 / 应用商店 / 浏览器 / 设置（<980px，全站） -->
+{{ if .IsHome }}
+<!-- 手机悬浮 Dock：我的文件 / 应用商店 / 浏览器 / 设置（<980px，仅主页） -->
 <div class="dock" id="phone-dock" role="navigation" aria-label="{{ if $isEn }}Navigation{{ else }}导航栏{{ end }}">
   <span class="dock-pill" id="dock-pill" aria-hidden="true"></span>
   <a href="{{ $filesUrl }}" class="dock-btn" data-dock="files" aria-label="{{ if $isEn }}My Files{{ else }}我的文件{{ end }}">
@@ -767,7 +768,7 @@ window.__sgxVoice=function(btn,opts){
   </a>
 </div>
 
-<!-- DeX 底部居中 Dock（≥980px）：应用抽屉 / 我的文件 / 应用商店 / 浏览器 / 设置 -->
+<!-- DeX 底部居中 Dock（≥980px，仅主页）：应用抽屉 / 我的文件 / 应用商店 / 浏览器 / 设置 -->
 <div id="dex-dock" role="navigation" aria-label="{{ if $isEn }}Navigation{{ else }}导航栏{{ end }}">
   <button type="button" id="dex-dock-drawer" class="dex-dock-btn" aria-label="{{ if $isEn }}App drawer{{ else }}应用抽屉{{ end }}" title="{{ if $isEn }}App drawer{{ else }}应用抽屉{{ end }}">
     <span class="dex-dock-ic">{{ partial "icon.html" (dict "name" "drawer" "uid" "dd") }}</span>
@@ -786,6 +787,7 @@ window.__sgxVoice=function(btn,opts){
     <span class="dex-dock-ic">{{ partial "icon.html" (dict "name" "gear-solid" "uid" "dd") }}</span><span class="dex-dock-dot" aria-hidden="true"></span>
   </a>
 </div>
+{{ end }}
 
 <!-- 上下边缘柔和模糊渐隐 -->
 <div id="edge-top" aria-hidden="true"></div>

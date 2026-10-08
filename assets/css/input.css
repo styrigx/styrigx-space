@@ -589,6 +589,13 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
 /* DeX 底部 Dock 不滚动隐藏；页面底部留出 Dock 高度 + 16px */
 .layout-dex main{padding-bottom:calc(var(--dex-dock-h) + 12px + 16px + env(safe-area-inset-bottom,0px))}
 .layout-dex footer{padding-bottom:calc(var(--dex-dock-h) + 12px + env(safe-area-inset-bottom,0px))}
+/* 2.3.14.10：Dock 只在主页；应用页（body.subpage）底部留白按新胶囊位置重算。
+   胶囊下沉后底部 12px＋安全区、顶部 68px＋安全区：页脚版权行在胶囊顶部上方 21px（与改前一致），
+   主内容在胶囊顶部上方 36px（与改前一致），无 Dock 页面只留 24px/21px 呼吸。 */
+body.subpage main{padding-bottom:calc(24px + env(safe-area-inset-bottom,0px))}
+body.subpage footer{padding-bottom:calc(21px + env(safe-area-inset-bottom,0px))}
+body.subpage.sgx-cap-pad main{padding-bottom:calc(104px + env(safe-area-inset-bottom,0px)) !important}
+body.subpage.sgx-cap-pad footer{padding-bottom:calc(56px + 12px + 21px + env(safe-area-inset-bottom,0px))}
 
 /* ----- 顶栏右侧托盘按钮 ----- */
 .nav-tray-btn{display:flex;align-items:center;gap:6px;padding:8px 12px;border-radius:.9rem;min-height:44px;
@@ -692,8 +699,8 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
   grid-template-columns:clamp(320px,36%,420px) minmax(0,1fr);gap:16px;align-items:start}
 /* 左栏：标题＋账号卡固定，菜单列表过长时独立滚动 */
 .layout-dex .set-col-l{display:flex;flex-direction:column;min-width:0;min-height:0;
-  max-height:calc(100vh - var(--nav-h,64px) - 16px - env(safe-area-inset-top,0px) - 150px - env(safe-area-inset-bottom,0px));
-  max-height:calc(100dvh - var(--nav-h,64px) - 16px - env(safe-area-inset-top,0px) - 150px - env(safe-area-inset-bottom,0px))}
+  max-height:calc(100vh - var(--nav-h,64px) - 16px - env(safe-area-inset-top,0px) - 92px - env(safe-area-inset-bottom,0px));
+  max-height:calc(100dvh - var(--nav-h,64px) - 16px - env(safe-area-inset-top,0px) - 92px - env(safe-area-inset-bottom,0px))}
 .layout-dex .set-col-l .subpage-head{min-height:0;min-height:0;
   padding:6px 0 10px;display:flex;flex-direction:column;
   align-items:flex-start;justify-content:flex-start;text-align:left;flex-shrink:0}
@@ -702,8 +709,8 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
   position:static;overflow-y:auto;padding-bottom:8px}
 /* 右栏：独立滚动；内容最大 720px 左对齐 */
 .layout-dex .set-col-r{min-width:0;min-height:0;overflow-y:auto;padding-bottom:8px;
-  max-height:calc(100vh - var(--nav-h,64px) - 16px - env(safe-area-inset-top,0px) - 150px - env(safe-area-inset-bottom,0px));
-  max-height:calc(100dvh - var(--nav-h,64px) - 16px - env(safe-area-inset-top,0px) - 150px - env(safe-area-inset-bottom,0px))}
+  max-height:calc(100vh - var(--nav-h,64px) - 16px - env(safe-area-inset-top,0px) - 92px - env(safe-area-inset-bottom,0px));
+  max-height:calc(100dvh - var(--nav-h,64px) - 16px - env(safe-area-inset-top,0px) - 92px - env(safe-area-inset-bottom,0px))}
 .layout-dex .set-right-title{display:block;max-width:720px;
   font-size:20px;font-weight:800;color:var(--m-on-surface);letter-spacing:-0.01em;
   padding:2px 4px 12px}
@@ -874,6 +881,8 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
 .sgx85-pill .sgx85-pill-mic.sgx-mic-on{color:var(--m-primary);animation:sgx-mic-pulse 1.4s ease-out infinite}
 .sgx85-pill:active{transform:translateX(-50%) scale(.97)}
 .layout-dex .sgx85-pill{max-width:420px}
+/* 2.3.14.10：应用页浏览器地址栏胶囊同样下沉（必须在 body.addrbar-top 规则之前，同优先级下后者优先） */
+body.subpage .sgx85-pill{bottom:calc(12px + env(safe-area-inset-bottom,0px))}
 .reduced-motion .sgx85-pill{transition:none}
 /* 地址栏位置设置（2.3.11）：顶部时胶囊移到顶栏下方 */
 body.addrbar-top .sgx85-pill{top:calc(var(--nav-h) + 12px + env(safe-area-inset-top,0px));bottom:auto}
@@ -890,6 +899,8 @@ body.addrbar-top .sgx85-pill{top:calc(var(--nav-h) + 12px + env(safe-area-inset-
   transition:bottom .25s ease,left .25s ease,right .25s ease,transform .25s ease,border-radius .25s ease,width .25s ease}
 .dark .sgx-cap{background:rgba(32,32,36,0.88);border-color:rgba(255,255,255,0.07)}
 .sgx-cap-ic{width:22px;height:22px;flex-shrink:0;color:var(--m-on-surface-variant)}
+/* 2.3.14.10：Dock 只在主页显示；应用页（body.subpage）搜索胶囊下沉到原来 Dock 的位置（底部 12px＋安全区） */
+body.subpage .sgx-cap{bottom:calc(12px + env(safe-area-inset-bottom,0px))}
 .sgx-cap input{flex:1;min-width:0;background:transparent;border:0;outline:none;
   font-size:17px;color:var(--m-on-surface);padding:0}
 .sgx-cap input::placeholder{color:var(--m-on-surface-variant)}
@@ -1123,6 +1134,8 @@ body.sgx-locked #dex-dock{transform:translateX(-50%) scale(.96);transition:trans
    .open 的 bottom/left/right/width 保持收起态几何，由 JS 内联样式驱动 */
 .sgx-cap.sgx-kb-sync,.sgx-cap.sgx-kb-sync.open{transition:none}
 .sgx-cap.sgx-kb-sync.open{bottom:calc(88px + env(safe-area-inset-bottom,0px));left:50%;right:auto;transform:translateX(-50%);width:min(64vw,300px)}
+/* 2.3.14.10：应用页无 Dock，键盘跟随以下沉后的位置（12px）为起点 */
+body.subpage .sgx-cap.sgx-kb-sync.open{bottom:calc(12px + env(safe-area-inset-bottom,0px))}
 /* 有 VirtualKeyboard API（Chrome）时：overlaysContent 让键盘悬浮不顶页面，
    胶囊 bottom 直接跟 env(keyboard-inset-height) 走，不加 transition；宽度由 JS 内联插值 */
 .sgx-vk .sgx-cap.open{bottom:calc(env(keyboard-inset-height,0px) + 12px + env(safe-area-inset-bottom,0px));transition:none;left:50%;right:auto;transform:translateX(-50%)}

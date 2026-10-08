@@ -56,12 +56,14 @@
       /* 无 VK API：visualViewport resize/scroll → rAF → transform 定位到 vv 底边，无 transition */
       cap.classList.add('sgx-kb-sync');
       var raf=0;
+      /* 2.3.14.10：应用页无 Dock，胶囊静止位置 bottom:12px（主页 88px，但胶囊只在应用页使用）；
+         目标：键盘顶部上方 12px → translateY = (静止bottom - 12) - kbH */
+      var capRest=document.body.classList.contains('subpage')?12:88;
       var upd=function(){
         raf=0;
         var h=vv?Math.max(0,window.innerHeight-vv.height-vv.offsetTop):0;
         kbUpdate(h);
-        /* 胶囊平时 bottom:88px；目标：键盘顶部上方 12px → translateY = 76 - kbH */
-        cap.style.transform='translateX(-50%) translateY('+Math.round(76-h)+'px)';
+        cap.style.transform='translateX(-50%) translateY('+Math.round(capRest-12-h)+'px)';
       };
       var sched=function(){if(!raf)raf=requestAnimationFrame(upd)};
       if(vv){vv.addEventListener('resize',sched);vv.addEventListener('scroll',sched)}
