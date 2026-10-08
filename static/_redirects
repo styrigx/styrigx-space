@@ -1,0 +1,4 @@
+/mp    https://github.com/styrigx/muse-playbook       301
+/tp    https://github.com/styrigx/textbook-playbook    301
+/gh    https://github.com/styrigx                     301
+/gh/*  https://github.com/styrigx/:splat               301
