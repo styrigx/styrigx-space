@@ -329,7 +329,8 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
       sessionStorage.setItem('sgx-hist-root','1');
     }catch(e){}
   })();
-  /* 滚过标题区后显示悬浮返回键 + 顶部小标题；页面太短不能滚动时不显示 */
+  /* 滚过标题区后显示悬浮返回键 + 顶部小标题；页面太短不能滚动时不显示。
+     滚动监听 passive + rAF，保证不卡顿。 */
   function initBackFloat(){
     var head=document.querySelector('[data-subpage-head]');
     var floats=document.querySelectorAll('.subpage-back-float');
@@ -344,8 +345,13 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
       document.body.classList.toggle('subpage-scrolled',!!show);
       head.classList.toggle('head-past',!!show);
     }
-    window.addEventListener('scroll',onScroll,{passive:true});
-    window.addEventListener('resize',onScroll);
+    var ticking=false;
+    function onScrollRaf(){
+      if(ticking)return;ticking=true;
+      requestAnimationFrame(function(){ticking=false;onScroll();});
+    }
+    window.addEventListener('scroll',onScrollRaf,{passive:true});
+    window.addEventListener('resize',onScrollRaf);
     onScroll();
   }
   if(document.readyState==='loading'){
@@ -353,6 +359,16 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
   }else{
     initBackFloat();
   }
+  /* 2.3.14.5：一级页折叠态返回键：有站内上一页就 history.back()，否则回对应语言首页 */
+  document.addEventListener('click',function(e){
+    var b=e.target.closest&&e.target.closest('[data-back-top]');
+    if(!b)return;
+    e.preventDefault();
+    var same=false;
+    try{var r=document.referrer;same=!!r&&new URL(r).origin===location.origin;}catch(_){}
+    if(same){history.back();}
+    else{location.href=(document.documentElement.lang==='en')?'/en/':'/';}
+  });
 })();
 
 /* ===== 主题模式（浅色/深色/跟随系统）===== */

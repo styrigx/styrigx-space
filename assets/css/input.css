@@ -312,6 +312,12 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
 .subpage-back-float svg{width:24px;height:24px;color:var(--m-primary)}
 .layout-dex .subpage-back-float{display:none}
 .reduced-motion .subpage-back-float{transition:none}
+/* 2.3.14.5：一级页（noBack）折叠后在顶栏左侧淡入的返回键：44px 磨砂圆，蓝色 ‹；
+   与右侧天气对称，宽屏时跟内容区左边缘对齐；DeX 同样显示 */
+.subpage-back-float.subpage-back-top{width:44px;height:44px;
+  left:max(16px, calc((100vw - 1100px)/2 + 16px));
+  font-size:26px;line-height:1;font-weight:400;color:var(--m-primary)}
+.layout-dex .subpage-back-float.subpage-back-top{display:flex}
 
 /* ===== 数据卡片固定最小高度：数据到来前后尺寸不变 ===== */
 #dual-clock { min-height: 168px; }

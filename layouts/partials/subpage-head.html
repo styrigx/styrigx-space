@@ -13,5 +13,5 @@
   </div>
   {{ with .actions }}<div class="subpage-actions">{{ . }}</div>{{ end }}
 </header>
-{{ if not $noBack }}<button type="button" class="subpage-back-float" data-go-back aria-label="{{ if $en }}Back{{ else }}返回{{ end }}">{{ partial "icon.html" "arrow-left" }}</button>{{ end }}
+{{ if not $noBack }}<button type="button" class="subpage-back-float" data-go-back aria-label="{{ if $en }}Back{{ else }}返回{{ end }}">{{ partial "icon.html" "arrow-left" }}</button>{{ else }}<button type="button" class="subpage-back-float subpage-back-top" data-back-top aria-label="{{ if $en }}Back{{ else }}返回{{ end }}">‹</button>{{ end }}
 <div class="subpage-mini-title" aria-hidden="true">{{ .title }}</div>
