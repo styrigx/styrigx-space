@@ -318,6 +318,12 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
   left:max(16px, calc((100vw - 1100px)/2 + 16px));
   font-size:26px;line-height:1;font-weight:400;color:var(--m-primary)}
 .layout-dex .subpage-back-float.subpage-back-top{display:flex}
+/* 2.3.15 A1：横屏手机（<980px 为 layout-phone）内容列 640px 居中，
+   浮动返回键左边缘对齐内容列左边缘；竖屏、DeX（≥980px）不变 */
+@media (orientation:landscape) and (max-width:979.5px){
+  .subpage-back-float.subpage-back-top{left:max(16px,calc((100vw - 640px)/2))}
+  .subpage-back-float{left:max(16px,calc((100vw - 640px)/2))}
+}
 
 /* ===== 数据卡片固定最小高度：数据到来前后尺寸不变 ===== */
 #dual-clock { min-height: 168px; }

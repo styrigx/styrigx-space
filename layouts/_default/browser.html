@@ -579,7 +579,7 @@ window.__favFallback=function(img,name){
       histTags = document.getElementById('brw-hist-tags'),
       histShow = document.getElementById('brw-hist-show');
   function getHist(){
-    try{ var a = JSON.parse(lsGet(LS_HIST, '[]')); return Array.isArray(a) ? a : []; }
+    try{ var a = JSON.parse(lsGet(LS_HIST, '[]')); return Array.isArray(a) ? a.slice(0, 12) : []; }
     catch(e){ return []; }
   }
   function setHist(a){ lsSet(LS_HIST, JSON.stringify(a)); }

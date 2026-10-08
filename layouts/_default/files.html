@@ -572,8 +572,12 @@
     __probe.remove();
   }catch(e){}
   function moreStuckRight(){
-    /* 修复：右边距与页面内容右边距一致（内容 max-width 1100px + 16px 内边距），不再放天气左边 */
-    return Math.max(16,(window.innerWidth-1100)/2+16);
+    /* 修复：右边距与页面内容右边距一致（内容 max-width 1100px + 16px 内边距），不再放天气左边；
+       2.3.15 A1：横屏手机内容列 640px 居中，右边缘对齐内容列右边缘 */
+    var land=window.matchMedia&&window.matchMedia('(orientation:landscape) and (max-width:979.5px)').matches;
+    var w=land?640:1100;
+    /* 横屏内容列 640px 无内边距，右边缘直接对齐；1100px 列有 16px 内边距 */
+    return Math.max(16,(window.innerWidth-w)/2+(land?0:16));
   }
   function updateMoreStick(){
     if(!moreBtn||!moreActions)return;
