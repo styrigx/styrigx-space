@@ -4,6 +4,9 @@
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f5f8fa">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#10151a">
 <title>{{ if .IsHome }}Styrigx{{ else }}{{ .Title }} | Styrigx{{ end }}</title>
 <meta name="description" content="{{ if $isEn }}Sloan Gray’s personal portal{{ else }}{{ .Site.Params.description }}{{ end }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -18,9 +21,11 @@
 (function(){
   try{
     var d=document.documentElement;
-    var m=localStorage.getItem('sgx-theme-mode')||localStorage.getItem('theme');
-    if(m==='dark'||(!m&&matchMedia('(prefers-color-scheme: dark)').matches)){d.classList.add('dark')}
-    if(m==='light'){d.classList.remove('dark')}
+    /* 一次性清理旧键：只用 sgx-theme-mode */
+    try{localStorage.removeItem('theme')}catch(e){}
+    var m=null;try{m=localStorage.getItem('sgx-theme-mode')}catch(e){}
+    var wantDark=m==='dark'||((!m||m==='system')&&matchMedia('(prefers-color-scheme: dark)').matches);
+    if(wantDark){d.classList.add('dark')}else{d.classList.remove('dark')}
     /* 字体大小偏好 */
     var fs=localStorage.getItem('sgx-font-size');
     if(fs==='large'){d.style.fontSize='112.5%'}
@@ -51,7 +56,7 @@
 <!-- 状态栏式导航 -->
 <nav id="site-nav" class="sticky top-0 z-50 glass border-b border-m-outline">
   <div class="max-w-[1100px] mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
-    <a href="{{ $home }}" class="flex items-center gap-2 font-bold text-[15px] shrink-0">
+    <a href="{{ $home }}" class="flex items-center gap-2 font-bold text-[15px] shrink-0 whitespace-nowrap">
       {{ $navAvatar := resources.Get "images/avatar.png" }}
       {{ if $navAvatar }}
       {{ $navAvatarWebp := $navAvatar.Fill "64x64 webp" }}
@@ -63,30 +68,9 @@
     </a>
     <div class="flex items-center gap-1 sm:gap-2 text-sm">
       <button id="search-open-m" class="nav-act w-9 h-9 rounded-full flex items-center justify-center text-m-on-surface-variant hover:bg-m-container transition-colors" aria-label="{{ if $isEn }}Search{{ else }}搜索{{ end }}">{{ partial "icon.html" "search" }}</button>
-      <a href="{{ $home }}" class="nav-act hidden sm:inline-flex px-3 py-1.5 rounded-full hover:bg-m-container transition-colors text-m-on-surface-variant">{{ if $isEn }}Home{{ else }}首页{{ end }}</a>
-      <a href="{{ if $isEn }}/en/links/{{ else }}/links/{{ end }}" class="nav-act hidden sm:inline-flex px-3 py-1.5 rounded-full hover:bg-m-container transition-colors text-m-on-surface-variant">{{ if $isEn }}Links{{ else }}导航{{ end }}</a>
-      {{/* 语言切换：bottom sheet 选择，跳到对应语言的同一页面 */}}
-      {{ $urlZh := .RelPermalink }}{{ $urlEn := .RelPermalink }}
-      {{ if $isEn }}
-        {{ $urlZh = "/" }}
-        {{ if hasPrefix .RelPermalink "/en/links/" }}{{ $urlZh = "/links/" }}{{ end }}
-        {{ if hasPrefix .RelPermalink "/en/settings/" }}{{ $urlZh = "/settings/" }}{{ end }}
-        {{ if hasPrefix .RelPermalink "/en/goodlock/" }}{{ $urlZh = "/goodlock/" }}{{ end }}
-      {{ else }}
-        {{ $urlEn = "/en/" }}
-        {{ if hasPrefix .RelPermalink "/links/" }}{{ $urlEn = "/en/links/" }}{{ end }}
-        {{ if hasPrefix .RelPermalink "/settings/" }}{{ $urlEn = "/en/settings/" }}{{ end }}
-        {{ if hasPrefix .RelPermalink "/goodlock/" }}{{ $urlEn = "/en/goodlock/" }}{{ end }}
-      {{ end }}
-      {{ $langLabel := "EN" }}{{ if $isEn }}{{ $langLabel = "中文" }}{{ end }}
-      <button id="lang-btn" data-cur="{{ if $isEn }}en{{ else }}zh{{ end }}" data-url-zh="{{ $urlZh }}" data-url-en="{{ $urlEn }}"
-        class="nav-act px-3 py-1.5 rounded-full hover:bg-m-container transition-colors text-m-on-surface-variant font-medium inline-flex items-center gap-1.5">{{ partial "icon.html" "globe" }}<span>{{ $langLabel }}</span></button>
+      <a href="{{ $home }}" class="nav-act hidden sm:inline-flex px-3 py-1.5 rounded-full hover:bg-m-container transition-colors text-m-on-surface-variant whitespace-nowrap">{{ if $isEn }}Home{{ else }}首页{{ end }}</a>
+      <a href="{{ if $isEn }}/en/links/{{ else }}/links/{{ end }}" class="nav-act hidden sm:inline-flex px-3 py-1.5 rounded-full hover:bg-m-container transition-colors text-m-on-surface-variant whitespace-nowrap">{{ if $isEn }}Links{{ else }}导航{{ end }}</a>
       <a href="{{ if $isEn }}/en/settings/{{ else }}/settings/{{ end }}" class="nav-act w-9 h-9 rounded-full inline-flex items-center justify-center text-m-on-surface-variant hover:bg-m-container transition-colors" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}">{{ partial "icon.html" "gear" }}</a>
-      <button id="theme-toggle" aria-label="{{ if $isEn }}Toggle theme{{ else }}切换主题{{ end }}" class="nav-act w-9 h-9 rounded-full flex items-center justify-center text-m-on-surface-variant hover:bg-m-container transition-colors">
-        <svg width="20" height="20" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/></svg>
-        <svg width="20" height="20" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0012 21.75a9.753 9.753 0 009.752-6.748z"/></svg>
-      </button>
-      <span id="bedtime-moon" class="hidden w-9 h-9 rounded-full items-center justify-center text-m-accent" title="{{ if $isEn }}Bedtime mode{{ else }}就寝模式{{ end }}">{{ partial "icon.html" "moon" }}</span>
     </div>
   </div>
 </nav>
@@ -104,7 +88,7 @@
         <button data-search-close class="text-m-on-surface-variant hover:text-m-on-surface">{{ partial "icon.html" "x-mark" }}</button>
       </div>
       <div id="search-results" class="search-results max-h-80 overflow-y-auto p-2"></div>
-      <div class="search-hints px-5 py-3 border-t border-m-outline text-xs text-m-on-surface-variant flex gap-4">
+      <div class="search-hints px-5 py-3 border-t border-m-outline text-xs text-m-on-surface-variant hidden sm:flex gap-4">
         <span><kbd class="bg-m-container rounded px-1">↑↓</kbd> {{ if $isEn }}navigate{{ else }}选择{{ end }}</span>
         <span><kbd class="bg-m-container rounded px-1">↵</kbd> {{ if $isEn }}open{{ else }}打开{{ end }}</span>
         <span><kbd class="bg-m-container rounded px-1">esc</kbd> {{ if $isEn }}close{{ else }}关闭{{ end }}</span>
@@ -199,15 +183,15 @@
 })();
 /* ===== 主题模式（浅色/深色/跟随系统）===== */
 window.__applyTheme=function(){
-  var m=null;try{m=localStorage.getItem('sgx-theme-mode')||localStorage.getItem('theme')}catch(e){}
-  var dark=m==='dark'||(!m&&window.matchMedia('(prefers-color-scheme: dark)').matches);
+  var m=null;try{m=localStorage.getItem('sgx-theme-mode')}catch(e){}
+  var dark=m==='dark'||((!m||m==='system')&&window.matchMedia('(prefers-color-scheme: dark)').matches);
   document.documentElement.classList.toggle('dark',dark);
   return dark;
 };
 window.__setThemeMode=function(mode){
   try{
-    localStorage.setItem('sgx-theme-mode',mode);
-    if(mode==='system'){localStorage.removeItem('theme')}else{localStorage.setItem('theme',mode)}
+    if(mode==='system'){localStorage.removeItem('sgx-theme-mode')}
+    else{localStorage.setItem('sgx-theme-mode',mode)}
   }catch(e){}
   window.__applyTheme();
   window.dispatchEvent(new Event('sgx-theme-changed'));
@@ -219,9 +203,6 @@ try{
     if(!m||m==='system')window.__applyTheme();
   });
 }catch(e){}
-document.getElementById('theme-toggle').addEventListener('click',function(){
-  window.__setThemeMode(document.documentElement.classList.contains('dark')?'light':'dark');
-});
 
 /* ===== 通用 bottom sheet ===== */
 (function(){
@@ -262,23 +243,6 @@ document.getElementById('theme-toggle').addEventListener('click',function(){
   },{passive:true});
 })();
 
-/* ===== 语言选择 ===== */
-(function(){
-  var btn=document.getElementById('lang-btn');
-  if(!btn)return;
-  btn.addEventListener('click',function(){
-    var en=document.documentElement.lang==='en';
-    window.__openSheet({
-      title:en?'Language':'语言',
-      options:[
-        {label:'中文',sub:'Chinese',value:btn.getAttribute('data-url-zh'),checked:btn.getAttribute('data-cur')==='zh'},
-        {label:'English',sub:'英语',value:btn.getAttribute('data-url-en'),checked:btn.getAttribute('data-cur')==='en'}
-      ],
-      onPick:function(url){if(url)location.href=url}
-    });
-  });
-})();
-
 /* ===== 搜索手机下滑关闭 ===== */
 (function(){
   var modal=document.getElementById('search-modal');
@@ -300,20 +264,6 @@ document.getElementById('theme-toggle').addEventListener('click',function(){
   function set(k,v){try{if(v===null||v===undefined){localStorage.removeItem(k)}else{localStorage.setItem(k,v)}}catch(e){}}
   function modOn(key,defOn){var v=get(key);return defOn?(v!=='0'):(v==='1')}
   function reduced(){return document.documentElement.classList.contains('reduced-motion')||(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)}
-
-  /* ---- 就寝模式判定（与 head 预读保持一致） ---- */
-  window.__bedtimeActive=function(){
-    try{
-      if(get('sgx-gl-wellbeing')==='0'||get('sgx-bedtime')==='0')return false;
-      var h=new Date().getHours();
-      return (h>=23||h<6)&&(get('sgx-theme-mode')||get('theme'))!=='light';
-    }catch(e){return false}
-  };
-  (function(){
-    if(!window.__bedtimeActive())return;
-    var moon=document.getElementById('bedtime-moon');
-    if(moon){moon.classList.remove('hidden');moon.classList.add('flex')}
-  })();
 
   /* ---- 视差壁纸 ---- */
   function parallaxOn(){return modOn('sgx-gl-parallax',false)}

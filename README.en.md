@@ -50,7 +50,9 @@ Not a blog, and more than a bookmark page — this is a **digital-garden-style p
 ## ⚡ Features
 
 - ⌘K / Ctrl+K instant site-wide search (bookmarks, books, music, garden)
-- Bilingual (Chinese / English), dark mode, mobile-first
+- Bilingual (Chinese / English); theme follows the system by default, overridable in Settings (`color-scheme: light dark`, so browsers don't force-recolor the page)
+- Minimal top bar: avatar + Styrigx, search, settings; language and theme live in `/settings/` only
+- Mobile-first, no horizontal scrolling
 - Pure static, no heavy frameworks — hand-written Hugo + Tailwind
 - All content driven by `data/*.yaml`; edit a data file and you're done
 - Fingerprinted CSS (hashed filenames) + tiered cache strategy

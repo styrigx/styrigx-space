@@ -234,7 +234,7 @@
 
   <!-- 底部搜索条 -->
   <div class="fixed bottom-6 inset-x-0 z-30 flex justify-center pointer-events-none px-4">
-    <button type="button" id="settings-searchbar" class="pointer-events-auto widget bg-m-container-lowest border border-m-outline pl-5 pr-6 py-3.5 flex items-center gap-3 shadow-lg active:scale-[0.98] transition-transform w-full max-w-md">
+    <button type="button" id="settings-searchbar" class="pointer-events-auto widget bg-m-container-lowest border border-m-outline pl-5 pr-6 py-3.5 flex items-center gap-3 shadow-lg active:scale-[0.98] transition-transform w-full max-w-2xl">
       <span class="text-m-on-surface-variant">{{ partial "icon.html" "search" }}</span>
       <span class="text-m-on-surface-variant text-sm">{{ if $isEn }}Search settings…{{ else }}搜索设置…{{ end }}</span>
     </button>
@@ -265,7 +265,7 @@
   function tzLabel(id){for(var i=0;i<TZS.length;i++){if(TZS[i].id===id)return TZS[i].label}return id}
 
   /* ---- 主题模式 ---- */
-  function curMode(){return get('sgx-theme-mode')||get('theme')||'system'}
+  function curMode(){return get('sgx-theme-mode')||'system'}
   function paintTheme(){
     var m=curMode();
     document.querySelectorAll('#theme-previews .theme-prev').forEach(function(b){

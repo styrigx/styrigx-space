@@ -4,6 +4,18 @@
 
 /* ===== Material You 色板 · 种子色取自头像 #234b6c（湖蓝） ===== */
 :root {
+  color-scheme: light dark;
+}
+
+/* ===== 移动端禁止横向滚动（clip 不破坏 sticky；不支持时回退 hidden） ===== */
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+@supports (overflow-x: clip) {
+  html, body { overflow-x: clip; }
+}
+:root {
   --m-primary: #2f5f86;
   --m-on-primary: #ffffff;
   --m-primary-container: #d3e6f5;
@@ -70,22 +82,22 @@
   --m-on-rose: #53182a;
   --m-rose-container: #6b2c40;
   --m-on-rose-container: #f6d7de;
-  --m-surface: #0e1318;
-  --m-on-surface: #dee3e8;
-  --m-on-surface-variant: #a9b2ba;
-  --m-container-lowest: #161b21;
-  --m-container-low: #1a2027;
-  --m-container: #1e242c;
-  --m-container-high: #242b34;
-  --m-container-highest: #2a323c;
-  --m-outline: #3a434d;
+  --m-surface: #10151a;
+  --m-on-surface: #dfe4ea;
+  --m-on-surface-variant: #a8b1bb;
+  --m-container-lowest: #141a21;
+  --m-container-low: #181f27;
+  --m-container: #1d242d;
+  --m-container-high: #232b35;
+  --m-container-highest: #29313c;
+  --m-outline: #3b434e;
   --m-note: #4a3a1c;
   --m-on-note: #f5e3ae;
   --m-wallpaper:
-    radial-gradient(120% 80% at 20% 0%, #14324a 0%, transparent 60%),
-    radial-gradient(100% 70% at 90% 10%, #123a2e 0%, transparent 55%),
-    radial-gradient(120% 90% at 50% 100%, #2b2345 0%, transparent 60%),
-    #0e1318;
+    radial-gradient(120% 80% at 20% 0%, #16324a 0%, transparent 60%),
+    radial-gradient(100% 70% at 90% 10%, #14362c 0%, transparent 55%),
+    radial-gradient(120% 90% at 50% 100%, #1c2f45 0%, transparent 60%),
+    #10151a;
 }
 
 /* ===== 壁纸背景 ===== */
@@ -134,7 +146,7 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .clock-half { transition: background-color .5s ease, color .5s ease; }
 .clock-day { background: var(--m-container-lowest); color: var(--m-on-surface); }
 .clock-day .clock-sub { color: var(--m-on-surface-variant); }
-.clock-night { background: linear-gradient(150deg, #3d3672 0%, #25224a 70%, #1d1b3d 100%); color: #ffffff; }
+.clock-night { background: linear-gradient(150deg, #22415c 0%, #16283a 70%, #101c29 100%); color: #ffffff; }
 .clock-night .clock-sub { color: rgba(255,255,255,.72); }
 .clock-night .clock-div { border-color: rgba(255,255,255,.15); }
 
@@ -260,7 +272,7 @@ main {
   --m-wallpaper:
     radial-gradient(120% 80% at 20% 0%, #331420 0%, transparent 60%),
     radial-gradient(100% 70% at 90% 10%, #3a2a14 0%, transparent 55%),
-    radial-gradient(120% 90% at 50% 100%, #2b2345 0%, transparent 60%),
+    radial-gradient(120% 90% at 50% 100%, #3a1c28 0%, transparent 60%),
     #161114;
 }
 
@@ -339,7 +351,7 @@ body:not(.has-dock) main{--dock-h:0px}
 
 /* ===== 手机触控区域 ===== */
 @media (max-width:639px){
-  #site-nav .nav-act{min-width:48px;min-height:48px;display:inline-flex;align-items:center;justify-content:center}
+  #site-nav .nav-act:not(.hidden){min-width:48px;min-height:48px;display:inline-flex;align-items:center;justify-content:center}
   .garden-pill,.stage-pill{min-height:48px;display:inline-flex;align-items:center}
   #search-results a{min-height:48px}
   .app-tile{min-height:48px}
