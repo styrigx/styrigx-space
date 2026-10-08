@@ -266,7 +266,7 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
 /* ===== 子页面统一标题区（One UI 8.5 设置风格）：大标题居中 + 模块下沉 ===== */
 .subpage-head{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;
   text-align:center;min-height:38vh;min-height:38svh;
-  padding:calc(76px + env(safe-area-inset-top,0px)) 20px 32px}
+  padding:calc(76px + env(safe-area-inset-top,0px)) 20px clamp(120px,20vh,200px)}
 /* 手机：标题区高度 = 实际可见高度 × 0.25（JS 写 --head-h，只在加载/横竖屏更新；兜底 25svh）。
    标题区从屏幕顶部开始（顶栏透明叠在上面），大标题沉底：标题区整体约 25% 屏高，
    标题下方到第一块内容不超过 32px（head 的 padding-bottom）。折叠动画逻辑不变。 */
@@ -275,11 +275,11 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
   justify-content:flex-end}
 .layout-phone .subpage-hero{position:relative;top:0}
 .layout-phone .subpage-back{top:calc(var(--nav-h,64px) + 12px + env(safe-area-inset-top,0px))}
-.layout-phone .subpage-actions{top:calc(var(--nav-h,64px) + 12px + env(safe-area-inset-top,0px))}
+.layout-phone .subpage-actions{top:auto;bottom:8px}
 .layout-dex .subpage-head{min-height:25vh;min-height:25svh;padding-top:calc(64px + env(safe-area-inset-top,0px))}
-/* 上滑标题区滚走时轻微淡出 + 缩小 */
-.subpage-hero{transition:opacity .25s ease,transform .25s ease}
-.subpage-head.head-past .subpage-hero{opacity:.15;transform:scale(.96)}
+/* 2.3.14.7：大标题滚动联动动画由 baseof 的 rAF 直接写 opacity/transform（滚动位置联动），
+   不再用 CSS transition，避免与逐帧更新打架。 */
+.subpage-hero{will-change:opacity,transform}
 .reduced-motion .subpage-hero{transition:none}
 .subpage-back{position:absolute;left:16px;top:calc(12px + env(safe-area-inset-top,0px));
   width:44px;height:44px;border-radius:999px;display:inline-flex;align-items:center;
@@ -289,15 +289,13 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
 .subpage-back svg{width:24px;height:24px}
 .subpage-hero{min-width:0;max-width:640px}
 .subpage-title{font-size:40px;font-weight:800;letter-spacing:-0.02em;line-height:1.15;color:var(--m-primary)}
-.subpage-sub{margin-top:10px;font-size:14px;color:var(--m-on-surface-variant)}
-.subpage-actions{position:absolute;right:16px;top:calc(12px + env(safe-area-inset-top,0px));display:flex;gap:8px;flex-shrink:0;z-index:2}
-/* 滚过标题区后的顶部居中小标题 */
+.subpage-actions{position:absolute;right:16px;top:auto;bottom:8px;display:flex;gap:8px;flex-shrink:0;z-index:2}
+/* 滚过标题区后的顶部居中小标题（2.3.14.7：显隐由 rAF 按滚动进度直接写 opacity/transform，无 transition） */
 .subpage-mini-title{position:fixed;left:50%;top:calc(16px + env(safe-area-inset-top,0px));z-index:54;
-  transform:translateX(-50%) translateY(-8px);opacity:0;pointer-events:none;
+  transform:translateX(-50%) translateY(6px);opacity:0;pointer-events:none;
   font-size:17px;font-weight:700;color:var(--m-on-surface);white-space:nowrap;max-width:60vw;
-  overflow:hidden;text-overflow:ellipsis;transition:opacity .2s ease,transform .2s ease}
+  overflow:hidden;text-overflow:ellipsis}
 .subpage-mini-title.show{opacity:1;transform:translateX(-50%)}
-.reduced-motion .subpage-mini-title{transition:none}
 /* 滚过标题区后的悬浮圆形返回键（手机） */
 .subpage-back-float{position:fixed;left:16px;top:calc(12px + env(safe-area-inset-top,0px));z-index:55;
   width:48px;height:48px;border-radius:999px;display:flex;align-items:center;justify-content:center;

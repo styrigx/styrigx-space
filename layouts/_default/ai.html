@@ -3,7 +3,7 @@
 {{ $home := "/" }}{{ if $isEn }}{{ $home = "/en/" }}{{ end }}
 
 <div class="max-w-[1100px] mx-auto px-4 pb-40">
-  {{ partial "subpage-head.html" (dict "title" "AI" "sub" (cond $isEn "Ask once, open anywhere" "一次提问，各大平台打开") "isEn" $isEn) }}
+  {{ partial "subpage-head.html" (dict "title" "AI" "isEn" $isEn) }}
 
   <!-- 问题输入框 -->
   <section class="ai-input-card">

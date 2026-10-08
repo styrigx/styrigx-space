@@ -11,7 +11,7 @@
 
 <div class="set-layout max-w-2xl mx-auto px-4 pb-28">
     <!-- 2.3.14.3：大标题改用公共 subpage-head 组件（与文件/商店/浏览器完全一致，一级页无返回箭头） -->
-    {{ partial "subpage-head.html" (dict "title" (cond $isEn "Settings" "设置") "sub" (cond $isEn "Make it yours." "调成你的样子。") "isEn" $isEn "noBack" true) }}
+    {{ partial "subpage-head.html" (dict "title" (cond $isEn "Settings" "设置") "isEn" $isEn "noBack" true) }}
 
     <!-- 平板/桌面双栏：左侧分类 -->
     <aside class="set-side" aria-label="{{ if $isEn }}Categories{{ else }}分类{{ end }}">

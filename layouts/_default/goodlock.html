@@ -10,7 +10,7 @@
 }}
 
 <div class="max-w-[1100px] mx-auto px-4">
-  {{ partial "subpage-head.html" (dict "title" "Good Lock" "sub" (cond $isEn "Experimental modules. Flip a switch, it works everywhere." "实验性功能模块。打开开关，全站生效。") "isEn" $isEn) }}
+  {{ partial "subpage-head.html" (dict "title" "Good Lock" "isEn" $isEn) }}
 
   <div class="max-w-2xl mx-auto pb-28">
     {{ range $i, $m := $mods }}

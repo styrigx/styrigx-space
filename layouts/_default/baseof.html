@@ -329,21 +329,44 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
       sessionStorage.setItem('sgx-hist-root','1');
     }catch(e){}
   })();
-  /* 滚过标题区后显示悬浮返回键 + 顶部小标题；页面太短不能滚动时不显示。
-     滚动监听 passive + rAF，保证不卡顿。 */
+  /* 2.3.14.7：大标题滚动联动动画（跟滚动位置联动，不是定时动画）。
+     - 上滚：大标题随滚动上移最多 24px，同时透明度 1→0；标题区滚过约一半时完全消失。不缩放、不变字号。
+     - 大标题完全消失后，小标题才开始出现（透明度 0→1，带 6px 从下往上位移）。两者不重叠、不同时可见。
+     - 下拉：反过来，小标题先淡出，大标题回位淡入。
+     - 只改 opacity 和 transform，不改高度、不触发重排；passive + rAF；减少动画时只做淡入淡出。
+     悬浮返回键保持原来的二值 show 逻辑；页面太短不能滚动时全部复位不显示。 */
   function initBackFloat(){
     var head=document.querySelector('[data-subpage-head]');
     var floats=document.querySelectorAll('.subpage-back-float');
     var minis=document.querySelectorAll('.subpage-mini-title');
     if(!head||(!floats.length&&!minis.length))return;
+    var hero=head.querySelector('.subpage-hero');
+    function reduced(){
+      return document.documentElement.classList.contains('reduced-motion')||
+        (window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    }
     function onScroll(){
+      var headH=head.offsetHeight||1;
       var canScroll=document.documentElement.scrollHeight>window.innerHeight+10;
-      var show=canScroll&&window.scrollY>head.offsetHeight*0.55;
+      var y=window.scrollY||0;
+      var rm=reduced();
+      /* 大标题：滚动 0 → 标题区一半，透明度 1→0，上移最多 24px */
+      if(hero){
+        var hp=canScroll?Math.min(Math.max(y/(headH*0.5),0),1):0;
+        hero.style.opacity=String(1-hp);
+        hero.style.transform=rm?'':'translateY('+(-24*hp).toFixed(1)+'px)';
+      }
+      /* 小标题：大标题完全消失（0.5）之后才开始出现，0.5→0.7 区间淡入 */
+      var mp=canScroll?Math.min(Math.max((y-headH*0.5)/(headH*0.2),0),1):0;
+      minis.forEach(function(m){
+        m.style.opacity=String(mp);
+        m.style.transform=rm?'translateX(-50%)':'translateX(-50%) translateY('+(6*(1-mp)).toFixed(1)+'px)';
+      });
+      /* 悬浮返回键：保持原来的二值逻辑 */
+      var show=canScroll&&y>headH*0.55;
       floats.forEach(function(f){f.classList.toggle('show',!!show)});
-      minis.forEach(function(f){f.classList.toggle('show',!!show)});
       /* 滚动后小标题/返回键与顶栏合并为同一层模糊底 */
       document.body.classList.toggle('subpage-scrolled',!!show);
-      head.classList.toggle('head-past',!!show);
     }
     var ticking=false;
     function onScrollRaf(){

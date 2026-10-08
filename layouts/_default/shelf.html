@@ -16,7 +16,7 @@
   {{ end }}
 {{ end }}
 <div class="max-w-[1200px] mx-auto px-4">
-  {{ partial "subpage-head.html" (dict "title" .Title "sub" (cond $isEn "Tap a cover for notes." "点击封面看批注。") "isEn" $isEn) }}
+  {{ partial "subpage-head.html" (dict "title" .Title "isEn" $isEn) }}
   </div>
   <!-- 封面网格：手机 2 列 / 平板 3–4 列 / DeX 5–6 列 -->
   <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6 gap-4 sm:gap-5 pb-16">
