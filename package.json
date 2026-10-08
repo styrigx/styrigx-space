@@ -17,5 +17,5 @@
   "scripts": {
     "build:css": "tailwindcss -i assets/css/input.css -o assets/css/main.css --minify"
   },
-  "version": "2.3.12.1"
+  "version": "2.3.12.2"
 }

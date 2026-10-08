@@ -1,7 +1,7 @@
 {{ define "main" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 {{ $mods := slice
-  (dict "id" "wellbeing" "key" "sgx-gl-wellbeing" "def" true "icon" "info" "bg" "bg-m-warm-container" "fg" "text-m-on-warm-container" "zh" "数字健康" "en" "Digital wellbeing" "dzh" "访客停留 15 分钟提醒与就寝模式" "den" "15-minute visit reminders & bedtime mode" "exp" false)
+  (dict "id" "wellbeing" "key" "sgx-gl-wellbeing" "def" true "icon" "info" "bg" "bg-m-warm-container" "fg" "text-m-on-warm-container" "zh" "数字健康" "en" "Digital wellbeing" "dzh" "访客停留 15 分钟提醒" "den" "15-minute visit reminders" "exp" false)
   (dict "id" "parallax" "key" "sgx-gl-parallax" "def" false "icon" "motion" "bg" "bg-m-primary-container" "fg" "text-m-on-primary-container" "zh" "视差壁纸" "en" "Parallax wallpaper" "dzh" "壁纸随鼠标或手机倾斜轻微移动" "den" "Wallpaper drifts with mouse or device tilt" "exp" true)
   (dict "id" "clockstyle" "key" "sgx-gl-clockstyle" "def" false "icon" "clock" "bg" "bg-m-secondary-container" "fg" "text-m-on-secondary-container" "zh" "时钟样式" "en" "Clock style" "dzh" "双时钟在数字与指针之间切换" "den" "Switch dual clock between digital and analog" "exp" false)
   (dict "id" "sound" "key" "sgx-gl-sound" "def" false "icon" "speaker" "bg" "bg-m-tertiary-container" "fg" "text-m-on-tertiary-container" "zh" "点击音效" "en" "Tap sounds" "dzh" "点 App 图标和 Dock 时的轻微点击声" "den" "Subtle click sound on app and dock taps" "exp" true)

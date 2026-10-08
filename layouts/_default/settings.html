@@ -258,13 +258,6 @@
         </span>
         <span class="switch" id="sw-welltip" role="switch" aria-checked="true" aria-label="{{ if $isEn }}15-minute reminder{{ else }}15 分钟提醒{{ end }}"><span class="knob"></span></span>
       </div>
-      <div class="set-row no-ic" id="row-bedtime" role="button" tabindex="0">
-        <span class="flex-1 min-w-0">
-          <span class="block font-medium">{{ if $isEn }}Bedtime mode{{ else }}就寝模式{{ end }}</span>
-          <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Dim &amp; desaturate from 11 PM to 6 AM{{ else }}23:00–6:00 自动深色并降低饱和度{{ end }}</span>
-        </span>
-        <span class="switch" id="sw-bedtime" role="switch" aria-checked="true" aria-label="{{ if $isEn }}Bedtime mode{{ else }}就寝模式{{ end }}"><span class="knob"></span></span>
-      </div>
     </section>
     </div>
 
@@ -780,7 +773,7 @@
   });
   paintMotion();
 
-  /* ---- 数字健康：访客时长提示 / 就寝模式 ---- */
+  /* ---- 数字健康：访客时长提示 ---- */
   function paintWellTip(){setSwitch('sw-welltip',get('sgx-well-tip')!=='0')}
   rowToggle('row-welltip',function(){
     var on=get('sgx-well-tip')==='0';
@@ -788,13 +781,6 @@
     paintWellTip();window.dispatchEvent(new Event('sgx-settings-changed'));
   });
   paintWellTip();
-  function paintBedtime(){setSwitch('sw-bedtime',get('sgx-bedtime')!=='0')}
-  rowToggle('row-bedtime',function(){
-    var on=get('sgx-bedtime')==='0';
-    set('sgx-bedtime',on?'1':'0');
-    paintBedtime();window.dispatchEvent(new Event('sgx-settings-changed'));
-  });
-  paintBedtime();
   /* 访客到访分布 */
   (function(){
     var totalEl=$('well-v-total'),bar=$('well-v-bar'),legend=$('well-v-legend');
@@ -920,7 +906,6 @@
     {t:en?'Reduce motion':'减弱动效',d:en?'Accessibility':'辅助功能',cat:'accessibility',el:'row-motion'},
     {t:en?'Digital wellbeing':'数字健康',d:'',cat:'wellbeing',el:'sg-wellbeing'},
     {t:en?'15-minute reminder':'15 分钟提醒',d:en?'Digital wellbeing':'数字健康',cat:'wellbeing',el:'row-welltip'},
-    {t:en?'Bedtime mode':'就寝模式',d:en?'Digital wellbeing':'数字健康',cat:'wellbeing',el:'row-bedtime'},
     {t:en?'Version':'版本',d:en?'About':'关于本站',cat:'about',el:'sg-about'},
     {t:en?'Reset all settings':'重置所有设置',d:en?'About':'关于本站',cat:'about',el:'row-reset'},
     {t:en?'Display':'显示',d:'',cat:'display',el:'sg-display'},

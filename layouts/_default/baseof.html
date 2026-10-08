@@ -65,16 +65,8 @@
       var _ni=parseInt(localStorage.getItem('sgx-np-idx'),10);
       if(!isNaN(_ni)&&_ni>=0)window.__npIdx=_ni;
     }catch(e){}
-    /* 就寝模式：23:00–6:00 自动深色 + 降饱和（Good Lock 实验室可关） */
-    try{
-      if(localStorage.getItem('sgx-gl-wellbeing')!=='0'&&localStorage.getItem('sgx-bedtime')!=='0'){
-        var _h=new Date().getHours();
-        if(_h>=23||_h<6){
-          if(m!=='light'){d.classList.add('dark')}
-          d.classList.add('bedtime');
-        }
-      }
-    }catch(e){}
+    /* 2.3.12.2：就寝模式已删除，清理旧键（之前开启过的用户不再被自动变暗） */
+    try{localStorage.removeItem('sgx-bedtime')}catch(e){}
   }catch(e){}
 })();
 </script>
@@ -238,12 +230,12 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Internet" "浏览器") "d" $cSet "u" (print $setUrl "#apps") "c" $cSet) }}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Search engine" "搜索引擎") "d" $cSet "u" (print $setUrl "#apps") "c" $cSet) }}
 {{/* 数字健康 */}}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Digital wellbeing" "数字健康") "d" (cond $isEn "Screen time & bedtime mode" "屏幕时间与就寝模式") "u" (print $setUrl "#wellbeing") "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Digital wellbeing" "数字健康") "d" (cond $isEn "Screen time" "屏幕时间") "u" (print $setUrl "#wellbeing") "c" $cSet) }}
 {{/* Good Lock 实验室（$glUrl 已在 body 前定义） */}}
 {{ $cGl := "Good Lock" }}
 {{ $idx = $idx | append (dict "t" $cGl "d" (cond $isEn "Experimental modules" "实验性功能模块") "u" $glUrl "c" $cGl) }}
 {{ $glMods := slice
-  (dict "id" "wellbeing" "zh" "数字健康" "en" "Digital wellbeing" "dzh" "访客时长提示与就寝模式" "den" "Visit reminders & bedtime mode")
+  (dict "id" "wellbeing" "zh" "数字健康" "en" "Digital wellbeing" "dzh" "访客时长提示" "den" "Visit reminders")
   (dict "id" "parallax" "zh" "视差壁纸" "en" "Parallax wallpaper" "dzh" "壁纸随设备移动而视差" "den" "Wallpaper moves with your device")
   (dict "id" "clockstyle" "zh" "时钟样式" "en" "Clock style" "dzh" "双时钟切换数字 / 指针" "den" "Switch dual clock between digital and analog")
   (dict "id" "sound" "zh" "点击音效" "en" "Tap sounds" "dzh" "点图标时的轻微点击声" "den" "Subtle click sound on taps")
@@ -697,7 +689,6 @@ window.__sgxVoice=function(btn,opts){
 </script>
 
 <main>{{ block "main" . }}{{ end }}</main>
-<div id="bedtime-veil" aria-hidden="true"></div>
 <footer class="relative z-10 mt-4">
   <div class="max-w-[1100px] mx-auto px-6 py-8 text-center">
     <p class="text-xs text-m-on-surface-variant">© {{ site.Params.since }}–<span id="copy-year">{{ now.Year }}</span> Sloan Gray</p>

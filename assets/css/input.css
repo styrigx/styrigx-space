@@ -535,10 +535,6 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
 .gl-edgeglow .widget{transition:box-shadow .3s ease}
 .gl-edgeglow .widget:hover{box-shadow:0 0 0 2px var(--m-primary),0 10px 32px -10px var(--m-primary)}
 
-/* ===== 就寝模式：降饱和遮罩（backdrop-filter，不破坏 fixed 定位） ===== */
-#bedtime-veil{display:none;position:fixed;inset:0;z-index:90;pointer-events:none;backdrop-filter:saturate(.55);-webkit-backdrop-filter:saturate(.55)}
-.bedtime #bedtime-veil{display:block}
-
 /* ===== 数字健康：15 分钟提示 ===== */
 #well-toast{position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom,0px));transform:translate(-50%,16px);z-index:120;
   display:flex;align-items:center;gap:8px;max-width:min(92vw,26rem);padding:10px 10px 10px 18px;
