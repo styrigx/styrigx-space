@@ -38,3 +38,7 @@ params:
   description: 'Sloan Gray 的个人门户'
   since: 2020
   version: '2.3.12'
+
+# 2.3.12：tdewolff HTML 压缩器与内联 JS 中的 < 冲突，禁用 HTML 压缩（CSS 已由 Tailwind 压缩）
+minify:
+  disableHTML: true

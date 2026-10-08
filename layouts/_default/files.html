@@ -573,8 +573,8 @@ html.layout-dex .files-more-float{display:none}
 </script>
 
 <!-- One UI 8.5 搜索（2.3.12）：A 窄胶囊 + B 独立搜索页；筛选：我的站点 / 文件类型 -->
-{{ $ffchips := printf `<button type="button" data-f="all" class="sgx85-chip on"><span>%s</span></button>` (cond $isEn "All" "全部") }}
-{{ range $typeMeta }}{{ $ffchips = printf `%s<button type="button" data-f="%s" class="sgx85-chip"><span>%s</span></button>` $ffchips .id .label }}{{ end }}
+{{ $ffchips := slice (dict "id" "all" "label" (cond $isEn "All" "全部") "on" true) }}
+{{ range $typeMeta }}{{ $ffchips = $ffchips | append (dict "id" .id "label" .label "on" false) }}{{ end }}
 {{ partial "sgx-search85.html" (dict "page" "files" "isEn" $isEn
   "placeholder" (cond $isEn "Search site" "搜索站内")
   "filterTitle" (cond $isEn "Filter" "筛选条件")

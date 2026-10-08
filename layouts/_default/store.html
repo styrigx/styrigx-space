@@ -51,8 +51,8 @@
 </div>
 
 <!-- One UI 8.5 搜索（2.3.12）：A 窄胶囊 + B 独立搜索页 -->
-{{ $fchips := "" }}
-{{ range $i, $c := $chips }}{{ $fchips = printf `%s<button type="button" data-cat="%s" class="sgx85-chip%s"><span>%s</span></button>` $fchips $c.id (cond (eq $i 0) " on" "") $c.label }}{{ end }}
+{{ $fchips := slice }}
+{{ range $i, $c := $chips }}{{ $fchips = $fchips | append (dict "id" $c.id "label" $c.label "on" (eq $i 0)) }}{{ end }}
 {{ partial "sgx-search85.html" (dict "page" "store" "isEn" $isEn
   "placeholder" (cond $isEn "Search apps" "搜索应用")
   "filterTitle" (cond $isEn "Filter" "筛选条件")

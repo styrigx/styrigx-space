@@ -1012,7 +1012,7 @@
 {{ partial "sgx-search85.html" (dict "page" "settings" "isEn" $isEn
   "placeholder" (cond $isEn "Search settings" "搜索设置")
   "filterTitle" (cond $isEn "Filter" "筛选条件")
-  "filterChips" (printf `<button type="button" data-f="all" class="sgx85-chip on"><span>%s</span></button>` (cond $isEn "All" "全部"))
+  "filterChips" (slice (dict "id" "all" "label" (cond $isEn "All" "全部") "on" true))
   "recentKey" "sgx85-recent-settings") }}
 <script>
 /* 设置搜索接入 B：复用 SETIDX */
