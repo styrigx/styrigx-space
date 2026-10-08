@@ -1,1 +1,21 @@
-{"author":"Sloan Gray","dependencies":{"autoprefixer":"^10.6.1","postcss":"^8.5.29","tailwindcss":"^3.4.19"},"description":"Styrigx's Space —— 一个按 One UI 8.5 写的个人网站，把网站做成一台手机。","keywords":["hugo","tailwindcss","one-ui","personal-website"],"license":"MIT","name":"styrigx-space","scripts":{"build:css":"tailwindcss -i assets/css/input.css -o assets/css/main.css --minify"},"version":"2.3.13"}
+{
+  "author": "Sloan Gray",
+  "dependencies": {
+    "autoprefixer": "^10.6.1",
+    "postcss": "^8.5.29",
+    "tailwindcss": "^3.4.19"
+  },
+  "description": "Styrigx's Space —— 一个按 One UI 8.5 写的个人网站，把网站做成一台手机。",
+  "keywords": [
+    "hugo",
+    "tailwindcss",
+    "one-ui",
+    "personal-website"
+  ],
+  "license": "MIT",
+  "name": "styrigx-space",
+  "scripts": {
+    "build:css": "tailwindcss -i assets/css/input.css -o assets/css/main.css --minify"
+  },
+  "version": "2.3.12.1"
+}

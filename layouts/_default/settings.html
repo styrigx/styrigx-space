@@ -10,16 +10,14 @@
 }}
 
 <div class="set-layout max-w-2xl mx-auto pb-28">
-    <!-- 2.3.12：One UI 8.5 大标题折叠 -->
+    <!-- 2.3.12.1 效果4：大标题折叠（一级页无返回箭头，标题文字/副标题与 2.3.11 一致） -->
     <div class="sgx85-hero" id="set-hero">
       <div>
         <h1 class="sgx85-hero-title" id="set-hero-title">{{ if $isEn }}Settings{{ else }}设置{{ end }}</h1>
+        <p class="sgx85-hero-sub">{{ if $isEn }}Make it yours.{{ else }}调成你的样子。{{ end }}</p>
       </div>
     </div>
     <div class="sgx85-minibar" id="set-minibar">
-      <button type="button" class="sgx85-minibar-back" data-back aria-label="{{ if $isEn }}Back{{ else }}返回{{ end }}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
-      </button>
       <span class="sgx85-minibar-title">{{ if $isEn }}Settings{{ else }}设置{{ end }}</span>
     </div>
 
@@ -67,16 +65,16 @@
       </nav>
     </aside>
     <div class="set-main min-w-0">
-    <!-- 账号卡（2.3.12 One UI 风格） -->
-    <div class="sgx85-account">
-      <div class="sgx85-account-tx">
-        <p class="sgx85-account-name">Sloan Gray</p>
-        <p class="sgx85-account-sub">Styrigx</p>
+    <!-- 个人卡片（2.3.11，手机端显示，双栏下左栏已有）：姓名在左、头像在右 -->
+    <section class="sm:hidden widget bg-m-container-lowest border border-m-outline p-5 flex items-center gap-4 mb-7 animate-fade-up" style="animation-delay:.06s">
+      <div class="flex-1 min-w-0">
+        <p class="text-lg font-bold truncate">Sloan Gray</p>
+        <p class="text-sm text-m-on-surface-variant">Styrigx</p>
       </div>
       {{ if $avatar }}{{ $a := $avatar.Fill "160x160 webp" }}
-      <img src="{{ $a.RelPermalink }}" alt="Sloan Gray" width="56" height="56" class="sgx85-avatar">
+      <img src="{{ $a.RelPermalink }}" alt="Sloan Gray" width="64" height="64" class="w-16 h-16 rounded-full object-cover ring-2 ring-m-outline shrink-0">
       {{ end }}
-    </div>
+    </section>
 
     <!-- 第一组：显示 -->
     <div class="set-group scroll-mt-24" id="sg-display">
@@ -941,15 +939,14 @@
     {t:en?'About':'关于本站',d:'',cat:'about',el:'sg-about'}
   ];
   function idxByEl(elid){for(var i=0;i<SETIDX.length;i++){if(SETIDX[i].el===elid)return SETIDX[i]}return null}
-  /* 旧搜索 overlay 已停用（2.3.12 迁移到 sgx-search85），保留 SETIDX 和 pickResult 供新搜索调用 */
-  var ov=null,ovi=null,ovr=null;
+  /* 胶囊搜索（2.3.12.1）：复用 2.3.11 的 SETIDX 索引，结果显示在胶囊上方浮层 */
   function itemHTML(x){
     return '<button type="button" class="setso-item" data-cat="'+x.cat+'" data-el="'+x.el+'" data-t="'+esc(x.t)+'"'
       +(x.p?' data-p="'+x.p+'"':'')+(x.i?' data-i="'+x.i+'"':'')+'>'
       +'<span class="flex-1 min-w-0"><span class="block font-medium truncate">'+esc(x.t)+'</span>'
       +(x.d?'<span class="block text-xs text-m-on-surface-variant truncate">'+esc(x.d)+'</span>':'')+'</span>'+CHEVR+'</button>';
   }
-  function renderOverlay(q){
+  function renderSearchHTML(q){
     q=(q||'').trim().toLowerCase();
     var html='';
     if(!q){
@@ -969,18 +966,22 @@
       var hits=SETIDX.filter(function(x){return (x.t+' '+x.d).toLowerCase().indexOf(q)>=0}).slice(0,12);
       html=hits.length?hits.map(itemHTML).join(''):'<p class="px-4 py-8 text-center text-sm text-m-on-surface-variant">'+(en?'No results':'无结果')+'</p>';
     }
-    ovr.innerHTML=html;
-    ovr.querySelectorAll('.setso-item').forEach(function(b){
-      b.addEventListener('click',function(){pickResult(b.getAttribute('data-cat'),b.getAttribute('data-el'),b.getAttribute('data-t'),b.getAttribute('data-p'),b.getAttribute('data-i'))});
-    });
+    return html;
   }
+  window.__sgxCapSearch=function(pg,q){
+    if(pg!=='settings')return '';
+    return renderSearchHTML(q);
+  };
+  document.addEventListener('click',function(e){
+    var b=e.target.closest?e.target.closest('#sgx-cap-results-settings .setso-item'):null;
+    if(b)pickResult(b.getAttribute('data-cat'),b.getAttribute('data-el'),b.getAttribute('data-t'),b.getAttribute('data-p'),b.getAttribute('data-i'));
+  });
   function pickResult(cat,elid,title,panel,item){
     try{
       var r=JSON.parse(get('sgx-set-recent')||'[]');
       r=r.filter(function(x){return x!==title});r.unshift(title);
       set('sgx-set-recent',JSON.stringify(r.slice(0,6)));
     }catch(e){}
-    closeOverlay();
     setTimeout(function(){
       if(panel==='files'){openFilesPanel(item);return}
       if(panel==='store'){openStorePanel(item);return}
@@ -992,52 +993,15 @@
       setTimeout(function(){el.classList.remove('set-hl')},1100);
     },80);
   }
-  function openOverlay(){
-    if(!ov)return;
-    ov.classList.remove('hidden');
-    requestAnimationFrame(function(){requestAnimationFrame(function(){ov.classList.add('open')})});
-    ovi.value='';renderOverlay('');
-    setTimeout(function(){try{ovi.focus()}catch(e){}},120);
-  }
-  function closeOverlay(){
-    if(!ov||ov.classList.contains('hidden'))return;
-    ov.classList.remove('open');
-    setTimeout(function(){if(!ov.classList.contains('open'))ov.classList.add('hidden')},reducedM?0:240);
-  }
-  /* 旧搜索 overlay 已停用（2.3.12） */
 })();
 </script>
 
-<!-- One UI 8.5 搜索（2.3.12）：A 窄胶囊 + B 独立搜索页 -->
-{{ partial "sgx-search85.html" (dict "page" "settings" "isEn" $isEn
+<!-- 底部搜索胶囊（2.3.12.1 效果1+2）：2.3.11 的设置搜索，显示在胶囊上方 -->
+{{ partial "sgx-capsule.html" (dict "page" "settings" "isEn" $isEn
   "placeholder" (cond $isEn "Search settings" "搜索设置")
-  "filterTitle" (cond $isEn "Filter" "筛选条件")
-  "filterChips" (slice (dict "id" "all" "label" (cond $isEn "All" "全部") "on" true))
-  "recentKey" "sgx85-recent-settings") }}
+  "panel" true) }}
 <script>
-/* 设置搜索接入 B：复用 SETIDX */
-window.__sgx85DoSearch=function(pg,q,esc){
-  if(pg!=='settings'||typeof SETIDX==='undefined')return '';
-  var ql=q.toLowerCase();
-  var hits=SETIDX.filter(function(x){return (x.t+' '+(x.d||'')).toLowerCase().indexOf(ql)>=0}).slice(0,12);
-  if(!hits.length)return '<p class="py-10 text-center text-sm text-m-on-surface-variant">'+esc('{{ cond $isEn "No results" "无结果" }}')+'</p>';
-  return hits.map(function(x){
-    return '<button type="button" class="sgx85-row" style="border-radius:1.25rem;margin-bottom:8px;background:var(--m-container-lowest);width:100%;text-align:left"'
-      +' data-cat="'+esc(x.cat||'')+'" data-el="'+esc(x.el||'')+'" data-t="'+esc(x.t||'')+'"'
-      +(x.p?' data-p="'+esc(x.p)+'"':'')+(x.i?' data-i="'+esc(x.i)+'"':'')+'>'
-      +'<span class="flex-1 min-w-0"><span class="sgx85-row-title">'+esc(x.t||'')+'</span>'
-      +(x.d?'<span class="sgx85-row-desc" style="display:block">'+esc(x.d)+'</span>':'')
-      +'</span></button>';
-  }).join('');
-};
-document.addEventListener('click',function(e){
-  var b=e.target.closest('#sgx85-results-settings .sgx85-row');
-  if(b&&typeof pickResult==='function'){
-    pickResult(b.getAttribute('data-cat'),b.getAttribute('data-el'),b.getAttribute('data-t'),b.getAttribute('data-p'),b.getAttribute('data-i'));
-    document.querySelector('#sgx85-search-settings [data-close]').click();
-  }
-});
-/* 大标题折叠（C） */
+/* 大标题折叠（效果4） */
 (function(){
   var hero=document.getElementById('set-hero'),title=document.getElementById('set-hero-title'),bar=document.getElementById('set-minibar');
   if(!hero||!title)return;
@@ -1052,4 +1016,5 @@ document.addEventListener('click',function(e){
   window.addEventListener('scroll',function(){if(!ticking){ticking=true;requestAnimationFrame(onScroll)}},{passive:true});
   onScroll();
 })();
+</script>
 {{ end }}

@@ -50,31 +50,23 @@
   <p id="store-empty" class="hidden py-10 text-center text-sm text-m-on-surface-variant">{{ $noResTxt }}</p>
 </div>
 
-<!-- One UI 8.5 搜索（2.3.12）：A 窄胶囊 + B 独立搜索页 -->
-{{ $fchips := slice }}
-{{ range $i, $c := $chips }}{{ $fchips = $fchips | append (dict "id" $c.id "label" $c.label "on" (eq $i 0)) }}{{ end }}
-{{ partial "sgx-search85.html" (dict "page" "store" "isEn" $isEn
+<!-- 底部搜索胶囊（2.3.12.1 效果1+2）：就地过滤，结果和 2.3.11 一样 -->
+{{ partial "sgx-capsule.html" (dict "page" "store" "isEn" $isEn
   "placeholder" (cond $isEn "Search apps" "搜索应用")
-  "filterTitle" (cond $isEn "Filter" "筛选条件")
-  "filterChips" $fchips
-  "recentKey" "sgx85-recent-store") }}
+  "panel" false) }}
 
 <script>
-/* 搜索页结果渲染：复用 applyFilters 逻辑 */
-window.__sgx85DoSearch=function(pg,q,esc){
+/* 胶囊输入 → 2.3.11 的就地过滤 */
+window.__sgxCapSearch=function(pg,q){
   if(pg!=='store')return '';
-  var ql=q.toLowerCase(),html='',n=0;
-  document.querySelectorAll('#store-list .store-row').forEach(function(row){
-    var hay=(row.getAttribute('data-name')+' '+row.getAttribute('data-desc')).toLowerCase();
-    if(hay.indexOf(ql)<0)return;
-    n++;
-    var name=row.getAttribute('data-name'),desc=row.getAttribute('data-desc'),url=row.querySelector('.store-open');
-    html+='<a href="'+(url?url.getAttribute('href'):'#')+'" class="sgx85-row" style="border-radius:1.25rem;margin-bottom:8px;background:var(--m-container-lowest)">'
-      +'<span class="flex-1 min-w-0"><span class="sgx85-row-title">'+esc(name)+'</span>'
-      +'<span class="sgx85-row-desc" style="display:block">'+esc(desc)+'</span></span></a>';
-  });
-  return n?html:'<p class="py-10 text-center text-sm text-m-on-surface-variant">{{ $noResTxt }}</p>';
+  var inp=document.getElementById('sgx-cap-input-store');
+  window.__storeQ=q||'';
+  if(typeof window.__storeApply==='function')window.__storeApply();
+  var list=document.getElementById('store-list');
+  if(list){list.classList.remove('sgx-fade');void list.offsetWidth;list.classList.add('sgx-fade')}
+  return '';
 };
+</script>
 
 <script>
 (function(){
@@ -108,8 +100,10 @@ window.__sgx85DoSearch=function(pg,q,esc){
     return on;
   }
 
-  /* ---------- 分类芯片 + 搜索过滤（主 chip + 搜索页 chip 双向同步） ---------- */
+  /* ---------- 分类芯片 + 搜索过滤（2.3.11） ---------- */
+  window.__storeQ='';
   function applyFilters(){
+    var q=(window.__storeQ||'').trim().toLowerCase();
     var shown=0;
     rows.forEach(function(row){
       var on=paintRow(row);
@@ -118,34 +112,32 @@ window.__sgx85DoSearch=function(pg,q,esc){
       if(cur==='installed')ok=on;
       else if(cur==='uninstalled')ok=!on;
       else if(cur!=='all')ok=(cat===cur);
+      if(ok&&q){
+        var hay=(row.getAttribute('data-name')+' '+row.getAttribute('data-desc')).toLowerCase();
+        ok=hay.indexOf(q)>=0;
+      }
       row.classList.toggle('hidden',!ok);
       if(ok)shown++;
     });
     var empty=$('store-empty');
     if(empty)empty.classList.toggle('hidden',shown>0);
   }
+  window.__storeApply=applyFilters;
 
-  function setCat(c){
-    cur=c;
-    document.querySelectorAll('#store-chips .store-chip, #sgx85-fchips-store .sgx85-chip').forEach(function(x){
-      var on=x.getAttribute('data-cat')===c;
-      x.classList.toggle('on',on);
-      if(x.classList.contains('store-chip')){
+  var chips=Array.prototype.slice.call(document.querySelectorAll('#store-chips .store-chip'));
+  chips.forEach(function(c){
+    c.addEventListener('click',function(){
+      cur=c.getAttribute('data-cat');
+      chips.forEach(function(x){
+        var on=x===c;
         x.classList.toggle('bg-m-primary',on);
         x.classList.toggle('border-m-primary',on);
         x.classList.toggle('text-m-on-primary',on);
         x.classList.toggle('border-m-outline',!on);
         x.classList.toggle('text-m-on-surface-variant',!on);
-      }
+      });
+      applyFilters();
     });
-    applyFilters();
-  }
-  document.querySelectorAll('#store-chips .store-chip').forEach(function(c){
-    c.addEventListener('click',function(){setCat(c.getAttribute('data-cat'))});
-  });
-  document.addEventListener('click',function(e){
-    var c=e.target.closest('#sgx85-fchips-store .sgx85-chip');
-    if(c)setCat(c.getAttribute('data-cat'));
   });
 
   /* ---------- 开关 + 安装按钮 ---------- */

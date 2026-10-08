@@ -1,0 +1,73 @@
+{{/* 底部搜索胶囊（2.3.12.1）：效果1+2。
+   胶囊本身就是输入框：平时是 Dock 上方 12px 的窄胶囊（放大镜＋搜索）；
+   聚焦时拉满宽、用 visualViewport 平滑升到键盘正上方（整页不跳）；
+   收起键盘时落回底部。搜索结果和范围跟 2.3.11 完全一样，只是显示时加淡入。
+   参数：page（"store"/"files"/"settings"）、isEn、placeholder、panel（是否需要结果浮层）。
+   各页定义 window.__sgxCapSearch(page, q) 返回结果 HTML（store 页返回 '' 表示就地过滤）。 */}}
+{{ $page := .page }}{{ $isEn := .isEn }}{{ $ph := .placeholder }}{{ $panel := .panel | default true }}
+<div id="sgx-cap-{{ $page }}" class="sgx-cap" role="search">
+  <svg class="sgx-cap-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+  <input id="sgx-cap-input-{{ $page }}" type="search" autocomplete="off" enterkeyhint="search" placeholder="{{ $ph }}" aria-label="{{ $ph }}">
+</div>
+{{ if $panel }}<div id="sgx-cap-results-{{ $page }}" class="sgx-cap-results" hidden></div>{{ end }}
+<script>
+(function(){
+  var page='{{ $page }}', usePanel={{ if $panel }}true{{ else }}false{{ end }};
+  var cap=document.getElementById('sgx-cap-'+page),
+      input=document.getElementById('sgx-cap-input-'+page),
+      panel=usePanel?document.getElementById('sgx-cap-results-'+page):null;
+  if(!cap||!input)return;
+  var opened=false, vv=window.visualViewport, reduced=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function layout(){
+    var h=vv?Math.max(0,window.innerHeight-vv.height-vv.offsetTop):0;
+    document.documentElement.style.setProperty('--sgx-kb',h+'px');
+  }
+  function open(){
+    if(opened)return; opened=true;
+    cap.classList.add('open');
+    if(panel)panel.hidden=false;
+    layout();
+    if(vv){vv.addEventListener('resize',layout);vv.addEventListener('scroll',layout)}
+    doSearch();
+  }
+  function close(){
+    if(!opened)return; opened=false;
+    cap.classList.remove('open');
+    if(panel){panel.hidden=true;panel.innerHTML=''}
+    document.documentElement.style.setProperty('--sgx-kb','0px');
+    if(vv){vv.removeEventListener('resize',layout);vv.removeEventListener('scroll',layout)}
+  }
+  function doSearch(){
+    if(typeof window.__sgxCapSearch!=='function')return;
+    var html=window.__sgxCapSearch(page,input.value.trim())||'';
+    if(panel){
+      panel.innerHTML=html;
+      panel.hidden=!html;
+      if(html){panel.classList.remove('sgx-fade');void panel.offsetWidth;if(!reduced)panel.classList.add('sgx-fade')}
+    }
+  }
+  var deb=null;
+  input.addEventListener('focus',function(){open()});
+  input.addEventListener('input',function(){if(!opened)open();clearTimeout(deb);deb=setTimeout(doSearch,150)});
+  input.addEventListener('keydown',function(e){
+    if(e.key==='Escape'){input.blur();close()}
+    else if(e.key==='Enter'){doSearch();if(page==='store'){input.blur();close()}}
+  });
+  /* 失焦后收起（延迟一点，让结果里的点击先触发） */
+  input.addEventListener('blur',function(){
+    setTimeout(function(){
+      if(panel&&panel.contains(document.activeElement))return;
+      close();
+    },180);
+  });
+  if(panel){
+    panel.addEventListener('click',function(e){
+      var t=e.target.closest('a,button');
+      if(t)setTimeout(close,80);
+    });
+  }
+  /* 页面底部留白：胶囊不压内容，最后一项能完整滚出 */
+  document.body.classList.add('sgx-cap-pad');
+})();
+</script>

@@ -185,7 +185,8 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .dock{background:#fff}.dark .dock{background:#1e1e20}
 }
-.dock.dock-hide{transform:translateX(-50%) translateY(24px);opacity:0;pointer-events:none}
+.dock.dock-hide{transform:translateX(-50%);opacity:0;visibility:hidden;pointer-events:none}
+/* 2.3.12.1 bug2：隐藏时不再下移（backdrop-filter 下移会留下灰色模糊残影），直接淡出并 visibility 隐藏 */
 .reduced-motion .dock{transition:none}
 .dock-btn{position:relative;z-index:1;width:88px;height:52px;border-radius:999px;display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:3px;color:#3c3c43;flex-shrink:0}
@@ -800,96 +801,105 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
 .brw-cat{flex-shrink:0;border-radius:999px;padding:8px 16px;font-size:13px;font-weight:600;min-height:44px;
   background:var(--m-container);color:var(--m-on-surface-variant)}
 .brw-cat.on{background:var(--m-primary-container);color:var(--m-on-primary-container)}
-
 /* ============================================================
-   One UI 8.5 组件库（2.3.12）：窄搜索胶囊 A + 独立搜索页 B +
-   大标题折叠 C + One UI 控件 D。只写一份，各页复用。
+   One UI 8.5 视觉效果（2.3.12.1）：底部搜索胶囊（效果1+2）+
+   浏览器磨砂弹出层（效果3）+ 大标题折叠（效果4）+ One UI 控件（效果5）。
+   功能全部以 2.3.11 为准，这里只有效果样式。
    ============================================================ */
+:root{--sgx-kb:0px}
 
-/* ---------- A. 窄搜索胶囊 ---------- */
+/* ---------- 效果1+2：底部搜索胶囊（胶囊本身就是输入框） ---------- */
 .sgx85-pill{position:fixed;left:50%;transform:translateX(-50%);z-index:41;
   bottom:calc(88px + env(safe-area-inset-bottom,0px));
-  display:flex;align-items:center;gap:10px;padding:0 8px 0 16px;height:52px;border-radius:999px;
+  display:flex;align-items:center;gap:10px;padding:0 18px 0 16px;height:52px;border-radius:999px;
   background:rgba(255,255,255,0.88);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);
   border:1px solid rgba(0,0,0,0.05);box-shadow:0 8px 24px rgba(0,0,0,0.12);
   color:var(--m-on-surface-variant);font-size:15px;white-space:nowrap;cursor:pointer;border:0;
   transition:transform .22s ease,opacity .22s ease}
 .dark .sgx85-pill{background:rgba(32,32,36,0.88);border-color:rgba(255,255,255,0.07)}
 .sgx85-pill svg{width:20px;height:20px;flex-shrink:0}
-.sgx85-pill .sgx85-pill-mic{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:999px;flex-shrink:0}
 .sgx85-pill:active{transform:translateX(-50%) scale(.97)}
 .layout-dex .sgx85-pill{max-width:420px}
-.layout-phone .sgx85-pill.sgx-hide{transform:translateX(-50%) translateY(24px);opacity:0;pointer-events:none}
 .reduced-motion .sgx85-pill{transition:none}
+/* 地址栏位置设置（2.3.11）：顶部时胶囊移到顶栏下方 */
+body.addrbar-top .sgx85-pill{top:calc(var(--nav-h) + 12px + env(safe-area-inset-top,0px));bottom:auto}
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
   .sgx85-pill{background:#fff}.dark .sgx85-pill{background:#202024}
 }
-/* 页面底部为胶囊留出高度 */
-.sgx85-has-pill{padding-bottom:calc(160px + env(safe-area-inset-bottom,0px)) !important}
+/* 可输入的搜索胶囊：平时是窄胶囊，聚焦时拉满宽并用 --sgx-kb 贴键盘 */
+.sgx-cap{position:fixed;left:50%;transform:translateX(-50%);z-index:41;
+  bottom:calc(88px + env(safe-area-inset-bottom,0px));
+  display:flex;align-items:center;gap:10px;height:52px;border-radius:999px;
+  padding:0 18px 0 16px;
+  background:rgba(255,255,255,0.88);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);
+  border:1px solid rgba(0,0,0,0.05);box-shadow:0 8px 24px rgba(0,0,0,0.12);
+  transition:bottom .25s ease,left .25s ease,right .25s ease,transform .25s ease,border-radius .25s ease,width .25s ease}
+.dark .sgx-cap{background:rgba(32,32,36,0.88);border-color:rgba(255,255,255,0.07)}
+.sgx-cap-ic{width:20px;height:20px;flex-shrink:0;color:var(--m-on-surface-variant)}
+.sgx-cap input{width:72px;flex:none;min-width:0;background:transparent;border:0;outline:none;
+  font-size:15px;color:var(--m-on-surface);padding:0}
+.sgx-cap input::placeholder{color:var(--m-on-surface-variant)}
+.sgx-cap.open{left:16px;right:16px;transform:none;border-radius:28px;
+  bottom:calc(var(--sgx-kb) + 12px + env(safe-area-inset-bottom,0px))}
+.sgx-cap.open input{flex:1;width:auto}
+.layout-dex .sgx-cap.open{left:50%;right:auto;transform:translateX(-50%);width:min(480px,calc(100vw - 32px))}
+.reduced-motion .sgx-cap{transition:none}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .sgx-cap{background:#fff}.dark .sgx-cap{background:#202024}
+}
+/* 胶囊结果浮层：贴键盘的胶囊上方，2.3.11 式结果 + 淡入 */
+.sgx-cap-results{position:fixed;left:16px;right:16px;z-index:41;
+  bottom:calc(var(--sgx-kb) + 76px + env(safe-area-inset-bottom,0px));
+  max-height:min(44vh,420px);overflow-y:auto;-webkit-overflow-scrolling:touch;
+  border-radius:1.5rem;padding:8px;
+  background:rgba(255,255,255,0.94);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);
+  border:1px solid rgba(0,0,0,0.05);box-shadow:0 12px 32px rgba(0,0,0,0.16)}
+.dark .sgx-cap-results{background:rgba(32,32,36,0.94);border-color:rgba(255,255,255,0.07)}
+.layout-dex .sgx-cap-results{left:50%;right:auto;transform:translateX(-50%);width:min(480px,calc(100vw - 32px))}
+.sgx-cap-results.sgx-fade{animation:sgx-fadein .22s ease}
+@keyframes sgx-fadein{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.reduced-motion .sgx-cap-results.sgx-fade{animation:none}
+/* 页面底部留白：胶囊不压内容，最后一项能完整滚出 */
+body.sgx-cap-pad main{padding-bottom:calc(176px + env(safe-area-inset-bottom,0px)) !important}
 
-/* ---------- B. 独立搜索页 ---------- */
-.sgx85-search{position:fixed;inset:0;z-index:120;display:flex;flex-direction:column;
-  background:var(--m-background);
+/* ---------- 效果3：浏览器磨砂弹出层 ---------- */
+.brw-ov{position:fixed;inset:0;z-index:120;
+  background:rgba(120,120,128,0.32);backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%);
   opacity:0;pointer-events:none;transition:opacity .25s ease}
-.sgx85-search.open{opacity:1;pointer-events:auto}
-.reduced-motion .sgx85-search{transition:none}
-.sgx85-search-top{display:flex;align-items:center;gap:4px;padding:calc(8px + env(safe-area-inset-top,0px)) 8px 4px}
-.sgx85-back{width:44px;height:44px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;
-  color:var(--m-on-surface);background:transparent;border:0;cursor:pointer;flex-shrink:0}
-.sgx85-back:active{background:rgba(0,0,0,.06)}
-.sgx85-back svg{width:24px;height:24px}
-.sgx85-filter{margin:4px 16px 0;border-radius:1.25rem;background:var(--m-container-lowest);overflow:hidden}
-.sgx85-filter-head{display:flex;align-items:center;justify-content:space-between;width:100%;
-  padding:16px 20px;font-size:15px;font-weight:600;color:var(--m-on-surface);background:transparent;border:0;cursor:pointer}
-.sgx85-filter-head svg{width:20px;height:20px;color:var(--m-on-surface-variant);transition:transform .2s ease}
-.sgx85-filter.open .sgx85-filter-head svg{transform:rotate(180deg)}
-.sgx85-filter-body{max-height:0;overflow:hidden;transition:max-height .25s ease}
-.sgx85-filter.open .sgx85-filter-body{max-height:300px}
-.reduced-motion .sgx85-filter-body{transition:none}
-.sgx85-filter-chips{display:flex;flex-wrap:wrap;gap:8px;padding:0 20px 16px}
-.sgx85-recent{margin:12px 16px 0;border-radius:1.25rem;background:var(--m-container-lowest);padding:16px 20px}
-.sgx85-recent-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
-.sgx85-recent-title{font-size:13px;color:var(--m-on-surface-variant)}
-.sgx85-clear{background:none;border:0;color:var(--m-primary);font-size:13px;font-weight:600;cursor:pointer;padding:4px 0}
-.sgx85-recent-chips{display:flex;flex-wrap:wrap;gap:8px}
-.sgx85-chip{display:inline-flex;align-items:center;gap:6px;max-width:100%;
-  padding:8px 8px 8px 14px;border-radius:999px;background:var(--m-container);font-size:14px;color:var(--m-on-surface);cursor:pointer;border:0}
-.sgx85-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sgx85-chip-x{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:999px;
-  color:var(--m-on-surface-variant);background:transparent;border:0;cursor:pointer;flex-shrink:0}
-.sgx85-chip-x svg{width:14px;height:14px}
-.sgx85-results{flex:1;overflow-y:auto;padding:12px 16px 0;-webkit-overflow-scrolling:touch}
-.sgx85-search-bar{position:sticky;bottom:0;z-index:5;padding:8px 16px calc(12px + env(safe-area-inset-bottom,0px));
-  background:linear-gradient(to top,var(--m-background) 60%,transparent)}
-.sgx85-search-bar-inner{display:flex;align-items:center;gap:4px;height:56px;border-radius:999px;padding:0 6px 0 8px;
-  background:rgba(255,255,255,0.92);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);
+.brw-ov.open{opacity:1;pointer-events:auto}
+.reduced-motion .brw-ov{transition:none}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .brw-ov{background:rgba(0,0,0,0.4)}
+}
+/* 顶部内容卡：从上方轻滑淡入，放 2.3.11 式建议列表 */
+.brw-ov-top{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));left:16px;right:16px;
+  transform:translateY(-16px);opacity:0;transition:transform .28s cubic-bezier(.32,.72,.35,1),opacity .25s ease}
+.brw-ov.open .brw-ov-top{transform:none;opacity:1}
+.reduced-motion .brw-ov-top{transition:none}
+.layout-dex .brw-ov-top{left:50%;right:auto;transform:translate(-50%,-16px);width:min(560px,calc(100vw - 32px))}
+.layout-dex .brw-ov.open .brw-ov-top{transform:translate(-50%,0)}
+.brw-ov-top .brw-suggest{max-height:min(52vh,480px);overflow-y:auto;-webkit-overflow-scrolling:touch}
+/* 底部地址栏：贴键盘 */
+.brw-ov-barwrap{position:absolute;left:16px;right:16px;bottom:calc(var(--sgx-kb) + 12px + env(safe-area-inset-bottom,0px));
+  transform:translateY(16px);opacity:0;transition:transform .28s cubic-bezier(.32,.72,.35,1),opacity .25s ease,bottom .25s ease}
+.brw-ov.open .brw-ov-barwrap{transform:none;opacity:1}
+.reduced-motion .brw-ov-barwrap{transition:none}
+.layout-dex .brw-ov-barwrap{left:50%;right:auto;transform:translate(-50%,16px);width:min(560px,calc(100vw - 32px))}
+.layout-dex .brw-ov.open .brw-ov-barwrap{transform:translate(-50%,0)}
+.brw-ov-bar{display:flex;align-items:center;gap:2px;height:56px;border-radius:999px;padding:0 6px 0 4px;
+  background:rgba(255,255,255,0.94);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);
   border:1px solid rgba(0,0,0,0.05);box-shadow:0 8px 28px rgba(0,0,0,0.14)}
-.dark .sgx85-search-bar-inner{background:rgba(32,32,36,0.92);border-color:rgba(255,255,255,0.07)}
-.sgx85-search-bar-inner input{flex:1;min-width:0;background:transparent;border:0;outline:none;
+.dark .brw-ov-bar{background:rgba(32,32,36,0.94);border-color:rgba(255,255,255,0.07)}
+.brw-ov-bar input{flex:1;min-width:0;background:transparent;border:0;outline:none;
   font-size:16px;color:var(--m-on-surface);padding:0 8px}
-.sgx85-search-bar-inner input::placeholder{color:var(--m-on-surface-variant)}
-.sgx85-icon-btn{width:44px;height:44px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;
+.brw-ov-bar input::placeholder{color:var(--m-on-surface-variant)}
+.brw-ov-btn{width:44px;height:44px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;
   color:var(--m-on-surface-variant);background:transparent;border:0;cursor:pointer;flex-shrink:0}
-.sgx85-icon-btn:active{background:rgba(0,0,0,.06)}
-.sgx85-icon-btn svg{width:22px;height:22px}
-.sgx85-icon-btn.sgx-mic-on{color:var(--m-primary);animation:sgx-mic-pulse 1.4s ease-out infinite}
-.reduced-motion .sgx85-icon-btn.sgx-mic-on{animation:none}
-.layout-dex .sgx85-search{max-width:640px;margin:0 auto;left:50%;transform:translateX(-50%);right:auto;width:100%}
-/* ⋮ 菜单 */
-.sgx85-menu{position:fixed;z-index:130;min-width:200px;border-radius:1.25rem;overflow:hidden;
-  background:rgba(255,255,255,0.96);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
-  border:1px solid rgba(0,0,0,0.05);box-shadow:0 12px 32px rgba(0,0,0,0.18);
-  opacity:0;pointer-events:none;transform:scale(.96);transform-origin:bottom right;transition:opacity .18s ease,transform .18s ease}
-.dark .sgx85-menu{background:rgba(32,32,36,0.96);border-color:rgba(255,255,255,0.07)}
-.sgx85-menu.open{opacity:1;pointer-events:auto;transform:scale(1)}
-.reduced-motion .sgx85-menu{transition:none}
-.sgx85-menu button{display:flex;align-items:center;gap:12px;width:100%;padding:14px 18px;font-size:15px;
-  color:var(--m-on-surface);background:transparent;border:0;cursor:pointer;text-align:left}
-.sgx85-menu button:active{background:rgba(0,0,0,.05)}
-.sgx85-menu button + button{border-top:1px solid rgba(0,0,0,.05)}
-.dark .sgx85-menu button + button{border-top-color:rgba(255,255,255,.07)}
+.brw-ov-btn:active{background:rgba(0,0,0,.06)}
+.brw-ov-btn svg{width:22px;height:22px}
+#brw-engine-ic{display:inline-flex;align-items:center;justify-content:center}
 
-/* ---------- C. 大标题折叠顶栏 ---------- */
+/* ---------- 效果4：大标题折叠 ---------- */
 .sgx85-hero{position:relative;display:flex;align-items:flex-end;justify-content:center;
   min-height:32vh;padding:0 24px calc(20px + env(safe-area-inset-top,0px));padding-top:calc(76px + env(safe-area-inset-top,0px));
   overflow:hidden}
@@ -898,16 +908,10 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
   line-height:1.15;letter-spacing:-.01em;margin:0;
   transform-origin:center bottom;will-change:transform,opacity}
 .sgx85-hero-sub{font-size:15px;color:var(--m-on-surface-variant);text-align:center;margin:8px 0 0}
-.sgx85-hero-back{position:absolute;left:16px;bottom:20px;width:44px;height:44px;border-radius:999px;
-  display:inline-flex;align-items:center;justify-content:center;color:var(--m-on-surface);
-  background:rgba(255,255,255,.7);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
-  border:1px solid rgba(0,0,0,.05);cursor:pointer}
-.dark .sgx85-hero-back{background:rgba(32,32,36,.7);border-color:rgba(255,255,255,.07)}
-.sgx85-hero-back svg{width:24px;height:24px}
-/* 折叠后的小标题顶栏 */
+/* 折叠后的小标题顶栏：一级页无返回箭头，标题居左 */
 .sgx85-minibar{position:fixed;top:0;left:0;right:0;z-index:60;
-  display:flex;align-items:center;justify-content:center;height:calc(56px + env(safe-area-inset-top,0px));
-  padding-top:env(safe-area-inset-top,0px);
+  display:flex;align-items:center;justify-content:flex-start;height:calc(56px + env(safe-area-inset-top,0px));
+  padding-top:env(safe-area-inset-top,0px);padding-left:20px;padding-right:20px;
   background:color-mix(in srgb,var(--m-background) 82%,transparent);
   backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);
   border-bottom:1px solid rgba(0,0,0,0.05);
@@ -916,11 +920,8 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
 .sgx85-minibar.show{opacity:1;pointer-events:auto;transform:none}
 .reduced-motion .sgx85-minibar{transition:none}
 .sgx85-minibar-title{font-size:17px;font-weight:700;color:var(--m-on-surface)}
-.sgx85-minibar-back{position:absolute;left:8px;top:env(safe-area-inset-top,0px);width:44px;height:56px;
-  display:inline-flex;align-items:center;justify-content:center;color:var(--m-on-surface);background:none;border:0;cursor:pointer}
-.sgx85-minibar-back svg{width:24px;height:24px}
 
-/* ---------- D. One UI 控件 ---------- */
+/* ---------- 效果5：One UI 控件 ---------- */
 .sgx85-group{margin:0 16px 12px;border-radius:1.5rem;overflow:hidden;
   background:var(--m-container-lowest);border:1px solid rgba(0,0,0,0.03)}
 .dark .sgx85-group{border-color:rgba(255,255,255,0.04)}
@@ -963,14 +964,6 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
 .sgx85-radio-card.on .dot{border-color:var(--m-primary)}
 .sgx85-radio-card.on .dot::after{content:"";position:absolute;inset:4px;border-radius:999px;background:var(--m-primary)}
 .sgx85-radio-label{text-align:center;font-size:14px;color:var(--m-on-surface);padding-bottom:2px}
-/* 账号卡 */
-.sgx85-account{display:flex;align-items:center;gap:14px;margin:0 16px 12px;padding:18px 20px;border-radius:1.5rem;
-  background:var(--m-container-lowest);border:1px solid rgba(0,0,0,0.03)}
-.dark .sgx85-account{border-color:rgba(255,255,255,0.04)}
-.sgx85-account-tx{flex:1;min-width:0}
-.sgx85-account-name{font-size:18px;font-weight:700;color:var(--m-on-surface)}
-.sgx85-account-sub{font-size:13px;color:var(--m-on-surface-variant);margin-top:2px}
-.sgx85-avatar{width:56px;height:56px;border-radius:999px;object-fit:cover;flex-shrink:0;background:var(--m-container)}
 /* 列表拉伸回弹 */
 .sgx85-stretch{overscroll-behavior-y:contain}
 @supports (overscroll-behavior:contain){.sgx85-stretch{overscroll-behavior-y:contain}}
@@ -979,5 +972,5 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
 @keyframes sgx85-slidein{from{transform:translateX(48px);opacity:.4}to{transform:none;opacity:1}}
 .reduced-motion .sgx85-subpage{animation:none}
 @media (prefers-reduced-motion:reduce){
-  .sgx85-pill,.sgx85-search,.sgx85-minibar,.sgx85-switch .tk,.sgx85-switch .kn{transition:none !important;animation:none !important}
+  .sgx85-pill,.sgx-cap,.sgx-cap-results,.brw-ov,.brw-ov-top,.brw-ov-barwrap,.sgx85-minibar,.sgx85-switch .tk,.sgx85-switch .kn{transition:none !important;animation:none !important}
 }
