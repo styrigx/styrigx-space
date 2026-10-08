@@ -133,6 +133,8 @@ window.__favFallback=function(img,name){
   }
   window.__dexLayoutChanged = function(){ applyDex(); };
   applyPos();
+  /* 2.3.8：设置页改动后双向同步（搜索引擎、地址栏位置） */
+  window.addEventListener('sgx-settings-changed', function(){ applyPos(); paintEngine(); });
 
   /* ============ 引擎切换 ============ */
   var ENGINE_ICONS={

@@ -43,13 +43,13 @@
           <span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "sliders" }}</span>
           <span>{{ if $isEn }}General management{{ else }}常规管理{{ end }}</span>
         </button>
+        <button type="button" class="set-cat" data-cat="apps">
+          <span class="set-app-ic">{{ partial "icon.html" (dict "name" "appgrid-solid" "uid" "setcat") }}</span>
+          <span>{{ if $isEn }}Apps{{ else }}应用{{ end }}</span>
+        </button>
         <button type="button" class="set-cat" data-cat="accessibility">
           <span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "person" }}</span>
           <span>{{ if $isEn }}Accessibility{{ else }}辅助功能{{ end }}</span>
-        </button>
-        <button type="button" class="set-cat" data-cat="advanced">
-          <span class="set-ic bg-m-warm-container text-m-on-warm-container">{{ partial "icon.html" "sparkles" }}</span>
-          <span>{{ if $isEn }}Advanced features{{ else }}高级功能{{ end }}</span>
         </button>
         <button type="button" class="set-cat" data-cat="wellbeing">
           <span class="set-ic bg-m-rose-container text-m-on-rose-container">{{ partial "icon.html" "info" }}</span>
@@ -170,16 +170,41 @@
         <span id="wx-val" class="text-sm text-m-on-surface-variant">℃</span>
         {{ partial "icon.html" "chev-r" }}
       </div>
-      <div class="set-row" id="row-engine" role="button" tabindex="0">
-        <span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "search" }}</span>
-        <span class="flex-1 font-medium">{{ if $isEn }}Search engine{{ else }}搜索引擎{{ end }}</span>
-        <span id="engine-val" class="text-sm text-m-on-surface-variant">Google</span>
+    </section>
+    </div>
+
+    <!-- 第四组：应用 -->
+    <div class="set-group scroll-mt-24" id="sg-apps">
+    <h2 class="set-gh"><span class="set-app-ic">{{ partial "icon.html" (dict "name" "appgrid-solid" "uid" "setgh") }}</span><span>{{ if $isEn }}Apps{{ else }}应用{{ end }}</span></h2>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.2s">
+      <div class="set-row" id="row-app-files" role="button" tabindex="0">
+        <span class="set-app-ic">{{ partial "icon.html" (dict "name" "files" "uid" "setapps1") }}</span>
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}My Files{{ else }}我的文件{{ end }}</span>
+          <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="app-files-val">--</span>
+        </span>
+        {{ partial "icon.html" "chev-r" }}
+      </div>
+      <div class="set-row" id="row-app-store" role="button" tabindex="0">
+        <span class="set-app-ic">{{ partial "icon.html" (dict "name" "store" "uid" "setapps2") }}</span>
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}Store{{ else }}应用商店{{ end }}</span>
+          <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="app-store-val">--</span>
+        </span>
+        {{ partial "icon.html" "chev-r" }}
+      </div>
+      <div class="set-row" id="row-app-browser" role="button" tabindex="0">
+        <span class="set-app-ic">{{ partial "icon.html" (dict "name" "browser" "uid" "setapps3") }}</span>
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}Internet{{ else }}浏览器{{ end }}</span>
+          <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="app-browser-val">--</span>
+        </span>
         {{ partial "icon.html" "chev-r" }}
       </div>
     </section>
     </div>
 
-    <!-- 第四组：辅助功能 -->
+    <!-- 第五组：辅助功能 -->
     <div class="set-group scroll-mt-24" id="sg-accessibility">
     <h2 class="set-gh"><span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "person" }}</span><span>{{ if $isEn }}Accessibility{{ else }}辅助功能{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.22s">
@@ -194,22 +219,7 @@
     </section>
     </div>
 
-    <!-- 第五组：高级功能 -->
-    <div class="set-group scroll-mt-24" id="sg-advanced">
-    <h2 class="set-gh"><span class="set-ic bg-m-warm-container text-m-on-warm-container">{{ partial "icon.html" "sparkles" }}</span><span>{{ if $isEn }}Advanced features{{ else }}高级功能{{ end }}</span></h2>
-    <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.24s">
-      <a class="set-row" id="row-goodlock" href="{{ if $isEn }}/en/goodlock/{{ else }}/goodlock/{{ end }}">
-        <span class="set-ic bg-m-rose-container text-m-on-rose-container">{{ partial "icon.html" "gift-line" }}</span>
-        <span class="flex-1 min-w-0">
-          <span class="block font-medium">Good Lock</span>
-          <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Experimental modules{{ else }}实验性功能模块{{ end }}</span>
-        </span>
-        {{ partial "icon.html" "chev-r" }}
-      </a>
-    </section>
-    </div>
-
-    <!-- 数字健康 -->
+    <!-- 第六组：数字健康 -->
     <div class="set-group scroll-mt-24" id="sg-wellbeing">
     <h2 class="set-gh"><span class="set-ic bg-m-rose-container text-m-on-rose-container">{{ partial "icon.html" "info" }}</span><span>{{ if $isEn }}Digital wellbeing{{ else }}数字健康{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.26s">
@@ -452,7 +462,6 @@
     $('lang-val').textContent=en?'English':'中文';
     $('dt-val').textContent=firstCity()+' · '+secondCity();
     $('wx-val').textContent=get('sgx-temp-unit')==='f'?'℉':'℃';
-    $('engine-val').textContent=engineName();
   }
   paintManage();
 
@@ -596,17 +605,201 @@
   }
   rowToggle('row-weather',openWeather);
 
-  /* ---- 搜索引擎选择（ENGINES 定义见“常规管理行”上方） ---- */
-  rowToggle('row-engine',function(){
+  /* ================= 应用：我的文件 / 应用商店 / 浏览器 ================= */
+  var APPS_TOTAL={{ len site.Data.apps }};
+  function hiddenApps(){try{var h=JSON.parse(get('sgx-apps-hidden')||'[]');return Array.isArray(h)?h:[]}catch(e){return[]}}
+  function addrbarPos(){var p=get('sgx-addrbar-pos');return p==='top'?'top':'bottom'}
+  function filesView(){try{var v=JSON.parse(get('sgx-files-view')||'{}');return v&&typeof v==='object'?v:{}}catch(e){return{}}}
+  function paintApps(){
+    var v=filesView();
+    var layout=v.layout==='grid'?'grid':'list';
+    var f1=$('app-files-val');
+    if(f1)f1.textContent=en?(layout==='grid'?'Grid view':'List view'):(layout==='grid'?'网格视图':'列表视图');
+    var h=hiddenApps(),inst=APPS_TOTAL-h.length;
+    var f2=$('app-store-val');
+    if(f2)f2.textContent=en?('Installed '+inst+', uninstalled '+h.length):('已安装 '+inst+' 个，未安装 '+h.length+' 个');
+    var f3=$('app-browser-val');
+    if(f3)f3.textContent=engineName()+' · '+(addrbarPos()==='top'?(en?'Top':'顶部'):(en?'Bottom':'底部'));
+  }
+  function appSheetRow(id,fn){
+    var r=$(id);if(!r)return;
+    r.addEventListener('click',fn);
+    r.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();fn()}});
+  }
+  /* 二次确认按钮：第一次点击变红字确认态，3 秒内再点执行 */
+  function armConfirm(btn,confirmLabel,fn){
+    var armed=false,timer=null,orig=btn.innerHTML;
+    btn.addEventListener('click',function(e){
+      e.stopPropagation();
+      if(!armed){
+        armed=true;
+        btn.innerHTML='<span class="font-medium" style="color:#dc2626">'+esc(confirmLabel)+'</span>';
+        timer=setTimeout(function(){armed=false;btn.innerHTML=orig},3000);
+      }else{
+        if(timer)clearTimeout(timer);
+        fn();
+      }
+    });
+  }
+  function sheetSeg(id,options,cur,onPick){
+    var html='<div class="seg" id="'+id+'" role="group">'
+      +options.map(function(o){
+        return '<button type="button" data-v="'+o.v+'" aria-pressed="'+(o.v===cur?'true':'false')+'">'+esc(o.label)+'</button>';
+      }).join('')+'</div>';
+    return html;
+  }
+  function wireSeg(id,onPick){
+    document.querySelectorAll('#'+id+' button').forEach(function(b){
+      b.addEventListener('click',function(){
+        var v=b.getAttribute('data-v');
+        document.querySelectorAll('#'+id+' button').forEach(function(x){
+          x.setAttribute('aria-pressed',x===b?'true':'false');
+        });
+        onPick(v);
+      });
+    });
+  }
+  function hlInSheet(itemId){
+    if(!itemId)return;
+    setTimeout(function(){
+      var el=document.querySelector('#sheet-body #'+itemId);
+      if(el){
+        el.scrollIntoView({block:'center',behavior:reducedM?'auto':'smooth'});
+        el.classList.add('set-hl');
+        setTimeout(function(){el.classList.remove('set-hl')},1400);
+      }
+    },320);
+  }
+  var APP_LINKS={
+    files:'{{ if $isEn }}/en/files/{{ else }}/files/{{ end }}',
+    store:'{{ if $isEn }}/en/store/{{ else }}/store/{{ end }}',
+    browser:'{{ if $isEn }}/en/browser/{{ else }}/browser/{{ end }}'
+  };
+  function appOpenLink(key,label){
+    return '<a class="set-row no-ic" href="'+APP_LINKS[key]+'">'
+      +'<span class="flex-1 font-medium text-m-primary">'+esc(label)+'</span>'+CHEVR+'</a>';
+  }
+
+  /* ---- 我的文件面板 ---- */
+  function openFilesPanel(hl){
+    var v=filesView();
+    var layout=v.layout==='grid'?'grid':'list';
+    var sort=v.sort==='name'?'name':'added';
+    var home={};try{home=JSON.parse(get('sgx-files-home')||'{}')}catch(e){home={}}
+    var GROUPS=[
+      {id:'cats',zh:'分类行',en:'Categories'},
+      {id:'recent',zh:'最近添加与访问',en:'Recent'},
+      {id:'storage',zh:'站点存储',en:'Storage'},
+      {id:'fav',zh:'收藏',en:'Favorites'}
+    ];
+    var html='<div class="px-1 pb-2">'
+      +'<div class="px-5 py-4" id="apf-view"><p class="text-sm font-medium mb-3">'+(en?'Default view':'默认视图')+'</p>'
+      +sheetSeg('apf-view-seg',[{v:'list',label:en?'List':'列表'},{v:'grid',label:en?'Grid':'网格'}],layout)+'</div>'
+      +'<div class="px-5 py-4" id="apf-sort"><p class="text-sm font-medium mb-3">'+(en?'Sort order':'排序方式')+'</p>'
+      +sheetSeg('apf-sort-seg',[{v:'added',label:en?'Recently added':'添加时间'},{v:'name',label:en?'Name':'名称'}],sort)+'</div>'
+      +'<div class="px-5 py-4" id="apf-home"><p class="text-sm font-medium mb-1">'+(en?'Home sections':'主页显示的分组')+'</p>'
+      +GROUPS.map(function(g){
+        var on=home[g.id]!==false;
+        return '<div class="set-row no-ic" id="apf-home-'+g.id+'" role="button" tabindex="0">'
+          +'<span class="flex-1 font-medium">'+(en?g.en:g.zh)+'</span>'
+          +'<span class="switch" role="switch" aria-checked="'+(on?'true':'false')+'"><span class="knob"></span></span></div>';
+      }).join('')+'</div>'
+      +'<div class="set-row no-ic" id="apf-clear" role="button" tabindex="0">'
+      +'<span class="flex-1 font-medium">'+(en?'Clear recent visits':'清除最近访问记录')+'</span></div>'
+      +appOpenLink('files',en?'Open My Files':'打开我的文件')
+      +'</div>';
+    window.__openSheet({title:en?'My Files':'我的文件',html:html});
+    wireSeg('apf-view-seg',function(val){
+      var vv=filesView();vv.layout=val;set('sgx-files-view',JSON.stringify(vv));
+      paintApps();window.dispatchEvent(new Event('sgx-settings-changed'));
+    });
+    wireSeg('apf-sort-seg',function(val){
+      var vv=filesView();vv.sort=val;set('sgx-files-view',JSON.stringify(vv));
+      window.dispatchEvent(new Event('sgx-settings-changed'));
+    });
+    GROUPS.forEach(function(g){
+      appSheetRow('apf-home-'+g.id,function(){
+        var hh={};try{hh=JSON.parse(get('sgx-files-home')||'{}')}catch(e){hh={}}
+        var on=hh[g.id]!==false;
+        hh[g.id]=!on;set('sgx-files-home',JSON.stringify(hh));
+        var sw=document.querySelector('#apf-home-'+g.id+' .switch');
+        if(sw)sw.setAttribute('aria-checked',(!on)?'true':'false');
+        window.dispatchEvent(new Event('sgx-settings-changed'));
+      });
+    });
+    var clr=$('apf-clear');
+    if(clr)armConfirm(clr,en?'Tap again to clear':'再点一次清除',function(){
+      try{localStorage.removeItem('sgx-files-recent');localStorage.removeItem('sgx-files-lastvisit')}catch(e){}
+      window.dispatchEvent(new Event('sgx-settings-changed'));
+      if(window.__closeSheet)window.__closeSheet();
+    });
+    hlInSheet(hl);
+  }
+  rowToggle('row-app-files',function(){openFilesPanel()});
+
+  /* ---- 应用商店面板 ---- */
+  function openStorePanel(hl){
+    var h=hiddenApps(),inst=APPS_TOTAL-h.length;
+    var html='<div class="px-1 pb-2">'
+      +'<div class="set-row no-ic"><span class="flex-1 font-medium">'
+      +(en?('Installed '+inst+', uninstalled '+h.length):('已安装 '+inst+' 个，未安装 '+h.length+' 个'))
+      +'</span></div>'
+      +'<div class="set-row no-ic" id="aps-restore" role="button" tabindex="0">'
+      +'<span class="flex-1 font-medium text-m-primary">'+(en?'Restore all apps':'恢复全部应用')+'</span></div>'
+      +appOpenLink('store',en?'Open Store':'打开应用商店')
+      +'</div>';
+    window.__openSheet({title:en?'Store':'应用商店',html:html});
+    var rs=$('aps-restore');
+    if(rs)rs.addEventListener('click',function(){
+      try{localStorage.removeItem('sgx-apps-hidden')}catch(e){}
+      paintApps();window.dispatchEvent(new Event('sgx-settings-changed'));
+      if(window.__closeSheet)window.__closeSheet();
+    });
+    hlInSheet(hl);
+  }
+  rowToggle('row-app-store',function(){openStorePanel()});
+
+  /* ---- 浏览器面板 ---- */
+  function pickEngine(){
     var cur=get('sgx-search-engine')||'google';
     window.__openSheet({title:en?'Search engine':'搜索引擎',options:
       ENGINES.map(function(e){return {label:e.name,value:e.id,checked:e.id===cur}}),
       onPick:function(v){
         set('sgx-search-engine',v==='google'?null:v);
-        paintManage();
+        paintApps();
         window.dispatchEvent(new Event('sgx-settings-changed'));
+        openBrowserPanel('apb-engine');
       }});
-  });
+  }
+  function openBrowserPanel(hl){
+    var pos=addrbarPos();
+    var html='<div class="px-1 pb-2">'
+      +'<div class="set-row no-ic" id="apb-engine" role="button" tabindex="0">'
+      +'<span class="flex-1 font-medium">'+(en?'Search engine':'搜索引擎')+'</span>'
+      +'<span class="text-sm text-m-on-surface-variant">'+esc(engineName())+'</span>'+CHEVR+'</div>'
+      +'<div class="px-5 py-4" id="apb-pos"><p class="text-sm font-medium mb-3">'+(en?'Address bar position':'地址栏位置')+'</p>'
+      +sheetSeg('apb-pos-seg',[{v:'top',label:en?'Top':'顶部'},{v:'bottom',label:en?'Bottom':'底部'}],pos)+'</div>'
+      +'<div class="set-row no-ic" id="apb-clear" role="button" tabindex="0">'
+      +'<span class="flex-1 font-medium">'+(en?'Clear browsing history':'清除浏览记录')+'</span></div>'
+      +appOpenLink('browser',en?'Open Internet':'打开浏览器')
+      +'</div>';
+    window.__openSheet({title:en?'Internet':'浏览器',html:html});
+    appSheetRow('apb-engine',pickEngine);
+    wireSeg('apb-pos-seg',function(val){
+      set('sgx-addrbar-pos',val);
+      paintApps();window.dispatchEvent(new Event('sgx-settings-changed'));
+    });
+    var clr=$('apb-clear');
+    if(clr)armConfirm(clr,en?'Tap again to clear':'再点一次清除',function(){
+      try{localStorage.setItem('sgx-browser-recent','[]')}catch(e){}
+      window.dispatchEvent(new Event('sgx-settings-changed'));
+      if(window.__closeSheet)window.__closeSheet();
+    });
+    hlInSheet(hl);
+  }
+  rowToggle('row-app-browser',function(){openBrowserPanel()});
+  paintApps();
+  window.addEventListener('sgx-settings-changed',paintApps);
 
   /* ---- 减弱动效 ---- */
   function paintMotion(){setSwitch('sw-motion',get('sgx-reduced-motion')==='1')}
@@ -675,8 +868,8 @@
     {id:'display',el:'sg-display'},
     {id:'theme',el:'sg-theme'},
     {id:'manage',el:'sg-manage'},
+    {id:'apps',el:'sg-apps'},
     {id:'accessibility',el:'sg-accessibility'},
-    {id:'advanced',el:'sg-advanced'},
     {id:'wellbeing',el:'sg-wellbeing'},
     {id:'about',el:'sg-about'}
   ];
@@ -740,9 +933,19 @@
     {t:en?'Weather':'天气',d:en?'General management':'常规管理',cat:'manage',el:'row-weather'},
     {t:en?'Temperature unit':'温度单位',d:en?'Weather':'天气',cat:'manage',el:'row-weather'},
     {t:en?'Show weather widget':'显示天气小组件',d:en?'Weather':'天气',cat:'manage',el:'row-weather'},
-    {t:en?'Search engine':'搜索引擎',d:en?'General management':'常规管理',cat:'manage',el:'row-engine'},
+    {t:en?'Search engine':'搜索引擎',d:en?'Internet':'浏览器',cat:'apps',el:'row-app-browser',p:'browser',i:'apb-engine'},
+    {t:en?'Apps':'应用',d:'',cat:'apps',el:'sg-apps'},
+    {t:en?'My Files':'我的文件',d:en?'Apps':'应用',cat:'apps',el:'row-app-files',p:'files'},
+    {t:en?'Default view':'默认视图',d:en?'My Files':'我的文件',cat:'apps',el:'row-app-files',p:'files',i:'apf-view'},
+    {t:en?'Sort order':'排序方式',d:en?'My Files':'我的文件',cat:'apps',el:'row-app-files',p:'files',i:'apf-sort'},
+    {t:en?'Home sections':'主页显示的分组',d:en?'My Files':'我的文件',cat:'apps',el:'row-app-files',p:'files',i:'apf-home'},
+    {t:en?'Clear recent visits':'清除最近访问记录',d:en?'My Files':'我的文件',cat:'apps',el:'row-app-files',p:'files',i:'apf-clear'},
+    {t:en?'Store':'应用商店',d:en?'Apps':'应用',cat:'apps',el:'row-app-store',p:'store'},
+    {t:en?'Restore all apps':'恢复全部应用',d:en?'Store':'应用商店',cat:'apps',el:'row-app-store',p:'store',i:'aps-restore'},
+    {t:en?'Internet':'浏览器',d:en?'Apps':'应用',cat:'apps',el:'row-app-browser',p:'browser'},
+    {t:en?'Address bar position':'地址栏位置',d:en?'Internet':'浏览器',cat:'apps',el:'row-app-browser',p:'browser',i:'apb-pos'},
+    {t:en?'Clear browsing history':'清除浏览记录',d:en?'Internet':'浏览器',cat:'apps',el:'row-app-browser',p:'browser',i:'apb-clear'},
     {t:en?'Reduce motion':'减弱动效',d:en?'Accessibility':'辅助功能',cat:'accessibility',el:'row-motion'},
-    {t:'Good Lock',d:en?'Advanced features':'高级功能',cat:'advanced',el:'row-goodlock'},
     {t:en?'Digital wellbeing':'数字健康',d:'',cat:'wellbeing',el:'sg-wellbeing'},
     {t:en?'15-minute reminder':'15 分钟提醒',d:en?'Digital wellbeing':'数字健康',cat:'wellbeing',el:'row-welltip'},
     {t:en?'Bedtime mode':'就寝模式',d:en?'Digital wellbeing':'数字健康',cat:'wellbeing',el:'row-bedtime'},
@@ -751,13 +954,13 @@
     {t:en?'Display':'显示',d:'',cat:'display',el:'sg-display'},
     {t:en?'General management':'常规管理',d:'',cat:'manage',el:'sg-manage'},
     {t:en?'Accessibility':'辅助功能',d:'',cat:'accessibility',el:'sg-accessibility'},
-    {t:en?'Advanced features':'高级功能',d:'',cat:'advanced',el:'sg-advanced'},
     {t:en?'About':'关于本站',d:'',cat:'about',el:'sg-about'}
   ];
   function idxByEl(elid){for(var i=0;i<SETIDX.length;i++){if(SETIDX[i].el===elid)return SETIDX[i]}return null}
   var ov=$('set-search-overlay'),ovi=$('setso-input'),ovr=$('setso-results');
   function itemHTML(x){
-    return '<button type="button" class="setso-item" data-cat="'+x.cat+'" data-el="'+x.el+'" data-t="'+esc(x.t)+'">'
+    return '<button type="button" class="setso-item" data-cat="'+x.cat+'" data-el="'+x.el+'" data-t="'+esc(x.t)+'"'
+      +(x.p?' data-p="'+x.p+'"':'')+(x.i?' data-i="'+x.i+'"':'')+'>'
       +'<span class="flex-1 min-w-0"><span class="block font-medium truncate">'+esc(x.t)+'</span>'
       +(x.d?'<span class="block text-xs text-m-on-surface-variant truncate">'+esc(x.d)+'</span>':'')+'</span>'+CHEVR+'</button>';
   }
@@ -783,10 +986,10 @@
     }
     ovr.innerHTML=html;
     ovr.querySelectorAll('.setso-item').forEach(function(b){
-      b.addEventListener('click',function(){pickResult(b.getAttribute('data-cat'),b.getAttribute('data-el'),b.getAttribute('data-t'))});
+      b.addEventListener('click',function(){pickResult(b.getAttribute('data-cat'),b.getAttribute('data-el'),b.getAttribute('data-t'),b.getAttribute('data-p'),b.getAttribute('data-i'))});
     });
   }
-  function pickResult(cat,elid,title){
+  function pickResult(cat,elid,title,panel,item){
     try{
       var r=JSON.parse(get('sgx-set-recent')||'[]');
       r=r.filter(function(x){return x!==title});r.unshift(title);
@@ -794,6 +997,9 @@
     }catch(e){}
     closeOverlay();
     setTimeout(function(){
+      if(panel==='files'){openFilesPanel(item);return}
+      if(panel==='store'){openStorePanel(item);return}
+      if(panel==='browser'){openBrowserPanel(item);return}
       var el=document.getElementById(elid);
       if(!el)return;
       el.scrollIntoView({block:'center',behavior:reducedM?'auto':'smooth'});

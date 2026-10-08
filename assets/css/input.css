@@ -449,6 +449,9 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
 .set-row + .set-row::before{content:'';position:absolute;top:0;left:68px;right:0;border-top:1px solid color-mix(in srgb,var(--m-outline) 55%,transparent)}
 .set-row.no-ic + .set-row.no-ic::before{left:20px}
 .set-ic{width:40px;height:40px;border-radius:999px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.set-app-ic{width:40px;height:40px;flex-shrink:0;display:block}
+.set-app-ic svg{width:100%;height:100%;display:block}
+.set-cat .set-app-ic{width:40px;height:40px}
 
 /* ===== 主题预览卡 ===== */
 .theme-prev{border-radius:1.25rem;border:2px solid transparent;overflow:hidden;transition:border-color .2s,transform .15s;background:var(--m-container-low)}

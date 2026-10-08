@@ -226,7 +226,11 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Temperature unit" "温度单位") "d" $cSet "u" (print $setUrl "#manage") "c" $cSet) }}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Accessibility" "辅助功能") "d" $cSet "u" (print $setUrl "#accessibility") "c" $cSet) }}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Reduce motion" "减弱动效") "d" $cSet "u" (print $setUrl "#accessibility") "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Advanced features" "高级功能") "d" $cSet "u" (print $setUrl "#advanced") "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Apps" "应用") "d" $cSet "u" (print $setUrl "#apps") "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "My Files" "我的文件") "d" $cSet "u" (print $setUrl "#apps") "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Store" "应用商店") "d" $cSet "u" (print $setUrl "#apps") "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Internet" "浏览器") "d" $cSet "u" (print $setUrl "#apps") "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Search engine" "搜索引擎") "d" $cSet "u" (print $setUrl "#apps") "c" $cSet) }}
 {{/* 数字健康 */}}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Digital wellbeing" "数字健康") "d" (cond $isEn "Screen time & bedtime mode" "屏幕时间与就寝模式") "u" (print $setUrl "#wellbeing") "c" $cSet) }}
 {{/* Good Lock 实验室（$glUrl 已在 body 前定义） */}}
