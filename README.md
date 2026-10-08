@@ -2,7 +2,7 @@
 
 # Styrigx
 
-**拆开世界是为了看懂它，再把它装回去是为了相信它。**
+**拆开世界是为了了解它，再把它装回去是为了相信它。**
 
 *To understand the world, take it apart; to believe in it, put it back together.*
 

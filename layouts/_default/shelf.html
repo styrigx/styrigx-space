@@ -1,0 +1,75 @@
+{{ define "main" }}
+{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+{{ $kind := .Params.shelf }}{{/* books | music */}}
+{{ $items := slice }}
+{{ if eq $kind "books" }}
+  {{ $d := site.Data.books }}{{ if $isEn }}{{ $d = site.Data.en.books }}{{ end }}
+  {{ range $b := $d }}
+    {{ $cp := "" }}{{ with resources.Get $b.cover }}{{ $cp = .RelPermalink }}{{ else }}{{ $cp = printf "/%s" $b.cover }}{{ end }}
+    {{ $items = $items | append (dict "title" $b.title "sub" ($b.author | default "") "cover" $cp "comment" ($b.comment | default "") "url" "") }}
+  {{ end }}
+{{ else }}
+  {{ $d := site.Data.music }}{{ if $isEn }}{{ $d = site.Data.en.music }}{{ end }}
+  {{ range $m := $d }}
+    {{ $cp := "" }}{{ with resources.Get $m.cover }}{{ $cp = .RelPermalink }}{{ else }}{{ $cp = printf "/%s" $m.cover }}{{ end }}
+    {{ $items = $items | append (dict "title" $m.title "sub" ($m.artist | default "") "cover" $cp "comment" ($m.comment | default "") "url" ($m.url | default "")) }}
+  {{ end }}
+{{ end }}
+<div class="max-w-[1200px] mx-auto px-4">
+  <!-- 大标题头部 -->
+  <header id="page-hero" class="page-hero flex flex-col items-center justify-center text-center py-10">
+    <h1 class="text-5xl sm:text-6xl font-extrabold text-m-primary tracking-tight">{{ .Title }}</h1>
+    <p class="mt-4 text-m-on-surface-variant text-sm sm:text-base"><span class="msg-hover">{{ if $isEn }}Hover for notes{{ else }}悬停看批注{{ end }}</span><span class="msg-tap">{{ if $isEn }}Tap for notes{{ else }}点击看批注{{ end }}</span> · {{ len $items }}{{ if $isEn }}{{ if eq $kind "books" }} books{{ else }} songs{{ end }}{{ else }}{{ if eq $kind "books" }} 本{{ else }} 首{{ end }}{{ end }}</p>
+  </header>
+  <!-- 滚动时的小标题栏 -->
+  <div id="page-minibar" class="fixed left-1/2 z-40 opacity-0 pointer-events-none transition-all duration-300" style="top:calc(var(--nav-h) + 16px);transform:translate(-50%,-8px)">
+    <div class="glass border border-m-outline rounded-full px-5 py-2 text-sm font-semibold shadow-md whitespace-nowrap">{{ .Title }}</div>
+  </div>
+  <!-- 封面网格：手机 2 列 / 平板 3–4 列 / DeX 5–6 列 -->
+  <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6 gap-4 sm:gap-5 pb-16">
+    {{ range $items }}
+    <figure class="shelf-card group min-w-0" data-title="{{ .title }}" data-comment="{{ .comment }}" data-url="{{ .url }}">
+      <div class="shelf-cover relative overflow-hidden rounded-[1.4rem] border border-m-outline bg-m-container shadow-sm cursor-pointer" tabindex="0" role="button" aria-label="{{ .title }}">
+        <img src="{{ .cover }}" alt="{{ .title }}" loading="lazy" class="w-full {{ if eq $kind "books" }}aspect-[3/4]{{ else }}aspect-square{{ end }} object-cover">
+        <div class="shelf-note" aria-hidden="true"><p>{{ .comment }}</p></div>
+      </div>
+      <figcaption class="mt-2.5 px-0.5 min-w-0">
+        <p class="font-semibold text-sm truncate">{{ .title }}</p>
+        {{ with .sub }}<p class="text-xs text-m-on-surface-variant truncate mt-0.5">{{ . }}</p>{{ end }}
+      </figcaption>
+    </figure>
+    {{ end }}
+  </div>
+</div>
+<script>
+(function(){
+  /* 大标题收缩 → 顶栏小标题 */
+  var bar=document.getElementById('page-minibar'),hero=document.getElementById('page-hero');
+  if(bar&&hero){
+    function onScroll(){
+      var show=window.scrollY>hero.offsetHeight*0.55;
+      bar.style.opacity=show?'1':'0';
+      bar.style.transform=show?'translate(-50%,0)':'translate(-50%,-8px)';
+      bar.style.pointerEvents=show?'auto':'none';
+    }
+    window.addEventListener('scroll',onScroll,{passive:true});
+    onScroll();
+  }
+  /* 触屏点封面 → bottom sheet 看批注；桌面端悬停已由 CSS 处理 */
+  var en=document.documentElement.lang==='en';
+  var coarse=window.matchMedia('(hover: none)').matches;
+  if(!coarse||!window.__openSheet)return;
+  document.querySelectorAll('.shelf-card').forEach(function(card){
+    var cover=card.querySelector('.shelf-cover');
+    function open(){
+      var t=card.dataset.title,c=card.dataset.comment,u=card.dataset.url;
+      var html='<p class="text-sm leading-relaxed text-m-on-surface px-1">'+String(c||'').replace(/</g,'&lt;')+'</p>';
+      if(u&&u!=='#')html+='<a href="'+u.replace(/"/g,'&quot;')+'" target="_blank" rel="noopener" class="mt-4 inline-flex items-center gap-1.5 rounded-full bg-m-primary px-5 py-2.5 text-sm font-semibold text-m-on-primary">'+(en?'Open in QQ Music':'在 QQ 音乐打开')+'</a>';
+      window.__openSheet({title:t,html:html});
+    }
+    cover.addEventListener('click',open);
+    cover.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();open()}});
+  });
+})();
+</script>
+{{ end }}

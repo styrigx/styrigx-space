@@ -35,6 +35,12 @@
   {{ $cp := "" }}{{ with resources.Get $m.cover }}{{ $cp = .RelPermalink }}{{ else }}{{ $cp = printf "/%s" $m.cover }}{{ end }}
   {{ $songs = $songs | append (dict "title" $m.title "artist" ($m.artist | default "") "url" ($m.url | default "#") "cover" $cp) }}
 {{ end }}
+{{/* 正在播放首屏：按日期固定一首（模板与 JS 用同一 data-idx），避免先渲染再切换 */}}
+{{ $npIdx := 0 }}{{ $np0 := dict "title" "" "artist" "" "url" "#" "cover" "" }}
+{{ if gt (len $songs) 0 }}
+  {{ $npIdx = mod now.YearDay (len $songs) }}
+  {{ $np0 = index $songs $npIdx }}
+{{ end }}
 
 {{/* 花园三档计数 */}}
 {{ $seed := 0 }}{{ $bud := 0 }}{{ $ev := 0 }}
@@ -84,7 +90,7 @@
   </div>
 
   <!-- 小组件网格 -->
-  <div id="home-widgets" class="grid grid-cols-4 lg:grid-cols-8 gap-3 pt-5 sm:pt-8">
+  <div id="home-widgets" class="grid grid-cols-4 lg:grid-cols-8 gap-3">
 
     <!-- 名片 -->
     <div class="widget col-span-4 lg:col-span-5 bg-m-primary-container text-m-on-primary-container p-6 sm:p-7 flex items-center gap-5 animate-fade-up" style="animation-delay:.08s">
@@ -125,15 +131,15 @@
     </div>
 
     <!-- 音乐 · 正在播放 -->
-    <div class="widget col-span-4 lg:col-span-4 bg-m-container-lowest border border-m-outline p-5 animate-fade-up" style="animation-delay:.2s">
+    <div id="np-widget" data-idx="{{ $npIdx }}" class="widget col-span-4 lg:col-span-4 bg-m-container-lowest border border-m-outline p-5 animate-fade-up" style="animation-delay:.2s">
       <p class="text-xs font-semibold uppercase tracking-widest text-m-on-surface-variant mb-3">{{ if $isEn }}Now playing{{ else }}正在播放{{ end }}</p>
       <div class="flex items-center gap-4">
-        <a id="np-link" href="#" target="_blank" rel="noopener" class="shrink-0">
-          <img id="np-cover" src="" alt="" width="64" height="64" class="w-16 h-16 rounded-2xl object-cover shadow">
+        <a id="np-link" href="{{ $np0.url }}" target="_blank" rel="noopener" class="shrink-0">
+          <img id="np-cover" src="{{ $np0.cover }}" alt="{{ $np0.title }}" width="64" height="64" class="w-16 h-16 rounded-2xl object-cover shadow">
         </a>
         <div class="min-w-0 flex-1">
-          <p id="np-title" class="font-semibold truncate"></p>
-          <p id="np-art" class="text-sm text-m-on-surface-variant truncate"></p>
+          <p id="np-title" class="font-semibold truncate">{{ $np0.title }}</p>
+          <p id="np-art" class="text-sm text-m-on-surface-variant truncate">{{ $np0.artist }}</p>
         </div>
         <button id="np-prev" class="w-10 h-10 shrink-0 rounded-full bg-m-container flex items-center justify-center active:scale-90 transition-transform" aria-label="{{ if $isEn }}Previous{{ else }}上一首{{ end }}">
           <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
@@ -146,7 +152,7 @@
 
     <!-- 天气 -->
     <div id="weather" class="widget col-span-4 lg:col-span-4 p-5 sm:p-6 text-white overflow-hidden relative animate-fade-up hidden" style="animation-delay:.23s;background:linear-gradient(135deg,#4a9fe3,#1e6fc4)">
-      <div class="flex justify-between items-start gap-4">
+      <div id="wx-main" class="flex justify-between items-start gap-4">
         <div class="min-w-0">
           <div class="flex items-center gap-1.5 text-sm opacity-90">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -269,7 +275,7 @@
     <div class="widget bg-m-container-lowest border border-m-outline p-5 animate-fade-up">
       <div class="flex items-center justify-between mb-1">
         <p class="text-xs font-semibold uppercase tracking-widest text-m-on-surface-variant">{{ if $isEn }}Books{{ else }}书单{{ end }}</p>
-        <span class="text-xs font-medium text-m-primary">{{ if $isEn }}All →{{ else }}全部 →{{ end }}</span>
+        <a href="{{ if $isEn }}/en/books/{{ else }}/books/{{ end }}" class="text-xs font-medium text-m-primary inline-flex items-center justify-center min-h-[48px] min-w-[48px] px-2 -mr-2 -my-3" aria-label="{{ if $isEn }}All books{{ else }}全部书籍{{ end }}">{{ if $isEn }}All →{{ else }}全部 →{{ end }}</a>
       </div>
       <p class="mb-4 text-xs text-m-on-surface-variant">
         <span class="msg-hover">{{ if $isEn }}Books that shaped how I think. Hover for notes.{{ else }}塑造我思维方式的书，悬停看批注。{{ end }}</span>
@@ -313,7 +319,7 @@
     <div class="widget bg-m-container-lowest border border-m-outline p-5 animate-fade-up">
       <div class="flex items-center justify-between mb-1">
         <p class="text-xs font-semibold uppercase tracking-widest text-m-on-surface-variant">{{ if $isEn }}Playlist{{ else }}歌单{{ end }}</p>
-        <span class="text-xs font-medium text-m-primary">{{ if $isEn }}All →{{ else }}全部 →{{ end }}</span>
+        <a href="{{ if $isEn }}/en/music/{{ else }}/music/{{ end }}" class="text-xs font-medium text-m-primary inline-flex items-center justify-center min-h-[48px] min-w-[48px] px-2 -mr-2 -my-3" aria-label="{{ if $isEn }}All songs{{ else }}全部歌曲{{ end }}">{{ if $isEn }}All →{{ else }}全部 →{{ end }}</a>
       </div>
       <p class="mb-4 text-xs text-m-on-surface-variant">
         <span class="msg-hover">{{ if $isEn }}Music on repeat. Hover for notes.{{ else }}循环播放的音乐，悬停看批注。{{ end }}</span>
@@ -417,14 +423,12 @@
   </div>
 </div>
 
-<!-- Dock -->
+<!-- Dock（手机）：只留 导航 / 搜索 / 设置 -->
 <div class="dock fixed bottom-0 inset-x-0 z-40 sm:inset-x-auto sm:left-1/2 sm:bottom-6 sm:-translate-x-1/2">
-  <div class="glass border-t sm:border border-m-outline sm:rounded-full px-6 py-2 flex items-center justify-around sm:justify-center sm:gap-5">
-    <a href="https://blog.styrigx.com" target="_blank" rel="noopener" class="dock-btn" aria-label="{{ if $isEn }}Blog{{ else }}博客{{ end }}">{{ partial "icon.html" "pen" }}</a>
-    <a href="https://github.com/styrigx" target="_blank" rel="noopener" class="dock-btn" aria-label="GitHub">{{ partial "icon.html" "brands/github" }}</a>
-    <a href="{{ $linksUrl }}" class="dock-btn" aria-label="{{ if $isEn }}Bookmarks{{ else }}导航{{ end }}">{{ partial "icon.html" "compass" }}</a>
-    <button id="dock-search" class="dock-btn" aria-label="{{ if $isEn }}Search{{ else }}搜索{{ end }}">{{ partial "icon.html" "search" }}</button>
-    <a href="{{ if $isEn }}/en/settings/{{ else }}/settings/{{ end }}" class="dock-btn" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}">{{ partial "icon.html" "gear" }}</a>
+  <div class="glass border-t sm:border border-m-outline sm:rounded-full px-4 py-1.5 flex items-center justify-evenly sm:justify-center sm:gap-6">
+    <a href="{{ $linksUrl }}" class="dock-btn dock-item" data-dock="links" aria-label="{{ if $isEn }}Bookmarks{{ else }}导航{{ end }}">{{ partial "icon.html" "compass" }}<span class="dock-label">{{ if $isEn }}Links{{ else }}导航{{ end }}</span></a>
+    <button id="dock-search" class="dock-btn dock-item" data-dock="search" aria-label="{{ if $isEn }}Search{{ else }}搜索{{ end }}">{{ partial "icon.html" "search" }}<span class="dock-label">{{ if $isEn }}Search{{ else }}搜索{{ end }}</span></button>
+    <a href="{{ if $isEn }}/en/settings/{{ else }}/settings/{{ end }}" class="dock-btn dock-item" data-dock="settings" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}">{{ partial "icon.html" "gear" }}<span class="dock-label">{{ if $isEn }}Settings{{ else }}设置{{ end }}</span></a>
   </div>
 </div>
 
@@ -551,7 +555,7 @@
     }
     function tempUnit(){try{return localStorage.getItem('sgx-temp-unit')==='f'?'f':'c'}catch(e){return 'c'}}
     function fmtT(c){return tempUnit()==='f'?Math.round(c*9/5+32):Math.round(c)}
-    function render(d){
+    function render(d,instant){
       try{if(localStorage.getItem('sgx-weather-show')==='0'){root.classList.add('hidden');return}}catch(e){}
       var cur=d.current,day=d.daily;
       var isDay=cur.is_day===1;
@@ -564,10 +568,16 @@
       var hi=fmtT(day.temperature_2m_max[0]),lo=fmtT(day.temperature_2m_min[0]);
       document.getElementById('wx-hilo').textContent=(en?'H:':'最高 ')+hi+'°  '+(en?'L:':'最低 ')+lo+'°';
       root.classList.remove('hidden');
+      /* 无缓存时只淡入数字，不闪整张卡 */
+      if(!instant){
+        var nums=document.getElementById('wx-main');
+        if(nums){nums.classList.add('wx-fade','wx-out');
+          requestAnimationFrame(function(){requestAnimationFrame(function(){nums.classList.remove('wx-out')})});}
+      }
     }
     window.__renderWeather=function(){
       var c=cached();
-      if(c)render(c);
+      if(c)render(c,true);
       else{try{if(localStorage.getItem('sgx-weather-show')==='0')root.classList.add('hidden')}catch(e){}}
     };
     window.addEventListener('sgx-settings-changed',window.__renderWeather);
@@ -583,7 +593,7 @@
       });
     }
     var c=cached();
-    if(c){render(c);return}
+    if(c){render(c,true);return}
     var LA={lat:34.05,lon:-118.24,city:null};
     fetch('/api/geo').then(function(r){return r.json()}).catch(function(){return{}})
       .then(function(g){
@@ -591,15 +601,21 @@
         if(!isFinite(lat)||!isFinite(lon)){lat=LA.lat;lon=LA.lon}
         return fetchWx(lat,lon,g.city||null);
       })
-      .then(function(d){save(d);render(d)})
+      .then(function(d){save(d);render(d,false)})
       .catch(function(){
         /* 降级：洛杉矶天气 */
-        fetchWx(LA.lat,LA.lon,null).then(function(d){render(d)}).catch(function(){/* 隐藏小组件 */});
+        fetchWx(LA.lat,LA.lon,null).then(function(d){render(d,false)}).catch(function(){/* 隐藏小组件 */});
       });
   })();
   var songs=[];try{songs=JSON.parse(document.getElementById('np-data').textContent)||[]}catch(e){}
-  var mi=0,cov=document.getElementById('np-cover'),ti=document.getElementById('np-title'),
+  var npW=document.getElementById('np-widget'),seedIdx=0;
+  try{seedIdx=parseInt((npW&&npW.dataset.idx)||'0',10)||0}catch(e){}
+  /* 上次听的歌（head 预读）优先，没有则用模板按日期固定的那首，绝不随机切换 */
+  var mi=seedIdx;
+  if(typeof window.__npIdx==='number'&&window.__npIdx>=0&&window.__npIdx<songs.length)mi=window.__npIdx;
+  var cov=document.getElementById('np-cover'),ti=document.getElementById('np-title'),
       ar=document.getElementById('np-art'),lk=document.getElementById('np-link');
+  function npSave(){try{localStorage.setItem('sgx-np-idx',String(mi))}catch(e){}}
   function render(){
     if(!songs.length)return;
     var s=songs[mi];
@@ -607,12 +623,22 @@
   }
   if(songs.length){
     render();
-    document.getElementById('np-prev').addEventListener('click',function(){mi=(mi-1+songs.length)%songs.length;render()});
-    document.getElementById('np-next').addEventListener('click',function(){mi=(mi+1)%songs.length;render()});
+    document.getElementById('np-prev').addEventListener('click',function(){mi=(mi-1+songs.length)%songs.length;npSave();render()});
+    document.getElementById('np-next').addEventListener('click',function(){mi=(mi+1)%songs.length;npSave();render()});
   }
   /* Dock 搜索 */
   var ds=document.getElementById('dock-search');
   if(ds)ds.addEventListener('click',function(){window.__openSearch&&window.__openSearch()});
+  /* Dock 当前页主色胶囊高亮 */
+  try{
+    var pg=document.body.getAttribute('data-page');
+    if(pg)document.querySelectorAll('.dock-item[data-dock]').forEach(function(b){
+      if(b.getAttribute('data-dock')===pg)b.classList.add('dock-active');
+    });
+  }catch(e){}
+  /* 首页刷新回到顶部 */
+  if('scrollRestoration' in history){history.scrollRestoration='manual';}
+  window.scrollTo(0,0);
 })();
 </script>
 <script>

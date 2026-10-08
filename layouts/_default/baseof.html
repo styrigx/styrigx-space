@@ -9,9 +9,11 @@
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#10151a">
 <title>{{ if .IsHome }}Styrigx{{ else }}{{ .Title }} | Styrigx{{ end }}</title>
 <meta name="description" content="{{ if $isEn }}Sloan Gray’s personal portal{{ else }}{{ .Site.Params.description }}{{ end }}">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+@font-face{font-family:'Inter';font-style:normal;font-weight:400 800;font-display:optional;src:url('/fonts/inter-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+@font-face{font-family:'Inter Fallback';src:local('Arial');size-adjust:107%;ascent-override:90%;descent-override:23%;line-gap-override:0%;}
+</style>
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" href="/favicon-32x32.png" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -35,6 +37,18 @@
     if(p&&p!=='lake'){d.setAttribute('data-palette',p)}
     /* 减弱动效 */
     if(localStorage.getItem('sgx-reduced-motion')==='1'){d.classList.add('reduced-motion')}
+    /* 入场动画：只在本次会话第一次进入时播放，刷新/站内跳转不播 */
+    try{
+      if(!sessionStorage.getItem('sgx-entered')){
+        sessionStorage.setItem('sgx-entered','1');
+        d.classList.add('sgx-first-visit');
+      }
+    }catch(e){}
+    /* 正在播放：预读上次的歌序号，供首屏脚本同步使用 */
+    try{
+      var _ni=parseInt(localStorage.getItem('sgx-np-idx'),10);
+      if(!isNaN(_ni)&&_ni>=0)window.__npIdx=_ni;
+    }catch(e){}
     /* 就寝模式：23:00–6:00 自动深色 + 降饱和（Good Lock 实验室可关） */
     try{
       if(localStorage.getItem('sgx-gl-wellbeing')!=='0'&&localStorage.getItem('sgx-bedtime')!=='0'){
@@ -75,8 +89,8 @@ __applyLayout();
 {{ $linksUrl := "/links/" }}{{ if $isEn }}{{ $linksUrl = "/en/links/" }}{{ end }}
 {{ $setUrl := $setUrl0 }}{{ $glUrl := $glUrl0 }}
 
-<!-- 状态栏式导航 -->
-<nav id="site-nav" class="sticky top-0 z-50 glass border-b border-m-outline">
+<!-- 状态栏式导航（fixed，高度由 JS 量取写入 --nav-h） -->
+<nav id="site-nav" class="z-50 glass border-b border-m-outline">
   <div class="max-w-[1100px] mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
     <a href="{{ $home }}" class="flex items-center gap-2 font-bold text-[15px] shrink-0 whitespace-nowrap">
       {{ $navAvatar := resources.Get "images/avatar.png" }}
@@ -106,6 +120,18 @@ __applyLayout();
     </div>
   </div>
 </nav>
+<script>
+/* 量取顶栏实际高度写入 --nav-h（顶栏 fixed，main 的 padding-top 依赖它） */
+(function(){
+  function setH(){
+    var n=document.getElementById('site-nav');
+    if(n)document.documentElement.style.setProperty('--nav-h',n.offsetHeight+'px');
+  }
+  setH();
+  window.addEventListener('resize',setH);
+  window.addEventListener('load',setH);
+})();
+</script>
 
 <!-- 全站搜索：手机=全屏搜索页，桌面=顶栏搜索框下拉 -->
 <div id="search-modal" class="fixed inset-0 z-[100] hidden" style="display:none">
@@ -155,6 +181,9 @@ __applyLayout();
 {{ range $e := $entries }}{{ $idx = $idx | append (dict "t" $e.name "d" ($e.desc | default "") "u" $e.url "c" $cFeatured) }}{{ end }}
 {{ range $b := $books }}{{ $idx = $idx | append (dict "t" $b.title "d" (print ($b.author | default "") " " ($b.comment | default "")) "u" (print $home "#books") "c" $cBook) }}{{ end }}
 {{ range $m := $music }}{{ $idx = $idx | append (dict "t" $m.title "d" (print ($m.artist | default "") " " ($m.comment | default "")) "u" (print $home "#music") "c" $cMusic) }}{{ end }}
+{{/* 书单 / 歌单书架页 */}}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Books" "书单") "d" (cond $isEn "All books with notes" "全部书籍与批注") "u" (cond $isEn "/en/books/" "/books/") "c" $cBook) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Playlist" "歌单") "d" (cond $isEn "All songs with notes" "全部歌曲与批注") "u" (cond $isEn "/en/music/" "/music/") "c" $cMusic) }}
 {{ range $c := $collections }}{{ $idx = $idx | append (dict "t" $c.name "d" ($c.desc | default "") "u" $c.url "c" $cColl) }}{{ end }}
 {{ range $cat := $links }}{{ range $s := $cat.sites }}{{ $idx = $idx | append (dict "t" $s.name "d" ($s.desc | default "") "u" $s.url "c" (print $cLink " · " $cat.category)) }}{{ end }}{{ end }}
 {{/* 设置页与常用设置项（$setUrl 已在 body 前定义） */}}
@@ -530,11 +559,8 @@ try{
     <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="5" r="2.2"/><circle cx="12" cy="5" r="2.2"/><circle cx="19" cy="5" r="2.2"/><circle cx="5" cy="12" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="19" cy="12" r="2.2"/><circle cx="5" cy="19" r="2.2"/><circle cx="12" cy="19" r="2.2"/><circle cx="19" cy="19" r="2.2"/></svg>
   </button>
   <div class="dex-pinned">
-    <a href="https://blog.styrigx.com" target="_blank" rel="noopener" class="dex-tbtn" aria-label="Blog" title="Blog">{{ partial "icon.html" "pen" }}</a>
     <a href="{{ $linksUrl }}" class="dex-tbtn" aria-label="{{ if $isEn }}Bookmarks{{ else }}导航{{ end }}" title="{{ if $isEn }}Bookmarks{{ else }}导航{{ end }}">{{ partial "icon.html" "compass" }}</a>
-    <a href="https://github.com/styrigx" target="_blank" rel="noopener" class="dex-tbtn" aria-label="GitHub" title="GitHub">{{ partial "icon.html" "brands/github" }}</a>
     <a href="{{ $setUrl }}" class="dex-tbtn" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}" title="{{ if $isEn }}Settings{{ else }}设置{{ end }}">{{ partial "icon.html" "gear" }}</a>
-    <a href="{{ $glUrl }}" class="dex-tbtn" aria-label="Good Lock" title="Good Lock">{{ partial "icon.html" "gift" }}</a>
   </div>
   <div class="dex-tray">
     <span id="dex-wx" aria-hidden="true"></span>
@@ -547,9 +573,7 @@ try{
 <!-- 平板任务栏 -->
 <div id="tablet-taskbar" role="navigation" aria-label="{{ if $isEn }}Tablet taskbar{{ else }}平板任务栏{{ end }}">
   <div class="tt-pinned">
-    <a href="https://blog.styrigx.com" target="_blank" rel="noopener" class="dex-tbtn" aria-label="Blog" title="Blog">{{ partial "icon.html" "pen" }}</a>
     <a href="{{ $linksUrl }}" class="dex-tbtn" aria-label="{{ if $isEn }}Bookmarks{{ else }}导航{{ end }}" title="{{ if $isEn }}Bookmarks{{ else }}导航{{ end }}">{{ partial "icon.html" "compass" }}</a>
-    <a href="https://github.com/styrigx" target="_blank" rel="noopener" class="dex-tbtn" aria-label="GitHub" title="GitHub">{{ partial "icon.html" "brands/github" }}</a>
     <a href="{{ $setUrl }}" class="dex-tbtn" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}" title="{{ if $isEn }}Settings{{ else }}设置{{ end }}">{{ partial "icon.html" "gear" }}</a>
   </div>
   <div class="tt-recent">

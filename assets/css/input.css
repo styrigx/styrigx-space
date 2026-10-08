@@ -118,10 +118,10 @@ body, nav, .widget, .app-tile, .dock {
   transition: background-color .4s ease, border-color .4s ease, color .4s ease;
 }
 
-/* ===== One UI 式入场 ===== */
+/* ===== One UI 式入场：只在本次会话第一次进入时播放（刷新/站内跳转不播） ===== */
 h1, h2, h3 { letter-spacing: -0.02em; }
 @keyframes fade-up { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
-.animate-fade-up { animation: fade-up .7s cubic-bezier(.22,1,.36,1) both; }
+.sgx-first-visit .animate-fade-up { animation: fade-up .7s cubic-bezier(.22,1,.36,1) both; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }
 
@@ -154,6 +154,10 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .dock-btn {
   @apply w-12 h-12 rounded-full flex items-center justify-center text-m-on-surface-variant hover:bg-m-container active:scale-90 transition-all shrink-0;
 }
+/* Dock 带标签按钮：图标 + 小字，均匀分布，当前页主色胶囊高亮 */
+.dock-item{flex-direction:column;gap:3px;min-width:68px;min-height:58px;width:auto;height:auto;border-radius:1.1rem;padding:6px 14px}
+.dock-label{font-size:10px;line-height:1.2;font-weight:600;letter-spacing:.02em}
+.dock-item.dock-active{background:var(--m-primary-container);color:var(--m-on-primary-container)}
 
 /* ===== main 底部留白：避开悬浮 Dock / 任务栏（高度跟随实际任务栏） ===== */
 main {
@@ -163,6 +167,20 @@ main {
 /* 平板任务栏 60px / DeX 任务栏 58px：留白跟着变 */
 .layout-tablet main { padding-bottom: calc(60px + 40px + env(safe-area-inset-bottom, 0px)); }
 .layout-dex main { padding-bottom: calc(58px + 40px + env(safe-area-inset-bottom, 0px)); }
+
+/* ===== 顶栏间距：顶栏 fixed，main 顶部留白 = 顶栏高 + 16px ===== */
+:root { --nav-h: 64px; }
+#site-nav { position: fixed; top: 0; left: 0; right: 0; }
+main { padding-top: calc(var(--nav-h) + 16px + env(safe-area-inset-top, 0px)); }
+html { scroll-padding-top: calc(var(--nav-h) + 16px); }
+
+/* ===== 数据卡片固定最小高度：数据到来前后尺寸不变 ===== */
+#dual-clock { min-height: 168px; }
+#weather { min-height: 190px; }
+#np-widget { min-height: 138px; }
+#wx-temp { font-variant-numeric: tabular-nums; }
+.wx-fade { transition: opacity .45s ease; }
+.wx-fade.wx-out { opacity: 0; }
 
 /* ===== 减少动态偏好 ===== */
 @media (prefers-reduced-motion: reduce) {
@@ -377,7 +395,21 @@ main {
 .reduced-motion .animate-fade-up{animation:none !important}
 .reduced-motion *, .reduced-motion *::before, .reduced-motion *::after{transition-duration:.01ms !important;animation-duration:.01ms !important}
 
-/* ===== 设置页大标题收缩（已移入顶栏 #nav-context） ===== */
+/* ===== 触屏/鼠标提示文案切换 ===== */
+.msg-tap{display:none}
+@media(hover:none){.msg-tap{display:inline}.msg-hover{display:none}}
+
+/* ===== 书单/歌单书架页 ===== */
+.shelf-cover{transition:transform .25s ease,box-shadow .25s ease}
+.shelf-card .shelf-note{position:absolute;inset:0;display:flex;align-items:flex-end;padding:.9rem;background:linear-gradient(to top,rgba(0,0,0,.82),rgba(0,0,0,.28) 55%,transparent 80%);color:#fff;opacity:0;transition:opacity .25s ease;pointer-events:none}
+.shelf-card .shelf-note p{font-size:.8rem;line-height:1.5;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
+@media(hover:hover){
+  .shelf-card:hover .shelf-cover{transform:translateY(-3px);box-shadow:0 10px 24px -8px rgba(0,0,0,.25)}
+  .shelf-card:hover .shelf-note{opacity:1}
+}
+@media(hover:none){
+  .shelf-cover:active{transform:scale(.97)}
+}
 .page-hero{min-height:30vh;min-height:30svh}
 
 /* ===== 二级区域大标题头部（手机） ===== */

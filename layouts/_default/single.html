@@ -9,7 +9,7 @@
     <p class="mt-4 text-m-on-surface-variant">{{ if $isEn }}My corner of the internet.{{ else }}我的互联网角落。{{ end }}</p>
   </header>
   <!-- 滚动时的小标题栏 -->
-  <div id="page-minibar" class="fixed left-1/2 z-40 opacity-0 pointer-events-none transition-all duration-300" style="top:66px;transform:translate(-50%,-8px)">
+  <div id="page-minibar" class="fixed left-1/2 z-40 opacity-0 pointer-events-none transition-all duration-300" style="top:calc(var(--nav-h) + 16px);transform:translate(-50%,-8px)">
     <div class="glass border border-m-outline rounded-full px-5 py-2 text-sm font-semibold shadow-md whitespace-nowrap">{{ .Title }}</div>
   </div>
   <div class="mb-8 max-w-lg mx-auto relative animate-fade-up" style="animation-delay:.08s">
