@@ -8,7 +8,7 @@
   <!-- 地址栏（手机：CSS 固定悬浮于底部 Dock 上方；DeX：正常流，内容顶部） -->
   <div id="brw-addrbar" class="brw-addrbar">
     <button type="button" id="brw-engine-btn" aria-label="切换搜索引擎/switch engine"><span id="brw-engine-ic"></span></button>
-    <input id="brw-input" type="search" autocomplete="off" enterkeyhint="search" placeholder="搜索或输入网址 / Search or type URL">
+    <input id="brw-input" type="search" autocomplete="off" enterkeyhint="search" placeholder="{{ if $isEn }}Search or type URL{{ else }}搜索或输入网址{{ end }}">
     <button type="button" id="brw-mic" aria-label="语音输入/Voice input">{{ partial "icon.html" "mic" }}</button>
     <button type="button" id="brw-menu-btn" aria-label="菜单/Menu"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></button>
   </div>
@@ -27,7 +27,7 @@
         {{ $iconUrl = printf "https://%s/favicon.ico" $host }}
       {{ end }}
       <a href="{{ .url }}" target="_blank" rel="noopener" class="brw-qa flex flex-col items-center gap-2 min-w-0">
-        <img src="{{ $iconUrl }}" alt="" loading="lazy" onerror="this.style.display='none'"
+        <img src="{{ $iconUrl }}" alt="" loading="lazy" onerror="__favFallback(this,'{{ .name }}')"
              class="brw-qa-ic w-12 h-12 rounded-2xl object-contain bg-m-container-lowest border border-m-outline p-1.5">
         <span class="brw-qa-name block w-full text-center text-xs text-m-on-surface truncate">{{ .name }}</span>
       </a>
@@ -61,8 +61,8 @@
         {{ end }}
         <a href="{{ .url }}" target="_blank" rel="noopener" data-name="{{ .name }}" data-desc="{{ .desc | default "" }}"
            class="link-card group flex items-center gap-3 rounded-[1.25rem] border border-m-outline bg-m-container-lowest px-3.5 py-3 shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:border-m-primary active:scale-[0.98] transition-all">
-          <img src="{{ $iconUrl }}" alt="" loading="lazy"
-               class="w-9 h-9 rounded-xl shrink-0 bg-m-container-high object-contain p-0.5" onerror="this.style.display='none'">
+          <img src="{{ $iconUrl }}" alt="" loading="lazy" onerror="__favFallback(this,'{{ .name }}')"
+               class="w-9 h-9 rounded-xl shrink-0 bg-m-container-high object-contain p-0.5">
           <span class="min-w-0">
             <span class="block font-medium text-sm truncate group-hover:text-m-primary transition-colors">{{ .name }}</span>
             {{ with .desc }}<span class="block text-xs text-m-on-surface-variant truncate">{{ . }}</span>{{ end }}
@@ -76,6 +76,18 @@
 </div>
 
 <script>
+/* favicon 取不到时用首字母圆形占位 */
+window.__favFallback=function(img,name){
+  try{
+    var ch=String(name||'?').trim().charAt(0)||'?';
+    var s=document.createElement('span');
+    s.className=img.className;
+    s.setAttribute('aria-hidden','true');
+    s.style.cssText='display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:var(--m-on-surface-variant);background:var(--m-container);';
+    s.textContent=ch;
+    img.replaceWith(s);
+  }catch(e){img.style.display='none'}
+};
 (function(){
   'use strict';
   var EN = {{ if $isEn }}true{{ else }}false{{ end }};
@@ -124,9 +136,16 @@
   applyPos();
 
   /* ============ 引擎切换 ============ */
+  var ENGINE_ICONS={
+    google:'<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.9-.1-1.5-.3-2.3H12v4.5h6.5c-.1 1.1-.8 2.7-2.4 3.8l3.8 2.9c2.2-2 3.6-5 3.6-8.9z"/><path fill="#34A853" d="M12 24c3.2 0 5.9-1.1 7.9-2.9l-3.8-2.9c-1 .7-2.4 1.2-4.1 1.2-3.1 0-5.8-2.1-6.8-5l-3.7 2.9C3.3 21.3 7.3 24 12 24z"/><path fill="#FBBC05" d="M5.2 14.4c-.2-.7-.4-1.5-.4-2.4s.1-1.7.4-2.4L1.5 6.7C.6 8.3 0 10.1 0 12s.6 3.7 1.4 5.3l3.8-2.9z"/><path fill="#EA4335" d="M12 4.7c1.8 0 3 .8 3.7 1.4l3.3-3.2C17.9 1.1 15.2 0 12 0 7.3 0 3.3 2.7 1.4 6.7l3.8 2.9c1-2.9 3.7-4.9 6.8-4.9z"/></svg>',
+    bing:'<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#0C8484"/><text x="12" y="17" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" font-family="Arial,sans-serif">b</text></svg>',
+    duckduckgo:'<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#DE5833"/><text x="12" y="17" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" font-family="Arial,sans-serif">D</text></svg>',
+    yahoo:'<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#6001D2"/><text x="12" y="17" text-anchor="middle" font-size="13" font-weight="700" fill="#fff" font-family="Arial,sans-serif">Y!</text></svg>',
+    ecosia:'<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#008009"/><path d="M12 4l5.5 9.5h-3.2L12 17l-2.3-3.5H6.5z" fill="#fff"/><rect x="11.2" y="17" width="1.6" height="3" fill="#fff"/></svg>'
+  };
   function paintEngine(){
     var k = curEngine();
-    engineIc.textContent = ENGINES[k].n.charAt(0);
+    engineIc.innerHTML = ENGINE_ICONS[k]||'';
     engineBtn.setAttribute('aria-label', t('切换搜索引擎（当前：'+ENGINES[k].n+'）', 'Switch search engine (current: '+ENGINES[k].n+')'));
   }
   engineBtn.addEventListener('click', function(){

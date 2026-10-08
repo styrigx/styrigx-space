@@ -101,9 +101,9 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{ $linksUrl := "/browser/" }}{{ if $isEn }}{{ $linksUrl = "/en/browser/" }}{{ end }}
 {{ $setUrl := $setUrl0 }}{{ $glUrl := $glUrl0 }}{{ $filesUrl := $filesUrl0 }}
 
-<!-- 顶栏：透明无底色无线，直接融在背景里（DeX 下为磨砂玻璃 + 中间搜索框） -->
+<!-- 顶栏：手机透明无底色；DeX 磨砂玻璃 + 搜索 + 中间入口 + 右侧天气日期时间 -->
 <nav id="site-nav" class="z-50">
-  <div class="max-w-[1100px] mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
+  <div class="nav-inner max-w-[1100px] mx-auto px-4 py-2.5 flex items-center gap-3">
     <a href="{{ $home }}" class="flex items-center gap-2 font-bold text-[15px] shrink-0 whitespace-nowrap">
       {{ $navAvatar := resources.Get "images/avatar.png" }}
       {{ if $navAvatar }}
@@ -114,12 +114,33 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
       {{ end }}
       <span>Styrigx</span>
     </a>
-    <!-- 顶栏常驻搜索（仅 DeX）：点击进 /browser/ 并聚焦地址栏 -->
-    <div id="nav-search-wrap" class="flex-1 justify-center min-w-0 px-1">
-      <button type="button" id="nav-search-fake" class="w-full max-w-[480px] min-w-[200px] mx-auto flex items-center gap-3 rounded-full bg-m-container border border-m-outline pl-4 pr-4 py-2 text-sm text-m-on-surface-variant text-left">
+    <!-- 顶栏搜索（仅 DeX）：点击进 /browser/ 并聚焦地址栏 -->
+    <div id="nav-search-wrap" class="min-w-0 shrink">
+      <button type="button" id="nav-search-fake" class="w-full max-w-[280px] min-w-[170px] flex items-center gap-2.5 rounded-full bg-m-container border border-m-outline pl-4 pr-3 py-2 text-sm text-m-on-surface-variant text-left">
         <span class="shrink-0">{{ partial "icon.html" "search" }}</span>
         <span class="flex-1 truncate">{{ if $isEn }}Search bookmarks, books, music…{{ else }}搜书签、书、歌、收藏…{{ end }}</span>
         <kbd class="text-[11px] bg-m-container-lowest border border-m-outline rounded px-1.5 py-0.5 shrink-0">⌘K</kbd>
+      </button>
+    </div>
+    <!-- DeX 顶栏中间入口：应用抽屉 / 我的文件 / 浏览器 / 设置 -->
+    <div id="nav-dex-mid" role="navigation" aria-label="{{ if $isEn }}Apps{{ else }}应用{{ end }}">
+      <button type="button" id="nav-drawer-btn" class="nav-dex-btn" aria-label="{{ if $isEn }}App drawer{{ else }}应用抽屉{{ end }}" title="{{ if $isEn }}App drawer{{ else }}应用抽屉{{ end }}">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="5" r="2.2"/><circle cx="12" cy="5" r="2.2"/><circle cx="19" cy="5" r="2.2"/><circle cx="5" cy="12" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="19" cy="12" r="2.2"/><circle cx="5" cy="19" r="2.2"/><circle cx="12" cy="19" r="2.2"/><circle cx="19" cy="19" r="2.2"/></svg>
+      </button>
+      <a href="{{ $filesUrl }}" class="nav-dex-btn" data-navpage="files" aria-label="{{ if $isEn }}My Files{{ else }}我的文件{{ end }}" title="{{ if $isEn }}My Files{{ else }}我的文件{{ end }}"><span class="nav-dex-ic">{{ partial "icon.html" "files" }}</span></a>
+      <a href="{{ $linksUrl }}" class="nav-dex-btn" data-navpage="browser" aria-label="{{ if $isEn }}Internet{{ else }}浏览器{{ end }}" title="{{ if $isEn }}Internet{{ else }}浏览器{{ end }}"><span class="nav-dex-ic">{{ partial "icon.html" "browser" }}</span></a>
+      <a href="{{ $setUrl }}" class="nav-dex-btn" data-navpage="settings" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}" title="{{ if $isEn }}Settings{{ else }}设置{{ end }}"><span class="nav-dex-ic">{{ partial "icon.html" "gear-solid" }}</span></a>
+    </div>
+    <!-- DeX 顶栏右侧：天气 / 日期 / 时间（点击往下展开面板） -->
+    <div id="nav-dex-tray">
+      <button type="button" id="nav-music-note" class="nav-dex-btn" style="display:none" aria-label="{{ if $isEn }}Now playing{{ else }}正在播放{{ end }}" title="{{ if $isEn }}Now playing{{ else }}正在播放{{ end }}">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+      </button>
+      <button type="button" id="nav-wx" class="nav-tray-btn" aria-label="{{ if $isEn }}Weather{{ else }}天气{{ end }}">
+        <span id="nav-wx-ic" aria-hidden="true"></span><span id="nav-wx-t" class="clock-num"></span>
+      </button>
+      <button type="button" id="nav-clockbtn" class="nav-tray-btn" aria-label="{{ if $isEn }}Clock and calendar{{ else }}时钟和日历{{ end }}">
+        <span id="nav-date"></span><span id="nav-time" class="clock-num">--:--</span>
       </button>
     </div>
   </div>
@@ -233,30 +254,60 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
     }
   });
 })();
-/* ===== 子页面返回键：有站内历史则 back，否则回对应语言首页 ===== */
+/* ===== 返回逻辑：一级 App 一次回主页，二级回一级；Dock 切换不累积历史 ===== */
 (function(){
   var en=document.documentElement.lang==='en';
   var home=en?'/en/':'/';
+  var PRIMARY={'/browser/':1,'/en/browser/':1,'/files/':1,'/en/files/':1,'/settings/':1,'/en/settings/':1,
+    '/books/':1,'/en/books/':1,'/music/':1,'/en/music/':1,'/goodlock/':1,'/en/goodlock/':1};
+  function parentOf(){
+    var p=location.pathname;
+    /* 二级页面：/files/?type=xxx 回 /files/ */
+    if(p==='/files/'||p==='/en/files/')return en?'/en/files/':'/files/';
+    return home;
+  }
   function goBack(){
-    try{
-      if(document.referrer&&new URL(document.referrer).origin===location.origin){history.back();return}
-    }catch(e){}
-    location.href=home;
+    var p=location.pathname;
+    if(PRIMARY[p]){location.replace(home);return}
+    location.replace(parentOf());
   }
   /* 事件委托：按钮在 <main> 里，脚本可能先执行 */
   document.addEventListener('click',function(e){
     var b=e.target.closest&&e.target.closest('[data-go-back]');
-    if(b)goBack();
+    if(b){e.preventDefault();goBack()}
   });
-  /* 滚过标题区后显示悬浮返回键；页面太短不能滚动时不显示 */
+  /* Dock 在三个 App 之间切换用 replace，不累积历史 */
+  var dock=document.getElementById('phone-dock');
+  if(dock)dock.addEventListener('click',function(e){
+    var a=e.target.closest&&e.target.closest('a.dock-btn');
+    if(a&&a.getAttribute('href')){e.preventDefault();location.replace(a.getAttribute('href'))}
+  });
+  /* DeX 顶栏中间入口同样用 replace */
+  var nm=document.getElementById('nav-dex-mid');
+  if(nm)nm.addEventListener('click',function(e){
+    var a=e.target.closest&&e.target.closest('a.nav-dex-btn');
+    if(a&&a.getAttribute('href')){e.preventDefault();location.replace(a.getAttribute('href'))}
+  });
+  /* 系统返回手势：子页面里返回一次 = 主页（一级）或一级 App（二级） */
+  if(document.body.classList.contains('subpage')){
+    var target=PRIMARY[location.pathname]?home:parentOf();
+    try{
+      history.replaceState({sgxTrap:1},'');
+      history.pushState({sgxTrap:2},'');
+    }catch(e){}
+    window.addEventListener('popstate',function(){location.replace(target)});
+  }
+  /* 滚过标题区后显示悬浮返回键 + 顶部小标题；页面太短不能滚动时不显示 */
   function initBackFloat(){
     var head=document.querySelector('[data-subpage-head]');
     var floats=document.querySelectorAll('.subpage-back-float');
-    if(!head||!floats.length)return;
+    var minis=document.querySelectorAll('.subpage-mini-title');
+    if(!head||(!floats.length&&!minis.length))return;
     function onScroll(){
       var canScroll=document.documentElement.scrollHeight>window.innerHeight+10;
       var show=canScroll&&window.scrollY>head.offsetHeight*0.55;
       floats.forEach(function(f){f.classList.toggle('show',!!show)});
+      minis.forEach(function(f){f.classList.toggle('show',!!show)});
     }
     window.addEventListener('scroll',onScroll,{passive:true});
     window.addEventListener('resize',onScroll);
@@ -485,7 +536,7 @@ try{
   </div>
 </footer>
 
-{{/* ===== DeX 任务栏 ===== */}}
+{{/* ===== DeX 应用抽屉数据（$dexApps 供抽屉网格用）===== */}}
 {{ $dexApps := slice
   (dict "name" (cond $isEn "Blog" "博客") "name2" "Blog 博客" "url" "https://blog.styrigx.com" "icon" "pen" "ext" true "bg" "bg-m-primary-container" "fg" "text-m-on-primary-container")
   (dict "name" (cond $isEn "Invite Board" "邀请码站") "name2" "Invite Board 邀请码站 muse" "url" "https://muse-invite.styrigx.com" "icon" "ticket" "ext" true "bg" "bg-m-tertiary-container" "fg" "text-m-on-tertiary-container")
@@ -498,46 +549,21 @@ try{
   (dict "name" (cond $isEn "Email" "邮件") "name2" "Email 邮件 mail" "url" "mailto:styrigx@gmail.com" "icon" "mail" "bg" "bg-m-rose-container" "fg" "text-m-on-rose-container")
   (dict "name" (cond $isEn "Books" "书单") "name2" "Books 书单 books" "url" (print $home "books/") "icon" "book" "bg" "bg-m-secondary-container" "fg" "text-m-on-secondary-container")
   (dict "name" (cond $isEn "Playlist" "歌单") "name2" "Playlist 歌单 music" "url" (print $home "music/") "icon" "music" "bg" "bg-m-warm-container" "fg" "text-m-on-warm-container")
-  (dict "name" (cond $isEn "Settings" "设置") "name2" "Settings 设置" "url" $setUrl "icon" "gear" "bg" "bg-m-container-highest" "fg" "text-m-on-surface")
+  (dict "name" (cond $isEn "Settings" "设置") "name2" "Settings 设置" "url" $setUrl "icon" "gear-solid" "bg" "" "fg" "")
   (dict "name" "Good Lock" "name2" "Good Lock" "url" $glUrl "icon" "gift" "bg" "bg-m-accent-container" "fg" "text-m-on-accent-container")
 }}
 
-<!-- DeX 任务栏 -->
-<div id="dex-taskbar" role="navigation" aria-label="DeX taskbar">
-  <button type="button" id="dex-drawer-btn" class="dex-tbtn" aria-label="{{ if $isEn }}App drawer{{ else }}应用抽屉{{ end }}" title="{{ if $isEn }}App drawer{{ else }}应用抽屉{{ end }}">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="5" r="2.2"/><circle cx="12" cy="5" r="2.2"/><circle cx="19" cy="5" r="2.2"/><circle cx="5" cy="12" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="19" cy="12" r="2.2"/><circle cx="5" cy="19" r="2.2"/><circle cx="12" cy="19" r="2.2"/><circle cx="19" cy="19" r="2.2"/></svg>
-  </button>
-  <div class="dex-pinned">
-    <a href="{{ $linksUrl }}" class="dex-tbtn" data-dexpage="browser" aria-label="{{ if $isEn }}Internet{{ else }}浏览器{{ end }}" title="{{ if $isEn }}Internet{{ else }}浏览器{{ end }}"><span class="dex-tbtn-ic">{{ partial "icon.html" "browser" }}</span></a>
-    <a href="{{ $filesUrl }}" class="dex-tbtn" data-dexpage="files" aria-label="{{ if $isEn }}My Files{{ else }}我的文件{{ end }}" title="{{ if $isEn }}My Files{{ else }}我的文件{{ end }}"><span class="dex-tbtn-ic">{{ partial "icon.html" "files" }}</span></a>
-    <a href="{{ $setUrl }}" class="dex-tbtn" data-dexpage="settings" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}" title="{{ if $isEn }}Settings{{ else }}设置{{ end }}">{{ partial "icon.html" "gear" }}</a>
-  </div>
-  <div class="dex-recent">
-    <span class="dex-sep" aria-hidden="true"></span>
-    <div id="dex-recent-list"></div>
-  </div>
-  <div class="dex-tray">
-    <button type="button" id="dex-music-note" class="dex-tbtn" style="display:none" aria-label="{{ if $isEn }}Now playing{{ else }}正在播放{{ end }}" title="{{ if $isEn }}Now playing{{ else }}正在播放{{ end }}">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-    </button>
-    <span id="dex-wx" aria-hidden="true"></span>
-    <button type="button" id="dex-clockbtn" aria-label="{{ if $isEn }}Clock and calendar{{ else }}时钟和日历{{ end }}">
-      <span id="dex-time">--:--</span><span id="dex-date"></span>
-    </button>
-  </div>
-</div>
-
-<!-- 手机悬浮 Dock：只留 浏览器 / 设置（<840px，全站） -->
+<!-- 手机悬浮 Dock：我的文件 / 浏览器 / 设置（<840px，全站） -->
 <div class="dock" id="phone-dock" role="navigation" aria-label="{{ if $isEn }}Navigation{{ else }}导航栏{{ end }}">
   <span class="dock-pill" id="dock-pill" aria-hidden="true"></span>
-  <a href="{{ $linksUrl }}" class="dock-btn" data-dock="browser" aria-label="{{ if $isEn }}Internet{{ else }}浏览器{{ end }}">
-    <span class="dock-ic">{{ partial "icon.html" "browser" }}</span><span class="dock-label">{{ if $isEn }}Internet{{ else }}浏览器{{ end }}</span>
-  </a>
   <a href="{{ $filesUrl }}" class="dock-btn" data-dock="files" aria-label="{{ if $isEn }}My Files{{ else }}我的文件{{ end }}">
     <span class="dock-ic">{{ partial "icon.html" "files" }}</span><span class="dock-label">{{ if $isEn }}My Files{{ else }}我的文件{{ end }}</span>
   </a>
+  <a href="{{ $linksUrl }}" class="dock-btn" data-dock="browser" aria-label="{{ if $isEn }}Internet{{ else }}浏览器{{ end }}">
+    <span class="dock-ic">{{ partial "icon.html" "browser" }}</span><span class="dock-label">{{ if $isEn }}Internet{{ else }}浏览器{{ end }}</span>
+  </a>
   <a href="{{ $setUrl }}" class="dock-btn" data-dock="settings" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}">
-    <span class="dock-ic">{{ partial "icon.html" "gear" }}</span><span class="dock-label">{{ if $isEn }}Settings{{ else }}设置{{ end }}</span>
+    <span class="dock-ic">{{ partial "icon.html" "gear-solid" }}</span><span class="dock-label">{{ if $isEn }}Settings{{ else }}设置{{ end }}</span>
   </a>
 </div>
 
@@ -622,7 +648,7 @@ try{
     <div id="dex-drawer-grid">
       {{ range $dexApps }}
       <a href="{{ .url }}" {{ if .ext }}target="_blank" rel="noopener"{{ end }} data-name="{{ .name2 }}" class="dex-app" aria-label="{{ .name }}">
-        {{ if or (eq .icon "browser") (eq .icon "files") }}
+        {{ if or (eq .icon "browser") (eq .icon "files") (eq .icon "gear-solid") }}
         <span class="dex-app-ic dex-app-ic-full">{{ partial "icon.html" .icon }}</span>
         {{ else }}
         <span class="dex-app-ic {{ .bg }} {{ .fg }}">{{ partial "icon.html" .icon }}</span>
@@ -652,23 +678,7 @@ try{
 </div>
 
 <script>
-/* 图标 SVG 库（Hugo 渲染，供任务栏"最近打开"渲染真实图标） */
-window.__iconSvg={
-  pen:'{{ partial "icon.html" "pen" }}',
-  ticket:'{{ partial "icon.html" "ticket" }}',
-  book:'{{ partial "icon.html" "book" }}',
-  browser:'{{ partial "icon.html" "browser" }}',
-  files:'{{ partial "icon.html" "files" }}',
-  gear:'{{ partial "icon.html" "gear" }}',
-  gift:'{{ partial "icon.html" "gift" }}',
-  mail:'{{ partial "icon.html" "mail" }}',
-  github:'{{ partial "icon.html" "brands/github" }}',
-  xlogo:'{{ partial "icon.html" "x-logo" }}'
-};
-</script>
-
-<script>
-/* ===== 桌面布局系统：resize 跟随 + 最近打开 + DeX 任务栏 ===== */
+/* ===== 桌面布局系统：resize 跟随 + 顶栏时钟/天气 + 应用抽屉 ===== */
 (function(){
   var en=document.documentElement.lang==='en';
   function get(k){try{return localStorage.getItem(k)}catch(e){return null}}
@@ -681,73 +691,8 @@ window.__iconSvg={
     rt=setTimeout(function(){if(window.__applyLayout)window.__applyLayout()},180);
   });
 
-  /* ---- 最近打开的 App（DeX 任务栏）：真实图标 ---- */
-  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
-  document.addEventListener('click',function(e){
-    var a=e.target.closest&&(e.target.closest('.app-tile')||e.target.closest('#dex-icons a')||e.target.closest('#dex-icons button')||e.target.closest('.dex-pinned a')||e.target.closest('#dex-drawer-grid a')||e.target.closest('#dex-recent-list a'));
-    if(!a||!a.href)return;
-    var nm=((a.getAttribute('aria-label')||a.textContent||'').trim()||'App').slice(0,24);
-    try{
-      var l=JSON.parse(get('sgx-recent-apps')||'[]');
-      l=l.filter(function(x){return x.u!==a.href});
-      l.unshift({t:nm,u:a.href});
-      set('sgx-recent-apps',JSON.stringify(l.slice(0,6)));
-    }catch(err){}
-  },{passive:true});
-  function recentIcon(u){
-    var host='',path='';
-    try{var uu=new URL(u,location.href);host=uu.hostname;path=uu.pathname}catch(e){return null}
-    function ic(icon,cls){return{icon:icon,cls:cls}}
-    if(u.indexOf('mailto:')===0)return ic('mail','bg-m-rose-container text-m-on-rose-container');
-    if(host===location.hostname){
-      if(path.indexOf('/goodlock')===0)return ic('gift','bg-m-accent-container text-m-on-accent-container');
-      if(path.indexOf('/settings')===0)return ic('gear','bg-m-container-highest text-m-on-surface');
-      if(path.indexOf('/browser')===0)return{favicon:'',icon:'browser',cls:''};
-      return null;
-    }
-    if(host==='blog.styrigx.com')return ic('pen','bg-m-primary-container text-m-on-primary-container');
-    if(host==='muse-invite.styrigx.com')return ic('ticket','bg-m-tertiary-container text-m-on-tertiary-container');
-    if(host==='github.com'){
-      if(path.indexOf('muse-playbook')>=0)return ic('book','bg-m-secondary-container text-m-on-secondary-container');
-      if(path.indexOf('textbook-playbook')>=0)return ic('book','bg-m-warm-container text-m-on-warm-container');
-      return ic('github','bg-m-container-highest text-m-on-surface');
-    }
-    if(host==='x.com'||host==='www.x.com'||host==='twitter.com')return ic('xlogo','bg-m-container-highest text-m-on-surface');
-    return{favicon:'https://'+host+'/favicon.ico'};
-  }
-  function paintRecent(){
-    var box=document.getElementById('dex-recent-list');if(!box)return;
-    var l=[];try{l=JSON.parse(get('sgx-recent-apps')||'[]')}catch(e){}
-    var items=l.slice(0,3);
-    document.querySelector('.dex-recent').style.display=items.length?'':'none';
-    box.innerHTML=items.map(function(x){
-      var init=(x.t||'?').trim().charAt(0)||'•',inner='<span>'+esc(init)+'</span>';
-      var ri=recentIcon(x.u);
-      if(ri){
-        if(ri.favicon){
-          inner='<img src="'+ri.favicon+'" alt="" loading="lazy" class="w-6 h-6 rounded-md" onerror="this.outerHTML=\'<span>'+esc(init)+'</span>\'">';
-        }else{
-          var svg=(window.__iconSvg&&window.__iconSvg[ri.icon])||'';
-          inner='<span class="w-8 h-8 rounded-[.7rem] inline-flex items-center justify-center '+ri.cls+'">'+svg+'</span>';
-        }
-      }
-      return '<a href="'+esc(x.u)+'" class="dex-rec" title="'+esc(x.t)+'" aria-label="'+esc(x.t)+'">'+inner+'</a>';
-    }).join('');
-  }
-  paintRecent();
-  document.addEventListener('click',function(){setTimeout(paintRecent,60)});
-  /* 当前页面：任务栏图标下方小圆点 */
-  (function(){
-    var pg=document.body.getAttribute('data-page');
-    if(!pg)return;
-    document.querySelectorAll('#dex-taskbar .dex-pinned .dex-tbtn, #dex-recent-list .dex-rec').forEach(function(a){
-      var href=a.getAttribute('href')||'';
-      if((pg==='browser'&&href.indexOf('/browser')>=0)||(pg==='files'&&href.indexOf('/files')>=0)||(pg==='settings'&&href.indexOf('/settings')>=0)||(pg==='goodlock'&&href.indexOf('/goodlock')>=0))a.classList.add('active');
-    });
-  })();
-
-  /* ---- DeX 任务栏时钟：第一帧前写入，遵守小时制 + 第一时区设置 ---- */
-  var tEl=document.getElementById('dex-time'),dEl=document.getElementById('dex-date');
+  /* ---- 顶栏时钟/日期：第一帧前写入，遵守小时制 + 第一时区设置 ---- */
+  var tEl=document.getElementById('nav-time'),dEl=document.getElementById('nav-date');
   function fmtTz(tz,h12){
     try{return new Intl.DateTimeFormat('en-US',{timeZone:tz,hour:'2-digit',minute:'2-digit',hour12:!!h12}).format(new Date())}catch(e){return''}
   }
@@ -762,34 +707,53 @@ window.__iconSvg={
     dEl.textContent=en?((d.getMonth()+1)+'/'+d.getDate()+' '+wden[d.getDay()]):((d.getMonth()+1)+'月'+d.getDate()+'日 '+wdzh[d.getDay()]);
   }
   tickTray();setInterval(tickTray,15000);
+  window.addEventListener('sgx-settings-changed',tickTray);
 
-  /* ---- DeX 托盘天气（图标 + 温度） ---- */
+  /* ---- 当前页面：顶栏中间入口高亮 ---- */
   (function(){
-    var el=document.getElementById('dex-wx');if(!el)return;
+    var pg=document.body.getAttribute('data-page');
+    if(!pg)return;
+    document.querySelectorAll('#nav-dex-mid .nav-dex-btn[data-navpage]').forEach(function(a){
+      if(a.getAttribute('data-navpage')===pg)a.classList.add('nav-active');
+    });
+  })();
+
+  /* ---- 顶栏天气（图标 + 温度）：localStorage 30 分钟缓存，失败用上次缓存 ---- */
+  (function(){
+    var icEl=document.getElementById('nav-wx-ic'),tEl2=document.getElementById('nav-wx-t');
+    var btn=document.getElementById('nav-wx');
+    if(!icEl||!tEl2||!btn)return;
     var WXI={0:'☀️',1:'🌤️',2:'⛅',3:'☁️',45:'🌫️',48:'🌫️',51:'🌦️',53:'🌦️',55:'🌧️',61:'🌧️',63:'🌧️',65:'🌧️',71:'🌨️',73:'🌨️',75:'❄️',80:'🌦️',81:'🌧️',82:'⛈️',95:'⛈️',96:'⛈️'};
+    function cached(){try{var c=JSON.parse(localStorage.getItem('sgx-weather'));if(c&&Date.now()-c.ts<30*60*1000)return c.data}catch(e){}return null}
+    function save(d){try{localStorage.setItem('sgx-weather',JSON.stringify({ts:Date.now(),data:d}))}catch(e){}}
     function render(d){
       if(!d||!d.current)return;
       var unit='c';try{unit=get('sgx-temp-unit')==='f'?'f':'c'}catch(e){}
       var t=d.current.temperature_2m;
       t=unit==='f'?Math.round(t*9/5+32):Math.round(t);
-      var ic=WXI[d.current.weather_code]||'☁️';
-      el.textContent=ic+' '+t+'°'+(unit==='f'?'F':'C');
-      el.title=(d.city||'')+(en?' weather':' 天气');
+      icEl.textContent=WXI[d.current.weather_code]||'☁️';
+      tEl2.textContent=t+'°';
+      btn.style.display='';
+      btn.title=(d.city||'')+(en?' weather':' 天气');
     }
-    function cached(){try{var c=JSON.parse(sessionStorage.getItem('sgx-weather'));if(c&&Date.now()-c.ts<30*60*1000)return c.data}catch(e){}return null}
-    var c=cached();if(c){render(c);return}
-    fetch('/api/geo').then(function(r){return r.json()}).catch(function(){return{}}).then(function(g){
-      var lat=parseFloat(g.latitude),lon=parseFloat(g.longitude);
-      if(!isFinite(lat)||!isFinite(lon))return;
-      return fetch('https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+'&current=temperature_2m,weather_code&timezone=auto&forecast_days=1')
-        .then(function(r){if(!r.ok)throw 0;return r.json()})
-        .then(function(j){render({current:j.current,city:g.city||''})});
-    }).catch(function(){});
+    function hide(){btn.style.display='none'}
+    var c=cached();if(c){render(c)}
+    /* 和首页小组件共用一份缓存；首页会负责拉取，这里只做兜底拉取 */
+    if(!c){
+      fetch('/api/geo').then(function(r){return r.json()}).catch(function(){return{}}).then(function(g){
+        var lat=parseFloat(g.latitude),lon=parseFloat(g.longitude);
+        if(!isFinite(lat)||!isFinite(lon)){hide();return null}
+        return fetch('https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+'&current=temperature_2m,weather_code&timezone=auto&forecast_days=1')
+          .then(function(r){if(!r.ok)throw 0;return r.json()})
+          .then(function(j){var d={current:j.current,city:g.city||''};save(d);render(d)});
+      }).catch(function(){hide()});
+    }
+    window.addEventListener('sgx-settings-changed',function(){var cc=cached();if(cc)render(cc)});
   })();
 
-  /* ---- DeX 应用抽屉 ---- */
+  /* ---- DeX 应用抽屉（顶栏中间入口） ---- */
   (function(){
-    var dr=document.getElementById('dex-drawer'),btn=document.getElementById('dex-drawer-btn'),
+    var dr=document.getElementById('dex-drawer'),btn=document.getElementById('nav-drawer-btn'),
         input=document.getElementById('dex-drawer-search'),grid=document.getElementById('dex-drawer-grid');
     if(!dr||!btn)return;
     function open(){
@@ -814,9 +778,9 @@ window.__iconSvg={
     });
   })();
 
-  /* ---- DeX 时钟弹窗（双时钟 + 日历） ---- */
+  /* ---- 顶栏时钟/天气面板（双时钟 + 日历，从顶栏往下展开） ---- */
   (function(){
-    var pop=document.getElementById('dex-clock-pop'),btn=document.getElementById('dex-clockbtn');
+    var pop=document.getElementById('dex-clock-pop'),btn=document.getElementById('nav-clockbtn'),wxBtn=document.getElementById('nav-wx');
     if(!pop||!btn)return;
     var TZN={zh:{'Asia/Shanghai':'北京','America/Los_Angeles':'洛杉矶','America/New_York':'纽约','Europe/London':'伦敦','Asia/Tokyo':'东京','Asia/Hong_Kong':'香港','Asia/Seoul':'首尔'},
              en:{'Asia/Shanghai':'Beijing','America/Los_Angeles':'Los Angeles','America/New_York':'New York','Europe/London':'London','Asia/Tokyo':'Tokyo','Asia/Hong_Kong':'Hong Kong','Asia/Seoul':'Seoul'}};
@@ -847,7 +811,9 @@ window.__iconSvg={
     function open(){render();pop.classList.remove('hidden');pop.classList.add('open')}
     function close(){pop.classList.remove('open');pop.classList.add('hidden')}
     window.__closeDexClock=close;
-    btn.addEventListener('click',function(e){e.stopPropagation();pop.classList.contains('open')?close():open()});
+    function toggle(e){if(e)e.stopPropagation();pop.classList.contains('open')?close():open()}
+    btn.addEventListener('click',toggle);
+    if(wxBtn)wxBtn.addEventListener('click',toggle);
     document.addEventListener('click',function(e){if(pop.classList.contains('open')&&!pop.contains(e.target))close()});
     document.addEventListener('keydown',function(e){if(e.key==='Escape'&&pop.classList.contains('open'))close()});
   })();
