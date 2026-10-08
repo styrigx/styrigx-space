@@ -57,6 +57,7 @@
   (dict "name" "GitHub" "url" "https://github.com/styrigx" "icon" "brands/github" "bg" "bg-m-container-highest" "fg" "text-m-on-surface")
   (dict "name" "X" "url" "https://x.com/styrigx" "icon" "x-logo" "bg" "bg-m-container-highest" "fg" "text-m-on-surface")
   (dict "name" (cond $isEn "Internet" "浏览器") "url" $linksUrl "icon" "browser" "bg" "" "fg" "")
+  (dict "name" (cond $isEn "My Files" "我的文件") "url" (print $home "files/") "icon" "files" "bg" "" "fg" "")
   (dict "name" (cond $isEn "Email" "邮件") "url" "mailto:styrigx@gmail.com" "icon" "mail" "bg" "bg-m-rose-container" "fg" "text-m-on-rose-container")
   (dict "name" "Good Lock" "url" (cond $isEn "/en/goodlock/" "/goodlock/") "icon" "gift" "bg" "bg-m-accent-container" "fg" "text-m-on-accent-container")
 }}
@@ -280,7 +281,7 @@
       {{ range $i, $a := $apps }}
       <a href="{{ $a.url }}" {{ if hasPrefix $a.url "http" }}target="_blank" rel="noopener"{{ end }}
          class="app-tile flex flex-col items-center gap-1.5 py-1 active:scale-90 transition-transform animate-fade-up" style="animation-delay:{{ add 400 (mul $i 35) }}ms">
-        {{ if eq $a.icon "browser" }}
+        {{ if or (eq $a.icon "browser") (eq $a.icon "files") }}
         <span class="w-14 h-14 sm:w-16 sm:h-16 shrink-0 drop-shadow-sm">{{ partial "icon.html" $a.icon }}</span>
         {{ else }}
         <span class="w-14 h-14 sm:w-16 sm:h-16 rounded-[1.1rem] {{ $a.bg }} {{ $a.fg }} flex items-center justify-center shadow-sm">{{ partial "icon.html" $a.icon }}</span>

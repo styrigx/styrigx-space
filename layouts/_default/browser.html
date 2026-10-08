@@ -183,19 +183,55 @@
     });
   }
 
-  /* ============ 站内搜索索引 ============ */
-  var INDEX = [];
-  try{ INDEX = JSON.parse(document.getElementById('search-index').textContent).items || []; }catch(e){ INDEX = []; }
+  /* ============ 站内搜索索引：/files-index.json 为主，内联 #search-index 兜底 ============ */
+  var TYPE_META = {
+    link:  { label: t('书签','Links'), icon: 'globe' },
+    book:  { label: t('书单','Books'), icon: 'book' },
+    music: { label: t('歌单','Music'), icon: 'music' },
+    post:  { label: t('博客','Blog'),  icon: 'pen' },
+    app:   { label: t('应用','Apps'),  icon: 'compass' }
+  };
+  var C_CATS = ['link','book','music','post','app'].map(function(k){
+    return { type: k, label: TYPE_META[k].label, icon: TYPE_META[k].icon };
+  });
 
-  var C_CATS = [
-    { match: function(c){ return c.indexOf(t('书签','Links')) === 0; },       label: t('书签','Links'),         icon: 'globe' },
-    { match: function(c){ return c === t('书单','Books'); },                  label: t('书单','Books'),         icon: 'book' },
-    { match: function(c){ return c === t('歌单','Music'); },                  label: t('歌单','Music'),         icon: 'music' },
-    { match: function(c){ return c === t('博客','Blog'); },                  label: t('博客','Blog'),           icon: 'pen' },
-    { match: function(c){ return c === t('精选','Featured'); },               label: t('精选','Featured'),       icon: 'sparkles' },
-    { match: function(c){ return c === t('设置','Settings') || c === 'Good Lock'; }, label: t('设置','Settings'), icon: 'gear' },
-    { match: function(c){ return c === t('收藏','Collections'); },            label: t('收藏','Collections'),   icon: 'compass' }
-  ];
+  // 旧内联索引 {t,d,u,c} → 新形状 {t,d,u,type}
+  function oldCatToType(c){
+    c = c || '';
+    if(c.indexOf(t('书签','Links')) === 0) return 'link';
+    if(c === t('书单','Books')) return 'book';
+    if(c === t('歌单','Music')) return 'music';
+    if(c === t('博客','Blog')) return 'post';
+    return 'app';
+  }
+  function normInline(raw){
+    return (raw || []).map(function(x){
+      return { t: x.t || '', d: x.d || '', u: x.u || '', type: oldCatToType(x.c) };
+    });
+  }
+
+  var INDEX = [];
+  function loadInline(){
+    try{ INDEX = normInline(JSON.parse(document.getElementById('search-index').textContent).items); }
+    catch(e){ INDEX = []; }
+  }
+  loadInline();
+
+  // 异步换上 /files-index.json（按当前语言过滤）；失败则保留内联兜底
+  (function(){
+    var wantLang = document.documentElement.lang === 'en' ? 'en' : 'zh';
+    fetch('/files-index.json').then(function(r){
+      if(!r.ok) throw new Error('bad status ' + r.status);
+      return r.json();
+    }).then(function(j){
+      var items = ((j && j.items) || []).filter(function(x){
+        return x && TYPE_META[x.type] && (x.lang || 'zh') === wantLang;
+      }).map(function(x){
+        return { t: x.title || '', d: x.subtitle || '', u: x.url || '', type: x.type };
+      });
+      if(items.length) INDEX = items;
+    }).catch(function(){ /* keep inline fallback */ });
+  })();
 
   function svgIc(inner){
     return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">' + inner + '</svg>';
@@ -250,14 +286,14 @@
     var ql = q.toLowerCase(), html = '';
     C_CATS.forEach(function(cat){
       var hits = INDEX.filter(function(x){
-        return cat.match(x.c || '') && ((x.t + ' ' + (x.d || '')).toLowerCase().indexOf(ql) !== -1);
+        return x.type === cat.type && ((x.t + ' ' + (x.d || '')).toLowerCase().indexOf(ql) !== -1);
       }).slice(0, 3);
       if(!hits.length) return;
       html += '<div class="brw-sg-group px-4 pt-3 pb-1 text-[11px] font-semibold tracking-wide text-m-on-surface-variant">' + esc(cat.label) + '</div>';
       hits.forEach(function(x){
         var i = curRows.length;
         curRows.push({ kind:'site', title: x.t, url: x.u });
-        html += rowHTML(i, ICONS[cat.icon], x.t, x.d, x.c);
+        html += rowHTML(i, ICONS[cat.icon], x.t, x.d, cat.label);
       });
     });
     var ek = curEngine(), i = curRows.length;

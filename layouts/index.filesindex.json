@@ -1,0 +1,90 @@
+{{/* 全站内容索引：/files-index.json ——「我的文件」App 与浏览器站内搜索共用这一份数据 */}}
+{{ $items := slice }}
+{{ $langs := slice "zh" "en" }}
+{{ $homeOf := dict "zh" "/" "en" "/en/" }}
+
+{{/* ---------- 博客文章：抓 RSS，拉不到就跳过 ---------- */}}
+{{ $months := dict "Jan" "01" "Feb" "02" "Mar" "03" "Apr" "04" "May" "05" "Jun" "06" "Jul" "07" "Aug" "08" "Sep" "09" "Oct" "10" "Nov" "11" "Dec" "12" }}
+{{ $feeds := slice
+  (dict "lang" "zh" "url" "https://blog.styrigx.com/rss.xml")
+  (dict "lang" "en" "url" "https://blog.styrigx.com/en/rss.xml")
+}}
+{{ range $f := $feeds }}
+  {{ $got := try (resources.GetRemote $f.url) }}
+  {{ if not $got.Err }}
+  {{ with $got.Value }}
+    {{ $n := 0 }}
+    {{ range findRE "(?s)<item>.*?</item>" .Content }}
+      {{ $bt := findRESubmatch "(?s)<title>(.*?)</title>" . }}
+      {{ $bl := findRESubmatch "(?s)<link>(.*?)</link>" . }}
+      {{ $bp := findRESubmatch "(?s)<pubDate>(.*?)</pubDate>" . }}
+      {{ if and $bt $bl }}
+        {{ $n = add $n 1 }}
+        {{ $btitle := (index (index $bt 0) 1) | replaceRE "<!\\[CDATA\\[(.*?)\\]\\]>" "$1" | htmlUnescape }}
+        {{ $added := "" }}
+        {{ if $bp }}
+          {{ $pm := findRESubmatch "(\\d{1,2}) ([A-Za-z]{3}) (\\d{4})" (index (index $bp 0) 1) }}
+          {{ if $pm }}
+            {{ $m0 := index $pm 0 }}
+            {{ $added = printf "%s-%s-%02d" (index $m0 3) (index $months (index $m0 2) | default "01") (int (index $m0 1)) }}
+          {{ end }}
+        {{ end }}
+        {{ $id := printf "post-%d" $n }}
+        {{ if eq $f.lang "en" }}{{ $id = printf "post-%d-en" $n }}{{ end }}
+        {{ $items = $items | append (dict "id" $id "type" "post" "lang" $f.lang "title" $btitle "subtitle" "" "url" (index (index $bl 0) 1) "cover" "" "addedAt" $added) }}
+      {{ end }}
+    {{ end }}
+  {{ end }}
+  {{ end }}
+{{ end }}
+
+{{/* ---------- 书单 ---------- */}}
+{{ range $l := $langs }}
+  {{ $books := cond (eq $l "en") site.Data.en.books site.Data.books }}
+  {{ range $i, $b := $books }}
+    {{ $id := printf "book-%d" (add $i 1) }}
+    {{ if eq $l "en" }}{{ $id = printf "book-%d-en" (add $i 1) }}{{ end }}
+    {{ $items = $items | append (dict "id" $id "type" "book" "lang" $l "title" $b.title "subtitle" ($b.author | default "") "url" (print (index $homeOf $l) "books/") "cover" (print "/" $b.cover) "addedAt" "") }}
+  {{ end }}
+{{ end }}
+
+{{/* ---------- 歌单 ---------- */}}
+{{ range $l := $langs }}
+  {{ $music := cond (eq $l "en") site.Data.en.music site.Data.music }}
+  {{ range $i, $m := $music }}
+    {{ $id := printf "music-%d" (add $i 1) }}
+    {{ if eq $l "en" }}{{ $id = printf "music-%d-en" (add $i 1) }}{{ end }}
+    {{ $items = $items | append (dict "id" $id "type" "music" "lang" $l "title" $m.title "subtitle" ($m.artist | default "") "url" (print (index $homeOf $l) "music/") "cover" (print "/" $m.cover) "addedAt" "") }}
+  {{ end }}
+{{ end }}
+
+{{/* ---------- 书签 ---------- */}}
+{{ range $l := $langs }}
+  {{ $links := cond (eq $l "en") site.Data.en.links site.Data.links }}
+  {{ range $ci, $cat := $links }}
+    {{ range $si, $s := $cat.sites }}
+      {{ $id := printf "link-%d-%d" (add $ci 1) (add $si 1) }}
+      {{ if eq $l "en" }}{{ $id = printf "link-%d-%d-en" (add $ci 1) (add $si 1) }}{{ end }}
+      {{ $items = $items | append (dict "id" $id "type" "link" "lang" $l "title" $s.name "subtitle" $cat.category "url" $s.url "cover" "" "addedAt" "") }}
+    {{ end }}
+  {{ end }}
+{{ end }}
+
+{{/* ---------- 应用 ---------- */}}
+{{ $apps := slice
+  (dict "key" "browser"  "zh" "浏览器"   "en" "Internet"  "zhsub" "搜索与书签"     "ensub" "Search and bookmarks"   "path" "browser/")
+  (dict "key" "files"    "zh" "我的文件" "en" "My Files"  "zhsub" "文件索引与下载" "ensub" "File index and downloads" "path" "files/")
+  (dict "key" "settings" "zh" "设置"     "en" "Settings"  "zhsub" "主题、语言、壁纸" "ensub" "Theme, language, wallpaper" "path" "settings/")
+  (dict "key" "goodlock" "zh" "Good Lock" "en" "Good Lock" "zhsub" "实验性功能模块" "ensub" "Experimental modules"    "path" "goodlock/")
+  (dict "key" "books"    "zh" "书单"     "en" "Books"     "zhsub" "全部书籍与批注" "ensub" "All books with notes"    "path" "books/")
+  (dict "key" "music"    "zh" "歌单"     "en" "Playlist"  "zhsub" "全部歌曲与批注" "ensub" "All songs with notes"    "path" "music/")
+}}
+{{ range $l := $langs }}
+  {{ range $a := $apps }}
+    {{ $id := printf "app-%s" $a.key }}
+    {{ if eq $l "en" }}{{ $id = printf "app-%s-en" $a.key }}{{ end }}
+    {{ $items = $items | append (dict "id" $id "type" "app" "lang" $l "title" (index $a $l) "subtitle" (index $a (print $l "sub")) "url" (print (index $homeOf $l) $a.path) "cover" "" "addedAt" "") }}
+  {{ end }}
+{{ end }}
+
+{{ (dict "generated" (now.Format "2006-01-02T15:04:05Z07:00") "items" $items) | jsonify }}

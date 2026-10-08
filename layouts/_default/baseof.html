@@ -94,11 +94,12 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 </head>
 {{ $setUrl0 := "/settings/" }}{{ if $isEn }}{{ $setUrl0 = "/en/settings/" }}{{ end }}
 {{ $glUrl0 := "/goodlock/" }}{{ if $isEn }}{{ $glUrl0 = "/en/goodlock/" }}{{ end }}
-<body class="text-m-on-surface min-h-screen antialiased{{ if .IsHome }} has-dock{{ end }}{{ if not .IsHome }} subpage{{ end }}" data-page="{{ if or (eq .RelPermalink "/browser/") (eq .RelPermalink "/en/browser/") }}browser{{ else if eq .RelPermalink $setUrl0 }}settings{{ else if eq .RelPermalink $glUrl0 }}goodlock{{ end }}">
+{{ $filesUrl0 := "/files/" }}{{ if $isEn }}{{ $filesUrl0 = "/en/files/" }}{{ end }}
+<body class="text-m-on-surface min-h-screen antialiased{{ if .IsHome }} has-dock{{ end }}{{ if not .IsHome }} subpage{{ end }}" data-page="{{ if or (eq .RelPermalink "/browser/") (eq .RelPermalink "/en/browser/") }}browser{{ else if eq .RelPermalink $filesUrl0 }}files{{ else if eq .RelPermalink $setUrl0 }}settings{{ else if eq .RelPermalink $glUrl0 }}goodlock{{ end }}">
 {{ $profile := site.Data.profile }}
 {{ $home := "/" }}{{ if $isEn }}{{ $home = "/en/" }}{{ end }}
 {{ $linksUrl := "/browser/" }}{{ if $isEn }}{{ $linksUrl = "/en/browser/" }}{{ end }}
-{{ $setUrl := $setUrl0 }}{{ $glUrl := $glUrl0 }}
+{{ $setUrl := $setUrl0 }}{{ $glUrl := $glUrl0 }}{{ $filesUrl := $filesUrl0 }}
 
 <!-- 顶栏：透明无底色无线，直接融在背景里（DeX 下为磨砂玻璃 + 中间搜索框） -->
 <nav id="site-nav" class="z-50">
@@ -493,6 +494,7 @@ try{
   (dict "name" "GitHub" "name2" "GitHub" "url" "https://github.com/styrigx" "icon" "brands/github" "ext" true "bg" "bg-m-container-highest" "fg" "text-m-on-surface")
   (dict "name" "X" "name2" "X" "url" "https://x.com/styrigx" "icon" "x-logo" "ext" true "bg" "bg-m-container-highest" "fg" "text-m-on-surface")
   (dict "name" (cond $isEn "Internet" "浏览器") "name2" "Internet 浏览器 browser links 书签" "url" $linksUrl "icon" "browser" "bg" "" "fg" "")
+  (dict "name" (cond $isEn "My Files" "我的文件") "name2" "My Files 我的文件 files" "url" $filesUrl "icon" "files" "bg" "" "fg" "")
   (dict "name" (cond $isEn "Email" "邮件") "name2" "Email 邮件 mail" "url" "mailto:styrigx@gmail.com" "icon" "mail" "bg" "bg-m-rose-container" "fg" "text-m-on-rose-container")
   (dict "name" (cond $isEn "Books" "书单") "name2" "Books 书单 books" "url" (print $home "books/") "icon" "book" "bg" "bg-m-secondary-container" "fg" "text-m-on-secondary-container")
   (dict "name" (cond $isEn "Playlist" "歌单") "name2" "Playlist 歌单 music" "url" (print $home "music/") "icon" "music" "bg" "bg-m-warm-container" "fg" "text-m-on-warm-container")
@@ -507,6 +509,7 @@ try{
   </button>
   <div class="dex-pinned">
     <a href="{{ $linksUrl }}" class="dex-tbtn" data-dexpage="browser" aria-label="{{ if $isEn }}Internet{{ else }}浏览器{{ end }}" title="{{ if $isEn }}Internet{{ else }}浏览器{{ end }}"><span class="dex-tbtn-ic">{{ partial "icon.html" "browser" }}</span></a>
+    <a href="{{ $filesUrl }}" class="dex-tbtn" data-dexpage="files" aria-label="{{ if $isEn }}My Files{{ else }}我的文件{{ end }}" title="{{ if $isEn }}My Files{{ else }}我的文件{{ end }}"><span class="dex-tbtn-ic">{{ partial "icon.html" "files" }}</span></a>
     <a href="{{ $setUrl }}" class="dex-tbtn" data-dexpage="settings" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}" title="{{ if $isEn }}Settings{{ else }}设置{{ end }}">{{ partial "icon.html" "gear" }}</a>
   </div>
   <div class="dex-recent">
@@ -529,6 +532,9 @@ try{
   <span class="dock-pill" id="dock-pill" aria-hidden="true"></span>
   <a href="{{ $linksUrl }}" class="dock-btn" data-dock="browser" aria-label="{{ if $isEn }}Internet{{ else }}浏览器{{ end }}">
     <span class="dock-ic">{{ partial "icon.html" "browser" }}</span><span class="dock-label">{{ if $isEn }}Internet{{ else }}浏览器{{ end }}</span>
+  </a>
+  <a href="{{ $filesUrl }}" class="dock-btn" data-dock="files" aria-label="{{ if $isEn }}My Files{{ else }}我的文件{{ end }}">
+    <span class="dock-ic">{{ partial "icon.html" "files" }}</span><span class="dock-label">{{ if $isEn }}My Files{{ else }}我的文件{{ end }}</span>
   </a>
   <a href="{{ $setUrl }}" class="dock-btn" data-dock="settings" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}">
     <span class="dock-ic">{{ partial "icon.html" "gear" }}</span><span class="dock-label">{{ if $isEn }}Settings{{ else }}设置{{ end }}</span>
@@ -616,7 +622,7 @@ try{
     <div id="dex-drawer-grid">
       {{ range $dexApps }}
       <a href="{{ .url }}" {{ if .ext }}target="_blank" rel="noopener"{{ end }} data-name="{{ .name2 }}" class="dex-app" aria-label="{{ .name }}">
-        {{ if eq .icon "browser" }}
+        {{ if or (eq .icon "browser") (eq .icon "files") }}
         <span class="dex-app-ic dex-app-ic-full">{{ partial "icon.html" .icon }}</span>
         {{ else }}
         <span class="dex-app-ic {{ .bg }} {{ .fg }}">{{ partial "icon.html" .icon }}</span>
@@ -652,6 +658,7 @@ window.__iconSvg={
   ticket:'{{ partial "icon.html" "ticket" }}',
   book:'{{ partial "icon.html" "book" }}',
   browser:'{{ partial "icon.html" "browser" }}',
+  files:'{{ partial "icon.html" "files" }}',
   gear:'{{ partial "icon.html" "gear" }}',
   gift:'{{ partial "icon.html" "gift" }}',
   mail:'{{ partial "icon.html" "mail" }}',
@@ -735,7 +742,7 @@ window.__iconSvg={
     if(!pg)return;
     document.querySelectorAll('#dex-taskbar .dex-pinned .dex-tbtn, #dex-recent-list .dex-rec').forEach(function(a){
       var href=a.getAttribute('href')||'';
-      if((pg==='browser'&&href.indexOf('/browser')>=0)||(pg==='settings'&&href.indexOf('/settings')>=0)||(pg==='goodlock'&&href.indexOf('/goodlock')>=0))a.classList.add('active');
+      if((pg==='browser'&&href.indexOf('/browser')>=0)||(pg==='files'&&href.indexOf('/files')>=0)||(pg==='settings'&&href.indexOf('/settings')>=0)||(pg==='goodlock'&&href.indexOf('/goodlock')>=0))a.classList.add('active');
     });
   })();
 

@@ -17,6 +17,18 @@ build:
 enableRobotsTXT: true
 enableEmoji: true
 
+outputFormats:
+  filesindex:
+    mediaType: application/json
+    baseName: files-index
+    isPlainText: true
+    notAlternative: true
+outputs:
+  home:
+    - HTML
+    - RSS
+    - filesindex
+
 markup:
   goldmark:
     renderer:
