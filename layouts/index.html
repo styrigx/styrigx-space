@@ -113,25 +113,45 @@
 
     <!-- 邀请码站 -->
     <a href="https://muse-invite.styrigx.com" target="_blank" rel="noopener"
-       class="group rounded-3xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-gray-900 p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300">
+       class="group rounded-3xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-gray-900 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300 overflow-hidden">
+      {{ with resources.Get "images/shots/invite.png" }}{{ with .Fill "800x400 webp" }}
+      <div class="aspect-[2/1] overflow-hidden">
+        <img src="{{ .RelPermalink }}" alt="" aria-hidden="true" loading="lazy" width="800" height="400" class="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500">
+      </div>
+      {{ end }}{{ end }}
+      <div class="p-6">
       <div class="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform mb-4">{{ partial "icon.html" "ticket" }}</div>
       <div class="font-semibold text-lg group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors">{{ if $isEn }}Invite Board{{ else }}邀请码站{{ end }}</div>
       <div class="mt-1.5 text-sm text-gray-500 dark:text-gray-400">{{ if $isEn }}Free Muse invite code sharing{{ else }}Muse 邀请码免费共享站{{ end }}</div>
+      </div>
     </a>
 
     <!-- muse-playbook -->
     <a href="https://github.com/styrigx/muse-playbook" target="_blank" rel="noopener"
-       class="group rounded-3xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-gray-900 p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300">
+       class="group rounded-3xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-gray-900 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300 overflow-hidden">
+      {{ with resources.Get "images/shots/og-muse-playbook.png" }}{{ with .Fill "800x400 webp" }}
+      <div class="aspect-[2/1] overflow-hidden">
+        <img src="{{ .RelPermalink }}" alt="" aria-hidden="true" loading="lazy" width="800" height="400" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+      </div>
+      {{ end }}{{ end }}
+      <div class="p-6">
       <div class="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform mb-4">{{ partial "icon.html" "book" }}</div>
       <div class="font-semibold text-lg group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors flex items-center gap-2">muse-playbook
         {{ with index $stars "muse-playbook" }}<span class="text-xs font-normal text-gray-400 dark:text-gray-500">★ {{ . }}</span>{{ end }}
       </div>
       <div class="mt-1.5 text-sm text-gray-500 dark:text-gray-400">{{ if $isEn }}501 practical Muse tips{{ else }}501 条 Muse 实用技巧与真实用例{{ end }}</div>
+      </div>
     </a>
 
     <!-- textbook-playbook · 桌面端宽卡 -->
     <a href="https://github.com/styrigx/textbook-playbook" target="_blank" rel="noopener"
-       class="group rounded-3xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-gray-900 p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300 lg:col-span-2">
+       class="group rounded-3xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-gray-900 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300 lg:col-span-2 overflow-hidden">
+      {{ with resources.Get "images/shots/og-textbook-playbook.png" }}{{ with .Fill "1200x400 webp" }}
+      <div class="aspect-[3/1] overflow-hidden">
+        <img src="{{ .RelPermalink }}" alt="" aria-hidden="true" loading="lazy" width="1200" height="400" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+      </div>
+      {{ end }}{{ end }}
+      <div class="p-6">
       <div class="flex items-start gap-5">
         <div class="w-12 h-12 shrink-0 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform">{{ partial "icon.html" "book" }}</div>
         <div>
@@ -140,6 +160,7 @@
           </div>
           <div class="mt-1.5 text-sm text-gray-500 dark:text-gray-400">{{ if $isEn }}Textbook knowledge base in Chinese{{ else }}专业教材条目式中文知识库{{ end }}</div>
         </div>
+      </div>
       </div>
     </a>
 

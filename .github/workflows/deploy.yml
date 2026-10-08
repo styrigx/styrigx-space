@@ -28,7 +28,7 @@ jobs:
         run: npm install
 
       - name: Build CSS
-        run: npx tailwindcss -i assets/css/main.css -o static/css/main.css --minify
+        run: npx tailwindcss -i assets/css/input.css -o assets/css/main.css --minify
 
       - name: Build site
         run: hugo --minify
