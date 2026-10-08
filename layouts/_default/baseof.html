@@ -63,22 +63,32 @@
 })();
 </script>
 <script>
-/* 桌面布局：auto/phone/tablet/dex —— 断点 <640 手机 / 640–1023 平板 / ≥1024 DeX */
+/* 桌面布局：auto/phone/dex —— 断点 <640 手机 / ≥640 DeX（含桌面模式/平板/电脑） */
 function __layoutMode(){
-  var m=null;try{m=localStorage.getItem('sgx-layout')}catch(e){}
-  if(m==='phone'||m==='tablet'||m==='dex')return m;
+  var m=null;
+  try{
+    m=localStorage.getItem('sgx-layout');
+    if(m==='tablet'){localStorage.setItem('sgx-layout','auto');m='auto'} /* 2.3.0 起删掉平板布局，旧值自动迁移 */
+  }catch(e){}
+  if(m==='phone'||m==='dex')return m;
   var w=window.innerWidth||1280;
-  if(w<640)return 'phone';
-  if(w<1024)return 'tablet';
-  return 'dex';
+  return w<640?'phone':'dex';
 }
 function __applyLayout(){
   var d=document.documentElement,m=__layoutMode();
-  d.classList.remove('layout-phone','layout-tablet','layout-dex');
+  d.classList.remove('layout-phone','layout-dex');
   d.classList.add('layout-'+m);
   if(window.__dexLayoutChanged){try{window.__dexLayoutChanged(m)}catch(e){}}
 }
 __applyLayout();
+/* 时区设置（设置页"常规管理 > 日期和时间"）：第一时区默认跟随设备 */
+window.__firstTz=function(){
+  var a='1';try{a=localStorage.getItem('sgx-tz1-auto')}catch(e){}
+  if(a!=='0'){try{return Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC'}catch(e){return'UTC'}}
+  try{return localStorage.getItem('sgx-tz1')||'America/Los_Angeles'}catch(e){return'America/Los_Angeles'}
+};
+window.__secondTz=function(){try{return localStorage.getItem('sgx-tz2')||'America/Los_Angeles'}catch(e){return'America/Los_Angeles'}};
+window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}catch(e){return false}};
 </script>
 </head>
 {{ $setUrl0 := "/settings/" }}{{ if $isEn }}{{ $setUrl0 = "/en/settings/" }}{{ end }}
@@ -189,15 +199,28 @@ __applyLayout();
 {{/* 设置页与常用设置项（$setUrl 已在 body 前定义） */}}
 {{ $cSet := cond $isEn "Settings" "设置" }}
 {{ $idx = $idx | append (dict "t" $cSet "d" (cond $isEn "Theme, language, wallpaper" "主题、语言、壁纸") "u" $setUrl "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Dark mode" "深色模式") "d" $cSet "u" $setUrl "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Language" "语言") "d" $cSet "u" $setUrl "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Wallpaper & theme color" "壁纸和主题色") "d" $cSet "u" $setUrl "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Dark mode" "深色模式") "d" $cSet "u" (print $setUrl "#display") "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Font size" "字体大小") "d" $cSet "u" (print $setUrl "#display") "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Desktop layout" "桌面布局") "d" (cond $isEn "Phone / DeX" "手机 / DeX") "u" (print $setUrl "#display") "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Wallpaper & theme" "壁纸和主题") "d" $cSet "u" (print $setUrl "#theme") "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Theme color" "主色") "d" $cSet "u" (print $setUrl "#theme") "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "General management" "常规管理") "d" $cSet "u" (print $setUrl "#manage") "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Language" "语言") "d" $cSet "u" (print $setUrl "#manage") "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Date & time" "日期和时间") "d" $cSet "u" (print $setUrl "#manage") "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Time zone" "时区") "d" $cSet "u" (print $setUrl "#manage") "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Primary timezone" "第一时区") "d" $cSet "u" (print $setUrl "#manage") "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Second timezone" "第二时区") "d" $cSet "u" (print $setUrl "#manage") "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Hour format" "小时制") "d" $cSet "u" (print $setUrl "#manage") "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Weather" "天气") "d" $cSet "u" (print $setUrl "#manage") "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Temperature unit" "温度单位") "d" $cSet "u" (print $setUrl "#manage") "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Accessibility" "辅助功能") "d" $cSet "u" (print $setUrl "#accessibility") "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Reduce motion" "减弱动效") "d" $cSet "u" (print $setUrl "#accessibility") "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Advanced features" "高级功能") "d" $cSet "u" (print $setUrl "#advanced") "c" $cSet) }}
 {{/* 数字健康 */}}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Digital wellbeing" "数字健康") "d" (cond $isEn "Screen time & bedtime mode" "屏幕时间与就寝模式") "u" (print $setUrl "#wellbeing") "c" $cSet) }}
 {{/* Good Lock 实验室（$glUrl 已在 body 前定义） */}}
 {{ $cGl := "Good Lock" }}
 {{ $idx = $idx | append (dict "t" $cGl "d" (cond $isEn "Experimental modules" "实验性功能模块") "u" $glUrl "c" $cGl) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Desktop layout" "桌面布局") "d" (cond $isEn "Phone / tablet / DeX" "手机 / 平板 / DeX") "u" $setUrl "c" $cSet) }}
 {{ $glMods := slice
   (dict "id" "wellbeing" "zh" "数字健康" "en" "Digital wellbeing" "dzh" "访客时长提示与就寝模式" "den" "Visit reminders & bedtime mode")
   (dict "id" "parallax" "zh" "视差壁纸" "en" "Parallax wallpaper" "dzh" "壁纸随设备移动而视差" "den" "Wallpaper moves with your device")
@@ -539,7 +562,7 @@ try{
   </div>
 </footer>
 
-{{/* ===== DeX / 平板任务栏 ===== */}}
+{{/* ===== DeX 任务栏 ===== */}}
 {{ $dexApps := slice
   (dict "name" (cond $isEn "Blog" "博客") "name2" "Blog 博客" "url" "https://blog.styrigx.com" "icon" "pen" "ext" true "bg" "bg-m-primary-container" "fg" "text-m-on-primary-container")
   (dict "name" (cond $isEn "Invite Board" "邀请码站") "name2" "Invite Board 邀请码站 muse" "url" "https://muse-invite.styrigx.com" "icon" "ticket" "ext" true "bg" "bg-m-tertiary-container" "fg" "text-m-on-tertiary-container")
@@ -549,36 +572,30 @@ try{
   (dict "name" "X" "name2" "X" "url" "https://x.com/styrigx" "icon" "x-logo" "ext" true "bg" "bg-m-container-highest" "fg" "text-m-on-surface")
   (dict "name" (cond $isEn "Bookmarks" "导航") "name2" "Bookmarks 导航 links" "url" $linksUrl "icon" "compass" "bg" "bg-m-accent-container" "fg" "text-m-on-accent-container")
   (dict "name" (cond $isEn "Email" "邮件") "name2" "Email 邮件 mail" "url" "mailto:styrigx@gmail.com" "icon" "mail" "bg" "bg-m-rose-container" "fg" "text-m-on-rose-container")
+  (dict "name" (cond $isEn "Books" "书单") "name2" "Books 书单 books" "url" (print $home "books/") "icon" "book" "bg" "bg-m-secondary-container" "fg" "text-m-on-secondary-container")
+  (dict "name" (cond $isEn "Playlist" "歌单") "name2" "Playlist 歌单 music" "url" (print $home "music/") "icon" "music" "bg" "bg-m-warm-container" "fg" "text-m-on-warm-container")
   (dict "name" (cond $isEn "Settings" "设置") "name2" "Settings 设置" "url" $setUrl "icon" "gear" "bg" "bg-m-container-highest" "fg" "text-m-on-surface")
   (dict "name" "Good Lock" "name2" "Good Lock" "url" $glUrl "icon" "gift" "bg" "bg-m-accent-container" "fg" "text-m-on-accent-container")
 }}
 
 <!-- DeX 任务栏 -->
 <div id="dex-taskbar" role="navigation" aria-label="DeX taskbar">
-  <button type="button" id="dex-drawer-btn" class="dex-tbtn" aria-label="{{ if $isEn }}App drawer{{ else }}应用抽屉{{ end }}">
+  <button type="button" id="dex-drawer-btn" class="dex-tbtn" aria-label="{{ if $isEn }}App drawer{{ else }}应用抽屉{{ end }}" title="{{ if $isEn }}App drawer{{ else }}应用抽屉{{ end }}">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="5" r="2.2"/><circle cx="12" cy="5" r="2.2"/><circle cx="19" cy="5" r="2.2"/><circle cx="5" cy="12" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="19" cy="12" r="2.2"/><circle cx="5" cy="19" r="2.2"/><circle cx="12" cy="19" r="2.2"/><circle cx="19" cy="19" r="2.2"/></svg>
   </button>
   <div class="dex-pinned">
     <a href="{{ $linksUrl }}" class="dex-tbtn" aria-label="{{ if $isEn }}Bookmarks{{ else }}导航{{ end }}" title="{{ if $isEn }}Bookmarks{{ else }}导航{{ end }}">{{ partial "icon.html" "compass" }}</a>
     <a href="{{ $setUrl }}" class="dex-tbtn" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}" title="{{ if $isEn }}Settings{{ else }}设置{{ end }}">{{ partial "icon.html" "gear" }}</a>
   </div>
+  <div class="dex-recent">
+    <span class="dex-sep" aria-hidden="true"></span>
+    <div id="dex-recent-list"></div>
+  </div>
   <div class="dex-tray">
     <span id="dex-wx" aria-hidden="true"></span>
     <button type="button" id="dex-clockbtn" aria-label="{{ if $isEn }}Clock and calendar{{ else }}时钟和日历{{ end }}">
       <span id="dex-time">--:--</span><span id="dex-date"></span>
     </button>
-  </div>
-</div>
-
-<!-- 平板任务栏 -->
-<div id="tablet-taskbar" role="navigation" aria-label="{{ if $isEn }}Tablet taskbar{{ else }}平板任务栏{{ end }}">
-  <div class="tt-pinned">
-    <a href="{{ $linksUrl }}" class="dex-tbtn" aria-label="{{ if $isEn }}Bookmarks{{ else }}导航{{ end }}" title="{{ if $isEn }}Bookmarks{{ else }}导航{{ end }}">{{ partial "icon.html" "compass" }}</a>
-    <a href="{{ $setUrl }}" class="dex-tbtn" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}" title="{{ if $isEn }}Settings{{ else }}设置{{ end }}">{{ partial "icon.html" "gear" }}</a>
-  </div>
-  <div class="tt-recent">
-    <span class="tt-label">{{ if $isEn }}Recent{{ else }}最近{{ end }}</span>
-    <div id="tt-recent-list"></div>
   </div>
 </div>
 
@@ -648,10 +665,10 @@ window.__iconSvg={
     rt=setTimeout(function(){if(window.__applyLayout)window.__applyLayout()},180);
   });
 
-  /* ---- 最近打开的 App（平板任务栏）：真实图标 ---- */
+  /* ---- 最近打开的 App（DeX 任务栏）：真实图标 ---- */
   function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
   document.addEventListener('click',function(e){
-    var a=e.target.closest&&(e.target.closest('.app-tile')||e.target.closest('#dex-icons a')||e.target.closest('#dex-icons button')||e.target.closest('.dex-pinned a')||e.target.closest('#dex-drawer-grid a')||e.target.closest('#tablet-taskbar .tt-pinned a'));
+    var a=e.target.closest&&(e.target.closest('.app-tile')||e.target.closest('#dex-icons a')||e.target.closest('#dex-icons button')||e.target.closest('.dex-pinned a')||e.target.closest('#dex-drawer-grid a')||e.target.closest('#dex-recent-list a'));
     if(!a||!a.href)return;
     var nm=((a.getAttribute('aria-label')||a.textContent||'').trim()||'App').slice(0,24);
     try{
@@ -683,9 +700,11 @@ window.__iconSvg={
     return{favicon:'https://'+host+'/favicon.ico'};
   }
   function paintRecent(){
-    var box=document.getElementById('tt-recent-list');if(!box)return;
+    var box=document.getElementById('dex-recent-list');if(!box)return;
     var l=[];try{l=JSON.parse(get('sgx-recent-apps')||'[]')}catch(e){}
-    box.innerHTML=l.slice(0,4).map(function(x){
+    var items=l.slice(0,3);
+    document.querySelector('.dex-recent').style.display=items.length?'':'none';
+    box.innerHTML=items.map(function(x){
       var init=(x.t||'?').trim().charAt(0)||'•',inner='<span>'+esc(init)+'</span>';
       var ri=recentIcon(x.u);
       if(ri){
@@ -696,7 +715,7 @@ window.__iconSvg={
           inner='<span class="w-8 h-8 rounded-[.7rem] inline-flex items-center justify-center '+ri.cls+'">'+svg+'</span>';
         }
       }
-      return '<a href="'+esc(x.u)+'" class="tt-app" title="'+esc(x.t)+'">'+inner+'</a>';
+      return '<a href="'+esc(x.u)+'" class="dex-rec" title="'+esc(x.t)+'" aria-label="'+esc(x.t)+'">'+inner+'</a>';
     }).join('');
   }
   paintRecent();
@@ -705,35 +724,40 @@ window.__iconSvg={
   (function(){
     var pg=document.body.getAttribute('data-page');
     if(!pg)return;
-    document.querySelectorAll('#dex-taskbar .dex-tbtn, #tablet-taskbar .tt-pinned .dex-tbtn').forEach(function(a){
+    document.querySelectorAll('#dex-taskbar .dex-pinned .dex-tbtn, #dex-recent-list .dex-rec').forEach(function(a){
       var href=a.getAttribute('href')||'';
       if((pg==='links'&&href.indexOf('/links')>=0)||(pg==='settings'&&href.indexOf('/settings')>=0)||(pg==='goodlock'&&href.indexOf('/goodlock')>=0))a.classList.add('active');
     });
   })();
 
-  /* ---- DeX 任务栏时钟 ---- */
+  /* ---- DeX 任务栏时钟：第一帧前写入，遵守小时制 + 第一时区设置 ---- */
   var tEl=document.getElementById('dex-time'),dEl=document.getElementById('dex-date');
+  function fmtTz(tz,h12){
+    try{return new Intl.DateTimeFormat('en-US',{timeZone:tz,hour:'2-digit',minute:'2-digit',hour12:!!h12}).format(new Date())}catch(e){return''}
+  }
   function tickTray(){
-    if(!tEl||!document.documentElement.classList.contains('layout-dex'))return;
-    var d=new Date(),h12=false;
-    try{h12=get('sgx-hour12')==='12'}catch(e){}
-    var hh=d.getHours(),ap='';
-    if(h12){ap=hh>=12?' PM':' AM';hh=hh%12;if(hh===0)hh=12}
-    tEl.textContent=String(hh).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+ap;
+    if(!tEl)return;
+    var tz=window.__firstTz?window.__firstTz():'UTC';
+    var h12=window.__hour12?window.__hour12():false;
+    var s=fmtTz(tz,h12);
+    if(s)tEl.textContent=s;
+    var d=new Date();
     var wdzh=['周日','周一','周二','周三','周四','周五','周六'],wden=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
     dEl.textContent=en?((d.getMonth()+1)+'/'+d.getDate()+' '+wden[d.getDay()]):((d.getMonth()+1)+'月'+d.getDate()+'日 '+wdzh[d.getDay()]);
   }
-  tickTray();setInterval(tickTray,30000);
+  tickTray();setInterval(tickTray,15000);
 
-  /* ---- DeX 托盘天气 ---- */
+  /* ---- DeX 托盘天气（图标 + 温度） ---- */
   (function(){
     var el=document.getElementById('dex-wx');if(!el)return;
+    var WXI={0:'☀️',1:'🌤️',2:'⛅',3:'☁️',45:'🌫️',48:'🌫️',51:'🌦️',53:'🌦️',55:'🌧️',61:'🌧️',63:'🌧️',65:'🌧️',71:'🌨️',73:'🌨️',75:'❄️',80:'🌦️',81:'🌧️',82:'⛈️',95:'⛈️',96:'⛈️'};
     function render(d){
       if(!d||!d.current)return;
       var unit='c';try{unit=get('sgx-temp-unit')==='f'?'f':'c'}catch(e){}
       var t=d.current.temperature_2m;
       t=unit==='f'?Math.round(t*9/5+32):Math.round(t);
-      el.textContent=t+'°'+(unit==='f'?'F':'C');
+      var ic=WXI[d.current.weather_code]||'☁️';
+      el.textContent=ic+' '+t+'°'+(unit==='f'?'F':'C');
       el.title=(d.city||'')+(en?' weather':' 天气');
     }
     function cached(){try{var c=JSON.parse(sessionStorage.getItem('sgx-weather'));if(c&&Date.now()-c.ts<30*60*1000)return c.data}catch(e){}return null}
@@ -741,7 +765,7 @@ window.__iconSvg={
     fetch('/api/geo').then(function(r){return r.json()}).catch(function(){return{}}).then(function(g){
       var lat=parseFloat(g.latitude),lon=parseFloat(g.longitude);
       if(!isFinite(lat)||!isFinite(lon))return;
-      return fetch('https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+'&current=temperature_2m&timezone=auto&forecast_days=1')
+      return fetch('https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+'&current=temperature_2m,weather_code&timezone=auto&forecast_days=1')
         .then(function(r){if(!r.ok)throw 0;return r.json()})
         .then(function(j){render({current:j.current,city:g.city||''})});
     }).catch(function(){});
@@ -781,8 +805,8 @@ window.__iconSvg={
     var TZN={zh:{'Asia/Shanghai':'北京','America/Los_Angeles':'洛杉矶','America/New_York':'纽约','Europe/London':'伦敦','Asia/Tokyo':'东京','Asia/Hong_Kong':'香港','Asia/Seoul':'首尔'},
              en:{'Asia/Shanghai':'Beijing','America/Los_Angeles':'Los Angeles','America/New_York':'New York','Europe/London':'London','Asia/Tokyo':'Tokyo','Asia/Hong_Kong':'Hong Kong','Asia/Seoul':'Seoul'}};
     function tzName(tz){var m=en?TZN.en:TZN.zh;var v=m[tz];return v||tz.split('/').pop().replace(/_/g,' ')}
-    function fmtTz(tz){
-      try{return new Intl.DateTimeFormat('en-US',{timeZone:tz,hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date())}catch(e){return''}
+    function fmtTz(tz,h12){
+      try{return new Intl.DateTimeFormat('en-US',{timeZone:tz,hour:'2-digit',minute:'2-digit',hour12:!!h12}).format(new Date())}catch(e){return''}
     }
     function calendar(){
       var d=new Date(),y=d.getFullYear(),mo=d.getMonth();
@@ -794,13 +818,13 @@ window.__iconSvg={
       return h+'</div>';
     }
     function render(){
-      var local='UTC';try{local=Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC'}catch(e){}
-      var r=null;try{r=get('sgx-tz2')}catch(e){}
-      r=r||'America/Los_Angeles';
+      var local=window.__firstTz?window.__firstTz():'UTC';
+      var r=window.__secondTz?window.__secondTz():'America/Los_Angeles';
       if(r===local)r=(local==='Asia/Shanghai')?'America/Los_Angeles':'Asia/Shanghai';
-      document.getElementById('dex-pop-local').textContent=fmtTz(local);
-      document.getElementById('dex-pop-local-c').textContent=tzName(local)+(en?' (local)':'（本地）');
-      document.getElementById('dex-pop-r').textContent=fmtTz(r);
+      var h12=window.__hour12?window.__hour12():false;
+      document.getElementById('dex-pop-local').textContent=fmtTz(local,h12);
+      document.getElementById('dex-pop-local-c').textContent=tzName(local);
+      document.getElementById('dex-pop-r').textContent=fmtTz(r,h12);
       document.getElementById('dex-pop-r-c').textContent=tzName(r);
       document.getElementById('dex-pop-cal').innerHTML=calendar();
     }

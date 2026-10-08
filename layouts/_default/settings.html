@@ -2,7 +2,7 @@
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 {{ $avatar := resources.Get "images/avatar.png" }}
 {{ $palettes := slice
-  (dict "id" "lake" "c" "#2f5f86" "zh" "湖蓝" "en" "Lake blue")
+  (dict "id" "lake" "c" "#2f5f86" "zh" "默认" "en" "Default")
   (dict "id" "forest" "c" "#2f6b4f" "zh" "山绿" "en" "Forest")
   (dict "id" "terra" "c" "#8a4b2d" "zh" "陶土" "en" "Terracotta")
   (dict "id" "violet" "c" "#6750a4" "zh" "紫" "en" "Violet")
@@ -10,7 +10,7 @@
 }}
 
 <div class="max-w-[1100px] mx-auto px-4">
-  <!-- 大标题头部 -->
+  <!-- 大标题头部（手机端） -->
   <header id="settings-hero" class="page-hero flex flex-col items-center justify-center text-center py-10 animate-fade-up">
     <h1 class="text-6xl sm:text-7xl font-extrabold text-m-primary tracking-tight">{{ if $isEn }}Settings{{ else }}设置{{ end }}</h1>
     <p class="mt-4 text-m-on-surface-variant text-sm">{{ if $isEn }}Make it yours.{{ else }}调成你的样子。{{ end }}</p>
@@ -39,20 +39,24 @@
           <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "palette" }}</span>
           <span>{{ if $isEn }}Wallpaper &amp; theme{{ else }}壁纸和主题{{ end }}</span>
         </button>
-        <button type="button" class="set-cat" data-cat="clock">
-          <span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "clock" }}</span>
-          <span>{{ if $isEn }}Clock &amp; weather{{ else }}时钟和天气{{ end }}</span>
+        <button type="button" class="set-cat" data-cat="manage">
+          <span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "sliders" }}</span>
+          <span>{{ if $isEn }}General management{{ else }}常规管理{{ end }}</span>
         </button>
-        <button type="button" class="set-cat" data-cat="general">
-          <span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "motion" }}</span>
-          <span>{{ if $isEn }}General{{ else }}通用{{ end }}</span>
+        <button type="button" class="set-cat" data-cat="accessibility">
+          <span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "person" }}</span>
+          <span>{{ if $isEn }}Accessibility{{ else }}辅助功能{{ end }}</span>
+        </button>
+        <button type="button" class="set-cat" data-cat="advanced">
+          <span class="set-ic bg-m-warm-container text-m-on-warm-container">{{ partial "icon.html" "sparkles" }}</span>
+          <span>{{ if $isEn }}Advanced features{{ else }}高级功能{{ end }}</span>
         </button>
         <button type="button" class="set-cat" data-cat="wellbeing">
-          <span class="set-ic bg-m-warm-container text-m-on-warm-container">{{ partial "icon.html" "info" }}</span>
+          <span class="set-ic bg-m-rose-container text-m-on-rose-container">{{ partial "icon.html" "info" }}</span>
           <span>{{ if $isEn }}Digital wellbeing{{ else }}数字健康{{ end }}</span>
         </button>
         <button type="button" class="set-cat" data-cat="about">
-          <span class="set-ic bg-m-rose-container text-m-on-rose-container">{{ partial "icon.html" "sparkles" }}</span>
+          <span class="set-ic bg-m-container-highest text-m-on-surface">{{ partial "icon.html" "globe" }}</span>
           <span>{{ if $isEn }}About{{ else }}关于本站{{ end }}</span>
         </button>
       </nav>
@@ -71,7 +75,7 @@
 
     <!-- 第一组：显示 -->
     <div class="set-group scroll-mt-24" id="sg-display">
-    <h2 class="px-2 mb-2 text-sm font-semibold text-m-on-surface-variant">{{ if $isEn }}Display{{ else }}显示{{ end }}</h2>
+    <h2 class="set-gh"><span class="set-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "moon" }}</span><span>{{ if $isEn }}Display{{ else }}显示{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.1s">
       <div class="p-5">
         <div class="grid grid-cols-2 gap-3" id="theme-previews">
@@ -106,18 +110,19 @@
         <span class="flex-1 font-medium">{{ if $isEn }}Follow system{{ else }}跟随系统{{ end }}</span>
         <span class="switch" id="sw-system" role="switch" aria-checked="false" aria-label="{{ if $isEn }}Follow system{{ else }}跟随系统{{ end }}"><span class="knob"></span></span>
       </div>
-      <div class="set-row" id="row-lang" role="button" tabindex="0">
-        <span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "globe" }}</span>
-        <span class="flex-1 font-medium">{{ if $isEn }}Language{{ else }}语言{{ end }}</span>
-        <span id="lang-val" class="text-sm text-m-on-surface-variant">{{ if $isEn }}English{{ else }}中文{{ end }}</span>
-        {{ partial "icon.html" "chev-r" }}
-      </div>
       <div class="p-5">
+        <p class="text-sm font-medium mb-3">{{ if $isEn }}Font size{{ else }}字体大小{{ end }}</p>
+        <div class="seg" id="seg-font" role="group" aria-label="{{ if $isEn }}Font size{{ else }}字体大小{{ end }}">
+          <button type="button" data-v="small" aria-pressed="false">{{ if $isEn }}Small{{ else }}小{{ end }}</button>
+          <button type="button" data-v="standard" aria-pressed="false">{{ if $isEn }}Standard{{ else }}标准{{ end }}</button>
+          <button type="button" data-v="large" aria-pressed="false">{{ if $isEn }}Large{{ else }}大{{ end }}</button>
+        </div>
+      </div>
+      <div class="p-5 pt-2">
         <p class="text-sm font-medium mb-3">{{ if $isEn }}Desktop layout{{ else }}桌面布局{{ end }}</p>
         <div class="seg" id="seg-layout" role="group" aria-label="{{ if $isEn }}Desktop layout{{ else }}桌面布局{{ end }}">
           <button type="button" data-v="auto" aria-pressed="false">{{ if $isEn }}Auto{{ else }}自动{{ end }}</button>
           <button type="button" data-v="phone" aria-pressed="false">{{ if $isEn }}Phone{{ else }}手机{{ end }}</button>
-          <button type="button" data-v="tablet" aria-pressed="false">{{ if $isEn }}Tablet{{ else }}平板{{ end }}</button>
           <button type="button" data-v="dex" aria-pressed="false">DeX</button>
         </div>
         <p class="text-xs text-m-on-surface-variant mt-2">{{ if $isEn }}Manual choice overrides the automatic breakpoint.{{ else }}手动选择会覆盖按宽度的自动判断。{{ end }}</p>
@@ -127,7 +132,7 @@
 
     <!-- 第二组：壁纸和主题 -->
     <div class="set-group scroll-mt-24" id="sg-theme">
-    <h2 class="px-2 mb-2 text-sm font-semibold text-m-on-surface-variant">{{ if $isEn }}Wallpaper & theme{{ else }}壁纸和主题{{ end }}</h2>
+    <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "palette" }}</span><span>{{ if $isEn }}Wallpaper &amp; theme{{ else }}壁纸和主题{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.14s">
       <div class="p-5">
         <p class="text-sm font-medium mb-3">{{ if $isEn }}Theme color{{ else }}主色{{ end }}</p>
@@ -139,53 +144,38 @@
           </div>
           {{ end }}
         </div>
-        <p class="text-xs text-m-on-surface-variant mt-3">{{ if $isEn }}Default is sampled from the avatar photo.{{ else }}默认从头像照片取色。{{ end }}</p>
-      </div>
-      <div class="p-5 pt-2">
-        <p class="text-sm font-medium mb-3">{{ if $isEn }}Font size{{ else }}字体大小{{ end }}</p>
-        <div class="seg" id="seg-font" role="group" aria-label="{{ if $isEn }}Font size{{ else }}字体大小{{ end }}">
-          <button type="button" data-v="small" aria-pressed="false">{{ if $isEn }}Small{{ else }}小{{ end }}</button>
-          <button type="button" data-v="standard" aria-pressed="false">{{ if $isEn }}Standard{{ else }}标准{{ end }}</button>
-          <button type="button" data-v="large" aria-pressed="false">{{ if $isEn }}Large{{ else }}大{{ end }}</button>
-        </div>
       </div>
     </section>
     </div>
 
-    <!-- 第三组：时钟和天气 -->
-    <div class="set-group scroll-mt-24" id="sg-clock">
-    <h2 class="px-2 mb-2 text-sm font-semibold text-m-on-surface-variant">{{ if $isEn }}Clock & weather{{ else }}时钟和天气{{ end }}</h2>
+    <!-- 第三组：常规管理 -->
+    <div class="set-group scroll-mt-24" id="sg-manage">
+    <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "sliders" }}</span><span>{{ if $isEn }}General management{{ else }}常规管理{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.18s">
-      <div class="set-row" id="row-tz" role="button" tabindex="0">
-        <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "clock" }}</span>
-        <span class="flex-1 font-medium">{{ if $isEn }}Second timezone{{ else }}第二时区{{ end }}</span>
-        <span id="tz-val" class="text-sm text-m-on-surface-variant">--</span>
+      <div class="set-row" id="row-lang" role="button" tabindex="0">
+        <span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "globe" }}</span>
+        <span class="flex-1 font-medium">{{ if $isEn }}Language{{ else }}语言{{ end }}</span>
+        <span id="lang-val" class="text-sm text-m-on-surface-variant">{{ if $isEn }}English{{ else }}中文{{ end }}</span>
         {{ partial "icon.html" "chev-r" }}
       </div>
-      <div class="p-5">
-        <p class="text-sm font-medium mb-3">{{ if $isEn }}Hour format{{ else }}小时制{{ end }}</p>
-        <div class="seg" id="seg-hour" role="group" aria-label="{{ if $isEn }}Hour format{{ else }}小时制{{ end }}">
-          <button type="button" data-v="12" aria-pressed="false">{{ if $isEn }}12-hour{{ else }}12 小时制{{ end }}</button>
-          <button type="button" data-v="24" aria-pressed="false">{{ if $isEn }}24-hour{{ else }}24 小时制{{ end }}</button>
-        </div>
+      <div class="set-row" id="row-datetime" role="button" tabindex="0">
+        <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "clock" }}</span>
+        <span class="flex-1 font-medium">{{ if $isEn }}Date &amp; time{{ else }}日期和时间{{ end }}</span>
+        <span id="dt-val" class="text-sm text-m-on-surface-variant">--</span>
+        {{ partial "icon.html" "chev-r" }}
       </div>
-      <div class="p-5 pt-2">
-        <p class="text-sm font-medium mb-3">{{ if $isEn }}Temperature unit{{ else }}温度单位{{ end }}</p>
-        <div class="seg" id="seg-temp" role="group" aria-label="{{ if $isEn }}Temperature unit{{ else }}温度单位{{ end }}">
-          <button type="button" data-v="c" aria-pressed="false">℃</button>
-          <button type="button" data-v="f" aria-pressed="false">℉</button>
-        </div>
-      </div>
-      <div class="set-row no-ic" id="row-wxshow" role="button" tabindex="0">
-        <span class="flex-1 font-medium">{{ if $isEn }}Show weather widget{{ else }}显示天气小组件{{ end }}</span>
-        <span class="switch" id="sw-wxshow" role="switch" aria-checked="true" aria-label="{{ if $isEn }}Show weather widget{{ else }}显示天气小组件{{ end }}"><span class="knob"></span></span>
+      <div class="set-row" id="row-weather" role="button" tabindex="0">
+        <span class="set-ic bg-m-warm-container text-m-on-warm-container">{{ partial "icon.html" "thermo" }}</span>
+        <span class="flex-1 font-medium">{{ if $isEn }}Weather{{ else }}天气{{ end }}</span>
+        <span id="wx-val" class="text-sm text-m-on-surface-variant">℃</span>
+        {{ partial "icon.html" "chev-r" }}
       </div>
     </section>
     </div>
 
-    <!-- 第四组：通用 -->
-    <div class="set-group scroll-mt-24" id="sg-general">
-    <h2 class="px-2 mb-2 text-sm font-semibold text-m-on-surface-variant">{{ if $isEn }}General{{ else }}通用{{ end }}</h2>
+    <!-- 第四组：辅助功能 -->
+    <div class="set-group scroll-mt-24" id="sg-accessibility">
+    <h2 class="set-gh"><span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "person" }}</span><span>{{ if $isEn }}Accessibility{{ else }}辅助功能{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.22s">
       <div class="set-row" id="row-motion" role="button" tabindex="0">
         <span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "motion" }}</span>
@@ -195,14 +185,19 @@
         </span>
         <span class="switch" id="sw-motion" role="switch" aria-checked="false" aria-label="{{ if $isEn }}Reduce motion{{ else }}减弱动效{{ end }}"><span class="knob"></span></span>
       </div>
-      <a class="set-row" id="row-wellbeing" href="#wellbeing">
-        <span class="set-ic bg-m-warm-container text-m-on-warm-container">{{ partial "icon.html" "info" }}</span>
-        <span class="flex-1 font-medium">{{ if $isEn }}Digital wellbeing{{ else }}数字健康{{ end }}</span>
-        {{ partial "icon.html" "chev-r" }}
-      </a>
+    </section>
+    </div>
+
+    <!-- 第五组：高级功能 -->
+    <div class="set-group scroll-mt-24" id="sg-advanced">
+    <h2 class="set-gh"><span class="set-ic bg-m-warm-container text-m-on-warm-container">{{ partial "icon.html" "sparkles" }}</span><span>{{ if $isEn }}Advanced features{{ else }}高级功能{{ end }}</span></h2>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.24s">
       <a class="set-row" id="row-goodlock" href="{{ if $isEn }}/en/goodlock/{{ else }}/goodlock/{{ end }}">
         <span class="set-ic bg-m-rose-container text-m-on-rose-container">{{ partial "icon.html" "gift" }}</span>
-        <span class="flex-1 font-medium">Good Lock</span>
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">Good Lock</span>
+          <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Experimental modules{{ else }}实验性功能模块{{ end }}</span>
+        </span>
         {{ partial "icon.html" "chev-r" }}
       </a>
     </section>
@@ -210,8 +205,8 @@
 
     <!-- 数字健康 -->
     <div class="set-group scroll-mt-24" id="sg-wellbeing">
-    <h2 id="wellbeing" class="px-2 mb-2 text-sm font-semibold text-m-on-surface-variant scroll-mt-24">{{ if $isEn }}Digital wellbeing{{ else }}数字健康{{ end }}</h2>
-    <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.24s">
+    <h2 class="set-gh"><span class="set-ic bg-m-rose-container text-m-on-rose-container">{{ partial "icon.html" "info" }}</span><span>{{ if $isEn }}Digital wellbeing{{ else }}数字健康{{ end }}</span></h2>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.26s">
       {{/* 我的屏幕时间（来自 data/wellbeing.yaml） */}}
       {{ $wb := site.Data.wellbeing }}
       {{ if $wb }}
@@ -262,11 +257,12 @@
         <span class="switch" id="sw-bedtime" role="switch" aria-checked="true" aria-label="{{ if $isEn }}Bedtime mode{{ else }}就寝模式{{ end }}"><span class="knob"></span></span>
       </div>
     </section>
+    </div>
 
-    <!-- 第五组：关于 -->
+    <!-- 第六组：关于 -->
     <div class="set-group scroll-mt-24" id="sg-about">
-    <h2 class="px-2 mb-2 text-sm font-semibold text-m-on-surface-variant">{{ if $isEn }}About{{ else }}关于本站{{ end }}</h2>
-    <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.26s">
+    <h2 class="set-gh"><span class="set-ic bg-m-container-highest text-m-on-surface">{{ partial "icon.html" "globe" }}</span><span>{{ if $isEn }}About{{ else }}关于本站{{ end }}</span></h2>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.28s">
       <div class="set-row no-ic">
         <span class="flex-1 font-medium">{{ if $isEn }}Version{{ else }}版本{{ end }}</span>
         <span class="text-sm text-m-on-surface-variant">{{ site.Params.version }}</span>
@@ -291,12 +287,24 @@
     </div>
   </div>
 
-  <!-- 底部搜索条（手机端，Dock 上方；≥640px 隐藏，改用左栏搜索框） -->
-  <div id="settings-searchbar-wrap" class="fixed inset-x-0 z-30 flex justify-center pointer-events-none px-4">
-    <button type="button" id="settings-searchbar" class="pointer-events-auto widget bg-m-container-lowest border border-m-outline pl-5 pr-6 py-3.5 flex items-center gap-3 shadow-lg active:scale-[0.98] transition-transform w-full max-w-2xl">
-      <span class="text-m-on-surface-variant">{{ partial "icon.html" "search" }}</span>
-      <span class="text-m-on-surface-variant text-sm">{{ if $isEn }}Search settings…{{ else }}搜索设置…{{ end }}</span>
-    </button>
+  <!-- 三星样式浮动搜索条（仅手机） -->
+  <div id="settings-searchfade" aria-hidden="true"></div>
+  <div id="settings-searchbar-wrap">
+    <div id="settings-searchbar" role="button" tabindex="0" aria-label="{{ if $isEn }}Search settings{{ else }}搜索设置{{ end }}">
+      <span class="text-m-on-surface-variant shrink-0">{{ partial "icon.html" "search" }}</span>
+      <span class="flex-1 text-left text-sm text-m-on-surface-variant truncate">{{ if $isEn }}Search{{ else }}搜索{{ end }}</span>
+      <span id="set-mic" role="button" tabindex="0" aria-label="{{ if $isEn }}Voice input{{ else }}语音输入{{ end }}">{{ partial "icon.html" "mic" }}</span>
+    </div>
+  </div>
+
+  <!-- 全屏搜索（仅手机） -->
+  <div id="set-search-overlay" class="hidden" role="dialog" aria-modal="true" aria-label="{{ if $isEn }}Search settings{{ else }}搜索设置{{ end }}">
+    <div class="setso-head">
+      <button type="button" id="setso-back" aria-label="{{ if $isEn }}Back{{ else }}返回{{ end }}">{{ partial "icon.html" "arrow-left" }}</button>
+      <input id="setso-input" type="search" autocomplete="off" enterkeyhint="search" placeholder="{{ if $isEn }}Search settings…{{ else }}搜索设置…{{ end }}">
+      <button type="button" id="setso-mic" aria-label="{{ if $isEn }}Voice input{{ else }}语音输入{{ end }}">{{ partial "icon.html" "mic" }}</button>
+    </div>
+    <div id="setso-results"></div>
   </div>
 </div>
 
@@ -306,6 +314,8 @@
   var $=function(id){return document.getElementById(id)};
   function get(k){try{return localStorage.getItem(k)}catch(e){return null}}
   function set(k,v){try{if(v===null||v===undefined){localStorage.removeItem(k)}else{localStorage.setItem(k,v)}}catch(e){}}
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+  var CHEVR='<svg width="18" height="18" class="w-[18px] h-[18px] text-m-on-surface-variant shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>';
   function setSwitch(id,on){var el=$(id);if(el)el.setAttribute('aria-checked',on?'true':'false')}
   function rowToggle(id,fn){
     var r=$(id);if(!r)return;
@@ -313,15 +323,42 @@
     r.addEventListener('click',go);
     r.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}});
   }
+
+  /* ---- 时区列表（两边共用） ---- */
   var TZS=[
-    {id:'America/Los_Angeles',label:en?'Los Angeles':'洛杉矶'},
-    {id:'America/New_York',label:en?'New York':'纽约'},
-    {id:'Europe/London',label:en?'London':'伦敦'},
-    {id:'Asia/Tokyo',label:en?'Tokyo':'东京'},
-    {id:'Asia/Hong_Kong',label:en?'Hong Kong':'香港'},
-    {id:'Asia/Seoul',label:en?'Seoul':'首尔'}
+    {id:'Asia/Shanghai',zh:'北京',en:'Beijing'},
+    {id:'Asia/Taipei',zh:'台北',en:'Taipei'},
+    {id:'Asia/Hong_Kong',zh:'香港',en:'Hong Kong'},
+    {id:'Asia/Tokyo',zh:'东京',en:'Tokyo'},
+    {id:'Asia/Seoul',zh:'首尔',en:'Seoul'},
+    {id:'Asia/Singapore',zh:'新加坡',en:'Singapore'},
+    {id:'Asia/Bangkok',zh:'曼谷',en:'Bangkok'},
+    {id:'Asia/Dubai',zh:'迪拜',en:'Dubai'},
+    {id:'Asia/Kolkata',zh:'加尔各答',en:'Kolkata'},
+    {id:'Asia/Karachi',zh:'卡拉奇',en:'Karachi'},
+    {id:'Europe/Moscow',zh:'莫斯科',en:'Moscow'},
+    {id:'Europe/Berlin',zh:'柏林',en:'Berlin'},
+    {id:'Europe/Paris',zh:'巴黎',en:'Paris'},
+    {id:'Europe/London',zh:'伦敦',en:'London'},
+    {id:'America/New_York',zh:'纽约',en:'New York'},
+    {id:'America/Chicago',zh:'芝加哥',en:'Chicago'},
+    {id:'America/Denver',zh:'丹佛',en:'Denver'},
+    {id:'America/Los_Angeles',zh:'洛杉矶',en:'Los Angeles'},
+    {id:'America/Anchorage',zh:'安克雷奇',en:'Anchorage'},
+    {id:'Pacific/Honolulu',zh:'檀香山',en:'Honolulu'},
+    {id:'America/Toronto',zh:'多伦多',en:'Toronto'},
+    {id:'America/Vancouver',zh:'温哥华',en:'Vancouver'},
+    {id:'Australia/Sydney',zh:'悉尼',en:'Sydney'},
+    {id:'Pacific/Auckland',zh:'奥克兰',en:'Auckland'}
   ];
-  function tzLabel(id){for(var i=0;i<TZS.length;i++){if(TZS[i].id===id)return TZS[i].label}return id}
+  function tzLabel(id){
+    for(var i=0;i<TZS.length;i++){if(TZS[i].id===id)return en?TZS[i].en:TZS[i].zh}
+    return String(id).split('/').pop().replace(/_/g,' ');
+  }
+  function deviceTz(){try{return Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC'}catch(e){return'UTC'}}
+  function tz1auto(){return get('sgx-tz1-auto')!=='0'}
+  function firstCity(){return tz1auto()?tzLabel(deviceTz()):tzLabel(get('sgx-tz1')||'America/Los_Angeles')}
+  function secondCity(){return tzLabel(get('sgx-tz2')||'America/Los_Angeles')}
 
   /* ---- 主题模式 ---- */
   function curMode(){return get('sgx-theme-mode')||'system'}
@@ -344,15 +381,7 @@
   window.addEventListener('sgx-theme-changed',paintTheme);
   paintTheme();
 
-  /* ---- 语言 ---- */
-  $('row-lang').addEventListener('click',function(){
-    window.__openSheet({title:en?'Language':'语言',options:[
-      {label:'中文',value:'zh',checked:!en},
-      {label:'English',value:'en',checked:en}
-    ],onPick:function(v){location.href=v==='en'?'{{ "/en/settings/" }}':'{{ "/settings/" }}'}});
-  });
-
-  /* ---- 主色色板 ---- */
+  /* ---- 主色色板（第一个 = 默认，即头像取色） ---- */
   function curPalette(){return get('sgx-palette')||'lake'}
   function paintPalette(){
     var p=curPalette();
@@ -390,9 +419,10 @@
   });
   paintFont();
 
-  /* ---- 桌面布局：自动 / 手机 / 平板 / DeX ---- */
+  /* ---- 桌面布局：自动 / 手机 / DeX ---- */
   function paintLayout(){
     var v='auto';try{v=get('sgx-layout')||'auto'}catch(e){}
+    if(v==='tablet'){v='auto';try{localStorage.setItem('sgx-layout','auto')}catch(e){}}
     document.querySelectorAll('#seg-layout button').forEach(function(b){
       b.setAttribute('aria-pressed',b.getAttribute('data-v')===v?'true':'false');
     });
@@ -408,54 +438,146 @@
   });
   paintLayout();
 
-  /* ---- 第二时区 ---- */
-  function paintTz(){$('tz-val').textContent=tzLabel(get('sgx-tz2')||'America/Los_Angeles')}
-  $('row-tz').addEventListener('click',function(){
-    var cur=get('sgx-tz2')||'America/Los_Angeles';
-    window.__openSheet({title:en?'Second timezone':'第二时区',
-      options:TZS.map(function(t){return{label:t.label,value:t.id,checked:t.id===cur}}),
-      onPick:function(v){set('sgx-tz2',v);paintTz();window.dispatchEvent(new Event('sgx-settings-changed'))}});
-  });
-  paintTz();
+  /* ---- 常规管理行：当前值 ---- */
+  function paintManage(){
+    $('lang-val').textContent=en?'English':'中文';
+    $('dt-val').textContent=firstCity()+' · '+secondCity();
+    $('wx-val').textContent=get('sgx-temp-unit')==='f'?'℉':'℃';
+  }
+  paintManage();
 
-  /* ---- 小时制 ---- */
-  function paintHour(){
-    var v=get('sgx-hour12')||'24';
-    document.querySelectorAll('#seg-hour button').forEach(function(b){
-      b.setAttribute('aria-pressed',b.getAttribute('data-v')===v?'true':'false');
+  /* ---- 语言 ---- */
+  rowToggle('row-lang',function(){
+    window.__openSheet({title:en?'Language':'语言',options:[
+      {label:'中文',value:'zh',checked:!en},
+      {label:'English',value:'en',checked:en}
+    ],onPick:function(v){location.href=v==='en'?'{{ "/en/settings/" }}':'{{ "/settings/" }}'}});
+  });
+
+  /* ---- 日期和时间 ---- */
+  function openDateTime(){
+    var auto=tz1auto();
+    var tz1cur=get('sgx-tz1')||'America/Los_Angeles';
+    var h12=get('sgx-hour12')==='12';
+    var html='<div class="px-1 pb-2">'
+      +'<div class="set-row no-ic" id="dt-auto" role="button" tabindex="0">'
+      +'<span class="flex-1 min-w-0"><span class="block font-medium">'+(en?'Use local time for primary timezone':'第一时区使用本地时间')+'</span>'
+      +'<span class="block text-xs text-m-on-surface-variant mt-0.5">'+(en?'Turn off to pick manually':'关闭后可手动选择')+'</span></span>'
+      +'<span class="switch" id="dt-auto-sw" role="switch" aria-checked="'+(auto?'true':'false')+'" aria-label="'+(en?'Use local time':'使用本地时间')+'"><span class="knob"></span></span></div>'
+      +'<div class="set-row no-ic'+(auto?' is-disabled':'')+'" id="dt-tz1" role="button" tabindex="0">'
+      +'<span class="flex-1 font-medium">'+(en?'Primary timezone':'第一时区')+'</span>'
+      +'<span class="text-sm text-m-on-surface-variant">'+esc(auto?tzLabel(deviceTz()):tzLabel(tz1cur))+'</span>'+CHEVR+'</div>'
+      +'<div class="set-row no-ic" id="dt-tz2" role="button" tabindex="0">'
+      +'<span class="flex-1 font-medium">'+(en?'Second timezone':'第二时区')+'</span>'
+      +'<span class="text-sm text-m-on-surface-variant">'+esc(secondCity())+'</span>'+CHEVR+'</div>'
+      +'<div class="px-5 py-4"><p class="text-sm font-medium mb-3">'+(en?'Hour format':'小时制')+'</p>'
+      +'<div class="seg" id="dt-hour" role="group" aria-label="'+(en?'Hour format':'小时制')+'">'
+      +'<button type="button" data-v="12" aria-pressed="'+(h12?'true':'false')+'">'+(en?'12-hour':'12 小时制')+'</button>'
+      +'<button type="button" data-v="24" aria-pressed="'+(h12?'false':'true')+'">'+(en?'24-hour':'24 小时制')+'</button>'
+      +'</div></div>'
+      +'<p class="px-5 pb-3 text-xs text-m-on-surface-variant">'+(en?'Home dual clock and taskbar time use these settings.':'首页双时钟和任务栏时间使用以上设置。')+'</p>'
+      +'</div>';
+    window.__openSheet({title:en?'Date & time':'日期和时间',html:html});
+    function sheetRow(id,fn){
+      var r=$(id);if(!r)return;
+      r.addEventListener('click',fn);
+      r.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();fn()}});
+    }
+    function rewire(){
+      sheetRow('dt-auto',function(){
+        var on=!tz1auto();
+        set('sgx-tz1-auto',on?'1':'0');
+        paintManage();window.dispatchEvent(new Event('sgx-settings-changed'));
+        openDateTime();
+      });
+      if(!tz1auto()){sheetRow('dt-tz1',function(){openTzPicker('sgx-tz1',openDateTime)})}
+      document.querySelectorAll('#dt-hour button').forEach(function(b){
+        b.addEventListener('click',function(){
+          set('sgx-hour12',b.getAttribute('data-v'));
+          document.querySelectorAll('#dt-hour button').forEach(function(x){
+            x.setAttribute('aria-pressed',x===b?'true':'false');
+          });
+          window.dispatchEvent(new Event('sgx-settings-changed'));
+        });
+      });
+      sheetRow('dt-tz2',function(){openTzPicker('sgx-tz2',openDateTime)});
+    }
+    rewire();
+  }
+  rowToggle('row-datetime',openDateTime);
+
+  /* ---- 时区选择器（顶部带搜索） ---- */
+  function openTzPicker(key,back){
+    var cur=key==='sgx-tz1'?(get('sgx-tz1')||'America/Los_Angeles'):(get('sgx-tz2')||'America/Los_Angeles');
+    var html='<div class="px-1 pb-2">'
+      +'<div class="px-4 pb-2"><input id="tzp-q" type="search" autocomplete="off" placeholder="'+(en?'Search timezones…':'搜索时区…')+'" aria-label="'+(en?'Search timezones':'搜索时区')+'"'
+      +' class="w-full rounded-full border border-m-outline bg-m-container px-5 py-2.5 text-sm outline-none placeholder:text-m-on-surface-variant focus:border-m-primary"></div>'
+      +'<div id="tzp-list"></div></div>';
+    window.__openSheet({title:en?'Choose timezone':'选择时区',html:html});
+    function renderList(q){
+      q=(q||'').toLowerCase();
+      var list=TZS.filter(function(t){
+        return !q||t.id.toLowerCase().indexOf(q)>=0||t.zh.indexOf(q)>=0||t.en.toLowerCase().indexOf(q)>=0;
+      });
+      var box=$('tzp-list');
+      box.innerHTML=list.length?list.map(function(t){
+        var lb=en?t.en:t.zh;
+        return '<button type="button" class="sheet-opt" data-tz="'+t.id+'">'
+          +'<span class="flex-1 min-w-0"><span class="block font-medium truncate">'+esc(lb)+'</span>'
+          +'<span class="block text-xs text-m-on-surface-variant truncate">'+t.id+'</span></span>'
+          +(t.id===cur?'<span class="text-m-primary">✓</span>':'')+'</button>';
+      }).join(''):'<p class="px-5 py-4 text-sm text-m-on-surface-variant text-center">'+(en?'No results':'无结果')+'</p>';
+      box.querySelectorAll('.sheet-opt').forEach(function(b){
+        b.addEventListener('click',function(){
+          set(key,b.getAttribute('data-tz'));
+          paintManage();
+          window.dispatchEvent(new Event('sgx-settings-changed'));
+          back();
+        });
+      });
+    }
+    renderList('');
+    var qi=$('tzp-q');
+    qi.addEventListener('input',function(){renderList(qi.value.trim())});
+    setTimeout(function(){qi.focus()},300);
+  }
+
+  /* ---- 天气 ---- */
+  function openWeather(){
+    var show=get('sgx-weather-show')!=='0';
+    var unit=get('sgx-temp-unit')==='f'?'f':'c';
+    var html='<div class="px-1 pb-2">'
+      +'<div class="set-row no-ic" id="wx-show" role="button" tabindex="0">'
+      +'<span class="flex-1 font-medium">'+(en?'Show weather widget':'显示天气小组件')+'</span>'
+      +'<span class="switch" id="wx-show-sw" role="switch" aria-checked="'+(show?'true':'false')+'"><span class="knob"></span></span></div>'
+      +'<div class="px-5 py-4"><p class="text-sm font-medium mb-3">'+(en?'Temperature unit':'温度单位')+'</p>'
+      +'<div class="seg" id="wx-unit" role="group" aria-label="'+(en?'Temperature unit':'温度单位')+'">'
+      +'<button type="button" data-v="c" aria-pressed="'+(unit==='c'?'true':'false')+'">℃</button>'
+      +'<button type="button" data-v="f" aria-pressed="'+(unit==='f'?'true':'false')+'">℉</button>'
+      +'</div></div></div>';
+    window.__openSheet({title:en?'Weather':'天气',html:html});
+    function sheetRow2(id,fn){
+      var r=$(id);if(!r)return;
+      r.addEventListener('click',fn);
+      r.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();fn()}});
+    }
+    sheetRow2('wx-show',function(){
+      var on=get('sgx-weather-show')==='0';
+      set('sgx-weather-show',on?'1':'0');
+      setSwitch('wx-show-sw',on);
+      paintManage();window.dispatchEvent(new Event('sgx-settings-changed'));
+    });
+    document.querySelectorAll('#wx-unit button').forEach(function(b){
+      b.addEventListener('click',function(){
+        set('sgx-temp-unit',b.getAttribute('data-v'));
+        document.querySelectorAll('#wx-unit button').forEach(function(x){
+          x.setAttribute('aria-pressed',x===b?'true':'false');
+        });
+        paintManage();window.dispatchEvent(new Event('sgx-settings-changed'));
+      });
     });
   }
-  document.querySelectorAll('#seg-hour button').forEach(function(b){
-    b.addEventListener('click',function(){
-      set('sgx-hour12',b.getAttribute('data-v'));
-      paintHour();window.dispatchEvent(new Event('sgx-settings-changed'));
-    });
-  });
-  paintHour();
-
-  /* ---- 温度单位 ---- */
-  function paintTemp(){
-    var v=get('sgx-temp-unit')||'c';
-    document.querySelectorAll('#seg-temp button').forEach(function(b){
-      b.setAttribute('aria-pressed',b.getAttribute('data-v')===v?'true':'false');
-    });
-  }
-  document.querySelectorAll('#seg-temp button').forEach(function(b){
-    b.addEventListener('click',function(){
-      set('sgx-temp-unit',b.getAttribute('data-v'));
-      paintTemp();window.dispatchEvent(new Event('sgx-settings-changed'));
-    });
-  });
-  paintTemp();
-
-  /* ---- 天气显示 ---- */
-  function paintWxShow(){setSwitch('sw-wxshow',get('sgx-weather-show')!=='0')}
-  rowToggle('row-wxshow',function(){
-    var on=get('sgx-weather-show')==='0';
-    set('sgx-weather-show',on?'1':'0');
-    paintWxShow();window.dispatchEvent(new Event('sgx-settings-changed'));
-  });
-  paintWxShow();
+  rowToggle('row-weather',openWeather);
 
   /* ---- 减弱动效 ---- */
   function paintMotion(){setSwitch('sw-motion',get('sgx-reduced-motion')==='1')}
@@ -519,19 +641,23 @@
     location.reload();
   });
 
-  /* ---- 平板/桌面双栏：分类切换 + hash 记忆 ---- */
+  /* ---- 桌面双栏：分类切换 + hash 记忆 ---- */
   var CATS=[
     {id:'display',el:'sg-display'},
     {id:'theme',el:'sg-theme'},
-    {id:'clock',el:'sg-clock'},
-    {id:'general',el:'sg-general'},
+    {id:'manage',el:'sg-manage'},
+    {id:'accessibility',el:'sg-accessibility'},
+    {id:'advanced',el:'sg-advanced'},
     {id:'wellbeing',el:'sg-wellbeing'},
     {id:'about',el:'sg-about'}
   ];
   var setLayout=document.querySelector('.set-layout');
   var mqWide=window.matchMedia('(min-width:640px)');
+  var reducedM=document.documentElement.classList.contains('reduced-motion');
   function catFromHash(){
     var h=(location.hash||'').replace(/^#/,'');
+    var alias={clock:'manage','sg-clock':'manage',general:'accessibility','sg-general':'accessibility'};
+    if(alias[h])return alias[h];
     for(var i=0;i<CATS.length;i++){
       if(CATS[i].id===h||('sg-'+CATS[i].id)===h)return CATS[i].id;
     }
@@ -639,9 +765,132 @@
     onScroll();
   })();
 
-  /* ---- 底部搜索条 ---- */
+  /* ---- 全屏搜索索引（手机三星样式搜索条用） ---- */
+  var SETIDX=[
+    {t:en?'Follow system':'跟随系统',d:en?'Display':'显示',cat:'display',el:'row-system'},
+    {t:en?'Font size':'字体大小',d:en?'Display':'显示',cat:'display',el:'seg-font'},
+    {t:en?'Desktop layout':'桌面布局',d:en?'Auto / Phone / DeX':'自动 / 手机 / DeX',cat:'display',el:'seg-layout'},
+    {t:en?'Theme color':'主色',d:en?'Wallpaper & theme':'壁纸和主题',cat:'theme',el:'palette-dots'},
+    {t:en?'Wallpaper & theme':'壁纸和主题',d:'',cat:'theme',el:'sg-theme'},
+    {t:en?'Language':'语言',d:en?'General management':'常规管理',cat:'manage',el:'row-lang'},
+    {t:en?'Date & time':'日期和时间',d:en?'General management':'常规管理',cat:'manage',el:'row-datetime'},
+    {t:en?'Primary timezone':'第一时区',d:en?'Date & time':'日期和时间',cat:'manage',el:'row-datetime'},
+    {t:en?'Second timezone':'第二时区',d:en?'Date & time':'日期和时间',cat:'manage',el:'row-datetime'},
+    {t:en?'Time zone':'时区',d:en?'Date & time':'日期和时间',cat:'manage',el:'row-datetime'},
+    {t:en?'Hour format':'小时制',d:en?'Date & time':'日期和时间',cat:'manage',el:'row-datetime'},
+    {t:en?'Weather':'天气',d:en?'General management':'常规管理',cat:'manage',el:'row-weather'},
+    {t:en?'Temperature unit':'温度单位',d:en?'Weather':'天气',cat:'manage',el:'row-weather'},
+    {t:en?'Show weather widget':'显示天气小组件',d:en?'Weather':'天气',cat:'manage',el:'row-weather'},
+    {t:en?'Reduce motion':'减弱动效',d:en?'Accessibility':'辅助功能',cat:'accessibility',el:'row-motion'},
+    {t:'Good Lock',d:en?'Advanced features':'高级功能',cat:'advanced',el:'row-goodlock'},
+    {t:en?'Digital wellbeing':'数字健康',d:'',cat:'wellbeing',el:'sg-wellbeing'},
+    {t:en?'15-minute reminder':'15 分钟提醒',d:en?'Digital wellbeing':'数字健康',cat:'wellbeing',el:'row-welltip'},
+    {t:en?'Bedtime mode':'就寝模式',d:en?'Digital wellbeing':'数字健康',cat:'wellbeing',el:'row-bedtime'},
+    {t:en?'Version':'版本',d:en?'About':'关于本站',cat:'about',el:'sg-about'},
+    {t:en?'Reset all settings':'重置所有设置',d:en?'About':'关于本站',cat:'about',el:'row-reset'},
+    {t:en?'Display':'显示',d:'',cat:'display',el:'sg-display'},
+    {t:en?'General management':'常规管理',d:'',cat:'manage',el:'sg-manage'},
+    {t:en?'Accessibility':'辅助功能',d:'',cat:'accessibility',el:'sg-accessibility'},
+    {t:en?'Advanced features':'高级功能',d:'',cat:'advanced',el:'sg-advanced'},
+    {t:en?'About':'关于本站',d:'',cat:'about',el:'sg-about'}
+  ];
+  function idxByEl(elid){for(var i=0;i<SETIDX.length;i++){if(SETIDX[i].el===elid)return SETIDX[i]}return null}
+  var ov=$('set-search-overlay'),ovi=$('setso-input'),ovr=$('setso-results');
+  function itemHTML(x){
+    return '<button type="button" class="setso-item" data-cat="'+x.cat+'" data-el="'+x.el+'" data-t="'+esc(x.t)+'">'
+      +'<span class="flex-1 min-w-0"><span class="block font-medium truncate">'+esc(x.t)+'</span>'
+      +(x.d?'<span class="block text-xs text-m-on-surface-variant truncate">'+esc(x.d)+'</span>':'')+'</span>'+CHEVR+'</button>';
+  }
+  function renderOverlay(q){
+    q=(q||'').trim().toLowerCase();
+    var html='';
+    if(!q){
+      var recent=[];try{recent=JSON.parse(get('sgx-set-recent')||'[]')}catch(e){}
+      if(recent.length){
+        html+='<p class="setso-sec">'+(en?'Recent searches':'最近搜索')+'</p>';
+        html+=recent.map(function(r){
+          var f=null;for(var i=0;i<SETIDX.length;i++){if(SETIDX[i].t===r){f=SETIDX[i];break}}
+          return f?itemHTML(f):'';
+        }).join('');
+      }
+      html+='<p class="setso-sec">'+(en?'Common settings':'常用设置')+'</p>';
+      ['seg-font','palette-dots','row-datetime'].forEach(function(eid){
+        var f=idxByEl(eid);if(f)html+=itemHTML(f);
+      });
+    }else{
+      var hits=SETIDX.filter(function(x){return (x.t+' '+x.d).toLowerCase().indexOf(q)>=0}).slice(0,12);
+      html=hits.length?hits.map(itemHTML).join(''):'<p class="px-4 py-8 text-center text-sm text-m-on-surface-variant">'+(en?'No results':'无结果')+'</p>';
+    }
+    ovr.innerHTML=html;
+    ovr.querySelectorAll('.setso-item').forEach(function(b){
+      b.addEventListener('click',function(){pickResult(b.getAttribute('data-cat'),b.getAttribute('data-el'),b.getAttribute('data-t'))});
+    });
+  }
+  function pickResult(cat,elid,title){
+    try{
+      var r=JSON.parse(get('sgx-set-recent')||'[]');
+      r=r.filter(function(x){return x!==title});r.unshift(title);
+      set('sgx-set-recent',JSON.stringify(r.slice(0,6)));
+    }catch(e){}
+    closeOverlay();
+    setTimeout(function(){
+      var el=document.getElementById(elid);
+      if(!el)return;
+      el.scrollIntoView({block:'center',behavior:reducedM?'auto':'smooth'});
+      el.classList.add('set-hl');
+      setTimeout(function(){el.classList.remove('set-hl')},1100);
+    },80);
+  }
+  function openOverlay(){
+    if(!ov)return;
+    ov.classList.remove('hidden');
+    requestAnimationFrame(function(){requestAnimationFrame(function(){ov.classList.add('open')})});
+    ovi.value='';renderOverlay('');
+    setTimeout(function(){try{ovi.focus()}catch(e){}},120);
+  }
+  function closeOverlay(){
+    if(!ov||ov.classList.contains('hidden'))return;
+    ov.classList.remove('open');
+    setTimeout(function(){if(!ov.classList.contains('open'))ov.classList.add('hidden')},reducedM?0:240);
+  }
+  /* 语音输入：支持时才显示麦克风 */
+  function wireMic(btn,inputEl,afterOpen){
+    if(!btn)return;
+    var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SR){btn.style.display='none';return}
+    function go(e){
+      if(e){e.stopPropagation();e.preventDefault()}
+      if(afterOpen)afterOpen();
+      var r;try{r=new SR()}catch(err){return}
+      r.lang=en?'en-US':'zh-CN';r.interimResults=false;r.maxAlternatives=1;
+      r.onresult=function(ev){
+        try{var t=ev.results[0][0].transcript;inputEl.value=t;renderOverlay(t)}catch(err){}
+      };
+      try{r.start()}catch(err){}
+    }
+    btn.addEventListener('click',go);
+    btn.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){go(e)}});
+  }
   var sb=$('settings-searchbar');
-  if(sb)sb.addEventListener('click',function(){window.__openSearch&&window.__openSearch()});
+  if(sb){
+    sb.addEventListener('click',function(e){
+      if(e.target.closest&&e.target.closest('#set-mic'))return;
+      openOverlay();
+    });
+    sb.addEventListener('keydown',function(e){
+      if((e.key==='Enter'||e.key===' ')&&!(e.target.closest&&e.target.closest('#set-mic'))){e.preventDefault();openOverlay()}
+    });
+  }
+  wireMic($('set-mic'),ovi,openOverlay);
+  wireMic($('setso-mic'),ovi,null);
+  if(ov){
+    $('setso-back').addEventListener('click',closeOverlay);
+    ovi.addEventListener('input',function(){renderOverlay(ovi.value)});
+    ovi.addEventListener('keydown',function(e){if(e.key==='Escape'){ovi.value='';renderOverlay('')}});
+    document.addEventListener('keydown',function(e){
+      if(e.key==='Escape'&&!ov.classList.contains('hidden')&&!mqWide.matches)closeOverlay();
+    });
+  }
 })();
 </script>
 {{ end }}

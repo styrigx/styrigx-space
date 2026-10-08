@@ -160,13 +160,18 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .dock-item.dock-active{background:var(--m-primary-container);color:var(--m-on-primary-container)}
 
 /* ===== main 底部留白：避开悬浮 Dock / 任务栏（高度跟随实际任务栏） ===== */
+:root { --dock-h: 64px; }
+.layout-dex { --dock-h: 58px; }
 main {
-  --dock-h: 64px;
   padding-bottom: calc(var(--dock-h) + 32px + env(safe-area-inset-bottom, 0px));
 }
-/* 平板任务栏 60px / DeX 任务栏 58px：留白跟着变 */
-.layout-tablet main { padding-bottom: calc(60px + 40px + env(safe-area-inset-bottom, 0px)); }
-.layout-dex main { padding-bottom: calc(58px + 40px + env(safe-area-inset-bottom, 0px)); }
+/* DeX 任务栏留白 */
+.layout-dex main { padding-bottom: calc(var(--dock-h) + 40px + env(safe-area-inset-bottom, 0px)); }
+
+/* ===== 页脚：内容短的页面也沉底，且始终在任务栏上方 ===== */
+body { display: flex; flex-direction: column; min-height: 100dvh; }
+main { flex: 1 0 auto; }
+footer { padding-bottom: calc(var(--dock-h) + env(safe-area-inset-bottom, 0px)); }
 
 /* ===== 顶栏间距：顶栏 fixed，main 顶部留白 = 顶栏高 + 16px ===== */
 :root { --nav-h: 64px; }
@@ -450,18 +455,16 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
 .kbd{display:inline-block;min-width:1.6rem;text-align:center;background:var(--m-container);border:1px solid var(--m-outline);border-radius:.4rem;padding:2px 6px;font-size:12px;font-family:inherit}
 
 /* ============================================================
-   第四批：DeX / 平板布局
-   布局模式由 <html> 上的 layout-phone / layout-tablet / layout-dex 类驱动，
-   断点：<640 手机 / 640–1023 平板 / ≥1024 DeX，可在设置页手动覆盖。
+   DeX 布局（2.3.0 起：≥640px 统一 DeX，平板布局已删除）
+   布局模式由 <html> 上的 layout-phone / layout-dex 类驱动，
+   断点：<640 手机 / ≥640 DeX，可在设置页手动覆盖。
+   DeX 内部自适应：640–1023px 小组件 2 列，1024–1439px 3 列，≥1440px 4 列；
+   <1024px 时左侧桌面图标列收起。
    ============================================================ */
 
-/* ----- 任务栏：默认全部隐藏 ----- */
-#dex-taskbar,#tablet-taskbar{display:none}
+/* ----- 任务栏：默认隐藏 ----- */
+#dex-taskbar{display:none}
 .layout-dex .dock{display:none !important}
-.layout-tablet .dock{display:none !important}
-/* chipbar 吸底位置跟随任务栏高度 */
-.layout-tablet{--dock-h:60px}
-.layout-dex{--dock-h:58px}
 
 /* ----- DeX 任务栏（全宽底部） ----- */
 .layout-dex #dex-taskbar{display:flex}
@@ -480,22 +483,25 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
 #dex-time{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
 #dex-date{font-size:12px;color:var(--m-on-surface-variant);white-space:nowrap}
 
-/* ----- 平板任务栏 ----- */
-.layout-tablet #tablet-taskbar{display:flex}
-#tablet-taskbar{position:fixed;left:0;right:0;bottom:0;z-index:60;height:60px;align-items:center;justify-content:space-between;
-  padding:0 16px;background:color-mix(in srgb,var(--m-surface) 88%,transparent);
-  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--m-outline)}
-.tt-pinned{display:flex;align-items:center;gap:2px}
-.tt-recent{display:flex;align-items:center;gap:8px;min-width:0}
-.tt-label{font-size:11px;color:var(--m-on-surface-variant);white-space:nowrap}
-#tt-recent-list{display:flex;align-items:center;gap:6px}
-.tt-app{width:40px;height:40px;border-radius:.8rem;background:var(--m-container);color:var(--m-on-surface-variant);
-  display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0}
-.tt-app:active{transform:scale(.92)}
+/* ----- DeX 任务栏"最近"：与固定图标用细竖线分隔 ----- */
+.dex-recent{display:flex;align-items:center;gap:10px;margin-left:8px}
+.dex-sep{width:1px;height:24px;background:var(--m-outline);flex-shrink:0}
+#dex-recent-list{display:flex;align-items:center;gap:6px}
+.dex-rec{width:44px;height:44px;border-radius:.9rem;display:inline-flex;align-items:center;justify-content:center;
+  background:var(--m-container);color:var(--m-on-surface-variant);font-weight:700;font-size:15px;flex-shrink:0;
+  transition:background .2s,transform .15s;position:relative}
+.dex-rec:hover{background:var(--m-container-high)}
+.dex-rec:active{transform:scale(.92)}
+.dex-rec.active{color:var(--m-primary)}
+.dex-rec.active::after{content:'';position:absolute;bottom:1px;left:50%;transform:translateX(-50%);
+  width:5px;height:5px;border-radius:99px;background:var(--m-primary)}
 
-/* ----- DeX 桌面图标（首页左侧竖排） ----- */
+/* ----- DeX 桌面图标（首页左侧竖排，仅 ≥1024px 显示） ----- */
 #dex-icons{display:none}
-.layout-dex #dex-icons{display:flex}
+@media(min-width:1024px){
+  .layout-dex #dex-icons{display:flex}
+  .layout-dex .home-wrap{padding-left:6.5rem}
+}
 #dex-icons{position:fixed;left:1.4rem;top:50%;transform:translateY(-50%);z-index:40;flex-direction:column;gap:1.15rem}
 .dex-icon{display:flex;flex-direction:column;align-items:center;gap:6px;background:none;border:0;cursor:pointer;
   min-width:64px;min-height:64px}
@@ -504,7 +510,7 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
 .dex-icon:hover .dex-di{transform:translateY(-2px)}
 .dex-icon:active .dex-di{transform:scale(.92)}
 .dex-icon span.dex-label{font-size:11px;font-weight:600;color:var(--m-on-surface);text-shadow:0 1px 6px var(--m-surface);white-space:nowrap}
-.layout-dex .home-wrap{max-width:1280px;padding-left:6.5rem}
+.layout-dex .home-wrap{max-width:1280px}
 
 /* ----- DeX 窗口（书单/歌单/花园） ----- */
 #dex-window{display:none;position:fixed;inset:0;z-index:80;align-items:center;justify-content:center;padding:2.5rem}
@@ -557,17 +563,25 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
 .dex-cal-d{padding:5px 0;border-radius:999px;color:var(--m-on-surface-variant)}
 .dex-cal-d.today{background:var(--m-primary);color:var(--m-on-primary);font-weight:700}
 
-/* ----- 平板：小组件两列网格 ----- */
-.layout-tablet #home-widgets{grid-template-columns:repeat(2,minmax(0,1fr))}
-.layout-tablet #home-widgets>.widget{grid-column:span 1/span 1}
-.layout-tablet #home-widgets>.widget.wb-full{grid-column:span 2/span 2}
+/* ----- DeX：小组件列数自适应（640–1023:2列 / 1024–1439:3列 / ≥1440:4列） ----- */
+.layout-dex #home-widgets{grid-template-columns:repeat(2,minmax(0,1fr))}
+.layout-dex #home-widgets>.widget{grid-column:span 1/span 1}
+.layout-dex #home-widgets>.widget.wb-full{grid-column:span 2/span 2}
+@media(min-width:1024px){
+  .layout-dex #home-widgets{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .layout-dex #home-widgets>.widget.wb-full{grid-column:span 3/span 3}
+}
+@media(min-width:1440px){
+  .layout-dex #home-widgets{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .layout-dex #home-widgets>.widget.wb-full{grid-column:span 4/span 4}
+}
 
 /* ----- 手机模式强制（宽屏下也保持手机布局） ----- */
 .layout-phone #home-widgets{grid-template-columns:repeat(4,minmax(0,1fr))}
 .layout-phone #home-widgets>.widget{grid-column:span 4/span 4}
 .layout-phone .app-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
 
-/* ----- 设置页：≥640px 平板/桌面双栏 ----- */
+/* ----- 设置页：≥640px 双栏 ----- */
 .set-side{display:none}
 @media(min-width:640px){
   .set-layout{max-width:none !important;display:grid;grid-template-columns:250px minmax(0,1fr);gap:1.5rem;align-items:start}
@@ -593,8 +607,42 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
 .set-cat:active{transform:scale(.98)}
 .set-cat.active{background:var(--m-primary-container);color:var(--m-on-primary-container)}
 mark.smk{background:var(--m-primary-container);color:var(--m-on-primary-container);border-radius:4px;padding:0 2px}
-/* 设置页底部浮动搜索条：手机端在 Dock 上方完整显示 */
-#settings-searchbar-wrap{bottom:calc(64px + 24px + env(safe-area-inset-bottom,0px)) !important}
+/* ===== 设置页组标题：三星设置风格（彩色实心圆形图标 + 标题） ===== */
+.set-gh{display:flex;align-items:center;gap:12px;padding:0 4px;margin:0 0 10px;font-size:17px;font-weight:700;color:var(--m-on-surface);letter-spacing:-0.01em}
+/* 底部弹层里的禁用行 */
+.is-disabled{opacity:.4;pointer-events:none}
+/* 搜索跳转高亮 */
+.set-hl{outline:2px solid var(--m-primary) !important;outline-offset:2px}
+
+/* ===== 设置页：三星样式浮动搜索条（仅手机） ===== */
+#settings-searchfade,#settings-searchbar-wrap{display:none}
+@media(max-width:639px){
+  /* 搜索条后面的渐变：内容滚到这里自然淡出 */
+  #settings-searchfade{display:block;position:fixed;left:0;right:0;bottom:0;height:96px;z-index:29;pointer-events:none;
+    background:linear-gradient(to bottom,rgba(0,0,0,0) 0%,var(--m-surface) 100%)}
+  /* 居中悬浮胶囊：宽约屏宽 64%，Dock 上方 12px */
+  #settings-searchbar-wrap{display:flex;position:fixed;left:18%;right:18%;bottom:calc(64px + 12px + env(safe-area-inset-bottom,0px));z-index:30;justify-content:center;pointer-events:none}
+  #settings-searchbar{pointer-events:auto;width:100%;min-width:240px;max-width:360px;height:56px;border-radius:999px;
+    background:var(--m-container-lowest);box-shadow:0 4px 16px rgba(0,0,0,.10);cursor:pointer;
+    display:flex;align-items:center;gap:10px;padding:0 6px 0 20px;color:var(--m-on-surface-variant)}
+  .dark #settings-searchbar{background:var(--m-container-high)}
+  #settings-searchbar:active{transform:scale(.98)}
+  #set-mic{width:44px;height:44px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;color:var(--m-on-surface-variant);flex-shrink:0}
+  #set-mic:active{background:var(--m-container)}
+}
+/* ===== 设置页全屏搜索（仅手机） ===== */
+#set-search-overlay{display:none;position:fixed;inset:0;z-index:100;background:var(--m-surface);flex-direction:column;opacity:0;transition:opacity .22s ease}
+#set-search-overlay.open{display:flex;opacity:1}
+.reduced-motion #set-search-overlay{transition:none}
+.setso-head{display:flex;align-items:center;gap:4px;padding:calc(10px + env(safe-area-inset-top,0px)) 8px 10px;border-bottom:1px solid var(--m-outline);flex-shrink:0}
+.setso-head button{width:44px;height:44px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;color:var(--m-on-surface-variant);flex-shrink:0}
+.setso-head button:active{background:var(--m-container)}
+#setso-input{flex:1;min-width:0;background:transparent;outline:none;border:0;font-size:16px;color:var(--m-on-surface)}
+#setso-input::placeholder{color:var(--m-on-surface-variant)}
+#setso-results{flex:1;min-height:0;overflow-y:auto;padding:8px 12px calc(40px + env(safe-area-inset-bottom,0px))}
+.setso-sec{font-size:12px;font-weight:600;color:var(--m-on-surface-variant);padding:14px 12px 4px;letter-spacing:.06em}
+.setso-item{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px;border-radius:1rem;min-height:56px;color:var(--m-on-surface)}
+.setso-item:active{background:var(--m-container)}
 /* 任务栏当前页面小圆点 */
 .dex-tbtn.active{position:relative;color:var(--m-primary)}
 .dex-tbtn.active::after{content:'';position:absolute;bottom:1px;left:50%;transform:translateX(-50%);
