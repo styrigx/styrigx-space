@@ -513,12 +513,6 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
 }
 .page-hero{min-height:30vh;min-height:30svh}
 
-/* ===== 二级区域大标题头部（手机） ===== */
-@media (max-width:639px){
-  .sec-hero{min-height:30vh;min-height:30svh;display:flex;flex-direction:column;justify-content:center;text-align:center}
-  .sec-hero h2{font-size:2.9rem !important;line-height:1.15}
-}
-
 /* ===== 数字健康：分段进度条 ===== */
 .wb-bar{display:flex;height:10px;border-radius:999px;overflow:hidden;background:var(--m-container);gap:2px}
 .wb-bar>span{display:block;height:100%;min-width:0}
@@ -700,7 +694,6 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
 .set-cat:hover{background:var(--m-container)}
 .set-cat:active{transform:scale(.98)}
 .set-cat.active{background:var(--m-primary-container);color:var(--m-on-primary-container)}
-mark.smk{background:var(--m-primary-container);color:var(--m-on-primary-container);border-radius:4px;padding:0 2px}
 /* ===== 设置页组标题：三星设置风格（彩色实心圆形图标 + 标题） ===== */
 .set-gh{display:flex;align-items:center;gap:12px;padding:0 4px;margin:0 0 10px;font-size:17px;font-weight:700;color:var(--m-on-surface);letter-spacing:-0.01em}
 /* 底部弹层里的禁用行 */
@@ -765,9 +758,6 @@ mark.smk{background:var(--m-primary-container);color:var(--m-on-primary-containe
 /* 手机：悬浮在 Dock 上方 12px（Dock 高 64 + 底部 12 = 88px） */
 .layout-phone .sgx-searchbar{position:fixed;left:50%;transform:translateX(-50%);margin-left:0;margin-right:0;
   bottom:calc(88px + env(safe-area-inset-bottom,0px));z-index:41}
-/* 浏览器页“地址栏置顶”偏好：保持现有行为 */
-.layout-phone body.addrbar-top .sgx-searchbar-browser{position:sticky;top:calc(10px + env(safe-area-inset-top,0px));
-  transform:none;z-index:41;margin-bottom:16px}
 /* DeX：大标题下方、内容上方（和浏览器页原来一样） */
 .layout-dex .sgx-searchbar{position:sticky;top:calc(var(--nav-h) + 10px);transform:none;z-index:41;margin-bottom:16px}
 /* 滚动隐藏：复用各页现有逻辑（files 自有 600ms / settings 随 Dock），行为不变 */
@@ -794,9 +784,6 @@ mark.smk{background:var(--m-primary-container);color:var(--m-on-primary-containe
 .brw-sug:active{background:rgba(0,0,0,.05)}
 .brw-sug + .brw-sug{border-top:1px solid rgba(0,0,0,.04)}
 .dark .brw-sug + .brw-sug{border-top-color:rgba(255,255,255,.06)}
-.brw-cat-tag{font-size:10px;font-weight:700;letter-spacing:.04em;color:var(--m-on-primary-container);
-  background:var(--m-primary-container);border-radius:999px;padding:2px 8px;flex-shrink:0}
-.brw-sec{font-size:12px;font-weight:600;color:var(--m-on-surface-variant);padding:14px 16px 4px;letter-spacing:.06em}
 /* 快捷访问网格 */
 .brw-qa-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
 .layout-dex .brw-qa-grid{grid-template-columns:repeat(6,minmax(0,1fr))}

@@ -3,3 +3,6 @@ public/
 resources/
 .hugo_build.lock
 .DS_Store
+# CI 生成的构建产物
+assets/css/main.css
+hugo_stats.json

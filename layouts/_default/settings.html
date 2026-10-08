@@ -317,17 +317,16 @@
 (function(){
   var en=document.documentElement.lang==='en';
   var $=function(id){return document.getElementById(id)};
-  function get(k){try{return localStorage.getItem(k)}catch(e){return null}}
-  function set(k,v){try{if(v===null||v===undefined){localStorage.removeItem(k)}else{localStorage.setItem(k,v)}}catch(e){}}
+  var get=window.__sgxGet, set=window.__sgxSet;
   function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
   var CHEVR='<svg width="18" height="18" class="w-[18px] h-[18px] text-m-on-surface-variant shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>';
   function setSwitch(id,on){var el=$(id);if(el)el.setAttribute('aria-checked',on?'true':'false')}
   function rowToggle(id,fn){
     var r=$(id);if(!r)return;
-    function go(){fn()}
-    r.addEventListener('click',go);
-    r.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}});
+    r.addEventListener('click',fn);
+    r.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();fn()}});
   }
+  var appSheetRow=rowToggle;
 
   /* ---- 时区列表（两边共用） ---- */
   var TZS=[
@@ -504,11 +503,7 @@
       +'<p class="px-5 pb-3 text-xs text-m-on-surface-variant">'+(en?'Home dual clock and taskbar time use these settings.':'首页双时钟和任务栏时间使用以上设置。')+'</p>'
       +'</div>';
     window.__openSheet({title:en?'Date & time':'日期和时间',html:html});
-    function sheetRow(id,fn){
-      var r=$(id);if(!r)return;
-      r.addEventListener('click',fn);
-      r.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();fn()}});
-    }
+    var sheetRow=rowToggle;
     function rewire(){
       sheetRow('dt-auto',function(){
         var on=!tz1auto();
@@ -582,11 +577,7 @@
       +'<button type="button" data-v="f" aria-pressed="'+(unit==='f'?'true':'false')+'">℉</button>'
       +'</div></div></div>';
     window.__openSheet({title:en?'Weather':'天气',html:html});
-    function sheetRow2(id,fn){
-      var r=$(id);if(!r)return;
-      r.addEventListener('click',fn);
-      r.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();fn()}});
-    }
+    var sheetRow2=rowToggle;
     sheetRow2('wx-show',function(){
       var on=get('sgx-weather-show')==='0';
       set('sgx-weather-show',on?'1':'0');
@@ -607,7 +598,7 @@
 
   /* ================= 应用：我的文件 / 应用商店 / 浏览器 ================= */
   var APPS_TOTAL={{ len site.Data.apps }};
-  function hiddenApps(){try{var h=JSON.parse(get('sgx-apps-hidden')||'[]');return Array.isArray(h)?h:[]}catch(e){return[]}}
+  var hiddenApps=window.__sgxHiddenApps;
   function addrbarPos(){var p=get('sgx-addrbar-pos');return p==='top'?'top':'bottom'}
   function filesView(){try{var v=JSON.parse(get('sgx-files-view')||'{}');return v&&typeof v==='object'?v:{}}catch(e){return{}}}
   function paintApps(){
@@ -620,11 +611,6 @@
     if(f2)f2.textContent=en?('Installed '+inst+', uninstalled '+h.length):('已安装 '+inst+' 个，未安装 '+h.length+' 个');
     var f3=$('app-browser-val');
     if(f3)f3.textContent=engineName()+' · '+(addrbarPos()==='top'?(en?'Top':'顶部'):(en?'Bottom':'底部'));
-  }
-  function appSheetRow(id,fn){
-    var r=$(id);if(!r)return;
-    r.addEventListener('click',fn);
-    r.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();fn()}});
   }
   /* 二次确认按钮：第一次点击变红字确认态，3 秒内再点执行 */
   function armConfirm(btn,confirmLabel,fn){

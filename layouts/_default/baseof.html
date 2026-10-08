@@ -79,6 +79,12 @@
 })();
 </script>
 <script>
+/* 全站公共 localStorage 读写（带异常保护），各页面直接复用，不再重复定义 */
+window.__sgxGet=function(k){try{return localStorage.getItem(k)}catch(e){return null}};
+window.__sgxSet=function(k,v){try{if(v===null||v===undefined){localStorage.removeItem(k)}else{localStorage.setItem(k,v)}}catch(e){}};
+window.__sgxFmtTz=function(tz,h12){try{return new Intl.DateTimeFormat('en-US',{timeZone:tz,hour:'2-digit',minute:'2-digit',hour12:!!h12}).format(new Date())}catch(e){return''}};
+</script>
+<script>
 /* 桌面布局：auto/phone/dex —— 断点 <980 手机 / ≥980 DeX（含三星桌面模式/平板/电脑） */
 function __layoutMode(){
   var m=null;
@@ -448,8 +454,7 @@ try{
 /* ===== Good Lock 实验室：全站生效的模块 ===== */
 (function(){
   var en=document.documentElement.lang==='en';
-  function get(k){try{return localStorage.getItem(k)}catch(e){return null}}
-  function set(k,v){try{if(v===null||v===undefined){localStorage.removeItem(k)}else{localStorage.setItem(k,v)}}catch(e){}}
+  var get=window.__sgxGet, set=window.__sgxSet;
   function modOn(key,defOn){var v=get(key);return defOn?(v!=='0'):(v==='1')}
   function reduced(){return document.documentElement.classList.contains('reduced-motion')||(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)}
 
@@ -868,8 +873,7 @@ window.__sgxVoice=function(btn,opts){
 /* ===== 桌面布局系统：resize 跟随 + 顶栏时钟/天气 + 应用抽屉 ===== */
 (function(){
   var en=document.documentElement.lang==='en';
-  function get(k){try{return localStorage.getItem(k)}catch(e){return null}}
-  function set(k,v){try{if(v===null||v===undefined){localStorage.removeItem(k)}else{localStorage.setItem(k,v)}}catch(e){}}
+  var get=window.__sgxGet, set=window.__sgxSet;
 
   /* resize 时重算布局（防抖） */
   var rt=null;
@@ -1016,9 +1020,7 @@ window.__sgxVoice=function(btn,opts){
     var TZN={zh:{'Asia/Shanghai':'北京','America/Los_Angeles':'洛杉矶','America/New_York':'纽约','Europe/London':'伦敦','Asia/Tokyo':'东京','Asia/Hong_Kong':'香港','Asia/Seoul':'首尔'},
              en:{'Asia/Shanghai':'Beijing','America/Los_Angeles':'Los Angeles','America/New_York':'New York','Europe/London':'London','Asia/Tokyo':'Tokyo','Asia/Hong_Kong':'Hong Kong','Asia/Seoul':'Seoul'}};
     function tzName(tz){var m=en?TZN.en:TZN.zh;var v=m[tz];return v||tz.split('/').pop().replace(/_/g,' ')}
-    function fmtTz(tz,h12){
-      try{return new Intl.DateTimeFormat('en-US',{timeZone:tz,hour:'2-digit',minute:'2-digit',hour12:!!h12}).format(new Date())}catch(e){return''}
-    }
+    var fmtTz=window.__sgxFmtTz;
     function calendar(){
       var d=new Date(),y=d.getFullYear(),mo=d.getMonth();
       var first=new Date(y,mo,1).getDay(),days=new Date(y,mo+1,0).getDate();

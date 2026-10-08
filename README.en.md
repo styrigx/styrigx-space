@@ -1,6 +1,6 @@
 <div align="center">
 
-# Styrigx
+# Styrigx's Space
 
 **To understand the world, take it apart; to believe in it, put it back together.**
 
@@ -18,146 +18,148 @@
 
 ---
 
-## 🖼️ Screenshots
+## What is this
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/desktop-dark.png">
-  <img src=".github/assets/desktop-light.png" alt="Styrigx's Space desktop screenshot">
-</picture>
+A personal website written in One UI 8.5 style. The website is a phone.
 
-<img src=".github/assets/mobile-light.png" alt="Styrigx's Space mobile screenshot" width="280">
+## Structure
 
----
+- **Home**: launcher. App icon grid + bottom Dock + widgets (profile card, dual clocks, music, Now notes, latest blog posts, digital garden, screen time, weather).
+- **Dock**: 4 on phone (My Files, Store, Browser, Settings), 5 on DeX (plus app drawer).
+- **System apps**:
+  - My Files: on-site files. Articles, books, music, my sites.
+  - Store: on-site apps. AI, bookshelf, playlist, Good Lock, invite board. Install/uninstall supported.
+  - Browser: external platforms. On-site search + bookmark navigation.
+  - Settings: system-level config and system app settings.
+- **Store apps**:
+  - AI: ask once, open anywhere.
+  - Bookshelf: all books with notes.
+  - Playlist: all songs with notes.
+  - Good Lock: experimental feature modules.
+  - Invite board: free Muse invite code sharing.
 
-## 🌱 What is this
+## Classification rules
 
-Not a blog, and more than a bookmark page — this is a **digital-garden-style personal portal**.
+New content goes where the rules say:
 
----
+- **Store**: multi-participant (e.g. invite board).
+- **My Files**: only I write, only I have access (on-site files, blog, future book library).
+- **Browser**: external platforms, including my profiles on them (GitHub, X).
+- **Settings**: system-level config and system apps only.
 
-## 🧩 Sections
+## Editing content
 
-- 🏠 **Hero** — Big title, radial gradient, bilingual motto, two call-to-action buttons (Blog / Links)
-- ✨ **Featured** — Bento grid, the blog card takes the large cell; the important stuff, at a glance
-- 📚 **Bookshelf** — Real cover wall, hover to read my notes
-- 🎵 **Playlist** — Music on repeat (work in progress)
-- 🌿 **Garden** — A digital garden: 🌱 seedling / 🌿 growing / 🌳 evergreen, with tag filters and my annotations
-- 📍 **Now** — What I'm up to lately
-- 🧭 **/links** — WebStack-style bookmark navigation with a category sidebar and instant search
+All content is driven by `data/*.yaml`. Push after editing, rebuild to update.
 
----
-
-## 📐 Classification rules (where new entries go)
-
-Decide where new content belongs using these rules:
-
-- **Store**: multi-user services (e.g. the invite board).
-- **My Files**: only I write, only I have access (site files, blog, future library).
-- **Internet**: external platforms, including my profiles on them (GitHub, X).
-
----
-
-## ⚡ Features
-
-- ⌘K / Ctrl+K instant site-wide search (bookmarks, books, music, garden)
-- Bilingual (Chinese / English); theme follows the system by default, overridable in Settings (`color-scheme: light dark`, so browsers don't force-recolor the page)
-- Minimal top bar: avatar + Styrigx, search, settings; language and theme live in `/settings/` only
-- Mobile-first, no horizontal scrolling
-- Pure static, no heavy frameworks — hand-written Hugo + Tailwind
-- All content driven by `data/*.yaml`; edit a data file and you're done
-- Fingerprinted CSS (hashed filenames) + tiered cache strategy
-- Custom 404 page
-
----
-
-## 🔗 Short links
-
-Powered by `static/_redirects` (native Cloudflare Pages support):
-
-| Short link | Goes to |
-|---|---|
-| `styrigx.com/mp` | muse-playbook repo |
-| `styrigx.com/tp` | textbook-playbook repo |
-| `styrigx.com/gh` | GitHub profile |
-| `styrigx.com/gh/<repo>` | the matching repo |
-
-To add a new repo, just append one line to `_redirects`.
-
----
-
-## 🛠️ Stack
-
-Hugo (v0.162.0 extended) + Tailwind CSS (v3.4.19) + Cloudflare Pages
-
-## 📊 Updating screen time
-
-The "Digital wellbeing" widget on the homepage reads from `data/wellbeing.yaml`:
+**Add a book** (`data/books.yaml`):
 
 ```yaml
-updated: "2026-10-08"   # update date
-total_minutes: 510      # total (minutes)
-apps:
-  - key: muse
-    zh: "Muse"          # Chinese name
-    en: "Muse"          # English name
-    minutes: 185        # duration (minutes)
-    color: "#d97706"    # segment color in the progress bar
+- title: Title
+  author: Author
+  cover: /images/books/cover.webp
+  rating: 5
+  review: My short note
 ```
 
-Edit, commit and push — the homepage updates on the next build (total and the "Other" segment are computed automatically).
+**Add a song** (`data/music.yaml`):
 
-## 📁 Structure
-
-```
-├── layouts/        # Templates: home, 404, links page, icon partial
-├── assets/css/     # Compiled Tailwind CSS (fingerprinted by Hugo Pipes)
-├── data/           # Content data: books, music, garden, links, now, profile
-├── content/        # Page content (bilingual)
-├── static/         # _redirects (short links), _headers (cache policy), images
-└── .github/        # Actions deploy workflow, README screenshot assets
+```yaml
+- title: Title
+  artist: Artist
+  spotify_id: xxx
+  apple_id: 123456
 ```
 
----
+**Add a bookmark** (`data/links.yaml`):
 
-## 💻 Run locally
+```yaml
+- category: Category
+  sites:
+    - name: Site
+      url: https://example.com
+      desc: One-line description
+```
 
-Requires [Hugo](https://gohugo.io/) extended (v0.162.0):
+**Add an app** (`data/apps.yaml`):
+
+```yaml
+- id: myapp
+  name: My App
+  desc: One-line description
+  url: /myapp/
+  category: ai
+  icon: ai
+  ext: false
+  defaultVisible: true
+```
+
+**Add a site** (`data/sites.yaml`):
+
+```yaml
+- name: Site
+  url: https://example.com
+  desc: One-line description
+  icon: globe
+```
+
+Edit the matching file under `data/en/` for the English version.
+
+## Tech stack
+
+Hugo (v0.162.0 extended) + Tailwind CSS (v3.4.19) + Cloudflare Pages. Pure static, no backend.
+
+## Directory structure
+
+```
+├── layouts/            # Templates
+│   ├── _default/       # baseof (shell), app pages
+│   ├── index.html      # Home
+│   └── partials/       # Search bar, icons, Dock components
+├── assets/css/         # input.css (Tailwind input); main.css generated by CI
+├── assets/js/          # Shared JS (theme, language, search, settings)
+├── data/               # Content data (en/ holds English version)
+├── content/            # Page entries (bilingual)
+├── static/             # _redirects (short links), _headers (cache), images
+├── scripts/            # music-previews.mjs (iTunes preview URLs)
+└── .github/workflows/  # deploy.yml
+```
+
+## Local development
 
 ```bash
+npm install
+npx tailwindcss -i assets/css/input.css -o assets/css/main.css
 hugo server
 ```
 
-Then open http://localhost:1313 .
+Open http://localhost:1313 in your browser.
 
-CSS comes pre-compiled in `assets/css/`, so editing templates and data needs no npm.
+## Deployment
 
----
+Push to main → GitHub Actions builds → deploys to Cloudflare Pages project `styrigx-portal`.
 
-## 🙏 Credits
+Required Secrets (repo Settings → Secrets):
 
-Visual inspiration from:
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
 
-- [HugoBlox](https://hugoblox.com) — colors and feel
-- [Blowfish](https://blowfish.page) — gallery and navbar
-- [Hugo Profile](https://github.com/gurusabarish/hugo-profile) — Now section
-- [WebStack-Hugo](https://github.com/shenweiyan/WebStack-Hugo) — bookmark navigation page
-- [Maggie Appleton](https://maggieappleton.com/garden) — the digital garden
+Add short links in `static/_redirects`:
 
----
+```
+/mp  https://github.com/styrigx/muse-playbook  302
+```
 
-## 🗺️ Roadmap
+Existing short links: `/mp` (muse-playbook), `/tp` (textbook-playbook), `/gh` (GitHub home), `/gh/*` (matching repo).
 
-- [ ] Replace placeholder assets (avatar, playlist covers)
-- [ ] Complete the playlist
-- [ ] Extract into an open-source Hugo theme
+## Related sites
 
----
+- Blog: [blog.styrigx.com](https://blog.styrigx.com)
+- Invite board: [muse-invite.styrigx.com](https://muse-invite.styrigx.com)
+- Book library: book.styrigx.com (coming soon)
 
-## 📄 License
+## License
 
-**Code** is open source under the [MIT License](LICENSE).
-
-**Personal content** is all rights reserved: the motto, book notes, data files under `data/`, avatar and images are Sloan Gray's personal content — please don't republish without permission.
+[MIT License](LICENSE). Personal content (motto, reviews, data, images) is copyrighted. Do not republish without permission.
 
 ---
 
