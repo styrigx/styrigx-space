@@ -30,6 +30,10 @@ jobs:
       - name: Build CSS
         run: npx tailwindcss -i assets/css/input.css -o assets/css/main.css --minify
 
+      - name: Fetch music previews
+        run: node scripts/music-previews.mjs
+        continue-on-error: true
+
       - name: Build site
         run: hugo --minify
 

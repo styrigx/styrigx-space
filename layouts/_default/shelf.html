@@ -12,7 +12,7 @@
   {{ $d := site.Data.music }}{{ if $isEn }}{{ $d = site.Data.en.music }}{{ end }}
   {{ range $m := $d }}
     {{ $cp := "" }}{{ with resources.Get $m.cover }}{{ $cp = .RelPermalink }}{{ else }}{{ $cp = printf "/%s" $m.cover }}{{ end }}
-    {{ $items = $items | append (dict "title" $m.title "sub" ($m.artist | default "") "cover" $cp "comment" ($m.comment | default "") "url" ($m.url | default "")) }}
+    {{ $items = $items | append (dict "title" $m.title "sub" ($m.artist | default "") "cover" $cp "comment" ($m.comment | default "") "url" ($m.url | default "") "spotify_id" ($m.spotify_id | default "") "youtube_id" ($m.youtube_id | default "")) }}
   {{ end }}
 {{ end }}
 <div class="max-w-[1200px] mx-auto px-4">
@@ -20,6 +20,9 @@
   <header id="page-hero" class="page-hero flex flex-col items-center justify-center text-center py-10">
     <h1 class="text-5xl sm:text-6xl font-extrabold text-m-primary tracking-tight">{{ .Title }}</h1>
     <p class="mt-4 text-m-on-surface-variant text-sm sm:text-base"><span class="msg-hover">{{ if $isEn }}Hover for notes{{ else }}悬停看批注{{ end }}</span><span class="msg-tap">{{ if $isEn }}Tap for notes{{ else }}点击看批注{{ end }}</span> · {{ len $items }}{{ if $isEn }}{{ if eq $kind "books" }} books{{ else }} songs{{ end }}{{ else }}{{ if eq $kind "books" }} 本{{ else }} 首{{ end }}{{ end }}</p>
+    {{ if eq $kind "music" }}
+    <p class="mt-2 text-xs text-m-on-surface-variant">{{ if $isEn }}Log in to Spotify for full tracks, or listen on YouTube.{{ else }}登录 Spotify 可听完整版，也可以去 YouTube 听。{{ end }}</p>
+    {{ end }}
   </header>
   <!-- 滚动时的小标题栏 -->
   <div id="page-minibar" class="fixed left-1/2 z-40 opacity-0 pointer-events-none transition-all duration-300" style="top:calc(var(--nav-h) + 16px);transform:translate(-50%,-8px)">
@@ -28,7 +31,7 @@
   <!-- 封面网格：手机 2 列 / 平板 3–4 列 / DeX 5–6 列 -->
   <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6 gap-4 sm:gap-5 pb-16">
     {{ range $items }}
-    <figure class="shelf-card group min-w-0" data-title="{{ .title }}" data-comment="{{ .comment }}" data-url="{{ .url }}">
+    <figure class="shelf-card group min-w-0" data-title="{{ .title }}" data-comment="{{ .comment }}" data-url="{{ .url }}"{{ with .spotify_id }} data-spotify="{{ . }}"{{ end }}{{ with .youtube_id }} data-youtube="{{ . }}"{{ end }}>
       <div class="shelf-cover relative overflow-hidden rounded-[1.4rem] border border-m-outline bg-m-container shadow-sm cursor-pointer" tabindex="0" role="button" aria-label="{{ .title }}">
         <img src="{{ .cover }}" alt="{{ .title }}" loading="lazy" class="w-full {{ if eq $kind "books" }}aspect-[3/4]{{ else }}aspect-square{{ end }} object-cover">
         <div class="shelf-note" aria-hidden="true"><p>{{ .comment }}</p></div>
@@ -36,6 +39,13 @@
       <figcaption class="mt-2.5 px-0.5 min-w-0">
         <p class="font-semibold text-sm truncate">{{ .title }}</p>
         {{ with .sub }}<p class="text-xs text-m-on-surface-variant truncate mt-0.5">{{ . }}</p>{{ end }}
+        {{ if eq $kind "music" }}
+        <button type="button" class="shelf-listen mt-2 inline-flex items-center gap-1.5 rounded-full bg-m-primary-container text-m-on-primary-container px-4 py-2 text-xs font-semibold active:scale-95 transition-transform" aria-expanded="false">
+          <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          {{ if $isEn }}Listen here{{ else }}在此收听{{ end }}
+        </button>
+        <div class="shelf-embed mt-2 hidden"></div>
+        {{ end }}
       </figcaption>
     </figure>
     {{ end }}
@@ -58,17 +68,41 @@
   /* 触屏点封面 → bottom sheet 看批注；桌面端悬停已由 CSS 处理 */
   var en=document.documentElement.lang==='en';
   var coarse=window.matchMedia('(hover: none)').matches;
-  if(!coarse||!window.__openSheet)return;
+  if(coarse&&window.__openSheet){
+    document.querySelectorAll('.shelf-card').forEach(function(card){
+      var cover=card.querySelector('.shelf-cover');
+      function open(){
+        var t=card.dataset.title,c=card.dataset.comment,u=card.dataset.url;
+        var html='<p class="text-sm leading-relaxed text-m-on-surface px-1">'+String(c||'').replace(/</g,'&lt;')+'</p>';
+        if(u&&u!=='#')html+='<a href="'+u.replace(/"/g,'&quot;')+'" target="_blank" rel="noopener" class="mt-4 inline-flex items-center gap-1.5 rounded-full bg-m-primary px-5 py-2.5 text-sm font-semibold text-m-on-primary">'+(en?'Open link':'打开链接')+'</a>';
+        window.__openSheet({title:t,html:html});
+      }
+      cover.addEventListener('click',open);
+      cover.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();open()}});
+    });
+  }
+  /* 歌单页：在此收听 → 卡片内展开嵌入（同时只展开一个） */
   document.querySelectorAll('.shelf-card').forEach(function(card){
-    var cover=card.querySelector('.shelf-cover');
-    function open(){
-      var t=card.dataset.title,c=card.dataset.comment,u=card.dataset.url;
-      var html='<p class="text-sm leading-relaxed text-m-on-surface px-1">'+String(c||'').replace(/</g,'&lt;')+'</p>';
-      if(u&&u!=='#')html+='<a href="'+u.replace(/"/g,'&quot;')+'" target="_blank" rel="noopener" class="mt-4 inline-flex items-center gap-1.5 rounded-full bg-m-primary px-5 py-2.5 text-sm font-semibold text-m-on-primary">'+(en?'Open in QQ Music':'在 QQ 音乐打开')+'</a>';
-      window.__openSheet({title:t,html:html});
-    }
-    cover.addEventListener('click',open);
-    cover.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();open()}});
+    var btn=card.querySelector('.shelf-listen'),box=card.querySelector('.shelf-embed');
+    if(!btn||!box)return;
+    btn.addEventListener('click',function(){
+      var isOpen=!box.classList.contains('hidden');
+      /* 先收起所有 */
+      document.querySelectorAll('.shelf-embed').forEach(function(b){b.classList.add('hidden');b.innerHTML=''});
+      document.querySelectorAll('.shelf-listen').forEach(function(b){b.setAttribute('aria-expanded','false')});
+      if(isOpen)return;
+      /* 首页试听在播就先暂停 */
+      if(window.__npPause)window.__npPause();
+      var sp=card.dataset.spotify,yt=card.dataset.youtube;
+      var html='';
+      if(sp){
+        html='<iframe src="https://open.spotify.com/embed/track/'+encodeURIComponent(sp)+'" height="152" style="border-radius:12px" width="100%" frameborder="0" allowfullscreen loading="lazy" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" title="Spotify"></iframe>';
+        if(yt)html+='<a href="https://www.youtube.com/watch?v='+encodeURIComponent(yt)+'" target="_blank" rel="noopener" class="mt-2 inline-block text-xs text-m-primary hover:underline">'+(en?'YouTube full version':'YouTube 完整版')+'</a>';
+      }else if(yt){
+        html='<div style="position:relative;padding-top:56.25%;border-radius:12px;overflow:hidden"><iframe src="https://www.youtube-nocookie.com/embed/'+encodeURIComponent(yt)+'" style="position:absolute;top:0;left:0;width:100%;height:100%" frameborder="0" allowfullscreen loading="lazy" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" title="YouTube"></iframe></div>';
+      }
+      if(html){box.innerHTML=html;box.classList.remove('hidden');btn.setAttribute('aria-expanded','true')}
+    });
   });
 })();
 </script>

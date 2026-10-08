@@ -488,6 +488,24 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
 .dex-sep{width:1px;height:24px;background:var(--m-outline);flex-shrink:0}
 #dex-recent-list{display:flex;align-items:center;gap:6px}
 .dex-rec{width:44px;height:44px;border-radius:.9rem;display:inline-flex;align-items:center;justify-content:center;
+
+/* ----- DeX 迷你音乐控制窗 ----- */
+#dex-music-pop{display:none}
+.layout-dex #dex-music-pop:not(.hidden){display:flex}
+#dex-music-pop{position:fixed;right:12px;bottom:66px;z-index:61;align-items:center;gap:10px;
+  padding:10px 12px;border-radius:1.25rem;background:var(--m-container-lowest);
+  border:1px solid var(--m-outline);box-shadow:0 12px 32px -8px rgba(0,0,0,.25);max-width:320px}
+#dex-music-pop.hidden{display:none !important}
+.dmp-cover{width:44px;height:44px;border-radius:.8rem;object-fit:cover;flex-shrink:0}
+.dmp-meta{min-width:0;flex:1}
+.dmp-title{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dmp-artist{font-size:11px;color:var(--m-on-surface-variant);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dmp-btns{display:flex;align-items:center;gap:2px;flex-shrink:0}
+.dmp-btn{width:36px;height:36px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;color:var(--m-on-surface-variant)}
+.dmp-btn:hover{background:var(--m-container)}
+.dmp-play{background:var(--m-primary);color:var(--m-on-primary)}
+.dmp-play:hover{background:var(--m-primary)}
+@media (prefers-reduced-motion:reduce){#dex-music-pop{transition:none}}
   background:var(--m-container);color:var(--m-on-surface-variant);font-weight:700;font-size:15px;flex-shrink:0;
   transition:background .2s,transform .15s;position:relative}
 .dex-rec:hover{background:var(--m-container-high)}
