@@ -2,15 +2,23 @@
   url: https://muse-invite.styrigx.com
   desc: 邀请码免费共享，抽码小游戏。
   icon: ticket
+  stage: growing
+  tags: [AI, 工具]
 - name: muse-playbook
   url: https://github.com/styrigx/muse-playbook
   desc: 501 条 Muse 实用技巧与真实用例。
   icon: book
+  stage: evergreen
+  tags: [AI, 开源]
 - name: textbook-playbook
   url: https://github.com/styrigx/textbook-playbook
   desc: 专业教材条目式中文知识库。
   icon: book
+  stage: evergreen
+  tags: [学习, 开源]
 - name: Mihomo 规则集
   url: https://mihomo-mrs.styrigx.com
   desc: 自用代理规则集订阅。
   icon: globe
+  stage: growing
+  tags: [工具, 网络]

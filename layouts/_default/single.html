@@ -2,33 +2,77 @@
 {{ $isEn := eq .Lang "en" }}
 {{ $links := site.Data.links }}
 {{ if $isEn }}{{ $links = site.Data.en.links }}{{ end }}
-<div class="max-w-6xl mx-auto px-6 py-10" id="links-nav">
-  <h1 class="mb-6 text-3xl font-bold text-center">{{ .Title }}</h1>
-  <div class="mb-8 max-w-md mx-auto">
-    <input id="links-search" type="search" placeholder="{{ if $isEn }}Search bookmarks…{{ else }}搜索书签…{{ end }}"
-      class="w-full rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-4 py-2.5 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+<div class="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
+  <div class="text-center mb-8">
+    <h1 class="text-3xl sm:text-4xl font-bold">{{ .Title }}</h1>
+    <p class="mt-2 text-gray-500 dark:text-gray-400 text-sm">{{ if $isEn }}My corner of the internet.{{ else }}我的互联网角落。{{ end }}</p>
   </div>
-  <div class="flex flex-wrap gap-2 justify-center mb-10">
-    {{ range $i, $c := $links }}
-    <a href="#cat-{{ $i }}" class="rounded-full px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-600 hover:bg-blue-100 dark:hover:bg-blue-900/40 hover:border-blue-400 transition-colors">{{ $c.category }}</a>
-    {{ end }}
+  <div class="mb-8 max-w-lg mx-auto relative">
+    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">{{ partial "icon.html" "search" }}</span>
+    <input id="links-search" type="search" placeholder="{{ if $isEn }}Filter bookmarks…{{ else }}即时过滤书签…{{ end }}"
+      class="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 pl-11 pr-4 py-3 shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow" />
   </div>
-  {{ range $i, $c := $links }}
-  <section id="cat-{{ $i }}" class="mb-10 link-category">
-    <h2 class="mb-4 text-lg font-semibold border-l-4 border-blue-500 pl-3">{{ $c.category }}</h2>
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-      {{ range $c.sites }}
-      <a href="{{ .url }}" target="_blank" rel="noopener" data-name="{{ .name }}" data-desc="{{ .desc | default "" }}"
-         class="link-card rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all">
-        <div class="font-medium text-sm truncate">{{ .name }}</div>
-        {{ with .desc }}<div class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ . }}</div>{{ end }}
-      </a>
+  <div class="lg:flex lg:gap-8">
+    <!-- 侧栏分类 -->
+    <aside class="hidden lg:block w-52 shrink-0">
+      <div class="sticky top-24 space-y-1">
+        {{ range $i, $c := $links }}
+        <a href="#cat-{{ $i }}" class="flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-300 transition-colors">
+          <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>{{ $c.category }}
+        </a>
+        {{ end }}
+      </div>
+    </aside>
+    <!-- 移动端分类 pills -->
+    <div class="lg:hidden flex gap-2 overflow-x-auto pb-4 mb-2 no-scrollbar -mx-4 px-4">
+      {{ range $i, $c := $links }}
+      <a href="#cat-{{ $i }}" class="shrink-0 rounded-full px-4 py-1.5 text-sm border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300">{{ $c.category }}</a>
       {{ end }}
     </div>
-  </section>
-  {{ end }}
+    <!-- 卡片区 -->
+    <div class="flex-1 min-w-0">
+      {{ range $i, $c := $links }}
+      <section id="cat-{{ $i }}" class="mb-8 link-category scroll-mt-24">
+        <h2 class="mb-4 flex items-center gap-3 text-base font-bold">
+          <span class="w-1 h-5 rounded-full bg-blue-500"></span>{{ $c.category }}
+          <span class="text-xs font-normal text-gray-400">{{ len $c.sites }}</span>
+        </h2>
+        <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
+          {{ range $c.sites }}
+          {{ $host := (urls.Parse .url).Host }}
+          <a href="{{ .url }}" target="_blank" rel="noopener" data-name="{{ .name }}" data-desc="{{ .desc | default "" }}"
+             class="link-card group flex items-center gap-3 rounded-2xl border border-gray-200/70 dark:border-gray-700/70 bg-white dark:bg-gray-900 px-3.5 py-3 shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:border-blue-200 dark:hover:border-blue-800 transition-all">
+            <img src="https://www.google.com/s2/favicons?domain={{ $host }}&sz=64" alt="" loading="lazy"
+                 class="w-8 h-8 rounded-lg shrink-0 bg-gray-100 dark:bg-gray-800" onerror="this.style.display='none'">
+            <span class="min-w-0">
+              <span class="block font-medium text-sm truncate group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors">{{ .name }}</span>
+              {{ with .desc }}<span class="block text-xs text-gray-500 dark:text-gray-400 truncate">{{ . }}</span>{{ end }}
+            </span>
+          </a>
+          {{ end }}
+        </div>
+      </section>
+      {{ end }}
+      <p id="links-empty" class="hidden text-center text-gray-400 py-16 text-sm">{{ if $isEn }}No matches.{{ else }}没有匹配的书签。{{ end }}</p>
+    </div>
+  </div>
 </div>
 <script>
-(function(){var i=document.getElementById('links-search');if(!i)return;i.addEventListener('input',function(){var q=i.value.trim().toLowerCase();document.querySelectorAll('.link-card').forEach(function(c){var h=(c.dataset.name+' '+c.dataset.desc).toLowerCase();c.style.display=(!q||h.indexOf(q)!==-1)?'':'none'});document.querySelectorAll('.link-category').forEach(function(s){s.style.display=s.querySelectorAll('.link-card:not([style*="none"])').length?'':'none'})})})();
+(function(){
+  var i=document.getElementById('links-search'),empty=document.getElementById('links-empty');
+  if(!i)return;
+  i.addEventListener('input',function(){
+    var q=i.value.trim().toLowerCase(),any=false;
+    document.querySelectorAll('.link-card').forEach(function(c){
+      var show=!q||(c.dataset.name+' '+c.dataset.desc).toLowerCase().indexOf(q)!==-1;
+      c.style.display=show?'':'none';if(show)any=true;
+    });
+    document.querySelectorAll('.link-category').forEach(function(s){
+      var vis=s.querySelectorAll('.link-card:not([style*="none"])').length;
+      s.style.display=vis?'':'none';
+    });
+    empty.classList.toggle('hidden',any);
+  });
+})();
 </script>
 {{ end }}

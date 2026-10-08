@@ -1,88 +1,201 @@
 {{ define "main" }}
 {{ $isEn := eq .Lang "en" }}
+{{ $profile := site.Data.profile }}
 {{ $entries := site.Data.entries.entries }}
 {{ $books := site.Data.books }}
 {{ $music := site.Data.music }}
 {{ $collections := site.Data.collections }}
-{{ if $isEn }}{{ $entries = site.Data.en.entries.entries }}{{ $books = site.Data.en.books }}{{ end }}
+{{ $now := site.Data.now }}
+{{ $linksUrl := "/links/" }}{{ $home := "/" }}
+{{ if $isEn }}{{ $entries = site.Data.en.entries.entries }}{{ $books = site.Data.en.books }}{{ $now = site.Data.en.now }}{{ $linksUrl = "/en/links/" }}{{ $home = "/en/" }}{{ end }}
+{{ $motto := $profile.motto_zh }}{{ if $isEn }}{{ $motto = $profile.motto_en }}{{ end }}
+{{ $motto2 := $profile.motto_en }}{{ if $isEn }}{{ $motto2 = "" }}{{ end }}
+
 <!-- Hero -->
-<section class="max-w-4xl mx-auto px-6 pt-16 pb-8 text-center">
-  <div class="w-32 h-32 mx-auto rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-4xl font-bold mb-6">S</div>
-  <h1 class="text-4xl font-bold mb-3">Styrigx</h1>
-  <p class="text-lg text-gray-600 dark:text-gray-300 mb-2">{{ if $isEn }}To understand the world, take it apart; to believe in it, put it back together.{{ else }}拆开世界是为了看懂它，再把它装回去是为了相信它。{{ end }}</p>
-  <p class="text-sm text-gray-500 dark:text-gray-400 italic mb-6">{{ if $isEn }}{{ else }}To understand the world, take it apart; to believe in it, put it back together.{{ end }}</p>
-  <div class="flex gap-5 justify-center">
-    <a href="https://github.com/styrigx" target="_blank" rel="noopener" class="text-gray-600 dark:text-gray-300 hover:text-blue-600" aria-label="GitHub">
-      <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.55v-2.15c-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.75 2.69 1.25 3.35.95.1-.74.4-1.25.72-1.53-2.55-.29-5.23-1.28-5.23-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.69 5.38-5.25 5.67.41.35.77 1.05.77 2.12v3.15c0 .3.21.67.8.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z"/></svg>
-    </a>
-    <a href="https://x.com/styrigx" target="_blank" rel="noopener" class="text-gray-600 dark:text-gray-300 hover:text-blue-600" aria-label="X">
-      <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M18.24 2.25h3.31l-7.23 8.26 8.5 11.24h-6.66l-5.21-6.82-5.97 6.82H1.67l7.73-8.84L1.25 2.25h6.83l4.71 6.23zm-1.16 17.52h1.83L7.08 4.13H5.12z"/></svg>
-    </a>
+<section class="relative overflow-hidden">
+  <div class="absolute inset-0 pointer-events-none" aria-hidden="true">
+    <div class="absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_0%,rgba(37,99,235,0.14),transparent)] dark:bg-[radial-gradient(ellipse_60%_50%_at_50%_0%,rgba(37,99,235,0.22),transparent)]"></div>
+    <div class="absolute -top-32 left-1/2 -translate-x-1/2 w-[44rem] h-[44rem] bg-blue-200/30 dark:bg-blue-800/20 rounded-full blur-3xl"></div>
+  </div>
+  <div class="relative max-w-5xl mx-auto px-6 pt-20 sm:pt-28 pb-16 sm:pb-24 text-center">
+    <div class="animate-fade-up" style="animation-delay:.05s">
+      {{ with $profile.avatar }}
+      <img src="{{ . }}" alt="Styrigx" class="w-28 h-28 sm:w-32 sm:h-32 mx-auto rounded-full object-cover ring-4 ring-white dark:ring-gray-800 shadow-xl mb-8">
+      {{ else }}
+      <div class="w-28 h-28 sm:w-32 sm:h-32 mx-auto rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-5xl font-bold ring-4 ring-white dark:ring-gray-800 shadow-xl mb-8">S</div>
+      {{ end }}
+    </div>
+    <h1 class="animate-fade-up text-6xl sm:text-7xl font-extrabold mb-6" style="animation-delay:.15s">{{ $profile.name }}</h1>
+    <p class="animate-fade-up text-xl sm:text-2xl text-gray-700 dark:text-gray-200 font-medium" style="animation-delay:.25s">{{ $motto }}</p>
+    {{ with $motto2 }}<p class="animate-fade-up mt-3 text-sm sm:text-base text-gray-500 dark:text-gray-400 italic" style="animation-delay:.32s">{{ . }}</p>{{ end }}
+    <div class="animate-fade-up mt-10 flex flex-col sm:flex-row gap-4 justify-center" style="animation-delay:.4s">
+      <a href="https://blog.styrigx.com" target="_blank" rel="noopener" class="inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-3.5 shadow-lg shadow-blue-600/25 hover:shadow-xl hover:-translate-y-0.5 transition-all">
+        {{ if $isEn }}Blog{{ else }}博客{{ end }}{{ partial "icon.html" "arrow-right" }}
+      </a>
+      <a href="{{ $linksUrl }}" class="inline-flex items-center justify-center gap-2 rounded-full border border-gray-300 dark:border-gray-600 bg-white/70 dark:bg-gray-900/70 backdrop-blur font-semibold px-8 py-3.5 hover:border-blue-400 dark:hover:border-blue-600 hover:text-blue-600 dark:hover:text-blue-400 hover:-translate-y-0.5 transition-all">
+        {{ if $isEn }}Bookmarks{{ else }}书签导航{{ end }}{{ partial "icon.html" "arrow-right" }}
+      </a>
+    </div>
+    <div class="animate-fade-up mt-8 flex gap-4 justify-center" style="animation-delay:.48s">
+      <a href="https://github.com/styrigx" target="_blank" rel="noopener" class="w-10 h-10 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all" aria-label="GitHub">{{ partial "icon.html" "brands/github" }}</a>
+      <a href="https://x.com/styrigx" target="_blank" rel="noopener" class="w-10 h-10 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all" aria-label="X">
+        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M18.24 2.25h3.31l-7.23 8.26 8.5 11.24h-6.66l-5.21-6.82-5.97 6.82H1.67l7.73-8.84L1.25 2.25h6.83l4.71 6.23zm-1.16 17.52h1.83L7.08 4.13H5.12z"/></svg>
+      </a>
+    </div>
   </div>
 </section>
 
-<!-- 精选入口 -->
-<section class="max-w-5xl mx-auto px-6 py-8">
-  <h2 class="mb-6 text-2xl font-bold text-center">{{ if $isEn }}Featured{{ else }}精选入口{{ end }}</h2>
+<!-- 精选入口 · 便当盒 -->
+<section id="featured" class="max-w-6xl mx-auto px-4 sm:px-6 py-14 sm:py-20">
+  <div class="mb-10">
+    <p class="text-sm font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-2">{{ if $isEn }}Featured{{ else }}精选{{ end }}</p>
+    <h2 class="text-3xl sm:text-4xl font-bold">{{ if $isEn }}Start here{{ else }}精选入口{{ end }}</h2>
+    <p class="mt-3 text-gray-500 dark:text-gray-400">{{ if $isEn }}The best of my work, in one place.{{ else }}最重要的东西，都在这里。{{ end }}</p>
+  </div>
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
     {{ range $i, $e := $entries }}
+    {{ $big := eq $i 0 }}{{ $wide := eq $i 5 }}
     <a href="{{ $e.url }}" {{ if $e.external }}target="_blank" rel="noopener"{{ end }}
-       class="group rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all {{ if eq $i 0 }}ring-2 ring-blue-500/60{{ end }}">
-      <div class="font-semibold group-hover:text-blue-600 dark:group-hover:text-blue-300">{{ $e.name }}</div>
-      <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ $e.desc }}</div>
+       class="group rounded-3xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-gray-900 p-6 sm:p-7 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300 {{ if $big }}sm:col-span-2{{ end }} {{ if $wide }}sm:col-span-2 lg:col-span-3{{ end }}">
+      <div class="flex items-start gap-5 {{ if $wide }}sm:items-center{{ end }}">
+        <div class="{{ if $big }}w-14 h-14{{ else }}w-12 h-12{{ end }} shrink-0 rounded-2xl {{ if $big }}bg-blue-600 text-white shadow-lg shadow-blue-600/30{{ else }}bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400{{ end }} flex items-center justify-center group-hover:scale-110 transition-transform">{{ partial "icon.html" $e.icon }}</div>
+        <div class="min-w-0">
+          <div class="font-semibold {{ if $big }}text-xl sm:text-2xl{{ else }}text-lg{{ end }} group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors flex items-center gap-2">{{ $e.name }}
+            <span class="opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-blue-500">{{ partial "icon.html" "arrow-right" }}</span>
+          </div>
+          <div class="mt-1.5 text-sm text-gray-500 dark:text-gray-400 {{ if $big }}sm:text-base{{ end }}">{{ $e.desc }}</div>
+        </div>
+      </div>
     </a>
     {{ end }}
   </div>
 </section>
 
-<!-- 书单 -->
-<section class="max-w-5xl mx-auto px-6 py-8">
-  <h2 class="mb-6 text-2xl font-bold text-center">{{ if $isEn }}Bookshelf{{ else }}书单{{ end }}</h2>
-  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-5">
-    {{ range $books }}
-    <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm">
-      <div class="w-full aspect-[3/4] rounded-lg bg-gradient-to-br from-amber-100 to-orange-200 dark:from-amber-900/40 dark:to-orange-900/40 flex items-center justify-center p-3">
-        <span class="text-center text-sm font-medium line-clamp-4">{{ .title }}</span>
+<!-- 书单 · 封面墙 -->
+<section id="books" class="max-w-6xl mx-auto px-4 sm:px-6 py-14 sm:py-20">
+  <div class="mb-10">
+    <p class="text-sm font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-2">{{ if $isEn }}Reading{{ else }}阅读{{ end }}</p>
+    <h2 class="text-3xl sm:text-4xl font-bold">{{ if $isEn }}Bookshelf{{ else }}书单{{ end }}</h2>
+    <p class="mt-3 text-gray-500 dark:text-gray-400">{{ if $isEn }}Books that shaped how I think. Hover for notes.{{ else }}塑造我思维方式的书，悬停看批注。{{ end }}</p>
+  </div>
+  <div class="flex gap-5 sm:gap-6 overflow-x-auto pb-4 snap-x no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
+    {{ range $b := $books }}
+    <div class="group snap-start shrink-0 w-40 sm:w-48">
+      <div class="relative w-full aspect-[3/4] rounded-2xl overflow-hidden shadow-md group-hover:shadow-xl group-hover:-translate-y-1.5 transition-all duration-300 bg-gray-100 dark:bg-gray-800">
+        {{ with $b.cover }}
+        <img src="{{ . }}" alt="{{ $b.title }}" loading="lazy" class="w-full h-full object-cover">
+        {{ else }}
+        <div class="w-full h-full bg-gradient-to-br from-amber-100 to-orange-200 dark:from-amber-900/40 dark:to-orange-900/40 flex items-center justify-center p-4">
+          <span class="text-center text-sm font-medium line-clamp-4">{{ $b.title }}</span>
+        </div>
+        {{ end }}
+        {{ with $b.comment }}
+        <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
+          <p class="text-white text-xs leading-relaxed">{{ . }}</p>
+        </div>
+        {{ end }}
       </div>
-      <div class="mt-3 font-semibold text-sm truncate">{{ .title }}</div>
-      <div class="text-xs text-gray-500">{{ .author }}</div>
-      {{ with .comment }}<div class="mt-2 text-xs text-gray-600 dark:text-gray-300 line-clamp-3">{{ . }}</div>{{ end }}
+      <div class="mt-3 font-semibold text-sm truncate">{{ $b.title }}</div>
+      <div class="text-xs text-gray-500 dark:text-gray-400">{{ $b.author }}</div>
     </div>
     {{ end }}
   </div>
 </section>
 
-<!-- 歌单 -->
-<section class="max-w-5xl mx-auto px-6 py-8">
-  <h2 class="mb-6 text-2xl font-bold text-center">{{ if $isEn }}Playlist{{ else }}歌单{{ end }}</h2>
-  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
-    {{ range $music }}
-    <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm">
-      <div class="w-full aspect-square rounded-lg bg-gradient-to-br from-violet-100 to-fuchsia-200 dark:from-violet-900/40 dark:to-fuchsia-900/40 flex items-center justify-center p-3">
-        <span class="text-center text-sm font-medium line-clamp-3">{{ .title }}</span>
+<!-- 歌单 · 封面墙 -->
+<section id="music" class="max-w-6xl mx-auto px-4 sm:px-6 py-14 sm:py-20">
+  <div class="mb-10">
+    <p class="text-sm font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-2">{{ if $isEn }}Listening{{ else }}聆听{{ end }}</p>
+    <h2 class="text-3xl sm:text-4xl font-bold">{{ if $isEn }}Playlist{{ else }}歌单{{ end }}</h2>
+    <p class="mt-3 text-gray-500 dark:text-gray-400">{{ if $isEn }}Music on repeat.{{ else }}循环播放的音乐。{{ end }}</p>
+  </div>
+  <div class="flex gap-5 sm:gap-6 overflow-x-auto pb-4 snap-x no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
+    {{ range $m := $music }}
+    {{ if $m.cover }}
+    <div class="group snap-start shrink-0 w-40 sm:w-48">
+      <div class="relative w-full aspect-square rounded-2xl overflow-hidden shadow-md group-hover:shadow-xl group-hover:-translate-y-1.5 transition-all duration-300 bg-gray-100 dark:bg-gray-800">
+        <img src="{{ $m.cover }}" alt="{{ $m.title }}" loading="lazy" class="w-full h-full object-cover">
+        {{ with $m.comment }}
+        <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
+          <p class="text-white text-xs leading-relaxed">{{ . }}</p>
+        </div>
+        {{ end }}
       </div>
-      <div class="mt-3 font-semibold text-sm truncate">{{ .title }}</div>
-      {{ with .artist }}<div class="text-xs text-gray-500">{{ . }}</div>{{ end }}
-      {{ with .comment }}<div class="mt-2 text-xs text-gray-600 dark:text-gray-300 line-clamp-2">{{ . }}</div>{{ end }}
+      <div class="mt-3 font-semibold text-sm truncate">{{ $m.title }}</div>
+      {{ with $m.artist }}<div class="text-xs text-gray-500 dark:text-gray-400">{{ . }}</div>{{ end }}
     </div>
+    {{ else }}
+    <div class="shrink-0 w-full max-w-md rounded-3xl border-2 border-dashed border-gray-200 dark:border-gray-700 p-10 text-center">
+      <div class="w-12 h-12 mx-auto rounded-2xl bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 flex items-center justify-center mb-4">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 9l10.5-3m0 6.553v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66a2.25 2.25 0 001.632-2.163zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66A2.25 2.25 0 009 15.553z"/></svg>
+      </div>
+      <div class="font-semibold">{{ $m.title }}</div>
+      {{ with $m.comment }}<div class="mt-2 text-sm text-gray-500 dark:text-gray-400">{{ . }}</div>{{ end }}
+    </div>
+    {{ end }}
     {{ end }}
   </div>
 </section>
 
-<!-- 收藏 -->
-<section class="max-w-5xl mx-auto px-6 py-8">
-  <h2 class="mb-6 text-2xl font-bold text-center">{{ if $isEn }}Collections{{ else }}收藏{{ end }}</h2>
-  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-    {{ range $collections }}
-    <a href="{{ .url }}" target="_blank" rel="noopener" class="group rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all">
-      <div class="font-semibold group-hover:text-emerald-600 dark:group-hover:text-emerald-300">{{ .name }}</div>
-      <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ .desc }}</div>
+<!-- 收藏 · 数字花园 -->
+<section id="garden" class="max-w-6xl mx-auto px-4 sm:px-6 py-14 sm:py-20">
+  <div class="mb-8">
+    <p class="text-sm font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-2">{{ if $isEn }}Garden{{ else }}花园{{ end }}</p>
+    <h2 class="text-3xl sm:text-4xl font-bold">{{ if $isEn }}Digital Garden{{ else }}收藏{{ end }}</h2>
+    <p class="mt-3 text-gray-500 dark:text-gray-400">{{ if $isEn }}Things I grow and keep.{{ else }}我种下、养着的东西。{{ end }}</p>
+  </div>
+  {{ $tags := slice }}{{ range $collections }}{{ range .tags }}{{ $tags = $tags | append . }}{{ end }}{{ end }}{{ $tags = $tags | uniq }}
+  <div class="flex flex-wrap gap-2 mb-8" id="garden-filters">
+    <button data-tag="" class="garden-pill rounded-full px-4 py-1.5 text-sm font-medium bg-blue-600 text-white transition-colors">{{ if $isEn }}All{{ else }}全部{{ end }}</button>
+    {{ range $tags }}<button data-tag="{{ . }}" class="garden-pill rounded-full px-4 py-1.5 text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-400 transition-colors">{{ . }}</button>{{ end }}
+  </div>
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-5" id="garden-grid">
+    {{ range $c := $collections }}
+    <a href="{{ $c.url }}" target="_blank" rel="noopener" data-tags="{{ delimit $c.tags "," }}"
+       class="garden-card group rounded-3xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-gray-900 p-6 sm:p-7 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300">
+      <div class="flex items-start justify-between gap-4 mb-4">
+        <div class="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform">{{ partial "icon.html" $c.icon }}</div>
+        {{ if eq $c.stage "seedling" }}
+        <span class="text-xs font-medium text-lime-700 dark:text-lime-300 bg-lime-50 dark:bg-lime-900/30 rounded-full px-3 py-1">🌱 {{ if $isEn }}Seedling{{ else }}幼苗{{ end }}</span>
+        {{ else if eq $c.stage "growing" }}
+        <span class="text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 rounded-full px-3 py-1">🌿 {{ if $isEn }}Growing{{ else }}长成{{ end }}</span>
+        {{ else }}
+        <span class="text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 rounded-full px-3 py-1">🌳 {{ if $isEn }}Evergreen{{ else }}常青{{ end }}</span>
+        {{ end }}
+      </div>
+      <div class="font-semibold text-lg group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors">{{ $c.name }}</div>
+      <div class="mt-1.5 text-sm text-gray-500 dark:text-gray-400">{{ $c.desc }}</div>
+      {{ with $c.tags }}<div class="mt-4 flex flex-wrap gap-1.5">{{ range . }}<span class="text-[11px] text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-full px-2.5 py-0.5">{{ . }}</span>{{ end }}</div>{{ end }}
     </a>
     {{ end }}
   </div>
 </section>
+<script>
+(function(){
+  var pills=document.querySelectorAll('#garden-filters .garden-pill'),
+      cards=document.querySelectorAll('#garden-grid .garden-card');
+  pills.forEach(function(p){p.addEventListener('click',function(){
+    pills.forEach(function(x){x.className='garden-pill rounded-full px-4 py-1.5 text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-400 transition-colors'});
+    p.className='garden-pill rounded-full px-4 py-1.5 text-sm font-medium bg-blue-600 text-white transition-colors';
+    var t=p.dataset.tag;
+    cards.forEach(function(c){c.style.display=(!t||c.dataset.tags.split(',').indexOf(t)!==-1)?'':'none'});
+  })});
+})();
+</script>
 
-<section class="text-center py-10">
-  <a href="{{ if $isEn }}/en/links/{{ else }}/links/{{ end }}" class="inline-block rounded-full bg-blue-600 hover:bg-blue-700 text-white font-medium px-8 py-3 transition-colors">{{ if $isEn }}Bookmarks →{{ else }}书签导航 →{{ end }}</a>
+<!-- Now -->
+<section id="now" class="max-w-6xl mx-auto px-4 sm:px-6 py-14 sm:py-20">
+  <div class="rounded-3xl border border-gray-200/80 dark:border-gray-700/80 bg-gradient-to-br from-blue-50/60 to-transparent dark:from-blue-950/30 dark:to-transparent p-8 sm:p-10">
+    <p class="text-sm font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-2">Now</p>
+    <h2 class="text-2xl sm:text-3xl font-bold mb-6">{{ if $isEn }}What I'm doing now{{ else }}最近在做什么{{ end }}</h2>
+    <ul class="space-y-4">
+      {{ range $now }}
+      <li class="flex gap-4 items-start">
+        <span class="shrink-0 mt-0.5 text-xs font-mono text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/40 rounded-full px-3 py-1">{{ .date }}</span>
+        <span class="text-gray-700 dark:text-gray-200">{{ .text }}</span>
+      </li>
+      {{ end }}
+    </ul>
+  </div>
 </section>
 {{ end }}
