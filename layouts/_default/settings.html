@@ -15,24 +15,51 @@
     <h1 class="text-6xl sm:text-7xl font-extrabold text-m-primary tracking-tight">{{ if $isEn }}Settings{{ else }}设置{{ end }}</h1>
     <p class="mt-4 text-m-on-surface-variant text-sm">{{ if $isEn }}Make it yours.{{ else }}调成你的样子。{{ end }}</p>
   </header>
-  <!-- 滚动时的小标题栏 -->
-  <div id="settings-minibar" class="fixed left-1/2 z-40 opacity-0 pointer-events-none transition-all duration-300" style="top:66px;transform:translate(-50%,-8px)">
-    <div class="glass border border-m-outline rounded-full px-5 py-2 text-sm font-semibold shadow-md whitespace-nowrap">{{ if $isEn }}Settings{{ else }}设置{{ end }}</div>
-  </div>
 
   <div class="set-layout max-w-2xl mx-auto pb-28">
-    <!-- 平板双栏：左侧分类 -->
+    <!-- 平板/桌面双栏：左侧分类 -->
     <aside class="set-side" aria-label="{{ if $isEn }}Categories{{ else }}分类{{ end }}">
-      <a href="#sg-display">{{ if $isEn }}Display{{ else }}显示{{ end }}</a>
-      <a href="#sg-theme">{{ if $isEn }}Wallpaper &amp; theme{{ else }}壁纸和主题{{ end }}</a>
-      <a href="#sg-clock">{{ if $isEn }}Clock &amp; weather{{ else }}时钟和天气{{ end }}</a>
-      <a href="#sg-general">{{ if $isEn }}General{{ else }}通用{{ end }}</a>
-      <a href="#wellbeing">{{ if $isEn }}Digital wellbeing{{ else }}数字健康{{ end }}</a>
-      <a href="#sg-about">{{ if $isEn }}About{{ else }}关于本站{{ end }}</a>
+      <h1 class="set-side-title">{{ if $isEn }}Settings{{ else }}设置{{ end }}</h1>
+      <div class="set-side-profile">
+        {{ if $avatar }}{{ $a := $avatar.Fill "160x160 webp" }}
+        <img src="{{ $a.RelPermalink }}" alt="Sloan Gray" width="48" height="48" class="w-12 h-12 rounded-full object-cover ring-2 ring-m-outline shrink-0">
+        {{ end }}
+        <div class="min-w-0">
+          <p class="font-bold truncate">Sloan Gray</p>
+          <p class="text-xs text-m-on-surface-variant">Styrigx</p>
+        </div>
+      </div>
+      <input id="set-search" type="search" autocomplete="off" placeholder="{{ if $isEn }}Search settings…{{ else }}搜索设置…{{ end }}" aria-label="{{ if $isEn }}Search settings{{ else }}搜索设置{{ end }}">
+      <nav class="flex flex-col gap-1" id="set-cat-nav">
+        <button type="button" class="set-cat" data-cat="display">
+          <span class="set-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "moon" }}</span>
+          <span>{{ if $isEn }}Display{{ else }}显示{{ end }}</span>
+        </button>
+        <button type="button" class="set-cat" data-cat="theme">
+          <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "palette" }}</span>
+          <span>{{ if $isEn }}Wallpaper &amp; theme{{ else }}壁纸和主题{{ end }}</span>
+        </button>
+        <button type="button" class="set-cat" data-cat="clock">
+          <span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "clock" }}</span>
+          <span>{{ if $isEn }}Clock &amp; weather{{ else }}时钟和天气{{ end }}</span>
+        </button>
+        <button type="button" class="set-cat" data-cat="general">
+          <span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "motion" }}</span>
+          <span>{{ if $isEn }}General{{ else }}通用{{ end }}</span>
+        </button>
+        <button type="button" class="set-cat" data-cat="wellbeing">
+          <span class="set-ic bg-m-warm-container text-m-on-warm-container">{{ partial "icon.html" "info" }}</span>
+          <span>{{ if $isEn }}Digital wellbeing{{ else }}数字健康{{ end }}</span>
+        </button>
+        <button type="button" class="set-cat" data-cat="about">
+          <span class="set-ic bg-m-rose-container text-m-on-rose-container">{{ partial "icon.html" "sparkles" }}</span>
+          <span>{{ if $isEn }}About{{ else }}关于本站{{ end }}</span>
+        </button>
+      </nav>
     </aside>
     <div class="set-main min-w-0">
-    <!-- 个人卡片 -->
-    <section class="widget bg-m-container-lowest border border-m-outline p-5 flex items-center gap-4 mb-7 animate-fade-up" style="animation-delay:.06s">
+    <!-- 个人卡片（手机端显示，双栏下左栏已有） -->
+    <section class="sm:hidden widget bg-m-container-lowest border border-m-outline p-5 flex items-center gap-4 mb-7 animate-fade-up" style="animation-delay:.06s">
       {{ if $avatar }}{{ $a := $avatar.Fill "160x160 webp" }}
       <img src="{{ $a.RelPermalink }}" alt="Sloan Gray" width="64" height="64" class="w-16 h-16 rounded-full object-cover ring-2 ring-m-outline shrink-0">
       {{ end }}
@@ -264,8 +291,8 @@
     </div>
   </div>
 
-  <!-- 底部搜索条 -->
-  <div class="fixed bottom-6 inset-x-0 z-30 flex justify-center pointer-events-none px-4">
+  <!-- 底部搜索条（手机端，Dock 上方；≥640px 隐藏，改用左栏搜索框） -->
+  <div id="settings-searchbar-wrap" class="fixed inset-x-0 z-30 flex justify-center pointer-events-none px-4">
     <button type="button" id="settings-searchbar" class="pointer-events-auto widget bg-m-container-lowest border border-m-outline pl-5 pr-6 py-3.5 flex items-center gap-3 shadow-lg active:scale-[0.98] transition-transform w-full max-w-2xl">
       <span class="text-m-on-surface-variant">{{ partial "icon.html" "search" }}</span>
       <span class="text-m-on-surface-variant text-sm">{{ if $isEn }}Search settings…{{ else }}搜索设置…{{ end }}</span>
@@ -492,17 +519,123 @@
     location.reload();
   });
 
-  /* ---- 小标题栏 ---- */
+  /* ---- 平板/桌面双栏：分类切换 + hash 记忆 ---- */
+  var CATS=[
+    {id:'display',el:'sg-display'},
+    {id:'theme',el:'sg-theme'},
+    {id:'clock',el:'sg-clock'},
+    {id:'general',el:'sg-general'},
+    {id:'wellbeing',el:'sg-wellbeing'},
+    {id:'about',el:'sg-about'}
+  ];
+  var setLayout=document.querySelector('.set-layout');
+  var mqWide=window.matchMedia('(min-width:640px)');
+  function catFromHash(){
+    var h=(location.hash||'').replace(/^#/,'');
+    for(var i=0;i<CATS.length;i++){
+      if(CATS[i].id===h||('sg-'+CATS[i].id)===h)return CATS[i].id;
+    }
+    return 'display';
+  }
+  function showCat(id,skipHash){
+    document.querySelectorAll('.set-group').forEach(function(g){
+      g.classList.toggle('active',g.id==='sg-'+id);
+    });
+    document.querySelectorAll('#set-cat-nav .set-cat').forEach(function(b){
+      var on=b.getAttribute('data-cat')===id;
+      b.classList.toggle('active',on);
+      if(on)b.setAttribute('aria-current','true');else b.removeAttribute('aria-current');
+    });
+    if(!skipHash){try{history.replaceState(null,'','#'+id)}catch(e){}}
+    if(setLayout&&mqWide.matches)setLayout.classList.add('single-cat');
+  }
+  function applyMode(){
+    if(!mqWide.matches){
+      if(setLayout)setLayout.classList.remove('single-cat');
+      document.querySelectorAll('.set-group').forEach(function(g){g.classList.remove('active');g.style.display=''});
+      document.querySelectorAll('#set-cat-nav .set-cat').forEach(function(b){b.classList.remove('active');b.style.display=''});
+      var si=$('set-search');if(si)si.value='';
+      clearMarks();
+      return;
+    }
+    showCat(catFromHash(),true);
+  }
+  document.querySelectorAll('#set-cat-nav .set-cat').forEach(function(b){
+    b.addEventListener('click',function(){
+      var si=$('set-search');if(si)si.value='';
+      clearSearch();
+      showCat(b.getAttribute('data-cat'));
+    });
+  });
+  window.addEventListener('hashchange',function(){if(mqWide.matches)showCat(catFromHash(),true)});
+  if(mqWide.addEventListener)mqWide.addEventListener('change',applyMode);
+  else if(mqWide.addListener)mqWide.addListener(applyMode);
+
+  /* ---- 左栏搜索：过滤分类 + 高亮右栏设置项 ---- */
+  var setSearch=$('set-search');
+  function clearMarks(){
+    document.querySelectorAll('.set-main mark.smk').forEach(function(m){
+      m.replaceWith(document.createTextNode(m.textContent));
+    });
+  }
+  function clearSearch(){
+    clearMarks();
+    document.querySelectorAll('#set-cat-nav .set-cat').forEach(function(b){b.style.display=''});
+    document.querySelectorAll('.set-group').forEach(function(g){g.style.display=''});
+    if(mqWide.matches)showCat(catFromHash(),true);
+  }
+  function markText(root,q){
+    var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode:function(n){
+      if(!n.nodeValue||n.nodeValue.toLowerCase().indexOf(q)<0)return NodeFilter.FILTER_REJECT;
+      var p=n.parentNode;
+      if(!p||(p.closest&&p.closest('script,style')))return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }});
+    var nodes=[];
+    while(walker.nextNode())nodes.push(walker.currentNode);
+    nodes.forEach(function(n){
+      var idx=n.nodeValue.toLowerCase().indexOf(q);
+      if(idx<0)return;
+      var frag=document.createDocumentFragment();
+      frag.appendChild(document.createTextNode(n.nodeValue.slice(0,idx)));
+      var mk=document.createElement('mark');mk.className='smk';mk.textContent=n.nodeValue.slice(idx,idx+q.length);
+      frag.appendChild(mk);
+      frag.appendChild(document.createTextNode(n.nodeValue.slice(idx+q.length)));
+      n.parentNode.replaceChild(frag,n);
+    });
+  }
+  if(setSearch){
+    setSearch.addEventListener('input',function(){
+      var q=setSearch.value.trim().toLowerCase();
+      clearMarks();
+      if(!q){clearSearch();return}
+      if(setLayout)setLayout.classList.remove('single-cat');
+      CATS.forEach(function(c){
+        var g=document.getElementById(c.el);if(!g)return;
+        var btn=document.querySelector('#set-cat-nav .set-cat[data-cat="'+c.id+'"]');
+        var match=g.textContent.toLowerCase().indexOf(q)>=0;
+        g.style.display=match?'':'none';
+        if(btn)btn.style.display=match?'':'none';
+        if(match)markText(g,q);
+      });
+    });
+    setSearch.addEventListener('keydown',function(e){
+      if(e.key==='Escape'){setSearch.value='';clearSearch();setSearch.blur()}
+    });
+  }
+  applyMode();
+
+  /* ---- 手机端：收缩标题放进顶栏左侧 ---- */
   (function(){
-    var bar=$('settings-minibar'),hero=$('settings-hero');
-    if(!bar||!hero)return;
+    var hero=$('settings-hero'),ctx=document.getElementById('nav-context');
+    if(!hero||!ctx)return;
     function onScroll(){
-      var show=window.scrollY>hero.offsetHeight*0.55;
-      bar.style.opacity=show?'1':'0';
-      bar.style.transform=show?'translate(-50%,0)':'translate(-50%,-8px)';
-      bar.style.pointerEvents=show?'auto':'none';
+      var show=!mqWide.matches&&window.scrollY>hero.offsetHeight*0.55;
+      if(show){ctx.textContent=en?'Settings':'设置';ctx.classList.remove('hidden')}
+      else{ctx.textContent='';ctx.classList.add('hidden')}
     }
     window.addEventListener('scroll',onScroll,{passive:true});
+    window.addEventListener('resize',onScroll);
     onScroll();
   })();
 

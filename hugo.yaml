@@ -25,4 +25,4 @@ markup:
 params:
   description: 'Sloan Gray 的个人门户'
   since: 2020
-  version: '2.2.1'
+  version: '2.2.2'

@@ -67,10 +67,13 @@ function __applyLayout(){
 __applyLayout();
 </script>
 </head>
-<body class="text-m-on-surface min-h-screen antialiased{{ if .IsHome }} has-dock{{ end }}">
+{{ $setUrl0 := "/settings/" }}{{ if $isEn }}{{ $setUrl0 = "/en/settings/" }}{{ end }}
+{{ $glUrl0 := "/goodlock/" }}{{ if $isEn }}{{ $glUrl0 = "/en/goodlock/" }}{{ end }}
+<body class="text-m-on-surface min-h-screen antialiased{{ if .IsHome }} has-dock{{ end }}" data-page="{{ if eq .RelPermalink "/links/" }}links{{ else if eq .RelPermalink "/en/links/" }}links{{ else if eq .RelPermalink $setUrl0 }}settings{{ else if eq .RelPermalink $glUrl0 }}goodlock{{ end }}">
 {{ $profile := site.Data.profile }}
 {{ $home := "/" }}{{ if $isEn }}{{ $home = "/en/" }}{{ end }}
 {{ $linksUrl := "/links/" }}{{ if $isEn }}{{ $linksUrl = "/en/links/" }}{{ end }}
+{{ $setUrl := $setUrl0 }}{{ $glUrl := $glUrl0 }}
 
 <!-- 状态栏式导航 -->
 <nav id="site-nav" class="sticky top-0 z-50 glass border-b border-m-outline">
@@ -85,26 +88,37 @@ __applyLayout();
       {{ end }}
       <span>Styrigx</span>
     </a>
-    <div class="flex items-center gap-1 sm:gap-2 text-sm">
-      <button id="search-open-m" class="nav-act w-9 h-9 rounded-full flex items-center justify-center text-m-on-surface-variant hover:bg-m-container transition-colors" aria-label="{{ if $isEn }}Search{{ else }}搜索{{ end }}">{{ partial "icon.html" "search" }}</button>
-      <a href="{{ $home }}" class="nav-act hidden sm:inline-flex px-3 py-1.5 rounded-full hover:bg-m-container transition-colors text-m-on-surface-variant whitespace-nowrap">{{ if $isEn }}Home{{ else }}首页{{ end }}</a>
-      <a href="{{ if $isEn }}/en/links/{{ else }}/links/{{ end }}" class="nav-act hidden sm:inline-flex px-3 py-1.5 rounded-full hover:bg-m-container transition-colors text-m-on-surface-variant whitespace-nowrap">{{ if $isEn }}Links{{ else }}导航{{ end }}</a>
+    <span id="nav-context" class="hidden text-[15px] font-bold text-m-on-surface-variant whitespace-nowrap"></span>
+    <!-- 顶栏常驻搜索（≥640px）：输入即在下方展开结果 -->
+    <div class="hidden sm:flex flex-1 justify-center min-w-0 px-1">
+      <div class="relative w-full max-w-[480px] min-w-[200px]" id="nav-search">
+        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-m-on-surface-variant pointer-events-none">{{ partial "icon.html" "search" }}</span>
+        <input id="nav-search-input" type="text" autocomplete="off"
+          placeholder="{{ if $isEn }}Search bookmarks, books, music…{{ else }}搜书签、书、歌、收藏…{{ end }}"
+          class="w-full rounded-full bg-m-container border border-m-outline pl-11 pr-14 py-2 text-sm outline-none placeholder:text-m-on-surface-variant focus:ring-2 focus:ring-m-primary">
+        <kbd class="absolute right-4 top-1/2 -translate-y-1/2 text-[11px] text-m-on-surface-variant bg-m-container-lowest border border-m-outline rounded px-1.5 py-0.5 pointer-events-none">⌘K</kbd>
+        <div id="nav-search-drop" class="absolute left-0 right-0 top-full mt-2 rounded-2xl border border-m-outline bg-m-container-lowest shadow-2xl overflow-hidden hidden max-h-[60vh] overflow-y-auto p-2"></div>
+      </div>
+    </div>
+    <div class="flex items-center gap-1 sm:gap-2 text-sm ml-auto">
+      <a href="{{ if $isEn }}/en/links/{{ else }}/links/{{ end }}" class="nav-act inline-flex px-3 py-1.5 rounded-full hover:bg-m-container transition-colors text-m-on-surface-variant whitespace-nowrap">{{ if $isEn }}Links{{ else }}导航{{ end }}</a>
       <a href="{{ if $isEn }}/en/settings/{{ else }}/settings/{{ end }}" class="nav-act w-9 h-9 rounded-full inline-flex items-center justify-center text-m-on-surface-variant hover:bg-m-container transition-colors" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}">{{ partial "icon.html" "gear" }}</a>
     </div>
   </div>
 </nav>
 
-<!-- 全站搜索 -->
+<!-- 全站搜索：手机=全屏搜索页，桌面=顶栏搜索框下拉 -->
 <div id="search-modal" class="fixed inset-0 z-[100] hidden" style="display:none">
-  <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" data-search-close></div>
+  <div class="absolute inset-0 bg-black/40 backdrop-blur-sm hidden sm:block" data-search-close></div>
   <div class="search-wrap relative max-w-xl mx-auto mt-20 sm:mt-28 px-4">
     <div class="search-panel rounded-[1.75rem] border border-m-outline bg-m-container-lowest shadow-2xl overflow-hidden">
       <div class="search-handle" data-search-close></div>
-      <div class="search-head flex items-center gap-3 px-5 py-4 border-b border-m-outline">
-        <span class="text-m-on-surface-variant">{{ partial "icon.html" "search" }}</span>
-        <input id="search-input" type="text" autocomplete="off" placeholder="{{ if $isEn }}Search bookmarks, books, music…{{ else }}搜书签、书、歌、收藏…{{ end }}"
-          class="flex-1 bg-transparent outline-none text-base placeholder:text-m-on-surface-variant">
-        <button data-search-close class="text-m-on-surface-variant hover:text-m-on-surface">{{ partial "icon.html" "x-mark" }}</button>
+      <div class="search-head flex items-center gap-2 px-3 sm:px-5 py-3 sm:py-4 border-b border-m-outline">
+        <button type="button" data-search-close class="sm:hidden w-10 h-10 rounded-full inline-flex items-center justify-center text-m-on-surface-variant active:bg-m-container shrink-0" aria-label="{{ if $isEn }}Back{{ else }}返回{{ end }}">{{ partial "icon.html" "arrow-left" }}</button>
+        <span class="text-m-on-surface-variant hidden sm:block">{{ partial "icon.html" "search" }}</span>
+        <input id="search-input" type="text" autocomplete="off" enterkeyhint="search" placeholder="{{ if $isEn }}Search bookmarks, books, music…{{ else }}搜书签、书、歌、收藏…{{ end }}"
+          class="flex-1 min-w-0 bg-transparent outline-none text-base placeholder:text-m-on-surface-variant">
+        <button data-search-close class="hidden sm:block text-m-on-surface-variant hover:text-m-on-surface shrink-0">{{ partial "icon.html" "x-mark" }}</button>
       </div>
       <div id="search-results" class="search-results max-h-80 overflow-y-auto p-2"></div>
       <div class="search-hints px-5 py-3 border-t border-m-outline text-xs text-m-on-surface-variant hidden sm:flex gap-4">
@@ -143,8 +157,7 @@ __applyLayout();
 {{ range $m := $music }}{{ $idx = $idx | append (dict "t" $m.title "d" (print ($m.artist | default "") " " ($m.comment | default "")) "u" (print $home "#music") "c" $cMusic) }}{{ end }}
 {{ range $c := $collections }}{{ $idx = $idx | append (dict "t" $c.name "d" ($c.desc | default "") "u" $c.url "c" $cColl) }}{{ end }}
 {{ range $cat := $links }}{{ range $s := $cat.sites }}{{ $idx = $idx | append (dict "t" $s.name "d" ($s.desc | default "") "u" $s.url "c" (print $cLink " · " $cat.category)) }}{{ end }}{{ end }}
-{{/* 设置页与常用设置项 */}}
-{{ $setUrl := "/settings/" }}{{ if $isEn }}{{ $setUrl = "/en/settings/" }}{{ end }}
+{{/* 设置页与常用设置项（$setUrl 已在 body 前定义） */}}
 {{ $cSet := cond $isEn "Settings" "设置" }}
 {{ $idx = $idx | append (dict "t" $cSet "d" (cond $isEn "Theme, language, wallpaper" "主题、语言、壁纸") "u" $setUrl "c" $cSet) }}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Dark mode" "深色模式") "d" $cSet "u" $setUrl "c" $cSet) }}
@@ -152,8 +165,7 @@ __applyLayout();
 {{ $idx = $idx | append (dict "t" (cond $isEn "Wallpaper & theme color" "壁纸和主题色") "d" $cSet "u" $setUrl "c" $cSet) }}
 {{/* 数字健康 */}}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Digital wellbeing" "数字健康") "d" (cond $isEn "Screen time & bedtime mode" "屏幕时间与就寝模式") "u" (print $setUrl "#wellbeing") "c" $cSet) }}
-{{/* Good Lock 实验室 */}}
-{{ $glUrl := "/goodlock/" }}{{ if $isEn }}{{ $glUrl = "/en/goodlock/" }}{{ end }}
+{{/* Good Lock 实验室（$glUrl 已在 body 前定义） */}}
 {{ $cGl := "Good Lock" }}
 {{ $idx = $idx | append (dict "t" $cGl "d" (cond $isEn "Experimental modules" "实验性功能模块") "u" $glUrl "c" $cGl) }}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Desktop layout" "桌面布局") "d" (cond $isEn "Phone / tablet / DeX" "手机 / 平板 / DeX") "u" $setUrl "c" $cSet) }}
@@ -172,14 +184,108 @@ __applyLayout();
   var modal=document.getElementById('search-modal'),input=document.getElementById('search-input'),
       box=document.getElementById('search-results'),data=[],sel=-1;
   try{data=JSON.parse(document.getElementById('search-index').textContent).items||[]}catch(e){}
-  function open(){modal.classList.remove('hidden');modal.style.display='';input.value='';render('');setTimeout(function(){input.focus()},30)}
-  function close(){modal.classList.add('hidden');modal.style.display='none'}
-  window.__openSearch=open;
-  document.getElementById('search-open-m').addEventListener('click',open);
+  var FEAT=document.documentElement.lang==='en'?'Featured':'精选';
+  var NORES=document.documentElement.lang==='en'?'No results':'无结果';
+  function isMobile(){return window.matchMedia('(max-width:639px)').matches}
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+  function hitsFor(q){
+    q=q.trim().toLowerCase();
+    if(!q)return data.filter(function(x){return x.c===FEAT}).slice(0,8);
+    return data.filter(function(x){return (x.t+' '+x.d).toLowerCase().indexOf(q)!==-1}).slice(0,12);
+  }
+  function hitHTML(x){
+    return '<a href="'+x.u+'" class="flex items-center gap-3 rounded-2xl px-4 py-3 hover:bg-m-primary-container transition-colors">'
+      +'<span class="flex-1 min-w-0"><span class="block font-medium truncate">'+esc(x.t)+'</span>'
+      +(x.d?'<span class="block text-xs text-m-on-surface-variant truncate">'+esc(x.d)+'</span>':'')+'</span>'
+      +'<span class="text-[11px] shrink-0 text-m-on-primary-container bg-m-primary-container rounded-full px-2 py-0.5">'+esc(x.c)+'</span></a>';
+  }
+  function renderList(q,el){
+    var hits=hitsFor(q);
+    if(!hits.length){el.innerHTML='<div class="px-4 py-8 text-center text-sm text-m-on-surface-variant">'+NORES+'</div>';return[]}
+    el.innerHTML=hits.map(hitHTML).join('');
+    return Array.prototype.slice.call(el.querySelectorAll('a'));
+  }
+  /* ---- 全屏搜索（手机） ---- */
+  var histPushed=false,closing=false;
+  function fitPanel(){
+    var panel=modal.querySelector('.search-panel');
+    if(!panel)return;
+    if(isMobile()&&window.visualViewport){panel.style.height=window.visualViewport.height+'px'}
+    else{panel.style.height=''}
+  }
+  function open(){
+    if(!modal.classList.contains('hidden'))return;
+    modal.classList.remove('hidden');modal.style.display='';
+    input.value='';sel=-1;renderList('',box);
+    closing=false;
+    setTimeout(function(){input.focus()},60);
+    fitPanel();
+    if(isMobile()&&!histPushed){try{history.pushState({sgxSearch:1},'');histPushed=true}catch(e){}}
+  }
+  function doClose(){
+    modal.classList.add('hidden');modal.style.display='none';
+    var panel=modal.querySelector('.search-panel');if(panel)panel.style.height='';
+  }
+  function close(){
+    if(closing)return;
+    if(histPushed){closing=true;try{history.back()}catch(e){histPushed=false;closing=false;doClose()}return}
+    doClose();
+  }
+  window.addEventListener('popstate',function(){
+    if(histPushed||closing){histPushed=false;closing=false;doClose()}
+  });
+  if(window.visualViewport){window.visualViewport.addEventListener('resize',function(){
+    if(!modal.classList.contains('hidden'))fitPanel();
+  })}
+  /* 手机右滑关闭 */
+  (function(){
+    var sx=null,syy=null;
+    modal.addEventListener('touchstart',function(e){if(e.touches.length===1){sx=e.touches[0].clientX;syy=e.touches[0].clientY}},{passive:true});
+    modal.addEventListener('touchend',function(e){
+      if(sx===null)return;
+      var dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-syy;sx=null;
+      if(dx>80&&Math.abs(dy)<50&&isMobile())close();
+    },{passive:true});
+  })();
+  window.__openSearch=function(){
+    if(window.matchMedia('(min-width:640px)').matches){
+      var ni=document.getElementById('nav-search-input');
+      if(ni){ni.focus();return}
+    }
+    open();
+  };
   modal.querySelectorAll('[data-search-close]').forEach(function(el){el.addEventListener('click',close)});
+  input.addEventListener('input',function(){sel=-1;renderList(input.value,box)});
+  /* ---- 顶栏搜索下拉（≥640px） ---- */
+  var nsi=document.getElementById('nav-search-input'),nsd=document.getElementById('nav-search-drop'),nsel=-1;
+  function dropHide(){if(nsd)nsd.classList.add('hidden')}
+  function dropShow(){if(!nsd)return;nsel=-1;renderList(nsi.value,nsd);nsd.classList.remove('hidden')}
+  function nshl(items){items.forEach(function(a,i){a.classList.toggle('bg-m-primary-container',i===nsel)});if(items[nsel])items[nsel].scrollIntoView({block:'nearest'})}
+  if(nsi&&nsd){
+    nsi.addEventListener('input',dropShow);
+    nsi.addEventListener('focus',dropShow);
+    document.addEventListener('click',function(e){if(!e.target.closest('#nav-search'))dropHide()});
+    nsi.addEventListener('keydown',function(e){
+      if(e.key==='Escape'){e.stopPropagation();dropHide();nsi.blur();return}
+      var items=nsd.querySelectorAll('a');
+      if(e.key==='ArrowDown'){e.preventDefault();nsel=Math.min(nsel+1,items.length-1);nshl(items)}
+      else if(e.key==='ArrowUp'){e.preventDefault();nsel=Math.max(nsel-1,0);nshl(items)}
+      else if(e.key==='Enter'&&nsel>=0&&items[nsel]){items[nsel].click()}
+    });
+  }
   document.addEventListener('keydown',function(e){
-    if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();modal.classList.contains('hidden')?open():close()}
-    if(e.key==='Escape')close();
+    if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){
+      e.preventDefault();
+      if(window.matchMedia('(min-width:640px)').matches){
+        var ni=document.getElementById('nav-search-input');
+        if(!ni)return;
+        if(document.activeElement===ni){ni.blur();dropHide()}else{ni.focus()}
+      }else{
+        modal.classList.contains('hidden')?open():close();
+      }
+      return;
+    }
+    if(e.key==='Escape'&&!modal.classList.contains('hidden')){close();return}
     if(modal.classList.contains('hidden'))return;
     var items=box.querySelectorAll('a');
     if(e.key==='ArrowDown'){e.preventDefault();sel=Math.min(sel+1,items.length-1);hl(items)}
@@ -187,19 +293,6 @@ __applyLayout();
     if(e.key==='Enter'&&sel>=0&&items[sel]){items[sel].click()}
   });
   function hl(items){items.forEach(function(a,i){a.classList.toggle('bg-m-primary-container',i===sel)});if(items[sel])items[sel].scrollIntoView({block:'nearest'})}
-  function render(q){
-    q=q.trim().toLowerCase();sel=-1;
-    var hits=data.filter(function(x){return !q||(x.t+' '+x.d).toLowerCase().indexOf(q)!==-1}).slice(0,12);
-    if(!hits.length){var noRes=document.documentElement.lang==='en'?'No results':'无结果';box.innerHTML='<div class="px-4 py-8 text-center text-sm text-m-on-surface-variant">'+noRes+'</div>';return}
-    box.innerHTML=hits.map(function(x){
-      return '<a href="'+x.u+'" class="flex items-center gap-3 rounded-2xl px-4 py-3 hover:bg-m-primary-container transition-colors">'
-        +'<span class="flex-1 min-w-0"><span class="block font-medium truncate">'+esc(x.t)+'</span>'
-        +(x.d?'<span class="block text-xs text-m-on-surface-variant truncate">'+esc(x.d)+'</span>':'')+'</span>'
-        +'<span class="text-[11px] shrink-0 text-m-on-primary-container bg-m-primary-container rounded-full px-2 py-0.5">'+esc(x.c)+'</span></a>';
-    }).join('');
-  }
-  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
-  input.addEventListener('input',function(){render(input.value)});
 })();
 /* ===== 主题模式（浅色/深色/跟随系统）===== */
 window.__applyTheme=function(){
@@ -264,17 +357,7 @@ try{
   },{passive:true});
 })();
 
-/* ===== 搜索手机下滑关闭 ===== */
-(function(){
-  var modal=document.getElementById('search-modal');
-  var sy=null;
-  modal.addEventListener('touchstart',function(e){if(e.touches.length===1)sy=e.touches[0].clientY},{passive:true});
-  modal.addEventListener('touchmove',function(e){
-    if(sy===null||e.touches.length!==1)return;
-    var dy=e.touches[0].clientY-sy;
-    if(dy>90&&window.matchMedia('(max-width:639px)').matches){sy=null;modal.classList.add('hidden');modal.style.display='none'}
-  },{passive:true});
-})();
+/* ===== 搜索手机右滑关闭：见上方搜索 IIFE ===== */
 </script>
 
 <script>
@@ -447,11 +530,11 @@ try{
     <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="5" r="2.2"/><circle cx="12" cy="5" r="2.2"/><circle cx="19" cy="5" r="2.2"/><circle cx="5" cy="12" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="19" cy="12" r="2.2"/><circle cx="5" cy="19" r="2.2"/><circle cx="12" cy="19" r="2.2"/><circle cx="19" cy="19" r="2.2"/></svg>
   </button>
   <div class="dex-pinned">
-    <a href="https://blog.styrigx.com" target="_blank" rel="noopener" class="dex-tbtn" aria-label="Blog">{{ partial "icon.html" "pen" }}</a>
-    <a href="{{ $linksUrl }}" class="dex-tbtn" aria-label="{{ if $isEn }}Bookmarks{{ else }}导航{{ end }}">{{ partial "icon.html" "compass" }}</a>
-    <a href="https://github.com/styrigx" target="_blank" rel="noopener" class="dex-tbtn" aria-label="GitHub">{{ partial "icon.html" "brands/github" }}</a>
-    <a href="{{ $setUrl }}" class="dex-tbtn" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}">{{ partial "icon.html" "gear" }}</a>
-    <a href="{{ $glUrl }}" class="dex-tbtn" aria-label="Good Lock">{{ partial "icon.html" "gift" }}</a>
+    <a href="https://blog.styrigx.com" target="_blank" rel="noopener" class="dex-tbtn" aria-label="Blog" title="Blog">{{ partial "icon.html" "pen" }}</a>
+    <a href="{{ $linksUrl }}" class="dex-tbtn" aria-label="{{ if $isEn }}Bookmarks{{ else }}导航{{ end }}" title="{{ if $isEn }}Bookmarks{{ else }}导航{{ end }}">{{ partial "icon.html" "compass" }}</a>
+    <a href="https://github.com/styrigx" target="_blank" rel="noopener" class="dex-tbtn" aria-label="GitHub" title="GitHub">{{ partial "icon.html" "brands/github" }}</a>
+    <a href="{{ $setUrl }}" class="dex-tbtn" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}" title="{{ if $isEn }}Settings{{ else }}设置{{ end }}">{{ partial "icon.html" "gear" }}</a>
+    <a href="{{ $glUrl }}" class="dex-tbtn" aria-label="Good Lock" title="Good Lock">{{ partial "icon.html" "gift" }}</a>
   </div>
   <div class="dex-tray">
     <span id="dex-wx" aria-hidden="true"></span>
@@ -464,10 +547,10 @@ try{
 <!-- 平板任务栏 -->
 <div id="tablet-taskbar" role="navigation" aria-label="{{ if $isEn }}Tablet taskbar{{ else }}平板任务栏{{ end }}">
   <div class="tt-pinned">
-    <a href="https://blog.styrigx.com" target="_blank" rel="noopener" class="dex-tbtn" aria-label="Blog">{{ partial "icon.html" "pen" }}</a>
-    <a href="{{ $linksUrl }}" class="dex-tbtn" aria-label="{{ if $isEn }}Bookmarks{{ else }}导航{{ end }}">{{ partial "icon.html" "compass" }}</a>
-    <a href="https://github.com/styrigx" target="_blank" rel="noopener" class="dex-tbtn" aria-label="GitHub">{{ partial "icon.html" "brands/github" }}</a>
-    <a href="{{ $setUrl }}" class="dex-tbtn" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}">{{ partial "icon.html" "gear" }}</a>
+    <a href="https://blog.styrigx.com" target="_blank" rel="noopener" class="dex-tbtn" aria-label="Blog" title="Blog">{{ partial "icon.html" "pen" }}</a>
+    <a href="{{ $linksUrl }}" class="dex-tbtn" aria-label="{{ if $isEn }}Bookmarks{{ else }}导航{{ end }}" title="{{ if $isEn }}Bookmarks{{ else }}导航{{ end }}">{{ partial "icon.html" "compass" }}</a>
+    <a href="https://github.com/styrigx" target="_blank" rel="noopener" class="dex-tbtn" aria-label="GitHub" title="GitHub">{{ partial "icon.html" "brands/github" }}</a>
+    <a href="{{ $setUrl }}" class="dex-tbtn" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}" title="{{ if $isEn }}Settings{{ else }}设置{{ end }}">{{ partial "icon.html" "gear" }}</a>
   </div>
   <div class="tt-recent">
     <span class="tt-label">{{ if $isEn }}Recent{{ else }}最近{{ end }}</span>
@@ -513,6 +596,21 @@ try{
 </div>
 
 <script>
+/* 图标 SVG 库（Hugo 渲染，供任务栏"最近打开"渲染真实图标） */
+window.__iconSvg={
+  pen:'{{ partial "icon.html" "pen" }}',
+  ticket:'{{ partial "icon.html" "ticket" }}',
+  book:'{{ partial "icon.html" "book" }}',
+  compass:'{{ partial "icon.html" "compass" }}',
+  gear:'{{ partial "icon.html" "gear" }}',
+  gift:'{{ partial "icon.html" "gift" }}',
+  mail:'{{ partial "icon.html" "mail" }}',
+  github:'{{ partial "icon.html" "brands/github" }}',
+  xlogo:'{{ partial "icon.html" "x-logo" }}'
+};
+</script>
+
+<script>
 /* ===== 桌面布局系统：resize 跟随 + 最近打开 + DeX 任务栏 ===== */
 (function(){
   var en=document.documentElement.lang==='en';
@@ -526,7 +624,7 @@ try{
     rt=setTimeout(function(){if(window.__applyLayout)window.__applyLayout()},180);
   });
 
-  /* ---- 最近打开的 App（平板任务栏） ---- */
+  /* ---- 最近打开的 App（平板任务栏）：真实图标 ---- */
   function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
   document.addEventListener('click',function(e){
     var a=e.target.closest&&(e.target.closest('.app-tile')||e.target.closest('#dex-icons a')||e.target.closest('#dex-icons button')||e.target.closest('.dex-pinned a')||e.target.closest('#dex-drawer-grid a')||e.target.closest('#tablet-taskbar .tt-pinned a'));
@@ -539,16 +637,55 @@ try{
       set('sgx-recent-apps',JSON.stringify(l.slice(0,6)));
     }catch(err){}
   },{passive:true});
+  function recentIcon(u){
+    var host='',path='';
+    try{var uu=new URL(u,location.href);host=uu.hostname;path=uu.pathname}catch(e){return null}
+    function ic(icon,cls){return{icon:icon,cls:cls}}
+    if(u.indexOf('mailto:')===0)return ic('mail','bg-m-rose-container text-m-on-rose-container');
+    if(host===location.hostname){
+      if(path.indexOf('/goodlock')===0)return ic('gift','bg-m-accent-container text-m-on-accent-container');
+      if(path.indexOf('/settings')===0)return ic('gear','bg-m-container-highest text-m-on-surface');
+      if(path.indexOf('/links')===0)return ic('compass','bg-m-accent-container text-m-on-accent-container');
+      return null;
+    }
+    if(host==='blog.styrigx.com')return ic('pen','bg-m-primary-container text-m-on-primary-container');
+    if(host==='muse-invite.styrigx.com')return ic('ticket','bg-m-tertiary-container text-m-on-tertiary-container');
+    if(host==='github.com'){
+      if(path.indexOf('muse-playbook')>=0)return ic('book','bg-m-secondary-container text-m-on-secondary-container');
+      if(path.indexOf('textbook-playbook')>=0)return ic('book','bg-m-warm-container text-m-on-warm-container');
+      return ic('github','bg-m-container-highest text-m-on-surface');
+    }
+    if(host==='x.com'||host==='www.x.com'||host==='twitter.com')return ic('xlogo','bg-m-container-highest text-m-on-surface');
+    return{favicon:'https://'+host+'/favicon.ico'};
+  }
   function paintRecent(){
     var box=document.getElementById('tt-recent-list');if(!box)return;
     var l=[];try{l=JSON.parse(get('sgx-recent-apps')||'[]')}catch(e){}
     box.innerHTML=l.slice(0,4).map(function(x){
-      var init=(x.t||'?').trim().charAt(0)||'•';
-      return '<a href="'+esc(x.u)+'" class="tt-app" title="'+esc(x.t)+'"><span>'+esc(init)+'</span></a>';
+      var init=(x.t||'?').trim().charAt(0)||'•',inner='<span>'+esc(init)+'</span>';
+      var ri=recentIcon(x.u);
+      if(ri){
+        if(ri.favicon){
+          inner='<img src="'+ri.favicon+'" alt="" loading="lazy" class="w-6 h-6 rounded-md" onerror="this.outerHTML=\'<span>'+esc(init)+'</span>\'">';
+        }else{
+          var svg=(window.__iconSvg&&window.__iconSvg[ri.icon])||'';
+          inner='<span class="w-8 h-8 rounded-[.7rem] inline-flex items-center justify-center '+ri.cls+'">'+svg+'</span>';
+        }
+      }
+      return '<a href="'+esc(x.u)+'" class="tt-app" title="'+esc(x.t)+'">'+inner+'</a>';
     }).join('');
   }
   paintRecent();
   document.addEventListener('click',function(){setTimeout(paintRecent,60)});
+  /* 当前页面：任务栏图标下方小圆点 */
+  (function(){
+    var pg=document.body.getAttribute('data-page');
+    if(!pg)return;
+    document.querySelectorAll('#dex-taskbar .dex-tbtn, #tablet-taskbar .tt-pinned .dex-tbtn').forEach(function(a){
+      var href=a.getAttribute('href')||'';
+      if((pg==='links'&&href.indexOf('/links')>=0)||(pg==='settings'&&href.indexOf('/settings')>=0)||(pg==='goodlock'&&href.indexOf('/goodlock')>=0))a.classList.add('active');
+    });
+  })();
 
   /* ---- DeX 任务栏时钟 ---- */
   var tEl=document.getElementById('dex-time'),dEl=document.getElementById('dex-date');
