@@ -1,0 +1,2 @@
+{{ $img := resources.Get "images/music/cover_01.webp" }}
+{{ if $img }}FOUND: {{ $img.RelPermalink }}{{ else }}NOT FOUND{{ end }}

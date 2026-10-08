@@ -7,7 +7,7 @@
 {{ $collections := site.Data.collections }}
 {{ $now := site.Data.now }}
 {{ $linksUrl := "/links/" }}{{ $home := "/" }}
-{{ if $isEn }}{{ $entries = site.Data.en.entries.entries }}{{ $books = site.Data.en.books }}{{ $now = site.Data.en.now }}{{ $linksUrl = "/en/links/" }}{{ $home = "/en/" }}{{ end }}
+{{ if $isEn }}{{ $entries = site.Data.en.entries.entries }}{{ $books = site.Data.en.books }}{{ $music = site.Data.en.music }}{{ $now = site.Data.en.now }}{{ $linksUrl = "/en/links/" }}{{ $home = "/en/" }}{{ end }}
 {{ $motto := $profile.motto_zh }}{{ if $isEn }}{{ $motto = $profile.motto_en }}{{ end }}
 {{ $motto2 := $profile.motto_en }}{{ if $isEn }}{{ $motto2 = "" }}{{ end }}
 
@@ -109,35 +109,81 @@
   <div class="mb-10">
     <p class="text-sm font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-2">{{ if $isEn }}Listening{{ else }}聆听{{ end }}</p>
     <h2 class="text-3xl sm:text-4xl font-bold">{{ if $isEn }}Playlist{{ else }}歌单{{ end }}</h2>
-    <p class="mt-3 text-gray-500 dark:text-gray-400">{{ if $isEn }}Music on repeat.{{ else }}循环播放的音乐。{{ end }}</p>
+    <p class="mt-3 text-gray-500 dark:text-gray-400">
+      <span class="msg-hover">{{ if $isEn }}Music on repeat. Hover for notes.{{ else }}循环播放的音乐，悬停看批注。{{ end }}</span>
+      <span class="msg-tap">{{ if $isEn }}Music on repeat. Tap a cover for notes.{{ else }}循环播放的音乐，点击封面看批注。{{ end }}</span>
+    </p>
   </div>
   <div class="flex gap-5 sm:gap-6 overflow-x-auto pb-4 snap-x no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
     {{ range $m := $music }}
-    {{ if $m.cover }}
     <div class="group snap-start shrink-0 w-40 sm:w-48">
-      <div class="relative w-full aspect-square rounded-2xl overflow-hidden shadow-md group-hover:shadow-xl group-hover:-translate-y-1.5 transition-all duration-300 bg-gray-100 dark:bg-gray-800">
-        <img src="{{ $m.cover }}" alt="{{ $m.title }}" loading="lazy" class="w-full h-full object-cover">
+      <a href="{{ $m.url }}" target="_blank" rel="noopener" aria-label="{{ $m.title }} - {{ $m.artist }}"
+         class="cover-toggle relative block w-full aspect-square rounded-2xl overflow-hidden shadow-md group-hover:shadow-xl group-hover:-translate-y-1.5 transition-all duration-300 bg-gray-100 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        {{ with $m.cover }}
+        {{ $img := resources.Get . }}
+        {{ with $img }}
+        <img src="{{ .RelPermalink }}" alt="{{ $m.title }}" loading="lazy" width="500" height="500" class="w-full h-full object-cover pointer-events-none">
+        {{ else }}
+        <img src="/{{ $m.cover }}" alt="{{ $m.title }}" loading="lazy" width="500" height="500" class="w-full h-full object-cover pointer-events-none">
+        {{ end }}
+        {{ end }}
         {{ with $m.comment }}
-        <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
+        <div class="cover-comment absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-300 flex items-end p-4 pointer-events-none">
           <p class="text-white text-xs leading-relaxed">{{ . }}</p>
         </div>
+        <span class="cover-hint absolute top-2 right-2 w-6 h-6 rounded-full bg-black/50 text-white hidden items-center justify-center backdrop-blur-sm" aria-hidden="true">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </span>
         {{ end }}
-      </div>
+      </a>
       <div class="mt-3 font-semibold text-sm truncate">{{ $m.title }}</div>
-      {{ with $m.artist }}<div class="text-xs text-gray-500 dark:text-gray-400">{{ . }}</div>{{ end }}
+      {{ with $m.artist }}<div class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ . }}</div>{{ end }}
     </div>
-    {{ else }}
-    <div class="shrink-0 w-full max-w-md rounded-3xl border-2 border-dashed border-gray-200 dark:border-gray-700 p-10 text-center">
-      <div class="w-12 h-12 mx-auto rounded-2xl bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 flex items-center justify-center mb-4">
-        <svg width="24" height="24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 9l10.5-3m0 6.553v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66a2.25 2.25 0 001.632-2.163zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66A2.25 2.25 0 009 15.553z"/></svg>
-      </div>
-      <div class="font-semibold">{{ $m.title }}</div>
-      {{ with $m.comment }}<div class="mt-2 text-sm text-gray-500 dark:text-gray-400">{{ . }}</div>{{ end }}
-    </div>
-    {{ end }}
     {{ end }}
   </div>
 </section>
+
+<style>
+/* 桌面端默认显示悬停文案，触屏显示点击文案 */
+.msg-tap { display: none; }
+.cover-hint { display: none; }
+@media (hover: none) {
+  .msg-hover { display: none !important; }
+  .msg-tap { display: inline !important; }
+  .cover-hint { display: flex !important; }
+  /* 触屏点击切换短评显示 */
+  .cover-toggle.comment-open .cover-comment { opacity: 1 !important; }
+  .cover-toggle.comment-open .cover-hint { display: none !important; }
+}
+</style>
+<script>
+// 触屏：点击封面切换短评显示
+(function() {
+  if (window.matchMedia('(hover: none)').matches) {
+    document.querySelectorAll('.cover-toggle').forEach(function(el) {
+      el.addEventListener('click', function(e) {
+        // 如果短评已打开，让链接正常跳转；否则先显示短评，阻止跳转
+        if (!el.classList.contains('comment-open')) {
+          e.preventDefault();
+          // 关闭其他已打开的
+          document.querySelectorAll('.cover-toggle.comment-open').forEach(function(o) {
+            if (o !== el) o.classList.remove('comment-open');
+          });
+          el.classList.add('comment-open');
+        }
+      });
+    });
+    // 点别处收起
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.cover-toggle')) {
+        document.querySelectorAll('.cover-toggle.comment-open').forEach(function(o) {
+          o.classList.remove('comment-open');
+        });
+      }
+    });
+  }
+})();
+</script>
 
 <!-- 收藏 · 数字花园 -->
 <section id="garden" class="max-w-6xl mx-auto px-4 sm:px-6 py-14 sm:py-20">
