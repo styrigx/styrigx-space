@@ -58,6 +58,7 @@
   (dict "name" "X" "url" "https://x.com/styrigx" "icon" "x-logo" "bg" "bg-m-container-highest" "fg" "text-m-on-surface")
   (dict "name" (cond $isEn "Internet" "浏览器") "url" $linksUrl "icon" "browser" "bg" "" "fg" "")
   (dict "name" (cond $isEn "My Files" "我的文件") "url" (print $home "files/") "icon" "files" "bg" "" "fg" "")
+  (dict "name" "AI" "url" (print $home "ai/") "icon" "ai" "bg" "" "fg" "")
   (dict "name" (cond $isEn "Email" "邮件") "url" "mailto:styrigx@gmail.com" "icon" "mail" "bg" "bg-m-rose-container" "fg" "text-m-on-rose-container")
   (dict "name" "Good Lock" "url" (cond $isEn "/en/goodlock/" "/goodlock/") "icon" "gift" "bg" "bg-m-accent-container" "fg" "text-m-on-accent-container")
 }}

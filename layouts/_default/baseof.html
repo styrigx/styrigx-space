@@ -132,6 +132,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{ $profile := site.Data.profile }}
 {{ $home := "/" }}{{ if $isEn }}{{ $home = "/en/" }}{{ end }}
 {{ $linksUrl := "/browser/" }}{{ if $isEn }}{{ $linksUrl = "/en/browser/" }}{{ end }}
+{{ $aiUrl := "/ai/" }}{{ if $isEn }}{{ $aiUrl = "/en/ai/" }}{{ end }}
 {{ $setUrl := $setUrl0 }}{{ $glUrl := $glUrl0 }}{{ $filesUrl := $filesUrl0 }}
 
 <!-- 顶栏：左侧头像 / 中间时间（带日期）/ 右侧天气。手机、DeX 全局显示，无搜索框 -->
@@ -666,6 +667,7 @@ window.__sgxVoice=function(btn,opts){
   (dict "name" "X" "name2" "X" "url" "https://x.com/styrigx" "icon" "x-logo" "ext" true "bg" "bg-m-container-highest" "fg" "text-m-on-surface")
   (dict "name" (cond $isEn "Internet" "浏览器") "name2" "Internet 浏览器 browser links 书签" "url" $linksUrl "icon" "browser" "bg" "" "fg" "")
   (dict "name" (cond $isEn "My Files" "我的文件") "name2" "My Files 我的文件 files" "url" $filesUrl "icon" "files" "bg" "" "fg" "")
+  (dict "name" "AI" "name2" "AI ai 智能 问答 提问" "url" $aiUrl "icon" "ai" "bg" "" "fg" "")
   (dict "name" (cond $isEn "Email" "邮件") "name2" "Email 邮件 mail" "url" "mailto:styrigx@gmail.com" "icon" "mail" "bg" "bg-m-rose-container" "fg" "text-m-on-rose-container")
   (dict "name" (cond $isEn "Books" "书单") "name2" "Books 书单 books" "url" (print $home "books/") "icon" "book" "bg" "bg-m-secondary-container" "fg" "text-m-on-secondary-container")
   (dict "name" (cond $isEn "Playlist" "歌单") "name2" "Playlist 歌单 music" "url" (print $home "music/") "icon" "music" "bg" "bg-m-warm-container" "fg" "text-m-on-warm-container")

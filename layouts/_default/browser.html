@@ -308,6 +308,12 @@ window.__favFallback=function(img,name){
     html += rowHTML(i, ICONS.search,
       t('用 ' + ENGINES[ek].n + ' 搜索', 'Search with ' + ENGINES[ek].n) + ' \u201C' + q + '\u201D',
       '', '', 'brw-sg-engine');
+    /* 问 AI：跳到 /ai/?q= */
+    var aiIdx = curRows.length;
+    curRows.push({ kind:'ai', title: q });
+    html += rowHTML(aiIdx, ICONS.sparkles,
+      t('问 AI：', 'Ask AI: ') + ' \u201C' + q + '\u201D',
+      '', 'AI');
     suggest.innerHTML = html;
   }
 
@@ -379,6 +385,11 @@ window.__favFallback=function(img,name){
   function activateRow(i){
     var r = curRows[i]; if(!r) return;
     if(r.kind === 'engine'){ doSearch(r.title); return; }
+    if(r.kind === 'ai'){
+      pushRecent(r.title); hideSuggest();
+      location.href = (EN ? '/en/ai/' : '/ai/') + '?q=' + encodeURIComponent(r.title);
+      return;
+    }
     if(r.kind === 'recent'){ input.value = r.title; doSearch(r.title); return; }
     pushRecent(r.title);
     openUrl(r.url);

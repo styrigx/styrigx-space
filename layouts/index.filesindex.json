@@ -78,6 +78,7 @@
   (dict "key" "goodlock" "zh" "Good Lock" "en" "Good Lock" "zhsub" "实验性功能模块" "ensub" "Experimental modules"    "path" "goodlock/")
   (dict "key" "books"    "zh" "书单"     "en" "Books"     "zhsub" "全部书籍与批注" "ensub" "All books with notes"    "path" "books/")
   (dict "key" "music"    "zh" "歌单"     "en" "Playlist"  "zhsub" "全部歌曲与批注" "ensub" "All songs with notes"    "path" "music/")
+  (dict "key" "ai"       "zh" "AI"       "en" "AI"        "zhsub" "一次提问，各大平台打开" "ensub" "Ask once, open anywhere" "path" "ai/")
 }}
 {{ range $l := $langs }}
   {{ range $a := $apps }}
