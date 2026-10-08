@@ -175,7 +175,7 @@
    平时在标题区原位、随内容上滚；滚到顶栏右侧位置时停住，背景淡入成 44px 磨砂圆；
    滚回去反过来。悬浮不占布局。 */
 #files-more{transition:background-color .2s ease,border-color .2s ease,box-shadow .2s ease,right .2s ease}
-#files-more.stuck{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));z-index:55;margin:0;
+#files-more.stuck{position:fixed;top:calc(var(--nav-h,64px) + 8px + env(safe-area-inset-top,0px));z-index:55;margin:0;
   background:rgba(255,255,255,0.7);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);
   border:1px solid rgba(0,0,0,0.04);box-shadow:0 6px 20px rgba(0,0,0,0.10)}
 .dark #files-more.stuck{background:rgba(30,30,32,0.7);border-color:rgba(255,255,255,0.06)}
@@ -558,10 +558,10 @@
     return html;
   };
   /* ---------- ⋯ 单按钮滚动停靠（2.3.14.5，替代 files-more-float 双按钮） ----------
-     平时在标题区原位、随内容一起向上滚；滚到顶栏右侧位置时停住，背景同时淡入
-     成 44px 磨砂圆；滚回去反过来。用 fixed 实现 sticky 的视觉效果（sticky 受
-     父容器高度约束，按钮无法停留在标题区之外；行为与 sticky 完全一致）。
-     与天气不重叠：停靠时放到天气左边。悬浮不占布局。 */
+     平时在标题区原位、随内容一起向上滚；滚到顶栏下边缘下方（顶栏底边 + 8px）
+     时停住，背景同时淡入成 44px 磨砂圆；滚回去反过来。用 fixed 实现 sticky 的
+     视觉效果（sticky 受父容器高度约束，按钮无法停留在标题区之外；行为与 sticky
+     完全一致）。停靠时右边距与页面内容右边距一致。悬浮不占布局。 */
   var moreActions=document.querySelector('.subpage-actions');
   var moreSafeTop=0;
   try{
@@ -572,20 +572,16 @@
     __probe.remove();
   }catch(e){}
   function moreStuckRight(){
-    var nr=document.getElementById('nav-right');
-    if(nr){
-      try{
-        var r=nr.getBoundingClientRect();
-        if(r.width>4)return Math.max(16,window.innerWidth-r.left+8);
-      }catch(e){}
-    }
-    return 16;
+    /* 修复：右边距与页面内容右边距一致（内容 max-width 1100px + 16px 内边距），不再放天气左边 */
+    return Math.max(16,(window.innerWidth-1100)/2+16);
   }
   function updateMoreStick(){
     if(!moreBtn||!moreActions)return;
     var r=moreActions.getBoundingClientRect();
     var docTop=r.top+window.scrollY;
-    var stuckTop=12+moreSafeTop;
+    /* 修复：停在顶栏下边缘下方（顶栏底边 + 8px），不再停进顶栏 */
+    var navH=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nav-h'))||64;
+    var stuckTop=navH+8+moreSafeTop;
     var stick=window.scrollY>0&&window.scrollY>=docTop-stuckTop;
     if(stick){
       moreBtn.classList.add('stuck');
