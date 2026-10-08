@@ -2,16 +2,79 @@
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 {{ $links := site.Data.links }}
 {{ if $isEn }}{{ $links = site.Data.en.links }}{{ end }}
-<div class="max-w-[1100px] mx-auto px-4 pb-40">
+<div class="max-w-[1100px] mx-auto px-4 pb-40" id="brw-page">
   {{ partial "subpage-head.html" (dict "title" (cond $isEn "Internet" "浏览器") "sub" (cond $isEn "Search and bookmarks" "搜索与书签") "isEn" $isEn) }}
 
-  <!-- 统一搜索条（2.3.5）：手机悬浮 Dock 上方，DeX 在大标题下方；引擎切换/建议/回车逻辑保留 -->
-  {{ partial "searchbar.html" (dict "page" "browser" "isEn" $isEn "barId" "brw-addrbar"
-    "placeholder" (cond $isEn "Search or type URL" "搜索或输入网址")
-    "engineAria" (cond $isEn "Switch search engine" "切换搜索引擎")
-    "micAria" (cond $isEn "Voice input" "语音输入")
-    "menuAria" (cond $isEn "Menu" "菜单")) }}
-  <div id="brw-suggest" class="brw-suggest hidden"></div>
+  <!-- 2.3.12：地址栏胶囊（底部悬浮，点击弹出搜索层） -->
+  <button type="button" id="brw-addrbar" class="sgx85-pill" aria-label="{{ cond $isEn "Search or type URL" "搜索或输入网址" }}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <span>{{ cond $isEn "Search or type URL" "搜索或输入网址" }}</span>
+    <span class="sgx85-pill-mic" data-mic style="display:none">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-5a3.5 3.5 0 1 0-7 0v5A3.5 3.5 0 0 0 12 15zm6-3.5a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.94V22h2v-2.06A8 8 0 0 0 20 11.5h-2z"/></svg>
+    </span>
+  </button>
+
+  <!-- 2.3.12：搜索弹出层 -->
+  <div id="brw-overlay" class="sgx85-search" role="dialog" aria-modal="true" aria-label="{{ cond $isEn "Search" "搜索" }}">
+    <div class="sgx85-search-top">
+      <button type="button" class="sgx85-back" data-close aria-label="{{ if $isEn }}Back{{ else }}返回{{ end }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+    </div>
+    <!-- 快捷站点卡：每行 5 个，从上方滑入 -->
+    <div id="brw-qa-card" class="mx-4 rounded-3xl bg-white dark:bg-[#1e1e22] shadow-xl p-4" style="transform:translateY(-12px);opacity:0;transition:transform .25s ease,opacity .25s ease">
+      <div class="grid grid-cols-5 gap-2" id="brw-qa-grid">
+        {{ range $links }}{{ range $si, $s := .sites }}{{ if lt $si 10 }}
+        {{ $host := (urls.Parse $s.url).Host }}
+        {{ $iconUrl := printf "https://www.google.com/s2/favicons?domain=%s&sz=64" $host }}
+        <a href="{{ $s.url }}" target="_blank" rel="noopener" class="flex flex-col items-center gap-1 py-2 active:scale-95" data-qa="{{ $s.name }}">
+          <img src="{{ $iconUrl }}" alt="" loading="lazy" onerror="__favFallback(this,'{{ $s.name }}')" class="w-11 h-11 rounded-2xl object-contain bg-m-container p-1">
+          <span class="text-[11px] text-m-on-surface-variant truncate w-full text-center">{{ $s.name }}</span>
+        </a>
+        {{ end }}{{ end }}{{ end }}
+      </div>
+    </div>
+    <!-- 最近搜索卡 -->
+    <div id="brw-recent-card" class="sgx85-recent hidden">
+      <div class="sgx85-recent-head">
+        <span class="sgx85-recent-title">{{ if $isEn }}Recent searches{{ else }}最近搜索{{ end }}</span>
+        <span class="flex gap-3">
+          <button type="button" class="sgx85-clear" data-clear-all>{{ if $isEn }}Clear all{{ else }}全部清除{{ end }}</button>
+          <button type="button" class="sgx85-clear" data-hide-recent>{{ if $isEn }}Hide{{ else }}隐藏{{ end }}</button>
+        </span>
+      </div>
+      <div class="sgx85-recent-chips" id="brw-rchips"></div>
+    </div>
+    <!-- 建议列表 -->
+    <div class="sgx85-results" id="brw-suggest2"></div>
+    <!-- 粘贴 chip -->
+    <div class="px-4 pb-2 hidden" id="brw-paste-wrap">
+      <button type="button" id="brw-paste-chip" class="sgx85-chip"><span>{{ if $isEn }}Paste{{ else }}粘贴{{ end }}</span></button>
+    </div>
+    <!-- 地址胶囊：引擎图标 + 输入框 + 语音，贴键盘 -->
+    <div class="sgx85-search-bar">
+      <div class="sgx85-search-bar-inner">
+        <button type="button" id="brw-engine-btn2" class="sgx85-icon-btn" aria-label="{{ cond $isEn "Switch search engine" "切换搜索引擎" }}">
+          <span id="brw-engine-ic2"></span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="14" height="14" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <input id="brw-input2" type="search" autocomplete="off" enterkeyhint="go" placeholder="{{ cond $isEn "Search or type URL" "搜索或输入网址" }}" aria-label="{{ cond $isEn "Search or type URL" "搜索或输入网址" }}">
+        <button type="button" class="sgx85-icon-btn" data-mic2 aria-label="{{ cond $isEn "Voice input" "语音输入" }}" style="display:none">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-5a3.5 3.5 0 1 0-7 0v5A3.5 3.5 0 0 0 12 15zm6-3.5a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.94V22h2v-2.06A8 8 0 0 0 20 11.5h-2z"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+  <!-- 语音底板 -->
+  <div id="brw-voice-sheet" class="sgx85-menu" style="left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform-origin:bottom center">
+    <div class="p-6 text-center">
+      <p class="font-semibold mb-1">{{ if $isEn }}Speak now{{ else }}立即说出{{ end }}</p>
+      <p class="text-sm text-m-on-surface-variant mb-4">{{ if $isEn }}English (US){{ else }}中文（中国）{{ end }}</p>
+      <button type="button" id="brw-voice-btn" class="sgx85-icon-btn mx-auto" style="width:64px;height:64px;background:var(--m-primary);color:var(--m-on-primary)">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28" aria-hidden="true"><path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-5a3.5 3.5 0 1 0-7 0v5A3.5 3.5 0 0 0 12 15zm6-3.5a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.94V22h2v-2.06A8 8 0 0 0 20 11.5h-2z"/></svg>
+      </button>
+    </div>
+  </div>
 
   <!-- 快捷访问：全部分类拍平 -->
   <section class="mt-6" aria-label="{{ if $isEn }}Quick access{{ else }}快捷访问{{ end }}">
@@ -112,13 +175,127 @@ window.__favFallback=function(img,name){
 
   function curEngine(){ var e = lsGet(LS_ENGINE, 'google'); return ENGINES[e] ? e : 'google'; }
 
-  var input     = document.getElementById('brw-input'),
-      suggest   = document.getElementById('brw-suggest'),
-      engineBtn = document.getElementById('brw-engine-btn'),
-      engineIc  = document.getElementById('brw-engine-ic'),
-      micBtn    = document.getElementById('brw-mic'),
-      menuBtn   = document.getElementById('brw-menu-btn');
+  var input     = document.getElementById('brw-input2'),
+      suggest   = document.getElementById('brw-suggest2'),
+      engineBtn = document.getElementById('brw-engine-btn2'),
+      engineIc  = document.getElementById('brw-engine-ic2'),
+      overlay   = document.getElementById('brw-overlay'),
+      addrbar   = document.getElementById('brw-addrbar'),
+      qaCard    = document.getElementById('brw-qa-card'),
+      recentCard= document.getElementById('brw-recent-card'),
+      rchips    = document.getElementById('brw-rchips'),
+      pasteWrap = document.getElementById('brw-paste-wrap'),
+      pasteChip = document.getElementById('brw-paste-chip'),
+      voiceSheet= document.getElementById('brw-voice-sheet'),
+      voiceBtn  = document.getElementById('brw-voice-btn');
   if(!input || !suggest) return;
+
+  /* ============ 弹出层开/关 ============ */
+  var ovOpen=false, savedY=0;
+  function openOverlay(){
+    if(ovOpen)return;ovOpen=true;
+    savedY=window.scrollY||0;
+    document.body.style.overflow='hidden';
+    document.getElementById('brw-page').style.filter='blur(18px) brightness(.96)';
+    try{history.pushState({brwOv:1},'','#search')}catch(e){}
+    overlay.classList.add('open');
+    requestAnimationFrame(function(){qaCard.style.transform='';qaCard.style.opacity='1'});
+    renderRecent2();checkClipboard();
+    setTimeout(function(){input.focus({preventScroll:true})},150);
+    stickKb();
+  }
+  function closeOverlay(){
+    if(!ovOpen)return;ovOpen=false;
+    overlay.classList.remove('open');voiceSheet.classList.remove('open');
+    document.body.style.overflow='';
+    document.getElementById('brw-page').style.filter='';
+    qaCard.style.transform='translateY(-12px)';qaCard.style.opacity='0';
+    window.scrollTo(0,savedY);unstickKb();
+  }
+  addrbar.addEventListener('click',openOverlay);
+  overlay.querySelector('[data-close]').addEventListener('click',function(){closeOverlay();try{history.back()}catch(e){}});
+  overlay.addEventListener('click',function(e){
+    if(e.target===overlay)closeOverlay();
+  });
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&ovOpen)closeOverlay()});
+  window.addEventListener('popstate',function(){if(ovOpen)closeOverlay()});
+
+  /* 键盘贴合 */
+  var vv=window.visualViewport;
+  function stickKb(){
+    if(!vv)return;
+    var bar=overlay.querySelector('.sgx85-search-bar');
+    function upd(){var h=Math.max(0,window.innerHeight-vv.height-vv.offsetTop);bar.style.transform=h>0?('translateY('+(-h)+'px)'):''}
+    vv.addEventListener('resize',upd);vv.addEventListener('scroll',upd);overlay._vv=upd;upd();
+  }
+  function unstickKb(){
+    if(vv&&overlay._vv){vv.removeEventListener('resize',overlay._vv);vv.removeEventListener('scroll',overlay._vv)}
+    var bar=overlay.querySelector('.sgx85-search-bar');if(bar)bar.style.transform='';
+  }
+
+  /* 粘贴 chip：剪贴板有网址才显示，不弹权限 */
+  function checkClipboard(){
+    pasteWrap.classList.add('hidden');
+    try{
+      if(!navigator.clipboard||!navigator.clipboard.readText)return;
+      navigator.clipboard.readText().then(function(t){
+        t=(t||'').trim();
+        if(t&&/^[^\s]+\.[^\s]{2,}$/.test(t)&&t.length<200){
+          pasteChip.querySelector('span').textContent=t.length>32?t.slice(0,32)+'…':t;
+          pasteChip.dataset.url=t;pasteWrap.classList.remove('hidden');
+        }
+      }).catch(function(){});
+    }catch(e){}
+  }
+  pasteChip.addEventListener('click',function(){
+    var u=pasteChip.dataset.url||'';if(u){input.value=u;renderSuggest2();doSearch(u)}
+  });
+
+  /* 最近搜索卡 */
+  function renderRecent2(){
+    var a=getRecent();
+    if(!a.length){recentCard.classList.add('hidden');return}
+    recentCard.classList.remove('hidden');
+    rchips.innerHTML=a.map(function(s){
+      return '<span class="sgx85-chip"><span>'+esc(s)+'</span><button type="button" class="sgx85-chip-x" data-d="'+esc(s)+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button></span>';
+    }).join('');
+  }
+  rchips.addEventListener('click',function(e){
+    var x=e.target.closest('.sgx85-chip-x');
+    if(x){delRecent(x.getAttribute('data-d'));renderRecent2();return}
+    var c=e.target.closest('.sgx85-chip');
+    if(c){input.value=c.querySelector('span').textContent;doSearch(input.value)}
+  });
+  overlay.querySelector('[data-clear-all]').addEventListener('click',function(){lsSet(LS_RECENT,'[]');renderRecent2()});
+  overlay.querySelector('[data-hide-recent]').addEventListener('click',function(){recentCard.classList.add('hidden')});
+
+  /* 语音底板 */
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  var micBtns=overlay.querySelectorAll('[data-mic2]');
+  if(SR){micBtns.forEach(function(m){m.style.display=''});
+    voiceBtn.addEventListener('click',function(){
+      try{
+        var rec=new SR();rec.lang=EN?'en-US':'zh-CN';rec.interimResults=false;
+        voiceBtn.classList.add('sgx-mic-on');
+        rec.onresult=function(ev){input.value=ev.results[0][0].transcript;voiceSheet.classList.remove('open');renderSuggest2();doSearch(input.value)};
+        rec.onend=function(){voiceBtn.classList.remove('sgx-mic-on')};
+        rec.onerror=function(){voiceBtn.classList.remove('sgx-mic-on')};
+        rec.start();setTimeout(function(){try{rec.stop()}catch(e){}},8000);
+      }catch(e){}
+    });
+  }
+  micBtns.forEach(function(m){m.addEventListener('click',function(e){e.stopPropagation();voiceSheet.classList.toggle('open')})});
+  document.addEventListener('click',function(e){if(!voiceSheet.contains(e.target))voiceSheet.classList.remove('open')});
+
+  /* 滚动时隐藏地址栏胶囊 */
+  var lastY=window.scrollY||0,tm=null;
+  window.addEventListener('scroll',function(){
+    if(ovOpen)return;
+    var y=window.scrollY||0;
+    if(y>lastY+8)addrbar.classList.add('sgx-hide');else if(y<lastY-8)addrbar.classList.remove('sgx-hide');
+    lastY=y;clearTimeout(tm);tm=setTimeout(function(){addrbar.classList.remove('sgx-hide')},600);
+  },{passive:true});
+  document.body.classList.add('sgx85-has-pill');
 
   /* ============ 地址栏位置 ============ */
   function applyDex(){
@@ -164,33 +341,10 @@ window.__favFallback=function(img,name){
   });
   paintEngine();
 
-  /* ============ 菜单：地址栏位置 / 清除最近 ============ */
-  menuBtn.addEventListener('click', function(){
-    if(!window.__openSheet) return;
-    var pos = lsGet(LS_POS, 'bottom'); if(pos !== 'top') pos = 'bottom';
-    window.__openSheet({
-      title: t('菜单', 'Menu'),
-      options: [
-        { label: t('地址栏位置：顶部', 'Address bar: Top'),       value: 'top',           checked: pos === 'top' },
-        { label: t('地址栏位置：底部', 'Address bar: Bottom'),    value: 'bottom',        checked: pos === 'bottom' },
-        { label: t('清除最近搜索', 'Clear recent searches'),      value: '__clear_recent' }
-      ],
-      onPick: function(v){
-        if(v === '__clear_recent'){ lsSet(LS_RECENT, '[]'); renderSuggest(); return; }
-        if(v === 'top' || v === 'bottom'){ lsSet(LS_POS, v); applyPos(); }
-      }
-    });
-  });
+  /* ============ 菜单已移入设置页；此处保留引擎绘制 ============ */
+  paintEngine();
 
-  /* ============ 语音输入（统一 __sgxVoice：识别文字填入并展示站内建议，不自动跳外部引擎） ============ */
-  if(window.__sgxVoice && micBtn){
-    window.__sgxVoice(micBtn, {
-      input: input,
-      onResult: function(){
-        renderSuggest(); showSuggest(); input.focus();
-      }
-    });
-  }
+  /* ============ 语音输入已移入弹出层底板 ============ */
 
   /* ============ 站内搜索索引：/files-index.json 为主，内联 #search-index 兜底 ============ */
   var TYPE_META = {
@@ -302,11 +456,22 @@ window.__favFallback=function(img,name){
       + '</div>';
   }
 
-  function renderSuggest(){
+  function renderSuggest2(){
     var q = input.value.trim();
     selIdx = -1; curRows = [];
-    if(!q){ renderRecent(); return; }
+    if(!q){ suggest.innerHTML=''; recentCard.classList.remove('hidden'); renderRecent2(); return; }
+    recentCard.classList.add('hidden');
     var ql = q.toLowerCase(), html = '';
+    /* 快捷站点匹配 */
+    var qaHits=[];
+    document.querySelectorAll('#brw-qa-grid [data-qa]').forEach(function(a){
+      var n=a.getAttribute('data-qa')||'';
+      if(n.toLowerCase().indexOf(ql)>=0)qaHits.push({t:n,u:a.href});
+    });
+    qaHits.slice(0,4).forEach(function(x){
+      var i=curRows.length;curRows.push({kind:'site',title:x.t,url:x.u});
+      html+=rowHTML(i,ICONS.globe,x.t,'',t('快捷','Quick'));
+    });
     C_CATS.forEach(function(cat){
       var hits = INDEX.filter(function(x){
         return x.type === cat.type && ((x.t + ' ' + (x.d || '')).toLowerCase().indexOf(ql) !== -1);
@@ -332,36 +497,12 @@ window.__favFallback=function(img,name){
       '', 'AI');
     suggest.innerHTML = html;
   }
+  function renderSuggest(){ renderSuggest2(); }
 
-  function renderRecent(){
-    var a = getRecent(), html = '';
-    html += '<div class="brw-sg-group px-4 pt-3 pb-1 text-[11px] font-semibold tracking-wide text-m-on-surface-variant">' + esc(t('最近搜索', 'Recent searches')) + '</div>';
-    if(!a.length){
-      html += '<div class="brw-sg-empty px-4 py-6 text-center text-sm text-m-on-surface-variant">' + esc(t('暂无最近搜索', 'No recent searches')) + '</div>';
-    }else{
-      a.forEach(function(s){
-        var i = curRows.length;
-        curRows.push({ kind:'recent', title: s });
-        html += '<div class="brw-sg-row flex items-center gap-3 px-4 py-2.5 cursor-pointer" role="option" data-i="' + i + '">'
-          + '<span class="brw-sg-ic shrink-0 text-m-on-surface-variant">' + ICONS.clock + '</span>'
-          + '<span class="brw-sg-tx flex-1 min-w-0"><span class="brw-sg-ti block text-sm truncate">' + esc(s) + '</span></span>'
-          + '<span class="brw-sg-del shrink-0 p-1 text-m-on-surface-variant" data-del="' + esc(s) + '" role="button" aria-label="' + esc(t('删除', 'Delete')) + '">' + ICONS.x + '</span>'
-          + '</div>';
-      });
-      html += '<div class="brw-sg-clear flex items-center justify-center gap-2 px-4 py-3 text-sm text-m-on-surface-variant cursor-pointer" data-clear="1">'
-        + '<span class="brw-sg-ic">' + ICONS.trash + '</span><span>' + esc(t('全部清除', 'Clear all')) + '</span></div>';
-    }
-    suggest.innerHTML = html;
-  }
+  function renderRecent(){ renderRecent2(); }
 
-  function showSuggest(){
-    suggest.classList.remove('hidden');
-    fitSuggest();
-  }
-  function hideSuggest(){
-    suggest.classList.add('hidden');
-    selIdx = -1;
-  }
+  function showSuggest(){ fitSuggest(); }
+  function hideSuggest(){ selIdx = -1; }
   function paintSel(){
     var rows = suggest.querySelectorAll('.brw-sg-row');
     for(var k = 0; k < rows.length; k++){
@@ -421,11 +562,10 @@ window.__favFallback=function(img,name){
     activateRow(parseInt(row.getAttribute('data-i'), 10));
   });
 
-  input.addEventListener('input', function(){ renderSuggest(); showSuggest(); });
-  input.addEventListener('focus', function(){ renderSuggest(); showSuggest(); });
+  input.addEventListener('input', function(){ renderSuggest2(); });
+  input.addEventListener('focus', function(){ renderSuggest2(); });
   input.addEventListener('keydown', function(ev){
     if(ev.key === 'ArrowDown' || ev.key === 'ArrowUp'){
-      if(suggest.classList.contains('hidden')) return;
       ev.preventDefault();
       moveSel(ev.key === 'ArrowDown' ? 1 : -1);
     }else if(ev.key === 'Enter'){
@@ -433,12 +573,8 @@ window.__favFallback=function(img,name){
       if(selIdx >= 0 && curRows[selIdx]){ activateRow(selIdx); }
       else{ doSearch(input.value); }
     }else if(ev.key === 'Escape'){
-      hideSuggest(); input.blur();
+      closeOverlay();
     }
-  });
-  document.addEventListener('click', function(ev){
-    if(ev.target.closest && (ev.target.closest('#brw-addrbar') || ev.target.closest('#brw-suggest'))) return;
-    hideSuggest();
   });
 
   /* ============ 书签分类筛选 ============ */
@@ -459,28 +595,17 @@ window.__favFallback=function(img,name){
   }
 
   /* ============ 键盘避让：建议列表最大高度 ============ */
-  function fitSuggest(){
-    try{
-      if(suggest.classList.contains('hidden')) return;
-      var vv = window.visualViewport; if(!vv) return;
-      var top = suggest.getBoundingClientRect().top;
-      var maxH = vv.height - top - 12;
-      suggest.style.maxHeight = (maxH > 140 ? maxH : 140) + 'px';
-    }catch(e){}
-  }
-  if(window.visualViewport){ window.visualViewport.addEventListener('resize', fitSuggest); }
-  window.addEventListener('resize', fitSuggest);
-  window.addEventListener('orientationchange', function(){ setTimeout(fitSuggest, 300); });
+  function fitSuggest(){ /* 弹出层内建议列表随内容滚动，无需限高 */ }
 
   /* ============ ?q= 预填 / #focus 聚焦 ============ */
   function initFromUrl(){
     var q = null;
     try{ q = new URLSearchParams(location.search).get('q'); }catch(e){}
-    if(q){ input.value = q; renderSuggest(); showSuggest(); }
-    if(location.hash === '#focus'){ input.focus(); }
+    if(q){ input.value = q; openOverlay(); renderSuggest2(); }
+    if(location.hash === '#focus'){ openOverlay(); }
   }
   window.addEventListener('hashchange', function(){
-    if(location.hash === '#focus'){ renderSuggest(); showSuggest(); input.focus(); }
+    if(location.hash === '#focus'){ openOverlay(); }
   });
   initFromUrl();
 })();

@@ -19,20 +19,6 @@
 <div class="max-w-[1100px] mx-auto px-4">
   {{ partial "subpage-head.html" (dict "title" .Title "sub" (cond $isEn "Apps on this site" "站内应用") "isEn" $isEn) }}
 
-  <!-- 统一搜索条（2.3.5）：复用 files 页非 browser 样式 -->
-  {{ partial "searchbar.html" (dict "page" "files" "isEn" $isEn "barId" "store-searchbar" "openId" "store-search-open" "micId" "store-mic"
-    "placeholder" (cond $isEn "Search apps" "搜索应用")
-    "micAria" (cond $isEn "Voice input" "语音输入")) }}
-
-  <!-- 内联搜索输入：点搜索条按钮展开，按 name + desc 实时过滤 -->
-  <div id="store-search-inline" class="hidden mt-3">
-    <div class="flex items-center gap-2 rounded-full bg-m-container border border-m-outline px-4 py-2.5">
-      <span class="text-m-on-surface-variant shrink-0">{{ partial "icon.html" "search" }}</span>
-      <input id="store-q" type="search" autocomplete="off" placeholder="{{ cond $isEn "Search apps" "搜索应用" }}" aria-label="{{ cond $isEn "Search apps" "搜索应用" }}"
-        class="flex-1 min-w-0 bg-transparent outline-none text-[15px] placeholder:text-m-on-surface-variant">
-    </div>
-  </div>
-
   <!-- 分类芯片（单行横滑） -->
   <div id="store-chips" class="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 py-3" role="group" aria-label="{{ cond $isEn "Filter apps" "筛选应用" }}">
     {{ range $i, $c := $chips }}
@@ -63,6 +49,32 @@
   </div>
   <p id="store-empty" class="hidden py-10 text-center text-sm text-m-on-surface-variant">{{ $noResTxt }}</p>
 </div>
+
+<!-- One UI 8.5 搜索（2.3.12）：A 窄胶囊 + B 独立搜索页 -->
+{{ $fchips := "" }}
+{{ range $i, $c := $chips }}{{ $fchips = printf `%s<button type="button" data-cat="%s" class="sgx85-chip%s"><span>%s</span></button>` $fchips $c.id (cond (eq $i 0) " on" "") $c.label }}{{ end }}
+{{ partial "sgx-search85.html" (dict "page" "store" "isEn" $isEn
+  "placeholder" (cond $isEn "Search apps" "搜索应用")
+  "filterTitle" (cond $isEn "Filter" "筛选条件")
+  "filterChips" $fchips
+  "recentKey" "sgx85-recent-store") }}
+
+<script>
+/* 搜索页结果渲染：复用 applyFilters 逻辑 */
+window.__sgx85DoSearch=function(pg,q,esc){
+  if(pg!=='store')return '';
+  var ql=q.toLowerCase(),html='',n=0;
+  document.querySelectorAll('#store-list .store-row').forEach(function(row){
+    var hay=(row.getAttribute('data-name')+' '+row.getAttribute('data-desc')).toLowerCase();
+    if(hay.indexOf(ql)<0)return;
+    n++;
+    var name=row.getAttribute('data-name'),desc=row.getAttribute('data-desc'),url=row.querySelector('.store-open');
+    html+='<a href="'+(url?url.getAttribute('href'):'#')+'" class="sgx85-row" style="border-radius:1.25rem;margin-bottom:8px;background:var(--m-container-lowest)">'
+      +'<span class="flex-1 min-w-0"><span class="sgx85-row-title">'+esc(name)+'</span>'
+      +'<span class="sgx85-row-desc" style="display:block">'+esc(desc)+'</span></span></a>';
+  });
+  return n?html:'<p class="py-10 text-center text-sm text-m-on-surface-variant">{{ $noResTxt }}</p>';
+};
 
 <script>
 (function(){
@@ -96,9 +108,8 @@
     return on;
   }
 
-  /* ---------- 分类芯片 + 搜索过滤 ---------- */
+  /* ---------- 分类芯片 + 搜索过滤（主 chip + 搜索页 chip 双向同步） ---------- */
   function applyFilters(){
-    var q=($('store-q')&&$('store-q').value||'').trim().toLowerCase();
     var shown=0;
     rows.forEach(function(row){
       var on=paintRow(row);
@@ -107,10 +118,6 @@
       if(cur==='installed')ok=on;
       else if(cur==='uninstalled')ok=!on;
       else if(cur!=='all')ok=(cat===cur);
-      if(ok&&q){
-        var hay=(row.getAttribute('data-name')+' '+row.getAttribute('data-desc')).toLowerCase();
-        ok=hay.indexOf(q)>=0;
-      }
       row.classList.toggle('hidden',!ok);
       if(ok)shown++;
     });
@@ -118,42 +125,28 @@
     if(empty)empty.classList.toggle('hidden',shown>0);
   }
 
-  var chips=Array.prototype.slice.call(document.querySelectorAll('#store-chips .store-chip'));
-  chips.forEach(function(c){
-    c.addEventListener('click',function(){
-      cur=c.getAttribute('data-cat');
-      chips.forEach(function(x){
-        var on=x===c;
+  function setCat(c){
+    cur=c;
+    document.querySelectorAll('#store-chips .store-chip, #sgx85-fchips-store .sgx85-chip').forEach(function(x){
+      var on=x.getAttribute('data-cat')===c;
+      x.classList.toggle('on',on);
+      if(x.classList.contains('store-chip')){
         x.classList.toggle('bg-m-primary',on);
         x.classList.toggle('border-m-primary',on);
         x.classList.toggle('text-m-on-primary',on);
         x.classList.toggle('border-m-outline',!on);
         x.classList.toggle('text-m-on-surface-variant',!on);
-      });
-      applyFilters();
+      }
     });
+    applyFilters();
+  }
+  document.querySelectorAll('#store-chips .store-chip').forEach(function(c){
+    c.addEventListener('click',function(){setCat(c.getAttribute('data-cat'))});
   });
-
-  /* ---------- 搜索（内联输入） ---------- */
-  var q=$('store-q'),inline=$('store-search-inline');
-  function showInline(open){
-    if(!inline)return;
-    inline.classList.toggle('hidden',!open);
-    if(open&&q){setTimeout(function(){try{q.focus()}catch(e){}},60)}
-  }
-  var sOpen=$('store-search-open');
-  if(sOpen)sOpen.addEventListener('click',function(){showInline(inline&&inline.classList.contains('hidden'))});
-  if(q)q.addEventListener('input',applyFilters);
-
-  /* ---------- 语音搜索 ---------- */
-  if(window.__sgxVoice){
-    var mic=$('store-mic');
-    if(mic)window.__sgxVoice(mic,{
-      input:function(){return q},
-      beforeStart:function(){showInline(true)},
-      onResult:function(){applyFilters()}
-    });
-  }
+  document.addEventListener('click',function(e){
+    var c=e.target.closest('#sgx85-fchips-store .sgx85-chip');
+    if(c)setCat(c.getAttribute('data-cat'));
+  });
 
   /* ---------- 开关 + 安装按钮 ---------- */
   rows.forEach(function(row){

@@ -9,15 +9,20 @@
   (dict "id" "rose" "c" "#984061" "zh" "蔷薇" "en" "Rose")
 }}
 
-<div class="max-w-[1100px] mx-auto px-4">
-  {{ partial "subpage-head.html" (dict "title" (cond $isEn "Settings" "设置") "sub" (cond $isEn "Make it yours." "调成你的样子。") "isEn" $isEn) }}
+<div class="set-layout max-w-2xl mx-auto pb-28">
+    <!-- 2.3.12：One UI 8.5 大标题折叠 -->
+    <div class="sgx85-hero" id="set-hero">
+      <div>
+        <h1 class="sgx85-hero-title" id="set-hero-title">{{ if $isEn }}Settings{{ else }}设置{{ end }}</h1>
+      </div>
+    </div>
+    <div class="sgx85-minibar" id="set-minibar">
+      <button type="button" class="sgx85-minibar-back" data-back aria-label="{{ if $isEn }}Back{{ else }}返回{{ end }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <span class="sgx85-minibar-title">{{ if $isEn }}Settings{{ else }}设置{{ end }}</span>
+    </div>
 
-  <!-- 统一搜索条（2.3.5）：手机悬浮 Dock 上方，DeX 在大标题下方；只搜设置项，行为不变 -->
-  {{ partial "searchbar.html" (dict "page" "settings" "isEn" $isEn "barId" "settings-searchbar-wrap" "openId" "settings-searchbar" "micId" "set-mic"
-    "placeholder" (cond $isEn "Search settings" "搜索设置")
-    "micAria" (cond $isEn "Voice input" "语音输入")) }}
-
-  <div class="set-layout max-w-2xl mx-auto pb-28">
     <!-- 平板/桌面双栏：左侧分类 -->
     <aside class="set-side" aria-label="{{ if $isEn }}Categories{{ else }}分类{{ end }}">
       <h1 class="set-side-title">{{ if $isEn }}Settings{{ else }}设置{{ end }}</h1>
@@ -62,16 +67,16 @@
       </nav>
     </aside>
     <div class="set-main min-w-0">
-    <!-- 个人卡片（手机端显示，双栏下左栏已有）：姓名在左、头像在右 -->
-    <section class="sm:hidden widget bg-m-container-lowest border border-m-outline p-5 flex items-center gap-4 mb-7 animate-fade-up" style="animation-delay:.06s">
-      <div class="flex-1 min-w-0">
-        <p class="text-lg font-bold truncate">Sloan Gray</p>
-        <p class="text-sm text-m-on-surface-variant">Styrigx</p>
+    <!-- 账号卡（2.3.12 One UI 风格） -->
+    <div class="sgx85-account">
+      <div class="sgx85-account-tx">
+        <p class="sgx85-account-name">Sloan Gray</p>
+        <p class="sgx85-account-sub">Styrigx</p>
       </div>
       {{ if $avatar }}{{ $a := $avatar.Fill "160x160 webp" }}
-      <img src="{{ $a.RelPermalink }}" alt="Sloan Gray" width="64" height="64" class="w-16 h-16 rounded-full object-cover ring-2 ring-m-outline shrink-0">
+      <img src="{{ $a.RelPermalink }}" alt="Sloan Gray" width="56" height="56" class="sgx85-avatar">
       {{ end }}
-    </section>
+    </div>
 
     <!-- 第一组：显示 -->
     <div class="set-group scroll-mt-24" id="sg-display">
@@ -299,18 +304,7 @@
     </div>
   </div>
 
-  <!-- 三星样式浮动搜索条（仅手机） -->
-  <div id="settings-searchfade" aria-hidden="true"></div>
-
-  <!-- 全屏搜索（仅手机） -->
-  <div id="set-search-overlay" class="hidden" role="dialog" aria-modal="true" aria-label="{{ if $isEn }}Search settings{{ else }}搜索设置{{ end }}">
-    <div class="setso-head">
-      <button type="button" id="setso-back" aria-label="{{ if $isEn }}Back{{ else }}返回{{ end }}">{{ partial "icon.html" "arrow-left" }}</button>
-      <input id="setso-input" type="search" autocomplete="off" enterkeyhint="search" placeholder="{{ if $isEn }}Search settings…{{ else }}搜索设置…{{ end }}">
-      <button type="button" id="setso-mic" aria-label="{{ if $isEn }}Voice input{{ else }}语音输入{{ end }}">{{ partial "icon.html" "mic" }}</button>
-    </div>
-    <div id="setso-results"></div>
-  </div>
+  <!-- 旧搜索 overlay 已迁移到 One UI 8.5 搜索页（2.3.12），以下停用 -->
 </div>
 
 <script>
@@ -947,7 +941,8 @@
     {t:en?'About':'关于本站',d:'',cat:'about',el:'sg-about'}
   ];
   function idxByEl(elid){for(var i=0;i<SETIDX.length;i++){if(SETIDX[i].el===elid)return SETIDX[i]}return null}
-  var ov=$('set-search-overlay'),ovi=$('setso-input'),ovr=$('setso-results');
+  /* 旧搜索 overlay 已停用（2.3.12 迁移到 sgx-search85），保留 SETIDX 和 pickResult 供新搜索调用 */
+  var ov=null,ovi=null,ovr=null;
   function itemHTML(x){
     return '<button type="button" class="setso-item" data-cat="'+x.cat+'" data-el="'+x.el+'" data-t="'+esc(x.t)+'"'
       +(x.p?' data-p="'+x.p+'"':'')+(x.i?' data-i="'+x.i+'"':'')+'>'
@@ -1009,33 +1004,52 @@
     ov.classList.remove('open');
     setTimeout(function(){if(!ov.classList.contains('open'))ov.classList.add('hidden')},reducedM?0:240);
   }
-  /* 语音输入：统一 __sgxVoice（不支持 SpeechRecognition 时自动隐藏麦克风） */
-  if(window.__sgxVoice){
-    window.__sgxVoice($('set-mic'),{
-      input:function(){return $('setso-input')},
-      beforeStart:openOverlay,
-      onResult:function(txt){renderOverlay(txt)}
-    });
-    window.__sgxVoice($('setso-mic'),{
-      input:function(){return $('setso-input')},
-      onResult:function(txt){renderOverlay(txt)}
-    });
-  }
-  var sb=$('settings-searchbar');
-  if(sb){
-    sb.addEventListener('click',function(e){
-      if(e.target.closest&&e.target.closest('#set-mic'))return;
-      openOverlay();
-    });
-  }
-  if(ov){
-    $('setso-back').addEventListener('click',closeOverlay);
-    ovi.addEventListener('input',function(){renderOverlay(ovi.value)});
-    ovi.addEventListener('keydown',function(e){if(e.key==='Escape'){ovi.value='';renderOverlay('')}});
-    document.addEventListener('keydown',function(e){
-      if(e.key==='Escape'&&!ov.classList.contains('hidden'))closeOverlay();
-    });
-  }
+  /* 旧搜索 overlay 已停用（2.3.12） */
 })();
 </script>
+
+<!-- One UI 8.5 搜索（2.3.12）：A 窄胶囊 + B 独立搜索页 -->
+{{ partial "sgx-search85.html" (dict "page" "settings" "isEn" $isEn
+  "placeholder" (cond $isEn "Search settings" "搜索设置")
+  "filterTitle" (cond $isEn "Filter" "筛选条件")
+  "filterChips" (printf `<button type="button" data-f="all" class="sgx85-chip on"><span>%s</span></button>` (cond $isEn "All" "全部"))
+  "recentKey" "sgx85-recent-settings") }}
+<script>
+/* 设置搜索接入 B：复用 SETIDX */
+window.__sgx85DoSearch=function(pg,q,esc){
+  if(pg!=='settings'||typeof SETIDX==='undefined')return '';
+  var ql=q.toLowerCase();
+  var hits=SETIDX.filter(function(x){return (x.t+' '+(x.d||'')).toLowerCase().indexOf(ql)>=0}).slice(0,12);
+  if(!hits.length)return '<p class="py-10 text-center text-sm text-m-on-surface-variant">'+esc('{{ cond $isEn "No results" "无结果" }}')+'</p>';
+  return hits.map(function(x){
+    return '<button type="button" class="sgx85-row" style="border-radius:1.25rem;margin-bottom:8px;background:var(--m-container-lowest);width:100%;text-align:left"'
+      +' data-cat="'+esc(x.cat||'')+'" data-el="'+esc(x.el||'')+'" data-t="'+esc(x.t||'')+'"'
+      +(x.p?' data-p="'+esc(x.p)+'"':'')+(x.i?' data-i="'+esc(x.i)+'"':'')+'>'
+      +'<span class="flex-1 min-w-0"><span class="sgx85-row-title">'+esc(x.t||'')+'</span>'
+      +(x.d?'<span class="sgx85-row-desc" style="display:block">'+esc(x.d)+'</span>':'')
+      +'</span></button>';
+  }).join('');
+};
+document.addEventListener('click',function(e){
+  var b=e.target.closest('#sgx85-results-settings .sgx85-row');
+  if(b&&typeof pickResult==='function'){
+    pickResult(b.getAttribute('data-cat'),b.getAttribute('data-el'),b.getAttribute('data-t'),b.getAttribute('data-p'),b.getAttribute('data-i'));
+    document.querySelector('#sgx85-search-settings [data-close]').click();
+  }
+});
+/* 大标题折叠（C） */
+(function(){
+  var hero=document.getElementById('set-hero'),title=document.getElementById('set-hero-title'),bar=document.getElementById('set-minibar');
+  if(!hero||!title)return;
+  var heroH=hero.offsetHeight||300,ticking=false;
+  function onScroll(){
+    var y=window.scrollY||0,p=Math.min(1,y/(heroH*0.7));
+    title.style.transform='scale('+(1-p*0.45)+') translateY('+(-p*30)+'px)';
+    title.style.opacity=1-p;
+    bar.classList.toggle('show',p>0.55);
+    ticking=false;
+  }
+  window.addEventListener('scroll',function(){if(!ticking){ticking=true;requestAnimationFrame(onScroll)}},{passive:true});
+  onScroll();
+})();
 {{ end }}

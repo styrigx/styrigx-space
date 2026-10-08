@@ -61,11 +61,6 @@
   {{ partial "subpage-head.html" (dict "title" .Title "sub" (cond $isEn "Site index" "全站内容索引") "isEn" $isEn "actions" ($moreBtn | safeHTML)) }}
   <button type="button" id="files-more-float" class="files-more-float" aria-label="{{ if $isEn }}More options{{ else }}更多选项{{ end }}">{{ $dots | safeHTML }}</button>
 
-  <!-- 统一搜索条（2.3.5）：手机悬浮 Dock 上方，DeX 在大标题下方；只搜站内索引，行为不变 -->
-  {{ partial "searchbar.html" (dict "page" "files" "isEn" $isEn "barId" "files-searchbar" "openId" "files-search-open" "micId" "files-mic"
-    "placeholder" (cond $isEn "Search site" "搜索站内")
-    "micAria" (cond $isEn "Voice input" "语音输入")) }}
-
   <!-- 主页模式 -->
   <div id="files-home" class="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6">
     <!-- 1. 顶部分类 -->
@@ -539,34 +534,8 @@ html.layout-dex .files-more-float{display:none}
     }).join('');
     bindLongPress(sr);
   }
-  function openSearch(){
-    if(!window.__openSheet)return null;
-    var html='<div class="px-2 pb-4">'
-      +'<div class="flex items-center gap-2 rounded-full bg-m-container border border-m-outline px-4 py-3">'
-      +'<span class="text-m-on-surface-variant shrink-0">'+ICONS.search+'</span>'
-      +'<input id="files-q" type="search" autocomplete="off" placeholder="'+esc(S.searchPh||'')+'" class="flex-1 min-w-0 bg-transparent outline-none text-[15px] placeholder:text-m-on-surface-variant">'
-      +'</div><div id="files-sr" class="mt-2"></div></div>';
-    window.__openSheet({title:S.search||'',html:html});
-    var q=$('files-q'),sr=$('files-sr');
-    if(q){q.addEventListener('input',function(){searchResults(q,sr)});setTimeout(function(){q.focus()},380)}
-    return q;
-  }
-  var sOpen=$('files-search-open');
-  if(sOpen)sOpen.addEventListener('click',function(){openSearch()});
-  /* ---------- 语音搜索（统一 __sgxVoice：先开搜索面板，识别文字填入并搜站内索引） ---------- */
-  if(window.__sgxVoice){
-    var fmic=$('files-mic');
-    if(fmic)window.__sgxVoice(fmic,{
-      input:function(){return $('files-q')},
-      beforeStart:function(){openSearch()},
-      onResult:function(){
-        var q=$('files-q'),sr=$('files-sr');
-        if(q&&sr)searchResults(q,sr);
-      }
-    });
-  }
-
-  /* ---------- 悬浮 ⋮ + 搜索条滚动 ---------- */
+  /* ---------- 旧搜索已迁移到 One UI 8.5 搜索页（sgx-search85），以下代码停用 ---------- */
+  /* ---------- 悬浮 ⋮ ---------- */
   var head=document.querySelector('[data-subpage-head]');
   function onScrollFloat(){
     if(!moreFloat||!head)return;
@@ -574,14 +543,7 @@ html.layout-dex .files-more-float{display:none}
     var show=canScroll&&window.scrollY>head.offsetHeight*0.55;
     moreFloat.classList.toggle('show',!!show);
   }
-  var sbar=$('files-searchbar'),sbt=null;
-  function onScrollBar(){
-    if(!sbar||reduced())return;
-    sbar.classList.add('sgx-hide');
-    if(sbt)clearTimeout(sbt);
-    sbt=setTimeout(function(){sbar.classList.remove('sgx-hide')},600);
-  }
-  window.addEventListener('scroll',function(){onScrollFloat();onScrollBar()},{passive:true});
+  window.addEventListener('scroll',function(){onScrollFloat()},{passive:true});
   window.addEventListener('resize',onScrollFloat);
 
   /* ---------- 初始化 ---------- */
@@ -600,6 +562,7 @@ html.layout-dex .files-more-float{display:none}
     var lang=en?'en':'zh';
     var arr=(j&&j.items)||j;
     DATA=(Array.isArray(arr)?arr:[]).filter(function(it){return it&&(!it.lang||it.lang===lang)&&(it.type==='post'||it.type==='book'||it.type==='music'||it.type==='site')});
+    window._filesDATA=DATA;
     if(listMode)renderList();
     else{renderRecent();renderStorage()}
   }).catch(function(){
@@ -607,5 +570,45 @@ html.layout-dex .files-more-float{display:none}
   });
   onScrollFloat();
 })();
+</script>
+
+<!-- One UI 8.5 搜索（2.3.12）：A 窄胶囊 + B 独立搜索页；筛选：我的站点 / 文件类型 -->
+{{ $ffchips := printf `<button type="button" data-f="all" class="sgx85-chip on"><span>%s</span></button>` (cond $isEn "All" "全部") }}
+{{ range $typeMeta }}{{ $ffchips = printf `%s<button type="button" data-f="%s" class="sgx85-chip"><span>%s</span></button>` $ffchips .id .label }}{{ end }}
+{{ partial "sgx-search85.html" (dict "page" "files" "isEn" $isEn
+  "placeholder" (cond $isEn "Search site" "搜索站内")
+  "filterTitle" (cond $isEn "Filter" "筛选条件")
+  "filterChips" $ffchips
+  "recentKey" "sgx85-recent-files") }}
+<script>
+/* 搜索页结果：复用站内索引，按筛选类型过滤 */
+window.__sgx85DoSearch=function(pg,q,esc){
+  if(pg!=='files')return '';
+  var ql=q.toLowerCase();
+  var f='all',fc=document.querySelector('#sgx85-fchips-files .sgx85-chip.on');
+  if(fc)f=fc.getAttribute('data-f');
+  var hits=(window.__filesDATA||[]).filter(function(it){
+    if(f!=='all'&&it.type!==f)return false;
+    return (it.title||'').toLowerCase().indexOf(ql)>=0||(it.subtitle||'').toLowerCase().indexOf(ql)>=0;
+  });
+  if(!hits.length)return '<p class="py-10 text-center text-sm text-m-on-surface-variant">'+esc('{{ cond $isEn "No results" "无结果" }}')+'</p>';
+  return hits.slice(0,30).map(function(it){
+    var url=it.url||'#';
+    return '<a class="sgx85-row" style="border-radius:1.25rem;margin-bottom:8px;background:var(--m-container-lowest)" href="'+esc(url)+'"'
+      +(url.indexOf('http')===0?' target="_blank" rel="noopener"':'')
+      +'><span class="flex-1 min-w-0"><span class="sgx85-row-title">'+esc(it.title||'')+'</span>'
+      +(it.subtitle?'<span class="sgx85-row-desc" style="display:block">'+esc(it.subtitle)+'</span>':'')
+      +'</span></a>';
+  }).join('');
+};
+document.addEventListener('click',function(e){
+  var c=e.target.closest('#sgx85-fchips-files .sgx85-chip');
+  if(!c)return;
+  document.querySelectorAll('#sgx85-fchips-files .sgx85-chip').forEach(function(x){x.classList.toggle('on',x===c)});
+  var inp=document.getElementById('sgx85-input-files');
+  if(inp&&inp.value.trim()){var r=window.__sgx85DoSearch?window.__sgx85DoSearch('files',inp.value.trim(),function(s){return s}):'';document.getElementById('sgx85-results-files').innerHTML=r}
+});
+/* 暴露 DATA 给搜索用 */
+(function(){var _o=window.__filesDATA;Object.defineProperty(window,'__filesDATA',{get:function(){return window._filesDATA||[]},set:function(v){window._filesDATA=v}})})();
 </script>
 {{ end }}
