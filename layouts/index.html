@@ -53,20 +53,38 @@
   (dict "name" "Good Lock" "url" (cond $isEn "/en/goodlock/" "/goodlock/") "icon" "gift" "bg" "bg-m-accent-container" "fg" "text-m-on-accent-container")
 }}
 
-<div class="max-w-[1100px] mx-auto px-4">
+<div class="home-wrap max-w-[1100px] mx-auto px-4">
 
-  <!-- Google 风格搜索条 -->
-  <div class="pt-5 sm:pt-8">
-    <button onclick="window.__openSearch&&window.__openSearch()"
-      class="widget w-full bg-m-container-lowest border border-m-outline px-5 py-4 flex items-center gap-3 text-left animate-fade-up active:scale-[0.99] transition-transform" style="animation-delay:.02s">
-      <span class="text-m-on-surface-variant">{{ partial "icon.html" "search" }}</span>
-      <span class="flex-1 text-m-on-surface-variant">{{ if $isEn }}Search bookmarks, books, music…{{ else }}搜索书签、书、歌、收藏…{{ end }}</span>
-      <kbd class="hidden sm:inline-block text-xs bg-m-container rounded-lg px-2 py-1 font-sans text-m-on-surface-variant shrink-0">⌘K</kbd>
+  <!-- DeX 桌面图标（左侧竖排，仅 dex 模式显示） -->
+  <div id="dex-icons" role="navigation" aria-label="{{ if $isEn }}Desktop icons{{ else }}桌面图标{{ end }}">
+    <a href="https://blog.styrigx.com" target="_blank" rel="noopener" class="dex-icon" aria-label="Blog">
+      <span class="dex-di bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "pen" }}</span>
+      <span class="dex-label">{{ if $isEn }}Blog{{ else }}博客{{ end }}</span>
+    </a>
+    <a href="{{ $linksUrl }}" class="dex-icon" aria-label="{{ if $isEn }}Bookmarks{{ else }}导航{{ end }}">
+      <span class="dex-di bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "compass" }}</span>
+      <span class="dex-label">{{ if $isEn }}Bookmarks{{ else }}导航{{ end }}</span>
+    </a>
+    <button type="button" data-win="books" class="dex-icon" aria-label="{{ if $isEn }}Books{{ else }}书单{{ end }}">
+      <span class="dex-di bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "book" }}</span>
+      <span class="dex-label">{{ if $isEn }}Books{{ else }}书单{{ end }}</span>
+    </button>
+    <button type="button" data-win="music" class="dex-icon" aria-label="{{ if $isEn }}Playlist{{ else }}歌单{{ end }}">
+      <span class="dex-di bg-m-warm-container text-m-on-warm-container">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+      </span>
+      <span class="dex-label">{{ if $isEn }}Playlist{{ else }}歌单{{ end }}</span>
+    </button>
+    <button type="button" data-win="garden" class="dex-icon" aria-label="{{ if $isEn }}Garden{{ else }}花园{{ end }}">
+      <span class="dex-di bg-m-tertiary-container text-m-on-tertiary-container">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 20h10"/><path d="M12 20v-8"/><path d="M12 12c0-4 3-7 8-7 0 4-3 7-8 7z"/><path d="M12 12C12 8 9 5 4 5c0 4 3 7 8 7z"/></svg>
+      </span>
+      <span class="dex-label">{{ if $isEn }}Garden{{ else }}花园{{ end }}</span>
     </button>
   </div>
 
   <!-- 小组件网格 -->
-  <div class="grid grid-cols-4 lg:grid-cols-8 gap-3 pt-3">
+  <div id="home-widgets" class="grid grid-cols-4 lg:grid-cols-8 gap-3 pt-5 sm:pt-8">
 
     <!-- 名片 -->
     <div class="widget col-span-4 lg:col-span-5 bg-m-primary-container text-m-on-primary-container p-6 sm:p-7 flex items-center gap-5 animate-fade-up" style="animation-delay:.08s">
@@ -198,7 +216,7 @@
     {{ $wbOther := sub $wbTotal $wbSum }}
     {{ $dp := split $wb.updated "-" }}{{ $wmo := index $dp 1 }}{{ $wda := strings.TrimLeft "0" (index $dp 2) }}
     {{ $monEn := dict "01" "Jan" "02" "Feb" "03" "Mar" "04" "Apr" "05" "May" "06" "Jun" "07" "Jul" "08" "Aug" "09" "Sep" "10" "Oct" "11" "Nov" "12" "Dec" }}
-    <div class="widget col-span-4 lg:col-span-8 bg-m-container-lowest border border-m-outline p-5 sm:p-6 animate-fade-up" style="animation-delay:.44s">
+    <div class="widget wb-full col-span-4 lg:col-span-8 bg-m-container-lowest border border-m-outline p-5 sm:p-6 animate-fade-up" style="animation-delay:.44s">
       <div class="flex items-center justify-between gap-3 mb-4">
         <p class="text-xs font-semibold uppercase tracking-widest opacity-70">{{ if $isEn }}My screen time{{ else }}我的屏幕时间{{ end }}</p>
         <p class="text-[11px] text-m-on-surface-variant">{{ if $isEn }}Updated {{ index $monEn $wmo }} {{ $wda }}{{ else }}更新于 {{ $wmo }}月{{ $wda }}日{{ end }}</p>
@@ -234,7 +252,7 @@
 
   <!-- App 图标 -->
   <section class="pt-8">
-    <div class="grid grid-cols-4 sm:grid-cols-8 gap-x-2 gap-y-4">
+    <div class="app-grid grid grid-cols-4 sm:grid-cols-8 gap-x-2 gap-y-4">
       {{ range $i, $a := $apps }}
       <a href="{{ $a.url }}" {{ if hasPrefix $a.url "http" }}target="_blank" rel="noopener"{{ end }}
          class="app-tile flex flex-col items-center gap-1.5 py-1 active:scale-90 transition-transform animate-fade-up" style="animation-delay:{{ add 400 (mul $i 35) }}ms">
@@ -378,6 +396,25 @@
       {{ end }}
     </div>
   </section>
+</div>
+
+<!-- DeX 窗口（书单/歌单/花园，仅 dex 模式） -->
+<div id="dex-window" class="hidden" role="dialog" aria-modal="true" aria-labelledby="dex-win-title">
+  <div id="dex-win">
+    <div id="dex-win-bar">
+      <span id="dex-win-title"></span>
+      <button type="button" id="dex-win-min" class="win-btn" aria-label="{{ if $isEn }}Minimize{{ else }}最小化{{ end }}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14"/></svg>
+      </button>
+      <button type="button" id="dex-win-max" class="win-btn" aria-label="{{ if $isEn }}Maximize{{ else }}最大化{{ end }}">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+      </button>
+      <button type="button" id="dex-win-close" class="win-btn" aria-label="{{ if $isEn }}Close{{ else }}关闭{{ end }}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div id="dex-win-body"></div>
+  </div>
 </div>
 
 <!-- Dock -->
@@ -645,6 +682,63 @@
   }
   bind(pills, 'garden', function(v){activeTag=v});
   bind(stagePills, 'stage', function(v){activeStage=v});
+})();
+</script>
+<script>
+/* ===== DeX 窗口：书单 / 歌单 / 花园（移动 section 进窗口，关闭时归还） ===== */
+(function(){
+  var win=document.getElementById('dex-window'),frame=document.getElementById('dex-win'),
+      body=document.getElementById('dex-win-body'),title=document.getElementById('dex-win-title');
+  if(!win||!frame)return;
+  var en=document.documentElement.lang==='en';
+  var TITLES={books:en?'Books':'书单',music:en?'Playlist':'歌单',garden:en?'Digital Garden':'数字花园'};
+  var origin=null,curKind=null,minimized=false;
+  function secOf(kind){return document.getElementById(kind==='books'?'books':kind==='music'?'music':'garden')}
+  function restore(){
+    if(origin&&origin.parent){
+      var sec=body.querySelector('section');
+      if(sec){sec.classList.remove('in-dex-window');origin.parent.insertBefore(sec,origin.next)}
+    }
+    origin=null;curKind=null;
+  }
+  function show(){
+    win.classList.remove('hidden');
+    requestAnimationFrame(function(){requestAnimationFrame(function(){win.classList.add('open')})});
+  }
+  function open(kind){
+    var sec=secOf(kind);
+    if(!sec)return;
+    if(curKind===kind&&win.classList.contains('open')&&!minimized)return;
+    if(curKind!==kind){restore();origin={parent:sec.parentNode,next:sec.nextSibling};curKind=kind}
+    title.textContent=TITLES[kind]||'';
+    if(sec.parentNode!==body){sec.classList.add('in-dex-window');body.appendChild(sec)}
+    body.scrollTop=0;
+    minimized=false;frame.classList.remove('max');
+    show();
+  }
+  function hideOnly(){
+    win.classList.remove('open');
+    setTimeout(function(){if(!win.classList.contains('open'))win.classList.add('hidden')},240);
+  }
+  function close(){
+    hideOnly();
+    setTimeout(function(){if(!win.classList.contains('open')){restore();frame.classList.remove('max')}},250);
+    minimized=false;
+  }
+  document.querySelectorAll('#dex-icons [data-win]').forEach(function(b){
+    b.addEventListener('click',function(){open(b.getAttribute('data-win'))});
+  });
+  document.getElementById('dex-win-close').addEventListener('click',close);
+  document.getElementById('dex-win-min').addEventListener('click',function(){minimized=true;hideOnly()});
+  document.getElementById('dex-win-max').addEventListener('click',function(){frame.classList.toggle('max')});
+  win.addEventListener('click',function(e){if(e.target===win)close()});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&win.classList.contains('open'))close()});
+  var prevHook=window.__dexLayoutChanged;
+  window.__dexLayoutChanged=function(m){
+    if(prevHook)prevHook(m);
+    if(m!=='dex'&&win.classList.contains('open'))close();
+  };
+  window.__openDexWindow=open;
 })();
 </script>
 {{ end }}

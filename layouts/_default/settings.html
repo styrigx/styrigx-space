@@ -20,7 +20,17 @@
     <div class="glass border border-m-outline rounded-full px-5 py-2 text-sm font-semibold shadow-md whitespace-nowrap">{{ if $isEn }}Settings{{ else }}设置{{ end }}</div>
   </div>
 
-  <div class="max-w-2xl mx-auto pb-28">
+  <div class="set-layout max-w-2xl mx-auto pb-28">
+    <!-- 平板双栏：左侧分类 -->
+    <aside class="set-side" aria-label="{{ if $isEn }}Categories{{ else }}分类{{ end }}">
+      <a href="#sg-display">{{ if $isEn }}Display{{ else }}显示{{ end }}</a>
+      <a href="#sg-theme">{{ if $isEn }}Wallpaper &amp; theme{{ else }}壁纸和主题{{ end }}</a>
+      <a href="#sg-clock">{{ if $isEn }}Clock &amp; weather{{ else }}时钟和天气{{ end }}</a>
+      <a href="#sg-general">{{ if $isEn }}General{{ else }}通用{{ end }}</a>
+      <a href="#wellbeing">{{ if $isEn }}Digital wellbeing{{ else }}数字健康{{ end }}</a>
+      <a href="#sg-about">{{ if $isEn }}About{{ else }}关于本站{{ end }}</a>
+    </aside>
+    <div class="set-main min-w-0">
     <!-- 个人卡片 -->
     <section class="widget bg-m-container-lowest border border-m-outline p-5 flex items-center gap-4 mb-7 animate-fade-up" style="animation-delay:.06s">
       {{ if $avatar }}{{ $a := $avatar.Fill "160x160 webp" }}
@@ -33,6 +43,7 @@
     </section>
 
     <!-- 第一组：显示 -->
+    <div class="set-group scroll-mt-24" id="sg-display">
     <h2 class="px-2 mb-2 text-sm font-semibold text-m-on-surface-variant">{{ if $isEn }}Display{{ else }}显示{{ end }}</h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.1s">
       <div class="p-5">
@@ -74,9 +85,21 @@
         <span id="lang-val" class="text-sm text-m-on-surface-variant">{{ if $isEn }}English{{ else }}中文{{ end }}</span>
         {{ partial "icon.html" "chev-r" }}
       </div>
+      <div class="p-5">
+        <p class="text-sm font-medium mb-3">{{ if $isEn }}Desktop layout{{ else }}桌面布局{{ end }}</p>
+        <div class="seg" id="seg-layout" role="group" aria-label="{{ if $isEn }}Desktop layout{{ else }}桌面布局{{ end }}">
+          <button type="button" data-v="auto" aria-pressed="false">{{ if $isEn }}Auto{{ else }}自动{{ end }}</button>
+          <button type="button" data-v="phone" aria-pressed="false">{{ if $isEn }}Phone{{ else }}手机{{ end }}</button>
+          <button type="button" data-v="tablet" aria-pressed="false">{{ if $isEn }}Tablet{{ else }}平板{{ end }}</button>
+          <button type="button" data-v="dex" aria-pressed="false">DeX</button>
+        </div>
+        <p class="text-xs text-m-on-surface-variant mt-2">{{ if $isEn }}Manual choice overrides the automatic breakpoint.{{ else }}手动选择会覆盖按宽度的自动判断。{{ end }}</p>
+      </div>
     </section>
+    </div>
 
     <!-- 第二组：壁纸和主题 -->
+    <div class="set-group scroll-mt-24" id="sg-theme">
     <h2 class="px-2 mb-2 text-sm font-semibold text-m-on-surface-variant">{{ if $isEn }}Wallpaper & theme{{ else }}壁纸和主题{{ end }}</h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.14s">
       <div class="p-5">
@@ -100,8 +123,10 @@
         </div>
       </div>
     </section>
+    </div>
 
     <!-- 第三组：时钟和天气 -->
+    <div class="set-group scroll-mt-24" id="sg-clock">
     <h2 class="px-2 mb-2 text-sm font-semibold text-m-on-surface-variant">{{ if $isEn }}Clock & weather{{ else }}时钟和天气{{ end }}</h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.18s">
       <div class="set-row" id="row-tz" role="button" tabindex="0">
@@ -129,8 +154,10 @@
         <span class="switch" id="sw-wxshow" role="switch" aria-checked="true" aria-label="{{ if $isEn }}Show weather widget{{ else }}显示天气小组件{{ end }}"><span class="knob"></span></span>
       </div>
     </section>
+    </div>
 
     <!-- 第四组：通用 -->
+    <div class="set-group scroll-mt-24" id="sg-general">
     <h2 class="px-2 mb-2 text-sm font-semibold text-m-on-surface-variant">{{ if $isEn }}General{{ else }}通用{{ end }}</h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.22s">
       <div class="set-row" id="row-motion" role="button" tabindex="0">
@@ -152,8 +179,10 @@
         {{ partial "icon.html" "chev-r" }}
       </a>
     </section>
+    </div>
 
     <!-- 数字健康 -->
+    <div class="set-group scroll-mt-24" id="sg-wellbeing">
     <h2 id="wellbeing" class="px-2 mb-2 text-sm font-semibold text-m-on-surface-variant scroll-mt-24">{{ if $isEn }}Digital wellbeing{{ else }}数字健康{{ end }}</h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.24s">
       {{/* 我的屏幕时间（来自 data/wellbeing.yaml） */}}
@@ -208,6 +237,7 @@
     </section>
 
     <!-- 第五组：关于 -->
+    <div class="set-group scroll-mt-24" id="sg-about">
     <h2 class="px-2 mb-2 text-sm font-semibold text-m-on-surface-variant">{{ if $isEn }}About{{ else }}关于本站{{ end }}</h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.26s">
       <div class="set-row no-ic">
@@ -230,6 +260,8 @@
         <span class="flex-1 font-medium text-red-600 dark:text-red-400">{{ if $isEn }}Reset all settings{{ else }}重置所有设置{{ end }}</span>
       </div>
     </section>
+    </div>
+    </div>
   </div>
 
   <!-- 底部搜索条 -->
@@ -330,6 +362,24 @@
     });
   });
   paintFont();
+
+  /* ---- 桌面布局：自动 / 手机 / 平板 / DeX ---- */
+  function paintLayout(){
+    var v='auto';try{v=get('sgx-layout')||'auto'}catch(e){}
+    document.querySelectorAll('#seg-layout button').forEach(function(b){
+      b.setAttribute('aria-pressed',b.getAttribute('data-v')===v?'true':'false');
+    });
+  }
+  document.querySelectorAll('#seg-layout button').forEach(function(b){
+    b.addEventListener('click',function(){
+      var v=b.getAttribute('data-v');
+      try{if(v==='auto'){localStorage.removeItem('sgx-layout')}else{localStorage.setItem('sgx-layout',v)}}catch(e){}
+      paintLayout();
+      if(window.__applyLayout)window.__applyLayout();
+      window.dispatchEvent(new Event('sgx-settings-changed'));
+    });
+  });
+  paintLayout();
 
   /* ---- 第二时区 ---- */
   function paintTz(){$('tz-val').textContent=tzLabel(get('sgx-tz2')||'America/Los_Angeles')}
