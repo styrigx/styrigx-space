@@ -2,7 +2,7 @@
   url: https://muse-invite.styrigx.com
   desc: 邀请码免费共享，抽码小游戏。
   icon: ticket
-  stage: growing
+  stage: budding
   tags: [AI, 工具]
 - name: muse-playbook
   url: https://github.com/styrigx/muse-playbook
@@ -20,5 +20,11 @@
   url: https://mihomo-mrs.styrigx.com
   desc: 自用代理规则集订阅。
   icon: globe
-  stage: growing
+  stage: budding
   tags: [工具, 网络]
+- name: Styrigx's Space
+  url: https://styrigx.com
+  desc: 这个站点本身，数字花园式的个人门户，还在生长中。
+  icon: compass
+  stage: seedling
+  tags: [站点]

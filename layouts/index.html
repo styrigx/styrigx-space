@@ -1,13 +1,12 @@
 {{ define "main" }}
 {{ $isEn := eq .Lang "en" }}
 {{ $profile := site.Data.profile }}
-{{ $entries := site.Data.entries.entries }}
 {{ $books := site.Data.books }}
 {{ $music := site.Data.music }}
 {{ $collections := site.Data.collections }}
 {{ $now := site.Data.now }}
 {{ $linksUrl := "/links/" }}{{ $home := "/" }}
-{{ if $isEn }}{{ $entries = site.Data.en.entries.entries }}{{ $books = site.Data.en.books }}{{ $music = site.Data.en.music }}{{ $now = site.Data.en.now }}{{ $linksUrl = "/en/links/" }}{{ $home = "/en/" }}{{ end }}
+{{ if $isEn }}{{ $books = site.Data.en.books }}{{ $music = site.Data.en.music }}{{ $now = site.Data.en.now }}{{ $linksUrl = "/en/links/" }}{{ $home = "/en/" }}{{ end }}
 {{ $motto := $profile.motto_zh }}{{ if $isEn }}{{ $motto = $profile.motto_en }}{{ end }}
 {{ $motto2 := $profile.motto_en }}{{ if $isEn }}{{ $motto2 = "" }}{{ end }}
 
@@ -47,29 +46,123 @@
   </div>
 </section>
 
-<!-- 精选入口 · 便当盒 -->
+<!-- 精选入口 · 真 Bento -->
 <section id="featured" class="max-w-6xl mx-auto px-4 sm:px-6 py-14 sm:py-20">
   <div class="mb-10">
     <p class="text-sm font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-2">{{ if $isEn }}Featured{{ else }}精选{{ end }}</p>
     <h2 class="text-3xl sm:text-4xl font-bold">{{ if $isEn }}Start here{{ else }}精选入口{{ end }}</h2>
     <p class="mt-3 text-gray-500 dark:text-gray-400">{{ if $isEn }}The best of my work, in one place.{{ else }}最重要的东西，都在这里。{{ end }}</p>
   </div>
-  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-    {{ range $i, $e := $entries }}
-    {{ $big := eq $i 0 }}{{ $wide := eq $i 5 }}
-    <a href="{{ $e.url }}" {{ if $e.external }}target="_blank" rel="noopener"{{ end }}
-       class="group rounded-3xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-gray-900 p-6 sm:p-7 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300 {{ if $big }}sm:col-span-2{{ end }} {{ if $wide }}sm:col-span-2 lg:col-span-3{{ end }}">
-      <div class="flex items-start gap-5 {{ if $wide }}sm:items-center{{ end }}">
-        <div class="{{ if $big }}w-14 h-14{{ else }}w-12 h-12{{ end }} shrink-0 rounded-2xl {{ if $big }}bg-blue-600 text-white shadow-lg shadow-blue-600/30{{ else }}bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400{{ end }} flex items-center justify-center group-hover:scale-110 transition-transform">{{ partial "icon.html" $e.icon }}</div>
-        <div class="min-w-0">
-          <div class="font-semibold {{ if $big }}text-xl sm:text-2xl{{ else }}text-lg{{ end }} group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors flex items-center gap-2">{{ $e.name }}
-            <span class="opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-blue-500">{{ partial "icon.html" "arrow-right" }}</span>
+
+  {{/* 构建时抓取博客 RSS，取最新 3 篇 */}}
+  {{ $posts := slice }}
+  {{ with resources.GetRemote "https://blog.styrigx.com/rss.xml" }}
+    {{ range first 3 (findRE "(?s)<item>.*?</item>" .Content) }}
+      {{ $t := findRESubmatch "(?s)<title>(.*?)</title>" . }}
+      {{ $l := findRESubmatch "(?s)<link>(.*?)</link>" . }}
+      {{ $d := findRESubmatch "(\\d{2}) (\\w{3}) (\\d{4})" . }}
+      {{ if and $t $l $d }}
+        {{ $posts = $posts | append (dict "title" (index (index $t 0) 1) "link" (index (index $l 0) 1) "date" (printf "%s %s %s" (index (index $d 0) 1) (index (index $d 0) 2) (index (index $d 0) 3))) }}
+      {{ end }}
+    {{ end }}
+  {{ end }}
+
+  {{/* 构建时抓取 GitHub star 数 */}}
+  {{ $stars := dict }}
+  {{ $ghOpts := dict "headers" (dict "User-Agent" "styrigx-space-hugo" "Accept" "application/vnd.github+json") }}
+  {{ range $r := slice "muse-playbook" "textbook-playbook" }}
+    {{ with resources.GetRemote (printf "https://api.github.com/repos/styrigx/%s" $r) $ghOpts }}
+      {{ with transform.Unmarshal .Content }}
+        {{ $stars = merge $stars (dict $r .stargazers_count) }}
+      {{ end }}
+    {{ end }}
+  {{ end }}
+
+  <div class="grid grid-cols-2 lg:grid-cols-3 gap-5">
+    <!-- 博客大卡 2x2 · 深蓝 -->
+    <a href="https://blog.styrigx.com" target="_blank" rel="noopener"
+       class="group relative col-span-2 lg:row-span-2 rounded-3xl overflow-hidden shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 bg-gradient-to-br from-blue-700 via-blue-800 to-blue-950 text-white p-6 sm:p-8 flex flex-col">
+      {{ with resources.Get "images/shots/blog.png" }}{{ with .Fill "800x600 webp" }}
+      <img src="{{ .RelPermalink }}" alt="" aria-hidden="true" loading="lazy" width="800" height="600" class="absolute inset-0 w-full h-full object-cover opacity-25 pointer-events-none">
+      {{ end }}{{ end }}
+      <div class="relative flex items-start gap-5">
+        <div class="w-14 h-14 shrink-0 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center group-hover:scale-110 transition-transform">{{ partial "icon.html" "pen" }}</div>
+        <div>
+          <div class="font-semibold text-xl sm:text-2xl flex items-center gap-2">{{ if $isEn }}Blog{{ else }}博客{{ end }}
+            <span class="opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all">{{ partial "icon.html" "arrow-right" }}</span>
           </div>
-          <div class="mt-1.5 text-sm text-gray-500 dark:text-gray-400 {{ if $big }}sm:text-base{{ end }}">{{ $e.desc }}</div>
+          <div class="mt-1.5 text-sm text-blue-100/80">{{ if $isEn }}Sloan Gray's personal blog · bilingual{{ else }}Sloan Gray 的个人博客 · 中英双语{{ end }}</div>
+        </div>
+      </div>
+      <div class="relative mt-auto pt-6">
+        <p class="text-xs font-semibold uppercase tracking-widest text-blue-200/70 mb-3">{{ if $isEn }}Latest posts{{ else }}最新文章{{ end }}</p>
+        {{ if $posts }}
+        <ul class="space-y-3">
+          {{ range $posts }}
+          <li class="flex items-baseline justify-between gap-4 border-b border-white/10 pb-3 last:border-0 last:pb-0">
+            <span class="text-sm font-medium line-clamp-1">{{ .title }}</span>
+            <span class="shrink-0 text-xs text-blue-200/60 font-mono">{{ .date }}</span>
+          </li>
+          {{ end }}
+        </ul>
+        {{ else }}
+        <p class="text-sm text-blue-100/70">{{ if $isEn }}AI, open source and tinkering notes.{{ else }}AI 应用、开源项目与折腾笔记。{{ end }}</p>
+        {{ end }}
+      </div>
+    </a>
+
+    <!-- 邀请码站 -->
+    <a href="https://muse-invite.styrigx.com" target="_blank" rel="noopener"
+       class="group rounded-3xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-gray-900 p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300">
+      <div class="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform mb-4">{{ partial "icon.html" "ticket" }}</div>
+      <div class="font-semibold text-lg group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors">{{ if $isEn }}Invite Board{{ else }}邀请码站{{ end }}</div>
+      <div class="mt-1.5 text-sm text-gray-500 dark:text-gray-400">{{ if $isEn }}Free Muse invite code sharing{{ else }}Muse 邀请码免费共享站{{ end }}</div>
+    </a>
+
+    <!-- muse-playbook -->
+    <a href="https://github.com/styrigx/muse-playbook" target="_blank" rel="noopener"
+       class="group rounded-3xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-gray-900 p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300">
+      <div class="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform mb-4">{{ partial "icon.html" "book" }}</div>
+      <div class="font-semibold text-lg group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors flex items-center gap-2">muse-playbook
+        {{ with index $stars "muse-playbook" }}<span class="text-xs font-normal text-gray-400 dark:text-gray-500">★ {{ . }}</span>{{ end }}
+      </div>
+      <div class="mt-1.5 text-sm text-gray-500 dark:text-gray-400">{{ if $isEn }}501 practical Muse tips{{ else }}501 条 Muse 实用技巧与真实用例{{ end }}</div>
+    </a>
+
+    <!-- textbook-playbook · 桌面端宽卡 -->
+    <a href="https://github.com/styrigx/textbook-playbook" target="_blank" rel="noopener"
+       class="group rounded-3xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-gray-900 p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300 lg:col-span-2">
+      <div class="flex items-start gap-5">
+        <div class="w-12 h-12 shrink-0 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform">{{ partial "icon.html" "book" }}</div>
+        <div>
+          <div class="font-semibold text-lg group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors flex items-center gap-2">textbook-playbook
+            {{ with index $stars "textbook-playbook" }}<span class="text-xs font-normal text-gray-400 dark:text-gray-500">★ {{ . }}</span>{{ end }}
+          </div>
+          <div class="mt-1.5 text-sm text-gray-500 dark:text-gray-400">{{ if $isEn }}Textbook knowledge base in Chinese{{ else }}专业教材条目式中文知识库{{ end }}</div>
         </div>
       </div>
     </a>
-    {{ end }}
+
+    <!-- 导航 -->
+    <a href="{{ $linksUrl }}"
+       class="group rounded-3xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-gray-900 p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300">
+      <div class="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform mb-4">{{ partial "icon.html" "compass" }}</div>
+      <div class="font-semibold text-lg group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors">{{ if $isEn }}Bookmarks{{ else }}导航{{ end }}</div>
+      <div class="mt-1.5 text-sm text-gray-500 dark:text-gray-400">{{ if $isEn }}My bookmark navigation{{ else }}我的书签导航{{ end }}</div>
+    </a>
+
+    <!-- GitHub 通栏 -->
+    <a href="https://github.com/styrigx" target="_blank" rel="noopener"
+       class="group col-span-2 lg:col-span-3 rounded-3xl border border-gray-200/80 dark:border-gray-700/80 bg-gray-50 dark:bg-gray-900/60 p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300">
+      <div class="flex items-center gap-5">
+        <div class="w-12 h-12 shrink-0 rounded-2xl bg-gray-900 dark:bg-gray-700 text-white flex items-center justify-center group-hover:scale-110 transition-transform">{{ partial "icon.html" "brands/github" }}</div>
+        <div class="min-w-0">
+          <div class="font-semibold text-lg group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors">GitHub</div>
+          <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ if $isEn }}Open source home{{ else }}开源项目主页{{ end }}</div>
+        </div>
+        <span class="ml-auto opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-blue-500">{{ partial "icon.html" "arrow-right" }}</span>
+      </div>
+    </a>
   </div>
 </section>
 
@@ -78,23 +171,29 @@
   <div class="mb-10">
     <p class="text-sm font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-2">{{ if $isEn }}Reading{{ else }}阅读{{ end }}</p>
     <h2 class="text-3xl sm:text-4xl font-bold">{{ if $isEn }}Bookshelf{{ else }}书单{{ end }}</h2>
-    <p class="mt-3 text-gray-500 dark:text-gray-400">{{ if $isEn }}Books that shaped how I think. Hover for notes.{{ else }}塑造我思维方式的书，悬停看批注。{{ end }}</p>
+    <p class="mt-3 text-gray-500 dark:text-gray-400">
+      <span class="msg-hover">{{ if $isEn }}Books that shaped how I think. Hover for notes.{{ else }}塑造我思维方式的书，悬停看批注。{{ end }}</span>
+      <span class="msg-tap">{{ if $isEn }}Books that shaped how I think. Tap a cover for notes.{{ else }}塑造我思维方式的书，点击封面看批注。{{ end }}</span>
+    </p>
   </div>
   <div class="flex gap-5 sm:gap-6 overflow-x-auto pb-4 snap-x no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
     {{ range $b := $books }}
     <div class="group snap-start shrink-0 w-40 sm:w-48">
-      <div class="relative w-full aspect-[3/4] rounded-2xl overflow-hidden shadow-md group-hover:shadow-xl group-hover:-translate-y-1.5 transition-all duration-300 bg-gray-100 dark:bg-gray-800">
+      <div class="cover-toggle relative w-full aspect-[3/4] rounded-2xl overflow-hidden shadow-md group-hover:shadow-xl group-hover:-translate-y-1.5 transition-all duration-300 bg-gray-100 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500" tabindex="0" role="button" aria-label="{{ $b.title }}">
         {{ with $b.cover }}
-        <img src="{{ . }}" alt="{{ $b.title }}" loading="lazy" class="w-full h-full object-cover">
+        <img src="{{ . }}" alt="{{ $b.title }}" loading="lazy" class="w-full h-full object-cover pointer-events-none">
         {{ else }}
-        <div class="w-full h-full bg-gradient-to-br from-amber-100 to-orange-200 dark:from-amber-900/40 dark:to-orange-900/40 flex items-center justify-center p-4">
+        <div class="w-full h-full bg-gradient-to-br from-amber-100 to-orange-200 dark:from-amber-900/40 dark:to-orange-900/40 flex items-center justify-center p-4 pointer-events-none">
           <span class="text-center text-sm font-medium line-clamp-4">{{ $b.title }}</span>
         </div>
         {{ end }}
         {{ with $b.comment }}
-        <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
+        <div class="cover-comment absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-300 flex items-end p-4 pointer-events-none">
           <p class="text-white text-xs leading-relaxed">{{ . }}</p>
         </div>
+        <span class="cover-hint absolute top-2 right-2 w-6 h-6 rounded-full bg-black/50 text-white hidden items-center justify-center backdrop-blur-sm" aria-hidden="true">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </span>
         {{ end }}
       </div>
       <div class="mt-3 font-semibold text-sm truncate">{{ $b.title }}</div>
@@ -161,16 +260,27 @@
 (function() {
   if (window.matchMedia('(hover: none)').matches) {
     document.querySelectorAll('.cover-toggle').forEach(function(el) {
-      el.addEventListener('click', function(e) {
-        // 如果短评已打开，让链接正常跳转；否则先显示短评，阻止跳转
-        if (!el.classList.contains('comment-open')) {
-          e.preventDefault();
+      var isLink = el.tagName === 'A';
+      function toggle(e) {
+        if (el.classList.contains('comment-open')) {
+          if (!isLink) {
+            // 非链接（书单）：再次点击收起
+            el.classList.remove('comment-open');
+          }
+          // 链接（歌单）：已打开时允许跳转
+        } else {
+          if (e) e.preventDefault();
           // 关闭其他已打开的
           document.querySelectorAll('.cover-toggle.comment-open').forEach(function(o) {
             if (o !== el) o.classList.remove('comment-open');
           });
           el.classList.add('comment-open');
         }
+      }
+      el.addEventListener('click', toggle);
+      // 键盘回车/空格同样切换
+      el.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(e); }
       });
     });
     // 点别处收起
@@ -193,20 +303,36 @@
     <p class="mt-3 text-gray-500 dark:text-gray-400">{{ if $isEn }}Things I grow and keep.{{ else }}我种下、养着的东西。{{ end }}</p>
   </div>
   {{ $tags := slice }}{{ range $collections }}{{ range .tags }}{{ $tags = $tags | append . }}{{ end }}{{ end }}{{ $tags = $tags | uniq }}
-  <div class="flex flex-wrap gap-2 mb-8" id="garden-filters">
+  <div class="flex flex-wrap items-center gap-2 mb-4" id="garden-filters">
     <button data-tag="" class="garden-pill rounded-full px-4 py-1.5 text-sm font-medium bg-blue-600 text-white transition-colors">{{ if $isEn }}All{{ else }}全部{{ end }}</button>
     {{ range $tags }}<button data-tag="{{ . }}" class="garden-pill rounded-full px-4 py-1.5 text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-400 transition-colors">{{ . }}</button>{{ end }}
   </div>
+  <div class="flex flex-wrap items-center gap-2 mb-3" id="garden-stage-filters">
+    <button data-stage="" class="stage-pill rounded-full px-4 py-1.5 text-sm font-medium bg-blue-600 text-white transition-colors">{{ if $isEn }}All stages{{ else }}全部状态{{ end }}</button>
+    <button data-stage="seedling" class="stage-pill rounded-full px-4 py-1.5 text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-400 transition-colors">🌱 {{ if $isEn }}Seedling{{ else }}幼苗{{ end }}</button>
+    <button data-stage="budding" class="stage-pill rounded-full px-4 py-1.5 text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-400 transition-colors">🌿 {{ if $isEn }}Budding{{ else }}长成{{ end }}</button>
+    <button data-stage="evergreen" class="stage-pill rounded-full px-4 py-1.5 text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-400 transition-colors">🌳 {{ if $isEn }}Evergreen{{ else }}常青{{ end }}</button>
+  </div>
+  <p class="text-xs text-gray-400 dark:text-gray-500 mb-8">
+    {{ if $isEn }}🌱 seedling: just sprouted · 🌿 budding: actively growing · 🌳 evergreen: long-term maintained{{ else }}🌱 幼苗：刚发芽 · 🌿 长成：持续生长中 · 🌳 常青：长期维护{{ end }}
+  </p>
   <div class="grid grid-cols-1 sm:grid-cols-2 gap-5" id="garden-grid">
     {{ range $c := $collections }}
-    <a href="{{ $c.url }}" target="_blank" rel="noopener" data-tags="{{ delimit $c.tags "," }}"
-       class="garden-card group rounded-3xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-gray-900 p-6 sm:p-7 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300">
+    <a href="{{ $c.url }}" target="_blank" rel="noopener" data-tags="{{ delimit $c.tags "," }}" data-stage="{{ $c.stage }}"
+       class="garden-card group rounded-3xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-gray-900 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300 overflow-hidden">
+      {{ with $c.image }}{{ with resources.Get . }}{{ with .Fill "800x400 webp" }}
+      <div class="relative h-44">
+        <img src="{{ .RelPermalink }}" alt="{{ $c.name }}" loading="lazy" width="800" height="400" class="absolute inset-0 w-full h-full object-cover">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent"></div>
+      </div>
+      {{ end }}{{ end }}{{ end }}
+      <div class="p-6 sm:p-7">
       <div class="flex items-start justify-between gap-4 mb-4">
         <div class="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform">{{ partial "icon.html" $c.icon }}</div>
         {{ if eq $c.stage "seedling" }}
         <span class="text-xs font-medium text-lime-700 dark:text-lime-300 bg-lime-50 dark:bg-lime-900/30 rounded-full px-3 py-1">🌱 {{ if $isEn }}Seedling{{ else }}幼苗{{ end }}</span>
-        {{ else if eq $c.stage "growing" }}
-        <span class="text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 rounded-full px-3 py-1">🌿 {{ if $isEn }}Growing{{ else }}长成{{ end }}</span>
+        {{ else if eq $c.stage "budding" }}
+        <span class="text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 rounded-full px-3 py-1">🌿 {{ if $isEn }}Budding{{ else }}长成{{ end }}</span>
         {{ else }}
         <span class="text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 rounded-full px-3 py-1">🌳 {{ if $isEn }}Evergreen{{ else }}常青{{ end }}</span>
         {{ end }}
@@ -214,6 +340,7 @@
       <div class="font-semibold text-lg group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors">{{ $c.name }}</div>
       <div class="mt-1.5 text-sm text-gray-500 dark:text-gray-400">{{ $c.desc }}</div>
       {{ with $c.tags }}<div class="mt-4 flex flex-wrap gap-1.5">{{ range . }}<span class="text-[11px] text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-full px-2.5 py-0.5">{{ . }}</span>{{ end }}</div>{{ end }}
+      </div>
     </a>
     {{ end }}
   </div>
@@ -221,13 +348,28 @@
 <script>
 (function(){
   var pills=document.querySelectorAll('#garden-filters .garden-pill'),
-      cards=document.querySelectorAll('#garden-grid .garden-card');
-  pills.forEach(function(p){p.addEventListener('click',function(){
-    pills.forEach(function(x){x.className='garden-pill rounded-full px-4 py-1.5 text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-400 transition-colors'});
-    p.className='garden-pill rounded-full px-4 py-1.5 text-sm font-medium bg-blue-600 text-white transition-colors';
-    var t=p.dataset.tag;
-    cards.forEach(function(c){c.style.display=(!t||c.dataset.tags.split(',').indexOf(t)!==-1)?'':'none'});
-  })});
+      stagePills=document.querySelectorAll('#garden-stage-filters .stage-pill'),
+      cards=document.querySelectorAll('#garden-grid .garden-card'),
+      activeTag='', activeStage='',
+      activeCls='rounded-full px-4 py-1.5 text-sm font-medium bg-blue-600 text-white transition-colors',
+      idleCls='rounded-full px-4 py-1.5 text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-400 transition-colors';
+  function apply(){
+    cards.forEach(function(c){
+      var okTag=!activeTag||c.dataset.tags.split(',').indexOf(activeTag)!==-1,
+          okStage=!activeStage||c.dataset.stage===activeStage;
+      c.style.display=(okTag&&okStage)?'':'none';
+    });
+  }
+  function bind(list, cls, set){
+    list.forEach(function(p){p.addEventListener('click',function(){
+      list.forEach(function(x){x.className=x.classList.contains('garden-pill')?'garden-pill '+idleCls:'stage-pill '+idleCls});
+      p.className=(p.classList.contains('garden-pill')?'garden-pill ':'stage-pill ')+activeCls;
+      set(p.dataset.tag!==undefined?p.dataset.tag:p.dataset.stage);
+      apply();
+    })});
+  }
+  bind(pills, 'garden-pill', function(v){activeTag=v});
+  bind(stagePills, 'stage-pill', function(v){activeStage=v});
 })();
 </script>
 
