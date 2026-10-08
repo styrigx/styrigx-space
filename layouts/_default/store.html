@@ -1,0 +1,189 @@
+{{ define "main" }}
+{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+{{ $apps := site.Data.apps }}{{ if $isEn }}{{ $apps = site.Data.en.apps }}{{ end }}
+
+{{ $openTxt := cond $isEn "Open" "打开" }}
+{{ $installTxt := cond $isEn "Install" "安装" }}
+{{ $extTxt := cond $isEn "External link" "外链" }}
+{{ $noResTxt := cond $isEn "No results" "无结果" }}
+
+{{ $chips := slice
+  (dict "id" "all" "label" (cond $isEn "All" "全部"))
+  (dict "id" "installed" "label" (cond $isEn "Installed" "已安装"))
+  (dict "id" "uninstalled" "label" (cond $isEn "Not installed" "未安装"))
+  (dict "id" "ai" "label" "AI")
+  (dict "id" "reading" "label" (cond $isEn "Reading & Music" "阅读与音乐"))
+  (dict "id" "system" "label" (cond $isEn "System & Tools" "系统与工具"))
+  (dict "id" "mysites" "label" (cond $isEn "My Sites" "我的站点")) }}
+
+<div class="max-w-[1100px] mx-auto px-4">
+  {{ partial "subpage-head.html" (dict "title" .Title "sub" (cond $isEn "Apps on this site" "站内应用") "isEn" $isEn) }}
+
+  <!-- 统一搜索条（2.3.5）：复用 files 页非 browser 样式 -->
+  {{ partial "searchbar.html" (dict "page" "files" "isEn" $isEn "barId" "store-searchbar" "openId" "store-search-open" "micId" "store-mic"
+    "placeholder" (cond $isEn "Search apps" "搜索应用")
+    "micAria" (cond $isEn "Voice input" "语音输入")) }}
+
+  <!-- 内联搜索输入：点搜索条按钮展开，按 name + desc 实时过滤 -->
+  <div id="store-search-inline" class="hidden mt-3">
+    <div class="flex items-center gap-2 rounded-full bg-m-container border border-m-outline px-4 py-2.5">
+      <span class="text-m-on-surface-variant shrink-0">{{ partial "icon.html" "search" }}</span>
+      <input id="store-q" type="search" autocomplete="off" placeholder="{{ cond $isEn "Search apps" "搜索应用" }}" aria-label="{{ cond $isEn "Search apps" "搜索应用" }}"
+        class="flex-1 min-w-0 bg-transparent outline-none text-[15px] placeholder:text-m-on-surface-variant">
+    </div>
+  </div>
+
+  <!-- 分类芯片（单行横滑） -->
+  <div id="store-chips" class="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 py-3" role="group" aria-label="{{ cond $isEn "Filter apps" "筛选应用" }}">
+    {{ range $i, $c := $chips }}
+    <button type="button" data-cat="{{ $c.id }}" class="store-chip shrink-0 rounded-full border px-4 py-1.5 text-sm transition-colors{{ if eq $i 0 }} bg-m-primary border-m-primary text-m-on-primary{{ else }} border-m-outline text-m-on-surface-variant{{ end }}">{{ $c.label }}</button>
+    {{ end }}
+  </div>
+
+  <!-- 应用列表：手机 1 列，DeX 2 列 -->
+  <div id="store-list" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+    {{ range $i, $a := $apps }}
+    <div id="app-{{ $a.id }}" class="store-row widget bg-m-container-lowest border border-m-outline p-4 flex items-center gap-3"
+      data-id="{{ $a.id }}" data-cat="{{ $a.category }}" data-name="{{ $a.name }}" data-desc="{{ $a.desc }}">
+      <span class="w-12 h-12 shrink-0" aria-hidden="true">{{ partial "icon.html" (dict "name" $a.icon "uid" (printf "st%d" $i)) }}</span>
+      <span class="flex-1 min-w-0">
+        <span class="flex items-center gap-1.5 min-w-0">
+          <span class="font-semibold truncate">{{ $a.name }}</span>
+          {{ if $a.ext }}<span class="text-[11px] leading-none text-m-on-surface-variant shrink-0" aria-label="{{ $extTxt }}" title="{{ $extTxt }}">↗</span>{{ end }}
+        </span>
+        <span class="block text-sm text-m-on-surface-variant truncate">{{ $a.desc }}</span>
+      </span>
+      <span class="flex items-center gap-2.5 shrink-0">
+        <a class="store-open rounded-full bg-m-primary px-5 py-2 text-sm font-semibold text-m-on-primary" href="{{ $a.url }}"{{ if $a.ext }} target="_blank" rel="noopener"{{ end }}>{{ $openTxt }}</a>
+        <button type="button" class="store-install hidden rounded-full bg-m-primary px-5 py-2 text-sm font-semibold text-m-on-primary">{{ $installTxt }}</button>
+        <span class="switch" role="switch" aria-checked="true" aria-label="{{ cond $isEn "Toggle" "切换" }} {{ $a.name }}"><span class="knob"></span></span>
+      </span>
+    </div>
+    {{ end }}
+  </div>
+  <p id="store-empty" class="hidden py-10 text-center text-sm text-m-on-surface-variant">{{ $noResTxt }}</p>
+</div>
+
+<script>
+(function(){
+  var en=document.documentElement.lang==='en';
+  function $(id){return document.getElementById(id)}
+  function get(k,d){try{var v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}}
+  function set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+  function reduced(){return document.documentElement.classList.contains('reduced-motion')}
+
+  var rows=Array.prototype.slice.call(document.querySelectorAll('#store-list .store-row'));
+  var cur='all';
+
+  /* ---------- sgx-apps-hidden（JSON 数组，存应用 id） ---------- */
+  function hiddenList(){var h=get('sgx-apps-hidden',[]);return Array.isArray(h)?h:[]}
+  function isInstalled(id){return hiddenList().indexOf(id)<0}
+  function setInstalled(id,on){
+    var h=hiddenList();
+    if(on){h=h.filter(function(x){return x!==id})}
+    else if(h.indexOf(id)<0){h.push(id)}
+    set('sgx-apps-hidden',h);
+    window.dispatchEvent(new Event('sgx-settings-changed'));
+  }
+
+  /* ---------- 行状态绘制 ---------- */
+  function paintRow(row){
+    var id=row.getAttribute('data-id'),on=isInstalled(id);
+    var open=row.querySelector('.store-open'),inst=row.querySelector('.store-install'),sw=row.querySelector('.switch');
+    if(open)open.classList.toggle('hidden',!on);
+    if(inst)inst.classList.toggle('hidden',on);
+    if(sw)sw.setAttribute('aria-checked',on?'true':'false');
+    return on;
+  }
+
+  /* ---------- 分类芯片 + 搜索过滤 ---------- */
+  function applyFilters(){
+    var q=($('store-q')&&$('store-q').value||'').trim().toLowerCase();
+    var shown=0;
+    rows.forEach(function(row){
+      var on=paintRow(row);
+      var cat=row.getAttribute('data-cat');
+      var ok=true;
+      if(cur==='installed')ok=on;
+      else if(cur==='uninstalled')ok=!on;
+      else if(cur!=='all')ok=(cat===cur);
+      if(ok&&q){
+        var hay=(row.getAttribute('data-name')+' '+row.getAttribute('data-desc')).toLowerCase();
+        ok=hay.indexOf(q)>=0;
+      }
+      row.classList.toggle('hidden',!ok);
+      if(ok)shown++;
+    });
+    var empty=$('store-empty');
+    if(empty)empty.classList.toggle('hidden',shown>0);
+  }
+
+  var chips=Array.prototype.slice.call(document.querySelectorAll('#store-chips .store-chip'));
+  chips.forEach(function(c){
+    c.addEventListener('click',function(){
+      cur=c.getAttribute('data-cat');
+      chips.forEach(function(x){
+        var on=x===c;
+        x.classList.toggle('bg-m-primary',on);
+        x.classList.toggle('border-m-primary',on);
+        x.classList.toggle('text-m-on-primary',on);
+        x.classList.toggle('border-m-outline',!on);
+        x.classList.toggle('text-m-on-surface-variant',!on);
+      });
+      applyFilters();
+    });
+  });
+
+  /* ---------- 搜索（内联输入） ---------- */
+  var q=$('store-q'),inline=$('store-search-inline');
+  function showInline(open){
+    if(!inline)return;
+    inline.classList.toggle('hidden',!open);
+    if(open&&q){setTimeout(function(){try{q.focus()}catch(e){}},60)}
+  }
+  var sOpen=$('store-search-open');
+  if(sOpen)sOpen.addEventListener('click',function(){showInline(inline&&inline.classList.contains('hidden'))});
+  if(q)q.addEventListener('input',applyFilters);
+
+  /* ---------- 语音搜索 ---------- */
+  if(window.__sgxVoice){
+    var mic=$('store-mic');
+    if(mic)window.__sgxVoice(mic,{
+      input:function(){return q},
+      beforeStart:function(){showInline(true)},
+      onResult:function(){applyFilters()}
+    });
+  }
+
+  /* ---------- 开关 + 安装按钮 ---------- */
+  rows.forEach(function(row){
+    var id=row.getAttribute('data-id');
+    var sw=row.querySelector('.switch'),inst=row.querySelector('.store-install');
+    function toggle(){setInstalled(id,!isInstalled(id));applyFilters()}
+    if(sw){
+      sw.setAttribute('tabindex','0');
+      sw.addEventListener('click',function(e){e.stopPropagation();toggle()});
+      sw.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle()}});
+    }
+    if(inst)inst.addEventListener('click',function(){setInstalled(id,true);applyFilters()});
+  });
+
+  /* ---------- 锚点定位 #app-xxx：高亮 1 秒 ---------- */
+  function anchorJump(){
+    var h=(location.hash||'').replace(/^#/,'');
+    if(h.indexOf('app-')!==0)return;
+    var el=document.getElementById(h);
+    if(!el)return;
+    el.scrollIntoView({block:'center',behavior:reduced()?'auto':'smooth'});
+    el.classList.add('set-hl');
+    setTimeout(function(){el.classList.remove('set-hl')},1100);
+  }
+  window.addEventListener('hashchange',anchorJump);
+
+  /* ---------- 初始化 ---------- */
+  rows.forEach(paintRow);
+  applyFilters();
+  anchorJump();
+})();
+</script>
+{{ end }}

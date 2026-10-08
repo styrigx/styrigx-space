@@ -71,20 +71,28 @@
 {{ end }}
 
 {{/* ---------- 应用 ---------- */}}
+{{/* 2.3.7：商店里的应用点击后打开应用商店里的对应应用（/store/#app-<id>）；
+     系统 App（browser/files/settings）保持直接链接 */}}
+{{ $storeApps := site.Data.apps }}
 {{ $apps := slice
   (dict "key" "browser"  "zh" "浏览器"   "en" "Internet"  "zhsub" "搜索与书签"     "ensub" "Search and bookmarks"   "path" "browser/")
-  (dict "key" "files"    "zh" "我的文件" "en" "My Files"  "zhsub" "文件索引与下载" "ensub" "File index and downloads" "path" "files/")
+  (dict "key" "files"    "zh" "我的文件" "en" "My Files"  "zhsub" "站内文件索引"   "ensub" "Site file index"        "path" "files/")
   (dict "key" "settings" "zh" "设置"     "en" "Settings"  "zhsub" "主题、语言、壁纸" "ensub" "Theme, language, wallpaper" "path" "settings/")
-  (dict "key" "goodlock" "zh" "Good Lock" "en" "Good Lock" "zhsub" "实验性功能模块" "ensub" "Experimental modules"    "path" "goodlock/")
-  (dict "key" "books"    "zh" "书单"     "en" "Books"     "zhsub" "全部书籍与批注" "ensub" "All books with notes"    "path" "books/")
-  (dict "key" "music"    "zh" "歌单"     "en" "Playlist"  "zhsub" "全部歌曲与批注" "ensub" "All songs with notes"    "path" "music/")
-  (dict "key" "ai"       "zh" "AI"       "en" "AI"        "zhsub" "一次提问，各大平台打开" "ensub" "Ask once, open anywhere" "path" "ai/")
+  (dict "key" "store"    "zh" "应用商店" "en" "Store"     "zhsub" "站内应用"       "ensub" "Apps on this site"      "path" "store/")
 }}
 {{ range $l := $langs }}
   {{ range $a := $apps }}
     {{ $id := printf "app-%s" $a.key }}
     {{ if eq $l "en" }}{{ $id = printf "app-%s-en" $a.key }}{{ end }}
     {{ $items = $items | append (dict "id" $id "type" "app" "lang" $l "title" (index $a $l) "subtitle" (index $a (print $l "sub")) "url" (print (index $homeOf $l) $a.path) "cover" "" "addedAt" "") }}
+  {{ end }}
+  {{/* 商店应用：url 指向商店里的对应应用 */}}
+  {{ $sap := cond (eq $l "en") site.Data.en.apps site.Data.apps }}
+  {{ range $sa := $sap }}
+    {{ $id := printf "app-%s" $sa.id }}
+    {{ if eq $l "en" }}{{ $id = printf "app-%s-en" $sa.id }}{{ end }}
+    {{ $storeBase := cond (eq $l "en") "/en/store/" "/store/" }}
+    {{ $items = $items | append (dict "id" $id "type" "app" "lang" $l "title" $sa.name "subtitle" $sa.desc "url" (print $storeBase "#app-" $sa.id) "cover" "" "addedAt" ($sa.addedAt | default "")) }}
   {{ end }}
 {{ end }}
 

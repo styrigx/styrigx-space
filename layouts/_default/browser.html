@@ -225,6 +225,15 @@ window.__favFallback=function(img,name){
   loadInline();
 
   // 异步换上 /files-index.json（按当前语言过滤）；失败则保留内联兜底
+  // 2.3.7：过滤掉已卸载的应用（sgx-apps-hidden）
+  function isAppHidden(item){
+    if(!item||item.type!=='app')return false;
+    try{
+      var h=JSON.parse(localStorage.getItem('sgx-apps-hidden')||'[]');
+      var id=String(item.id||'').replace(/-en$/,'').replace(/^app-/,'');
+      return h.indexOf(id)!==-1;
+    }catch(e){return false}
+  }
   (function(){
     var wantLang = document.documentElement.lang === 'en' ? 'en' : 'zh';
     fetch('/files-index.json').then(function(r){
@@ -232,12 +241,17 @@ window.__favFallback=function(img,name){
       return r.json();
     }).then(function(j){
       var items = ((j && j.items) || []).filter(function(x){
-        return x && TYPE_META[x.type] && (x.lang || 'zh') === wantLang;
+        return x && TYPE_META[x.type] && (x.lang || 'zh') === wantLang && !isAppHidden(x);
       }).map(function(x){
-        return { t: x.title || '', d: x.subtitle || '', u: x.url || '', type: x.type };
+        return { t: x.title || '', d: x.subtitle || '', u: x.url || '', type: x.type, id: x.id || '' };
       });
       if(items.length) INDEX = items;
     }).catch(function(){ /* keep inline fallback */ });
+    /* 应用卸载/安装后即时重过滤 */
+    window.addEventListener('sgx-settings-changed',function(){
+      INDEX=INDEX.filter(function(x){return !isAppHidden(x)});
+      if(typeof renderSuggest==='function')renderSuggest();
+    });
   })();
 
   function svgIc(inner){

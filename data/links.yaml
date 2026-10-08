@@ -3,9 +3,6 @@
     - name: 博客
       url: https://blog.styrigx.com
       desc: Sloan Gray 的个人博客
-    - name: 邀请码站
-      url: https://muse-invite.styrigx.com
-      desc: Muse 邀请码免费共享
     - name: GitHub
       url: https://github.com/styrigx
       desc: 开源项目

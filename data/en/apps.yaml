@@ -1,0 +1,46 @@
+# App Store data (2.3.7). Add new apps here only.
+- id: ai
+  name: AI
+  desc: Ask once, open anywhere
+  url: /en/ai/
+  category: ai
+  icon: ai
+  ext: false
+  addedAt: 2026-10-08
+  defaultVisible: true
+- id: books
+  name: Books
+  desc: All books with notes
+  url: /en/books/
+  category: reading
+  icon: book
+  ext: false
+  addedAt: 2026-10-08
+  defaultVisible: true
+- id: music
+  name: Playlist
+  desc: All songs with notes
+  url: /en/music/
+  category: reading
+  icon: music
+  ext: false
+  addedAt: 2026-10-08
+  defaultVisible: true
+- id: goodlock
+  name: Good Lock
+  desc: Experimental modules
+  url: /en/goodlock/
+  category: system
+  icon: gift
+  ext: false
+  addedAt: 2026-10-08
+  defaultVisible: true
+- id: invite
+  name: Invite Board
+  desc: Free Muse invite code sharing
+  url: https://muse-invite.styrigx.com
+  category: mysites
+  icon: ticket
+  ext: true
+  addedAt: 2026-10-08
+  defaultVisible: true

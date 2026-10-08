@@ -3,31 +3,25 @@
 {{ $home := "/" }}{{ if $isEn }}{{ $home = "/en/" }}{{ end }}
 {{ $filesBase := "/files/" }}{{ if $isEn }}{{ $filesBase = "/en/files/" }}{{ end }}
 {{ $setUrl := "/settings/" }}{{ if $isEn }}{{ $setUrl = "/en/settings/" }}{{ end }}
-{{ $ver := site.Params.version }}
 
 {{ $dots := `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg>` }}
 {{ $moreBtn := printf `<button type="button" id="files-more" class="files-more-btn" aria-label="%s">%s</button>` (cond $isEn "More options" "更多选项") $dots }}
 {{ $appGrid := `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>` }}
 
 {{ $cats := slice
-  (dict "id" "post" "label" (cond $isEn "Posts" "文章") "icon" "pen" "fg" "text-m-primary")
-  (dict "id" "book" "label" (cond $isEn "Books" "书") "icon" "book" "fg" "text-m-secondary")
-  (dict "id" "music" "label" (cond $isEn "Music" "音乐") "icon" "music" "fg" "text-m-warm")
-  (dict "id" "link" "label" (cond $isEn "Bookmarks" "书签") "icon" "bookmark-solid" "fg" "text-m-accent")
-  (dict "id" "app" "label" (cond $isEn "Apps" "应用") "icon" "appgrid-solid" "fg" "text-m-tertiary") }}
+  (dict "id" "post" "label" (cond $isEn "Posts" "文章") "icon" "pen")
+  (dict "id" "book" "label" (cond $isEn "Books" "书") "icon" "book")
+  (dict "id" "music" "label" (cond $isEn "Music" "音乐") "icon" "music") }}
 
 {{ $typeMeta := slice
   (dict "id" "post" "label" (cond $isEn "Posts" "文章") "bar" "bg-m-primary" "fg" "text-m-primary" "icon" "pen")
   (dict "id" "book" "label" (cond $isEn "Books" "书") "bar" "bg-m-secondary" "fg" "text-m-secondary" "icon" "book")
-  (dict "id" "music" "label" (cond $isEn "Music" "音乐") "bar" "bg-m-warm" "fg" "text-m-warm" "icon" "music")
-  (dict "id" "link" "label" (cond $isEn "Bookmarks" "书签") "bar" "bg-m-accent" "fg" "text-m-accent" "icon" "globe")
-  (dict "id" "app" "label" (cond $isEn "Apps" "应用") "bar" "bg-m-tertiary" "fg" "text-m-tertiary" "icon" "appgrid") }}
+  (dict "id" "music" "label" (cond $isEn "Music" "音乐") "bar" "bg-m-warm" "fg" "text-m-warm" "icon" "music") }}
 
 {{ $defaults := slice
   (dict "id" "fav-posts" "title" (cond $isEn "Posts" "文章") "url" (print $filesBase "?type=post"))
   (dict "id" "fav-books" "title" (cond $isEn "Books" "书单") "url" (print $home "books/"))
-  (dict "id" "fav-music" "title" (cond $isEn "Playlist" "歌单") "url" (print $home "music/"))
-  (dict "id" "fav-goodlock" "title" "Good Lock" "url" (print $home "goodlock/")) }}
+  (dict "id" "fav-music" "title" (cond $isEn "Playlist" "歌单") "url" (print $home "music/")) }}
 
 {{ $str := dict
   "recentAddedPre" (cond $isEn "" "最近添加了 ")
@@ -38,15 +32,6 @@
   "storageTotalSuf" (cond $isEn " items total" " 项")
   "fav" (cond $isEn "Favorites" "收藏")
   "viewAll" (cond $isEn "View all" "查看全部")
-  "tools" (cond $isEn "Utilities" "实用工具")
-  "changelog" (cond $isEn "Changelog" "更新日志")
-  "version" (cond $isEn "Version" "版本")
-  "viewCommits" (cond $isEn "View commits" "查看提交记录")
-  "sitemap" (cond $isEn "Sitemap" "站点地图")
-  "rss" (cond $isEn "RSS feed" "RSS 订阅")
-  "ext" (cond $isEn "External storage" "外部存储")
-  "blog" (cond $isEn "Blog" "博客")
-  "postsUnit" (cond $isEn " posts" " 篇文章")
   "editHome" (cond $isEn "Edit home" "编辑主页")
   "sortBy" (cond $isEn "Sort by" "排序方式")
   "settings" (cond $isEn "Settings" "设置")
@@ -66,11 +51,9 @@
   "gRecent" (cond $isEn "Recently added" "最近添加")
   "gStorage" (cond $isEn "Storage" "站点存储")
   "gFav" (cond $isEn "Favorites" "收藏")
-  "gTools" (cond $isEn "Utilities" "实用工具")
-  "gExt" (cond $isEn "External storage" "外部存储")
   "listening" (cond $isEn "Listening…" "聆听中…")
 }}
-{{ $i18n := dict "version" $ver "filesBase" $filesBase "setUrl" $setUrl "types" $typeMeta "defaults" $defaults "str" $str }}
+{{ $i18n := dict "filesBase" $filesBase "setUrl" $setUrl "types" $typeMeta "defaults" $defaults "str" $str }}
 
 <div class="max-w-[1100px] mx-auto px-4">
   {{ partial "subpage-head.html" (dict "title" .Title "sub" (cond $isEn "Site index" "全站内容索引") "isEn" $isEn "actions" ($moreBtn | safeHTML)) }}
@@ -85,10 +68,10 @@
   <div id="files-home" class="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6">
     <!-- 1. 顶部分类 -->
     <section data-home-group="cats" class="md:col-span-2">
-      <div class="grid grid-cols-5 gap-1 sm:gap-2">
+      <div class="grid grid-cols-3 gap-1 sm:gap-2">
         {{ range $cats }}
         <a href="{{ $filesBase }}?type={{ .id }}" class="flex flex-col items-center gap-1.5 py-2 active:scale-95 transition-transform" aria-label="{{ .label }}">
-          <span class="files-cat-ic w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-m-container flex items-center justify-center {{ .fg }}">
+          <span class="w-12 h-12 shrink-0">
             {{ partial "icon.html" .icon }}
           </span>
           <span class="text-xs text-m-on-surface-variant">{{ .label }}</span>
@@ -137,75 +120,6 @@
       <ul id="files-fav-list" class="files-rows"></ul>
     </section>
 
-    <!-- 5. 实用工具 -->
-    <section data-home-group="tools">
-      <h2 class="px-1 mb-1 text-sm font-semibold text-m-on-surface-variant">{{ if $isEn }}Utilities{{ else }}实用工具{{ end }}</h2>
-      <ul class="files-rows">
-        <li>
-          <div class="flex items-center gap-4 px-1">
-            <span class="w-6 h-6 shrink-0 text-m-on-surface-variant inline-flex items-center justify-center">{{ partial "icon.html" "info" }}</span>
-            <button type="button" id="files-changelog" class="row-line flex-1 min-w-0 flex items-center justify-between gap-3 py-3.5 text-left">
-              <span class="min-w-0"><span class="block truncate text-[15px]">{{ if $isEn }}Changelog{{ else }}更新日志{{ end }}</span><span class="block text-xs text-m-on-surface-variant truncate mt-0.5">v{{ $ver }}</span></span>
-              {{ partial "icon.html" "chev-r" }}
-            </button>
-          </div>
-        </li>
-        <li>
-          <div class="flex items-center gap-4 px-1">
-            <span class="w-6 h-6 shrink-0 text-m-on-surface-variant inline-flex items-center justify-center">{{ partial "icon.html" "globe" }}</span>
-            <a href="/sitemap.xml" class="row-line flex-1 min-w-0 flex items-center justify-between gap-3 py-3.5">
-              <span class="min-w-0"><span class="block truncate text-[15px]">{{ if $isEn }}Sitemap{{ else }}站点地图{{ end }}</span><span class="block text-xs text-m-on-surface-variant truncate mt-0.5">/sitemap.xml</span></span>
-              {{ partial "icon.html" "chev-r" }}
-            </a>
-          </div>
-        </li>
-        <li>
-          <div class="flex items-center gap-4 px-1">
-            <span class="w-6 h-6 shrink-0 text-m-on-surface-variant inline-flex items-center justify-center">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 11a9 9 0 019 9"/><path d="M4 4a16 16 0 0116 16"/><circle cx="5" cy="19" r="1.6" fill="currentColor" stroke="none"/></svg>
-            </span>
-            <a href="https://blog.styrigx.com/rss.xml" target="_blank" rel="noopener" class="row-line flex-1 min-w-0 flex items-center justify-between gap-3 py-3.5">
-              <span class="min-w-0"><span class="block truncate text-[15px]">{{ if $isEn }}RSS feed{{ else }}RSS 订阅{{ end }}</span><span class="block text-xs text-m-on-surface-variant truncate mt-0.5">blog.styrigx.com</span></span>
-              {{ partial "icon.html" "chev-r" }}
-            </a>
-          </div>
-        </li>
-      </ul>
-    </section>
-
-    <!-- 6. 外部存储 -->
-    <section data-home-group="ext" class="md:col-span-2">
-      <h2 class="px-1 mb-1 text-sm font-semibold text-m-on-surface-variant">{{ if $isEn }}External storage{{ else }}外部存储{{ end }}</h2>
-      <ul class="files-rows">
-        <li>
-          <div class="flex items-center gap-4 px-1">
-            <span class="w-6 h-6 shrink-0 text-m-on-surface-variant inline-flex items-center justify-center">{{ partial "icon.html" "brands/github" }}</span>
-            <a href="https://github.com/styrigx/styrigx-space" target="_blank" rel="noopener" class="row-line flex-1 min-w-0 flex items-center justify-between gap-3 py-3.5">
-              <span class="min-w-0"><span class="block truncate text-[15px]">GitHub</span><span class="block text-xs text-m-on-surface-variant truncate mt-0.5">github.com/styrigx/styrigx-space</span></span>
-              {{ partial "icon.html" "chev-r" }}
-            </a>
-          </div>
-        </li>
-        <li>
-          <div class="flex items-center gap-4 px-1">
-            <span class="w-6 h-6 shrink-0 text-m-on-surface-variant inline-flex items-center justify-center">{{ partial "icon.html" "pen-line" }}</span>
-            <a href="https://blog.styrigx.com" target="_blank" rel="noopener" class="row-line flex-1 min-w-0 flex items-center justify-between gap-3 py-3.5">
-              <span class="min-w-0"><span class="block truncate text-[15px]">{{ if $isEn }}Blog{{ else }}博客{{ end }}</span><span class="block text-xs text-m-on-surface-variant truncate mt-0.5" id="files-blog-count">blog.styrigx.com</span></span>
-              {{ partial "icon.html" "chev-r" }}
-            </a>
-          </div>
-        </li>
-        <li>
-          <div class="flex items-center gap-4 px-1">
-            <span class="w-6 h-6 shrink-0 text-m-on-surface-variant inline-flex items-center justify-center">{{ partial "icon.html" "x-logo" }}</span>
-            <a href="https://x.com/styrigx" target="_blank" rel="noopener" class="row-line flex-1 min-w-0 flex items-center justify-between gap-3 py-3.5">
-              <span class="min-w-0"><span class="block truncate text-[15px]">X</span><span class="block text-xs text-m-on-surface-variant truncate mt-0.5">@styrigx</span></span>
-              {{ partial "icon.html" "chev-r" }}
-            </a>
-          </div>
-        </li>
-      </ul>
-    </section>
   </div>
 
   <!-- 分类列表模式 -->
@@ -245,7 +159,6 @@
 .files-more-float.show{opacity:1;pointer-events:auto;transform:none}
 html.layout-dex .files-more-float{display:none}
 .reduced-motion .files-more-float{transition:none}
-.files-cat-ic svg{width:26px;height:26px}
 /* 分隔线从文字开始（图标列之外） */
 .files-rows{list-style:none;margin:0;padding:0}
 .files-rows>li+li .row-line{border-top:1px solid color-mix(in srgb,var(--m-outline) 55%,transparent)}
@@ -281,15 +194,13 @@ html.layout-dex .files-more-float{display:none}
     folder:'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>',
     pen:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.86 4.49l1.69-1.69a1.88 1.88 0 112.65 2.65L10.58 16.07a4.5 4.5 0 01-1.9 1.13L6 18l.8-2.69a4.5 4.5 0 011.13-1.9z"/></svg>',
     book:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.04A9 9 0 006 3.75c-1.05 0-2.06.18-3 .51v14.25A9 9 0 016 18c2.3 0 4.41.87 6 2.29m0-14.25a9 9 0 016-2.29c1.05 0 2.06.18 3 .51v14.25A9 9 0 0018 18a9 9 0 00-6 2.29m0-14.25v14.25"/></svg>',
-    music:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
-    globe:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21a9 9 0 100-18 9 9 0 000 18zm0 0c2.49 0 4.5-4.03 4.5-9S14.49 3 12 3m0 18c-2.49 0-4.5-4.03-4.5-9S9.51 3 12 3m-8.7 9h17.4"/></svg>',
-    appgrid:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>'
+    music:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>'
   };
 
   /* ---------- 模式与偏好 ---------- */
   var params=new URLSearchParams(location.search);
   var qtype=params.get('type');
-  var VALID=['post','book','music','link','app','fav'];
+  var VALID=['post','book','music','fav'];
   var listMode=VALID.indexOf(qtype)>=0;
 
   var view=get('sgx-files-view',null)||{};
@@ -297,7 +208,7 @@ html.layout-dex .files-more-float{display:none}
   if(view.layout!=='grid')view.layout='list';
   function saveView(){set('sgx-files-view',view)}
 
-  var GROUPS=['cats','recent','storage','fav','tools','ext'];
+  var GROUPS=['cats','recent','storage','fav'];
   var homeVis=get('sgx-files-home',null)||{};
   GROUPS.forEach(function(g){if(homeVis[g]===undefined)homeVis[g]=true});
 
@@ -447,11 +358,6 @@ html.layout-dex .files-more-float{display:none}
     box.innerHTML=getFavs().map(favRowHTML).join('');
     bindLongPress(box);
   }
-  function renderExt(){
-    var n=DATA.filter(function(it){return it.type==='post'}).length;
-    var el=$('files-blog-count');
-    if(el)el.textContent='blog.styrigx.com · '+n+(S.postsUnit||'');
-  }
   function applyHomeVis(){
     document.querySelectorAll('[data-home-group]').forEach(function(g){
       g.style.display=homeVis[g.getAttribute('data-home-group')]===false?'none':'';
@@ -515,7 +421,7 @@ html.layout-dex .files-more-float{display:none}
   }
 
   /* ---------- ⋮ 菜单 ---------- */
-  var GROUP_LABELS={cats:S.gCats,recent:S.gRecent,storage:S.gStorage,fav:S.gFav,tools:S.gTools,ext:S.gExt};
+  var GROUP_LABELS={cats:S.gCats,recent:S.gRecent,storage:S.gStorage,fav:S.gFav};
   function openSort(){
     if(!window.__openSheet)return;
     window.__openSheet({title:S.sortBy||'',options:[
@@ -562,16 +468,6 @@ html.layout-dex .files-more-float{display:none}
   var moreBtn=$('files-more'),moreFloat=$('files-more-float');
   if(moreBtn)moreBtn.addEventListener('click',openMore);
   if(moreFloat)moreFloat.addEventListener('click',openMore);
-
-  /* ---------- 更新日志 ---------- */
-  var cl=$('files-changelog');
-  if(cl)cl.addEventListener('click',function(){
-    if(!window.__openSheet)return;
-    var html='<div class="px-3 pb-4 text-sm space-y-3">'
-      +'<p><span class="text-m-on-surface-variant">'+esc(S.version||'')+': </span><span class="font-mono font-semibold">v'+esc(I.version||'')+'</span></p>'
-      +'<a href="https://github.com/styrigx/styrigx-space/commits/main" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 rounded-full bg-m-primary px-5 py-2.5 text-sm font-semibold text-m-on-primary">'+esc(S.viewCommits||'')+'</a></div>';
-    window.__openSheet({title:S.changelog||'',html:html});
-  });
 
   /* ---------- 最近访问 sheet ---------- */
   var rvh=$('files-rv-head');
@@ -680,9 +576,9 @@ html.layout-dex .files-more-float{display:none}
   }).then(function(j){
     var lang=en?'en':'zh';
     var arr=(j&&j.items)||j;
-    DATA=(Array.isArray(arr)?arr:[]).filter(function(it){return it&&(!it.lang||it.lang===lang)});
+    DATA=(Array.isArray(arr)?arr:[]).filter(function(it){return it&&(!it.lang||it.lang===lang)&&(it.type==='post'||it.type==='book'||it.type==='music')});
     if(listMode)renderList();
-    else{renderRecent();renderStorage();renderExt()}
+    else{renderRecent();renderStorage()}
   }).catch(function(){
     if(listMode)renderList();
   });

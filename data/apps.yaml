@@ -1,0 +1,50 @@
+# 应用商店数据（2.3.7）：站内应用类内容。加新应用只改这里。
+# id: 唯一标识（用于 sgx-apps-hidden）
+# category: ai / reading / system / mysites
+# icon: icon.html 中的图标名
+# ext: true=外链（新标签打开），false=站内
+- id: ai
+  name: AI
+  desc: 一次提问，各大平台打开
+  url: /ai/
+  category: ai
+  icon: ai
+  ext: false
+  addedAt: 2026-10-08
+  defaultVisible: true
+- id: books
+  name: 书单
+  desc: 全部书籍与批注
+  url: /books/
+  category: reading
+  icon: book
+  ext: false
+  addedAt: 2026-10-08
+  defaultVisible: true
+- id: music
+  name: 歌单
+  desc: 全部歌曲与批注
+  url: /music/
+  category: reading
+  icon: music
+  ext: false
+  addedAt: 2026-10-08
+  defaultVisible: true
+- id: goodlock
+  name: Good Lock
+  desc: 实验性功能模块
+  url: /goodlock/
+  category: system
+  icon: gift
+  ext: false
+  addedAt: 2026-10-08
+  defaultVisible: true
+- id: invite
+  name: 邀请码站
+  desc: Muse 邀请码免费共享
+  url: https://muse-invite.styrigx.com
+  category: mysites
+  icon: ticket
+  ext: true
+  addedAt: 2026-10-08
+  defaultVisible: true
