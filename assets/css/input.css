@@ -713,7 +713,7 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
 .layout-dex .set-layout.single-cat .set-group.active{display:block}
 .layout-dex .set-layout.single-cat .set-group.active>.set-gh{display:none}
 /* ===== 可复用账号卡：左 Sloan Gray / Styrigx，右圆形头像 =====
-   2.3.14.8 宽屏左栏显示；2.3.14.9 手机端复用同一组件。手机默认隐藏。 */
+   2.3.14.8 宽屏左栏显示；2.3.14.9 手机端设置页复用同一组件，也显示。 */
 .sgx-account-card{display:none;width:100%;align-items:center;gap:12px;
   padding:12px 14px;border-radius:1.25rem;
   background:var(--m-container-lowest);border:1px solid var(--m-outline)}
@@ -723,6 +723,9 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
 .sgx-account-card .sgx-ac-sub{font-size:12px;color:var(--m-on-surface-variant);margin-top:2px}
 .sgx-account-card .sgx-ac-img{width:48px;height:48px;border-radius:999px;object-fit:cover;flex-shrink:0}
 .layout-dex .sgx-account-card{display:flex}
+/* 2.3.14.9：手机端设置页显示账号卡（大标题下方、第一分组上方），
+   与宽屏左栏同一组件、样式一致；宽度随容器（左右 16px 由 .set-layout 的 px-4 提供）。 */
+.layout-phone .sgx-account-card{display:flex;margin:2px 0 12px}
 .set-side-title{font-size:2rem;font-weight:800;color:var(--m-primary);letter-spacing:-0.02em;line-height:1.1}
 /* DeX 下只保留一个"设置"大标题（subpage-head），删掉左侧栏重复的 */
 .layout-dex .set-side-title{display:none}
