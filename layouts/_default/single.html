@@ -37,7 +37,7 @@
           <span class="w-1 h-5 rounded-full bg-blue-500"></span>{{ $c.category }}
           <span class="text-xs font-normal text-gray-400">{{ len $c.sites }}</span>
         </h2>
-        <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {{ range $c.sites }}
           {{ $host := (urls.Parse .url).Host }}
           <a href="{{ .url }}" target="_blank" rel="noopener" data-name="{{ .name }}" data-desc="{{ .desc | default "" }}"

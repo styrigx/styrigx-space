@@ -9,8 +9,65 @@
     - name: GitHub
       url: https://github.com/styrigx
       desc: Open source
-- category: Tools
+    - name: X
+      url: https://x.com/styrigx
+      desc: Daily updates
+- category: AI News & Agents
   sites:
+    - name: The Rundown AI
+      url: https://www.therundown.ai
+      desc: Daily AI news in 5 minutes
+    - name: TLDR AI
+      url: https://tldr.tech/ai
+      desc: AI daily digest
+    - name: TestingCatalog
+      url: https://www.testingcatalog.com
+      desc: AI features & leaks
+    - name: Airtap
+      url: https://airtap.ai
+      desc: AI that runs your phone apps
+    - name: Hark
+      url: https://hark.com
+      desc: Personal AI assistant
+- category: Dev & Cloud
+  sites:
+    - name: GitHub
+      url: https://github.com
+      desc: Code hosting
     - name: Cloudflare
       url: https://dash.cloudflare.com
-      desc: Domain & CDN
+      desc: Domains, CDN & Pages
+    - name: Supabase
+      url: https://supabase.com
+      desc: Postgres backend platform
+    - name: Alibaba Cloud
+      url: https://www.aliyun.com
+      desc: Cloud services in China
+    - name: Keil MDK
+      url: https://www.keil.arm.com/mdk-community/
+      desc: Embedded dev, community edition
+    - name: Broadcom Support
+      url: https://support.broadcom.com
+      desc: VMware & software downloads
+- category: Network Test
+  sites:
+    - name: IPLeak
+      url: https://ipleak.net
+      desc: IP, DNS & WebRTC leak test
+    - name: BrowserLeaks
+      url: https://browserleaks.com/dns
+      desc: DNS leak & fingerprint
+    - name: Whoer
+      url: https://whoer.net/zh
+      desc: IP & anonymity check
+    - name: IP.SB
+      url: https://ip.sb
+      desc: IPv4 & IPv6 lookup
+- category: Discover & Learn
+  sites:
+    - name: AlternativeTo
+      url: https://alternativeto.net
+      desc: Find software alternatives
+    - name: MDN
+      url: https://developer.mozilla.org
+      desc: Web docs

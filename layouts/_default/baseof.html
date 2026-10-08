@@ -147,8 +147,8 @@ document.getElementById('theme-toggle').addEventListener('click',function(){
 <main>{{ block "main" . }}{{ end }}</main>
 <footer class="border-t border-gray-200/70 dark:border-gray-800/70 mt-8">
   <div class="max-w-6xl mx-auto px-6 py-10 text-center">
-    <p class="text-sm text-gray-500 dark:text-gray-400 italic">Yellow earth beneath, green light ahead.</p>
-    <p class="mt-2 text-xs text-gray-400 dark:text-gray-500">© 2026 Styrigx · Sloan Gray</p>
+    <p class="mt-2 text-xs text-gray-400 dark:text-gray-500">© {{ site.Params.since }}–<span id="copy-year">{{ now.Year }}</span> Sloan Gray</p>
+    <script>document.getElementById('copy-year').textContent=new Date().getFullYear();</script>
   </div>
 </footer>
 </body>

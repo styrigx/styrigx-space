@@ -8,7 +8,6 @@
 {{ $linksUrl := "/links/" }}{{ $home := "/" }}
 {{ if $isEn }}{{ $books = site.Data.en.books }}{{ $music = site.Data.en.music }}{{ $now = site.Data.en.now }}{{ $linksUrl = "/en/links/" }}{{ $home = "/en/" }}{{ end }}
 {{ $motto := $profile.motto_zh }}{{ if $isEn }}{{ $motto = $profile.motto_en }}{{ end }}
-{{ $motto2 := $profile.motto_en }}{{ if $isEn }}{{ $motto2 = "" }}{{ end }}
 
 <!-- Hero -->
 <section class="relative overflow-hidden">
@@ -26,9 +25,8 @@
       <div class="w-28 h-28 sm:w-32 sm:h-32 mx-auto rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-5xl font-bold ring-4 ring-white dark:ring-gray-800 shadow-xl mb-8">S</div>
       {{ end }}
     </div>
-    <h1 class="animate-fade-up text-6xl sm:text-7xl font-extrabold mb-6" style="animation-delay:.15s">{{ $profile.name }}</h1>
+    <h1 class="animate-fade-up text-6xl sm:text-7xl font-extrabold mb-6" style="animation-delay:.15s">Sloan Gray</h1>
     <p class="animate-fade-up text-xl sm:text-2xl text-gray-700 dark:text-gray-200 font-medium" style="animation-delay:.25s">{{ $motto }}</p>
-    {{ with $motto2 }}<p class="animate-fade-up mt-3 text-sm sm:text-base text-gray-500 dark:text-gray-400 italic" style="animation-delay:.32s">{{ . }}</p>{{ end }}
     <div class="animate-fade-up mt-10 flex flex-col sm:flex-row gap-4 justify-center" style="animation-delay:.4s">
       <a href="https://blog.styrigx.com" target="_blank" rel="noopener" class="inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-3.5 shadow-lg shadow-blue-600/25 hover:shadow-xl hover:-translate-y-0.5 transition-all">
         {{ if $isEn }}Blog{{ else }}博客{{ end }}{{ partial "icon.html" "arrow-right" }}
