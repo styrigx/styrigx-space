@@ -1,17 +1,16 @@
 <div align="center">
 
+[中文](README.md) | English
+
 # Styrigx's Space
 
-**To understand the world, take it apart; to believe in it, put it back together.**
+To understand the world, take it apart; to believe in it, put it back together.
 
-*拆开世界是为了了解它，再把它装回去是为了相信它。*
-
-[中文](README.md) | [English](README.en.md)
+[Visit styrigx.com](https://styrigx.com) · [Blog blog.styrigx.com](https://blog.styrigx.com) · [GitHub @styrigx](https://github.com/styrigx) · [X @styrigx](https://x.com/styrigx)
 
 ![Hugo](https://img.shields.io/badge/Hugo-v0.162.0-2563eb?style=flat-square&logo=hugo)
-![Tailwind](https://img.shields.io/badge/Tailwind_CSS-v3.4.19-2563eb?style=flat-square&logo=tailwindcss)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v3.4.19-2563eb?style=flat-square&logo=tailwindcss)
 ![Deploy](https://img.shields.io/github/actions/workflow/status/styrigx/styrigx-space/deploy.yml?style=flat-square&label=Deploy&color=2563eb)
-![Site](https://img.shields.io/badge/styrigx.com-online-2563eb?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-2563eb?style=flat-square)
 
 </div>
@@ -20,153 +19,63 @@
 
 ## What is this
 
-A personal website written in One UI 8.5 style. The website is a phone.
+My personal homepage, built to feel like a Samsung phone. Posts, books, music and the sites I use live as apps on the home screen. The interface is Styrigx UI, my own take on One UI 8.5, and it works on phone, tablet and DeX.
+
+## Preview
+
+| ![Home](docs/screenshots/en-home-mobile.jpg) | ![Settings](docs/screenshots/en-settings-mobile.jpg) |
+|---|---|
+| Home | Settings |
+
+![DeX](docs/screenshots/en-home-dex.jpg)
+DeX
 
 ## Structure
 
-- **Home**: launcher. App icon grid + bottom Dock + widgets (profile card, dual clocks, music, Now notes, latest blog posts, digital garden, screen time, weather).
-- **Dock**: 4 on phone (My Files, Store, Browser, Settings), 5 on DeX (plus app drawer).
-- **System apps**:
-  - My Files: on-site files. Articles, books, music, my sites.
-  - Store: on-site apps. AI, bookshelf, playlist, Good Lock, invite board. Install/uninstall supported.
-  - Browser: external platforms. On-site search + bookmark navigation.
-  - Settings: system-level config and system app settings.
-- **Store apps**:
-  - AI: ask once, open anywhere.
-  - Bookshelf: all books with notes.
-  - Playlist: all songs with notes.
-  - Good Lock: experimental feature modules.
-  - Invite board: free Muse invite code sharing.
+| App | Path | What it is |
+|---|---|---|
+| Home | `/en/` | Launcher: app icons, widgets and the Dock. Widgets include profile card, dual clocks, music, weather, Now notes, latest blog posts, digital garden, screen time, bookshelf, playlist and collections. |
+| My Files | `/en/files/` | Only things I wrote: posts, books, music, blog, library. |
+| Store | `/en/store/` | Apps with other people involved: AI, bookshelf, playlist, Good Lock, invite board; can be shown / hidden. |
+| Internet | `/en/browser/` | External sites and bookmarks, switchable search engines, voice search. |
+| Settings | `/en/settings/` | Display, language, layout and other system settings, stored locally. |
 
-## Classification rules
+The Dock only shows on the home screen; inside apps only the search bar stays at the bottom.
 
-New content goes where the rules say:
+## A few Styrigx UI details
 
-- **Store**: multi-participant (e.g. invite board).
-- **My Files**: only I write, only I have access (on-site files, blog, future book library).
-- **Browser**: external platforms, including my profiles on them (GitHub, X).
-- **Settings**: system-level config and system apps only.
+- Two layouts: phone (<640px) and DeX (≥640px).
+- Light / dark follows the system by default.
+- Large titles collapse into the top-bar mini title on scroll.
+- The bottom search capsule supports voice input (Chrome and Samsung Internet).
+- Two full versions: 中文 / English.
 
-## Editing content
+## Run locally
 
-All content is driven by `data/*.yaml`. Push after editing, rebuild to update.
-
-**Add a book** (`data/books.yaml`):
-
-```yaml
-- title: Title
-  author: Author
-  cover: /images/books/cover.webp
-  rating: 5
-  review: My short note
-```
-
-**Add a song** (`data/music.yaml`):
-
-```yaml
-- title: Title
-  artist: Artist
-  spotify_id: xxx
-  apple_id: 123456
-```
-
-**Add a bookmark** (`data/links.yaml`):
-
-```yaml
-- category: Category
-  sites:
-    - name: Site
-      url: https://example.com
-      desc: One-line description
-```
-
-**Add an app** (`data/apps.yaml`):
-
-```yaml
-- id: myapp
-  name: My App
-  desc: One-line description
-  url: /myapp/
-  category: ai
-  icon: ai
-  ext: false
-  defaultVisible: true
-```
-
-**Add a site** (`data/sites.yaml`):
-
-```yaml
-- name: Site
-  url: https://example.com
-  desc: One-line description
-  icon: globe
-```
-
-Edit the matching file under `data/en/` for the English version.
-
-## Tech stack
-
-Hugo (v0.162.0 extended) + Tailwind CSS (v3.4.19) + Cloudflare Pages. Pure static, no backend.
-
-## Directory structure
-
-```
-├── layouts/            # Templates
-│   ├── _default/       # baseof (shell), app pages
-│   ├── index.html      # Home
-│   └── partials/       # Search bar, icons, Dock components
-├── assets/css/         # input.css (Tailwind input); main.css generated by CI
-├── assets/js/          # Shared JS (theme, language, search, settings)
-├── data/               # Content data (en/ holds English version)
-├── content/            # Page entries (bilingual)
-├── static/             # _redirects (short links), _headers (cache), images
-├── scripts/            # music-previews.mjs (iTunes preview URLs)
-└── .github/workflows/  # deploy.yml
-```
-
-## Local development
+Requirements: Hugo extended 0.162.0, Node.js (CI uses 20, needed to build Tailwind).
 
 ```bash
+git clone https://github.com/styrigx/styrigx-space.git
+cd styrigx-space
 npm install
-npx tailwindcss -i assets/css/input.css -o assets/css/main.css
+npm run build:css
 hugo server
 ```
 
-Open http://localhost:1313 in your browser.
+Open http://localhost:1313 in a browser. Build with `hugo --minify`.
 
-## Deployment
+Pushing to main auto-deploys to Cloudflare Pages (the Pages project keeps its historic name `styrigx-portal`).
 
-Push to main → GitHub Actions builds → deploys to Cloudflare Pages project `styrigx-portal`.
+## Directories
 
-Required Secrets (repo Settings → Secrets):
-
-- `CLOUDFLARE_API_TOKEN`
-- `CLOUDFLARE_ACCOUNT_ID`
-
-Add short links in `static/_redirects`:
-
-```
-/mp  https://github.com/styrigx/muse-playbook  302
-```
-
-Existing short links: `/mp` (muse-playbook), `/tp` (textbook-playbook), `/gh` (GitHub home), `/gh/*` (matching repo).
-
-## Related sites
-
-- Blog: [blog.styrigx.com](https://blog.styrigx.com)
-- Invite board: [muse-invite.styrigx.com](https://muse-invite.styrigx.com)
-- Book library: [book.styrigx.com](https://book.styrigx.com) (personal ebook library; the books page pulls shelved books via `/api/shelf`, falling back to the static list when empty)
+- `content/`: page entries, bilingual.
+- `data/`: content data, split by language (`data/en/` is the English version; `data/wellbeing.yaml` holds screen-time data).
+- `layouts/`: templates; `_default/` holds each app page.
+- `assets/`: `css/input.css` is the Tailwind input, `main.css` is generated at build; shared JS lives here too.
+- `static/`: `_redirects` short links, `_headers` cache headers, images.
 
 ## License
 
-[MIT License](LICENSE). Personal content (motto, reviews, data, images) is copyrighted. Do not republish without permission.
+Code is MIT; personal content (posts, images, avatar, etc.) is all rights reserved.
 
----
-
-<div align="center">
-
-[Blog](https://blog.styrigx.com) · [X](https://x.com/styrigx) · [GitHub](https://github.com/styrigx)
-
-*Yellow earth beneath, green light ahead.*
-
-</div>
+© 2020–2026 Sloan Gray · Powered by Styrigx UI

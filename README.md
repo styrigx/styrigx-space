@@ -1,17 +1,16 @@
 <div align="center">
 
+中文 | [English](README.en.md)
+
 # Styrigx's Space
 
-**拆开世界是为了了解它，再把它装回去是为了相信它。**
+拆开世界是为了了解它，再把它装回去是为了相信它。
 
-*To understand the world, take it apart; to believe in it, put it back together.*
-
-[中文](README.md) | [English](README.en.md)
+[在线访问 styrigx.com](https://styrigx.com) · [博客 blog.styrigx.com](https://blog.styrigx.com) · [GitHub @styrigx](https://github.com/styrigx) · [X @styrigx](https://x.com/styrigx)
 
 ![Hugo](https://img.shields.io/badge/Hugo-v0.162.0-2563eb?style=flat-square&logo=hugo)
-![Tailwind](https://img.shields.io/badge/Tailwind_CSS-v3.4.19-2563eb?style=flat-square&logo=tailwindcss)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v3.4.19-2563eb?style=flat-square&logo=tailwindcss)
 ![Deploy](https://img.shields.io/github/actions/workflow/status/styrigx/styrigx-space/deploy.yml?style=flat-square&label=Deploy&color=2563eb)
-![Site](https://img.shields.io/badge/styrigx.com-online-2563eb?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-2563eb?style=flat-square)
 
 </div>
@@ -20,155 +19,63 @@
 
 ## 这是什么
 
-一个按 One UI 8.5 写的个人网站，把网站做成一台手机。
+我的个人主页，长得像一台三星手机。文章、书、音乐和常用的站点都是桌面上的 App，点开就能用。界面叫 Styrigx UI，参考 One UI 8.5 自己写的，手机、平板和 DeX 都能打开。
+
+## 预览
+
+| ![手机主页](docs/screenshots/home-mobile.jpg) | ![设置](docs/screenshots/settings-mobile.jpg) |
+|---|---|
+| 手机主页 | 设置 |
+
+![DeX](docs/screenshots/home-dex.jpg)
+DeX
 
 ## 结构
 
-- **主页**：启动页。App 图标网格 + 底部 Dock + 小组件（名片、双时钟、音乐、Now 便签、博客最新、数字花园、屏幕时间、天气）。
-- **Dock**：手机 4 个（我的文件、应用商店、浏览器、设置），DeX 5 个（加应用抽屉）。
-- **系统应用**：
-  - 我的文件：站内文件。文章、书、音乐、我的站点。
-  - 应用商店：站内应用。AI、书单、歌单、Good Lock、邀请码站。可安装/卸载。
-  - 浏览器：外部平台。站内搜索 + 书签导航。
-  - 设置：系统级配置和系统应用的配置。
-- **商店应用**：
-  - AI：一次提问，各大平台打开。
-  - 书单：全部书籍与批注。
-  - 歌单：全部歌曲与批注。
-  - Good Lock：实验性功能模块。
-  - 邀请码站：Muse 邀请码免费共享。
+| 应用 | 路径 | 是什么 |
+|---|---|---|
+| 主页 | `/` | 启动页：应用图标、小组件和 Dock。小组件有名片、双时钟、音乐、天气、Now 便签、博客最新、数字花园、屏幕时间、书单、歌单和收藏。 |
+| 我的文件 | `/files/` | 只放我自己写的东西：文章、书、音乐、博客、书库。 |
+| 应用商店 | `/store/` | 多人参与的应用：AI、书单、歌单、Good Lock、邀请码站，可显示 / 隐藏。 |
+| 浏览器 | `/browser/` | 外部站点和书签，可切换搜索引擎，支持语音搜索。 |
+| 设置 | `/settings/` | 显示、语言、布局等系统设置，偏好存在本地。 |
 
-## 分类规则
+Dock 只在主页显示；进入应用后底部只留搜索栏。
 
-新内容按下面规则决定放哪里：
+## Styrigx UI 的几个细节
 
-- **应用商店**：多人参与的（例如邀请码站）。
-- **我的文件**：只有我编写、只有我有权限的（站内文件、博客，以后的书库）。
-- **浏览器**：外部平台，包括我在平台上的主页（GitHub、X）。
-- **设置**：只放系统级配置和系统应用。
+- 两种布局：手机（<640px）和 DeX（≥640px）。
+- 浅色 / 深色默认跟随系统。
+- 大标题随滚动折叠成顶栏小标题。
+- 底部搜索胶囊支持语音输入（Chrome 和三星浏览器）。
+- 中文 / English 两套页面。
 
-## 改内容
+## 本地运行
 
-内容全部由 `data/*.yaml` 驱动。改完推送，重新构建即更新。
-
-**加书**（`data/books.yaml`）：
-
-```yaml
-- title: 书名
-  author: 作者
-  cover: /images/books/cover.webp
-  rating: 5
-  review: 我的短评
-```
-
-**加歌**（`data/music.yaml`）：
-
-```yaml
-- title: 歌名
-  artist: 歌手
-  spotify_id: xxx
-  apple_id: 123456
-```
-
-**加书签**（`data/links.yaml`）：
-
-```yaml
-- category: 分类名
-  sites:
-    - name: 站名
-      url: https://example.com
-      desc: 一句话说明
-```
-
-**加应用**（`data/apps.yaml`）：
-
-```yaml
-- id: myapp
-  name: 应用名
-  desc: 一句话说明
-  url: /myapp/
-  category: ai
-  icon: ai
-  ext: false
-  defaultVisible: true
-```
-
-**加「我的站点」**（`data/sites.yaml`）：
-
-```yaml
-- name: 站名
-  url: https://example.com
-  desc: 一句话说明
-  icon: globe
-```
-
-英文版同步改 `data/en/` 下的对应文件。
-
-## 技术栈
-
-Hugo（v0.162.0 extended）+ Tailwind CSS（v3.4.19）+ Cloudflare Pages。纯静态，无后端。
-
-## 目录结构
-
-```
-├── layouts/            # 模板
-│   ├── _default/       # baseof（外壳）、各 App 页面
-│   ├── index.html      # 主页
-│   └── partials/       # 搜索条、图标、Dock 等组件
-├── assets/css/         # input.css（Tailwind 输入）；main.css 由 CI 生成
-├── assets/js/          # 公共 JS（主题、语言、搜索、设置读写）
-├── data/               # 内容数据（中英分开，en/ 下是英文版）
-├── content/            # 页面入口（中英双语）
-├── static/             # _redirects（短链）、_headers（缓存）、图片
-├── scripts/            # music-previews.mjs（iTunes 试听链接）
-└── .github/workflows/  # deploy.yml
-```
-
-## 本地开发
+环境要求：Hugo extended 0.162.0、Node.js（CI 用 20，构建 Tailwind 需要）。
 
 ```bash
+git clone https://github.com/styrigx/styrigx-space.git
+cd styrigx-space
 npm install
-npx tailwindcss -i assets/css/input.css -o assets/css/main.css
+npm run build:css
 hugo server
 ```
 
-浏览器打开 http://localhost:1313。
+浏览器打开 http://localhost:1313。构建用 `hugo --minify`。
 
-## 部署
+推送 main 后自动部署到 Cloudflare Pages（Pages 项目名沿用历史名称 `styrigx-portal`）。
 
-推送到 main 分支 → GitHub Actions 自动构建 → 部署到 Cloudflare Pages 项目 `styrigx-portal`。
+## 目录说明
 
-> 注：`styrigx-portal` 是 Cloudflare Pages 项目的历史名称（Cloudflare 不支持改名），一直沿用至今，对应的是本仓库 Styrigx's Space。
-
-需要的 Secrets（仓库 Settings → Secrets）：
-
-- `CLOUDFLARE_API_TOKEN`
-- `CLOUDFLARE_ACCOUNT_ID`
-
-短链接在 `static/_redirects` 里加一行：
-
-```
-/mp  https://github.com/styrigx/muse-playbook  302
-```
-
-现有短链：`/mp`（muse-playbook）、`/tp`（textbook-playbook）、`/gh`（GitHub 主页）、`/gh/*`（对应仓库）。
-
-## 相关站点
-
-- 博客：[blog.styrigx.com](https://blog.styrigx.com)
-- 邀请码站：[muse-invite.styrigx.com](https://muse-invite.styrigx.com)
-- 书库：[book.styrigx.com](https://book.styrigx.com)（个人电子书库；主站书单页通过 `/api/shelf` 拉取书库中「放进书单」的书，有书时显示书库内容，为空时显示本站静态书单）
+- `content/`：页面入口，中英双语。
+- `data/`：内容数据，中英分开（`data/en/` 是英文版；`data/wellbeing.yaml` 是屏幕时间数据）。
+- `layouts/`：模板，`_default/` 下是各 App 页面。
+- `assets/`：`css/input.css` 是 Tailwind 输入，`main.css` 由构建生成；公共 JS 也在这里。
+- `static/`：`_redirects` 短链、`_headers` 缓存头、图片。
 
 ## 许可
 
-[MIT License](LICENSE)。个人内容（格言、书评、数据、图片）保留版权，未经许可请勿转载。
+代码 MIT；文章、图片、头像等个人内容保留所有权利。
 
----
-
-<div align="center">
-
-[博客](https://blog.styrigx.com) · [X](https://x.com/styrigx) · [GitHub](https://github.com/styrigx)
-
-*Yellow earth beneath, green light ahead.*
-
-</div>
+© 2020–2026 Sloan Gray · Powered by Styrigx UI
