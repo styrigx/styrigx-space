@@ -213,11 +213,13 @@ main {
 /* ===== 页脚：内容短的页面也沉底，且始终在任务栏上方 ===== */
 body { display: flex; flex-direction: column; min-height: 100dvh; }
 main { flex: 1 0 auto; }
-footer { padding-bottom: calc(var(--dock-h) + env(safe-area-inset-bottom, 0px)); }
+footer { padding-bottom: calc(var(--dock-h) + 21px + env(safe-area-inset-bottom, 0px)); }
+/* 2.3.14.2：页脚多了一行 Powered by Styrigx UI（11px/行高1.5＋上间距4px≈21px），三处页脚留白同步加高 */
+.sgx-powered{margin-top:4px;font-size:11px;line-height:1.5;text-align:center;color:color-mix(in srgb,var(--m-on-surface-variant) 62%,transparent)}
 /* 2.3.12.1 返工点3：有搜索胶囊的页面，页脚底部留白 = 胶囊高 56px + Dock 高 64px + 24px，
    版权行完整露出在胶囊上方，不被压住 */
-body.sgx-cap-pad footer{padding-bottom:calc(56px + var(--dock-h) + 24px + env(safe-area-inset-bottom,0px))}
-.layout-dex footer { padding-bottom: env(safe-area-inset-bottom, 0px); }
+body.sgx-cap-pad footer{padding-bottom:calc(56px + var(--dock-h) + 24px + 21px + env(safe-area-inset-bottom,0px))}
+.layout-dex footer { padding-bottom: calc(21px + env(safe-area-inset-bottom, 0px)); }
 
 /* ===== 顶栏：透明无底色无线，直接融在背景里；手机、DeX 全局显示 ===== */
 :root { --nav-h: 64px; }

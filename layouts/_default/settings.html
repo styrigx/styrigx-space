@@ -276,6 +276,10 @@
     <h2 class="set-gh"><span class="set-ic bg-m-container-highest text-m-on-surface">{{ partial "icon.html" "globe" }}</span><span>{{ if $isEn }}About{{ else }}关于本站{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.28s">
       <div class="set-row no-ic">
+        <span class="flex-1 font-medium">{{ if $isEn }}Interface{{ else }}界面{{ end }}</span>
+        <span class="text-sm text-m-on-surface-variant">Styrigx UI 1.0</span>
+      </div>
+      <div class="set-row no-ic">
         <span class="flex-1 font-medium">{{ if $isEn }}Version{{ else }}版本{{ end }}</span>
         <span class="text-sm text-m-on-surface-variant">{{ site.Params.version }}</span>
       </div>
@@ -917,6 +921,7 @@
     {t:en?'Digital wellbeing':'数字健康',d:'',cat:'wellbeing',el:'sg-wellbeing'},
     {t:en?'15-minute reminder':'15 分钟提醒',d:en?'Digital wellbeing':'数字健康',cat:'wellbeing',el:'row-welltip'},
     {t:en?'Version':'版本',d:en?'About':'关于本站',cat:'about',el:'sg-about'},
+    {t:en?'Interface':'界面',d:'Styrigx UI',cat:'about',el:'sg-about'},
     {t:en?'Reset all settings':'重置所有设置',d:en?'About':'关于本站',cat:'about',el:'row-reset'},
     {t:en?'Display':'显示',d:'',cat:'display',el:'sg-display'},
     {t:en?'General management':'常规管理',d:'',cat:'manage',el:'sg-manage'},
