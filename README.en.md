@@ -77,6 +77,23 @@ To add a new repo, just append one line to `_redirects`.
 
 Hugo (v0.162.0 extended) + Tailwind CSS (v3.4.19) + Cloudflare Pages
 
+## 📊 Updating screen time
+
+The "Digital wellbeing" widget on the homepage reads from `data/wellbeing.yaml`:
+
+```yaml
+updated: "2026-10-08"   # update date
+total_minutes: 510      # total (minutes)
+apps:
+  - key: muse
+    zh: "Muse"          # Chinese name
+    en: "Muse"          # English name
+    minutes: 185        # duration (minutes)
+    color: "#d97706"    # segment color in the progress bar
+```
+
+Edit, commit and push — the homepage updates on the next build (total and the "Other" segment are computed automatically).
+
 ## 📁 Structure
 
 ```

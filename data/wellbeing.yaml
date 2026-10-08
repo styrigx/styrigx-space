@@ -1,0 +1,20 @@
+# 我的屏幕时间（首页"数字健康"小组件的数据源）
+# 修改后重新构建即更新。minutes 为整数分钟，color 为进度条分段颜色。
+updated: "2026-10-08"
+total_minutes: 510
+apps:
+  - key: muse
+    zh: "Muse"
+    en: "Muse"
+    minutes: 185
+    color: "#d97706"
+  - key: browser
+    zh: "浏览器"
+    en: "Browser"
+    minutes: 136
+    color: "#2f5f86"
+  - key: hark
+    zh: "Hark"
+    en: "Hark"
+    minutes: 107
+    color: "#8a4b2d"

@@ -30,6 +30,16 @@
     if(p&&p!=='lake'){d.setAttribute('data-palette',p)}
     /* 减弱动效 */
     if(localStorage.getItem('sgx-reduced-motion')==='1'){d.classList.add('reduced-motion')}
+    /* 就寝模式：23:00–6:00 自动深色 + 降饱和（Good Lock 实验室可关） */
+    try{
+      if(localStorage.getItem('sgx-gl-wellbeing')!=='0'&&localStorage.getItem('sgx-bedtime')!=='0'){
+        var _h=new Date().getHours();
+        if(_h>=23||_h<6){
+          if(m!=='light'){d.classList.add('dark')}
+          d.classList.add('bedtime');
+        }
+      }
+    }catch(e){}
   }catch(e){}
 })();
 </script>
@@ -61,10 +71,12 @@
         {{ $urlZh = "/" }}
         {{ if hasPrefix .RelPermalink "/en/links/" }}{{ $urlZh = "/links/" }}{{ end }}
         {{ if hasPrefix .RelPermalink "/en/settings/" }}{{ $urlZh = "/settings/" }}{{ end }}
+        {{ if hasPrefix .RelPermalink "/en/goodlock/" }}{{ $urlZh = "/goodlock/" }}{{ end }}
       {{ else }}
         {{ $urlEn = "/en/" }}
         {{ if hasPrefix .RelPermalink "/links/" }}{{ $urlEn = "/en/links/" }}{{ end }}
         {{ if hasPrefix .RelPermalink "/settings/" }}{{ $urlEn = "/en/settings/" }}{{ end }}
+        {{ if hasPrefix .RelPermalink "/goodlock/" }}{{ $urlEn = "/en/goodlock/" }}{{ end }}
       {{ end }}
       {{ $langLabel := "EN" }}{{ if $isEn }}{{ $langLabel = "中文" }}{{ end }}
       <button id="lang-btn" data-cur="{{ if $isEn }}en{{ else }}zh{{ end }}" data-url-zh="{{ $urlZh }}" data-url-en="{{ $urlEn }}"
@@ -74,6 +86,7 @@
         <svg width="20" height="20" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/></svg>
         <svg width="20" height="20" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0012 21.75a9.753 9.753 0 009.752-6.748z"/></svg>
       </button>
+      <span id="bedtime-moon" class="hidden w-9 h-9 rounded-full items-center justify-center text-m-accent" title="{{ if $isEn }}Bedtime mode{{ else }}就寝模式{{ end }}">{{ partial "icon.html" "moon" }}</span>
     </div>
   </div>
 </nav>
@@ -134,6 +147,21 @@
 {{ $idx = $idx | append (dict "t" (cond $isEn "Dark mode" "深色模式") "d" $cSet "u" $setUrl "c" $cSet) }}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Language" "语言") "d" $cSet "u" $setUrl "c" $cSet) }}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Wallpaper & theme color" "壁纸和主题色") "d" $cSet "u" $setUrl "c" $cSet) }}
+{{/* 数字健康 */}}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Digital wellbeing" "数字健康") "d" (cond $isEn "Screen time & bedtime mode" "屏幕时间与就寝模式") "u" (print $setUrl "#wellbeing") "c" $cSet) }}
+{{/* Good Lock 实验室 */}}
+{{ $glUrl := "/goodlock/" }}{{ if $isEn }}{{ $glUrl = "/en/goodlock/" }}{{ end }}
+{{ $cGl := "Good Lock" }}
+{{ $idx = $idx | append (dict "t" $cGl "d" (cond $isEn "Experimental modules" "实验性功能模块") "u" $glUrl "c" $cGl) }}
+{{ $glMods := slice
+  (dict "id" "wellbeing" "zh" "数字健康" "en" "Digital wellbeing" "dzh" "访客时长提示与就寝模式" "den" "Visit reminders & bedtime mode")
+  (dict "id" "parallax" "zh" "视差壁纸" "en" "Parallax wallpaper" "dzh" "壁纸随设备移动而视差" "den" "Wallpaper moves with your device")
+  (dict "id" "clockstyle" "zh" "时钟样式" "en" "Clock style" "dzh" "双时钟切换数字 / 指针" "den" "Switch dual clock between digital and analog")
+  (dict "id" "sound" "zh" "点击音效" "en" "Tap sounds" "dzh" "点图标时的轻微点击声" "den" "Subtle click sound on taps")
+  (dict "id" "keys" "zh" "快捷键" "en" "Keyboard shortcuts" "dzh" "g h / g l / g b / g s 快速跳转" "den" "Jump with g h / g l / g b / g s")
+  (dict "id" "edgeglow" "zh" "边缘光效" "en" "Edge glow" "dzh" "悬停小组件时的主色流光" "den" "Primary-color glow on widget hover")
+}}
+{{ range $glMods }}{{ $idx = $idx | append (dict "t" (cond $isEn .en .zh) "d" (cond $isEn .den .dzh) "u" (print $glUrl "#mod-" .id) "c" $cGl) }}{{ end }}
 <script id="search-index" type="application/json">{{ (dict "items" $idx) | jsonify | safeJS }}</script>
 <script>
 (function(){
@@ -264,7 +292,142 @@ document.getElementById('theme-toggle').addEventListener('click',function(){
 })();
 </script>
 
+<script>
+/* ===== Good Lock 实验室：全站生效的模块 ===== */
+(function(){
+  var en=document.documentElement.lang==='en';
+  function get(k){try{return localStorage.getItem(k)}catch(e){return null}}
+  function set(k,v){try{if(v===null||v===undefined){localStorage.removeItem(k)}else{localStorage.setItem(k,v)}}catch(e){}}
+  function modOn(key,defOn){var v=get(key);return defOn?(v!=='0'):(v==='1')}
+  function reduced(){return document.documentElement.classList.contains('reduced-motion')||(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)}
+
+  /* ---- 就寝模式判定（与 head 预读保持一致） ---- */
+  window.__bedtimeActive=function(){
+    try{
+      if(get('sgx-gl-wellbeing')==='0'||get('sgx-bedtime')==='0')return false;
+      var h=new Date().getHours();
+      return (h>=23||h<6)&&(get('sgx-theme-mode')||get('theme'))!=='light';
+    }catch(e){return false}
+  };
+  (function(){
+    if(!window.__bedtimeActive())return;
+    var moon=document.getElementById('bedtime-moon');
+    if(moon){moon.classList.remove('hidden');moon.classList.add('flex')}
+  })();
+
+  /* ---- 视差壁纸 ---- */
+  function parallaxOn(){return modOn('sgx-gl-parallax',false)}
+  function applyParallax(x,y){
+    if(!parallaxOn()||reduced())return;
+    document.body.style.backgroundPosition=x.toFixed(1)+'px '+y.toFixed(1)+'px';
+  }
+  if(parallaxOn()&&!reduced()){
+    var raf=null,lx=0,ly=0;
+    window.addEventListener('mousemove',function(e){
+      lx=(e.clientX/window.innerWidth-0.5)*22;ly=(e.clientY/window.innerHeight-0.5)*22;
+      if(!raf)raf=requestAnimationFrame(function(){raf=null;applyParallax(lx,ly)});
+    },{passive:true});
+    window.addEventListener('deviceorientation',function(e){
+      if(e.gamma===null||e.beta===null)return;
+      applyParallax(e.gamma*0.35,e.beta*0.2);
+    },{passive:true});
+  }
+
+  /* ---- 点击音效（Web Audio 合成） ---- */
+  function blip(){
+    try{
+      var AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+      var ctx=window.__glAC||(window.__glAC=new AC());
+      if(ctx.state==='suspended')ctx.resume();
+      var o=ctx.createOscillator(),g=ctx.createGain(),t=ctx.currentTime;
+      o.type='sine';o.frequency.setValueAtTime(1250,t);o.frequency.exponentialRampToValueAtTime(880,t+0.05);
+      g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.06,t+0.008);g.gain.exponentialRampToValueAtTime(0.0001,t+0.09);
+      o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+0.1);
+    }catch(e){}
+  }
+  document.addEventListener('click',function(e){
+    if(!modOn('sgx-gl-sound',false))return;
+    if(e.target.closest&&e.target.closest('.app-tile,.dock-btn,.nav-act'))blip();
+  },{passive:true});
+
+  /* ---- 快捷键（桌面端） ---- */
+  (function(){
+    var pending=false,timer=null;
+    document.addEventListener('keydown',function(e){
+      if(!modOn('sgx-gl-keys',false))return;
+      var t=e.target;
+      if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;
+      if(e.metaKey||e.ctrlKey||e.altKey)return;
+      var home=en?'/en/':'/',links=en?'/en/links/':'/links/',set=en?'/en/settings/':'/settings/';
+      if(pending){
+        pending=false;if(timer)clearTimeout(timer);
+        var map={'h':home,'l':links,'b':'https://blog.styrigx.com','s':set};
+        var u=map[e.key];
+        if(u){e.preventDefault();if(u.indexOf('http')===0)window.open(u,'_blank');else location.href=u}
+        return;
+      }
+      if(e.key==='g'){pending=true;timer=setTimeout(function(){pending=false},900)}
+      else if(e.key==='?'){
+        e.preventDefault();
+        if(window.__openSheet)window.__openSheet({title:en?'Keyboard shortcuts':'快捷键',html:
+          '<div class="px-2 pb-2 text-sm space-y-2">'
+          +'<div class="flex justify-between"><span><kbd class="kbd">g</kbd> <kbd class="kbd">h</kbd></span><span class="text-m-on-surface-variant">'+(en?'Home':'首页')+'</span></div>'
+          +'<div class="flex justify-between"><span><kbd class="kbd">g</kbd> <kbd class="kbd">l</kbd></span><span class="text-m-on-surface-variant">'+(en?'Bookmarks':'导航')+'</span></div>'
+          +'<div class="flex justify-between"><span><kbd class="kbd">g</kbd> <kbd class="kbd">b</kbd></span><span class="text-m-on-surface-variant">'+(en?'Blog':'博客')+'</span></div>'
+          +'<div class="flex justify-between"><span><kbd class="kbd">g</kbd> <kbd class="kbd">s</kbd></span><span class="text-m-on-surface-variant">'+(en?'Settings':'设置')+'</span></div>'
+          +'</div>'});
+      }
+    });
+  })();
+
+  /* ---- 边缘光效 ---- */
+  if(modOn('sgx-gl-edgeglow',false)){document.body.classList.add('gl-edgeglow')}
+
+  /* ---- 访客数字健康（只存本地） ---- */
+  function dayStr(d){return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate()}
+  function areaOf(){var p=location.pathname;
+    if(p==='/goodlock/'||p==='/en/goodlock/')return 'goodlock';
+    if(p==='/settings/'||p==='/en/settings/')return 'settings';
+    if(p==='/links/'||p==='/en/links/')return 'links';
+    return 'home';}
+  var today=dayStr(new Date()),sessStart=Date.now(),sessArea=areaOf();
+  function wellLoad(){try{var v=JSON.parse(get('sgx-well-v')||'null');if(v&&v.day===today)return v}catch(e){}return{day:today,min:0,areas:{}}}
+  function wellSave(v){set('sgx-well-v',JSON.stringify(v))}
+  function wellFlush(){var v=wellLoad(),add=(Date.now()-sessStart)/60000;v.min+=add;v.areas[sessArea]=(v.areas[sessArea]||0)+add;sessStart=Date.now();wellSave(v);return v}
+  window.addEventListener('pagehide',wellFlush);
+  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')wellFlush();else sessStart=Date.now()});
+  window.__wellLoad=wellLoad;window.__wellFlush=wellFlush;
+  /* 15 分钟温和提示（每天一次） */
+  function showTip(){
+    var txt=en?"You've been here 15 minutes, time for a stretch?":"已经看了 15 分钟，起来活动一下？";
+    var t=document.createElement('div');
+    t.id='well-toast';t.setAttribute('role','status');
+    t.innerHTML='<span class="flex-1">'+txt+'</span><button type="button" id="well-toast-x" aria-label="'+(en?'Dismiss':'关闭')+'" class="w-9 h-9 -m-1 rounded-full flex items-center justify-center shrink-0">✕</button>';
+    document.body.appendChild(t);
+    requestAnimationFrame(function(){t.classList.add('show')});
+    function hide(){t.classList.remove('show');setTimeout(function(){t.remove()},300)}
+    document.getElementById('well-toast-x').addEventListener('click',hide);
+    setTimeout(hide,12000);
+  }
+  function checkTip(){
+    if(!modOn('sgx-gl-wellbeing',true))return;
+    if(get('sgx-well-tip')==='0')return;
+    if(get('sgx-well-tipday')===today)return;
+    var v=wellLoad(),total=v.min+(Date.now()-sessStart)/60000;
+    if(total>=15){set('sgx-well-tipday',today);showTip()}
+  }
+  setTimeout(checkTip,30000);setInterval(checkTip,30000);
+
+  /* ---- 设置变更时重应用 ---- */
+  window.addEventListener('sgx-settings-changed',function(){
+    document.body.classList.toggle('gl-edgeglow',modOn('sgx-gl-edgeglow',false));
+    if(parallaxOn()&&reduced())document.body.style.backgroundPosition='';
+  });
+})();
+</script>
+
 <main>{{ block "main" . }}{{ end }}</main>
+<div id="bedtime-veil" aria-hidden="true"></div>
 <footer class="relative z-10 border-t border-m-outline mt-4">
   <div class="max-w-[1100px] mx-auto px-6 py-8 text-center">
     <p class="text-xs text-m-on-surface-variant">© {{ site.Params.since }}–<span id="copy-year">{{ now.Year }}</span> Sloan Gray</p>

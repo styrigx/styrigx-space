@@ -77,6 +77,23 @@
 
 Hugo（v0.162.0 extended）+ Tailwind CSS（v3.4.19）+ Cloudflare Pages
 
+## 📊 更新屏幕时间
+
+首页"数字健康"小组件的数据来自 `data/wellbeing.yaml`：
+
+```yaml
+updated: "2026-10-08"   # 更新日期
+total_minutes: 510      # 总时长（分钟）
+apps:
+  - key: muse
+    zh: "Muse"          # 中文名
+    en: "Muse"          # 英文名
+    minutes: 185        # 时长（分钟）
+    color: "#d97706"    # 进度条分段颜色
+```
+
+改完提交推送，重新构建后首页自动更新（总时长和"其他"分段由模板自动计算）。
+
 ## 📁 目录结构
 
 ```

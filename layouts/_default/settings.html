@@ -141,16 +141,69 @@
         </span>
         <span class="switch" id="sw-motion" role="switch" aria-checked="false" aria-label="{{ if $isEn }}Reduce motion{{ else }}减弱动效{{ end }}"><span class="knob"></span></span>
       </div>
-      {{/* 第三批占位：数字健康 / Good Lock，先隐藏 */}}
-      <div class="set-row hidden" id="row-wellbeing">
+      <a class="set-row" id="row-wellbeing" href="#wellbeing">
         <span class="set-ic bg-m-warm-container text-m-on-warm-container">{{ partial "icon.html" "info" }}</span>
         <span class="flex-1 font-medium">{{ if $isEn }}Digital wellbeing{{ else }}数字健康{{ end }}</span>
         {{ partial "icon.html" "chev-r" }}
-      </div>
-      <div class="set-row hidden" id="row-goodlock">
-        <span class="set-ic bg-m-rose-container text-m-on-rose-container">{{ partial "icon.html" "motion" }}</span>
+      </a>
+      <a class="set-row" id="row-goodlock" href="{{ if $isEn }}/en/goodlock/{{ else }}/goodlock/{{ end }}">
+        <span class="set-ic bg-m-rose-container text-m-on-rose-container">{{ partial "icon.html" "gift" }}</span>
         <span class="flex-1 font-medium">Good Lock</span>
         {{ partial "icon.html" "chev-r" }}
+      </a>
+    </section>
+
+    <!-- 数字健康 -->
+    <h2 id="wellbeing" class="px-2 mb-2 text-sm font-semibold text-m-on-surface-variant scroll-mt-24">{{ if $isEn }}Digital wellbeing{{ else }}数字健康{{ end }}</h2>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.24s">
+      {{/* 我的屏幕时间（来自 data/wellbeing.yaml） */}}
+      {{ $wb := site.Data.wellbeing }}
+      {{ if $wb }}
+      {{ $wbTotal := $wb.total_minutes }}
+      {{ $wbSum := 0 }}{{ range $wb.apps }}{{ $wbSum = add $wbSum .minutes }}{{ end }}
+      {{ $wbOther := sub $wbTotal $wbSum }}
+      {{ $dp := split $wb.updated "-" }}{{ $wmo := index $dp 1 }}{{ $wda := strings.TrimLeft "0" (index $dp 2) }}
+      {{ $monEn := dict "01" "Jan" "02" "Feb" "03" "Mar" "04" "Apr" "05" "May" "06" "Jun" "07" "Jul" "08" "Aug" "09" "Sep" "10" "Oct" "11" "Nov" "12" "Dec" }}
+      <div class="p-5">
+        <div class="flex items-baseline justify-between gap-3 mb-3">
+          <p class="text-sm font-medium">{{ if $isEn }}My screen time{{ else }}我的屏幕时间{{ end }}</p>
+          <p class="text-[11px] text-m-on-surface-variant">{{ if $isEn }}Updated {{ index $monEn $wmo }} {{ $wda }}{{ else }}更新于 {{ $wmo }}月{{ $wda }}日{{ end }}</p>
+        </div>
+        {{ $th := div $wbTotal 60 }}{{ $tm := mod $wbTotal 60 }}
+        <p class="text-2xl font-extrabold tracking-tight mb-3">{{ if $isEn }}{{ $th }} hrs {{ $tm }} min{{ else }}{{ $th }} 小时 {{ $tm }} 分钟{{ end }}</p>
+        <div class="wb-bar" role="img" aria-label="{{ if $isEn }}Screen time breakdown{{ else }}屏幕时间分布{{ end }}">
+          {{ range $wb.apps }}<span style="width:{{ printf "%.1f" (div (mul .minutes 100.0) $wbTotal) }}%;background:{{ .color }}"></span>{{ end }}
+          <span style="width:{{ printf "%.1f" (div (mul $wbOther 100.0) $wbTotal) }}%;background:var(--m-container-highest)"></span>
+        </div>
+        <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[11px] text-m-on-surface-variant">
+          {{ range $wb.apps }}<span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" style="background:{{ .color }}"></span>{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}</span>{{ end }}
+          <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" style="background:var(--m-container-highest);border:1px solid var(--m-outline)"></span>{{ if $isEn }}Other{{ else }}其他{{ end }}</span>
+        </div>
+      </div>
+      {{ end }}
+      {{/* 你的数字健康（访客，只存本地） */}}
+      <div class="p-5 pt-1">
+        <div class="flex items-baseline justify-between gap-3 mb-3">
+          <p class="text-sm font-medium">{{ if $isEn }}Your visit today{{ else }}你今天的到访{{ end }}</p>
+          <p class="text-[11px] text-m-on-surface-variant">{{ if $isEn }}Stored on this device only{{ else }}只保存在本机{{ end }}</p>
+        </div>
+        <p class="text-2xl font-extrabold tracking-tight mb-3"><span id="well-v-total">0</span> <span class="text-sm font-medium text-m-on-surface-variant">{{ if $isEn }}min{{ else }}分钟{{ end }}</span></p>
+        <div class="wb-bar" id="well-v-bar" role="img" aria-label="{{ if $isEn }}Your visit breakdown{{ else }}到访分布{{ end }}"></div>
+        <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[11px] text-m-on-surface-variant" id="well-v-legend"></div>
+      </div>
+      <div class="set-row no-ic" id="row-welltip" role="button" tabindex="0">
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}15-minute reminder{{ else }}15 分钟提醒{{ end }}</span>
+          <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}A gentle nudge after 15 minutes here{{ else }}停留 15 分钟后温和提醒一次{{ end }}</span>
+        </span>
+        <span class="switch" id="sw-welltip" role="switch" aria-checked="true" aria-label="{{ if $isEn }}15-minute reminder{{ else }}15 分钟提醒{{ end }}"><span class="knob"></span></span>
+      </div>
+      <div class="set-row no-ic" id="row-bedtime" role="button" tabindex="0">
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}Bedtime mode{{ else }}就寝模式{{ end }}</span>
+          <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Dim &amp; desaturate from 11 PM to 6 AM{{ else }}23:00–6:00 自动深色并降低饱和度{{ end }}</span>
+        </span>
+        <span class="switch" id="sw-bedtime" role="switch" aria-checked="true" aria-label="{{ if $isEn }}Bedtime mode{{ else }}就寝模式{{ end }}"><span class="knob"></span></span>
       </div>
     </section>
 
@@ -336,6 +389,49 @@
     paintMotion();
   });
   paintMotion();
+
+  /* ---- 数字健康：访客时长提示 / 就寝模式 ---- */
+  function paintWellTip(){setSwitch('sw-welltip',get('sgx-well-tip')!=='0')}
+  rowToggle('row-welltip',function(){
+    var on=get('sgx-well-tip')==='0';
+    set('sgx-well-tip',on?'1':'0');
+    paintWellTip();window.dispatchEvent(new Event('sgx-settings-changed'));
+  });
+  paintWellTip();
+  function paintBedtime(){setSwitch('sw-bedtime',get('sgx-bedtime')!=='0')}
+  rowToggle('row-bedtime',function(){
+    var on=get('sgx-bedtime')==='0';
+    set('sgx-bedtime',on?'1':'0');
+    paintBedtime();window.dispatchEvent(new Event('sgx-settings-changed'));
+  });
+  paintBedtime();
+  /* 访客到访分布 */
+  (function(){
+    var totalEl=$('well-v-total'),bar=$('well-v-bar'),legend=$('well-v-legend');
+    if(!totalEl||!bar)return;
+    var v=(window.__wellLoad&&window.__wellLoad())||{min:0,areas:{}};
+    try{v=window.__wellFlush()}catch(e){}
+    var total=Math.max(0,Math.round(v.min||0));
+    totalEl.textContent=total;
+    var AREAS=[
+      {id:'home',label:en?'Home':'首页',color:'var(--m-primary)'},
+      {id:'links',label:en?'Bookmarks':'导航',color:'var(--m-accent)'},
+      {id:'settings',label:en?'Settings':'设置',color:'var(--m-secondary)'},
+      {id:'goodlock',label:'Good Lock',color:'var(--m-rose)'}
+    ];
+    if(total<=0){
+      bar.innerHTML='<span style="width:100%;background:var(--m-container-highest)"></span>';
+      legend.innerHTML='<span>'+(en?'No visits recorded yet today':'今天还没有到访记录')+'</span>';
+      return;
+    }
+    bar.innerHTML=AREAS.map(function(a){
+      var m=v.areas[a.id]||0,pct=Math.max(0,(m/total*100));
+      return '<span style="width:'+pct.toFixed(1)+'%;background:'+a.color+'" title="'+a.label+'"></span>';
+    }).join('');
+    legend.innerHTML=AREAS.map(function(a){
+      return '<span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" style="background:'+a.color+'"></span>'+a.label+'</span>';
+    }).join('');
+  })();
 
   /* ---- 重置 ---- */
   rowToggle('row-reset',function(){

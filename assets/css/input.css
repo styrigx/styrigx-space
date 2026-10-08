@@ -358,3 +358,34 @@ body:not(.has-dock) main{--dock-h:0px}
   .sec-hero{min-height:30vh;min-height:30svh;display:flex;flex-direction:column;justify-content:center;text-align:center}
   .sec-hero h2{font-size:2.9rem !important;line-height:1.15}
 }
+
+/* ===== 数字健康：分段进度条 ===== */
+.wb-bar{display:flex;height:10px;border-radius:999px;overflow:hidden;background:var(--m-container);gap:2px}
+.wb-bar>span{display:block;height:100%;min-width:0}
+.wb-bar>span:first-child{border-radius:999px 0 0 999px}
+.wb-bar>span:last-child{border-radius:0 999px 999px 0}
+
+/* ===== Good Lock：实验标签 ===== */
+.exp-tag{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--m-on-primary-container);background:var(--m-primary-container);border:1px solid var(--m-primary);border-radius:999px;padding:2px 8px}
+
+/* ===== 指针时钟 ===== */
+.analog-face{width:5.5rem;height:5.5rem;max-width:100%}
+#clk-l-time.analog-on,#clk-r-time.analog-on{line-height:0}
+
+/* ===== Good Lock：边缘光效 ===== */
+.gl-edgeglow .widget{transition:box-shadow .3s ease}
+.gl-edgeglow .widget:hover{box-shadow:0 0 0 2px var(--m-primary),0 10px 32px -10px var(--m-primary)}
+
+/* ===== 就寝模式：降饱和遮罩（backdrop-filter，不破坏 fixed 定位） ===== */
+#bedtime-veil{display:none;position:fixed;inset:0;z-index:90;pointer-events:none;backdrop-filter:saturate(.55);-webkit-backdrop-filter:saturate(.55)}
+.bedtime #bedtime-veil{display:block}
+
+/* ===== 数字健康：15 分钟提示 ===== */
+#well-toast{position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom,0px));transform:translate(-50%,16px);z-index:120;
+  display:flex;align-items:center;gap:8px;max-width:min(92vw,26rem);padding:10px 10px 10px 18px;
+  background:var(--m-container-lowest);color:var(--m-on-surface);border:1px solid var(--m-outline);border-radius:1.25rem;
+  box-shadow:0 16px 48px -12px rgba(0,0,0,.35);font-size:14px;opacity:0;transition:opacity .3s,transform .3s}
+#well-toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* ===== 快捷键 kbd ===== */
+.kbd{display:inline-block;min-width:1.6rem;text-align:center;background:var(--m-container);border:1px solid var(--m-outline);border-radius:.4rem;padding:2px 6px;font-size:12px;font-family:inherit}
