@@ -138,6 +138,8 @@ hugo server
 
 推送到 main 分支 → GitHub Actions 自动构建 → 部署到 Cloudflare Pages 项目 `styrigx-portal`。
 
+> 注：`styrigx-portal` 是 Cloudflare Pages 项目的历史名称（Cloudflare 不支持改名），一直沿用至今，对应的是本仓库 Styrigx's Space。
+
 需要的 Secrets（仓库 Settings → Secrets）：
 
 - `CLOUDFLARE_API_TOKEN`

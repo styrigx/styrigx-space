@@ -95,7 +95,7 @@ html.layout-dex .ai-grid{grid-template-columns:repeat(6,1fr)}
     {id:'deepseek',  name:'DeepSeek', home:'https://chat.deepseek.com/',         url:'https://chat.deepseek.com/?q={q}',          prefill:true,  zh:'深度求索',  en:'DeepSeek'},
     {id:'kimi',      name:'Kimi',     home:'https://www.kimi.com/',              url:'https://www.kimi.com/?p={q}',               prefill:true,  zh:'月之暗面',  en:'Moonshot'},
     {id:'gemini',    name:'Gemini',   home:'https://gemini.google.com/app',      url:'',                                         prefill:false, zh:'Google',    en:'Google'},
-    {id:'claude',    name:'Muse',   home:'https://muse.ai/',                   url:'',                                         prefill:false, zh:'Meta', en:'Meta'},
+    {id:'muse',      name:'Muse',   home:'https://muse.ai/',                   url:'',                                         prefill:false, zh:'Meta', en:'Meta'},
     {id:'doubao',    name:'豆包',     home:'https://www.doubao.com/chat/',        url:'',                                         prefill:false, zh:'字节跳动',  en:'ByteDance'},
     {id:'tongyi',    name:'通义千问', home:'https://www.tongyi.com/',             url:'',                                         prefill:false, zh:'阿里巴巴',  en:'Alibaba'}
   ];
@@ -109,11 +109,21 @@ html.layout-dex .ai-grid{grid-template-columns:repeat(6,1fr)}
 
   /* ---------- 收藏 ---------- */
   var LS_FAV='sgx-ai-fav', DEFAULT_FAV=['chatgpt','perplexity','googleai'];
+  /* 旧 id 迁移：claude -> muse（2.3.13） */
+  function migrateFavs(a){
+    var changed=false;
+    a=a.map(function(id){if(id==='claude'){changed=true;return 'muse'}return id});
+    return {a:a,changed:changed};
+  }
   function getFavs(){
     try{
       var v=localStorage.getItem(LS_FAV);
       if(v===null){localStorage.setItem(LS_FAV,JSON.stringify(DEFAULT_FAV));return DEFAULT_FAV.slice()}
-      var a=JSON.parse(v);return Array.isArray(a)?a:[];
+      var a=JSON.parse(v);
+      if(!Array.isArray(a))return DEFAULT_FAV.slice();
+      var m=migrateFavs(a);
+      if(m.changed)setFavs(m.a);
+      return m.a;
     }catch(e){return DEFAULT_FAV.slice()}
   }
   function setFavs(a){try{localStorage.setItem(LS_FAV,JSON.stringify(a))}catch(e){}}
