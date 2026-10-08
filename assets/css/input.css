@@ -1,3 +1,142 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ===== Material You 色板 · 种子色取自头像 #234b6c（湖蓝） ===== */
+:root {
+  --m-primary: #2f5f86;
+  --m-on-primary: #ffffff;
+  --m-primary-container: #d3e6f5;
+  --m-on-primary-container: #0c2f47;
+  --m-secondary: #4e6577;
+  --m-on-secondary: #ffffff;
+  --m-secondary-container: #d1e4f3;
+  --m-on-secondary-container: #14303f;
+  --m-tertiary: #3f6b5e;
+  --m-on-tertiary: #ffffff;
+  --m-tertiary-container: #bdeedb;
+  --m-on-tertiary-container: #0b352a;
+  --m-accent: #6f5b9e;
+  --m-on-accent: #ffffff;
+  --m-accent-container: #e6dcf7;
+  --m-on-accent-container: #2c1f4d;
+  --m-warm: #8f5a35;
+  --m-on-warm: #ffffff;
+  --m-warm-container: #f3dfc4;
+  --m-on-warm-container: #3d2410;
+  --m-rose: #96465c;
+  --m-on-rose: #ffffff;
+  --m-rose-container: #f6d7de;
+  --m-on-rose-container: #421322;
+  --m-surface: #f5f8fa;
+  --m-on-surface: #161b20;
+  --m-on-surface-variant: #41484e;
+  --m-container-lowest: #ffffff;
+  --m-container-low: #eef2f5;
+  --m-container: #e7ecf1;
+  --m-container-high: #e1e7ed;
+  --m-container-highest: #d9e0e8;
+  --m-outline: #c2c8cf;
+  --m-note: #fdf0c8;
+  --m-on-note: #4a3413;
+  --m-wallpaper:
+    radial-gradient(120% 80% at 20% 0%, #dbeaf7 0%, transparent 60%),
+    radial-gradient(100% 70% at 90% 10%, #d8f0e4 0%, transparent 55%),
+    radial-gradient(120% 90% at 50% 100%, #e8e2f4 0%, transparent 60%),
+    #f5f8fa;
+}
+.dark {
+  --m-primary: #9ccbf3;
+  --m-on-primary: #003351;
+  --m-primary-container: #1e4767;
+  --m-on-primary-container: #d3e6f5;
+  --m-secondary: #aec6d8;
+  --m-on-secondary: #0c2f3f;
+  --m-secondary-container: #324a5c;
+  --m-on-secondary-container: #d1e4f3;
+  --m-tertiary: #a3d3c0;
+  --m-on-tertiary: #06372b;
+  --m-tertiary-container: #234e40;
+  --m-on-tertiary-container: #bdeedb;
+  --m-accent: #c9b6ec;
+  --m-on-accent: #35255c;
+  --m-accent-container: #45336e;
+  --m-on-accent-container: #e6dcf7;
+  --m-warm: #e0b183;
+  --m-on-warm: #472a10;
+  --m-warm-container: #5c3a1e;
+  --m-on-warm-container: #f3dfc4;
+  --m-rose: #e5a3b3;
+  --m-on-rose: #53182a;
+  --m-rose-container: #6b2c40;
+  --m-on-rose-container: #f6d7de;
+  --m-surface: #0e1318;
+  --m-on-surface: #dee3e8;
+  --m-on-surface-variant: #a9b2ba;
+  --m-container-lowest: #161b21;
+  --m-container-low: #1a2027;
+  --m-container: #1e242c;
+  --m-container-high: #242b34;
+  --m-container-highest: #2a323c;
+  --m-outline: #3a434d;
+  --m-note: #4a3a1c;
+  --m-on-note: #f5e3ae;
+  --m-wallpaper:
+    radial-gradient(120% 80% at 20% 0%, #14324a 0%, transparent 60%),
+    radial-gradient(100% 70% at 90% 10%, #123a2e 0%, transparent 55%),
+    radial-gradient(120% 90% at 50% 100%, #2b2345 0%, transparent 60%),
+    #0e1318;
+}
+
+/* ===== 壁纸背景 ===== */
+body {
+  background: var(--m-wallpaper);
+  background-attachment: fixed;
+}
+
+/* ===== 毛玻璃 ===== */
+.glass {
+  background: color-mix(in srgb, var(--m-surface) 78%, transparent);
+  backdrop-filter: blur(20px) saturate(1.5);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+}
+
+/* ===== 暗色切换平滑过渡 ===== */
+body, nav, .widget, .app-tile, .dock {
+  transition: background-color .4s ease, border-color .4s ease, color .4s ease;
+}
+
+/* ===== One UI 式入场 ===== */
+h1, h2, h3 { letter-spacing: -0.02em; }
+@keyframes fade-up { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+.animate-fade-up { animation: fade-up .7s cubic-bezier(.22,1,.36,1) both; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
+
+/* ===== 时钟数字：粗圆体风格 ===== */
+.clock-num {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+/* ===== 小组件通用 ===== */
+.widget {
+  border-radius: 1.75rem;
+  box-shadow: 0 1px 2px rgba(16,24,40,.06), 0 8px 24px -12px rgba(16,24,40,.18);
+}
+.dark .widget {
+  box-shadow: 0 1px 2px rgba(0,0,0,.4), 0 12px 32px -12px rgba(0,0,0,.5);
+}
+
+/* ===== Dock 按钮 ===== */
+.dock-btn {
+  @apply w-12 h-12 rounded-full flex items-center justify-center text-m-on-surface-variant hover:bg-m-container active:scale-90 transition-all shrink-0;
+}
+
+/* ===== 减少动态偏好 ===== */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up { animation: none !important; }
+  *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}

@@ -13,51 +13,31 @@
 <link rel="icon" href="/favicon-32x32.png" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="stylesheet" href="{{ (resources.Get "css/main.css" | minify | fingerprint).RelPermalink }}">
-<style>
-h1,h2,h3{letter-spacing:-0.02em}
-body{line-height:1.6}
-@keyframes fade-up{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
-.animate-fade-up{animation:fade-up .8s cubic-bezier(.22,1,.36,1) both}
-.no-scrollbar::-webkit-scrollbar{display:none}
-.no-scrollbar{scrollbar-width:none}
-</style>
 <script>if(localStorage.theme==='dark'||(!('theme' in localStorage)&&matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}</script>
 </head>
-<body class="bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen antialiased">
+<body class="text-m-on-surface min-h-screen antialiased">
 {{ $profile := site.Data.profile }}
 {{ $home := "/" }}{{ if $isEn }}{{ $home = "/en/" }}{{ end }}
 
-<nav class="sticky top-0 z-50 border-b border-gray-200/60 dark:border-gray-800/60 bg-white/75 dark:bg-gray-950/75 backdrop-blur-xl backdrop-saturate-150">
-  <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
-    <a href="{{ $home }}" class="flex items-center gap-2.5 font-bold text-lg shrink-0">
+<!-- 状态栏式导航 -->
+<nav class="sticky top-0 z-50 glass border-b border-m-outline">
+  <div class="max-w-[1100px] mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
+    <a href="{{ $home }}" class="flex items-center gap-2 font-bold text-[15px] shrink-0">
       {{ $navAvatar := resources.Get "images/avatar.png" }}
       {{ if $navAvatar }}
       {{ $navAvatarWebp := $navAvatar.Fill "64x64 webp" }}
-      <img src="{{ $navAvatarWebp.RelPermalink }}" alt="Styrigx" width="32" height="32" class="w-8 h-8 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-700">
+      <img src="{{ $navAvatarWebp.RelPermalink }}" alt="Styrigx" width="28" height="28" class="w-7 h-7 rounded-full object-cover ring-1 ring-m-outline">
       {{ else }}
-      <span class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-white text-sm font-bold flex items-center justify-center">S</span>
+      <span class="w-7 h-7 rounded-full bg-m-primary text-m-on-primary text-xs font-bold flex items-center justify-center">S</span>
       {{ end }}
       <span>Styrigx</span>
     </a>
-    <button id="search-open" class="flex-1 max-w-xs hidden sm:flex items-center gap-2 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/80 px-4 py-1.5 text-sm text-gray-500 dark:text-gray-400 hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
-      {{ partial "icon.html" "search" }}
-      <span class="flex-1 text-left">{{ if $isEn }}Search…{{ else }}搜索…{{ end }}</span>
-      <kbd class="text-xs bg-gray-200/70 dark:bg-gray-700/70 rounded px-1.5 py-0.5 font-sans">⌘K</kbd>
-    </button>
-    <div class="flex items-center gap-4 sm:gap-6 text-sm font-medium">
-      <button id="search-open-m" class="sm:hidden p-1 text-gray-600 dark:text-gray-300" aria-label="{{ if $isEn }}Search{{ else }}搜索{{ end }}">{{ partial "icon.html" "search" }}</button>
-{{ if $isEn }}
-      <a href="/en/" class="hidden sm:inline text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Home</a>
-      <a href="/en/links/" class="hidden sm:inline text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Links</a>
-      <a href="https://blog.styrigx.com" target="_blank" rel="noopener" class="hidden sm:inline text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Blog</a>
-      <a href="/" class="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">中文</a>
-{{ else }}
-      <a href="/" class="hidden sm:inline text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">首页</a>
-      <a href="/links/" class="hidden sm:inline text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">导航</a>
-      <a href="https://blog.styrigx.com" target="_blank" rel="noopener" class="hidden sm:inline text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">博客</a>
-      <a href="/en/" class="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">EN</a>
-{{ end }}
-      <button id="theme-toggle" aria-label="{{ if $isEn }}Toggle theme{{ else }}切换主题{{ end }}" class="w-9 h-9 rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+    <div class="flex items-center gap-1 sm:gap-2 text-sm">
+      <button id="search-open-m" class="w-9 h-9 rounded-full flex items-center justify-center text-m-on-surface-variant hover:bg-m-container transition-colors" aria-label="{{ if $isEn }}Search{{ else }}搜索{{ end }}">{{ partial "icon.html" "search" }}</button>
+      <a href="{{ $home }}" class="hidden sm:inline-block px-3 py-1.5 rounded-full hover:bg-m-container transition-colors text-m-on-surface-variant">{{ if $isEn }}Home{{ else }}首页{{ end }}</a>
+      <a href="{{ if $isEn }}/en/links/{{ else }}/links/{{ end }}" class="hidden sm:inline-block px-3 py-1.5 rounded-full hover:bg-m-container transition-colors text-m-on-surface-variant">{{ if $isEn }}Links{{ else }}导航{{ end }}</a>
+      <a href="{{ if $isEn }}/en/{{ else }}/{{ end }}" class="px-3 py-1.5 rounded-full hover:bg-m-container transition-colors text-m-on-surface-variant font-medium">{{ if $isEn }}中文{{ else }}EN{{ end }}</a>
+      <button id="theme-toggle" aria-label="{{ if $isEn }}Toggle theme{{ else }}切换主题{{ end }}" class="w-9 h-9 rounded-full flex items-center justify-center text-m-on-surface-variant hover:bg-m-container transition-colors">
         <svg width="20" height="20" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/></svg>
         <svg width="20" height="20" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0012 21.75a9.753 9.753 0 009.752-6.748z"/></svg>
       </button>
@@ -69,18 +49,18 @@ body{line-height:1.6}
 <div id="search-modal" class="fixed inset-0 z-[100] hidden" style="display:none">
   <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" data-search-close></div>
   <div class="relative max-w-xl mx-auto mt-20 sm:mt-28 px-4">
-    <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-2xl overflow-hidden">
-      <div class="flex items-center gap-3 px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-        <span class="text-gray-400">{{ partial "icon.html" "search" }}</span>
+    <div class="rounded-[1.75rem] border border-m-outline bg-m-container-lowest shadow-2xl overflow-hidden">
+      <div class="flex items-center gap-3 px-5 py-4 border-b border-m-outline">
+        <span class="text-m-on-surface-variant">{{ partial "icon.html" "search" }}</span>
         <input id="search-input" type="text" autocomplete="off" placeholder="{{ if $isEn }}Search bookmarks, books, music…{{ else }}搜书签、书、歌、收藏…{{ end }}"
-          class="flex-1 bg-transparent outline-none text-base placeholder-gray-400">
-        <button data-search-close class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">{{ partial "icon.html" "x-mark" }}</button>
+          class="flex-1 bg-transparent outline-none text-base placeholder:text-m-on-surface-variant">
+        <button data-search-close class="text-m-on-surface-variant hover:text-m-on-surface">{{ partial "icon.html" "x-mark" }}</button>
       </div>
       <div id="search-results" class="max-h-80 overflow-y-auto p-2"></div>
-      <div class="px-5 py-3 border-t border-gray-100 dark:border-gray-800 text-xs text-gray-400 flex gap-4">
-        <span><kbd class="bg-gray-100 dark:bg-gray-800 rounded px-1">↑↓</kbd> {{ if $isEn }}navigate{{ else }}选择{{ end }}</span>
-        <span><kbd class="bg-gray-100 dark:bg-gray-800 rounded px-1">↵</kbd> {{ if $isEn }}open{{ else }}打开{{ end }}</span>
-        <span><kbd class="bg-gray-100 dark:bg-gray-800 rounded px-1">esc</kbd> {{ if $isEn }}close{{ else }}关闭{{ end }}</span>
+      <div class="px-5 py-3 border-t border-m-outline text-xs text-m-on-surface-variant flex gap-4">
+        <span><kbd class="bg-m-container rounded px-1">↑↓</kbd> {{ if $isEn }}navigate{{ else }}选择{{ end }}</span>
+        <span><kbd class="bg-m-container rounded px-1">↵</kbd> {{ if $isEn }}open{{ else }}打开{{ end }}</span>
+        <span><kbd class="bg-m-container rounded px-1">esc</kbd> {{ if $isEn }}close{{ else }}关闭{{ end }}</span>
       </div>
     </div>
   </div>
@@ -111,7 +91,7 @@ body{line-height:1.6}
   try{data=JSON.parse(document.getElementById('search-index').textContent).items||[]}catch(e){}
   function open(){modal.classList.remove('hidden');modal.style.display='';input.value='';render('');setTimeout(function(){input.focus()},30)}
   function close(){modal.classList.add('hidden');modal.style.display='none'}
-  document.getElementById('search-open').addEventListener('click',open);
+  window.__openSearch=open;
   document.getElementById('search-open-m').addEventListener('click',open);
   modal.querySelectorAll('[data-search-close]').forEach(function(el){el.addEventListener('click',close)});
   document.addEventListener('keydown',function(e){
@@ -123,16 +103,16 @@ body{line-height:1.6}
     if(e.key==='ArrowUp'){e.preventDefault();sel=Math.max(sel-1,0);hl(items)}
     if(e.key==='Enter'&&sel>=0&&items[sel]){items[sel].click()}
   });
-  function hl(items){items.forEach(function(a,i){a.classList.toggle('bg-blue-50',i===sel);a.classList.toggle('dark:bg-blue-900/30',i===sel)});if(items[sel])items[sel].scrollIntoView({block:'nearest'})}
+  function hl(items){items.forEach(function(a,i){a.classList.toggle('bg-m-primary-container',i===sel)});if(items[sel])items[sel].scrollIntoView({block:'nearest'})}
   function render(q){
     q=q.trim().toLowerCase();sel=-1;
     var hits=data.filter(function(x){return !q||(x.t+' '+x.d).toLowerCase().indexOf(q)!==-1}).slice(0,12);
-    if(!hits.length){var noRes=document.documentElement.lang==='en'?'No results':'无结果';box.innerHTML='<div class="px-4 py-8 text-center text-sm text-gray-400">'+noRes+'</div>';return}
+    if(!hits.length){var noRes=document.documentElement.lang==='en'?'No results':'无结果';box.innerHTML='<div class="px-4 py-8 text-center text-sm text-m-on-surface-variant">'+noRes+'</div>';return}
     box.innerHTML=hits.map(function(x){
-      return '<a href="'+x.u+'" class="flex items-center gap-3 rounded-xl px-4 py-3 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">'
+      return '<a href="'+x.u+'" class="flex items-center gap-3 rounded-2xl px-4 py-3 hover:bg-m-primary-container transition-colors">'
         +'<span class="flex-1 min-w-0"><span class="block font-medium truncate">'+esc(x.t)+'</span>'
-        +(x.d?'<span class="block text-xs text-gray-500 dark:text-gray-400 truncate">'+esc(x.d)+'</span>':'')+'</span>'
-        +'<span class="text-[11px] shrink-0 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/40 rounded-full px-2 py-0.5">'+esc(x.c)+'</span></a>';
+        +(x.d?'<span class="block text-xs text-m-on-surface-variant truncate">'+esc(x.d)+'</span>':'')+'</span>'
+        +'<span class="text-[11px] shrink-0 text-m-on-primary-container bg-m-primary-container rounded-full px-2 py-0.5">'+esc(x.c)+'</span></a>';
     }).join('');
   }
   function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
@@ -144,10 +124,10 @@ document.getElementById('theme-toggle').addEventListener('click',function(){
 });
 </script>
 
-<main>{{ block "main" . }}{{ end }}</main>
-<footer class="border-t border-gray-200/70 dark:border-gray-800/70 mt-8">
-  <div class="max-w-6xl mx-auto px-6 py-10 text-center">
-    <p class="mt-2 text-xs text-gray-400 dark:text-gray-500">© {{ site.Params.since }}–<span id="copy-year">{{ now.Year }}</span> Sloan Gray</p>
+<main class="pb-28 sm:pb-32">{{ block "main" . }}{{ end }}</main>
+<footer class="relative z-10 border-t border-m-outline mt-4">
+  <div class="max-w-[1100px] mx-auto px-6 py-8 text-center">
+    <p class="text-xs text-m-on-surface-variant">© {{ site.Params.since }}–<span id="copy-year">{{ now.Year }}</span> Sloan Gray</p>
     <script>document.getElementById('copy-year').textContent=new Date().getFullYear();</script>
   </div>
 </footer>
