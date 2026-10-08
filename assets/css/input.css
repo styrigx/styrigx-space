@@ -682,13 +682,47 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
 .layout-phone #home-widgets>.widget{grid-column:span 4/span 4}
 .layout-phone .app-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
 
-/* ----- 设置页：DeX 双栏 ----- */
+/* ===== 设置页：DeX 双栏（2.3.14.8，参考 One UI 8.5 平板设置）=====
+   左栏 clamp(320px,36%,420px)：大标题（公共组件，靠左）＋ 账号卡 ＋ 菜单；
+   右栏占剩余宽度：顶部选中项名称 ＋ 详情卡片（最大 720px，左对齐）。
+   两栏各自独立滚动，底部留出胶囊＋Dock 高度。只在 .layout-dex（现有宽屏断点）生效。 */
 .set-side{display:none}
-.layout-dex .set-layout{max-width:none !important;display:grid;grid-template-columns:250px minmax(0,1fr);gap:1.5rem;align-items:start}
-.layout-dex .set-side{display:flex;flex-direction:column;position:sticky;top:76px;max-height:calc(100vh - 96px);overflow-y:auto;gap:14px;min-width:0;padding-bottom:8px}
-/* 单分类模式：右栏只显示当前分类 */
+.set-right-title{display:none}
+.layout-dex .set-layout{max-width:none !important;display:grid;
+  grid-template-columns:clamp(320px,36%,420px) minmax(0,1fr);gap:16px;align-items:start}
+/* 左栏：标题＋账号卡固定，菜单列表过长时独立滚动 */
+.layout-dex .set-col-l{display:flex;flex-direction:column;min-width:0;min-height:0;
+  max-height:calc(100vh - var(--nav-h,64px) - 16px - env(safe-area-inset-top,0px) - 150px - env(safe-area-inset-bottom,0px));
+  max-height:calc(100dvh - var(--nav-h,64px) - 16px - env(safe-area-inset-top,0px) - 150px - env(safe-area-inset-bottom,0px))}
+.layout-dex .set-col-l .subpage-head{min-height:0;min-height:0;
+  padding:6px 0 10px;display:flex;flex-direction:column;
+  align-items:flex-start;justify-content:flex-start;text-align:left;flex-shrink:0}
+.layout-dex .set-col-l .sgx-account-card{margin:2px 0 12px;flex-shrink:0}
+.layout-dex .set-side{display:flex;flex-direction:column;min-width:0;min-height:0;max-height:none;
+  position:static;overflow-y:auto;padding-bottom:8px}
+/* 右栏：独立滚动；内容最大 720px 左对齐 */
+.layout-dex .set-col-r{min-width:0;min-height:0;overflow-y:auto;padding-bottom:8px;
+  max-height:calc(100vh - var(--nav-h,64px) - 16px - env(safe-area-inset-top,0px) - 150px - env(safe-area-inset-bottom,0px));
+  max-height:calc(100dvh - var(--nav-h,64px) - 16px - env(safe-area-inset-top,0px) - 150px - env(safe-area-inset-bottom,0px))}
+.layout-dex .set-right-title{display:block;max-width:720px;
+  font-size:20px;font-weight:800;color:var(--m-on-surface);letter-spacing:-0.01em;
+  padding:2px 4px 12px}
+.layout-dex .set-col-r .set-main{max-width:720px}
+/* 单分类模式：右栏只显示当前分类；隐藏分类内重复的组标题（右栏顶部已有选中项名称） */
 .layout-dex .set-layout.single-cat .set-group{display:none}
 .layout-dex .set-layout.single-cat .set-group.active{display:block}
+.layout-dex .set-layout.single-cat .set-group.active>.set-gh{display:none}
+/* ===== 可复用账号卡：左 Sloan Gray / Styrigx，右圆形头像 =====
+   2.3.14.8 宽屏左栏显示；2.3.14.9 手机端复用同一组件。手机默认隐藏。 */
+.sgx-account-card{display:none;width:100%;align-items:center;gap:12px;
+  padding:12px 14px;border-radius:1.25rem;
+  background:var(--m-container-lowest);border:1px solid var(--m-outline)}
+.sgx-account-card .sgx-ac-tx{flex:1;min-width:0;text-align:left}
+.sgx-account-card .sgx-ac-name{font-weight:700;color:var(--m-on-surface);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sgx-account-card .sgx-ac-sub{font-size:12px;color:var(--m-on-surface-variant);margin-top:2px}
+.sgx-account-card .sgx-ac-img{width:48px;height:48px;border-radius:999px;object-fit:cover;flex-shrink:0}
+.layout-dex .sgx-account-card{display:flex}
 .set-side-title{font-size:2rem;font-weight:800;color:var(--m-primary);letter-spacing:-0.02em;line-height:1.1}
 /* DeX 下只保留一个"设置"大标题（subpage-head），删掉左侧栏重复的 */
 .layout-dex .set-side-title{display:none}

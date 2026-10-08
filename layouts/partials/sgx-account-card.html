@@ -1,0 +1,13 @@
+{{/* 可复用账号卡：左 Sloan Gray / Styrigx，右圆形头像。
+   2.3.14.8：设置页宽屏左栏使用；2.3.14.9：手机端设置页复用同一个组件。
+   样式、内容、点击行为（无）在两处保持一致。 */}}
+{{ $avatar := resources.Get "images/avatar.png" }}
+<div class="sgx-account-card">
+  <div class="sgx-ac-tx">
+    <p class="sgx-ac-name">Sloan Gray</p>
+    <p class="sgx-ac-sub">Styrigx</p>
+  </div>
+  {{ if $avatar }}{{ $a := $avatar.Fill "160x160 webp" }}
+  <img src="{{ $a.RelPermalink }}" alt="Sloan Gray" width="48" height="48" class="sgx-ac-img">
+  {{ end }}
+</div>

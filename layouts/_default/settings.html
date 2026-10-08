@@ -10,21 +10,16 @@
 }}
 
 <div class="set-layout max-w-2xl mx-auto px-4 pb-28">
+  <div class="set-col-l">
     <!-- 2.3.14.3：大标题改用公共 subpage-head 组件（与文件/商店/浏览器完全一致，一级页无返回箭头） -->
     {{ partial "subpage-head.html" (dict "title" (cond $isEn "Settings" "设置") "isEn" $isEn "noBack" true) }}
 
-    <!-- 平板/桌面双栏：左侧分类 -->
+    <!-- 2.3.14.8：可复用账号卡（宽屏左栏；手机端 2.3.14.9 复用同一组件） -->
+    {{ partial "sgx-account-card.html" . }}
+
+    <!-- 宽屏双栏：左侧分类菜单 -->
     <aside class="set-side" aria-label="{{ if $isEn }}Categories{{ else }}分类{{ end }}">
       <h1 class="set-side-title">{{ if $isEn }}Settings{{ else }}设置{{ end }}</h1>
-      <div class="set-side-profile">
-        {{ if $avatar }}{{ $a := $avatar.Fill "160x160 webp" }}
-        <img src="{{ $a.RelPermalink }}" alt="Sloan Gray" width="48" height="48" class="w-12 h-12 rounded-full object-cover ring-2 ring-m-outline shrink-0">
-        {{ end }}
-        <div class="set-profile-tx min-w-0">
-          <p class="font-bold truncate">Sloan Gray</p>
-          <p class="text-xs text-m-on-surface-variant">Styrigx</p>
-        </div>
-      </div>
       <nav class="flex flex-col gap-1" id="set-cat-nav">
         <button type="button" class="set-cat" data-cat="display">
           <span class="set-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "moon" }}</span>
@@ -56,6 +51,9 @@
         </button>
       </nav>
     </aside>
+  </div>
+  <div class="set-col-r">
+    <h2 class="set-right-title" id="set-right-title">{{ if $isEn }}Display{{ else }}显示{{ end }}</h2>
     <div class="set-main min-w-0">
 
     <!-- 第一组：显示 -->
@@ -834,6 +832,16 @@
     {id:'wellbeing',el:'sg-wellbeing'},
     {id:'about',el:'sg-about'}
   ];
+  /* 2.3.14.8：右栏顶部选中项名称 */
+  var CATNAMES={
+    display:{zh:'显示',en:'Display'},
+    theme:{zh:'壁纸和主题',en:'Wallpaper & theme'},
+    manage:{zh:'常规管理',en:'General management'},
+    apps:{zh:'应用',en:'Apps'},
+    accessibility:{zh:'辅助功能',en:'Accessibility'},
+    wellbeing:{zh:'数字健康',en:'Digital wellbeing'},
+    about:{zh:'关于本站',en:'About'}
+  };
   var setLayout=document.querySelector('.set-layout');
   var mqWide=window.matchMedia('(min-width:640px)');
   var reducedM=document.documentElement.classList.contains('reduced-motion');
@@ -855,6 +863,9 @@
       b.classList.toggle('active',on);
       if(on)b.setAttribute('aria-current','true');else b.removeAttribute('aria-current');
     });
+    /* 2.3.14.8：右栏顶部显示选中项名称 */
+    var rt=document.getElementById('set-right-title');
+    if(rt&&CATNAMES[id])rt.textContent=en?CATNAMES[id].en:CATNAMES[id].zh;
     if(!skipHash){try{history.replaceState(null,'','#'+id)}catch(e){}}
     if(setLayout&&mqWide.matches)setLayout.classList.add('single-cat');
   }
@@ -968,6 +979,8 @@
       if(panel==='files'){openFilesPanel(item);return}
       if(panel==='store'){openStorePanel(item);return}
       if(panel==='browser'){openBrowserPanel(item);return}
+      /* 2.3.14.8：宽屏双栏下先切换到对应分类，再定位高亮 */
+      if(cat&&document.documentElement.classList.contains('layout-dex'))showCat(cat);
       var el=document.getElementById(elid);
       if(!el)return;
       el.scrollIntoView({block:'center',behavior:reducedM?'auto':'smooth'});
