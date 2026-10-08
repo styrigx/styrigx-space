@@ -14,11 +14,6 @@ window.__favFallback=function(img,name){
   'use strict';
   var EN = {{ if .isEn }}true{{ else }}false{{ end }};
   function t(zh, en){ return EN ? en : zh; }
-  function esc(s){
-    return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
-      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];
-    });
-  }
   function lsGet(k, d){ try{ var v = localStorage.getItem(k); return v == null ? d : v; }catch(e){ return d; } }
   function lsSet(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
 
@@ -312,10 +307,10 @@ window.__favFallback=function(img,name){
   function rowHTML(i, ic, title, sub, tag, extra){
     return '<div class="brw-sg-row flex items-center gap-3 px-4 py-2.5 cursor-pointer' + (extra ? ' ' + extra : '') + '" role="option" data-i="' + i + '">'
       + '<span class="brw-sg-ic shrink-0 text-m-on-surface-variant">' + ic + '</span>'
-      + '<span class="brw-sg-tx flex-1 min-w-0"><span class="brw-sg-ti block text-sm font-medium truncate">' + esc(title) + '</span>'
-      + (sub ? '<span class="brw-sg-sub block text-xs text-m-on-surface-variant truncate">' + esc(sub) + '</span>' : '')
+      + '<span class="brw-sg-tx flex-1 min-w-0"><span class="brw-sg-ti block text-sm font-medium truncate">' + __sgxUtil.esc(title) + '</span>'
+      + (sub ? '<span class="brw-sg-sub block text-xs text-m-on-surface-variant truncate">' + __sgxUtil.esc(sub) + '</span>' : '')
       + '</span>'
-      + (tag ? '<span class="brw-sg-tag shrink-0 text-[11px] text-m-on-primary-container bg-m-primary-container rounded-full px-2 py-0.5">' + esc(tag) + '</span>' : '')
+      + (tag ? '<span class="brw-sg-tag shrink-0 text-[11px] text-m-on-primary-container bg-m-primary-container rounded-full px-2 py-0.5">' + __sgxUtil.esc(tag) + '</span>' : '')
       + '</div>';
   }
 
@@ -330,7 +325,7 @@ window.__favFallback=function(img,name){
         return x.type === cat.type && ((x.t + ' ' + (x.d || '')).toLowerCase().indexOf(ql) !== -1);
       }).slice(0, 3);
       if(!hits.length) return;
-      html += '<div class="brw-sg-group px-4 pt-3 pb-1 text-[11px] font-semibold tracking-wide text-m-on-surface-variant">' + esc(cat.label) + '</div>';
+      html += '<div class="brw-sg-group px-4 pt-3 pb-1 text-[11px] font-semibold tracking-wide text-m-on-surface-variant">' + __sgxUtil.esc(cat.label) + '</div>';
       hits.forEach(function(x){
         var i = curRows.length;
         curRows.push({ kind:'site', title: x.t, url: x.u });
@@ -353,21 +348,21 @@ window.__favFallback=function(img,name){
 
   function renderRecent(){
     var a = getRecent(), html = '';
-    html += '<div class="brw-sg-group px-4 pt-3 pb-1 text-[11px] font-semibold tracking-wide text-m-on-surface-variant">' + esc(t('最近搜索', 'Recent searches')) + '</div>';
+    html += '<div class="brw-sg-group px-4 pt-3 pb-1 text-[11px] font-semibold tracking-wide text-m-on-surface-variant">' + __sgxUtil.esc(t('最近搜索', 'Recent searches')) + '</div>';
     if(!a.length){
-      html += '<div class="brw-sg-empty px-4 py-6 text-center text-sm text-m-on-surface-variant">' + esc(t('暂无最近搜索', 'No recent searches')) + '</div>';
+      html += '<div class="brw-sg-empty px-4 py-6 text-center text-sm text-m-on-surface-variant">' + __sgxUtil.esc(t('暂无最近搜索', 'No recent searches')) + '</div>';
     }else{
       a.forEach(function(s){
         var i = curRows.length;
         curRows.push({ kind:'recent', title: s });
         html += '<div class="brw-sg-row flex items-center gap-3 px-4 py-2.5 cursor-pointer" role="option" data-i="' + i + '">'
           + '<span class="brw-sg-ic shrink-0 text-m-on-surface-variant">' + ICONS.clock + '</span>'
-          + '<span class="brw-sg-tx flex-1 min-w-0"><span class="brw-sg-ti block text-sm truncate">' + esc(s) + '</span></span>'
-          + '<span class="brw-sg-del shrink-0 p-1 text-m-on-surface-variant" data-del="' + esc(s) + '" role="button" aria-label="' + esc(t('删除', 'Delete')) + '">' + ICONS.x + '</span>'
+          + '<span class="brw-sg-tx flex-1 min-w-0"><span class="brw-sg-ti block text-sm truncate">' + __sgxUtil.esc(s) + '</span></span>'
+          + '<span class="brw-sg-del shrink-0 p-1 text-m-on-surface-variant" data-del="' + __sgxUtil.esc(s) + '" role="button" aria-label="' + __sgxUtil.esc(t('删除', 'Delete')) + '">' + ICONS.x + '</span>'
           + '</div>';
       });
       html += '<div class="brw-sg-clear flex items-center justify-center gap-2 px-4 py-3 text-sm text-m-on-surface-variant cursor-pointer" data-clear="1">'
-        + '<span class="brw-sg-ic">' + ICONS.trash + '</span><span>' + esc(t('全部清除', 'Clear all')) + '</span></div>';
+        + '<span class="brw-sg-ic">' + ICONS.trash + '</span><span>' + __sgxUtil.esc(t('全部清除', 'Clear all')) + '</span></div>';
     }
     suggest.innerHTML = html;
   }
@@ -472,8 +467,8 @@ window.__favFallback=function(img,name){
     if(hidden){ histShow.hidden = false; return; }
     histCard.hidden = false;
     histTags.innerHTML = a.map(function(s){
-      return '<span class="brw-hist-tag"><span class="brw-hist-tx">' + esc(s) + '</span>'
-        + '<span class="brw-hist-x" data-hx="' + esc(s) + '" role="button" aria-label="' + esc(t('删除', 'Delete')) + '">' + ICONS.x + '</span></span>';
+      return '<span class="brw-hist-tag"><span class="brw-hist-tx">' + __sgxUtil.esc(s) + '</span>'
+        + '<span class="brw-hist-x" data-hx="' + __sgxUtil.esc(s) + '" role="button" aria-label="' + __sgxUtil.esc(t('删除', 'Delete')) + '">' + ICONS.x + '</span></span>';
     }).join('');
   }
   if(histTags){

@@ -2,7 +2,6 @@
   'use strict';
   var EN=document.documentElement.lang==='en';
   function t(zh,en){return EN?en:zh}
-  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
   function hostOf(u){try{return new URL(u).hostname}catch(e){return''}}
 
   /* ---------- 平台列表：name、home、url 模板、prefill、中英文说明 ---------- */
@@ -157,10 +156,10 @@
     var host=hostOf(p.home);
     var fav=isFav(p.id);
     var desc=EN?p.en:p.zh;
-    return '<button type="button" class="ai-plat" role="listitem" data-id="'+p.id+'" aria-label="'+esc(p.name)+'">'
-      +'<img src="https://www.google.com/s2/favicons?domain='+esc(host)+'&sz=64" alt="" loading="lazy" decoding="async" width="48" height="48" class="ai-plat-ic" onerror="__aiFavFallback(this,\''+esc(p.name).replace(/'/g,"\\'")+'\')">'
-      +'<span class="ai-plat-name">'+esc(p.name)+'</span>'
-      +'<span class="ai-plat-desc">'+esc(desc)+'</span>'
+    return '<button type="button" class="ai-plat" role="listitem" data-id="'+p.id+'" aria-label="'+__sgxUtil.esc(p.name)+'">'
+      +'<img src="https://www.google.com/s2/favicons?domain='+__sgxUtil.esc(host)+'&sz=64" alt="" loading="lazy" decoding="async" width="48" height="48" class="ai-plat-ic" onerror="__aiFavFallback(this,\''+__sgxUtil.esc(p.name).replace(/'/g,"\\'")+'\')">'
+      +'<span class="ai-plat-name">'+__sgxUtil.esc(p.name)+'</span>'
+      +'<span class="ai-plat-desc">'+__sgxUtil.esc(desc)+'</span>'
       +'<span class="ai-star'+(fav?' on':'')+'" aria-hidden="true">★</span>'
       +'</button>';
   }

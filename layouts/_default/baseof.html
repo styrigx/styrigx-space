@@ -291,6 +291,8 @@ window.__sgxVisibleInterval=function(fn,ms){
   {{ end }}
 {{ end }}
 <script id="search-index" type="application/json">{{ (dict "items" $idx) | jsonify | safeJS }}</script>
+{{ $sgxUtil := resources.Get "js/sgx-util.js" | minify | fingerprint }}
+<script src="{{ $sgxUtil.RelPermalink }}" defer></script>
 {{ $sgxBaseA := resources.Get "js/sgx-base-a.js" | minify | fingerprint }}
 <script src="{{ $sgxBaseA.RelPermalink }}" defer></script>
 

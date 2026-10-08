@@ -5,21 +5,16 @@
   {{ if eq .kind "books" }}
   var grid = document.querySelector('.grid.grid-cols-2');
   if(!grid) return;
-  function esc(s){
-    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
-      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
-    });
-  }
   function renderShelf(books){
     grid.innerHTML = books.map(function(b){
-      var cover = '<img src="' + esc(b.cover_url) + '" alt="' + esc(b.title) + '" loading="lazy" decoding="async" class="w-full aspect-[3/4] object-cover">';
+      var cover = '<img src="' + __sgxUtil.esc(b.cover_url) + '" alt="' + __sgxUtil.esc(b.title) + '" loading="lazy" decoding="async" class="w-full aspect-[3/4] object-cover">';
       var inner = '<div class="shelf-cover relative overflow-hidden rounded-[1.4rem] border border-m-outline bg-m-container shadow-sm">' + cover + '</div>' +
         '<figcaption class="mt-2.5 px-0.5 min-w-0">' +
-        '<p class="font-semibold text-sm truncate">' + esc(b.title) + '</p>' +
-        (b.author ? '<p class="text-xs text-m-on-surface-variant truncate mt-0.5">' + esc(b.author) + '</p>' : '') +
+        '<p class="font-semibold text-sm truncate">' + __sgxUtil.esc(b.title) + '</p>' +
+        (b.author ? '<p class="text-xs text-m-on-surface-variant truncate mt-0.5">' + __sgxUtil.esc(b.author) + '</p>' : '') +
         '</figcaption>';
       if(b.read_url){
-        return '<a href="' + esc(b.read_url) + '" target="_blank" rel="noopener" class="shelf-card group min-w-0 block">' + inner + '</a>';
+        return '<a href="' + __sgxUtil.esc(b.read_url) + '" target="_blank" rel="noopener" class="shelf-card group min-w-0 block">' + inner + '</a>';
       }
       return '<figure class="shelf-card group min-w-0">' + inner + '</figure>';
     }).join('');

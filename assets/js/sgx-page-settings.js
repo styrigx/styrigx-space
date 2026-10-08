@@ -2,7 +2,6 @@
   var en=document.documentElement.lang==='en';
   var $=function(id){return document.getElementById(id)};
   var get=window.__sgxGet, set=window.__sgxSet;
-  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
   var CHEVR='<svg width="18" height="18" class="w-[18px] h-[18px] text-m-on-surface-variant shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>';
   function setSwitch(id,on){var el=$(id);if(el)el.setAttribute('aria-checked',on?'true':'false')}
   function rowToggle(id,fn){
@@ -175,10 +174,10 @@
       +'<span class="switch" id="dt-auto-sw" role="switch" aria-checked="'+(auto?'true':'false')+'" aria-label="'+(en?'Use local time':'使用本地时间')+'"><span class="knob"></span></span></div>'
       +'<div class="set-row no-ic'+(auto?' is-disabled':'')+'" id="dt-tz1" role="button" tabindex="0">'
       +'<span class="flex-1 font-medium">'+(en?'Primary timezone':'第一时区')+'</span>'
-      +'<span class="text-sm text-m-on-surface-variant">'+esc(auto?tzLabel(deviceTz()):tzLabel(tz1cur))+'</span>'+CHEVR+'</div>'
+      +'<span class="text-sm text-m-on-surface-variant">'+__sgxUtil.esc(auto?tzLabel(deviceTz()):tzLabel(tz1cur))+'</span>'+CHEVR+'</div>'
       +'<div class="set-row no-ic" id="dt-tz2" role="button" tabindex="0">'
       +'<span class="flex-1 font-medium">'+(en?'Second timezone':'第二时区')+'</span>'
-      +'<span class="text-sm text-m-on-surface-variant">'+esc(secondCity())+'</span>'+CHEVR+'</div>'
+      +'<span class="text-sm text-m-on-surface-variant">'+__sgxUtil.esc(secondCity())+'</span>'+CHEVR+'</div>'
       +'<div class="px-5 py-4"><p class="text-sm font-medium mb-3">'+(en?'Hour format':'小时制')+'</p>'
       +'<div class="seg" id="dt-hour" role="group" aria-label="'+(en?'Hour format':'小时制')+'">'
       +'<button type="button" data-v="12" aria-pressed="'+(h12?'true':'false')+'">'+(en?'12-hour':'12 小时制')+'</button>'
@@ -228,7 +227,7 @@
       box.innerHTML=list.length?list.map(function(t){
         var lb=en?t.en:t.zh;
         return '<button type="button" class="sheet-opt" data-tz="'+t.id+'">'
-          +'<span class="flex-1 min-w-0"><span class="block font-medium truncate">'+esc(lb)+'</span>'
+          +'<span class="flex-1 min-w-0"><span class="block font-medium truncate">'+__sgxUtil.esc(lb)+'</span>'
           +'<span class="block text-xs text-m-on-surface-variant truncate">'+t.id+'</span></span>'
           +(t.id===cur?'<span class="text-m-primary">✓</span>':'')+'</button>';
       }).join(''):'<p class="px-5 py-4 text-sm text-m-on-surface-variant text-center">'+(en?'No results':'无结果')+'</p>';
@@ -303,7 +302,7 @@
       e.stopPropagation();
       if(!armed){
         armed=true;
-        btn.innerHTML='<span class="font-medium" style="color:#dc2626">'+esc(confirmLabel)+'</span>';
+        btn.innerHTML='<span class="font-medium" style="color:#dc2626">'+__sgxUtil.esc(confirmLabel)+'</span>';
         timer=setTimeout(function(){armed=false;btn.innerHTML=orig},3000);
       }else{
         if(timer)clearTimeout(timer);
@@ -314,7 +313,7 @@
   function sheetSeg(id,options,cur,onPick){
     var html='<div class="seg" id="'+id+'" role="group">'
       +options.map(function(o){
-        return '<button type="button" data-v="'+o.v+'" aria-pressed="'+(o.v===cur?'true':'false')+'">'+esc(o.label)+'</button>';
+        return '<button type="button" data-v="'+o.v+'" aria-pressed="'+(o.v===cur?'true':'false')+'">'+__sgxUtil.esc(o.label)+'</button>';
       }).join('')+'</div>';
     return html;
   }
@@ -347,7 +346,7 @@
   };
   function appOpenLink(key,label){
     return '<a class="set-row no-ic" href="'+APP_LINKS[key]+'">'
-      +'<span class="flex-1 font-medium text-m-primary">'+esc(label)+'</span>'+CHEVR+'</a>';
+      +'<span class="flex-1 font-medium text-m-primary">'+__sgxUtil.esc(label)+'</span>'+CHEVR+'</a>';
   }
 
   /* ---- 我的文件面板 ---- */
@@ -447,7 +446,7 @@
     var html='<div class="px-1 pb-2">'
       +'<div class="set-row no-ic" id="apb-engine" role="button" tabindex="0">'
       +'<span class="flex-1 font-medium">'+(en?'Search engine':'搜索引擎')+'</span>'
-      +'<span class="text-sm text-m-on-surface-variant">'+esc(engineName())+'</span>'+CHEVR+'</div>'
+      +'<span class="text-sm text-m-on-surface-variant">'+__sgxUtil.esc(engineName())+'</span>'+CHEVR+'</div>'
       +'<div class="px-5 py-4" id="apb-pos"><p class="text-sm font-medium mb-3">'+(en?'Address bar position':'地址栏位置')+'</p>'
       +sheetSeg('apb-pos-seg',[{v:'top',label:en?'Top':'顶部'},{v:'bottom',label:en?'Bottom':'底部'}],pos)+'</div>'
       +'<div class="set-row no-ic" id="apb-clear" role="button" tabindex="0">'
@@ -639,10 +638,10 @@
   function idxByEl(elid){for(var i=0;i<SETIDX.length;i++){if(SETIDX[i].el===elid)return SETIDX[i]}return null}
   /* 胶囊搜索（2.3.12.1）：复用 2.3.11 的 SETIDX 索引，结果显示在胶囊上方浮层 */
   function itemHTML(x){
-    return '<button type="button" class="setso-item" data-cat="'+x.cat+'" data-el="'+x.el+'" data-t="'+esc(x.t)+'"'
+    return '<button type="button" class="setso-item" data-cat="'+x.cat+'" data-el="'+x.el+'" data-t="'+__sgxUtil.esc(x.t)+'"'
       +(x.p?' data-p="'+x.p+'"':'')+(x.i?' data-i="'+x.i+'"':'')+'>'
-      +'<span class="flex-1 min-w-0"><span class="block font-medium truncate">'+esc(x.t)+'</span>'
-      +(x.d?'<span class="block text-xs text-m-on-surface-variant truncate">'+esc(x.d)+'</span>':'')+'</span>'+CHEVR+'</button>';
+      +'<span class="flex-1 min-w-0"><span class="block font-medium truncate">'+__sgxUtil.esc(x.t)+'</span>'
+      +(x.d?'<span class="block text-xs text-m-on-surface-variant truncate">'+__sgxUtil.esc(x.d)+'</span>':'')+'</span>'+CHEVR+'</button>';
   }
   function renderSearchHTML(q){
     q=(q||'').trim().toLowerCase();
