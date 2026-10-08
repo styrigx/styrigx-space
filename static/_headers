@@ -1,0 +1,8 @@
+/css/*
+  Cache-Control: public, max-age=31536000, immutable
+/js/*
+  Cache-Control: public, max-age=31536000, immutable
+/images/*
+  Cache-Control: public, max-age=86400
+/*
+  Cache-Control: public, max-age=300
