@@ -190,8 +190,8 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .dock-btn{position:relative;z-index:1;width:88px;height:52px;border-radius:999px;display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:3px;color:#3c3c43;flex-shrink:0}
 .dark .dock-btn{color:#d0d0d5}
-.dock-ic{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
-.dock-ic svg{width:28px;height:28px}
+.dock-ic{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.dock-ic svg{width:30px;height:30px}
 .dock-label{font-size:12px;line-height:1;font-weight:600}
 .dock-btn.dock-active{color:var(--m-primary)}
 .dock-btn.dock-active .dock-label{font-weight:700}
@@ -241,8 +241,10 @@ footer { padding-bottom: calc(var(--dock-h) + env(safe-area-inset-bottom, 0px));
 #nav-brand,#nav-time-center{transition:opacity .2s ease}
 .layout-phone body.subpage-scrolled #site-nav{background:rgba(255,255,255,0.72);
   backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);
-  -webkit-mask-image:linear-gradient(to bottom,#000 55%,transparent 100%);
-  mask-image:linear-gradient(to bottom,#000 55%,transparent 100%)}
+  /* 模糊层加高：覆盖居中小标题下方 16px，渐隐更长，小标题不直接贴在卡片上 */
+  padding-bottom:14px;
+  -webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 62%,transparent 100%);
+  mask-image:linear-gradient(to bottom,#000 0%,#000 62%,transparent 100%)}
 .dark .layout-phone body.subpage-scrolled #site-nav{background:rgba(30,30,32,0.72)}
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .layout-phone body.subpage-scrolled #site-nav{background:#fff}
@@ -570,8 +572,8 @@ html { scroll-padding-top: calc(var(--nav-h) + 16px); }
 .dex-dock-btn:hover{background:rgba(0,0,0,.05)}
 .dark .dex-dock-btn:hover{background:rgba(255,255,255,.08)}
 .dex-dock-btn:active{transform:scale(.92)}
-.dex-dock-ic{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
-.dex-dock-ic svg{width:32px;height:32px}
+.dex-dock-ic{width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.dex-dock-ic svg{width:36px;height:36px}
 .dex-dock-dot{position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:999px;
   background:var(--m-primary);opacity:0;transition:opacity .2s}
 .dex-dock-btn.dex-dock-active .dex-dock-dot{opacity:1}
@@ -703,25 +705,10 @@ mark.smk{background:var(--m-primary-container);color:var(--m-on-primary-containe
 /* 搜索跳转高亮 */
 .set-hl{outline:2px solid var(--m-primary) !important;outline-offset:2px}
 
-/* ===== 设置页：三星样式浮动搜索条（全宽度，Dock/任务栏上方）===== */
+/* ===== 设置页：底部渐隐（手机浮动搜索条背景；DeX 下搜索条在内容顶部，不需要）===== */
 #settings-searchfade{display:block;position:fixed;left:0;right:0;bottom:0;height:96px;z-index:29;pointer-events:none;
   background:linear-gradient(to bottom,rgba(0,0,0,0) 0%,var(--m-surface) 100%)}
-#settings-searchbar-wrap{display:flex;position:fixed;left:50%;transform:translateX(-50%);width:min(64vw,360px);min-width:240px;
-  bottom:calc(var(--dock-h) + 24px + env(safe-area-inset-bottom,0px));z-index:30;justify-content:center;pointer-events:none;
-  transition:transform .22s ease,opacity .22s ease}
-#settings-searchbar-wrap.ss-hide{transform:translateX(-50%) translateY(24px);opacity:0;pointer-events:none}
-.reduced-motion #settings-searchbar-wrap{transition:none}
-#settings-searchbar{pointer-events:auto;width:100%;height:56px;border-radius:999px;
-  background:rgba(255,255,255,0.7);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);
-  border:1px solid rgba(0,0,0,0.04);box-shadow:0 6px 20px rgba(0,0,0,0.10);cursor:pointer;
-  display:flex;align-items:center;gap:10px;padding:0 6px 0 20px;color:var(--m-on-surface-variant)}
-.dark #settings-searchbar{background:rgba(30,30,32,0.7);border-color:rgba(255,255,255,0.06)}
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  #settings-searchbar{background:#fff}.dark #settings-searchbar{background:#1e1e20}
-}
-#settings-searchbar:active{transform:scale(.98)}
-#set-mic{width:44px;height:44px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;color:var(--m-on-surface-variant);flex-shrink:0}
-#set-mic:active{background:rgba(0,0,0,.05)}
+.layout-dex #settings-searchfade{display:none}
 /* ===== 设置页全屏搜索（仅手机） ===== */
 #set-search-overlay{display:none;position:fixed;inset:0;z-index:100;background:var(--m-surface);flex-direction:column;opacity:0;transition:opacity .22s ease}
 #set-search-overlay.open{display:flex;opacity:1}
@@ -738,37 +725,68 @@ mark.smk{background:var(--m-primary-container);color:var(--m-on-primary-containe
 /* 顶栏入口当前页面高亮 */
 
 /* ============================================================
-   浏览器 App（/browser/）：地址栏 + 快捷访问 + 书签
+   统一搜索条（2.3.5）：browser / files / settings 同一视觉组件
+   尺寸 width min(100% - 32px, 560px)，高 52px，全圆角；
+   材质磨砂玻璃 + 细边 + 软阴影；手机悬浮 Dock 上方，DeX 在大标题下方
    ============================================================ */
-.brw-addrbar{display:flex;align-items:center;gap:2px;height:56px;border-radius:999px;padding:0 6px 0 4px;
-  background:rgba(255,255,255,0.7);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);
-  border:1px solid rgba(0,0,0,0.04);box-shadow:0 6px 20px rgba(0,0,0,0.10)}
-.dark .brw-addrbar{background:rgba(30,30,32,0.7);border-color:rgba(255,255,255,0.06)}
+.sgx-searchbar{display:flex;align-items:center;gap:2px;width:min(100% - 32px,560px);height:52px;border-radius:999px;
+  padding:0 6px 0 4px;margin-left:auto;margin-right:auto;
+  background:rgba(255,255,255,0.85);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);
+  border:1px solid rgba(0,0,0,0.04);box-shadow:0 6px 20px rgba(0,0,0,0.10);
+  transition:transform .22s ease,opacity .22s ease}
+.dark .sgx-searchbar{background:rgba(30,30,34,0.85);border-color:rgba(255,255,255,0.06)}
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .brw-addrbar{background:#fff}.dark .brw-addrbar{background:#1e1e20}
+  .sgx-searchbar{background:#fff}.dark .sgx-searchbar{background:#1e1e20}
 }
-#brw-engine-btn{width:44px;height:44px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;
-  color:var(--m-on-surface-variant);flex-shrink:0}
-#brw-engine-btn:active{background:rgba(0,0,0,.05)}
+.reduced-motion .sgx-searchbar{transition:none}
+.sgx-sb-btn{width:44px;height:44px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;
+  color:var(--m-on-surface-variant);flex-shrink:0;background:transparent;border:0;cursor:pointer}
+.sgx-sb-btn:active{background:rgba(0,0,0,.05)}
+.sgx-sb-btn svg{width:20px;height:20px}
+.sgx-sb-open{flex:1;min-width:0;height:100%;display:flex;align-items:center;gap:10px;padding-left:14px;text-align:left;
+  color:var(--m-on-surface-variant);background:transparent;border:0;cursor:pointer}
+.sgx-sb-open:active{transform:scale(.985)}
+.sgx-sb-lead{display:inline-flex;flex-shrink:0}
+.sgx-sb-lead svg{width:20px;height:20px}
+.sgx-sb-ph{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px}
 #brw-engine-ic{display:inline-flex;align-items:center;justify-content:center}
 #brw-engine-ic img{width:22px;height:22px;border-radius:999px}
 #brw-engine-ic svg{width:22px;height:22px}
 #brw-input{flex:1;min-width:0;background:transparent;border:0;outline:none;font-size:15px;color:var(--m-on-surface)}
 #brw-input::placeholder{color:var(--m-on-surface-variant)}
-#brw-mic,#brw-menu-btn{width:44px;height:44px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;
-  color:var(--m-on-surface-variant);flex-shrink:0}
-#brw-mic:active,#brw-menu-btn:active{background:rgba(0,0,0,.05)}
-/* 手机：地址栏默认悬浮底部（Dock 上方），可切到顶部 */
-.layout-phone body.addrbar-bottom #brw-addrbar{position:fixed;left:12px;right:12px;bottom:calc(88px + env(safe-area-inset-bottom,0px));z-index:41}
-.layout-phone body.addrbar-top #brw-addrbar{position:sticky;top:calc(10px + env(safe-area-inset-top,0px));z-index:41;margin-bottom:16px}
-.layout-dex #brw-addrbar{position:sticky;top:calc(var(--nav-h) + 10px);z-index:41;margin-bottom:16px}
+/* 语音聆听中：按钮变主色 + 脉冲动画 */
+@keyframes sgx-mic-pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--m-primary) 45%,transparent)}
+  70%{box-shadow:0 0 0 12px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.sgx-sb-btn.sgx-mic-on{color:var(--m-primary);animation:sgx-mic-pulse 1.4s ease-out infinite}
+.reduced-motion .sgx-sb-btn.sgx-mic-on{animation:none}
+/* 手机：悬浮在 Dock 上方 12px（Dock 高 64 + 底部 12 = 88px） */
+.layout-phone .sgx-searchbar{position:fixed;left:50%;transform:translateX(-50%);margin-left:0;margin-right:0;
+  bottom:calc(88px + env(safe-area-inset-bottom,0px));z-index:41}
+/* 浏览器页“地址栏置顶”偏好：保持现有行为 */
+.layout-phone body.addrbar-top .sgx-searchbar-browser{position:sticky;top:calc(10px + env(safe-area-inset-top,0px));
+  transform:none;z-index:41;margin-bottom:16px}
+/* DeX：大标题下方、内容上方（和浏览器页原来一样） */
+.layout-dex .sgx-searchbar{position:sticky;top:calc(var(--nav-h) + 10px);transform:none;z-index:41;margin-bottom:16px}
+/* 滚动隐藏：复用各页现有逻辑（files 自有 600ms / settings 随 Dock），行为不变 */
+.layout-phone .sgx-searchbar.sgx-hide{transform:translateX(-50%) translateY(24px);opacity:0;pointer-events:none}
+/* 语音 toast：小胶囊、居中偏下、3 秒自动消失（JS 控制显隐） */
+.sgx-toast{position:fixed;left:50%;bottom:calc(160px + env(safe-area-inset-bottom,0px));transform:translate(-50%,16px);z-index:200;
+  max-width:min(92vw,28rem);padding:10px 20px;border-radius:999px;background:rgba(30,30,34,.94);color:#fff;
+  font-size:14px;line-height:1.4;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.25);
+  opacity:0;pointer-events:none;transition:opacity .25s ease,transform .25s ease}
+.sgx-toast.show{opacity:1;transform:translate(-50%,0)}
+.reduced-motion .sgx-toast{transition:none}
+
+/* ============================================================
+   浏览器 App（/browser/）：快捷访问 + 书签
+   ============================================================ */
 /* 建议列表 */
 .brw-suggest{border-radius:1.5rem;overflow:hidden;
   background:rgba(255,255,255,0.85);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);
   border:1px solid rgba(0,0,0,0.04);box-shadow:0 12px 32px -8px rgba(0,0,0,.2)}
 .dark .brw-suggest{background:rgba(30,30,32,0.85);border-color:rgba(255,255,255,0.06)}
-.layout-phone body.addrbar-bottom .brw-suggest{position:fixed;left:12px;right:12px;bottom:calc(152px + env(safe-area-inset-bottom,0px));z-index:41;max-height:52vh;overflow-y:auto}
-.layout-phone body.addrbar-top .brw-suggest,.layout-dex .brw-suggest{margin-top:8px;max-height:60vh;overflow-y:auto}
+.layout-phone body.addrbar-bottom .brw-suggest{position:fixed;left:50%;transform:translateX(-50%);width:min(100% - 32px,560px);bottom:calc(152px + env(safe-area-inset-bottom,0px));z-index:41;max-height:52vh;overflow-y:auto}
+.layout-phone body.addrbar-top .brw-suggest,.layout-dex .brw-suggest{width:min(100% - 32px,560px);margin:8px auto 0;max-height:60vh;overflow-y:auto}
 .brw-sug{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px 16px;min-height:52px;color:var(--m-on-surface)}
 .brw-sug:active{background:rgba(0,0,0,.05)}
 .brw-sug + .brw-sug{border-top:1px solid rgba(0,0,0,.04)}

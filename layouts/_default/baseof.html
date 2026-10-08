@@ -38,6 +38,21 @@
     if(p&&p!=='lake'){d.setAttribute('data-palette',p)}
     /* 减弱动效 */
     if(localStorage.getItem('sgx-reduced-motion')==='1'){d.classList.add('reduced-motion')}
+    /* 语言偏好：sgx-lang (zh/en)。有偏好且与当前路径语言不一致时 replace 跳转，不产生历史 */
+    try{
+      var _lg=null;try{_lg=localStorage.getItem('sgx-lang')}catch(e){}
+      if(_lg==='zh'||_lg==='en'){
+        var _p=location.pathname;
+        var _isEn=_p==='/en'||_p.indexOf('/en/')===0;
+        var _cur=_isEn?'en':'zh';
+        if(_lg!==_cur){
+          var _np;
+          if(_lg==='en'){_np=_p==='/'?'/en/':'/en'+_p;}
+          else{_np=_p.replace(/^\/en(\/|$)/,'/');if(_np===''||_np.charAt(0)!=='/')_np='/';}
+          location.replace(_np+location.search+location.hash);
+        }
+      }
+    }catch(e){}
     /* 入场动画：只在本次会话第一次进入时播放，刷新/站内跳转不播 */
     try{
       if(!sessionStorage.getItem('sgx-entered')){
@@ -538,6 +553,100 @@ try{
 })();
 </script>
 
+<script>
+/* ===== 统一搜索条共享：toast + 语音搜索（2.3.5） ===== */
+window.__sgxToast=(function(){
+  var el=null,timer=null;
+  return function(msg){
+    if(!msg)return;
+    if(!el){el=document.createElement('div');el.className='sgx-toast';el.setAttribute('role','status');document.body.appendChild(el)}
+    el.textContent=msg;
+    el.classList.add('show');
+    if(timer)clearTimeout(timer);
+    timer=setTimeout(function(){el.classList.remove('show')},3000);
+  };
+})();
+/* 统一语音搜索：
+   btn 麦克风按钮；opts: {input(元素或返回元素的函数), lang?, beforeStart?, onResult(txt)?}
+   - 点击：按钮变主色+脉冲，占位变"正在聆听…"；再点停止
+   - onresult：填入输入框并回调；onerror：按错误码 toast；8s 无结果自动停
+   - 不支持 SpeechRecognition 时隐藏按钮 */
+window.__sgxVoice=function(btn,opts){
+  opts=opts||{};
+  if(!btn)return;
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){btn.style.display='none';return}
+  btn.style.display='';
+  var en=document.documentElement.lang==='en';
+  var rec=null,listening=false,stopTimer=null;
+  function inputEl(){var i=opts.input;return typeof i==='function'?i():(i||null)}
+  function setUI(on){
+    listening=on;
+    btn.classList.toggle('sgx-mic-on',on);
+    if(on){btn.setAttribute('aria-pressed','true')}else{btn.removeAttribute('aria-pressed')}
+    var ip=inputEl();
+    if(ip){
+      if(on){
+        if(ip.getAttribute('data-sgx-ph')===null)ip.setAttribute('data-sgx-ph',ip.getAttribute('placeholder')||'');
+        ip.setAttribute('placeholder',en?'Listening…':'正在聆听…');
+      }else{
+        var p=ip.getAttribute('data-sgx-ph');
+        if(p!==null)ip.setAttribute('placeholder',p);
+      }
+    }
+  }
+  function stop(){
+    if(stopTimer){clearTimeout(stopTimer);stopTimer=null}
+    try{if(rec)rec.stop()}catch(e){}
+    rec=null;
+    if(listening)setUI(false);
+  }
+  function toggle(e){
+    if(e){e.stopPropagation();if(e.preventDefault)e.preventDefault()}
+    if(listening){stop();return}
+    if(opts.beforeStart){try{opts.beforeStart()}catch(err){}}
+    try{
+      rec=new SR();
+      rec.lang=en?'en-US':'zh-CN';
+      rec.interimResults=false;rec.maxAlternatives=1;
+      rec.onresult=function(ev){
+        var txt='';
+        try{txt=String((ev.results[0][0].transcript||'')).trim()}catch(err){}
+        stop();
+        if(txt){
+          var ip=inputEl();
+          if(ip)ip.value=txt;
+          if(opts.onResult){try{opts.onResult(txt)}catch(err){}}
+        }else{
+          window.__sgxToast(en?"Didn't catch that":'没听到声音');
+        }
+      };
+      rec.onerror=function(ev){
+        var c=(ev&&ev.error)||'';
+        stop();
+        if(c==='not-allowed'){
+          window.__sgxToast(en?'Please allow microphone access':'请允许麦克风权限');
+        }else if(c==='network'||c==='service-not-allowed'){
+          window.__sgxToast(en?"Voice recognition unavailable, try your keyboard's mic":'当前浏览器语音识别不可用，可以用键盘上的麦克风');
+        }else if(c==='no-speech'){
+          window.__sgxToast(en?"Didn't catch that":'没听到声音');
+        }
+      };
+      rec.onend=function(){if(listening){rec=null;setUI(false)}};
+      setUI(true);
+      rec.start();
+      stopTimer=setTimeout(stop,8000);
+    }catch(err){stop()}
+  }
+  btn.addEventListener('click',toggle);
+  if(btn.tagName!=='BUTTON'){
+    btn.addEventListener('keydown',function(e){
+      if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle(e)}
+    });
+  }
+};
+</script>
+
 <main>{{ block "main" . }}{{ end }}</main>
 <div id="bedtime-veil" aria-hidden="true"></div>
 <footer class="relative z-10 mt-4">
@@ -581,7 +690,7 @@ try{
 <!-- DeX 底部居中 Dock（≥980px）：应用抽屉 / 我的文件 / 浏览器 / 设置 -->
 <div id="dex-dock" role="navigation" aria-label="{{ if $isEn }}Navigation{{ else }}导航栏{{ end }}">
   <button type="button" id="dex-dock-drawer" class="dex-dock-btn" aria-label="{{ if $isEn }}App drawer{{ else }}应用抽屉{{ end }}" title="{{ if $isEn }}App drawer{{ else }}应用抽屉{{ end }}">
-    <span class="dex-dock-ic"><svg viewBox="0 0 48 48" width="100%" height="100%" aria-hidden="true"><rect x="2" y="2" width="44" height="44" rx="12" fill="#3c3c43"/><g fill="#ffffff"><circle cx="16" cy="16" r="3.2"/><circle cx="24" cy="16" r="3.2"/><circle cx="32" cy="16" r="3.2"/><circle cx="16" cy="24" r="3.2"/><circle cx="24" cy="24" r="3.2"/><circle cx="32" cy="24" r="3.2"/><circle cx="16" cy="32" r="3.2"/><circle cx="24" cy="32" r="3.2"/><circle cx="32" cy="32" r="3.2"/></g></svg></span>
+    <span class="dex-dock-ic">{{ partial "icon.html" "drawer" }}</span>
     <span class="dex-dock-dot" aria-hidden="true"></span>
   </button>
   <a href="{{ $filesUrl }}" class="dex-dock-btn" data-navpage="files" aria-label="{{ if $isEn }}My Files{{ else }}我的文件{{ end }}" title="{{ if $isEn }}My Files{{ else }}我的文件{{ end }}">
@@ -628,11 +737,11 @@ try{
   /* 滚动时隐藏，停 0.6s 后或滚到底时出现；减弱动效时不隐藏 */
   var t=null;
   var ssBar=document.getElementById('settings-searchbar-wrap');
-  function show(){dock.classList.remove('dock-hide');if(ssBar)ssBar.classList.remove('ss-hide')}
+  function show(){dock.classList.remove('dock-hide');if(ssBar)ssBar.classList.remove('sgx-hide')}
   window.addEventListener('scroll',function(){
     if(reduced())return;
     dock.classList.add('dock-hide');
-    if(ssBar)ssBar.classList.add('ss-hide');
+    if(ssBar)ssBar.classList.add('sgx-hide');
     if(t)clearTimeout(t);
     t=setTimeout(show,600);
   },{passive:true});
@@ -676,10 +785,10 @@ try{
     <div id="dex-drawer-grid">
       {{ range $dexApps }}
       <a href="{{ .url }}" {{ if .ext }}target="_blank" rel="noopener"{{ end }} data-name="{{ .name2 }}" class="dex-app" aria-label="{{ .name }}">
-        {{ if or (eq .icon "browser") (eq .icon "files") (eq .icon "gear-solid") }}
-        <span class="dex-app-ic dex-app-ic-full">{{ partial "icon.html" .icon }}</span>
-        {{ else }}
+        {{ if or (eq .icon "brands/github") (eq .icon "x-logo") }}
         <span class="dex-app-ic {{ .bg }} {{ .fg }}">{{ partial "icon.html" .icon }}</span>
+        {{ else }}
+        <span class="dex-app-ic dex-app-ic-full">{{ partial "icon.html" .icon }}</span>
         {{ end }}
         <span class="dex-app-name">{{ .name }}</span>
       </a>

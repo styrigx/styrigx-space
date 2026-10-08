@@ -12,6 +12,11 @@
 <div class="max-w-[1100px] mx-auto px-4">
   {{ partial "subpage-head.html" (dict "title" (cond $isEn "Settings" "设置") "sub" (cond $isEn "Make it yours." "调成你的样子。") "isEn" $isEn) }}
 
+  <!-- 统一搜索条（2.3.5）：手机悬浮 Dock 上方，DeX 在大标题下方；只搜设置项，行为不变 -->
+  {{ partial "searchbar.html" (dict "page" "settings" "isEn" $isEn "barId" "settings-searchbar-wrap" "openId" "settings-searchbar" "micId" "set-mic"
+    "placeholder" (cond $isEn "Search settings" "搜索设置")
+    "micAria" (cond $isEn "Voice input" "语音输入")) }}
+
   <div class="set-layout max-w-2xl mx-auto pb-28">
     <!-- 平板/桌面双栏：左侧分类 -->
     <aside class="set-side" aria-label="{{ if $isEn }}Categories{{ else }}分类{{ end }}">
@@ -194,7 +199,7 @@
     <h2 class="set-gh"><span class="set-ic bg-m-warm-container text-m-on-warm-container">{{ partial "icon.html" "sparkles" }}</span><span>{{ if $isEn }}Advanced features{{ else }}高级功能{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.24s">
       <a class="set-row" id="row-goodlock" href="{{ if $isEn }}/en/goodlock/{{ else }}/goodlock/{{ end }}">
-        <span class="set-ic bg-m-rose-container text-m-on-rose-container">{{ partial "icon.html" "gift" }}</span>
+        <span class="set-ic bg-m-rose-container text-m-on-rose-container">{{ partial "icon.html" "gift-line" }}</span>
         <span class="flex-1 min-w-0">
           <span class="block font-medium">Good Lock</span>
           <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Experimental modules{{ else }}实验性功能模块{{ end }}</span>
@@ -290,13 +295,6 @@
 
   <!-- 三星样式浮动搜索条（仅手机） -->
   <div id="settings-searchfade" aria-hidden="true"></div>
-  <div id="settings-searchbar-wrap">
-    <div id="settings-searchbar" role="button" tabindex="0" aria-label="{{ if $isEn }}Search settings{{ else }}搜索设置{{ end }}">
-      <span class="text-m-on-surface-variant shrink-0">{{ partial "icon.html" "search" }}</span>
-      <span class="flex-1 text-left text-sm text-m-on-surface-variant truncate">{{ if $isEn }}Search{{ else }}搜索{{ end }}</span>
-      <span id="set-mic" role="button" tabindex="0" aria-label="{{ if $isEn }}Voice input{{ else }}语音输入{{ end }}">{{ partial "icon.html" "mic" }}</span>
-    </div>
-  </div>
 
   <!-- 全屏搜索（仅手机） -->
   <div id="set-search-overlay" class="hidden" role="dialog" aria-modal="true" aria-label="{{ if $isEn }}Search settings{{ else }}搜索设置{{ end }}">
@@ -467,7 +465,14 @@
     window.__openSheet({title:en?'Language':'语言',options:[
       {label:'中文',value:'zh',checked:!en},
       {label:'English',value:'en',checked:en}
-    ],onPick:function(v){location.href=v==='en'?'{{ "/en/settings/" }}':'{{ "/settings/" }}'}});
+    ],onPick:function(v){
+      try{localStorage.setItem('sgx-lang',v)}catch(e){}
+      /* 跳到当前页面的对应语言版本，保留查询参数与 hash，用 replace 不产生历史 */
+      var p=location.pathname,q=location.search,h=location.hash,np;
+      if(v==='en'){np=p==='/'?'/en/':(p==='/en'||p.indexOf('/en/')===0?p:'/en'+p);}
+      else{np=p.replace(/^\/en(\/|$)/,'/');if(np===''||np.charAt(0)!=='/')np='/';}
+      location.replace(np+q+h);
+    }});
   });
 
   /* ---- 日期和时间 ---- */
@@ -812,23 +817,17 @@
     ov.classList.remove('open');
     setTimeout(function(){if(!ov.classList.contains('open'))ov.classList.add('hidden')},reducedM?0:240);
   }
-  /* 语音输入：支持时才显示麦克风 */
-  function wireMic(btn,inputEl,afterOpen){
-    if(!btn)return;
-    var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-    if(!SR){btn.style.display='none';return}
-    function go(e){
-      if(e){e.stopPropagation();e.preventDefault()}
-      if(afterOpen)afterOpen();
-      var r;try{r=new SR()}catch(err){return}
-      r.lang=en?'en-US':'zh-CN';r.interimResults=false;r.maxAlternatives=1;
-      r.onresult=function(ev){
-        try{var t=ev.results[0][0].transcript;inputEl.value=t;renderOverlay(t)}catch(err){}
-      };
-      try{r.start()}catch(err){}
-    }
-    btn.addEventListener('click',go);
-    btn.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){go(e)}});
+  /* 语音输入：统一 __sgxVoice（不支持 SpeechRecognition 时自动隐藏麦克风） */
+  if(window.__sgxVoice){
+    window.__sgxVoice($('set-mic'),{
+      input:function(){return $('setso-input')},
+      beforeStart:openOverlay,
+      onResult:function(txt){renderOverlay(txt)}
+    });
+    window.__sgxVoice($('setso-mic'),{
+      input:function(){return $('setso-input')},
+      onResult:function(txt){renderOverlay(txt)}
+    });
   }
   var sb=$('settings-searchbar');
   if(sb){
@@ -836,12 +835,7 @@
       if(e.target.closest&&e.target.closest('#set-mic'))return;
       openOverlay();
     });
-    sb.addEventListener('keydown',function(e){
-      if((e.key==='Enter'||e.key===' ')&&!(e.target.closest&&e.target.closest('#set-mic'))){e.preventDefault();openOverlay()}
-    });
   }
-  wireMic($('set-mic'),ovi,openOverlay);
-  wireMic($('setso-mic'),ovi,null);
   if(ov){
     $('setso-back').addEventListener('click',closeOverlay);
     ovi.addEventListener('input',function(){renderOverlay(ovi.value)});

@@ -253,10 +253,10 @@
       {{ range $i, $a := $apps }}
       <a href="{{ $a.url }}" {{ if hasPrefix $a.url "http" }}target="_blank" rel="noopener"{{ end }}
          class="app-tile flex flex-col items-center gap-1.5 py-1 active:scale-90 transition-transform animate-fade-up" style="animation-delay:{{ add 400 (mul $i 35) }}ms">
-        {{ if or (eq $a.icon "browser") (eq $a.icon "files") }}
-        <span class="w-14 h-14 sm:w-16 sm:h-16 shrink-0 drop-shadow-sm">{{ partial "icon.html" $a.icon }}</span>
+        {{ if or (eq $a.icon "brands/github") (eq $a.icon "x-logo") }}
+        <span class="w-12 h-12 rounded-[1.1rem] {{ $a.bg }} {{ $a.fg }} flex items-center justify-center shadow-sm">{{ partial "icon.html" $a.icon }}</span>
         {{ else }}
-        <span class="w-14 h-14 sm:w-16 sm:h-16 rounded-[1.1rem] {{ $a.bg }} {{ $a.fg }} flex items-center justify-center shadow-sm">{{ partial "icon.html" $a.icon }}</span>
+        <span class="w-12 h-12 shrink-0 drop-shadow-sm">{{ partial "icon.html" $a.icon }}</span>
         {{ end }}
         <span class="text-[11px] leading-tight text-center text-m-on-surface-variant dark:text-m-on-surface max-w-[4.75rem] break-words">{{ $a.name }}</span>
       </a>
@@ -380,7 +380,7 @@
         {{ end }}{{ end }}{{ end }}
         <div class="p-5">
         <div class="flex items-start justify-between gap-3 mb-3">
-          <div class="w-10 h-10 rounded-xl bg-m-primary-container text-m-on-primary-container flex items-center justify-center group-hover:scale-110 transition-transform">{{ partial "icon.html" .icon }}</div>
+          <div class="w-10 h-10 rounded-xl bg-m-primary-container text-m-on-primary-container flex items-center justify-center group-hover:scale-110 transition-transform">{{ $gic := .icon }}{{ if eq .icon "ticket" }}{{ $gic = "ticket-line" }}{{ else if eq .icon "book" }}{{ $gic = "book-line" }}{{ end }}{{ partial "icon.html" $gic }}</div>
           {{ if eq .stage "seedling" }}
           <span class="text-xs font-medium text-lime-700 dark:text-lime-300 bg-lime-100/70 dark:bg-lime-900/30 rounded-full px-3 py-1">🌱 {{ if $isEn }}Seedling{{ else }}幼苗{{ end }}</span>
           {{ else if eq .stage "budding" }}

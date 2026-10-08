@@ -5,13 +5,12 @@
 <div class="max-w-[1100px] mx-auto px-4 pb-40">
   {{ partial "subpage-head.html" (dict "title" (cond $isEn "Internet" "浏览器") "sub" (cond $isEn "Search and bookmarks" "搜索与书签") "isEn" $isEn) }}
 
-  <!-- 地址栏（手机：CSS 固定悬浮于底部 Dock 上方；DeX：正常流，内容顶部） -->
-  <div id="brw-addrbar" class="brw-addrbar">
-    <button type="button" id="brw-engine-btn" aria-label="切换搜索引擎/switch engine"><span id="brw-engine-ic"></span></button>
-    <input id="brw-input" type="search" autocomplete="off" enterkeyhint="search" placeholder="{{ if $isEn }}Search or type URL{{ else }}搜索或输入网址{{ end }}">
-    <button type="button" id="brw-mic" aria-label="语音输入/Voice input">{{ partial "icon.html" "mic" }}</button>
-    <button type="button" id="brw-menu-btn" aria-label="菜单/Menu"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></button>
-  </div>
+  <!-- 统一搜索条（2.3.5）：手机悬浮 Dock 上方，DeX 在大标题下方；引擎切换/建议/回车逻辑保留 -->
+  {{ partial "searchbar.html" (dict "page" "browser" "isEn" $isEn "barId" "brw-addrbar"
+    "placeholder" (cond $isEn "Search or type URL" "搜索或输入网址")
+    "engineAria" (cond $isEn "Switch search engine" "切换搜索引擎")
+    "micAria" (cond $isEn "Voice input" "语音输入")
+    "menuAria" (cond $isEn "Menu" "菜单")) }}
   <div id="brw-suggest" class="brw-suggest hidden"></div>
 
   <!-- 快捷访问：全部分类拍平 -->
@@ -181,24 +180,13 @@ window.__favFallback=function(img,name){
     });
   });
 
-  /* ============ 语音输入 ============ */
-  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if(!SR){
-    micBtn.style.display = 'none';
-  }else{
-    micBtn.addEventListener('click', function(){
-      try{
-        var r = new SR();
-        r.lang = EN ? 'en-US' : 'zh-CN';
-        r.interimResults = false; r.maxAlternatives = 1;
-        r.onresult = function(ev){
-          var txt = (ev.results[0][0].transcript || '');
-          input.value = txt;
-          renderSuggest(); showSuggest(); input.focus();
-        };
-        r.onerror = function(){};
-        r.start();
-      }catch(e){}
+  /* ============ 语音输入（统一 __sgxVoice：识别文字填入并展示站内建议，不自动跳外部引擎） ============ */
+  if(window.__sgxVoice && micBtn){
+    window.__sgxVoice(micBtn, {
+      input: input,
+      onResult: function(){
+        renderSuggest(); showSuggest(); input.focus();
+      }
     });
   }
 

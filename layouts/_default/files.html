@@ -76,6 +76,11 @@
   {{ partial "subpage-head.html" (dict "title" .Title "sub" (cond $isEn "Site index" "全站内容索引") "isEn" $isEn "actions" ($moreBtn | safeHTML)) }}
   <button type="button" id="files-more-float" class="files-more-float" aria-label="{{ if $isEn }}More options{{ else }}更多选项{{ end }}">{{ $dots | safeHTML }}</button>
 
+  <!-- 统一搜索条（2.3.5）：手机悬浮 Dock 上方，DeX 在大标题下方；只搜站内索引，行为不变 -->
+  {{ partial "searchbar.html" (dict "page" "files" "isEn" $isEn "barId" "files-searchbar" "openId" "files-search-open" "micId" "files-mic"
+    "placeholder" (cond $isEn "Search site" "搜索站内")
+    "micAria" (cond $isEn "Voice input" "语音输入")) }}
+
   <!-- 主页模式 -->
   <div id="files-home" class="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6">
     <!-- 1. 顶部分类 -->
@@ -183,7 +188,7 @@
         </li>
         <li>
           <div class="flex items-center gap-4 px-1">
-            <span class="w-6 h-6 shrink-0 text-m-on-surface-variant inline-flex items-center justify-center">{{ partial "icon.html" "pen" }}</span>
+            <span class="w-6 h-6 shrink-0 text-m-on-surface-variant inline-flex items-center justify-center">{{ partial "icon.html" "pen-line" }}</span>
             <a href="https://blog.styrigx.com" target="_blank" rel="noopener" class="row-line flex-1 min-w-0 flex items-center justify-between gap-3 py-3.5">
               <span class="min-w-0"><span class="block truncate text-[15px]">{{ if $isEn }}Blog{{ else }}博客{{ end }}</span><span class="block text-xs text-m-on-surface-variant truncate mt-0.5" id="files-blog-count">blog.styrigx.com</span></span>
               {{ partial "icon.html" "chev-r" }}
@@ -223,19 +228,7 @@
   </div>
 </div>
 
-<!-- 底部悬浮胶囊搜索条（仅手机） -->
-<div id="files-searchbar" class="files-searchbar" role="search">
-  <button type="button" id="files-search-open" class="flex-1 min-w-0 h-full flex items-center gap-3 text-left" aria-label="{{ if $isEn }}Search{{ else }}搜索{{ end }}">
-    <span class="text-m-on-surface-variant shrink-0">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M21 21l-5.2-5.2M15.5 10.5a5 5 0 11-10 0 5 5 0 0110 0z"/></svg>
-    </span>
-    <span class="text-[15px] text-m-on-surface-variant truncate">{{ if $isEn }}Search{{ else }}搜索{{ end }}</span>
-  </button>
-  <button type="button" id="files-mic" class="hidden w-10 h-10 shrink-0 rounded-full items-center justify-center text-m-on-surface-variant" aria-label="{{ if $isEn }}Voice input{{ else }}语音输入{{ end }}">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15a3 3 0 003-3V6a3 3 0 10-6 0v6a3 3 0 003 3z"/><path d="M19 10.5a7 7 0 01-14 0M12 18v3.5"/></svg>
-  </button>
-</div>
-<style>
+
 /* ===== 我的文件（页面私有样式） ===== */
 .files-more-btn{width:44px;height:44px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;color:var(--m-on-surface);flex-shrink:0}
 .files-more-btn:hover{background:rgba(0,0,0,.05)}
@@ -260,19 +253,6 @@ html.layout-dex .files-more-float{display:none}
 .files-seg{display:flex;background:var(--m-container);border-radius:999px;padding:3px;gap:2px}
 .files-seg button{width:40px;height:32px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;color:var(--m-on-surface-variant)}
 .files-seg button.on{background:var(--m-container-lowest);color:var(--m-on-surface);box-shadow:0 1px 3px rgba(0,0,0,.12)}
-/* 底部悬浮胶囊搜索条：材质与滚动隐藏规则同 Dock，仅手机显示 */
-.files-searchbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(88px + env(safe-area-inset-bottom,0px));z-index:39;
-  display:flex;align-items:center;min-width:min(78vw,340px);height:52px;padding-left:16px;border-radius:999px;
-  background:rgba(255,255,255,0.7);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);
-  border:1px solid rgba(0,0,0,0.04);box-shadow:0 6px 20px rgba(0,0,0,0.10);
-  transition:transform .22s ease,opacity .22s ease}
-.dark .files-searchbar{background:rgba(30,30,32,0.7);border-color:rgba(255,255,255,0.06)}
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .files-searchbar{background:#fff}.dark .files-searchbar{background:#1e1e20}
-}
-.files-searchbar.fsearch-hide{transform:translateX(-50%) translateY(24px);opacity:0;pointer-events:none}
-.reduced-motion .files-searchbar{transition:none}
-html.layout-dex .files-searchbar{display:none}
 /* 收藏 toast */
 .files-toast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom,0px));transform:translate(-50%,16px);z-index:120;
   max-width:min(92vw,26rem);padding:10px 18px;background:var(--m-container-lowest);color:var(--m-on-surface);
@@ -653,25 +633,18 @@ html.layout-dex .files-searchbar{display:none}
   }
   var sOpen=$('files-search-open');
   if(sOpen)sOpen.addEventListener('click',function(){openSearch()});
-  (function(){
-    var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-    if(!SR)return;
-    var mic=$('files-mic');
-    if(!mic)return;
-    mic.classList.remove('hidden');mic.classList.add('inline-flex');
-    mic.addEventListener('click',function(e){
-      e.stopPropagation();
-      var q=openSearch();
-      try{
-        var r=new SR();r.lang=en?'en-US':'zh-CN';r.interimResults=false;
-        r.onresult=function(ev){
-          var txt=ev.results&&ev.results[0]&&ev.results[0][0]&&ev.results[0][0].transcript;
-          if(txt&&q){q.value=txt;searchResults(q,$('files-sr'))}
-        };
-        r.start();toast(S.listening||'');
-      }catch(err){}
+  /* ---------- 语音搜索（统一 __sgxVoice：先开搜索面板，识别文字填入并搜站内索引） ---------- */
+  if(window.__sgxVoice){
+    var fmic=$('files-mic');
+    if(fmic)window.__sgxVoice(fmic,{
+      input:function(){return $('files-q')},
+      beforeStart:function(){openSearch()},
+      onResult:function(){
+        var q=$('files-q'),sr=$('files-sr');
+        if(q&&sr)searchResults(q,sr);
+      }
     });
-  })();
+  }
 
   /* ---------- 悬浮 ⋮ + 搜索条滚动 ---------- */
   var head=document.querySelector('[data-subpage-head]');
@@ -684,9 +657,9 @@ html.layout-dex .files-searchbar{display:none}
   var sbar=$('files-searchbar'),sbt=null;
   function onScrollBar(){
     if(!sbar||reduced())return;
-    sbar.classList.add('fsearch-hide');
+    sbar.classList.add('sgx-hide');
     if(sbt)clearTimeout(sbt);
-    sbt=setTimeout(function(){sbar.classList.remove('fsearch-hide')},600);
+    sbt=setTimeout(function(){sbar.classList.remove('sgx-hide')},600);
   }
   window.addEventListener('scroll',function(){onScrollFloat();onScrollBar()},{passive:true});
   window.addEventListener('resize',onScrollFloat);
