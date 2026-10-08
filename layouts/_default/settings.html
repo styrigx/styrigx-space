@@ -688,6 +688,7 @@
     var home={};try{home=JSON.parse(get('sgx-files-home')||'{}')}catch(e){home={}}
     var GROUPS=[
       {id:'cats',zh:'分类行',en:'Categories'},
+      {id:'sites',zh:'我的站点',en:'My sites'},
       {id:'recent',zh:'最近添加与访问',en:'Recent'},
       {id:'storage',zh:'站点存储',en:'Storage'},
       {id:'fav',zh:'收藏',en:'Favorites'}
@@ -936,6 +937,8 @@
     {t:en?'Search engine':'搜索引擎',d:en?'Internet':'浏览器',cat:'apps',el:'row-app-browser',p:'browser',i:'apb-engine'},
     {t:en?'Apps':'应用',d:'',cat:'apps',el:'sg-apps'},
     {t:en?'My Files':'我的文件',d:en?'Apps':'应用',cat:'apps',el:'row-app-files',p:'files'},
+    {t:en?'Blog':'博客',d:en?'My Files':'我的文件',cat:'apps',el:'row-app-files',p:'files'},
+    {t:en?'My sites':'我的站点',d:en?'My Files':'我的文件',cat:'apps',el:'row-app-files',p:'files'},
     {t:en?'Default view':'默认视图',d:en?'My Files':'我的文件',cat:'apps',el:'row-app-files',p:'files',i:'apf-view'},
     {t:en?'Sort order':'排序方式',d:en?'My Files':'我的文件',cat:'apps',el:'row-app-files',p:'files',i:'apf-sort'},
     {t:en?'Home sections':'主页显示的分组',d:en?'My Files':'我的文件',cat:'apps',el:'row-app-files',p:'files',i:'apf-home'},

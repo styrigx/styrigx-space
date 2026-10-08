@@ -1,8 +1,5 @@
-- category: 我的站点
+- category: 我的主页
   sites:
-    - name: 博客
-      url: https://blog.styrigx.com
-      desc: Sloan Gray 的个人博客
     - name: GitHub
       url: https://github.com/styrigx
       desc: 开源项目

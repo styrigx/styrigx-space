@@ -11,12 +11,14 @@
 {{ $cats := slice
   (dict "id" "post" "label" (cond $isEn "Posts" "文章") "icon" "pen")
   (dict "id" "book" "label" (cond $isEn "Books" "书") "icon" "book")
-  (dict "id" "music" "label" (cond $isEn "Music" "音乐") "icon" "music") }}
+  (dict "id" "music" "label" (cond $isEn "Music" "音乐") "icon" "music")
+  (dict "id" "site" "label" (cond $isEn "My sites" "我的站点") "icon" "globe") }}
 
 {{ $typeMeta := slice
   (dict "id" "post" "label" (cond $isEn "Posts" "文章") "bar" "bg-m-primary" "fg" "text-m-primary" "icon" "pen")
   (dict "id" "book" "label" (cond $isEn "Books" "书") "bar" "bg-m-secondary" "fg" "text-m-secondary" "icon" "book")
-  (dict "id" "music" "label" (cond $isEn "Music" "音乐") "bar" "bg-m-warm" "fg" "text-m-warm" "icon" "music") }}
+  (dict "id" "music" "label" (cond $isEn "Music" "音乐") "bar" "bg-m-warm" "fg" "text-m-warm" "icon" "music")
+  (dict "id" "site" "label" (cond $isEn "My sites" "我的站点") "bar" "bg-m-accent" "fg" "text-m-accent" "icon" "globe") }}
 
 {{ $defaults := slice
   (dict "id" "fav-posts" "title" (cond $isEn "Posts" "文章") "url" (print $filesBase "?type=post"))
@@ -68,7 +70,7 @@
   <div id="files-home" class="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6">
     <!-- 1. 顶部分类 -->
     <section data-home-group="cats" class="md:col-span-2">
-      <div class="grid grid-cols-3 gap-1 sm:gap-2">
+      <div class="grid grid-cols-4 gap-1 sm:gap-2">
         {{ range $cats }}
         <a href="{{ $filesBase }}?type={{ .id }}" class="flex flex-col items-center gap-1.5 py-2 active:scale-95 transition-transform" aria-label="{{ .label }}">
           <span class="w-12 h-12 shrink-0">
@@ -79,6 +81,26 @@
         {{ end }}
       </div>
     </section>
+
+    <!-- 1.5 我的站点（2.3.9：只有我编写、只有我有权限的站点；数据见 data/sites.yaml） -->
+    {{ $sites := site.Data.sites }}{{ if $isEn }}{{ $sites = site.Data.en.sites }}{{ end }}
+    <section data-home-group="sites" class="md:col-span-2">
+      <div class="flex items-center justify-between px-1 mb-1">
+        <h2 class="text-sm font-semibold text-m-on-surface-variant">{{ if $isEn }}My sites{{ else }}我的站点{{ end }}</h2>
+        <a href="{{ $filesBase }}?type=site" class="text-sm font-medium text-m-primary min-h-[44px] inline-flex items-center px-2 -mr-2">{{ if $isEn }}View all{{ else }}查看全部{{ end }}</a>
+      </div>
+      <ul class="files-rows">
+        {{ range $si, $s := $sites }}
+        <li><a href="{{ $s.url }}" target="_blank" rel="noopener" class="flex items-center gap-4 px-1 active:bg-m-container transition-colors">
+          <span class="w-12 h-12 shrink-0">{{ partial "icon.html" (dict "name" ($s.icon | default "globe") "uid" (printf "fss%d" $si)) }}</span>
+          <span class="row-line flex-1 min-w-0 flex items-center justify-between gap-3 py-3.5">
+            <span class="min-w-0"><span class="block truncate text-[15px] font-medium">{{ $s.title }}</span>
+            {{ with $s.subtitle }}<span class="block truncate text-xs text-m-on-surface-variant mt-0.5">{{ . }}</span>{{ end }}
+            </span>{{ partial "icon.html" "chev-r" }}</span></a></li>
+        {{ end }}
+      </ul>
+    </section>
+
 
     <!-- 2. 最近添加 -->
     <section data-home-group="recent" class="widget bg-m-container-lowest border border-m-outline p-5">
@@ -200,7 +222,7 @@ html.layout-dex .files-more-float{display:none}
   /* ---------- 模式与偏好 ---------- */
   var params=new URLSearchParams(location.search);
   var qtype=params.get('type');
-  var VALID=['post','book','music','fav'];
+  var VALID=['post','book','music','site','fav'];
   var listMode=VALID.indexOf(qtype)>=0;
 
   var view=get('sgx-files-view',null)||{};
@@ -208,7 +230,7 @@ html.layout-dex .files-more-float{display:none}
   if(view.layout!=='grid')view.layout='list';
   function saveView(){set('sgx-files-view',view)}
 
-  var GROUPS=['cats','recent','storage','fav'];
+  var GROUPS=['cats','sites','recent','storage','fav'];
   var homeVis=get('sgx-files-home',null)||{};
   GROUPS.forEach(function(g){if(homeVis[g]===undefined)homeVis[g]=true});
 
@@ -358,6 +380,7 @@ html.layout-dex .files-more-float{display:none}
     box.innerHTML=getFavs().map(favRowHTML).join('');
     bindLongPress(box);
   }
+
   function applyHomeVis(){
     document.querySelectorAll('[data-home-group]').forEach(function(g){
       g.style.display=homeVis[g.getAttribute('data-home-group')]===false?'none':'';
@@ -576,7 +599,7 @@ html.layout-dex .files-more-float{display:none}
   }).then(function(j){
     var lang=en?'en':'zh';
     var arr=(j&&j.items)||j;
-    DATA=(Array.isArray(arr)?arr:[]).filter(function(it){return it&&(!it.lang||it.lang===lang)&&(it.type==='post'||it.type==='book'||it.type==='music')});
+    DATA=(Array.isArray(arr)?arr:[]).filter(function(it){return it&&(!it.lang||it.lang===lang)&&(it.type==='post'||it.type==='book'||it.type==='music'||it.type==='site')});
     if(listMode)renderList();
     else{renderRecent();renderStorage()}
   }).catch(function(){

@@ -70,6 +70,17 @@
   {{ end }}
 {{ end }}
 
+{{/* ---------- 我的站点 ---------- */}}
+{{/* 2.3.9：只有我编写、只有我有权限的站点（博客、书库等） */}}
+{{ range $l := $langs }}
+  {{ $sites := cond (eq $l "en") site.Data.en.sites site.Data.sites }}
+  {{ range $s := $sites }}
+    {{ $id := printf "site-%s" $s.id }}
+    {{ if eq $l "en" }}{{ $id = printf "site-%s-en" $s.id }}{{ end }}
+    {{ $items = $items | append (dict "id" $id "type" "site" "lang" $l "title" $s.title "subtitle" ($s.subtitle | default "") "url" $s.url "cover" "" "addedAt" "") }}
+  {{ end }}
+{{ end }}
+
 {{/* ---------- 应用 ---------- */}}
 {{/* 2.3.7：商店里的应用点击后打开应用商店里的对应应用（/store/#app-<id>）；
      系统 App（browser/files/settings）保持直接链接 */}}

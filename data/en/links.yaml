@@ -1,8 +1,5 @@
-- category: My Sites
+- category: My profiles
   sites:
-    - name: Blog
-      url: https://blog.styrigx.com
-      desc: Personal blog
     - name: GitHub
       url: https://github.com/styrigx
       desc: Open source

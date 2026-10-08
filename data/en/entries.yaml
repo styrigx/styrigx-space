@@ -1,8 +1,4 @@
 entries:
-  - name: Blog
-    url: https://blog.styrigx.com
-    desc: Sloan Gray's personal blog
-    external: true
   - name: Invite Board
     url: https://muse-invite.styrigx.com
     desc: Free Muse invite code sharing

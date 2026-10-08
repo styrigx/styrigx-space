@@ -1,0 +1,7 @@
+# 我的文件 › 我的站点：只有我编写、只有我有权限的站点（博客、书库等）
+# 书库 book.styrigx.com 上线后加一行即可显示
+- id: blog
+  title: 博客
+  subtitle: Sloan Gray 的个人博客
+  url: https://blog.styrigx.com
+  icon: pen

@@ -1,9 +1,4 @@
 entries:
-  - name: 博客
-    url: https://blog.styrigx.com
-    desc: Sloan Gray 的个人博客 · 中英双语
-    icon: pen
-    external: true
   - name: 邀请码站
     url: https://muse-invite.styrigx.com
     desc: Muse 邀请码免费共享站

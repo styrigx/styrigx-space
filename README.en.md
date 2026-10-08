@@ -47,6 +47,16 @@ Not a blog, and more than a bookmark page — this is a **digital-garden-style p
 
 ---
 
+## 📐 Classification rules (where new entries go)
+
+Decide where new content belongs using these rules:
+
+- **Store**: multi-user services (e.g. the invite board).
+- **My Files**: only I write, only I have access (site files, blog, future library).
+- **Internet**: external platforms, including my profiles on them (GitHub, X).
+
+---
+
 ## ⚡ Features
 
 - ⌘K / Ctrl+K instant site-wide search (bookmarks, books, music, garden)
