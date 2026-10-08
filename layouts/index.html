@@ -264,18 +264,20 @@
   </section>
 
   <!-- 书单 · 封面墙 -->
-  <section id="books" class="pt-14 scroll-mt-24">
-    <div class="mb-8">
-      <p class="text-sm font-semibold text-m-primary uppercase tracking-widest mb-2">{{ if $isEn }}Reading{{ else }}阅读{{ end }}</p>
-      <h2 class="text-3xl sm:text-4xl font-bold">{{ if $isEn }}Bookshelf{{ else }}书单{{ end }}</h2>
-      <p class="mt-3 text-m-on-surface-variant">
+  <!-- 书单 · 小组件卡片 -->
+  <section id="books" class="pt-6 scroll-mt-24">
+    <div class="widget bg-m-container-lowest border border-m-outline p-5 animate-fade-up">
+      <div class="flex items-center justify-between mb-1">
+        <p class="text-xs font-semibold uppercase tracking-widest text-m-on-surface-variant">{{ if $isEn }}Books{{ else }}书单{{ end }}</p>
+        <span class="text-xs font-medium text-m-primary">{{ if $isEn }}All →{{ else }}全部 →{{ end }}</span>
+      </div>
+      <p class="mb-4 text-xs text-m-on-surface-variant">
         <span class="msg-hover">{{ if $isEn }}Books that shaped how I think. Hover for notes.{{ else }}塑造我思维方式的书，悬停看批注。{{ end }}</span>
         <span class="msg-tap">{{ if $isEn }}Books that shaped how I think. Tap a cover for notes.{{ else }}塑造我思维方式的书，点击封面看批注。{{ end }}</span>
       </p>
-    </div>
-    <div class="flex gap-5 sm:gap-6 overflow-x-auto pb-4 snap-x no-scrollbar -mx-4 px-4">
+      <div class="flex gap-4 overflow-x-auto pb-2 snap-x no-scrollbar -mx-1 px-1">
       {{ range $b := $books }}
-      <div class="group snap-start shrink-0 w-40 sm:w-48">
+      <div class="group snap-start shrink-0 w-32 sm:w-40">
         <div class="cover-toggle relative w-full aspect-[3/4] rounded-[1.25rem] overflow-hidden shadow-md group-hover:shadow-xl group-hover:-translate-y-1.5 transition-all duration-300 bg-m-container focus:outline-none focus:ring-2 focus:ring-m-primary" tabindex="0" role="button" aria-label="{{ $b.title }}">
           {{ with $b.cover }}
           {{ $bimg := resources.Get . }}
@@ -299,25 +301,27 @@
           {{ end }}
         </div>
         <div class="mt-3 font-semibold text-sm truncate">{{ $b.title }}</div>
-        <div class="text-xs text-m-on-surface-variant dark:text-m-on-surface">{{ $b.author }}</div>
+        <div class="text-xs text-m-on-surface-variant dark:text-m-on-surface truncate">{{ $b.author }}</div>
       </div>
       {{ end }}
+      </div>
     </div>
   </section>
 
-  <!-- 歌单 · 封面墙 -->
-  <section id="music" class="pt-14 scroll-mt-24">
-    <div class="mb-8">
-      <p class="text-sm font-semibold text-m-primary uppercase tracking-widest mb-2">{{ if $isEn }}Listening{{ else }}聆听{{ end }}</p>
-      <h2 class="text-3xl sm:text-4xl font-bold">{{ if $isEn }}Playlist{{ else }}歌单{{ end }}</h2>
-      <p class="mt-3 text-m-on-surface-variant">
+  <!-- 歌单 · 小组件卡片 -->
+  <section id="music" class="pt-6 scroll-mt-24">
+    <div class="widget bg-m-container-lowest border border-m-outline p-5 animate-fade-up">
+      <div class="flex items-center justify-between mb-1">
+        <p class="text-xs font-semibold uppercase tracking-widest text-m-on-surface-variant">{{ if $isEn }}Playlist{{ else }}歌单{{ end }}</p>
+        <span class="text-xs font-medium text-m-primary">{{ if $isEn }}All →{{ else }}全部 →{{ end }}</span>
+      </div>
+      <p class="mb-4 text-xs text-m-on-surface-variant">
         <span class="msg-hover">{{ if $isEn }}Music on repeat. Hover for notes.{{ else }}循环播放的音乐，悬停看批注。{{ end }}</span>
         <span class="msg-tap">{{ if $isEn }}Music on repeat. Tap a cover for notes.{{ else }}循环播放的音乐，点击封面看批注。{{ end }}</span>
       </p>
-    </div>
-    <div class="flex gap-5 sm:gap-6 overflow-x-auto pb-4 snap-x no-scrollbar -mx-4 px-4">
+      <div class="flex gap-4 overflow-x-auto pb-2 snap-x no-scrollbar -mx-1 px-1">
       {{ range $m := $music }}
-      <div class="group snap-start shrink-0 w-40 sm:w-48">
+      <div class="group snap-start shrink-0 w-32 sm:w-40">
         <a href="{{ $m.url }}" target="_blank" rel="noopener" aria-label="{{ $m.title }} - {{ $m.artist }}"
            class="cover-toggle relative block w-full aspect-square rounded-[1.25rem] overflow-hidden shadow-md group-hover:shadow-xl group-hover:-translate-y-1.5 transition-all duration-300 bg-m-container focus:outline-none focus:ring-2 focus:ring-m-primary">
           {{ with $m.cover }}
@@ -341,59 +345,55 @@
         {{ with $m.artist }}<div class="text-xs text-m-on-surface-variant truncate">{{ . }}</div>{{ end }}
       </div>
       {{ end }}
+      </div>
     </div>
   </section>
 
-  <!-- 收藏 · 数字花园 -->
-  <section id="garden" class="pt-14 scroll-mt-24">
-    <div class="sec-hero mb-8">
-      <p class="text-sm font-semibold text-m-primary uppercase tracking-widest mb-2">{{ if $isEn }}Garden{{ else }}花园{{ end }}</p>
-      <h2 class="text-3xl sm:text-4xl font-bold">{{ if $isEn }}Digital Garden{{ else }}收藏{{ end }}</h2>
-      <p class="mt-3 text-m-on-surface-variant">{{ if $isEn }}Things I grow and keep.{{ else }}我种下、养着的东西。{{ end }}</p>
-    </div>
-    {{ $tags := slice }}{{ range $collections }}{{ range .tags }}{{ $tags = $tags | append . }}{{ end }}{{ end }}{{ $tags = $tags | uniq }}
-    <div class="chipbar">
-    <div class="flex flex-wrap items-center gap-2 mb-4" id="garden-filters">
-      <button data-tag="" class="garden-pill rounded-full px-4 py-1.5 text-sm font-medium bg-m-primary text-m-on-primary transition-colors">{{ if $isEn }}All{{ else }}全部{{ end }}</button>
-      {{ range $tags }}<button data-tag="{{ . }}" class="garden-pill rounded-full px-4 py-1.5 text-sm font-medium border border-m-outline text-m-on-surface-variant hover:border-m-primary transition-colors">{{ . }}</button>{{ end }}
-    </div>
-    <div class="flex flex-wrap items-center gap-2" id="garden-stage-filters">
-      <button data-stage="" class="stage-pill rounded-full px-4 py-1.5 text-sm font-medium bg-m-primary text-m-on-primary transition-colors">{{ if $isEn }}All stages{{ else }}全部状态{{ end }}</button>
-      <button data-stage="seedling" class="stage-pill rounded-full px-4 py-1.5 text-sm font-medium border border-m-outline text-m-on-surface-variant hover:border-m-primary transition-colors">🌱 {{ if $isEn }}Seedling{{ else }}幼苗{{ end }}</button>
-      <button data-stage="budding" class="stage-pill rounded-full px-4 py-1.5 text-sm font-medium border border-m-outline text-m-on-surface-variant hover:border-m-primary transition-colors">🌿 {{ if $isEn }}Budding{{ else }}长成{{ end }}</button>
-      <button data-stage="evergreen" class="stage-pill rounded-full px-4 py-1.5 text-sm font-medium border border-m-outline text-m-on-surface-variant hover:border-m-primary transition-colors">🌳 {{ if $isEn }}Evergreen{{ else }}常青{{ end }}</button>
-    </div>
-    </div>
-    <p class="text-xs text-m-on-surface-variant mb-8">
-      {{ if $isEn }}🌱 seedling: just sprouted · 🌿 budding: actively growing · 🌳 evergreen: long-term maintained{{ else }}🌱 幼苗：刚发芽 · 🌿 长成：持续生长中 · 🌳 常青：长期维护{{ end }}
-    </p>
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" id="garden-grid">
-      {{ range $c := $collections }}
-      <a href="{{ $c.url }}" target="_blank" rel="noopener" data-tags="{{ delimit $c.tags "," }}" data-stage="{{ $c.stage }}"
-         class="garden-card group rounded-[1.5rem] border border-m-outline bg-m-container-lowest shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden">
-        {{ with $c.image }}{{ with resources.Get . }}{{ with .Fill "800x400 webp" }}
-        <div class="relative h-44">
-          <img src="{{ .RelPermalink }}" alt="{{ $c.name }}" loading="lazy" width="800" height="400" class="absolute inset-0 w-full h-full object-cover">
+  <!-- 收藏 · 小组件卡片 -->
+  <section id="garden" class="pt-6 scroll-mt-24">
+    <div class="widget bg-m-container-lowest border border-m-outline p-5 animate-fade-up">
+      <div class="flex items-center justify-between mb-4">
+        <p class="text-xs font-semibold uppercase tracking-widest text-m-on-surface-variant">{{ if $isEn }}Collections{{ else }}收藏{{ end }}</p>
+        <a href="{{ $linksUrl }}" class="text-xs font-medium text-m-primary hover:underline">{{ if $isEn }}All →{{ else }}全部 →{{ end }}</a>
+      </div>
+      {{ $tags := slice }}{{ range $collections }}{{ range .tags }}{{ $tags = $tags | append . }}{{ end }}{{ end }}{{ $tags = $tags | uniq }}
+      {{/* 筛选条：单行横滑，不吸底 */}}
+      <div class="flex items-center gap-2 overflow-x-auto no-scrollbar pb-3 -mx-1 px-1" id="garden-filters">
+        <button data-tag="" class="garden-pill shrink-0 rounded-full px-4 py-1.5 text-sm font-medium bg-m-primary text-m-on-primary transition-colors">{{ if $isEn }}All{{ else }}全部{{ end }}</button>
+        {{ range $tags }}<button data-tag="{{ . }}" class="garden-pill shrink-0 rounded-full px-4 py-1.5 text-sm font-medium border border-m-outline text-m-on-surface-variant hover:border-m-primary transition-colors">{{ . }}</button>{{ end }}
+        <span class="w-px self-stretch bg-m-outline shrink-0 my-1" aria-hidden="true"></span>
+        <button data-stage="" class="stage-pill shrink-0 rounded-full px-4 py-1.5 text-sm font-medium bg-m-primary text-m-on-primary transition-colors">{{ if $isEn }}All stages{{ else }}全部状态{{ end }}</button>
+        <button data-stage="seedling" class="stage-pill shrink-0 rounded-full px-4 py-1.5 text-sm font-medium border border-m-outline text-m-on-surface-variant hover:border-m-primary transition-colors">🌱 {{ if $isEn }}Seedling{{ else }}幼苗{{ end }}</button>
+        <button data-stage="budding" class="stage-pill shrink-0 rounded-full px-4 py-1.5 text-sm font-medium border border-m-outline text-m-on-surface-variant hover:border-m-primary transition-colors">🌿 {{ if $isEn }}Budding{{ else }}长成{{ end }}</button>
+        <button data-stage="evergreen" class="stage-pill shrink-0 rounded-full px-4 py-1.5 text-sm font-medium border border-m-outline text-m-on-surface-variant hover:border-m-primary transition-colors">🌳 {{ if $isEn }}Evergreen{{ else }}常青{{ end }}</button>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="garden-grid">
+      {{ range first 4 $collections }}
+      <a href="{{ .url }}" target="_blank" rel="noopener" data-tags="{{ delimit .tags "," }}" data-stage="{{ .stage }}"
+         class="garden-card group rounded-[1.25rem] border border-m-outline bg-m-container-low shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
+        {{ with .image }}{{ with resources.Get . }}{{ with .Fill "800x400 webp" }}
+        <div class="relative h-36">
+          <img src="{{ .RelPermalink }}" alt="{{ $.name }}" loading="lazy" width="800" height="400" class="absolute inset-0 w-full h-full object-cover">
           <div class="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent"></div>
         </div>
         {{ end }}{{ end }}{{ end }}
-        <div class="p-6">
-        <div class="flex items-start justify-between gap-4 mb-4">
-          <div class="w-12 h-12 rounded-2xl bg-m-primary-container text-m-on-primary-container flex items-center justify-center group-hover:scale-110 transition-transform">{{ partial "icon.html" $c.icon }}</div>
-          {{ if eq $c.stage "seedling" }}
+        <div class="p-5">
+        <div class="flex items-start justify-between gap-3 mb-3">
+          <div class="w-10 h-10 rounded-xl bg-m-primary-container text-m-on-primary-container flex items-center justify-center group-hover:scale-110 transition-transform">{{ partial "icon.html" .icon }}</div>
+          {{ if eq .stage "seedling" }}
           <span class="text-xs font-medium text-lime-700 dark:text-lime-300 bg-lime-100/70 dark:bg-lime-900/30 rounded-full px-3 py-1">🌱 {{ if $isEn }}Seedling{{ else }}幼苗{{ end }}</span>
-          {{ else if eq $c.stage "budding" }}
+          {{ else if eq .stage "budding" }}
           <span class="text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-100/70 dark:bg-emerald-900/30 rounded-full px-3 py-1">🌿 {{ if $isEn }}Budding{{ else }}长成{{ end }}</span>
           {{ else }}
           <span class="text-xs font-medium text-m-on-primary-container bg-m-primary-container rounded-full px-3 py-1">🌳 {{ if $isEn }}Evergreen{{ else }}常青{{ end }}</span>
           {{ end }}
         </div>
-        <div class="font-semibold text-lg">{{ $c.name }}</div>
-        <div class="mt-1.5 text-sm text-m-on-surface-variant">{{ $c.desc }}</div>
-        {{ with $c.tags }}<div class="mt-4 flex flex-wrap gap-1.5">{{ range . }}<span class="text-[11px] text-m-on-surface-variant bg-m-container rounded-full px-2.5 py-0.5">{{ . }}</span>{{ end }}</div>{{ end }}
+        <div class="font-semibold">{{ .name }}</div>
+        <div class="mt-1 text-sm text-m-on-surface-variant line-clamp-2">{{ .desc }}</div>
         </div>
       </a>
       {{ end }}
+      </div>
     </div>
   </section>
 </div>
@@ -660,7 +660,7 @@
 <script>
 (function(){
   var pills=document.querySelectorAll('#garden-filters .garden-pill'),
-      stagePills=document.querySelectorAll('#garden-stage-filters .stage-pill'),
+      stagePills=document.querySelectorAll('#garden-filters .stage-pill'),
       cards=document.querySelectorAll('#garden-grid .garden-card'),
       activeTag='', activeStage='',
       activeCls='rounded-full px-4 py-1.5 text-sm font-medium bg-m-primary text-m-on-primary transition-colors',

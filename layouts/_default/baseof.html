@@ -278,6 +278,27 @@ try{
 </script>
 
 <script>
+/* ===== 双击顶栏回顶部（One UI 习惯）===== */
+(function(){
+  var nav=document.getElementById('site-nav');
+  if(!nav)return;
+  var lastTap=0;
+  nav.addEventListener('dblclick',function(e){
+    /* 双击顶栏空白处或标题时回顶部；点击按钮/链接时不触发 */
+    if(e.target.closest('button')||e.target.closest('a'))return;
+    window.scrollTo({top:0,behavior:'smooth'});
+  });
+  /* 移动端 touch 双击 */
+  nav.addEventListener('touchend',function(e){
+    if(e.target.closest('button')||e.target.closest('a'))return;
+    var now=Date.now();
+    if(now-lastTap<350){
+      e.preventDefault();
+      window.scrollTo({top:0,behavior:'smooth'});
+      lastTap=0;
+    }else{lastTap=now}
+  },{passive:false});
+})();
 /* ===== Good Lock 实验室：全站生效的模块 ===== */
 (function(){
   var en=document.documentElement.lang==='en';

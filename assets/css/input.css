@@ -353,6 +353,7 @@ main {
 /* ===== 吸底 chip 条（手机，Dock 上方） ===== */
 @media (max-width:639px){
   .chipbar{position:sticky;z-index:30;margin:0 -1rem;padding:.6rem 1rem;bottom:calc(var(--dock-h,64px) + 14px + env(safe-area-inset-bottom,0px));
+    max-height:56px;overflow:hidden;
     background:color-mix(in srgb,var(--m-surface) 84%,transparent);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
     border-top:1px solid var(--m-outline)}
   .chipbar > div{margin-bottom:0 !important}
