@@ -155,7 +155,7 @@ Existing short links: `/mp` (muse-playbook), `/tp` (textbook-playbook), `/gh` (G
 
 - Blog: [blog.styrigx.com](https://blog.styrigx.com)
 - Invite board: [muse-invite.styrigx.com](https://muse-invite.styrigx.com)
-- Book library: book.styrigx.com (coming soon)
+- Book library: [book.styrigx.com](https://book.styrigx.com) (personal ebook library; the books page pulls shelved books via `/api/shelf`, falling back to the static list when empty)
 
 ## License
 

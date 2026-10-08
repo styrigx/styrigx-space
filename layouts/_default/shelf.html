@@ -43,6 +43,43 @@
 </div>
 <script>
 (function(){
+  /* 书单对接书库 /api/shelf（2.3.11）：
+   * 有书 → 只显示书库的书（封面+书名+作者；有 read_url 可点去书站读，没有则不可点）
+   * 为空/超时/报错 → 保留现有静态书单，页面不闪、不报错 */
+  {{ if eq $kind "books" }}
+  var grid = document.querySelector('.grid.grid-cols-2');
+  if(!grid) return;
+  function esc(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  function renderShelf(books){
+    grid.innerHTML = books.map(function(b){
+      var cover = '<img src="' + esc(b.cover_url) + '" alt="' + esc(b.title) + '" loading="lazy" class="w-full aspect-[3/4] object-cover">';
+      var inner = '<div class="shelf-cover relative overflow-hidden rounded-[1.4rem] border border-m-outline bg-m-container shadow-sm">' + cover + '</div>' +
+        '<figcaption class="mt-2.5 px-0.5 min-w-0">' +
+        '<p class="font-semibold text-sm truncate">' + esc(b.title) + '</p>' +
+        (b.author ? '<p class="text-xs text-m-on-surface-variant truncate mt-0.5">' + esc(b.author) + '</p>' : '') +
+        '</figcaption>';
+      if(b.read_url){
+        return '<a href="' + esc(b.read_url) + '" target="_blank" rel="noopener" class="shelf-card group min-w-0 block">' + inner + '</a>';
+      }
+      return '<figure class="shelf-card group min-w-0">' + inner + '</figure>';
+    }).join('');
+  }
+  try{
+    var ctrl = new AbortController();
+    var timer = setTimeout(function(){ ctrl.abort(); }, 8000);
+    fetch('https://book.styrigx.com/api/shelf', {signal: ctrl.signal})
+      .then(function(r){ clearTimeout(timer); if(!r.ok) throw 0; return r.json(); })
+      .then(function(j){
+        var books = (j && j.books) || [];
+        if(books.length) renderShelf(books);
+      })
+      .catch(function(){ /* 保持静态书单 */ });
+  }catch(e){}
+  {{ end }}
   /* 触屏点封面 → bottom sheet 看批注；桌面端悬停已由 CSS 处理 */
   var en=document.documentElement.lang==='en';
   var coarse=window.matchMedia('(hover: none)').matches;

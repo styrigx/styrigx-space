@@ -155,7 +155,7 @@ hugo server
 
 - 博客：[blog.styrigx.com](https://blog.styrigx.com)
 - 邀请码站：[muse-invite.styrigx.com](https://muse-invite.styrigx.com)
-- 书库：book.styrigx.com（即将上线）
+- 书库：[book.styrigx.com](https://book.styrigx.com)（个人电子书库；主站书单页通过 `/api/shelf` 拉取书库中「放进书单」的书，有书时显示书库内容，为空时显示本站静态书单）
 
 ## 许可
 
