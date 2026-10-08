@@ -343,6 +343,7 @@
       "sm:grid-cols-8",
       "sm:h-16",
       "sm:h-24",
+      "sm:inline-block",
       "sm:inline-flex",
       "sm:inset-x-auto",
       "sm:items-center",

@@ -307,6 +307,11 @@ main {
 
 /* ===== Bottom sheet（手机）/ 居中弹窗（桌面） ===== */
 #sheet-panel{transition:transform .32s cubic-bezier(.22,1,.36,1),opacity .25s}
+/* 默认隐藏：ID 选择器特异性高于 Tailwind .hidden，避免透明遮罩盖住页面吃掉点击 */
+#sheet-wrap{display:none}
+#sheet-wrap.open{display:flex}
+#sheet-wrap.closing{display:flex}
+#sheet-wrap:not(.open):not(.closing){pointer-events:none}
 @media (max-width:639px){
   #sheet-panel{position:absolute;left:0;right:0;bottom:0;max-height:72vh;border-radius:1.75rem 1.75rem 0 0;
     background:var(--m-container-lowest);display:flex;flex-direction:column;transform:translateY(102%)}
@@ -314,7 +319,7 @@ main {
   .sheet-handle{width:40px;height:5px;border-radius:999px;background:var(--m-outline);margin:10px auto 2px;flex-shrink:0}
 }
 @media (min-width:640px){
-  #sheet-wrap{display:flex;align-items:center;justify-content:center;padding:1rem}
+  #sheet-wrap.open,#sheet-wrap.closing{align-items:center;justify-content:center;padding:1rem}
   #sheet-panel{position:relative;width:100%;max-width:22rem;border-radius:1.75rem;background:var(--m-container-lowest);
     border:1px solid var(--m-outline);box-shadow:0 24px 64px -16px rgba(0,0,0,.35);opacity:0;transform:scale(.96) translateY(8px);max-height:80vh;display:flex;flex-direction:column}
   #sheet-wrap.open #sheet-panel{opacity:1;transform:none}
@@ -325,6 +330,11 @@ main {
 .sheet-opt{display:flex;align-items:center;gap:12px;width:100%;padding:14px 20px;min-height:56px;text-align:left;border-radius:1rem}
 .sheet-opt:active{background:var(--m-container)}
 .sheet-opt + .sheet-opt{border-top:1px solid color-mix(in srgb,var(--m-outline) 45%,transparent)}
+
+/* ===== 弹窗/浮层默认隐藏：ID 选择器确保隐藏态，特异性高于 .hidden ===== */
+#search-modal{display:none}
+#search-modal:not(.hidden){display:block}
+#search-modal.hidden{pointer-events:none}
 
 /* ===== ⌘K 搜索：手机变 bottom sheet ===== */
 @media (max-width:639px){

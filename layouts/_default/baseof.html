@@ -208,10 +208,11 @@ try{
 (function(){
   var wrap=document.getElementById('sheet-wrap'),panel=document.getElementById('sheet-panel'),
       title=document.getElementById('sheet-title'),body=document.getElementById('sheet-body');
-  function close(){wrap.classList.remove('open');setTimeout(function(){wrap.classList.add('hidden')},260)}
+  function close(){wrap.classList.remove('open');wrap.classList.add('closing');setTimeout(function(){wrap.classList.remove('closing');if(!wrap.classList.contains('open'))wrap.classList.add('hidden')},260)}
   window.__closeSheet=close;
   window.__openSheet=function(opts){
     opts=opts||{};
+    wrap.classList.remove('closing');
     title.textContent=opts.title||'';
     title.style.display=opts.title?'':'none';
     body.innerHTML='';
