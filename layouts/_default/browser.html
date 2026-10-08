@@ -18,6 +18,35 @@
        底部地址栏贴键盘（2.3.11 的引擎切换/输入/语音/菜单）。点蒙层空白处或返回键淡出关闭。 -->
   <div id="brw-overlay" class="brw-ov" role="dialog" aria-modal="true" aria-label="{{ cond $isEn "Search" "搜索" }}">
     <div class="brw-ov-top">
+      <!-- 2.3.14.4: 快速访问卡片（与页面快捷访问同数据源，数量顺序不变） -->
+      <section id="brw-qa-card" class="brw-card" aria-label="{{ cond $isEn "Quick access" "快速访问" }}">
+        <div class="brw-qa-grid-ov">
+          {{ range $links }}{{ range .sites }}
+          {{ $host := (urls.Parse .url).Host }}
+          {{ $iconUrl := printf "https://www.google.com/s2/favicons?domain=%s&sz=64" $host }}
+          {{ if or (eq $host "blog.styrigx.com") (eq $host "muse-invite.styrigx.com") }}
+            {{ $iconUrl = printf "https://%s/favicon.ico" $host }}
+          {{ end }}
+          <a href="{{ .url }}" target="_blank" rel="noopener" class="brw-qa-ov">
+            <img src="{{ $iconUrl }}" alt="" loading="lazy" onerror="__favFallback(this,'{{ .name }}')" class="brw-qa-ov-ic">
+            <span class="brw-qa-ov-name">{{ .name }}</span>
+          </a>
+          {{ end }}{{ end }}
+        </div>
+      </section>
+      <!-- 2.3.14.4: 最近搜索卡片 -->
+      <section id="brw-hist-card" class="brw-card" hidden aria-label="{{ cond $isEn "Recent searches" "最近搜索" }}">
+        <div class="brw-hist-head">
+          <span class="brw-hist-title">{{ cond $isEn "Recent searches" "最近搜索" }}</span>
+          <span class="brw-hist-actions">
+            <button type="button" id="brw-hist-clear">{{ cond $isEn "Clear all" "全部清除" }}</button>
+            <span class="brw-hist-sep" aria-hidden="true">|</span>
+            <button type="button" id="brw-hist-hide">{{ cond $isEn "Hide" "隐藏" }}</button>
+          </span>
+        </div>
+        <div id="brw-hist-tags" class="brw-hist-tags"></div>
+      </section>
+      <button type="button" id="brw-hist-show" class="brw-hist-show" hidden>{{ cond $isEn "Show recent searches" "显示最近搜索" }}</button>
       <div id="brw-suggest" class="brw-suggest"></div>
     </div>
     <div class="brw-ov-barwrap">
@@ -152,6 +181,7 @@ window.__favFallback=function(img,name){
   function closeOverlay(fromPop){
     if(!ovOpen)return;ovOpen=false;
     overlay.classList.remove('open');
+    overlay.classList.remove('has-text');
     try{input.blur()}catch(e){}
     unstickKb();
     if(!fromPop){try{history.back()}catch(e){}}
@@ -168,6 +198,7 @@ window.__favFallback=function(img,name){
     function upd(){
       var h=Math.max(0,window.innerHeight-vv.height-vv.offsetTop);
       document.documentElement.style.setProperty('--sgx-kb',h+'px');
+      overlay.classList.toggle('kb-open', h > 100);
     }
     vv.addEventListener('resize',upd);vv.addEventListener('scroll',upd);
     overlay._vvUpd=upd;upd();
@@ -175,6 +206,7 @@ window.__favFallback=function(img,name){
   function unstickKb(){
     if(vv&&overlay._vvUpd){vv.removeEventListener('resize',overlay._vvUpd);vv.removeEventListener('scroll',overlay._vvUpd)}
     document.documentElement.style.setProperty('--sgx-kb','0px');
+    overlay.classList.remove('kb-open');
   }
 
   /* ============ 地址栏位置 ============ */
@@ -395,7 +427,8 @@ window.__favFallback=function(img,name){
   function renderSuggest(){
     var q = input.value.trim();
     selIdx = -1; curRows = [];
-    if(!q){ renderRecent(); return; }
+    overlay.classList.toggle('has-text', q.length > 0);
+    if(!q){ suggest.innerHTML = ''; renderHist(); return; }
     var ql = q.toLowerCase(), html = '';
     C_CATS.forEach(function(cat){
       var hits = INDEX.filter(function(x){
@@ -472,6 +505,7 @@ window.__favFallback=function(img,name){
   function doSearch(q){
     q = (q || '').trim(); if(!q) return;
     pushRecent(q);
+    pushHist(q);
     hideSuggest();
     if(URL_RE.test(q) && !HAS_CJK.test(q)){
       var url = /^https?:\/\//i.test(q) ? q : 'https://' + q;
@@ -519,6 +553,52 @@ window.__favFallback=function(img,name){
       closeOverlay(false);
     }
   });
+
+  /* ============ 2.3.14.4：弹层内最近搜索卡片 ============ */
+  var LS_HIST = 'sgx-browser-history', LS_HIST_HIDE = 'sgx-browser-history-hidden';
+  var histCard = document.getElementById('brw-hist-card'),
+      histTags = document.getElementById('brw-hist-tags'),
+      histShow = document.getElementById('brw-hist-show');
+  function getHist(){
+    try{ var a = JSON.parse(lsGet(LS_HIST, '[]')); return Array.isArray(a) ? a : []; }
+    catch(e){ return []; }
+  }
+  function setHist(a){ lsSet(LS_HIST, JSON.stringify(a)); }
+  function pushHist(s){
+    s = (s || '').trim(); if(!s) return;
+    var a = getHist().filter(function(x){ return x !== s; });
+    a.unshift(s); setHist(a.slice(0, 12));
+  }
+  function renderHist(){
+    if(!histCard) return;
+    var a = getHist(), hidden = lsGet(LS_HIST_HIDE, '') === '1';
+    histCard.hidden = true; histShow.hidden = true;
+    if(!a.length) return;
+    if(hidden){ histShow.hidden = false; return; }
+    histCard.hidden = false;
+    histTags.innerHTML = a.map(function(s){
+      return '<span class="brw-hist-tag"><span class="brw-hist-tx">' + esc(s) + '</span>'
+        + '<span class="brw-hist-x" data-hx="' + esc(s) + '" role="button" aria-label="' + esc(t('删除', 'Delete')) + '">' + ICONS.x + '</span></span>';
+    }).join('');
+  }
+  if(histTags){
+    histTags.addEventListener('click', function(ev){
+      var x = ev.target.closest ? ev.target.closest('[data-hx]') : null;
+      if(x){
+        ev.stopPropagation();
+        setHist(getHist().filter(function(s){ return s !== x.getAttribute('data-hx'); }));
+        renderHist(); return;
+      }
+      var tag = ev.target.closest ? ev.target.closest('.brw-hist-tag') : null;
+      if(tag){
+        var v = tag.querySelector('.brw-hist-tx').textContent;
+        doSearch(v);
+      }
+    });
+    document.getElementById('brw-hist-clear').addEventListener('click', function(){ setHist([]); renderHist(); });
+    document.getElementById('brw-hist-hide').addEventListener('click', function(){ lsSet(LS_HIST_HIDE, '1'); renderHist(); });
+    histShow.addEventListener('click', function(){ lsSet(LS_HIST_HIDE, ''); renderHist(); });
+  }
 
   /* ============ 书签分类筛选 ============ */
   var catBtns = document.querySelectorAll('[data-brw-cat]');
