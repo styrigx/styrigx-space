@@ -788,4 +788,6 @@
   bind(stagePills, 'stage', function(v){activeStage=v});
 })();
 </script>
+{{/* 2.3.14 首页锁屏：JS 生成，只在首页出现 */}}
+{{ partial "sgx-lock.html" . }}
 {{ end }}

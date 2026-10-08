@@ -978,3 +978,61 @@ body.sgx-cap-pad main{padding-bottom:calc(176px + env(safe-area-inset-bottom,0px
 @media (prefers-reduced-motion:reduce){
   .sgx85-pill,.sgx-cap,.sgx-cap-results,.brw-ov,.brw-ov-top,.brw-ov-barwrap,.sgx85-minibar,.sgx85-switch .tk,.sgx85-switch .kn{transition:none !important;animation:none !important}
 }
+
+/* ===== 2.3.14 首页锁屏 ===== */
+#sgx-lock{position:fixed;inset:0;z-index:300;height:100vh;height:100dvh;overflow:hidden;
+  background:var(--m-wallpaper);color:var(--m-on-surface);
+  -webkit-user-select:none;user-select:none}
+#sgx-lock.sgx-lock-out{transform:translateY(-102%);opacity:0;transition:transform .4s ease,opacity .4s ease}
+/* 顶部小锁 */
+.sgx-lock-top{position:absolute;top:calc(env(safe-area-inset-top,0px) + 22px);left:0;right:0;
+  display:flex;justify-content:center;pointer-events:none;color:var(--m-on-surface-variant)}
+/* 时钟区：竖屏时中心约在屏幕上部三分之一处 */
+.sgx-lock-clockwrap{position:absolute;top:31%;left:0;right:0;transform:translateY(-50%);
+  text-align:center;padding:0 16px;pointer-events:none}
+.sgx-lock-clock{font-size:min(27vw,160px);font-weight:800;letter-spacing:-0.03em;line-height:1;
+  font-variant-numeric:tabular-nums;color:var(--m-on-surface)}
+.sgx-lock-date{margin-top:10px;font-size:17px;font-weight:600;color:var(--m-on-surface-variant);
+  display:flex;align-items:center;justify-content:center;gap:10px}
+.sgx-lock-wx{display:inline-flex;align-items:center;gap:4px;font-variant-numeric:tabular-nums}
+/* 头像模块：距底部约 15% 屏高 */
+.sgx-lock-user{position:absolute;left:0;right:0;bottom:calc(15% + env(safe-area-inset-bottom,0px));
+  display:flex;flex-direction:column;align-items:center;gap:12px}
+#sgx-lock-avatar{position:relative;width:80px;height:80px;border-radius:50%;border:0;padding:0;
+  background:none;cursor:pointer}
+#sgx-lock-avatar:focus{outline:none}
+#sgx-lock-avatar img{width:72px;height:72px;border-radius:50%;object-fit:cover;display:block;
+  margin:4px;position:relative;z-index:1}
+.sgx-lock-fb{width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  margin:4px;background:var(--m-primary);color:var(--m-on-primary);font-size:28px;font-weight:800;
+  position:relative;z-index:1}
+.sgx-lock-halo{position:absolute;inset:0;border-radius:50%;border:2px solid rgba(255,255,255,.6);
+  box-shadow:0 0 18px rgba(255,255,255,.35);animation:sgx-lock-halo 2.8s ease-in-out infinite;pointer-events:none}
+@keyframes sgx-lock-halo{0%,100%{transform:scale(1);opacity:.55}50%{transform:scale(1.1);opacity:.95}}
+.sgx-lock-name{font-size:20px;font-weight:700;color:var(--m-on-surface)}
+/* 手机横屏：左半边时钟，右半边头像，都垂直居中 */
+@media (orientation:landscape) and (max-width:1023.5px){
+  .sgx-lock-clockwrap{top:50%;left:0;right:auto;width:50%}
+  .sgx-lock-user{top:50%;bottom:auto;left:50%;right:0;transform:translateY(-50%)}
+  .sgx-lock-clock{font-size:min(15vh,96px)}
+  .sgx-lock-top{top:calc(env(safe-area-inset-top,0px) + 14px)}
+}
+/* DeX / 电脑宽屏：时钟居中（上限 160px），头像在下方居中，悬停光环变亮 */
+@media (min-width:1024px){
+  #sgx-lock-avatar:hover .sgx-lock-halo{opacity:1;border-color:rgba(255,255,255,.95);
+    box-shadow:0 0 28px rgba(255,255,255,.65)}
+}
+/* 解锁时首页从 96% 缩放回 100%（约 400ms，与锁屏滑出同步） */
+main,#site-nav,footer{transition:transform .4s ease}
+body.sgx-locked main,body.sgx-locked #site-nav,body.sgx-locked footer{transform:scale(.96)}
+body.sgx-locked .dock{transform:translateX(-50%) scale(.96);transition:transform .4s ease,opacity .22s ease}
+body.sgx-locked #dex-dock{transform:translateX(-50%) scale(.96);transition:transform .4s ease}
+/* 减少动态效果：只淡出，不滑动不缩放 */
+@media (prefers-reduced-motion:reduce){
+  .sgx-lock-halo{animation:none}
+  #sgx-lock.sgx-lock-out{transform:none}
+  body.sgx-locked main,body.sgx-locked #site-nav,body.sgx-locked footer,
+  body.sgx-locked .dock,body.sgx-locked #dex-dock{transform:none}
+}
+.reduced-motion .sgx-lock-halo{animation:none}
+.reduced-motion #sgx-lock.sgx-lock-out{transform:none}
