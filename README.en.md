@@ -64,7 +64,7 @@ hugo server
 
 Open http://localhost:1313 in a browser. Build with `hugo --minify`.
 
-Pushing to main auto-deploys to Cloudflare Pages (the Pages project keeps its historic name `styrigx-portal`).
+Pushing to main auto-deploys to Cloudflare Pages (Pages project `styrigx-space`).
 
 ## Directories
 

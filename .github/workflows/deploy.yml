@@ -42,5 +42,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy public --project-name=styrigx-portal --commit-dirty=true
-          # 注意：styrigx-portal 是 Cloudflare Pages 项目的历史名称（Cloudflare 不支持改名），沿用至今
+          command: pages deploy public --project-name=styrigx-space --commit-dirty=true

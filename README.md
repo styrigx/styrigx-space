@@ -64,7 +64,7 @@ hugo server
 
 浏览器打开 http://localhost:1313。构建用 `hugo --minify`。
 
-推送 main 后自动部署到 Cloudflare Pages（Pages 项目名沿用历史名称 `styrigx-portal`）。
+推送 main 后自动部署到 Cloudflare Pages（Pages 项目名 `styrigx-space`）。
 
 ## 目录说明
 
