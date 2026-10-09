@@ -63,7 +63,9 @@
    用 color-scheme 切换明暗（.dark 类只负责把 color-scheme 锁成 dark，
    手动切换行为不变）；不支持的走 @supports not 回退（原 :root/.dark 两套，原样保留）。
    注意：light-dark() 只能包颜色；--m-wallpaper（渐变）和 --card-noise（url）
-   仍保留 :root/.dark 各一定义。种子色取自头像 #234b6c（湖蓝）。 */
+   仍保留 :root/.dark 各一定义。种子色取自头像 #234b6c（湖蓝）。
+   2.4.0 E：本层是 Material You 色板 token 定义，hex 在此合法（stylelint 豁免）。 */
+/* stylelint-disable color-no-hex, color-named */
 @layer tokens {
   @supports not (color: light-dark(#000, #fff)) {
     :root {
@@ -449,6 +451,7 @@
     --sgx-kb: 0px;
   }
 }
+/* stylelint-enable color-no-hex, color-named */
 
 /* ===== base 层：页面骨架、壁纸、主题过渡 ===== */
 @layer sgx-base {
@@ -536,13 +539,17 @@
     .glass, .dock, #dex-dock, .subpage-back-float, #files-more.stuck,
     .layout-dex #site-nav, .layout-phone body.subpage-scrolled #site-nav,
     .sgx-searchbar, .sgx-cap, .sgx85-pill,
+    /* stylelint-disable-next-line color-no-hex */
     .brw-suggest, .sgx-cap-results, .brw-ov-bar, .brw-ov, .sgx-vs-card { background: #fff; }
+    /* stylelint-disable-next-line color-no-hex */
     .layout-phone #sheet-panel, .layout-dex #sheet-panel { background: #fff; }
     .dark .glass, .dark .dock, .dark #dex-dock, .dark .subpage-back-float, .dark #files-more.stuck,
     .dark .layout-dex #site-nav, .dark .layout-phone body.subpage-scrolled #site-nav,
     .dark .sgx-searchbar, .dark .sgx-cap, .dark .sgx85-pill,
     .dark .brw-suggest, .dark .sgx-cap-results, .dark .brw-ov-bar, .dark .brw-ov,
+    /* stylelint-disable-next-line color-no-hex */
     .dark .sgx-vs-card { background: #1e1e20; }
+    /* stylelint-disable-next-line color-no-hex */
     .dark .layout-phone #sheet-panel, .dark .layout-dex #sheet-panel { background: #1e1e20; }
   }
 
@@ -553,7 +560,9 @@
     opacity: 0; visibility: hidden; transition: opacity .3s ease, visibility 0s linear .3s;
     backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+    /* stylelint-disable-next-line color-no-hex */
     -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 100%);
+    /* stylelint-disable-next-line color-no-hex */
     mask-image: linear-gradient(to bottom, #000 0%, transparent 100%);
     isolation: isolate; contain: strict;
   }
@@ -657,7 +666,9 @@
       }
       to {
         background-color: var(--glass-tint); padding-bottom: 14px;
+        /* stylelint-disable-next-line color-no-hex */
         -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 62%, transparent 100%);
+        /* stylelint-disable-next-line color-no-hex */
         mask-image: linear-gradient(to bottom, #000 0%, #000 62%, transparent 100%);
         backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
         -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
@@ -707,6 +718,7 @@
   .clock-half { transition: background-color .5s ease, color .5s ease; }
   .clock-day { background: var(--m-container-lowest); color: var(--m-on-surface); }
   .clock-day .clock-sub { color: var(--m-on-surface-variant); }
+  /* stylelint-disable-next-line color-no-hex */
   .clock-night { background: linear-gradient(150deg, #22415c 0%, #16283a 70%, #101c29 100%); color: #ffffff; }
   .clock-night .clock-sub { color: rgba(255,255,255,.72); }
   .clock-night .clock-div { border-color: rgba(255,255,255,.15); }
@@ -729,7 +741,9 @@
   .dock-btn {
     position: relative; z-index: 1; width: 88px; height: 52px; border-radius: 999px;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
+    /* stylelint-disable-next-line color-no-hex */
     gap: 3px; color: #3c3c43; flex-shrink: 0;
+    /* stylelint-disable-next-line color-no-hex */
     .dark & { color: #d0d0d5; }
     &.dock-active {
       color: var(--m-primary);
@@ -784,7 +798,9 @@
     background: var(--glass-tint);
     /* 模糊层加高：覆盖居中小标题下方 16px，渐隐更长，小标题不直接贴在卡片上 */
     padding-bottom: 14px;
+    /* stylelint-disable-next-line color-no-hex */
     -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 62%, transparent 100%);
+    /* stylelint-disable-next-line color-no-hex */
     mask-image: linear-gradient(to bottom, #000 0%, #000 62%, transparent 100%);
   }
   .layout-phone body.subpage-scrolled #nav-brand,
@@ -997,6 +1013,7 @@
     .shelf-note {
       position: absolute; inset: 0; display: flex; align-items: flex-end; padding: .9rem;
       background: linear-gradient(to top, rgba(0,0,0,.82), rgba(0,0,0,.28) 55%, transparent 80%);
+      /* stylelint-disable-next-line color-no-hex */
       color: #fff; opacity: 0; transition: opacity .25s ease; pointer-events: none;
       p { font-size: .8rem; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
     }
@@ -1378,6 +1395,7 @@
   /* 语音 toast：小胶囊、居中偏下、3 秒自动消失（JS 控制显隐） */
   .sgx-toast {
     position: fixed; left: 50%; bottom: calc(160px + env(safe-area-inset-bottom,0px)); transform: translate(-50%,16px); z-index: 200;
+    /* stylelint-disable-next-line color-no-hex */
     max-width: min(92vw,28rem); padding: 10px 20px; border-radius: 999px; background: rgba(30,30,34,.94); color: #fff;
     font-size: 14px; line-height: 1.4; text-align: center; box-shadow: 0 8px 24px rgba(0,0,0,.25);
     opacity: 0; pointer-events: none; transition: opacity .25s ease, transform .25s ease;
@@ -1666,6 +1684,7 @@
      2.3.14.4：浏览器弹层内快速访问卡片 + 最近搜索卡片
      ============================================================ */
   .brw-card {
+    /* stylelint-disable-next-line color-no-hex */
     background: #fff; border-radius: 1.5rem; border: 1px solid rgba(0,0,0,.05);
     background-image: var(--card-noise);
     box-shadow: inset 0 0.5px 0 rgba(255,255,255,.65),
@@ -1673,6 +1692,7 @@
       0 12px 32px -8px rgba(16,24,40,.20);
     padding: 16px 12px;
     .dark & {
+      /* stylelint-disable-next-line color-no-hex */
       background: #1e1e20; border-color: rgba(255,255,255,.07);
       box-shadow: inset 0 0.5px 0 rgba(255,255,255,.09),
         0 1px 2px rgba(0,0,0,.45),
@@ -1820,6 +1840,7 @@
   .sgx-vs-l1 { font-size: 17px; color: var(--m-on-surface); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sgx-vs-l2 { font-size: 13px; color: var(--m-on-surface-variant); margin-top: 2px; }
   .sgx-vs-btn {
+    /* stylelint-disable-next-line color-no-hex */
     position: relative; width: 44px; height: 44px; border-radius: 50%; background: var(--m-primary); color: #fff;
     border: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
     svg { width: 22px; height: 22px; display: block; }

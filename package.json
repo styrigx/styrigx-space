@@ -17,5 +17,8 @@
   "scripts": {
     "build:css": "node scripts/build-css.cjs --minify"
   },
-  "version": "2.4.0"
+  "version": "2.4.0",
+  "devDependencies": {
+    "@playwright/test": "^1.64.0"
+  }
 }

@@ -7,7 +7,47 @@ on:
   workflow_dispatch:
 
 jobs:
+  # 2.4.0 E：质量闸门 —— 视觉回归 + Lighthouse CI + stylelint，不达标不部署
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: '0.162.0'
+          extended: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install test deps
+        run: npm install --no-save @playwright/test stylelint postcss-scss @lhci/cli http-server && npx playwright install chromium --with-deps
+
+      - name: Build CSS
+        run: node scripts/build-css.cjs --minify
+
+      - name: Build site
+        run: hugo --minify
+
+      - name: stylelint（禁止硬编码颜色）
+        run: npx stylelint "assets/css/input.css"
+
+      - name: Visual regression
+        run: npx playwright test --config=playwright.config.js
+
+      - name: Lighthouse CI
+        run: npx lhci autorun --config=.lighthouserc.json
+
   build-and-deploy:
+    needs: quality
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

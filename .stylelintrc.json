@@ -1,0 +1,1 @@
+{"customSyntax":"postcss-scss","ignoreFiles":["assets/css/main.css"],"rules":{"color-named":"never","color-no-hex":true}}
