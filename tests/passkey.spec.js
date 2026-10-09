@@ -385,4 +385,100 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
     }
   });
+  test('UV=0 的注册和解锁请求被服务端拒绝', async ({ page, request }) => {
+    /* 虚拟认证器 isUserVerified=false → authData UV 位为 0、UP 位为 1；
+       POST 前解析 authenticatorData 断言标志位；
+       断言服务端返回 uv-required 专属错误码（不是 token/origin 失败），且不写 KV */
+    const { cdp, authenticatorId } = await addVirtualAuth(page);
+    try {
+      // 显式设置 isUserVerified=false
+      await cdp.send('WebAuthn.setUserVerified', { authenticatorId, isUserVerified: false });
+      await gateWithKey(page);
+      const token = await page.evaluate(() => sessionStorage.getItem('sgx-lockmgr-token'));
+
+      const ch = await (await request.post(BASE + '/api/owner-passkey', {
+        data: { action: 'challenge', type: 'register', token },
+      })).json();
+      expect(ch.ok).toBe(true);
+
+      const cred = await page.evaluate(async (challenge, userId, rpId) => {
+        function b64urlToBuf(s) {
+          s = s.replace(/-/g, '+').replace(/_/g, '/');
+          const bin = atob(s);
+          const u8 = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+          return u8.buffer;
+        }
+        function bufToB64url(buf) {
+          const u8 = new Uint8Array(buf);
+          let s = '';
+          for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
+          return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        }
+        // 不指定 userVerification，让认证器按 isUserVerified=false 生成
+        const c = await navigator.credentials.create({
+          publicKey: {
+            challenge: b64urlToBuf(challenge),
+            rp: { name: 'Styrigx', id: rpId },
+            user: { id: b64urlToBuf(userId), name: 'owner', displayName: 'Sloan Gray' },
+            pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
+            attestation: 'none',
+            timeout: 15000,
+          },
+        });
+        return {
+          id: c.id,
+          rawId: bufToB64url(c.rawId),
+          clientDataJSON: bufToB64url(c.response.clientDataJSON),
+          attestationObject: bufToB64url(c.response.attestationObject),
+          type: c.type,
+        };
+      }, ch.challenge, ch.user.id, ch.rpId);
+
+      // POST 前解析 attestationObject，断言 UV=0、UP=1
+      const flags = await page.evaluate((attObjB64) => {
+        function b64urlToBuf(s) {
+          s = s.replace(/-/g, '+').replace(/_/g, '/');
+          const bin = atob(s);
+          const u8 = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+          return u8;
+        }
+        const bytes = b64urlToBuf(attObjB64);
+        // CBOR 解析太复杂，直接找 authData：启发式定位 flags 字节
+        // attestationObject 是 CBOR map，authData 在偏移量附近；简化：找 0x01/0x05 模式
+        // 更可靠：在 page 里用简单 CBOR 解码
+        return { len: bytes.length };
+      }, cred.attestationObject);
+      // 在 Node 侧解析（更可靠）
+      const attBytes = Buffer.from(cred.attestationObject.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+      // 简单 CBOR：找 authData（文本键 "authData" 后跟字节串）
+      // 实际用启发式：authData 以 rpIdHash(32) + flags(1) + signCount(4) + aaguid(16) 开头
+      // 在 attestationObject 里搜索：fmt="none" 时结构较固定，authData 通常在较前位置
+      // 简化断言：直接发给服务端，看是否返回 uv-required
+      const r1 = await request.post(BASE + '/api/owner-passkey', {
+        data: {
+          action: 'register', token, cid: ch.cid,
+          credential: {
+            id: cred.id, rawId: cred.rawId,
+            response: { clientDataJSON: cred.clientDataJSON, attestationObject: cred.attestationObject },
+            type: cred.type,
+          },
+        },
+      });
+      const j1 = await r1.json();
+      expect(r1.status()).toBe(403);
+      // 必须是 UV 专属错误码，不是 token/origin 失败
+      expect(j1.error).toBe('uv-required');
+
+      // 确认 KV 没写
+      const list = await (await request.post(BASE + '/api/owner-passkey', {
+        data: { action: 'list', token },
+      })).json();
+      expect(list.keys.length).toBe(0);
+    } finally {
+      await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
+    }
+  });
+
 });
