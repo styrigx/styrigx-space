@@ -59,6 +59,14 @@
       <button type="button" class="lockmgr-del" id="lockmgr-pwdel">{{ if $isEn }}Delete password{{ else }}删除密码{{ end }}</button>
     </div>
 
+    <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "lock" }}</span><span>{{ if $isEn }}Session{{ else }}会话{{ end }}</span></h2>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.16s">
+      <button type="button" class="lockmgr-add" id="lockmgr-lockout">
+        {{ if $isEn }}Lock now and sign out all devices{{ else }}立即锁定并退出所有设备{{ end }}
+      </button>
+    </section>
+    <p class="sec-note mb-7">{{ if $isEn }}Invalidate all sessions on all devices.{{ else }}让所有设备的会话失效。{{ end }}</p>
+
     <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Passkeys{{ else }}通行密钥{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.14s">
       <ul class="lockmgr-pklist" id="lockmgr-pklist" hidden></ul>

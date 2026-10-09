@@ -117,13 +117,32 @@ import { toast } from './toast.js';
     gateKeyForm.hidden = true;
     hideErr('lockgate-err');
     if (gateInput) gateInput.value = '';
-    /* 有通行密钥才显示该选项 */
+    /* 有通行密钥才显示该选项；配置缺失时禁用 */
     fetch('/api/owner-status', { method: 'GET', credentials: 'same-origin' })
       .then(function (r) {
         return r.json();
       })
       .then(function (j) {
         if (gatePkBtn) gatePkBtn.hidden = !(j && j.ok && j.passkey);
+        /* 检查通行密钥服务是否可用（SGX_RP_ID/SGX_ORIGIN 未配时禁用） */
+        return fetch('/api/owner-passkey', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'challenge', type: 'auth' }),
+        });
+      })
+      .then(function (r) {
+        if (!r) return;
+        return r.json().then(function (j) {
+          if (j && j.error === 'config') {
+            /* 服务端未配置：禁用所有通行密钥入口 */
+            if (gatePkBtn) gatePkBtn.hidden = true;
+            const pkAdd = $('lockmgr-pkadd');
+            if (pkAdd) pkAdd.disabled = true;
+            const pkSection = $('lockmgr-pklist');
+            if (pkSection) pkSection.hidden = true;
+          }
+        });
       })
       .catch(function () {
         if (gatePkBtn) gatePkBtn.hidden = true;
@@ -284,6 +303,18 @@ import { toast } from './toast.js';
           const j = res.json;
           if (j && j.ok && j.token) {
             token = j.token;
+            /* 迁移旧密钥：更新密码管理器里的用户姓名（特性检测，不支持就跳过） */
+            try {
+              if (window.PublicKeyCredential &&
+                  typeof PublicKeyCredential.signalCurrentUserDetails === 'function') {
+                PublicKeyCredential.signalCurrentUserDetails({
+                  rpId: location.hostname,
+                  userId: cred.rawId,
+                  name: 'owner',
+                  displayName: 'Sloan Gray',
+                }).catch(function () {});
+              }
+            } catch (e) {}
             enterMgr();
           } else if (!j) {
             showErr('lockgate-err', t('gateSrvErr'));
@@ -425,6 +456,33 @@ import { toast } from './toast.js';
           armed = false;
           pwDel.textContent = origText;
           pwDel.classList.remove('armed');
+        });
+    });
+  }
+  /* 立即锁定并退出所有设备 */
+  const lockoutBtn = $('lockmgr-lockout');
+  if (lockoutBtn) {
+    on(lockoutBtn, 'click', function () {
+      if (!token) {
+        needReauth();
+        return;
+      }
+      api('/api/owner-password', { action: 'lockout', token: token })
+        .then(function (r) {
+          const j = r.json;
+          if (j && j.ok) {
+            /* 服务端已用 Set-Cookie 清掉 cookie；清内存 token，跳回锁屏 */
+            token = null;
+            try { sessionStorage.removeItem('sgx-lockmgr'); } catch (e) {}
+            location.href = '/?lock=1';
+          } else if (j && j.error === 'token') {
+            needReauth();
+          } else {
+            toast(t('gateSrvErr'));
+          }
+        })
+        .catch(function () {
+          toast(t('gateNetErr'));
         });
     });
   }
@@ -611,11 +669,20 @@ import { toast } from './toast.js';
           on(nameInput, 'click', function (e) {
             e.stopPropagation();
           });
-          const date = document.createElement('span');
-          date.className = 'lockmgr-pkdate';
-          date.textContent = fmtDate(k.createdAt);
+          const meta = document.createElement('span');
+          meta.className = 'lockmgr-pkdate';
+          /* 副标题：创建于 + 最近使用 */
+          let metaText = '创建于 ' + fmtDate(k.createdAt);
+          if (k.lastUsedAt) {
+            metaText += ' · 最近使用 ' + fmtDate(k.lastUsedAt);
+          }
+          /* provider 显示（如果有） */
+          if (k.provider) {
+            metaText = k.provider + ' · ' + metaText;
+          }
+          meta.textContent = metaText;
           nameWrap.appendChild(nameInput);
-          nameWrap.appendChild(date);
+          nameWrap.appendChild(meta);
           const del = document.createElement('button');
           del.type = 'button';
           del.className = 'lockmgr-pkdel';

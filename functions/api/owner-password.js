@@ -230,7 +230,7 @@ async function handlePost(context) {
   }
 
   /* ============ set/change/remove：需 owner-auth token ============ */
-  if (action === 'set' || action === 'change' || action === 'remove') {
+  if (action === 'set' || action === 'change' || action === 'remove' || action === 'lockout') {
     const token = (body && body.token) || '';
     const secret = (env && env.SESSION_SECRET) || '';
     if (!secret) {
@@ -238,6 +238,14 @@ async function handlePost(context) {
     }
     if (!token || !(await verifyOwnerToken(token, secret))) {
       return Response.json({ ok: false, error: 'token' }, { status: 403 });
+    }
+
+    /* lockout：立即锁定并退出所有设备（session-ver +1，用 Set-Cookie 清当前 cookie） */
+    if (action === 'lockout') {
+      await bumpSessionVer(kv);
+      const headers = new Headers({ 'Content-Type': 'application/json' });
+      headers.append('Set-Cookie', 'sgx-verified=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0');
+      return new Response(JSON.stringify({ ok: true }), { headers });
     }
 
     /* remove：删除解锁密码，同时清掉失败计数和锁定 */

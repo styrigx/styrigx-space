@@ -405,7 +405,11 @@ async function handlePost(context) {
   const RP_ID = env && env.SGX_RP_ID;
   const EXPECT_ORIGIN = env && env.SGX_ORIGIN;
   if (!RP_ID || !EXPECT_ORIGIN) {
-    return Response.json({ ok: false, error: 'config' }, { status: 500 });
+    /* 缺变量：返回明确错误（503），前端据此禁用通行密钥入口 */
+    return Response.json(
+      { ok: false, error: 'config', message: 'SGX_RP_ID / SGX_ORIGIN 未配置' },
+      { status: 503 }
+    );
   }
   const rpIdHash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(RP_ID)));
 
