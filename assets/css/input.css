@@ -10,6 +10,42 @@
    - 同一层内保持原文件相对顺序，层分配沿文件自上而下只升不降，避免优先级翻转。 ===== */
 @layer tw, reset, tokens, sgx-base, sgx-components, sgx-utilities, overrides;
 
+/* ===== 2.4.0 D：跨页 View Transitions =====
+   @view-transition { navigation: auto } 让同站跳转自动做过渡（渐进增强，
+   不支持的浏览器忽略）。主页 App 图标 → 子页面标题走共享元素过渡
+   （One UI 打开应用式：图标放大淡入标题区），JS 在点击时给图标和目标
+   标题写同名 view-transition-name。 */
+@view-transition {
+  navigation: auto;
+}
+/* 共享元素：App 图标 ↔ 子页面大标题 */
+::view-transition-group(sgx-app-icon) {
+  animation-duration: .38s;
+  animation-timing-function: cubic-bezier(.22, 1, .36, 1);
+}
+::view-transition-old(sgx-app-icon) {
+  animation-name: sgx-vt-icon-out;
+}
+::view-transition-new(sgx-app-icon) {
+  animation-name: sgx-vt-icon-in;
+}
+@keyframes sgx-vt-icon-out {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(1.35); }
+}
+@keyframes sgx-vt-icon-in {
+  from { opacity: 0; transform: scale(.72); }
+  to { opacity: 1; transform: scale(1); }
+}
+/* 尊重减弱动画：过渡退化为无动画 */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
 /* ===== reset 层：最小自定义重置 ===== */
 @layer reset {
   /* 移动端禁止横向滚动（clip 不破坏 sticky；不支持时回退 hidden） */
@@ -900,33 +936,41 @@
     &[aria-pressed="true"] { border-color: var(--m-primary); }
   }
 
-  /* ===== Bottom sheet（手机）/ 居中弹窗（桌面） ===== */
-  /* 默认隐藏：ID 选择器特异性高于 Tailwind .hidden，避免透明遮罩盖住页面吃掉点击 */
-  #sheet-wrap {
-    display: none;
-    opacity: 0; transition: opacity .25s;
-    &.open { display: flex; opacity: 1; }
-    &.closing { display: flex; }
-    &:not(.open):not(.closing) { pointer-events: none; }
+  /* ===== Bottom sheet（手机）/ 居中弹窗（桌面）·2.4.0 D：<dialog> =====
+     showModal() 原生提供顶层显示、Esc、焦点陷阱；::backdrop 做遮罩。
+     .sgx-open 控制进入动画，.sgx-closing 控制退出动画。 */
+  dialog#sheet-wrap {
+    padding: 0; border: 0; background: transparent;
+    max-width: none; max-height: none;
+    &::backdrop { background: rgba(0, 0, 0, .4); opacity: 0; transition: opacity .25s; }
+    &.sgx-open::backdrop { opacity: 1; }
+  }
+  /* 手机：底部弹层 */
+  .layout-phone dialog#sheet-wrap {
+    margin: 0; width: 100%; height: auto;
+    position: fixed; inset: auto 0 0 0;
   }
   #sheet-panel { transition: transform .32s cubic-bezier(.22,1,.36,1), opacity .25s; }
   .layout-phone {
     #sheet-panel {
-      position: absolute; left: 0; right: 0; bottom: 0; max-height: 72vh;
+      max-height: 72vh;
       border-radius: 1.75rem 1.75rem 0 0;
       background: var(--glass-tint); display: flex; flex-direction: column; transform: translateY(102%);
     }
-    #sheet-wrap.open #sheet-panel { transform: translateY(0); }
+    dialog#sheet-wrap.sgx-open #sheet-panel { transform: translateY(0); }
     .sheet-handle { width: 40px; height: 5px; border-radius: 999px; background: var(--m-outline); margin: 10px auto 2px; flex-shrink: 0; }
   }
   .layout-dex {
-    #sheet-wrap.open, #sheet-wrap.closing { align-items: center; justify-content: center; padding: 1rem; }
+    dialog#sheet-wrap {
+      margin: auto; width: 100%; max-width: 22rem;
+      &.sgx-open, &.sgx-closing { display: flex; align-items: center; justify-content: center; }
+    }
     #sheet-panel {
-      position: relative; width: 100%; max-width: 22rem; border-radius: 1.75rem; background: var(--glass-tint);
+      position: relative; width: 100%; border-radius: 1.75rem; background: var(--glass-tint);
       border: 1px solid var(--glass-edge); box-shadow: 0 24px 64px -16px rgba(0,0,0,.35);
       opacity: 0; transform: scale(.96) translateY(8px); max-height: 80vh; display: flex; flex-direction: column;
     }
-    #sheet-wrap.open #sheet-panel { opacity: 1; transform: none; }
+    dialog#sheet-wrap.sgx-open #sheet-panel { opacity: 1; transform: none; }
     .sheet-handle { display: none; }
   }
   .sheet-opt {
@@ -1754,21 +1798,23 @@
   /* ============================================================
      2.3.14.6：搜索胶囊跟键盘走（无跳动）＋ 语音输入提示弹窗
      ============================================================ */
-  /* 语音输入提示弹窗：半透明灰色遮罩（200ms 淡入）＋ 底部磨砂圆角卡片（250ms ease-out 滑上） */
-  .sgx-vs-ov {
-    position: fixed; inset: 0; z-index: 400; background: rgba(0,0,0,.2); opacity: 0; transition: opacity .2s ease;
-    &.show { opacity: 1; }
-    .reduced-motion & { transition: none; }
+  /* 语音输入提示弹窗（2.4.0 D：<dialog>）：原生 ::backdrop 遮罩＋ 底部磨砂圆角卡片 */
+  dialog.sgx-vs-dlg {
+    padding: 0; border: 0; background: transparent;
+    margin: 0; width: 100%; max-width: none; max-height: none;
+    position: fixed; inset: auto 0 0 0;
+    &::backdrop { background: rgba(0,0,0,.2); opacity: 0; transition: opacity .2s ease; }
+    &.show::backdrop { opacity: 1; }
+    .reduced-motion &::backdrop { transition: none; }
   }
   .sgx-vs-card {
-    position: absolute; left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom,0px)); height: 72px;
+    position: relative; margin: 0 8px calc(8px + env(safe-area-inset-bottom,0px)); height: 72px;
     background: var(--glass-tint); border: 1px solid var(--glass-edge); border-radius: 28px;
     display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 14px 0 20px;
     box-shadow: 0 12px 32px rgba(0,0,0,.18); transform: translateY(120%); transition: transform .25s ease-out;
-    .sgx-vs-ov.show & { transform: none; }
+    dialog.sgx-vs-dlg.show & { transform: none; }
     .reduced-motion & { transition: none; }
-    .layout-dex & { left: 50%; right: auto; width: min(480px,calc(100vw - 16px)); transform: translate(-50%,120%); }
-    .layout-dex .sgx-vs-ov.show & { transform: translate(-50%,0); }
+    .layout-dex & { margin-left: auto; margin-right: auto; width: min(480px,calc(100vw - 16px)); }
   }
   .sgx-vs-tx { min-width: 0; flex: 1; }
   .sgx-vs-l1 { font-size: 17px; color: var(--m-on-surface); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

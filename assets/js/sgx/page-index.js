@@ -7,6 +7,7 @@ import { visibleInterval } from './scheduler.js';
 import { openSheet } from './sheet.js';
 import { toast } from './toast.js';
 import { SGX } from './sgx.js';
+import { markAppIcon } from './vt.js';
 
 /* 双时钟 */
 (function () {
@@ -734,5 +735,15 @@ if (SGX_FEAT_WEATHER_SHOW)
   });
   bind(stagePills, 'stage', function (v) {
     activeStage = v;
+  });
+})();
+
+/* 2.4.0 D：App 图标点击 → View Transitions 共享元素标记 */
+(function () {
+  document.querySelectorAll('.app-tile[href]').forEach(function (tile) {
+    on(tile, 'click', function () {
+      const icon = tile.querySelector('span');
+      if (icon) markAppIcon(/** @type {HTMLElement} */ (icon));
+    }, { capture: true });
   });
 })();

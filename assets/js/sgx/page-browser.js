@@ -11,6 +11,7 @@ import { voiceSheet } from './voice-sheet.js';
 import { engines } from './engines.js';
 import { bindFavFallback } from './fav.js';
 import { onDexLayoutChange } from './layout.js';
+import { onKeyboardHeight } from './vk.js';
 
 (function () {
   'use strict';
@@ -120,61 +121,21 @@ import { onDexLayoutChange } from './layout.js';
     if (ovOpen) closeOverlay(true);
   });
 
-  /* ============ 键盘贴合：地址栏贴键盘，无跳动 ============ */
-  const vv = window.visualViewport;
-  let useVK = false;
-  try {
-    const vk = /** @type {any} */ (navigator).virtualKeyboard;
-    if (vk && 'overlaysContent' in vk) {
-      vk.overlaysContent = true;
-      useVK = true;
-    }
-  } catch (e) {}
-  /** @type {Array<() => void>} */
-  let kbDisposers = [];
+  /* ============ 键盘贴合：地址栏贴键盘，无跳动（2.4.0 D：统一走 vk.js） ============ */
+  /** @type {(() => void)|null} */ let kbCleanup = null;
   function stickKb() {
-    if (useVK) {
-      document.documentElement.classList.add('sgx-vk');
-      /** @param {any} e */
-      const onGeo = function (e) {
-        let h = 0;
-        try {
-          h = (e.target && e.target.boundingRect && e.target.boundingRect.height) || 0;
-        } catch (_) {}
-        h = Math.max(0, h);
-        document.documentElement.style.setProperty('--sgx-kb', Math.round(h) + 'px');
-      };
-      try {
-        /** @type {any} */ (navigator).virtualKeyboard.addEventListener('geometrychange', onGeo);
-      } catch (e) {}
-      kbDisposers.push(function () {
-        try {
-          /** @type {any} */ (navigator).virtualKeyboard.removeEventListener('geometrychange', onGeo);
-        } catch (e) {}
-      });
-      return;
-    }
-    if (!vv) return;
-    overlay.classList.add('sgx-kb-sync');
-    let raf = 0;
-    function upd() {
-      raf = 0;
-      const h = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-      document.documentElement.style.setProperty('--sgx-kb', h + 'px');
-    }
-    function sched() {
-      if (!raf) raf = requestAnimationFrame(upd);
-    }
-    kbDisposers.push(on(vv, 'resize', sched), on(vv, 'scroll', sched));
-    upd();
+    unstickKb();
+    kbCleanup = onKeyboardHeight(function (h) {
+      document.documentElement.style.setProperty('--sgx-kb', Math.round(h) + 'px');
+    }, overlay);
   }
   function unstickKb() {
     document.documentElement.classList.remove('sgx-vk');
     overlay.classList.remove('sgx-kb-sync');
-    kbDisposers.forEach(function (d) {
-      d();
-    });
-    kbDisposers = [];
+    if (kbCleanup) {
+      kbCleanup();
+      kbCleanup = null;
+    }
     document.documentElement.style.setProperty('--sgx-kb', '0px');
   }
 

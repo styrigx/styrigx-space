@@ -1,6 +1,7 @@
 /**
- * @fileoverview 语音输入弹窗（替代旧 window.__sgxVoiceSheet）。
- * 点麦克风后全屏遮罩 + 底部语音卡片；识别中实时显示 interim 文字。
+ * @fileoverview 语音输入弹窗（2.4.0 D：<dialog> 实现）。
+ * 点麦克风后 showModal() + 底部语音卡片；识别中实时显示 interim 文字。
+ * 原生 ::backdrop 做遮罩、Esc 关闭、焦点陷阱。
  */
 import { on } from './events.js';
 import { loadI18n } from './i18n.js';
@@ -31,12 +32,11 @@ export function voiceSheet(opts) {
     const _ae = /** @type {HTMLElement|null} */ (document.activeElement);
   if (_ae && _ae.blur) _ae.blur();
   } catch (e) {}
-  const ov = document.createElement('div');
-  ov.className = 'sgx-vs-ov';
-  ov.innerHTML =
-    '<div class="sgx-vs-card" role="dialog" aria-modal="true" aria-label="' +
-    T.t('vsAria') +
-    '">' +
+  const dlg = document.createElement('dialog');
+  dlg.className = 'sgx-vs-dlg';
+  dlg.setAttribute('aria-label', T.t('vsAria'));
+  dlg.innerHTML =
+    '<div class="sgx-vs-card">' +
     '<div class="sgx-vs-tx"><div class="sgx-vs-l1"></div><div class="sgx-vs-l2"></div></div>' +
     '<button type="button" class="sgx-vs-btn" aria-label="' +
     T.t('vsAria') +
@@ -44,13 +44,13 @@ export function voiceSheet(opts) {
     '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-5a3.5 3.5 0 1 0-7 0v5A3.5 3.5 0 0 0 12 15zm6-3.5a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.94V22h2v-2.06A8 8 0 0 0 20 11.5h-2z"/></svg>' +
     '</button>' +
     '</div>';
-  const card = /** @type {HTMLElement} */ (ov.firstChild);
+  const card = /** @type {HTMLElement} */ (dlg.firstChild);
   const l1 = /** @type {HTMLElement} */ (card.querySelector('.sgx-vs-l1'));
   const l2 = /** @type {HTMLElement} */ (card.querySelector('.sgx-vs-l2'));
   const btn = /** @type {HTMLElement} */ (card.querySelector('.sgx-vs-btn'));
   l1.textContent = T.t('vsSpeak');
   l2.textContent = T.t('vsLang');
-  document.body.appendChild(ov);
+  document.body.appendChild(dlg);
 
   /** @type {any} */
   let rec = null;
@@ -72,10 +72,15 @@ export function voiceSheet(opts) {
       d();
     });
     vsOpen = false;
-    if (ov.parentNode) ov.parentNode.removeChild(ov);
+    if (dlg.open) {
+      try {
+        dlg.close();
+      } catch (e) {}
+    }
+    if (dlg.parentNode) dlg.parentNode.removeChild(dlg);
   }
   function hide() {
-    ov.classList.remove('show');
+    dlg.classList.remove('show');
     window.setTimeout(teardown, reduced ? 0 : 280);
   }
   function cancel() {
@@ -89,13 +94,6 @@ export function voiceSheet(opts) {
       if (rec) rec.abort();
     } catch (e) {}
     hide();
-  }
-  /** @param {KeyboardEvent} e */
-  function onKey(e) {
-    if (e.key === 'Escape') {
-      e.stopPropagation();
-      cancel();
-    }
   }
   function start() {
     finished = false;
@@ -175,14 +173,25 @@ export function voiceSheet(opts) {
         start();
       }
     }),
-    on(ov, 'click', function (e) {
-      if (e.target === ov) cancel();
+    /* 点击 backdrop 关闭 */
+    on(dlg, 'click', function (e) {
+      if (e.target === dlg) cancel();
     }),
-    on(document, 'keydown', onKey, true)
+    /* Esc：原生 cancel 事件 */
+    on(dlg, 'cancel', function (/** @type {Event} */ e) {
+      e.preventDefault();
+      cancel();
+    })
   );
+  try {
+    dlg.showModal();
+  } catch (e) {
+    teardown();
+    return false;
+  }
   requestAnimationFrame(function () {
     requestAnimationFrame(function () {
-      ov.classList.add('show');
+      dlg.classList.add('show');
     });
   });
   start();

@@ -1,5 +1,7 @@
 /**
- * @fileoverview 通用 bottom sheet / 居中弹窗（替代旧 window.__openSheet/__closeSheet）。
+ * @fileoverview 通用 bottom sheet / 居中弹窗（2.4.0 D：<dialog> 实现）。
+ * 原生 showModal() 提供 ::backdrop、Esc 关闭、焦点陷阱；打开/关闭动画
+ * 用 CSS 过渡；手机下滑关闭保留手写。
  */
 import { on, delegate } from './events.js';
 
@@ -19,24 +21,31 @@ import { on, delegate } from './events.js';
  */
 
 let inited = false;
-/** @type {HTMLElement|null} */ let wrap = null;
+/** @type {HTMLDialogElement|null} */ let dlg = null;
 /** @type {HTMLElement|null} */ let panel = null;
 /** @type {HTMLElement|null} */ let titleEl = null;
 /** @type {HTMLElement|null} */ let bodyEl = null;
+/** @type {boolean} */ let closing = false;
 
 function ensure() {
   if (inited) return true;
-  wrap = document.getElementById('sheet-wrap');
+  dlg = /** @type {HTMLDialogElement|null} */ (document.getElementById('sheet-wrap'));
   panel = document.getElementById('sheet-panel');
   titleEl = document.getElementById('sheet-title');
   bodyEl = document.getElementById('sheet-body');
-  if (!wrap || !panel || !titleEl || !bodyEl) return false;
+  if (!dlg || !panel || !titleEl || !bodyEl) return false;
   inited = true;
-  delegate(wrap, 'click', '[data-sheet-close]', function () {
+  delegate(dlg, 'click', '[data-sheet-close]', function () {
     closeSheet();
   });
-  on(document, 'keydown', function (/** @type {KeyboardEvent} */ e) {
-    if (e.key === 'Escape' && wrap && !wrap.classList.contains('hidden')) closeSheet();
+  /* 点击 backdrop 关闭（dialog 原生只关 Esc，backdrop 点击需手写） */
+  on(dlg, 'click', function (/** @type {MouseEvent} */ e) {
+    if (e.target === dlg) closeSheet();
+  });
+  /* 原生 cancel（Esc）时走统一关闭动画 */
+  on(dlg, 'cancel', function (/** @type {Event} */ e) {
+    e.preventDefault();
+    closeSheet();
   });
   /* 手机下滑关闭 */
   /** @type {number|null} */
@@ -66,18 +75,19 @@ function ensure() {
 }
 
 /**
- * 关闭 bottom sheet。
+ * 关闭 bottom sheet（带退出动画）。
  */
 export function closeSheet() {
-  if (!ensure() || !wrap) return;
-  wrap.classList.remove('open');
-  wrap.classList.add('closing');
+  if (!ensure() || !dlg || !dlg.open || closing) return;
+  closing = true;
+  dlg.classList.add('sgx-closing');
   window.setTimeout(function () {
-    if (wrap && !wrap.classList.contains('open')) {
-      wrap.classList.remove('closing');
-      wrap.classList.add('hidden');
+    closing = false;
+    if (dlg) {
+      dlg.classList.remove('sgx-closing');
+      if (dlg.open) dlg.close();
     }
-  }, 260);
+  }, 240);
 }
 
 /**
@@ -85,12 +95,10 @@ export function closeSheet() {
  * @param {SheetOpts} opts
  */
 export function openSheet(opts) {
-  if (!ensure() || !wrap || !titleEl || !bodyEl) return;
+  if (!ensure() || !dlg || !titleEl || !bodyEl) return;
   opts = opts || {};
-  const w = wrap,
-    te = titleEl,
+  const te = titleEl,
     be = bodyEl;
-  w.classList.remove('closing');
   te.textContent = opts.title || '';
   te.style.display = opts.title ? '' : 'none';
   be.innerHTML = '';
@@ -118,10 +126,18 @@ export function openSheet(opts) {
       be.appendChild(b);
     });
   }
-  w.classList.remove('hidden');
+  if (!dlg.open) {
+    try {
+      dlg.showModal();
+    } catch (e) {
+      /* 已打开时 showModal 抛错，忽略 */
+    }
+  }
+  /* 触发进入动画 */
+  dlg.classList.remove('sgx-closing');
   requestAnimationFrame(function () {
     requestAnimationFrame(function () {
-      w.classList.add('open');
+      if (dlg) dlg.classList.add('sgx-open');
     });
   });
 }

@@ -7,8 +7,11 @@
  * @param {import('./scheduler.js').Scheduler} S
  */
 import { reducedMotion } from './util.js';
+import { applyAppHero } from './vt.js';
 
 export function initSubHead(S) {
+  /* 2.4.0 D：从主页图标进来的 View Transitions 共享元素 */
+  applyAppHero();
   /* 支持 view-timeline-name 时由 CSS 接管 */
   try {
     if (window.CSS && CSS.supports && CSS.supports('view-timeline-name', '--sgx-subhead')) return;

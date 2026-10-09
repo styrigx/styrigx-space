@@ -126,6 +126,10 @@ window.__firstTz=function(){
 window.__secondTz=function(){try{return localStorage.getItem('sgx-tz2')||'America/Los_Angeles'}catch(e){return'America/Los_Angeles'}};
 window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}catch(e){return false}};
 </script>
+{{/* 2.4.0 D：Speculation Rules —— 站内链接 hover 时 prerender（渐进增强，不支持则忽略） */}}
+<script type="speculationrules">
+{"prerender":[{"where":{"href_matches":"/*"},"eagerness":"moderate"}]}
+</script>
 </head>
 {{ $setUrl0 := "/settings/" }}{{ if $isEn }}{{ $setUrl0 = "/en/settings/" }}{{ end }}
 {{ $glUrl0 := "/goodlock/" }}{{ if $isEn }}{{ $glUrl0 = "/en/goodlock/" }}{{ end }}
@@ -147,8 +151,8 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
     <a id="nav-brand" href="{{ $home }}" class="flex items-center gap-2 font-bold text-[15px] shrink-0 whitespace-nowrap relative z-[1]">
       {{ $navAvatar := resources.Get "images/avatar.png" }}
       {{ if $navAvatar }}
-      {{ $navAvatarWebp := $navAvatar.Fill "56x56 webp" }}
-      <img src="{{ $navAvatarWebp.RelPermalink }}" alt="Styrigx" width="28" height="28" class="w-7 h-7 rounded-full object-cover ring-1 ring-m-outline">
+      {{ $navAvatarWebp := $navAvatar.Fill "56x56 webp" }}{{ $navAvatarAvif := $navAvatar.Fill "56x56 avif" }}
+      <img src="{{ $navAvatarWebp.RelPermalink }}" srcset="{{ $navAvatarAvif.RelPermalink }} 1x" alt="Styrigx" width="28" height="28" class="w-7 h-7 rounded-full object-cover ring-1 ring-m-outline">
       {{ else }}
       <span class="w-7 h-7 rounded-full bg-m-primary text-m-on-primary text-xs font-bold flex items-center justify-center">S</span>
       {{ end }}
@@ -184,15 +188,14 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 
 <!-- 全站搜索已并入 /browser/（旧 #search-modal 已删除） -->
 
-<!-- 通用 bottom sheet / 居中弹窗 -->
-<div id="sheet-wrap" class="fixed inset-0 z-[110] hidden">
-  <div class="absolute inset-0 bg-black/40" data-sheet-close></div>
+<!-- 通用 bottom sheet / 居中弹窗（2.4.0 D：<dialog>，原生 ::backdrop + 焦点管理） -->
+<dialog id="sheet-wrap" class="sgx-sheet" aria-labelledby="sheet-title">
   <div id="sheet-panel" class="overflow-hidden">
     <div class="sheet-handle" data-sheet-close></div>
     <p id="sheet-title" class="px-5 pt-2 pb-1 text-sm font-semibold text-m-on-surface-variant"></p>
     <div id="sheet-body" class="overflow-y-auto px-2 pb-4"></div>
   </div>
-</div>
+</dialog>
 
 {{/* 搜索索引 */}}
 {{ $entries := site.Data.entries.entries }}

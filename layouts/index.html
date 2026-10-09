@@ -70,8 +70,8 @@
     <!-- 名片 -->
     <div class="widget col-span-4 lg:col-span-5 bg-m-primary-container text-m-on-primary-container p-6 sm:p-7 flex items-center gap-5 animate-fade-up" style="animation-delay:.08s">
       {{ $avatar := resources.Get "images/avatar.png" }}
-      {{ if $avatar }}{{ $avatarWebp := $avatar.Fill "192x192 webp" }}
-      <img src="{{ $avatarWebp.RelPermalink }}" alt="Sloan Gray" width="96" height="96" class="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover ring-4 ring-white/40 shadow shrink-0">
+      {{ if $avatar }}{{ $avatarWebp := $avatar.Fill "192x192 webp" }}{{ $avatarAvif := $avatar.Fill "192x192 avif" }}
+      <img src="{{ $avatarWebp.RelPermalink }}" srcset="{{ $avatarAvif.RelPermalink }} 1x" alt="Sloan Gray" width="96" height="96" fetchpriority="high" class="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover ring-4 ring-white/40 shadow shrink-0">
       {{ else }}
       <div class="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-m-primary text-m-on-primary flex items-center justify-center text-3xl font-bold ring-4 ring-white/40 shadow shrink-0">S</div>
       {{ end }}
@@ -284,8 +284,8 @@
         <div class="cover-toggle relative w-full aspect-[3/4] rounded-[1.25rem] overflow-hidden shadow-md group-hover:shadow-xl group-hover:-translate-y-1.5 transition-all duration-300 bg-m-container focus:outline-none focus:ring-2 focus:ring-m-primary" tabindex="0" role="button" aria-label="{{ $b.title }}">
           {{ with $b.cover }}
           {{ $bimg := resources.Get . }}
-          {{ with $bimg }}{{ $b2x := .Fill "320x427 webp" }}{{/* 2.3.15 B8：显示最大 160px，2x 输出 */}}
-          <img src="{{ $b2x.RelPermalink }}" alt="{{ $b.title }}" loading="lazy" decoding="async" width="{{ $b2x.Width }}" height="{{ $b2x.Height }}" class="w-full h-full object-cover pointer-events-none">
+          {{ with $bimg }}{{ $b2x := .Fill "320x427 webp" }}{{ $b2xAvif := .Fill "320x427 avif" }}{{/* 2.3.15 B8：显示最大 160px，2x 输出；2.4.0 D：+ AVIF */}}
+          <img src="{{ $b2x.RelPermalink }}" srcset="{{ $b2xAvif.RelPermalink }} 1x" alt="{{ $b.title }}" loading="lazy" decoding="async" width="{{ $b2x.Width }}" height="{{ $b2x.Height }}" class="w-full h-full object-cover pointer-events-none">
           {{ else }}
           <img src="/{{ $b.cover }}" alt="{{ $b.title }}" loading="lazy" decoding="async" class="w-full h-full object-cover pointer-events-none">
           {{ end }}

@@ -6,6 +6,7 @@
 import { on } from './events.js';
 import { voiceSheet } from './voice-sheet.js';
 import { reducedMotion } from './util.js';
+import { onKeyboardHeight } from './vk.js';
 
 /**
  * @typedef {(page: string, q: string) => string} CapSearchProvider
@@ -37,20 +38,11 @@ export function initCapsule() {
       document.getElementById('sgx-cap-input-' + page)
     );
     const panel = /** @type {HTMLElement|null} */ (document.getElementById('sgx-cap-results-' + page));
+
     if (!cap || !input) return;
 
     let opened = false;
-    const vv = window.visualViewport;
     const kbMaxSeen = { v: 0 };
-    /* VirtualKeyboard API（Chrome）：键盘悬浮不顶页面，胶囊 bottom 直接跟 env(keyboard-inset-height) 走 */
-    let useVK = false;
-    try {
-      const vk = /** @type {any} */ (navigator).virtualKeyboard;
-      if (vk && 'overlaysContent' in vk) {
-        vk.overlaysContent = true;
-        useVK = true;
-      }
-    } catch (e) {}
 
     /* 按键盘高度更新：宽度按 键盘高度/最终高度 同步插值；--sgx-kb 供结果浮层用 */
     /** @param {number} h */
@@ -65,6 +57,11 @@ export function initCapsule() {
         : Math.max(0, vw - 32);
       cap.style.width = Math.round(baseW + (fullW - baseW) * p) + 'px';
       document.documentElement.style.setProperty('--sgx-kb', Math.round(h) + 'px');
+      /* 无 VK API 时手动把胶囊顶到键盘上方 */
+      if (!document.documentElement.classList.contains('sgx-vk')) {
+        const capRest = document.body.classList.contains('subpage') ? 12 : 88;
+        cap.style.transform = 'translateX(-50%) translateY(' + Math.round(capRest - 12 - h) + 'px)';
+      }
     }
 
     /** @type {Array<() => void>} */
@@ -74,44 +71,8 @@ export function initCapsule() {
       opened = true;
       cap.classList.add('open');
       if (panel) panel.hidden = false;
-      if (useVK) {
-        document.documentElement.classList.add('sgx-vk');
-        /** @param {any} e */
-        const onGeo = function (e) {
-          let h = 0;
-          try {
-            h = (e.target && e.target.boundingRect && e.target.boundingRect.height) || 0;
-          } catch (_) {}
-          kbUpdate(h);
-        };
-        try {
-          /** @type {any} */ (navigator).virtualKeyboard.addEventListener('geometrychange', onGeo);
-        } catch (e) {}
-        openDisposers.push(function () {
-          try {
-            /** @type {any} */ (navigator).virtualKeyboard.removeEventListener('geometrychange', onGeo);
-          } catch (e) {}
-        });
-        kbUpdate(0);
-      } else {
-        /* 无 VK API：visualViewport resize/scroll → rAF → transform 定位到 vv 底边 */
-        cap.classList.add('sgx-kb-sync');
-        let raf = 0;
-        const capRest = document.body.classList.contains('subpage') ? 12 : 88;
-        const upd = function () {
-          raf = 0;
-          const h = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
-          kbUpdate(h);
-          cap.style.transform = 'translateX(-50%) translateY(' + Math.round(capRest - 12 - h) + 'px)';
-        };
-        const sched = function () {
-          if (!raf) raf = requestAnimationFrame(upd);
-        };
-        if (vv) {
-          openDisposers.push(on(vv, 'resize', sched), on(vv, 'scroll', sched));
-        }
-        upd();
-      }
+      /* 2.4.0 D：键盘高度统一走 vk.js（VirtualKeyboard API / visualViewport 回退） */
+      openDisposers.push(onKeyboardHeight(kbUpdate, cap));
       doSearch();
     }
     function close() {
