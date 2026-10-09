@@ -313,4 +313,40 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
     }
   });
+
+  test('注册后 owner-status.passkey 立即为 true，删光后为 false', async ({ page, request }) => {
+    /* 回归：owner-status 读旧数组，注册后仍为 false；现读索引 key */
+    const { cdp, authenticatorId } = await addVirtualAuth(page);
+    try {
+      await gateWithKey(page);
+      // 注册前：应为 false
+      let st = await (await request.get(BASE + '/api/owner-status')).json();
+      expect(st.ok).toBe(true);
+      const before = st.passkey;
+
+      await page.click('#lockmgr-pkadd');
+      await expect(page.locator('.lockmgr-pkitem').first()).toBeVisible({ timeout: 20000 });
+
+      // 注册后：立即为 true（不等待 KV list 同步）
+      st = await (await request.get(BASE + '/api/owner-status')).json();
+      expect(st.passkey).toBe(true);
+
+      // 删光
+      const token = await page.evaluate(() => sessionStorage.getItem('sgx-lockmgr-token'));
+      const list = await (await request.post(BASE + '/api/owner-passkey', {
+        data: { action: 'list', token },
+      })).json();
+      for (const k of list.keys) {
+        await request.post(BASE + '/api/owner-passkey', {
+          data: { action: 'delete', token, credId: k.credId },
+        });
+      }
+
+      // 删光后：为 false
+      st = await (await request.get(BASE + '/api/owner-status')).json();
+      expect(st.passkey).toBe(false);
+    } finally {
+      await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
+    }
+  });
 });

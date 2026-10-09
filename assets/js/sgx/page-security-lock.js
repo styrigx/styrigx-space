@@ -694,10 +694,12 @@ import { toast } from './toast.js';
           });
           const meta = document.createElement('span');
           meta.className = 'lockmgr-pkdate';
-          /* 副标题：创建于 + 最近使用 */
+          /* 副标题：provider + 创建于 + 最近使用（lastUsedAt 为 0 显示“尚未使用”） */
           let metaText = '创建于 ' + fmtDate(k.createdAt);
           if (k.lastUsedAt) {
             metaText += ' · 最近使用 ' + fmtDate(k.lastUsedAt);
+          } else {
+            metaText += ' · ' + t('pkNeverUsed');
           }
           /* provider 显示（如果有） */
           if (k.provider) {
