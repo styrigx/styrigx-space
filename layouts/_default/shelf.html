@@ -21,7 +21,7 @@
   {{ partial "subpage-head.html" (dict "title" .Title "isEn" $isEn) }}
   </div>
   <!-- 封面网格：手机 2 列 / 平板 3–4 列 / DeX 5–6 列 -->
-  <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6 gap-4 sm:gap-5 pb-16">
+  <div class="shelf-grid grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6 gap-4 sm:gap-5 pb-16">
     {{ range $items }}
     <figure class="shelf-card group min-w-0" data-title="{{ .title }}" data-comment="{{ .comment }}" data-url="{{ .url }}"{{ with .spotify_id }} data-spotify="{{ . }}"{{ end }}{{ with .youtube_id }} data-youtube="{{ . }}"{{ end }}>
       <div class="shelf-cover relative overflow-hidden rounded-[1.4rem] border border-m-outline bg-m-container shadow-sm cursor-pointer" tabindex="0" role="button" aria-label="{{ .title }}">

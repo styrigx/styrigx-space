@@ -28,7 +28,7 @@ jobs:
         run: npm install
 
       - name: Build CSS
-        run: npx tailwindcss -i assets/css/input.css -o assets/css/main.css --minify
+        run: node scripts/build-css.cjs --minify
 
       - name: Fetch music previews
         run: node scripts/music-previews.mjs

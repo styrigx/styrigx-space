@@ -151,9 +151,14 @@ window.__sgxScroll=(function(){
     kick:sched
   };
 })();
-/* 2.4.0 A：顶部边缘渐进模糊只在滚动后出现（y>24 显示，CSS 控制显隐/模糊） */
+/* 2.4.0 A：顶部边缘渐进模糊只在滚动后出现（y>24 显示）。
+   2.4.0 B：支持 animation-timeline:scroll() 时由 CSS scroll-driven animation 接管，
+   下面这套 JS 类切换只在不支持的浏览器启用。 */
 (function(){
   var b=document.body;
+  try{
+    if(window.CSS&&CSS.supports&&CSS.supports('animation-timeline','scroll()'))return;
+  }catch(e){}
   function onY(y){b.classList.toggle('sgx-scrolled',y>24);}
   window.__sgxScroll.onScroll(onY);
   onY(window.scrollY||0);
