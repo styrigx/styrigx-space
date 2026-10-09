@@ -73,6 +73,21 @@
   </div>
 </div>
 
+<!-- 通行密钥命名弹层 -->
+<dialog id="lockpkname-dlg" class="sgx-verify-dlg" aria-labelledby="lockpkname-title">
+  <div class="sgx-verify-card">
+    <div class="sheet-handle" data-pclose></div>
+    <h2 id="lockpkname-title" class="sgx-verify-title">{{ if $isEn }}Name this passkey{{ else }}为这把通行密钥命名{{ end }}</h2>
+    <p class="sgx-verify-desc">{{ if $isEn }}Give it a name so you can tell your passkeys apart.{{ else }}起个名字，方便区分多把通行密钥。{{ end }}</p>
+    <input id="lockpkname-input" type="text" maxlength="40" class="sgx-verify-input" autocomplete="off" />
+    <div class="sgx-verify-actions">
+      <button type="button" class="sgx-verify-btn ghost" id="lockpkname-skip">{{ if $isEn }}Skip{{ else }}跳过{{ end }}</button>
+      <button type="button" class="sgx-verify-btn primary" id="lockpkname-save">{{ if $isEn }}Save{{ else }}保存{{ end }}</button>
+    </div>
+    <p class="sgx-verify-err" id="lockpkname-err" hidden></p>
+  </div>
+</dialog>
+
 <!-- 密码设置/修改弹层 -->
 <dialog id="lockpw-dlg" class="sgx-verify-dlg" aria-labelledby="lockpw-title">
   <div class="sgx-verify-card">
@@ -120,6 +135,7 @@
   "pkUnnamed" (dict "zh" "通行密钥" "en" "Passkey")
   "pkDel" (dict "zh" "删除" "en" "Delete")
   "pkDelAsk" (dict "zh" "再点一次删除" "en" "Tap again to delete")
+  "pkNameEmpty" (dict "zh" "名字不能为空" "en" "Name cannot be empty")
   "pkAlready" (dict "zh" "此设备已注册过" "en" "Already registered on this device")
   "pkNoSupport" (dict "zh" "设备不支持" "en" "Not supported on this device")
   "pkFailed" (dict "zh" "注册失败" "en" "Registration failed")
