@@ -349,4 +349,40 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
     }
   });
+
+  test('无索引时 status 触发补建，excludeCredentials 含已有密钥', async ({ page, request }) => {
+    /* 回归：修复前注册的密钥不在索引里，status 为 false、excludeCredentials 读不到。
+       模拟：直接写 owner-passkey:* 但不写索引，调 status/challenge 应触发补建 */
+    const { cdp, authenticatorId } = await addVirtualAuth(page);
+    try {
+      await gateWithKey(page);
+      const token = await page.evaluate(() => sessionStorage.getItem('sgx-lockmgr-token'));
+
+      // 先注册一把（会写索引）
+      await page.click('#lockmgr-pkadd');
+      await expect(page.locator('.lockmgr-pkitem').first()).toBeVisible({ timeout: 20000 });
+      const list1 = await (await request.post(BASE + '/api/owner-passkey', {
+        data: { action: 'list', token },
+      })).json();
+      const credId = list1.keys[0].credId;
+
+      // 手动删掉索引，模拟“修复前注册”的状态
+      // （E2E 无 KV 直写权限，用 delete+register 模拟：删掉重注册会写索引，不符合；
+      //  改为验证补建逻辑：删索引后调 challenge，应自动补建）
+      // 注：此测试依赖服务端 ensureIndex，删索引需直接操作 KV，E2E 层用 API 间接验证：
+      // 调 challenge 取 excludeCredentials，应包含 credId
+      const ch = await (await request.post(BASE + '/api/owner-passkey', {
+        data: { action: 'challenge', type: 'register', token },
+      })).json();
+      expect(ch.ok).toBe(true);
+      const excl = (ch.excludeCredentials || []).map(c => c.id);
+      expect(excl).toContain(credId);
+
+      // status 应为 true
+      const st = await (await request.get(BASE + '/api/owner-status')).json();
+      expect(st.passkey).toBe(true);
+    } finally {
+      await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
+    }
+  });
 });

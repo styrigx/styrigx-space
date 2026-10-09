@@ -281,21 +281,50 @@ function checkAssertAuthData(authData, rpIdHash) {
  * 获取所有通行密钥（新结构：每把一个 key）。
  * @param {any} kv
  */
-async function getPasskeys(kv) {
+/**
+ * 确保 owner-passkey-index 存在；不存在时用 kv.list 一次性补建。
+ * 在 owner-status、challenge、list 入口调用。
+ * @param {any} kv
+ * @returns {Promise<string[]>} credId 数组
+ */
+async function ensureIndex(kv) {
+  try {
+    let idx = await kv.get('owner-passkey-index', 'json');
+    if (Array.isArray(idx)) return idx;
+  } catch (e) {}
+  /* 索引不存在：一次性补建 */
+  const idx = [];
   try {
     const list = await kv.list({ prefix: 'owner-passkey:' });
-    const keys = [];
     for (const k of list.keys || []) {
       try {
         const v = await kv.get(k.name, 'json');
-        if (v && v.credId) keys.push(v);
+        if (v && v.credId && !idx.includes(v.credId)) idx.push(v.credId);
+      } catch (e2) {}
+    }
+    await kv.put('owner-passkey-index', JSON.stringify(idx));
+  } catch (e3) {}
+  return idx;
+}
+
+async function getPasskeys(kv) {
+  try {
+    /* 按索引读，不走 kv.list（避开最终一致延迟） */
+    const idx = await ensureIndex(kv);
+    const keys = [];
+    for (const credId of idx) {
+      try {
+        const keyName = 'owner-passkey:' + String(credId).slice(0, 12);
+        const v = await kv.get(keyName, 'json');
+        if (v && v.credId === credId) keys.push(v);
       } catch (e) {}
     }
-    /* 一次性迁移：旧数组结构 → 新结构 */
+    /* 一次性迁移：旧数组结构 → 新结构（含索引补建） */
     if (keys.length === 0) {
       try {
         const old = await kv.get('owner-passkeys', 'json');
         if (Array.isArray(old) && old.length > 0) {
+          const newIdx = [];
           for (const item of old) {
             if (item && item.credId) {
               const migrated = {
@@ -314,8 +343,10 @@ async function getPasskeys(kv) {
                 metadata: { name: migrated.name, provider: migrated.provider, createdAt: migrated.createdAt },
               });
               keys.push(migrated);
+              newIdx.push(item.credId);
             }
           }
+          await kv.put('owner-passkey-index', JSON.stringify(newIdx));
           await kv.delete('owner-passkeys');
         }
       } catch (e) {}
@@ -477,10 +508,9 @@ async function handlePost(context) {
         id: RP_ID,
         name: 'Styrigx',
       };
-      /* excludeCredentials：防重复注册（读索引，不走 kv.list） */
-      let idx = [];
-      try { idx = await kv.get('owner-passkey-index', 'json') || []; } catch (e) {}
-      resp.excludeCredentials = (Array.isArray(idx) ? idx : []).map(function (cid) {
+      /* excludeCredentials：防重复注册（ensureIndex，不存在时一次性补建） */
+      const idx = await ensureIndex(kv);
+      resp.excludeCredentials = idx.map(function (cid) {
         return { id: cid, type: 'public-key' };
       });
     }
