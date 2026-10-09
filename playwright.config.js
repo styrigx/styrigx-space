@@ -8,8 +8,8 @@ module.exports = defineConfig({
   snapshotDir: './tests/visual',
   expect: {
     toHaveScreenshot: {
-      /* CI 与本地字体渲染差异容忍：5% 像素可不同 */
-      maxDiffPixelRatio: 0.05,
+      /* 允许微小渲染差异（字体抗锯齿等）；CI 设 continue-on-error，仅报告 */
+      maxDiffPixels: 120,
     },
   },
   webServer: {
