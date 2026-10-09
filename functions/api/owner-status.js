@@ -18,8 +18,22 @@ export async function onRequestGet(context) {
         password = !!(pw && pw.hash);
       } catch (e) {}
       try {
-        const idx = await kv.get('owner-passkey-index', 'json');
-        passkey = !!(Array.isArray(idx) && idx.length);
+        /* 读索引；不存在时用 kv.list 一次性补建（与 owner-passkey.js 的 ensureIndex 同逻辑） */
+        let idx = await kv.get('owner-passkey-index', 'json');
+        if (!Array.isArray(idx)) {
+          idx = [];
+          try {
+            const list = await kv.list({ prefix: 'owner-passkey:' });
+            for (const k of list.keys || []) {
+              try {
+                const v = await kv.get(k.name, 'json');
+                if (v && v.credId && !idx.includes(v.credId)) idx.push(v.credId);
+              } catch (e2) {}
+            }
+            await kv.put('owner-passkey-index', JSON.stringify(idx));
+          } catch (e3) {}
+        }
+        passkey = idx.length > 0;
       } catch (e) {}
     }
     return Response.json({ ok: true, password: password, passkey: passkey });
