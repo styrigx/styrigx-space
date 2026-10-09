@@ -8,7 +8,8 @@
  * 注意：这些测试需要锁屏启用的构建（生产构建）；CI 的 visual/Lighthouse
  * 用 SGX_TEST_NO_LOCK=1 的构建，两者分离。
  */
-const { test, expect } = require('@playwright/test');
+const { test } = require('@playwright/test');
+const { blockExternalRequests, freezeTime, expect } = require('./helpers');
 
 /* Hark：CI 里 networkidle 可能永远等不到（锁屏页请求外部资源：天气、Turnstile），
    改用 domcontentloaded + 等锁屏元素出现，不再依赖网络空闲 */
@@ -17,24 +18,13 @@ async function gotoLock(page) {
   await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
 }
 
-/* Hark：冻结时间 + 遮罩动态内容（时钟、日期、天气） */
-async function freezeTime(page) {
-  await page.addInitScript(() => {
-    /* 冻结时间：2026-10-09 12:00:00 */
-    const frozen = new Date('2026-10-09T12:00:00+08:00').getTime();
-    const RealDate = Date;
-    // @ts-ignore
-    window.Date = class extends RealDate {
-      constructor(...args) {
-        if (args.length === 0) super(frozen);
-        else super(...args);
-      }
-      static now() { return frozen; }
-    };
-  });
-}
-
 test.describe('lock screen', () => {
+  /* Hark：每个测试先拦截外部请求（天气、Turnstile、字体/CDN），
+     /api/* mock 在测试体内注册，顺序靠后优先匹配 */
+  test.beforeEach(async ({ page }) => {
+    await blockExternalRequests(page);
+  });
+
   test('?lock=1 forces lock screen on any page', async ({ page }) => {
     await freezeTime(page);
     await gotoLock(page);

@@ -89,6 +89,11 @@ jobs:
           SGX_TEST_NO_LOCK: "1"
 
       - name: Visual regression
+        # Hark（2026-10-09）：临时仅报告、不阻塞。原因：现有 62 张基线不是在 CI
+        # 里生成的（字体渲染像素差），且接下来的 Dock/PC 布局改版会让它们全部失效。
+        # 恢复条件：改版完成后，在 CI 里重新生成基线并提交，然后去掉本 continue-on-error。
+        # 注意：不要再被别的提交 revert 掉本行（a8f4dffa 曾误删）。
+        continue-on-error: true
         run: npx playwright test --config=playwright.config.js
 
       - name: Lighthouse CI
