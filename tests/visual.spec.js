@@ -30,11 +30,12 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
         const name = `${vpName}-${lang.name}-${theme.name}${page.replace(/\//g, '_')}`;
         test(name, async ({ page: pg }) => {
           await pg.setViewportSize(vp);
-          /* 预置主题 + 冻结时间，避免动态内容导致截图不稳定 */
+          /* 预置主题 + 冻结时间 + 禁用锁屏，避免动态内容导致截图不稳定 */
           await pg.addInitScript((t) => {
             if (t === 'dark') {
               try { localStorage.setItem('sgx-theme-mode', 'dark'); } catch (e) {}
             }
+            try { sessionStorage.setItem('sgx-lock-shown', '1'); } catch (e) {}
             /* 冻结时间：2026-10-09 12:00:00 */
             const frozen = new Date('2026-10-09T12:00:00+08:00').getTime();
             const RealDate = Date;
@@ -66,6 +67,9 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
 /* F 基准 1：弹层打开（设置页日期时间弹层） */
 test('baseline-sheet-open', async ({ page: pg }) => {
   await pg.setViewportSize(VIEWPORTS.mobile);
+  await pg.addInitScript(() => {
+    try { sessionStorage.setItem('sgx-lock-shown', '1'); } catch (e) {}
+  });
   await pg.goto('/settings/', { waitUntil: 'networkidle' });
   await pg.waitForTimeout(1000);
   await pg.click('#row-datetime');
@@ -77,6 +81,9 @@ test('baseline-sheet-open', async ({ page: pg }) => {
 /* F 基准 2：引擎菜单打开（浏览器页搜索引擎菜单） */
 test('baseline-engine-menu', async ({ page: pg }) => {
   await pg.setViewportSize(VIEWPORTS.mobile);
+  await pg.addInitScript(() => {
+    try { sessionStorage.setItem('sgx-lock-shown', '1'); } catch (e) {}
+  });
   await pg.goto('/browser/', { waitUntil: 'networkidle' });
   await pg.waitForTimeout(1000);
   const btn = pg.locator('[data-engine-btn]').first();
