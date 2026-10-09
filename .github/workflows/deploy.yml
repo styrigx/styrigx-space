@@ -57,6 +57,28 @@ jobs:
         run: |
           SGX_TEST_SUITE=lock npx playwright test --config=playwright.config.js --grep "baseline screenshot"
 
+      - name: Lock flags test (LEGACY=false, OWNER_GATE=true)
+        # Hark：开关解耦真跑（对应构建），不用假 skip
+        run: |
+          SGX_TEST_LEGACY=0 hugo --minify
+          SGX_TEST_SUITE=lock SGX_TEST_FLAGS=legacy-off npx playwright test --config=playwright.config.js lock-flags.spec.js
+
+      - name: Lock flags test (both flags off)
+        # Hark：两个开关都关，锁屏完全不出现
+        run: |
+          SGX_TEST_LEGACY=0 SGX_TEST_OWNER_GATE=0 hugo --minify
+          SGX_TEST_SUITE=lock SGX_TEST_FLAGS=both-off npx playwright test --config=playwright.config.js lock-flags.spec.js
+
+      - name: Upload lock test artifacts on failure
+        # Hark：失败时上传，便于拿真实报错
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: lock-test-results
+          path: |
+            test-results/
+            playwright-report/
+
       - name: Rebuild for visual/Lighthouse (Hark：测试构建，锁屏禁用)
         # 视觉回归和 Lighthouse 用锁屏禁用的构建，避免锁屏干扰；
         # Turnstile 用 Cloudflare 官方测试 Key（sed 替换，不污染正式密钥）

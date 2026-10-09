@@ -10,6 +10,13 @@
  */
 const { test, expect } = require('@playwright/test');
 
+/* Hark：CI 里 networkidle 可能永远等不到（锁屏页请求外部资源：天气、Turnstile），
+   改用 domcontentloaded + 等锁屏元素出现，不再依赖网络空闲 */
+async function gotoLock(page) {
+  await page.goto('/?lock=1', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
+}
+
 /* Hark：冻结时间 + 遮罩动态内容（时钟、日期、天气） */
 async function freezeTime(page) {
   await page.addInitScript(() => {
@@ -30,10 +37,8 @@ async function freezeTime(page) {
 test.describe('lock screen', () => {
   test('?lock=1 forces lock screen on any page', async ({ page }) => {
     await freezeTime(page);
-    await page.goto('/?lock=1', { waitUntil: 'networkidle' });
-    await page.waitForTimeout(1000);
+    await gotoLock(page);
     const lock = page.locator('#sgx-lock');
-    await expect(lock).toBeVisible();
     /* 锁屏覆盖内容：主内容不可见/不可点 */
     const main = page.locator('main, #app-grid').first();
     if (await main.count()) {
@@ -46,8 +51,7 @@ test.describe('lock screen', () => {
   test('lock screen baseline screenshot', async ({ page }) => {
     await freezeTime(page);
     await page.setViewportSize({ width: 412, height: 915 });
-    await page.goto('/?lock=1', { waitUntil: 'networkidle' });
-    await page.waitForTimeout(1500);
+    await gotoLock(page);
     await page.emulateMedia({ reducedMotion: 'reduce' });
     /* Hark：遮罩时钟、日期（实时内容）；天气元素不存在则跳过 */
     const masks = [page.locator('#sgx-lock-clock'), page.locator('#sgx-lock-date')];
@@ -60,10 +64,8 @@ test.describe('lock screen', () => {
   test('avatar click opens verify dialog (local fallback)', async ({ page }) => {
     await freezeTime(page);
     /* localhost → 直接解锁（无 Turnstile），验证兜底路径 */
-    await page.goto('/?lock=1', { waitUntil: 'networkidle' });
-    await page.waitForTimeout(1000);
+    await gotoLock(page);
     await page.click('#sgx-lock-avatar');
-    await page.waitForTimeout(1000);
     /* 本地应直接解锁，锁屏消失 */
     const lock = page.locator('#sgx-lock');
     await expect(lock).toBeHidden({ timeout: 5000 });
@@ -76,12 +78,10 @@ test.describe('lock screen', () => {
 
   test('password link opens password dialog', async ({ page }) => {
     await freezeTime(page);
-    await page.goto('/?lock=1', { waitUntil: 'networkidle' });
-    await page.waitForTimeout(1000);
+    await gotoLock(page);
     const pwlink = page.locator('#sgx-lock-pwlink');
     await expect(pwlink).toBeVisible();
     await pwlink.click();
-    await page.waitForTimeout(600);
     const dlg = page.locator('.sgx-verify-dlg');
     await expect(dlg).toBeVisible();
     /* 密码框存在 */
@@ -105,18 +105,13 @@ test.describe('lock screen', () => {
         await route.continue();
       }
     });
-    await page.goto('/?lock=1', { waitUntil: 'networkidle' });
-    await page.waitForTimeout(1000);
+    await gotoLock(page);
     await page.click('#sgx-lock-pwlink');
-    await page.waitForTimeout(600);
     await page.fill('#sgx-pw-input', 'wrongpassword123');
     await page.click('#sgx-pw-go');
-    await page.waitForTimeout(1500);
     /* 应提示密码错误（mock 返回 wrong） */
     const err = page.locator('#sgx-pw-err');
-    await expect(err).toBeVisible();
-    const txt = await err.textContent();
-    expect(txt).toMatch(/密码错误|wrong/i);
+    await expect(err).toHaveText(/密码错误|wrong/i, { timeout: 10000 });
   });
 
   test('locked out after 5 wrong attempts (mocked API)', async ({ page }) => {
@@ -145,20 +140,16 @@ test.describe('lock screen', () => {
         await route.continue();
       }
     });
-    await page.goto('/?lock=1', { waitUntil: 'networkidle' });
-    await page.waitForTimeout(1000);
+    await gotoLock(page);
     await page.click('#sgx-lock-pwlink');
-    await page.waitForTimeout(600);
-    /* 连续 5 次错误 */
+    const err = page.locator('#sgx-pw-err');
+    /* 连续 5 次错误，每次等错误提示更新 */
     for (let i = 0; i < 5; i++) {
       await page.fill('#sgx-pw-input', 'wrong' + i);
       await page.click('#sgx-pw-go');
-      await page.waitForTimeout(800);
+      await expect(err).toBeVisible({ timeout: 10000 });
     }
     /* 应显示锁定提示 */
-    const err = page.locator('#sgx-pw-err');
-    await expect(err).toBeVisible();
-    const txt = await err.textContent();
-    expect(txt).toMatch(/30|锁定|locked|尝试次数过多|Too many/i);
+    await expect(err).toHaveText(/30|锁定|locked|尝试次数过多|Too many/i, { timeout: 10000 });
   });
 });

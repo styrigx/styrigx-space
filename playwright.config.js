@@ -22,5 +22,5 @@ module.exports = defineConfig({
   use: {
     baseURL: 'http://localhost:8931',
   },
-  reporter: [['list']],
+  reporter: [['list'], ['html', { open: 'never' }]],
 });
