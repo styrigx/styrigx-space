@@ -25,3 +25,4 @@ declare const SGX_FEAT_FILES_HOME: boolean;
 declare const SGX_FEAT_APPS_HIDDEN: boolean;
 declare const SGX_FEAT_WELL_TIP: boolean;
 declare const SGX_FEAT_LOCK_SCREEN: boolean;
+declare const SGX_FEAT_ENTRY_VERIFY: boolean;

@@ -4,6 +4,8 @@
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+{{/* 2.4.0 H：Turnstile 站点密钥（公开） */}}
+{{ with site.Params.turnstileSiteKey }}<meta name="sgx-turnstile" content="{{ . }}">{{ end }}
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#f5f8fa">
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#10151a">

@@ -38,6 +38,8 @@ params:
   description: 'Sloan Gray 的个人门户'
   since: 2020
   version: '2.4.0'
+  # 2.4.0 H：Turnstile 站点密钥（公开）
+  turnstileSiteKey: '0x4AAAAAAFSBhpWkAwZr1SMA'
 
 # 2.3.12：tdewolff HTML 压缩器与内联 JS 中的 < 冲突，禁用 HTML 压缩（CSS 已由 Tailwind 压缩）
 minify:

@@ -1791,6 +1791,37 @@
   }
   @keyframes sgx-lock-halo { 0%,100% { transform: scale(1); opacity: .55; } 50% { transform: scale(1.1); opacity: .95; } }
   .sgx-lock-name { font-size: 20px; font-weight: 700; color: var(--m-on-surface); }
+  /* 2.4.0 H：Turnstile 验证卡（<dialog>，One UI 密码界面式底部弹层） */
+  dialog.sgx-verify-dlg {
+    padding: 0; border: 0; background: transparent;
+    margin: 0; width: 100%; max-width: none; max-height: none;
+    position: fixed; inset: auto 0 0 0;
+    &::backdrop { background: rgba(0,0,0,.4); opacity: 0; transition: opacity .25s; }
+    &[open]::backdrop { opacity: 1; }
+  }
+  .sgx-verify-card {
+    background: var(--glass-tint); border: 1px solid var(--glass-edge);
+    border-radius: 1.75rem 1.75rem 0 0; padding: 8px 20px calc(20px + env(safe-area-inset-bottom,0px));
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    transform: translateY(102%); transition: transform .32s cubic-bezier(.22,1,.36,1);
+    dialog.sgx-verify-dlg[open] & { transform: none; }
+    .reduced-motion & { transition: none; }
+    &.sgx-shake { animation: sgx-shake .4s; }
+  }
+  @keyframes sgx-shake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-8px); }
+    40%, 80% { transform: translateX(8px); }
+  }
+  .sgx-verify-title { font-size: 18px; font-weight: 700; color: var(--m-on-surface); margin: 0; }
+  .sgx-verify-box { display: flex; justify-content: center; min-height: 65px; align-items: center; }
+  .sgx-verify-err { color: #ba1a1a; font-size: 14px; margin: 0; text-align: center; }
+  .dark .sgx-verify-err { color: #ffb4ab; }
+  .sgx-verify-fallback { color: var(--m-on-surface-variant); font-size: 14px; margin: 0 0 8px; }
+  .sgx-verify-skip {
+    background: var(--m-primary); color: var(--m-on-primary);
+    border: 0; border-radius: 999px; padding: 10px 24px; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
   /* 手机横屏：左半边时钟，右半边头像，都垂直居中 */
   @media (orientation:landscape) and (max-width:1023.5px) {
     .sgx-lock-clockwrap { top: 50%; left: 0; right: auto; width: 50%; }

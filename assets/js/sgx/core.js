@@ -15,6 +15,7 @@ import { initGoodLock } from './goodlock.js';
 import { initAppVisibility } from './appvis.js';
 import { initScrollFx } from './scrollfx.js';
 import { initDexBridge } from './layout.js';
+import { initLock } from './lock.js';
 import { on as featOn } from './features.js';
 import { toast } from './toast.js';
 import { openSheet, closeSheet } from './sheet.js';
@@ -71,6 +72,7 @@ export function initCore() {
   initAppVisibility();
   initScrollFx(S);
   initFeatSync();
+  initLock();
   engines.init();
 
   /* 跨脚本/模板桥接的最小公共 API */

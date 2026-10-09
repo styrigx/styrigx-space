@@ -1,10 +1,16 @@
 /**
- * @fileoverview 首页全屏锁屏（2.3.14）：纯 JS 生成（渐进增强）。
- * 关了 JS 或搜索引擎抓取时，首页原内容不受影响。只在首页执行。
+ * @fileoverview 全站锁屏 + Turnstile 入站验证（2.4.0 H）。
+ * - 每个标签页会话首次进站（任意页）先锁屏；通过后 sessionStorage 标记，本次访问不再出现。
+ * - 点头像（电脑回车/空格）→ 底部 dialog 验证卡（One UI 密码界面式）+ Turnstile；
+ *   通过 → 开锁动画 → 现有解锁流程；失败 → 红色提示 + 重试。
+ * - 兜底：Turnstile 脚本失败或 /api/verify 超时（8s）→ 允许直接解锁；
+ *   本地开发（localhost）跳过验证。
+ * - 2.4.0-G：SGX_FEAT_LOCK_SCREEN / SGX_FEAT_ENTRY_VERIFY 编译期可移除。
  */
 import { on } from './events.js';
 import { visibleInterval } from './scheduler.js';
 import { reducedMotion } from './util.js';
+import { get as featGet } from './features.js';
 
 const LOCK =
   '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
@@ -12,13 +18,10 @@ const UNLOCK =
   '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.9-1"/></svg>';
 
 /**
- * 初始化锁屏（非首页直接返回；2.4.0-G：SGX_FEAT_LOCK_SCREEN 编译期可移除）。
+ * 初始化锁屏（全站；2.4.0 H）。
  */
 export function initLock() {
   if (!SGX_FEAT_LOCK_SCREEN) return;
-  const p = location.pathname;
-  const isHome = p === '/' || p === '/en' || p === '/en/';
-  if (!isHome) return;
   const force = /(?:^|[?&])lock=1(?:&|$)/.test(location.search);
   let seen = false;
   try {
@@ -27,10 +30,14 @@ export function initLock() {
   if (seen && !force) return;
 
   const en = document.documentElement.lang === 'en';
+  const isLocal = /^(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
 
-  /* 天气：和顶栏同一数据来源（localStorage sgx-weather 缓存），取不到就不显示 */
+  /* 天气：和顶栏同一数据来源，取不到就不显示 */
   /** @returns {{icon: string, temp: string}|null} */
   function wxData() {
+    try {
+      if (!featGet('weather-show')) return null;
+    } catch (e) {}
     try {
       if (localStorage.getItem('sgx-weather-show') === '0') return null;
       const c = JSON.parse(localStorage.getItem('sgx-weather') || 'null');
@@ -75,7 +82,7 @@ export function initLock() {
       : '') +
     '</div></div>' +
     '<div class="sgx-lock-user"><button type="button" id="sgx-lock-avatar" aria-label="' +
-    (en ? 'Unlock' : '解锁进入首页') +
+    (en ? 'Unlock' : '解锁') +
     '">' +
     '<span class="sgx-lock-halo" aria-hidden="true"></span>' +
     (avatarSrc
@@ -100,7 +107,6 @@ export function initLock() {
         ? MON[d.getMonth()] + ' ' + d.getDate() + ', ' + WD[d.getDay()]
         : d.getMonth() + 1 + '月' + d.getDate() + '日 ' + WDZH[d.getDay()];
   }
-  /* 每分钟刷新；页面不可见时暂停 */
   const stopTick = visibleInterval(tick, 60000);
 
   let done = false;
@@ -133,11 +139,230 @@ export function initLock() {
       window.setTimeout(cleanup, 450);
     }
   }
+
+  /* ============ Turnstile 验证卡（2.4.0 H） ============ */
+  /** @type {HTMLDialogElement|null} */ let vdlg = null;
+  /** @type {any} */ let widgetId = null;
+  let verifyDone = false;
+
+  function siteKey() {
+    try {
+      const meta = document.querySelector('meta[name="sgx-turnstile"]');
+      if (meta) return meta.getAttribute('content') || '';
+    } catch (e) {}
+    return '';
+  }
+
+  function ensureDialog() {
+    if (vdlg) return vdlg;
+    const d = document.createElement('dialog');
+    d.className = 'sgx-verify-dlg';
+    d.setAttribute('aria-labelledby', 'sgx-verify-title');
+    d.innerHTML =
+      '<div class="sgx-verify-card">' +
+      '<div class="sheet-handle" data-vclose></div>' +
+      '<h2 id="sgx-verify-title" class="sgx-verify-title">' +
+      (en ? 'Verify to unlock' : '验证后解锁') +
+      '</h2>' +
+      '<div id="sgx-verify-box" class="sgx-verify-box"></div>' +
+      '<p id="sgx-verify-err" class="sgx-verify-err" hidden></p>' +
+      '</div>';
+    document.body.appendChild(d);
+    vdlg = /** @type {HTMLDialogElement} */ (d);
+    on(d, 'click', function (/** @type {MouseEvent} */ e) {
+      if (e.target === d) closeVerify();
+      const t = /** @type {Element|null} */ (e.target);
+      if (t && t.closest && t.closest('[data-vclose]')) closeVerify();
+    });
+    on(d, 'cancel', function (/** @type {Event} */ e) {
+      e.preventDefault();
+      closeVerify();
+    });
+    return vdlg;
+  }
+
+  function closeVerify() {
+    if (vdlg && vdlg.open) {
+      try { vdlg.close(); } catch (e) {}
+    }
+  }
+
+  function showError(msg) {
+    const err = document.getElementById('sgx-verify-err');
+    if (err) {
+      err.textContent = msg;
+      err.hidden = false;
+      if (!reducedMotion()) {
+        const card = vdlg && vdlg.querySelector('.sgx-verify-card');
+        if (card) {
+          card.classList.remove('sgx-shake');
+          void /** @type {HTMLElement} */ (card).offsetWidth;
+          card.classList.add('sgx-shake');
+        }
+      }
+    }
+  }
+
+  function loadTurnstile() {
+    return new Promise(function (resolve, reject) {
+      if (/** @type {any} */ (window).turnstile) {
+        resolve(true);
+        return;
+      }
+      const s = document.createElement('script');
+      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+      s.async = true;
+      s.defer = true;
+      const to = window.setTimeout(function () {
+        reject(new Error('timeout'));
+      }, 8000);
+      s.onload = function () {
+        window.clearTimeout(to);
+        resolve(true);
+      };
+      s.onerror = function () {
+        window.clearTimeout(to);
+        reject(new Error('load'));
+      };
+      document.head.appendChild(s);
+    });
+  }
+
+  function openVerify() {
+    if (verifyDone) {
+      unlock();
+      return;
+    }
+    if (isLocal) {
+      unlock();
+      return;
+    }
+    if (!SGX_FEAT_ENTRY_VERIFY) {
+      unlock();
+      return;
+    }
+    const dlg = ensureDialog();
+    const err = document.getElementById('sgx-verify-err');
+    if (err) err.hidden = true;
+    try { dlg.showModal(); } catch (e) { unlock(); return; }
+
+    const key = siteKey();
+    if (!key) {
+      closeVerify();
+      unlock();
+      return;
+    }
+
+    try {
+      const l = document.createElement('link');
+      l.rel = 'preconnect';
+      l.href = 'https://challenges.cloudflare.com';
+      document.head.appendChild(l);
+    } catch (e) {}
+
+    loadTurnstile().then(
+      function () {
+        const box = document.getElementById('sgx-verify-box');
+        if (!box || !(/** @type {any} */ (window).turnstile)) {
+          throw new Error('no-box');
+        }
+        box.innerHTML = '';
+        const theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+        widgetId = /** @type {any} */ (window).turnstile.render(box, {
+          sitekey: key,
+          action: 'sgx-entry',
+          theme: theme,
+          language: en ? 'en' : 'zh-CN',
+          callback: function (/** @type {string} */ token) {
+            submitToken(token);
+          },
+          'error-callback': function () {
+            showError(en ? 'Verification failed, please retry' : '验证失败，请重试');
+            resetWidget();
+          },
+          'expired-callback': function () {
+            showError(en ? 'Verification expired, please retry' : '验证已过期，请重试');
+            resetWidget();
+          },
+        });
+      },
+      function () {
+        const box = document.getElementById('sgx-verify-box');
+        if (box) {
+          box.innerHTML =
+            '<p class="sgx-verify-fallback">' +
+            (en ? 'Verification service unavailable' : '验证服务暂不可用') +
+            '</p><button type="button" class="sgx-verify-skip" id="sgx-verify-skip">' +
+            (en ? 'Unlock directly' : '直接解锁') +
+            '</button>';
+          const skip = document.getElementById('sgx-verify-skip');
+          if (skip) {
+            on(skip, 'click', function () {
+              closeVerify();
+              unlock();
+            });
+          }
+        }
+      }
+    );
+  }
+
+  function resetWidget() {
+    try {
+      if (widgetId !== null && /** @type {any} */ (window).turnstile) {
+        /** @type {any} */ (window).turnstile.reset(widgetId);
+      }
+    } catch (e) {}
+  }
+
+  /** @param {string} token */
+  function submitToken(token) {
+    const ctrl = new AbortController();
+    const to = window.setTimeout(function () {
+      ctrl.abort();
+    }, 8000);
+    fetch('/api/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: token }),
+      signal: ctrl.signal,
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        window.clearTimeout(to);
+        if (j && j.ok) {
+          verifyDone = true;
+          closeVerify();
+          unlock();
+        } else {
+          showError(en ? 'Verification failed, please retry' : '验证失败，请重试');
+          resetWidget();
+        }
+      })
+      .catch(function () {
+        window.clearTimeout(to);
+        showError(en ? 'Verification service unavailable' : '验证服务暂不可用');
+        const box = document.getElementById('sgx-verify-box');
+        if (box && !document.getElementById('sgx-verify-skip')) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'sgx-verify-skip';
+          b.id = 'sgx-verify-skip';
+          b.textContent = en ? 'Unlock directly' : '直接解锁';
+          on(b, 'click', function () {
+            closeVerify();
+            unlock();
+          });
+          box.appendChild(b);
+        }
+      });
+  }
+
   const av = document.getElementById('sgx-lock-avatar');
   if (av) {
     on(av, 'click', function (e) {
       e.stopPropagation();
-      unlock();
+      openVerify();
     });
     try {
       av.focus(/** @type {any} */ ({ preventScroll: true }));
@@ -147,14 +372,14 @@ export function initLock() {
       } catch (_) {}
     }
   }
-  /* 电脑上回车/空格解锁；锁屏上其他位置点击无反应 */
   on(document, 'keydown', function (/** @type {KeyboardEvent} */ e) {
     if (done || !document.getElementById('sgx-lock')) return;
     if (e.key === 'Enter' || e.key === ' ') {
       const t = /** @type {HTMLElement|null} */ (e.target);
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (vdlg && vdlg.open) return;
       e.preventDefault();
-      unlock();
+      openVerify();
     }
   });
 }

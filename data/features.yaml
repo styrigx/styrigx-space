@@ -344,3 +344,13 @@ features:
     key: null
     section: ""
     requires: []
+
+  - id: entry-verify
+    name: {zh: 入站人机验证, en: Entry verification}
+    build: true
+    user: false
+    type: bool
+    default: true
+    key: null
+    section: ""
+    requires: [lock-screen]
