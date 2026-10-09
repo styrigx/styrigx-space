@@ -143,15 +143,20 @@ test.describe('lock screen', () => {
     await gotoLock(page);
     await page.click('#sgx-lock-pwlink');
     const err = page.locator('#sgx-pw-err');
-    /* 连续 5 次错误：每次等当次请求的响应回来，避免循环跑赢 fetch */
+    /* 连续 5 次错误：每次等当次请求的响应回来，避免循环跑赢 fetch；
+       Hark：submitPw 收到"密码错误"会清 input.value，和下一轮 fill 竞争，
+       必须等响应回来再填下一次 */
     for (let i = 0; i < 5; i++) {
       await page.fill('#sgx-pw-input', 'wrong' + i);
       await Promise.all([
-        page.waitForResponse('**/api/owner-password', { timeout: 10000 }),
+        page.waitForResponse((r) => r.url().includes('/api/owner-password')),
         page.click('#sgx-pw-go'),
       ]);
+      if (i < 4) await expect(err).toHaveText(/密码错误|wrong/i);
     }
-    /* 应显示锁定提示 */
-    await expect(err).toHaveText(/30|锁定|locked|尝试次数过多|Too many/i, { timeout: 10000 });
+    expect(attempts).toBe(5);
+    /* 应显示锁定提示，且按钮被禁用 */
+    await expect(err).toHaveText(/尝试次数过多|Too many/i, { timeout: 10000 });
+    await expect(page.locator('#sgx-pw-go')).toBeDisabled();
   });
 });
