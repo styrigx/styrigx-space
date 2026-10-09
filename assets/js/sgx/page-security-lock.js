@@ -139,6 +139,12 @@ import { toast } from './toast.js';
   }
   function enterMgr() {
     closeGate();
+    /* 本页有独立验证门；进管理区时去掉全局锁屏遮罩，避免盖住按钮 */
+    try {
+      const gl = document.getElementById('sgx-lock');
+      if (gl) gl.remove();
+      document.body.classList.remove('sgx-locked');
+    } catch (e) {}
     $('lockmgr').hidden = false;
     refreshStatus();
     refreshPkList();

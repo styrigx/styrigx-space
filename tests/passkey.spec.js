@@ -20,13 +20,15 @@ test.describe('passkey e2e (virtual authenticator)', () => {
   async function addVirtualAuth(page) {
     const cdp = await page.context().newCDPSession(page);
     await cdp.send('WebAuthn.enable');
+    /* 注：hasUserVerification 必须为 false——CDP 虚拟认证器开 UV 时
+       navigator.credentials.create 会 NotAllowedError（无真实用户验证）。
+       服务端仍会如实记录 authData 中的 UV 位（此处为 0）。 */
     const { authenticatorId } = await cdp.send('WebAuthn.addVirtualAuthenticator', {
       options: {
         protocol: 'ctap2',
         transport: 'internal',
         hasResidentKey: true,
-        hasUserVerification: true,
-        isUserVerified: true,
+        hasUserVerification: false,
         automaticPresenceSimulation: true,
       },
     });
