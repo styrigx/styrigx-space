@@ -4,10 +4,8 @@
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-{{/* 2.4.0 H：Turnstile 站点密钥（公开）；CI 测试可用环境变量覆盖为官方测试 Key */}}
-{{ $tsKey := site.Params.turnstileSiteKey }}
-{{ with getenv "SGX_TEST_TURNSTILE_KEY" }}{{ $tsKey = . }}{{ end }}
-{{ with $tsKey }}<meta name="sgx-turnstile" content="{{ . }}">{{ end }}
+{{/* 2.4.0 H：Turnstile 站点密钥（公开） */}}
+{{ with site.Params.turnstileSiteKey }}<meta name="sgx-turnstile" content="{{ . }}">{{ end }}
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#f5f8fa">
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#10151a">
@@ -22,7 +20,8 @@
 <link rel="icon" href="/favicon-32x32.png" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="search" type="application/opensearchdescription+xml" title="Styrigx" href="/opensearch.xml">
-<link rel="stylesheet" href="{{ (resources.Get "css/main.css" | minify | fingerprint).RelPermalink }}">
+<link rel="stylesheet" href="{{ (resources.Get "css/main.css" | fingerprint).RelPermalink }}">
+{{/* 注意：main.css 已由 scripts/build-css.cjs 压缩，不再走 Hugo minify（tdewolff 不认 @view-transition） */}}
 <script>
 /* 用户偏好预读：在渲染前应用，避免闪烁 */
 (function(){

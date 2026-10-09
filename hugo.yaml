@@ -50,3 +50,5 @@ security:
   funcs:
     getenv:
       - '^SGX_TEST_'
+      - '^HUGO_'
+      - '^CI$'
