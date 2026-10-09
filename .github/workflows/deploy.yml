@@ -229,8 +229,10 @@ jobs:
             playwright-report/
 
   build-and-deploy:
-    # Hark：只有 main 的 push 才部署；PR 只跑 quality
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # 部署条件：(push 或 workflow_dispatch) 且 ref 是 main；其他分支手动触发不部署。
+    # 手动触发同样 needs: quality（先过 quality 和 guard，不跳过）。
+    # 不加任何传密钥值的 input，密钥只在 Cloudflare 后台改。
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: quality
     runs-on: ubuntu-latest
     steps:
