@@ -1,4 +1,5 @@
 {{ define "main" }}
+{{ .Scratch.Set "sgx-entry" "entry-shelf.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 {{ $kind := .Params.shelf }}{{/* books | music */}}
 {{ $items := slice }}
@@ -17,7 +18,7 @@
     {{ $items = $items | append (dict "title" $m.title "sub" ($m.artist | default "") "cover" $cp "coverw" $cw "coverh" $ch "comment" ($m.comment | default "") "url" ($m.url | default "") "spotify_id" ($m.spotify_id | default "") "youtube_id" ($m.youtube_id | default "")) }}
   {{ end }}
 {{ end }}
-<div class="max-w-[1200px] mx-auto px-4">
+<div class="max-w-[1200px] mx-auto px-4" data-shelf="{{ $kind }}">
   {{ partial "subpage-head.html" (dict "title" .Title "isEn" $isEn) }}
   </div>
   <!-- 封面网格：手机 2 列 / 平板 3–4 列 / DeX 5–6 列 -->
@@ -43,6 +44,10 @@
     {{ end }}
   </div>
 </div>
-{{ $j := resources.Get "js/sgx-page-shelf.js" | resources.ExecuteAsTemplate "js/sgx-page-shelf.js" (dict "kind" $kind) | minify | fingerprint }}
-<script src="{{ $j.RelPermalink }}" defer></script>
+{{/* 2.4.0-C：书架页文案（中英双语）；脚本走 ES Module 入口 entry-shelf.js */}}
+{{ $shelfI18n := dict
+  "openLink" (dict "zh" "打开链接" "en" "Open link")
+  "ytFull" (dict "zh" "YouTube 完整版" "en" "YouTube full version")
+}}
+<script id="sgx-i18n-shelf" type="application/json">{{ $shelfI18n | jsonify | safeJS }}</script>
 {{ end }}

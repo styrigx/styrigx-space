@@ -1,4 +1,5 @@
 {{ define "main" }}
+{{ .Scratch.Set "sgx-entry" "entry-store.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 {{ $apps := site.Data.apps }}{{ if $isEn }}{{ $apps = site.Data.en.apps }}{{ end }}
 
@@ -55,120 +56,7 @@
   "placeholder" (cond $isEn "Search apps" "搜索应用")
   "panel" false) }}
 
-<script>
-/* 胶囊输入 → 2.3.11 的就地过滤 */
-window.__sgxCapSearch=function(pg,q){
-  if(pg!=='store')return '';
-  var inp=document.getElementById('sgx-cap-input-store');
-  window.__storeQ=q||'';
-  if(typeof window.__storeApply==='function')window.__storeApply();
-  var list=document.getElementById('store-list');
-  if(list){list.classList.remove('sgx-fade');void list.offsetWidth;list.classList.add('sgx-fade')}
-  return '';
-};
-</script>
+{{/* 2.4.0-C：胶囊就地过滤已移入 ES Module（sgx/page-store.js），此处不再内联 */}}
 
-<script>
-(function(){
-  var en=document.documentElement.lang==='en';
-  function $(id){return document.getElementById(id)}
-  function get(k,d){try{var v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}}
-  function set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
-  function reduced(){return document.documentElement.classList.contains('reduced-motion')}
-
-  var rows=Array.prototype.slice.call(document.querySelectorAll('#store-list .store-row'));
-  var cur='all';
-
-  /* ---------- sgx-apps-hidden（JSON 数组，存应用 id） ---------- */
-  function hiddenList(){var h=get('sgx-apps-hidden',[]);return Array.isArray(h)?h:[]}
-  function isInstalled(id){return hiddenList().indexOf(id)<0}
-  function setInstalled(id,on){
-    var h=hiddenList();
-    if(on){h=h.filter(function(x){return x!==id})}
-    else if(h.indexOf(id)<0){h.push(id)}
-    set('sgx-apps-hidden',h);
-    window.dispatchEvent(new Event('sgx-settings-changed'));
-  }
-
-  /* ---------- 行状态绘制 ---------- */
-  function paintRow(row){
-    var id=row.getAttribute('data-id'),on=isInstalled(id);
-    var open=row.querySelector('.store-open'),inst=row.querySelector('.store-install'),sw=row.querySelector('.switch');
-    if(open)open.classList.toggle('hidden',!on);
-    if(inst)inst.classList.toggle('hidden',on);
-    if(sw)sw.setAttribute('aria-checked',on?'true':'false');
-    return on;
-  }
-
-  /* ---------- 分类芯片 + 搜索过滤（2.3.11） ---------- */
-  window.__storeQ='';
-  function applyFilters(){
-    var q=(window.__storeQ||'').trim().toLowerCase();
-    var shown=0;
-    rows.forEach(function(row){
-      var on=paintRow(row);
-      var cat=row.getAttribute('data-cat');
-      var ok=true;
-      if(cur==='installed')ok=on;
-      else if(cur==='uninstalled')ok=!on;
-      else if(cur!=='all')ok=(cat===cur);
-      if(ok&&q){
-        var hay=(row.getAttribute('data-name')+' '+row.getAttribute('data-desc')).toLowerCase();
-        ok=hay.indexOf(q)>=0;
-      }
-      row.classList.toggle('hidden',!ok);
-      if(ok)shown++;
-    });
-    var empty=$('store-empty');
-    if(empty)empty.classList.toggle('hidden',shown>0);
-  }
-  window.__storeApply=applyFilters;
-
-  var chips=Array.prototype.slice.call(document.querySelectorAll('#store-chips .store-chip'));
-  chips.forEach(function(c){
-    c.addEventListener('click',function(){
-      cur=c.getAttribute('data-cat');
-      chips.forEach(function(x){
-        var on=x===c;
-        x.classList.toggle('bg-m-primary',on);
-        x.classList.toggle('border-m-primary',on);
-        x.classList.toggle('text-m-on-primary',on);
-        x.classList.toggle('border-m-outline',!on);
-        x.classList.toggle('text-m-on-surface-variant',!on);
-      });
-      applyFilters();
-    });
-  });
-
-  /* ---------- 开关 + 安装按钮 ---------- */
-  rows.forEach(function(row){
-    var id=row.getAttribute('data-id');
-    var sw=row.querySelector('.switch'),inst=row.querySelector('.store-install');
-    function toggle(){setInstalled(id,!isInstalled(id));applyFilters()}
-    if(sw){
-      sw.setAttribute('tabindex','0');
-      sw.addEventListener('click',function(e){e.stopPropagation();toggle()});
-      sw.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle()}});
-    }
-    if(inst)inst.addEventListener('click',function(){setInstalled(id,true);applyFilters()});
-  });
-
-  /* ---------- 锚点定位 #app-xxx：高亮 1 秒 ---------- */
-  function anchorJump(){
-    var h=(location.hash||'').replace(/^#/,'');
-    if(h.indexOf('app-')!==0)return;
-    var el=document.getElementById(h);
-    if(!el)return;
-    el.scrollIntoView({block:'center',behavior:reduced()?'auto':'smooth'});
-    el.classList.add('set-hl');
-    setTimeout(function(){el.classList.remove('set-hl')},1100);
-  }
-  window.addEventListener('hashchange',anchorJump);
-
-  /* ---------- 初始化 ---------- */
-  rows.forEach(paintRow);
-  applyFilters();
-  anchorJump();
-})();
-</script>
+{{/* 2.4.0-C：商店逻辑已移入 ES Module 入口 entry-store.js */}}
 {{ end }}

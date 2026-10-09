@@ -3,9 +3,9 @@
    聚焦时拉满宽、贴着键盘顶部同步往上走（整页不动，无跳动）；
    收起键盘时同步落回、缩回原宽度。搜索结果和范围跟 2.3.11 完全一样，只是显示时加淡入。
    参数：page（"store"/"files"/"settings"）、isEn、placeholder、panel（是否需要结果浮层）。
-   各页定义 window.__sgxCapSearch(page, q) 返回结果 HTML（store 页返回 '' 表示就地过滤）。 */}}
+   2.4.0-C：各页通过 setCapSearchProvider(page, q) 注册搜索回调（sgx/capsule.js），store 页返回 '' 表示就地过滤。 */}}
 {{ $page := .page }}{{ $isEn := .isEn }}{{ $ph := .placeholder }}{{ $panel := .panel | default true }}
-{{ partial "sgx-voice-sheet.html" . }}
+{{/* 2.4.0-C：语音弹窗随 ES Module 入口加载，不再单独输出 */}}
 <div id="sgx-cap-{{ $page }}" class="sgx-cap" role="search">
   <svg class="sgx-cap-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
   <input id="sgx-cap-input-{{ $page }}" type="search" autocomplete="off" enterkeyhint="search" placeholder="{{ $ph }}" aria-label="{{ $ph }}">
@@ -14,5 +14,4 @@
   </button>
 </div>
 {{ if $panel }}<div id="sgx-cap-results-{{ $page }}" class="sgx-cap-results" hidden></div>{{ end }}
-{{ $capJS := resources.Get "js/sgx-capsule.js" | resources.ExecuteAsTemplate (printf "js/sgx-capsule-%s.js" $page) (dict "page" $page "isEn" $isEn "panel" $panel) | minify | fingerprint }}
-<script src="{{ $capJS.RelPermalink }}" defer></script>
+{{/* 2.4.0-C：胶囊逻辑为 ES Module（assets/js/sgx/capsule.js），由 files/settings/store 的页面入口加载；page 由 DOM id 推导 */}}

@@ -1,3 +1,1 @@
-{{/* 2.3.14 首页锁屏：纯 JS 生成（渐进增强）。关了 JS 或搜索引擎抓取时，首页原内容不受影响。只在首页模板引入。 */}}
-{{ $lockJS := resources.Get "js/sgx-lock.js" | minify | fingerprint }}
-<script src="{{ $lockJS.RelPermalink }}" defer></script>
+{{/* 2.4.0-C：首页锁屏已并入 ES Module（assets/js/sgx/lock.js），由 entry-index.js 加载；此 partial 不再输出脚本。 */}}

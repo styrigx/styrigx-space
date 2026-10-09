@@ -1,4 +1,5 @@
 {{ define "main" }}
+{{ .Scratch.Set "sgx-entry" "entry-index.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 {{ $profile := site.Data.profile }}
 {{ $books := site.Data.books }}
@@ -413,10 +414,5 @@
 }
 </style>
 <script id="np-data" type="application/json">{{ $songs | jsonify | safeJS }}</script>
-{{ $sgxPI := resources.Get "js/sgx-page-index.js" | minify | fingerprint }}
-<script src="{{ $sgxPI.RelPermalink }}" defer></script>
-
-
-{{/* 2.3.14 首页锁屏：JS 生成，只在首页出现 */}}
-{{ partial "sgx-lock.html" . }}
+{{/* 2.4.0-C：首页脚本走 ES Module 入口 entry-index.js（含锁屏）；旧 sgx-page-index.js / sgx-lock.html 已移除 */}}
 {{ end }}

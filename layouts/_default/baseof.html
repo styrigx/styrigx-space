@@ -70,12 +70,7 @@
   }catch(e){}
 })();
 </script>
-<script>
-/* 全站公共 localStorage 读写（带异常保护），各页面直接复用，不再重复定义 */
-window.__sgxGet=function(k){try{return localStorage.getItem(k)}catch(e){return null}};
-window.__sgxSet=function(k,v){try{if(v===null||v===undefined){localStorage.removeItem(k)}else{localStorage.setItem(k,v)}}catch(e){}};
-window.__sgxFmtTz=function(tz,h12){try{return new Intl.DateTimeFormat('en-US',{timeZone:tz,hour:'2-digit',minute:'2-digit',hour12:!!h12}).format(new Date())}catch(e){return''}};
-</script>
+{{/* 2.4.0-C：旧 __sgxGet/__sgxSet/__sgxFmtTz 已移入 ES Module（assets/js/sgx/storage.js、util.js），此处不再定义 */}}
 <script>
 /* 桌面布局：auto/phone/dex —— 断点 <980 手机 / ≥980 DeX（含三星桌面模式/平板/电脑） */
 function __layoutMode(){
@@ -130,51 +125,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 <body class="text-m-on-surface min-h-screen antialiased{{ if .IsHome }} has-dock{{ end }}{{ if not .IsHome }} subpage{{ end }}" data-page="{{ if or (eq .RelPermalink "/browser/") (eq .RelPermalink "/en/browser/") }}browser{{ else if eq .RelPermalink $filesUrl0 }}files{{ else if eq .RelPermalink $storeUrl0 }}store{{ else if eq .RelPermalink $setUrl0 }}settings{{ else if eq .RelPermalink $glUrl0 }}goodlock{{ end }}">
 {{ partial "sgx-icon-sprite.html" . }}
 <div id="sgx-wallpaper" aria-hidden="true"></div>
-<script>
-/* 2.3.15 B4：全局滚动/尺寸调度器。只挂一个 passive scroll + 一个 resize，
-   同一 rAF 内读一次 scrollY/尺寸再分发给各模块；模块回调只做写（transform/opacity/class）。 */
-window.__sgxScroll=(function(){
-  var scrollCbs=[],resizeCbs=[],ticking=false,lastY=-1,lastW=0,lastH=0;
-  function dispatch(){
-    ticking=false;
-    var y=window.scrollY||0,w=window.innerWidth,h=window.innerHeight;
-    var sc=y!==lastY,rs=w!==lastW||h!==lastH;
-    if(sc){lastY=y;for(var i=0;i<scrollCbs.length;i++)scrollCbs[i](y,w,h);}
-    if(rs){lastW=w;lastH=h;for(var j=0;j<resizeCbs.length;j++)resizeCbs[j](w,h,y);}
-  }
-  function sched(){if(ticking)return;ticking=true;requestAnimationFrame(dispatch);}
-  window.addEventListener('scroll',sched,{passive:true});
-  window.addEventListener('resize',sched);
-  return{
-    onScroll:function(cb){scrollCbs.push(cb);},
-    onResize:function(cb){resizeCbs.push(cb);},
-    kick:sched
-  };
-})();
-/* 2.4.0 A：顶部边缘渐进模糊只在滚动后出现（y>24 显示）。
-   2.4.0 B：支持 animation-timeline:scroll() 时由 CSS scroll-driven animation 接管，
-   下面这套 JS 类切换只在不支持的浏览器启用。 */
-(function(){
-  var b=document.body;
-  try{
-    if(window.CSS&&CSS.supports&&CSS.supports('animation-timeline','scroll()'))return;
-  }catch(e){}
-  function onY(y){b.classList.toggle('sgx-scrolled',y>24);}
-  window.__sgxScroll.onScroll(onY);
-  onY(window.scrollY||0);
-})();
-/* 2.3.15 B6：可见性感知定时器。页面不可见时暂停，可见时立即刷新一次再继续。返回停止函数。 */
-window.__sgxVisibleInterval=function(fn,ms){
-  var iv=null;
-  function stop(){if(iv){clearInterval(iv);iv=null;}}
-  function start(){stop();try{fn();}catch(e){}iv=setInterval(fn,ms);}
-  document.addEventListener('visibilitychange',function(){
-    if(document.hidden)stop();else start();
-  });
-  start();
-  return stop;
-};
-</script>
+{{/* 2.4.0-C：调度器 / 边缘模糊 / 可见性定时器已移入 ES Module（assets/js/sgx/），此处不再内联定义 */}}
 {{ $profile := site.Data.profile }}
 {{ $home := "/" }}{{ if $isEn }}{{ $home = "/en/" }}{{ end }}
 {{ $linksUrl := "/browser/" }}{{ if $isEn }}{{ $linksUrl = "/en/browser/" }}{{ end }}
@@ -208,14 +159,16 @@ window.__sgxVisibleInterval=function(fn,ms){
   </div>
 </nav>
 <script>
-/* 量取顶栏实际高度写入 --nav-h（顶栏 fixed，main 的 padding-top 依赖它） */
+/* 量取顶栏实际高度写入 --nav-h（顶栏 fixed，main 的 padding-top 依赖它）。
+   2.4.0-C：不再依赖 __sgxScroll（已移入 ES Module），直接监听 resize。 */
 (function(){
   function setH(){
     var n=document.getElementById('site-nav');
     if(n)document.documentElement.style.setProperty('--nav-h',n.offsetHeight+'px');
   }
   setH();
-  window.__sgxScroll.onResize(setH);
+  var rt=null;
+  window.addEventListener('resize',function(){if(rt)clearTimeout(rt);rt=setTimeout(setH,180)});
   window.addEventListener('load',setH);
 })();
 </script>
@@ -303,10 +256,7 @@ window.__sgxVisibleInterval=function(fn,ms){
   {{ end }}
 {{ end }}
 <script id="search-index" type="application/json">{{ (dict "items" $idx) | jsonify | safeJS }}</script>
-{{ $sgxUtil := resources.Get "js/sgx-util.js" | minify | fingerprint }}
-<script src="{{ $sgxUtil.RelPermalink }}" defer></script>
-{{ $sgxBaseA := resources.Get "js/sgx-base-a.js" | minify | fingerprint }}
-<script src="{{ $sgxBaseA.RelPermalink }}" defer></script>
+{{/* 2.4.0-C：旧 sgx-util.js / sgx-base-a.js 已拆为 ES Modules，随页面入口统一加载 */}}
 
 
 
@@ -445,7 +395,33 @@ window.__sgxVisibleInterval=function(fn,ms){
 <!-- 顶栏天气面板（从顶栏往下展开） -->
 <div id="nav-wx-pop" role="dialog" aria-label="{{ if $isEn }}Weather{{ else }}天气{{ end }}"></div>
 
-{{ $sgxBaseB := resources.Get "js/sgx-base-b.js" | minify | fingerprint }}
-<script src="{{ $sgxBaseB.RelPermalink }}" defer></script>
+{{/* 2.4.0-C：全站文案（中英双语，JS 按 <html lang> 取用；同一份 JS 中英文共用缓存）。
+   键：快捷键帮助 / 访客提示 / 语音输入 / 语音弹窗 */}}
+{{ $coreI18n := dict
+  "kbdTitle" (dict "zh" "快捷键" "en" "Keyboard shortcuts")
+  "kbdHome" (dict "zh" "首页" "en" "Home")
+  "kbdBrowser" (dict "zh" "浏览器" "en" "Internet")
+  "kbdBlog" (dict "zh" "博客" "en" "Blog")
+  "kbdSettings" (dict "zh" "设置" "en" "Settings")
+  "wellTip" (dict "zh" "已经看了 15 分钟，起来活动一下？" "en" "You've been here 15 minutes, time for a stretch?")
+  "wellDismiss" (dict "zh" "关闭" "en" "Dismiss")
+  "listening" (dict "zh" "正在聆听…" "en" "Listening…")
+  "noSpeech" (dict "zh" "没听到声音" "en" "Didn't catch that")
+  "noPerm" (dict "zh" "请允许麦克风权限" "en" "Please allow microphone access")
+  "noSr" (dict "zh" "当前浏览器语音识别不可用，可以用键盘上的麦克风" "en" "Voice recognition unavailable, try your keyboard's mic")
+  "vsSpeak" (dict "zh" "立即说出" "en" "Speak now")
+  "vsLang" (dict "zh" "中文（中国）" "en" "English (US)")
+  "vsRetry" (dict "zh" "没听清，点麦克风重试" "en" "Didn't catch that, tap the mic to retry")
+  "vsNoPerm" (dict "zh" "需要麦克风权限" "en" "Microphone permission needed")
+  "vsAria" (dict "zh" "语音输入" "en" "Voice input")
+}}
+<script id="sgx-i18n-core" type="application/json">{{ $coreI18n | jsonify | safeJS }}</script>
+{{/* 2.4.0-C：ES Modules 入口（js.Build 打包 + minify + fingerprint，type="module" 引入）。
+   各页模板用 .Scratch.Set "sgx-entry" 指定入口（默认 entry-core.js，即只有公共 core）。 */}}
+{{ $entryName := .Scratch.Get "sgx-entry" | default "entry-core.js" }}
+{{ $entry := resources.Get (print "js/entries/" $entryName) | js.Build (dict "minify" true "target" "es2020") | fingerprint }}
+<script type="module" src="{{ $entry.RelPermalink }}"></script>
+{{/* 极端降级：不支持 type="module" 的浏览器只打标记，不报错、不白屏（内容为服务端渲染） */}}
+<script nomodule>document.documentElement.classList.add('no-module');</script>
 </body>
 </html>

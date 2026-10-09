@@ -1,4 +1,5 @@
 {{ define "main" }}
+{{ .Scratch.Set "sgx-entry" "entry-browser.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 {{ $links := site.Data.links }}
 {{ if $isEn }}{{ $links = site.Data.en.links }}{{ end }}
@@ -28,7 +29,7 @@
             {{ $iconUrl = printf "https://%s/favicon.ico" $host }}
           {{ end }}
           <a href="{{ .url }}" target="_blank" rel="noopener" class="brw-qa-ov">
-            <img src="{{ $iconUrl }}" alt="" loading="lazy" decoding="async" width="56" height="56" onerror="__favFallback(this,'{{ .name }}')" class="brw-qa-ov-ic">
+            <img src="{{ $iconUrl }}" alt="" loading="lazy" decoding="async" width="56" height="56" data-favname="{{ .name }}" class="brw-qa-ov-ic">
             <span class="brw-qa-ov-name">{{ .name }}</span>
           </a>
           {{ end }}{{ end }}
@@ -76,7 +77,7 @@
         {{ $iconUrl = printf "https://%s/favicon.ico" $host }}
       {{ end }}
       <a href="{{ .url }}" target="_blank" rel="noopener" class="brw-qa flex flex-col items-center gap-2 min-w-0">
-        <img src="{{ $iconUrl }}" alt="" loading="lazy" decoding="async" width="48" height="48" onerror="__favFallback(this,'{{ .name }}')"
+        <img src="{{ $iconUrl }}" alt="" loading="lazy" decoding="async" width="48" height="48" data-favname="{{ .name }}"
              class="brw-qa-ic w-12 h-12 rounded-2xl object-contain bg-m-container-lowest border border-m-outline p-1.5">
         <span class="brw-qa-name block w-full text-center text-xs text-m-on-surface truncate">{{ .name }}</span>
       </a>
@@ -110,7 +111,7 @@
         {{ end }}
         <a href="{{ .url }}" target="_blank" rel="noopener" data-name="{{ .name }}" data-desc="{{ .desc | default "" }}"
            class="link-card group flex items-center gap-3 rounded-[1.25rem] border border-m-outline bg-m-container-lowest px-3.5 py-3 shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:border-m-primary active:scale-[0.98] transition-all">
-          <img src="{{ $iconUrl }}" alt="" loading="lazy" decoding="async" width="36" height="36" onerror="__favFallback(this,'{{ .name }}')"
+          <img src="{{ $iconUrl }}" alt="" loading="lazy" decoding="async" width="36" height="36" data-favname="{{ .name }}"
                class="w-9 h-9 rounded-xl shrink-0 bg-m-container-high object-contain p-0.5">
           <span class="min-w-0">
             <span class="block font-medium text-sm truncate group-hover:text-m-primary transition-colors">{{ .name }}</span>
@@ -124,9 +125,26 @@
   </section>
 </div>
 
-{{ partial "sgx-voice-sheet.html" . }}
-{{ $sgxEng := resources.Get "js/sgx-engines.js" | minify | fingerprint }}
-<script src="{{ $sgxEng.RelPermalink }}" defer></script>
-{{ $sgxPB := resources.Get "js/sgx-page-browser.js" | resources.ExecuteAsTemplate "js/sgx-page-browser.js" (dict "isEn" $isEn) | minify | fingerprint }}
-<script src="{{ $sgxPB.RelPermalink }}" defer></script>
+{{/* 2.4.0-C：浏览器页文案（中英双语）；脚本走 ES Module 入口 entry-browser.js */}}
+{{ $brwI18n := dict
+  "catLink" (dict "zh" "书签" "en" "Links")
+  "catBook" (dict "zh" "书单" "en" "Books")
+  "catMusic" (dict "zh" "歌单" "en" "Music")
+  "catPost" (dict "zh" "博客" "en" "Blog")
+  "catApp" (dict "zh" "应用" "en" "Apps")
+  "searchWith" (dict "zh" "用 {n} 搜索" "en" "Search with {n}")
+  "askAI" (dict "zh" "问 AI：" "en" "Ask AI: ")
+  "recentTitle" (dict "zh" "最近搜索" "en" "Recent searches")
+  "recentEmpty" (dict "zh" "暂无最近搜索" "en" "No recent searches")
+  "clearAll" (dict "zh" "全部清除" "en" "Clear all")
+  "del" (dict "zh" "删除" "en" "Delete")
+  "menuTitle" (dict "zh" "菜单" "en" "Menu")
+  "addrTop" (dict "zh" "地址栏位置：顶部" "en" "Address bar: Top")
+  "addrBottom" (dict "zh" "地址栏位置：底部" "en" "Address bar: Bottom")
+  "clearRecent" (dict "zh" "清除最近搜索" "en" "Clear recent searches")
+  "engineTitle" (dict "zh" "搜索引擎" "en" "Search engine")
+  "engineDef" (dict "zh" "(默认)" "en" "(Default)")
+  "switchEngine" (dict "zh" "切换搜索引擎（当前：{n}）" "en" "Switch search engine (current: {n})")
+}}
+<script id="sgx-i18n-browser" type="application/json">{{ $brwI18n | jsonify | safeJS }}</script>
 {{ end }}

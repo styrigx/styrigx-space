@@ -1,4 +1,5 @@
 {{ define "main" }}
+{{ .Scratch.Set "sgx-entry" "entry-files.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 {{ $home := "/" }}{{ if $isEn }}{{ $home = "/en/" }}{{ end }}
 {{ $filesBase := "/files/" }}{{ if $isEn }}{{ $filesBase = "/en/files/" }}{{ end }}
@@ -195,8 +196,7 @@
 .files-toast.show{opacity:1;transform:translate(-50%,0)}
 </style>
 <script id="files-i18n" type="application/json">{{ $i18n | jsonify | safeJS }}</script>
-{{ $sgxPF := resources.Get "js/sgx-page-files.js" | minify | fingerprint }}
-<script src="{{ $sgxPF.RelPermalink }}" defer></script>
+{{/* 2.4.0-C：文件页脚本走 ES Module 入口 entry-files.js；文案沿用 files-i18n JSON */}}
 
 <!-- 底部搜索胶囊（2.3.12.1 效果1+2）：2.3.11 的站内索引结果，显示在胶囊上方 -->
 {{ partial "sgx-capsule.html" (dict "page" "files" "isEn" $isEn

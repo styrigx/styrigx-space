@@ -1,9 +1,1 @@
-{{/* 语音输入提示弹窗（2.3.14.6）：共享。
-   点麦克风后：先收起键盘（blur），整页盖半透明灰色遮罩（200ms 淡入），
-   底部滑上一张白色圆角卡片（250ms ease-out）：左边两行文字，右边 44px 蓝色麦克风按钮。
-   识别中第一行实时显示 interim 文字；结束填入搜索框并回调；无结果/出错可重试；
-   点遮罩或返回键取消；拒绝权限显示提示 2 秒后关闭。
-   用法：window.__sgxVoiceSheet({ onFinal: function(text){ ... } })，返回 true 表示已弹出。
-   只检测 SpeechRecognition 接口是否存在，不按浏览器 UA 判断；不支持时调用方不显示按钮。 */}}
-{{ $vsJS := resources.Get "js/sgx-voice.js" | minify | fingerprint }}
-<script src="{{ $vsJS.RelPermalink }}" defer></script>
+{{/* 2.4.0-C：语音弹窗已并入 ES Module（assets/js/sgx/voice-sheet.js），由页面入口统一加载；此 partial 不再输出脚本。 */}}

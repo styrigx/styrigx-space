@@ -1,4 +1,5 @@
 {{ define "main" }}
+{{ .Scratch.Set "sgx-entry" "entry-core.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 {{ $mods := slice
   (dict "id" "wellbeing" "key" "sgx-gl-wellbeing" "def" true "icon" "info" "bg" "bg-m-warm-container" "fg" "text-m-on-warm-container" "zh" "数字健康" "en" "Digital wellbeing" "dzh" "访客停留 15 分钟提醒" "den" "15-minute visit reminders" "exp" false)
