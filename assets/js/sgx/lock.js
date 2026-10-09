@@ -3,9 +3,15 @@
  * - 每个标签页会话首次进站（任意页）先锁屏；通过后 sessionStorage 标记，本次访问不再出现。
  * - 点头像（电脑回车/空格）→ 底部 dialog 验证卡（One UI 密码界面式）+ Turnstile；
  *   通过 → 开锁动画 → 现有解锁流程；失败 → 红色提示 + 重试。
- * - 兜底：Turnstile 脚本失败或 /api/verify 超时（8s）→ 允许直接解锁；
- *   本地开发（localhost）跳过验证。
+ * - 本地开发（localhost）跳过验证。
  * - 2.4.0-G：SGX_FEAT_LEGACY_LOCK_SCREEN / SGX_FEAT_OWNER_GATE 编译期可移除。
+ * - 安全与隐私：验证/密码/通行密钥三态共用同一个底部弹层组件（圆角、材质、
+ *   拖动条、标题字号位置、按钮样式一致）；弹层背景完全不透明；打开时底层
+ *   名字与入口设 visibility:hidden + inert；容器无 outline，:focus-visible 只在
+ *   内部可交互元素上用本站焦点色。
+ * - Turnstile：appearance 'interaction-only' + size 'flexible'，theme/language 跟随；
+ *   默认只显示本站加载态，确需交互时才在同一位置出现小组件；成功变勾 0.3s 后解锁；
+ *   失败/超时显示普通提示 + 重试，不出现错误码。
  */
 import { on } from './events.js';
 import { visibleInterval } from './scheduler.js';
@@ -16,6 +22,8 @@ const LOCK =
   '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
 const UNLOCK =
   '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.9-1"/></svg>';
+const CHECK =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12.5l5 5 10-11"/></svg>';
 
 /**
  * 初始化锁屏（全站；2.4.0 H）。
@@ -157,60 +165,69 @@ export function initLock() {
     }
   }
 
-  /* ============ Turnstile 验证卡（2.4.0 H） ============ */
-  /** @type {HTMLDialogElement|null} */ let vdlg = null;
+  /* ============================================================
+     统一底部弹层：验证 / 密码 / 通行密钥三态共用同一个 dialog。
+     - 同样的圆角、材质、拖动条、标题字号/位置、按钮样式；
+     - 卡片背景完全不透明；打开时底层名字与入口 visibility:hidden + inert；
+     - 容器无 outline；:focus-visible 只在内部可交互元素上用本站焦点色。
+     ============================================================ */
+  /** @type {HTMLDialogElement|null} */ let dlg = null;
+  /** @type {string|null} */ let dlgState = null;
   /** @type {any} */ let widgetId = null;
   let verifyDone = false;
-
-  function siteKey() {
-    try {
-      const meta = document.querySelector('meta[name="sgx-turnstile"]');
-      if (meta) return meta.getAttribute('content') || '';
-    } catch (e) {}
-    return '';
-  }
+  let pwLockedUntil = 0;
 
   function ensureDialog() {
-    if (vdlg) return vdlg;
+    if (dlg) return dlg;
     const d = document.createElement('dialog');
     d.className = 'sgx-verify-dlg';
     d.setAttribute('aria-labelledby', 'sgx-verify-title');
     d.innerHTML =
       '<div class="sgx-verify-card">' +
-      '<div class="sheet-handle" data-vclose></div>' +
-      '<h2 id="sgx-verify-title" class="sgx-verify-title">' +
-      (en ? 'Verify to unlock' : '验证后解锁') +
-      '</h2>' +
-      '<div id="sgx-verify-box" class="sgx-verify-box"></div>' +
+      '<div class="sheet-handle" data-dclose aria-hidden="true"></div>' +
+      '<h2 id="sgx-verify-title" class="sgx-verify-title"></h2>' +
+      '<div id="sgx-verify-body" class="sgx-verify-body"></div>' +
       '<p id="sgx-verify-err" class="sgx-verify-err" hidden></p>' +
       '</div>';
     document.body.appendChild(d);
-    vdlg = /** @type {HTMLDialogElement} */ (d);
+    dlg = /** @type {HTMLDialogElement} */ (d);
     on(d, 'click', function (/** @type {MouseEvent} */ e) {
-      if (e.target === d) closeVerify();
       const t = /** @type {Element|null} */ (e.target);
-      if (t && t.closest && t.closest('[data-vclose]')) closeVerify();
+      if (e.target === d) closeDialog();
+      else if (t && t.closest && t.closest('[data-dclose]')) closeDialog();
     });
     on(d, 'cancel', function (/** @type {Event} */ e) {
       e.preventDefault();
-      closeVerify();
+      closeDialog();
     });
-    return vdlg;
+    return dlg;
   }
 
-  function closeVerify() {
-    if (vdlg && vdlg.open) {
-      try { vdlg.close(); } catch (e) {}
-    }
+  /** @param {string} txt */
+  function setTitle(txt) {
+    ensureDialog();
+    const el = document.getElementById('sgx-verify-title');
+    if (el) el.textContent = txt;
   }
-
+  /** @param {string} html */
+  function setBody(html) {
+    ensureDialog();
+    const el = document.getElementById('sgx-verify-body');
+    if (el) el.innerHTML = html;
+  }
+  function clearErr() {
+    ensureDialog();
+    const err = document.getElementById('sgx-verify-err');
+    if (err) err.hidden = true;
+  }
+  /** @param {string} msg */
   function showError(msg) {
     const err = document.getElementById('sgx-verify-err');
     if (err) {
       err.textContent = msg;
       err.hidden = false;
       if (!reducedMotion()) {
-        const card = vdlg && vdlg.querySelector('.sgx-verify-card');
+        const card = dlg && dlg.querySelector('.sgx-verify-card');
         if (card) {
           card.classList.remove('sgx-shake');
           void /** @type {HTMLElement} */ (card).offsetWidth;
@@ -218,6 +235,75 @@ export function initLock() {
         }
       }
     }
+  }
+
+  /* 底层元素：弹层打开时隐藏并 inert，关闭时恢复 */
+  /** @param {boolean} hidden */
+  function setBgHidden(hidden) {
+    const sels = ['.sgx-lock-name', '.sgx-lock-links'];
+    for (let i = 0; i < sels.length; i++) {
+      const el = document.querySelector(sels[i]);
+      if (el) {
+        el.classList.toggle('sgx-bg-hidden', hidden);
+        try {
+          /** @type {any} */ (el).inert = hidden;
+        } catch (e) {}
+      }
+    }
+  }
+
+  /* 头像上移避让：按卡片实际高度设置位移 */
+  function liftAvatar() {
+    try {
+      const card = dlg && dlg.querySelector('.sgx-verify-card');
+      const h = card ? /** @type {HTMLElement} */ (card).offsetHeight : 0;
+      if (h > 0) {
+        document.body.style.setProperty('--sgx-dlg-lift', h + 'px');
+        document.body.classList.add('sgx-dlg-open');
+      }
+    } catch (e) {}
+  }
+  function resetAvatar() {
+    try {
+      document.body.classList.remove('sgx-dlg-open');
+    } catch (e) {}
+  }
+
+  function openDialog() {
+    const d = ensureDialog();
+    clearErr();
+    setBgHidden(true);
+    try {
+      d.showModal();
+    } catch (e) {
+      setBgHidden(false);
+      return false;
+    }
+    /* 卡片高度稳定后（body 有 min-height）再量，避免跳动 */
+    requestAnimationFrame(function () {
+      liftAvatar();
+    });
+    return true;
+  }
+
+  function closeDialog() {
+    resetAvatar();
+    setBgHidden(false);
+    if (dlg && dlg.open) {
+      try {
+        dlg.close();
+      } catch (e) {}
+    }
+    dlgState = null;
+  }
+
+  /* ---------- Turnstile ---------- */
+  function siteKey() {
+    try {
+      const meta = document.querySelector('meta[name="sgx-turnstile"]');
+      if (meta) return meta.getAttribute('content') || '';
+    } catch (e) {}
+    return '';
   }
 
   function loadTurnstile() {
@@ -245,6 +331,114 @@ export function initLock() {
     });
   }
 
+  /* 验证态：加载中 */
+  function verifyLoading() {
+    dlgState = 'verify';
+    setTitle(en ? "Checking you're human" : '正在确认你不是机器人');
+    setBody(
+      '<div class="sgx-verify-loading"><div class="sgx-spinner" role="progressbar" aria-label="' +
+        (en ? 'Verifying' : '正在验证') +
+        '"></div><p class="sgx-verify-loading-tx">' +
+        (en ? 'Verifying…' : '正在验证…') +
+        '</p></div><div id="sgx-ts-wrap" class="sgx-ts-wrap" hidden></div>'
+    );
+    clearErr();
+  }
+
+  /* 验证态：需要交互 → 在同一位置显示小组件 */
+  function verifyInteractive() {
+    const wrap = document.getElementById('sgx-ts-wrap');
+    const loading = dlg && dlg.querySelector('.sgx-verify-loading');
+    if (loading) /** @type {HTMLElement} */ (loading).hidden = true;
+    if (wrap) wrap.hidden = false;
+    liftAvatar();
+  }
+
+  /* 验证态：成功 → 变勾，0.3s 后解锁 */
+  function verifySuccess() {
+    setBody('<div class="sgx-verify-loading"><div class="sgx-check">' + CHECK + '</div></div>');
+    clearErr();
+    window.setTimeout(function () {
+      verifyDone = true;
+      closeDialog();
+      unlock();
+    }, 300);
+  }
+
+  /* 验证态：失败/超时 → 普通提示 + 重试，不出现错误码 */
+  function verifyFailed() {
+    setBody(
+      '<div class="sgx-verify-loading"><p class="sgx-verify-failtx">' +
+        (en ? 'Verification failed' : '验证失败') +
+        '</p><button type="button" class="sgx-verify-skip" id="sgx-verify-retry">' +
+        (en ? 'Retry' : '重试') +
+        '</button></div>'
+    );
+    const retry = document.getElementById('sgx-verify-retry');
+    if (retry) {
+      on(retry, 'click', function () {
+        startVerify();
+      });
+      try {
+        retry.focus({ preventScroll: true });
+      } catch (e) {}
+    }
+    liftAvatar();
+  }
+
+  function resetWidget() {
+    try {
+      if (widgetId !== null && /** @type {any} */ (window).turnstile) {
+        /** @type {any} */ (window).turnstile.reset(widgetId);
+      }
+    } catch (e) {}
+    widgetId = null;
+  }
+
+  function startVerify() {
+    resetWidget();
+    verifyLoading();
+    loadTurnstile().then(
+      function () {
+        const wrap = document.getElementById('sgx-ts-wrap');
+        if (!wrap || !(/** @type {any} */ (window).turnstile)) {
+          verifyFailed();
+          return;
+        }
+        const theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+        widgetId = /** @type {any} */ (window).turnstile.render(wrap, {
+          sitekey: siteKey(),
+          action: 'sgx-entry',
+          appearance: 'interaction-only',
+          size: 'flexible',
+          theme: theme,
+          language: en ? 'en' : 'zh-CN',
+          'before-interactive-callback': function () {
+            verifyInteractive();
+          },
+          'after-interactive-callback': function () {
+            /* 用户完成交互，等待 callback；保持小组件可见 */
+          },
+          callback: function (/** @type {string} */ token) {
+            submitToken(token);
+          },
+          'error-callback': function () {
+            verifyFailed();
+          },
+          'expired-callback': function () {
+            verifyFailed();
+          },
+          'timeout-callback': function () {
+            verifyFailed();
+          },
+        });
+      },
+      function () {
+        verifyFailed();
+      }
+    );
+  }
+
   function openVerify() {
     if (verifyDone) {
       unlock();
@@ -258,78 +452,21 @@ export function initLock() {
       unlock();
       return;
     }
-    const dlg = ensureDialog();
-    const err = document.getElementById('sgx-verify-err');
-    if (err) err.hidden = true;
-    try { dlg.showModal(); } catch (e) { unlock(); return; }
-
-    const key = siteKey();
-    if (!key) {
-      closeVerify();
+    if (!siteKey()) {
       unlock();
       return;
     }
-
+    if (!openDialog()) {
+      unlock();
+      return;
+    }
     try {
       const l = document.createElement('link');
       l.rel = 'preconnect';
       l.href = 'https://challenges.cloudflare.com';
       document.head.appendChild(l);
     } catch (e) {}
-
-    loadTurnstile().then(
-      function () {
-        const box = document.getElementById('sgx-verify-box');
-        if (!box || !(/** @type {any} */ (window).turnstile)) {
-          throw new Error('no-box');
-        }
-        box.innerHTML = '';
-        const theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
-        widgetId = /** @type {any} */ (window).turnstile.render(box, {
-          sitekey: key,
-          action: 'sgx-entry',
-          theme: theme,
-          language: en ? 'en' : 'zh-CN',
-          callback: function (/** @type {string} */ token) {
-            submitToken(token);
-          },
-          'error-callback': function () {
-            showError(en ? 'Verification failed, please retry' : '验证失败，请重试');
-            resetWidget();
-          },
-          'expired-callback': function () {
-            showError(en ? 'Verification expired, please retry' : '验证已过期，请重试');
-            resetWidget();
-          },
-        });
-      },
-      function () {
-        const box = document.getElementById('sgx-verify-box');
-        if (box) {
-          box.innerHTML =
-            '<p class="sgx-verify-fallback">' +
-            (en ? 'Verification service unavailable' : '验证服务暂不可用') +
-            '</p><button type="button" class="sgx-verify-skip" id="sgx-verify-skip">' +
-            (en ? 'Unlock directly' : '直接解锁') +
-            '</button>';
-          const skip = document.getElementById('sgx-verify-skip');
-          if (skip) {
-            on(skip, 'click', function () {
-              closeVerify();
-              unlock();
-            });
-          }
-        }
-      }
-    );
-  }
-
-  function resetWidget() {
-    try {
-      if (widgetId !== null && /** @type {any} */ (window).turnstile) {
-        /** @type {any} */ (window).turnstile.reset(widgetId);
-      }
-    } catch (e) {}
+    startVerify();
   }
 
   /** @param {string} token */
@@ -344,72 +481,49 @@ export function initLock() {
       body: JSON.stringify({ token: token }),
       signal: ctrl.signal,
     })
-      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        return r.json();
+      })
       .then(function (j) {
         window.clearTimeout(to);
         if (j && j.ok) {
-          verifyDone = true;
-          closeVerify();
-          unlock();
+          verifySuccess();
         } else {
-          showError(en ? 'Verification failed, please retry' : '验证失败，请重试');
-          resetWidget();
+          verifyFailed();
         }
       })
       .catch(function () {
         window.clearTimeout(to);
-        showError(en ? 'Verification service unavailable' : '验证服务暂不可用');
-        const box = document.getElementById('sgx-verify-box');
-        if (box && !document.getElementById('sgx-verify-skip')) {
-          const b = document.createElement('button');
-          b.type = 'button';
-          b.className = 'sgx-verify-skip';
-          b.id = 'sgx-verify-skip';
-          b.textContent = en ? 'Unlock directly' : '直接解锁';
-          on(b, 'click', function () {
-            closeVerify();
-            unlock();
-          });
-          box.appendChild(b);
-        }
+        verifyFailed();
       });
   }
 
-  /* ============ 密码解锁（2.4.0 I） ============ */
-  /** @type {HTMLDialogElement|null} */ let pdlg = null;
-  let pwLockedUntil = 0;
-
-  function ensurePwDialog() {
-    if (pdlg) return pdlg;
-    const d = document.createElement('dialog');
-    d.className = 'sgx-verify-dlg';
-    d.setAttribute('aria-labelledby', 'sgx-pw-title');
-    d.innerHTML =
-      '<div class="sgx-verify-card">' +
-      '<div class="sheet-handle" data-pclose></div>' +
-      '<h2 id="sgx-pw-title" class="sgx-verify-title">' +
-      (en ? 'Enter password' : '输入密码') +
-      '</h2>' +
-      '<input type="password" id="sgx-pw-input" class="sgx-pw-input" autocomplete="current-password" ' +
-      'aria-label="' + (en ? 'Password' : '密码') + '">' +
-      '<p id="sgx-pw-err" class="sgx-verify-err" hidden></p>' +
-      '<p id="sgx-pw-count" class="sgx-pw-count" hidden></p>' +
-      '<button type="button" class="sgx-verify-skip" id="sgx-pw-go">' +
-      (en ? 'Unlock' : '确定') +
-      '</button></div>';
-    document.body.appendChild(d);
-    pdlg = /** @type {HTMLDialogElement} */ (d);
-    on(d, 'click', function (/** @type {MouseEvent} */ e) {
-      if (e.target === d) closePw();
-      const t = /** @type {Element|null} */ (e.target);
-      if (t && t.closest && t.closest('[data-pclose]')) closePw();
-    });
-    on(d, 'cancel', function (/** @type {Event} */ e) {
-      e.preventDefault();
-      closePw();
-    });
-    const input = d.querySelector('#sgx-pw-input');
-    const go = d.querySelector('#sgx-pw-go');
+  /* ---------- 密码态（与验证态同一弹层） ---------- */
+  function openPw() {
+    dlgState = 'password';
+    setTitle(en ? 'Enter password' : '输入密码');
+    setBody(
+      '<div class="sgx-pw-field"><input type="password" id="sgx-pw-input" class="sgx-pw-input" autocomplete="current-password" ' +
+        'aria-label="' + (en ? 'Password' : '密码') + '" placeholder="' + (en ? 'Password' : '密码') + '">' +
+        '<button type="button" class="sgx-pw-eye" id="sgx-pw-eye" aria-label="' + (en ? 'Show' : '显示') + '"></button></div>' +
+        '<p id="sgx-pw-count" class="sgx-pw-count" hidden></p>' +
+        '<button type="button" class="sgx-verify-skip" id="sgx-pw-go">' + (en ? 'Unlock' : '确定') + '</button>'
+    );
+    clearErr();
+    if (!openDialog()) return;
+    const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-pw-input'));
+    const eye = document.getElementById('sgx-pw-eye');
+    const go = document.getElementById('sgx-pw-go');
+    if (eye && input) {
+      eye.innerHTML =
+        '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+      on(eye, 'click', function () {
+        const show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        eye.setAttribute('aria-label', show ? (en ? 'Hide' : '隐藏') : (en ? 'Show' : '显示'));
+        eye.classList.toggle('off', !show);
+      });
+    }
     if (input) {
       on(input, 'keydown', function (/** @type {KeyboardEvent} */ e) {
         if (e.key === 'Enter') {
@@ -417,33 +531,16 @@ export function initLock() {
           submitPw();
         }
       });
-    }
-    if (go) on(go, 'click', submitPw);
-    return pdlg;
-  }
-
-  function closePw() {
-    if (pdlg && pdlg.open) {
-      try { pdlg.close(); } catch (e) {}
-    }
-    /* fix/hi-owner：头像块复位 */
-    try { document.body.classList.remove('sgx-pw-open'); } catch (e) {}
-  }
-
-  function pwShowError(msg) {
-    const err = document.getElementById('sgx-pw-err');
-    if (err) {
-      err.textContent = msg;
-      err.hidden = false;
-      if (!reducedMotion()) {
-        const card = pdlg && pdlg.querySelector('.sgx-verify-card');
-        if (card) {
-          card.classList.remove('sgx-shake');
-          void /** @type {HTMLElement} */ (card).offsetWidth;
-          card.classList.add('sgx-shake');
-        }
+      try {
+        input.focus({ preventScroll: true });
+      } catch (e) {
+        try {
+          input.focus();
+        } catch (_) {}
       }
     }
+    if (go) on(go, 'click', submitPw);
+    if (Date.now() < pwLockedUntil) pwCountdown();
   }
 
   function pwCountdown() {
@@ -451,6 +548,7 @@ export function initLock() {
     const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-pw-input'));
     const go = document.getElementById('sgx-pw-go');
     function tickCount() {
+      if (dlgState !== 'password') return;
       const left = Math.max(0, Math.ceil((pwLockedUntil - Date.now()) / 1000));
       if (left <= 0) {
         if (el) el.hidden = true;
@@ -459,9 +557,7 @@ export function initLock() {
         return;
       }
       if (el) {
-        el.textContent = en
-          ? 'Try again in ' + left + 's'
-          : left + ' 秒后可再试';
+        el.textContent = en ? 'Try again in ' + left + 's' : left + ' 秒后可再试';
         el.hidden = false;
       }
       if (input) input.disabled = true;
@@ -471,35 +567,13 @@ export function initLock() {
     tickCount();
   }
 
-  function openPw() {
-    const dlg = ensurePwDialog();
-    const err = document.getElementById('sgx-pw-err');
-    if (err) err.hidden = true;
-    const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-pw-input'));
-    if (input) input.value = '';
-    try { dlg.showModal(); } catch (e) { return; }
-    /* fix/hi-owner：头像块上移避让弹层（按弹层实际高度） */
-    try {
-      const card = dlg.querySelector('.sgx-verify-card');
-      const h = card ? card.offsetHeight : 0;
-      if (h > 0) {
-        document.body.style.setProperty('--sgx-pw-lift', h + 'px');
-        document.body.classList.add('sgx-pw-open');
-      }
-    } catch (e) {}
-    /* 桌面自动聚焦 */
-    if (input) {
-      try { input.focus({ preventScroll: true }); } catch (e) { try { input.focus(); } catch (_) {} }
-    }
-    if (Date.now() < pwLockedUntil) pwCountdown();
-  }
-
   function submitPw() {
+    if (dlgState !== 'password') return;
     if (Date.now() < pwLockedUntil) return;
     const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-pw-input'));
     const pw = input ? input.value : '';
     if (!pw) {
-      pwShowError(en ? 'Enter password' : '请输入密码');
+      showError(en ? 'Enter password' : '请输入密码');
       return;
     }
     fetch('/api/owner-password', {
@@ -507,58 +581,79 @@ export function initLock() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'verify', password: pw }),
     })
-      /* fix/hi-owner：区分网络错误（fetch 抛错）/ 服务器错误（非 JSON 响应）/ 业务错误 */
+      /* 区分网络错误（fetch 抛错）/ 服务器错误（非 JSON 响应）/ 业务错误 */
       .then(function (r) {
         return r.text().then(function (t) {
           let j = null;
-          try { j = JSON.parse(t); } catch (e) {}
+          try {
+            j = JSON.parse(t);
+          } catch (e) {}
           return { s: r.status, j: j };
         });
       })
       .then(function (res) {
+        if (dlgState !== 'password') return;
         const j = res.j;
         if (!j) {
-          pwShowError(en ? 'Server error' : '服务器错误');
+          showError(en ? 'Server error' : '服务器错误');
           return;
         }
         if (j.ok) {
-          closePw();
+          closeDialog();
           unlock();
         } else if (j.error === 'locked') {
           pwLockedUntil = Date.now() + 30000;
-          pwShowError(en ? 'Too many attempts' : '尝试次数过多');
+          showError(en ? 'Too many attempts' : '尝试次数过多');
           pwCountdown();
         } else if (j.error === 'not-set') {
-          /* fix/hi-owner：只提示未设置，不暴露 /owner/ 地址 */
-          pwShowError(en ? 'No password set yet' : '尚未设置密码');
+          showError(en ? 'No password set yet' : '尚未设置密码');
         } else if (j.error === 'server') {
-          pwShowError(en ? 'Server error' : '服务器错误');
+          showError(en ? 'Server error' : '服务器错误');
         } else {
-          pwShowError(en ? 'Wrong password' : '密码错误');
+          showError(en ? 'Wrong password' : '密码错误');
           if (input) input.value = '';
         }
       })
       .catch(function () {
-        pwShowError(en ? 'Network error' : '网络错误');
+        if (dlgState !== 'password') return;
+        showError(en ? 'Network error' : '网络错误');
       });
   }
 
-  const pwlink = document.getElementById('sgx-lock-pwlink');
-  if (pwlink) {
-    on(pwlink, 'click', function (e) {
-      e.stopPropagation();
-      openPw();
-    });
+  /* ---------- 通行密钥态（与验证态同一弹层） ---------- */
+  function openPk() {
+    dlgState = 'passkey';
+    setTitle(en ? 'Use passkey' : '使用通行密钥');
+    setBody(
+      '<div class="sgx-verify-loading"><div class="sgx-spinner" role="progressbar" aria-label="' +
+        (en ? 'Verifying' : '正在验证') +
+        '"></div><p class="sgx-verify-loading-tx">' +
+        (en ? 'Verifying passkey…' : '正在验证通行密钥…') +
+        '</p></div>'
+    );
+    clearErr();
+    if (!openDialog()) return;
+    pkAuth();
   }
 
-  /* ============ 通行密钥解锁（2.4.0 I） ============ */
-  const pkbtn = document.getElementById('sgx-lock-pkbtn');
-  if (pkbtn && window.PublicKeyCredential) {
-    on(pkbtn, 'click', function (e) {
-      e.stopPropagation();
-      pkAuth();
-    });
+  /* 通行密钥失败 → 同一弹层内给重试 / 用密码 */
+  function pkFailed() {
+    if (dlgState !== 'passkey') return;
+    setBody(
+      '<div class="sgx-verify-loading"><p class="sgx-verify-failtx">' +
+        (en ? 'Passkey verification failed' : '通行密钥验证失败') +
+        '</p><div class="sgx-verify-actions">' +
+        '<button type="button" class="sgx-verify-skip" id="sgx-pk-retry">' + (en ? 'Retry' : '重试') + '</button>' +
+        '<button type="button" class="sgx-verify-ghost" id="sgx-pk-topw">' + (en ? 'Use password' : '使用密码') + '</button>' +
+        '</div></div>'
+    );
+    const retry = document.getElementById('sgx-pk-retry');
+    const topw = document.getElementById('sgx-pk-topw');
+    if (retry) on(retry, 'click', openPk);
+    if (topw) on(topw, 'click', openPw);
+    liftAvatar();
   }
+
   /** @returns {Uint8Array} */
   function b64urlToBuf(s) {
     s = s.replace(/-/g, '+').replace(/_/g, '/');
@@ -580,24 +675,30 @@ export function initLock() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'challenge', type: 'auth' }),
     })
-      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        return r.json();
+      })
       .then(function (ch) {
+        if (dlgState !== 'passkey') throw { done: true };
         if (!ch || !ch.ok) throw new Error('challenge');
         const allow = (ch.allowCredentials || []).map(function (c) {
           return { id: b64urlToBuf(c.id), type: c.type };
         });
-        return navigator.credentials.get({
-          publicKey: {
-            challenge: b64urlToBuf(ch.challenge),
-            allowCredentials: allow,
-            userVerification: 'preferred',
-            timeout: 60000,
-          },
-        }).then(function (cred) {
-          return { cred: cred, cid: ch.cid };
-        });
+        return navigator.credentials
+          .get({
+            publicKey: {
+              challenge: b64urlToBuf(ch.challenge),
+              allowCredentials: allow,
+              userVerification: 'preferred',
+              timeout: 60000,
+            },
+          })
+          .then(function (cred) {
+            return { cred: cred, cid: ch.cid };
+          });
       })
       .then(function (res) {
+        if (dlgState !== 'passkey') throw { done: true };
         const cred = res.cred;
         return fetch('/api/owner-passkey', {
           method: 'POST',
@@ -619,19 +720,38 @@ export function initLock() {
           }),
         });
       })
-      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        return r.json();
+      })
       .then(function (j) {
+        if (dlgState !== 'passkey') return;
         if (j && j.ok) {
+          closeDialog();
           unlock();
         } else {
-          /* 失败 → 回退到密码 */
-          openPw();
+          pkFailed();
         }
       })
-      .catch(function () {
-        /* 用户取消或失败 → 回退到密码 */
-        openPw();
+      .catch(function (e) {
+        if (e && e.done) return;
+        pkFailed();
       });
+  }
+
+  /* ---------- 入口接线 ---------- */
+  const pwlink = document.getElementById('sgx-lock-pwlink');
+  if (pwlink) {
+    on(pwlink, 'click', function (e) {
+      e.stopPropagation();
+      openPw();
+    });
+  }
+  const pkbtn = document.getElementById('sgx-lock-pkbtn');
+  if (pkbtn && window.PublicKeyCredential) {
+    on(pkbtn, 'click', function (e) {
+      e.stopPropagation();
+      openPk();
+    });
   }
 
   const av = document.getElementById('sgx-lock-avatar');
@@ -653,7 +773,7 @@ export function initLock() {
     if (e.key === 'Enter' || e.key === ' ') {
       const t = /** @type {HTMLElement|null} */ (e.target);
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-      if (vdlg && vdlg.open) return;
+      if (dlg && dlg.open) return;
       e.preventDefault();
       openVerify();
     }

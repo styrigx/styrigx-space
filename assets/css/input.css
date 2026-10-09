@@ -1316,6 +1316,102 @@
   /* ===== 设置页组标题：三星设置风格（彩色实心圆形图标 + 标题） ===== */
   .set-gh { display: flex; align-items: center; gap: 12px; padding: 0 4px; margin: 0 0 10px; font-size: 17px; font-weight: 700; color: var(--m-on-surface); letter-spacing: -0.01em; }
 
+  /* ===== 安全与隐私页 ===== */
+  .sec-status {
+    display: flex; align-items: center; gap: 14px; padding: 18px;
+    border-radius: 1.5rem; margin: 4px 0 24px; text-decoration: none;
+    border: 1px solid var(--glass-edge);
+    &[hidden] { display: none; }
+    &.is-ok { background: var(--m-tertiary-container); color: var(--m-on-tertiary-container); }
+    &.is-warn { background: var(--m-warm-container); color: var(--m-on-warm-container); }
+  }
+  .sec-status-ic {
+    width: 48px; height: 48px; border-radius: 999px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    .sec-status.is-ok & { background: var(--m-tertiary); color: var(--m-on-tertiary); }
+    .sec-status.is-warn & { background: var(--m-warm); color: var(--m-on-warm); }
+    svg { width: 26px; height: 26px; }
+  }
+  .sec-note { font-size: 12px; color: var(--m-on-surface-variant); padding: 0 4px; margin: 0; }
+  .subpage-more {
+    width: 40px; height: 40px; border-radius: 999px; border: 0; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    background: transparent; color: var(--m-on-surface-variant);
+    &:active { background: var(--m-container-high); }
+    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
+  }
+  .sec-sheet-opt {
+    display: flex; align-items: center; gap: 12px; width: 100%;
+    padding: 14px 16px; border: 0; background: none; cursor: pointer;
+    font-size: 16px; color: var(--m-on-surface); text-align: left; border-radius: 12px;
+    &:active { background: var(--m-container-high); }
+    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: -2px; }
+    svg { width: 22px; height: 22px; flex-shrink: 0; }
+  }
+
+  /* ===== 锁定屏幕管理页 ===== */
+  .sgx-verify-sub { font-size: 14px; color: var(--m-on-surface-variant); margin: 0; }
+  .sgx-verify-desc { font-size: 13px; color: var(--m-on-surface-variant); margin: 0; text-align: center; max-width: 300px; }
+  .sgx-verify-opts { display: flex; flex-direction: column; gap: 4px; width: 100%; max-width: 340px; }
+  .sgx-verify-back {
+    background: none; border: 0; padding: 8px 16px; cursor: pointer;
+    font-size: 14px; color: var(--m-on-surface-variant);
+    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; border-radius: 8px; }
+  }
+  #lockgate-keyform { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; &[hidden] { display: none; } }
+  .sgx-pw-field { position: relative; width: 100%; max-width: 280px; }
+  .sgx-pw-field .sgx-pw-input { max-width: none; padding-right: 48px; }
+  .sgx-pw-eye {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    width: 36px; height: 36px; border: 0; background: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--m-on-surface-variant); border-radius: 999px;
+    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: -2px; }
+    &.off { opacity: .45; }
+  }
+  .lockmgr-pklist { list-style: none; margin: 0; padding: 8px; display: flex; flex-direction: column; gap: 8px; &[hidden] { display: none; } }
+  .lockmgr-pkitem {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 10px 12px; border: 1px solid var(--m-outline-variant); border-radius: 12px;
+    background: var(--m-surface-container-low);
+  }
+  .lockmgr-pkname { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+  .lockmgr-pkname input {
+    border: 0; background: transparent; font-size: 15px; font-weight: 600;
+    color: var(--m-on-surface); padding: 2px 4px; margin-left: -4px; border-radius: 6px; min-width: 0;
+    &:focus { outline: 2px solid var(--m-primary); outline-offset: 0; background: var(--m-surface); }
+  }
+  .lockmgr-pkdate { font-size: 12px; color: var(--m-on-surface-variant); padding-left: 4px; }
+  .lockmgr-pkdel {
+    background: none; border: 0; color: var(--m-rose); font-size: 14px; font-weight: 600;
+    cursor: pointer; padding: 8px 10px; border-radius: 8px; white-space: nowrap; flex-shrink: 0;
+    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: -2px; }
+    &.armed { color: var(--m-on-surface); background: var(--m-rose-container); }
+  }
+  .lockmgr-add {
+    display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+    padding: 14px; border: 0; background: none; cursor: pointer;
+    font-size: 15px; font-weight: 600; color: var(--m-primary);
+    &:active { background: var(--m-container-high); }
+    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: -2px; }
+  }
+  #lockmgr-pkempty[hidden] { display: none; }
+
+  /* ===== One UI 圆形进度（Turnstile 加载态） ===== */
+  .sgx-spinner {
+    width: 44px; height: 44px; border-radius: 999px; flex-shrink: 0;
+    border: 4px solid var(--m-container-highest); border-top-color: var(--m-primary);
+    animation: sgx-spin .8s linear infinite;
+    .reduced-motion & { animation-duration: 2s; }
+  }
+  @keyframes sgx-spin { to { transform: rotate(360deg); } }
+  .sgx-check {
+    width: 44px; height: 44px; border-radius: 999px; flex-shrink: 0;
+    background: var(--m-tertiary); color: var(--m-on-tertiary);
+    display: flex; align-items: center; justify-content: center;
+    svg { width: 24px; height: 24px; }
+  }
+
   /* ===== 设置页：底部渐隐（手机浮动搜索条背景；DeX 下搜索条在内容顶部，不需要）===== */
   #settings-searchfade {
     display: block; position: fixed; left: 0; right: 0; bottom: 0; height: 96px; z-index: 29; pointer-events: none;
@@ -1851,16 +1947,20 @@
     h3 { font-size: 14px; font-weight: 600; color: var(--m-on-surface); margin: 0 0 8px; }
     ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
   }
-  /* 2.4.0 H：Turnstile 验证卡（<dialog>，One UI 密码界面式底部弹层） */
+  /* 2.4.0 H：Turnstile 验证卡（<dialog>，One UI 密码界面式底部弹层）
+     安全与隐私：验证/密码/通行密钥三态共用同一组件；卡片背景完全不透明；
+     容器无 outline，:focus-visible 只在内部可交互元素上用本站焦点色。 */
   dialog.sgx-verify-dlg {
-    padding: 0; border: 0; background: transparent;
+    padding: 0; border: 0; background: transparent; outline: none;
     margin: 0; width: 100%; max-width: none; max-height: none;
     position: fixed; inset: auto 0 0 0;
+    &:focus { outline: none; }
     &::backdrop { background: rgba(0,0,0,.4); opacity: 0; transition: opacity .25s; }
     &[open]::backdrop { opacity: 1; }
+    :focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
   }
   .sgx-verify-card {
-    /* fix/hi-owner：实色背景，不透出底下的字 */
+    /* 实色背景，完全不透明，不透出底下的字 */
     background: var(--m-surface); border: 1px solid var(--glass-edge);
     border-radius: 1.75rem 1.75rem 0 0; padding: 8px 20px calc(20px + env(safe-area-inset-bottom,0px));
     display: flex; flex-direction: column; align-items: center; gap: 12px;
@@ -1868,18 +1968,21 @@
     dialog.sgx-verify-dlg[open] & { transform: none; }
     .reduced-motion & { transition: none; }
     &.sgx-shake { animation: sgx-shake .4s; }
+    &:focus { outline: none; }
   }
-  /* fix/hi-owner：密码弹层打开时，头像块上移避让（JS 设置 --sgx-pw-lift 为弹层高度） */
+  /* 弹层打开时底层名字与入口：隐藏且不可交互（JS 另加 inert） */
+  .sgx-bg-hidden { visibility: hidden; }
+  /* 密码/验证弹层打开时，头像块上移避让（JS 设置 --sgx-dlg-lift 为弹层高度） */
   .sgx-lock-user {
     transition: transform .32s cubic-bezier(.22,1,.36,1);
     .reduced-motion & { transition: none; }
   }
-  body.sgx-pw-open .sgx-lock-user {
-    transform: translateY(calc(var(--sgx-pw-lift, 0px) * -1));
+  body.sgx-dlg-open .sgx-lock-user {
+    transform: translateY(calc(var(--sgx-dlg-lift, 0px) * -1));
   }
   @media (orientation:landscape) and (max-width:1023.5px) {
-    body.sgx-pw-open .sgx-lock-user {
-      transform: translateY(calc(-50% - var(--sgx-pw-lift, 0px)));
+    body.sgx-dlg-open .sgx-lock-user {
+      transform: translateY(calc(-50% - var(--sgx-dlg-lift, 0px)));
     }
   }
   @keyframes sgx-shake {
@@ -1894,6 +1997,28 @@
   .sgx-verify-skip {
     background: var(--m-primary); color: var(--m-on-primary);
     border: 0; border-radius: 999px; padding: 10px 24px; font-size: 15px; font-weight: 600; cursor: pointer;
+    &:disabled { opacity: .5; }
+  }
+  .sgx-verify-ghost {
+    background: none; border: 1px solid var(--m-outline); border-radius: 999px;
+    padding: 10px 24px; font-size: 15px; font-weight: 600; cursor: pointer; color: var(--m-on-surface);
+  }
+  /* 统一弹层内容区：三态同尺寸，min-height 防跳动 */
+  .sgx-verify-body {
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    width: 100%; min-height: 132px; justify-content: center;
+  }
+  .sgx-verify-loading { display: flex; flex-direction: column; align-items: center; gap: 14px; &[hidden] { display: none; } }
+  .sgx-verify-loading-tx { font-size: 14px; color: var(--m-on-surface-variant); margin: 0; }
+  .sgx-verify-failtx { font-size: 15px; color: var(--m-on-surface); margin: 0; font-weight: 500; }
+  .sgx-verify-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  /* Turnstile 小组件容器：圆角 + 内边距融进弹层，无白底大框 */
+  .sgx-ts-wrap {
+    border-radius: 16px; padding: 12px 16px; max-width: 320px; width: 100%;
+    background: var(--m-surface-container-low); border: 1px solid var(--m-outline-variant);
+    display: flex; justify-content: center; align-items: center; min-height: 65px;
+    &[hidden] { display: none; }
+    iframe { border-radius: 8px; }
   }
   /* 手机横屏：左半边时钟，右半边头像，都垂直居中 */
   @media (orientation:landscape) and (max-width:1023.5px) {

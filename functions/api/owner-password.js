@@ -46,6 +46,18 @@ function timingSafeEqual(a, b) {
 }
 
 /**
+ * 签名会话 cookie 值：exp.HMAC(SESSION_SECRET, exp)，24 小时有效（防伪造）。
+ * @param {string} secret
+ */
+async function signVerifiedCookie(secret) {
+  const exp = String(Date.now() + 86400000);
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sigBits = await crypto.subtle.sign('HMAC', key, enc.encode(exp));
+  return exp + '.' + b64enc(sigBits).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+/**
  * PBKDF2-SHA256 哈希。
  * @param {string} password
  * @param {Uint8Array} salt
@@ -171,9 +183,13 @@ async function handlePost(context) {
       );
     }
     await clearFail();
-    /* 通过：设会话 cookie（与 Turnstile 同口径） */
+    /* 通过：设签名会话 cookie（SESSION_SECRET HMAC + 24h 过期，防伪造） */
     const headers = new Headers({ 'Content-Type': 'application/json' });
-    headers.append('Set-Cookie', 'sgx-verified=1; Path=/; HttpOnly; Secure; SameSite=Lax');
+    const vSecret = (env && env.SESSION_SECRET) || '';
+    if (vSecret) {
+      const cv = await signVerifiedCookie(vSecret);
+      headers.append('Set-Cookie', 'sgx-verified=' + cv + '; Path=/; HttpOnly; Secure; SameSite=Lax');
+    }
     return new Response(JSON.stringify({ ok: true }), { headers });
   }
 

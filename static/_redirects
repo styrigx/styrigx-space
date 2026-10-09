@@ -4,3 +4,5 @@
 /gh/*  https://github.com/styrigx/:splat               301
 /links/  /browser/  301
 /en/links/  /en/browser/  301
+/owner/  /settings/security/lock/  301
+/en/owner/  /en/settings/security/lock/  301

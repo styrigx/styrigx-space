@@ -1,0 +1,87 @@
+{{/* 安全与隐私（2.4.0 安全与隐私）：只读状态卡片 + 安全/隐私分组。
+   状态来自 /api/owner-status（只返回是否已设置）；noindex、不进 sitemap（见 baseof/sitemap）。
+   脚本走 ES Module 入口 entry-security.js；localStorage 经 storage.js。 */}}
+{{ define "main" }}
+{{ .Scratch.Set "sgx-entry" "entry-security.js" }}
+{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+{{ $lockUrl := cond $isEn "/en/settings/security/lock/" "/settings/security/lock/" }}
+{{ $setUrl := cond $isEn "/en/settings/" "/settings/" }}
+{{ $moreBtn := printf `<button type="button" class="subpage-more" id="sec-more" aria-label="%s"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></button>` (cond $isEn "More" "更多") }}
+
+<div class="set-layout max-w-2xl mx-auto px-4 pb-28">
+  {{ partial "subpage-head.html" (dict "title" (cond $isEn "Security and privacy" "安全与隐私") "isEn" $isEn "actions" ($moreBtn | safeHTML)) }}
+
+  <!-- 状态卡片（JS 按 /api/owner-status 填充） -->
+  <a id="sec-status" class="sec-status" href="{{ $lockUrl }}" hidden>
+    <span class="sec-status-ic" id="sec-status-ic">{{ partial "icon.html" "shield" }}</span>
+    <span class="flex-1 min-w-0">
+      <span class="block font-bold text-[17px]" id="sec-status-title"></span>
+      <span class="block text-[13px] mt-0.5 opacity-80" id="sec-status-sub"></span>
+    </span>
+    {{ partial "icon.html" "chev-r" }}
+  </a>
+
+  <!-- 安全分组 -->
+  <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Security{{ else }}安全{{ end }}</span></h2>
+  <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.1s">
+    <a class="set-row" id="sec-lock-row" href="{{ $lockUrl }}">
+      <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "lock" }}</span>
+      <span class="flex-1 min-w-0">
+        <span class="block font-medium">{{ if $isEn }}Lock screen{{ else }}锁定屏幕{{ end }}</span>
+        <span class="block text-xs mt-0.5 truncate text-m-primary" id="sec-lock-sub">{{ if $isEn }}Loading…{{ else }}正在读取…{{ end }}</span>
+      </span>
+      {{ partial "icon.html" "chev-r" }}
+    </a>
+    <div class="set-row" id="sec-locknow" role="button" tabindex="0">
+      <span class="set-ic bg-m-warm-container text-m-on-warm-container">{{ partial "icon.html" "clock" }}</span>
+      <span class="flex-1 min-w-0">
+        <span class="block font-medium">{{ if $isEn }}Lock now{{ else }}立即锁定{{ end }}</span>
+        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Clear this session and return to the lock screen{{ else }}清除当前会话并回到锁屏{{ end }}</span>
+      </span>
+    </div>
+  </section>
+
+  <!-- 隐私分组 -->
+  <h2 class="set-gh"><span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "info" }}</span><span>{{ if $isEn }}Privacy{{ else }}隐私{{ end }}</span></h2>
+  <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.14s">
+    <div class="set-row no-ic">
+      <span class="flex-1 min-w-0">
+        <span class="block font-medium">{{ if $isEn }}Search engine indexing{{ else }}搜索引擎收录{{ end }}</span>
+        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Read-only{{ else }}只读{{ end }}</span>
+      </span>
+      <span class="text-sm text-m-on-surface-variant" id="sec-robots">{{ if $isEn }}Not set{{ else }}未设置{{ end }}</span>
+    </div>
+    <div class="set-row no-ic">
+      <span class="flex-1 min-w-0">
+        <span class="block font-medium">{{ if $isEn }}Local data{{ else }}本地数据{{ end }}</span>
+        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Settings are stored only in this browser.{{ else }}设置仅保存在本浏览器本地。{{ end }}</span>
+      </span>
+      <a class="text-sm text-m-primary font-medium whitespace-nowrap" href="{{ $setUrl }}#about" id="sec-reset-link">{{ if $isEn }}Reset all settings{{ else }}重置所有设置{{ end }}</a>
+    </div>
+    <div class="set-row no-ic" aria-disabled="true">
+      <span class="flex-1 min-w-0">
+        <span class="block font-medium">{{ if $isEn }}Weather location{{ else }}天气位置{{ end }}</span>
+        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Coming in 2.7.0{{ else }}2.7.0 实现{{ end }}</span>
+      </span>
+      <span class="text-sm text-m-on-surface-variant">--</span>
+    </div>
+  </section>
+  <p class="sec-note">{{ if $isEn }}Security status is read from this device only.{{ else }}安全状态仅从本设备读取。{{ end }}</p>
+</div>
+
+{{ $secI18n := dict
+  "okTitle" (dict "zh" "一切正常" "en" "All good")
+  "okSub" (dict "zh" "密码、通行密钥均已设置" "en" "Password and passkeys are set")
+  "warnTitle" (dict "zh" "建议操作" "en" "Action suggested")
+  "missPw" (dict "zh" "未设置解锁密码" "en" "No unlock password")
+  "missPk" (dict "zh" "未注册通行密钥" "en" "No passkeys registered")
+  "lockSubBoth" (dict "zh" "密码，通行密钥" "en" "Password, passkeys")
+  "lockSubPw" (dict "zh" "密码" "en" "Password")
+  "lockSubPk" (dict "zh" "通行密钥" "en" "Passkeys")
+  "lockSubNone" (dict "zh" "未设置" "en" "Not set")
+  "lockNowToast" (dict "zh" "已锁定" "en" "Locked")
+  "refreshToast" (dict "zh" "已刷新" "en" "Refreshed")
+  "statusErr" (dict "zh" "读取失败" "en" "Failed to load")
+}}
+<script id="sgx-i18n-security" type="application/json">{{ $secI18n | jsonify | safeJS }}</script>
+{{ end }}

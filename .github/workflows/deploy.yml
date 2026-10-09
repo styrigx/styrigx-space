@@ -106,6 +106,16 @@ jobs:
           find public -type f \( -name '*.html' -o -name '*.css' -o -name '*.js' \) -exec gzip -k -9 {} \;
           npx lhci autorun --config=.lighthouserc.json
 
+      - name: 前端技术名词检查（安全与隐私）
+        # 用户可见文案不得出现 OWNER_KEY / SESSION_SECRET / TURNSTILE_SECRET；
+        # 后端变量名只许出现在 functions/ 与注释里，不许进 public/ HTML。
+        run: |
+          if grep -rl "OWNER_KEY\|SESSION_SECRET\|TURNSTILE_SECRET" public/ --include="*.html"; then
+            echo "FAIL: 技术变量名出现在 HTML 产物中"
+            exit 1
+          fi
+          echo "OK: HTML 产物无技术变量名"
+
   build-and-deploy:
     # Hark：只有 main 的 push 才部署；PR 只跑 quality
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

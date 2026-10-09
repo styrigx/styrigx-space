@@ -7,3 +7,4 @@ resources/
 assets/css/main.css
 hugo_stats.json
 test-results/
+playwright-report/

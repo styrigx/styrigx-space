@@ -16,7 +16,8 @@ const VIEWPORTS = {
   landscape: { width: 915, height: 412 },
   desktop: { width: 1920, height: 1080 },
 };
-const PAGES = ['/', '/files/', '/store/', '/browser/', '/settings/'];
+/* 安全与隐私：新页面加入视觉回归（先只报告，基线未生成前不阻塞） */
+const PAGES = ['/', '/files/', '/store/', '/browser/', '/settings/', '/settings/security/', '/settings/security/lock/'];
 const LANGS = [
   { prefix: '', name: 'zh' },
   { prefix: '/en', name: 'en' },

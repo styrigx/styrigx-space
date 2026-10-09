@@ -1,0 +1,124 @@
+{{/* 锁定屏幕（2.4.0 安全与隐私）：替代 /owner/。
+   进入前底部弹层「验证身份」（通行密钥 / 管理密钥；解锁密码不能进入）。
+   验证后管理解锁密码与通行密钥。noindex、不进 sitemap（见 baseof/sitemap）。
+   脚本走 ES Module 入口 entry-security-lock.js；localStorage 经 storage.js。 */}}
+{{ define "main" }}
+{{ .Scratch.Set "sgx-entry" "entry-security-lock.js" }}
+{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+
+<div class="set-layout max-w-2xl mx-auto px-4 pb-28">
+  {{ partial "subpage-head.html" (dict "title" (cond $isEn "Lock screen" "锁定屏幕") "isEn" $isEn) }}
+
+  <!-- 验证身份（进入前底部弹层） -->
+  <dialog id="lockgate-dlg" class="sgx-verify-dlg" aria-labelledby="lockgate-title">
+    <div class="sgx-verify-card">
+      <div class="sheet-handle" data-gclose></div>
+      <h2 id="lockgate-title" class="sgx-verify-title">{{ if $isEn }}Verify identity{{ else }}验证身份{{ end }}</h2>
+      <p class="sgx-verify-sub">{{ if $isEn }}Choose a way to verify{{ else }}选择一种验证方式{{ end }}</p>
+      <div class="sgx-verify-opts" id="lockgate-opts">
+        <button type="button" class="sec-sheet-opt" id="lockgate-pk" hidden>
+          {{ partial "icon.html" "shield" }}
+          <span class="flex-1">{{ if $isEn }}Use passkey{{ else }}使用通行密钥{{ end }}</span>
+          {{ partial "icon.html" "chev-r" }}
+        </button>
+        <button type="button" class="sec-sheet-opt" id="lockgate-key">
+          {{ partial "icon.html" "lock" }}
+          <span class="flex-1">{{ if $isEn }}Use admin key{{ else }}使用管理密钥{{ end }}</span>
+          {{ partial "icon.html" "chev-r" }}
+        </button>
+      </div>
+      <div id="lockgate-keyform" hidden>
+        <div class="sgx-pw-field">
+          <input type="password" id="lockgate-input" class="sgx-pw-input" autocomplete="off"
+                 aria-label="{{ if $isEn }}Admin key{{ else }}管理密钥{{ end }}"
+                 placeholder="{{ if $isEn }}Admin key{{ else }}管理密钥{{ end }}">
+          <button type="button" class="sgx-pw-eye" id="lockgate-eye" aria-label="{{ if $isEn }}Show{{ else }}显示{{ end }}"></button>
+        </div>
+        <p class="sgx-verify-desc">{{ if $isEn }}The admin key set when deploying this site, used to manage unlock methods.{{ else }}部署本站时设置的管理密钥，用于管理解锁方式。{{ end }}</p>
+        <p id="lockgate-err" class="sgx-verify-err" hidden></p>
+        <button type="button" class="sgx-verify-skip" id="lockgate-go">{{ if $isEn }}Continue{{ else }}继续{{ end }}</button>
+        <button type="button" class="sgx-verify-back" id="lockgate-back">{{ if $isEn }}Back{{ else }}返回{{ end }}</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- 管理区（验证后显示） -->
+  <div id="lockmgr" hidden>
+    <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "lock" }}</span><span>{{ if $isEn }}Unlock password{{ else }}解锁密码{{ end }}</span></h2>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.1s">
+      <div class="set-row" id="lockmgr-pwrow" role="button" tabindex="0">
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}Unlock password{{ else }}解锁密码{{ end }}</span>
+          <span class="block text-xs mt-0.5 text-m-primary" id="lockmgr-pwsub">{{ if $isEn }}Loading…{{ else }}正在读取…{{ end }}</span>
+        </span>
+        {{ partial "icon.html" "chev-r" }}
+      </div>
+    </section>
+    <p class="sec-note mb-7">{{ if $isEn }}Used to unlock from the lock screen. Minimum 8 characters.{{ else }}用于从锁屏解锁，最短 8 位。{{ end }}</p>
+
+    <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Passkeys{{ else }}通行密钥{{ end }}</span></h2>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.14s">
+      <ul class="lockmgr-pklist" id="lockmgr-pklist" hidden></ul>
+      <div class="p-4" id="lockmgr-pkempty" hidden>
+        <p class="text-sm text-m-on-surface-variant m-0">{{ if $isEn }}No passkeys yet.{{ else }}还没有通行密钥。{{ end }}</p>
+      </div>
+      <button type="button" class="lockmgr-add" id="lockmgr-pkadd">
+        <span aria-hidden="true">＋</span> {{ if $isEn }}Add passkey{{ else }}添加通行密钥{{ end }}
+      </button>
+    </section>
+    <p class="sec-note">{{ if $isEn }}Unlock with fingerprint or device PIN. Tap a name to rename it.{{ else }}用指纹或设备 PIN 解锁。点设备名可重命名。{{ end }}</p>
+  </div>
+</div>
+
+<!-- 密码设置/修改弹层 -->
+<dialog id="lockpw-dlg" class="sgx-verify-dlg" aria-labelledby="lockpw-title">
+  <div class="sgx-verify-card">
+    <div class="sheet-handle" data-pclose></div>
+    <h2 id="lockpw-title" class="sgx-verify-title">{{ if $isEn }}Set unlock password{{ else }}设置解锁密码{{ end }}</h2>
+    <div class="sgx-pw-field">
+      <input type="password" id="lockpw-1" class="sgx-pw-input" autocomplete="new-password"
+             aria-label="{{ if $isEn }}New password{{ else }}新密码{{ end }}"
+             placeholder="{{ if $isEn }}New password (min 8){{ else }}新密码（最少 8 位）{{ end }}">
+      <button type="button" class="sgx-pw-eye" data-eye="lockpw-1" aria-label="{{ if $isEn }}Show{{ else }}显示{{ end }}"></button>
+    </div>
+    <div class="sgx-pw-field">
+      <input type="password" id="lockpw-2" class="sgx-pw-input" autocomplete="new-password"
+             aria-label="{{ if $isEn }}Confirm password{{ else }}确认密码{{ end }}"
+             placeholder="{{ if $isEn }}Confirm password{{ else }}确认密码{{ end }}">
+      <button type="button" class="sgx-pw-eye" data-eye="lockpw-2" aria-label="{{ if $isEn }}Show{{ else }}显示{{ end }}"></button>
+    </div>
+    <p id="lockpw-err" class="sgx-verify-err" hidden></p>
+    <button type="button" class="sgx-verify-skip" id="lockpw-go">{{ if $isEn }}Save{{ else }}保存{{ end }}</button>
+  </div>
+</dialog>
+
+{{ $lkI18n := dict
+  "gatePkErr" (dict "zh" "通行密钥验证失败" "en" "Passkey verification failed")
+  "gateCancelled" (dict "zh" "已取消" "en" "Cancelled")
+  "gateKeyWrong" (dict "zh" "管理密钥错误" "en" "Wrong admin key")
+  "gateNetErr" (dict "zh" "网络错误" "en" "Network error")
+  "gateSrvErr" (dict "zh" "服务器错误" "en" "Server error")
+  "gateNeedKey" (dict "zh" "请输入管理密钥" "en" "Enter the admin key")
+  "eyeShow" (dict "zh" "显示" "en" "Show")
+  "eyeHide" (dict "zh" "隐藏" "en" "Hide")
+  "pwSet" (dict "zh" "已设置" "en" "Set")
+  "pwUnset" (dict "zh" "未设置" "en" "Not set")
+  "pwMin8" (dict "zh" "最短 8 位" "en" "Minimum 8 characters")
+  "pwMismatch" (dict "zh" "两次输入不一致" "en" "Passwords do not match")
+  "pwSaved" (dict "zh" "已保存" "en" "Saved")
+  "pwChanged" (dict "zh" "已修改" "en" "Changed")
+  "pkRegistered" (dict "zh" "已注册" "en" "Registered")
+  "pkDeleted" (dict "zh" "已删除" "en" "Deleted")
+  "pkRenamed" (dict "zh" "已重命名" "en" "Renamed")
+  "pkUnnamed" (dict "zh" "通行密钥" "en" "Passkey")
+  "pkDel" (dict "zh" "删除" "en" "Delete")
+  "pkDelAsk" (dict "zh" "再点一次删除" "en" "Tap again to delete")
+  "pkAlready" (dict "zh" "此设备已注册过" "en" "Already registered on this device")
+  "pkNoSupport" (dict "zh" "设备不支持" "en" "Not supported on this device")
+  "pkFailed" (dict "zh" "注册失败" "en" "Registration failed")
+  "setTitle" (dict "zh" "设置解锁密码" "en" "Set unlock password")
+  "changeTitle" (dict "zh" "修改解锁密码" "en" "Change unlock password")
+  "sessExp" (dict "zh" "会话过期，请重新验证" "en" "Session expired, verify again")
+}}
+<script id="sgx-i18n-lockmgr" type="application/json">{{ $lkI18n | jsonify | safeJS }}</script>
+{{ end }}

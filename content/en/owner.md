@@ -1,4 +1,0 @@
----
-title: 'Owner'
-layout: owner
----

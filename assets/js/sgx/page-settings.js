@@ -722,6 +722,7 @@ import { setCapSearchProvider } from './capsule.js';
   const CATS = [
     { id: 'display', el: 'sg-display' },
     { id: 'theme', el: 'sg-theme' },
+    { id: 'security', el: 'sg-security' },
     { id: 'manage', el: 'sg-manage' },
     { id: 'apps', el: 'sg-apps' },
     { id: 'accessibility', el: 'sg-accessibility' },
@@ -731,6 +732,7 @@ import { setCapSearchProvider } from './capsule.js';
   const CATNAMES = {
     display: T.t('catDisplay'),
     theme: T.t('catTheme'),
+    security: T.t('catSecurity'),
     manage: T.t('catManage'),
     apps: T.t('catApps'),
     accessibility: T.t('catAccessibility'),
@@ -898,6 +900,11 @@ import { setCapSearchProvider } from './capsule.js';
       r.unshift(title);
       set('sgx-set-recent', JSON.stringify(r.slice(0, 6)));
     } catch (e) {}
+    /* 安全与隐私子页：索引 el 以 / 开头 → 直接跳转对应页面 */
+    if (elid && elid.charAt(0) === '/') {
+      window.location.href = elid;
+      return;
+    }
     window.setTimeout(function () {
       if (panel === 'files') {
         openFilesPanel(item);

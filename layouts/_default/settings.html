@@ -33,6 +33,10 @@
           <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "palette" }}</span>
           <span>{{ if $isEn }}Wallpaper &amp; theme{{ else }}壁纸和主题{{ end }}</span>
         </button>
+        <button type="button" class="set-cat" data-cat="security">
+          <span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span>
+          <span>{{ if $isEn }}Security and privacy{{ else }}安全与隐私{{ end }}</span>
+        </button>
         <button type="button" class="set-cat" data-cat="manage">
           <span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "sliders" }}</span>
           <span>{{ if $isEn }}General management{{ else }}常规管理{{ end }}</span>
@@ -124,6 +128,21 @@
     </section>
     </div>
     {{ end }}{{/* /palette */}}
+
+    <!-- 安全与隐私（独立成组，链接到 /settings/security/） -->
+    <div class="set-group scroll-mt-24" id="sg-security">
+    <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Security and privacy{{ else }}安全与隐私{{ end }}</span></h2>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.16s">
+      <a class="set-row" id="row-security" href="{{ if $isEn }}/en/settings/security/{{ else }}/settings/security/{{ end }}">
+        <span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span>
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}Security and privacy{{ else }}安全与隐私{{ end }}</span>
+          <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="security-val">{{ if $isEn }}Lock screen, password, passkeys{{ else }}锁定屏幕、密码、通行密钥{{ end }}</span>
+        </span>
+        {{ partial "icon.html" "chev-r" }}
+      </a>
+    </section>
+    </div>
 
     <!-- 第三组：常规管理 -->
     <div class="set-group scroll-mt-24" id="sg-manage">
@@ -330,6 +349,7 @@
   "gFav" (dict "zh" "收藏" "en" "Favorites")
   "catDisplay" (dict "zh" "显示" "en" "Display")
   "catTheme" (dict "zh" "壁纸和主题" "en" "Wallpaper & theme")
+  "catSecurity" (dict "zh" "安全与隐私" "en" "Security and privacy")
   "catManage" (dict "zh" "常规管理" "en" "General management")
   "catApps" (dict "zh" "应用" "en" "Apps")
   "catAccessibility" (dict "zh" "辅助功能" "en" "Accessibility")
@@ -353,6 +373,10 @@
     (slice "桌面布局" "Desktop layout" "自动 / 手机 / DeX" "Auto / Phone / DeX" "display" "seg-layout" "" "")
     (slice "主色" "Theme color" "壁纸和主题" "Wallpaper & theme" "theme" "palette-dots" "" "")
     (slice "壁纸和主题" "Wallpaper & theme" "" "" "theme" "sg-theme" "" "")
+    (slice "安全与隐私" "Security and privacy" "锁定屏幕、密码、通行密钥" "Lock screen, password, passkeys" "security" "sg-security" "" "")
+    (slice "锁定屏幕" "Lock screen" "安全与隐私" "Security and privacy" "security" (cond $isEn "/en/settings/security/lock/" "/settings/security/lock/") "" "")
+    (slice "密码" "Password" "解锁密码" "Unlock password" "security" (cond $isEn "/en/settings/security/lock/" "/settings/security/lock/") "" "")
+    (slice "通行密钥" "Passkeys" "安全与隐私" "Security and privacy" "security" (cond $isEn "/en/settings/security/lock/" "/settings/security/lock/") "" "")
     (slice "语言" "Language" "常规管理" "General management" "manage" "row-lang" "" "")
     (slice "日期和时间" "Date & time" "常规管理" "General management" "manage" "row-datetime" "" "")
     (slice "第一时区" "Primary timezone" "日期和时间" "Date & time" "manage" "row-datetime" "" "")
