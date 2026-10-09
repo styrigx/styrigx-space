@@ -11,10 +11,13 @@
  * - verify: { password } — 解锁验证（IP 限流：5 次失败 → 30 秒锁定）
  * - remove: { token } — 删除解锁密码（需有效的 owner-auth token；同时清 pw-fail:* 和 pw-lock:*）
  *
- * 密码存储：PBKDF2-SHA256 + 随机 salt，存 OWNER_KV；恒定时间比较。
+ * 密码存储：PBKDF2-SHA256 + 随机 salt，存 OWNER_KV；恒定时间比较（SHA-256 后比较）。
+ * 会话可吊销：KV 存 session-ver，签进 cookie；改密码/删密码时 +1。
+ * HMAC 用途前缀 "sess|"。
  * 只接受 POST；校验 Origin；未设置密码时 verify 一律拒绝。
  * 外层 try/catch：任何未捕获异常都返回 JSON { ok:false, error:'server' }，不返回 500 HTML。
  */
+import { b64enc, b64dec, timingSafeEqual, hmacSign, hmacVerify } from '../_lib/crypto.js';
 
 const ITERATIONS = 100000; // Workers PBKDF2 上限（实测：超过抛 NotSupportedError）
 const SALT_LEN = 16;
@@ -22,48 +25,59 @@ const KEY_LEN = 32; // 256 bit
 const MAX_FAIL = 5;
 const LOCK_MS = 30000;
 
-/** @param {string} s */
-function b64enc(s) {
-  return btoa(String.fromCharCode(...new Uint8Array(s)));
-}
-/** @param {string} b64 */
-function b64dec(b64) {
-  const bin = atob(b64);
-  const u8 = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-  return u8.buffer;
-}
-
 /**
- * 恒定时间比较（防时序攻击）。
- * @param {string} a
- * @param {string} b
+ * 获取当前 session-ver。
+ * @param {any} kv
  */
-function timingSafeEqual(a, b) {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
+async function getSessionVer(kv) {
+  try {
+    const v = await kv.get('session-ver');
+    return parseInt(v || '0', 10) || 0;
+  } catch (e) {
+    return 0;
+  }
 }
 
 /**
- * 签名会话 cookie 值：exp.HMAC(SESSION_SECRET, exp)，24 小时有效（防伪造）。
+ * session-ver +1（改密码、删密码、退出所有设备时调用）。
+ * @param {any} kv
+ */
+async function bumpSessionVer(kv) {
+  const v = await getSessionVer(kv);
+  await kv.put('session-ver', String(v + 1));
+  return v + 1;
+}
+
+/**
+ * 签名会话 cookie 值：ver.exp.HMAC(SESSION_SECRET, "sess|" + ver.exp)，24 小时有效。
  * @param {string} secret
+ * @param {number} ver
  */
-async function signVerifiedCookie(secret) {
+async function signVerifiedCookie(secret, ver) {
   const exp = String(Date.now() + 86400000);
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const sigBits = await crypto.subtle.sign('HMAC', key, enc.encode(exp));
-  return exp + '.' + b64enc(sigBits).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const payload = ver + '.' + exp;
+  const sig = await hmacSign(secret, 'sess|', payload);
+  return payload + '.' + sig;
 }
 
 /**
- * PBKDF2-SHA256 哈希。
- * @param {string} password
- * @param {Uint8Array} salt
- * @param {number} iterations
+ * 验证会话 cookie。
+ * @param {string} cookieVal
+ * @param {string} secret
+ * @param {number} expectVer
  */
+async function verifySessionCookie(cookieVal, secret, expectVer) {
+  try {
+    const parts = cookieVal.split('.');
+    if (parts.length !== 3) return false;
+    const [ver, exp, sig] = parts;
+    if (parseInt(ver, 10) !== expectVer) return false;
+    if (parseInt(exp, 10) < Date.now()) return false;
+    return await hmacVerify(secret, 'sess|', ver + '.' + exp, sig);
+  } catch (e) {
+    return false;
+  }
+}
 async function hashPassword(password, salt, iterations) {
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
@@ -76,7 +90,7 @@ async function hashPassword(password, salt, iterations) {
 }
 
 /**
- * 验 owner-auth token（owner-auth 签发，SESSION_SECRET 签名）。
+ * 验 owner-auth token（owner-auth 签发，SESSION_SECRET 签名，用途前缀 "owner-auth|"）。
  * @param {string} token
  * @param {string} secret
  */
@@ -87,11 +101,7 @@ async function verifyOwnerToken(token, secret) {
     if (parts.length !== 2) return false;
     const payload = parts[0];
     const sig = parts[1];
-    const enc = new TextEncoder();
-    const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-    const sigBits = await crypto.subtle.sign('HMAC', key, enc.encode(payload));
-    const expectSig = b64enc(sigBits).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    if (!timingSafeEqual(sig, expectSig)) return false;
+    if (!(await hmacVerify(secret, 'owner-auth|', payload, sig))) return false;
     const data = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
     return !!(data && data.exp > Date.now() && data.scope === 'owner-auth');
   } catch (e) {
@@ -198,7 +208,7 @@ async function handlePost(context) {
       const salt = new Uint8Array(b64dec(stored.salt));
       const bits = await hashPassword(password, salt, iters);
       const hashB64 = b64enc(bits);
-      ok = timingSafeEqual(hashB64, stored.hash);
+      ok = await timingSafeEqual(hashB64, stored.hash);
     } catch (e) {}
     if (!ok) {
       const locked = await recordFail();
@@ -208,11 +218,12 @@ async function handlePost(context) {
       );
     }
     await clearFail();
-    /* 通过：设签名会话 cookie（SESSION_SECRET HMAC + 24h 过期，防伪造） */
+    /* 通过：设签名会话 cookie（SESSION_SECRET HMAC + 24h 过期 + session-ver，防伪造、可吊销） */
     const headers = new Headers({ 'Content-Type': 'application/json' });
     const vSecret = (env && env.SESSION_SECRET) || '';
     if (vSecret) {
-      const cv = await signVerifiedCookie(vSecret);
+      const ver = await getSessionVer(kv);
+      const cv = await signVerifiedCookie(vSecret, ver);
       headers.append('Set-Cookie', 'sgx-verified=' + cv + '; Path=/; HttpOnly; Secure; SameSite=Lax');
     }
     return new Response(JSON.stringify({ ok: true }), { headers });
@@ -241,6 +252,8 @@ async function handlePost(context) {
         const list = await kv.list({ prefix: 'pw-lock:' });
         for (const k of list.keys || []) { try { await kv.delete(k.name); } catch (e) {} }
       } catch (e) {}
+      /* 会话吊销：session-ver +1 */
+      await bumpSessionVer(kv);
       return Response.json({ ok: true });
     }
 
@@ -272,8 +285,8 @@ async function handlePost(context) {
     };
     await kv.put('owner-pw', JSON.stringify(record));
 
-    /* 改密码后：旧密码会话失效（删验证标记；cookie 是 HttpOnly，前端清不掉，
-       但服务端 verify 已换 hash，旧密码无法再通过；这里返回 ok，前端清本地标记） */
+    /* 改密码后：session-ver +1，旧会话 cookie 失效 */
+    await bumpSessionVer(kv);
     return Response.json({ ok: true });
   }
 

@@ -255,7 +255,7 @@ import { toast } from './toast.js';
             return { id: b64urlToBuf(c.id), type: c.type };
           });
           return navigator.credentials
-            .get({ publicKey: { challenge: b64urlToBuf(ch.challenge), allowCredentials: allow, userVerification: 'preferred', timeout: 60000 } })
+            .get({ publicKey: { challenge: b64urlToBuf(ch.challenge), allowCredentials: allow, userVerification: 'required', timeout: 60000 } })
             .then(function (cred) {
               return { cred: cred, cid: ch.cid };
             }, function (e) {
@@ -479,6 +479,80 @@ import { toast } from './toast.js';
   const pwGo = $('lockpw-go');
   if (pwGo) on(pwGo, 'click', submitPw);
 
+  /* 通行密钥命名弹层 */
+  let pkNameCredId = null;
+  function openPkNameDlg(credId) {
+    pkNameCredId = credId;
+    const dlg = $('lockpkname-dlg');
+    const input = $('lockpkname-input');
+    if (!dlg || !input) return;
+    /* 预填：<密码管理器> · <设备> */
+    let provider = '';
+    try {
+      /* 从刚注册的列表里找 provider（服务端已识别 AAGUID） */
+      provider = '';
+    } catch (e) {}
+    let device = '';
+    try {
+      if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
+        navigator.userAgentData.getHighEntropyValues(['model']).then(function (ua) {
+          if (ua && ua.model) {
+            device = ua.model;
+            if (input && !input.value) input.value = (provider ? provider + ' · ' : '') + device;
+          }
+        }).catch(function () {});
+      }
+    } catch (e) {}
+    input.value = provider ? provider + (device ? ' · ' + device : '') : device;
+    hideErr('lockpkname-err');
+    try { dlg.showModal(); } catch (e) {}
+    try { input.focus({ preventScroll: true }); } catch (e2) {}
+  }
+  function closePkNameDlg() {
+    const dlg = $('lockpkname-dlg');
+    try { if (dlg && dlg.open) dlg.close(); } catch (e) {}
+    pkNameCredId = null;
+  }
+  const pkNameSave = $('lockpkname-save');
+  if (pkNameSave) {
+    on(pkNameSave, 'click', function () {
+      const input = $('lockpkname-input');
+      let name = input ? input.value : '';
+      /* 清理：去首尾空格和控制字符 */
+      name = String(name).replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, 40);
+      if (!name) {
+        showErr('lockpkname-err', t('pkNameEmpty'));
+        return;
+      }
+      if (!pkNameCredId || !token) {
+        closePkNameDlg();
+        return;
+      }
+      api('/api/owner-passkey', { action: 'rename', token: token, credId: pkNameCredId, name: name })
+        .then(function (r) {
+          if (r.json && r.json.ok) {
+            toast(t('pkRegistered'));
+            closePkNameDlg();
+            refreshPkList();
+          } else {
+            showErr('lockpkname-err', t('gateSrvErr'));
+          }
+        })
+        .catch(function () {
+          showErr('lockpkname-err', t('gateNetErr'));
+        });
+    });
+  }
+  const pkNameSkip = $('lockpkname-skip');
+  if (pkNameSkip) {
+    on(pkNameSkip, 'click', function () {
+      /* 跳过：用预填名（已在注册时设为默认值） */
+      closePkNameDlg();
+      toast(t('pkRegistered'));
+      refreshPkList();
+    });
+  }
+
   /* 通行密钥列表 */
   function refreshPkList() {
     if (!token) return;
@@ -618,16 +692,26 @@ import { toast } from './toast.js';
             if (ch.error === 'token') throw { kind: 'reauth' };
             throw { kind: 'server' };
           }
-          const uid = new Uint8Array(16);
-          crypto.getRandomValues(uid);
+          /* 服务端下发 rp.id、用户信息、excludeCredentials；前端不硬编码、不回落 */
+          const rpId = ch.rpId;
+          const user = ch.user || {};
+          const rp = ch.rp || {};
+          const exclude = (ch.excludeCredentials || []).map(function (c) {
+            return { id: b64urlToBuf(c.id), type: c.type };
+          });
           return navigator.credentials
             .create({
               publicKey: {
                 challenge: b64urlToBuf(ch.challenge),
-                rp: { name: 'Styrigx', id: ch.rpId || location.hostname },
-                user: { id: uid, name: 'owner', displayName: 'Owner' },
+                rp: { name: rp.name || 'Styrigx', id: rpId },
+                user: {
+                  id: b64urlToBuf(user.id),
+                  name: user.name || 'owner',
+                  displayName: user.displayName || 'Sloan Gray',
+                },
                 pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
-                authenticatorSelection: { userVerification: 'preferred', residentKey: 'preferred' },
+                authenticatorSelection: { userVerification: 'required', residentKey: 'required' },
+                excludeCredentials: exclude,
                 attestation: 'none',
                 timeout: 60000,
               },
@@ -662,7 +746,8 @@ import { toast } from './toast.js';
         .then(function (res) {
           const j = res.json;
           if (j && j.ok) {
-            toast(t('pkRegistered'));
+            /* 注册成功 → 弹出命名弹层 */
+            openPkNameDlg(j.credId);
             refreshPkList();
             /* 新注册后刷新门禁状态（通行密钥选项） */
             fetch('/api/owner-status', { method: 'GET', credentials: 'same-origin' }).catch(function () {});

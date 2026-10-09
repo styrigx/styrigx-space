@@ -1,0 +1,29 @@
+# 通行密钥 AAGUID → 密码管理器映射
+# 来源：passkeydeveloper/passkey-authenticator-aaguids（构建时下载，只保留常用）
+# AAGUID 只用于显示，不参与安全判断
+
+providers:
+  # Samsung Pass
+  "a7e5e6b1-...": # 占位，实际值构建时填
+    name: "Samsung Pass"
+    icon: "samsung-pass"
+  # Google 密码管理器
+  "adce0002-35bc-c60a-648b-0b25f5f05522": # Google Password Manager (Android)
+    name: "Google 密码管理器"
+    icon: "google"
+  # iCloud 钥匙串
+  "f8a011f3-8c0a-4d15-8006-17111f9edc7d": # iCloud Keychain
+    name: "iCloud 钥匙串"
+    icon: "apple"
+  # 1Password
+  "bada5566-a7aa-401f-bd96-45619a55120d": # 1Password
+    name: "1Password"
+    icon: "1password"
+  # Bitwarden
+  "accced6a-63d0-4ef2-bb6c-7516d463e07f": # Bitwarden
+    name: "Bitwarden"
+    icon: "bitwarden"
+  # Microsoft
+  "39a9f8c4-8405-4bc4-8af9-7d616b0df0ab": # Microsoft
+    name: "Microsoft"
+    icon: "microsoft"
