@@ -1823,10 +1823,8 @@
     padding: 12px 24px; font-size: 15px; font-weight: 600; cursor: pointer;
     &:active { transform: scale(.97); }
   }
-  .owner-err { color: #ba1a1a; font-size: 14px; margin: 0; }
-  .dark .owner-err { color: #ffb4ab; }
-  .owner-ok { color: #1a7f37; font-size: 14px; margin: 0; }
-  .dark .owner-ok { color: #7ddf9a; }
+  .owner-err { color: var(--m-rose); font-size: 14px; margin: 0; }
+  .owner-ok { color: var(--m-tertiary); font-size: 14px; margin: 0; }
   .owner-help {
     margin-top: 24px; padding: 0 4px; font-size: 13px; color: var(--m-on-surface-variant);
     h3 { font-size: 14px; font-weight: 600; color: var(--m-on-surface); margin: 0 0 8px; }
@@ -1856,8 +1854,7 @@
   }
   .sgx-verify-title { font-size: 18px; font-weight: 700; color: var(--m-on-surface); margin: 0; }
   .sgx-verify-box { display: flex; justify-content: center; min-height: 65px; align-items: center; }
-  .sgx-verify-err { color: #ba1a1a; font-size: 14px; margin: 0; text-align: center; }
-  .dark .sgx-verify-err { color: #ffb4ab; }
+  .sgx-verify-err { color: var(--m-rose); font-size: 14px; margin: 0; text-align: center; }
   .sgx-verify-fallback { color: var(--m-on-surface-variant); font-size: 14px; margin: 0 0 8px; }
   .sgx-verify-skip {
     background: var(--m-primary); color: var(--m-on-primary);
