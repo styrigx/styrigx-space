@@ -18,6 +18,20 @@ async function gotoLock(page) {
   await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
 }
 
+/* 断言两个元素的 boundingBox 不相交 */
+async function assertNoOverlap(page, loc1, loc2) {
+  const b1 = await loc1.boundingBox();
+  const b2 = await loc2.boundingBox();
+  expect(b1).not.toBeNull();
+  expect(b2).not.toBeNull();
+  const overlap =
+    b1.x < b2.x + b2.width &&
+    b1.x + b1.width > b2.x &&
+    b1.y < b2.y + b2.height &&
+    b1.y + b1.height > b2.y;
+  expect(overlap).toBe(false);
+}
+
 test.describe('lock screen', () => {
   /* Hark：每个测试先拦截外部请求（天气、Turnstile、字体/CDN），
      /api/* mock 在测试体内注册，顺序靠后优先匹配 */
@@ -76,6 +90,34 @@ test.describe('lock screen', () => {
     await expect(dlg).toBeVisible();
     /* 密码框存在 */
     await expect(page.locator('#sgx-pw-input')).toBeVisible();
+  });
+
+  test('dialog open: avatar does not overlap clock', async ({ page }) => {
+    /* 弹层打开时头像淡出，不得与时钟/日期/天气重叠（boundingBox 不相交）。
+       三种弹层（验证/密码/通行密钥）共用同一 dialog 组件和淡出机制，测密码弹层即可。 */
+    await freezeTime(page);
+    await gotoLock(page);
+    const avatar = page.locator('.sgx-lock-user');
+    const clock = page.locator('#sgx-lock-clock');
+    await expect(avatar).toBeVisible();
+    await expect(clock).toBeVisible();
+
+    /* 打开密码弹层 */
+    await page.click('#sgx-lock-pwlink');
+    await expect(page.locator('.sgx-verify-dlg')).toBeVisible();
+    await expect(page.locator('#sgx-pw-input')).toBeVisible();
+    /* 等淡出动画完成（opacity 变为 0） */
+    await expect.poll(async () => {
+      return await avatar.evaluate((el) => getComputedStyle(el).opacity);
+    }, { timeout: 5000 }).toBe('0');
+    await assertNoOverlap(page, avatar, clock);
+
+    /* 关闭后头像恢复可见 */
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.sgx-verify-dlg')).toBeHidden({ timeout: 5000 });
+    await expect.poll(async () => {
+      return await avatar.evaluate((el) => getComputedStyle(el).opacity);
+    }, { timeout: 5000 }).toBe('1');
   });
 
   test('wrong password shows error (mocked API)', async ({ page }) => {

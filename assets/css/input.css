@@ -1972,17 +1972,19 @@
   }
   /* 弹层打开时底层名字与入口：隐藏且不可交互（JS 另加 inert） */
   .sgx-bg-hidden { visibility: hidden; }
-  /* 密码/验证弹层打开时，头像块上移避让（JS 设置 --sgx-dlg-lift 为弹层高度） */
+  /* 密码/验证弹层打开时，头像块淡出避让（One UI 式淡出，避免与时钟重叠） */
   .sgx-lock-user {
-    transition: transform .32s cubic-bezier(.22,1,.36,1);
+    transition: transform .32s cubic-bezier(.22,1,.36,1), opacity .32s cubic-bezier(.22,1,.36,1);
     .reduced-motion & { transition: none; }
   }
   body.sgx-dlg-open .sgx-lock-user {
-    transform: translateY(calc(var(--sgx-dlg-lift, 0px) * -1));
+    opacity: 0;
+    pointer-events: none;
   }
   @media (orientation:landscape) and (max-width:1023.5px) {
     body.sgx-dlg-open .sgx-lock-user {
-      transform: translateY(calc(-50% - var(--sgx-dlg-lift, 0px)));
+      opacity: 0;
+      pointer-events: none;
     }
   }
   @keyframes sgx-shake {

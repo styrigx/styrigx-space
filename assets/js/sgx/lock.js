@@ -252,15 +252,10 @@ export function initLock() {
     }
   }
 
-  /* 头像上移避让：按卡片实际高度设置位移 */
+  /* 头像淡出避让：弹层打开时淡出，关闭时恢复（One UI 式） */
   function liftAvatar() {
     try {
-      const card = dlg && dlg.querySelector('.sgx-verify-card');
-      const h = card ? /** @type {HTMLElement} */ (card).offsetHeight : 0;
-      if (h > 0) {
-        document.body.style.setProperty('--sgx-dlg-lift', h + 'px');
-        document.body.classList.add('sgx-dlg-open');
-      }
+      document.body.classList.add('sgx-dlg-open');
     } catch (e) {}
   }
   function resetAvatar() {
