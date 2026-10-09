@@ -5,7 +5,7 @@
  *   通过 → 开锁动画 → 现有解锁流程；失败 → 红色提示 + 重试。
  * - 兜底：Turnstile 脚本失败或 /api/verify 超时（8s）→ 允许直接解锁；
  *   本地开发（localhost）跳过验证。
- * - 2.4.0-G：SGX_FEAT_LOCK_SCREEN / SGX_FEAT_ENTRY_VERIFY 编译期可移除。
+ * - 2.4.0-G：SGX_FEAT_LEGACY_LOCK_SCREEN / SGX_FEAT_OWNER_GATE 编译期可移除。
  */
 import { on } from './events.js';
 import { visibleInterval } from './scheduler.js';
@@ -21,7 +21,9 @@ const UNLOCK =
  * 初始化锁屏（全站；2.4.0 H）。
  */
 export function initLock() {
-  if (!SGX_FEAT_LOCK_SCREEN) return;
+  /* Hark：CI 测试构建禁用锁屏（构建期 define，线上无绕过） */
+  if (SGX_TEST_NO_LOCK) return;
+  if (!SGX_FEAT_LEGACY_LOCK_SCREEN) return;
   const force = /(?:^|[?&])lock=1(?:&|$)/.test(location.search);
   let seen = false;
   try {
@@ -89,10 +91,19 @@ export function initLock() {
       ? '<img src="' + avatarSrc + '" alt="Styrigx" width="72" height="72">'
       : '<span class="sgx-lock-fb" aria-hidden="true">S</span>') +
     '</button><div class="sgx-lock-name">Styrigx</div>' +
-    /* 2.4.0 I：密码入口（指纹下方小字链接；不支持 PublicKeyCredential 时只显示此项） */
-    '<button type="button" id="sgx-lock-pwlink" class="sgx-lock-pwlink">' +
-    (en ? 'Use password' : '使用密码') +
-    '</button></div>';
+    /* 2.4.0 I：验证入口（Hark：owner-gate 控制） */
+    (SGX_FEAT_OWNER_GATE
+      ? '<div class="sgx-lock-links">' +
+        (window.PublicKeyCredential
+          ? '<button type="button" id="sgx-lock-pkbtn" class="sgx-lock-pwlink">' +
+            (en ? 'Use passkey' : '使用通行密钥') +
+            '</button>'
+          : '') +
+        '<button type="button" id="sgx-lock-pwlink" class="sgx-lock-pwlink">' +
+        (en ? 'Use password' : '使用密码') +
+        '</button></div>'
+      : '') +
+    '</div>';
   document.body.appendChild(ov);
   document.body.classList.add('sgx-locked');
   document.documentElement.style.overflow = 'hidden';
@@ -241,7 +252,7 @@ export function initLock() {
       unlock();
       return;
     }
-    if (!SGX_FEAT_ENTRY_VERIFY) {
+    if (!SGX_FEAT_OWNER_GATE) {
       unlock();
       return;
     }
@@ -511,6 +522,89 @@ export function initLock() {
       e.stopPropagation();
       openPw();
     });
+  }
+
+  /* ============ 通行密钥解锁（2.4.0 I） ============ */
+  const pkbtn = document.getElementById('sgx-lock-pkbtn');
+  if (pkbtn && window.PublicKeyCredential) {
+    on(pkbtn, 'click', function (e) {
+      e.stopPropagation();
+      pkAuth();
+    });
+  }
+  /** @returns {Uint8Array} */
+  function b64urlToBuf(s) {
+    s = s.replace(/-/g, '+').replace(/_/g, '/');
+    const bin = atob(s);
+    const u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    return u8;
+  }
+  /** @param {ArrayBuffer} buf */
+  function bufToB64url(buf) {
+    const u8 = new Uint8Array(buf);
+    let s = '';
+    for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function pkAuth() {
+    fetch('/api/owner-passkey', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'challenge', type: 'auth' }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (ch) {
+        if (!ch || !ch.ok) throw new Error('challenge');
+        const allow = (ch.allowCredentials || []).map(function (c) {
+          return { id: b64urlToBuf(c.id), type: c.type };
+        });
+        return navigator.credentials.get({
+          publicKey: {
+            challenge: b64urlToBuf(ch.challenge),
+            allowCredentials: allow,
+            userVerification: 'preferred',
+            timeout: 60000,
+          },
+        }).then(function (cred) {
+          return { cred: cred, cid: ch.cid };
+        });
+      })
+      .then(function (res) {
+        const cred = res.cred;
+        return fetch('/api/owner-passkey', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'auth',
+            cid: res.cid,
+            credential: {
+              id: cred.id,
+              rawId: bufToB64url(cred.rawId),
+              response: {
+                clientDataJSON: bufToB64url(cred.response.clientDataJSON),
+                authenticatorData: bufToB64url(cred.response.authenticatorData),
+                signature: bufToB64url(cred.response.signature),
+                userHandle: cred.response.userHandle ? bufToB64url(cred.response.userHandle) : null,
+              },
+              type: cred.type,
+            },
+          }),
+        });
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j && j.ok) {
+          unlock();
+        } else {
+          /* 失败 → 回退到密码 */
+          openPw();
+        }
+      })
+      .catch(function () {
+        /* 用户取消或失败 → 回退到密码 */
+        openPw();
+      });
   }
 
   const av = document.getElementById('sgx-lock-avatar');

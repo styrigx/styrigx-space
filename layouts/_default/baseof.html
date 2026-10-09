@@ -4,8 +4,10 @@
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-{{/* 2.4.0 H：Turnstile 站点密钥（公开） */}}
-{{ with site.Params.turnstileSiteKey }}<meta name="sgx-turnstile" content="{{ . }}">{{ end }}
+{{/* 2.4.0 H：Turnstile 站点密钥（公开）；CI 测试可用环境变量覆盖为官方测试 Key */}}
+{{ $tsKey := site.Params.turnstileSiteKey }}
+{{ with getenv "SGX_TEST_TURNSTILE_KEY" }}{{ $tsKey = . }}{{ end }}
+{{ with $tsKey }}<meta name="sgx-turnstile" content="{{ . }}">{{ end }}
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#f5f8fa">
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#10151a">
@@ -447,6 +449,9 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
   {{ $cname := printf "SGX_FEAT_%s" (upper (replace .id "-" "_")) }}
   {{ $featDefines = merge $featDefines (dict $cname (cond .build "true" "false")) }}
 {{ end }}
+{{/* Hark：测试构建期禁用锁屏（CI 专用，SGX_TEST_NO_LOCK=1）；生产构建绝不设置 */}}
+{{ $testNoLock := eq (getenv "SGX_TEST_NO_LOCK") "1" }}
+{{ $featDefines = merge $featDefines (dict "SGX_TEST_NO_LOCK" (cond $testNoLock "true" "false")) }}
 {{ $entry := resources.Get (print "js/entries/" $entryName) | js.Build (dict "minify" true "target" "es2020" "defines" $featDefines) | fingerprint }}
 <script type="module" src="{{ $entry.RelPermalink }}"></script>
 {{/* 极端降级：不支持 type="module" 的浏览器只打标记，不报错、不白屏（内容为服务端渲染） */}}

@@ -24,5 +24,7 @@ declare const SGX_FEAT_FILES_VIEW: boolean;
 declare const SGX_FEAT_FILES_HOME: boolean;
 declare const SGX_FEAT_APPS_HIDDEN: boolean;
 declare const SGX_FEAT_WELL_TIP: boolean;
-declare const SGX_FEAT_LOCK_SCREEN: boolean;
-declare const SGX_FEAT_ENTRY_VERIFY: boolean;
+declare const SGX_FEAT_LEGACY_LOCK_SCREEN: boolean;
+declare const SGX_FEAT_OWNER_GATE: boolean;
+/* Hark：CI 测试构建期禁用锁屏（SGX_TEST_NO_LOCK=1 时）；生产构建为 false */
+declare const SGX_TEST_NO_LOCK: boolean;

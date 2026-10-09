@@ -72,7 +72,8 @@ export function initCore() {
   initAppVisibility();
   initScrollFx(S);
   initFeatSync();
-  initLock();
+  /* Hark：CI 测试构建禁用锁屏（构建期摇掉，线上无残留） */
+  if (!SGX_TEST_NO_LOCK) initLock();
   engines.init();
 
   /* 跨脚本/模板桥接的最小公共 API */

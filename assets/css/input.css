@@ -1791,7 +1791,8 @@
   }
   @keyframes sgx-lock-halo { 0%,100% { transform: scale(1); opacity: .55; } 50% { transform: scale(1.1); opacity: .95; } }
   .sgx-lock-name { font-size: 20px; font-weight: 700; color: var(--m-on-surface); }
-  /* 2.4.0 I：密码入口小字链接 */
+  /* 2.4.0 I：验证入口小字链接 */
+  .sgx-lock-links { display: flex; gap: 8px; justify-content: center; }
   .sgx-lock-pwlink {
     background: none; border: 0; padding: 4px 12px; cursor: pointer;
     font-size: 13px; font-weight: 500; color: var(--m-on-surface-variant);

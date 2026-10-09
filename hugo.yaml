@@ -44,3 +44,9 @@ params:
 # 2.3.12：tdewolff HTML 压缩器与内联 JS 中的 < 冲突，禁用 HTML 压缩（CSS 已由 Tailwind 压缩）
 minify:
   disableHTML: true
+
+# Hark：允许模板读取测试用环境变量（CI 专用，生产构建不设置）
+security:
+  funcs:
+    getenv:
+      - '^SGX_TEST_'

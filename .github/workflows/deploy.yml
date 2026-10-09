@@ -34,17 +34,27 @@ jobs:
       - name: Build CSS
         run: node scripts/build-css.cjs --minify
 
-      - name: Build site
+      - name: Build site (生产构建，用于锁屏测试)
         run: hugo --minify
 
       - name: stylelint（禁止硬编码颜色）
         run: npx stylelint "assets/css/input.css"
 
+      - name: Lock screen tests (Hark：生产构建，锁屏启用)
+        # 先跑锁屏专用测试：需要锁屏启用的构建
+        run: |
+          hugo --minify
+          SGX_TEST_SUITE=lock npx playwright test --config=playwright.config.js
+
+      - name: Rebuild for visual/Lighthouse (Hark：测试构建，锁屏禁用)
+        # 视觉回归和 Lighthouse 用锁屏禁用的构建，避免锁屏干扰
+        run: hugo --minify
+        env:
+          SGX_TEST_NO_LOCK: "1"
+          SGX_TEST_TURNSTILE_KEY: "1x00000000000000000000AA"
+
       - name: Visual regression
-        # 像素对比对渲染环境敏感（CI/本地字体差异），仅报告不阻塞部署；
-        # 严格对比在本地跑（npx playwright test）
         run: npx playwright test --config=playwright.config.js
-        continue-on-error: true
 
       - name: Lighthouse CI
         run: npx lhci autorun --config=.lighthouserc.json

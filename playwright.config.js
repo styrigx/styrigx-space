@@ -2,7 +2,9 @@ const { defineConfig } = require('@playwright/test');
 
 module.exports = defineConfig({
   testDir: './tests',
-  testMatch: 'visual.spec.js',
+  /* Hark：visual 用测试构建（锁屏禁用），lock 用生产构建（锁屏启用）；
+     CI 里分两次构建分别跑 */
+  testMatch: process.env.SGX_TEST_SUITE === 'lock' ? 'lock.spec.js' : 'visual.spec.js',
   /* 视觉回归：只跑 Chromium，保证基准一致 */
   projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
   snapshotDir: './tests/visual',

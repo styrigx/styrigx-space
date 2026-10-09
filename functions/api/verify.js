@@ -1,14 +1,16 @@
 /**
  * 2.4.0 H：Turnstile 入站验证。
  * POST /api/verify { token }
- * - 用 TURNSTILE_SECRET 调 siteverify，校验 success、hostname（styrigx.com）、action
+ * - 用 TURNSTILE_SECRET 调 siteverify，校验 success、hostname、action
+ * - hostname 接受：styrigx.com 及 www/blog/book 子域（widget 配置覆盖范围）
  * - 通过：返回 { ok: true } + 设会话 cookie（HttpOnly; Secure; SameSite=Lax；无 Max-Age）
  * - 失败：返回 { ok: false }
  * 只接受 POST；校验 Origin。
  */
 
 const SITEVERIFY = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
-const HOSTNAME = 'styrigx.com';
+/* widget styrigx-lock 的 hostname 覆盖范围 */
+const ALLOWED_HOSTNAMES = ['styrigx.com', 'www.styrigx.com', 'blog.styrigx.com', 'book.styrigx.com'];
 const ACTION = 'sgx-entry';
 
 /**
@@ -62,7 +64,7 @@ export async function onRequestPost(context) {
     return Response.json({ ok: false, error: 'failed' }, { status: 403 });
   }
   const hostname = vr.hostname || '';
-  if (hostname !== HOSTNAME && hostname !== 'www.' + HOSTNAME) {
+  if (!ALLOWED_HOSTNAMES.includes(hostname)) {
     return Response.json({ ok: false, error: 'hostname' }, { status: 403 });
   }
   if (vr.action && vr.action !== ACTION) {
