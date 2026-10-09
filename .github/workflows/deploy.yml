@@ -1,0 +1,265 @@
+name: Build and Deploy to Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  # 2.4.0 E：质量闸门 —— 视觉回归 + Lighthouse CI + stylelint，不达标不部署
+  # Hark：PR 也跑 quality，变绿再合入 main；只有 main 的 push 才部署
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: '0.162.0'
+          extended: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install test deps
+        run: npm install --no-save @playwright/test stylelint postcss-scss @lhci/cli http-server && npx playwright install chromium --with-deps
+
+      - name: Build CSS
+        run: node scripts/build-css.cjs --minify
+
+      - name: Build site (生产构建，用于锁屏测试)
+        run: hugo --minify
+
+      - name: stylelint（禁止硬编码颜色）
+        run: npx stylelint "assets/css/input.css"
+
+      - name: Lock screen tests (Hark：生产构建，锁屏启用)
+        # 锁屏行为测试（阻塞部署）；截图基线单独跑、仅报告
+        run: |
+          hugo --minify
+          SGX_TEST_SUITE=lock npx playwright test --config=playwright.config.js --grep-invert "baseline screenshot"
+
+      - name: Lock screen baseline screenshot (report-only)
+        # Hark：截图对 CI 环境敏感，先仅报告不阻塞；基线修稳后再改回阻塞
+        continue-on-error: true
+        run: |
+          SGX_TEST_SUITE=lock npx playwright test --config=playwright.config.js --grep "baseline screenshot"
+
+      - name: Lock flags test (LEGACY=false, OWNER_GATE=true)
+        # Hark：开关解耦真跑（对应构建），不用假 skip
+        run: |
+          SGX_TEST_LEGACY=0 hugo --minify
+          SGX_TEST_SUITE=lock SGX_TEST_FLAGS=legacy-off npx playwright test --config=playwright.config.js lock-flags.spec.js
+
+      - name: Lock flags test (both flags off)
+        # Hark：两个开关都关，锁屏完全不出现
+        run: |
+          SGX_TEST_LEGACY=0 SGX_TEST_OWNER_GATE=0 hugo --minify
+          SGX_TEST_SUITE=lock SGX_TEST_FLAGS=both-off npx playwright test --config=playwright.config.js lock-flags.spec.js
+
+      - name: Upload lock test artifacts on failure
+        # Hark：失败时上传，便于拿真实报错
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: lock-test-results
+          path: |
+            test-results/
+            playwright-report/
+
+      - name: Rebuild for visual/Lighthouse (Hark：测试构建，锁屏禁用)
+        # 视觉回归和 Lighthouse 用锁屏禁用的构建，避免锁屏干扰；
+        # Turnstile 用 Cloudflare 官方测试 Key（sed 替换，不污染正式密钥）
+        run: |
+          sed -i "s/0x4AAAAAAFSBhpWkAwZr1SMA/1x00000000000000000000AA/g" hugo.yaml
+          hugo --minify
+        env:
+          SGX_TEST_NO_LOCK: "1"
+          # Hark：测试构建禁用天气组件（天气依赖外网，CI 不稳定会导致
+          # Lighthouse errors-in-console 误报）；生产构建绝不设置
+          SGX_TEST_NO_WEATHER: "1"
+
+      - name: Visual regression
+        # Hark（2026-10-09）：临时仅报告、不阻塞。原因：现有 62 张基线不是在 CI
+        # 里生成的（字体渲染像素差），且接下来的 Dock/PC 布局改版会让它们全部失效。
+        # 恢复条件：改版完成后，在 CI 里重新生成基线并提交，然后去掉本 continue-on-error。
+        # 注意：不要再被别的提交 revert 掉本行（a8f4dffa 曾误删）。
+        continue-on-error: true
+        run: npx playwright test --config=playwright.config.js
+
+      - name: Lighthouse CI
+        # Hark：lhci 自己起服务（见 .lighthouserc.json 的 startServerCommand）。
+        # gzip 模拟线上 Cloudflare 压缩。天气组件已在测试构建里禁用
+        # （SGX_TEST_NO_WEATHER=1），无外网请求，errors-in-console 不会误报。
+        run: |
+          find public -type f \( -name '*.html' -o -name '*.css' -o -name '*.js' \) -exec gzip -k -9 {} \;
+          npx lhci autorun --config=.lighthouserc.json
+
+      - name: 前端技术名词检查（安全与隐私）
+        # 用户可见文案不得出现 OWNER_KEY / SESSION_SECRET / TURNSTILE_SECRET；
+        # 后端变量名只许出现在 functions/ 与注释里，不许进 public/ HTML。
+        run: |
+          if grep -rl "OWNER_KEY\|SESSION_SECRET\|TURNSTILE_SECRET" public/ --include="*.html"; then
+            echo "FAIL: 技术变量名出现在 HTML 产物中"
+            exit 1
+          fi
+          echo "OK: HTML 产物无技术变量名"
+
+  passkey-e2e:
+    # Hark P0：WebAuthn 虚拟认证器 E2E（注册→列表→解锁→删除→伪造 cookie）。
+    # 在预览部署上跑真实 Workers；只能用测试 secret，绝不用生产 secret。
+    # 需要 GitHub Secrets：PREVIEW_OWNER_KEY、PREVIEW_SESSION_SECRET（测试值）。
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: '0.162.0'
+          extended: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright
+        run: npm install --no-save @playwright/test && npx playwright install chromium --with-deps
+
+      - name: Build CSS
+        run: node scripts/build-css.cjs --minify
+
+      - name: Build site
+        run: hugo --minify
+
+      - name: Set preview test secrets (preview only)
+        # 只写 preview 环境，绝不碰 production。
+        # 用 PATCH deployment_configs.preview，只带 preview 字段。
+        # 必须在部署之前写，否则新值要到下一次部署才生效。
+        run: |
+          python3 - <<'PYEOF'
+          import json, sys, urllib.request, urllib.error
+          ACCT = "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
+          TOKEN = "${{ secrets.CLOUDFLARE_API_TOKEN }}"
+          body = json.dumps({
+              "deployment_configs": {
+                  "preview": {
+                      "env_vars": {
+                          "OWNER_KEY": {"type": "secret_text", "value": "${{ secrets.PREVIEW_OWNER_KEY }}"},
+                          "SESSION_SECRET": {"type": "secret_text", "value": "${{ secrets.PREVIEW_SESSION_SECRET }}"},
+                      }
+                  }
+              }
+          }).encode()
+          req = urllib.request.Request(
+              f"https://api.cloudflare.com/client/v4/accounts/{ACCT}/pages/projects/styrigx-space",
+              data=body, method="PATCH",
+              headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"})
+          try:
+              r = json.load(urllib.request.urlopen(req, timeout=30))
+          except urllib.error.HTTPError as e:
+              print(f"FAIL: HTTP {e.code}", file=sys.stderr); sys.exit(1)
+          if not r.get("success"):
+              print("FAIL: success=false", file=sys.stderr); sys.exit(1)
+          print("preview secrets updated")
+          PYEOF
+
+      - name: Deploy to preview
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy public --project-name=styrigx-space --branch=passkey-e2e --commit-dirty=true
+
+      - name: Run WebAuthn E2E
+        run: |
+          SGX_TEST_BASE="https://passkey-e2e.styrigx-space.pages.dev" \
+          SGX_TEST_OWNER_KEY="${{ secrets.PREVIEW_OWNER_KEY }}" \
+          npx playwright test --config=playwright.config.js --grep "passkey e2e"
+        env:
+          SGX_TEST_SUITE: passkey
+
+      - name: Guard - production vars unchanged
+        # 守卫：确认 production 环境变量未被 CI 改动
+        run: |
+          python3 - <<'PYEOF'
+          import json, sys, urllib.request
+          ACCT = "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
+          TOKEN = "${{ secrets.CLOUDFLARE_API_TOKEN }}"
+          req = urllib.request.Request(
+              f"https://api.cloudflare.com/client/v4/accounts/{ACCT}/pages/projects/styrigx-space",
+              headers={"Authorization": f"Bearer {TOKEN}"})
+          r = json.load(urllib.request.urlopen(req, timeout=30))
+          prod = r["result"]["deployment_configs"]["production"]["env_vars"]
+          names = sorted(prod.keys())
+          print("production vars:", names)
+          # production 必须有这三个，且 CI 不应增删
+          assert names == ["OWNER_KEY", "SESSION_SECRET", "TURNSTILE_SECRET"], f"unexpected: {names}"
+          print("guard OK: production untouched")
+          PYEOF
+
+      - name: Upload test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: passkey-test-results
+          path: |
+            test-results/
+            playwright-report/
+
+  build-and-deploy:
+    # Hark：只有 main 的 push 才部署；PR 只跑 quality
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: '0.162.0'
+          extended: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build CSS
+        run: node scripts/build-css.cjs --minify
+
+      - name: Fetch music previews
+        run: node scripts/music-previews.mjs
+        continue-on-error: true
+
+      - name: Build site
+        run: hugo --minify
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy public --project-name=styrigx-space --commit-dirty=true
