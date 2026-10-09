@@ -653,12 +653,14 @@ async function handlePost(context) {
     /* 清理：去首尾空格和控制字符，限 1-40 字 */
     name = String(name).replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, 40);
     if (!name) return Response.json({ ok: false, error: 'params' }, { status: 400 });
-    const keys = await getPasskeys(kv);
+    /* 直接 kv.get，不走 list（KV list 最终一致，刚写入的 key 约 60 秒内列不出来） */
+    const keyName = 'owner-passkey:' + String(credId).slice(0, 12);
     let found = null;
-    for (const k of keys) {
-      if (k.credId === credId) { found = k; break; }
+    try { found = await kv.get(keyName, 'json'); } catch (e) {}
+    /* 校验 credId 完全相等（防前 12 位碰撞） */
+    if (!found || found.credId !== credId) {
+      return Response.json({ ok: false, error: 'not-found' }, { status: 404 });
     }
-    if (!found) return Response.json({ ok: false, error: 'not-found' }, { status: 404 });
     found.name = name;
     await savePasskey(kv, found);
     return Response.json({ ok: true });
@@ -673,12 +675,11 @@ async function handlePost(context) {
       return Response.json({ ok: false, error: 'token' }, { status: 403 });
     }
     if (!credId) return Response.json({ ok: false, error: 'params' }, { status: 400 });
-    const keys = await getPasskeys(kv);
-    let found = false;
-    for (const k of keys) {
-      if (k.credId === credId) { found = true; break; }
-    }
-    if (!found) {
+    /* 直接 kv.get 校验存在，不走 list（最终一致） */
+    const keyName = 'owner-passkey:' + String(credId).slice(0, 12);
+    let found = null;
+    try { found = await kv.get(keyName, 'json'); } catch (e) {}
+    if (!found || found.credId !== credId) {
       return Response.json({ ok: false, error: 'not-found' }, { status: 404 });
     }
     await deletePasskey(kv, credId);

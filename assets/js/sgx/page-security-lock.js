@@ -539,29 +539,36 @@ import { toast } from './toast.js';
 
   /* 通行密钥命名弹层 */
   let pkNameCredId = null;
-  function openPkNameDlg(credId) {
+  let pkNamePrefill = '';
+  /* 生成预填名：<密码管理器> · <设备>（注册前调用，随 register 一起提交） */
+  function genPkPrefillName() {
+    let device = '';
+    try {
+      if (navigator.userAgentData && navigator.userAgentData.platform) {
+        device = navigator.userAgentData.platform;
+      }
+    } catch (e) {}
+    /* provider 此时未知（服务端识别 AAGUID 后才知道），先只用设备名 */
+    return device || '通行密钥';
+  }
+  function openPkNameDlg(credId, prefill) {
     pkNameCredId = credId;
+    pkNamePrefill = prefill || '';
     const dlg = $('lockpkname-dlg');
     const input = $('lockpkname-input');
     if (!dlg || !input) return;
-    /* 预填：<密码管理器> · <设备> */
-    let provider = '';
-    try {
-      /* 从刚注册的列表里找 provider（服务端已识别 AAGUID） */
-      provider = '';
-    } catch (e) {}
-    let device = '';
+    input.value = pkNamePrefill;
+    /* 异步补设备型号（userAgentData 高熵值） */
     try {
       if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
         navigator.userAgentData.getHighEntropyValues(['model']).then(function (ua) {
-          if (ua && ua.model) {
-            device = ua.model;
-            if (input && !input.value) input.value = (provider ? provider + ' · ' : '') + device;
+          if (ua && ua.model && input && !input.value) {
+            input.value = ua.model;
+            pkNamePrefill = ua.model;
           }
         }).catch(function () {});
       }
     } catch (e) {}
-    input.value = provider ? provider + (device ? ' · ' + device : '') : device;
     hideErr('lockpkname-err');
     try { dlg.showModal(); } catch (e) {}
     try { input.focus({ preventScroll: true }); } catch (e2) {}
@@ -570,6 +577,7 @@ import { toast } from './toast.js';
     const dlg = $('lockpkname-dlg');
     try { if (dlg && dlg.open) dlg.close(); } catch (e) {}
     pkNameCredId = null;
+    pkNamePrefill = '';
   }
   const pkNameSave = $('lockpkname-save');
   if (pkNameSave) {
@@ -586,12 +594,27 @@ import { toast } from './toast.js';
         closePkNameDlg();
         return;
       }
+      /* 没改名就不调 rename（注册时已带预填名） */
+      if (name === pkNamePrefill) {
+        toast(t('pkRegistered'));
+        closePkNameDlg();
+        refreshPkList();
+        return;
+      }
       api('/api/owner-passkey', { action: 'rename', token: token, credId: pkNameCredId, name: name })
         .then(function (r) {
-          if (r.json && r.json.ok) {
+          const j = r.json;
+          if (j && j.ok) {
             toast(t('pkRegistered'));
             closePkNameDlg();
             refreshPkList();
+          } else if (j && j.error === 'token') {
+            needReauth();
+          } else if (j && j.error === 'not-found') {
+            /* KV 最终一致：刚注册的 key 可能暂时读不到 */
+            showErr('lockpkname-err', t('pkRetryLater'));
+          } else if (!j) {
+            showErr('lockpkname-err', t('gateNetErr'));
           } else {
             showErr('lockpkname-err', t('gateSrvErr'));
           }
@@ -721,6 +744,10 @@ import { toast } from './toast.js';
                   refreshStatus();
                 } else if (jj && jj.error === 'token') {
                   needReauth();
+                } else if (jj && jj.error === 'not-found') {
+                  toast(t('pkRetryLater'));
+                } else if (!jj) {
+                  toast(t('gateNetErr'));
                 } else {
                   toast(t('gateSrvErr'));
                 }
@@ -794,11 +821,13 @@ import { toast } from './toast.js';
         })
         .then(function (r2) {
           const cred = r2.cred;
+          /* 注册时直接带预填名（服务端已支持 body.name） */
+          const prefill = genPkPrefillName();
           return api('/api/owner-passkey', {
             action: 'register',
             token: token,
             cid: r2.cid,
-            name: '',
+            name: prefill,
             credential: {
               id: cred.id,
               rawId: bufToB64url(cred.rawId),
@@ -808,13 +837,15 @@ import { toast } from './toast.js';
               },
               type: cred.type,
             },
+          }).then(function (res) {
+            return { res: res, prefill: prefill };
           });
         })
-        .then(function (res) {
-          const j = res.json;
+        .then(function (r3) {
+          const j = r3.res.json;
           if (j && j.ok) {
-            /* 注册成功 → 弹出命名弹层 */
-            openPkNameDlg(j.credId);
+            /* 注册成功 → 弹出命名弹层（预填名已提交，用户改名才调 rename） */
+            openPkNameDlg(j.credId, r3.prefill);
             refreshPkList();
             /* 新注册后刷新门禁状态（通行密钥选项） */
             fetch('/api/owner-status', { method: 'GET', credentials: 'same-origin' }).catch(function () {});

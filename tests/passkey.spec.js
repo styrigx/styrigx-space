@@ -277,4 +277,40 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
     }
   });
+
+  test('注册后立刻 rename 成功且 list 名字更新', async ({ page, request }) => {
+    /* 回归：KV list 最终一致导致 rename not-found；现服务端直接 kv.get */
+    const { cdp, authenticatorId } = await addVirtualAuth(page);
+    try {
+      await gateWithKey(page);
+      await page.click('#lockmgr-pkadd');
+      await expect(page.locator('.lockmgr-pkitem').first()).toBeVisible({ timeout: 20000 });
+
+      const token = await page.evaluate(() => sessionStorage.getItem('sgx-lockmgr-token'));
+      const list1 = await (await request.post(BASE + '/api/owner-passkey', {
+        data: { action: 'list', token },
+      })).json();
+      expect(list1.keys.length).toBeGreaterThan(0);
+      const credId = list1.keys[0].credId;
+
+      // 立刻 rename（不等待 KV list 同步）
+      const newName = 'E2E 立刻改名 ' + Date.now();
+      const r = await request.post(BASE + '/api/owner-passkey', {
+        data: { action: 'rename', token, credId, name: newName },
+      });
+      const j = await r.json();
+      expect(r.status()).toBe(200);
+      expect(j.ok).toBe(true);
+
+      // list 里名字已更新
+      const list2 = await (await request.post(BASE + '/api/owner-passkey', {
+        data: { action: 'list', token },
+      })).json();
+      const item = list2.keys.find(k => k.credId === credId);
+      expect(item).toBeTruthy();
+      expect(item.name).toBe(newName);
+    } finally {
+      await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
+    }
+  });
 });
