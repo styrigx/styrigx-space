@@ -1,0 +1,31 @@
+{{/* 2.4.0-G：由 data/features.yaml 驱动生成设置行。
+   只处理简单类型（bool 开关 / enum 分段选择）；复杂行（主题预览、色板、面板入口）保留手写。
+   输出的 id/class 与手写版完全一致，保证外观、JS 接线、搜索索引不变。
+   用法：{{ partial "settings-row.html" (dict "f" $f "isEn" $isEn) }}，外层用 feature.html 判断 build。 */}}
+{{ $f := .f }}{{ $isEn := .isEn }}
+{{ $label := cond $isEn $f.name.en $f.name.zh }}
+{{ $desc := cond $isEn $f.desc.en $f.desc.zh }}
+{{ $hasIcon := and $f.icon (ne $f.icon "") }}
+{{ if eq $f.type "bool" }}
+      <div class="set-row{{ if not $hasIcon }} no-ic{{ end }}" id="row-{{ $f.row }}" role="button" tabindex="0" data-feature="{{ $f.id }}">
+        {{ if $hasIcon }}<span class="set-ic {{ $f.iclass }}">{{ partial "icon.html" $f.icon }}</span>{{ end }}
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ $label }}</span>
+          {{ if $desc }}<span class="block text-xs text-m-on-surface-variant mt-0.5">{{ $desc }}</span>{{ end }}
+        </span>
+        <span class="switch" id="sw-{{ $f.row }}" role="switch" aria-checked="false" aria-label="{{ $label }}"><span class="knob"></span></span>
+      </div>
+{{ else if eq $f.type "enum" }}
+      <div class="set-row set-col" id="row-{{ $f.row }}" data-feature="{{ $f.id }}">
+        <div class="set-row-head">
+          <span class="set-ic {{ $f.iclass }}">{{ partial "icon.html" $f.icon }}</span>
+          <span class="flex-1 font-medium">{{ $label }}</span>
+        </div>
+        <div class="set-row-sub">
+          <div class="seg" id="seg-{{ $f.row }}" role="group" aria-label="{{ $label }}">
+            {{ range $f.options }}<button type="button" data-v="{{ .id }}" aria-pressed="false">{{ cond $isEn .en .zh }}</button>{{ end }}
+          </div>
+          {{ if $desc }}<p class="text-xs text-m-on-surface-variant mt-2">{{ $desc }}</p>{{ end }}
+        </div>
+      </div>
+{{ end }}

@@ -12,9 +12,10 @@ const UNLOCK =
   '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.9-1"/></svg>';
 
 /**
- * 初始化锁屏（非首页直接返回）。
+ * 初始化锁屏（非首页直接返回；2.4.0-G：SGX_FEAT_LOCK_SCREEN 编译期可移除）。
  */
 export function initLock() {
+  if (!SGX_FEAT_LOCK_SCREEN) return;
   const p = location.pathname;
   const isHome = p === '/' || p === '/en' || p === '/en/';
   if (!isHome) return;

@@ -15,6 +15,7 @@ import { initGoodLock } from './goodlock.js';
 import { initAppVisibility } from './appvis.js';
 import { initScrollFx } from './scrollfx.js';
 import { initDexBridge } from './layout.js';
+import { on as featOn } from './features.js';
 import { toast } from './toast.js';
 import { openSheet, closeSheet } from './sheet.js';
 import { voiceInput } from './voice.js';
@@ -22,6 +23,37 @@ import { voiceSheet } from './voice-sheet.js';
 import { engines } from './engines.js';
 
 let inited = false;
+
+/**
+ * 跨标签页外观同步：别的标签页改了外观开关，本页即时重应用（不刷新）。
+ * 2.4.0-G。
+ */
+function initFeatSync() {
+  const d = document.documentElement;
+  featOn('theme-mode', function () {
+    applyTheme();
+  });
+  featOn('palette', function (v) {
+    if (!v || v === 'lake') d.removeAttribute('data-palette');
+    else d.setAttribute('data-palette', v);
+  });
+  featOn('font-size', function (v) {
+    d.style.fontSize = v === 'large' ? '112.5%' : v === 'small' ? '87.5%' : '';
+    try {
+      d.setAttribute('data-font-size', v || 'standard');
+    } catch (e) {}
+  });
+  featOn('reduced-motion', function (v) {
+    d.classList.toggle('reduced-motion', !!v);
+    try {
+      d.setAttribute('data-reduced-motion', v ? '1' : '0');
+    } catch (e) {}
+  });
+  featOn('layout', function () {
+    const w = /** @type {any} */ (window);
+    if (typeof w.__applyLayout === 'function') w.__applyLayout();
+  });
+}
 
 /**
  * 初始化全站公共行为（幂等）。
@@ -38,6 +70,7 @@ export function initCore() {
   initGoodLock();
   initAppVisibility();
   initScrollFx(S);
+  initFeatSync();
   engines.init();
 
   /* 跨脚本/模板桥接的最小公共 API */

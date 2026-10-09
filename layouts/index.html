@@ -141,7 +141,8 @@
       <audio id="np-audio" preload="none"></audio>
     </div>
 
-    <!-- 天气 -->
+    <!-- 天气（2.4.0-G：weather-show build:false 时不输出） -->
+    {{ if partial "feature.html" "weather-show" }}
     <div id="weather" class="widget col-span-4 lg:col-span-4 p-5 sm:p-6 text-white overflow-hidden relative animate-fade-up hidden" style="animation-delay:.23s;background:linear-gradient(135deg,#4a9fe3,#1e6fc4)">
       <div id="wx-main" class="flex justify-between items-start gap-4">
         <div class="min-w-0">
@@ -158,6 +159,7 @@
         <span id="wx-hilo" class="opacity-80"></span>
       </div>
     </div>
+    {{ end }}{{/* /weather-show */}}
 
     <!-- Now 便签 -->
     <div id="now" class="widget col-span-4 lg:col-span-4 bg-m-note text-m-on-note p-5 animate-fade-up scroll-mt-28" style="animation-delay:.26s">

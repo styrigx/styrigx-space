@@ -29,15 +29,24 @@
     var m=null;try{m=localStorage.getItem('sgx-theme-mode')}catch(e){}
     var wantDark=m==='dark'||((!m||m==='system')&&matchMedia('(prefers-color-scheme: dark)').matches);
     if(wantDark){d.classList.add('dark')}else{d.classList.remove('dark')}
+    /* 2.4.0-G：影响外观的开关统一写 <html> data-* 属性（CSS 用属性选择器响应；class 保留做兼容） */
+    d.setAttribute('data-theme-mode',m||'system');
+    d.setAttribute('data-dark',wantDark?'1':'0');
     /* 字体大小偏好 */
     var fs=localStorage.getItem('sgx-font-size');
     if(fs==='large'){d.style.fontSize='112.5%'}
     else if(fs==='small'){d.style.fontSize='87.5%'}
+    d.setAttribute('data-font-size',fs||'standard');
     /* 主色色板 */
     var p=localStorage.getItem('sgx-palette');
     if(p&&p!=='lake'){d.setAttribute('data-palette',p)}
     /* 减弱动效 */
-    if(localStorage.getItem('sgx-reduced-motion')==='1'){d.classList.add('reduced-motion')}
+    var rm=false;try{rm=localStorage.getItem('sgx-reduced-motion')==='1'}catch(e){}
+    if(rm){d.classList.add('reduced-motion')}
+    d.setAttribute('data-reduced-motion',rm?'1':'0');
+    /* 桌面布局偏好（实际生效的布局由 __applyLayout 计算，这里只记偏好） */
+    var lm=null;try{lm=localStorage.getItem('sgx-layout')}catch(e){}
+    d.setAttribute('data-layout',lm||'auto');
     /* 语言偏好：sgx-lang (zh/en)。有偏好且与当前路径语言不一致时 replace 跳转，不产生历史 */
     try{
       var _lg=null;try{_lg=localStorage.getItem('sgx-lang')}catch(e){}
@@ -416,10 +425,24 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
   "vsAria" (dict "zh" "语音输入" "en" "Voice input")
 }}
 <script id="sgx-i18n-core" type="application/json">{{ $coreI18n | jsonify | safeJS }}</script>
+{{/* 2.4.0-G：功能开关定义（data/features.yaml），运行时 features.js 读取 */}}
+{{ $featDefs := slice }}
+{{ range site.Data.features.features }}
+  {{ $d := dict "id" .id "key" .key "type" .type "default" .default }}
+  {{ if .storage }}{{ $d = merge $d (dict "storage" .storage) }}{{ end }}
+  {{ $featDefs = $featDefs | append $d }}
+{{ end }}
+<script id="sgx-features" type="application/json">{{ $featDefs | jsonify | safeJS }}</script>
 {{/* 2.4.0-C：ES Modules 入口（js.Build 打包 + minify + fingerprint，type="module" 引入）。
    各页模板用 .Scratch.Set "sgx-entry" 指定入口（默认 entry-core.js，即只有公共 core）。 */}}
 {{ $entryName := .Scratch.Get "sgx-entry" | default "entry-core.js" }}
-{{ $entry := resources.Get (print "js/entries/" $entryName) | js.Build (dict "minify" true "target" "es2020") | fingerprint }}
+{{/* 2.4.0-G：编译期功能开关 → esbuild define；build:false 的功能代码被摇掉 */}}
+{{ $featDefines := dict }}
+{{ range site.Data.features.features }}
+  {{ $cname := printf "SGX_FEAT_%s" (upper (replace .id "-" "_")) }}
+  {{ $featDefines = merge $featDefines (dict $cname (cond .build "true" "false")) }}
+{{ end }}
+{{ $entry := resources.Get (print "js/entries/" $entryName) | js.Build (dict "minify" true "target" "es2020" "defines" $featDefines) | fingerprint }}
 <script type="module" src="{{ $entry.RelPermalink }}"></script>
 {{/* 极端降级：不支持 type="module" 的浏览器只打标记，不报错、不白屏（内容为服务端渲染） */}}
 <script nomodule>document.documentElement.classList.add('no-module');</script>

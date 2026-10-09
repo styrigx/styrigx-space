@@ -1,0 +1,346 @@
+# 2.4.0-G：功能开关统一配置（类似 One UI floating feature）。
+# - build: false → 编译期移除（模板不输出 HTML；JS 用 js.Build define 摇掉代码；设置页不显示）。
+# - key 沿用现有 localStorage key，不改名，老用户设置不丢。
+# - 用户数据类 key 不在这里，统一走 core 的 storage 封装。
+features:
+  - id: theme-mode
+    name: {zh: 主题模式, en: Theme mode}
+    build: true
+    user: true
+    type: enum
+    options:
+      - {id: system, zh: 跟随系统, en: Follow system}
+      - {id: light, zh: 浅色, en: Light}
+      - {id: dark, zh: 深色, en: Dark}
+    default: system
+    key: sgx-theme-mode
+    section: display
+    requires: []
+
+  - id: palette
+    name: {zh: 主色, en: Theme color}
+    build: true
+    user: true
+    type: enum
+    options:
+      - {id: lake, zh: 默认, en: Default}
+      - {id: forest, zh: 山绿, en: Forest}
+      - {id: terra, zh: 陶土, en: Terracotta}
+      - {id: violet, zh: 紫, en: Violet}
+      - {id: rose, zh: 蔷薇, en: Rose}
+    default: lake
+    key: sgx-palette
+    section: theme
+    requires: []
+
+  - id: font-size
+    name: {zh: 字体大小, en: Font size}
+    desc: {zh: "", en: ""}
+    icon: textsize
+    iclass: bg-m-tertiary-container text-m-on-tertiary-container
+    row: font
+    build: true
+    user: true
+    type: enum
+    options:
+      - {id: small, zh: 小, en: Small}
+      - {id: standard, zh: 标准, en: Standard}
+      - {id: large, zh: 大, en: Large}
+    default: standard
+    key: sgx-font-size
+    section: display
+    requires: []
+
+  - id: layout
+    name: {zh: 桌面布局, en: Desktop layout}
+    desc: {zh: 手动选择会覆盖按宽度的自动判断。, en: Manual choice overrides the automatic breakpoint.}
+    icon: layout
+    iclass: bg-m-primary-container text-m-on-primary-container
+    row: layout
+    build: true
+    user: true
+    type: enum
+    options:
+      - {id: auto, zh: 自动, en: Auto}
+      - {id: phone, zh: 手机, en: Phone}
+      - {id: dex, zh: DeX, en: DeX}
+    default: auto
+    key: sgx-layout
+    section: display
+    requires: []
+
+  - id: lang
+    name: {zh: 语言, en: Language}
+    build: true
+    user: true
+    type: enum
+    options:
+      - {id: zh, zh: 中文, en: Chinese}
+      - {id: en, zh: 英文, en: English}
+    default: path
+    key: sgx-lang
+    section: manage
+    requires: []
+
+  - id: reduced-motion
+    name: {zh: 减弱动效, en: Reduce motion}
+    desc: {zh: 减少动画效果, en: Minimize animations}
+    icon: motion
+    iclass: bg-m-accent-container text-m-on-accent-container
+    row: motion
+    build: true
+    user: true
+    type: bool
+    default: false
+    storage: {on: "1", off: null}
+    key: sgx-reduced-motion
+    section: accessibility
+    requires: []
+
+  - id: gl-wellbeing
+    icon: info
+    bg: bg-m-warm-container
+    fg: text-m-on-warm-container
+    desc: {zh: 访客停留 15 分钟提醒, en: 15-minute visit reminders}
+    exp: false
+    name: {zh: 数字健康, en: Digital wellbeing}
+    build: true
+    user: true
+    type: bool
+    default: true
+    storage: {on: null, off: "0"}
+    key: sgx-gl-wellbeing
+    section: goodlock
+    requires: []
+
+  - id: gl-parallax
+    icon: motion
+    bg: bg-m-primary-container
+    fg: text-m-on-primary-container
+    desc: {zh: 壁纸随鼠标或手机倾斜轻微移动, en: Wallpaper drifts with mouse or device tilt}
+    exp: true
+    name: {zh: 视差壁纸, en: Parallax wallpaper}
+    build: true
+    user: true
+    type: bool
+    default: false
+    storage: {on: "1", off: null}
+    key: sgx-gl-parallax
+    section: goodlock
+    requires: []
+
+  - id: gl-clockstyle
+    icon: clock
+    bg: bg-m-secondary-container
+    fg: text-m-on-secondary-container
+    desc: {zh: 双时钟在数字与指针之间切换, en: Switch dual clock between digital and analog}
+    exp: false
+    name: {zh: 时钟样式, en: Clock style}
+    build: true
+    user: true
+    type: bool
+    default: false
+    storage: {on: "1", off: null}
+    key: sgx-gl-clockstyle
+    section: goodlock
+    requires: []
+
+  - id: gl-sound
+    icon: speaker
+    bg: bg-m-tertiary-container
+    fg: text-m-on-tertiary-container
+    desc: {zh: 点 App 图标和 Dock 时的轻微点击声, en: Subtle click sound on app and dock taps}
+    exp: true
+    name: {zh: 点击音效, en: Tap sound}
+    build: true
+    user: true
+    type: bool
+    default: false
+    storage: {on: "1", off: null}
+    key: sgx-gl-sound
+    section: goodlock
+    requires: []
+
+  - id: gl-keys
+    icon: keyboard
+    bg: bg-m-accent-container
+    fg: text-m-on-accent-container
+    desc: {zh: 桌面端 g h / g l / g b / g s 快速跳转，? 查看列表, en: Desktop: g h / g l / g b / g s to jump, ? for list}
+    exp: false
+    name: {zh: 快捷键, en: Keyboard shortcuts}
+    build: true
+    user: true
+    type: bool
+    default: false
+    storage: {on: "1", off: null}
+    key: sgx-gl-keys
+    section: goodlock
+    requires: []
+
+  - id: gl-edgeglow
+    icon: sparkles
+    bg: bg-m-rose-container
+    fg: text-m-on-rose-container
+    desc: {zh: 鼠标悬停小组件时边框出现主色流光, en: Primary-color glow on widget hover}
+    exp: true
+    name: {zh: 边缘光效, en: Edge glow}
+    build: true
+    user: true
+    type: bool
+    default: false
+    storage: {on: "1", off: null}
+    key: sgx-gl-edgeglow
+    section: goodlock
+    requires: []
+
+  - id: weather-show
+    name: {zh: 显示天气小组件, en: Show weather widget}
+    build: true
+    user: true
+    type: bool
+    default: true
+    storage: {on: null, off: "0"}
+    key: sgx-weather-show
+    section: manage
+    requires: []
+
+  - id: temp-unit
+    name: {zh: 温度单位, en: Temperature unit}
+    build: true
+    user: true
+    type: enum
+    options:
+      - {id: c, zh: 摄氏度, en: Celsius}
+      - {id: f, zh: 华氏度, en: Fahrenheit}
+    default: c
+    key: sgx-temp-unit
+    section: manage
+    requires: [weather-show]
+
+  - id: tz1-auto
+    name: {zh: 第一时区使用本地时间, en: Use local time for primary timezone}
+    build: true
+    user: true
+    type: bool
+    default: true
+    storage: {on: null, off: "0"}
+    key: sgx-tz1-auto
+    section: manage
+    requires: []
+
+  - id: tz1
+    name: {zh: 第一时区, en: Primary timezone}
+    build: true
+    user: true
+    type: string
+    default: America/Los_Angeles
+    key: sgx-tz1
+    section: manage
+    requires: []
+
+  - id: tz2
+    name: {zh: 第二时区, en: Second timezone}
+    build: true
+    user: true
+    type: string
+    default: America/Los_Angeles
+    key: sgx-tz2
+    section: manage
+    requires: []
+
+  - id: hour12
+    name: {zh: 小时制, en: Hour format}
+    build: true
+    user: true
+    type: enum
+    options:
+      - {id: "24", zh: 24 小时制, en: 24-hour}
+      - {id: "12", zh: 12 小时制, en: 12-hour}
+    default: "24"
+    key: sgx-hour12
+    section: manage
+    requires: []
+
+  - id: search-engine
+    name: {zh: 搜索引擎, en: Search engine}
+    build: true
+    user: true
+    type: enum
+    options:
+      - {id: google, zh: Google, en: Google}
+      - {id: bing, zh: Bing, en: Bing}
+      - {id: duckduckgo, zh: DuckDuckGo, en: DuckDuckGo}
+      - {id: yahoo, zh: Yahoo, en: Yahoo}
+      - {id: ecosia, zh: Ecosia, en: Ecosia}
+    default: google
+    key: sgx-search-engine
+    section: apps
+    requires: []
+
+  - id: addrbar-pos
+    name: {zh: 地址栏位置, en: Address bar position}
+    build: true
+    user: true
+    type: enum
+    options:
+      - {id: bottom, zh: 底部, en: Bottom}
+      - {id: top, zh: 顶部, en: Top}
+    default: bottom
+    key: sgx-addrbar-pos
+    section: apps
+    requires: []
+
+  - id: files-view
+    name: {zh: 文件默认视图, en: Files default view}
+    build: true
+    user: true
+    type: json
+    default: {layout: list, sort: added}
+    key: sgx-files-view
+    section: apps
+    requires: []
+
+  - id: files-home
+    name: {zh: 文件主页分组, en: Files home sections}
+    build: true
+    user: true
+    type: json
+    default: {cats: true, sites: true, recent: true, storage: true, fav: true}
+    key: sgx-files-home
+    section: apps
+    requires: []
+
+  - id: apps-hidden
+    name: {zh: 隐藏应用, en: Hidden apps}
+    build: true
+    user: true
+    type: json
+    default: []
+    key: sgx-apps-hidden
+    section: apps
+    requires: []
+
+  - id: well-tip
+    name: {zh: 15 分钟提醒, en: 15-minute reminder}
+    desc: {zh: 停留 15 分钟后温和提醒一次, en: A gentle nudge after 15 minutes here}
+    icon: ""
+    iclass: ""
+    row: welltip
+    build: true
+    user: true
+    type: bool
+    default: true
+    storage: {on: null, off: "0"}
+    key: sgx-well-tip
+    section: wellbeing
+    requires: [gl-wellbeing]
+
+  - id: lock-screen
+    name: {zh: 全屏锁屏, en: Full-screen lock}
+    build: true
+    user: false
+    type: bool
+    default: true
+    key: null
+    section: ""
+    requires: []

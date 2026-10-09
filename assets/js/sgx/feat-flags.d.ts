@@ -1,0 +1,27 @@
+/* 2.4.0-G：编译期功能开关（Hugo js.Build define 注入，esbuild 替换为 true/false）。
+   由 data/features.yaml 生成，保持同步。 */
+declare const SGX_FEAT_THEME_MODE: boolean;
+declare const SGX_FEAT_PALETTE: boolean;
+declare const SGX_FEAT_FONT_SIZE: boolean;
+declare const SGX_FEAT_LAYOUT: boolean;
+declare const SGX_FEAT_LANG: boolean;
+declare const SGX_FEAT_REDUCED_MOTION: boolean;
+declare const SGX_FEAT_GL_WELLBEING: boolean;
+declare const SGX_FEAT_GL_PARALLAX: boolean;
+declare const SGX_FEAT_GL_CLOCKSTYLE: boolean;
+declare const SGX_FEAT_GL_SOUND: boolean;
+declare const SGX_FEAT_GL_KEYS: boolean;
+declare const SGX_FEAT_GL_EDGEGLOW: boolean;
+declare const SGX_FEAT_WEATHER_SHOW: boolean;
+declare const SGX_FEAT_TEMP_UNIT: boolean;
+declare const SGX_FEAT_TZ1_AUTO: boolean;
+declare const SGX_FEAT_TZ1: boolean;
+declare const SGX_FEAT_TZ2: boolean;
+declare const SGX_FEAT_HOUR12: boolean;
+declare const SGX_FEAT_SEARCH_ENGINE: boolean;
+declare const SGX_FEAT_ADDRBAR_POS: boolean;
+declare const SGX_FEAT_FILES_VIEW: boolean;
+declare const SGX_FEAT_FILES_HOME: boolean;
+declare const SGX_FEAT_APPS_HIDDEN: boolean;
+declare const SGX_FEAT_WELL_TIP: boolean;
+declare const SGX_FEAT_LOCK_SCREEN: boolean;

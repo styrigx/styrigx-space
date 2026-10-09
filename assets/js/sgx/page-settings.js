@@ -6,6 +6,7 @@
 import { on } from './events.js';
 import { esc } from './util.js';
 import { get, set } from './storage.js';
+import { get as featGet, set as featSet, on as featOn } from './features.js';
 import { loadI18n } from './i18n.js';
 import { openSheet, closeSheet } from './sheet.js';
 import { setThemeMode } from './theme.js';
@@ -96,18 +97,18 @@ import { setCapSearchProvider } from './capsule.js';
     }
   }
   function tz1auto() {
-    return get('sgx-tz1-auto') !== '0';
+    return !!featGet('tz1-auto');
   }
   function firstCity() {
-    return tz1auto() ? tzLabel(deviceTz()) : tzLabel(get('sgx-tz1') || 'America/Los_Angeles');
+    return tz1auto() ? tzLabel(deviceTz()) : tzLabel(featGet('tz1'));
   }
   function secondCity() {
-    return tzLabel(get('sgx-tz2') || 'America/Los_Angeles');
+    return tzLabel(featGet('tz2'));
   }
 
   /* ---- 主题模式 ---- */
   function curMode() {
-    return get('sgx-theme-mode') || 'system';
+    return featGet('theme-mode');
   }
   function paintTheme() {
     const m = curMode();
@@ -130,10 +131,11 @@ import { setCapSearchProvider } from './capsule.js';
   });
   on(window, 'sgx-theme-changed', paintTheme);
   paintTheme();
+  featOn('theme-mode', paintTheme);
 
   /* ---- 主色色板（第一个 = 默认，即头像取色） ---- */
   function curPalette() {
-    return get('sgx-palette') || 'lake';
+    return featGet('palette');
   }
   function paintPalette() {
     const p = curPalette();
@@ -144,7 +146,7 @@ import { setCapSearchProvider } from './capsule.js';
   document.querySelectorAll('#palette-dots .swatch').forEach(function (b) {
     on(b, 'click', function () {
       const p = b.getAttribute('data-palette') || 'lake';
-      set('sgx-palette', p === 'lake' ? null : p);
+      featSet('palette', p);
       const d = document.documentElement;
       if (p === 'lake') d.removeAttribute('data-palette');
       else d.setAttribute('data-palette', p);
@@ -153,10 +155,11 @@ import { setCapSearchProvider } from './capsule.js';
     });
   });
   paintPalette();
+  featOn('palette', paintPalette);
 
   /* ---- 字体大小 ---- */
   function paintFont() {
-    const v = get('sgx-font-size') || 'standard';
+    const v = featGet('font-size');
     document.querySelectorAll('#seg-font button').forEach(function (b) {
       b.setAttribute('aria-pressed', b.getAttribute('data-v') === v ? 'true' : 'false');
     });
@@ -164,25 +167,21 @@ import { setCapSearchProvider } from './capsule.js';
   document.querySelectorAll('#seg-font button').forEach(function (b) {
     on(b, 'click', function () {
       const v = b.getAttribute('data-v') || 'standard';
-      set('sgx-font-size', v === 'standard' ? null : v);
+      featSet('font-size', v);
       const d = document.documentElement;
       d.style.fontSize = v === 'large' ? '112.5%' : v === 'small' ? '87.5%' : '';
       paintFont();
     });
   });
   paintFont();
+  featOn('font-size', paintFont);
 
   /* ---- 桌面布局：自动 / 手机 / DeX ---- */
   function paintLayout() {
-    let v = 'auto';
-    try {
-      v = get('sgx-layout') || 'auto';
-    } catch (e) {}
+    let v = featGet('layout');
     if (v === 'tablet') {
       v = 'auto';
-      try {
-        localStorage.setItem('sgx-layout', 'auto');
-      } catch (e) {}
+      featSet('layout', 'auto');
     }
     document.querySelectorAll('#seg-layout button').forEach(function (b) {
       b.setAttribute('aria-pressed', b.getAttribute('data-v') === v ? 'true' : 'false');
@@ -191,10 +190,7 @@ import { setCapSearchProvider } from './capsule.js';
   document.querySelectorAll('#seg-layout button').forEach(function (b) {
     on(b, 'click', function () {
       const v = b.getAttribute('data-v') || 'auto';
-      try {
-        if (v === 'auto') localStorage.removeItem('sgx-layout');
-        else localStorage.setItem('sgx-layout', v);
-      } catch (e) {}
+      featSet('layout', v);
       paintLayout();
       const w = /** @type {any} */ (window);
       if (w.__applyLayout) w.__applyLayout();
@@ -202,6 +198,7 @@ import { setCapSearchProvider } from './capsule.js';
     });
   });
   paintLayout();
+  featOn('layout', paintLayout);
 
   /* ---- 搜索引擎（定义走共享模块 sgx/engines.js，与浏览器页共用同一个 localStorage key） ---- */
   const SE = engines;
@@ -216,7 +213,7 @@ import { setCapSearchProvider } from './capsule.js';
     const dt = $('dt-val');
     if (dt) dt.textContent = firstCity() + ' · ' + secondCity();
     const wx = $('wx-val');
-    if (wx) wx.textContent = get('sgx-temp-unit') === 'f' ? '℉' : '℃';
+    if (wx) wx.textContent = featGet('temp-unit') === 'f' ? '℉' : '℃';
   }
   paintManage();
 
@@ -229,9 +226,7 @@ import { setCapSearchProvider } from './capsule.js';
         { label: 'English', value: 'en', checked: en },
       ],
       onPick: function (v) {
-        try {
-          localStorage.setItem('sgx-lang', v);
-        } catch (e) {}
+        featSet('lang', v);
         /* 跳到当前页面的对应语言版本，保留查询参数与 hash，用 replace 不产生历史 */
         const p = location.pathname,
           q = location.search,
@@ -251,8 +246,8 @@ import { setCapSearchProvider } from './capsule.js';
   /* ---- 日期和时间 ---- */
   function openDateTime() {
     const auto = tz1auto();
-    const tz1cur = get('sgx-tz1') || 'America/Los_Angeles';
-    const h12 = get('sgx-hour12') === '12';
+    const tz1cur = featGet('tz1');
+    const h12 = featGet('hour12') === '12';
     const html =
       '<div class="px-1 pb-2">' +
       '<div class="set-row no-ic" id="dt-auto" role="button" tabindex="0">' +
@@ -277,7 +272,7 @@ import { setCapSearchProvider } from './capsule.js';
     (function rewire() {
       sheetRow('dt-auto', function () {
         const on_ = !tz1auto();
-        set('sgx-tz1-auto', on_ ? '1' : '0');
+        featSet('tz1-auto', on_);
         paintManage();
         window.dispatchEvent(new Event('sgx-settings-changed'));
         openDateTime();
@@ -289,7 +284,7 @@ import { setCapSearchProvider } from './capsule.js';
       }
       document.querySelectorAll('#dt-hour button').forEach(function (b) {
         on(b, 'click', function () {
-          set('sgx-hour12', b.getAttribute('data-v'));
+          featSet('hour12', b.getAttribute('data-v'));
           document.querySelectorAll('#dt-hour button').forEach(function (x) {
             x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
           });
@@ -306,7 +301,7 @@ import { setCapSearchProvider } from './capsule.js';
   /* ---- 时区选择器（顶部带搜索） ---- */
   /** @param {string} key @param {() => void} back */
   function openTzPicker(key, back) {
-    const cur = key === 'sgx-tz1' ? get('sgx-tz1') || 'America/Los_Angeles' : get('sgx-tz2') || 'America/Los_Angeles';
+    const cur = key === 'sgx-tz1' ? featGet('tz1') : featGet('tz2');
     const html =
       '<div class="px-1 pb-2">' +
       '<div class="px-4 pb-2"><input id="tzp-q" type="search" autocomplete="off" placeholder="' + T.t('tzpPh') + '" aria-label="' + T.t('tzpAria') + '"' +
@@ -336,7 +331,7 @@ import { setCapSearchProvider } from './capsule.js';
         : '<p class="px-5 py-4 text-sm text-m-on-surface-variant text-center">' + T.t('tzpNo') + '</p>';
       box.querySelectorAll('.sheet-opt').forEach(function (b) {
         on(b, 'click', function () {
-          set(key, b.getAttribute('data-tz'));
+          featSet(key === 'sgx-tz1' ? 'tz1' : 'tz2', b.getAttribute('data-tz'));
           paintManage();
           window.dispatchEvent(new Event('sgx-settings-changed'));
           back();
@@ -355,8 +350,8 @@ import { setCapSearchProvider } from './capsule.js';
 
   /* ---- 天气 ---- */
   function openWeather() {
-    const show = get('sgx-weather-show') !== '0';
-    const unit = get('sgx-temp-unit') === 'f' ? 'f' : 'c';
+    const show = !!featGet('weather-show');
+    const unit = featGet('temp-unit') === 'f' ? 'f' : 'c';
     const html =
       '<div class="px-1 pb-2">' +
       '<div class="set-row no-ic" id="wx-show" role="button" tabindex="0">' +
@@ -370,15 +365,15 @@ import { setCapSearchProvider } from './capsule.js';
     openSheet({ title: T.t('wxTitle'), html: html });
     const sheetRow2 = rowToggle;
     sheetRow2('wx-show', function () {
-      const on_ = get('sgx-weather-show') === '0';
-      set('sgx-weather-show', on_ ? '1' : '0');
+      const on_ = !featGet('weather-show');
+      featSet('weather-show', on_);
       setSwitch('wx-show-sw', on_);
       paintManage();
       window.dispatchEvent(new Event('sgx-settings-changed'));
     });
     document.querySelectorAll('#wx-unit button').forEach(function (b) {
       on(b, 'click', function () {
-        set('sgx-temp-unit', b.getAttribute('data-v'));
+        featSet('temp-unit', b.getAttribute('data-v'));
         document.querySelectorAll('#wx-unit button').forEach(function (x) {
           x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
         });
@@ -391,16 +386,12 @@ import { setCapSearchProvider } from './capsule.js';
 
   /* ================= 应用：我的文件 / 应用商店 / 浏览器 ================= */
   function addrbarPos() {
-    const p = get('sgx-addrbar-pos');
+    const p = featGet('addrbar-pos');
     return p === 'top' ? 'top' : 'bottom';
   }
   function filesView() {
-    try {
-      const v = JSON.parse(get('sgx-files-view') || '{}');
-      return v && typeof v === 'object' ? v : {};
-    } catch (e) {
-      return {};
-    }
+    const v = featGet('files-view');
+    return v && typeof v === 'object' ? v : {};
   }
   function paintApps() {
     const v = filesView();
@@ -502,12 +493,7 @@ import { setCapSearchProvider } from './capsule.js';
     const layout = v.layout === 'grid' ? 'grid' : 'list';
     const sort = v.sort === 'name' ? 'name' : 'added';
     /** @type {Record<string, any>} */
-    let home = {};
-    try {
-      home = JSON.parse(get('sgx-files-home') || '{}');
-    } catch (e) {
-      home = {};
-    }
+    let home = featGet('files-home') || {};
     const GROUPS = [
       { id: 'cats', label: T.t('gCats') },
       { id: 'sites', label: T.t('gSites') },
@@ -538,28 +524,23 @@ import { setCapSearchProvider } from './capsule.js';
     wireSeg('apf-view-seg', function (val) {
       const vv = filesView();
       vv.layout = val;
-      set('sgx-files-view', JSON.stringify(vv));
+      featSet('files-view', vv);
       paintApps();
       window.dispatchEvent(new Event('sgx-settings-changed'));
     });
     wireSeg('apf-sort-seg', function (val) {
       const vv = filesView();
       vv.sort = val;
-      set('sgx-files-view', JSON.stringify(vv));
+      featSet('files-view', vv);
       window.dispatchEvent(new Event('sgx-settings-changed'));
     });
     GROUPS.forEach(function (g) {
       appSheetRow('apf-home-' + g.id, function () {
         /** @type {Record<string, any>} */
-        let hh = {};
-        try {
-          hh = JSON.parse(get('sgx-files-home') || '{}');
-        } catch (e) {
-          hh = {};
-        }
+        const hh = Object.assign({}, featGet('files-home') || {});
         const on_ = hh[g.id] !== false;
         hh[g.id] = !on_;
-        set('sgx-files-home', JSON.stringify(hh));
+        featSet('files-home', hh);
         const sw = document.querySelector('#apf-home-' + g.id + ' .switch');
         if (sw) sw.setAttribute('aria-checked', !on_ ? 'true' : 'false');
         window.dispatchEvent(new Event('sgx-settings-changed'));
@@ -641,7 +622,7 @@ import { setCapSearchProvider } from './capsule.js';
     openSheet({ title: T.t('browserTitle'), html: html });
     appSheetRow('apb-engine', pickEngine);
     wireSeg('apb-pos-seg', function (val) {
-      set('sgx-addrbar-pos', val);
+      featSet('addrbar-pos', val);
       paintApps();
       window.dispatchEvent(new Event('sgx-settings-changed'));
     });
@@ -664,27 +645,30 @@ import { setCapSearchProvider } from './capsule.js';
 
   /* ---- 减弱动效 ---- */
   function paintMotion() {
-    setSwitch('sw-motion', get('sgx-reduced-motion') === '1');
+    const on_ = !!featGet('reduced-motion');
+    setSwitch('sw-motion', on_);
+    document.documentElement.classList.toggle('reduced-motion', on_);
+    try {
+      document.documentElement.setAttribute('data-reduced-motion', on_ ? '1' : '0');
+    } catch (e) {}
   }
   rowToggle('row-motion', function () {
-    const on_ = get('sgx-reduced-motion') !== '1';
-    set('sgx-reduced-motion', on_ ? '1' : null);
-    document.documentElement.classList.toggle('reduced-motion', on_);
+    featSet('reduced-motion', !featGet('reduced-motion'));
     paintMotion();
   });
   paintMotion();
+  featOn('reduced-motion', paintMotion);
 
   /* ---- 数字健康：访客时长提示 ---- */
   function paintWellTip() {
-    setSwitch('sw-welltip', get('sgx-well-tip') !== '0');
+    setSwitch('sw-welltip', !!featGet('well-tip'));
   }
   rowToggle('row-welltip', function () {
-    const on_ = get('sgx-well-tip') === '0';
-    set('sgx-well-tip', on_ ? '1' : '0');
+    featSet('well-tip', !featGet('well-tip'));
     paintWellTip();
-    window.dispatchEvent(new Event('sgx-settings-changed'));
   });
   paintWellTip();
+  featOn('well-tip', paintWellTip);
   /* 访客到访分布 */
   (function () {
     const totalEl = $('well-v-total'),

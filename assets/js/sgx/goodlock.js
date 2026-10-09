@@ -1,21 +1,22 @@
 /**
  * @fileoverview Good Lock 实验室：全站生效的模块（旧 sgx-base-a.js 末尾）。
  * 视差壁纸 / 点击音效 / 快捷键 / 边缘光效 / 访客数字健康（只存本地）。
+ * 2.4.0-G：开关经 features.js 统一读写；各模块另有 SGX_FEAT_* 编译期开关。
  */
 import { on } from './events.js';
 import { get, set } from './storage.js';
+import { get as featGet } from './features.js';
 import { loadI18n } from './i18n.js';
 import { openSheet } from './sheet.js';
 import { reducedMotion } from './util.js';
 import { visibleInterval } from './scheduler.js';
 
 /**
- * @param {string} key
- * @param {boolean} defOn
+ * 读 Good Lock 模块开关（经 features.js，带编译期 build 默认）。
+ * @param {string} id 功能 id（gl-*）
  */
-function modOn(key, defOn) {
-  const v = get(key);
-  return defOn ? v !== '0' : v === '1';
+function modOn(id) {
+  return !!featGet(id);
 }
 
 /** @returns {string} YYYY-M-D */
@@ -78,7 +79,7 @@ export function initGoodLock() {
 
   /* ---- 视差壁纸 ---- */
   function parallaxOn() {
-    return modOn('sgx-gl-parallax', false);
+    return modOn('gl-parallax');
   }
   /** @param {number} x @param {number} y */
   function applyParallax(x, y) {
@@ -86,7 +87,8 @@ export function initGoodLock() {
     const wp = document.getElementById('sgx-wallpaper');
     if (wp) wp.style.backgroundPosition = x.toFixed(1) + 'px ' + y.toFixed(1) + 'px';
   }
-  if (parallaxOn() && !reducedMotion()) {
+  /* ---- 视差壁纸（2.4.0-G：SGX_FEAT_GL_PARALLAX 编译期可移除） ---- */
+  if (SGX_FEAT_GL_PARALLAX && parallaxOn() && !reducedMotion()) {
     let raf = null,
       lx = 0,
       ly = 0;
@@ -115,7 +117,8 @@ export function initGoodLock() {
     );
   }
 
-  /* ---- 点击音效（Web Audio 合成） ---- */
+  /* ---- 点击音效（Web Audio 合成；2.4.0-G：SGX_FEAT_GL_SOUND 编译期可移除） ---- */
+  if (SGX_FEAT_GL_SOUND) {
   /** @type {any} */
   let ac = null;
   function blip() {
@@ -143,20 +146,22 @@ export function initGoodLock() {
     document,
     'click',
     function (/** @type {MouseEvent} */ e) {
-      if (!modOn('sgx-gl-sound', false)) return;
+      if (!modOn('gl-sound')) return;
       const t = /** @type {HTMLElement|null} */ (e.target);
       if (t && t.closest && t.closest('.app-tile,.dock-btn,.nav-act')) blip();
     },
     { passive: true }
   );
+  } /* /SGX_FEAT_GL_SOUND */
 
-  /* ---- 快捷键（桌面端） ---- */
+  /* ---- 快捷键（桌面端；2.4.0-G：SGX_FEAT_GL_KEYS 编译期可移除） ---- */
+  if (SGX_FEAT_GL_KEYS) {
   (function () {
     let pending = false;
     /** @type {number|null} */
     let timer = null;
     on(document, 'keydown', function (/** @type {KeyboardEvent} */ e) {
-      if (!modOn('sgx-gl-keys', false)) return;
+      if (!modOn('gl-keys')) return;
       const t = /** @type {HTMLElement|null} */ (e.target);
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -203,11 +208,13 @@ export function initGoodLock() {
       }
     });
   })();
+  } /* /SGX_FEAT_GL_KEYS */
 
-  /* ---- 边缘光效 ---- */
-  if (modOn('sgx-gl-edgeglow', false)) document.body.classList.add('gl-edgeglow');
+  /* ---- 边缘光效（2.4.0-G：SGX_FEAT_GL_EDGEGLOW 编译期可移除） ---- */
+  if (SGX_FEAT_GL_EDGEGLOW && modOn('gl-edgeglow')) document.body.classList.add('gl-edgeglow');
 
-  /* ---- 访客数字健康（只存本地） ---- */
+  /* ---- 访客数字健康（只存本地；2.4.0-G：SGX_FEAT_GL_WELLBEING 编译期可移除） ---- */
+  if (SGX_FEAT_GL_WELLBEING) {
   on(window, 'pagehide', function () {
     wellFlush();
   });
@@ -243,8 +250,8 @@ export function initGoodLock() {
     window.setTimeout(hide, 12000);
   }
   function checkTip() {
-    if (!modOn('sgx-gl-wellbeing', true)) return;
-    if (get('sgx-well-tip') === '0') return;
+    if (!modOn('gl-wellbeing')) return;
+    if (!SGX_FEAT_WELL_TIP || !featGet('well-tip')) return;
     const today = dayStr(new Date());
     if (get('sgx-well-tipday') === today) return;
     const v = wellLoad(),
@@ -255,11 +262,12 @@ export function initGoodLock() {
     }
   }
   visibleInterval(checkTip, 30000);
+  } /* /SGX_FEAT_GL_WELLBEING */
 
   /* ---- 设置变更时重应用 ---- */
   on(window, 'sgx-settings-changed', function () {
-    document.body.classList.toggle('gl-edgeglow', modOn('sgx-gl-edgeglow', false));
-    if (parallaxOn() && reducedMotion()) {
+    if (SGX_FEAT_GL_EDGEGLOW) document.body.classList.toggle('gl-edgeglow', modOn('gl-edgeglow'));
+    if (SGX_FEAT_GL_PARALLAX && parallaxOn() && reducedMotion()) {
       const wp2 = document.getElementById('sgx-wallpaper');
       if (wp2) wp2.style.backgroundPosition = '';
     }

@@ -1,34 +1,32 @@
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-core.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
-{{ $mods := slice
-  (dict "id" "wellbeing" "key" "sgx-gl-wellbeing" "def" true "icon" "info" "bg" "bg-m-warm-container" "fg" "text-m-on-warm-container" "zh" "数字健康" "en" "Digital wellbeing" "dzh" "访客停留 15 分钟提醒" "den" "15-minute visit reminders" "exp" false)
-  (dict "id" "parallax" "key" "sgx-gl-parallax" "def" false "icon" "motion" "bg" "bg-m-primary-container" "fg" "text-m-on-primary-container" "zh" "视差壁纸" "en" "Parallax wallpaper" "dzh" "壁纸随鼠标或手机倾斜轻微移动" "den" "Wallpaper drifts with mouse or device tilt" "exp" true)
-  (dict "id" "clockstyle" "key" "sgx-gl-clockstyle" "def" false "icon" "clock" "bg" "bg-m-secondary-container" "fg" "text-m-on-secondary-container" "zh" "时钟样式" "en" "Clock style" "dzh" "双时钟在数字与指针之间切换" "den" "Switch dual clock between digital and analog" "exp" false)
-  (dict "id" "sound" "key" "sgx-gl-sound" "def" false "icon" "speaker" "bg" "bg-m-tertiary-container" "fg" "text-m-on-tertiary-container" "zh" "点击音效" "en" "Tap sounds" "dzh" "点 App 图标和 Dock 时的轻微点击声" "den" "Subtle click sound on app and dock taps" "exp" true)
-  (dict "id" "keys" "key" "sgx-gl-keys" "def" false "icon" "keyboard" "bg" "bg-m-accent-container" "fg" "text-m-on-accent-container" "zh" "快捷键" "en" "Keyboard shortcuts" "dzh" "桌面端 g h / g l / g b / g s 快速跳转，? 查看列表" "den" "Desktop: g h / g l / g b / g s to jump, ? for list" "exp" false)
-  (dict "id" "edgeglow" "key" "sgx-gl-edgeglow" "def" false "icon" "sparkles" "bg" "bg-m-rose-container" "fg" "text-m-on-rose-container" "zh" "边缘光效" "en" "Edge glow" "dzh" "鼠标悬停小组件时边框出现主色流光" "den" "Primary-color glow on widget hover" "exp" true)
-}}
+{{/* 2.4.0-G：Good Lock 模块由 data/features.yaml 驱动（section=goodlock），build:false 的不输出 */}}
+{{ $mods := slice }}
+{{ range site.Data.features.features }}{{ if eq .section "goodlock" }}{{ $mods = $mods | append . }}{{ end }}{{ end }}
 
 <div class="max-w-[1100px] mx-auto px-4">
   {{ partial "subpage-head.html" (dict "title" "Good Lock" "isEn" $isEn) }}
 
   <div class="max-w-2xl mx-auto pb-28">
     {{ range $i, $m := $mods }}
-    <div class="widget bg-m-container-lowest border border-m-outline p-5 flex items-center gap-4 mb-4 animate-fade-up scroll-mt-28" id="mod-{{ $m.id }}" style="animation-delay:{{ mul $i 35 }}ms">
+    {{ if partial "feature.html" $m.id }}
+    {{ $short := strings.TrimPrefix "gl-" $m.id }}
+    <div class="widget bg-m-container-lowest border border-m-outline p-5 flex items-center gap-4 mb-4 animate-fade-up scroll-mt-28" id="mod-{{ $short }}" style="animation-delay:{{ mul $i 35 }}ms">
       <span class="set-ic {{ $m.bg }} {{ $m.fg }}">{{ partial "icon.html" $m.icon }}</span>
       <div class="flex-1 min-w-0">
         <p class="font-semibold flex items-center gap-2 flex-wrap">
-          <span>{{ if $isEn }}{{ $m.en }}{{ else }}{{ $m.zh }}{{ end }}</span>
+          <span>{{ if $isEn }}{{ $m.name.en }}{{ else }}{{ $m.name.zh }}{{ end }}</span>
           {{ if $m.exp }}<span class="exp-tag">{{ if $isEn }}LAB{{ else }}实验{{ end }}</span>{{ end }}
         </p>
-        <p class="text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}{{ $m.den }}{{ else }}{{ $m.dzh }}{{ end }}</p>
-        {{ if eq $m.id "parallax" }}
+        <p class="text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}{{ $m.desc.en }}{{ else }}{{ $m.desc.zh }}{{ end }}</p>
+        {{ if eq $short "parallax" }}
         <button type="button" id="gl-parallax-auth" class="hidden mt-2 text-xs font-semibold text-m-primary bg-m-primary-container rounded-full px-3 py-1.5 min-h-[36px]">{{ if $isEn }}Allow motion access{{ else }}允许读取设备方向{{ end }}</button>
         {{ end }}
       </div>
-      <span class="switch gl-switch" data-key="{{ $m.key }}" data-def="{{ if $m.def }}1{{ else }}0{{ end }}" role="switch" aria-checked="false" tabindex="0" aria-label="{{ if $isEn }}{{ $m.en }}{{ else }}{{ $m.zh }}{{ end }}"><span class="knob"></span></span>
+      <span class="switch gl-switch" data-key="{{ $m.key }}" data-def="{{ if $m.default }}1{{ else }}0{{ end }}" role="switch" aria-checked="false" tabindex="0" aria-label="{{ if $isEn }}{{ $m.name.en }}{{ else }}{{ $m.name.zh }}{{ end }}"><span class="knob"></span></span>
     </div>
+    {{ end }}
     {{ end }}
 
     <p class="text-center text-xs text-m-on-surface-variant mt-8">{{ if $isEn }}Inspired by Samsung Good Lock{{ else }}灵感来自 Samsung Good Lock{{ end }}</p>

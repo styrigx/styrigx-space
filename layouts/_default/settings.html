@@ -2,6 +2,9 @@
 {{ .Scratch.Set "sgx-entry" "entry-settings.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 {{ $avatar := resources.Get "images/avatar.png" }}
+{{/* 2.4.0-G：功能定义表（data/features.yaml），设置行按需生成 */}}
+{{ $featMap := dict }}
+{{ range site.Data.features.features }}{{ $featMap = merge $featMap (dict .id .) }}{{ end }}
 {{ $palettes := slice
   (dict "id" "lake" "c" "#2f5f86" "zh" "默认" "en" "Default")
   (dict "id" "forest" "c" "#2f6b4f" "zh" "山绿" "en" "Forest")
@@ -61,6 +64,7 @@
     <div class="set-group scroll-mt-24" id="sg-display">
     <h2 class="set-gh"><span class="set-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "moon" }}</span><span>{{ if $isEn }}Display{{ else }}显示{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.1s">
+      {{ if partial "feature.html" "theme-mode" }}
       <div class="p-5">
         <div class="grid grid-cols-2 gap-3" id="theme-previews">
           <div>
@@ -94,37 +98,15 @@
         <span class="flex-1 font-medium">{{ if $isEn }}Follow system{{ else }}跟随系统{{ end }}</span>
         <span class="switch" id="sw-system" role="switch" aria-checked="false" aria-label="{{ if $isEn }}Follow system{{ else }}跟随系统{{ end }}"><span class="knob"></span></span>
       </div>
-      <div class="set-row set-col" id="row-font">
-        <div class="set-row-head">
-          <span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "textsize" }}</span>
-          <span class="flex-1 font-medium">{{ if $isEn }}Font size{{ else }}字体大小{{ end }}</span>
-        </div>
-        <div class="set-row-sub">
-          <div class="seg" id="seg-font" role="group" aria-label="{{ if $isEn }}Font size{{ else }}字体大小{{ end }}">
-            <button type="button" data-v="small" aria-pressed="false">{{ if $isEn }}Small{{ else }}小{{ end }}</button>
-            <button type="button" data-v="standard" aria-pressed="false">{{ if $isEn }}Standard{{ else }}标准{{ end }}</button>
-            <button type="button" data-v="large" aria-pressed="false">{{ if $isEn }}Large{{ else }}大{{ end }}</button>
-          </div>
-        </div>
-      </div>
-      <div class="set-row set-col" id="row-layout">
-        <div class="set-row-head">
-          <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "layout" }}</span>
-          <span class="flex-1 font-medium">{{ if $isEn }}Desktop layout{{ else }}桌面布局{{ end }}</span>
-        </div>
-        <div class="set-row-sub">
-          <div class="seg" id="seg-layout" role="group" aria-label="{{ if $isEn }}Desktop layout{{ else }}桌面布局{{ end }}">
-            <button type="button" data-v="auto" aria-pressed="false">{{ if $isEn }}Auto{{ else }}自动{{ end }}</button>
-            <button type="button" data-v="phone" aria-pressed="false">{{ if $isEn }}Phone{{ else }}手机{{ end }}</button>
-            <button type="button" data-v="dex" aria-pressed="false">DeX</button>
-          </div>
-          <p class="text-xs text-m-on-surface-variant mt-2">{{ if $isEn }}Manual choice overrides the automatic breakpoint.{{ else }}手动选择会覆盖按宽度的自动判断。{{ end }}</p>
-        </div>
-      </div>
+      {{ end }}{{/* /theme-mode */}}
+      {{/* 2.4.0-G：字体大小 / 桌面布局由 features.yaml 生成（外观与手写版一致） */}}
+      {{ if partial "feature.html" "font-size" }}{{ partial "settings-row.html" (dict "f" (index $featMap "font-size") "isEn" $isEn) }}{{ end }}
+      {{ if partial "feature.html" "layout" }}{{ partial "settings-row.html" (dict "f" (index $featMap "layout") "isEn" $isEn) }}{{ end }}
     </section>
     </div>
 
     <!-- 第二组：壁纸和主题 -->
+    {{ if partial "feature.html" "palette" }}
     <div class="set-group scroll-mt-24" id="sg-theme">
     <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "palette" }}</span><span>{{ if $isEn }}Wallpaper &amp; theme{{ else }}壁纸和主题{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.14s">
@@ -141,29 +123,36 @@
       </div>
     </section>
     </div>
+    {{ end }}{{/* /palette */}}
 
     <!-- 第三组：常规管理 -->
     <div class="set-group scroll-mt-24" id="sg-manage">
     <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "sliders" }}</span><span>{{ if $isEn }}General management{{ else }}常规管理{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.18s">
+      {{ if partial "feature.html" "lang" }}
       <div class="set-row" id="row-lang" role="button" tabindex="0">
         <span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "globe" }}</span>
         <span class="flex-1 font-medium">{{ if $isEn }}Language{{ else }}语言{{ end }}</span>
         <span id="lang-val" class="text-sm text-m-on-surface-variant">{{ if $isEn }}English{{ else }}中文{{ end }}</span>
         {{ partial "icon.html" "chev-r" }}
       </div>
+      {{ end }}
+      {{ if partial "feature.html" "tz1" }}
       <div class="set-row" id="row-datetime" role="button" tabindex="0">
         <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "clock" }}</span>
         <span class="flex-1 font-medium">{{ if $isEn }}Date &amp; time{{ else }}日期和时间{{ end }}</span>
         <span id="dt-val" class="text-sm text-m-on-surface-variant">--</span>
         {{ partial "icon.html" "chev-r" }}
       </div>
+      {{ end }}
+      {{ if partial "feature.html" "weather-show" }}
       <div class="set-row" id="row-weather" role="button" tabindex="0">
         <span class="set-ic bg-m-warm-container text-m-on-warm-container">{{ partial "icon.html" "thermo" }}</span>
         <span class="flex-1 font-medium">{{ if $isEn }}Weather{{ else }}天气{{ end }}</span>
         <span id="wx-val" class="text-sm text-m-on-surface-variant">℃</span>
         {{ partial "icon.html" "chev-r" }}
       </div>
+      {{ end }}
     </section>
     </div>
 
@@ -171,6 +160,7 @@
     <div class="set-group scroll-mt-24" id="sg-apps">
     <h2 class="set-gh"><span class="set-app-ic">{{ partial "icon.html" (dict "name" "appgrid-solid" "uid" "setgh") }}</span><span>{{ if $isEn }}Apps{{ else }}应用{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.2s">
+      {{ if partial "feature.html" "files-view" }}
       <div class="set-row" id="row-app-files" role="button" tabindex="0">
         <span class="set-app-ic">{{ partial "icon.html" (dict "name" "files" "uid" "setapps1") }}</span>
         <span class="flex-1 min-w-0">
@@ -179,6 +169,8 @@
         </span>
         {{ partial "icon.html" "chev-r" }}
       </div>
+      {{ end }}
+      {{ if partial "feature.html" "apps-hidden" }}
       <div class="set-row" id="row-app-store" role="button" tabindex="0">
         <span class="set-app-ic">{{ partial "icon.html" (dict "name" "store" "uid" "setapps2") }}</span>
         <span class="flex-1 min-w-0">
@@ -187,6 +179,8 @@
         </span>
         {{ partial "icon.html" "chev-r" }}
       </div>
+      {{ end }}
+      {{ if partial "feature.html" "search-engine" }}
       <div class="set-row" id="row-app-browser" role="button" tabindex="0">
         <span class="set-app-ic">{{ partial "icon.html" (dict "name" "browser" "uid" "setapps3") }}</span>
         <span class="flex-1 min-w-0">
@@ -195,6 +189,7 @@
         </span>
         {{ partial "icon.html" "chev-r" }}
       </div>
+      {{ end }}{{/* /search-engine */}}
     </section>
     </div>
 
@@ -202,14 +197,8 @@
     <div class="set-group scroll-mt-24" id="sg-accessibility">
     <h2 class="set-gh"><span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "person" }}</span><span>{{ if $isEn }}Accessibility{{ else }}辅助功能{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.22s">
-      <div class="set-row" id="row-motion" role="button" tabindex="0">
-        <span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "motion" }}</span>
-        <span class="flex-1 min-w-0">
-          <span class="block font-medium">{{ if $isEn }}Reduce motion{{ else }}减弱动效{{ end }}</span>
-          <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Minimize animations{{ else }}减少动画效果{{ end }}</span>
-        </span>
-        <span class="switch" id="sw-motion" role="switch" aria-checked="false" aria-label="{{ if $isEn }}Reduce motion{{ else }}减弱动效{{ end }}"><span class="knob"></span></span>
-      </div>
+      {{/* 2.4.0-G：减弱动效由 features.yaml 生成 */}}
+      {{ if partial "feature.html" "reduced-motion" }}{{ partial "settings-row.html" (dict "f" (index $featMap "reduced-motion") "isEn" $isEn) }}{{ end }}
     </section>
     </div>
 
@@ -252,13 +241,8 @@
         <div class="wb-bar" id="well-v-bar" role="img" aria-label="{{ if $isEn }}Your visit breakdown{{ else }}到访分布{{ end }}"></div>
         <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[11px] text-m-on-surface-variant" id="well-v-legend"></div>
       </div>
-      <div class="set-row no-ic" id="row-welltip" role="button" tabindex="0">
-        <span class="flex-1 min-w-0">
-          <span class="block font-medium">{{ if $isEn }}15-minute reminder{{ else }}15 分钟提醒{{ end }}</span>
-          <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}A gentle nudge after 15 minutes here{{ else }}停留 15 分钟后温和提醒一次{{ end }}</span>
-        </span>
-        <span class="switch" id="sw-welltip" role="switch" aria-checked="true" aria-label="{{ if $isEn }}15-minute reminder{{ else }}15 分钟提醒{{ end }}"><span class="knob"></span></span>
-      </div>
+      {{/* 2.4.0-G：15 分钟提醒由 features.yaml 生成 */}}
+      {{ if partial "feature.html" "well-tip" }}{{ partial "settings-row.html" (dict "f" (index $featMap "well-tip") "isEn" $isEn) }}{{ end }}
     </section>
     </div>
 

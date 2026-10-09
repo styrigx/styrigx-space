@@ -5,6 +5,7 @@
 import { on } from './events.js';
 import { fmtTz } from './util.js';
 import { get } from './storage.js';
+import { get as featGet } from './features.js';
 import { visibleInterval } from './scheduler.js';
 import { onDexLayoutChange, applyLayout } from './layout.js';
 
@@ -107,7 +108,8 @@ export function initNav(S) {
     });
   })();
 
-  /* ---- 顶栏天气（图标 + 温度）：localStorage 30 分钟缓存 ---- */
+  /* ---- 顶栏天气（图标 + 温度）：localStorage 30 分钟缓存；2.4.0-G：SGX_FEAT_WEATHER_SHOW 编译期可移除 ---- */
+  if (SGX_FEAT_WEATHER_SHOW)
   (function () {
     const icEl = document.getElementById('nav-wx-ic');
     const tEl2 = document.getElementById('nav-wx-t');
@@ -140,7 +142,7 @@ export function initNav(S) {
     }
     /** @param {number} c */
     function fmtT(c) {
-      const unit = get('sgx-temp-unit') === 'f' ? 'f' : 'c';
+      const unit = featGet('temp-unit') === 'f' ? 'f' : 'c';
       return unit === 'f' ? Math.round((c * 9) / 5 + 32) : Math.round(c);
     }
     /** @param {any} d */

@@ -2,6 +2,7 @@
  * @fileoverview 首页：双时钟、天气小组件、正在播放、封面批注、数字花园筛选。
  */
 import { on } from './events.js';
+import { get as featGet } from './features.js';
 import { visibleInterval } from './scheduler.js';
 import { openSheet } from './sheet.js';
 import { toast } from './toast.js';
@@ -172,7 +173,8 @@ import { SGX } from './sgx.js';
   on(window, 'sgx-settings-changed', tick);
 })();
 
-/* 天气 */
+/* 天气（2.4.0-G：SGX_FEAT_WEATHER_SHOW 编译期可移除） */
+if (SGX_FEAT_WEATHER_SHOW)
 (function () {
   const root = document.getElementById('weather');
   if (!root) return;
@@ -204,7 +206,7 @@ import { SGX } from './sgx.js';
   }
   function tempUnit() {
     try {
-      return localStorage.getItem('sgx-temp-unit') === 'f' ? 'f' : 'c';
+      return featGet('temp-unit') === 'f' ? 'f' : 'c';
     } catch (e) {
       return 'c';
     }
@@ -216,7 +218,7 @@ import { SGX } from './sgx.js';
   /** @param {any} d @param {boolean} instant */
   function render(d, instant) {
     try {
-      if (localStorage.getItem('sgx-weather-show') === '0') {
+      if (!featGet('weather-show')) {
         root.classList.add('hidden');
         return;
       }
@@ -257,7 +259,7 @@ import { SGX } from './sgx.js';
     if (c) render(c, true);
     else {
       try {
-        if (localStorage.getItem('sgx-weather-show') === '0') root.classList.add('hidden');
+        if (!featGet('weather-show')) root.classList.add('hidden');
       } catch (e) {}
     }
   }

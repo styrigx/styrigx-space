@@ -1,0 +1,8 @@
+{{/* 2.4.0-G：编译期功能开关。build:false 的功能返回 false，模板不输出对应 HTML。
+   用法：{{ if partial "feature.html" "weather-show" }}...{{ end }} */}}
+{{ $id := . }}
+{{ $on := false }}
+{{ range site.Data.features.features }}
+  {{ if eq .id $id }}{{ $on = .build }}{{ end }}
+{{ end }}
+{{ return $on }}
