@@ -2,7 +2,7 @@
  * 2.4.0 I：Passkey（WebAuthn）注册与验证。
  * fix/hi-owner：
  * - attestationObject 改用完整 CBOR 解析（替代启发式找 authData）。
- * - 支持多个 passkey：KV `owner-passkeys` 存数组；可列出、删除、重命名。
+ * - 支持多个 passkey：KV 每把一个 `owner-passkey:<前12位>`；索引 `owner-passkey-index` 存 credId 数组（避开 list 最终一致）；可列出、删除、重命名。
  * - 外层 try/catch：异常一律返回 JSON { ok:false, error:'server' }。
  * 安全与隐私（Hark 方案）：
  * - attestationObject 是文本键 CBOR map（"fmt"/"attStmt"/"authData"），不用整数键；
@@ -35,6 +35,16 @@
  * - KV 结构：每把一个 key（owner-passkey:<credId前12位>），字段顺序固定
  */
 import { b64enc, b64dec, b64urlEnc, timingSafeEqual, hmacSign, hmacVerify } from '../_lib/crypto.js';
+
+/* AAGUID → 密码管理器（只用于显示，不参与安全判断） */
+const AAGUID_PROVIDERS = {
+  'adce0002-35bc-c60a-648b-0b25f5f05522': 'Google 密码管理器',
+  'f8a011f3-8c0a-4d15-8006-17111f9edc7d': 'iCloud 钥匙串',
+  'bada5566-a7aa-401f-bd96-45619a55120d': '1Password',
+  'accced6a-63d0-4ef2-bb6c-7516d463e07f': 'Bitwarden',
+  '39a9f8c4-8405-4bc4-8af9-7d616b0df0ab': 'Microsoft',
+  /* Samsung Pass AAGUID 需真机确认后填入 */
+};
 
 /** @param {number} n */
 function randB64(n) {
@@ -338,6 +348,15 @@ async function savePasskey(kv, item) {
   await kv.put(keyName, JSON.stringify(ordered), {
     metadata: { name: ordered.name, provider: ordered.provider, createdAt: ordered.createdAt },
   });
+  /* 同步更新索引（避开 kv.list 的最终一致延迟） */
+  try {
+    let idx = await kv.get('owner-passkey-index', 'json');
+    if (!Array.isArray(idx)) idx = [];
+    if (!idx.includes(item.credId)) {
+      idx.push(item.credId);
+      await kv.put('owner-passkey-index', JSON.stringify(idx));
+    }
+  } catch (e) {}
   return ordered;
 }
 
@@ -349,6 +368,14 @@ async function savePasskey(kv, item) {
 async function deletePasskey(kv, credId) {
   const keyName = 'owner-passkey:' + String(credId).slice(0, 12);
   await kv.delete(keyName);
+  /* 同步更新索引 */
+  try {
+    let idx = await kv.get('owner-passkey-index', 'json');
+    if (Array.isArray(idx)) {
+      idx = idx.filter(id => id !== credId);
+      await kv.put('owner-passkey-index', JSON.stringify(idx));
+    }
+  } catch (e) {}
 }
 
 /**
@@ -450,9 +477,11 @@ async function handlePost(context) {
         id: RP_ID,
         name: 'Styrigx',
       };
-      /* excludeCredentials：防重复注册 */
-      resp.excludeCredentials = keys.map(function (k) {
-        return { id: k.credId, type: 'public-key' };
+      /* excludeCredentials：防重复注册（读索引，不走 kv.list） */
+      let idx = [];
+      try { idx = await kv.get('owner-passkey-index', 'json') || []; } catch (e) {}
+      resp.excludeCredentials = (Array.isArray(idx) ? idx : []).map(function (cid) {
+        return { id: cid, type: 'public-key' };
       });
     }
     if (type === 'auth') {
@@ -514,9 +543,11 @@ async function handlePost(context) {
       for (const k of keys) {
         if (k.credId === credIdB64) { existing = k; break; }
       }
+      /* AAGUID 映射 provider，作为默认名 */
+      const mappedProvider = (aaguid && AAGUID_PROVIDERS[aaguid.toLowerCase()]) || '';
       const item = {
-        name: devName || (existing && existing.name) || '通行密钥',
-        provider: (body && body.provider) || (existing && existing.provider) || '',
+        name: devName || mappedProvider || (existing && existing.name) || '通行密钥',
+        provider: mappedProvider || (body && body.provider) || (existing && existing.provider) || '',
         aaguid: aaguid || (existing && existing.aaguid) || '',
         createdAt: (existing && existing.createdAt) || now,
         lastUsedAt: (existing && existing.lastUsedAt) || 0,
@@ -653,12 +684,14 @@ async function handlePost(context) {
     /* 清理：去首尾空格和控制字符，限 1-40 字 */
     name = String(name).replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, 40);
     if (!name) return Response.json({ ok: false, error: 'params' }, { status: 400 });
-    const keys = await getPasskeys(kv);
+    /* 直接 kv.get，不走 list（KV list 最终一致，刚写入的 key 约 60 秒内列不出来） */
+    const keyName = 'owner-passkey:' + String(credId).slice(0, 12);
     let found = null;
-    for (const k of keys) {
-      if (k.credId === credId) { found = k; break; }
+    try { found = await kv.get(keyName, 'json'); } catch (e) {}
+    /* 校验 credId 完全相等（防前 12 位碰撞） */
+    if (!found || found.credId !== credId) {
+      return Response.json({ ok: false, error: 'not-found' }, { status: 404 });
     }
-    if (!found) return Response.json({ ok: false, error: 'not-found' }, { status: 404 });
     found.name = name;
     await savePasskey(kv, found);
     return Response.json({ ok: true });
@@ -673,12 +706,11 @@ async function handlePost(context) {
       return Response.json({ ok: false, error: 'token' }, { status: 403 });
     }
     if (!credId) return Response.json({ ok: false, error: 'params' }, { status: 400 });
-    const keys = await getPasskeys(kv);
-    let found = false;
-    for (const k of keys) {
-      if (k.credId === credId) { found = true; break; }
-    }
-    if (!found) {
+    /* 直接 kv.get 校验存在，不走 list（最终一致） */
+    const keyName = 'owner-passkey:' + String(credId).slice(0, 12);
+    let found = null;
+    try { found = await kv.get(keyName, 'json'); } catch (e) {}
+    if (!found || found.credId !== credId) {
       return Response.json({ ok: false, error: 'not-found' }, { status: 404 });
     }
     await deletePasskey(kv, credId);
