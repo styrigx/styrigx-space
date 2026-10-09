@@ -77,6 +77,11 @@
      - 只改 opacity 和 transform，不改高度、不触发重排；passive + rAF；减少动画时只做淡入淡出。
      悬浮返回键保持原来的二值 show 逻辑；页面太短不能滚动时全部复位不显示。 */
   function initBackFloat(){
+    /* 2.4.0 B：支持 scroll-driven animations 时由 CSS 接管（大小标题/悬浮返回键/顶栏变实），
+       仅在不支持 view-timeline-name 的浏览器走下面这套 JS 回退 */
+    try{
+      if(window.CSS&&CSS.supports&&CSS.supports('view-timeline-name','--sgx-subhead'))return;
+    }catch(e){}
     var head=document.querySelector('[data-subpage-head]');
     var floats=document.querySelectorAll('.subpage-back-float');
     var minis=document.querySelectorAll('.subpage-mini-title');
