@@ -589,9 +589,10 @@ async function handlePost(context) {
       await savePasskey(kv, item);
       return Response.json({ ok: true, credId: credIdB64 });
     } catch (e) {
-      /* 具体原因只写控制台，前端仍只返回普通错误 */
+      /* 具体原因只写控制台；UV 失败返回专属错误码，其他仍返回普通错误 */
       console.error('[passkey-register]', e && e.message ? e.message : e);
-      return Response.json({ ok: false, error: 'verify' }, { status: 403 });
+      const code = (e && e.message === 'uv-required') ? 'uv-required' : 'verify';
+      return Response.json({ ok: false, error: code }, { status: 403 });
     }
   }
 
@@ -674,7 +675,8 @@ async function handlePost(context) {
       return new Response(JSON.stringify({ ok: true, token: mgrToken }), { headers });
     } catch (e) {
       console.error('[passkey-auth]', e && e.message ? e.message : e);
-      return Response.json({ ok: false, error: 'verify' }, { status: 403 });
+      const code = (e && e.message === 'uv-required') ? 'uv-required' : 'verify';
+      return Response.json({ ok: false, error: code }, { status: 403 });
     }
   }
 
