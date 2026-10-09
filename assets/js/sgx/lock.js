@@ -88,7 +88,11 @@ export function initLock() {
     (avatarSrc
       ? '<img src="' + avatarSrc + '" alt="Styrigx" width="72" height="72">'
       : '<span class="sgx-lock-fb" aria-hidden="true">S</span>') +
-    '</button><div class="sgx-lock-name">Styrigx</div></div>';
+    '</button><div class="sgx-lock-name">Styrigx</div>' +
+    /* 2.4.0 I：密码入口（指纹下方小字链接；不支持 PublicKeyCredential 时只显示此项） */
+    '<button type="button" id="sgx-lock-pwlink" class="sgx-lock-pwlink">' +
+    (en ? 'Use password' : '使用密码') +
+    '</button></div>';
   document.body.appendChild(ov);
   document.body.classList.add('sgx-locked');
   document.documentElement.style.overflow = 'hidden';
@@ -356,6 +360,157 @@ export function initLock() {
           box.appendChild(b);
         }
       });
+  }
+
+  /* ============ 密码解锁（2.4.0 I） ============ */
+  /** @type {HTMLDialogElement|null} */ let pdlg = null;
+  let pwLockedUntil = 0;
+
+  function ensurePwDialog() {
+    if (pdlg) return pdlg;
+    const d = document.createElement('dialog');
+    d.className = 'sgx-verify-dlg';
+    d.setAttribute('aria-labelledby', 'sgx-pw-title');
+    d.innerHTML =
+      '<div class="sgx-verify-card">' +
+      '<div class="sheet-handle" data-pclose></div>' +
+      '<h2 id="sgx-pw-title" class="sgx-verify-title">' +
+      (en ? 'Enter password' : '输入密码') +
+      '</h2>' +
+      '<input type="password" id="sgx-pw-input" class="sgx-pw-input" autocomplete="current-password" ' +
+      'aria-label="' + (en ? 'Password' : '密码') + '">' +
+      '<p id="sgx-pw-err" class="sgx-verify-err" hidden></p>' +
+      '<p id="sgx-pw-count" class="sgx-pw-count" hidden></p>' +
+      '<button type="button" class="sgx-verify-skip" id="sgx-pw-go">' +
+      (en ? 'Unlock' : '确定') +
+      '</button></div>';
+    document.body.appendChild(d);
+    pdlg = /** @type {HTMLDialogElement} */ (d);
+    on(d, 'click', function (/** @type {MouseEvent} */ e) {
+      if (e.target === d) closePw();
+      const t = /** @type {Element|null} */ (e.target);
+      if (t && t.closest && t.closest('[data-pclose]')) closePw();
+    });
+    on(d, 'cancel', function (/** @type {Event} */ e) {
+      e.preventDefault();
+      closePw();
+    });
+    const input = d.querySelector('#sgx-pw-input');
+    const go = d.querySelector('#sgx-pw-go');
+    if (input) {
+      on(input, 'keydown', function (/** @type {KeyboardEvent} */ e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          submitPw();
+        }
+      });
+    }
+    if (go) on(go, 'click', submitPw);
+    return pdlg;
+  }
+
+  function closePw() {
+    if (pdlg && pdlg.open) {
+      try { pdlg.close(); } catch (e) {}
+    }
+  }
+
+  function pwShowError(msg) {
+    const err = document.getElementById('sgx-pw-err');
+    if (err) {
+      err.textContent = msg;
+      err.hidden = false;
+      if (!reducedMotion()) {
+        const card = pdlg && pdlg.querySelector('.sgx-verify-card');
+        if (card) {
+          card.classList.remove('sgx-shake');
+          void /** @type {HTMLElement} */ (card).offsetWidth;
+          card.classList.add('sgx-shake');
+        }
+      }
+    }
+  }
+
+  function pwCountdown() {
+    const el = document.getElementById('sgx-pw-count');
+    const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-pw-input'));
+    const go = document.getElementById('sgx-pw-go');
+    function tickCount() {
+      const left = Math.max(0, Math.ceil((pwLockedUntil - Date.now()) / 1000));
+      if (left <= 0) {
+        if (el) el.hidden = true;
+        if (input) input.disabled = false;
+        if (go) /** @type {HTMLButtonElement} */ (go).disabled = false;
+        return;
+      }
+      if (el) {
+        el.textContent = en
+          ? 'Try again in ' + left + 's'
+          : left + ' 秒后可再试';
+        el.hidden = false;
+      }
+      if (input) input.disabled = true;
+      if (go) /** @type {HTMLButtonElement} */ (go).disabled = true;
+      window.setTimeout(tickCount, 1000);
+    }
+    tickCount();
+  }
+
+  function openPw() {
+    const dlg = ensurePwDialog();
+    const err = document.getElementById('sgx-pw-err');
+    if (err) err.hidden = true;
+    const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-pw-input'));
+    if (input) input.value = '';
+    try { dlg.showModal(); } catch (e) { return; }
+    /* 桌面自动聚焦 */
+    if (input) {
+      try { input.focus({ preventScroll: true }); } catch (e) { try { input.focus(); } catch (_) {} }
+    }
+    if (Date.now() < pwLockedUntil) pwCountdown();
+  }
+
+  function submitPw() {
+    if (Date.now() < pwLockedUntil) return;
+    const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-pw-input'));
+    const pw = input ? input.value : '';
+    if (!pw) {
+      pwShowError(en ? 'Enter password' : '请输入密码');
+      return;
+    }
+    fetch('/api/owner-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'verify', password: pw }),
+    })
+      .then(function (r) { return r.json().then(function (j) { return { s: r.status, j: j }; }); })
+      .then(function (res) {
+        const j = res.j;
+        if (j && j.ok) {
+          closePw();
+          unlock();
+        } else if (j && j.error === 'locked') {
+          pwLockedUntil = Date.now() + 30000;
+          pwShowError(en ? 'Too many attempts' : '尝试次数过多');
+          pwCountdown();
+        } else if (j && j.error === 'not-set') {
+          pwShowError(en ? 'No password set' : '未设置密码');
+        } else {
+          pwShowError(en ? 'Wrong password' : '密码错误');
+          if (input) input.value = '';
+        }
+      })
+      .catch(function () {
+        pwShowError(en ? 'Network error' : '网络错误');
+      });
+  }
+
+  const pwlink = document.getElementById('sgx-lock-pwlink');
+  if (pwlink) {
+    on(pwlink, 'click', function (e) {
+      e.stopPropagation();
+      openPw();
+    });
   }
 
   const av = document.getElementById('sgx-lock-avatar');

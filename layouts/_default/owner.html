@@ -1,0 +1,99 @@
+{{/* 2.4.0 I：Owner 页 —— 设置/修改解锁密码（需 OWNER_KEY 门禁） */}}
+{{ $en := eq .Lang "en" }}
+<div class="owner-wrap">
+  {{ partial "subpage-head.html" (dict "title" (cond $en "Owner" "本人") "isEn" $en) }}
+
+  <div class="owner-card" id="owner-gate">
+    <h2 class="owner-h">{{ cond $en "Verification" "身份验证" }}</h2>
+    <p class="owner-p">{{ cond $en "Enter OWNER_KEY to continue." "输入 OWNER_KEY 以继续。" }}</p>
+    <input type="password" id="owner-key" class="owner-input" autocomplete="off"
+           placeholder="{{ cond $en "OWNER_KEY" "OWNER_KEY" }}" aria-label="OWNER_KEY">
+    <p class="owner-err" id="owner-gate-err" hidden></p>
+    <button type="button" class="owner-btn" id="owner-gate-go">{{ cond $en "Continue" "继续" }}</button>
+  </div>
+
+  <div class="owner-card" id="owner-pw" hidden>
+    <h2 class="owner-h">{{ cond $en "Unlock Password" "解锁密码" }}</h2>
+    <p class="owner-p" id="owner-pw-desc">{{ cond $en "Set a password (min 8 chars)." "设置密码（最短 8 位）。" }}</p>
+    <input type="password" id="owner-new" class="owner-input" autocomplete="new-password"
+           placeholder="{{ cond $en "New password" "新密码" }}" aria-label="{{ cond $en "New password" "新密码" }}">
+    <input type="password" id="owner-new2" class="owner-input" autocomplete="new-password"
+           placeholder="{{ cond $en "Confirm password" "确认密码" }}" aria-label="{{ cond $en "Confirm password" "确认密码" }}">
+    <p class="owner-err" id="owner-pw-err" hidden></p>
+    <button type="button" class="owner-btn" id="owner-pw-go">{{ cond $en "Save" "保存" }}</button>
+    <p class="owner-ok" id="owner-pw-ok" hidden></p>
+  </div>
+
+  <div class="owner-help">
+    <h3>{{ cond $en "How to" "说明" }}</h3>
+    <ul>
+      <li>{{ cond $en "After setting a password, tap “Use password” under the fingerprint icon on the lock screen to unlock with it." "设置密码后，在锁屏指纹图标下方点「使用密码」即可用密码解锁。" }}</li>
+      <li>{{ cond $en "Password and fingerprint are alternatives — either one unlocks directly." "密码和指纹二选一，任一通过即直接进入。" }}</li>
+      <li>{{ cond $en "If you forget the password, use your passkey or OWNER_KEY here to reset it." "忘记密码时，用 passkey 或 OWNER_KEY 在此重设。" }}</li>
+      <li>{{ cond $en "5 wrong attempts locks password unlock for 30 seconds." "连续输错 5 次后 30 秒内不能再试。" }}</li>
+    </ul>
+  </div>
+</div>
+<script>
+(function(){
+  var en = {{ if $en }}true{{ else }}false{{ end }};
+  var token = null;
+  function $(id){ return document.getElementById(id); }
+  function err(id, msg){ var e=$(id); if(e){ e.textContent=msg; e.hidden=false; } }
+  function ok(id, msg){ var e=$(id); if(e){ e.textContent=msg; e.hidden=false; } }
+  /* 门禁 */
+  $('owner-gate-go').addEventListener('click', function(){
+    var k = $('owner-key').value;
+    if(!k){ err('owner-gate-err', en?'Enter OWNER_KEY':'请输入 OWNER_KEY'); return; }
+    fetch('/api/owner-auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:k})})
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if(j&&j.ok&&j.token){
+          token=j.token;
+          $('owner-gate').hidden=true;
+          $('owner-pw').hidden=false;
+          /* 查是否已设置 */
+          fetch('/api/owner-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'verify',password:'__probe__'})})
+            .then(function(r){ return r.json(); })
+            .then(function(p){
+              if(p&&p.error==='not-set'){
+                $('owner-pw-desc').textContent = en?'Set a password (min 8 chars).':'设置密码（最短 8 位）。';
+              }else{
+                $('owner-pw-desc').textContent = en?'Change password (min 8 chars). Old sessions will be invalidated.':'修改密码（最短 8 位）。改完后旧会话失效。';
+              }
+            }).catch(function(){});
+        }else{
+          err('owner-gate-err', en?'Wrong key':'密钥错误');
+        }
+      }).catch(function(){ err('owner-gate-err', en?'Network error':'网络错误'); });
+  });
+  /* 设置/修改 */
+  $('owner-pw-go').addEventListener('click', function(){
+    var a=$('owner-new').value, b=$('owner-new2').value;
+    $('owner-pw-err').hidden=true; $('owner-pw-ok').hidden=true;
+    if(a.length<8){ err('owner-pw-err', en?'Min 8 characters':'最短 8 位'); return; }
+    if(a!==b){ err('owner-pw-err', en?'Passwords do not match':'两次输入不一致'); return; }
+    if(!token){ err('owner-pw-err', en?'Session expired, reload':'会话过期，请刷新'); return; }
+    fetch('/api/owner-password',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'set',token:token,password:a})})
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if(j&&j.ok){
+          ok('owner-pw-ok', en?'Saved.':'已保存。');
+          $('owner-new').value=''; $('owner-new2').value='';
+        }else if(j&&j.error==='exists'){
+          /* 已设置过 → 改用 change */
+          fetch('/api/owner-password',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({action:'change',token:token,newPassword:a})})
+            .then(function(r){ return r.json(); })
+            .then(function(k){
+              if(k&&k.ok){ ok('owner-pw-ok', en?'Changed. Old sessions invalidated.':'已修改，旧会话已失效。'); $('owner-new').value=''; $('owner-new2').value=''; }
+              else err('owner-pw-err', en?'Failed':'失败');
+            }).catch(function(){ err('owner-pw-err', en?'Network error':'网络错误'); });
+        }else{
+          err('owner-pw-err', en?'Failed':'失败');
+        }
+      }).catch(function(){ err('owner-pw-err', en?'Network error':'网络错误'); });
+  });
+})();
+</script>
