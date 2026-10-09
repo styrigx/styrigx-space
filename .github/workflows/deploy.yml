@@ -97,7 +97,15 @@ jobs:
         run: npx playwright test --config=playwright.config.js
 
       - name: Lighthouse CI
-        run: npx lhci autorun --config=.lighthouserc.json
+        # Hark：lhci 自己起服务（见 .lighthouserc.json 的 startServerCommand）。
+        # gzip 模拟线上 Cloudflare 压缩；写一份假 /api/geo（测试构建专用，
+        # 生产构建在 build-and-deploy 里重新构建，不受影响），避免
+        # errors-in-console 把测试环境缺 Functions 当成前端错误。
+        run: |
+          find public -type f \( -name '*.html' -o -name '*.css' -o -name '*.js' \) -exec gzip -k -9 {} \;
+          mkdir -p public/api
+          printf '{"latitude":31.23,"longitude":121.47,"city":"Shanghai"}' > public/api/geo
+          npx lhci autorun --config=.lighthouserc.json
 
   build-and-deploy:
     # Hark：只有 main 的 push 才部署；PR 只跑 quality
