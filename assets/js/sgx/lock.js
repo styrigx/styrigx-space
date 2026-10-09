@@ -684,7 +684,7 @@ export function initLock() {
             publicKey: {
               challenge: b64urlToBuf(ch.challenge),
               allowCredentials: allow,
-              userVerification: 'preferred',
+              userVerification: 'required',
               timeout: 60000,
             },
           })

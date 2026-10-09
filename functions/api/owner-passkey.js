@@ -25,7 +25,16 @@
  * - { action: 'delete', token, credId } → 删除指定 passkey
  *
  * 只接受 POST；校验 Origin。
+ *
+ * P0-3 安全审计：
+ * - 注册和解锁都要求 UV=1（userVerification: required）
+ * - RP_ID/ORIGIN 必须配环境变量 SGX_RP_ID/SGX_ORIGIN，不回落
+ * - 用户信息由服务端下发：displayName=Sloan Gray, name=owner, rp.name=Styrigx
+ * - 固定 user handle（KV owner-user-id），auth 时校验 userHandle
+ * - register 带 excludeCredentials 防重复注册
+ * - KV 结构：每把一个 key（owner-passkey:<credId前12位>），字段顺序固定
  */
+import { b64enc, b64dec, b64urlEnc, timingSafeEqual, hmacSign, hmacVerify } from '../_lib/crypto.js';
 
 /** @param {number} n */
 function randB64(n) {
@@ -36,6 +45,7 @@ function randB64(n) {
 }
 
 /** @param {string} b64url */
+/** @param {string} b64url */
 function b64urlDec(b64url) {
   const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
   const bin = atob(b64);
@@ -44,49 +54,32 @@ function b64urlDec(b64url) {
   return u8;
 }
 
-/** @param {Uint8Array} u8 */
-function b64urlEnc(u8) {
-  let s = '';
-  for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
-  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-/** @param {string} a @param {string} b */
-function timingSafeEqual(a, b) {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
-
 /**
- * 签发 owner-auth token（与 owner-auth.js 同格式：10 分钟，scope=owner-auth）。
+ * 签发 owner-auth token（5 分钟，scope=owner-auth，用途前缀 "owner-auth|"）。
  * 通行密钥验证通过后签发，用于进入管理页。
  * @param {string} secret
  */
 async function issueToken(secret) {
-  const raw = JSON.stringify({ scope: 'owner-auth', exp: Date.now() + 600000 });
+  const raw = JSON.stringify({ scope: 'owner-auth', exp: Date.now() + 300000 });
   const payload = b64urlEnc(new TextEncoder().encode(raw));
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const sigBits = await crypto.subtle.sign('HMAC', key, enc.encode(payload));
-  return payload + '.' + b64urlEnc(new Uint8Array(sigBits));
+  const sig = await hmacSign(secret, 'owner-auth|', payload);
+  return payload + '.' + sig;
 }
 
 /**
- * 签名会话 cookie 值：exp.HMAC(SESSION_SECRET, exp)，24 小时有效。
+ * 签名会话 cookie 值：ver.exp.HMAC(SESSION_SECRET, "sess|" + ver.exp)，24 小时有效。
  * @param {string} secret
+ * @param {number} ver
  */
-async function signVerifiedCookie(secret) {
+async function signVerifiedCookie(secret, ver) {
   const exp = String(Date.now() + 86400000);
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const sigBits = await crypto.subtle.sign('HMAC', key, enc.encode(exp));
-  return exp + '.' + b64urlEnc(new Uint8Array(sigBits));
+  const payload = ver + '.' + exp;
+  const sig = await hmacSign(secret, 'sess|', payload);
+  return payload + '.' + sig;
 }
 
 /**
- * 验证 owner-auth token（与 owner-password.js 同逻辑）。
+ * 验证 owner-auth token（用途前缀 "owner-auth|"）。
  * @param {string} token
  * @param {string} secret
  */
@@ -95,11 +88,7 @@ async function verifyToken(token, secret) {
     const parts = token.split('.');
     if (parts.length !== 2) return false;
     const payload = parts[0], sig = parts[1];
-    const enc = new TextEncoder();
-    const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-    const sigBits = await crypto.subtle.sign('HMAC', key, enc.encode(payload));
-    const expectSig = b64urlEnc(new Uint8Array(sigBits));
-    if (!timingSafeEqual(sig, expectSig)) return false;
+    if (!(await hmacVerify(secret, 'owner-auth|', payload, sig))) return false;
     const data = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
     return data && data.exp > Date.now() && data.scope === 'owner-auth';
   } catch (e) {
@@ -194,6 +183,7 @@ function parseRegAuthData(authData, rpIdHash) {
   if ((flags & 0x40) === 0) throw new Error('authData: AT not set');
   const signCount = (authData[33] << 24) | (authData[34] << 16) | (authData[35] << 8) | authData[36];
   const uv = (flags & 0x04) !== 0;
+  const aaguid = authData.slice(37, 53); // 16 字节 AAGUID
   let off = 37 + 16; // skip AAGUID
   if (off + 2 > authData.length) throw new Error('authData: truncated credIdLen');
   const credIdLen = (authData[off] << 8) | authData[off + 1];
@@ -204,7 +194,7 @@ function parseRegAuthData(authData, rpIdHash) {
   /* COSE key 用 CBOR 严格解，返回结束偏移（ED 扩展数据不影响） */
   const coseRes = cborDecode(authData, off);
   if (!(coseRes.value instanceof Map)) throw new Error('cose: not a map');
-  return { credId: credId, coseKey: coseRes.value, signCount: signCount, uv: uv };
+  return { credId: credId, coseKey: coseRes.value, signCount: signCount, uv: uv, aaguid: aaguid };
 }
 
 /**
@@ -277,23 +267,106 @@ function checkAssertAuthData(authData, rpIdHash) {
   return { signCount: signCount, uv: (flags & 0x04) !== 0 };
 }
 
-/** @param {any} kv */
+/**
+ * 获取所有通行密钥（新结构：每把一个 key）。
+ * @param {any} kv
+ */
 async function getPasskeys(kv) {
   try {
-    const v = await kv.get('owner-passkeys', 'json');
-    if (Array.isArray(v)) return v;
-  } catch (e) {}
-  return [];
+    const list = await kv.list({ prefix: 'owner-passkey:' });
+    const keys = [];
+    for (const k of list.keys || []) {
+      try {
+        const v = await kv.get(k.name, 'json');
+        if (v && v.credId) keys.push(v);
+      } catch (e) {}
+    }
+    /* 一次性迁移：旧数组结构 → 新结构 */
+    if (keys.length === 0) {
+      try {
+        const old = await kv.get('owner-passkeys', 'json');
+        if (Array.isArray(old) && old.length > 0) {
+          for (const item of old) {
+            if (item && item.credId) {
+              const migrated = {
+                name: item.name || '通行密钥',
+                provider: item.provider || '',
+                aaguid: item.aaguid || '',
+                createdAt: item.createdAt || Date.now(),
+                lastUsedAt: item.lastUsedAt || 0,
+                credId: item.credId,
+                publicKey: item.publicKey,
+                signCount: item.signCount || 0,
+                uv: item.uv ? 1 : 0,
+              };
+              const keyName = 'owner-passkey:' + String(item.credId).slice(0, 12);
+              await kv.put(keyName, JSON.stringify(migrated), {
+                metadata: { name: migrated.name, provider: migrated.provider, createdAt: migrated.createdAt },
+              });
+              keys.push(migrated);
+            }
+          }
+          await kv.delete('owner-passkeys');
+        }
+      } catch (e) {}
+    }
+    return keys;
+  } catch (e) {
+    return [];
+  }
 }
 
-/** @param {any} kv @param {any[]} list */
-async function savePasskeys(kv, list) {
-  if (!list || list.length === 0) {
-    /* 删掉最后一把时直接删除 key，不留空数组 */
-    await kv.delete('owner-passkeys');
-    return;
+/**
+ * 保存单把通行密钥。
+ * @param {any} kv
+ * @param {any} item
+ */
+async function savePasskey(kv, item) {
+  const keyName = 'owner-passkey:' + String(item.credId).slice(0, 12);
+  /* 字段顺序固定：name 第一位，方便后台预览 */
+  const ordered = {
+    name: item.name || '通行密钥',
+    provider: item.provider || '',
+    aaguid: item.aaguid || '',
+    createdAt: item.createdAt || Date.now(),
+    lastUsedAt: item.lastUsedAt || 0,
+    credId: item.credId,
+    publicKey: item.publicKey,
+    signCount: item.signCount || 0,
+    uv: item.uv ? 1 : 0,
+  };
+  await kv.put(keyName, JSON.stringify(ordered), {
+    metadata: { name: ordered.name, provider: ordered.provider, createdAt: ordered.createdAt },
+  });
+  return ordered;
+}
+
+/**
+ * 删除单把通行密钥。
+ * @param {any} kv
+ * @param {string} credId
+ */
+async function deletePasskey(kv, credId) {
+  const keyName = 'owner-passkey:' + String(credId).slice(0, 12);
+  await kv.delete(keyName);
+}
+
+/**
+ * 获取或创建固定用户 ID（32 字节随机，存 KV）。
+ * @param {any} kv
+ */
+async function getUserHandle(kv) {
+  try {
+    let uh = await kv.get('owner-user-id');
+    if (!uh) {
+      const u8 = crypto.getRandomValues(new Uint8Array(32));
+      uh = b64urlEnc(u8);
+      await kv.put('owner-user-id', uh);
+    }
+    return uh;
+  } catch (e) {
+    return null;
   }
-  await kv.put('owner-passkeys', JSON.stringify(list));
 }
 
 /** @param {any} context */
@@ -328,15 +401,16 @@ async function handlePost(context) {
   }
   const action = (body && body.action) || '';
 
-  /* RP_ID / 期望 origin：环境变量优先，回退到请求 host（预览站各部署域名不同） */
-  let reqHost = '', reqOrigin = '';
-  try {
-    const u = new URL(request.url);
-    reqHost = u.hostname;
-    reqOrigin = u.origin;
-  } catch (e) {}
-  const RP_ID = (env && env.SGX_RP_ID) || reqHost || 'styrigx.com';
-  const EXPECT_ORIGIN = (env && env.SGX_ORIGIN) || reqOrigin || 'https://styrigx.com';
+  /* RP_ID / 期望 origin：必须设置环境变量，不回落（防配置错误） */
+  const RP_ID = env && env.SGX_RP_ID;
+  const EXPECT_ORIGIN = env && env.SGX_ORIGIN;
+  if (!RP_ID || !EXPECT_ORIGIN) {
+    /* 缺变量：返回明确错误（503），前端据此禁用通行密钥入口 */
+    return Response.json(
+      { ok: false, error: 'config', message: 'SGX_RP_ID / SGX_ORIGIN 未配置' },
+      { status: 503 }
+    );
+  }
   const rpIdHash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(RP_ID)));
 
   /* ============ challenge ============ */
@@ -364,6 +438,23 @@ async function handlePost(context) {
       await kv.put('pk-challenge:' + cid, JSON.stringify({ challenge, type, exp: Date.now() + 300000 }), { expirationTtl: 300 });
     } catch (e) {}
     const resp = { ok: true, cid: cid, challenge: challenge, rpId: RP_ID };
+    if (type === 'register') {
+      /* 下发用户信息：displayName/name/rp.name 由服务端配置，前端不硬编码 */
+      const userHandle = await getUserHandle(kv);
+      resp.user = {
+        id: userHandle,
+        name: 'owner',
+        displayName: 'Sloan Gray',
+      };
+      resp.rp = {
+        id: RP_ID,
+        name: 'Styrigx',
+      };
+      /* excludeCredentials：防重复注册 */
+      resp.excludeCredentials = keys.map(function (k) {
+        return { id: k.credId, type: 'public-key' };
+      });
+    }
     if (type === 'auth') {
       resp.allowCredentials = keys.map(function (k) { return { id: k.credId, type: 'public-key' }; });
     }
@@ -403,27 +494,39 @@ async function handlePost(context) {
       const authData = attObj.get('authData');
       if (!(authData instanceof Uint8Array)) throw new Error('authData');
       const parsed = parseRegAuthData(authData, rpIdHash);
+      /* P0-3：必须 UV=1（用户验证） */
+      if (!parsed.uv) throw new Error('uv-required');
       const jwk = coseToJwk(parsed.coseKey);
       const credIdB64 = b64urlEnc(parsed.credId);
-      /* 追加存储（同 credId 去重） */
-      const keys = await getPasskeys(kv);
+      /* 取 AAGUID（用于显示密码管理器名称） */
+      let aaguid = '';
+      try {
+        if (parsed.aaguid) {
+          const h = Array.from(parsed.aaguid, b => b.toString(16).padStart(2, '0')).join('');
+          aaguid = h.slice(0,8) + '-' + h.slice(8,12) + '-' + h.slice(12,16) + '-' + h.slice(16,20) + '-' + h.slice(20);
+        }
+      } catch (e) {}
+      /* 存储（同 credId 去重；新结构每把一个 key） */
       const now = Date.now();
       const devName = String((body && body.name) || '').slice(0, 40);
-      let found = false;
-      for (let i = 0; i < keys.length; i++) {
-        if (keys[i].credId === credIdB64) {
-          keys[i].publicKey = jwk;
-          keys[i].createdAt = keys[i].createdAt || now;
-          keys[i].signCount = parsed.signCount;
-          keys[i].uv = parsed.uv;
-          if (devName) keys[i].name = devName;
-          found = true;
-          break;
-        }
+      const keys = await getPasskeys(kv);
+      let existing = null;
+      for (const k of keys) {
+        if (k.credId === credIdB64) { existing = k; break; }
       }
-      if (!found) keys.push({ credId: credIdB64, publicKey: jwk, createdAt: now, name: devName, signCount: parsed.signCount, uv: parsed.uv });
-      await savePasskeys(kv, keys);
-      return Response.json({ ok: true });
+      const item = {
+        name: devName || (existing && existing.name) || '通行密钥',
+        provider: (body && body.provider) || (existing && existing.provider) || '',
+        aaguid: aaguid || (existing && existing.aaguid) || '',
+        createdAt: (existing && existing.createdAt) || now,
+        lastUsedAt: (existing && existing.lastUsedAt) || 0,
+        credId: credIdB64,
+        publicKey: jwk,
+        signCount: parsed.signCount,
+        uv: 1,
+      };
+      await savePasskey(kv, item);
+      return Response.json({ ok: true, credId: credIdB64 });
     } catch (e) {
       /* 具体原因只写控制台，前端仍只返回普通错误 */
       console.error('[passkey-register]', e && e.message ? e.message : e);
@@ -483,14 +586,27 @@ async function handlePost(context) {
       const key = await crypto.subtle.importKey('jwk', stored.publicKey, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
       const ok = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, sigRaw, sigBase);
       if (!ok) throw new Error('sig');
-      /* 更新 signCount */
-      keys[storedIdx].signCount = checked.signCount;
-      try { await savePasskeys(kv, keys); } catch (e2) {}
-      /* 通过：设签名会话 cookie，并签发管理 token（用于进入管理页） */
+      /* P0-3：必须 UV=1 */
+      if (!checked.uv) throw new Error('uv-required');
+      /* 校验 userHandle（如果有） */
+      try {
+        const expectUh = await kv.get('owner-user-id');
+        const gotUh = cred.response.userHandle;
+        if (expectUh && gotUh && gotUh !== expectUh) throw new Error('userHandle');
+      } catch (e) {
+        if (e && e.message === 'userHandle') throw e;
+      }
+      /* 更新 signCount 和 lastUsedAt */
+      stored.signCount = checked.signCount;
+      stored.lastUsedAt = Date.now();
+      try { await savePasskey(kv, stored); } catch (e2) {}
+      /* 通过：设签名会话 cookie（含 session-ver），并签发管理 token */
       const headers = new Headers({ 'Content-Type': 'application/json' });
       const secret = (env && env.SESSION_SECRET) || '';
       if (secret) {
-        const cv = await signVerifiedCookie(secret);
+        let ver = 0;
+        try { ver = parseInt(await kv.get('session-ver') || '0', 10) || 0; } catch (e) {}
+        const cv = await signVerifiedCookie(secret, ver);
         headers.append('Set-Cookie', 'sgx-verified=' + cv + '; Path=/; HttpOnly; Secure; SameSite=Lax');
       }
       const mgrToken = secret ? await issueToken(secret) : '';
@@ -511,11 +627,20 @@ async function handlePost(context) {
     const keys = await getPasskeys(kv);
     return Response.json({
       ok: true,
-      keys: keys.map(function (k) { return { credId: k.credId, name: k.name || '', createdAt: k.createdAt || 0 }; }),
+      keys: keys.map(function (k) {
+        return {
+          credId: k.credId,
+          name: k.name || '',
+          provider: k.provider || '',
+          aaguid: k.aaguid || '',
+          createdAt: k.createdAt || 0,
+          lastUsedAt: k.lastUsedAt || 0,
+        };
+      }),
     });
   }
 
-  /* ============ rename：重命名 passkey 设备名（需 owner-auth token） ============ */
+  /* ============ rename：重命名 passkey（需 owner-auth token；1-40 字，去首尾空格和控制字符） ============ */
   if (action === 'rename') {
     const token = (body && body.token) || '';
     const credId = (body && body.credId) || '';
@@ -525,14 +650,17 @@ async function handlePost(context) {
       return Response.json({ ok: false, error: 'token' }, { status: 403 });
     }
     if (!credId) return Response.json({ ok: false, error: 'params' }, { status: 400 });
-    name = String(name).slice(0, 40);
+    /* 清理：去首尾空格和控制字符，限 1-40 字 */
+    name = String(name).replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, 40);
+    if (!name) return Response.json({ ok: false, error: 'params' }, { status: 400 });
     const keys = await getPasskeys(kv);
-    let found = false;
-    for (let i = 0; i < keys.length; i++) {
-      if (keys[i].credId === credId) { keys[i].name = name; found = true; break; }
+    let found = null;
+    for (const k of keys) {
+      if (k.credId === credId) { found = k; break; }
     }
     if (!found) return Response.json({ ok: false, error: 'not-found' }, { status: 404 });
-    await savePasskeys(kv, keys);
+    found.name = name;
+    await savePasskey(kv, found);
     return Response.json({ ok: true });
   }
 
@@ -546,11 +674,19 @@ async function handlePost(context) {
     }
     if (!credId) return Response.json({ ok: false, error: 'params' }, { status: 400 });
     const keys = await getPasskeys(kv);
-    const rest = keys.filter(function (k) { return k.credId !== credId; });
-    if (rest.length === keys.length) {
+    let found = false;
+    for (const k of keys) {
+      if (k.credId === credId) { found = true; break; }
+    }
+    if (!found) {
       return Response.json({ ok: false, error: 'not-found' }, { status: 404 });
     }
-    await savePasskeys(kv, rest);
+    await deletePasskey(kv, credId);
+    /* 会话吊销：删密钥后 session-ver +1 */
+    try {
+      const v = parseInt(await kv.get('session-ver') || '0', 10) || 0;
+      await kv.put('session-ver', String(v + 1));
+    } catch (e) {}
     return Response.json({ ok: true });
   }
 

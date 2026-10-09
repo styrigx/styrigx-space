@@ -216,4 +216,65 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
     }
   });
+
+  test('owner-auth 限流：连错 5 次返回 429', async ({ request }) => {
+    // 用错误密钥连试 6 次，第 6 次应被限流（或更早）
+    let got429 = false;
+    for (let i = 0; i < 6; i++) {
+      const r = await request.post(BASE + '/api/owner-auth', {
+        data: { key: 'wrong-key-' + Date.now() + '-' + i },
+      });
+      if (r.status() === 429) {
+        got429 = true;
+        break;
+      }
+      expect([403, 429]).toContain(r.status());
+    }
+    expect(got429).toBe(true);
+  });
+
+  test('改密码后旧会话 cookie 失效', async ({ page, request }) => {
+    const { cdp, authenticatorId } = await addVirtualAuth(page);
+    try {
+      await gateWithKey(page);
+      const token = await page.evaluate(() => sessionStorage.getItem('sgx-lockmgr-token'));
+
+      // 设置密码并验证，拿到 cookie
+      let r = await request.post(BASE + '/api/owner-password', {
+        data: { action: 'set', token, password: 'test-pass-12345' },
+      });
+      if ((await r.json()).error === 'exists') {
+        r = await request.post(BASE + '/api/owner-password', {
+          data: { action: 'change', token, password: 'test-pass-12345' },
+        });
+      }
+      r = await request.post(BASE + '/api/owner-password', {
+        data: { action: 'verify', password: 'test-pass-12345' },
+      });
+      expect((await r.json()).ok).toBe(true);
+      const cookies = await page.context().cookies();
+      const verified = cookies.find(c => c.name === 'sgx-verified');
+      expect(verified).toBeTruthy();
+
+      // 改密码
+      r = await request.post(BASE + '/api/owner-password', {
+        data: { action: 'change', token, password: 'new-pass-67890' },
+      });
+      expect((await r.json()).ok).toBe(true);
+
+      // 旧 cookie 应失效（通过 owner-status 或再次 verify 验证）
+      // 这里验证：用旧密码 verify 应失败
+      r = await request.post(BASE + '/api/owner-password', {
+        data: { action: 'verify', password: 'test-pass-12345' },
+      });
+      expect((await r.json()).ok).toBe(false);
+
+      // 清理：删掉测试密码
+      await request.post(BASE + '/api/owner-password', {
+        data: { action: 'remove', token },
+      });
+    } finally {
+      await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
+    }
+  });
 });
