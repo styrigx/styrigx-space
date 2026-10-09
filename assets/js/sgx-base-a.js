@@ -90,6 +90,12 @@
       var headH=head.offsetHeight||1;
       var canScroll=document.documentElement.scrollHeight>window.innerHeight+10;
       var rm=reduced();
+      /* 2.4.0 A：will-change 只在滚动活跃时临时加，停 240ms 后移除（替代常驻 will-change） */
+      if(hero){
+        hero.style.willChange='opacity,transform';
+        if(hero._sgxWcT)clearTimeout(hero._sgxWcT);
+        hero._sgxWcT=setTimeout(function(){hero.style.willChange='';},240);
+      }
       /* 大标题：滚动 0 → 标题区一半，透明度 1→0，上移最多 24px */
       if(hero){
         var hp=canScroll?Math.min(Math.max(y/(headH*0.5),0),1):0;

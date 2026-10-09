@@ -151,6 +151,13 @@ window.__sgxScroll=(function(){
     kick:sched
   };
 })();
+/* 2.4.0 A：顶部边缘渐进模糊只在滚动后出现（y>24 显示，CSS 控制显隐/模糊） */
+(function(){
+  var b=document.body;
+  function onY(y){b.classList.toggle('sgx-scrolled',y>24);}
+  window.__sgxScroll.onScroll(onY);
+  onY(window.scrollY||0);
+})();
 /* 2.3.15 B6：可见性感知定时器。页面不可见时暂停，可见时立即刷新一次再继续。返回停止函数。 */
 window.__sgxVisibleInterval=function(fn,ms){
   var iv=null;

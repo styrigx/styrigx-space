@@ -176,9 +176,8 @@
    滚回去反过来。悬浮不占布局。 */
 #files-more{transition:background-color .2s ease,border-color .2s ease,box-shadow .2s ease,right .2s ease}
 #files-more.stuck{position:fixed;top:calc(var(--nav-h,64px) + 8px + env(safe-area-inset-top,0px));z-index:55;margin:0;
-  background:rgba(255,255,255,0.78);
-  border:1px solid rgba(0,0,0,0.04);box-shadow:0 6px 20px rgba(0,0,0,0.10)}
-.dark #files-more.stuck{background:rgba(30,30,32,0.78);border-color:rgba(255,255,255,0.06)}
+  background:var(--glass-tint);
+  border:1px solid var(--glass-edge);box-shadow:var(--glass-shadow)}
 .reduced-motion #files-more{transition:none}
 /* 分隔线从文字开始（图标列之外） */
 .files-rows{list-style:none;margin:0;padding:0}
