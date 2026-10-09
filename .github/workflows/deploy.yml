@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - fix/security-privacy
   pull_request:
     branches:
       - main
