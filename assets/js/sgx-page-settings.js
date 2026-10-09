@@ -125,19 +125,9 @@
   });
   paintLayout();
 
-  /* ---- 搜索引擎（和浏览器页共用同一个 localStorage key） ---- */
-  var ENGINES=[
-    {id:'google',name:'Google'},
-    {id:'bing',name:'Bing'},
-    {id:'duckduckgo',name:'DuckDuckGo'},
-    {id:'yahoo',name:'Yahoo'},
-    {id:'ecosia',name:'Ecosia'}
-  ];
-  function engineNameById(id){
-    for(var i=0;i<ENGINES.length;i++){if(ENGINES[i].id===id)return ENGINES[i].name}
-    return 'Google';
-  }
-  function engineName(){var e=get('sgx-search-engine')||'google';return engineNameById(e)}
+  /* ---- 搜索引擎（2.4.0 F：定义走共享模块 assets/js/sgx-engines.js，与浏览器页共用同一个 localStorage key） ---- */
+  var SE = window.__sgxEngines;
+  function engineName(){ return SE.name(SE.cur()); }
 
   /* ---- 常规管理行：当前值 ---- */
   function paintManage(){
@@ -294,6 +284,9 @@
     if(f2)f2.textContent=en?('Installed '+inst+', uninstalled '+h.length):('已安装 '+inst+' 个，未安装 '+h.length+' 个');
     var f3=$('app-browser-val');
     if(f3)f3.textContent=engineName()+' · '+(addrbarPos()==='top'?(en?'Top':'顶部'):(en?'Bottom':'底部'));
+    /* 浏览器面板开着时，引擎行标签实时同步（跨标签页 storage 事件同样走这里） */
+    var apb=$('apb-engine');
+    if(apb){var lbl=apb.querySelector('.text-sm');if(lbl)lbl.textContent=engineName();}
   }
   /* 二次确认按钮：第一次点击变红字确认态，3 秒内再点执行 */
   function armConfirm(btn,confirmLabel,fn){
@@ -431,13 +424,11 @@
 
   /* ---- 浏览器面板 ---- */
   function pickEngine(){
-    var cur=get('sgx-search-engine')||'google';
+    var cur=SE.cur();
     window.__openSheet({title:en?'Search engine':'搜索引擎',options:
-      ENGINES.map(function(e){return {label:e.name,value:e.id,checked:e.id===cur}}),
+      SE.ORDER.map(function(id){return {label:SE.name(id),value:id,checked:id===cur}}),
       onPick:function(v){
-        set('sgx-search-engine',v==='google'?null:v);
-        paintApps();
-        window.dispatchEvent(new Event('sgx-settings-changed'));
+        SE.setCur(v); /* 存值 + 派发 sgx-settings-changed，paintApps 自动刷新 */
         openBrowserPanel('apb-engine');
       }});
   }

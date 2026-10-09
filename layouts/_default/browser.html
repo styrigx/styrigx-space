@@ -51,11 +51,15 @@
     </div>
     <div class="brw-ov-barwrap">
       <div class="brw-ov-bar">
-        <button type="button" id="brw-engine-btn" class="brw-ov-btn" aria-label="{{ cond $isEn "Switch search engine" "切换搜索引擎" }}"><span id="brw-engine-ic"></span></button>
+        <button type="button" id="brw-engine-btn" class="brw-ov-btn" aria-haspopup="menu" aria-expanded="false" aria-label="{{ cond $isEn "Switch search engine" "切换搜索引擎" }}"><span id="brw-engine-ic"></span><svg class="brw-eng-chev" aria-hidden="true"><use href="#sgx-ic-chev-d"/></svg></button>
         <input id="brw-input" type="search" autocomplete="off" enterkeyhint="go" placeholder="{{ cond $isEn "Search or type URL" "搜索或输入网址" }}" aria-label="{{ cond $isEn "Search or type URL" "搜索或输入网址" }}">
         <button type="button" id="brw-mic" class="brw-ov-btn" aria-label="{{ cond $isEn "Voice input" "语音输入" }}" style="display:none">{{ partial "icon.html" "mic" }}</button>
         <button type="button" id="brw-menu-btn" class="brw-ov-btn" aria-label="{{ cond $isEn "Menu" "菜单" }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></button>
       </div>
+    </div>
+    <!-- 2.4.0 F：引擎切换锚定菜单（Popover API + CSS anchor positioning；不支持 anchor 时 JS 定位） -->
+    <div id="brw-eng-menu" class="brw-eng-menu" popover>
+      <div class="brw-eng-list" role="menu" aria-label="{{ cond $isEn "Search engine" "搜索引擎" }}"></div>
     </div>
   </div>
 
@@ -121,6 +125,8 @@
 </div>
 
 {{ partial "sgx-voice-sheet.html" . }}
+{{ $sgxEng := resources.Get "js/sgx-engines.js" | minify | fingerprint }}
+<script src="{{ $sgxEng.RelPermalink }}" defer></script>
 {{ $sgxPB := resources.Get "js/sgx-page-browser.js" | resources.ExecuteAsTemplate "js/sgx-page-browser.js" (dict "isEn" $isEn) | minify | fingerprint }}
 <script src="{{ $sgxPB.RelPermalink }}" defer></script>
 {{ end }}

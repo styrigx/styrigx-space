@@ -292,6 +292,8 @@
   <!-- 旧搜索 overlay 已迁移到 One UI 8.5 搜索页（2.3.12），以下停用 -->
 </div>
 
+{{ $sgxEng := resources.Get "js/sgx-engines.js" | minify | fingerprint }}
+<script src="{{ $sgxEng.RelPermalink }}" defer></script>
 {{ $sgxPS := resources.Get "js/sgx-page-settings.js" | resources.ExecuteAsTemplate "js/sgx-page-settings.js" (dict "isEn" $isEn) | minify | fingerprint }}
 <script src="{{ $sgxPS.RelPermalink }}" defer></script>
 
