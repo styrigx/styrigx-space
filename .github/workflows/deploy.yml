@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - fix/hi-owner
   pull_request:
     branches:
       - main
