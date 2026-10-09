@@ -164,6 +164,9 @@ jobs:
                       "env_vars": {
                           "OWNER_KEY": {"type": "secret_text", "value": "${{ secrets.PREVIEW_OWNER_KEY }}"},
                           "SESSION_SECRET": {"type": "secret_text", "value": "${{ secrets.PREVIEW_SESSION_SECRET }}"},
+                          # P0-3：预览的 RP_ID/ORIGIN（明文，CI 每次部署前写入）
+                          "SGX_RP_ID": {"type": "plain_text", "value": "passkey-e2e.styrigx-space.pages.dev"},
+                          "SGX_ORIGIN": {"type": "plain_text", "value": "https://passkey-e2e.styrigx-space.pages.dev"},
                       }
                   }
               }
@@ -210,8 +213,9 @@ jobs:
           prod = r["result"]["deployment_configs"]["production"]["env_vars"]
           names = sorted(prod.keys())
           print("production vars:", names)
-          # production 必须有这三个，且 CI 不应增删
-          assert names == ["OWNER_KEY", "SESSION_SECRET", "TURNSTILE_SECRET"], f"unexpected: {names}"
+          # production 必须有这些，且 CI 不应增删
+          expected = ["OWNER_KEY", "SESSION_SECRET", "SGX_ORIGIN", "SGX_RP_ID", "TURNSTILE_SECRET"]
+          assert names == expected, f"unexpected: {names}"
           print("guard OK: production untouched")
           PYEOF
 
