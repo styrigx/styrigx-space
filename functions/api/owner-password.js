@@ -4,11 +4,12 @@
  * 超过抛 NotSupportedError）。verify 按记录里的 iterations 校验。
  *
  * POST /api/owner-password
- * Body: { action: "set"|"change"|"verify", ... }
+ * Body: { action: "set"|"change"|"verify"|"remove", ... }
  *
  * - set: { token, password } — 设置初始密码（需有效的 owner-auth token，且未设置过）
  * - change: { token, newPassword } — 修改密码（需有效的 owner-auth token；改完后旧会话失效）
  * - verify: { password } — 解锁验证（IP 限流：5 次失败 → 30 秒锁定）
+ * - remove: { token } — 删除解锁密码（需有效的 owner-auth token；同时清 pw-fail:* 和 pw-lock:*）
  *
  * 密码存储：PBKDF2-SHA256 + 随机 salt，存 OWNER_KV；恒定时间比较。
  * 只接受 POST；校验 Origin；未设置密码时 verify 一律拒绝。
@@ -72,6 +73,30 @@ async function hashPassword(password, salt, iterations) {
     KEY_LEN * 8
   );
   return bits;
+}
+
+/**
+ * 验 owner-auth token（owner-auth 签发，SESSION_SECRET 签名）。
+ * @param {string} token
+ * @param {string} secret
+ */
+async function verifyOwnerToken(token, secret) {
+  if (!token || !secret) return false;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 2) return false;
+    const payload = parts[0];
+    const sig = parts[1];
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const sigBits = await crypto.subtle.sign('HMAC', key, enc.encode(payload));
+    const expectSig = b64enc(sigBits).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    if (!timingSafeEqual(sig, expectSig)) return false;
+    const data = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+    return !!(data && data.exp > Date.now() && data.scope === 'owner-auth');
+  } catch (e) {
+    return false;
+  }
 }
 
 /** @param {any} context */
@@ -193,39 +218,38 @@ async function handlePost(context) {
     return new Response(JSON.stringify({ ok: true }), { headers });
   }
 
-  /* ============ set/change：需 owner-auth token ============ */
-  if (action === 'set' || action === 'change') {
+  /* ============ set/change/remove：需 owner-auth token ============ */
+  if (action === 'set' || action === 'change' || action === 'remove') {
     const token = (body && body.token) || '';
-    const newPassword = (body && (body.password || body.newPassword)) || '';
-    if (!token || !newPassword || typeof newPassword !== 'string') {
-      return Response.json({ ok: false, error: 'params' }, { status: 400 });
-    }
-    if (newPassword.length < 8) {
-      return Response.json({ ok: false, error: 'short' }, { status: 400 });
-    }
-    /* 验 token（owner-auth 签发，SESSION_SECRET 签名） */
     const secret = (env && env.SESSION_SECRET) || '';
     if (!secret) {
       return Response.json({ ok: false, error: 'config' }, { status: 500 });
     }
-    let tokenOk = false;
-    try {
-      const parts = token.split('.');
-      if (parts.length === 2) {
-        const payload = parts[0];
-        const sig = parts[1];
-        const enc = new TextEncoder();
-        const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-        const sigBits = await crypto.subtle.sign('HMAC', key, enc.encode(payload));
-        const expectSig = b64enc(sigBits).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-        if (timingSafeEqual(sig, expectSig)) {
-          const data = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
-          if (data && data.exp > Date.now() && data.scope === 'owner-auth') tokenOk = true;
-        }
-      }
-    } catch (e) {}
-    if (!tokenOk) {
+    if (!token || !(await verifyOwnerToken(token, secret))) {
       return Response.json({ ok: false, error: 'token' }, { status: 403 });
+    }
+
+    /* remove：删除解锁密码，同时清掉失败计数和锁定 */
+    if (action === 'remove') {
+      await kv.delete('owner-pw');
+      /* 清掉所有 pw-fail:* 和 pw-lock:*（IP 限流残留） */
+      try {
+        const list = await kv.list({ prefix: 'pw-fail:' });
+        for (const k of list.keys || []) { try { await kv.delete(k.name); } catch (e) {} }
+      } catch (e) {}
+      try {
+        const list = await kv.list({ prefix: 'pw-lock:' });
+        for (const k of list.keys || []) { try { await kv.delete(k.name); } catch (e) {} }
+      } catch (e) {}
+      return Response.json({ ok: true });
+    }
+
+    const newPassword = (body && (body.password || body.newPassword)) || '';
+    if (!newPassword || typeof newPassword !== 'string') {
+      return Response.json({ ok: false, error: 'params' }, { status: 400 });
+    }
+    if (newPassword.length < 8) {
+      return Response.json({ ok: false, error: 'short' }, { status: 400 });
     }
 
     /* set：未设置过才能设 */

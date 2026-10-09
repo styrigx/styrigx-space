@@ -55,6 +55,9 @@
       </div>
     </section>
     <p class="sec-note mb-7">{{ if $isEn }}Used to unlock from the lock screen. Minimum 8 characters.{{ else }}用于从锁屏解锁，最短 8 位。{{ end }}</p>
+    <div class="mb-7" id="lockmgr-pwdel-wrap" hidden>
+      <button type="button" class="lockmgr-del" id="lockmgr-pwdel">{{ if $isEn }}Delete password{{ else }}删除密码{{ end }}</button>
+    </div>
 
     <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Passkeys{{ else }}通行密钥{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.14s">
@@ -107,8 +110,12 @@
   "pwMismatch" (dict "zh" "两次输入不一致" "en" "Passwords do not match")
   "pwSaved" (dict "zh" "已保存" "en" "Saved")
   "pwChanged" (dict "zh" "已修改" "en" "Changed")
+  "pwDeleted" (dict "zh" "密码已删除" "en" "Password deleted")
+  "pwDelAsk" (dict "zh" "再点一次删除密码" "en" "Tap again to delete password")
+  "pwDelWarn" (dict "zh" "删除后只能用管理密钥进入，再点一次确认" "en" "After deletion only admin key can enter. Tap again to confirm")
   "pkRegistered" (dict "zh" "已注册" "en" "Registered")
   "pkDeleted" (dict "zh" "已删除" "en" "Deleted")
+  "pkDelManual" (dict "zh" "请到 Samsung Pass 里手动删除这把通行密钥" "en" "Please delete this passkey manually in Samsung Pass")
   "pkRenamed" (dict "zh" "已重命名" "en" "Renamed")
   "pkUnnamed" (dict "zh" "通行密钥" "en" "Passkey")
   "pkDel" (dict "zh" "删除" "en" "Delete")

@@ -724,6 +724,16 @@ export function initLock() {
           closeDialog();
           unlock();
         } else {
+          /* 服务端不认识这把密钥 → 通知密码管理器删掉 */
+          try {
+            if (j && j.error === 'unknown-key' && window.PublicKeyCredential &&
+                typeof PublicKeyCredential.signalUnknownCredential === 'function') {
+              PublicKeyCredential.signalUnknownCredential({
+                rpId: location.hostname,
+                credentialId: cred.id,
+              }).catch(function () {});
+            }
+          } catch (e) {}
           pkFailed();
         }
       })

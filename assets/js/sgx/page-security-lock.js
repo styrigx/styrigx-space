@@ -301,6 +301,7 @@ import { toast } from './toast.js';
   }
 
   /* ---------- 管理区 ---------- */
+  var hasPk = false;
   function refreshStatus() {
     fetch('/api/owner-status', { method: 'GET', credentials: 'same-origin' })
       .then(function (r) {
@@ -308,10 +309,13 @@ import { toast } from './toast.js';
       })
       .then(function (j) {
         hasPw = !!(j && j.ok && j.password);
+        hasPk = !!(j && j.ok && j.passkey);
         const sub = $('lockmgr-pwsub');
         if (sub) sub.textContent = hasPw ? t('pwSet') : t('pwUnset');
         const title = $('lockpw-title');
         if (title) title.textContent = hasPw ? t('changeTitle') : t('setTitle');
+        const delWrap = $('lockmgr-pwdel-wrap');
+        if (delWrap) delWrap.hidden = !hasPw;
       })
       .catch(function () {});
   }
@@ -370,6 +374,58 @@ import { toast } from './toast.js';
         e.preventDefault();
         go();
       }
+    });
+  }
+  /* 删除解锁密码（两步确认） */
+  const pwDel = $('lockmgr-pwdel');
+  if (pwDel) {
+    let armed = false;
+    let armTimer = 0;
+    const origText = pwDel.textContent;
+    on(pwDel, 'click', function () {
+      if (!token) {
+        needReauth();
+        return;
+      }
+      if (!armed) {
+        armed = true;
+        /* 如果删完后密码和通行密钥都没了，提示只能用管理密钥进入 */
+        if (!hasPk) {
+          pwDel.textContent = t('pwDelWarn');
+        } else {
+          pwDel.textContent = t('pwDelAsk');
+        }
+        pwDel.classList.add('armed');
+        armTimer = window.setTimeout(function () {
+          armed = false;
+          pwDel.textContent = origText;
+          pwDel.classList.remove('armed');
+        }, 5000);
+        return;
+      }
+      window.clearTimeout(armTimer);
+      api('/api/owner-password', { action: 'remove', token: token })
+        .then(function (r) {
+          const j = r.json;
+          if (j && j.ok) {
+            toast(t('pwDeleted'));
+            /* 服务端删除成功后重新读状态刷新（KV 最终一致，边缘节点最多约 60 秒） */
+            refreshStatus();
+            refreshPkList();
+          } else if (j && j.error === 'token') {
+            needReauth();
+          } else {
+            toast(t('gateSrvErr'));
+          }
+        })
+        .catch(function () {
+          toast(t('gateNetErr'));
+        })
+        .finally(function () {
+          armed = false;
+          pwDel.textContent = origText;
+          pwDel.classList.remove('armed');
+        });
     });
   }
   function submitPw() {
@@ -511,7 +567,17 @@ import { toast } from './toast.js';
                 const jj = r2.json;
                 if (jj && jj.ok) {
                   toast(t('pkDeleted'));
+                  /* Samsung Pass 同步：通知密码管理器删掉这把密钥 */
+                  try {
+                    if (window.PublicKeyCredential && typeof PublicKeyCredential.signalUnknownCredential === 'function') {
+                      PublicKeyCredential.signalUnknownCredential({ rpId: location.hostname, credentialId: k.credId }).catch(function () {});
+                    } else {
+                      toast(t('pkDelManual'));
+                    }
+                  } catch (e) {}
+                  /* 服务端删除成功后重新读列表刷新（KV 最终一致，边缘节点最多约 60 秒） */
                   refreshPkList();
+                  refreshStatus();
                 } else if (jj && jj.error === 'token') {
                   needReauth();
                 } else {

@@ -1388,6 +1388,13 @@
     &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: -2px; }
     &.armed { color: var(--m-on-surface); background: var(--m-rose-container); }
   }
+  .lockmgr-del {
+    display: block; width: 100%; padding: 14px; border: 1px solid var(--m-rose); border-radius: 12px;
+    background: none; cursor: pointer; font-size: 15px; font-weight: 600; color: var(--m-rose);
+    &:active { background: var(--m-rose-container); }
+    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
+    &.armed { background: var(--m-rose); color: var(--m-on-rose); border-color: var(--m-rose); }
+  }
   .lockmgr-add {
     display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
     padding: 14px; border: 0; background: none; cursor: pointer;

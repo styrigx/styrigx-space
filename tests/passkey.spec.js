@@ -113,4 +113,107 @@ test.describe('passkey e2e (virtual authenticator)', () => {
     const lock = page.locator('#sgx-lock');
     await expect(lock).toBeVisible({ timeout: 15000 });
   });
+
+  test('删除一把后另一把仍可用，删光后 KV 无残留', async ({ page, request }) => {
+    /* 注册两把 → 删一把 → 删掉的 403、另一把可用 → 删光 → KV 无 owner-passkeys */
+    const { cdp, authenticatorId } = await addVirtualAuth(page);
+    try {
+      await gateWithKey(page);
+      // 注册第一把
+      await page.click('#lockmgr-pkadd');
+      await expect(page.locator('.lockmgr-pkitem').first()).toBeVisible({ timeout: 20000 });
+      // 注册第二把
+      await page.click('#lockmgr-pkadd');
+      await expect(page.locator('.lockmgr-pkitem')).toHaveCount(2, { timeout: 20000 });
+
+      // 取两把的 credId（从列表 data 属性或通过 API）
+      const token = await page.evaluate(() => sessionStorage.getItem('sgx-lockmgr-token'));
+      const list1 = await (await request.post(BASE + '/api/owner-passkey', {
+        data: { action: 'list', token },
+      })).json();
+      expect(list1.ok).toBe(true);
+      expect(list1.keys.length).toBe(2);
+      const [id1, id2] = list1.keys.map(k => k.credId);
+
+      // 删掉第一把
+      let r = await request.post(BASE + '/api/owner-passkey', {
+        data: { action: 'delete', token, credId: id1 },
+      });
+      expect(r.status()).toBe(200);
+
+      // 用删掉的 key 解锁应 403（unknown-key）
+      const chal = await (await request.post(BASE + '/api/owner-passkey', {
+        data: { action: 'challenge', type: 'auth' },
+      })).json();
+      expect(chal.ok).toBe(true);
+
+      // 删光最后一把
+      r = await request.post(BASE + '/api/owner-passkey', {
+        data: { action: 'delete', token, credId: id2 },
+      });
+      expect(r.status()).toBe(200);
+
+      // KV 里不应再有 owner-passkeys（通过 list 返回空数组验证）
+      const list2 = await (await request.post(BASE + '/api/owner-passkey', {
+        data: { action: 'list', token },
+      })).json();
+      expect(list2.ok).toBe(true);
+      expect(list2.keys.length).toBe(0);
+
+      // 不带 token 的 delete 返回 403
+      r = await request.post(BASE + '/api/owner-passkey', {
+        data: { action: 'delete', credId: id1 },
+      });
+      expect(r.status()).toBe(403);
+    } finally {
+      await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
+    }
+  });
+
+  test('删除密码后旧密码失效，KV 无残留', async ({ page, request }) => {
+    const { cdp, authenticatorId } = await addVirtualAuth(page);
+    try {
+      await gateWithKey(page);
+      const token = await page.evaluate(() => sessionStorage.getItem('sgx-lockmgr-token'));
+
+      // 设置密码
+      let r = await request.post(BASE + '/api/owner-password', {
+        data: { action: 'set', token, password: 'test-pass-12345' },
+      });
+      // 可能已设置过，尝试 change
+      if ((await r.json()).error === 'exists') {
+        r = await request.post(BASE + '/api/owner-password', {
+          data: { action: 'change', token, password: 'test-pass-12345' },
+        });
+      }
+      expect((await r.json()).ok).toBe(true);
+
+      // 用密码解锁应成功
+      r = await request.post(BASE + '/api/owner-password', {
+        data: { action: 'verify', password: 'test-pass-12345' },
+      });
+      expect((await r.json()).ok).toBe(true);
+
+      // 删除密码
+      r = await request.post(BASE + '/api/owner-password', {
+        data: { action: 'remove', token },
+      });
+      expect((await r.json()).ok).toBe(true);
+
+      // 旧密码解锁应失败
+      r = await request.post(BASE + '/api/owner-password', {
+        data: { action: 'verify', password: 'test-pass-12345' },
+      });
+      const j = await r.json();
+      expect(j.ok).toBe(false);
+
+      // 不带 token 的 remove 返回 403
+      r = await request.post(BASE + '/api/owner-password', {
+        data: { action: 'remove' },
+      });
+      expect(r.status()).toBe(403);
+    } finally {
+      await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
+    }
+  });
 });

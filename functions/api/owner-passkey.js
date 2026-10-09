@@ -282,17 +282,18 @@ async function getPasskeys(kv) {
   try {
     const v = await kv.get('owner-passkeys', 'json');
     if (Array.isArray(v)) return v;
-    /* 兼容旧单密钥记录 */
-    const old = await kv.get('owner-passkey', 'json');
-    if (old && old.credId) return [{ credId: old.credId, publicKey: old.publicKey, createdAt: old.createdAt || 0 }];
   } catch (e) {}
   return [];
 }
 
 /** @param {any} kv @param {any[]} list */
 async function savePasskeys(kv, list) {
+  if (!list || list.length === 0) {
+    /* 删掉最后一把时直接删除 key，不留空数组 */
+    await kv.delete('owner-passkeys');
+    return;
+  }
   await kv.put('owner-passkeys', JSON.stringify(list));
-  try { await kv.delete('owner-passkey'); } catch (e) {}
 }
 
 /** @param {any} context */
