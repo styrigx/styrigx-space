@@ -1,8 +1,10 @@
 {{/* 2.4.0-G：编译期功能开关。build:false 的功能返回 false，模板不输出对应 HTML。
-   用法：{{ if partial "feature.html" "weather-show" }}...{{ end }} */}}
+   用法：{{ if partial "feature.html" "weather-show" }}...{{ end }}
+   Hark：CI 测试构建可用 SGX_TEST_NO_WEATHER=1 强制关闭天气组件（生产构建绝不设置） */}}
 {{ $id := . }}
 {{ $on := false }}
 {{ range site.Data.features.features }}
   {{ if eq .id $id }}{{ $on = .build }}{{ end }}
 {{ end }}
+{{ if and (eq $id "weather-show") (eq (getenv "SGX_TEST_NO_WEATHER") "1") }}{{ $on = false }}{{ end }}
 {{ return $on }}

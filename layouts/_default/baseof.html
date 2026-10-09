@@ -454,6 +454,10 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{/* Hark：CI 锁屏开关解耦测试专用（CI 专用，生产构建绝不设置） */}}
 {{ if eq (getenv "SGX_TEST_LEGACY") "0" }}{{ $featDefines = merge $featDefines (dict "SGX_FEAT_LEGACY_LOCK_SCREEN" "false") }}{{ end }}
 {{ if eq (getenv "SGX_TEST_OWNER_GATE") "0" }}{{ $featDefines = merge $featDefines (dict "SGX_FEAT_OWNER_GATE" "false") }}{{ end }}
+{{/* Hark：CI 测试构建禁用天气组件（CI 专用，生产构建绝不设置）；
+   天气依赖外网（/api/geo + Open-Meteo），CI 里不稳定会导致
+   Lighthouse errors-in-console 误报 */}}
+{{ if eq (getenv "SGX_TEST_NO_WEATHER") "1" }}{{ $featDefines = merge $featDefines (dict "SGX_FEAT_WEATHER_SHOW" "false") }}{{ end }}
 {{ $entry := resources.Get (print "js/entries/" $entryName) | js.Build (dict "minify" true "target" "es2020" "defines" $featDefines) | fingerprint }}
 <script type="module" src="{{ $entry.RelPermalink }}"></script>
 {{/* 极端降级：不支持 type="module" 的浏览器只打标记，不报错、不白屏（内容为服务端渲染） */}}
