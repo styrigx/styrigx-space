@@ -1,4 +1,7 @@
-{{/* 2.4.0 I：Owner 页 —— 设置/修改解锁密码（需 OWNER_KEY 门禁） */}}
+{{/* 2.4.0 I：Owner 页 —— 设置/修改解锁密码、通行密钥管理（需 OWNER_KEY 门禁）。
+   fix/hi-owner：补 {{ define "main" }}（之前缺失导致整页不走 baseof、无 CSS/JS）；
+   One UI 风格重做；passkey 支持多密钥列出/删除；前端区分网络错误/服务器错误。 */}}
+{{ define "main" }}
 {{ $en := eq .Lang "en" }}
 <div class="owner-wrap">
   {{ partial "subpage-head.html" (dict "title" (cond $en "Owner" "本人") "isEn" $en) }}
@@ -7,7 +10,7 @@
     <h2 class="owner-h">{{ cond $en "Verification" "身份验证" }}</h2>
     <p class="owner-p">{{ cond $en "Enter OWNER_KEY to continue." "输入 OWNER_KEY 以继续。" }}</p>
     <input type="password" id="owner-key" class="owner-input" autocomplete="off"
-           placeholder="{{ cond $en "OWNER_KEY" "OWNER_KEY" }}" aria-label="OWNER_KEY">
+           placeholder="OWNER_KEY" aria-label="OWNER_KEY">
     <p class="owner-err" id="owner-gate-err" hidden></p>
     <button type="button" class="owner-btn" id="owner-gate-go">{{ cond $en "Continue" "继续" }}</button>
   </div>
@@ -25,19 +28,20 @@
   </div>
 
   <div class="owner-card" id="owner-pk" hidden>
-    <h2 class="owner-h">{{ cond $en "Passkey" "通行密钥" }}</h2>
-    <p class="owner-p">{{ cond $en "Register a passkey for password-less unlock." "注册通行密钥，免密码解锁。" }}</p>
+    <h2 class="owner-h">{{ cond $en "Passkeys" "通行密钥" }}</h2>
+    <p class="owner-p">{{ cond $en "Register a passkey for password-less unlock. Multiple keys supported." "注册通行密钥，免密码解锁。可注册多个。" }}</p>
     <p class="owner-err" id="owner-pk-err" hidden></p>
     <button type="button" class="owner-btn" id="owner-pk-go">{{ cond $en "Register passkey" "注册通行密钥" }}</button>
     <p class="owner-ok" id="owner-pk-ok" hidden></p>
+    <ul class="owner-pk-list" id="owner-pk-list" hidden></ul>
   </div>
 
   <div class="owner-help">
     <h3>{{ cond $en "How to" "说明" }}</h3>
     <ul>
-      <li>{{ cond $en "After setting a password, tap “Use password” under the fingerprint icon on the lock screen to unlock with it." "设置密码后，在锁屏指纹图标下方点「使用密码」即可用密码解锁。" }}</li>
-      <li>{{ cond $en "Password and fingerprint are alternatives — either one unlocks directly." "密码和指纹二选一，任一通过即直接进入。" }}</li>
-      <li>{{ cond $en "If you forget the password, use your passkey or OWNER_KEY here to reset it." "忘记密码时，用 passkey 或 OWNER_KEY 在此重设。" }}</li>
+      <li>{{ cond $en "After setting a password, tap “Use password” under the avatar on the lock screen to unlock with it." "设置密码后，在锁屏头像下方点「使用密码」即可用密码解锁。" }}</li>
+      <li>{{ cond $en "Password and passkey are alternatives — either one unlocks directly." "密码和通行密钥二选一，任一通过即直接进入。" }}</li>
+      <li>{{ cond $en "If you forget the password, use your passkey or OWNER_KEY here to reset it." "忘记密码时，用通行密钥或 OWNER_KEY 在此重设。" }}</li>
       <li>{{ cond $en "5 wrong attempts locks password unlock for 30 seconds." "连续输错 5 次后 30 秒内不能再试。" }}</li>
     </ul>
   </div>
@@ -49,86 +53,161 @@
   function $(id){ return document.getElementById(id); }
   function err(id, msg){ var e=$(id); if(e){ e.textContent=msg; e.hidden=false; } }
   function ok(id, msg){ var e=$(id); if(e){ e.textContent=msg; e.hidden=false; } }
+  function t(zh, e){ return en ? e : zh; }
+  /* 统一解析 API 响应：区分网络错误 / 服务器错误（非 JSON）/ 业务错误（JSON error） */
+  function parseApi(r){
+    return r.text().then(function(txt){
+      var j = null;
+      try { j = JSON.parse(txt); } catch(e){}
+      return { status: r.status, json: j };
+    });
+  }
+  function netErr(id){ err(id, t('网络错误','Network error')); }
+  function srvErr(id, code){ err(id, t('服务器错误','Server error') + (code ? ' (' + code + ')' : '')); }
+
   /* 门禁 */
   $('owner-gate-go').addEventListener('click', function(){
     var k = $('owner-key').value;
-    if(!k){ err('owner-gate-err', en?'Enter OWNER_KEY':'请输入 OWNER_KEY'); return; }
+    if(!k){ err('owner-gate-err', t('请输入 OWNER_KEY','Enter OWNER_KEY')); return; }
     fetch('/api/owner-auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:k})})
-      .then(function(r){ return r.json(); })
-      .then(function(j){
-        if(j&&j.ok&&j.token){
-          token=j.token;
-          $('owner-gate').hidden=true;
-          $('owner-pw').hidden=false;
-          /* 查是否已设置 */
+      .then(parseApi)
+      .then(function(res){
+        var j = res.json;
+        if(!j){ srvErr('owner-gate-err', res.status); return; }
+        if(j.ok && j.token){
+          token = j.token;
+          $('owner-gate').hidden = true;
+          $('owner-pw').hidden = false;
+          if (window.PublicKeyCredential) $('owner-pk').hidden = false;
+          /* 查是否已设置密码 */
           fetch('/api/owner-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'verify',password:'__probe__'})})
-            .then(function(r){ return r.json(); })
-            .then(function(p){
-              if(p&&p.error==='not-set'){
-                $('owner-pw-desc').textContent = en?'Set a password (min 8 chars).':'设置密码（最短 8 位）。';
+            .then(parseApi)
+            .then(function(r2){
+              var p = r2.json;
+              if(p && p.error==='not-set'){
+                $('owner-pw-desc').textContent = t('设置密码（最短 8 位）。','Set a password (min 8 chars).');
               }else{
-                $('owner-pw-desc').textContent = en?'Change password (min 8 chars). Old sessions will be invalidated.':'修改密码（最短 8 位）。改完后旧会话失效。';
+                $('owner-pw-desc').textContent = t('修改密码（最短 8 位）。改完后旧会话失效。','Change password (min 8 chars). Old sessions will be invalidated.');
               }
             }).catch(function(){});
+          refreshPkList();
         }else{
-          err('owner-gate-err', en?'Wrong key':'密钥错误');
+          err('owner-gate-err', t('密钥错误','Wrong key'));
         }
-      }).catch(function(){ err('owner-gate-err', en?'Network error':'网络错误'); });
+      }).catch(function(){ netErr('owner-gate-err'); });
   });
-  /* 设置/修改 */
+
+  /* 设置/修改密码 */
   $('owner-pw-go').addEventListener('click', function(){
     var a=$('owner-new').value, b=$('owner-new2').value;
     $('owner-pw-err').hidden=true; $('owner-pw-ok').hidden=true;
-    if(a.length<8){ err('owner-pw-err', en?'Min 8 characters':'最短 8 位'); return; }
-    if(a!==b){ err('owner-pw-err', en?'Passwords do not match':'两次输入不一致'); return; }
-    if(!token){ err('owner-pw-err', en?'Session expired, reload':'会话过期，请刷新'); return; }
-    fetch('/api/owner-password',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({action:'set',token:token,password:a})})
-      .then(function(r){ return r.json(); })
-      .then(function(j){
-        if(j&&j.ok){
-          ok('owner-pw-ok', en?'Saved.':'已保存。');
-          $('owner-new').value=''; $('owner-new2').value='';
-        }else if(j&&j.error==='exists'){
-          /* 已设置过 → 改用 change */
-          fetch('/api/owner-password',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({action:'change',token:token,newPassword:a})})
-            .then(function(r){ return r.json(); })
-            .then(function(k){
-              if(k&&k.ok){ ok('owner-pw-ok', en?'Changed. Old sessions invalidated.':'已修改，旧会话已失效。'); $('owner-new').value=''; $('owner-new2').value=''; }
-              else err('owner-pw-err', en?'Failed':'失败');
-            }).catch(function(){ err('owner-pw-err', en?'Network error':'网络错误'); });
-        }else{
-          err('owner-pw-err', en?'Failed':'失败');
-        }
-      }).catch(function(){ err('owner-pw-err', en?'Network error':'网络错误'); });
+    if(a.length<8){ err('owner-pw-err', t('最短 8 位','Min 8 characters')); return; }
+    if(a!==b){ err('owner-pw-err', t('两次输入不一致','Passwords do not match')); return; }
+    if(!token){ err('owner-pw-err', t('会话过期，请刷新','Session expired, reload')); return; }
+    function save(action, pwd, cb){
+      fetch('/api/owner-password',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(action==='set' ? {action:'set',token:token,password:pwd} : {action:'change',token:token,newPassword:pwd})})
+        .then(parseApi).then(cb).catch(function(){ netErr('owner-pw-err'); });
+    }
+    save('set', a, function(res){
+      var j = res.json;
+      if(!j){ srvErr('owner-pw-err', res.status); return; }
+      if(j.ok){
+        ok('owner-pw-ok', t('已保存。','Saved.'));
+        $('owner-new').value=''; $('owner-new2').value='';
+      }else if(j.error==='exists'){
+        save('change', a, function(res2){
+          var k = res2.json;
+          if(!k){ srvErr('owner-pw-err', res2.status); return; }
+          if(k.ok){ ok('owner-pw-ok', t('已修改，旧会话已失效。','Changed. Old sessions invalidated.')); $('owner-new').value=''; $('owner-new2').value=''; }
+          else if(k.error){ srvErr('owner-pw-err', k.error); }
+          else err('owner-pw-err', t('失败','Failed'));
+        });
+      }else if(j.error){
+        srvErr('owner-pw-err', j.error);
+      }else{
+        err('owner-pw-err', t('失败','Failed'));
+      }
+    });
   });
-  /* 通行密钥注册 */
+
+  /* ---------- 通行密钥 ---------- */
+  function b64urlToBuf(s){
+    s = s.replace(/-/g, '+').replace(/_/g, '/');
+    var bin = atob(s);
+    var u8 = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    return u8;
+  }
+  function bufToB64url(buf){
+    var u8 = new Uint8Array(buf);
+    var s = '';
+    for (var i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function fmtDate(ts){
+    try {
+      var d = new Date(ts);
+      return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    } catch(e){ return ''; }
+  }
+  /* 列出已注册密钥 */
+  function refreshPkList(){
+    if(!token) return;
+    fetch('/api/owner-passkey',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'list',token:token})})
+      .then(parseApi)
+      .then(function(res){
+        var j = res.json;
+        var ul = $('owner-pk-list');
+        if(!j || !j.ok || !j.keys || !j.keys.length){ ul.hidden = true; ul.innerHTML=''; return; }
+        ul.innerHTML = '';
+        j.keys.forEach(function(k){
+          var li = document.createElement('li');
+          li.className = 'owner-pk-item';
+          var label = document.createElement('span');
+          label.className = 'owner-pk-label';
+          label.textContent = t('通行密钥','Passkey') + ' · ' + fmtDate(k.createdAt);
+          var del = document.createElement('button');
+          del.type = 'button';
+          del.className = 'owner-pk-del';
+          del.textContent = t('删除','Delete');
+          del.setAttribute('data-cred', k.credId);
+          del.addEventListener('click', function(){ deletePk(k.credId); });
+          li.appendChild(label);
+          li.appendChild(del);
+          ul.appendChild(li);
+        });
+        ul.hidden = false;
+      }).catch(function(){});
+  }
+  function deletePk(credId){
+    if(!token) return;
+    fetch('/api/owner-passkey',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'delete',token:token,credId:credId})})
+      .then(parseApi)
+      .then(function(res){
+        var j = res.json;
+        if(j && j.ok){ refreshPkList(); ok('owner-pk-ok', t('已删除。','Deleted.')); }
+        else if(!j){ srvErr('owner-pk-err', res.status); }
+        else { srvErr('owner-pk-err', j.error); }
+      }).catch(function(){ netErr('owner-pk-err'); });
+  }
+  /* 注册 */
   if (window.PublicKeyCredential) {
-    $('owner-pk').hidden = false;
+    /* 卡片在门禁通过后显示（见门禁逻辑） */
   }
   $('owner-pk-go').addEventListener('click', function(){
     $('owner-pk-err').hidden = true; $('owner-pk-ok').hidden = true;
-    if (!window.PublicKeyCredential) { err('owner-pk-err', en?'Not supported':'不支持'); return; }
-    if (!token) { err('owner-pk-err', en?'Session expired':'会话过期'); return; }
-    function b64urlToBuf(s) {
-      s = s.replace(/-/g, '+').replace(/_/g, '/');
-      var bin = atob(s);
-      var u8 = new Uint8Array(bin.length);
-      for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-      return u8;
-    }
-    function bufToB64url(buf) {
-      var u8 = new Uint8Array(buf);
-      var s = '';
-      for (var i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
-      return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    }
+    if (!window.PublicKeyCredential) { err('owner-pk-err', t('不支持','Not supported')); return; }
+    if (!token) { err('owner-pk-err', t('会话过期','Session expired')); return; }
     fetch('/api/owner-passkey', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({action:'challenge', type:'register', token:token})})
-      .then(function(r){ return r.json(); })
-      .then(function(ch){
-        if (!ch || !ch.ok) throw new Error('challenge');
+      .then(parseApi)
+      .then(function(res){
+        var ch = res.json;
+        if (!ch) { srvErr('owner-pk-err', res.status); throw {done:true}; }
+        if (!ch.ok) { srvErr('owner-pk-err', ch.error); throw {done:true}; }
         var uid = new Uint8Array(16);
         crypto.getRandomValues(uid);
         return navigator.credentials.create({ publicKey: {
@@ -136,11 +215,18 @@
           rp: { name: 'Styrigx', id: 'styrigx.com' },
           user: { id: uid, name: 'owner', displayName: 'Owner' },
           pubKeyCredParams: [{type:'public-key', alg:-7}],
-          authenticatorSelection: { userVerification: 'preferred' },
+          authenticatorSelection: { userVerification: 'preferred', residentKey: 'preferred' },
           attestation: 'none',
           timeout: 60000
         }}).then(function(cred){
           return { cred: cred, cid: ch.cid };
+        }, function(e){
+          /* 用户取消 / 设备失败：给出具体原因 */
+          if (e && e.name === 'NotAllowedError') err('owner-pk-err', t('已取消','Cancelled'));
+          else if (e && e.name === 'InvalidStateError') err('owner-pk-err', t('此设备已注册过','Already registered on this device'));
+          else if (e && e.name === 'NotSupportedError') err('owner-pk-err', t('设备不支持','Not supported on this device'));
+          else err('owner-pk-err', t('失败','Failed') + (e && e.name ? ': ' + e.name : ''));
+          throw {done:true};
         });
       })
       .then(function(res){
@@ -156,12 +242,18 @@
             type: cred.type
           }})});
       })
-      .then(function(r){ return r.json(); })
-      .then(function(j){
-        if (j && j.ok) ok('owner-pk-ok', en?'Registered.':'已注册。');
-        else err('owner-pk-err', en?'Failed':'失败');
+      .then(parseApi)
+      .then(function(res){
+        var j = res.json;
+        if (j && j.ok) { ok('owner-pk-ok', t('已注册。','Registered.')); refreshPkList(); }
+        else if (!j) srvErr('owner-pk-err', res.status);
+        else srvErr('owner-pk-err', j.error);
       })
-      .catch(function(e){ err('owner-pk-err', en?'Failed: '+e.message:'失败'); });
+      .catch(function(e){
+        if (e && e.done) return;
+        netErr('owner-pk-err');
+      });
   });
 })();
 </script>
+{{ end }}

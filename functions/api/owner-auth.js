@@ -21,6 +21,15 @@ function timingSafeEqual(a, b) {
 
 /** @param {any} context */
 export async function onRequestPost(context) {
+  try {
+    return await handlePost(context);
+  } catch (e) {
+    return Response.json({ ok: false, error: 'server' }, { status: 500 });
+  }
+}
+
+/** @param {any} context */
+async function handlePost(context) {
   const { request, env } = context;
   if (request.method !== 'POST') {
     return Response.json({ ok: false }, { status: 405 });

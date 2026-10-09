@@ -1,5 +1,7 @@
 /**
  * 2.4.0 I：本人密码解锁 —— 密码设置/修改/验证。
+ * fix/hi-owner：PBKDF2 迭代次数 600000 → 100000（Cloudflare Workers 生产环境上限，
+ * 超过抛 NotSupportedError）。verify 按记录里的 iterations 校验。
  *
  * POST /api/owner-password
  * Body: { action: "set"|"change"|"verify", ... }
@@ -8,11 +10,12 @@
  * - change: { token, newPassword } — 修改密码（需有效的 owner-auth token；改完后旧会话失效）
  * - verify: { password } — 解锁验证（IP 限流：5 次失败 → 30 秒锁定）
  *
- * 密码存储：PBKDF2-SHA256（600k 迭代）+ 随机 salt，存 OWNER_KV；恒定时间比较。
+ * 密码存储：PBKDF2-SHA256 + 随机 salt，存 OWNER_KV；恒定时间比较。
  * 只接受 POST；校验 Origin；未设置密码时 verify 一律拒绝。
+ * 外层 try/catch：任何未捕获异常都返回 JSON { ok:false, error:'server' }，不返回 500 HTML。
  */
 
-const ITERATIONS = 600000;
+const ITERATIONS = 100000; // Workers PBKDF2 上限（实测：超过抛 NotSupportedError）
 const SALT_LEN = 16;
 const KEY_LEN = 32; // 256 bit
 const MAX_FAIL = 5;
@@ -46,12 +49,13 @@ function timingSafeEqual(a, b) {
  * PBKDF2-SHA256 哈希。
  * @param {string} password
  * @param {Uint8Array} salt
+ * @param {number} iterations
  */
-async function hashPassword(password, salt) {
+async function hashPassword(password, salt, iterations) {
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt: salt, iterations: ITERATIONS, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt: salt, iterations: iterations, hash: 'SHA-256' },
     key,
     KEY_LEN * 8
   );
@@ -60,6 +64,16 @@ async function hashPassword(password, salt) {
 
 /** @param {any} context */
 export async function onRequestPost(context) {
+  try {
+    return await handlePost(context);
+  } catch (e) {
+    /* 任何未捕获异常 → JSON 500，前端可区分「服务器错误」与「网络错误」 */
+    return Response.json({ ok: false, error: 'server' }, { status: 500 });
+  }
+}
+
+/** @param {any} context */
+async function handlePost(context) {
   const { request, env } = context;
   const kv = env && env.OWNER_KV;
 
@@ -140,11 +154,12 @@ export async function onRequestPost(context) {
     if (!stored || !stored.salt || !stored.hash) {
       return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
     }
-    /* 校验 */
+    /* 校验：按记录里的 iterations（缺省时用当前值） */
     let ok = false;
     try {
+      const iters = (stored.iterations && Number(stored.iterations)) || ITERATIONS;
       const salt = new Uint8Array(b64dec(stored.salt));
-      const bits = await hashPassword(password, salt);
+      const bits = await hashPassword(password, salt, iters);
       const hashB64 = b64enc(bits);
       ok = timingSafeEqual(hashB64, stored.hash);
     } catch (e) {}
@@ -206,9 +221,9 @@ export async function onRequestPost(context) {
       }
     }
 
-    /* 哈希并存储 */
+    /* 哈希并存储（iterations 写入记录，verify 按记录值校验） */
     const salt = crypto.getRandomValues(new Uint8Array(SALT_LEN));
-    const bits = await hashPassword(newPassword, salt);
+    const bits = await hashPassword(newPassword, salt, ITERATIONS);
     const record = {
       salt: b64enc(salt.buffer),
       hash: b64enc(bits),

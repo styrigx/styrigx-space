@@ -1,7 +1,9 @@
 {{/* 可复用账号卡：左 Sloan Gray / Styrigx，右圆形头像。
    2.3.14.8：设置页宽屏左栏使用；2.3.14.9：手机端设置页复用同一个组件。
-   样式、内容、点击行为（无）在两处保持一致。 */}}
+   样式、内容、点击行为（无）在两处保持一致。
+   fix/hi-owner：下方加「解锁方式」入口，只在已解锁时显示，点击进 /owner/。 */}}
 {{ $avatar := resources.Get "images/avatar.png" }}
+{{ $en := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 <div class="sgx-account-card">
   <div class="sgx-ac-tx">
     <p class="sgx-ac-name">Sloan Gray</p>
@@ -11,3 +13,18 @@
   <img src="{{ $a.RelPermalink }}" srcset="{{ $aAvif.RelPermalink }} 1x" alt="Sloan Gray" width="48" height="48" class="sgx-ac-img">
   {{ end }}
 </div>
+<a href="{{ if $en }}/en/owner/{{ else }}/owner/{{ end }}" id="sgx-unlock-link" class="sgx-ac-unlock" hidden>
+  <span>{{ if $en }}Unlock methods{{ else }}解锁方式{{ end }}</span>
+  <span aria-hidden="true">›</span>
+</a>
+<script>
+/* fix/hi-owner：只在已解锁时显示「解锁方式」入口 */
+(function(){
+  try {
+    if (sessionStorage.getItem('sgx-lock-shown') === '1') {
+      var el = document.getElementById('sgx-unlock-link');
+      if (el) el.hidden = false;
+    }
+  } catch(e){}
+})();
+</script>

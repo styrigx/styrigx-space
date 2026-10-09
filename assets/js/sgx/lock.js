@@ -426,6 +426,8 @@ export function initLock() {
     if (pdlg && pdlg.open) {
       try { pdlg.close(); } catch (e) {}
     }
+    /* fix/hi-owner：头像块复位 */
+    try { document.body.classList.remove('sgx-pw-open'); } catch (e) {}
   }
 
   function pwShowError(msg) {
@@ -476,6 +478,15 @@ export function initLock() {
     const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-pw-input'));
     if (input) input.value = '';
     try { dlg.showModal(); } catch (e) { return; }
+    /* fix/hi-owner：头像块上移避让弹层（按弹层实际高度） */
+    try {
+      const card = dlg.querySelector('.sgx-verify-card');
+      const h = card ? card.offsetHeight : 0;
+      if (h > 0) {
+        document.body.style.setProperty('--sgx-pw-lift', h + 'px');
+        document.body.classList.add('sgx-pw-open');
+      }
+    } catch (e) {}
     /* 桌面自动聚焦 */
     if (input) {
       try { input.focus({ preventScroll: true }); } catch (e) { try { input.focus(); } catch (_) {} }
@@ -496,18 +507,32 @@ export function initLock() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'verify', password: pw }),
     })
-      .then(function (r) { return r.json().then(function (j) { return { s: r.status, j: j }; }); })
+      /* fix/hi-owner：区分网络错误（fetch 抛错）/ 服务器错误（非 JSON 响应）/ 业务错误 */
+      .then(function (r) {
+        return r.text().then(function (t) {
+          let j = null;
+          try { j = JSON.parse(t); } catch (e) {}
+          return { s: r.status, j: j };
+        });
+      })
       .then(function (res) {
         const j = res.j;
-        if (j && j.ok) {
+        if (!j) {
+          pwShowError(en ? 'Server error' : '服务器错误');
+          return;
+        }
+        if (j.ok) {
           closePw();
           unlock();
-        } else if (j && j.error === 'locked') {
+        } else if (j.error === 'locked') {
           pwLockedUntil = Date.now() + 30000;
           pwShowError(en ? 'Too many attempts' : '尝试次数过多');
           pwCountdown();
-        } else if (j && j.error === 'not-set') {
-          pwShowError(en ? 'No password set' : '未设置密码');
+        } else if (j.error === 'not-set') {
+          /* fix/hi-owner：只提示未设置，不暴露 /owner/ 地址 */
+          pwShowError(en ? 'No password set yet' : '尚未设置密码');
+        } else if (j.error === 'server') {
+          pwShowError(en ? 'Server error' : '服务器错误');
         } else {
           pwShowError(en ? 'Wrong password' : '密码错误');
           if (input) input.value = '';
