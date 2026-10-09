@@ -23,7 +23,9 @@ const UNLOCK =
 export function initLock() {
   /* Hark：CI 测试构建禁用锁屏（构建期 define，线上无绕过） */
   if (SGX_TEST_NO_LOCK) return;
-  if (!SGX_FEAT_LEGACY_LOCK_SCREEN) return;
+  /* Hark：legacy-lock-screen 和 owner-gate 是独立开关；
+     只关旧锁屏时，owner-gate（Turnstile/密码）照常工作 */
+  if (!SGX_FEAT_LEGACY_LOCK_SCREEN && !SGX_FEAT_OWNER_GATE) return;
   const force = /(?:^|[?&])lock=1(?:&|$)/.test(location.search);
   let seen = false;
   try {

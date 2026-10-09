@@ -3,15 +3,33 @@
  * - 未解锁时锁屏覆盖内容（无法交互）
  * - ?lock=1 强制触发锁屏
  * - Turnstile 验证卡行为
- * - 锁屏基准截图
+ * - 锁屏基准截图（Hark：冻结时间 + 遮罩时钟/日期/天气，否则每次必然不同）
  *
  * 注意：这些测试需要锁屏启用的构建（生产构建）；CI 的 visual/Lighthouse
  * 用 SGX_TEST_NO_LOCK=1 的构建，两者分离。
  */
 const { test, expect } = require('@playwright/test');
 
+/* Hark：冻结时间 + 遮罩动态内容（时钟、日期、天气） */
+async function freezeTime(page) {
+  await page.addInitScript(() => {
+    /* 冻结时间：2026-10-09 12:00:00 */
+    const frozen = new Date('2026-10-09T12:00:00+08:00').getTime();
+    const RealDate = Date;
+    // @ts-ignore
+    window.Date = class extends RealDate {
+      constructor(...args) {
+        if (args.length === 0) super(frozen);
+        else super(...args);
+      }
+      static now() { return frozen; }
+    };
+  });
+}
+
 test.describe('lock screen', () => {
   test('?lock=1 forces lock screen on any page', async ({ page }) => {
+    await freezeTime(page);
     await page.goto('/?lock=1', { waitUntil: 'networkidle' });
     await page.waitForTimeout(1000);
     const lock = page.locator('#sgx-lock');
@@ -26,14 +44,21 @@ test.describe('lock screen', () => {
   });
 
   test('lock screen baseline screenshot', async ({ page }) => {
+    await freezeTime(page);
     await page.setViewportSize({ width: 412, height: 915 });
     await page.goto('/?lock=1', { waitUntil: 'networkidle' });
     await page.waitForTimeout(1500);
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await expect(page).toHaveScreenshot('lock-screen.png', { animations: 'disabled' });
+    /* Hark：遮罩时钟、日期（实时内容）；天气元素不存在则跳过 */
+    const masks = [page.locator('#sgx-lock-clock'), page.locator('#sgx-lock-date')];
+    await expect(page).toHaveScreenshot('lock-screen.png', {
+      animations: 'disabled',
+      mask: masks,
+    });
   });
 
   test('avatar click opens verify dialog (local fallback)', async ({ page }) => {
+    await freezeTime(page);
     /* localhost → 直接解锁（无 Turnstile），验证兜底路径 */
     await page.goto('/?lock=1', { waitUntil: 'networkidle' });
     await page.waitForTimeout(1000);
@@ -50,6 +75,7 @@ test.describe('lock screen', () => {
   });
 
   test('password link opens password dialog', async ({ page }) => {
+    await freezeTime(page);
     await page.goto('/?lock=1', { waitUntil: 'networkidle' });
     await page.waitForTimeout(1000);
     const pwlink = page.locator('#sgx-lock-pwlink');
@@ -62,7 +88,23 @@ test.describe('lock screen', () => {
     await expect(page.locator('#sgx-pw-input')).toBeVisible();
   });
 
-  test('wrong password shows error (no password set)', async ({ page }) => {
+  test('wrong password shows error (mocked API)', async ({ page }) => {
+    await freezeTime(page);
+    /* Hark：http-server 没有 /api/*，用 page.route mock 后端 */
+    await page.route('**/api/owner-password', async (route) => {
+      const req = route.request();
+      const body = JSON.parse(req.postData() || '{}');
+      if (body.action === 'verify') {
+        /* 模拟：密码错误 */
+        await route.fulfill({
+          status: 403,
+          contentType: 'application/json',
+          body: JSON.stringify({ ok: false, error: 'wrong' }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
     await page.goto('/?lock=1', { waitUntil: 'networkidle' });
     await page.waitForTimeout(1000);
     await page.click('#sgx-lock-pwlink');
@@ -70,8 +112,53 @@ test.describe('lock screen', () => {
     await page.fill('#sgx-pw-input', 'wrongpassword123');
     await page.click('#sgx-pw-go');
     await page.waitForTimeout(1500);
-    /* 未设置密码 → 应提示（not-set 或 wrong，取决于后端） */
+    /* 应提示密码错误（mock 返回 wrong） */
     const err = page.locator('#sgx-pw-err');
     await expect(err).toBeVisible();
+    const txt = await err.textContent();
+    expect(txt).toMatch(/密码错误|wrong/i);
+  });
+
+  test('locked out after 5 wrong attempts (mocked API)', async ({ page }) => {
+    await freezeTime(page);
+    let attempts = 0;
+    await page.route('**/api/owner-password', async (route) => {
+      const req = route.request();
+      const body = JSON.parse(req.postData() || '{}');
+      if (body.action === 'verify') {
+        attempts++;
+        if (attempts >= 5) {
+          /* 模拟：第 5 次后锁定 */
+          await route.fulfill({
+            status: 429,
+            contentType: 'application/json',
+            body: JSON.stringify({ ok: false, error: 'locked', retryAfter: 30 }),
+          });
+        } else {
+          await route.fulfill({
+            status: 403,
+            contentType: 'application/json',
+            body: JSON.stringify({ ok: false, error: 'wrong' }),
+          });
+        }
+      } else {
+        await route.continue();
+      }
+    });
+    await page.goto('/?lock=1', { waitUntil: 'networkidle' });
+    await page.waitForTimeout(1000);
+    await page.click('#sgx-lock-pwlink');
+    await page.waitForTimeout(600);
+    /* 连续 5 次错误 */
+    for (let i = 0; i < 5; i++) {
+      await page.fill('#sgx-pw-input', 'wrong' + i);
+      await page.click('#sgx-pw-go');
+      await page.waitForTimeout(800);
+    }
+    /* 应显示锁定提示 */
+    const err = page.locator('#sgx-pw-err');
+    await expect(err).toBeVisible();
+    const txt = await err.textContent();
+    expect(txt).toMatch(/30|锁定|locked|尝试次数过多|Too many/i);
   });
 });

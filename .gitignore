@@ -6,3 +6,4 @@ resources/
 # CI 生成的构建产物
 assets/css/main.css
 hugo_stats.json
+test-results/
