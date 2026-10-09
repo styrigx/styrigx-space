@@ -149,26 +149,44 @@ jobs:
       - name: Build site
         run: hugo --minify
 
+      - name: Set preview test secrets (preview only)
+        # 只写 preview 环境，绝不碰 production。
+        # 用 PATCH deployment_configs.preview，只带 preview 字段。
+        # 必须在部署之前写，否则新值要到下一次部署才生效。
+        run: |
+          python3 - <<'PYEOF'
+          import json, sys, urllib.request, urllib.error
+          ACCT = "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
+          TOKEN = "${{ secrets.CLOUDFLARE_API_TOKEN }}"
+          body = json.dumps({
+              "deployment_configs": {
+                  "preview": {
+                      "env_vars": {
+                          "OWNER_KEY": {"type": "secret_text", "value": "${{ secrets.PREVIEW_OWNER_KEY }}"},
+                          "SESSION_SECRET": {"type": "secret_text", "value": "${{ secrets.PREVIEW_SESSION_SECRET }}"},
+                      }
+                  }
+              }
+          }).encode()
+          req = urllib.request.Request(
+              f"https://api.cloudflare.com/client/v4/accounts/{ACCT}/pages/projects/styrigx-space",
+              data=body, method="PATCH",
+              headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"})
+          try:
+              r = json.load(urllib.request.urlopen(req, timeout=30))
+          except urllib.error.HTTPError as e:
+              print(f"FAIL: HTTP {e.code}", file=sys.stderr); sys.exit(1)
+          if not r.get("success"):
+              print("FAIL: success=false", file=sys.stderr); sys.exit(1)
+          print("preview secrets updated")
+          PYEOF
+
       - name: Deploy to preview
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy public --project-name=styrigx-space --branch=passkey-e2e --commit-dirty=true
-
-      - name: Set preview test secrets
-        # 预览环境用测试值；生产 secret 绝不进 CI。
-        # 用 API 直接设置，避免 wrangler 交互式提示卡死。
-        run: |
-          curl -s -X PUT "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/projects/styrigx-space/secrets/OWNER_KEY" \
-            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d "{\"value\": \"${{ secrets.PREVIEW_OWNER_KEY }}\", \"type\": \"secret_text\"}" | head -c 200
-          echo
-          curl -s -X PUT "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/projects/styrigx-space/secrets/SESSION_SECRET" \
-            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d "{\"value\": \"${{ secrets.PREVIEW_SESSION_SECRET }}\", \"type\": \"secret_text\"}" | head -c 200
 
       - name: Run WebAuthn E2E
         run: |
@@ -177,6 +195,25 @@ jobs:
           npx playwright test --config=playwright.config.js --grep "passkey e2e"
         env:
           SGX_TEST_SUITE: passkey
+
+      - name: Guard - production vars unchanged
+        # 守卫：确认 production 环境变量未被 CI 改动
+        run: |
+          python3 - <<'PYEOF'
+          import json, sys, urllib.request
+          ACCT = "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
+          TOKEN = "${{ secrets.CLOUDFLARE_API_TOKEN }}"
+          req = urllib.request.Request(
+              f"https://api.cloudflare.com/client/v4/accounts/{ACCT}/pages/projects/styrigx-space",
+              headers={"Authorization": f"Bearer {TOKEN}"})
+          r = json.load(urllib.request.urlopen(req, timeout=30))
+          prod = r["result"]["deployment_configs"]["production"]["env_vars"]
+          names = sorted(prod.keys())
+          print("production vars:", names)
+          # production 必须有这三个，且 CI 不应增删
+          assert names == ["OWNER_KEY", "SESSION_SECRET", "TURNSTILE_SECRET"], f"unexpected: {names}"
+          print("guard OK: production untouched")
+          PYEOF
 
       - name: Upload test artifacts on failure
         if: failure()

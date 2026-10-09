@@ -34,7 +34,7 @@
                  placeholder="{{ if $isEn }}Admin key{{ else }}管理密钥{{ end }}">
           <button type="button" class="sgx-pw-eye" id="lockgate-eye" aria-label="{{ if $isEn }}Show{{ else }}显示{{ end }}"></button>
         </div>
-        <p class="sgx-verify-desc">{{ if $isEn }}The admin key set when deploying this site, used to manage unlock methods.{{ else }}部署本站时设置的管理密钥，用于管理解锁方式。{{ end }}</p>
+        <p class="sgx-verify-desc">{{ if $isEn }}The admin key set when deploying this site, used to manage unlock methods. After changing it, redeploy for the new key to take effect.{{ else }}部署本站时设置的管理密钥，用于管理解锁方式。更换管理密钥后，需要重新部署才会生效。{{ end }}</p>
         <p id="lockgate-err" class="sgx-verify-err" hidden></p>
         <button type="button" class="sgx-verify-skip" id="lockgate-go">{{ if $isEn }}Continue{{ else }}继续{{ end }}</button>
         <button type="button" class="sgx-verify-back" id="lockgate-back">{{ if $isEn }}Back{{ else }}返回{{ end }}</button>
