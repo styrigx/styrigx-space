@@ -143,11 +143,13 @@ test.describe('lock screen', () => {
     await gotoLock(page);
     await page.click('#sgx-lock-pwlink');
     const err = page.locator('#sgx-pw-err');
-    /* 连续 5 次错误，每次等错误提示更新 */
+    /* 连续 5 次错误：每次等当次请求的响应回来，避免循环跑赢 fetch */
     for (let i = 0; i < 5; i++) {
       await page.fill('#sgx-pw-input', 'wrong' + i);
-      await page.click('#sgx-pw-go');
-      await expect(err).toBeVisible({ timeout: 10000 });
+      await Promise.all([
+        page.waitForResponse('**/api/owner-password', { timeout: 10000 }),
+        page.click('#sgx-pw-go'),
+      ]);
     }
     /* 应显示锁定提示 */
     await expect(err).toHaveText(/30|锁定|locked|尝试次数过多|Too many/i, { timeout: 10000 });
