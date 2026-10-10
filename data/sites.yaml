@@ -1,11 +1,13 @@
-# 我的文件 › 我的站点：只有我编写、只有我有权限的站点（博客、书库等）
+# 2.4.1 三站登记（用于 return 白名单、文档、设置页展示）
+- id: portal
+  name: 主站
+  host: styrigx.com
+  lock: local
 - id: blog
-  title: 博客
-  subtitle: Sloan Gray 的个人博客
-  url: https://blog.styrigx.com
-  icon: pen
-- id: library
-  title: 书库
-  subtitle: 个人电子书库
-  url: https://book.styrigx.com
-  icon: book
+  name: 博客
+  host: blog.styrigx.com
+  lock: redirect
+- id: book
+  name: 书库
+  host: book.styrigx.com
+  lock: redirect
