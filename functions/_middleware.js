@@ -51,6 +51,21 @@ function getCookie(request, name) {
 }
 
 /**
+ * 取出 Cookie 头里**所有**同名 cookie 的值（2.4.1 dedup：旧版无 Domain 的
+ * 主机绑定 sgx-verified 可能和新版带 Domain 的并存，浏览器会把两个都发过来）。
+ * @returns {string[]}
+ */
+function getAllCookies(request, name) {
+  const out = [];
+  const h = request.headers.get('Cookie') || '';
+  for (const part of h.split(';')) {
+    const [k, ...v] = part.trim().split('=');
+    if (k === name) out.push(v.join('='));
+  }
+  return out;
+}
+
+/**
  * 站内路径校验（?return= 只收这个）：
  * 必须以 / 开头，且不能是 // 或 /\（防协议相对 URL 和反斜杠 trick）。
  */
@@ -62,12 +77,29 @@ export function isSafeReturnPath(ret) {
 /**
  * 验证 sgx-verified cookie：epoch.exp.sig
  * 返回 'ok' 或失败原因（no-cookie/bad-format/expired/no-pubkey/bad-sig/
- * kv-error/epoch-low）。diag 接口用它做自检。
+ * kv-error/epoch-low）。
+ * 2.4.1 dedup：遍历 Cookie 头里所有同名值，任一验签通过即有效（旧版无
+ * Domain 的主机绑定 cookie 可能和新版并存）。
  * @returns {Promise<string>}
  */
 export async function verifySessionReason(request, env) {
-  const val = getCookie(request, READER_COOKIE_NAME);
-  if (!val) return 'no-cookie';
+  const vals = getAllCookies(request, READER_COOKIE_NAME);
+  if (!vals.length) return 'no-cookie';
+  let reason = 'bad-format';
+  for (const val of vals) {
+    const r = await verifyOneCookie(val, env);
+    if (r === 'ok') return 'ok';
+    /* 记录最有信息量的失败原因：优先 bad-sig/expired，其次 bad-format */
+    if (reason === 'bad-format' || r !== 'bad-format') reason = r;
+  }
+  return reason;
+}
+
+/**
+ * 验签单个 cookie 值。
+ * @returns {Promise<string>} 'ok' 或失败原因
+ */
+async function verifyOneCookie(val, env) {
   const parts = val.split('.');
   if (parts.length !== 3) return 'bad-format';
   const [epochStr, expStr, sig] = parts;
@@ -138,17 +170,6 @@ export async function onRequest(context) {
     }
   }
 
-  /* 临时诊断接口放行（定位会话问题后删除本段 + functions/api/diag/）：
-     X-Diag-Token 请求头与 DIAG_TOKEN 匹配才 next()，否则继续走正常锁屏
-     流程（302），不暴露接口存在。不在 API_WHITELIST 里加它。 */
-  if (pathname === '/api/diag/session') {
-    const diagToken = (env && env.DIAG_TOKEN) || '';
-    const t = request.headers.get('X-Diag-Token') || '';
-    if (diagToken && t === diagToken) {
-      return next();
-    }
-  }
-
   /* 2.4.1：会话检查（生产环境 space 站点一律执行；缺 SGX_ED25519_PUBLIC 时
      verifySession 直接返回 false → fail closed，只放白名单路径。
      没有「未配置就放行」开关。） */
@@ -175,6 +196,13 @@ export async function onRequest(context) {
     }
     if (isWhitelisted(pathname)) {
       return next();
+    }
+    /* 未验证的 /api/* 请求：返回 401 JSON，不 302（前端按 API 约定处理） */
+    if (pathname.startsWith('/api/')) {
+      return new Response(JSON.stringify({ ok: false }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+      });
     }
     /* 未验证：302 到首页锁屏，return 带站内路径（设计文档 §2.3）。
        首页有完整锁屏 UI（密码/通行密钥/Turnstile），解锁后跳回原内页。
