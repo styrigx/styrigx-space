@@ -8,7 +8,7 @@
 
 - [x] 2.4.2 #11（styrigx-space，可合并）：Hugo 0.167 + Tailwind 4；Actions 整理只是升了版本号、把版本收成一处。分支 `feat/2.4.2-infra`，commit 977228e9 已合入 main。验收：生产部署 run 38024526434 全绿，styrigx.com 首页 200，owner-status 正常。✓ 2026-10-10
 - [x] 队列 PR #12（styrigx-space，可合并）：3.0 任务队列文档。commit da2418e2 已合入 main。定时任务只读 main 上的队列。✓ 2026-10-10
-- [x] 2.4.1 主站 #14（styrigx-space，只开不合）：旧 #10 因与 main 冲突（mergeable_state=dirty）致 PR workflow 不跑，已关闭；重建为 #14（分支 `feat/2.4.1-portal-lock-v2`，从最新 main 开，2.4.1 改动搬过去，冲突两边保留，样式按 Tailwind 4）。本地：CSS 149537 bytes、hugo 通过、锁屏 7/7。CI run 38026241551 全绿。Gray 未配密钥，不合并。✓ 2026-10-10
+- [x] 2.4.1 主站 #14（styrigx-space，只开不合）：旧 #10 因与 main 冲突（mergeable_state=dirty）致 PR workflow 不跑，已关闭；重建为 #14（分支 `feat/2.4.1-portal-lock-v2`，从最新 main 开，2.4.1 改动搬过去，冲突两边保留，样式按 Tailwind 4）。本地：CSS 149537 bytes、hugo 通过、锁屏 7/7。CI run 38026262154（PR head fd39079）全绿。Gray 未配密钥，不合并。✓ 2026-10-10
 - [x] 2.4.1 blog workflow（styrigx-blog，已合并）：PR #5（commit 2bdf21cf），CI run 38026813159 全绿，merge ccad181b。✓ 2026-10-10
 - [x] 2.4.1 blog #4（styrigx-blog，只开不合）：分支 `feat/2.4.1-blog-lock`，head c7df1a99，CI run 38026878738 全绿。保持开启，Gray 未配 `SGX_ED25519_PUBLIC` 不合并。✓ 2026-10-10
 - [x] README 动态徽章（styrigx-space，已合并）：PR #13 已合并（merge 7d109944）；main 部署 run 38026341722 全绿。deploy.yml 顶层 env.HUGO_VERSION 单源；tailwindcss/@tailwindcss/cli 统一 ^4.3.3，删 postcss；README 中英三徽章动态化，实测 Hugo 0.167.0 / Tailwind 4.3.3 / Styrigx UI 2.4.2。✓ 2026-10-10

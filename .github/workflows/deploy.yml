@@ -46,6 +46,11 @@ jobs:
       - name: Build CSS
         run: node scripts/build-css.cjs --minify
 
+      - name: Session security unit tests (2.4.1)
+        # 服务端安全逻辑：cookie 设置/清除统一、KV fail closed、session-epoch 503、
+        # middleware 缺密钥 fail closed、过期/旧 epoch cookie 被拒、return 白名单
+        run: node --test tests/unit/session-security.test.mjs
+
       - name: Build site (生产构建，用于锁屏测试)
         run: hugo --minify
 
@@ -160,6 +165,16 @@ jobs:
       - name: Build site
         run: hugo --minify
 
+      - name: Generate Ed25519 test key pair (CI only)
+        # 2.4.1：middleware 缺 SGX_ED25519_PUBLIC 时 fail closed，解锁接口需要
+        # SGX_ED25519_PRIVATE 才能签发会话 cookie。CI 在每次运行中临时生成一对
+        # 测试密钥注入 preview 环境；绝不用生产密钥，密钥不进仓库、不留文件。
+        run: |
+          openssl genpkey -algorithm ed25519 -out "$RUNNER_TEMP/ed25519-priv.pem"
+          openssl pkey -in "$RUNNER_TEMP/ed25519-priv.pem" -pubout -out "$RUNNER_TEMP/ed25519-pub.pem"
+          test -s "$RUNNER_TEMP/ed25519-priv.pem" && test -s "$RUNNER_TEMP/ed25519-pub.pem"
+          echo "Ed25519 test key pair generated (preview only)"
+
       - name: Set preview test secrets (preview only)
         # 只写 preview 环境，绝不碰 production。
         # 用 PATCH deployment_configs.preview，只带 preview 字段。
@@ -169,12 +184,21 @@ jobs:
           import json, sys, urllib.request, urllib.error
           ACCT = "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
           TOKEN = "${{ secrets.CLOUDFLARE_API_TOKEN }}"
+          with open("${{ runner.temp }}/ed25519-priv.pem") as f:
+              ED_PRIV = f.read()
+          with open("${{ runner.temp }}/ed25519-pub.pem") as f:
+              ED_PUB = f.read()
+          assert "PRIVATE KEY" in ED_PRIV and "PUBLIC KEY" in ED_PUB
           body = json.dumps({
               "deployment_configs": {
                   "preview": {
                       "env_vars": {
                           "OWNER_KEY": {"type": "secret_text", "value": "${{ secrets.PREVIEW_OWNER_KEY }}"},
                           "SESSION_SECRET": {"type": "secret_text", "value": "${{ secrets.PREVIEW_SESSION_SECRET }}"},
+                          # 2.4.1：CI 临时生成的测试密钥对（每次运行新生成，非生产密钥）
+                          "SGX_ED25519_PRIVATE": {"type": "secret_text", "value": ED_PRIV},
+                          "SGX_ED25519_PUBLIC": {"type": "plain_text", "value": ED_PUB},
+                          "SGX_SITE": {"type": "plain_text", "value": "space"},
                           # P0-3：预览的 RP_ID/ORIGIN（明文，CI 每次部署前写入）
                           "SGX_RP_ID": {"type": "plain_text", "value": "passkey-e2e.styrigx-space.pages.dev"},
                           "SGX_ORIGIN": {"type": "plain_text", "value": "https://passkey-e2e.styrigx-space.pages.dev"},
