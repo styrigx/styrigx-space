@@ -13,7 +13,7 @@ const minify = process.argv.includes('--minify');
 const tmpTw = path.join(root, 'assets/css/.tw-out.css');
 
 execSync(
-  `npx tailwindcss -i assets/css/tw-input.css -o "${tmpTw}"${minify ? ' --minify' : ''}`,
+  `npx @tailwindcss/cli -i assets/css/tw-input.css -o "${tmpTw}"${minify ? ' --minify' : ''}`,
   { cwd: root, stdio: 'inherit' }
 );
 
