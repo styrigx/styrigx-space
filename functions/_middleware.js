@@ -111,9 +111,10 @@ export async function onRequest(context) {
     }
   }
 
-  /* 2.4.1：会话检查（仅当 SGX_SITE=portal 或未设置时） */
+  /* 2.4.1：会话检查（仅当 SGX_SITE=portal 且配了公钥时；未配置则保持原行为，保证 CI/预览环境不锁死） */
   const site = env && env.SGX_SITE;
-  if (!site || site === 'portal') {
+  const pubKey = env && env.SGX_ED25519_PUBLIC;
+  if ((!site || site === 'portal') && pubKey) {
     /* 处理 ?return= 参数（从 blog/book 跳转回来验证通过后） */
     const returnUrl = url.searchParams.get('return');
     if (returnUrl && pathname === '/') {
