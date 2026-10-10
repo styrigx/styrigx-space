@@ -288,7 +288,7 @@ test.describe('lock screen', () => {
 
 /* 2.8.0 锁屏重设计 e2e */
 test.describe('lock screen redesign (2.8.0)', () => {
-  test('点头像 → 底部弹层 → 选通行密钥/密码', async ({ page }) => {
+  test('点头像 → 底部弹层 → 三个选项', async ({ page }) => {
     await freezeTime(page);
     await gotoLock(page);
     /* 只有头像，没有 Styrigx 文字和常驻链接 */
@@ -298,12 +298,15 @@ test.describe('lock screen redesign (2.8.0)', () => {
     await expect(page.locator('#sgx-lock-pkbtn')).toHaveCount(0);
     /* 点头像 → 弹层出现 */
     await openMethodSheet(page);
-    /* 两个选项：通行密钥在前（首选），密码在后 */
+    /* 三个选项：访客进入在前，通行密钥，密码 */
+    const visitorOpt = page.locator('#sgx-mopt-visitor');
     const pkOpt = page.locator('#sgx-mopt-pk');
     const pwOpt = page.locator('#sgx-mopt-pw');
-    await expect(pkOpt).toBeVisible();
+    await expect(visitorOpt).toBeVisible();
     await expect(pwOpt).toBeVisible();
-    await expect(pkOpt.locator('.sgx-method-badge')).toContainText(/推荐|Recommended/);
+    /* 访客是第一个 */
+    const firstId = await page.locator('.sgx-method-opt').first().getAttribute('id');
+    expect(firstId).toBe('sgx-mopt-visitor');
     /* 选密码 → 密码框出现 */
     await pwOpt.click();
     await expect(page.locator('#sgx-pw-input')).toBeVisible();

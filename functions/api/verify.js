@@ -11,6 +11,7 @@
  */
 import {
   issueSessionCookie,
+  ROLE_VISITOR,
 } from '../_kernel/session.js';
 
 const SITEVERIFY = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
@@ -79,7 +80,8 @@ export async function onRequestPost(context) {
   /* 通过：签发 Ed25519 会话 cookie（fail closed：无密钥/签发失败 → 5xx，
      绝不静默跳过然后返回 ok:true） */
   const headers = new Headers({ 'Content-Type': 'application/json' });
-  const signErr = await issueSessionCookie(env, headers);
+  /* 2.8.0：Turnstile 只签 visitor（1 小时），没有主人权限 */
+  const signErr = await issueSessionCookie(env, headers, ROLE_VISITOR);
   if (signErr) {
     return new Response(JSON.stringify(signErr.body), {
       status: signErr.status,

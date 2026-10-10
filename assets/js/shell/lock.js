@@ -604,18 +604,16 @@ function showLockScreen() {
 
   /**
    * 2.8.0 锁屏重设计：点击头像后弹出的解锁方式选择底部弹层。
-   * One UI 风格：底部弹层（宽屏居中卡片），两个大选项（通行密钥首选），
-   * 各带图标和一行说明。点外部、Esc 或下滑关闭；键盘可操作。
+   * One UI 风格：底部弹层（宽屏居中卡片），三个选项，各带图标和一行说明：
+   * 1. 访客进入（Cloudflare Turnstile，第一个）
+   * 2. 通行密钥
+   * 3. 密码
+   * 点外部、Esc 或下滑关闭；键盘可操作。
    */
   let methodSheet = null;
   function openMethodSheet() {
     if (methodSheet) return;
     const hasPk = !!(window.PublicKeyCredential);
-    /* 如果设备不支持通行密钥，直接走密码 */
-    if (!hasPk) {
-      openPw();
-      return;
-    }
     const sheet = document.createElement('div');
     sheet.id = 'sgx-method-sheet';
     sheet.setAttribute('role', 'dialog');
@@ -626,14 +624,25 @@ function showLockScreen() {
       '<div class="sgx-sheet-card" role="document">' +
       '<div class="sheet-handle" aria-hidden="true"></div>' +
       '<h2 class="sgx-sheet-title">' + (en ? 'Unlock' : '解锁') + '</h2>' +
-      '<button type="button" class="sgx-method-opt" id="sgx-mopt-pk" aria-label="' +
-        (en ? 'Use passkey, recommended' : '使用通行密钥，推荐') + '">' +
+      /* 1. 访客进入（Turnstile） */
+      '<button type="button" class="sgx-method-opt" id="sgx-mopt-visitor" aria-label="' +
+        (en ? 'Enter as visitor, verify you are human' : '访客进入，验证你不是机器人') + '">' +
       '<span class="sgx-method-ic" aria-hidden="true">' +
-      '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.9-.8"/></svg></span>' +
-      '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Passkey' : '通行密钥') + '</span>' +
-      '<span class="sgx-method-desc">' + (en ? 'Unlock with fingerprint or device PIN' : '用指纹或设备 PIN 解锁') + '</span></span>' +
-      '<span class="sgx-method-badge">' + (en ? 'Recommended' : '推荐') + '</span>' +
+      '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2.5"/></svg></span>' +
+      '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Visitor' : '访客进入') + '</span>' +
+      '<span class="sgx-method-desc">' + (en ? 'Verify you are human via Cloudflare' : '通过 Cloudflare 验证你不是机器人') + '</span></span>' +
       '</button>' +
+      /* 2. 通行密钥（如果设备支持） */
+      (hasPk
+        ? '<button type="button" class="sgx-method-opt" id="sgx-mopt-pk" aria-label="' +
+          (en ? 'Use passkey' : '使用通行密钥') + '">' +
+          '<span class="sgx-method-ic" aria-hidden="true">' +
+          '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.9-.8"/></svg></span>' +
+          '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Passkey' : '通行密钥') + '</span>' +
+          '<span class="sgx-method-desc">' + (en ? 'Unlock with fingerprint or device PIN' : '用指纹或设备 PIN 解锁') + '</span></span>' +
+          '</button>'
+        : '') +
+      /* 3. 密码 */
       '<button type="button" class="sgx-method-opt" id="sgx-mopt-pw" aria-label="' +
         (en ? 'Use password' : '使用密码') + '">' +
       '<span class="sgx-method-ic" aria-hidden="true">' +
@@ -651,8 +660,10 @@ function showLockScreen() {
       });
     });
     const close = function () { closeMethodSheet(); };
+    const visitorBtn = sheet.querySelector('#sgx-mopt-visitor');
     const pkBtn = sheet.querySelector('#sgx-mopt-pk');
     const pwBtn = sheet.querySelector('#sgx-mopt-pw');
+    if (visitorBtn) on(visitorBtn, 'click', function () { close(); openVerify(); });
     if (pkBtn) on(pkBtn, 'click', function () { close(); openPk(); });
     if (pwBtn) on(pwBtn, 'click', function () { close(); openPw(); });
     const backdrop = sheet.querySelector('[data-close]');
@@ -680,9 +691,9 @@ function showLockScreen() {
         }
       });
     }
-    /* 焦点移到第一个选项，键盘可操作 */
+    /* 焦点移到第一个选项（访客进入），键盘可操作 */
     try {
-      if (pkBtn) pkBtn.focus({ preventScroll: true });
+      if (visitorBtn) visitorBtn.focus({ preventScroll: true });
     } catch (e) {}
   }
 
