@@ -18,9 +18,13 @@
 @view-transition {
   navigation: auto;
 }
-/* 2.8.0 切页流畅度：dock 和顶栏在切页时保持不动（共享元素过渡） */
-.dock, #dex-dock {
-  view-transition-name: sgx-dock;
+/* 2.8.0 切页流畅度：dock 和顶栏在切页时保持不动（共享元素过渡）
+   注意：.dock 和 #dex-dock 必须用不同的 name，同名会导致整个过渡作废 */
+.dock {
+  view-transition-name: sgx-dock-mobile;
+}
+#dex-dock {
+  view-transition-name: sgx-dock-dex;
 }
 #site-nav {
   view-transition-name: sgx-topbar;
