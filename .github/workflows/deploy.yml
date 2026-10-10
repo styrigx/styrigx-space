@@ -21,7 +21,8 @@ jobs:
   # 2.4.0 E：质量闸门 —— 视觉回归 + Lighthouse CI + stylelint，不达标不部署
   # Hark：PR 也跑 quality，变绿再合入 main；只有 main 的 push 才部署
   quality:
-    runs-on: ubuntu-latest
+    # 2026-10-11：固定 ubuntu-24.04，ubuntu-latest 10-19 起切 Ubuntu 26，字体渲染可能变化
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v6
