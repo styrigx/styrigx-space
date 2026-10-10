@@ -423,10 +423,18 @@ test('middleware：?return= 只接受站内路径，非法一律回首页 /', as
   assert.equal(r.status, 302);
   assert.equal(r.headers.get('Location'), '/browser/?x=1');
 
-  /* 完整 URL 不再接受 → 回首页 */
+  /* 白名单跨站 URL（https://*.styrigx.com）→ 302 到该 URL */
   r = await tryReturn('https://styrigx.com/settings/');
   assert.equal(r.status, 302);
-  assert.equal(r.headers.get('Location'), '/');
+  assert.equal(r.headers.get('Location'), 'https://styrigx.com/settings/');
+
+  r = await tryReturn('https://blog-preview.styrigx.com/post/abc/');
+  assert.equal(r.status, 302);
+  assert.equal(r.headers.get('Location'), 'https://blog-preview.styrigx.com/post/abc/');
+
+  r = await tryReturn('https://book-preview.styrigx.com/read/');
+  assert.equal(r.status, 302);
+  assert.equal(r.headers.get('Location'), 'https://book-preview.styrigx.com/read/');
 
   /* 外部域名 → 回首页 */
   r = await tryReturn('https://evil.com/');
@@ -434,6 +442,18 @@ test('middleware：?return= 只接受站内路径，非法一律回首页 /', as
 
   /* 后缀欺骗 → 回首页 */
   r = await tryReturn('https://styrigx.com.evil.com/');
+  assert.equal(r.headers.get('Location'), '/');
+
+  /* http（非 https）→ 回首页 */
+  r = await tryReturn('http://blog.styrigx.com/');
+  assert.equal(r.headers.get('Location'), '/');
+
+  /* 带 userinfo → 回首页 */
+  r = await tryReturn('https://user@styrigx.com/');
+  assert.equal(r.headers.get('Location'), '/');
+
+  /* URL 里含反斜杠 → 回首页 */
+  r = await tryReturn('https://styrigx.com/\\evil');
   assert.equal(r.headers.get('Location'), '/');
 
   /* 协议相对 URL → 回首页 */
