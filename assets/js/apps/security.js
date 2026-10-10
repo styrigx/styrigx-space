@@ -100,8 +100,8 @@ import { toast } from '../lib/toast.js';
   }
 
   /* 锁定所有设备（2.8.0）：跳到解锁方式页，验证身份后用那里的
-     「立即锁定并退出所有设备」（调 /api/owner-password lockout，
-     session-epoch +1）。注意：blog/book 缓存 epoch 约 60 秒，
+     「立即锁定并退出所有设备」（调独立 L2 API /api/lock-all-devices，
+     只认 owner 会话，session-epoch +1）。注意：blog/book 缓存 epoch 约 60 秒，
      锁定后最多 60 秒内生效。 */
   const lockAll = document.getElementById('sec-lockall');
   if (lockAll) {

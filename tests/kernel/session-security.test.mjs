@@ -5,8 +5,8 @@
  * - sgx-verified 设置/清除走同一函数、属性只定义一处（含 Domain=.styrigx.com）
  * - getSessionEpoch：KV 出错抛错；key 不存在才当 0；bump 出错绝不写入
  * - /api/session-epoch：KV 未绑定/读取出错 → 503；key 不存在 → {epoch:0}
- * - owner-password：verify 通过后 Set-Cookie 带 Domain；KV 出错 → 503；
- *   lockout 后 epoch+1、清 cookie 带 Domain、KV 出错 → 503 且不写入
+ * - /api/lock-all-devices（2.8.0 独立 L2 API）：owner 会话 → epoch+1、清 cookie 带 Domain、
+ *   KV 出错 → 503 且不写入；visitor 会话 → 403；无会话 → 401；旧三段式 cookie 无效
  * - _middleware：缺 SGX_ED25519_PUBLIC 时生产环境 fail closed（只放白名单）；
  *   过期 cookie 被拒；旧 epoch cookie 被拒；伪造签名被拒；
  *   未验证的非白名单路径 302 到 https://styrigx.com/?lock=1&return=<站内路径>
@@ -35,6 +35,7 @@ import {
 } from '../../functions/_kernel/session.js';
 import { hmacSign, b64urlEnc, ed25519Sign } from '../../functions/_kernel/crypto.js';
 import { onRequestPost as pwPost } from '../../functions/api/owner-password.js';
+import { onRequestPost as lockAllPost } from '../../functions/api/lock-all-devices.js';
 import { onRequestGet as epochGet } from '../../functions/api/session-epoch.js';
 import { onRequest as mw } from '../../functions/_middleware.js';
 
@@ -259,11 +260,18 @@ test('password verify：密码错误 → 403（不签发）', async () => {
   assert.equal(r.headers.get('Set-Cookie'), null);
 });
 
-test('lockout：epoch+1、清 cookie 带 Domain；KV 写入出错 → 503 且 epoch 不变', async () => {
+/* ================================================================
+ * /api/lock-all-devices（2.8.0：从 owner-password lockout 拆出的独立 L2 API）
+ * ================================================================ */
+
+test('lock-all-devices：owner 会话 → epoch+1、清 cookie 带 Domain；KV 写入出错 → 503 且 epoch 不变', async () => {
   const kv = makeKV({ 'session-epoch': '2' });
-  const env = { OWNER_KV: kv, SESSION_SECRET: 's' };
-  const token = await mintOwnerToken('s');
-  const r = await pwPost({ request: postReq('https://styrigx.com/api/owner-password', { action: 'lockout', token }), env });
+  const cookie = await signSessionCookie(TEST_PRIV_PEM, 2, 'owner');
+  const env = { OWNER_KV: kv, SGX_ED25519_PUBLIC: TEST_PUB_PEM };
+  const r = await lockAllPost({
+    request: postReq('https://styrigx.com/api/lock-all-devices', {}, { 'Cookie': 'sgx-verified=' + cookie }),
+    env,
+  });
   assert.equal(r.status, 200);
   assert.deepEqual(await r.json(), { ok: true });
   assert.equal(kv.store.get('session-epoch'), '3');
@@ -274,12 +282,48 @@ test('lockout：epoch+1、清 cookie 带 Domain；KV 写入出错 → 503 且 ep
 
   /* 写入失败 → 503，epoch 保持原值 */
   const broken = makePutBrokenKV({ 'session-epoch': '5' });
-  const r2 = await pwPost({
-    request: postReq('https://styrigx.com/api/owner-password', { action: 'lockout', token }),
-    env: { OWNER_KV: broken, SESSION_SECRET: 's' },
+  const cookie2 = await signSessionCookie(TEST_PRIV_PEM, 5, 'owner');
+  const r2 = await lockAllPost({
+    request: postReq('https://styrigx.com/api/lock-all-devices', {}, { 'Cookie': 'sgx-verified=' + cookie2 }),
+    env: { OWNER_KV: broken, SGX_ED25519_PUBLIC: TEST_PUB_PEM },
   });
   assert.equal(r2.status, 503);
   assert.equal(broken.store.get('session-epoch'), '5');
+});
+
+test('lock-all-devices：visitor 会话 → 403 {ok:false, error:role}（epoch 不变）', async () => {
+  const kv = makeKV({ 'session-epoch': '2' });
+  const cookie = await signSessionCookie(TEST_PRIV_PEM, 2, 'visitor');
+  const env = { OWNER_KV: kv, SGX_ED25519_PUBLIC: TEST_PUB_PEM };
+  const r = await lockAllPost({
+    request: postReq('https://styrigx.com/api/lock-all-devices', {}, { 'Cookie': 'sgx-verified=' + cookie }),
+    env,
+  });
+  assert.equal(r.status, 403);
+  assert.deepEqual(await r.json(), { ok: false, error: 'role' });
+  assert.equal(kv.store.get('session-epoch'), '2');
+});
+
+test('lock-all-devices：无会话 → 401', async () => {
+  const kv = makeKV({ 'session-epoch': '2' });
+  const env = { OWNER_KV: kv, SGX_ED25519_PUBLIC: TEST_PUB_PEM };
+  const r = await lockAllPost({
+    request: postReq('https://styrigx.com/api/lock-all-devices', {}),
+    env,
+  });
+  assert.equal(r.status, 401);
+  assert.equal(kv.store.get('session-epoch'), '2');
+});
+
+test('lock-all-devices：旧三段式（无 role）cookie → 401 无效', async () => {
+  const kv = makeKV({ 'session-epoch': '2' });
+  const env = { OWNER_KV: kv, SGX_ED25519_PUBLIC: TEST_PUB_PEM };
+  const r = await lockAllPost({
+    request: postReq('https://styrigx.com/api/lock-all-devices', {}, { 'Cookie': 'sgx-verified=2.9999999999999.fakesig' }),
+    env,
+  });
+  assert.equal(r.status, 401);
+  assert.equal(kv.store.get('session-epoch'), '2');
 });
 
 test('change/remove 密码：KV 出错 → 503', async () => {

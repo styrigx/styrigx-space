@@ -10,10 +10,11 @@
  * - change: { token, newPassword } — 修改密码（需有效的 owner-auth token；改完后旧会话失效）
  * - verify: { password } — 解锁验证（IP 限流：5 次失败 → 30 秒锁定）
  * - remove: { token } — 删除解锁密码（需有效的 owner-auth token；同时清 pw-fail:* 和 pw-lock:*）
+ * 2.8.0：lockout（锁定所有设备）已拆为独立 L2 API /api/lock-all-devices。
  *
  * 密码存储：PBKDF2-SHA256 + 随机 salt，存 OWNER_KV；恒定时间比较（SHA-256 后比较）。
  * 会话可吊销：KV 存 session-epoch，Ed25519(SGX_ED25519_PRIVATE) 签进 cookie；
- * 改密码/删密码/lockout 时 +1，旧 cookie 失效。
+ * 改密码/删密码时 +1，旧 cookie 失效（锁定所有设备走 /api/lock-all-devices）。
  * sgx-verified cookie 的设置/清除统一走 _kernel/session.js（属性只定义一处）。
  * KV 读取出错时抛错→接口返回 503，绝不继续写入。
  * 只接受 POST；校验 Origin；未设置密码时 verify 一律拒绝。
@@ -21,7 +22,6 @@
  */
 import { b64enc, b64dec, timingSafeEqual, hmacVerify } from '../_kernel/crypto.js';
 import {
-  clearVerifiedCookie,
   issueSessionCookie,
   bumpSessionEpoch,
   ROLE_OWNER,
@@ -186,8 +186,9 @@ async function handlePost(context) {
     return new Response(JSON.stringify({ ok: true }), { headers });
   }
 
-  /* ============ set/change/remove：需 owner-auth token ============ */
-  if (action === 'set' || action === 'change' || action === 'remove' || action === 'lockout') {
+  /* ============ set/change/remove：需 owner-auth token ============
+     2.8.0：lockout 已拆为独立 L2 API /api/lock-all-devices（只认 owner 会话）。 */
+  if (action === 'set' || action === 'change' || action === 'remove') {
     const token = (body && body.token) || '';
     const secret = (env && env.SESSION_SECRET) || '';
     if (!secret) {
@@ -195,19 +196,6 @@ async function handlePost(context) {
     }
     if (!token || !(await verifyOwnerToken(token, secret))) {
       return Response.json({ ok: false, error: 'token' }, { status: 403 });
-    }
-
-    /* lockout：立即锁定并退出所有设备（session-epoch +1，用 Set-Cookie 清当前 cookie） */
-    if (action === 'lockout') {
-      try {
-        await bumpSessionEpoch(kv);
-      } catch (e) {
-        /* KV 出错：绝不写入，返回 503 */
-        return Response.json({ ok: false, error: 'server' }, { status: 503 });
-      }
-      const headers = new Headers({ 'Content-Type': 'application/json' });
-      clearVerifiedCookie(headers);
-      return new Response(JSON.stringify({ ok: true }), { headers });
     }
 
     /* remove：删除解锁密码，同时清掉失败计数和锁定 */

@@ -613,7 +613,7 @@ test.describe('session security e2e (2.4.1)', () => {
     }
   });
 
-  test('lockout 后 epoch+1，旧 cookie 的 epoch 失效', async ({ page, request }) => {
+  test('lock-all-devices 后 epoch+1，旧 cookie 的 epoch 失效', async ({ page, request }) => {
     await gateWithKey(page);
     const token = await ensurePassword(request, page, 'e2e-lockout-pw-1');
     try {
@@ -626,10 +626,8 @@ test.describe('session security e2e (2.4.1)', () => {
       const epoch1 = cookieEpoch(r.headers()['set-cookie']);
       expect(epoch1).toBe(e0);
 
-      /* 立即锁定并退出所有设备 */
-      r = await request.post(BASE + '/api/owner-password', {
-        data: { action: 'lockout', token },
-      });
+      /* 立即锁定并退出所有设备（2.8.0：独立 L2 API，只认 owner 会话） */
+      r = await request.post(BASE + '/api/lock-all-devices', { data: {} });
       expect((await r.json()).ok).toBe(true);
       /* 清 cookie 同样带 Domain，且正确过期 */
       const clearSc = r.headers()['set-cookie'] || '';
