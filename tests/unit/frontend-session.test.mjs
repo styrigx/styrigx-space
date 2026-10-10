@@ -74,3 +74,29 @@ test('/api/lock：GET 返回 405', async () => {
   const res = await lockGet({ request: new Request('https://styrigx.com/api/lock'), env: {} });
   assert.equal(res.status, 405);
 });
+
+test('lock.js：有 return 时直接 location.replace（不做前端白名单校验）', () => {
+  /* 2.4.1：return 校验只归 L1，前端删掉重复的白名单校验 */
+  assert.ok(lockJs.includes('location.replace('), '有 return 时应 location.replace');
+  assert.ok(!lockJs.includes('retOk'), '不应再有前端 return 白名单校验（retOk）');
+  assert.ok(!lockJs.includes("ret.charAt(0) === '/'"), '不应再有前端站内路径校验');
+});
+
+test('lock.js：锁屏显示期间监听 visibilitychange/focus/pageshow 重查会话', () => {
+  assert.ok(lockJs.includes("addEventListener('visibilitychange'"), '应监听 visibilitychange');
+  assert.ok(lockJs.includes("addEventListener('focus'"), '应监听 focus');
+  assert.ok(lockJs.includes("addEventListener('pageshow'"), '应监听 pageshow');
+  assert.ok(lockJs.includes('recheckSession'), '应有 recheckSession 函数');
+  /* 节流至少 1 秒 */
+  assert.ok(lockJs.includes('lastRecheck'), '应有节流时间戳');
+  /* pageshow 只在 bfcache 恢复时重查，避免 reload 循环 */
+  assert.ok(lockJs.includes('persisted'), 'pageshow 应检查 persisted');
+});
+
+test('lock.js：不用前端存储传递解锁状态', () => {
+  /* 状态源只有服务端 sgx-verified */
+  assert.ok(!lockJs.includes('BroadcastChannel'), '不应使用 BroadcastChannel');
+  /* sessionStorage 只允许读偏好（sgx-weather-show 等），不允许存解锁状态 */
+  assert.ok(!lockJs.includes('sgx-unlocked'), '不应有解锁状态标记');
+  assert.ok(!lockJs.includes('sgx-session-ok'), '不应有解锁状态标记');
+});

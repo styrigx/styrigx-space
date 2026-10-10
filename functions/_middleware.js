@@ -28,6 +28,9 @@ const API_WHITELIST = [
 ];
 const PAGE_WHITELIST = [];
 const STATIC_RE = /\.(css|js|woff2|woff|ttf|png|svg|ico|json|xml|webmanifest)$/i;
+/* 锁屏头像：Hugo 把 images/avatar.png 转成 /images/avatar_hu_<hash>_*.webp/avif。
+   只放行 avatar_ 开头的 webp/avif（锁屏用），其他图片仍要先解锁。 */
+const AVATAR_RE = /^\/images\/avatar_.*\.(webp|avif)$/i;
 /* 首页由 L1 特殊处理（见下）：始终返回页面并注入 data-sgx-session，不再走白名单 */
 
 function isWhitelisted(pathname) {
@@ -38,6 +41,7 @@ function isWhitelisted(pathname) {
   }
   if (pathname.startsWith('/assets/')) return true;
   if (pathname === '/favicon.ico' || pathname === '/robots.txt' || pathname === '/sitemap.xml') return true;
+  if (AVATAR_RE.test(pathname)) return true;
   if (STATIC_RE.test(pathname)) return true;
   return false;
 }
@@ -236,11 +240,12 @@ export async function onRequest(context) {
       const returnPath = url.searchParams.get('return');
       if (returnPath && sessionValid) {
         /* 手动构造 302（不用 Response.redirect：Node/undici 不接受相对路径，
-           Workers 可以；手动写兼容两边） */
+           Workers 可以；手动写兼容两边）。
+           no-store：绝不缓存这个跳转（2.4.1 锁屏原则）。 */
         const loc = isSafeReturn(returnPath) ? returnPath : '/';
         return new Response(null, {
           status: 302,
-          headers: { 'Location': loc },
+          headers: { 'Location': loc, 'Cache-Control': 'private, no-store' },
         });
       }
       const res = await next();
