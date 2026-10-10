@@ -1,6 +1,6 @@
 /**
  * @fileoverview 顶栏与 Dock 系统（旧 sgx-base-b.js）。
- * 手机悬浮 Dock、桌面布局 resize 跟随、顶栏时钟/天气、DeX 应用抽屉、时钟弹窗、天气面板。
+ * Mobile 悬浮 Dock、布局 resize 跟随、顶栏时钟/天气、DeX 应用抽屉、时钟弹窗、天气面板。
  */
 import { on } from './events.js';
 import { fmtTz } from './util.js';
@@ -15,9 +15,9 @@ import { onDexLayoutChange, applyLayout } from './layout.js';
 export function initNav(S) {
   const en = document.documentElement.lang === 'en';
 
-  /* ===== 手机悬浮 Dock：滚动隐藏 + 选中高亮块滑动 ===== */
+  /* ===== Mobile 悬浮 Dock：滚动隐藏 + 选中高亮块滑动 ===== */
   (function () {
-    const dock = document.getElementById('phone-dock');
+    const dock = document.getElementById('mobile-dock');
     if (!dock) return;
     const pill = document.getElementById('dock-pill');
     const reduced = function () {
@@ -59,9 +59,9 @@ export function initNav(S) {
       if (t) clearTimeout(t);
       t = window.setTimeout(show, 600);
     });
-    /* DeX 模式下确保隐藏（CSS 已处理，这里兜底清状态） */
+    /* DeX/PC 模式下确保隐藏（CSS 已处理，这里兜底清状态） */
     onDexLayoutChange(function (m) {
-      if (m !== 'dex') paintActive();
+      if (m === 'mobile') paintActive();
     });
   })();
 
@@ -307,9 +307,9 @@ export function initNav(S) {
         e.preventDefault();
         location.replace(a.getAttribute('href') || '/');
       });
-    /* 离开 dex 模式时关闭抽屉 */
+    /* 离开 DeX/PC 模式时关闭抽屉 */
     onDexLayoutChange(function (m) {
-      if (m !== 'dex') close();
+      if (m !== 'dex' && m !== 'pc') close();
     });
   })();
 
@@ -391,9 +391,9 @@ export function initNav(S) {
     on(document, 'keydown', function (/** @type {KeyboardEvent} */ e) {
       if (e.key === 'Escape' && pop.classList.contains('open')) close();
     });
-    /* 离开 dex 模式时关闭时钟弹窗 */
+    /* 离开 DeX/PC 模式时关闭时钟弹窗 */
     onDexLayoutChange(function (m) {
-      if (m !== 'dex') close();
+      if (m !== 'dex' && m !== 'pc') close();
     });
   })();
 }

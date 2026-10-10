@@ -103,7 +103,7 @@
         <span class="switch" id="sw-system" role="switch" aria-checked="false" aria-label="{{ if $isEn }}Follow system{{ else }}跟随系统{{ end }}"><span class="knob"></span></span>
       </div>
       {{ end }}{{/* /theme-mode */}}
-      {{/* 2.4.0-G：字体大小 / 桌面布局由 features.yaml 生成（外观与手写版一致） */}}
+      {{/* 2.4.0-G：字体大小 / 布局由 features.yaml 生成（外观与手写版一致） */}}
       {{ if partial "feature.html" "font-size" }}{{ partial "settings-row.html" (dict "f" (index $featMap "font-size") "isEn" $isEn) }}{{ end }}
       {{ if partial "feature.html" "layout" }}{{ partial "settings-row.html" (dict "f" (index $featMap "layout") "isEn" $isEn) }}{{ end }}
     </section>
@@ -370,7 +370,7 @@
   "setidx" (slice
     (slice "跟随系统" "Follow system" "显示" "Display" "display" "row-system" "" "")
     (slice "字体大小" "Font size" "显示" "Display" "display" "seg-font" "" "")
-    (slice "桌面布局" "Desktop layout" "自动 / 手机 / DeX" "Auto / Phone / DeX" "display" "seg-layout" "" "")
+    (slice "布局" "Layout" "自动 / Mobile / DeX / PC" "Auto / Mobile / DeX / PC" "display" "seg-layout" "" "")
     (slice "主色" "Theme color" "壁纸和主题" "Wallpaper & theme" "theme" "palette-dots" "" "")
     (slice "壁纸和主题" "Wallpaper & theme" "" "" "theme" "sg-theme" "" "")
     (slice "安全与隐私" "Security and privacy" "锁定屏幕、密码、通行密钥" "Lock screen, password, passkeys" "security" "sg-security" "" "")

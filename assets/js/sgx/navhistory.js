@@ -54,7 +54,7 @@ export function initNavHistory() {
     goBack();
   });
   /* Dock 在 App 之间切换：子页面用 replace 不累积历史；主页用普通跳转保留历史。 */
-  delegate(document, 'click', '#phone-dock a[href],#dex-dock a[href]', function (e, a) {
+  delegate(document, 'click', '#mobile-dock a[href],#dex-dock a[href]', function (e, a) {
     const p = location.pathname;
     const isHome = p === '/' || p === '/en' || p === '/en/';
     if (isHome) return; /* 主页：不拦截，普通跳转 */

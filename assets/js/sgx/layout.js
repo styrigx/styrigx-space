@@ -1,5 +1,5 @@
 /**
- * @fileoverview 桌面布局（auto/phone/dex）变更钩子。
+ * @fileoverview 布局（auto/mobile/dex/pc）变更钩子。
  * <head> 内联脚本定义了 __applyLayout / __setHeadH，布局变化时调用 window.__dexLayoutChanged；
  * 这里提供注册表，各模块订阅，替代旧代码里层层覆盖 window.__dexLayoutChanged 的写法。
  */
@@ -8,7 +8,7 @@
 const hooks = [];
 
 /**
- * 订阅布局变更（m 为 'phone' | 'dex'）。
+ * 订阅布局变更（m 为 'mobile' | 'dex' | 'pc'）。
  * @param {(m: string) => void} fn
  */
 export function onDexLayoutChange(fn) {
