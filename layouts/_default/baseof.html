@@ -49,7 +49,7 @@
     var rm=false;try{rm=localStorage.getItem('sgx-reduced-motion')==='1'}catch(e){}
     if(rm){d.classList.add('reduced-motion')}
     d.setAttribute('data-reduced-motion',rm?'1':'0');
-    /* 桌面布局偏好（实际生效的布局由 __applyLayout 计算，这里只记偏好） */
+    /* 布局偏好（实际生效的布局由 __applyLayout 计算，这里只记偏好） */
     var lm=null;try{lm=localStorage.getItem('sgx-layout')}catch(e){}
     d.setAttribute('data-layout',lm||'auto');
     /* 语言偏好：sgx-lang (zh/en)。有偏好且与当前路径语言不一致时 replace 跳转，不产生历史 */
@@ -86,20 +86,22 @@
 </script>
 {{/* 2.4.0-C：旧 __sgxGet/__sgxSet/__sgxFmtTz 已移入 ES Module（assets/js/sgx/storage.js、util.js），此处不再定义 */}}
 <script>
-/* 桌面布局：auto/phone/dex —— 断点 <980 手机 / ≥980 DeX（含三星桌面模式/平板/电脑） */
+/* 布局：auto/mobile/dex/pc —— 只看视口不嗅探 UA：竖屏 → Mobile；横屏且 <1600px → DeX；横屏且 ≥1600px → PC */
 function __layoutMode(){
   var m=null;
   try{
     m=localStorage.getItem('sgx-layout');
-    if(m==='tablet'){localStorage.setItem('sgx-layout','auto');m='auto'} /* 2.3.0 起删掉平板布局，旧值自动迁移 */
+    /* 2.5.0：旧值（tablet/phone 等）一律回落到自动；tablet 迁移代码已删除 */
+    if(m!=='auto'&&m!=='mobile'&&m!=='dex'&&m!=='pc'){localStorage.setItem('sgx-layout','auto');m='auto'}
   }catch(e){}
-  if(m==='phone'||m==='dex')return m;
-  var w=window.innerWidth||1280;
-  return w<980?'phone':'dex';
+  if(m==='mobile'||m==='dex'||m==='pc')return m;
+  var w=window.innerWidth||1280,h=window.innerHeight||800;
+  if(h>=w)return 'mobile';
+  return w<1600?'dex':'pc';
 }
 function __applyLayout(){
   var d=document.documentElement,m=__layoutMode();
-  d.classList.remove('layout-phone','layout-dex');
+  d.classList.remove('layout-mobile','layout-dex','layout-pc');
   d.classList.add('layout-'+m);
   if(window.__setHeadH)window.__setHeadH();
   if(window.__dexLayoutChanged){try{window.__dexLayoutChanged(m)}catch(e){}}
@@ -108,7 +110,7 @@ __applyLayout();
 /* 手机子页面标题区高度 = 实际可见高度 × 0.25。
    只在首次加载和横竖屏切换时更新；滚动时浏览器地址栏伸缩不跟着变。 */
 window.__setHeadH=function(){
-  if(!document.documentElement.classList.contains('layout-phone'))return;
+  if(!document.documentElement.classList.contains('layout-mobile'))return;
   var h=window.innerHeight||0;
   if(h>0)document.documentElement.style.setProperty('--head-h',Math.round(h*0.25)+'px');
 }
@@ -227,7 +229,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{ $idx = $idx | append (dict "t" $cSet "d" (cond $isEn "Theme, language, wallpaper" "主题、语言、壁纸") "u" $setUrl "c" $cSet) }}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Dark mode" "深色模式") "d" $cSet "u" (print $setUrl "#display") "c" $cSet) }}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Font size" "字体大小") "d" $cSet "u" (print $setUrl "#display") "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Desktop layout" "桌面布局") "d" (cond $isEn "Phone / DeX" "手机 / DeX") "u" (print $setUrl "#display") "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Layout" "布局") "d" "Mobile / DeX / PC" "u" (print $setUrl "#display") "c" $cSet) }}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Wallpaper & theme" "壁纸和主题") "d" $cSet "u" (print $setUrl "#theme") "c" $cSet) }}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Theme color" "主色") "d" $cSet "u" (print $setUrl "#theme") "c" $cSet) }}
 {{ $idx = $idx | append (dict "t" (cond $isEn "General management" "常规管理") "d" $cSet "u" (print $setUrl "#manage") "c" $cSet) }}
@@ -305,8 +307,8 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{ end }}
 
 {{ if .IsHome }}
-<!-- 手机悬浮 Dock：我的文件 / 应用商店 / 浏览器 / 设置（<980px，仅主页） -->
-<div class="dock" id="phone-dock" role="navigation" aria-label="{{ if $isEn }}Navigation{{ else }}导航栏{{ end }}">
+<!-- Mobile 悬浮 Dock：我的文件 / 应用商店 / 浏览器 / 设置（竖屏，仅主页） -->
+<div class="dock" id="mobile-dock" role="navigation" aria-label="{{ if $isEn }}Navigation{{ else }}导航栏{{ end }}">
   <span class="dock-pill" id="dock-pill" aria-hidden="true"></span>
   <a href="{{ $filesUrl }}" class="dock-btn" data-dock="files" aria-label="{{ if $isEn }}My Files{{ else }}我的文件{{ end }}">
     <span class="dock-ic">{{ partial "icon.html" (dict "name" "files" "uid" "pd") }}</span><span class="dock-label">{{ if $isEn }}My Files{{ else }}我的文件{{ end }}</span>
@@ -322,7 +324,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
   </a>
 </div>
 
-<!-- DeX 底部居中 Dock（≥980px，仅主页）：应用抽屉 / 我的文件 / 应用商店 / 浏览器 / 设置 -->
+<!-- DeX/PC 底部居中 Dock（横屏，仅主页）：应用抽屉 / 我的文件 / 应用商店 / 浏览器 / 设置 -->
 <div id="dex-dock" role="navigation" aria-label="{{ if $isEn }}Navigation{{ else }}导航栏{{ end }}">
   <button type="button" id="dex-dock-drawer" class="dex-dock-btn" aria-label="{{ if $isEn }}App drawer{{ else }}应用抽屉{{ end }}" title="{{ if $isEn }}App drawer{{ else }}应用抽屉{{ end }}">
     <span class="dex-dock-ic">{{ partial "icon.html" (dict "name" "drawer" "uid" "dd") }}</span>
