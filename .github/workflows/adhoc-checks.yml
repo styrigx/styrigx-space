@@ -1,10 +1,11 @@
 # 临时检查 workflow（space #39 合并前删除）
-# 只用 workflow_dispatch 手动触发，不跑 Visual regression
+# push 到 feat/2.8.0-cleanup 时触发（workflow_dispatch 在功能分支上点不了）
 # 用途：在 Visual regression 红的时候，单独验证 PC layout、Lighthouse、技术名词三项
 name: Adhoc checks (PC layout / Lighthouse / tech terms)
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [feat/2.8.0-cleanup]
 
 env:
   HUGO_VERSION: 0.148.2
