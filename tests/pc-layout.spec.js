@@ -122,3 +122,85 @@ for (const vp of PCS) {
     });
   });
 }
+
+/* ----- DeX（1366x768 横屏 → layout-dex）第二轮返工断言 ----- */
+async function gotoDex(page) {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await blockExternalRequests(page);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await freezeTime(page);
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#home-widgets')).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('html')).toHaveClass(/layout-dex/);
+}
+
+test.describe('dex-layout 1366x768', () => {
+  test('DeX 下桌面图标网格不渲染（与 PC 一致）', async ({ page }) => {
+    await gotoDex(page);
+    await expect(page.locator('#home-apps')).toBeHidden();
+    const visibleTiles = await page.locator('.app-grid .app-tile:visible').count();
+    expect(visibleTiles).toBe(0);
+  });
+
+  test('DeX 顶栏与内容区左右对齐', async ({ page }) => {
+    await gotoDex(page);
+    const r = await page.evaluate(() => {
+      const padL = (el) => parseFloat(getComputedStyle(el).paddingLeft);
+      const padR = (el) => parseFloat(getComputedStyle(el).paddingRight);
+      const wrap = document.querySelector('.home-wrap');
+      const nav = document.querySelector('.nav-inner');
+      const wr = wrap.getBoundingClientRect(), nr = nav.getBoundingClientRect();
+      const brand = document.getElementById('nav-brand').getBoundingClientRect();
+      const tc = document.getElementById('nav-time-center').getBoundingClientRect();
+      return {
+        contentLeft: Math.round(wr.left + padL(wrap)), contentRight: Math.round(wr.right - padR(wrap)),
+        navLeft: Math.round(nr.left + padL(nav)), navRight: Math.round(nr.right - padR(nav)),
+        brandLeft: Math.round(brand.left), tcRight: Math.round(tc.right),
+      };
+    });
+    expect(Math.abs(r.navLeft - r.contentLeft)).toBeLessThanOrEqual(1);
+    expect(Math.abs(r.navRight - r.contentRight)).toBeLessThanOrEqual(1);
+    expect(Math.abs(r.brandLeft - r.contentLeft)).toBeLessThanOrEqual(1);
+    expect(Math.abs(r.tcRight - r.contentRight)).toBeLessThanOrEqual(1);
+  });
+
+  test('DeX 下底部渐隐带不渲染', async ({ page }) => {
+    await gotoDex(page);
+    await expect(page.locator('#edge-bottom')).toBeHidden();
+  });
+
+  test('滚到底 Dock 不压住任何卡片', async ({ page }) => {
+    await gotoDex(page);
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await expect.poll(async () =>
+      page.evaluate(() => window.scrollY >= document.documentElement.scrollHeight - window.innerHeight - 2),
+    ).toBe(true);
+    const res = await page.evaluate(() => {
+      const dock = document.getElementById('dex-dock').getBoundingClientRect();
+      const els = [...document.querySelectorAll('main .widget, main section')]
+        .filter((e) => e.offsetParent !== null);
+      const bad = [];
+      for (const e of els) {
+        const b = e.getBoundingClientRect();
+        const hit = !(b.bottom <= dock.top || b.top >= dock.bottom || b.right <= dock.left || b.left >= dock.right);
+        if (hit) bad.push(e.id || e.className.slice(0, 30));
+      }
+      const f = document.querySelector('footer');
+      const fb = f.getBoundingClientRect();
+      const fcs = getComputedStyle(f);
+      const contentBottom = fb.bottom - parseFloat(fcs.paddingBottom);
+      return { bad, footerClear: contentBottom <= dock.top };
+    });
+    expect(res.bad).toEqual([]);
+    expect(res.footerClear).toBe(true);
+  });
+
+  test('歌单横向滚动区右侧有内边距（末张封面不被硬切）', async ({ page }) => {
+    await gotoDex(page);
+    const pe = await page.evaluate(() => {
+      const el = document.querySelector('#music .overflow-x-auto');
+      return parseFloat(getComputedStyle(el).paddingRight);
+    });
+    expect(pe).toBeGreaterThanOrEqual(16);
+  });
+});

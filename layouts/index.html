@@ -322,7 +322,7 @@
         <span class="msg-hover">{{ if $isEn }}Music on repeat. Hover for notes.{{ else }}循环播放的音乐，悬停看批注。{{ end }}</span>
         <span class="msg-tap">{{ if $isEn }}Music on repeat. Tap a cover for notes.{{ else }}循环播放的音乐，点击封面看批注。{{ end }}</span>
       </p>
-      <div class="flex gap-4 overflow-x-auto pb-2 snap-x no-scrollbar -mx-1 px-1">
+      <div class="flex gap-4 overflow-x-auto pb-2 snap-x no-scrollbar -mx-1 px-1 pe-6">
       {{ range $m := $music }}
       <div class="group snap-start shrink-0 w-32 sm:w-40">
         <a href="{{ $m.url }}" target="_blank" rel="noopener" aria-label="{{ $m.title }} - {{ $m.artist }}"

@@ -587,6 +587,8 @@
     position: fixed; left: 0; right: 0; bottom: 0; height: 96px; z-index: 30; pointer-events: none;
     background: linear-gradient(to top, var(--m-surface), transparent);
   }
+  /* DeX/PC：底部 Dock 胶囊自带背景/毛玻璃/阴影，不需要全宽的底部渐隐带 */
+  .layout-dex #edge-bottom, .layout-pc #edge-bottom { display: none; }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     #edge-top { background: linear-gradient(to bottom, var(--m-surface), transparent); }
   }
@@ -1229,12 +1231,16 @@
   .layout-pc #home-widgets > #w-blog,
   .layout-pc #home-widgets > #w-screen,
   .layout-pc #home-widgets > #weather { grid-column: span 2/span 2; }
-  /* PC 下彻底不渲染桌面图标网格（与底部 Dock 重复） */
-  .layout-pc #home-apps { display: none; }
+  /* DeX/PC 下彻底不渲染桌面图标网格（与底部 Dock 重复；DeX 下还会被 Dock 压住、上半截漏出） */
+  .layout-dex #home-apps, .layout-pc #home-apps { display: none; }
   /* 顶栏与内容区对齐：同宽容器；头像/名字贴左缘，日期时间贴右缘 */
   .layout-pc .nav-inner { max-width: 1440px; gap: 0; }
   .layout-pc #nav-time-center { position: static; transform: none; margin-left: auto; }
   .layout-pc #nav-right { margin-left: 0; }
+  /* DeX 顶栏与内容区对齐：内容 1280 居中，同 PC 一套规则 */
+  .layout-dex .nav-inner { max-width: 1280px; gap: 0; }
+  .layout-dex #nav-time-center { position: static; transform: none; margin-left: auto; }
+  .layout-dex #nav-right { margin-left: 0; }
 
   /* ----- 手机模式强制（宽屏下也保持手机布局） ----- */
   .layout-mobile #home-widgets { grid-template-columns: repeat(4,minmax(0,1fr)); }
