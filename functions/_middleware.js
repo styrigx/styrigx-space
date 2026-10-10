@@ -206,6 +206,20 @@ export async function onRequest(context) {
   const host = url.hostname;
   const pathname = url.pathname;
 
+  /* L1 链首：pages.dev 生产别名 301 到正式域名。
+     只精确匹配 styrigx-space.pages.dev；hash/分支预览别名
+     （如 xxx.styrigx-space.pages.dev）放行，不跳转。
+     Cache-Control: no-store：绝不缓存这个跳转。 */
+  if (host === 'styrigx-space.pages.dev') {
+    return new Response(null, {
+      status: 301,
+      headers: {
+        'Location': 'https://styrigx.com' + url.pathname + url.search,
+        'Cache-Control': 'no-store',
+      },
+    });
+  }
+
   /* 只在生产环境启用 */
   const isProd = (env && env.SGX_ENV === 'production') || host === 'styrigx.com' || host === 'www.styrigx.com';
 
