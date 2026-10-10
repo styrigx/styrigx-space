@@ -6,10 +6,10 @@
 > 规则：只走 PR；不直推 main；不 force push；不删/不清生产 KV；不动 Cloudflare 后台与密钥；不留兼容层。
 > 队列更新跟在对应项的 PR 里一起提交。
 
-- [] 2.4.2 #11（styrigx-space，可合并）：Tailwind 4 + Hugo 0.167 + Actions 整理。分支 `feat/2.4.2-infra`，commit 977228e9 已合入 main。Actions 整理内容：workflow 三处 hugo-version 0.162.0 → 0.167.0；构建脚本改用 `@tailwindcss/cli`。验收：生产部署 run 全绿，styrigx.com 首页与 owner-status 正常。
+- [x] 2.4.2 #11（styrigx-space，可合并）：Tailwind 4 + Hugo 0.167 + Actions 整理。分支 `feat/2.4.2-infra`，commit 977228e9 已合入 main。Actions 整理内容：workflow 三处 hugo-version 0.162.0 → 0.167.0；构建脚本改用 `@tailwindcss/cli`。验收：生产部署 run 38024526434 全绿（quality/build-and-deploy/passkey-e2e），styrigx.com 首页 200，owner-status `{"ok":true,"password":true,"passkey":true}`，blog/book 200。✓ 2026-10-10
 - [] 2.4.1 主站 #10（styrigx-space，只开不合）：修 hugo 构建报错。分支 `feat/2.4.1-portal-lock`。验收：CI 全绿。Gray 未配 `SGX_ED25519_PRIVATE`/`SGX_ED25519_PUBLIC`，不合并。
 - [] 2.4.1 blog #4（styrigx-blog，只开不合）：给 workflow 加 `pull_request` 触发让 PR 跑 CI，然后修到绿。分支 `feat/2.4.1-blog-lock`。验收：CI 全绿。Gray 未配 `SGX_ED25519_PUBLIC`，不合并。
-- [] 2.4.1 book（styrigx-book，只开不合）：等 Gray 给 `styrigx-book-deploy` token 加 Contents 与 Pull requests 读写权限，轮到时跳过。
+- [] 2.4.1 book（styrigx-book，只开不合）：【等用户】等 Gray 给 `styrigx-book-deploy` token 加 Contents 与 Pull requests 读写权限，轮到时跳过。
 - [] 2.5.0 布局模式（styrigx-space，可合并）：#11 部署成功后从 main 开分支。验收：CI 全绿 → 合并 → 生产部署 run 全绿 → 线上验证。
 - [] 2.6.0 设置二级页 + 关于（styrigx-space，可合并）：设置顶层只留账户卡 + 分类列表，选项进子页；关于页保留站点优点。验收同上。
 - [] 2.7.0 语言 / G / 天气（styrigx-space，可合并）：语言跟随系统/中文/English；G 按 `build:false` 清单；天气定位顺序手动城市 > 精确定位（不自动弹权限）> IP 兜底。验收同上。
