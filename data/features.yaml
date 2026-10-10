@@ -339,7 +339,7 @@ features:
 
   - id: legacy-lock-screen
     name: {zh: 全屏锁屏（旧版）, en: Full-screen lock (legacy)}
-    build: true
+    build: false
     user: false
     type: bool
     default: true

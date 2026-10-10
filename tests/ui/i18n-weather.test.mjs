@@ -119,11 +119,19 @@ test('G/build:false：feature.html 有 build 判断逻辑', () => {
     featureHtml.includes('build'),
     'feature.html 应检查 build 字段'
   );
-  // 当前 features.yaml 里 build:false 的项（验证解析逻辑）
-  const buildFalseCount = (featuresYaml.match(/build: false/g) || []).length;
-  // 机制存在即可，具体数量不强制
+  // 验证 legacy-lock-screen 已设为 build:false
+  const legacySection = featuresYaml.slice(featuresYaml.indexOf('- id: legacy-lock-screen'));
+  const legacyBlock = legacySection.slice(0, legacySection.indexOf('- id:', 10));
   assert.ok(
-    featureHtml.toLowerCase().includes('false') || featureHtml.includes('ne ') || featureHtml.includes('eq '),
-    'feature.html 应有 build:false 判断逻辑'
+    legacyBlock.includes('build: false'),
+    'legacy-lock-screen 应设为 build:false（旧版锁屏，已被 L4 新实现替代）'
+  );
+});
+
+test('G/build:false：build:false 的项不应在 JS define 中启用', () => {
+  // 检查 baseof.html 的 featDefines 生成逻辑
+  assert.ok(
+    baseofHtml.includes('SGX_FEAT_') || baseofHtml.includes('featDefines'),
+    'baseof.html 应生成 SGX_FEAT_* defines'
   );
 });
