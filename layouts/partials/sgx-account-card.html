@@ -18,13 +18,16 @@
   <span aria-hidden="true">›</span>
 </a>
 <script>
-/* fix/hi-owner：只在已解锁时显示「解锁方式」入口 */
+/* fix/hi-owner：只在已解锁时显示「解锁方式」入口（以服务端会话为准） */
 (function(){
+  function show(){
+    var el = document.getElementById('sgx-unlock-link');
+    if (el) el.hidden = false;
+  }
   try {
-    if (sessionStorage.getItem('sgx-lock-shown') === '1') {
-      var el = document.getElementById('sgx-unlock-link');
-      if (el) el.hidden = false;
-    }
+    window.addEventListener('sgx:session', function(e){
+      if (e && e.detail && e.detail.ok) show();
+    });
   } catch(e){}
 })();
 </script>

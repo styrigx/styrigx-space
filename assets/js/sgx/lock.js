@@ -1,6 +1,8 @@
 /**
  * @fileoverview 全站锁屏 + Turnstile 入站验证（2.4.0 H）。
- * - 每个标签页会话首次进站（任意页）先锁屏；通过后 sessionStorage 标记，本次访问不再出现。
+ * - 每个页面加载时先问服务端（/api/session-check）会话是否有效；有效则直接显示页面，
+ *   无效/过期/接口报错则显示锁屏（fail-closed）。不再用 sessionStorage/内存判断。
+ * - 请求完成前显示中性加载态，不闪桌面也不闪锁屏。
  * - 点头像（电脑回车/空格）→ 底部 dialog 验证卡（One UI 密码界面式）+ Turnstile；
  *   通过 → 开锁动画 → 现有解锁流程；失败 → 红色提示 + 重试。
  * - 本地开发（localhost）跳过验证。
@@ -34,15 +36,65 @@ export function initLock() {
   /* Hark：legacy-lock-screen 和 owner-gate 是独立开关；
      只关旧锁屏时，owner-gate（Turnstile/密码）照常工作 */
   if (!SGX_FEAT_LEGACY_LOCK_SCREEN && !SGX_FEAT_OWNER_GATE) return;
-  const force = /(?:^|[?&])lock=1(?:&|$)/.test(location.search);
-  let seen = false;
-  try {
-    seen = sessionStorage.getItem('sgx-lock-shown') === '1';
-  } catch (e) {}
-  if (seen && !force) return;
-
-  const en = document.documentElement.lang === 'en';
   const isLocal = /^(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
+  if (isLocal) {
+    /* 本地开发没有 Functions 后端，直接显示锁屏 */
+    showLockScreen();
+    return;
+  }
+  /* 2.4.1：页面加载先问服务端会话是否有效，再决定是否显示锁屏。
+     不再用 sessionStorage/内存判断。请求完成前显示中性加载态，不闪桌面也不闪锁屏。 */
+  const loading = showNeutralLoading();
+  fetch('/api/session-check', { credentials: 'include' })
+    .then(function (r) {
+      if (!r.ok) return { ok: false };
+      return r.json().catch(function () {
+        return { ok: false };
+      });
+    })
+    .then(function (d) {
+      hideNeutralLoading(loading);
+      var ok = !!(d && d.ok === true);
+      try {
+        window.dispatchEvent(new CustomEvent('sgx:session', { detail: { ok: ok } }));
+      } catch (e) {}
+      if (!ok) {
+        showLockScreen();
+      }
+      /* 会话有效：直接显示页面，不弹锁屏 */
+    })
+    .catch(function () {
+      hideNeutralLoading(loading);
+      try {
+        window.dispatchEvent(new CustomEvent('sgx:session', { detail: { ok: false } }));
+      } catch (e) {}
+      showLockScreen(); /* fail-closed：接口报错也显示锁屏 */
+    });
+}
+
+/**
+ * 中性加载态：全屏遮罩，session-check 完成前不闪桌面/锁屏。
+ */
+function showNeutralLoading() {
+  const div = document.createElement('div');
+  div.id = 'sgx-lock-loading';
+  div.setAttribute('aria-hidden', 'true');
+  div.innerHTML = '<div class="sgx-spinner" role="progressbar" aria-label="Loading"></div>';
+  document.body.appendChild(div);
+  return div;
+}
+
+function hideNeutralLoading(div) {
+  try {
+    if (div && div.parentNode) div.parentNode.removeChild(div);
+  } catch (e) {}
+}
+
+/**
+ * 显示锁屏 UI（2.4.0 H）。
+ */
+function showLockScreen() {
+  const en = document.documentElement.lang === 'en';
 
   /* 天气：和顶栏同一数据来源，取不到就不显示 */
   /** @returns {{icon: string, temp: string}|null} */
@@ -194,11 +246,8 @@ export function initLock() {
     } catch (e) {}
   }
 
-  /* 服务端已确认会话：开锁动画 + ?return= 回跳（只认站内路径） */
+  /* 服务端已确认会话：开锁动画 + ?return= 回跳 */
   function unlockConfirmed() {
-    try {
-      sessionStorage.setItem('sgx-lock-shown', '1');
-    } catch (e) {}
     const ic = document.getElementById('sgx-lock-ic');
     if (ic) ic.innerHTML = UNLOCK;
     if (reducedMotion()) {
