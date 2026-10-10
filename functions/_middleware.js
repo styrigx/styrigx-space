@@ -75,6 +75,33 @@ export function isSafeReturnPath(ret) {
 }
 
 /**
+ * 跨站回跳白名单（?return= 允许的完整 URL）：
+ * 只认 https://*.styrigx.com/*（含 apex）。用于 blog/book（含预览子域）
+ * 解锁后跳回原站。非 https、一级域名不符、带 @ 或 \\ 的一律不认。
+ */
+export function isSafeReturnUrl(ret) {
+  if (typeof ret !== 'string' || !ret.startsWith('https://')) return false;
+  let u;
+  try {
+    u = new URL(ret);
+  } catch (e) {
+    return false;
+  }
+  if (u.protocol !== 'https:' || u.username || u.password) return false;
+  const host = u.hostname.toLowerCase();
+  if (host !== 'styrigx.com' && !host.endsWith('.styrigx.com')) return false;
+  if (ret.includes('\\')) return false;
+  return true;
+}
+
+/**
+ * ?return= 综合校验：站内路径或白名单跨站 URL。
+ */
+export function isSafeReturn(ret) {
+  return isSafeReturnPath(ret) || isSafeReturnUrl(ret);
+}
+
+/**
  * 验证 sgx-verified cookie：epoch.exp.sig
  * 返回 'ok' 或失败原因（no-cookie/bad-format/expired/no-pubkey/bad-sig/
  * kv-error/epoch-low）。
@@ -175,15 +202,14 @@ export async function onRequest(context) {
      没有「未配置就放行」开关。） */
   const site = env && env.SGX_SITE;
   if (isProd && (!site || site === 'space')) {
-    /* ?return= 回跳：只接受站内路径（isSafeReturnPath），完整 URL/外部域名/
-       //、/\ 一律不认。会话有效时：合法路径 → 302 到该路径；非法 → 一律回首页 /。
-       blog/book 的跨站白名单以后合并它们时再加，现在只收路径。 */
+    /* ?return= 回跳：站内路径（isSafeReturnPath）或 *.styrigx.com 白名单 URL
+       （isSafeReturnUrl，供 blog/book 及预览子域跨站回跳）。非法 → 一律回首页 /。 */
     const returnPath = url.searchParams.get('return');
     if (returnPath && pathname === '/') {
       if (await verifySession(request, env)) {
         /* 手动构造 302（不用 Response.redirect：Node/undici 不接受相对路径，
            Workers 可以；手动写兼容两边） */
-        const loc = isSafeReturnPath(returnPath) ? returnPath : '/';
+        const loc = isSafeReturn(returnPath) ? returnPath : '/';
         return new Response(null, {
           status: 302,
           headers: { 'Location': loc },

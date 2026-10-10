@@ -214,17 +214,26 @@ export function initLock() {
       });
       window.setTimeout(cleanup, 450);
     }
-    /* ?return= 回跳：只认站内路径（以 / 开头，且不是 // 或 /\）；
+    /* ?return= 回跳：站内路径（以 / 开头，且不是 // 或 /\），
+       或 https://*.styrigx.com 白名单 URL（blog/book 及预览子域跨站回跳）；
        不合法或无参数保持原行为（停在首页）。 */
     let ret = '';
     try {
       ret = new URLSearchParams(window.location.search).get('return') || '';
     } catch (e) {}
-    if (
-      ret.charAt(0) === '/' &&
-      ret.charAt(1) !== '/' &&
-      ret.charAt(1) !== '\\'
-    ) {
+    let retOk = ret.charAt(0) === '/' && ret.charAt(1) !== '/' && ret.charAt(1) !== '\\';
+    if (!retOk && ret.indexOf('https://') === 0 && ret.indexOf('\\') === -1) {
+      try {
+        const u = new URL(ret);
+        const h = u.hostname.toLowerCase();
+        retOk =
+          u.protocol === 'https:' &&
+          !u.username &&
+          !u.password &&
+          (h === 'styrigx.com' || h.slice(-13) === '.styrigx.com');
+      } catch (e) {}
+    }
+    if (retOk) {
       window.setTimeout(function () {
         window.location.href = ret;
       }, 600);
