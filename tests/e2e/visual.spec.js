@@ -156,9 +156,29 @@ test('baseline-engine-menu', async ({ page: pg }) => {
 
 /* DEBUG: 打印 dock 祖先链（查 fixed 失效，临时，查完删除） */
 test('debug-dock-ancestors', async ({ page: pg }) => {
+  /* 照抄首页截图测试的准备步骤，保证复现条件一致 */
   await pg.setViewportSize({ width: 915, height: 412 });
+  await blockExternalRequests(pg);
+  await pg.emulateMedia({ reducedMotion: 'reduce' });
+  await pg.addInitScript((t) => {
+    if (t === 'dark') {
+      try { localStorage.setItem('sgx-theme-mode', 'dark'); } catch (e) {}
+    }
+  }, null);
+  await pg.addInitScript((ln) => {
+    try { localStorage.setItem('sgx-lang', ln); } catch (e) {}
+  }, 'zh');
+  await pg.addStyleTag({
+    content: 'html{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans CJK SC","Noto Sans CJK",sans-serif !important}',
+  });
+  await freezeTime(pg);
   await pg.goto('/', { waitUntil: 'domcontentloaded' });
+  await waitPageReady(pg);
   await pg.waitForSelector('#dex-dock', { timeout: 15000 });
+  /* 打印 boundingBox，确认这次确实复现了居中 */
+  const box = await pg.locator('#dex-dock').boundingBox();
+  const vp = pg.viewportSize();
+  console.log('DOCK_BOX:' + JSON.stringify({ box, viewport: vp, gapFromBottom: vp.height - (box.y + box.height) }));
   const chain = await pg.evaluate(() => {
     const out = [];
     const dock = document.querySelector('#dex-dock');
