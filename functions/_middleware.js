@@ -17,6 +17,7 @@ const API_WHITELIST = [
   '/api/owner-password',
   '/api/owner-passkey',
   '/api/owner-status',
+  '/api/session-check',
   '/api/session-epoch',
   '/api/verify',
   '/api/geo',
@@ -46,10 +47,21 @@ function getCookie(request, name) {
 }
 
 /**
+ * 站内路径校验（?return= 只收这个）：
+ * 必须以 / 开头，且不能是 // 或 /\（防协议相对 URL 和反斜杠 trick）。
+ */
+export function isSafeReturnPath(ret) {
+  return typeof ret === 'string' && ret.length > 0 &&
+    ret.charAt(0) === '/' && ret.charAt(1) !== '/' && ret.charAt(1) !== '\\';
+}
+
+/**
  * 验证 sgx-verified cookie：epoch.exp.sig
+ * 每次拒绝都打 [sgx-verify] fail: <原因>（只记原因 + 公钥长度/前缀诊断，
+ * 绝不记密钥本身和 cookie 值），供线上排查会话未被识别的问题。
  * @returns {Promise<boolean>}
  */
-async function verifySession(request, env) {
+export async function verifySession(request, env) {
   const val = getCookie(request, 'sgx-verified');
   if (!val) { console.log('[sgx-verify] fail: no-cookie'); return false; }
   const parts = val.split('.');
@@ -59,9 +71,14 @@ async function verifySession(request, env) {
   if (!exp || exp < Date.now()) { console.log('[sgx-verify] fail: expired'); return false; }
 
   const pubKey = env && env.SGX_ED25519_PUBLIC;
-  if (!pubKey) { console.log('[sgx-verify] fail: no-pubkey'); return false; } /* 未配公钥：fail closed */
+  if (!pubKey) { console.log('[sgx-verify] fail: no-pubkey pubkey_len=0'); return false; } /* 未配公钥：fail closed */
   const payload = epochStr + '.' + expStr;
-  if (!(await ed25519Verify(pubKey, payload, sig))) { console.log('[sgx-verify] fail: bad-sig'); return false; }
+  if (!(await ed25519Verify(pubKey, payload, sig))) {
+    /* 只打长度和前缀（能看出是不是 -----BEGIN PUBLIC KEY-----），绝不打密钥本身 */
+    console.log('[sgx-verify] fail: bad-sig pubkey_len=' + pubKey.length +
+      ' pubkey_prefix=' + JSON.stringify(pubKey.slice(0, 27)));
+    return false;
+  }
 
   /* epoch 检查：cookie 的 epoch 必须 >= KV 中的 session-epoch */
   try {
@@ -107,22 +124,20 @@ export async function onRequest(context) {
      没有「未配置就放行」开关。） */
   const site = env && env.SGX_SITE;
   if (isProd && (!site || site === 'space')) {
-    /* 处理 ?return= 参数（从 blog/book 跳转回来验证通过后）：
-       只允许 https 协议，主机名必须是 styrigx.com 或 *.styrigx.com */
-    const returnUrl = url.searchParams.get('return');
-    if (returnUrl && pathname === '/') {
-      try {
-        const r = new URL(returnUrl);
-        if (
-          r.protocol === 'https:' &&
-          (r.hostname === 'styrigx.com' || r.hostname.endsWith('.styrigx.com'))
-        ) {
-          /* return 合法，但仍需有效会话才放行 */
-          if (await verifySession(request, env)) {
-            return Response.redirect(returnUrl, 302);
-          }
-        }
-      } catch (e) {}
+    /* ?return= 回跳：只接受站内路径（isSafeReturnPath），完整 URL/外部域名/
+       //、/\ 一律不认。会话有效时：合法路径 → 302 到该路径；非法 → 一律回首页 /。
+       blog/book 的跨站白名单以后合并它们时再加，现在只收路径。 */
+    const returnPath = url.searchParams.get('return');
+    if (returnPath && pathname === '/') {
+      if (await verifySession(request, env)) {
+        /* 手动构造 302（不用 Response.redirect：Node/undici 不接受相对路径，
+           Workers 可以；手动写兼容两边） */
+        const loc = isSafeReturnPath(returnPath) ? returnPath : '/';
+        return new Response(null, {
+          status: 302,
+          headers: { 'Location': loc },
+        });
+      }
     }
 
     if (await verifySession(request, env)) {
@@ -131,10 +146,10 @@ export async function onRequest(context) {
     if (isWhitelisted(pathname)) {
       return next();
     }
-    /* 未验证：302 到首页锁屏，带 return 回跳（设计文档 §2.3）。
+    /* 未验证：302 到首页锁屏，return 带站内路径（设计文档 §2.3）。
        首页有完整锁屏 UI（密码/通行密钥/Turnstile），解锁后跳回原内页。
        no-store：绝不缓存这个跳转。 */
-    const dest = 'https://styrigx.com/?lock=1&return=' + encodeURIComponent(url.toString());
+    const dest = 'https://styrigx.com/?lock=1&return=' + encodeURIComponent(url.pathname + url.search);
     return new Response(null, {
       status: 302,
       headers: {

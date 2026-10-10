@@ -9,9 +9,13 @@
  *   lockout 后 epoch+1、清 cookie 带 Domain、KV 出错 → 503 且不写入
  * - _middleware：缺 SGX_ED25519_PUBLIC 时生产环境 fail closed（只放白名单）；
  *   过期 cookie 被拒；旧 epoch cookie 被拒；伪造签名被拒；
- *   未验证的非白名单路径 302 到 https://styrigx.com/?lock=1&return=<原URL>
+ *   未验证的非白名单路径 302 到 https://styrigx.com/?lock=1&return=<站内路径>
  *   （Cache-Control: no-store，不再返回 200 锁屏 HTML）；
- *   ?return= 只允许 https 且主机名为 styrigx.com 或 *.styrigx.com
+ *   ?return= 只接受站内路径（/ 开头，非 //、/\），非法一律回首页 /；
+ *   isSafeReturnPath 导出供复用
+ * - /api/session-check：有效会话 200 {ok:true}，否则 401
+ * - 三个解锁接口（password/verify/passkey）成功时 Set-Cookie 属性齐全：
+ *   Path=/、Secure、HttpOnly、SameSite=Lax、Domain=.styrigx.com
  *
  * 运行：node --test tests/unit/
  * 说明：mock KV 只替代 Cloudflare KV（外部环境敏感项），被测的是自家逻辑；
@@ -322,7 +326,7 @@ test('middleware：生产环境缺 SGX_ED25519_PUBLIC → fail closed（非白�
   assert.equal(r.status, 302);
   const loc = r.headers.get('Location');
   assert.ok(loc.startsWith('https://styrigx.com/?lock=1&return='));
-  assert.equal(decodeURIComponent(loc.slice(loc.indexOf('return=') + 7)), PROD_URL);
+  assert.equal(decodeURIComponent(loc.slice(loc.indexOf('return=') + 7)), '/settings/');
   assert.equal(r.headers.get('Cache-Control'), 'no-store');
   /* 白名单路径放行 */
   const r2 = await mw(mwCtx('https://styrigx.com/api/owner-status', { env }));
@@ -340,13 +344,14 @@ test('middleware：有公钥但无 cookie → 302 到首页锁屏；有效 cooki
   assert.equal(await r2.text(), 'NEXT-BY-APP');
 });
 
-test('middleware：未带 cookie 访问内页 → 302，return 解码后等于原始 URL', async () => {
+test('middleware：未带 cookie 访问内页 → 302，return 是站内路径', async () => {
   const target = 'https://styrigx.com/browser/?x=1';
   const r = await mw(mwCtx(target, { env: PROD_ENV() }));
   assert.equal(r.status, 302);
   const loc = r.headers.get('Location');
   assert.ok(loc.startsWith('https://styrigx.com/?lock=1&return='));
-  assert.equal(decodeURIComponent(loc.slice(loc.indexOf('return=') + 7)), target);
+  /* return 解码后是站内路径（含 query），不是完整 URL */
+  assert.equal(decodeURIComponent(loc.slice(loc.indexOf('return=') + 7)), '/browser/?x=1');
   assert.equal(r.headers.get('Cache-Control'), 'no-store');
 });
 
@@ -397,50 +402,234 @@ test('middleware：非生产环境不锁', async () => {
   assert.equal(await r.text(), 'NEXT-BY-APP');
 });
 
-test('middleware：?return= 只允许 https + styrigx.com/*.styrigx.com', async () => {
+test('middleware：?return= 只接受站内路径，非法一律回首页 /', async () => {
   const env = PROD_ENV();
   const cookie = await validCookie(0);
-  const base = 'https://styrigx.com/?return=';
 
   async function tryReturn(ret) {
-    const r = await mw(mwCtx(base + encodeURIComponent(ret), { cookie, env }));
+    const r = await mw(mwCtx(
+      'https://styrigx.com/?lock=1&return=' + encodeURIComponent(ret),
+      { cookie, env }
+    ));
     return r;
   }
 
-  /* 合法：https + apex/子域 → 302 */
-  let r = await tryReturn('https://styrigx.com/settings/');
+  /* 合法站内路径 → 302 到该路径 */
+  let r = await tryReturn('/settings/');
   assert.equal(r.status, 302);
-  assert.equal(r.headers.get('Location'), 'https://styrigx.com/settings/');
+  assert.equal(r.headers.get('Location'), '/settings/');
 
-  r = await tryReturn('https://blog.styrigx.com/post/a/');
+  r = await tryReturn('/browser/?x=1');
   assert.equal(r.status, 302);
+  assert.equal(r.headers.get('Location'), '/browser/?x=1');
 
-  /* 非法：http 协议 → 不跳转（有效会话则放行首页） */
-  r = await tryReturn('http://styrigx.com/settings/');
-  assert.notEqual(r.headers.get('Location'), 'http://styrigx.com/settings/');
-  assert.equal(await r.text(), 'NEXT-BY-APP');
+  /* 完整 URL 不再接受 → 回首页 */
+  r = await tryReturn('https://styrigx.com/settings/');
+  assert.equal(r.status, 302);
+  assert.equal(r.headers.get('Location'), '/');
 
-  /* 非法：外部域名 → 不跳转 */
+  /* 外部域名 → 回首页 */
   r = await tryReturn('https://evil.com/');
-  assert.equal(r.headers.get('Location'), null);
+  assert.equal(r.headers.get('Location'), '/');
 
-  /* 非法：后缀欺骗 styrigx.com.evil.com → 不跳转 */
+  /* 后缀欺骗 → 回首页 */
   r = await tryReturn('https://styrigx.com.evil.com/');
-  assert.equal(r.headers.get('Location'), null);
+  assert.equal(r.headers.get('Location'), '/');
 
-  /* 非法：javascript: → 不跳转 */
+  /* 协议相对 URL → 回首页 */
+  r = await tryReturn('//evil.com/');
+  assert.equal(r.headers.get('Location'), '/');
+
+  /* 反斜杠 trick → 回首页 */
+  r = await tryReturn('/\\evil.com/');
+  assert.equal(r.headers.get('Location'), '/');
+
+  /* javascript: → 回首页 */
   r = await tryReturn('javascript:alert(1)');
+  assert.equal(r.headers.get('Location'), '/');
+
+  /* 无会话时不跳转（走正常锁流程，'/' 白名单放行） */
+  r = await mw(mwCtx(
+    'https://styrigx.com/?lock=1&return=' + encodeURIComponent('/settings/'),
+    { env }
+  ));
   assert.equal(r.headers.get('Location'), null);
+  assert.equal(await r.text(), 'NEXT-BY-APP');
 });
 
-test('middleware：无有效会话访问内页 → 302 到首页锁屏（带完整原 URL 的 return）', async () => {
+test('middleware：无有效会话访问内页 → 302 到首页锁屏（return 为站内路径）', async () => {
   const env = PROD_ENV();
-  const original = 'https://styrigx.com/settings/?return=' + encodeURIComponent('https://blog.styrigx.com/');
+  const original = 'https://styrigx.com/settings/?x=1';
   const r = await mw(mwCtx(original, { env }));
   assert.equal(r.status, 302);
   const loc = r.headers.get('Location');
   assert.ok(loc.startsWith('https://styrigx.com/?lock=1&return='));
-  /* return 解码后等于完整原始 URL（含它自己的 query） */
-  assert.equal(decodeURIComponent(loc.slice(loc.indexOf('return=') + 7)), original);
+  /* return 解码后是站内路径 */
+  assert.equal(decodeURIComponent(loc.slice(loc.indexOf('return=') + 7)), '/settings/?x=1');
   assert.equal(r.headers.get('Cache-Control'), 'no-store');
+});
+
+/* ================================================================
+ * /api/session-check（2.4.1 防循环）
+ * ================================================================ */
+
+test('session-check：有效会话 → 200 {ok:true}；无会话/坏会话 → 401', async () => {
+  const { onRequestGet: checkGet } = await import('../../functions/api/session-check.js');
+  const env = PROD_ENV();
+
+  const mkReq = (cookie) => {
+    const headers = {};
+    if (cookie) headers['Cookie'] = 'sgx-verified=' + cookie;
+    return new Request('https://styrigx.com/api/session-check', { headers });
+  };
+
+  let r = await checkGet({ request: mkReq(await validCookie(0)), env });
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), { ok: true });
+
+  r = await checkGet({ request: mkReq(''), env });
+  assert.equal(r.status, 401);
+  assert.deepEqual(await r.json(), { ok: false });
+
+  r = await checkGet({ request: mkReq('0.9999999999999.badsig'), env });
+  assert.equal(r.status, 401);
+});
+
+/* ================================================================
+ * 三个解锁接口：成功时 Set-Cookie 属性（2.4.1 会话诊断）
+ * ================================================================ */
+
+function assertSessionCookieAttrs(sc) {
+  assert.ok(sc, '必须带 Set-Cookie');
+  assert.match(sc, /^sgx-verified=/);
+  assert.match(sc, /Path=\//);
+  assert.match(sc, /Secure/);
+  assert.match(sc, /HttpOnly/);
+  assert.match(sc, /SameSite=Lax/);
+  assert.match(sc, /Domain=\.styrigx\.com/);
+  assert.match(sc, /Max-Age=43200/);
+}
+
+test('password verify 通过：Set-Cookie 属性齐全（Path/Secure/HttpOnly/SameSite=Lax）', async () => {
+  const kv = makeKV();
+  await seedPassword(kv);
+  const env = { OWNER_KV: kv, SESSION_SECRET: 'test-secret', SGX_ED25519_PRIVATE: TEST_PRIV_PEM };
+  const r = await pwPost({ request: postReq('https://styrigx.com/api/owner-password', { action: 'verify', password: 'test-pass-12345' }), env });
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), { ok: true });
+  assertSessionCookieAttrs(r.headers.get('Set-Cookie'));
+});
+
+test('verify（Turnstile）通过：Set-Cookie 属性齐全', async () => {
+  const { onRequestPost: verifyPost } = await import('../../functions/api/verify.js');
+  /* mock Turnstile siteverify（只替代外网接口，逻辑走真实代码） */
+  const origFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    assert.ok(String(url).includes('challenges.cloudflare.com'));
+    return Response.json({ success: true, hostname: 'styrigx.com', action: 'sgx-entry' });
+  };
+  try {
+    const kv = makeKV();
+    const env = {
+      OWNER_KV: kv,
+      TURNSTILE_SECRET: 'test-secret',
+      SGX_ED25519_PRIVATE: TEST_PRIV_PEM,
+    };
+    const r = await verifyPost({
+      request: postReq('https://styrigx.com/api/verify', { token: 'test-token' }),
+      env,
+    });
+    assert.equal(r.status, 200);
+    assert.deepEqual(await r.json(), { ok: true });
+    assertSessionCookieAttrs(r.headers.get('Set-Cookie'));
+  } finally {
+    globalThis.fetch = origFetch;
+  }
+});
+
+test('passkey auth 通过：Set-Cookie 属性齐全', async () => {
+  const { onRequestPost: pkPost } = await import('../../functions/api/owner-passkey.js');
+  const b64url = (buf) => Buffer.from(buf).toString('base64')
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+  /* 生成测试用 ECDSA P-256 密钥对，写入 KV（模拟已注册的通行密钥） */
+  const kp = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+  const jwk = await crypto.subtle.exportKey('jwk', kp.publicKey);
+  const credId = b64url(crypto.getRandomValues(new Uint8Array(16)));
+  const kv = makeKV();
+  await kv.put('owner-passkey-index', JSON.stringify([credId]));
+  await kv.put('owner-passkey:' + credId.slice(0, 12), JSON.stringify({
+    name: 'test-key', credId, publicKey: jwk, signCount: 0, uv: 1,
+    createdAt: Date.now(), lastUsedAt: 0,
+  }));
+  /* 预置 auth challenge */
+  const cid = 'test-cid-' + Date.now();
+  const challenge = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  await kv.put('pk-challenge:' + cid, JSON.stringify({ type: 'auth', challenge, exp: Date.now() + 60000 }));
+
+  const env = {
+    OWNER_KV: kv,
+    SESSION_SECRET: 'test-secret',
+    SGX_ED25519_PRIVATE: TEST_PRIV_PEM,
+    SGX_RP_ID: 'styrigx.com',
+    SGX_ORIGIN: 'https://styrigx.com',
+  };
+
+  /* 构造 WebAuthn 断言 */
+  const rpIdHash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('styrigx.com')));
+  const authData = new Uint8Array(37);
+  authData.set(rpIdHash, 0);
+  authData[32] = 0x05; /* UP + UV */
+  authData[36] = 1; /* signCount = 1 */
+  const clientData = { type: 'webauthn.get', challenge, origin: 'https://styrigx.com' };
+  const clientDataJSON = new TextEncoder().encode(JSON.stringify(clientData));
+  const cdHash = new Uint8Array(await crypto.subtle.digest('SHA-256', clientDataJSON));
+  const sigBase = new Uint8Array(authData.length + cdHash.length);
+  sigBase.set(authData, 0);
+  sigBase.set(cdHash, authData.length);
+  const sigDer = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, kp.privateKey, sigBase);
+  /* Node 的 WebCrypto ECDSA 签名是 raw r||s（64 字节），服务端要 DER，先转一下 */
+  const rawSig = new Uint8Array(sigDer);
+  const rB = rawSig.slice(0, 32);
+  const sB = rawSig.slice(32, 64);
+  const trim = (v) => {
+    let i = 0;
+    while (i < v.length - 1 && v[i] === 0) i++;
+    v = v.slice(i);
+    /* DER 整数高位置 1 时前面补 0x00 */
+    if (v[0] >= 0x80) {
+      const w = new Uint8Array(v.length + 1);
+      w.set(v, 1);
+      return w;
+    }
+    return v;
+  };
+  const rT = trim(rB), sT = trim(sB);
+  const derLen = 2 + rT.length + 2 + sT.length;
+  const der = new Uint8Array(2 + derLen);
+  let o = 0;
+  der[o++] = 0x30; der[o++] = derLen;
+  der[o++] = 0x02; der[o++] = rT.length; der.set(rT, o); o += rT.length;
+  der[o++] = 0x02; der[o++] = sT.length; der.set(sT, o);
+  const sigDerB64 = b64url(der);
+
+  const body = {
+    action: 'auth',
+    cid,
+    credential: {
+      id: credId,
+      rawId: credId,
+      response: {
+        clientDataJSON: b64url(clientDataJSON),
+        authenticatorData: b64url(authData),
+        signature: sigDerB64,
+        userHandle: null,
+      },
+      type: 'public-key',
+    },
+  };
+  const r = await pkPost({ request: postReq('https://styrigx.com/api/owner-passkey', body), env });
+  assert.equal(r.status, 200);
+  assert.equal((await r.json()).ok, true);
+  assertSessionCookieAttrs(r.headers.get('Set-Cookie'));
 });
