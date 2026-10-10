@@ -304,7 +304,7 @@ function mwCtx(url, { cookie = '', env = {} } = {}) {
 
 const PROD_ENV = () => ({
   SGX_ENV: 'production',
-  SGX_SITE: 'portal',
+  SGX_SITE: 'space',
   SGX_ED25519_PUBLIC: TEST_PUB_PEM,
   OWNER_KV: makeKV(),
 });
@@ -315,7 +315,7 @@ async function validCookie(epoch = 0) {
 }
 
 test('middleware：生产环境缺 SGX_ED25519_PUBLIC → fail closed（非白名单返回锁屏）', async () => {
-  const env = { SGX_ENV: 'production', SGX_SITE: 'portal', OWNER_KV: makeKV() };
+  const env = { SGX_ENV: 'production', SGX_SITE: 'space', OWNER_KV: makeKV() };
   const r = await mw(mwCtx(PROD_URL, { env }));
   assert.equal(r.status, 200);
   assert.match(await r.text(), /sgx-lock-screen/);
@@ -350,7 +350,7 @@ test('middleware：伪造签名被拒', async () => {
 
 test('middleware：lockout 后旧 epoch cookie 失效', async () => {
   const kv = makeKV({ 'session-epoch': '0' });
-  const env = { SGX_ENV: 'production', SGX_SITE: 'portal', SGX_ED25519_PUBLIC: TEST_PUB_PEM, OWNER_KV: kv };
+  const env = { SGX_ENV: 'production', SGX_SITE: 'space', SGX_ED25519_PUBLIC: TEST_PUB_PEM, OWNER_KV: kv };
   const oldCookie = await signSessionCookie(TEST_PRIV_PEM, 0);
   /* 旧 cookie 有效 */
   const r1 = await mw(mwCtx(PROD_URL, { cookie: oldCookie, env }));

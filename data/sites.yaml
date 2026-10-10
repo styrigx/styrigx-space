@@ -1,5 +1,5 @@
 # 2.4.1 三站登记（用于 return 白名单、文档、设置页展示）
-- id: portal
+- id: space
   name: 主站
   host: styrigx.com
   lock: local

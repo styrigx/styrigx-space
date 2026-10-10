@@ -1,5 +1,5 @@
 /**
- * 2.4.1 锁屏会话共享逻辑（portal 三个解锁入口共用）。
+ * 2.4.1 锁屏会话共享逻辑（space 三个解锁入口共用）。
  *
  * - sgx-verified cookie 的设置/清除只走这里的属性定义（一处定义）：
  *   Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax; 正常 Max-Age=43200

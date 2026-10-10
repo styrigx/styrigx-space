@@ -190,7 +190,7 @@ jobs:
                           # 2.4.1：CI 临时生成的测试密钥对（每次运行新生成，非生产密钥）
                           "SGX_ED25519_PRIVATE": {"type": "secret_text", "value": ED_PRIV},
                           "SGX_ED25519_PUBLIC": {"type": "plain_text", "value": ED_PUB},
-                          "SGX_SITE": {"type": "plain_text", "value": "portal"},
+                          "SGX_SITE": {"type": "plain_text", "value": "space"},
                           # P0-3：预览的 RP_ID/ORIGIN（明文，CI 每次部署前写入）
                           "SGX_RP_ID": {"type": "plain_text", "value": "passkey-e2e.styrigx-space.pages.dev"},
                           "SGX_ORIGIN": {"type": "plain_text", "value": "https://passkey-e2e.styrigx-space.pages.dev"},

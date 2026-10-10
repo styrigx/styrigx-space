@@ -1,5 +1,5 @@
 /**
- * 2.4.1 三站真实锁屏 - 主站 middleware（SGX_SITE=portal）
+ * 2.4.1 三站真实锁屏 - 主站 middleware（SGX_SITE=space）
  *
  * 1. 域名隔离：生产环境只允许 styrigx.com 访问（保留 P0-3 逻辑）
  * 2. 会话检查：sgx-verified cookie（Ed25519 签名，epoch.exp.sig）
@@ -111,11 +111,11 @@ export async function onRequest(context) {
     }
   }
 
-  /* 2.4.1：会话检查（生产环境 portal 站点一律执行；缺 SGX_ED25519_PUBLIC 时
+  /* 2.4.1：会话检查（生产环境 space 站点一律执行；缺 SGX_ED25519_PUBLIC 时
      verifySession 直接返回 false → fail closed，只放白名单路径。
      没有「未配置就放行」开关。） */
   const site = env && env.SGX_SITE;
-  if (isProd && (!site || site === 'portal')) {
+  if (isProd && (!site || site === 'space')) {
     /* 处理 ?return= 参数（从 blog/book 跳转回来验证通过后）：
        只允许 https 协议，主机名必须是 styrigx.com 或 *.styrigx.com */
     const returnUrl = url.searchParams.get('return');
