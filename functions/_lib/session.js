@@ -19,6 +19,8 @@ export const EPOCH_KEY = 'session-epoch';
 
 /**
  * 设置会话 cookie（统一属性）。
+ * 2.4.1 dedup：同时下发一条不带 Domain 的清除头，干掉旧版（2.4.0）留下的
+ * 主机绑定同名 cookie——否则浏览器会把新旧两个值都发过来。
  * @param {Headers} headers
  * @param {string} value cookie 值（epoch.exp.sig）
  */
@@ -27,16 +29,25 @@ export function setVerifiedCookie(headers, value) {
     'Set-Cookie',
     SESSION_COOKIE + '=' + value + '; ' + COOKIE_ATTRS + '; Max-Age=' + SESSION_MAX_AGE
   );
+  headers.append(
+    'Set-Cookie',
+    SESSION_COOKIE + '=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
+  );
 }
 
 /**
  * 清除会话 cookie（与设置用相同的 Domain/Path，正确过期）。
+ * 2.4.1 dedup：同时清除不带 Domain 的主机绑定旧 cookie。
  * @param {Headers} headers
  */
 export function clearVerifiedCookie(headers) {
   headers.append(
     'Set-Cookie',
     SESSION_COOKIE + '=; ' + COOKIE_ATTRS + '; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
+  );
+  headers.append(
+    'Set-Cookie',
+    SESSION_COOKIE + '=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
   );
 }
 

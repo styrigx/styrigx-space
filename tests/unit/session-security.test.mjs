@@ -809,120 +809,82 @@ test('diag: 写入/读取对账：signSessionCookie 签发的 cookie 能被 midd
   assert.equal(await r.text(), 'NEXT-BY-APP');
 });
 
-/* ---------- 临时自检接口 ---------- */
+/* ================================================================
+ * 2.4.1-cookie-dedup：同名 cookie 去重 + 旧主机绑定 cookie 清除 + /api/* 401
+ * ================================================================ */
 
-test('diag: /api/diag/session DIAG_TOKEN 未设置 → 404', async () => {
-  const { onRequestGet: diagGet } = await import('../../functions/api/diag/session.js');
-  const r = await diagGet({
-    request: new Request('https://styrigx.com/api/diag/session', { headers: { 'X-Diag-Token': 'anything' } }),
-    env: { OWNER_KV: makeKV() },
-  });
-  assert.equal(r.status, 404);
-});
-
-test('diag: /api/diag/session 无请求头 → 404', async () => {
-  const { onRequestGet: diagGet } = await import('../../functions/api/diag/session.js');
-  const r = await diagGet({
-    request: new Request('https://styrigx.com/api/diag/session'),
-    env: { OWNER_KV: makeKV(), DIAG_TOKEN: 'correct-token' },
-  });
-  assert.equal(r.status, 404);
-});
-
-test('diag: /api/diag/session token 不对 → 404', async () => {
-  const { onRequestGet: diagGet } = await import('../../functions/api/diag/session.js');
-  const r = await diagGet({
-    request: new Request('https://styrigx.com/api/diag/session', { headers: { 'X-Diag-Token': 'wrong' } }),
-    env: { OWNER_KV: makeKV(), DIAG_TOKEN: 'correct-token' },
-  });
-  assert.equal(r.status, 404);
-});
-
-test('diag: /api/diag/session token 对 → 200，只返回布尔/长度/格式名', async () => {
-  const { onRequestGet: diagGet } = await import('../../functions/api/diag/session.js');
-  const env = {
-    OWNER_KV: makeKV(),
-    DIAG_TOKEN: 'correct-token',
-    SGX_ED25519_PRIVATE: TEST_PRIV_PEM,
-    SGX_ED25519_PUBLIC: TEST_PUB_PEM,
-  };
-  const r = await diagGet({
-    request: new Request('https://styrigx.com/api/diag/session', { headers: { 'X-Diag-Token': 'correct-token' } }),
+function mwCtxMultiCookie(url, cookieHeader, env) {
+  return {
+    request: new Request(url, { headers: { 'Cookie': cookieHeader } }),
+    next: async () => new Response('NEXT-BY-APP', { status: 200 }),
     env,
-  });
+  };
+}
+
+test('dedup: 旧主机绑定 cookie 在前、新 cookie 在后 → 新的有效即放行', async () => {
+  const good = await validCookie(0);
+  /* 模拟浏览器行为：旧版无 Domain 的 sgx-verified=1 和新版带 Domain 的并存 */
+  const header = 'sgx-verified=1; sgx-verified=' + good;
+  const r = await mw(mwCtxMultiCookie(PROD_URL, header, PROD_ENV()));
   assert.equal(r.status, 200);
-  const j = await r.json();
-  assert.equal(j.private_present, true);
-  assert.equal(j.public_present, true);
-  assert.equal(j.private_format, 'PEM-PKCS8');
-  assert.equal(j.public_format, 'PEM-SPKI');
-  assert.equal(typeof j.private_len, 'number');
-  assert.equal(typeof j.public_len, 'number');
-  assert.equal(j.private_import_ok, true);
-  assert.equal(j.public_import_ok, true);
-  assert.equal(j.roundtrip_ok, true);
-  assert.equal(j.writer_reader_cookie_name_match, true);
-  assert.deepEqual(j.set_cookie_attrs, {
-    name: 'sgx-verified', domain: '.styrigx.com', path: '/',
-    samesite: 'Lax', secure: true, httponly: true, max_age: 43200,
-  });
-  assert.equal(j.request_had_cookie, false);
-  assert.equal('verify_result' in j, false);
-  assert.equal(j.expected_cookie_name, 'sgx-verified');
-  /* 绝不含密钥内容 */
-  const body = JSON.stringify(j);
-  assert.ok(!body.includes(TEST_PRIV_PEM.slice(27, 70)));
-  assert.ok(!body.includes(TEST_PUB_PEM.slice(27, 70)));
+  assert.equal(await r.text(), 'NEXT-BY-APP');
 });
 
-test('diag: /api/diag/session 公钥格式错误 → public_import_ok=false, roundtrip_ok=false', async () => {
-  const { onRequestGet: diagGet } = await import('../../functions/api/diag/session.js');
-  const env = {
-    OWNER_KV: makeKV(),
-    DIAG_TOKEN: 't',
-    SGX_ED25519_PRIVATE: TEST_PRIV_PEM,
-    SGX_ED25519_PUBLIC: 'bm90LXBlbQ==', /* base64 非 PEM */
-  };
-  const r = await diagGet({
-    request: new Request('https://styrigx.com/api/diag/session', { headers: { 'X-Diag-Token': 't' } }),
-    env,
-  });
+test('dedup: 新 cookie 在前、旧的在后 → 同样放行', async () => {
+  const good = await validCookie(0);
+  const header = 'sgx-verified=' + good + '; sgx-verified=1';
+  const r = await mw(mwCtxMultiCookie(PROD_URL, header, PROD_ENV()));
   assert.equal(r.status, 200);
-  const j = await r.json();
-  assert.equal(j.public_import_ok, false);
-  assert.equal(j.roundtrip_ok, false);
-  assert.equal(j.private_import_ok, true);
+  assert.equal(await r.text(), 'NEXT-BY-APP');
 });
 
-test('diag: 带有效 cookie → verify_result=true；带坏 cookie → verify_fail_reason', async () => {
-  const { onRequestGet: diagGet } = await import('../../functions/api/diag/session.js');
-  const { signSessionCookie } = await import('../../functions/_lib/session.js');
-  const baseEnv = {
-    OWNER_KV: makeKV(),
-    DIAG_TOKEN: 't',
-    SGX_ED25519_PRIVATE: TEST_PRIV_PEM,
-    SGX_ED25519_PUBLIC: TEST_PUB_PEM,
-  };
-  const good = await signSessionCookie(TEST_PRIV_PEM, 0);
-  const r1 = await diagGet({
-    request: new Request('https://styrigx.com/api/diag/session', {
-      headers: { 'X-Diag-Token': 't', 'Cookie': 'sgx-verified=' + good },
-    }),
-    env: baseEnv,
-  });
-  const j1 = await r1.json();
-  assert.equal(j1.request_had_cookie, true);
-  assert.equal(j1.verify_result, true);
-  assert.equal(j1.verify_fail_reason, null);
+test('dedup: 两个同名 cookie 都无效 → 拒绝（302）', async () => {
+  const header = 'sgx-verified=1; sgx-verified=bad.value.here';
+  const r = await mw(mwCtxMultiCookie(PROD_URL, header, PROD_ENV()));
+  assert.equal(r.status, 302);
+  assert.ok(r.headers.get('Location').startsWith('https://styrigx.com/?lock=1&return='));
+});
 
-  const r2 = await diagGet({
-    request: new Request('https://styrigx.com/api/diag/session', {
-      headers: { 'X-Diag-Token': 't', 'Cookie': 'sgx-verified=0.' + (Date.now() + 3600000) + '.bad' },
-    }),
-    env: baseEnv,
-  });
-  const j2 = await r2.json();
-  assert.equal(j2.request_had_cookie, true);
-  assert.equal(j2.verify_result, false);
-  assert.equal(j2.verify_fail_reason, 'bad-sig');
+test('dedup: setVerifiedCookie 下发两条 Set-Cookie（含不带 Domain 的清除头）', async () => {
+  await genTestKeys();
+  const h = new Headers();
+  setVerifiedCookie(h, '0.123.sig');
+  const all = h.getSetCookie();
+  assert.equal(all.length, 2);
+  /* 第一条：新 cookie，带 Domain */
+  assert.match(all[0], /^sgx-verified=0\.123\.sig; /);
+  assert.match(all[0], /Domain=\.styrigx\.com/);
+  /* 第二条：清除旧主机绑定 cookie，不带 Domain */
+  assert.match(all[1], /^sgx-verified=; Path=\/; /);
+  assert.doesNotMatch(all[1], /Domain=/);
+  assert.match(all[1], /Max-Age=0/);
+});
+
+test('dedup: clearVerifiedCookie 下发两条清除头（带 Domain + 不带 Domain）', () => {
+  const h = new Headers();
+  clearVerifiedCookie(h);
+  const all = h.getSetCookie();
+  assert.equal(all.length, 2);
+  assert.match(all[0], /Domain=\.styrigx\.com/);
+  assert.match(all[0], /Max-Age=0/);
+  assert.doesNotMatch(all[1], /Domain=/);
+  assert.match(all[1], /^sgx-verified=; Path=\/; /);
+  assert.match(all[1], /Max-Age=0/);
+});
+
+test('dedup: 未登录请求 /api/xxx → 401 JSON，不是 302', async () => {
+  const r = await mw(mwCtx('https://styrigx.com/api/some-endpoint', { env: PROD_ENV() }));
+  assert.equal(r.status, 401);
+  assert.equal(r.headers.get('Location'), null);
+  const j = await r.json();
+  assert.equal(j.ok, false);
+});
+
+test('dedup: /api/diag/session 已删除 → 404（不是 302 到锁屏）', async () => {
+  /* diag 目录已删，Cloudflare 会返回 404；middleware 不应 302 拦截 /api/* */
+  const r = await mw(mwCtx('https://styrigx.com/api/diag/session', { env: PROD_ENV() }));
+  /* middleware 对未验证的 /api/* 返回 401（路由本身不存在时由平台返回 404，
+     这里断言 middleware 不 302） */
+  assert.ok(r.status === 401 || r.status === 404);
+  assert.equal(r.headers.get('Location'), null);
 });
