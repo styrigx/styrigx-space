@@ -240,11 +240,12 @@ export async function onRequest(context) {
       const returnPath = url.searchParams.get('return');
       if (returnPath && sessionValid) {
         /* 手动构造 302（不用 Response.redirect：Node/undici 不接受相对路径，
-           Workers 可以；手动写兼容两边） */
+           Workers 可以；手动写兼容两边）。
+           no-store：绝不缓存这个跳转（2.4.1 锁屏原则）。 */
         const loc = isSafeReturn(returnPath) ? returnPath : '/';
         return new Response(null, {
           status: 302,
-          headers: { 'Location': loc },
+          headers: { 'Location': loc, 'Cache-Control': 'private, no-store' },
         });
       }
       const res = await next();

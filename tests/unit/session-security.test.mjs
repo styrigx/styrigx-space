@@ -433,14 +433,16 @@ test('middleware：?return= 只接受站内路径，非法一律回首页 /', as
     return r;
   }
 
-  /* 合法站内路径 → 302 到该路径 */
+  /* 合法站内路径 → 302 到该路径，带 no-store（2.4.1 锁屏原则） */
   let r = await tryReturn('/settings/');
   assert.equal(r.status, 302);
   assert.equal(r.headers.get('Location'), '/settings/');
+  assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
 
   r = await tryReturn('/browser/?x=1');
   assert.equal(r.status, 302);
   assert.equal(r.headers.get('Location'), '/browser/?x=1');
+  assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
 
   /* 白名单跨站 URL（https://*.styrigx.com）→ 302 到该 URL */
   r = await tryReturn('https://styrigx.com/settings/');
