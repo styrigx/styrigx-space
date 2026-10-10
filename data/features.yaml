@@ -76,9 +76,10 @@ features:
     user: true
     type: enum
     options:
+      - {id: system, zh: 跟随系统, en: Follow system}
       - {id: zh, zh: 中文, en: Chinese}
       - {id: en, zh: 英文, en: English}
-    default: path
+    default: system
     key: sgx-lang
     section: manage
     requires: []

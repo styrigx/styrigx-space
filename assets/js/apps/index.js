@@ -304,20 +304,43 @@ if (SGX_FEAT_WEATHER_SHOW)
     return;
   }
   const LA = { lat: 34.05, lon: -118.24, city: null };
-  fetch('/api/geo')
-    .then(function (r) {
-      return r.json();
-    })
-    .catch(function () {
-      return {};
-    })
-    .then(function (g) {
-      const lat = parseFloat(g.latitude),
-        lon = parseFloat(g.longitude);
-      if (!isFinite(lat) || !isFinite(lon)) {
+  /* 2.7.0 定位顺序：手动城市 > 精确定位 > IP 兜底 > LA */
+  function resolveLocation() {
+    try {
+      const mode = localStorage.getItem('sgx-weather-loc') || 'auto';
+      if (mode === 'manual') {
+        const mc = JSON.parse(localStorage.getItem('sgx-weather-city') || 'null');
+        if (mc && isFinite(mc.lat) && isFinite(mc.lon)) {
+          return Promise.resolve({ lat: mc.lat, lon: mc.lon, city: mc.name });
+        }
+      }
+      if (mode === 'precise') {
+        const pc = JSON.parse(localStorage.getItem('sgx-weather-precise') || 'null');
+        if (pc && isFinite(pc.lat) && isFinite(pc.lon)) {
+          return Promise.resolve({ lat: pc.lat, lon: pc.lon, city: null });
+        }
+      }
+    } catch (e) {}
+    return fetch('/api/geo')
+      .then(function (r) {
+        return r.json();
+      })
+      .catch(function () {
+        return {};
+      })
+      .then(function (g) {
+        const lat = parseFloat(g.latitude),
+          lon = parseFloat(g.longitude);
+        if (!isFinite(lat) || !isFinite(lon)) return LA;
+        return { lat: lat, lon: lon, city: g.city || null };
+      });
+  }
+  resolveLocation()
+    .then(function (loc) {
+      if (!loc || !isFinite(loc.lat) || !isFinite(loc.lon)) {
         return fetchWx(LA.lat, LA.lon, null);
       }
-      return fetchWx(lat, lon, g.city || null);
+      return fetchWx(loc.lat, loc.lon, loc.city || null);
     })
     .then(function (d) {
       save(d);
