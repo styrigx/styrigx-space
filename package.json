@@ -3,7 +3,8 @@
   "dependencies": {
     "autoprefixer": "^10.6.1",
     "postcss": "^8.5.29",
-    "tailwindcss": "^4.1.0"
+    "tailwindcss": "^4.1.0",
+    "@tailwindcss/postcss": "^4.1.0"
   },
   "description": "Styrigx's Space —— 一个按 One UI 8.5 写的个人网站，把网站做成一台手机。",
   "keywords": [
