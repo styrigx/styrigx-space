@@ -1,0 +1,49 @@
+{{/* 2.6.0：设置子页「about」分类组。左右对齐，一行放不下才换行。
+   版本号唯一来源：data/version.yaml（ui + sgx）；Tailwind 版本读 package-lock.json 实际安装版本。 */}}
+{{ $isEn := .isEn }}{{ $featMap := .featMap }}{{ $palettes := .palettes }}
+{{ $ver := site.Data.version }}
+{{ $uiVer := $ver.ui | default "8.5" }}
+{{ $sgxVer := $ver.sgx | default "2.6.0" }}
+{{ $hugoVer := hugo.Version }}
+{{ $twVer := "4.x" }}
+{{ with readFile "package-lock.json" | transform.Unmarshal }}
+  {{ with index (index . "packages") "node_modules/tailwindcss" }}{{ $twVer = .version }}{{ end }}
+{{ end }}
+{{ $commit := getenv "GITHUB_SHA" }}
+{{ $commitShort := "local" }}
+{{ if gt (len $commit) 7 }}{{ $commitShort = slicestr $commit 0 7 }}{{ else if ne $commit "" }}{{ $commitShort = $commit }}{{ end }}
+<div class="set-group scroll-mt-24" id="sg-about">
+<section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.28s">
+      <div class="set-row no-ic flex-wrap gap-y-1">
+        <span class="font-medium">{{ if $isEn }}Interface{{ else }}界面{{ end }}</span>
+        <span class="text-sm text-m-on-surface-variant ml-auto text-right break-words">Styrigx UI {{ $uiVer }}</span>
+      </div>
+      <div class="set-row no-ic flex-wrap gap-y-1">
+        <span class="font-medium">{{ if $isEn }}Version{{ else }}版本{{ end }}</span>
+        <span class="text-sm text-m-on-surface-variant ml-auto text-right break-words">Styrigx UI {{ $uiVer }} · SGX {{ $sgxVer }}</span>
+      </div>
+      <div class="set-row no-ic flex-wrap gap-y-1">
+        <span class="font-medium">{{ if $isEn }}Build{{ else }}构建{{ end }}</span>
+        <span class="text-sm text-m-on-surface-variant ml-auto text-right break-words font-mono">{{ $commitShort }}</span>
+      </div>
+      <div class="set-row no-ic flex-wrap gap-y-1">
+        <span class="font-medium">Hugo</span>
+        <span class="text-sm text-m-on-surface-variant ml-auto text-right break-words font-mono">{{ $hugoVer }}</span>
+      </div>
+      <div class="set-row no-ic flex-wrap gap-y-1">
+        <span class="font-medium">Tailwind CSS</span>
+        <span class="text-sm text-m-on-surface-variant ml-auto text-right break-words font-mono">{{ $twVer }}</span>
+      </div>
+      <div class="set-row no-ic flex-wrap gap-y-1">
+        <span class="font-medium">{{ if $isEn }}Built at{{ else }}构建时间{{ end }}</span>
+        <span class="text-sm text-m-on-surface-variant ml-auto text-right break-words font-mono">{{ now.Format "2006-01-02 15:04" }}</span>
+      </div>
+      <a class="set-row no-ic" href="https://github.com/styrigx/styrigx-space" target="_blank" rel="noopener">
+        <span class="flex-1 font-medium">GitHub {{ if $isEn }}repository{{ else }}仓库{{ end }}</span>
+        {{ partial "icon.html" "chev-r" }}
+      </a>
+      <div class="set-row no-ic" id="row-reset" role="button" tabindex="0">
+        <span class="flex-1 font-medium text-red-600 dark:text-red-400">{{ if $isEn }}Reset all settings{{ else }}重置所有设置{{ end }}</span>
+      </div>
+    </section>
+</div>

@@ -1,0 +1,8 @@
+{{/* 2.6.0：设置子页「accessibility」分类组（自 settings.html 抽取，set-gh 标题由子页大标题替代）。 */}}
+{{ $isEn := .isEn }}{{ $featMap := .featMap }}{{ $palettes := .palettes }}
+<div class="set-group scroll-mt-24" id="sg-accessibility">
+<section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.22s">
+      {{/* 2.4.0-G：减弱动效由 features.yaml 生成 */}}
+      {{ if partial "feature.html" "reduced-motion" }}{{ partial "settings-row.html" (dict "f" (index $featMap "reduced-motion") "isEn" $isEn) }}{{ end }}
+    </section>
+</div>

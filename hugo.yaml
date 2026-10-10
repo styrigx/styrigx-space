@@ -37,7 +37,7 @@ markup:
 params:
   description: 'Sloan Gray 的个人门户'
   since: 2020
-  version: '2.5.0'
+  # 版本号唯一来源：data/version.yaml（ui + sgx），此处不硬编码
   # 2.4.0 H：Turnstile 站点密钥（公开）
   turnstileSiteKey: '0x4AAAAAAFSBhpWkAwZr1SMA'
 
@@ -52,3 +52,4 @@ security:
       - '^SGX_TEST_'
       - '^HUGO_'
       - '^CI$'
+      - '^GITHUB_SHA$'  # 2.6.0：关于本站显示构建 commit 短哈希

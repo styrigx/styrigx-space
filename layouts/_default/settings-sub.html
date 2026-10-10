@@ -1,0 +1,33 @@
+{{/* 2.6.0：设置二级页共享布局。content 的 params.cat 决定渲染哪个分类 partial。
+   用法：content/settings-display.md 等 frontmatter 设 layout: settings-sub、params.cat: display。 */}}
+{{ define "main" }}
+{{ .Scratch.Set "sgx-entry" "entry-settings.js" }}
+{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+{{ $cat := .Params.cat }}
+{{/* 2.6.0：分类标题走 data/settings-cats.yaml（单数据源，与首页/双栏共用） */}}
+{{ $t := dict "zh" $cat "en" $cat }}
+{{ range (index site.Data "settings-cats").cats }}{{ if eq .id $cat }}{{ $t = dict "zh" .zh "en" .en }}{{ end }}{{ end }}
+{{ $featMap := dict }}
+{{ range site.Data.features.features }}{{ $featMap = merge $featMap (dict .id .) }}{{ end }}
+{{ $palettes := slice
+  (dict "id" "lake" "c" "#2f5f86" "zh" "默认" "en" "Default")
+  (dict "id" "forest" "c" "#2f6b4f" "zh" "山绿" "en" "Forest")
+  (dict "id" "terra" "c" "#8a4b2d" "zh" "陶土" "en" "Terracotta")
+  (dict "id" "violet" "c" "#6750a4" "zh" "紫" "en" "Violet")
+  (dict "id" "rose" "c" "#984061" "zh" "蔷薇" "en" "Rose")
+}}
+
+<div class="set-layout max-w-2xl mx-auto px-4 pb-28">
+  {{ partial "subpage-head.html" (dict "title" (cond $isEn $t.en $t.zh) "isEn" $isEn) }}
+  <div class="set-main min-w-0">
+    {{ partial (printf "setcat-%s.html" $cat) (dict "isEn" $isEn "featMap" $featMap "palettes" $palettes) }}
+  </div>
+</div>
+
+{{ partial "settings-i18n.html" (dict "isEn" $isEn) }}
+
+<!-- 底部搜索胶囊：子页同样可搜设置，搜到跳对应子页 -->
+{{ partial "sgx-capsule.html" (dict "page" "settings" "isEn" $isEn
+  "placeholder" (cond $isEn "Search settings" "搜索设置")
+  "panel" true) }}
+{{ end }}
