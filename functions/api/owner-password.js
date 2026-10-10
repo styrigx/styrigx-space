@@ -31,7 +31,7 @@ const LOCK_MS = 30000;
  */
 async function getSessionVer(kv) {
   try {
-    const v = await kv.get('session-ver');
+    const v = await kv.get('session-epoch');
     return parseInt(v || '0', 10) || 0;
   } catch (e) {
     return 0;
@@ -39,12 +39,12 @@ async function getSessionVer(kv) {
 }
 
 /**
- * session-ver +1（改密码、删密码、退出所有设备时调用）。
+ * session-epoch +1（改密码、删密码、退出所有设备时调用）。
  * @param {any} kv
  */
 async function bumpSessionVer(kv) {
   const v = await getSessionVer(kv);
-  await kv.put('session-ver', String(v + 1));
+  await kv.put('session-epoch', String(v + 1));
   return v + 1;
 }
 
@@ -240,7 +240,7 @@ async function handlePost(context) {
       return Response.json({ ok: false, error: 'token' }, { status: 403 });
     }
 
-    /* lockout：立即锁定并退出所有设备（session-ver +1，用 Set-Cookie 清当前 cookie） */
+    /* lockout：立即锁定并退出所有设备（session-epoch +1，用 Set-Cookie 清当前 cookie） */
     if (action === 'lockout') {
       await bumpSessionVer(kv);
       const headers = new Headers({ 'Content-Type': 'application/json' });

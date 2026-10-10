@@ -34,7 +34,7 @@
  * - register 带 excludeCredentials 防重复注册
  * - KV 结构：每把一个 key（owner-passkey:<credId前12位>），字段顺序固定
  */
-import { b64enc, b64dec, b64urlEnc, timingSafeEqual, hmacSign, hmacVerify } from '../_lib/crypto.js';
+import { b64enc, b64dec, b64urlEnc, timingSafeEqual, hmacSign, hmacVerify, ed25519Sign } from '../_lib/crypto.js';
 
 /* AAGUID → 密码管理器（只用于显示，不参与安全判断） */
 const AAGUID_PROVIDERS = {
@@ -77,14 +77,14 @@ async function issueToken(secret) {
 }
 
 /**
- * 签名会话 cookie 值：ver.exp.HMAC(SESSION_SECRET, "sess|" + ver.exp)，24 小时有效。
- * @param {string} secret
- * @param {number} ver
+ * 签名会话 cookie 值：epoch.exp.Ed25519(SGX_ED25519_PRIVATE, "epoch.exp")，12 小时有效。
+ * @param {string} privatePem Ed25519 私钥 PEM
+ * @param {number} epoch session epoch
  */
-async function signVerifiedCookie(secret, ver) {
-  const exp = String(Date.now() + 86400000);
-  const payload = ver + '.' + exp;
-  const sig = await hmacSign(secret, 'sess|', payload);
+async function signVerifiedCookie(privatePem, epoch) {
+  const exp = String(Date.now() + 12 * 3600 * 1000);
+  const payload = epoch + '.' + exp;
+  const sig = await ed25519Sign(privatePem, payload);
   return payload + '.' + sig;
 }
 
@@ -662,14 +662,15 @@ async function handlePost(context) {
       stored.signCount = checked.signCount;
       stored.lastUsedAt = Date.now();
       try { await savePasskey(kv, stored); } catch (e2) {}
-      /* 通过：设签名会话 cookie（含 session-ver），并签发管理 token */
+      /* 通过：设 Ed25519 签名会话 cookie（含 session-epoch），并签发管理 token */
       const headers = new Headers({ 'Content-Type': 'application/json' });
       const secret = (env && env.SESSION_SECRET) || '';
-      if (secret) {
-        let ver = 0;
-        try { ver = parseInt(await kv.get('session-ver') || '0', 10) || 0; } catch (e) {}
-        const cv = await signVerifiedCookie(secret, ver);
-        headers.append('Set-Cookie', 'sgx-verified=' + cv + '; Path=/; HttpOnly; Secure; SameSite=Lax');
+      const edPriv = (env && env.SGX_ED25519_PRIVATE) || '';
+      if (edPriv) {
+        let epoch = 0;
+        try { epoch = parseInt(await kv.get('session-epoch') || '0', 10) || 0; } catch (e) {}
+        const cv = await signVerifiedCookie(edPriv, epoch);
+        headers.append('Set-Cookie', 'sgx-verified=' + cv + '; Path=/; HttpOnly; Secure; SameSite=Lax; Domain=.styrigx.com');
       }
       const mgrToken = secret ? await issueToken(secret) : '';
       return new Response(JSON.stringify({ ok: true, token: mgrToken }), { headers });
@@ -746,10 +747,10 @@ async function handlePost(context) {
       return Response.json({ ok: false, error: 'not-found' }, { status: 404 });
     }
     await deletePasskey(kv, credId);
-    /* 会话吊销：删密钥后 session-ver +1 */
+    /* 会话吊销：删密钥后 session-epoch +1 */
     try {
-      const v = parseInt(await kv.get('session-ver') || '0', 10) || 0;
-      await kv.put('session-ver', String(v + 1));
+      const v = parseInt(await kv.get('session-epoch') || '0', 10) || 0;
+      await kv.put('session-epoch', String(v + 1));
     } catch (e) {}
     return Response.json({ ok: true });
   }
