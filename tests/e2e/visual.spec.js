@@ -153,3 +153,26 @@ test('baseline-engine-menu', async ({ page: pg }) => {
   }
   await expect(pg).toHaveScreenshot('baseline-engine-menu.png', { animations: 'disabled' });
 });
+
+/* DEBUG: 打印 dock 祖先链（查 fixed 失效，临时，查完删除） */
+test('debug-dock-ancestors', async ({ page: pg }) => {
+  await pg.setViewportSize({ width: 915, height: 412 });
+  await pg.goto('/', { waitUntil: 'domcontentloaded' });
+  await pg.waitForSelector('#dex-dock', { timeout: 15000 });
+  const chain = await pg.evaluate(() => {
+    const out = [];
+    const dock = document.querySelector('#dex-dock');
+    const ds = getComputedStyle(dock);
+    out.push({ el: '#dex-dock', position: ds.position, top: ds.top, bottom: ds.bottom, transform: ds.transform });
+    for (let n = dock.parentElement; n; n = n.parentElement) {
+      const s = getComputedStyle(n);
+      out.push({
+        el: n.tagName.toLowerCase() + (n.id ? '#' + n.id : '') + (n.className ? '.' + String(n.className).trim().replace(/\s+/g, '.') : ''),
+        transform: s.transform, filter: s.filter, backdrop: s.backdropFilter,
+        perspective: s.perspective, willChange: s.willChange, contain: s.contain,
+      });
+    }
+    return out;
+  });
+  console.log('DOCK_CHAIN:' + JSON.stringify(chain));
+});
