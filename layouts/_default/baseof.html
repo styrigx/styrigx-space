@@ -142,9 +142,11 @@ window.__firstTz=function(){
 window.__secondTz=function(){try{return localStorage.getItem('sgx-tz2')||'America/Los_Angeles'}catch(e){return'America/Los_Angeles'}};
 window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}catch(e){return false}};
 </script>
-{{/* 2.4.0 D：Speculation Rules —— 站内链接 hover 时 prerender（渐进增强，不支持则忽略） */}}
+{{/* 2.8.0 切页流畅度：Speculation Rules prefetch（非 prerender，不提前执行脚本）
+   只覆盖 dock 四个页面（files/store/browser/settings），eagerness: moderate。
+   prefetch 只取 HTML，不执行锁屏/session-check/天气脚本。 */}}
 <script type="speculationrules">
-{"prerender":[{"where":{"href_matches":"/*"},"eagerness":"moderate"}]}
+{"prefetch":[{"where":{"href_matches":["/files/*","/store/*","/browser/*","/settings/*"]},"eagerness":"moderate"}]}
 </script>
 </head>
 {{ $setUrl0 := "/settings/" }}{{ if $isEn }}{{ $setUrl0 = "/en/settings/" }}{{ end }}

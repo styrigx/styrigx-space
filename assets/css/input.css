@@ -18,6 +18,13 @@
 @view-transition {
   navigation: auto;
 }
+/* 2.8.0 切页流畅度：dock 和顶栏在切页时保持不动（共享元素过渡） */
+.dock, #dex-dock {
+  view-transition-name: sgx-dock;
+}
+#site-nav {
+  view-transition-name: sgx-topbar;
+}
 /* 共享元素：App 图标 ↔ 子页面大标题 */
 ::view-transition-group(sgx-app-icon) {
   animation-duration: .38s;
