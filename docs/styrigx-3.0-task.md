@@ -30,8 +30,12 @@ CI 全绿 → PUT merge → 生产部署 run 全绿 → curl 冒烟测试（首�
 - [x] 2.6.0 设置二级页 + 关于（styrigx-space，已合并）：PR #20 关闭未合，改由 PR #31（`feat/2.6.0-settings-v2`，merge c120f443，main 部署 run 38065676001 全绿）在新目录结构上重做；后续 fix #34（`fix/unlock-entry-move`，merge 904d1537，部署 run 38069096652 全绿：解锁方式入口从账户卡移到安全与隐私第一行、去掉版本硬编码兜底）。data/version.yaml：ui 8.5 / sgx 2.6.0；线上冒烟：首页 200、owner-status password:true/passkey:true、session-check 401。✓ 2026-10-11
 - [x] 三站 pages.dev 301 到正式域名（各仓库独立 PR，已合并）：space PR #33（merge 4534272c，部署 run 38067150017 全绿）、blog PR #7（部署 run 38066740389 全绿）、book PR #3（部署 run 38066771478 全绿）。线上核验：styrigx-space.pages.dev → 301 https://styrigx.com/（/settings/?x=1 保留 path+query）、styrigx-blog.pages.dev → 301 https://blog.styrigx.com/、styrigx-book.pages.dev → 301 https://book.styrigx.com/；三站首页正常（space 200 + owner-status 双 true；blog/book 未带 cookie 302 到锁屏，符合预期）。✓ 2026-10-11
 - [x] 2.7.0 语言 / G / 天气（styrigx-space，已合并）：语言三档切换（跟随系统/中文/English）；G 按 `build:false` 清单整理（legacy-lock-screen）；天气定位顺序手动城市 > 精确定位（不自动弹权限）> IP 兜底。PR #35（`feat/2.7.0-i18n-weather`，merge 03ac860f，PR CI quality + passkey-e2e 全绿）；main 部署 run 38071456997 全绿；线上冒烟：首页 200、owner-status password:true/passkey:true、session-check 401、blog/book 未带 cookie 302 到锁屏。✓ 2026-10-11
-- [ ] 2.8.0 清理（styrigx-space，可合并）：原有内容（命名弹层 One UI 细节、rename 是否覆盖 `lastUsedAt`、提供方映射、最近使用显示、死代码），加上：①「锁定所有设备」session-epoch +1，走 L2 api，设置里给入口，文档注明 blog/book 受约 60 秒 epoch 缓存影响；② Turnstile 验证速度优化；③ 锁屏态首页 HTML 不再下发桌面内容（书单、歌单等），只下发锁屏需要的部分；④ 视觉回归重新生成基线，去掉 continue-on-error 改成阻塞；⑤ 死代码彻底删除：不需要的旧代码、冗余代码全部删除，不再用 build:false 留着。范围：legacy-lock-screen 旧版全屏锁屏的代码和它在 features.yaml 的条目；其他 build:false 且不再需要的功能；死代码；未引用的资源、partials 和脚本；重复实现。PR 描述列出完整删除清单和理由。只删代码和已失效的测试，仍有效的测试覆盖不动。验收同上。
-- [ ] 3.0.0 应用商店重定义（styrigx-space，可合并）：商店=应用抽屉+安装管理，唯一应用入口；首页只留小组件卡片；Dock 固定我的文件/应用商店/浏览器/设置；版本只改 `data/version.yaml`（kernel: "3.0"，ui: "8.5"），不改 hugo.yaml。验收同上。
+- [ ] 2.8.0（styrigx-space，PR #39 进行中）：① 会话角色分离（安全优先）：cookie 载荷加 role（owner/visitor），密码/通行密钥签 owner（12h），Turnstile 签 visitor（1h）；L1 按角色放行（访客可进桌面/应用/博客；主人专属：设置、我的文件、书库；访客进主人路径 302 到锁屏；访客调主人 API 403）；session-check 返回 role；旧无 role cookie 无效；blog/book 验签同步更新（独立 PR）；② 锁屏重设计：只保留头像；点头像弹三选项（访客进入/通行密钥/密码）；③「锁定所有设备」拆为独立 L2 API /api/lock-all-devices（只 owner 可调）；④ 立即锁定后 blog/book 切回同步；⑤ 命名弹层 One UI 细节；⑥ Turnstile 速度优化；⑦ 锁屏态首页 HTML 瘦身；⑧ 视觉回归重生成基线，去掉 continue-on-error；⑨ 死代码彻底删除；⑩ 搜索收录整理（sitemap 只留 / 和 /en/，X-Robots-Tag: noindex）。验收：CI 全绿 → 合并 → 部署全绿 → 线上验证。
+- [ ] book 2.0（styrigx-book，⑥ 合并部署成功后开始）：安全优先（无下载、stepup 复验、衍生阅读内容、限流审计）+ 防刷爆用量（8GB 上限、600 万读停 visitor、80 万写停上传、Cache API、用量页）+ R2 上传 + 界面重做。stepup API 在 space 单独小 PR，先于 book 合并。
+
+## 未来开发
+
+- [ ] 3.0.0 应用商店重定义（styrigx-space，搁置）：商店=应用抽屉+安装管理，唯一应用入口；首页只留小组件卡片；Dock 固定我的文件/应用商店/浏览器/设置；版本只改 `data/version.yaml`（kernel: "3.0"，ui: "8.5"），不改 hugo.yaml。验收同上。
 
 ## 已完成
 
