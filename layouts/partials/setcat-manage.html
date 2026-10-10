@@ -1,0 +1,30 @@
+{{/* 2.6.0：设置子页「manage」分类组（自 settings.html 抽取，set-gh 标题由子页大标题替代）。 */}}
+{{ $isEn := .isEn }}{{ $featMap := .featMap }}{{ $palettes := .palettes }}
+<div class="set-group scroll-mt-24" id="sg-manage">
+<section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.18s">
+      {{ if partial "feature.html" "lang" }}
+      <div class="set-row" id="row-lang" role="button" tabindex="0">
+        <span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "globe" }}</span>
+        <span class="flex-1 font-medium">{{ if $isEn }}Language{{ else }}语言{{ end }}</span>
+        <span id="lang-val" class="text-sm text-m-on-surface-variant">{{ if $isEn }}English{{ else }}中文{{ end }}</span>
+        {{ partial "icon.html" "chev-r" }}
+      </div>
+      {{ end }}
+      {{ if partial "feature.html" "tz1" }}
+      <div class="set-row" id="row-datetime" role="button" tabindex="0">
+        <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "clock" }}</span>
+        <span class="flex-1 font-medium">{{ if $isEn }}Date &amp; time{{ else }}日期和时间{{ end }}</span>
+        <span id="dt-val" class="text-sm text-m-on-surface-variant">--</span>
+        {{ partial "icon.html" "chev-r" }}
+      </div>
+      {{ end }}
+      {{ if partial "feature.html" "weather-show" }}
+      <div class="set-row" id="row-weather" role="button" tabindex="0">
+        <span class="set-ic bg-m-warm-container text-m-on-warm-container">{{ partial "icon.html" "thermo" }}</span>
+        <span class="flex-1 font-medium">{{ if $isEn }}Weather{{ else }}天气{{ end }}</span>
+        <span id="wx-val" class="text-sm text-m-on-surface-variant">℃</span>
+        {{ partial "icon.html" "chev-r" }}
+      </div>
+      {{ end }}
+    </section>
+</div>

@@ -1,0 +1,43 @@
+{{/* 2.6.0：设置子页「wellbeing」分类组（自 settings.html 抽取，set-gh 标题由子页大标题替代）。 */}}
+{{ $isEn := .isEn }}{{ $featMap := .featMap }}{{ $palettes := .palettes }}
+<div class="set-group scroll-mt-24" id="sg-wellbeing">
+<section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.26s">
+      {{/* 我的屏幕时间（来自 data/wellbeing.yaml） */}}
+      {{ $wb := site.Data.wellbeing }}
+      {{ if $wb }}
+      {{ $wbTotal := $wb.total_minutes }}
+      {{ $wbSum := 0 }}{{ range $wb.apps }}{{ $wbSum = add $wbSum .minutes }}{{ end }}
+      {{ $wbOther := sub $wbTotal $wbSum }}
+      {{ $dp := split $wb.updated "-" }}{{ $wmo := index $dp 1 }}{{ $wda := strings.TrimLeft "0" (index $dp 2) }}
+      {{ $monEn := dict "01" "Jan" "02" "Feb" "03" "Mar" "04" "Apr" "05" "May" "06" "Jun" "07" "Jul" "08" "Aug" "09" "Sep" "10" "Oct" "11" "Nov" "12" "Dec" }}
+      <div class="p-5">
+        <div class="flex items-baseline justify-between gap-3 mb-3">
+          <p class="text-sm font-medium">{{ if $isEn }}My screen time{{ else }}我的屏幕时间{{ end }}</p>
+          <p class="text-[11px] text-m-on-surface-variant">{{ if $isEn }}Updated {{ index $monEn $wmo }} {{ $wda }}{{ else }}更新于 {{ $wmo }}月{{ $wda }}日{{ end }}</p>
+        </div>
+        {{ $th := div $wbTotal 60 }}{{ $tm := mod $wbTotal 60 }}
+        <p class="text-2xl font-extrabold tracking-tight mb-3">{{ if $isEn }}{{ $th }} hrs {{ $tm }} min{{ else }}{{ $th }} 小时 {{ $tm }} 分钟{{ end }}</p>
+        <div class="wb-bar" role="img" aria-label="{{ if $isEn }}Screen time breakdown{{ else }}屏幕时间分布{{ end }}">
+          {{ range $wb.apps }}<span style="width:{{ printf "%.1f" (div (mul .minutes 100.0) $wbTotal) }}%;background:{{ .color }}"></span>{{ end }}
+          <span style="width:{{ printf "%.1f" (div (mul $wbOther 100.0) $wbTotal) }}%;background:var(--m-container-highest)"></span>
+        </div>
+        <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[11px] text-m-on-surface-variant">
+          {{ range $wb.apps }}<span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" style="background:{{ .color }}"></span>{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}</span>{{ end }}
+          <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" style="background:var(--m-container-highest);border:1px solid var(--m-outline)"></span>{{ if $isEn }}Other{{ else }}其他{{ end }}</span>
+        </div>
+      </div>
+      {{ end }}
+      {{/* 你的数字健康（访客，只存本地） */}}
+      <div class="p-5 pt-1">
+        <div class="flex items-baseline justify-between gap-3 mb-3">
+          <p class="text-sm font-medium">{{ if $isEn }}Your visit today{{ else }}你今天的到访{{ end }}</p>
+          <p class="text-[11px] text-m-on-surface-variant">{{ if $isEn }}Stored on this device only{{ else }}只保存在本机{{ end }}</p>
+        </div>
+        <p class="text-2xl font-extrabold tracking-tight mb-3"><span id="well-v-total">0</span> <span class="text-sm font-medium text-m-on-surface-variant">{{ if $isEn }}min{{ else }}分钟{{ end }}</span></p>
+        <div class="wb-bar" id="well-v-bar" role="img" aria-label="{{ if $isEn }}Your visit breakdown{{ else }}到访分布{{ end }}"></div>
+        <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[11px] text-m-on-surface-variant" id="well-v-legend"></div>
+      </div>
+      {{/* 2.4.0-G：15 分钟提醒由 features.yaml 生成 */}}
+      {{ if partial "feature.html" "well-tip" }}{{ partial "settings-row.html" (dict "f" (index $featMap "well-tip") "isEn" $isEn) }}{{ end }}
+    </section>
+</div>

@@ -1,8 +1,12 @@
+{{/* 2.6.0：设置首页只留账户卡 + 分类列表；各分类选项移入 /settings/<cat>/ 子页。
+   分类定义走 data/settings-cats.yaml（单数据源）。
+   DeX/PC：左右双栏（左分类导航、右详情窗格），复用 setcat-*.html partial；
+   Mobile：分类列表，点击进子页。
+   旧 hash（#display 等）由内联脚本跳转到对应子页。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-settings.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
-{{ $avatar := resources.Get "images/avatar.png" }}
-{{/* 2.4.0-G：功能定义表（data/features.yaml），设置行按需生成 */}}
+{{ $cats := (index site.Data "settings-cats").cats }}
 {{ $featMap := dict }}
 {{ range site.Data.features.features }}{{ $featMap = merge $featMap (dict .id .) }}{{ end }}
 {{ $palettes := slice
@@ -14,408 +18,85 @@
 }}
 
 <div class="set-layout max-w-2xl mx-auto px-4 pb-28">
-  <div class="set-col-l">
-    <!-- 2.3.14.3：大标题改用公共 subpage-head 组件（与文件/商店/浏览器完全一致，一级页无返回箭头） -->
+  {{/* Mobile：标题 + 账户卡 + 分类列表（进子页） */}}
+  <div class="set-mobile-only">
     {{ partial "subpage-head.html" (dict "title" (cond $isEn "Settings" "设置") "isEn" $isEn "noBack" true) }}
-
-    <!-- 2.3.14.8：可复用账号卡（宽屏左栏；手机端 2.3.14.9 复用同一组件） -->
     {{ partial "sgx-account-card.html" . }}
+    <div class="set-main min-w-0">
+      <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.1s" aria-label="{{ if $isEn }}Categories{{ else }}分类{{ end }}">
+        {{ range $cats }}
+        {{ $href := cond $isEn (printf "/en/settings/%s/" .id) (printf "/settings/%s/" .id) }}
+        <a class="set-row" href="{{ $href }}">
+          {{ if .appicon }}
+          <span class="set-app-ic">{{ partial "icon.html" (dict "name" "appgrid-solid" "uid" "sethome") }}</span>
+          {{ else }}
+          <span class="set-ic {{ .bg }} {{ .fg }}">{{ partial "icon.html" .icon }}</span>
+          {{ end }}
+          <span class="flex-1 min-w-0">
+            <span class="block font-medium">{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}</span>
+            <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate">{{ if $isEn }}{{ .suben }}{{ else }}{{ .subzh }}{{ end }}</span>
+          </span>
+          {{ partial "icon.html" "chev-r" }}
+        </a>
+        {{ end }}
+      </section>
+    </div>
+  </div>
 
-    <!-- 宽屏双栏：左侧分类菜单 -->
+  {{/* DeX/PC：左右双栏。左栏标题+账户卡+分类导航；右栏详情窗格（复用子页同一套 partial）。
+       security 仍是独立页面，点导航直接跳转。 */}}
+  <div class="set-col-l">
+    {{ partial "subpage-head.html" (dict "title" (cond $isEn "Settings" "设置") "isEn" $isEn "noBack" true) }}
+    {{ partial "sgx-account-card.html" . }}
     <aside class="set-side" aria-label="{{ if $isEn }}Categories{{ else }}分类{{ end }}">
-      <h1 class="set-side-title">{{ if $isEn }}Settings{{ else }}设置{{ end }}</h1>
       <nav class="flex flex-col gap-1" id="set-cat-nav">
-        <button type="button" class="set-cat" data-cat="display">
-          <span class="set-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "moon" }}</span>
-          <span>{{ if $isEn }}Display{{ else }}显示{{ end }}</span>
-        </button>
-        <button type="button" class="set-cat" data-cat="theme">
-          <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "palette" }}</span>
-          <span>{{ if $isEn }}Wallpaper &amp; theme{{ else }}壁纸和主题{{ end }}</span>
-        </button>
-        <button type="button" class="set-cat" data-cat="security">
-          <span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span>
-          <span>{{ if $isEn }}Security and privacy{{ else }}安全与隐私{{ end }}</span>
-        </button>
-        <button type="button" class="set-cat" data-cat="manage">
-          <span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "sliders" }}</span>
-          <span>{{ if $isEn }}General management{{ else }}常规管理{{ end }}</span>
-        </button>
-        <button type="button" class="set-cat" data-cat="apps">
-          <span class="set-app-ic">{{ partial "icon.html" (dict "name" "appgrid-solid" "uid" "setcat") }}</span>
-          <span>{{ if $isEn }}Apps{{ else }}应用{{ end }}</span>
-        </button>
-        <button type="button" class="set-cat" data-cat="accessibility">
-          <span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "person" }}</span>
-          <span>{{ if $isEn }}Accessibility{{ else }}辅助功能{{ end }}</span>
-        </button>
-        <button type="button" class="set-cat" data-cat="wellbeing">
-          <span class="set-ic bg-m-rose-container text-m-on-rose-container">{{ partial "icon.html" "info" }}</span>
-          <span>{{ if $isEn }}Digital wellbeing{{ else }}数字健康{{ end }}</span>
-        </button>
-        <button type="button" class="set-cat" data-cat="about">
-          <span class="set-ic bg-m-container-highest text-m-on-surface">{{ partial "icon.html" "globe" }}</span>
-          <span>{{ if $isEn }}About{{ else }}关于本站{{ end }}</span>
-        </button>
+        {{ range $cats }}
+        {{ $href := cond $isEn (printf "/en/settings/%s/" .id) (printf "/settings/%s/" .id) }}
+        <a class="set-cat" data-cat="{{ .id }}" data-title="{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}" href="{{ $href }}">
+          {{ if .appicon }}
+          <span class="set-app-ic">{{ partial "icon.html" (dict "name" "appgrid-solid" "uid" "setnav") }}</span>
+          {{ else }}
+          <span class="set-ic {{ .bg }} {{ .fg }}">{{ partial "icon.html" .icon }}</span>
+          {{ end }}
+          <span>{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}</span>
+        </a>
+        {{ end }}
       </nav>
     </aside>
   </div>
   <div class="set-col-r">
-    <h2 class="set-right-title" id="set-right-title">{{ if $isEn }}Display{{ else }}显示{{ end }}</h2>
-    <div class="set-main min-w-0">
-
-    <!-- 第一组：显示 -->
-    <div class="set-group scroll-mt-24" id="sg-display">
-    <h2 class="set-gh"><span class="set-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "moon" }}</span><span>{{ if $isEn }}Display{{ else }}显示{{ end }}</span></h2>
-    <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.1s">
-      {{ if partial "feature.html" "theme-mode" }}
-      <div class="p-5">
-        <div class="grid grid-cols-2 gap-3" id="theme-previews">
-          <div>
-            <button type="button" class="theme-prev w-full" data-mode="light" aria-pressed="false" aria-label="{{ if $isEn }}Light{{ else }}浅色{{ end }}">
-              <div class="p-2.5" style="background:linear-gradient(135deg,#dbeaf7,#f5f8fa)">
-                <div class="rounded-lg bg-white shadow-xs p-2 space-y-1.5">
-                  <div class="h-2 rounded-full bg-slate-300 w-2/3"></div>
-                  <div class="h-6 rounded-md bg-blue-100"></div>
-                  <div class="h-6 rounded-md bg-slate-100"></div>
-                </div>
-              </div>
-            </button>
-            <p class="text-center text-xs mt-2 text-m-on-surface-variant">{{ if $isEn }}Light{{ else }}浅色{{ end }}</p>
-          </div>
-          <div>
-            <button type="button" class="theme-prev w-full" data-mode="dark" aria-pressed="false" aria-label="{{ if $isEn }}Dark{{ else }}深色{{ end }}">
-              <div class="p-2.5" style="background:linear-gradient(135deg,#14324a,#0e1318)">
-                <div class="rounded-lg shadow-xs p-2 space-y-1.5" style="background:#1a2027">
-                  <div class="h-2 rounded-full bg-slate-600 w-2/3"></div>
-                  <div class="h-6 rounded-md" style="background:#1e4767"></div>
-                  <div class="h-6 rounded-md" style="background:#242b34"></div>
-                </div>
-              </div>
-            </button>
-            <p class="text-center text-xs mt-2 text-m-on-surface-variant">{{ if $isEn }}Dark{{ else }}深色{{ end }}</p>
-          </div>
-        </div>
-      </div>
-      <div class="set-row" id="row-system" role="button" tabindex="0">
-        <span class="set-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "moon" }}</span>
-        <span class="flex-1 font-medium">{{ if $isEn }}Follow system{{ else }}跟随系统{{ end }}</span>
-        <span class="switch" id="sw-system" role="switch" aria-checked="false" aria-label="{{ if $isEn }}Follow system{{ else }}跟随系统{{ end }}"><span class="knob"></span></span>
-      </div>
-      {{ end }}{{/* /theme-mode */}}
-      {{/* 2.4.0-G：字体大小 / 布局由 features.yaml 生成（外观与手写版一致） */}}
-      {{ if partial "feature.html" "font-size" }}{{ partial "settings-row.html" (dict "f" (index $featMap "font-size") "isEn" $isEn) }}{{ end }}
-      {{ if partial "feature.html" "layout" }}{{ partial "settings-row.html" (dict "f" (index $featMap "layout") "isEn" $isEn) }}{{ end }}
-    </section>
-    </div>
-
-    <!-- 第二组：壁纸和主题 -->
-    {{ if partial "feature.html" "palette" }}
-    <div class="set-group scroll-mt-24" id="sg-theme">
-    <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "palette" }}</span><span>{{ if $isEn }}Wallpaper &amp; theme{{ else }}壁纸和主题{{ end }}</span></h2>
-    <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.14s">
-      <div class="p-5">
-        <p class="text-sm font-medium mb-3">{{ if $isEn }}Theme color{{ else }}主色{{ end }}</p>
-        <div class="flex gap-4 flex-wrap" id="palette-dots">
-          {{ range $palettes }}
-          <div class="flex flex-col items-center gap-1.5">
-            <button type="button" class="swatch" data-palette="{{ .id }}" style="background:{{ .c }}" aria-pressed="false" aria-label="{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}"></button>
-            <span class="text-[11px] text-m-on-surface-variant">{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}</span>
-          </div>
-          {{ end }}
-        </div>
-      </div>
-    </section>
-    </div>
-    {{ end }}{{/* /palette */}}
-
-    <!-- 安全与隐私（独立成组，链接到 /settings/security/） -->
-    <div class="set-group scroll-mt-24" id="sg-security">
-    <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Security and privacy{{ else }}安全与隐私{{ end }}</span></h2>
-    <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.16s">
-      <a class="set-row" id="row-security" href="{{ if $isEn }}/en/settings/security/{{ else }}/settings/security/{{ end }}">
-        <span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span>
-        <span class="flex-1 min-w-0">
-          <span class="block font-medium">{{ if $isEn }}Security and privacy{{ else }}安全与隐私{{ end }}</span>
-          <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="security-val">{{ if $isEn }}Lock screen, password, passkeys{{ else }}锁定屏幕、密码、通行密钥{{ end }}</span>
-        </span>
-        {{ partial "icon.html" "chev-r" }}
-      </a>
-    </section>
-    </div>
-
-    <!-- 第三组：常规管理 -->
-    <div class="set-group scroll-mt-24" id="sg-manage">
-    <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "sliders" }}</span><span>{{ if $isEn }}General management{{ else }}常规管理{{ end }}</span></h2>
-    <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.18s">
-      {{ if partial "feature.html" "lang" }}
-      <div class="set-row" id="row-lang" role="button" tabindex="0">
-        <span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "globe" }}</span>
-        <span class="flex-1 font-medium">{{ if $isEn }}Language{{ else }}语言{{ end }}</span>
-        <span id="lang-val" class="text-sm text-m-on-surface-variant">{{ if $isEn }}English{{ else }}中文{{ end }}</span>
-        {{ partial "icon.html" "chev-r" }}
-      </div>
+    <h2 class="set-right-title" id="set-right-title"></h2>
+    <div class="set-main min-w-0" id="set-panes">
+      {{ range $cats }}
+      {{ if ne .id "security" }}
+      {{ partial (printf "setcat-%s.html" .id) (dict "isEn" $isEn "featMap" $featMap "palettes" $palettes) }}
       {{ end }}
-      {{ if partial "feature.html" "tz1" }}
-      <div class="set-row" id="row-datetime" role="button" tabindex="0">
-        <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "clock" }}</span>
-        <span class="flex-1 font-medium">{{ if $isEn }}Date &amp; time{{ else }}日期和时间{{ end }}</span>
-        <span id="dt-val" class="text-sm text-m-on-surface-variant">--</span>
-        {{ partial "icon.html" "chev-r" }}
-      </div>
       {{ end }}
-      {{ if partial "feature.html" "weather-show" }}
-      <div class="set-row" id="row-weather" role="button" tabindex="0">
-        <span class="set-ic bg-m-warm-container text-m-on-warm-container">{{ partial "icon.html" "thermo" }}</span>
-        <span class="flex-1 font-medium">{{ if $isEn }}Weather{{ else }}天气{{ end }}</span>
-        <span id="wx-val" class="text-sm text-m-on-surface-variant">℃</span>
-        {{ partial "icon.html" "chev-r" }}
-      </div>
-      {{ end }}
-    </section>
-    </div>
-
-    <!-- 第四组：应用 -->
-    <div class="set-group scroll-mt-24" id="sg-apps">
-    <h2 class="set-gh"><span class="set-app-ic">{{ partial "icon.html" (dict "name" "appgrid-solid" "uid" "setgh") }}</span><span>{{ if $isEn }}Apps{{ else }}应用{{ end }}</span></h2>
-    <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.2s">
-      {{ if partial "feature.html" "files-view" }}
-      <div class="set-row" id="row-app-files" role="button" tabindex="0">
-        <span class="set-app-ic">{{ partial "icon.html" (dict "name" "files" "uid" "setapps1") }}</span>
-        <span class="flex-1 min-w-0">
-          <span class="block font-medium">{{ if $isEn }}My Files{{ else }}我的文件{{ end }}</span>
-          <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="app-files-val">--</span>
-        </span>
-        {{ partial "icon.html" "chev-r" }}
-      </div>
-      {{ end }}
-      {{ if partial "feature.html" "apps-hidden" }}
-      <div class="set-row" id="row-app-store" role="button" tabindex="0">
-        <span class="set-app-ic">{{ partial "icon.html" (dict "name" "store" "uid" "setapps2") }}</span>
-        <span class="flex-1 min-w-0">
-          <span class="block font-medium">{{ if $isEn }}Store{{ else }}应用商店{{ end }}</span>
-          <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="app-store-val">--</span>
-        </span>
-        {{ partial "icon.html" "chev-r" }}
-      </div>
-      {{ end }}
-      {{ if partial "feature.html" "search-engine" }}
-      <div class="set-row" id="row-app-browser" role="button" tabindex="0">
-        <span class="set-app-ic">{{ partial "icon.html" (dict "name" "browser" "uid" "setapps3") }}</span>
-        <span class="flex-1 min-w-0">
-          <span class="block font-medium">{{ if $isEn }}Internet{{ else }}浏览器{{ end }}</span>
-          <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="app-browser-val">--</span>
-        </span>
-        {{ partial "icon.html" "chev-r" }}
-      </div>
-      {{ end }}{{/* /search-engine */}}
-    </section>
-    </div>
-
-    <!-- 第五组：辅助功能 -->
-    <div class="set-group scroll-mt-24" id="sg-accessibility">
-    <h2 class="set-gh"><span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "person" }}</span><span>{{ if $isEn }}Accessibility{{ else }}辅助功能{{ end }}</span></h2>
-    <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.22s">
-      {{/* 2.4.0-G：减弱动效由 features.yaml 生成 */}}
-      {{ if partial "feature.html" "reduced-motion" }}{{ partial "settings-row.html" (dict "f" (index $featMap "reduced-motion") "isEn" $isEn) }}{{ end }}
-    </section>
-    </div>
-
-    <!-- 第六组：数字健康 -->
-    <div class="set-group scroll-mt-24" id="sg-wellbeing">
-    <h2 class="set-gh"><span class="set-ic bg-m-rose-container text-m-on-rose-container">{{ partial "icon.html" "info" }}</span><span>{{ if $isEn }}Digital wellbeing{{ else }}数字健康{{ end }}</span></h2>
-    <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.26s">
-      {{/* 我的屏幕时间（来自 data/wellbeing.yaml） */}}
-      {{ $wb := site.Data.wellbeing }}
-      {{ if $wb }}
-      {{ $wbTotal := $wb.total_minutes }}
-      {{ $wbSum := 0 }}{{ range $wb.apps }}{{ $wbSum = add $wbSum .minutes }}{{ end }}
-      {{ $wbOther := sub $wbTotal $wbSum }}
-      {{ $dp := split $wb.updated "-" }}{{ $wmo := index $dp 1 }}{{ $wda := strings.TrimLeft "0" (index $dp 2) }}
-      {{ $monEn := dict "01" "Jan" "02" "Feb" "03" "Mar" "04" "Apr" "05" "May" "06" "Jun" "07" "Jul" "08" "Aug" "09" "Sep" "10" "Oct" "11" "Nov" "12" "Dec" }}
-      <div class="p-5">
-        <div class="flex items-baseline justify-between gap-3 mb-3">
-          <p class="text-sm font-medium">{{ if $isEn }}My screen time{{ else }}我的屏幕时间{{ end }}</p>
-          <p class="text-[11px] text-m-on-surface-variant">{{ if $isEn }}Updated {{ index $monEn $wmo }} {{ $wda }}{{ else }}更新于 {{ $wmo }}月{{ $wda }}日{{ end }}</p>
-        </div>
-        {{ $th := div $wbTotal 60 }}{{ $tm := mod $wbTotal 60 }}
-        <p class="text-2xl font-extrabold tracking-tight mb-3">{{ if $isEn }}{{ $th }} hrs {{ $tm }} min{{ else }}{{ $th }} 小时 {{ $tm }} 分钟{{ end }}</p>
-        <div class="wb-bar" role="img" aria-label="{{ if $isEn }}Screen time breakdown{{ else }}屏幕时间分布{{ end }}">
-          {{ range $wb.apps }}<span style="width:{{ printf "%.1f" (div (mul .minutes 100.0) $wbTotal) }}%;background:{{ .color }}"></span>{{ end }}
-          <span style="width:{{ printf "%.1f" (div (mul $wbOther 100.0) $wbTotal) }}%;background:var(--m-container-highest)"></span>
-        </div>
-        <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[11px] text-m-on-surface-variant">
-          {{ range $wb.apps }}<span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" style="background:{{ .color }}"></span>{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}</span>{{ end }}
-          <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" style="background:var(--m-container-highest);border:1px solid var(--m-outline)"></span>{{ if $isEn }}Other{{ else }}其他{{ end }}</span>
-        </div>
-      </div>
-      {{ end }}
-      {{/* 你的数字健康（访客，只存本地） */}}
-      <div class="p-5 pt-1">
-        <div class="flex items-baseline justify-between gap-3 mb-3">
-          <p class="text-sm font-medium">{{ if $isEn }}Your visit today{{ else }}你今天的到访{{ end }}</p>
-          <p class="text-[11px] text-m-on-surface-variant">{{ if $isEn }}Stored on this device only{{ else }}只保存在本机{{ end }}</p>
-        </div>
-        <p class="text-2xl font-extrabold tracking-tight mb-3"><span id="well-v-total">0</span> <span class="text-sm font-medium text-m-on-surface-variant">{{ if $isEn }}min{{ else }}分钟{{ end }}</span></p>
-        <div class="wb-bar" id="well-v-bar" role="img" aria-label="{{ if $isEn }}Your visit breakdown{{ else }}到访分布{{ end }}"></div>
-        <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[11px] text-m-on-surface-variant" id="well-v-legend"></div>
-      </div>
-      {{/* 2.4.0-G：15 分钟提醒由 features.yaml 生成 */}}
-      {{ if partial "feature.html" "well-tip" }}{{ partial "settings-row.html" (dict "f" (index $featMap "well-tip") "isEn" $isEn) }}{{ end }}
-    </section>
-    </div>
-
-    <!-- 第六组：关于 -->
-    <div class="set-group scroll-mt-24" id="sg-about">
-    <h2 class="set-gh"><span class="set-ic bg-m-container-highest text-m-on-surface">{{ partial "icon.html" "globe" }}</span><span>{{ if $isEn }}About{{ else }}关于本站{{ end }}</span></h2>
-    <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.28s">
-      <div class="set-row no-ic">
-        <span class="flex-1 font-medium">{{ if $isEn }}Interface{{ else }}界面{{ end }}</span>
-        <span class="text-sm text-m-on-surface-variant">Styrigx UI 1.0</span>
-      </div>
-      <div class="set-row no-ic">
-        <span class="flex-1 font-medium">{{ if $isEn }}Version{{ else }}版本{{ end }}</span>
-        <span class="text-sm text-m-on-surface-variant">{{ site.Params.version }}</span>
-      </div>
-      <div class="set-row no-ic">
-        <span class="flex-1 font-medium">{{ if $isEn }}Built at{{ else }}构建时间{{ end }}</span>
-        <span class="text-sm text-m-on-surface-variant font-mono">{{ now.Format "2006-01-02 15:04" }}</span>
-      </div>
-      <a class="set-row no-ic" href="https://github.com/styrigx/styrigx-space" target="_blank" rel="noopener">
-        <span class="flex-1 font-medium">GitHub {{ if $isEn }}repository{{ else }}仓库{{ end }}</span>
-        {{ partial "icon.html" "chev-r" }}
-      </a>
-      <div class="set-row no-ic" id="row-reset" role="button" tabindex="0">
-        <span class="flex-1 font-medium text-red-600 dark:text-red-400">{{ if $isEn }}Reset all settings{{ else }}重置所有设置{{ end }}</span>
-      </div>
-    </section>
-    </div>
     </div>
   </div>
-
-  <!-- 旧搜索 overlay 已迁移到 One UI 8.5 搜索页（2.3.12），以下停用 -->
 </div>
 
-{{/* 2.4.0-C：设置页文案（中英双语）；脚本走 ES Module 入口 entry-settings.js。
-   setidx: [中文标题, 英文标题, 中文描述, 英文描述, 分类, 元素id, 面板, 高亮项] */}}
-{{ $setI18n := dict
-  "langVal" (dict "zh" "中文" "en" "English")
-  "langTitle" (dict "zh" "语言" "en" "Language")
-  "dtTitle" (dict "zh" "日期和时间" "en" "Date & time")
-  "dtAuto" (dict "zh" "第一时区使用本地时间" "en" "Use local time for primary timezone")
-  "dtAutoSub" (dict "zh" "关闭后可手动选择" "en" "Turn off to pick manually")
-  "dtUseLocal" (dict "zh" "使用本地时间" "en" "Use local time")
-  "dtTz1" (dict "zh" "第一时区" "en" "Primary timezone")
-  "dtTz2" (dict "zh" "第二时区" "en" "Second timezone")
-  "dtHour" (dict "zh" "小时制" "en" "Hour format")
-  "dt12" (dict "zh" "12 小时制" "en" "12-hour")
-  "dt24" (dict "zh" "24 小时制" "en" "24-hour")
-  "dtNote" (dict "zh" "首页双时钟和任务栏时间使用以上设置。" "en" "Home dual clock and taskbar time use these settings.")
-  "tzpTitle" (dict "zh" "选择时区" "en" "Choose timezone")
-  "tzpPh" (dict "zh" "搜索时区…" "en" "Search timezones…")
-  "tzpAria" (dict "zh" "搜索时区" "en" "Search timezones")
-  "tzpNo" (dict "zh" "无结果" "en" "No results")
-  "wxTitle" (dict "zh" "天气" "en" "Weather")
-  "wxShow" (dict "zh" "显示天气小组件" "en" "Show weather widget")
-  "wxUnit" (dict "zh" "温度单位" "en" "Temperature unit")
-  "filesTitle" (dict "zh" "我的文件" "en" "My Files")
-  "filesView" (dict "zh" "默认视图" "en" "Default view")
-  "viewList" (dict "zh" "列表" "en" "List")
-  "viewGrid" (dict "zh" "网格" "en" "Grid")
-  "filesSort" (dict "zh" "排序方式" "en" "Sort order")
-  "sortAdded" (dict "zh" "添加时间" "en" "Recently added")
-  "sortName" (dict "zh" "名称" "en" "Name")
-  "filesHome" (dict "zh" "主页显示的分组" "en" "Home sections")
-  "filesClear" (dict "zh" "清除最近访问记录" "en" "Clear recent visits")
-  "confirmClear" (dict "zh" "再点一次清除" "en" "Tap again to clear")
-  "openFiles" (dict "zh" "打开我的文件" "en" "Open My Files")
-  "storeTitle" (dict "zh" "应用商店" "en" "Store")
-  "storeCounts" (dict "zh" "已安装 {i} 个，未安装 {u} 个" "en" "Installed {i}, uninstalled {u}")
-  "storeRestore" (dict "zh" "恢复全部应用" "en" "Restore all apps")
-  "openStore" (dict "zh" "打开应用商店" "en" "Open Store")
-  "browserTitle" (dict "zh" "浏览器" "en" "Internet")
-  "engineTitle" (dict "zh" "搜索引擎" "en" "Search engine")
-  "addrPos" (dict "zh" "地址栏位置" "en" "Address bar position")
-  "posTop" (dict "zh" "顶部" "en" "Top")
-  "posBottom" (dict "zh" "底部" "en" "Bottom")
-  "clearHist" (dict "zh" "清除浏览记录" "en" "Clear browsing history")
-  "openBrowser" (dict "zh" "打开浏览器" "en" "Open Internet")
-  "gridViewVal" (dict "zh" "网格视图" "en" "Grid view")
-  "listViewVal" (dict "zh" "列表视图" "en" "List view")
-  "gCats" (dict "zh" "分类行" "en" "Categories")
-  "gSites" (dict "zh" "我的站点" "en" "My sites")
-  "gRecent" (dict "zh" "最近添加与访问" "en" "Recent")
-  "gStorage" (dict "zh" "站点存储" "en" "Storage")
-  "gFav" (dict "zh" "收藏" "en" "Favorites")
-  "catDisplay" (dict "zh" "显示" "en" "Display")
-  "catTheme" (dict "zh" "壁纸和主题" "en" "Wallpaper & theme")
-  "catSecurity" (dict "zh" "安全与隐私" "en" "Security and privacy")
-  "catManage" (dict "zh" "常规管理" "en" "General management")
-  "catApps" (dict "zh" "应用" "en" "Apps")
-  "catAccessibility" (dict "zh" "辅助功能" "en" "Accessibility")
-  "catWellbeing" (dict "zh" "数字健康" "en" "Digital wellbeing")
-  "catAbout" (dict "zh" "关于本站" "en" "About")
-  "setsoRecent" (dict "zh" "最近搜索" "en" "Recent searches")
-  "setsoCommon" (dict "zh" "常用设置" "en" "Common settings")
-  "setsoNo" (dict "zh" "无结果" "en" "No results")
-  "wellNoRec" (dict "zh" "今天还没有到访记录" "en" "No visits recorded yet today")
-  "areaHome" (dict "zh" "首页" "en" "Home")
-  "areaLinks" (dict "zh" "导航" "en" "Bookmarks")
-  "areaSettings" (dict "zh" "设置" "en" "Settings")
-  "areaGoodlock" (dict "zh" "Good Lock" "en" "Good Lock")
-  "appsTotal" (len site.Data.apps)
-  "linkFiles" (cond $isEn "/en/files/" "/files/")
-  "linkStore" (cond $isEn "/en/store/" "/store/")
-  "linkBrowser" (cond $isEn "/en/browser/" "/browser/")
-  "setidx" (slice
-    (slice "跟随系统" "Follow system" "显示" "Display" "display" "row-system" "" "")
-    (slice "字体大小" "Font size" "显示" "Display" "display" "seg-font" "" "")
-    (slice "布局" "Layout" "自动 / Mobile / DeX / PC" "Auto / Mobile / DeX / PC" "display" "seg-layout" "" "")
-    (slice "主色" "Theme color" "壁纸和主题" "Wallpaper & theme" "theme" "palette-dots" "" "")
-    (slice "壁纸和主题" "Wallpaper & theme" "" "" "theme" "sg-theme" "" "")
-    (slice "安全与隐私" "Security and privacy" "锁定屏幕、密码、通行密钥" "Lock screen, password, passkeys" "security" "sg-security" "" "")
-    (slice "锁定屏幕" "Lock screen" "安全与隐私" "Security and privacy" "security" (cond $isEn "/en/settings/security/lock/" "/settings/security/lock/") "" "")
-    (slice "密码" "Password" "解锁密码" "Unlock password" "security" (cond $isEn "/en/settings/security/lock/" "/settings/security/lock/") "" "")
-    (slice "通行密钥" "Passkeys" "安全与隐私" "Security and privacy" "security" (cond $isEn "/en/settings/security/lock/" "/settings/security/lock/") "" "")
-    (slice "语言" "Language" "常规管理" "General management" "manage" "row-lang" "" "")
-    (slice "日期和时间" "Date & time" "常规管理" "General management" "manage" "row-datetime" "" "")
-    (slice "第一时区" "Primary timezone" "日期和时间" "Date & time" "manage" "row-datetime" "" "")
-    (slice "第二时区" "Second timezone" "日期和时间" "Date & time" "manage" "row-datetime" "" "")
-    (slice "时区" "Time zone" "日期和时间" "Date & time" "manage" "row-datetime" "" "")
-    (slice "小时制" "Hour format" "日期和时间" "Date & time" "manage" "row-datetime" "" "")
-    (slice "天气" "Weather" "常规管理" "General management" "manage" "row-weather" "" "")
-    (slice "温度单位" "Temperature unit" "天气" "Weather" "manage" "row-weather" "" "")
-    (slice "显示天气小组件" "Show weather widget" "天气" "Weather" "manage" "row-weather" "" "")
-    (slice "搜索引擎" "Search engine" "浏览器" "Internet" "apps" "row-app-browser" "browser" "apb-engine")
-    (slice "应用" "Apps" "" "" "apps" "sg-apps" "" "")
-    (slice "我的文件" "My Files" "应用" "Apps" "apps" "row-app-files" "files" "")
-    (slice "博客" "Blog" "我的文件" "My Files" "apps" "row-app-files" "files" "")
-    (slice "书库" "Library" "我的文件" "My Files" "apps" "row-app-files" "files" "")
-    (slice "我的站点" "My sites" "我的文件" "My Files" "apps" "row-app-files" "files" "")
-    (slice "默认视图" "Default view" "我的文件" "My Files" "apps" "row-app-files" "files" "apf-view")
-    (slice "排序方式" "Sort order" "我的文件" "My Files" "apps" "row-app-files" "files" "apf-sort")
-    (slice "主页显示的分组" "Home sections" "我的文件" "My Files" "apps" "row-app-files" "files" "apf-home")
-    (slice "清除最近访问记录" "Clear recent visits" "我的文件" "My Files" "apps" "row-app-files" "files" "apf-clear")
-    (slice "应用商店" "Store" "应用" "Apps" "apps" "row-app-store" "store" "")
-    (slice "恢复全部应用" "Restore all apps" "应用商店" "Store" "apps" "row-app-store" "store" "aps-restore")
-    (slice "浏览器" "Internet" "应用" "Apps" "apps" "row-app-browser" "browser" "")
-    (slice "地址栏位置" "Address bar position" "浏览器" "Internet" "apps" "row-app-browser" "browser" "apb-pos")
-    (slice "清除浏览记录" "Clear browsing history" "浏览器" "Internet" "apps" "row-app-browser" "browser" "apb-clear")
-    (slice "减弱动效" "Reduce motion" "辅助功能" "Accessibility" "accessibility" "row-motion" "" "")
-    (slice "数字健康" "Digital wellbeing" "" "" "wellbeing" "sg-wellbeing" "" "")
-    (slice "15 分钟提醒" "15-minute reminder" "数字健康" "Digital wellbeing" "wellbeing" "row-welltip" "" "")
-    (slice "版本" "Version" "关于本站" "About" "about" "sg-about" "" "")
-    (slice "界面" "Interface" "Styrigx UI" "Styrigx UI" "about" "sg-about" "" "")
-    (slice "重置所有设置" "Reset all settings" "关于本站" "About" "about" "sg-about" "" "")
-    (slice "显示" "Display" "" "" "display" "sg-display" "" "")
-    (slice "常规管理" "General management" "" "" "manage" "sg-manage" "" "")
-    (slice "辅助功能" "Accessibility" "" "" "accessibility" "sg-accessibility" "" "")
-    (slice "关于本站" "About" "" "" "about" "sg-about" "" "")
-  )
-}}
-<script id="sgx-i18n-settings" type="application/json">{{ $setI18n | jsonify | safeJS }}</script>
+<script>
+/* 2.6.0：旧分类 hash（/settings/#display 等）跳转到对应子页 */
+(function () {
+  try {
+    var h = (location.hash || '').replace(/^#/, '');
+    var map = { display: 1, theme: 1, manage: 1, apps: 1, accessibility: 1, wellbeing: 1, about: 1, security: 1,
+      'sg-display': 'display', 'sg-theme': 'theme', 'sg-manage': 'manage', 'sg-apps': 'apps',
+      'sg-accessibility': 'accessibility', 'sg-wellbeing': 'wellbeing', 'sg-about': 'about', 'sg-security': 'security' };
+    var cat = map[h];
+    if (cat) {
+      var isEn = location.pathname.indexOf('/en/') === 0;
+      var base = isEn ? '/en/settings/' : '/settings/';
+      location.replace(base + (cat === 1 ? h : cat) + '/');
+    }
+  } catch (e) {}
+})();
+</script>
 
-<!-- 底部搜索胶囊（2.3.12.1 效果1+2）：2.3.11 的设置搜索，显示在胶囊上方 -->
+{{ partial "settings-i18n.html" (dict "isEn" $isEn) }}
+
+<!-- 底部搜索胶囊：搜到直接跳对应子页 -->
 {{ partial "sgx-capsule.html" (dict "page" "settings" "isEn" $isEn
   "placeholder" (cond $isEn "Search settings" "搜索设置")
   "panel" true) }}

@@ -1,0 +1,36 @@
+{{/* 2.6.0：设置子页「apps」分类组（自 settings.html 抽取，set-gh 标题由子页大标题替代）。 */}}
+{{ $isEn := .isEn }}{{ $featMap := .featMap }}{{ $palettes := .palettes }}
+<div class="set-group scroll-mt-24" id="sg-apps">
+<section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.2s">
+      {{ if partial "feature.html" "files-view" }}
+      <div class="set-row" id="row-app-files" role="button" tabindex="0">
+        <span class="set-app-ic">{{ partial "icon.html" (dict "name" "files" "uid" "setapps1") }}</span>
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}My Files{{ else }}我的文件{{ end }}</span>
+          <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="app-files-val">--</span>
+        </span>
+        {{ partial "icon.html" "chev-r" }}
+      </div>
+      {{ end }}
+      {{ if partial "feature.html" "apps-hidden" }}
+      <div class="set-row" id="row-app-store" role="button" tabindex="0">
+        <span class="set-app-ic">{{ partial "icon.html" (dict "name" "store" "uid" "setapps2") }}</span>
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}Store{{ else }}应用商店{{ end }}</span>
+          <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="app-store-val">--</span>
+        </span>
+        {{ partial "icon.html" "chev-r" }}
+      </div>
+      {{ end }}
+      {{ if partial "feature.html" "search-engine" }}
+      <div class="set-row" id="row-app-browser" role="button" tabindex="0">
+        <span class="set-app-ic">{{ partial "icon.html" (dict "name" "browser" "uid" "setapps3") }}</span>
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}Internet{{ else }}浏览器{{ end }}</span>
+          <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="app-browser-val">--</span>
+        </span>
+        {{ partial "icon.html" "chev-r" }}
+      </div>
+      {{ end }}{{/* /search-engine */}}
+    </section>
+</div>
