@@ -110,7 +110,7 @@
           {{ $iconUrl = printf "https://%s/favicon.ico" $host }}
         {{ end }}
         <a href="{{ .url }}" target="_blank" rel="noopener" data-name="{{ .name }}" data-desc="{{ .desc | default "" }}"
-           class="link-card group flex items-center gap-3 rounded-[1.25rem] border border-m-outline bg-m-container-lowest px-3.5 py-3 shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:border-m-primary active:scale-[0.98] transition-all">
+           class="link-card group flex items-center gap-3 rounded-[1.25rem] border border-m-outline bg-m-container-lowest px-3.5 py-3 shadow-xs hover:shadow-md hover:-translate-y-0.5 hover:border-m-primary active:scale-[0.98] transition-all">
           <img src="{{ $iconUrl }}" alt="" loading="lazy" decoding="async" width="36" height="36" data-favname="{{ .name }}"
                class="w-9 h-9 rounded-xl shrink-0 bg-m-container-high object-contain p-0.5">
           <span class="min-w-0">

@@ -256,9 +256,9 @@
       <a href="{{ $a.url }}" {{ if hasPrefix $a.url "http" }}target="_blank" rel="noopener"{{ end }}{{ with $a.appid }} data-appid="{{ . }}"{{ end }}
          class="app-tile flex flex-col items-center gap-1.5 py-1 active:scale-90 transition-transform animate-fade-up" style="animation-delay:{{ add 400 (mul $i 35) }}ms">
         {{ if or (eq $a.icon "brands/github") (eq $a.icon "x-logo") }}
-        <span class="w-12 h-12 rounded-[1.1rem] {{ $a.bg }} {{ $a.fg }} flex items-center justify-center shadow-sm">{{ partial "icon.html" $a.icon }}</span>
+        <span class="w-12 h-12 rounded-[1.1rem] {{ $a.bg }} {{ $a.fg }} flex items-center justify-center shadow-xs">{{ partial "icon.html" $a.icon }}</span>
         {{ else }}
-        <span class="w-12 h-12 shrink-0 drop-shadow-sm">{{ partial "icon.html" (dict "name" $a.icon "uid" (printf "hg%d" $i)) }}</span>
+        <span class="w-12 h-12 shrink-0 drop-shadow-xs">{{ partial "icon.html" (dict "name" $a.icon "uid" (printf "hg%d" $i)) }}</span>
         {{ end }}
         <span class="text-[11px] leading-tight text-center text-m-on-surface-variant dark:text-m-on-surface max-w-[4.75rem] break-words">{{ $a.name }}</span>
       </a>
@@ -373,7 +373,7 @@
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="garden-grid">
       {{ range first 4 $collections }}
       <a href="{{ .url }}" target="_blank" rel="noopener" data-tags="{{ delimit .tags "," }}" data-stage="{{ .stage }}"
-         class="garden-card group rounded-[1.25rem] border border-m-outline bg-m-container-low shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
+         class="garden-card group rounded-[1.25rem] border border-m-outline bg-m-container-low shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
         {{ with .image }}{{ with resources.Get . }}{{ with .Fill "800x400 webp" }}
         <div class="relative h-36">
           <img src="{{ .RelPermalink }}" alt="{{ $.name }}" loading="lazy" decoding="async" width="800" height="400" class="absolute inset-0 w-full h-full object-cover">
