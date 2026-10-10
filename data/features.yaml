@@ -52,8 +52,8 @@ features:
     requires: []
 
   - id: layout
-    name: {zh: 桌面布局, en: Desktop layout}
-    desc: {zh: 手动选择会覆盖按宽度的自动判断。, en: Manual choice overrides the automatic breakpoint.}
+    name: {zh: 布局, en: Layout}
+    desc: {zh: 手动选择会覆盖按视口的自动判断。, en: Manual choice overrides the automatic viewport detection.}
     icon: layout
     iclass: bg-m-primary-container text-m-on-primary-container
     row: layout
@@ -62,8 +62,9 @@ features:
     type: enum
     options:
       - {id: auto, zh: 自动, en: Auto}
-      - {id: phone, zh: 手机, en: Phone}
+      - {id: mobile, zh: Mobile, en: Mobile}
       - {id: dex, zh: DeX, en: DeX}
+      - {id: pc, zh: PC, en: PC}
     default: auto
     key: sgx-layout
     section: display

@@ -68,7 +68,7 @@
   <div id="home-widgets" class="grid grid-cols-4 lg:grid-cols-8 gap-3">
 
     <!-- 名片 -->
-    <div class="widget col-span-4 lg:col-span-5 bg-m-primary-container text-m-on-primary-container p-6 sm:p-7 flex items-center gap-5 animate-fade-up" style="animation-delay:.08s">
+    <div id="w-profile" class="widget col-span-4 lg:col-span-5 bg-m-primary-container text-m-on-primary-container p-6 sm:p-7 flex items-center gap-5 animate-fade-up" style="animation-delay:.08s">
       {{ $avatar := resources.Get "images/avatar.png" }}
       {{ if $avatar }}{{ $avatarWebp := $avatar.Fill "192x192 webp" }}{{ $avatarAvif := $avatar.Fill "192x192 avif" }}
       <img src="{{ $avatarWebp.RelPermalink }}" srcset="{{ $avatarAvif.RelPermalink }} 1x" alt="Sloan Gray" width="96" height="96" fetchpriority="high" class="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover ring-4 ring-white/40 shadow shrink-0">
@@ -178,7 +178,7 @@
     </div>
 
     <!-- 博客 · 通知卡 -->
-    <div class="widget col-span-4 lg:col-span-5 bg-m-container-lowest border border-m-outline p-5 sm:p-6 animate-fade-up" style="animation-delay:.32s">
+    <div id="w-blog" class="widget col-span-4 lg:col-span-5 bg-m-container-lowest border border-m-outline p-5 sm:p-6 animate-fade-up" style="animation-delay:.32s">
       <div class="flex items-center justify-between mb-4">
         <p class="text-xs font-semibold uppercase tracking-widest text-m-on-surface-variant">{{ if $isEn }}Blog · Latest{{ else }}博客 · 最新{{ end }}</p>
         <a href="https://blog.styrigx.com" target="_blank" rel="noopener" class="text-xs font-medium text-m-primary hover:underline">{{ if $isEn }}All →{{ else }}全部 →{{ end }}</a>
@@ -199,7 +199,7 @@
     </div>
 
     <!-- 数字花园 -->
-    <a href="#garden" class="widget col-span-2 lg:col-span-3 bg-m-tertiary-container text-m-on-tertiary-container p-5 flex flex-col justify-center animate-fade-up active:scale-[0.98] transition-transform" style="animation-delay:.38s">
+    <a href="#garden" id="w-garden" class="widget col-span-2 lg:col-span-3 bg-m-tertiary-container text-m-on-tertiary-container p-5 flex flex-col justify-center animate-fade-up active:scale-[0.98] transition-transform" style="animation-delay:.38s">
       <p class="text-xs font-semibold uppercase tracking-widest opacity-70 mb-3">{{ if $isEn }}Digital Garden{{ else }}数字花园{{ end }}</p>
       <div class="flex items-center gap-4 text-sm font-bold">
         <span>🌱 {{ $seed }}</span><span>🌿 {{ $bud }}</span><span>🌳 {{ $ev }}</span>
@@ -215,7 +215,7 @@
     {{ $wbOther := sub $wbTotal $wbSum }}
     {{ $dp := split $wb.updated "-" }}{{ $wmo := index $dp 1 }}{{ $wda := strings.TrimLeft "0" (index $dp 2) }}
     {{ $monEn := dict "01" "Jan" "02" "Feb" "03" "Mar" "04" "Apr" "05" "May" "06" "Jun" "07" "Jul" "08" "Aug" "09" "Sep" "10" "Oct" "11" "Nov" "12" "Dec" }}
-    <div class="widget wb-full col-span-4 lg:col-span-8 bg-m-container-lowest border border-m-outline p-5 sm:p-6 animate-fade-up" style="animation-delay:.44s">
+    <div id="w-screen" class="widget wb-full col-span-4 lg:col-span-8 bg-m-container-lowest border border-m-outline p-5 sm:p-6 animate-fade-up" style="animation-delay:.44s">
       <div class="flex items-center justify-between gap-3 mb-4">
         <p class="text-xs font-semibold uppercase tracking-widest opacity-70">{{ if $isEn }}My screen time{{ else }}我的屏幕时间{{ end }}</p>
         <p class="text-[11px] text-m-on-surface-variant">{{ if $isEn }}Updated {{ index $monEn $wmo }} {{ $wda }}{{ else }}更新于 {{ $wmo }}月{{ $wda }}日{{ end }}</p>
@@ -249,8 +249,8 @@
     {{ end }}
   </div>
 
-  <!-- App 图标 -->
-  <section class="pt-8">
+  <!-- App 图标（PC 模式下不渲染，与底部 Dock 重复） -->
+  <section id="home-apps" class="pt-8">
     <div class="app-grid grid grid-cols-4 sm:grid-cols-8 gap-x-2 gap-y-4">
       {{ range $i, $a := $apps }}
       <a href="{{ $a.url }}" {{ if hasPrefix $a.url "http" }}target="_blank" rel="noopener"{{ end }}{{ with $a.appid }} data-appid="{{ . }}"{{ end }}
@@ -322,7 +322,7 @@
         <span class="msg-hover">{{ if $isEn }}Music on repeat. Hover for notes.{{ else }}循环播放的音乐，悬停看批注。{{ end }}</span>
         <span class="msg-tap">{{ if $isEn }}Music on repeat. Tap a cover for notes.{{ else }}循环播放的音乐，点击封面看批注。{{ end }}</span>
       </p>
-      <div class="flex gap-4 overflow-x-auto pb-2 snap-x no-scrollbar -mx-1 px-1">
+      <div class="flex gap-4 overflow-x-auto pb-2 snap-x no-scrollbar -mx-1 px-1 pe-6">
       {{ range $m := $music }}
       <div class="group snap-start shrink-0 w-32 sm:w-40">
         <a href="{{ $m.url }}" target="_blank" rel="noopener" aria-label="{{ $m.title }} - {{ $m.artist }}"

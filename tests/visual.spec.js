@@ -1,6 +1,6 @@
 /**
  * 2.4.0 E：视觉回归测试。
- * 3 视口 × 中英 × 深浅色 × 主要页面（/、/files/、/store/、/browser/、/settings/）
+ * 5 视口 × 中英 × 深浅色 × 主要页面（/、/files/、/store/、/browser/、/settings/）
  * + F 的两张基准（弹层打开、引擎菜单打开）。
  * 首次运行：npx playwright test --update-snapshots 生成基准；
  * 后续运行自动对比，不一致即失败。
@@ -14,6 +14,8 @@ const { blockExternalRequests, freezeTime, expect } = require('./helpers');
 const VIEWPORTS = {
   mobile: { width: 412, height: 915 },
   landscape: { width: 915, height: 412 },
+  tabletPortrait: { width: 800, height: 1280 },
+  tabletLandscape: { width: 1280, height: 800 },
   desktop: { width: 1920, height: 1080 },
 };
 /* 安全与隐私：新页面加入视觉回归（先只报告，基线未生成前不阻塞） */

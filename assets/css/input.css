@@ -519,7 +519,8 @@
   .dock, #dex-dock,
   .subpage-back-float, #files-more.stuck,
   .layout-dex #site-nav,
-  .layout-phone body.subpage-scrolled #site-nav,
+  .layout-pc #site-nav,
+  .layout-mobile body.subpage-scrolled #site-nav,
   .sgx-searchbar, .sgx-cap, .sgx85-pill,
   .brw-suggest, .sgx-cap-results, .brw-ov-bar, .brw-ov,
   .sgx-vs-card, #sheet-panel {
@@ -537,20 +538,20 @@
   }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .glass, .dock, #dex-dock, .subpage-back-float, #files-more.stuck,
-    .layout-dex #site-nav, .layout-phone body.subpage-scrolled #site-nav,
+    .layout-dex #site-nav, .layout-pc #site-nav, .layout-mobile body.subpage-scrolled #site-nav,
     .sgx-searchbar, .sgx-cap, .sgx85-pill,
     /* stylelint-disable-next-line color-no-hex */
     .brw-suggest, .sgx-cap-results, .brw-ov-bar, .brw-ov, .sgx-vs-card { background: #fff; }
     /* stylelint-disable-next-line color-no-hex */
-    .layout-phone #sheet-panel, .layout-dex #sheet-panel { background: #fff; }
+    .layout-mobile #sheet-panel, .layout-dex #sheet-panel, .layout-pc #sheet-panel { background: #fff; }
     .dark .glass, .dark .dock, .dark #dex-dock, .dark .subpage-back-float, .dark #files-more.stuck,
-    .dark .layout-dex #site-nav, .dark .layout-phone body.subpage-scrolled #site-nav,
+    .dark .layout-dex #site-nav, .dark .layout-pc #site-nav, .dark .layout-mobile body.subpage-scrolled #site-nav,
     .dark .sgx-searchbar, .dark .sgx-cap, .dark .sgx85-pill,
     .dark .brw-suggest, .dark .sgx-cap-results, .dark .brw-ov-bar, .dark .brw-ov,
     /* stylelint-disable-next-line color-no-hex */
     .dark .sgx-vs-card { background: #1e1e20; }
     /* stylelint-disable-next-line color-no-hex */
-    .dark .layout-phone #sheet-panel, .dark .layout-dex #sheet-panel { background: #1e1e20; }
+    .dark .layout-mobile #sheet-panel, .dark .layout-dex #sheet-panel, .layout-pc #sheet-panel { background: #1e1e20; }
   }
 
   /* ===== 顶部边缘渐进模糊（2.4.0 A）：只在滚动后出现；
@@ -586,6 +587,8 @@
     position: fixed; left: 0; right: 0; bottom: 0; height: 96px; z-index: 30; pointer-events: none;
     background: linear-gradient(to top, var(--m-surface), transparent);
   }
+  /* DeX/PC：底部 Dock 胶囊自带背景/毛玻璃/阴影，不需要全宽的底部渐隐带 */
+  .layout-dex #edge-bottom, .layout-pc #edge-bottom { display: none; }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     #edge-top { background: linear-gradient(to bottom, var(--m-surface), transparent); }
   }
@@ -646,7 +649,7 @@
       }
     }
     /* 顶栏变实：与小标题/返回键同一阈值，合并为同一层模糊底（替代 body.subpage-scrolled） */
-    .layout-phone #site-nav {
+    .layout-mobile #site-nav {
       isolation: isolate;
       contain: layout style;
       animation: sgx-nav-frost linear both;
@@ -675,7 +678,7 @@
       }
     }
     /* 品牌/时间淡出：与顶栏变实同步 */
-    .layout-phone #nav-brand, .layout-phone #nav-time-center {
+    .layout-mobile #nav-brand, .layout-mobile #nav-time-center {
       animation: sgx-nav-fade linear both;
       animation-timeline: --sgx-subhead;
       animation-range: exit 55% exit 57%;
@@ -723,7 +726,7 @@
   .clock-night .clock-sub { color: rgba(255,255,255,.72); }
   .clock-night .clock-div { border-color: rgba(255,255,255,.15); }
 
-  /* ===== 手机悬浮 Dock（<980px，全站）：居中胶囊，我的文件 / 浏览器 / 设置 ===== */
+  /* ===== Mobile 悬浮 Dock（竖屏，全站）：居中胶囊，我的文件 / 浏览器 / 设置 ===== */
   .dock {
     display: none;
     position: fixed; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom,0px));
@@ -731,7 +734,7 @@
     align-items: center; height: 64px; padding: 0 10px; border-radius: 999px;
     background: var(--glass-tint); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow);
     transition: transform .22s ease, opacity .22s ease;
-    .layout-phone & { display: flex; }
+    .layout-mobile & { display: flex; }
     &.dock-hide {
       transform: translateX(-50%); opacity: 0; visibility: hidden; pointer-events: none;
     }
@@ -761,7 +764,7 @@
 
   /* ===== main 底部留白：避开手机悬浮 Dock（DeX 无底部栏） ===== */
   /* DeX：无底部栏，只留 24px + 安全区 */
-  .layout-dex main { padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
+  .layout-dex main , .layout-pc main { padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
   /* 2.3.14.10：Dock 只在主页；应用页（body.subpage）底部留白按新胶囊位置重算。
      胶囊下沉后底部 12px＋安全区、顶部 68px＋安全区：页脚版权行在胶囊顶部上方 21px（与改前一致），
      主内容在胶囊顶部上方 36px（与改前一致），无 Dock 页面只留 24px/21px 呼吸。 */
@@ -771,14 +774,14 @@
   body.sgx-cap-pad footer { padding-bottom: calc(56px + var(--dock-h) + 24px + 21px + env(safe-area-inset-bottom,0px)); }
   /* 子页 + 胶囊：胶囊在 Dock 上方，页脚只需避开胶囊（改前 line 648，更具体故胜出） */
   body.subpage.sgx-cap-pad footer { padding-bottom: calc(56px + 12px + 21px + env(safe-area-inset-bottom,0px)); }
-  .layout-dex footer { padding-bottom: calc(21px + env(safe-area-inset-bottom, 0px)); }
+  .layout-dex footer , .layout-pc footer { padding-bottom: calc(21px + env(safe-area-inset-bottom, 0px)); }
 
   /* ===== 顶栏：透明无底色无线，直接融在背景里；手机、DeX 全局显示 ===== */
   #site-nav {
     position: fixed; top: 0; left: 0; right: 0; background: transparent; border: 0; box-shadow: none;
     .nav-inner { position: relative; }
     /* DeX 顶栏：统一磨砂玻璃，去硬线 */
-    .layout-dex & { background: var(--glass-tint); }
+    .layout-dex & , .layout-pc & { background: var(--glass-tint); }
   }
   /* 顶栏中间时间（带日期）：绝对居中，点击展开日历面板 */
   #nav-time-center {
@@ -794,7 +797,7 @@
   #nav-right { display: flex; align-items: center; gap: 2px; margin-left: auto; flex-shrink: 0; position: relative; z-index: 1; }
   /* 手机子页面滚动后：顶栏与小标题/圆形返回键合并为同一层模糊底（JS 回退路径） */
   #nav-brand, #nav-time-center { transition: opacity .2s ease; }
-  .layout-phone body.subpage-scrolled #site-nav {
+  .layout-mobile body.subpage-scrolled #site-nav {
     background: var(--glass-tint);
     /* 模糊层加高：覆盖居中小标题下方 16px，渐隐更长，小标题不直接贴在卡片上 */
     padding-bottom: 14px;
@@ -803,10 +806,10 @@
     /* stylelint-disable-next-line color-no-hex */
     mask-image: linear-gradient(to bottom, #000 0%, #000 62%, transparent 100%);
   }
-  .layout-phone body.subpage-scrolled #nav-brand,
-  .layout-phone body.subpage-scrolled #nav-time-center { opacity: 0; pointer-events: none; }
+  .layout-mobile body.subpage-scrolled #nav-brand,
+  .layout-mobile body.subpage-scrolled #nav-time-center { opacity: 0; pointer-events: none; }
   /* 手机子页面：标题区从屏幕顶部开始（顶栏透明叠在上面），main 不再额外留白 */
-  .layout-phone main:has([data-subpage-head]) { padding-top: 0; }
+  .layout-mobile main:has([data-subpage-head]) { padding-top: 0; }
 
   /* ===== 子页面统一标题区（One UI 8.5 设置风格）：大标题居中 + 模块下沉 ===== */
   .subpage-head {
@@ -816,16 +819,16 @@
     /* 手机：标题区高度 = 实际可见高度 × 0.25（JS 写 --head-h，只在加载/横竖屏更新；兜底 25svh）。
        标题区从屏幕顶部开始（顶栏透明叠在上面），大标题沉底：标题区整体约 25% 屏高，
        标题下方到第一块内容不超过 32px（head 的 padding-bottom）。折叠动画逻辑不变。 */
-    .layout-phone & {
+    .layout-mobile & {
       min-height: var(--head-h, max(200px,25svh));
       padding-top: calc(var(--nav-h,64px) + 20px + env(safe-area-inset-top,0px));
       justify-content: flex-end;
     }
-    .layout-dex & { min-height: 25vh; min-height: 25svh; padding-top: calc(64px + env(safe-area-inset-top,0px)); }
+    .layout-dex & , .layout-pc & { min-height: 25vh; min-height: 25svh; padding-top: calc(64px + env(safe-area-inset-top,0px)); }
   }
-  .layout-phone .subpage-hero { position: relative; top: 0; }
-  .layout-phone .subpage-back { top: calc(var(--nav-h,64px) + 12px + env(safe-area-inset-top,0px)); }
-  .layout-phone .subpage-actions { top: auto; bottom: 8px; }
+  .layout-mobile .subpage-hero { position: relative; top: 0; }
+  .layout-mobile .subpage-back { top: calc(var(--nav-h,64px) + 12px + env(safe-area-inset-top,0px)); }
+  .layout-mobile .subpage-actions { top: auto; bottom: 8px; }
   /* 2.3.14.7：大标题滚动联动动画 2.4.0 B 起由 CSS scroll-driven animations 驱动
      （@supports 不命中时回退到 rAF 直接写 opacity/transform），不再用 CSS transition，
      避免与逐帧更新打架。2.4.0 A：will-change 不常驻，只在滚动活跃时由 JS 临时加。 */
@@ -858,7 +861,7 @@
     opacity: 0; pointer-events: none; transform: translateY(-8px); transition: opacity .2s ease, transform .2s ease;
     &.show { opacity: 1; pointer-events: auto; transform: none; }
     svg { width: 24px; height: 24px; color: var(--m-primary); }
-    .layout-dex & { display: none; }
+    .layout-dex & , .layout-pc & { display: none; }
     .reduced-motion & { transition: none; }
     /* 2.3.14.5：一级页（noBack）折叠后在顶栏左侧淡入的返回键：44px 磨砂圆，蓝色 ‹；
        与右侧天气对称，宽屏时跟内容区左边缘对齐；DeX 同样显示 */
@@ -868,14 +871,8 @@
       top: calc(var(--nav-h,64px) + 8px + env(safe-area-inset-top,0px));
       left: max(16px, calc((100vw - 1100px)/2 + 16px));
       font-size: 26px; line-height: 1; font-weight: 400; color: var(--m-primary);
-      .layout-dex & { display: flex; }
+      .layout-dex & , .layout-pc & { display: flex; }
     }
-  }
-  /* 2.3.15 A1：横屏手机（<980px 为 layout-phone）内容列 640px 居中，
-     浮动返回键左边缘对齐内容列左边缘；竖屏、DeX（≥980px）不变 */
-  @media (orientation:landscape) and (max-width:979.5px) {
-    .subpage-back-float.subpage-back-top { left: max(16px, calc((100vw - 640px)/2)); }
-    .subpage-back-float { left: max(16px, calc((100vw - 640px)/2)); }
   }
 }
 
@@ -962,12 +959,12 @@
     &.sgx-open::backdrop { opacity: 1; }
   }
   /* 手机：底部弹层 */
-  .layout-phone dialog#sheet-wrap {
+  .layout-mobile dialog#sheet-wrap {
     margin: 0; width: 100%; height: auto;
     position: fixed; inset: auto 0 0 0;
   }
   #sheet-panel { transition: transform .32s cubic-bezier(.22,1,.36,1), opacity .25s; }
-  .layout-phone {
+  .layout-mobile {
     #sheet-panel {
       max-height: 72vh;
       border-radius: 1.75rem 1.75rem 0 0;
@@ -976,7 +973,7 @@
     dialog#sheet-wrap.sgx-open #sheet-panel { transform: translateY(0); }
     .sheet-handle { width: 40px; height: 5px; border-radius: 999px; background: var(--m-outline); margin: 10px auto 2px; flex-shrink: 0; }
   }
-  .layout-dex {
+  .layout-dex, .layout-pc {
     dialog#sheet-wrap {
       margin: auto; width: 100%; max-width: 22rem;
       &.sgx-open, &.sgx-closing { display: flex; align-items: center; justify-content: center; }
@@ -1060,9 +1057,10 @@
 
 @layer sgx-components {
   /* ============================================================
-     DeX 布局（2.3.4 起：≥980px 统一 DeX，平板布局已删除）
-     布局模式由 <html> 上的 layout-phone / layout-dex 类驱动，
-     断点：<980 手机 / ≥980 DeX，可在设置页手动覆盖。
+     DeX 布局（2.5.0 起：横屏且宽度 <1600px；竖屏 → Mobile，横屏且 ≥1600px → PC）
+     布局模式由 <html> 上的 layout-mobile / layout-dex / layout-pc 类驱动，
+     只看视口不嗅探 UA，可在设置页手动覆盖（自动 / Mobile / DeX / PC）。
+     PC 沿用 DeX 任务栏与宽屏 chrome（各 .layout-dex 规则已同步带 .layout-pc），
      DeX 内部自适应：640–1023px 小组件 2 列，1024–1439px 3 列，≥1440px 4 列；
      <1024px 时左侧桌面图标列收起。
      ============================================================ */
@@ -1070,13 +1068,13 @@
   /* ----- 首页内容区：DeX 下放宽到 1280px（盖过模板上的 max-w-[1100px]） ----- */
   .layout-dex .home-wrap { max-width: 1280px; }
 
-  /* ----- DeX 底部居中 Dock（≥980px）：应用抽屉 / 我的文件 / 浏览器 / 设置 ----- */
+  /* ----- DeX/PC 底部居中 Dock（横屏）：应用抽屉 / 我的文件 / 浏览器 / 设置 ----- */
   #dex-dock {
     display: none;
     position: fixed; left: 50%; transform: translateX(-50%); bottom: 12px; z-index: 40;
     align-items: center; gap: 2px; height: var(--dex-dock-h); padding: 0 12px; border-radius: 999px;
     background: var(--glass-tint); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow);
-    .layout-dex & { display: flex; }
+    .layout-dex & , .layout-pc & { display: flex; }
   }
   .dex-dock-btn {
     position: relative; width: 60px; height: 52px; border-radius: 1rem; display: flex;
@@ -1095,8 +1093,9 @@
   }
   .dex-dock-btn.dex-dock-active .dex-dock-dot { opacity: 1; }
   /* DeX 底部 Dock 不滚动隐藏；页面底部留出 Dock 高度 + 16px */
-  .layout-dex main { padding-bottom: calc(var(--dex-dock-h) + 12px + 16px + env(safe-area-inset-bottom,0px)); }
-  .layout-dex footer { padding-bottom: calc(var(--dex-dock-h) + 12px + env(safe-area-inset-bottom,0px)); }
+  .layout-dex main , .layout-pc main { padding-bottom: calc(var(--dex-dock-h) + 12px + 16px + env(safe-area-inset-bottom,0px)); }
+  /* footer 也要留出 Dock 高度：滚到底时不被 Dock 压住 */
+  .layout-dex footer , .layout-pc footer { padding-bottom: calc(var(--dex-dock-h) + 12px + 16px + env(safe-area-inset-bottom,0px)); }
 
   /* ----- 顶栏右侧托盘按钮 ----- */
   .nav-tray-btn {
@@ -1117,7 +1116,7 @@
     align-items: center; gap: 10px; padding: 10px 12px; border-radius: 1.25rem;
     background: var(--m-container-lowest); border: 1px solid var(--m-outline);
     box-shadow: 0 12px 32px -8px rgba(0,0,0,.25); max-width: 320px;
-    .layout-dex &:not(.hidden) { display: flex; }
+    .layout-dex &:not(.hidden) , .layout-pc &:not(.hidden) { display: flex; }
     &.hidden { display: none; } /* → 特异性不足以压住上一条时，见 overrides 层 */
     @media (prefers-reduced-motion: reduce) { transition: none; }
   }
@@ -1222,20 +1221,41 @@
     .layout-dex #home-widgets > .widget.wb-full { grid-column: span 4/span 4; }
   }
 
+  /* ----- PC（2.5.0）：栅格布局 —— 容器 1440 居中，左右边缘对齐 ----- */
+  .layout-pc .home-wrap { max-width: 1440px; }
+  /* 首页小组件：2 列栅格 + dense 回填；大卡片（个人卡/博客/屏幕时间/天气）横跨整行，
+     小卡片两两并排（时钟+播放器、便签+数字花园），每行铺满无右侧空白 */
+  .layout-pc #home-widgets { grid-template-columns: repeat(2,minmax(0,1fr)); grid-auto-flow: dense; }
+  .layout-pc #home-widgets > .widget { grid-column: span 1/span 1; }
+  .layout-pc #home-widgets > #w-profile,
+  .layout-pc #home-widgets > #w-blog,
+  .layout-pc #home-widgets > #w-screen,
+  .layout-pc #home-widgets > #weather { grid-column: span 2/span 2; }
+  /* DeX/PC 下彻底不渲染桌面图标网格（与底部 Dock 重复；DeX 下还会被 Dock 压住、上半截漏出） */
+  .layout-dex #home-apps, .layout-pc #home-apps { display: none; }
+  /* 顶栏与内容区对齐：同宽容器；头像/名字贴左缘，日期时间贴右缘 */
+  .layout-pc .nav-inner { max-width: 1440px; gap: 0; }
+  .layout-pc #nav-time-center { position: static; transform: none; margin-left: auto; }
+  .layout-pc #nav-right { margin-left: 0; }
+  /* DeX 顶栏与内容区对齐：内容 1280 居中，同 PC 一套规则 */
+  .layout-dex .nav-inner { max-width: 1280px; gap: 0; }
+  .layout-dex #nav-time-center { position: static; transform: none; margin-left: auto; }
+  .layout-dex #nav-right { margin-left: 0; }
+
   /* ----- 手机模式强制（宽屏下也保持手机布局） ----- */
-  .layout-phone #home-widgets { grid-template-columns: repeat(4,minmax(0,1fr)); }
-  .layout-phone #home-widgets > .widget { grid-column: span 4/span 4; }
-  .layout-phone .app-grid { grid-template-columns: repeat(4,minmax(0,1fr)); }
+  .layout-mobile #home-widgets { grid-template-columns: repeat(4,minmax(0,1fr)); }
+  .layout-mobile #home-widgets > .widget { grid-column: span 4/span 4; }
+  .layout-mobile .app-grid { grid-template-columns: repeat(4,minmax(0,1fr)); }
 }
 
 @layer sgx-components {
   /* ===== 设置页：DeX 双栏（2.3.14.8，参考 One UI 8.5 平板设置）=====
      左栏 clamp(320px,36%,420px)：大标题（公共组件，靠左）＋ 账号卡 ＋ 菜单；
      右栏占剩余宽度：顶部选中项名称 ＋ 详情卡片（最大 720px，左对齐）。
-     两栏各自独立滚动，底部留出胶囊＋Dock 高度。只在 .layout-dex（现有宽屏断点）生效。 */
+     两栏各自独立滚动，底部留出胶囊＋Dock 高度。在 .layout-dex / .layout-pc（横屏宽屏）生效。 */
   .set-side { display: none; }
   .set-right-title { display: none; }
-  .layout-dex {
+  .layout-dex, .layout-pc {
     .set-layout {
       max-width: none; display: grid;
       grid-template-columns: clamp(320px,36%,420px) minmax(0,1fr); gap: 16px; align-items: start;
@@ -1297,7 +1317,7 @@
     .sgx-ac-img { width: 48px; height: 48px; border-radius: 999px; object-fit: cover; flex-shrink: 0; }
     /* 2.3.14.9：手机端设置页显示账号卡（大标题下方、第一分组上方），
        与宽屏左栏同一组件、样式一致；宽度随容器（左右 16px 由 .set-layout 的 px-4 提供）。 */
-    .layout-phone & { display: flex; margin: 2px 0 12px; }
+    .layout-mobile & { display: flex; margin: 2px 0 12px; }
   }
   .set-side-title { font-size: 2rem; font-weight: 800; color: var(--m-primary); letter-spacing: -0.02em; line-height: 1.1; }
   #set-search {
@@ -1423,7 +1443,7 @@
   #settings-searchfade {
     display: block; position: fixed; left: 0; right: 0; bottom: 0; height: 96px; z-index: 29; pointer-events: none;
     background: linear-gradient(to bottom, rgba(0,0,0,0) 0%, var(--m-surface) 100%);
-    .layout-dex & { display: none; }
+    .layout-dex & , .layout-pc & { display: none; }
   }
   /* ===== 设置页全屏搜索（仅手机） ===== */
   #set-search-overlay {
@@ -1456,7 +1476,7 @@
     transition: transform .22s ease, opacity .22s ease;
     .reduced-motion & { transition: none; }
     /* 手机：悬浮在 Dock 上方 12px（Dock 高 64 + 底部 12 = 88px） */
-    .layout-phone & {
+    .layout-mobile & {
       position: fixed; left: 50%; transform: translateX(-50%); margin-left: 0; margin-right: 0;
       bottom: calc(88px + env(safe-area-inset-bottom,0px)); z-index: 41;
       /* 滚动隐藏：复用各页现有逻辑（files 自有 600ms / settings 随 Dock），行为不变 */
@@ -1513,11 +1533,11 @@
   .brw-suggest {
     border-radius: 1.5rem; overflow: hidden;
     background: var(--glass-tint); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow);
-    .layout-phone body.addrbar-bottom & {
+    .layout-mobile body.addrbar-bottom & {
       position: fixed; left: 50%; transform: translateX(-50%); width: min(100% - 32px,560px);
       bottom: calc(152px + env(safe-area-inset-bottom,0px)); z-index: 41; max-height: 52vh; overflow-y: auto;
     }
-    .layout-phone body.addrbar-top &, .layout-dex & {
+    .layout-mobile body.addrbar-top &, .layout-dex & {
       width: min(100% - 32px,560px); margin: 8px auto 0; max-height: 60vh; overflow-y: auto;
     }
   }

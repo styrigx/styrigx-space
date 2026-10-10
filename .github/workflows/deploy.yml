@@ -9,6 +9,11 @@ on:
       - main
   workflow_dispatch:
 
+# 同一分支推新提交时取消旧的 PR CI；main 的生产部署永不取消
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   HUGO_VERSION: '0.167.0'
 
@@ -100,6 +105,9 @@ jobs:
         # 注意：不要再被别的提交 revert 掉本行（a8f4dffa 曾误删）。
         continue-on-error: true
         run: npx playwright test --config=playwright.config.js
+
+      - name: PC layout assertions（2.5.0 栅格/Dock/顶栏对齐，阻塞）
+        run: npx playwright test --config=playwright.config.js pc-layout.spec.js
 
       - name: Lighthouse CI
         # Hark：lhci 自己起服务（见 .lighthouserc.json 的 startServerCommand）。
