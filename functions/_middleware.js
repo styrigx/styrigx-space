@@ -4,7 +4,9 @@
  * 1. 域名隔离：生产环境只允许 styrigx.com 访问（保留 P0-3 逻辑）
  * 2. 会话检查：sgx-verified cookie（Ed25519 签名，epoch.exp.sig）
  *    - 有效 → next()
- *    - 无效 → 白名单放行，否则返回锁屏页 HTML（200，不 302）
+ *    - 无效 → 白名单放行，否则 302 到首页锁屏（?lock=1&return=原地址）
+ * 3. verifySession 每次拒绝都打 [sgx-verify] fail: <原因> 日志（只记原因，
+ *    不记密钥和 cookie 值），用于线上排查会话未被识别的问题。
  */
 
 import { ed25519Verify } from './_lib/crypto.js';
@@ -49,41 +51,30 @@ function getCookie(request, name) {
  */
 async function verifySession(request, env) {
   const val = getCookie(request, 'sgx-verified');
-  if (!val) return false;
+  if (!val) { console.log('[sgx-verify] fail: no-cookie'); return false; }
   const parts = val.split('.');
-  if (parts.length !== 3) return false;
+  if (parts.length !== 3) { console.log('[sgx-verify] fail: bad-format'); return false; }
   const [epochStr, expStr, sig] = parts;
   const exp = parseInt(expStr, 10);
-  if (!exp || exp < Date.now()) return false;
+  if (!exp || exp < Date.now()) { console.log('[sgx-verify] fail: expired'); return false; }
 
   const pubKey = env && env.SGX_ED25519_PUBLIC;
-  if (!pubKey) return false; /* 未配公钥：fail closed */
+  if (!pubKey) { console.log('[sgx-verify] fail: no-pubkey'); return false; } /* 未配公钥：fail closed */
   const payload = epochStr + '.' + expStr;
-  if (!(await ed25519Verify(pubKey, payload, sig))) return false;
+  if (!(await ed25519Verify(pubKey, payload, sig))) { console.log('[sgx-verify] fail: bad-sig'); return false; }
 
   /* epoch 检查：cookie 的 epoch 必须 >= KV 中的 session-epoch */
   try {
     if (env && env.OWNER_KV) {
       const cur = parseInt(await env.OWNER_KV.get('session-epoch') || '0', 10) || 0;
       const ep = parseInt(epochStr, 10) || 0;
-      if (ep < cur) return false;
+      if (ep < cur) { console.log('[sgx-verify] fail: epoch-low'); return false; }
     }
   } catch (e) {
+    console.log('[sgx-verify] fail: kv-error');
     return false;
   }
   return true;
-}
-
-/** 锁屏页 HTML（不含正文） */
-function lockScreenHtml(isEn) {
-  const title = isEn ? 'Locked' : '已锁定';
-  const msg = isEn ? 'Please verify to continue' : '请验证以继续';
-  return `<!DOCTYPE html><html lang="${isEn ? 'en' : 'zh'}"><head><meta charset="utf-8">` +
-    `<meta name="viewport" content="width=device-width,initial-scale=1">` +
-    `<title>${title}</title></head><body>` +
-    `<div id="sgx-lock-screen" data-msg="${msg}"></div>` +
-    `<script src="/assets/js/sgx/lock.js"></script>` +
-    `</body></html>`;
 }
 
 /** @param {any} context */
@@ -140,10 +131,16 @@ export async function onRequest(context) {
     if (isWhitelisted(pathname)) {
       return next();
     }
-    /* 未验证：只返回锁屏，不返回正文 */
-    const isEn = pathname.startsWith('/en/');
-    return new Response(lockScreenHtml(isEn), {
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    /* 未验证：302 到首页锁屏，带 return 回跳（设计文档 §2.3）。
+       首页有完整锁屏 UI（密码/通行密钥/Turnstile），解锁后跳回原内页。
+       no-store：绝不缓存这个跳转。 */
+    const dest = 'https://styrigx.com/?lock=1&return=' + encodeURIComponent(url.toString());
+    return new Response(null, {
+      status: 302,
+      headers: {
+        'Location': dest,
+        'Cache-Control': 'no-store',
+      },
     });
   }
 

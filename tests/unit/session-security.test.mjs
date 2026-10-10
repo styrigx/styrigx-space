@@ -9,6 +9,8 @@
  *   lockout 后 epoch+1、清 cookie 带 Domain、KV 出错 → 503 且不写入
  * - _middleware：缺 SGX_ED25519_PUBLIC 时生产环境 fail closed（只放白名单）；
  *   过期 cookie 被拒；旧 epoch cookie 被拒；伪造签名被拒；
+ *   未验证的非白名单路径 302 到 https://styrigx.com/?lock=1&return=<原URL>
+ *   （Cache-Control: no-store，不再返回 200 锁屏 HTML）；
  *   ?return= 只允许 https 且主机名为 styrigx.com 或 *.styrigx.com
  *
  * 运行：node --test tests/unit/
@@ -314,11 +316,14 @@ async function validCookie(epoch = 0) {
   return await signSessionCookie(TEST_PRIV_PEM, epoch);
 }
 
-test('middleware：生产环境缺 SGX_ED25519_PUBLIC → fail closed（非白名单返回锁屏）', async () => {
+test('middleware：生产环境缺 SGX_ED25519_PUBLIC → fail closed（非白名单 302 到首页锁屏）', async () => {
   const env = { SGX_ENV: 'production', SGX_SITE: 'space', OWNER_KV: makeKV() };
   const r = await mw(mwCtx(PROD_URL, { env }));
-  assert.equal(r.status, 200);
-  assert.match(await r.text(), /sgx-lock-screen/);
+  assert.equal(r.status, 302);
+  const loc = r.headers.get('Location');
+  assert.ok(loc.startsWith('https://styrigx.com/?lock=1&return='));
+  assert.equal(decodeURIComponent(loc.slice(loc.indexOf('return=') + 7)), PROD_URL);
+  assert.equal(r.headers.get('Cache-Control'), 'no-store');
   /* 白名单路径放行 */
   const r2 = await mw(mwCtx('https://styrigx.com/api/owner-status', { env }));
   assert.equal(await r2.text(), 'NEXT-BY-APP');
@@ -326,26 +331,46 @@ test('middleware：生产环境缺 SGX_ED25519_PUBLIC → fail closed（非白�
   assert.equal(await r3.text(), 'NEXT-BY-APP');
 });
 
-test('middleware：有公钥但无 cookie → 锁屏；有效 cookie → 放行', async () => {
+test('middleware：有公钥但无 cookie → 302 到首页锁屏；有效 cookie → 放行', async () => {
   const r = await mw(mwCtx(PROD_URL, { env: PROD_ENV() }));
-  assert.match(await r.text(), /sgx-lock-screen/);
+  assert.equal(r.status, 302);
+  assert.ok(r.headers.get('Location').startsWith('https://styrigx.com/?lock=1&return='));
 
   const r2 = await mw(mwCtx(PROD_URL, { cookie: await validCookie(0), env: PROD_ENV() }));
   assert.equal(await r2.text(), 'NEXT-BY-APP');
 });
 
-test('middleware：过期 cookie 被拒', async () => {
+test('middleware：未带 cookie 访问内页 → 302，return 解码后等于原始 URL', async () => {
+  const target = 'https://styrigx.com/browser/?x=1';
+  const r = await mw(mwCtx(target, { env: PROD_ENV() }));
+  assert.equal(r.status, 302);
+  const loc = r.headers.get('Location');
+  assert.ok(loc.startsWith('https://styrigx.com/?lock=1&return='));
+  assert.equal(decodeURIComponent(loc.slice(loc.indexOf('return=') + 7)), target);
+  assert.equal(r.headers.get('Cache-Control'), 'no-store');
+});
+
+test('middleware：有效签名 cookie 访问内页 → 200 正文（不是锁屏）', async () => {
+  const r = await mw(mwCtx(PROD_URL, { cookie: await validCookie(0), env: PROD_ENV() }));
+  assert.equal(r.status, 200);
+  assert.equal(await r.text(), 'NEXT-BY-APP');
+  assert.equal(r.headers.get('Location'), null);
+});
+
+test('middleware：过期 cookie 被拒（302 到首页锁屏）', async () => {
   const payload = '0.' + (Date.now() - 1000);
   const sig = await ed25519Sign(TEST_PRIV_PEM, payload);
   const env = PROD_ENV();
   const r = await mw(mwCtx(PROD_URL, { cookie: payload + '.' + sig, env }));
-  assert.match(await r.text(), /sgx-lock-screen/);
+  assert.equal(r.status, 302);
+  assert.ok(r.headers.get('Location').startsWith('https://styrigx.com/?lock=1&return='));
 });
 
-test('middleware：伪造签名被拒', async () => {
+test('middleware：伪造签名被拒（302 到首页锁屏）', async () => {
   const env = PROD_ENV();
   const r = await mw(mwCtx(PROD_URL, { cookie: '0.9999999999999.badsig', env }));
-  assert.match(await r.text(), /sgx-lock-screen/);
+  assert.equal(r.status, 302);
+  assert.ok(r.headers.get('Location').startsWith('https://styrigx.com/?lock=1&return='));
 });
 
 test('middleware：lockout 后旧 epoch cookie 失效', async () => {
@@ -357,9 +382,10 @@ test('middleware：lockout 后旧 epoch cookie 失效', async () => {
   assert.equal(await r1.text(), 'NEXT-BY-APP');
   /* bump（模拟 lockout） */
   await bumpSessionEpoch(kv);
-  /* 旧 cookie 失效 */
+  /* 旧 cookie 失效 → 302 到首页锁屏 */
   const r2 = await mw(mwCtx(PROD_URL, { cookie: oldCookie, env }));
-  assert.match(await r2.text(), /sgx-lock-screen/);
+  assert.equal(r2.status, 302);
+  assert.ok(r2.headers.get('Location').startsWith('https://styrigx.com/?lock=1&return='));
   /* 新 cookie 有效 */
   const newCookie = await signSessionCookie(TEST_PRIV_PEM, 1);
   const r3 = await mw(mwCtx(PROD_URL, { cookie: newCookie, env }));
@@ -407,13 +433,14 @@ test('middleware：?return= 只允许 https + styrigx.com/*.styrigx.com', async 
   assert.equal(r.headers.get('Location'), null);
 });
 
-test('middleware：无有效会话时 ?return= 合法也不跳转（直接锁屏）', async () => {
+test('middleware：无有效会话访问内页 → 302 到首页锁屏（带完整原 URL 的 return）', async () => {
   const env = PROD_ENV();
-  /* 非白名单路径 + 合法 return + 无会话 → 锁屏（'/' 本身是白名单，用 /settings/ 断言） */
-  const r = await mw(mwCtx(
-    'https://styrigx.com/settings/?return=' + encodeURIComponent('https://blog.styrigx.com/'),
-    { env }
-  ));
-  assert.equal(r.headers.get('Location'), null);
-  assert.match(await r.text(), /sgx-lock-screen/);
+  const original = 'https://styrigx.com/settings/?return=' + encodeURIComponent('https://blog.styrigx.com/');
+  const r = await mw(mwCtx(original, { env }));
+  assert.equal(r.status, 302);
+  const loc = r.headers.get('Location');
+  assert.ok(loc.startsWith('https://styrigx.com/?lock=1&return='));
+  /* return 解码后等于完整原始 URL（含它自己的 query） */
+  assert.equal(decodeURIComponent(loc.slice(loc.indexOf('return=') + 7)), original);
+  assert.equal(r.headers.get('Cache-Control'), 'no-store');
 });

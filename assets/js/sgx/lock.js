@@ -163,6 +163,26 @@ export function initLock() {
       });
       window.setTimeout(cleanup, 450);
     }
+    /* 2.4.1 内页回跳：?return= 合法时动画结束后跳回原内页。
+       只认 https + styrigx.com/*.styrigx.com；不合法或无参数保持原行为。 */
+    let ret = '';
+    try {
+      ret = new URLSearchParams(window.location.search).get('return') || '';
+    } catch (e) {}
+    if (ret) {
+      let ok = false;
+      try {
+        const ru = new URL(ret, window.location.origin);
+        ok =
+          ru.protocol === 'https:' &&
+          (ru.hostname === 'styrigx.com' || ru.hostname.endsWith('.styrigx.com'));
+      } catch (e) {}
+      if (ok) {
+        window.setTimeout(function () {
+          window.location.href = ret;
+        }, 600);
+      }
+    }
   }
 
   /* ============================================================
