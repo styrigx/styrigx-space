@@ -9,6 +9,11 @@ on:
       - main
   workflow_dispatch:
 
+# 同一分支推新提交时取消旧的 PR CI；main 的生产部署永不取消
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   HUGO_VERSION: '0.167.0'
 
