@@ -12,8 +12,8 @@
 import { ed25519Sign } from './crypto.js';
 
 export const SESSION_COOKIE = 'sgx-verified';
-/* cookie 属性：只定义一处 */
-const COOKIE_ATTRS = 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax';
+/* cookie 属性：只定义一处（diag 接口从这里解析，不许另起炉灶） */
+export const COOKIE_ATTRS = 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax';
 export const SESSION_MAX_AGE = 43200; /* 12 小时 */
 export const EPOCH_KEY = 'session-epoch';
 

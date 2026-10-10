@@ -814,8 +814,17 @@ test('diag: 写入/读取对账：signSessionCookie 签发的 cookie 能被 midd
 test('diag: /api/diag/session DIAG_TOKEN 未设置 → 404', async () => {
   const { onRequestGet: diagGet } = await import('../../functions/api/diag/session.js');
   const r = await diagGet({
-    request: new Request('https://styrigx.com/api/diag/session?token=anything'),
+    request: new Request('https://styrigx.com/api/diag/session', { headers: { 'X-Diag-Token': 'anything' } }),
     env: { OWNER_KV: makeKV() },
+  });
+  assert.equal(r.status, 404);
+});
+
+test('diag: /api/diag/session 无请求头 → 404', async () => {
+  const { onRequestGet: diagGet } = await import('../../functions/api/diag/session.js');
+  const r = await diagGet({
+    request: new Request('https://styrigx.com/api/diag/session'),
+    env: { OWNER_KV: makeKV(), DIAG_TOKEN: 'correct-token' },
   });
   assert.equal(r.status, 404);
 });
@@ -823,7 +832,7 @@ test('diag: /api/diag/session DIAG_TOKEN 未设置 → 404', async () => {
 test('diag: /api/diag/session token 不对 → 404', async () => {
   const { onRequestGet: diagGet } = await import('../../functions/api/diag/session.js');
   const r = await diagGet({
-    request: new Request('https://styrigx.com/api/diag/session?token=wrong'),
+    request: new Request('https://styrigx.com/api/diag/session', { headers: { 'X-Diag-Token': 'wrong' } }),
     env: { OWNER_KV: makeKV(), DIAG_TOKEN: 'correct-token' },
   });
   assert.equal(r.status, 404);
@@ -838,21 +847,27 @@ test('diag: /api/diag/session token 对 → 200，只返回布尔/长度/格式�
     SGX_ED25519_PUBLIC: TEST_PUB_PEM,
   };
   const r = await diagGet({
-    request: new Request('https://styrigx.com/api/diag/session?token=correct-token'),
+    request: new Request('https://styrigx.com/api/diag/session', { headers: { 'X-Diag-Token': 'correct-token' } }),
     env,
   });
   assert.equal(r.status, 200);
   const j = await r.json();
   assert.equal(j.private_present, true);
   assert.equal(j.public_present, true);
-  assert.equal(j.private_format, 'pkcs8-pem');
-  assert.equal(j.public_format, 'spki-pem');
+  assert.equal(j.private_format, 'PEM-PKCS8');
+  assert.equal(j.public_format, 'PEM-SPKI');
   assert.equal(typeof j.private_len, 'number');
   assert.equal(typeof j.public_len, 'number');
   assert.equal(j.private_import_ok, true);
   assert.equal(j.public_import_ok, true);
   assert.equal(j.roundtrip_ok, true);
+  assert.equal(j.writer_reader_cookie_name_match, true);
+  assert.deepEqual(j.set_cookie_attrs, {
+    name: 'sgx-verified', domain: '.styrigx.com', path: '/',
+    samesite: 'Lax', secure: true, httponly: true, max_age: 43200,
+  });
   assert.equal(j.request_had_cookie, false);
+  assert.equal('verify_result' in j, false);
   assert.equal(j.expected_cookie_name, 'sgx-verified');
   /* 绝不含密钥内容 */
   const body = JSON.stringify(j);
@@ -869,7 +884,7 @@ test('diag: /api/diag/session 公钥格式错误 → public_import_ok=false, rou
     SGX_ED25519_PUBLIC: 'bm90LXBlbQ==', /* base64 非 PEM */
   };
   const r = await diagGet({
-    request: new Request('https://styrigx.com/api/diag/session?token=t'),
+    request: new Request('https://styrigx.com/api/diag/session', { headers: { 'X-Diag-Token': 't' } }),
     env,
   });
   assert.equal(r.status, 200);
@@ -877,4 +892,37 @@ test('diag: /api/diag/session 公钥格式错误 → public_import_ok=false, rou
   assert.equal(j.public_import_ok, false);
   assert.equal(j.roundtrip_ok, false);
   assert.equal(j.private_import_ok, true);
+});
+
+test('diag: 带有效 cookie → verify_result=true；带坏 cookie → verify_fail_reason', async () => {
+  const { onRequestGet: diagGet } = await import('../../functions/api/diag/session.js');
+  const { signSessionCookie } = await import('../../functions/_lib/session.js');
+  const baseEnv = {
+    OWNER_KV: makeKV(),
+    DIAG_TOKEN: 't',
+    SGX_ED25519_PRIVATE: TEST_PRIV_PEM,
+    SGX_ED25519_PUBLIC: TEST_PUB_PEM,
+  };
+  const good = await signSessionCookie(TEST_PRIV_PEM, 0);
+  const r1 = await diagGet({
+    request: new Request('https://styrigx.com/api/diag/session', {
+      headers: { 'X-Diag-Token': 't', 'Cookie': 'sgx-verified=' + good },
+    }),
+    env: baseEnv,
+  });
+  const j1 = await r1.json();
+  assert.equal(j1.request_had_cookie, true);
+  assert.equal(j1.verify_result, true);
+  assert.equal(j1.verify_fail_reason, null);
+
+  const r2 = await diagGet({
+    request: new Request('https://styrigx.com/api/diag/session', {
+      headers: { 'X-Diag-Token': 't', 'Cookie': 'sgx-verified=0.' + (Date.now() + 3600000) + '.bad' },
+    }),
+    env: baseEnv,
+  });
+  const j2 = await r2.json();
+  assert.equal(j2.request_had_cookie, true);
+  assert.equal(j2.verify_result, false);
+  assert.equal(j2.verify_fail_reason, 'bad-sig');
 });

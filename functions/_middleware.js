@@ -10,6 +10,10 @@
  */
 
 import { ed25519Verify } from './_lib/crypto.js';
+import { SESSION_COOKIE } from './_lib/session.js';
+
+/* 读取方 cookie 名（diag 接口用它与写入方对账；必须与 SESSION_COOKIE 一致） */
+export const READER_COOKIE_NAME = SESSION_COOKIE;
 
 /* 白名单路径（验证必需 + 锁屏自身 + 静态资源） */
 const API_WHITELIST = [
@@ -57,41 +61,56 @@ export function isSafeReturnPath(ret) {
 
 /**
  * 验证 sgx-verified cookie：epoch.exp.sig
- * 每次拒绝都打 [sgx-verify] fail: <原因>（只记原因 + 公钥长度/前缀诊断，
- * 绝不记密钥本身和 cookie 值），供线上排查会话未被识别的问题。
- * @returns {Promise<boolean>}
+ * 返回 'ok' 或失败原因（no-cookie/bad-format/expired/no-pubkey/bad-sig/
+ * kv-error/epoch-low）。diag 接口用它做自检。
+ * @returns {Promise<string>}
  */
-export async function verifySession(request, env) {
-  const val = getCookie(request, 'sgx-verified');
-  if (!val) { console.log('[sgx-verify] fail: no-cookie'); return false; }
+export async function verifySessionReason(request, env) {
+  const val = getCookie(request, READER_COOKIE_NAME);
+  if (!val) return 'no-cookie';
   const parts = val.split('.');
-  if (parts.length !== 3) { console.log('[sgx-verify] fail: bad-format'); return false; }
+  if (parts.length !== 3) return 'bad-format';
   const [epochStr, expStr, sig] = parts;
   const exp = parseInt(expStr, 10);
-  if (!exp || exp < Date.now()) { console.log('[sgx-verify] fail: expired'); return false; }
+  if (!exp || exp < Date.now()) return 'expired';
 
   const pubKey = env && env.SGX_ED25519_PUBLIC;
-  if (!pubKey) { console.log('[sgx-verify] fail: no-pubkey pubkey_len=0'); return false; } /* 未配公钥：fail closed */
+  if (!pubKey) return 'no-pubkey'; /* 未配公钥：fail closed */
   const payload = epochStr + '.' + expStr;
-  if (!(await ed25519Verify(pubKey, payload, sig))) {
-    /* 只打长度和前缀（能看出是不是 -----BEGIN PUBLIC KEY-----），绝不打密钥本身 */
-    console.log('[sgx-verify] fail: bad-sig pubkey_len=' + pubKey.length +
-      ' pubkey_prefix=' + JSON.stringify(pubKey.slice(0, 27)));
-    return false;
-  }
+  if (!(await ed25519Verify(pubKey, payload, sig))) return 'bad-sig';
 
   /* epoch 检查：cookie 的 epoch 必须 >= KV 中的 session-epoch */
   try {
     if (env && env.OWNER_KV) {
       const cur = parseInt(await env.OWNER_KV.get('session-epoch') || '0', 10) || 0;
       const ep = parseInt(epochStr, 10) || 0;
-      if (ep < cur) { console.log('[sgx-verify] fail: epoch-low'); return false; }
+      if (ep < cur) return 'epoch-low';
     }
   } catch (e) {
-    console.log('[sgx-verify] fail: kv-error');
-    return false;
+    return 'kv-error';
   }
-  return true;
+  return 'ok';
+}
+
+/**
+ * 验证会话（布尔版）。每次拒绝都打 [sgx-verify] fail: <原因>
+ * （只记原因 + 公钥长度/前缀诊断，绝不记密钥本身和 cookie 值）。
+ * @returns {Promise<boolean>}
+ */
+export async function verifySession(request, env) {
+  const reason = await verifySessionReason(request, env);
+  if (reason === 'ok') return true;
+  const pubKey = (env && env.SGX_ED25519_PUBLIC) || '';
+  if (reason === 'no-pubkey') {
+    console.log('[sgx-verify] fail: no-pubkey pubkey_len=0');
+  } else if (reason === 'bad-sig') {
+    /* 只打长度和前缀（能看出是不是 -----BEGIN PUBLIC KEY-----），绝不打密钥本身 */
+    console.log('[sgx-verify] fail: bad-sig pubkey_len=' + pubKey.length +
+      ' pubkey_prefix=' + JSON.stringify(pubKey.slice(0, 27)));
+  } else {
+    console.log('[sgx-verify] fail: ' + reason);
+  }
+  return false;
 }
 
 /** @param {any} context */
@@ -120,11 +139,11 @@ export async function onRequest(context) {
   }
 
   /* 临时诊断接口放行（定位会话问题后删除本段 + functions/api/diag/）：
-     ?token= 与 DIAG_TOKEN 匹配才 next()，否则继续走正常锁屏流程（302），
-     不暴露接口存在。不在 API_WHITELIST 里加它。 */
+     X-Diag-Token 请求头与 DIAG_TOKEN 匹配才 next()，否则继续走正常锁屏
+     流程（302），不暴露接口存在。不在 API_WHITELIST 里加它。 */
   if (pathname === '/api/diag/session') {
     const diagToken = (env && env.DIAG_TOKEN) || '';
-    const t = url.searchParams.get('token') || '';
+    const t = request.headers.get('X-Diag-Token') || '';
     if (diagToken && t === diagToken) {
       return next();
     }
