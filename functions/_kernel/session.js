@@ -64,10 +64,12 @@ export function clearVerifiedCookie(headers) {
  * @param {string} role 'owner' 或 'visitor'
  */
 export async function signSessionCookie(privatePem, epoch, role) {
-  const r = role === ROLE_VISITOR ? ROLE_VISITOR : ROLE_OWNER;
-  const maxAge = r === ROLE_VISITOR ? VISITOR_MAX_AGE : SESSION_MAX_AGE;
+  if (role !== ROLE_OWNER && role !== ROLE_VISITOR) {
+    throw new Error('signSessionCookie: role must be "owner" or "visitor", got ' + JSON.stringify(role));
+  }
+  const maxAge = role === ROLE_VISITOR ? VISITOR_MAX_AGE : SESSION_MAX_AGE;
   const exp = String(Date.now() + maxAge * 1000);
-  const payload = r + '.' + epoch + '.' + exp;
+  const payload = role + '.' + epoch + '.' + exp;
   const sig = await ed25519Sign(privatePem, payload);
   return payload + '.' + sig;
 }
@@ -81,10 +83,12 @@ export async function signSessionCookie(privatePem, epoch, role) {
  * - signSessionCookie 抛错（importKey 失败等）→ 500 {ok:false, error:'session-sign-failed'}
  * @param {any} env
  * @param {Headers} headers
- * @param {string} role 'owner' 或 'visitor'（默认 owner）
+ * @param {string} role 'owner' 或 'visitor'（必须显式传，非法值返回 500 invalid-role）
  */
 export async function issueSessionCookie(env, headers, role) {
-  const r = role === ROLE_VISITOR ? ROLE_VISITOR : ROLE_OWNER;
+  if (role !== ROLE_OWNER && role !== ROLE_VISITOR) {
+    return { status: 500, body: { ok: false, error: 'invalid-role' } };
+  }
   const edPriv = (env && env.SGX_ED25519_PRIVATE) || '';
   if (!edPriv) {
     return { status: 500, body: { ok: false, error: 'no-session-key' } };
@@ -98,11 +102,11 @@ export async function issueSessionCookie(env, headers, role) {
   }
   let cv;
   try {
-    cv = await signSessionCookie(edPriv, epoch, r);
+    cv = await signSessionCookie(edPriv, epoch, role);
   } catch (e) {
     return { status: 500, body: { ok: false, error: 'session-sign-failed' } };
   }
-  const maxAge = r === ROLE_VISITOR ? VISITOR_MAX_AGE : SESSION_MAX_AGE;
+  const maxAge = role === ROLE_VISITOR ? VISITOR_MAX_AGE : SESSION_MAX_AGE;
   setVerifiedCookie(headers, cv, maxAge);
   return null;
 }

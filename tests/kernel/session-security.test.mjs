@@ -360,8 +360,8 @@ const PROD_ENV = () => ({
 });
 const PROD_URL = 'https://styrigx.com/settings/';
 
-async function validCookie(epoch = 0) {
-  return await signSessionCookie(TEST_PRIV_PEM, epoch);
+async function validCookie(epoch = 0, role = 'owner') {
+  return await signSessionCookie(TEST_PRIV_PEM, epoch, role);
 }
 
 test('middleware：生产环境缺 SGX_ED25519_PUBLIC → fail closed（非白名单 302 到首页锁屏）', async () => {
@@ -444,7 +444,7 @@ test('middleware：伪造签名被拒（302 到首页锁屏）', async () => {
 test('middleware：lockout 后旧 epoch cookie 失效', async () => {
   const kv = makeKV({ 'session-epoch': '0' });
   const env = { SGX_ENV: 'production', SGX_SITE: 'space', SGX_ED25519_PUBLIC: TEST_PUB_PEM, OWNER_KV: kv };
-  const oldCookie = await signSessionCookie(TEST_PRIV_PEM, 0);
+  const oldCookie = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner');
   /* 旧 cookie 有效 */
   const r1 = await mw(mwCtx(PROD_URL, { cookie: oldCookie, env }));
   assert.equal(await r1.text(), 'NEXT-BY-APP');
@@ -455,7 +455,7 @@ test('middleware：lockout 后旧 epoch cookie 失效', async () => {
   assert.equal(r2.status, 302);
   assert.ok(r2.headers.get('Location').startsWith('https://styrigx.com/?lock=1&return='));
   /* 新 cookie 有效 */
-  const newCookie = await signSessionCookie(TEST_PRIV_PEM, 1);
+  const newCookie = await signSessionCookie(TEST_PRIV_PEM, 1, 'owner');
   const r3 = await mw(mwCtx(PROD_URL, { cookie: newCookie, env }));
   assert.equal(await r3.text(), 'NEXT-BY-APP');
 });
@@ -760,7 +760,7 @@ test('passkey auth 通过：Set-Cookie 属性齐全', async () => {
 test('diag: issueSessionCookie 无 SGX_ED25519_PRIVATE → 500 no-session-key（不签发）', async () => {
   const { issueSessionCookie } = await import('../../functions/_kernel/session.js');
   const headers = new Headers();
-  const err = await issueSessionCookie({ OWNER_KV: makeKV() }, headers);
+  const err = await issueSessionCookie({ OWNER_KV: makeKV() }, headers, 'owner');
   assert.deepEqual(err, { status: 500, body: { ok: false, error: 'no-session-key' } });
   assert.equal(headers.get('Set-Cookie'), null);
 });
@@ -768,7 +768,7 @@ test('diag: issueSessionCookie 无 SGX_ED25519_PRIVATE → 500 no-session-key（
 test('diag: issueSessionCookie 私钥格式错误 → 500 session-sign-failed', async () => {
   const { issueSessionCookie } = await import('../../functions/_kernel/session.js');
   const headers = new Headers();
-  const err = await issueSessionCookie({ OWNER_KV: makeKV(), SGX_ED25519_PRIVATE: 'not-a-key' }, headers);
+  const err = await issueSessionCookie({ OWNER_KV: makeKV(), SGX_ED25519_PRIVATE: 'not-a-key' }, headers, 'owner');
   assert.deepEqual(err, { status: 500, body: { ok: false, error: 'session-sign-failed' } });
   assert.equal(headers.get('Set-Cookie'), null);
 });
@@ -776,7 +776,7 @@ test('diag: issueSessionCookie 私钥格式错误 → 500 session-sign-failed', 
 test('diag: issueSessionCookie KV 出错 → 503（不签发）', async () => {
   const { issueSessionCookie } = await import('../../functions/_kernel/session.js');
   const headers = new Headers();
-  const err = await issueSessionCookie({ OWNER_KV: makeBrokenKV(), SGX_ED25519_PRIVATE: TEST_PRIV_PEM }, headers);
+  const err = await issueSessionCookie({ OWNER_KV: makeBrokenKV(), SGX_ED25519_PRIVATE: TEST_PRIV_PEM }, headers, 'owner');
   assert.equal(err.status, 503);
   assert.deepEqual(err.body, { ok: false, error: 'server' });
   assert.equal(headers.get('Set-Cookie'), null);
@@ -786,7 +786,7 @@ test('diag: issueSessionCookie 正常 → null 且 Set-Cookie 已设置', async 
   const { issueSessionCookie, SESSION_COOKIE } = await import('../../functions/_kernel/session.js');
   assert.equal(SESSION_COOKIE, 'sgx-verified');
   const headers = new Headers();
-  const err = await issueSessionCookie({ OWNER_KV: makeKV(), SGX_ED25519_PRIVATE: TEST_PRIV_PEM }, headers);
+  const err = await issueSessionCookie({ OWNER_KV: makeKV(), SGX_ED25519_PRIVATE: TEST_PRIV_PEM }, headers, 'owner');
   assert.equal(err, null);
   assert.match(headers.get('Set-Cookie'), /^sgx-verified=[^;]+; /);
 });
@@ -918,7 +918,7 @@ test('diag: passkey auth 私钥格式错误 → 500 session-sign-failed（不被
 test('diag: 写入/读取对账：signSessionCookie 签发的 cookie 能被 middleware 验签放行', async () => {
   const { signSessionCookie, SESSION_COOKIE } = await import('../../functions/_kernel/session.js');
   assert.equal(SESSION_COOKIE, 'sgx-verified');
-  const cv = await signSessionCookie(TEST_PRIV_PEM, 0);
+  const cv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner');
   /* 2.8.0：payload 结构 role.epoch.exp.sig */
   assert.equal(cv.split('.').length, 4);
   assert.ok(cv.startsWith('owner.'));
