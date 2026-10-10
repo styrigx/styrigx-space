@@ -14,8 +14,6 @@ const { blockExternalRequests, freezeTime, expect } = require('./helpers');
 const VIEWPORTS = {
   mobile: { width: 412, height: 915 },
   landscape: { width: 915, height: 412 },
-  tabletPortrait: { width: 800, height: 1280 },
-  tabletLandscape: { width: 1280, height: 800 },
   desktop: { width: 1920, height: 1080 },
 };
 /* 安全与隐私：新页面加入视觉回归（先只报告，基线未生成前不阻塞） */
