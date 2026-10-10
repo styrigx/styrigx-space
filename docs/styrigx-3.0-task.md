@@ -6,17 +6,14 @@
 > 规则：只走 PR；不直推 main；不 force push；不删/不清生产 KV；不动 Cloudflare 后台与密钥；不留兼容层。
 > 队列更新跟在对应项的 PR 里一起提交。
 
-- [x] 2.4.2 #11（styrigx-space，可合并）：Tailwind 4 + Hugo 0.167 + Actions 整理。分支 `feat/2.4.2-infra`，commit 977228e9 已合入 main。Actions 整理内容：workflow 三处 hugo-version 0.162.0 → 0.167.0；构建脚本改用 `@tailwindcss/cli`。验收：生产部署 run 38024526434 全绿（quality/build-and-deploy/passkey-e2e），styrigx.com 首页 200，owner-status `{"ok":true,"password":true,"passkey":true}`，blog/book 200。✓ 2026-10-10
-- [] 2.4.1 主站 #10（styrigx-space，只开不合）：修 hugo 构建报错。分支 `feat/2.4.1-portal-lock`。验收：CI 全绿。Gray 未配 `SGX_ED25519_PRIVATE`/`SGX_ED25519_PUBLIC`，不合并。
-- [] 2.4.1 blog #4（styrigx-blog，只开不合）：给 workflow 加 `pull_request` 触发让 PR 跑 CI，然后修到绿。分支 `feat/2.4.1-blog-lock`。验收：CI 全绿。Gray 未配 `SGX_ED25519_PUBLIC`，不合并。
-- [] 2.4.1 book（styrigx-book，只开不合）：【等用户】等 Gray 给 `styrigx-book-deploy` token 加 Contents 与 Pull requests 读写权限，轮到时跳过。
-- [] README 动态徽章（styrigx-space，可合并）：徽章不再手写版本号。
-  1. Hugo 版本单源：deploy.yml 顶层 env 定义 HUGO_VERSION，两处 job 引用。
-  2. Tailwind 三包统一同版本；若只用 CLI 构建，删 postcss 插件与 postcss.config.js；更新 lock。
-  3. README 中英同步改 shields.io 动态徽章（flat-square、2563eb、带 logo）：Hugo 读 deploy.yml $.env.HUGO_VERSION；Tailwind 读 package-lock.json 实际安装版本；新增 Styrigx UI 徽章读 hugo.yaml params 版本。
-  4. PR 里贴三徽章实际渲染结果。
-  验收：CI 全绿 → 合并。
-- [] 2.5.0 布局模式（styrigx-space，可合并）：#11 部署成功后从 main 开分支。验收：CI 全绿 → 合并 → 生产部署 run 全绿 → 线上验证。
+- [x] 2.4.2 #11（styrigx-space，可合并）：Tailwind 4 + Hugo 0.167 + Actions 整理。分支 `feat/2.4.2-infra`，commit 977228e9 已合入 main。验收：生产部署 run 38024526434 全绿，styrigx.com 首页 200，owner-status 正常。✓ 2026-10-10
+- [x] 队列 PR #12（styrigx-space，可合并）：3.0 任务队列文档。commit da2418e2 已合入 main。定时任务只读 main 上的队列。✓ 2026-10-10
+- [x] 2.4.1 主站 #14（styrigx-space，只开不合）：旧 #10 因与 main 冲突（mergeable_state=dirty）致 PR workflow 不跑，已关闭；重建为 #14（分支 `feat/2.4.1-portal-lock-v2`，从最新 main 开，2.4.1 改动搬过去，冲突两边保留，样式按 Tailwind 4）。本地：CSS 149537 bytes、hugo 通过、锁屏 7/7。CI run 38026241551 全绿。Gray 未配密钥，不合并。✓ 2026-10-10
+- [] 2.4.1 blog workflow（styrigx-blog，可合并）：blog workflow 只在 main 触发，PR 无 CI。开小 PR 加 `pull_request` 触发，且 PR 上不部署到生产。验收：CI 全绿 → 合并。
+- [] 2.4.1 blog #4（styrigx-blog，只开不合）：workflow PR 合并后，把 #4（分支 `feat/2.4.1-blog-lock`）更新到最新 main，CI 跑绿。Gray 未配 `SGX_ED25519_PUBLIC`，不合并。
+- [x] README 动态徽章（styrigx-space，可合并）：PR #13 已合并（7d10994）。deploy.yml 顶层 env.HUGO_VERSION 单源；tailwindcss/@tailwindcss/cli 统一 ^4.3.3，删 postcss；README 中英三徽章动态化，实测 Hugo 0.167.0 / Tailwind 4.3.3 / Styrigx UI 2.4.2。✓ 2026-10-10
+- [] 2.4.1 book（styrigx-book，只开不合）：等 Gray 给 `styrigx-book-deploy` token 加 Contents 与 Pull requests 读写权限，轮到时跳过。
+- [] 2.5.0 布局模式（styrigx-space，可合并）：从 main 开分支。验收：CI 全绿 → 合并 → 生产部署 run 全绿 → 线上验证。
 - [] 2.6.0 设置二级页 + 关于（styrigx-space，可合并）：设置顶层只留账户卡 + 分类列表，选项进子页；关于页保留站点优点。验收同上。
 - [] 2.7.0 语言 / G / 天气（styrigx-space，可合并）：语言跟随系统/中文/English；G 按 `build:false` 清单；天气定位顺序手动城市 > 精确定位（不自动弹权限）> IP 兜底。验收同上。
 - [] 2.8.0 清理（styrigx-space，可合并）：命名弹层 One UI 细节；rename 是否覆盖 `lastUsedAt`；提供方映射；最近使用显示；死代码。验收同上。
@@ -33,4 +30,3 @@
 ## 卡住 / 跳过
 
 - 2.4.1 book：token `styrigx-book-deploy` 无 Contents/Pull requests 写权限，开不了分支与 PR，等 Gray 在 GitHub 后台加权限。
-- PR #10（2.4.1 主站）曾因 middleware 未配密钥时 fail closed 导致 CI 构建失败，已修为未配置时放行；待本地复现 hugo 构建报错后继续。
