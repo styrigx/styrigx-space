@@ -46,9 +46,31 @@ test('page-security.js：立即锁定调 POST /api/lock', () => {
   assert.ok(secJs.includes("method: 'POST'"), '应用 POST');
 });
 
-test('sgx-account-card.html：改听 sgx:session 事件', () => {
+test('sgx-account-card.html：只保留名字和头像（解锁入口已移走）', () => {
   assert.ok(!cardHtml.includes('sgx-lock-shown'), '不应再出现 sgx-lock-shown');
-  assert.ok(cardHtml.includes('sgx:session'), '应监听 sgx:session 事件');
+  assert.ok(!cardHtml.includes('sgx-unlock-link'), '孤立的解锁入口应已删掉');
+  assert.ok(!cardHtml.includes('sgx:session'), '账户卡不再监听会话事件');
+  assert.ok(cardHtml.includes('sgx-account-card'), '账户卡主体保留');
+});
+
+test('security.html：解锁方式为安全分组第一行', () => {
+  const secHtml = readFileSync('layouts/_default/security.html', 'utf8');
+  assert.ok(secHtml.includes('id="sec-unlock-methods"'), '应有解锁方式入口');
+  assert.ok(secHtml.includes('解锁方式'), '中文标题');
+  assert.ok(secHtml.includes('Unlock methods'), '英文标题');
+  assert.ok(secHtml.includes('密码、通行密钥'), '中文副标题');
+  /* 第一行：在 sec-lock-row 之前 */
+  assert.ok(
+    secHtml.indexOf('sec-unlock-methods') < secHtml.indexOf('sec-lock-row'),
+    '解锁方式应在锁定屏幕之前'
+  );
+});
+
+test('security.js：解锁入口显示只看 sgx:session（不用 storage）', () => {
+  const js = readFileSync('assets/js/apps/security.js', 'utf8');
+  assert.ok(js.includes("getElementById('sec-unlock-methods')"), '应操作解锁入口');
+  assert.ok(js.includes('sgx:session'), '应监听 sgx:session 事件');
+  assert.ok(!js.includes('sgx-lock-shown'), '不应出现 sgx-lock-shown');
 });
 
 test('/api/lock：POST 下发两条 Set-Cookie 清除头', async () => {

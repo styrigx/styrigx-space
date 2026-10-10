@@ -24,6 +24,15 @@
   <!-- 安全分组 -->
   <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Security{{ else }}安全{{ end }}</span></h2>
   <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.1s">
+    {{/* 解锁方式（One UI「屏幕锁定类型」）：只在已解锁时显示，以服务端会话为准（sgx:session），见 apps/security.js */}}
+    <a class="set-row" id="sec-unlock-methods" href="{{ $lockUrl }}" hidden>
+      <span class="set-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "lock" }}</span>
+      <span class="flex-1 min-w-0">
+        <span class="block font-medium">{{ if $isEn }}Unlock methods{{ else }}解锁方式{{ end }}</span>
+        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Password, passkeys{{ else }}密码、通行密钥{{ end }}</span>
+      </span>
+      {{ partial "icon.html" "chev-r" }}
+    </a>
     <a class="set-row" id="sec-lock-row" href="{{ $lockUrl }}">
       <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "lock" }}</span>
       <span class="flex-1 min-w-0">
