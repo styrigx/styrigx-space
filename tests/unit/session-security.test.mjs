@@ -362,6 +362,25 @@ test('middleware：有效签名 cookie 访问内页 → 200 正文（不是锁�
   assert.equal(r.headers.get('Location'), null);
 });
 
+test('middleware：已锁时锁屏头像 /images/avatar_*.webp → 200 放行（不 302）', async () => {
+  /* Hugo 生成的头像：/images/avatar_hu_<hash>_56x56_fill_q75_box_smart1.webp */
+  const r = await mw(mwCtx('https://styrigx.com/images/avatar_hu_abc123_56x56_fill_q75_box_smart1.webp', { env: PROD_ENV() }));
+  assert.equal(r.status, 200);
+  assert.equal(await r.text(), 'NEXT-BY-APP');
+  /* avif 同理 */
+  const r2 = await mw(mwCtx('https://styrigx.com/images/avatar_hu_abc123_56x56_fill_q75_box_smart1.avif', { env: PROD_ENV() }));
+  assert.equal(r2.status, 200);
+});
+
+test('middleware：已锁时其他 /images/*.webp → 302 到锁屏（不整体放行 webp）', async () => {
+  const r = await mw(mwCtx('https://styrigx.com/images/some-photo_hu_abc123.webp', { env: PROD_ENV() }));
+  assert.equal(r.status, 302);
+  assert.ok(r.headers.get('Location').startsWith('https://styrigx.com/?lock=1&return='));
+  /* 非 avatar_ 开头的 avif 也一样 */
+  const r2 = await mw(mwCtx('https://styrigx.com/images/banner.avif', { env: PROD_ENV() }));
+  assert.equal(r2.status, 302);
+});
+
 test('middleware：过期 cookie 被拒（302 到首页锁屏）', async () => {
   const payload = '0.' + (Date.now() - 1000);
   const sig = await ed25519Sign(TEST_PRIV_PEM, payload);
