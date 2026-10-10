@@ -16,7 +16,7 @@ const API_WHITELIST = [
   '/api/owner-passkey',
   '/api/owner-status',
   '/api/session-epoch',
-  '/api/turnstile-verify',
+  '/api/verify',
   '/api/geo',
 ];
 const PAGE_WHITELIST = ['/', '/en/', '/en'];
@@ -111,16 +111,21 @@ export async function onRequest(context) {
     }
   }
 
-  /* 2.4.1：会话检查（仅当 SGX_SITE=portal 且配了公钥时；未配置则保持原行为，保证 CI/预览环境不锁死） */
+  /* 2.4.1：会话检查（生产环境 portal 站点一律执行；缺 SGX_ED25519_PUBLIC 时
+     verifySession 直接返回 false → fail closed，只放白名单路径。
+     没有「未配置就放行」开关。） */
   const site = env && env.SGX_SITE;
-  const pubKey = env && env.SGX_ED25519_PUBLIC;
-  if ((!site || site === 'portal') && pubKey) {
-    /* 处理 ?return= 参数（从 blog/book 跳转回来验证通过后） */
+  if (isProd && (!site || site === 'portal')) {
+    /* 处理 ?return= 参数（从 blog/book 跳转回来验证通过后）：
+       只允许 https 协议，主机名必须是 styrigx.com 或 *.styrigx.com */
     const returnUrl = url.searchParams.get('return');
     if (returnUrl && pathname === '/') {
       try {
         const r = new URL(returnUrl);
-        if (r.hostname.endsWith('.styrigx.com') || r.hostname === 'styrigx.com') {
+        if (
+          r.protocol === 'https:' &&
+          (r.hostname === 'styrigx.com' || r.hostname.endsWith('.styrigx.com'))
+        ) {
           /* return 合法，但仍需有效会话才放行 */
           if (await verifySession(request, env)) {
             return Response.redirect(returnUrl, 302);

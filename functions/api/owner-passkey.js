@@ -34,7 +34,12 @@
  * - register 带 excludeCredentials 防重复注册
  * - KV 结构：每把一个 key（owner-passkey:<credId前12位>），字段顺序固定
  */
-import { b64enc, b64dec, b64urlEnc, timingSafeEqual, hmacSign, hmacVerify, ed25519Sign } from '../_lib/crypto.js';
+import { b64enc, b64dec, b64urlEnc, timingSafeEqual, hmacSign, hmacVerify } from '../_lib/crypto.js';
+import {
+  setVerifiedCookie,
+  signSessionCookie,
+  getSessionEpoch,
+} from '../_lib/session.js';
 
 /* AAGUID → 密码管理器（只用于显示，不参与安全判断） */
 const AAGUID_PROVIDERS = {
@@ -73,18 +78,6 @@ async function issueToken(secret) {
   const raw = JSON.stringify({ scope: 'owner-auth', exp: Date.now() + 300000 });
   const payload = b64urlEnc(new TextEncoder().encode(raw));
   const sig = await hmacSign(secret, 'owner-auth|', payload);
-  return payload + '.' + sig;
-}
-
-/**
- * 签名会话 cookie 值：epoch.exp.Ed25519(SGX_ED25519_PRIVATE, "epoch.exp")，12 小时有效。
- * @param {string} privatePem Ed25519 私钥 PEM
- * @param {number} epoch session epoch
- */
-async function signVerifiedCookie(privatePem, epoch) {
-  const exp = String(Date.now() + 12 * 3600 * 1000);
-  const payload = epoch + '.' + exp;
-  const sig = await ed25519Sign(privatePem, payload);
   return payload + '.' + sig;
 }
 
@@ -667,10 +660,18 @@ async function handlePost(context) {
       const secret = (env && env.SESSION_SECRET) || '';
       const edPriv = (env && env.SGX_ED25519_PRIVATE) || '';
       if (edPriv) {
-        let epoch = 0;
-        try { epoch = parseInt(await kv.get('session-epoch') || '0', 10) || 0; } catch (e) {}
-        const cv = await signVerifiedCookie(edPriv, epoch);
-        headers.append('Set-Cookie', 'sgx-verified=' + cv + '; Path=/; HttpOnly; Secure; SameSite=Lax; Domain=.styrigx.com');
+        let epoch;
+        try {
+          epoch = await getSessionEpoch(kv);
+        } catch (e) {
+          /* KV 读取出错：绝不签发会话，返回 503 */
+          return new Response(JSON.stringify({ ok: false, error: 'server' }), {
+            status: 503,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        const cv = await signSessionCookie(edPriv, epoch);
+        setVerifiedCookie(headers, cv);
       }
       const mgrToken = secret ? await issueToken(secret) : '';
       return new Response(JSON.stringify({ ok: true, token: mgrToken }), { headers });

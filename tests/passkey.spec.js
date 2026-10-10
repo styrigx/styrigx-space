@@ -482,3 +482,174 @@ test.describe('passkey e2e (virtual authenticator)', () => {
   });
 
 });
+
+test.describe('session security e2e (2.4.1)', () => {
+  test.skip(!HAS_KEY || !BASE, '需要 SGX_TEST_BASE 与 SGX_TEST_OWNER_KEY');
+
+  /** @param {import('@playwright/test').Page} page */
+  async function addVirtualAuth(page) {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('WebAuthn.enable');
+    const { authenticatorId } = await cdp.send('WebAuthn.addVirtualAuthenticator', {
+      options: {
+        protocol: 'ctap2',
+        transport: 'internal',
+        hasResidentKey: true,
+        hasUserVerification: false,
+        automaticPresenceSimulation: true,
+      },
+    });
+    /* 显式置 UV=1（服务端要求 userVerification: required） */
+    await cdp.send('WebAuthn.setUserVerified', { authenticatorId, isUserVerified: true });
+    return { cdp, authenticatorId };
+  }
+
+  /** @param {import('@playwright/test').Page} page */
+  async function gateWithKey(page) {
+    await page.goto(BASE + '/settings/security/lock/');
+    const dlg = page.locator('#lockgate-dlg');
+    await expect(dlg).toBeVisible({ timeout: 15000 });
+    await page.click('#lockgate-key');
+    await page.fill('#lockgate-input', OWNER_KEY);
+    await page.click('#lockgate-go');
+    await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
+  }
+
+  async function ensurePassword(request, page, password) {
+    const token = await page.evaluate(() => sessionStorage.getItem('sgx-lockmgr-token'));
+    let r = await request.post(BASE + '/api/owner-password', {
+      data: { action: 'set', token, password },
+    });
+    if ((await r.json()).error === 'exists') {
+      r = await request.post(BASE + '/api/owner-password', {
+        data: { action: 'change', token, password },
+      });
+    }
+    expect((await r.json()).ok).toBe(true);
+    return token;
+  }
+
+  function cookieEpoch(setCookie) {
+    const pair = (setCookie || '').split(';')[0];
+    const val = pair.split('=').slice(1).join('=');
+    return parseInt(val.split('.')[0], 10);
+  }
+
+  test('密码解锁 Set-Cookie 带 Domain=.styrigx.com', async ({ page, request }) => {
+    await gateWithKey(page);
+    const token = await ensurePassword(request, page, 'e2e-domain-pw-1');
+    try {
+      const r = await request.post(BASE + '/api/owner-password', {
+        data: { action: 'verify', password: 'e2e-domain-pw-1' },
+      });
+      expect((await r.json()).ok).toBe(true);
+      const sc = r.headers()['set-cookie'] || '';
+      /* Hark：密码与 passkey 的 Set-Cookie 必须走同一属性定义 */
+      expect(sc).toContain('sgx-verified=');
+      expect(sc).toContain('Domain=.styrigx.com');
+      expect(sc).toContain('Path=/');
+      expect(sc).toContain('HttpOnly');
+      expect(sc).toContain('Secure');
+      expect(sc).toContain('SameSite=Lax');
+      expect(sc).toContain('Max-Age=43200');
+      /* cookie 值是 epoch.exp.sig 三段式 */
+      expect(sc.split(';')[0].split('=')[1].split('.').length).toBe(3);
+    } finally {
+      await request.post(BASE + '/api/owner-password', {
+        data: { action: 'remove', token },
+      });
+    }
+  });
+
+  test('passkey 解锁 Set-Cookie 带 Domain=.styrigx.com', async ({ page }) => {
+    const { cdp, authenticatorId } = await addVirtualAuth(page);
+    try {
+      await gateWithKey(page);
+      await page.click('#lockmgr-pkadd');
+      await expect(page.locator('.lockmgr-pkitem').first()).toBeVisible({ timeout: 20000 });
+
+      await page.goto(BASE + '/?lock=1');
+      const lock = page.locator('#sgx-lock');
+      await expect(lock).toBeVisible({ timeout: 15000 });
+      const pkbtn = page.locator('#sgx-lock-pkbtn');
+      await expect(pkbtn).toBeVisible();
+
+      /* 拦截 auth 接口的原始响应头读 Set-Cookie（浏览器不会存储
+         Domain=.styrigx.com 的 cookie：preview 域名不匹配，读原始头才可靠） */
+      const authRespPromise = page.waitForResponse((r) => {
+        if (!r.url().includes('/api/owner-passkey') || r.request().method() !== 'POST') return false;
+        try {
+          return JSON.parse(r.request().postData() || '{}').action === 'auth';
+        } catch (e) {
+          return false;
+        }
+      }, { timeout: 30000 });
+      await pkbtn.click();
+      const authResp = await authRespPromise;
+      const sc = authResp.headers()['set-cookie'] || '';
+      expect(sc).toContain('sgx-verified=');
+      expect(sc).toContain('Domain=.styrigx.com');
+      expect(sc).toContain('Path=/');
+      expect(sc).toContain('HttpOnly');
+      expect(sc).toContain('Secure');
+      expect(sc).toContain('SameSite=Lax');
+      expect(sc).toContain('Max-Age=43200');
+
+      /* 解锁成功 */
+      await expect(lock).toBeHidden({ timeout: 20000 });
+
+      /* 清理：删掉测试密钥 */
+      await gateWithKey(page);
+      const delBtn = page.locator('.lockmgr-pkdel').first();
+      if (await delBtn.count()) {
+        await delBtn.click();
+        await delBtn.click();
+      }
+    } finally {
+      await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
+    }
+  });
+
+  test('lockout 后 epoch+1，旧 cookie 的 epoch 失效', async ({ page, request }) => {
+    await gateWithKey(page);
+    const token = await ensurePassword(request, page, 'e2e-lockout-pw-1');
+    try {
+      const e0 = (await (await request.get(BASE + '/api/session-epoch')).json()).epoch;
+
+      let r = await request.post(BASE + '/api/owner-password', {
+        data: { action: 'verify', password: 'e2e-lockout-pw-1' },
+      });
+      expect((await r.json()).ok).toBe(true);
+      const epoch1 = cookieEpoch(r.headers()['set-cookie']);
+      expect(epoch1).toBe(e0);
+
+      /* 立即锁定并退出所有设备 */
+      r = await request.post(BASE + '/api/owner-password', {
+        data: { action: 'lockout', token },
+      });
+      expect((await r.json()).ok).toBe(true);
+      /* 清 cookie 同样带 Domain，且正确过期 */
+      const clearSc = r.headers()['set-cookie'] || '';
+      expect(clearSc).toContain('sgx-verified=;');
+      expect(clearSc).toContain('Domain=.styrigx.com');
+      expect(clearSc).toContain('Max-Age=0');
+
+      const e1 = (await (await request.get(BASE + '/api/session-epoch')).json()).epoch;
+      expect(e1).toBe(e0 + 1);
+
+      /* 再次解锁拿到新 cookie：epoch 已是 e0+1，旧 cookie 的 epoch 不再有效
+         （middleware 侧 ep < cur 拒绝，已由 tests/unit/session-security.test.mjs 覆盖） */
+      r = await request.post(BASE + '/api/owner-password', {
+        data: { action: 'verify', password: 'e2e-lockout-pw-1' },
+      });
+      expect((await r.json()).ok).toBe(true);
+      const epoch2 = cookieEpoch(r.headers()['set-cookie']);
+      expect(epoch2).toBe(e0 + 1);
+      expect(epoch2).not.toBe(epoch1);
+    } finally {
+      await request.post(BASE + '/api/owner-password', {
+        data: { action: 'remove', token },
+      });
+    }
+  });
+});

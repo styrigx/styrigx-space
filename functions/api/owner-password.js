@@ -12,72 +12,27 @@
  * - remove: { token } — 删除解锁密码（需有效的 owner-auth token；同时清 pw-fail:* 和 pw-lock:*）
  *
  * 密码存储：PBKDF2-SHA256 + 随机 salt，存 OWNER_KV；恒定时间比较（SHA-256 后比较）。
- * 会话可吊销：KV 存 session-ver，签进 cookie；改密码/删密码时 +1。
- * HMAC 用途前缀 "sess|"。
+ * 会话可吊销：KV 存 session-epoch，Ed25519(SGX_ED25519_PRIVATE) 签进 cookie；
+ * 改密码/删密码/lockout 时 +1，旧 cookie 失效。
+ * sgx-verified cookie 的设置/清除统一走 _lib/session.js（属性只定义一处）。
+ * KV 读取出错时抛错→接口返回 503，绝不继续写入。
  * 只接受 POST；校验 Origin；未设置密码时 verify 一律拒绝。
  * 外层 try/catch：任何未捕获异常都返回 JSON { ok:false, error:'server' }，不返回 500 HTML。
  */
-import { b64enc, b64dec, timingSafeEqual, hmacSign, hmacVerify } from '../_lib/crypto.js';
+import { b64enc, b64dec, timingSafeEqual, hmacVerify } from '../_lib/crypto.js';
+import {
+  setVerifiedCookie,
+  clearVerifiedCookie,
+  signSessionCookie,
+  getSessionEpoch,
+  bumpSessionEpoch,
+} from '../_lib/session.js';
 
 const ITERATIONS = 100000; // Workers PBKDF2 上限（实测：超过抛 NotSupportedError）
 const SALT_LEN = 16;
 const KEY_LEN = 32; // 256 bit
 const MAX_FAIL = 5;
 const LOCK_MS = 30000;
-
-/**
- * 获取当前 session-ver。
- * @param {any} kv
- */
-async function getSessionVer(kv) {
-  try {
-    const v = await kv.get('session-epoch');
-    return parseInt(v || '0', 10) || 0;
-  } catch (e) {
-    return 0;
-  }
-}
-
-/**
- * session-epoch +1（改密码、删密码、退出所有设备时调用）。
- * @param {any} kv
- */
-async function bumpSessionVer(kv) {
-  const v = await getSessionVer(kv);
-  await kv.put('session-epoch', String(v + 1));
-  return v + 1;
-}
-
-/**
- * 签名会话 cookie 值：ver.exp.HMAC(SESSION_SECRET, "sess|" + ver.exp)，24 小时有效。
- * @param {string} secret
- * @param {number} ver
- */
-async function signVerifiedCookie(secret, ver) {
-  const exp = String(Date.now() + 86400000);
-  const payload = ver + '.' + exp;
-  const sig = await hmacSign(secret, 'sess|', payload);
-  return payload + '.' + sig;
-}
-
-/**
- * 验证会话 cookie。
- * @param {string} cookieVal
- * @param {string} secret
- * @param {number} expectVer
- */
-async function verifySessionCookie(cookieVal, secret, expectVer) {
-  try {
-    const parts = cookieVal.split('.');
-    if (parts.length !== 3) return false;
-    const [ver, exp, sig] = parts;
-    if (parseInt(ver, 10) !== expectVer) return false;
-    if (parseInt(exp, 10) < Date.now()) return false;
-    return await hmacVerify(secret, 'sess|', ver + '.' + exp, sig);
-  } catch (e) {
-    return false;
-  }
-}
 async function hashPassword(password, salt, iterations) {
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
@@ -218,13 +173,22 @@ async function handlePost(context) {
       );
     }
     await clearFail();
-    /* 通过：设签名会话 cookie（SESSION_SECRET HMAC + 24h 过期 + session-ver，防伪造、可吊销） */
+    /* 通过：设 Ed25519 签名会话 cookie（与 passkey/Turnstile 同格式，middleware 验签） */
     const headers = new Headers({ 'Content-Type': 'application/json' });
-    const vSecret = (env && env.SESSION_SECRET) || '';
-    if (vSecret) {
-      const ver = await getSessionVer(kv);
-      const cv = await signVerifiedCookie(vSecret, ver);
-      headers.append('Set-Cookie', 'sgx-verified=' + cv + '; Path=/; HttpOnly; Secure; SameSite=Lax');
+    const edPriv = (env && env.SGX_ED25519_PRIVATE) || '';
+    if (edPriv) {
+      let ver;
+      try {
+        ver = await getSessionEpoch(kv);
+      } catch (e) {
+        /* KV 读取出错：抛错→503，绝不签发会话 */
+        return new Response(JSON.stringify({ ok: false, error: 'server' }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      const cv = await signSessionCookie(edPriv, ver);
+      setVerifiedCookie(headers, cv);
     }
     return new Response(JSON.stringify({ ok: true }), { headers });
   }
@@ -242,15 +206,24 @@ async function handlePost(context) {
 
     /* lockout：立即锁定并退出所有设备（session-epoch +1，用 Set-Cookie 清当前 cookie） */
     if (action === 'lockout') {
-      await bumpSessionVer(kv);
+      try {
+        await bumpSessionEpoch(kv);
+      } catch (e) {
+        /* KV 出错：绝不写入，返回 503 */
+        return Response.json({ ok: false, error: 'server' }, { status: 503 });
+      }
       const headers = new Headers({ 'Content-Type': 'application/json' });
-      headers.append('Set-Cookie', 'sgx-verified=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0');
+      clearVerifiedCookie(headers);
       return new Response(JSON.stringify({ ok: true }), { headers });
     }
 
     /* remove：删除解锁密码，同时清掉失败计数和锁定 */
     if (action === 'remove') {
-      await kv.delete('owner-pw');
+      try {
+        await kv.delete('owner-pw');
+      } catch (e) {
+        return Response.json({ ok: false, error: 'server' }, { status: 503 });
+      }
       /* 清掉所有 pw-fail:* 和 pw-lock:*（IP 限流残留） */
       try {
         const list = await kv.list({ prefix: 'pw-fail:' });
@@ -260,8 +233,12 @@ async function handlePost(context) {
         const list = await kv.list({ prefix: 'pw-lock:' });
         for (const k of list.keys || []) { try { await kv.delete(k.name); } catch (e) {} }
       } catch (e) {}
-      /* 会话吊销：session-ver +1 */
-      await bumpSessionVer(kv);
+      /* 会话吊销：session-epoch +1（KV 出错→503，绝不继续） */
+      try {
+        await bumpSessionEpoch(kv);
+      } catch (e) {
+        return Response.json({ ok: false, error: 'server' }, { status: 503 });
+      }
       return Response.json({ ok: true });
     }
 
@@ -291,10 +268,18 @@ async function handlePost(context) {
       iterations: ITERATIONS,
       updatedAt: Date.now(),
     };
-    await kv.put('owner-pw', JSON.stringify(record));
+    try {
+      await kv.put('owner-pw', JSON.stringify(record));
+    } catch (e) {
+      return Response.json({ ok: false, error: 'server' }, { status: 503 });
+    }
 
-    /* 改密码后：session-ver +1，旧会话 cookie 失效 */
-    await bumpSessionVer(kv);
+    /* 改密码后：session-epoch +1，旧会话 cookie 失效（KV 出错→503） */
+    try {
+      await bumpSessionEpoch(kv);
+    } catch (e) {
+      return Response.json({ ok: false, error: 'server' }, { status: 503 });
+    }
     return Response.json({ ok: true });
   }
 
