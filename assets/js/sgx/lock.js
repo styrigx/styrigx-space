@@ -145,6 +145,57 @@ export function initLock() {
   function unlock() {
     if (done) return;
     done = true;
+    /* 本地开发没有 Functions 后端，直接确认（生产环境才调 session-check） */
+    if (isLocal) {
+      unlockConfirmed();
+      return;
+    }
+    /* 2.4.1 防循环：先向服务端确认会话真的生效（/api/session-check），
+       确认后才做开锁动画、跳 ?return=；没确认到 → 停在锁屏显示错误，绝不跳转。 */
+    fetch('/api/session-check', { credentials: 'same-origin' })
+      .then(function (r) {
+        if (!r.ok) return { ok: false };
+        return r.json().catch(function () {
+          return { ok: false };
+        });
+      })
+      .then(function (d) {
+        if (d && d.ok === true) {
+          unlockConfirmed();
+        } else {
+          sessionCheckFailed();
+        }
+      })
+      .catch(function () {
+        sessionCheckFailed();
+      });
+  }
+
+  /* 会话没生效：停在锁屏，显示友好错误，不跳转（允许重试） */
+  function sessionCheckFailed() {
+    done = false;
+    try {
+      ensureDialog();
+      setTitle(en ? 'Session not active' : '会话未生效');
+      setBody(
+        '<p class="sgx-verify-failtx">' +
+          (en
+            ? 'The session was not recognized. Please try again.'
+            : '会话未生效，请重试。') +
+          '</p>'
+      );
+      clearErr();
+      if (dlg && !dlg.open) {
+        try {
+          dlg.showModal();
+        } catch (e) {}
+      }
+      dlgState = 'session-failed';
+    } catch (e) {}
+  }
+
+  /* 服务端已确认会话：开锁动画 + ?return= 回跳（只认站内路径） */
+  function unlockConfirmed() {
     try {
       sessionStorage.setItem('sgx-lock-shown', '1');
     } catch (e) {}
@@ -162,6 +213,21 @@ export function initLock() {
         });
       });
       window.setTimeout(cleanup, 450);
+    }
+    /* ?return= 回跳：只认站内路径（以 / 开头，且不是 // 或 /\）；
+       不合法或无参数保持原行为（停在首页）。 */
+    let ret = '';
+    try {
+      ret = new URLSearchParams(window.location.search).get('return') || '';
+    } catch (e) {}
+    if (
+      ret.charAt(0) === '/' &&
+      ret.charAt(1) !== '/' &&
+      ret.charAt(1) !== '\\'
+    ) {
+      window.setTimeout(function () {
+        window.location.href = ret;
+      }, 600);
     }
   }
 
