@@ -168,11 +168,11 @@ function showLockScreen() {
     done = true;
     /* 本地开发没有 Functions 后端，直接确认（生产环境才调 session-check） */
     if (isLocal) {
-      unlockConfirmed();
+      handleSessionOk();
       return;
     }
     /* 2.4.1 防循环：先向服务端确认会话真的生效（/api/session-check），
-       确认后才做开锁动画、跳 ?return=；没确认到 → 停在锁屏显示错误，绝不跳转。 */
+       确认后才处理；没确认到 → 停在锁屏显示错误，绝不跳转。 */
     fetch('/api/session-check', { credentials: 'same-origin' })
       .then(function (r) {
         if (!r.ok) return { ok: false };
@@ -182,7 +182,7 @@ function showLockScreen() {
       })
       .then(function (d) {
         if (d && d.ok === true) {
-          unlockConfirmed();
+          handleSessionOk();
         } else {
           sessionCheckFailed();
         }
@@ -190,6 +190,46 @@ function showLockScreen() {
       .catch(function () {
         sessionCheckFailed();
       });
+  }
+
+  /* 2.4.1 回跳修复：锁屏显示期间，用户可能在别的标签页解锁了。
+     在 visibilitychange（visible）、focus、pageshow 时调 /api/session-check；
+     节流至少 1 秒，和密码/通行密钥解锁共用 done 标志。
+     ok → 走 handleSessionOk；401/网络失败 → 保持锁屏（fail-closed）。
+     禁止用 sessionStorage、localStorage、跨标签页通道或前端内存传递
+     解锁状态，状态源只有服务端 sgx-verified。 */
+  let lastRecheck = 0;
+  function recheckSession() {
+    if (done) return;
+    const now = Date.now();
+    if (now - lastRecheck < 1000) return;
+    lastRecheck = now;
+    if (isLocal) return;
+    fetch('/api/session-check', { credentials: 'same-origin' })
+      .then(function (r) {
+        if (!r.ok) return { ok: false };
+        return r.json().catch(function () {
+          return { ok: false };
+        });
+      })
+      .then(function (d) {
+        if (done) return;
+        if (d && d.ok === true) {
+          done = true;
+          handleSessionOk();
+        }
+        /* 401：保持锁屏，什么都不做 */
+      })
+      .catch(function () {
+        /* 网络失败：保持锁屏（fail-closed） */
+      });
+  }
+  function bindRecheck() {
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') recheckSession();
+    });
+    window.addEventListener('focus', recheckSession);
+    window.addEventListener('pageshow', recheckSession);
   }
 
   /* 会话没生效：停在锁屏，显示友好错误，不跳转（允许重试） */
@@ -215,8 +255,25 @@ function showLockScreen() {
     } catch (e) {}
   }
 
-  /* 服务端已确认会话：开锁动画 + ?return= 回跳 */
-  function unlockConfirmed() {
+  /* 服务端已确认会话有效后的统一处理（2.4.1）：
+     - URL 带 return：不做开锁动画，直接 location.replace(location.href)，
+       交给 L1 middleware 校验 return 并 302。分层规范：return 校验只归 L1，
+       前端不再重复做白名单校验。
+     - 不带 return：保持现有开锁动画，显示桌面。 */
+  function handleSessionOk() {
+    let ret = '';
+    try {
+      ret = new URLSearchParams(window.location.search).get('return') || '';
+    } catch (e) {}
+    if (ret) {
+      window.location.replace(window.location.href);
+      return;
+    }
+    doUnlockAnimation();
+  }
+
+  /* 开锁动画（无 return 时）：显示桌面 */
+  function doUnlockAnimation() {
     const ic = document.getElementById('sgx-lock-ic');
     if (ic) ic.innerHTML = UNLOCK;
     if (reducedMotion()) {
@@ -231,30 +288,6 @@ function showLockScreen() {
         });
       });
       window.setTimeout(cleanup, 450);
-    }
-    /* ?return= 回跳：站内路径（以 / 开头，且不是 // 或 /\），
-       或 https://*.styrigx.com 白名单 URL（blog/book 及预览子域跨站回跳）；
-       不合法或无参数保持原行为（停在首页）。 */
-    let ret = '';
-    try {
-      ret = new URLSearchParams(window.location.search).get('return') || '';
-    } catch (e) {}
-    let retOk = ret.charAt(0) === '/' && ret.charAt(1) !== '/' && ret.charAt(1) !== '\\';
-    if (!retOk && ret.indexOf('https://') === 0 && ret.indexOf('\\') === -1) {
-      try {
-        const u = new URL(ret);
-        const h = u.hostname.toLowerCase();
-        retOk =
-          u.protocol === 'https:' &&
-          !u.username &&
-          !u.password &&
-          (h === 'styrigx.com' || h.slice(-13) === '.styrigx.com');
-      } catch (e) {}
-    }
-    if (retOk) {
-      window.setTimeout(function () {
-        window.location.href = ret;
-      }, 600);
     }
   }
 
@@ -876,4 +909,7 @@ function showLockScreen() {
       openVerify();
     }
   });
+
+  /* 锁屏显示期间：如果用户在别的标签页解锁了，切回来时自动检测并回跳 */
+  bindRecheck();
 }
