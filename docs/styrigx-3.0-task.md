@@ -7,10 +7,10 @@
 > 队列更新跟在对应项的 PR 里一起提交。
 
 - [x] 2.4.2 #11（styrigx-space，可合并）：Tailwind 4 + Hugo 0.167 + Actions 整理。分支 `feat/2.4.2-infra`，commit 977228e9 已合入 main。Actions 整理内容：workflow 三处 hugo-version 0.162.0 → 0.167.0；构建脚本改用 `@tailwindcss/cli`。验收：生产部署 run 38024526434 全绿（quality/build-and-deploy/passkey-e2e），styrigx.com 首页 200，owner-status `{"ok":true,"password":true,"passkey":true}`，blog/book 200。✓ 2026-10-10
-- [] 2.4.1 主站 #10（styrigx-space，只开不合）：修 hugo 构建报错。分支 `feat/2.4.1-portal-lock`。验收：CI 全绿。Gray 未配 `SGX_ED25519_PRIVATE`/`SGX_ED25519_PUBLIC`，不合并。
+- [] 2.4.1 主站 #14（styrigx-space，只开不合）：旧 #10 因与 main 冲突（mergeable_state=dirty）致 PR workflow 不跑，已关闭；重建为 #14（分支 `feat/2.4.1-portal-lock-v2`，rebase 到含 Tailwind 4 的最新 main）。本地验证：CSS 149537 bytes、hugo 通过、锁屏 7/7。等 CI 绿。Gray 未配密钥，不合并。
 - [] 2.4.1 blog #4（styrigx-blog，只开不合）：给 workflow 加 `pull_request` 触发让 PR 跑 CI，然后修到绿。分支 `feat/2.4.1-blog-lock`。验收：CI 全绿。Gray 未配 `SGX_ED25519_PUBLIC`，不合并。
 - [] 2.4.1 book（styrigx-book，只开不合）：【等用户】等 Gray 给 `styrigx-book-deploy` token 加 Contents 与 Pull requests 读写权限，轮到时跳过。
-- [] README 动态徽章（styrigx-space，可合并）：徽章不再手写版本号。
+- [x] README 动态徽章（styrigx-space，可合并）：PR #13 已合并（7d10994）。deploy.yml 顶层 env.HUGO_VERSION 单源；tailwindcss/@tailwindcss/cli 统一 ^4.3.3，删 postcss；README 中英三徽章动态化，实测 Hugo 0.167.0 / Tailwind 4.3.3 / Styrigx UI 2.4.2。✓ 2026-10-10
   1. Hugo 版本单源：deploy.yml 顶层 env 定义 HUGO_VERSION，两处 job 引用。
   2. Tailwind 三包统一同版本；若只用 CLI 构建，删 postcss 插件与 postcss.config.js；更新 lock。
   3. README 中英同步改 shields.io 动态徽章（flat-square、2563eb、带 logo）：Hugo 读 deploy.yml $.env.HUGO_VERSION；Tailwind 读 package-lock.json 实际安装版本；新增 Styrigx UI 徽章读 hugo.yaml params 版本。
