@@ -26,8 +26,9 @@ const API_WHITELIST = [
   '/api/verify',
   '/api/geo',
 ];
-const PAGE_WHITELIST = ['/', '/en/', '/en'];
+const PAGE_WHITELIST = [];
 const STATIC_RE = /\.(css|js|woff2|woff|ttf|png|svg|ico|json|xml|webmanifest)$/i;
+/* 首页由 L1 特殊处理（见下）：始终返回页面并注入 data-sgx-session，不再走白名单 */
 
 function isWhitelisted(pathname) {
   if (PAGE_WHITELIST.includes(pathname)) return true;
@@ -99,6 +100,28 @@ export function isSafeReturnUrl(ret) {
  */
 export function isSafeReturn(ret) {
   return isSafeReturnPath(ret) || isSafeReturnUrl(ret);
+}
+
+/**
+ * L1 向 HTML 注入会话状态（2.4.1 分层规范）。
+ * 把 <html> 变成 <html data-sgx-session="valid|locked">，前端只读这个，不自己猜。
+ * 同时设置 Cache-Control: private, no-store（防浏览器缓存绕过锁屏）。
+ * 非 HTML 响应原样返回。
+ * @param {Response} res
+ * @param {'valid'|'locked'} state
+ */
+export async function injectSessionState(res, state) {
+  const ct = res.headers.get('Content-Type') || '';
+  if (!ct.includes('text/html')) return res;
+  const html = await res.text();
+  const injected = html.replace(/<html(\s|>)/i, '<html data-sgx-session="' + state + '"$1');
+  const headers = new Headers(res.headers);
+  headers.set('Cache-Control', 'private, no-store');
+  return new Response(injected, {
+    status: res.status,
+    statusText: res.statusText,
+    headers,
+  });
 }
 
 /**
@@ -199,14 +222,19 @@ export async function onRequest(context) {
 
   /* 2.4.1：会话检查（生产环境 space 站点一律执行；缺 SGX_ED25519_PUBLIC 时
      verifySession 直接返回 false → fail closed，只放白名单路径。
-     没有「未配置就放行」开关。） */
+     没有「未配置就放行」开关。）
+     分层规范 L1：middleware 是唯一决定是否已解锁的地方。 */
   const site = env && env.SGX_SITE;
   if (isProd && (!site || site === 'space')) {
-    /* ?return= 回跳：站内路径（isSafeReturnPath）或 *.styrigx.com 白名单 URL
-       （isSafeReturnUrl，供 blog/book 及预览子域跨站回跳）。非法 → 一律回首页 /。 */
-    const returnPath = url.searchParams.get('return');
-    if (returnPath && pathname === '/') {
-      if (await verifySession(request, env)) {
+    const isHomepage = pathname === '/' || pathname === '/en' || pathname === '/en/';
+    const sessionValid = await verifySession(request, env);
+
+    /* L1：首页不再无条件白名单。照常返回页面，但把会话状态注入 HTML
+       （<html data-sgx-session="valid|locked">），前端只读这个，不自己猜。 */
+    if (isHomepage) {
+      /* ?return= 回跳：会话有效时 302 到目标（站内路径或 *.styrigx.com 白名单） */
+      const returnPath = url.searchParams.get('return');
+      if (returnPath && sessionValid) {
         /* 手动构造 302（不用 Response.redirect：Node/undici 不接受相对路径，
            Workers 可以；手动写兼容两边） */
         const loc = isSafeReturn(returnPath) ? returnPath : '/';
@@ -215,21 +243,17 @@ export async function onRequest(context) {
           headers: { 'Location': loc },
         });
       }
+      const res = await next();
+      return injectSessionState(res, sessionValid ? 'valid' : 'locked');
     }
 
-    if (await verifySession(request, env)) {
+    if (sessionValid) {
       const res = await next();
-      /* 2.4.1：受保护 HTML 页面防浏览器缓存绕过锁屏。
+      /* 受保护 HTML 页面：注入 valid 状态 + 防浏览器缓存绕过锁屏。
          只改 text/html，静态资源保持原缓存策略。 */
       const ct = res.headers.get('Content-Type') || '';
       if (ct.includes('text/html')) {
-        const headers = new Headers(res.headers);
-        headers.set('Cache-Control', 'private, no-store');
-        return new Response(res.body, {
-          status: res.status,
-          statusText: res.statusText,
-          headers,
-        });
+        return injectSessionState(res, 'valid');
       }
       return res;
     }

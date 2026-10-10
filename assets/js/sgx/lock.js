@@ -1,8 +1,10 @@
 /**
  * @fileoverview 全站锁屏 + Turnstile 入站验证（2.4.0 H）。
- * - 每个页面加载时先问服务端（/api/session-check）会话是否有效；有效则直接显示页面，
- *   无效/过期/接口报错则显示锁屏（fail-closed）。不再用 sessionStorage/内存判断。
- * - 请求完成前显示中性加载态，不闪桌面也不闪锁屏。
+ * 分层规范 L4：lock.js 只负责两件事——
+ * 1. 按 L1（middleware 注入的 <html data-sgx-session>）画锁屏，不自己判断会话；
+ * 2. 把密码或通行密钥提交给 L2（functions/api/*）。
+ * 唯一状态源是服务端签发的 sgx-verified 会话；禁止用 sessionStorage、
+ * localStorage、前端内存或标签页状态另做判断。
  * - 点头像（电脑回车/空格）→ 底部 dialog 验证卡（One UI 密码界面式）+ Turnstile；
  *   通过 → 开锁动画 → 现有解锁流程；失败 → 红色提示 + 重试。
  * - 本地开发（localhost）跳过验证。
@@ -42,52 +44,18 @@ export function initLock() {
     showLockScreen();
     return;
   }
-  /* 2.4.1：页面加载先问服务端会话是否有效，再决定是否显示锁屏。
-     不再用 sessionStorage/内存判断。请求完成前显示中性加载态，不闪桌面也不闪锁屏。 */
-  const loading = showNeutralLoading();
-  fetch('/api/session-check', { credentials: 'include' })
-    .then(function (r) {
-      if (!r.ok) return { ok: false };
-      return r.json().catch(function () {
-        return { ok: false };
-      });
-    })
-    .then(function (d) {
-      hideNeutralLoading(loading);
-      var ok = !!(d && d.ok === true);
-      try {
-        window.dispatchEvent(new CustomEvent('sgx:session', { detail: { ok: ok } }));
-      } catch (e) {}
-      if (!ok) {
-        showLockScreen();
-      }
-      /* 会话有效：直接显示页面，不弹锁屏 */
-    })
-    .catch(function () {
-      hideNeutralLoading(loading);
-      try {
-        window.dispatchEvent(new CustomEvent('sgx:session', { detail: { ok: false } }));
-      } catch (e) {}
-      showLockScreen(); /* fail-closed：接口报错也显示锁屏 */
-    });
-}
-
-/**
- * 中性加载态：全屏遮罩，session-check 完成前不闪桌面/锁屏。
- */
-function showNeutralLoading() {
-  const div = document.createElement('div');
-  div.id = 'sgx-lock-loading';
-  div.setAttribute('aria-hidden', 'true');
-  div.innerHTML = '<div class="sgx-spinner" role="progressbar" aria-label="Loading"></div>';
-  document.body.appendChild(div);
-  return div;
-}
-
-function hideNeutralLoading(div) {
+  /* 分层规范 L4：lock.js 只按 L1 给出的状态画锁屏，不自己判断。
+     L1（middleware）把会话状态注入 <html data-sgx-session="valid|locked">，
+     这里只读这个。 */
+  const state = document.documentElement.dataset.sgxSession;
+  const ok = state === 'valid';
   try {
-    if (div && div.parentNode) div.parentNode.removeChild(div);
+    window.dispatchEvent(new CustomEvent('sgx:session', { detail: { ok: ok } }));
   } catch (e) {}
+  if (!ok) {
+    showLockScreen();
+  }
+  /* 会话有效：直接显示页面，不弹锁屏 */
 }
 
 /**

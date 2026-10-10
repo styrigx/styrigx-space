@@ -29,14 +29,11 @@ test('lock.js：不再读写 sgx-lock-shown', () => {
   assert.ok(!lockJs.includes("sessionStorage.setItem('sgx-lock-shown'"), '不应再写 sessionStorage');
 });
 
-test('lock.js：页面加载先 fetch session-check（credentials include）', () => {
-  assert.ok(lockJs.includes("fetch('/api/session-check'"), '应 fetch /api/session-check');
-  assert.ok(lockJs.includes("credentials: 'include'"), '应带 credentials: include');
-});
-
-test('lock.js：中性加载态（不闪桌面/锁屏）', () => {
-  assert.ok(lockJs.includes('sgx-lock-loading'), '应有中性加载态元素');
-  assert.ok(lockJs.includes('showNeutralLoading'), '应有 showNeutralLoading');
+test('lock.js：initLock 读 data-sgx-session（L1 注入，不自己 fetch 做初始判断）', () => {
+  assert.ok(lockJs.includes('dataset.sgxSession'), '应读 document.documentElement.dataset.sgxSession');
+  /* initLock 不应 fetch session-check（unlock 后的防循环确认保留，那是另一处） */
+  const initLockSrc = lockJs.slice(lockJs.indexOf('export function initLock()'), lockJs.indexOf('function showLockScreen()'));
+  assert.ok(!initLockSrc.includes("fetch('/api/session-check'"), 'initLock 不应 fetch session-check');
 });
 
 test('lock.js：会话有效时分发 sgx:session 事件', () => {

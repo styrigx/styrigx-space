@@ -1865,12 +1865,6 @@
   #brw-suggest { display: none; }
 
   /* ===== 2.3.14 首页锁屏 ===== */
-  /* 2.4.1 中性加载态：session-check 完成前的全屏遮罩，不闪桌面/锁屏 */
-  #sgx-lock-loading {
-    position: fixed; inset: 0; z-index: 300; height: 100vh; height: 100dvh;
-    background: var(--m-wallpaper); color: var(--m-on-surface);
-    display: flex; align-items: center; justify-content: center;
-  }
   #sgx-lock {
     position: fixed; inset: 0; z-index: 300; height: 100vh; height: 100dvh; overflow: hidden;
     background: var(--m-wallpaper); color: var(--m-on-surface);
