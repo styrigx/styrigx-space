@@ -1,0 +1,44 @@
+{{/* 2.6.0：设置子页「display」分类组（自 settings.html 抽取，set-gh 标题由子页大标题替代）。 */}}
+{{ $isEn := .isEn }}{{ $featMap := .featMap }}{{ $palettes := .palettes }}
+<div class="set-group scroll-mt-24" id="sg-display">
+<section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.1s">
+      {{ if partial "feature.html" "theme-mode" }}
+      <div class="p-5">
+        <div class="grid grid-cols-2 gap-3" id="theme-previews">
+          <div>
+            <button type="button" class="theme-prev w-full" data-mode="light" aria-pressed="false" aria-label="{{ if $isEn }}Light{{ else }}浅色{{ end }}">
+              <div class="p-2.5" style="background:linear-gradient(135deg,#dbeaf7,#f5f8fa)">
+                <div class="rounded-lg bg-white shadow-xs p-2 space-y-1.5">
+                  <div class="h-2 rounded-full bg-slate-300 w-2/3"></div>
+                  <div class="h-6 rounded-md bg-blue-100"></div>
+                  <div class="h-6 rounded-md bg-slate-100"></div>
+                </div>
+              </div>
+            </button>
+            <p class="text-center text-xs mt-2 text-m-on-surface-variant">{{ if $isEn }}Light{{ else }}浅色{{ end }}</p>
+          </div>
+          <div>
+            <button type="button" class="theme-prev w-full" data-mode="dark" aria-pressed="false" aria-label="{{ if $isEn }}Dark{{ else }}深色{{ end }}">
+              <div class="p-2.5" style="background:linear-gradient(135deg,#14324a,#0e1318)">
+                <div class="rounded-lg shadow-xs p-2 space-y-1.5" style="background:#1a2027">
+                  <div class="h-2 rounded-full bg-slate-600 w-2/3"></div>
+                  <div class="h-6 rounded-md" style="background:#1e4767"></div>
+                  <div class="h-6 rounded-md" style="background:#242b34"></div>
+                </div>
+              </div>
+            </button>
+            <p class="text-center text-xs mt-2 text-m-on-surface-variant">{{ if $isEn }}Dark{{ else }}深色{{ end }}</p>
+          </div>
+        </div>
+      </div>
+      <div class="set-row" id="row-system" role="button" tabindex="0">
+        <span class="set-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "moon" }}</span>
+        <span class="flex-1 font-medium">{{ if $isEn }}Follow system{{ else }}跟随系统{{ end }}</span>
+        <span class="switch" id="sw-system" role="switch" aria-checked="false" aria-label="{{ if $isEn }}Follow system{{ else }}跟随系统{{ end }}"><span class="knob"></span></span>
+      </div>
+      {{ end }}{{/* /theme-mode */}}
+      {{/* 2.4.0-G：字体大小 / 布局由 features.yaml 生成（外观与手写版一致） */}}
+      {{ if partial "feature.html" "font-size" }}{{ partial "settings-row.html" (dict "f" (index $featMap "font-size") "isEn" $isEn) }}{{ end }}
+      {{ if partial "feature.html" "layout" }}{{ partial "settings-row.html" (dict "f" (index $featMap "layout") "isEn" $isEn) }}{{ end }}
+    </section>
+</div>

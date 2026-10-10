@@ -1,0 +1,68 @@
+# 2.6.0：设置分类定义（单数据源）。设置首页、二级页、双栏导航共用。
+# 图标/配色沿用旧版 set-cat 样式；apps 用应用图标特殊渲染（appicon: true）。
+cats:
+  - id: display
+    icon: moon
+    bg: bg-m-secondary-container
+    fg: text-m-on-secondary-container
+    zh: 显示
+    en: Display
+    subzh: 跟随系统、字体大小、布局
+    suben: Follow system, font size, layout
+  - id: theme
+    icon: palette
+    bg: bg-m-primary-container
+    fg: text-m-on-primary-container
+    zh: 壁纸和主题
+    en: Wallpaper & theme
+    subzh: 主色
+    suben: Theme color
+  - id: security
+    icon: shield
+    bg: bg-m-accent-container
+    fg: text-m-on-accent-container
+    zh: 安全与隐私
+    en: Security and privacy
+    subzh: 锁定屏幕、密码、通行密钥
+    suben: Lock screen, password, passkeys
+  - id: manage
+    icon: sliders
+    bg: bg-m-accent-container
+    fg: text-m-on-accent-container
+    zh: 常规管理
+    en: General management
+    subzh: 语言、日期和时间、天气
+    suben: Language, date & time, weather
+  - id: apps
+    icon: appgrid-solid
+    appicon: true
+    bg: ""
+    fg: ""
+    zh: 应用
+    en: Apps
+    subzh: 我的文件、应用商店、浏览器
+    suben: My Files, Store, Internet
+  - id: accessibility
+    icon: person
+    bg: bg-m-tertiary-container
+    fg: text-m-on-tertiary-container
+    zh: 辅助功能
+    en: Accessibility
+    subzh: 减弱动效
+    suben: Reduce motion
+  - id: wellbeing
+    icon: info
+    bg: bg-m-rose-container
+    fg: text-m-on-rose-container
+    zh: 数字健康
+    en: Digital wellbeing
+    subzh: 屏幕时间、15 分钟提醒
+    suben: Screen time, 15-minute reminder
+  - id: about
+    icon: globe
+    bg: bg-m-container-highest
+    fg: text-m-on-surface
+    zh: 关于本站
+    en: About
+    subzh: 版本、Styrigx UI
+    suben: Version, Styrigx UI

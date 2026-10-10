@@ -34,6 +34,9 @@ export function initNavHistory() {
   function parentOf() {
     const p = location.pathname;
     if (p === '/files/' || p === '/en/files/') return en ? '/en/files/' : '/files/';
+    /* 2.6.0：设置子页的上一级是设置首页 */
+    if (p !== '/settings/' && p.indexOf('/settings/') === 0) return '/settings/';
+    if (p !== '/en/settings/' && p.indexOf('/en/settings/') === 0) return '/en/settings/';
     return home;
   }
   function goBack() {

@@ -166,7 +166,7 @@ features:
     icon: keyboard
     bg: bg-m-accent-container
     fg: text-m-on-accent-container
-    desc: {zh: 桌面端 g h / g l / g b / g s 快速跳转，? 查看列表, en: Desktop: g h / g l / g b / g s to jump, ? for list}
+    desc: {zh: "桌面端 g h / g l / g b / g s 快速跳转，? 查看列表", en: "Desktop: g h / g l / g b / g s to jump, ? for list"}
     exp: false
     name: {zh: 快捷键, en: Keyboard shortcuts}
     build: true

@@ -1,0 +1,17 @@
+{{/* 2.6.0：设置子页「theme」分类组（自 settings.html 抽取，set-gh 标题由子页大标题替代）。 */}}
+{{ $isEn := .isEn }}{{ $featMap := .featMap }}{{ $palettes := .palettes }}
+<div class="set-group scroll-mt-24" id="sg-theme">
+<section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.14s">
+      <div class="p-5">
+        <p class="text-sm font-medium mb-3">{{ if $isEn }}Theme color{{ else }}主色{{ end }}</p>
+        <div class="flex gap-4 flex-wrap" id="palette-dots">
+          {{ range $palettes }}
+          <div class="flex flex-col items-center gap-1.5">
+            <button type="button" class="swatch" data-palette="{{ .id }}" style="background:{{ .c }}" aria-pressed="false" aria-label="{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}"></button>
+            <span class="text-[11px] text-m-on-surface-variant">{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}</span>
+          </div>
+          {{ end }}
+        </div>
+      </div>
+    </section>
+</div>

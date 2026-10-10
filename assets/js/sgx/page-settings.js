@@ -719,86 +719,63 @@ import { setCapSearchProvider } from './capsule.js';
     location.reload();
   });
 
-  /* ---- 桌面双栏：分类切换 + hash 记忆 ---- */
-  const CATS = [
-    { id: 'display', el: 'sg-display' },
-    { id: 'theme', el: 'sg-theme' },
-    { id: 'security', el: 'sg-security' },
-    { id: 'manage', el: 'sg-manage' },
-    { id: 'apps', el: 'sg-apps' },
-    { id: 'accessibility', el: 'sg-accessibility' },
-    { id: 'wellbeing', el: 'sg-wellbeing' },
-    { id: 'about', el: 'sg-about' },
-  ];
-  const CATNAMES = {
-    display: T.t('catDisplay'),
-    theme: T.t('catTheme'),
-    security: T.t('catSecurity'),
-    manage: T.t('catManage'),
-    apps: T.t('catApps'),
-    accessibility: T.t('catAccessibility'),
-    wellbeing: T.t('catWellbeing'),
-    about: T.t('catAbout'),
-  };
-  const setLayout = document.querySelector('.set-layout');
-  const mqWide = window.matchMedia('(min-width:640px)');
+  /* 2.6.0：设置改为真实二级页（/settings/<cat>/）；旧 hash 由设置首页内联脚本跳转到子页；
+     子页返回用 subpage-head 的返回键。DeX/PC 双栏在首页内切换（下）。 */
+  /* ---- 2.6.0 DeX/PC 双栏：左导航切换右窗格（复用子页同一套 partial；无 JS 时导航照常跳子页） ---- */
+  (function () {
+    var nav = document.getElementById('set-cat-nav');
+    var layout = document.querySelector('.set-layout');
+    if (!nav || !layout) return;
+    var panes = document.getElementById('set-panes');
+    if (!panes) return;
+    var isWide = document.documentElement.classList.contains('layout-dex') ||
+      document.documentElement.classList.contains('layout-pc');
+    function showPane(id, title) {
+      var groups = panes.querySelectorAll('.set-group');
+      groups.forEach(function (g) {
+        g.classList.toggle('active', g.id === 'sg-' + id);
+      });
+      nav.querySelectorAll('.set-cat').forEach(function (b) {
+        var on_ = b.getAttribute('data-cat') === id;
+        b.classList.toggle('active', on_);
+        if (on_) b.setAttribute('aria-current', 'true');
+        else b.removeAttribute('aria-current');
+      });
+      var rt = document.getElementById('set-right-title');
+      if (rt && title) rt.textContent = title;
+      layout.classList.add('single-cat');
+    }
+    nav.addEventListener('click', function (e) {
+      var b = e.target && e.target.closest ? e.target.closest('.set-cat') : null;
+      if (!b) return;
+      var id = b.getAttribute('data-cat') || '';
+      if (id === 'security') return; /* 独立页面，不拦截 */
+      if (!isWide) return; /* 移动端没有双栏（导航隐藏），照常跳转 */
+      e.preventDefault();
+      showPane(id, b.getAttribute('data-title') || '');
+    });
+    if (isWide) showPane('display', (nav.querySelector('[data-cat="display"]') || {}).getAttribute ? nav.querySelector('[data-cat="display"]').getAttribute('data-title') : '');
+  })();
   const reducedM = document.documentElement.classList.contains('reduced-motion');
-  function catFromHash() {
-    const h = (location.hash || '').replace(/^#/, '');
-    const alias = { clock: 'manage', 'sg-clock': 'manage', general: 'accessibility', 'sg-general': 'accessibility' };
-    if (alias[h]) return alias[h];
-    for (let i = 0; i < CATS.length; i++) {
-      if (CATS[i].id === h || 'sg-' + CATS[i].id === h) return CATS[i].id;
-    }
-    return 'display';
-  }
-  /** @param {string} id @param {boolean} [skipHash] */
-  function showCat(id, skipHash) {
-    document.querySelectorAll('.set-group').forEach(function (g) {
-      g.classList.toggle('active', g.id === 'sg-' + id);
-    });
-    document.querySelectorAll('#set-cat-nav .set-cat').forEach(function (b) {
-      const on_ = b.getAttribute('data-cat') === id;
-      b.classList.toggle('active', on_);
-      if (on_) b.setAttribute('aria-current', 'true');
-      else b.removeAttribute('aria-current');
-    });
-    const rt = document.getElementById('set-right-title');
-    if (rt && CATNAMES[id]) rt.textContent = CATNAMES[id];
-    if (!skipHash) {
-      try {
-        history.replaceState(null, '', '#' + id);
-      } catch (e) {}
-    }
-    if (setLayout && mqWide.matches) setLayout.classList.add('single-cat');
-  }
-  function applyMode() {
-    if (!mqWide.matches) {
-      if (setLayout) setLayout.classList.remove('single-cat');
-      document.querySelectorAll('.set-group').forEach(function (g) {
-        g.classList.remove('active');
-        /** @type {HTMLElement} */ (g).style.display = '';
-      });
-      document.querySelectorAll('#set-cat-nav .set-cat').forEach(function (b) {
-        b.classList.remove('active');
-        /** @type {HTMLElement} */ (b).style.display = '';
-      });
-      return;
-    }
-    showCat(catFromHash(), true);
-  }
-  document.querySelectorAll('#set-cat-nav .set-cat').forEach(function (b) {
-    on(b, 'click', function () {
-      showCat(b.getAttribute('data-cat') || 'display');
-    });
-  });
-  on(window, 'hashchange', function () {
-    if (mqWide.matches) showCat(catFromHash(), true);
-  });
-  if (mqWide.addEventListener) mqWide.addEventListener('change', applyMode);
-  else if (mqWide.addListener) mqWide.addListener(applyMode);
 
-  applyMode();
+  /* 2.6.0：搜索结果跨页跳转带 #元素id 到达后，滚动并高亮命中行
+    （首页旧 hash 跳转脚本只认分类名，元素 id 不受影响） */
+  (function () {
+    var h = '';
+    try { h = (location.hash || '').replace(/^#/, ''); } catch (e) { return; }
+    if (!h) return;
+    var el = document.getElementById(h);
+    if (!el) return;
+    function hl() {
+      try {
+        el.scrollIntoView({ block: 'center', behavior: reducedM ? 'auto' : 'smooth' });
+        el.classList.add('set-hl');
+        window.setTimeout(function () { el.classList.remove('set-hl'); }, 1400);
+      } catch (e2) {}
+    }
+    if (document.readyState === 'complete') window.setTimeout(hl, 150);
+    else window.addEventListener('load', function () { window.setTimeout(hl, 150); });
+  })();
 
   /* ---- 全屏搜索索引 ---- */
   /** @type {Array<any>} */
@@ -810,6 +787,7 @@ import { setCapSearchProvider } from './capsule.js';
       el: a[5],
       p: a[6] || '',
       i: a[7] || '',
+      u: a[8] || '',
     };
   });
   /** @param {string} elid */
@@ -824,7 +802,7 @@ import { setCapSearchProvider } from './capsule.js';
   function itemHTML(x) {
     return (
       '<button type="button" class="setso-item" data-cat="' + x.cat + '" data-el="' + x.el + '" data-t="' + esc(x.t) + '"' +
-      (x.p ? ' data-p="' + x.p + '"' : '') + (x.i ? ' data-i="' + x.i + '"' : '') + '>' +
+      (x.p ? ' data-p="' + x.p + '"' : '') + (x.i ? ' data-i="' + x.i + '"' : '') + (x.u ? ' data-u="' + x.u + '"' : '') + '>' +
       '<span class="flex-1 min-w-0"><span class="block font-medium truncate">' + esc(x.t) + '</span>' +
       (x.d ? '<span class="block text-xs text-m-on-surface-variant truncate">' + esc(x.d) + '</span>' : '') + '</span>' + CHEVR + '</button>'
     );
@@ -882,7 +860,8 @@ import { setCapSearchProvider } from './capsule.js';
         b.getAttribute('data-el') || '',
         b.getAttribute('data-t') || '',
         b.getAttribute('data-p') || '',
-        b.getAttribute('data-i') || ''
+        b.getAttribute('data-i') || '',
+        b.getAttribute('data-u') || ''
       );
   });
   /**
@@ -892,7 +871,7 @@ import { setCapSearchProvider } from './capsule.js';
    * @param {string} panel
    * @param {string} item
    */
-  function pickResult(cat, elid, title, panel, item) {
+  function pickResult(cat, elid, title, panel, item, url) {
     try {
       let r = JSON.parse(get('sgx-set-recent') || '[]');
       r = r.filter(function (/** @type {string} */ x) {
@@ -901,26 +880,36 @@ import { setCapSearchProvider } from './capsule.js';
       r.unshift(title);
       set('sgx-set-recent', JSON.stringify(r.slice(0, 6)));
     } catch (e) {}
-    /* 安全与隐私子页：索引 el 以 / 开头 → 直接跳转对应页面 */
-    if (elid && elid.charAt(0) === '/') {
-      window.location.href = elid;
+    /* 2.6.0：面板（我的文件/应用商店/浏览器）优先原地弹层，不跳转 */
+    if (panel === 'files' || panel === 'store' || panel === 'browser') {
+      window.setTimeout(function () {
+        if (panel === 'files') openFilesPanel(item);
+        else if (panel === 'store') openStorePanel(item);
+        else openBrowserPanel(item);
+      }, 80);
+      return;
+    }
+    /* 子页 URL（u 字段；安全与隐私沿用 el 开头 / 的旧形式）→ 跳转对应子页。
+       2.6.0：跨页跳转时把元素 id 带到 hash 上，子页加载后滚动并高亮命中行。 */
+    var target = url || (elid && elid.charAt(0) === '/' ? elid : '');
+    if (target) {
+      try {
+        var tp = new URL(target, window.location.origin).pathname;
+        if (tp === window.location.pathname && elid && elid.charAt(0) !== '/') {
+          var sameEl = document.getElementById(elid);
+          if (sameEl) {
+            sameEl.scrollIntoView({ block: 'center', behavior: reducedM ? 'auto' : 'smooth' });
+            sameEl.classList.add('set-hl');
+            window.setTimeout(function () { sameEl.classList.remove('set-hl'); }, 1100);
+            return;
+          }
+        }
+      } catch (e) {}
+      if (elid && elid.charAt(0) !== '/' && target.indexOf('#') < 0) target += '#' + elid;
+      window.location.href = target;
       return;
     }
     window.setTimeout(function () {
-      if (panel === 'files') {
-        openFilesPanel(item);
-        return;
-      }
-      if (panel === 'store') {
-        openStorePanel(item);
-        return;
-      }
-      if (panel === 'browser') {
-        openBrowserPanel(item);
-        return;
-      }
-      /* 宽屏双栏下先切换到对应分类，再定位高亮 */
-      if (cat && document.documentElement.classList.contains('layout-dex')) showCat(cat);
       const el = document.getElementById(elid);
       if (!el) return;
       el.scrollIntoView({ block: 'center', behavior: reducedM ? 'auto' : 'smooth' });

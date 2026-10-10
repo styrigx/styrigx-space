@@ -1253,9 +1253,12 @@
      左栏 clamp(320px,36%,420px)：大标题（公共组件，靠左）＋ 账号卡 ＋ 菜单；
      右栏占剩余宽度：顶部选中项名称 ＋ 详情卡片（最大 720px，左对齐）。
      两栏各自独立滚动，底部留出胶囊＋Dock 高度。在 .layout-dex / .layout-pc（横屏宽屏）生效。 */
+  /* 2.6.0：双栏结构只在 DeX/PC 显示；移动端只显示分类列表 */
+  .set-col-l, .set-col-r { display: none; }
   .set-side { display: none; }
   .set-right-title { display: none; }
   .layout-dex, .layout-pc {
+    .set-mobile-only { display: none; }
     .set-layout {
       max-width: none; display: grid;
       grid-template-columns: clamp(320px,36%,420px) minmax(0,1fr); gap: 16px; align-items: start;
@@ -1278,6 +1281,7 @@
     }
     /* 右栏：独立滚动；内容最大 720px 左对齐 */
     .set-col-r {
+      display: block;
       min-width: 0; min-height: 0; overflow-y: auto; padding-bottom: 8px;
       max-height: calc(100vh - var(--nav-h,64px) - 16px - env(safe-area-inset-top,0px) - 92px - env(safe-area-inset-bottom,0px));
       max-height: calc(100dvh - var(--nav-h,64px) - 16px - env(safe-area-inset-top,0px) - 92px - env(safe-area-inset-bottom,0px));

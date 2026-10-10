@@ -71,13 +71,13 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
   }
 }
 
-/* F 基准 1：弹层打开（设置页日期时间弹层） */
+/* F 基准 1：弹层打开（2.6.0 起日期时间行在 /settings/manage/ 子页） */
 test('baseline-sheet-open', async ({ page: pg }) => {
   await pg.setViewportSize(VIEWPORTS.mobile);
   await blockExternalRequests(pg);
   await pg.emulateMedia({ reducedMotion: 'reduce' });
   await freezeTime(pg);
-  await pg.goto('/settings/', { waitUntil: 'domcontentloaded' });
+  await pg.goto('/settings/manage/', { waitUntil: 'domcontentloaded' });
   await waitPageReady(pg);
   await pg.click('#row-datetime');
   /* 等原生 dialog 弹层打开 */

@@ -13,7 +13,7 @@
 - [x] 2.4.1 blog #4（styrigx-blog，只开不合）：分支 `feat/2.4.1-blog-lock`，head c7df1a99，CI run 38026878738 全绿。保持开启，Gray 未配 `SGX_ED25519_PUBLIC` 不合并。✓ 2026-10-10
 - [x] README 动态徽章（styrigx-space，已合并）：PR #13 已合并（merge 7d109944）；main 部署 run 38026341722 全绿。deploy.yml 顶层 env.HUGO_VERSION 单源；tailwindcss/@tailwindcss/cli 统一 ^4.3.3，删 postcss；README 中英三徽章动态化，实测 Hugo 0.167.0 / Tailwind 4.3.3 / Styrigx UI 2.4.2。✓ 2026-10-10
 - [x] 2.4.1 book（styrigx-book，只开不合）：PR #2（分支 `feat/2.4.1-book-lock`，commit 5eeb1a61），CI run 38027554788 全绿。Gray 未配 `SGX_ED25519_PUBLIC`，不合并。✓ 2026-10-10
-- [ ] 2.5.0 布局模式（styrigx-space，可合并）：从 main 开分支。验收：CI 全绿 → 合并 → 生产部署 run 全绿 → 线上验证。
+- [x] 2.5.0 布局模式（styrigx-space，已合并）：分支 `feat/2.5.0-layout-mode`，PR #19（视口判定：竖屏→Mobile、横屏<1600→DeX、横屏≥1600→PC；设置「桌面布局」→「布局」自动/Mobile/DeX/PC）。Gray 两轮视觉返工：PC 居中 1440 栅格卡片铺满、DeX/PC 不渲染桌面图标网格、Dock 不遮末卡片、顶栏与内容左右对齐；Playwright PC+DeX 断言 13/13。PR CI run 38031998021 全绿；PUT /pulls/19/merge 合入 main（merge ee1e452b）。生产部署 run 38033087511 全绿；线上核验：三站首页 200，owner-status password:true/passkey:true，线上 CSS 含 2.5.0 栅格规则。✓ 2026-10-10
 - [ ] 2.6.0 设置二级页 + 关于（styrigx-space，可合并）：设置顶层只留账户卡 + 分类列表，选项进子页；关于页保留站点优点。验收同上。
 - [ ] 2.7.0 语言 / G / 天气（styrigx-space，可合并）：语言跟随系统/中文/English；G 按 `build:false` 清单；天气定位顺序手动城市 > 精确定位（不自动弹权限）> IP 兜底。验收同上。
 - [ ] 2.8.0 清理（styrigx-space，可合并）：命名弹层 One UI 细节；rename 是否覆盖 `lastUsedAt`；提供方映射；最近使用显示；死代码。验收同上。

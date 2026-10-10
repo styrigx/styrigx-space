@@ -37,7 +37,9 @@ markup:
 params:
   description: 'Sloan Gray 的个人门户'
   since: 2020
-  version: '2.5.0'
+  version: '2.6.0'
+  # 2.6.0：Styrigx UI 版本（单定义处，关于本站读取）
+  ui_version: '8.5'
   # 2.4.0 H：Turnstile 站点密钥（公开）
   turnstileSiteKey: '0x4AAAAAAFSBhpWkAwZr1SMA'
 
@@ -52,3 +54,4 @@ security:
       - '^SGX_TEST_'
       - '^HUGO_'
       - '^CI$'
+      - '^GITHUB_SHA$'  # 2.6.0：关于本站显示内核 commit 短哈希
