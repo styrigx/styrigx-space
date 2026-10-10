@@ -210,7 +210,10 @@ import { setCapSearchProvider } from '../shell/capsule.js';
   /* ---- 常规管理行：当前值 ---- */
   function paintManage() {
     const lv = $('lang-val');
-    if (lv) lv.textContent = T.t('langVal');
+    if (lv) {
+      const v = langVal();
+      lv.textContent = v === 'system' ? T.t('langSystem') : v === 'en' ? 'English' : '中文';
+    }
     const dt = $('dt-val');
     if (dt) dt.textContent = firstCity() + ' · ' + secondCity();
     const wx = $('wx-val');
@@ -219,21 +222,46 @@ import { setCapSearchProvider } from '../shell/capsule.js';
   paintManage();
 
   /* ---- 语言 ---- */
+  function langVal() {
+    try {
+      const v = localStorage.getItem('sgx-lang');
+      if (v === 'zh') return 'zh';
+      if (v === 'en') return 'en';
+      return 'system';
+    } catch (e) {
+      return 'system';
+    }
+  }
   rowToggle('row-lang', function () {
+    const cur = langVal();
     openSheet({
       title: T.t('langTitle'),
       options: [
-        { label: '中文', value: 'zh', checked: !en },
-        { label: 'English', value: 'en', checked: en },
+        { label: T.t('langSystem'), value: 'system', checked: cur === 'system' },
+        { label: '中文', value: 'zh', checked: cur === 'zh' },
+        { label: 'English', value: 'en', checked: cur === 'en' },
       ],
       onPick: function (v) {
-        featSet('lang', v);
-        /* 跳到当前页面的对应语言版本，保留查询参数与 hash，用 replace 不产生历史 */
+        try {
+          if (v === 'system') localStorage.removeItem('sgx-lang');
+          else localStorage.setItem('sgx-lang', v);
+        } catch (e) {}
+        featSet('lang', v === 'system' ? 'system' : v);
+        /* 跳到对应语言版本，保留查询参数与 hash，用 replace 不产生历史 */
         const p = location.pathname,
           q = location.search,
           h = location.hash;
+        let want = v;
+        if (v === 'system') {
+          try {
+            const bl = (navigator.language || navigator.userLanguage || 'zh').toLowerCase();
+            want = bl.indexOf('zh') === 0 ? 'zh' : 'en';
+          } catch (e) {
+            want = 'zh';
+          }
+        }
         let np;
-        if (v === 'en') {
+        if (want === 'en') {
           np = p === '/' ? '/en/' : p === '/en' || p.indexOf('/en/') === 0 ? p : '/en' + p;
         } else {
           np = p.replace(/^\/en(\/|$)/, '/');
@@ -350,9 +378,26 @@ import { setCapSearchProvider } from '../shell/capsule.js';
   }
 
   /* ---- 天气 ---- */
+  function wxLocMode() {
+    try {
+      return localStorage.getItem('sgx-weather-loc') || 'auto';
+    } catch (e) {
+      return 'auto';
+    }
+  }
+  function wxCityName() {
+    try {
+      const c = JSON.parse(localStorage.getItem('sgx-weather-city') || 'null');
+      return (c && c.name) || '';
+    } catch (e) {
+      return '';
+    }
+  }
   function openWeather() {
     const show = !!featGet('weather-show');
     const unit = featGet('temp-unit') === 'f' ? 'f' : 'c';
+    const locMode = wxLocMode();
+    const cityName = wxCityName();
     const html =
       '<div class="px-1 pb-2">' +
       '<div class="set-row no-ic" id="wx-show" role="button" tabindex="0">' +
@@ -362,7 +407,18 @@ import { setCapSearchProvider } from '../shell/capsule.js';
       '<div class="seg" id="wx-unit" role="group" aria-label="' + T.t('wxUnit') + '">' +
       '<button type="button" data-v="c" aria-pressed="' + (unit === 'c' ? 'true' : 'false') + '">℃</button>' +
       '<button type="button" data-v="f" aria-pressed="' + (unit === 'f' ? 'true' : 'false') + '">℉</button>' +
-      '</div></div></div>';
+      '</div></div>' +
+      '<div class="px-5 py-4"><p class="text-sm font-medium mb-3">' + T.t('wxLoc') + '</p>' +
+      '<div class="seg" id="wx-loc" role="group" aria-label="' + T.t('wxLoc') + '">' +
+      '<button type="button" data-v="auto" aria-pressed="' + (locMode === 'auto' ? 'true' : 'false') + '">' + T.t('wxLocAuto') + '</button>' +
+      '<button type="button" data-v="manual" aria-pressed="' + (locMode === 'manual' ? 'true' : 'false') + '">' + T.t('wxLocManual') + '</button>' +
+      '</div>' +
+      '<div id="wx-city-wrap" class="mt-3" style="' + (locMode === 'manual' ? '' : 'display:none') + '">' +
+      '<input type="text" id="wx-city-input" class="w-full px-3 py-2 rounded-lg border border-m-outline bg-m-surface text-sm" placeholder="' + T.t('wxCityPh') + '" value="' + cityName.replace(/"/g, '&quot;') + '">' +
+      '</div>' +
+      '<button type="button" id="wx-precise" class="mt-3 w-full px-3 py-2 rounded-lg border border-m-outline text-sm font-medium">' +
+      T.t('wxLocPrecise') + '<span class="block text-xs opacity-60 font-normal">' + T.t('wxLocPreciseDesc') + '</span></button>' +
+      '</div></div>';
     openSheet({ title: T.t('wxTitle'), html: html });
     const sheetRow2 = rowToggle;
     sheetRow2('wx-show', function () {
@@ -382,6 +438,86 @@ import { setCapSearchProvider } from '../shell/capsule.js';
         window.dispatchEvent(new Event('sgx-settings-changed'));
       });
     });
+    /* 位置模式切换 */
+    document.querySelectorAll('#wx-loc button').forEach(function (b) {
+      on(b, 'click', function () {
+        const v = b.getAttribute('data-v');
+        try {
+          localStorage.setItem('sgx-weather-loc', v);
+        } catch (e) {}
+        document.querySelectorAll('#wx-loc button').forEach(function (x) {
+          x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
+        });
+        const wrap = document.getElementById('wx-city-wrap');
+        if (wrap) wrap.style.display = v === 'manual' ? '' : 'none';
+        /* 清除天气缓存，触发重新获取 */
+        try {
+          localStorage.removeItem('sgx-weather');
+        } catch (e) {}
+        window.dispatchEvent(new Event('sgx-settings-changed'));
+      });
+    });
+    /* 手动城市输入 */
+    const cityInput = document.getElementById('wx-city-input');
+    if (cityInput) {
+      let cityTimer = null;
+      on(cityInput, 'input', function () {
+        if (cityTimer) clearTimeout(cityTimer);
+        cityTimer = setTimeout(function () {
+          const name = cityInput.value.trim();
+          if (!name) return;
+          /* 用 open-meteo geocoding API 解析城市名（免费，无需密钥） */
+          fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(name) + '&count=1&language=zh&format=json')
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+              if (j.results && j.results[0]) {
+                const g = j.results[0];
+                try {
+                  localStorage.setItem('sgx-weather-city', JSON.stringify({
+                    name: g.name,
+                    lat: g.latitude,
+                    lon: g.longitude,
+                  }));
+                  localStorage.removeItem('sgx-weather');
+                } catch (e) {}
+                window.dispatchEvent(new Event('sgx-settings-changed'));
+              }
+            })
+            .catch(function () {});
+        }, 800);
+      });
+    }
+    /* 精确定位（仅用户点击时触发，不自动弹权限） */
+    const preciseBtn = document.getElementById('wx-precise');
+    if (preciseBtn) {
+      on(preciseBtn, 'click', function () {
+        if (!navigator.geolocation) return;
+        const orig = preciseBtn.innerHTML;
+        preciseBtn.innerHTML = T.t('wxLocating');
+        preciseBtn.disabled = true;
+        navigator.geolocation.getCurrentPosition(
+          function (pos) {
+            try {
+              localStorage.setItem('sgx-weather-precise', JSON.stringify({
+                lat: pos.coords.latitude,
+                lon: pos.coords.longitude,
+                ts: Date.now(),
+              }));
+              localStorage.setItem('sgx-weather-loc', 'precise');
+              localStorage.removeItem('sgx-weather');
+            } catch (e) {}
+            window.dispatchEvent(new Event('sgx-settings-changed'));
+            preciseBtn.innerHTML = orig;
+            preciseBtn.disabled = false;
+          },
+          function () {
+            preciseBtn.innerHTML = orig;
+            preciseBtn.disabled = false;
+          },
+          { timeout: 10000, maximumAge: 600000 }
+        );
+      });
+    }
   }
   rowToggle('row-weather', openWeather);
 

@@ -52,16 +52,25 @@
     /* 布局偏好（实际生效的布局由 __applyLayout 计算，这里只记偏好） */
     var lm=null;try{lm=localStorage.getItem('sgx-layout')}catch(e){}
     d.setAttribute('data-layout',lm||'auto');
-    /* 语言偏好：sgx-lang (zh/en)。有偏好且与当前路径语言不一致时 replace 跳转，不产生历史 */
+    /* 语言偏好：sgx-lang (system/zh/en)。system 或无偏好时跟随浏览器语言；有明确偏好且与当前路径语言不一致时 replace 跳转，不产生历史 */
     try{
       var _lg=null;try{_lg=localStorage.getItem('sgx-lang')}catch(e){}
-      if(_lg==='zh'||_lg==='en'){
+      var _want=null;
+      if(_lg==='zh'||_lg==='en'){_want=_lg;}
+      else{
+        /* system 或未设置：跟随浏览器 */
+        try{
+          var _bl=(navigator.language||navigator.userLanguage||'zh').toLowerCase();
+          _want=_bl.indexOf('zh')===0?'zh':'en';
+        }catch(e){_want='zh';}
+      }
+      if(_want){
         var _p=location.pathname;
         var _isEn=_p==='/en'||_p.indexOf('/en/')===0;
         var _cur=_isEn?'en':'zh';
-        if(_lg!==_cur){
+        if(_want!==_cur){
           var _np;
-          if(_lg==='en'){_np=_p==='/'?'/en/':'/en'+_p;}
+          if(_want==='en'){_np=_p==='/'?'/en/':'/en'+_p;}
           else{_np=_p.replace(/^\/en(\/|$)/,'/');if(_np===''||_np.charAt(0)!=='/')_np='/';}
           location.replace(_np+location.search+location.hash);
         }
