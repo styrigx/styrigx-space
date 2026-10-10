@@ -2,8 +2,11 @@
    版本号唯一来源：data/version.yaml（ui + sgx）；Tailwind 版本读 package-lock.json 实际安装版本。 */}}
 {{ $isEn := .isEn }}{{ $featMap := .featMap }}{{ $palettes := .palettes }}
 {{ $ver := site.Data.version }}
-{{ $uiVer := $ver.ui | default "8.5" }}
-{{ $sgxVer := $ver.sgx | default "2.6.0" }}
+{{/* 版本号唯一来源 data/version.yaml；缺字段时构建直接失败，禁止静默兜底旧版本 */}}
+{{ if not $ver.ui }}{{ errorf "data/version.yaml 缺少 ui 字段" }}{{ end }}
+{{ if not $ver.sgx }}{{ errorf "data/version.yaml 缺少 sgx 字段" }}{{ end }}
+{{ $uiVer := $ver.ui }}
+{{ $sgxVer := $ver.sgx }}
 {{ $hugoVer := hugo.Version }}
 {{ $twVer := "4.x" }}
 {{ with readFile "package-lock.json" | transform.Unmarshal }}

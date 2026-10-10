@@ -147,3 +147,41 @@ test('about page: version rows (2.6.0 spec)', async ({ page: pg }) => {
   await expect(body).toContainText('GitHub');
   await expect(body).toContainText('重置所有设置');
 });
+
+/* 解锁方式入口迁移：从账户卡移到「安全与隐私」第一行 */
+test.describe('unlock methods entry relocation', () => {
+  test('settings home has no orphan #sgx-unlock-link', async ({ page: pg }) => {
+    await gotoSettings(pg, '/settings/');
+    await expect(pg.locator('#sgx-unlock-link')).toHaveCount(0);
+    await gotoSettings(pg, '/en/settings/');
+    await expect(pg.locator('#sgx-unlock-link')).toHaveCount(0);
+  });
+
+  test('security page: unlock methods first row, click goes to lock page', async ({ page: pg }) => {
+    await blockExternalRequests(pg);
+    await pg.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
+    await expect(pg.locator('.set-layout').first()).toBeVisible({ timeout: 15000 });
+    const row = pg.locator('#sec-unlock-methods');
+    await expect(row).toHaveCount(1);
+    await expect(row).toContainText('解锁方式');
+    await expect(row).toContainText('密码、通行密钥');
+    await expect(row).toHaveAttribute('href', '/settings/security/lock/');
+    /* 初始隐藏；模拟服务端会话有效（sgx:session ok）后显示 */
+    await expect(row).toBeHidden();
+    await pg.evaluate(() => window.dispatchEvent(new CustomEvent('sgx:session', { detail: { ok: true } })));
+    await expect(row).toBeVisible();
+    await row.click();
+    await pg.waitForURL('**/settings/security/lock/', { timeout: 10000 });
+  });
+
+  test('security page (en): unlock methods row', async ({ page: pg }) => {
+    await blockExternalRequests(pg);
+    await pg.goto('/en/settings/security/', { waitUntil: 'domcontentloaded' });
+    await expect(pg.locator('.set-layout').first()).toBeVisible({ timeout: 15000 });
+    const row = pg.locator('#sec-unlock-methods');
+    await expect(row).toHaveCount(1);
+    await expect(row).toContainText('Unlock methods');
+    await expect(row).toContainText('Password, passkeys');
+    await expect(row).toHaveAttribute('href', '/en/settings/security/lock/');
+  });
+});

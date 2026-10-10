@@ -117,5 +117,23 @@ import { toast } from '../lib/toast.js';
     });
   }
 
+  /* 解锁方式入口：只在已解锁时显示。状态源只有服务端会话——
+     L1 middleware 注入的 data-sgx-session（经 lock.js 转发的 sgx:session 事件）。
+     L5 只做显示，不做鉴权判断；禁止用 storage。 */
+  var unlockRow = document.getElementById('sec-unlock-methods');
+  function updateUnlockRow(ok) {
+    if (unlockRow) unlockRow.hidden = !ok;
+  }
+  try {
+    window.addEventListener('sgx:session', function (e) {
+      if (e && e.detail) updateUnlockRow(!!e.detail.ok);
+    });
+  } catch (e) {}
+  /* 兜底：事件已触发过时直接读服务端注入的状态 */
+  try {
+    var st = document.documentElement.dataset.sgxSession;
+    if (st) updateUnlockRow(st === 'valid');
+  } catch (e) {}
+
   refresh(true);
 })();
