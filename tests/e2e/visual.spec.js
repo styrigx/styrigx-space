@@ -56,9 +56,32 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
               try { localStorage.setItem('sgx-theme-mode', 'dark'); } catch (e) {}
             }
           }, theme.setup);
+          /* 2.8.0：语言跟随系统（2.7.0 起）会按浏览器 locale 跳转 /en/，
+             Playwright 默认 en-US 会导致中文截图拍到英文页。
+             按测试语言显式钉住 sgx-lang，保证截图语言确定、基线可复现；
+             跟随行为本身由 lang-follow.spec.js 单独覆盖。 */
+          await pg.addInitScript((ln) => {
+            try { localStorage.setItem('sgx-lang', ln); } catch (e) {}
+          }, lang.name);
           await freezeTime(pg);
           await pg.goto(lang.prefix + page, { waitUntil: 'domcontentloaded' });
           await waitPageReady(pg);
+          /* 浏览器页：快捷访问 favicon 走外部请求（测试拦截 abort），失败兜底
+             异步把 img 换成首字母 span；截图前等可视区图标全部落定，
+             否则截图会抓到"破图图标 vs 字母占位"的中间态导致抖动 */
+          if (page.includes('/browser')) {
+            try {
+              await pg.waitForFunction(() => {
+                const vh = window.innerHeight || 800;
+                const imgs = document.querySelectorAll('img[data-favname]');
+                for (const img of imgs) {
+                  const r = img.getBoundingClientRect();
+                  if (r.bottom > 0 && r.top < vh && !img.complete) return false;
+                }
+                return true;
+              }, { timeout: 20000 });
+            } catch (e) { /* 超时也不卡死：继续截图 */ }
+          }
           await expect(pg).toHaveScreenshot(`${name}.png`, {
             fullPage: false,
             animations: 'disabled',
@@ -76,6 +99,10 @@ test('baseline-sheet-open', async ({ page: pg }) => {
   await pg.setViewportSize(VIEWPORTS.mobile);
   await blockExternalRequests(pg);
   await pg.emulateMedia({ reducedMotion: 'reduce' });
+  /* 2.8.0：钉住中文，避免语言跟随跳转到 /en/ 导致基线语言漂移 */
+  await pg.addInitScript(() => {
+    try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
+  });
   await freezeTime(pg);
   await pg.goto('/settings/manage/', { waitUntil: 'domcontentloaded' });
   await waitPageReady(pg);
@@ -93,9 +120,17 @@ test('baseline-engine-menu', async ({ page: pg }) => {
   await pg.setViewportSize(VIEWPORTS.mobile);
   await blockExternalRequests(pg);
   await pg.emulateMedia({ reducedMotion: 'reduce' });
+  /* 2.8.0：钉住中文，避免语言跟随跳转到 /en/ 导致基线语言漂移 */
+  await pg.addInitScript(() => {
+    try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
+  });
   await freezeTime(pg);
   await pg.goto('/browser/', { waitUntil: 'domcontentloaded' });
   await waitPageReady(pg);
+  /* 2.8.0：引擎切换按钮在搜索弹出层内，须先点底部地址栏胶囊打开弹出层，
+     否则按钮被页面内容盖住点不到（之前直接点导致 30s 超时） */
+  await pg.locator('#brw-addrbar').click();
+  await expect(pg.locator('#brw-overlay.open')).toBeVisible({ timeout: 10000 });
   const btn = pg.locator('#brw-engine-btn');
   if (await btn.count()) {
     await btn.click();
