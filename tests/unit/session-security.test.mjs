@@ -908,3 +908,69 @@ test('dedup: /api/diag/session 已删除 → 404（不是 302 到锁屏）', asy
   assert.ok(r.status === 401 || r.status === 404);
   assert.equal(r.headers.get('Location'), null);
 });
+
+test('middleware：有效会话的 HTML 页面 → Cache-Control: private, no-store', async () => {
+  const ctx = {
+    request: new Request('https://styrigx.com/settings/', {
+      headers: { 'Cookie': 'sgx-verified=' + await validCookie(0) },
+    }),
+    next: async () => new Response('<html></html>', {
+      status: 200,
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    }),
+    env: PROD_ENV(),
+  };
+  const r = await mw(ctx);
+  assert.equal(r.status, 200);
+  assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
+});
+
+test('middleware：有效会话的静态资源 → 不覆盖 Cache-Control', async () => {
+  const ctx = {
+    request: new Request('https://styrigx.com/assets/main.css', {
+      headers: { 'Cookie': 'sgx-verified=' + await validCookie(0) },
+    }),
+    next: async () => new Response('body', {
+      status: 200,
+      headers: { 'Content-Type': 'text/css', 'Cache-Control': 'public, max-age=31536000' },
+    }),
+    env: PROD_ENV(),
+  };
+  const r = await mw(ctx);
+  assert.equal(r.status, 200);
+  assert.equal(r.headers.get('Cache-Control'), 'public, max-age=31536000');
+});
+
+test('middleware：首页无会话 → 200 + data-sgx-session="locked"（不再白名单直放）', async () => {
+  const ctx = {
+    request: new Request('https://styrigx.com/', {}),
+    next: async () => new Response('<html lang="zh"><head></head><body></body></html>', {
+      status: 200,
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    }),
+    env: PROD_ENV(),
+  };
+  const r = await mw(ctx);
+  assert.equal(r.status, 200);
+  const html = await r.text();
+  assert.ok(html.includes('data-sgx-session="locked"'), '应注入 locked 状态');
+  assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
+});
+
+test('middleware：首页有会话 → 200 + data-sgx-session="valid"', async () => {
+  const cookie = await validCookie(0);
+  const ctx = {
+    request: new Request('https://styrigx.com/', {
+      headers: { 'Cookie': 'sgx-verified=' + cookie },
+    }),
+    next: async () => new Response('<html lang="zh"><head></head><body></body></html>', {
+      status: 200,
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    }),
+    env: PROD_ENV(),
+  };
+  const r = await mw(ctx);
+  assert.equal(r.status, 200);
+  const html = await r.text();
+  assert.ok(html.includes('data-sgx-session="valid"'), '应注入 valid 状态');
+});

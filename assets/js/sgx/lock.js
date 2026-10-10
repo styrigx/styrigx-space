@@ -1,6 +1,10 @@
 /**
  * @fileoverview 全站锁屏 + Turnstile 入站验证（2.4.0 H）。
- * - 每个标签页会话首次进站（任意页）先锁屏；通过后 sessionStorage 标记，本次访问不再出现。
+ * 分层规范 L4：lock.js 只负责两件事——
+ * 1. 按 L1（middleware 注入的 <html data-sgx-session>）画锁屏，不自己判断会话；
+ * 2. 把密码或通行密钥提交给 L2（functions/api/*）。
+ * 唯一状态源是服务端签发的 sgx-verified 会话；禁止用 sessionStorage、
+ * localStorage、前端内存或标签页状态另做判断。
  * - 点头像（电脑回车/空格）→ 底部 dialog 验证卡（One UI 密码界面式）+ Turnstile；
  *   通过 → 开锁动画 → 现有解锁流程；失败 → 红色提示 + 重试。
  * - 本地开发（localhost）跳过验证。
@@ -34,13 +38,30 @@ export function initLock() {
   /* Hark：legacy-lock-screen 和 owner-gate 是独立开关；
      只关旧锁屏时，owner-gate（Turnstile/密码）照常工作 */
   if (!SGX_FEAT_LEGACY_LOCK_SCREEN && !SGX_FEAT_OWNER_GATE) return;
-  const force = /(?:^|[?&])lock=1(?:&|$)/.test(location.search);
-  let seen = false;
+  const isLocal = /^(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
+  if (isLocal) {
+    /* 本地开发没有 Functions 后端，直接显示锁屏 */
+    showLockScreen();
+    return;
+  }
+  /* 分层规范 L4：lock.js 只按 L1 给出的状态画锁屏，不自己判断。
+     L1（middleware）把会话状态注入 <html data-sgx-session="valid|locked">，
+     这里只读这个。 */
+  const state = document.documentElement.dataset.sgxSession;
+  const ok = state === 'valid';
   try {
-    seen = sessionStorage.getItem('sgx-lock-shown') === '1';
+    window.dispatchEvent(new CustomEvent('sgx:session', { detail: { ok: ok } }));
   } catch (e) {}
-  if (seen && !force) return;
+  if (!ok) {
+    showLockScreen();
+  }
+  /* 会话有效：直接显示页面，不弹锁屏 */
+}
 
+/**
+ * 显示锁屏 UI（2.4.0 H）。
+ */
+function showLockScreen() {
   const en = document.documentElement.lang === 'en';
   const isLocal = /^(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
 
@@ -194,11 +215,8 @@ export function initLock() {
     } catch (e) {}
   }
 
-  /* 服务端已确认会话：开锁动画 + ?return= 回跳（只认站内路径） */
+  /* 服务端已确认会话：开锁动画 + ?return= 回跳 */
   function unlockConfirmed() {
-    try {
-      sessionStorage.setItem('sgx-lock-shown', '1');
-    } catch (e) {}
     const ic = document.getElementById('sgx-lock-ic');
     if (ic) ic.innerHTML = UNLOCK;
     if (reducedMotion()) {

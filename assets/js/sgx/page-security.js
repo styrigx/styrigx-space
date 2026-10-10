@@ -1,7 +1,7 @@
 /**
  * @fileoverview 安全与隐私页（2.4.0 安全与隐私）。
  * - 从 /api/owner-status 读取只读状态（是否已设置密码/通行密钥），渲染状态卡片与锁定屏幕副标题。
- * - 立即锁定：清除当前会话标记并重载，回到锁屏。
+ * - 立即锁定：调服务端 /api/lock 清除会话 cookie 后重载，回到锁屏。
  * - 右上 ⋮：刷新状态。
  * - localStorage 统一走 storage.js。
  */
@@ -77,14 +77,18 @@ import { toast } from './toast.js';
       });
   }
 
-  /* 立即锁定：清除会话标记并重载 → 锁屏出现 */
+  /* 立即锁定：调服务端清除 sgx-verified（Domain=.styrigx.com + host-only 各一条，
+     blog/book 一起上锁），然后重载 → 锁屏出现 */
   const lockNow = document.getElementById('sec-locknow');
   if (lockNow) {
     const go = function () {
-      try {
-        sessionStorage.removeItem('sgx-lock-shown');
-      } catch (e) {}
-      location.reload();
+      fetch('/api/lock', { method: 'POST', credentials: 'include' })
+        .then(function () {
+          location.reload();
+        })
+        .catch(function () {
+          location.reload();
+        });
     };
     on(lockNow, 'click', go);
     on(lockNow, 'keydown', function (/** @type {KeyboardEvent} */ e) {

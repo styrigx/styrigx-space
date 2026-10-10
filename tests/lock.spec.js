@@ -73,11 +73,8 @@ test.describe('lock screen', () => {
     /* 本地应直接解锁，锁屏消失 */
     const lock = page.locator('#sgx-lock');
     await expect(lock).toBeHidden({ timeout: 5000 });
-    /* session 标记已写 */
-    const shown = await page.evaluate(() => {
-      try { return sessionStorage.getItem('sgx-lock-shown'); } catch (e) { return null; }
-    });
-    expect(shown).toBe('1');
+    /* 2.4.1：不再用 sessionStorage 标记解锁状态，一切以服务端为准；
+       本地无后端，锁屏消失即视为解锁成功 */
   });
 
   test('password link opens password dialog', async ({ page }) => {
