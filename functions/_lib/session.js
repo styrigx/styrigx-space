@@ -12,8 +12,8 @@
 import { ed25519Sign } from './crypto.js';
 
 export const SESSION_COOKIE = 'sgx-verified';
-/* cookie 属性：只定义一处 */
-const COOKIE_ATTRS = 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax';
+/* cookie 属性：只定义一处（diag 接口从这里解析，不许另起炉灶） */
+export const COOKIE_ATTRS = 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax';
 export const SESSION_MAX_AGE = 43200; /* 12 小时 */
 export const EPOCH_KEY = 'session-epoch';
 
@@ -50,6 +50,36 @@ export async function signSessionCookie(privatePem, epoch) {
   const payload = epoch + '.' + exp;
   const sig = await ed25519Sign(privatePem, payload);
   return payload + '.' + sig;
+}
+
+/**
+ * 签发会话 cookie（fail closed，三解锁入口共用）。
+ * 成功时在 headers 上设置 cookie 并返回 null；失败时返回 { status, body }，
+ * 调用方直接用它构造响应。永远不抛错，避免外层 try/catch 吞掉明确错误码。
+ * - SGX_ED25519_PRIVATE 为空 → 500 {ok:false, error:'no-session-key'}
+ * - getSessionEpoch 抛错（KV 未绑定/读取出错）→ 503 {ok:false, error:'server'}
+ * - signSessionCookie 抛错（importKey 失败等）→ 500 {ok:false, error:'session-sign-failed'}
+ */
+export async function issueSessionCookie(env, headers) {
+  const edPriv = (env && env.SGX_ED25519_PRIVATE) || '';
+  if (!edPriv) {
+    return { status: 500, body: { ok: false, error: 'no-session-key' } };
+  }
+  const kv = env && env.OWNER_KV;
+  let epoch;
+  try {
+    epoch = await getSessionEpoch(kv);
+  } catch (e) {
+    return { status: 503, body: { ok: false, error: 'server' } };
+  }
+  let cv;
+  try {
+    cv = await signSessionCookie(edPriv, epoch);
+  } catch (e) {
+    return { status: 500, body: { ok: false, error: 'session-sign-failed' } };
+  }
+  setVerifiedCookie(headers, cv);
+  return null;
 }
 
 /**

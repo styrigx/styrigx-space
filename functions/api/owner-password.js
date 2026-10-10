@@ -21,10 +21,8 @@
  */
 import { b64enc, b64dec, timingSafeEqual, hmacVerify } from '../_lib/crypto.js';
 import {
-  setVerifiedCookie,
   clearVerifiedCookie,
-  signSessionCookie,
-  getSessionEpoch,
+  issueSessionCookie,
   bumpSessionEpoch,
 } from '../_lib/session.js';
 
@@ -173,22 +171,15 @@ async function handlePost(context) {
       );
     }
     await clearFail();
-    /* 通过：设 Ed25519 签名会话 cookie（与 passkey/Turnstile 同格式，middleware 验签） */
+    /* 通过：签发 Ed25519 会话 cookie（fail closed：无密钥/签发失败 → 5xx，
+       绝不静默跳过然后返回 ok:true） */
     const headers = new Headers({ 'Content-Type': 'application/json' });
-    const edPriv = (env && env.SGX_ED25519_PRIVATE) || '';
-    if (edPriv) {
-      let ver;
-      try {
-        ver = await getSessionEpoch(kv);
-      } catch (e) {
-        /* KV 读取出错：抛错→503，绝不签发会话 */
-        return new Response(JSON.stringify({ ok: false, error: 'server' }), {
-          status: 503,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
-      const cv = await signSessionCookie(edPriv, ver);
-      setVerifiedCookie(headers, cv);
+    const signErr = await issueSessionCookie(env, headers);
+    if (signErr) {
+      return new Response(JSON.stringify(signErr.body), {
+        status: signErr.status,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
     return new Response(JSON.stringify({ ok: true }), { headers });
   }

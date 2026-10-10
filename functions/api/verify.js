@@ -10,9 +10,7 @@
  * 只接受 POST；校验 Origin。
  */
 import {
-  setVerifiedCookie,
-  signSessionCookie,
-  getSessionEpoch,
+  issueSessionCookie,
 } from '../_lib/session.js';
 
 const SITEVERIFY = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
@@ -78,20 +76,15 @@ export async function onRequestPost(context) {
     return Response.json({ ok: false, error: 'action' }, { status: 403 });
   }
 
-  /* 通过：设 Ed25519 签名会话 cookie（与密码/passkey 同格式，统一属性） */
+  /* 通过：签发 Ed25519 会话 cookie（fail closed：无密钥/签发失败 → 5xx，
+     绝不静默跳过然后返回 ok:true） */
   const headers = new Headers({ 'Content-Type': 'application/json' });
-  const edPriv = (env && env.SGX_ED25519_PRIVATE) || '';
-  const kv = env && env.OWNER_KV;
-  if (edPriv && kv) {
-    let epoch;
-    try {
-      epoch = await getSessionEpoch(kv);
-    } catch (e) {
-      /* KV 读取出错：绝不签发会话 */
-      return Response.json({ ok: false, error: 'server' }, { status: 503 });
-    }
-    const cv = await signSessionCookie(edPriv, epoch);
-    setVerifiedCookie(headers, cv);
+  const signErr = await issueSessionCookie(env, headers);
+  if (signErr) {
+    return new Response(JSON.stringify(signErr.body), {
+      status: signErr.status,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
   return new Response(JSON.stringify({ ok: true }), { headers });
 }

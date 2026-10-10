@@ -36,9 +36,7 @@
  */
 import { b64enc, b64dec, b64urlEnc, timingSafeEqual, hmacSign, hmacVerify } from '../_lib/crypto.js';
 import {
-  setVerifiedCookie,
-  signSessionCookie,
-  getSessionEpoch,
+  issueSessionCookie,
 } from '../_lib/session.js';
 
 /* AAGUID → 密码管理器（只用于显示，不参与安全判断） */
@@ -655,23 +653,16 @@ async function handlePost(context) {
       stored.signCount = checked.signCount;
       stored.lastUsedAt = Date.now();
       try { await savePasskey(kv, stored); } catch (e2) {}
-      /* 通过：设 Ed25519 签名会话 cookie（含 session-epoch），并签发管理 token */
+      /* 通过：签发 Ed25519 会话 cookie（fail closed），并签发管理 token。
+         issueSessionCookie 永不抛错，明确错误码不会被外层 catch 吞成 403。 */
       const headers = new Headers({ 'Content-Type': 'application/json' });
       const secret = (env && env.SESSION_SECRET) || '';
-      const edPriv = (env && env.SGX_ED25519_PRIVATE) || '';
-      if (edPriv) {
-        let epoch;
-        try {
-          epoch = await getSessionEpoch(kv);
-        } catch (e) {
-          /* KV 读取出错：绝不签发会话，返回 503 */
-          return new Response(JSON.stringify({ ok: false, error: 'server' }), {
-            status: 503,
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
-        const cv = await signSessionCookie(edPriv, epoch);
-        setVerifiedCookie(headers, cv);
+      const signErr = await issueSessionCookie(env, headers);
+      if (signErr) {
+        return new Response(JSON.stringify(signErr.body), {
+          status: signErr.status,
+          headers: { 'Content-Type': 'application/json' },
+        });
       }
       const mgrToken = secret ? await issueToken(secret) : '';
       return new Response(JSON.stringify({ ok: true, token: mgrToken }), { headers });
