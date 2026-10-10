@@ -1,3 +1,44 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --tracking-heading: -0.02em;
+
+  --color-m-primary: var(--m-primary);
+  --color-m-on-primary: var(--m-on-primary);
+  --color-m-primary-container: var(--m-primary-container);
+  --color-m-on-primary-container: var(--m-on-primary-container);
+  --color-m-secondary: var(--m-secondary);
+  --color-m-on-secondary: var(--m-on-secondary);
+  --color-m-secondary-container: var(--m-secondary-container);
+  --color-m-on-secondary-container: var(--m-on-secondary-container);
+  --color-m-tertiary: var(--m-tertiary);
+  --color-m-on-tertiary: var(--m-on-tertiary);
+  --color-m-tertiary-container: var(--m-tertiary-container);
+  --color-m-on-tertiary-container: var(--m-on-tertiary-container);
+  --color-m-accent: var(--m-accent);
+  --color-m-on-accent: var(--m-on-accent);
+  --color-m-accent-container: var(--m-accent-container);
+  --color-m-on-accent-container: var(--m-on-accent-container);
+  --color-m-warm: var(--m-warm);
+  --color-m-on-warm: var(--m-on-warm);
+  --color-m-warm-container: var(--m-warm-container);
+  --color-m-on-warm-container: var(--m-on-warm-container);
+  --color-m-rose: var(--m-rose);
+  --color-m-on-rose: var(--m-on-rose);
+  --color-m-rose-container: var(--m-rose-container);
+  --color-m-on-rose-container: var(--m-on-rose-container);
+  --color-m-surface: var(--m-surface);
+  --color-m-on-surface: var(--m-on-surface);
+  --color-m-on-surface-variant: var(--m-on-surface-variant);
+  --color-m-container-lowest: var(--m-container-lowest);
+  --color-m-container-low: var(--m-container-low);
+  --color-m-container: var(--m-container);
+  --color-m-container-high: var(--m-container-high);
+  --color-m-container-highest: var(--m-container-highest);
+  --color-m-outline: var(--m-outline);
+  --color-m-note: var(--m-note);
+  --color-m-on-note: var(--m-on-note);
+}
