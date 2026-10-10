@@ -8,6 +8,11 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      regen_baselines:
+        description: '临时：重生成视觉/锁屏基线并上传 artifact（2.6.0，用完即删）'
+        type: boolean
+        default: false
 
 # 同一分支推新提交时取消旧的 PR CI；main 的生产部署永不取消
 concurrency:
@@ -18,6 +23,47 @@ env:
   HUGO_VERSION: '0.167.0'
 
 jobs:
+  # 临时：2.6.0 在 CI 内重生成视觉/锁屏基线。用完即删，不合入 main。
+  regen-baselines:
+    if: ${{ inputs.regen_baselines }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: ${{ env.HUGO_VERSION }}
+          extended: true
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: npm install
+      - name: Install test deps
+        run: npm install --no-save @playwright/test http-server && npx playwright install chromium --with-deps
+      - name: Build CSS
+        run: node scripts/build-css.cjs --minify
+      - name: Build site (production, for lock baseline)
+        run: hugo --minify
+      - name: Regen lock baseline snapshot
+        run: SGX_TEST_SUITE=lock npx playwright test --config=playwright.config.js --grep "baseline screenshot" --update-snapshots
+      - name: Rebuild for visual (test build, lock disabled)
+        run: |
+          sed -i "s/0x4AAAAAAFSBhpWkAwZr1SMA/1x00000000000000000000AA/g" hugo.yaml
+          hugo --minify
+        env:
+          SGX_TEST_NO_LOCK: "1"
+          SGX_TEST_NO_WEATHER: "1"
+      - name: Regen visual snapshots
+        run: npx playwright test --config=playwright.config.js visual.spec.js --update-snapshots
+      - name: Upload snapshots
+        uses: actions/upload-artifact@v6
+        with:
+          name: regenerated-snapshots
+          path: tests/visual/
+
   # 2.4.0 E：质量闸门 —— 视觉回归 + Lighthouse CI + stylelint，不达标不部署
   # Hark：PR 也跑 quality，变绿再合入 main；只有 main 的 push 才部署
   quality:
