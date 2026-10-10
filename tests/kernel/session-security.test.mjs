@@ -421,6 +421,33 @@ test('middleware：非生产环境不锁', async () => {
   assert.equal(await r.text(), 'NEXT-BY-APP');
 });
 
+test('middleware：styrigx-space.pages.dev → 301 到 https://styrigx.com（保留 path+query，no-store）', async () => {
+  const r = await mw(mwCtx('https://styrigx-space.pages.dev/store/?a=1', { env: {} }));
+  assert.equal(r.status, 301);
+  assert.equal(r.headers.get('Location'), 'https://styrigx.com/store/?a=1');
+  assert.equal(r.headers.get('Cache-Control'), 'no-store');
+});
+
+test('middleware：pages.dev 根路径 → 301 到 https://styrigx.com/', async () => {
+  const r = await mw(mwCtx('https://styrigx-space.pages.dev/', { env: {} }));
+  assert.equal(r.status, 301);
+  assert.equal(r.headers.get('Location'), 'https://styrigx.com/');
+  assert.equal(r.headers.get('Cache-Control'), 'no-store');
+});
+
+test('middleware：分支预览别名 xxx.styrigx-space.pages.dev → 不跳转（放行）', async () => {
+  const r = await mw(mwCtx('https://feat-xyz.styrigx-space.pages.dev/store/', { env: {} }));
+  /* 非生产环境：放行到 next()，不做 pages.dev 跳转 */
+  assert.equal(await r.text(), 'NEXT-BY-APP');
+});
+
+test('middleware：正式域名 styrigx.com → 不走 pages.dev 跳转（走正常锁屏逻辑）', async () => {
+  const r = await mw(mwCtx('https://styrigx.com/store/', { env: PROD_ENV() }));
+  /* 无 cookie：走锁屏 302，不是 pages.dev 的 301 */
+  assert.equal(r.status, 302);
+  assert.ok(r.headers.get('Location').startsWith('https://styrigx.com/?lock=1&return='));
+});
+
 test('middleware：?return= 只接受站内路径，非法一律回首页 /', async () => {
   const env = PROD_ENV();
   const cookie = await validCookie(0);
