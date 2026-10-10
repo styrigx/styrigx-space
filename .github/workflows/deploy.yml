@@ -118,6 +118,16 @@ jobs:
         # 注意：不要再被别的提交加回 continue-on-error（a8f4dffa 曾误删本行）。
         run: npx playwright test --config=playwright.config.js
 
+      - name: Upload visual diffs on failure
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: visual-diffs
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 30
+
       - name: PC layout assertions（2.5.0 栅格/Dock/顶栏对齐，阻塞）
         run: npx playwright test --config=playwright.config.js pc-layout.spec.js
 
