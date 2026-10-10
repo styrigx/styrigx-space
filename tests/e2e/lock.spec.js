@@ -80,11 +80,12 @@ test.describe('lock screen', () => {
     });
   });
 
-  test('avatar click opens verify dialog (local fallback)', async ({ page }) => {
+  test('avatar → method sheet → visitor unlocks (local fallback)', async ({ page }) => {
     await freezeTime(page);
-    /* localhost → 直接解锁（无 Turnstile），验证兜底路径 */
+    /* 2.8.0：localhost 本地回退——点头像 → 方法弹层 → 选"访客进入"直接解锁（无 Turnstile），验证兜底路径 */
     await gotoLock(page);
-    await page.click('#sgx-lock-avatar');
+    await openMethodSheet(page);
+    await page.click('#sgx-mopt-visitor');
     /* 本地应直接解锁，锁屏消失 */
     const lock = page.locator('#sgx-lock');
     await expect(lock).toBeHidden({ timeout: 5000 });
@@ -212,9 +213,10 @@ test.describe('lock screen', () => {
     const ret = encodeURIComponent('/settings/');
     await page.goto('/?lock=1&return=' + ret, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
-    /* localhost 本地回退：点头像直接解锁（无 session-check） */
+    /* 2.8.0：localhost 本地回退——点头像 → 方法弹层 → 选"访客进入"直接解锁（无 session-check） */
     const navPromise = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 10000 });
-    await page.click('#sgx-lock-avatar');
+    await openMethodSheet(page);
+    await page.click('#sgx-mopt-visitor');
     await navPromise;
     /* 2.4.1：reload 同一个 URL（L1 会做 302），而不是 600ms 后跳到 /settings/ */
     expect(page.url()).toContain('return=');
