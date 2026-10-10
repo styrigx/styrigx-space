@@ -141,7 +141,8 @@ import { onKeyboardHeight } from './vk.js';
 
   /* ============ 地址栏位置 ============ */
   function applyDex() {
-    const dex = document.documentElement.classList.contains('layout-dex');
+    const el = document.documentElement;
+    const dex = el.classList.contains('layout-dex') || el.classList.contains('layout-pc');
     document.body.classList.toggle('addrbar-dex', dex);
   }
   function applyPos() {

@@ -176,10 +176,11 @@ import { setCapSearchProvider } from './capsule.js';
   paintFont();
   featOn('font-size', paintFont);
 
-  /* ---- 桌面布局：自动 / 手机 / DeX ---- */
+  /* ---- 布局：自动 / Mobile / DeX / PC ---- */
   function paintLayout() {
     let v = featGet('layout');
-    if (v === 'tablet') {
+    /* 2.5.0：旧值（tablet/phone 等）一律回落到自动 */
+    if (v !== 'auto' && v !== 'mobile' && v !== 'dex' && v !== 'pc') {
       v = 'auto';
       featSet('layout', 'auto');
     }

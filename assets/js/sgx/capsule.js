@@ -52,7 +52,9 @@ export function initCapsule() {
       const p = kbMaxSeen.v < 1 ? 1 : Math.min(1, h / kbMaxSeen.v);
       const vw = window.innerWidth || 0;
       const baseW = Math.min(vw * 0.64, 300);
-      const fullW = document.documentElement.classList.contains('layout-dex')
+      const wide = document.documentElement.classList.contains('layout-dex') ||
+        document.documentElement.classList.contains('layout-pc');
+      const fullW = wide
         ? Math.min(480, Math.max(0, vw - 32))
         : Math.max(0, vw - 32);
       cap.style.width = Math.round(baseW + (fullW - baseW) * p) + 'px';
