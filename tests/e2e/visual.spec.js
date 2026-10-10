@@ -47,6 +47,29 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
         test(name, async ({ page: pg }) => {
           await pg.setViewportSize(vp);
           await blockExternalRequests(pg);
+          /* 2.8.0：files 页面书单 mock（page.route 后注册优先于 blockExternalRequests 的通配拦截）
+             封面 URL 也 route 到本地占位图，避免被拦成破图 */
+          if (page === '/files/') {
+            await pg.route('https://book.styrigx.com/api/shelf', async (route) => {
+              await route.fulfill({
+                contentType: 'application/json',
+                body: JSON.stringify({
+                  books: [
+                    { title: 'Book One', author: 'Author A', cover: 'https://book.styrigx.com/covers/1.png', date: '2026-10-01', url: '#', comment: 'Test book 1' },
+                    { title: 'Book Two', author: 'Author B', cover: 'https://book.styrigx.com/covers/2.png', date: '2026-10-02', url: '#', comment: 'Test book 2' },
+                    { title: 'Book Three', author: 'Author C', cover: 'https://book.styrigx.com/covers/3.png', date: '2026-10-03', url: '#', comment: 'Test book 3' },
+                  ],
+                }),
+              });
+            });
+            /* 封面图 route 到本地 1x1 占位 */
+            await pg.route('https://book.styrigx.com/covers/*', async (route) => {
+              await route.fulfill({
+                contentType: 'image/png',
+                body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64'),
+              });
+            });
+          }
           /* 关掉动画，保证截图稳定（goto 之前设置，context 级生效） */
           await pg.emulateMedia({ reducedMotion: 'reduce' });
           /* 预置主题 + 冻结时间，避免动态内容导致截图不稳定
