@@ -49,17 +49,3 @@
   addedAt: 2026-10-08
   defaultVisible: true
 
-# 2.4.1 三站登记（用于 return 白名单、文档、设置页展示）
-sites:
-  - id: portal
-    name: 主站
-    host: styrigx.com
-    lock: local
-  - id: blog
-    name: 博客
-    host: blog.styrigx.com
-    lock: redirect
-  - id: book
-    name: 书库
-    host: book.styrigx.com
-    lock: redirect
