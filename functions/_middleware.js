@@ -119,6 +119,17 @@ export async function onRequest(context) {
     }
   }
 
+  /* 临时诊断接口放行（定位会话问题后删除本段 + functions/api/diag/）：
+     ?token= 与 DIAG_TOKEN 匹配才 next()，否则继续走正常锁屏流程（302），
+     不暴露接口存在。不在 API_WHITELIST 里加它。 */
+  if (pathname === '/api/diag/session') {
+    const diagToken = (env && env.DIAG_TOKEN) || '';
+    const t = url.searchParams.get('token') || '';
+    if (diagToken && t === diagToken) {
+      return next();
+    }
+  }
+
   /* 2.4.1：会话检查（生产环境 space 站点一律执行；缺 SGX_ED25519_PUBLIC 时
      verifySession 直接返回 false → fail closed，只放白名单路径。
      没有「未配置就放行」开关。） */

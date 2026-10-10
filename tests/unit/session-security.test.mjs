@@ -633,3 +633,248 @@ test('passkey auth 通过：Set-Cookie 属性齐全', async () => {
   assert.equal((await r.json()).ok, true);
   assertSessionCookieAttrs(r.headers.get('Set-Cookie'));
 });
+
+/* ================================================================
+ * 2.4.1-diag：fail-closed 签发 + 临时自检接口
+ * ================================================================ */
+
+/* ---------- issueSessionCookie 单元 ---------- */
+
+test('diag: issueSessionCookie 无 SGX_ED25519_PRIVATE → 500 no-session-key（不签发）', async () => {
+  const { issueSessionCookie } = await import('../../functions/_lib/session.js');
+  const headers = new Headers();
+  const err = await issueSessionCookie({ OWNER_KV: makeKV() }, headers);
+  assert.deepEqual(err, { status: 500, body: { ok: false, error: 'no-session-key' } });
+  assert.equal(headers.get('Set-Cookie'), null);
+});
+
+test('diag: issueSessionCookie 私钥格式错误 → 500 session-sign-failed', async () => {
+  const { issueSessionCookie } = await import('../../functions/_lib/session.js');
+  const headers = new Headers();
+  const err = await issueSessionCookie({ OWNER_KV: makeKV(), SGX_ED25519_PRIVATE: 'not-a-key' }, headers);
+  assert.deepEqual(err, { status: 500, body: { ok: false, error: 'session-sign-failed' } });
+  assert.equal(headers.get('Set-Cookie'), null);
+});
+
+test('diag: issueSessionCookie KV 出错 → 503（不签发）', async () => {
+  const { issueSessionCookie } = await import('../../functions/_lib/session.js');
+  const headers = new Headers();
+  const err = await issueSessionCookie({ OWNER_KV: makeBrokenKV(), SGX_ED25519_PRIVATE: TEST_PRIV_PEM }, headers);
+  assert.equal(err.status, 503);
+  assert.deepEqual(err.body, { ok: false, error: 'server' });
+  assert.equal(headers.get('Set-Cookie'), null);
+});
+
+test('diag: issueSessionCookie 正常 → null 且 Set-Cookie 已设置', async () => {
+  const { issueSessionCookie, SESSION_COOKIE } = await import('../../functions/_lib/session.js');
+  assert.equal(SESSION_COOKIE, 'sgx-verified');
+  const headers = new Headers();
+  const err = await issueSessionCookie({ OWNER_KV: makeKV(), SGX_ED25519_PRIVATE: TEST_PRIV_PEM }, headers);
+  assert.equal(err, null);
+  assert.match(headers.get('Set-Cookie'), /^sgx-verified=[^;]+; /);
+});
+
+/* ---------- 三解锁接口 fail-closed ---------- */
+
+test('diag: password verify 无 SGX_ED25519_PRIVATE → 500 no-session-key（不是 ok:true）', async () => {
+  const kv = makeKV();
+  await seedPassword(kv);
+  const env = { OWNER_KV: kv, SESSION_SECRET: 'test-secret' };
+  const r = await pwPost({ request: postReq('https://styrigx.com/api/owner-password', { action: 'verify', password: 'test-pass-12345' }), env });
+  assert.equal(r.status, 500);
+  assert.deepEqual(await r.json(), { ok: false, error: 'no-session-key' });
+  assert.equal(r.headers.get('Set-Cookie'), null);
+});
+
+test('diag: verify(Turnstile) 无 SGX_ED25519_PRIVATE → 500 no-session-key', async () => {
+  const { onRequestPost: verifyPost } = await import('../../functions/api/verify.js');
+  const origFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({ success: true, hostname: 'styrigx.com', action: 'sgx-entry' });
+  try {
+    const env = { OWNER_KV: makeKV(), TURNSTILE_SECRET: 'ts-test', };
+    const r = await verifyPost({
+      request: postReq('https://styrigx.com/api/verify', { token: 'test-token' }),
+      env,
+    });
+    assert.equal(r.status, 500);
+    assert.deepEqual(await r.json(), { ok: false, error: 'no-session-key' });
+    assert.equal(r.headers.get('Set-Cookie'), null);
+  } finally {
+    globalThis.fetch = origFetch;
+  }
+});
+
+/* 构造一次有效的 passkey auth 请求体（WebAuthn 断言在测试内真实生成） */
+async function buildPasskeyAuthFixture() {
+  const b64url = (buf) => Buffer.from(buf).toString('base64')
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const kp = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+  const jwk = await crypto.subtle.exportKey('jwk', kp.publicKey);
+  const credId = b64url(crypto.getRandomValues(new Uint8Array(16)));
+  const kv = makeKV();
+  await kv.put('owner-passkey-index', JSON.stringify([credId]));
+  await kv.put('owner-passkey:' + credId.slice(0, 12), JSON.stringify({
+    name: 'test-key', credId, publicKey: jwk, signCount: 0, uv: 1,
+    createdAt: Date.now(), lastUsedAt: 0,
+  }));
+  const cid = 'test-cid-' + Date.now() + Math.random();
+  const challenge = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  await kv.put('pk-challenge:' + cid, JSON.stringify({ type: 'auth', challenge, exp: Date.now() + 60000 }));
+
+  const rpIdHash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('styrigx.com')));
+  const authData = new Uint8Array(37);
+  authData.set(rpIdHash, 0);
+  authData[32] = 0x05;
+  authData[36] = 1;
+  const clientData = { type: 'webauthn.get', challenge, origin: 'https://styrigx.com' };
+  const clientDataJSON = new TextEncoder().encode(JSON.stringify(clientData));
+  const cdHash = new Uint8Array(await crypto.subtle.digest('SHA-256', clientDataJSON));
+  const sigBase = new Uint8Array(authData.length + cdHash.length);
+  sigBase.set(authData, 0);
+  sigBase.set(cdHash, authData.length);
+  const sigDer = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, kp.privateKey, sigBase);
+  const rawSig = new Uint8Array(sigDer);
+  const trim = (v) => {
+    let i = 0;
+    while (i < v.length - 1 && v[i] === 0) i++;
+    v = v.slice(i);
+    if (v[0] >= 0x80) { const n = new Uint8Array(v.length + 1); n.set(v, 1); v = n; }
+    return v;
+  };
+  const rB = trim(rawSig.slice(0, 32)), sB = trim(rawSig.slice(32, 64));
+  const derLen = 2 + rB.length + 2 + sB.length;
+  const der = new Uint8Array(2 + derLen);
+  let o = 0;
+  der[o++] = 0x30; der[o++] = derLen;
+  der[o++] = 0x02; der[o++] = rB.length; der.set(rB, o); o += rB.length;
+  der[o++] = 0x02; der[o++] = sB.length; der.set(sB, o);
+
+  const body = {
+    action: 'auth', cid,
+    credential: {
+      id: credId, rawId: credId,
+      response: {
+        clientDataJSON: b64url(clientDataJSON),
+        authenticatorData: b64url(authData),
+        signature: b64url(der),
+        userHandle: null,
+      },
+      type: 'public-key',
+    },
+  };
+  return { kv, body };
+}
+
+test('diag: passkey auth 无 SGX_ED25519_PRIVATE → 500 no-session-key（不被吞成 403）', async () => {
+  const { onRequestPost: pkPost } = await import('../../functions/api/owner-passkey.js');
+  const { kv, body } = await buildPasskeyAuthFixture();
+  const env = {
+    OWNER_KV: kv,
+    SESSION_SECRET: 'test-secret',
+    SGX_RP_ID: 'styrigx.com',
+    SGX_ORIGIN: 'https://styrigx.com',
+  };
+  const r = await pkPost({ request: postReq('https://styrigx.com/api/owner-passkey', body), env });
+  assert.equal(r.status, 500);
+  assert.deepEqual(await r.json(), { ok: false, error: 'no-session-key' });
+  assert.equal(r.headers.get('Set-Cookie'), null);
+});
+
+test('diag: passkey auth 私钥格式错误 → 500 session-sign-failed（不被吞成 403）', async () => {
+  const { onRequestPost: pkPost } = await import('../../functions/api/owner-passkey.js');
+  const { kv, body } = await buildPasskeyAuthFixture();
+  const env = {
+    OWNER_KV: kv,
+    SESSION_SECRET: 'test-secret',
+    SGX_ED25519_PRIVATE: 'not-a-valid-key',
+    SGX_RP_ID: 'styrigx.com',
+    SGX_ORIGIN: 'https://styrigx.com',
+  };
+  const r = await pkPost({ request: postReq('https://styrigx.com/api/owner-passkey', body), env });
+  assert.equal(r.status, 500);
+  assert.deepEqual(await r.json(), { ok: false, error: 'session-sign-failed' });
+  assert.equal(r.headers.get('Set-Cookie'), null);
+});
+
+/* ---------- 写入/读取对账 ---------- */
+
+test('diag: 写入/读取对账：signSessionCookie 签发的 cookie 能被 middleware 验签放行', async () => {
+  const { signSessionCookie, SESSION_COOKIE } = await import('../../functions/_lib/session.js');
+  assert.equal(SESSION_COOKIE, 'sgx-verified');
+  const cv = await signSessionCookie(TEST_PRIV_PEM, 0);
+  /* payload 结构 epoch.exp.sig */
+  assert.equal(cv.split('.').length, 3);
+  const r = await mw(mwCtx(PROD_URL, { cookie: cv, env: PROD_ENV() }));
+  assert.equal(r.status, 200);
+  assert.equal(await r.text(), 'NEXT-BY-APP');
+});
+
+/* ---------- 临时自检接口 ---------- */
+
+test('diag: /api/diag/session DIAG_TOKEN 未设置 → 404', async () => {
+  const { onRequestGet: diagGet } = await import('../../functions/api/diag/session.js');
+  const r = await diagGet({
+    request: new Request('https://styrigx.com/api/diag/session?token=anything'),
+    env: { OWNER_KV: makeKV() },
+  });
+  assert.equal(r.status, 404);
+});
+
+test('diag: /api/diag/session token 不对 → 404', async () => {
+  const { onRequestGet: diagGet } = await import('../../functions/api/diag/session.js');
+  const r = await diagGet({
+    request: new Request('https://styrigx.com/api/diag/session?token=wrong'),
+    env: { OWNER_KV: makeKV(), DIAG_TOKEN: 'correct-token' },
+  });
+  assert.equal(r.status, 404);
+});
+
+test('diag: /api/diag/session token 对 → 200，只返回布尔/长度/格式名', async () => {
+  const { onRequestGet: diagGet } = await import('../../functions/api/diag/session.js');
+  const env = {
+    OWNER_KV: makeKV(),
+    DIAG_TOKEN: 'correct-token',
+    SGX_ED25519_PRIVATE: TEST_PRIV_PEM,
+    SGX_ED25519_PUBLIC: TEST_PUB_PEM,
+  };
+  const r = await diagGet({
+    request: new Request('https://styrigx.com/api/diag/session?token=correct-token'),
+    env,
+  });
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.equal(j.private_present, true);
+  assert.equal(j.public_present, true);
+  assert.equal(j.private_format, 'pkcs8-pem');
+  assert.equal(j.public_format, 'spki-pem');
+  assert.equal(typeof j.private_len, 'number');
+  assert.equal(typeof j.public_len, 'number');
+  assert.equal(j.private_import_ok, true);
+  assert.equal(j.public_import_ok, true);
+  assert.equal(j.roundtrip_ok, true);
+  assert.equal(j.request_had_cookie, false);
+  assert.equal(j.expected_cookie_name, 'sgx-verified');
+  /* 绝不含密钥内容 */
+  const body = JSON.stringify(j);
+  assert.ok(!body.includes(TEST_PRIV_PEM.slice(27, 70)));
+  assert.ok(!body.includes(TEST_PUB_PEM.slice(27, 70)));
+});
+
+test('diag: /api/diag/session 公钥格式错误 → public_import_ok=false, roundtrip_ok=false', async () => {
+  const { onRequestGet: diagGet } = await import('../../functions/api/diag/session.js');
+  const env = {
+    OWNER_KV: makeKV(),
+    DIAG_TOKEN: 't',
+    SGX_ED25519_PRIVATE: TEST_PRIV_PEM,
+    SGX_ED25519_PUBLIC: 'bm90LXBlbQ==', /* base64 非 PEM */
+  };
+  const r = await diagGet({
+    request: new Request('https://styrigx.com/api/diag/session?token=t'),
+    env,
+  });
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.equal(j.public_import_ok, false);
+  assert.equal(j.roundtrip_ok, false);
+  assert.equal(j.private_import_ok, true);
+});
