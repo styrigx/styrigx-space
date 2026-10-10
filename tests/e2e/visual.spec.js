@@ -177,3 +177,16 @@ test('baseline-engine-menu', async ({ page: pg }) => {
   await expect(pg).toHaveScreenshot('baseline-engine-menu.png', { animations: 'disabled' });
 });
 
+
+/* 2.8.0：站点卡片标题非空断言（中英）。data/sites.yaml 的 title 字段缺失会导致中文站名空白（线上真 bug）。 */
+test('site-card-titles-nonempty', async ({ page: pg }) => {
+  for (const lang of ['', '/en']) {
+    await pg.goto(lang + '/files/', { waitUntil: 'domcontentloaded' });
+    await pg.locator('[data-home-group="sites"] .files-rows li').first().waitFor({ timeout: 15000 });
+    const titles = await pg.locator('[data-home-group="sites"] .files-rows li .text-\\[15px\\]').allTextContents();
+    for (const t of titles) {
+      if (!t.trim()) throw new Error(`Empty site title on ${lang || '/'} files page`);
+    }
+    if (titles.length === 0) throw new Error(`No site cards on ${lang || '/'} files page`);
+  }
+});
