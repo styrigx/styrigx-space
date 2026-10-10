@@ -63,6 +63,12 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           await pg.addInitScript((ln) => {
             try { localStorage.setItem('sgx-lang', ln); } catch (e) {}
           }, lang.name);
+          /* 2.8.0：中文走系统字体回退，不同机器默认中文字体不同会导致截图漂移。
+             在默认栈尾部显式指定 Noto Sans CJK SC（CI 已安装，见 deploy.yml），
+             拉丁文仍走原栈（Inter/webfont），保证截图跨环境一致。 */
+          await pg.addStyleTag({
+            content: 'html{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans CJK SC","Noto Sans CJK",sans-serif !important}',
+          });
           await freezeTime(pg);
           await pg.goto(lang.prefix + page, { waitUntil: 'domcontentloaded' });
           await waitPageReady(pg);
@@ -103,6 +109,10 @@ test('baseline-sheet-open', async ({ page: pg }) => {
   await pg.addInitScript(() => {
     try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
   });
+  /* 2.8.0：中文回退字体显式化（见主循环注释），保证跨环境一致 */
+  await pg.addStyleTag({
+    content: 'html{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans CJK SC","Noto Sans CJK",sans-serif !important}',
+  });
   await freezeTime(pg);
   await pg.goto('/settings/manage/', { waitUntil: 'domcontentloaded' });
   await waitPageReady(pg);
@@ -123,6 +133,10 @@ test('baseline-engine-menu', async ({ page: pg }) => {
   /* 2.8.0：钉住中文，避免语言跟随跳转到 /en/ 导致基线语言漂移 */
   await pg.addInitScript(() => {
     try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
+  });
+  /* 2.8.0：中文回退字体显式化（见主循环注释），保证跨环境一致 */
+  await pg.addStyleTag({
+    content: 'html{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans CJK SC","Noto Sans CJK",sans-serif !important}',
   });
   await freezeTime(pg);
   await pg.goto('/browser/', { waitUntil: 'domcontentloaded' });
