@@ -1,9 +1,21 @@
 # Styrigx 3.0 任务书
 
+## 全局标准（Gray 2026-10-10 定，每个 PR 都按此验收）
+
+1. **命名**：Styrigx = Styrigx UI（界面+发行版）+ SGX（内核）。不用"OS"命名；文字一律写 Styrigx，不写 StyrigX。
+2. **版本**：UI 版本对齐 One UI，当前 8.5；内核沿开发版本线，队列里的 2.6.0/2.7.0/2.8.0/3.0.0 都是 SGX 版本。对外显示为「Styrigx UI 8.5 · SGX x.y」。版本只从 `data/version.yaml` 读，禁止硬编码；`hugo.yaml` 里旧的版本字段和 README 徽章都改为从这里取。
+3. **锁屏**：唯一状态源是服务端 sgx-verified（Domain=.styrigx.com; Path=/）。禁止用 sessionStorage、localStorage、BroadcastChannel、前端内存或标签页状态另做鉴权。
+4. **分层**（docs/architecture.md）：L0 凭证与签名 → L1 middleware（唯一鉴权判断，含 return 校验）→ L2 api → L3 共享库（不含鉴权）→ L4 shell/锁屏（只显示和提交）→ L5 页面应用 → L6 blog/book（只用公钥验签，book 的 D1/绑定保留）。上层只能调用下层，不能跨层，也不能重复实现下层职责。
+5. **规则**：只走 PR；不直推 main；不 force push；只用 PUT /pulls/{n}/merge，禁止手造 merge commit；每个分支从最新 main 开；不删测试、不跳过测试；不删或清空生产 KV/D1；不动 Cloudflare 后台和密钥；不留兼容层。同一问题修两轮仍失败就停下不合，报告 Gray。
+
+## 每个阶段的验收标准
+
+CI 全绿 → PUT merge → 生产部署 run 全绿 → curl 冒烟测试（首页 200、/api/session-check 401、/api/owner-status password/passkey 都为 true、blog 文章和 book /read/ 未带 cookie 都 302 到锁屏）。
+
 ## 队列
 
 > 定时任务每 30 分钟一轮：取第一个没勾、没标「等用户」/「卡住」的项推进。
-> 规则：只走 PR；不直推 main；不 force push；不删/不清生产 KV；不动 Cloudflare 后台与密钥；不留兼容层。
+> 规则见上方全局标准第 5 条。
 > 队列更新跟在对应项的 PR 里一起提交。
 
 - [x] 2.4.2 #11（styrigx-space，可合并）：Hugo 0.167 + Tailwind 4；Actions 整理只是升了版本号、把版本收成一处。分支 `feat/2.4.2-infra`，commit 977228e9 已合入 main。验收：生产部署 run 38024526434 全绿，styrigx.com 首页 200，owner-status 正常。✓ 2026-10-10
@@ -12,13 +24,14 @@
 - [x] 改名 portal→space（三仓库，已合并）：space PR #21（`chore/rename-portal-to-space`，merge 57ae7911b539，main 部署 run 38038564454 全绿）；blog PR #6（`chore/rename-portal-to-space`，merge 72fc2f949d83）；book 经 code search 确认无残留 portal 引用，无需 PR。✓ 2026-10-10
 - [x] 2.4.1 主站 #14（styrigx-space，已合并）：PR #14（`feat/2.4.1-portal-lock-v2`，追加提交 middleware `site==='space'`、sites.yaml id、测试/文档），PR CI run 38039100092 全绿，merge commit 8059894d9fe0；main 部署 run 38039540912 全绿。线上核验：/owner/、/settings/、/browser/、/goodlock/ 未带 cookie 均返回「已锁定」锁屏页（200），/ 与 /en/ 白名单正常，/api/owner-status 返回 `{"ok":true,"password":true,"passkey":true}`。✓ 2026-10-10
 - [x] 2.4.1 blog workflow（styrigx-blog，已合并）：PR #5（commit 2bdf21cf），CI run 38026813159 全绿，merge ccad181b。✓ 2026-10-10
-- [ ] 2.4.1 收尾（等用户）：**请 Gray 本人在手机上解锁一次**，确认拿到 sgx-verified cookie、内页正常访问（解锁必须他本人做，助手没有他的 owner key）。通过后按顺序合并（只用 PUT merge，永不开 auto-merge；任一步失败停下报告，不继续后面）：① blog #4（`feat/2.4.1-blog-lock`，head c7df1a99，CI 全绿）→ 部署成功后核验未解锁 302 到锁屏、解锁后正常打开；② book #2（`feat/2.4.1-book-lock`，head 5eeb1a61，CI 全绿）→ 同上核验，另确认书架数据正常。
+- [x] 2.4.1 收尾（已合并）：space #27（`fix/2.4.1-frontend-session`，merge 19799d0，部署 run 38054846123 全绿；分层规范 L0-L6、data/version.yaml、data-sgx-session 注入、POST /api/lock 全域锁定）；space #28（`fix/2.4.1-lock-return`，merge aae2372，部署 run 38058893265 全绿；3 个锁屏 bug：头像裂图放行、?return= 302 加 no-store、解锁后回跳）；blog #4（`feat/2.4.1-blog-lock`，merge 27d68ab，部署 run 38059530196 全绿；文章 302 到锁屏）；book #2（`feat/2.4.1-book-lock`，merge 2baa787，部署 run 38059746693 全绿；/read/ 302 到锁屏）；styrigx-blog-preview 和 styrigx-book-preview 两个预览项目已删除。✓ 2026-10-10
 - [x] README 动态徽章（styrigx-space，已合并）：PR #13 已合并（merge 7d109944）；main 部署 run 38026341722 全绿。deploy.yml 顶层 env.HUGO_VERSION 单源；tailwindcss/@tailwindcss/cli 统一 ^4.3.3，删 postcss；README 中英三徽章动态化，实测 Hugo 0.167.0 / Tailwind 4.3.3 / Styrigx UI 2.4.2。✓ 2026-10-10
-- [ ] 2.6.0 设置二级页 + 关于（styrigx-space，已暂停）：PR #20（`feat/2.6.0-settings`）已暂停，不合并、不开 auto-merge、不推新提交；等改名 + 2.4.1 全部完成后主会话再继续。本轮及后续轮次不碰。
-- [ ] 2.6.0 合并后：三站 pages.dev 301 到正式域名（各独立 PR，各用对应仓库 token，functions/_middleware 链首，只精确匹配 `<project>.pages.dev`，保留 path+query，Cache-Control: no-store，从各仓库最新 main 开分支，加测试，CI 绿后 PUT merge，部署后 curl 核验三个 301 + 三个 200 + owner-status）。
+- [ ] 仓库分层重组（styrigx-space，可合并）：只移动文件、改 import，不改行为。顶层 functions/、assets/、layouts/ 不动。functions/_lib → functions/_kernel（L0）；_middleware.js 保持原位（L1）；functions/api（L2）；assets/js/sgx 拆成 assets/js/lib（L3）、assets/js/shell（L4，含 lock.js）、assets/js/apps（L5，page-*.js 和 entries）；tests 拆成 tests/kernel、tests/ui、tests/e2e。新增 scripts/check-layers.mjs 并接入 CI：下层 import 上层、跨层 import、L3 以上出现鉴权逻辑或 storage 鉴权，都算失败。验收：生成的页面和打包产物行为一致，全部测试通过，线上 curl 冒烟测试通过。
+- [ ] 2.6.0 设置二级页 + 关于（styrigx-space，可合并）：PR #20（`feat/2.6.0-settings`）在新目录结构上重做或 rebase。关于页显示「Styrigx UI 8.5 · SGX x.y」，从 data/version.yaml 读；设计参考 One UI。
+- [ ] 三站 pages.dev 301 到正式域名（各仓库独立 PR）：各用对应仓库 token，functions/_middleware 链首，只精确匹配 `<project>.pages.dev`，保留 path+query，Cache-Control: no-store，从各仓库最新 main 开分支，加测试，CI 绿后 PUT merge，部署后 curl 核验三个 301 + 三个 200 + owner-status。
 - [ ] 2.7.0 语言 / G / 天气（styrigx-space，可合并）：语言跟随系统/中文/English；G 按 `build:false` 清单；天气定位顺序手动城市 > 精确定位（不自动弹权限）> IP 兜底。验收：CI 全绿 → 合并 → 生产部署 run 全绿 → 线上验证。
-- [ ] 2.8.0 清理（styrigx-space，可合并）：命名弹层 One UI 细节；rename 是否覆盖 `lastUsedAt`；提供方映射；最近使用显示；死代码。验收同上。
-- [ ] 3.0.0 应用商店重定义（styrigx-space，可合并）：商店=应用抽屉+安装管理，唯一应用入口；首页只留小组件卡片；Dock 固定我的文件/应用商店/浏览器/设置；版本号只改 `hugo.yaml` params 一处为 3.0.0。验收同上。
+- [ ] 2.8.0 清理（styrigx-space，可合并）：原有内容（命名弹层 One UI 细节、rename 是否覆盖 `lastUsedAt`、提供方映射、最近使用显示、死代码），加上：①「锁定所有设备」session-epoch +1，走 L2 api，设置里给入口，文档注明 blog/book 受约 60 秒 epoch 缓存影响；② Turnstile 验证速度优化；③ 锁屏态首页 HTML 不再下发桌面内容（书单、歌单等），只下发锁屏需要的部分；④ 视觉回归重新生成基线，去掉 continue-on-error 改成阻塞。验收同上。
+- [ ] 3.0.0 应用商店重定义（styrigx-space，可合并）：商店=应用抽屉+安装管理，唯一应用入口；首页只留小组件卡片；Dock 固定我的文件/应用商店/浏览器/设置；版本只改 `data/version.yaml`（kernel: "3.0"，ui: "8.5"），不改 hugo.yaml。验收同上。
 
 ## 已完成
 
@@ -29,4 +42,5 @@
 - 2.4.2 PR #11（feat/2.4.2-infra，977228e9）：Hugo 0.167 + Tailwind 4 完整迁移。PR CI run 38024130633 全绿，已合并。
 - 2.5.0 PR #19（feat/2.5.0-layout-mode，ee1e452）：PR CI run 38031998021 全绿；生产 run 38033087511 全绿；Gray 15:35 亲自解锁验收，1920 四项通过。
 - 改名 portal→space：space PR #21（57ae7911b539，生产 run 38038564454 全绿）、blog PR #6（72fc2f949d83）；book 无残留。
-- 2.4.1 主站 PR #14（feat/2.4.1-portal-lock-v2，8059894d9fe0）：PR CI run 38039100092 全绿；生产 run 38039540912 全绿；线上内页锁屏已验证（未带 cookie 内页 200「已锁定」，owner-status password:true、passkey:true）；等 Gray 手机解锁。
+- 2.4.1 主站 PR #14（feat/2.4.1-portal-lock-v2，8059894d9fe0）：PR CI run 38039100092 全绿；生产 run 38039540912 全绿；线上内页锁屏已验证（未带 cookie 内页 200「已锁定」，owner-status password:true、passkey:true）。
+- 2.4.1 收尾：space #27（19799d0，部署 run 38054846123）、space #28（aae2372，部署 run 38058893265）、blog #4（27d68ab，部署 run 38059530196）、book #2（2baa787，部署 run 38059746693）；预览项目已删除。
