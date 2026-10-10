@@ -10,8 +10,31 @@
  */
 
 import { ed25519Verify } from './_kernel/crypto.js';
-import { SESSION_COOKIE } from './_kernel/session.js';
+import { SESSION_COOKIE, ROLE_OWNER, ROLE_VISITOR } from './_kernel/session.js';
 import { isPublicPage } from './_kernel/public-pages.js';
+
+/* 2.8.0 会话角色分离：主人专属路径（visitor 访问 → 302 到锁屏） */
+const OWNER_ONLY_PATHS = [
+  '/settings/',
+  '/en/settings/',
+  '/files/',
+  '/en/files/',
+];
+/* 2.8.0：主人专属 API（visitor 调用 → 403） */
+const OWNER_ONLY_APIS = [
+  '/api/owner-password',
+  '/api/owner-passkey',
+];
+/* 认证类 action（visitor 可调用，用于升级为 owner） */
+const AUTH_ACTIONS = new Set(['verify', 'challenge', 'register', 'auth']);
+
+function isOwnerOnlyPath(pathname) {
+  return OWNER_ONLY_PATHS.some(p => pathname === p || pathname.startsWith(p));
+}
+
+function isOwnerOnlyApi(pathname) {
+  return OWNER_ONLY_APIS.some(p => pathname === p || pathname.startsWith(p + '/'));
+}
 
 /* 读取方 cookie 名（diag 接口用它与写入方对账；必须与 SESSION_COOKIE 一致） */
 export const READER_COOKIE_NAME = SESSION_COOKIE;
@@ -109,13 +132,15 @@ export function isSafeReturn(ret) {
 
 /**
  * L1 向 HTML 注入会话状态（2.4.1 分层规范）。
- * 把 <html> 变成 <html data-sgx-session="valid|locked">，前端只读这个，不自己猜。
+ * 把 <html> 变成 <html data-sgx-session="valid|locked" data-sgx-role="owner|visitor">，
+ * 前端只读这个，不自己猜。
  * 同时设置 Cache-Control: private, no-store（防浏览器缓存绕过锁屏）。
  * 非 HTML 响应原样返回。
  * @param {Response} res
  * @param {'valid'|'locked'} state
+ * @param {string|null} role 'owner'|'visitor'|null
  */
-export async function injectSessionState(res, state) {
+export async function injectSessionState(res, state, role) {
   const ct = res.headers.get('Content-Type') || '';
   if (!ct.includes('text/html')) return res;
   let html = await res.text();
@@ -124,7 +149,11 @@ export async function injectSessionState(res, state) {
   if (state === 'locked') {
     html = html.replace(/<!-- SGX-DESKTOP-START -->[\s\S]*?<!-- SGX-DESKTOP-END -->/g, '');
   }
-  const injected = html.replace(/<html(\s|>)/i, '<html data-sgx-session="' + state + '"$1');
+  let injected = html.replace(/<html(\s|>)/i, '<html data-sgx-session="' + state + '"$1');
+  /* 2.8.0：注入角色供 UI 展示（UI 不做鉴权） */
+  if (role === ROLE_OWNER || role === ROLE_VISITOR) {
+    injected = injected.replace(/<html(\s|>)/i, '<html data-sgx-role="' + role + '"$1');
+  }
   const headers = new Headers(res.headers);
   headers.set('Cache-Control', 'private, no-store');
   /* 2.8.0 搜索收录：锁屏态页面不被搜索引擎收录 */
@@ -139,74 +168,86 @@ export async function injectSessionState(res, state) {
 }
 
 /**
- * 验证 sgx-verified cookie：epoch.exp.sig
- * 返回 'ok' 或失败原因（no-cookie/bad-format/expired/no-pubkey/bad-sig/
- * kv-error/epoch-low）。
- * 2.4.1 dedup：遍历 Cookie 头里所有同名值，任一验签通过即有效（旧版无
- * Domain 的主机绑定 cookie 可能和新版并存）。
- * @returns {Promise<string>}
+ * 验证 sgx-verified cookie（2.8.0：四段式 role.epoch.exp.sig）。
+ * 返回 {ok, role, reason}。
+ * 2.4.1 dedup：遍历 Cookie 头里所有同名值，任一验签通过即有效。
+ * @returns {Promise<{ok:boolean, role:string|null, reason:string}>}
  */
-export async function verifySessionReason(request, env) {
+export async function verifySessionDetailed(request, env) {
   const vals = getAllCookies(request, READER_COOKIE_NAME);
-  if (!vals.length) return 'no-cookie';
+  if (!vals.length) return { ok: false, role: null, reason: 'no-cookie' };
   let reason = 'bad-format';
+  let role = null;
   for (const val of vals) {
     const r = await verifyOneCookie(val, env);
-    if (r === 'ok') return 'ok';
+    if (r.status === 'ok') return { ok: true, role: r.role, reason: 'ok' };
     /* 记录最有信息量的失败原因：优先 bad-sig/expired，其次 bad-format */
-    if (reason === 'bad-format' || r !== 'bad-format') reason = r;
+    if (reason === 'bad-format' || r.status !== 'bad-format') {
+      reason = r.status;
+      role = r.role;
+    }
   }
-  return reason;
+  const pubKey = (env && env.SGX_ED25519_PUBLIC) || '';
+  if (reason === 'no-pubkey') {
+    console.log('[sgx-verify] fail: no-pubkey pubkey_len=0');
+  } else if (reason === 'bad-sig') {
+    console.log('[sgx-verify] fail: bad-sig pubkey_len=' + pubKey.length +
+      ' pubkey_prefix=' + JSON.stringify(pubKey.slice(0, 27)));
+  } else {
+    console.log('[sgx-verify] fail: ' + reason);
+  }
+  return { ok: false, role: null, reason };
 }
 
 /**
- * 验签单个 cookie 值。
- * @returns {Promise<string>} 'ok' 或失败原因
+ * 验证会话（布尔版，保持向后兼容）。
+ * @returns {Promise<boolean>}
+ */
+export async function verifySession(request, env) {
+  const r = await verifySessionDetailed(request, env);
+  return r.ok;
+}
+
+/**
+ * 验证会话并返回原因字符串（兼容旧测试）。
+ * @returns {Promise<string>}
+ */
+export async function verifySessionReason(request, env) {
+  const r = await verifySessionDetailed(request, env);
+  return r.reason;
+}
+
+/**
+ * 验签单个 cookie 值（2.8.0：四段式 role.epoch.exp.sig）。
+ * @returns {Promise<{status:string, role:string|null}>}
+ *   status: 'ok' 或失败原因（no-cookie/bad-format/expired/no-pubkey/bad-sig/
+ *   kv-error/epoch-low/bad-role）；role: 'owner'|'visitor'|null
  */
 async function verifyOneCookie(val, env) {
   const parts = val.split('.');
-  if (parts.length !== 3) return 'bad-format';
-  const [epochStr, expStr, sig] = parts;
+  /* 2.8.0：旧三段式（无 role）一律视为无效，不留兼容层 */
+  if (parts.length !== 4) return { status: 'bad-format', role: null };
+  const [role, epochStr, expStr, sig] = parts;
+  if (role !== ROLE_OWNER && role !== ROLE_VISITOR) return { status: 'bad-role', role: null };
   const exp = parseInt(expStr, 10);
-  if (!exp || exp < Date.now()) return 'expired';
+  if (!exp || exp < Date.now()) return { status: 'expired', role: null };
 
   const pubKey = env && env.SGX_ED25519_PUBLIC;
-  if (!pubKey) return 'no-pubkey'; /* 未配公钥：fail closed */
-  const payload = epochStr + '.' + expStr;
-  if (!(await ed25519Verify(pubKey, payload, sig))) return 'bad-sig';
+  if (!pubKey) return { status: 'no-pubkey', role: null }; /* 未配公钥：fail closed */
+  const payload = role + '.' + epochStr + '.' + expStr;
+  if (!(await ed25519Verify(pubKey, payload, sig))) return { status: 'bad-sig', role: null };
 
   /* epoch 检查：cookie 的 epoch 必须 >= KV 中的 session-epoch */
   try {
     if (env && env.OWNER_KV) {
       const cur = parseInt(await env.OWNER_KV.get('session-epoch') || '0', 10) || 0;
       const ep = parseInt(epochStr, 10) || 0;
-      if (ep < cur) return 'epoch-low';
+      if (ep < cur) return { status: 'epoch-low', role: null };
     }
   } catch (e) {
-    return 'kv-error';
+    return { status: 'kv-error', role: null };
   }
-  return 'ok';
-}
-
-/**
- * 验证会话（布尔版）。每次拒绝都打 [sgx-verify] fail: <原因>
- * （只记原因 + 公钥长度/前缀诊断，绝不记密钥本身和 cookie 值）。
- * @returns {Promise<boolean>}
- */
-export async function verifySession(request, env) {
-  const reason = await verifySessionReason(request, env);
-  if (reason === 'ok') return true;
-  const pubKey = (env && env.SGX_ED25519_PUBLIC) || '';
-  if (reason === 'no-pubkey') {
-    console.log('[sgx-verify] fail: no-pubkey pubkey_len=0');
-  } else if (reason === 'bad-sig') {
-    /* 只打长度和前缀（能看出是不是 -----BEGIN PUBLIC KEY-----），绝不打密钥本身 */
-    console.log('[sgx-verify] fail: bad-sig pubkey_len=' + pubKey.length +
-      ' pubkey_prefix=' + JSON.stringify(pubKey.slice(0, 27)));
-  } else {
-    console.log('[sgx-verify] fail: ' + reason);
-  }
-  return false;
+  return { status: 'ok', role };
 }
 
 /** @param {any} context */
@@ -251,14 +292,30 @@ export async function onRequest(context) {
   /* 2.4.1：会话检查（生产环境 space 站点一律执行；缺 SGX_ED25519_PUBLIC 时
      verifySession 直接返回 false → fail closed，只放白名单路径。
      没有「未配置就放行」开关。）
+     2.8.0 会话角色分离：L1 是唯一按角色放行的地方。
      分层规范 L1：middleware 是唯一决定是否已解锁的地方。 */
   const site = env && env.SGX_SITE;
   if (isProd && (!site || site === 'space')) {
     const isHomepage = pathname === '/' || pathname === '/en' || pathname === '/en/';
-    const sessionValid = await verifySession(request, env);
+    const sess = await verifySessionDetailed(request, env);
+    const sessionValid = sess.ok;
+    const role = sess.role; /* 'owner'|'visitor'|null */
+    const isOwner = role === ROLE_OWNER;
+    const isVisitor = role === ROLE_VISITOR;
+
+    /* 2.8.0：访客调用主人 API → 403（改密码、通行密钥管理等）。
+       认证类 action（verify/challenge/auth/register）由端点自身的 token 机制保护，
+       middleware 层按路径统一拒绝 visitor。 */
+    if (isVisitor && isOwnerOnlyApi(pathname)) {
+      return new Response(JSON.stringify({ ok: false, error: 'role' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+      });
+    }
 
     /* L1：首页不再无条件白名单。照常返回页面，但把会话状态注入 HTML
-       （<html data-sgx-session="valid|locked">），前端只读这个，不自己猜。 */
+       （<html data-sgx-session="valid|locked" data-sgx-role="owner|visitor">），
+       前端只读这个，不自己猜。 */
     if (isHomepage) {
       /* ?return= 回跳：会话有效时 302 到目标（站内路径或 *.styrigx.com 白名单） */
       const returnPath = url.searchParams.get('return');
@@ -273,7 +330,20 @@ export async function onRequest(context) {
         });
       }
       const res = await next();
-      return injectSessionState(res, sessionValid ? 'valid' : 'locked');
+      return injectSessionState(res, sessionValid ? 'valid' : 'locked', role);
+    }
+
+    /* 2.8.0：访客访问主人专属路径（设置、我的文件）→ 302 到锁屏，让用户选密码/通行密钥 */
+    if (isVisitor && isOwnerOnlyPath(pathname)) {
+      const dest = 'https://styrigx.com/?lock=1&return=' + encodeURIComponent(url.pathname + url.search);
+      return new Response(null, {
+        status: 302,
+        headers: {
+          'Location': dest,
+          'Cache-Control': 'no-store',
+          'X-Robots-Tag': 'noindex',
+        },
+      });
     }
 
     if (sessionValid) {
@@ -282,7 +352,7 @@ export async function onRequest(context) {
          只改 text/html，静态资源保持原缓存策略。 */
       const ct = res.headers.get('Content-Type') || '';
       if (ct.includes('text/html')) {
-        return injectSessionState(res, 'valid');
+        return injectSessionState(res, 'valid', role);
       }
       return res;
     }

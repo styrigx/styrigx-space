@@ -541,7 +541,7 @@ test('middleware：无有效会话访问内页 → 302 到首页锁屏（return 
  * /api/session-check（2.4.1 防循环）
  * ================================================================ */
 
-test('session-check：有效会话 → 200 {ok:true}；无会话/坏会话 → 401', async () => {
+test('session-check：有效会话 → 200 {ok:true, role}；无会话/坏会话 → 401', async () => {
   const { onRequestGet: checkGet } = await import('../../functions/api/session-check.js');
   const env = PROD_ENV();
 
@@ -551,14 +551,16 @@ test('session-check：有效会话 → 200 {ok:true}；无会话/坏会话 → 4
     return new Request('https://styrigx.com/api/session-check', { headers });
   };
 
+  /* 2.8.0：返回角色 */
   let r = await checkGet({ request: mkReq(await validCookie(0)), env });
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { ok: true });
+  assert.deepEqual(await r.json(), { ok: true, role: 'owner' });
 
   r = await checkGet({ request: mkReq(''), env });
   assert.equal(r.status, 401);
   assert.deepEqual(await r.json(), { ok: false });
 
+  /* 旧三段式无 role → 无效 */
   r = await checkGet({ request: mkReq('0.9999999999999.badsig'), env });
   assert.equal(r.status, 401);
 });
@@ -567,7 +569,7 @@ test('session-check：有效会话 → 200 {ok:true}；无会话/坏会话 → 4
  * 三个解锁接口：成功时 Set-Cookie 属性（2.4.1 会话诊断）
  * ================================================================ */
 
-function assertSessionCookieAttrs(sc) {
+function assertSessionCookieAttrs(sc, maxAge) {
   assert.ok(sc, '必须带 Set-Cookie');
   assert.match(sc, /^sgx-verified=/);
   assert.match(sc, /Path=\//);
@@ -575,7 +577,9 @@ function assertSessionCookieAttrs(sc) {
   assert.match(sc, /HttpOnly/);
   assert.match(sc, /SameSite=Lax/);
   assert.match(sc, /Domain=\.styrigx\.com/);
-  assert.match(sc, /Max-Age=43200/);
+  /* 2.8.0：owner 43200，visitor 3600 */
+  const expected = maxAge || '43200';
+  assert.match(sc, new RegExp('Max-Age=' + expected));
 }
 
 test('password verify 通过：Set-Cookie 属性齐全（Path/Secure/HttpOnly/SameSite=Lax）', async () => {
@@ -609,7 +613,8 @@ test('verify（Turnstile）通过：Set-Cookie 属性齐全', async () => {
     });
     assert.equal(r.status, 200);
     assert.deepEqual(await r.json(), { ok: true });
-    assertSessionCookieAttrs(r.headers.get('Set-Cookie'));
+    /* 2.8.0：Turnstile 签 visitor，Max-Age=3600 */
+    assertSessionCookieAttrs(r.headers.get('Set-Cookie'), '3600');
   } finally {
     globalThis.fetch = origFetch;
   }
@@ -870,8 +875,9 @@ test('diag: 写入/读取对账：signSessionCookie 签发的 cookie 能被 midd
   const { signSessionCookie, SESSION_COOKIE } = await import('../../functions/_kernel/session.js');
   assert.equal(SESSION_COOKIE, 'sgx-verified');
   const cv = await signSessionCookie(TEST_PRIV_PEM, 0);
-  /* payload 结构 epoch.exp.sig */
-  assert.equal(cv.split('.').length, 3);
+  /* 2.8.0：payload 结构 role.epoch.exp.sig */
+  assert.equal(cv.split('.').length, 4);
+  assert.ok(cv.startsWith('owner.'));
   const r = await mw(mwCtx(PROD_URL, { cookie: cv, env: PROD_ENV() }));
   assert.equal(r.status, 200);
   assert.equal(await r.text(), 'NEXT-BY-APP');
@@ -1060,4 +1066,89 @@ test('2.8.0：未验证 302 带 X-Robots-Tag: noindex', async () => {
   const r = await mw(ctx);
   assert.equal(r.status, 302);
   assert.equal(r.headers.get('X-Robots-Tag'), 'noindex');
+});
+
+/* ================================================================
+ * 2.8.0 会话角色分离
+ * ================================================================ */
+
+async function visitorCookie(epoch = 0) {
+  const { signSessionCookie } = await import('../../functions/_kernel/session.js');
+  return await signSessionCookie(TEST_PRIV_PEM, epoch, 'visitor');
+}
+
+test('2.8.0：visitor 可以访问桌面（/），owner 可以访问设置', async () => {
+  const vCookie = await visitorCookie(0);
+  const htmlNext = async () => new Response('<html lang="zh"><head></head><body></body></html>', {
+    status: 200,
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+  });
+  /* visitor 访问首页 → 200 + visitor 角色 */
+  let ctx = {
+    request: new Request('https://styrigx.com/', {
+      headers: { 'Cookie': 'sgx-verified=' + vCookie },
+    }),
+    next: htmlNext,
+    env: PROD_ENV(),
+  };
+  let r = await mw(ctx);
+  assert.equal(r.status, 200);
+  const html = await r.text();
+  assert.ok(html.includes('data-sgx-role="visitor"'), '应注入 visitor 角色');
+
+  /* visitor 访问设置 → 302 到锁屏 */
+  r = await mw(mwCtx('https://styrigx.com/settings/', { cookie: vCookie, env: PROD_ENV() }));
+  assert.equal(r.status, 302);
+  assert.ok(r.headers.get('Location').includes('?lock=1'));
+
+  /* owner 访问设置 → 200 */
+  const oCookie = await validCookie(0);
+  r = await mw(mwCtx('https://styrigx.com/settings/', { cookie: oCookie, env: PROD_ENV() }));
+  assert.equal(r.status, 200);
+});
+
+test('2.8.0：visitor 调用主人 API → 403', async () => {
+  const vCookie = await visitorCookie(0);
+  const ctx = {
+    request: new Request('https://styrigx.com/api/owner-passkey', {
+      method: 'POST',
+      headers: { 'Cookie': 'sgx-verified=' + vCookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'list' }),
+    }),
+    next: async () => new Response('SHOULD-NOT-REACH'),
+    env: PROD_ENV(),
+  };
+  const r = await mw(ctx);
+  assert.equal(r.status, 403);
+  assert.deepEqual(await r.json(), { ok: false, error: 'role' });
+});
+
+test('2.8.0：旧三段式 cookie（无 role）一律无效', async () => {
+  /* 旧格式 epoch.exp.sig */
+  const oldCookie = '0.' + String(Date.now() + 3600000) + '.fakesig';
+  const ctx = {
+    request: new Request('https://styrigx.com/', {
+      headers: { 'Cookie': 'sgx-verified=' + oldCookie },
+    }),
+    next: async () => new Response('<html lang="zh"><head></head><body></body></html>', {
+      status: 200,
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    }),
+    env: PROD_ENV(),
+  };
+  const r = await mw(ctx);
+  /* 无有效会话 → 首页返回 locked 状态 */
+  const html = await r.text();
+  assert.ok(html.includes('data-sgx-session="locked"'), '旧 cookie 应被视为无效');
+});
+
+test('2.8.0：session-check 返回 visitor 角色', async () => {
+  const { onRequestGet: checkGet } = await import('../../functions/api/session-check.js');
+  const env = PROD_ENV();
+  const req = new Request('https://styrigx.com/api/session-check', {
+    headers: { 'Cookie': 'sgx-verified=' + await visitorCookie(0) },
+  });
+  const r = await checkGet({ request: req, env });
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), { ok: true, role: 'visitor' });
 });

@@ -24,6 +24,7 @@ import {
   clearVerifiedCookie,
   issueSessionCookie,
   bumpSessionEpoch,
+  ROLE_OWNER,
 } from '../_kernel/session.js';
 
 const ITERATIONS = 100000; // Workers PBKDF2 上限（实测：超过抛 NotSupportedError）
@@ -172,9 +173,10 @@ async function handlePost(context) {
     }
     await clearFail();
     /* 通过：签发 Ed25519 会话 cookie（fail closed：无密钥/签发失败 → 5xx，
-       绝不静默跳过然后返回 ok:true） */
+       绝不静默跳过然后返回 ok:true）
+       2.8.0：密码验证签 owner（12 小时） */
     const headers = new Headers({ 'Content-Type': 'application/json' });
-    const signErr = await issueSessionCookie(env, headers);
+    const signErr = await issueSessionCookie(env, headers, ROLE_OWNER);
     if (signErr) {
       return new Response(JSON.stringify(signErr.body), {
         status: signErr.status,

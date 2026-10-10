@@ -37,6 +37,7 @@
 import { b64enc, b64dec, b64urlEnc, timingSafeEqual, hmacSign, hmacVerify } from '../_kernel/crypto.js';
 import {
   issueSessionCookie,
+  ROLE_OWNER,
 } from '../_kernel/session.js';
 
 /* AAGUID → 密码管理器（只用于显示，不参与安全判断） */
@@ -654,10 +655,11 @@ async function handlePost(context) {
       stored.lastUsedAt = Date.now();
       try { await savePasskey(kv, stored); } catch (e2) {}
       /* 通过：签发 Ed25519 会话 cookie（fail closed），并签发管理 token。
-         issueSessionCookie 永不抛错，明确错误码不会被外层 catch 吞成 403。 */
+         issueSessionCookie 永不抛错，明确错误码不会被外层 catch 吞成 403。
+         2.8.0：通行密钥验证签 owner（12 小时）。 */
       const headers = new Headers({ 'Content-Type': 'application/json' });
       const secret = (env && env.SESSION_SECRET) || '';
-      const signErr = await issueSessionCookie(env, headers);
+      const signErr = await issueSessionCookie(env, headers, ROLE_OWNER);
       if (signErr) {
         return new Response(JSON.stringify(signErr.body), {
           status: signErr.status,
