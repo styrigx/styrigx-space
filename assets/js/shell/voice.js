@@ -2,9 +2,9 @@
  * @fileoverview 统一语音搜索按钮组件（替代旧 window.__sgxVoice）。
  * 点击麦克风按钮进行语音识别，结果填入输入框并回调。
  */
-import { on } from './events.js';
-import { loadI18n } from './i18n.js';
-import { toast } from './toast.js';
+import { on } from '../lib/events.js';
+import { loadI18n } from '../lib/i18n.js';
+import { toast } from '../lib/toast.js';
 
 /**
  * @typedef {Object} VoiceOpts

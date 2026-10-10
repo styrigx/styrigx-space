@@ -2,11 +2,11 @@
  * @fileoverview 顶栏与 Dock 系统（旧 sgx-base-b.js）。
  * Mobile 悬浮 Dock、布局 resize 跟随、顶栏时钟/天气、DeX 应用抽屉、时钟弹窗、天气面板。
  */
-import { on } from './events.js';
-import { fmtTz } from './util.js';
-import { get } from './storage.js';
-import { get as featGet } from './features.js';
-import { visibleInterval } from './scheduler.js';
+import { on } from '../lib/events.js';
+import { fmtTz } from '../lib/util.js';
+import { get } from '../lib/storage.js';
+import { get as featGet } from '../lib/features.js';
+import { visibleInterval } from '../lib/scheduler.js';
 import { onDexLayoutChange, applyLayout } from './layout.js';
 
 /**

@@ -8,7 +8,7 @@
  * - sgx-account-card.html 不再读 sessionStorage，改听 sgx:session 事件
  * - /api/lock：POST 下发两条 Set-Cookie 清除头（带 Domain + 不带 Domain）
  *
- * 运行：node --test tests/unit/frontend-session.test.mjs
+ * 运行：node --test tests/ui/frontend-session.test.mjs
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -19,8 +19,8 @@ import { dirname, join } from 'node:path';
 import { onRequestPost as lockPost, onRequestGet as lockGet } from '../../functions/api/lock.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..');
-const lockJs = readFileSync(join(root, 'assets/js/sgx/lock.js'), 'utf8');
-const secJs = readFileSync(join(root, 'assets/js/sgx/page-security.js'), 'utf8');
+const lockJs = readFileSync(join(root, 'assets/js/shell/lock.js'), 'utf8');
+const secJs = readFileSync(join(root, 'assets/js/apps/security.js'), 'utf8');
 const cardHtml = readFileSync(join(root, 'layouts/partials/sgx-account-card.html'), 'utf8');
 
 test('lock.js：不再读写 sgx-lock-shown', () => {

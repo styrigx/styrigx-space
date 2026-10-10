@@ -2,10 +2,10 @@
  * @fileoverview 应用商店页：分类芯片 + 胶囊就地过滤、安装/卸载开关、锚点高亮。
  * （旧 store.html 内联脚本模块化；胶囊搜索经 setCapSearchProvider 注册。）
  */
-import { on } from './events.js';
-import { getJSON, setJSON } from './storage.js';
-import { reducedMotion } from './util.js';
-import { setCapSearchProvider } from './capsule.js';
+import { on } from '../lib/events.js';
+import { getJSON, setJSON } from '../lib/storage.js';
+import { reducedMotion } from '../lib/util.js';
+import { setCapSearchProvider } from '../shell/capsule.js';
 
 (function () {
   /** @param {string} id */

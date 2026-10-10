@@ -17,7 +17,7 @@
  * - 三个解锁接口（password/verify/passkey）成功时 Set-Cookie 属性齐全：
  *   Path=/、Secure、HttpOnly、SameSite=Lax、Domain=.styrigx.com
  *
- * 运行：node --test tests/unit/
+ * 运行：node --test tests/kernel/
  * 说明：mock KV 只替代 Cloudflare KV（外部环境敏感项），被测的是自家逻辑；
  * Ed25519 测试密钥在测试内临时生成，不用生产密钥、不进仓库。
  */
@@ -32,8 +32,8 @@ import {
   getSessionEpoch,
   bumpSessionEpoch,
   SESSION_MAX_AGE,
-} from '../../functions/_lib/session.js';
-import { hmacSign, b64urlEnc, ed25519Sign } from '../../functions/_lib/crypto.js';
+} from '../../functions/_kernel/session.js';
+import { hmacSign, b64urlEnc, ed25519Sign } from '../../functions/_kernel/crypto.js';
 import { onRequestPost as pwPost } from '../../functions/api/owner-password.js';
 import { onRequestGet as epochGet } from '../../functions/api/session-epoch.js';
 import { onRequest as mw } from '../../functions/_middleware.js';
@@ -682,7 +682,7 @@ test('passkey auth 通过：Set-Cookie 属性齐全', async () => {
 /* ---------- issueSessionCookie 单元 ---------- */
 
 test('diag: issueSessionCookie 无 SGX_ED25519_PRIVATE → 500 no-session-key（不签发）', async () => {
-  const { issueSessionCookie } = await import('../../functions/_lib/session.js');
+  const { issueSessionCookie } = await import('../../functions/_kernel/session.js');
   const headers = new Headers();
   const err = await issueSessionCookie({ OWNER_KV: makeKV() }, headers);
   assert.deepEqual(err, { status: 500, body: { ok: false, error: 'no-session-key' } });
@@ -690,7 +690,7 @@ test('diag: issueSessionCookie 无 SGX_ED25519_PRIVATE → 500 no-session-key（
 });
 
 test('diag: issueSessionCookie 私钥格式错误 → 500 session-sign-failed', async () => {
-  const { issueSessionCookie } = await import('../../functions/_lib/session.js');
+  const { issueSessionCookie } = await import('../../functions/_kernel/session.js');
   const headers = new Headers();
   const err = await issueSessionCookie({ OWNER_KV: makeKV(), SGX_ED25519_PRIVATE: 'not-a-key' }, headers);
   assert.deepEqual(err, { status: 500, body: { ok: false, error: 'session-sign-failed' } });
@@ -698,7 +698,7 @@ test('diag: issueSessionCookie 私钥格式错误 → 500 session-sign-failed', 
 });
 
 test('diag: issueSessionCookie KV 出错 → 503（不签发）', async () => {
-  const { issueSessionCookie } = await import('../../functions/_lib/session.js');
+  const { issueSessionCookie } = await import('../../functions/_kernel/session.js');
   const headers = new Headers();
   const err = await issueSessionCookie({ OWNER_KV: makeBrokenKV(), SGX_ED25519_PRIVATE: TEST_PRIV_PEM }, headers);
   assert.equal(err.status, 503);
@@ -707,7 +707,7 @@ test('diag: issueSessionCookie KV 出错 → 503（不签发）', async () => {
 });
 
 test('diag: issueSessionCookie 正常 → null 且 Set-Cookie 已设置', async () => {
-  const { issueSessionCookie, SESSION_COOKIE } = await import('../../functions/_lib/session.js');
+  const { issueSessionCookie, SESSION_COOKIE } = await import('../../functions/_kernel/session.js');
   assert.equal(SESSION_COOKIE, 'sgx-verified');
   const headers = new Headers();
   const err = await issueSessionCookie({ OWNER_KV: makeKV(), SGX_ED25519_PRIVATE: TEST_PRIV_PEM }, headers);
@@ -840,7 +840,7 @@ test('diag: passkey auth 私钥格式错误 → 500 session-sign-failed（不被
 /* ---------- 写入/读取对账 ---------- */
 
 test('diag: 写入/读取对账：signSessionCookie 签发的 cookie 能被 middleware 验签放行', async () => {
-  const { signSessionCookie, SESSION_COOKIE } = await import('../../functions/_lib/session.js');
+  const { signSessionCookie, SESSION_COOKIE } = await import('../../functions/_kernel/session.js');
   assert.equal(SESSION_COOKIE, 'sgx-verified');
   const cv = await signSessionCookie(TEST_PRIV_PEM, 0);
   /* payload 结构 epoch.exp.sig */

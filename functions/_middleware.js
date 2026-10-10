@@ -9,8 +9,8 @@
  *    不记密钥和 cookie 值），用于线上排查会话未被识别的问题。
  */
 
-import { ed25519Verify } from './_lib/crypto.js';
-import { SESSION_COOKIE } from './_lib/session.js';
+import { ed25519Verify } from './_kernel/crypto.js';
+import { SESSION_COOKIE } from './_kernel/session.js';
 
 /* 读取方 cookie 名（diag 接口用它与写入方对账；必须与 SESSION_COOKIE 一致） */
 export const READER_COOKIE_NAME = SESSION_COOKIE;

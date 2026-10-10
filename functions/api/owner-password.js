@@ -14,17 +14,17 @@
  * 密码存储：PBKDF2-SHA256 + 随机 salt，存 OWNER_KV；恒定时间比较（SHA-256 后比较）。
  * 会话可吊销：KV 存 session-epoch，Ed25519(SGX_ED25519_PRIVATE) 签进 cookie；
  * 改密码/删密码/lockout 时 +1，旧 cookie 失效。
- * sgx-verified cookie 的设置/清除统一走 _lib/session.js（属性只定义一处）。
+ * sgx-verified cookie 的设置/清除统一走 _kernel/session.js（属性只定义一处）。
  * KV 读取出错时抛错→接口返回 503，绝不继续写入。
  * 只接受 POST；校验 Origin；未设置密码时 verify 一律拒绝。
  * 外层 try/catch：任何未捕获异常都返回 JSON { ok:false, error:'server' }，不返回 500 HTML。
  */
-import { b64enc, b64dec, timingSafeEqual, hmacVerify } from '../_lib/crypto.js';
+import { b64enc, b64dec, timingSafeEqual, hmacVerify } from '../_kernel/crypto.js';
 import {
   clearVerifiedCookie,
   issueSessionCookie,
   bumpSessionEpoch,
-} from '../_lib/session.js';
+} from '../_kernel/session.js';
 
 const ITERATIONS = 100000; // Workers PBKDF2 上限（实测：超过抛 NotSupportedError）
 const SALT_LEN = 16;

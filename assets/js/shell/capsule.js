@@ -3,9 +3,9 @@
  * 页面标识从 DOM 的 id="sgx-cap-{page}" 推导，不再烘焙进 JS；
  * 各页通过 setCapSearchProvider 注册搜索回调（替代旧 window.__sgxCapSearch）。
  */
-import { on } from './events.js';
+import { on } from '../lib/events.js';
 import { voiceSheet } from './voice-sheet.js';
-import { reducedMotion } from './util.js';
+import { reducedMotion } from '../lib/util.js';
 import { onKeyboardHeight } from './vk.js';
 
 /**

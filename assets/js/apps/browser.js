@@ -2,16 +2,16 @@
  * @fileoverview 浏览器页：地址栏弹出层、搜索引擎切换、站内建议、最近搜索、书签筛选。
  * 文案来自页面内 sgx-i18n-browser JSON（中英双语），JS 与语言无关。
  */
-import { on } from './events.js';
-import { esc } from './util.js';
-import { get, set } from './storage.js';
-import { loadI18n } from './i18n.js';
-import { openSheet } from './sheet.js';
-import { voiceSheet } from './voice-sheet.js';
-import { engines } from './engines.js';
-import { bindFavFallback } from './fav.js';
-import { onDexLayoutChange } from './layout.js';
-import { onKeyboardHeight } from './vk.js';
+import { on } from '../lib/events.js';
+import { esc } from '../lib/util.js';
+import { get, set } from '../lib/storage.js';
+import { loadI18n } from '../lib/i18n.js';
+import { openSheet } from '../shell/sheet.js';
+import { voiceSheet } from '../shell/voice-sheet.js';
+import { engines } from '../shell/engines.js';
+import { bindFavFallback } from '../shell/fav.js';
+import { onDexLayoutChange } from '../shell/layout.js';
+import { onKeyboardHeight } from '../shell/vk.js';
 
 (function () {
   'use strict';

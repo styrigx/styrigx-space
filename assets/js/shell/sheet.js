@@ -3,7 +3,7 @@
  * 原生 showModal() 提供 ::backdrop、Esc 关闭、焦点陷阱；打开/关闭动画
  * 用 CSS 过渡；手机下滑关闭保留手写。
  */
-import { on, delegate } from './events.js';
+import { on, delegate } from '../lib/events.js';
 
 /**
  * @typedef {Object} SheetOption

@@ -2,11 +2,11 @@
  * @fileoverview 书单/歌单页（shelf）：书库对接、触屏批注、歌单试听展开。
  * 文案来自页面内 sgx-i18n-shelf JSON（中英双语），JS 与语言无关。
  */
-import { on } from './events.js';
-import { esc } from './util.js';
-import { loadI18n } from './i18n.js';
-import { openSheet } from './sheet.js';
-import { SGX } from './sgx.js';
+import { on } from '../lib/events.js';
+import { esc } from '../lib/util.js';
+import { loadI18n } from '../lib/i18n.js';
+import { openSheet } from '../shell/sheet.js';
+import { SGX } from '../lib/sgx.js';
 
 (function () {
   const T = loadI18n('sgx-i18n-shelf');

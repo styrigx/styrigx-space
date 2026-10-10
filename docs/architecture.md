@@ -17,7 +17,7 @@ space（styrigx.com）相当于 One UI，blog/book 等分站相当于其中的 A
 
 ## 分层
 
-### L0 内核·凭证：`functions/_lib/crypto.js`、`functions/_lib/session.js`
+### L0 内核·凭证：`functions/_kernel/crypto.js`、`functions/_kernel/session.js`
 - 负责 Ed25519 签名/验签、会话格式（`epoch.exp.sig`）和 cookie 名。
 - 不碰任何页面逻辑。
 
@@ -35,7 +35,7 @@ space（styrigx.com）相当于 One UI，blog/book 等分站相当于其中的 A
 - 锁定：`lock`（清除 `Domain=.styrigx.com` 的 `sgx-verified`，blog/book 一起上锁）。
 - 前端改变会话只能通过这些接口。
 
-### L3 共享库：`assets/js/sgx/` 的 core、util、storage、events、scheduler、i18n、theme
+### L3 共享库：`assets/js/lib/ + assets/js/shell/ + assets/js/apps/` 的 core、util、storage、events、scheduler、i18n、theme
 - 通用能力，不得包含鉴权逻辑。
 - `storage` 只存偏好（主题、天气等），**禁止存解锁状态**。
 
