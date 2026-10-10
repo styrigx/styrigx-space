@@ -30,7 +30,7 @@ CI 全绿 → PUT merge → 生产部署 run 全绿 → curl 冒烟测试（首�
 - [ ] 2.6.0 设置二级页 + 关于（styrigx-space，可合并）：PR #20（`feat/2.6.0-settings`）在新目录结构上重做或 rebase。关于页显示「Styrigx UI 8.5 · SGX x.y」，从 data/version.yaml 读；设计参考 One UI。
 - [ ] 三站 pages.dev 301 到正式域名（各仓库独立 PR）：各用对应仓库 token，functions/_middleware 链首，只精确匹配 `<project>.pages.dev`，保留 path+query，Cache-Control: no-store，从各仓库最新 main 开分支，加测试，CI 绿后 PUT merge，部署后 curl 核验三个 301 + 三个 200 + owner-status。
 - [ ] 2.7.0 语言 / G / 天气（styrigx-space，可合并）：语言跟随系统/中文/English；G 按 `build:false` 清单；天气定位顺序手动城市 > 精确定位（不自动弹权限）> IP 兜底。验收：CI 全绿 → 合并 → 生产部署 run 全绿 → 线上验证。
-- [ ] 2.8.0 清理（styrigx-space，可合并）：原有内容（命名弹层 One UI 细节、rename 是否覆盖 `lastUsedAt`、提供方映射、最近使用显示、死代码），加上：①「锁定所有设备」session-epoch +1，走 L2 api，设置里给入口，文档注明 blog/book 受约 60 秒 epoch 缓存影响；② Turnstile 验证速度优化；③ 锁屏态首页 HTML 不再下发桌面内容（书单、歌单等），只下发锁屏需要的部分；④ 视觉回归重新生成基线，去掉 continue-on-error 改成阻塞。验收同上。
+- [ ] 2.8.0 清理（styrigx-space，可合并）：原有内容（命名弹层 One UI 细节、rename 是否覆盖 `lastUsedAt`、提供方映射、最近使用显示、死代码），加上：①「锁定所有设备」session-epoch +1，走 L2 api，设置里给入口，文档注明 blog/book 受约 60 秒 epoch 缓存影响；② Turnstile 验证速度优化；③ 锁屏态首页 HTML 不再下发桌面内容（书单、歌单等），只下发锁屏需要的部分；④ 视觉回归重新生成基线，去掉 continue-on-error 改成阻塞；⑤ 死代码彻底删除：不需要的旧代码、冗余代码全部删除，不再用 build:false 留着。范围：legacy-lock-screen 旧版全屏锁屏的代码和它在 features.yaml 的条目；其他 build:false 且不再需要的功能；死代码；未引用的资源、partials 和脚本；重复实现。PR 描述列出完整删除清单和理由。只删代码和已失效的测试，仍有效的测试覆盖不动。验收同上。
 - [ ] 3.0.0 应用商店重定义（styrigx-space，可合并）：商店=应用抽屉+安装管理，唯一应用入口；首页只留小组件卡片；Dock 固定我的文件/应用商店/浏览器/设置；版本只改 `data/version.yaml`（kernel: "3.0"，ui: "8.5"），不改 hugo.yaml。验收同上。
 
 ## 已完成
