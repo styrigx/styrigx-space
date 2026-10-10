@@ -37,7 +37,11 @@ markup:
 params:
   description: 'Sloan Gray 的个人门户'
   since: 2020
+<<<<<<< HEAD
   version: '2.4.2'
+=======
+  version: '2.4.1'
+>>>>>>> 9ceaa78 (feat: 2.4.1 主站真实锁屏（Ed25519 会话）)
   # 2.4.0 H：Turnstile 站点密钥（公开）
   turnstileSiteKey: '0x4AAAAAAFSBhpWkAwZr1SMA'
 

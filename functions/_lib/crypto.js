@@ -69,3 +69,42 @@ export async function hmacVerify(secret, purpose, payload, sig) {
   const expect = await hmacSign(secret, purpose, payload);
   return timingSafeEqual(sig, expect);
 }
+
+/**
+ * Ed25519 签名（主站签发会话 cookie 用）。
+ * @param {string} privatePem PKCS8 PEM 格式私钥
+ * @param {string} payload 待签名内容
+ * @returns {Promise<string>} base64url 签名
+ */
+export async function ed25519Sign(privatePem, payload) {
+  const pem = privatePem.replace(/-----[^-]+-----/g, '').replace(/\s/g, '');
+  const der = b64dec(pem);
+  const key = await crypto.subtle.importKey(
+    'pkcs8', der, { name: 'Ed25519' }, false, ['sign']
+  );
+  const sig = await crypto.subtle.sign('Ed25519', key, new TextEncoder().encode(payload));
+  return b64urlEnc(sig);
+}
+
+/**
+ * Ed25519 验签（blog/book 验证会话 cookie 用，主站自验也用）。
+ * @param {string} publicPem SPKI PEM 格式公钥
+ * @param {string} payload 原文
+ * @param {string} sigB64url base64url 签名
+ * @returns {Promise<boolean>}
+ */
+export async function ed25519Verify(publicPem, payload, sigB64url) {
+  try {
+    const pem = publicPem.replace(/-----[^-]+-----/g, '').replace(/\s/g, '');
+    const der = b64dec(pem);
+    const key = await crypto.subtle.importKey(
+      'spki', der, { name: 'Ed25519' }, false, ['verify']
+    );
+    const sig = b64dec(sigB64url.replace(/-/g, '+').replace(/_/g, '/'));
+    return await crypto.subtle.verify(
+      'Ed25519', key, sig, new TextEncoder().encode(payload)
+    );
+  } catch (e) {
+    return false;
+  }
+}
