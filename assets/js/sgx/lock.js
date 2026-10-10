@@ -30,6 +30,17 @@ const CHECK =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12.5l5 5 10-11"/></svg>';
 
 /**
+ * 是否本地开发（无 Functions 后端）。
+ * 测试可用 ?test-no-local-bypass=1 强制走线上逻辑（调 session-check）。
+ */
+function isLocalDev() {
+  try {
+    if (new URLSearchParams(location.search).has('test-no-local-bypass')) return false;
+  } catch (e) {}
+  return /^(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
+}
+
+/**
  * 初始化锁屏（全站；2.4.0 H）。
  */
 export function initLock() {
@@ -38,7 +49,7 @@ export function initLock() {
   /* Hark：legacy-lock-screen 和 owner-gate 是独立开关；
      只关旧锁屏时，owner-gate（Turnstile/密码）照常工作 */
   if (!SGX_FEAT_LEGACY_LOCK_SCREEN && !SGX_FEAT_OWNER_GATE) return;
-  const isLocal = /^(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
+  const isLocal = isLocalDev();
   if (isLocal) {
     /* 本地开发没有 Functions 后端，直接显示锁屏 */
     showLockScreen();
@@ -63,7 +74,7 @@ export function initLock() {
  */
 function showLockScreen() {
   const en = document.documentElement.lang === 'en';
-  const isLocal = /^(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
+  const isLocal = isLocalDev();
 
   /* 天气：和顶栏同一数据来源，取不到就不显示 */
   /** @returns {{icon: string, temp: string}|null} */
