@@ -240,8 +240,8 @@ jobs:
           prod = r["result"]["deployment_configs"]["production"]["env_vars"]
           names = sorted(prod.keys())
           print("production vars:", names)
-          # production 必须有这些，且 CI 不应增删
-          expected = ["OWNER_KEY", "SESSION_SECRET", "SGX_ORIGIN", "SGX_RP_ID", "TURNSTILE_SECRET"]
+          # production 必须有这些，且 CI 不应增删（2026-10-10：Gray 已配 SGX_SITE/密钥对，基线更新）
+          expected = ["OWNER_KEY", "SESSION_SECRET", "SGX_ED25519_PRIVATE", "SGX_ED25519_PUBLIC", "SGX_ORIGIN", "SGX_RP_ID", "SGX_SITE", "TURNSTILE_SECRET"]
           assert names == expected, f"unexpected: {names}"
           print("guard OK: production untouched")
           PYEOF
