@@ -43,6 +43,11 @@ jobs:
       - name: Install test deps
         run: npm install --no-save @playwright/test stylelint postcss-scss @lhci/cli http-server && npx playwright install chromium --with-deps
 
+      - name: Install CJK fonts
+        # 2.8.0：视觉回归对比中文截图；ubuntu-latest 默认中文字体与基线生成环境
+        # （Noto Sans CJK）不一致会导致 1-2% 像素漂移。装 Noto Sans CJK 对齐。
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk
+
       - name: Build CSS
         run: node scripts/build-css.cjs --minify
 
