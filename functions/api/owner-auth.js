@@ -6,7 +6,7 @@
  * - 通过：签发 5 分钟有效的 token（SESSION_SECRET HMAC 签名，scope=owner-auth，用途前缀 "owner-auth|"）
  * 只接受 POST；校验 Origin。
  */
-import { b64enc, b64urlEnc, timingSafeEqual, hmacSign } from '../_lib/crypto.js';
+import { b64enc, b64urlEnc, timingSafeEqual, hmacSign } from '../_kernel/crypto.js';
 
 /* 限流参数 */
 const IP_MAX_FAIL = 5;

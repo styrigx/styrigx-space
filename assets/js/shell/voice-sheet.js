@@ -3,9 +3,9 @@
  * 点麦克风后 showModal() + 底部语音卡片；识别中实时显示 interim 文字。
  * 原生 ::backdrop 做遮罩、Esc 关闭、焦点陷阱。
  */
-import { on } from './events.js';
-import { loadI18n } from './i18n.js';
-import { reducedMotion } from './util.js';
+import { on } from '../lib/events.js';
+import { loadI18n } from '../lib/i18n.js';
+import { reducedMotion } from '../lib/util.js';
 
 let vsOpen = false;
 

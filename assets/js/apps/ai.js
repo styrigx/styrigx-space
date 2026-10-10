@@ -2,12 +2,12 @@
  * @fileoverview AI 页：平台网格、收藏、输入框、语音、快捷键、全部打开。
  * 平台中英文说明为双语数据（JS 与语言无关）；toast 文案来自 sgx-i18n-ai JSON。
  */
-import { on } from './events.js';
-import { esc } from './util.js';
-import { loadI18n } from './i18n.js';
-import { toast } from './toast.js';
-import { voiceInput } from './voice.js';
-import { bindFavFallback } from './fav.js';
+import { on } from '../lib/events.js';
+import { esc } from '../lib/util.js';
+import { loadI18n } from '../lib/i18n.js';
+import { toast } from '../lib/toast.js';
+import { voiceInput } from '../shell/voice.js';
+import { bindFavFallback } from '../shell/fav.js';
 
 (function () {
   'use strict';

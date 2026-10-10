@@ -3,13 +3,13 @@
  * 视差壁纸 / 点击音效 / 快捷键 / 边缘光效 / 访客数字健康（只存本地）。
  * 2.4.0-G：开关经 features.js 统一读写；各模块另有 SGX_FEAT_* 编译期开关。
  */
-import { on } from './events.js';
-import { get, set } from './storage.js';
-import { get as featGet } from './features.js';
-import { loadI18n } from './i18n.js';
+import { on } from '../lib/events.js';
+import { get, set } from '../lib/storage.js';
+import { get as featGet } from '../lib/features.js';
+import { loadI18n } from '../lib/i18n.js';
 import { openSheet } from './sheet.js';
-import { reducedMotion } from './util.js';
-import { visibleInterval } from './scheduler.js';
+import { reducedMotion } from '../lib/util.js';
+import { visibleInterval } from '../lib/scheduler.js';
 
 /**
  * 读 Good Lock 模块开关（经 features.js，带编译期 build 默认）。

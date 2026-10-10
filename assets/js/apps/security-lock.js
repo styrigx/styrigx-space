@@ -6,8 +6,8 @@
  *   通行密钥列表（设备名可编辑、注册日期、可删除），底部「添加通行密钥」。
  * - 反馈一律 One UI 轻提示（toast）；localStorage 经 storage.js。
  */
-import { on } from './events.js';
-import { toast } from './toast.js';
+import { on } from '../lib/events.js';
+import { toast } from '../lib/toast.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';

@@ -5,9 +5,9 @@
  * - 右上 ⋮：刷新状态。
  * - localStorage 统一走 storage.js。
  */
-import { on } from './events.js';
-import { get as storeGet } from './storage.js';
-import { toast } from './toast.js';
+import { on } from '../lib/events.js';
+import { get as storeGet } from '../lib/storage.js';
+import { toast } from '../lib/toast.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';

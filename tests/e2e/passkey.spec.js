@@ -638,7 +638,7 @@ test.describe('session security e2e (2.4.1)', () => {
       expect(e1).toBe(e0 + 1);
 
       /* 再次解锁拿到新 cookie：epoch 已是 e0+1，旧 cookie 的 epoch 不再有效
-         （middleware 侧 ep < cur 拒绝，已由 tests/unit/session-security.test.mjs 覆盖） */
+         （middleware 侧 ep < cur 拒绝，已由 tests/kernel/session-security.test.mjs 覆盖） */
       r = await request.post(BASE + '/api/owner-password', {
         data: { action: 'verify', password: 'e2e-lockout-pw-1' },
       });

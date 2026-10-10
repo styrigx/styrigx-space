@@ -7,7 +7,7 @@
  * - 幂等：无会话时调用也是 {ok:true}。
  * - 只接受 POST。
  */
-import { clearVerifiedCookie } from '../_lib/session.js';
+import { clearVerifiedCookie } from '../_kernel/session.js';
 
 /**
  * @param {any} context

@@ -49,7 +49,13 @@ jobs:
       - name: Session security unit tests (2.4.1)
         # 服务端安全逻辑：cookie 设置/清除统一、KV fail closed、session-epoch 503、
         # middleware 缺密钥 fail closed、过期/旧 epoch cookie 被拒、return 白名单
-        run: node --test tests/unit/session-security.test.mjs
+        run: node --test tests/kernel/session-security.test.mjs
+
+      - name: Layer boundary check (SGX 3.0 分层规范)
+        # L0-L6 依赖方向：lib 不得 import shell/apps；shell 不得 import apps；
+        # 前端不得 import functions/；api/ 只能 import _kernel/；
+        # 前端禁止 sgx-verified/sgx-lock-shown；禁止用 storage 存解锁状态
+        run: node scripts/check-layers.mjs
 
       - name: Build site (生产构建，用于锁屏测试)
         run: hugo --minify

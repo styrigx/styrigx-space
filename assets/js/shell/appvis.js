@@ -3,8 +3,8 @@
  * 未安装的应用不在首页网格、抽屉、浏览器搜索出现；商店里仍列出；直接访问 URL 可用。
  * 切换后触发 sgx-settings-changed，各处即时生效不刷新。
  */
-import { on } from './events.js';
-import { getJSON, setJSON } from './storage.js';
+import { on } from '../lib/events.js';
+import { getJSON, setJSON } from '../lib/storage.js';
 
 /**
  * @returns {string[]} 已隐藏的应用 id 列表

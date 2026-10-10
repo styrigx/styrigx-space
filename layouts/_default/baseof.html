@@ -84,7 +84,7 @@
   }catch(e){}
 })();
 </script>
-{{/* 2.4.0-C：旧 __sgxGet/__sgxSet/__sgxFmtTz 已移入 ES Module（assets/js/sgx/storage.js、util.js），此处不再定义 */}}
+{{/* 2.4.0-C：旧 __sgxGet/__sgxSet/__sgxFmtTz 已移入 ES Module（assets/js/lib/storage.js、util.js），此处不再定义 */}}
 <script>
 /* 布局：auto/mobile/dex/pc —— 只看视口不嗅探 UA：竖屏 → Mobile；横屏且 <1600px → DeX；横屏且 ≥1600px → PC */
 function __layoutMode(){
@@ -145,7 +145,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 <body class="text-m-on-surface min-h-screen antialiased{{ if .IsHome }} has-dock{{ end }}{{ if not .IsHome }} subpage{{ end }}" data-page="{{ if or (eq .RelPermalink "/browser/") (eq .RelPermalink "/en/browser/") }}browser{{ else if eq .RelPermalink $filesUrl0 }}files{{ else if eq .RelPermalink $storeUrl0 }}store{{ else if eq .RelPermalink $setUrl0 }}settings{{ else if eq .RelPermalink $glUrl0 }}goodlock{{ end }}">
 {{ partial "sgx-icon-sprite.html" . }}
 <div id="sgx-wallpaper" aria-hidden="true"></div>
-{{/* 2.4.0-C：调度器 / 边缘模糊 / 可见性定时器已移入 ES Module（assets/js/sgx/），此处不再内联定义 */}}
+{{/* 2.4.0-C：调度器 / 边缘模糊 / 可见性定时器已移入 ES Module（assets/js/shell/），此处不再内联定义 */}}
 {{ $profile := site.Data.profile }}
 {{ $home := "/" }}{{ if $isEn }}{{ $home = "/en/" }}{{ end }}
 {{ $linksUrl := "/browser/" }}{{ if $isEn }}{{ $linksUrl = "/en/browser/" }}{{ end }}

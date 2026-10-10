@@ -4,20 +4,20 @@
  * Good Lock 全站模块、应用可见性、滚动边缘效果、布局钩子。
  * 必须跨脚本共享的最小 API 挂到 window.SGX（见 sgx.js）。
  */
-import { SGX } from './sgx.js';
-import { getScheduler, visibleInterval } from './scheduler.js';
+import { SGX } from '../lib/sgx.js';
+import { getScheduler, visibleInterval } from '../lib/scheduler.js';
 import { initNavHistory } from './navhistory.js';
 import { initSubHead } from './subhead.js';
-import { initThemeListener } from './theme.js';
-import { applyTheme, setThemeMode } from './theme.js';
+import { initThemeListener } from '../lib/theme.js';
+import { applyTheme, setThemeMode } from '../lib/theme.js';
 import { initNav } from './nav.js';
 import { initGoodLock } from './goodlock.js';
 import { initAppVisibility } from './appvis.js';
 import { initScrollFx } from './scrollfx.js';
 import { initDexBridge } from './layout.js';
 import { initLock } from './lock.js';
-import { on as featOn } from './features.js';
-import { toast } from './toast.js';
+import { on as featOn } from '../lib/features.js';
+import { toast } from '../lib/toast.js';
 import { openSheet, closeSheet } from './sheet.js';
 import { voiceInput } from './voice.js';
 import { voiceSheet } from './voice-sheet.js';

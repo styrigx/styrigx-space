@@ -34,10 +34,10 @@
  * - register 带 excludeCredentials 防重复注册
  * - KV 结构：每把一个 key（owner-passkey:<credId前12位>），字段顺序固定
  */
-import { b64enc, b64dec, b64urlEnc, timingSafeEqual, hmacSign, hmacVerify } from '../_lib/crypto.js';
+import { b64enc, b64dec, b64urlEnc, timingSafeEqual, hmacSign, hmacVerify } from '../_kernel/crypto.js';
 import {
   issueSessionCookie,
-} from '../_lib/session.js';
+} from '../_kernel/session.js';
 
 /* AAGUID → 密码管理器（只用于显示，不参与安全判断） */
 const AAGUID_PROVIDERS = {

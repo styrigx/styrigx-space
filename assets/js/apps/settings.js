@@ -3,17 +3,17 @@
  * 减弱动效、数字健康、重置、桌面双栏、设置搜索。
  * 文案来自页面内 sgx-i18n-settings JSON（中英双语），JS 与语言无关。
  */
-import { on } from './events.js';
-import { esc } from './util.js';
-import { get, set } from './storage.js';
-import { get as featGet, set as featSet, on as featOn } from './features.js';
-import { loadI18n } from './i18n.js';
-import { openSheet, closeSheet } from './sheet.js';
-import { setThemeMode } from './theme.js';
-import { engines } from './engines.js';
-import { getHiddenApps } from './appvis.js';
-import { wellLoad, wellFlush } from './goodlock.js';
-import { setCapSearchProvider } from './capsule.js';
+import { on } from '../lib/events.js';
+import { esc } from '../lib/util.js';
+import { get, set } from '../lib/storage.js';
+import { get as featGet, set as featSet, on as featOn } from '../lib/features.js';
+import { loadI18n } from '../lib/i18n.js';
+import { openSheet, closeSheet } from '../shell/sheet.js';
+import { setThemeMode } from '../lib/theme.js';
+import { engines } from '../shell/engines.js';
+import { getHiddenApps } from '../shell/appvis.js';
+import { wellLoad, wellFlush } from '../shell/goodlock.js';
+import { setCapSearchProvider } from '../shell/capsule.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';

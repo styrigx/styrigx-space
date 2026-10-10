@@ -2,12 +2,12 @@
  * @fileoverview 我的文件页：主页分组渲染、列表/网格模式、搜索、收藏、⋮ 菜单。
  * 文案来自页面内 files-i18n JSON（沿用旧格式）。
  */
-import { on } from './events.js';
-import { esc } from './util.js';
-import { getJSON, setJSON } from './storage.js';
-import { getScheduler } from './scheduler.js';
-import { openSheet } from './sheet.js';
-import { setCapSearchProvider } from './capsule.js';
+import { on } from '../lib/events.js';
+import { esc } from '../lib/util.js';
+import { getJSON, setJSON } from '../lib/storage.js';
+import { getScheduler } from '../lib/scheduler.js';
+import { openSheet } from '../shell/sheet.js';
+import { setCapSearchProvider } from '../shell/capsule.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';

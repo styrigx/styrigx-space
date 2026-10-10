@@ -1,7 +1,7 @@
 /**
  * @fileoverview 全站搜索快捷键 + 返回/Dock 历史逻辑（旧 sgx-base-a.js 上半）。
  */
-import { on, delegate } from './events.js';
+import { on, delegate } from '../lib/events.js';
 
 /**
  * 初始化：Cmd/Ctrl+K 跳浏览器页搜索；返回键与 Dock 的历史管理。

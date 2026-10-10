@@ -3,7 +3,7 @@
  * 通过 document 捕获阶段的 error 事件统一处理（img 需带 data-favname 属性），
  * 不再依赖内联 onerror 全局函数。
  */
-import { on } from './events.js';
+import { on } from '../lib/events.js';
 
 /**
  * 把加载失败的 img 替换为首字母占位。

@@ -1,13 +1,13 @@
 /**
  * @fileoverview 首页：双时钟、天气小组件、正在播放、封面批注、数字花园筛选。
  */
-import { on } from './events.js';
-import { get as featGet } from './features.js';
-import { visibleInterval } from './scheduler.js';
-import { openSheet } from './sheet.js';
-import { toast } from './toast.js';
-import { SGX } from './sgx.js';
-import { markAppIcon } from './vt.js';
+import { on } from '../lib/events.js';
+import { get as featGet } from '../lib/features.js';
+import { visibleInterval } from '../lib/scheduler.js';
+import { openSheet } from '../shell/sheet.js';
+import { toast } from '../lib/toast.js';
+import { SGX } from '../lib/sgx.js';
+import { markAppIcon } from '../lib/vt.js';
 
 /* 双时钟 */
 (function () {

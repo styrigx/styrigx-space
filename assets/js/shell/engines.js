@@ -3,8 +3,8 @@
  * localStorage key 保持 'sgx-search-engine' 不变；google 为默认，不存值（key 不存在即 google）。
  * 图标引用 layouts/partials/sgx-icon-sprite.html 里的 sgx-ic-eng-* 内联 SVG。
  */
-import { get, set } from './storage.js';
-import { on } from './events.js';
+import { get, set } from '../lib/storage.js';
+import { on } from '../lib/events.js';
 
 const LS = 'sgx-search-engine';
 
