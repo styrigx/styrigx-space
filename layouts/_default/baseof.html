@@ -10,7 +10,7 @@
 <meta name="theme-color" content="#f5f8fa">
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#10151a">
 <title>{{ if .IsHome }}Styrigx{{ else }}{{ .Title }} | Styrigx{{ end }}</title>
-<meta name="description" content="{{ if $isEn }}Sloan Gray’s personal portal{{ else }}{{ .Site.Params.description }}{{ end }}">
+<meta name="description" content="{{ if $isEn }}Sloan Gray’s personal space{{ else }}{{ .Site.Params.description }}{{ end }}">
 {{/* fix/hi-owner：/owner/ 不被搜索引擎收录 */}}
 {{ if or (eq .Layout "security") (eq .Layout "security-lock") }}<meta name="robots" content="noindex,nofollow">{{ end }}
 <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
