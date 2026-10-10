@@ -79,6 +79,9 @@ test('baseline-sheet-open', async ({ page: pg }) => {
   await freezeTime(pg);
   await pg.goto('/settings/manage/', { waitUntil: 'domcontentloaded' });
   await waitPageReady(pg);
+  /* 2.8.0：等目标行就绪（可能在折叠区下方） */
+  await pg.locator('#row-datetime').waitFor({ state: 'visible', timeout: 15000 });
+  await pg.locator('#row-datetime').scrollIntoViewIfNeeded();
   await pg.click('#row-datetime');
   /* 等原生 dialog 弹层打开 */
   await expect(pg.locator('dialog[open]').first()).toBeVisible({ timeout: 10000 });

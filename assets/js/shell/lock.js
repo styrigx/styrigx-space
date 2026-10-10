@@ -8,7 +8,6 @@
  * - 点头像（电脑回车/空格）→ 底部 dialog 验证卡（One UI 密码界面式）+ Turnstile；
  *   通过 → 开锁动画 → 现有解锁流程；失败 → 红色提示 + 重试。
  * - 本地开发（localhost）跳过验证。
- * - 2.4.0-G：SGX_FEAT_LEGACY_LOCK_SCREEN / SGX_FEAT_OWNER_GATE 编译期可移除。
  * - 安全与隐私：验证/密码/通行密钥三态共用同一个底部弹层组件（圆角、材质、
  *   拖动条、标题字号位置、按钮样式一致）；弹层背景完全不透明；打开时底层
  *   名字与入口设 visibility:hidden + inert；容器无 outline，:focus-visible 只在
@@ -46,9 +45,8 @@ function isLocalDev() {
 export function initLock() {
   /* Hark：CI 测试构建禁用锁屏（构建期 define，线上无绕过） */
   if (SGX_TEST_NO_LOCK) return;
-  /* Hark：legacy-lock-screen 和 owner-gate 是独立开关；
-     只关旧锁屏时，owner-gate（Turnstile/密码）照常工作 */
-  if (!SGX_FEAT_LEGACY_LOCK_SCREEN && !SGX_FEAT_OWNER_GATE) return;
+  /* 2.8.0：legacy-lock-screen 已彻底删除，只剩 owner-gate 开关 */
+  if (!SGX_FEAT_OWNER_GATE) return;
   const isLocal = isLocalDev();
   if (isLocal) {
     /* 本地开发没有 Functions 后端，直接显示锁屏 */
@@ -126,30 +124,23 @@ function showLockScreen() {
       : '') +
     '</div></div>' +
     '<div class="sgx-lock-user"><button type="button" id="sgx-lock-avatar" aria-label="' +
-    (en ? 'Unlock' : '解锁') +
-    '">' +
+    (en ? 'Unlock, choose method' : '解锁，选择方式') +
+    '" aria-haspopup="dialog">' +
     '<span class="sgx-lock-halo" aria-hidden="true"></span>' +
     (avatarSrc
       ? '<img src="' + avatarSrc + '" alt="Styrigx" width="72" height="72">'
       : '<span class="sgx-lock-fb" aria-hidden="true">S</span>') +
-    '</button><div class="sgx-lock-name">Styrigx</div>' +
-    /* 2.4.0 I：验证入口（Hark：owner-gate 控制） */
-    (SGX_FEAT_OWNER_GATE
-      ? '<div class="sgx-lock-links">' +
-        (window.PublicKeyCredential
-          ? '<button type="button" id="sgx-lock-pkbtn" class="sgx-lock-pwlink">' +
-            (en ? 'Use passkey' : '使用通行密钥') +
-            '</button>'
-          : '') +
-        '<button type="button" id="sgx-lock-pwlink" class="sgx-lock-pwlink">' +
-        (en ? 'Use password' : '使用密码') +
-        '</button></div>'
-      : '') +
+    '</button>' +
+    /* 2.8.0 锁屏重设计：只保留头像，删掉「Styrigx」文字；
+       「使用通行密钥」「使用密码」改成点击头像后弹底部选单 */
     '</div>';
   document.body.appendChild(ov);
   document.body.classList.add('sgx-locked');
   document.documentElement.style.overflow = 'hidden';
   document.body.style.overflow = 'hidden';
+
+  /* 2.8.0：锁屏显示时预加载 Turnstile（用户点验证时已就绪） */
+  preloadTurnstile();
 
   const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -452,6 +443,7 @@ function showLockScreen() {
       s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
       s.async = true;
       s.defer = true;
+      s.setAttribute('data-sgx-ts', '1');
       const to = window.setTimeout(function () {
         reject(new Error('timeout'));
       }, 8000);
@@ -463,8 +455,43 @@ function showLockScreen() {
         window.clearTimeout(to);
         reject(new Error('load'));
       };
-      document.head.appendChild(s);
+      /* 2.8.0：避免重复插入（预加载和验证时各调一次） */
+      if (!document.querySelector('script[data-sgx-ts]')) {
+        document.head.appendChild(s);
+      } else {
+        /* 脚本正在加载：轮询等待就绪 */
+        let n = 0;
+        const iv = window.setInterval(function () {
+          if (/** @type {any} */ (window).turnstile) {
+            window.clearInterval(iv);
+            window.clearTimeout(to);
+            resolve(true);
+          } else if (++n > 100) {
+            window.clearInterval(iv);
+          }
+        }, 100);
+      }
     });
+  }
+
+  /**
+   * 2.8.0 Turnstile 速度优化：锁屏显示时就预加载脚本（不阻塞），
+   * 用户点验证时 window.turnstile 已就绪，省去点击后的加载等待。
+   * Chrome/三星浏览器曾超过 10 秒，主因是点击后才开始加载。
+   */
+  function preloadTurnstile() {
+    try {
+      if (/** @type {any} */ (window).turnstile) return;
+      if (!siteKey()) return;
+      const run = function () {
+        loadTurnstile().catch(function () { /* 预加载失败不影响，验证时重试 */ });
+      };
+      if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(run, { timeout: 2000 });
+      } else {
+        window.setTimeout(run, 500);
+      }
+    } catch (e) {}
   }
 
   /* 验证态：加载中 */
@@ -573,6 +600,108 @@ function showLockScreen() {
         verifyFailed();
       }
     );
+  }
+
+  /**
+   * 2.8.0 锁屏重设计：点击头像后弹出的解锁方式选择底部弹层。
+   * One UI 风格：底部弹层（宽屏居中卡片），两个大选项（通行密钥首选），
+   * 各带图标和一行说明。点外部、Esc 或下滑关闭；键盘可操作。
+   */
+  let methodSheet = null;
+  function openMethodSheet() {
+    if (methodSheet) return;
+    const hasPk = !!(window.PublicKeyCredential);
+    /* 如果设备不支持通行密钥，直接走密码 */
+    if (!hasPk) {
+      openPw();
+      return;
+    }
+    const sheet = document.createElement('div');
+    sheet.id = 'sgx-method-sheet';
+    sheet.setAttribute('role', 'dialog');
+    sheet.setAttribute('aria-modal', 'true');
+    sheet.setAttribute('aria-label', en ? 'Choose unlock method' : '选择解锁方式');
+    sheet.innerHTML =
+      '<div class="sgx-sheet-backdrop" data-close></div>' +
+      '<div class="sgx-sheet-card" role="document">' +
+      '<div class="sheet-handle" aria-hidden="true"></div>' +
+      '<h2 class="sgx-sheet-title">' + (en ? 'Unlock' : '解锁') + '</h2>' +
+      '<button type="button" class="sgx-method-opt" id="sgx-mopt-pk" aria-label="' +
+        (en ? 'Use passkey, recommended' : '使用通行密钥，推荐') + '">' +
+      '<span class="sgx-method-ic" aria-hidden="true">' +
+      '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.9-.8"/></svg></span>' +
+      '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Passkey' : '通行密钥') + '</span>' +
+      '<span class="sgx-method-desc">' + (en ? 'Unlock with fingerprint or device PIN' : '用指纹或设备 PIN 解锁') + '</span></span>' +
+      '<span class="sgx-method-badge">' + (en ? 'Recommended' : '推荐') + '</span>' +
+      '</button>' +
+      '<button type="button" class="sgx-method-opt" id="sgx-mopt-pw" aria-label="' +
+        (en ? 'Use password' : '使用密码') + '">' +
+      '<span class="sgx-method-ic" aria-hidden="true">' +
+      '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>' +
+      '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Password' : '密码') + '</span>' +
+      '<span class="sgx-method-desc">' + (en ? 'Enter your unlock password' : '输入解锁密码') + '</span></span>' +
+      '</button>' +
+      '</div>';
+    document.body.appendChild(sheet);
+    methodSheet = sheet;
+    /* 动画：下一帧加 visible 触发过渡 */
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        sheet.classList.add('visible');
+      });
+    });
+    const close = function () { closeMethodSheet(); };
+    const pkBtn = sheet.querySelector('#sgx-mopt-pk');
+    const pwBtn = sheet.querySelector('#sgx-mopt-pw');
+    if (pkBtn) on(pkBtn, 'click', function () { close(); openPk(); });
+    if (pwBtn) on(pwBtn, 'click', function () { close(); openPw(); });
+    const backdrop = sheet.querySelector('[data-close]');
+    if (backdrop) on(backdrop, 'click', close);
+    /* Esc 关闭 */
+    const onKey = function (/** @type {KeyboardEvent} */ e) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        close();
+      }
+    };
+    on(document, 'keydown', onKey);
+    sheet._onKey = onKey;
+    /* 下滑关闭（touch） */
+    let startY = 0;
+    const card = sheet.querySelector('.sgx-sheet-card');
+    if (card) {
+      on(card, 'touchstart', function (/** @type {TouchEvent} */ e) {
+        if (e.touches.length === 1) startY = e.touches[0].clientY;
+      }, { passive: true });
+      on(card, 'touchend', function (/** @type {TouchEvent} */ e) {
+        if (e.changedTouches.length === 1) {
+          const dy = e.changedTouches[0].clientY - startY;
+          if (dy > 80) close();
+        }
+      });
+    }
+    /* 焦点移到第一个选项，键盘可操作 */
+    try {
+      if (pkBtn) pkBtn.focus({ preventScroll: true });
+    } catch (e) {}
+  }
+
+  function closeMethodSheet() {
+    if (!methodSheet) return;
+    const sheet = methodSheet;
+    methodSheet = null;
+    sheet.classList.remove('visible');
+    if (sheet._onKey) {
+      document.removeEventListener('keydown', sheet._onKey);
+    }
+    window.setTimeout(function () {
+      if (sheet.parentNode) sheet.parentNode.removeChild(sheet);
+      /* 焦点回到头像 */
+      try {
+        const av = document.getElementById('sgx-lock-avatar');
+        if (av) av.focus({ preventScroll: true });
+      } catch (e) {}
+    }, 250);
   }
 
   function openVerify() {
@@ -884,27 +1013,17 @@ function showLockScreen() {
       });
   }
 
-  /* ---------- 入口接线 ---------- */
-  const pwlink = document.getElementById('sgx-lock-pwlink');
-  if (pwlink) {
-    on(pwlink, 'click', function (e) {
-      e.stopPropagation();
-      openPw();
-    });
-  }
-  const pkbtn = document.getElementById('sgx-lock-pkbtn');
-  if (pkbtn && window.PublicKeyCredential) {
-    on(pkbtn, 'click', function (e) {
-      e.stopPropagation();
-      openPk();
-    });
-  }
-
+  /* ---------- 入口接线（2.8.0 锁屏重设计） ---------- */
+  /* 头像点击 → 解锁方式选择底部弹层（不再直进 Turnstile） */
   const av = document.getElementById('sgx-lock-avatar');
   if (av) {
     on(av, 'click', function (e) {
       e.stopPropagation();
-      openVerify();
+      if (!SGX_FEAT_OWNER_GATE) {
+        unlock();
+        return;
+      }
+      openMethodSheet();
     });
     try {
       av.focus(/** @type {any} */ ({ preventScroll: true }));
@@ -920,8 +1039,14 @@ function showLockScreen() {
       const t = /** @type {HTMLElement|null} */ (e.target);
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
       if (dlg && dlg.open) return;
+      if (methodSheet) return;
       e.preventDefault();
-      openVerify();
+      /* 2.8.0：键盘也走方式选择弹层 */
+      if (!SGX_FEAT_OWNER_GATE) {
+        unlock();
+        return;
+      }
+      openMethodSheet();
     }
   });
 

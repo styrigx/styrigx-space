@@ -11,6 +11,7 @@
 
 import { ed25519Verify } from './_kernel/crypto.js';
 import { SESSION_COOKIE } from './_kernel/session.js';
+import { isPublicPage } from './_kernel/public-pages.js';
 
 /* 读取方 cookie 名（diag 接口用它与写入方对账；必须与 SESSION_COOKIE 一致） */
 export const READER_COOKIE_NAME = SESSION_COOKIE;
@@ -117,10 +118,19 @@ export function isSafeReturn(ret) {
 export async function injectSessionState(res, state) {
   const ct = res.headers.get('Content-Type') || '';
   if (!ct.includes('text/html')) return res;
-  const html = await res.text();
+  let html = await res.text();
+  /* 2.8.0 锁屏瘦身：锁屏态不下发桌面内容（书单、歌单、小组件等），
+     只保留锁屏需要的部分（导航、头像、脚本）。 */
+  if (state === 'locked') {
+    html = html.replace(/<!-- SGX-DESKTOP-START -->[\s\S]*?<!-- SGX-DESKTOP-END -->/g, '');
+  }
   const injected = html.replace(/<html(\s|>)/i, '<html data-sgx-session="' + state + '"$1');
   const headers = new Headers(res.headers);
   headers.set('Cache-Control', 'private, no-store');
+  /* 2.8.0 搜索收录：锁屏态页面不被搜索引擎收录 */
+  if (state === 'locked') {
+    headers.set('X-Robots-Tag', 'noindex');
+  }
   return new Response(injected, {
     status: res.status,
     statusText: res.statusText,
@@ -288,13 +298,14 @@ export async function onRequest(context) {
     }
     /* 未验证：302 到首页锁屏，return 带站内路径（设计文档 §2.3）。
        首页有完整锁屏 UI（密码/通行密钥/Turnstile），解锁后跳回原内页。
-       no-store：绝不缓存这个跳转。 */
+       no-store：绝不缓存这个跳转。X-Robots-Tag: noindex：不被搜索引擎收录。 */
     const dest = 'https://styrigx.com/?lock=1&return=' + encodeURIComponent(url.pathname + url.search);
     return new Response(null, {
       status: 302,
       headers: {
         'Location': dest,
         'Cache-Control': 'no-store',
+        'X-Robots-Tag': 'noindex',
       },
     });
   }

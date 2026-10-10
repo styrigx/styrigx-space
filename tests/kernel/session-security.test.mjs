@@ -1022,3 +1022,42 @@ test('middleware：首页有会话 → 200 + data-sgx-session="valid"', async ()
   const html = await r.text();
   assert.ok(html.includes('data-sgx-session="valid"'), '应注入 valid 状态');
 });
+
+/* ============ 2.8.0：搜索收录 + 锁屏瘦身 ============ */
+
+test('2.8.0：锁屏态首页剥离桌面内容（SGX-DESKTOP markers）', async () => {
+  const { injectSessionState } = await import('../../functions/_middleware.js');
+  const html = '<html lang="zh"><head></head><body>' +
+    '<!-- SGX-DESKTOP-START --><div>书单歌单小组件</div><!-- SGX-DESKTOP-END -->' +
+    '<div id="nav">导航</div></body></html>';
+  const res = new Response(html, { headers: { 'Content-Type': 'text/html' } });
+  const out = await injectSessionState(res, 'locked');
+  const text = await out.text();
+  assert.ok(!text.includes('书单歌单小组件'), '锁屏态不应下发桌面内容');
+  assert.ok(text.includes('<div id="nav">导航</div>'), '锁屏需要的导航应保留');
+});
+
+test('2.8.0：锁屏态首页带 X-Robots-Tag: noindex', async () => {
+  const { injectSessionState } = await import('../../functions/_middleware.js');
+  const res = new Response('<html><body></body></html>', {
+    headers: { 'Content-Type': 'text/html' },
+  });
+  const locked = await injectSessionState(res, 'locked');
+  assert.equal(locked.headers.get('X-Robots-Tag'), 'noindex');
+  const res2 = new Response('<html><body></body></html>', {
+    headers: { 'Content-Type': 'text/html' },
+  });
+  const valid = await injectSessionState(res2, 'valid');
+  assert.equal(valid.headers.get('X-Robots-Tag'), null, '已解锁页面不应 noindex');
+});
+
+test('2.8.0：未验证 302 带 X-Robots-Tag: noindex', async () => {
+  const ctx = {
+    request: new Request('https://styrigx.com/store/'),
+    next: async () => new Response('x'),
+    env: PROD_ENV(),
+  };
+  const r = await mw(ctx);
+  assert.equal(r.status, 302);
+  assert.equal(r.headers.get('X-Robots-Tag'), 'noindex');
+});

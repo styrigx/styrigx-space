@@ -18,6 +18,21 @@ async function gotoLock(page) {
   await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
 }
 
+/* 2.8.0 锁屏重设计：点头像 → 底部弹层 → 选方式 */
+async function openMethodSheet(page) {
+  await page.click('#sgx-lock-avatar');
+  await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible({ timeout: 5000 });
+}
+async function choosePassword(page) {
+  await openMethodSheet(page);
+  await page.click('#sgx-mopt-pw');
+  await expect(page.locator('#sgx-pw-input')).toBeVisible({ timeout: 5000 });
+}
+async function choosePasskey(page) {
+  await openMethodSheet(page);
+  await page.click('#sgx-mopt-pk');
+}
+
 /* 断言两个元素的 boundingBox 不相交 */
 async function assertNoOverlap(page, loc1, loc2) {
   const b1 = await loc1.boundingBox();
@@ -77,12 +92,12 @@ test.describe('lock screen', () => {
        本地无后端，锁屏消失即视为解锁成功 */
   });
 
-  test('password link opens password dialog', async ({ page }) => {
+  test('password option opens password dialog (via avatar sheet)', async ({ page }) => {
     await freezeTime(page);
     await gotoLock(page);
-    const pwlink = page.locator('#sgx-lock-pwlink');
-    await expect(pwlink).toBeVisible();
-    await pwlink.click();
+    /* 2.8.0：点头像 → 弹层 → 选密码 */
+    await openMethodSheet(page);
+    await page.click('#sgx-mopt-pw');
     const dlg = page.locator('.sgx-verify-dlg');
     await expect(dlg).toBeVisible();
     /* 密码框存在 */
@@ -99,10 +114,9 @@ test.describe('lock screen', () => {
     await expect(avatar).toBeVisible();
     await expect(clock).toBeVisible();
 
-    /* 打开密码弹层 */
-    await page.click('#sgx-lock-pwlink');
+    /* 打开密码弹层（2.8.0：经头像弹层） */
+    await choosePassword(page);
     await expect(page.locator('.sgx-verify-dlg')).toBeVisible();
-    await expect(page.locator('#sgx-pw-input')).toBeVisible();
     /* 等淡出动画完成（opacity 变为 0） */
     await expect.poll(async () => {
       return await avatar.evaluate((el) => getComputedStyle(el).opacity);
@@ -135,7 +149,7 @@ test.describe('lock screen', () => {
       }
     });
     await gotoLock(page);
-    await page.click('#sgx-lock-pwlink');
+    await choosePassword(page);
     await page.fill('#sgx-pw-input', 'wrongpassword123');
     await page.click('#sgx-pw-go');
     /* 应提示密码错误（mock 返回 wrong） */
@@ -170,7 +184,7 @@ test.describe('lock screen', () => {
       }
     });
     await gotoLock(page);
-    await page.click('#sgx-lock-pwlink');
+    await choosePassword(page);
     const err = page.locator('#sgx-verify-err');
     /* 连续 5 次错误：每次等当次请求的响应回来，避免循环跑赢 fetch；
        Hark：submitPw 收到"密码错误"会清 input.value，和下一轮 fill 竞争，
@@ -259,7 +273,7 @@ test.describe('lock screen', () => {
     });
     await page.goto('/?lock=1&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
-    await page.click('#sgx-lock-pwlink');
+    await choosePassword(page);
     await page.fill('#sgx-pw-input', 'correctpassword');
     await page.click('#sgx-pw-go');
     /* session-check 401 → 显示"会话未生效"标题，锁屏保持（fail-closed） */
@@ -272,3 +286,39 @@ test.describe('lock screen', () => {
 
 
 
+/* 2.8.0 锁屏重设计 e2e */
+test.describe('lock screen redesign (2.8.0)', () => {
+  test('点头像 → 底部弹层 → 选通行密钥/密码', async ({ page }) => {
+    await freezeTime(page);
+    await gotoLock(page);
+    /* 只有头像，没有 Styrigx 文字和常驻链接 */
+    await expect(page.locator('#sgx-lock-avatar')).toBeVisible();
+    await expect(page.locator('.sgx-lock-name')).toHaveCount(0);
+    await expect(page.locator('#sgx-lock-pwlink')).toHaveCount(0);
+    await expect(page.locator('#sgx-lock-pkbtn')).toHaveCount(0);
+    /* 点头像 → 弹层出现 */
+    await openMethodSheet(page);
+    /* 两个选项：通行密钥在前（首选），密码在后 */
+    const pkOpt = page.locator('#sgx-mopt-pk');
+    const pwOpt = page.locator('#sgx-mopt-pw');
+    await expect(pkOpt).toBeVisible();
+    await expect(pwOpt).toBeVisible();
+    await expect(pkOpt.locator('.sgx-method-badge')).toContainText(/推荐|Recommended/);
+    /* 选密码 → 密码框出现 */
+    await pwOpt.click();
+    await expect(page.locator('#sgx-pw-input')).toBeVisible();
+  });
+
+  test('弹层可关闭（Esc/点外部）', async ({ page }) => {
+    await freezeTime(page);
+    await gotoLock(page);
+    await openMethodSheet(page);
+    /* Esc 关闭 */
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#sgx-method-sheet')).toHaveCount(0);
+    /* 重新打开，点外部关闭 */
+    await openMethodSheet(page);
+    await page.locator('.sgx-sheet-backdrop').click({ position: { x: 10, y: 10 } });
+    await expect(page.locator('#sgx-method-sheet')).toHaveCount(0);
+  });
+});

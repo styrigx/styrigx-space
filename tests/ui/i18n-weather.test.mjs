@@ -119,12 +119,10 @@ test('G/build:false：feature.html 有 build 判断逻辑', () => {
     featureHtml.includes('build'),
     'feature.html 应检查 build 字段'
   );
-  // 验证 legacy-lock-screen 已设为 build:false
-  const legacySection = featuresYaml.slice(featuresYaml.indexOf('- id: legacy-lock-screen'));
-  const legacyBlock = legacySection.slice(0, legacySection.indexOf('- id:', 10));
+  // 2.8.0：legacy-lock-screen 已彻底删除，不再用 build:false 留着
   assert.ok(
-    legacyBlock.includes('build: false'),
-    'legacy-lock-screen 应设为 build:false（旧版锁屏，已被 L4 新实现替代）'
+    !featuresYaml.includes('legacy-lock-screen'),
+    'legacy-lock-screen 应已从 features.yaml 彻底删除（2.8.0 死代码清理）'
   );
 });
 

@@ -69,23 +69,22 @@ jobs:
           hugo --minify
           SGX_TEST_SUITE=lock npx playwright test --config=playwright.config.js --grep-invert "baseline screenshot"
 
-      - name: Lock screen baseline screenshot (report-only)
-        # Hark：截图对 CI 环境敏感，先仅报告不阻塞；基线修稳后再改回阻塞
-        continue-on-error: true
+      - name: Lock screen baseline screenshot
+        # 2.8.0：基线已重新生成，改成阻塞（失败即 CI 红）
         run: |
           SGX_TEST_SUITE=lock npx playwright test --config=playwright.config.js --grep "baseline screenshot"
 
-      - name: Lock flags test (LEGACY=false, OWNER_GATE=true)
-        # Hark：开关解耦真跑（对应构建），不用假 skip
+      - name: Lock flags test (owner-gate on, default build)
+        # 2.8.0：legacy-lock-screen 已删除，只剩 owner-gate 开关；默认构建下锁屏正常出现
         run: |
-          SGX_TEST_LEGACY=0 hugo --minify
-          SGX_TEST_SUITE=lock SGX_TEST_FLAGS=legacy-off npx playwright test --config=playwright.config.js lock-flags.spec.js
+          hugo --minify
+          SGX_TEST_SUITE=lock npx playwright test --config=playwright.config.js lock-flags.spec.js
 
-      - name: Lock flags test (both flags off)
-        # Hark：两个开关都关，锁屏完全不出现
+      - name: Lock flags test (owner-gate off)
+        # owner-gate 关：锁屏完全不出现
         run: |
-          SGX_TEST_LEGACY=0 SGX_TEST_OWNER_GATE=0 hugo --minify
-          SGX_TEST_SUITE=lock SGX_TEST_FLAGS=both-off npx playwright test --config=playwright.config.js lock-flags.spec.js
+          SGX_TEST_OWNER_GATE=0 hugo --minify
+          SGX_TEST_SUITE=lock SGX_TEST_FLAGS=gate-off npx playwright test --config=playwright.config.js lock-flags.spec.js
 
       - name: Upload lock test artifacts on failure
         # Hark：失败时上传，便于拿真实报错
@@ -110,11 +109,8 @@ jobs:
           SGX_TEST_NO_WEATHER: "1"
 
       - name: Visual regression
-        # Hark（2026-10-09）：临时仅报告、不阻塞。原因：现有 62 张基线不是在 CI
-        # 里生成的（字体渲染像素差），且接下来的 Dock/PC 布局改版会让它们全部失效。
-        # 恢复条件：改版完成后，在 CI 里重新生成基线并提交，然后去掉本 continue-on-error。
-        # 注意：不要再被别的提交 revert 掉本行（a8f4dffa 曾误删）。
-        continue-on-error: true
+        # 2.8.0：基线已重新生成（140 张页面截图），改成阻塞（失败即 CI 红）。
+        # 注意：不要再被别的提交加回 continue-on-error（a8f4dffa 曾误删本行）。
         run: npx playwright test --config=playwright.config.js
 
       - name: PC layout assertions（2.5.0 栅格/Dock/顶栏对齐，阻塞）

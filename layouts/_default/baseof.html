@@ -464,8 +464,8 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{/* Hark：测试构建期禁用锁屏（CI 专用，SGX_TEST_NO_LOCK=1）；生产构建绝不设置 */}}
 {{ $testNoLock := eq (getenv "SGX_TEST_NO_LOCK") "1" }}
 {{ $featDefines = merge $featDefines (dict "SGX_TEST_NO_LOCK" (cond $testNoLock "true" "false")) }}
-{{/* Hark：CI 锁屏开关解耦测试专用（CI 专用，生产构建绝不设置） */}}
-{{ if eq (getenv "SGX_TEST_LEGACY") "0" }}{{ $featDefines = merge $featDefines (dict "SGX_FEAT_LEGACY_LOCK_SCREEN" "false") }}{{ end }}
+{{/* Hark：CI 锁屏开关测试专用（CI 专用，生产构建绝不设置）。
+   2.8.0：legacy-lock-screen 已彻底删除，只剩 owner-gate 开关 */}}
 {{ if eq (getenv "SGX_TEST_OWNER_GATE") "0" }}{{ $featDefines = merge $featDefines (dict "SGX_FEAT_OWNER_GATE" "false") }}{{ end }}
 {{/* Hark：CI 测试构建禁用天气组件（CI 专用，生产构建绝不设置）；
    天气依赖外网（/api/geo + Open-Meteo），CI 里不稳定会导致

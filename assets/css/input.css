@@ -1903,7 +1903,11 @@
   #sgx-lock-avatar {
     position: relative; width: 80px; height: 80px; border-radius: 50%; border: 0; padding: 0;
     background: none; cursor: pointer;
+    /* 2.8.0：可点击提示（轻微按压缩放） */
+    transition: transform .15s ease;
     &:focus { outline: none; }
+    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 4px; }
+    &:active { transform: scale(.93); }
     img { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; display: block; margin: 4px; position: relative; z-index: 1; }
   }
   .sgx-lock-fb {
@@ -1917,14 +1921,60 @@
     .reduced-motion & { animation: none; }
   }
   @keyframes sgx-lock-halo { 0%,100% { transform: scale(1); opacity: .55; } 50% { transform: scale(1.1); opacity: .95; } }
-  .sgx-lock-name { font-size: 20px; font-weight: 700; color: var(--m-on-surface); }
-  /* 2.4.0 I：验证入口小字链接 */
-  .sgx-lock-links { display: flex; gap: 8px; justify-content: center; }
-  .sgx-lock-pwlink {
-    background: none; border: 0; padding: 4px 12px; cursor: pointer;
-    font-size: 13px; font-weight: 500; color: var(--m-on-surface-variant);
-    text-decoration: underline; text-underline-offset: 3px;
+  /* 2.8.0 锁屏重设计：解锁方式选择底部弹层（One UI 风格） */
+  #sgx-method-sheet {
+    position: fixed; inset: 0; z-index: 10002;
+    visibility: hidden; opacity: 0; transition: opacity .22s ease, visibility .22s;
+    &.visible { visibility: visible; opacity: 1; }
+    .reduced-motion & { transition: none; }
   }
+  .sgx-sheet-backdrop {
+    position: absolute; inset: 0; background: rgba(0,0,0,.45);
+  }
+  .sgx-sheet-card {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: var(--m-surface); border-radius: 1.75rem 1.75rem 0 0;
+    padding: 8px 20px calc(24px + env(safe-area-inset-bottom,0px));
+    display: flex; flex-direction: column; gap: 12px; align-items: stretch;
+    transform: translateY(102%); transition: transform .3s cubic-bezier(.22,1,.36,1);
+    #sgx-method-sheet.visible & { transform: none; }
+    .reduced-motion & { transition: none; }
+    @media (min-width: 768px) {
+      /* 宽屏居中卡片 */
+      left: 50%; right: auto; bottom: auto; top: 50%;
+      transform: translate(-50%,-46%) scale(.96); width: 380px; max-width: calc(100vw - 48px);
+      border-radius: 1.75rem;
+      opacity: 0;
+      #sgx-method-sheet.visible & { transform: translate(-50%,-50%) scale(1); opacity: 1; }
+    }
+  }
+  .sgx-sheet-title {
+    font-size: 18px; font-weight: 700; color: var(--m-on-surface);
+    text-align: center; margin: 4px 0 4px;
+  }
+  .sgx-method-opt {
+    display: flex; align-items: center; gap: 16px; text-align: left;
+    background: var(--m-surface-container-highest);
+    border: 1px solid var(--m-outline-variant); border-radius: 16px;
+    padding: 16px; cursor: pointer; width: 100%;
+    transition: transform .12s ease, border-color .15s ease;
+    &:active { transform: scale(.98); }
+    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
+  }
+  .sgx-method-ic {
+    width: 48px; height: 48px; border-radius: 14px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--m-primary-container); color: var(--m-on-primary-container);
+  }
+  .sgx-method-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .sgx-method-name { font-size: 16px; font-weight: 600; color: var(--m-on-surface); }
+  .sgx-method-desc { font-size: 13px; color: var(--m-on-surface-variant); }
+  .sgx-method-badge {
+    font-size: 12px; font-weight: 600; color: var(--m-on-primary);
+    background: var(--m-primary); border-radius: 999px; padding: 4px 10px; flex-shrink: 0;
+  }
+  /* 2.4.0 I：验证入口小字链接 */
+  /* 2.8.0 锁屏重设计：.sgx-lock-links/.sgx-lock-pwlink 已删除（改成底部弹层选单） */
   .sgx-pw-input {
     width: 100%; max-width: 280px; padding: 12px 16px; font-size: 16px;
     border: 1px solid var(--m-outline); border-radius: 12px;
@@ -2018,6 +2068,18 @@
   .sgx-verify-title { font-size: 18px; font-weight: 700; color: var(--m-on-surface); margin: 0; }
   .sgx-verify-box { display: flex; justify-content: center; min-height: 65px; align-items: center; }
   .sgx-verify-err { color: var(--m-rose); font-size: 14px; margin: 0; text-align: center; }
+  /* 2.8.0：命名弹层输入框 One UI 样式（之前 class 存在但无样式定义） */
+  .sgx-verify-input {
+    width: 100%; max-width: 320px;
+    background: var(--m-surface-container-highest);
+    border: 1px solid var(--m-outline-variant);
+    border-radius: 12px;
+    padding: 12px 16px;
+    font-size: 16px; color: var(--m-on-surface);
+    outline: none;
+    &::placeholder { color: var(--m-on-surface-variant); opacity: .7; }
+    &:focus { border-color: var(--m-primary); box-shadow: 0 0 0 1px var(--m-primary); }
+  }
   .sgx-verify-fallback { color: var(--m-on-surface-variant); font-size: 14px; margin: 0 0 8px; }
   .sgx-verify-skip {
     background: var(--m-primary); color: var(--m-on-primary);

@@ -1,14 +1,12 @@
-{{/* 安全与隐私 + 设置子页：noindex 页面（security / security-lock / settings-sub）不进 sitemap。 */}}
+{{/* 2.8.0 搜索收录整理：sitemap 只收录未登录返回 200 的公开页。
+   公开页清单来自 data/public-pages.yaml（与 L1 middleware 的
+   functions/_kernel/public-pages.js 共用数据源，测试保证同步）。
+   锁住的页面（/store/、/settings/、/browser/ 等）一律不进 sitemap。 */}}
 {{ printf "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>" | safeHTML }}
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  {{ range .Data.Pages }}
-  {{ if and (ne .Layout "security") (ne .Layout "security-lock") (ne .Layout "settings-sub") }}
+  {{ range (index .Site.Data "public-pages").pages }}
   <url>
-    <loc>{{ .Permalink }}</loc>{{ if not .Lastmod.IsZero }}
-    <lastmod>{{ safeHTML ( .Lastmod.Format "2006-01-02T15:04:05-07:00" ) }}</lastmod>{{ end }}{{ with .Sitemap.ChangeFreq }}
-    <changefreq>{{ . }}</changefreq>{{ end }}{{ if ge .Sitemap.Priority 0.0 }}
-    <priority>{{ .Sitemap.Priority }}</priority>{{ end }}
+    <loc>{{ $.Site.BaseURL }}{{ strings.TrimPrefix "/" . }}</loc>
   </url>
-  {{ end }}
   {{ end }}
 </urlset>
