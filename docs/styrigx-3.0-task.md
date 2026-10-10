@@ -10,6 +10,12 @@
 - [] 2.4.1 主站 #10（styrigx-space，只开不合）：修 hugo 构建报错。分支 `feat/2.4.1-portal-lock`。验收：CI 全绿。Gray 未配 `SGX_ED25519_PRIVATE`/`SGX_ED25519_PUBLIC`，不合并。
 - [] 2.4.1 blog #4（styrigx-blog，只开不合）：给 workflow 加 `pull_request` 触发让 PR 跑 CI，然后修到绿。分支 `feat/2.4.1-blog-lock`。验收：CI 全绿。Gray 未配 `SGX_ED25519_PUBLIC`，不合并。
 - [] 2.4.1 book（styrigx-book，只开不合）：【等用户】等 Gray 给 `styrigx-book-deploy` token 加 Contents 与 Pull requests 读写权限，轮到时跳过。
+- [] README 动态徽章（styrigx-space，可合并）：徽章不再手写版本号。
+  1. Hugo 版本单源：deploy.yml 顶层 env 定义 HUGO_VERSION，两处 job 引用。
+  2. Tailwind 三包统一同版本；若只用 CLI 构建，删 postcss 插件与 postcss.config.js；更新 lock。
+  3. README 中英同步改 shields.io 动态徽章（flat-square、2563eb、带 logo）：Hugo 读 deploy.yml $.env.HUGO_VERSION；Tailwind 读 package-lock.json 实际安装版本；新增 Styrigx UI 徽章读 hugo.yaml params 版本。
+  4. PR 里贴三徽章实际渲染结果。
+  验收：CI 全绿 → 合并。
 - [] 2.5.0 布局模式（styrigx-space，可合并）：#11 部署成功后从 main 开分支。验收：CI 全绿 → 合并 → 生产部署 run 全绿 → 线上验证。
 - [] 2.6.0 设置二级页 + 关于（styrigx-space，可合并）：设置顶层只留账户卡 + 分类列表，选项进子页；关于页保留站点优点。验收同上。
 - [] 2.7.0 语言 / G / 天气（styrigx-space，可合并）：语言跟随系统/中文/English；G 按 `build:false` 清单；天气定位顺序手动城市 > 精确定位（不自动弹权限）> IP 兜底。验收同上。
