@@ -95,6 +95,7 @@ function hideNeutralLoading(div) {
  */
 function showLockScreen() {
   const en = document.documentElement.lang === 'en';
+  const isLocal = /^(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
 
   /* 天气：和顶栏同一数据来源，取不到就不显示 */
   /** @returns {{icon: string, temp: string}|null} */

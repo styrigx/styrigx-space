@@ -218,7 +218,20 @@ export async function onRequest(context) {
     }
 
     if (await verifySession(request, env)) {
-      return next();
+      const res = await next();
+      /* 2.4.1：受保护 HTML 页面防浏览器缓存绕过锁屏。
+         只改 text/html，静态资源保持原缓存策略。 */
+      const ct = res.headers.get('Content-Type') || '';
+      if (ct.includes('text/html')) {
+        const headers = new Headers(res.headers);
+        headers.set('Cache-Control', 'private, no-store');
+        return new Response(res.body, {
+          status: res.status,
+          statusText: res.statusText,
+          headers,
+        });
+      }
+      return res;
     }
     if (isWhitelisted(pathname)) {
       return next();
