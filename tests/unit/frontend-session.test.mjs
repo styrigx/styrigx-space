@@ -89,6 +89,8 @@ test('lock.js：锁屏显示期间监听 visibilitychange/focus/pageshow 重查�
   assert.ok(lockJs.includes('recheckSession'), '应有 recheckSession 函数');
   /* 节流至少 1 秒 */
   assert.ok(lockJs.includes('lastRecheck'), '应有节流时间戳');
+  /* pageshow 只在 bfcache 恢复时重查，避免 reload 循环 */
+  assert.ok(lockJs.includes('persisted'), 'pageshow 应检查 persisted');
 });
 
 test('lock.js：不用前端存储传递解锁状态', () => {

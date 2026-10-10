@@ -240,7 +240,11 @@ function showLockScreen() {
       if (document.visibilityState === 'visible') recheckSession();
     });
     window.addEventListener('focus', recheckSession);
-    window.addEventListener('pageshow', recheckSession);
+    /* pageshow：只在 bfcache 恢复时（persisted=true）重查，初始加载不查
+       （初始加载时 showLockScreen 已经按 L1 状态画过屏，避免 reload 循环）。 */
+    window.addEventListener('pageshow', function (e) {
+      if (e && e.persisted) recheckSession();
+    });
   }
 
   /* 会话没生效：停在锁屏，显示友好错误，不跳转（允许重试） */

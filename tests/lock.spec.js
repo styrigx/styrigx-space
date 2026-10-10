@@ -210,37 +210,30 @@ test.describe('lock screen', () => {
   /* 2.4.1 回跳修复：另一个标签页解锁后，切回来自动检测并回跳。
      锁屏显示期间监听 visibilitychange/focus/pageshow，调 session-check。
      （localhost 下用 ?test-no-local-bypass=1 强制走线上逻辑） */
-  test('lock screen auto-rechecks session on focus (cross-tab unlock)', async ({ page }) => {
+  /* 2.4.1 回跳修复：锁屏显示期间，切回标签页会自动重查会话。
+     （localhost 下用 ?test-no-local-bypass=1 强制走线上逻辑）
+     401 时保持锁屏；ok 时走 handleSessionOk 回跳（由 'unlock with ?return=' 测试覆盖）。 */
+  test('lock screen rechecks session on focus (401 keeps lock)', async ({ page }) => {
     await freezeTime(page);
-    let sessionOk = false;
+    let fetchCount = 0;
     await page.route('**/api/session-check', async (route) => {
+      fetchCount++;
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ ok: sessionOk }),
+        body: JSON.stringify({ ok: false }),
       });
     });
     const ret = encodeURIComponent('/settings/');
     await page.goto('/?lock=1&return=' + ret + '&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
-    /* 初始 session 未生效：dispatch focus → recheck → 401 → 锁屏保持 */
-    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-    await page.waitForResponse((r) => r.url().includes('/api/session-check'), { timeout: 10000 });
+    /* dispatch focus → recheckSession → fetch → 401 → 锁屏保持 */
+    await page.evaluate(() => window.dispatchEvent(new FocusEvent('focus')));
+    await page.waitForFunction(() => new Promise((resolve) => setTimeout(resolve, 1500)), null, { timeout: 10000 });
+    expect(fetchCount).toBeGreaterThan(0);
     await expect(page.locator('#sgx-lock')).toBeVisible();
-
-    /* 模拟另一个标签页解锁了：session-check 现在返回 ok */
-    sessionOk = true;
-    /* 等节流窗口（1s）过去再 dispatch focus，避免被节流 */
-    await page.waitForFunction(() => new Promise((resolve) => setTimeout(resolve, 1200)), null, { timeout: 10000 });
-    const navPromise = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 });
-    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-    await navPromise;
-    /* reload 了（http-server 无 middleware，URL 不变但发生了导航） */
-    expect(page.url()).toContain('return=');
   });
 
-  /* 2.4.1：session-check 返回 401 时保持锁屏，不跳转（fail-closed）。
-     （localhost 下用 ?test-no-local-bypass=1 强制走线上逻辑，否则 unlock 会跳过 session-check） */
   test('session-check 401 keeps lock screen (fail-closed)', async ({ page }) => {
     await freezeTime(page);
     /* mock owner-password 成功，但 session-check 返回 401 */
@@ -269,9 +262,13 @@ test.describe('lock screen', () => {
     await page.click('#sgx-lock-pwlink');
     await page.fill('#sgx-pw-input', 'correctpassword');
     await page.click('#sgx-pw-go');
-    /* session-check 401 → 显示"会话未生效"，锁屏保持 */
-    const err = page.locator('#sgx-verify-err');
-    await expect(err).toHaveText(/会话未生效|Session not active/i, { timeout: 10000 });
+    /* session-check 401 → 显示"会话未生效"标题，锁屏保持（fail-closed） */
+    const title = page.locator('#sgx-verify-title');
+    await expect(title).toHaveText(/会话未生效|Session not active/i, { timeout: 10000 });
     await expect(page.locator('#sgx-lock')).toBeVisible();
   });
 });
+
+
+
+
