@@ -9,6 +9,9 @@ on:
       - main
   workflow_dispatch:
 
+env:
+  HUGO_VERSION: '0.167.0'
+
 jobs:
   # 2.4.0 E：质量闸门 —— 视觉回归 + Lighthouse CI + stylelint，不达标不部署
   # Hark：PR 也跑 quality，变绿再合入 main；只有 main 的 push 才部署
@@ -21,7 +24,7 @@ jobs:
       - name: Setup Hugo
         uses: peaceiris/actions-hugo@v3
         with:
-          hugo-version: '0.167.0'
+          hugo-version: ${{ env.HUGO_VERSION }}
           extended: true
 
       - name: Setup Node
@@ -134,7 +137,7 @@ jobs:
       - name: Setup Hugo
         uses: peaceiris/actions-hugo@v3
         with:
-          hugo-version: '0.167.0'
+          hugo-version: ${{ env.HUGO_VERSION }}
           extended: true
 
       - name: Setup Node
@@ -266,7 +269,7 @@ jobs:
       - name: Setup Hugo
         uses: peaceiris/actions-hugo@v3
         with:
-          hugo-version: '0.167.0'
+          hugo-version: ${{ env.HUGO_VERSION }}
           extended: true
 
       - name: Setup Node
