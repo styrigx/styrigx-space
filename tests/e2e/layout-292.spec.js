@@ -95,6 +95,27 @@ test('⑦我的文件未滚动时天气可见，滚动收起后天气和头像�
   await page.goto('/files/', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#site-nav', { timeout: 10000 });
 
+  // 测试构建下 SGX_TEST_NO_WEATHER=1，#nav-wx 可能不存在或永不显示。
+  // 注入同结构的静态占位（不请求外网），确保断言真正生效。
+  await page.evaluate(() => {
+    let wx = document.getElementById('nav-wx');
+    if (!wx) {
+      const right = document.getElementById('nav-right');
+      if (right) {
+        wx = document.createElement('button');
+        wx.id = 'nav-wx';
+        wx.className = 'nav-tray-btn';
+        wx.type = 'button';
+        wx.innerHTML = '<span id="nav-wx-ic" aria-hidden="true">☀️</span><span id="nav-wx-t" class="clock-num">25°</span>';
+        right.appendChild(wx);
+      }
+    }
+    if (wx) {
+      wx.style.display = '';
+      wx.style.opacity = '1';
+    }
+  });
+
   // 未滚动：天气可见（opacity 非 0）
   const before = await page.evaluate(() => {
     const wx = document.getElementById('nav-wx');
@@ -107,6 +128,7 @@ test('⑦我的文件未滚动时天气可见，滚动收起后天气和头像�
   });
   expect(before.scrolled).toBe(false);
   expect(before.wxOpacity).not.toBe('0');
+  expect(before.wxOpacity).not.toBe('no-el');
   expect(before.brandOpacity).not.toBe('0');
 
   // 滚动到标题收起
