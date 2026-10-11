@@ -21,6 +21,10 @@ import assert from 'node:assert/strict';
 
 const REPO = new URL('../../', import.meta.url).pathname;
 
+/* 恢复开关 KV 键名（固定为 recovery-switch，见 functions/_kernel/recswitch.js） */
+const { SWITCH_KV_KEY } = await import('../../functions/_kernel/recswitch.js');
+assert.equal(SWITCH_KV_KEY, 'recovery-switch');
+
 /* 简易 KV mock */
 function makeKv(init) {
   const m = new Map(Object.entries(init || {}));
@@ -238,7 +242,7 @@ function makeD1() {
 function switchEnv(kv, db, switchVal) {
   const env = baseEnv(kv, { SGX_D1: db });
   if (switchVal !== undefined) {
-    kv._store.set('recovery-switch', switchVal);
+    kv._store.set(SWITCH_KV_KEY, switchVal);
   }
   return env;
 }
@@ -303,14 +307,11 @@ test('2.11 开关：过期（24h+）→ 关闭', async () => {
   const { checkRecoverySwitch } = await import(REPO + 'functions/_kernel/recswitch.js');
   const kv = makeKv();
   const db = makeD1();
-  kv._store.set('recovery-switch', 'old-secret');
+  kv._store.set(SWITCH_KV_KEY, 'old-secret');
   /* 预置 25 小时前的记录 */
   const t = new Map();
   t.set('fakehash', { first_seen: Date.now() - 25 * 3600 * 1000, used: 0 });
   db._tables.set('recovery_switch', t);
-  /* 需要真实 hash：先算出来 */
-  const { SWITCH_KV_KEY } = await import(REPO + 'functions/_kernel/recswitch.js');
-  assert.equal(SWITCH_KV_KEY, 'recovery-switch');
   /* 用 checkRecoverySwitch 验证过期逻辑（hash 不匹配时走 first-seen，这里直接测时间逻辑） */
   const r = await checkRecoverySwitch(kv, db);
   /* 新值 → first-seen → valid */
@@ -350,7 +351,7 @@ test('2.11 开关：KV 失败 → fail closed', async () => {
 test('2.11 开关：D1 缺失/失败 → fail closed', async () => {
   const { checkRecoverySwitch } = await import(REPO + 'functions/_kernel/recswitch.js');
   const kv = makeKv();
-  kv._store.set('recovery-switch', 'some-secret');
+  kv._store.set(SWITCH_KV_KEY, 'some-secret');
   /* D1 未绑定 */
   const r1 = await checkRecoverySwitch(kv, null);
   assert.equal(r1.valid, false);
@@ -366,10 +367,10 @@ test('2.11 开关：根凭证错误时不读开关 KV', async () => {
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
   const origGet = kv.get;
   kv.get = async function (k, t) {
-    if (k === 'recovery-switch') switchRead = true;
+    if (k === SWITCH_KV_KEY) switchRead = true;
     return origGet(k, t);
   };
-  kv._store.set('recovery-switch', 'secret');
+  kv._store.set(SWITCH_KV_KEY, 'secret');
   const db = makeD1();
   const env = baseEnv(kv, { SGX_D1: db });
   const req = postReq('https://test.example.com/api/lockreset', {
@@ -553,7 +554,7 @@ test('2.11 补充二：管理页（layer-status，有效会话）触发开关计
   const { signSessionCookie } = await import(REPO + 'functions/_kernel/session.js');
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1', 'session-epoch': '0' });
   const db = makeD1();
-  kv._store.set('recovery-switch', 'timer-secret-1');
+  kv._store.set(SWITCH_KV_KEY, 'timer-secret-1');
   const env = baseEnv(kv, { SGX_D1: db });
   const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
   const req = new Request('https://test.example.com/api/layer-status', {
@@ -573,7 +574,7 @@ test('2.11 补充二：计时 24 小时后，开关在重置路径上已失效',
   const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
   const db = makeD1();
-  kv._store.set('recovery-switch', 'timer-secret-1');
+  kv._store.set(SWITCH_KV_KEY, 'timer-secret-1');
   /* 先触发计时 */
   const { touchRecoverySwitch } = await import(REPO + 'functions/_kernel/recswitch.js');
   const env0 = baseEnv(kv, { SGX_D1: db });
@@ -599,10 +600,10 @@ test('2.11 补充二：访客请求 layer-status → 401，且不读开关 KV', 
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
   const origGet = kv.get;
   kv.get = async function (k, t) {
-    if (k === 'recovery-switch') switchRead = true;
+    if (k === SWITCH_KV_KEY) switchRead = true;
     return origGet(k, t);
   };
-  kv._store.set('recovery-switch', 'timer-secret-1');
+  kv._store.set(SWITCH_KV_KEY, 'timer-secret-1');
   const db = makeD1();
   const env = baseEnv(kv, { SGX_D1: db });
   /* 无会话 */
