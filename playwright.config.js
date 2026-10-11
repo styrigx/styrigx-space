@@ -21,6 +21,8 @@ module.exports = defineConfig({
   },
   use: {
     baseURL: 'http://localhost:8931',
+    /* 固定时区：避免 CI 与本地时区不同导致时钟截图差异 */
+    timezoneId: 'Asia/Shanghai',
   },
   reporter: [['list'], ['html', { open: 'never' }]],
 });

@@ -65,7 +65,16 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
                 { id: 'book-fixture-b-en', type: 'book', lang: 'en', title: 'Fixture Book B', subtitle: 'Author B', url: '/en/books/fixture-b/', cover: '/covers/fixture-b.png', addedAt: '2026-10-05' },
                 { id: 'book-fixture-c-en', type: 'book', lang: 'en', title: 'Fixture Book C', subtitle: 'Author C', url: '/en/books/fixture-c/', cover: '/covers/fixture-c.png', addedAt: '2026-10-01' },
               ];
-              data.items = kept.concat(books);
+              /* 固定文章 fixture（rss 被锁屏 302，真数据拿不到；用固定 2 篇保证"最近添加"稳定） */
+              const posts = [
+                { id: 'post-fixture-a', type: 'post', lang: 'zh', title: 'Fixture Post A', url: 'https://blog.styrigx.com/post/fixture-a/', addedAt: '2026-10-07' },
+                { id: 'post-fixture-b', type: 'post', lang: 'zh', title: 'Fixture Post B', url: 'https://blog.styrigx.com/post/fixture-b/', addedAt: '2026-10-03' },
+                { id: 'post-fixture-a-en', type: 'post', lang: 'en', title: 'Fixture Post A', url: 'https://blog.styrigx.com/en/post/fixture-a/', addedAt: '2026-10-07' },
+                { id: 'post-fixture-b-en', type: 'post', lang: 'en', title: 'Fixture Post B', url: 'https://blog.styrigx.com/en/post/fixture-b/', addedAt: '2026-10-03' },
+              ];
+              /* 去掉原有的 post 条目（可能为 0 或不稳定），换成固定 fixture */
+              const noPosts = kept.filter((it) => it.type !== 'post');
+              data.items = noPosts.concat(books).concat(posts);
               await route.fulfill({ response: res, json: data });
             });
             /* Hark：route 用前后双星号通配（实际请求可能带查询参数），带 CORS 头 */
@@ -210,6 +219,22 @@ test('baseline-engine-menu', async ({ page: pg }) => {
   await expect(pg).toHaveScreenshot('baseline-engine-menu.png', { animations: 'disabled' });
 });
 
+
+/* 2.8.0：站点卡片链接 href 非空且不等于当前页（中英） */
+test('site-card-href-valid', async ({ page: pg }) => {
+  for (const lang of ['', '/en']) {
+    const base = lang + '/files/';
+    await pg.goto(base, { waitUntil: 'domcontentloaded' });
+    await pg.locator('[data-home-group="sites"] .files-rows li a').first().waitFor({ timeout: 15000 });
+    const hrefs = await pg.locator('[data-home-group="sites"] .files-rows li a').evaluateAll((els) =>
+      els.map((e) => e.getAttribute('href'))
+    );
+    for (const href of hrefs) {
+      if (!href || href.trim() === '') throw new Error(`Empty site href on ${base}`);
+      if (href === base || href === pg.url()) throw new Error(`Site href equals current page on ${base}: ${href}`);
+    }
+  }
+});
 
 /* 2.8.0：站点卡片标题非空断言（中英）。data/sites.yaml 的 title 字段缺失会导致中文站名空白（线上真 bug）。 */
 test('site-card-titles-nonempty', async ({ page: pg }) => {
