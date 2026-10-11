@@ -11,8 +11,8 @@
  * key 确实不存在时才返回 {epoch:0}（与主站 getSessionEpoch 一致）。
  * app-epoch:<aud> 缺失视为 0；读取出错 → 503。
  *
- * 注意：「锁定所有设备」（session-epoch +1）走 /api/owner-password
- * 的 lockout action（已有实现），不在这里另起 endpoint。
+ * 注意：「锁定所有设备」（session-epoch +1）走 /api/lock-all-devices；
+ * 改密码/删密码/删锁屏密钥时也各自 +1（见 owner-password.js、owner-passkey.js）。
  * blog/book 缓存 epoch 约 60 秒（Cache-Control: max-age=60），
  * 锁定后 blog/book 最多 60 秒内生效。
  *

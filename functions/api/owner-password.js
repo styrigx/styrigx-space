@@ -27,6 +27,7 @@ import {
   ROLE_OWNER,
 } from '../_kernel/session.js';
 import { verifyStepupCookie } from './stepup.js';
+import { verifySessionDetailed } from '../_middleware.js';
 
 const ITERATIONS = 100000; // Workers PBKDF2 上限（实测：超过抛 NotSupportedError）
 const SALT_LEN = 16;
@@ -62,13 +63,21 @@ async function handlePost(context) {
   if (request.method !== 'POST') {
     return Response.json({ ok: false, error: 'method' }, { status: 405 });
   }
-  try {
+  /* 2.10.2：Origin 必须存在、可解析且 host 一致（CSRF 防护）；
+     缺失或解析失败一律 403，不再放行。 */
+  {
     const origin = request.headers.get('Origin') || '';
-    const url = new URL(request.url);
-    if (origin && new URL(origin).host !== url.host) {
+    let originOk = false;
+    try {
+      const url = new URL(request.url);
+      originOk = !!origin && new URL(origin).host === url.host;
+    } catch (e) {
+      originOk = false;
+    }
+    if (!originOk) {
       return Response.json({ ok: false, error: 'origin' }, { status: 403 });
     }
-  } catch (e) {}
+  }
   if (!kv) {
     return Response.json({ ok: false, error: 'config' }, { status: 500 });
   }
@@ -86,13 +95,16 @@ async function handlePost(context) {
   const failKey = 'pw-fail:' + ip;
   const lockKey = 'pw-lock:' + ip;
 
-  /* 检查是否被锁定 */
+  /* 检查是否被锁定。2.10.2：KV 出错时抛错（调用方返回 503，fail closed），
+     不再静默放行。 */
   async function isLocked() {
     try {
       const v = await kv.get(lockKey);
       if (v && Number(v) > Date.now()) return true;
       if (v) await kv.delete(lockKey);
-    } catch (e) {}
+    } catch (e) {
+      throw new Error('kv-error');
+    }
     return false;
   }
 
@@ -108,7 +120,9 @@ async function handlePost(context) {
         await kv.delete(failKey);
         return true; // 刚被锁定
       }
-    } catch (e) {}
+    } catch (e) {
+      throw new Error('kv-error');
+    }
     return false;
   }
 
@@ -121,7 +135,13 @@ async function handlePost(context) {
 
   /* ============ verify：解锁验证 ============ */
   if (action === 'verify') {
-    if (await isLocked()) {
+    let locked = false;
+    try {
+      locked = await isLocked();
+    } catch (e) {
+      return Response.json({ ok: false, error: 'server' }, { status: 503 });
+    }
+    if (locked) {
       return Response.json({ ok: false, error: 'locked' }, { status: 429 });
     }
     const password = (body && body.password) || '';
@@ -146,10 +166,15 @@ async function handlePost(context) {
       ok = await timingSafeEqual(hashB64, stored.hash);
     } catch (e) {}
     if (!ok) {
-      const locked = await recordFail();
+      let justLocked = false;
+      try {
+        justLocked = await recordFail();
+      } catch (e) {
+        return Response.json({ ok: false, error: 'server' }, { status: 503 });
+      }
       return Response.json(
-        { ok: false, error: locked ? 'locked' : 'wrong' },
-        { status: locked ? 429 : 403 }
+        { ok: false, error: justLocked ? 'locked' : 'wrong' },
+        { status: justLocked ? 429 : 403 }
       );
     }
     await clearFail();
@@ -167,9 +192,13 @@ async function handlePost(context) {
     return new Response(JSON.stringify({ ok: true }), { headers });
   }
 
-  /* ============ set/change/remove：2.10.0 需 sgx-stepup ============
+  /* ============ set/change/remove：2.10.2 需 owner 会话 + sgx-stepup ============
      2.8.0：lockout 已拆为独立 L2 API /api/lock-all-devices（只认 owner 会话）。 */
   if (action === 'set' || action === 'change' || action === 'remove') {
+    const sessP = await verifySessionDetailed(request, env);
+    if (!sessP.ok || sessP.role !== ROLE_OWNER) {
+      return Response.json({ ok: false, error: 'session' }, { status: 401 });
+    }
     const sv = await verifyStepupCookie(request, env);
     if (!sv.ok) {
       return Response.json({ ok: false, error: 'stepup-required' }, { status: 403 });

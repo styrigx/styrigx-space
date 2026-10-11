@@ -267,13 +267,15 @@ async function verifyOneCookie(val, env) {
   const payload = role + '.' + epochStr + '.' + expStr;
   if (!(await ed25519Verify(pubKey, payload, sig))) return { status: 'bad-sig', role: null };
 
-  /* epoch 检查：cookie 的 epoch 必须 >= KV 中的 session-epoch */
+  /* epoch 检查：cookie 的 epoch 必须 >= KV 中的 session-epoch。
+     2.10.2：无 OWNER_KV 时 fail closed（不再跳过检查）。 */
   try {
-    if (env && env.OWNER_KV) {
-      const cur = parseInt(await env.OWNER_KV.get('session-epoch') || '0', 10) || 0;
-      const ep = parseInt(epochStr, 10) || 0;
-      if (ep < cur) return { status: 'epoch-low', role: null };
+    if (!env || !env.OWNER_KV) {
+      return { status: 'kv-error', role: null };
     }
+    const cur = parseInt(await env.OWNER_KV.get('session-epoch') || '0', 10) || 0;
+    const ep = parseInt(epochStr, 10) || 0;
+    if (ep < cur) return { status: 'epoch-low', role: null };
   } catch (e) {
     return { status: 'kv-error', role: null };
   }
@@ -323,9 +325,21 @@ export async function onRequest(context) {
      verifySession 直接返回 false → fail closed，只放白名单路径。
      没有「未配置就放行」开关。）
      2.8.0 会话角色分离：L1 是唯一按角色放行的地方。
-     分层规范 L1：middleware 是唯一决定是否已解锁的地方。 */
+     分层规范 L1：middleware 是唯一决定是否已解锁的地方。
+     2.10.2：SGX_SITE 不是 'space' 一律拒绝（fail closed，与子站一致；
+     配错站点名不再静默放行）。 */
   const site = env && env.SGX_SITE;
-  if (isProd && (!site || site === 'space')) {
+  if (isProd && site !== 'space') {
+    console.error('[sgx-mw] SGX_SITE misconfigured: ' + JSON.stringify(site));
+    if (pathname.startsWith('/api/')) {
+      return new Response(JSON.stringify({ ok: false, error: 'config' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+      });
+    }
+    return new Response('Server misconfigured', { status: 500 });
+  }
+  if (isProd && site === 'space') {
     const isHomepage = pathname === '/' || pathname === '/en' || pathname === '/en/';
     const sess = await verifySessionDetailed(request, env);
     const sessionValid = sess.ok;

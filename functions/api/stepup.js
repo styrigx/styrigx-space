@@ -1,7 +1,8 @@
 /**
  * 二次验证（step-up authentication）。
  *
- * 高敏操作（上传、删除、替换封面）前要求 owner 再次用 Passkey 验证。
+ * 主站安全设置的高敏操作（改密码/删密码、通行密钥增删/重命名）前，
+ * 要求 owner 先用锁屏类通行密钥再验证一次（10 分钟有效）。
  * 安全逻辑与登录共用 ../_kernel/passkey-verify.js（只有一套）。
  *
  * POST /api/stepup
@@ -135,13 +136,21 @@ async function handlePost(context) {
   if (request.method !== 'POST') {
     return Response.json({ ok: false, error: 'method' }, { status: 405 });
   }
-  try {
+  /* 2.10.2：Origin 必须存在、可解析且 host 一致（CSRF 防护）；
+     缺失或解析失败一律 403，不再放行。 */
+  {
     const origin = request.headers.get('Origin') || '';
-    const url = new URL(request.url);
-    if (origin && new URL(origin).host !== url.host) {
+    let originOk = false;
+    try {
+      const url = new URL(request.url);
+      originOk = !!origin && new URL(origin).host === url.host;
+    } catch (e) {
+      originOk = false;
+    }
+    if (!originOk) {
       return Response.json({ ok: false, error: 'origin' }, { status: 403 });
     }
-  } catch (e) {}
+  }
   if (!kv) return Response.json({ ok: false, error: 'config' }, { status: 500 });
 
   let body;

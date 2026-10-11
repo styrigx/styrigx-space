@@ -73,7 +73,7 @@ test('security.js：解锁入口显示只看 sgx:session（不用 storage）', (
   assert.ok(!js.includes('sgx-lock-shown'), '不应出现 sgx-lock-shown');
 });
 
-test('/api/lock：POST 下发两条 Set-Cookie 清除头', async () => {
+test('/api/lock：POST 下发 Set-Cookie 清除头（2.10.2：含 stepup 和 app）', async () => {
   const res = await lockPost({ request: new Request('https://styrigx.com/api/lock', { method: 'POST' }), env: {} });
   assert.equal(res.status, 200);
   const j = await res.json();
@@ -82,14 +82,17 @@ test('/api/lock：POST 下发两条 Set-Cookie 清除头', async () => {
   const cookies = typeof res.headers.getSetCookie === 'function'
     ? res.headers.getSetCookie()
     : [res.headers.get('set-cookie')];
-  assert.equal(cookies.length, 2, '应下发两条 Set-Cookie');
+  assert.equal(cookies.length, 4, '应下发四条 Set-Cookie（verified x2 + stepup + app）');
   const withDomain = cookies.find((c) => c.includes('Domain=.styrigx.com'));
   const hostOnly = cookies.find((c) => !c.includes('Domain='));
   assert.ok(withDomain, '应有一条带 Domain=.styrigx.com');
   assert.ok(hostOnly, '应有一条不带 Domain（清 host-only）');
   assert.ok(withDomain.includes('Max-Age=0'), '带 Domain 的应 Max-Age=0');
   assert.ok(hostOnly.includes('Max-Age=0'), '不带 Domain 的应 Max-Age=0');
-  assert.ok(cookies.every((c) => c.startsWith('sgx-verified=;')), '都应是 sgx-verified 清除');
+  const verified = cookies.filter((c) => c.startsWith('sgx-verified=;'));
+  assert.equal(verified.length, 2, '应有两条 sgx-verified 清除');
+  assert.ok(cookies.some((c) => c.startsWith('sgx-stepup=;')), '2.10.2：应清除 sgx-stepup');
+  assert.ok(cookies.some((c) => c.startsWith('sgx-app=;')), '2.10.2：应清除 sgx-app');
 });
 
 test('/api/lock：GET 返回 405', async () => {

@@ -105,6 +105,12 @@ async function mintStepupCookie() {
   return await signStepupCookie(STEPUP_PRIV_PEM, 0);
 }
 
+/* 2.10.2：签发测试用 owner 会话 cookie */
+async function mintSessionCookie() {
+  const { signSessionCookie } = await import('../../functions/_kernel/session.js');
+  return await signSessionCookie(TEST_PRIV_PEM, 0, 'owner');
+}
+
 /* owner-auth token（测试内签发，与服务端 verifyOwnerToken 同逻辑） */
 async function mintOwnerToken(secret) {
   const raw = JSON.stringify({ scope: 'owner-auth', exp: Date.now() + 300000 });
@@ -114,9 +120,12 @@ async function mintOwnerToken(secret) {
 }
 
 function postReq(url, body, headers = {}) {
+  /* 2.10.2：真实浏览器 POST 必带 Origin；测试默认带上 */
+  const h = { 'Content-Type': 'application/json', 'Origin': 'https://styrigx.com', ...headers };
+  if (headers.Origin === null) delete h['Origin'];
   return new Request(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...headers },
+    headers: h,
     body: JSON.stringify(body),
   });
 }
@@ -340,14 +349,15 @@ test('lock-all-devices：旧三段式（无 role）cookie → 401 无效', async
   assert.equal(kv.store.get('session-epoch'), '2');
 });
 
-test('change/remove 密码：KV 出错 → 503（2.10.0：需 sgx-stepup）', async () => {
+test('change/remove 密码：KV 出错 → 503（2.10.0：需 sgx-stepup；2.10.2：需 owner 会话）', async () => {
   const broken = makePutBrokenKV();
   const stepup = await mintStepupCookie();
-  const env = { OWNER_KV: broken, SESSION_SECRET: 's', SGX_STEPUP_PUBLIC: STEPUP_PUB_PEM };
+  const sess = await mintSessionCookie();
+  const env = { OWNER_KV: broken, SESSION_SECRET: 's', SGX_STEPUP_PUBLIC: STEPUP_PUB_PEM, SGX_LOCK_PUBLIC: TEST_PUB_PEM };
   /* set 会先写 owner-pw 成功，然后 bump 抛错 → 503 */
   const r = await pwPost({
     request: postReq('https://styrigx.com/api/owner-password', { action: 'set', password: 'another-pass-1' },
-      { 'Cookie': 'sgx-stepup=' + stepup }),
+      { 'Cookie': 'sgx-verified=' + sess + '; sgx-stepup=' + stepup }),
     env,
   });
   assert.equal(r.status, 503);

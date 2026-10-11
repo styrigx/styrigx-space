@@ -75,9 +75,14 @@ async function genTestKeys() {
 }
 
 function postReq(url, body, headers = {}) {
+  /* 2.10.2：真实浏览器 POST 必带 Origin；测试默认带上（与请求 URL 同 host） */
+  let defaultOrigin = 'https://styrigx.com';
+  try { defaultOrigin = new URL(url).origin; } catch (e) {}
+  const h = { 'Content-Type': 'application/json', 'Origin': defaultOrigin, ...headers };
+  if (headers.Origin === null) delete h['Origin'];
   return new Request(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...headers },
+    headers: h,
     body: JSON.stringify(body),
   });
 }
