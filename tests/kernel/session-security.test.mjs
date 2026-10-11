@@ -1121,7 +1121,7 @@ async function visitorCookie(epoch = 0) {
   return await signSessionCookie(TEST_PRIV_PEM, epoch, 'visitor');
 }
 
-test('2.8.0：visitor 可以访问桌面（/），owner 可以访问设置', async () => {
+test('2.9.3：visitor 可以访问桌面（/）、设置（/settings/）、文件（/files/），owner 可以访问安全锁屏', async () => {
   const vCookie = await visitorCookie(0);
   const htmlNext = async () => new Response('<html lang="zh"><head></head><body></body></html>', {
     status: 200,
@@ -1140,8 +1140,16 @@ test('2.8.0：visitor 可以访问桌面（/），owner 可以访问设置', asy
   const html = await r.text();
   assert.ok(html.includes('data-sgx-role="visitor"'), '应注入 visitor 角色');
 
-  /* visitor 访问设置 → 302 到锁屏 */
+  /* 2.9.3：visitor 访问设置 → 200（可进） */
   r = await mw(mwCtx('https://styrigx.com/settings/', { cookie: vCookie, env: PROD_ENV() }));
+  assert.equal(r.status, 200);
+
+  /* 2.9.3：visitor 访问文件 → 200（可进） */
+  r = await mw(mwCtx('https://styrigx.com/files/', { cookie: vCookie, env: PROD_ENV() }));
+  assert.equal(r.status, 200);
+
+  /* 2.9.3：visitor 访问安全锁屏 → 302 到锁屏（主人专属） */
+  r = await mw(mwCtx('https://styrigx.com/settings/security/lock/', { cookie: vCookie, env: PROD_ENV() }));
   assert.equal(r.status, 302);
   assert.ok(r.headers.get('Location').includes('?lock=1'));
 
@@ -1149,6 +1157,38 @@ test('2.8.0：visitor 可以访问桌面（/），owner 可以访问设置', asy
   const oCookie = await validCookie(0);
   r = await mw(mwCtx('https://styrigx.com/settings/', { cookie: oCookie, env: PROD_ENV() }));
   assert.equal(r.status, 200);
+});
+
+test('2.9.3：visitor 进 /settings/display/、/settings/security/ 严格 200', async () => {
+  const vCookie = await visitorCookie(0);
+  for (const p of ['/settings/display/', '/settings/security/', '/en/settings/', '/en/settings/security/']) {
+    const r = await mw(mwCtx('https://styrigx.com' + p, { cookie: vCookie, env: PROD_ENV() }));
+    assert.equal(r.status, 200, 'visitor 访问 ' + p + ' 应严格 200');
+  }
+});
+
+test('2.9.3：visitor 进 /settings/security/lock/ 只跳一次，目标不再跳', async () => {
+  const vCookie = await visitorCookie(0);
+  // 第一次：302 到锁屏
+  let r = await mw(mwCtx('https://styrigx.com/settings/security/lock/', { cookie: vCookie, env: PROD_ENV() }));
+  assert.equal(r.status, 302);
+  const loc = r.headers.get('Location');
+  assert.ok(loc.includes('?lock=1'), '应跳到锁屏');
+  // 第二次：带着 return 回首页，不再 302（防死循环）
+  const returnUrl = 'https://styrigx.com/?return=' + encodeURIComponent('/settings/security/lock/');
+  const htmlNext = async () => new Response('<html lang="zh"><head></head><body></body></html>', {
+    status: 200,
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+  });
+  const ctx = {
+    request: new Request(returnUrl, { headers: { 'Cookie': 'sgx-verified=' + vCookie } }),
+    next: htmlNext,
+    env: PROD_ENV(),
+  };
+  r = await mw(ctx);
+  assert.equal(r.status, 200, '首页带 return 不应再 302');
+  const html = await r.text();
+  assert.ok(html.includes('data-sgx-upgrade="1"'), '应注入升级验证层标记');
 });
 
 test('2.8.0：visitor 调用主人 API → 403', async () => {
@@ -1165,6 +1205,79 @@ test('2.8.0：visitor 调用主人 API → 403', async () => {
   const r = await mw(ctx);
   assert.equal(r.status, 403);
   assert.deepEqual(await r.json(), { ok: false, error: 'role' });
+});
+
+test('2.9.3：visitor 调主人专属 API 都是 403（owner-password/lock-all-devices/stepup）', async () => {
+  const vCookie = await visitorCookie(0);
+  for (const api of ['/api/owner-password', '/api/lock-all-devices', '/api/stepup']) {
+    const ctx = {
+      request: new Request('https://styrigx.com' + api, {
+        method: 'POST',
+        headers: { 'Cookie': 'sgx-verified=' + vCookie, 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+      next: async () => new Response('SHOULD-NOT-REACH'),
+      env: PROD_ENV(),
+    };
+    const r = await mw(ctx);
+    assert.equal(r.status, 403, api + ' 应对 visitor 返回 403');
+  }
+});
+
+test('2.9.3：无会话调非白名单主人 API 是 401', async () => {
+  // /api/owner-password 和 /api/owner-passkey 在白名单里（升级验证用），无会话时放行到 handler
+  // /api/lock-all-devices 和 /api/stepup 不在白名单，无会话 → 401
+  for (const api of ['/api/lock-all-devices', '/api/stepup']) {
+    const ctx = {
+      request: new Request('https://styrigx.com' + api, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+      next: async () => new Response('SHOULD-NOT-REACH'),
+      env: PROD_ENV(),
+    };
+    const r = await mw(ctx);
+    assert.equal(r.status, 401, api + ' 无会话应返回 401');
+  }
+});
+
+test('2.9.3：middleware 放行 visitor 的 POST /api/lock（调 next）', async () => {
+  const vCookie = await visitorCookie(0);
+  let nextCalled = false;
+  const ctx = {
+    request: new Request('https://styrigx.com/api/lock', {
+      method: 'POST',
+      headers: { 'Cookie': 'sgx-verified=' + vCookie },
+    }),
+    next: async () => {
+      nextCalled = true;
+      return new Response('PASSED-TO-HANDLER', { status: 200 });
+    },
+    env: PROD_ENV(),
+  };
+  const r = await mw(ctx);
+  assert.ok(nextCalled, 'visitor 调 /api/lock 应调用 next()');
+  assert.equal(await r.text(), 'PASSED-TO-HANDLER', '应返回 handler 的响应');
+});
+
+test('2.9.3：POST /api/lock handler 返回 200 并清除 sgx-verified', async () => {
+  const { onRequestPost } = await import('../../functions/api/lock.js');
+  const vCookie = await visitorCookie(0);
+  for (const cookie of [vCookie, null]) {
+    const r = await onRequestPost({
+      request: new Request('https://styrigx.com/api/lock', {
+        method: 'POST',
+        headers: cookie ? { 'Cookie': 'sgx-verified=' + cookie } : {},
+      }),
+      env: PROD_ENV(),
+    });
+    assert.equal(r.status, 200, (cookie ? 'visitor' : '无会话') + ' 调 handler 应 200');
+    assert.deepEqual(await r.json(), { ok: true });
+    const setCookie = r.headers.get('Set-Cookie') || '';
+    assert.ok(setCookie.includes('sgx-verified=') && setCookie.includes('Max-Age=0'),
+      '应清除 sgx-verified cookie');
+  }
 });
 
 test('2.8.0：旧三段式 cookie（无 role）一律无效', async () => {

@@ -152,5 +152,39 @@ import { toast } from '../lib/toast.js';
     if (st) updateUnlockRow(st === 'valid');
   } catch (e) {}
 
+  /* 2.9.3：访客在安全总览页看到主人专属入口时加锁图标，
+     点击就地弹出通行密钥验证（手机底部/DeX 居中），通过则升级为 owner 并进入。
+     失败/取消留在原页，不跳转。 */
+  try {
+    var role = document.documentElement.dataset.sgxRole;
+    if (role === 'visitor') {
+      var ownerRows = [document.getElementById('sec-unlock-methods'), document.getElementById('sec-lock-row')];
+      ownerRows.forEach(function (row) {
+        if (!row) return;
+        row.hidden = false; // 访客也显示，但加锁图标
+        // 加锁图标
+        var lockBadge = document.createElement('span');
+        lockBadge.className = 'sec-owner-lock';
+        lockBadge.innerHTML = '🔒';
+        lockBadge.setAttribute('aria-label', '需要主人验证');
+        row.appendChild(lockBadge);
+        // 拦截点击，就地验证
+        row.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          // 触发升级验证（复用 upgrade.js 的对话框）
+          document.documentElement.setAttribute('data-sgx-upgrade', '1');
+          document.documentElement.setAttribute('data-sgx-upgrade-return', row.getAttribute('href') || '/settings/security/lock/');
+          import('../shell/upgrade.js').then(function (m) {
+            if (m.initUpgrade) m.initUpgrade();
+          }).catch(function () {});
+        }, true);
+      });
+      // 锁定所有设备对访客隐藏（API 也会 403）
+      var lockAllBtn = document.getElementById('sec-lockall');
+      if (lockAllBtn) lockAllBtn.style.display = 'none';
+    }
+  } catch (e) {}
+
   refresh(true);
 })();

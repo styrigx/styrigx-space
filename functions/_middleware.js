@@ -13,12 +13,13 @@ import { ed25519Verify } from './_kernel/crypto.js';
 import { SESSION_COOKIE, ROLE_OWNER, ROLE_VISITOR } from './_kernel/session.js';
 import { isPublicPage } from './_kernel/public-pages.js';
 
-/* 2.8.0 会话角色分离：主人专属路径（visitor 访问 → 302 到锁屏） */
+/* 2.9.3 访客权限收窄：只有安全锁屏页是主人专属。
+   访客可进：/settings/ 及其子页、/settings/security/ 总览、/files/（中英文）。
+   主人专属：/settings/security/lock/（改密码、通行密钥管理等）。
+   visitor 访问主人专属路径 → 302 到锁屏（只一次，首页不再二次 302）。 */
 const OWNER_ONLY_PATHS = [
-  '/settings/',
-  '/en/settings/',
-  '/files/',
-  '/en/files/',
+  '/settings/security/lock/',
+  '/en/settings/security/lock/',
 ];
 /* 2.8.0：主人专属 API（visitor 调用 → 403） */
 const OWNER_ONLY_APIS = [
@@ -165,6 +166,30 @@ export async function injectSessionState(res, state, role) {
   if (state === 'locked') {
     headers.set('X-Robots-Tag', 'noindex');
   }
+  return new Response(injected, {
+    status: res.status,
+    statusText: res.statusText,
+    headers,
+  });
+}
+
+/* 2.9.3：访客 + 主人专属 return 时，首页返回 200 并标记升级验证。
+   前端读 data-sgx-upgrade="1" 和 data-sgx-upgrade-return 打开验证层
+   （只显示通行密钥+密码，不显示访客入口，带「需要主人验证」提示）。
+   验证通过后前端跳回 return。绝不 302。 */
+export async function injectUpgradeState(res, role, returnPath) {
+  const ct = res.headers.get('Content-Type') || '';
+  if (!ct.includes('text/html')) return res;
+  let html = await res.text();
+  let injected = html.replace(/<html(\s|>)/i, '<html data-sgx-session="valid"$1');
+  if (role === ROLE_OWNER || role === ROLE_VISITOR) {
+    injected = injected.replace(/<html(\s|>)/i, '<html data-sgx-role="' + role + '"$1');
+  }
+  /* 升级标记：前端据此打开验证层 */
+  injected = injected.replace(/<html(\s|>)/i,
+    '<html data-sgx-upgrade="1" data-sgx-upgrade-return="' + returnPath.replace(/"/g, '&quot;') + '"$1');
+  const headers = new Headers(res.headers);
+  headers.set('Cache-Control', 'private, no-store');
   return new Response(injected, {
     status: res.status,
     statusText: res.statusText,
@@ -322,17 +347,26 @@ export async function onRequest(context) {
        （<html data-sgx-session="valid|locked" data-sgx-role="owner|visitor">），
        前端只读这个，不自己猜。 */
     if (isHomepage) {
-      /* ?return= 回跳：会话有效时 302 到目标（站内路径或 *.styrigx.com 白名单） */
+      /* ?return= 回跳：会话有效时 302 到目标（站内路径或 *.styrigx.com 白名单）。
+         2.9.3 防死循环：如果 return 指向主人专属路径而当前只是访客，不 302，
+         直接返回 200 首页，前端打开升级验证层（只显示通行密钥+密码）。 */
       const returnPath = url.searchParams.get('return');
       if (returnPath && sessionValid) {
-        /* 手动构造 302（不用 Response.redirect：Node/undici 不接受相对路径，
-           Workers 可以；手动写兼容两边）。
-           no-store：绝不缓存这个跳转（2.4.1 锁屏原则）。 */
-        const loc = isSafeReturn(returnPath) ? returnPath : '/';
-        return new Response(null, {
-          status: 302,
-          headers: { 'Location': loc, 'Cache-Control': 'private, no-store' },
-        });
+        const safeLoc = isSafeReturn(returnPath) ? returnPath : '/';
+        const isOwnerReturn = isOwnerOnlyPath(new URL(safeLoc, 'https://styrigx.com').pathname);
+        if (!(isVisitor && isOwnerReturn)) {
+          /* 手动构造 302（不用 Response.redirect：Node/undici 不接受相对路径，
+             Workers 可以；手动写兼容两边）。
+             no-store：绝不缓存这个跳转（2.4.1 锁屏原则）。 */
+          return new Response(null, {
+            status: 302,
+            headers: { 'Location': safeLoc, 'Cache-Control': 'private, no-store' },
+          });
+        }
+        /* 访客 + 主人专属 return：不跳转，200 返回首页并标记升级验证。
+           前端读 data-sgx-upgrade="1" 打开验证层。 */
+        const res = await next();
+        return injectUpgradeState(res, role, safeLoc);
       }
       const res = await next();
       return injectSessionState(res, sessionValid ? 'valid' : 'locked', role);
