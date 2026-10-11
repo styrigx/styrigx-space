@@ -58,12 +58,12 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
               /* 保留非书籍条目，书籍换成 3 本固定 */
               const kept = items.filter((it) => it.type !== 'book');
               const books = [
-                { id: 'book-fixture-a', type: 'book', lang: 'zh', title: 'Fixture Book A', subtitle: 'Author A', url: '#', cover: '', addedAt: '2026-10-08' },
-                { id: 'book-fixture-b', type: 'book', lang: 'zh', title: 'Fixture Book B', subtitle: 'Author B', url: '#', cover: '', addedAt: '2026-10-05' },
-                { id: 'book-fixture-c', type: 'book', lang: 'zh', title: 'Fixture Book C', subtitle: 'Author C', url: '#', cover: '', addedAt: '2026-10-01' },
-                { id: 'book-fixture-a-en', type: 'book', lang: 'en', title: 'Fixture Book A', subtitle: 'Author A', url: '#', cover: '', addedAt: '2026-10-08' },
-                { id: 'book-fixture-b-en', type: 'book', lang: 'en', title: 'Fixture Book B', subtitle: 'Author B', url: '#', cover: '', addedAt: '2026-10-05' },
-                { id: 'book-fixture-c-en', type: 'book', lang: 'en', title: 'Fixture Book C', subtitle: 'Author C', url: '#', cover: '', addedAt: '2026-10-01' },
+                { id: 'book-fixture-a', type: 'book', lang: 'zh', title: 'Fixture Book A', subtitle: 'Author A', url: '/books/fixture-a/', cover: '/covers/fixture-a.png', addedAt: '2026-10-08' },
+                { id: 'book-fixture-b', type: 'book', lang: 'zh', title: 'Fixture Book B', subtitle: 'Author B', url: '/books/fixture-b/', cover: '/covers/fixture-b.png', addedAt: '2026-10-05' },
+                { id: 'book-fixture-c', type: 'book', lang: 'zh', title: 'Fixture Book C', subtitle: 'Author C', url: '/books/fixture-c/', cover: '/covers/fixture-c.png', addedAt: '2026-10-01' },
+                { id: 'book-fixture-a-en', type: 'book', lang: 'en', title: 'Fixture Book A', subtitle: 'Author A', url: '/en/books/fixture-a/', cover: '/covers/fixture-a.png', addedAt: '2026-10-08' },
+                { id: 'book-fixture-b-en', type: 'book', lang: 'en', title: 'Fixture Book B', subtitle: 'Author B', url: '/en/books/fixture-b/', cover: '/covers/fixture-b.png', addedAt: '2026-10-05' },
+                { id: 'book-fixture-c-en', type: 'book', lang: 'en', title: 'Fixture Book C', subtitle: 'Author C', url: '/en/books/fixture-c/', cover: '/covers/fixture-c.png', addedAt: '2026-10-01' },
               ];
               data.items = kept.concat(books);
               await route.fulfill({ response: res, json: data });
