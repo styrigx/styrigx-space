@@ -24,6 +24,13 @@ jobs:
     # 2026-10-11：固定 ubuntu-24.04，ubuntu-latest 10-19 起切 Ubuntu 26，字体渲染可能变化
     runs-on: ubuntu-24.04
     steps:
+      - name: Assert no legacy key names
+        run: |
+          if grep -rn "SGX_ED25519_\|SGX_STEPUP_KEY" --include="*.js" --include="*.mjs" --include="*.yml" functions/ tests/ scripts/ .github/ 2>/dev/null; then
+            echo "ERROR: Legacy key names found. Use SGX_LOCK_* / SGX_STEPUP_PRIVATE per key spec v1.0."
+            exit 1
+          fi
+          echo "OK: no legacy key names."
       - name: Checkout
         uses: actions/checkout@v6
 
