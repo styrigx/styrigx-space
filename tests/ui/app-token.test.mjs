@@ -80,30 +80,35 @@ test('getAppEpoch：缺失视为 0，KV 出错时抛错', async () => {
 });
 
 /* ---- 测试向量一致性（与 book 完全相同的文件） ---- */
+/* fixture 里是 base64 DER，转成 PEM 给 crypto 用 */
+function derToPem(derB64, label) {
+  const b64 = derB64.replace(/\s/g, '');
+  const lines = b64.match(/.{1,64}/g).join('\n');
+  return `-----BEGIN ${label}-----\n${lines}\n-----END ${label}-----`;
+}
 test('测试向量：有效 token 能解析且字段一致', async () => {
   const vectors = JSON.parse(readFileSync(new URL('../fixtures/app-token-vectors.json', import.meta.url), 'utf8'));
-  assert.ok(vectors.keypair.private_pem.includes('PRIVATE KEY'), '应含测试私钥');
+  const privPem = derToPem(vectors.keypair.private, 'PRIVATE KEY');
+  const pubPem = derToPem(vectors.keypair.public, 'PUBLIC KEY');
+  assert.ok(privPem.includes('PRIVATE KEY'), '应含测试私钥');
   assert.equal(vectors.valid.length, 3);
-  for (const v of vectors.valid) {
-    const p = parseAppToken(v.token);
+  for (const token of vectors.valid) {
+    const p = parseAppToken(token);
     assert.ok(p, '有效向量应能解析');
-    assert.equal(p.epoch, v.epoch);
-    assert.equal(p.appEpoch, v.appEpoch);
-    assert.equal(p.aud, v.aud);
-    assert.equal(p.scope, v.scope);
     // 用向量自带的公钥验签
     const payload = [p.role, p.epoch, p.appEpoch, p.iat, p.exp, p.aud, p.scope].join('.');
-    assert.ok(await ed25519Verify(vectors.keypair.public_pem, payload, p.sig), '向量签名应通过');
+    assert.ok(await ed25519Verify(pubPem, payload, p.sig), '向量签名应通过');
   }
 });
 
 test('测试向量：篡改/过期 token 解析后验签失败或过期', async () => {
   const vectors = JSON.parse(readFileSync(new URL('../fixtures/app-token-vectors.json', import.meta.url), 'utf8'));
-  const t = parseAppToken(vectors.invalid.tampered.token);
+  const pubPem = derToPem(vectors.keypair.public, 'PUBLIC KEY');
+  const t = parseAppToken(vectors.tampered);
   assert.ok(t, '篡改向量应能解析出字段');
   const payload = [t.role, t.epoch, t.appEpoch, t.iat, t.exp, t.aud, t.scope].join('.');
-  assert.ok(!(await ed25519Verify(vectors.keypair.public_pem, payload, t.sig)), '篡改后验签应失败');
-  const e = parseAppToken(vectors.invalid.expired.token);
+  assert.ok(!(await ed25519Verify(pubPem, payload, t.sig)), '篡改后验签应失败');
+  const e = parseAppToken(vectors.expired);
   assert.ok(e && e.exp < Date.now(), '过期向量应已过期');
 });
 
@@ -161,4 +166,70 @@ test('CI 静态检查：app-token 链路无 stepup/SGX_STEPUP_ 引用', async ()
   const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
   assert.ok(!/stepup/i.test(code), 'app-token.js 代码不得出现 stepup');
   assert.ok(!/SGX_STEPUP_/.test(code), 'app-token.js 代码不得读 SGX_STEPUP_*');
+});
+
+test('CI 静态检查：app-token 链路不引用 OWNER_KEY（2.10.1：管理密钥不能签 sgx-app）', async () => {
+  const src = readFileSync(new URL('../../functions/api/app-token.js', import.meta.url), 'utf8');
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  assert.ok(!/OWNER_KEY/.test(code), 'app-token.js 代码不得引用 OWNER_KEY');
+});
+
+test('onRequest：成功签发（2.10.1 B7：verifySessionDetailed 传 env）', async () => {
+  // 生成 SGX_LOCK 密钥对（会话）+ SGX_APP 密钥对（签发）
+  const { generateKeyPairSync } = await import('node:crypto');
+  const lockKp = generateKeyPairSync('ed25519');
+  const lockPrivPem = lockKp.privateKey.export({ type: 'pkcs8', format: 'pem' });
+  const lockPubPem = lockKp.publicKey.export({ type: 'spki', format: 'pem' });
+  const appKp = generateKeyPairSync('ed25519');
+  const appPrivPem = appKp.privateKey.export({ type: 'pkcs8', format: 'pem' });
+  const appPubPem = appKp.publicKey.export({ type: 'spki', format: 'pem' });
+
+  // 用会话模块签一个合法的 owner 会话 cookie
+  const { signSessionCookie } = await import('../../functions/_kernel/session.js');
+  const sessVal = await signSessionCookie(lockPrivPem, 7, 'owner');
+
+  // mock KV：session-epoch=7，app-auth 记录有效
+  const store = new Map();
+  store.set('session-epoch', '7');
+  store.set('app-auth:testcid123', JSON.stringify({ aud: 'book', exp: Date.now() + 60000 }));
+  const kv = {
+    get: async (k, fmt) => {
+      const v = store.get(k);
+      if (v === undefined) return null;
+      return fmt === 'json' ? JSON.parse(v) : v;
+    },
+    put: async (k, v) => { store.set(k, v); },
+    delete: async (k) => { store.delete(k); },
+  };
+
+  const h = new Headers();
+  h.set('Origin', 'https://styrigx.com');
+  h.set('Content-Type', 'application/json');
+  h.set('Cookie', 'sgx-verified=' + sessVal);
+  const req = {
+    method: 'POST',
+    headers: h,
+    url: 'https://styrigx.com/api/app-token',
+    json: async () => ({ action: 'issue', aud: 'book', scope: 'upload', appCid: 'testcid123' }),
+  };
+  const env = {
+    OWNER_KV: kv,
+    SGX_LOCK_PUBLIC: lockPubPem,
+    SGX_APP_PRIVATE: appPrivPem,
+  };
+  const res = await onRequest({ request: req, env });
+  assert.equal(res.status, 200, '合法会话 + 合法 app-auth 应签发成功（B7 修复前这里 403）');
+  const j = await res.json();
+  assert.ok(j.ok, '应返回 ok:true');
+  const setCookie = res.headers.get('Set-Cookie') || '';
+  assert.ok(setCookie.includes('sgx-app='), '应设置 sgx-app cookie');
+  // 用 app 公钥验签 cookie 里的 token
+  const m = setCookie.match(/sgx-app=([^;]+)/);
+  assert.ok(m, '应能提取 token');
+  const p = parseAppToken(m[1]);
+  assert.ok(p, 'token 应能解析');
+  assert.equal(p.aud, 'book');
+  assert.equal(p.scope, 'upload');
+  const payload = [p.role, p.epoch, p.appEpoch, p.iat, p.exp, p.aud, p.scope].join('.');
+  assert.ok(await ed25519Verify(appPubPem, payload, p.sig), '签发 token 验签应通过');
 });

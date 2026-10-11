@@ -136,7 +136,8 @@ import { toast } from '../lib/toast.js';
 
   /* 解锁方式入口：只在已解锁时显示。状态源只有服务端会话——
      L1 middleware 注入的 data-sgx-session（经 lock.js 转发的 sgx:session 事件）。
-     L5 只做显示，不做鉴权判断；禁止用 storage。 */
+     L5 只做显示，不做鉴权判断；禁止用 storage。
+     2.10.1 A5：原 sec-unlock-methods 与 sec-lock-row 合并为一行，保留本 id。 */
   var unlockRow = document.getElementById('sec-unlock-methods');
   function updateUnlockRow(ok) {
     if (unlockRow) unlockRow.hidden = !ok;
@@ -151,14 +152,13 @@ import { toast } from '../lib/toast.js';
     var st = document.documentElement.dataset.sgxSession;
     if (st) updateUnlockRow(st === 'valid');
   } catch (e) {}
-
   /* 2.9.3：访客在安全总览页看到主人专属入口时加锁图标，
      点击就地弹出通行密钥验证（手机底部/DeX 居中），通过则升级为 owner 并进入。
      失败/取消留在原页，不跳转。 */
   try {
     var role = document.documentElement.dataset.sgxRole;
     if (role === 'visitor') {
-      var ownerRows = [document.getElementById('sec-unlock-methods'), document.getElementById('sec-lock-row')];
+      var ownerRows = [document.getElementById('sec-unlock-methods'), document.getElementById('sec-app-row')];
       ownerRows.forEach(function (row) {
         if (!row) return;
         row.hidden = false; // 访客也显示，但加锁图标

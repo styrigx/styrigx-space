@@ -72,11 +72,17 @@ import { toast } from '../lib/toast.js';
       body: JSON.stringify(body),
       credentials: 'include',
     }).then(parseApi).then(function (res) {
-      /* 2.10.0：stepup-required → 自动做一次 stepup 验证后重试（只重试一次） */
+      /* 2.10.0：stepup-required → 自动做一次 stepup 验证后重试（只重试一次）。
+         2.10.1 A4：自动 stepup 失败时停在错误提示，不自动重开验证门。
+         补充指令 3：保留服务端的 reason（bad-sig/expired/epoch-changed 等）供显示。 */
       if (!retried && res.json && res.json.error === 'stepup-required') {
-        return doStepup().then(function (ok) {
-          if (ok) return api(url, body, true);
-          return res;
+        const serverReason = res.json.reason;
+        return doStepup().then(function (r) {
+          if (r.ok) return api(url, body, true);
+          /* 失败：返回带错误码的响应，调用方显示错误并停住 */
+          const errCode = r.error || 'stepup-failed';
+          console.error('[api] stepup failed:', errCode, 'server reason:', serverReason);
+          return { status: res.status, json: { ok: false, error: errCode, reason: serverReason } };
         });
       }
       return res;
@@ -85,16 +91,22 @@ import { toast } from '../lib/toast.js';
 
   /**
    * 2.10.0：执行 stepup 验证（锁屏类通行密钥，强制 UV）。
-   * 成功后服务端设置 sgx-stepup cookie。返回 Promise<boolean>。
+   * 成功后服务端设置 sgx-stepup cookie。
+   * 2.10.1 A3：返回 { ok, error }，失败时带服务端错误码。
+   * @returns {Promise<{ok:boolean, error?:string}>}
    */
   function doStepup() {
     if (!window.PublicKeyCredential) {
-      return Promise.resolve(false);
+      return Promise.resolve({ ok: false, error: 'no-support' });
     }
+    let lastError = 'server';
     return api('/api/stepup', { action: 'challenge' })
       .then(function (res) {
         const ch = res.json;
-        if (!ch || !ch.ok) throw { kind: 'server' };
+        if (!ch || !ch.ok) {
+          lastError = (ch && ch.error) || 'server';
+          throw { kind: 'server' };
+        }
         const allow = (ch.allowCredentials || []).map(function (c) {
           return { id: b64urlToBuf(c.id), type: c.type };
         });
@@ -103,7 +115,8 @@ import { toast } from '../lib/toast.js';
           .then(function (cred) {
             return { cred: cred, cid: ch.cid };
           }, function (e) {
-            throw { kind: e && e.name === 'NotAllowedError' ? 'cancelled' : 'failed' };
+            lastError = e && e.name === 'NotAllowedError' ? 'cancelled' : 'failed';
+            throw { kind: lastError };
           });
       })
       .then(function (r2) {
@@ -130,10 +143,12 @@ import { toast } from '../lib/toast.js';
         }).then(parseApi);
       })
       .then(function (res) {
-        return !!(res.json && res.json.ok);
+        if (res.json && res.json.ok) return { ok: true };
+        lastError = (res.json && res.json.error) || 'verify';
+        return { ok: false, error: lastError };
       })
-      .catch(function () {
-        return false;
+      .catch(function (e) {
+        return { ok: false, error: lastError };
       });
   }
   /** @param {string} s */
@@ -298,6 +313,8 @@ import { toast } from '../lib/toast.js';
       showErr('lockgate-err', t('gateNeedKey'));
       return;
     }
+    /* 2.10.1：管理密钥 = 根恢复凭据。/api/owner-auth 通过后服务端同时签发
+       owner 会话 + sgx-stepup cookie，前端直接进管理区，不再走 passkey stepup。 */
     api('/api/owner-auth', { key: k })
       .then(function (res) {
         const j = res.json;
@@ -305,11 +322,15 @@ import { toast } from '../lib/toast.js';
           showErr('lockgate-err', t('gateSrvErr'));
           return;
         }
-        if (j.ok && j.token) {
-          token = j.token;
+        if (j.ok) {
           enterMgr();
+        } else if (j.error === 'locked') {
+          showErr('lockgate-err', t('gateLocked'));
+          console.error('[gate-key] rate limited');
         } else {
-          showErr('lockgate-err', t('gateKeyWrong'));
+          /* 2.10.1 A3：显示服务端错误码 */
+          showErr('lockgate-err', t('gateKeyWrong') + (j.error ? ' (' + j.error + ')' : ''));
+          console.error('[gate-key] failed:', j.error);
         }
       })
       .catch(function () {
@@ -335,11 +356,13 @@ import { toast } from '../lib/toast.js';
         showErr('lockgate-err', t('pkNoSupport'));
         return;
       }
-      doStepup().then(function (ok) {
-        if (ok) {
+      doStepup().then(function (r) {
+        if (r.ok) {
           enterMgr();
         } else {
-          showErr('lockgate-err', t('gatePkErr'));
+          /* 2.10.1 A3：显示服务端错误码 */
+          showErr('lockgate-err', t('gatePkErr') + (r.error ? ' (' + r.error + ')' : ''));
+          console.error('[gate-pk] stepup failed:', r.error);
         }
       });
     });
@@ -407,10 +430,7 @@ import { toast } from '../lib/toast.js';
   const pwRow = $('lockmgr-pwrow');
   if (pwRow) {
     const go = function () {
-      if (!token) {
-        needReauth();
-        return;
-      }
+      /* 2.10.1：不再检查 token（已废弃）；后端用 cookie 鉴权，api() 自动处理 stepup */
       openPwDlg();
     };
     on(pwRow, 'click', go);
@@ -428,10 +448,7 @@ import { toast } from '../lib/toast.js';
     let armTimer = 0;
     const origText = pwDel.textContent;
     on(pwDel, 'click', function () {
-      if (!token) {
-        needReauth();
-        return;
-      }
+      /* 2.10.1：不再检查 token；后端用 cookie 鉴权 */
       if (!armed) {
         armed = true;
         /* 如果删完后密码和通行密钥都没了，提示只能用管理密钥进入 */

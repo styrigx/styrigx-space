@@ -334,13 +334,22 @@ export async function onRequest(context) {
     const isVisitor = role === ROLE_VISITOR;
 
     /* 2.8.0：访客调用主人 API → 403（改密码、通行密钥管理等）。
-       认证类 action（verify/challenge/auth/register）由端点自身的 token 机制保护，
-       middleware 层按路径统一拒绝 visitor。 */
+       2.10.1：访客就地升级——认证类 action（AUTH_ACTIONS：verify/challenge/auth/register）
+       放行，由端点自身的会话/stepup 机制保护（纵深防御），middleware 不再一律拒绝。 */
     if (isVisitor && isOwnerOnlyApi(pathname)) {
-      return new Response(JSON.stringify({ ok: false, error: 'role' }), {
-        status: 403,
-        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-      });
+      let isAuthAction = false;
+      if (request.method === 'POST') {
+        try {
+          const body = await request.clone().json();
+          isAuthAction = body && AUTH_ACTIONS.has(body.action);
+        } catch (e) {}
+      }
+      if (!isAuthAction) {
+        return new Response(JSON.stringify({ ok: false, error: 'role' }), {
+          status: 403,
+          headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+        });
+      }
     }
 
     /* L1：首页不再无条件白名单。照常返回页面，但把会话状态注入 HTML

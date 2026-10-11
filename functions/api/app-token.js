@@ -120,8 +120,8 @@ headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-sto
 });
 }
 
-// 1. 必须是已登录 owner 会话
-const session = await verifySessionDetailed(request, env.SGX_LOCK_PUBLIC);
+// 1. 必须是已登录 owner 会话（2.10.1：传 env，不是 env.SGX_LOCK_PUBLIC）
+const session = await verifySessionDetailed(request, env);
 if (!session || session.role!== ROLE_OWNER) {
 return new Response(JSON.stringify({ ok: false, error: 'forbidden'}), {
 status: 403,
