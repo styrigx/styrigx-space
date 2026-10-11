@@ -24,8 +24,10 @@
   <!-- 安全分组 -->
   <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Security{{ else }}安全{{ end }}</span></h2>
   <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.1s">
-    {{/* 2.10.1 A5：解锁方式与锁定屏幕合并为一行（原两行重复） */}}
-    <a class="set-row" id="sec-lock-row" href="{{ $lockUrl }}">
+    {{/* 2.10.1 A5：原 sec-unlock-methods（解锁方式）与 sec-lock-row（锁定屏幕）两行重复
+       （同链 $lockUrl），合并为一行；保留 sec-unlock-methods 为入口 id（安全分组首行，
+       初始 hidden，sgx:session 有效后显示，见 apps/security.js） */}}
+    <a class="set-row" id="sec-unlock-methods" href="{{ $lockUrl }}" hidden>
       <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "lock" }}</span>
       <span class="flex-1 min-w-0">
         <span class="block font-medium">{{ if $isEn }}Unlock methods{{ else }}解锁方式{{ end }}</span>
