@@ -274,7 +274,7 @@ jobs:
           names = sorted(prod.keys())
           print("production vars:", names)
           # production 必须有这些，且 CI 不应增删（2026-10-10：Gray 已配 SGX_SITE/密钥对，基线更新）
-          expected = ["OWNER_KEY", "SESSION_SECRET", "SGX_ED25519_PRIVATE", "SGX_ED25519_PUBLIC", "SGX_ORIGIN", "SGX_RP_ID", "SGX_SITE", "SGX_STEPUP_PRIVATE", "SGX_STEPUP_PUBLIC", "TURNSTILE_SECRET"]
+          expected = ["OWNER_KEY", "SESSION_SECRET", "SGX_APP_PRIVATE", "SGX_ED25519_PRIVATE", "SGX_ED25519_PUBLIC", "SGX_LOCK_PRIVATE", "SGX_LOCK_PUBLIC", "SGX_ORIGIN", "SGX_RP_ID", "SGX_SITE", "SGX_STEPUP_KEY", "SGX_STEPUP_PRIVATE", "SGX_STEPUP_PUBLIC", "TURNSTILE_SECRET"]
           assert names == expected, f"unexpected: {names}"
           print("guard OK: production untouched")
           PYEOF
