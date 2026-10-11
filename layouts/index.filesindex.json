@@ -3,39 +3,11 @@
 {{ $langs := slice "zh" "en" }}
 {{ $homeOf := dict "zh" "/" "en" "/en/" }}
 
-{{/* ---------- 博客文章：抓 RSS，拉不到就跳过 ---------- */}}
-{{ $months := dict "Jan" "01" "Feb" "02" "Mar" "03" "Apr" "04" "May" "05" "Jun" "06" "Jul" "07" "Aug" "08" "Sep" "09" "Oct" "10" "Nov" "11" "Dec" "12" }}
-{{ $feeds := slice
-  (dict "lang" "zh" "url" "https://blog.styrigx.com/rss.xml")
-  (dict "lang" "en" "url" "https://blog.styrigx.com/en/rss.xml")
-}}
-{{ range $f := $feeds }}
-  {{ $got := try (resources.GetRemote $f.url) }}
-  {{ if not $got.Err }}
-  {{ with $got.Value }}
-    {{ $n := 0 }}
-    {{ range findRE "(?s)<item>.*?</item>" .Content }}
-      {{ $bt := findRESubmatch "(?s)<title>(.*?)</title>" . }}
-      {{ $bl := findRESubmatch "(?s)<link>(.*?)</link>" . }}
-      {{ $bp := findRESubmatch "(?s)<pubDate>(.*?)</pubDate>" . }}
-      {{ if and $bt $bl }}
-        {{ $n = add $n 1 }}
-        {{ $btitle := (index (index $bt 0) 1) | replaceRE "<!\\[CDATA\\[(.*?)\\]\\]>" "$1" | htmlUnescape }}
-        {{ $added := "" }}
-        {{ if $bp }}
-          {{ $pm := findRESubmatch "(\\d{1,2}) ([A-Za-z]{3}) (\\d{4})" (index (index $bp 0) 1) }}
-          {{ if $pm }}
-            {{ $m0 := index $pm 0 }}
-            {{ $added = printf "%s-%s-%02d" (index $m0 3) (index $months (index $m0 2) | default "01") (int (index $m0 1)) }}
-          {{ end }}
-        {{ end }}
-        {{ $id := printf "post-%d" $n }}
-        {{ if eq $f.lang "en" }}{{ $id = printf "post-%d-en" $n }}{{ end }}
-        {{ $items = $items | append (dict "id" $id "type" "post" "lang" $f.lang "title" $btitle "subtitle" "" "url" (index (index $bl 0) 1) "cover" "" "addedAt" $added) }}
-      {{ end }}
-    {{ end }}
-  {{ end }}
-  {{ end }}
+{{/* ---------- 博客文章：CI 从博客仓库生成 data/posts.json，本地读取 ---------- */}}
+{{ range $i, $p := $.Site.Data.posts }}
+  {{ $id := printf "post-%d" (add $i 1) }}
+  {{ if eq $p.lang "en" }}{{ $id = printf "post-%d-en" (add $i 1) }}{{ end }}
+  {{ $items = $items | append (dict "id" $id "type" "post" "lang" $p.lang "title" $p.title "subtitle" "" "url" $p.url "cover" "" "addedAt" $p.date) }}
 {{ end }}
 
 {{/* ---------- 书单 ---------- */}}
