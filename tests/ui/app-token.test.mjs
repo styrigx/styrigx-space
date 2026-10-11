@@ -1,12 +1,16 @@
 /**
- * sgx-app 通行证签发测试（主站）。
+ * sgx-app 通行证签发测试（主站）。2.10.0 三域拆分版。
  *
+ * 格式：owner.epoch.appEpoch.iat.exp.aud.scope.sig（8 段）
  * 密钥只在内存里用 node:crypto 临时生成，不提交、不打印任何密钥值。
+ * 另有 tests/fixtures/app-token-vectors.json（与 book 完全相同的测试向量），
+ * 本文件断言签发逻辑与向量一致。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync } from 'node:crypto';
-import { signAppToken, parseAppToken, APP_TOKEN_MAX_AGE, onRequest } from '../../functions/api/app-token.js';
+import { readFileSync } from 'node:fs';
+import { signAppToken, parseAppToken, APP_TOKEN_MAX_AGE, getAppEpoch, onRequest } from '../../functions/api/app-token.js';
 import { ed25519Verify } from '../../functions/_kernel/crypto.js';
 
 /* 内存临时密钥对（每次测试运行重新生成） */
@@ -18,112 +22,143 @@ function genKeyPair() {
   };
 }
 
-test('signAppToken 签发后用公钥验签通过', async () => {
+test('signAppToken 签发 8 段格式并用公钥验签通过', async () => {
   const { privPem, pubPem } = genKeyPair();
-  const token = await signAppToken(privPem, 5, 'book', 'upload');
+  const token = await signAppToken(privPem, 5, 3, 'book', 'upload');
+  const parts = token.split('.');
+  assert.equal(parts.length, 8, '应为 8 段');
   const parsed = parseAppToken(token);
   assert.ok(parsed, '应能解析');
   assert.equal(parsed.role, 'owner');
   assert.equal(parsed.epoch, 5);
+  assert.equal(parsed.appEpoch, 3);
   assert.equal(parsed.aud, 'book');
   assert.equal(parsed.scope, 'upload');
   // exp - iat = 600 秒
   assert.equal(parsed.exp - parsed.iat, 600 * 1000);
-  // 验签通过
-  const payload = ['owner', 5, parsed.iat, parsed.exp, 'book', 'upload'].join('.');
+  // 验签通过（签名覆盖 sig 之前的完整字符串）
+  const payload = ['owner', 5, 3, parsed.iat, parsed.exp, 'book', 'upload'].join('.');
   const ok = await ed25519Verify(pubPem, payload, parsed.sig);
   assert.ok(ok, '验签应通过');
 });
 
 test('改动任一段则验签失败', async () => {
   const { privPem, pubPem } = genKeyPair();
-  const token = await signAppToken(privPem, 5, 'book', 'upload');
+  const token = await signAppToken(privPem, 5, 3, 'book', 'upload');
   const parsed = parseAppToken(token);
   // 改 aud
-  const tamperedPayload = ['owner', 5, parsed.iat, parsed.exp, 'evil', 'upload'].join('.');
+  const tamperedPayload = ['owner', 5, 3, parsed.iat, parsed.exp, 'evil', 'upload'].join('.');
   const ok = await ed25519Verify(pubPem, tamperedPayload, parsed.sig);
   assert.ok(!ok, '改动 aud 后验签应失败');
-  // 改 epoch
-  const tampered2 = ['owner', 6, parsed.iat, parsed.exp, 'book', 'upload'].join('.');
+  // 改 appEpoch
+  const tampered2 = ['owner', 5, 9, parsed.iat, parsed.exp, 'book', 'upload'].join('.');
   const ok2 = await ed25519Verify(pubPem, tampered2, parsed.sig);
-  assert.ok(!ok2, '改动 epoch 后验签应失败');
+  assert.ok(!ok2, '改动 appEpoch 后验签应失败');
 });
 
 test('parseAppToken 拒绝格式错误的 token', () => {
   assert.equal(parseAppToken(''), null);
   assert.equal(parseAppToken('owner.1.2'), null);
-  assert.equal(parseAppToken('visitor.1.1000.2000.book.upload.sig'), null, 'role 必须为 owner');
-  assert.equal(parseAppToken('owner.abc.1000.2000.book.upload.sig'), null, 'epoch 必须为数字');
+  // 旧 7 段格式不再接受
+  assert.equal(parseAppToken('owner.5.1000.1600.book.upload.sig'), null, '旧 7 段格式应被拒');
+  assert.equal(parseAppToken('visitor.1.0.1000.2000.book.upload.sig'), null, 'role 必须为 owner');
+  assert.equal(parseAppToken('owner.abc.0.1000.2000.book.upload.sig'), null, 'epoch 必须为数字');
 });
 
 test('APP_TOKEN_MAX_AGE 为 10 分钟', () => {
   assert.equal(APP_TOKEN_MAX_AGE, 600);
 });
 
-/* ---- onRequest 分支测试（用 mock 构造会话和 stepup，不读真实 Secret） ---- */
+test('getAppEpoch：缺失视为 0，KV 出错时抛错', async () => {
+  assert.equal(await getAppEpoch({ get: async () => null }, 'book'), 0);
+  assert.equal(await getAppEpoch({ get: async () => '3' }, 'book'), 3);
+  let threw = false;
+  try {
+    await getAppEpoch({ get: async () => { throw new Error('kv'); } }, 'book');
+  } catch (e) { threw = true; }
+  assert.ok(threw, 'KV 出错应抛错（调用方 fail closed）');
+});
 
-function mockRequest(method, body) {
-  return {
-    method,
-    headers: new Headers(),
-    json: async () => body,
-  };
-}
+/* ---- 测试向量一致性（与 book 完全相同的文件） ---- */
+test('测试向量：有效 token 能解析且字段一致', async () => {
+  const vectors = JSON.parse(readFileSync(new URL('../fixtures/app-token-vectors.json', import.meta.url), 'utf8'));
+  assert.ok(vectors.keypair.private_pem.includes('PRIVATE KEY'), '应含测试私钥');
+  assert.equal(vectors.valid.length, 3);
+  for (const v of vectors.valid) {
+    const p = parseAppToken(v.token);
+    assert.ok(p, '有效向量应能解析');
+    assert.equal(p.epoch, v.epoch);
+    assert.equal(p.appEpoch, v.appEpoch);
+    assert.equal(p.aud, v.aud);
+    assert.equal(p.scope, v.scope);
+    // 用向量自带的公钥验签
+    const payload = [p.role, p.epoch, p.appEpoch, p.iat, p.exp, p.aud, p.scope].join('.');
+    assert.ok(await ed25519Verify(vectors.keypair.public_pem, payload, p.sig), '向量签名应通过');
+  }
+});
 
-function mockEnv(overrides = {}) {
-  return {
-    SGX_LOCK_PUBLIC: 'test-lock-pub',
-    SGX_APP_PRIVATE: 'test-app-priv',
-    ...overrides,
-  };
+test('测试向量：篡改/过期 token 解析后验签失败或过期', async () => {
+  const vectors = JSON.parse(readFileSync(new URL('../fixtures/app-token-vectors.json', import.meta.url), 'utf8'));
+  const t = parseAppToken(vectors.invalid.tampered.token);
+  assert.ok(t, '篡改向量应能解析出字段');
+  const payload = [t.role, t.epoch, t.appEpoch, t.iat, t.exp, t.aud, t.scope].join('.');
+  assert.ok(!(await ed25519Verify(vectors.keypair.public_pem, payload, t.sig)), '篡改后验签应失败');
+  const e = parseAppToken(vectors.invalid.expired.token);
+  assert.ok(e && e.exp < Date.now(), '过期向量应已过期');
+});
+
+/* ---- onRequest 分支测试 ---- */
+
+function mockRequest(method, body, headers = {}) {
+  const h = new Headers();
+  for (const [k, v] of Object.entries(headers)) h.set(k, v);
+  return { method, headers: h, json: async () => body };
 }
 
 test('onRequest：非 POST 返回 405', async () => {
-  const res = await onRequest({ request: mockRequest('GET', {}), env: mockEnv() });
+  const res = await onRequest({ request: mockRequest('GET', {}), env: {} });
   assert.equal(res.status, 405);
-  const data = await res.json();
-  assert.equal(data.error, 'method');
 });
 
-test('onRequest：无会话时 403', async () => {
-  // verifySessionDetailed 会因无 cookie 返回 null（mock 环境下）
+test('onRequest：Origin 不是主站时 403', async () => {
   const res = await onRequest({
-    request: mockRequest('POST', { action: 'issue', aud: 'book', scope: 'upload' }),
-    env: mockEnv(),
+    request: mockRequest('POST', {}, { Origin: 'https://evil.com', 'Content-Type': 'application/json' }),
+    env: {},
   });
-  // 无有效会话 → 403 forbidden（具体走哪个分支取决于 mock，此处只断言非 200）
-  assert.ok(res.status === 403 || res.status === 500, '无会话应拒绝');
+  assert.equal(res.status, 403);
+  assert.equal((await res.json()).error, 'origin');
 });
 
-test('validateReturnUrl：origin 假冒被拒', async () => {
-  const { validateReturnUrl } = await import('../../functions/api/app-token.js');
-  // 正常
-  assert.equal(validateReturnUrl('https://book.styrigx.com/shelf'), 'https://book.styrigx.com/shelf');
-  // 缺省 → 默认页
-  assert.equal(validateReturnUrl(''), 'https://book.styrigx.com/');
-  assert.equal(validateReturnUrl(null), 'https://book.styrigx.com/');
-  // 假冒 origin 被拒
-  assert.equal(validateReturnUrl('https://book.styrigx.com.evil.com/'), null, 'evil.com 后缀假冒应被拒');
-  assert.equal(validateReturnUrl('https://evil.com/'), null, '完全不同 origin 应被拒');
-  assert.equal(validateReturnUrl('http://book.styrigx.com/'), null, 'http（非 https）应被拒');
-  assert.equal(validateReturnUrl('not-a-url'), null, '非法 URL 应被拒');
+test('onRequest：不在白名单的 aud 注册意图 → 400（需先过会话，此处仅验证白名单常量）', async () => {
+  const { getApp } = await import('../../functions/_kernel/app-registry.js');
+  assert.equal(getApp('evil'), null, '不在白名单的 aud 应返回 null');
+  assert.ok(getApp('book'), 'book 应在白名单');
+});
+
+test('validateReturnUrl：origin 假冒被拒（经 app-registry）', async () => {
+  const { validateAppReturn, defaultAppReturn } = await import('../../functions/_kernel/app-registry.js');
+  assert.equal(validateAppReturn('book', 'https://book.styrigx.com/shelf'), 'https://book.styrigx.com/shelf');
+  assert.equal(validateAppReturn('book', 'https://book.styrigx.com.evil.com/'), null);
+  assert.equal(validateAppReturn('book', 'https://evil.com/'), null);
+  assert.equal(validateAppReturn('book', 'not-a-url'), null);
+  assert.equal(defaultAppReturn('book'), 'https://book.styrigx.com/');
+  assert.equal(defaultAppReturn('evil'), null);
 });
 
 test('APP_COOKIE 属性符合要求', async () => {
   const { APP_COOKIE, APP_COOKIE_ATTRS } = await import('../../functions/api/app-token.js');
   assert.equal(APP_COOKIE, 'sgx-app');
-  assert.ok(APP_COOKIE_ATTRS.includes('Domain=.styrigx.com'), 'Domain 应为 .styrigx.com');
-  assert.ok(APP_COOKIE_ATTRS.includes('HttpOnly'), '应为 HttpOnly');
-  assert.ok(APP_COOKIE_ATTRS.includes('Secure'), '应为 Secure');
-  assert.ok(APP_COOKIE_ATTRS.includes('SameSite=Lax'), 'SameSite 应为 Lax');
-  assert.ok(APP_COOKIE_ATTRS.includes('Max-Age=600'), 'Max-Age 应为 600');
+  assert.ok(APP_COOKIE_ATTRS.includes('Domain=.styrigx.com'));
+  assert.ok(APP_COOKIE_ATTRS.includes('HttpOnly'));
+  assert.ok(APP_COOKIE_ATTRS.includes('Secure'));
+  assert.ok(APP_COOKIE_ATTRS.includes('SameSite=Lax'));
+  assert.ok(APP_COOKIE_ATTRS.includes('Max-Age=600'));
 });
 
-test('onRequest：缺 SGX_APP_PRIVATE 时 500 no-app-key（需先过会话，此处仅验证常量）', async () => {
-  // 该分支需要有效会话 + stepup，集成测试在 CI 环境变量齐备时覆盖
-  // 此处验证 parseAppToken 对 aud/scope 的解析不受影响
-  const fake = 'owner.1.1000.1600.book.upload.sig';
-  const p = parseAppToken(fake);
-  assert.equal(p.aud, 'book');
-  assert.equal(p.scope, 'upload');
+test('CI 静态检查：app-token 链路无 stepup/SGX_STEPUP_ 引用', async () => {
+  const src = readFileSync(new URL('../../functions/api/app-token.js', import.meta.url), 'utf8');
+  // 去掉注释后检查（注释里提到 stepup 是为了解释解耦，不算引用）
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  assert.ok(!/stepup/i.test(code), 'app-token.js 代码不得出现 stepup');
+  assert.ok(!/SGX_STEPUP_/.test(code), 'app-token.js 代码不得读 SGX_STEPUP_*');
 });

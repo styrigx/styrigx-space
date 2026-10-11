@@ -26,6 +26,7 @@ import {
   bumpSessionEpoch,
   ROLE_OWNER,
 } from '../_kernel/session.js';
+import { verifyStepupCookie } from './stepup.js';
 
 const ITERATIONS = 100000; // Workers PBKDF2 上限（实测：超过抛 NotSupportedError）
 const SALT_LEN = 16;
@@ -186,16 +187,12 @@ async function handlePost(context) {
     return new Response(JSON.stringify({ ok: true }), { headers });
   }
 
-  /* ============ set/change/remove：需 owner-auth token ============
+  /* ============ set/change/remove：2.10.0 需 sgx-stepup ============
      2.8.0：lockout 已拆为独立 L2 API /api/lock-all-devices（只认 owner 会话）。 */
   if (action === 'set' || action === 'change' || action === 'remove') {
-    const token = (body && body.token) || '';
-    const secret = (env && env.SESSION_SECRET) || '';
-    if (!secret) {
-      return Response.json({ ok: false, error: 'config' }, { status: 500 });
-    }
-    if (!token || !(await verifyOwnerToken(token, secret))) {
-      return Response.json({ ok: false, error: 'token' }, { status: 403 });
+    const sv = await verifyStepupCookie(request, env);
+    if (!sv.ok) {
+      return Response.json({ ok: false, error: 'stepup-required' }, { status: 403 });
     }
 
     /* remove：删除解锁密码，同时清掉失败计数和锁定 */
@@ -220,7 +217,13 @@ async function handlePost(context) {
       } catch (e) {
         return Response.json({ ok: false, error: 'server' }, { status: 503 });
       }
-      return Response.json({ ok: true });
+      /* 2.10.0：删除密码成功后立即清除 sgx-stepup */
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Set-Cookie': 'sgx-stepup=; Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0',
+        },
+      });
     }
 
     const newPassword = (body && (body.password || body.newPassword)) || '';
@@ -260,6 +263,15 @@ async function handlePost(context) {
       await bumpSessionEpoch(kv);
     } catch (e) {
       return Response.json({ ok: false, error: 'server' }, { status: 503 });
+    }
+    /* 2.10.0：改密码成功后立即清除 sgx-stepup（set 为首次设置，不清除） */
+    if (action === 'change') {
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Set-Cookie': 'sgx-stepup=; Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0',
+        },
+      });
     }
     return Response.json({ ok: true });
   }

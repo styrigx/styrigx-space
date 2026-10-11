@@ -82,6 +82,9 @@ function derToPem(der, label) {
 
 let TEST_PRIV_PEM = '';
 let TEST_PUB_PEM = '';
+/* 2.10.0：stepup 测试密钥对 */
+let STEPUP_PRIV_PEM = '';
+let STEPUP_PUB_PEM = '';
 
 async function genTestKeys() {
   const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
@@ -89,6 +92,17 @@ async function genTestKeys() {
   const pubDer = await crypto.subtle.exportKey('spki', kp.publicKey);
   TEST_PRIV_PEM = derToPem(privDer, 'PRIVATE KEY');
   TEST_PUB_PEM = derToPem(pubDer, 'PUBLIC KEY');
+  const skp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+  const sprivDer = await crypto.subtle.exportKey('pkcs8', skp.privateKey);
+  const spubDer = await crypto.subtle.exportKey('spki', skp.publicKey);
+  STEPUP_PRIV_PEM = derToPem(sprivDer, 'PRIVATE KEY');
+  STEPUP_PUB_PEM = derToPem(spubDer, 'PUBLIC KEY');
+}
+
+/* 2.10.0：签发测试用 sgx-stepup cookie */
+async function mintStepupCookie() {
+  const { signStepupCookie } = await import('../../functions/api/stepup.js');
+  return await signStepupCookie(STEPUP_PRIV_PEM, 0);
 }
 
 /* owner-auth token（测试内签发，与服务端 verifyOwnerToken 同逻辑） */
@@ -203,16 +217,16 @@ test('session-epoch：KV 读取出错 → 503（不再返回 {epoch:0}）', asyn
   assert.equal(j.ok, false);
 });
 
-test('session-epoch：key 不存在 → 200 {epoch:0}', async () => {
+test('session-epoch：key 不存在 → 200 {epoch:0,app:{book:0}}（2.10.0）', async () => {
   const r = await epochGet({ env: { OWNER_KV: makeKV() } });
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { epoch: 0 });
+  assert.deepEqual(await r.json(), { epoch: 0, app: { book: 0 } });
 });
 
-test('session-epoch：有值 → 200 {epoch:N}', async () => {
-  const r = await epochGet({ env: { OWNER_KV: makeKV({ 'session-epoch': '3' }) } });
+test('session-epoch：有值 → 200 {epoch:N,app}（2.10.0）', async () => {
+  const r = await epochGet({ env: { OWNER_KV: makeKV({ 'session-epoch': '3', 'app-epoch:book': '2' }) } });
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { epoch: 3 });
+  assert.deepEqual(await r.json(), { epoch: 3, app: { book: 2 } });
 });
 
 /* ================================================================
@@ -326,13 +340,14 @@ test('lock-all-devices：旧三段式（无 role）cookie → 401 无效', async
   assert.equal(kv.store.get('session-epoch'), '2');
 });
 
-test('change/remove 密码：KV 出错 → 503', async () => {
+test('change/remove 密码：KV 出错 → 503（2.10.0：需 sgx-stepup）', async () => {
   const broken = makePutBrokenKV();
-  const env = { OWNER_KV: broken, SESSION_SECRET: 's' };
-  const token = await mintOwnerToken('s');
+  const stepup = await mintStepupCookie();
+  const env = { OWNER_KV: broken, SESSION_SECRET: 's', SGX_STEPUP_PUBLIC: STEPUP_PUB_PEM };
   /* set 会先写 owner-pw 成功，然后 bump 抛错 → 503 */
   const r = await pwPost({
-    request: postReq('https://styrigx.com/api/owner-password', { action: 'set', token, password: 'another-pass-1' }),
+    request: postReq('https://styrigx.com/api/owner-password', { action: 'set', password: 'another-pass-1' },
+      { 'Cookie': 'sgx-stepup=' + stepup }),
     env,
   });
   assert.equal(r.status, 503);

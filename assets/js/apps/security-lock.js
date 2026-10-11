@@ -27,9 +27,15 @@ import { toast } from '../lib/toast.js';
     return document.getElementById(id);
   }
 
-  /** 管理 token（验证后签发，只存内存） */
+  /** 管理 token（验证后签发，只存内存）
+      2.10.0：已废弃，管理操作改用 sgx-stepup cookie（服务端 HttpOnly）。
+      保留变量避免引用错误，但不再使用。 */
   let token = null;
   let hasPw = false;
+  /** 2.10.0：全量通行密钥缓存（含应用类，供应用验证分组渲染） */
+  let allKeys = [];
+  /** 2.10.0：应用白名单（与服务端一致，book 在列） */
+  var APPS = [{ aud: 'book', name: 'Book' }];
 
   /* ---------- 通用 ---------- */
   /** @param {string} id @param {string} msg */
@@ -58,13 +64,77 @@ import { toast } from '../lib/toast.js';
       return { status: r.status, json: j };
     });
   }
-  /** @param {string} url @param {any} body */
-  function api(url, body) {
+  /** @param {string} url @param {any} body @param {boolean} [retried] */
+  function api(url, body, retried) {
     return fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-    }).then(parseApi);
+      credentials: 'include',
+    }).then(parseApi).then(function (res) {
+      /* 2.10.0：stepup-required → 自动做一次 stepup 验证后重试（只重试一次） */
+      if (!retried && res.json && res.json.error === 'stepup-required') {
+        return doStepup().then(function (ok) {
+          if (ok) return api(url, body, true);
+          return res;
+        });
+      }
+      return res;
+    });
+  }
+
+  /**
+   * 2.10.0：执行 stepup 验证（锁屏类通行密钥，强制 UV）。
+   * 成功后服务端设置 sgx-stepup cookie。返回 Promise<boolean>。
+   */
+  function doStepup() {
+    if (!window.PublicKeyCredential) {
+      return Promise.resolve(false);
+    }
+    return api('/api/stepup', { action: 'challenge' })
+      .then(function (res) {
+        const ch = res.json;
+        if (!ch || !ch.ok) throw { kind: 'server' };
+        const allow = (ch.allowCredentials || []).map(function (c) {
+          return { id: b64urlToBuf(c.id), type: c.type };
+        });
+        return navigator.credentials
+          .get({ publicKey: { challenge: b64urlToBuf(ch.challenge), rpId: ch.rpId, allowCredentials: allow, userVerification: 'required', timeout: 60000 } })
+          .then(function (cred) {
+            return { cred: cred, cid: ch.cid };
+          }, function (e) {
+            throw { kind: e && e.name === 'NotAllowedError' ? 'cancelled' : 'failed' };
+          });
+      })
+      .then(function (r2) {
+        const cred = r2.cred;
+        return fetch('/api/stepup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'verify',
+            cid: r2.cid,
+            credential: {
+              id: cred.id,
+              rawId: bufToB64url(cred.rawId),
+              type: cred.type,
+              response: {
+                clientDataJSON: bufToB64url(cred.response.clientDataJSON),
+                authenticatorData: bufToB64url(cred.response.authenticatorData),
+                signature: bufToB64url(cred.response.signature),
+                userHandle: cred.response.userHandle ? bufToB64url(cred.response.userHandle) : null,
+              },
+            },
+          }),
+          credentials: 'include',
+        }).then(parseApi);
+      })
+      .then(function (res) {
+        return !!(res.json && res.json.ok);
+      })
+      .catch(function () {
+        return false;
+      });
   }
   /** @param {string} s */
   function b64urlToBuf(s) {
@@ -257,7 +327,7 @@ import { toast } from '../lib/toast.js';
     });
   }
 
-  /* 使用通行密钥 → WebAuthn 验证，通过后服务端签发管理 token */
+  /* 使用通行密钥 → 2.10.0：走 stepup 验证（锁屏类，强制 UV），成功后服务端设 cookie */
   if (gatePkBtn) {
     on(gatePkBtn, 'click', function () {
       hideErr('lockgate-err');
@@ -265,69 +335,13 @@ import { toast } from '../lib/toast.js';
         showErr('lockgate-err', t('pkNoSupport'));
         return;
       }
-      api('/api/owner-passkey', { action: 'challenge', type: 'auth' })
-        .then(function (res) {
-          const ch = res.json;
-          if (!ch) throw { kind: 'server' };
-          if (!ch.ok) throw { kind: 'server' };
-          const allow = (ch.allowCredentials || []).map(function (c) {
-            return { id: b64urlToBuf(c.id), type: c.type };
-          });
-          return navigator.credentials
-            .get({ publicKey: { challenge: b64urlToBuf(ch.challenge), allowCredentials: allow, userVerification: 'required', timeout: 60000 } })
-            .then(function (cred) {
-              return { cred: cred, cid: ch.cid };
-            }, function (e) {
-              throw { kind: e && e.name === 'NotAllowedError' ? 'cancelled' : 'failed' };
-            });
-        })
-        .then(function (r2) {
-          const cred = r2.cred;
-          return api('/api/owner-passkey', {
-            action: 'auth',
-            cid: r2.cid,
-            credential: {
-              id: cred.id,
-              rawId: bufToB64url(cred.rawId),
-              response: {
-                clientDataJSON: bufToB64url(cred.response.clientDataJSON),
-                authenticatorData: bufToB64url(cred.response.authenticatorData),
-                signature: bufToB64url(cred.response.signature),
-                userHandle: cred.response.userHandle ? bufToB64url(cred.response.userHandle) : null,
-              },
-              type: cred.type,
-            },
-          });
-        })
-        .then(function (res) {
-          const j = res.json;
-          if (j && j.ok && j.token) {
-            token = j.token;
-            /* 迁移旧密钥：更新密码管理器里的用户姓名（特性检测，不支持就跳过） */
-            try {
-              if (window.PublicKeyCredential &&
-                  typeof PublicKeyCredential.signalCurrentUserDetails === 'function') {
-                PublicKeyCredential.signalCurrentUserDetails({
-                  rpId: location.hostname,
-                  userId: cred.rawId,
-                  name: 'owner',
-                  displayName: 'Sloan Gray',
-                }).catch(function () {});
-              }
-            } catch (e) {}
-            enterMgr();
-          } else if (!j) {
-            showErr('lockgate-err', t('gateSrvErr'));
-          } else {
-            showErr('lockgate-err', t('gatePkErr'));
-          }
-        })
-        .catch(function (e) {
-          if (e && e.kind === 'cancelled') toast(t('gateCancelled'));
-          else if (e && e.kind === 'failed') showErr('lockgate-err', t('gatePkErr'));
-          else if (e && e.kind === 'server') showErr('lockgate-err', t('gateSrvErr'));
-          else showErr('lockgate-err', t('gateNetErr'));
-        });
+      doStepup().then(function (ok) {
+        if (ok) {
+          enterMgr();
+        } else {
+          showErr('lockgate-err', t('gatePkErr'));
+        }
+      });
     });
   }
 
@@ -435,7 +449,7 @@ import { toast } from '../lib/toast.js';
         return;
       }
       window.clearTimeout(armTimer);
-      api('/api/owner-password', { action: 'remove', token: token })
+      api('/api/owner-password', { action: 'remove' })
         .then(function (r) {
           const j = r.json;
           if (j && j.ok) {
@@ -443,7 +457,7 @@ import { toast } from '../lib/toast.js';
             /* 服务端删除成功后重新读状态刷新（KV 最终一致，边缘节点最多约 60 秒） */
             refreshStatus();
             refreshPkList();
-          } else if (j && j.error === 'token') {
+          } else if (j && j.error === 'stepup-required') {
             needReauth();
           } else {
             toast(t('gateSrvErr'));
@@ -475,7 +489,7 @@ import { toast } from '../lib/toast.js';
             token = null;
             try { sessionStorage.removeItem('sgx-lockmgr'); } catch (e) {}
             location.href = '/?lock=1';
-          } else if (j && (j.error === 'token' || r.status === 401)) {
+          } else if (j && (j.error === 'stepup-required' || r.status === 401)) {
             needReauth();
           } else {
             toast(t('gateSrvErr'));
@@ -504,8 +518,8 @@ import { toast } from '../lib/toast.js';
     }
     const action = hasPw ? 'change' : 'set';
     const body = action === 'set'
-      ? { action: 'set', token: token, password: va }
-      : { action: 'change', token: token, newPassword: va };
+      ? { action: 'set', password: va }
+      : { action: 'change', newPassword: va };
     api('/api/owner-password', body)
       .then(function (res) {
         const j = res.json;
@@ -518,7 +532,7 @@ import { toast } from '../lib/toast.js';
           hasPw = true;
           refreshStatus();
           toast(hasPw && action === 'change' ? t('pwChanged') : t('pwSaved'));
-        } else if (j.error === 'token') {
+        } else if (j.error === 'stepup-required') {
           closePwDlg();
           needReauth();
         } else if (j.error === 'exists' && action === 'set') {
@@ -601,14 +615,14 @@ import { toast } from '../lib/toast.js';
         refreshPkList();
         return;
       }
-      api('/api/owner-passkey', { action: 'rename', token: token, credId: pkNameCredId, name: name })
+      api('/api/owner-passkey', { action: 'rename', credId: pkNameCredId, name: name })
         .then(function (r) {
           const j = r.json;
           if (j && j.ok) {
             toast(t('pkRegistered'));
             closePkNameDlg();
             refreshPkList();
-          } else if (j && j.error === 'token') {
+          } else if (j && j.error === 'stepup-required') {
             needReauth();
           } else if (j && j.error === 'not-found') {
             /* KV 最终一致：刚注册的 key 可能暂时读不到 */
@@ -634,22 +648,24 @@ import { toast } from '../lib/toast.js';
     });
   }
 
-  /* 通行密钥列表 */
+  /* 通行密钥列表（2.10.0：只显示锁屏类；应用类在应用验证分组） */
   function refreshPkList() {
-    if (!token) return;
     const ul = $('lockmgr-pklist');
     const empty = $('lockmgr-pkempty');
-    api('/api/owner-passkey', { action: 'list', token: token })
+    api('/api/owner-passkey', { action: 'list' })
       .then(function (res) {
         const j = res.json;
         if (!j) return;
-        if (j.error === 'token') {
+        if (j.error === 'stepup-required') {
           needReauth();
           return;
         }
-        const keys = (j.ok && j.keys) || [];
+        const keys = ((j.ok && j.keys) || []).filter(function (k) { return (k.class || 'lock') === 'lock'; });
         if (!ul) return;
         ul.innerHTML = '';
+        // 缓存全量 keys 供应用验证分组使用
+        allKeys = (j.ok && j.keys) || [];
+        renderAppList();
         keys.forEach(function (k) {
           const li = document.createElement('li');
           li.className = 'lockmgr-pkitem';
@@ -665,13 +681,13 @@ import { toast } from '../lib/toast.js';
           const saveName = function () {
             const v = nameInput.value.trim();
             if (v === lastSaved) return;
-            api('/api/owner-passkey', { action: 'rename', token: token, credId: k.credId, name: v })
+            api('/api/owner-passkey', { action: 'rename', credId: k.credId, name: v })
               .then(function (r2) {
                 const jj = r2.json;
                 if (jj && jj.ok) {
                   lastSaved = v;
                   toast(t('pkRenamed'));
-                } else if (jj && jj.error === 'token') {
+                } else if (jj && jj.error === 'stepup-required') {
                   needReauth();
                 } else {
                   nameInput.value = lastSaved;
@@ -728,7 +744,7 @@ import { toast } from '../lib/toast.js';
               return;
             }
             window.clearTimeout(armTimer);
-            api('/api/owner-passkey', { action: 'delete', token: token, credId: k.credId })
+            api('/api/owner-passkey', { action: 'delete', credId: k.credId })
               .then(function (r2) {
                 const jj = r2.json;
                 if (jj && jj.ok) {
@@ -744,7 +760,7 @@ import { toast } from '../lib/toast.js';
                   /* 服务端删除成功后重新读列表刷新（KV 最终一致，边缘节点最多约 60 秒） */
                   refreshPkList();
                   refreshStatus();
-                } else if (jj && jj.error === 'token') {
+                } else if (jj && jj.error === 'stepup-required') {
                   needReauth();
                 } else if (jj && jj.error === 'not-found') {
                   toast(t('pkRetryLater'));
@@ -768,6 +784,118 @@ import { toast } from '../lib/toast.js';
       .catch(function () {});
   }
 
+  /* 2.10.0：应用验证分组（每应用一行，可单独添加/删除钥匙；增删先过 stepup） */
+  function renderAppList() {
+    const ul = $('lockmgr-applist');
+    if (!ul) return;
+    ul.innerHTML = '';
+    APPS.forEach(function (app) {
+      const appKeys = allKeys.filter(function (k) {
+        return (k.class || 'lock') === 'app' && k.aud === app.aud;
+      });
+      const li = document.createElement('li');
+      li.className = 'lockmgr-pkitem';
+      const nameWrap = document.createElement('div');
+      nameWrap.className = 'lockmgr-pkname';
+      const label = document.createElement('span');
+      label.textContent = app.name + (appKeys.length ? '（' + appKeys.length + '）' : '（未添加）');
+      nameWrap.appendChild(label);
+      li.appendChild(nameWrap);
+      const btnWrap = document.createElement('div');
+      if (appKeys.length === 0) {
+        const add = document.createElement('button');
+        add.type = 'button';
+        add.className = 'lockmgr-add';
+        add.textContent = '＋ 添加' + app.name + '的钥匙';
+        on(add, 'click', function () {
+          addAppKey(app.aud);
+        });
+        btnWrap.appendChild(add);
+      } else {
+        appKeys.forEach(function (k) {
+          const del = document.createElement('button');
+          del.type = 'button';
+          del.className = 'lockmgr-del';
+          del.textContent = '删除';
+          del.setAttribute('aria-label', '删除' + app.name + '的钥匙');
+          on(del, 'click', function () {
+            if (!confirm(t('pkDelConfirm') || '确定删除？')) return;
+            api('/api/owner-passkey', { action: 'delete', credId: k.credId })
+              .then(function (r2) {
+                if (r2.json && r2.json.ok) {
+                  toast(t('pkDeleted') || '已删除');
+                  refreshPkList();
+                }
+              })
+              .catch(function () {});
+          });
+          btnWrap.appendChild(del);
+        });
+      }
+      li.appendChild(btnWrap);
+      ul.appendChild(li);
+    });
+  }
+
+  /* 2.10.0：添加应用类通行密钥（aud 必须在白名单；服务端再校验） */
+  function addAppKey(aud) {
+    if (!window.PublicKeyCredential) {
+      toast(t('pkNoSupport'));
+      return;
+    }
+    api('/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: 'app', aud: aud })
+      .then(function (res) {
+        const ch = res.json;
+        if (!ch || !ch.ok) throw new Error((ch && ch.error) || 'challenge');
+        return navigator.credentials.create({
+          publicKey: {
+            challenge: b64urlToBuf(ch.challenge),
+            rp: { id: ch.rpId, name: ch.rp.name },
+            user: {
+              id: b64urlToBuf(ch.user.id),
+              name: ch.user.name,
+              displayName: ch.user.displayName,
+            },
+            pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
+            authenticatorSelection: { userVerification: 'required', residentKey: 'preferred' },
+            excludeCredentials: (ch.excludeCredentials || []).map(function (c) {
+              return { id: b64urlToBuf(c.id), type: c.type };
+            }),
+            timeout: 60000,
+          },
+        }).then(function (cred) {
+          return { cred: cred, cid: ch.cid };
+        });
+      })
+      .then(function (r2) {
+        const cred = r2.cred;
+        return api('/api/owner-passkey', {
+          action: 'register',
+          cid: r2.cid,
+          credential: {
+            id: cred.id,
+            rawId: bufToB64url(cred.rawId),
+            type: cred.type,
+            response: {
+              clientDataJSON: bufToB64url(cred.response.clientDataJSON),
+              attestationObject: bufToB64url(cred.response.attestationObject),
+            },
+          },
+        });
+      })
+      .then(function (res) {
+        if (res.json && res.json.ok) {
+          toast(t('pkRegistered') || '已添加');
+          refreshPkList();
+        } else {
+          toast(t('gateSrvErr') || '失败');
+        }
+      })
+      .catch(function () {
+        toast(t('gateNetErr') || '网络错误');
+      });
+  }
+
   /* 添加通行密钥 */
   const pkAdd = $('lockmgr-pkadd');
   if (pkAdd) {
@@ -776,16 +904,13 @@ import { toast } from '../lib/toast.js';
         toast(t('pkNoSupport'));
         return;
       }
-      if (!token) {
-        needReauth();
-        return;
-      }
-      api('/api/owner-passkey', { action: 'challenge', type: 'register', token: token })
+      /* 2.10.0：无 token 检查；api() 在 stepup-required 时自动验证后重试 */
+      api('/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: 'lock' })
         .then(function (res) {
           const ch = res.json;
           if (!ch) throw { kind: 'server' };
           if (!ch.ok) {
-            if (ch.error === 'token') throw { kind: 'reauth' };
+            if (ch.error === 'stepup-required') throw { kind: 'reauth' };
             throw { kind: 'server' };
           }
           /* 服务端下发 rp.id、用户信息、excludeCredentials；前端不硬编码、不回落 */
@@ -851,7 +976,7 @@ import { toast } from '../lib/toast.js';
             refreshPkList();
             /* 新注册后刷新门禁状态（通行密钥选项） */
             fetch('/api/owner-status', { method: 'GET', credentials: 'same-origin' }).catch(function () {});
-          } else if (j && j.error === 'token') {
+          } else if (j && j.error === 'stepup-required') {
             needReauth();
           } else {
             toast(t('gateSrvErr'));
