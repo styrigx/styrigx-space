@@ -1,4 +1,9 @@
 # My Files › My sites: sites only I write and only I have access to (blog, library, etc.)
+- id: space
+  title: Home
+  subtitle: Personal homepage
+  url: https://styrigx.com
+  icon: globe
 - id: blog
   title: Blog
   subtitle: Personal blog
