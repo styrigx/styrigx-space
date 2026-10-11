@@ -125,7 +125,8 @@ test('正常签发 → 验证通过', async () => {
   const val = await signStepupCookie(TEST_PRIV_PEM, 'owner', 'keys', 0);
   const p = parseStepupCookie(val);
   assert.ok(p);
-  assert.equal(p.role, 'owner');
+  assert.equal(p.by, 'owner');
+  assert.equal(p.scope, 'keys');
   assert.equal(p.epoch, 0);
   /* 有效期约 10 分钟 */
   assert.ok(Math.abs((p.exp - p.iat) - STEPUP_MAX_AGE * 1000) < 5000);
@@ -144,7 +145,7 @@ test('过期 cookie 被拒', async () => {
   /* 手工构造过期 cookie：iat/exp 为过去，有效签名 */
   const iat = Date.now() - 20 * 60 * 1000;
   const exp = iat + STEPUP_MAX_AGE * 1000; /* 已过期 10 分钟 */
-  const payload = 'owner.0.' + iat + '.' + exp;
+  const payload = 'owner.keys.0.' + iat + '.' + exp;
   const sig = await ed25519Sign(TEST_PRIV_PEM, payload);
   const val = payload + '.' + sig;
 

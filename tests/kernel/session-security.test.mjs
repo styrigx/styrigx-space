@@ -711,7 +711,6 @@ test('passkey auth 通过：Set-Cookie 属性齐全', async () => {
 
   const env = {
     OWNER_KV: kv,
-    ,
     SGX_LOCK_PRIVATE: TEST_PRIV_PEM,
     SGX_RP_ID: 'styrigx.com',
     SGX_ORIGIN: 'https://styrigx.com',
@@ -912,7 +911,6 @@ test('diag: passkey auth 无 SGX_LOCK_PRIVATE → 500 no-session-key（不被吞
   const { kv, body } = await buildPasskeyAuthFixture();
   const env = {
     OWNER_KV: kv,
-    ,
     SGX_RP_ID: 'styrigx.com',
     SGX_ORIGIN: 'https://styrigx.com',
   };
@@ -927,7 +925,6 @@ test('diag: passkey auth 私钥格式错误 → 500 session-sign-failed（不被
   const { kv, body } = await buildPasskeyAuthFixture();
   const env = {
     OWNER_KV: kv,
-    ,
     SGX_LOCK_PRIVATE: 'not-a-valid-key',
     SGX_RP_ID: 'styrigx.com',
     SGX_ORIGIN: 'https://styrigx.com',

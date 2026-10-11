@@ -682,11 +682,11 @@ function showLockScreen() {
       '</button>' +
       /* 4. 根密钥：未解锁也能用，调 /api/root-auth */
       '<button type="button" class="sgx-method-opt" id="sgx-mopt-mk" aria-label="' +
-        (en ? 'Root key' : '根密钥') + '">' +
+        (en ? 'Root key (recovery)' : '根密钥（恢复）') + '">' +
       '<span class="sgx-method-ic" aria-hidden="true">' +
       '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg></span>' +
-      '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Root key' : '根密钥') + '</span>' +
-      '<span class="sgx-method-desc">' + (en ? 'Recover with your root key' : '用根密钥恢复') + '</span></span>' +
+      '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Root key (recovery)' : '根密钥（恢复）') + '</span>' +
+      '<span class="sgx-method-desc">' + (en ? 'Recover with your root key' : '用根密钥恢复访问') + '</span></span>' +
       '</button>' +
       '</div>';
     document.body.appendChild(sheet);
@@ -941,10 +941,10 @@ function showLockScreen() {
      成功后进入安全与隐私页。 */
   function openMk() {
     dlgState = 'mgmtkey';
-    setTitle(en ? 'Root key' : '根密钥');
+    setTitle(en ? 'Root key (recovery)' : '根密钥（恢复）');
     setBody(
       '<div class="sgx-pw-field"><input type="password" id="sgx-mk-input" class="sgx-pw-input" autocomplete="off" ' +
-        'aria-label="' + (en ? 'Root key' : '根密钥') + '" placeholder="' + (en ? 'Root key' : '根密钥') + '">' +
+        'aria-label="' + (en ? 'Root key (recovery)' : '根密钥（恢复）') + '" placeholder="' + (en ? 'Root key (recovery)' : '根密钥（恢复）') + '">' +
         '<button type="button" class="sgx-pw-eye" id="sgx-mk-eye" aria-label="' + (en ? 'Show' : '显示') + '"></button></div>' +
         '<button type="button" class="sgx-verify-skip" id="sgx-mk-go">' + (en ? 'Verify' : '验证') + '</button>'
     );
