@@ -29,9 +29,11 @@
 #site-nav {
   view-transition-name: sgx-topbar;
   /* 三星浏览器 backdrop-filter 可能不生效，给纯色兜底 */
+  /* stylelint-disable-next-line color-no-hex */
   background: var(--m-surface, #fff);
 }
 .dark #site-nav {
+  /* stylelint-disable-next-line color-no-hex */
   background: var(--m-surface, #1e1e20);
 }
 /* 共享元素：App 图标 ↔ 子页面大标题 */
