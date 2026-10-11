@@ -173,18 +173,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{ $setUrl := $setUrl0 }}{{ $glUrl := $glUrl0 }}{{ $filesUrl := $filesUrl0 }}{{ $storeUrl := $storeUrl0 }}
 
 <!-- 顶栏：左侧头像 / 中间时间（带日期）/ 右侧天气。手机、DeX 全局显示，无搜索框 -->
-<nav id="site-nav" class="z-50" data-route="home">
-<script>
-/* 2.9.2⑦：顶栏天气只在主页显示。首帧直接定 data-route，避免闪一下 */
-(function(){
-  try{
-    var p=location.pathname;
-    var isHome=(p==='/'||p==='/en/'||p==='/index.html');
-    var nav=document.currentScript.parentElement;
-    if(nav)nav.setAttribute('data-route',isHome?'home':'app');
-  }catch(e){}
-})();
-</script>
+<nav id="site-nav" class="z-50">
   <div class="nav-inner max-w-[1100px] mx-auto px-4 py-2.5 flex items-center gap-3">
     <a id="nav-brand" href="{{ $home }}" class="flex items-center gap-2 font-bold text-[15px] shrink-0 whitespace-nowrap relative z-[1]">
       {{ $navAvatar := resources.Get "images/avatar.png" }}

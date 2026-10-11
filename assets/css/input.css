@@ -826,7 +826,8 @@
     mask-image: linear-gradient(to bottom, #000 0%, #000 62%, transparent 100%);
   }
   .layout-mobile body.subpage-scrolled #nav-brand,
-  .layout-mobile body.subpage-scrolled #nav-time-center { opacity: 0; pointer-events: none; }
+  .layout-mobile body.subpage-scrolled #nav-time-center,
+  .layout-mobile body.subpage-scrolled #nav-wx { opacity: 0; pointer-events: none; }
   /* 手机子页面：标题区从屏幕顶部开始（顶栏透明叠在上面），main 不再额外留白 */
   .layout-mobile main:has([data-subpage-head]) { padding-top: 0; }
 
@@ -2290,7 +2291,6 @@ html, body {
   contain: layout style;
 }
 
-/* 2.9.2⑦：顶栏天气只在主页显示（Mobile 和 DeX 都按此规则） */
-#site-nav[data-route="app"] #nav-wx {
-  display: none !important;
-}
+/* 2.9.2⑦（修正版）：应用页标题收起时，天气和头像/用户名一起隐藏。
+   复用 body.subpage-scrolled 同一个收起状态，动画时机与头像一致。
+   主页不受影响（主页没有 subpage-head，不会加 subpage-scrolled）。 */

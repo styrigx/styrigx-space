@@ -87,37 +87,70 @@ test('顶栏标题和日期不相交', async ({ page }) => {
   expect(boxes.nav.height).toBeLessThan(200);
 });
 
-test('⑦主页天气可见，进入设置后隐藏，返回主页又可见', async ({ page }) => {
-  await gotoWithLayout(page, 'auto');
-  // 主页天气可见（如果天气功能开启）
-  const wxVisibleHome = await page.evaluate(() => {
-    const wx = document.getElementById('nav-wx');
-    if (!wx) return 'no-element';
-    return getComputedStyle(wx).display !== 'none' ? 'visible' : 'hidden';
-  });
-  // 注意：天气可能因设置关闭而不显示，这里只断言 data-route
-  const routeHome = await page.evaluate(() => document.getElementById('site-nav')?.getAttribute('data-route'));
-  expect(routeHome).toBe('home');
-
-  // 进入设置（直接导航模拟）
-  await page.goto('/settings/', { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('#site-nav', { timeout: 10000 });
-  const routeApp = await page.evaluate(() => document.getElementById('site-nav')?.getAttribute('data-route'));
-  expect(routeApp).toBe('app');
-  // 天气应隐藏
-  const wxHidden = await page.evaluate(() => {
-    const wx = document.getElementById('nav-wx');
-    if (!wx) return true;
-    return getComputedStyle(wx).display === 'none';
-  });
-  expect(wxHidden).toBe(true);
-});
-
-test('⑦直接打开 /settings/ 首屏天气不可见（不闪）', async ({ page }) => {
+test('⑦我的文件未滚动时天气可见，滚动收起后天气和头像都隐藏', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await blockExternalRequests(page);
-  // 首帧检查：domcontentloaded 后立即断言
-  await page.goto('/settings/', { waitUntil: 'domcontentloaded' });
-  const route = await page.evaluate(() => document.getElementById('site-nav')?.getAttribute('data-route'));
-  expect(route).toBe('app');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await freezeTime(page);
+  await page.goto('/files/', { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('#site-nav', { timeout: 10000 });
+
+  // 未滚动：天气可见（opacity 非 0）
+  const before = await page.evaluate(() => {
+    const wx = document.getElementById('nav-wx');
+    const brand = document.getElementById('nav-brand');
+    return {
+      wxOpacity: wx ? getComputedStyle(wx).opacity : 'no-el',
+      brandOpacity: brand ? getComputedStyle(brand).opacity : 'no-el',
+      scrolled: document.body.classList.contains('subpage-scrolled'),
+    };
+  });
+  expect(before.scrolled).toBe(false);
+  expect(before.wxOpacity).not.toBe('0');
+  expect(before.brandOpacity).not.toBe('0');
+
+  // 滚动到标题收起
+  await page.evaluate(() => window.scrollTo(0, 1000));
+  await page.waitForFunction(
+    () => document.body.classList.contains('subpage-scrolled'),
+    { timeout: 5000 }
+  );
+
+  // 收起后：天气和头像都不可见（opacity 0）
+  const after = await page.evaluate(() => {
+    const wx = document.getElementById('nav-wx');
+    const brand = document.getElementById('nav-brand');
+    const mini = document.querySelector('.subpage-mini-title');
+    const wxBox = wx ? wx.getBoundingClientRect() : null;
+    const miniBox = mini ? mini.getBoundingClientRect() : null;
+    return {
+      wxOpacity: wx ? getComputedStyle(wx).opacity : 'no-el',
+      brandOpacity: brand ? getComputedStyle(brand).opacity : 'no-el',
+      wxBox: wxBox ? { x: wxBox.x, y: wxBox.y, width: wxBox.width, height: wxBox.height } : null,
+      miniBox: miniBox ? { x: miniBox.x, y: miniBox.y, width: miniBox.width, height: miniBox.height } : null,
+    };
+  });
+  expect(after.wxOpacity).toBe('0');
+  expect(after.brandOpacity).toBe('0');
+  // 居中标题和天气不相交（天气已隐藏，opacity 0）
+  if (after.wxBox && after.miniBox) {
+    expect(boxesIntersect(after.wxBox, after.miniBox)).toBe(false);
+  }
+
+  // 滚回顶部：二者重新可见
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForFunction(
+    () => !document.body.classList.contains('subpage-scrolled'),
+    { timeout: 5000 }
+  );
+  const restored = await page.evaluate(() => {
+    const wx = document.getElementById('nav-wx');
+    const brand = document.getElementById('nav-brand');
+    return {
+      wxOpacity: wx ? getComputedStyle(wx).opacity : 'no-el',
+      brandOpacity: brand ? getComputedStyle(brand).opacity : 'no-el',
+    };
+  });
+  expect(restored.wxOpacity).not.toBe('0');
+  expect(restored.brandOpacity).not.toBe('0');
 });

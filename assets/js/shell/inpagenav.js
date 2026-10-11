@@ -152,32 +152,9 @@ function extractContent(html) {
  * @param {string} newLang
  * @param {string} newPage
  */
-/* 2.9.2⑦：更新顶栏 data-route（天气只在主页显示，顶栏节点不动） */
-function updateNavRoute(url) {
-  try {
-    const nav = document.getElementById('site-nav');
-    if (!nav) return;
-    const u = new URL(url, location.origin);
-    const p = u.pathname;
-    const isHome = (p === '/' || p === '/en/' || p === '/index.html');
-    nav.setAttribute('data-route', isHome ? 'home' : 'app');
-  } catch (e) {}
-}
-
 function swapContent(newContent, newTitle, newLang, newPage) {
   const main = document.querySelector(CONTENT_SELECTOR);
   if (!main) return;
-  // 2.9.2⑦：popstate 时也更新（navigateTo 可能不经过 pushState 分支）
-  if (newPage) {
-    try {
-      const nav = document.getElementById('site-nav');
-      if (nav) {
-        // newPage 是页面标识，主页为 'home' 或空
-        const isHome = !newPage || newPage === 'home' || newPage === 'index';
-        nav.setAttribute('data-route', isHome ? 'home' : 'app');
-      }
-    } catch (e) {}
-  }
 
   const doSwap = () => {
     // 1. unmount 旧页
@@ -282,8 +259,6 @@ export async function navigateTo(url, opts = {}) {
   if (push) {
     history.pushState({ url: targetUrl.href, scrollY: window.scrollY }, '', targetUrl.href);
   }
-  // 2.9.2⑦：更新顶栏路由状态
-  updateNavRoute(targetUrl.href);
 
   // 滚动到顶，焦点移到内容区标题
   if (push) {
