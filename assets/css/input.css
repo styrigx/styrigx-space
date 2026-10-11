@@ -85,6 +85,12 @@
    2.4.0 E：本层是 Material You 色板 token 定义，hex 在此合法（stylelint 豁免）。 */
 /* stylelint-disable color-no-hex, color-named */
 @layer tokens {
+  /* 2.9.2：snackbar 用 inverse token（Material You 规范） */
+  :root {
+    --m-inverse-surface: light-dark(#323232, #e3e3e6);
+    --m-inverse-on-surface: light-dark(#f5f5f5, #323232);
+    --m-inverse-primary: light-dark(#a8c7fa, #2f5f86);
+  }
   @supports not (color: light-dark(#000, #fff)) {
     :root {
       color-scheme: light dark;
@@ -695,8 +701,9 @@
         -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
       }
     }
-    /* 品牌/时间淡出：与顶栏变实同步 */
-    .layout-mobile #nav-brand, .layout-mobile #nav-time-center {
+    /* 品牌/时间/天气淡出：与顶栏变实同步（2.9.2⑦：天气跟头像同一状态） */
+    .layout-mobile #nav-brand, .layout-mobile #nav-time-center, .layout-mobile #nav-wx,
+    .layout-dex #nav-brand, .layout-dex #nav-time-center, .layout-dex #nav-wx {
       animation: sgx-nav-fade linear both;
       animation-timeline: --sgx-subhead;
       animation-range: exit 55% exit 57%;
@@ -826,7 +833,12 @@
     mask-image: linear-gradient(to bottom, #000 0%, #000 62%, transparent 100%);
   }
   .layout-mobile body.subpage-scrolled #nav-brand,
-  .layout-mobile body.subpage-scrolled #nav-time-center { opacity: 0; pointer-events: none; }
+  .layout-mobile body.subpage-scrolled #nav-time-center,
+  .layout-mobile body.subpage-scrolled #nav-wx,
+  .layout-dex body.subpage-scrolled #nav-brand,
+  .layout-dex body.subpage-scrolled #nav-time-center,
+  .layout-dex body.subpage-scrolled #nav-wx { opacity: 0; pointer-events: none; }
+
   /* 手机子页面：标题区从屏幕顶部开始（顶栏透明叠在上面），main 不再额外留白 */
   .layout-mobile main:has([data-subpage-head]) { padding-top: 0; }
 
@@ -847,6 +859,8 @@
   }
   .layout-mobile .subpage-hero { position: relative; top: 0; }
   .layout-mobile .subpage-back { top: calc(var(--nav-h,64px) + 12px + env(safe-area-inset-top,0px)); }
+  /* 2.9.2⑥③：返回箭头 top 必须 >= 顶栏 bottom（所有布局） */
+  .subpage-back { top: max(calc(12px + env(safe-area-inset-top,0px)), calc(var(--nav-h,64px) + 8px)); }
   .layout-mobile .subpage-actions { top: auto; bottom: 8px; }
   /* 2.3.14.7：大标题滚动联动动画 2.4.0 B 起由 CSS scroll-driven animations 驱动
      （@supports 不命中时回退到 rAF 直接写 opacity/transform），不再用 CSS transition，
@@ -2269,3 +2283,54 @@
   #sgx-upgrade-overlay { align-items: center; }
   .sgx-upgrade-sheet { border-radius: 24px; }
 }
+/* 2.9.2 布局切换 snackbar：正常大小，底部居中 */
+#sgx-layout-snackbar {
+  position: fixed;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  border-radius: 12px;
+  background: var(--m-inverse-surface);
+  color: var(--m-inverse-on-surface);
+  font-size: 14px;
+  line-height: 1.4;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+  animation: sgx-snackbar-in 0.25s ease-out;
+}
+#sgx-layout-snackbar button {
+  background: none;
+  border: none;
+  color: var(--m-inverse-primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+@keyframes sgx-snackbar-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* 2.9.2：任何布局都不允许横向溢出（不用 min-width 撑宽，不改 meta viewport） */
+html, body {
+  overflow-x: clip;
+}
+@supports not (overflow: clip) {
+  html, body { overflow-x: hidden; }
+}
+/* 布局切换时内容不卸载：只换 class 做重排 */
+.layout-mobile .set-layout,
+.layout-dex .set-layout,
+.layout-pc .set-layout {
+  contain: layout style;
+}
+
+/* 2.9.2⑦（修正版）：应用页标题收起时，天气和头像/用户名一起隐藏。
+   复用 body.subpage-scrolled 同一个收起状态，动画时机与头像一致。
+   主页不受影响（主页没有 subpage-head，不会加 subpage-scrolled）。 */

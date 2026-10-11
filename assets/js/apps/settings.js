@@ -185,18 +185,75 @@ import { setCapSearchProvider } from '../shell/capsule.js';
       v = 'auto';
       featSet('layout', 'auto');
     }
+    /* 2.9.2 窄屏保护：< 840px 时 DeX/PC 置灰（仅在大屏生效），偏好保留 */
+    const isNarrow = (window.innerWidth || 1280) < 840;
     document.querySelectorAll('#seg-layout button').forEach(function (b) {
-      b.setAttribute('aria-pressed', b.getAttribute('data-v') === v ? 'true' : 'false');
+      const bv = b.getAttribute('data-v');
+      b.setAttribute('aria-pressed', bv === v ? 'true' : 'false');
+      if ((bv === 'dex' || bv === 'pc') && isNarrow) {
+        b.setAttribute('disabled', 'disabled');
+        b.setAttribute('title', '仅在大屏生效');
+      } else {
+        b.removeAttribute('disabled');
+        b.removeAttribute('title');
+      }
+    });
+    // 窄屏提示
+    let hint = document.getElementById('seg-layout-narrow-hint');
+    if (isNarrow) {
+      if (!hint) {
+        hint = document.createElement('p');
+        hint.id = 'seg-layout-narrow-hint';
+        hint.className = 'text-[12px] opacity-60 mt-1';
+        hint.textContent = 'DeX / PC 仅在大屏生效（当前为窄屏）';
+        const seg = document.getElementById('seg-layout');
+        if (seg && seg.parentNode) seg.parentNode.appendChild(hint);
+      }
+    } else if (hint) {
+      hint.remove();
+    }
+  }
+  /* 2.9.2：布局切换 snackbar（含 10 秒撤销） */
+  let layoutUndoTimer = null;
+  function showLayoutSnackbar(newV, oldV) {
+    // 清掉旧的
+    const old = document.getElementById('sgx-layout-snackbar');
+    if (old) old.remove();
+    if (layoutUndoTimer) { clearTimeout(layoutUndoTimer); layoutUndoTimer = null; }
+    const names = { auto: '自动', mobile: 'Mobile', dex: 'DeX', pc: 'PC' };
+    const bar = document.createElement('div');
+    bar.id = 'sgx-layout-snackbar';
+    bar.setAttribute('role', 'status');
+    bar.innerHTML = '<span>已切换为 ' + (names[newV] || newV) + ' 布局</span>' +
+      '<button type="button" id="sgx-layout-undo">撤销</button>';
+    document.body.appendChild(bar);
+    // 10 秒后自动消失
+    layoutUndoTimer = setTimeout(function () {
+      bar.remove();
+      layoutUndoTimer = null;
+    }, 10000);
+    document.getElementById('sgx-layout-undo').addEventListener('click', function () {
+      featSet('layout', oldV);
+      paintLayout();
+      const w = /** @type {any} */ (window);
+      if (w.__applyLayout) w.__applyLayout();
+      window.dispatchEvent(new Event('sgx-settings-changed'));
+      bar.remove();
+      if (layoutUndoTimer) { clearTimeout(layoutUndoTimer); layoutUndoTimer = null; }
     });
   }
+
   document.querySelectorAll('#seg-layout button').forEach(function (b) {
     on(b, 'click', function () {
       const v = b.getAttribute('data-v') || 'auto';
+      const oldV = featGet('layout') || 'auto';
+      if (v === oldV) return;
       featSet('layout', v);
       paintLayout();
       const w = /** @type {any} */ (window);
       if (w.__applyLayout) w.__applyLayout();
       window.dispatchEvent(new Event('sgx-settings-changed'));
+      showLayoutSnackbar(v, oldV);
     });
   });
   paintLayout();
