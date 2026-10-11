@@ -28,6 +28,13 @@
 }
 #site-nav {
   view-transition-name: sgx-topbar;
+  /* 三星浏览器 backdrop-filter 可能不生效，给纯色兜底 */
+  /* stylelint-disable-next-line color-no-hex */
+  background: var(--m-surface, #fff);
+}
+.dark #site-nav {
+  /* stylelint-disable-next-line color-no-hex */
+  background: var(--m-surface, #1e1e20);
 }
 /* 共享元素：App 图标 ↔ 子页面大标题 */
 ::view-transition-group(sgx-app-icon) {
@@ -755,6 +762,7 @@
   .dock-btn {
     position: relative; z-index: 1; width: 88px; height: 52px; border-radius: 999px;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
+    -webkit-touch-callout: none;
     /* stylelint-disable-next-line color-no-hex */
     gap: 3px; color: #3c3c43; flex-shrink: 0;
     /* stylelint-disable-next-line color-no-hex */

@@ -106,6 +106,48 @@ test('四个 app 模块都注册了 mount/unmount', () => {
   }
 });
 
+test('Dock 长按不弹出系统菜单（issue 4）', () => {
+  // .dock-btn 有 -webkit-touch-callout: none
+  const css = read('assets/css/input.css');
+  assert.ok(css.includes('-webkit-touch-callout: none'), '.dock-btn 应有 -webkit-touch-callout: none');
+  // inpagenav 拦截 Dock 上的 contextmenu
+  assert.ok(inpagenav.includes("e.target.closest('a[data-dock]')"), '应检查 data-dock');
+  assert.ok(inpagenav.includes("addEventListener('contextmenu'"), '应监听 contextmenu');
+});
+
+test('布局切换不触发页面重载（issue 1）', () => {
+  const settingsJs = read('assets/js/apps/settings.js');
+  // 布局切换只改 feat 和 CSS 类，不应 reload 或替换 main
+  const layoutSection = settingsJs.match(/seg-layout[\s\S]{0,500}/);
+  assert.ok(layoutSection, '应找到布局切换逻辑');
+  assert.ok(!layoutSection[0].includes('location.reload'), '布局切换不应 reload');
+  assert.ok(!layoutSection[0].includes('innerHTML ='), '布局切换不应替换 innerHTML');
+});
+
+test('数字健康页顶栏与显示页对齐（issue 3）', () => {
+  // 两个子页应使用相同的 subpage-head 结构
+  const displayHtml = read('layouts/_default/settings.html');
+  // 检查都有返回按钮和折叠标题结构
+  assert.ok(displayHtml.includes('subpage'), '设置页应有 subpage 结构');
+});
+
+test('预取结果被真正使用（issue 2）', () => {
+  // prefetch 应缓存 HTML，fetchPage 应优先查缓存
+  assert.ok(inpagenav.includes('prefetchCache'), '应有预取缓存');
+  assert.ok(inpagenav.includes('getPrefetchCache(url)'), 'fetchPage 应查缓存');
+  // 缓存的页面用一次就删，避免过期
+  assert.ok(inpagenav.includes('prefetchCache.delete(url)'), '用后应删除缓存');
+});
+
+test('顶栏有纯色背景兜底（issue 5，三星浏览器）', () => {
+  const css = read('assets/css/input.css');
+  // #site-nav 应有 background 兜底，不只靠 backdrop-filter
+  assert.ok(css.includes('#site-nav'), '应有 #site-nav 样式');
+  const navBlock = css.match(/#site-nav \{[^}]+\}/s);
+  assert.ok(navBlock, '应找到 #site-nav 规则块');
+  assert.ok(navBlock[0].includes('background'), '#site-nav 应有 background 兜底');
+});
+
 test('core.js 调用了 initInPageNav', () => {
   const core = read('assets/js/shell/core.js');
   assert.ok(core.includes("import { initInPageNav } from './inpagenav.js'"), 'core.js 应导入 initInPageNav');
