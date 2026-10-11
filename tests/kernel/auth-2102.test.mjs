@@ -141,12 +141,12 @@ test('2b：owner-passkey list 有会话没有 stepup → 403 stepup-required', a
   assert.equal((await res.json()).error, 'stepup-required');
 });
 
-test('2c：owner-password change 只有 stepup 没有会话 → 401', async () => {
+test('2c：owner-password change 只有 stepup 没有会话 → 401（2.11：需 kind=lock）', async () => {
   const { onRequestPost } = await import('../../functions/api/owner-password.js');
   const kv = makeKV();
   const env = baseEnv(kv);
   const stepup = await makeStepupCookie(env);
-  const req = reqWithCookies('https://styrigx.com/api/owner-password', { action: 'change', newPassword: 'newpass123' }, `sgx-stepup=${stepup}`);
+  const req = reqWithCookies('https://styrigx.com/api/owner-password', { action: 'change', kind: 'lock', newPassword: 'newpass123' }, `sgx-stepup=${stepup}`);
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 401, '无 owner 会话时 change 应 401');
 });
@@ -334,11 +334,12 @@ test('9d：stepup 缺 Origin → 403', async () => {
 
 /* ============ 1：管理密钥入口静态检查 ============ */
 
-test('1a：锁屏方法弹层含根密钥入口', () => {
+test('1a：锁屏方法弹层含根凭证入口（2.11 定稿：「根凭证」）', () => {
   const src = fs.readFileSync(path.join(REPO, 'assets/js/shell/lock.js'), 'utf8');
-  assert.ok(src.includes('sgx-mopt-mk'), '锁屏应有根密钥选项按钮');
-  assert.ok(src.includes('根密钥（恢复）'), '中文文案应为「根密钥（恢复）」');
-  assert.ok(src.includes('Root key (recovery)'), '英文文案应为 "Root key (recovery)"');
+  assert.ok(src.includes('sgx-mopt-mk'), '锁屏应有根凭证选项按钮');
+  assert.ok(src.includes('根凭证'), '中文文案应为「根凭证」');
+  assert.ok(!src.includes('根密钥（恢复）'), '旧文案「根密钥（恢复）」不应残留');
+  assert.ok(src.includes('Root credential'), '英文文案应为 "Root credential"');
   assert.ok(src.includes('/api/root-auth'), '应调用 /api/root-auth');
   assert.ok(src.includes('function openMk') || src.includes('openMk()'), '应有 openMk 处理函数');
 });

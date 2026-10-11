@@ -3,8 +3,8 @@
  * - 从 /api/owner-status 读取只读状态（是否已设置密码/通行密钥），渲染状态卡片与锁定屏幕副标题。
  * - 立即锁定：调服务端 /api/lock 清除会话 cookie 后重载，回到锁屏。
  * - 右上 ⋮：刷新状态。
- * - 2.11：密钥分层（/api/layer-status，每层「由根密钥代管」/「已接管」）；
- *   根密钥使用审计（/api/root-audit，需 stepup，否则隐藏）。
+ * - 2.11：密钥分层（/api/layer-status，每层「由根凭证代管」/「已接管」）；
+ *   根凭证使用审计（/api/root-audit，需 stepup，否则隐藏）。
  * - localStorage 统一走 storage.js。
  */
 import { on } from '../lib/events.js';
@@ -154,7 +154,7 @@ import { toast } from '../lib/toast.js';
     var st = document.documentElement.dataset.sgxSession;
     if (st) updateUnlockRow(st === 'valid');
   } catch (e) {}
-  /* 2.9.3：访客在安全总览页看到主人专属入口时加锁图标，
+  /* 2.9.3：访客在安全总览页看到站长专属入口时加锁图标，
      点击就地弹出通行密钥验证（手机底部/DeX 居中），通过则升级为 owner 并进入。
      失败/取消留在原页，不跳转。 */
   try {
@@ -168,7 +168,7 @@ import { toast } from '../lib/toast.js';
         var lockBadge = document.createElement('span');
         lockBadge.className = 'sec-owner-lock';
         lockBadge.innerHTML = '🔒';
-        lockBadge.setAttribute('aria-label', '需要主人验证');
+        lockBadge.setAttribute('aria-label', '需要站长验证');
         row.appendChild(lockBadge);
         // 拦截点击，就地验证
         row.addEventListener('click', function (e) {
@@ -189,7 +189,7 @@ import { toast } from '../lib/toast.js';
   } catch (e) {}
 
   /* 2.11：密钥分层状态（GET /api/layer-status，需 owner 会话）。
-     每层显示「由根密钥代管」(takeover) 或「已接管」(configured)；
+     每层显示「由根凭证代管」(takeover) 或「已接管」(configured)；
      失败（访客/无会话）则整组保持隐藏。 */
   (function () {
     var sec = document.getElementById('sec-layers');
@@ -209,7 +209,7 @@ import { toast } from '../lib/toast.js';
       .catch(function () { /* 无会话：保持隐藏 */ });
   })();
 
-  /* 2.11：根密钥使用审计（GET /api/root-audit，需 owner 会话 + stepup）。
+  /* 2.11：根凭证使用审计（GET /api/root-audit，需 owner 会话 + stepup）。
      成功显示最近记录（时间 · IP 前缀 · 成功/失败）；
      无 stepup/无会话则整组保持隐藏。 */
   (function () {

@@ -179,10 +179,10 @@ jobs:
           npx lhci autorun --config=.lighthouserc.json
 
       - name: 前端技术名词检查（安全与隐私）
-        # 用户可见文案不得出现 OWNER_KEY / SGX_ROOT_KEY / SGX_PW_PEPPER / TURNSTILE_SECRET；
+        # 用户可见文案不得出现 OWNER_KEY / SESSION_SECRET / SGX_ROOT_KEY / SGX_PW_PEPPER / SGX_RECOVERY_UNTIL / TURNSTILE_SECRET；
         # 后端变量名只许出现在 functions/ 与注释里，不许进 public/ HTML。
         run: |
-          if grep -rl "OWNER_KEY\|SESSION_SECRET\|SGX_ROOT_KEY\|SGX_PW_PEPPER\|TURNSTILE_SECRET" public/ --include="*.html"; then
+          if grep -rl "OWNER_KEY\|SESSION_SECRET\|SGX_ROOT_KEY\|SGX_PW_PEPPER\|SGX_RECOVERY_UNTIL\|TURNSTILE_SECRET" public/ --include="*.html"; then
             echo "FAIL: 技术变量名出现在 HTML 产物中"
             exit 1
           fi
@@ -250,6 +250,8 @@ jobs:
                   "preview": {
                       "env_vars": {
                           "OWNER_KEY": {"type": "secret_text", "value": "${{ secrets.PREVIEW_OWNER_KEY }}"},
+                          # 2.11 定稿：代码改读 SGX_ROOT_KEY；预览用同一测试值映射（未新增 secret）
+                          "SGX_ROOT_KEY": {"type": "secret_text", "value": "${{ secrets.PREVIEW_OWNER_KEY }}"},
                           "SGX_PW_PEPPER": {"type": "secret_text", "value": "${{ secrets.PREVIEW_SGX_PW_PEPPER }}"},
                           # 2.4.1：CI 临时生成的测试密钥对（每次运行新生成，非生产密钥）
                           "SGX_LOCK_PRIVATE": {"type": "secret_text", "value": ED_PRIV},
@@ -312,6 +314,9 @@ jobs:
           extra = [v for v in names if v not in required]
           if extra:
               print("extra production vars (ignored):", extra)
+          # 2.11 定稿：SGX_RECOVERY_UNTIL 不列入 required，出现时只打印存在性（不打印值）
+          if "SGX_RECOVERY_UNTIL" in names:
+              print("recovery switch present: SGX_RECOVERY_UNTIL is set")
           print("guard OK: required production vars all present:", required)
           PYEOF
 

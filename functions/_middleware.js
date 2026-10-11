@@ -46,6 +46,7 @@ export const READER_COOKIE_NAME = SESSION_COOKIE;
 const API_WHITELIST = [
   '/api/root-auth',
   '/api/root-session',
+  '/api/lockreset',
   '/api/layer-status',
   '/api/root-audit',
   '/api/owner-password',

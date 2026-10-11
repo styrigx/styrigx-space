@@ -1,19 +1,15 @@
 /**
- * 2.11：root 代开锁屏会话。
+ * 2.11 定稿：root 代开锁屏会话。
  *
  * 未配置 lock 层凭证时，root 可用 stepup(by=root, scope=root) 代开锁屏会话。
  * - 会话约 1 小时（短于正常的 12 小时）
  * - 会话 by=root，标记为代开
  * - lock 层一旦配置自己的凭证，root 代开失效（403）
- * - KV 读取失败 fail closed
+ * - KV 读取失败按已配置处理（拒绝，fail closed）
  *
  * POST /api/root-session
- * - 需要有效的 stepup(by=root, scope=root) cookie
- * - 需要 owner 会话（2.10.2 规则：管理操作需 owner session + stepup）
- *   注意：root-auth 只签发 stepup，不签发会话。这里要求调用方已有 owner 会话。
- *   实际流程：root 先通过其他方式获得 owner 会话（如之前签发的），再用 stepup 代开。
- *   简化：本接口只验 stepup(by=root, scope=root)，不验 owner 会话，
- *   因为代开场景下用户可能还没有任何会话。
+ * - 需要有效的 stepup(by=root, scope=root) cookie（不验 owner 会话，
+ *   因为代开场景下用户可能还没有任何会话）
  *
  * 只接受 POST；校验 Origin。
  */
@@ -68,12 +64,9 @@ async function handlePost(context) {
     return Response.json({ ok: false, error: 'scope' }, { status: 403 });
   }
 
-  /* 检查 lock 层是否已配置：已配置则 root 代开失效 */
+  /* 检查 lock 层是否已配置：已配置（含 KV 读失败按已配置）则 root 代开失效 */
   const takeover = await checkRootTakeover(kv, LAYER_LOCK);
   if (!takeover.allowed) {
-    if (takeover.reason === 'kv-error') {
-      return Response.json({ ok: false, error: 'server' }, { status: 503 });
-    }
     return Response.json({ ok: false, error: 'configured' }, { status: 403 });
   }
 

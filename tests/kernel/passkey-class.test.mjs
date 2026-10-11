@@ -235,7 +235,7 @@ test('删除 lock 凭据不推进 app-epoch', async () => {
   const kv = makeKV();
   await seedKey(kv, { credId: 'lock-key-001', cls: 'lock' });
   await seedKey(kv, { credId: 'lock-key-002', cls: 'lock' });
-  await kv.put('owner-pw', JSON.stringify({ hash: 'x' })); // 有密码，不触发 last-key 保护
+  await kv.put('lock-pw', JSON.stringify({ hash: 'x' })); // 有锁屏密码，不触发 last-key 保护（2.11 定稿）
   const sc = await mintStepup();
   const sess = await mintSession();
   const r = await onRequestPost({
@@ -318,8 +318,8 @@ test('CI 静态检查：verifyStepupCookie 只在安全设置接口（owner-pass
   const { readdirSync, readFileSync } = await import('node:fs');
   const { join } = await import('node:path');
   const apiDir = new URL('../../functions/api/', import.meta.url);
-  /* 2.11：root-session、root-audit、layer-status 也需要验 stepup */
-  const allowed = new Set(['owner-passkey.js', 'owner-password.js', 'stepup.js', 'root-session.js', 'root-audit.js', 'layer-status.js']);
+  /* 2.11 定稿：lockreset、lock-all-devices 也需要验 stepup */
+  const allowed = new Set(['owner-passkey.js', 'owner-password.js', 'stepup.js', 'root-session.js', 'root-audit.js', 'layer-status.js', 'lockreset.js', 'lock-all-devices.js']);
   const bad = [];
   for (const f of readdirSync(apiDir)) {
     if (!f.endsWith('.js')) continue;

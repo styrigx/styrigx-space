@@ -47,11 +47,12 @@ import {
 } from '../_kernel/passkey-verify.js';
 import {
   issueSessionCookie,
+  bumpSessionEpoch,
   ROLE_OWNER,
 } from '../_kernel/session.js';
 import { getApp } from '../_kernel/app-registry.js';
-import { verifyStepupCookie, STEPUP_BY_ROOT, STEPUP_BY_OWNER, STEPUP_SCOPE_ROOT, STEPUP_SCOPE_KEYS } from './stepup.js';
-import { checkRootTakeover, LAYER_OWNER, LAYER_LOCK, layerApp, setLayerConfigured, clearLayerConfigured, isLayerConfigured } from '../_kernel/layers.js';
+import { verifyStepupCookie, STEPUP_COOKIE, STEPUP_BY_ROOT, STEPUP_BY_OWNER, STEPUP_SCOPE_ROOT, STEPUP_SCOPE_KEYS, STEPUP_SCOPE_LOCKRESET } from './stepup.js';
+import { LAYER_OWNER, LAYER_LOCK, layerApp, setLayerConfigured, clearLayerConfigured, isLayerConfigured } from '../_kernel/layers.js';
 import { verifySessionDetailed } from '../_middleware.js';
 
 /* 2.10.0：通行密钥分类；2.11 新增 owner */
@@ -246,44 +247,96 @@ async function getUserHandle(kv, aud) {
 }
 
 /**
- * 2.10.0：要求有效的 sgx-stepup（安全设置操作门禁）。
- * 2.10.1：返回具体失败原因（补充指令 3），前端可显示。
- * 2.11：返回 by/scope，调用方做 scope 检查。
- * @returns {Promise<{ok:boolean, by:string|null, scope:string|null, reason:string}>}
- */
-async function requireStepup(request, env) {
-  const r = await verifyStepupCookie(request, env);
-  return { ok: !!r.ok, by: r.by || null, scope: r.scope || null, reason: r.reason || 'unknown' };
-}
-
-/**
- * 2.11：检查 scope 是否满足操作要求。
- * - 要求 scope=root 的操作：stepup.scope 必须为 root
- * - 要求 scope=keys 的操作：stepup.scope 为 keys，或 (scope=root 且对应层未配置 → takeover)
- * @param {string} requiredScope 'root' | 'keys'
- * @param {{by:string, scope:string}} st
+ * 2.11 定稿：passkey 管理统一门禁。
+ *
+ * - owner 类：只认入口 1（stepup by=root, scope=root）
+ * - lock 类：入口 2（scope=keys：by=owner，或 by=root 且 owner 层未配置）；
+ *   owner 未配置时 scope=root(by=root) 可直接代管；
+ *   scope=lockreset 可 list/register/delete（重置流程，无会话），不可 rename
+ * - app 类：入口 2（同 lock 的 keys 规则）；lockreset 一律拒绝
+ * - 会话：除 lockreset 外，要求有效 owner 会话；by=root 的代开会话在 lock
+ *   已配置时拒绝（纵深防御；epoch 机制已使其失效）
+ *
+ * @param {any} request
+ * @param {any} env
  * @param {any} kv
- * @param {string} layerForTakeover 仅当 requiredScope='keys' 且 st.scope='root' 时检查该层的 takeover
- * @returns {Promise<{ok:boolean, error:string}>}
+ * @param {string} pkClass 'owner' | 'lock' | 'app'
+ * @param {string} op 'list' | 'register' | 'rename' | 'delete'
+ * @returns {Promise<{ok:true, sv:object, sess:object|null}|{ok:false, status:number, body:object}>}
  */
-async function checkScope(requiredScope, st, kv, layerForTakeover) {
-  if (!st.ok) return { ok: false, error: 'stepup-required' };
-  if (requiredScope === STEPUP_SCOPE_ROOT) {
-    if (st.scope !== STEPUP_SCOPE_ROOT) return { ok: false, error: 'scope' };
-    return { ok: true };
-  }
-  /* requiredScope === 'keys' */
-  if (st.scope === STEPUP_SCOPE_KEYS) return { ok: true };
-  if (st.scope === STEPUP_SCOPE_ROOT && st.by === STEPUP_BY_ROOT) {
-    /* root takeover：检查对应层是否未配置 */
-    if (!layerForTakeover) return { ok: false, error: 'scope' };
-    const t = await checkRootTakeover(kv, layerForTakeover);
-    if (!t.allowed) {
-      return { ok: false, error: t.reason === 'kv-error' ? 'server' : 'scope' };
+async function checkPasskeyMgmt(request, env, kv, pkClass, op) {
+  /* 先看有没有 stepup cookie：没有 → 先查会话（401）；有 → 先验票 */
+  let hasStepupCookie = false;
+  try {
+    const h = request.headers.get('Cookie') || '';
+    for (const part of h.split(';')) {
+      const [k] = part.trim().split('=');
+      if (k === STEPUP_COOKIE) { hasStepupCookie = true; break; }
     }
-    return { ok: true };
+  } catch (e) {}
+  const sv = await verifyStepupCookie(request, env);
+  if (!sv.ok) {
+    if (!hasStepupCookie) {
+      /* 无 stepup 也无从判断 lockreset：先查会话 */
+      const sess0 = await verifySessionDetailed(request, env);
+      if (!sess0.ok || sess0.role !== ROLE_OWNER) {
+        return { ok: false, status: 401, body: { ok: false, error: 'session' } };
+      }
+    }
+    return { ok: false, status: 403, body: { ok: false, error: 'stepup-required', reason: sv.reason } };
   }
-  return { ok: false, error: 'scope' };
+  const isLockreset = sv.scope === STEPUP_SCOPE_LOCKRESET;
+  const deny = function () {
+    return { ok: false, status: 403, body: { ok: false, error: 'scope' } };
+  };
+
+  if (pkClass === PK_CLASS_OWNER) {
+    /* 站长凭证：只认入口 1 */
+    if (sv.scope !== STEPUP_SCOPE_ROOT || sv.by !== STEPUP_BY_ROOT) return deny();
+  } else if (pkClass === PK_CLASS_LOCK) {
+    if (isLockreset) {
+      if (op === 'rename') return deny();
+    } else if (sv.scope === STEPUP_SCOPE_KEYS) {
+      if (sv.by === STEPUP_BY_ROOT) {
+        /* by=root 的 keys 票：仅 owner 未配置时代管有效 */
+        if (await isLayerConfigured(kv, LAYER_OWNER)) return deny();
+      } else if (sv.by !== STEPUP_BY_OWNER) {
+        return deny();
+      }
+    } else if (sv.scope === STEPUP_SCOPE_ROOT && sv.by === STEPUP_BY_ROOT) {
+      /* root 直接代管未配置的 owner 层 */
+      if (await isLayerConfigured(kv, LAYER_OWNER)) return deny();
+    } else {
+      return deny();
+    }
+  } else {
+    /* app 类：lockreset 一律拒绝 */
+    if (isLockreset) return deny();
+    if (sv.scope === STEPUP_SCOPE_KEYS) {
+      if (sv.by === STEPUP_BY_ROOT) {
+        if (await isLayerConfigured(kv, LAYER_OWNER)) return deny();
+      } else if (sv.by !== STEPUP_BY_OWNER) {
+        return deny();
+      }
+    } else if (sv.scope === STEPUP_SCOPE_ROOT && sv.by === STEPUP_BY_ROOT) {
+      if (await isLayerConfigured(kv, LAYER_OWNER)) return deny();
+    } else {
+      return deny();
+    }
+  }
+
+  /* 会话门禁：lockreset 重置流程无会话 */
+  if (isLockreset) {
+    return { ok: true, sv: sv, sess: null };
+  }
+  const sess = await verifySessionDetailed(request, env);
+  if (!sess.ok || sess.role !== ROLE_OWNER) {
+    return { ok: false, status: 401, body: { ok: false, error: 'session' } };
+  }
+  if (sess.by === 'root' && (await isLayerConfigured(kv, LAYER_LOCK))) {
+    return { ok: false, status: 403, body: { ok: false, error: 'by-root' } };
+  }
+  return { ok: true, sv: sv, sess: sess };
 }
 
 /** 清除 sgx-stepup cookie（敏感操作成功后立即清除） */
@@ -386,38 +439,13 @@ async function handlePost(context) {
       if (pkClass === PK_CLASS_APP && k.aud !== aud) return false;
       return true;
     });
-    /* register 需要 sgx-stepup：
-       - lock：已有 lock 凭据时必须 stepup；第一把除外（否则永远加不上第一把）
-       - app：永远需要（无例外，也就意味着必须先有一把 lock 凭据做 stepup） */
-    /* 2.10.1：register 必须是 owner 会话（安全漏洞修复）。
-       - 任何 register 都要求 owner 会话
-       - lock：已有 lock 凭据时必须 stepup；第一把也要求 stepup
-         （管理密钥登录即带 stepup，可用管理密钥注册第一把）
-       - app：永远需要 stepup（无例外） */
+    /* 2.11 定稿：register 统一门禁（checkPasskeyMgmt）。
+       - owner 类：入口 1（by=root, scope=root）
+       - lock/app 类：入口 2（scope=keys）或 root 代管；lockreset 可注册 lock */
     if (type === 'register') {
-      const sess = await verifySessionDetailed(request, env);
-      if (!sess.ok || sess.role !== ROLE_OWNER) {
-        return Response.json({ ok: false, error: 'session' }, { status: 401 });
-      }
-      const s = await requireStepup(request, env);
-      if (!s.ok) {
-        return Response.json({ ok: false, error: 'stepup-required', reason: s.reason }, { status: 403 });
-      }
-      /* 2.11：scope 检查 */
-      if (pkClass === PK_CLASS_OWNER) {
-        /* 管理 owner 凭证需要 scope=root */
-        const cs = await checkScope(STEPUP_SCOPE_ROOT, s, kv, null);
-        if (!cs.ok) {
-          return Response.json({ ok: false, error: cs.error }, { status: 403 });
-        }
-      } else {
-        /* 管理 lock/app 需要 scope=keys；root 可 takeover 未配置的层 */
-        const layer = pkClass === PK_CLASS_LOCK ? LAYER_LOCK : layerApp(aud);
-        const cs = await checkScope(STEPUP_SCOPE_KEYS, s, kv, layer);
-        if (!cs.ok) {
-          const status = cs.error === 'server' ? 503 : 403;
-          return Response.json({ ok: false, error: cs.error }, { status });
-        }
+      const mg = await checkPasskeyMgmt(request, env, kv, pkClass, 'register');
+      if (!mg.ok) {
+        return Response.json(mg.body, { status: mg.status });
       }
     }
     /* auth 需要已有对应凭据 */
@@ -471,20 +499,17 @@ async function handlePost(context) {
     if (!chRec || chRec.type !== 'register' || chRec.exp < Date.now()) {
       return Response.json({ ok: false, error: 'challenge' }, { status: 403 });
     }
-    const pkClass = chRec.pkClass === PK_CLASS_APP ? PK_CLASS_APP : PK_CLASS_LOCK;
+    const pkClass = chRec.pkClass === PK_CLASS_APP ? PK_CLASS_APP
+      : chRec.pkClass === PK_CLASS_OWNER ? PK_CLASS_OWNER : PK_CLASS_LOCK;
     const aud = pkClass === PK_CLASS_APP ? (chRec.aud || '') : '';
     if (pkClass === PK_CLASS_APP && !getApp(aud)) {
       return Response.json({ ok: false, error: 'aud' }, { status: 400 });
     }
-    /* 2.10.1 纵深防御：再验一次 owner 会话 + stepup（无例外） */
-    const sess2 = await verifySessionDetailed(request, env);
-    if (!sess2.ok || sess2.role !== ROLE_OWNER) {
-      return Response.json({ ok: false, error: 'session' }, { status: 401 });
-    }
+    /* 2.11 定稿纵深防御：按 challenge 的 pkClass 再验一次统一门禁 */
     {
-      const s = await requireStepup(request, env);
-      if (!s.ok) {
-        return Response.json({ ok: false, error: 'stepup-required', reason: s.reason }, { status: 403 });
+      const mg = await checkPasskeyMgmt(request, env, kv, pkClass, 'register');
+      if (!mg.ok) {
+        return Response.json(mg.body, { status: mg.status });
       }
     }
     try {
@@ -538,6 +563,34 @@ async function handlePost(context) {
         aud: aud || undefined,
       };
       await savePasskey(kv, item);
+      /* 2.11 定稿：首次配置某层时标记 + 推进纪元（fail closed 写入失败不阻断注册主体，
+         但标记/纪元失败时尽力而为；纪元推进失败则返回 503）
+         - 首次配 owner：废止 by=root,scope=keys 的票（必修安全项 1）
+         - 首次配 lock：废止根凭证代开的解锁会话（必修安全项 2）
+         - 首次配某 app：推进 app-epoch:<aud>（必修安全项 3） */
+      try {
+        if (pkClass === PK_CLASS_OWNER) {
+          const was = await isLayerConfigured(kv, LAYER_OWNER);
+          if (!was) {
+            await setLayerConfigured(kv, LAYER_OWNER);
+            await bumpSessionEpoch(kv);
+          }
+        } else if (pkClass === PK_CLASS_LOCK) {
+          const was = await isLayerConfigured(kv, LAYER_LOCK);
+          if (!was) {
+            await setLayerConfigured(kv, LAYER_LOCK);
+            await bumpSessionEpoch(kv);
+          }
+        } else if (pkClass === PK_CLASS_APP && aud) {
+          const was = await isLayerConfigured(kv, layerApp(aud));
+          if (!was) {
+            await setLayerConfigured(kv, layerApp(aud));
+            await bumpAppEpoch(kv, aud);
+          }
+        }
+      } catch (e) {
+        return Response.json({ ok: false, error: 'epoch' }, { status: 503 });
+      }
       return Response.json({ ok: true, credId: credIdB64 });
     } catch (e) {
       /* 具体原因只写控制台；UV 失败返回专属错误码，其他仍返回普通错误 */
@@ -654,58 +707,79 @@ async function handlePost(context) {
 
   /* ============ list：列出 passkey（2.10.2：需 owner 会话 + sgx-stepup） ============ */
   if (action === 'list') {
-    const sessL = await verifySessionDetailed(request, env);
-    if (!sessL.ok || sessL.role !== ROLE_OWNER) {
-      return Response.json({ ok: false, error: 'session' }, { status: 401 });
+    /* 2.11 定稿：按 stepup scope 过滤可见类别。
+       scope=root → 只看 owner；scope=keys → lock+app；lockreset → 只看 lock */
+    const sv0 = await verifyStepupCookie(request, env);
+    if (!sv0.ok) {
+      return Response.json({ ok: false, error: 'stepup-required', reason: sv0.reason }, { status: 403 });
     }
-    const s = await requireStepup(request, env);
-    if (!s.ok) {
-      return Response.json({ ok: false, error: 'stepup-required', reason: s.reason }, { status: 403 });
+    let visibleClasses = null; /* null = 全部 */
+    if (sv0.scope === STEPUP_SCOPE_ROOT && sv0.by === STEPUP_BY_ROOT) {
+      visibleClasses = [PK_CLASS_OWNER];
+    } else if (sv0.scope === STEPUP_SCOPE_LOCKRESET) {
+      visibleClasses = [PK_CLASS_LOCK];
+    } else if (sv0.scope === STEPUP_SCOPE_KEYS) {
+      visibleClasses = [PK_CLASS_LOCK, PK_CLASS_APP];
+    } else {
+      return Response.json({ ok: false, error: 'scope' }, { status: 403 });
+    }
+    /* 会话门禁（lockreset 除外） */
+    if (sv0.scope !== STEPUP_SCOPE_LOCKRESET) {
+      const sessL = await verifySessionDetailed(request, env);
+      if (!sessL.ok || sessL.role !== ROLE_OWNER) {
+        return Response.json({ ok: false, error: 'session' }, { status: 401 });
+      }
+      if (sessL.by === 'root' && (await isLayerConfigured(kv, LAYER_LOCK))) {
+        return Response.json({ ok: false, error: 'by-root' }, { status: 403 });
+      }
+      /* scope=keys + by=root 时需 owner 层未配置（代管） */
+      if (sv0.scope === STEPUP_SCOPE_KEYS && sv0.by === STEPUP_BY_ROOT) {
+        if (await isLayerConfigured(kv, LAYER_OWNER)) {
+          return Response.json({ ok: false, error: 'scope' }, { status: 403 });
+        }
+      }
     }
     const keys = await getPasskeys(kv);
     return Response.json({
       ok: true,
-      keys: keys.map(function (k) {
-        return {
-          credId: k.credId,
-          name: k.name || '',
-          provider: k.provider || '',
-          aaguid: k.aaguid || '',
-          createdAt: k.createdAt || 0,
-          lastUsedAt: k.lastUsedAt || 0,
-          class: k.class || PK_CLASS_LOCK,
-          aud: k.aud || '',
-        };
-      }),
+      keys: keys
+        .filter(function (k) { return visibleClasses.includes(k.class || PK_CLASS_LOCK); })
+        .map(function (k) {
+          return {
+            credId: k.credId,
+            name: k.name || '',
+            provider: k.provider || '',
+            aaguid: k.aaguid || '',
+            createdAt: k.createdAt || 0,
+            lastUsedAt: k.lastUsedAt || 0,
+            class: k.class || PK_CLASS_LOCK,
+            aud: k.aud || '',
+          };
+        }),
     });
   }
 
-  /* ============ rename：重命名 passkey（2.10.2：需 owner 会话 + sgx-stepup；1-40 字，去首尾空格和控制字符） ============ */
+  /* ============ rename：重命名 passkey（2.11 定稿：统一门禁；lockreset 不可 rename） ============ */
   if (action === 'rename') {
-    const sessR = await verifySessionDetailed(request, env);
-    if (!sessR.ok || sessR.role !== ROLE_OWNER) {
-      return Response.json({ ok: false, error: 'session' }, { status: 401 });
-    }
-    const s = await requireStepup(request, env);
-    if (!s.ok) {
-      return Response.json({ ok: false, error: 'stepup-required', reason: s.reason }, { status: 403 });
-    }
     const credId = (body && body.credId) || '';
     let name = (body && body.name) || '';
     if (!credId) return Response.json({ ok: false, error: 'params' }, { status: 400 });
+    /* 先取到凭据以确定类别（门禁按类别） */
+    const keyName0 = 'owner-passkey:' + String(credId).slice(0, 12);
+    let found0 = null;
+    try { found0 = await kv.get(keyName0, 'json'); } catch (e) {}
+    if (!found0 || found0.credId !== credId) {
+      return Response.json({ ok: false, error: 'not-found' }, { status: 404 });
+    }
+    const mg = await checkPasskeyMgmt(request, env, kv, found0.class || PK_CLASS_LOCK, 'rename');
+    if (!mg.ok) {
+      return Response.json(mg.body, { status: mg.status });
+    }
     /* 清理：去首尾空格和控制字符，限 1-40 字 */
     name = String(name).replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, 40);
     if (!name) return Response.json({ ok: false, error: 'params' }, { status: 400 });
-    /* 直接 kv.get，不走 list（KV list 最终一致，刚写入的 key 约 60 秒内列不出来） */
-    const keyName = 'owner-passkey:' + String(credId).slice(0, 12);
-    let found = null;
-    try { found = await kv.get(keyName, 'json'); } catch (e) {}
-    /* 校验 credId 完全相等（防前 12 位碰撞） */
-    if (!found || found.credId !== credId) {
-      return Response.json({ ok: false, error: 'not-found' }, { status: 404 });
-    }
-    found.name = name;
-    await savePasskey(kv, found);
+    found0.name = name;
+    await savePasskey(kv, found0);
     return Response.json({ ok: true });
   }
 
@@ -716,14 +790,6 @@ async function handlePost(context) {
      - 没有密码时，禁止删除最后一把 lock 凭据（保住最后一种主人解锁方式）
      - 成功后清除 sgx-stepup */
   if (action === 'delete') {
-    const sessD = await verifySessionDetailed(request, env);
-    if (!sessD.ok || sessD.role !== ROLE_OWNER) {
-      return Response.json({ ok: false, error: 'session' }, { status: 401 });
-    }
-    const s = await requireStepup(request, env);
-    if (!s.ok) {
-      return Response.json({ ok: false, error: 'stepup-required', reason: s.reason }, { status: 403 });
-    }
     const credId = (body && body.credId) || '';
     if (!credId) return Response.json({ ok: false, error: 'params' }, { status: 400 });
     /* 直接 kv.get 校验存在，不走 list（最终一致） */
@@ -734,10 +800,16 @@ async function handlePost(context) {
       return Response.json({ ok: false, error: 'not-found' }, { status: 404 });
     }
     const delClass = found.class || PK_CLASS_LOCK;
-    /* 没有密码时，禁止删除最后一把 lock 凭据 */
+    /* 2.11 定稿：统一门禁（lockreset 可删 lock） */
+    const mg = await checkPasskeyMgmt(request, env, kv, delClass, 'delete');
+    if (!mg.ok) {
+      return Response.json(mg.body, { status: mg.status });
+    }
+    const isLockresetOp = mg.sv.scope === STEPUP_SCOPE_LOCKRESET;
+    /* 没有锁屏密码时，禁止删除最后一把 lock 凭据 */
     if (delClass === PK_CLASS_LOCK) {
       let hasPw = false;
-      try { hasPw = !!(await kv.get('owner-pw')); } catch (e) {}
+      try { hasPw = !!(await kv.get('lock-pw', 'json')); } catch (e) {}
       if (!hasPw) {
         const keys = await getPasskeys(kv);
         const lockKeys = keys.filter(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK; });
@@ -765,6 +837,33 @@ async function handlePost(context) {
       }
     }
     await deletePasskey(kv, credId);
+    /* 2.11 定稿：删完后若该层已无凭证，清除层标记。
+       root 删站长凭证 → 推进 session-epoch（已在上完成），避免无声回退到 root 代管 */
+    try {
+      const keys = await getPasskeys(kv);
+      if (delClass === PK_CLASS_OWNER) {
+        const hasOwnerKey = keys.some(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_OWNER; });
+        let hasOwnerPw = false;
+        try { const r = await kv.get('owner-pw', 'json'); hasOwnerPw = !!(r && r.hash); } catch (e) {}
+        if (!hasOwnerKey && !hasOwnerPw) {
+          try { await clearLayerConfigured(kv, LAYER_OWNER); } catch (e) {}
+        }
+      } else if (delClass === PK_CLASS_LOCK) {
+        const hasLockKey = keys.some(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK; });
+        let hasLockPw = false;
+        try { const r = await kv.get('lock-pw', 'json'); hasLockPw = !!(r && r.hash); } catch (e) {}
+        if (!hasLockKey && !hasLockPw) {
+          try { await clearLayerConfigured(kv, LAYER_LOCK); } catch (e) {}
+        }
+      } else if (delClass === PK_CLASS_APP && found.aud) {
+        const hasAppKey = keys.some(function (k) {
+          return (k.class || PK_CLASS_LOCK) === PK_CLASS_APP && k.aud === found.aud;
+        });
+        if (!hasAppKey) {
+          try { await clearLayerConfigured(kv, layerApp(found.aud)); } catch (e) {}
+        }
+      }
+    } catch (e) {}
     /* 成功后清除 sgx-stepup */
     const headers = new Headers({ 'Content-Type': 'application/json' });
     clearStepupCookie(headers);

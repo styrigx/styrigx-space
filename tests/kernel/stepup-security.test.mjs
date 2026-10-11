@@ -99,16 +99,16 @@ function makeEnv(kv, overrides = {}) {
   };
 }
 
-/* 构造一个有效的 owner 会话 cookie（测试密钥签名，epoch=0） */
+/* 构造一个有效的 owner 会话 cookie（2.11 定稿：5 段式 by.role.epoch.exp.sig，测试密钥签名，epoch=0） */
 async function makeOwnerSessionCookie() {
-  const payload = 'owner.0.' + (Date.now() + 43200000);
+  const payload = 'owner.owner.0.' + (Date.now() + 43200000);
   const sig = await ed25519Sign(TEST_PRIV_PEM, payload);
   return payload + '.' + sig;
 }
 
-/* 构造一个有效的 visitor 会话 cookie */
+/* 构造一个有效的 visitor 会话 cookie（2.11 定稿：5 段式） */
 async function makeVisitorSessionCookie() {
-  const payload = 'visitor.0.' + (Date.now() + 3600000);
+  const payload = 'owner.visitor.0.' + (Date.now() + 3600000);
   const sig = await ed25519Sign(TEST_PRIV_PEM, payload);
   return payload + '.' + sig;
 }
@@ -161,8 +161,8 @@ test('篡改 payload（epoch）→ 签名失效被拒', async () => {
   const kv = makeKV();
   const env = makeEnv(kv);
   const val = await signStepupCookie(TEST_PRIV_PEM, 'owner', 'keys', 0);
-  /* 篡改 epoch：0 → 99，签名不再匹配 */
-  const tampered = val.replace(/^owner\.0\./, 'owner.99.');
+  /* 篡改 epoch：0 → 99，签名不再匹配（2.11 定稿：6 段式 by.scope.epoch.iat.exp.sig） */
+  const tampered = val.replace(/^owner\.keys\.0\./, 'owner.keys.99.');
 
   const req = new Request('https://test.example.com/api/stepup', {
     headers: { Cookie: STEPUP_COOKIE + '=' + tampered },
@@ -178,8 +178,8 @@ test('篡改 payload（延长 exp）→ 签名失效被拒', async () => {
   const env = makeEnv(kv);
   const val = await signStepupCookie(TEST_PRIV_PEM, 'owner', 'keys', 0);
   const parts = val.split('.');
-  /* exp 改成 10 年后 */
-  parts[3] = String(Date.now() + 10 * 365 * 24 * 3600 * 1000);
+  /* exp 改成 10 年后（2.11 定稿：6 段式，exp 在 index 4） */
+  parts[4] = String(Date.now() + 10 * 365 * 24 * 3600 * 1000);
   const tampered = parts.join('.');
 
   const req = new Request('https://test.example.com/api/stepup', {

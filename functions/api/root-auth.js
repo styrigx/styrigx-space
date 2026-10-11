@@ -1,46 +1,83 @@
 /**
- * 2.11：SGX_ROOT_KEY = 根凭证（恢复用）。
+ * 2.11 定稿：SGX_ROOT_KEY = 根凭证。
  *
- * 未解锁也能用：校验 SGX_ROOT_KEY 通过后，签发：
- * - sgx-stepup(by=root, scope=root)（约 10 分钟，带当前 epoch）
- *   只能管理 owner passkey / owner 密码（入口 1）
+ * 入口 1：有效 lock 会话 + 根凭证 → sgx-stepup(by=root, scope=root)（约 10 分钟，
+ * 带当前 epoch），只能管理站长凭证（owner passkey/密码）。
  *
- * 根接管：某层未配置自己的凭证时，root 可代开该层：
- * - 未配 owner → root 可用 scope=root 票进入口 2（管理 lock/APP）
- * - 未配 lock → root 可开锁屏会话（约 1 小时）
- * - 某 aud 未配 app key → root 可代开该 app
- * 该层一旦配置自己的凭证，root 对该层失效（403）。
- * "是否已配置"从 KV 读；KV 读取失败 fail closed，拒绝 root。
+ * 访客假入口：无有效 lock 会话时（访客/未登录），服务端写死返回与真失败完全
+ * 相同的 401 auth：不比对 SGX_ROOT_KEY；状态码、响应体、响应头、延迟一致
+ * （统一固定最小延迟）。缺 Origin 仍先 403。
  *
- * 不能签 sgx-app。
+ * 引导：lock 层未配置时（KV 读失败按已配置处理），允许无会话直接校验根凭证。
+ *
+ * 不能签 sgx-app，不能签会话。
  *
  * POST /api/root-auth { key }
  * - 恒定时间比较 env.SGX_ROOT_KEY（防长度泄露）
- * - 限流：IP 连错 5 次锁 15 分钟；全局每小时失败 20 次暂停验证 1 小时
- *   KV 读写出错一律拒绝（fail closed）；所有 root 路径共用一套限速/审计
+ * - 限速：所有 root 路径共用一套（_kernel/rootlimit.js）
  * - 通过：签发 sgx-stepup(by=root, scope=root) cookie
  * - 失败：401 auth（并计数）；超限：429
  * - 缺 SGX_ROOT_KEY / SGX_STEPUP_PRIVATE → 拒绝（500/503）
  *
- * 审计：每次使用（成功/失败）都在 KV 留一条记录：
- *   root-auth-audit:<ts>:<rand> = { ts, ipPrefix, ok }，TTL 7 天。
- *   写入失败则不签发（fail closed）。
+ * 审计：每次使用（成功/失败/假入口）都在 KV 留一条记录（_kernel/rootlog.js），
+ * 假入口标记 decoy:true。写入失败则不签发（fail closed）。
  *
  * 只接受 POST；校验 Origin（缺失/解析失败 403）。
  * 旧 /api/owner-auth 不再可用。
  */
-import { timingSafeEqual } from '../_kernel/crypto.js';
-import { getSessionEpoch } from '../_kernel/session.js';
+import { timingSafeEqual, ed25519Verify } from '../_kernel/crypto.js';
+import { getSessionEpoch, ROLE_OWNER } from '../_kernel/session.js';
 import { signStepupCookie, STEPUP_COOKIE, STEPUP_COOKIE_ATTRS, STEPUP_MAX_AGE, STEPUP_BY_ROOT, STEPUP_SCOPE_ROOT } from './stepup.js';
+import { checkRootLimit, recordRootFail, clearRootFail, getClientIp } from '../_kernel/rootlimit.js';
+import { writeRootAudit } from '../_kernel/rootlog.js';
+import { isLayerConfigured, LAYER_LOCK } from '../_kernel/layers.js';
+import { verifySessionDetailed } from '../_middleware.js';
 
-/* 限流参数 */
-const IP_MAX_FAIL = 5;
-const IP_LOCK_MS = 15 * 60 * 1000;
-const GLOBAL_MAX_FAIL = 20;
-const GLOBAL_WINDOW_MS = 60 * 60 * 1000;
-const GLOBAL_PAUSE_MS = 60 * 60 * 1000;
-/* 审计记录 TTL：7 天 */
-const AUDIT_TTL = 7 * 24 * 3600;
+/* 假入口与真失败的统一固定最小延迟（毫秒）：防时序区分 */
+const MIN_DELAY_MS = 200;
+
+/** @param {number} t0 起始时间戳 */
+async function padTo(t0) {
+  const wait = t0 + MIN_DELAY_MS - Date.now();
+  if (wait > 0) {
+    await new Promise(function (r) { setTimeout(r, wait); });
+  }
+}
+
+/** 与真失败逐字节相同的 401 响应 */
+function decoyAuth() {
+  return Response.json({ ok: false, error: 'auth' }, { status: 401 });
+}
+
+/**
+ * 轻量会话检查（不读 KV）：解析 cookie、验 Ed25519 签名、检查 exp 与 role。
+ * 仅用于决定走真路径还是假入口；真路径内再做完整校验（含 KV epoch）。
+ * @param {any} request
+ * @param {any} env
+ * @returns {Promise<boolean>} 是否看起来像有效的 owner 会话
+ */
+async function lightOwnerSession(request, env) {
+  try {
+    const h = request.headers.get('Cookie') || '';
+    const pubKey = (env && env.SGX_LOCK_PUBLIC) || '';
+    if (!pubKey) return false;
+    for (const part of h.split(';')) {
+      const [k, ...v] = part.trim().split('=');
+      if (k !== 'sgx-verified') continue;
+      const val = v.join('=');
+      const parts = val.split('.');
+      if (parts.length !== 5) continue;
+      const [by, role, epochStr, expStr, sig] = parts;
+      if (role !== ROLE_OWNER) continue;
+      if (by !== 'root' && by !== 'owner') continue;
+      const exp = parseInt(expStr, 10);
+      if (!Number.isFinite(exp) || exp <= Date.now()) continue;
+      const payload = by + '.' + role + '.' + epochStr + '.' + expStr;
+      if (await ed25519Verify(pubKey, payload, sig)) return true;
+    }
+  } catch (e) {}
+  return false;
+}
 
 /** @param {any} context */
 export async function onRequestPost(context) {
@@ -51,58 +88,14 @@ export async function onRequestPost(context) {
   }
 }
 
-/**
- * 获取客户端 IP。
- * @param {any} request
- */
-function getClientIp(request) {
-  return request.headers.get('CF-Connecting-IP') ||
-         request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() ||
-         'unknown';
-}
-
-/**
- * IP 前缀（审计用，不存完整 IP）。
- * IPv4 取前 3 段，IPv6 取前 4 组，其他取前 12 字符。
- */
-function ipPrefix(ip) {
-  if (!ip || ip === 'unknown') return 'unknown';
-  if (ip.includes('.')) {
-    const parts = ip.split('.');
-    return parts.length >= 3 ? parts.slice(0, 3).join('.') + '.x' : ip;
-  }
-  if (ip.includes(':')) {
-    const parts = ip.split(':');
-    return parts.slice(0, 4).join(':') + '::x';
-  }
-  return String(ip).slice(0, 12);
-}
-
-/**
- * 写审计记录（只写不读）。
- * 2.10.2：写入失败返回 false（调用方 fail closed，不签发会话）；
- * 无 KV 时也返回 false。
- * @returns {Promise<boolean>} 是否写入成功
- */
-async function writeAudit(kv, ip, ok) {
-  if (!kv) return false;
-  try {
-    const key = 'root-auth-audit:' + Date.now() + ':' + Math.random().toString(36).slice(2, 10);
-    await kv.put(key, JSON.stringify({ ts: Date.now(), ipPrefix: ipPrefix(ip), ok: !!ok }), { expirationTtl: AUDIT_TTL });
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
 /** @param {any} context */
 async function handlePost(context) {
   const { request, env } = context;
+  const t0 = Date.now();
   if (request.method !== 'POST') {
     return Response.json({ ok: false }, { status: 405 });
   }
-  /* 2.10.2：Origin 必须存在、可解析且 host 一致（CSRF 防护）；
-     缺失或解析失败一律 403，不再放行。 */
+  /* Origin 必须存在、可解析且 host 一致（CSRF 防护）；缺失或解析失败一律 403 */
   {
     const origin = request.headers.get('Origin') || '';
     let originOk = false;
@@ -123,35 +116,60 @@ async function handlePost(context) {
   /* 缺关键配置 → 直接拒绝（fail closed） */
   const rootKey = (env && env.SGX_ROOT_KEY) || '';
   const stepupKey = (env && env.SGX_STEPUP_PRIVATE) || '';
-  if (!rootKey) {
-    await writeAudit(kv, ip, false);
-    return Response.json({ ok: false, error: 'config' }, { status: 500 });
+  if (!rootKey || !stepupKey || !kv) {
+    const errCode = !stepupKey ? 'no-stepup-key' : 'config';
+    return Response.json({ ok: false, error: errCode }, { status: 500 });
   }
-  if (!stepupKey) {
-    await writeAudit(kv, ip, false);
-    return Response.json({ ok: false, error: 'no-stepup-key' }, { status: 500 });
+
+  /* 真路径还是假入口：
+     - 有疑似有效 owner 会话 → 真路径
+     - 无会话但 lock 层未配置 → 真路径（引导）
+     - 无会话且 lock 已配置（或 KV 读失败按已配置）→ 假入口 */
+  const looksOwner = await lightOwnerSession(request, env);
+  let lockCfg = true;
+  try {
+    lockCfg = await isLayerConfigured(kv, LAYER_LOCK);
+  } catch (e) {
+    lockCfg = true;
   }
-  if (!kv) {
-    return Response.json({ ok: false, error: 'config' }, { status: 500 });
+  const realPath = looksOwner || !lockCfg;
+
+  if (!realPath) {
+    /* ===== 访客假入口：写死 401，与真失败逐字节相同 ===== */
+    try {
+      const lim = await checkRootLimit(kv, ip);
+      if (lim.limited) {
+        return Response.json({ ok: false, error: 'locked' }, { status: 429 });
+      }
+    } catch (e) {
+      return Response.json({ ok: false, error: 'server' }, { status: 503 });
+    }
+    try {
+      await recordRootFail(kv, ip);
+    } catch (e) {
+      return Response.json({ ok: false, error: 'server' }, { status: 503 });
+    }
+    await padTo(t0);
+    await writeRootAudit(kv, ip, false, { decoy: true, path: 'root-auth' });
+    return decoyAuth();
   }
+
+  /* ===== 真路径 ===== */
+  if (lockCfg) {
+    /* 正常运行：入口 1 要求有效 lock 会话。
+       完整会话校验（含 KV epoch）；轻量检查通过但完整校验失败（如 epoch 已推进）→ 401 */
+    const sess = await verifySessionDetailed(request, env);
+    if (!sess.ok || sess.role !== ROLE_OWNER) {
+      return Response.json({ ok: false, error: 'session' }, { status: 401 });
+    }
+  }
+  /* 引导模式（lock 未配置）：无需会话，直接校验根凭证 */
 
   /* 限流检查：KV 出错一律拒绝（fail closed） */
   try {
-    const g = await kv.get('root-auth-global', 'json');
-    if (g && g.pausedUntil > Date.now()) {
-      await writeAudit(kv, ip, false);
-      return Response.json({ ok: false, error: 'locked' }, { status: 429 });
-    }
-    if (g && g.windowStart + GLOBAL_WINDOW_MS < Date.now()) {
-      await kv.delete('root-auth-global');
-    }
-  } catch (e) {
-    return Response.json({ ok: false, error: 'server' }, { status: 503 });
-  }
-  try {
-    const rec = await kv.get('root-auth-fail:' + ip, 'json');
-    if (rec && rec.lockedUntil > Date.now()) {
-      await writeAudit(kv, ip, false);
+    const lim = await checkRootLimit(kv, ip);
+    if (lim.limited) {
+      await writeRootAudit(kv, ip, false, { path: 'root-auth' });
       return Response.json({ ok: false, error: 'locked' }, { status: 429 });
     }
   } catch (e) {
@@ -166,58 +184,34 @@ async function handlePost(context) {
 
   const ok = key && (await timingSafeEqual(String(key), String(rootKey)));
   if (!ok) {
-    /* 记录失败：KV 出错也拒绝（fail closed） */
     try {
-      const now = Date.now();
-      const rec = (await kv.get('root-auth-fail:' + ip, 'json')) || { count: 0 };
-      rec.count = (rec.count || 0) + 1;
-      if (rec.count >= IP_MAX_FAIL) {
-        rec.lockedUntil = now + IP_LOCK_MS;
-        rec.count = 0;
-      }
-      await kv.put('root-auth-fail:' + ip, JSON.stringify(rec), { expirationTtl: 3600 });
+      await recordRootFail(kv, ip);
     } catch (e) {
-      await writeAudit(kv, ip, false);
+      await writeRootAudit(kv, ip, false, { path: 'root-auth' });
       return Response.json({ ok: false, error: 'server' }, { status: 503 });
     }
-    try {
-      const now = Date.now();
-      const g = (await kv.get('root-auth-global', 'json')) || { count: 0, windowStart: now };
-      if (g.windowStart + GLOBAL_WINDOW_MS < now) {
-        g.count = 0;
-        g.windowStart = now;
-      }
-      g.count = (g.count || 0) + 1;
-      if (g.count >= GLOBAL_MAX_FAIL) {
-        g.pausedUntil = now + GLOBAL_PAUSE_MS;
-        g.count = 0;
-      }
-      await kv.put('root-auth-global', JSON.stringify(g), { expirationTtl: 7200 });
-    } catch (e) {
-      await writeAudit(kv, ip, false);
-      return Response.json({ ok: false, error: 'server' }, { status: 503 });
-    }
-    await writeAudit(kv, ip, false);
-    return Response.json({ ok: false, error: 'auth' }, { status: 401 });
+    await padTo(t0);
+    await writeRootAudit(kv, ip, false, { path: 'root-auth' });
+    return decoyAuth(); /* 与假入口逐字节相同 */
   }
 
   /* 成功：清掉该 IP 的失败计数（失败不影响主流程） */
-  try { await kv.delete('root-auth-fail:' + ip); } catch (e) {}
+  await clearRootFail(kv, ip);
 
-  /* 2.11：只签发 sgx-stepup(by=root, scope=root)，不签发会话 */
+  /* 只签发 sgx-stepup(by=root, scope=root)，不签发会话 */
   const headers = new Headers({ 'Content-Type': 'application/json' });
   let epoch;
   try {
     epoch = await getSessionEpoch(kv);
   } catch (e) {
-    await writeAudit(kv, ip, false);
+    await writeRootAudit(kv, ip, false, { path: 'root-auth' });
     return Response.json({ ok: false, error: 'server' }, { status: 503 });
   }
   let stepupVal;
   try {
     stepupVal = await signStepupCookie(stepupKey, STEPUP_BY_ROOT, STEPUP_SCOPE_ROOT, epoch);
   } catch (e) {
-    await writeAudit(kv, ip, false);
+    await writeRootAudit(kv, ip, false, { path: 'root-auth' });
     return Response.json({ ok: false, error: 'sign-failed' }, { status: 500 });
   }
   headers.append(
@@ -225,8 +219,8 @@ async function handlePost(context) {
     STEPUP_COOKIE + '=' + stepupVal + '; ' + STEPUP_COOKIE_ATTRS + '; Max-Age=' + STEPUP_MAX_AGE
   );
 
-  /* 2.10.2：审计写入失败则不签发会话（fail closed） */
-  if (!(await writeAudit(kv, ip, true))) {
+  /* 审计写入失败则不签发（fail closed） */
+  if (!(await writeRootAudit(kv, ip, true, { path: 'root-auth' }))) {
     return Response.json({ ok: false, error: 'server' }, { status: 503 });
   }
   return new Response(JSON.stringify({ ok: true }), { headers });
