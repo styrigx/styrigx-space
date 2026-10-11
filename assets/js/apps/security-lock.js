@@ -459,7 +459,7 @@ import { toast } from '../lib/toast.js';
         });
     });
   }
-  /* 立即锁定并退出所有设备 */
+  /* 立即锁定并退出所有设备（2.8.0：独立 L2 API /api/lock-all-devices，只认 owner 会话） */
   const lockoutBtn = $('lockmgr-lockout');
   if (lockoutBtn) {
     on(lockoutBtn, 'click', function () {
@@ -467,7 +467,7 @@ import { toast } from '../lib/toast.js';
         needReauth();
         return;
       }
-      api('/api/owner-password', { action: 'lockout', token: token })
+      api('/api/lock-all-devices', {})
         .then(function (r) {
           const j = r.json;
           if (j && j.ok) {
@@ -475,7 +475,7 @@ import { toast } from '../lib/toast.js';
             token = null;
             try { sessionStorage.removeItem('sgx-lockmgr'); } catch (e) {}
             location.href = '/?lock=1';
-          } else if (j && j.error === 'token') {
+          } else if (j && (j.error === 'token' || r.status === 401)) {
             needReauth();
           } else {
             toast(t('gateSrvErr'));

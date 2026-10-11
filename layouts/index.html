@@ -62,6 +62,8 @@
   {{ $apps = $apps | append (dict "name" $sa.name "url" $sa.url "icon" $sa.icon "ext" $sa.ext "appid" $sa.id) }}
 {{ end }}
 
+{{/* 2.8.0 锁屏瘦身：SGX-DESKTOP markers 之间的内容在锁屏态由 L1 middleware 剥离，不下发 */}}
+<!-- SGX-DESKTOP-START -->
 <div class="home-wrap max-w-[1100px] mx-auto px-4">
 
   <!-- 小组件网格 -->
@@ -416,5 +418,6 @@
 }
 </style>
 <script id="np-data" type="application/json">{{ $songs | jsonify | safeJS }}</script>
+<!-- SGX-DESKTOP-END -->
 {{/* 2.4.0-C：首页脚本走 ES Module 入口 entry-index.js（含锁屏）；旧 sgx-page-index.js / sgx-lock.html 已移除 */}}
 {{ end }}

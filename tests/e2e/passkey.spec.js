@@ -83,9 +83,10 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       await page.goto(BASE + '/?lock=1');
       const lock = page.locator('#sgx-lock');
       await expect(lock).toBeVisible({ timeout: 15000 });
-      const pkbtn = page.locator('#sgx-lock-pkbtn');
-      await expect(pkbtn).toBeVisible();
-      await pkbtn.click();
+      /* 2.8.0：点头像 → 弹层 → 选通行密钥 */
+      await page.click('#sgx-lock-avatar');
+      await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible({ timeout: 5000 });
+      await page.click('#sgx-mopt-pk');
       /* 解锁：锁屏消失 */
       await expect(lock).toBeHidden({ timeout: 20000 });
       const shown = await page.evaluate(() => {
@@ -571,8 +572,10 @@ test.describe('session security e2e (2.4.1)', () => {
       await page.goto(BASE + '/?lock=1');
       const lock = page.locator('#sgx-lock');
       await expect(lock).toBeVisible({ timeout: 15000 });
-      const pkbtn = page.locator('#sgx-lock-pkbtn');
-      await expect(pkbtn).toBeVisible();
+      /* 2.8.0：点头像 → 弹层 → 选通行密钥 */
+      await page.click('#sgx-lock-avatar');
+      await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible({ timeout: 5000 });
+      await page.click('#sgx-mopt-pk');
 
       /* 拦截 auth 接口的原始响应头读 Set-Cookie（浏览器不会存储
          Domain=.styrigx.com 的 cookie：preview 域名不匹配，读原始头才可靠） */
@@ -610,7 +613,7 @@ test.describe('session security e2e (2.4.1)', () => {
     }
   });
 
-  test('lockout 后 epoch+1，旧 cookie 的 epoch 失效', async ({ page, request }) => {
+  test('lock-all-devices 后 epoch+1，旧 cookie 的 epoch 失效', async ({ page, request }) => {
     await gateWithKey(page);
     const token = await ensurePassword(request, page, 'e2e-lockout-pw-1');
     try {
@@ -623,10 +626,8 @@ test.describe('session security e2e (2.4.1)', () => {
       const epoch1 = cookieEpoch(r.headers()['set-cookie']);
       expect(epoch1).toBe(e0);
 
-      /* 立即锁定并退出所有设备 */
-      r = await request.post(BASE + '/api/owner-password', {
-        data: { action: 'lockout', token },
-      });
+      /* 立即锁定并退出所有设备（2.8.0：独立 L2 API，只认 owner 会话） */
+      r = await request.post(BASE + '/api/lock-all-devices', { data: {} });
       expect((await r.json()).ok).toBe(true);
       /* 清 cookie 同样带 Domain，且正确过期 */
       const clearSc = r.headers()['set-cookie'] || '';

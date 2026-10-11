@@ -1,0 +1,7 @@
+# 公开页面白名单（2.8.0 搜索收录整理）
+# 未登录也能返回 200 的页面，可进 sitemap。
+# sitemap.xml（Hugo）和 L1 middleware（functions/_kernel/public-pages.js）共用此数据源，
+# tests/kernel/sitemap.test.mjs 验证两者同步。
+pages:
+  - /
+  - /en/

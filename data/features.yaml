@@ -337,16 +337,6 @@ features:
     section: wellbeing
     requires: [gl-wellbeing]
 
-  - id: legacy-lock-screen
-    name: {zh: 全屏锁屏（旧版）, en: Full-screen lock (legacy)}
-    build: false
-    user: false
-    type: bool
-    default: true
-    key: null
-    section: ""
-    requires: []
-
   - id: owner-gate
     name: {zh: 本人验证门禁, en: Owner gate}
     build: true
@@ -355,4 +345,4 @@ features:
     default: true
     key: null
     section: ""
-    requires: [legacy-lock-screen]
+    requires: []

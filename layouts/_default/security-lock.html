@@ -89,8 +89,8 @@
     <p class="sgx-verify-desc">{{ if $isEn }}Give it a name so you can tell your passkeys apart.{{ else }}起个名字，方便区分多把通行密钥。{{ end }}</p>
     <input id="lockpkname-input" type="text" maxlength="40" class="sgx-verify-input" autocomplete="off" />
     <div class="sgx-verify-actions">
-      <button type="button" class="sgx-verify-btn ghost" id="lockpkname-skip">{{ if $isEn }}Skip{{ else }}跳过{{ end }}</button>
-      <button type="button" class="sgx-verify-btn primary" id="lockpkname-save">{{ if $isEn }}Save{{ else }}保存{{ end }}</button>
+      <button type="button" class="sgx-verify-ghost" id="lockpkname-skip">{{ if $isEn }}Skip{{ else }}跳过{{ end }}</button>
+      <button type="button" class="sgx-verify-skip" id="lockpkname-save">{{ if $isEn }}Save{{ else }}保存{{ end }}</button>
     </div>
     <p class="sgx-verify-err" id="lockpkname-err" hidden></p>
   </div>

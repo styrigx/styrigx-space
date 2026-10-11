@@ -37,7 +37,7 @@ export function favFallback(img, name) {
  * @returns {() => void} disposer
  */
 export function bindFavFallback(root) {
-  return on(
+  const dispose = on(
     root || document,
     'error',
     function (e) {
@@ -48,4 +48,18 @@ export function bindFavFallback(root) {
     },
     true
   );
+  /* 2.8.0：补上绑定前已失败的图片。img 的 error 事件不冒泡，模块脚本
+     晚于图片请求执行时，早失败的图片会错过监听、永远显示破图占位。
+     此处同步替换已处于 broken 状态的（complete 且 naturalWidth 为 0）；
+     仍在加载中的继续由上面的 error 监听兜底。 */
+  try {
+    const scope = root || document;
+    const imgs = scope.querySelectorAll ? scope.querySelectorAll('img[data-favname]') : [];
+    imgs.forEach(function (img) {
+      if (img.complete && img.naturalWidth === 0) {
+        favFallback(img, img.getAttribute('data-favname') || '');
+      }
+    });
+  } catch (e) {}
+  return dispose;
 }

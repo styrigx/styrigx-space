@@ -48,6 +48,13 @@
         <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Clear this session and return to the lock screen{{ else }}清除当前会话并回到锁屏{{ end }}</span>
       </span>
     </div>
+    <div class="set-row" id="sec-lockall" role="button" tabindex="0">
+      <span class="set-ic bg-m-error-container text-m-on-error-container">{{ partial "icon.html" "shield" }}</span>
+      <span class="flex-1 min-w-0">
+        <span class="block font-medium">{{ if $isEn }}Lock all devices{{ else }}锁定所有设备{{ end }}</span>
+        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Sign out everywhere (blog/book take ~60s){{ else }}所有设备登出（博客/书库约 60 秒生效）{{ end }}</span>
+      </span>
+    </div>
   </section>
 
   <!-- 隐私分组 -->
