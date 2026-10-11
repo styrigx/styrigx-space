@@ -1,0 +1,49 @@
+name: Update visual snapshots
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "要更新基线的分支（不要填 main）"
+        required: true
+permissions:
+  contents: write
+env:
+  HUGO_VERSION: '0.167.0'   # 与 deploy.yml 保持一致
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: ${{ env.HUGO_VERSION }}
+          extended: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install
+      - run: npm install --no-save @playwright/test stylelint postcss-scss @lhci/cli http-server && npx playwright install chromium --with-deps
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk
+      - name: Test build (same as deploy.yml visual step)
+        run: |
+          sed -i "s/0x4AAAAAAFSBhpWkAwZr1SMA/1x00000000000000000000AA/g" hugo.yaml
+          hugo --minify
+        env:
+          SGX_TEST_NO_LOCK: "1"
+          SGX_TEST_NO_WEATHER: "1"
+      - name: Update snapshots
+        run: npx playwright test --config=playwright.config.js --update-snapshots
+      - name: Commit snapshots only
+        run: |
+          git checkout -- hugo.yaml   # 丢掉测试用 Turnstile key 替换
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add tests/e2e/visual/visual.spec.js-snapshots
+          git diff --cached --quiet && echo "基线无变化" && exit 0
+          git diff --cached --stat
+          git commit -m "[UI] CI 更新视觉基线 (ubuntu-24.04)"
+          git push
+# 推送用 GITHUB_TOKEN 不会触发 deploy.yml：推完在 PR 上 Re-run，或空提交一次

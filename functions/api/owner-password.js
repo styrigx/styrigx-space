@@ -13,7 +13,7 @@
  * 2.8.0：lockout（锁定所有设备）已拆为独立 L2 API /api/lock-all-devices。
  *
  * 密码存储：PBKDF2-SHA256 + 随机 salt，存 OWNER_KV；恒定时间比较（SHA-256 后比较）。
- * 会话可吊销：KV 存 session-epoch，Ed25519(SGX_ED25519_PRIVATE) 签进 cookie；
+ * 会话可吊销：KV 存 session-epoch，Ed25519(SGX_LOCK_PRIVATE) 签进 cookie；
  * 改密码/删密码时 +1，旧 cookie 失效（锁定所有设备走 /api/lock-all-devices）。
  * sgx-verified cookie 的设置/清除统一走 _kernel/session.js（属性只定义一处）。
  * KV 读取出错时抛错→接口返回 503，绝不继续写入。

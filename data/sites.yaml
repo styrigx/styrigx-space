@@ -1,13 +1,22 @@
 # 2.4.1 三站登记（用于 return 白名单、文档、设置页展示）
 - id: space
   title: 主站
+  subtitle: 个人主页
+  url: https://styrigx.com
+  icon: globe
   host: styrigx.com
   lock: local
 - id: blog
   title: 博客
+  subtitle: 个人博客
+  url: https://blog.styrigx.com
+  icon: pen
   host: blog.styrigx.com
   lock: redirect
 - id: book
   title: 书库
+  subtitle: 个人电子书库
+  url: https://book.styrigx.com
+  icon: book
   host: book.styrigx.com
   lock: redirect

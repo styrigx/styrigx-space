@@ -93,8 +93,10 @@
       </div>
       <ul class="files-rows">
         {{ range $si, $s := $sites }}
-        <li><a href="{{ $s.url }}" target="_blank" rel="noopener" class="flex items-center gap-4 px-1 active:bg-m-container transition-colors">
-          <span class="w-12 h-12 shrink-0">{{ partial "icon.html" (dict "name" ($s.icon | default "globe") "uid" (printf "fss%d" $si)) }}</span>
+        {{/* 主站是当前站，不用 target="_blank"；其他站新标签打开 */}}
+        {{ $isCurrent := eq $s.id "space" }}
+        <li><a href="{{ $s.url }}"{{ if not $isCurrent }} target="_blank" rel="noopener"{{ end }} class="flex items-center gap-4 px-1 active:bg-m-container transition-colors">
+          <span class="w-12 h-12 shrink-0 flex items-center justify-center">{{ partial "icon.html" (dict "name" ($s.icon | default "globe") "uid" (printf "fss%d" $si)) }}</span>
           <span class="row-line flex-1 min-w-0 flex items-center justify-between gap-3 py-3.5">
             <span class="min-w-0"><span class="block truncate text-[15px] font-medium">{{ $s.title }}</span>
             {{ with $s.subtitle }}<span class="block truncate text-xs text-m-on-surface-variant mt-0.5">{{ . }}</span>{{ end }}
