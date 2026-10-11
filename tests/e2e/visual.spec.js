@@ -50,6 +50,24 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           /* 2.8.0：files 页面书单 mock（page.route 后注册优先于 blockExternalRequests 的通配拦截）
              封面 URL 也 route 到本地占位图，避免被拦成破图 */
           if (page === '/files/') {
+            /* Hark：拦截 filesindex.json，取真实响应，只替换书籍条目（固定日期 10-01~10-08，在冻结时间 10-09 的 30 天窗口内），站点等保留 */
+            await pg.route('**/filesindex.json**', async (route) => {
+              const res = await route.fetch();
+              const data = await res.json();
+              const items = data.items || [];
+              /* 保留非书籍条目，书籍换成 3 本固定 */
+              const kept = items.filter((it) => it.type !== 'book');
+              const books = [
+                { id: 'book-fixture-a', type: 'book', lang: 'zh', title: 'Fixture Book A', subtitle: 'Author A', url: '#', cover: '', addedAt: '2026-10-08' },
+                { id: 'book-fixture-b', type: 'book', lang: 'zh', title: 'Fixture Book B', subtitle: 'Author B', url: '#', cover: '', addedAt: '2026-10-05' },
+                { id: 'book-fixture-c', type: 'book', lang: 'zh', title: 'Fixture Book C', subtitle: 'Author C', url: '#', cover: '', addedAt: '2026-10-01' },
+                { id: 'book-fixture-a-en', type: 'book', lang: 'en', title: 'Fixture Book A', subtitle: 'Author A', url: '#', cover: '', addedAt: '2026-10-08' },
+                { id: 'book-fixture-b-en', type: 'book', lang: 'en', title: 'Fixture Book B', subtitle: 'Author B', url: '#', cover: '', addedAt: '2026-10-05' },
+                { id: 'book-fixture-c-en', type: 'book', lang: 'en', title: 'Fixture Book C', subtitle: 'Author C', url: '#', cover: '', addedAt: '2026-10-01' },
+              ];
+              data.items = kept.concat(books);
+              await route.fulfill({ response: res, json: data });
+            });
             /* Hark：route 用前后双星号通配（实际请求可能带查询参数），带 CORS 头 */
             const SHELF_FIXTURE = {
               books: [
