@@ -85,6 +85,12 @@
    2.4.0 E：本层是 Material You 色板 token 定义，hex 在此合法（stylelint 豁免）。 */
 /* stylelint-disable color-no-hex, color-named */
 @layer tokens {
+  /* 2.9.2：snackbar 用 inverse token（Material You 规范） */
+  :root {
+    --m-inverse-surface: light-dark(#323232, #e3e3e6);
+    --m-inverse-on-surface: light-dark(#f5f5f5, #323232);
+    --m-inverse-primary: light-dark(#a8c7fa, #2f5f86);
+  }
   @supports not (color: light-dark(#000, #fff)) {
     :root {
       color-scheme: light dark;
@@ -827,7 +833,14 @@
   }
   .layout-mobile body.subpage-scrolled #nav-brand,
   .layout-mobile body.subpage-scrolled #nav-time-center,
-  .layout-mobile body.subpage-scrolled #nav-wx { opacity: 0; pointer-events: none; }
+  .layout-mobile body.subpage-scrolled #nav-wx,
+  .layout-dex body.subpage-scrolled #nav-brand,
+  .layout-dex body.subpage-scrolled #nav-time-center,
+  .layout-dex body.subpage-scrolled #nav-wx { opacity: 0; pointer-events: none; }
+  /* 2.9.2④：mini-title 显示时日期必须隐藏，防止重叠（布局切换时也生效） */
+  .layout-mobile .subpage-mini-title.show ~ #site-nav #nav-time-center,
+  .layout-mobile body:has(.subpage-mini-title.show) #nav-time-center,
+  .layout-dex body:has(.subpage-mini-title.show) #nav-time-center { opacity: 0; pointer-events: none; }
   /* 手机子页面：标题区从屏幕顶部开始（顶栏透明叠在上面），main 不再额外留白 */
   .layout-mobile main:has([data-subpage-head]) { padding-top: 0; }
 
@@ -848,6 +861,8 @@
   }
   .layout-mobile .subpage-hero { position: relative; top: 0; }
   .layout-mobile .subpage-back { top: calc(var(--nav-h,64px) + 12px + env(safe-area-inset-top,0px)); }
+  /* 2.9.2⑥③：返回箭头 top 必须 >= 顶栏 bottom（所有布局） */
+  .subpage-back { top: max(calc(12px + env(safe-area-inset-top,0px)), calc(var(--nav-h,64px) + 8px)); }
   .layout-mobile .subpage-actions { top: auto; bottom: 8px; }
   /* 2.3.14.7：大标题滚动联动动画 2.4.0 B 起由 CSS scroll-driven animations 驱动
      （@supports 不命中时回退到 rAF 直接写 opacity/transform），不再用 CSS transition，
@@ -2255,8 +2270,8 @@
   gap: 16px;
   padding: 12px 20px;
   border-radius: 12px;
-  background: #323232;
-  color: #fff;
+  background: var(--m-inverse-surface);
+  color: var(--m-inverse-on-surface);
   font-size: 14px;
   line-height: 1.4;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
@@ -2266,7 +2281,7 @@
 #sgx-layout-snackbar button {
   background: none;
   border: none;
-  color: #a8c7fa;
+  color: var(--m-inverse-primary);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;

@@ -154,3 +154,82 @@ test('⑦我的文件未滚动时天气可见，滚动收起后天气和头像�
   expect(restored.wxOpacity).not.toBe('0');
   expect(restored.brandOpacity).not.toBe('0');
 });
+
+test('④切换布局时顶栏标题与日期不重叠', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await blockExternalRequests(page);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await freezeTime(page);
+  // 在设置页滚动到标题收起
+  await page.goto('/settings/', { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('#site-nav', { timeout: 10000 });
+  await page.evaluate(() => window.scrollTo(0, 1000));
+  await page.waitForFunction(
+    () => document.body.classList.contains('subpage-scrolled'),
+    { timeout: 5000 }
+  );
+  // 切换到 DeX 布局（如果可用）
+  await page.evaluate(() => {
+    try { localStorage.setItem('sgx-layout', 'dex'); } catch (e) {}
+  });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('#site-nav', { timeout: 10000 });
+  // 标题和日期 boundingBox 不相交
+  const boxes = await page.evaluate(() => {
+    const title = document.querySelector('.subpage-mini-title');
+    const date = document.getElementById('nav-time-center');
+    const tBox = title ? title.getBoundingClientRect() : null;
+    const dBox = date ? date.getBoundingClientRect() : null;
+    return {
+      title: tBox ? { x: tBox.x, y: tBox.y, width: tBox.width, height: tBox.height } : null,
+      date: dBox ? { x: dBox.x, y: dBox.y, width: dBox.width, height: dBox.height } : null,
+      dateOpacity: date ? getComputedStyle(date).opacity : 'no-el',
+    };
+  });
+  // 如果日期隐藏（opacity 0），则不算重叠；如果可见，则必须不相交
+  if (boxes.title && boxes.date && boxes.dateOpacity !== '0') {
+    expect(boxesIntersect(boxes.title, boxes.date)).toBe(false);
+  }
+});
+
+test('⑥①布局切换时主内容不空白', async ({ page }) => {
+  await gotoWithLayout(page, 'auto');
+  const mainBefore = await page.evaluate(() => {
+    const m = document.querySelector('main, #app-content, [data-app-content]');
+    return m ? { exists: true, visible: getComputedStyle(m).display !== 'none' } : { exists: false };
+  });
+  expect(mainBefore.exists).toBe(true);
+  // 切换布局
+  await page.evaluate(() => {
+    try { localStorage.setItem('sgx-layout', 'dex'); } catch (e) {}
+    window.dispatchEvent(new Event('sgx-layout-change'));
+  });
+  await page.waitForTimeout(500);
+  const mainAfter = await page.evaluate(() => {
+    const m = document.querySelector('main, #app-content, [data-app-content]');
+    return m ? { exists: true, visible: getComputedStyle(m).display !== 'none', html: m.innerHTML.length } : { exists: false };
+  });
+  expect(mainAfter.exists).toBe(true);
+  expect(mainAfter.visible).toBe(true);
+  expect(mainAfter.html).toBeGreaterThan(0);
+});
+
+test('⑥③数字健康返回箭头不压顶栏', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await blockExternalRequests(page);
+  await page.goto('/settings/wellbeing/', { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('#site-nav', { timeout: 10000 });
+  const positions = await page.evaluate(() => {
+    const nav = document.getElementById('site-nav');
+    const back = document.querySelector('.subpage-back, .subpage-back-float');
+    const navBox = nav ? nav.getBoundingClientRect() : null;
+    const backBox = back ? back.getBoundingClientRect() : null;
+    return {
+      navBottom: navBox ? navBox.bottom : null,
+      backTop: backBox ? backBox.top : null,
+    };
+  });
+  if (positions.navBottom !== null && positions.backTop !== null) {
+    expect(positions.backTop).toBeGreaterThanOrEqual(positions.navBottom - 1); // 允许 1px 误差
+  }
+});
