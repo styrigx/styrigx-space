@@ -367,8 +367,6 @@ import { toast } from '../lib/toast.js';
       });
     });
   }
-    });
-  }
 
   /* ---------- 管理区 ---------- */
   var hasPk = false;
