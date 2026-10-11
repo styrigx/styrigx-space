@@ -4,21 +4,28 @@
  * 子站敏感操作（book 上传/删除/换封面）前，owner 在主站完成 stepup 复验后，
  * 由此接口签发短时 sgx-app 通行证，子站用 SGX_APP_PUBLIC 验签。
  *
+ * 【book 获取通行证的方式：不开 CORS，用页面跳转】
+ * 1. book 跳转到主站复验页：https://styrigx.com/app-verify/?aud=book&scope=upload&return=<book-url>
+ * 2. 主站校验 return 白名单（只允许 https://book.styrigx.com/ 开头），不通过则拒绝
+ * 3. 用户在主站完成通行密钥（passkey）复验 → 持有有效 sgx-stepup
+ * 4. 主站设置 sgx-app cookie：Domain=.styrigx.com; HttpOnly; Secure; SameSite=Lax; Max-Age=600
+ * 5. 跳回 book 的 return URL；book 后端从请求 cookie 中验签
+ *
  * POST /api/app-token
- * - { action: 'issue', aud, scope } → 必须持有有效 sgx-stepup（已完成通行密钥复验）。
- *   签发 sgx-app token：Ed25519(SGX_APP_PRIVATE) 签名，10 分钟有效，
- *   格式：owner.epoch.iat.exp.aud.scope.signature
- *   返回 { ok: true, token }
+ * - { action: 'issue', aud, scope, return } → 必须持有有效 sgx-stepup。
+ *   签发后设置 sgx-app cookie 并返回 { ok: true }（不再在 body 里返回 token，
+ *   避免 book 前端需要跨域读取）。
  *
  * 安全要求：
- * - 必须已登录 owner 会话（verifySessionDetailed）
- * - 必须持有有效 sgx-stepup（verifyStepup from ./stepup.js）
- * - aud 只允许 'book'（白名单）
- * - scope 只允许 'upload'（白名单）
- * - 密码不能用于复验：只认 sgx-stepup，不认密码
+ * - 必须已登录 owner 会话
+ * - 必须持有有效 sgx-stepup（通行密钥复验；密码不能用于复验）
+ * - aud 白名单：仅 'book'；scope 白名单：仅 'upload'
+ * - return 白名单：仅 https://book.styrigx.com/ 开头
+ * - 缺 stepup 时不设 cookie
  *
  * 环境变量：
  * - SGX_APP_PRIVATE：Ed25519 私钥（PKCS8 PEM），缺失则拒绝签发（500 no-app-key）
+ *   由 Gray 在 Cloudflare Pages space 项目里配成 Secret，本仓库不生成、不提交、不打印
  */
 import { verifySessionDetailed } from '../_middleware.js';
 import { getSessionEpoch, ROLE_OWNER } from '../_kernel/session.js';
@@ -32,6 +39,12 @@ export const APP_TOKEN_MAX_AGE = 600;
 const ALLOWED_AUD = ['book'];
 /* 允许的 scope 白名单 */
 const ALLOWED_SCOPE = ['upload'];
+/* return URL 白名单前缀：只允许 book.styrigx.com */
+const ALLOWED_RETURN_PREFIX = 'https://book.styrigx.com/';
+
+/* sgx-app cookie 定义 */
+export const APP_COOKIE = 'sgx-app';
+export const APP_COOKIE_ATTRS = 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600';
 
 /**
  * 签发 sgx-app token。
@@ -103,7 +116,7 @@ export async function onRequest(context) {
       body = {};
     }
     
-    const { action, aud, scope } = body;
+    const { action, aud, scope, return: returnUrl } = body;
     if (action !== 'issue') {
       return new Response(JSON.stringify({ ok: false, error: 'action' }), {
         status: 400,
@@ -125,7 +138,15 @@ export async function onRequest(context) {
       });
     }
 
-    // 5. 签发 token
+    // 5. 校验 return 白名单（只允许 book.styrigx.com）
+    if (returnUrl && !returnUrl.startsWith(ALLOWED_RETURN_PREFIX)) {
+      return new Response(JSON.stringify({ ok: false, error: 'return' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store' },
+      });
+    }
+
+    // 6. 签发 token（SGX_APP_PRIVATE 由 Gray 在 Cloudflare 后台配成本仓库不接触）
     const privatePem = env.SGX_APP_PRIVATE;
     if (!privatePem) {
       return new Response(JSON.stringify({ ok: false, error: 'no-app-key' }), {
@@ -137,9 +158,14 @@ export async function onRequest(context) {
     const epoch = await getSessionEpoch(env);
     const token = await signAppToken(privatePem, epoch, aud, scope);
 
-    return new Response(JSON.stringify({ ok: true, token }), {
+    // 7. 设置 sgx-app cookie（Domain=.styrigx.com，book 后端可读），不再在 body 返回 token
+    return new Response(JSON.stringify({ ok: true }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'private, no-store',
+        'Set-Cookie': `${APP_COOKIE}=${token}; ${APP_COOKIE_ATTRS}`,
+      },
     });
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: 'server' }), {
