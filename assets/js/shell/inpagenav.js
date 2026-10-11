@@ -286,6 +286,10 @@ export function prefetch(url) {
  * @returns {boolean}
  */
 function shouldIntercept(e, a) {
+  // 只拦截 Dock 图标本身（data-dock 属性），不拦截页面内的其他链接
+  // （如设置页内部的 data-cat 左栏切换，那是页内 JS 逻辑，不是 Dock 导航）
+  if (!a.hasAttribute('data-dock')) return false;
+
   // 修饰键、非左键、target=_blank 都不拦截
   if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return false;
   if (e.button !== 0) return false;
@@ -326,9 +330,9 @@ export function initInPageNav() {
     navigateTo(a.href);
   });
 
-  // Dock 图标 pointerdown 预取（只预取 Dock 页）
+  // Dock 图标 pointerdown 预取（只预取 Dock 图标本身）
   document.addEventListener('pointerdown', (e) => {
-    const a = e.target.closest('a');
+    const a = e.target.closest('a[data-dock]');
     if (!a || !a.href) return;
 
     let url;
