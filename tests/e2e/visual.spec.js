@@ -50,20 +50,28 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           /* 2.8.0：files 页面书单 mock（page.route 后注册优先于 blockExternalRequests 的通配拦截）
              封面 URL 也 route 到本地占位图，避免被拦成破图 */
           if (page === '/files/') {
-            await pg.route('https://book.styrigx.com/api/shelf', async (route) => {
+            /* Hark：route 用前后双星号通配（实际请求可能带查询参数），带 CORS 头 */
+            const SHELF_FIXTURE = {
+              books: [
+                { title: 'Book One', author: 'Author A', cover: '/covers/1.png', date: '2026-10-01', url: '#', comment: 'Test book 1' },
+                { title: 'Book Two', author: 'Author B', cover: '/covers/2.png', date: '2026-10-02', url: '#', comment: 'Test book 2' },
+                { title: 'Book Three', author: 'Author C', cover: '/covers/3.png', date: '2026-10-03', url: '#', comment: 'Test book 3' },
+              ],
+            };
+            await pg.route('**/api/shelf**', async (route) => {
+              const origin = new URL(pg.url() || 'http://localhost').origin;
               await route.fulfill({
+                status: 200,
                 contentType: 'application/json',
-                body: JSON.stringify({
-                  books: [
-                    { title: 'Book One', author: 'Author A', cover: 'https://book.styrigx.com/covers/1.png', date: '2026-10-01', url: '#', comment: 'Test book 1' },
-                    { title: 'Book Two', author: 'Author B', cover: 'https://book.styrigx.com/covers/2.png', date: '2026-10-02', url: '#', comment: 'Test book 2' },
-                    { title: 'Book Three', author: 'Author C', cover: 'https://book.styrigx.com/covers/3.png', date: '2026-10-03', url: '#', comment: 'Test book 3' },
-                  ],
-                }),
+                headers: {
+                  'access-control-allow-origin': origin,
+                  'access-control-allow-credentials': 'true',
+                },
+                body: JSON.stringify(SHELF_FIXTURE),
               });
             });
             /* 封面图 route 到本地 1x1 占位 */
-            await pg.route('https://book.styrigx.com/covers/*', async (route) => {
+            await pg.route('**/covers/*', async (route) => {
               await route.fulfill({
                 contentType: 'image/png',
                 body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64'),
