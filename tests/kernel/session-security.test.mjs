@@ -1121,7 +1121,7 @@ async function visitorCookie(epoch = 0) {
   return await signSessionCookie(TEST_PRIV_PEM, epoch, 'visitor');
 }
 
-test('2.8.0：visitor 可以访问桌面（/），owner 可以访问设置', async () => {
+test('2.9.3：visitor 可以访问桌面（/）、设置（/settings/）、文件（/files/），owner 可以访问安全锁屏', async () => {
   const vCookie = await visitorCookie(0);
   const htmlNext = async () => new Response('<html lang="zh"><head></head><body></body></html>', {
     status: 200,
@@ -1140,8 +1140,16 @@ test('2.8.0：visitor 可以访问桌面（/），owner 可以访问设置', asy
   const html = await r.text();
   assert.ok(html.includes('data-sgx-role="visitor"'), '应注入 visitor 角色');
 
-  /* visitor 访问设置 → 302 到锁屏 */
+  /* 2.9.3：visitor 访问设置 → 200（可进） */
   r = await mw(mwCtx('https://styrigx.com/settings/', { cookie: vCookie, env: PROD_ENV() }));
+  assert.equal(r.status, 200);
+
+  /* 2.9.3：visitor 访问文件 → 200（可进） */
+  r = await mw(mwCtx('https://styrigx.com/files/', { cookie: vCookie, env: PROD_ENV() }));
+  assert.equal(r.status, 200);
+
+  /* 2.9.3：visitor 访问安全锁屏 → 302 到锁屏（主人专属） */
+  r = await mw(mwCtx('https://styrigx.com/settings/security/lock/', { cookie: vCookie, env: PROD_ENV() }));
   assert.equal(r.status, 302);
   assert.ok(r.headers.get('Location').includes('?lock=1'));
 
