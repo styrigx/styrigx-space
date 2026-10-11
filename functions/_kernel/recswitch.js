@@ -82,6 +82,39 @@ export async function checkRecoverySwitch(kv, db) {
 }
 
 /**
+ * 轻触开关计时（管理页加载时调用）。
+ * 若 KV 中有新值（D1 未见过），在 D1 记录 hash 与首次时间，开始 24 小时计时。
+ * 只计时：不签票、不标记已用。所有错误一律吞掉，不影响调用方。
+ * @param {any} kv OWNER_KV
+ * @param {any} db D1 binding
+ * @returns {Promise<void>}
+ */
+export async function touchRecoverySwitch(kv, db) {
+  try {
+    if (!kv || !db) return;
+    let val = null;
+    try {
+      val = await kv.get(SWITCH_KV_KEY);
+    } catch (e) {
+      return;
+    }
+    if (val === null || val === undefined || !String(val).trim()) return;
+    const hash = await sha256Hex(String(val));
+    try {
+      await db.prepare(
+        'CREATE TABLE IF NOT EXISTS recovery_switch (hash TEXT PRIMARY KEY, first_seen INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0)'
+      ).run();
+      const row = await db.prepare('SELECT first_seen FROM recovery_switch WHERE hash = ?').bind(hash).first();
+      if (!row) {
+        await db.prepare('INSERT INTO recovery_switch (hash, first_seen, used) VALUES (?, ?, 0)').bind(hash, Date.now()).run();
+      }
+    } catch (e) {
+      /* 吞掉：不影响页面加载 */
+    }
+  } catch (e) {}
+}
+
+/**
  * 原子标记已用（成功签发 lockreset 前调用）。
  * 仅当 used=0 时更新；返回 true 表示本次抢到（可签发），false 表示已被用过。
  * @param {any} db D1 binding

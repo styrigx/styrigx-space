@@ -545,3 +545,69 @@ test('2.11 限速：根凭证各路径共用计数（root-auth 失败计入 lock
   const lim = await checkRootLimit(kv, ip);
   assert.equal(lim.limited, true);
 });
+
+/* ============ 10. 补充二：管理页加载触发开关计时 ============ */
+
+test('2.11 补充二：管理页（layer-status，有效会话）触发开关计时', async () => {
+  const { onRequestGet } = await import(REPO + 'functions/api/layer-status.js');
+  const { signSessionCookie } = await import(REPO + 'functions/_kernel/session.js');
+  const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1', 'session-epoch': '0' });
+  const db = makeD1();
+  kv._store.set('recovery-switch', 'timer-secret-1');
+  const env = baseEnv(kv, { SGX_D1: db });
+  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
+  const req = new Request('https://test.example.com/api/layer-status', {
+    headers: { 'Cookie': 'sgx-verified=' + sessCv },
+  });
+  const res = await onRequestGet({ request: req, env });
+  assert.equal(res.status, 200);
+  /* D1 应有首次时间记录（计时开始），但未标记已用 */
+  const t = db._tables.get('recovery_switch');
+  assert.ok(t && t.size === 1, '应记录一次计时');
+  const row = Array.from(t.values())[0];
+  assert.ok(row.first_seen > 0);
+  assert.equal(row.used, 0);
+});
+
+test('2.11 补充二：计时 24 小时后，开关在重置路径上已失效', async () => {
+  const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
+  const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
+  const db = makeD1();
+  kv._store.set('recovery-switch', 'timer-secret-1');
+  /* 先触发计时 */
+  const { touchRecoverySwitch } = await import(REPO + 'functions/_kernel/recswitch.js');
+  const env0 = baseEnv(kv, { SGX_D1: db });
+  await touchRecoverySwitch(kv, db);
+  /* 把首次时间拨到 25 小时前（模拟过期） */
+  const t = db._tables.get('recovery_switch');
+  const hash = Array.from(t.keys())[0];
+  t.get(hash).first_seen = Date.now() - 25 * 3600 * 1000;
+  /* 重置路径：根凭证正确，但开关已过期 → needOwner（而非 lockreset） */
+  const req = postReq('https://test.example.com/api/lockreset', {
+    action: 'verify', rootKey: 'test-root-key-12345',
+  });
+  const res = await onRequestPost({ request: req, env: env0 });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.needOwner, true, '过期开关不应签发 lockreset');
+  assert.ok(!body.ok || body.needOwner, '不应直接成功');
+});
+
+test('2.11 补充二：访客请求 layer-status → 401，且不读开关 KV', async () => {
+  const { onRequestGet } = await import(REPO + 'functions/api/layer-status.js');
+  let switchRead = false;
+  const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
+  const origGet = kv.get;
+  kv.get = async function (k, t) {
+    if (k === 'recovery-switch') switchRead = true;
+    return origGet(k, t);
+  };
+  kv._store.set('recovery-switch', 'timer-secret-1');
+  const db = makeD1();
+  const env = baseEnv(kv, { SGX_D1: db });
+  /* 无会话 */
+  const req = new Request('https://test.example.com/api/layer-status');
+  const res = await onRequestGet({ request: req, env });
+  assert.equal(res.status, 401);
+  assert.equal(switchRead, false, '访客不应触发开关 KV 读取');
+});
