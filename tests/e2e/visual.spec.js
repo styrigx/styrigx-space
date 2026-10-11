@@ -51,7 +51,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
              封面 URL 也 route 到本地占位图，避免被拦成破图 */
           if (page === '/files/') {
             /* Hark：拦截 filesindex.json，取真实响应，只替换书籍条目（固定日期 10-01~10-08，在冻结时间 10-09 的 30 天窗口内），站点等保留 */
-            await pg.route('**/filesindex.json**', async (route) => {
+            await pg.route('**/files-index.json**', async (route) => {
               const res = await route.fetch();
               const data = await res.json();
               const items = data.items || [];
