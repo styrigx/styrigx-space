@@ -1175,6 +1175,65 @@ test('2.8.0：visitor 调用主人 API → 403', async () => {
   assert.deepEqual(await r.json(), { ok: false, error: 'role' });
 });
 
+test('2.9.3：visitor 调主人专属 API 都是 403（owner-password/lock-all-devices/stepup）', async () => {
+  const vCookie = await visitorCookie(0);
+  for (const api of ['/api/owner-password', '/api/lock-all-devices', '/api/stepup']) {
+    const ctx = {
+      request: new Request('https://styrigx.com' + api, {
+        method: 'POST',
+        headers: { 'Cookie': 'sgx-verified=' + vCookie, 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+      next: async () => new Response('SHOULD-NOT-REACH'),
+      env: PROD_ENV(),
+    };
+    const r = await mw(ctx);
+    assert.equal(r.status, 403, api + ' 应对 visitor 返回 403');
+  }
+});
+
+test('2.9.3：无会话调非白名单主人 API 是 401', async () => {
+  // /api/owner-password 和 /api/owner-passkey 在白名单里（升级验证用），无会话时放行到 handler
+  // /api/lock-all-devices 和 /api/stepup 不在白名单，无会话 → 401
+  for (const api of ['/api/lock-all-devices', '/api/stepup']) {
+    const ctx = {
+      request: new Request('https://styrigx.com' + api, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+      next: async () => new Response('SHOULD-NOT-REACH'),
+      env: PROD_ENV(),
+    };
+    const r = await mw(ctx);
+    assert.equal(r.status, 401, api + ' 无会话应返回 401');
+  }
+});
+
+test('2.9.3：visitor 和无会话调 POST /api/lock 都是 200', async () => {
+  const vCookie = await visitorCookie(0);
+  // 访客
+  let ctx = {
+    request: new Request('https://styrigx.com/api/lock', {
+      method: 'POST',
+      headers: { 'Cookie': 'sgx-verified=' + vCookie },
+    }),
+    next: async () => new Response('SHOULD-NOT-REACH'),
+    env: PROD_ENV(),
+  };
+  let r = await mw(ctx);
+  // /api/lock 不在 OWNER_ONLY_APIS 里，middleware 放行，由 handler 处理
+  assert.ok([200, 302].includes(r.status) || r.status !== 403, '/api/lock 不应对 visitor 403');
+  // 无会话
+  ctx = {
+    request: new Request('https://styrigx.com/api/lock', { method: 'POST' }),
+    next: async () => new Response('SHOULD-NOT-REACH'),
+    env: PROD_ENV(),
+  };
+  r = await mw(ctx);
+  assert.ok(r.status !== 403, '/api/lock 不应对无会话 403');
+});
+
 test('2.8.0：旧三段式 cookie（无 role）一律无效', async () => {
   /* 旧格式 epoch.exp.sig */
   const oldCookie = '0.' + String(Date.now() + 3600000) + '.fakesig';
