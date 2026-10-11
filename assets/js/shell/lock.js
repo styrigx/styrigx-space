@@ -1096,7 +1096,7 @@ function showLockScreen() {
 
   /* 已解锁标签页的自动锁定：visibilitychange（visible）、pageshow（含 bfcache）、
      focus 时向服务端确认会话（/api/session-check），失败就重载切到锁屏。
-     不用 BroadcastChannel / storage / 前端内存做锁屏状态，状态源只有服务端。
+     不用跨标签页广播 / storage / 前端内存做锁屏状态，状态源只有服务端。
      节流 5 秒；网络错误不跳转，下次再查。
      「锁定所有设备」靠 epoch 生效，子站缓存最多约 60 秒。 */
   let lastLockCheck = 0;
