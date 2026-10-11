@@ -268,14 +268,44 @@ function showLockScreen() {
      - 不带 return：保持现有开锁动画，显示桌面。 */
   function handleSessionOk() {
     let ret = '';
+    let why = '';
     try {
-      ret = new URLSearchParams(window.location.search).get('return') || '';
+      const params = new URLSearchParams(window.location.search);
+      ret = params.get('return') || '';
+      why = params.get('why') || '';
     } catch (e) {}
+    /* 诊断：如果带 why（子站验证失败被踢回），显示原因并不再自动跳回子站，避免死循环 */
+    if (why) {
+      showSubsiteFailure(why);
+      return;
+    }
     if (ret) {
       window.location.replace(window.location.href);
       return;
     }
     doUnlockAnimation();
+  }
+
+  /* 子站验证失败提示（小字显示在锁屏底部） */
+  function showSubsiteFailure(why) {
+    let el = document.getElementById('sgx-subsite-failure');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'sgx-subsite-failure';
+      el.style.cssText = 'position:fixed;bottom:24px;left:0;right:0;text-align:center;font-size:12px;color:rgba(255,255,255,0.6);z-index:10001;';
+      document.body.appendChild(el);
+    }
+    const reasons = {
+      'no-cookie': '无凭证',
+      'bad-format': '凭证格式错误',
+      'expired': '凭证已过期',
+      'key-import': '公钥导入失败',
+      'sig': '签名验证失败',
+      'epoch-fetch': '无法获取会话纪元',
+      'epoch-stale': '凭证纪元过旧',
+      'no-config': '子站未配置公钥'
+    };
+    el.textContent = '子站验证失败：' + (reasons[why] || why);
   }
 
   /* 开锁动画（无 return 时）：显示桌面 */
