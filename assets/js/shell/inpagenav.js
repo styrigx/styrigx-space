@@ -77,6 +77,16 @@ function isLockedResponse(res, html) {
  * @returns {Promise<{html: string, url: string} | {locked: true}>}
  */
 async function fetchPage(url) {
+  // 先查预取缓存
+  const cached = getPrefetchCache(url);
+  if (cached) {
+    prefetchCache.delete(url); // 用一次就删，避免显示过期内容
+    if (cached.includes('data-sgx-session="locked"')) {
+      return { locked: true };
+    }
+    return { html: cached, url };
+  }
+
   let res;
   try {
     res = await fetch(url, {
@@ -263,20 +273,45 @@ export async function navigateTo(url, opts = {}) {
   }
 }
 
-/** 预取：在 Dock 图标 pointerdown 时提前发请求（不缓存结果） */
+/** 预取缓存：URL -> {html, timestamp}，只缓存非受保护页 */
+const prefetchCache = new Map();
+const PREFETCH_TTL = 30000; // 30 秒
+
+/** 预取：在 Dock 图标 pointerdown 时提前发请求并缓存结果 */
 let prefetchController = null;
 export function prefetch(url) {
   if (prefetchController) {
     prefetchController.abort();
   }
   prefetchController = new AbortController();
-  // 只发请求，不缓存结果——避免锁屏后显示旧内容
   fetch(url, {
     credentials: 'include',
     cache: 'no-store',
     redirect: 'manual',
     signal: prefetchController.signal,
+  }).then(async (res) => {
+    // 只缓存成功的、非锁定的响应
+    if (res.ok && res.type !== 'opaqueredirect' && res.status !== 401) {
+      try {
+        const html = await res.text();
+        // 不缓存含锁屏标记的页面
+        if (!html.includes('data-sgx-session="locked"')) {
+          prefetchCache.set(url, { html, timestamp: Date.now() });
+        }
+      } catch (e) { /* 忽略 */ }
+    }
   }).catch(() => { /* 忽略预取错误 */ });
+}
+
+/** 获取预取缓存（未过期才返回） */
+function getPrefetchCache(url) {
+  const entry = prefetchCache.get(url);
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > PREFETCH_TTL) {
+    prefetchCache.delete(url);
+    return null;
+  }
+  return entry.html;
 }
 
 /**
@@ -347,6 +382,14 @@ export function initInPageNav() {
 
     prefetch(url.href);
   }, { passive: true });
+
+  // 拦截 Dock 上的长按菜单（contextmenu），不影响正文普通链接
+  document.addEventListener('contextmenu', (e) => {
+    const dockBtn = e.target.closest('a[data-dock]');
+    if (dockBtn) {
+      e.preventDefault();
+    }
+  });
 
   // popstate：前进/后退（目标不是 Dock 页则整页加载）
   window.addEventListener('popstate', (e) => {
