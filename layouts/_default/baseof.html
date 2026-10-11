@@ -271,16 +271,11 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
   (dict "id" "edgeglow" "zh" "边缘光效" "en" "Edge glow" "dzh" "悬停小组件时的主色流光" "den" "Primary-color glow on widget hover")
 }}
 {{ range $glMods }}{{ $idx = $idx | append (dict "t" (cond $isEn .en .zh) "d" (cond $isEn .den .dzh) "u" (print $glUrl "#mod-" .id) "c" $cGl) }}{{ end }}
-{{/* 博客文章（构建时抓 RSS，失败则跳过） */}}
+{{/* 博客文章（CI 从博客仓库生成 data/blog-posts.yaml，本地读取；不抓 rss.xml——博客有锁屏，rss 会被 302） */}}
 {{ $cBlog := cond $isEn "Blog" "博客" }}
-{{ with resources.GetRemote "https://blog.styrigx.com/rss.xml" }}
-  {{ range findRE "(?s)<item>.*?</item>" .Content }}
-    {{ $bt := findRESubmatch "(?s)<title>(.*?)</title>" . }}
-    {{ $bl := findRESubmatch "(?s)<link>(.*?)</link>" . }}
-    {{ if and $bt $bl }}
-      {{ $btitle := (index (index $bt 0) 1) | replaceRE "<!\\[CDATA\\[(.*?)\\]\\]>" "$1" | htmlUnescape }}
-      {{ $idx = $idx | append (dict "t" $btitle "d" (cond $isEn "Blog article" "博客文章") "u" (index (index $bl 0) 1) "c" $cBlog) }}
-    {{ end }}
+{{ range $.Site.Data.blog_posts }}
+  {{ if eq .lang (cond $isEn "en" "zh") }}
+    {{ $idx = $idx | append (dict "t" .title "d" (cond $isEn "Blog article" "博客文章") "u" .url "c" $cBlog) }}
   {{ end }}
 {{ end }}
 <script id="search-index" type="application/json">{{ (dict "items" $idx) | jsonify | safeJS }}</script>
