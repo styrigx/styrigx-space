@@ -100,8 +100,11 @@ function getAllCookies(request, name) {
  * 必须以 / 开头，且不能是 // 或 /\（防协议相对 URL 和反斜杠 trick）。
  */
 export function isSafeReturnPath(ret) {
-  return typeof ret === 'string' && ret.length > 0 &&
-    ret.charAt(0) === '/' && ret.charAt(1) !== '/' && ret.charAt(1) !== '\\';
+  if (typeof ret !== 'string' || ret.length === 0) return false;
+  if (ret.charAt(0) !== '/' || ret.charAt(1) === '/' || ret.charAt(1) === '\\') return false;
+  /* 2.8.0：/lock/ 登录后无页面，解锁后回跳一律回首页（防 404） */
+  if (ret === '/lock/' || ret.startsWith('/lock/?') || ret.startsWith('/lock/#')) return false;
+  return true;
 }
 
 /**
