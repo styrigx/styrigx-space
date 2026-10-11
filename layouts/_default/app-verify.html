@@ -1,0 +1,209 @@
+{{/* 应用授权页（sgx-app 通行证签发）：
+   book 跳转过来：/app-verify/?aud=book&scope=upload&return=<book-url>
+   流程：未解锁先走锁屏 → 通行密钥复验（复用 stepup.js，不接受密码）
+   → POST /api/app-token → 成功后 location.replace(return)。
+   复验失败或取消时停在主站并给出提示。 */}}
+{{ define "main" }}
+<div class="set-layout max-w-2xl mx-auto px-4 pb-28">
+  {{ partial "subpage-head.html" (dict "title" "应用授权" "isEn" false) }}
+
+  <div class="widget bg-m-container-lowest border border-m-outline p-6 text-center">
+    <div id="appv-loading">
+      <p class="text-[15px]">正在准备应用授权…</p>
+    </div>
+    <div id="appv-error" hidden>
+      <p class="text-[15px] text-red-600" id="appv-error-msg"></p>
+      <button type="button" id="appv-retry" class="mt-4 px-6 py-2 rounded-full bg-m-primary text-m-on-primary">重试</button>
+    </div>
+    <div id="appv-done" hidden>
+      <p class="text-[15px]">授权成功，正在返回…</p>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+(function () {
+  'use strict';
+  const ALLOWED_ORIGIN = 'https://book.styrigx.com';
+  const DEFAULT_RETURN = 'https://book.styrigx.com/';
+
+  /** 校验 return：new URL 解析，origin 必须严格等于白名单 */
+  function validateReturn(url) {
+    if (!url) return DEFAULT_RETURN;
+    try {
+      const u = new URL(url);
+      if (u.origin !== ALLOWED_ORIGIN) return null;
+      return url;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function showError(msg) {
+    document.getElementById('appv-loading').hidden = true;
+    document.getElementById('appv-done').hidden = true;
+    const errEl = document.getElementById('appv-error');
+    document.getElementById('appv-error-msg').textContent = msg;
+    errEl.hidden = false;
+  }
+
+  function showLoading(msg) {
+    document.getElementById('appv-loading').hidden = false;
+    document.getElementById('appv-error').hidden = true;
+    document.getElementById('appv-done').hidden = true;
+    if (msg) document.querySelector('#appv-loading p').textContent = msg;
+  }
+
+  /** base64url 解码 */
+  function b64urlDec(s) {
+    s = s.replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    const bin = atob(s);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return arr;
+  }
+
+  /** base64url 编码 */
+  function b64urlEnc(buf) {
+    const bin = String.fromCharCode.apply(null, new Uint8Array(buf));
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  /** 发起 WebAuthn 复验（复用 stepup.js 的 challenge/verify 流程，不接受密码） */
+  async function doStepupVerify() {
+    // 1. 获取 challenge
+    const chRes = await fetch('/api/stepup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'challenge' }),
+      credentials: 'include',
+    });
+    const chData = await chRes.json();
+    if (!chData.ok) {
+      throw new Error(chData.error || 'challenge 失败');
+    }
+
+    // 2. 调起 WebAuthn
+    const publicKey = {
+      challenge: b64urlDec(chData.challenge),
+      rpId: chData.rpId,
+      allowCredentials: (chData.allowCredentials || []).map(c => ({
+        id: b64urlDec(c.id),
+        type: c.type || 'public-key',
+      })),
+      userVerification: 'required',
+      timeout: 60000,
+    };
+    const cred = await navigator.credentials.get({ publicKey });
+    if (!cred) throw new Error('用户取消了验证');
+
+    // 3. 提交验签
+    const verifyRes = await fetch('/api/stepup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'verify',
+        cid: chData.cid,
+        credential: {
+          id: cred.id,
+          rawId: b64urlEnc(cred.rawId),
+          type: cred.type,
+          response: {
+            authenticatorData: b64urlEnc(cred.response.authenticatorData),
+            clientDataJSON: b64urlEnc(cred.response.clientDataJSON),
+            signature: b64urlEnc(cred.response.signature),
+            userHandle: cred.response.userHandle ? b64urlEnc(cred.response.userHandle) : null,
+          },
+        },
+      }),
+      credentials: 'include',
+    });
+    const verifyData = await verifyRes.json();
+    if (!verifyData.ok) {
+      throw new Error(verifyData.error || '验签失败');
+    }
+    return true;
+  }
+
+  async function main() {
+    const params = new URLSearchParams(location.search);
+    const aud = params.get('aud');
+    const scope = params.get('scope');
+    const returnUrl = validateReturn(params.get('return'));
+
+    // return 不合法 → 停在主站并提示
+    if (!returnUrl) {
+      showError('return 参数不合法，已停止跳转。');
+      return;
+    }
+    if (aud !== 'book' || scope !== 'upload') {
+      showError('aud 或 scope 参数不合法。');
+      return;
+    }
+
+    document.getElementById('appv-retry').addEventListener('click', () => location.reload());
+
+    try {
+      // 1. 检查 stepup 状态
+      const stepupRes = await fetch('/api/stepup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'status' }),
+        credentials: 'include',
+      });
+      const stepupData = await stepupRes.json().catch(() => ({}));
+
+      // 2. 未完成 → 直接发起 WebAuthn 复验（而不是卡住）
+      if (!stepupData.ok || !stepupData.valid) {
+        showLoading('请完成通行密钥验证…');
+        try {
+          await doStepupVerify();
+        } catch (e) {
+          // 用户取消或失败 → 停在主站并提示
+          showError('验证未完成：' + e.message + '。请重试。');
+          return;
+        }
+      }
+
+      // 3. POST /api/app-token 签发（带 CSRF 防护）
+      showLoading('正在签发应用通行证…');
+      const res = await fetch('/api/app-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'issue', aud, scope, return: returnUrl }),
+        credentials: 'include',
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        showError('签发失败：' + (data.error || res.status));
+        return;
+      }
+
+      const data = await res.json();
+      if (!data.ok) {
+        showError('签发失败：' + (data.error || 'unknown'));
+        return;
+      }
+
+      // 4. 成功 → 跳回 book（cookie 已由服务端设置）
+      document.getElementById('appv-loading').hidden = true;
+      document.getElementById('appv-done').hidden = false;
+      location.replace(data.return || returnUrl);
+    } catch (e) {
+      showError('网络错误：' + e.message);
+    }
+  }
+
+  // 暴露给测试
+  window.__appVerify = { validateReturn, ALLOWED_ORIGIN, DEFAULT_RETURN };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', main);
+  } else {
+    main();
+  }
+})();
+</script>
+{{ end }}
