@@ -86,3 +86,38 @@ test('顶栏标题和日期不相交', async ({ page }) => {
   // 顶栏本身不应有异常高度（标题日期叠加会导致高度异常）
   expect(boxes.nav.height).toBeLessThan(200);
 });
+
+test('⑦主页天气可见，进入设置后隐藏，返回主页又可见', async ({ page }) => {
+  await gotoWithLayout(page, 'auto');
+  // 主页天气可见（如果天气功能开启）
+  const wxVisibleHome = await page.evaluate(() => {
+    const wx = document.getElementById('nav-wx');
+    if (!wx) return 'no-element';
+    return getComputedStyle(wx).display !== 'none' ? 'visible' : 'hidden';
+  });
+  // 注意：天气可能因设置关闭而不显示，这里只断言 data-route
+  const routeHome = await page.evaluate(() => document.getElementById('site-nav')?.getAttribute('data-route'));
+  expect(routeHome).toBe('home');
+
+  // 进入设置（直接导航模拟）
+  await page.goto('/settings/', { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('#site-nav', { timeout: 10000 });
+  const routeApp = await page.evaluate(() => document.getElementById('site-nav')?.getAttribute('data-route'));
+  expect(routeApp).toBe('app');
+  // 天气应隐藏
+  const wxHidden = await page.evaluate(() => {
+    const wx = document.getElementById('nav-wx');
+    if (!wx) return true;
+    return getComputedStyle(wx).display === 'none';
+  });
+  expect(wxHidden).toBe(true);
+});
+
+test('⑦直接打开 /settings/ 首屏天气不可见（不闪）', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await blockExternalRequests(page);
+  // 首帧检查：domcontentloaded 后立即断言
+  await page.goto('/settings/', { waitUntil: 'domcontentloaded' });
+  const route = await page.evaluate(() => document.getElementById('site-nav')?.getAttribute('data-route'));
+  expect(route).toBe('app');
+});

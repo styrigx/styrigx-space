@@ -2289,3 +2289,8 @@ html, body {
 .layout-pc .set-layout {
   contain: layout style;
 }
+
+/* 2.9.2⑦：顶栏天气只在主页显示（Mobile 和 DeX 都按此规则） */
+#site-nav[data-route="app"] #nav-wx {
+  display: none !important;
+}
