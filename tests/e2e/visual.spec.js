@@ -59,7 +59,8 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
               ],
             };
             await pg.route('**/api/shelf**', async (route) => {
-              const origin = new URL(pg.url() || 'http://localhost').origin;
+              /* Hark 修正：goto 前 pg.url() 还是 about:blank，origin 取请求头 */
+              const origin = route.request().headers()['origin'] || '*';
               await route.fulfill({
                 status: 200,
                 contentType: 'application/json',
