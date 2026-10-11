@@ -89,7 +89,7 @@ function makeEnv(kv, overrides = {}) {
     SGX_ORIGIN: 'https://test.example.com',
     SGX_STEPUP_PRIVATE: TEST_PRIV_PEM,
     SGX_STEPUP_PUBLIC: TEST_PUB_PEM,
-    SGX_ED25519_PUBLIC: TEST_PUB_PEM, /* 会话验签用同一测试密钥 */
+    SGX_LOCK_PUBLIC: TEST_PUB_PEM, /* 会话验签用同一测试密钥 */
     ...overrides,
   };
 }

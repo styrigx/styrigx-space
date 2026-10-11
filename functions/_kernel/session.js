@@ -3,7 +3,7 @@
  *
  * - sgx-verified cookie 的设置/清除只走这里的属性定义（一处定义）：
  *   Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax
- * - cookie 值格式：role.epoch.exp.sig，Ed25519(SGX_ED25519_PRIVATE) 签名，
+ * - cookie 值格式：role.epoch.exp.sig，Ed25519(SGX_LOCK_PRIVATE) 签名，
  *   与 functions/_middleware.js 的验签逻辑对应。
  *   role: 'owner'（密码/通行密钥，12 小时）或 'visitor'（Turnstile，1 小时）。
  *   旧格式（无 role，三段式）一律视为无效，不留兼容层。
@@ -78,7 +78,7 @@ export async function signSessionCookie(privatePem, epoch, role) {
  * 签发会话 cookie（fail closed，三解锁入口共用）。
  * 成功时在 headers 上设置 cookie 并返回 null；失败时返回 { status, body }，
  * 调用方直接用它构造响应。永远不抛错，避免外层 try/catch 吞掉明确错误码。
- * - SGX_ED25519_PRIVATE 为空 → 500 {ok:false, error:'no-session-key'}
+ * - SGX_LOCK_PRIVATE 为空 → 500 {ok:false, error:'no-session-key'}
  * - getSessionEpoch 抛错（KV 未绑定/读取出错）→ 503 {ok:false, error:'server'}
  * - signSessionCookie 抛错（importKey 失败等）→ 500 {ok:false, error:'session-sign-failed'}
  * @param {any} env
@@ -89,7 +89,7 @@ export async function issueSessionCookie(env, headers, role) {
   if (role !== ROLE_OWNER && role !== ROLE_VISITOR) {
     return { status: 500, body: { ok: false, error: 'invalid-role' } };
   }
-  const edPriv = (env && env.SGX_ED25519_PRIVATE) || '';
+  const edPriv = (env && env.SGX_LOCK_PRIVATE) || '';
   if (!edPriv) {
     return { status: 500, body: { ok: false, error: 'no-session-key' } };
   }

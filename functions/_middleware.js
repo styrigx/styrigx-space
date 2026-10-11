@@ -192,7 +192,7 @@ export async function verifySessionDetailed(request, env) {
       role = r.role;
     }
   }
-  const pubKey = (env && env.SGX_ED25519_PUBLIC) || '';
+  const pubKey = (env && env.SGX_LOCK_PUBLIC) || '';
   if (reason === 'no-pubkey') {
     console.log('[sgx-verify] fail: no-pubkey pubkey_len=0');
   } else if (reason === 'bad-sig') {
@@ -237,7 +237,7 @@ async function verifyOneCookie(val, env) {
   const exp = parseInt(expStr, 10);
   if (!exp || exp < Date.now()) return { status: 'expired', role: null };
 
-  const pubKey = env && env.SGX_ED25519_PUBLIC;
+  const pubKey = env && env.SGX_LOCK_PUBLIC;
   if (!pubKey) return { status: 'no-pubkey', role: null }; /* 未配公钥：fail closed */
   const payload = role + '.' + epochStr + '.' + expStr;
   if (!(await ed25519Verify(pubKey, payload, sig))) return { status: 'bad-sig', role: null };
@@ -294,7 +294,7 @@ export async function onRequest(context) {
     }
   }
 
-  /* 2.4.1：会话检查（生产环境 space 站点一律执行；缺 SGX_ED25519_PUBLIC 时
+  /* 2.4.1：会话检查（生产环境 space 站点一律执行；缺 SGX_LOCK_PUBLIC 时
      verifySession 直接返回 false → fail closed，只放白名单路径。
      没有「未配置就放行」开关。）
      2.8.0 会话角色分离：L1 是唯一按角色放行的地方。

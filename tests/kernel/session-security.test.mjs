@@ -7,7 +7,7 @@
  * - /api/session-epoch：KV 未绑定/读取出错 → 503；key 不存在 → {epoch:0}
  * - /api/lock-all-devices（2.8.0 独立 L2 API）：owner 会话 → epoch+1、清 cookie 带 Domain、
  *   KV 出错 → 503 且不写入；visitor 会话 → 403；无会话 → 401；旧三段式 cookie 无效
- * - _middleware：缺 SGX_ED25519_PUBLIC 时生产环境 fail closed（只放白名单）；
+ * - _middleware：缺 SGX_LOCK_PUBLIC 时生产环境 fail closed（只放白名单）；
  *   过期 cookie 被拒；旧 epoch cookie 被拒；伪造签名被拒；
  *   未验证的非白名单路径 302 到 https://styrigx.com/?lock=1&return=<站内路径>
  *   （Cache-Control: no-store，不再返回 200 锁屏 HTML）；
@@ -222,7 +222,7 @@ test('session-epoch：有值 → 200 {epoch:N}', async () => {
 test('password verify 通过：Set-Cookie 带 Domain=.styrigx.com（Ed25519 格式）', async () => {
   const kv = makeKV();
   await seedPassword(kv);
-  const env = { OWNER_KV: kv, SESSION_SECRET: 'test-secret', SGX_ED25519_PRIVATE: TEST_PRIV_PEM };
+  const env = { OWNER_KV: kv, SESSION_SECRET: 'test-secret', SGX_LOCK_PRIVATE: TEST_PRIV_PEM };
   const r = await pwPost({ request: postReq('https://styrigx.com/api/owner-password', { action: 'verify', password: 'test-pass-12345' }), env });
   assert.equal(r.status, 200);
   assert.deepEqual(await r.json(), { ok: true });
@@ -245,7 +245,7 @@ test('password verify：KV 读取 session-epoch 出错 → 503（不签发会话
     if (k === 'session-epoch') throw new Error('KV boom');
     return origGet(k, t);
   };
-  const env = { OWNER_KV: kv, SESSION_SECRET: 'test-secret', SGX_ED25519_PRIVATE: TEST_PRIV_PEM };
+  const env = { OWNER_KV: kv, SESSION_SECRET: 'test-secret', SGX_LOCK_PRIVATE: TEST_PRIV_PEM };
   const r = await pwPost({ request: postReq('https://styrigx.com/api/owner-password', { action: 'verify', password: 'test-pass-12345' }), env });
   assert.equal(r.status, 503);
   assert.equal(r.headers.get('Set-Cookie'), null);
@@ -254,7 +254,7 @@ test('password verify：KV 读取 session-epoch 出错 → 503（不签发会话
 test('password verify：密码错误 → 403（不签发）', async () => {
   const kv = makeKV();
   await seedPassword(kv);
-  const env = { OWNER_KV: kv, SESSION_SECRET: 's', SGX_ED25519_PRIVATE: TEST_PRIV_PEM };
+  const env = { OWNER_KV: kv, SESSION_SECRET: 's', SGX_LOCK_PRIVATE: TEST_PRIV_PEM };
   const r = await pwPost({ request: postReq('https://styrigx.com/api/owner-password', { action: 'verify', password: 'nope-nope-nope' }), env });
   assert.equal(r.status, 403);
   assert.equal(r.headers.get('Set-Cookie'), null);
@@ -267,7 +267,7 @@ test('password verify：密码错误 → 403（不签发）', async () => {
 test('lock-all-devices：owner 会话 → epoch+1、清 cookie 带 Domain；KV 写入出错 → 503 且 epoch 不变', async () => {
   const kv = makeKV({ 'session-epoch': '2' });
   const cookie = await signSessionCookie(TEST_PRIV_PEM, 2, 'owner');
-  const env = { OWNER_KV: kv, SGX_ED25519_PUBLIC: TEST_PUB_PEM };
+  const env = { OWNER_KV: kv, SGX_LOCK_PUBLIC: TEST_PUB_PEM };
   const r = await lockAllPost({
     request: postReq('https://styrigx.com/api/lock-all-devices', {}, { 'Cookie': 'sgx-verified=' + cookie }),
     env,
@@ -285,7 +285,7 @@ test('lock-all-devices：owner 会话 → epoch+1、清 cookie 带 Domain；KV �
   const cookie2 = await signSessionCookie(TEST_PRIV_PEM, 5, 'owner');
   const r2 = await lockAllPost({
     request: postReq('https://styrigx.com/api/lock-all-devices', {}, { 'Cookie': 'sgx-verified=' + cookie2 }),
-    env: { OWNER_KV: broken, SGX_ED25519_PUBLIC: TEST_PUB_PEM },
+    env: { OWNER_KV: broken, SGX_LOCK_PUBLIC: TEST_PUB_PEM },
   });
   assert.equal(r2.status, 503);
   assert.equal(broken.store.get('session-epoch'), '5');
@@ -294,7 +294,7 @@ test('lock-all-devices：owner 会话 → epoch+1、清 cookie 带 Domain；KV �
 test('lock-all-devices：visitor 会话 → 403 {ok:false, error:role}（epoch 不变）', async () => {
   const kv = makeKV({ 'session-epoch': '2' });
   const cookie = await signSessionCookie(TEST_PRIV_PEM, 2, 'visitor');
-  const env = { OWNER_KV: kv, SGX_ED25519_PUBLIC: TEST_PUB_PEM };
+  const env = { OWNER_KV: kv, SGX_LOCK_PUBLIC: TEST_PUB_PEM };
   const r = await lockAllPost({
     request: postReq('https://styrigx.com/api/lock-all-devices', {}, { 'Cookie': 'sgx-verified=' + cookie }),
     env,
@@ -306,7 +306,7 @@ test('lock-all-devices：visitor 会话 → 403 {ok:false, error:role}（epoch �
 
 test('lock-all-devices：无会话 → 401', async () => {
   const kv = makeKV({ 'session-epoch': '2' });
-  const env = { OWNER_KV: kv, SGX_ED25519_PUBLIC: TEST_PUB_PEM };
+  const env = { OWNER_KV: kv, SGX_LOCK_PUBLIC: TEST_PUB_PEM };
   const r = await lockAllPost({
     request: postReq('https://styrigx.com/api/lock-all-devices', {}),
     env,
@@ -317,7 +317,7 @@ test('lock-all-devices：无会话 → 401', async () => {
 
 test('lock-all-devices：旧三段式（无 role）cookie → 401 无效', async () => {
   const kv = makeKV({ 'session-epoch': '2' });
-  const env = { OWNER_KV: kv, SGX_ED25519_PUBLIC: TEST_PUB_PEM };
+  const env = { OWNER_KV: kv, SGX_LOCK_PUBLIC: TEST_PUB_PEM };
   const r = await lockAllPost({
     request: postReq('https://styrigx.com/api/lock-all-devices', {}, { 'Cookie': 'sgx-verified=2.9999999999999.fakesig' }),
     env,
@@ -355,7 +355,7 @@ function mwCtx(url, { cookie = '', env = {} } = {}) {
 const PROD_ENV = () => ({
   SGX_ENV: 'production',
   SGX_SITE: 'space',
-  SGX_ED25519_PUBLIC: TEST_PUB_PEM,
+  SGX_LOCK_PUBLIC: TEST_PUB_PEM,
   OWNER_KV: makeKV(),
 });
 const PROD_URL = 'https://styrigx.com/settings/';
@@ -364,7 +364,7 @@ async function validCookie(epoch = 0, role = 'owner') {
   return await signSessionCookie(TEST_PRIV_PEM, epoch, role);
 }
 
-test('middleware：生产环境缺 SGX_ED25519_PUBLIC → fail closed（非白名单 302 到首页锁屏）', async () => {
+test('middleware：生产环境缺 SGX_LOCK_PUBLIC → fail closed（非白名单 302 到首页锁屏）', async () => {
   const env = { SGX_ENV: 'production', SGX_SITE: 'space', OWNER_KV: makeKV() };
   const r = await mw(mwCtx(PROD_URL, { env }));
   assert.equal(r.status, 302);
@@ -443,7 +443,7 @@ test('middleware：伪造签名被拒（302 到首页锁屏）', async () => {
 
 test('middleware：lockout 后旧 epoch cookie 失效', async () => {
   const kv = makeKV({ 'session-epoch': '0' });
-  const env = { SGX_ENV: 'production', SGX_SITE: 'space', SGX_ED25519_PUBLIC: TEST_PUB_PEM, OWNER_KV: kv };
+  const env = { SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: TEST_PUB_PEM, OWNER_KV: kv };
   const oldCookie = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner');
   /* 旧 cookie 有效 */
   const r1 = await mw(mwCtx(PROD_URL, { cookie: oldCookie, env }));
@@ -629,7 +629,7 @@ function assertSessionCookieAttrs(sc, maxAge) {
 test('password verify 通过：Set-Cookie 属性齐全（Path/Secure/HttpOnly/SameSite=Lax）', async () => {
   const kv = makeKV();
   await seedPassword(kv);
-  const env = { OWNER_KV: kv, SESSION_SECRET: 'test-secret', SGX_ED25519_PRIVATE: TEST_PRIV_PEM };
+  const env = { OWNER_KV: kv, SESSION_SECRET: 'test-secret', SGX_LOCK_PRIVATE: TEST_PRIV_PEM };
   const r = await pwPost({ request: postReq('https://styrigx.com/api/owner-password', { action: 'verify', password: 'test-pass-12345' }), env });
   assert.equal(r.status, 200);
   assert.deepEqual(await r.json(), { ok: true });
@@ -649,7 +649,7 @@ test('verify（Turnstile）通过：Set-Cookie 属性齐全', async () => {
     const env = {
       OWNER_KV: kv,
       TURNSTILE_SECRET: 'test-secret',
-      SGX_ED25519_PRIVATE: TEST_PRIV_PEM,
+      SGX_LOCK_PRIVATE: TEST_PRIV_PEM,
     };
     const r = await verifyPost({
       request: postReq('https://styrigx.com/api/verify', { token: 'test-token' }),
@@ -687,7 +687,7 @@ test('passkey auth 通过：Set-Cookie 属性齐全', async () => {
   const env = {
     OWNER_KV: kv,
     SESSION_SECRET: 'test-secret',
-    SGX_ED25519_PRIVATE: TEST_PRIV_PEM,
+    SGX_LOCK_PRIVATE: TEST_PRIV_PEM,
     SGX_RP_ID: 'styrigx.com',
     SGX_ORIGIN: 'https://styrigx.com',
   };
@@ -757,7 +757,7 @@ test('passkey auth 通过：Set-Cookie 属性齐全', async () => {
 
 /* ---------- issueSessionCookie 单元 ---------- */
 
-test('diag: issueSessionCookie 无 SGX_ED25519_PRIVATE → 500 no-session-key（不签发）', async () => {
+test('diag: issueSessionCookie 无 SGX_LOCK_PRIVATE → 500 no-session-key（不签发）', async () => {
   const { issueSessionCookie } = await import('../../functions/_kernel/session.js');
   const headers = new Headers();
   const err = await issueSessionCookie({ OWNER_KV: makeKV() }, headers, 'owner');
@@ -768,7 +768,7 @@ test('diag: issueSessionCookie 无 SGX_ED25519_PRIVATE → 500 no-session-key（
 test('diag: issueSessionCookie 私钥格式错误 → 500 session-sign-failed', async () => {
   const { issueSessionCookie } = await import('../../functions/_kernel/session.js');
   const headers = new Headers();
-  const err = await issueSessionCookie({ OWNER_KV: makeKV(), SGX_ED25519_PRIVATE: 'not-a-key' }, headers, 'owner');
+  const err = await issueSessionCookie({ OWNER_KV: makeKV(), SGX_LOCK_PRIVATE: 'not-a-key' }, headers, 'owner');
   assert.deepEqual(err, { status: 500, body: { ok: false, error: 'session-sign-failed' } });
   assert.equal(headers.get('Set-Cookie'), null);
 });
@@ -776,7 +776,7 @@ test('diag: issueSessionCookie 私钥格式错误 → 500 session-sign-failed', 
 test('diag: issueSessionCookie KV 出错 → 503（不签发）', async () => {
   const { issueSessionCookie } = await import('../../functions/_kernel/session.js');
   const headers = new Headers();
-  const err = await issueSessionCookie({ OWNER_KV: makeBrokenKV(), SGX_ED25519_PRIVATE: TEST_PRIV_PEM }, headers, 'owner');
+  const err = await issueSessionCookie({ OWNER_KV: makeBrokenKV(), SGX_LOCK_PRIVATE: TEST_PRIV_PEM }, headers, 'owner');
   assert.equal(err.status, 503);
   assert.deepEqual(err.body, { ok: false, error: 'server' });
   assert.equal(headers.get('Set-Cookie'), null);
@@ -786,14 +786,14 @@ test('diag: issueSessionCookie 正常 → null 且 Set-Cookie 已设置', async 
   const { issueSessionCookie, SESSION_COOKIE } = await import('../../functions/_kernel/session.js');
   assert.equal(SESSION_COOKIE, 'sgx-verified');
   const headers = new Headers();
-  const err = await issueSessionCookie({ OWNER_KV: makeKV(), SGX_ED25519_PRIVATE: TEST_PRIV_PEM }, headers, 'owner');
+  const err = await issueSessionCookie({ OWNER_KV: makeKV(), SGX_LOCK_PRIVATE: TEST_PRIV_PEM }, headers, 'owner');
   assert.equal(err, null);
   assert.match(headers.get('Set-Cookie'), /^sgx-verified=[^;]+; /);
 });
 
 /* ---------- 三解锁接口 fail-closed ---------- */
 
-test('diag: password verify 无 SGX_ED25519_PRIVATE → 500 no-session-key（不是 ok:true）', async () => {
+test('diag: password verify 无 SGX_LOCK_PRIVATE → 500 no-session-key（不是 ok:true）', async () => {
   const kv = makeKV();
   await seedPassword(kv);
   const env = { OWNER_KV: kv, SESSION_SECRET: 'test-secret' };
@@ -803,7 +803,7 @@ test('diag: password verify 无 SGX_ED25519_PRIVATE → 500 no-session-key（不
   assert.equal(r.headers.get('Set-Cookie'), null);
 });
 
-test('diag: verify(Turnstile) 无 SGX_ED25519_PRIVATE → 500 no-session-key', async () => {
+test('diag: verify(Turnstile) 无 SGX_LOCK_PRIVATE → 500 no-session-key', async () => {
   const { onRequestPost: verifyPost } = await import('../../functions/api/verify.js');
   const origFetch = globalThis.fetch;
   globalThis.fetch = async () => Response.json({ success: true, hostname: 'styrigx.com', action: 'sgx-entry' });
@@ -882,7 +882,7 @@ async function buildPasskeyAuthFixture() {
   return { kv, body };
 }
 
-test('diag: passkey auth 无 SGX_ED25519_PRIVATE → 500 no-session-key（不被吞成 403）', async () => {
+test('diag: passkey auth 无 SGX_LOCK_PRIVATE → 500 no-session-key（不被吞成 403）', async () => {
   const { onRequestPost: pkPost } = await import('../../functions/api/owner-passkey.js');
   const { kv, body } = await buildPasskeyAuthFixture();
   const env = {
@@ -903,7 +903,7 @@ test('diag: passkey auth 私钥格式错误 → 500 session-sign-failed（不被
   const env = {
     OWNER_KV: kv,
     SESSION_SECRET: 'test-secret',
-    SGX_ED25519_PRIVATE: 'not-a-valid-key',
+    SGX_LOCK_PRIVATE: 'not-a-valid-key',
     SGX_RP_ID: 'styrigx.com',
     SGX_ORIGIN: 'https://styrigx.com',
   };
