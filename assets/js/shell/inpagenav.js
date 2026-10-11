@@ -185,13 +185,14 @@ function swapContent(newContent, newTitle, newLang, newPage) {
   if (document.startViewTransition) {
     document.startViewTransition(doSwap);
   } else {
-    // CSS 过渡：只用 transform/opacity
-    main.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+    // 2.9.2：旧页先完全隐藏，再换内容、新页淡入（避免两页叠加半透明）
+    main.style.transition = 'opacity 0.15s ease';
     main.style.opacity = '0';
-    main.style.transform = 'translateY(8px)';
-    requestAnimationFrame(() => {
+    setTimeout(() => {
+      doSwap();
+      // 内容已换，淡入新页
       requestAnimationFrame(() => {
-        doSwap();
+        main.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
         main.style.opacity = '1';
         main.style.transform = 'translateY(0)';
         setTimeout(() => {
@@ -200,7 +201,7 @@ function swapContent(newContent, newTitle, newLang, newPage) {
           main.style.transform = '';
         }, 250);
       });
-    });
+    }, 160);
   }
 }
 

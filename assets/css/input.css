@@ -2241,3 +2241,51 @@
     transition-duration: .01ms !important; animation-duration: .01ms !important;
   }
 }
+
+/* 2.9.2 布局切换 snackbar：正常大小，底部居中 */
+#sgx-layout-snackbar {
+  position: fixed;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  border-radius: 12px;
+  background: #323232;
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.4;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+  animation: sgx-snackbar-in 0.25s ease-out;
+}
+#sgx-layout-snackbar button {
+  background: none;
+  border: none;
+  color: #a8c7fa;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+@keyframes sgx-snackbar-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* 2.9.2：任何布局都不允许横向溢出（不用 min-width 撑宽，不改 meta viewport） */
+html, body {
+  overflow-x: clip;
+}
+@supports not (overflow: clip) {
+  html, body { overflow-x: hidden; }
+}
+/* 布局切换时内容不卸载：只换 class 做重排 */
+.layout-mobile .set-layout,
+.layout-dex .set-layout,
+.layout-pc .set-layout {
+  contain: layout style;
+}

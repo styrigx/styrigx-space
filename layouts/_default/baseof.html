@@ -95,16 +95,27 @@
 </script>
 {{/* 2.4.0-C：旧 __sgxGet/__sgxSet/__sgxFmtTz 已移入 ES Module（assets/js/lib/storage.js、util.js），此处不再定义 */}}
 <script>
-/* 布局：auto/mobile/dex/pc —— 只看视口不嗅探 UA：竖屏 → Mobile；横屏且 <1600px → DeX；横屏且 ≥1600px → PC */
+/* 布局：auto/mobile/dex/pc —— 只看视口不嗅探 UA：竖屏 → Mobile；横屏且 <1600px → DeX；横屏且 ≥1600px → PC
+   2.9.2 窄屏保护：视口 < 840px 时忽略 dex/pc 偏好，一律按 mobile 渲染（偏好保留在 localStorage，
+   回到宽屏时再生效）。?layout=auto 可重置偏好（逃生口）。 */
 function __layoutMode(){
   var m=null;
   try{
-    m=localStorage.getItem('sgx-layout');
-    /* 2.5.0：旧值（tablet/phone 等）一律回落到自动；tablet 迁移代码已删除 */
-    if(m!=='auto'&&m!=='mobile'&&m!=='dex'&&m!=='pc'){localStorage.setItem('sgx-layout','auto');m='auto'}
+    /* 逃生口：?layout=auto 重置偏好 */
+    var q=new URLSearchParams(location.search).get('layout');
+    if(q==='auto'){localStorage.setItem('sgx-layout','auto');m='auto';}
+    else{
+      m=localStorage.getItem('sgx-layout');
+      /* 2.5.0：旧值（tablet/phone 等）一律回落到自动；tablet 迁移代码已删除 */
+      if(m!=='auto'&&m!=='mobile'&&m!=='dex'&&m!=='pc'){localStorage.setItem('sgx-layout','auto');m='auto'}
+    }
   }catch(e){}
-  if(m==='mobile'||m==='dex'||m==='pc')return m;
   var w=window.innerWidth||1280,h=window.innerHeight||800;
+  /* 窄屏保护：< 840px 时 dex/pc 偏好不生效 */
+  if(w<840){
+    if(m==='dex'||m==='pc')return 'mobile';
+  }
+  if(m==='mobile'||m==='dex'||m==='pc')return m;
   if(h>=w)return 'mobile';
   return w<1600?'dex':'pc';
 }
