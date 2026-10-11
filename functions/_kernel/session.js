@@ -3,7 +3,7 @@
  *
  * - sgx-verified cookie 的设置/清除只走这里的属性定义（一处定义）：
  *   Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax
- * - cookie 值格式：role.epoch.exp.sig，Ed25519(SGX_ED25519_PRIVATE) 签名，
+ * - cookie 值格式：role.epoch.exp.sig，Ed25519(SGX_LOCK_PRIVATE) 签名，
  *   与 functions/_middleware.js 的验签逻辑对应。
  *   role: 'owner'（密码/通行密钥，12 小时）或 'visitor'（Turnstile，1 小时）。
  *   旧格式（无 role，三段式）一律视为无效，不留兼容层。
@@ -15,10 +15,6 @@ import { ed25519Sign } from './crypto.js';
 export const SESSION_COOKIE = 'sgx-verified';
 /* cookie 属性：只定义一处（diag 接口从这里解析，不许另起炉灶） */
 export const COOKIE_ATTRS = 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax';
-/* stepup：二次验证 cookie，敏感操作用 */
-export const STEPUP_COOKIE = 'sgx-stepup';
-export const STEPUP_ATTRS = 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Strict';
-export const STEPUP_MAX_AGE = 600; /* 10 分钟 */
 export const SESSION_MAX_AGE = 43200; /* 12 小时（owner） */
 export const VISITOR_MAX_AGE = 3600; /* 1 小时（visitor），短于 owner */
 export const EPOCH_KEY = 'session-epoch';
@@ -82,7 +78,7 @@ export async function signSessionCookie(privatePem, epoch, role) {
  * 签发会话 cookie（fail closed，三解锁入口共用）。
  * 成功时在 headers 上设置 cookie 并返回 null；失败时返回 { status, body }，
  * 调用方直接用它构造响应。永远不抛错，避免外层 try/catch 吞掉明确错误码。
- * - SGX_ED25519_PRIVATE 为空 → 500 {ok:false, error:'no-session-key'}
+ * - SGX_LOCK_PRIVATE 为空 → 500 {ok:false, error:'no-session-key'}
  * - getSessionEpoch 抛错（KV 未绑定/读取出错）→ 503 {ok:false, error:'server'}
  * - signSessionCookie 抛错（importKey 失败等）→ 500 {ok:false, error:'session-sign-failed'}
  * @param {any} env
@@ -93,7 +89,7 @@ export async function issueSessionCookie(env, headers, role) {
   if (role !== ROLE_OWNER && role !== ROLE_VISITOR) {
     return { status: 500, body: { ok: false, error: 'invalid-role' } };
   }
-  const edPriv = (env && env.SGX_ED25519_PRIVATE) || '';
+  const edPriv = (env && env.SGX_LOCK_PRIVATE) || '';
   if (!edPriv) {
     return { status: 500, body: { ok: false, error: 'no-session-key' } };
   }
@@ -155,58 +151,4 @@ export async function bumpSessionEpoch(kv) {
   const v = await getSessionEpoch(kv);
   await kv.put(EPOCH_KEY, String(v + 1));
   return v + 1;
-}
-
-/**
- * 签名 stepup cookie 值：owner.epoch.iat.exp.Ed25519(私钥, "owner.epoch.iat.exp")。
- * 只签发给 owner；10 分钟有效。
- * @param {string} privatePem Ed25519 私钥（PKCS8 PEM，只配主站）
- * @param {number} epoch session epoch
- */
-export async function signStepupCookie(privatePem, epoch) {
-  const iat = String(Date.now());
-  const exp = String(Date.now() + STEPUP_MAX_AGE * 1000);
-  const payload = ROLE_OWNER + '.' + epoch + '.' + iat + '.' + exp;
-  const sig = await ed25519Sign(privatePem, payload);
-  return payload + '.' + sig;
-}
-
-/**
- * 解析 stepup cookie 值。
- * @param {string} val
- * @returns {{role:string, epoch:number, iat:number, exp:number, sig:string}|null}
- */
-export function parseStepupCookie(val) {
-  if (!val || typeof val !== 'string') return null;
-  const parts = val.split('.');
-  if (parts.length !== 5) return null;
-  if (parts[0] !== ROLE_OWNER) return null;
-  const epoch = parseInt(parts[1], 10);
-  const iat = parseInt(parts[2], 10);
-  const exp = parseInt(parts[3], 10);
-  if (!Number.isFinite(epoch) || !Number.isFinite(iat) || !Number.isFinite(exp)) return null;
-  return { role: parts[0], epoch, iat, exp, sig: parts[4] };
-}
-
-/**
- * 设置 stepup cookie。
- * @param {Headers} headers
- * @param {string} value cookie 值
- */
-export function setStepupCookie(headers, value) {
-  headers.append(
-    'Set-Cookie',
-    STEPUP_COOKIE + '=' + value + '; ' + STEPUP_ATTRS + '; Max-Age=' + STEPUP_MAX_AGE
-  );
-}
-
-/**
- * 清除 stepup cookie。
- * @param {Headers} headers
- */
-export function clearStepupCookie(headers) {
-  headers.append(
-    'Set-Cookie',
-    STEPUP_COOKIE + '=; ' + STEPUP_ATTRS + '; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
-  );
 }
