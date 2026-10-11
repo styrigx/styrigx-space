@@ -12,7 +12,7 @@
  *   （SGX_RP_ID / SGX_ORIGIN），回退到请求 host，保证预览站可注册；
  * - auth 断言：DER→raw 签名转换；校验 rpIdHash、UP 位、origin；signCount 非零时必须递增；
  * - catch 写具体原因到控制台日志，前端仍只返回普通错误；
- * - 会话 cookie 改为 SESSION_SECRET HMAC 签名 + 过期时间。
+ * - 会话 cookie 改为 Ed25519 签名 + 过期时间（2.11：旧 HMAC 密钥已移除）。
  *
  * POST /api/owner-passkey
  * - { action: 'challenge', type: 'register'|'auth', pkClass, aud, cid } → 返回 challenge
@@ -50,10 +50,12 @@ import {
   ROLE_OWNER,
 } from '../_kernel/session.js';
 import { getApp } from '../_kernel/app-registry.js';
-import { verifyStepupCookie } from './stepup.js';
+import { verifyStepupCookie, STEPUP_BY_ROOT, STEPUP_BY_OWNER, STEPUP_SCOPE_ROOT, STEPUP_SCOPE_KEYS } from './stepup.js';
+import { checkRootTakeover, LAYER_OWNER, LAYER_LOCK, layerApp, setLayerConfigured, clearLayerConfigured, isLayerConfigured } from '../_kernel/layers.js';
 import { verifySessionDetailed } from '../_middleware.js';
 
-/* 2.10.0：通行密钥分类 */
+/* 2.10.0：通行密钥分类；2.11 新增 owner */
+export const PK_CLASS_OWNER = 'owner';
 export const PK_CLASS_LOCK = 'lock';
 export const PK_CLASS_APP = 'app';
 /* 所有者显示名（注册参数写死，用户不填） */
@@ -246,11 +248,42 @@ async function getUserHandle(kv, aud) {
 /**
  * 2.10.0：要求有效的 sgx-stepup（安全设置操作门禁）。
  * 2.10.1：返回具体失败原因（补充指令 3），前端可显示。
- * @returns {Promise<{ok:boolean, reason:string}>}
+ * 2.11：返回 by/scope，调用方做 scope 检查。
+ * @returns {Promise<{ok:boolean, by:string|null, scope:string|null, reason:string}>}
  */
 async function requireStepup(request, env) {
   const r = await verifyStepupCookie(request, env);
-  return { ok: !!r.ok, reason: r.reason || 'unknown' };
+  return { ok: !!r.ok, by: r.by || null, scope: r.scope || null, reason: r.reason || 'unknown' };
+}
+
+/**
+ * 2.11：检查 scope 是否满足操作要求。
+ * - 要求 scope=root 的操作：stepup.scope 必须为 root
+ * - 要求 scope=keys 的操作：stepup.scope 为 keys，或 (scope=root 且对应层未配置 → takeover)
+ * @param {string} requiredScope 'root' | 'keys'
+ * @param {{by:string, scope:string}} st
+ * @param {any} kv
+ * @param {string} layerForTakeover 仅当 requiredScope='keys' 且 st.scope='root' 时检查该层的 takeover
+ * @returns {Promise<{ok:boolean, error:string}>}
+ */
+async function checkScope(requiredScope, st, kv, layerForTakeover) {
+  if (!st.ok) return { ok: false, error: 'stepup-required' };
+  if (requiredScope === STEPUP_SCOPE_ROOT) {
+    if (st.scope !== STEPUP_SCOPE_ROOT) return { ok: false, error: 'scope' };
+    return { ok: true };
+  }
+  /* requiredScope === 'keys' */
+  if (st.scope === STEPUP_SCOPE_KEYS) return { ok: true };
+  if (st.scope === STEPUP_SCOPE_ROOT && st.by === STEPUP_BY_ROOT) {
+    /* root takeover：检查对应层是否未配置 */
+    if (!layerForTakeover) return { ok: false, error: 'scope' };
+    const t = await checkRootTakeover(kv, layerForTakeover);
+    if (!t.allowed) {
+      return { ok: false, error: t.reason === 'kv-error' ? 'server' : 'scope' };
+    }
+    return { ok: true };
+  }
+  return { ok: false, error: 'scope' };
 }
 
 /** 清除 sgx-stepup cookie（敏感操作成功后立即清除） */
@@ -336,7 +369,7 @@ async function handlePost(context) {
       return Response.json({ ok: false, error: 'params' }, { status: 400 });
     }
     let pkClass = (body && body.pkClass) || PK_CLASS_LOCK;
-    if (pkClass !== PK_CLASS_LOCK && pkClass !== PK_CLASS_APP) {
+    if (pkClass !== PK_CLASS_OWNER && pkClass !== PK_CLASS_LOCK && pkClass !== PK_CLASS_APP) {
       return Response.json({ ok: false, error: 'params' }, { status: 400 });
     }
     let aud = (body && body.aud) || '';
@@ -369,6 +402,22 @@ async function handlePost(context) {
       const s = await requireStepup(request, env);
       if (!s.ok) {
         return Response.json({ ok: false, error: 'stepup-required', reason: s.reason }, { status: 403 });
+      }
+      /* 2.11：scope 检查 */
+      if (pkClass === PK_CLASS_OWNER) {
+        /* 管理 owner 凭证需要 scope=root */
+        const cs = await checkScope(STEPUP_SCOPE_ROOT, s, kv, null);
+        if (!cs.ok) {
+          return Response.json({ ok: false, error: cs.error }, { status: 403 });
+        }
+      } else {
+        /* 管理 lock/app 需要 scope=keys；root 可 takeover 未配置的层 */
+        const layer = pkClass === PK_CLASS_LOCK ? LAYER_LOCK : layerApp(aud);
+        const cs = await checkScope(STEPUP_SCOPE_KEYS, s, kv, layer);
+        if (!cs.ok) {
+          const status = cs.error === 'server' ? 503 : 403;
+          return Response.json({ ok: false, error: cs.error }, { status });
+        }
       }
     }
     /* auth 需要已有对应凭据 */

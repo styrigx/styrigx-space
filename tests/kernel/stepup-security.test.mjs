@@ -122,7 +122,7 @@ test('setup: 生成测试密钥', async () => {
 test('正常签发 → 验证通过', async () => {
   const kv = makeKV();
   const env = makeEnv(kv);
-  const val = await signStepupCookie(TEST_PRIV_PEM, 0);
+  const val = await signStepupCookie(TEST_PRIV_PEM, 'owner', 'keys', 0);
   const p = parseStepupCookie(val);
   assert.ok(p);
   assert.equal(p.role, 'owner');
@@ -159,7 +159,7 @@ test('过期 cookie 被拒', async () => {
 test('篡改 payload（epoch）→ 签名失效被拒', async () => {
   const kv = makeKV();
   const env = makeEnv(kv);
-  const val = await signStepupCookie(TEST_PRIV_PEM, 0);
+  const val = await signStepupCookie(TEST_PRIV_PEM, 'owner', 'keys', 0);
   /* 篡改 epoch：0 → 99，签名不再匹配 */
   const tampered = val.replace(/^owner\.0\./, 'owner.99.');
 
@@ -175,7 +175,7 @@ test('篡改 payload（epoch）→ 签名失效被拒', async () => {
 test('篡改 payload（延长 exp）→ 签名失效被拒', async () => {
   const kv = makeKV();
   const env = makeEnv(kv);
-  const val = await signStepupCookie(TEST_PRIV_PEM, 0);
+  const val = await signStepupCookie(TEST_PRIV_PEM, 'owner', 'keys', 0);
   const parts = val.split('.');
   /* exp 改成 10 年后 */
   parts[3] = String(Date.now() + 10 * 365 * 24 * 3600 * 1000);
@@ -193,7 +193,7 @@ test('伪造签名（另一把密钥）被拒', async () => {
   const kv = makeKV();
   const env = makeEnv(kv);
   /* 用 OTHER 私钥签名，公钥仍是 TEST 的 */
-  const val = await signStepupCookie(OTHER_PRIV_PEM, 0);
+  const val = await signStepupCookie(OTHER_PRIV_PEM, 'owner', 'keys', 0);
 
   const req = new Request('https://test.example.com/api/stepup', {
     headers: { Cookie: STEPUP_COOKIE + '=' + val },
@@ -206,7 +206,7 @@ test('伪造签名（另一把密钥）被拒', async () => {
 test('epoch 变更后旧 cookie 失效', async () => {
   const kv = makeKV();
   const env = makeEnv(kv);
-  const val = await signStepupCookie(TEST_PRIV_PEM, 0);
+  const val = await signStepupCookie(TEST_PRIV_PEM, 'owner', 'keys', 0);
 
   /* 模拟 lock-all-devices：epoch 0 → 1 */
   await kv.put('session-epoch', '1');
@@ -222,7 +222,7 @@ test('epoch 变更后旧 cookie 失效', async () => {
 test('缺 SGX_STEPUP_PUBLIC → fail closed', async () => {
   const kv = makeKV();
   const env = makeEnv(kv, { SGX_STEPUP_PUBLIC: '' });
-  const val = await signStepupCookie(TEST_PRIV_PEM, 0);
+  const val = await signStepupCookie(TEST_PRIV_PEM, 'owner', 'keys', 0);
 
   const req = new Request('https://test.example.com/api/stepup', {
     headers: { Cookie: STEPUP_COOKIE + '=' + val },
@@ -370,7 +370,7 @@ test('/api/stepup status：有效 cookie → valid=true', async () => {
   const kv = makeKV();
   const env = makeEnv(kv);
   const ownerCookie = await makeOwnerSessionCookie();
-  const stepupVal = await signStepupCookie(TEST_PRIV_PEM, 0);
+  const stepupVal = await signStepupCookie(TEST_PRIV_PEM, 'owner', 'keys', 0);
   const res = await stepupPost({
     request: postReq('https://test.example.com/api/stepup', { action: 'status' }, {
       Cookie: 'sgx-verified=' + ownerCookie + '; ' + STEPUP_COOKIE + '=' + stepupVal,

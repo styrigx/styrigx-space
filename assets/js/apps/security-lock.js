@@ -1,6 +1,6 @@
 /**
  * @fileoverview 锁定屏幕管理页（2.4.0 安全与隐私，替代 /owner/）。
- * - 进入前底部弹层「验证身份」：使用通行密钥 / 使用管理密钥（无通行密钥时只显示管理密钥）；
+ * - 进入前底部弹层「验证身份」：使用通行密钥 / 使用根密钥（无通行密钥时只显示根密钥）；
  *   解锁密码不能进入此页。
  * - 验证后：解锁密码（弹层设置/修改，双输入框竖排，显示/隐藏，最少 8 位）；
  *   通行密钥列表（设备名可编辑、注册日期、可删除），底部「添加通行密钥」。
@@ -285,7 +285,7 @@ import { toast } from '../lib/toast.js';
     bindEye(b, inp);
   });
 
-  /* 使用管理密钥 → 显示输入框 */
+  /* 使用根密钥 → 显示输入框 */
   if (gateKeyBtn) {
     on(gateKeyBtn, 'click', function () {
       gateOpts.hidden = true;
@@ -313,9 +313,9 @@ import { toast } from '../lib/toast.js';
       showErr('lockgate-err', t('gateNeedKey'));
       return;
     }
-    /* 2.10.1：管理密钥 = 根恢复凭据。/api/owner-auth 通过后服务端同时签发
-       owner 会话 + sgx-stepup cookie，前端直接进管理区，不再走 passkey stepup。 */
-    api('/api/owner-auth', { key: k })
+    /* 2.11：根密钥 = 根恢复凭据。/api/root-auth 通过后服务端只签发
+       sgx-stepup(by=root, scope=root) cookie（不签发会话），前端直接进管理区。 */
+    api('/api/root-auth', { key: k })
       .then(function (res) {
         const j = res.json;
         if (!j) {
@@ -451,7 +451,7 @@ import { toast } from '../lib/toast.js';
       /* 2.10.1：不再检查 token；后端用 cookie 鉴权 */
       if (!armed) {
         armed = true;
-        /* 如果删完后密码和通行密钥都没了，提示只能用管理密钥进入 */
+        /* 如果删完后密码和通行密钥都没了，提示只能用根密钥进入 */
         if (!hasPk) {
           pwDel.textContent = t('pwDelWarn');
         } else {

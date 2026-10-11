@@ -179,7 +179,7 @@ jobs:
           npx lhci autorun --config=.lighthouserc.json
 
       - name: 前端技术名词检查（安全与隐私）
-        # 用户可见文案不得出现 OWNER_KEY / SESSION_SECRET / SGX_ROOT_KEY / SGX_PW_PEPPER / TURNSTILE_SECRET；
+        # 用户可见文案不得出现 OWNER_KEY / SGX_ROOT_KEY / SGX_PW_PEPPER / TURNSTILE_SECRET；
         # 后端变量名只许出现在 functions/ 与注释里，不许进 public/ HTML。
         run: |
           if grep -rl "OWNER_KEY\|SESSION_SECRET\|SGX_ROOT_KEY\|SGX_PW_PEPPER\|TURNSTILE_SECRET" public/ --include="*.html"; then
@@ -191,7 +191,7 @@ jobs:
   passkey-e2e:
     # Hark P0：WebAuthn 虚拟认证器 E2E（注册→列表→解锁→删除→伪造 cookie）。
     # 在预览部署上跑真实 Workers；只能用测试 secret，绝不用生产 secret。
-    # 需要 GitHub Secrets：PREVIEW_OWNER_KEY、PREVIEW_SESSION_SECRET（测试值）。
+    # 需要 GitHub Secrets：PREVIEW_OWNER_KEY、PREVIEW_SGX_PW_PEPPER（测试值）。
     needs: quality
     runs-on: ubuntu-latest
     steps:
@@ -250,7 +250,7 @@ jobs:
                   "preview": {
                       "env_vars": {
                           "OWNER_KEY": {"type": "secret_text", "value": "${{ secrets.PREVIEW_OWNER_KEY }}"},
-                          "SESSION_SECRET": {"type": "secret_text", "value": "${{ secrets.PREVIEW_SESSION_SECRET }}"},
+                          "SGX_PW_PEPPER": {"type": "secret_text", "value": "${{ secrets.PREVIEW_SGX_PW_PEPPER }}"},
                           # 2.4.1：CI 临时生成的测试密钥对（每次运行新生成，非生产密钥）
                           "SGX_LOCK_PRIVATE": {"type": "secret_text", "value": ED_PRIV},
                           "SGX_LOCK_PUBLIC": {"type": "plain_text", "value": ED_PUB},

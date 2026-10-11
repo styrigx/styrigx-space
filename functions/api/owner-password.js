@@ -34,15 +34,33 @@ const SALT_LEN = 16;
 const KEY_LEN = 32; // 256 bit
 const MAX_FAIL = 5;
 const LOCK_MS = 30000;
-async function hashPassword(password, salt, iterations) {
+/**
+ * 2.11：密码哈希加 pepper（SGX_PW_PEPPER）。
+ * pepper 为空时按无 pepper 哈希（仅用于校验旧 hash；新 hash 必须有 pepper，
+ * 调用方负责 fail closed）。
+ * @param {string} password
+ * @param {Uint8Array} salt
+ * @param {number} iterations
+ * @param {string} pepper
+ */
+async function hashPassword(password, salt, iterations, pepper) {
   const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+  const pwd = pepper ? password + pepper : password;
+  const key = await crypto.subtle.importKey('raw', enc.encode(pwd), 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits(
     { name: 'PBKDF2', salt: salt, iterations: iterations, hash: 'SHA-256' },
     key,
     KEY_LEN * 8
   );
   return bits;
+}
+
+/**
+ * 获取 pepper；缺失时返回空（调用方 fail closed）。
+ * @param {any} env
+ */
+function getPepper(env) {
+  return (env && env.SGX_PW_PEPPER) || '';
 }
 
 /** @param {any} context */
@@ -133,7 +151,8 @@ async function handlePost(context) {
     } catch (e) {}
   }
 
-  /* ============ verify：解锁验证 ============ */
+  /* ============ verify：解锁验证（锁屏密码） ============ */
+  /* 2.11：锁屏密码存 lock-pw；owner 密码存 owner-pw（用于 stepup） */
   if (action === 'verify') {
     let locked = false;
     try {
@@ -148,22 +167,42 @@ async function handlePost(context) {
     if (!password || typeof password !== 'string') {
       return Response.json({ ok: false, error: 'password' }, { status: 400 });
     }
-    /* 未设置密码 → 一律拒绝 */
+    /* 2.11：缺 pepper 时 fail closed（拒绝校验，不降级） */
+    const pepper = getPepper(env);
+    if (!pepper) {
+      return Response.json({ ok: false, error: 'config' }, { status: 503 });
+    }
+    /* 未设置密码 → 一律拒绝（先查 lock-pw，回退 owner-pw 兼容旧数据） */
     let stored = null;
+    let pwKey = 'lock-pw';
     try {
-      stored = await kv.get('owner-pw', 'json');
+      stored = await kv.get('lock-pw', 'json');
+      if (!stored || !stored.salt || !stored.hash) {
+        stored = await kv.get('owner-pw', 'json');
+        pwKey = 'owner-pw';
+      }
     } catch (e) {}
     if (!stored || !stored.salt || !stored.hash) {
       return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
     }
-    /* 校验：按记录里的 iterations（缺省时用当前值） */
+    /* 校验：按记录里的 iterations（缺省时用当前值）；2.11 加 pepper */
     let ok = false;
+    let needsRehash = false;
     try {
       const iters = (stored.iterations && Number(stored.iterations)) || ITERATIONS;
       const salt = new Uint8Array(b64dec(stored.salt));
-      const bits = await hashPassword(password, salt, iters);
-      const hashB64 = b64enc(bits);
-      ok = await timingSafeEqual(hashB64, stored.hash);
+      if (stored.peppered) {
+        /* 新 hash：带 pepper 校验 */
+        const bits = await hashPassword(password, salt, iters, pepper);
+        const hashB64 = b64enc(bits);
+        ok = await timingSafeEqual(hashB64, stored.hash);
+      } else {
+        /* 旧 hash（无 pepper）：按无 pepper 校验，成功后标记需重哈希 */
+        const bits = await hashPassword(password, salt, iters, '');
+        const hashB64 = b64enc(bits);
+        ok = await timingSafeEqual(hashB64, stored.hash);
+        if (ok) needsRehash = true;
+      }
     } catch (e) {}
     if (!ok) {
       let justLocked = false;
@@ -178,6 +217,20 @@ async function handlePost(context) {
       );
     }
     await clearFail();
+    /* 2.11：旧 hash 成功验证后重哈希（加 pepper），写回 lock-pw */
+    if (needsRehash) {
+      try {
+        const newSalt = crypto.getRandomValues(new Uint8Array(SALT_LEN));
+        const newBits = await hashPassword(password, newSalt, ITERATIONS, pepper);
+        const newRec = {
+          salt: b64enc(newSalt),
+          hash: b64enc(newBits),
+          iterations: ITERATIONS,
+          peppered: true,
+        };
+        await kv.put(pwKey, JSON.stringify(newRec));
+      } catch (e) {}
+    }
     /* 通过：签发 Ed25519 会话 cookie（fail closed：无密钥/签发失败 → 5xx，
        绝不静默跳过然后返回 ok:true）
        2.8.0：密码验证签 owner（12 小时） */
@@ -252,13 +305,19 @@ async function handlePost(context) {
       }
     }
 
-    /* 哈希并存储（iterations 写入记录，verify 按记录值校验） */
+    /* 2.11：缺 pepper 时 fail closed（拒绝设置，不降级） */
+    const pepper = getPepper(env);
+    if (!pepper) {
+      return Response.json({ ok: false, error: 'config' }, { status: 503 });
+    }
+    /* 哈希并存储（iterations 写入记录，verify 按记录值校验；2.11 加 pepper 标记） */
     const salt = crypto.getRandomValues(new Uint8Array(SALT_LEN));
-    const bits = await hashPassword(newPassword, salt, ITERATIONS);
+    const bits = await hashPassword(newPassword, salt, ITERATIONS, pepper);
     const record = {
       salt: b64enc(salt.buffer),
       hash: b64enc(bits),
       iterations: ITERATIONS,
+      peppered: true,
       updatedAt: Date.now(),
     };
     try {

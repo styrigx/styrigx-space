@@ -680,13 +680,13 @@ function showLockScreen() {
       '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Password' : '密码') + '</span>' +
       '<span class="sgx-method-desc">' + (en ? 'Enter your unlock password' : '输入解锁密码') + '</span></span>' +
       '</button>' +
-      /* 4. 管理密钥（恢复用）：未解锁也能用，调 /api/owner-auth */
+      /* 4. 根密钥：未解锁也能用，调 /api/root-auth */
       '<button type="button" class="sgx-method-opt" id="sgx-mopt-mk" aria-label="' +
-        (en ? 'Management key (recovery)' : '管理密钥（恢复用）') + '">' +
+        (en ? 'Root key' : '根密钥') + '">' +
       '<span class="sgx-method-ic" aria-hidden="true">' +
       '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg></span>' +
-      '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Management key (recovery)' : '管理密钥（恢复用）') + '</span>' +
-      '<span class="sgx-method-desc">' + (en ? 'Recover with your management key' : '用管理密钥恢复') + '</span></span>' +
+      '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Root key' : '根密钥') + '</span>' +
+      '<span class="sgx-method-desc">' + (en ? 'Recover with your root key' : '用根密钥恢复') + '</span></span>' +
       '</button>' +
       '</div>';
     document.body.appendChild(sheet);
@@ -936,15 +936,15 @@ function showLockScreen() {
       });
   }
 
-  /* ---------- 管理密钥态（与验证态同一弹层） ----------
-     2.10.2：锁屏加「管理密钥（恢复用）」入口。调 /api/owner-auth，
-     成功后进入安全与隐私页（可添加锁屏密钥和应用密钥）。 */
+  /* ---------- 根密钥态（与验证态同一弹层） ----------
+     2.11：锁屏「根密钥」入口。调 /api/root-auth（只签发 stepup，不签发会话），
+     成功后进入安全与隐私页。 */
   function openMk() {
     dlgState = 'mgmtkey';
-    setTitle(en ? 'Management key (recovery)' : '管理密钥（恢复用）');
+    setTitle(en ? 'Root key' : '根密钥');
     setBody(
       '<div class="sgx-pw-field"><input type="password" id="sgx-mk-input" class="sgx-pw-input" autocomplete="off" ' +
-        'aria-label="' + (en ? 'Management key (recovery)' : '管理密钥（恢复用）') + '" placeholder="' + (en ? 'Management key' : '管理密钥') + '">' +
+        'aria-label="' + (en ? 'Root key' : '根密钥') + '" placeholder="' + (en ? 'Root key' : '根密钥') + '">' +
         '<button type="button" class="sgx-pw-eye" id="sgx-mk-eye" aria-label="' + (en ? 'Show' : '显示') + '"></button></div>' +
         '<button type="button" class="sgx-verify-skip" id="sgx-mk-go">' + (en ? 'Verify' : '验证') + '</button>'
     );
@@ -980,10 +980,10 @@ function showLockScreen() {
     const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-mk-input'));
     const key = input ? input.value : '';
     if (!key) {
-      showError(en ? 'Enter management key' : '请输入管理密钥');
+      showError(en ? 'Enter root key' : '请输入根密钥');
       return;
     }
-    fetch('/api/owner-auth', {
+    fetch('/api/root-auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ key: key }),
@@ -1004,14 +1004,14 @@ function showLockScreen() {
         }
         if (j.ok) {
           closeDialog();
-          /* 管理密钥签发了 owner 会话 + stepup，直接进入安全与隐私页 */
+          /* 2.11：根密钥只签发 stepup(by=root, scope=root)，直接进入安全与隐私页 */
           location.href = en ? '/en/settings/security/' : '/settings/security/';
         } else if (res.s === 429) {
           showError(en ? 'Too many attempts' : '尝试次数过多');
         } else if (res.s === 503 || res.s === 500) {
           showError(en ? 'Server error' : '服务器错误');
         } else {
-          showError(en ? 'Wrong management key' : '管理密钥错误');
+          showError(en ? 'Wrong root key' : '根密钥错误');
           if (input) input.value = '';
         }
       })

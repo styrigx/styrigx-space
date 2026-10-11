@@ -108,7 +108,7 @@ async function mintStepupCookie() {
 /* 2.10.2：签发测试用 owner 会话 cookie */
 async function mintSessionCookie() {
   const { signSessionCookie } = await import('../../functions/_kernel/session.js');
-  return await signSessionCookie(TEST_PRIV_PEM, 0, 'owner');
+  return await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
 }
 
 /* owner-auth token（测试内签发，与服务端 verifyOwnerToken 同逻辑） */
@@ -245,7 +245,7 @@ test('session-epoch：有值 → 200 {epoch:N,app}（2.10.0）', async () => {
 test('password verify 通过：Set-Cookie 带 Domain=.styrigx.com（Ed25519 格式）', async () => {
   const kv = makeKV();
   await seedPassword(kv);
-  const env = { OWNER_KV: kv, SESSION_SECRET: 'test-secret', SGX_LOCK_PRIVATE: TEST_PRIV_PEM };
+  const env = { OWNER_KV: kv, SGX_LOCK_PRIVATE: TEST_PRIV_PEM };
   const r = await pwPost({ request: postReq('https://styrigx.com/api/owner-password', { action: 'verify', password: 'test-pass-12345' }), env });
   assert.equal(r.status, 200);
   assert.deepEqual(await r.json(), { ok: true });
@@ -268,7 +268,7 @@ test('password verify：KV 读取 session-epoch 出错 → 503（不签发会话
     if (k === 'session-epoch') throw new Error('KV boom');
     return origGet(k, t);
   };
-  const env = { OWNER_KV: kv, SESSION_SECRET: 'test-secret', SGX_LOCK_PRIVATE: TEST_PRIV_PEM };
+  const env = { OWNER_KV: kv, SGX_LOCK_PRIVATE: TEST_PRIV_PEM };
   const r = await pwPost({ request: postReq('https://styrigx.com/api/owner-password', { action: 'verify', password: 'test-pass-12345' }), env });
   assert.equal(r.status, 503);
   assert.equal(r.headers.get('Set-Cookie'), null);
@@ -277,7 +277,7 @@ test('password verify：KV 读取 session-epoch 出错 → 503（不签发会话
 test('password verify：密码错误 → 403（不签发）', async () => {
   const kv = makeKV();
   await seedPassword(kv);
-  const env = { OWNER_KV: kv, SESSION_SECRET: 's', SGX_LOCK_PRIVATE: TEST_PRIV_PEM };
+  const env = { OWNER_KV: kv, SGX_LOCK_PRIVATE: TEST_PRIV_PEM };
   const r = await pwPost({ request: postReq('https://styrigx.com/api/owner-password', { action: 'verify', password: 'nope-nope-nope' }), env });
   assert.equal(r.status, 403);
   assert.equal(r.headers.get('Set-Cookie'), null);
@@ -289,7 +289,7 @@ test('password verify：密码错误 → 403（不签发）', async () => {
 
 test('lock-all-devices：owner 会话 → epoch+1、清 cookie 带 Domain；KV 写入出错 → 503 且 epoch 不变', async () => {
   const kv = makeKV({ 'session-epoch': '2' });
-  const cookie = await signSessionCookie(TEST_PRIV_PEM, 2, 'owner');
+  const cookie = await signSessionCookie(TEST_PRIV_PEM, 2, 'owner', 'owner');
   const env = { OWNER_KV: kv, SGX_LOCK_PUBLIC: TEST_PUB_PEM };
   const r = await lockAllPost({
     request: postReq('https://styrigx.com/api/lock-all-devices', {}, { 'Cookie': 'sgx-verified=' + cookie }),
@@ -305,7 +305,7 @@ test('lock-all-devices：owner 会话 → epoch+1、清 cookie 带 Domain；KV �
 
   /* 写入失败 → 503，epoch 保持原值 */
   const broken = makePutBrokenKV({ 'session-epoch': '5' });
-  const cookie2 = await signSessionCookie(TEST_PRIV_PEM, 5, 'owner');
+  const cookie2 = await signSessionCookie(TEST_PRIV_PEM, 5, 'owner', 'owner');
   const r2 = await lockAllPost({
     request: postReq('https://styrigx.com/api/lock-all-devices', {}, { 'Cookie': 'sgx-verified=' + cookie2 }),
     env: { OWNER_KV: broken, SGX_LOCK_PUBLIC: TEST_PUB_PEM },
@@ -316,7 +316,7 @@ test('lock-all-devices：owner 会话 → epoch+1、清 cookie 带 Domain；KV �
 
 test('lock-all-devices：visitor 会话 → 403 {ok:false, error:role}（epoch 不变）', async () => {
   const kv = makeKV({ 'session-epoch': '2' });
-  const cookie = await signSessionCookie(TEST_PRIV_PEM, 2, 'visitor');
+  const cookie = await signSessionCookie(TEST_PRIV_PEM, 2, 'visitor', 'owner');
   const env = { OWNER_KV: kv, SGX_LOCK_PUBLIC: TEST_PUB_PEM };
   const r = await lockAllPost({
     request: postReq('https://styrigx.com/api/lock-all-devices', {}, { 'Cookie': 'sgx-verified=' + cookie }),
@@ -353,7 +353,7 @@ test('change/remove 密码：KV 出错 → 503（2.10.0：需 sgx-stepup；2.10.
   const broken = makePutBrokenKV();
   const stepup = await mintStepupCookie();
   const sess = await mintSessionCookie();
-  const env = { OWNER_KV: broken, SESSION_SECRET: 's', SGX_STEPUP_PUBLIC: STEPUP_PUB_PEM, SGX_LOCK_PUBLIC: TEST_PUB_PEM };
+  const env = { OWNER_KV: broken, SGX_STEPUP_PUBLIC: STEPUP_PUB_PEM, SGX_LOCK_PUBLIC: TEST_PUB_PEM };
   /* set 会先写 owner-pw 成功，然后 bump 抛错 → 503 */
   const r = await pwPost({
     request: postReq('https://styrigx.com/api/owner-password', { action: 'set', password: 'another-pass-1' },
@@ -469,7 +469,7 @@ test('middleware：伪造签名被拒（302 到首页锁屏）', async () => {
 test('middleware：lockout 后旧 epoch cookie 失效', async () => {
   const kv = makeKV({ 'session-epoch': '0' });
   const env = { SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: TEST_PUB_PEM, OWNER_KV: kv };
-  const oldCookie = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner');
+  const oldCookie = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
   /* 旧 cookie 有效 */
   const r1 = await mw(mwCtx(PROD_URL, { cookie: oldCookie, env }));
   assert.equal(await r1.text(), 'NEXT-BY-APP');
@@ -480,7 +480,7 @@ test('middleware：lockout 后旧 epoch cookie 失效', async () => {
   assert.equal(r2.status, 302);
   assert.ok(r2.headers.get('Location').startsWith('https://styrigx.com/?lock=1&return='));
   /* 新 cookie 有效 */
-  const newCookie = await signSessionCookie(TEST_PRIV_PEM, 1, 'owner');
+  const newCookie = await signSessionCookie(TEST_PRIV_PEM, 1, 'owner', 'owner');
   const r3 = await mw(mwCtx(PROD_URL, { cookie: newCookie, env }));
   assert.equal(await r3.text(), 'NEXT-BY-APP');
 });
@@ -654,7 +654,7 @@ function assertSessionCookieAttrs(sc, maxAge) {
 test('password verify 通过：Set-Cookie 属性齐全（Path/Secure/HttpOnly/SameSite=Lax）', async () => {
   const kv = makeKV();
   await seedPassword(kv);
-  const env = { OWNER_KV: kv, SESSION_SECRET: 'test-secret', SGX_LOCK_PRIVATE: TEST_PRIV_PEM };
+  const env = { OWNER_KV: kv, SGX_LOCK_PRIVATE: TEST_PRIV_PEM };
   const r = await pwPost({ request: postReq('https://styrigx.com/api/owner-password', { action: 'verify', password: 'test-pass-12345' }), env });
   assert.equal(r.status, 200);
   assert.deepEqual(await r.json(), { ok: true });
@@ -711,7 +711,7 @@ test('passkey auth 通过：Set-Cookie 属性齐全', async () => {
 
   const env = {
     OWNER_KV: kv,
-    SESSION_SECRET: 'test-secret',
+    ,
     SGX_LOCK_PRIVATE: TEST_PRIV_PEM,
     SGX_RP_ID: 'styrigx.com',
     SGX_ORIGIN: 'https://styrigx.com',
@@ -821,7 +821,7 @@ test('diag: issueSessionCookie 正常 → null 且 Set-Cookie 已设置', async 
 test('diag: password verify 无 SGX_LOCK_PRIVATE → 500 no-session-key（不是 ok:true）', async () => {
   const kv = makeKV();
   await seedPassword(kv);
-  const env = { OWNER_KV: kv, SESSION_SECRET: 'test-secret' };
+  const env = { OWNER_KV: kv };
   const r = await pwPost({ request: postReq('https://styrigx.com/api/owner-password', { action: 'verify', password: 'test-pass-12345' }), env });
   assert.equal(r.status, 500);
   assert.deepEqual(await r.json(), { ok: false, error: 'no-session-key' });
@@ -912,7 +912,7 @@ test('diag: passkey auth 无 SGX_LOCK_PRIVATE → 500 no-session-key（不被吞
   const { kv, body } = await buildPasskeyAuthFixture();
   const env = {
     OWNER_KV: kv,
-    SESSION_SECRET: 'test-secret',
+    ,
     SGX_RP_ID: 'styrigx.com',
     SGX_ORIGIN: 'https://styrigx.com',
   };
@@ -927,7 +927,7 @@ test('diag: passkey auth 私钥格式错误 → 500 session-sign-failed（不被
   const { kv, body } = await buildPasskeyAuthFixture();
   const env = {
     OWNER_KV: kv,
-    SESSION_SECRET: 'test-secret',
+    ,
     SGX_LOCK_PRIVATE: 'not-a-valid-key',
     SGX_RP_ID: 'styrigx.com',
     SGX_ORIGIN: 'https://styrigx.com',
@@ -943,7 +943,7 @@ test('diag: passkey auth 私钥格式错误 → 500 session-sign-failed（不被
 test('diag: 写入/读取对账：signSessionCookie 签发的 cookie 能被 middleware 验签放行', async () => {
   const { signSessionCookie, SESSION_COOKIE } = await import('../../functions/_kernel/session.js');
   assert.equal(SESSION_COOKIE, 'sgx-verified');
-  const cv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner');
+  const cv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
   /* 2.8.0：payload 结构 role.epoch.exp.sig */
   assert.equal(cv.split('.').length, 4);
   assert.ok(cv.startsWith('owner.'));
@@ -1143,7 +1143,7 @@ test('2.8.0：未验证 302 带 X-Robots-Tag: noindex', async () => {
 
 async function visitorCookie(epoch = 0) {
   const { signSessionCookie } = await import('../../functions/_kernel/session.js');
-  return await signSessionCookie(TEST_PRIV_PEM, epoch, 'visitor');
+  return await signSessionCookie(TEST_PRIV_PEM, epoch, 'visitor', 'owner');
 }
 
 test('2.9.3：visitor 可以访问桌面（/）、设置（/settings/）、文件（/files/），owner 可以访问安全锁屏', async () => {

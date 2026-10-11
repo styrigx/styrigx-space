@@ -44,7 +44,10 @@ export const READER_COOKIE_NAME = SESSION_COOKIE;
 
 /* 白名单路径（验证必需 + 锁屏自身 + 静态资源） */
 const API_WHITELIST = [
-  '/api/owner-auth',
+  '/api/root-auth',
+  '/api/root-session',
+  '/api/layer-status',
+  '/api/root-audit',
   '/api/owner-password',
   '/api/owner-passkey',
   '/api/owner-status',
@@ -198,23 +201,25 @@ export async function injectUpgradeState(res, role, returnPath) {
 }
 
 /**
- * 验证 sgx-verified cookie（2.8.0：四段式 role.epoch.exp.sig）。
- * 返回 {ok, role, reason}。
+ * 验证 sgx-verified cookie（2.11：五段式 by.role.epoch.exp.sig）。
+ * 返回 {ok, role, by, reason}。
  * 2.4.1 dedup：遍历 Cookie 头里所有同名值，任一验签通过即有效。
- * @returns {Promise<{ok:boolean, role:string|null, reason:string}>}
+ * @returns {Promise<{ok:boolean, role:string|null, by:string|null, reason:string}>}
  */
 export async function verifySessionDetailed(request, env) {
   const vals = getAllCookies(request, READER_COOKIE_NAME);
-  if (!vals.length) return { ok: false, role: null, reason: 'no-cookie' };
+  if (!vals.length) return { ok: false, role: null, by: null, reason: 'no-cookie' };
   let reason = 'bad-format';
   let role = null;
+  let by = null;
   for (const val of vals) {
     const r = await verifyOneCookie(val, env);
-    if (r.status === 'ok') return { ok: true, role: r.role, reason: 'ok' };
+    if (r.status === 'ok') return { ok: true, role: r.role, by: r.by, reason: 'ok' };
     /* 记录最有信息量的失败原因：优先 bad-sig/expired，其次 bad-format */
     if (reason === 'bad-format' || r.status !== 'bad-format') {
       reason = r.status;
       role = r.role;
+      by = r.by;
     }
   }
   const pubKey = (env && env.SGX_LOCK_PUBLIC) || '';
@@ -226,7 +231,7 @@ export async function verifySessionDetailed(request, env) {
   } else {
     console.log('[sgx-verify] fail: ' + reason);
   }
-  return { ok: false, role: null, reason };
+  return { ok: false, role: null, by: null, reason };
 }
 
 /**
@@ -248,38 +253,40 @@ export async function verifySessionReason(request, env) {
 }
 
 /**
- * 验签单个 cookie 值（2.8.0：四段式 role.epoch.exp.sig）。
- * @returns {Promise<{status:string, role:string|null}>}
+ * 验签单个 cookie 值（2.11：五段式 by.role.epoch.exp.sig）。
+ * @returns {Promise<{status:string, role:string|null, by:string|null}>}
  *   status: 'ok' 或失败原因（no-cookie/bad-format/expired/no-pubkey/bad-sig/
- *   kv-error/epoch-low/bad-role）；role: 'owner'|'visitor'|null
+ *   kv-error/epoch-low/bad-role/bad-by）；role: 'owner'|'visitor'|null；
+ *   by: 'root'|'owner'|null（2.11）
  */
 async function verifyOneCookie(val, env) {
   const parts = val.split('.');
-  /* 2.8.0：旧三段式（无 role）一律视为无效，不留兼容层 */
-  if (parts.length !== 4) return { status: 'bad-format', role: null };
-  const [role, epochStr, expStr, sig] = parts;
-  if (role !== ROLE_OWNER && role !== ROLE_VISITOR) return { status: 'bad-role', role: null };
+  /* 2.11：旧四段式（无 by）一律视为无效，不留兼容层 */
+  if (parts.length !== 5) return { status: 'bad-format', role: null, by: null };
+  const [by, role, epochStr, expStr, sig] = parts;
+  if (by !== 'root' && by !== 'owner') return { status: 'bad-by', role: null, by: null };
+  if (role !== ROLE_OWNER && role !== ROLE_VISITOR) return { status: 'bad-role', role: null, by: null };
   const exp = parseInt(expStr, 10);
-  if (!exp || exp < Date.now()) return { status: 'expired', role: null };
+  if (!exp || exp < Date.now()) return { status: 'expired', role: null, by: null };
 
   const pubKey = env && env.SGX_LOCK_PUBLIC;
-  if (!pubKey) return { status: 'no-pubkey', role: null }; /* 未配公钥：fail closed */
-  const payload = role + '.' + epochStr + '.' + expStr;
-  if (!(await ed25519Verify(pubKey, payload, sig))) return { status: 'bad-sig', role: null };
+  if (!pubKey) return { status: 'no-pubkey', role: null, by: null }; /* 未配公钥：fail closed */
+  const payload = by + '.' + role + '.' + epochStr + '.' + expStr;
+  if (!(await ed25519Verify(pubKey, payload, sig))) return { status: 'bad-sig', role: null, by: null };
 
   /* epoch 检查：cookie 的 epoch 必须 >= KV 中的 session-epoch。
      2.10.2：无 OWNER_KV 时 fail closed（不再跳过检查）。 */
   try {
     if (!env || !env.OWNER_KV) {
-      return { status: 'kv-error', role: null };
+      return { status: 'kv-error', role: null, by: null };
     }
     const cur = parseInt(await env.OWNER_KV.get('session-epoch') || '0', 10) || 0;
     const ep = parseInt(epochStr, 10) || 0;
-    if (ep < cur) return { status: 'epoch-low', role: null };
+    if (ep < cur) return { status: 'epoch-low', role: null, by: null };
   } catch (e) {
-    return { status: 'kv-error', role: null };
+    return { status: 'kv-error', role: null, by: null };
   }
-  return { status: 'ok', role };
+  return { status: 'ok', role, by };
 }
 
 /** @param {any} context */
