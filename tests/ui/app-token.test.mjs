@@ -95,6 +95,20 @@ test('onRequest：无会话时 403', async () => {
   assert.ok(res.status === 403 || res.status === 500, '无会话应拒绝');
 });
 
+test('validateReturnUrl：origin 假冒被拒', async () => {
+  const { validateReturnUrl } = await import('../../functions/api/app-token.js');
+  // 正常
+  assert.equal(validateReturnUrl('https://book.styrigx.com/shelf'), 'https://book.styrigx.com/shelf');
+  // 缺省 → 默认页
+  assert.equal(validateReturnUrl(''), 'https://book.styrigx.com/');
+  assert.equal(validateReturnUrl(null), 'https://book.styrigx.com/');
+  // 假冒 origin 被拒
+  assert.equal(validateReturnUrl('https://book.styrigx.com.evil.com/'), null, 'evil.com 后缀假冒应被拒');
+  assert.equal(validateReturnUrl('https://evil.com/'), null, '完全不同 origin 应被拒');
+  assert.equal(validateReturnUrl('http://book.styrigx.com/'), null, 'http（非 https）应被拒');
+  assert.equal(validateReturnUrl('not-a-url'), null, '非法 URL 应被拒');
+});
+
 test('APP_COOKIE 属性符合要求', async () => {
   const { APP_COOKIE, APP_COOKIE_ATTRS } = await import('../../functions/api/app-token.js');
   assert.equal(APP_COOKIE, 'sgx-app');

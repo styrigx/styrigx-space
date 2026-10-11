@@ -39,8 +39,26 @@ export const APP_TOKEN_MAX_AGE = 600;
 const ALLOWED_AUD = ['book'];
 /* 允许的 scope 白名单 */
 const ALLOWED_SCOPE = ['upload'];
-/* return URL 白名单前缀：只允许 book.styrigx.com */
-const ALLOWED_RETURN_PREFIX = 'https://book.styrigx.com/';
+/* return URL 白名单：origin 必须严格等于 https://book.styrigx.com */
+const ALLOWED_RETURN_ORIGIN = 'https://book.styrigx.com';
+/* 缺 return 时的默认跳转 */
+const DEFAULT_RETURN = 'https://book.styrigx.com/';
+
+/**
+ * 校验 return URL：用 new URL 解析，要求 origin 严格等于白名单。
+ * @param {string} returnUrl
+ * @returns {string|null} 合法的 return URL，或 null（不合法）
+ */
+export function validateReturnUrl(returnUrl) {
+  if (!returnUrl) return DEFAULT_RETURN;
+  try {
+    const u = new URL(returnUrl);
+    if (u.origin !== ALLOWED_RETURN_ORIGIN) return null;
+    return returnUrl;
+  } catch (e) {
+    return null;
+  }
+}
 
 /* sgx-app cookie 定义 */
 export const APP_COOKIE = 'sgx-app';
@@ -90,6 +108,22 @@ export async function onRequest(context) {
   }
 
   try {
+    // 0. CSRF 防护：Origin 必须为 https://styrigx.com，且 Content-Type 为 application/json
+    const origin = request.headers.get('Origin');
+    const contentType = request.headers.get('Content-Type') || '';
+    if (origin !== 'https://styrigx.com') {
+      return new Response(JSON.stringify({ ok: false, error: 'origin' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store' },
+      });
+    }
+    if (!contentType.includes('application/json')) {
+      return new Response(JSON.stringify({ ok: false, error: 'content-type' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store' },
+      });
+    }
+
     // 1. 必须是已登录 owner 会话
     const session = await verifySessionDetailed(request, env.SGX_LOCK_PUBLIC);
     if (!session || session.role !== ROLE_OWNER) {
@@ -138,8 +172,9 @@ export async function onRequest(context) {
       });
     }
 
-    // 5. 校验 return 白名单（只允许 book.styrigx.com）
-    if (returnUrl && !returnUrl.startsWith(ALLOWED_RETURN_PREFIX)) {
+    // 5. 校验 return（origin 严格等于 https://book.styrigx.com；缺省跳默认页）
+    const validReturn = validateReturnUrl(returnUrl);
+    if (!validReturn) {
       return new Response(JSON.stringify({ ok: false, error: 'return' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store' },
@@ -159,7 +194,7 @@ export async function onRequest(context) {
     const token = await signAppToken(privatePem, epoch, aud, scope);
 
     // 7. 设置 sgx-app cookie（Domain=.styrigx.com，book 后端可读），不再在 body 返回 token
-    return new Response(JSON.stringify({ ok: true }), {
+    return new Response(JSON.stringify({ ok: true, return: validReturn }), {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
