@@ -30,7 +30,7 @@
   view-transition-name: sgx-topbar;
   /* 三星浏览器 backdrop-filter 可能不生效，给纯色兜底 */
   /* stylelint-disable-next-line color-no-hex */
-  background: var(--m-surface, #fff);
+  background: var(--m-surface, var(--m-container-lowest));
 }
 .dark #site-nav {
   /* stylelint-disable-next-line color-no-hex */
@@ -2263,7 +2263,7 @@
   display: flex; align-items: flex-end; justify-content: center;
 }
 .sgx-upgrade-sheet {
-  background: var(--m-surface, #fff);
+  background: var(--m-surface, var(--m-container-lowest));
   border-radius: 24px 24px 0 0;
   padding: 24px 20px calc(20px + env(safe-area-inset-bottom, 0px));
   width: 100%; max-width: 480px;
