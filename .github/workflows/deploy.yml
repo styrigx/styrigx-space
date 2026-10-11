@@ -163,6 +163,9 @@ jobs:
       - name: PC layout assertions（2.5.0 栅格/Dock/顶栏对齐，阻塞）
         run: npx playwright test --config=playwright.config.js pc-layout.spec.js
 
+      - name: 2.9.2 layout assertions（阻塞）
+        run: npx playwright test --config=playwright.config.js layout-292.spec.js
+
       - name: Lighthouse CI
         # Hark：lhci 自己起服务（见 .lighthouserc.json 的 startServerCommand）。
         # gzip 模拟线上 Cloudflare 压缩。天气组件已在测试构建里禁用
