@@ -57,6 +57,11 @@ jobs:
         # middleware 缺密钥 fail closed、过期/旧 epoch cookie 被拒、return 白名单
         run: node --test tests/kernel/session-security.test.mjs
 
+      - name: Stepup security unit tests
+        # stepup 二次验证：cookie 签发/验证、过期/篡改/伪造/epoch 变更被拒、
+        # 缺 key fail closed、challenge 用途隔离与单次使用
+        run: node --test tests/kernel/stepup-security.test.mjs
+
       - name: Layer boundary check (SGX 3.0 分层规范)
         # L0-L6 依赖方向：lib 不得 import shell/apps；shell 不得 import apps；
         # 前端不得 import functions/；api/ 只能 import _kernel/；
@@ -187,11 +192,16 @@ jobs:
         # 2.4.1：middleware 缺 SGX_ED25519_PUBLIC 时 fail closed，解锁接口需要
         # SGX_ED25519_PRIVATE 才能签发会话 cookie。CI 在每次运行中临时生成一对
         # 测试密钥注入 preview 环境；绝不用生产密钥，密钥不进仓库、不留文件。
+        # stepup：单独生成一对 stepup 测试密钥（SGX_STEPUP_KEY/SGX_STEPUP_PUBLIC），
+        # 与会话密钥分离。
         run: |
           openssl genpkey -algorithm ed25519 -out "$RUNNER_TEMP/ed25519-priv.pem"
           openssl pkey -in "$RUNNER_TEMP/ed25519-priv.pem" -pubout -out "$RUNNER_TEMP/ed25519-pub.pem"
+          openssl genpkey -algorithm ed25519 -out "$RUNNER_TEMP/stepup-priv.pem"
+          openssl pkey -in "$RUNNER_TEMP/stepup-priv.pem" -pubout -out "$RUNNER_TEMP/stepup-pub.pem"
           test -s "$RUNNER_TEMP/ed25519-priv.pem" && test -s "$RUNNER_TEMP/ed25519-pub.pem"
-          echo "Ed25519 test key pair generated (preview only)"
+          test -s "$RUNNER_TEMP/stepup-priv.pem" && test -s "$RUNNER_TEMP/stepup-pub.pem"
+          echo "Ed25519 test key pairs generated (preview only)"
 
       - name: Set preview test secrets (preview only)
         # 只写 preview 环境，绝不碰 production。
@@ -206,7 +216,12 @@ jobs:
               ED_PRIV = f.read()
           with open("${{ runner.temp }}/ed25519-pub.pem") as f:
               ED_PUB = f.read()
+          with open("${{ runner.temp }}/stepup-priv.pem") as f:
+              STEPUP_PRIV = f.read()
+          with open("${{ runner.temp }}/stepup-pub.pem") as f:
+              STEPUP_PUB = f.read()
           assert "PRIVATE KEY" in ED_PRIV and "PUBLIC KEY" in ED_PUB
+          assert "PRIVATE KEY" in STEPUP_PRIV and "PUBLIC KEY" in STEPUP_PUB
           body = json.dumps({
               "deployment_configs": {
                   "preview": {
@@ -216,6 +231,9 @@ jobs:
                           # 2.4.1：CI 临时生成的测试密钥对（每次运行新生成，非生产密钥）
                           "SGX_ED25519_PRIVATE": {"type": "secret_text", "value": ED_PRIV},
                           "SGX_ED25519_PUBLIC": {"type": "plain_text", "value": ED_PUB},
+                          # stepup：CI 临时生成的测试密钥对（与会话密钥分离）
+                          "SGX_STEPUP_KEY": {"type": "secret_text", "value": STEPUP_PRIV},
+                          "SGX_STEPUP_PUBLIC": {"type": "plain_text", "value": STEPUP_PUB},
                           "SGX_SITE": {"type": "plain_text", "value": "space"},
                           # P0-3：预览的 RP_ID/ORIGIN（明文，CI 每次部署前写入）
                           "SGX_RP_ID": {"type": "plain_text", "value": "passkey-e2e.styrigx-space.pages.dev"},
@@ -248,7 +266,7 @@ jobs:
         run: |
           SGX_TEST_BASE="https://passkey-e2e.styrigx-space.pages.dev" \
           SGX_TEST_OWNER_KEY="${{ secrets.PREVIEW_OWNER_KEY }}" \
-          npx playwright test --config=playwright.config.js --grep "passkey e2e"
+          npx playwright test --config=playwright.config.js --grep "e2e"
         env:
           SGX_TEST_SUITE: passkey
 
