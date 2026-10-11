@@ -1093,4 +1093,34 @@ function showLockScreen() {
 
   /* 锁屏显示期间：如果用户在别的标签页解锁了，切回来时自动检测并回跳 */
   bindRecheck();
+
+  /* 已解锁标签页的自动锁定：visibilitychange（visible）、pageshow（含 bfcache）、
+     focus 时向服务端确认会话（/api/session-check），失败就重载切到锁屏。
+     不用 BroadcastChannel / storage / 前端内存做锁屏状态，状态源只有服务端。
+     节流 5 秒；网络错误不跳转，下次再查。
+     「锁定所有设备」靠 epoch 生效，子站缓存最多约 60 秒。 */
+  let lastLockCheck = 0;
+  function checkSessionForAutoLock() {
+    const now = Date.now();
+    if (now - lastLockCheck < 5000) return;
+    lastLockCheck = now;
+    /* 如果当前已是锁屏状态，不需要检查（锁屏页有自己的 recheck 逻辑） */
+    if (document.body.classList.contains('sgx-locked')) return;
+    fetch('/api/session-check', { credentials: 'same-origin' })
+      .then(function (r) {
+        if (r.ok) return; /* 会话有效，什么都不做 */
+        /* 401 或其他失败：重载，L1 middleware 会显示锁屏 */
+        location.reload();
+      })
+      .catch(function () {
+        /* 网络错误：不跳转，下次再查 */
+      });
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') checkSessionForAutoLock();
+  });
+  window.addEventListener('focus', checkSessionForAutoLock);
+  window.addEventListener('pageshow', function (e) {
+    if (e && e.persisted) checkSessionForAutoLock();
+  });
 }
