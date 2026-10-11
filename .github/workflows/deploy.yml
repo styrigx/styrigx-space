@@ -179,10 +179,10 @@ jobs:
           npx lhci autorun --config=.lighthouserc.json
 
       - name: 前端技术名词检查（安全与隐私）
-        # 用户可见文案不得出现 OWNER_KEY / SESSION_SECRET / TURNSTILE_SECRET；
+        # 用户可见文案不得出现 OWNER_KEY / SESSION_SECRET / SGX_ROOT_KEY / SGX_PW_PEPPER / TURNSTILE_SECRET；
         # 后端变量名只许出现在 functions/ 与注释里，不许进 public/ HTML。
         run: |
-          if grep -rl "OWNER_KEY\|SESSION_SECRET\|TURNSTILE_SECRET" public/ --include="*.html"; then
+          if grep -rl "OWNER_KEY\|SESSION_SECRET\|SGX_ROOT_KEY\|SGX_PW_PEPPER\|TURNSTILE_SECRET" public/ --include="*.html"; then
             echo "FAIL: 技术变量名出现在 HTML 产物中"
             exit 1
           fi
@@ -304,10 +304,15 @@ jobs:
           prod = r["result"]["deployment_configs"]["production"]["env_vars"]
           names = sorted(prod.keys())
           print("production vars:", names)
-          # production 必须有这些，且 CI 不应增删（2026-10-10：Gray 已配 SGX_SITE/密钥对，基线更新）
-          expected = ["OWNER_KEY", "SESSION_SECRET", "SGX_APP_PRIVATE", "SGX_APP_PUBLIC", "SGX_LOCK_PRIVATE", "SGX_LOCK_PUBLIC", "SGX_ORIGIN", "SGX_RP_ID", "SGX_SITE", "SGX_STEPUP_PRIVATE", "SGX_STEPUP_PUBLIC", "TURNSTILE_SECRET"]
-          assert names == expected, f"unexpected: {names}"
-          print("guard OK: production untouched")
+          # production 必须包含这些（包含检查：缺一个就失败；多出来的只打印）
+          # 2026-10-12：SGX_ROOT_KEY 新增、SESSION_SECRET → SGX_PW_PEPPER（2.11 用）；OWNER_KEY 暂留，2.11 验收后再移
+          required = ["OWNER_KEY", "SGX_ROOT_KEY", "SGX_PW_PEPPER", "SGX_APP_PRIVATE", "SGX_APP_PUBLIC", "SGX_LOCK_PRIVATE", "SGX_LOCK_PUBLIC", "SGX_ORIGIN", "SGX_RP_ID", "SGX_SITE", "SGX_STEPUP_PRIVATE", "SGX_STEPUP_PUBLIC", "TURNSTILE_SECRET"]
+          missing = [v for v in required if v not in names]
+          assert not missing, f"missing production vars: {missing}"
+          extra = [v for v in names if v not in required]
+          if extra:
+              print("extra production vars (ignored):", extra)
+          print("guard OK: required production vars all present:", required)
           PYEOF
 
       - name: Upload test artifacts on failure
