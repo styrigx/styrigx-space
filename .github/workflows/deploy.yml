@@ -63,8 +63,20 @@ jobs:
         # 前端禁止 sgx-verified/sgx-lock-shown；禁止用 storage 存解锁状态
         run: node scripts/check-layers.mjs
 
+      - name: Generate blog posts data (P0-2)
+        # 从博客仓库读公开文章列表，生成 data/posts.json
+        # BLOG_TOKEN: 只读 token（公开仓库可匿名，但配 token 更稳）
+        # 失败、0 篇 → 脚本 exit 非 0 → 构建失败
+        run: node scripts/gen-posts-json.mjs
+        env:
+          BLOG_TOKEN: ${{ secrets.BLOG_READ_TOKEN }}
+
       - name: Build site (生产构建，用于锁屏测试)
         run: hugo --minify
+
+      - name: Assert posts in files-index.json (P0-2)
+        # 断言：type=post > 0，中英各有，URL 合法；失败则 CI 失败
+        run: node scripts/assert-posts.mjs
 
       - name: stylelint（禁止硬编码颜色）
         run: npx stylelint "assets/css/input.css"
@@ -107,6 +119,8 @@ jobs:
         # Turnstile 用 Cloudflare 官方测试 Key（sed 替换，不污染正式密钥）
         run: |
           sed -i "s/0x4AAAAAAFSBhpWkAwZr1SMA/1x00000000000000000000AA/g" hugo.yaml
+          # P0-2：视觉测试用 Fixture 数据，保证和基线一致；正式构建用真实 posts.json
+          cp data/posts.fixture.json data/posts.json
           hugo --minify
         env:
           SGX_TEST_NO_LOCK: "1"
@@ -313,8 +327,16 @@ jobs:
         run: node scripts/music-previews.mjs
         continue-on-error: true
 
+      - name: Generate blog posts data (P0-2)
+        run: node scripts/gen-posts-json.mjs
+        env:
+          BLOG_TOKEN: ${{ secrets.BLOG_READ_TOKEN }}
+
       - name: Build site
         run: hugo --minify
+
+      - name: Assert posts in files-index.json (P0-2)
+        run: node scripts/assert-posts.mjs
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
