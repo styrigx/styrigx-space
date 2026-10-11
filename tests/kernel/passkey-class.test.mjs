@@ -7,7 +7,7 @@
  * - app auth 的 challenge 只列该 aud 的 app 凭据；verify 校验分类+aud
  * - aud=book 的凭据不能用于 aud=music；不在白名单的 aud 注册 → 400
  * - 无 sgx-stepup 时增删通行密钥 → 403；有 stepup 时通过
- * - 第一把 lock 凭据注册不需要 stepup
+ * - 2.10.1：register 必须要求 owner 会话；第一把 lock 也要求 stepup（安全漏洞修复）
  * - 删除应用类凭据 → app-epoch:<aud> +1
  * - 注册参数：displayName="Sloan Gray"，lock 的 user.name="lock"，app 的 user.name=aud
  * - stepup 只接受 lock 类
@@ -41,7 +41,7 @@ function postReq(url, body, headers = {}) {
   });
 }
 
-let STEPUP_PRIV = '', STEPUP_PUB = '';
+let STEPUP_PRIV = '', STEPUP_PUB = '', LOCK_PRIV = '', LOCK_PUB = '';
 function derToPem(der, label) {
   const b64 = Buffer.from(der).toString('base64');
   const lines = b64.match(/.{1,64}/g).join('\n');
@@ -51,20 +51,30 @@ async function genKeys() {
   const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
   STEPUP_PRIV = derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY');
   STEPUP_PUB = derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY');
+  const kp2 = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+  LOCK_PRIV = derToPem(await crypto.subtle.exportKey('pkcs8', kp2.privateKey), 'PRIVATE KEY');
+  LOCK_PUB = derToPem(await crypto.subtle.exportKey('spki', kp2.publicKey), 'PUBLIC KEY');
 }
 async function mintStepup(epoch = 0) {
   const { signStepupCookie } = await import('../../functions/api/stepup.js');
   return await signStepupCookie(STEPUP_PRIV, epoch);
 }
+async function mintSession(epoch = 0) {
+  const { signSessionCookie } = await import('../../functions/_kernel/session.js');
+  return await signSessionCookie(LOCK_PRIV, epoch, 'owner');
+}
 const stepupEnv = (kv) => ({
   OWNER_KV: kv,
   SESSION_SECRET: 's',
+  SGX_LOCK_PRIVATE: LOCK_PRIV,
+  SGX_LOCK_PUBLIC: LOCK_PUB,
   SGX_STEPUP_PRIVATE: STEPUP_PRIV,
   SGX_STEPUP_PUBLIC: STEPUP_PUB,
   SGX_RP_ID: 'styrigx.com',
   SGX_ORIGIN: 'https://styrigx.com',
 });
 const stepupCookie = (v) => ({ Cookie: 'sgx-stepup=' + v });
+const bothCookies = (s, t) => ({ Cookie: 'sgx-verified=' + s + '; sgx-stepup=' + t });
 
 /* 预置一把凭据 */
 async function seedKey(kv, { credId, cls = 'lock', aud = '' }) {
@@ -141,18 +151,37 @@ test('challenge app auth：不在白名单的 aud → 400', async () => {
   assert.equal((await r.json()).error, 'aud');
 });
 
-test('无 stepup 时 list/register/delete → 403 stepup-required', async () => {
+test('无 stepup 时 list/register/delete → 403 stepup-required（2.10.1：register 还需会话）', async () => {
   const { onRequestPost } = await import('../../functions/api/owner-passkey.js');
   const kv = makeKV();
   await seedKey(kv, { credId: 'lock-key-001', cls: 'lock' });
   const env = stepupEnv(kv);
+  const sess = await mintSession();
+  const sessH = { Cookie: 'sgx-verified=' + sess };
+  // list/delete 无 stepup → 403
   for (const body of [
     { action: 'list' },
     { action: 'delete', credId: 'lock-key-001' },
-    { action: 'challenge', type: 'register', pkClass: 'app', aud: 'book' },
   ]) {
-    const r = await onRequestPost({ request: postReq('https://styrigx.com/api/owner-passkey', body), env });
+    const r = await onRequestPost({ request: postReq('https://styrigx.com/api/owner-passkey', body, stepupCookie('')), env });
+    // 空 stepup cookie 视为无 stepup
     assert.equal(r.status, 403, JSON.stringify(body));
+  }
+  // register challenge 无会话 → 401（2.10.1 B6）
+  {
+    const r = await onRequestPost({
+      request: postReq('https://styrigx.com/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: 'lock' }),
+      env,
+    });
+    assert.equal(r.status, 401, 'register 无会话应 401');
+  }
+  // register challenge 有会话无 stepup → 403（2.10.1 B6：第一把也要 stepup）
+  {
+    const r = await onRequestPost({
+      request: postReq('https://styrigx.com/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: 'app', aud: 'book' }, sessH),
+      env,
+    });
+    assert.equal(r.status, 403);
     assert.equal((await r.json()).error, 'stepup-required');
   }
 });
@@ -172,7 +201,7 @@ test('有 stepup 时 list 通过', async () => {
   assert.equal(j.keys[0].class, 'lock');
 });
 
-test('删除 app 凭据 → app-epoch:book +1', async () => {
+test('删除 app 凭据 → app-epoch:book +1（2.10.1：不推进会话纪元）', async () => {
   const { onRequestPost } = await import('../../functions/api/owner-passkey.js');
   const kv = makeKV();
   await seedKey(kv, { credId: 'app-key-book', cls: 'app', aud: 'book' });
@@ -184,15 +213,15 @@ test('删除 app 凭据 → app-epoch:book +1', async () => {
   });
   assert.equal(r.status, 200);
   assert.equal(await kv.get('app-epoch:book'), '1');
-  // 再删一把 → 2（删除会 bump session-epoch，stepup 失效，需用新 epoch 重新签发）
+  // 2.10.1：删应用类不推进会话纪元，同一 stepup 可继续用
   await seedKey(kv, { credId: 'app-key-book2', cls: 'app', aud: 'book' });
-  const sc2 = await mintStepup(1);
   const r2 = await onRequestPost({
-    request: postReq('https://styrigx.com/api/owner-passkey', { action: 'delete', credId: 'app-key-book2' }, stepupCookie(sc2)),
+    request: postReq('https://styrigx.com/api/owner-passkey', { action: 'delete', credId: 'app-key-book2' }, stepupCookie(sc)),
     env,
   });
   assert.equal(r2.status, 200);
   assert.equal(await kv.get('app-epoch:book'), '2');
+  assert.equal(await kv.get('session-epoch'), null, '会话纪元不应被推进');
 });
 
 test('删除 lock 凭据不推进 app-epoch', async () => {
@@ -243,9 +272,10 @@ test('注册参数：challenge register 下发写死的用户信息', async () =
   const { onRequestPost } = await import('../../functions/api/owner-passkey.js');
   const kv = makeKV();
   const sc = await mintStepup();
+  const sess = await mintSession();
   const env = stepupEnv(kv);
-  const headers = stepupCookie(sc);
-  // lock 注册（第一把，无需 stepup 也行，但这里带上）
+  const headers = bothCookies(sess, sc);
+  // lock 注册（2.10.1：第一把也要会话 + stepup）
   let r = await onRequestPost({
     request: postReq('https://styrigx.com/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: 'lock' }, headers),
     env,

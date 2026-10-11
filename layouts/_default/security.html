@@ -24,23 +24,31 @@
   <!-- 安全分组 -->
   <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Security{{ else }}安全{{ end }}</span></h2>
   <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.1s">
-    {{/* 解锁方式（One UI「屏幕锁定类型」）：只在已解锁时显示，以服务端会话为准（sgx:session），见 apps/security.js */}}
-    <a class="set-row" id="sec-unlock-methods" href="{{ $lockUrl }}" hidden>
-      <span class="set-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "lock" }}</span>
-      <span class="flex-1 min-w-0">
-        <span class="block font-medium">{{ if $isEn }}Unlock methods{{ else }}解锁方式{{ end }}</span>
-        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Password, passkeys{{ else }}密码、通行密钥{{ end }}</span>
-      </span>
-      {{ partial "icon.html" "chev-r" }}
-    </a>
+    {{/* 2.10.1 A5：解锁方式与锁定屏幕合并为一行（原两行重复） */}}
     <a class="set-row" id="sec-lock-row" href="{{ $lockUrl }}">
       <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "lock" }}</span>
       <span class="flex-1 min-w-0">
-        <span class="block font-medium">{{ if $isEn }}Lock screen{{ else }}锁定屏幕{{ end }}</span>
-        <span class="block text-xs mt-0.5 truncate text-m-primary" id="sec-lock-sub">{{ if $isEn }}Loading…{{ else }}正在读取…{{ end }}</span>
+        <span class="block font-medium">{{ if $isEn }}Unlock methods{{ else }}解锁方式{{ end }}</span>
+        <span class="block text-xs mt-0.5 truncate text-m-primary" id="sec-lock-sub">{{ if $isEn }}Password, passkeys{{ else }}密码、通行密钥{{ end }}</span>
       </span>
       {{ partial "icon.html" "chev-r" }}
     </a>
+    {{/* 2.10.1 A5：应用验证（每应用一行，目前 book） */}}
+    <a class="set-row" id="sec-app-row" href="{{ $lockUrl }}#app">
+      <span class="set-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "key" }}</span>
+      <span class="flex-1 min-w-0">
+        <span class="block font-medium">{{ if $isEn }}App verification{{ else }}应用验证{{ end }}</span>
+        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Per-app passkeys{{ else }}每个应用一把通行密钥{{ end }}</span>
+      </span>
+      {{ partial "icon.html" "chev-r" }}
+    </a>
+    {{/* 2.10.1 A5：管理密钥（恢复用）说明 */}}
+    <div class="set-row no-ic">
+      <span class="flex-1 min-w-0">
+        <span class="block font-medium">{{ if $isEn }}Management key (recovery){{ else }}管理密钥（恢复用）{{ end }}</span>
+        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Set at deploy time. Use it to regain access when all other unlock methods are lost.{{ else }}部署时设置。其他解锁方式全部丢失时，用它恢复访问。{{ end }}</span>
+      </span>
+    </div>
     <div class="set-row" id="sec-locknow" role="button" tabindex="0">
       <span class="set-ic bg-m-warm-container text-m-on-warm-container">{{ partial "icon.html" "clock" }}</span>
       <span class="flex-1 min-w-0">

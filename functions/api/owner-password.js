@@ -20,7 +20,7 @@
  * 只接受 POST；校验 Origin；未设置密码时 verify 一律拒绝。
  * 外层 try/catch：任何未捕获异常都返回 JSON { ok:false, error:'server' }，不返回 500 HTML。
  */
-import { b64enc, b64dec, timingSafeEqual, hmacVerify } from '../_kernel/crypto.js';
+import { b64enc, b64dec, timingSafeEqual } from '../_kernel/crypto.js';
 import {
   issueSessionCookie,
   bumpSessionEpoch,
@@ -42,26 +42,6 @@ async function hashPassword(password, salt, iterations) {
     KEY_LEN * 8
   );
   return bits;
-}
-
-/**
- * 验 owner-auth token（owner-auth 签发，SESSION_SECRET 签名，用途前缀 "owner-auth|"）。
- * @param {string} token
- * @param {string} secret
- */
-async function verifyOwnerToken(token, secret) {
-  if (!token || !secret) return false;
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 2) return false;
-    const payload = parts[0];
-    const sig = parts[1];
-    if (!(await hmacVerify(secret, 'owner-auth|', payload, sig))) return false;
-    const data = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
-    return !!(data && data.exp > Date.now() && data.scope === 'owner-auth');
-  } catch (e) {
-    return false;
-  }
 }
 
 /** @param {any} context */
