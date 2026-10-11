@@ -1,10 +1,14 @@
 /**
- * 2.11 定稿：重置锁屏（丢了 lock 凭证时）。
+ * 2.11 定稿 + 补充：重置锁屏（丢了 lock 凭证时）。
  *
- * 锁屏上「重置锁屏」入口：依次验证「站长凭证」再验证「根凭证」，两步都过
- * → stepup(by=owner+root, scope=lockreset)。
- * 恢复开关开启时可只用根凭证（by=root, via=switch），权限完全相同；
- * 开启时单用站长凭证仍不能重置。
+ * 流程（根凭证优先）：
+ * 1. 先输入根凭证，与环境变量比对（不读 KV）。错误按现有认证失败处理。
+ * 2. 根凭证正确后才读恢复开关（KV `recovery-switch` + D1 计时/单次）。
+ *    开关有效 → 签发 by=root, via=switch, scope=lockreset，并原子标记已用。
+ * 3. 开关无效 → 继续要求站长凭证，通过后签发 scope=lockreset（by=owner+root）。
+ *
+ * 前端不提示开关存在；两种情况响应形态一致，由服务端决定下一步。
+ * 只在重置锁屏路径、且根凭证正确后读开关，其他请求一律不读。
  *
  * lockreset 票只能增删 lock 凭证、设置锁屏密码；不签 sgx-verified、不进主页面、
  * 不管 APP/会话/入口 1/入口 2。完成后推进 session-epoch，用新 lock 正常解锁。
@@ -12,11 +16,13 @@
  * owner 未配置时锁屏重置不可用（恢复开关除外）。
  *
  * POST /api/lockreset
- * - { action: 'status' } → { ok:true, available, skippable }（无需会话）
+ * - { action: 'status' } → { ok:true, available }（无需会话；不读开关）
  * - { action: 'challenge' } → 下发 owner passkey 断言 challenge（purpose=lockreset）
- * - { action: 'verify', ownerProof, rootKey } →
- *     ownerProof: { type:'passkey', cid, credential } | { type:'password', password }
- *     成功 → stepup(scope=lockreset) cookie
+ * - { action: 'verify', rootKey, ownerProof? } →
+ *     根凭证错 → 401 auth；
+ *     根凭证对 + 开关有效 → lockreset（by=root, via=switch）；
+ *     根凭证对 + 开关无效 + 无 ownerProof → { ok:true, needOwner:true }；
+ *     根凭证对 + 开关无效 + ownerProof 有效 → lockreset（by=owner+root）
  *
  * 根凭证失败计入共用限速；审计标记 via=switch（不对前端暴露）。
  * 只接受 POST；校验 Origin。
@@ -38,7 +44,7 @@ import { verifyOwnerPassword, getPepper } from './owner-password.js';
 import { checkRootLimit, recordRootFail, clearRootFail, getClientIp } from '../_kernel/rootlimit.js';
 import { writeRootAudit } from '../_kernel/rootlog.js';
 import { isLayerConfigured, LAYER_OWNER } from '../_kernel/layers.js';
-import { isRecoveryEnabled } from '../_kernel/recovery.js';
+import { checkRecoverySwitch, claimSwitchUsed } from '../_kernel/recswitch.js';
 
 const CHALLENGE_PREFIX = 'lockreset-challenge:';
 const CHALLENGE_TTL = 300; /* 5 分钟 */
@@ -81,16 +87,14 @@ async function handlePost(context) {
     return Response.json({ ok: false, error: 'body' }, { status: 400 });
   }
   const action = (body && body.action) || '';
-  const recovery = isRecoveryEnabled(env);
   let ownerCfg = true;
   try { ownerCfg = await isLayerConfigured(kv, LAYER_OWNER); } catch (e) { ownerCfg = true; }
 
-  /* ============ status：重置是否可用、站长凭证步骤可否跳过 ============ */
+  /* ============ status：重置是否可用（不读开关；开关只在 verify 根凭证正确后读） ============ */
   if (action === 'status') {
     return Response.json({
       ok: true,
-      available: ownerCfg || recovery,
-      skippable: recovery,
+      available: ownerCfg,
     });
   }
 
@@ -107,12 +111,12 @@ async function handlePost(context) {
 
   /* ============ challenge：下发 owner passkey 断言 challenge ============ */
   if (action === 'challenge') {
-    if (!ownerCfg && !recovery) {
+    if (!ownerCfg) {
       return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
     }
     const keys = await getPasskeys(kv);
     const ownerKeys = keys.filter(function (k) { return (k.class || 'lock') === PK_CLASS_OWNER; });
-    if (ownerKeys.length === 0 && !recovery) {
+    if (ownerKeys.length === 0) {
       return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
     }
     const challenge = randB64(32);
@@ -135,13 +139,10 @@ async function handlePost(context) {
     });
   }
 
-  /* ============ verify：双凭证验证 → lockreset 票 ============ */
+  /* ============ verify：根凭证优先 → 开关 → 站长凭证 ============ */
   if (action === 'verify') {
     const ip = getClientIp(request);
-    if (!ownerCfg && !recovery) {
-      return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
-    }
-    /* 限流（共用） */
+    /* 限流（共用）：先检查，不读开关 */
     try {
       const lim = await checkRootLimit(kv, ip);
       if (lim.limited) {
@@ -157,103 +158,127 @@ async function handlePost(context) {
       await writeRootAudit(kv, ip, false, { path: 'lockreset' });
     };
 
-    /* --- 验证根凭证 --- */
+    /* --- 步骤 1：根凭证与环境变量比对（不读 KV 开关） --- */
     const rk = (body && body.rootKey) || '';
     const rootOk = rk && (await timingSafeEqual(String(rk), String(rootKey)));
-
-    /* --- 验证站长凭证（恢复开关开启时可跳过） --- */
-    let ownerOk = false;
-    let viaSwitch = false;
-    if (recovery && rootOk && !body.ownerProof) {
-      /* 开关路径：只用根凭证 */
-      ownerOk = true;
-      viaSwitch = true;
-    } else {
-      const proof = (body && body.ownerProof) || {};
-      if (proof.type === 'password') {
-        const pepper = getPepper(env);
-        if (!pepper) {
-          await fail();
-          return Response.json({ ok: false, error: 'config' }, { status: 503 });
-        }
-        try {
-          const vr = await verifyOwnerPassword(kv, pepper, String(proof.password || ''));
-          ownerOk = vr.set && vr.ok;
-        } catch (e) {
-          await fail();
-          return Response.json({ ok: false, error: 'server' }, { status: 503 });
-        }
-      } else if (proof.type === 'passkey') {
-        const cid = proof.cid || '';
-        const cred = proof.credential || {};
-        let chRec = null;
-        try {
-          chRec = await kv.get(CHALLENGE_PREFIX + cid, 'json');
-          await kv.delete(CHALLENGE_PREFIX + cid);
-        } catch (e) {}
-        if (chRec && chRec.purpose === 'lockreset' && chRec.exp >= Date.now()) {
-          const keys = await getPasskeys(kv);
-          const ownerKeys = keys.filter(function (k) { return (k.class || 'lock') === PK_CLASS_OWNER; });
-          const rawIdB64 = cred.rawId || '';
-          let stored = null;
-          for (let i = 0; i < ownerKeys.length; i++) {
-            if (ownerKeys[i].credId === rawIdB64) { stored = ownerKeys[i]; break; }
-          }
-          if (stored && stored.publicKey && stored.class === PK_CLASS_OWNER) {
-            try {
-              const rpIdHash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(RP_ID)));
-              const checked = await verifyAssertion({
-                credential: cred,
-                challenge: chRec.challenge,
-                rpIdHash: rpIdHash,
-                expectOrigin: EXPECT_ORIGIN,
-                storedPublicKey: stored.publicKey,
-                storedSignCount: stored.signCount,
-                requireUV: true,
-              });
-              stored.signCount = checked.signCount;
-              stored.lastUsedAt = Date.now();
-              ownerOk = true;
-            } catch (e) {}
-          }
-        }
-      }
-    }
-
-    if (!rootOk || !ownerOk) {
+    if (!rootOk) {
       await fail();
-      /* 根凭证错误与站长凭证错误统一返回 401 auth，不区分 */
       return Response.json({ ok: false, error: 'auth' }, { status: 401 });
     }
-
     await clearRootFail(kv, ip);
-    let epoch;
-    try {
-      epoch = await getSessionEpoch(kv);
-    } catch (e) {
+
+    /* --- 步骤 2：根凭证正确后才读恢复开关 --- */
+    const db = env && env.SGX_D1;
+    const sw = await checkRecoverySwitch(kv, db);
+    if (sw.valid) {
+      /* 开关路径：原子标记已用（抢不到则视为已用，走站长凭证路径） */
+      const claimed = await claimSwitchUsed(db, sw.hash);
+      if (claimed) {
+        return await issueLockreset(ip, STEPUP_BY_ROOT, { via: 'switch' });
+      }
+      /* 被并发抢走 → 按开关无效处理 */
+    }
+
+    /* --- 步骤 3：开关无效 → 需要站长凭证 --- */
+    if (!ownerCfg) {
       await writeRootAudit(kv, ip, false, { path: 'lockreset' });
-      return Response.json({ ok: false, error: 'server' }, { status: 503 });
+      return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
     }
-    const headers = new Headers({ 'Content-Type': 'application/json' });
-    try {
-      const cv = await signStepupCookie(
-        stepupKey,
-        viaSwitch ? STEPUP_BY_ROOT : STEPUP_BY_OWNER_ROOT,
-        STEPUP_SCOPE_LOCKRESET,
-        epoch
+    const proof = (body && body.ownerProof) || null;
+    if (!proof) {
+      /* 响应形态与开关有效时一致（都是 200 ok），由服务端决定下一步；
+         前端据此展示站长凭证步骤，不提示开关存在 */
+      return Response.json({ ok: true, needOwner: true });
+    }
+    let ownerOk = false;
+    if (proof.type === 'password') {
+      const pepper = getPepper(env);
+      if (!pepper) {
+        await fail();
+        return Response.json({ ok: false, error: 'config' }, { status: 503 });
+      }
+      try {
+        const vr = await verifyOwnerPassword(kv, pepper, String(proof.password || ''));
+        ownerOk = vr.set && vr.ok;
+      } catch (e) {
+        await fail();
+        return Response.json({ ok: false, error: 'server' }, { status: 503 });
+      }
+    } else if (proof.type === 'passkey') {
+      ownerOk = await verifyOwnerPasskeyProof(kv, proof, RP_ID, EXPECT_ORIGIN);
+    }
+    if (!ownerOk) {
+      await fail();
+      return Response.json({ ok: false, error: 'auth' }, { status: 401 });
+    }
+    return await issueLockreset(ip, STEPUP_BY_OWNER_ROOT, null);
+
+    /* 签发 lockreset 票（内部函数） */
+    async function issueLockreset(ipAddr, by, auditExtra) {
+      let epoch;
+      try {
+        epoch = await getSessionEpoch(kv);
+      } catch (e) {
+        await writeRootAudit(kv, ipAddr, false, { path: 'lockreset' });
+        return Response.json({ ok: false, error: 'server' }, { status: 503 });
+      }
+      const headers = new Headers({ 'Content-Type': 'application/json' });
+      try {
+        const cv = await signStepupCookie(stepupKey, by, STEPUP_SCOPE_LOCKRESET, epoch);
+        headers.append(
+          'Set-Cookie',
+          STEPUP_COOKIE + '=' + cv + '; ' + STEPUP_COOKIE_ATTRS + '; Max-Age=' + STEPUP_MAX_AGE
+        );
+      } catch (e) {
+        await writeRootAudit(kv, ipAddr, false, { path: 'lockreset' });
+        return Response.json({ ok: false, error: 'sign-failed' }, { status: 500 });
+      }
+      const auditOk = await writeRootAudit(
+        kv, ipAddr, true,
+        auditExtra && auditExtra.via === 'switch' ? { path: 'lockreset', via: 'switch' } : { path: 'lockreset' }
       );
-      headers.append(
-        'Set-Cookie',
-        STEPUP_COOKIE + '=' + cv + '; ' + STEPUP_COOKIE_ATTRS + '; Max-Age=' + STEPUP_MAX_AGE
-      );
-    } catch (e) {
-      await writeRootAudit(kv, ip, false, { path: 'lockreset' });
-      return Response.json({ ok: false, error: 'sign-failed' }, { status: 500 });
+      if (!auditOk) {
+        return Response.json({ ok: false, error: 'server' }, { status: 503 });
+      }
+      return new Response(JSON.stringify({ ok: true }), { headers });
     }
-    if (!(await writeRootAudit(kv, ip, true, viaSwitch ? { path: 'lockreset', via: 'switch' } : { path: 'lockreset' }))) {
-      return Response.json({ ok: false, error: 'server' }, { status: 503 });
+
+    /* 验证站长 passkey 断言（内部函数） */
+    async function verifyOwnerPasskeyProof(kvStore, proofObj, rpId, expectOrigin) {
+      const cid = proofObj.cid || '';
+      const cred = proofObj.credential || {};
+      let chRec = null;
+      try {
+        chRec = await kvStore.get(CHALLENGE_PREFIX + cid, 'json');
+        await kvStore.delete(CHALLENGE_PREFIX + cid);
+      } catch (e) {}
+      if (!chRec || chRec.purpose !== 'lockreset' || chRec.exp < Date.now()) return false;
+      const keys = await getPasskeys(kvStore);
+      const ownerKeys = keys.filter(function (k) { return (k.class || 'lock') === PK_CLASS_OWNER; });
+      const rawIdB64 = cred.rawId || '';
+      let stored = null;
+      for (let i = 0; i < ownerKeys.length; i++) {
+        if (ownerKeys[i].credId === rawIdB64) { stored = ownerKeys[i]; break; }
+      }
+      if (!stored || !stored.publicKey || stored.class !== PK_CLASS_OWNER) return false;
+      try {
+        const rpIdHash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rpId)));
+        const checked = await verifyAssertion({
+          credential: cred,
+          challenge: chRec.challenge,
+          rpIdHash: rpIdHash,
+          expectOrigin: expectOrigin,
+          storedPublicKey: stored.publicKey,
+          storedSignCount: stored.signCount,
+          requireUV: true,
+        });
+        stored.signCount = checked.signCount;
+        stored.lastUsedAt = Date.now();
+        return true;
+      } catch (e) {
+        return false;
+      }
     }
-    return new Response(JSON.stringify({ ok: true }), { headers });
   }
 
   return Response.json({ ok: false, error: 'action' }, { status: 400 });

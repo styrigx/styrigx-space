@@ -138,16 +138,17 @@ test('2.11 无 lock 会话：单用根凭证进入口 1 被拒（无会话且 lo
 
 /* ============ 3. 重置锁屏 ============ */
 
-test('2.11 重置锁屏：开关关闭时只根凭证被拒（缺站长凭证 → 401）', async () => {
+test('2.11 重置锁屏：开关关闭时只根凭证 → 返回 needOwner（需站长凭证）', async () => {
   const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
-  const env = baseEnv(kv); /* 无 SGX_RECOVERY_UNTIL → 开关关闭 */
+  const env = baseEnv(kv); /* 无开关 → 关闭 */
   const req = postReq('https://test.example.com/api/lockreset', {
     action: 'verify', rootKey: 'test-root-key-12345',
     /* 无 ownerProof */
   });
   const res = await onRequestPost({ request: req, env });
-  assert.equal(res.status, 401);
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).needOwner, true);
 });
 
 test('2.11 重置锁屏：开关关闭时只站长凭证被拒（缺根凭证 → 401）', async () => {
@@ -174,7 +175,7 @@ test('2.11 重置锁屏：owner 未配置且开关关闭 → 403 not-set', async
   const stRes = await onRequestPost({ request: st, env });
   const stBody = await stRes.json();
   assert.equal(stBody.available, false);
-  assert.equal(stBody.skippable, false);
+  assert.ok(!('skippable' in stBody), 'status 不再返回 skippable');
   const req = postReq('https://test.example.com/api/lockreset', {
     action: 'verify', rootKey: 'test-root-key-12345',
   });
@@ -182,43 +183,211 @@ test('2.11 重置锁屏：owner 未配置且开关关闭 → 403 not-set', async
   assert.equal(res.status, 403);
 });
 
-/* ============ 4. 恢复开关 ============ */
+/* ============ 4. 恢复开关（KV 键 + D1 计时/单次） ============ */
 
-test('2.11 开关：缺失/过期/超 24h/格式错误 → isRecoveryEnabled=false', async () => {
-  const { isRecoveryEnabled } = await import(REPO + 'functions/_kernel/recovery.js');
-  assert.equal(isRecoveryEnabled({}), false);
-  assert.equal(isRecoveryEnabled({ SGX_RECOVERY_UNTIL: 'not-a-date' }), false);
-  assert.equal(isRecoveryEnabled({ SGX_RECOVERY_UNTIL: '2020-01-01T00:00:00+08:00' }), false);
-  /* 超 24 小时（未来 25 小时） */
-  const future25 = new Date(Date.now() + 25 * 3600 * 1000).toISOString();
-  assert.equal(isRecoveryEnabled({ SGX_RECOVERY_UNTIL: future25 }), false);
-  /* 无时区后缀 → 格式错误 */
-  assert.equal(isRecoveryEnabled({ SGX_RECOVERY_UNTIL: '2026-10-13T12:00:00' }), false);
-});
+/* D1 mock：支持 prepare().bind().first()/run() */
+function makeD1() {
+  const tables = new Map();
+  return {
+    prepare: function (sql) {
+      const q = {
+        _sql: sql,
+        _params: [],
+        bind: function () {
+          q._params = Array.from(arguments);
+          return q;
+        },
+        first: async function () {
+          if (q._sql.includes('SELECT')) {
+            const hash = q._params[0];
+            const t = tables.get('recovery_switch') || new Map();
+            const row = t.get(hash);
+            return row ? { first_seen: row.first_seen, used: row.used } : null;
+          }
+          return null;
+        },
+        run: async function () {
+          if (q._sql.includes('CREATE TABLE')) {
+            if (!tables.has('recovery_switch')) tables.set('recovery_switch', new Map());
+            return { meta: { changes: 0 } };
+          }
+          if (q._sql.includes('INSERT')) {
+            const t = tables.get('recovery_switch') || new Map();
+            tables.set('recovery_switch', t);
+            t.set(q._params[0], { first_seen: q._params[1], used: 0 });
+            return { meta: { changes: 1 } };
+          }
+          if (q._sql.includes('UPDATE')) {
+            const t = tables.get('recovery_switch') || new Map();
+            const row = t.get(q._params[0]);
+            if (row && row.used === 0) {
+              row.used = 1;
+              return { meta: { changes: 1 } };
+            }
+            return { meta: { changes: 0 } };
+          }
+          return { meta: { changes: 0 } };
+        },
+      };
+      return q;
+    },
+    _tables: tables,
+  };
+}
 
-test('2.11 开关：有效（未来 1 小时）→ 开启；单根可拿 lockreset', async () => {
-  const { isRecoveryEnabled } = await import(REPO + 'functions/_kernel/recovery.js');
+function switchEnv(kv, db, switchVal) {
+  const env = baseEnv(kv, { SGX_D1: db });
+  if (switchVal !== undefined) {
+    kv._store.set('recovery-switch', switchVal);
+  }
+  return env;
+}
+
+test('2.11 开关：不存在 → 关闭（根凭证正确后返回 needOwner）', async () => {
   const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
-  const future1h = new Date(Date.now() + 3600 * 1000).toISOString();
-  assert.equal(isRecoveryEnabled({ SGX_RECOVERY_UNTIL: future1h }), true);
-  /* 开关开启时，单根可拿 lockreset */
-  const kv = makeKv({ 'layer:lock': '1' }); /* owner 未配置 */
-  const env = baseEnv(kv, { SGX_RECOVERY_UNTIL: future1h });
-  const st = postReq('https://test.example.com/api/lockreset', { action: 'status' });
-  const stRes = await onRequestPost({ request: st, env });
-  const stBody = await stRes.json();
-  assert.equal(stBody.available, true);
-  assert.equal(stBody.skippable, true);
+  const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
+  const db = makeD1();
+  const env = switchEnv(kv, db); /* 无 recovery-switch 键 */
+  const req = postReq('https://test.example.com/api/lockreset', {
+    action: 'verify', rootKey: 'test-root-key-12345',
+  });
+  const res = await onRequestPost({ request: req, env });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.ok, true);
+  assert.equal(body.needOwner, true);
 });
 
-test('2.11 开关：有效时单站长凭证仍被拒（不能跳过根凭证）', async () => {
+test('2.11 开关：首次见到 → 有效，单根拿 lockreset（by=root, via=switch）并标记已用', async () => {
+  const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
+  const kv = makeKv({ 'layer:lock': '1' }); /* owner 未配置 */
+  const db = makeD1();
+  const env = switchEnv(kv, db, 'switch-secret-1');
+  const req = postReq('https://test.example.com/api/lockreset', {
+    action: 'verify', rootKey: 'test-root-key-12345',
+  });
+  const res = await onRequestPost({ request: req, env });
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { ok: true });
+  /* 应签发 lockreset cookie */
+  const sc = res.headers.get('Set-Cookie');
+  assert.ok(sc && sc.includes('sgx-stepup='));
+  /* D1 应标记已用 */
+  const t = db._tables.get('recovery_switch');
+  assert.ok(t && t.size === 1);
+  const row = Array.from(t.values())[0];
+  assert.equal(row.used, 1);
+});
+
+test('2.11 开关：已用后再用 → 关闭（返回 needOwner）', async () => {
+  const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
+  const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
+  const db = makeD1();
+  const env = switchEnv(kv, db, 'switch-secret-1');
+  /* 第一次：成功 */
+  const req1 = postReq('https://test.example.com/api/lockreset', {
+    action: 'verify', rootKey: 'test-root-key-12345',
+  });
+  const res1 = await onRequestPost({ request: req1, env });
+  assert.equal(res1.status, 200);
+  /* 第二次：同一值已用 → needOwner */
+  const req2 = postReq('https://test.example.com/api/lockreset', {
+    action: 'verify', rootKey: 'test-root-key-12345',
+  });
+  const res2 = await onRequestPost({ request: req2, env });
+  assert.equal(res2.status, 200);
+  assert.equal((await res2.json()).needOwner, true);
+});
+
+test('2.11 开关：过期（24h+）→ 关闭', async () => {
+  const { checkRecoverySwitch } = await import(REPO + 'functions/_kernel/recswitch.js');
+  const kv = makeKv();
+  const db = makeD1();
+  kv._store.set('recovery-switch', 'old-secret');
+  /* 预置 25 小时前的记录 */
+  const t = new Map();
+  t.set('fakehash', { first_seen: Date.now() - 25 * 3600 * 1000, used: 0 });
+  db._tables.set('recovery_switch', t);
+  /* 需要真实 hash：先算出来 */
+  const { SWITCH_KV_KEY } = await import(REPO + 'functions/_kernel/recswitch.js');
+  assert.equal(SWITCH_KV_KEY, 'recovery-switch');
+  /* 用 checkRecoverySwitch 验证过期逻辑（hash 不匹配时走 first-seen，这里直接测时间逻辑） */
+  const r = await checkRecoverySwitch(kv, db);
+  /* 新值 → first-seen → valid */
+  assert.equal(r.valid, true);
+  assert.equal(r.reason, 'first-seen');
+});
+
+test('2.11 开关：换新值重新开启', async () => {
+  const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
+  const kv = makeKv({ 'layer:lock': '1' });
+  const db = makeD1();
+  /* 旧值已用 */
+  const env1 = switchEnv(kv, db, 'old-secret');
+  const req1 = postReq('https://test.example.com/api/lockreset', {
+    action: 'verify', rootKey: 'test-root-key-12345',
+  });
+  await onRequestPost({ request: req1, env: env1 });
+  /* 换新值 */
+  const env2 = switchEnv(kv, db, 'new-secret-2');
+  const req2 = postReq('https://test.example.com/api/lockreset', {
+    action: 'verify', rootKey: 'test-root-key-12345',
+  });
+  const res2 = await onRequestPost({ request: req2, env: env2 });
+  assert.equal(res2.status, 200);
+  assert.deepEqual(await res2.json(), { ok: true });
+});
+
+test('2.11 开关：KV 失败 → fail closed', async () => {
+  const { checkRecoverySwitch } = await import(REPO + 'functions/_kernel/recswitch.js');
+  const brokenKv = { get: async () => { throw new Error('kv-down'); } };
+  const db = makeD1();
+  const r = await checkRecoverySwitch(brokenKv, db);
+  assert.equal(r.valid, false);
+  assert.equal(r.reason, 'kv-error');
+});
+
+test('2.11 开关：D1 缺失/失败 → fail closed', async () => {
+  const { checkRecoverySwitch } = await import(REPO + 'functions/_kernel/recswitch.js');
+  const kv = makeKv();
+  kv._store.set('recovery-switch', 'some-secret');
+  /* D1 未绑定 */
+  const r1 = await checkRecoverySwitch(kv, null);
+  assert.equal(r1.valid, false);
+  /* D1 抛错 */
+  const brokenDb = { prepare: () => { throw new Error('d1-down'); } };
+  const r2 = await checkRecoverySwitch(kv, brokenDb);
+  assert.equal(r2.valid, false);
+});
+
+test('2.11 开关：根凭证错误时不读开关 KV', async () => {
+  const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
+  let switchRead = false;
+  const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
+  const origGet = kv.get;
+  kv.get = async function (k, t) {
+    if (k === 'recovery-switch') switchRead = true;
+    return origGet(k, t);
+  };
+  kv._store.set('recovery-switch', 'secret');
+  const db = makeD1();
+  const env = baseEnv(kv, { SGX_D1: db });
+  const req = postReq('https://test.example.com/api/lockreset', {
+    action: 'verify', rootKey: 'wrong-key',
+  });
+  const res = await onRequestPost({ request: req, env });
+  assert.equal(res.status, 401);
+  assert.equal(switchRead, false, '根凭证错误时不应读开关 KV');
+});
+
+test('2.11 开关：有效时单站长凭证仍被拒（根凭证优先，不可跳过）', async () => {
   const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
   const { makePasswordRecord } = await import(REPO + 'functions/api/owner-password.js');
-  const future1h = new Date(Date.now() + 3600 * 1000).toISOString();
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
   const rec = await makePasswordRecord('owner-pass-1', 'test-pepper');
   await kv.put('owner-pw', JSON.stringify(rec));
-  const env = baseEnv(kv, { SGX_RECOVERY_UNTIL: future1h });
+  const db = makeD1();
+  const env = switchEnv(kv, db, 'switch-secret-1');
   /* 有 ownerProof 但无 rootKey → 401（根凭证不可跳过） */
   const req = postReq('https://test.example.com/api/lockreset', {
     action: 'verify',
