@@ -26,7 +26,7 @@ jobs:
     steps:
       - name: Assert no legacy key names
         run: |
-          if grep -rn "SGX_ED25519_\|SGX_STEPUP_KEY" --include="*.js" --include="*.mjs" --include="*.yml" functions/ tests/ scripts/ .github/ 2>/dev/null; then
+          if grep -rn "SGX_ED25519_\|SGX_STEPUP_PRIVATE" --include="*.js" --include="*.mjs" --include="*.yml" functions/ tests/ scripts/ .github/ 2>/dev/null; then
             echo "ERROR: Legacy key names found. Use SGX_LOCK_* / SGX_STEPUP_PRIVATE per key spec v1.0."
             exit 1
           fi
@@ -191,8 +191,8 @@ jobs:
         run: hugo --minify
 
       - name: Generate Ed25519 test key pair (CI only)
-        # 2.4.1：middleware 缺 SGX_ED25519_PUBLIC 时 fail closed，解锁接口需要
-        # SGX_ED25519_PRIVATE 才能签发会话 cookie。CI 在每次运行中临时生成一对
+        # 2.4.1：middleware 缺 SGX_LOCK_PUBLIC 时 fail closed，解锁接口需要
+        # SGX_LOCK_PRIVATE 才能签发会话 cookie。CI 在每次运行中临时生成一对
         # 测试密钥注入 preview 环境；绝不用生产密钥，密钥不进仓库、不留文件。
         run: |
           openssl genpkey -algorithm ed25519 -out "$RUNNER_TEMP/ed25519-priv.pem"
@@ -221,8 +221,8 @@ jobs:
                           "OWNER_KEY": {"type": "secret_text", "value": "${{ secrets.PREVIEW_OWNER_KEY }}"},
                           "SESSION_SECRET": {"type": "secret_text", "value": "${{ secrets.PREVIEW_SESSION_SECRET }}"},
                           # 2.4.1：CI 临时生成的测试密钥对（每次运行新生成，非生产密钥）
-                          "SGX_ED25519_PRIVATE": {"type": "secret_text", "value": ED_PRIV},
-                          "SGX_ED25519_PUBLIC": {"type": "plain_text", "value": ED_PUB},
+                          "SGX_LOCK_PRIVATE": {"type": "secret_text", "value": ED_PRIV},
+                          "SGX_LOCK_PUBLIC": {"type": "plain_text", "value": ED_PUB},
                           "SGX_SITE": {"type": "plain_text", "value": "space"},
                           # P0-3：预览的 RP_ID/ORIGIN（明文，CI 每次部署前写入）
                           "SGX_RP_ID": {"type": "plain_text", "value": "passkey-e2e.styrigx-space.pages.dev"},
@@ -274,7 +274,7 @@ jobs:
           names = sorted(prod.keys())
           print("production vars:", names)
           # production 必须有这些，且 CI 不应增删（2026-10-10：Gray 已配 SGX_SITE/密钥对，基线更新）
-          expected = ["OWNER_KEY", "SESSION_SECRET", "SGX_APP_PRIVATE", "SGX_ED25519_PRIVATE", "SGX_ED25519_PUBLIC", "SGX_LOCK_PRIVATE", "SGX_LOCK_PUBLIC", "SGX_ORIGIN", "SGX_RP_ID", "SGX_SITE", "SGX_STEPUP_KEY", "SGX_STEPUP_PRIVATE", "SGX_STEPUP_PUBLIC", "TURNSTILE_SECRET"]
+          expected = ["OWNER_KEY", "SESSION_SECRET", "SGX_APP_PRIVATE", "SGX_APP_PUBLIC", "SGX_LOCK_PRIVATE", "SGX_LOCK_PUBLIC", "SGX_ORIGIN", "SGX_RP_ID", "SGX_SITE", "SGX_STEPUP_PRIVATE", "SGX_STEPUP_PUBLIC", "TURNSTILE_SECRET"]
           assert names == expected, f"unexpected: {names}"
           print("guard OK: production untouched")
           PYEOF
