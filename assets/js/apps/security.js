@@ -181,8 +181,8 @@ import { toast } from '../lib/toast.js';
         }, true);
       });
       // 锁定所有设备对访客隐藏（API 也会 403）
-      var lockAll = document.getElementById('sec-lockall');
-      if (lockAll) lockAll.style.display = 'none';
+      var lockAllBtn = document.getElementById('sec-lockall');
+      if (lockAllBtn) lockAllBtn.style.display = 'none';
     }
   } catch (e) {}
 
