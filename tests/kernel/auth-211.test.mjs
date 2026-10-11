@@ -612,3 +612,50 @@ test('2.11 补充二：访客请求 layer-status → 401，且不读开关 KV', 
   assert.equal(res.status, 401);
   assert.equal(switchRead, false, '访客不应触发开关 KV 读取');
 });
+
+/* ============ 11. 补充四：恢复开关提示仅出现在重置第二步 ============ */
+
+test('2.11 补充四：根凭证错误的 lockreset 响应不含 recovery-switch', async () => {
+  const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
+  const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
+  kv._store.set(SWITCH_KV_KEY, 'some-secret');
+  const db = makeD1();
+  const env = baseEnv(kv, { SGX_D1: db });
+  const req = postReq('https://test.example.com/api/lockreset', {
+    action: 'verify', rootKey: 'wrong-key',
+  });
+  const res = await onRequestPost({ request: req, env });
+  assert.equal(res.status, 401);
+  const text = await res.text();
+  assert.ok(!text.includes('recovery-switch'), '错误响应不应泄露开关 KV 键名');
+});
+
+test('2.11 补充四：访客假入口（root-auth）响应不含 recovery-switch', async () => {
+  const { onRequestPost } = await import(REPO + 'functions/api/root-auth.js');
+  const kv = makeKv({ 'layer:lock': '1' });
+  kv._store.set(SWITCH_KV_KEY, 'some-secret');
+  const db = makeD1();
+  const env = baseEnv(kv, { SGX_D1: db });
+  /* 访客无会话，提交错误密钥 → 假入口 401 */
+  const req = postReq('https://test.example.com/api/root-auth', { key: 'wrong-key' });
+  const res = await onRequestPost({ request: req, env });
+  assert.equal(res.status, 401);
+  const text = await res.text();
+  assert.ok(!text.includes('recovery-switch'), '假入口响应不应泄露开关 KV 键名');
+});
+
+test('2.11 补充四：前端提示仅出现在重置第二步（lock.js）', async () => {
+  const fs = await import('node:fs');
+  const src = fs.readFileSync(REPO + 'assets/js/shell/lock.js', 'utf8');
+  /* 提示文本存在 */
+  assert.ok(src.includes('recovery-switch'), 'lock.js 应包含开关提示');
+  /* 仅在 renderResetStep2 中出现，不在其他函数中 */
+  const step2Idx = src.indexOf('function renderResetStep2');
+  const hintIdx = src.indexOf('sgx-reset-switch-hint');
+  assert.ok(step2Idx > 0 && hintIdx > step2Idx, '提示应在 renderResetStep2 内');
+  /* 确认不在 renderResetStep1（根凭证步骤）中 */
+  const step1Idx = src.indexOf('function renderResetStep1');
+  const step1End = src.indexOf('function renderResetStep2');
+  const step1Body = src.slice(step1Idx, step1End);
+  assert.ok(!step1Body.includes('recovery-switch'), '第一步（根凭证）不应显示开关提示');
+});

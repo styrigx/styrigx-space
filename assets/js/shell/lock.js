@@ -1115,12 +1115,18 @@ function showLockScreen() {
   function renderResetStep2() {
     dlgState = 'reset-step2';
     setTitle((en ? 'Reset lock screen' : '重置锁屏') + ' (2/2)');
+    /* 补充四：根凭证正确但开关无效时，在此步骤下方显示恢复开关提示。
+       仅此处显示；根凭证错误、访客假入口、其他页面一律不出现。 */
+    var switchHint = en
+      ? 'Owner credential unavailable? Add key recovery-switch (any value) in Cloudflare KV, valid for 24 hours, single use only.'
+      : '站长凭证也无法使用？在 Cloudflare KV 添加键 recovery-switch（值任意），24 小时内有效且仅限一次。';
     setBody(
       '<div class="sgx-reset-hint">' + (en ? 'Verify owner credential' : '验证站长凭证') + '</div>' +
       '<button type="button" class="sgx-verify-skip" id="sgx-reset-pk">' + (en ? 'Use passkey' : '使用通行密钥') + '</button>' +
       '<div class="sgx-pw-field"><input type="password" id="sgx-reset-pw" class="sgx-pw-input" autocomplete="off" ' +
         'placeholder="' + (en ? 'Owner password' : '站长密码') + '">' +
-        '<button type="button" class="sgx-verify-skip" id="sgx-reset-pw-go">' + (en ? 'Verify' : '验证') + '</button></div>'
+        '<button type="button" class="sgx-verify-skip" id="sgx-reset-pw-go">' + (en ? 'Verify' : '验证') + '</button></div>' +
+      '<div class="sgx-reset-switch-hint">' + switchHint + '</div>'
     );
     clearErr();
     var pkBtn = document.getElementById('sgx-reset-pk');
