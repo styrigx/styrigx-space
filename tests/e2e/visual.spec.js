@@ -211,6 +211,22 @@ test('baseline-engine-menu', async ({ page: pg }) => {
 });
 
 
+/* 2.8.0：站点卡片链接 href 非空且不等于当前页（中英） */
+test('site-card-href-valid', async ({ page: pg }) => {
+  for (const lang of ['', '/en']) {
+    const base = lang + '/files/';
+    await pg.goto(base, { waitUntil: 'domcontentloaded' });
+    await pg.locator('[data-home-group="sites"] .files-rows li a').first().waitFor({ timeout: 15000 });
+    const hrefs = await pg.locator('[data-home-group="sites"] .files-rows li a').evaluateAll((els) =>
+      els.map((e) => e.getAttribute('href'))
+    );
+    for (const href of hrefs) {
+      if (!href || href.trim() === '') throw new Error(`Empty site href on ${base}`);
+      if (href === base || href === pg.url()) throw new Error(`Site href equals current page on ${base}: ${href}`);
+    }
+  }
+});
+
 /* 2.8.0：站点卡片标题非空断言（中英）。data/sites.yaml 的 title 字段缺失会导致中文站名空白（线上真 bug）。 */
 test('site-card-titles-nonempty', async ({ page: pg }) => {
   for (const lang of ['', '/en']) {
