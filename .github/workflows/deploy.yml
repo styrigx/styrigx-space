@@ -119,6 +119,8 @@ jobs:
         # Turnstile 用 Cloudflare 官方测试 Key（sed 替换，不污染正式密钥）
         run: |
           sed -i "s/0x4AAAAAAFSBhpWkAwZr1SMA/1x00000000000000000000AA/g" hugo.yaml
+          # P0-2：视觉测试用 Fixture 数据，保证和基线一致；正式构建用真实 posts.json
+          cp data/posts.fixture.json data/posts.json
           hugo --minify
         env:
           SGX_TEST_NO_LOCK: "1"
