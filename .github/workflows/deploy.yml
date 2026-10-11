@@ -72,7 +72,7 @@ jobs:
         run: node --test tests/kernel/session-security.test.mjs
 
       - name: UI unit tests (2.9.0 页内导航等)
-        run: node --test tests/ui/i18n-weather.test.mjs tests/ui/inpagenav.test.mjs
+        run: node --test tests/ui/frontend-session.test.mjs tests/ui/i18n-weather.test.mjs tests/ui/inpagenav.test.mjs
 
       - name: Layer boundary check (SGX 3.0 分层规范)
         # L0-L6 依赖方向：lib 不得 import shell/apps；shell 不得 import apps；
