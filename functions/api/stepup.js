@@ -11,14 +11,14 @@
  * - { action: 'verify', cid, credential } → 必须是已登录 owner 会话。
  *   只认 `stepup-challenge:` 下的 challenge（单次使用，用后删除）；
  *   断言验证强制 userVerification=required 并校验 UV 标志位。
- *   通过后签发 sgx-stepup cookie：Ed25519(SGX_STEPUP_KEY) 签名，约 10 分钟有效，
+ *   通过后签发 sgx-stepup cookie：Ed25519(SGX_STEPUP_PRIVATE) 签名，约 10 分钟有效，
  *   含 role/epoch/签发时间；HttpOnly、Secure、SameSite=Strict。
  * - { action: 'status' } → 必须是已登录 owner 会话。返回当前 sgx-stepup 是否有效。
  *
  * 只接受 POST；校验 Origin；外层 try/catch 异常一律 { ok:false, error:'server' }。
  *
  * 环境变量：
- * - SGX_STEPUP_KEY：Ed25519 私钥（PKCS8 PEM），缺失则拒绝签发（500 no-stepup-key）
+ * - SGX_STEPUP_PRIVATE：Ed25519 私钥（PKCS8 PEM），缺失则拒绝签发（500 no-stepup-key）
  * - SGX_STEPUP_PUBLIC：Ed25519 公钥（SPKI PEM），缺失则验签 fail closed
  * - SGX_RP_ID / SGX_ORIGIN：与 owner-passkey 一致，不回落
  */
@@ -37,7 +37,7 @@ export const STEPUP_CHALLENGE_PREFIX = 'stepup-challenge:';
 const STEPUP_CHALLENGE_TTL = 300; /* 5 分钟 */
 
 /**
- * 签发 stepup cookie 值：owner.epoch.iat.exp.Ed25519(SGX_STEPUP_KEY, "owner.epoch.iat.exp")。
+ * 签发 stepup cookie 值：owner.epoch.iat.exp.Ed25519(SGX_STEPUP_PRIVATE, "owner.epoch.iat.exp")。
  * @param {string} privatePem Ed25519 私钥（PKCS8 PEM）
  * @param {number} epoch 当前 session epoch
  */
@@ -254,10 +254,10 @@ async function handlePost(context) {
         };
         await kv.put(keyName, JSON.stringify(ordered));
       } catch (e2) {}
-      /* 签发 sgx-stepup cookie：缺 SGX_STEPUP_KEY 则拒绝（fail closed） */
-      const stepupKey = (env && env.SGX_STEPUP_KEY) || '';
+      /* 签发 sgx-stepup cookie：缺 SGX_STEPUP_PRIVATE 则拒绝（fail closed） */
+      const stepupKey = (env && env.SGX_STEPUP_PRIVATE) || '';
       if (!stepupKey) {
-        console.error('[stepup] SGX_STEPUP_KEY 未配置，拒绝签发');
+        console.error('[stepup] SGX_STEPUP_PRIVATE 未配置，拒绝签发');
         return Response.json({ ok: false, error: 'no-stepup-key' }, { status: 500 });
       }
       let epoch;

@@ -12,7 +12,7 @@
  * 运行：SGX_TEST_OWNER_KEY=<预览测试 OWNER_KEY> SGX_TEST_BASE=https://<preview> \
  *   SGX_TEST_SUITE=passkey npx playwright test --config=playwright.config.js stepup.spec.js
  * 未设 SGX_TEST_OWNER_KEY 时跳过（CI 需 Gray 配置该 secret）。
- * 注意：完整流程需要预览站配置 SGX_STEPUP_KEY/SGX_STEPUP_PUBLIC，否则 verify 返回 no-stepup-key。
+ * 注意：完整流程需要预览站配置 SGX_STEPUP_PRIVATE/SGX_STEPUP_PUBLIC，否则 verify 返回 no-stepup-key。
  */
 import { test, expect } from '@playwright/test';
 
@@ -203,8 +203,8 @@ test.describe('stepup e2e', () => {
         headers,
       });
       const j = await r.json();
-      /* 未配 SGX_STEPUP_KEY 时返回 no-stepup-key（500），属环境问题而非逻辑问题 */
-      if (j.error === 'no-stepup-key') test.skip(true, '预览站未配 SGX_STEPUP_KEY，跳过');
+      /* 未配 SGX_STEPUP_PRIVATE 时返回 no-stepup-key（500），属环境问题而非逻辑问题 */
+      if (j.error === 'no-stepup-key') test.skip(true, '预览站未配 SGX_STEPUP_PRIVATE，跳过');
       expect(r.status()).toBe(200);
       expect(j.ok).toBe(true);
 
@@ -308,7 +308,7 @@ test.describe('stepup e2e', () => {
         headers,
       });
       const j = await r.json();
-      if (j.error === 'no-stepup-key') test.skip(true, '预览站未配 SGX_STEPUP_KEY，跳过');
+      if (j.error === 'no-stepup-key') test.skip(true, '预览站未配 SGX_STEPUP_PRIVATE，跳过');
       /* 必须是 UV 专属错误码 */
       expect(r.status()).toBe(403);
       expect(j.error).toBe('uv-required');

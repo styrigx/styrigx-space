@@ -8,7 +8,7 @@
  * - 伪造签名（另一把密钥签）被拒（bad-sig）
  * - epoch 变更后旧 cookie 失效（epoch-changed）
  * - 缺 SGX_STEPUP_PUBLIC 时 fail closed（no-pubkey）
- * - 缺 SGX_STEPUP_KEY 时拒绝签发（no-stepup-key）
+ * - 缺 SGX_STEPUP_PRIVATE 时拒绝签发（no-stepup-key）
  * - /api/stepup：无会话 → 401；visitor 会话 → 403；challenge 用途隔离
  *   （login 的 pk-challenge: 不能用于 stepup verify）
  *
@@ -87,7 +87,7 @@ function makeEnv(kv, overrides = {}) {
     OWNER_KV: kv,
     SGX_RP_ID: 'test.example.com',
     SGX_ORIGIN: 'https://test.example.com',
-    SGX_STEPUP_KEY: TEST_PRIV_PEM,
+    SGX_STEPUP_PRIVATE: TEST_PRIV_PEM,
     SGX_STEPUP_PUBLIC: TEST_PUB_PEM,
     SGX_ED25519_PUBLIC: TEST_PUB_PEM, /* 会话验签用同一测试密钥 */
     ...overrides,
@@ -336,7 +336,7 @@ test('/api/stepup verify：stepup challenge 单次使用（重放被拒）', asy
   assert.equal(j.error, 'challenge');
 });
 
-test('/api/stepup verify：缺 SGX_STEPUP_KEY 时不断言直接拒绝签发', async () => {
+test('/api/stepup verify：缺 SGX_STEPUP_PRIVATE 时不断言直接拒绝签发', async () => {
   /* 此测试验证 signStepupCookie 的调用方在缺 key 时返回 no-stepup-key。
      完整 verify 流程需要真实 WebAuthn 断言，由 e2e 覆盖；这里只验证
      parseStepupCookie 对非法输入的鲁棒性（单元层面） */
