@@ -2241,3 +2241,31 @@
     transition-duration: .01ms !important; animation-duration: .01ms !important;
   }
 }
+
+/* 2.9.3：访客升级验证层 */
+#sgx-upgrade-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0,0,0,.5);
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.sgx-upgrade-sheet {
+  background: var(--m-surface, #fff);
+  border-radius: 24px 24px 0 0;
+  padding: 24px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+  width: 100%; max-width: 480px;
+}
+.sgx-upgrade-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+.sgx-upgrade-desc { font-size: 14px; color: var(--m-on-surface-variant); margin-bottom: 20px; }
+.sgx-upgrade-btn {
+  display: block; width: 100%; padding: 14px; margin-bottom: 12px;
+  border-radius: 12px; border: none; font-size: 16px; font-weight: 600;
+  background: var(--m-primary); color: var(--m-on-primary); cursor: pointer;
+}
+.sgx-upgrade-cancel {
+  display: block; width: 100%; padding: 12px; border: none;
+  background: none; font-size: 15px; color: var(--m-on-surface-variant); cursor: pointer;
+}
+@media (min-width: 840px) {
+  #sgx-upgrade-overlay { align-items: center; }
+  .sgx-upgrade-sheet { border-radius: 24px; }
+}

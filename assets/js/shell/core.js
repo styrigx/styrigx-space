@@ -17,6 +17,7 @@ import { initInPageNav } from './inpagenav.js';
 import { initScrollFx } from './scrollfx.js';
 import { initDexBridge } from './layout.js';
 import { initLock } from './lock.js';
+import { initUpgrade } from './upgrade.js';
 import { on as featOn } from '../lib/features.js';
 import { toast } from '../lib/toast.js';
 import { openSheet, closeSheet } from './sheet.js';
@@ -76,6 +77,7 @@ export function initCore() {
   initFeatSync();
   /* Hark：CI 测试构建禁用锁屏（构建期摇掉，线上无残留） */
   if (!SGX_TEST_NO_LOCK) initLock();
+  initUpgrade();
   engines.init();
 
   /* 跨脚本/模板桥接的最小公共 API */
