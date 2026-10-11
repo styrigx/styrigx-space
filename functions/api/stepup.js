@@ -26,7 +26,7 @@ import { verifySessionDetailed } from '../_middleware.js';
 import { getSessionEpoch, ROLE_OWNER } from '../_kernel/session.js';
 import { ed25519Sign, ed25519Verify, b64urlEnc } from '../_kernel/crypto.js';
 import { randB64, verifyAssertion } from '../_kernel/passkey-verify.js';
-import { getPasskeys } from './owner-passkey.js';
+import { getPasskeys, PK_CLASS_LOCK } from './owner-passkey.js';
 
 /* stepup cookie 定义（一处定义） */
 export const STEPUP_COOKIE = 'sgx-stepup';
@@ -171,10 +171,12 @@ async function handlePost(context) {
   }
   const rpIdHash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(RP_ID)));
 
-  /* ============ challenge ============ */
+  /* ============ challenge ============
+     2.10.0：只接受锁屏类通行密钥（challenge 只列 lock 凭据）。 */
   if (action === 'challenge') {
     const keys = await getPasskeys(kv);
-    if (keys.length === 0) {
+    const lockKeys = keys.filter(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK; });
+    if (lockKeys.length === 0) {
       return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
     }
     const challenge = randB64(32);
@@ -193,7 +195,7 @@ async function handlePost(context) {
       cid: cid,
       challenge: challenge,
       rpId: RP_ID,
-      allowCredentials: keys.map(function (k) { return { id: k.credId, type: 'public-key' }; }),
+      allowCredentials: lockKeys.map(function (k) { return { id: k.credId, type: 'public-key' }; }),
     });
   }
 
@@ -212,16 +214,21 @@ async function handlePost(context) {
       return Response.json({ ok: false, error: 'challenge' }, { status: 403 });
     }
     const keys = await getPasskeys(kv);
-    if (keys.length === 0) {
+    const lockKeys = keys.filter(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK; });
+    if (lockKeys.length === 0) {
       return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
     }
     const rawIdB64 = cred.rawId || '';
     let stored = null;
-    for (let i = 0; i < keys.length; i++) {
-      if (keys[i].credId === rawIdB64) { stored = keys[i]; break; }
+    for (let i = 0; i < lockKeys.length; i++) {
+      if (lockKeys[i].credId === rawIdB64) { stored = lockKeys[i]; break; }
     }
     if (!stored || !stored.publicKey) {
       return Response.json({ ok: false, error: 'unknown-key' }, { status: 403 });
+    }
+    /* 2.10.0：服务端再次校验分类（应用类通行密钥不能用于 stepup） */
+    if ((stored.class || PK_CLASS_LOCK) !== PK_CLASS_LOCK) {
+      return Response.json({ ok: false, error: 'class-mismatch' }, { status: 403 });
     }
     try {
       /* 共享断言验证，强制 userVerification=required 并校验 UV 标志位 */
@@ -251,7 +258,9 @@ async function handlePost(context) {
           publicKey: stored.publicKey,
           signCount: stored.signCount || 0,
           uv: stored.uv ? 1 : 0,
+          class: stored.class || PK_CLASS_LOCK,
         };
+        if (ordered.class === 'app' && stored.aud) ordered.aud = stored.aud;
         await kv.put(keyName, JSON.stringify(ordered));
       } catch (e2) {}
       /* 签发 sgx-stepup cookie：缺 SGX_STEPUP_PRIVATE 则拒绝（fail closed） */

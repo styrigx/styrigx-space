@@ -1,8 +1,9 @@
-{{/* 应用授权页（sgx-app 通行证签发）：
+{{/* 应用授权页（sgx-app 通行证签发）。2.10.0 三域拆分版：
    book 跳转过来：/app-verify/?aud=book&scope=upload&return=<book-url>
-   流程：未解锁先走锁屏 → 通行密钥复验（复用 stepup.js，不接受密码）
-   → POST /api/app-token → 成功后 location.replace(return)。
-   复验失败或取消时停在主站并给出提示。 */}}
+   流程：未解锁先走锁屏 → 应用类通行密钥 WebAuthn（只列该 aud 的凭据，强制 UV）
+   → POST /api/app-token（单次 app-auth 绑定）→ 成功后 location.replace(return)。
+   全程不需要 sgx-stepup，不接受密码。
+   该 aud 没有应用类通行密钥时，提示去「安全与隐私 → 应用验证」添加。 */}}
 {{ define "main" }}
 <div class="set-layout max-w-2xl mx-auto px-4 pb-28">
   {{ partial "subpage-head.html" (dict "title" "应用授权" "isEn" false) }}
@@ -13,7 +14,11 @@
     </div>
     <div id="appv-error" hidden>
       <p class="text-[15px] text-red-600" id="appv-error-msg"></p>
-      <button type="button" id="appv-retry" class="mt-4 px-6 py-2 rounded-full bg-m-primary text-m-on-primary">重试</button>
+      <p class="mt-2 text-[14px]" id="appv-error-hint" hidden></p>
+      <div class="mt-4 flex gap-3 justify-center">
+        <button type="button" id="appv-retry" class="px-6 py-2 rounded-full bg-m-primary text-m-on-primary">重试</button>
+        <a id="appv-add-key" href="/settings/security/" class="px-6 py-2 rounded-full border border-m-outline" hidden>去添加钥匙</a>
+      </div>
     </div>
     <div id="appv-done" hidden>
       <p class="text-[15px]">授权成功，正在返回…</p>
@@ -24,26 +29,45 @@
 <script type="module">
 (function () {
   'use strict';
-  const ALLOWED_ORIGIN = 'https://book.styrigx.com';
-  const DEFAULT_RETURN = 'https://book.styrigx.com/';
+  // 应用白名单（与服务端 ../_kernel/app-registry.js 保持一致）
+  const APPS = {
+    book: { scopes: ['upload'], origin: 'https://book.styrigx.com', settingsPath: '/settings/security/' },
+  };
 
-  /** 校验 return：new URL 解析，origin 必须严格等于白名单 */
-  function validateReturn(url) {
-    if (!url) return DEFAULT_RETURN;
-    try {
-      const u = new URL(url);
-      if (u.origin !== ALLOWED_ORIGIN) return null;
-      return url;
-    } catch (e) {
-      return null;
+  /** 校验 aud/scope/return */
+  function validateParams(aud, scope, returnUrl) {
+    const app = APPS[aud];
+    if (!app) return { ok: false, error: 'aud' };
+    if (!app.scopes.includes(scope)) return { ok: false, error: 'scope' };
+    let ret = app.origin + '/';
+    if (returnUrl) {
+      try {
+        const u = new URL(returnUrl);
+        if (u.origin !== app.origin) return { ok: false, error: 'return' };
+        ret = returnUrl;
+      } catch (e) {
+        return { ok: false, error: 'return' };
+      }
     }
+    return { ok: true, return: ret, settingsPath: app.settingsPath };
   }
 
-  function showError(msg) {
+  function showError(msg, showAddKey, settingsPath) {
     document.getElementById('appv-loading').hidden = true;
     document.getElementById('appv-done').hidden = true;
     const errEl = document.getElementById('appv-error');
     document.getElementById('appv-error-msg').textContent = msg;
+    const hint = document.getElementById('appv-error-hint');
+    const addKey = document.getElementById('appv-add-key');
+    if (showAddKey) {
+      hint.textContent = '先在「安全与隐私 → 应用验证」中添加钥匙。';
+      hint.hidden = false;
+      addKey.hidden = false;
+      if (settingsPath) addKey.href = settingsPath;
+    } else {
+      hint.hidden = true;
+      addKey.hidden = true;
+    }
     errEl.hidden = false;
   }
 
@@ -70,17 +94,22 @@
     return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
 
-  /** 发起 WebAuthn 复验（复用 stepup.js 的 challenge/verify 流程，不接受密码） */
-  async function doStepupVerify() {
-    // 1. 获取 challenge
-    const chRes = await fetch('/api/stepup', {
+  /** 应用类通行密钥验证（2.10.0：只列该 aud 的应用类凭据，强制 UV） */
+  async function doAppVerify(aud) {
+    // 1. 获取 challenge（应用类）
+    const chRes = await fetch('/api/owner-passkey', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'challenge' }),
+      body: JSON.stringify({ action: 'challenge', type: 'auth', pkClass: 'app', aud: aud }),
       credentials: 'include',
     });
     const chData = await chRes.json();
     if (!chData.ok) {
+      if (chData.error === 'not-set') {
+        const e = new Error('no-app-key');
+        e.noAppKey = true;
+        throw e;
+      }
       throw new Error(chData.error || 'challenge 失败');
     }
 
@@ -98,12 +127,14 @@
     const cred = await navigator.credentials.get({ publicKey });
     if (!cred) throw new Error('用户取消了验证');
 
-    // 3. 提交验签
-    const verifyRes = await fetch('/api/stepup', {
+    // 3. 提交验签 → 拿 appCid（单次绑定）
+    const verifyRes = await fetch('/api/owner-passkey', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        action: 'verify',
+        action: 'auth',
+        pkClass: 'app',
+        aud: aud,
         cid: chData.cid,
         credential: {
           id: cred.id,
@@ -120,84 +151,76 @@
       credentials: 'include',
     });
     const verifyData = await verifyRes.json();
-    if (!verifyData.ok) {
+    if (!verifyData.ok || !verifyData.appCid) {
       throw new Error(verifyData.error || '验签失败');
     }
-    return true;
+    return verifyData.appCid;
   }
 
   async function main() {
     const params = new URLSearchParams(location.search);
     const aud = params.get('aud');
     const scope = params.get('scope');
-    const returnUrl = validateReturn(params.get('return'));
+    const checked = validateParams(aud, scope, params.get('return'));
 
-    // return 不合法 → 停在主站并提示
-    if (!returnUrl) {
-      showError('return 参数不合法，已停止跳转。');
+    if (!checked.ok) {
+      const msg = checked.error === 'aud' ? 'aud 参数不合法。'
+        : checked.error === 'scope' ? 'scope 参数不合法。'
+        : 'return 参数不合法，已停止跳转。';
+      showError(msg, false);
       return;
     }
-    if (aud !== 'book' || scope !== 'upload') {
-      showError('aud 或 scope 参数不合法。');
-      return;
-    }
+    const returnUrl = checked.return;
 
     document.getElementById('appv-retry').addEventListener('click', () => location.reload());
 
     try {
-      // 1. 检查 stepup 状态
-      const stepupRes = await fetch('/api/stepup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'status' }),
-        credentials: 'include',
-      });
-      const stepupData = await stepupRes.json().catch(() => ({}));
-
-      // 2. 未完成 → 直接发起 WebAuthn 复验（而不是卡住）
-      if (!stepupData.ok || !stepupData.valid) {
-        showLoading('请完成通行密钥验证…');
-        try {
-          await doStepupVerify();
-        } catch (e) {
-          // 用户取消或失败 → 停在主站并提示
-          showError('验证未完成：' + e.message + '。请重试。');
+      // 1. 应用类通行密钥验证（无密码选项）
+      showLoading('请用该应用的通行密钥验证…');
+      let appCid;
+      try {
+        appCid = await doAppVerify(aud);
+      } catch (e) {
+        if (e && e.noAppKey) {
+          showError('该应用还没有通行密钥。', true, checked.settingsPath);
           return;
         }
+        showError('验证未完成：' + e.message + '。请重试。', false);
+        return;
       }
 
-      // 3. POST /api/app-token 签发（带 CSRF 防护）
+      // 2. POST /api/app-token 签发（带 appCid 单次绑定 + CSRF 防护）
       showLoading('正在签发应用通行证…');
       const res = await fetch('/api/app-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'issue', aud, scope, return: returnUrl }),
+        body: JSON.stringify({ action: 'issue', aud: aud, scope: scope, return: returnUrl, appCid: appCid }),
         credentials: 'include',
       });
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        showError('签发失败：' + (data.error || res.status));
+        showError('签发失败：' + (data.error || res.status), false);
         return;
       }
 
       const data = await res.json();
       if (!data.ok) {
-        showError('签发失败：' + (data.error || 'unknown'));
+        showError('签发失败：' + (data.error || 'unknown'), false);
         return;
       }
 
-      // 4. 成功 → 跳回 book（cookie 已由服务端设置）
+      // 3. 成功 → 跳回子站（cookie 已由服务端设置）
       document.getElementById('appv-loading').hidden = true;
       document.getElementById('appv-done').hidden = false;
       location.replace(data.return || returnUrl);
     } catch (e) {
-      showError('网络错误：' + e.message);
+      showError('网络错误：' + e.message, false);
     }
   }
 
   // 暴露给测试
-  window.__appVerify = { validateReturn, ALLOWED_ORIGIN, DEFAULT_RETURN };
+  window.__appVerify = { validateParams, APPS };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', main);

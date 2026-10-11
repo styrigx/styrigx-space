@@ -47,6 +47,17 @@ import {
   issueSessionCookie,
   ROLE_OWNER,
 } from '../_kernel/session.js';
+import { getApp } from '../_kernel/app-registry.js';
+import { verifyStepupCookie } from './stepup.js';
+
+/* 2.10.0：通行密钥分类 */
+export const PK_CLASS_LOCK = 'lock';
+export const PK_CLASS_APP = 'app';
+/* 所有者显示名（注册参数写死，用户不填） */
+export const OWNER_DISPLAY_NAME = 'Sloan Gray';
+/* 应用类认证完成后的单次绑定记录前缀（app-token 签发时消费） */
+export const APP_AUTH_PREFIX = 'app-auth:';
+const APP_AUTH_TTL = 300; /* 5 分钟 */
 
 /* AAGUID → 密码管理器（只用于显示，不参与安全判断） */
 const AAGUID_PROVIDERS = {
@@ -94,6 +105,7 @@ async function verifyToken(token, secret) {
 /**
  * 获取所有通行密钥（新结构：每把一个 key）。
  * 索引补建逻辑见 ensureIndex。
+ * 2.10.0：幂等迁移——没有 class 字段的旧凭据视为 lock 并写回（重复执行无副作用）。
  */
 async function ensureIndex(kv) {
   try {
@@ -125,7 +137,14 @@ export async function getPasskeys(kv) {
       try {
         const keyName = 'owner-passkey:' + String(credId).slice(0, 12);
         const v = await kv.get(keyName, 'json');
-        if (v && v.credId === credId) keys.push(v);
+        if (v && v.credId === credId) {
+          /* 2.10.0 幂等迁移：无 class 的旧凭据 → lock，写回（重复执行无副作用） */
+          if (!v.class) {
+            v.class = PK_CLASS_LOCK;
+            try { await kv.put(keyName, JSON.stringify(v)); } catch (e2) {}
+          }
+          keys.push(v);
+        }
       } catch (e) {}
     }
     /* 一次性迁移：旧数组结构 → 新结构（含索引补建） */
@@ -146,6 +165,7 @@ export async function getPasskeys(kv) {
                 publicKey: item.publicKey,
                 signCount: item.signCount || 0,
                 uv: item.uv ? 1 : 0,
+                class: PK_CLASS_LOCK,
               };
               const keyName = 'owner-passkey:' + String(item.credId).slice(0, 12);
               await kv.put(keyName, JSON.stringify(migrated), {
@@ -168,6 +188,7 @@ export async function getPasskeys(kv) {
 
 /**
  * 保存单把通行密钥。
+ * 2.10.0：记录 class（lock/app），应用类还记录 aud。
  * @param {any} kv
  * @param {any} item
  */
@@ -184,7 +205,11 @@ async function savePasskey(kv, item) {
     publicKey: item.publicKey,
     signCount: item.signCount || 0,
     uv: item.uv ? 1 : 0,
+    class: item.class === PK_CLASS_APP ? PK_CLASS_APP : PK_CLASS_LOCK,
   };
+  if (ordered.class === PK_CLASS_APP && item.aud) {
+    ordered.aud = String(item.aud);
+  }
   await kv.put(keyName, JSON.stringify(ordered), {
     metadata: { name: ordered.name, provider: ordered.provider, createdAt: ordered.createdAt },
   });
@@ -204,9 +229,12 @@ async function savePasskey(kv, item) {
  * 删除单把通行密钥。
  * @param {any} kv
  * @param {string} credId
+ * @returns {Promise<any|null>} 被删除的记录（调用方据此判断是否推进 app-epoch）
  */
 async function deletePasskey(kv, credId) {
   const keyName = 'owner-passkey:' + String(credId).slice(0, 12);
+  let rec = null;
+  try { rec = await kv.get(keyName, 'json'); } catch (e) {}
   await kv.delete(keyName);
   /* 同步更新索引 */
   try {
@@ -216,24 +244,55 @@ async function deletePasskey(kv, credId) {
       await kv.put('owner-passkey-index', JSON.stringify(idx));
     }
   } catch (e) {}
+  return rec;
 }
 
 /**
  * 获取或创建固定用户 ID（32 字节随机，存 KV）。
+ * 2.10.0：锁屏类用 'owner-user-id'；每个 aud 各一个 'owner-user-id:app:<aud>'，
+ * 让密码管理器把它们存成独立条目。
  * @param {any} kv
+ * @param {string} [aud] 应用 aud（应用类必填）
  */
-async function getUserHandle(kv) {
+async function getUserHandle(kv, aud) {
+  const key = aud ? 'owner-user-id:app:' + aud : 'owner-user-id';
   try {
-    let uh = await kv.get('owner-user-id');
+    let uh = await kv.get(key);
     if (!uh) {
       const u8 = crypto.getRandomValues(new Uint8Array(32));
       uh = b64urlEnc(u8);
-      await kv.put('owner-user-id', uh);
+      await kv.put(key, uh);
     }
     return uh;
   } catch (e) {
     return null;
   }
+}
+
+/**
+ * 2.10.0：要求有效的 sgx-stepup（安全设置操作门禁）。
+ * @returns {Promise<{ok:boolean}>}
+ */
+async function requireStepup(request, env) {
+  const r = await verifyStepupCookie(request, env);
+  return { ok: !!r.ok };
+}
+
+/** 清除 sgx-stepup cookie（敏感操作成功后立即清除） */
+function clearStepupCookie(headers) {
+  headers.append(
+    'Set-Cookie',
+    'sgx-stepup=; Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0'
+  );
+}
+
+/** app-epoch:<aud> +1（删除应用类通行密钥时调用） */
+async function bumpAppEpoch(kv, aud) {
+  const key = 'app-epoch:' + aud;
+  let v = 0;
+  try { v = parseInt(await kv.get(key) || '0', 10) || 0; } catch (e) {}
+  try { await kv.put(key, String(v + 1)); } catch (e) {}
+  return v + 1;
 }
 
 /** @param {any} context */
@@ -280,65 +339,91 @@ async function handlePost(context) {
   }
   const rpIdHash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(RP_ID)));
 
-  /* ============ challenge ============ */
+  /* ============ challenge ============
+     2.10.0：新增 pkClass（lock/app）与 aud 参数。
+     - type=register, pkClass=lock：需 sgx-stepup，第一把除外
+     - type=register, pkClass=app：aud 必须在白名单，否则 400；必须 sgx-stepup（无例外）
+     - type=auth, pkClass=lock（默认）：challenge 只列 lock 凭据（锁屏解锁）
+     - type=auth, pkClass=app：aud 必须在白名单；challenge 只列该 aud 的 app 凭据
+  */
   if (action === 'challenge') {
     const type = (body && body.type) || '';
     if (type !== 'register' && type !== 'auth') {
       return Response.json({ ok: false, error: 'params' }, { status: 400 });
     }
-    /* register 需要 owner-auth token */
+    let pkClass = (body && body.pkClass) || PK_CLASS_LOCK;
+    if (pkClass !== PK_CLASS_LOCK && pkClass !== PK_CLASS_APP) {
+      return Response.json({ ok: false, error: 'params' }, { status: 400 });
+    }
+    let aud = (body && body.aud) || '';
+    if (pkClass === PK_CLASS_APP) {
+      if (!getApp(aud)) {
+        return Response.json({ ok: false, error: 'aud' }, { status: 400 });
+      }
+    } else {
+      aud = '';
+    }
+    const keys = await getPasskeys(kv);
+    const classKeys = keys.filter(function (k) {
+      if ((k.class || PK_CLASS_LOCK) !== pkClass) return false;
+      if (pkClass === PK_CLASS_APP && k.aud !== aud) return false;
+      return true;
+    });
+    /* register 需要 sgx-stepup：
+       - lock：已有 lock 凭据时必须 stepup；第一把除外（否则永远加不上第一把）
+       - app：永远需要（无例外，也就意味着必须先有一把 lock 凭据做 stepup） */
     if (type === 'register') {
-      const token = (body && body.token) || '';
-      const secret = (env && env.SESSION_SECRET) || '';
-      if (!secret || !(await verifyToken(token, secret))) {
-        return Response.json({ ok: false, error: 'token' }, { status: 403 });
+      const needStepup = pkClass === PK_CLASS_APP || classKeys.length > 0;
+      if (needStepup) {
+        const s = await requireStepup(request, env);
+        if (!s.ok) {
+          return Response.json({ ok: false, error: 'stepup-required' }, { status: 403 });
+        }
       }
     }
-    /* auth 需要已有 passkey */
-    const keys = await getPasskeys(kv);
-    if (type === 'auth' && keys.length === 0) {
+    /* auth 需要已有对应凭据 */
+    if (type === 'auth' && classKeys.length === 0) {
       return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
     }
     const challenge = randB64(32);
     const cid = randB64(16);
     try {
-      await kv.put('pk-challenge:' + cid, JSON.stringify({ challenge, type, exp: Date.now() + 300000 }), { expirationTtl: 300 });
+      await kv.put('pk-challenge:' + cid, JSON.stringify({ challenge, type, pkClass, aud, exp: Date.now() + 300000 }), { expirationTtl: 300 });
     } catch (e) {}
     const resp = { ok: true, cid: cid, challenge: challenge, rpId: RP_ID };
     if (type === 'register') {
-      /* 下发用户信息：displayName/name/rp.name 由服务端配置，前端不硬编码 */
-      const userHandle = await getUserHandle(kv);
+      /* 下发用户信息：全部写死，用户不填。
+         displayName=Sloan Gray（常量）；lock 的 name=lock；app 的 name=aud；
+         user.id 每类/aud 独立，存 KV 复用。 */
+      const userHandle = await getUserHandle(kv, pkClass === PK_CLASS_APP ? aud : '');
       resp.user = {
         id: userHandle,
-        name: 'owner',
-        displayName: 'Sloan Gray',
+        name: pkClass === PK_CLASS_APP ? aud : 'lock',
+        displayName: OWNER_DISPLAY_NAME,
       };
       resp.rp = {
         id: RP_ID,
         name: 'Styrigx',
       };
-      /* excludeCredentials：防重复注册（ensureIndex，不存在时一次性补建） */
-      const idx = await ensureIndex(kv);
-      resp.excludeCredentials = idx.map(function (cid) {
-        return { id: cid, type: 'public-key' };
+      /* excludeCredentials：防重复注册（同类凭据） */
+      resp.excludeCredentials = classKeys.map(function (k) {
+        return { id: k.credId, type: 'public-key' };
       });
     }
     if (type === 'auth') {
-      resp.allowCredentials = keys.map(function (k) { return { id: k.credId, type: 'public-key' }; });
+      /* 2.10.0：challenge 只列出本类（本 aud）的凭据；服务端 verify 时再次校验分类 */
+      resp.allowCredentials = classKeys.map(function (k) { return { id: k.credId, type: 'public-key' }; });
     }
     return Response.json(resp);
   }
 
-  /* ============ register ============ */
+  /* ============ register ============
+     2.10.0：从 challenge 记录取 pkClass/aud（不信任 body），存储时写入分类。
+     stepup 门禁已在 challenge 环节执行（第一把 lock 除外）；这里再验一次（纵深防御）。 */
   if (action === 'register') {
-    const token = (body && body.token) || '';
     const cred = (body && body.credential) || {};
     const cid = (body && body.cid) || '';
-    const secret = (env && env.SESSION_SECRET) || '';
-    if (!secret || !(await verifyToken(token, secret))) {
-      return Response.json({ ok: false, error: 'token' }, { status: 403 });
-    }
-    /* 取 challenge */
+    /* 取 challenge（单次使用） */
     let chRec = null;
     try {
       chRec = await kv.get('pk-challenge:' + cid, 'json');
@@ -346,6 +431,18 @@ async function handlePost(context) {
     } catch (e) {}
     if (!chRec || chRec.type !== 'register' || chRec.exp < Date.now()) {
       return Response.json({ ok: false, error: 'challenge' }, { status: 403 });
+    }
+    const pkClass = chRec.pkClass === PK_CLASS_APP ? PK_CLASS_APP : PK_CLASS_LOCK;
+    const aud = pkClass === PK_CLASS_APP ? (chRec.aud || '') : '';
+    if (pkClass === PK_CLASS_APP && !getApp(aud)) {
+      return Response.json({ ok: false, error: 'aud' }, { status: 400 });
+    }
+    /* 纵深防御：再验一次 stepup（第一把 lock 除外） */
+    if (pkClass === PK_CLASS_APP || (await getPasskeys(kv)).some(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK; })) {
+      const s = await requireStepup(request, env);
+      if (!s.ok) {
+        return Response.json({ ok: false, error: 'stepup-required' }, { status: 403 });
+      }
     }
     try {
       /* 验证 clientData：type / challenge / origin 严格等于期望值 */
@@ -394,6 +491,8 @@ async function handlePost(context) {
         publicKey: jwk,
         signCount: parsed.signCount,
         uv: 1,
+        class: pkClass,
+        aud: aud || undefined,
       };
       await savePasskey(kv, item);
       return Response.json({ ok: true, credId: credIdB64 });
@@ -405,7 +504,10 @@ async function handlePost(context) {
     }
   }
 
-  /* ============ auth ============ */
+  /* ============ auth ============
+     2.10.0：按 challenge 记录的 pkClass/aud 过滤；verify 时服务端再次校验分类
+     （浏览器凭据选择器不是安全边界）。app 类成功后签发单次 app-auth 记录，
+     供 /api/app-token 消费（不经过 stepup）。 */
   if (action === 'auth') {
     const cred = (body && body.credential) || {};
     const cid = (body && body.cid) || '';
@@ -417,19 +519,33 @@ async function handlePost(context) {
     if (!chRec || chRec.type !== 'auth' || chRec.exp < Date.now()) {
       return Response.json({ ok: false, error: 'challenge' }, { status: 403 });
     }
+    const pkClass = chRec.pkClass === PK_CLASS_APP ? PK_CLASS_APP : PK_CLASS_LOCK;
+    const aud = pkClass === PK_CLASS_APP ? (chRec.aud || '') : '';
     const keys = await getPasskeys(kv);
-    if (keys.length === 0) {
+    const classKeys = keys.filter(function (k) {
+      if ((k.class || PK_CLASS_LOCK) !== pkClass) return false;
+      if (pkClass === PK_CLASS_APP && k.aud !== aud) return false;
+      return true;
+    });
+    if (classKeys.length === 0) {
       return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
     }
     /* 按 credential id 找对应公钥 */
     const rawIdB64 = cred.rawId || '';
     let stored = null;
     let storedIdx = -1;
-    for (let i = 0; i < keys.length; i++) {
-      if (keys[i].credId === rawIdB64) { stored = keys[i]; storedIdx = i; break; }
+    for (let i = 0; i < classKeys.length; i++) {
+      if (classKeys[i].credId === rawIdB64) { stored = classKeys[i]; storedIdx = i; break; }
     }
     if (!stored || !stored.publicKey) {
       return Response.json({ ok: false, error: 'unknown-key' }, { status: 403 });
+    }
+    /* 2.10.0：服务端再次校验分类和 aud（防混用） */
+    if ((stored.class || PK_CLASS_LOCK) !== pkClass) {
+      return Response.json({ ok: false, error: 'class-mismatch' }, { status: 403 });
+    }
+    if (pkClass === PK_CLASS_APP && stored.aud !== aud) {
+      return Response.json({ ok: false, error: 'aud-mismatch' }, { status: 403 });
     }
     try {
       /* 共享断言验证（_kernel/passkey-verify.js）：clientData、authData、
@@ -455,9 +571,25 @@ async function handlePost(context) {
       stored.signCount = checked.signCount;
       stored.lastUsedAt = Date.now();
       try { await savePasskey(kv, stored); } catch (e2) {}
-      /* 通过：签发 Ed25519 会话 cookie（fail closed），并签发管理 token。
-         issueSessionCookie 永不抛错，明确错误码不会被外层 catch 吞成 403。
-         2.8.0：通行密钥验证签 owner（12 小时）。 */
+      /* 通过：
+         - lock：签发 Ed25519 会话 cookie（fail closed），并签发管理 token。
+           issueSessionCookie 永不抛错，明确错误码不会被外层 catch 吞成 403。
+           2.8.0：通行密钥验证签 owner（12 小时）。
+         - app（2.10.0）：写入单次 app-auth 记录并返回 appCid，
+           供 /api/app-token 消费（全程不依赖 stepup）。 */
+      if (pkClass === PK_CLASS_APP) {
+        const appCid = randB64(16);
+        try {
+          await kv.put(
+            APP_AUTH_PREFIX + appCid,
+            JSON.stringify({ aud: aud, exp: Date.now() + APP_AUTH_TTL * 1000 }),
+            { expirationTtl: APP_AUTH_TTL }
+          );
+        } catch (e) {
+          return Response.json({ ok: false, error: 'server' }, { status: 500 });
+        }
+        return Response.json({ ok: true, appCid: appCid });
+      }
       const headers = new Headers({ 'Content-Type': 'application/json' });
       const secret = (env && env.SESSION_SECRET) || '';
       const signErr = await issueSessionCookie(env, headers, ROLE_OWNER);
@@ -476,12 +608,11 @@ async function handlePost(context) {
     }
   }
 
-  /* ============ list：列出 passkey（需 owner-auth token） ============ */
+  /* ============ list：列出 passkey（2.10.0：需 sgx-stepup） ============ */
   if (action === 'list') {
-    const token = (body && body.token) || '';
-    const secret = (env && env.SESSION_SECRET) || '';
-    if (!secret || !(await verifyToken(token, secret))) {
-      return Response.json({ ok: false, error: 'token' }, { status: 403 });
+    const s = await requireStepup(request, env);
+    if (!s.ok) {
+      return Response.json({ ok: false, error: 'stepup-required' }, { status: 403 });
     }
     const keys = await getPasskeys(kv);
     return Response.json({
@@ -494,20 +625,21 @@ async function handlePost(context) {
           aaguid: k.aaguid || '',
           createdAt: k.createdAt || 0,
           lastUsedAt: k.lastUsedAt || 0,
+          class: k.class || PK_CLASS_LOCK,
+          aud: k.aud || '',
         };
       }),
     });
   }
 
-  /* ============ rename：重命名 passkey（需 owner-auth token；1-40 字，去首尾空格和控制字符） ============ */
+  /* ============ rename：重命名 passkey（2.10.0：需 sgx-stepup；1-40 字，去首尾空格和控制字符） ============ */
   if (action === 'rename') {
-    const token = (body && body.token) || '';
+    const s = await requireStepup(request, env);
+    if (!s.ok) {
+      return Response.json({ ok: false, error: 'stepup-required' }, { status: 403 });
+    }
     const credId = (body && body.credId) || '';
     let name = (body && body.name) || '';
-    const secret = (env && env.SESSION_SECRET) || '';
-    if (!secret || !(await verifyToken(token, secret))) {
-      return Response.json({ ok: false, error: 'token' }, { status: 403 });
-    }
     if (!credId) return Response.json({ ok: false, error: 'params' }, { status: 400 });
     /* 清理：去首尾空格和控制字符，限 1-40 字 */
     name = String(name).replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, 40);
@@ -525,14 +657,16 @@ async function handlePost(context) {
     return Response.json({ ok: true });
   }
 
-  /* ============ delete：删除 passkey（需 owner-auth token） ============ */
+  /* ============ delete：删除 passkey（2.10.0：需 sgx-stepup） ============
+     - 删应用类凭据 → app-epoch:<aud> +1（只作废该应用）
+     - 没有密码时，禁止删除最后一把 lock 凭据（保住最后一种主人解锁方式）
+     - 成功后清除 sgx-stepup；删 lock 凭据仍走 session-epoch +1（原有行为） */
   if (action === 'delete') {
-    const token = (body && body.token) || '';
-    const credId = (body && body.credId) || '';
-    const secret = (env && env.SESSION_SECRET) || '';
-    if (!secret || !(await verifyToken(token, secret))) {
-      return Response.json({ ok: false, error: 'token' }, { status: 403 });
+    const s = await requireStepup(request, env);
+    if (!s.ok) {
+      return Response.json({ ok: false, error: 'stepup-required' }, { status: 403 });
     }
+    const credId = (body && body.credId) || '';
     if (!credId) return Response.json({ ok: false, error: 'params' }, { status: 400 });
     /* 直接 kv.get 校验存在，不走 list（最终一致） */
     const keyName = 'owner-passkey:' + String(credId).slice(0, 12);
@@ -541,13 +675,33 @@ async function handlePost(context) {
     if (!found || found.credId !== credId) {
       return Response.json({ ok: false, error: 'not-found' }, { status: 404 });
     }
-    await deletePasskey(kv, credId);
+    const delClass = found.class || PK_CLASS_LOCK;
+    /* 没有密码时，禁止删除最后一把 lock 凭据 */
+    if (delClass === PK_CLASS_LOCK) {
+      let hasPw = false;
+      try { hasPw = !!(await kv.get('owner-pw')); } catch (e) {}
+      if (!hasPw) {
+        const keys = await getPasskeys(kv);
+        const lockKeys = keys.filter(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK; });
+        if (lockKeys.length <= 1) {
+          return Response.json({ ok: false, error: 'last-key' }, { status: 403 });
+        }
+      }
+    }
+    const deleted = await deletePasskey(kv, credId);
+    if (deleted && (deleted.class || PK_CLASS_LOCK) === PK_CLASS_APP && deleted.aud) {
+      /* 删应用类凭据 → 该应用的应用纪元 +1 */
+      await bumpAppEpoch(kv, deleted.aud);
+    }
     /* 会话吊销：删密钥后 session-epoch +1 */
     try {
       const v = parseInt(await kv.get('session-epoch') || '0', 10) || 0;
       await kv.put('session-epoch', String(v + 1));
     } catch (e) {}
-    return Response.json({ ok: true });
+    /* 成功后清除 sgx-stepup */
+    const headers = new Headers({ 'Content-Type': 'application/json' });
+    clearStepupCookie(headers);
+    return new Response(JSON.stringify({ ok: true }), { headers });
   }
 
   return Response.json({ ok: false, error: 'params' }, { status: 400 });

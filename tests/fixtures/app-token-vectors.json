@@ -1,0 +1,48 @@
+{
+  "note": "测试向量（仅测试用，绝非生产密钥）。space 与 book 各放一份完全相同。",
+  "keypair": {
+    "private_pem": "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEICsvSi+PvQ5Buz8Ku05QKa1U3A5U2zb6M4m9Z0qsczIR\n-----END PRIVATE KEY-----\n",
+    "public_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAHU39XqjCtJbLQ1qQ3NeWiItG6Ag9x3bfsrwqNfEVpK4=\n-----END PUBLIC KEY-----\n"
+  },
+  "valid": [
+    {
+      "token": "owner.5.3.1791730455222.1791731055222.book.upload.PbpugYDHUvv0IDCp5cXJe0qgX1kogl_Z4rly0UxjH1U5NjAeeIThWiV4oe-g6hMB5Z6s5TWdXtCOSfAq_Dt2AQ",
+      "epoch": 5,
+      "appEpoch": 3,
+      "aud": "book",
+      "scope": "upload",
+      "desc": "有效 token：aud=book, scope=upload, appEpoch=3"
+    },
+    {
+      "token": "owner.5.0.1791730455222.1791731055222.book.upload.lE4vZZya9fPEHwDcDLp-Xv9a_B5H3sM6iKJy34qKwxQvQVaeXpwqbSWv1cTSvz_7uvSASfYlifnjDIJ__eHgDA",
+      "epoch": 5,
+      "appEpoch": 0,
+      "aud": "book",
+      "scope": "upload",
+      "desc": "有效 token：aud=book, scope=upload, appEpoch=0"
+    },
+    {
+      "token": "owner.7.1.1791730455222.1791731055222.music.play.C-JyRshiB0XzKafhsgLtQfMNkE3px4QZ4rchL6l8BeZr9DBKwc579P_JJwB644HqSc5EyH_STT6amc7PSgixAg",
+      "epoch": 7,
+      "appEpoch": 1,
+      "aud": "music",
+      "scope": "play",
+      "desc": "有效 token：aud=music, scope=play, appEpoch=1"
+    }
+  ],
+  "invalid": {
+    "tampered": {
+      "token": "owner.5.3.1791730455222.1791731055222.evil.upload.PbpugYDHUvv0IDCp5cXJe0qgX1kogl_Z4rly0UxjH1U5NjAeeIThWiV4oe-g6hMB5Z6s5TWdXtCOSfAq_Dt2AQ",
+      "desc": "篡改 aud 后签名失效，验证必须拒绝"
+    },
+    "expired": {
+      "token": "owner.5.3.1791729755222.1791730355222.book.upload.stpU10oiffFpXyx7-_uUIp9LeeNHpwtrMucPSGBKXtyNXZ8hsHQP_-2alQegLMeP-Z4Pe_xc4v3Ik7JrhABiAQ",
+      "desc": "已过期，验证必须拒绝"
+    },
+    "low_app_epoch": {
+      "token": "owner.5.1.1791730455222.1791731055222.book.upload.gvrIngJ9OWgRRx7bSL4hqivxgF95oNAugViUcnozqxPbXa1WX0G8vMIa-XQ_e9oRtZKt1Gpjlvnxs64yZYesCA",
+      "appEpoch": 1,
+      "desc": "签名有效但 appEpoch=1，若当前为 3 则 book 验证必须拒绝"
+    }
+  }
+}
