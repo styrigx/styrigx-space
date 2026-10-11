@@ -3,6 +3,7 @@
  * （旧 store.html 内联脚本模块化；胶囊搜索经 setCapSearchProvider 注册。）
  */
 import { on } from '../lib/events.js';
+import { registerPage } from '../shell/inpagenav.js';
 import { getJSON, setJSON } from '../lib/storage.js';
 import { reducedMotion } from '../lib/util.js';
 import { setCapSearchProvider } from '../shell/capsule.js';
@@ -150,3 +151,13 @@ import { setCapSearchProvider } from '../shell/capsule.js';
   applyFilters();
   anchorJump();
 })();
+
+/* 2.9.0 页内导航：注册 mount/unmount */
+function storeMount() {
+  // 页面初始化逻辑已在 IIFE 中执行，这里预留给页内切换时的重新挂载
+}
+function storeUnmount() {
+  // 清理定时器、事件监听和 observer
+  // 注意：IIFE 中的监听器在页内切换时需要手动清理，这里是占位实现
+}
+registerPage('store', { mount: storeMount, unmount: storeUnmount });

@@ -4,6 +4,7 @@
  * 文案来自页面内 sgx-i18n-settings JSON（中英双语），JS 与语言无关。
  */
 import { on } from '../lib/events.js';
+import { registerPage } from '../shell/inpagenav.js';
 import { esc } from '../lib/util.js';
 import { get, set } from '../lib/storage.js';
 import { get as featGet, set as featSet, on as featOn } from '../lib/features.js';
@@ -1056,3 +1057,13 @@ import { setCapSearchProvider } from '../shell/capsule.js';
     }, 80);
   }
 })();
+
+/* 2.9.0 页内导航：注册 mount/unmount */
+function settingsMount() {
+  // 页面初始化逻辑已在 IIFE 中执行，这里预留给页内切换时的重新挂载
+}
+function settingsUnmount() {
+  // 清理定时器、事件监听和 observer
+  // 注意：IIFE 中的监听器在页内切换时需要手动清理，这里是占位实现
+}
+registerPage('settings', { mount: settingsMount, unmount: settingsUnmount });
