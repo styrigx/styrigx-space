@@ -90,7 +90,7 @@ jobs:
         # 失败、0 篇 → 脚本 exit 非 0 → 构建失败
         run: node scripts/gen-posts-json.mjs
         env:
-          BLOG_TOKEN: ${{ secrets.BLOG_READ_TOKEN }}
+          BLOG_TOKEN: ${{ secrets.BLOG_READ_TOKEN || github.token }}
 
       - name: Build site (生产构建，用于锁屏测试)
         run: hugo --minify
@@ -354,7 +354,7 @@ jobs:
       - name: Generate blog posts data (P0-2)
         run: node scripts/gen-posts-json.mjs
         env:
-          BLOG_TOKEN: ${{ secrets.BLOG_READ_TOKEN }}
+          BLOG_TOKEN: ${{ secrets.BLOG_READ_TOKEN || github.token }}
 
       - name: Build site
         run: hugo --minify
