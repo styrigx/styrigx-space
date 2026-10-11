@@ -131,12 +131,14 @@ test('⑦我的文件未滚动时天气可见，滚动收起后天气和头像�
   expect(before.wxOpacity).not.toBe('no-el');
   expect(before.brandOpacity).not.toBe('0');
 
-  // 滚动到标题收起
+  // 滚动到标题收起（两条路径：CSS 时间线或 JS 回退，都用 opacity 断言）
   await page.evaluate(() => window.scrollTo(0, 1000));
-  await page.waitForFunction(
-    () => document.body.classList.contains('subpage-scrolled'),
-    { timeout: 5000 }
-  );
+  await expect.poll(async () => {
+    return await page.evaluate(() => {
+      const wx = document.getElementById('nav-wx');
+      return wx ? getComputedStyle(wx).opacity : 'no-el';
+    });
+  }, { timeout: 10000 }).toBe('0');
 
   // 收起后：天气和头像都不可见（opacity 0）
   const after = await page.evaluate(() => {
@@ -161,10 +163,12 @@ test('⑦我的文件未滚动时天气可见，滚动收起后天气和头像�
 
   // 滚回顶部：二者重新可见
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.waitForFunction(
-    () => !document.body.classList.contains('subpage-scrolled'),
-    { timeout: 5000 }
-  );
+  await expect.poll(async () => {
+    return await page.evaluate(() => {
+      const wx = document.getElementById('nav-wx');
+      return wx ? getComputedStyle(wx).opacity : 'no-el';
+    });
+  }, { timeout: 10000 }).not.toBe('0');
   const restored = await page.evaluate(() => {
     const wx = document.getElementById('nav-wx');
     const brand = document.getElementById('nav-brand');
@@ -186,10 +190,12 @@ test('④切换布局时顶栏标题与日期不重叠', async ({ page }) => {
   await page.goto('/settings/', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#site-nav', { timeout: 10000 });
   await page.evaluate(() => window.scrollTo(0, 1000));
-  await page.waitForFunction(
-    () => document.body.classList.contains('subpage-scrolled'),
-    { timeout: 5000 }
-  );
+  await expect.poll(async () => {
+    return await page.evaluate(() => {
+      const brand = document.getElementById('nav-brand');
+      return brand ? getComputedStyle(brand).opacity : 'no-el';
+    });
+  }, { timeout: 10000 }).toBe('0');
   // 切换到 DeX 布局（如果可用）
   await page.evaluate(() => {
     try { localStorage.setItem('sgx-layout', 'dex'); } catch (e) {}
@@ -254,4 +260,48 @@ test('⑥③数字健康返回箭头不压顶栏', async ({ page }) => {
   if (positions.navBottom !== null && positions.backTop !== null) {
     expect(positions.backTop).toBeGreaterThanOrEqual(positions.navBottom - 1); // 允许 1px 误差
   }
+});
+
+test('⑦JS 回退路径：禁用 CSS 时间线时天气同样隐藏', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await blockExternalRequests(page);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await freezeTime(page);
+  // 覆盖 CSS.supports，强制走 JS 回退路径
+  await page.addInitScript(() => {
+    const orig = CSS.supports.bind(CSS);
+    CSS.supports = (prop, val) => {
+      if (prop === 'view-timeline-name') return false;
+      return orig(prop, val);
+    };
+  });
+  await page.goto('/files/', { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('#site-nav', { timeout: 10000 });
+
+  await page.evaluate(() => {
+    let wx = document.getElementById('nav-wx');
+    if (!wx) {
+      const right = document.getElementById('nav-right');
+      if (right) {
+        wx = document.createElement('button');
+        wx.id = 'nav-wx';
+        wx.className = 'nav-tray-btn';
+        wx.type = 'button';
+        wx.innerHTML = '<span id="nav-wx-ic" aria-hidden="true">☀️</span><span id="nav-wx-t" class="clock-num">25°</span>';
+        right.appendChild(wx);
+      }
+    }
+    if (wx) { wx.style.display = ''; wx.style.opacity = '1'; }
+  });
+
+  await page.evaluate(() => window.scrollTo(0, 1000));
+  // JS 路径下 subpage-scrolled 会被加上
+  await expect.poll(async () => {
+    return await page.evaluate(() => document.body.classList.contains('subpage-scrolled'));
+  }, { timeout: 10000 }).toBe(true);
+  const opacity = await page.evaluate(() => {
+    const wx = document.getElementById('nav-wx');
+    return wx ? getComputedStyle(wx).opacity : 'no-el';
+  });
+  expect(opacity).toBe('0');
 });

@@ -701,8 +701,9 @@
         -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
       }
     }
-    /* 品牌/时间淡出：与顶栏变实同步 */
-    .layout-mobile #nav-brand, .layout-mobile #nav-time-center {
+    /* 品牌/时间/天气淡出：与顶栏变实同步（2.9.2⑦：天气跟头像同一状态） */
+    .layout-mobile #nav-brand, .layout-mobile #nav-time-center, .layout-mobile #nav-wx,
+    .layout-dex #nav-brand, .layout-dex #nav-time-center, .layout-dex #nav-wx {
       animation: sgx-nav-fade linear both;
       animation-timeline: --sgx-subhead;
       animation-range: exit 55% exit 57%;
@@ -837,10 +838,7 @@
   .layout-dex body.subpage-scrolled #nav-brand,
   .layout-dex body.subpage-scrolled #nav-time-center,
   .layout-dex body.subpage-scrolled #nav-wx { opacity: 0; pointer-events: none; }
-  /* 2.9.2④：mini-title 显示时日期必须隐藏，防止重叠（布局切换时也生效） */
-  .layout-mobile .subpage-mini-title.show ~ #site-nav #nav-time-center,
-  .layout-mobile body:has(.subpage-mini-title.show) #nav-time-center,
-  .layout-dex body:has(.subpage-mini-title.show) #nav-time-center { opacity: 0; pointer-events: none; }
+
   /* 手机子页面：标题区从屏幕顶部开始（顶栏透明叠在上面），main 不再额外留白 */
   .layout-mobile main:has([data-subpage-head]) { padding-top: 0; }
 
