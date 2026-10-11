@@ -71,14 +71,20 @@ function ipPrefix(ip) {
 }
 
 /**
- * 写审计记录（只写不读）。失败不抛错（不影响主流程）。
+ * 写审计记录（只写不读）。
+ * 2.10.2：写入失败返回 false（调用方 fail closed，不签发会话）；
+ * 无 KV 时也返回 false。
+ * @returns {Promise<boolean>} 是否写入成功
  */
 async function writeAudit(kv, ip, ok) {
-  if (!kv) return;
+  if (!kv) return false;
   try {
     const key = 'owner-auth-audit:' + Date.now() + ':' + Math.random().toString(36).slice(2, 10);
     await kv.put(key, JSON.stringify({ ts: Date.now(), ipPrefix: ipPrefix(ip), ok: !!ok }), { expirationTtl: AUDIT_TTL });
-  } catch (e) {}
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 
 /** @param {any} context */
@@ -87,13 +93,21 @@ async function handlePost(context) {
   if (request.method !== 'POST') {
     return Response.json({ ok: false }, { status: 405 });
   }
-  try {
+  /* 2.10.2：Origin 必须存在、可解析且 host 一致（CSRF 防护）；
+     缺失或解析失败一律 403，不再放行。 */
+  {
     const origin = request.headers.get('Origin') || '';
-    const url = new URL(request.url);
-    if (origin && new URL(origin).host !== url.host) {
-      return Response.json({ ok: false }, { status: 403 });
+    let originOk = false;
+    try {
+      const url = new URL(request.url);
+      originOk = !!origin && new URL(origin).host === url.host;
+    } catch (e) {
+      originOk = false;
     }
-  } catch (e) {}
+    if (!originOk) {
+      return Response.json({ ok: false, error: 'origin' }, { status: 403 });
+    }
+  }
 
   const kv = env && env.OWNER_KV;
   const ip = getClientIp(request);
@@ -211,6 +225,9 @@ async function handlePost(context) {
     STEPUP_COOKIE + '=' + stepupVal + '; ' + STEPUP_COOKIE_ATTRS + '; Max-Age=' + STEPUP_MAX_AGE
   );
 
-  await writeAudit(kv, ip, true);
+  /* 2.10.2：审计写入失败则不签发会话（fail closed） */
+  if (!(await writeAudit(kv, ip, true))) {
+    return Response.json({ ok: false, error: 'server' }, { status: 503 });
+  }
   return new Response(JSON.stringify({ ok: true }), { headers });
 }

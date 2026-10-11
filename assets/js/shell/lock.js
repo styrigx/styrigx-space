@@ -680,6 +680,14 @@ function showLockScreen() {
       '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Password' : '密码') + '</span>' +
       '<span class="sgx-method-desc">' + (en ? 'Enter your unlock password' : '输入解锁密码') + '</span></span>' +
       '</button>' +
+      /* 4. 管理密钥（恢复用）：未解锁也能用，调 /api/owner-auth */
+      '<button type="button" class="sgx-method-opt" id="sgx-mopt-mk" aria-label="' +
+        (en ? 'Management key (recovery)' : '管理密钥（恢复用）') + '">' +
+      '<span class="sgx-method-ic" aria-hidden="true">' +
+      '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg></span>' +
+      '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Management key (recovery)' : '管理密钥（恢复用）') + '</span>' +
+      '<span class="sgx-method-desc">' + (en ? 'Recover with your management key' : '用管理密钥恢复') + '</span></span>' +
+      '</button>' +
       '</div>';
     document.body.appendChild(sheet);
     methodSheet = sheet;
@@ -693,9 +701,11 @@ function showLockScreen() {
     const visitorBtn = sheet.querySelector('#sgx-mopt-visitor');
     const pkBtn = sheet.querySelector('#sgx-mopt-pk');
     const pwBtn = sheet.querySelector('#sgx-mopt-pw');
+    const mkBtn = sheet.querySelector('#sgx-mopt-mk');
     if (visitorBtn) on(visitorBtn, 'click', function () { close(); openVerify(); });
     if (pkBtn) on(pkBtn, 'click', function () { close(); openPk(); });
     if (pwBtn) on(pwBtn, 'click', function () { close(); openPw(); });
+    if (mkBtn) on(mkBtn, 'click', function () { close(); openMk(); });
     const backdrop = sheet.querySelector('[data-close]');
     if (backdrop) on(backdrop, 'click', close);
     /* Esc 关闭 */
@@ -922,6 +932,91 @@ function showLockScreen() {
       })
       .catch(function () {
         if (dlgState !== 'password') return;
+        showError(en ? 'Network error' : '网络错误');
+      });
+  }
+
+  /* ---------- 管理密钥态（与验证态同一弹层） ----------
+     2.10.2：锁屏加「管理密钥（恢复用）」入口。调 /api/owner-auth，
+     成功后进入安全与隐私页（可添加锁屏密钥和应用密钥）。 */
+  function openMk() {
+    dlgState = 'mgmtkey';
+    setTitle(en ? 'Management key (recovery)' : '管理密钥（恢复用）');
+    setBody(
+      '<div class="sgx-pw-field"><input type="password" id="sgx-mk-input" class="sgx-pw-input" autocomplete="off" ' +
+        'aria-label="' + (en ? 'Management key (recovery)' : '管理密钥（恢复用）') + '" placeholder="' + (en ? 'Management key' : '管理密钥') + '">' +
+        '<button type="button" class="sgx-pw-eye" id="sgx-mk-eye" aria-label="' + (en ? 'Show' : '显示') + '"></button></div>' +
+        '<button type="button" class="sgx-verify-skip" id="sgx-mk-go">' + (en ? 'Verify' : '验证') + '</button>'
+    );
+    clearErr();
+    if (!openDialog()) return;
+    const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-mk-input'));
+    const eye = document.getElementById('sgx-mk-eye');
+    const go = document.getElementById('sgx-mk-go');
+    if (eye && input) {
+      eye.innerHTML =
+        '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+      on(eye, 'click', function () {
+        const show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        eye.setAttribute('aria-label', show ? (en ? 'Hide' : '隐藏') : (en ? 'Show' : '显示'));
+        eye.classList.toggle('off', !show);
+      });
+    }
+    if (input) {
+      on(input, 'keydown', function (/** @type {KeyboardEvent} */ e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          submitMk();
+        }
+      });
+      try { input.focus({ preventScroll: true }); } catch (e) { try { input.focus(); } catch (_) {} }
+    }
+    if (go) on(go, 'click', submitMk);
+  }
+
+  function submitMk() {
+    if (dlgState !== 'mgmtkey') return;
+    const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-mk-input'));
+    const key = input ? input.value : '';
+    if (!key) {
+      showError(en ? 'Enter management key' : '请输入管理密钥');
+      return;
+    }
+    fetch('/api/owner-auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: key }),
+    })
+      .then(function (r) {
+        return r.text().then(function (t) {
+          let j = null;
+          try { j = JSON.parse(t); } catch (e) {}
+          return { s: r.status, j: j };
+        });
+      })
+      .then(function (res) {
+        if (dlgState !== 'mgmtkey') return;
+        const j = res.j;
+        if (!j) {
+          showError(en ? 'Server error' : '服务器错误');
+          return;
+        }
+        if (j.ok) {
+          closeDialog();
+          /* 管理密钥签发了 owner 会话 + stepup，直接进入安全与隐私页 */
+          location.href = en ? '/en/settings/security/' : '/settings/security/';
+        } else if (res.s === 429) {
+          showError(en ? 'Too many attempts' : '尝试次数过多');
+        } else if (res.s === 503 || res.s === 500) {
+          showError(en ? 'Server error' : '服务器错误');
+        } else {
+          showError(en ? 'Wrong management key' : '管理密钥错误');
+          if (input) input.value = '';
+        }
+      })
+      .catch(function () {
+        if (dlgState !== 'mgmtkey') return;
         showError(en ? 'Network error' : '网络错误');
       });
   }

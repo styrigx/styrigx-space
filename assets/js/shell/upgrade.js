@@ -23,6 +23,7 @@ export function initUpgrade() {
     '<div class="sgx-upgrade-desc">' + (isEn ? 'This page requires owner verification.' : '此页面需要主人验证后才能进入。') + '</div>' +
     '<button type="button" class="sgx-upgrade-btn" id="sgx-upgrade-pk">' + (isEn ? 'Verify with passkey' : '通行密钥验证') + '</button>' +
     '<button type="button" class="sgx-upgrade-btn" id="sgx-upgrade-pw">' + (isEn ? 'Verify with password' : '密码验证') + '</button>' +
+    '<button type="button" class="sgx-upgrade-btn" id="sgx-upgrade-mk">' + (isEn ? 'Management key (recovery)' : '管理密钥（恢复用）') + '</button>' +
     '<button type="button" class="sgx-upgrade-cancel" id="sgx-upgrade-cancel">' + (isEn ? 'Cancel' : '取消') + '</button>' +
     '<p class="sgx-upgrade-err" id="sgx-upgrade-err" hidden></p>' +
     '</div>';
@@ -49,6 +50,31 @@ export function initUpgrade() {
     for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
     return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
+
+  // 管理密钥验证：调 /api/owner-auth，成功后进入安全与隐私页
+  document.getElementById('sgx-upgrade-mk').addEventListener('click', async () => {
+    if (errEl) errEl.hidden = true;
+    const k = window.prompt(isEn ? 'Enter management key (recovery)' : '请输入管理密钥（恢复用）');
+    if (!k) return;
+    try {
+      const res = await fetch('/api/owner-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: k }),
+        credentials: 'include',
+      });
+      const j = await res.json();
+      if (j && j.ok) {
+        location.href = isEn ? '/en/settings/security/' : '/settings/security/';
+      } else if (res.status === 429) {
+        showErr(isEn ? 'Too many attempts' : '尝试次数过多');
+      } else {
+        showErr(isEn ? 'Wrong management key' : '管理密钥错误');
+      }
+    } catch (e) {
+      showErr(isEn ? 'Network error' : '网络错误');
+    }
+  });
 
   // 通行密钥验证：challenge → WebAuthn → auth，成功后服务端签发 owner 会话
   document.getElementById('sgx-upgrade-pk').addEventListener('click', async () => {

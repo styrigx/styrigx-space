@@ -34,9 +34,12 @@ function makeKV(seed = {}) {
 }
 
 function postReq(url, body, headers = {}) {
+  /* 2.10.2：真实浏览器 POST 必带 Origin；测试默认带上 */
+  const h = { 'Content-Type': 'application/json', 'Origin': 'https://styrigx.com', ...headers };
+  if (headers.Origin === null) delete h['Origin'];
   return new Request(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...headers },
+    headers: h,
     body: JSON.stringify(body),
   });
 }
@@ -158,14 +161,15 @@ test('无 stepup 时 list/register/delete → 403 stepup-required（2.10.1：reg
   const env = stepupEnv(kv);
   const sess = await mintSession();
   const sessH = { Cookie: 'sgx-verified=' + sess };
-  // list/delete 无 stepup → 403
+  // list/delete 有会话无 stepup → 403
   for (const body of [
     { action: 'list' },
     { action: 'delete', credId: 'lock-key-001' },
   ]) {
-    const r = await onRequestPost({ request: postReq('https://styrigx.com/api/owner-passkey', body, stepupCookie('')), env });
-    // 空 stepup cookie 视为无 stepup
+    const r = await onRequestPost({ request: postReq('https://styrigx.com/api/owner-passkey', body, sessH), env });
+    // 有会话无 stepup → 403 stepup-required
     assert.equal(r.status, 403, JSON.stringify(body));
+    assert.equal((await r.json()).error, 'stepup-required');
   }
   // register challenge 无会话 → 401（2.10.1 B6）
   {
@@ -191,8 +195,9 @@ test('有 stepup 时 list 通过', async () => {
   const kv = makeKV();
   await seedKey(kv, { credId: 'lock-key-001', cls: 'lock' });
   const sc = await mintStepup();
+  const sess = await mintSession();
   const r = await onRequestPost({
-    request: postReq('https://styrigx.com/api/owner-passkey', { action: 'list' }, stepupCookie(sc)),
+    request: postReq('https://styrigx.com/api/owner-passkey', { action: 'list' }, bothCookies(sess, sc)),
     env: stepupEnv(kv),
   });
   assert.equal(r.status, 200);
@@ -206,9 +211,10 @@ test('删除 app 凭据 → app-epoch:book +1（2.10.1：不推进会话纪元�
   const kv = makeKV();
   await seedKey(kv, { credId: 'app-key-book', cls: 'app', aud: 'book' });
   const sc = await mintStepup();
+  const sess = await mintSession();
   const env = stepupEnv(kv);
   const r = await onRequestPost({
-    request: postReq('https://styrigx.com/api/owner-passkey', { action: 'delete', credId: 'app-key-book' }, stepupCookie(sc)),
+    request: postReq('https://styrigx.com/api/owner-passkey', { action: 'delete', credId: 'app-key-book' }, bothCookies(sess, sc)),
     env,
   });
   assert.equal(r.status, 200);
@@ -216,7 +222,7 @@ test('删除 app 凭据 → app-epoch:book +1（2.10.1：不推进会话纪元�
   // 2.10.1：删应用类不推进会话纪元，同一 stepup 可继续用
   await seedKey(kv, { credId: 'app-key-book2', cls: 'app', aud: 'book' });
   const r2 = await onRequestPost({
-    request: postReq('https://styrigx.com/api/owner-passkey', { action: 'delete', credId: 'app-key-book2' }, stepupCookie(sc)),
+    request: postReq('https://styrigx.com/api/owner-passkey', { action: 'delete', credId: 'app-key-book2' }, bothCookies(sess, sc)),
     env,
   });
   assert.equal(r2.status, 200);
@@ -231,8 +237,9 @@ test('删除 lock 凭据不推进 app-epoch', async () => {
   await seedKey(kv, { credId: 'lock-key-002', cls: 'lock' });
   await kv.put('owner-pw', JSON.stringify({ hash: 'x' })); // 有密码，不触发 last-key 保护
   const sc = await mintStepup();
+  const sess = await mintSession();
   const r = await onRequestPost({
-    request: postReq('https://styrigx.com/api/owner-passkey', { action: 'delete', credId: 'lock-key-001' }, stepupCookie(sc)),
+    request: postReq('https://styrigx.com/api/owner-passkey', { action: 'delete', credId: 'lock-key-001' }, bothCookies(sess, sc)),
     env: stepupEnv(kv),
   });
   assert.equal(r.status, 200);
@@ -244,8 +251,9 @@ test('无密码时禁止删除最后一把 lock 凭据', async () => {
   const kv = makeKV();
   await seedKey(kv, { credId: 'lock-key-001', cls: 'lock' });
   const sc = await mintStepup();
+  const sess = await mintSession();
   const r = await onRequestPost({
-    request: postReq('https://styrigx.com/api/owner-passkey', { action: 'delete', credId: 'lock-key-001' }, stepupCookie(sc)),
+    request: postReq('https://styrigx.com/api/owner-passkey', { action: 'delete', credId: 'lock-key-001' }, bothCookies(sess, sc)),
     env: stepupEnv(kv),
   });
   assert.equal(r.status, 403);

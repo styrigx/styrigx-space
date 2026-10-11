@@ -39,9 +39,12 @@ function makeKV(seed = {}) {
 }
 
 function postReq(url, body, headers = {}) {
+  /* 2.10.2：真实浏览器 POST 必带 Origin；测试默认带上 */
+  const h = { 'Content-Type': 'application/json', 'Origin': 'https://styrigx.com', ...headers };
+  if (headers.Origin === null) delete h['Origin'];
   return new Request(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...headers },
+    headers: h,
     body: JSON.stringify(body),
   });
 }
@@ -207,9 +210,12 @@ test('B9：bumpAppEpoch KV 失败 → 删除被拒绝（fail closed）', async (
     },
   };
   const failEnv = authEnv(failKv);
+  /* 2.10.2：delete 需 owner 会话 + stepup */
+  const { signSessionCookie } = await import('../../functions/_kernel/session.js');
+  const sessVal = await signSessionCookie(LOCK_PRIV, 0, 'owner');
   const req = postReq('https://styrigx.com/api/owner-passkey',
     { action: 'delete', credId },
-    { Cookie: 'sgx-stepup=' + stepupVal });
+    { Cookie: 'sgx-verified=' + sessVal + '; sgx-stepup=' + stepupVal });
   const res = await onRequestPost({ request: req, env: failEnv });
   assert.equal(res.status, 503, 'bumpAppEpoch 失败时删除应被拒绝');
   assert.equal((await res.json()).error, 'epoch');
@@ -228,9 +234,12 @@ test('B10：删应用类密钥只加 app-epoch，不推进会话纪元', async (
   await kv.put('owner-passkey-index', JSON.stringify([credId]));
   const env = authEnv(kv);
   const stepupVal = await signStepupCookie(STEPUP_PRIV, 10);
+  /* 2.10.2：delete 需 owner 会话 + stepup */
+  const { signSessionCookie } = await import('../../functions/_kernel/session.js');
+  const sessVal = await signSessionCookie(LOCK_PRIV, 10, 'owner');
   const req = postReq('https://styrigx.com/api/owner-passkey',
     { action: 'delete', credId },
-    { Cookie: 'sgx-stepup=' + stepupVal });
+    { Cookie: 'sgx-verified=' + sessVal + '; sgx-stepup=' + stepupVal });
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 200);
   assert.equal(await kv.get('app-epoch:book'), '3', 'app-epoch:book 应 +1');

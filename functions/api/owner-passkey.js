@@ -15,16 +15,18 @@
  * - 会话 cookie 改为 SESSION_SECRET HMAC 签名 + 过期时间。
  *
  * POST /api/owner-passkey
- * - { action: 'challenge', type: 'register'|'auth', token? } → 返回 challenge
- *   - register 需要 owner-auth token（管理密钥门禁）
- *   - auth 不需要（用于锁屏解锁）
- * - { action: 'register', token, credential } → 验证并追加存储
- * - { action: 'auth', credential } → 验证断言，通过则设签名会话 cookie + 签发管理 token
- * - { action: 'list', token } → 列出已注册 passkey
- * - { action: 'rename', token, credId, name } → 重命名设备名
- * - { action: 'delete', token, credId } → 删除指定 passkey
+ * - { action: 'challenge', type: 'register'|'auth', pkClass, aud, cid } → 返回 challenge
+ *   - register 需要 owner 会话 + sgx-stepup（2.10.1 起无例外，第一把也要）
+ *   - auth 不需要（用于锁屏解锁）；app 类走单次 app-auth 记录
+ * - { action: 'register', cid, credential } → 验证并追加存储（再验会话+stepup）
+ * - { action: 'auth', cid, credential } → 验证断言；lock 签发会话 cookie，
+ *   app 签发单次 appCid（供 /api/app-token）
+ * - { action: 'list' } → 列出已注册 passkey（需 owner 会话 + sgx-stepup）
+ * - { action: 'rename', credId, name } → 重命名设备名（需 owner 会话 + sgx-stepup）
+ * - { action: 'delete', credId } → 删除指定 passkey（需 owner 会话 + sgx-stepup；
+ *   先推纪元再删，失败 503 且密钥仍在）
  *
- * 只接受 POST；校验 Origin。
+ * 只接受 POST；Origin 缺失/解析失败/跨站一律 403。
  *
  * P0-3 安全审计：
  * - 注册和解锁都要求 UV=1（userVerification: required）
@@ -286,13 +288,21 @@ async function handlePost(context) {
   if (request.method !== 'POST') {
     return Response.json({ ok: false, error: 'method' }, { status: 405 });
   }
-  try {
+  /* 2.10.2：Origin 必须存在、可解析且 host 一致（CSRF 防护）；
+     缺失或解析失败一律 403，不再放行。 */
+  {
     const origin = request.headers.get('Origin') || '';
-    const url = new URL(request.url);
-    if (origin && new URL(origin).host !== url.host) {
+    let originOk = false;
+    try {
+      const url = new URL(request.url);
+      originOk = !!origin && new URL(origin).host === url.host;
+    } catch (e) {
+      originOk = false;
+    }
+    if (!originOk) {
       return Response.json({ ok: false, error: 'origin' }, { status: 403 });
     }
-  } catch (e) {}
+  }
   if (!kv) return Response.json({ ok: false, error: 'config' }, { status: 500 });
 
   let body;
@@ -593,8 +603,12 @@ async function handlePost(context) {
     }
   }
 
-  /* ============ list：列出 passkey（2.10.0：需 sgx-stepup） ============ */
+  /* ============ list：列出 passkey（2.10.2：需 owner 会话 + sgx-stepup） ============ */
   if (action === 'list') {
+    const sessL = await verifySessionDetailed(request, env);
+    if (!sessL.ok || sessL.role !== ROLE_OWNER) {
+      return Response.json({ ok: false, error: 'session' }, { status: 401 });
+    }
     const s = await requireStepup(request, env);
     if (!s.ok) {
       return Response.json({ ok: false, error: 'stepup-required', reason: s.reason }, { status: 403 });
@@ -617,8 +631,12 @@ async function handlePost(context) {
     });
   }
 
-  /* ============ rename：重命名 passkey（2.10.0：需 sgx-stepup；1-40 字，去首尾空格和控制字符） ============ */
+  /* ============ rename：重命名 passkey（2.10.2：需 owner 会话 + sgx-stepup；1-40 字，去首尾空格和控制字符） ============ */
   if (action === 'rename') {
+    const sessR = await verifySessionDetailed(request, env);
+    if (!sessR.ok || sessR.role !== ROLE_OWNER) {
+      return Response.json({ ok: false, error: 'session' }, { status: 401 });
+    }
     const s = await requireStepup(request, env);
     if (!s.ok) {
       return Response.json({ ok: false, error: 'stepup-required', reason: s.reason }, { status: 403 });
@@ -642,11 +660,17 @@ async function handlePost(context) {
     return Response.json({ ok: true });
   }
 
-  /* ============ delete：删除 passkey（2.10.0：需 sgx-stepup） ============
-     - 删应用类凭据 → app-epoch:<aud> +1（只作废该应用）
+  /* ============ delete：删除 passkey（2.10.2：需 owner 会话 + sgx-stepup） ============
+     - 删应用类凭据 → 先 app-epoch:<aud> +1（成功才删；失败 503 且密钥仍在），
+       只作废该应用，不推进会话纪元
+     - 删锁屏类凭据 → 先 session-epoch +1（成功才删；失败 503，fail closed）
      - 没有密码时，禁止删除最后一把 lock 凭据（保住最后一种主人解锁方式）
-     - 成功后清除 sgx-stepup；删 lock 凭据仍走 session-epoch +1（原有行为） */
+     - 成功后清除 sgx-stepup */
   if (action === 'delete') {
+    const sessD = await verifySessionDetailed(request, env);
+    if (!sessD.ok || sessD.role !== ROLE_OWNER) {
+      return Response.json({ ok: false, error: 'session' }, { status: 401 });
+    }
     const s = await requireStepup(request, env);
     if (!s.ok) {
       return Response.json({ ok: false, error: 'stepup-required', reason: s.reason }, { status: 403 });
@@ -673,23 +697,25 @@ async function handlePost(context) {
         }
       }
     }
-    const deleted = await deletePasskey(kv, credId);
-    const deletedClass = (deleted && deleted.class) || PK_CLASS_LOCK;
-    if (deleted && deletedClass === PK_CLASS_APP && deleted.aud) {
-      /* 删应用类凭据 → 该应用的应用纪元 +1（2.10.1：失败则拒绝删除，fail closed） */
+    /* 2.10.2：先推进纪元，成功才删（fail closed；纪元推进失败则密钥仍在） */
+    if (delClass === PK_CLASS_APP && found.aud) {
+      /* 删应用类凭据 → 该应用的应用纪元 +1（失败则拒绝删除） */
       try {
-        await bumpAppEpoch(kv, deleted.aud);
+        await bumpAppEpoch(kv, found.aud);
       } catch (e) {
         return Response.json({ ok: false, error: 'epoch' }, { status: 503 });
       }
-      /* 2.10.1：删应用类只加 app-epoch，不推进会话纪元 */
+      /* 删应用类只加 app-epoch，不推进会话纪元 */
     } else {
-      /* 会话吊销：删锁屏类密钥后 session-epoch +1（原有行为） */
+      /* 删锁屏类密钥 → session-epoch +1（失败则拒绝删除，fail closed） */
       try {
         const v = parseInt(await kv.get('session-epoch') || '0', 10) || 0;
         await kv.put('session-epoch', String(v + 1));
-      } catch (e) {}
+      } catch (e) {
+        return Response.json({ ok: false, error: 'epoch' }, { status: 503 });
+      }
     }
+    await deletePasskey(kv, credId);
     /* 成功后清除 sgx-stepup */
     const headers = new Headers({ 'Content-Type': 'application/json' });
     clearStepupCookie(headers);
