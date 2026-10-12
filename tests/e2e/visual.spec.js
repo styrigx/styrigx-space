@@ -112,8 +112,8 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
              避免探针失败弹 toast 导致截图不稳定。 */
           if (page === '/settings/security/owner/' || page === '/settings/security/lock/') {
             const statusBody = page.includes('/owner/')
-              ? { ok: true, password: false, passkey: true }
-              : { ok: true, password: false, passkey: true };
+              ? { ok: true, password: false, passkey: false }
+              : { ok: true, password: false, passkey: false };
             await pg.route('**/api/owner-status', async (route) => {
               await route.fulfill({
                 status: 200,
@@ -125,7 +125,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
               await route.fulfill({
                 status: 200,
                 contentType: 'application/json',
-                body: JSON.stringify({ ok: true, password: false, passkey: true }),
+                body: JSON.stringify({ ok: true, password: false, passkey: false }),
               });
             });
             await pg.route('**/api/stepup', async (route) => {
