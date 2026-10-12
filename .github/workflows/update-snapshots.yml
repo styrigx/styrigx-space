@@ -13,7 +13,7 @@ jobs:
   update:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.branch }}
       - name: Setup Hugo
@@ -21,15 +21,18 @@ jobs:
         with:
           hugo-version: ${{ env.HUGO_VERSION }}
           extended: true
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
       - run: npm install
       - run: npm install --no-save @playwright/test stylelint postcss-scss @lhci/cli http-server && npx playwright install chromium --with-deps
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk
+      - name: Build CSS
+        run: node scripts/build-css.cjs --minify
       - name: Test build (same as deploy.yml visual step)
         run: |
           sed -i "s/0x4AAAAAAFSBhpWkAwZr1SMA/1x00000000000000000000AA/g" hugo.yaml
+          cp data/posts.fixture.json data/posts.json
           hugo --minify
         env:
           SGX_TEST_NO_LOCK: "1"
@@ -38,7 +41,7 @@ jobs:
         run: npx playwright test --config=playwright.config.js --update-snapshots
       - name: Commit snapshots only
         run: |
-          git checkout -- hugo.yaml   # 丢掉测试用 Turnstile key 替换
+          git checkout -- hugo.yaml data/posts.json   # 丢掉测试用 Turnstile key 替换和 fixture 数据
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add tests/e2e/visual/visual.spec.js-snapshots
