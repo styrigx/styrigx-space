@@ -14,7 +14,7 @@ import { get as storeGet } from '../lib/storage.js';
 import { toast } from '../lib/toast.js';
 import { mgmtButtons } from './mgmt-buttons.js';
 import { exchangeRootSession } from '../lib/root-session.js';
-import { followKeyboard } from '../lib/dialog-kb.js';
+import { followKeyboard } from '../shell/dialog-kb.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';

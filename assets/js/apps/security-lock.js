@@ -8,7 +8,7 @@
  */
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
-import { followKeyboard } from '../lib/dialog-kb.js';
+import { followKeyboard } from '../shell/dialog-kb.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';

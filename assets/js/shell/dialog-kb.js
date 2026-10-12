@@ -3,7 +3,7 @@
  * 用 vk.js onKeyboardHeight，输入框聚焦时把底部弹层上移键盘高度，关闭时清理。
  * 覆盖所有带输入的弹层。
  */
-import { onKeyboardHeight } from '../shell/vk.js';
+import { onKeyboardHeight } from './vk.js';
 
 /**
  * 让 dialog 跟随键盘上移。
