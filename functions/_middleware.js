@@ -40,7 +40,7 @@ function isOwnerOnlyApi(pathname) {
   return OWNER_ONLY_APIS.some(p => pathname === p || pathname.startsWith(p + '/'));
 }
 
-/* 读取方 cookie 名（读取 Cookie 头里所有同名值逐个验签对账；必须与 SESSION_COOKIE 一致） */
+/* 读取方 cookie 名（diag 接口用它与写入方对账；必须与 SESSION_COOKIE 一致） */
 export const READER_COOKIE_NAME = SESSION_COOKIE;
 
 /* 白名单路径（验证必需 + 锁屏自身 + 静态资源） */

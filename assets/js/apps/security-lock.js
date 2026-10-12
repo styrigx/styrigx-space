@@ -8,7 +8,6 @@
  */
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
-import { followKeyboard } from '../shell/dialog-kb.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -29,42 +28,6 @@ import { followKeyboard } from '../shell/dialog-kb.js';
   }
 
   let hasPw = false;
-  /** 页面模式：'lock'（锁定屏幕页）或 'owner'（站长凭证页），由 [data-sgx-cred-mode] 决定。
-      kind/class/接口一一对应：lock→lock-pw+class=lock（/api/lock-status），
-      owner→owner-pw+class=owner（/api/owner-status）。 */
-  let credMode = 'lock';
-  try {
-    const modeEl = document.querySelector('[data-sgx-cred-mode]');
-    const m = modeEl ? modeEl.getAttribute('data-sgx-cred-mode')
-      : document.documentElement.getAttribute('data-sgx-cred-mode');
-    if (m === 'owner') credMode = 'owner';
-  } catch (e) {}
-  const isOwnerMode = function () { return credMode === 'owner'; };
-
-  /**
-   * P2-13：dialog 打开时跟随键盘，关闭时清理。
-   * @param {HTMLDialogElement} dlg
-   */
-  function kbFollow(dlg) {
-    if (!dlg) return;
-    try {
-      const old = kbCleanups.get(dlg);
-      if (old) old();
-    } catch (e) {}
-    try {
-      kbCleanups.set(dlg, followKeyboard(dlg));
-    } catch (e) {}
-  }
-  function kbUnfollow(dlg) {
-    if (!dlg) return;
-    try {
-      const fn = kbCleanups.get(dlg);
-      if (fn) fn();
-      kbCleanups.delete(dlg);
-    } catch (e) {}
-  }
-  /** dialog -> keyboard cleanup */
-  const kbCleanups = new Map();
   /** 2.10.0：全量通行密钥缓存（含应用类，供应用验证分组渲染） */
   let allKeys = [];
   /** 当前管理区的通行密钥类别：'owner'（scope=root）或 'lock'（scope=keys/lockreset），
@@ -110,16 +73,13 @@ import { followKeyboard } from '../shell/dialog-kb.js';
     }).then(parseApi).then(function (res) {
       /* 2.10.0：stepup-required → 自动做一次 stepup 验证后重试（只重试一次）。
          2.10.1 A4：自动 stepup 失败时停在错误提示，不自动重开验证门。
-         补充指令 3：保留服务端的 reason（bad-sig/expired/epoch-changed 等）供显示。
-         P0-3：重试后仍 stepup-required → 转服务端错误，绝不循环回验证门。 */
+         补充指令 3：保留服务端的 reason（bad-sig/expired/epoch-changed 等）供显示。 */
       if (!retried && res.json && res.json.error === 'stepup-required') {
         const serverReason = res.json.reason;
         return doStepup().then(function (r) {
           if (r.ok) {
             return api(url, body, true).then(function (res2) {
-              /* 重试后仍要求 stepup：服务端状态异常，转错误码，不循环 */
               if (res2.json && res2.json.error === 'stepup-required') {
-                console.error('[api] stepup retry still required, server reason:', res2.json.reason);
                 return { status: res2.status, json: { ok: false, error: 'stepup-retry-failed', reason: res2.json.reason || serverReason } };
               }
               return res2;
@@ -242,49 +202,13 @@ import { followKeyboard } from '../shell/dialog-kb.js';
   const gateEye = $('lockgate-eye');
 
   function openGate() {
-    /* P1-8：如果已有有效 stepup（刚在安全页验证过），直接进管理区，不再重复要根凭证。
-       站长模式需要 scope=root，锁屏模式需要 scope=keys（或 lockreset）。 */
-    const needScope = isOwnerMode() ? 'root' : null;
-    fetch('/api/stepup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'status' }),
-      credentials: 'same-origin',
-    })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (j && j.ok && j.valid) {
-          if (!needScope || j.scope === needScope) {
-            /* 有有效 stepup → 直接进 */
-            enterMgr();
-            return;
-          }
-        }
-        showGate();
-      })
-      .catch(function () {
-        showGate();
-      });
-  }
-
-  function showGate() {
     $('lockmgr').hidden = true;
     gateOpts.hidden = false;
     gateKeyForm.hidden = true;
     hideErr('lockgate-err');
     if (gateInput) gateInput.value = '';
-    /* 站长模式：只用根凭证提权，不显示通行密钥选项 */
-    if (isOwnerMode()) {
-      if (gatePkBtn) gatePkBtn.hidden = true;
-      try {
-        gateDlg.showModal();
-      kbFollow(gateDlg);
-        kbFollow(gateDlg);
-      } catch (e) {}
-      return;
-    }
-    /* 锁屏模式：有锁屏类通行密钥才显示该选项（读 /api/lock-status，不读 owner-status） */
-    fetch('/api/lock-status', { method: 'GET', credentials: 'same-origin' })
+    /* 有通行密钥才显示该选项；配置缺失时禁用 */
+    fetch('/api/owner-status', { method: 'GET', credentials: 'same-origin' })
       .then(function (r) {
         return r.json();
       })
@@ -315,7 +239,6 @@ import { followKeyboard } from '../shell/dialog-kb.js';
       });
     try {
       gateDlg.showModal();
-      kbFollow(gateDlg);
     } catch (e) {}
   }
   function closeGate() {
@@ -453,11 +376,11 @@ import { followKeyboard } from '../shell/dialog-kb.js';
   /* ---------- 管理区 ---------- */
   var hasPk = false;
   function refreshStatus() {
-    /* 锁屏模式读 /api/lock-status（lock-pw + class=lock 通行密钥）；
-       站长模式读 /api/owner-status（owner-pw + class=owner 通行密钥）。
+    /* 2.11：锁屏凭证状态读 /api/lock-status（lock-pw + class=lock 通行密钥，
+       owner 会话或 keys/lockreset 票据可读）。owner-status 读的是 owner-pw +
+       class=owner 通行密钥（且要求 owner 会话），在锁屏页/重置页会显示错误。
        openGate 的站长验证按钮继续用 owner-status。 */
-    const statusUrl = isOwnerMode() ? '/api/owner-status' : '/api/lock-status';
-    fetch(statusUrl, { method: 'GET', credentials: 'same-origin' })
+    fetch('/api/lock-status', { method: 'GET', credentials: 'same-origin' })
       .then(function (r) {
         return r.json();
       })
@@ -493,7 +416,6 @@ import { followKeyboard } from '../shell/dialog-kb.js';
     if (title) title.textContent = hasPw ? t('changeTitle') : t('setTitle');
     try {
       pwDlg.showModal();
-      kbFollow(pwDlg);
     } catch (e) {}
     if (a) {
       try {
@@ -502,7 +424,6 @@ import { followKeyboard } from '../shell/dialog-kb.js';
     }
   }
   function closePwDlg() {
-    kbUnfollow(pwDlg);
     try {
       if (pwDlg.open) pwDlg.close();
     } catch (e) {}
@@ -556,7 +477,7 @@ import { followKeyboard } from '../shell/dialog-kb.js';
         return;
       }
       window.clearTimeout(armTimer);
-      api('/api/owner-password', { action: 'remove', kind: credMode })
+      api('/api/owner-password', { action: 'remove', kind: 'lock' })
         .then(function (r) {
           const j = r.json;
           if (j && j.ok) {
@@ -580,18 +501,24 @@ import { followKeyboard } from '../shell/dialog-kb.js';
         });
     });
   }
-  /* 退出站长凭证（站长模式）：吊销 sgx-stepup 票据，回安全页。
-     站长会话保持有效，不影响锁屏解锁状态；再进需重新验证根凭证。 */
-  const exitscopeBtn = $('lockmgr-exitscope');
-  if (exitscopeBtn) {
-    on(exitscopeBtn, 'click', function () {
-      api('/api/stepup', { action: 'exit' })
+  /* 立即锁定并退出所有设备（2.8.0：独立 L2 API /api/lock-all-devices，只认 owner 会话） */
+  const lockoutBtn = $('lockmgr-lockout');
+  if (lockoutBtn) {
+    on(lockoutBtn, 'click', function () {
+      api('/api/lock-all-devices', {})
         .then(function (r) {
-          toast(t('scopeExited') || '已退出');
-          location.href = '/settings/security/';
+          const j = r.json;
+          if (j && j.ok) {
+            /* 服务端已用 Set-Cookie 清掉 cookie；跳回锁屏 */
+            location.href = '/?lock=1';
+          } else if (j && (j.error === 'stepup-required' || r.status === 401)) {
+            needReauth();
+          } else {
+            toast(t('gateSrvErr'));
+          }
         })
         .catch(function () {
-          location.href = '/settings/security/';
+          toast(t('gateNetErr'));
         });
     });
   }
@@ -608,10 +535,9 @@ import { followKeyboard } from '../shell/dialog-kb.js';
       return;
     }
     const action = hasPw ? 'change' : 'set';
-    /* kind 按页面模式传（服务端要求 kind=lock|owner） */
     const body = action === 'set'
-      ? { action: 'set', kind: credMode, password: va }
-      : { action: 'change', kind: credMode, newPassword: va };
+      ? { action: 'set', kind: 'lock', password: va }
+      : { action: 'change', kind: 'lock', newPassword: va };
     api('/api/owner-password', body)
       .then(function (res) {
         const j = res.json;
@@ -676,12 +602,11 @@ import { followKeyboard } from '../shell/dialog-kb.js';
       }
     } catch (e) {}
     hideErr('lockpkname-err');
-    try { dlg.showModal(); kbFollow(dlg); } catch (e) {}
+    try { dlg.showModal(); } catch (e) {}
     try { input.focus({ preventScroll: true }); } catch (e2) {}
   }
   function closePkNameDlg() {
     const dlg = $('lockpkname-dlg');
-    kbUnfollow(dlg);
     try { if (dlg && dlg.open) dlg.close(); } catch (e) {}
     pkNameCredId = null;
     pkNamePrefill = '';
@@ -753,12 +678,12 @@ import { followKeyboard } from '../shell/dialog-kb.js';
           needReauth();
           return;
         }
-        /* 按页面模式决定显示哪类：站长页显示 owner 类，锁屏页显示 lock 类
-           （服务端已按 stepup scope 过滤）。 */
-        const showOwner = isOwnerMode() || j.scope === 'root';
-        pkAddClass = showOwner ? 'owner' : 'lock';
+        /* 按 stepup scope 决定显示哪类：scope=root 显示 owner 类，
+           否则显示 lock 类（服务端已按 scope 过滤）。 */
+        const isOwnerScope = j.scope === 'root';
+        pkAddClass = isOwnerScope ? 'owner' : 'lock';
         const keys = ((j.ok && j.keys) || []).filter(function (k) {
-          return (k.class || 'lock') === (showOwner ? 'owner' : 'lock');
+          return (k.class || 'lock') === (isOwnerScope ? 'owner' : 'lock');
         });
         if (!ul) return;
         ul.innerHTML = '';
@@ -887,13 +812,6 @@ import { followKeyboard } from '../shell/dialog-kb.js';
   function renderAppList() {
     const ul = $('lockmgr-applist');
     if (!ul) return;
-    /* P0-19：应用门只在锁屏模式显示；站长凭证模式（scope=root）不显示应用验证分组 */
-    const section = $('lockmgr-appsec');
-    if (credMode === 'owner') {
-      if (section) section.hidden = true;
-      return;
-    }
-    if (section) section.hidden = false;
     ul.innerHTML = '';
     APPS.forEach(function (app) {
       const appKeys = allKeys.filter(function (k) {
@@ -925,29 +843,15 @@ import { followKeyboard } from '../shell/dialog-kb.js';
           del.textContent = '删除';
           del.setAttribute('aria-label', '删除' + app.name + '的钥匙');
           on(del, 'click', function () {
-            /* P1-20：两步确认（不使用原生 confirm），删除失败给提示 */
-            if (!del.classList.contains('armed')) {
-              del.classList.add('armed');
-              del.textContent = t('pkDelAsk') || '再点一次删除';
-              setTimeout(function () {
-                del.classList.remove('armed');
-                del.textContent = '删除';
-              }, 3000);
-              return;
-            }
+            if (!confirm(t('pkDelConfirm') || '确定删除？')) return;
             api('/api/owner-passkey', { action: 'delete', credId: k.credId })
               .then(function (r2) {
                 if (r2.json && r2.json.ok) {
                   toast(t('pkDeleted') || '已删除');
                   refreshPkList();
-                } else {
-                  const code = (r2.json && r2.json.error) || ('http' + r2.status);
-                  toast((t('gateSrvErr') || '删除失败') + ' (' + code + ')');
                 }
               })
-              .catch(function () {
-                toast(t('gateNetErr') || '网络错误');
-              });
+              .catch(function () {});
           });
           btnWrap.appendChild(del);
         });
@@ -1007,19 +911,16 @@ import { followKeyboard } from '../shell/dialog-kb.js';
         if (res.json && res.json.ok) {
           toast(t('pkRegistered') || '已添加');
           refreshPkList();
+        } else if (res.json && res.json.error === 'stepup-required') {
+          needReauth();
         } else {
-          /* P0-19：显示服务端真实错误码，不误报网络错误 */
-          const code = (res.json && res.json.error) || ('http' + res.status);
-          toast((t('gateSrvErr') || '失败') + ' (' + code + ')');
+          const code = (res.json && res.json.error) || 'failed';
+          toast((t('gateSrvErr') || '失败') + ': ' + code);
         }
       })
       .catch(function (e) {
-        /* P0-19：区分服务端错误和真网络错误 */
-        if (e && e.kind) {
-          toast(t('gateSrvErr') || '失败');
-        } else {
-          toast(t('gateNetErr') || '网络错误');
-        }
+        const code = e && e.code ? e.code : null;
+        toast((t('gateNetErr') || '网络错误') + (code ? ': ' + code : ''));
       });
   }
 
@@ -1102,7 +1003,8 @@ import { followKeyboard } from '../shell/dialog-kb.js';
             /* 注册成功 → 弹出命名弹层（预填名已提交，用户改名才调 rename） */
             openPkNameDlg(j.credId, r3.prefill);
             refreshPkList();
-            refreshStatus();
+            /* 新注册后刷新门禁状态（通行密钥选项） */
+            fetch('/api/owner-status', { method: 'GET', credentials: 'same-origin' }).catch(function () {});
           } else if (j && j.error === 'stepup-required') {
             needReauth();
           } else {

@@ -20,7 +20,6 @@ import { on } from '../lib/events.js';
 import { visibleInterval } from '../lib/scheduler.js';
 import { reducedMotion } from '../lib/util.js';
 import { get as featGet } from '../lib/features.js';
-import { exchangeRootSession } from '../lib/root-session.js';
 
 const LOCK =
   '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
@@ -1038,24 +1037,67 @@ function showLockScreen() {
       showError(en ? 'Enter root credential' : '请输入根凭证');
       return;
     }
-    /* P1-9：共用 exchangeRootSession（root-auth → root-session 换会话再跳转） */
-    exchangeRootSession(key)
+    fetch('/api/root-auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: key }),
+    })
+      .then(function (r) {
+        return r.text().then(function (t) {
+          let j = null;
+          try { j = JSON.parse(t); } catch (e) {}
+          return { s: r.status, j: j };
+        });
+      })
       .then(function (res) {
         if (dlgState !== 'mgmtkey') return;
-        if (res.ok) {
-          closeDialog();
-          location.href = en ? '/en/settings/security/' : '/settings/security/';
-        } else if (res.status === 429 || res.error === 'locked') {
-          showError(en ? 'Too many attempts' : '尝试次数过多');
-        } else if (res.error === 'network') {
-          showError(en ? 'Network error' : '网络错误');
-        } else if (res.status === 503 || res.status === 500 || res.error === 'session') {
+        const j = res.j;
+        if (!j) {
           showError(en ? 'Server error' : '服务器错误');
-          if (input) input.value = '';
+          return;
+        }
+        if (j.ok) {
+          /* 锁屏未配置场景：root-auth 只签发 stepup(by=root, scope=root)，
+             需调 /api/root-session 换站长会话（by=root，1 小时）再跳转，
+             否则无会话会被 middleware 302 回锁屏。 */
+          fetch('/api/root-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+          })
+            .then(function (r2) {
+              return r2.text().then(function (t2) {
+                let j2 = null;
+                try { j2 = JSON.parse(t2); } catch (e) {}
+                return { s: r2.status, j: j2 };
+              });
+            })
+            .then(function (res2) {
+              if (dlgState !== 'mgmtkey') return;
+              if (res2.j && res2.j.ok) {
+                closeDialog();
+                location.href = en ? '/en/settings/security/' : '/settings/security/';
+              } else {
+                showError(en ? 'Server error' : '服务器错误');
+                if (input) input.value = '';
+              }
+            })
+            .catch(function () {
+              if (dlgState !== 'mgmtkey') return;
+              showError(en ? 'Network error' : '网络错误');
+            });
+        } else if (res.s === 429) {
+          showError(en ? 'Too many attempts' : '尝试次数过多');
+        } else if (res.s === 503 || res.s === 500) {
+          showError(en ? 'Server error' : '服务器错误');
         } else {
           showError(en ? 'Wrong root credential' : '根凭证错误');
           if (input) input.value = '';
         }
+      })
+      .catch(function () {
+        if (dlgState !== 'mgmtkey') return;
+        showError(en ? 'Network error' : '网络错误');
       });
   }
 

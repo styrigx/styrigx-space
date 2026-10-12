@@ -2099,8 +2099,6 @@
     40%, 80% { transform: translateX(8px); }
   }
   .sgx-verify-title { font-size: 18px; font-weight: 700; color: var(--m-on-surface); margin: 0; }
-  /* P2-12：弹层标题靠左（与旧 upgrade 弹层一致） */
-  .sgx-verify-title-left { text-align: left; width: 100%; }
   .sgx-verify-box { display: flex; justify-content: center; min-height: 65px; align-items: center; }
   .sgx-verify-err { color: var(--m-rose); font-size: 14px; margin: 0; text-align: center; }
   /* 2.8.0：命名弹层输入框 One UI 样式（之前 class 存在但无样式定义） */

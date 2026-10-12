@@ -7,9 +7,6 @@
  * 2.10.1：直接实现验证流程（不再引用不存在的 ./passkey.js，也不再派发
  * 无人监听的 sgx:upgrade-* 事件）。访客调用认证类 action 由中间件放行
  * （AUTH_ACTIONS），端点自身做会话/stepup 校验。
- *
- * P1-10：根凭证/密码改用弹层内联输入，不再用 window.prompt。
- * 全站禁止 window.prompt/confirm/alert。
  */
 export function initUpgrade() {
   const html = document.documentElement;
@@ -24,16 +21,9 @@ export function initUpgrade() {
     '<div class="sgx-upgrade-sheet" role="dialog" aria-modal="true" aria-label="' + (isEn ? 'Owner verification' : '站长验证') + '">' +
     '<div class="sgx-upgrade-title">' + (isEn ? 'Owner verification required' : '需要站长验证') + '</div>' +
     '<div class="sgx-upgrade-desc">' + (isEn ? 'This page requires owner verification.' : '此页面需要站长验证后才能进入。') + '</div>' +
-    '<div id="sgx-upgrade-opts">' +
     '<button type="button" class="sgx-upgrade-btn" id="sgx-upgrade-pk">' + (isEn ? 'Verify with passkey' : '通行密钥验证') + '</button>' +
     '<button type="button" class="sgx-upgrade-btn" id="sgx-upgrade-pw">' + (isEn ? 'Verify with password' : '密码验证') + '</button>' +
     '<button type="button" class="sgx-upgrade-btn" id="sgx-upgrade-mk">' + (isEn ? 'Root credential' : '根凭证') + '</button>' +
-    '</div>' +
-    '<div id="sgx-upgrade-keyform" hidden>' +
-    '<input type="password" id="sgx-upgrade-input" class="sgx-verify-input" autocomplete="off" />' +
-    '<button type="button" class="sgx-upgrade-btn" id="sgx-upgrade-go">' + (isEn ? 'Verify' : '验证') + '</button>' +
-    '<button type="button" class="sgx-upgrade-cancel" id="sgx-upgrade-back">' + (isEn ? 'Back' : '返回') + '</button>' +
-    '</div>' +
     '<button type="button" class="sgx-upgrade-cancel" id="sgx-upgrade-cancel">' + (isEn ? 'Cancel' : '取消') + '</button>' +
     '<p class="sgx-upgrade-err" id="sgx-upgrade-err" hidden></p>' +
     '</div>';
@@ -41,45 +31,11 @@ export function initUpgrade() {
 
   const close = () => overlay.remove();
   const errEl = document.getElementById('sgx-upgrade-err');
-  const optsEl = document.getElementById('sgx-upgrade-opts');
-  const keyformEl = document.getElementById('sgx-upgrade-keyform');
-  const inputEl = document.getElementById('sgx-upgrade-input');
-  const cancelEl = document.getElementById('sgx-upgrade-cancel');
   const showErr = (msg) => {
     if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
   };
-  const hideErr = () => { if (errEl) errEl.hidden = true; };
-
-  /** 当前输入模式：'root' | 'password' */
-  let inputMode = 'root';
-
-  function showOpts() {
-    if (optsEl) optsEl.hidden = false;
-    if (keyformEl) keyformEl.hidden = true;
-    if (cancelEl) cancelEl.hidden = false;
-    hideErr();
-  }
-  function showKeyform(mode, placeholder) {
-    inputMode = mode;
-    if (optsEl) optsEl.hidden = true;
-    if (keyformEl) keyformEl.hidden = false;
-    if (cancelEl) cancelEl.hidden = true;
-    hideErr();
-    if (inputEl) {
-      inputEl.value = '';
-      inputEl.placeholder = placeholder || '';
-      try { inputEl.focus({ preventScroll: true }); } catch (e) { try { inputEl.focus(); } catch (_) {} }
-    }
-  }
 
   document.getElementById('sgx-upgrade-cancel').addEventListener('click', close);
-  document.getElementById('sgx-upgrade-back').addEventListener('click', showOpts);
-  inputEl.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      document.getElementById('sgx-upgrade-go').click();
-    }
-  });
 
   function b64urlToBuf(s) {
     s = s.replace(/-/g, '+').replace(/_/g, '/');
@@ -96,67 +52,33 @@ export function initUpgrade() {
   }
 
   // 根凭证验证：调 /api/root-auth，成功后进入安全与隐私页
-  document.getElementById('sgx-upgrade-mk').addEventListener('click', function () {
-    showKeyform('root', isEn ? 'Root credential' : '根凭证');
-  });
-
-  // 密码验证：先显示输入框
-  document.getElementById('sgx-upgrade-pw').addEventListener('click', function () {
-    showKeyform('password', isEn ? 'Unlock password' : '解锁密码');
-  });
-
-  // 验证按钮：按模式提交
-  document.getElementById('sgx-upgrade-go').addEventListener('click', async () => {
-    hideErr();
-    const v = inputEl ? inputEl.value : '';
-    if (!v) {
-      showErr(isEn ? 'Enter credential' : '请输入凭证');
-      return;
-    }
-    if (inputMode === 'root') {
-      try {
-        const res = await fetch('/api/root-auth', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: v }),
-          credentials: 'include',
-        });
-        const j = await res.json();
-        if (j && j.ok) {
-          location.href = isEn ? '/en/settings/security/' : '/settings/security/';
-        } else if (res.status === 429) {
-          showErr(isEn ? 'Too many attempts' : '尝试次数过多');
-        } else {
-          showErr(isEn ? 'Wrong root credential' : '根凭证错误');
-          if (inputEl) inputEl.value = '';
-        }
-      } catch (e) {
-        showErr(isEn ? 'Network error' : '网络错误');
+  document.getElementById('sgx-upgrade-mk').addEventListener('click', async () => {
+    if (errEl) errEl.hidden = true;
+    const k = window.prompt(isEn ? 'Enter root credential' : '请输入根凭证');
+    if (!k) return;
+    try {
+      const res = await fetch('/api/root-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: k }),
+        credentials: 'include',
+      });
+      const j = await res.json();
+      if (j && j.ok) {
+        location.href = isEn ? '/en/settings/security/' : '/settings/security/';
+      } else if (res.status === 429) {
+        showErr(isEn ? 'Too many attempts' : '尝试次数过多');
+      } else {
+        showErr(isEn ? 'Wrong root credential' : '根凭证错误');
       }
-    } else {
-      try {
-        const res = await fetch('/api/owner-password', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'verify', password: v }),
-          credentials: 'include',
-        });
-        const j = await res.json();
-        if (j && j.ok) {
-          location.href = returnPath;
-        } else {
-          showErr(isEn ? 'Wrong password' : '密码错误');
-          if (inputEl) inputEl.value = '';
-        }
-      } catch (e) {
-        showErr(isEn ? 'Network error' : '网络错误');
-      }
+    } catch (e) {
+      showErr(isEn ? 'Network error' : '网络错误');
     }
   });
 
   // 通行密钥验证：challenge → WebAuthn → auth，成功后服务端签发 owner 会话
   document.getElementById('sgx-upgrade-pk').addEventListener('click', async () => {
-    hideErr();
+    if (errEl) errEl.hidden = true;
     try {
       if (!window.PublicKeyCredential) {
         showErr(isEn ? 'Not supported on this device' : '设备不支持');
@@ -212,6 +134,29 @@ export function initUpgrade() {
     } catch (e) {
       /* 用户取消或失败：留在原页 */
       if (e && e.name !== 'NotAllowedError') showErr(isEn ? 'Verification failed' : '验证失败');
+    }
+  });
+
+  // 密码验证：直接调用 verify，成功后服务端签发 owner 会话
+  document.getElementById('sgx-upgrade-pw').addEventListener('click', async () => {
+    if (errEl) errEl.hidden = true;
+    const pw = window.prompt(isEn ? 'Enter unlock password' : '请输入解锁密码');
+    if (!pw) return;
+    try {
+      const res = await fetch('/api/owner-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'verify', password: pw }),
+        credentials: 'include',
+      });
+      const j = await res.json();
+      if (j && j.ok) {
+        location.href = returnPath;
+      } else {
+        showErr(isEn ? 'Wrong password' : '密码错误');
+      }
+    } catch (e) {
+      showErr(isEn ? 'Network error' : '网络错误');
     }
   });
 }

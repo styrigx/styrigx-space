@@ -246,6 +246,95 @@ test('B10：删应用类密钥只加 app-epoch，不推进会话纪元', async (
   assert.equal(await kv.get('session-epoch'), '10', '会话纪元不应推进');
 });
 
+/* ============ 补充指令 2：diag-keys 密钥对自检 ============ */
+
+function diagEnv(kv, overrides = {}) {
+  return {
+    OWNER_KV: kv,
+    SGX_LOCK_PRIVATE: LOCK_PRIV,
+    SGX_LOCK_PUBLIC: LOCK_PUB,
+    SGX_STEPUP_PRIVATE: STEPUP_PRIV,
+    SGX_STEPUP_PUBLIC: STEPUP_PUB,
+    SGX_APP_PRIVATE: APP_PRIV,
+    SGX_APP_PUBLIC: APP_PUB,
+    ...overrides,
+  };
+}
+
+let APP_PRIV = '', APP_PUB = '';
+
+test('setup2: 生成 APP 测试密钥', async () => {
+  const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+  APP_PRIV = derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY');
+  APP_PUB = derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY');
+  assert.ok(APP_PRIV && APP_PUB);
+});
+
+function getReq(cookie) {
+  return new Request('https://styrigx.com/api/diag-keys', {
+    method: 'GET',
+    headers: cookie ? { Cookie: cookie } : {},
+  });
+}
+
+test('diag-keys：未登录 → 401', async () => {
+  const { onRequest } = await import('../../functions/api/diag-keys.js');
+  const kv = makeKV();
+  const res = await onRequest({ request: getReq(''), env: diagEnv(kv) });
+  assert.equal(res.status, 401);
+});
+
+test('diag-keys：三对都匹配 → 全 true', async () => {
+  const { onRequest } = await import('../../functions/api/diag-keys.js');
+  const { signSessionCookie } = await import('../../functions/_kernel/session.js');
+  const kv = makeKV();
+  const sess = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
+  const res = await onRequest({
+    request: getReq('sgx-verified=' + sess),
+    env: diagEnv(kv),
+  });
+  assert.equal(res.status, 200);
+  const j = await res.json();
+  assert.equal(j.stepup, true, 'stepup 应配对');
+  assert.equal(j.lock, true, 'lock 应配对');
+  assert.equal(j.app, true, 'app 应配对');
+  // 不得泄露密钥内容
+  const txt = JSON.stringify(j);
+  assert.ok(!txt.includes('PRIVATE'), '不得返回私钥内容');
+  assert.ok(!txt.includes('MCow') && !txt.includes('MC4C'), '不得返回密钥 DER');
+});
+
+test('diag-keys：错配对 → false', async () => {
+  const { onRequest } = await import('../../functions/api/diag-keys.js');
+  const { signSessionCookie } = await import('../../functions/_kernel/session.js');
+  const kv = makeKV();
+  const sess = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
+  // 用 APP 的公钥配 STEPUP 的私钥（错配）
+  const res = await onRequest({
+    request: getReq('sgx-verified=' + sess),
+    env: diagEnv(kv, { SGX_STEPUP_PUBLIC: APP_PUB }),
+  });
+  const j = await res.json();
+  assert.equal(j.stepup, false, '错配应对返回 false');
+  assert.equal(j.lock, true);
+  assert.equal(j.app, true);
+});
+
+test('diag-keys：缺失 → "missing"', async () => {
+  const { onRequest } = await import('../../functions/api/diag-keys.js');
+  const { signSessionCookie } = await import('../../functions/_kernel/session.js');
+  const kv = makeKV();
+  const sess = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
+  const res = await onRequest({
+    request: getReq('sgx-verified=' + sess),
+    env: diagEnv(kv, { SGX_APP_PRIVATE: '', SGX_APP_PUBLIC: '' }),
+  });
+  const j = await res.json();
+  assert.equal(j.app, 'missing', '缺失应返回 "missing"');
+  assert.equal(j.stepup, true);
+  assert.equal(j.lock, true);
+});
+
 /* ============ B8：userHandle 按 pkClass/aud 取 ============ */
 
 test('B8：getUserHandle 按 aud 分键', async () => {
