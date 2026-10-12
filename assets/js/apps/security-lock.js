@@ -87,26 +87,8 @@ import { followKeyboard } from '../shell/vk.js';
       body: JSON.stringify(body),
       credentials: 'include',
     }).then(parseApi).then(function (res) {
-      /* 2.10.0：stepup-required → 自动做一次 stepup 验证后重试（只重试一次）。
-         2.10.1 A4：自动 stepup 失败时停在错误提示，不自动重开验证门。
-         补充指令 3：保留服务端的 reason（bad-sig/expired/epoch-changed 等）供显示。 */
-      if (!retried && res.json && res.json.error === 'stepup-required') {
-        const serverReason = res.json.reason;
-        return doStepup().then(function (r) {
-          if (r.ok) {
-            return api(url, body, true).then(function (res2) {
-              if (res2.json && res2.json.error === 'stepup-required') {
-                return { status: res2.status, json: { ok: false, error: 'stepup-retry-failed', reason: res2.json.reason || serverReason } };
-              }
-              return res2;
-            });
-          }
-          /* 失败：返回带错误码的响应，调用方显示错误并停住 */
-          const errCode = r.error || 'stepup-failed';
-          console.error('[api] stepup failed:', errCode, 'server reason:', serverReason);
-          return { status: res.status, json: { ok: false, error: errCode, reason: serverReason } };
-        });
-      }
+      /* 定稿 #19：门内不自动发起验证。stepup-required 直接返回给调用方显示，
+         不自动做 stepup 验证后重试。 */
       return res;
     });
   }

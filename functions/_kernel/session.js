@@ -70,7 +70,7 @@ export function clearVerifiedCookie(headers) {
  * @param {string} role 'owner' 或 'visitor'
  * @param {string} by 'root' 或 'owner'（默认 'owner'）
  */
-export async function signSessionCookie(privatePem, epoch, role, by) {
+export async function signSessionCookie(privatePem, epoch, role, by, maxAge) {
   if (role !== ROLE_OWNER && role !== ROLE_VISITOR) {
     throw new Error('signSessionCookie: role must be "owner" or "visitor", got ' + JSON.stringify(role));
   }
@@ -82,8 +82,8 @@ export async function signSessionCookie(privatePem, epoch, role, by) {
   if (role === ROLE_VISITOR && by !== BY_OWNER) {
     throw new Error('signSessionCookie: visitor session must be by=owner');
   }
-  const maxAge = role === ROLE_VISITOR ? VISITOR_MAX_AGE : SESSION_MAX_AGE;
-  const exp = String(Date.now() + maxAge * 1000);
+  const age = maxAge || (role === ROLE_VISITOR ? VISITOR_MAX_AGE : SESSION_MAX_AGE);
+  const exp = String(Date.now() + age * 1000);
   const payload = by + '.' + role + '.' + epoch + '.' + exp;
   const sig = await ed25519Sign(privatePem, payload);
   return payload + '.' + sig;
@@ -118,13 +118,13 @@ export async function issueSessionCookie(env, headers, role, by, maxAgeOverride)
   } catch (e) {
     return { status: 503, body: { ok: false, error: 'server' } };
   }
+  const maxAge = maxAgeOverride || (role === ROLE_VISITOR ? VISITOR_MAX_AGE : SESSION_MAX_AGE);
   let cv;
   try {
-    cv = await signSessionCookie(edPriv, epoch, role, by);
+    cv = await signSessionCookie(edPriv, epoch, role, by, maxAge);
   } catch (e) {
     return { status: 500, body: { ok: false, error: 'session-sign-failed' } };
   }
-  const maxAge = maxAgeOverride || (role === ROLE_VISITOR ? VISITOR_MAX_AGE : SESSION_MAX_AGE);
   setVerifiedCookie(headers, cv, maxAge);
   return null;
 }

@@ -2,7 +2,7 @@
  * 2.11 定稿：root 代开锁屏会话。
  *
  * 未配置 lock 层凭证时，root 可用 stepup(by=root, scope=root) 代开锁屏会话。
- * - 会话约 1 小时（短于正常的 12 小时）
+ * - 会话与正常 lockkey 解锁相同：12 小时（定稿 #10）
  * - 会话 by=root，标记为代开
  * - lock 层一旦配置自己的凭证，root 代开失效（403）
  * - KV 读取失败按已配置处理（拒绝，fail closed）
@@ -13,12 +13,12 @@
  *
  * 只接受 POST；校验 Origin。
  */
-import { issueSessionCookie, ROLE_OWNER, BY_ROOT } from '../_kernel/session.js';
+import { issueSessionCookie, ROLE_OWNER, BY_ROOT, SESSION_MAX_AGE } from '../_kernel/session.js';
 import { verifyStepupCookie, STEPUP_BY_ROOT, STEPUP_SCOPE_ROOT } from './stepup.js';
 import { isLockEffectivelyConfigured } from '../_kernel/layers.js';
 
-/* root 代开的会话时长：约 1 小时 */
-const ROOT_SESSION_MAX_AGE = 3600;
+/* root 代开的会话时长：与正常解锁相同（12 小时，定稿 #10） */
+const ROOT_SESSION_MAX_AGE = SESSION_MAX_AGE;
 
 /** @param {any} context */
 export async function onRequestPost(context) {

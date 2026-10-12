@@ -38,13 +38,6 @@
       </button>
     </section>
     <p class="sec-note mb-7">{{ if $isEn }}Unlock with fingerprint, face, or device passcode. Tap a device name to rename it.{{ else }}用指纹、面容或设备密码解锁。点设备名可重命名。{{ end }}</p>
-
-    <!-- 2.10.0：应用验证（应用类通行密钥，每应用一行） -->
-    <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "key" }}</span><span>{{ if $isEn }}App verification{{ else }}应用验证{{ end }}</span></h2>
-    <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.18s" id="lockmgr-appsec">
-      <ul class="lockmgr-pklist" id="lockmgr-applist"></ul>
-    </section>
-    <p class="sec-note">{{ if $isEn }}One passkey per app, used only to approve that app's sensitive actions.{{ else }}每个应用一把通行密钥，只用于批准该应用的敏感操作。{{ end }}</p>
   </div>
 </div>
 

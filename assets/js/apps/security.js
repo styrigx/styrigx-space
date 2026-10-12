@@ -35,6 +35,7 @@ import { exchangeRootSession } from '../lib/root-session.js';
 
   const lockUrl = en ? '/en/settings/security/lock/' : '/settings/security/lock/';
   const ownerUrl = en ? '/en/settings/security/owner/' : '/settings/security/owner/';
+  const mgmtUrl = en ? '/en/settings/security/mgmt/' : '/settings/security/mgmt/';
 
   const card = document.getElementById('sec-status');
   const cardTitle = document.getElementById('sec-status-title');
@@ -236,8 +237,14 @@ import { exchangeRootSession } from '../lib/root-session.js';
         function (res) {
           const j = res.j;
           if (j && j.ok) {
-            /* 锁屏未配置+访客会话时，root-auth 只签验证，需先换站长会话
-               再跳转，否则被 middleware 拦。 */
+            /* 已有 owner 会话时直接进门，不需换会话。
+               只有无会话（访客+未配锁引导）才需调 /api/root-session 换站长会话，
+               否则被 middleware 拦。 */
+            let hasSession = false;
+            try {
+              hasSession = document.documentElement.dataset.sgxRole === 'owner';
+            } catch (e) {}
+            if (hasSession) return;
             return exchangeRootSession().then(function (rs) {
               if (rs && rs.ok) return;
               throw { message: en ? 'Verification failed, please retry' : '验证失败，请重试' };
@@ -579,7 +586,9 @@ import { exchangeRootSession } from '../lib/root-session.js';
   (function () {
     const row = document.getElementById('sec-mgmt-cred');
     if (!row || !doorDlg) return;
-    const goOwner = function () { location.href = ownerUrl; };
+    /* 定稿 #16：未配 ownerkey 时管理凭证的根凭证行验证后进管理凭证索引页，
+       不跳站长凭证门。 */
+    const goMgmt = function () { location.href = mgmtUrl; };
     const goLock = function () { location.href = lockUrl; };
     function openMgmtDoor() {
       let isVisitor = false;
@@ -595,7 +604,7 @@ import { exchangeRootSession } from '../lib/root-session.js';
         /* 行决策走纯函数 mgmtButtons（可测试），与 /api/owner-status 的语义对齐 */
         const kinds = mgmtButtons(hasPw, hasPk);
         for (const kind of kinds) {
-          if (kind === 'root') methods.push(doorDlg.rootMethod(goOwner));
+          if (kind === 'root') methods.push(doorDlg.rootMethod(goMgmt));
           else if (kind === 'passkey') methods.push(doorDlg.passkeyMethod(goLock));
           else if (kind === 'password') methods.push(doorDlg.passwordMethod(goLock));
         }

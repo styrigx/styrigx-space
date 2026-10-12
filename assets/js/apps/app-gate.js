@@ -71,8 +71,7 @@ export function needVerify(t) {
 
 /**
  * 门内直调接口：普通 POST，不自动验证、不弹面板。
- * stepup-required → needVerify() 跳验证流程；调用方在 then 里见到该
- * error 码直接 return 即可（跳转已安排）。
+ * stepup-required → 返回给调用方显示错误，不自动跳验证流程（定稿 #19）。
  * @param {string} url
  * @param {any} body
  * @param {(k:string)=>string} t 文案函数
@@ -84,9 +83,7 @@ export function api(url, body, t) {
     body: JSON.stringify(body),
     credentials: 'include',
   }).then(parseApi).then(function (res) {
-    if (res.json && res.json.error === 'stepup-required') {
-      needVerify(t);
-    }
+    /* 定稿 #19：不自动跳验证流程，调用方显示错误即可 */
     return res;
   });
 }
