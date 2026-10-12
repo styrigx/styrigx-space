@@ -331,3 +331,37 @@ test('CI 静态检查：verifyStepupCookie 只在安全设置接口（owner-pass
   }
   assert.deepEqual(bad, [], '以下文件不应引用 stepup 验签：' + bad.join(','));
 });
+
+/* ---- P0-15：savePasskey 必须原样保存 class ---- */
+test('P0-15: savePasskey 保留 owner/lock/app，非法值拒绝', async () => {
+  const { savePasskey, PK_CLASS_OWNER, PK_CLASS_LOCK, PK_CLASS_APP } = await import('../../functions/api/owner-passkey.js');
+  const kv = makeKV();
+  const base = {
+    name: 'test',
+    credId: 'test-cred-id-123',
+    publicKey: {},
+    createdAt: Date.now(),
+  };
+  // owner 原样保存
+  await savePasskey(kv, { ...base, credId: 'owner-1', class: PK_CLASS_OWNER });
+  let rec = await kv.get('owner-passkey:owner-1', 'json');
+  assert.equal(rec.class, 'owner', 'owner 必须存成 owner，不能变成 lock');
+
+  // lock 原样保存
+  await savePasskey(kv, { ...base, credId: 'lock-1', class: PK_CLASS_LOCK });
+  rec = await kv.get('owner-passkey:lock-1', 'json');
+  assert.equal(rec.class, 'lock');
+
+  // app 原样保存（含 aud）
+  await savePasskey(kv, { ...base, credId: 'app-1', class: PK_CLASS_APP, aud: 'book' });
+  rec = await kv.get('owner-passkey:app-1', 'json');
+  assert.equal(rec.class, 'app');
+  assert.equal(rec.aud, 'book');
+
+  // 非法值拒绝
+  await assert.rejects(
+    savePasskey(kv, { ...base, credId: 'bad-1', class: 'invalid' }),
+    /invalid-class/,
+    '非法 class 必须抛错，不能默认归 lock'
+  );
+});

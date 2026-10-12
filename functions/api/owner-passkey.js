@@ -170,7 +170,7 @@ export async function getPasskeys(kv) {
  * @param {any} kv
  * @param {any} item
  */
-async function savePasskey(kv, item) {
+export async function savePasskey(kv, item) {
   const keyName = 'owner-passkey:' + String(item.credId).slice(0, 12);
   /* P0-15：class 必须原样保存，owner 绝不能被改成 lock */
   const cls = item.class;
