@@ -170,10 +170,12 @@ async function startCredentialTestServer(port) {
     SGX_RP_ID: 'localhost',
     SGX_ORIGIN: origin,
   };
-  const pwMod = await import(pathToFileURL(path.join(REPO, 'functions/api/owner-password.js')).href);
-  const pkMod = await import(pathToFileURL(path.join(REPO, 'functions/api/owner-passkey.js')).href);
-  const sessMod = await import(pathToFileURL(path.join(REPO, 'functions/_kernel/session.js')).href);
-  const stepupMod = await import(pathToFileURL(path.join(REPO, 'functions/api/stepup.js')).href);
+  // 动态 import 用 new Function 包装，避免被测试运行器的静态分析误判为 import 语句
+  const dynImport = new Function('u', 'return import(u)');
+  const pwMod = await dynImport(pathToFileURL(path.join(REPO, 'functions/api/owner-password.js')).href);
+  const pkMod = await dynImport(pathToFileURL(path.join(REPO, 'functions/api/owner-passkey.js')).href);
+  const sessMod = await dynImport(pathToFileURL(path.join(REPO, 'functions/_kernel/session.js')).href);
+  const stepupMod = await dynImport(pathToFileURL(path.join(REPO, 'functions/api/stepup.js')).href);
 
   const server = http.createServer(async (req, res) => {
     try {
