@@ -79,7 +79,7 @@ test.describe('settings home (dex): two-pane', () => {
     await nav.locator('[data-cat="theme"]').click();
     await expect(pg.locator('#sg-theme')).toBeVisible();
     await expect(pg.locator('#sg-display')).toBeHidden();
-    await expect(pg.locator('#set-right-title')).toContainText('壁纸和主题');
+    await expect(pg.locator('#set-right-title')).toContainText('风格');
     expect(new URL(pg.url()).pathname).toBe('/settings/');
     // 点安全与隐私：跳独立页面
     await nav.locator('[data-cat="security"]').click();
