@@ -73,7 +73,7 @@ jobs:
 
       - name: Passkey class + stepup + app-token tests (2.10.1)
         # 通行密钥分类、stepup 安全、app-token 签发与向量一致性、2.10.1 修复
-        run: node --test tests/kernel/passkey-class.test.mjs tests/kernel/stepup-security.test.mjs tests/kernel/auth-2101.test.mjs tests/ui/app-token.test.mjs
+        run: node --test tests/kernel/passkey-class.test.mjs tests/kernel/stepup-security.test.mjs tests/kernel/auth-2101.test.mjs tests/kernel/auth-2102.test.mjs tests/kernel/auth-211.test.mjs tests/ui/app-token.test.mjs
 
       - name: UI unit tests (2.9.0 页内导航等)
         run: node --test tests/ui/frontend-session.test.mjs tests/ui/i18n-weather.test.mjs tests/ui/inpagenav.test.mjs
@@ -191,7 +191,7 @@ jobs:
   passkey-e2e:
     # Hark P0：WebAuthn 虚拟认证器 E2E（注册→列表→解锁→删除→伪造 cookie）。
     # 在预览部署上跑真实 Workers；只能用测试 secret，绝不用生产 secret。
-    # 需要 GitHub Secrets：PREVIEW_OWNER_KEY、PREVIEW_SESSION_SECRET（测试值）。
+    # 需要 GitHub Secrets：PREVIEW_OWNER_KEY、PREVIEW_SGX_PW_PEPPER（测试值）。
     needs: quality
     runs-on: ubuntu-latest
     steps:
@@ -250,7 +250,9 @@ jobs:
                   "preview": {
                       "env_vars": {
                           "OWNER_KEY": {"type": "secret_text", "value": "${{ secrets.PREVIEW_OWNER_KEY }}"},
-                          "SESSION_SECRET": {"type": "secret_text", "value": "${{ secrets.PREVIEW_SESSION_SECRET }}"},
+                          # 2.11 定稿：代码改读 SGX_ROOT_KEY；预览用同一测试值映射（未新增 secret）
+                          "SGX_ROOT_KEY": {"type": "secret_text", "value": "${{ secrets.PREVIEW_OWNER_KEY }}"},
+                          "SGX_PW_PEPPER": {"type": "secret_text", "value": "${{ secrets.PREVIEW_SGX_PW_PEPPER }}"},
                           # 2.4.1：CI 临时生成的测试密钥对（每次运行新生成，非生产密钥）
                           "SGX_LOCK_PRIVATE": {"type": "secret_text", "value": ED_PRIV},
                           "SGX_LOCK_PUBLIC": {"type": "plain_text", "value": ED_PUB},
@@ -275,6 +277,17 @@ jobs:
           print("preview secrets updated")
           PYEOF
 
+      - name: Apply D1 migrations to preview
+        # 2.11 恢复开关建表：部署 preview 前对 styrigx-sgx-preview 跑迁移。
+        # 只写 preview 库（--env preview），绝不碰 production。
+        # 代码里也有 CREATE TABLE IF NOT EXISTS 兜底，此处是标准迁移流程。
+        # continue-on-error：CI token 无 D1 权限时会 7403，失败不阻塞（兜底会建表）。
+        continue-on-error: true
+        run: npx wrangler d1 migrations apply styrigx-sgx-preview --remote --env preview
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
       - name: Deploy to preview
         uses: cloudflare/wrangler-action@v3
         with:
@@ -286,6 +299,9 @@ jobs:
         run: |
           SGX_TEST_BASE="https://passkey-e2e.styrigx-space.pages.dev" \
           SGX_TEST_OWNER_KEY="${{ secrets.PREVIEW_OWNER_KEY }}" \
+          SGX_TEST_CF_TOKEN="${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+          SGX_TEST_CF_ACCOUNT="${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" \
+          SGX_TEST_PREVIEW_KV_ID="5084ea8ef2444156ba48203220b93df6" \
           npx playwright test --config=playwright.config.js --grep "passkey e2e"
         env:
           SGX_TEST_SUITE: passkey
@@ -323,6 +339,70 @@ jobs:
           path: |
             test-results/
             playwright-report/
+
+  # 手动更新视觉基线：只在 workflow_dispatch 时运行，用与 quality 完全相同的容器/字体
+  # 只更新 settings-security 相关的 40 张基线（2.11 定稿 UI 改动），结果提交回当前分支
+  update-visual-baselines:
+    if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+    # 2026-10-12：与 quality 相同的 ubuntu-24.04，保证字体渲染一致
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: ${{ env.HUGO_VERSION }}
+          extended: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install test deps
+        run: npm install --no-save @playwright/test http-server && npx playwright install chromium --with-deps
+
+      - name: Install CJK fonts
+        # 与 quality 相同的字体，保证渲染一致
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk
+
+      - name: Build CSS
+        run: node scripts/build-css.cjs --minify
+
+      - name: Build site (测试构建，锁屏禁用)
+        run: |
+          sed -i "s/0x4AAAAAAFSBhpWkAwZr1SMA/1x00000000000000000000AA/g" hugo.yaml
+          cp data/posts.fixture.json data/posts.json
+          hugo --minify
+        env:
+          SGX_TEST_NO_LOCK: "1"
+          SGX_TEST_NO_WEATHER: "1"
+
+      - name: Update settings-security baselines
+        # 只更新 settings-security 相关的 40 张（2.11 定稿 UI 改动：命名/新入口/代管状态/审计）
+        # 其余截图不对旧基线做任何改动
+        run: npx playwright test --config=playwright.config.js --update-snapshots --grep "settings_security"
+
+      - name: Commit updated baselines
+        run: |
+          git config user.name "Styrigx"
+          git config user.email "styrigx@users.noreply.github.com"
+          git add tests/e2e/visual/visual.spec.js-snapshots/
+          if git diff --cached --quiet; then
+            echo "No baseline changes"
+          else
+            git commit -m "[visual] 更新 settings-security 基线（2.11 定稿 UI 改动）"
+            git push origin HEAD:${{ github.ref_name }}
+          fi
 
   build-and-deploy:
     # 部署条件：(push 或 workflow_dispatch) 且 ref 是 main；其他分支手动触发不部署。

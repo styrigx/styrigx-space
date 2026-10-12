@@ -186,7 +186,7 @@ test('onRequest：成功签发（2.10.1 B7：verifySessionDetailed 传 env）', 
 
   // 用会话模块签一个合法的 owner 会话 cookie
   const { signSessionCookie } = await import('../../functions/_kernel/session.js');
-  const sessVal = await signSessionCookie(lockPrivPem, 7, 'owner');
+  const sessVal = await signSessionCookie(lockPrivPem, 7, 'owner', 'owner');
 
   // mock KV：session-epoch=7，app-auth 记录有效
   const store = new Map();

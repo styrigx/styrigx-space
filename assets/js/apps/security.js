@@ -3,6 +3,8 @@
  * - 从 /api/owner-status 读取只读状态（是否已设置密码/通行密钥），渲染状态卡片与锁定屏幕副标题。
  * - 立即锁定：调服务端 /api/lock 清除会话 cookie 后重载，回到锁屏。
  * - 右上 ⋮：刷新状态。
+ * - 2.11：密钥分层（/api/layer-status，每层「由根凭证代管」/「已接管」）；
+ *   根凭证使用审计（/api/root-audit，需 stepup，否则隐藏）。
  * - localStorage 统一走 storage.js。
  */
 import { on } from '../lib/events.js';
@@ -152,7 +154,7 @@ import { toast } from '../lib/toast.js';
     var st = document.documentElement.dataset.sgxSession;
     if (st) updateUnlockRow(st === 'valid');
   } catch (e) {}
-  /* 2.9.3：访客在安全总览页看到主人专属入口时加锁图标，
+  /* 2.9.3：访客在安全总览页看到站长专属入口时加锁图标，
      点击就地弹出通行密钥验证（手机底部/DeX 居中），通过则升级为 owner 并进入。
      失败/取消留在原页，不跳转。 */
   try {
@@ -166,7 +168,7 @@ import { toast } from '../lib/toast.js';
         var lockBadge = document.createElement('span');
         lockBadge.className = 'sec-owner-lock';
         lockBadge.innerHTML = '🔒';
-        lockBadge.setAttribute('aria-label', '需要主人验证');
+        lockBadge.setAttribute('aria-label', '需要站长验证');
         row.appendChild(lockBadge);
         // 拦截点击，就地验证
         row.addEventListener('click', function (e) {
@@ -185,6 +187,77 @@ import { toast } from '../lib/toast.js';
       if (lockAllBtn) lockAllBtn.style.display = 'none';
     }
   } catch (e) {}
+
+  /* 2.11：密钥分层状态（GET /api/layer-status，需 owner 会话）。
+     每层显示「由根凭证代管」(takeover) 或「已接管」(configured)；
+     失败（访客/无会话）则整组保持隐藏。 */
+  (function () {
+    var sec = document.getElementById('sec-layers');
+    var note = document.getElementById('sec-layers-note');
+    var ownerSub = document.getElementById('sec-layer-owner-sub');
+    var lockSub = document.getElementById('sec-layer-lock-sub');
+    if (!sec) return;
+    fetch('/api/layer-status', { method: 'GET', credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j || !j.ok || !j.layers) throw new Error('bad');
+        if (ownerSub) ownerSub.textContent = j.layers.owner === 'takeover' ? t('layerTakeover') : t('layerConfigured');
+        if (lockSub) lockSub.textContent = j.layers.lock === 'takeover' ? t('layerTakeover') : t('layerConfigured');
+        sec.hidden = false;
+        if (note) note.hidden = false;
+      })
+      .catch(function () { /* 无会话：保持隐藏 */ });
+  })();
+
+  /* 2.11：根凭证使用审计（GET /api/root-audit，需 owner 会话 + stepup）。
+     成功显示最近记录（时间 · IP 前缀 · 成功/失败）；
+     无 stepup/无会话则整组保持隐藏。 */
+  (function () {
+    var h = document.getElementById('sec-audit-h');
+    var sec = document.getElementById('sec-audit');
+    var list = document.getElementById('sec-audit-list');
+    var empty = document.getElementById('sec-audit-empty');
+    if (!sec || !list) return;
+    fetch('/api/root-audit', { method: 'GET', credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j || !j.ok || !Array.isArray(j.items)) throw new Error('bad');
+        if (h) h.hidden = false;
+        sec.hidden = false;
+        list.innerHTML = '';
+        if (!j.items.length) {
+          if (empty) empty.hidden = false;
+          return;
+        }
+        j.items.forEach(function (it) {
+          var li = document.createElement('li');
+          li.className = 'lockmgr-pkitem';
+          var left = document.createElement('div');
+          left.className = 'lockmgr-pkname';
+          var time = document.createElement('span');
+          time.style.fontSize = '15px';
+          time.style.fontWeight = '600';
+          var d = it && it.ts ? new Date(it.ts) : null;
+          time.textContent = d && !isNaN(d.getTime())
+            ? d.toLocaleString(en ? 'en-US' : 'zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+            : '';
+          var ip = document.createElement('span');
+          ip.className = 'lockmgr-pkdate';
+          ip.textContent = (it && it.ipPrefix) || '';
+          left.appendChild(time);
+          left.appendChild(ip);
+          var res = document.createElement('span');
+          res.className = 'lockmgr-pkdate';
+          res.style.fontWeight = '600';
+          res.style.color = it && it.ok ? 'var(--m-primary)' : 'var(--m-rose)';
+          res.textContent = t(it && it.ok ? 'auditOk' : 'auditFail');
+          li.appendChild(left);
+          li.appendChild(res);
+          list.appendChild(li);
+        });
+      })
+      .catch(function () { /* 无 stepup/无会话：保持隐藏 */ });
+  })();
 
   refresh(true);
 })();

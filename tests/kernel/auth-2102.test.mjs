@@ -76,12 +76,12 @@ async function genKeys() {
   const s = await mk(); STEPUP_PRIV = s.priv; STEPUP_PUB = s.pub;
 }
 
-const OWNER_KEY = 'test-owner-key-2102';
+const SGX_ROOT_KEY = 'test-owner-key-2102';
 
 function baseEnv(kv, overrides = {}) {
   return {
     OWNER_KV: kv,
-    OWNER_KEY,
+    SGX_ROOT_KEY,
     SGX_LOCK_PRIVATE: LOCK_PRIV,
     SGX_LOCK_PUBLIC: LOCK_PUB,
     SGX_STEPUP_PRIVATE: STEPUP_PRIV,
@@ -103,7 +103,7 @@ async function makeSessionCookie(env, role = 'owner') {
 /* 签一个有效的 sgx-stepup cookie */
 async function makeStepupCookie(env) {
   const { signStepupCookie } = await import('../../functions/api/stepup.js');
-  return await signStepupCookie(env.SGX_STEPUP_PRIVATE, 0);
+  return await signStepupCookie(env.SGX_STEPUP_PRIVATE, 'owner', 'keys', 0);
 }
 
 function reqWithCookies(url, body, cookies, headers = {}) {
@@ -141,12 +141,12 @@ test('2b：owner-passkey list 有会话没有 stepup → 403 stepup-required', a
   assert.equal((await res.json()).error, 'stepup-required');
 });
 
-test('2c：owner-password change 只有 stepup 没有会话 → 401', async () => {
+test('2c：owner-password change 只有 stepup 没有会话 → 401（2.11：需 kind=lock）', async () => {
   const { onRequestPost } = await import('../../functions/api/owner-password.js');
   const kv = makeKV();
   const env = baseEnv(kv);
   const stepup = await makeStepupCookie(env);
-  const req = reqWithCookies('https://styrigx.com/api/owner-password', { action: 'change', newPassword: 'newpass123' }, `sgx-stepup=${stepup}`);
+  const req = reqWithCookies('https://styrigx.com/api/owner-password', { action: 'change', kind: 'lock', newPassword: 'newpass123' }, `sgx-stepup=${stepup}`);
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 401, '无 owner 会话时 change 应 401');
 });
@@ -255,7 +255,7 @@ test('6：verifySessionDetailed 无 KV → kv-error（不跳过）', async () =>
   const { verifySessionDetailed } = await import('../../functions/_middleware.js');
   /* 造一个格式正确但无法验 epoch 的 cookie：用真密钥签名 */
   const { signSessionCookie } = await import('../../functions/_kernel/session.js');
-  const val = await signSessionCookie(LOCK_PRIV, 0, 'owner');
+  const val = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
   const req = new Request('https://styrigx.com/', {
     headers: { 'Cookie': 'sgx-verified=' + val },
   });
@@ -279,17 +279,17 @@ test('7：verify 时限速 KV 出错 → 503', async () => {
 
 /* ============ 8：审计写入失败 → 不签发会话 ============ */
 
-test('8：owner-auth 审计写入失败 → 503 且无 cookie', async () => {
-  const { onRequestPost } = await import('../../functions/api/owner-auth.js');
+test('8：root-auth 审计写入失败 → 503 且无 cookie', async () => {
+  const { onRequestPost } = await import('../../functions/api/root-auth.js');
   const kv = makeKV();
   const env = baseEnv(kv);
-  /* 让审计 put 失败：owner-auth-audit: 前缀抛错，其他放行 */
+  /* 让审计 put 失败：root-auth-audit: 前缀抛错，其他放行 */
   const origPut = kv.put.bind(kv);
   kv.put = async (k, v, o) => {
-    if (String(k).startsWith('owner-auth-audit:')) throw new Error('audit-fail');
+    if (String(k).startsWith('root-auth-audit:')) throw new Error('audit-fail');
     return origPut(k, v, o);
   };
-  const req = postReq('https://styrigx.com/api/owner-auth', { key: OWNER_KEY });
+  const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY });
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 503, '审计失败应 503');
   const cookies = res.headers.getSetCookie ? res.headers.getSetCookie() : [];
@@ -299,19 +299,19 @@ test('8：owner-auth 审计写入失败 → 503 且无 cookie', async () => {
 
 /* ============ 9：Origin 缺失/解析失败 → 403 ============ */
 
-test('9a：owner-auth 缺 Origin → 403', async () => {
-  const { onRequestPost } = await import('../../functions/api/owner-auth.js');
+test('9a：root-auth 缺 Origin → 403', async () => {
+  const { onRequestPost } = await import('../../functions/api/root-auth.js');
   const kv = makeKV();
-  const req = postReq('https://styrigx.com/api/owner-auth', { key: OWNER_KEY }, { Origin: null });
+  const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY }, { Origin: null });
   const res = await onRequestPost({ request: req, env: baseEnv(kv) });
   assert.equal(res.status, 403);
   assert.equal((await res.json()).error, 'origin');
 });
 
-test('9b：owner-auth Origin 解析失败 → 403', async () => {
-  const { onRequestPost } = await import('../../functions/api/owner-auth.js');
+test('9b：root-auth Origin 解析失败 → 403', async () => {
+  const { onRequestPost } = await import('../../functions/api/root-auth.js');
   const kv = makeKV();
-  const req = postReq('https://styrigx.com/api/owner-auth', { key: OWNER_KEY }, { Origin: '::not-a-url::' });
+  const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY }, { Origin: '::not-a-url::' });
   const res = await onRequestPost({ request: req, env: baseEnv(kv) });
   assert.equal(res.status, 403);
 });
@@ -334,17 +334,18 @@ test('9d：stepup 缺 Origin → 403', async () => {
 
 /* ============ 1：管理密钥入口静态检查 ============ */
 
-test('1a：锁屏方法弹层含管理密钥入口', () => {
+test('1a：锁屏方法弹层含根凭证入口（2.11 定稿：「根凭证」）', () => {
   const src = fs.readFileSync(path.join(REPO, 'assets/js/shell/lock.js'), 'utf8');
-  assert.ok(src.includes('sgx-mopt-mk'), '锁屏应有管理密钥选项按钮');
-  assert.ok(src.includes('管理密钥（恢复用）'), '中文文案应为「管理密钥（恢复用）」');
-  assert.ok(src.includes('Management key (recovery)'), '英文文案应为 "Management key (recovery)"');
-  assert.ok(src.includes('/api/owner-auth'), '应调用 /api/owner-auth');
+  assert.ok(src.includes('sgx-mopt-mk'), '锁屏应有根凭证选项按钮');
+  assert.ok(src.includes('根凭证'), '中文文案应为「根凭证」');
+  assert.ok(!src.includes('根密钥（恢复）'), '旧文案「根密钥（恢复）」不应残留');
+  assert.ok(src.includes('Root credential'), '英文文案应为 "Root credential"');
+  assert.ok(src.includes('/api/root-auth'), '应调用 /api/root-auth');
   assert.ok(src.includes('function openMk') || src.includes('openMk()'), '应有 openMk 处理函数');
 });
 
-test('1b：升级弹层含管理密钥入口', () => {
+test('1b：升级弹层含根密钥入口', () => {
   const src = fs.readFileSync(path.join(REPO, 'assets/js/shell/upgrade.js'), 'utf8');
-  assert.ok(src.includes('sgx-upgrade-mk'), '升级弹层应有管理密钥按钮');
-  assert.ok(src.includes('/api/owner-auth'), '应调用 /api/owner-auth');
+  assert.ok(src.includes('sgx-upgrade-mk'), '升级弹层应有根密钥按钮');
+  assert.ok(src.includes('/api/root-auth'), '应调用 /api/root-auth');
 });

@@ -60,15 +60,15 @@ async function genKeys() {
 }
 async function mintStepup(epoch = 0) {
   const { signStepupCookie } = await import('../../functions/api/stepup.js');
-  return await signStepupCookie(STEPUP_PRIV, epoch);
+  return await signStepupCookie(STEPUP_PRIV, 'owner', 'keys', epoch);
 }
 async function mintSession(epoch = 0) {
   const { signSessionCookie } = await import('../../functions/_kernel/session.js');
-  return await signSessionCookie(LOCK_PRIV, epoch, 'owner');
+  return await signSessionCookie(LOCK_PRIV, epoch, 'owner', 'owner');
 }
 const stepupEnv = (kv) => ({
   OWNER_KV: kv,
-  SESSION_SECRET: 's',
+ 
   SGX_LOCK_PRIVATE: LOCK_PRIV,
   SGX_LOCK_PUBLIC: LOCK_PUB,
   SGX_STEPUP_PRIVATE: STEPUP_PRIV,
@@ -235,7 +235,7 @@ test('删除 lock 凭据不推进 app-epoch', async () => {
   const kv = makeKV();
   await seedKey(kv, { credId: 'lock-key-001', cls: 'lock' });
   await seedKey(kv, { credId: 'lock-key-002', cls: 'lock' });
-  await kv.put('owner-pw', JSON.stringify({ hash: 'x' })); // 有密码，不触发 last-key 保护
+  await kv.put('lock-pw', JSON.stringify({ hash: 'x' })); // 有锁屏密码，不触发 last-key 保护（2.11 定稿）
   const sc = await mintStepup();
   const sess = await mintSession();
   const r = await onRequestPost({
@@ -314,11 +314,12 @@ test('注册参数：challenge register 下发写死的用户信息', async () =
 });
 
 /* ---- CI 静态检查 ---- */
-test('CI 静态检查：verifyStepupCookie 只在安全设置接口（owner-passkey/owner-password/stepup）', async () => {
+test('CI 静态检查：verifyStepupCookie 只在安全设置接口（owner-passkey/owner-password/stepup + 2.11 root 接口）', async () => {
   const { readdirSync, readFileSync } = await import('node:fs');
   const { join } = await import('node:path');
   const apiDir = new URL('../../functions/api/', import.meta.url);
-  const allowed = new Set(['owner-passkey.js', 'owner-password.js', 'stepup.js']);
+  /* 2.11 定稿：lockreset、lock-all-devices 也需要验 stepup */
+  const allowed = new Set(['owner-passkey.js', 'owner-password.js', 'stepup.js', 'root-session.js', 'root-audit.js', 'layer-status.js', 'lockreset.js', 'lock-all-devices.js']);
   const bad = [];
   for (const f of readdirSync(apiDir)) {
     if (!f.endsWith('.js')) continue;

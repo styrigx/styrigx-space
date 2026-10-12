@@ -234,6 +234,66 @@ test.describe('passkey e2e (virtual authenticator)', () => {
     expect(got429).toBe(true);
   });
 
+  test('恢复开关：计时内有效且单次作废（lockreset via switch）', async ({ request }) => {
+    /* 2.11 恢复开关 e2e：通过 Cloudflare API 向 preview KV 写入唯一开关值，
+       验证「首次见到开始 24h 计时 → 计时内有效签发 lockreset → 单次使用后作废」。
+       需要 SGX_TEST_CF_TOKEN / SGX_TEST_CF_ACCOUNT / SGX_TEST_PREVIEW_KV_ID，
+       没有则跳过（CI 的 deploy.yml 会注入）。 */
+    const CF_TOKEN = process.env.SGX_TEST_CF_TOKEN || '';
+    const CF_ACCOUNT = process.env.SGX_TEST_CF_ACCOUNT || '';
+    const KV_ID = process.env.SGX_TEST_PREVIEW_KV_ID || '';
+    test.skip(!CF_TOKEN || !CF_ACCOUNT || !KV_ID, '需要 SGX_TEST_CF_TOKEN/CF_ACCOUNT/PREVIEW_KV_ID');
+
+    const kvBase = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/storage/kv/namespaces/${KV_ID}/values/`;
+    const cfHeaders = { Authorization: `Bearer ${CF_TOKEN}` };
+    /* 唯一值：每次运行都是新的 24h 窗口，避免与历史残留冲突 */
+    const switchValue = 'e2e-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+
+    async function kvPut(key, value) {
+      const r = await fetch(kvBase + encodeURIComponent(key), {
+        method: 'PUT',
+        headers: { ...cfHeaders, 'Content-Type': 'text/plain' },
+        body: value,
+      });
+      if (!r.ok) throw new Error('KV put failed: ' + r.status);
+    }
+    async function kvDel(key) {
+      await fetch(kvBase + encodeURIComponent(key), { method: 'DELETE', headers: cfHeaders });
+    }
+
+    const ORIGIN = new URL(BASE).origin;
+    async function lockresetVerify(rootKey) {
+      return request.post(BASE + '/api/lockreset', {
+        headers: { Origin: ORIGIN },
+        data: { action: 'verify', rootKey },
+      });
+    }
+
+    try {
+      /* 1. 写入开关值 → 服务端首次见到，在 D1 记录 hash + 首次时间，开始 24h 计时 */
+      await kvPut('recovery-switch', switchValue);
+
+      /* 2. 根凭证正确 + 开关在计时窗口内有效 → 签发 lockreset（via=switch），带 sgx-stepup cookie */
+      let r = await lockresetVerify(OWNER_KEY);
+      expect(r.status()).toBe(200);
+      const body1 = await r.json();
+      expect(body1.ok).toBe(true);
+      expect(body1.needOwner).toBeFalsy();
+      expect(r.headers()['set-cookie'] || '').toContain('sgx-stepup=');
+
+      /* 3. 同一开关值再次使用 → 已标记已用，单次作废，走站长凭证路径 */
+      r = await lockresetVerify(OWNER_KEY);
+      expect(r.status()).toBe(200);
+      const body2 = await r.json();
+      expect(body2.ok).toBe(true);
+      expect(body2.needOwner).toBe(true);
+      expect(r.headers()['set-cookie'] || '').not.toContain('sgx-stepup=');
+    } finally {
+      /* 清理：删掉测试写入的开关值（D1 记录按 hash 隔离，无影响） */
+      await kvDel('recovery-switch');
+    }
+  });
+
   test('改密码后旧会话 cookie 失效', async ({ page, request }) => {
     const { cdp, authenticatorId } = await addVirtualAuth(page);
     try {

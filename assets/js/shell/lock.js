@@ -680,13 +680,21 @@ function showLockScreen() {
       '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Password' : '密码') + '</span>' +
       '<span class="sgx-method-desc">' + (en ? 'Enter your unlock password' : '输入解锁密码') + '</span></span>' +
       '</button>' +
-      /* 4. 管理密钥（恢复用）：未解锁也能用，调 /api/owner-auth */
+      /* 4. 根凭证：未解锁也能用，调 /api/root-auth */
       '<button type="button" class="sgx-method-opt" id="sgx-mopt-mk" aria-label="' +
-        (en ? 'Management key (recovery)' : '管理密钥（恢复用）') + '">' +
+        (en ? 'Root credential' : '根凭证') + '">' +
       '<span class="sgx-method-ic" aria-hidden="true">' +
       '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg></span>' +
-      '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Management key (recovery)' : '管理密钥（恢复用）') + '</span>' +
-      '<span class="sgx-method-desc">' + (en ? 'Recover with your management key' : '用管理密钥恢复') + '</span></span>' +
+      '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Root credential' : '根凭证') + '</span>' +
+      '<span class="sgx-method-desc">' + (en ? 'Recover with your root credential' : '用根凭证恢复访问') + '</span></span>' +
+      '</button>' +
+      /* 5. 重置锁屏：丢了 lock 凭证时，依次验站长凭证再验根凭证（2.11 定稿） */
+      '<button type="button" class="sgx-method-opt" id="sgx-mopt-reset" aria-label="' +
+        (en ? 'Reset lock screen' : '重置锁屏') + '">' +
+      '<span class="sgx-method-ic" aria-hidden="true">' +
+      '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></span>' +
+      '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Reset lock screen' : '重置锁屏') + '</span>' +
+      '<span class="sgx-method-desc">' + (en ? 'Lost unlock method? Verify owner then root credential' : '丢了锁屏凭证？依次验证站长凭证和根凭证') + '</span></span>' +
       '</button>' +
       '</div>';
     document.body.appendChild(sheet);
@@ -702,10 +710,12 @@ function showLockScreen() {
     const pkBtn = sheet.querySelector('#sgx-mopt-pk');
     const pwBtn = sheet.querySelector('#sgx-mopt-pw');
     const mkBtn = sheet.querySelector('#sgx-mopt-mk');
+    const resetBtn = sheet.querySelector('#sgx-mopt-reset');
     if (visitorBtn) on(visitorBtn, 'click', function () { close(); openVerify(); });
     if (pkBtn) on(pkBtn, 'click', function () { close(); openPk(); });
     if (pwBtn) on(pwBtn, 'click', function () { close(); openPw(); });
     if (mkBtn) on(mkBtn, 'click', function () { close(); openMk(); });
+    if (resetBtn) on(resetBtn, 'click', function () { close(); openReset(); });
     const backdrop = sheet.querySelector('[data-close]');
     if (backdrop) on(backdrop, 'click', close);
     /* Esc 关闭 */
@@ -936,15 +946,15 @@ function showLockScreen() {
       });
   }
 
-  /* ---------- 管理密钥态（与验证态同一弹层） ----------
-     2.10.2：锁屏加「管理密钥（恢复用）」入口。调 /api/owner-auth，
-     成功后进入安全与隐私页（可添加锁屏密钥和应用密钥）。 */
+  /* ---------- 根凭证态（与验证态同一弹层） ----------
+     2.11：锁屏「根凭证」入口。调 /api/root-auth（只签发 stepup，不签发会话），
+     成功后进入安全与隐私页。 */
   function openMk() {
     dlgState = 'mgmtkey';
-    setTitle(en ? 'Management key (recovery)' : '管理密钥（恢复用）');
+    setTitle(en ? 'Root credential' : '根凭证');
     setBody(
       '<div class="sgx-pw-field"><input type="password" id="sgx-mk-input" class="sgx-pw-input" autocomplete="off" ' +
-        'aria-label="' + (en ? 'Management key (recovery)' : '管理密钥（恢复用）') + '" placeholder="' + (en ? 'Management key' : '管理密钥') + '">' +
+        'aria-label="' + (en ? 'Root credential' : '根凭证') + '" placeholder="' + (en ? 'Root credential' : '根凭证') + '">' +
         '<button type="button" class="sgx-pw-eye" id="sgx-mk-eye" aria-label="' + (en ? 'Show' : '显示') + '"></button></div>' +
         '<button type="button" class="sgx-verify-skip" id="sgx-mk-go">' + (en ? 'Verify' : '验证') + '</button>'
     );
@@ -980,10 +990,10 @@ function showLockScreen() {
     const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-mk-input'));
     const key = input ? input.value : '';
     if (!key) {
-      showError(en ? 'Enter management key' : '请输入管理密钥');
+      showError(en ? 'Enter root credential' : '请输入根凭证');
       return;
     }
-    fetch('/api/owner-auth', {
+    fetch('/api/root-auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ key: key }),
@@ -1004,14 +1014,14 @@ function showLockScreen() {
         }
         if (j.ok) {
           closeDialog();
-          /* 管理密钥签发了 owner 会话 + stepup，直接进入安全与隐私页 */
+          /* 2.11：根凭证只签发 stepup(by=root, scope=root)，直接进入安全与隐私页 */
           location.href = en ? '/en/settings/security/' : '/settings/security/';
         } else if (res.s === 429) {
           showError(en ? 'Too many attempts' : '尝试次数过多');
         } else if (res.s === 503 || res.s === 500) {
           showError(en ? 'Server error' : '服务器错误');
         } else {
-          showError(en ? 'Wrong management key' : '管理密钥错误');
+          showError(en ? 'Wrong root credential' : '根凭证错误');
           if (input) input.value = '';
         }
       })
@@ -1019,6 +1029,230 @@ function showLockScreen() {
         if (dlgState !== 'mgmtkey') return;
         showError(en ? 'Network error' : '网络错误');
       });
+  }
+
+  /* ---------- 重置锁屏（2.11 定稿） ----------
+     依次验证「站长凭证」再验证「根凭证」，两步都过 → stepup(scope=lockreset)。
+     以服务端 /api/lockreset status 为准：available=false → 不可用；
+     skippable=true → 站长凭证步骤可跳过（恢复开关开启时，UI 不提示开关存在）。 */
+  function openReset() {
+    dlgState = 'reset';
+    setTitle(en ? 'Reset lock screen' : '重置锁屏');
+    setBody('<div class="sgx-verify-loading">' + (en ? 'Loading…' : '加载中…') + '</div>');
+    clearErr();
+    if (!openDialog()) return;
+    fetch('/api/lockreset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'status' }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (dlgState !== 'reset') return;
+        if (!j || !j.ok || !j.available) {
+          showError(en ? 'Reset is not available' : '重置锁屏不可用');
+          return;
+        }
+        renderResetStep1();
+      })
+      .catch(function () {
+        if (dlgState !== 'reset') return;
+        showError(en ? 'Network error' : '网络错误');
+      });
+  }
+
+  /* 重置步骤 1：根凭证（优先）。服务端决定下一步：开关有效则直接完成，
+     否则返回 needOwner 进入站长凭证步骤。前端不提示开关存在。 */
+  function renderResetStep1() {
+    dlgState = 'reset-step1';
+    setTitle((en ? 'Reset lock screen' : '重置锁屏') + ' (1/2)');
+    setBody(
+      '<div class="sgx-reset-hint">' + (en ? 'Verify root credential' : '验证根凭证') + '</div>' +
+      '<div class="sgx-pw-field"><input type="password" id="sgx-reset-root" class="sgx-pw-input" autocomplete="off" ' +
+        'placeholder="' + (en ? 'Root credential' : '根凭证') + '">' +
+        '<button type="button" class="sgx-verify-skip" id="sgx-reset-go">' + (en ? 'Verify' : '验证') + '</button></div>'
+    );
+    clearErr();
+    var go = document.getElementById('sgx-reset-go');
+    var input = document.getElementById('sgx-reset-root');
+    if (input) {
+      on(input, 'keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); submitResetRoot(); }
+      });
+      try { input.focus({ preventScroll: true }); } catch (e) { try { input.focus(); } catch (_) {} }
+    }
+    if (go) on(go, 'click', submitResetRoot);
+  }
+
+  function submitResetRoot() {
+    if (dlgState !== 'reset-step1') return;
+    var input = document.getElementById('sgx-reset-root');
+    var rootKey = input ? input.value : '';
+    if (!rootKey) {
+      showError(en ? 'Enter root credential' : '请输入根凭证');
+      return;
+    }
+    /* 暂存根凭证，供第二步一起提交（服务端无状态） */
+    window._sgxResetRootKey = rootKey;
+    postResetVerify({ rootKey: rootKey }, function (res) {
+      if (dlgState !== 'reset-step1') return;
+      if (res.s === 200 && res.j && res.j.ok && !res.j.needOwner) {
+        /* 开关有效：直接完成 */
+        resetDone();
+      } else if (res.s === 200 && res.j && res.j.ok && res.j.needOwner) {
+        renderResetStep2();
+      } else if (res.s === 429) {
+        showError(en ? 'Too many attempts' : '尝试次数过多');
+      } else {
+        showError(en ? 'Verification failed' : '验证失败');
+        var inp = document.getElementById('sgx-reset-root');
+        if (inp) inp.value = '';
+      }
+    });
+  }
+
+  /* 重置步骤 2：站长凭证（passkey 或密码） */
+  function renderResetStep2() {
+    dlgState = 'reset-step2';
+    setTitle((en ? 'Reset lock screen' : '重置锁屏') + ' (2/2)');
+    /* 补充四：根凭证正确但开关无效时，在此步骤下方显示恢复开关提示。
+       仅此处显示；根凭证错误、访客假入口、其他页面一律不出现。 */
+    var switchHint = en
+      ? 'Owner credential unavailable? Add key recovery-switch (any value) in Cloudflare KV, valid for 24 hours, single use only.'
+      : '站长凭证也无法使用？在 Cloudflare KV 添加键 recovery-switch（值任意），24 小时内有效且仅限一次。';
+    setBody(
+      '<div class="sgx-reset-hint">' + (en ? 'Verify owner credential' : '验证站长凭证') + '</div>' +
+      '<button type="button" class="sgx-verify-skip" id="sgx-reset-pk">' + (en ? 'Use passkey' : '使用通行密钥') + '</button>' +
+      '<div class="sgx-pw-field"><input type="password" id="sgx-reset-pw" class="sgx-pw-input" autocomplete="off" ' +
+        'placeholder="' + (en ? 'Owner password' : '站长密码') + '">' +
+        '<button type="button" class="sgx-verify-skip" id="sgx-reset-pw-go">' + (en ? 'Verify' : '验证') + '</button></div>' +
+      '<div class="sgx-reset-switch-hint">' + switchHint + '</div>'
+    );
+    clearErr();
+    var pkBtn = document.getElementById('sgx-reset-pk');
+    var pwGo = document.getElementById('sgx-reset-pw-go');
+    if (pkBtn) on(pkBtn, 'click', resetPk);
+    if (pwGo) on(pwGo, 'click', resetPw);
+  }
+
+  /* 统一提交 verify（内部函数） */
+  function postResetVerify(body, cb) {
+    fetch('/api/lockreset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ action: 'verify' }, body)),
+    })
+      .then(function (r) {
+        return r.text().then(function (t) {
+          var j = null;
+          try { j = JSON.parse(t); } catch (e) {}
+          return { s: r.status, j: j };
+        });
+      })
+      .then(cb)
+      .catch(function () {
+        cb({ s: 0, j: null });
+      });
+  }
+
+  function resetDone() {
+    window._sgxResetRootKey = null;
+    window._sgxResetOwnerProof = null;
+    closeDialog();
+    window.location.href = '/security/lock/';
+  }
+
+  /* 重置步骤 2a：站长通行密钥 */
+  function resetPk() {
+    if (dlgState !== 'reset-step2') return;
+    fetch('/api/lockreset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'challenge' }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (dlgState !== 'reset-step2') return;
+        if (!j || !j.ok) {
+          showError(en ? 'Failed to start' : '启动失败');
+          return;
+        }
+        var allow = (j.allowCredentials || []).map(function (c) {
+          return { id: Uint8Array.from(atob(c.id.replace(/-/g, '+').replace(/_/g, '/')), function (ch) { return ch.charCodeAt(0); }), type: 'public-key' };
+        });
+        navigator.credentials.get({
+          publicKey: {
+            challenge: Uint8Array.from(atob(j.challenge.replace(/-/g, '+').replace(/_/g, '/')), function (ch) { return ch.charCodeAt(0); }),
+            rpId: j.rpId,
+            allowCredentials: allow,
+            userVerification: 'required',
+          },
+        }).then(function (cred) {
+          if (dlgState !== 'reset-step2') return;
+          var b64u = function (buf) {
+            return btoa(String.fromCharCode.apply(null, new Uint8Array(buf)))
+              .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+          };
+          var proof;
+          try {
+            proof = {
+              type: 'passkey',
+              cid: j.cid,
+              credential: {
+                rawId: b64u(cred.rawId),
+                response: {
+                  authenticatorData: b64u(cred.response.authenticatorData),
+                  clientDataJSON: b64u(cred.response.clientDataJSON),
+                  signature: b64u(cred.response.signature),
+                  userHandle: cred.response.userHandle ? b64u(cred.response.userHandle) : null,
+                },
+              },
+            };
+          } catch (e) {
+            showError(en ? 'Passkey failed' : '通行密钥验证失败');
+            return;
+          }
+          submitResetOwner(proof);
+        }).catch(function () {
+          if (dlgState !== 'reset-step2') return;
+          showError(en ? 'Passkey failed' : '通行密钥验证失败');
+        });
+      })
+      .catch(function () {
+        if (dlgState !== 'reset-step2') return;
+        showError(en ? 'Network error' : '网络错误');
+      });
+  }
+
+  /* 重置步骤 2b：站长密码 */
+  function resetPw() {
+    if (dlgState !== 'reset-step2') return;
+    var input = document.getElementById('sgx-reset-pw');
+    var pw = input ? input.value : '';
+    if (!pw) {
+      showError(en ? 'Enter owner password' : '请输入站长密码');
+      return;
+    }
+    submitResetOwner({ type: 'password', password: pw });
+  }
+
+  function submitResetOwner(ownerProof) {
+    if (dlgState !== 'reset-step2') return;
+    var rootKey = window._sgxResetRootKey || '';
+    if (!rootKey) {
+      showError(en ? 'Session expired, restart' : '会话过期，请重新开始');
+      return;
+    }
+    postResetVerify({ rootKey: rootKey, ownerProof: ownerProof }, function (res) {
+      if (dlgState !== 'reset-step2') return;
+      if (res.s === 200 && res.j && res.j.ok) {
+        resetDone();
+      } else if (res.s === 429) {
+        showError(en ? 'Too many attempts' : '尝试次数过多');
+      } else {
+        showError(en ? 'Verification failed' : '验证失败');
+      }
+    });
   }
 
   /* ---------- 通行密钥态（与验证态同一弹层） ---------- */

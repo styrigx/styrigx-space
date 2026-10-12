@@ -1,19 +1,27 @@
 /**
  * 二次验证（step-up authentication）。
  *
- * 主站安全设置的高敏操作（改密码/删密码、通行密钥增删/重命名）前，
- * 要求 owner 先用锁屏类通行密钥再验证一次（10 分钟有效）。
- * 安全逻辑与登录共用 ../_kernel/passkey-verify.js（只有一套）。
+ * 2.11 定稿：两扇门设计。
+ * - 入口 1（root）：有效 lock 会话 + SGX_ROOT_KEY → stepup(by=root, scope=root)，
+ *   只能管理站长凭证（owner passkey/密码）
+ * - 入口 2（owner）：有效 lock 会话 + 站长凭证（owner passkey/密码）
+ *   → stepup(by=owner, scope=keys)，管理 lock/APP 组；进门后增删不再二次挑战
+ * - 重置锁屏：scope=lockreset（by=owner+root，或恢复开关开启时 by=root），
+ *   只能增删 lock 凭证、设置锁屏密码
+ * - scope 不匹配一律 403；lock passkey 不再能开 stepup
  *
  * POST /api/stepup
  * - { action: 'challenge' } → 必须是已登录 owner 会话（visitor 一律拒绝）。
- *   下发 purpose=stepup 的 challenge，存 KV `stepup-challenge:<cid>`（与登录的
- *   `pk-challenge:` 前缀隔离，login challenge 不能用于 stepup，反之亦然）。
+ *   下发 purpose=stepup 的 challenge，存 KV `stepup-challenge:<cid>`。
  * - { action: 'verify', cid, credential } → 必须是已登录 owner 会话。
- *   只认 `stepup-challenge:` 下的 challenge（单次使用，用后删除）；
- *   断言验证强制 userVerification=required 并校验 UV 标志位。
- *   通过后签发 sgx-stepup cookie：Ed25519(SGX_STEPUP_PRIVATE) 签名，约 10 分钟有效，
- *   含 role/epoch/签发时间；HttpOnly、Secure、SameSite=Strict。
+ *   只认 owner class 通行密钥（2.11 起 lock 不再能开 stepup）。
+ *   通过后签发 sgx-stepup cookie：by.scope.epoch.iat.exp.Ed25519(SGX_STEPUP_PRIVATE)，
+ *   约 10 分钟有效；HttpOnly、Secure、SameSite=Strict。
+ * - { action: 'verify-password', password } → 必须是已登录 owner 会话。
+ *   校验 owner 密码（加 pepper），通过后签发 stepup(by=owner, scope=keys)。
+ * - { action: 'takeover-keys' } → 必须是已登录 owner 会话 + 有效的
+ *   stepup(by=root, scope=root)，且 owner 层未配置 → 签发 stepup(by=root, scope=keys)。
+ *   owner 层已配置（含 KV 读失败按已配置）→ 403。
  * - { action: 'status' } → 必须是已登录 owner 会话。返回当前 sgx-stepup 是否有效。
  *
  * 只接受 POST；校验 Origin；外层 try/catch 异常一律 { ok:false, error:'server' }。
@@ -27,7 +35,9 @@ import { verifySessionDetailed } from '../_middleware.js';
 import { getSessionEpoch, ROLE_OWNER } from '../_kernel/session.js';
 import { ed25519Sign, ed25519Verify, b64urlEnc } from '../_kernel/crypto.js';
 import { randB64, verifyAssertion } from '../_kernel/passkey-verify.js';
-import { getPasskeys, PK_CLASS_LOCK } from './owner-passkey.js';
+import { getPasskeys, PK_CLASS_OWNER } from './owner-passkey.js';
+import { verifyOwnerPassword, getPepper } from './owner-password.js';
+import { isLayerConfigured, LAYER_OWNER } from '../_kernel/layers.js';
 
 /* stepup cookie 定义（一处定义） */
 export const STEPUP_COOKIE = 'sgx-stepup';
@@ -36,35 +46,87 @@ export const STEPUP_COOKIE_ATTRS = 'Domain=.styrigx.com; Path=/; HttpOnly; Secur
 /* challenge KV 前缀：与登录的 pk-challenge: 隔离 */
 export const STEPUP_CHALLENGE_PREFIX = 'stepup-challenge:';
 const STEPUP_CHALLENGE_TTL = 300; /* 5 分钟 */
+/* 2.11 定稿：stepup 票字段 by/scope */
+export const STEPUP_BY_ROOT = 'root';
+export const STEPUP_BY_OWNER = 'owner';
+/* lockreset 双凭证通过时 by=owner+root；恢复开关单根时 by=root */
+export const STEPUP_BY_OWNER_ROOT = 'owner+root';
+export const STEPUP_SCOPE_ROOT = 'root';
+export const STEPUP_SCOPE_KEYS = 'keys';
+export const STEPUP_SCOPE_LOCKRESET = 'lockreset';
 
 /**
- * 签发 stepup cookie 值：owner.epoch.iat.exp.Ed25519(SGX_STEPUP_PRIVATE, "owner.epoch.iat.exp")。
+ * 签发 stepup cookie 值：by.scope.epoch.iat.exp.Ed25519(SGX_STEPUP_PRIVATE, "by.scope.epoch.iat.exp")。
+ * 2.11 定稿：
+ * - scope=root → by 必须为 root
+ * - scope=keys → by 为 owner（站长凭证）或 root（owner 未配置时代管）
+ * - scope=lockreset → by 为 owner+root（双凭证）或 root（恢复开关）
  * @param {string} privatePem Ed25519 私钥（PKCS8 PEM）
+ * @param {string} by 'root' | 'owner' | 'owner+root'
+ * @param {string} scope 'root' | 'keys' | 'lockreset'
  * @param {number} epoch 当前 session epoch
  */
-export async function signStepupCookie(privatePem, epoch) {
+export async function signStepupCookie(privatePem, by, scope, epoch) {
+  const byOk = by === STEPUP_BY_ROOT || by === STEPUP_BY_OWNER || by === STEPUP_BY_OWNER_ROOT;
+  if (!byOk) {
+    throw new Error('signStepupCookie: bad by ' + JSON.stringify(by));
+  }
+  if (scope === STEPUP_SCOPE_ROOT) {
+    if (by !== STEPUP_BY_ROOT) throw new Error('signStepupCookie: scope=root requires by=root');
+  } else if (scope === STEPUP_SCOPE_KEYS) {
+    if (by !== STEPUP_BY_OWNER && by !== STEPUP_BY_ROOT) {
+      throw new Error('signStepupCookie: scope=keys requires by=owner|root');
+    }
+  } else if (scope === STEPUP_SCOPE_LOCKRESET) {
+    if (by !== STEPUP_BY_OWNER_ROOT && by !== STEPUP_BY_ROOT) {
+      throw new Error('signStepupCookie: scope=lockreset requires by=owner+root|root');
+    }
+  } else {
+    throw new Error('signStepupCookie: bad scope ' + JSON.stringify(scope));
+  }
   const iat = Date.now();
   const exp = iat + STEPUP_MAX_AGE * 1000;
-  const payload = 'owner.' + epoch + '.' + iat + '.' + exp;
+  const payload = by + '.' + scope + '.' + epoch + '.' + iat + '.' + exp;
   const sig = await ed25519Sign(privatePem, payload);
   return payload + '.' + sig;
 }
 
 /**
  * 解析 stepup cookie 值。
+ * 2.11 定稿：六段式 by.scope.epoch.iat.exp.sig；
+ * by=root|owner|owner+root，scope=root|keys|lockreset。
  * @param {string} val
- * @returns {{role:string, epoch:number, iat:number, exp:number, sig:string}|null}
+ * @returns {{by:string, scope:string, epoch:number, iat:number, exp:number, sig:string}|null}
  */
 export function parseStepupCookie(val) {
   if (!val || typeof val !== 'string') return null;
   const parts = val.split('.');
-  if (parts.length !== 5) return null;
-  if (parts[0] !== ROLE_OWNER) return null;
-  const epoch = parseInt(parts[1], 10);
-  const iat = parseInt(parts[2], 10);
-  const exp = parseInt(parts[3], 10);
+  if (parts.length !== 6) return null;
+  const by = parts[0];
+  const scope = parts[1];
+  if (by !== STEPUP_BY_ROOT && by !== STEPUP_BY_OWNER && by !== STEPUP_BY_OWNER_ROOT) return null;
+  if (scope !== STEPUP_SCOPE_ROOT && scope !== STEPUP_SCOPE_KEYS && scope !== STEPUP_SCOPE_LOCKRESET) return null;
+  const epoch = parseInt(parts[2], 10);
+  const iat = parseInt(parts[3], 10);
+  const exp = parseInt(parts[4], 10);
   if (!Number.isFinite(epoch) || !Number.isFinite(iat) || !Number.isFinite(exp)) return null;
-  return { role: parts[0], epoch, iat, exp, sig: parts[4] };
+  return { by, scope, epoch, iat, exp, sig: parts[5] };
+}
+
+/**
+ * stepup scope 门禁（供管理 API 复用）。
+ * @param {{ok:boolean, by:string|null, scope:string|null, reason:string}} st verifyStepupCookie 的结果
+ * @param {string[]} allowedScopes 允许的 scope 列表
+ * @returns {{status:number, body:object}|null} 通过返回 null，否则返回待发送的错误响应描述
+ */
+export function stepupScopeError(st, allowedScopes) {
+  if (!st.ok) {
+    return { status: 403, body: { ok: false, error: 'stepup-required', reason: st.reason } };
+  }
+  if (!allowedScopes.includes(st.scope)) {
+    return { status: 403, body: { ok: false, error: 'scope' } };
+  }
+  return null;
 }
 
 /** @param {any} request @param {string} name */
@@ -80,35 +142,36 @@ function getCookie(request, name) {
 /**
  * 验证请求中的 sgx-stepup cookie（供高敏操作 API 复用）。
  * fail closed：任何异常都返回无效。
+ * 2.11：返回 by 和 scope，调用方做 scope 检查。
  * @param {any} request
  * @param {any} env
- * @returns {Promise<{ok:boolean, reason:string}>}
+ * @returns {Promise<{ok:boolean, by:string|null, scope:string|null, reason:string}>}
  *   reason: ok / no-cookie / bad-format / expired / not-yet / no-pubkey /
  *           bad-sig / epoch-changed / kv-error
  */
 export async function verifyStepupCookie(request, env) {
   const val = getCookie(request, STEPUP_COOKIE);
-  if (!val) return { ok: false, reason: 'no-cookie' };
+  if (!val) return { ok: false, by: null, scope: null, reason: 'no-cookie' };
   const p = parseStepupCookie(val);
-  if (!p) return { ok: false, reason: 'bad-format' };
+  if (!p) return { ok: false, by: null, scope: null, reason: 'bad-format' };
   const now = Date.now();
-  if (p.exp <= now) return { ok: false, reason: 'expired' };
-  if (p.iat > now + 60000) return { ok: false, reason: 'not-yet' }; /* 允许 60 秒时钟 skew */
+  if (p.exp <= now) return { ok: false, by: null, scope: null, reason: 'expired' };
+  if (p.iat > now + 60000) return { ok: false, by: null, scope: null, reason: 'not-yet' }; /* 允许 60 秒时钟 skew */
   const pubKey = (env && env.SGX_STEPUP_PUBLIC) || '';
-  if (!pubKey) return { ok: false, reason: 'no-pubkey' };
+  if (!pubKey) return { ok: false, by: null, scope: null, reason: 'no-pubkey' };
   /* epoch 必须等于当前 KV epoch：lock-all-devices 后旧 stepup 立即失效 */
   let curEpoch;
   try {
     curEpoch = await getSessionEpoch(env && env.OWNER_KV);
   } catch (e) {
-    return { ok: false, reason: 'kv-error' };
+    return { ok: false, by: null, scope: null, reason: 'kv-error' };
   }
-  if (p.epoch !== curEpoch) return { ok: false, reason: 'epoch-changed' };
+  if (p.epoch !== curEpoch) return { ok: false, by: null, scope: null, reason: 'epoch-changed' };
   /* 最后验签（先做便宜检查，签名最贵放最后） */
-  const payload = p.role + '.' + p.epoch + '.' + p.iat + '.' + p.exp;
+  const payload = p.by + '.' + p.scope + '.' + p.epoch + '.' + p.iat + '.' + p.exp;
   const ok = await ed25519Verify(pubKey, payload, p.sig);
-  if (!ok) return { ok: false, reason: 'bad-sig' };
-  return { ok: true, reason: 'ok' };
+  if (!ok) return { ok: false, by: null, scope: null, reason: 'bad-sig' };
+  return { ok: true, by: p.by, scope: p.scope, reason: 'ok' };
 }
 
 /** @param {Headers} headers @param {string} value */
@@ -181,11 +244,11 @@ async function handlePost(context) {
   const rpIdHash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(RP_ID)));
 
   /* ============ challenge ============
-     2.10.0：只接受锁屏类通行密钥（challenge 只列 lock 凭据）。 */
+     2.11：只接受 owner 类通行密钥（challenge 只列 owner 凭据；lock 不再能开 stepup）。 */
   if (action === 'challenge') {
     const keys = await getPasskeys(kv);
-    const lockKeys = keys.filter(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK; });
-    if (lockKeys.length === 0) {
+    const ownerKeys = keys.filter(function (k) { return k.class === PK_CLASS_OWNER; });
+    if (ownerKeys.length === 0) {
       return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
     }
     const challenge = randB64(32);
@@ -204,7 +267,7 @@ async function handlePost(context) {
       cid: cid,
       challenge: challenge,
       rpId: RP_ID,
-      allowCredentials: lockKeys.map(function (k) { return { id: k.credId, type: 'public-key' }; }),
+      allowCredentials: ownerKeys.map(function (k) { return { id: k.credId, type: 'public-key' }; }),
     });
   }
 
@@ -223,20 +286,20 @@ async function handlePost(context) {
       return Response.json({ ok: false, error: 'challenge' }, { status: 403 });
     }
     const keys = await getPasskeys(kv);
-    const lockKeys = keys.filter(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK; });
-    if (lockKeys.length === 0) {
+    const ownerKeys = keys.filter(function (k) { return k.class === PK_CLASS_OWNER; });
+    if (ownerKeys.length === 0) {
       return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
     }
     const rawIdB64 = cred.rawId || '';
     let stored = null;
-    for (let i = 0; i < lockKeys.length; i++) {
-      if (lockKeys[i].credId === rawIdB64) { stored = lockKeys[i]; break; }
+    for (let i = 0; i < ownerKeys.length; i++) {
+      if (ownerKeys[i].credId === rawIdB64) { stored = ownerKeys[i]; break; }
     }
     if (!stored || !stored.publicKey) {
       return Response.json({ ok: false, error: 'unknown-key' }, { status: 403 });
     }
-    /* 2.10.0：服务端再次校验分类（应用类通行密钥不能用于 stepup） */
-    if ((stored.class || PK_CLASS_LOCK) !== PK_CLASS_LOCK) {
+    /* 2.11：服务端再次校验分类（只有 owner 类能开 stepup；lock/app 一律拒绝） */
+    if (stored.class !== PK_CLASS_OWNER) {
       return Response.json({ ok: false, error: 'class-mismatch' }, { status: 403 });
     }
     try {
@@ -267,7 +330,7 @@ async function handlePost(context) {
           publicKey: stored.publicKey,
           signCount: stored.signCount || 0,
           uv: stored.uv ? 1 : 0,
-          class: stored.class || PK_CLASS_LOCK,
+          class: stored.class || PK_CLASS_OWNER,
         };
         if (ordered.class === 'app' && stored.aud) ordered.aud = stored.aud;
         await kv.put(keyName, JSON.stringify(ordered));
@@ -287,7 +350,8 @@ async function handlePost(context) {
       const headers = new Headers({ 'Content-Type': 'application/json' });
       let cv;
       try {
-        cv = await signStepupCookie(stepupKey, epoch);
+        /* 2.11：owner passkey → stepup(by=owner, scope=keys) */
+        cv = await signStepupCookie(stepupKey, STEPUP_BY_OWNER, STEPUP_SCOPE_KEYS, epoch);
       } catch (e) {
         console.error('[stepup] sign failed', e && e.message ? e.message : e);
         return Response.json({ ok: false, error: 'sign-failed' }, { status: 500 });
@@ -299,6 +363,91 @@ async function handlePost(context) {
       const code = (e && e.message === 'uv-required') ? 'uv-required' : 'verify';
       return Response.json({ ok: false, error: code }, { status: 403 });
     }
+  }
+
+  /* ============ verify-password ============
+     2.11 定稿：入口 2 的密码路径。有效 lock 会话 + owner 密码
+     → stepup(by=owner, scope=keys)。缺 pepper 时 fail closed。 */
+  if (action === 'verify-password') {
+    const password = (body && body.password) || '';
+    if (!password || typeof password !== 'string') {
+      return Response.json({ ok: false, error: 'params' }, { status: 400 });
+    }
+    const pepper = getPepper(env);
+    if (!pepper) {
+      return Response.json({ ok: false, error: 'config' }, { status: 503 });
+    }
+    let vr;
+    try {
+      vr = await verifyOwnerPassword(kv, pepper, password);
+    } catch (e) {
+      return Response.json({ ok: false, error: 'server' }, { status: 503 });
+    }
+    if (!vr.set) {
+      return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
+    }
+    if (!vr.ok) {
+      return Response.json({ ok: false, error: 'wrong' }, { status: 403 });
+    }
+    const stepupKey = (env && env.SGX_STEPUP_PRIVATE) || '';
+    if (!stepupKey) {
+      console.error('[stepup] SGX_STEPUP_PRIVATE 未配置，拒绝签发');
+      return Response.json({ ok: false, error: 'no-stepup-key' }, { status: 500 });
+    }
+    let epoch;
+    try {
+      epoch = await getSessionEpoch(kv);
+    } catch (e) {
+      return Response.json({ ok: false, error: 'server' }, { status: 503 });
+    }
+    const headers = new Headers({ 'Content-Type': 'application/json' });
+    try {
+      const cv = await signStepupCookie(stepupKey, STEPUP_BY_OWNER, STEPUP_SCOPE_KEYS, epoch);
+      setStepupCookie(headers, cv);
+    } catch (e) {
+      console.error('[stepup] sign failed', e && e.message ? e.message : e);
+      return Response.json({ ok: false, error: 'sign-failed' }, { status: 500 });
+    }
+    return new Response(JSON.stringify({ ok: true }), { headers });
+  }
+
+  /* ============ takeover-keys ============
+     2.11 定稿：owner 层未配置时，root 代管入口 2。
+     需要有效 lock 会话 + 有效的 stepup(by=root, scope=root)，
+     且 owner 层未配置（KV 读失败按已配置处理 → 403）。
+     签发 stepup(by=root, scope=keys)；owner 配置后 epoch 推进使其失效。 */
+  if (action === 'takeover-keys') {
+    const st = await verifyStepupCookie(request, env);
+    if (!st.ok || st.by !== STEPUP_BY_ROOT || st.scope !== STEPUP_SCOPE_ROOT) {
+      return Response.json({ ok: false, error: 'stepup-required' }, { status: 403 });
+    }
+    let ownerCfg = true;
+    try {
+      ownerCfg = await isLayerConfigured(kv, LAYER_OWNER);
+    } catch (e) {
+      ownerCfg = true;
+    }
+    if (ownerCfg) {
+      return Response.json({ ok: false, error: 'scope' }, { status: 403 });
+    }
+    const stepupKey = (env && env.SGX_STEPUP_PRIVATE) || '';
+    if (!stepupKey) {
+      return Response.json({ ok: false, error: 'no-stepup-key' }, { status: 500 });
+    }
+    let epoch;
+    try {
+      epoch = await getSessionEpoch(kv);
+    } catch (e) {
+      return Response.json({ ok: false, error: 'server' }, { status: 503 });
+    }
+    const headers = new Headers({ 'Content-Type': 'application/json' });
+    try {
+      const cv = await signStepupCookie(stepupKey, STEPUP_BY_ROOT, STEPUP_SCOPE_KEYS, epoch);
+      setStepupCookie(headers, cv);
+    } catch (e) {
+      return Response.json({ ok: false, error: 'sign-failed' }, { status: 500 });
+    }
+    return new Response(JSON.stringify({ ok: true }), { headers });
   }
 
   /* ============ status ============ */

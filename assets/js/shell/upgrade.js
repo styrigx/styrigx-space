@@ -1,7 +1,7 @@
 /**
  * 2.9.3：访客升级验证层。
- * 当访客访问主人专属路径时，首页返回 200 并带 data-sgx-upgrade="1"，
- * 本模块打开验证层：只显示通行密钥+密码，不显示访客入口，带「需要主人验证」提示。
+ * 当访客访问站长专属路径时，首页返回 200 并带 data-sgx-upgrade="1"，
+ * 本模块打开验证层：只显示通行密钥+密码，不显示访客入口，带「需要站长验证」提示。
  * 验证通过后跳回 data-sgx-upgrade-return。失败/取消留在原页，不跳转。
  *
  * 2.10.1：直接实现验证流程（不再引用不存在的 ./passkey.js，也不再派发
@@ -18,12 +18,12 @@ export function initUpgrade() {
   const overlay = document.createElement('div');
   overlay.id = 'sgx-upgrade-overlay';
   overlay.innerHTML =
-    '<div class="sgx-upgrade-sheet" role="dialog" aria-modal="true" aria-label="' + (isEn ? 'Owner verification' : '主人验证') + '">' +
-    '<div class="sgx-upgrade-title">' + (isEn ? 'Owner verification required' : '需要主人验证') + '</div>' +
-    '<div class="sgx-upgrade-desc">' + (isEn ? 'This page requires owner verification.' : '此页面需要主人验证后才能进入。') + '</div>' +
+    '<div class="sgx-upgrade-sheet" role="dialog" aria-modal="true" aria-label="' + (isEn ? 'Owner verification' : '站长验证') + '">' +
+    '<div class="sgx-upgrade-title">' + (isEn ? 'Owner verification required' : '需要站长验证') + '</div>' +
+    '<div class="sgx-upgrade-desc">' + (isEn ? 'This page requires owner verification.' : '此页面需要站长验证后才能进入。') + '</div>' +
     '<button type="button" class="sgx-upgrade-btn" id="sgx-upgrade-pk">' + (isEn ? 'Verify with passkey' : '通行密钥验证') + '</button>' +
     '<button type="button" class="sgx-upgrade-btn" id="sgx-upgrade-pw">' + (isEn ? 'Verify with password' : '密码验证') + '</button>' +
-    '<button type="button" class="sgx-upgrade-btn" id="sgx-upgrade-mk">' + (isEn ? 'Management key (recovery)' : '管理密钥（恢复用）') + '</button>' +
+    '<button type="button" class="sgx-upgrade-btn" id="sgx-upgrade-mk">' + (isEn ? 'Root credential' : '根凭证') + '</button>' +
     '<button type="button" class="sgx-upgrade-cancel" id="sgx-upgrade-cancel">' + (isEn ? 'Cancel' : '取消') + '</button>' +
     '<p class="sgx-upgrade-err" id="sgx-upgrade-err" hidden></p>' +
     '</div>';
@@ -51,13 +51,13 @@ export function initUpgrade() {
     return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
 
-  // 管理密钥验证：调 /api/owner-auth，成功后进入安全与隐私页
+  // 根凭证验证：调 /api/root-auth，成功后进入安全与隐私页
   document.getElementById('sgx-upgrade-mk').addEventListener('click', async () => {
     if (errEl) errEl.hidden = true;
-    const k = window.prompt(isEn ? 'Enter management key (recovery)' : '请输入管理密钥（恢复用）');
+    const k = window.prompt(isEn ? 'Enter root credential' : '请输入根凭证');
     if (!k) return;
     try {
-      const res = await fetch('/api/owner-auth', {
+      const res = await fetch('/api/root-auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key: k }),
@@ -69,7 +69,7 @@ export function initUpgrade() {
       } else if (res.status === 429) {
         showErr(isEn ? 'Too many attempts' : '尝试次数过多');
       } else {
-        showErr(isEn ? 'Wrong management key' : '管理密钥错误');
+        showErr(isEn ? 'Wrong root credential' : '根凭证错误');
       }
     } catch (e) {
       showErr(isEn ? 'Network error' : '网络错误');
