@@ -1409,7 +1409,33 @@
   /* ===== 锁定屏幕管理页 ===== */
   .sgx-verify-sub { font-size: 14px; color: var(--m-on-surface-variant); margin: 0; }
   .sgx-verify-desc { font-size: 13px; color: var(--m-on-surface-variant); margin: 0; text-align: center; max-width: 300px; }
-  .sgx-verify-opts { display: flex; flex-direction: column; gap: 4px; width: 100%; max-width: 340px; }
+  .sgx-verify-opts { display: flex; flex-direction: column; gap: 12px; width: 100%; }
+  /* 弹层选项按钮：实心 primary 矩形（与旧 upgrade.js 弹层 .sgx-upgrade-btn 一致） */
+  .sgx-verify-opt {
+    display: block; width: 100%; padding: 14px; margin: 0;
+    border-radius: 12px; border: none; font-size: 16px; font-weight: 600;
+    background: var(--m-primary); color: var(--m-on-primary); cursor: pointer;
+    text-align: center;
+    &:active { filter: brightness(.93); }
+    &:disabled { opacity: .5; cursor: default; }
+    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
+  }
+  /* 弹层底部取消：文字按钮（与旧 .sgx-upgrade-cancel 一致） */
+  .sgx-verify-cancel {
+    display: block; width: 100%; padding: 12px; border: none;
+    background: none; font-size: 15px; color: var(--m-on-surface-variant); cursor: pointer;
+    text-align: center;
+    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; border-radius: 8px; }
+  }
+  /* 弹层标题靠左（与旧 upgrade 弹层一致） */
+  .sgx-verify-title--left { align-self: stretch; text-align: left; }
+  /* 输入态：纵向排列，输入框整宽，验证整宽实心，返回文字按钮居中 */
+  .sgx-verify-keyform {
+    display: flex; flex-direction: column; width: 100%; gap: 12px;
+    &[hidden] { display: none; }
+    .sgx-pw-field { max-width: none; }
+    .sgx-verify-back { align-self: center; }
+  }
   .sgx-verify-back {
     background: none; border: 0; padding: 8px 16px; cursor: pointer;
     font-size: 14px; color: var(--m-on-surface-variant);

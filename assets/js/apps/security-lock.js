@@ -8,6 +8,7 @@
  */
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
+import { armVerifyKeyboard } from '../shell/verify-kb.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -198,6 +199,16 @@ import { toast } from '../lib/toast.js';
   const gateKeyBtn = $('lockgate-key');
   const gateInput = $('lockgate-input');
   const gateEye = $('lockgate-eye');
+  const gateCancel = $('lockgate-cancel');
+  /* 键盘避让：打开时启用，关闭时清理 */
+  let gateKbCleanup = null;
+  function armGateKb() {
+    if (gateKbCleanup) gateKbCleanup();
+    gateKbCleanup = armVerifyKeyboard(gateDlg);
+  }
+  function disarmGateKb() {
+    if (gateKbCleanup) { gateKbCleanup(); gateKbCleanup = null; }
+  }
 
   function openGate() {
     $('lockmgr').hidden = true;
@@ -238,8 +249,10 @@ import { toast } from '../lib/toast.js';
     try {
       gateDlg.showModal();
     } catch (e) {}
+    armGateKb();
   }
   function closeGate() {
+    disarmGateKb();
     try {
       if (gateDlg.open) gateDlg.close();
     } catch (e) {}
@@ -267,6 +280,13 @@ import { toast } from '../lib/toast.js';
     });
     on(gateDlg, 'cancel', function (/** @type {Event} */ e) {
       e.preventDefault();
+      history.back();
+    });
+    on(gateDlg, 'close', disarmGateKb);
+  }
+  if (gateCancel) {
+    /* 取消：与关闭手柄一致，返回上一页 */
+    on(gateCancel, 'click', function () {
       history.back();
     });
   }

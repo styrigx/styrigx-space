@@ -13,6 +13,7 @@ import { on } from '../lib/events.js';
 import { get as storeGet } from '../lib/storage.js';
 import { toast } from '../lib/toast.js';
 import { mgmtButtons } from './mgmt-buttons.js';
+import { armVerifyKeyboard } from '../shell/verify-kb.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -133,7 +134,17 @@ import { mgmtButtons } from './mgmt-buttons.js';
     const goBtn = document.getElementById('sec-owner-go');
     const backBtn = document.getElementById('sec-owner-back');
     const rootBtn = document.getElementById('sec-owner-root');
+    const cancelBtn = document.getElementById('sec-owner-cancel');
     if (!row || !dlg) return;
+    /* 键盘避让：打开时启用，关闭时清理 */
+    let kbCleanup = null;
+    function armKb() {
+      if (kbCleanup) kbCleanup();
+      kbCleanup = armVerifyKeyboard(dlg);
+    }
+    function disarmKb() {
+      if (kbCleanup) { kbCleanup(); kbCleanup = null; }
+    }
 
     function showErr(msg) {
       if (err) {
@@ -164,8 +175,10 @@ import { mgmtButtons } from './mgmt-buttons.js';
       if (typeof dlg.showModal === 'function') {
         try { dlg.showModal(); } catch (e) {}
       }
+      armKb();
     }
     function closeDlg() {
+      disarmKb();
       try { dlg.close(); } catch (e) {}
     }
 
@@ -221,9 +234,11 @@ import { mgmtButtons } from './mgmt-buttons.js';
       });
     }
     if (backBtn) on(backBtn, 'click', showOpts);
+    if (cancelBtn) on(cancelBtn, 'click', closeDlg);
     dlg.addEventListener('click', function (e) {
       if (e.target === dlg) closeDlg();
     });
+    dlg.addEventListener('close', disarmKb);
   })();
 
   /* ============ 入口 2：管理凭证 ============
@@ -245,7 +260,17 @@ import { mgmtButtons } from './mgmt-buttons.js';
     const err = document.getElementById('sec-mgmt-err');
     const goBtn = document.getElementById('sec-mgmt-go');
     const backBtn = document.getElementById('sec-mgmt-back');
+    const cancelBtn = document.getElementById('sec-mgmt-cancel');
     if (!row || !dlg || !opts) return;
+    /* 键盘避让：打开时启用，关闭时清理 */
+    let kbCleanup = null;
+    function armKb() {
+      if (kbCleanup) kbCleanup();
+      kbCleanup = armVerifyKeyboard(dlg);
+    }
+    function disarmKb() {
+      if (kbCleanup) { kbCleanup(); kbCleanup = null; }
+    }
 
     /** 当前选择的验证方式：'root' | 'password' */
     let mode = 'root';
@@ -269,7 +294,7 @@ import { mgmtButtons } from './mgmt-buttons.js';
       const mkBtn = function (id, label, cb) {
         const b = document.createElement('button');
         b.type = 'button';
-        b.className = 'sec-sheet-opt';
+        b.className = 'sgx-verify-opt';
         b.id = id;
         b.textContent = label;
         on(b, 'click', cb);
@@ -348,8 +373,10 @@ import { mgmtButtons } from './mgmt-buttons.js';
       if (typeof dlg.showModal === 'function') {
         try { dlg.showModal(); } catch (e) {}
       }
+      armKb();
     }
     function closeDlg() {
+      disarmKb();
       try { dlg.close(); } catch (e) {}
     }
 
@@ -498,9 +525,11 @@ import { mgmtButtons } from './mgmt-buttons.js';
       });
     }
     if (backBtn) on(backBtn, 'click', showOpts);
+    if (cancelBtn) on(cancelBtn, 'click', closeDlg);
     dlg.addEventListener('click', function (e) {
       if (e.target === dlg) closeDlg();
     });
+    dlg.addEventListener('close', disarmKb);
   })();
 
   refresh(true);

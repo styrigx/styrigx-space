@@ -20,6 +20,7 @@ import { on } from '../lib/events.js';
 import { visibleInterval } from '../lib/scheduler.js';
 import { reducedMotion } from '../lib/util.js';
 import { get as featGet } from '../lib/features.js';
+import { armVerifyKeyboard } from './verify-kb.js';
 
 const LOCK =
   '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
@@ -339,6 +340,15 @@ function showLockScreen() {
   /** @type {any} */ let widgetId = null;
   let verifyDone = false;
   let pwLockedUntil = 0;
+  /* 键盘避让清理函数 */
+  let dlgKbCleanup = null;
+  function armDlgKb() {
+    if (dlgKbCleanup) dlgKbCleanup();
+    if (dlg) dlgKbCleanup = armVerifyKeyboard(dlg);
+  }
+  function disarmDlgKb() {
+    if (dlgKbCleanup) { dlgKbCleanup(); dlgKbCleanup = null; }
+  }
 
   function ensureDialog() {
     if (dlg) return dlg;
@@ -437,6 +447,7 @@ function showLockScreen() {
       setBgHidden(false);
       return false;
     }
+    armDlgKb();
     /* 卡片高度稳定后（body 有 min-height）再量，避免跳动 */
     requestAnimationFrame(function () {
       liftAvatar();
@@ -445,6 +456,7 @@ function showLockScreen() {
   }
 
   function closeDialog() {
+    disarmDlgKb();
     resetAvatar();
     setBgHidden(false);
     if (dlg && dlg.open) {
