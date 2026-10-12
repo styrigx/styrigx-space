@@ -9,13 +9,7 @@
 {{ range (index site.Data "settings-cats").cats }}{{ if eq .id $cat }}{{ $t = dict "zh" .zh "en" .en }}{{ end }}{{ end }}
 {{ $featMap := dict }}
 {{ range site.Data.features.features }}{{ $featMap = merge $featMap (dict .id .) }}{{ end }}
-{{ $palettes := slice
-  (dict "id" "lake" "c" "#2f5f86" "zh" "默认" "en" "Default")
-  (dict "id" "forest" "c" "#2f6b4f" "zh" "山绿" "en" "Forest")
-  (dict "id" "terra" "c" "#8a4b2d" "zh" "陶土" "en" "Terracotta")
-  (dict "id" "violet" "c" "#6750a4" "zh" "紫" "en" "Violet")
-  (dict "id" "rose" "c" "#984061" "zh" "蔷薇" "en" "Rose")
-}}
+{{ $palettes := site.Data.palettes.palettes }}
 
 <div class="set-layout max-w-2xl mx-auto px-4 pb-28">
   {{ partial "subpage-head.html" (dict "title" (cond $isEn $t.en $t.zh) "isEn" $isEn) }}
