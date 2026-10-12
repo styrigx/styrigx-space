@@ -212,6 +212,32 @@ async function handlePost(context) {
   }
   const action = (body && body.action) || '';
 
+  /* ============ clear（前置：lockreset 无会话也能调） ============
+     离开门入口页/完成重置时清票据。owner 会话或 lockreset 票据任一有效即可，
+     幂等清除。只清 stepup，不动 sgx-verified。 */
+  if (action === 'clear') {
+    let allowed = false;
+    try {
+      const sess = await verifySessionDetailed(request, env);
+      if (sess.ok && sess.role === ROLE_OWNER) allowed = true;
+    } catch (e) {}
+    if (!allowed) {
+      try {
+        const st = await verifyStepupCookie(request, env);
+        if (st.ok) allowed = true; /* 任何有效票据（含 lockreset）都可清 */
+      } catch (e) {}
+    }
+    if (!allowed) {
+      return Response.json({ ok: false, error: 'session' }, { status: 401 });
+    }
+    const headers = new Headers({ 'Content-Type': 'application/json' });
+    headers.append(
+      'Set-Cookie',
+      STEPUP_COOKIE + '=; ' + STEPUP_COOKIE_ATTRS + '; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    );
+    return new Response(JSON.stringify({ ok: true }), { headers });
+  }
+
   /* 所有 action 都要求已登录 owner 会话（visitor 一律拒绝）。
      L1 middleware 已按 OWNER_ONLY_APIS 拒绝 visitor（403），这里再验一次（纵深防御）。 */
   const sess = await verifySessionDetailed(request, env);

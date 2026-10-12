@@ -51,7 +51,7 @@ import {
   ROLE_OWNER,
 } from '../_kernel/session.js';
 import { getApp } from '../_kernel/app-registry.js';
-import { verifyStepupCookie, STEPUP_COOKIE, STEPUP_BY_ROOT, STEPUP_BY_OWNER, STEPUP_SCOPE_ROOT, STEPUP_SCOPE_KEYS, STEPUP_SCOPE_LOCKRESET } from './stepup.js';
+import { verifyStepupCookie, signStepupCookie, STEPUP_COOKIE, STEPUP_COOKIE_ATTRS, STEPUP_MAX_AGE, STEPUP_BY_ROOT, STEPUP_BY_OWNER, STEPUP_SCOPE_ROOT, STEPUP_SCOPE_KEYS, STEPUP_SCOPE_LOCKRESET } from './stepup.js';
 import { LAYER_OWNER, LAYER_LOCK, layerApp, setLayerConfigured, clearLayerConfigured, isLayerConfigured, isLockEffectivelyConfigured } from '../_kernel/layers.js';
 import { verifySessionDetailed } from '../_middleware.js';
 
@@ -343,14 +343,6 @@ async function checkPasskeyMgmt(request, env, kv, pkClass, op) {
     return { ok: false, status: 403, body: { ok: false, error: 'by-root' } };
   }
   return { ok: true, sv: sv, sess: sess };
-}
-
-/** 清除 sgx-stepup cookie（敏感操作成功后立即清除） */
-function clearStepupCookie(headers) {
-  headers.append(
-    'Set-Cookie',
-    'sgx-stepup=; Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0'
-  );
 }
 
 /** app-epoch:<aud> +1（删除应用类通行密钥时调用）。
@@ -893,9 +885,23 @@ async function handlePost(context) {
         }
       }
     } catch (e) {}
-    /* 成功后清除 sgx-stepup */
+    /* 门内操作成功后不再清除 sgx-stepup。删 key 会 bump epoch 导致旧票据失效，
+       这里用新 epoch 重签一张，保持门内连续操作不中断。 */
     const headers = new Headers({ 'Content-Type': 'application/json' });
-    clearStepupCookie(headers);
+    /* 删 lock/owner 类会推进 session-epoch，旧票据失效 → 重签 */
+    if (delClass !== PK_CLASS_APP && mg.sv && mg.sv.ok) {
+      try {
+        const stepupKey = env && env.SGX_STEPUP_PRIVATE;
+        if (stepupKey) {
+          const newEpoch = parseInt(await kv.get('session-epoch') || '0', 10) || 0;
+          const cv = await signStepupCookie(stepupKey, mg.sv.by, mg.sv.scope, newEpoch);
+          headers.append(
+            'Set-Cookie',
+            STEPUP_COOKIE + '=' + cv + '; ' + STEPUP_COOKIE_ATTRS + '; Max-Age=' + STEPUP_MAX_AGE
+          );
+        }
+      } catch (e) {}
+    }
     return new Response(JSON.stringify({ ok: true }), { headers });
   }
 
