@@ -18,7 +18,7 @@ features:
     requires: []
 
   - id: palette
-    name: {zh: 主色, en: Theme color}
+    name: {zh: 调色板, en: Color palette}
     build: true
     user: true
     type: enum
