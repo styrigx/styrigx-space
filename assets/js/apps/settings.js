@@ -749,8 +749,7 @@ import { setCapSearchProvider } from '../shell/capsule.js';
     const rs = $('aps-restore');
     if (rs)
       on(rs, 'click', function () {
-        try {
-          remove('sgx-apps-hidden');
+        remove('sgx-apps-hidden');
         paintApps();
         window.dispatchEvent(new Event('sgx-settings-changed'));
         closeSheet();
