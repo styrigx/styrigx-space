@@ -2291,7 +2291,7 @@
 .sgx-upgrade-input:focus { border-color: var(--m-primary); box-shadow: 0 0 0 1px var(--m-primary); }
 .sgx-upgrade-err {
   margin: 4px 0 0; font-size: 14px; text-align: center;
-  color: var(--m-error, #ba1a1a);
+  color: var(--m-error);
 }
 .sgx-upgrade-err[hidden] { display: none; }
 /* P2-12：安全页验证弹层（站长凭证/管理凭证）复用 upgrade 按钮样式：
