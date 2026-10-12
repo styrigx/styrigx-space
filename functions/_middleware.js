@@ -28,6 +28,7 @@ const OWNER_ONLY_APIS = [
   '/api/owner-passkey',
   '/api/lock-all-devices',
   '/api/stepup',
+  '/api/stepup-clear',
 ];
 /* 认证类 action（visitor 可调用，用于升级为 owner） */
 const AUTH_ACTIONS = new Set(['verify', 'challenge', 'register', 'auth']);
@@ -80,7 +81,7 @@ function isWhitelisted(pathname) {
   return false;
 }
 
-function getCookie(request, name) {
+export function getCookie(request, name) {
   const h = request.headers.get('Cookie') || '';
   for (const part of h.split(';')) {
     const [k, ...v] = part.trim().split('=');

@@ -6,6 +6,7 @@ import { on } from '../lib/events.js';
 import { esc } from '../lib/util.js';
 import { loadI18n } from '../lib/i18n.js';
 import { toast } from '../lib/toast.js';
+import { getJSON, setJSON } from '../lib/storage.js';
 import { voiceInput } from '../shell/voice.js';
 import { bindFavFallback } from '../shell/fav.js';
 
@@ -67,26 +68,19 @@ import { bindFavFallback } from '../shell/fav.js';
     return { a: a, changed: changed };
   }
   function getFavs() {
-    try {
-      const v = localStorage.getItem(LS_FAV);
-      if (v === null) {
-        localStorage.setItem(LS_FAV, JSON.stringify(DEFAULT_FAV));
-        return DEFAULT_FAV.slice();
-      }
-      const a = JSON.parse(v);
-      if (!Array.isArray(a)) return DEFAULT_FAV.slice();
-      const m = migrateFavs(a);
-      if (m.changed) setFavs(m.a);
-      return m.a;
-    } catch (e) {
+    const a = getJSON(LS_FAV, null);
+    if (a === null) {
+      setJSON(LS_FAV, DEFAULT_FAV);
       return DEFAULT_FAV.slice();
     }
+    if (!Array.isArray(a)) return DEFAULT_FAV.slice();
+    const m = migrateFavs(a);
+    if (m.changed) setFavs(m.a);
+    return m.a;
   }
   /** @param {Array<string>} a */
   function setFavs(a) {
-    try {
-      localStorage.setItem(LS_FAV, JSON.stringify(a));
-    } catch (e) {}
+    setJSON(LS_FAV, a);
   }
   /** @param {string} id */
   function isFav(id) {

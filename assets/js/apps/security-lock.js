@@ -539,17 +539,21 @@ import { followKeyboard } from '../shell/vk.js';
   }
   /* Phase 2 Item 11：退出站长凭证（吊销 stepup 票据，回安全页）。
      说明：只清 sgx-stepup cookie，站长会话（sgx-verified）不变；
-     再进需重新输根凭证。不影响锁屏解锁状态。 */
+     再进需重新输根凭证。不影响锁屏解锁状态。
+     必须经服务端清除：sgx-stepup 是 HttpOnly + Domain=.styrigx.com，
+     document.cookie 清不掉。 */
   const lockoutBtn = $('lockmgr-lockout');
   if (lockoutBtn) {
     on(lockoutBtn, 'click', function () {
-      try {
-        /* 清掉 stepup cookie（Path=/，与签发时一致） */
-        document.cookie = 'sgx-stepup=; Path=/; Max-Age=0; SameSite=Lax';
-        document.cookie = 'sgx-stepup=; Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
-      } catch (e) {}
-      /* 回安全页 */
-      location.href = document.documentElement.lang === 'en' ? '/en/settings/security/' : '/settings/security/';
+      fetch('/api/stepup-clear', {
+        method: 'POST',
+        credentials: 'same-origin',
+      })
+        .catch(function () {})
+        .finally(function () {
+          /* 回安全页（无论清除成功与否） */
+          location.href = document.documentElement.lang === 'en' ? '/en/settings/security/' : '/settings/security/';
+        });
     });
   }
   function submitPw() {

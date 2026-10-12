@@ -6,6 +6,7 @@ import { get as featGet } from '../lib/features.js';
 import { visibleInterval } from '../lib/scheduler.js';
 import { openSheet } from '../shell/sheet.js';
 import { toast } from '../lib/toast.js';
+import { get, set, getJSON, setJSON } from '../lib/storage.js';
 import { SGX } from '../lib/sgx.js';
 import { markAppIcon } from '../lib/vt.js';
 
@@ -85,11 +86,7 @@ import { markAppIcon } from '../lib/vt.js';
   }
   const WD_ZH = { Sun: '周日', Mon: '周一', Tue: '周二', Wed: '周三', Thu: '周四', Fri: '周五', Sat: '周六' };
   function analogMode() {
-    try {
-      return localStorage.getItem('sgx-gl-clockstyle') === '1';
-    } catch (e) {
-      return false;
-    }
+    return get('sgx-gl-clockstyle') === '1';
   }
   /** @param {number} h @param {string} mi @param {string} fg */
   function analogSVG(h, mi, fg) {
@@ -266,17 +263,13 @@ if (SGX_FEAT_WEATHER_SHOW)
   }
   on(window, 'sgx-settings-changed', renderWeather);
   function cached() {
-    try {
-      const c = JSON.parse(localStorage.getItem(CACHE) || 'null');
-      if (c && Date.now() - c.ts < 30 * 60 * 1000) return c.data;
-    } catch (e) {}
+    const c = getJSON(CACHE, null);
+    if (c && Date.now() - c.ts < 30 * 60 * 1000) return c.data;
     return null;
   }
   /** @param {any} data */
   function save(data) {
-    try {
-      localStorage.setItem(CACHE, JSON.stringify({ ts: Date.now(), data: data }));
-    } catch (e) {}
+    setJSON(CACHE, { ts: Date.now(), data: data });
   }
   function noData() {
     const t = document.getElementById('wx-temp');
@@ -306,21 +299,19 @@ if (SGX_FEAT_WEATHER_SHOW)
   const LA = { lat: 34.05, lon: -118.24, city: null };
   /* 2.7.0 定位顺序：手动城市 > 精确定位 > IP 兜底 > LA */
   function resolveLocation() {
-    try {
-      const mode = localStorage.getItem('sgx-weather-loc') || 'auto';
-      if (mode === 'manual') {
-        const mc = JSON.parse(localStorage.getItem('sgx-weather-city') || 'null');
-        if (mc && isFinite(mc.lat) && isFinite(mc.lon)) {
-          return Promise.resolve({ lat: mc.lat, lon: mc.lon, city: mc.name });
-        }
+    const mode = get('sgx-weather-loc') || 'auto';
+    if (mode === 'manual') {
+      const mc = getJSON('sgx-weather-city', null);
+      if (mc && isFinite(mc.lat) && isFinite(mc.lon)) {
+        return Promise.resolve({ lat: mc.lat, lon: mc.lon, city: mc.name });
       }
-      if (mode === 'precise') {
-        const pc = JSON.parse(localStorage.getItem('sgx-weather-precise') || 'null');
-        if (pc && isFinite(pc.lat) && isFinite(pc.lon)) {
-          return Promise.resolve({ lat: pc.lat, lon: pc.lon, city: null });
-        }
+    }
+    if (mode === 'precise') {
+      const pc = getJSON('sgx-weather-precise', null);
+      if (pc && isFinite(pc.lat) && isFinite(pc.lon)) {
+        return Promise.resolve({ lat: pc.lat, lon: pc.lon, city: null });
       }
-    } catch (e) {}
+    }
     return fetch('/api/geo')
       .then(function (r) {
         return r.json();
@@ -354,10 +345,8 @@ if (SGX_FEAT_WEATHER_SHOW)
         })
         .catch(function () {
           let old = null;
-          try {
-            const oc = JSON.parse(localStorage.getItem(CACHE) || 'null');
-            if (oc && oc.data) old = oc.data;
-          } catch (e) {}
+          const oc = getJSON(CACHE, null);
+          if (oc && oc.data) old = oc.data;
           if (old) render(old, true);
           else noData();
         });
@@ -405,9 +394,7 @@ if (SGX_FEAT_WEATHER_SHOW)
     return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2);
   }
   function npSave() {
-    try {
-      localStorage.setItem('sgx-np-idx', String(mi));
-    } catch (e) {}
+    set('sgx-np-idx', String(mi));
   }
   function hasPv() {
     return !!(songs[mi] && songs[mi].preview);
