@@ -111,9 +111,163 @@ test.describe('door dialog UI', () => {
     const actions = pg.locator('#sec-verify-foot .sgx-door-actions .sgx-door-textbtn');
     await expect(actions).toHaveCount(2);
 
-    /* 展开态弹层整体仍在视口内（键盘避让的视觉态由 visual 基线覆盖） */
+    /* 展开态弹层整体仍在视口内（键盘避让由本文件的 door keyboard avoidance 功能测试覆盖） */
     const box = await pg.locator('.sgx-door-card').boundingBox();
     expect(box.y).toBeGreaterThanOrEqual(0);
     expect(box.y + box.height).toBeLessThanOrEqual(915);
+  });
+});
+
+test.describe('door keyboard avoidance', () => {
+  /**
+   * 键盘避让功能测试（非视觉，不占基线）：
+   * 污点 window.visualViewport 模拟键盘弹出，验证 followKeyboard 真的把弹层上移、
+   * 输入框与「验证」按钮保持在可见区内、视口恢复后弹层回到底部。
+   * （visual 的 keyboard 用例已删：headless 下无法触发真实键盘高度变化。）
+   */
+  async function taintViewport(pg) {
+    await pg.evaluate(() => {
+      /* 强制走 visualViewport 回退路径：headless Chromium 可能自带 VirtualKeyboard API */
+      try {
+        Object.defineProperty(Navigator.prototype, 'virtualKeyboard', {
+          configurable: true,
+          get: () => undefined,
+        });
+      } catch (e) {}
+      const real = window.visualViewport;
+      const fake = {
+        width: real ? real.width : window.innerWidth,
+        height: real ? real.height : window.innerHeight,
+        offsetTop: 0,
+        offsetLeft: 0,
+        scale: 1,
+        _l: {},
+      };
+      fake.addEventListener = function (t, f) {
+        (this._l[t] = this._l[t] || []).push(f);
+      };
+      fake.removeEventListener = function (t, f) {
+        const a = this._l[t];
+        if (a) {
+          const i = a.indexOf(f);
+          if (i !== -1) a.splice(i, 1);
+        }
+      };
+      /* 测试用：设置高度并触发 resize（模拟键盘弹出/收起） */
+      fake.__setHeight = function (h) {
+        this.height = h;
+        (this._l.resize || []).slice().forEach((f) => f());
+      };
+      Object.defineProperty(window, 'visualViewport', {
+        configurable: true,
+        get: () => fake,
+      });
+      window.__fakeVV = fake;
+    });
+  }
+
+  async function waitFrames(pg, n) {
+    await pg.evaluate(
+      (count) =>
+        new Promise((resolve) => {
+          const tick = () => {
+            if (count <= 1) resolve();
+            else {
+              count -= 1;
+              requestAnimationFrame(tick);
+            }
+          };
+          requestAnimationFrame(tick);
+        }),
+      n
+    );
+  }
+
+  /* 两扇门共用的键盘避让断言流程 */
+  async function keyboardAvoidance(pg, openDoor, inputSel, kbHeight) {
+    await gotoSecurity(pg);
+    await taintViewport(pg);
+    await openDoor();
+    const dlg = pg.locator('#sec-verify-dlg');
+    await expect(dlg).toBeVisible();
+    const input = pg.locator(inputSel);
+    await expect(input).toBeVisible();
+    await expect(input).toBeFocused();
+
+    const orig = await dlg.evaluate((el) => ({
+      transform: el.style.transform,
+      bottom: el.getBoundingClientRect().bottom,
+    }));
+    expect(orig.transform).toBe('');
+
+    /* 模拟键盘弹出：visualViewport 高度缩小 kbHeight（onKeyboardHeight 经 rAF 节流） */
+    await pg.evaluate((kb) => window.__fakeVV.__setHeight(window.innerHeight - kb), kbHeight);
+    await waitFrames(pg, 3);
+
+    const raised = await pg.evaluate(() => {
+      const sheet = document.getElementById('sec-verify-dlg');
+      const vv = window.__fakeVV;
+      const r = sheet.getBoundingClientRect();
+      const inputEl = document.querySelector('.sgx-door-expand input, .sgx-door-expand textarea');
+      const btnEl = document.querySelector('#sec-verify-foot .sgx-door-textbtn.primary');
+      const ir = inputEl.getBoundingClientRect();
+      const br = btnEl.getBoundingClientRect();
+      return {
+        transform: sheet.style.transform,
+        sheetBottom: r.bottom,
+        vvBottom: vv.offsetTop + vv.height,
+        inputTop: ir.top,
+        inputBottom: ir.bottom,
+        btnTop: br.top,
+        btnBottom: br.bottom,
+      };
+    });
+
+    /* followKeyboard 真的被调用：弹层上移了键盘高度 */
+    expect(raised.transform).toBe('translateY(' + -kbHeight + 'px)');
+    /* 弹层底边不超出 visualViewport */
+    expect(raised.sheetBottom).toBeLessThanOrEqual(raised.vvBottom + 1);
+    /* 输入框与「验证」按钮都在可见区内 */
+    expect(raised.inputTop).toBeGreaterThanOrEqual(0);
+    expect(raised.inputBottom).toBeLessThanOrEqual(raised.vvBottom + 1);
+    expect(raised.btnTop).toBeGreaterThanOrEqual(0);
+    expect(raised.btnBottom).toBeLessThanOrEqual(raised.vvBottom + 1);
+
+    /* 恢复视口 + 失焦：弹层回到底部 */
+    await pg.evaluate(() => window.__fakeVV.__setHeight(window.innerHeight));
+    await input.evaluate((el) => el.blur());
+    await waitFrames(pg, 3);
+    const restored = await dlg.evaluate((el) => ({
+      transform: el.style.transform,
+      bottom: el.getBoundingClientRect().bottom,
+    }));
+    expect(restored.transform).toBe('');
+    expect(Math.abs(restored.bottom - orig.bottom)).toBeLessThanOrEqual(2);
+  }
+
+  test('mgmt door: keyboard raises sheet, input and verify stay visible', async ({ page: pg }) => {
+    await keyboardAvoidance(
+      pg,
+      async () => {
+        await pg.locator('#sec-mgmt-cred').click();
+        await expect(pg.locator('.sgx-door-row')).toHaveCount(2);
+        await pg.locator('.sgx-door-row').filter({ hasText: '站长密码' }).click();
+      },
+      '.sgx-door-expand input',
+      300
+    );
+  });
+
+  test('owner door: keyboard raises sheet, textarea and verify stay visible', async ({ page: pg }) => {
+    await keyboardAvoidance(
+      pg,
+      async () => {
+        await pg.locator('#sec-owner-cred').click();
+        await expect(pg.locator('.sgx-door-row')).toHaveCount(1);
+        await pg.locator('.sgx-door-row').first().click();
+      },
+      '.sgx-door-expand textarea',
+      300
+    );
   });
 });
