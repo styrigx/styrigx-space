@@ -192,33 +192,32 @@ test.describe('unlock methods entry relocation', () => {
     await expect(pg.locator('#sgx-unlock-link')).toHaveCount(0);
   });
 
-  test('security page: unlock methods first row, click goes to lock page', async ({ page: pg }) => {
+  test('security page: three entries per final design, no unlock-methods', async ({ page: pg }) => {
     await pinLang(pg, 'zh');
     await blockExternalRequests(pg);
     await pg.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
     await expect(pg.locator('.set-layout').first()).toBeVisible({ timeout: 15000 });
-    const row = pg.locator('#sec-unlock-methods');
-    await expect(row).toHaveCount(1);
-    await expect(row).toContainText('解锁方式');
-    await expect(row).toContainText('密码、通行密钥');
-    await expect(row).toHaveAttribute('href', '/settings/security/lock/');
-    /* 初始隐藏；模拟服务端会话有效（sgx:session ok）后显示 */
-    await expect(row).toBeHidden();
-    await pg.evaluate(() => window.dispatchEvent(new CustomEvent('sgx:session', { detail: { ok: true } })));
-    await expect(row).toBeVisible();
-    await row.click();
-    await pg.waitForURL('**/settings/security/lock/', { timeout: 10000 });
+    /* 定稿 §二.1：安全页恰好三项（站长凭证/管理凭证/立即锁定），「解锁方式」已移除 */
+    await expect(pg.locator('#sec-unlock-methods')).toHaveCount(0);
+    const owner = pg.locator('#sec-owner-cred');
+    await expect(owner).toHaveCount(1);
+    await expect(owner).toContainText('站长凭证');
+    const mgmt = pg.locator('#sec-mgmt-cred');
+    await expect(mgmt).toHaveCount(1);
+    await expect(mgmt).toContainText('管理凭证');
+    const locknow = pg.locator('#sec-locknow');
+    await expect(locknow).toHaveCount(1);
+    await expect(locknow).toContainText('立即锁定');
   });
 
-  test('security page (en): unlock methods row', async ({ page: pg }) => {
+  test('security page (en): three entries per final design', async ({ page: pg }) => {
     await pinLang(pg, 'en');
     await blockExternalRequests(pg);
     await pg.goto('/en/settings/security/', { waitUntil: 'domcontentloaded' });
     await expect(pg.locator('.set-layout').first()).toBeVisible({ timeout: 15000 });
-    const row = pg.locator('#sec-unlock-methods');
-    await expect(row).toHaveCount(1);
-    await expect(row).toContainText('Unlock methods');
-    await expect(row).toContainText('Password, passkeys');
-    await expect(row).toHaveAttribute('href', '/en/settings/security/lock/');
+    await expect(pg.locator('#sec-unlock-methods')).toHaveCount(0);
+    await expect(pg.locator('#sec-owner-cred')).toContainText('Owner credential');
+    await expect(pg.locator('#sec-mgmt-cred')).toContainText('Manage credentials');
+    await expect(pg.locator('#sec-locknow')).toContainText('Lock now');
   });
 });
