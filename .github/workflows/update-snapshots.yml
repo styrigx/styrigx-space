@@ -38,7 +38,7 @@ jobs:
           SGX_TEST_NO_LOCK: "1"
           SGX_TEST_NO_WEATHER: "1"
       - name: Update snapshots
-        run: npx playwright test --config=playwright.config.js --update-snapshots
+        run: npx playwright test --config=playwright.config.js visual.spec.js --update-snapshots
       - name: Commit snapshots only
         run: |
           git checkout -- hugo.yaml data/posts.json   # 丢掉测试用 Turnstile key 替换和 fixture 数据
