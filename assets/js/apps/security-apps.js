@@ -1,11 +1,12 @@
 /**
  * @fileoverview 应用列表页（2.11）：安全与隐私 → 应用。
- * - 进门：验证身份门（app-gate.js，stepup by=owner）。
+ * - 进门：页面直接渲染；进门探针（app-gate.js）确认验证有效，
+ *   无效则跳验证流程（安全与隐私页），不弹面板。
  * - 进门后：按白名单渲染每应用的应用类通行密钥状态（已添加/未添加），
  *   点击行进该应用详情页（settingsPath 由模板注入，不手抄）。
  * - 反馈一律 One UI 轻提示（toast）；localStorage 经 storage.js。
  */
-import { initAppGate } from './app-gate.js';
+import { enterDoor } from './app-gate.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -28,7 +29,7 @@ import { initAppGate } from './app-gate.js';
     WL = [];
   }
 
-  /** 读全量钥匙列表（普通 fetch，不自动 stepup；失败返回 null → 开验证门） */
+  /** 读全量钥匙列表；验证无效时返回 null → 跳验证流程 */
   function loadKeys() {
     return fetch('/api/owner-passkey', {
       method: 'POST',
@@ -61,13 +62,18 @@ import { initAppGate } from './app-gate.js';
     });
   }
 
-  initAppGate({
-    dlg: 'appgate-dlg',
-    pkBtn: 'appgate-pk',
-    err: 'appgate-err',
-    content: 'appmgr',
-    t: t,
-    load: loadKeys,
-    onEnter: render,
-  });
+  /* 进门探针：验证有效直接渲染，无效跳验证流程（安全与隐私页） */
+  let cachedKeys = null;
+  enterDoor(
+    function () {
+      return loadKeys().then(function (keys) {
+        cachedKeys = keys;
+        return !!keys;
+      });
+    },
+    function () {
+      render(cachedKeys);
+    },
+    t
+  );
 })();

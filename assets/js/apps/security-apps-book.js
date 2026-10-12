@@ -1,14 +1,16 @@
 /**
  * @fileoverview Book 应用详情页（2.11）：安全与隐私 → 应用 → Book。
- * - 进门：验证身份门（app-gate.js，stepup by=owner）。
+ * - 进门：页面直接渲染；进门探针（app-gate.js）确认验证有效，
+ *   无效则跳验证流程（安全与隐私页），不弹面板。
  * - 进门后：Book 的应用类通行密钥列表（重命名/删除，两步确认），
  *   「添加钥匙」按钮；「退出 Book 会话」清除应用通行证（sgx-app）。
- * - ?return= 携带应用授权页地址时显示「返回应用授权」按钮。
+ *   门内操作全部直接调接口，不弹验证（添加钥匙时创建凭据本身除外）。
+ * - ?return= 携带应用授权页地址时，显示「返回应用授权」按钮。
  * - 反馈一律 One UI 轻提示（toast）；localStorage 经 storage.js。
  */
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
-import { initAppGate, api, b64urlToBuf, bufToB64url } from './app-gate.js';
+import { api, enterDoor, apiErrorText, b64urlToBuf, bufToB64url } from './app-gate.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -45,7 +47,7 @@ import { initAppGate, api, b64urlToBuf, bufToB64url } from './app-gate.js';
     }
   }
 
-  /** 读该 aud 的应用类钥匙（普通 fetch，不自动 stepup；失败返回 null → 开验证门） */
+  /** 读该 aud 的应用类钥匙；验证无效时返回 null → 跳验证流程 */
   function loadKeys() {
     return fetch('/api/owner-passkey', {
       method: 'POST',
@@ -84,19 +86,24 @@ import { initAppGate, api, b64urlToBuf, bufToB64url } from './app-gate.js';
       const saveName = function () {
         const v = nameInput.value.trim();
         if (v === lastSaved) return;
-        api('/api/owner-passkey', { action: 'rename', credId: k.credId, name: v })
+        api('/api/owner-passkey', { action: 'rename', credId: k.credId, name: v }, t)
           .then(function (r2) {
             const jj = r2.json;
             if (jj && jj.ok) {
               lastSaved = v;
               toast(t('pkRenamed'));
             } else if (jj && jj.error === 'stepup-required') {
-              toast(t('sessExp'));
+              /* 验证失效：已跳验证流程 */
+            } else if (jj && jj.error === 'not-found') {
+              toast(t('pkRetryLater'));
+              nameInput.value = lastSaved;
             } else {
+              toast(apiErrorText(t, jj && jj.error));
               nameInput.value = lastSaved;
             }
           })
           .catch(function () {
+            toast(t('gateNetErr'));
             nameInput.value = lastSaved;
           });
       };
@@ -130,6 +137,7 @@ import { initAppGate, api, b64urlToBuf, bufToB64url } from './app-gate.js';
       del.type = 'button';
       del.className = 'lockmgr-pkdel';
       del.textContent = t('pkDel');
+      del.setAttribute('aria-label', t('pkDel') + ' ' + (k.name || t('pkUnnamed')));
       let armed = false;
       let armTimer = 0;
       on(del, 'click', function (e) {
@@ -146,20 +154,16 @@ import { initAppGate, api, b64urlToBuf, bufToB64url } from './app-gate.js';
           return;
         }
         window.clearTimeout(armTimer);
-        api('/api/owner-passkey', { action: 'delete', credId: k.credId })
+        api('/api/owner-passkey', { action: 'delete', credId: k.credId }, t)
           .then(function (r2) {
             const jj = r2.json;
             if (jj && jj.ok) {
               toast(t('pkDeleted'));
               refresh();
             } else if (jj && jj.error === 'stepup-required') {
-              toast(t('sessExp'));
-            } else if (jj && jj.error === 'not-found') {
-              toast(t('pkRetryLater'));
-            } else if (!jj) {
-              toast(t('gateNetErr'));
+              /* 验证失效：已跳验证流程 */
             } else {
-              toast(t('gateSrvErr'));
+              toast(apiErrorText(t, jj && jj.error));
             }
           })
           .catch(function () {
@@ -186,10 +190,11 @@ import { initAppGate, api, b64urlToBuf, bufToB64url } from './app-gate.js';
       toast(t('gateNoSupport'));
       return;
     }
-    api('/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: 'app', aud: aud })
+    api('/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: 'app', aud: aud }, t)
       .then(function (res) {
         const ch = res.json;
-        if (!ch || !ch.ok) throw new Error((ch && ch.error) || 'challenge');
+        if (ch && ch.error === 'stepup-required') throw { kind: 'reverify' };
+        if (!ch || !ch.ok) throw { kind: 'server', code: ch && ch.error };
         return navigator.credentials.create({
           publicKey: {
             challenge: b64urlToBuf(ch.challenge),
@@ -208,6 +213,11 @@ import { initAppGate, api, b64urlToBuf, bufToB64url } from './app-gate.js';
           },
         }).then(function (cred) {
           return { cred: cred, cid: ch.cid };
+        }, function (e) {
+          if (e && e.name === 'NotAllowedError') throw { kind: 'cancelled' };
+          if (e && e.name === 'InvalidStateError') throw { kind: 'already' };
+          if (e && e.name === 'NotSupportedError') throw { kind: 'nosupport' };
+          throw { kind: 'failed' };
         });
       })
       .then(function (r2) {
@@ -224,22 +234,26 @@ import { initAppGate, api, b64urlToBuf, bufToB64url } from './app-gate.js';
               attestationObject: bufToB64url(cred.response.attestationObject),
             },
           },
-        });
+        }, t);
       })
       .then(function (res) {
         if (res.json && res.json.ok) {
           toast(t('pkRegistered'));
           refresh();
         } else if (res.json && res.json.error === 'stepup-required') {
-          toast(t('sessExp'));
+          /* 验证失效：已跳验证流程 */
         } else {
-          const code = (res.json && res.json.error) || 'failed';
-          toast(t('gateSrvErr') + ': ' + code);
+          toast(apiErrorText(t, res.json && res.json.error));
         }
       })
       .catch(function (e) {
-        if (e && e.name === 'NotAllowedError') toast(t('gateCancelled'));
-        else if (e && e.name === 'InvalidStateError') toast(t('pkAlready'));
+        if (!e) return;
+        if (e.kind === 'reverify') return; /* 已跳验证流程 */
+        if (e.kind === 'cancelled' || (e && e.name === 'NotAllowedError')) toast(t('errCancelled'));
+        else if (e.kind === 'already' || (e && e.name === 'InvalidStateError')) toast(t('pkAlready'));
+        else if (e.kind === 'nosupport') toast(t('pkNoSupport'));
+        else if (e.kind === 'failed') toast(t('pkFailed'));
+        else if (e.kind === 'server') toast(apiErrorText(t, e.code));
         else toast(t('pkFailed'));
       });
   }
@@ -259,7 +273,7 @@ import { initAppGate, api, b64urlToBuf, bufToB64url } from './app-gate.js';
       if (j && j.ok) {
         toast(t('sessExited'));
       } else {
-        toast(t('gateSrvErr') + (j && j.error ? ': ' + j.error : ''));
+        toast(apiErrorText(t, j && j.error));
       }
     }).catch(function () {
       toast(t('gateNetErr'));
@@ -289,16 +303,19 @@ import { initAppGate, api, b64urlToBuf, bufToB64url } from './app-gate.js';
   const exitBtn = $('bookmgr-exitsess');
   if (exitBtn) on(exitBtn, 'click', exitSession);
 
-  initAppGate({
-    dlg: 'appgate-dlg',
-    pkBtn: 'appgate-pk',
-    err: 'appgate-err',
-    content: 'bookmgr',
-    t: t,
-    load: loadKeys,
-    onEnter: function (keys) {
-      render(keys);
+  /* 进门探针：验证有效直接渲染，无效跳验证流程（安全与隐私页） */
+  let cachedKeys = null;
+  enterDoor(
+    function () {
+      return loadKeys().then(function (keys) {
+        cachedKeys = keys;
+        return !!keys;
+      });
+    },
+    function () {
+      render(cachedKeys);
       initReturn();
     },
-  });
+    t
+  );
 })();

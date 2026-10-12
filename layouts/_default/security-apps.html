@@ -1,7 +1,8 @@
 {{/* 应用（2.11 两扇门：管理凭证门下的应用管理）。
    安全与隐私 → 应用：列出已接入的应用（当前只有 Book），每行显示该应用的
    应用类通行密钥状态，点击进应用详情页。
-   进入前底部弹层「验证身份」（应用类通行密钥管理需 stepup by=owner）。
+   进门：enterDoor（app-gate.js）探针验 stepup 有效性；无效则跳回安全与隐私页
+   走验证流程（进门只验一次），不弹面板。
    noindex、不进 sitemap（见 baseof/sitemap）。
    白名单由 scripts/gen-app-whitelist.mjs 从 functions/_kernel/app-registry.js 生成
    （data/app_whitelist.json），模板注入 JSON，JS 不手抄。
@@ -19,24 +20,7 @@
 <div class="set-layout max-w-2xl mx-auto px-4 pb-28">
   {{ partial "subpage-head.html" (dict "title" (cond $isEn "Apps" "应用") "isEn" $isEn) }}
 
-  <!-- 验证身份（进入前底部弹层） -->
-  <dialog id="appgate-dlg" class="sgx-verify-dlg" aria-labelledby="appgate-title">
-    <div class="sgx-verify-card">
-      <div class="sheet-handle" data-gclose></div>
-      <h2 id="appgate-title" class="sgx-verify-title">{{ if $isEn }}Verify identity{{ else }}验证身份{{ end }}</h2>
-      <p class="sgx-verify-sub">{{ if $isEn }}Choose a way to verify{{ else }}选择一种验证方式{{ end }}</p>
-      <div class="sgx-verify-opts" id="appgate-opts">
-        <button type="button" class="sec-sheet-opt" id="appgate-pk">
-          {{ partial "icon.html" "shield" }}
-          <span class="flex-1">{{ if $isEn }}Use passkey{{ else }}使用通行密钥{{ end }}</span>
-          {{ partial "icon.html" "chev-r" }}
-        </button>
-      </div>
-      <p id="appgate-err" class="sgx-verify-err" hidden></p>
-    </div>
-  </dialog>
-
-  <!-- 应用列表（验证后显示） -->
+  <!-- 应用列表（进门探针通过后显示） -->
   <div id="appmgr" hidden>
     <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "key" }}</span><span>{{ if $isEn }}Apps{{ else }}应用{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.1s">
@@ -57,11 +41,7 @@
 
 <script id="sgx-app-whitelist" type="application/json">{{ $wl | jsonify | safeJS }}</script>
 {{ $appI18n := dict
-  "gatePkErr" (dict "zh" "通行密钥验证失败" "en" "Passkey verification failed")
-  "gateCancelled" (dict "zh" "已取消" "en" "Cancelled")
-  "gateNetErr" (dict "zh" "网络错误" "en" "Network error")
-  "gateSrvErr" (dict "zh" "服务器错误" "en" "Server error")
-  "gateNoSupport" (dict "zh" "设备不支持通行密钥" "en" "Passkeys not supported on this device")
+  "sessExp" (dict "zh" "会话过期，请重新验证" "en" "Session expired, verify again")
   "keyAdded" (dict "zh" "已添加钥匙" "en" "Key added")
   "keyNone" (dict "zh" "未添加钥匙" "en" "No key added")
 }}
