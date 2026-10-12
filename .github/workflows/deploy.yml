@@ -332,6 +332,8 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
     # 2026-10-12：与 quality 相同的 ubuntu-24.04，保证字体渲染一致
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v6
