@@ -51,14 +51,24 @@ import {
   ROLE_OWNER,
 } from '../_kernel/session.js';
 import { getApp } from '../_kernel/app-registry.js';
-import { verifyStepupCookie, STEPUP_COOKIE, STEPUP_BY_ROOT, STEPUP_BY_OWNER, STEPUP_SCOPE_ROOT, STEPUP_SCOPE_KEYS, STEPUP_SCOPE_LOCKRESET } from './stepup.js';
+import { verifyStepupCookie, signStepupCookie, STEPUP_COOKIE, STEPUP_COOKIE_ATTRS, STEPUP_MAX_AGE, STEPUP_BY_ROOT, STEPUP_BY_OWNER, STEPUP_SCOPE_ROOT, STEPUP_SCOPE_KEYS, STEPUP_SCOPE_LOCKRESET } from './stepup.js';
 import { LAYER_OWNER, LAYER_LOCK, layerApp, setLayerConfigured, clearLayerConfigured, isLayerConfigured, isLockEffectivelyConfigured } from '../_kernel/layers.js';
 import { verifySessionDetailed } from '../_middleware.js';
+import {
+  STORE_CLASS_OWNERKEY,
+  STORE_CLASS_LOCKKEY,
+  STORE_CLASS_APPKEY,
+  KEY_OWNER,
+  KEY_LOCK,
+  appKeyName,
+} from '../_kernel/key-names.js';
 
-/* 2.10.0：通行密钥分类；2.11 新增 owner */
-export const PK_CLASS_OWNER = 'owner';
-export const PK_CLASS_LOCK = 'lock';
-export const PK_CLASS_APP = 'app';
+/* 2.10.0：通行密钥分类；2.11 新增 owner。
+   钥匙命名规范（key-names.js）：存储层 class 字段值保留 'owner'/'lock'/'app'
+   不迁移；概念名用 ownerkey/lockkey/<aud>key（如 bookkey）。 */
+export const PK_CLASS_OWNER = STORE_CLASS_OWNERKEY;
+export const PK_CLASS_LOCK = STORE_CLASS_LOCKKEY;
+export const PK_CLASS_APP = STORE_CLASS_APPKEY;
 /* 所有者显示名（注册参数写死，用户不填） */
 export const OWNER_DISPLAY_NAME = 'Sloan Gray';
 /* 应用类认证完成后的单次绑定记录前缀（app-token 签发时消费） */
@@ -345,14 +355,6 @@ async function checkPasskeyMgmt(request, env, kv, pkClass, op) {
   return { ok: true, sv: sv, sess: sess };
 }
 
-/** 清除 sgx-stepup cookie（敏感操作成功后立即清除） */
-function clearStepupCookie(headers) {
-  headers.append(
-    'Set-Cookie',
-    'sgx-stepup=; Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0'
-  );
-}
-
 /** app-epoch:<aud> +1（删除应用类通行密钥时调用）。
  * 2.10.1：KV 读写失败必须抛错（调用方 fail closed，拒绝删除），
  * 不再静默按 0 写回。 */
@@ -470,9 +472,9 @@ async function handlePost(context) {
          name：站长凭证 → ownerkey；锁屏 → lockkey；app → 应用名小写+key（如 bookkey）。
          user.id 每类/aud 独立，存 KV 复用（生成方式不变）。 */
       const userHandle = await getUserHandle(kv, pkClass === PK_CLASS_APP ? aud : '');
-      const userName = pkClass === PK_CLASS_OWNER ? 'ownerkey'
-        : pkClass === PK_CLASS_APP ? String(aud || '').toLowerCase() + 'key'
-        : 'lockkey';
+      const userName = pkClass === PK_CLASS_OWNER ? KEY_OWNER
+        : pkClass === PK_CLASS_APP ? appKeyName(aud)
+        : KEY_LOCK;
       resp.user = {
         id: userHandle,
         name: userName,
@@ -893,9 +895,23 @@ async function handlePost(context) {
         }
       }
     } catch (e) {}
-    /* 成功后清除 sgx-stepup */
+    /* 门内操作成功后不再清除 sgx-stepup。删 key 会 bump epoch 导致旧票据失效，
+       这里用新 epoch 重签一张，保持门内连续操作不中断。 */
     const headers = new Headers({ 'Content-Type': 'application/json' });
-    clearStepupCookie(headers);
+    /* 删 lock/owner 类会推进 session-epoch，旧票据失效 → 重签 */
+    if (delClass !== PK_CLASS_APP && mg.sv && mg.sv.ok) {
+      try {
+        const stepupKey = env && env.SGX_STEPUP_PRIVATE;
+        if (stepupKey) {
+          const newEpoch = parseInt(await kv.get('session-epoch') || '0', 10) || 0;
+          const cv = await signStepupCookie(stepupKey, mg.sv.by, mg.sv.scope, newEpoch);
+          headers.append(
+            'Set-Cookie',
+            STEPUP_COOKIE + '=' + cv + '; ' + STEPUP_COOKIE_ATTRS + '; Max-Age=' + STEPUP_MAX_AGE
+          );
+        }
+      } catch (e) {}
+    }
     return new Response(JSON.stringify({ ok: true }), { headers });
   }
 

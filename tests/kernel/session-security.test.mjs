@@ -1201,14 +1201,50 @@ test('2.9.3：visitor 可以访问桌面（/）、设置（/settings/）、文�
   assert.equal(r.status, 200);
 });
 
-test('2.9.3：visitor 进 /settings/display/、/settings/security/ 严格 200', async () => {
+test('2.11：visitor 进 /settings/display/ 严格 200；/settings/security/ 全系 302 到锁屏', async () => {
   const vCookie = await visitorCookie(0);
-  for (const p of ['/settings/display/', '/settings/security/', '/en/settings/', '/en/settings/security/']) {
+  for (const p of ['/settings/display/', '/en/settings/']) {
     const r = await mw(mwCtx('https://styrigx.com' + p, { cookie: vCookie, env: PROD_ENV() }));
     assert.equal(r.status, 200, 'visitor 访问 ' + p + ' 应严格 200');
   }
+  /* 2.11 两扇门：安全与隐私全系主人专属，访客 302 到锁屏（只跳一次） */
+  for (const p of ['/settings/security/', '/settings/security/apps/', '/settings/security/apps/book/', '/en/settings/security/']) {
+    const r = await mw(mwCtx('https://styrigx.com' + p, { cookie: vCookie, env: PROD_ENV() }));
+    assert.equal(r.status, 302, 'visitor 访问 ' + p + ' 应 302 到锁屏');
+    assert.ok(r.headers.get('Location').includes('?lock=1'), p + ' 应跳到锁屏');
+  }
 });
 
+test('2.11：lockreset 票据只放行 /settings/security/lock/，不开总览和应用页', async () => {
+  await genTestKeys();
+  const { signStepupCookie } = await import('../../functions/api/stepup.js');
+  const ticket = await signStepupCookie(STEPUP_PRIV_PEM, 'owner+root', 'lockreset', 0);
+  const env = {
+    SGX_ENV: 'production',
+    SGX_SITE: 'space',
+    SGX_LOCK_PUBLIC: TEST_PUB_PEM,
+    SGX_STEPUP_PUBLIC: STEPUP_PUB_PEM,
+    OWNER_KV: makeKV(),
+  };
+  const ctx = (url) => ({
+    request: new Request(url, { headers: { 'Cookie': 'sgx-stepup=' + ticket } }),
+    next: async () => new Response('<html><head></head><body></body></html>', {
+      status: 200,
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    }),
+    env,
+  });
+  /* 锁屏凭证管理页：放行，注入 lockreset 状态 */
+  let r = await mw(ctx('https://styrigx.com/settings/security/lock/'));
+  assert.equal(r.status, 200);
+  assert.ok((await r.text()).includes('data-sgx-session="lockreset"'), '应注入 lockreset 状态');
+  /* 安全总览、应用列表、应用详情：不放行，302 到锁屏 */
+  for (const p of ['/settings/security/', '/settings/security/apps/', '/settings/security/apps/book/']) {
+    r = await mw(ctx('https://styrigx.com' + p));
+    assert.equal(r.status, 302, 'lockreset 票据访问 ' + p + ' 应 302 到锁屏');
+    assert.ok(r.headers.get('Location').includes('?lock=1'), p + ' 应跳到锁屏');
+  }
+});
 test('2.9.3：visitor 进 /settings/security/lock/ 只跳一次，目标不再跳', async () => {
   const vCookie = await visitorCookie(0);
   // 第一次：302 到锁屏

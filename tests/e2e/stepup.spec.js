@@ -44,13 +44,16 @@ test.describe('stepup e2e', () => {
 
   /** @param {import('@playwright/test').Page} page */
   async function gateWithKey(page) {
-    await page.goto(BASE + '/settings/security/lock/');
-    const dlg = page.locator('#lockgate-dlg');
+    /* 新验证弹层：安全页 → 站长凭证 → 根凭证行 → 填根凭证 → 验证 →
+       成功后直接进站长凭证门内页（此时已持有 owner 会话 cookie） */
+    await page.goto(BASE + '/settings/security/');
+    await page.click('#sec-owner-cred');
+    const dlg = page.locator('#sec-verify-dlg');
     await expect(dlg).toBeVisible({ timeout: 15000 });
-    await page.click('#lockgate-key');
-    await page.fill('#lockgate-input', OWNER_KEY);
-    await page.click('#lockgate-go');
-    await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
+    await page.locator('.sgx-door-row').first().click();
+    await page.locator('.sgx-door-expand textarea').fill(OWNER_KEY);
+    await page.locator('.sgx-door-actions .primary').click();
+    await page.waitForURL('**/settings/security/owner/**', { timeout: 15000 });
   }
 
   /**

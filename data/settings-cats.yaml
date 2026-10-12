@@ -13,10 +13,10 @@ cats:
     icon: palette
     bg: bg-m-primary-container
     fg: text-m-on-primary-container
-    zh: 壁纸和主题
-    en: Wallpaper & theme
-    subzh: 主色
-    suben: Theme color
+    zh: 风格
+    en: Style
+    subzh: 调色板
+    suben: Color palette
   - id: security
     icon: shield
     bg: bg-m-accent-container

@@ -34,6 +34,14 @@ export function initNavHistory() {
   function parentOf() {
     const p = location.pathname;
     if (p === '/files/' || p === '/en/files/') return en ? '/en/files/' : '/files/';
+    /* 2.11：安全与隐私三级：应用详情 → 应用 → 安全与隐私；锁屏 → 安全与隐私 */
+    if (p === '/settings/security/apps/book/' || p === '/en/settings/security/apps/book/') {
+      return en ? '/en/settings/security/apps/' : '/settings/security/apps/';
+    }
+    if (p === '/settings/security/apps/' || p === '/en/settings/security/apps/' ||
+        p === '/settings/security/lock/' || p === '/en/settings/security/lock/') {
+      return en ? '/en/settings/security/' : '/settings/security/';
+    }
     /* 2.6.0：设置子页的上一级是设置首页 */
     if (p !== '/settings/' && p.indexOf('/settings/') === 0) return '/settings/';
     if (p !== '/en/settings/' && p.indexOf('/en/settings/') === 0) return '/en/settings/';

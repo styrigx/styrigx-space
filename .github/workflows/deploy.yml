@@ -99,6 +99,12 @@ jobs:
         env:
           BLOG_TOKEN: ${{ secrets.BLOG_READ_TOKEN || github.token }}
 
+      - name: Generate app whitelist (2.11)
+        # 从 functions/_kernel/app-registry.js 生成 data/app_whitelist.json，
+        # 供 app-verify.html 与应用管理页模板注入（前端不手抄白名单）。
+        # 失败、字段缺失 → 脚本 exit 非 0 → 构建失败
+        run: node scripts/gen-app-whitelist.mjs
+
       - name: Build site (生产构建，用于锁屏测试)
         run: hugo --minify
 

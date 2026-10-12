@@ -1,7 +1,8 @@
 /**
  * 2.11：分层接管（layer takeover）。
  *
- * 三层：owner（owner passkey/密码）、lock（锁屏 passkey/密码）、app:<aud>（应用类 passkey）。
+ * 三层：owner（ownerkey：站长密码/站长通行密钥）、lock（lockkey：解锁密码/
+ * 锁屏通行密钥）、app:<aud>（<aud>key，如 bookkey）。钥匙命名见 key-names.js。
  *
  * 规则：
  * - 某层没有自己的凭证时，root 可代开该层。

@@ -1,0 +1,129 @@
+{{/* 站长凭证（2.11 两扇门：「站长凭证」门内页，独立模板）。
+   管理 ownerkey（站长密码、站长通行密钥）；进门只验一次（安全与隐私页入口，
+   rootkey 验证），本页直接渲染，进门探针确认验证有效，无效则跳验证流程，
+   不弹面板。返回离开即退出（返回键先清验证）。
+   noindex、不进 sitemap（见 baseof/sitemap）。
+   脚本走 ES Module 入口 entry-security-owner.js；localStorage 经 storage.js。 */}}
+{{ define "main" }}
+{{ .Scratch.Set "sgx-entry" "entry-security-owner.js" }}
+{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+
+<div class="set-layout max-w-2xl mx-auto px-4 pb-28">
+  {{ partial "subpage-head.html" (dict "title" (cond $isEn "Owner key" "站长凭证") "isEn" $isEn) }}
+
+  <!-- 管理区（直接渲染；验证无效时 JS 跳验证流程） -->
+  <div id="lockmgr">
+    <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "lock" }}</span><span>{{ if $isEn }}Owner password{{ else }}站长密码{{ end }}</span></h2>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.1s">
+      <div class="set-row" id="lockmgr-pwrow" role="button" tabindex="0">
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}Owner password{{ else }}站长密码{{ end }}</span>
+          <span class="block text-xs mt-0.5 text-m-primary" id="lockmgr-pwsub">{{ if $isEn }}Loading…{{ else }}正在读取…{{ end }}</span>
+        </span>
+        {{ partial "icon.html" "chev-r" }}
+      </div>
+      <button type="button" class="lockmgr-delrow" id="lockmgr-pwdel" hidden>{{ if $isEn }}Delete password{{ else }}删除密码{{ end }}</button>
+    </section>
+    <p class="sec-note mb-7">{{ if $isEn }}Used to enter credential management. Minimum 8 characters.{{ else }}用于进入管理凭证，最短 8 位。{{ end }}</p>
+
+    <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Owner passkeys{{ else }}站长通行密钥{{ end }}</span></h2>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.14s">
+      <ul class="lockmgr-pklist" id="lockmgr-pklist" hidden></ul>
+      <div class="p-4" id="lockmgr-pkempty" hidden>
+        <p class="text-sm text-m-on-surface-variant m-0">{{ if $isEn }}No passkeys yet.{{ else }}还没有通行密钥。{{ end }}</p>
+      </div>
+      <button type="button" class="lockmgr-add" id="lockmgr-pkadd">
+        <span aria-hidden="true">＋</span> {{ if $isEn }}Add passkey{{ else }}添加通行密钥{{ end }}
+      </button>
+    </section>
+    <p class="sec-note">{{ if $isEn }}Used to enter credential management. Tap a device name to rename it.{{ else }}用于进入管理凭证。点设备名可重命名。{{ end }}</p>
+  </div>
+</div>
+
+<!-- 通行密钥命名弹层 -->
+<dialog id="lockpkname-dlg" class="sgx-verify-dlg" aria-labelledby="lockpkname-title">
+  <div class="sgx-verify-card">
+    <div class="sheet-handle" data-pclose></div>
+    <h2 id="lockpkname-title" class="sgx-verify-title">{{ if $isEn }}Name this passkey{{ else }}为这把通行密钥命名{{ end }}</h2>
+    <p class="sgx-verify-desc">{{ if $isEn }}Give it a name so you can tell your passkeys apart.{{ else }}起个名字，方便区分多把通行密钥。{{ end }}</p>
+    <input id="lockpkname-input" type="text" maxlength="40" class="sgx-verify-input" autocomplete="off" />
+    <div class="sgx-verify-actions">
+      <button type="button" class="sgx-verify-ghost" id="lockpkname-skip">{{ if $isEn }}Skip{{ else }}跳过{{ end }}</button>
+      <button type="button" class="sgx-verify-skip" id="lockpkname-save">{{ if $isEn }}Save{{ else }}保存{{ end }}</button>
+    </div>
+    <p class="sgx-verify-err" id="lockpkname-err" hidden></p>
+  </div>
+</dialog>
+
+<!-- 密码设置/修改弹层 -->
+<dialog id="lockpw-dlg" class="sgx-verify-dlg" aria-labelledby="lockpw-title">
+  <div class="sgx-verify-card">
+    <div class="sheet-handle" data-pclose></div>
+    <h2 id="lockpw-title" class="sgx-verify-title">{{ if $isEn }}Set owner password{{ else }}设置站长密码{{ end }}</h2>
+    <div class="sgx-pw-field">
+      <input type="password" id="lockpw-1" class="sgx-pw-input" autocomplete="new-password"
+             aria-label="{{ if $isEn }}New password{{ else }}新密码{{ end }}"
+             placeholder="{{ if $isEn }}New password (min 8){{ else }}新密码（最少 8 位）{{ end }}">
+      <button type="button" class="sgx-pw-eye" data-eye="lockpw-1" aria-label="{{ if $isEn }}Show{{ else }}显示{{ end }}"></button>
+    </div>
+    <div class="sgx-pw-field">
+      <input type="password" id="lockpw-2" class="sgx-pw-input" autocomplete="new-password"
+             aria-label="{{ if $isEn }}Confirm password{{ else }}确认密码{{ end }}"
+             placeholder="{{ if $isEn }}Confirm password{{ else }}确认密码{{ end }}">
+      <button type="button" class="sgx-pw-eye" data-eye="lockpw-2" aria-label="{{ if $isEn }}Show{{ else }}显示{{ end }}"></button>
+    </div>
+    <p id="lockpw-err" class="sgx-verify-err" hidden></p>
+    <button type="button" class="sgx-verify-skip" id="lockpw-go">{{ if $isEn }}Save{{ else }}保存{{ end }}</button>
+  </div>
+</dialog>
+
+{{ $owI18n := dict
+  "eyeShow" (dict "zh" "显示" "en" "Show")
+  "eyeHide" (dict "zh" "隐藏" "en" "Hide")
+  "pwSet" (dict "zh" "已设置" "en" "Set")
+  "pwUnset" (dict "zh" "未设置" "en" "Not set")
+  "pwMin8" (dict "zh" "最短 8 位" "en" "Minimum 8 characters")
+  "pwMismatch" (dict "zh" "两次输入不一致" "en" "Passwords do not match")
+  "pwSaved" (dict "zh" "已保存" "en" "Saved")
+  "pwChanged" (dict "zh" "已修改" "en" "Changed")
+  "pwDeleted" (dict "zh" "密码已删除" "en" "Password deleted")
+  "pwDelAsk" (dict "zh" "再点一次删除密码" "en" "Tap again to delete password")
+  "pwDelWarn" (dict "zh" "删除后只能用根凭证进入，再点一次确认" "en" "After deletion only the root credential can enter. Tap again to confirm")
+  "pkRegistered" (dict "zh" "已注册" "en" "Registered")
+  "pkDeleted" (dict "zh" "已删除" "en" "Deleted")
+  "pkDelConfirm" (dict "zh" "确定删除这把通行密钥？" "en" "Delete this passkey?")
+  "pkDelManual" (dict "zh" "请到 Samsung Pass 里手动删除这把通行密钥" "en" "Please delete this passkey manually in Samsung Pass")
+  "pkRenamed" (dict "zh" "已重命名" "en" "Renamed")
+  "pkUnnamed" (dict "zh" "站长通行密钥" "en" "Owner passkey")
+  "pkDel" (dict "zh" "删除" "en" "Delete")
+  "pkDelAsk" (dict "zh" "再点一次删除" "en" "Tap again to delete")
+  "pkRetryLater" (dict "zh" "请稍后重试" "en" "Please try again later")
+  "pkNeverUsed" (dict "zh" "尚未使用" "en" "Not used yet")
+  "pkNameEmpty" (dict "zh" "名字不能为空" "en" "Name cannot be empty")
+  "pkAlready" (dict "zh" "此设备已注册过" "en" "Already registered on this device")
+  "pkNoSupport" (dict "zh" "设备不支持" "en" "Not supported on this device")
+  "pkFailed" (dict "zh" "注册失败" "en" "Registration failed")
+  "setTitle" (dict "zh" "设置站长密码" "en" "Set owner password")
+  "changeTitle" (dict "zh" "修改站长密码" "en" "Change owner password")
+  "sessExp" (dict "zh" "会话过期，请重新验证" "en" "Session expired, verify again")
+  "gateNetErr" (dict "zh" "网络错误" "en" "Network error")
+  "errParams" (dict "zh" "参数错误" "en" "Bad request")
+  "errNotFound" (dict "zh" "找不到这把钥匙" "en" "Key not found")
+  "errLastKey" (dict "zh" "这是最后一把站长钥匙，请先设置站长密码" "en" "This is the last owner key; set an owner password first")
+  "errRetry" (dict "zh" "请稍后重试" "en" "Please try again later")
+  "errServer" (dict "zh" "服务暂时不可用" "en" "Service temporarily unavailable")
+  "errChallenge" (dict "zh" "验证初始化失败" "en" "Verification setup failed")
+  "errVerify" (dict "zh" "验证失败" "en" "Verification failed")
+  "errUvRequired" (dict "zh" "需要设备解锁确认" "en" "Device unlock required")
+  "errWrongPw" (dict "zh" "密码错误" "en" "Wrong password")
+  "errShort" (dict "zh" "最短 8 位" "en" "Minimum 8 characters")
+  "errExists" (dict "zh" "已经设置过了" "en" "Already set")
+  "errNotSet" (dict "zh" "尚未设置" "en" "Not set")
+  "errLocked" (dict "zh" "尝试次数过多，请稍后再试" "en" "Too many attempts, please try again later")
+  "errConfig" (dict "zh" "服务器配置有误" "en" "Server misconfigured")
+  "errAud" (dict "zh" "应用信息有误" "en" "Bad app parameter")
+  "errCancelled" (dict "zh" "已取消" "en" "Cancelled")
+  "errUnknown" (dict "zh" "未知错误，请稍后重试" "en" "Unknown error, please try again later")
+}}
+<script id="sgx-i18n-ownermgr" type="application/json">{{ $owI18n | jsonify | safeJS }}</script>
+{{ end }}

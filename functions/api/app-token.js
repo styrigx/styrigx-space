@@ -138,6 +138,25 @@ body = {};
 }
 
 const { action, aud, scope, return: returnUrl, appCid} = body;
+
+/* 2.11 revoke：退出应用会话。清除 sgx-app cookie（HttpOnly，前端清不掉，
+   只能由服务端 Set-Cookie 清除）；清除后该应用的敏感操作需重新走
+   /app-verify/ 授权。只需 owner 会话（防御性操作），幂等。 */
+if (action === 'revoke') {
+const headers = new Headers({
+'Content-Type': 'application/json',
+'Cache-Control': 'private, no-store',
+});
+headers.append(
+'Set-Cookie',
+`${APP_COOKIE}=; Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`
+);
+return new Response(JSON.stringify({ ok: true}), {
+status: 200,
+headers,
+});
+}
+
 if (action!== 'issue') {
 return new Response(JSON.stringify({ ok: false, error: 'action'}), {
 status: 400,

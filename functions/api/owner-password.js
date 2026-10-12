@@ -434,13 +434,18 @@ async function handlePost(context) {
       } catch (e) {
         return Response.json({ ok: false, error: 'server' }, { status: 503 });
       }
-      /* 2.10.0：删除密码成功后立即清除 sgx-stepup */
-      return new Response(JSON.stringify({ ok: true }), {
-        headers: {
-          'Content-Type': 'application/json',
-          'Set-Cookie': 'sgx-stepup=; Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0',
-        },
-      });
+      /* epoch 推进后重签票据，保持门内连续操作 */
+      const headers = new Headers({ 'Content-Type': 'application/json' });
+      try {
+        const stepupKey = env && env.SGX_STEPUP_PRIVATE;
+        if (stepupKey && sv.ok) {
+          const newEpoch = parseInt(await kv.get('session-epoch') || '0', 10) || 0;
+          const cv = await signStepupCookie(stepupKey, sv.by, sv.scope, newEpoch);
+          headers.append('Set-Cookie',
+            STEPUP_COOKIE + '=' + cv + '; ' + STEPUP_COOKIE_ATTRS + '; Max-Age=' + STEPUP_MAX_AGE);
+        }
+      } catch (e) {}
+      return new Response(JSON.stringify({ ok: true }), { headers });
     }
 
     const newPassword = (body && (body.password || body.newPassword)) || '';
@@ -500,16 +505,18 @@ async function handlePost(context) {
     } catch (e) {
       return Response.json({ ok: false, error: 'server' }, { status: 503 });
     }
-    /* 2.10.0：改密码成功后立即清除 sgx-stepup（set 为首次设置，不清除） */
-    if (action === 'change') {
-      return new Response(JSON.stringify({ ok: true }), {
-        headers: {
-          'Content-Type': 'application/json',
-          'Set-Cookie': 'sgx-stepup=; Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0',
-        },
-      });
-    }
-    return Response.json({ ok: true });
+    /* epoch 推进后重签票据，保持门内连续操作 */
+    const headers2 = new Headers({ 'Content-Type': 'application/json' });
+    try {
+      const stepupKey = env && env.SGX_STEPUP_PRIVATE;
+      if (stepupKey && sv.ok) {
+        const newEpoch = parseInt(await kv.get('session-epoch') || '0', 10) || 0;
+        const cv = await signStepupCookie(stepupKey, sv.by, sv.scope, newEpoch);
+        headers2.append('Set-Cookie',
+          STEPUP_COOKIE + '=' + cv + '; ' + STEPUP_COOKIE_ATTRS + '; Max-Age=' + STEPUP_MAX_AGE);
+      }
+    } catch (e) {}
+    return new Response(JSON.stringify({ ok: true }), { headers: headers2 });
   }
 
   return Response.json({ ok: false, error: 'action' }, { status: 400 });

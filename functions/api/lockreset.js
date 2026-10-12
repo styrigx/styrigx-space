@@ -17,7 +17,7 @@
  *
  * POST /api/lockreset
  * - { action: 'status' } → { ok:true, available }（无需会话；不读开关）
- * - { action: 'challenge' } → 下发 owner passkey 断言 challenge（purpose=lockreset）
+ * - { action: 'challenge' } → 下发 ownerkey 断言 challenge（purpose=lockreset）
  * - { action: 'verify', rootKey, ownerProof? } →
  *     根凭证错 → 401 auth；
  *     根凭证对 + 开关有效 → lockreset（by=root, via=switch）；
@@ -110,7 +110,7 @@ async function handlePost(context) {
     return Response.json({ ok: false, error: 'config' }, { status: 500 });
   }
 
-  /* ============ challenge：下发 owner passkey 断言 challenge ============ */
+  /* ============ challenge：下发 ownerkey 断言 challenge ============ */
   if (action === 'challenge') {
     if (!ownerCfg) {
       return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
