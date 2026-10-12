@@ -221,3 +221,42 @@ test.describe('unlock methods entry relocation', () => {
     await expect(pg.locator('#sec-locknow')).toContainText('Lock now');
   });
 });
+
+/* v1.3 #42：调色板 8 色测试态视觉基线（验证换行后仍整齐）。
+   用 JS 注入 3 个额外色块凑成 8 色，选中一个显示对勾，截图 #sg-theme 区域。 */
+test('palette 8-color test state (visual baseline)', async ({ page: pg }) => {
+  await pinLang(pg, 'zh');
+  await gotoSettings(pg, '/settings/theme/');
+  const grid = pg.locator('#palette-dots');
+  await expect(grid).toBeVisible();
+  // 注入 3 个额外色块（8 色测试态）
+  await pg.evaluate(() => {
+    const g = document.getElementById('palette-dots');
+    const extra = [
+      { id: 't8a', c: '#b7791f', zh: '测试金' },
+      { id: 't8b', c: '#3a7bd5', zh: '测试蓝测试蓝' },
+      { id: 't8c', c: '#555555', zh: '测试灰' },
+    ];
+    for (const e of extra) {
+      const cell = document.createElement('div');
+      cell.className = 'palette-cell';
+      cell.innerHTML = `<button type="button" class="swatch" data-palette="${e.id}" style="background:${e.c}" aria-pressed="false" aria-label="${e.zh}"><svg class="swatch-check" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M9 16.2l-3.5-3.5-1.4 1.4L9 19 20.9 7.1l-1.4-1.4z" fill="currentColor"/></svg></button><span class="palette-name">${e.zh}</span>`;
+      g.appendChild(cell);
+    }
+    // 选中第一个，显示对勾
+    g.querySelector('.swatch').setAttribute('aria-pressed', 'true');
+  });
+  await expect(grid.locator('.palette-cell')).toHaveCount(8);
+  // 断言换行：8 色在 412px 宽度下必定换行
+  const boxes = await grid.locator('.palette-cell').evaluateAll((els) =>
+    els.map((el) => { const r = el.getBoundingClientRect(); return { top: Math.round(r.top), left: Math.round(r.left) }; })
+  );
+  const rows = new Set(boxes.map((b) => b.top));
+  expect(rows.size).toBeGreaterThan(1);
+  // 末行左对齐：最后一行第一个 cell 的 left 与第一行第一个 cell 的 left 一致（±2px）
+  const firstRowLeft = Math.min(...boxes.filter((b) => b.top === Math.min(...[...rows])).map((b) => b.left));
+  const lastRowTop = Math.max(...[...rows]);
+  const lastRowLeft = Math.min(...boxes.filter((b) => b.top === lastRowTop).map((b) => b.left));
+  expect(Math.abs(lastRowLeft - firstRowLeft)).toBeLessThanOrEqual(2);
+  await expect(pg.locator('#sg-theme')).toHaveScreenshot('palette-8colors.png', { animations: 'disabled', caret: 'hide' });
+});

@@ -1,5 +1,5 @@
 /**
- * @fileoverview 设置页：主题、主色、字体、布局、搜索引擎、常规管理、应用面板、
+ * @fileoverview 设置页：主题、调色板、字体、布局、搜索引擎、常规管理、应用面板、
  * 减弱动效、数字健康、重置、桌面双栏、设置搜索。
  * 文案来自页面内 sgx-i18n-settings JSON（中英双语），JS 与语言无关。
  */
@@ -134,7 +134,7 @@ import { setCapSearchProvider } from '../shell/capsule.js';
   paintTheme();
   featOn('theme-mode', paintTheme);
 
-  /* ---- 主色色板（第一个 = 默认，即头像取色） ---- */
+  /* ---- 调色板（第一个 = 默认，即头像取色） ---- */
   function curPalette() {
     return featGet('palette');
   }

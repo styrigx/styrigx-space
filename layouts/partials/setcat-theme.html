@@ -1,15 +1,19 @@
-{{/* 2.6.0：设置子页「theme」分类组（自 settings.html 抽取，set-gh 标题由子页大标题替代）。 */}}
+{{/* 2.6.0：设置子页「theme」分类组（自 settings.html 抽取，set-gh 标题由子页大标题替代）。
+   v1.3 #40：调色板用 CSS grid 自适应列（.palette-grid），不再 flex-wrap。
+   v1.3 #42：色板数据走 data/palettes.yaml（单数组配置），加颜色只改配置。 */}}
 {{ $isEn := .isEn }}{{ $featMap := .featMap }}{{ $palettes := .palettes }}
 <div class="set-group scroll-mt-24" id="sg-theme">
 <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.14s">
       <div class="p-5">
         <p class="text-sm font-medium">{{ if $isEn }}Color palette{{ else }}调色板{{ end }}</p>
         <p class="text-xs text-m-on-surface-variant mt-1 mb-3">{{ if $isEn }}Change the color of buttons, titles, and icons.{{ else }}更改按钮、标题和图标的颜色。{{ end }}</p>
-        <div class="flex gap-4 flex-wrap" id="palette-dots">
+        <div class="palette-grid" id="palette-dots">
           {{ range $palettes }}
-          <div class="flex flex-col items-center gap-1.5">
-            <button type="button" class="swatch" data-palette="{{ .id }}" style="background:{{ .c }}" aria-pressed="false" aria-label="{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}"></button>
-            <span class="text-[11px] text-m-on-surface-variant">{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}</span>
+          <div class="palette-cell">
+            <button type="button" class="swatch" data-palette="{{ .id }}" style="background:{{ .c }}" aria-pressed="false" aria-label="{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}">
+              <svg class="swatch-check" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M9 16.2l-3.5-3.5-1.4 1.4L9 19 20.9 7.1l-1.4-1.4z" fill="currentColor"/></svg>
+            </button>
+            <span class="palette-name">{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}</span>
           </div>
           {{ end }}
         </div>

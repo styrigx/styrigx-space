@@ -1,0 +1,23 @@
+# 调色板配置（单数据源）。加颜色只改这里，不改布局。
+# settings.html / settings-sub.html 共用 site.Data.palettes.palettes。
+palettes:
+  - id: lake
+    c: "#2f5f86"
+    zh: 默认
+    en: Default
+  - id: forest
+    c: "#2f6b4f"
+    zh: 山绿
+    en: Forest
+  - id: terra
+    c: "#8a4b2d"
+    zh: 陶土
+    en: Terracotta
+  - id: violet
+    c: "#6750a4"
+    zh: 紫
+    en: Violet
+  - id: rose
+    c: "#984061"
+    zh: 蔷薇
+    en: Rose
