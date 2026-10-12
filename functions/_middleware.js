@@ -12,6 +12,7 @@
 import { ed25519Verify } from './_kernel/crypto.js';
 import { SESSION_COOKIE, ROLE_OWNER, ROLE_VISITOR } from './_kernel/session.js';
 import { isPublicPage } from './_kernel/public-pages.js';
+import { verifyStepupCookie, STEPUP_SCOPE_LOCKRESET } from './api/stepup.js';
 
 /* 2.9.3 访客权限收窄：只有安全锁屏页是主人专属。
    访客可进：/settings/ 及其子页、/settings/security/ 总览、/files/（中英文）。
@@ -415,6 +416,20 @@ export async function onRequest(context) {
           'X-Robots-Tag': 'noindex',
         },
       });
+    }
+
+    /* lockreset 票据可打开锁屏凭证管理页（重置锁屏流程），但仍进不了主页。
+       仅放行 /settings/security/lock/ 及其英文版；主页仍需有效会话。 */
+    if (!sessionValid && isOwnerOnlyPath(pathname)) {
+      const st = await verifyStepupCookie(request, env);
+      if (st.ok && st.scope === STEPUP_SCOPE_LOCKRESET) {
+        const res = await next();
+        const ct = res.headers.get('Content-Type') || '';
+        if (ct.includes('text/html')) {
+          return injectSessionState(res, 'locked', null);
+        }
+        return res;
+      }
     }
 
     if (sessionValid) {

@@ -154,16 +154,25 @@ async function handlePost(context) {
       return Response.json({ ok: false, error: 'server' }, { status: 503 });
     }
 
+    /* fail()：记失败计数；写 KV 出错时返回 503 响应对象（调用方直接返回），
+       与 root-auth 一致，不吞掉。 */
     const fail = async function () {
-      try { await recordRootFail(kv, ip); } catch (e) {}
+      try {
+        await recordRootFail(kv, ip);
+      } catch (e) {
+        await writeRootAudit(kv, ip, false, { path: 'lockreset' });
+        return Response.json({ ok: false, error: 'server' }, { status: 503 });
+      }
       await writeRootAudit(kv, ip, false, { path: 'lockreset' });
+      return null;
     };
 
     /* --- 步骤 1：根凭证与环境变量比对（不读 KV 开关） --- */
     const rk = (body && body.rootKey) || '';
     const rootOk = rk && (await timingSafeEqual(String(rk), String(rootKey)));
     if (!rootOk) {
-      await fail();
+      const failResp = await fail();
+      if (failResp) return failResp;
       return Response.json({ ok: false, error: 'auth' }, { status: 401 });
     }
     await clearRootFail(kv, ip);
@@ -180,36 +189,52 @@ async function handlePost(context) {
       /* 被并发抢走 → 按开关无效处理 */
     }
 
-    /* --- 步骤 3：开关无效 → 需要站长凭证 --- */
+    /* --- 步骤 3：开关无效 → 需要站长凭证 ---
+       站长凭证未配置时返回通用 401 auth（不泄露 not-set，避免暴露配置状态）。 */
     if (!ownerCfg) {
-      await writeRootAudit(kv, ip, false, { path: 'lockreset' });
-      return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
+      const failResp = await fail();
+      if (failResp) return failResp;
+      return Response.json({ ok: false, error: 'auth' }, { status: 401 });
     }
     const proof = (body && body.ownerProof) || null;
     if (!proof) {
       /* 响应形态与开关有效时一致（都是 200 ok），由服务端决定下一步；
-         前端据此展示站长凭证步骤，不提示开关存在 */
-      return Response.json({ ok: true, needOwner: true });
+         前端据此展示站长凭证步骤，不提示开关存在。
+         needOwner 带 passkey/password 布尔，前端按配置显示按钮，不总显示两个。 */
+      let hasOwnerPw = false;
+      let hasOwnerPk = false;
+      try {
+        const r = await kv.get('owner-pw', 'json');
+        hasOwnerPw = !!(r && r.hash);
+      } catch (e) {}
+      try {
+        const keys = await getPasskeys(kv);
+        hasOwnerPk = keys.some(function (k) { return (k.class || 'lock') === PK_CLASS_OWNER; });
+      } catch (e) {}
+      return Response.json({ ok: true, needOwner: true, passkey: hasOwnerPk, password: hasOwnerPw });
     }
     let ownerOk = false;
     if (proof.type === 'password') {
       const pepper = getPepper(env);
       if (!pepper) {
-        await fail();
+        const failResp = await fail();
+        if (failResp) return failResp;
         return Response.json({ ok: false, error: 'config' }, { status: 503 });
       }
       try {
         const vr = await verifyOwnerPassword(kv, pepper, String(proof.password || ''));
         ownerOk = vr.set && vr.ok;
       } catch (e) {
-        await fail();
+        const failResp = await fail();
+        if (failResp) return failResp;
         return Response.json({ ok: false, error: 'server' }, { status: 503 });
       }
     } else if (proof.type === 'passkey') {
       ownerOk = await verifyOwnerPasskeyProof(kv, proof, RP_ID, EXPECT_ORIGIN);
     }
     if (!ownerOk) {
-      await fail();
+      const failResp = await fail();
+      if (failResp) return failResp;
       return Response.json({ ok: false, error: 'auth' }, { status: 401 });
     }
     return await issueLockreset(ip, STEPUP_BY_OWNER_ROOT, null);

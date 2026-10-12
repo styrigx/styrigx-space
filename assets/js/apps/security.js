@@ -6,8 +6,7 @@
  * - 管理凭证 → 弹层「需要凭证」→ 按钮按站长凭证配置（/api/owner-status）：
  *   未设置→根凭证；仅通行密钥→通行密钥验证；仅密码→密码验证；两者都有→两个按钮。
  * - 立即锁定：调服务端 /api/lock 清除会话 cookie 后重载，回到锁屏。
- * - 从 /api/owner-status 读取只读状态，渲染状态卡片。
- * - 密钥分层（/api/layer-status）、根凭证使用审计（/api/root-audit）。
+ * - 从 /api/owner-status（需鉴权）读取只读状态，渲染状态卡片（访客不调用）。
  * - localStorage 统一走 storage.js。
  */
 import { on } from '../lib/events.js';
@@ -59,6 +58,10 @@ import { toast } from '../lib/toast.js';
 
   /** @param {boolean} [silent] */
   function refresh(silent) {
+    /* 访客不再调用 /api/owner-status（接口已加鉴权，访客 401）；状态卡片保持隐藏。 */
+    try {
+      if (document.documentElement.dataset.sgxRole === 'visitor') return;
+    } catch (e) {}
     fetch('/api/owner-status', { method: 'GET', credentials: 'same-origin' })
       .then(function (r) {
         return r.json();
@@ -321,15 +324,23 @@ import { toast } from '../lib/toast.js';
       if (isVisitor) {
         renderOpts(false, false);
       } else {
-        /* 每次打开时重新读取配置 */
+        /* 每次打开时重新读取配置（/api/owner-status 已加鉴权，只看站长密码 +
+           class=owner 通行密钥）。读取失败显示错误，不退回根凭证。 */
         fetch('/api/owner-status', { method: 'GET', credentials: 'same-origin' })
           .then(function (r) { return r.json(); })
           .then(function (j) {
-            renderOpts(!!(j && j.password), !!(j && j.passkey));
+            if (j && j.ok) {
+              renderOpts(!!j.password, !!j.passkey);
+            } else {
+              throw new Error('bad');
+            }
           })
           .catch(function () {
-            /* 读取失败按未设置处理：只显示根凭证 */
-            renderOpts(false, false);
+            /* 读取失败：显示错误，不退回根凭证（避免显示必然失败的按钮） */
+            opts.innerHTML = '';
+            if (keyform) keyform.hidden = true;
+            opts.hidden = false;
+            showErr(en ? 'Failed to load configuration' : '读取配置失败，请重试');
           });
       }
       if (typeof dlg.showModal === 'function') {
@@ -488,77 +499,6 @@ import { toast } from '../lib/toast.js';
     dlg.addEventListener('click', function (e) {
       if (e.target === dlg) closeDlg();
     });
-  })();
-
-  /* 2.11：密钥分层状态（GET /api/layer-status，需 owner 会话）。
-     每层显示「由根凭证代管」(takeover) 或「已接管」(configured)；
-     失败（访客/无会话）则整组保持隐藏。 */
-  (function () {
-    var sec = document.getElementById('sec-layers');
-    var note = document.getElementById('sec-layers-note');
-    var ownerSub = document.getElementById('sec-layer-owner-sub');
-    var lockSub = document.getElementById('sec-layer-lock-sub');
-    if (!sec) return;
-    fetch('/api/layer-status', { method: 'GET', credentials: 'same-origin' })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (!j || !j.ok || !j.layers) throw new Error('bad');
-        if (ownerSub) ownerSub.textContent = j.layers.owner === 'takeover' ? t('layerTakeover') : t('layerConfigured');
-        if (lockSub) lockSub.textContent = j.layers.lock === 'takeover' ? t('layerTakeover') : t('layerConfigured');
-        sec.hidden = false;
-        if (note) note.hidden = false;
-      })
-      .catch(function () { /* 无会话：保持隐藏 */ });
-  })();
-
-  /* 2.11：根凭证使用审计（GET /api/root-audit，需 owner 会话 + stepup）。
-     成功显示最近记录（时间 · IP 前缀 · 成功/失败）；
-     无 stepup/无会话则整组保持隐藏。 */
-  (function () {
-    var h = document.getElementById('sec-audit-h');
-    var sec = document.getElementById('sec-audit');
-    var list = document.getElementById('sec-audit-list');
-    var empty = document.getElementById('sec-audit-empty');
-    if (!sec || !list) return;
-    fetch('/api/root-audit', { method: 'GET', credentials: 'same-origin' })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (!j || !j.ok || !Array.isArray(j.items)) throw new Error('bad');
-        if (h) h.hidden = false;
-        sec.hidden = false;
-        list.innerHTML = '';
-        if (!j.items.length) {
-          if (empty) empty.hidden = false;
-          return;
-        }
-        j.items.forEach(function (it) {
-          var li = document.createElement('li');
-          li.className = 'lockmgr-pkitem';
-          var left = document.createElement('div');
-          left.className = 'lockmgr-pkname';
-          var time = document.createElement('span');
-          time.style.fontSize = '15px';
-          time.style.fontWeight = '600';
-          var d = it && it.ts ? new Date(it.ts) : null;
-          time.textContent = d && !isNaN(d.getTime())
-            ? d.toLocaleString(en ? 'en-US' : 'zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-            : '';
-          var ip = document.createElement('span');
-          ip.className = 'lockmgr-pkdate';
-          ip.textContent = (it && it.ipPrefix) || '';
-          left.appendChild(time);
-          left.appendChild(ip);
-          var res = document.createElement('span');
-          res.className = 'lockmgr-pkdate';
-          res.style.fontWeight = '600';
-          res.style.color = it && it.ok ? 'var(--m-primary)' : 'var(--m-rose)';
-          res.textContent = t(it && it.ok ? 'auditOk' : 'auditFail');
-          li.appendChild(left);
-          li.appendChild(res);
-          list.appendChild(li);
-        });
-      })
-      .catch(function () { /* 无 stepup/无会话：保持隐藏 */ });
   })();
 
   refresh(true);

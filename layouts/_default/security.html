@@ -1,6 +1,6 @@
 {{/* 安全与隐私（2.4.0 安全与隐私）：只读状态卡片 + 安全/隐私分组。
-   状态来自 /api/owner-status（只返回是否已设置）；noindex、不进 sitemap（见 baseof/sitemap）。
-   2.11 新增「密钥分层」分组（/api/layer-status）与「根密钥使用记录」（/api/root-audit）。
+   状态来自 /api/owner-status（需鉴权，只返回是否已设置）；noindex、不进 sitemap（见 baseof/sitemap）。
+   定稿：安全页只有三入口（站长凭证/管理凭证/立即锁定），无密钥分层与审计分组。
    脚本走 ES Module 入口 entry-security.js；localStorage 经 storage.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-security.js" }}
@@ -88,41 +88,6 @@
       </div>
     </div>
   </dialog>
-
-  {{/* 2.11：密钥分层。两个入口：
-       「根密钥（恢复）」→ owner passkey 管理页（$lockUrl 验证门接受根密钥）；
-       「owner passkey」→ lock/APP 管理页。
-       每行副标题由 /api/layer-status 填充：「由根密钥代管」(takeover) / 「已接管」(configured)。
-       整组默认 hidden，无 owner 会话时保持隐藏。 */}}
-  <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "key" }}</span><span>{{ if $isEn }}Key layers{{ else }}密钥分层{{ end }}</span></h2>
-  <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.12s" id="sec-layers" hidden>
-    <a class="set-row" id="sec-layer-owner" href="{{ $lockUrl }}">
-      <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "shield" }}</span>
-      <span class="flex-1 min-w-0">
-        <span class="block font-medium">{{ if $isEn }}Root key (recovery){{ else }}根密钥（恢复）{{ end }}</span>
-        <span class="block text-xs mt-0.5 truncate text-m-primary" id="sec-layer-owner-sub">{{ if $isEn }}Loading…{{ else }}正在读取…{{ end }}</span>
-      </span>
-      {{ partial "icon.html" "chev-r" }}
-    </a>
-    <a class="set-row" id="sec-layer-lock" href="{{ $lockUrl }}">
-      <span class="set-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "lock" }}</span>
-      <span class="flex-1 min-w-0">
-        <span class="block font-medium">owner passkey</span>
-        <span class="block text-xs mt-0.5 truncate text-m-primary" id="sec-layer-lock-sub">{{ if $isEn }}Loading…{{ else }}正在读取…{{ end }}</span>
-      </span>
-      {{ partial "icon.html" "chev-r" }}
-    </a>
-  </section>
-  <p class="sec-note mb-7" id="sec-layers-note" hidden>{{ if $isEn }}A layer with no credentials of its own is managed by the root key.{{ else }}某层没有自己的凭据时，由根密钥代管。{{ end }}</p>
-
-  {{/* 2.11：根密钥使用审计（GET /api/root-audit，需 owner 会话 + stepup；否则整组隐藏） */}}
-  <h2 class="set-gh" id="sec-audit-h" hidden><span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "info" }}</span><span>{{ if $isEn }}Root key usage{{ else }}根密钥使用记录{{ end }}</span></h2>
-  <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.14s" id="sec-audit" hidden>
-    <ul class="lockmgr-pklist" id="sec-audit-list"></ul>
-    <div class="p-4" id="sec-audit-empty" hidden>
-      <p class="text-sm text-m-on-surface-variant m-0">{{ if $isEn }}No records yet.{{ else }}暂无记录。{{ end }}</p>
-    </div>
-  </section>
 
   <!-- 隐私分组 -->
   <h2 class="set-gh"><span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "info" }}</span><span>{{ if $isEn }}Privacy{{ else }}隐私{{ end }}</span></h2>

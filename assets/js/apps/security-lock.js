@@ -34,6 +34,9 @@ import { toast } from '../lib/toast.js';
   let hasPw = false;
   /** 2.10.0：全量通行密钥缓存（含应用类，供应用验证分组渲染） */
   let allKeys = [];
+  /** 当前管理区的通行密钥类别：'owner'（scope=root）或 'lock'（scope=keys/lockreset），
+      由 refreshPkList 按服务端返回的 scope 设置；"添加通行密钥"按钮据此决定 pkClass。 */
+  let pkAddClass = 'lock';
   /** 2.10.0：应用白名单（与服务端一致，book 在列） */
   var APPS = [{ aud: 'book', name: 'Book' }];
 
@@ -677,7 +680,13 @@ import { toast } from '../lib/toast.js';
           needReauth();
           return;
         }
-        const keys = ((j.ok && j.keys) || []).filter(function (k) { return (k.class || 'lock') === 'lock'; });
+        /* 按 stepup scope 决定显示哪类：scope=root 显示 owner 类，
+           否则显示 lock 类（服务端已按 scope 过滤）。 */
+        const isOwnerScope = j.scope === 'root';
+        pkAddClass = isOwnerScope ? 'owner' : 'lock';
+        const keys = ((j.ok && j.keys) || []).filter(function (k) {
+          return (k.class || 'lock') === (isOwnerScope ? 'owner' : 'lock');
+        });
         if (!ul) return;
         ul.innerHTML = '';
         // 缓存全量 keys 供应用验证分组使用
@@ -921,8 +930,10 @@ import { toast } from '../lib/toast.js';
         toast(t('pkNoSupport'));
         return;
       }
-      /* 2.10.0：无 token 检查；api() 在 stepup-required 时自动验证后重试 */
-      api('/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: 'lock' })
+      /* 2.10.0：无 token 检查；api() 在 stepup-required 时自动验证后重试。
+         pkClass 按当前管理区决定：scope=root 时为 owner（站长通行密钥），
+         否则为 lock。服务端会按 stepup scope 校验类别。 */
+      api('/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: pkAddClass })
         .then(function (res) {
           const ch = res.json;
           if (!ch) throw { kind: 'server' };
@@ -944,7 +955,7 @@ import { toast } from '../lib/toast.js';
                 rp: { name: rp.name || 'Styrigx', id: rpId },
                 user: {
                   id: b64urlToBuf(user.id),
-                  name: user.name || 'owner',
+                  name: user.name || 'lockkey',
                   displayName: user.displayName || 'Sloan Gray',
                 },
                 pubKeyCredParams: [{ type: 'public-key', alg: -7 }],

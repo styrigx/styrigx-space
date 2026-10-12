@@ -32,10 +32,12 @@ import { getSessionEpoch, ROLE_OWNER, ROLE_VISITOR } from '../_kernel/session.js
 import { signStepupCookie, STEPUP_COOKIE, STEPUP_COOKIE_ATTRS, STEPUP_MAX_AGE, STEPUP_BY_ROOT, STEPUP_SCOPE_ROOT } from './stepup.js';
 import { checkRootLimit, recordRootFail, clearRootFail, getClientIp } from '../_kernel/rootlimit.js';
 import { writeRootAudit } from '../_kernel/rootlog.js';
-import { isLayerConfigured, LAYER_LOCK } from '../_kernel/layers.js';
+import { isLockEffectivelyConfigured } from '../_kernel/layers.js';
 import { verifySessionDetailed } from '../_middleware.js';
 
-/* 假入口与真失败的统一固定最小延迟（毫秒）：防时序区分 */
+/* 假入口与真失败的统一固定最小延迟（毫秒）：防时序区分。
+   真失败路径的审计写入放在 padTo 之前，padTo 把总耗时对齐到此时长，
+   使真失败与假入口的响应耗时一致（审计为单次 KV 写，通常远小于此时长）。 */
 const MIN_DELAY_MS = 200;
 
 /** @param {number} t0 起始时间戳 */
@@ -144,16 +146,62 @@ async function handlePost(context) {
   const kv = env && env.OWNER_KV;
   const ip = getClientIp(request);
 
+  /* 锁屏层是否有效已配置（标记或真实凭证任一存在、或读取失败都算已配置）。
+     先算出来，供假入口判断用。 */
+  let lockCfg = true;
+  try {
+    lockCfg = await isLockEffectivelyConfigured(kv);
+  } catch (e) {
+    lockCfg = true;
+  }
+
   /* ===== 访客假入口（优先）：访客会话直接写死 401 =====
      不读 D1、KV、环境变量里的任何凭证，不做任何比对；
      不计入 rootlimit；不写审计。
-     状态码、响应体、固定最小延迟与真失败一致。 */
-  if (await lightVisitorSession(request, env)) {
+     状态码、响应体、固定最小延迟与真失败一致。
+     例外：锁屏未配置的引导场景下，有访客 cookie 也不走假入口，
+     必须走真路径校验根凭证（否则锁屏根凭证入口永远进不去）。
+     已知风险：访客假入口不检查 rootlimit，永远不返回 429，
+     访客会话可无限次试探而不触发限速；真路径与无会话假入口仍受限速保护。 */
+  if (lockCfg && await lightVisitorSession(request, env)) {
     await padTo(t0);
     return decoyAuth();
   }
 
-  /* 缺关键配置 → 直接拒绝（fail closed） */
+  /* 真路径还是无会话假入口：
+     - 有疑似有效 owner 会话 → 真路径
+     - 无会话但 lock 层未配置 → 真路径（引导）
+     - 无会话且 lock 已配置（或读取失败按已配置）→ 假入口 */
+  const looksOwner = await lightOwnerSession(request, env);
+  const realPath = looksOwner || !lockCfg;
+
+  if (!realPath) {
+    /* ===== 无会话假入口：写死 401，与真失败逐字节相同 =====
+       不检查环境变量（缺 SGX_ROOT_KEY 等时也返回 401，不泄露 500 config）。
+       保留限速检查（KV 出错时 fail closed）；不写审计（防刷接口触发全局暂停）。
+       KV 缺失时无法限速，直接返回 401（不泄露配置状态）。 */
+    if (kv) {
+      try {
+        const lim = await checkRootLimit(kv, ip);
+        if (lim.limited) {
+          return Response.json({ ok: false, error: 'locked' }, { status: 429 });
+        }
+      } catch (e) {
+        return Response.json({ ok: false, error: 'server' }, { status: 503 });
+      }
+      try {
+        await recordRootFail(kv, ip);
+      } catch (e) {
+        return Response.json({ ok: false, error: 'server' }, { status: 503 });
+      }
+    }
+    await padTo(t0);
+    return decoyAuth();
+  }
+
+  /* ===== 真路径 =====
+     缺关键配置 → 直接拒绝（fail closed）。注意：假入口路径在上面已返回，
+     这里只处理真路径，避免无会话时因缺环境变量泄露 500 config。 */
   const rootKey = (env && env.SGX_ROOT_KEY) || '';
   const stepupKey = (env && env.SGX_STEPUP_PRIVATE) || '';
   if (!rootKey || !stepupKey || !kv) {
@@ -161,40 +209,6 @@ async function handlePost(context) {
     return Response.json({ ok: false, error: errCode }, { status: 500 });
   }
 
-  /* 真路径还是假入口：
-     - 有疑似有效 owner 会话 → 真路径
-     - 无会话但 lock 层未配置 → 真路径（引导）
-     - 无会话且 lock 已配置（或 KV 读失败按已配置）→ 假入口（不计限速、不写审计） */
-  const looksOwner = await lightOwnerSession(request, env);
-  let lockCfg = true;
-  try {
-    lockCfg = await isLayerConfigured(kv, LAYER_LOCK);
-  } catch (e) {
-    lockCfg = true;
-  }
-  const realPath = looksOwner || !lockCfg;
-
-  if (!realPath) {
-    /* ===== 无会话假入口：写死 401，与真失败逐字节相同 =====
-       保留限速检查（KV 出错时 fail closed）；不写审计（防刷接口触发全局暂停）。 */
-    try {
-      const lim = await checkRootLimit(kv, ip);
-      if (lim.limited) {
-        return Response.json({ ok: false, error: 'locked' }, { status: 429 });
-      }
-    } catch (e) {
-      return Response.json({ ok: false, error: 'server' }, { status: 503 });
-    }
-    try {
-      await recordRootFail(kv, ip);
-    } catch (e) {
-      return Response.json({ ok: false, error: 'server' }, { status: 503 });
-    }
-    await padTo(t0);
-    return decoyAuth();
-  }
-
-  /* ===== 真路径 ===== */
   if (lockCfg) {
     /* 正常运行：入口 1 要求有效 lock 会话。
        完整会话校验（含 KV epoch）；轻量检查通过但完整校验失败（如 epoch 已推进）→ 401 */
@@ -230,8 +244,10 @@ async function handlePost(context) {
       await writeRootAudit(kv, ip, false, { path: 'root-auth' });
       return Response.json({ ok: false, error: 'server' }, { status: 503 });
     }
-    await padTo(t0);
+    /* 审计写入放在 padTo 之前：padTo 把总耗时对齐到 MIN_DELAY，
+       真失败与假入口的响应耗时一致，无法通过耗时区分。 */
     await writeRootAudit(kv, ip, false, { path: 'root-auth' });
+    await padTo(t0);
     return decoyAuth(); /* 与假入口逐字节相同 */
   }
 

@@ -15,7 +15,7 @@
  */
 import { issueSessionCookie, ROLE_OWNER, BY_ROOT } from '../_kernel/session.js';
 import { verifyStepupCookie, STEPUP_BY_ROOT, STEPUP_SCOPE_ROOT } from './stepup.js';
-import { checkRootTakeover, LAYER_LOCK } from '../_kernel/layers.js';
+import { isLockEffectivelyConfigured } from '../_kernel/layers.js';
 
 /* root 代开的会话时长：约 1 小时 */
 const ROOT_SESSION_MAX_AGE = 3600;
@@ -64,9 +64,15 @@ async function handlePost(context) {
     return Response.json({ ok: false, error: 'scope' }, { status: 403 });
   }
 
-  /* 检查 lock 层是否已配置：已配置（含 KV 读失败按已配置）则 root 代开失效 */
-  const takeover = await checkRootTakeover(kv, LAYER_LOCK);
-  if (!takeover.allowed) {
+  /* 检查 lock 层是否有效已配置：标记或真实凭证任一存在、或读取失败，
+     都算已配置，root 代开失效（与 root-auth / lock-config 同口径）。 */
+  let lockConfigured = true;
+  try {
+    lockConfigured = await isLockEffectivelyConfigured(kv);
+  } catch (e) {
+    lockConfigured = true;
+  }
+  if (lockConfigured) {
     return Response.json({ ok: false, error: 'configured' }, { status: 403 });
   }
 

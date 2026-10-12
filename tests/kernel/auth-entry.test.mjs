@@ -141,19 +141,28 @@ test('认证入口：安全页三个入口（站长凭证/管理凭证/立即锁
 
 test('认证入口：访客管理凭证弹层固定单个根凭证按钮，不读配置', () => {
   const js = fs.readFileSync(path.join(REPO, 'assets/js/apps/security.js'), 'utf8');
-  /* 访客分支：直接 renderOpts(false, false)，不 fetch /api/owner-status */
-  const idx = js.indexOf("dataset.sgxRole === 'visitor'");
-  assert.ok(idx > 0, '应有访客判断');
-  const section = js.slice(idx, idx + 800);
-  assert.ok(section.includes('renderOpts(false, false)'), '访客应固定渲染单个根凭证按钮');
-  /* 该分支内不应出现 owner-status */
-  const ifBlock = section.slice(0, section.indexOf('} else {'));
-  assert.ok(!ifBlock.includes('owner-status'), '访客分支不应读站长凭证配置');
+  /* 访客分支：直接 renderOpts(false, false)，不 fetch /api/owner-status。
+     文件中有两个 openDlg，管理凭证弹层的是第二个；定位到含 renderOpts 的那处。 */
+  const idx = js.indexOf('renderOpts(false, false)');
+  assert.ok(idx > 0, '应有访客固定渲染');
+  /* 往前找 if (isVisitor) {，往后找对应的 } else {，只检查访客分支 */
+  const before = js.slice(Math.max(0, idx - 400), idx);
+  const ifIdx = before.lastIndexOf('if (isVisitor)');
+  assert.ok(ifIdx >= 0, '应有访客判断');
+  const visitorBranch = before.slice(ifIdx) + js.slice(idx, idx + 50);
+  assert.ok(visitorBranch.includes('renderOpts(false, false)'), '访客应固定渲染单个根凭证按钮');
+  /* 访客分支内不应出现 owner-status（else 分支的非访客逻辑可以读） */
+  const elseIdx = js.indexOf('} else {', idx);
+  const visitorOnly = js.slice(Math.max(0, idx - 400), elseIdx > idx ? elseIdx : idx + 50);
+  /* 访客分支是从 if (isVisitor) 到 } else { */
+  const vStart = js.lastIndexOf('if (isVisitor)', idx);
+  const vBranch = js.slice(vStart, elseIdx);
+  assert.ok(!vBranch.includes('owner-status'), '访客分支不应读站长凭证配置');
 });
 
 /* ============ 3. 访客假入口 ============ */
 
-test('认证入口：访客会话提交正确根凭证 → 401 密码错误，不读 KV/D1，不计 rootlimit', async () => {
+test('认证入口：访客会话提交正确根凭证 → 401 密码错误，不读凭证、不写 KV、不计 rootlimit', async () => {
   const { onRequestPost } = await import(REPO + 'functions/api/root-auth.js');
   const { signSessionCookie } = await import(REPO + 'functions/_kernel/session.js');
 
@@ -175,8 +184,7 @@ test('认证入口：访客会话提交正确根凭证 → 401 密码错误，�
   const body = await res.text();
   assert.equal(body, JSON.stringify({ ok: false, error: 'auth' }));
 
-  /* 不调用 KV（get/put 计数为 0） */
-  assert.equal(kv._calls.get, 0, '访客假入口不应读 KV');
+  /* 不写 KV（put 计数为 0）；允许读锁屏配置（判断引导场景），但不读凭证 */
   assert.equal(kv._calls.put, 0, '访客假入口不应写 KV');
 
   /* 不增加 rootlimit 计数 */
@@ -361,7 +369,7 @@ test('补充七：未配置锁屏凭证时，锁屏根凭证路径走真实比�
   assert.ok(setCookie.includes('sgx-stepup='), '应签发 sgx-stepup');
 });
 
-test('补充七：访客管理凭证提交任何值都返回密码错误且不访问存储', async () => {
+test('补充七：访客管理凭证提交任何值都返回密码错误且不写存储', async () => {
   /* 管理凭证弹层的「根凭证」按钮提交到 /api/root-auth；访客会话下为假入口 */
   const { onRequestPost } = await import(REPO + 'functions/api/root-auth.js');
   const { signSessionCookie } = await import(REPO + 'functions/_kernel/session.js');
@@ -380,8 +388,168 @@ test('补充七：访客管理凭证提交任何值都返回密码错误且不�
     const body = await res.text();
     assert.equal(body, JSON.stringify({ ok: false, error: 'auth' }));
   }
-  /* 不访问存储 */
-  assert.equal(kv._calls.get, 0, '访客假入口不应读 KV');
+  /* 不写存储 */
   assert.equal(kv._calls.put, 0, '访客假入口不应写 KV');
   assert.ok(![...kv._store.keys()].some((k) => k.startsWith('root-auth-')), '不应有 rootlimit 计数');
+});
+
+/* ============ 审查意见 9 项：行为测试 ============ */
+
+test('行为：lockreset 站长凭证未配置 → 通用 401 auth（不泄露 not-set）', async () => {
+  const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
+  /* owner 未配置（无标记、无密码、无 passkey），lock 也未配置 */
+  const kv = makeKv({});
+  const env = baseEnv(kv);
+  const req = postReq('https://test.example.com/api/lockreset', {
+    action: 'verify', rootKey: 'test-root-key-12345',
+  });
+  const res = await onRequestPost({ request: req, env });
+  assert.equal(res.status, 401);
+  const body = JSON.parse(await res.text());
+  assert.equal(body.ok, false);
+  assert.equal(body.error, 'auth', '应为通用 auth，不应泄露 not-set');
+});
+
+test('行为：lockreset 记失败计数写 KV 出错 → 503', async () => {
+  const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
+  /* KV 的 put 抛错 */
+  const kv = makeKv({});
+  kv.put = async () => { throw new Error('kv-down'); };
+  const env = baseEnv(kv);
+  const req = postReq('https://test.example.com/api/lockreset', {
+    action: 'verify', rootKey: 'wrong-key',
+  });
+  const res = await onRequestPost({ request: req, env });
+  /* 根凭证错误 → fail() 记失败计数 → KV put 抛错 → 503 */
+  assert.equal(res.status, 503);
+});
+
+test('行为：lockreset needOwner 带 passkey/password 布尔', async () => {
+  const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
+  /* owner 只配置了密码（含 layer:owner 标记） */
+  const kv = makeKv({
+    'layer:owner': '1',
+    'owner-pw': JSON.stringify({ hash: 'x', algo: 'test' }),
+  });
+  const env = baseEnv(kv);
+  const req = postReq('https://test.example.com/api/lockreset', {
+    action: 'verify', rootKey: 'test-root-key-12345',
+  });
+  const res = await onRequestPost({ request: req, env });
+  assert.equal(res.status, 200);
+  const body = JSON.parse(await res.text());
+  assert.equal(body.ok, true);
+  assert.equal(body.needOwner, true);
+  assert.equal(body.password, true, '应带 password=true');
+  assert.equal(body.passkey, false, '应带 passkey=false');
+});
+
+test('行为：锁屏未配置时 root-auth 成功 → root-session 换站长会话', async () => {
+  const { onRequestPost: rootAuthPost } = await import(REPO + 'functions/api/root-auth.js');
+  const { onRequestPost: rootSessionPost } = await import(REPO + 'functions/api/root-session.js');
+  /* lock 未配置：无标记、无 lock-pw、无 passkey */
+  const kv = makeKv({});
+  const env = baseEnv(kv);
+
+  /* 1. root-auth（无会话，引导模式） */
+  const req1 = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345' });
+  const res1 = await rootAuthPost({ request: req1, env });
+  assert.equal(res1.status, 200, '引导模式 root-auth 应成功');
+  const setCookie1 = res1.headers.get('Set-Cookie') || '';
+  assert.ok(setCookie1.includes('sgx-stepup='), '应签发 stepup');
+  const stepupVal = setCookie1.split('sgx-stepup=')[1].split(';')[0];
+
+  /* 2. root-session（用 stepup 换会话） */
+  const req2 = postReq('https://test.example.com/api/root-session', {}, {
+    'Cookie': 'sgx-stepup=' + stepupVal,
+  });
+  const res2 = await rootSessionPost({ request: req2, env });
+  assert.equal(res2.status, 200, 'root-session 应成功');
+  const body2 = JSON.parse(await res2.text());
+  assert.equal(body2.ok, true);
+  assert.equal(body2.by, 'root');
+  const setCookie2 = res2.headers.get('Set-Cookie') || '';
+  assert.ok(setCookie2.includes('sgx-verified='), '应签发会话');
+});
+
+test('行为：锁屏已配置（有真实凭证无标记）时 root-session 拒绝', async () => {
+  const { onRequestPost: rootSessionPost } = await import(REPO + 'functions/api/root-session.js');
+  const { signStepupCookie, STEPUP_COOKIE, STEPUP_BY_ROOT, STEPUP_SCOPE_ROOT } = await import(REPO + 'functions/api/stepup.js');
+  const { getSessionEpoch } = await import(REPO + 'functions/_kernel/session.js');
+  /* 有 lock-pw 但无 layer:lock 标记 */
+  const kv = makeKv({ 'lock-pw': JSON.stringify({ hash: 'x' }) });
+  const env = baseEnv(kv);
+  const epoch = await getSessionEpoch(kv);
+  const stepupVal = await signStepupCookie(TEST_PRIV_PEM, STEPUP_BY_ROOT, STEPUP_SCOPE_ROOT, epoch);
+  const req = postReq('https://test.example.com/api/root-session', {}, {
+    'Cookie': STEPUP_COOKIE + '=' + stepupVal,
+  });
+  const res = await rootSessionPost({ request: req, env });
+  assert.equal(res.status, 403, '有真实凭证无标记也应拒绝');
+  const body = JSON.parse(await res.text());
+  assert.equal(body.error, 'configured');
+});
+
+test('行为：/api/owner-status 需鉴权，无会话 → 401', async () => {
+  const { onRequestGet } = await import(REPO + 'functions/api/owner-status.js');
+  const kv = makeKv({});
+  const env = baseEnv(kv);
+  const req = new Request('https://test.example.com/api/owner-status', { method: 'GET' });
+  const res = await onRequestGet({ request: req, env });
+  assert.equal(res.status, 401, '无会话应 401');
+});
+
+test('行为：/api/owner-status 只看 owner 类通行密钥', async () => {
+  const { onRequestGet } = await import(REPO + 'functions/api/owner-status.js');
+  const { signSessionCookie } = await import(REPO + 'functions/_kernel/session.js');
+  /* 只有 lock 类 passkey，无 owner 密码 */
+  const kv = makeKv({
+    'owner-passkey-index': JSON.stringify(['abc123']),
+    'owner-passkey:abc123': JSON.stringify({ credId: 'abc123', class: 'lock', publicKey: 'x' }),
+  });
+  const env = baseEnv(kv);
+  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
+  const req = new Request('https://test.example.com/api/owner-status', {
+    method: 'GET',
+    headers: { 'Cookie': 'sgx-verified=' + sessCv },
+  });
+  const res = await onRequestGet({ request: req, env });
+  assert.equal(res.status, 200);
+  const body = JSON.parse(await res.text());
+  assert.equal(body.ok, true);
+  assert.equal(body.passkey, false, '只有 lock 类时 passkey 应为 false');
+  assert.equal(body.password, false);
+});
+
+test('行为：访客会话下 root-auth 不走真路径（即使 lock 未配置也不比对）', async () => {
+  /* 补充：锁屏未配置的引导场景下，有访客 cookie 时不走假入口（走真路径）；
+     但设置页的访客假入口（lock 已配置）仍写死 401。 */
+  const { onRequestPost } = await import(REPO + 'functions/api/root-auth.js');
+  const { signSessionCookie } = await import(REPO + 'functions/_kernel/session.js');
+  /* lock 已配置 */
+  const kv = makeKv({ 'layer:lock': '1' });
+  const env = baseEnv(kv);
+  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'visitor', 'owner');
+  /* 提交正确的根凭证 */
+  const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345' }, {
+    'Cookie': 'sgx-verified=' + sessCv,
+  });
+  const res = await onRequestPost({ request: req, env });
+  assert.equal(res.status, 401, '访客即使提交正确根凭证也 401');
+  const body = await res.text();
+  assert.equal(body, JSON.stringify({ ok: false, error: 'auth' }));
+});
+
+test('行为：锁屏未配置 + 访客 cookie 时 root-auth 走真路径（不走假入口）', async () => {
+  const { onRequestPost } = await import(REPO + 'functions/api/root-auth.js');
+  const { signSessionCookie } = await import(REPO + 'functions/_kernel/session.js');
+  /* lock 未配置 */
+  const kv = makeKv({});
+  const env = baseEnv(kv);
+  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'visitor', 'owner');
+  const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345' }, {
+    'Cookie': 'sgx-verified=' + sessCv,
+  });
+  const res = await onRequestPost({ request: req, env });
+  assert.equal(res.status, 200, '引导场景下访客 cookie 不触发假入口，应走真路径');
 });

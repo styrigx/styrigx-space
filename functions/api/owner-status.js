@@ -1,15 +1,25 @@
 /**
- * 2.4.0 安全与隐私：只读状态接口。
+ * 2.4.0 安全与隐私：只读状态接口（2.11 修正版）。
  * GET /api/owner-status → { ok:true, password:bool, passkey:bool }
- * 只返回「是否已设置」，不返回任何敏感数据；无需鉴权。
- * passkey 读 owner-passkey-index（不走 kv.list，避开最终一致延迟）。
+ * - 需要有效 owner 会话（访客/无会话 → 401，不再无鉴权）。
+ * - 只看站长密码 + class=owner 的通行密钥（stepup 只认站长类；
+ *   旧版"任何一类通行密钥都算有"会导致显示必然失败的通行密钥按钮、又藏掉根凭证）。
+ * - 只返回「是否已设置」，不返回任何敏感数据。
  * 外层 try/catch：异常一律返回 { ok:false }，不暴露细节。
  */
+import { verifySessionDetailed } from '../_middleware.js';
+import { ROLE_OWNER } from '../_kernel/session.js';
+import { getPasskeys, PK_CLASS_OWNER } from './owner-passkey.js';
 
 /** @param {any} context */
 export async function onRequestGet(context) {
   try {
     const kv = context.env && context.env.OWNER_KV;
+    /* 鉴权：需要有效 owner 会话 */
+    const sess = await verifySessionDetailed(context.request, context.env);
+    if (!sess.ok || sess.role !== ROLE_OWNER) {
+      return Response.json({ ok: false, error: 'session' }, { status: 401 });
+    }
     let password = false;
     let passkey = false;
     if (kv) {
@@ -18,22 +28,9 @@ export async function onRequestGet(context) {
         password = !!(pw && pw.hash);
       } catch (e) {}
       try {
-        /* 读索引；不存在时用 kv.list 一次性补建（与 owner-passkey.js 的 ensureIndex 同逻辑） */
-        let idx = await kv.get('owner-passkey-index', 'json');
-        if (!Array.isArray(idx)) {
-          idx = [];
-          try {
-            const list = await kv.list({ prefix: 'owner-passkey:' });
-            for (const k of list.keys || []) {
-              try {
-                const v = await kv.get(k.name, 'json');
-                if (v && v.credId && !idx.includes(v.credId)) idx.push(v.credId);
-              } catch (e2) {}
-            }
-            await kv.put('owner-passkey-index', JSON.stringify(idx));
-          } catch (e3) {}
-        }
-        passkey = idx.length > 0;
+        /* 只看 class=owner 的通行密钥 */
+        const keys = await getPasskeys(kv);
+        passkey = keys.some(function (k) { return (k.class || 'lock') === PK_CLASS_OWNER; });
       } catch (e) {}
     }
     return Response.json({ ok: true, password: password, passkey: passkey });
