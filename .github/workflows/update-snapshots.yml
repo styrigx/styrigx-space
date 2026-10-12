@@ -41,7 +41,8 @@ jobs:
         run: npx playwright test --config=playwright.config.js visual.spec.js --update-snapshots
       - name: Commit snapshots only
         run: |
-          git checkout -- hugo.yaml data/posts.json   # 丢掉测试用 Turnstile key 替换和 fixture 数据
+          git checkout -- hugo.yaml   # 丢掉测试用 Turnstile key 替换
+          rm -f data/posts.json       # fixture 复制的临时文件，未被 git 跟踪
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add tests/e2e/visual/visual.spec.js-snapshots
