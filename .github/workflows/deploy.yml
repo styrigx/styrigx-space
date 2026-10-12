@@ -326,6 +326,68 @@ jobs:
             test-results/
             playwright-report/
 
+  # 手动更新视觉基线：只在 workflow_dispatch 时运行，用与 quality 完全相同的容器/字体
+  # 只更新 settings-security 相关的 40 张基线（2.11 定稿 UI 改动），结果提交回当前分支
+  update-visual-baselines:
+    if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+    # 2026-10-12：与 quality 相同的 ubuntu-24.04，保证字体渲染一致
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: ${{ env.HUGO_VERSION }}
+          extended: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install test deps
+        run: npm install --no-save @playwright/test http-server && npx playwright install chromium --with-deps
+
+      - name: Install CJK fonts
+        # 与 quality 相同的字体，保证渲染一致
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk
+
+      - name: Build CSS
+        run: node scripts/build-css.cjs --minify
+
+      - name: Build site (测试构建，锁屏禁用)
+        run: |
+          sed -i "s/0x4AAAAAAFSBhpWkAwZr1SMA/1x00000000000000000000AA/g" hugo.yaml
+          cp data/posts.fixture.json data/posts.json
+          hugo --minify
+        env:
+          SGX_TEST_NO_LOCK: "1"
+          SGX_TEST_NO_WEATHER: "1"
+
+      - name: Update settings-security baselines
+        # 只更新 settings-security 相关的 40 张（2.11 定稿 UI 改动：命名/新入口/代管状态/审计）
+        # 其余截图不对旧基线做任何改动
+        run: npx playwright test --config=playwright.config.js --update-snapshots --grep "settings_security"
+
+      - name: Commit updated baselines
+        run: |
+          git config user.name "Styrigx"
+          git config user.email "styrigx@users.noreply.github.com"
+          git add tests/e2e/visual/visual.spec.js-snapshots/
+          if git diff --cached --quiet; then
+            echo "No baseline changes"
+          else
+            git commit -m "[visual] 更新 settings-security 基线（2.11 定稿 UI 改动）"
+            git push origin HEAD:${{ github.ref_name }}
+          fi
+
   build-and-deploy:
     # 部署条件：(push 或 workflow_dispatch) 且 ref 是 main；其他分支手动触发不部署。
     # 手动触发同样 needs: quality（先过 quality 和 guard，不跳过）。
