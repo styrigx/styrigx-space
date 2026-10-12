@@ -1,12 +1,44 @@
 # styrigx-space (Cloudflare Pages)
-# D1 绑定声明：SGX_D1 用于 2.11 恢复开关的计时/单次标记。
-# database_id 由 Gray 在 Cloudflare 后台创建数据库后填入。
-# 注意：不要在 dashboard 手动绑定 D1，部署时会以此文件为准。
+# 由线上配置生成（2026-10-12）：production + preview 的 KV 绑定和明文变量完整镜像。
+# Secrets 不进 toml（不受 toml 部署影响，由 dashboard/API 管理）。
+# D1 绑定：SGX_D1 用于 2.11 恢复开关的计时/单次标记。
+# 注意：一旦 pages_build_output_dir 生效，toml 即为 Pages 唯一配置源；
+# 后台的 KV 绑定和明文变量必须与此处一致，否则会被清空。
 
 name = "styrigx-space"
-compatibility_date = "2026-10-12"
+compatibility_date = "2026-10-09"
+pages_build_output_dir = "public"
 
+# ---- production 明文变量（6 个）----
+[vars]
+SGX_APP_PUBLIC = "MCowBQYDK2VwAyEALMzibmc7WjzQHau0cEF80pZnXjKl+DBFySISmnVdIbw="
+SGX_LOCK_PUBLIC = "MCowBQYDK2VwAyEAtq3DQmTYYJj/lv92roCIALF7pKqfplSJ2pWtq1CvHcc="
+SGX_ORIGIN = "https://styrigx.com"
+SGX_RP_ID = "styrigx.com"
+SGX_SITE = "space"
+SGX_STEPUP_PUBLIC = "MCowBQYDK2VwAyEAxtMe8kJcgn03XUeCfNsWXWXTxUnMThnDmusnQXwFGOk="
+
+# ---- production KV 绑定（styrigx-owner）----
+[[kv_namespaces]]
+binding = "OWNER_KV"
+id = "b796097c90104000992b7713f61e16ea"
+
+# ---- D1 绑定（2.11 恢复开关）----
 [[d1_databases]]
 binding = "SGX_D1"
 database_name = "styrigx-sgx"
 database_id = "2804d280-1cab-422a-834d-3390cea38976"
+
+# ---- preview 环境 ----
+[env.preview.vars]
+SGX_LOCK_PUBLIC = "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAxZb8houVYG+lY/Jn4A1zNJzKMb1LdDHHEIQSAjfERPU=\n-----END PUBLIC KEY-----\n"
+SGX_ORIGIN = "https://passkey-e2e.styrigx-space.pages.dev"
+SGX_RP_ID = "passkey-e2e.styrigx-space.pages.dev"
+SGX_SITE = "space"
+SGX_STEPUP_PUBLIC = "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA0B4XJGA9BSblvgF7KOAT7Jbp2zUMFR9PfDxKpUdxqIY=\n-----END PUBLIC KEY-----\n"
+
+# preview KV 绑定（styrigx-owner-test_preview）
+[env.preview]
+[[env.preview.kv_namespaces]]
+binding = "OWNER_KV"
+id = "5084ea8ef2444156ba48203220b93df6"
