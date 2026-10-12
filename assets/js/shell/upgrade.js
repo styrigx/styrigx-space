@@ -7,6 +7,9 @@
  * 2.10.1：直接实现验证流程（不再引用不存在的 ./passkey.js，也不再派发
  * 无人监听的 sgx:upgrade-* 事件）。访客调用认证类 action 由中间件放行
  * （AUTH_ACTIONS），端点自身做会话/stepup 校验。
+ *
+ * 根凭证/密码改用弹层内联输入，不用原生弹窗（全站禁止原生弹窗，
+ * 见 scripts/check-frontend.mjs）。
  */
 export function initUpgrade() {
   const html = document.documentElement;
@@ -21,9 +24,16 @@ export function initUpgrade() {
     '<div class="sgx-upgrade-sheet" role="dialog" aria-modal="true" aria-label="' + (isEn ? 'Owner verification' : '站长验证') + '">' +
     '<div class="sgx-upgrade-title">' + (isEn ? 'Owner verification required' : '需要站长验证') + '</div>' +
     '<div class="sgx-upgrade-desc">' + (isEn ? 'This page requires owner verification.' : '此页面需要站长验证后才能进入。') + '</div>' +
+    '<div id="sgx-upgrade-opts">' +
     '<button type="button" class="sgx-upgrade-btn" id="sgx-upgrade-pk">' + (isEn ? 'Verify with passkey' : '通行密钥验证') + '</button>' +
     '<button type="button" class="sgx-upgrade-btn" id="sgx-upgrade-pw">' + (isEn ? 'Verify with password' : '密码验证') + '</button>' +
     '<button type="button" class="sgx-upgrade-btn" id="sgx-upgrade-mk">' + (isEn ? 'Root credential' : '根凭证') + '</button>' +
+    '</div>' +
+    '<div id="sgx-upgrade-form" hidden>' +
+    '<input type="password" id="sgx-upgrade-input" class="sgx-upgrade-input" autocomplete="off" />' +
+    '<button type="button" class="sgx-upgrade-btn" id="sgx-upgrade-go">' + (isEn ? 'Verify' : '验证') + '</button>' +
+    '<button type="button" class="sgx-upgrade-cancel" id="sgx-upgrade-back">' + (isEn ? 'Back' : '返回') + '</button>' +
+    '</div>' +
     '<button type="button" class="sgx-upgrade-cancel" id="sgx-upgrade-cancel">' + (isEn ? 'Cancel' : '取消') + '</button>' +
     '<p class="sgx-upgrade-err" id="sgx-upgrade-err" hidden></p>' +
     '</div>';
@@ -36,6 +46,34 @@ export function initUpgrade() {
   };
 
   document.getElementById('sgx-upgrade-cancel').addEventListener('click', close);
+
+  /* 根凭证/密码走弹层内联输入：当前待验证的方式（'mk' 根凭证 / 'pw' 密码），
+     null 表示停在三个按钮的初始状态 */
+  let pendingKind = null;
+  const optsEl = document.getElementById('sgx-upgrade-opts');
+  const formEl = document.getElementById('sgx-upgrade-form');
+  const inputEl = document.getElementById('sgx-upgrade-input');
+
+  const showInput = (kind) => {
+    pendingKind = kind;
+    if (errEl) errEl.hidden = true;
+    if (optsEl) optsEl.hidden = true;
+    if (inputEl) {
+      inputEl.value = '';
+      inputEl.placeholder = kind === 'mk'
+        ? (isEn ? 'Enter root credential' : '请输入根凭证')
+        : (isEn ? 'Enter unlock password' : '请输入解锁密码');
+    }
+    if (formEl) formEl.hidden = false;
+    try { if (inputEl) inputEl.focus({ preventScroll: true }); } catch (e) {}
+  };
+  const showOpts = () => {
+    pendingKind = null;
+    if (errEl) errEl.hidden = true;
+    if (formEl) formEl.hidden = true;
+    if (inputEl) inputEl.value = '';
+    if (optsEl) optsEl.hidden = false;
+  };
 
   function b64urlToBuf(s) {
     s = s.replace(/-/g, '+').replace(/_/g, '/');
@@ -54,10 +92,7 @@ export function initUpgrade() {
   // 根凭证验证：root-auth → root-session 换站长会话，再按 return 跳转。
   // root-auth 成功只签发 stepup（by=root, scope=root），不换会话直接跳过去
   // 会被 middleware 弹回锁屏，所以必须先调 /api/root-session。
-  document.getElementById('sgx-upgrade-mk').addEventListener('click', async () => {
-    if (errEl) errEl.hidden = true;
-    const k = window.prompt(isEn ? 'Enter root credential' : '请输入根凭证');
-    if (!k) return;
+  async function verifyRoot(k) {
     try {
       const res = await fetch('/api/root-auth', {
         method: 'POST',
@@ -96,7 +131,53 @@ export function initUpgrade() {
     } catch (e) {
       showErr(isEn ? 'Network error' : '网络错误');
     }
+  }
+
+  // 密码验证：直接调用 verify，成功后服务端签发 owner 会话
+  async function verifyPw(pw) {
+    try {
+      const res = await fetch('/api/owner-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'verify', password: pw }),
+        credentials: 'include',
+      });
+      const j = await res.json();
+      if (j && j.ok) {
+        location.href = returnPath;
+      } else {
+        showErr(isEn ? 'Wrong password' : '密码错误');
+      }
+    } catch (e) {
+      showErr(isEn ? 'Network error' : '网络错误');
+    }
+  }
+
+  document.getElementById('sgx-upgrade-mk').addEventListener('click', () => {
+    showInput('mk');
   });
+  document.getElementById('sgx-upgrade-pw').addEventListener('click', () => {
+    showInput('pw');
+  });
+  document.getElementById('sgx-upgrade-back').addEventListener('click', showOpts);
+
+  const submitInput = () => {
+    if (!pendingKind) return;
+    if (errEl) errEl.hidden = true;
+    const v = inputEl ? inputEl.value : '';
+    if (!v) return;
+    if (pendingKind === 'mk') verifyRoot(v);
+    else verifyPw(v);
+  };
+  document.getElementById('sgx-upgrade-go').addEventListener('click', submitInput);
+  if (inputEl) {
+    inputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        submitInput();
+      }
+    });
+  }
 
   // 通行密钥验证：challenge → WebAuthn → auth，成功后服务端签发 owner 会话
   document.getElementById('sgx-upgrade-pk').addEventListener('click', async () => {
@@ -156,29 +237,6 @@ export function initUpgrade() {
     } catch (e) {
       /* 用户取消或失败：留在原页 */
       if (e && e.name !== 'NotAllowedError') showErr(isEn ? 'Verification failed' : '验证失败');
-    }
-  });
-
-  // 密码验证：直接调用 verify，成功后服务端签发 owner 会话
-  document.getElementById('sgx-upgrade-pw').addEventListener('click', async () => {
-    if (errEl) errEl.hidden = true;
-    const pw = window.prompt(isEn ? 'Enter unlock password' : '请输入解锁密码');
-    if (!pw) return;
-    try {
-      const res = await fetch('/api/owner-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'verify', password: pw }),
-        credentials: 'include',
-      });
-      const j = await res.json();
-      if (j && j.ok) {
-        location.href = returnPath;
-      } else {
-        showErr(isEn ? 'Wrong password' : '密码错误');
-      }
-    } catch (e) {
-      showErr(isEn ? 'Network error' : '网络错误');
     }
   });
 }
