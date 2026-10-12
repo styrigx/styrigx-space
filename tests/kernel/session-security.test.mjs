@@ -594,6 +594,26 @@ test('middleware：?return= 只接受站内路径，非法一律回首页 /', as
   assert.equal(await r.text(), 'NEXT-BY-APP');
 });
 
+test('middleware：首页 ?return=子站&why= + 有效会话 → 200 不 302（防主站↔子站死循环）', async () => {
+  const env = PROD_ENV();
+  const cookie = await validCookie(0);
+  const url = 'https://styrigx.com/?lock=1&return=' + encodeURIComponent('https://book.styrigx.com/') + '&why=sig';
+  const r = await mw(mwCtx(url, { cookie, env }));
+  /* L1 不 302：返回 200 首页，让 lock.js 显示失败原因，而不是在主站↔子站间无限跳转 */
+  assert.equal(r.status, 200);
+  assert.equal(r.headers.get('Location'), null);
+  assert.equal(await r.text(), 'NEXT-BY-APP');
+});
+
+test('middleware：首页 ?return=子站（无 why）+ 有效会话 → 302 回子站（原有行为不变）', async () => {
+  const env = PROD_ENV();
+  const cookie = await validCookie(0);
+  const url = 'https://styrigx.com/?lock=1&return=' + encodeURIComponent('https://book.styrigx.com/');
+  const r = await mw(mwCtx(url, { cookie, env }));
+  assert.equal(r.status, 302);
+  assert.equal(r.headers.get('Location'), 'https://book.styrigx.com/');
+});
+
 test('middleware：无有效会话访问内页 → 302 到首页锁屏（return 为站内路径）', async () => {
   const env = PROD_ENV();
   const original = 'https://styrigx.com/settings/?x=1';

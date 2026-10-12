@@ -89,7 +89,9 @@ export function initUpgrade() {
     return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
 
-  // 根凭证验证：调 /api/root-auth，成功后进入安全与隐私页
+  // 根凭证验证：root-auth → root-session 换站长会话，再按 return 跳转。
+  // root-auth 成功只签发 stepup（by=root, scope=root），不换会话直接跳过去
+  // 会被 middleware 弹回锁屏，所以必须先调 /api/root-session。
   async function verifyRoot(k) {
     try {
       const res = await fetch('/api/root-auth', {
@@ -100,7 +102,27 @@ export function initUpgrade() {
       });
       const j = await res.json();
       if (j && j.ok) {
-        location.href = isEn ? '/en/settings/security/' : '/settings/security/';
+        const rsRes = await fetch('/api/root-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+          credentials: 'include',
+        });
+        let rsJ = null;
+        try { rsJ = await rsRes.json(); } catch (e) {}
+        if (!(rsJ && rsJ.ok)) {
+          showErr(isEn ? 'Server error' : '服务器错误');
+          return;
+        }
+        // 若 URL 带 return：location.replace 当前地址，L1 校验 return 并 302；
+        // 无 return 才去安全页。前端不自己做 return 白名单。
+        let ret = '';
+        try { ret = new URLSearchParams(window.location.search).get('return') || ''; } catch (e) {}
+        if (ret) {
+          window.location.replace(window.location.href);
+        } else {
+          location.href = isEn ? '/en/settings/security/' : '/settings/security/';
+        }
       } else if (res.status === 429) {
         showErr(isEn ? 'Too many attempts' : '尝试次数过多');
       } else {
