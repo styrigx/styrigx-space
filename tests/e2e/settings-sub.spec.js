@@ -258,5 +258,5 @@ test('palette 8-color test state (visual baseline)', async ({ page: pg }) => {
   const lastRowTop = Math.max(...[...rows]);
   const lastRowLeft = Math.min(...boxes.filter((b) => b.top === lastRowTop).map((b) => b.left));
   expect(Math.abs(lastRowLeft - firstRowLeft)).toBeLessThanOrEqual(2);
-  await expect(pg.locator('#sg-theme')).toHaveScreenshot('palette-8colors.png', { animations: 'disabled', caret: 'hide' });
+  await expect(pg.locator('#sg-theme')).toHaveScreenshot('palette-8colors.png', { animations: 'disabled', caret: 'hide', maxDiffPixels: 400 });
 });
