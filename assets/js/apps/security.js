@@ -136,7 +136,6 @@ import { exchangeRootSession } from '../lib/root-session.js';
     const backBtn = document.getElementById('sec-owner-back');
     const cancelBtn = document.getElementById('sec-owner-cancel');
     const rootBtn = document.getElementById('sec-owner-root');
-    const cancelBtn = document.getElementById('sec-owner-cancel');
     if (!row || !dlg) return;
     /* P2-13：输入框聚焦时弹层随键盘上移 */
     followKeyboard(dlg, input);
