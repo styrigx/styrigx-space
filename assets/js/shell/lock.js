@@ -21,6 +21,8 @@ import { visibleInterval } from '../lib/scheduler.js';
 import { reducedMotion } from '../lib/util.js';
 import { get as featGet } from '../lib/features.js';
 import { armVerifyKeyboard } from './verify-kb.js';
+import { get, getJSON } from '../lib/storage.js';
+import { exchangeRootSession } from '../lib/root-session.js';
 
 const LOCK =
   '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
@@ -38,6 +40,30 @@ function isLocalDev() {
     if (new URLSearchParams(location.search).has('test-no-local-bypass')) return false;
   } catch (e) {}
   return /^(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
+}
+
+/* 子站验证失败提示（小字显示在页面底部；幂等，重复调用只更新文案）。
+   原在 showLockScreen 内，提到模块作用域：initLock 在会话有效时不进锁屏，
+   也需要直接显示 ?why= 原因。 */
+function showSubsiteFailure(why) {
+  let el = document.getElementById('sgx-subsite-failure');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'sgx-subsite-failure';
+    el.style.cssText = 'position:fixed;bottom:24px;left:0;right:0;text-align:center;font-size:12px;color:rgba(255,255,255,0.6);z-index:10001;';
+    document.body.appendChild(el);
+  }
+  const reasons = {
+    'no-cookie': '无凭证',
+    'bad-format': '凭证格式错误',
+    'expired': '凭证已过期',
+    'key-import': '公钥导入失败',
+    'sig': '签名验证失败',
+    'epoch-fetch': '无法获取会话纪元',
+    'epoch-stale': '凭证纪元过旧',
+    'no-config': '子站未配置公钥'
+  };
+  el.textContent = '子站验证失败：' + (reasons[why] || why);
 }
 
 /**
@@ -66,7 +92,16 @@ export function initLock() {
   if (!ok && !isLockreset) {
     showLockScreen();
   }
-  /* 会话有效：直接显示页面，不弹锁屏 */
+  /* 会话有效：直接显示页面，不弹锁屏。
+     防死循环失效修复：子站踢回带 ?why= 时 L1 已停止 302（返回 200 首页），
+     这里直接显示失败原因，不再跳回子站。会话无效时走锁屏解锁流程，
+     解锁后 handleSessionOk 会显示（已有逻辑，不重复）。 */
+  if (ok) {
+    try {
+      const why = new URLSearchParams(window.location.search).get('why');
+      if (why) showSubsiteFailure(why);
+    } catch (e) {}
+  }
 }
 
 /**
@@ -82,9 +117,9 @@ function showLockScreen() {
     try {
       if (!featGet('weather-show')) return null;
     } catch (e) {}
+    if (get('sgx-weather-show') === '0') return null;
+    const c = getJSON('sgx-weather', null);
     try {
-      if (localStorage.getItem('sgx-weather-show') === '0') return null;
-      const c = JSON.parse(localStorage.getItem('sgx-weather') || 'null');
       const d = c && c.data;
       if (!d || !d.current) return null;
       const WXI = {
@@ -92,7 +127,7 @@ function showLockScreen() {
         55: '🌧️', 61: '🌧️', 63: '🌧️', 65: '🌧️', 71: '🌨️', 73: '🌨️', 75: '❄️',
         80: '🌦️', 81: '🌧️', 82: '⛈️', 95: '⛈️', 96: '⛈️',
       };
-      const unit = localStorage.getItem('sgx-temp-unit') === 'f' ? 'f' : 'c';
+      const unit = get('sgx-temp-unit') === 'f' ? 'f' : 'c';
       let t = d.current.temperature_2m;
       t = unit === 'f' ? Math.round((t * 9) / 5 + 32) : Math.round(t);
       return { icon: WXI[d.current.weather_code] || '☁️', temp: t + '°' };
@@ -286,28 +321,6 @@ function showLockScreen() {
       return;
     }
     doUnlockAnimation();
-  }
-
-  /* 子站验证失败提示（小字显示在锁屏底部） */
-  function showSubsiteFailure(why) {
-    let el = document.getElementById('sgx-subsite-failure');
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'sgx-subsite-failure';
-      el.style.cssText = 'position:fixed;bottom:24px;left:0;right:0;text-align:center;font-size:12px;color:rgba(255,255,255,0.6);z-index:10001;';
-      document.body.appendChild(el);
-    }
-    const reasons = {
-      'no-cookie': '无凭证',
-      'bad-format': '凭证格式错误',
-      'expired': '凭证已过期',
-      'key-import': '公钥导入失败',
-      'sig': '签名验证失败',
-      'epoch-fetch': '无法获取会话纪元',
-      'epoch-stale': '凭证纪元过旧',
-      'no-config': '子站未配置公钥'
-    };
-    el.textContent = '子站验证失败：' + (reasons[why] || why);
   }
 
   /* 开锁动画（无 return 时）：显示桌面 */
@@ -1071,24 +1084,23 @@ function showLockScreen() {
         if (j.ok) {
           /* 锁屏未配置场景：root-auth 只签发 stepup(by=root, scope=root)，
              需调 /api/root-session 换站长会话（by=root，1 小时）再跳转，
-             否则无会话会被 middleware 302 回锁屏。 */
-          fetch('/api/root-session', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({}),
-          })
-            .then(function (r2) {
-              return r2.text().then(function (t2) {
-                let j2 = null;
-                try { j2 = JSON.parse(t2); } catch (e) {}
-                return { s: r2.status, j: j2 };
-              });
-            })
+             否则无会话会被 middleware 302 回锁屏。
+             用共享函数 exchangeRootSession（与 security.js 共用）。 */
+          exchangeRootSession()
             .then(function (res2) {
               if (dlgState !== 'mgmtkey') return;
-              if (res2.j && res2.j.ok) {
+              if (res2.ok) {
                 closeDialog();
-                location.href = en ? '/en/settings/security/' : '/settings/security/';
+                /* 若 URL 带 return，走与密码/通行密钥相同的 handleSessionOk 路径
+                   （location.replace 当前地址，L1 校验 return 并 302）；
+                   无 return 才去安全页。前端不自己做 return 白名单。 */
+                let ret = '';
+                try { ret = new URLSearchParams(window.location.search).get('return') || ''; } catch (e) {}
+                if (ret) {
+                  handleSessionOk();
+                } else {
+                  location.href = en ? '/en/settings/security/' : '/settings/security/';
+                }
               } else {
                 showError(en ? 'Server error' : '服务器错误');
                 if (input) input.value = '';

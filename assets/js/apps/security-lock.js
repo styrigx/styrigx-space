@@ -8,10 +8,25 @@
  */
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
-import { armVerifyKeyboard } from '../shell/verify-kb.js';
+import { followKeyboard } from '../shell/vk.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
+  /* Phase 2 Item 7：站长凭证/锁屏凭证分模式。
+     ?mode=owner → 站长凭证模式（管理 owner-pw + class=owner 通行密钥）；
+     默认 → 锁屏凭证模式（管理 lock-pw + class=lock 通行密钥）。 */
+  const MODE = (function () {
+    try {
+      return new URLSearchParams(location.search).get('mode') === 'owner' ? 'owner' : 'lock';
+    } catch (e) {
+      return 'lock';
+    }
+  })();
+  const isOwnerMode = MODE === 'owner';
+  /** 密码 kind：owner 模式用 'owner'，lock 模式用 'lock' */
+  const pwKind = isOwnerMode ? 'owner' : 'lock';
+  /** 状态接口：owner 模式读 /api/owner-status（lock-status 在 scope=root 不可读） */
+  const statusApi = isOwnerMode ? '/api/owner-status' : '/api/lock-status';
   /** @type {any} */
   let T = {};
   try {
@@ -28,10 +43,6 @@ import { armVerifyKeyboard } from '../shell/verify-kb.js';
     return document.getElementById(id);
   }
 
-  /** 管理 token（验证后签发，只存内存）
-      2.10.0：已废弃，管理操作改用 sgx-stepup cookie（服务端 HttpOnly）。
-      保留变量避免引用错误，但不再使用。 */
-  let token = null;
   let hasPw = false;
   /** 2.10.0：全量通行密钥缓存（含应用类，供应用验证分组渲染） */
   let allKeys = [];
@@ -82,7 +93,14 @@ import { armVerifyKeyboard } from '../shell/verify-kb.js';
       if (!retried && res.json && res.json.error === 'stepup-required') {
         const serverReason = res.json.reason;
         return doStepup().then(function (r) {
-          if (r.ok) return api(url, body, true);
+          if (r.ok) {
+            return api(url, body, true).then(function (res2) {
+              if (res2.json && res2.json.error === 'stepup-required') {
+                return { status: res2.status, json: { ok: false, error: 'stepup-retry-failed', reason: res2.json.reason || serverReason } };
+              }
+              return res2;
+            });
+          }
           /* 失败：返回带错误码的响应，调用方显示错误并停住 */
           const errCode = r.error || 'stepup-failed';
           console.error('[api] stepup failed:', errCode, 'server reason:', serverReason);
@@ -184,11 +202,26 @@ import { armVerifyKeyboard } from '../shell/verify-kb.js';
       return '';
     }
   }
-  /** token 失效 → 重新验证 */
+  /** 会话/票据失效 → 重新验证 */
   function needReauth() {
-    token = null;
+    /* P2-14：先收起当前所有 sheet 再开验证门，禁止弹层叠弹层
+       （如通行密钥命名弹层里 stepup 失效时，不能在命名弹层上再叠验证门） */
+    closeOpenSheets();
     toast(t('sessExp'));
     openGate();
+  }
+
+  /**
+   * P2-14：收起当前所有打开的 sheet（验证身份/密码/命名弹层）。
+   * 切换弹层前调用，保证同一时刻只有一个弹层。
+   */
+  function closeOpenSheets() {
+    ['lockpw-dlg', 'lockpkname-dlg', 'lockpkdel-dlg', 'lockgate-dlg'].forEach(function (id) {
+      const d = $(id);
+      try {
+        if (d && d.open) d.close();
+      } catch (e) {}
+    });
   }
 
   /* ---------- 验证身份弹层 ---------- */
@@ -200,15 +233,8 @@ import { armVerifyKeyboard } from '../shell/verify-kb.js';
   const gateInput = $('lockgate-input');
   const gateEye = $('lockgate-eye');
   const gateCancel = $('lockgate-cancel');
-  /* 键盘避让：打开时启用，关闭时清理 */
-  let gateKbCleanup = null;
-  function armGateKb() {
-    if (gateKbCleanup) gateKbCleanup();
-    gateKbCleanup = armVerifyKeyboard(gateDlg);
-  }
-  function disarmGateKb() {
-    if (gateKbCleanup) { gateKbCleanup(); gateKbCleanup = null; }
-  }
+  /* P2-13：根凭证输入框聚焦时，验证身份弹层随键盘上移 */
+  followKeyboard(gateDlg, gateInput);
 
   function openGate() {
     $('lockmgr').hidden = true;
@@ -216,8 +242,11 @@ import { armVerifyKeyboard } from '../shell/verify-kb.js';
     gateKeyForm.hidden = true;
     hideErr('lockgate-err');
     if (gateInput) gateInput.value = '';
-    /* 有通行密钥才显示该选项；配置缺失时禁用 */
-    fetch('/api/owner-status', { method: 'GET', credentials: 'same-origin' })
+    /* Phase 2 Item 8：移除「根密钥（恢复）」按钮（根凭证只在锁屏和站长凭证提权时问，
+       管理页内不再重复）。只保留通行密钥验证入口。 */
+    if (gateKeyBtn) gateKeyBtn.hidden = true;
+    /* 有通行密钥才显示该选项；配置缺失时禁用。按模式读对应的状态接口。 */
+    fetch(statusApi, { method: 'GET', credentials: 'same-origin' })
       .then(function (r) {
         return r.json();
       })
@@ -249,10 +278,8 @@ import { armVerifyKeyboard } from '../shell/verify-kb.js';
     try {
       gateDlg.showModal();
     } catch (e) {}
-    armGateKb();
   }
   function closeGate() {
-    disarmGateKb();
     try {
       if (gateDlg.open) gateDlg.close();
     } catch (e) {}
@@ -282,7 +309,6 @@ import { armVerifyKeyboard } from '../shell/verify-kb.js';
       e.preventDefault();
       history.back();
     });
-    on(gateDlg, 'close', disarmGateKb);
   }
   if (gateCancel) {
     /* 取消：与关闭手柄一致，返回上一页 */
@@ -394,13 +420,18 @@ import { armVerifyKeyboard } from '../shell/verify-kb.js';
   /* ---------- 管理区 ---------- */
   var hasPk = false;
   function refreshStatus() {
-    fetch('/api/owner-status', { method: 'GET', credentials: 'same-origin' })
+    /* 状态接口按模式选择：owner 模式读 /api/owner-status（owner-pw + class=owner），
+       lock 模式读 /api/lock-status（lock-pw + class=lock）。
+       注意：lock-status 在 scope=root 票据下不可读，owner 模式必须用 owner-status。 */
+    fetch(statusApi, { method: 'GET', credentials: 'same-origin' })
       .then(function (r) {
         return r.json();
       })
       .then(function (j) {
-        hasPw = !!(j && j.ok && j.password);
-        hasPk = !!(j && j.ok && j.passkey);
+        /* 失败（401/503）时保持当前显示，不误报「未设置」 */
+        if (!(j && j.ok)) return;
+        hasPw = !!j.password;
+        hasPk = !!j.passkey;
         const sub = $('lockmgr-pwsub');
         if (sub) sub.textContent = hasPw ? t('pwSet') : t('pwUnset');
         const title = $('lockpw-title');
@@ -413,6 +444,8 @@ import { armVerifyKeyboard } from '../shell/verify-kb.js';
 
   /* 密码弹层 */
   const pwDlg = $('lockpw-dlg');
+  /* P2-13：密码输入框聚焦时，密码弹层随键盘上移（双输入框共用同一弹层） */
+  followKeyboard(pwDlg, [$('lockpw-1'), $('lockpw-2')]);
   function openPwDlg() {
     hideErr('lockpw-err');
     const a = $('lockpw-1'), b = $('lockpw-2');
@@ -453,7 +486,6 @@ import { armVerifyKeyboard } from '../shell/verify-kb.js';
   const pwRow = $('lockmgr-pwrow');
   if (pwRow) {
     const go = function () {
-      /* 2.10.1：不再检查 token（已废弃）；后端用 cookie 鉴权，api() 自动处理 stepup */
       openPwDlg();
     };
     on(pwRow, 'click', go);
@@ -471,7 +503,6 @@ import { armVerifyKeyboard } from '../shell/verify-kb.js';
     let armTimer = 0;
     const origText = pwDel.textContent;
     on(pwDel, 'click', function () {
-      /* 2.10.1：不再检查 token；后端用 cookie 鉴权 */
       if (!armed) {
         armed = true;
         /* 如果删完后密码和通行密钥都没了，提示只能用根凭证进入 */
@@ -489,7 +520,7 @@ import { armVerifyKeyboard } from '../shell/verify-kb.js';
         return;
       }
       window.clearTimeout(armTimer);
-      api('/api/owner-password', { action: 'remove' })
+      api('/api/owner-password', { action: 'remove', kind: pwKind })
         .then(function (r) {
           const j = r.json;
           if (j && j.ok) {
@@ -513,31 +544,19 @@ import { armVerifyKeyboard } from '../shell/verify-kb.js';
         });
     });
   }
-  /* 立即锁定并退出所有设备（2.8.0：独立 L2 API /api/lock-all-devices，只认 owner 会话） */
+  /* Phase 2 Item 11：退出站长凭证（吊销 stepup 票据，回安全页）。
+     说明：只清 sgx-stepup cookie，站长会话（sgx-verified）不变；
+     再进需重新输根凭证。不影响锁屏解锁状态。 */
   const lockoutBtn = $('lockmgr-lockout');
   if (lockoutBtn) {
     on(lockoutBtn, 'click', function () {
-      if (!token) {
-        needReauth();
-        return;
-      }
-      api('/api/lock-all-devices', {})
-        .then(function (r) {
-          const j = r.json;
-          if (j && j.ok) {
-            /* 服务端已用 Set-Cookie 清掉 cookie；清内存 token，跳回锁屏 */
-            token = null;
-            try { sessionStorage.removeItem('sgx-lockmgr'); } catch (e) {}
-            location.href = '/?lock=1';
-          } else if (j && (j.error === 'stepup-required' || r.status === 401)) {
-            needReauth();
-          } else {
-            toast(t('gateSrvErr'));
-          }
-        })
-        .catch(function () {
-          toast(t('gateNetErr'));
-        });
+      try {
+        /* 清掉 stepup cookie（Path=/，与签发时一致） */
+        document.cookie = 'sgx-stepup=; Path=/; Max-Age=0; SameSite=Lax';
+        document.cookie = 'sgx-stepup=; Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+      } catch (e) {}
+      /* 回安全页 */
+      location.href = document.documentElement.lang === 'en' ? '/en/settings/security/' : '/settings/security/';
     });
   }
   function submitPw() {
@@ -552,14 +571,10 @@ import { armVerifyKeyboard } from '../shell/verify-kb.js';
       showErr('lockpw-err', t('pwMismatch'));
       return;
     }
-    if (!token) {
-      needReauth();
-      return;
-    }
     const action = hasPw ? 'change' : 'set';
     const body = action === 'set'
-      ? { action: 'set', password: va }
-      : { action: 'change', newPassword: va };
+      ? { action: 'set', kind: pwKind, password: va }
+      : { action: 'change', kind: pwKind, newPassword: va };
     api('/api/owner-password', body)
       .then(function (res) {
         const j = res.json;
@@ -644,7 +659,7 @@ import { armVerifyKeyboard } from '../shell/verify-kb.js';
         showErr('lockpkname-err', t('pkNameEmpty'));
         return;
       }
-      if (!pkNameCredId || !token) {
+      if (!pkNameCredId) {
         closePkNameDlg();
         return;
       }
@@ -685,6 +700,41 @@ import { armVerifyKeyboard } from '../shell/verify-kb.js';
       closePkNameDlg();
       toast(t('pkRegistered'));
       refreshPkList();
+    });
+  }
+  /* P2-13：命名输入框聚焦时，命名弹层随键盘上移 */
+  followKeyboard($('lockpkname-dlg'), $('lockpkname-input'));
+
+  /* 应用钥匙删除确认弹层（站内确认，替代原生 confirm；返回 Promise<boolean>） */
+  let pkDelResolve = null;
+  function openPkDelDlg() {
+    return new Promise(function (resolve) {
+      pkDelResolve = resolve;
+      const desc = $('lockpkdel-desc');
+      if (desc) desc.textContent = t('pkDelConfirm');
+      const dlg = $('lockpkdel-dlg');
+      if (!dlg) { resolve(false); return; }
+      try { dlg.showModal(); } catch (e) {}
+    });
+  }
+  function closePkDelDlg(ok) {
+    const dlg = $('lockpkdel-dlg');
+    try { if (dlg && dlg.open) dlg.close(); } catch (e) {}
+    if (pkDelResolve) { pkDelResolve(!!ok); pkDelResolve = null; }
+  }
+  const pkDelCancel = $('lockpkdel-cancel');
+  if (pkDelCancel) on(pkDelCancel, 'click', function () { closePkDelDlg(false); });
+  const pkDelOk = $('lockpkdel-ok');
+  if (pkDelOk) on(pkDelOk, 'click', function () { closePkDelDlg(true); });
+  const pkDelDlg = $('lockpkdel-dlg');
+  if (pkDelDlg) {
+    on(pkDelDlg, 'click', function (/** @type {MouseEvent} */ e) {
+      const el = /** @type {Element|null} */ (e.target);
+      if (el === pkDelDlg || (el && el.closest && el.closest('[data-dclose]'))) closePkDelDlg(false);
+    });
+    on(pkDelDlg, 'cancel', function (/** @type {Event} */ e) {
+      e.preventDefault();
+      closePkDelDlg(false);
     });
   }
 
@@ -865,15 +915,29 @@ import { armVerifyKeyboard } from '../shell/verify-kb.js';
           del.textContent = '删除';
           del.setAttribute('aria-label', '删除' + app.name + '的钥匙');
           on(del, 'click', function () {
-            if (!confirm(t('pkDelConfirm') || '确定删除？')) return;
-            api('/api/owner-passkey', { action: 'delete', credId: k.credId })
-              .then(function (r2) {
-                if (r2.json && r2.json.ok) {
-                  toast(t('pkDeleted') || '已删除');
-                  refreshPkList();
-                }
-              })
-              .catch(function () {});
+            openPkDelDlg().then(function (confirmed) {
+              if (!confirmed) return;
+              api('/api/owner-passkey', { action: 'delete', credId: k.credId })
+                .then(function (r2) {
+                  const jj = r2.json;
+                  if (jj && jj.ok) {
+                    toast(t('pkDeleted') || '已删除');
+                    refreshPkList();
+                  } else if (jj && jj.error === 'stepup-required') {
+                    needReauth();
+                  } else if (jj && jj.error === 'not-found') {
+                    /* KV 最终一致：刚注册的 key 可能暂时读不到 */
+                    toast(t('pkRetryLater'));
+                  } else if (!jj) {
+                    toast(t('gateNetErr'));
+                  } else {
+                    toast(t('pkDelFailed'));
+                  }
+                })
+                .catch(function () {
+                  toast(t('gateNetErr'));
+                });
+            });
           });
           btnWrap.appendChild(del);
         });
@@ -933,12 +997,16 @@ import { armVerifyKeyboard } from '../shell/verify-kb.js';
         if (res.json && res.json.ok) {
           toast(t('pkRegistered') || '已添加');
           refreshPkList();
+        } else if (res.json && res.json.error === 'stepup-required') {
+          needReauth();
         } else {
-          toast(t('gateSrvErr') || '失败');
+          const code = (res.json && res.json.error) || 'failed';
+          toast((t('gateSrvErr') || '失败') + ': ' + code);
         }
       })
-      .catch(function () {
-        toast(t('gateNetErr') || '网络错误');
+      .catch(function (e) {
+        const code = e && e.code ? e.code : null;
+        toast((t('gateNetErr') || '网络错误') + (code ? ': ' + code : ''));
       });
   }
 
@@ -1000,7 +1068,6 @@ import { armVerifyKeyboard } from '../shell/verify-kb.js';
           const prefill = genPkPrefillName();
           return api('/api/owner-passkey', {
             action: 'register',
-            token: token,
             cid: r2.cid,
             name: prefill,
             credential: {
@@ -1022,8 +1089,6 @@ import { armVerifyKeyboard } from '../shell/verify-kb.js';
             /* 注册成功 → 弹出命名弹层（预填名已提交，用户改名才调 rename） */
             openPkNameDlg(j.credId, r3.prefill);
             refreshPkList();
-            /* 新注册后刷新门禁状态（通行密钥选项） */
-            fetch('/api/owner-status', { method: 'GET', credentials: 'same-origin' }).catch(function () {});
           } else if (j && j.error === 'stepup-required') {
             needReauth();
           } else {
@@ -1043,6 +1108,36 @@ import { armVerifyKeyboard } from '../shell/verify-kb.js';
     });
   }
 
-  /* 进入即弹验证身份 */
-  openGate();
+  /* Phase 2 Item 7：owner 模式的 UI 调整 */
+  if (isOwnerMode) {
+    /* 标题：站长凭证 */
+    try {
+      document.title = (en ? 'Owner credential' : '站长凭证') + ' - ' + document.title.split(' - ').slice(1).join(' - ');
+    } catch (e) {}
+    /* 隐藏应用验证分组（应用门独立，站长模式只管 owner 凭证） */
+    const appSec = $('lockmgr-appsec');
+    if (appSec) {
+      appSec.hidden = true;
+      const appTitle = appSec.previousElementSibling;
+      if (appTitle && appTitle.classList.contains('set-gh')) appTitle.hidden = true;
+      const appNote = appSec.nextElementSibling;
+      if (appNote && appNote.classList.contains('sec-note')) appNote.hidden = true;
+    }
+  }
+
+  /* Phase 2 Item 8：进入时先试状态接口（需有效 stepup/会话）。
+     成功 → 直接进管理区（跳过验证门，避免第 3 次根凭证）；
+     401 → 显示验证门（只剩通行密钥入口）。 */
+  fetch(statusApi, { method: 'GET', credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      if (j && j.ok) {
+        enterMgr();
+      } else {
+        openGate();
+      }
+    })
+    .catch(function () {
+      openGate();
+    });
 })();

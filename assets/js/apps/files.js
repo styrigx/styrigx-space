@@ -72,9 +72,7 @@ import { setCapSearchProvider } from '../shell/capsule.js';
   });
 
   /* 收藏默认 4 项：首次写入 sgx-files-fav */
-  try {
-    if (localStorage.getItem('sgx-files-fav') === null) set('sgx-files-fav', DEFAULTS);
-  } catch (e) {}
+  if (get('sgx-files-fav', null) === null) set('sgx-files-fav', DEFAULTS);
 
   /** @type {Array<any>} */
   let DATA = [];

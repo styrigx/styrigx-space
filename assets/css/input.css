@@ -2305,6 +2305,30 @@
   display: block; width: 100%; padding: 12px; border: none;
   background: none; font-size: 15px; color: var(--m-on-surface-variant); cursor: pointer;
 }
+/* 弹层内联输入（根凭证/密码验证）：整宽输入框，配整宽实心验证按钮 */
+.sgx-upgrade-input {
+  display: block; width: 100%; box-sizing: border-box;
+  padding: 14px; margin-bottom: 12px;
+  border-radius: 12px; border: 1px solid var(--m-outline-variant);
+  background: var(--m-surface-container-highest, var(--m-surface));
+  color: var(--m-on-surface); font-size: 16px; outline: none;
+}
+.sgx-upgrade-input::placeholder { color: var(--m-on-surface-variant); opacity: .7; }
+.sgx-upgrade-input:focus { border-color: var(--m-primary); box-shadow: 0 0 0 1px var(--m-primary); }
+.sgx-upgrade-err {
+  margin: 4px 0 0; font-size: 14px; text-align: center;
+  color: var(--m-error);
+}
+.sgx-upgrade-err[hidden] { display: none; }
+/* P2-12：安全页验证弹层（站长凭证/管理凭证）复用 upgrade 按钮样式：
+   整宽实心矩形按钮 + 底部取消文字按钮，标题靠左，无小字描述；
+   输入态：输入框整宽，「验证」整宽实心按钮 + 「返回」文字按钮垂直排列。 */
+.sgx-verify-card.sgx-upg-card { align-items: stretch; }
+.sgx-verify-card.sgx-upg-card .sgx-verify-title { text-align: left; }
+.sgx-verify-card.sgx-upg-card .sgx-verify-opts { gap: 0; max-width: none; }
+.sgx-verify-card.sgx-upg-card .sgx-pw-field { max-width: none; }
+.sgx-verify-card.sgx-upg-card .sgx-upg-form { display: flex; flex-direction: column; width: 100%; }
+.sgx-verify-card.sgx-upg-card .sgx-upg-form[hidden] { display: none; }
 @media (min-width: 840px) {
   #sgx-upgrade-overlay { align-items: center; }
   .sgx-upgrade-sheet { border-radius: 24px; }

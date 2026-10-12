@@ -51,13 +51,13 @@
       <button type="button" class="lockmgr-del" id="lockmgr-pwdel">{{ if $isEn }}Delete password{{ else }}删除密码{{ end }}</button>
     </div>
 
-    <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "lock" }}</span><span>{{ if $isEn }}Session{{ else }}会话{{ end }}</span></h2>
+    <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "lock" }}</span><span>{{ if $isEn }}Owner credential session{{ else }}站长凭证会话{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.16s">
       <button type="button" class="lockmgr-add" id="lockmgr-lockout">
-        {{ if $isEn }}Lock now and sign out all devices{{ else }}立即锁定并退出所有设备{{ end }}
+        {{ if $isEn }}Exit owner credential{{ else }}退出站长凭证{{ end }}
       </button>
     </section>
-    <p class="sec-note mb-7">{{ if $isEn }}Invalidate all sessions on all devices.{{ else }}让所有设备的会话失效。{{ end }}</p>
+    <p class="sec-note mb-7">{{ if $isEn }}Revoke the stepup ticket. Owner session stays valid. Does not affect lock screen unlock state.{{ else }}吊销 stepup 票据，站长会话不变。不影响锁屏解锁状态。{{ end }}</p>
 
     <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Passkeys{{ else }}通行密钥{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.14s">
@@ -92,6 +92,19 @@
       <button type="button" class="sgx-verify-skip" id="lockpkname-save">{{ if $isEn }}Save{{ else }}保存{{ end }}</button>
     </div>
     <p class="sgx-verify-err" id="lockpkname-err" hidden></p>
+  </div>
+</dialog>
+
+<!-- 应用钥匙删除确认弹层（站内确认，替代原生 confirm） -->
+<dialog id="lockpkdel-dlg" class="sgx-verify-dlg" aria-labelledby="lockpkdel-title">
+  <div class="sgx-verify-card">
+    <div class="sheet-handle" data-dclose></div>
+    <h2 id="lockpkdel-title" class="sgx-verify-title">{{ if $isEn }}Delete passkey{{ else }}删除通行密钥{{ end }}</h2>
+    <p class="sgx-verify-desc" id="lockpkdel-desc"></p>
+    <div class="sgx-verify-actions">
+      <button type="button" class="sgx-verify-ghost" id="lockpkdel-cancel">{{ if $isEn }}Cancel{{ else }}取消{{ end }}</button>
+      <button type="button" class="sgx-verify-skip" id="lockpkdel-ok">{{ if $isEn }}Delete{{ else }}删除{{ end }}</button>
+    </div>
   </div>
 </dialog>
 
@@ -138,6 +151,8 @@
   "pwDelWarn" (dict "zh" "删除后只能用根密钥（恢复）进入，再点一次确认" "en" "After deletion only the root key (recovery) can enter. Tap again to confirm")
   "pkRegistered" (dict "zh" "已注册" "en" "Registered")
   "pkDeleted" (dict "zh" "已删除" "en" "Deleted")
+  "pkDelConfirm" (dict "zh" "确定删除这把通行密钥？" "en" "Delete this passkey?")
+  "pkDelFailed" (dict "zh" "删除失败，请稍后重试" "en" "Delete failed, please try again later")
   "pkDelManual" (dict "zh" "请到 Samsung Pass 里手动删除这把通行密钥" "en" "Please delete this passkey manually in Samsung Pass")
   "pkRenamed" (dict "zh" "已重命名" "en" "Renamed")
   "pkUnnamed" (dict "zh" "通行密钥" "en" "Passkey")

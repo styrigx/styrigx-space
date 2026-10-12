@@ -41,6 +41,26 @@ export function remove(k) {
 }
 
 /**
+ * 按前缀批量删除（返回删除的 key 列表）。
+ * @param {string} prefix
+ * @returns {string[]}
+ */
+export function removeByPrefix(prefix) {
+  const removed = [];
+  try {
+    const ks = [];
+    for (let i = 0; i < localStorage.length; i++) ks.push(localStorage.key(i) || '');
+    ks.forEach(function (k) {
+      if (k.indexOf(prefix) === 0) {
+        localStorage.removeItem(k);
+        removed.push(k);
+      }
+    });
+  } catch (e) {}
+  return removed;
+}
+
+/**
  * 读 JSON 值。
  * @template T
  * @param {string} k

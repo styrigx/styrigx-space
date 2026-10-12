@@ -53,6 +53,7 @@ const API_WHITELIST = [
   '/api/owner-password',
   '/api/owner-passkey',
   '/api/owner-status',
+  '/api/lock-status',
   '/api/lock-config',
   '/api/session-check',
   '/api/session-epoch',
@@ -79,7 +80,7 @@ function isWhitelisted(pathname) {
   return false;
 }
 
-function getCookie(request, name) {
+export function getCookie(request, name) {
   const h = request.headers.get('Cookie') || '';
   for (const part of h.split(';')) {
     const [k, ...v] = part.trim().split('=');
@@ -383,9 +384,12 @@ export async function onRequest(context) {
     if (isHomepage) {
       /* ?return= 回跳：会话有效时 302 到目标（站内路径或 *.styrigx.com 白名单）。
          2.9.3 防死循环：如果 return 指向主人专属路径而当前只是访客，不 302，
-         直接返回 200 首页，前端打开升级验证层（只显示通行密钥+密码）。 */
+         直接返回 200 首页，前端打开升级验证层（只显示通行密钥+密码）。
+         防死循环失效修复：子站踢回时带 ?why=（子站验签失败），此时也不 302，
+         返回 200 首页让 lock.js 显示失败原因；否则 JS 没机会跑，
+         浏览器会在主站↔子站之间无限 302。 */
       const returnPath = url.searchParams.get('return');
-      if (returnPath && sessionValid) {
+      if (returnPath && sessionValid && !url.searchParams.get('why')) {
         const safeLoc = isSafeReturn(returnPath) ? returnPath : '/';
         const isOwnerReturn = isOwnerOnlyPath(new URL(safeLoc, 'https://styrigx.com').pathname);
         if (!(isVisitor && isOwnerReturn)) {

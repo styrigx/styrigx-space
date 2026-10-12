@@ -6,7 +6,7 @@
 import { on } from '../lib/events.js';
 import { registerPage } from '../shell/inpagenav.js';
 import { esc } from '../lib/util.js';
-import { get, set } from '../lib/storage.js';
+import { get, set, remove, removeByPrefix, getJSON, setJSON } from '../lib/storage.js';
 import { get as featGet, set as featSet, on as featOn } from '../lib/features.js';
 import { loadI18n } from '../lib/i18n.js';
 import { openSheet, closeSheet } from '../shell/sheet.js';
@@ -281,14 +281,10 @@ import { setCapSearchProvider } from '../shell/capsule.js';
 
   /* ---- 语言 ---- */
   function langVal() {
-    try {
-      const v = localStorage.getItem('sgx-lang');
-      if (v === 'zh') return 'zh';
-      if (v === 'en') return 'en';
-      return 'system';
-    } catch (e) {
-      return 'system';
-    }
+    const v = get('sgx-lang');
+    if (v === 'zh') return 'zh';
+    if (v === 'en') return 'en';
+    return 'system';
   }
   rowToggle('row-lang', function () {
     const cur = langVal();
@@ -300,10 +296,8 @@ import { setCapSearchProvider } from '../shell/capsule.js';
         { label: 'English', value: 'en', checked: cur === 'en' },
       ],
       onPick: function (v) {
-        try {
-          if (v === 'system') localStorage.removeItem('sgx-lang');
-          else localStorage.setItem('sgx-lang', v);
-        } catch (e) {}
+        if (v === 'system') remove('sgx-lang');
+        else set('sgx-lang', v);
         featSet('lang', v === 'system' ? 'system' : v);
         /* 跳到对应语言版本，保留查询参数与 hash，用 replace 不产生历史 */
         const p = location.pathname,
@@ -437,19 +431,11 @@ import { setCapSearchProvider } from '../shell/capsule.js';
 
   /* ---- 天气 ---- */
   function wxLocMode() {
-    try {
-      return localStorage.getItem('sgx-weather-loc') || 'auto';
-    } catch (e) {
-      return 'auto';
-    }
+    return get('sgx-weather-loc') || 'auto';
   }
   function wxCityName() {
-    try {
-      const c = JSON.parse(localStorage.getItem('sgx-weather-city') || 'null');
-      return (c && c.name) || '';
-    } catch (e) {
-      return '';
-    }
+    const c = getJSON('sgx-weather-city', null);
+    return (c && c.name) || '';
   }
   function openWeather() {
     const show = !!featGet('weather-show');
@@ -500,18 +486,14 @@ import { setCapSearchProvider } from '../shell/capsule.js';
     document.querySelectorAll('#wx-loc button').forEach(function (b) {
       on(b, 'click', function () {
         const v = b.getAttribute('data-v');
-        try {
-          localStorage.setItem('sgx-weather-loc', v);
-        } catch (e) {}
+        set('sgx-weather-loc', v);
         document.querySelectorAll('#wx-loc button').forEach(function (x) {
           x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
         });
         const wrap = document.getElementById('wx-city-wrap');
         if (wrap) wrap.style.display = v === 'manual' ? '' : 'none';
         /* 清除天气缓存，触发重新获取 */
-        try {
-          localStorage.removeItem('sgx-weather');
-        } catch (e) {}
+        remove('sgx-weather');
         window.dispatchEvent(new Event('sgx-settings-changed'));
       });
     });
@@ -530,14 +512,12 @@ import { setCapSearchProvider } from '../shell/capsule.js';
             .then(function (j) {
               if (j.results && j.results[0]) {
                 const g = j.results[0];
-                try {
-                  localStorage.setItem('sgx-weather-city', JSON.stringify({
-                    name: g.name,
-                    lat: g.latitude,
-                    lon: g.longitude,
-                  }));
-                  localStorage.removeItem('sgx-weather');
-                } catch (e) {}
+                setJSON('sgx-weather-city', {
+                  name: g.name,
+                  lat: g.latitude,
+                  lon: g.longitude,
+                });
+                remove('sgx-weather');
                 window.dispatchEvent(new Event('sgx-settings-changed'));
               }
             })
@@ -555,15 +535,13 @@ import { setCapSearchProvider } from '../shell/capsule.js';
         preciseBtn.disabled = true;
         navigator.geolocation.getCurrentPosition(
           function (pos) {
-            try {
-              localStorage.setItem('sgx-weather-precise', JSON.stringify({
-                lat: pos.coords.latitude,
-                lon: pos.coords.longitude,
-                ts: Date.now(),
-              }));
-              localStorage.setItem('sgx-weather-loc', 'precise');
-              localStorage.removeItem('sgx-weather');
-            } catch (e) {}
+            setJSON('sgx-weather-precise', {
+              lat: pos.coords.latitude,
+              lon: pos.coords.longitude,
+              ts: Date.now(),
+            });
+            set('sgx-weather-loc', 'precise');
+            remove('sgx-weather');
             window.dispatchEvent(new Event('sgx-settings-changed'));
             preciseBtn.innerHTML = orig;
             preciseBtn.disabled = false;
@@ -744,10 +722,8 @@ import { setCapSearchProvider } from '../shell/capsule.js';
     const clr = $('apf-clear');
     if (clr)
       armConfirm(clr, T.t('confirmClear'), function () {
-        try {
-          localStorage.removeItem('sgx-files-recent');
-          localStorage.removeItem('sgx-files-lastvisit');
-        } catch (e) {}
+        remove('sgx-files-recent');
+        remove('sgx-files-lastvisit');
         window.dispatchEvent(new Event('sgx-settings-changed'));
         closeSheet();
       });
@@ -773,9 +749,7 @@ import { setCapSearchProvider } from '../shell/capsule.js';
     const rs = $('aps-restore');
     if (rs)
       on(rs, 'click', function () {
-        try {
-          localStorage.removeItem('sgx-apps-hidden');
-        } catch (e) {}
+        remove('sgx-apps-hidden');
         paintApps();
         window.dispatchEvent(new Event('sgx-settings-changed'));
         closeSheet();
@@ -824,9 +798,7 @@ import { setCapSearchProvider } from '../shell/capsule.js';
     const clr = $('apb-clear');
     if (clr)
       armConfirm(clr, T.t('confirmClear'), function () {
-        try {
-          localStorage.setItem('sgx-browser-recent', '[]');
-        } catch (e) {}
+        set('sgx-browser-recent', '[]');
         window.dispatchEvent(new Event('sgx-settings-changed'));
         closeSheet();
       });
@@ -902,14 +874,8 @@ import { setCapSearchProvider } from '../shell/capsule.js';
 
   /* ---- 重置 ---- */
   rowToggle('row-reset', function () {
-    try {
-      /** @type {string[]} */
-      const ks = [];
-      for (let i = 0; i < localStorage.length; i++) ks.push(localStorage.key(i) || '');
-      ks.forEach(function (k) {
-        if (k.indexOf('sgx-') === 0 || k === 'theme') localStorage.removeItem(k);
-      });
-    } catch (e) {}
+    removeByPrefix('sgx-');
+    remove('theme');
     location.reload();
   });
 

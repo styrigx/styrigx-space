@@ -65,7 +65,9 @@ test('语言：settings.js 有三档切换 UI', () => {
   );
   assert.ok(
     settingsJs.includes("localStorage.removeItem('sgx-lang')") ||
-    settingsJs.includes('localStorage.removeItem("sgx-lang")'),
+    settingsJs.includes('localStorage.removeItem("sgx-lang")') ||
+    settingsJs.includes("remove('sgx-lang')") ||
+    settingsJs.includes('remove("sgx-lang")'),
     '选 system 时应删除 sgx-lang（恢复默认跟随系统）'
   );
 });

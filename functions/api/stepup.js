@@ -31,7 +31,7 @@
  * - SGX_STEPUP_PUBLIC：Ed25519 公钥（SPKI PEM），缺失则验签 fail closed
  * - SGX_RP_ID / SGX_ORIGIN：与 owner-passkey 一致，不回落
  */
-import { verifySessionDetailed } from '../_middleware.js';
+import { verifySessionDetailed, getCookie } from '../_middleware.js';
 import { getSessionEpoch, ROLE_OWNER } from '../_kernel/session.js';
 import { ed25519Sign, ed25519Verify, b64urlEnc } from '../_kernel/crypto.js';
 import { randB64, verifyAssertion } from '../_kernel/passkey-verify.js';
@@ -127,16 +127,6 @@ export function stepupScopeError(st, allowedScopes) {
     return { status: 403, body: { ok: false, error: 'scope' } };
   }
   return null;
-}
-
-/** @param {any} request @param {string} name */
-function getCookie(request, name) {
-  const h = request.headers.get('Cookie') || '';
-  for (const part of h.split(';')) {
-    const [k, ...v] = part.trim().split('=');
-    if (k === name) return v.join('=');
-  }
-  return '';
 }
 
 /**
