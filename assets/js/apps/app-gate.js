@@ -58,31 +58,43 @@ let verifyJumped = false;
  * 按失败原因取提示文案（定稿 #36：不许一律报「会话过期」）。
  * @param {(k:string)=>string} t 文案函数
  * @param {string} [reason] 失败原因：session|stepup|network|parse
+ * @param {string} [detail] 服务端原因码（如 no-pubkey、epoch-changed），拼在文案末尾方便定位
  */
-function verifyMessage(t, reason) {
+function verifyMessage(t, reason, detail) {
+  let msg;
   switch (reason) {
     case 'network':
-      return t('errNetwork');
+      msg = t('errNetwork');
+      break;
     case 'parse':
-      return t('errParse');
+      msg = t('errParse');
+      break;
     case 'stepup':
-      return t('errStepupExpired');
+      msg = t('errStepupExpired');
+      break;
     case 'session':
     default:
-      return t('sessExp');
+      msg = t('sessExp');
+      break;
   }
+  /* #72 补充：探针失败时 toast 末尾带上服务端原因码，例如「验证已过期（no-pubkey）」 */
+  if (detail && typeof detail === 'string' && detail !== 'ok') {
+    msg += '（' + detail + '）';
+  }
+  return msg;
 }
 
 /**
  * 验证失效 → 按真实原因提示后跳验证流程（安全与隐私页）。
  * @param {(k:string)=>string} t 文案函数
  * @param {string} [reason] 失败原因，见 verifyMessage
+ * @param {string} [detail] 服务端原因码，见 verifyMessage
  */
-export function needVerify(t, reason) {
+export function needVerify(t, reason, detail) {
   if (verifyJumped) return;
   verifyJumped = true;
   try {
-    toast(verifyMessage(t, reason));
+    toast(verifyMessage(t, reason, detail));
   } catch (e) {}
   window.setTimeout(function () {
     location.href = securityUrl();
@@ -111,7 +123,7 @@ export function api(url, body, t) {
 /**
  * 进门探针：页面直接渲染；验证有效 → onEnter() 进管理区；
  * 无效 → 按真实原因提示后跳验证流程（安全与隐私页），不弹面板。
- * @param {()=>Promise<boolean|{ok:boolean,reason?:string}>} probe 验证有效时 resolve true
+ * @param {()=>Promise<boolean|{ok:boolean,reason?:string,detail?:string}>} probe 验证有效时 resolve true
  * @param {()=>void} onEnter 进门回调
  * @param {(k:string)=>string} t 文案函数
  */
@@ -127,11 +139,12 @@ export function enterDoor(probe, onEnter, t) {
   probe().then(function (result) {
     const ok = result && typeof result === 'object' ? !!result.ok : !!result;
     const reason = result && typeof result === 'object' ? (result.reason || 'session') : 'session';
+    const detail = result && typeof result === 'object' ? result.detail : undefined;
     if (ok) {
       clearLockOverlay();
       onEnter();
     } else {
-      needVerify(t, reason);
+      needVerify(t, reason, detail);
     }
   }).catch(function () {
     needVerify(t, 'network');

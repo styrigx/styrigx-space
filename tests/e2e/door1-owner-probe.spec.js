@@ -45,6 +45,8 @@ test.describe('#1 owner door probe', () => {
     const toast = page.locator('.sgx-toast');
     await expect(toast.filter({ hasText: '验证已过期，请重新验证' })).toBeVisible({ timeout: 10000 });
     await expect(toast.filter({ hasText: '会话过期，请重新验证' })).toHaveCount(0);
+    /* #72 补充：toast 末尾带上服务端原因码 */
+    await expect(toast.filter({ hasText: '（expired）' })).toBeVisible({ timeout: 10000 });
 
     /* 900ms 后跳回安全与隐私页 */
     await expect(page).toHaveURL(/\/settings\/security\/?$/, { timeout: 10000 });

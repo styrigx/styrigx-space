@@ -383,3 +383,48 @@ test('/api/stepup status：有效 cookie → valid=true', async () => {
   assert.equal(j.ok, true);
   assert.equal(j.valid, true);
 });
+
+/* #72 补充：不 mock stepup 的端到端测试。
+   真实走 owner 会话 → POST /api/root-auth（正确根凭证）→ 带返回的 sgx-stepup Cookie
+   调 POST /api/stepup {action:'status'}，必须 valid:true。
+   证明「刚签的票」在真实签发-验签链路上有效（密钥对配对、epoch 一致、Domain 等）。
+   修前：door1 e2e 测试 mock 了 stepup valid:true，证明不了这一点。 */
+test('#72：root-auth 签发的票 → stepup status 必须 valid=true（不 mock）', async () => {
+  const { onRequestPost: rootAuthPost } = await import('../../functions/api/root-auth.js');
+  const kv = makeKV();
+  /* SGX_ROOT_KEY：测试用根凭证 */
+  const TEST_ROOT_KEY = 'test-root-key-72';
+  const env = makeEnv(kv, { SGX_ROOT_KEY: TEST_ROOT_KEY });
+  const ownerCookie = await makeOwnerSessionCookie();
+
+  /* 1. owner 会话 + 正确根凭证 → /api/root-auth 签发 sgx-stepup */
+  const authRes = await rootAuthPost({
+    request: postReq('https://test.example.com/api/root-auth', { key: TEST_ROOT_KEY }, {
+      'Cookie': 'sgx-verified=' + ownerCookie,
+    }),
+    env,
+  });
+  assert.equal(authRes.status, 200, 'root-auth 应 200');
+  const authJson = await authRes.json();
+  assert.ok(authJson.ok, 'root-auth 应 ok:true');
+
+  /* 2. 从 Set-Cookie 提取 sgx-stepup */
+  const setCookies = authRes.headers.getSetCookie ? authRes.headers.getSetCookie() : [authRes.headers.get('Set-Cookie')];
+  const stepupSetCookie = setCookies.find((c) => c && c.startsWith(STEPUP_COOKIE + '='));
+  assert.ok(stepupSetCookie, '应签发 sgx-stepup cookie');
+  const stepupVal = stepupSetCookie.split(';')[0].split('=')[1];
+  assert.ok(stepupVal && stepupVal.length > 10, 'stepup cookie 值非空');
+
+  /* 3. 带该 Cookie 调 /api/stepup status → 必须 valid:true
+     （stepup API 要求 owner 会话，故同时带上会话 cookie） */
+  const statusRes = await stepupPost({
+    request: postReq('https://test.example.com/api/stepup', { action: 'status' }, {
+      'Cookie': 'sgx-verified=' + ownerCookie + '; ' + STEPUP_COOKIE + '=' + stepupVal,
+    }),
+    env,
+  });
+  assert.equal(statusRes.status, 200);
+  const statusJson = await statusRes.json();
+  assert.equal(statusJson.ok, true);
+  assert.equal(statusJson.valid, true, '刚签发的票必须 valid:true，reason=' + statusJson.reason);
+});
