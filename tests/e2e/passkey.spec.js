@@ -294,6 +294,104 @@ test.describe('passkey e2e (virtual authenticator)', () => {
     }
   });
 
+
+  test('lockreset 落地页：票据可操作锁屏管理页，主页仍被锁', async ({ page, request }) => {
+    /* 复审 §1 e2e：完整走一遍重置 → 落地页可操作 → 访问主页仍被锁。
+       需要 SGX_TEST_CF_TOKEN/CF_ACCOUNT/PREVIEW_KV_ID（同恢复开关测试）。 */
+    const CF_TOKEN = process.env.SGX_TEST_CF_TOKEN || '';
+    const CF_ACCOUNT = process.env.SGX_TEST_CF_ACCOUNT || '';
+    const KV_ID = process.env.SGX_TEST_PREVIEW_KV_ID || '';
+    test.skip(!CF_TOKEN || !CF_ACCOUNT || !KV_ID, '需要 SGX_TEST_CF_TOKEN/CF_ACCOUNT/PREVIEW_KV_ID');
+
+    const kvBase = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/storage/kv/namespaces/${KV_ID}/values/`;
+    const cfHeaders = { Authorization: `Bearer ${CF_TOKEN}` };
+    const switchValue = 'e2e-lockreset-page-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+    const ORIGIN = new URL(BASE).origin;
+
+    async function kvPut(key, value) {
+      const r = await fetch(kvBase + encodeURIComponent(key), {
+        method: 'PUT',
+        headers: { ...cfHeaders, 'Content-Type': 'text/plain' },
+        body: value,
+      });
+      if (!r.ok) throw new Error('KV put failed: ' + r.status);
+    }
+    async function kvDel(key) {
+      await fetch(kvBase + encodeURIComponent(key), { method: 'DELETE', headers: cfHeaders });
+    }
+
+    try {
+      /* 1. 写入开关 → 根凭证 verify → 拿到 lockreset 票据（sgx-stepup cookie） */
+      await kvPut('recovery-switch', switchValue);
+      const vr = await request.post(BASE + '/api/lockreset', {
+        headers: { Origin: ORIGIN },
+        data: { action: 'verify', rootKey: OWNER_KEY },
+      });
+      expect(vr.status()).toBe(200);
+      expect((await vr.json()).ok).toBe(true);
+      const setCookie = vr.headers()['set-cookie'] || '';
+      expect(setCookie).toContain('sgx-stepup=');
+      const stepupVal = setCookie.split('sgx-stepup=')[1].split(';')[0];
+
+      /* 2. 带票据访问锁屏管理页 → data-sgx-session="lockreset"，无锁屏覆盖 */
+      const ctx = page.context();
+      await ctx.addCookies([{
+        name: 'sgx-stepup',
+        value: stepupVal,
+        domain: new URL(BASE).hostname,
+        path: '/',
+        httpOnly: true,
+        secure: true,
+        sameSite: 'Strict',
+      }]);
+      await page.goto(BASE + '/settings/security/lock/');
+      const state = await page.evaluate(() => document.documentElement.dataset.sgxSession);
+      expect(state).toBe('lockreset');
+      /* 锁屏不应盖住页面：锁屏容器不可见 */
+      const lockVisible = await page.evaluate(() => {
+        const el = document.getElementById('sgx-lock');
+        if (!el) return false;
+        const cs = getComputedStyle(el);
+        return cs.display !== 'none' && cs.visibility !== 'hidden';
+      });
+      expect(lockVisible).toBe(false);
+
+      /* 3. 带票据访问主页 → 仍被锁（data-sgx-session="locked"） */
+      await page.goto(BASE + '/');
+      const homeState = await page.evaluate(() => document.documentElement.dataset.sgxSession);
+      expect(homeState).toBe('locked');
+    } finally {
+      await kvDel('recovery-switch');
+    }
+  });
+
+  test('root-auth → root-session：锁屏未配置时换站长会话', async ({ request }) => {
+    /* 复审 §3 e2e：kernel 已有覆盖，这里走 HTTP 全链路。
+       前提：preview 的 lock 未配置（无 layer:lock 标记、无 lock-pw、无 lock passkey）。
+       若 preview 已配置 lock，本用例跳过（由 kernel 行为测试覆盖已配置拒绝路径）。 */
+    const ORIGIN = new URL(BASE).origin;
+    /* 1. root-auth（引导模式，无会话） */
+    const r1 = await request.post(BASE + '/api/root-auth', {
+      headers: { Origin: ORIGIN },
+      data: { key: OWNER_KEY },
+    });
+    /* 若 401 说明 lock 已配置 → 跳过（非本用例目标场景） */
+    test.skip(r1.status() === 401, 'preview 已配置 lock，跳过引导模式 e2e');
+    expect(r1.status()).toBe(200);
+    const sc1 = r1.headers()['set-cookie'] || '';
+    expect(sc1).toContain('sgx-stepup=');
+    const stepupVal = sc1.split('sgx-stepup=')[1].split(';')[0];
+    /* 2. root-session 换会话 */
+    const r2 = await request.post(BASE + '/api/root-session', {
+      headers: { Origin: ORIGIN, Cookie: 'sgx-stepup=' + stepupVal },
+    });
+    expect(r2.status()).toBe(200);
+    const b2 = await r2.json();
+    expect(b2.ok).toBe(true);
+    expect(b2.by).toBe('root');
+    expect(r2.headers()['set-cookie'] || '').toContain('sgx-verified=');
+  });
+
   test('改密码后旧会话 cookie 失效', async ({ page, request }) => {
     const { cdp, authenticatorId } = await addVirtualAuth(page);
     try {

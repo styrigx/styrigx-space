@@ -54,14 +54,15 @@ export function initLock() {
     return;
   }
   /* 分层规范 L4：lock.js 只按 L1 给出的状态画锁屏，不自己判断。
-     L1（middleware）把会话状态注入 <html data-sgx-session="valid|locked">，
-     这里只读这个。 */
+     L1（middleware）把会话状态注入 <html data-sgx-session="valid|locked|lockreset">，
+     这里只读这个。lockreset 票据页跳过锁屏覆盖（落地页需可操作）。 */
   const state = document.documentElement.dataset.sgxSession;
   const ok = state === 'valid';
+  const isLockreset = state === 'lockreset';
   try {
     window.dispatchEvent(new CustomEvent('sgx:session', { detail: { ok: ok } }));
   } catch (e) {}
-  if (!ok) {
+  if (!ok && !isLockreset) {
     showLockScreen();
   }
   /* 会话有效：直接显示页面，不弹锁屏 */

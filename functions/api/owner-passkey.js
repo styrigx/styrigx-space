@@ -52,7 +52,7 @@ import {
 } from '../_kernel/session.js';
 import { getApp } from '../_kernel/app-registry.js';
 import { verifyStepupCookie, STEPUP_COOKIE, STEPUP_BY_ROOT, STEPUP_BY_OWNER, STEPUP_SCOPE_ROOT, STEPUP_SCOPE_KEYS, STEPUP_SCOPE_LOCKRESET } from './stepup.js';
-import { LAYER_OWNER, LAYER_LOCK, layerApp, setLayerConfigured, clearLayerConfigured, isLayerConfigured } from '../_kernel/layers.js';
+import { LAYER_OWNER, LAYER_LOCK, layerApp, setLayerConfigured, clearLayerConfigured, isLayerConfigured, isLockEffectivelyConfigured } from '../_kernel/layers.js';
 import { verifySessionDetailed } from '../_middleware.js';
 
 /* 2.10.0：通行密钥分类；2.11 新增 owner */
@@ -333,7 +333,7 @@ async function checkPasskeyMgmt(request, env, kv, pkClass, op) {
   if (!sess.ok || sess.role !== ROLE_OWNER) {
     return { ok: false, status: 401, body: { ok: false, error: 'session' } };
   }
-  if (sess.by === 'root' && (await isLayerConfigured(kv, LAYER_LOCK))) {
+  if (sess.by === 'root' && (await isLockEffectivelyConfigured(kv))) {
     return { ok: false, status: 403, body: { ok: false, error: 'by-root' } };
   }
   return { ok: true, sv: sv, sess: sess };

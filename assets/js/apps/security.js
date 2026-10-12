@@ -12,6 +12,7 @@
 import { on } from '../lib/events.js';
 import { get as storeGet } from '../lib/storage.js';
 import { toast } from '../lib/toast.js';
+import { mgmtButtons } from './mgmt-buttons.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -276,26 +277,27 @@ import { toast } from '../lib/toast.js';
         return b;
       };
 
-      if (!hasPw && !hasPk) {
-        /* 什么都没设置 → 只显示「根凭证」 */
-        mkBtn('sec-mgmt-root', en ? 'Root credential' : '根凭证', function () {
-          mode = 'root';
-          showKeyform(en ? 'Root credential' : '根凭证');
-        });
-      } else {
-        if (hasPk) {
+      /* 按钮决策走纯函数 mgmtButtons（可测试），与 /api/owner-status 的语义对齐 */
+      const buttons = mgmtButtons(hasPw, hasPk);
+      for (const kind of buttons) {
+        if (kind === 'root') {
+          /* 什么都没设置 → 只显示「根凭证」 */
+          mkBtn('sec-mgmt-root', en ? 'Root credential' : '根凭证', function () {
+            mode = 'root';
+            showKeyform(en ? 'Root credential' : '根凭证');
+          });
+        } else if (kind === 'passkey') {
           /* 通行密钥验证 → stepup */
           mkBtn('sec-mgmt-pk', en ? 'Verify with passkey' : '通行密钥验证', doPasskeyStepup);
-        }
-        if (hasPw) {
+        } else if (kind === 'password') {
           /* 密码验证 → stepup verify-password */
           mkBtn('sec-mgmt-pw', en ? 'Verify with password' : '密码验证', function () {
             mode = 'password';
             showKeyform(en ? 'Password' : '密码');
           });
         }
-        /* 两个都设了时不显示根凭证 */
       }
+      /* 两个都设了时不显示根凭证（mgmtButtons 已保证） */
     }
 
     function showKeyform(placeholder) {

@@ -157,8 +157,9 @@ export async function injectSessionState(res, state, role) {
   if (!ct.includes('text/html')) return res;
   let html = await res.text();
   /* 2.8.0 锁屏瘦身：锁屏态不下发桌面内容（书单、歌单、小组件等），
-     只保留锁屏需要的部分（导航、头像、脚本）。 */
-  if (state === 'locked') {
+     只保留锁屏需要的部分（导航、头像、脚本）。
+     lockreset 票据页同样受限（只能管理锁屏凭证），同样瘦身。 */
+  if (state === 'locked' || state === 'lockreset') {
     html = html.replace(/<!-- SGX-DESKTOP-START -->[\s\S]*?<!-- SGX-DESKTOP-END -->/g, '');
   }
   let injected = html.replace(/<html(\s|>)/i, '<html data-sgx-session="' + state + '"$1');
@@ -168,8 +169,8 @@ export async function injectSessionState(res, state, role) {
   }
   const headers = new Headers(res.headers);
   headers.set('Cache-Control', 'private, no-store');
-  /* 2.8.0 搜索收录：锁屏态页面不被搜索引擎收录 */
-  if (state === 'locked') {
+  /* 2.8.0 搜索收录：锁屏态页面不被搜索引擎收录。lockreset 票据页同样不收录。 */
+  if (state === 'locked' || state === 'lockreset') {
     headers.set('X-Robots-Tag', 'noindex');
   }
   return new Response(injected, {
@@ -419,14 +420,16 @@ export async function onRequest(context) {
     }
 
     /* lockreset 票据可打开锁屏凭证管理页（重置锁屏流程），但仍进不了主页。
-       仅放行 /settings/security/lock/ 及其英文版；主页仍需有效会话。 */
+       仅放行 /settings/security/lock/ 及其英文版；主页仍需有效会话。
+       注入专用状态 lockreset（而非 locked），前端 initLock 跳过锁屏覆盖，
+       落地页可操作；票据仍只能管理锁屏凭证。 */
     if (!sessionValid && isOwnerOnlyPath(pathname)) {
       const st = await verifyStepupCookie(request, env);
       if (st.ok && st.scope === STEPUP_SCOPE_LOCKRESET) {
         const res = await next();
         const ct = res.headers.get('Content-Type') || '';
         if (ct.includes('text/html')) {
-          return injectSessionState(res, 'locked', null);
+          return injectSessionState(res, 'lockreset', null);
         }
         return res;
       }

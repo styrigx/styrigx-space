@@ -225,16 +225,83 @@ test('认证入口：访客假入口与真失败响应逐字节相同', async ()
 
 /* ============ 4. 管理凭证弹层按钮 ============ */
 
-test('认证入口：管理凭证弹层四种配置下按钮正确', () => {
-  const js = fs.readFileSync(path.join(REPO, 'assets/js/apps/security.js'), 'utf8');
-  /* renderOpts 逻辑：未设置→根凭证；仅 passkey→通行密钥验证；仅密码→密码验证；两者→两个按钮 */
-  /* 验证源码包含四种分支 */
-  assert.ok(js.includes('!hasPw && !hasPk'), '应有未设置分支');
-  /* 未设置时只显示根凭证 */
-  const noneSection = js.slice(js.indexOf('!hasPw && !hasPk'), js.indexOf('!hasPw && !hasPk') + 500);
-  assert.ok(noneSection.includes('根凭证'), '未设置时应显示根凭证');
-  /* 两个都设了时不显示根凭证（注释） */
-  assert.ok(js.includes('两个都设了时不显示根凭证') || js.includes('不显示根凭证'), '两者都有时不应显示根凭证');
+/* 行为测试：/api/owner-status 四种配置返回正确 + mgmtButtons 纯函数决策正确 */
+test('行为：管理凭证四种配置下按钮正确', async () => {
+  const { onRequestGet } = await import(REPO + 'functions/api/owner-status.js');
+  const { mgmtButtons } = await import(REPO + 'assets/js/apps/mgmt-buttons.js');
+  const { signSessionCookie } = await import(REPO + 'functions/_kernel/session.js');
+
+  /* 纯函数决策：四种输入 → 预期按钮 */
+  assert.deepEqual(mgmtButtons(false, false), ['root'], '都没设置 → 只显示根凭证');
+  assert.deepEqual(mgmtButtons(false, true), ['passkey'], '仅通行密钥 → 通行密钥验证');
+  assert.deepEqual(mgmtButtons(true, false), ['password'], '仅密码 → 密码验证');
+  assert.deepEqual(mgmtButtons(true, true), ['passkey', 'password'], '两者都有 → 两个按钮，不显示根凭证');
+
+  /* owner 会话 */
+  const ownerCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
+  const getReq = (kv) => new Request('https://test.example.com/api/owner-status', {
+    method: 'GET',
+    headers: { 'Cookie': 'sgx-verified=' + ownerCv },
+  });
+
+  /* 配置1：都没设置 */
+  {
+    const kv = makeKv({});
+    const res = await onRequestGet({ request: getReq(kv), env: baseEnv(kv) });
+    const body = await res.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.password, false);
+    assert.equal(body.passkey, false);
+    assert.deepEqual(mgmtButtons(body.password, body.passkey), ['root']);
+  }
+  /* 配置2：仅密码 */
+  {
+    const kv = makeKv({ 'owner-pw': JSON.stringify({ hash: 'x', algo: 'test' }) });
+    const res = await onRequestGet({ request: getReq(kv), env: baseEnv(kv) });
+    const body = await res.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.password, true);
+    assert.equal(body.passkey, false);
+    assert.deepEqual(mgmtButtons(body.password, body.passkey), ['password']);
+  }
+  /* 配置3：仅 class=owner 通行密钥 */
+  {
+    const kv = makeKv({
+      'owner-passkey-index': JSON.stringify(['testcred123456']),
+      'owner-passkey:testcred1234': JSON.stringify({ credId: 'testcred123456', class: 'owner' }),
+    });
+    const res = await onRequestGet({ request: getReq(kv), env: baseEnv(kv) });
+    const body = await res.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.password, false);
+    assert.equal(body.passkey, true, 'class=owner 通行密钥应被识别');
+    assert.deepEqual(mgmtButtons(body.password, body.passkey), ['passkey']);
+  }
+  /* 配置4：两者都有 */
+  {
+    const kv = makeKv({
+      'owner-pw': JSON.stringify({ hash: 'x', algo: 'test' }),
+      'owner-passkey-index': JSON.stringify(['testcred123456']),
+      'owner-passkey:testcred1234': JSON.stringify({ credId: 'testcred123456', class: 'owner' }),
+    });
+    const res = await onRequestGet({ request: getReq(kv), env: baseEnv(kv) });
+    const body = await res.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.password, true);
+    assert.equal(body.passkey, true);
+    assert.deepEqual(mgmtButtons(body.password, body.passkey), ['passkey', 'password']);
+  }
+  /* class=lock 的通行密钥不应被算作站长凭证 */
+  {
+    const kv = makeKv({
+      'owner-passkey-index': JSON.stringify(['testcred123456']),
+      'owner-passkey:testcred1234': JSON.stringify({ credId: 'testcred123456', class: 'lock' }),
+    });
+    const res = await onRequestGet({ request: getReq(kv), env: baseEnv(kv) });
+    const body = await res.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.passkey, false, 'class=lock 不应被算作站长凭证');
+  }
 });
 
 /* ============ 6. 重置锁屏 status 不卡死 ============ */
@@ -342,6 +409,22 @@ test('补充七：/api/lock-config 读取失败按已配置处理（不暴露根
   assert.equal(j.ok, true);
   assert.equal(j.passkey, true, '读取失败 passkey 应按已配置处理');
   assert.equal(j.password, true, '读取失败 password 应按已配置处理');
+});
+
+/* 复审 §2：只剩 layer:lock 标记（无真实凭证）时，lock-config 不应显示根凭证入口，
+   否则 root-auth 走 isLockEffectivelyConfigured 判定已配置 → 假入口 401，直接锁死。 */
+test('行为：/api/lock-config 只剩标记时不暴露根凭证入口', async () => {
+  const { onRequestGet } = await import(REPO + 'functions/api/lock-config.js');
+  /* 只有标记，无 lock-pw、无 passkey */
+  const kv = makeKv({ 'layer:lock': '1' });
+  const res = await onRequestGet({
+    request: new Request('https://test.example.com/api/lock-config', { method: 'GET' }),
+    env: baseEnv(kv),
+  });
+  const j = await res.json();
+  assert.equal(j.ok, true);
+  assert.equal(j.passkey, true, '只剩标记时 passkey 应按已配置处理');
+  assert.equal(j.password, true, '只剩标记时 password 应按已配置处理');
 });
 
 test('补充七：已配置锁屏凭证时，锁屏根凭证路径被服务端拒绝（无会话 → 401）', async () => {
@@ -552,4 +635,26 @@ test('行为：锁屏未配置 + 访客 cookie 时 root-auth 走真路径（不�
   });
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 200, '引导场景下访客 cookie 不触发假入口，应走真路径');
+});
+
+/* ============ 复审 §1：lockreset 票据页注入 lockreset 状态 ============ */
+
+test('行为：injectSessionState 注入 lockreset 状态（瘦身 + noindex，与 locked 一致）', async () => {
+  const { injectSessionState } = await import(REPO + 'functions/_middleware.js');
+  const html = '<html><head></head><body><!-- SGX-DESKTOP-START --><div>desktop</div><!-- SGX-DESKTOP-END --><p>lock page</p></body></html>';
+  const res = new Response(html, { headers: { 'Content-Type': 'text/html' } });
+  const out = await injectSessionState(res, 'lockreset', null);
+  const text = await out.text();
+  assert.ok(text.includes('data-sgx-session="lockreset"'), '应注入 lockreset 状态');
+  assert.ok(!text.includes('desktop'), 'lockreset 页应瘦身（不下发桌面内容）');
+  assert.equal(out.headers.get('X-Robots-Tag'), 'noindex', 'lockreset 页不应被收录');
+});
+
+test('行为：injectSessionState locked 状态保持不变', async () => {
+  const { injectSessionState } = await import(REPO + 'functions/_middleware.js');
+  const html = '<html><head></head><body><p>home</p></body></html>';
+  const res = new Response(html, { headers: { 'Content-Type': 'text/html' } });
+  const out = await injectSessionState(res, 'locked', null);
+  const text = await out.text();
+  assert.ok(text.includes('data-sgx-session="locked"'), '应注入 locked 状态');
 });
