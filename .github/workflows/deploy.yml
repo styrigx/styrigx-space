@@ -44,8 +44,19 @@ jobs:
       - name: Assert no native dialogs or stale token vars
         run: |
           # P0-15 补充指令 25：全站禁止 window.prompt/confirm/alert；前端禁止 token 变量
-          if grep -rn "window\.prompt\|window\.confirm\|window\.alert" --include="*.js" assets/ layouts/ 2>/dev/null | grep -v "test"; then
-            echo "ERROR: Found window.prompt/confirm/alert (use in-page modal)."
+          # 只检查非注释代码行
+          FOUND=0
+          while IFS= read -r line; do
+            file=$(echo "$line" | cut -d: -f1)
+            lineno=$(echo "$line" | cut -d: -f2)
+            content=$(sed -n "${lineno}p" "$file" 2>/dev/null)
+            # 跳过注释行
+            echo "$content" | grep -qE "^\s*(\*|//)" && continue
+            echo "$line"
+            FOUND=1
+          done < <(grep -rn "window\.prompt\|window\.confirm\|window\.alert" --include="*.js" assets/ layouts/ 2>/dev/null | grep -v "test")
+          if [ "$FOUND" = "1" ]; then
+            echo "ERROR: Found window.prompt/confirm/alert in code (use in-page modal)."
             exit 1
           fi
           # 禁止裸 prompt(/confirm(/alert( 调用（排除 t('pkDelConfirm') 这类 i18n 键名）
