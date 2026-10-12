@@ -28,6 +28,11 @@ async function mockJson(page, pattern, status, body) {
 test.describe('door verify dialog', () => {
   test.beforeEach(async ({ page }) => {
     await blockExternalRequests(page);
+    /* 语言钉住中文：2.7.0 起语言跟随系统，Playwright 默认 en-US 会跳 /en/，
+       中文断言会失败（与 visual.spec.js 同一做法）。 */
+    await page.addInitScript(() => {
+      try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
+    });
     /* 站长凭证已配置（密码+通行密钥）：管理凭证弹层显示两个行 */
     await mockJson(page, '**/api/owner-status', 200, { ok: true, password: true, passkey: true });
     await page.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
