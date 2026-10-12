@@ -1201,14 +1201,19 @@ test('2.9.3：visitor 可以访问桌面（/）、设置（/settings/）、文�
   assert.equal(r.status, 200);
 });
 
-test('2.11：visitor 进 /settings/display/ 严格 200；/settings/security/ 全系 302 到锁屏', async () => {
+test('2.11：visitor 进 /settings/display/ 严格 200；/settings/security/ 总览 200（定稿 #13/R3），门内页 302 到锁屏', async () => {
   const vCookie = await visitorCookie(0);
   for (const p of ['/settings/display/', '/en/settings/']) {
     const r = await mw(mwCtx('https://styrigx.com' + p, { cookie: vCookie, env: PROD_ENV() }));
     assert.equal(r.status, 200, 'visitor 访问 ' + p + ' 应严格 200');
   }
-  /* 2.11 两扇门：安全与隐私全系主人专属，访客 302 到锁屏（只跳一次） */
-  for (const p of ['/settings/security/', '/settings/security/apps/', '/settings/security/apps/book/', '/en/settings/security/']) {
+  /* 定稿 #13/R3：安全与隐私总览页访客可进（200），结构与站长一致 */
+  for (const p of ['/settings/security/', '/en/settings/security/']) {
+    const r = await mw(mwCtx('https://styrigx.com' + p, { cookie: vCookie, env: PROD_ENV() }));
+    assert.equal(r.status, 200, 'visitor 访问 ' + p + ' 应 200（总览页）');
+  }
+  /* 定稿 #21：门内页（owner/lock/apps/mgmt）访客 302 到锁屏 */
+  for (const p of ['/settings/security/owner/', '/settings/security/lock/', '/settings/security/apps/', '/settings/security/apps/book/', '/settings/security/mgmt/']) {
     const r = await mw(mwCtx('https://styrigx.com' + p, { cookie: vCookie, env: PROD_ENV() }));
     assert.equal(r.status, 302, 'visitor 访问 ' + p + ' 应 302 到锁屏');
     assert.ok(r.headers.get('Location').includes('?lock=1'), p + ' 应跳到锁屏');
