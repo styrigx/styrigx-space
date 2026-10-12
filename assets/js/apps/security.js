@@ -13,6 +13,7 @@ import { on } from '../lib/events.js';
 import { get as storeGet } from '../lib/storage.js';
 import { toast } from '../lib/toast.js';
 import { mgmtButtons } from './mgmt-buttons.js';
+import { exchangeRootSession } from '../lib/root-session.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -29,6 +30,7 @@ import { mgmtButtons } from './mgmt-buttons.js';
   }
 
   const lockUrl = en ? '/en/settings/security/lock/' : '/settings/security/lock/';
+  const ownerUrl = en ? '/en/settings/security/owner/' : '/settings/security/owner/';
 
   const card = document.getElementById('sec-status');
   const cardTitle = document.getElementById('sec-status-title');
@@ -176,30 +178,23 @@ import { mgmtButtons } from './mgmt-buttons.js';
         showErr(en ? 'Enter root credential' : '请输入根凭证');
         return;
       }
-      fetch('/api/root-auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: key }),
-        credentials: 'same-origin',
-      })
-        .then(function (r) {
-          return r.json().then(function (j) { return { s: r.status, j: j }; });
-        })
+      /* P1-9：共用 exchangeRootSession（root-auth → root-session 换会话再跳转），
+         否则无会话会被 middleware 当访客拦 */
+      exchangeRootSession(key)
         .then(function (res) {
-          const j = res.j;
-          if (j && j.ok) {
+          if (res.ok) {
             closeDlg();
-            location.href = lockUrl;
-          } else if (res.s === 429) {
+            /* 站长凭证 → 站长凭证管理页（owner 模式） */
+            location.href = ownerUrl;
+          } else if (res.status === 429 || res.error === 'locked') {
             showErr(en ? 'Too many attempts' : '尝试次数过多');
+          } else if (res.error === 'network') {
+            showErr(en ? 'Network error' : '网络错误');
           } else {
             /* 401 auth（含访客假入口）：统一提示密码错误 */
             showErr(en ? 'Wrong password' : '密码错误');
             if (input) input.value = '';
           }
-        })
-        .catch(function () {
-          showErr(en ? 'Network error' : '网络错误');
         });
     }
 
@@ -223,6 +218,12 @@ import { mgmtButtons } from './mgmt-buttons.js';
     if (backBtn) on(backBtn, 'click', showOpts);
     dlg.addEventListener('click', function (e) {
       if (e.target === dlg) closeDlg();
+      /* P2-12：取消按钮 */
+      const cancelBtn2 = e.target && e.target.closest ? e.target.closest('[data-sec-close]') : null;
+      if (cancelBtn2) closeDlg();
+      /* P2-12：取消按钮 */
+      const cancelBtn = e.target && e.target.closest ? e.target.closest('[data-sec-close]') : null;
+      if (cancelBtn) closeDlg();
     });
   })();
 
@@ -269,7 +270,7 @@ import { mgmtButtons } from './mgmt-buttons.js';
       const mkBtn = function (id, label, cb) {
         const b = document.createElement('button');
         b.type = 'button';
-        b.className = 'sec-sheet-opt';
+        b.className = 'sgx-upgrade-btn';
         b.id = id;
         b.textContent = label;
         on(b, 'click', cb);
@@ -500,6 +501,8 @@ import { mgmtButtons } from './mgmt-buttons.js';
     if (backBtn) on(backBtn, 'click', showOpts);
     dlg.addEventListener('click', function (e) {
       if (e.target === dlg) closeDlg();
+      const cb = e.target && e.target.closest ? e.target.closest('[data-sec-close]') : null;
+      if (cb) closeDlg();
     });
   })();
 
