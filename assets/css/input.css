@@ -959,6 +959,7 @@
     width: 52px; height: 52px; border-radius: 999px; border: 3px solid transparent;
     transition: transform .18s, border-color .18s; flex-shrink: 0;
     display: inline-flex; align-items: center; justify-content: center;
+    /* stylelint-disable-next-line color-no-hex -- 对勾在固定深色块上，深浅主题都用白色 */
     color: #fff;
     &:active { transform: scale(.9); }
     &[aria-pressed="true"] { border-color: var(--m-primary); box-shadow: 0 0 0 2px var(--m-container-lowest), 0 0 0 4px var(--m-primary); }
