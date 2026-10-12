@@ -409,8 +409,22 @@ export async function onRequest(context) {
          浏览器会在主站↔子站之间无限 302。 */
       const returnPath = url.searchParams.get('return');
       if (returnPath && sessionValid && !url.searchParams.get('why')) {
-        const safeLoc = isSafeReturn(returnPath) ? returnPath : '/';
-        const isOwnerReturn = isOwnerOnlyPath(new URL(safeLoc, 'https://styrigx.com').pathname);
+        let safeLoc = isSafeReturn(returnPath) ? returnPath : '/';
+        let locPath = '';
+        try {
+          locPath = new URL(safeLoc, 'https://styrigx.com').pathname;
+        } catch (e) {
+          locPath = '';
+        }
+        /* 定稿 #1：门内页不能当解锁后的返回目标。已登录用户 return 指向门内页时
+           回安全与隐私总览页，用户显式验证后再进门，避免门内 API
+           因无 stepup 票据报 403「会话过期」死循环。
+           访客走下面的升级验证流程，不受影响。 */
+        if (locPath && isOwnerOnlyPath(locPath) && !isVisitor) {
+          safeLoc = locPath.startsWith('/en/') ? '/en/settings/security/' : '/settings/security/';
+          locPath = locPath.startsWith('/en/') ? '/en/settings/security/' : '/settings/security/';
+        }
+        const isOwnerReturn = locPath ? isOwnerOnlyPath(locPath) : false;
         if (!(isVisitor && isOwnerReturn)) {
           /* 手动构造 302（不用 Response.redirect：Node/undici 不接受相对路径，
              Workers 可以；手动写兼容两边）。

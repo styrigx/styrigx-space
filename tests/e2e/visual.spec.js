@@ -108,6 +108,42 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           }
           /* 关掉动画，保证截图稳定（goto 之前设置，context 级生效） */
           await pg.emulateMedia({ reducedMotion: 'reduce' });
+          /* 定稿 #1：门内页探针需会话+票据都有效。视觉测试 mock 两者通过，
+             避免探针失败弹 toast 导致截图不稳定。 */
+          if (page === '/settings/security/owner/' || page === '/settings/security/lock/') {
+            const statusBody = page.includes('/owner/')
+              ? { ok: true, password: false, passkey: false }
+              : { ok: true, password: false, passkey: false };
+            await pg.route('**/api/owner-status', async (route) => {
+              await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify(statusBody),
+              });
+            });
+            await pg.route('**/api/lock-status', async (route) => {
+              await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ ok: true, password: false, passkey: false }),
+              });
+            });
+            await pg.route('**/api/stepup', async (route) => {
+              await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ ok: true, valid: true }),
+              });
+            });
+            /* 门内列表 API：返回空列表，保证截图稳定 */
+            await pg.route('**/api/owner-passkey', async (route) => {
+              await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ ok: true, keys: [], scope: 'root' }),
+              });
+            });
+          }
           /* 预置主题 + 冻结时间，避免动态内容导致截图不稳定
              （锁屏由构建期 SGX_TEST_NO_LOCK=1 禁用，见 deploy.yml） */
           /* 2.8.0：固定音乐索引，避免按日期漂移导致基线不稳定 */

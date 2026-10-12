@@ -42,6 +42,9 @@
 <script id="sgx-app-whitelist" type="application/json">{{ $wl | jsonify | safeJS }}</script>
 {{ $appI18n := dict
   "sessExp" (dict "zh" "会话过期，请重新验证" "en" "Session expired, verify again")
+  "errStepupExpired" (dict "zh" "验证已过期，请重新验证" "en" "Verification expired, please verify again")
+  "errNetwork" (dict "zh" "网络连接失败，请重试" "en" "Network connection failed, please retry")
+  "errParse" (dict "zh" "服务响应异常，请重试" "en" "Bad server response, please retry")
   "keyAdded" (dict "zh" "已添加钥匙" "en" "Key added")
   "keyNone" (dict "zh" "未添加钥匙" "en" "No key added")
 }}
