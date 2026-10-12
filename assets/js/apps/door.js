@@ -811,13 +811,13 @@ export function initDoor(o) {
   /* 定稿 #1：探针确认「会话 + 门票据」都有效才进门。
      只验会话不验票据会导致：会话有效但票据无效时进门，
      门内首个 API 即 403 stepup-required，用户被动等待。
-     返回 {ok, reason}，reason 供 needVerify 显示真实原因（定稿 #36）。 */
+     返回 {ok, reason, api, status, detail}，失败时留页显示（定稿 #1）。 */
   function probe() {
     return fetch(statusApi, { method: 'GET', credentials: 'same-origin' })
       .then(function (r) {
         return r.json().then(function (j) {
           if (!(j && j.ok)) {
-            return { ok: false, reason: (j && j.error) || 'session', status: r.status };
+            return { ok: false, reason: (j && j.error) || 'session', status: r.status, api: 'GET ' + statusApi, detail: j && j.reason };
           }
           /* 会话有效 → 再验门票据（/api/stepup status 不验会话，只验票据） */
           return fetch('/api/stepup', {
@@ -828,18 +828,18 @@ export function initDoor(o) {
           }).then(function (r2) {
             return r2.json().then(function (j2) {
               if (j2 && j2.ok && j2.valid) return { ok: true };
-              return { ok: false, reason: 'stepup', status: r2.status, detail: j2 && j2.reason };
+              return { ok: false, reason: 'stepup', status: r2.status, api: 'POST /api/stepup', detail: j2 && j2.reason };
             }).catch(function () {
-              return { ok: false, reason: 'parse', status: r2.status };
+              return { ok: false, reason: 'parse', status: r2.status, api: 'POST /api/stepup' };
             });
           }).catch(function () {
-            return { ok: false, reason: 'network', status: 0 };
+            return { ok: false, reason: 'network', status: 0, api: 'POST /api/stepup' };
           });
         }).catch(function () {
-          return { ok: false, reason: 'parse', status: r.status };
+          return { ok: false, reason: 'parse', status: r.status, api: 'GET ' + statusApi };
         });
       })
-      .catch(function () { return { ok: false, reason: 'network', status: 0 }; });
+      .catch(function () { return { ok: false, reason: 'network', status: 0, api: 'GET ' + statusApi }; });
   }
   enterDoor(probe, function () {
     refreshStatus();

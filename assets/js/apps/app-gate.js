@@ -121,33 +121,134 @@ export function api(url, body, t) {
 }
 
 /**
+ * 进管理区时去掉全局锁屏遮罩，避免盖住按钮。
+ * （定稿 #1：探针失败留页时也要先移除遮罩，否则原因文字被盖住）
+ */
+function clearLockOverlay() {
+  try {
+    const gl = document.getElementById('sgx-lock');
+    if (gl) gl.remove();
+    document.body.classList.remove('sgx-locked');
+  } catch (e) {}
+}
+
+/**
+ * 带回退的文案：页面没定义该 key 时用中英默认值。
+ * @param {(k:string)=>string} t 文案函数
+ * @param {string} k key
+ * @param {string} zh 中文默认
+ * @param {string} en 英文默认
+ */
+function tx(t, k, zh, en) {
+  try {
+    const v = t(k);
+    if (v && v !== k) return v;
+  } catch (e) {}
+  return document.documentElement.lang === 'en' ? en : zh;
+}
+
+/**
+ * 探针失败 → 留在门内页显示原因，不自动跳转（定稿 #1）。
+ * 先移除遮罩，在页面上显示：哪个接口、HTTP 状态码、服务端 reason，
+ * 再放一个「返回安全与隐私」按钮。不显示任何密钥或 Cookie 值。
+ * @param {(k:string)=>string} t 文案函数
+ * @param {{reason?:string, detail?:string, api?:string, status?:number}} info 探针结果
+ */
+function showProbeFailure(t, info) {
+  clearLockOverlay();
+  const reason = (info && info.reason) || 'session';
+  const detail = info && info.detail;
+  const api = (info && info.api) || '';
+  const status = info && typeof info.status === 'number' ? info.status : null;
+
+  const title = tx(t, 'probeFailTitle', '无法进入', 'Cannot enter');
+  const msg = verifyMessage(t, reason, detail);
+  const apiLabel = tx(t, 'probeFailApi', '接口', 'API');
+  const statusLabel = tx(t, 'probeFailStatus', '状态码', 'Status');
+  const reasonLabel = tx(t, 'probeFailReason', '原因', 'Reason');
+  const backLabel = tx(t, 'probeFailBack', '返回安全与隐私', 'Back to Security & Privacy');
+
+  /* 隐藏管理区内容，显示失败面板 */
+  const layout = document.querySelector('.set-layout');
+  const panel = document.createElement('div');
+  panel.id = 'sgx-probe-fail';
+  panel.setAttribute('role', 'alert');
+
+  const h = document.createElement('h2');
+  h.className = 'set-gh';
+  h.textContent = title;
+  panel.appendChild(h);
+
+  const card = document.createElement('section');
+  card.className = 'widget bg-m-container-lowest border border-m-outline mb-2 p-4';
+
+  const pMsg = document.createElement('p');
+  pMsg.className = 'text-base font-medium m-0 mb-3';
+  pMsg.textContent = msg;
+  card.appendChild(pMsg);
+
+  const dl = document.createElement('dl');
+  dl.className = 'm-0 text-sm text-m-on-surface-variant';
+  function addRow(label, value) {
+    if (value === null || value === undefined || value === '') return;
+    const dt = document.createElement('dt');
+    dt.className = 'inline font-medium';
+    dt.textContent = label + '：';
+    const dd = document.createElement('dd');
+    dd.className = 'inline m-0 mr-4 font-mono break-all';
+    dd.textContent = String(value);
+    dl.appendChild(dt);
+    dl.appendChild(dd);
+    dl.appendChild(document.createElement('br'));
+  }
+  addRow(apiLabel, api);
+  addRow(statusLabel, status);
+  /* 服务端 reason 只显示原因码，不显示任何密钥或 Cookie 值 */
+  addRow(reasonLabel, detail && detail !== 'ok' ? detail : reason);
+  card.appendChild(dl);
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'sgx-verify-skip mt-4';
+  btn.textContent = backLabel;
+  btn.addEventListener('click', function () {
+    location.href = securityUrl();
+  });
+  card.appendChild(btn);
+
+  panel.appendChild(card);
+
+  if (layout) {
+    /* 隐藏原有管理区内容，失败面板放最前面 */
+    Array.prototype.forEach.call(layout.children, function (child) {
+      if (child.id !== 'sgx-probe-fail') child.hidden = true;
+    });
+    layout.insertBefore(panel, layout.firstChild);
+  } else {
+    document.body.insertBefore(panel, document.body.firstChild);
+  }
+}
+
+/**
  * 进门探针：页面直接渲染；验证有效 → onEnter() 进管理区；
- * 无效 → 按真实原因提示后跳验证流程（安全与隐私页），不弹面板。
- * @param {()=>Promise<boolean|{ok:boolean,reason?:string,detail?:string}>} probe 验证有效时 resolve true
+ * 无效 → 留在门内页显示原因（定稿 #1），不自动跳转、不弹面板。
+ * @param {()=>Promise<boolean|{ok:boolean,reason?:string,detail?:string,api?:string,status?:number}>} probe 验证有效时 resolve true
  * @param {()=>void} onEnter 进门回调
  * @param {(k:string)=>string} t 文案函数
  */
 export function enterDoor(probe, onEnter, t) {
-  /* 进管理区时去掉全局锁屏遮罩，避免盖住按钮 */
-  function clearLockOverlay() {
-    try {
-      const gl = document.getElementById('sgx-lock');
-      if (gl) gl.remove();
-      document.body.classList.remove('sgx-locked');
-    } catch (e) {}
-  }
   probe().then(function (result) {
-    const ok = result && typeof result === 'object' ? !!result.ok : !!result;
-    const reason = result && typeof result === 'object' ? (result.reason || 'session') : 'session';
-    const detail = result && typeof result === 'object' ? result.detail : undefined;
+    const isObj = result && typeof result === 'object';
+    const ok = isObj ? !!result.ok : !!result;
     if (ok) {
       clearLockOverlay();
       onEnter();
     } else {
-      needVerify(t, reason, detail);
+      /* 定稿 #1：探针失败留页显示原因，不自动跳转 */
+      showProbeFailure(t, isObj ? result : { reason: 'session' });
     }
   }).catch(function () {
-    needVerify(t, 'network');
+    showProbeFailure(t, { reason: 'network', status: 0 });
   });
 }
 
