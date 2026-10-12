@@ -52,40 +52,42 @@
     </div>
   </section>
 
-  {{/* 站长凭证入口弹层：标题「需要验证」，单个「根凭证」按钮 */}}
+  {{/* 站长凭证入口弹层：标题「需要验证」，单个「根凭证」整宽实心按钮 + 底部取消 */}}
   <dialog id="sec-owner-dlg" class="sgx-verify-dlg" aria-labelledby="sec-owner-title">
-    <div class="sgx-verify-card" role="document">
+    <div class="sgx-verify-card sgx-upg-card" role="document">
       <h2 id="sec-owner-title" class="sgx-verify-title">{{ if $isEn }}Verification needed{{ else }}需要验证{{ end }}</h2>
       <div class="sgx-verify-opts" id="sec-owner-opts">
-        <button type="button" class="sec-sheet-opt" id="sec-owner-root">{{ if $isEn }}Root credential{{ else }}根凭证{{ end }}</button>
+        <button type="button" class="sgx-upgrade-btn" id="sec-owner-root">{{ if $isEn }}Root credential{{ else }}根凭证{{ end }}</button>
       </div>
-      <div id="sec-owner-keyform" hidden>
+      <div id="sec-owner-keyform" class="sgx-upg-form" hidden>
         <div class="sgx-pw-field">
           <input type="password" id="sec-owner-input" class="sgx-pw-input" autocomplete="off"
             placeholder="{{ if $isEn }}Root credential{{ else }}根凭证{{ end }}"
             aria-label="{{ if $isEn }}Root credential{{ else }}根凭证{{ end }}">
         </div>
         <p id="sec-owner-err" class="sgx-verify-err" hidden></p>
-        <button type="button" class="sgx-verify-skip" id="sec-owner-go">{{ if $isEn }}Verify{{ else }}验证{{ end }}</button>
-        <button type="button" class="sgx-verify-back" id="sec-owner-back">{{ if $isEn }}Back{{ else }}返回{{ end }}</button>
+        <button type="button" class="sgx-upgrade-btn" id="sec-owner-go">{{ if $isEn }}Verify{{ else }}验证{{ end }}</button>
+        <button type="button" class="sgx-upgrade-cancel" id="sec-owner-back">{{ if $isEn }}Back{{ else }}返回{{ end }}</button>
       </div>
+      <button type="button" class="sgx-upgrade-cancel" id="sec-owner-cancel">{{ if $isEn }}Cancel{{ else }}取消{{ end }}</button>
     </div>
   </dialog>
 
-  {{/* 管理凭证入口弹层：标题「需要凭证」，按钮由 JS 按配置渲染 */}}
+  {{/* 管理凭证入口弹层：标题「需要凭证」，按钮由 JS 按配置渲染（整宽实心）+ 底部取消 */}}
   <dialog id="sec-mgmt-dlg" class="sgx-verify-dlg" aria-labelledby="sec-mgmt-title">
-    <div class="sgx-verify-card" role="document">
+    <div class="sgx-verify-card sgx-upg-card" role="document">
       <h2 id="sec-mgmt-title" class="sgx-verify-title">{{ if $isEn }}Credential needed{{ else }}需要凭证{{ end }}</h2>
       <div class="sgx-verify-opts" id="sec-mgmt-opts"></div>
-      <div id="sec-mgmt-keyform" hidden>
+      <div id="sec-mgmt-keyform" class="sgx-upg-form" hidden>
         <div class="sgx-pw-field">
           <input type="password" id="sec-mgmt-input" class="sgx-pw-input" autocomplete="off"
             aria-label="{{ if $isEn }}Credential{{ else }}凭证{{ end }}">
         </div>
         <p id="sec-mgmt-err" class="sgx-verify-err" hidden></p>
-        <button type="button" class="sgx-verify-skip" id="sec-mgmt-go">{{ if $isEn }}Verify{{ else }}验证{{ end }}</button>
-        <button type="button" class="sgx-verify-back" id="sec-mgmt-back">{{ if $isEn }}Back{{ else }}返回{{ end }}</button>
+        <button type="button" class="sgx-upgrade-btn" id="sec-mgmt-go">{{ if $isEn }}Verify{{ else }}验证{{ end }}</button>
+        <button type="button" class="sgx-upgrade-cancel" id="sec-mgmt-back">{{ if $isEn }}Back{{ else }}返回{{ end }}</button>
       </div>
+      <button type="button" class="sgx-upgrade-cancel" id="sec-mgmt-cancel">{{ if $isEn }}Cancel{{ else }}取消{{ end }}</button>
     </div>
   </dialog>
 
