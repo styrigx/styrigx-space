@@ -9,4 +9,4 @@ compatibility_date = "2026-10-12"
 [[d1_databases]]
 binding = "SGX_D1"
 database_name = "styrigx-sgx"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "2804d280-1cab-422a-834d-3390cea38976"
