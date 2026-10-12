@@ -937,32 +937,14 @@ function showLockScreen() {
   }
 
   /* ---------- 重置锁屏 ----------
-     验证身份（两步），通过 → stepup(scope=lockreset)。
-     以服务端 /api/lockreset status 为准：available=false → 不可用。 */
+     始终先显示第一步输入框，由 verify 结果决定下一步：
+     票据 → 重设解锁方式；needOwner → 第二步；not-set → 通用失败提示（不泄露原因）。 */
   function openReset() {
     dlgState = 'reset';
     setTitle(en ? 'Reset lock screen' : '重置锁屏');
-    setBody('<div class="sgx-verify-loading">' + (en ? 'Loading…' : '加载中…') + '</div>');
     clearErr();
     if (!openDialog()) return;
-    fetch('/api/lockreset', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'status' }),
-    })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (dlgState !== 'reset') return;
-        if (!j || !j.ok || !j.available) {
-          showError(en ? 'Reset is not available' : '重置锁屏不可用');
-          return;
-        }
-        renderResetStep1();
-      })
-      .catch(function () {
-        if (dlgState !== 'reset') return;
-        showError(en ? 'Network error' : '网络错误');
-      });
+    renderResetStep1();
   }
 
   /* 重置步骤 1：验证身份。服务端决定下一步：开关有效则直接完成，

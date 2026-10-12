@@ -90,11 +90,12 @@ async function handlePost(context) {
   let ownerCfg = true;
   try { ownerCfg = await isLayerConfigured(kv, LAYER_OWNER); } catch (e) { ownerCfg = true; }
 
-  /* ============ status：重置是否可用（不读开关；开关只在 verify 根凭证正确后读） ============ */
+  /* ============ status：始终允许进入第一步（不暴露站长凭证是否配置；
+     不读开关；开关只在 verify 根凭证正确后读） ============ */
   if (action === 'status') {
     return Response.json({
       ok: true,
-      available: ownerCfg,
+      available: true,
     });
   }
 

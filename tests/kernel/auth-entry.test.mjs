@@ -204,6 +204,29 @@ test('认证入口：管理凭证弹层四种配置下按钮正确', () => {
   assert.ok(js.includes('两个都设了时不显示根凭证') || js.includes('不显示根凭证'), '两者都有时不应显示根凭证');
 });
 
+/* ============ 6. 重置锁屏 status 不卡死 ============ */
+
+test('认证入口：重置锁屏 status 始终可用（不暴露站长凭证是否配置）', async () => {
+  const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
+  /* owner 未配置 */
+  const kv = makeKv({ 'layer:lock': '1' });
+  const env = baseEnv(kv);
+  const st = postReq('https://test.example.com/api/lockreset', { action: 'status' });
+  const stRes = await onRequestPost({ request: st, env });
+  const stBody = await stRes.json();
+  assert.equal(stBody.ok, true);
+  assert.equal(stBody.available, true, 'status 应始终返回可用');
+});
+
+test('认证入口：前端重置弹层不再出现「重置锁屏不可用」', () => {
+  const src = fs.readFileSync(path.join(REPO, 'assets/js/shell/lock.js'), 'utf8');
+  assert.ok(!src.includes('重置锁屏不可用'), '不应再有「重置锁屏不可用」文案');
+  assert.ok(!src.includes('Reset is not available'), '不应再有英文不可用文案');
+  /* openReset 直接显示第一步，不再调 status */
+  assert.ok(!src.includes("action: 'status'") || src.indexOf('renderResetStep1') < src.indexOf("action: 'status'"),
+    'openReset 应直接显示第一步');
+});
+
 /* ============ 5. 通行密钥命名 ============ */
 
 test('认证入口：三类通行密钥注册 options 的 name/displayName 正确', async () => {
