@@ -680,13 +680,13 @@ function showLockScreen() {
       '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Password' : '密码') + '</span>' +
       '<span class="sgx-method-desc">' + (en ? 'Enter your unlock password' : '输入解锁密码') + '</span></span>' +
       '</button>' +
-      /* 4. 重置锁屏：先验证根凭证，再验证站长凭证（或有效恢复开关） */
+      /* 4. 重置锁屏：验证身份后重设解锁方式 */
       '<button type="button" class="sgx-method-opt" id="sgx-mopt-reset" aria-label="' +
         (en ? 'Reset lock screen' : '重置锁屏') + '">' +
       '<span class="sgx-method-ic" aria-hidden="true">' +
       '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></span>' +
       '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Reset lock screen' : '重置锁屏') + '</span>' +
-      '<span class="sgx-method-desc">' + (en ? 'Lost unlock method? Verify root credential first, then owner credential (or a valid recovery switch)' : '丢了锁屏凭证？先验证根凭证，再验证站长凭证（或有效恢复开关）') + '</span></span>' +
+      '<span class="sgx-method-desc">' + (en ? 'Lost unlock method? Verify identity, then reset unlock method' : '丢了锁屏凭证？验证身份后重设解锁方式') + '</span></span>' +
       '</button>' +
       '</div>';
     document.body.appendChild(sheet);
@@ -937,9 +937,8 @@ function showLockScreen() {
   }
 
   /* ---------- 重置锁屏 ----------
-     先验证「根凭证」再验证「站长凭证」，两步都过 → stepup(scope=lockreset)。
-     以服务端 /api/lockreset status 为准：available=false → 不可用；
-     skippable=true → 站长凭证步骤可跳过（恢复开关开启时）。 */
+     验证身份（两步），通过 → stepup(scope=lockreset)。
+     以服务端 /api/lockreset status 为准：available=false → 不可用。 */
   function openReset() {
     dlgState = 'reset';
     setTitle(en ? 'Reset lock screen' : '重置锁屏');
@@ -966,15 +965,15 @@ function showLockScreen() {
       });
   }
 
-  /* 重置步骤 1：根凭证（优先）。服务端决定下一步：开关有效则直接完成，
-     否则返回 needOwner 进入站长凭证步骤。前端不提示开关存在。 */
+  /* 重置步骤 1：验证身份。服务端决定下一步：开关有效则直接完成，
+     否则返回 needOwner 进入第二步。 */
   function renderResetStep1() {
     dlgState = 'reset-step1';
     setTitle((en ? 'Reset lock screen' : '重置锁屏') + ' (1/2)');
     setBody(
-      '<div class="sgx-reset-hint">' + (en ? 'Verify root credential' : '验证根凭证') + '</div>' +
+      '<div class="sgx-reset-hint">' + (en ? 'Verify identity' : '验证身份') + '</div>' +
       '<div class="sgx-pw-field"><input type="password" id="sgx-reset-root" class="sgx-pw-input" autocomplete="off" ' +
-        'placeholder="' + (en ? 'Root credential' : '根凭证') + '">' +
+        'placeholder="' + (en ? 'Credential' : '凭证') + '">' +
         '<button type="button" class="sgx-verify-skip" id="sgx-reset-go">' + (en ? 'Verify' : '验证') + '</button></div>'
     );
     clearErr();
@@ -994,10 +993,10 @@ function showLockScreen() {
     var input = document.getElementById('sgx-reset-root');
     var rootKey = input ? input.value : '';
     if (!rootKey) {
-      showError(en ? 'Enter root credential' : '请输入根凭证');
+      showError(en ? 'Enter credential' : '请输入凭证');
       return;
     }
-    /* 暂存根凭证，供第二步一起提交（服务端无状态） */
+    /* 暂存第一步凭证，供第二步一起提交（服务端无状态） */
     window._sgxResetRootKey = rootKey;
     postResetVerify({ rootKey: rootKey }, function (res) {
       if (dlgState !== 'reset-step1') return;

@@ -88,10 +88,14 @@ test('认证入口：锁屏方法弹层恰好四个选项（访客进入/通行�
   assert.ok(!src.includes('sgx-mopt-mk'), '不应有根凭证选项 sgx-mopt-mk');
   assert.ok(!src.includes('openMk'), '不应有 openMk 函数');
   assert.ok(!src.includes('根凭证：未解锁也能用'), '不应有「根凭证：未解锁也能用」注释');
-  /* 重置锁屏描述应为先根凭证再站长凭证 */
+  /* 重置锁屏描述应为通用说法，不出现「根凭证」 */
   assert.ok(
-    src.includes('先验证根凭证，再验证站长凭证'),
-    '重置锁屏描述应为先根凭证再站长凭证'
+    src.includes('验证身份后重设解锁方式'),
+    '重置锁屏描述应为通用说法'
+  );
+  assert.ok(
+    !src.includes('先验证根凭证，再验证站长凭证'),
+    '重置锁屏描述不应出现根凭证'
   );
 });
 
