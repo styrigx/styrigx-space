@@ -12,7 +12,9 @@
 import { on } from '../lib/events.js';
 import { get as storeGet } from '../lib/storage.js';
 import { toast } from '../lib/toast.js';
+import { followKeyboard } from '../shell/vk.js';
 import { mgmtButtons } from './mgmt-buttons.js';
+import { exchangeRootSession } from '../lib/root-session.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -132,8 +134,11 @@ import { mgmtButtons } from './mgmt-buttons.js';
     const err = document.getElementById('sec-owner-err');
     const goBtn = document.getElementById('sec-owner-go');
     const backBtn = document.getElementById('sec-owner-back');
+    const cancelBtn = document.getElementById('sec-owner-cancel');
     const rootBtn = document.getElementById('sec-owner-root');
     if (!row || !dlg) return;
+    /* P2-13：输入框聚焦时弹层随键盘上移 */
+    followKeyboard(dlg, input);
 
     function showErr(msg) {
       if (err) {
@@ -147,11 +152,13 @@ import { mgmtButtons } from './mgmt-buttons.js';
     function showOpts() {
       if (opts) opts.hidden = false;
       if (keyform) keyform.hidden = true;
+      if (cancelBtn) cancelBtn.hidden = false;
       hideErr();
     }
     function showKeyform() {
       if (opts) opts.hidden = true;
       if (keyform) keyform.hidden = false;
+      if (cancelBtn) cancelBtn.hidden = true;
       hideErr();
       if (input) {
         input.value = '';
@@ -188,8 +195,19 @@ import { mgmtButtons } from './mgmt-buttons.js';
         .then(function (res) {
           const j = res.j;
           if (j && j.ok) {
-            closeDlg();
-            location.href = lockUrl;
+            /* Phase 2 Item 9：锁屏未配置+访客会话时，root-auth 只签 stepup，
+               需先调 /api/root-session 换站长会话再跳转，否则被 middleware 拦。
+               锁屏已配置时访客走假入口（401），不会到这里。 */
+            exchangeRootSession().then(function (rs) {
+              if (rs.ok) {
+                closeDlg();
+                /* Phase 2 Item 7：站长凭证进 owner 模式 */
+                location.href = lockUrl + '?mode=owner';
+              } else {
+                showErr(en ? 'Server error' : '服务器错误');
+                if (input) input.value = '';
+              }
+            });
           } else if (res.s === 429) {
             showErr(en ? 'Too many attempts' : '尝试次数过多');
           } else {
@@ -221,6 +239,7 @@ import { mgmtButtons } from './mgmt-buttons.js';
       });
     }
     if (backBtn) on(backBtn, 'click', showOpts);
+    if (cancelBtn) on(cancelBtn, 'click', closeDlg);
     dlg.addEventListener('click', function (e) {
       if (e.target === dlg) closeDlg();
     });
@@ -245,7 +264,10 @@ import { mgmtButtons } from './mgmt-buttons.js';
     const err = document.getElementById('sec-mgmt-err');
     const goBtn = document.getElementById('sec-mgmt-go');
     const backBtn = document.getElementById('sec-mgmt-back');
+    const cancelBtn = document.getElementById('sec-mgmt-cancel');
     if (!row || !dlg || !opts) return;
+    /* P2-13：输入框聚焦时弹层随键盘上移 */
+    followKeyboard(dlg, input);
 
     /** 当前选择的验证方式：'root' | 'password' */
     let mode = 'root';
@@ -269,7 +291,8 @@ import { mgmtButtons } from './mgmt-buttons.js';
       const mkBtn = function (id, label, cb) {
         const b = document.createElement('button');
         b.type = 'button';
-        b.className = 'sec-sheet-opt';
+        /* P2-12：与 upgrade 弹层一致的整宽实心矩形按钮（访客假入口走同一代码路径） */
+        b.className = 'sgx-upgrade-btn';
         b.id = id;
         b.textContent = label;
         on(b, 'click', cb);
@@ -303,6 +326,7 @@ import { mgmtButtons } from './mgmt-buttons.js';
     function showKeyform(placeholder) {
       opts.hidden = true;
       if (keyform) keyform.hidden = false;
+      if (cancelBtn) cancelBtn.hidden = true;
       hideErr();
       if (input) {
         input.value = '';
@@ -313,6 +337,7 @@ import { mgmtButtons } from './mgmt-buttons.js';
     function showOpts() {
       if (keyform) keyform.hidden = true;
       opts.hidden = false;
+      if (cancelBtn) cancelBtn.hidden = false;
       hideErr();
     }
 
@@ -361,7 +386,8 @@ import { mgmtButtons } from './mgmt-buttons.js';
         return;
       }
       if (mode === 'root') {
-        /* 根凭证 → /api/root-auth */
+        /* 根凭证 → /api/root-auth → /api/root-session（换会话）→ 管理页。
+           锁屏未配置+访客会话时需先换会话，否则被 middleware 拦。 */
         fetch('/api/root-auth', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -374,8 +400,15 @@ import { mgmtButtons } from './mgmt-buttons.js';
           .then(function (res) {
             const j = res.j;
             if (j && j.ok) {
-              closeDlg();
-              location.href = lockUrl;
+              exchangeRootSession().then(function (rs) {
+                if (rs.ok) {
+                  closeDlg();
+                  location.href = lockUrl;
+                } else {
+                  showErr(en ? 'Server error' : '服务器错误');
+                  if (input) input.value = '';
+                }
+              });
             } else if (res.s === 429) {
               showErr(en ? 'Too many attempts' : '尝试次数过多');
             } else {
@@ -498,6 +531,7 @@ import { mgmtButtons } from './mgmt-buttons.js';
       });
     }
     if (backBtn) on(backBtn, 'click', showOpts);
+    if (cancelBtn) on(cancelBtn, 'click', closeDlg);
     dlg.addEventListener('click', function (e) {
       if (e.target === dlg) closeDlg();
     });

@@ -85,6 +85,12 @@ jobs:
         # 前端禁止 sgx-verified/sgx-lock-shown；禁止用 storage 存解锁状态
         run: node scripts/check-layers.mjs
 
+      - name: Frontend guard (无原生弹窗 / 无废弃 token 变量)
+        # Item 25：assets/js/ 禁止 window.prompt/confirm/alert（含裸调用），
+        # 禁止独立 token 变量（已废弃的内存鉴权 token 机制；Turnstile token
+        # 在脚本内白名单放行）
+        run: node scripts/check-frontend.mjs
+
       - name: Generate blog posts data (P0-2)
         # 从博客仓库读公开文章列表，生成 data/posts.json
         # BLOG_TOKEN: 只读 token（公开仓库可匿名，但配 token 更稳）

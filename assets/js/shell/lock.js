@@ -20,6 +20,7 @@ import { on } from '../lib/events.js';
 import { visibleInterval } from '../lib/scheduler.js';
 import { reducedMotion } from '../lib/util.js';
 import { get as featGet } from '../lib/features.js';
+import { exchangeRootSession } from '../lib/root-session.js';
 
 const LOCK =
   '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
@@ -1059,22 +1060,12 @@ function showLockScreen() {
         if (j.ok) {
           /* 锁屏未配置场景：root-auth 只签发 stepup(by=root, scope=root)，
              需调 /api/root-session 换站长会话（by=root，1 小时）再跳转，
-             否则无会话会被 middleware 302 回锁屏。 */
-          fetch('/api/root-session', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({}),
-          })
-            .then(function (r2) {
-              return r2.text().then(function (t2) {
-                let j2 = null;
-                try { j2 = JSON.parse(t2); } catch (e) {}
-                return { s: r2.status, j: j2 };
-              });
-            })
+             否则无会话会被 middleware 302 回锁屏。
+             用共享函数 exchangeRootSession（与 security.js 共用）。 */
+          exchangeRootSession()
             .then(function (res2) {
               if (dlgState !== 'mgmtkey') return;
-              if (res2.j && res2.j.ok) {
+              if (res2.ok) {
                 closeDialog();
                 location.href = en ? '/en/settings/security/' : '/settings/security/';
               } else {

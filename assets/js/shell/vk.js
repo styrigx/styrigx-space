@@ -72,3 +72,89 @@ export function onKeyboardHeight(cb, syncEl) {
     });
   };
 }
+
+/**
+ * P2-13：让底部弹层跟随键盘上移的可复用 hook。
+ * 输入框聚焦时订阅键盘高度（onKeyboardHeight），弹层整体上移 h（px）；
+ * 失焦或弹层关闭（<dialog> close 事件，含 Esc）时恢复原位并取消订阅。
+ * @param {HTMLElement} sheetEl 要上移的弹层元素（<dialog> 或遮罩/容器 div）
+ * @param {HTMLInputElement|Array<HTMLInputElement>} inputEl 触发的输入框（可多个）
+ * @returns {() => void} 清理函数（解绑监听、恢复原位；供页面卸载等场景）
+ */
+export function followKeyboard(sheetEl, inputEl) {
+  const noop = function () {};
+  if (!sheetEl || !inputEl) return noop;
+  const inputs = (Array.isArray(inputEl) ? inputEl : [inputEl]).filter(function (el) {
+    return !!el;
+  });
+  if (!inputs.length) return noop;
+  /** @type {(() => void)|null} */ let stopKb = null;
+  const clear = function () {
+    try {
+      sheetEl.style.transform = '';
+    } catch (e) {}
+    if (stopKb) {
+      try {
+        stopKb();
+      } catch (e2) {}
+      stopKb = null;
+    }
+  };
+  const start = function () {
+    if (stopKb) return;
+    try {
+      stopKb = onKeyboardHeight(function (h) {
+        try {
+          sheetEl.style.transform = h > 0 ? 'translateY(' + Math.round(-h) + 'px)' : '';
+        } catch (e) {}
+      });
+    } catch (e) {
+      stopKb = null;
+    }
+  };
+  const onFocus = function () {
+    start();
+  };
+  /**
+   * @param {FocusEvent} e
+   */
+  const onBlur = function (e) {
+    /* 焦点在同弹层的输入框之间切换（双密码框）时不恢复 */
+    try {
+      const rt = e && e.relatedTarget;
+      if (rt && inputs.indexOf(rt) !== -1) return;
+    } catch (e2) {}
+    clear();
+  };
+  const onClose = function () {
+    clear();
+  };
+  inputs.forEach(function (inp) {
+    inp.addEventListener('focus', onFocus);
+    inp.addEventListener('blur', onBlur);
+  });
+  /* <dialog> 原生关闭（Esc/表单提交）也要清理 */
+  let hostDlg = null;
+  try {
+    hostDlg = sheetEl.tagName === 'DIALOG' ? sheetEl : sheetEl.closest('dialog');
+  } catch (e) {}
+  if (hostDlg) hostDlg.addEventListener('close', onClose);
+  /* 调用方先 focus 再挂 hook 时直接启动 */
+  try {
+    if (inputs.indexOf(document.activeElement) !== -1) start();
+  } catch (e) {}
+  return function () {
+    inputs.forEach(function (inp) {
+      try {
+        inp.removeEventListener('focus', onFocus);
+      } catch (e) {}
+      try {
+        inp.removeEventListener('blur', onBlur);
+      } catch (e2) {}
+    });
+    try {
+      if (hostDlg) hostDlg.removeEventListener('close', onClose);
+    } catch (e3) {}
+    clear();
+  };
+}
