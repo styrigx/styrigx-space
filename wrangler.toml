@@ -1,0 +1,12 @@
+# styrigx-space (Cloudflare Pages)
+# D1 绑定声明：SGX_D1 用于 2.11 恢复开关的计时/单次标记。
+# database_id 由 Gray 在 Cloudflare 后台创建数据库后填入。
+# 注意：不要在 dashboard 手动绑定 D1，部署时会以此文件为准。
+
+name = "styrigx-space"
+compatibility_date = "2026-10-12"
+
+[[d1_databases]]
+binding = "SGX_D1"
+database_name = "styrigx-sgx"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
