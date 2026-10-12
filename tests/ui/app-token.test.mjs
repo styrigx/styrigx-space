@@ -233,3 +233,52 @@ test('onRequest：成功签发（2.10.1 B7：verifySessionDetailed 传 env）', 
   const payload = [p.role, p.epoch, p.appEpoch, p.iat, p.exp, p.aud, p.scope].join('.');
   assert.ok(await ed25519Verify(appPubPem, payload, p.sig), '签发 token 验签应通过');
 });
+
+test('onRequest：revoke 清除 sgx-app cookie（需 owner 会话，2.11）', async () => {
+  const { generateKeyPairSync } = await import('node:crypto');
+  const lockKp = generateKeyPairSync('ed25519');
+  const lockPrivPem = lockKp.privateKey.export({ type: 'pkcs8', format: 'pem' });
+  const lockPubPem = lockKp.publicKey.export({ type: 'spki', format: 'pem' });
+  const { signSessionCookie } = await import('../../functions/_kernel/session.js');
+  const sessVal = await signSessionCookie(lockPrivPem, 7, 'owner', 'owner');
+  const store = new Map();
+  store.set('session-epoch', '7');
+  const kv = {
+    get: async (k, fmt) => {
+      const v = store.get(k);
+      if (v === undefined) return null;
+      return fmt === 'json' ? JSON.parse(v) : v;
+    },
+    put: async (k, v) => { store.set(k, v); },
+    delete: async (k) => { store.delete(k); },
+  };
+  const h = new Headers();
+  h.set('Origin', 'https://styrigx.com');
+  h.set('Content-Type', 'application/json');
+  h.set('Cookie', 'sgx-verified=' + sessVal);
+  const req = {
+    method: 'POST',
+    headers: h,
+    url: 'https://styrigx.com/api/app-token',
+    json: async () => ({ action: 'revoke' }),
+  };
+  const env = { OWNER_KV: kv, SGX_LOCK_PUBLIC: lockPubPem };
+  const res = await onRequest({ request: req, env });
+  assert.equal(res.status, 200, '合法 owner 会话应允许 revoke');
+  const j = await res.json();
+  assert.ok(j.ok, '应返回 ok:true');
+  const setCookie = res.headers.get('Set-Cookie') || '';
+  assert.ok(setCookie.includes('sgx-app='), '应清除 sgx-app cookie');
+  assert.ok(setCookie.includes('Max-Age=0'), '应立即过期');
+  assert.ok(setCookie.includes('Domain=.styrigx.com'), 'Domain 与签发时一致');
+  assert.ok(setCookie.includes('HttpOnly'), 'HttpOnly 与签发时一致');
+});
+
+test('onRequest：revoke 无会话 → 403', async () => {
+  const res = await onRequest({
+    request: mockRequest('POST', { action: 'revoke' }, { Origin: 'https://styrigx.com', 'Content-Type': 'application/json' }),
+    env: {},
+  });
+  assert.equal(res.status, 403);
+  assert.equal((await res.json()).error, 'forbidden');
+});

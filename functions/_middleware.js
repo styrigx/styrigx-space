@@ -14,11 +14,17 @@ import { SESSION_COOKIE, ROLE_OWNER, ROLE_VISITOR } from './_kernel/session.js';
 import { isPublicPage } from './_kernel/public-pages.js';
 import { verifyStepupCookie, STEPUP_SCOPE_LOCKRESET } from './api/stepup.js';
 
-/* 2.9.3 访客权限收窄：只有安全锁屏页是主人专属。
-   访客可进：/settings/ 及其子页、/settings/security/ 总览、/files/（中英文）。
-   主人专属：/settings/security/lock/（改密码、通行密钥管理等）。
+/* 2.11 两扇门：安全与隐私全系主人专属。
+   访客可进：/settings/ 及其子页（不含 security/ 全系）、/files/（中英文）。
+   主人专属：/settings/security/ 全系（总览、锁屏、应用）。
    visitor 访问主人专属路径 → 302 到锁屏（只一次，首页不再二次 302）。 */
 const OWNER_ONLY_PATHS = [
+  '/settings/security/',
+  '/en/settings/security/',
+];
+/* 2.11：lockreset 票据只开锁屏凭证管理页（重置锁屏流程），
+   不开安全总览和应用页。 */
+const LOCKRESET_PATHS = [
   '/settings/security/lock/',
   '/en/settings/security/lock/',
 ];
@@ -34,6 +40,11 @@ const AUTH_ACTIONS = new Set(['verify', 'challenge', 'register', 'auth']);
 
 function isOwnerOnlyPath(pathname) {
   return OWNER_ONLY_PATHS.some(p => pathname === p || pathname.startsWith(p));
+}
+
+/* lockreset 票据可开的路径（仅锁屏凭证管理页） */
+function isLockresetPath(pathname) {
+  return LOCKRESET_PATHS.some(p => pathname === p || pathname.startsWith(p));
 }
 
 function isOwnerOnlyApi(pathname) {
@@ -424,10 +435,11 @@ export async function onRequest(context) {
     }
 
     /* lockreset 票据可打开锁屏凭证管理页（重置锁屏流程），但仍进不了主页。
-       仅放行 /settings/security/lock/ 及其英文版；主页仍需有效会话。
+       仅放行 /settings/security/lock/ 及其英文版（安全总览和应用页不放行）；
+       主页仍需有效会话。
        注入专用状态 lockreset（而非 locked），前端 initLock 跳过锁屏覆盖，
        落地页可操作；票据仍只能管理锁屏凭证。 */
-    if (!sessionValid && isOwnerOnlyPath(pathname)) {
+    if (!sessionValid && isLockresetPath(pathname)) {
       const st = await verifyStepupCookie(request, env);
       if (st.ok && st.scope === STEPUP_SCOPE_LOCKRESET) {
         const res = await next();

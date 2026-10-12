@@ -3,7 +3,10 @@
    流程：未解锁先走锁屏 → 应用类通行密钥 WebAuthn（只列该 aud 的凭据，强制 UV）
    → POST /api/app-token（单次 app-auth 绑定）→ 成功后 location.replace(return)。
    全程不需要 sgx-stepup，不接受密码。
-   该 aud 没有应用类通行密钥时，提示去「安全与隐私 → 应用验证」添加。 */}}
+   该 aud 没有应用类通行密钥时，提示去「安全与隐私 → 应用 → <应用名>」添加
+   （settingsPath 按 aud 从白名单取，不写死；带 ?return= 回跳本页）。
+   应用白名单由 scripts/gen-app-whitelist.mjs 从 functions/_kernel/app-registry.js
+   生成（data/app_whitelist.json），模板注入 JSON，前端不手抄。 */}}
 {{ define "main" }}
 <div class="set-layout max-w-2xl mx-auto px-4 pb-28">
   {{ partial "subpage-head.html" (dict "title" "应用授权" "isEn" false) }}
@@ -26,13 +29,25 @@
   </div>
 </div>
 
+{{/* 应用白名单：构建时由 scripts/gen-app-whitelist.mjs 从
+     functions/_kernel/app-registry.js 生成（data/app_whitelist.json） */}}
+<script id="sgx-app-whitelist" type="application/json">{{ site.Data.app_whitelist | default (slice) | jsonify | safeJS }}</script>
+
 <script type="module">
 (function () {
   'use strict';
-  // 应用白名单（与服务端 ../_kernel/app-registry.js 保持一致）
-  const APPS = {
-    book: { scopes: ['upload'], origin: 'https://book.styrigx.com', settingsPath: '/settings/security/' },
-  };
+  /* 应用白名单：模板从 data/app_whitelist.json 注入（构建时由
+     scripts/gen-app-whitelist.mjs 从 functions/_kernel/app-registry.js 生成），
+     前端不手抄。 */
+  var APPS = {};
+  try {
+    var wl = JSON.parse(document.getElementById('sgx-app-whitelist').textContent || '[]') || [];
+    wl.forEach(function (a) {
+      if (a && a.aud) APPS[a.aud] = a;
+    });
+  } catch (e) {
+    APPS = {};
+  }
 
   /** 校验 aud/scope/return */
   function validateParams(aud, scope, returnUrl) {
@@ -49,10 +64,10 @@
         return { ok: false, error: 'return' };
       }
     }
-    return { ok: true, return: ret, settingsPath: app.settingsPath };
+    return { ok: true, return: ret, settingsPath: app.settingsPath, appName: app.name };
   }
 
-  function showError(msg, showAddKey, settingsPath) {
+  function showError(msg, showAddKey, settingsPath, appName) {
     document.getElementById('appv-loading').hidden = true;
     document.getElementById('appv-done').hidden = true;
     const errEl = document.getElementById('appv-error');
@@ -60,10 +75,11 @@
     const hint = document.getElementById('appv-error-hint');
     const addKey = document.getElementById('appv-add-key');
     if (showAddKey) {
-      hint.textContent = '先在「安全与隐私 → 应用验证」中添加钥匙。';
+      hint.textContent = '先在「安全与隐私 → 应用 → ' + (appName || '') + '」中添加钥匙。';
       hint.hidden = false;
       addKey.hidden = false;
-      if (settingsPath) addKey.href = settingsPath;
+      /* 按该 aud 的 settingsPath 跳（不写死），带 ?return= 回跳本页 */
+      if (settingsPath) addKey.href = settingsPath + '?return=' + encodeURIComponent(location.href);
     } else {
       hint.hidden = true;
       addKey.hidden = true;
@@ -182,7 +198,7 @@
         appCid = await doAppVerify(aud);
       } catch (e) {
         if (e && e.noAppKey) {
-          showError('该应用还没有通行密钥。', true, checked.settingsPath);
+          showError('该应用还没有通行密钥。', true, checked.settingsPath, checked.appName);
           return;
         }
         showError('验证未完成：' + e.message + '。请重试。', false);

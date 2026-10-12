@@ -537,21 +537,6 @@ import { followKeyboard } from '../shell/vk.js';
         });
     });
   }
-  /* Phase 2 Item 11：退出站长凭证（吊销 stepup 票据，回安全页）。
-     说明：只清 sgx-stepup cookie，站长会话（sgx-verified）不变；
-     再进需重新输根凭证。不影响锁屏解锁状态。 */
-  const lockoutBtn = $('lockmgr-lockout');
-  if (lockoutBtn) {
-    on(lockoutBtn, 'click', function () {
-      try {
-        /* 清掉 stepup cookie（Path=/，与签发时一致） */
-        document.cookie = 'sgx-stepup=; Path=/; Max-Age=0; SameSite=Lax';
-        document.cookie = 'sgx-stepup=; Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
-      } catch (e) {}
-      /* 回安全页 */
-      location.href = document.documentElement.lang === 'en' ? '/en/settings/security/' : '/settings/security/';
-    });
-  }
   function submitPw() {
     const a = $('lockpw-1'), b = $('lockpw-2');
     const va = a ? a.value : '', vb = b ? b.value : '';

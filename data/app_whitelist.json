@@ -1,0 +1,11 @@
+[
+  {
+    "aud": "book",
+    "name": "Book",
+    "scopes": [
+      "upload"
+    ],
+    "origin": "https://book.styrigx.com",
+    "settingsPath": "/settings/security/apps/book/"
+  }
+]

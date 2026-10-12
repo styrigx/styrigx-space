@@ -1,0 +1,89 @@
+{{/* Book 应用详情（2.11 两扇门：管理凭证门）。
+   安全与隐私 → 应用 → Book：管理 Book 的应用类通行密钥（添加/删除/重命名），
+   以及退出 Book 会话（清除应用通行证 sgx-app）。
+   进入前底部弹层「验证身份」（需 stepup by=owner）。
+   ?return= 携带应用授权页地址时，显示「返回应用授权」按钮。
+   noindex、不进 sitemap（见 baseof/sitemap）。
+   白名单由 scripts/gen-app-whitelist.mjs 生成，模板注入 JSON，JS 不手抄。
+   脚本走 ES Module 入口 entry-security-apps-book.js；localStorage 经 storage.js。 */}}
+{{ define "main" }}
+{{ .Scratch.Set "sgx-entry" "entry-security-apps-book.js" }}
+{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+{{ $wl := slice }}
+{{ range site.Data.app_whitelist | default (slice) }}
+  {{ $sp := cond $isEn (print "/en" .settingsPath) .settingsPath }}
+  {{ $wl = $wl | append (dict "aud" .aud "name" .name "scopes" .scopes "origin" .origin "settingsPath" $sp) }}
+{{ end }}
+
+<div class="set-layout max-w-2xl mx-auto px-4 pb-28">
+  {{ partial "subpage-head.html" (dict "title" "Book" "isEn" $isEn) }}
+
+  <!-- 验证身份（进入前底部弹层） -->
+  <dialog id="appgate-dlg" class="sgx-verify-dlg" aria-labelledby="appgate-title">
+    <div class="sgx-verify-card">
+      <div class="sheet-handle" data-gclose></div>
+      <h2 id="appgate-title" class="sgx-verify-title">{{ if $isEn }}Verify identity{{ else }}验证身份{{ end }}</h2>
+      <p class="sgx-verify-sub">{{ if $isEn }}Choose a way to verify{{ else }}选择一种验证方式{{ end }}</p>
+      <div class="sgx-verify-opts" id="appgate-opts">
+        <button type="button" class="sec-sheet-opt" id="appgate-pk">
+          {{ partial "icon.html" "shield" }}
+          <span class="flex-1">{{ if $isEn }}Use passkey{{ else }}使用通行密钥{{ end }}</span>
+          {{ partial "icon.html" "chev-r" }}
+        </button>
+      </div>
+      <p id="appgate-err" class="sgx-verify-err" hidden></p>
+    </div>
+  </dialog>
+
+  <!-- Book 管理区（验证后显示） -->
+  <div id="bookmgr" data-aud="book" hidden>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" id="bookmgr-return-wrap" hidden>
+      <button type="button" class="lockmgr-add" id="bookmgr-return">
+        {{ if $isEn }}Back to app authorization{{ else }}返回应用授权{{ end }}
+      </button>
+    </section>
+
+    <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "key" }}</span><span>{{ if $isEn }}App passkeys{{ else }}应用通行密钥{{ end }}</span></h2>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.1s">
+      <ul class="lockmgr-pklist" id="bookmgr-keylist" hidden></ul>
+      <div class="p-4" id="bookmgr-keyempty" hidden>
+        <p class="text-sm text-m-on-surface-variant m-0">{{ if $isEn }}No passkeys yet.{{ else }}还没有通行密钥。{{ end }}</p>
+      </div>
+      <button type="button" class="lockmgr-add" id="bookmgr-keyadd">
+        <span aria-hidden="true">＋</span> {{ if $isEn }}Add key{{ else }}添加钥匙{{ end }}
+      </button>
+    </section>
+    <p class="sec-note mb-7">{{ if $isEn }}This key is only used to approve Book's sensitive actions (upload, delete, change cover).{{ else }}这把钥匙只用于批准 Book 的敏感操作（上传、删除、换封面）。{{ end }}</p>
+
+    <h2 class="set-gh"><span class="set-ic bg-m-warm-container text-m-on-warm-container">{{ partial "icon.html" "clock" }}</span><span>{{ if $isEn }}App session{{ else }}应用会话{{ end }}</span></h2>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.14s">
+      <button type="button" class="lockmgr-del" id="bookmgr-exitsess">
+        {{ if $isEn }}Exit Book session{{ else }}退出 Book 会话{{ end }}
+      </button>
+    </section>
+    <p class="sec-note">{{ if $isEn }}Clears the app passport. Sensitive actions on Book will need authorization again. Does not affect the lock screen unlock state.{{ else }}清除应用通行证，Book 上的敏感操作需要重新授权。不影响锁屏解锁状态。{{ end }}</p>
+  </div>
+</div>
+
+<script id="sgx-app-whitelist" type="application/json">{{ $wl | jsonify | safeJS }}</script>
+{{ $bookI18n := dict
+  "gatePkErr" (dict "zh" "通行密钥验证失败" "en" "Passkey verification failed")
+  "gateCancelled" (dict "zh" "已取消" "en" "Cancelled")
+  "gateNetErr" (dict "zh" "网络错误" "en" "Network error")
+  "gateSrvErr" (dict "zh" "服务器错误" "en" "Server error")
+  "gateNoSupport" (dict "zh" "设备不支持通行密钥" "en" "Passkeys not supported on this device")
+  "pkRegistered" (dict "zh" "已添加" "en" "Added")
+  "pkDeleted" (dict "zh" "已删除" "en" "Deleted")
+  "pkDel" (dict "zh" "删除" "en" "Delete")
+  "pkDelAsk" (dict "zh" "再点一次删除" "en" "Tap again to delete")
+  "pkRenamed" (dict "zh" "已重命名" "en" "Renamed")
+  "pkUnnamed" (dict "zh" "通行密钥" "en" "Passkey")
+  "pkNeverUsed" (dict "zh" "尚未使用" "en" "Not used yet")
+  "pkRetryLater" (dict "zh" "请稍后重试" "en" "Please try again later")
+  "pkAlready" (dict "zh" "此设备已注册过" "en" "Already registered on this device")
+  "pkFailed" (dict "zh" "注册失败" "en" "Registration failed")
+  "sessExited" (dict "zh" "已退出该应用会话" "en" "App session exited")
+  "sessExp" (dict "zh" "会话过期，请重新验证" "en" "Session expired, verify again")
+}}
+<script id="sgx-i18n-bookmgr" type="application/json">{{ $bookI18n | jsonify | safeJS }}</script>
+{{ end }}
