@@ -1,6 +1,6 @@
 {{/* 安全与隐私（2.4.0 安全与隐私）：只读状态卡片 + 安全/隐私分组。
-   状态来自 /api/owner-status（只返回是否已设置）；noindex、不进 sitemap（见 baseof/sitemap）。
-   2.11 新增「密钥分层」分组（/api/layer-status）与「根密钥使用记录」（/api/root-audit）。
+   状态来自 /api/owner-status（需鉴权，只返回是否已设置）；noindex、不进 sitemap（见 baseof/sitemap）。
+   定稿：安全页只有三入口（站长凭证/管理凭证/立即锁定），无密钥分层与审计分组。
    脚本走 ES Module 入口 entry-security.js；localStorage 经 storage.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-security.js" }}
@@ -22,30 +22,27 @@
     {{ partial "icon.html" "chev-r" }}
   </a>
 
-  <!-- 安全分组 -->
+  <!-- 安全分组：三个入口（访客与站长看到完全一样） -->
   <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Security{{ else }}安全{{ end }}</span></h2>
   <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.1s">
-    {{/* 2.10.1 A5：原 sec-unlock-methods（解锁方式）与 sec-lock-row（锁定屏幕）两行重复
-       （同链 $lockUrl），合并为一行；保留 sec-unlock-methods 为入口 id（安全分组首行，
-       初始 hidden，sgx:session 有效后显示，见 apps/security.js） */}}
-    <a class="set-row" id="sec-unlock-methods" href="{{ $lockUrl }}" hidden>
-      <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "lock" }}</span>
+    {{/* 入口 1：站长凭证 → 弹层「需要验证」→ 根凭证 → owner 凭证管理 */}}
+    <div class="set-row" id="sec-owner-cred" role="button" tabindex="0">
+      <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "shield" }}</span>
       <span class="flex-1 min-w-0">
-        <span class="block font-medium">{{ if $isEn }}Unlock methods{{ else }}解锁方式{{ end }}</span>
-        <span class="block text-xs mt-0.5 truncate text-m-primary">{{ if $isEn }}Password, passkeys{{ else }}密码、通行密钥{{ end }}</span>
+        <span class="block font-medium">{{ if $isEn }}Owner credential{{ else }}站长凭证{{ end }}</span>
+        <span class="block text-xs mt-0.5 truncate text-m-primary">{{ if $isEn }}Owner passkeys and password{{ else }}站长通行密钥和密码{{ end }}</span>
       </span>
       {{ partial "icon.html" "chev-r" }}
-    </a>
-    {{/* 2.10.1 A5：应用验证（每应用一行，目前 book） */}}
-    <a class="set-row" id="sec-app-row" href="{{ $lockUrl }}#app">
+    </div>
+    {{/* 入口 2：管理凭证 → 弹层「需要凭证」→ 按配置显示按钮 → lock/APP 管理 */}}
+    <div class="set-row" id="sec-mgmt-cred" role="button" tabindex="0">
       <span class="set-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "key" }}</span>
       <span class="flex-1 min-w-0">
-        <span class="block font-medium">{{ if $isEn }}App verification{{ else }}应用验证{{ end }}</span>
-        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Per-app passkeys{{ else }}每个应用一把通行密钥{{ end }}</span>
+        <span class="block font-medium">{{ if $isEn }}Manage credentials{{ else }}管理凭证{{ end }}</span>
+        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Lock screen, apps, sessions{{ else }}锁屏、应用、会话{{ end }}</span>
       </span>
       {{ partial "icon.html" "chev-r" }}
-    </a>
-    {{/* 2.11：根密钥（恢复用）说明移入下方「密钥分层」分组（两个入口 + 代管状态） */}}
+    </div>
     <div class="set-row" id="sec-locknow" role="button" tabindex="0">
       <span class="set-ic bg-m-warm-container text-m-on-warm-container">{{ partial "icon.html" "clock" }}</span>
       <span class="flex-1 min-w-0">
@@ -53,49 +50,44 @@
         <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Clear this session and return to the lock screen{{ else }}清除当前会话并回到锁屏{{ end }}</span>
       </span>
     </div>
-    <div class="set-row" id="sec-lockall" role="button" tabindex="0">
-      <span class="set-ic bg-m-error-container text-m-on-error-container">{{ partial "icon.html" "shield" }}</span>
-      <span class="flex-1 min-w-0">
-        <span class="block font-medium">{{ if $isEn }}Lock all devices{{ else }}锁定所有设备{{ end }}</span>
-        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Sign out everywhere (blog/book take ~60s){{ else }}所有设备登出（博客/书库约 60 秒生效）{{ end }}</span>
-      </span>
-    </div>
   </section>
 
-  {{/* 2.11：密钥分层。两个入口：
-       「根密钥（恢复）」→ owner passkey 管理页（$lockUrl 验证门接受根密钥）；
-       「owner passkey」→ lock/APP 管理页。
-       每行副标题由 /api/layer-status 填充：「由根密钥代管」(takeover) / 「已接管」(configured)。
-       整组默认 hidden，无 owner 会话时保持隐藏。 */}}
-  <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "key" }}</span><span>{{ if $isEn }}Key layers{{ else }}密钥分层{{ end }}</span></h2>
-  <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.12s" id="sec-layers" hidden>
-    <a class="set-row" id="sec-layer-owner" href="{{ $lockUrl }}">
-      <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "shield" }}</span>
-      <span class="flex-1 min-w-0">
-        <span class="block font-medium">{{ if $isEn }}Root key (recovery){{ else }}根密钥（恢复）{{ end }}</span>
-        <span class="block text-xs mt-0.5 truncate text-m-primary" id="sec-layer-owner-sub">{{ if $isEn }}Loading…{{ else }}正在读取…{{ end }}</span>
-      </span>
-      {{ partial "icon.html" "chev-r" }}
-    </a>
-    <a class="set-row" id="sec-layer-lock" href="{{ $lockUrl }}">
-      <span class="set-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "lock" }}</span>
-      <span class="flex-1 min-w-0">
-        <span class="block font-medium">owner passkey</span>
-        <span class="block text-xs mt-0.5 truncate text-m-primary" id="sec-layer-lock-sub">{{ if $isEn }}Loading…{{ else }}正在读取…{{ end }}</span>
-      </span>
-      {{ partial "icon.html" "chev-r" }}
-    </a>
-  </section>
-  <p class="sec-note mb-7" id="sec-layers-note" hidden>{{ if $isEn }}A layer with no credentials of its own is managed by the root key.{{ else }}某层没有自己的凭据时，由根密钥代管。{{ end }}</p>
-
-  {{/* 2.11：根密钥使用审计（GET /api/root-audit，需 owner 会话 + stepup；否则整组隐藏） */}}
-  <h2 class="set-gh" id="sec-audit-h" hidden><span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "info" }}</span><span>{{ if $isEn }}Root key usage{{ else }}根密钥使用记录{{ end }}</span></h2>
-  <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.14s" id="sec-audit" hidden>
-    <ul class="lockmgr-pklist" id="sec-audit-list"></ul>
-    <div class="p-4" id="sec-audit-empty" hidden>
-      <p class="text-sm text-m-on-surface-variant m-0">{{ if $isEn }}No records yet.{{ else }}暂无记录。{{ end }}</p>
+  {{/* 站长凭证入口弹层：标题「需要验证」，单个「根凭证」按钮 */}}
+  <dialog id="sec-owner-dlg" class="sgx-verify-dlg" aria-labelledby="sec-owner-title">
+    <div class="sgx-verify-card" role="document">
+      <h2 id="sec-owner-title" class="sgx-verify-title">{{ if $isEn }}Verification needed{{ else }}需要验证{{ end }}</h2>
+      <div class="sgx-verify-opts" id="sec-owner-opts">
+        <button type="button" class="sec-sheet-opt" id="sec-owner-root">{{ if $isEn }}Root credential{{ else }}根凭证{{ end }}</button>
+      </div>
+      <div id="sec-owner-keyform" hidden>
+        <div class="sgx-pw-field">
+          <input type="password" id="sec-owner-input" class="sgx-pw-input" autocomplete="off"
+            placeholder="{{ if $isEn }}Root credential{{ else }}根凭证{{ end }}"
+            aria-label="{{ if $isEn }}Root credential{{ else }}根凭证{{ end }}">
+        </div>
+        <p id="sec-owner-err" class="sgx-verify-err" hidden></p>
+        <button type="button" class="sgx-verify-skip" id="sec-owner-go">{{ if $isEn }}Verify{{ else }}验证{{ end }}</button>
+        <button type="button" class="sgx-verify-back" id="sec-owner-back">{{ if $isEn }}Back{{ else }}返回{{ end }}</button>
+      </div>
     </div>
-  </section>
+  </dialog>
+
+  {{/* 管理凭证入口弹层：标题「需要凭证」，按钮由 JS 按配置渲染 */}}
+  <dialog id="sec-mgmt-dlg" class="sgx-verify-dlg" aria-labelledby="sec-mgmt-title">
+    <div class="sgx-verify-card" role="document">
+      <h2 id="sec-mgmt-title" class="sgx-verify-title">{{ if $isEn }}Credential needed{{ else }}需要凭证{{ end }}</h2>
+      <div class="sgx-verify-opts" id="sec-mgmt-opts"></div>
+      <div id="sec-mgmt-keyform" hidden>
+        <div class="sgx-pw-field">
+          <input type="password" id="sec-mgmt-input" class="sgx-pw-input" autocomplete="off"
+            aria-label="{{ if $isEn }}Credential{{ else }}凭证{{ end }}">
+        </div>
+        <p id="sec-mgmt-err" class="sgx-verify-err" hidden></p>
+        <button type="button" class="sgx-verify-skip" id="sec-mgmt-go">{{ if $isEn }}Verify{{ else }}验证{{ end }}</button>
+        <button type="button" class="sgx-verify-back" id="sec-mgmt-back">{{ if $isEn }}Back{{ else }}返回{{ end }}</button>
+      </div>
+    </div>
+  </dialog>
 
   <!-- 隐私分组 -->
   <h2 class="set-gh"><span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "info" }}</span><span>{{ if $isEn }}Privacy{{ else }}隐私{{ end }}</span></h2>
@@ -142,6 +134,11 @@
   "layerConfigured" (dict "zh" "已接管" "en" "Has own credentials")
   "auditOk" (dict "zh" "成功" "en" "Success")
   "auditFail" (dict "zh" "失败" "en" "Failed")
+  "ownerCredTitle" (dict "zh" "需要验证" "en" "Verification needed")
+  "mgmtCredTitle" (dict "zh" "需要凭证" "en" "Credential needed")
+  "rootCredBtn" (dict "zh" "根凭证" "en" "Root credential")
+  "pkVerifyBtn" (dict "zh" "通行密钥验证" "en" "Verify with passkey")
+  "pwVerifyBtn" (dict "zh" "密码验证" "en" "Verify with password")
 }}
 <script id="sgx-i18n-security" type="application/json">{{ $secI18n | jsonify | safeJS }}</script>
 {{ end }}

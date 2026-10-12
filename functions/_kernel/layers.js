@@ -73,3 +73,75 @@ export async function checkRootTakeover(kv, layer) {
   }
   return { allowed: true, reason: 'takeover' };
 }
+
+/**
+ * 锁屏层是否"有效已配置"（三处共用：root-auth / root-session / lock-config）。
+ *
+ * 口径统一：KV 标记 layer:lock 为 '1'，或真实锁屏凭证存在
+ * （class=lock 的通行密钥，或 lock-pw 有 hash），或任何读取失败，
+ * 都算已配置。避免"有凭证无标记"时无会话根凭证仍能通过。
+ *
+ * @param {any} kv
+ * @returns {Promise<boolean>}
+ */
+export async function isLockEffectivelyConfigured(kv) {
+  if (!kv) return true;
+  try {
+    /* 1. KV 标记 */
+    try {
+      const marker = await kv.get('layer:lock');
+      if (marker === '1') return true;
+    } catch (e) {
+      return true;
+    }
+    /* 2. 真实凭证：锁屏密码 */
+    try {
+      const pw = await kv.get('lock-pw', 'json');
+      if (pw && pw.hash) return true;
+    } catch (e) {
+      return true;
+    }
+    /* 3. 真实凭证：class=lock 的通行密钥（无 class 的旧凭据视为 lock） */
+    try {
+      let idx = null;
+      try {
+        idx = await kv.get('owner-passkey-index', 'json');
+      } catch (e) {
+        return true;
+      }
+      if (Array.isArray(idx)) {
+        for (const credId of idx) {
+          let v = null;
+          try {
+            v = await kv.get('owner-passkey:' + credId, 'json');
+          } catch (e) {
+            return true;
+          }
+          if (v && v.credId && (v.class || 'lock') === 'lock') return true;
+        }
+      } else {
+        /* 索引不存在：用 kv.list 补查 */
+        let list = null;
+        try {
+          list = await kv.list({ prefix: 'owner-passkey:' });
+        } catch (e) {
+          return true;
+        }
+        for (const k of (list && list.keys) || []) {
+          let v = null;
+          try {
+            v = await kv.get(k.name, 'json');
+          } catch (e) {
+            return true;
+          }
+          if (v && v.credId && (v.class || 'lock') === 'lock') return true;
+        }
+      }
+    } catch (e) {
+      return true;
+    }
+    return false;
+  } catch (e) {
+    return true;
+  }
+}

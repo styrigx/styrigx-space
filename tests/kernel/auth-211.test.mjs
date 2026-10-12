@@ -171,20 +171,24 @@ test('2.11 重置锁屏：开关关闭时只站长凭证被拒（缺根凭证 �
   assert.equal(res.status, 401);
 });
 
-test('2.11 重置锁屏：owner 未配置且开关关闭 → 403 not-set', async () => {
+test('2.11 重置锁屏：owner 未配置且开关关闭 → status 始终可用，verify 通用 401 auth（不泄露 not-set）', async () => {
   const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
   const kv = makeKv({ 'layer:lock': '1' }); /* owner 未配置 */
   const env = baseEnv(kv);
   const st = postReq('https://test.example.com/api/lockreset', { action: 'status' });
   const stRes = await onRequestPost({ request: st, env });
   const stBody = await stRes.json();
-  assert.equal(stBody.available, false);
+  /* status 不再按站长凭证配置返回 available，始终允许进入第一步 */
+  assert.equal(stBody.available, true);
   assert.ok(!('skippable' in stBody), 'status 不再返回 skippable');
   const req = postReq('https://test.example.com/api/lockreset', {
     action: 'verify', rootKey: 'test-root-key-12345',
   });
   const res = await onRequestPost({ request: req, env });
-  assert.equal(res.status, 403);
+  /* 审查意见：站长凭证未配置不再返回 403 not-set，改为通用 401 auth */
+  assert.equal(res.status, 401);
+  const body = await res.json();
+  assert.equal(body.error, 'auth');
 });
 
 /* ============ 4. 恢复开关（KV 键 + D1 计时/单次） ============ */

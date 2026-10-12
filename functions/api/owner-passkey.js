@@ -31,7 +31,7 @@
  * P0-3 安全审计：
  * - 注册和解锁都要求 UV=1（userVerification: required）
  * - RP_ID/ORIGIN 必须配环境变量 SGX_RP_ID/SGX_ORIGIN，不回落
- * - 用户信息由服务端下发：displayName=Sloan Gray, name=owner, rp.name=Styrigx
+ * - 用户信息由服务端下发：displayName=Sloan Gray, name=ownerkey/lockkey/<app>key, rp.name=Styrigx
  * - 固定 user handle（KV owner-user-id），auth 时校验 userHandle
  * - register 带 excludeCredentials 防重复注册
  * - KV 结构：每把一个 key（owner-passkey:<credId前12位>），字段顺序固定
@@ -52,7 +52,7 @@ import {
 } from '../_kernel/session.js';
 import { getApp } from '../_kernel/app-registry.js';
 import { verifyStepupCookie, STEPUP_COOKIE, STEPUP_BY_ROOT, STEPUP_BY_OWNER, STEPUP_SCOPE_ROOT, STEPUP_SCOPE_KEYS, STEPUP_SCOPE_LOCKRESET } from './stepup.js';
-import { LAYER_OWNER, LAYER_LOCK, layerApp, setLayerConfigured, clearLayerConfigured, isLayerConfigured } from '../_kernel/layers.js';
+import { LAYER_OWNER, LAYER_LOCK, layerApp, setLayerConfigured, clearLayerConfigured, isLayerConfigured, isLockEffectivelyConfigured } from '../_kernel/layers.js';
 import { verifySessionDetailed } from '../_middleware.js';
 
 /* 2.10.0：通行密钥分类；2.11 新增 owner */
@@ -333,7 +333,7 @@ async function checkPasskeyMgmt(request, env, kv, pkClass, op) {
   if (!sess.ok || sess.role !== ROLE_OWNER) {
     return { ok: false, status: 401, body: { ok: false, error: 'session' } };
   }
-  if (sess.by === 'root' && (await isLayerConfigured(kv, LAYER_LOCK))) {
+  if (sess.by === 'root' && (await isLockEffectivelyConfigured(kv))) {
     return { ok: false, status: 403, body: { ok: false, error: 'by-root' } };
   }
   return { ok: true, sv: sv, sess: sess };
@@ -460,12 +460,16 @@ async function handlePost(context) {
     const resp = { ok: true, cid: cid, challenge: challenge, rpId: RP_ID };
     if (type === 'register') {
       /* 下发用户信息：全部写死，用户不填。
-         displayName=Sloan Gray（常量）；lock 的 name=lock；app 的 name=aud；
-         user.id 每类/aud 独立，存 KV 复用。 */
+         displayName=Sloan Gray（常量）；
+         name：站长凭证 → ownerkey；锁屏 → lockkey；app → 应用名小写+key（如 bookkey）。
+         user.id 每类/aud 独立，存 KV 复用（生成方式不变）。 */
       const userHandle = await getUserHandle(kv, pkClass === PK_CLASS_APP ? aud : '');
+      const userName = pkClass === PK_CLASS_OWNER ? 'ownerkey'
+        : pkClass === PK_CLASS_APP ? String(aud || '').toLowerCase() + 'key'
+        : 'lockkey';
       resp.user = {
         id: userHandle,
-        name: pkClass === PK_CLASS_APP ? aud : 'lock',
+        name: userName,
         displayName: OWNER_DISPLAY_NAME,
       };
       resp.rp = {
@@ -742,6 +746,9 @@ async function handlePost(context) {
     const keys = await getPasskeys(kv);
     return Response.json({
       ok: true,
+      /* 前端"添加通行密钥"按钮据此决定 pkClass：
+         scope=root → owner；scope=keys/lockreset → lock */
+      scope: sv0.scope,
       keys: keys
         .filter(function (k) { return visibleClasses.includes(k.class || PK_CLASS_LOCK); })
         .map(function (k) {
@@ -846,21 +853,36 @@ async function handlePost(context) {
         let hasOwnerPw = false;
         try { const r = await kv.get('owner-pw', 'json'); hasOwnerPw = !!(r && r.hash); } catch (e) {}
         if (!hasOwnerKey && !hasOwnerPw) {
-          try { await clearLayerConfigured(kv, LAYER_OWNER); } catch (e) {}
+          /* 清标记失败不吞掉：标记残留会导致 root 无法代管（用户被锁死），直接 503 */
+          try {
+            await clearLayerConfigured(kv, LAYER_OWNER);
+          } catch (e) {
+            return Response.json({ ok: false, error: 'server' }, { status: 503 });
+          }
         }
       } else if (delClass === PK_CLASS_LOCK) {
         const hasLockKey = keys.some(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK; });
         let hasLockPw = false;
         try { const r = await kv.get('lock-pw', 'json'); hasLockPw = !!(r && r.hash); } catch (e) {}
         if (!hasLockKey && !hasLockPw) {
-          try { await clearLayerConfigured(kv, LAYER_LOCK); } catch (e) {}
+          /* 清标记失败不吞掉：同上 */
+          try {
+            await clearLayerConfigured(kv, LAYER_LOCK);
+          } catch (e) {
+            return Response.json({ ok: false, error: 'server' }, { status: 503 });
+          }
         }
       } else if (delClass === PK_CLASS_APP && found.aud) {
         const hasAppKey = keys.some(function (k) {
           return (k.class || PK_CLASS_LOCK) === PK_CLASS_APP && k.aud === found.aud;
         });
         if (!hasAppKey) {
-          try { await clearLayerConfigured(kv, layerApp(found.aud)); } catch (e) {}
+          /* 清标记失败不吞掉：同上 */
+          try {
+            await clearLayerConfigured(kv, layerApp(found.aud));
+          } catch (e) {
+            return Response.json({ ok: false, error: 'server' }, { status: 503 });
+          }
         }
       }
     } catch (e) {}

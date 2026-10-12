@@ -54,14 +54,15 @@ export function initLock() {
     return;
   }
   /* 分层规范 L4：lock.js 只按 L1 给出的状态画锁屏，不自己判断。
-     L1（middleware）把会话状态注入 <html data-sgx-session="valid|locked">，
-     这里只读这个。 */
+     L1（middleware）把会话状态注入 <html data-sgx-session="valid|locked|lockreset">，
+     这里只读这个。lockreset 票据页跳过锁屏覆盖（落地页需可操作）。 */
   const state = document.documentElement.dataset.sgxSession;
   const ok = state === 'valid';
+  const isLockreset = state === 'lockreset';
   try {
     window.dispatchEvent(new CustomEvent('sgx:session', { detail: { ok: ok } }));
   } catch (e) {}
-  if (!ok) {
+  if (!ok && !isLockreset) {
     showLockScreen();
   }
   /* 会话有效：直接显示页面，不弹锁屏 */
@@ -634,16 +635,49 @@ function showLockScreen() {
 
   /**
    * 2.8.0 锁屏重设计：点击头像后弹出的解锁方式选择底部弹层。
-   * One UI 风格：底部弹层（宽屏居中卡片），三个选项，各带图标和一行说明：
-   * 1. 访客进入（Cloudflare Turnstile，第一个）
-   * 2. 通行密钥
-   * 3. 密码
+   * One UI 风格：底部弹层（宽屏居中卡片），各带图标和一行说明。
+   *
+   * 补充定稿七.1：入口按锁屏凭证配置显示（配置以服务端 /api/lock-config 为准，
+   * 读取失败按「已配置」处理，不暴露根凭证入口）。「访客进入」始终在第一位：
+   * - 两者都有 → 访客进入 / 通行密钥 / 密码 / 重置锁屏
+   * - 仅通行密钥 → 访客进入 / 通行密钥 / 重置锁屏
+   * - 仅密码 → 访客进入 / 密码 / 重置锁屏
+   * - 都没设置 → 访客进入 / 根凭证（不显示重置锁屏）
    * 点外部、Esc 或下滑关闭；键盘可操作。
    */
   let methodSheet = null;
+  let methodSheetLoading = false;
   function openMethodSheet() {
-    if (methodSheet) return;
+    if (methodSheet || methodSheetLoading) return;
+    methodSheetLoading = true;
+    fetch('/api/lock-config', { method: 'GET', credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        methodSheetLoading = false;
+        if (methodSheet) return;
+        var cfg = { passkey: true, password: true };
+        if (j && j.ok) {
+          cfg = { passkey: !!j.passkey, password: !!j.password };
+        }
+        buildMethodSheet(cfg);
+      })
+      .catch(function () {
+        methodSheetLoading = false;
+        if (methodSheet) return;
+        /* 读取失败按已配置处理：不暴露根凭证入口 */
+        buildMethodSheet({ passkey: true, password: true });
+      });
+  }
+  /**
+   * 按锁屏凭证配置构建方法弹层。
+   * @param {{passkey:boolean, password:boolean}} cfg
+   */
+  function buildMethodSheet(cfg) {
     const hasPk = !!(window.PublicKeyCredential);
+    const showPk = cfg.passkey && hasPk;
+    const showPw = cfg.password;
+    const showReset = cfg.passkey || cfg.password;
+    const showMk = !cfg.passkey && !cfg.password;
     const sheet = document.createElement('div');
     sheet.id = 'sgx-method-sheet';
     sheet.setAttribute('role', 'dialog');
@@ -662,8 +696,8 @@ function showLockScreen() {
       '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Visitor' : '访客进入') + '</span>' +
       '<span class="sgx-method-desc">' + (en ? 'Verify you are human via Cloudflare' : '通过 Cloudflare 验证你不是机器人') + '</span></span>' +
       '</button>' +
-      /* 2. 通行密钥（如果设备支持） */
-      (hasPk
+      /* 2. 通行密钥（已配置且设备支持） */
+      (showPk
         ? '<button type="button" class="sgx-method-opt" id="sgx-mopt-pk" aria-label="' +
           (en ? 'Use passkey' : '使用通行密钥') + '">' +
           '<span class="sgx-method-ic" aria-hidden="true">' +
@@ -672,30 +706,38 @@ function showLockScreen() {
           '<span class="sgx-method-desc">' + (en ? 'Unlock with fingerprint or device PIN' : '用指纹或设备 PIN 解锁') + '</span></span>' +
           '</button>'
         : '') +
-      /* 3. 密码 */
-      '<button type="button" class="sgx-method-opt" id="sgx-mopt-pw" aria-label="' +
-        (en ? 'Use password' : '使用密码') + '">' +
-      '<span class="sgx-method-ic" aria-hidden="true">' +
-      '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>' +
-      '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Password' : '密码') + '</span>' +
-      '<span class="sgx-method-desc">' + (en ? 'Enter your unlock password' : '输入解锁密码') + '</span></span>' +
-      '</button>' +
-      /* 4. 根凭证：未解锁也能用，调 /api/root-auth */
-      '<button type="button" class="sgx-method-opt" id="sgx-mopt-mk" aria-label="' +
-        (en ? 'Root credential' : '根凭证') + '">' +
-      '<span class="sgx-method-ic" aria-hidden="true">' +
-      '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg></span>' +
-      '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Root credential' : '根凭证') + '</span>' +
-      '<span class="sgx-method-desc">' + (en ? 'Recover with your root credential' : '用根凭证恢复访问') + '</span></span>' +
-      '</button>' +
-      /* 5. 重置锁屏：丢了 lock 凭证时，依次验站长凭证再验根凭证（2.11 定稿） */
-      '<button type="button" class="sgx-method-opt" id="sgx-mopt-reset" aria-label="' +
-        (en ? 'Reset lock screen' : '重置锁屏') + '">' +
-      '<span class="sgx-method-ic" aria-hidden="true">' +
-      '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></span>' +
-      '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Reset lock screen' : '重置锁屏') + '</span>' +
-      '<span class="sgx-method-desc">' + (en ? 'Lost unlock method? Verify owner then root credential' : '丢了锁屏凭证？依次验证站长凭证和根凭证') + '</span></span>' +
-      '</button>' +
+      /* 3. 密码（已配置） */
+      (showPw
+        ? '<button type="button" class="sgx-method-opt" id="sgx-mopt-pw" aria-label="' +
+          (en ? 'Use password' : '使用密码') + '">' +
+          '<span class="sgx-method-ic" aria-hidden="true">' +
+          '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>' +
+          '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Password' : '密码') + '</span>' +
+          '<span class="sgx-method-desc">' + (en ? 'Enter your unlock password' : '输入解锁密码') + '</span></span>' +
+          '</button>'
+        : '') +
+      /* 4. 重置锁屏：验证身份后重设解锁方式（任一锁屏凭证已配置时显示） */
+      (showReset
+        ? '<button type="button" class="sgx-method-opt" id="sgx-mopt-reset" aria-label="' +
+          (en ? 'Reset lock screen' : '重置锁屏') + '">' +
+          '<span class="sgx-method-ic" aria-hidden="true">' +
+          '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></span>' +
+          '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Reset lock screen' : '重置锁屏') + '</span>' +
+          '<span class="sgx-method-desc">' + (en ? 'Lost unlock method? Verify identity, then reset unlock method' : '丢了锁屏凭证？验证身份后重设解锁方式') + '</span></span>' +
+          '</button>'
+        : '') +
+      /* 5. 根凭证：锁屏凭证都没设置时显示。调 /api/root-auth（只签发 stepup，
+         不签发会话），成功后进入站长模式。走真实比对，计入 rootlimit 和审计；
+         任一锁屏凭证已配置时服务端拒绝这条路径。 */
+      (showMk
+        ? '<button type="button" class="sgx-method-opt" id="sgx-mopt-mk" aria-label="' +
+          (en ? 'Root credential' : '根凭证') + '">' +
+          '<span class="sgx-method-ic" aria-hidden="true">' +
+          '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>' +
+          '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Root credential' : '根凭证') + '</span>' +
+          '<span class="sgx-method-desc">' + (en ? 'Unlock owner mode with your root credential' : '使用根凭证解锁站长模式') + '</span></span>' +
+          '</button>'
+        : '') +
       '</div>';
     document.body.appendChild(sheet);
     methodSheet = sheet;
@@ -709,13 +751,13 @@ function showLockScreen() {
     const visitorBtn = sheet.querySelector('#sgx-mopt-visitor');
     const pkBtn = sheet.querySelector('#sgx-mopt-pk');
     const pwBtn = sheet.querySelector('#sgx-mopt-pw');
-    const mkBtn = sheet.querySelector('#sgx-mopt-mk');
     const resetBtn = sheet.querySelector('#sgx-mopt-reset');
+    const mkBtn = sheet.querySelector('#sgx-mopt-mk');
     if (visitorBtn) on(visitorBtn, 'click', function () { close(); openVerify(); });
     if (pkBtn) on(pkBtn, 'click', function () { close(); openPk(); });
     if (pwBtn) on(pwBtn, 'click', function () { close(); openPw(); });
-    if (mkBtn) on(mkBtn, 'click', function () { close(); openMk(); });
     if (resetBtn) on(resetBtn, 'click', function () { close(); openReset(); });
+    if (mkBtn) on(mkBtn, 'click', function () { close(); openMk(); });
     const backdrop = sheet.querySelector('[data-close]');
     if (backdrop) on(backdrop, 'click', close);
     /* Esc 关闭 */
@@ -947,8 +989,10 @@ function showLockScreen() {
   }
 
   /* ---------- 根凭证态（与验证态同一弹层） ----------
-     2.11：锁屏「根凭证」入口。调 /api/root-auth（只签发 stepup，不签发会话），
-     成功后进入安全与隐私页。 */
+     补充定稿七.1：锁屏凭证都没设置时的方法弹层入口。调 /api/root-auth
+     （只签发 stepup(by=root, scope=root)，不签发会话），成功后进入安全与隐私页
+     （站长模式）。走真实比对，计入 rootlimit 和审计；任一锁屏凭证已配置时
+     服务端拒绝这条路径（无会话假入口，写死 401）。 */
   function openMk() {
     dlgState = 'mgmtkey';
     setTitle(en ? 'Root credential' : '根凭证');
@@ -1013,9 +1057,35 @@ function showLockScreen() {
           return;
         }
         if (j.ok) {
-          closeDialog();
-          /* 2.11：根凭证只签发 stepup(by=root, scope=root)，直接进入安全与隐私页 */
-          location.href = en ? '/en/settings/security/' : '/settings/security/';
+          /* 锁屏未配置场景：root-auth 只签发 stepup(by=root, scope=root)，
+             需调 /api/root-session 换站长会话（by=root，1 小时）再跳转，
+             否则无会话会被 middleware 302 回锁屏。 */
+          fetch('/api/root-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+          })
+            .then(function (r2) {
+              return r2.text().then(function (t2) {
+                let j2 = null;
+                try { j2 = JSON.parse(t2); } catch (e) {}
+                return { s: r2.status, j: j2 };
+              });
+            })
+            .then(function (res2) {
+              if (dlgState !== 'mgmtkey') return;
+              if (res2.j && res2.j.ok) {
+                closeDialog();
+                location.href = en ? '/en/settings/security/' : '/settings/security/';
+              } else {
+                showError(en ? 'Server error' : '服务器错误');
+                if (input) input.value = '';
+              }
+            })
+            .catch(function () {
+              if (dlgState !== 'mgmtkey') return;
+              showError(en ? 'Network error' : '网络错误');
+            });
         } else if (res.s === 429) {
           showError(en ? 'Too many attempts' : '尝试次数过多');
         } else if (res.s === 503 || res.s === 500) {
@@ -1031,45 +1101,29 @@ function showLockScreen() {
       });
   }
 
-  /* ---------- 重置锁屏（2.11 定稿） ----------
-     依次验证「站长凭证」再验证「根凭证」，两步都过 → stepup(scope=lockreset)。
-     以服务端 /api/lockreset status 为准：available=false → 不可用；
-     skippable=true → 站长凭证步骤可跳过（恢复开关开启时，UI 不提示开关存在）。 */
+  /* ---------- 重置锁屏 ----------
+     始终先显示第一步输入框，由 verify 结果决定下一步：
+     票据 → 重设解锁方式；needOwner → 第二步；not-set → 通用失败提示（不泄露原因）。
+     第一步的根凭证存闭包变量 resetRootKey，用完即清，不挂 window。 */
+  var resetRootKey = null;
   function openReset() {
     dlgState = 'reset';
+    resetRootKey = null;
     setTitle(en ? 'Reset lock screen' : '重置锁屏');
-    setBody('<div class="sgx-verify-loading">' + (en ? 'Loading…' : '加载中…') + '</div>');
     clearErr();
     if (!openDialog()) return;
-    fetch('/api/lockreset', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'status' }),
-    })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (dlgState !== 'reset') return;
-        if (!j || !j.ok || !j.available) {
-          showError(en ? 'Reset is not available' : '重置锁屏不可用');
-          return;
-        }
-        renderResetStep1();
-      })
-      .catch(function () {
-        if (dlgState !== 'reset') return;
-        showError(en ? 'Network error' : '网络错误');
-      });
+    renderResetStep1();
   }
 
-  /* 重置步骤 1：根凭证（优先）。服务端决定下一步：开关有效则直接完成，
-     否则返回 needOwner 进入站长凭证步骤。前端不提示开关存在。 */
+  /* 重置步骤 1：验证身份。服务端决定下一步：开关有效则直接完成，
+     否则返回 needOwner 进入第二步。 */
   function renderResetStep1() {
     dlgState = 'reset-step1';
     setTitle((en ? 'Reset lock screen' : '重置锁屏') + ' (1/2)');
     setBody(
-      '<div class="sgx-reset-hint">' + (en ? 'Verify root credential' : '验证根凭证') + '</div>' +
+      '<div class="sgx-reset-hint">' + (en ? 'Verify identity' : '验证身份') + '</div>' +
       '<div class="sgx-pw-field"><input type="password" id="sgx-reset-root" class="sgx-pw-input" autocomplete="off" ' +
-        'placeholder="' + (en ? 'Root credential' : '根凭证') + '">' +
+        'placeholder="' + (en ? 'Credential' : '凭证') + '">' +
         '<button type="button" class="sgx-verify-skip" id="sgx-reset-go">' + (en ? 'Verify' : '验证') + '</button></div>'
     );
     clearErr();
@@ -1089,21 +1143,26 @@ function showLockScreen() {
     var input = document.getElementById('sgx-reset-root');
     var rootKey = input ? input.value : '';
     if (!rootKey) {
-      showError(en ? 'Enter root credential' : '请输入根凭证');
+      showError(en ? 'Enter credential' : '请输入凭证');
       return;
     }
-    /* 暂存根凭证，供第二步一起提交（服务端无状态） */
-    window._sgxResetRootKey = rootKey;
+    /* 第一步凭证存闭包变量（不用 window，用完即清），供第二步一起提交 */
+    resetRootKey = rootKey;
+    /* 立即清空输入框，不在 DOM 残留 */
+    if (input) input.value = '';
     postResetVerify({ rootKey: rootKey }, function (res) {
       if (dlgState !== 'reset-step1') return;
       if (res.s === 200 && res.j && res.j.ok && !res.j.needOwner) {
         /* 开关有效：直接完成 */
+        resetRootKey = null;
         resetDone();
       } else if (res.s === 200 && res.j && res.j.ok && res.j.needOwner) {
-        renderResetStep2();
+        renderResetStep2(!!res.j.passkey, !!res.j.password);
       } else if (res.s === 429) {
+        resetRootKey = null;
         showError(en ? 'Too many attempts' : '尝试次数过多');
       } else {
+        resetRootKey = null;
         showError(en ? 'Verification failed' : '验证失败');
         var inp = document.getElementById('sgx-reset-root');
         if (inp) inp.value = '';
@@ -1111,8 +1170,8 @@ function showLockScreen() {
     });
   }
 
-  /* 重置步骤 2：站长凭证（passkey 或密码） */
-  function renderResetStep2() {
+  /* 重置步骤 2：站长凭证（按配置显示按钮） */
+  function renderResetStep2(hasPk, hasPw) {
     dlgState = 'reset-step2';
     setTitle((en ? 'Reset lock screen' : '重置锁屏') + ' (2/2)');
     /* 补充四：根凭证正确但开关无效时，在此步骤下方显示恢复开关提示。
@@ -1120,12 +1179,17 @@ function showLockScreen() {
     var switchHint = en
       ? 'Owner credential unavailable? Add key recovery-switch (any value) in Cloudflare KV, valid for 24 hours, single use only.'
       : '站长凭证也无法使用？在 Cloudflare KV 添加键 recovery-switch（值任意），24 小时内有效且仅限一次。';
+    var pkBtnHtml = hasPk
+      ? '<button type="button" class="sgx-verify-skip" id="sgx-reset-pk">' + (en ? 'Use passkey' : '使用通行密钥') + '</button>'
+      : '';
+    var pwFormHtml = hasPw
+      ? '<div class="sgx-pw-field"><input type="password" id="sgx-reset-pw" class="sgx-pw-input" autocomplete="off" ' +
+        'placeholder="' + (en ? 'Owner password' : '站长密码') + '">' +
+        '<button type="button" class="sgx-verify-skip" id="sgx-reset-pw-go">' + (en ? 'Verify' : '验证') + '</button></div>'
+      : '';
     setBody(
       '<div class="sgx-reset-hint">' + (en ? 'Verify owner credential' : '验证站长凭证') + '</div>' +
-      '<button type="button" class="sgx-verify-skip" id="sgx-reset-pk">' + (en ? 'Use passkey' : '使用通行密钥') + '</button>' +
-      '<div class="sgx-pw-field"><input type="password" id="sgx-reset-pw" class="sgx-pw-input" autocomplete="off" ' +
-        'placeholder="' + (en ? 'Owner password' : '站长密码') + '">' +
-        '<button type="button" class="sgx-verify-skip" id="sgx-reset-pw-go">' + (en ? 'Verify' : '验证') + '</button></div>' +
+      pkBtnHtml + pwFormHtml +
       '<div class="sgx-reset-switch-hint">' + switchHint + '</div>'
     );
     clearErr();
@@ -1156,10 +1220,10 @@ function showLockScreen() {
   }
 
   function resetDone() {
-    window._sgxResetRootKey = null;
-    window._sgxResetOwnerProof = null;
+    resetRootKey = null;
     closeDialog();
-    window.location.href = '/security/lock/';
+    /* 跳转到锁屏凭证管理页（lockreset 票据可开此页，仍进不了主页） */
+    window.location.href = en ? '/en/settings/security/lock/' : '/settings/security/lock/';
   }
 
   /* 重置步骤 2a：站长通行密钥 */
@@ -1238,7 +1302,7 @@ function showLockScreen() {
 
   function submitResetOwner(ownerProof) {
     if (dlgState !== 'reset-step2') return;
-    var rootKey = window._sgxResetRootKey || '';
+    var rootKey = resetRootKey || '';
     if (!rootKey) {
       showError(en ? 'Session expired, restart' : '会话过期，请重新开始');
       return;

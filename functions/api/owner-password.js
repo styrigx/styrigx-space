@@ -403,7 +403,12 @@ async function handlePost(context) {
           let hasOwnerPw = false;
           try { const r = await kv.get('owner-pw', 'json'); hasOwnerPw = !!(r && r.hash); } catch (e) {}
           if (!hasOwnerKey && !hasOwnerPw) {
-            try { await clearLayerConfigured(kv, LAYER_OWNER); } catch (e) {}
+            /* 清标记失败不吞掉：标记残留会导致 root 无法代管（用户被锁死），直接 503 */
+            try {
+              await clearLayerConfigured(kv, LAYER_OWNER);
+            } catch (e) {
+              return Response.json({ ok: false, error: 'server' }, { status: 503 });
+            }
           }
         } catch (e) {}
       }
@@ -414,7 +419,12 @@ async function handlePost(context) {
           let hasLockPw = false;
           try { const r = await kv.get('lock-pw', 'json'); hasLockPw = !!(r && r.hash); } catch (e) {}
           if (!hasLockKey && !hasLockPw) {
-            try { await clearLayerConfigured(kv, LAYER_LOCK); } catch (e) {}
+            /* 清标记失败不吞掉：同上 */
+            try {
+              await clearLayerConfigured(kv, LAYER_LOCK);
+            } catch (e) {
+              return Response.json({ ok: false, error: 'server' }, { status: 503 });
+            }
           }
         } catch (e) {}
       }
