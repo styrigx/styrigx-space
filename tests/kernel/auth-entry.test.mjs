@@ -123,40 +123,47 @@ test('认证入口：安全页三个入口（站长凭证/管理凭证/立即锁
   assert.ok(!html.includes('id="sec-unlock-methods"'), '不应有解锁方式');
   assert.ok(!html.includes('id="sec-app-row"'), '不应有应用验证');
   assert.ok(!html.includes('id="sec-lockall"'), '不应有锁定所有设备');
-  /* 站长凭证弹层：标题「需要验证」，单个根凭证按钮 */
-  assert.ok(html.includes('id="sec-owner-dlg"'), '应有站长凭证弹层');
-  assert.ok(html.includes('需要验证'), '站长凭证弹层标题应为「需要验证」');
-  /* 管理凭证弹层：标题「需要凭证」 */
-  assert.ok(html.includes('id="sec-mgmt-dlg"'), '应有管理凭证弹层');
-  assert.ok(html.includes('需要凭证'), '管理凭证弹层标题应为「需要凭证」');
+  /* 共用验证弹层（One UI 悬浮卡片）：标题/说明/方式列表由 JS 按门填充，
+     只显示已配置的方式；旧的两个独立弹层已删除 */
+  assert.ok(html.includes('id="sec-verify-dlg"'), '应有共用验证弹层');
+  assert.ok(!html.includes('id="sec-owner-dlg"'), '不应有旧站长凭证弹层');
+  assert.ok(!html.includes('id="sec-mgmt-dlg"'), '不应有旧管理凭证弹层');
+  const js = fs.readFileSync(path.join(REPO, 'assets/js/apps/security.js'), 'utf8');
+  /* 标题由 JS 按门设置 */
+  assert.ok(js.includes('进入站长凭证'), '站长凭证弹层标题应为「进入站长凭证」');
+  assert.ok(js.includes('进入管理凭证'), '管理凭证弹层标题应为「进入管理凭证」');
+  assert.ok(js.includes('Enter owner key'), '应有英文标题 Enter owner key');
+  assert.ok(js.includes('Enter credential management'), '应有英文标题 Enter credential management');
+  /* 界面不出现内部名：中文文案里不应有 stepup、票据、rootkey、ownerkey
+    （只允许出现在代码注释、API 路径、变量名里） */
+  const jsNoComments = js.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1');
+  for (const bad of ['票据', 'rootkey', 'ownerkey']) {
+    assert.ok(!jsNoComments.includes(bad), '界面代码不应出现「' + bad + '」');
+  }
+  /* 'stepup' 只允许出现在 API 路径 '/api/stepup' 里 */
+  const stepupUses = (jsNoComments.match(/stepup/g) || []).length;
+  const apiUses = (jsNoComments.match(/\/api\/stepup/g) || []).length;
+  assert.ok(stepupUses === apiUses, 'stepup 只应出现在 /api/stepup 路径里');
 
   /* 页面 DOM 完全一样；补充定稿七.2：管理凭证弹层在访客会话下为假入口
-     （固定单个根凭证按钮，不读配置）——这是唯一允许的访客条件分支 */
-  const js = fs.readFileSync(path.join(REPO, 'assets/js/apps/security.js'), 'utf8');
+     （固定单个根凭证行，不读配置）——这是唯一允许的访客条件分支 */
   assert.ok(!js.includes('sec-owner-lock'), '不应有访客锁图标');
   assert.ok(!js.includes('sec-unlock-methods'), '不应引用已删除的解锁方式');
   assert.ok(!js.includes('sec-app-row'), '不应引用已删除的应用验证');
   assert.ok(js.includes("dataset.sgxRole === 'visitor'"), '管理凭证弹层应有访客假入口分支');
 });
 
-test('认证入口：访客管理凭证弹层固定单个根凭证按钮，不读配置', () => {
+test('认证入口：访客管理凭证弹层固定单个根凭证行，不读配置', () => {
   const js = fs.readFileSync(path.join(REPO, 'assets/js/apps/security.js'), 'utf8');
-  /* 访客分支：直接 renderOpts(false, false)，不 fetch /api/owner-status。
-     文件中有两个 openDlg，管理凭证弹层的是第二个；定位到含 renderOpts 的那处。 */
-  const idx = js.indexOf('renderOpts(false, false)');
+  /* 访客分支：直接 build(false, false)（mgmtButtons(false,false)=['root']），
+     不 fetch /api/owner-status。 */
+  const idx = js.indexOf('build(false, false)');
   assert.ok(idx > 0, '应有访客固定渲染');
-  /* 往前找 if (isVisitor) {，往后找对应的 } else {，只检查访客分支 */
-  const before = js.slice(Math.max(0, idx - 400), idx);
-  const ifIdx = before.lastIndexOf('if (isVisitor)');
-  assert.ok(ifIdx >= 0, '应有访客判断');
-  const visitorBranch = before.slice(ifIdx) + js.slice(idx, idx + 50);
-  assert.ok(visitorBranch.includes('renderOpts(false, false)'), '访客应固定渲染单个根凭证按钮');
-  /* 访客分支内不应出现 owner-status（else 分支的非访客逻辑可以读） */
   const elseIdx = js.indexOf('} else {', idx);
-  const visitorOnly = js.slice(Math.max(0, idx - 400), elseIdx > idx ? elseIdx : idx + 50);
-  /* 访客分支是从 if (isVisitor) 到 } else { */
   const vStart = js.lastIndexOf('if (isVisitor)', idx);
+  assert.ok(vStart >= 0 && elseIdx > idx, '应有访客判断与 else 分支');
   const vBranch = js.slice(vStart, elseIdx);
+  assert.ok(vBranch.includes('build(false, false)'), '访客应固定渲染单个根凭证行');
   assert.ok(!vBranch.includes('owner-status'), '访客分支不应读站长凭证配置');
 });
 

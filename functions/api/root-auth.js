@@ -2,7 +2,7 @@
  * 认证入口修正：SGX_ROOT_KEY = 根凭证。
  *
  * 入口 1（站长凭证）：有效 lock 会话 + 根凭证 → sgx-stepup(by=root, scope=root)
- * （约 10 分钟，带当前 epoch），只能管理站长凭证（owner passkey/密码）。
+ * （约 10 分钟，带当前 epoch），只能管理站长凭证（ownerkey：站长密码/站长通行密钥）。
  *
  * 访客假入口：访客会话（sgx-verified role=visitor）直接写死返回 401 auth：
  * 不读 D1、KV、环境变量里的任何凭证，不做任何比对；不计入 rootlimit；

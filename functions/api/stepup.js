@@ -3,12 +3,12 @@
  *
  * 2.11 定稿：两扇门设计。
  * - 入口 1（root）：有效 lock 会话 + SGX_ROOT_KEY → stepup(by=root, scope=root)，
- *   只能管理站长凭证（owner passkey/密码）
- * - 入口 2（owner）：有效 lock 会话 + 站长凭证（owner passkey/密码）
+ *   只能管理站长凭证（ownerkey）
+ * - 入口 2（owner）：有效 lock 会话 + 站长凭证（ownerkey）
  *   → stepup(by=owner, scope=keys)，管理 lock/APP 组；进门后增删不再二次挑战
  * - 重置锁屏：scope=lockreset（by=owner+root，或恢复开关开启时 by=root），
  *   只能增删 lock 凭证、设置锁屏密码
- * - scope 不匹配一律 403；lock passkey 不再能开 stepup
+ * - scope 不匹配一律 403；lockkey 不再能开验证
  *
  * POST /api/stepup
  * - { action: 'challenge' } → 必须是已登录 owner 会话（visitor 一律拒绝）。
@@ -366,7 +366,7 @@ async function handlePost(context) {
       const headers = new Headers({ 'Content-Type': 'application/json' });
       let cv;
       try {
-        /* 2.11：owner passkey → stepup(by=owner, scope=keys) */
+        /* 2.11：ownerkey 通行密钥 → stepup(by=owner, scope=keys) */
         cv = await signStepupCookie(stepupKey, STEPUP_BY_OWNER, STEPUP_SCOPE_KEYS, epoch);
       } catch (e) {
         console.error('[stepup] sign failed', e && e.message ? e.message : e);

@@ -23,6 +23,13 @@ export function appKeyName(aud) {
   return String(aud || '').toLowerCase() + 'key';
 }
 
+/* 存储层 class 字段值（KV 历史数据，保留不迁移）。
+   读：兼容无 class 的旧数据（按 lockkey 处理）；
+   写：一律写这三个值。其他文件只引用，不自己定义。 */
+export const STORE_CLASS_OWNERKEY = 'owner'; // ownerkey
+export const STORE_CLASS_LOCKKEY = 'lock'; // lockkey
+export const STORE_CLASS_APPKEY = 'app'; // <aud>key
+
 /* 存储层映射（KV class 字段值 → 钥匙名） */
 export const CLASS_TO_KEY = {
   owner: KEY_OWNER,

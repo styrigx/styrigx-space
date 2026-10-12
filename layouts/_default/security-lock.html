@@ -1,6 +1,9 @@
 {{/* 锁定屏幕（2.4.0 安全与隐私）：替代 /owner/。
-   进入前底部弹层「验证身份」（通行密钥 / 根密钥；解锁密码不能进入）。
-   验证后管理解锁密码与通行密钥。noindex、不进 sitemap（见 baseof/sitemap）。
+   两扇门（2.11）：进门只验一次（安全与隐私页入口）；本页直接渲染管理区，
+   进门探针确认验证有效，无效则跳验证流程（安全与隐私页），不弹面板。
+   ?mode=owner → 站长凭证模式（管理 owner-pw + class=owner 通行密钥）；
+   默认 → 锁屏凭证模式（管理 lock-pw + class=lock 通行密钥）。
+   noindex、不进 sitemap（见 baseof/sitemap）。
    脚本走 ES Module 入口 entry-security-lock.js；localStorage 经 storage.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-security-lock.js" }}
@@ -9,41 +12,8 @@
 <div class="set-layout max-w-2xl mx-auto px-4 pb-28">
   {{ partial "subpage-head.html" (dict "title" (cond $isEn "Lock screen" "锁定屏幕") "isEn" $isEn) }}
 
-  <!-- 验证身份（进入前底部弹层） -->
-  <dialog id="lockgate-dlg" class="sgx-verify-dlg" aria-labelledby="lockgate-title">
-    <div class="sgx-verify-card">
-      <div class="sheet-handle" data-gclose></div>
-      <h2 id="lockgate-title" class="sgx-verify-title">{{ if $isEn }}Verify identity{{ else }}验证身份{{ end }}</h2>
-      <p class="sgx-verify-sub">{{ if $isEn }}Choose a way to verify{{ else }}选择一种验证方式{{ end }}</p>
-      <div class="sgx-verify-opts" id="lockgate-opts">
-        <button type="button" class="sec-sheet-opt" id="lockgate-pk" hidden>
-          {{ partial "icon.html" "shield" }}
-          <span class="flex-1">{{ if $isEn }}Use passkey{{ else }}使用通行密钥{{ end }}</span>
-          {{ partial "icon.html" "chev-r" }}
-        </button>
-        <button type="button" class="sec-sheet-opt" id="lockgate-key">
-          {{ partial "icon.html" "lock" }}
-          <span class="flex-1">{{ if $isEn }}Use root key (recovery){{ else }}使用根密钥（恢复）{{ end }}</span>
-          {{ partial "icon.html" "chev-r" }}
-        </button>
-      </div>
-      <div id="lockgate-keyform" hidden>
-        <div class="sgx-pw-field">
-          <input type="password" id="lockgate-input" class="sgx-pw-input" autocomplete="off"
-                 aria-label="{{ if $isEn }}Root key (recovery){{ else }}根密钥（恢复）{{ end }}"
-                 placeholder="{{ if $isEn }}Root key (recovery){{ else }}根密钥（恢复）{{ end }}">
-          <button type="button" class="sgx-pw-eye" id="lockgate-eye" aria-label="{{ if $isEn }}Show{{ else }}显示{{ end }}"></button>
-        </div>
-        <p class="sgx-verify-desc">{{ if $isEn }}The root key (recovery) set when deploying this site, used to manage unlock methods. After changing it, redeploy for the new key to take effect.{{ else }}部署本站时设置的根密钥（恢复），用于管理解锁方式。更换根密钥后，需要重新部署才会生效。{{ end }}</p>
-        <p id="lockgate-err" class="sgx-verify-err" hidden></p>
-        <button type="button" class="sgx-verify-skip" id="lockgate-go">{{ if $isEn }}Continue{{ else }}继续{{ end }}</button>
-        <button type="button" class="sgx-verify-back" id="lockgate-back">{{ if $isEn }}Back{{ else }}返回{{ end }}</button>
-      </div>
-    </div>
-  </dialog>
-
-  <!-- 管理区（验证后显示） -->
-  <div id="lockmgr" hidden>
+  <!-- 管理区（直接渲染；验证无效时 JS 跳验证流程） -->
+  <div id="lockmgr">
     <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "lock" }}</span><span>{{ if $isEn }}Unlock password{{ else }}解锁密码{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.1s">
       <div class="set-row" id="lockmgr-pwrow" role="button" tabindex="0">
@@ -53,11 +23,9 @@
         </span>
         {{ partial "icon.html" "chev-r" }}
       </div>
+      <button type="button" class="lockmgr-delrow" id="lockmgr-pwdel" hidden>{{ if $isEn }}Delete password{{ else }}删除密码{{ end }}</button>
     </section>
     <p class="sec-note mb-7">{{ if $isEn }}Used to unlock from the lock screen. Minimum 8 characters.{{ else }}用于从锁屏解锁，最短 8 位。{{ end }}</p>
-    <div class="mb-7" id="lockmgr-pwdel-wrap" hidden>
-      <button type="button" class="lockmgr-del" id="lockmgr-pwdel">{{ if $isEn }}Delete password{{ else }}删除密码{{ end }}</button>
-    </div>
 
     <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Passkeys{{ else }}通行密钥{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.14s">
@@ -69,7 +37,7 @@
         <span aria-hidden="true">＋</span> {{ if $isEn }}Add passkey{{ else }}添加通行密钥{{ end }}
       </button>
     </section>
-    <p class="sec-note">{{ if $isEn }}Unlock with fingerprint or device PIN. Tap a name to rename it.{{ else }}用指纹或设备 PIN 解锁。点设备名可重命名。{{ end }}</p>
+    <p class="sec-note mb-7">{{ if $isEn }}Unlock with fingerprint, face, or device passcode. Tap a device name to rename it.{{ else }}用指纹、面容或设备密码解锁。点设备名可重命名。{{ end }}</p>
 
     <!-- 2.10.0：应用验证（应用类通行密钥，每应用一行） -->
     <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "key" }}</span><span>{{ if $isEn }}App verification{{ else }}应用验证{{ end }}</span></h2>
@@ -131,13 +99,6 @@
 </dialog>
 
 {{ $lkI18n := dict
-  "gatePkErr" (dict "zh" "通行密钥验证失败" "en" "Passkey verification failed")
-  "gateCancelled" (dict "zh" "已取消" "en" "Cancelled")
-  "gateKeyWrong" (dict "zh" "根密钥（恢复）错误" "en" "Wrong root key (recovery)")
-  "gateLocked" (dict "zh" "尝试次数过多，请稍后再试" "en" "Too many attempts, try again later")
-  "gateNetErr" (dict "zh" "网络错误" "en" "Network error")
-  "gateSrvErr" (dict "zh" "服务器错误" "en" "Server error")
-  "gateNeedKey" (dict "zh" "请输入根密钥（恢复）" "en" "Enter the root key (recovery)")
   "eyeShow" (dict "zh" "显示" "en" "Show")
   "eyeHide" (dict "zh" "隐藏" "en" "Hide")
   "pwSet" (dict "zh" "已设置" "en" "Set")
@@ -148,11 +109,10 @@
   "pwChanged" (dict "zh" "已修改" "en" "Changed")
   "pwDeleted" (dict "zh" "密码已删除" "en" "Password deleted")
   "pwDelAsk" (dict "zh" "再点一次删除密码" "en" "Tap again to delete password")
-  "pwDelWarn" (dict "zh" "删除后只能用根密钥（恢复）进入，再点一次确认" "en" "After deletion only the root key (recovery) can enter. Tap again to confirm")
+  "pwDelWarn" (dict "zh" "删除后只能用根凭证进入，再点一次确认" "en" "After deletion only the root credential can enter. Tap again to confirm")
   "pkRegistered" (dict "zh" "已注册" "en" "Registered")
   "pkDeleted" (dict "zh" "已删除" "en" "Deleted")
   "pkDelConfirm" (dict "zh" "确定删除这把通行密钥？" "en" "Delete this passkey?")
-  "pkDelFailed" (dict "zh" "删除失败，请稍后重试" "en" "Delete failed, please try again later")
   "pkDelManual" (dict "zh" "请到 Samsung Pass 里手动删除这把通行密钥" "en" "Please delete this passkey manually in Samsung Pass")
   "pkRenamed" (dict "zh" "已重命名" "en" "Renamed")
   "pkUnnamed" (dict "zh" "通行密钥" "en" "Passkey")
@@ -164,9 +124,30 @@
   "pkAlready" (dict "zh" "此设备已注册过" "en" "Already registered on this device")
   "pkNoSupport" (dict "zh" "设备不支持" "en" "Not supported on this device")
   "pkFailed" (dict "zh" "注册失败" "en" "Registration failed")
+  "appAddKey" (dict "zh" "＋ 添加{app}的钥匙" "en" "+ Add {app} key")
+  "appDelKey" (dict "zh" "删除{app}的钥匙" "en" "Delete {app} key")
+  "appKeyNone" (dict "zh" "（未添加）" "en" " (not added)")
   "setTitle" (dict "zh" "设置解锁密码" "en" "Set unlock password")
   "changeTitle" (dict "zh" "修改解锁密码" "en" "Change unlock password")
   "sessExp" (dict "zh" "会话过期，请重新验证" "en" "Session expired, verify again")
+  "gateNetErr" (dict "zh" "网络错误" "en" "Network error")
+  "errParams" (dict "zh" "参数错误" "en" "Bad request")
+  "errNotFound" (dict "zh" "找不到这把钥匙" "en" "Key not found")
+  "errLastKey" (dict "zh" "这是最后一把解锁钥匙，请先设置解锁密码" "en" "This is the last unlock key; set an unlock password first")
+  "errRetry" (dict "zh" "请稍后重试" "en" "Please try again later")
+  "errServer" (dict "zh" "服务暂时不可用" "en" "Service temporarily unavailable")
+  "errChallenge" (dict "zh" "验证初始化失败" "en" "Verification setup failed")
+  "errVerify" (dict "zh" "验证失败" "en" "Verification failed")
+  "errUvRequired" (dict "zh" "需要设备解锁确认" "en" "Device unlock required")
+  "errWrongPw" (dict "zh" "密码错误" "en" "Wrong password")
+  "errShort" (dict "zh" "最短 8 位" "en" "Minimum 8 characters")
+  "errExists" (dict "zh" "已经设置过了" "en" "Already set")
+  "errNotSet" (dict "zh" "尚未设置" "en" "Not set")
+  "errLocked" (dict "zh" "尝试次数过多，请稍后再试" "en" "Too many attempts, please try again later")
+  "errConfig" (dict "zh" "服务器配置有误" "en" "Server misconfigured")
+  "errAud" (dict "zh" "应用信息有误" "en" "Bad app parameter")
+  "errCancelled" (dict "zh" "已取消" "en" "Cancelled")
+  "errUnknown" (dict "zh" "未知错误，请稍后重试" "en" "Unknown error, please try again later")
 }}
 <script id="sgx-i18n-lockmgr" type="application/json">{{ $lkI18n | jsonify | safeJS }}</script>
 {{ end }}

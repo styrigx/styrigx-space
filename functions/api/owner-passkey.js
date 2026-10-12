@@ -54,11 +54,21 @@ import { getApp } from '../_kernel/app-registry.js';
 import { verifyStepupCookie, signStepupCookie, STEPUP_COOKIE, STEPUP_COOKIE_ATTRS, STEPUP_MAX_AGE, STEPUP_BY_ROOT, STEPUP_BY_OWNER, STEPUP_SCOPE_ROOT, STEPUP_SCOPE_KEYS, STEPUP_SCOPE_LOCKRESET } from './stepup.js';
 import { LAYER_OWNER, LAYER_LOCK, layerApp, setLayerConfigured, clearLayerConfigured, isLayerConfigured, isLockEffectivelyConfigured } from '../_kernel/layers.js';
 import { verifySessionDetailed } from '../_middleware.js';
+import {
+  STORE_CLASS_OWNERKEY,
+  STORE_CLASS_LOCKKEY,
+  STORE_CLASS_APPKEY,
+  KEY_OWNER,
+  KEY_LOCK,
+  appKeyName,
+} from '../_kernel/key-names.js';
 
-/* 2.10.0：通行密钥分类；2.11 新增 owner */
-export const PK_CLASS_OWNER = 'owner';
-export const PK_CLASS_LOCK = 'lock';
-export const PK_CLASS_APP = 'app';
+/* 2.10.0：通行密钥分类；2.11 新增 owner。
+   钥匙命名规范（key-names.js）：存储层 class 字段值保留 'owner'/'lock'/'app'
+   不迁移；概念名用 ownerkey/lockkey/<aud>key（如 bookkey）。 */
+export const PK_CLASS_OWNER = STORE_CLASS_OWNERKEY;
+export const PK_CLASS_LOCK = STORE_CLASS_LOCKKEY;
+export const PK_CLASS_APP = STORE_CLASS_APPKEY;
 /* 所有者显示名（注册参数写死，用户不填） */
 export const OWNER_DISPLAY_NAME = 'Sloan Gray';
 /* 应用类认证完成后的单次绑定记录前缀（app-token 签发时消费） */
@@ -462,9 +472,9 @@ async function handlePost(context) {
          name：站长凭证 → ownerkey；锁屏 → lockkey；app → 应用名小写+key（如 bookkey）。
          user.id 每类/aud 独立，存 KV 复用（生成方式不变）。 */
       const userHandle = await getUserHandle(kv, pkClass === PK_CLASS_APP ? aud : '');
-      const userName = pkClass === PK_CLASS_OWNER ? 'ownerkey'
-        : pkClass === PK_CLASS_APP ? String(aud || '').toLowerCase() + 'key'
-        : 'lockkey';
+      const userName = pkClass === PK_CLASS_OWNER ? KEY_OWNER
+        : pkClass === PK_CLASS_APP ? appKeyName(aud)
+        : KEY_LOCK;
       resp.user = {
         id: userHandle,
         name: userName,

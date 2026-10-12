@@ -11,8 +11,7 @@
  *   避免 root-auth 走假入口 401 导致锁死。
  */
 import { isLockEffectivelyConfigured } from '../_kernel/layers.js';
-
-const PK_CLASS_LOCK = 'lock';
+import { STORE_CLASS_LOCKKEY as PK_CLASS_LOCK } from '../_kernel/key-names.js';
 
 /**
  * @param {any} context

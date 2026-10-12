@@ -10,7 +10,7 @@
  */
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
-import { api, enterDoor, apiErrorText, b64urlToBuf, bufToB64url } from './app-gate.js';
+import { api, enterDoor, apiErrorText, clearStepupThen, b64urlToBuf, bufToB64url } from './app-gate.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -251,7 +251,7 @@ import { api, enterDoor, apiErrorText, b64urlToBuf, bufToB64url } from './app-ga
         if (e.kind === 'reverify') return; /* 已跳验证流程 */
         if (e.kind === 'cancelled' || (e && e.name === 'NotAllowedError')) toast(t('errCancelled'));
         else if (e.kind === 'already' || (e && e.name === 'InvalidStateError')) toast(t('pkAlready'));
-        else if (e.kind === 'nosupport') toast(t('pkNoSupport'));
+        else if (e.kind === 'nosupport') toast(t('gateNoSupport'));
         else if (e.kind === 'failed') toast(t('pkFailed'));
         else if (e.kind === 'server') toast(apiErrorText(t, e.code));
         else toast(t('pkFailed'));
@@ -313,6 +313,7 @@ import { api, enterDoor, apiErrorText, b64urlToBuf, bufToB64url } from './app-ga
       });
     },
     function () {
+      if (mgr) mgr.hidden = false;
       render(cachedKeys);
       initReturn();
     },

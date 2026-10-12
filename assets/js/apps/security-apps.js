@@ -72,6 +72,8 @@ import { enterDoor } from './app-gate.js';
       });
     },
     function () {
+      const mgr = document.getElementById('appmgr');
+      if (mgr) mgr.hidden = false;
       render(cachedKeys);
     },
     t
