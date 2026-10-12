@@ -341,10 +341,10 @@ test('认证入口：三类通行密钥注册 options 的 name/displayName 正�
   /* displayName 一律 Sloan Gray */
   assert.ok(src.includes("displayName: OWNER_DISPLAY_NAME"), 'displayName 应为常量');
   assert.ok(src.includes("OWNER_DISPLAY_NAME = 'Sloan Gray'"), 'displayName 应为 Sloan Gray');
-  /* name 映射 */
-  assert.ok(src.includes("'ownerkey'"), '站长凭证 name 应为 ownerkey');
-  assert.ok(src.includes("'lockkey'"), '锁屏 name 应为 lockkey');
-  assert.ok(src.includes("+ 'key'"), 'app name 应为小写应用名+key');
+  /* name 映射：用命名常量 */
+  assert.ok(src.includes("KEY_OWNER"), '站长凭证 name 应为 KEY_OWNER (ownerkey)');
+  assert.ok(src.includes("KEY_LOCK"), '锁屏 name 应为 KEY_LOCK (lockkey)');
+  assert.ok(src.includes("appKeyName("), 'app name 应为小写应用名+key');
 });
 
 /* ============ 7. 补充定稿七：锁屏入口按配置 + 访客管理凭证假入口 ============ */
