@@ -166,11 +166,17 @@ export async function getPasskeys(kv) {
 /**
  * 保存单把通行密钥。
  * 2.10.0：记录 class（lock/app），应用类还记录 aud。
+ * 2.11 定稿：owner/lock/app 三种原样保存；其他值拒绝（抛错），绝不默认归 lock。
  * @param {any} kv
  * @param {any} item
  */
-async function savePasskey(kv, item) {
+export async function savePasskey(kv, item) {
   const keyName = 'owner-passkey:' + String(item.credId).slice(0, 12);
+  /* P0-15：class 必须原样保存，owner 绝不能被改成 lock */
+  const cls = item.class;
+  if (cls !== PK_CLASS_OWNER && cls !== PK_CLASS_LOCK && cls !== PK_CLASS_APP) {
+    throw new Error('invalid-class');
+  }
   /* 字段顺序固定：name 第一位，方便后台预览 */
   const ordered = {
     name: item.name || '通行密钥',
@@ -182,7 +188,7 @@ async function savePasskey(kv, item) {
     publicKey: item.publicKey,
     signCount: item.signCount || 0,
     uv: item.uv ? 1 : 0,
-    class: item.class === PK_CLASS_APP ? PK_CLASS_APP : PK_CLASS_LOCK,
+    class: cls,
   };
   if (ordered.class === PK_CLASS_APP && item.aud) {
     ordered.aud = String(item.aud);
@@ -599,7 +605,8 @@ async function handlePost(context) {
     } catch (e) {
       /* 具体原因只写控制台；UV 失败返回专属错误码，其他仍返回普通错误 */
       console.error('[passkey-register]', e && e.message ? e.message : e);
-      const code = (e && e.message === 'uv-required') ? 'uv-required' : 'verify';
+      const code = (e && e.message === 'uv-required') ? 'uv-required'
+        : (e && e.message === 'invalid-class') ? 'class' : 'verify';
       return Response.json({ ok: false, error: code }, { status: 403 });
     }
   }

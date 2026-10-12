@@ -27,10 +27,6 @@ import { toast } from '../lib/toast.js';
     return document.getElementById(id);
   }
 
-  /** 管理 token（验证后签发，只存内存）
-      2.10.0：已废弃，管理操作改用 sgx-stepup cookie（服务端 HttpOnly）。
-      保留变量避免引用错误，但不再使用。 */
-  let token = null;
   let hasPw = false;
   /** 2.10.0：全量通行密钥缓存（含应用类，供应用验证分组渲染） */
   let allKeys = [];
@@ -81,7 +77,14 @@ import { toast } from '../lib/toast.js';
       if (!retried && res.json && res.json.error === 'stepup-required') {
         const serverReason = res.json.reason;
         return doStepup().then(function (r) {
-          if (r.ok) return api(url, body, true);
+          if (r.ok) {
+            return api(url, body, true).then(function (res2) {
+              if (res2.json && res2.json.error === 'stepup-required') {
+                return { status: res2.status, json: { ok: false, error: 'stepup-retry-failed', reason: res2.json.reason || serverReason } };
+              }
+              return res2;
+            });
+          }
           /* 失败：返回带错误码的响应，调用方显示错误并停住 */
           const errCode = r.error || 'stepup-failed';
           console.error('[api] stepup failed:', errCode, 'server reason:', serverReason);
@@ -183,9 +186,8 @@ import { toast } from '../lib/toast.js';
       return '';
     }
   }
-  /** token 失效 → 重新验证 */
+  /** 会话/票据失效 → 重新验证 */
   function needReauth() {
-    token = null;
     toast(t('sessExp'));
     openGate();
   }
@@ -374,13 +376,19 @@ import { toast } from '../lib/toast.js';
   /* ---------- 管理区 ---------- */
   var hasPk = false;
   function refreshStatus() {
-    fetch('/api/owner-status', { method: 'GET', credentials: 'same-origin' })
+    /* 2.11：锁屏凭证状态读 /api/lock-status（lock-pw + class=lock 通行密钥，
+       owner 会话或 keys/lockreset 票据可读）。owner-status 读的是 owner-pw +
+       class=owner 通行密钥（且要求 owner 会话），在锁屏页/重置页会显示错误。
+       openGate 的站长验证按钮继续用 owner-status。 */
+    fetch('/api/lock-status', { method: 'GET', credentials: 'same-origin' })
       .then(function (r) {
         return r.json();
       })
       .then(function (j) {
-        hasPw = !!(j && j.ok && j.password);
-        hasPk = !!(j && j.ok && j.passkey);
+        /* 失败（401/503）时保持当前显示，不误报「未设置」 */
+        if (!(j && j.ok)) return;
+        hasPw = !!j.password;
+        hasPk = !!j.passkey;
         const sub = $('lockmgr-pwsub');
         if (sub) sub.textContent = hasPw ? t('pwSet') : t('pwUnset');
         const title = $('lockpw-title');
@@ -469,7 +477,7 @@ import { toast } from '../lib/toast.js';
         return;
       }
       window.clearTimeout(armTimer);
-      api('/api/owner-password', { action: 'remove' })
+      api('/api/owner-password', { action: 'remove', kind: 'lock' })
         .then(function (r) {
           const j = r.json;
           if (j && j.ok) {
@@ -497,17 +505,11 @@ import { toast } from '../lib/toast.js';
   const lockoutBtn = $('lockmgr-lockout');
   if (lockoutBtn) {
     on(lockoutBtn, 'click', function () {
-      if (!token) {
-        needReauth();
-        return;
-      }
       api('/api/lock-all-devices', {})
         .then(function (r) {
           const j = r.json;
           if (j && j.ok) {
-            /* 服务端已用 Set-Cookie 清掉 cookie；清内存 token，跳回锁屏 */
-            token = null;
-            try { sessionStorage.removeItem('sgx-lockmgr'); } catch (e) {}
+            /* 服务端已用 Set-Cookie 清掉 cookie；跳回锁屏 */
             location.href = '/?lock=1';
           } else if (j && (j.error === 'stepup-required' || r.status === 401)) {
             needReauth();
@@ -532,14 +534,10 @@ import { toast } from '../lib/toast.js';
       showErr('lockpw-err', t('pwMismatch'));
       return;
     }
-    if (!token) {
-      needReauth();
-      return;
-    }
     const action = hasPw ? 'change' : 'set';
     const body = action === 'set'
-      ? { action: 'set', password: va }
-      : { action: 'change', newPassword: va };
+      ? { action: 'set', kind: 'lock', password: va }
+      : { action: 'change', kind: 'lock', newPassword: va };
     api('/api/owner-password', body)
       .then(function (res) {
         const j = res.json;
@@ -624,7 +622,7 @@ import { toast } from '../lib/toast.js';
         showErr('lockpkname-err', t('pkNameEmpty'));
         return;
       }
-      if (!pkNameCredId || !token) {
+      if (!pkNameCredId) {
         closePkNameDlg();
         return;
       }
@@ -913,12 +911,16 @@ import { toast } from '../lib/toast.js';
         if (res.json && res.json.ok) {
           toast(t('pkRegistered') || '已添加');
           refreshPkList();
+        } else if (res.json && res.json.error === 'stepup-required') {
+          needReauth();
         } else {
-          toast(t('gateSrvErr') || '失败');
+          const code = (res.json && res.json.error) || 'failed';
+          toast((t('gateSrvErr') || '失败') + ': ' + code);
         }
       })
-      .catch(function () {
-        toast(t('gateNetErr') || '网络错误');
+      .catch(function (e) {
+        const code = e && e.code ? e.code : null;
+        toast((t('gateNetErr') || '网络错误') + (code ? ': ' + code : ''));
       });
   }
 
@@ -980,7 +982,6 @@ import { toast } from '../lib/toast.js';
           const prefill = genPkPrefillName();
           return api('/api/owner-passkey', {
             action: 'register',
-            token: token,
             cid: r2.cid,
             name: prefill,
             credential: {
