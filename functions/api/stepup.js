@@ -453,7 +453,13 @@ async function handlePost(context) {
   /* ============ status ============ */
   if (action === 'status') {
     const r = await verifyStepupCookie(request, env);
-    return Response.json({ ok: true, valid: r.ok, reason: r.ok ? undefined : r.reason });
+    return Response.json({
+      ok: true,
+      valid: r.ok,
+      reason: r.ok ? undefined : r.reason,
+      scope: r.ok ? r.scope : undefined,
+      by: r.ok ? r.by : undefined,
+    });
   }
 
   /* 退出站长凭证：清除 sgx-stepup cookie（HttpOnly，JS 无法直接清）。

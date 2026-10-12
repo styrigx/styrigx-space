@@ -14,6 +14,7 @@ import { get as storeGet } from '../lib/storage.js';
 import { toast } from '../lib/toast.js';
 import { mgmtButtons } from './mgmt-buttons.js';
 import { exchangeRootSession } from '../lib/root-session.js';
+import { followKeyboard } from '../lib/dialog-kb.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -161,13 +162,19 @@ import { exchangeRootSession } from '../lib/root-session.js';
       }
     }
 
+    let kbCleanup = null;
     function openDlg() {
       showOpts();
       if (typeof dlg.showModal === 'function') {
         try { dlg.showModal(); } catch (e) {}
       }
+      /* P2-13：跟随键盘 */
+      try { if (kbCleanup) kbCleanup(); } catch (e) {}
+      kbCleanup = followKeyboard(dlg);
     }
     function closeDlg() {
+      try { if (kbCleanup) kbCleanup(); } catch (e) {}
+      kbCleanup = null;
       try { dlg.close(); } catch (e) {}
     }
 

@@ -8,6 +8,7 @@
  */
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
+import { followKeyboard } from '../lib/dialog-kb.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -39,6 +40,31 @@ import { toast } from '../lib/toast.js';
     if (m === 'owner') credMode = 'owner';
   } catch (e) {}
   const isOwnerMode = function () { return credMode === 'owner'; };
+
+  /**
+   * P2-13：dialog 打开时跟随键盘，关闭时清理。
+   * @param {HTMLDialogElement} dlg
+   */
+  function kbFollow(dlg) {
+    if (!dlg) return;
+    try {
+      const old = kbCleanups.get(dlg);
+      if (old) old();
+    } catch (e) {}
+    try {
+      kbCleanups.set(dlg, followKeyboard(dlg));
+    } catch (e) {}
+  }
+  function kbUnfollow(dlg) {
+    if (!dlg) return;
+    try {
+      const fn = kbCleanups.get(dlg);
+      if (fn) fn();
+      kbCleanups.delete(dlg);
+    } catch (e) {}
+  }
+  /** dialog -> keyboard cleanup */
+  const kbCleanups = new Map();
   /** 2.10.0：全量通行密钥缓存（含应用类，供应用验证分组渲染） */
   let allKeys = [];
   /** 当前管理区的通行密钥类别：'owner'（scope=root）或 'lock'（scope=keys/lockreset），
@@ -216,6 +242,32 @@ import { toast } from '../lib/toast.js';
   const gateEye = $('lockgate-eye');
 
   function openGate() {
+    /* P1-8：如果已有有效 stepup（刚在安全页验证过），直接进管理区，不再重复要根凭证。
+       站长模式需要 scope=root，锁屏模式需要 scope=keys（或 lockreset）。 */
+    const needScope = isOwnerMode() ? 'root' : null;
+    fetch('/api/stepup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'status' }),
+      credentials: 'same-origin',
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j && j.ok && j.valid) {
+          if (!needScope || j.scope === needScope) {
+            /* 有有效 stepup → 直接进 */
+            enterMgr();
+            return;
+          }
+        }
+        showGate();
+      })
+      .catch(function () {
+        showGate();
+      });
+  }
+
+  function showGate() {
     $('lockmgr').hidden = true;
     gateOpts.hidden = false;
     gateKeyForm.hidden = true;
@@ -226,6 +278,8 @@ import { toast } from '../lib/toast.js';
       if (gatePkBtn) gatePkBtn.hidden = true;
       try {
         gateDlg.showModal();
+      kbFollow(gateDlg);
+        kbFollow(gateDlg);
       } catch (e) {}
       return;
     }
@@ -261,6 +315,7 @@ import { toast } from '../lib/toast.js';
       });
     try {
       gateDlg.showModal();
+      kbFollow(gateDlg);
     } catch (e) {}
   }
   function closeGate() {
@@ -438,6 +493,7 @@ import { toast } from '../lib/toast.js';
     if (title) title.textContent = hasPw ? t('changeTitle') : t('setTitle');
     try {
       pwDlg.showModal();
+      kbFollow(pwDlg);
     } catch (e) {}
     if (a) {
       try {
@@ -446,6 +502,7 @@ import { toast } from '../lib/toast.js';
     }
   }
   function closePwDlg() {
+    kbUnfollow(pwDlg);
     try {
       if (pwDlg.open) pwDlg.close();
     } catch (e) {}
@@ -619,11 +676,12 @@ import { toast } from '../lib/toast.js';
       }
     } catch (e) {}
     hideErr('lockpkname-err');
-    try { dlg.showModal(); } catch (e) {}
+    try { dlg.showModal(); kbFollow(dlg); } catch (e) {}
     try { input.focus({ preventScroll: true }); } catch (e2) {}
   }
   function closePkNameDlg() {
     const dlg = $('lockpkname-dlg');
+    kbUnfollow(dlg);
     try { if (dlg && dlg.open) dlg.close(); } catch (e) {}
     pkNameCredId = null;
     pkNamePrefill = '';
