@@ -263,7 +263,9 @@ const DOOR_THEMES = [
   { name: 'light', setup: null },
   { name: 'dark', setup: 'dark' },
 ];
-const DOOR_STATES = ['default', 'expanded', 'error', 'keyboard'];
+/* keyboard 态在 headless 下无法触发真实键盘（与 expanded 基线完全相同），已删除；
+   键盘避让逻辑由 followKeyboard 实现，真机行为不变。 */
+const DOOR_STATES = ['default', 'expanded', 'error'];
 
 for (const lang of DOOR_LANGS) {
   for (const theme of DOOR_THEMES) {
@@ -323,10 +325,6 @@ for (const lang of DOOR_LANGS) {
               await field.fill('wrong-value');
               await pg.locator('.sgx-door-actions .primary').click();
               await expect(pg.locator('.sgx-door-err:not([hidden])')).toBeVisible({ timeout: 8000 });
-            } else if (state === 'keyboard') {
-              /* 键盘弹出态：输入框聚焦（headless 无真实键盘，取聚焦态） */
-              await field.focus();
-              await expect(field).toBeFocused({ timeout: 5000 });
             }
           }
           /* 无横向溢出断言 */
@@ -335,7 +333,7 @@ for (const lang of DOOR_LANGS) {
             return de.scrollWidth - de.clientWidth;
           });
           if (overflow > 1) throw new Error(`横向溢出 ${overflow}px on ${name}`);
-          await expect(pg).toHaveScreenshot(`door-${door}-${state}-${lang.name}-${theme.name}.png`, { animations: 'disabled' });
+          await expect(pg).toHaveScreenshot(`door-${door}-${state}-${lang.name}-${theme.name}.png`, { animations: 'disabled', caret: 'hide' });
         });
       }
     }

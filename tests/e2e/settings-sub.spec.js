@@ -12,7 +12,7 @@ const { blockExternalRequests, expect } = require('./helpers');
 
 const CATS = [
   { id: 'display', zh: '显示', en: 'Display' },
-  { id: 'theme', zh: '壁纸和主题', en: 'Wallpaper & theme' },
+  { id: 'theme', zh: '风格', en: 'Style' },
   { id: 'security', zh: '安全与隐私', en: 'Security and privacy' },
   { id: 'manage', zh: '常规管理', en: 'General management' },
   { id: 'apps', zh: '应用', en: 'Apps' },

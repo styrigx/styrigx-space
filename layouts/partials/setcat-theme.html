@@ -3,7 +3,8 @@
 <div class="set-group scroll-mt-24" id="sg-theme">
 <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.14s">
       <div class="p-5">
-        <p class="text-sm font-medium mb-3">{{ if $isEn }}Theme color{{ else }}主色{{ end }}</p>
+        <p class="text-sm font-medium">{{ if $isEn }}Color palette{{ else }}调色板{{ end }}</p>
+        <p class="text-xs text-m-on-surface-variant mt-1 mb-3">{{ if $isEn }}Change the color of buttons, titles, and icons.{{ else }}更改按钮、标题和图标的颜色。{{ end }}</p>
         <div class="flex gap-4 flex-wrap" id="palette-dots">
           {{ range $palettes }}
           <div class="flex flex-col items-center gap-1.5">

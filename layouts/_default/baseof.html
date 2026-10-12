@@ -250,8 +250,8 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Dark mode" "深色模式") "d" $cSet "u" (print $setUrl "#display") "c" $cSet) }}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Font size" "字体大小") "d" $cSet "u" (print $setUrl "#display") "c" $cSet) }}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Layout" "布局") "d" "Mobile / DeX / PC" "u" (print $setUrl "#display") "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Wallpaper & theme" "壁纸和主题") "d" $cSet "u" (print $setUrl "#theme") "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Theme color" "主色") "d" $cSet "u" (print $setUrl "#theme") "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Style" "风格") "d" (cond $isEn "theme color wallpaper" "主题 主色 壁纸 颜色") "u" (print $setUrl "#theme") "c" $cSet) }}
+{{ $idx = $idx | append (dict "t" (cond $isEn "Color palette" "调色板") "d" (cond $isEn "Style theme color wallpaper" "风格 主题 主色 壁纸 颜色") "u" (print $setUrl "#theme") "c" $cSet) }}
 {{ $idx = $idx | append (dict "t" (cond $isEn "General management" "常规管理") "d" $cSet "u" (print $setUrl "#manage") "c" $cSet) }}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Language" "语言") "d" $cSet "u" (print $setUrl "#manage") "c" $cSet) }}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Date & time" "日期和时间") "d" $cSet "u" (print $setUrl "#manage") "c" $cSet) }}
