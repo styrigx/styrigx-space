@@ -291,7 +291,7 @@ test('注册参数：challenge register 下发写死的用户信息', async () =
   let j = await r.json();
   assert.ok(j.ok);
   assert.equal(j.user.displayName, 'Sloan Gray');
-  assert.equal(j.user.name, 'lock');
+  assert.equal(j.user.name, 'lockkey');
   assert.ok(j.user.id, '应有 user.id');
   const lockUserId = j.user.id;
   // app 注册
@@ -302,7 +302,7 @@ test('注册参数：challenge register 下发写死的用户信息', async () =
   j = await r.json();
   assert.ok(j.ok);
   assert.equal(j.user.displayName, 'Sloan Gray');
-  assert.equal(j.user.name, 'book');
+  assert.equal(j.user.name, 'bookkey');
   assert.ok(j.user.id && j.user.id !== lockUserId, 'app 的 user.id 应与 lock 不同');
   // 同一 aud 再次 challenge → user.id 复用
   r = await onRequestPost({

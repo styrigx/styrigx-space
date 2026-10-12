@@ -334,14 +334,15 @@ test('9d：stepup 缺 Origin → 403', async () => {
 
 /* ============ 1：管理密钥入口静态检查 ============ */
 
-test('1a：锁屏方法弹层含根凭证入口（2.11 定稿：「根凭证」）', () => {
+test('1a：锁屏方法弹层不含根凭证入口（认证入口修正：只保留四项）', () => {
   const src = fs.readFileSync(path.join(REPO, 'assets/js/shell/lock.js'), 'utf8');
-  assert.ok(src.includes('sgx-mopt-mk'), '锁屏应有根凭证选项按钮');
-  assert.ok(src.includes('根凭证'), '中文文案应为「根凭证」');
-  assert.ok(!src.includes('根密钥（恢复）'), '旧文案「根密钥（恢复）」不应残留');
-  assert.ok(src.includes('Root credential'), '英文文案应为 "Root credential"');
-  assert.ok(src.includes('/api/root-auth'), '应调用 /api/root-auth');
-  assert.ok(src.includes('function openMk') || src.includes('openMk()'), '应有 openMk 处理函数');
+  assert.ok(!src.includes('sgx-mopt-mk'), '锁屏不应有根凭证选项按钮');
+  assert.ok(!src.includes('function openMk'), '不应有 openMk 处理函数');
+  /* 四个选项必须存在 */
+  assert.ok(src.includes('sgx-mopt-visitor'), '应有访客进入');
+  assert.ok(src.includes('sgx-mopt-pk'), '应有通行密钥');
+  assert.ok(src.includes('sgx-mopt-pw'), '应有密码');
+  assert.ok(src.includes('sgx-mopt-reset'), '应有重置锁屏');
 });
 
 test('1b：升级弹层含根密钥入口', () => {

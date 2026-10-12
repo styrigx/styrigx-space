@@ -53,24 +53,23 @@ test('sgx-account-card.html：只保留名字和头像（解锁入口已移走�
   assert.ok(cardHtml.includes('sgx-account-card'), '账户卡主体保留');
 });
 
-test('security.html：解锁方式为安全分组第一行', () => {
+test('security.html：安全分组三个入口（站长凭证/管理凭证/立即锁定）', () => {
   const secHtml = readFileSync('layouts/_default/security.html', 'utf8');
-  assert.ok(secHtml.includes('id="sec-unlock-methods"'), '应有解锁方式入口');
-  assert.ok(secHtml.includes('解锁方式'), '中文标题');
-  assert.ok(secHtml.includes('Unlock methods'), '英文标题');
-  assert.ok(secHtml.includes('密码、通行密钥'), '中文副标题');
-  /* 第一行：在 sec-lock-row 之前 */
-  assert.ok(
-    secHtml.indexOf('sec-unlock-methods') < secHtml.indexOf('sec-lock-row'),
-    '解锁方式应在锁定屏幕之前'
-  );
+  assert.ok(secHtml.includes('id="sec-owner-cred"'), '应有站长凭证入口');
+  assert.ok(secHtml.includes('id="sec-mgmt-cred"'), '应有管理凭证入口');
+  assert.ok(secHtml.includes('id="sec-locknow"'), '应有立即锁定入口');
+  assert.ok(secHtml.includes('站长凭证'), '中文标题');
+  assert.ok(secHtml.includes('管理凭证'), '中文标题');
+  assert.ok(!secHtml.includes('id="sec-unlock-methods"'), '不应有解锁方式');
+  assert.ok(!secHtml.includes('id="sec-app-row"'), '不应有应用验证');
 });
 
-test('security.js：解锁入口显示只看 sgx:session（不用 storage）', () => {
+test('security.js：三个入口，无角色条件渲染', () => {
   const js = readFileSync('assets/js/apps/security.js', 'utf8');
-  assert.ok(js.includes("getElementById('sec-unlock-methods')"), '应操作解锁入口');
-  assert.ok(js.includes('sgx:session'), '应监听 sgx:session 事件');
-  assert.ok(!js.includes('sgx-lock-shown'), '不应出现 sgx-lock-shown');
+  assert.ok(js.includes("getElementById('sec-owner-cred')"), '应操作站长凭证入口');
+  assert.ok(js.includes("getElementById('sec-mgmt-cred')"), '应操作管理凭证入口');
+  assert.ok(js.includes("getElementById('sec-locknow')"), '应操作立即锁定入口');
+  assert.ok(!js.includes("role === 'visitor'"), '不应有访客角色条件分支');
 });
 
 test('/api/lock：POST 下发 Set-Cookie 清除头（2.10.2：含 stepup 和 app）', async () => {

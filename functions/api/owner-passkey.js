@@ -31,7 +31,7 @@
  * P0-3 安全审计：
  * - 注册和解锁都要求 UV=1（userVerification: required）
  * - RP_ID/ORIGIN 必须配环境变量 SGX_RP_ID/SGX_ORIGIN，不回落
- * - 用户信息由服务端下发：displayName=Sloan Gray, name=owner, rp.name=Styrigx
+ * - 用户信息由服务端下发：displayName=Sloan Gray, name=ownerkey/lockkey/<app>key, rp.name=Styrigx
  * - 固定 user handle（KV owner-user-id），auth 时校验 userHandle
  * - register 带 excludeCredentials 防重复注册
  * - KV 结构：每把一个 key（owner-passkey:<credId前12位>），字段顺序固定
@@ -460,12 +460,16 @@ async function handlePost(context) {
     const resp = { ok: true, cid: cid, challenge: challenge, rpId: RP_ID };
     if (type === 'register') {
       /* 下发用户信息：全部写死，用户不填。
-         displayName=Sloan Gray（常量）；lock 的 name=lock；app 的 name=aud；
-         user.id 每类/aud 独立，存 KV 复用。 */
+         displayName=Sloan Gray（常量）；
+         name：站长凭证 → ownerkey；锁屏 → lockkey；app → 应用名小写+key（如 bookkey）。
+         user.id 每类/aud 独立，存 KV 复用（生成方式不变）。 */
       const userHandle = await getUserHandle(kv, pkClass === PK_CLASS_APP ? aud : '');
+      const userName = pkClass === PK_CLASS_OWNER ? 'ownerkey'
+        : pkClass === PK_CLASS_APP ? String(aud || '').toLowerCase() + 'key'
+        : 'lockkey';
       resp.user = {
         id: userHandle,
-        name: pkClass === PK_CLASS_APP ? aud : 'lock',
+        name: userName,
         displayName: OWNER_DISPLAY_NAME,
       };
       resp.rp = {

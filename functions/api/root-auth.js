@@ -1,12 +1,13 @@
 /**
- * 2.11 定稿：SGX_ROOT_KEY = 根凭证。
+ * 认证入口修正：SGX_ROOT_KEY = 根凭证。
  *
- * 入口 1：有效 lock 会话 + 根凭证 → sgx-stepup(by=root, scope=root)（约 10 分钟，
- * 带当前 epoch），只能管理站长凭证（owner passkey/密码）。
+ * 入口 1（站长凭证）：有效 lock 会话 + 根凭证 → sgx-stepup(by=root, scope=root)
+ * （约 10 分钟，带当前 epoch），只能管理站长凭证（owner passkey/密码）。
  *
- * 访客假入口：无有效 lock 会话时（访客/未登录），服务端写死返回与真失败完全
- * 相同的 401 auth：不比对 SGX_ROOT_KEY；状态码、响应体、响应头、延迟一致
- * （统一固定最小延迟）。缺 Origin 仍先 403。
+ * 访客假入口：访客会话（sgx-verified role=visitor）直接写死返回 401 auth：
+ * 不读 D1、KV、环境变量里的任何凭证，不做任何比对；不计入 rootlimit；
+ * 不写审计。状态码、响应体、响应头、固定最小延迟与真失败一致。
+ * 缺 Origin 仍先 403。
  *
  * 引导：lock 层未配置时（KV 读失败按已配置处理），允许无会话直接校验根凭证。
  *
@@ -14,19 +15,20 @@
  *
  * POST /api/root-auth { key }
  * - 恒定时间比较 env.SGX_ROOT_KEY（防长度泄露）
- * - 限速：所有 root 路径共用一套（_kernel/rootlimit.js）
+ * - 限速：所有 root 路径共用一套（_kernel/rootlimit.js），仅真路径计数
+ *   （单 IP 连错 5 次锁 15 分钟；全局每小时失败 20 次暂停 1 小时）
  * - 通过：签发 sgx-stepup(by=root, scope=root) cookie
  * - 失败：401 auth（并计数）；超限：429
  * - 缺 SGX_ROOT_KEY / SGX_STEPUP_PRIVATE → 拒绝（500/503）
  *
- * 审计：每次使用（成功/失败/假入口）都在 KV 留一条记录（_kernel/rootlog.js），
- * 假入口标记 decoy:true。写入失败则不签发（fail closed）。
+ * 审计：真路径每次使用（成功/失败）在 KV 留一条记录（_kernel/rootlog.js）；
+ * 假入口不写审计。写入失败则不签发（fail closed）。
  *
  * 只接受 POST；校验 Origin（缺失/解析失败 403）。
  * 旧 /api/owner-auth 不再可用。
  */
 import { timingSafeEqual, ed25519Verify } from '../_kernel/crypto.js';
-import { getSessionEpoch, ROLE_OWNER } from '../_kernel/session.js';
+import { getSessionEpoch, ROLE_OWNER, ROLE_VISITOR } from '../_kernel/session.js';
 import { signStepupCookie, STEPUP_COOKIE, STEPUP_COOKIE_ATTRS, STEPUP_MAX_AGE, STEPUP_BY_ROOT, STEPUP_SCOPE_ROOT } from './stepup.js';
 import { checkRootLimit, recordRootFail, clearRootFail, getClientIp } from '../_kernel/rootlimit.js';
 import { writeRootAudit } from '../_kernel/rootlog.js';
@@ -47,6 +49,35 @@ async function padTo(t0) {
 /** 与真失败逐字节相同的 401 响应 */
 function decoyAuth() {
   return Response.json({ ok: false, error: 'auth' }, { status: 401 });
+}
+
+/**
+ * 轻量访客会话检查（不读 KV）：解析 cookie、验 Ed25519 签名、检查 exp 与 role。
+ * 仅用于识别访客假入口；只读 SGX_LOCK_PUBLIC（公钥，非凭证）。
+ * @param {any} request
+ * @param {any} env
+ * @returns {Promise<boolean>} 是否看起来像有效的访客会话
+ */
+async function lightVisitorSession(request, env) {
+  try {
+    const h = request.headers.get('Cookie') || '';
+    const pubKey = (env && env.SGX_LOCK_PUBLIC) || '';
+    if (!pubKey) return false;
+    for (const part of h.split(';')) {
+      const [k, ...v] = part.trim().split('=');
+      if (k !== 'sgx-verified') continue;
+      const val = v.join('=');
+      const parts = val.split('.');
+      if (parts.length !== 5) continue;
+      const [by, role, epochStr, expStr, sig] = parts;
+      if (role !== ROLE_VISITOR) continue;
+      const exp = parseInt(expStr, 10);
+      if (!Number.isFinite(exp) || exp <= Date.now()) continue;
+      const payload = by + '.' + role + '.' + epochStr + '.' + expStr;
+      if (await ed25519Verify(pubKey, payload, sig)) return true;
+    }
+  } catch (e) {}
+  return false;
 }
 
 /**
@@ -113,6 +144,15 @@ async function handlePost(context) {
   const kv = env && env.OWNER_KV;
   const ip = getClientIp(request);
 
+  /* ===== 访客假入口（优先）：访客会话直接写死 401 =====
+     不读 D1、KV、环境变量里的任何凭证，不做任何比对；
+     不计入 rootlimit；不写审计。
+     状态码、响应体、固定最小延迟与真失败一致。 */
+  if (await lightVisitorSession(request, env)) {
+    await padTo(t0);
+    return decoyAuth();
+  }
+
   /* 缺关键配置 → 直接拒绝（fail closed） */
   const rootKey = (env && env.SGX_ROOT_KEY) || '';
   const stepupKey = (env && env.SGX_STEPUP_PRIVATE) || '';
@@ -124,7 +164,7 @@ async function handlePost(context) {
   /* 真路径还是假入口：
      - 有疑似有效 owner 会话 → 真路径
      - 无会话但 lock 层未配置 → 真路径（引导）
-     - 无会话且 lock 已配置（或 KV 读失败按已配置）→ 假入口 */
+     - 无会话且 lock 已配置（或 KV 读失败按已配置）→ 假入口（不计限速、不写审计） */
   const looksOwner = await lightOwnerSession(request, env);
   let lockCfg = true;
   try {
@@ -135,7 +175,8 @@ async function handlePost(context) {
   const realPath = looksOwner || !lockCfg;
 
   if (!realPath) {
-    /* ===== 访客假入口：写死 401，与真失败逐字节相同 ===== */
+    /* ===== 无会话假入口：写死 401，与真失败逐字节相同 =====
+       保留限速检查（KV 出错时 fail closed）；不写审计（防刷接口触发全局暂停）。 */
     try {
       const lim = await checkRootLimit(kv, ip);
       if (lim.limited) {
@@ -150,7 +191,6 @@ async function handlePost(context) {
       return Response.json({ ok: false, error: 'server' }, { status: 503 });
     }
     await padTo(t0);
-    await writeRootAudit(kv, ip, false, { decoy: true, path: 'root-auth' });
     return decoyAuth();
   }
 
