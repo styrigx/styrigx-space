@@ -318,8 +318,9 @@ test('CI 静态检查：verifyStepupCookie 只在安全设置接口（owner-pass
   const { readdirSync, readFileSync } = await import('node:fs');
   const { join } = await import('node:path');
   const apiDir = new URL('../../functions/api/', import.meta.url);
-  /* 2.11 定稿：lockreset、lock-all-devices 也需要验 stepup */
-  const allowed = new Set(['owner-passkey.js', 'owner-password.js', 'stepup.js', 'root-session.js', 'root-audit.js', 'layer-status.js', 'lockreset.js', 'lock-all-devices.js']);
+  /* 2.11 定稿：lockreset、lock-all-devices 也需要验 stepup；
+     2.11 小修：lock-status（只读锁屏凭证状态）接受 keys/lockreset 票据 */
+  const allowed = new Set(['owner-passkey.js', 'owner-password.js', 'stepup.js', 'root-session.js', 'root-audit.js', 'layer-status.js', 'lockreset.js', 'lock-all-devices.js', 'lock-status.js']);
   const bad = [];
   for (const f of readdirSync(apiDir)) {
     if (!f.endsWith('.js')) continue;

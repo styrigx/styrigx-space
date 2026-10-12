@@ -658,3 +658,187 @@ test('行为：injectSessionState locked 状态保持不变', async () => {
   const text = await out.text();
   assert.ok(text.includes('data-sgx-session="locked"'), '应注入 locked 状态');
 });
+
+/* ============ /api/lock-status：只读锁屏凭证状态 ============
+   背景：security-lock.js refreshStatus 曾用 /api/owner-status 显示锁屏密码
+   「已设置/未设置」和删除按钮，但 owner-status 读的是 owner-pw +
+   class=owner 通行密钥（且要求 owner 会话），导致：
+   - 只设了站长密码 → 锁屏页误显示「已设置」
+   - 只设了锁屏密码 → 误显示「未设置」且没有删除按钮
+   - lockreset 页无会话 → owner-status 返回 401
+   本接口读 lock-pw + class=lock，owner 会话或 keys/lockreset 票据可读。 */
+
+function getReq(url, headers) {
+  return new Request(url, { method: 'GET', headers: headers || {} });
+}
+
+test('行为：/api/lock-status 无鉴权 → 401', async () => {
+  const { onRequestGet } = await import(REPO + 'functions/api/lock-status.js');
+  const kv = makeKv({});
+  const env = baseEnv(kv);
+  const res = await onRequestGet({ request: getReq('https://test.example.com/api/lock-status'), env });
+  assert.equal(res.status, 401, '无会话无票据应 401');
+});
+
+test('行为：/api/lock-status 访客会话 → 401', async () => {
+  const { onRequestGet } = await import(REPO + 'functions/api/lock-status.js');
+  const { signSessionCookie } = await import(REPO + 'functions/_kernel/session.js');
+  const kv = makeKv({});
+  const env = baseEnv(kv);
+  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'visitor', 'owner');
+  const res = await onRequestGet({
+    request: getReq('https://test.example.com/api/lock-status', { 'Cookie': 'sgx-verified=' + sessCv }),
+    env,
+  });
+  assert.equal(res.status, 401, '访客会话应 401');
+});
+
+test('行为：只有站长密码时 /api/lock-status 返回 password:false（锁屏页显示「未设置」正确）', async () => {
+  const { onRequestGet } = await import(REPO + 'functions/api/lock-status.js');
+  const { signSessionCookie } = await import(REPO + 'functions/_kernel/session.js');
+  /* 只有 owner-pw，无 lock-pw，无通行密钥 */
+  const kv = makeKv({
+    'owner-pw': JSON.stringify({ hash: 'owner-hash' }),
+  });
+  const env = baseEnv(kv);
+  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
+  const res = await onRequestGet({
+    request: getReq('https://test.example.com/api/lock-status', { 'Cookie': 'sgx-verified=' + sessCv }),
+    env,
+  });
+  assert.equal(res.status, 200);
+  const body = JSON.parse(await res.text());
+  assert.equal(body.ok, true);
+  assert.equal(body.password, false, '只有站长密码时锁屏密码应为 false（旧接口误报 true）');
+  assert.equal(body.passkey, false);
+});
+
+test('行为：只有锁屏密码时 /api/lock-status 返回 password:true（锁屏页显示「已设置」正确）', async () => {
+  const { onRequestGet } = await import(REPO + 'functions/api/lock-status.js');
+  const { signSessionCookie } = await import(REPO + 'functions/_kernel/session.js');
+  /* 只有 lock-pw，无 owner-pw，无通行密钥 */
+  const kv = makeKv({
+    'lock-pw': JSON.stringify({ hash: 'lock-hash' }),
+  });
+  const env = baseEnv(kv);
+  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
+  const res = await onRequestGet({
+    request: getReq('https://test.example.com/api/lock-status', { 'Cookie': 'sgx-verified=' + sessCv }),
+    env,
+  });
+  assert.equal(res.status, 200);
+  const body = JSON.parse(await res.text());
+  assert.equal(body.ok, true);
+  assert.equal(body.password, true, '只有锁屏密码时应为 true（旧接口误报 false）');
+  assert.equal(body.passkey, false);
+});
+
+test('行为：/api/lock-status 只看 class=lock 通行密钥', async () => {
+  const { onRequestGet } = await import(REPO + 'functions/api/lock-status.js');
+  const { signSessionCookie } = await import(REPO + 'functions/_kernel/session.js');
+  /* 只有 owner 类通行密钥 */
+  const kv1 = makeKv({
+    'owner-passkey-index': JSON.stringify(['o1']),
+    'owner-passkey:o1': JSON.stringify({ credId: 'o1', class: 'owner', publicKey: 'x' }),
+  });
+  const env1 = baseEnv(kv1);
+  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
+  const res1 = await onRequestGet({
+    request: getReq('https://test.example.com/api/lock-status', { 'Cookie': 'sgx-verified=' + sessCv }),
+    env: env1,
+  });
+  const body1 = JSON.parse(await res1.text());
+  assert.equal(body1.passkey, false, '只有 owner 类时 passkey 应为 false');
+  /* 加上 lock 类通行密钥 */
+  const kv2 = makeKv({
+    'owner-passkey-index': JSON.stringify(['o1', 'l1']),
+    'owner-passkey:o1': JSON.stringify({ credId: 'o1', class: 'owner', publicKey: 'x' }),
+    'owner-passkey:l1': JSON.stringify({ credId: 'l1', class: 'lock', publicKey: 'y' }),
+  });
+  const env2 = baseEnv(kv2);
+  const res2 = await onRequestGet({
+    request: getReq('https://test.example.com/api/lock-status', { 'Cookie': 'sgx-verified=' + sessCv }),
+    env: env2,
+  });
+  const body2 = JSON.parse(await res2.text());
+  assert.equal(body2.passkey, true, '有 lock 类时 passkey 应为 true');
+});
+
+test('行为：/api/lock-status keys 票据（无会话）可读', async () => {
+  const { onRequestGet } = await import(REPO + 'functions/api/lock-status.js');
+  const { signStepupCookie } = await import(REPO + 'functions/api/stepup.js');
+  const kv = makeKv({
+    'lock-pw': JSON.stringify({ hash: 'lock-hash' }),
+  });
+  const env = baseEnv(kv);
+  const stepupCv = await signStepupCookie(TEST_PRIV_PEM, 'owner', 'keys', 0);
+  const res = await onRequestGet({
+    request: getReq('https://test.example.com/api/lock-status', { 'Cookie': 'sgx-stepup=' + stepupCv }),
+    env,
+  });
+  assert.equal(res.status, 200, 'keys 票据应可读');
+  const body = JSON.parse(await res.text());
+  assert.equal(body.ok, true);
+  assert.equal(body.password, true);
+});
+
+test('行为：/api/lock-status lockreset 票据（无会话）可读', async () => {
+  const { onRequestGet } = await import(REPO + 'functions/api/lock-status.js');
+  const { signStepupCookie } = await import(REPO + 'functions/api/stepup.js');
+  const kv = makeKv({});
+  const env = baseEnv(kv);
+  const stepupCv = await signStepupCookie(TEST_PRIV_PEM, 'root', 'lockreset', 0);
+  const res = await onRequestGet({
+    request: getReq('https://test.example.com/api/lock-status', { 'Cookie': 'sgx-stepup=' + stepupCv }),
+    env,
+  });
+  assert.equal(res.status, 200, 'lockreset 票据应可读（重置页此前 401）');
+  const body = JSON.parse(await res.text());
+  assert.equal(body.ok, true);
+  assert.equal(body.password, false);
+});
+
+test('行为：/api/lock-status scope=root 票据不可读 → 401', async () => {
+  const { onRequestGet } = await import(REPO + 'functions/api/lock-status.js');
+  const { signStepupCookie } = await import(REPO + 'functions/api/stepup.js');
+  const kv = makeKv({});
+  const env = baseEnv(kv);
+  const stepupCv = await signStepupCookie(TEST_PRIV_PEM, 'root', 'root', 0);
+  const res = await onRequestGet({
+    request: getReq('https://test.example.com/api/lock-status', { 'Cookie': 'sgx-stepup=' + stepupCv }),
+    env,
+  });
+  assert.equal(res.status, 401, 'scope=root 票据只认 owner 会话或 keys/lockreset，应 401');
+});
+
+test('行为：/api/lock-status KV 读取失败 → 503（fail closed，不按未设置退回）', async () => {
+  const { onRequestGet } = await import(REPO + 'functions/api/lock-status.js');
+  const { signSessionCookie } = await import(REPO + 'functions/_kernel/session.js');
+  const kv = makeKv({ 'session-epoch': '0' });
+  /* 会话校验的 session-epoch 读取正常，只有 lock-pw 读取失败 */
+  const origGet = kv.get;
+  kv.get = async (k, t) => {
+    if (k === 'lock-pw') throw new Error('kv-down');
+    return origGet(k, t);
+  };
+  const env = baseEnv(kv);
+  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
+  const res = await onRequestGet({
+    request: getReq('https://test.example.com/api/lock-status', { 'Cookie': 'sgx-verified=' + sessCv }),
+    env,
+  });
+  assert.equal(res.status, 503, 'KV 失败应 503');
+});
+
+test('行为：/api/lock-status 未绑 KV → 500', async () => {
+  const { onRequestGet } = await import(REPO + 'functions/api/lock-status.js');
+  const { signSessionCookie } = await import(REPO + 'functions/_kernel/session.js');
+  const env = baseEnv(makeKv({}));
+  delete env.OWNER_KV;
+  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
+  const res = await onRequestGet({
+    request: getReq('https://test.example.com/api/lock-status', { 'Cookie': 'sgx-verified=' + sessCv }),
+    env,
+  });
+  assert.equal(res.status, 500, '未绑 KV 应 500 config');
+});

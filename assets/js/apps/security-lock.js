@@ -374,13 +374,19 @@ import { toast } from '../lib/toast.js';
   /* ---------- 管理区 ---------- */
   var hasPk = false;
   function refreshStatus() {
-    fetch('/api/owner-status', { method: 'GET', credentials: 'same-origin' })
+    /* 2.11：锁屏凭证状态读 /api/lock-status（lock-pw + class=lock 通行密钥，
+       owner 会话或 keys/lockreset 票据可读）。owner-status 读的是 owner-pw +
+       class=owner 通行密钥（且要求 owner 会话），在锁屏页/重置页会显示错误。
+       openGate 的站长验证按钮继续用 owner-status。 */
+    fetch('/api/lock-status', { method: 'GET', credentials: 'same-origin' })
       .then(function (r) {
         return r.json();
       })
       .then(function (j) {
-        hasPw = !!(j && j.ok && j.password);
-        hasPk = !!(j && j.ok && j.passkey);
+        /* 失败（401/503）时保持当前显示，不误报「未设置」 */
+        if (!(j && j.ok)) return;
+        hasPw = !!j.password;
+        hasPk = !!j.passkey;
         const sub = $('lockmgr-pwsub');
         if (sub) sub.textContent = hasPw ? t('pwSet') : t('pwUnset');
         const title = $('lockpw-title');
