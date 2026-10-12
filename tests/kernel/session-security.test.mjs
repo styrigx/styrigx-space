@@ -1392,3 +1392,41 @@ test('2.8.0：session-check 返回 visitor 角色', async () => {
   assert.equal(r.status, 200);
   assert.deepEqual(await r.json(), { ok: true, role: 'visitor' });
 });
+
+test('定稿 #1：owner 解锁后 return 指向门内页 → 回总览页（门内页不能当返回目标）', async () => {
+  const oCookie = await mintSessionCookie();
+  const htmlNext = async () => new Response('<html lang="zh"><head></head><body></body></html>', {
+    status: 200,
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+  });
+  /* owner 会话 + return=门内页 → 302 到总览页，不是门内页 */
+  const ctx = {
+    request: new Request('https://styrigx.com/?return=' + encodeURIComponent('/settings/security/owner/'), {
+      headers: { 'Cookie': 'sgx-verified=' + oCookie },
+    }),
+    next: htmlNext,
+    env: PROD_ENV(),
+  };
+  const r = await mw(ctx);
+  assert.equal(r.status, 302, '应 302');
+  const loc = r.headers.get('Location');
+  assert.equal(loc, '/settings/security/', '门内页 return 应改到总览页，实际: ' + loc);
+});
+
+test('定稿 #1：owner 解锁后 return 指向普通页 → 正常回跳', async () => {
+  const oCookie = await mintSessionCookie();
+  const htmlNext = async () => new Response('<html lang="zh"><head></head><body></body></html>', {
+    status: 200,
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+  });
+  const ctx = {
+    request: new Request('https://styrigx.com/?return=' + encodeURIComponent('/settings/'), {
+      headers: { 'Cookie': 'sgx-verified=' + oCookie },
+    }),
+    next: htmlNext,
+    env: PROD_ENV(),
+  };
+  const r = await mw(ctx);
+  assert.equal(r.status, 302, '应 302');
+  assert.equal(r.headers.get('Location'), '/settings/', '普通页 return 应正常回跳');
+});

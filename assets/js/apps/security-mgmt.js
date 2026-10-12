@@ -15,6 +15,9 @@ import { enterDoor } from './app-gate.js';
   function t(k) {
     const map = {
       sessExp: en ? 'Session expired, please verify again' : '会话已过期，请重新验证',
+      errStepupExpired: en ? 'Verification expired, please verify again' : '验证已过期，请重新验证',
+      errNetwork: en ? 'Network connection failed, please retry' : '网络连接失败，请重试',
+      errParse: en ? 'Bad server response, please retry' : '服务响应异常，请重试',
       lockSub: en ? 'Unlock password and passkeys' : '解锁密码和通行密钥',
       appsSub: en ? 'App keys' : '应用钥匙',
     };

@@ -52,6 +52,9 @@
 <script id="sgx-app-whitelist" type="application/json">{{ $wl | jsonify | safeJS }}</script>
 {{ $bookI18n := dict
   "sessExp" (dict "zh" "会话过期，请重新验证" "en" "Session expired, verify again")
+  "errStepupExpired" (dict "zh" "验证已过期，请重新验证" "en" "Verification expired, please verify again")
+  "errNetwork" (dict "zh" "网络连接失败，请重试" "en" "Network connection failed, please retry")
+  "errParse" (dict "zh" "服务响应异常，请重试" "en" "Bad server response, please retry")
   "errUnknown" (dict "zh" "未知错误，请稍后重试" "en" "Unknown error, please try again later")
   "errParams" (dict "zh" "参数错误" "en" "Bad request")
   "errNotFound" (dict "zh" "找不到这把钥匙" "en" "Key not found")
