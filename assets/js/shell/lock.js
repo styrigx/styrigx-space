@@ -20,6 +20,7 @@ import { on } from '../lib/events.js';
 import { visibleInterval } from '../lib/scheduler.js';
 import { reducedMotion } from '../lib/util.js';
 import { get as featGet } from '../lib/features.js';
+import { get, getJSON } from '../lib/storage.js';
 import { exchangeRootSession } from '../lib/root-session.js';
 
 const LOCK =
@@ -115,9 +116,9 @@ function showLockScreen() {
     try {
       if (!featGet('weather-show')) return null;
     } catch (e) {}
+    if (get('sgx-weather-show') === '0') return null;
+    const c = getJSON('sgx-weather', null);
     try {
-      if (localStorage.getItem('sgx-weather-show') === '0') return null;
-      const c = JSON.parse(localStorage.getItem('sgx-weather') || 'null');
       const d = c && c.data;
       if (!d || !d.current) return null;
       const WXI = {
@@ -125,7 +126,7 @@ function showLockScreen() {
         55: '🌧️', 61: '🌧️', 63: '🌧️', 65: '🌧️', 71: '🌨️', 73: '🌨️', 75: '❄️',
         80: '🌦️', 81: '🌧️', 82: '⛈️', 95: '⛈️', 96: '⛈️',
       };
-      const unit = localStorage.getItem('sgx-temp-unit') === 'f' ? 'f' : 'c';
+      const unit = get('sgx-temp-unit') === 'f' ? 'f' : 'c';
       let t = d.current.temperature_2m;
       t = unit === 'f' ? Math.round((t * 9) / 5 + 32) : Math.round(t);
       return { icon: WXI[d.current.weather_code] || '☁️', temp: t + '°' };

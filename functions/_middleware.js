@@ -80,7 +80,7 @@ function isWhitelisted(pathname) {
   return false;
 }
 
-function getCookie(request, name) {
+export function getCookie(request, name) {
   const h = request.headers.get('Cookie') || '';
   for (const part of h.split(';')) {
     const [k, ...v] = part.trim().split('=');

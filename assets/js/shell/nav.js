@@ -4,7 +4,7 @@
  */
 import { on } from '../lib/events.js';
 import { fmtTz } from '../lib/util.js';
-import { get } from '../lib/storage.js';
+import { get, getJSON, setJSON } from '../lib/storage.js';
 import { get as featGet } from '../lib/features.js';
 import { visibleInterval } from '../lib/scheduler.js';
 import { onDexLayoutChange, applyLayout } from './layout.js';
@@ -121,24 +121,18 @@ export function initNav(S) {
       80: '🌦️', 81: '🌧️', 82: '⛈️', 95: '⛈️', 96: '⛈️',
     };
     function cachedFresh() {
-      try {
-        const c = JSON.parse(localStorage.getItem('sgx-weather') || 'null');
-        if (c && Date.now() - c.ts < 30 * 60 * 1000) return c.data;
-      } catch (e) {}
+      const c = getJSON('sgx-weather', null);
+      if (c && Date.now() - c.ts < 30 * 60 * 1000) return c.data;
       return null;
     }
     function cachedAny() {
-      try {
-        const c = JSON.parse(localStorage.getItem('sgx-weather') || 'null');
-        if (c && c.data) return c.data;
-      } catch (e) {}
+      const c = getJSON('sgx-weather', null);
+      if (c && c.data) return c.data;
       return null;
     }
     /** @param {any} d */
     function save(d) {
-      try {
-        localStorage.setItem('sgx-weather', JSON.stringify({ ts: Date.now(), data: d }));
-      } catch (e) {}
+      setJSON('sgx-weather', { ts: Date.now(), data: d });
     }
     /** @param {number} c */
     function fmtT(c) {

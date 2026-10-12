@@ -5,7 +5,7 @@
 import { on } from '../lib/events.js';
 import { registerPage } from '../shell/inpagenav.js';
 import { esc } from '../lib/util.js';
-import { get, set } from '../lib/storage.js';
+import { get, set, getJSON } from '../lib/storage.js';
 import { loadI18n } from '../lib/i18n.js';
 import { openSheet } from '../shell/sheet.js';
 import { voiceSheet } from '../shell/voice-sheet.js';
@@ -472,13 +472,9 @@ import { onKeyboardHeight } from '../shell/vk.js';
   /** @param {any} item */
   function isAppHidden(item) {
     if (!item || item.type !== 'app') return false;
-    try {
-      const h = JSON.parse(localStorage.getItem('sgx-apps-hidden') || '[]');
-      const id = String(item.id || '').replace(/-en$/, '').replace(/^app-/, '');
-      return h.indexOf(id) !== -1;
-    } catch (e) {
-      return false;
-    }
+    const h = getJSON('sgx-apps-hidden', []);
+    const id = String(item.id || '').replace(/-en$/, '').replace(/^app-/, '');
+    return h.indexOf(id) !== -1;
   }
   (function () {
     const wantLang = document.documentElement.lang === 'en' ? 'en' : 'zh';
