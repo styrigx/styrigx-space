@@ -11,7 +11,7 @@
  *   避免 root-auth 走假入口 401 导致锁死。
  */
 import { isLockEffectivelyConfigured } from '../_kernel/layers.js';
-import { STORE_CLASS_LOCKKEY as PK_CLASS_LOCK } from '../_kernel/key-names.js';
+import { STORE_CLASS_LOCKKEY as PK_CLASS_LOCK, ownerPasskeyKey, OWNER_PASSKEY_PREFIX } from '../_kernel/key-names.js';
 
 /**
  * @param {any} context
@@ -60,7 +60,7 @@ export async function onRequestGet(context) {
           if (Array.isArray(idx)) {
             for (const credId of idx) {
               try {
-                const v = await kv.get('owner-passkey:' + credId, 'json');
+                const v = await kv.get(ownerPasskeyKey(credId), 'json');
                 if (v && v.credId && (v.class || PK_CLASS_LOCK) === PK_CLASS_LOCK) {
                   hasLock = true;
                   break;
@@ -73,7 +73,7 @@ export async function onRequestGet(context) {
           } else {
             /* 索引不存在：用 kv.list 补查一次 */
             try {
-              const list = await kv.list({ prefix: 'owner-passkey:' });
+              const list = await kv.list({ prefix: OWNER_PASSKEY_PREFIX });
               for (const k of (list && list.keys) || []) {
                 try {
                   const v = await kv.get(k.name, 'json');

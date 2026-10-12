@@ -61,6 +61,8 @@ import {
   KEY_OWNER,
   KEY_LOCK,
   appKeyName,
+  ownerPasskeyKey,
+  OWNER_PASSKEY_PREFIX,
 } from '../_kernel/key-names.js';
 
 /* 2.10.0：通行密钥分类；2.11 新增 owner。
@@ -102,7 +104,7 @@ async function ensureIndex(kv) {
   /* 索引不存在：一次性补建 */
   const idx = [];
   try {
-    const list = await kv.list({ prefix: 'owner-passkey:' });
+    const list = await kv.list({ prefix: OWNER_PASSKEY_PREFIX });
     for (const k of list.keys || []) {
       try {
         const v = await kv.get(k.name, 'json');
@@ -122,7 +124,7 @@ export async function getPasskeys(kv) {
     const keys = [];
     for (const credId of idx) {
       try {
-        const keyName = 'owner-passkey:' + String(credId).slice(0, 12);
+        const keyName = ownerPasskeyKey(credId);
         const v = await kv.get(keyName, 'json');
         if (v && v.credId === credId) {
           /* 2.10.0 幂等迁移：无 class 的旧凭据 → lock，写回（重复执行无副作用） */
@@ -154,7 +156,7 @@ export async function getPasskeys(kv) {
                 uv: item.uv ? 1 : 0,
                 class: PK_CLASS_LOCK,
               };
-              const keyName = 'owner-passkey:' + String(item.credId).slice(0, 12);
+              const keyName = ownerPasskeyKey(item.credId);
               await kv.put(keyName, JSON.stringify(migrated), {
                 metadata: { name: migrated.name, provider: migrated.provider, createdAt: migrated.createdAt },
               });
@@ -181,7 +183,7 @@ export async function getPasskeys(kv) {
  * @param {any} item
  */
 export async function savePasskey(kv, item) {
-  const keyName = 'owner-passkey:' + String(item.credId).slice(0, 12);
+  const keyName = ownerPasskeyKey(item.credId);
   /* P0-15：class 必须原样保存，owner 绝不能被改成 lock */
   const cls = item.class;
   if (cls !== PK_CLASS_OWNER && cls !== PK_CLASS_LOCK && cls !== PK_CLASS_APP) {
@@ -225,7 +227,7 @@ export async function savePasskey(kv, item) {
  * @returns {Promise<any|null>} 被删除的记录（调用方据此判断是否推进 app-epoch）
  */
 async function deletePasskey(kv, credId) {
-  const keyName = 'owner-passkey:' + String(credId).slice(0, 12);
+  const keyName = ownerPasskeyKey(credId);
   let rec = null;
   try { rec = await kv.get(keyName, 'json'); } catch (e) {}
   await kv.delete(keyName);
@@ -781,7 +783,7 @@ async function handlePost(context) {
     let name = (body && body.name) || '';
     if (!credId) return Response.json({ ok: false, error: 'params' }, { status: 400 });
     /* 先取到凭据以确定类别（门禁按类别） */
-    const keyName0 = 'owner-passkey:' + String(credId).slice(0, 12);
+    const keyName0 = ownerPasskeyKey(credId);
     let found0 = null;
     try { found0 = await kv.get(keyName0, 'json'); } catch (e) {}
     if (!found0 || found0.credId !== credId) {
@@ -809,7 +811,7 @@ async function handlePost(context) {
     const credId = (body && body.credId) || '';
     if (!credId) return Response.json({ ok: false, error: 'params' }, { status: 400 });
     /* 直接 kv.get 校验存在，不走 list（最终一致） */
-    const keyName = 'owner-passkey:' + String(credId).slice(0, 12);
+    const keyName = ownerPasskeyKey(credId);
     let found = null;
     try { found = await kv.get(keyName, 'json'); } catch (e) {}
     if (!found || found.credId !== credId) {
