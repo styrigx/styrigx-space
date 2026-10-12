@@ -334,11 +334,15 @@ test('9d：stepup 缺 Origin → 403', async () => {
 
 /* ============ 1：管理密钥入口静态检查 ============ */
 
-test('1a：锁屏方法弹层不含根凭证入口（认证入口修正：只保留四项）', () => {
+test('1a：锁屏方法弹层按配置显示入口（补充定稿七.1：都没设置时才有根凭证）', () => {
   const src = fs.readFileSync(path.join(REPO, 'assets/js/shell/lock.js'), 'utf8');
-  assert.ok(!src.includes('sgx-mopt-mk'), '锁屏不应有根凭证选项按钮');
-  assert.ok(!src.includes('function openMk'), '不应有 openMk 处理函数');
-  /* 四个选项必须存在 */
+  /* 根凭证选项仅在锁屏凭证都没设置时显示 */
+  assert.ok(src.includes('sgx-mopt-mk'), '应有根凭证选项按钮（条件显示）');
+  assert.ok(src.includes('function openMk'), '应有 openMk 处理函数');
+  assert.ok(src.includes('使用根凭证解锁站长模式'), '根凭证小字');
+  /* 配置以服务端为准 */
+  assert.ok(src.includes('/api/lock-config'), '应从 /api/lock-config 读取配置');
+  /* 其他选项必须存在 */
   assert.ok(src.includes('sgx-mopt-visitor'), '应有访客进入');
   assert.ok(src.includes('sgx-mopt-pk'), '应有通行密钥');
   assert.ok(src.includes('sgx-mopt-pw'), '应有密码');

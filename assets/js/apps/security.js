@@ -227,7 +227,11 @@ import { toast } from '../lib/toast.js';
      - 什么都没设置 → 只显示「根凭证」
      - 只设了通行密钥 → 「通行密钥验证」
      - 只设了密码 → 「密码验证」
-     - 两个都设了 → 两个都显示，不显示根凭证 */
+     - 两个都设了 → 两个都显示，不显示根凭证
+     补充定稿七.2：访客会话下为假入口——弹层固定为标题「需要凭证」、
+     只有「根凭证」一个按钮，不读站长凭证配置；服务端（/api/root-auth
+     访客假入口）写死返回密码错误，不读 D1/KV/环境变量凭证，不计 rootlimit、
+     不写审计，固定延迟。 */
   (function () {
     const row = document.getElementById('sec-mgmt-cred');
     const dlg = document.getElementById('sec-mgmt-dlg');
@@ -308,16 +312,26 @@ import { toast } from '../lib/toast.js';
     }
 
     function openDlg() {
-      /* 每次打开时重新读取配置 */
-      fetch('/api/owner-status', { method: 'GET', credentials: 'same-origin' })
-        .then(function (r) { return r.json(); })
-        .then(function (j) {
-          renderOpts(!!(j && j.password), !!(j && j.passkey));
-        })
-        .catch(function () {
-          /* 读取失败按未设置处理：只显示根凭证 */
-          renderOpts(false, false);
-        });
+      /* 补充定稿七.2：访客会话下为假入口——固定单个「根凭证」按钮，
+         不读站长凭证配置（角色由服务端注入的 data-sgx-role 提供，UI 展示用）。 */
+      var isVisitor = false;
+      try {
+        isVisitor = document.documentElement.dataset.sgxRole === 'visitor';
+      } catch (e) {}
+      if (isVisitor) {
+        renderOpts(false, false);
+      } else {
+        /* 每次打开时重新读取配置 */
+        fetch('/api/owner-status', { method: 'GET', credentials: 'same-origin' })
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            renderOpts(!!(j && j.password), !!(j && j.passkey));
+          })
+          .catch(function () {
+            /* 读取失败按未设置处理：只显示根凭证 */
+            renderOpts(false, false);
+          });
+      }
       if (typeof dlg.showModal === 'function') {
         try { dlg.showModal(); } catch (e) {}
       }

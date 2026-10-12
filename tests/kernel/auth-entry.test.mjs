@@ -75,19 +75,31 @@ function baseEnv(kv, overrides) {
   }, overrides || {});
 }
 
-/* ============ 1. 锁屏四个选项 ============ */
+/* ============ 1. 锁屏入口按配置显示（补充定稿七.1） ============ */
 
-test('认证入口：锁屏方法弹层恰好四个选项（访客进入/通行密钥/密码/重置锁屏），不含根凭证', () => {
+test('认证入口：锁屏方法弹层按锁屏凭证配置显示入口', () => {
   const src = fs.readFileSync(path.join(REPO, 'assets/js/shell/lock.js'), 'utf8');
-  /* 四个选项的按钮 ID 必须存在 */
+  /* 配置以服务端 /api/lock-config 为准 */
+  assert.ok(src.includes('/api/lock-config'), '应从 /api/lock-config 读取配置');
+  /* 五个选项的按钮 ID 必须存在（按配置条件显示） */
   assert.ok(src.includes('sgx-mopt-visitor'), '应有访客进入');
   assert.ok(src.includes('sgx-mopt-pk'), '应有通行密钥');
   assert.ok(src.includes('sgx-mopt-pw'), '应有密码');
   assert.ok(src.includes('sgx-mopt-reset'), '应有重置锁屏');
-  /* 根凭证选项必须删除 */
-  assert.ok(!src.includes('sgx-mopt-mk'), '不应有根凭证选项 sgx-mopt-mk');
-  assert.ok(!src.includes('openMk'), '不应有 openMk 函数');
+  assert.ok(src.includes('sgx-mopt-mk'), '应有根凭证选项 sgx-mopt-mk（都没设置时显示）');
+  /* 根凭证小字 */
+  assert.ok(src.includes('使用根凭证解锁站长模式'), '根凭证小字应为「使用根凭证解锁站长模式」');
+  assert.ok(src.includes('Unlock owner mode with your root credential'), '应有英文小字');
+  /* openMk 函数应恢复（提交到 /api/root-auth） */
+  assert.ok(src.includes('function openMk'), '应有 openMk 处理函数');
+  assert.ok(src.includes('function submitMk'), '应有 submitMk 处理函数');
+  /* 删除的注释不应回来 */
   assert.ok(!src.includes('根凭证：未解锁也能用'), '不应有「根凭证：未解锁也能用」注释');
+  /* 条件显示逻辑 */
+  assert.ok(src.includes('showMk'), '应有根凭证条件显示变量');
+  assert.ok(src.includes('showReset'), '应有重置锁屏条件显示变量');
+  /* 读取失败按已配置处理（不暴露根凭证入口） */
+  assert.ok(src.includes('读取失败按已配置处理'), '应有读取失败 fail closed 注释');
   /* 重置锁屏描述应为通用说法，不出现「根凭证」 */
   assert.ok(
     src.includes('验证身份后重设解锁方式'),
@@ -118,12 +130,25 @@ test('认证入口：安全页三个入口（站长凭证/管理凭证/立即锁
   assert.ok(html.includes('id="sec-mgmt-dlg"'), '应有管理凭证弹层');
   assert.ok(html.includes('需要凭证'), '管理凭证弹层标题应为「需要凭证」');
 
-  /* JS 不应再有访客/站长的条件渲染（页面完全一样） */
+  /* 页面 DOM 完全一样；补充定稿七.2：管理凭证弹层在访客会话下为假入口
+     （固定单个根凭证按钮，不读配置）——这是唯一允许的访客条件分支 */
   const js = fs.readFileSync(path.join(REPO, 'assets/js/apps/security.js'), 'utf8');
-  assert.ok(!js.includes("role === 'visitor'"), '不应有访客角色条件分支');
   assert.ok(!js.includes('sec-owner-lock'), '不应有访客锁图标');
   assert.ok(!js.includes('sec-unlock-methods'), '不应引用已删除的解锁方式');
   assert.ok(!js.includes('sec-app-row'), '不应引用已删除的应用验证');
+  assert.ok(js.includes("dataset.sgxRole === 'visitor'"), '管理凭证弹层应有访客假入口分支');
+});
+
+test('认证入口：访客管理凭证弹层固定单个根凭证按钮，不读配置', () => {
+  const js = fs.readFileSync(path.join(REPO, 'assets/js/apps/security.js'), 'utf8');
+  /* 访客分支：直接 renderOpts(false, false)，不 fetch /api/owner-status */
+  const idx = js.indexOf("dataset.sgxRole === 'visitor'");
+  assert.ok(idx > 0, '应有访客判断');
+  const section = js.slice(idx, idx + 800);
+  assert.ok(section.includes('renderOpts(false, false)'), '访客应固定渲染单个根凭证按钮');
+  /* 该分支内不应出现 owner-status */
+  const ifBlock = section.slice(0, section.indexOf('} else {'));
+  assert.ok(!ifBlock.includes('owner-status'), '访客分支不应读站长凭证配置');
 });
 
 /* ============ 3. 访客假入口 ============ */
@@ -238,4 +263,125 @@ test('认证入口：三类通行密钥注册 options 的 name/displayName 正�
   assert.ok(src.includes("'ownerkey'"), '站长凭证 name 应为 ownerkey');
   assert.ok(src.includes("'lockkey'"), '锁屏 name 应为 lockkey');
   assert.ok(src.includes("+ 'key'"), 'app name 应为小写应用名+key');
+});
+
+/* ============ 7. 补充定稿七：锁屏入口按配置 + 访客管理凭证假入口 ============ */
+
+test('补充七：/api/lock-config 四种配置返回正确', async () => {
+  const { onRequestGet } = await import(REPO + 'functions/api/lock-config.js');
+  const get = (url, env) => new Request(url, { method: 'GET' });
+
+  /* 都没设置 */
+  let kv = makeKv({});
+  let res = await onRequestGet({ request: get('https://test.example.com/api/lock-config'), env: baseEnv(kv) });
+  let j = await res.json();
+  assert.equal(j.ok, true);
+  assert.equal(j.passkey, false, '无凭据时 passkey 应为 false');
+  assert.equal(j.password, false, '无凭据时 password 应为 false');
+
+  /* 仅密码 */
+  kv = makeKv({ 'lock-pw': JSON.stringify({ hash: 'h', salt: 's' }) });
+  res = await onRequestGet({ request: get('https://test.example.com/api/lock-config'), env: baseEnv(kv) });
+  j = await res.json();
+  assert.equal(j.passkey, false);
+  assert.equal(j.password, true);
+
+  /* 仅通行密钥 */
+  kv = makeKv({
+    'owner-passkey-index': JSON.stringify(['cid1']),
+    'owner-passkey:cid1': JSON.stringify({ credId: 'cid1', class: 'lock' }),
+  });
+  res = await onRequestGet({ request: get('https://test.example.com/api/lock-config'), env: baseEnv(kv) });
+  j = await res.json();
+  assert.equal(j.passkey, true);
+  assert.equal(j.password, false);
+
+  /* 两者都有 */
+  kv = makeKv({
+    'lock-pw': JSON.stringify({ hash: 'h', salt: 's' }),
+    'owner-passkey-index': JSON.stringify(['cid1']),
+    'owner-passkey:cid1': JSON.stringify({ credId: 'cid1', class: 'lock' }),
+  });
+  res = await onRequestGet({ request: get('https://test.example.com/api/lock-config'), env: baseEnv(kv) });
+  j = await res.json();
+  assert.equal(j.passkey, true);
+  assert.equal(j.password, true);
+
+  /* 非 lock 类凭据不应算作锁屏通行密钥 */
+  kv = makeKv({
+    'owner-passkey-index': JSON.stringify(['cid9']),
+    'owner-passkey:cid9': JSON.stringify({ credId: 'cid9', class: 'owner' }),
+  });
+  res = await onRequestGet({ request: get('https://test.example.com/api/lock-config'), env: baseEnv(kv) });
+  j = await res.json();
+  assert.equal(j.passkey, false, 'owner 类凭据不应算锁屏通行密钥');
+  assert.equal(j.password, false);
+});
+
+test('补充七：/api/lock-config 读取失败按已配置处理（不暴露根凭证入口）', async () => {
+  const { onRequestGet } = await import(REPO + 'functions/api/lock-config.js');
+  const badKv = {
+    get: async () => { throw new Error('kv-down'); },
+    put: async () => {},
+    delete: async () => {},
+    list: async () => { throw new Error('kv-down'); },
+  };
+  const res = await onRequestGet({
+    request: new Request('https://test.example.com/api/lock-config', { method: 'GET' }),
+    env: baseEnv(badKv),
+  });
+  const j = await res.json();
+  assert.equal(j.ok, true);
+  assert.equal(j.passkey, true, '读取失败 passkey 应按已配置处理');
+  assert.equal(j.password, true, '读取失败 password 应按已配置处理');
+});
+
+test('补充七：已配置锁屏凭证时，锁屏根凭证路径被服务端拒绝（无会话 → 401）', async () => {
+  const { onRequestPost } = await import(REPO + 'functions/api/root-auth.js');
+  /* lock 层已配置，无会话提交正确的根凭证 */
+  const kv = makeKv({ 'layer:lock': '1' });
+  const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345' });
+  const res = await onRequestPost({ request: req, env: baseEnv(kv) });
+  assert.equal(res.status, 401, '已配置时无会话根凭证路径应被拒绝');
+  const body = await res.text();
+  assert.equal(body, JSON.stringify({ ok: false, error: 'auth' }));
+});
+
+test('补充七：未配置锁屏凭证时，锁屏根凭证路径走真实比对（无会话 → 可签发）', async () => {
+  const { onRequestPost } = await import(REPO + 'functions/api/root-auth.js');
+  /* lock 层未配置（引导模式），无会话提交正确的根凭证 */
+  const kv = makeKv({});
+  const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345' });
+  const res = await onRequestPost({ request: req, env: baseEnv(kv) });
+  assert.equal(res.status, 200, '未配置时应走真实比对');
+  const body = await res.json();
+  assert.equal(body.ok, true);
+  /* 签发的是 stepup cookie（站长模式），不是会话 */
+  const setCookie = res.headers.get('Set-Cookie') || '';
+  assert.ok(setCookie.includes('sgx-stepup='), '应签发 sgx-stepup');
+});
+
+test('补充七：访客管理凭证提交任何值都返回密码错误且不访问存储', async () => {
+  /* 管理凭证弹层的「根凭证」按钮提交到 /api/root-auth；访客会话下为假入口 */
+  const { onRequestPost } = await import(REPO + 'functions/api/root-auth.js');
+  const { signSessionCookie } = await import(REPO + 'functions/_kernel/session.js');
+
+  const kv = makeKv({ 'layer:lock': '1' });
+  const env = baseEnv(kv);
+  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'visitor', 'owner');
+
+  /* 提交任意值（包括错误值） */
+  for (const key of ['whatever', '', 'test-root-key-12345']) {
+    const req = postReq('https://test.example.com/api/root-auth', { key }, {
+      'Cookie': 'sgx-verified=' + sessCv,
+    });
+    const res = await onRequestPost({ request: req, env });
+    assert.equal(res.status, 401, '访客提交 ' + JSON.stringify(key) + ' 应 401');
+    const body = await res.text();
+    assert.equal(body, JSON.stringify({ ok: false, error: 'auth' }));
+  }
+  /* 不访问存储 */
+  assert.equal(kv._calls.get, 0, '访客假入口不应读 KV');
+  assert.equal(kv._calls.put, 0, '访客假入口不应写 KV');
+  assert.ok(![...kv._store.keys()].some((k) => k.startsWith('root-auth-')), '不应有 rootlimit 计数');
 });

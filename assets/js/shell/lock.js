@@ -634,16 +634,49 @@ function showLockScreen() {
 
   /**
    * 2.8.0 锁屏重设计：点击头像后弹出的解锁方式选择底部弹层。
-   * One UI 风格：底部弹层（宽屏居中卡片），三个选项，各带图标和一行说明：
-   * 1. 访客进入（Cloudflare Turnstile，第一个）
-   * 2. 通行密钥
-   * 3. 密码
+   * One UI 风格：底部弹层（宽屏居中卡片），各带图标和一行说明。
+   *
+   * 补充定稿七.1：入口按锁屏凭证配置显示（配置以服务端 /api/lock-config 为准，
+   * 读取失败按「已配置」处理，不暴露根凭证入口）。「访客进入」始终在第一位：
+   * - 两者都有 → 访客进入 / 通行密钥 / 密码 / 重置锁屏
+   * - 仅通行密钥 → 访客进入 / 通行密钥 / 重置锁屏
+   * - 仅密码 → 访客进入 / 密码 / 重置锁屏
+   * - 都没设置 → 访客进入 / 根凭证（不显示重置锁屏）
    * 点外部、Esc 或下滑关闭；键盘可操作。
    */
   let methodSheet = null;
+  let methodSheetLoading = false;
   function openMethodSheet() {
-    if (methodSheet) return;
+    if (methodSheet || methodSheetLoading) return;
+    methodSheetLoading = true;
+    fetch('/api/lock-config', { method: 'GET', credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        methodSheetLoading = false;
+        if (methodSheet) return;
+        var cfg = { passkey: true, password: true };
+        if (j && j.ok) {
+          cfg = { passkey: !!j.passkey, password: !!j.password };
+        }
+        buildMethodSheet(cfg);
+      })
+      .catch(function () {
+        methodSheetLoading = false;
+        if (methodSheet) return;
+        /* 读取失败按已配置处理：不暴露根凭证入口 */
+        buildMethodSheet({ passkey: true, password: true });
+      });
+  }
+  /**
+   * 按锁屏凭证配置构建方法弹层。
+   * @param {{passkey:boolean, password:boolean}} cfg
+   */
+  function buildMethodSheet(cfg) {
     const hasPk = !!(window.PublicKeyCredential);
+    const showPk = cfg.passkey && hasPk;
+    const showPw = cfg.password;
+    const showReset = cfg.passkey || cfg.password;
+    const showMk = !cfg.passkey && !cfg.password;
     const sheet = document.createElement('div');
     sheet.id = 'sgx-method-sheet';
     sheet.setAttribute('role', 'dialog');
@@ -662,8 +695,8 @@ function showLockScreen() {
       '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Visitor' : '访客进入') + '</span>' +
       '<span class="sgx-method-desc">' + (en ? 'Verify you are human via Cloudflare' : '通过 Cloudflare 验证你不是机器人') + '</span></span>' +
       '</button>' +
-      /* 2. 通行密钥（如果设备支持） */
-      (hasPk
+      /* 2. 通行密钥（已配置且设备支持） */
+      (showPk
         ? '<button type="button" class="sgx-method-opt" id="sgx-mopt-pk" aria-label="' +
           (en ? 'Use passkey' : '使用通行密钥') + '">' +
           '<span class="sgx-method-ic" aria-hidden="true">' +
@@ -672,22 +705,38 @@ function showLockScreen() {
           '<span class="sgx-method-desc">' + (en ? 'Unlock with fingerprint or device PIN' : '用指纹或设备 PIN 解锁') + '</span></span>' +
           '</button>'
         : '') +
-      /* 3. 密码 */
-      '<button type="button" class="sgx-method-opt" id="sgx-mopt-pw" aria-label="' +
-        (en ? 'Use password' : '使用密码') + '">' +
-      '<span class="sgx-method-ic" aria-hidden="true">' +
-      '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>' +
-      '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Password' : '密码') + '</span>' +
-      '<span class="sgx-method-desc">' + (en ? 'Enter your unlock password' : '输入解锁密码') + '</span></span>' +
-      '</button>' +
-      /* 4. 重置锁屏：验证身份后重设解锁方式 */
-      '<button type="button" class="sgx-method-opt" id="sgx-mopt-reset" aria-label="' +
-        (en ? 'Reset lock screen' : '重置锁屏') + '">' +
-      '<span class="sgx-method-ic" aria-hidden="true">' +
-      '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></span>' +
-      '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Reset lock screen' : '重置锁屏') + '</span>' +
-      '<span class="sgx-method-desc">' + (en ? 'Lost unlock method? Verify identity, then reset unlock method' : '丢了锁屏凭证？验证身份后重设解锁方式') + '</span></span>' +
-      '</button>' +
+      /* 3. 密码（已配置） */
+      (showPw
+        ? '<button type="button" class="sgx-method-opt" id="sgx-mopt-pw" aria-label="' +
+          (en ? 'Use password' : '使用密码') + '">' +
+          '<span class="sgx-method-ic" aria-hidden="true">' +
+          '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>' +
+          '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Password' : '密码') + '</span>' +
+          '<span class="sgx-method-desc">' + (en ? 'Enter your unlock password' : '输入解锁密码') + '</span></span>' +
+          '</button>'
+        : '') +
+      /* 4. 重置锁屏：验证身份后重设解锁方式（任一锁屏凭证已配置时显示） */
+      (showReset
+        ? '<button type="button" class="sgx-method-opt" id="sgx-mopt-reset" aria-label="' +
+          (en ? 'Reset lock screen' : '重置锁屏') + '">' +
+          '<span class="sgx-method-ic" aria-hidden="true">' +
+          '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></span>' +
+          '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Reset lock screen' : '重置锁屏') + '</span>' +
+          '<span class="sgx-method-desc">' + (en ? 'Lost unlock method? Verify identity, then reset unlock method' : '丢了锁屏凭证？验证身份后重设解锁方式') + '</span></span>' +
+          '</button>'
+        : '') +
+      /* 5. 根凭证：锁屏凭证都没设置时显示。调 /api/root-auth（只签发 stepup，
+         不签发会话），成功后进入站长模式。走真实比对，计入 rootlimit 和审计；
+         任一锁屏凭证已配置时服务端拒绝这条路径。 */
+      (showMk
+        ? '<button type="button" class="sgx-method-opt" id="sgx-mopt-mk" aria-label="' +
+          (en ? 'Root credential' : '根凭证') + '">' +
+          '<span class="sgx-method-ic" aria-hidden="true">' +
+          '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>' +
+          '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Root credential' : '根凭证') + '</span>' +
+          '<span class="sgx-method-desc">' + (en ? 'Unlock owner mode with your root credential' : '使用根凭证解锁站长模式') + '</span></span>' +
+          '</button>'
+        : '') +
       '</div>';
     document.body.appendChild(sheet);
     methodSheet = sheet;
@@ -702,10 +751,12 @@ function showLockScreen() {
     const pkBtn = sheet.querySelector('#sgx-mopt-pk');
     const pwBtn = sheet.querySelector('#sgx-mopt-pw');
     const resetBtn = sheet.querySelector('#sgx-mopt-reset');
+    const mkBtn = sheet.querySelector('#sgx-mopt-mk');
     if (visitorBtn) on(visitorBtn, 'click', function () { close(); openVerify(); });
     if (pkBtn) on(pkBtn, 'click', function () { close(); openPk(); });
     if (pwBtn) on(pwBtn, 'click', function () { close(); openPw(); });
     if (resetBtn) on(resetBtn, 'click', function () { close(); openReset(); });
+    if (mkBtn) on(mkBtn, 'click', function () { close(); openMk(); });
     const backdrop = sheet.querySelector('[data-close]');
     if (backdrop) on(backdrop, 'click', close);
     /* Esc 关闭 */
@@ -932,6 +983,93 @@ function showLockScreen() {
       })
       .catch(function () {
         if (dlgState !== 'password') return;
+        showError(en ? 'Network error' : '网络错误');
+      });
+  }
+
+  /* ---------- 根凭证态（与验证态同一弹层） ----------
+     补充定稿七.1：锁屏凭证都没设置时的方法弹层入口。调 /api/root-auth
+     （只签发 stepup(by=root, scope=root)，不签发会话），成功后进入安全与隐私页
+     （站长模式）。走真实比对，计入 rootlimit 和审计；任一锁屏凭证已配置时
+     服务端拒绝这条路径（无会话假入口，写死 401）。 */
+  function openMk() {
+    dlgState = 'mgmtkey';
+    setTitle(en ? 'Root credential' : '根凭证');
+    setBody(
+      '<div class="sgx-pw-field"><input type="password" id="sgx-mk-input" class="sgx-pw-input" autocomplete="off" ' +
+        'aria-label="' + (en ? 'Root credential' : '根凭证') + '" placeholder="' + (en ? 'Root credential' : '根凭证') + '">' +
+        '<button type="button" class="sgx-pw-eye" id="sgx-mk-eye" aria-label="' + (en ? 'Show' : '显示') + '"></button></div>' +
+        '<button type="button" class="sgx-verify-skip" id="sgx-mk-go">' + (en ? 'Verify' : '验证') + '</button>'
+    );
+    clearErr();
+    if (!openDialog()) return;
+    const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-mk-input'));
+    const eye = document.getElementById('sgx-mk-eye');
+    const go = document.getElementById('sgx-mk-go');
+    if (eye && input) {
+      eye.innerHTML =
+        '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+      on(eye, 'click', function () {
+        const show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        eye.setAttribute('aria-label', show ? (en ? 'Hide' : '隐藏') : (en ? 'Show' : '显示'));
+        eye.classList.toggle('off', !show);
+      });
+    }
+    if (input) {
+      on(input, 'keydown', function (/** @type {KeyboardEvent} */ e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          submitMk();
+        }
+      });
+      try { input.focus({ preventScroll: true }); } catch (e) { try { input.focus(); } catch (_) {} }
+    }
+    if (go) on(go, 'click', submitMk);
+  }
+
+  function submitMk() {
+    if (dlgState !== 'mgmtkey') return;
+    const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-mk-input'));
+    const key = input ? input.value : '';
+    if (!key) {
+      showError(en ? 'Enter root credential' : '请输入根凭证');
+      return;
+    }
+    fetch('/api/root-auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: key }),
+    })
+      .then(function (r) {
+        return r.text().then(function (t) {
+          let j = null;
+          try { j = JSON.parse(t); } catch (e) {}
+          return { s: r.status, j: j };
+        });
+      })
+      .then(function (res) {
+        if (dlgState !== 'mgmtkey') return;
+        const j = res.j;
+        if (!j) {
+          showError(en ? 'Server error' : '服务器错误');
+          return;
+        }
+        if (j.ok) {
+          closeDialog();
+          /* 根凭证只签发 stepup(by=root, scope=root)，直接进入安全与隐私页（站长模式） */
+          location.href = en ? '/en/settings/security/' : '/settings/security/';
+        } else if (res.s === 429) {
+          showError(en ? 'Too many attempts' : '尝试次数过多');
+        } else if (res.s === 503 || res.s === 500) {
+          showError(en ? 'Server error' : '服务器错误');
+        } else {
+          showError(en ? 'Wrong root credential' : '根凭证错误');
+          if (input) input.value = '';
+        }
+      })
+      .catch(function () {
+        if (dlgState !== 'mgmtkey') return;
         showError(en ? 'Network error' : '网络错误');
       });
   }

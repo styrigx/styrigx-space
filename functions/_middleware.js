@@ -52,6 +52,7 @@ const API_WHITELIST = [
   '/api/owner-password',
   '/api/owner-passkey',
   '/api/owner-status',
+  '/api/lock-config',
   '/api/session-check',
   '/api/session-epoch',
   '/api/verify',
