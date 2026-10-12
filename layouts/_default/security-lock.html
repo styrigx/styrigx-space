@@ -13,21 +13,12 @@
   <dialog id="lockgate-dlg" class="sgx-verify-dlg" aria-labelledby="lockgate-title">
     <div class="sgx-verify-card">
       <div class="sheet-handle" data-gclose></div>
-      <h2 id="lockgate-title" class="sgx-verify-title">{{ if $isEn }}Verify identity{{ else }}验证身份{{ end }}</h2>
-      <p class="sgx-verify-sub">{{ if $isEn }}Choose a way to verify{{ else }}选择一种验证方式{{ end }}</p>
+      <h2 id="lockgate-title" class="sgx-verify-title sgx-verify-title--left">{{ if $isEn }}Verify identity{{ else }}验证身份{{ end }}</h2>
       <div class="sgx-verify-opts" id="lockgate-opts">
-        <button type="button" class="sec-sheet-opt" id="lockgate-pk" hidden>
-          {{ partial "icon.html" "shield" }}
-          <span class="flex-1">{{ if $isEn }}Use passkey{{ else }}使用通行密钥{{ end }}</span>
-          {{ partial "icon.html" "chev-r" }}
-        </button>
-        <button type="button" class="sec-sheet-opt" id="lockgate-key">
-          {{ partial "icon.html" "lock" }}
-          <span class="flex-1">{{ if $isEn }}Use root key (recovery){{ else }}使用根密钥（恢复）{{ end }}</span>
-          {{ partial "icon.html" "chev-r" }}
-        </button>
+        <button type="button" class="sgx-verify-opt" id="lockgate-pk" hidden>{{ if $isEn }}Use passkey{{ else }}使用通行密钥{{ end }}</button>
+        <button type="button" class="sgx-verify-opt" id="lockgate-key">{{ if $isEn }}Use root key (recovery){{ else }}使用根密钥（恢复）{{ end }}</button>
       </div>
-      <div id="lockgate-keyform" hidden>
+      <div id="lockgate-keyform" class="sgx-verify-keyform" hidden>
         <div class="sgx-pw-field">
           <input type="password" id="lockgate-input" class="sgx-pw-input" autocomplete="off"
                  aria-label="{{ if $isEn }}Root key (recovery){{ else }}根密钥（恢复）{{ end }}"
@@ -36,9 +27,10 @@
         </div>
         <p class="sgx-verify-desc">{{ if $isEn }}The root key (recovery) set when deploying this site, used to manage unlock methods. After changing it, redeploy for the new key to take effect.{{ else }}部署本站时设置的根密钥（恢复），用于管理解锁方式。更换根密钥后，需要重新部署才会生效。{{ end }}</p>
         <p id="lockgate-err" class="sgx-verify-err" hidden></p>
-        <button type="button" class="sgx-verify-skip" id="lockgate-go">{{ if $isEn }}Continue{{ else }}继续{{ end }}</button>
+        <button type="button" class="sgx-verify-opt" id="lockgate-go">{{ if $isEn }}Continue{{ else }}继续{{ end }}</button>
         <button type="button" class="sgx-verify-back" id="lockgate-back">{{ if $isEn }}Back{{ else }}返回{{ end }}</button>
       </div>
+      <button type="button" class="sgx-verify-cancel" id="lockgate-cancel">{{ if $isEn }}Cancel{{ else }}取消{{ end }}</button>
     </div>
   </dialog>
 

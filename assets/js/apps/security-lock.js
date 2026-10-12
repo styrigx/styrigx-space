@@ -232,6 +232,7 @@ import { followKeyboard } from '../shell/vk.js';
   const gateKeyBtn = $('lockgate-key');
   const gateInput = $('lockgate-input');
   const gateEye = $('lockgate-eye');
+  const gateCancel = $('lockgate-cancel');
   /* P2-13：根凭证输入框聚焦时，验证身份弹层随键盘上移 */
   followKeyboard(gateDlg, gateInput);
 
@@ -306,6 +307,12 @@ import { followKeyboard } from '../shell/vk.js';
     });
     on(gateDlg, 'cancel', function (/** @type {Event} */ e) {
       e.preventDefault();
+      history.back();
+    });
+  }
+  if (gateCancel) {
+    /* 取消：与关闭手柄一致，返回上一页 */
+    on(gateCancel, 'click', function () {
       history.back();
     });
   }
