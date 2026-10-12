@@ -36,6 +36,7 @@ import { getSessionEpoch, ROLE_OWNER } from '../_kernel/session.js';
 import { ed25519Sign, ed25519Verify, b64urlEnc } from '../_kernel/crypto.js';
 import { randB64, verifyAssertion } from '../_kernel/passkey-verify.js';
 import { getPasskeys, PK_CLASS_OWNER } from './owner-passkey.js';
+import { ownerPasskeyKey } from '../_kernel/key-names.js';
 import { verifyOwnerPassword, getPepper } from './owner-password.js';
 import { isLayerConfigured, LAYER_OWNER } from '../_kernel/layers.js';
 
@@ -335,7 +336,7 @@ async function handlePost(context) {
       try {
         /* 更新 signCount（防克隆）：直接写 KV，不走 owner-passkey 的 savePasskey
           （避免循环 import；字段顺序与 owner-passkey.savePasskey 一致） */
-        const keyName = 'owner-passkey:' + String(stored.credId).slice(0, 12);
+        const keyName = ownerPasskeyKey(stored.credId);
         const ordered = {
           name: stored.name || '通行密钥',
           provider: stored.provider || '',

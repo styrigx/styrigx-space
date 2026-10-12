@@ -50,3 +50,12 @@ export const KEY_NAME_MAPPING = {
   'lock password / 解锁密码': KEY_LOCK,
   'app passkey (book) / Book 通行密钥': 'bookkey',
 };
+
+/* 存储层 KV 键名：owner-passkey:<credId 前 12 位>。
+   全仓所有读写 owner-passkey:* 键的地方都调 ownerPasskeyKey()，不手拼；
+   列表扫描用 OWNER_PASSKEY_PREFIX。 */
+export const OWNER_PASSKEY_PREFIX = 'owner-passkey:';
+/** @param {string} credId 完整 credId @returns {string} 'owner-passkey:<前12位>' */
+export function ownerPasskeyKey(credId) {
+  return OWNER_PASSKEY_PREFIX + String(credId).slice(0, 12);
+}

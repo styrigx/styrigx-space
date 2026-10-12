@@ -15,6 +15,8 @@
  * - layer:app:<aud> = "1"（已配置该 aud 的 app 凭证）
  */
 
+import { ownerPasskeyKey, OWNER_PASSKEY_PREFIX } from './key-names.js';
+
 /* 层标识 */
 export const LAYER_OWNER = 'owner';
 export const LAYER_LOCK = 'lock';
@@ -114,7 +116,7 @@ export async function isLockEffectivelyConfigured(kv) {
         for (const credId of idx) {
           let v = null;
           try {
-            v = await kv.get('owner-passkey:' + credId, 'json');
+            v = await kv.get(ownerPasskeyKey(credId), 'json');
           } catch (e) {
             return true;
           }
@@ -124,7 +126,7 @@ export async function isLockEffectivelyConfigured(kv) {
         /* 索引不存在：用 kv.list 补查 */
         let list = null;
         try {
-          list = await kv.list({ prefix: 'owner-passkey:' });
+          list = await kv.list({ prefix: OWNER_PASSKEY_PREFIX });
         } catch (e) {
           return true;
         }
