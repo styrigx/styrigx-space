@@ -590,3 +590,104 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
     expect(pageErrors).toEqual([]);
   });
 });
+
+test.describe('A-2 最后一把锁屏钥匙与 ownerkey 联动', () => {
+  test.beforeEach(async ({ page }) => {
+    await blockExternalRequests(page);
+    await page.addInitScript(() => {
+      try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
+    });
+    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
+  });
+
+  async function gotoLockPage(page, { lockPw, lockKeys, deleteStatus = 200, deleteBody = { ok: true } }) {
+    let deleteCalls = 0;
+    let removeCalls = 0;
+    await page.route('**/api/lock-status', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, password: lockPw, passkey: lockKeys.length > 0 }),
+      });
+    });
+    await page.route('**/api/owner-passkey', async (route) => {
+      let body = {};
+      try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
+      if (body.action === 'delete') {
+        deleteCalls++;
+        await route.fulfill({ status: deleteStatus, contentType: 'application/json', body: JSON.stringify(deleteBody) });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, keys: lockKeys, scope: 'keys' }),
+      });
+    });
+    await page.route('**/api/owner-password', async (route) => {
+      let body = {};
+      try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
+      if (body.action === 'remove' && body.kind === 'lock') removeCalls++;
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+    });
+    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
+    return { getDeleteCalls: () => deleteCalls, getRemoveCalls: () => removeCalls };
+  }
+
+  test('有 ownerkey 时删最后一把 lock 钥匙：先弹确认，点删除后成功', async ({ page }) => {
+    const lockKeys = [{ credId: 'lock-key-001', name: 'test', class: 'lock', createdAt: 1, lastUsedAt: 0 }];
+    const { getDeleteCalls } = await gotoLockPage(page, { lockPw: false, lockKeys });
+    await expect(page.locator('.lockmgr-pkdel')).toBeVisible({ timeout: 5000 });
+    /* 两步武装 + 确认弹框 */
+    await page.locator('.lockmgr-pkdel').click();
+    await page.locator('.lockmgr-pkdel').click();
+    const dlg = page.locator('dialog.sgx-center-dlg');
+    await expect(dlg).toBeVisible({ timeout: 5000 });
+    await expect(dlg).toContainText('删除后锁屏只能通过重置锁屏重新设置');
+    expect(getDeleteCalls()).toBe(0);
+    /* 点删除 → 调删除接口 → 成功提示 */
+    await dlg.locator('button', { hasText: '删除' }).click();
+    await expect.poll(() => getDeleteCalls()).toBe(1);
+    await expect(page.locator('.sgx-toast')).toContainText('已删除', { timeout: 5000 });
+  });
+
+  test('无 ownerkey 时删最后一把 lock 钥匙：确认后服务端 403，提示先设置解锁密码', async ({ page }) => {
+    const lockKeys = [{ credId: 'lock-key-001', name: 'test', class: 'lock', createdAt: 1, lastUsedAt: 0 }];
+    await gotoLockPage(page, { lockPw: false, lockKeys, deleteStatus: 403, deleteBody: { ok: false, error: 'last-key' } });
+    await expect(page.locator('.lockmgr-pkdel')).toBeVisible({ timeout: 5000 });
+    await page.locator('.lockmgr-pkdel').click();
+    await page.locator('.lockmgr-pkdel').click();
+    const dlg = page.locator('dialog.sgx-center-dlg');
+    await expect(dlg).toBeVisible({ timeout: 5000 });
+    await dlg.locator('button', { hasText: '删除' }).click();
+    await expect(page.locator('.sgx-toast')).toContainText('这是最后一把解锁钥匙，请先设置解锁密码', { timeout: 5000 });
+  });
+
+  test('有 ownerkey 时删最后一把 lock 密码：先弹确认，点删除后成功', async ({ page }) => {
+    const { getRemoveCalls } = await gotoLockPage(page, { lockPw: true, lockKeys: [] });
+    await expect(page.locator('#lockmgr-pwdel')).toBeVisible({ timeout: 5000 });
+    await page.locator('#lockmgr-pwdel').click();
+    await page.locator('#lockmgr-pwdel').click();
+    const dlg = page.locator('dialog.sgx-center-dlg');
+    await expect(dlg).toBeVisible({ timeout: 5000 });
+    await expect(dlg).toContainText('删除后锁屏只能通过重置锁屏重新设置');
+    expect(getRemoveCalls()).toBe(0);
+    await dlg.locator('button', { hasText: '删除' }).click();
+    await expect.poll(() => getRemoveCalls()).toBe(1);
+    await expect(page.locator('.sgx-toast')).toContainText('密码已删除', { timeout: 5000 });
+  });
+
+  test('点取消不删除', async ({ page }) => {
+    const lockKeys = [{ credId: 'lock-key-001', name: 'test', class: 'lock', createdAt: 1, lastUsedAt: 0 }];
+    const { getDeleteCalls } = await gotoLockPage(page, { lockPw: false, lockKeys });
+    await expect(page.locator('.lockmgr-pkdel')).toBeVisible({ timeout: 5000 });
+    await page.locator('.lockmgr-pkdel').click();
+    await page.locator('.lockmgr-pkdel').click();
+    const dlg = page.locator('dialog.sgx-center-dlg');
+    await expect(dlg).toBeVisible({ timeout: 5000 });
+    await dlg.locator('button', { hasText: '取消' }).click();
+    await expect(dlg).toBeHidden();
+    expect(getDeleteCalls()).toBe(0);
+  });
+});

@@ -47,10 +47,13 @@ import {
   isLayerConfigured,
   setLayerConfigured,
   clearLayerConfigured,
+  isOwnerEffectivelyConfigured,
+  setLockEmptied,
+  clearLockEmptied,
   LAYER_OWNER,
   LAYER_LOCK,
 } from '../_kernel/layers.js';
-import { getPasskeys, PK_CLASS_OWNER } from './owner-passkey.js';
+import { getPasskeys, PK_CLASS_OWNER, PK_CLASS_LOCK } from './owner-passkey.js';
 
 const ITERATIONS = 100000; // Workers PBKDF2 上限（实测：超过抛 NotSupportedError）
 const SALT_LEN = 16;
@@ -384,6 +387,27 @@ async function handlePost(context) {
 
     /* remove：删除密码，同时清掉失败计数和锁定 */
     if (action === 'remove') {
+      /* A-2：删 lock 密码且删后锁屏凭证归零（无 lock 钥匙）时，
+         只在 owner 已有效配置时允许；owner 未配置时 403 last-key。
+         检查在任何 mutation 之前。 */
+      if (kind === 'lock') {
+        let lockKeys = [];
+        try {
+          const keys = await getPasskeys(kv);
+          lockKeys = keys.filter(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK; });
+        } catch (e) {}
+        if (lockKeys.length === 0) {
+          let ownerCfg = true;
+          try {
+            ownerCfg = await isOwnerEffectivelyConfigured(kv);
+          } catch (e) {
+            ownerCfg = true;
+          }
+          if (!ownerCfg) {
+            return Response.json({ ok: false, error: 'last-key' }, { status: 403 });
+          }
+        }
+      }
       try {
         await kv.delete(pwKey);
       } catch (e) {
@@ -413,6 +437,8 @@ async function handlePost(context) {
             } catch (e) {
               return Response.json({ ok: false, error: 'server' }, { status: 503 });
             }
+            /* A-2：owner 删光时同时清除 lock-emptied（两层都无凭证，不再是 owner 接管态） */
+            try { await clearLockEmptied(kv); } catch (e) {}
           }
         } catch (e) {}
       }
@@ -423,11 +449,23 @@ async function handlePost(context) {
           let hasLockPw = false;
           try { const r = await kv.get('lock-pw', 'json'); hasLockPw = !!(r && r.hash); } catch (e) {}
           if (!hasLockKey && !hasLockPw) {
-            /* 清标记失败不吞掉：同上 */
-            try {
-              await clearLayerConfigured(kv, LAYER_LOCK);
-            } catch (e) {
-              return Response.json({ ok: false, error: 'server' }, { status: 503 });
+            /* A-2：删光 lock 凭证且 owner 已配置 → 置 lock-emptied，
+               保留 layer:lock 不清；owner 未配置时（竞态）按旧逻辑清 layer:lock。 */
+            let ownerCfg = true;
+            try { ownerCfg = await isOwnerEffectivelyConfigured(kv); } catch (e) { ownerCfg = true; }
+            if (ownerCfg) {
+              try {
+                await setLockEmptied(kv);
+              } catch (e) {
+                return Response.json({ ok: false, error: 'server' }, { status: 503 });
+              }
+            } else {
+              try {
+                await clearLayerConfigured(kv, LAYER_LOCK);
+              } catch (e) {
+                return Response.json({ ok: false, error: 'server' }, { status: 503 });
+              }
+              try { await clearLockEmptied(kv); } catch (e) {}
             }
           }
         } catch (e) {}
@@ -495,6 +533,10 @@ async function handlePost(context) {
         const was = await isLayerConfigured(kv, layer);
         if (!was) {
           await setLayerConfigured(kv, layer);
+        }
+        /* A-2：新增 lock 密码时清除 lock-emptied（锁屏恢复正常解锁入口） */
+        if (kind === 'lock') {
+          await clearLockEmptied(kv);
         }
       } catch (e) {}
     }

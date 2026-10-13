@@ -53,7 +53,7 @@ import {
 } from '../_kernel/session.js';
 import { getApp } from '../_kernel/app-registry.js';
 import { verifyStepupCookie, reissueStepupWithEpoch, STEPUP_COOKIE, STEPUP_BY_ROOT, STEPUP_BY_OWNER, STEPUP_SCOPE_ROOT, STEPUP_SCOPE_KEYS, STEPUP_SCOPE_LOCKRESET } from './stepup.js';
-import { LAYER_OWNER, LAYER_LOCK, layerApp, setLayerConfigured, clearLayerConfigured, isLayerConfigured, isLockEffectivelyConfigured } from '../_kernel/layers.js';
+import { LAYER_OWNER, LAYER_LOCK, layerApp, setLayerConfigured, clearLayerConfigured, isLayerConfigured, isLockEffectivelyConfigured, isOwnerEffectivelyConfigured, setLockEmptied, clearLockEmptied } from '../_kernel/layers.js';
 import { verifySessionDetailed } from '../_middleware.js';
 import {
   STORE_CLASS_OWNERKEY,
@@ -593,6 +593,10 @@ async function handlePost(context) {
         aud: aud || undefined,
       };
       await savePasskey(kv, item);
+      /* A-2：新增任一 lock 凭证时清除 lock-emptied（锁屏恢复正常解锁入口） */
+      if (pkClass === PK_CLASS_LOCK) {
+        try { await clearLockEmptied(kv); } catch (e) {}
+      }
       /* 2.11 定稿：首次配置某层时标记 + 推进纪元（fail closed 写入失败不阻断注册主体，
          但标记/纪元失败时尽力而为；纪元推进失败则返回 503）
          - 首次配 owner：废止 by=root,scope=keys 的票（必修安全项 1）
@@ -848,14 +852,25 @@ async function handlePost(context) {
       return Response.json(mg.body, { status: mg.status });
     }
     const isLockresetOp = mg.sv.scope === STEPUP_SCOPE_LOCKRESET;
-    /* 没有锁屏密码时，禁止删除最后一把 lock 凭据 */
+    /* A-2：锁屏凭证减到 0 的那次删除，只在 owner 已有效配置时允许；
+       owner 未配置时禁止（403 last-key，文案不变）。判断在任何 mutation 之前。 */
     if (delClass === PK_CLASS_LOCK) {
-      let hasPw = false;
-      try { hasPw = !!(await kv.get('lock-pw', 'json')); } catch (e) {}
-      if (!hasPw) {
-        const keys = await getPasskeys(kv);
-        const lockKeys = keys.filter(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK; });
-        if (lockKeys.length <= 1) {
+      let hasLockPw = false;
+      try {
+        const pwRec = await kv.get('lock-pw', 'json');
+        hasLockPw = !!(pwRec && pwRec.hash);
+      } catch (e) {}
+      const keys = await getPasskeys(kv);
+      const lockKeys = keys.filter(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK; });
+      /* 删后锁屏凭证归零：无锁屏密码且只剩这一把 lock 钥匙 */
+      if (!hasLockPw && lockKeys.length <= 1) {
+        let ownerCfg = true;
+        try {
+          ownerCfg = await isOwnerEffectivelyConfigured(kv);
+        } catch (e) {
+          ownerCfg = true;
+        }
+        if (!ownerCfg) {
           return Response.json({ ok: false, error: 'last-key' }, { status: 403 });
         }
       }
@@ -900,17 +915,32 @@ async function handlePost(context) {
           } catch (e) {
             return Response.json({ ok: false, error: 'server' }, { status: 503 });
           }
+          /* A-2：owner 删光时同时清除 lock-emptied（两层都无凭证，不再是 owner 接管态） */
+          try { await clearLockEmptied(kv); } catch (e) {}
         }
       } else if (delClass === PK_CLASS_LOCK) {
         const hasLockKey = keys.some(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK; });
         let hasLockPw = false;
         try { const r = await kv.get('lock-pw', 'json'); hasLockPw = !!(r && r.hash); } catch (e) {}
         if (!hasLockKey && !hasLockPw) {
-          /* 清标记失败不吞掉：同上 */
-          try {
-            await clearLayerConfigured(kv, LAYER_LOCK);
-          } catch (e) {
-            return Response.json({ ok: false, error: 'server' }, { status: 503 });
+          /* A-2：删光 lock 凭证且 owner 已配置 → 置 lock-emptied，
+             保留 layer:lock 不清（根凭证代开继续被拒，锁屏只显示访客 + 重置）；
+             owner 未配置时（竞态）按旧逻辑清 layer:lock。 */
+          let ownerCfg = true;
+          try { ownerCfg = await isOwnerEffectivelyConfigured(kv); } catch (e) { ownerCfg = true; }
+          if (ownerCfg) {
+            try {
+              await setLockEmptied(kv);
+            } catch (e) {
+              return Response.json({ ok: false, error: 'server' }, { status: 503 });
+            }
+          } else {
+            try {
+              await clearLayerConfigured(kv, LAYER_LOCK);
+            } catch (e) {
+              return Response.json({ ok: false, error: 'server' }, { status: 503 });
+            }
+            try { await clearLockEmptied(kv); } catch (e) {}
           }
         }
       } else if (delClass === PK_CLASS_APP && found.aud) {

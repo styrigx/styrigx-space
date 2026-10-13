@@ -10,7 +10,7 @@ import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton } from '../lib/dialog-behavior.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton, showCenterDialog } from '../lib/dialog-behavior.js';
 import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown } from './app-gate.js';
 
 (function () {
@@ -284,9 +284,10 @@ import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown } fr
     on(pwDel, 'click', function () {
       if (!armed) {
         armed = true;
-        /* 如果删完后密码和通行密钥都没了，提示只能用根凭证进入 */
+        /* 如果删完后密码和通行密钥都没了：lock 模式 → 锁屏只能通过重置锁屏重新设置；
+           owner 模式 → 只能用根凭证进入。 */
         if (!hasPk) {
-          pwDel.textContent = t('pwDelWarn');
+          pwDel.textContent = pwKind === 'lock' ? t('pwDelWarnLock') : t('pwDelWarn');
         } else {
           pwDel.textContent = t('pwDelAsk');
         }
@@ -299,6 +300,25 @@ import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown } fr
         return;
       }
       window.clearTimeout(armTimer);
+      /* A-2：删后锁屏凭证归零 → 先弹确认（与到期弹框共用 showCenterDialog），
+         点删除才真正调删除接口；服务端无 ownerkey 时仍 403 last-key。 */
+      if (pwKind === 'lock' && !hasPk) {
+        /* helper 已在按钮点击时关弹框；onClick 不传 close。取消/遮罩/Escape 都走 onCancel 复位 armed。 */
+        var resetArmed = function () { armed = false; pwDel.textContent = origText; pwDel.classList.remove('armed'); };
+        showCenterDialog({
+          title: t('lastKeyConfirmTitle'),
+          desc: t('lastKeyConfirmDesc'),
+          dismissible: true,
+          onCancel: resetArmed,
+          buttons: [
+            { label: t('lastKeyConfirmCancel'), kind: 'ghost', onClick: resetArmed },
+            { label: t('lastKeyConfirmDelete'), kind: 'primary', onClick: function () { doRemovePw(); } },
+          ],
+        });
+        return;
+      }
+      doRemovePw();
+      function doRemovePw() {
       api('/api/owner-password', { action: 'remove', kind: pwKind })
         .then(function (r) {
           const j = r.json;
@@ -322,6 +342,7 @@ import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown } fr
           pwDel.textContent = origText;
           pwDel.classList.remove('armed');
         });
+      }
     });
   }
   /* Phase 2 Item 11：退出站长凭证（吊销 stepup 票据，回安全页）。
@@ -651,6 +672,25 @@ import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown } fr
               return;
             }
             window.clearTimeout(armTimer);
+            /* A-2：删后锁屏凭证归零 → 先弹确认（与到期弹框共用 showCenterDialog），
+               点删除才真正调删除接口；服务端无 ownerkey 时仍 403 last-key。 */
+            if (pageClass === 'lock' && keys.length <= 1 && !hasPw) {
+              /* helper 已在按钮点击时关弹框；onClick 不传 close。取消/遮罩/Escape 都走 onCancel 复位 armed。 */
+              var resetPkArmed = function () { armed = false; del.textContent = t('pkDel'); del.classList.remove('armed'); };
+              showCenterDialog({
+                title: t('lastKeyConfirmTitle'),
+                desc: t('lastKeyConfirmDesc'),
+                dismissible: true,
+                onCancel: resetPkArmed,
+                buttons: [
+                  { label: t('lastKeyConfirmCancel'), kind: 'ghost', onClick: resetPkArmed },
+                  { label: t('lastKeyConfirmDelete'), kind: 'primary', onClick: function () { doDeleteKey(); } },
+                ],
+              });
+              return;
+            }
+            doDeleteKey();
+            function doDeleteKey() {
             api('/api/owner-passkey', { action: 'delete', credId: k.credId })
               .then(function (r2) {
                 const jj = r2.json;
@@ -681,6 +721,7 @@ import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown } fr
               .catch(function () {
                 toast(t('gateNetErr'));
               });
+            }
           });
           li.appendChild(nameWrap);
           li.appendChild(del);
