@@ -1407,6 +1407,13 @@
     &.is-ok { background: var(--m-tertiary-container); color: var(--m-on-tertiary-container); }
     &.is-warn { background: var(--m-warm-container); color: var(--m-on-warm-container); }
   }
+  /* 批次 B #8：状态卡固定占位——站长从首屏即占位（占位文案「正在读取…」），
+     内容填入时不推布局；访客由 data-sgx-role 隐藏（JS 不拉状态接口）。 */
+  html:not([data-sgx-role="owner"]) .sec-status { display: none; }
+  html[data-sgx-role="owner"] .sec-status { display: flex; }
+  /* 批次 B #8：跳转提示固定占位——常驻布局，空时 visibility 隐藏，不推布局 */
+  #sgx-jump-note { visibility: hidden; min-height: 52px; }
+  #sgx-jump-note.sgx-jump-note-show { visibility: visible; }
   .sec-status-ic {
     width: 48px; height: 48px; border-radius: 999px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;

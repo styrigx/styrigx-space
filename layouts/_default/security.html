@@ -6,23 +6,35 @@
 {{ .Scratch.Set "sgx-entry" "entry-security.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 {{ $lockUrl := cond $isEn "/en/settings/security/lock/" "/settings/security/lock/" }}
+{{ $ownerUrl := cond $isEn "/en/settings/security/owner/" "/settings/security/owner/" }}
 {{ $setUrl := cond $isEn "/en/settings/" "/settings/" }}
 {{ $moreBtn := printf `<button type="button" class="subpage-more" id="sec-more" aria-label="%s"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></button>` (cond $isEn "More" "更多") }}
 
 <div class="set-layout max-w-2xl mx-auto px-4 pb-28">
   {{ partial "subpage-head.html" (dict "title" (cond $isEn "Security and privacy" "安全与隐私") "isEn" $isEn "actions" ($moreBtn | safeHTML)) }}
 
-  <!-- #1 诊断：门内页跳转留痕。安全页加载时若有记录则显示一次，随即清除。 -->
-  <div id="sgx-jump-note" class="widget bg-m-container-lowest border border-m-outline mb-2 p-4" role="status" hidden>
+  <!-- #1 诊断：门内页跳转留痕。安全页加载时若有记录则显示一次，随即清除。
+       批次 B #8：固定占位（visibility 占位，不用 hidden），内容出现时不推布局。 -->
+  <div id="sgx-jump-note" class="widget bg-m-container-lowest border border-m-outline mb-2 p-4" role="status">
     <p class="text-sm m-0" id="sgx-jump-note-text"></p>
   </div>
 
-  <!-- 状态卡片（JS 按 /api/owner-status 填充） -->
-  <a id="sec-status" class="sec-status" href="{{ $lockUrl }}" hidden>
-    <span class="sec-status-ic" id="sec-status-ic">{{ partial "icon.html" "shield" }}</span>
+  <!-- 状态卡片（两层状态，批次 B #13；JS 按 owner-status / lock-status 填充；访客不显示）。
+       批次 B #8：固定占位——卡片从首屏即占位（占位文案「正在读取…」），
+       内容填入时不推布局；访客由 CSS 按 data-sgx-role 隐藏。 -->
+  <a id="sec-status-owner" class="sec-status" href="{{ $ownerUrl }}" hidden>
+    <span class="sec-status-ic">{{ partial "icon.html" "shield" }}</span>
     <span class="flex-1 min-w-0">
-      <span class="block font-bold text-[17px]" id="sec-status-title"></span>
-      <span class="block text-[13px] mt-0.5 opacity-80" id="sec-status-sub"></span>
+      <span class="block font-bold text-[17px]" id="sec-status-owner-title">{{ if $isEn }}Loading…{{ else }}正在读取…{{ end }}</span>
+      <span class="block text-[13px] mt-0.5 opacity-80" id="sec-status-owner-sub">{{ if $isEn }}Loading…{{ else }}正在读取…{{ end }}</span>
+    </span>
+    {{ partial "icon.html" "chev-r" }}
+  </a>
+  <a id="sec-status-lock" class="sec-status" href="{{ $lockUrl }}" hidden>
+    <span class="sec-status-ic">{{ partial "icon.html" "shield" }}</span>
+    <span class="flex-1 min-w-0">
+      <span class="block font-bold text-[17px]" id="sec-status-lock-title">{{ if $isEn }}Loading…{{ else }}正在读取…{{ end }}</span>
+      <span class="block text-[13px] mt-0.5 opacity-80" id="sec-status-lock-sub">{{ if $isEn }}Loading…{{ else }}正在读取…{{ end }}</span>
     </span>
     {{ partial "icon.html" "chev-r" }}
   </a>
@@ -102,11 +114,20 @@
 </div>
 
 {{ $secI18n := dict
-  "okTitle" (dict "zh" "一切正常" "en" "All good")
-  "okSub" (dict "zh" "密码、通行密钥均已设置" "en" "Password and passkeys are set")
-  "warnTitle" (dict "zh" "建议操作" "en" "Action suggested")
+  "ownerOkTitle" (dict "zh" "站长凭证已设置" "en" "Owner credential set")
+  "ownerOkSub" (dict "zh" "站长密码、通行密钥均已设置" "en" "Owner password and passkeys are set")
+  "ownerWarnTitle" (dict "zh" "站长凭证待完善" "en" "Owner credential needs attention")
+  "lockOkTitle" (dict "zh" "锁屏已设置" "en" "Lock screen set")
+  "lockOkSub" (dict "zh" "解锁密码、通行密钥均已设置" "en" "Unlock password and passkeys are set")
+  "lockWarnTitle" (dict "zh" "锁屏待完善" "en" "Lock screen needs attention")
   "missPw" (dict "zh" "未设置站长密码" "en" "Owner password not set")
-  "missPk" (dict "zh" "未注册通行密钥" "en" "No passkeys registered")
+  "missPk" (dict "zh" "未注册站长通行密钥" "en" "No owner passkeys registered")
+  "lockMissPw" (dict "zh" "未设置解锁密码" "en" "Unlock password not set")
+  "lockMissPk" (dict "zh" "未注册锁屏通行密钥" "en" "No lock screen passkeys registered")
+  "lockNowTitle" (dict "zh" "立即锁定？" "en" "Lock now?")
+  "lockNowDesc" (dict "zh" "当前设备会回到锁屏。" "en" "This device will return to the lock screen.")
+  "lockNowCancel" (dict "zh" "取消" "en" "Cancel")
+  "lockNowConfirm" (dict "zh" "锁定" "en" "Lock")
   "lockSubBoth" (dict "zh" "密码，通行密钥" "en" "Password, passkeys")
   "lockSubPw" (dict "zh" "密码" "en" "Password")
   "lockSubPk" (dict "zh" "通行密钥" "en" "Passkeys")
