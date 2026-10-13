@@ -280,3 +280,56 @@ test.describe('批次 A 验收修复 P1：删除密码按钮', () => {
     await expect(page.locator('#lockmgr-pwdel')).toBeHidden();
   });
 });
+
+test.describe('批次 A 验收修复 P1：双向相同密码错误文案', () => {
+  test.beforeEach(async ({ page }) => {
+    await blockExternalRequests(page);
+    await page.addInitScript(() => {
+      try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
+    });
+    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true });
+    await mockJson(page, '**/api/owner-passkey', 200, { ok: true, keys: [], scope: 'root' });
+  });
+
+  test('站长页设站长密码与解锁密码相同 → 「不能与解锁密码相同」，不带错误码小字', async ({ page }) => {
+    await mockJson(page, '**/api/owner-status', 200, { ok: true, password: true, passkey: true });
+    await page.route('**/api/owner-password', async (route) => {
+      await route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: false, error: 'same-as-lock' }),
+      });
+    });
+    await page.goto('/settings/security/owner/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
+    await page.locator('#lockmgr-pwrow').click();
+    await expect(page.locator('#lockpw-dlg')).toBeVisible({ timeout: 5000 });
+    await page.locator('#lockpw-1').fill('00000000');
+    await page.locator('#lockpw-2').fill('00000000');
+    await page.locator('#lockpw-go').click();
+    const err = page.locator('#lockpw-err:not([hidden])');
+    await expect(err).toBeVisible({ timeout: 5000 });
+    await expect(err).toHaveText('不能与解锁密码相同');
+  });
+
+  test('锁屏页设解锁密码与站长密码相同 → 「不能与站长密码相同」，不带错误码小字', async ({ page }) => {
+    await mockJson(page, '**/api/lock-status', 200, { ok: true, password: true, passkey: true });
+    await page.route('**/api/owner-password', async (route) => {
+      await route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: false, error: 'same-as-owner' }),
+      });
+    });
+    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
+    await page.locator('#lockmgr-pwrow').click();
+    await expect(page.locator('#lockpw-dlg')).toBeVisible({ timeout: 5000 });
+    await page.locator('#lockpw-1').fill('00000000');
+    await page.locator('#lockpw-2').fill('00000000');
+    await page.locator('#lockpw-go').click();
+    const err = page.locator('#lockpw-err:not([hidden])');
+    await expect(err).toBeVisible({ timeout: 5000 });
+    await expect(err).toHaveText('不能与站长密码相同');
+  });
+});

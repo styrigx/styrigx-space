@@ -331,6 +331,11 @@ var ERR_KEY = {
   'cancelled': 'errCancelled',
   'forbidden': 'errServer',
   'role': 'errServer',
+  /* 批次 A 验收修复 P1：双向相同密码（owner-password.js 双向检查），不再落 errUnknown + 小字 */
+  'same-as-lock': 'errSameAsLock',
+  'same-as-owner': 'errSameAsOwner',
+  /* 空密码 400（前端已拦长度，兜底映射，避免未知错误） */
+  'password': 'errParams',
   'app-auth-required': 'errVerify',
   'no-app-key': 'errNotSet',
   'return': 'errParams',
