@@ -18,6 +18,7 @@
  */
 import { on } from '../lib/events.js';
 import { visibleInterval } from '../lib/scheduler.js';
+import { sgxTraceJump } from '../lib/diag-jumptrace.js';
 import { reducedMotion } from '../lib/util.js';
 import { get as featGet } from '../lib/features.js';
 import { armVerifyKeyboard } from './verify-kb.js';
@@ -1099,6 +1100,7 @@ function showLockScreen() {
                 if (ret) {
                   handleSessionOk();
                 } else {
+                  sgxTraceJump('lock.js:1103');
                   location.href = en ? '/en/settings/security/' : '/settings/security/';
                 }
               } else {

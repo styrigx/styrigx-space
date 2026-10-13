@@ -7,6 +7,7 @@
  * - 反馈一律 One UI 轻提示（toast）；localStorage 经 storage.js。
  */
 import { enterDoor } from './app-gate.js';
+import { sgxShowBuildTag } from '../lib/diag-jumptrace.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -78,4 +79,5 @@ import { enterDoor } from './app-gate.js';
     },
     t
   );
+  try { sgxShowBuildTag(); } catch (e) {}
 })();

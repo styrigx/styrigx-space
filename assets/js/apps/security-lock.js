@@ -8,6 +8,7 @@
  */
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
+import { sgxShowBuildTag } from '../lib/diag-jumptrace.js';
 import { followKeyboard } from '../shell/vk.js';
 
 (function () {
@@ -1122,4 +1123,5 @@ import { followKeyboard } from '../shell/vk.js';
     .catch(function () {
       openGate();
     });
+  try { sgxShowBuildTag(); } catch (e) {}
 })();

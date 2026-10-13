@@ -18,6 +18,7 @@ import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
 import { mgmtButtons } from './mgmt-buttons.js';
 import { exchangeRootSession } from '../lib/root-session.js';
+import { sgxTraceJump, sgxTraceRootOk, sgxShowBuildTag, sgxShowJumpTrace } from '../lib/diag-jumptrace.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -563,7 +564,7 @@ import { exchangeRootSession } from '../lib/root-session.js';
         desc: en
           ? 'Verify with your root credential. After verification you can freely manage owner keys; it expires when you leave.'
           : '用根凭证验证。验证后可自由管理站长凭证，离开即失效。',
-        methods: [doorDlg.rootMethod(function () { location.href = ownerUrl; })],
+        methods: [doorDlg.rootMethod(function () { sgxTraceRootOk(ownerUrl); location.href = ownerUrl; })],
       });
     }
     on(row, 'click', openOwnerDoor);
@@ -640,4 +641,6 @@ import { exchangeRootSession } from '../lib/root-session.js';
 
 
   refresh(true);
+  /* 诊断：显示构建标记 + 跳转追踪 */
+  try { sgxShowBuildTag(); sgxShowJumpTrace(); } catch (e) {}
 })();

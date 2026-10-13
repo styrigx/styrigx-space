@@ -6,6 +6,7 @@
  * 门内全部直接调接口；返回离开即退出（返回键先清验证）。
  */
 import { initDoor } from './door.js';
+import { sgxShowBuildTag } from '../lib/diag-jumptrace.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -29,4 +30,5 @@ import { initDoor } from './door.js';
     withApps: false,
     homeUrl: en ? '/en/settings/' : '/settings/',
   });
+  try { sgxShowBuildTag(); } catch (e) {}
 })();

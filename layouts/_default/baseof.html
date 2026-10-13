@@ -1,5 +1,8 @@
 <!DOCTYPE html>
-<html lang="{{ if or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}en{{ else }}zh{{ end }}" class="scroll-smooth">
+{{ $buildSha := os.Getenv "GITHUB_SHA" | default "dev" }}
+{{ $buildShort := $buildSha }}
+{{ if gt (len $buildSha) 7 }}{{ $buildShort = slicestr $buildSha 0 7 }}{{ end }}
+<html lang="{{ if or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}en{{ else }}zh{{ end }}" class="scroll-smooth" data-sgx-build="{{ $buildShort }}">
 <head>
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 <meta charset="utf-8">

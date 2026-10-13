@@ -13,6 +13,7 @@
  * - apiErrorText()：按服务端 error 码给中文提示，不说笼统的"服务器错误"。
  */
 import { toast } from '../lib/toast.js';
+import { sgxTraceJump } from '../lib/diag-jumptrace.js';
 
 /** @param {string} s */
 export function b64urlToBuf(s) {
@@ -97,6 +98,7 @@ export function needVerify(t, reason, detail) {
     toast(verifyMessage(t, reason, detail));
   } catch (e) {}
   window.setTimeout(function () {
+    sgxTraceJump('app-gate.js:needVerify');
     location.href = securityUrl();
   }, 900);
 }
@@ -212,6 +214,7 @@ function showProbeFailure(t, info) {
   btn.className = 'sgx-verify-skip mt-4';
   btn.textContent = backLabel;
   btn.addEventListener('click', function () {
+    sgxTraceJump('app-gate.js:probe-fail-btn');
     location.href = securityUrl();
   });
   card.appendChild(btn);

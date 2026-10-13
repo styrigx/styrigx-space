@@ -2,6 +2,7 @@
  * @fileoverview 全站搜索快捷键 + 返回/Dock 历史逻辑（旧 sgx-base-a.js 上半）。
  */
 import { on, delegate } from '../lib/events.js';
+import { sgxTraceJump } from '../lib/diag-jumptrace.js';
 
 /**
  * 初始化：Cmd/Ctrl+K 跳浏览器页搜索；返回键与 Dock 的历史管理。
@@ -57,7 +58,11 @@ export function initNavHistory() {
       location.replace(home);
       return;
     }
-    location.replace(parentOf());
+    const dest = parentOf();
+    if (dest === '/settings/security/' || dest === '/en/settings/security/') {
+      sgxTraceJump('navhistory.js:goBack');
+    }
+    location.replace(dest);
   }
   /* 事件委托：按钮在 <main> 里，脚本可能先执行 */
   delegate(document, 'click', '[data-go-back]', function (e) {

@@ -11,6 +11,8 @@
  * 根凭证/密码改用弹层内联输入，不用原生弹窗（全站禁止原生弹窗，
  * 见 scripts/check-frontend.mjs）。
  */
+import { sgxTraceJump } from '../lib/diag-jumptrace.js';
+
 export function initUpgrade() {
   const html = document.documentElement;
   if (html.getAttribute('data-sgx-upgrade') !== '1') return;
@@ -121,6 +123,7 @@ export function initUpgrade() {
         if (ret) {
           window.location.replace(window.location.href);
         } else {
+          sgxTraceJump('upgrade.js:125');
           location.href = isEn ? '/en/settings/security/' : '/settings/security/';
         }
       } else if (res.status === 429) {

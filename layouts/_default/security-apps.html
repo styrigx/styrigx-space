@@ -37,6 +37,7 @@
     </section>
     <p class="sec-note">{{ if $isEn }}One passkey per app, used only to approve that app's sensitive actions.{{ else }}每个应用一把通行密钥，只用于批准该应用的敏感操作。{{ end }}</p>
   </div>
+  <p class="sec-note opacity-60"><span data-sgx-build-tag></span></p>
 </div>
 
 <script id="sgx-app-whitelist" type="application/json">{{ $wl | jsonify | safeJS }}</script>

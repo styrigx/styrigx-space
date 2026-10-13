@@ -3,6 +3,7 @@
  * 进门探针用 /api/lock-status（接受 stepup scope=keys），无效则跳回安全与隐私页。
  */
 import { enterDoor } from './app-gate.js';
+import { sgxShowBuildTag } from '../lib/diag-jumptrace.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -52,4 +53,5 @@ import { enterDoor } from './app-gate.js';
   }
 
   enterDoor(probe, onEnter, t);
+  try { sgxShowBuildTag(); } catch (e) {}
 })();
