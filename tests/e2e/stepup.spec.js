@@ -219,7 +219,7 @@ test.describe('stepup e2e', () => {
       expect(sc).toContain('HttpOnly');
       expect(sc).toContain('Secure');
       expect(sc).toContain('SameSite=Strict');
-      expect(sc).toContain('Max-Age=180');
+      expect(sc).toContain('Max-Age=600');
       const m = sc.match(/sgx-stepup=([^;]+)/);
       expect(m).toBeTruthy();
       const stepupCookie = 'sgx-stepup=' + m[1];

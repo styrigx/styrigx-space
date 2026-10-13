@@ -20,7 +20,7 @@ import { mgmtButtons } from './mgmt-buttons.js';
 import { exchangeRootSession } from '../lib/root-session.js';
 import { takeJumpRecords } from './app-gate.js';
 import { takeBeaconRecord, sgxNavigate, sgxReload, recordJump } from '../lib/diag-jumptrace.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton, tapFeedback, setRowBusy, setRowSelected, showConfirmDialog } from '../lib/dialog-behavior.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton, tapFeedback, setRowBusy, setRowSelected } from '../lib/dialog-behavior.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -42,137 +42,46 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
   const ownerUrl = en ? '/en/settings/security/owner/' : '/settings/security/owner/';
   const mgmtUrl = en ? '/en/settings/security/mgmt/' : '/settings/security/mgmt/';
 
-  const ownerCard = document.getElementById('sec-status-owner');
-  const ownerCardTitle = document.getElementById('sec-status-owner-title');
-  const ownerCardSub = document.getElementById('sec-status-owner-sub');
-  const lockCard = document.getElementById('sec-status-lock');
-  const lockCardTitle = document.getElementById('sec-status-lock-title');
-  const lockCardSub = document.getElementById('sec-status-lock-sub');
+  const card = document.getElementById('sec-status');
+  const cardTitle = document.getElementById('sec-status-title');
+  const cardSub = document.getElementById('sec-status-sub');
 
   /**
-   * 渲染一张状态卡（批次 B #13：两层状态，各卡独立 ok/warn）。
-   * @param {HTMLElement|null} card
-   * @param {HTMLElement|null} cardTitle
-   * @param {HTMLElement|null} cardSub
+   * 渲染状态。
    * @param {boolean} hasPw
    * @param {boolean} hasPk
-   * @param {string} okTitleKey
-   * @param {string} okSubKey
-   * @param {string} warnTitleKey
-   * @param {string} missPwKey
-   * @param {string} missPkKey
    */
-  function renderCard(card, cardTitle, cardSub, hasPw, hasPk, okTitleKey, okSubKey, warnTitleKey, missPwKey, missPkKey) {
+  function render(hasPw, hasPk) {
     if (card) {
       card.hidden = false;
       card.classList.toggle('is-ok', hasPw && hasPk);
       card.classList.toggle('is-warn', !(hasPw && hasPk));
     }
     if (hasPw && hasPk) {
-      if (cardTitle) cardTitle.textContent = t(okTitleKey);
-      if (cardSub) cardSub.textContent = t(okSubKey);
+      if (cardTitle) cardTitle.textContent = t('okTitle');
+      if (cardSub) cardSub.textContent = t('okSub');
     } else {
-      if (cardTitle) cardTitle.textContent = t(warnTitleKey);
+      if (cardTitle) cardTitle.textContent = t('warnTitle');
       const miss = [];
-      if (!hasPw) miss.push(t(missPwKey));
-      if (!hasPk) miss.push(t(missPkKey));
+      if (!hasPw) miss.push(t('missPw'));
+      if (!hasPk) miss.push(t('missPk'));
       if (cardSub) cardSub.textContent = miss.join('，');
     }
   }
 
-  /* 批次 B #16：新站启动模式（data-sgx-session === 'startup'）。
-     - 顶部固定提示条常显；
-     - bootstrapConfigured 由 refresh() 的两层状态维护（任一层任一凭证即 true）；
-     - 导航守卫：未配任何钥匙时拦截站外跳转并重复提示；已配至少一把时
-       先 POST /api/lock 作废启动会话，再回锁屏。服务端 middleware 是最终防线。 */
-  const isBootstrap = (function () {
-    try { return document.documentElement.dataset.sgxSession === 'startup'; } catch (e) { return false; }
-  })();
-  let bootstrapConfigured = false;
-  const bootstrapNote = document.getElementById('sgx-bootstrap-note');
-  const bootstrapNoteText = document.getElementById('sgx-bootstrap-note-text');
-  if (isBootstrap && bootstrapNote && bootstrapNoteText) {
-    bootstrapNoteText.textContent = t('bootstrapNote');
-    bootstrapNote.hidden = false;
-  }
-  /** 重复提示：闪烁提示条 + toast 同文案 */
-  function repeatBootstrapNote() {
-    if (!isBootstrap) return;
-    if (bootstrapNote) {
-      bootstrapNote.classList.add('sgx-bootstrap-note-flash');
-      window.setTimeout(function () {
-        bootstrapNote.classList.remove('sgx-bootstrap-note-flash');
-      }, 1500);
-    }
-    toast(t('bootstrapNote'));
-  }
-  /** @param {string} pathname */
-  function isBootstrapAllowedPath(pathname) {
-    const p = pathname.replace(/^\/en\//, '/');
-    return p === '/settings/security/' || p === '/settings/security/owner/' ||
-      p === '/settings/security/lock/' || p === '/settings/security/mgmt/';
-  }
-  /** 作废启动会话并回锁屏（离开安全与隐私的唯一出口） */
-  function exitBootstrap() {
-    try {
-      fetch('/api/lock', { method: 'POST', credentials: 'include', keepalive: true }).catch(function () {});
-    } catch (e) {}
-    sgxNavigate('/?lock=1', 'security.js:bootstrap-exit', 'bootstrap-exit');
-  }
-  if (isBootstrap) {
-    const selfUrl = window.location.pathname + window.location.search;
-    /* 捕获阶段拦截站外链接点击（dock、返回按钮、页面内非安全与隐私链接） */
-    document.addEventListener('click', function (e) {
-      let el = null;
-      try {
-        el = e.target && e.target.closest ? e.target.closest('a[href], [data-go-back]') : null;
-      } catch (_) {}
-      if (!el) return;
-      let dest = '';
-      try {
-        if (el.hasAttribute && el.hasAttribute('href')) {
-          dest = new URL(el.getAttribute('href'), window.location.origin).pathname;
-        } else {
-          /* [data-go-back]：目标由 navhistory 决定，统一按离开处理 */
-          dest = '';
-        }
-      } catch (_) {}
-      if (dest && isBootstrapAllowedPath(dest)) return;
-      e.preventDefault();
-      e.stopPropagation();
-      if (!bootstrapConfigured) {
-        repeatBootstrapNote();
-      } else {
-        exitBootstrap();
-      }
-    }, true);
-    /* 返回手势：未配钥匙时 pushState 顶回安全与隐私并重复提示；已配时清会话回锁屏 */
-    window.addEventListener('popstate', function () {
-      if (!bootstrapConfigured) {
-        try { window.history.pushState(null, '', selfUrl); } catch (e) {}
-        repeatBootstrapNote();
-      } else {
-        exitBootstrap();
-      }
-    });
-  }
-
   /** @param {boolean} [silent] */
   function refresh(silent) {
-    /* 访客不再调用状态接口（接口已加鉴权，访客 401）；状态卡片由 CSS 按角色隐藏。 */
+    /* 访客不再调用 /api/owner-status（接口已加鉴权，访客 401）；状态卡片保持隐藏。 */
     try {
       if (document.documentElement.dataset.sgxRole === 'visitor') return;
     } catch (e) {}
-    /* 批次 B #13：两层状态并行拉，各卡独立渲染；某一层读取失败时该卡保持占位文案。 */
     fetch('/api/owner-status', { method: 'GET', credentials: 'same-origin' })
       .then(function (r) {
         return r.json();
       })
       .then(function (j) {
         if (j && j.ok) {
-          renderCard(ownerCard, ownerCardTitle, ownerCardSub, !!j.password, !!j.passkey,
-            'ownerOkTitle', 'ownerOkSub', 'ownerWarnTitle', 'missPw', 'missPk');
-          if (isBootstrap && (j.password || j.passkey)) bootstrapConfigured = true;
+          render(!!j.password, !!j.passkey);
           if (!silent) toast(t('refreshToast'));
         } else {
           throw new Error('bad');
@@ -181,38 +90,11 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
       .catch(function () {
         /* 读取失败：保持现状 */
       });
-    fetch('/api/lock-status', { method: 'GET', credentials: 'same-origin' })
-      .then(function (r) {
-        return r.json();
-      })
-      .then(function (j) {
-        if (j && j.ok) {
-          renderCard(lockCard, lockCardTitle, lockCardSub, !!j.password, !!j.passkey,
-            'lockOkTitle', 'lockOkSub', 'lockWarnTitle', 'lockMissPw', 'lockMissPk');
-          if (isBootstrap && (j.password || j.passkey)) bootstrapConfigured = true;
-        } else {
-          throw new Error('bad');
-        }
-      })
-      .catch(function () {
-        /* 读取失败：保持现状 */
-      });
   }
 
-  /* 立即锁定：先弹确认（批次 B #8），确认后调服务端清除 sgx-verified，
-     然后重载 → 锁屏出现。访客和站长都能用，不设限。
-     防误触组合：
-     - 弹层关闭后 400ms 内的点击忽略（穿透点击 / ghost click 不触发锁定）；
-     - Space 键不再激活（只保留 Enter），避免空格滚动时误触；
-     - 状态卡 / 提示固定占位（模板 + CSS），内容出现不推布局。 */
+  /* 立即锁定：调服务端清除 sgx-verified，然后重载 → 锁屏出现。
+     访客和站长都能用，不设限。 */
   const lockNow = document.getElementById('sec-locknow');
-  let lastDialogCloseAt = 0;
-  try {
-    /* 'close' 事件不冒泡，用捕获阶段监听页面内所有 dialog 关闭 */
-    document.addEventListener('close', function () {
-      lastDialogCloseAt = Date.now();
-    }, true);
-  } catch (e) {}
   if (lockNow) {
     const go = function () {
       fetch('/api/lock', { method: 'POST', credentials: 'include' })
@@ -223,23 +105,11 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
           sgxReload('security.js:102', 'lock-now-fail');
         });
     };
-    const ask = function () {
-      /* 弹层关闭后 400ms 内的点击忽略 */
-      if (Date.now() - lastDialogCloseAt < 400) return;
-      showConfirmDialog({
-        title: t('lockNowTitle'),
-        desc: t('lockNowDesc'),
-        cancelLabel: t('lockNowCancel'),
-        confirmLabel: t('lockNowConfirm'),
-      }).then(function (ok) {
-        if (ok) go();
-      }).catch(function () {});
-    };
-    on(lockNow, 'click', ask);
+    on(lockNow, 'click', go);
     on(lockNow, 'keydown', function (/** @type {KeyboardEvent} */ e) {
-      if (e.key === 'Enter') {
+      if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        ask();
+        go();
       }
     });
   }
@@ -874,8 +744,7 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
         (meta.length ? ' [' + meta.join(',') + ']' : ''));
     });
     txt.textContent = parts.join(en ? ' | ' : '；');
-    /* 批次 B #8：固定占位——改 visibility，不用 hidden，避免内容出现时推布局 */
-    note.classList.add('sgx-jump-note-show');
+    note.hidden = false;
   })();
 
   refresh(true);

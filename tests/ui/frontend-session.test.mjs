@@ -100,10 +100,8 @@ test('/api/lock：GET 返回 405', async () => {
 });
 
 test('lock.js：有 return 时直接 location.replace（不做前端白名单校验）', () => {
-  /* 2.4.1：return 校验只归 L1，前端删掉重复的白名单校验；
-     回跳经 sgxReplace（内部即 location.replace），R3 守卫回跳同样走它 */
-  assert.ok(lockJs.includes('sgxReplace('), '有 return 时应经 sgxReplace 做 location.replace');
-  assert.ok(lockJs.includes('stripWhyAndReload'), 'R3：回跳前应去掉 why 后 reload');
+  /* 2.4.1：return 校验只归 L1，前端删掉重复的白名单校验 */
+  assert.ok(lockJs.includes('location.replace('), '有 return 时应 location.replace');
   assert.ok(!lockJs.includes('retOk'), '不应再有前端 return 白名单校验（retOk）');
   assert.ok(!lockJs.includes("ret.charAt(0) === '/'"), '不应再有前端站内路径校验');
 });

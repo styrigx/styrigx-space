@@ -10,10 +10,8 @@
  */
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
-import { api, enterDoor, apiErrorText, handleDoorError, b64urlToBuf, bufToB64url, startDoorCountdown } from './app-gate.js';
+import { api, enterDoor, apiErrorText, handleDoorError, b64urlToBuf, bufToB64url } from './app-gate.js';
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
-import { showConfirmDialog } from '../lib/dialog-behavior.js';
-import { STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY } from '../lib/key-names.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -57,7 +55,7 @@ import { STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY } from '../lib/key-names.js';
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       /* 批次 A 验收修复 P0：list 带页面类别 + aud，服务端只返回该应用的 app 类 */
-      body: JSON.stringify({ action: 'list', pkClass: STORE_CLASS_APPKEY, aud: aud }),
+      body: JSON.stringify({ action: 'list', pkClass: 'app', aud: aud }),
       credentials: 'include',
     }).then(function (r) {
       return r.json();
@@ -67,7 +65,7 @@ import { STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY } from '../lib/key-names.js';
         return null;
       }
       return (j.keys || []).filter(function (k) {
-        return (k.class || STORE_CLASS_LOCKKEY) === STORE_CLASS_APPKEY && k.aud === aud;
+        return (k.class || 'lock') === 'app' && k.aud === aud;
       });
     }).catch(function () {
       return null;
@@ -111,7 +109,7 @@ import { STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY } from '../lib/key-names.js';
             }
           })
           .catch(function () {
-            toast(t('errNetwork'));
+            toast(t('gateNetErr'));
             nameInput.value = lastSaved;
           });
       };
@@ -140,40 +138,43 @@ import { STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY } from '../lib/key-names.js';
       meta.textContent = metaText;
       nameWrap.appendChild(nameInput);
       nameWrap.appendChild(meta);
-      /* 删除（批次 B R1：One UI 确认弹层；#9：补 signal + pkDelManual） */
+      /* 删除（两步确认） */
       const del = document.createElement('button');
       del.type = 'button';
       del.className = 'lockmgr-pkdel';
       del.textContent = t('pkDel');
       del.setAttribute('aria-label', t('pkDel') + ' ' + (k.name || t('pkUnnamed')));
+      let armed = false;
+      let armTimer = 0;
       on(del, 'click', function (e) {
         e.stopPropagation();
-        showConfirmDialog({ title: t('pkDelTitle'), desc: t('pkDelConfirm') }).then(function (ok) {
-          if (!ok) return;
-          api('/api/owner-passkey', { action: 'delete', credId: k.credId }, t)
-            .then(function (r2) {
-              const jj = r2.json;
-              if (jj && jj.ok) {
-                toast(t('pkDeleted'));
-                /* Samsung Pass 同步：通知密码管理器删掉这把密钥 */
-                try {
-                  if (window.PublicKeyCredential && typeof PublicKeyCredential.signalUnknownCredential === 'function') {
-                    PublicKeyCredential.signalUnknownCredential({ rpId: location.hostname, credentialId: k.credId }).catch(function () {});
-                  } else {
-                    toast(t('pkDelManual'));
-                  }
-                } catch (e2) {}
-                refresh();
-              } else if (jj && handleDoorError(t, jj.error, r2.status, jj.reason)) {
-                /* D3：已走 needVerify */
-              } else {
-                toast(apiErrorText(t, jj && jj.error, r2.status));
-              }
-            })
-            .catch(function () {
-              toast(t('errNetwork'));
-            });
-        }).catch(function () {});
+        if (!armed) {
+          armed = true;
+          del.textContent = t('pkDelAsk');
+          del.classList.add('armed');
+          armTimer = window.setTimeout(function () {
+            armed = false;
+            del.textContent = t('pkDel');
+            del.classList.remove('armed');
+          }, 3000);
+          return;
+        }
+        window.clearTimeout(armTimer);
+        api('/api/owner-passkey', { action: 'delete', credId: k.credId }, t)
+          .then(function (r2) {
+            const jj = r2.json;
+            if (jj && jj.ok) {
+              toast(t('pkDeleted'));
+              refresh();
+            } else if (jj && handleDoorError(t, jj.error, r2.status, jj.reason)) {
+              /* D3：已走 needVerify */
+            } else {
+              toast(apiErrorText(t, jj && jj.error, r2.status));
+            }
+          })
+          .catch(function () {
+            toast(t('gateNetErr'));
+          });
       });
       li.appendChild(nameWrap);
       li.appendChild(del);
@@ -195,7 +196,7 @@ import { STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY } from '../lib/key-names.js';
       toast(t('gateNoSupport'));
       return;
     }
-    api('/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: STORE_CLASS_APPKEY, aud: aud }, t)
+    api('/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: 'app', aud: aud }, t)
       .then(function (res) {
         const ch = res.json;
         if (ch && ch.error && handleDoorError(t, ch.error, res.status, ch.reason)) throw { kind: 'reverify' };
@@ -210,7 +211,7 @@ import { STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY } from '../lib/key-names.js';
               displayName: ch.user.displayName,
             },
             pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
-            authenticatorSelection: { userVerification: 'required', residentKey: 'required' },
+            authenticatorSelection: { userVerification: 'required', residentKey: 'preferred' },
             excludeCredentials: (ch.excludeCredentials || []).map(function (c) {
               return { id: b64urlToBuf(c.id), type: c.type };
             }),
@@ -284,7 +285,7 @@ import { STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY } from '../lib/key-names.js';
         toast(apiErrorText(t, j && j.error, res.status));
       }
     }).catch(function () {
-      toast(t('errNetwork'));
+      toast(t('gateNetErr'));
     });
   }
 
@@ -323,8 +324,6 @@ import { STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY } from '../lib/key-names.js';
       });
     },
     function () {
-      /* 批次 B #12：进门后启动验证剩余时间倒计时（内部拉一次 stepup status） */
-      startDoorCountdown(t);
       if (mgr) mgr.hidden = false;
       render(cachedKeys);
       initReturn();

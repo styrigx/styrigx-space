@@ -9,7 +9,7 @@
  */
 import { verifySessionDetailed } from '../_middleware.js';
 import { ROLE_OWNER } from '../_kernel/session.js';
-import { getPasskeys, PK_CLASS_OWNER, PK_CLASS_LOCK } from './owner-passkey.js';
+import { getPasskeys, PK_CLASS_OWNER } from './owner-passkey.js';
 
 /** @param {any} context */
 export async function onRequestGet(context) {
@@ -30,7 +30,7 @@ export async function onRequestGet(context) {
       try {
         /* 只看 class=owner 的通行密钥 */
         const keys = await getPasskeys(kv);
-        passkey = keys.some(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_OWNER; });
+        passkey = keys.some(function (k) { return (k.class || 'lock') === PK_CLASS_OWNER; });
       } catch (e) {}
     }
     return Response.json({ ok: true, password: password, passkey: passkey });

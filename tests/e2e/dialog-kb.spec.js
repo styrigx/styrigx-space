@@ -376,33 +376,23 @@ test.describe('door dialog row feedback (批次 A 验收修复 P2)', () => {
   });
 });
 
-test.describe('security status cards wording (批次 B #13：两层状态)', () => {
-  test('missing owner password shows 站长凭证待完善 + 未设置站长密码（站长卡）', async ({ page: pg }) => {
+test.describe('security status card wording (批次 A 验收修复 #8)', () => {
+  test('missing owner password shows 站长密码 wording (option B), not 解锁密码', async ({ page: pg }) => {
     await pinLang(pg, 'zh');
     await blockExternalRequests(pg);
-    /* 站长卡数据源是 owner-status（站长层）：密码缺失 → 站长密码文案 */
+    /* 卡片数据源是 owner-status（站长层）：密码缺失 → 站长密码文案 */
     await mockJson(pg, '**/api/owner-status', 200, { ok: true, password: false, passkey: true });
-    await mockJson(pg, '**/api/lock-status', 200, { ok: true, password: true, passkey: true });
     await pg.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
-    /* 测试环境静态构建无 data-sgx-role，显式置 owner 才显示状态卡 */
-    await pg.evaluate(() => { document.documentElement.dataset.sgxRole = 'owner'; });
-    await expect(pg.locator('#sec-status-owner-title')).toContainText('站长凭证待完善', { timeout: 15000 });
-    await expect(pg.locator('#sec-status-owner-sub')).toHaveText('未设置站长密码');
-    /* 锁屏卡独立：两项都齐 → ok */
-    await expect(pg.locator('#sec-status-lock-title')).toContainText('锁屏已设置');
+    await expect(pg.locator('#sec-status-title')).toContainText('建议操作', { timeout: 15000 });
+    await expect(pg.locator('#sec-status-sub')).toHaveText('未设置站长密码');
   });
 
-  test('missing lock passkey shows 锁屏待完善 + 未注册锁屏通行密钥（锁屏卡）', async ({ page: pg }) => {
+  test('missing passkey copy stays layer-neutral（未注册通行密钥）', async ({ page: pg }) => {
     await pinLang(pg, 'zh');
     await blockExternalRequests(pg);
-    await mockJson(pg, '**/api/owner-status', 200, { ok: true, password: true, passkey: true });
-    await mockJson(pg, '**/api/lock-status', 200, { ok: true, password: true, passkey: false });
+    await mockJson(pg, '**/api/owner-status', 200, { ok: true, password: true, passkey: false });
     await pg.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
-    /* 测试环境静态构建无 data-sgx-role，显式置 owner 才显示状态卡 */
-    await pg.evaluate(() => { document.documentElement.dataset.sgxRole = 'owner'; });
-    await expect(pg.locator('#sec-status-lock-title')).toContainText('锁屏待完善', { timeout: 15000 });
-    await expect(pg.locator('#sec-status-lock-sub')).toHaveText('未注册锁屏通行密钥');
-    /* 站长卡独立：两项都齐 → ok */
-    await expect(pg.locator('#sec-status-owner-title')).toContainText('站长凭证已设置');
+    await expect(pg.locator('#sec-status-title')).toContainText('建议操作', { timeout: 15000 });
+    await expect(pg.locator('#sec-status-sub')).toHaveText('未注册通行密钥');
   });
 });
