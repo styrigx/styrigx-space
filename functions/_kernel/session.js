@@ -6,7 +6,7 @@
  *   Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax
  * - cookie 值格式：by.role.epoch.exp.sig，Ed25519(SGX_LOCK_PRIVATE) 签名，
  *   与 functions/_middleware.js 的验签逻辑对应。
- *   by: 'root'（根密钥代开）或 'owner'（owner 凭证）
+ *   by: 'root'（根密钥代开）或 'owner'（owner 凭证）或 'startup'（批次 B #16 新站启动会话）
  *   role: 'owner'（密码/通行密钥，12 小时）或 'visitor'（Turnstile，1 小时）。
  *   旧格式（无 by，四段式）一律视为无效，不留兼容层。
  * - session-epoch 读写：KV 读取出错一律抛错（调用方返回 503，绝不继续写入）；
@@ -19,12 +19,19 @@ export const SESSION_COOKIE = 'sgx-verified';
 export const COOKIE_ATTRS = 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax';
 export const SESSION_MAX_AGE = 43200; /* 12 小时（owner） */
 export const VISITOR_MAX_AGE = 3600; /* 1 小时（visitor），短于 owner */
+export const STARTUP_MAX_AGE = 1800; /* 30 分钟（新站启动会话，批次 B #16）：
+   启动配置通常 5–10 分钟完成，30 分钟留足操作余量；远短于正常会话 12 小时，
+   限制根凭证衍生会话的暴露窗口；与门内票 3 分钟解耦——启动会话本身不等同门内票，
+   进门仍需 stepup。 */
 export const EPOCH_KEY = 'session-epoch';
 export const ROLE_OWNER = 'owner';
 export const ROLE_VISITOR = 'visitor';
 /* 2.11：会话签发方 */
 export const BY_ROOT = 'root';
 export const BY_OWNER = 'owner';
+/* 批次 B #16：新站启动会话（根凭证通过后签发，独立标记，不是 owner 完整会话）。
+   role 固定 owner；middleware 按 by=startup 做权限收窄。 */
+export const BY_STARTUP = 'startup';
 
 /**
  * 设置会话 cookie（统一属性）。
@@ -65,22 +72,27 @@ export function clearVerifiedCookie(headers) {
 /**
  * 签名会话 cookie 值：by.role.epoch.exp.Ed25519(私钥, "by.role.epoch.exp")。
  * 2.11：by=root|owner，标识会话签发方。
+ * 批次 B #16：by=startup（新站启动会话，role 固定 owner）。
  * @param {string} privatePem Ed25519 私钥（PKCS8 PEM，只配主站）
  * @param {number} epoch session epoch
  * @param {string} role 'owner' 或 'visitor'
- * @param {string} by 'root' 或 'owner'（默认 'owner'）
+ * @param {string} by 'root' 或 'owner'（默认 'owner'）；启动会话传 'startup'
  */
 export async function signSessionCookie(privatePem, epoch, role, by, maxAge) {
   if (role !== ROLE_OWNER && role !== ROLE_VISITOR) {
     throw new Error('signSessionCookie: role must be "owner" or "visitor", got ' + JSON.stringify(role));
   }
   by = by || BY_OWNER;
-  if (by !== BY_ROOT && by !== BY_OWNER) {
-    throw new Error('signSessionCookie: by must be "root" or "owner", got ' + JSON.stringify(by));
+  if (by !== BY_ROOT && by !== BY_OWNER && by !== BY_STARTUP) {
+    throw new Error('signSessionCookie: by must be "root" or "owner" or "startup", got ' + JSON.stringify(by));
   }
   /* visitor 会话只能由 owner 签发（root 代开只用于 owner 会话） */
   if (role === ROLE_VISITOR && by !== BY_OWNER) {
     throw new Error('signSessionCookie: visitor session must be by=owner');
+  }
+  /* 启动会话 role 固定 owner */
+  if (by === BY_STARTUP && role !== ROLE_OWNER) {
+    throw new Error('signSessionCookie: startup session must be role=owner');
   }
   const age = maxAge || (role === ROLE_VISITOR ? VISITOR_MAX_AGE : SESSION_MAX_AGE);
   const exp = String(Date.now() + age * 1000);
@@ -99,7 +111,8 @@ export async function signSessionCookie(privatePem, epoch, role, by, maxAge) {
  * @param {any} env
  * @param {Headers} headers
  * @param {string} role 'owner' 或 'visitor'（必须显式传，非法值返回 500 invalid-role）
- * @param {string} by 'root' 或 'owner'（默认 'owner'）；2.11 root 代开时传 'root'
+ * @param {string} by 'root' 或 'owner'（默认 'owner'）；2.11 root 代开时传 'root'；
+ *   批次 B #16 启动会话传 'startup'（时长调用方传 STARTUP_MAX_AGE）
  * @param {number} maxAgeOverride 可选：覆盖默认 Max-Age（秒）；2.11 root 代开的解锁会话约 1 小时
  */
 export async function issueSessionCookie(env, headers, role, by, maxAgeOverride) {
@@ -132,6 +145,7 @@ export async function issueSessionCookie(env, headers, role, by, maxAgeOverride)
 /**
  * 解析会话 cookie 值。
  * 2.11：五段式 by.role.epoch.exp.sig；旧四段式（无 by）一律视为无效，不留兼容层。
+ * 批次 B #16：by 增加 'startup'（新站启动会话）。
  * @param {string} val
  * @returns {{by:string, role:string, epoch:number, exp:number, sig:string}|null}
  */
@@ -140,7 +154,7 @@ export function parseSessionCookie(val) {
   const parts = val.split('.');
   if (parts.length !== 5) return null;
   const by = parts[0];
-  if (by !== BY_ROOT && by !== BY_OWNER) return null;
+  if (by !== BY_ROOT && by !== BY_OWNER && by !== BY_STARTUP) return null;
   const role = parts[1];
   if (role !== ROLE_OWNER && role !== ROLE_VISITOR) return null;
   const epoch = parseInt(parts[2], 10);
@@ -169,6 +183,8 @@ export async function getSessionEpoch(kv) {
  * - lockreset 等无会话场景：sess 为 null/不 ok 时不做任何事。
  * - 必修安全项 2：by=root 的代开会话一律不重签（首次配 lock 的 bump 就是为了废止它，
  *   重签回来等于 epoch +1 白做）。此检查写在 helper 里，所有调用点都生效。
+ * - 批次 B #16：by=startup 的启动会话同样不重签（epoch 推进后随 epoch 失效，
+ *   不自动续期；用户需回锁屏重新走启动流程）。
  * @param {any} env
  * @param {Headers} headers
  * @param {{ok:boolean, by:string, role:string}|null} sess
@@ -178,6 +194,8 @@ export async function reissueSessionWithEpoch(env, headers, sess, newEpoch) {
   if (!sess || !sess.ok || !sess.by || !sess.role) return;
   /* 必修安全项 2：by=root 代开会话不重签，随 epoch 失效。 */
   if (sess.by === BY_ROOT) return;
+  /* 批次 B #16：by=startup 启动会话不重签。 */
+  if (sess.by === BY_STARTUP) return;
   const edPriv = (env && env.SGX_LOCK_PRIVATE) || '';
   if (!edPriv) return;
   try {
