@@ -13,6 +13,11 @@
 <div class="set-layout max-w-2xl mx-auto px-4 pb-28">
   {{ partial "subpage-head.html" (dict "title" (cond $isEn "Security and privacy" "安全与隐私") "isEn" $isEn "actions" ($moreBtn | safeHTML)) }}
 
+  <!-- 批次 B #16：新站启动提示条（启动会话下常显；#sgx-jump-note 之前；文案由 JS 从 secI18n 填入）。 -->
+  <div id="sgx-bootstrap-note" class="sgx-bootstrap-note" role="status" hidden>
+    <p class="text-sm m-0" id="sgx-bootstrap-note-text"></p>
+  </div>
+
   <!-- #1 诊断：门内页跳转留痕。安全页加载时若有记录则显示一次，随即清除。
        批次 B #8：固定占位（visibility 占位，不用 hidden），内容出现时不推布局。 -->
   <div id="sgx-jump-note" class="widget bg-m-container-lowest border border-m-outline mb-2 p-4" role="status">
@@ -133,6 +138,7 @@
   "lockSubPk" (dict "zh" "通行密钥" "en" "Passkeys")
   "lockSubNone" (dict "zh" "未设置" "en" "Not set")
   "lockNowToast" (dict "zh" "已锁定" "en" "Locked")
+  "bootstrapNote" (dict "zh" "新站启动：请至少设置一把站长凭证或解锁钥匙" "en" "Bootstrap: set at least one owner credential or unlock key")
   "refreshToast" (dict "zh" "已刷新" "en" "Refreshed")
   "statusErr" (dict "zh" "读取失败" "en" "Failed to load")
   "layerTakeover" (dict "zh" "由根凭证代管" "en" "Managed by root credential")

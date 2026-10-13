@@ -23,6 +23,7 @@ import {
   handleDoorError,
   clearStepupThen,
   startDoorCountdown,
+  maybeShowFirstKeyDialog,
   b64urlToBuf,
   bufToB64url,
 } from './app-gate.js';
@@ -124,6 +125,8 @@ export function initDoor(o) {
         if (!(j && j.ok)) return;
         hasPw = !!j.password;
         hasPk = !!j.passkey;
+        /* 批次 B #16：新站启动模式下，基线 0 → 现在 >=1 时弹第一把提示框 */
+        maybeShowFirstKeyDialog(t, hasPw, hasPk);
         const sub = $('lockmgr-pwsub');
         if (sub) sub.textContent = hasPw ? t('pwSet') : t('pwUnset');
         const title = $('lockpw-title');

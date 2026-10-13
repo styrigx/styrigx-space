@@ -11,7 +11,7 @@ import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton } from '../lib/dialog-behavior.js';
-import { apiErrorText, needVerify, clearStepupThen, startDoorCountdown } from './app-gate.js';
+import { apiErrorText, needVerify, clearStepupThen, startDoorCountdown, maybeShowFirstKeyDialog } from './app-gate.js';
 import { showConfirmDialog } from '../lib/dialog-behavior.js';
 import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY } from '../lib/key-names.js';
 
@@ -222,6 +222,8 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
         if (!(j && j.ok)) return;
         hasPw = !!j.password;
         hasPk = !!j.passkey;
+        /* 批次 B #16：新站启动模式下，基线 0 → 现在 >=1 时弹第一把提示框 */
+        maybeShowFirstKeyDialog(t, hasPw, hasPk);
         const sub = $('lockmgr-pwsub');
         if (sub) sub.textContent = hasPw ? t('pwSet') : t('pwUnset');
         const title = $('lockpw-title');

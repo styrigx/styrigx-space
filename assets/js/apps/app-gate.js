@@ -385,6 +385,41 @@ export function handleDoorError(t, code, status, detail) {
 }
 
 /**
+ * 批次 B #16：第一把提示框（新站启动模式）。
+ * 启动会话下，任意一次 owner/lock set/register 成功后调用：若本页首次拉取状态时
+ * 为 0 凭证、现在 >= 1 且本会话未弹过 → 弹 One UI 提示框（按钮「知道了」），
+ * 点后关闭，可继续在安全与隐私里配置。本会话只弹一次（sessionStorage 标记）。
+ * @param {(k: string) => string} t
+ * @param {boolean} hasPw
+ * @param {boolean} hasPk
+ */
+const FIRST_KEY_FLAG = 'sgx-first-key-shown';
+let firstKeyBaselineZero = null;
+export function maybeShowFirstKeyDialog(t, hasPw, hasPk) {
+  try {
+    if (document.documentElement.dataset.sgxSession !== 'startup') return;
+  } catch (e) { return; }
+  const hasAny = !!(hasPw || hasPk);
+  if (firstKeyBaselineZero === null) {
+    /* 首次拉取状态：只捕获基线，不弹框 */
+    firstKeyBaselineZero = !hasAny;
+    return;
+  }
+  if (!firstKeyBaselineZero || !hasAny) return;
+  try {
+    if (window.sessionStorage && sessionStorage.getItem(FIRST_KEY_FLAG) === '1') return;
+  } catch (e) {}
+  try {
+    if (window.sessionStorage) sessionStorage.setItem(FIRST_KEY_FLAG, '1');
+  } catch (e) {}
+  showAlertDialog({
+    title: t('firstKeyTitle'),
+    desc: t('firstKeyDesc'),
+    confirmLabel: t('firstKeyOk'),
+  }).catch(function () {});
+}
+
+/**
  * 倒计时格式化（批次 B #12）：毫秒 → 'm:ss'。纯函数，可单元测试。
  * @param {number} ms 剩余毫秒
  * @returns {string} 如 '2:59'；<=0 时返回 '0:00'

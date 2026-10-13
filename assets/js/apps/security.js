@@ -80,8 +80,82 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
     }
   }
 
-  /** @param {boolean} [silent] */
-  function refresh(silent) {
+  /* 批次 B #16：新站启动模式（data-sgx-session === 'startup'）。
+     - 顶部固定提示条常显；
+     - bootstrapConfigured 由 refresh() 的两层状态维护（任一层任一凭证即 true）；
+     - 导航守卫：未配任何钥匙时拦截站外跳转并重复提示；已配至少一把时
+       先 POST /api/lock 作废启动会话，再回锁屏。服务端 middleware 是最终防线。 */
+  const isBootstrap = (function () {
+    try { return document.documentElement.dataset.sgxSession === 'startup'; } catch (e) { return false; }
+  })();
+  let bootstrapConfigured = false;
+  const bootstrapNote = document.getElementById('sgx-bootstrap-note');
+  const bootstrapNoteText = document.getElementById('sgx-bootstrap-note-text');
+  if (isBootstrap && bootstrapNote && bootstrapNoteText) {
+    bootstrapNoteText.textContent = t('bootstrapNote');
+    bootstrapNote.hidden = false;
+  }
+  /** 重复提示：闪烁提示条 + toast 同文案 */
+  function repeatBootstrapNote() {
+    if (!isBootstrap) return;
+    if (bootstrapNote) {
+      bootstrapNote.classList.add('sgx-bootstrap-note-flash');
+      window.setTimeout(function () {
+        bootstrapNote.classList.remove('sgx-bootstrap-note-flash');
+      }, 1500);
+    }
+    toast(t('bootstrapNote'));
+  }
+  /** @param {string} pathname */
+  function isBootstrapAllowedPath(pathname) {
+    const p = pathname.replace(/^\/en\//, '/');
+    return p === '/settings/security/' || p === '/settings/security/owner/' ||
+      p === '/settings/security/lock/' || p === '/settings/security/mgmt/';
+  }
+  /** 作废启动会话并回锁屏（离开安全与隐私的唯一出口） */
+  function exitBootstrap() {
+    try {
+      fetch('/api/lock', { method: 'POST', credentials: 'include', keepalive: true }).catch(function () {});
+    } catch (e) {}
+    sgxNavigate('/?lock=1', 'security.js:bootstrap-exit', 'bootstrap-exit');
+  }
+  if (isBootstrap) {
+    const selfUrl = window.location.pathname + window.location.search;
+    /* 捕获阶段拦截站外链接点击（dock、返回按钮、页面内非安全与隐私链接） */
+    document.addEventListener('click', function (e) {
+      let el = null;
+      try {
+        el = e.target && e.target.closest ? e.target.closest('a[href], [data-go-back]') : null;
+      } catch (_) {}
+      if (!el) return;
+      let dest = '';
+      try {
+        if (el.hasAttribute && el.hasAttribute('href')) {
+          dest = new URL(el.getAttribute('href'), window.location.origin).pathname;
+        } else {
+          /* [data-go-back]：目标由 navhistory 决定，统一按离开处理 */
+          dest = '';
+        }
+      } catch (_) {}
+      if (dest && isBootstrapAllowedPath(dest)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (!bootstrapConfigured) {
+        repeatBootstrapNote();
+      } else {
+        exitBootstrap();
+      }
+    }, true);
+    /* 返回手势：未配钥匙时 pushState 顶回安全与隐私并重复提示；已配时清会话回锁屏 */
+    window.addEventListener('popstate', function () {
+      if (!bootstrapConfigured) {
+        try { window.history.pushState(null, '', selfUrl); } catch (e) {}
+        repeatBootstrapNote();
+      } else {
+        exitBootstrap();
+      }
+    });
+  }
     /* 访客不再调用状态接口（接口已加鉴权，访客 401）；状态卡片由 CSS 按角色隐藏。 */
     try {
       if (document.documentElement.dataset.sgxRole === 'visitor') return;
@@ -95,6 +169,7 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
         if (j && j.ok) {
           renderCard(ownerCard, ownerCardTitle, ownerCardSub, !!j.password, !!j.passkey,
             'ownerOkTitle', 'ownerOkSub', 'ownerWarnTitle', 'missPw', 'missPk');
+          if (isBootstrap && (j.password || j.passkey)) bootstrapConfigured = true;
           if (!silent) toast(t('refreshToast'));
         } else {
           throw new Error('bad');
@@ -111,6 +186,7 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
         if (j && j.ok) {
           renderCard(lockCard, lockCardTitle, lockCardSub, !!j.password, !!j.passkey,
             'lockOkTitle', 'lockOkSub', 'lockWarnTitle', 'lockMissPw', 'lockMissPk');
+          if (isBootstrap && (j.password || j.passkey)) bootstrapConfigured = true;
         } else {
           throw new Error('bad');
         }

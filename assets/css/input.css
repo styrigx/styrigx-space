@@ -1414,6 +1414,15 @@
   /* 批次 B #8：跳转提示固定占位——常驻布局，空时 visibility 隐藏，不推布局 */
   #sgx-jump-note { visibility: hidden; min-height: 52px; }
   #sgx-jump-note.sgx-jump-note-show { visibility: visible; }
+  /* 批次 B #16：新站启动提示条——顶部固定（sticky），启动会话下常显 */
+  .sgx-bootstrap-note {
+    position: sticky; top: 0; z-index: 20;
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 16px; border-radius: 1rem; margin: 0 0 12px;
+    background: var(--m-warm-container, #fdf0e4); color: var(--m-on-warm-container, #4a2c00);
+    &[hidden] { display: none; }
+    &.sgx-bootstrap-note-flash { outline: 2px solid var(--m-error, #b3261e); }
+  }
   .sec-status-ic {
     width: 48px; height: 48px; border-radius: 999px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
