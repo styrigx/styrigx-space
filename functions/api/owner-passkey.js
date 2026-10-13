@@ -315,8 +315,11 @@ async function checkPasskeyMgmt(request, env, kv, pkClass, op) {
     return { ok: false, status: 403, body: { ok: false, error: 'stepup-required', reason: sv.reason } };
   }
   const isLockreset = sv.scope === STEPUP_SCOPE_LOCKRESET;
-  const deny = function () {
-    return { ok: false, status: 403, body: { ok: false, error: 'scope' } };
+  const deny = function (reason) {
+    const body = { ok: false, error: 'scope' };
+    /* 代管中途站长层被配置：前端据此显示明确文案，不无提示踢回安全页 */
+    if (reason) body.reason = reason;
+    return { ok: false, status: 403, body: body };
   };
 
   if (pkClass === PK_CLASS_OWNER) {
@@ -327,14 +330,14 @@ async function checkPasskeyMgmt(request, env, kv, pkClass, op) {
       if (op === 'rename') return deny();
     } else if (sv.scope === STEPUP_SCOPE_KEYS) {
       if (sv.by === STEPUP_BY_ROOT) {
-        /* by=root 的 keys 票：仅 owner 未配置时代管有效 */
-        if (await isLayerConfigured(kv, LAYER_OWNER)) return deny();
+        /* by=root 的 keys 票：仅 owner 未配置时代管有效；中途被配置 → 明确原因 */
+        if (await isLayerConfigured(kv, LAYER_OWNER)) return deny('owner-configured');
       } else if (sv.by !== STEPUP_BY_OWNER) {
         return deny();
       }
     } else if (sv.scope === STEPUP_SCOPE_ROOT && sv.by === STEPUP_BY_ROOT) {
-      /* root 直接代管未配置的 owner 层 */
-      if (await isLayerConfigured(kv, LAYER_OWNER)) return deny();
+      /* root 直接代管未配置的 owner 层；中途被配置 → 明确原因 */
+      if (await isLayerConfigured(kv, LAYER_OWNER)) return deny('owner-configured');
     } else {
       return deny();
     }
@@ -343,12 +346,12 @@ async function checkPasskeyMgmt(request, env, kv, pkClass, op) {
     if (isLockreset) return deny();
     if (sv.scope === STEPUP_SCOPE_KEYS) {
       if (sv.by === STEPUP_BY_ROOT) {
-        if (await isLayerConfigured(kv, LAYER_OWNER)) return deny();
+        if (await isLayerConfigured(kv, LAYER_OWNER)) return deny('owner-configured');
       } else if (sv.by !== STEPUP_BY_OWNER) {
         return deny();
       }
     } else if (sv.scope === STEPUP_SCOPE_ROOT && sv.by === STEPUP_BY_ROOT) {
-      if (await isLayerConfigured(kv, LAYER_OWNER)) return deny();
+      if (await isLayerConfigured(kv, LAYER_OWNER)) return deny('owner-configured');
     } else {
       return deny();
     }
@@ -752,48 +755,37 @@ async function handlePost(context) {
     }
   }
 
-  /* ============ list：列出 passkey（2.10.2：需 owner 会话 + sgx-stepup） ============ */
+  /* ============ list：列出 passkey（2.11 定稿：需 owner 会话 + sgx-stepup） ============
+     批次 A 验收修复 P0：钥匙类别由页面决定，不由票据 scope 推断。
+     调用方必须显式传 pkClass（'owner' | 'lock' | 'app'，app 可带 aud 过滤单个应用）；
+     服务端用 checkPasskeyMgmt(…, pkClass, 'list') 判断权限，只返回该类。 */
   if (action === 'list') {
-    /* 2.11 定稿：按 stepup scope 过滤可见类别。
-       scope=root → 只看 owner；scope=keys → lock+app；lockreset → 只看 lock */
-    const sv0 = await verifyStepupCookie(request, env);
-    if (!sv0.ok) {
-      return Response.json({ ok: false, error: 'stepup-required', reason: sv0.reason }, { status: 403 });
+    const pkClass = body && body.pkClass;
+    if (pkClass !== PK_CLASS_OWNER && pkClass !== PK_CLASS_LOCK && pkClass !== PK_CLASS_APP) {
+      return Response.json({ ok: false, error: 'params' }, { status: 400 });
     }
-    let visibleClasses = null; /* null = 全部 */
-    if (sv0.scope === STEPUP_SCOPE_ROOT && sv0.by === STEPUP_BY_ROOT) {
-      visibleClasses = [PK_CLASS_OWNER];
-    } else if (sv0.scope === STEPUP_SCOPE_LOCKRESET) {
-      visibleClasses = [PK_CLASS_LOCK];
-    } else if (sv0.scope === STEPUP_SCOPE_KEYS) {
-      visibleClasses = [PK_CLASS_LOCK, PK_CLASS_APP];
-    } else {
-      return Response.json({ ok: false, error: 'scope' }, { status: 403 });
+    let aud = '';
+    if (pkClass === PK_CLASS_APP) {
+      aud = (body && body.aud) || '';
+      if (aud && !getApp(aud)) {
+        return Response.json({ ok: false, error: 'aud' }, { status: 400 });
+      }
     }
-    /* 会话门禁（lockreset 除外） */
-    if (sv0.scope !== STEPUP_SCOPE_LOCKRESET) {
-      const sessL = await verifySessionDetailed(request, env);
-      if (!sessL.ok || sessL.role !== ROLE_OWNER) {
-        return Response.json({ ok: false, error: 'session' }, { status: 401 });
-      }
-      if (sessL.by === 'root' && (await isLayerConfigured(kv, LAYER_LOCK))) {
-        return Response.json({ ok: false, error: 'by-root' }, { status: 403 });
-      }
-      /* scope=keys + by=root 时需 owner 层未配置（代管） */
-      if (sv0.scope === STEPUP_SCOPE_KEYS && sv0.by === STEPUP_BY_ROOT) {
-        if (await isLayerConfigured(kv, LAYER_OWNER)) {
-          return Response.json({ ok: false, error: 'scope' }, { status: 403 });
-        }
-      }
+    const mg = await checkPasskeyMgmt(request, env, kv, pkClass, 'list');
+    if (!mg.ok) {
+      return Response.json(mg.body, { status: mg.status });
     }
     const keys = await getPasskeys(kv);
     return Response.json({
       ok: true,
-      /* 前端"添加通行密钥"按钮据此决定 pkClass：
-         scope=root → owner；scope=keys/lockreset → lock */
-      scope: sv0.scope,
+      /* 兼容旧前端：仍回传票据 scope，但前端不再据此推断类别 */
+      scope: mg.sv.scope,
       keys: keys
-        .filter(function (k) { return visibleClasses.includes(k.class || PK_CLASS_LOCK); })
+        .filter(function (k) {
+          if ((k.class || PK_CLASS_LOCK) !== pkClass) return false;
+          if (pkClass === PK_CLASS_APP && aud && k.aud !== aud) return false;
+          return true;
+        })
         .map(function (k) {
           return {
             credId: k.credId,

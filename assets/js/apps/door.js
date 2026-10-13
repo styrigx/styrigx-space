@@ -53,8 +53,9 @@ export function initDoor(o) {
   let hasPk = false;
   /** 全量钥匙缓存（含应用类，供应用验证分组渲染） */
   let allKeys = [];
-  /** "添加通行密钥"按钮的钥匙类别（服务端按 stepup scope 校验） */
-  let pkAddClass = o.keyClass;
+  /** 批次 A 验收修复 P0："添加通行密钥"的钥匙类别由页面决定（o.keyClass），
+      不按票据 scope 推断；服务端按 pkClass + 票据双重校验。 */
+  const pkAddClass = o.keyClass;
   /** 应用白名单（与服务端一致，book 在列） */
   var APPS = [{ aud: 'book', name: 'Book' }];
 
@@ -220,7 +221,7 @@ export function initDoor(o) {
             toast(t('pwDeleted'));
             refreshStatus();
             refreshPkList();
-          } else if (j && handleDoorError(t, j.error, r.status)) {
+          } else if (j && handleDoorError(t, j.error, r.status, j.reason)) {
             /* D3：session/stepup-required/scope/by-root 已走 needVerify */
           } else {
             toast(apiErrorText(t, j && j.error, r.status));
@@ -284,7 +285,7 @@ export function initDoor(o) {
           hasPw = true;
           refreshStatus();
           toast(action === 'change' ? t('pwChanged') : t('pwSaved'));
-        } else if (handleDoorError(t, j.error, res.status)) {
+        } else if (handleDoorError(t, j.error, res.status, j.reason)) {
           /* D3：session/stepup-required/scope/by-root 已走 needVerify */
           closePwDlg('success');
         } else if (j.error === 'exists' && action === 'set') {
@@ -385,7 +386,7 @@ export function initDoor(o) {
             toast(t('pkRegistered'));
             closePkNameDlg('success');
             refreshPkList();
-          } else if (j && handleDoorError(t, j.error, r.status)) {
+          } else if (j && handleDoorError(t, j.error, r.status, j.reason)) {
             /* D3：已走 needVerify */
           } else if (j && j.error === 'not-found') {
             /* KV 最终一致：刚注册的钥匙可能暂时读不到 */
@@ -471,7 +472,7 @@ export function initDoor(o) {
           if (jj && jj.ok) {
             lastSaved = v;
             toast(t('pkRenamed'));
-          } else if (jj && handleDoorError(t, jj.error, r2.status)) {
+          } else if (jj && handleDoorError(t, jj.error, r2.status, jj.reason)) {
             /* D3：已走 needVerify */
           } else if (jj && jj.error === 'not-found') {
             toast(t('pkRetryLater'));
@@ -532,7 +533,7 @@ export function initDoor(o) {
             } catch (e) {}
             refreshPkList();
             refreshStatus();
-          } else if (jj && handleDoorError(t, jj.error, r2.status)) {
+          } else if (jj && handleDoorError(t, jj.error, r2.status, jj.reason)) {
             /* D3：已走 needVerify */
           } else {
             toast(apiErrorText(t, jj && jj.error, r2.status));
@@ -569,24 +570,36 @@ export function initDoor(o) {
     });
   }
 
-  function refreshPkList() {
-    const ul = $('lockmgr-pklist');
-    const empty = $('lockmgr-pkempty');
-    api('/api/owner-passkey', { action: 'list' }, t)
+  /* 应用验证分组：list 只返回本页类别，app 类需单独发一次 list（否则分组误显示「未添加」） */
+  function refreshAppKeys() {
+    if (!$('lockmgr-applist')) return;
+    api('/api/owner-passkey', { action: 'list', pkClass: 'app' }, t)
       .then(function (res) {
         const j = res.json;
         if (!j) return;
-        if (j.error && handleDoorError(t, j.error, res.status)) return; /* D3：已走 needVerify */
-        /* 按 stepup scope 决定显示哪类（服务端已按 scope 过滤） */
-        const isOwnerScope = j.scope === 'root';
-        pkAddClass = isOwnerScope ? 'owner' : o.keyClass;
+        if (j.error && handleDoorError(t, j.error, res.status, j.reason)) return;
+        allKeys = allKeys.concat((j.ok && j.keys) || []);
+        renderAppList();
+      })
+      .catch(function () {});
+  }
+
+  function refreshPkList() {
+    const ul = $('lockmgr-pklist');
+    const empty = $('lockmgr-pkempty');
+    /* 批次 A 验收修复 P0：list 带页面类别，服务端只返回该类 */
+    api('/api/owner-passkey', { action: 'list', pkClass: o.keyClass }, t)
+      .then(function (res) {
+        const j = res.json;
+        if (!j) return;
+        if (j.error && handleDoorError(t, j.error, res.status, j.reason)) return; /* D3：已走 needVerify */
         const keys = ((j.ok && j.keys) || []).filter(function (k) {
-          return (k.class || 'lock') === (isOwnerScope ? 'owner' : o.keyClass);
+          return (k.class || 'lock') === o.keyClass;
         });
         if (!ul) return;
         ul.innerHTML = '';
         allKeys = (j.ok && j.keys) || [];
-        if (withApps) renderAppList();
+        if (withApps) refreshAppKeys(); else renderAppList();
         keys.forEach(function (k) {
           ul.appendChild(keyItem(k));
         });
@@ -667,7 +680,7 @@ export function initDoor(o) {
     api('/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: 'app', aud: aud }, t)
       .then(function (res) {
         const ch = res.json;
-        if (ch && ch.error && handleDoorError(t, ch.error, res.status)) throw { kind: 'reverify' };
+        if (ch && ch.error && handleDoorError(t, ch.error, res.status, ch.reason)) throw { kind: 'reverify' };
         if (!ch || !ch.ok) throw { kind: 'server', code: ch && ch.error };
         return navigator.credentials.create({
           publicKey: {
@@ -714,7 +727,7 @@ export function initDoor(o) {
         if (res.json && res.json.ok) {
           toast(t('pkRegistered'));
           refreshPkList();
-        } else if (res.json && res.json.error && handleDoorError(t, res.json.error, res.status)) {
+        } else if (res.json && res.json.error && handleDoorError(t, res.json.error, res.status, res.json.reason)) {
           /* D3：已走 needVerify */
         } else {
           toast(apiErrorText(t, res.json && res.json.error, res.status));
@@ -745,7 +758,7 @@ export function initDoor(o) {
       api('/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: pkAddClass }, t)
         .then(function (res) {
           const ch = res.json;
-          if (ch && ch.error && handleDoorError(t, ch.error, res.status)) throw { kind: 'reverify' };
+          if (ch && ch.error && handleDoorError(t, ch.error, res.status, ch.reason)) throw { kind: 'reverify' };
           if (!ch || !ch.ok) throw { kind: 'server', code: ch && ch.error };
           /* 服务端下发 rp.id、用户信息、excludeCredentials；前端不硬编码、不回落 */
           const rpId = ch.rpId;
@@ -807,7 +820,7 @@ export function initDoor(o) {
             /* 注册成功 → 弹出命名弹层（预填名已提交，用户改名才调 rename） */
             openPkNameDlg(j.credId, r3.prefill);
             refreshPkList();
-          } else if (j && handleDoorError(t, j.error, r3.res.status)) {
+          } else if (j && handleDoorError(t, j.error, r3.res.status, j.reason)) {
             /* D3：已走 needVerify */
           } else {
             toast(apiErrorText(t, j && j.error, r3.res.status));

@@ -124,7 +124,7 @@ test('2a：owner-passkey list 只有 stepup 没有会话 → 401', async () => {
   const kv = makeKV();
   const env = baseEnv(kv);
   const stepup = await makeStepupCookie(env);
-  const req = reqWithCookies('https://styrigx.com/api/owner-passkey', { action: 'list' }, `sgx-stepup=${stepup}`);
+  const req = reqWithCookies('https://styrigx.com/api/owner-passkey', { action: 'list', pkClass: 'lock' }, `sgx-stepup=${stepup}`);
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 401, '无 owner 会话时 list 应 401');
   assert.equal((await res.json()).error, 'session');
@@ -135,7 +135,7 @@ test('2b：owner-passkey list 有会话没有 stepup → 403 stepup-required', a
   const kv = makeKV();
   const env = baseEnv(kv);
   const sess = await makeSessionCookie(env);
-  const req = reqWithCookies('https://styrigx.com/api/owner-passkey', { action: 'list' }, `sgx-verified=${sess}`);
+  const req = reqWithCookies('https://styrigx.com/api/owner-passkey', { action: 'list', pkClass: 'lock' }, `sgx-verified=${sess}`);
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 403);
   assert.equal((await res.json()).error, 'stepup-required');
@@ -319,7 +319,7 @@ test('9b：root-auth Origin 解析失败 → 403', async () => {
 test('9c：owner-passkey 缺 Origin → 403', async () => {
   const { onRequestPost } = await import('../../functions/api/owner-passkey.js');
   const kv = makeKV();
-  const req = postReq('https://styrigx.com/api/owner-passkey', { action: 'list' }, { Origin: null });
+  const req = postReq('https://styrigx.com/api/owner-passkey', { action: 'list', pkClass: 'lock' }, { Origin: null });
   const res = await onRequestPost({ request: req, env: baseEnv(kv) });
   assert.equal(res.status, 403);
 });

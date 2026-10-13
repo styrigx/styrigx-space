@@ -66,6 +66,10 @@ let verifyJumped = false;
  * @param {string} [detail] 服务端原因码（如 no-pubkey、epoch-changed），拼在文案末尾方便定位
  */
 function verifyMessage(t, reason, detail) {
+  /* 批次 A 验收修复 P0：代管中途站长层被配置 → 明确提示，不无提示踢回安全页 */
+  if (reason === 'owner-configured' || detail === 'owner-configured') {
+    return tx(t, 'errOwnerConfigured', '站长凭证已设置，请用站长凭证重新验证', 'Owner credential is set, please verify with the owner credential again');
+  }
   let msg;
   switch (reason) {
     case 'network':
@@ -365,12 +369,13 @@ const NEED_VERIFY_CODES = ['session', 'stepup-required', 'scope', 'by-root'];
  * @param {(k:string)=>string} t 文案函数
  * @param {string} code 服务端 error 码
  * @param {number} [status] HTTP 状态码
+ * @param {string} [detail] 服务端 reason（如 'owner-configured'，透传给 needVerify 显示明确文案）
  * @returns {boolean} true = 已走 needVerify，调用方直接 return
  */
-export function handleDoorError(t, code, status) {
+export function handleDoorError(t, code, status, detail) {
   if (NEED_VERIFY_CODES.indexOf(code) === -1) return false;
   /* needVerify 按真实原因提示后跳验证流程（安全与隐私页） */
   const reason = code === 'session' ? 'session' : 'stepup';
-  needVerify(t, reason, code);
+  needVerify(t, reason, detail || code);
   return true;
 }

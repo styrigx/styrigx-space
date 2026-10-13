@@ -29,17 +29,20 @@ import { enterDoor } from './app-gate.js';
     WL = [];
   }
 
-  /** 读全量钥匙列表；验证无效时返回 null → 跳验证流程 */
+  /** 读该应用列表页所需的 app 类钥匙；验证无效时返回 null → 跳验证流程 */
+  let lastListErr = null;
   function loadKeys() {
     return fetch('/api/owner-passkey', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'list' }),
+      /* 批次 A 验收修复 P0：list 带页面类别，只返回 app 类 */
+      body: JSON.stringify({ action: 'list', pkClass: 'app' }),
       credentials: 'include',
     }).then(function (r) {
       return r.json();
     }).then(function (j) {
       if (j && j.ok) return j.keys || [];
+      lastListErr = j;
       return null;
     }).catch(function () {
       return null;
@@ -68,7 +71,9 @@ import { enterDoor } from './app-gate.js';
     function () {
       return loadKeys().then(function (keys) {
         cachedKeys = keys;
-        return !!keys;
+        /* 探针失败时带上服务端 reason（如 owner-configured），探针面板显示明确文案 */
+        if (keys) return true;
+        return { ok: false, reason: (lastListErr && lastListErr.reason) || (lastListErr && lastListErr.error) || 'session', status: 0, api: 'POST /api/owner-passkey' };
       });
     },
     function () {

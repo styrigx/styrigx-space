@@ -130,7 +130,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       // 取两把的 credId（从列表 data 属性或通过 API）
       const token = await page.evaluate(() => sessionStorage.getItem('sgx-lockmgr-token'));
       const list1 = await (await request.post(BASE + '/api/owner-passkey', {
-        data: { action: 'list', token },
+        data: { action: 'list', pkClass: 'lock', token },
       })).json();
       expect(list1.ok).toBe(true);
       expect(list1.keys.length).toBe(2);
@@ -156,7 +156,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
 
       // KV 里不应再有 owner-passkeys（通过 list 返回空数组验证）
       const list2 = await (await request.post(BASE + '/api/owner-passkey', {
-        data: { action: 'list', token },
+        data: { action: 'list', pkClass: 'lock', token },
       })).json();
       expect(list2.ok).toBe(true);
       expect(list2.keys.length).toBe(0);
@@ -447,7 +447,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
 
       const token = await page.evaluate(() => sessionStorage.getItem('sgx-lockmgr-token'));
       const list1 = await (await request.post(BASE + '/api/owner-passkey', {
-        data: { action: 'list', token },
+        data: { action: 'list', pkClass: 'lock', token },
       })).json();
       expect(list1.keys.length).toBeGreaterThan(0);
       const credId = list1.keys[0].credId;
@@ -463,7 +463,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
 
       // list 里名字已更新
       const list2 = await (await request.post(BASE + '/api/owner-passkey', {
-        data: { action: 'list', token },
+        data: { action: 'list', pkClass: 'lock', token },
       })).json();
       const item = list2.keys.find(k => k.credId === credId);
       expect(item).toBeTruthy();
@@ -493,7 +493,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       // 删光
       const token = await page.evaluate(() => sessionStorage.getItem('sgx-lockmgr-token'));
       const list = await (await request.post(BASE + '/api/owner-passkey', {
-        data: { action: 'list', token },
+        data: { action: 'list', pkClass: 'lock', token },
       })).json();
       for (const k of list.keys) {
         await request.post(BASE + '/api/owner-passkey', {
@@ -521,7 +521,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       await page.click('#lockmgr-pkadd');
       await expect(page.locator('.lockmgr-pkitem').first()).toBeVisible({ timeout: 20000 });
       const list1 = await (await request.post(BASE + '/api/owner-passkey', {
-        data: { action: 'list', token },
+        data: { action: 'list', pkClass: 'lock', token },
       })).json();
       const credId = list1.keys[0].credId;
 
@@ -632,7 +632,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
 
       // 确认 KV 没写
       const list = await (await request.post(BASE + '/api/owner-passkey', {
-        data: { action: 'list', token },
+        data: { action: 'list', pkClass: 'lock', token },
       })).json();
       expect(list.keys.length).toBe(0);
     } finally {

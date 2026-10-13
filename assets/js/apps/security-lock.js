@@ -52,9 +52,11 @@ import { apiErrorText } from './app-gate.js';
   let hasPw = false;
   /** 2.10.0：全量通行密钥缓存（含应用类，供应用验证分组渲染） */
   let allKeys = [];
-  /** 当前管理区的通行密钥类别：'owner'（scope=root）或 'lock'（scope=keys/lockreset），
-      由 refreshPkList 按服务端返回的 scope 设置；"添加通行密钥"按钮据此决定 pkClass。 */
-  let pkAddClass = 'lock';
+  /** 批次 A 验收修复 P0：本页通行密钥类别由页面决定（owner 模式 → 'owner'，
+      默认锁屏模式 → 'lock'），不按票据 scope 推断；服务端按 pkClass + 票据双重校验。
+      注：?mode=owner 无任何入口链接（站长凭证页走 door.js），此处仅保留兼容。 */
+  const pageClass = isOwnerMode ? 'owner' : 'lock';
+  const pkAddClass = pageClass;
   /** 2.10.0：应用白名单（与服务端一致，book 在列） */
   var APPS = [{ aud: 'book', name: 'Book' }];
 
@@ -201,12 +203,17 @@ import { apiErrorText } from './app-gate.js';
     return apiErrorText(t, code, status);
   }
 
-  /** 会话/票据失效 → 重新验证 */
-  function needReauth() {
+  /** 会话/票据失效 → 重新验证（detail='owner-configured' 时显示明确文案）。
+      批次 A 验收修复 #7 会改走 app-gate.js 的 needVerify，此处先透传 reason。 */
+  function needReauth(detail) {
     /* P2-14：先收起当前所有 sheet 再开验证门，禁止弹层叠弹层
        （如通行密钥命名弹层里 stepup 失效时，不能在命名弹层上再叠验证门） */
     closeOpenSheets();
-    toast(t('sessExp'));
+    if (detail === 'owner-configured') {
+      toast(en ? 'Owner credential is set, please verify with the owner credential again' : '站长凭证已设置，请用站长凭证重新验证');
+    } else {
+      toast(t('sessExp'));
+    }
     openGate();
   }
 
@@ -529,7 +536,7 @@ import { apiErrorText } from './app-gate.js';
             refreshStatus();
             refreshPkList();
           } else if (j && isReauthError(j.error)) {
-            needReauth();
+            needReauth(j && j.reason);
           } else {
             toast(srvErr(j && j.error, r.status));
           }
@@ -589,7 +596,7 @@ import { apiErrorText } from './app-gate.js';
           toast(hasPw && action === 'change' ? t('pwChanged') : t('pwSaved'));
         } else if (isReauthError(j.error)) {
           closePwDlg('success');
-          needReauth();
+          needReauth(j && j.reason);
         } else if (j.error === 'exists' && action === 'set') {
           /* 并发已设置 → 改走 change */
           hasPw = true;
@@ -692,7 +699,7 @@ import { apiErrorText } from './app-gate.js';
             closePkNameDlg('success');
             refreshPkList();
           } else if (j && isReauthError(j.error)) {
-            needReauth();
+            needReauth(j && j.reason);
           } else if (j && j.error === 'not-found') {
             /* KV 最终一致：刚注册的 key 可能暂时读不到 */
             showErr('lockpkname-err', t('pkRetryLater'));
@@ -754,30 +761,43 @@ import { apiErrorText } from './app-gate.js';
     if (pkDelClose) on(pkDelClose, 'click', function () { closePkDelDlg(false, 'close-btn'); });
   }
 
-  /* 通行密钥列表（2.10.0：只显示锁屏类；应用类在应用验证分组） */
-  function refreshPkList() {
-    const ul = $('lockmgr-pklist');
-    const empty = $('lockmgr-pkempty');
-    api('/api/owner-passkey', { action: 'list' })
+  /* 应用验证分组：list 只返回本页类别，app 类需单独发一次 list（否则分组误显示「未添加」） */
+  function refreshAppKeys() {
+    if (!$('lockmgr-applist')) return;
+    api('/api/owner-passkey', { action: 'list', pkClass: 'app' })
       .then(function (res) {
         const j = res.json;
         if (!j) return;
         if (j.error && isReauthError(j.error)) {
-          needReauth();
+          needReauth(j.reason);
           return;
         }
-        /* 按 stepup scope 决定显示哪类：scope=root 显示 owner 类，
-           否则显示 lock 类（服务端已按 scope 过滤）。 */
-        const isOwnerScope = j.scope === 'root';
-        pkAddClass = isOwnerScope ? 'owner' : 'lock';
+        allKeys = allKeys.concat((j.ok && j.keys) || []);
+        renderAppList();
+      })
+      .catch(function () {});
+  }
+
+  /* 通行密钥列表（批次 A 验收修复 P0：list 带页面类别，只显示本页类） */
+  function refreshPkList() {
+    const ul = $('lockmgr-pklist');
+    const empty = $('lockmgr-pkempty');
+    api('/api/owner-passkey', { action: 'list', pkClass: pageClass })
+      .then(function (res) {
+        const j = res.json;
+        if (!j) return;
+        if (j.error && isReauthError(j.error)) {
+          needReauth(j && j.reason);
+          return;
+        }
         const keys = ((j.ok && j.keys) || []).filter(function (k) {
-          return (k.class || 'lock') === (isOwnerScope ? 'owner' : 'lock');
+          return (k.class || 'lock') === pageClass;
         });
         if (!ul) return;
         ul.innerHTML = '';
-        // 缓存全量 keys 供应用验证分组使用
+        // 缓存本页类 keys；应用类由 refreshAppKeys 单独拉取后合并
         allKeys = (j.ok && j.keys) || [];
-        renderAppList();
+        refreshAppKeys();
         keys.forEach(function (k) {
           const li = document.createElement('li');
           li.className = 'lockmgr-pkitem';
@@ -800,7 +820,7 @@ import { apiErrorText } from './app-gate.js';
                   lastSaved = v;
                   toast(t('pkRenamed'));
                 } else if (jj && isReauthError(jj.error)) {
-                  needReauth();
+                  needReauth(jj.reason);
                 } else {
                   nameInput.value = lastSaved;
                 }
@@ -873,7 +893,7 @@ import { apiErrorText } from './app-gate.js';
                   refreshPkList();
                   refreshStatus();
                 } else if (jj && isReauthError(jj.error)) {
-                  needReauth();
+                  needReauth(jj.reason);
                 } else if (jj && jj.error === 'not-found') {
                   toast(t('pkRetryLater'));
                 } else if (!jj) {
@@ -940,7 +960,7 @@ import { apiErrorText } from './app-gate.js';
                     toast(t('pkDeleted') || '已删除');
                     refreshPkList();
                   } else if (jj && isReauthError(jj.error)) {
-                    needReauth();
+                    needReauth(jj.reason);
                   } else if (jj && jj.error === 'not-found') {
                     /* KV 最终一致：刚注册的 key 可能暂时读不到 */
                     toast(t('pkRetryLater'));
@@ -1014,7 +1034,7 @@ import { apiErrorText } from './app-gate.js';
           toast(t('pkRegistered') || '已添加');
           refreshPkList();
         } else if (res.json && isReauthError(res.json.error)) {
-          needReauth();
+          needReauth(res.json.reason);
         } else {
           const code = (res.json && res.json.error) || 'failed';
           toast((t('gateSrvErr') || '失败') + ': ' + code);
@@ -1042,7 +1062,7 @@ import { apiErrorText } from './app-gate.js';
           const ch = res.json;
           if (!ch) throw { kind: 'server' };
           if (!ch.ok) {
-            if (isReauthError(ch.error)) throw { kind: 'reauth' };
+            if (isReauthError(ch.error)) throw { kind: 'reauth', reason: ch.reason };
             throw { kind: 'server' };
           }
           /* 服务端下发 rp.id、用户信息、excludeCredentials；前端不硬编码、不回落 */
@@ -1106,7 +1126,7 @@ import { apiErrorText } from './app-gate.js';
             openPkNameDlg(j.credId, r3.prefill);
             refreshPkList();
           } else if (j && isReauthError(j.error)) {
-            needReauth();
+            needReauth(j && j.reason);
           } else {
             toast(srvErr(j && j.error, r.status));
           }
@@ -1116,7 +1136,7 @@ import { apiErrorText } from './app-gate.js';
           if (e.kind === 'cancelled') toast(t('gateCancelled'));
           else if (e.kind === 'already') toast(t('pkAlready'));
           else if (e.kind === 'nosupport') toast(t('pkNoSupport'));
-          else if (e.kind === 'reauth') needReauth();
+          else if (e.kind === 'reauth') needReauth(e.reason);
           else if (e.kind === 'server') toast(srvErr(e.code));
           else if (e.kind === 'failed') toast(t('pkFailed'));
           else toast(t('gateNetErr'));
