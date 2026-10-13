@@ -440,8 +440,8 @@ import { apiErrorText } from './app-gate.js';
         if (sub) sub.textContent = hasPw ? t('pwSet') : t('pwUnset');
         const title = $('lockpw-title');
         if (title) title.textContent = hasPw ? t('changeTitle') : t('setTitle');
-        const delWrap = $('lockmgr-pwdel-wrap');
-        if (delWrap) delWrap.hidden = !hasPw;
+        const delBtn = $('lockmgr-pwdel');
+        if (delBtn) delBtn.hidden = !hasPw;
       })
       .catch(function () {});
   }
