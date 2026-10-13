@@ -46,7 +46,7 @@
       </button>
     </section>
     <p class="sec-note">{{ if $isEn }}Clears the app passport. Sensitive actions on Book will need authorization again. Does not affect the lock screen unlock state.{{ else }}清除应用通行证，Book 上的敏感操作需要重新授权。不影响锁屏解锁状态。{{ end }}</p>
-    <p class="sec-note mt-6">{{ partial "build-tag.html" (dict "isEn" $isEn) }}</p>
+    <p class="sec-note mt-6 sgx-build-tag-wrap">{{ partial "build-tag.html" (dict "isEn" $isEn) }}</p>
   </div>
 </div>
 

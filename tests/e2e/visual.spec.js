@@ -173,6 +173,13 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           await freezeTime(pg);
           await pg.goto(lang.prefix + page, { waitUntil: 'domcontentloaded' });
           await waitPageReady(pg);
+          /* #1 诊断：构建标记小字只给真机看，视觉回归里隐藏，
+             现有基线继续通过；诊断结束后删小字也不用再动基线。
+             必须在 goto 之后注入（导航会丢掉之前 addStyleTag/addInitScript 加的样式，
+             且 addInitScript 运行时 documentElement 还不存在）。 */
+          await pg.addStyleTag({
+            content: '.sgx-build-tag,.sgx-build-tag-wrap{display:none !important}',
+          });
           /* 浏览器页：快捷访问 favicon 走外部请求（测试拦截 abort），失败兜底
              异步把 img 换成首字母 span；截图前等可视区图标全部落定，
              否则截图会抓到"破图图标 vs 字母占位"的中间态导致抖动 */
