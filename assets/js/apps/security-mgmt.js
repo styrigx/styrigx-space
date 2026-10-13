@@ -2,7 +2,7 @@
  * @fileoverview 管理凭证索引页（定稿 #31）：锁屏 / 应用两个入口 + 状态摘要。
  * 进门探针用 /api/lock-status（接受 stepup scope=keys），无效则跳回安全与隐私页。
  */
-import { enterDoor, clearStepupThen } from './app-gate.js';
+import { enterDoor, clearStepupThen, startDoorCountdown } from './app-gate.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -18,34 +18,51 @@ import { enterDoor, clearStepupThen } from './app-gate.js';
       errStepupExpired: en ? 'Verification expired, please verify again' : '验证已过期，请重新验证',
       errNetwork: en ? 'Network connection failed, please retry' : '网络连接失败，请重试',
       errParse: en ? 'Bad server response, please retry' : '服务响应异常，请重试',
+      errOwnerConfigured: en ? 'Owner credential is set, please verify with the owner credential again' : '站长凭证已设置，请用站长凭证重新验证',
+      doorCountdown: en ? 'Verification remaining {m}' : '验证剩余 {m}',
+      doorCountdownExpired: en ? 'Expired' : '已过期',
+      expiredStepupTitle: en ? 'Verification expired' : '验证已过期',
+      expiredStepupDesc: en ? 'Verification has expired. Please verify again.' : '验证已过期，请重新验证',
+      expiredStepupBtn: en ? 'Back to Security & Privacy' : '返回安全与隐私',
+      expiredSessionTitle: en ? 'Session expired' : '会话已失效',
+      expiredSessionDesc: en ? 'Your session has expired. Please go back to the lock screen.' : '会话已失效，请重新进入锁屏。',
+      expiredSessionBtn: en ? 'Go to lock screen' : '去锁屏',
       lockSub: en ? 'Unlock password and passkeys' : '解锁密码和通行密钥',
       appsSub: en ? 'App keys' : '应用钥匙',
     };
     return map[k] || k;
   }
 
-  /* 进门探针：/api/lock-status 接受有效的管理门票据 */
+  /* 进门探针：/api/lock-status 接受有效的管理门票据。
+     A-1：失败带回真实 reason/detail（enterDoor 按原因分流到弹框/面板），不再吞成 false。 */
   function probe() {
     return fetch('/api/lock-status', { method: 'GET', credentials: 'same-origin' })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (j && j.ok) {
-          /* 填充状态摘要 */
-          const lockSub = $('mgmt-lock-sub');
-          if (lockSub) {
-            const parts = [];
-            if (j.password) parts.push(en ? 'Password set' : '已设密码');
-            if (j.passkey) parts.push(en ? 'Passkey set' : '已设通行密钥');
-            lockSub.textContent = parts.length ? parts.join(' · ') : t('lockSub');
+      .then(function (r) {
+        return r.json().then(function (j) {
+          if (j && j.ok) {
+            /* 填充状态摘要 */
+            const lockSub = $('mgmt-lock-sub');
+            if (lockSub) {
+              const parts = [];
+              if (j.password) parts.push(en ? 'Password set' : '已设密码');
+              if (j.passkey) parts.push(en ? 'Passkey set' : '已设通行密钥');
+              lockSub.textContent = parts.length ? parts.join(' · ') : t('lockSub');
+            }
+            return true;
           }
-          return true;
-        }
-        return false;
+          return { ok: false, reason: (j && j.error) || 'session', detail: j && j.reason, status: r.status, api: 'GET /api/lock-status' };
+        }).catch(function () {
+          return { ok: false, reason: 'parse', status: r.status, api: 'GET /api/lock-status' };
+        });
       })
-      .catch(function () { return false; });
+      .catch(function () { return { ok: false, reason: 'network', status: 0, api: 'GET /api/lock-status' }; });
   }
 
   function onEnter() {
+    /* 探针通过后才渲染门内内容（入口区默认 hidden，见模板） */
+    const main = $('mgmt-main');
+    if (main) main.hidden = false;
+    startDoorCountdown(t);
     /* 应用摘要：固定显示 Book（目前唯一应用） */
     const appsSub = $('mgmt-apps-sub');
     if (appsSub) appsSub.textContent = 'Book';

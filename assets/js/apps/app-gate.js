@@ -1,19 +1,21 @@
 /**
- * @fileoverview 各门管理页共用：进门探针 + 门内直调接口 + 错误码文案。
+ * @fileoverview 各门管理页共用：进门探针 + 门内直调接口 + 错误码文案 + 倒计时 + 到期弹框。
  *
  * 两扇门设计（2.11）：进门只验一次（安全与隐私页入口），门内（验证有效期内）
  * 查看/添加/重命名/删除/改密码全部直接调接口，不弹验证、不发起 WebAuthn
  * 挑战（添加密钥时创建凭据本身除外）。
- * - enterDoor()：页面直接渲染；进门探针确认验证有效才进管理区，
- *   无效则跳验证流程（安全与隐私页），不弹任何面板。
- * - api()：普通 POST，不自动验证；服务端报 stepup-required 时提示后
- *   跳验证流程，调用方直接 return 即可。
- * - clearStepup()：离开门时调 POST /api/stepup {action:'clear'} 清验证，
+ * - enterDoor()：探针确认验证有效才进管理区（onEnter 拿到 expiresAt 后启动倒计时）；
+ *   票据/会话失效 → showExpiredDialog 弹框，点了按钮才动作，不自动跳转；
+ *   探针网络/解析失败 → showProbeFailure 面板，不算过期。
+ * - api()：普通 POST，不自动验证；服务端报 stepup-required 时调用方走 handleDoorError → 弹框。
+ * - clearStepupThen()：离开门时调 POST /api/stepup {action:'clear'} 清验证，
  *   再跳转（幂等；失败也不卡住用户）。
+ * - startDoorCountdown()：门内页大标题下方胶囊「验证剩余 m:ss」，以服务端 status 的
+ *   expiresAt 为准；≤30 秒只变警示色；到 0 停在「已过期」，不自动跳转、不弹框。
  * - apiErrorText()：按服务端 error 码给中文提示，不说笼统的"服务器错误"。
  */
-import { toast } from '../lib/toast.js';
-import { sgxNavigate } from '../lib/diag-jumptrace.js';
+import { sgxNavigate, sgxReload } from '../lib/diag-jumptrace.js';
+import { showCenterDialog } from '../lib/dialog-behavior.js';
 
 /** @param {string} s */
 export function b64urlToBuf(s) {
@@ -56,8 +58,14 @@ export function securityUrl() {
    跳转前记「谁触发的 + 原因」，安全页加载时取出来显示一次（取即清除）。 */
 export { recordJump, takeJumpRecord, takeJumpRecords } from '../lib/diag-jumptrace.js';
 
-/* 跳验证流程只跳一次（门内多个请求并发失败时不重复跳转） */
+/* 验证失效弹框只弹一次（门内多个请求并发失败时不重复弹框） */
 let verifyJumped = false;
+/* 到期弹框是否已打开（showExpiredDialog 自身 guard，与 needVerify 的 guard 双保险） */
+let expiredDialogOpen = false;
+/* 倒计时：timer / 胶囊元素 / 当前过期时刻 */
+let countdownTimer = null;
+let countdownEl = null;
+let countdownExpiresAt = 0;
 
 /**
  * 按失败原因取提示文案（定稿 #36：不许一律报「会话过期」）。
@@ -94,20 +102,151 @@ function verifyMessage(t, reason, detail) {
 }
 
 /**
- * 验证失效 → 按真实原因提示后跳验证流程（安全与隐私页）。
+ * 验证失效 → 按真实原因弹 One UI 框，点了按钮才动作，不自动跳转（A-1，定稿 #22）。
+ * kind='stepup'：按钮「返回安全与隐私」→ clearStepupThen('/settings/security/')。
+ * kind='session'：按钮「去锁屏」→ sgxReload()（中间件会把失效会话送去锁屏）。
  * @param {(k:string)=>string} t 文案函数
- * @param {string} [reason] 失败原因，见 verifyMessage
- * @param {string} [detail] 服务端原因码，见 verifyMessage
+ * @param {string} [reason] 失败原因：'session' 走会话弹框，其余走验证弹框
+ * @param {string} [detail] 服务端原因码（如 'owner-configured'，透传进弹框文案）
  */
 export function needVerify(t, reason, detail) {
   if (verifyJumped) return;
   verifyJumped = true;
+  showExpiredDialog(t, reason === 'session' ? 'session' : 'stepup', detail);
+}
+
+/**
+ * 到期弹框（A-1，定稿 #22）：居中模态，无 ×，遮罩/返回手势不能关，
+ * 并发只弹一个，弹框时停倒计时、收起其他 sheet（showCenterDialog 负责）。
+ * @param {(k:string)=>string} t 文案函数
+ * @param {'stepup'|'session'} kind 弹框类型
+ * @param {string} [detail] 服务端原因码（如 'owner-configured'）
+ */
+export function showExpiredDialog(t, kind, detail) {
+  if (expiredDialogOpen) return;
+  expiredDialogOpen = true;
+  /* 探针失败也可能弹框：先移除全局锁屏遮罩，避免盖住弹框 */
+  clearLockOverlay();
+  stopDoorCountdown();
+  const isSession = kind === 'session';
+  const isOwnerConfigured = detail === 'owner-configured';
+  const title = isSession
+    ? tx(t, 'expiredSessionTitle', '会话已失效', 'Session expired')
+    : tx(t, 'expiredStepupTitle', '验证已过期', 'Verification expired');
+  let desc;
+  if (isOwnerConfigured) {
+    desc = tx(t, 'errOwnerConfigured', '站长凭证已设置，请用站长凭证重新验证', 'Owner credential is set, please verify with the owner credential again');
+  } else if (isSession) {
+    desc = tx(t, 'expiredSessionDesc', '会话已失效，请重新进入锁屏。', 'Your session has expired. Please go back to the lock screen.');
+  } else {
+    desc = tx(t, 'expiredStepupDesc', '验证已过期，请重新验证', 'Verification has expired. Please verify again.');
+  }
+  const btnLabel = isSession
+    ? tx(t, 'expiredSessionBtn', '去锁屏', 'Go to lock screen')
+    : tx(t, 'expiredStepupBtn', '返回安全与隐私', 'Back to Security & Privacy');
+  showCenterDialog({
+    title: title,
+    desc: desc,
+    dismissible: false,
+    buttons: [{
+      label: btnLabel,
+      kind: 'primary',
+      onClick: function () {
+        if (isSession) sgxReload('app-gate.js:showExpiredDialog', 'session-expired');
+        else clearStepupThen('/settings/security/');
+      },
+    }],
+    onClose: function () { expiredDialogOpen = false; },
+  });
+}
+
+/** m:ss 格式（向上取整，避免 2:59 跳 2:58 时闪 2:57） */
+function fmtDoorCountdown(ms) {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+
+/** 渲染一帧倒计时：文案 + ≤30 秒警示色；到 0 停在「已过期」，停表不跳转 */
+function renderDoorCountdown(t) {
+  if (!countdownEl) return;
+  const text = countdownEl.querySelector('.sgx-door-countdown-text');
+  const left = countdownExpiresAt - Date.now();
+  if (left <= 0) {
+    stopDoorCountdown();
+    countdownEl.classList.add('sgx-countdown-warn');
+    if (text) text.textContent = tx(t, 'doorCountdownExpired', '已过期', 'Expired');
+    return;
+  }
+  countdownEl.classList.toggle('sgx-countdown-warn', left <= 30000);
+  if (text) text.textContent = tx(t, 'doorCountdown', '验证剩余 {m}', 'Verification remaining {m}').replace('{m}', fmtDoorCountdown(left));
+}
+
+/**
+ * 启动门内倒计时（A-1）：胶囊在大标题正下方、与标题左对齐。
+ * expiresAt 为服务端签发的绝对过期时刻（毫秒）；未传时拉一次 status 取 expiresAt。
+ * 已启动时直接换成新的 expiresAt（门内操作重签后刷新用）。
+ * @param {(k:string)=>string} t 文案函数
+ * @param {number} [expiresAt] 服务端过期时刻（毫秒）
+ */
+export function startDoorCountdown(t, expiresAt) {
+  if (typeof expiresAt === 'number' && isFinite(expiresAt) && expiresAt > 0) {
+    if (!countdownEl) {
+      const el = document.createElement('div');
+      el.id = 'sgx-door-countdown';
+      el.className = 'sgx-door-countdown';
+      el.setAttribute('role', 'timer');
+      const icon = document.createElement('span');
+      icon.setAttribute('aria-hidden', 'true');
+      /* 时钟图标（与 icon.html 的 clock 同款路径） */
+      icon.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+      const text = document.createElement('span');
+      text.className = 'sgx-door-countdown-text';
+      el.appendChild(icon);
+      el.appendChild(text);
+      const head = document.querySelector('header.subpage-head');
+      if (head) {
+        /* 放进 header 内部（大标题正下方）：.set-layout 在桌面端是 2 列 grid，
+           作为 header 的兄弟元素会被自动放到第 1 行第 2 列，与标题重叠；放进
+           header 的 flex 列里则始终在标题下方，且 align-self 左对齐。 */
+        head.appendChild(el);
+      } else {
+        const layout = document.querySelector('.set-layout');
+        if (layout) layout.insertBefore(el, layout.firstChild);
+        else document.body.insertBefore(el, document.body.firstChild);
+      }
+      countdownEl = el;
+    }
+    countdownExpiresAt = expiresAt;
+    stopDoorCountdown();
+    renderDoorCountdown(t);
+    countdownTimer = window.setInterval(function () { renderDoorCountdown(t); }, 1000);
+    return;
+  }
+  /* 未传 expiresAt：拉一次 status 取服务端过期时刻（前端不解析 Cookie） */
   try {
-    toast(verifyMessage(t, reason, detail));
+    fetch('/api/stepup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'status' }),
+      credentials: 'include',
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (j && j.ok && j.valid && typeof j.expiresAt === 'number') startDoorCountdown(t, j.expiresAt);
+      else stopDoorCountdown();
+    }).catch(function () { stopDoorCountdown(); });
   } catch (e) {}
-  window.setTimeout(function () {
-    sgxNavigate(securityUrl(), 'app-gate.js:needVerify', (reason || 'session') + (detail ? ':' + detail : ''));
-  }, 900);
+}
+
+/** 门内操作重签后刷新倒计时（重新取 status 的 expiresAt，回到约 3:00 是既有行为） */
+export function refreshDoorCountdown(t) {
+  startDoorCountdown(t);
+}
+
+/** 停倒计时（弹框时调用；胶囊保留在当前值，不消失） */
+export function stopDoorCountdown() {
+  if (countdownTimer) {
+    window.clearInterval(countdownTimer);
+    countdownTimer = null;
+  }
 }
 
 /**
@@ -251,10 +390,11 @@ function showProbeFailure(t, info) {
 }
 
 /**
- * 进门探针：页面直接渲染；验证有效 → onEnter() 进管理区；
- * 无效 → 留在门内页显示原因（定稿 #1），不自动跳转、不弹面板。
- * @param {()=>Promise<boolean|{ok:boolean,reason?:string,detail?:string,api?:string,status?:number}>} probe 验证有效时 resolve true
- * @param {()=>void} onEnter 进门回调
+ * 进门探针：验证有效 → onEnter(result) 进管理区（result 带 expiresAt 时启动倒计时）；
+ * 票据/会话失效 → showExpiredDialog 弹框，点了按钮才动作，不自动跳转；
+ * 探针网络/解析失败 → showProbeFailure 面板（不算过期，不弹框）。
+ * @param {()=>Promise<boolean|{ok:boolean,reason?:string,detail?:string,api?:string,status?:number,expiresAt?:number}>} probe 验证有效时 resolve true
+ * @param {(result:any)=>void} onEnter 进门回调
  * @param {(k:string)=>string} t 文案函数
  */
 export function enterDoor(probe, onEnter, t) {
@@ -263,10 +403,19 @@ export function enterDoor(probe, onEnter, t) {
     const ok = isObj ? !!result.ok : !!result;
     if (ok) {
       clearLockOverlay();
-      onEnter();
+      onEnter(isObj ? result : null);
     } else {
-      /* 定稿 #1：探针失败留页显示原因，不自动跳转 */
-      showProbeFailure(t, isObj ? result : { reason: 'session' });
+      /* A-1：按失败原因分流——网络/解析走面板，其余走到期弹框 */
+      const info = isObj ? result : { reason: 'session' };
+      const reason = info.reason || 'session';
+      if (reason === 'network' || reason === 'parse') {
+        showProbeFailure(t, info);
+      } else if (reason === 'session') {
+        needVerify(t, 'session', info.detail);
+      } else {
+        /* stepup / stepup-required / scope / by-root / owner-configured → 验证弹框 */
+        needVerify(t, 'stepup', info.detail || reason);
+      }
     }
   }).catch(function () {
     showProbeFailure(t, { reason: 'network', status: 0 });
@@ -365,11 +514,11 @@ export function apiErrorText(t, code, status) {
   return msg;
 }
 
-/* D3：门内页收到这 4 个码时走 needVerify，不显示未知错误。
-   按 app-gate.js 原注释本意：它们走 needVerify 跳转，不向用户展示开发用语。 */
+/* D3：门内页收到这 4 个码时走 needVerify（弹框），不显示未知错误。
+   按 app-gate.js 原注释本意：它们走 needVerify 弹框，不向用户展示开发用语。 */
 const NEED_VERIFY_CODES = ['session', 'stepup-required', 'scope', 'by-root'];
 /**
- * 门内页 API 错误分流：session/stepup-required/scope/by-root → needVerify；
+ * 门内页 API 错误分流：session/stepup-required/scope/by-root → needVerify（弹框）；
  * 其他 → 返回 false，调用方按原逻辑显示错误（含 B1 小字错误码）。
  * @param {(k:string)=>string} t 文案函数
  * @param {string} code 服务端 error 码
@@ -379,7 +528,7 @@ const NEED_VERIFY_CODES = ['session', 'stepup-required', 'scope', 'by-root'];
  */
 export function handleDoorError(t, code, status, detail) {
   if (NEED_VERIFY_CODES.indexOf(code) === -1) return false;
-  /* needVerify 按真实原因提示后跳验证流程（安全与隐私页） */
+  /* needVerify 按真实原因弹框（点了按钮才动作，不自动跳转） */
   const reason = code === 'session' ? 'session' : 'stepup';
   needVerify(t, reason, detail || code);
   return true;

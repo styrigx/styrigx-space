@@ -16,13 +16,14 @@
  * - { action: 'verify', cid, credential } → 必须是已登录 owner 会话。
  *   只认 owner class 通行密钥（2.11 起 lock 不再能开 stepup）。
  *   通过后签发 sgx-stepup cookie：by.scope.epoch.iat.exp.Ed25519(SGX_STEPUP_PRIVATE)，
- *   约 10 分钟有效；HttpOnly、Secure、SameSite=Strict。
+ *   约 3 分钟有效；HttpOnly、Secure、SameSite=Strict。
  * - { action: 'verify-password', password } → 必须是已登录 owner 会话。
  *   校验 owner 密码（加 pepper），通过后签发 stepup(by=owner, scope=keys)。
  * - { action: 'takeover-keys' } → 必须是已登录 owner 会话 + 有效的
  *   stepup(by=root, scope=root)，且 owner 层未配置 → 签发 stepup(by=root, scope=keys)。
  *   owner 层已配置（含 KV 读失败按已配置）→ 403。
- * - { action: 'status' } → 必须是已登录 owner 会话。返回当前 sgx-stepup 是否有效。
+ * - { action: 'status' } → 必须是已登录 owner 会话。返回当前 sgx-stepup 是否有效，
+ *   有效时带 expiresAt（服务端签发的绝对过期时刻，毫秒；前端倒计时以它为准，不解析 Cookie）。
  *
  * 只接受 POST；校验 Origin；外层 try/catch 异常一律 { ok:false, error:'server' }。
  *
@@ -42,7 +43,7 @@ import { isLayerConfigured, LAYER_OWNER } from '../_kernel/layers.js';
 
 /* stepup cookie 定义（一处定义） */
 export const STEPUP_COOKIE = 'sgx-stepup';
-export const STEPUP_MAX_AGE = 600; /* 10 分钟 */
+export const STEPUP_MAX_AGE = 180; /* A-1：3 分钟（v1.5 #11） */
 export const STEPUP_COOKIE_ATTRS = 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Strict';
 /* challenge KV 前缀：与登录的 pk-challenge: 隔离 */
 export const STEPUP_CHALLENGE_PREFIX = 'stepup-challenge:';
@@ -161,9 +162,10 @@ export function stepupScopeError(st, allowedScopes) {
  * 验证请求中的 sgx-stepup cookie（供高敏操作 API 复用）。
  * fail closed：任何异常都返回无效。
  * 2.11：返回 by 和 scope，调用方做 scope 检查。
+ * A-1：通过时另带 exp（票据绝对过期时刻，毫秒；status 转发为 expiresAt）。
  * @param {any} request
  * @param {any} env
- * @returns {Promise<{ok:boolean, by:string|null, scope:string|null, reason:string}>}
+ * @returns {Promise<{ok:boolean, by:string|null, scope:string|null, reason:string, exp?:number}>}
  *   reason: ok / no-cookie / bad-format / expired / not-yet / no-pubkey /
  *           bad-sig / epoch-changed / kv-error
  */
@@ -189,7 +191,7 @@ export async function verifyStepupCookie(request, env) {
   const payload = p.by + '.' + p.scope + '.' + p.epoch + '.' + p.iat + '.' + p.exp;
   const ok = await ed25519Verify(pubKey, payload, p.sig);
   if (!ok) return { ok: false, by: null, scope: null, reason: 'bad-sig' };
-  return { ok: true, by: p.by, scope: p.scope, reason: 'ok' };
+  return { ok: true, by: p.by, scope: p.scope, reason: 'ok', exp: p.exp };
 }
 
 /** @param {Headers} headers @param {string} value */
@@ -497,7 +499,13 @@ async function handlePost(context) {
   /* ============ status ============ */
   if (action === 'status') {
     const r = await verifyStepupCookie(request, env);
-    return Response.json({ ok: true, valid: r.ok, reason: r.ok ? undefined : r.reason });
+    /* A-1：有效时带 expiresAt；无效时不带（前端不解析 Cookie） */
+    return Response.json({
+      ok: true,
+      valid: r.ok,
+      reason: r.ok ? undefined : r.reason,
+      expiresAt: r.ok ? r.exp : undefined,
+    });
   }
 
   return Response.json({ ok: false, error: 'params' }, { status: 400 });

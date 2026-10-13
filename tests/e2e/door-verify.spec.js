@@ -219,3 +219,75 @@ test.describe('door verify dialog', () => {
     expect(authCalls).toBe(1);
   });
 });
+
+test.describe('A-1 进门不能马上被判过期（10 次连续进门）', () => {
+  let pageErrors;
+  test.beforeEach(async ({ page }) => {
+    pageErrors = [];
+    page.on('pageerror', (e) => pageErrors.push(String(e && e.message ? e.message : e)));
+    await blockExternalRequests(page);
+    await page.addInitScript(() => {
+      try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
+    });
+    await mockJson(page, '**/api/owner-status', 200, { ok: true, password: true, passkey: true });
+    await mockJson(page, '**/api/owner-passkey', 200, { ok: true, keys: [], scope: 'root' });
+    await mockJson(page, '**/api/lock-status', 200, { ok: true, password: true, passkey: true });
+    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
+    await mockJson(page, '**/api/root-auth', 200, { ok: true });
+    await mockJson(page, '**/api/root-session', 200, { ok: true });
+    await mockJson(page, '**/api/lock-config', 200, { ok: true, password: true, passkey: true });
+    await page.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#sec-owner-cred')).toBeVisible({ timeout: 10000 });
+  });
+
+  test('根凭证进站长凭证门：连续 10 次都成功（无 no-cookie 误判）', async ({ page }) => {
+    for (let i = 0; i < 10; i++) {
+      await page.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
+      /* 有会话路径：根凭证成功后做 stepup 预检（B 回归点：进门时误清票 → 探针 no-cookie） */
+      await page.evaluate(() => { document.documentElement.dataset.sgxRole = 'owner'; });
+      await page.locator('#sec-owner-cred').click();
+      await expect(page.locator('.sgx-door-methods .sgx-door-row').first()).toBeVisible({ timeout: 10000 });
+      await page.locator('.sgx-door-row').filter({ hasText: '根凭证' }).click();
+      await page.locator('.sgx-door-expand input[type="password"]').fill('test-root-key');
+      await page.locator('.sgx-door-actions .primary').click();
+      await expect(page).toHaveURL(/\/settings\/security\/owner\//, { timeout: 10000 });
+      /* 进门成功：门内容器可见 + 倒计时出现 */
+      await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
+      await expect(page.locator('#sgx-door-countdown')).toBeVisible({ timeout: 15000 });
+    }
+    expect(pageErrors).toEqual([]);
+  });
+
+  test('站长密码进管理凭证门：连续 10 次都成功', async ({ page }) => {
+    for (let i = 0; i < 10; i++) {
+      await page.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
+      await page.locator('#sec-mgmt-cred').click();
+      await expect(page.locator('.sgx-door-methods .sgx-door-row').first()).toBeVisible({ timeout: 10000 });
+      await page.locator('.sgx-door-row').filter({ hasText: '站长密码' }).click();
+      await page.locator('.sgx-door-expand input[type="password"]').fill('test-owner-pw');
+      await page.locator('.sgx-door-actions .primary').click();
+      await expect(page).toHaveURL(/\/settings\/security\/mgmt\//, { timeout: 10000 });
+      await expect(page.locator('#sgx-door-countdown')).toBeVisible({ timeout: 15000 });
+    }
+    expect(pageErrors).toEqual([]);
+  });
+
+  test('离开门后重进需重新验证（返回后再次进门仍弹验证框）', async ({ page }) => {
+    /* 第 1 次：根凭证进门（有会话路径，做 stepup 预检） */
+    await page.evaluate(() => { document.documentElement.dataset.sgxRole = 'owner'; });
+    await page.locator('#sec-owner-cred').click();
+    await expect(page.locator('.sgx-door-methods .sgx-door-row').first()).toBeVisible({ timeout: 10000 });
+    await page.locator('.sgx-door-row').filter({ hasText: '根凭证' }).click();
+    await page.locator('.sgx-door-expand input[type="password"]').fill('test-root-key');
+    await page.locator('.sgx-door-actions .primary').click();
+    await expect(page).toHaveURL(/\/settings\/security\/owner\//, { timeout: 10000 });
+    await expect(page.locator('#sgx-door-countdown')).toBeVisible({ timeout: 15000 });
+    /* 点返回按钮 → 回安全页（清票） */
+    await page.locator('.subpage-back').click();
+    await expect(page).toHaveURL(/\/settings\/security\/$/, { timeout: 10000 });
+    /* 再次进门 → 仍需验证（验证框出现，不是直接进门） */
+    await page.locator('#sec-owner-cred').click();
+    await expect(page.locator('.sgx-door-methods .sgx-door-row').first()).toBeVisible({ timeout: 10000 });
+    expect(pageErrors).toEqual([]);
+  });
+});

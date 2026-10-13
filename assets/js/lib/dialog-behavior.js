@@ -226,3 +226,92 @@ export function setRowSelected(row, selected) {
     else row.classList.remove('sgx-row-selected');
   } catch (e) {}
 }
+
+/**
+ * 居中模态弹层（A-1：到期弹框与删除确认共用，定稿 #22）。
+ * - 打开前收起其他已打开的 sheet（<dialog open> 全部 close）。
+ * - 并发只弹一个：已有中心弹层打开时直接返回空关闭函数，不重复建层。
+ * - dismissible=false（到期弹框）：无 ×，遮罩点击只失焦，返回手势不关闭。
+ * - dismissible=true（确认弹框）：遮罩点击 / 返回手势 = 取消。
+ * @param {{title:string, desc?:string, buttons?:Array<{label:string, kind?:string, onClick?:function()}>, dismissible?:boolean, onCancel?:function(), onClose?:function()}} opts
+ * @returns {function()} 关闭函数（已关时可重复调用）
+ */
+export function showCenterDialog(opts) {
+  const o = opts || {};
+  const existing = document.querySelector('dialog.sgx-center-dlg[open]');
+  if (existing) return function () {};
+  /* 收起其他 sheet：先关掉页面上其他已打开的 dialog */
+  const others = document.querySelectorAll('dialog[open]');
+  for (let i = 0; i < others.length; i++) {
+    try { others[i].close(); } catch (e) {}
+  }
+  const dlg = document.createElement('dialog');
+  dlg.className = 'sgx-center-dlg';
+  const card = document.createElement('div');
+  card.className = 'sgx-center-card';
+  if (o.title) {
+    const h = document.createElement('h2');
+    h.className = 'sgx-verify-title';
+    h.textContent = o.title;
+    card.appendChild(h);
+  }
+  if (o.desc) {
+    const p = document.createElement('p');
+    p.className = 'sgx-verify-desc';
+    p.textContent = o.desc;
+    card.appendChild(p);
+  }
+  const actions = document.createElement('div');
+  actions.className = 'sgx-verify-actions';
+  const buttons = Array.isArray(o.buttons) ? o.buttons : [];
+  buttons.forEach(function (b) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = b && b.kind === 'ghost' ? 'sgx-verify-ghost' : 'sgx-verify-skip';
+    btn.textContent = (b && b.label) || '';
+    btn.addEventListener('click', function () {
+      close();
+      try { if (b && typeof b.onClick === 'function') b.onClick(); } catch (e) {}
+    });
+    actions.appendChild(btn);
+  });
+  card.appendChild(actions);
+  dlg.appendChild(card);
+  document.body.appendChild(dlg);
+  let closed = false;
+  function close() {
+    if (closed) return;
+    closed = true;
+    try { if (dlg.open) dlg.close(); } catch (e) {}
+    try { dlg.remove(); } catch (e) {}
+    try { if (typeof o.onClose === 'function') o.onClose(); } catch (e) {}
+  }
+  dlg.addEventListener('click', function (e) {
+    if (e.target !== dlg) return;
+    /* 点遮罩：可关 = 取消；不可关 = 只失焦 */
+    if (o.dismissible) {
+      close();
+      try { if (typeof o.onCancel === 'function') o.onCancel(); } catch (e2) {}
+    } else {
+      blurFocusedInput(dlg);
+    }
+  });
+  dlg.addEventListener('cancel', function (e) {
+    e.preventDefault();
+    if (o.dismissible) {
+      close();
+      try { if (typeof o.onCancel === 'function') o.onCancel(); } catch (e2) {}
+    }
+    /* 不可关：返回手势不关闭（preventDefault 已拦） */
+  });
+  dlg.addEventListener('close', function () {
+    if (!closed) close();
+  });
+  try {
+    dlg.showModal();
+  } catch (e) {
+    try { dlg.remove(); } catch (e2) {}
+    return function () {};
+  }
+  return close;
+}

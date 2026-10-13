@@ -33,7 +33,7 @@ test.describe('#1 owner door probe', () => {
     });
   });
 
-  test('会话有效但票据无效 → 留在门内页显示原因（不跳转）', async ({ page }) => {
+  test('会话有效但票据无效 → 弹验证过期框（不跳转），点按钮才回安全页；门内内容不渲染', async ({ page }) => {
     /* 会话有效 */
     await mockJson(page, '**/api/owner-status', 200, { ok: true, password: false, passkey: true });
     /* 票据无效（过期） */
@@ -41,31 +41,24 @@ test.describe('#1 owner door probe', () => {
 
     await page.goto('/settings/security/owner/', { waitUntil: 'domcontentloaded' });
 
-    /* 探针失败 → 留在门内页，不跳转 */
-    await expect(page).toHaveURL(/\/settings\/security\/owner\//, { timeout: 10000 });
-    await page.waitForTimeout(1500);
+    /* A-1：探针发现票据无效 → 验证过期弹框，不自动跳转 */
+    const dlg = page.locator('dialog.sgx-center-dlg');
+    await expect(dlg).toBeVisible({ timeout: 10000 });
+    await expect(dlg).toContainText('验证已过期，请重新验证');
+    await expect(dlg.locator('button.sgx-verify-skip')).toHaveText('返回安全与隐私');
+    /* 不点不跳 */
     await expect(page).toHaveURL(/\/settings\/security\/owner\//);
 
-    /* 失败面板可见，显示原因（不被遮罩挡住） */
-    const panel = page.locator('#sgx-probe-fail');
-    await expect(panel).toBeVisible({ timeout: 10000 });
-    /* 原因文字：「验证已过期」，不是「会话过期」 */
-    await expect(panel.filter({ hasText: '验证已过期' })).toBeVisible();
-    await expect(panel.filter({ hasText: '会话过期' })).toHaveCount(0);
-    /* 服务端原因码可见 */
-    await expect(panel.filter({ hasText: 'expired' })).toBeVisible();
-    /* 接口和状态码可见 */
-    await expect(panel.filter({ hasText: 'POST /api/stepup' })).toBeVisible();
-    await expect(panel.filter({ hasText: '200' })).toBeVisible();
-
-    /* 锁屏遮罩已移除（原因文字不被盖住） */
+    /* 锁屏遮罩已移除 */
     await expect(page.locator('#sgx-lock')).toHaveCount(0);
 
-    /* 「返回安全与隐私」按钮存在 */
-    const backBtn = panel.getByRole('button', { name: /返回安全与隐私/ });
-    await expect(backBtn).toBeVisible();
-    /* 点按钮才跳转 */
-    await backBtn.click();
+    /* 探针未通过 → 门内容器保持隐藏，DOM 里没有门内内容（无删除按钮、无已设置文案） */
+    await expect(page.locator('#lockmgr')).toBeHidden();
+    await expect(page.locator('#lockmgr-pwdel')).toBeHidden();
+    await expect(page.locator('#lockmgr-pwsub')).toBeHidden();
+
+    /* 点按钮才跳转（clearStepupThen → 安全页） */
+    await dlg.locator('button.sgx-verify-skip').click();
     await expect(page).toHaveURL(/\/settings\/security\/?$/, { timeout: 10000 });
   });
 

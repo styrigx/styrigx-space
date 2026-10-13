@@ -11,7 +11,7 @@ import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton } from '../lib/dialog-behavior.js';
-import { apiErrorText, needVerify } from './app-gate.js';
+import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown } from './app-gate.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -143,12 +143,15 @@ import { apiErrorText, needVerify } from './app-gate.js';
 
   /** 会话/票据失效 → 重新验证（批次 A 验收修复 #7：改走 app-gate.js 的 needVerify，
       和 door.js 一致；detail='owner-configured' 时 needVerify 显示明确文案）。
-      锁屏页无验证门可开：lockgate-* 元素在任何模板里都不存在，
+      A-1：按真实 code 传参（v1.0 §三 1c）——'session' 走会话弹框，
+      'stepup-required'/'scope'/'by-root' 走验证弹框；单参调用（仅 reason，如 'owner-configured'）
+      视为验证弹框。锁屏页无验证门可开：lockgate-* 元素在任何模板里都不存在，
       旧 openGate() 在 gateOpts 为 null 时会抛 TypeError。 */
-  function needReauth(detail) {
-    /* P2-14：先收起当前所有 sheet 再跳验证流程，禁止弹层叠弹层 */
+  function needReauth(code, detail) {
+    /* P2-14：先收起当前所有 sheet 再弹框，禁止弹层叠弹层 */
     closeOpenSheets();
-    needVerify(t, 'session', detail);
+    if (code === 'session') needVerify(t, 'session', detail);
+    else needVerify(t, 'stepup', detail || code);
   }
 
   /**
@@ -172,6 +175,7 @@ import { apiErrorText, needVerify } from './app-gate.js';
       document.body.classList.remove('sgx-locked');
     } catch (e) {}
     $('lockmgr').hidden = false;
+    startDoorCountdown(t);
     refreshStatus();
     refreshPkList();
   }
@@ -303,8 +307,9 @@ import { apiErrorText, needVerify } from './app-gate.js';
             /* 服务端删除成功后重新读状态刷新（KV 最终一致，边缘节点最多约 60 秒） */
             refreshStatus();
             refreshPkList();
+            refreshDoorCountdown(t);
           } else if (j && isReauthError(j.error)) {
-            needReauth(j && j.reason);
+            needReauth(j && j.error, j && j.reason);
           } else {
             toast(srvErr(j && j.error, r.status));
           }
@@ -361,10 +366,11 @@ import { apiErrorText, needVerify } from './app-gate.js';
           closePwDlg('success');
           hasPw = true;
           refreshStatus();
+          refreshDoorCountdown(t);
           toast(hasPw && action === 'change' ? t('pwChanged') : t('pwSaved'));
         } else if (isReauthError(j.error)) {
           closePwDlg('success');
-          needReauth(j && j.reason);
+          needReauth(j && j.error, j && j.reason);
         } else if (j.error === 'exists' && action === 'set') {
           /* 并发已设置 → 改走 change */
           hasPw = true;
@@ -466,8 +472,9 @@ import { apiErrorText, needVerify } from './app-gate.js';
             toast(t('pkRegistered'));
             closePkNameDlg('success');
             refreshPkList();
+            refreshDoorCountdown(t);
           } else if (j && isReauthError(j.error)) {
-            needReauth(j && j.reason);
+            needReauth(j && j.error, j && j.reason);
           } else if (j && j.error === 'not-found') {
             /* KV 最终一致：刚注册的 key 可能暂时读不到 */
             showErr('lockpkname-err', t('pkRetryLater'));
@@ -537,7 +544,7 @@ import { apiErrorText, needVerify } from './app-gate.js';
         const j = res.json;
         if (!j) return;
         if (j.error && isReauthError(j.error)) {
-          needReauth(j.reason);
+          needReauth(j.error, j.reason);
           return;
         }
         allKeys = allKeys.concat((j.ok && j.keys) || []);
@@ -555,7 +562,7 @@ import { apiErrorText, needVerify } from './app-gate.js';
         const j = res.json;
         if (!j) return;
         if (j.error && isReauthError(j.error)) {
-          needReauth(j && j.reason);
+          needReauth(j && j.error, j && j.reason);
           return;
         }
         const keys = ((j.ok && j.keys) || []).filter(function (k) {
@@ -588,7 +595,7 @@ import { apiErrorText, needVerify } from './app-gate.js';
                   lastSaved = v;
                   toast(t('pkRenamed'));
                 } else if (jj && isReauthError(jj.error)) {
-                  needReauth(jj.reason);
+                  needReauth(jj.error, jj.reason);
                 } else {
                   nameInput.value = lastSaved;
                 }
@@ -660,8 +667,9 @@ import { apiErrorText, needVerify } from './app-gate.js';
                   /* 服务端删除成功后重新读列表刷新（KV 最终一致，边缘节点最多约 60 秒） */
                   refreshPkList();
                   refreshStatus();
+                  refreshDoorCountdown(t);
                 } else if (jj && isReauthError(jj.error)) {
-                  needReauth(jj.reason);
+                  needReauth(jj.error, jj.reason);
                 } else if (jj && jj.error === 'not-found') {
                   toast(t('pkRetryLater'));
                 } else if (!jj) {
@@ -727,8 +735,9 @@ import { apiErrorText, needVerify } from './app-gate.js';
                   if (jj && jj.ok) {
                     toast(t('pkDeleted') || '已删除');
                     refreshPkList();
+                    refreshDoorCountdown(t);
                   } else if (jj && isReauthError(jj.error)) {
-                    needReauth(jj.reason);
+                    needReauth(jj.error, jj.reason);
                   } else if (jj && jj.error === 'not-found') {
                     /* KV 最终一致：刚注册的 key 可能暂时读不到 */
                     toast(t('pkRetryLater'));
@@ -801,8 +810,9 @@ import { apiErrorText, needVerify } from './app-gate.js';
         if (res.json && res.json.ok) {
           toast(t('pkRegistered') || '已添加');
           refreshPkList();
+          refreshDoorCountdown(t);
         } else if (res.json && isReauthError(res.json.error)) {
-          needReauth(res.json.reason);
+          needReauth(res.json.error, res.json.reason);
         } else {
           const code = (res.json && res.json.error) || 'failed';
           toast((t('gateSrvErr') || '失败') + ': ' + code);
@@ -830,7 +840,7 @@ import { apiErrorText, needVerify } from './app-gate.js';
           const ch = res.json;
           if (!ch) throw { kind: 'server' };
           if (!ch.ok) {
-            if (isReauthError(ch.error)) throw { kind: 'reauth', reason: ch.reason };
+            if (isReauthError(ch.error)) throw { kind: 'reauth', code: ch.error, reason: ch.reason };
             throw { kind: 'server' };
           }
           /* 服务端下发 rp.id、用户信息、excludeCredentials；前端不硬编码、不回落 */
@@ -893,8 +903,9 @@ import { apiErrorText, needVerify } from './app-gate.js';
             /* 注册成功 → 弹出命名弹层（预填名已提交，用户改名才调 rename） */
             openPkNameDlg(j.credId, r3.prefill);
             refreshPkList();
+            refreshDoorCountdown(t);
           } else if (j && isReauthError(j.error)) {
-            needReauth(j && j.reason);
+            needReauth(j && j.error, j && j.reason);
           } else {
             toast(srvErr(j && j.error, r.status));
           }
@@ -904,7 +915,7 @@ import { apiErrorText, needVerify } from './app-gate.js';
           if (e.kind === 'cancelled') toast(t('gateCancelled'));
           else if (e.kind === 'already') toast(t('pkAlready'));
           else if (e.kind === 'nosupport') toast(t('pkNoSupport'));
-          else if (e.kind === 'reauth') needReauth(e.reason);
+          else if (e.kind === 'reauth') needReauth(e.code, e.reason);
           else if (e.kind === 'server') toast(srvErr(e.code));
           else if (e.kind === 'failed') toast(t('pkFailed'));
           else toast(t('gateNetErr'));
@@ -939,10 +950,11 @@ import { apiErrorText, needVerify } from './app-gate.js';
         enterMgr();
       } else {
         /* 批次 A 验收修复 #7：探针失败走 needVerify，不开已删除的验证门 */
-        needReauth(j && j.reason);
+        needReauth(j && j.error, j && j.reason);
       }
     })
     .catch(function () {
-      needReauth();
+      /* A-1：探针网络失败 ≠ 过期：提示网络错误，留页不弹框、不自动跳 */
+      toast(t('gateNetErr'));
     });
 })();

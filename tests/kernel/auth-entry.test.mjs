@@ -560,6 +560,8 @@ test('行为：锁屏未配置时 root-auth 成功 → root-session 换站长会
   assert.equal(body2.by, 'root');
   const setCookie2 = res2.headers.get('Set-Cookie') || '';
   assert.ok(setCookie2.includes('sgx-verified='), '应签发会话');
+  /* A-1：根凭证代开会话仍为 Max-Age=43200（12 小时，不跟 stepup 一起缩短） */
+  assert.ok(setCookie2.includes('Max-Age=43200'), 'root-session 会话应为 Max-Age=43200，实际=' + setCookie2);
 });
 
 test('行为：锁屏已配置（有真实凭证无标记）时 root-session 拒绝', async () => {
