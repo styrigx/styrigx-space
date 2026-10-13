@@ -118,6 +118,9 @@
       --m-on-rose: #ffffff;
       --m-rose-container: #f6d7de;
       --m-on-rose-container: #421322;
+      --m-error: #b3261e;
+      --m-error-container: #f9dedc;
+      --m-on-error-container: #410e0b;
       --m-surface: #f5f8fa;
       --m-on-surface: #161b20;
       --m-on-surface-variant: #41484e;
@@ -160,6 +163,9 @@
       --m-on-rose: #53182a;
       --m-rose-container: #6b2c40;
       --m-on-rose-container: #f6d7de;
+      --m-error: #f2b8b5;
+      --m-error-container: #8c1d18;
+      --m-on-error-container: #f9dedc;
       --m-surface: #10151a;
       --m-on-surface: #dfe4ea;
       --m-on-surface-variant: #a8b1bb;
@@ -328,6 +334,9 @@
       --m-on-rose: light-dark(#ffffff, #53182a);
       --m-rose-container: light-dark(#f6d7de, #6b2c40);
       --m-on-rose-container: light-dark(#421322, #f6d7de);
+      --m-error: light-dark(#b3261e, #f2b8b5);
+      --m-error-container: light-dark(#f9dedc, #8c1d18);
+      --m-on-error-container: light-dark(#410e0b, #f9dedc);
       --m-surface: light-dark(#f5f8fa, #10151a);
       --m-on-surface: light-dark(#161b20, #dfe4ea);
       --m-on-surface-variant: light-dark(#41484e, #a8b1bb);
@@ -1419,9 +1428,9 @@
     position: sticky; top: 0; z-index: 20;
     display: flex; align-items: center; gap: 8px;
     padding: 12px 16px; border-radius: 1rem; margin: 0 0 12px;
-    background: var(--m-warm-container, #fdf0e4); color: var(--m-on-warm-container, #4a2c00);
+    background: var(--m-warm-container); color: var(--m-on-warm-container);
     &[hidden] { display: none; }
-    &.sgx-bootstrap-note-flash { outline: 2px solid var(--m-error, #b3261e); }
+    &.sgx-bootstrap-note-flash { outline: 2px solid var(--m-error); }
   }
   .sec-status-ic {
     width: 48px; height: 48px; border-radius: 999px; flex-shrink: 0;
@@ -2223,8 +2232,8 @@
     border-bottom: 1px solid var(--glass-edge);
   }
   .sgx-countdown-bar.sgx-countdown-warn {
-    background: var(--m-error-container, #f9dedc);
-    color: var(--m-on-error-container, #410e0b);
+    background: var(--m-error-container);
+    color: var(--m-on-error-container);
   }
   .sgx-door-methods { margin-top: 8px; }
   .sgx-door-row {
