@@ -27,7 +27,7 @@
  * 根凭证失败计入共用限速；审计标记 via=switch（不对前端暴露）。
  * 只接受 POST；校验 Origin。
  */
-import { timingSafeEqual } from '../_kernel/crypto.js';
+import { timingSafeEqual, normalizeRootKey } from '../_kernel/crypto.js';
 import { getSessionEpoch } from '../_kernel/session.js';
 import {
   signStepupCookie,
@@ -168,8 +168,9 @@ async function handlePost(context) {
     };
 
     /* --- 步骤 1：根凭证与环境变量比对（不读 KV 开关） --- */
+    /* 批次 A 收尾 B2：两边都去掉空白字符后再比对；去空白后为空一律拒绝 */
     const rk = (body && body.rootKey) || '';
-    const rootOk = rk && (await timingSafeEqual(String(rk), String(rootKey)));
+    const rootOk = rk && normalizeRootKey(rk) && (await timingSafeEqual(normalizeRootKey(rk), normalizeRootKey(rootKey)));
     if (!rootOk) {
       const failResp = await fail();
       if (failResp) return failResp;

@@ -362,7 +362,7 @@ for (const lang of DOOR_LANGS) {
               ? (lang.name === 'en' ? 'Root credential' : '根凭证')
               : (lang.name === 'en' ? 'Owner password' : '站长密码');
             await pg.locator('.sgx-door-row').filter({ hasText: rowText }).click();
-            const field = pg.locator('.sgx-door-expand input, .sgx-door-expand textarea');
+            const field = pg.locator('.sgx-door-expand input[type="password"]');
             await expect(field).toBeVisible({ timeout: 5000 });
             if (state === 'error') {
               await field.fill('wrong-value');

@@ -27,7 +27,7 @@
  * 只接受 POST；校验 Origin（缺失/解析失败 403）。
  * 旧 /api/owner-auth 不再可用。
  */
-import { timingSafeEqual, ed25519Verify } from '../_kernel/crypto.js';
+import { timingSafeEqual, ed25519Verify, normalizeRootKey } from '../_kernel/crypto.js';
 import { getSessionEpoch, ROLE_OWNER, ROLE_VISITOR } from '../_kernel/session.js';
 import { signStepupCookie, STEPUP_COOKIE, STEPUP_COOKIE_ATTRS, STEPUP_MAX_AGE, STEPUP_BY_ROOT, STEPUP_SCOPE_ROOT } from './stepup.js';
 import { checkRootLimit, recordRootFail, clearRootFail, getClientIp } from '../_kernel/rootlimit.js';
@@ -236,7 +236,8 @@ async function handlePost(context) {
     key = (body && body.key) || '';
   } catch (e) {}
 
-  const ok = key && (await timingSafeEqual(String(key), String(rootKey)));
+  /* 批次 A 收尾 B2：两边都去掉空白字符后再比对；去空白后为空一律拒绝 */
+  const ok = key && normalizeRootKey(key) && (await timingSafeEqual(normalizeRootKey(key), normalizeRootKey(rootKey)));
   if (!ok) {
     try {
       await recordRootFail(kv, ip);

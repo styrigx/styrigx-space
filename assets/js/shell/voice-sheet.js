@@ -6,6 +6,7 @@
 import { on } from '../lib/events.js';
 import { loadI18n } from '../lib/i18n.js';
 import { reducedMotion } from '../lib/util.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose } from '../lib/dialog-behavior.js';
 
 let vsOpen = false;
 
@@ -37,6 +38,8 @@ export function voiceSheet(opts) {
   dlg.setAttribute('aria-label', T.t('vsAria'));
   dlg.innerHTML =
     '<div class="sgx-vs-card">' +
+    /* 批次 A 收尾 A3：右上角 × 关闭按钮 */
+    '<button type="button" class="sgx-dlg-close" data-vs-close aria-label="' + T.t('vsClose') + '">×</button>' +
     '<div class="sgx-vs-tx"><div class="sgx-vs-l1"></div><div class="sgx-vs-l2"></div></div>' +
     '<button type="button" class="sgx-vs-btn" aria-label="' +
     T.t('vsAria') +
@@ -83,7 +86,8 @@ export function voiceSheet(opts) {
     dlg.classList.remove('show');
     window.setTimeout(teardown, reduced ? 0 : 280);
   }
-  function cancel() {
+  function cancel(reason) {
+    recordDialogClose('voice-sheet', reason || 'unknown');
     if (finished && !btn.classList.contains('listening')) {
       hide();
       return;
@@ -173,14 +177,18 @@ export function voiceSheet(opts) {
         start();
       }
     }),
-    /* 点击 backdrop 关闭 */
+    /* 批次 A 收尾 A1：点遮罩只失焦不关闭 */
     on(dlg, 'click', function (e) {
-      if (e.target === dlg) cancel();
+      onDialogBackdrop(e, dlg);
     }),
-    /* Esc：原生 cancel 事件 */
+    /* 批次 A 收尾 A2：Esc/返回时，键盘开着先收键盘，键盘收起才关闭 */
     on(dlg, 'cancel', function (/** @type {Event} */ e) {
-      e.preventDefault();
-      cancel();
+      onDialogCancel(e, dlg, function (reason) { cancel(reason); });
+    }),
+    /* 批次 A 收尾 A3：右上角 × 关闭按钮 */
+    on(dlg, 'click', function (e) {
+      const t = /** @type {Element|null} */ (e.target);
+      if (t && t.closest && t.closest('[data-vs-close]')) cancel('close-btn');
     })
   );
   try {

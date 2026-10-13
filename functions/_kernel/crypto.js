@@ -44,6 +44,18 @@ export async function timingSafeEqual(a, b) {
 }
 
 /**
+ * 根凭证规范化（批次 A 收尾 B2）：去掉所有空白字符（空格、制表符、换行 \r \n）。
+ * 根凭证是单行密码框输入，粘贴多行时浏览器会去掉换行；服务端两边（提交值与
+ * SGX_ROOT_KEY）都用同一函数规范化后再比对。去空白后为空一律拒绝。
+ * 只有根凭证这样处理；站长密码、解锁密码不做任何规范化。
+ * @param {string} s
+ * @returns {string}
+ */
+export function normalizeRootKey(s) {
+  return String(s || '').replace(/\s+/g, '');
+}
+
+/**
  * HMAC-SHA256 签名，带用途前缀。
  * @param {string} secret
  * @param {string} purpose 用途前缀，如 "sess|", "owner-auth|", "pk-ch|"

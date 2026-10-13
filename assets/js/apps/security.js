@@ -20,6 +20,7 @@ import { mgmtButtons } from './mgmt-buttons.js';
 import { exchangeRootSession } from '../lib/root-session.js';
 import { takeJumpRecords } from './app-gate.js';
 import { takeBeaconRecord, sgxNavigate, sgxReload, recordJump } from '../lib/diag-jumptrace.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton } from '../lib/dialog-behavior.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -32,10 +33,9 @@ import { takeBeaconRecord, sgxNavigate, sgxReload, recordJump } from '../lib/dia
   function t(k) {
     const v = T[k];
     if (v && typeof v === 'object') return en ? v.en : v.zh;
-    return v || k;
+    return v || (en ? 'Error (' + k + ')' : '出错了（' + k + '）');
   }
 
-  const lockUrl = en ? '/en/settings/security/lock/' : '/settings/security/lock/';
   const ownerUrl = en ? '/en/settings/security/owner/' : '/settings/security/owner/';
   const mgmtUrl = en ? '/en/settings/security/mgmt/' : '/settings/security/mgmt/';
 
@@ -133,7 +133,7 @@ import { takeBeaconRecord, sgxNavigate, sgxReload, recordJump } from '../lib/dia
      - 点通行密钥行：右侧 > 变加载圈并拉起系统验证；用户取消系统验证时
        弹层保留、不提示错误。
      - 点密码/根凭证行：弹层内就地展开输入框（显示/隐藏、自动聚焦，
-       根凭证用多行框兼容粘贴），底部变为「取消」「验证」两个等宽文字按钮；
+       根凭证用单行密码框（Samsung Pass 可填充），底部变为「取消」「验证」两个等宽文字按钮；
        不跳新页、不用原生 prompt。键盘弹出时弹层整体上移（followKeyboard）。
      - 出错在输入框下方红色小字说明原因，不用 toast，不说「服务器错误」。
      - 成功：弹层收起并直接进入门内页面，不再停留在入口页。
@@ -192,7 +192,8 @@ import { takeBeaconRecord, sgxNavigate, sgxReload, recordJump } from '../lib/dia
         el.hidden = false;
       }
     }
-    function closeDlg() {
+    function closeDlg(reason) {
+      recordDialogClose('sec-verify', reason || 'unknown');
       collapse();
       try { dlg.close(); } catch (e) {}
     }
@@ -209,7 +210,7 @@ import { takeBeaconRecord, sgxNavigate, sgxReload, recordJump } from '../lib/dia
       c.type = 'button';
       c.className = 'sgx-door-cancel';
       c.textContent = en ? 'Cancel' : '取消';
-      on(c, 'click', closeDlg);
+      on(c, 'click', function () { closeDlg('cancel-btn'); });
       footEl.appendChild(c);
     }
     /** @param {() => void} onVerify */
@@ -226,7 +227,8 @@ import { takeBeaconRecord, sgxNavigate, sgxReload, recordJump } from '../lib/dia
       go.type = 'button';
       go.className = 'sgx-door-textbtn primary';
       go.textContent = en ? 'Verify' : '验证';
-      on(go, 'click', onVerify);
+      /* 批次 A 收尾 A5：用 pointerup，不依赖 click 落点（键盘收起布局移动时 click 可能落遮罩上） */
+      on(go, 'pointerup', onVerify);
       wrap.appendChild(cancel);
       wrap.appendChild(go);
       footEl.appendChild(wrap);
@@ -377,7 +379,7 @@ import { takeBeaconRecord, sgxNavigate, sgxReload, recordJump } from '../lib/dia
           if (m.kind === 'root') {
             try { recordJump('security.js:submitForm', 'root-resolved'); } catch (e) {}
           }
-          closeDlg();
+          closeDlg('success');
           /* A3：onSuccess 开头再记「root-onsuccess」 */
           if (m.kind === 'root') {
             try { recordJump('security.js:submitForm', 'root-onsuccess'); } catch (e) {}
@@ -407,9 +409,20 @@ import { takeBeaconRecord, sgxNavigate, sgxReload, recordJump } from '../lib/dia
       field.className = 'sgx-pw-field';
       let input;
       if (m.field === 'root') {
-        input = document.createElement('textarea');
-        input.rows = 3;
-        input.className = 'sgx-pw-input sgx-door-textarea sgx-masked';
+        /* 批次 A 收尾 B1：根凭证改单行密码框，autocomplete=current-password，
+           配隐藏用户名字段（autocomplete=username，值 root），让 Samsung Pass 能填充。 */
+        const userField = document.createElement('input');
+        userField.type = 'text';
+        userField.autocomplete = 'username';
+        userField.value = 'root';
+        userField.setAttribute('aria-hidden', 'true');
+        userField.tabIndex = -1;
+        userField.style.cssText = 'position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;';
+        field.appendChild(userField);
+        input = document.createElement('input');
+        input.type = 'password';
+        input.className = 'sgx-pw-input';
+        input.autocomplete = 'current-password';
       } else {
         input = document.createElement('input');
         input.type = 'password';
@@ -423,17 +436,10 @@ import { takeBeaconRecord, sgxNavigate, sgxReload, recordJump } from '../lib/dia
       eye.className = 'sgx-pw-eye';
       eye.innerHTML = EYE;
       eye.setAttribute('aria-label', en ? 'Show' : '显示');
-      on(eye, 'click', function () {
-        if (m.field === 'root') {
-          const masked = input.classList.toggle('sgx-masked');
-          eye.setAttribute('aria-label', masked ? (en ? 'Show' : '显示') : (en ? 'Hide' : '隐藏'));
-          eye.classList.toggle('off', !masked);
-        } else {
-          const show = input.type === 'password';
-          input.type = show ? 'text' : 'password';
-          eye.setAttribute('aria-label', show ? (en ? 'Hide' : '隐藏') : (en ? 'Show' : '显示'));
-          eye.classList.toggle('off', !show);
-        }
+      /* 批次 A 收尾 A4：眼睛按钮用 bindEyeButton，pointerdown 保住焦点 */
+      bindEyeButton(eye, input, function (show) {
+        eye.setAttribute('aria-label', show ? (en ? 'Hide' : '隐藏') : (en ? 'Show' : '显示'));
+        eye.classList.toggle('off', !show);
       });
       field.appendChild(input);
       field.appendChild(eye);
@@ -450,7 +456,7 @@ import { takeBeaconRecord, sgxNavigate, sgxReload, recordJump } from '../lib/dia
       followKeyboard(dlg, input);
       try { input.focus({ preventScroll: true }); } catch (e) { try { input.focus(); } catch (_) {} }
       on(input, 'keydown', function (/** @type {KeyboardEvent} */ e) {
-        if (e.key === 'Enter' && m.field !== 'root') {
+        if (e.key === 'Enter') {
           e.preventDefault();
           doSubmit();
         }
@@ -468,7 +474,7 @@ import { takeBeaconRecord, sgxNavigate, sgxReload, recordJump } from '../lib/dia
       row.disabled = true;
       m.submit().then(
         function () {
-          closeDlg();
+          closeDlg('success');
           m.onSuccess();
         },
         function (e) {
@@ -572,10 +578,18 @@ import { takeBeaconRecord, sgxNavigate, sgxReload, recordJump } from '../lib/dia
       }
     }
 
-    /* 点遮罩等同取消 */
+    /* 批次 A 收尾 A1/A2：点遮罩只失焦不关闭；返回手势键盘开着先收键盘，键盘收起才关闭 */
     dlg.addEventListener('click', function (e) {
-      if (e.target === dlg) closeDlg();
+      onDialogBackdrop(e, dlg);
     });
+    dlg.addEventListener('cancel', function (e) {
+      onDialogCancel(e, dlg, function (reason) { closeDlg(reason); });
+    });
+    /* 批次 A 收尾 A3：右上角 × 按钮 */
+    const closeBtn = document.getElementById('sec-verify-close');
+    if (closeBtn) {
+      on(closeBtn, 'click', function () { closeDlg('close-btn'); });
+    }
 
     return { open: open, rootMethod: rootMethod, passwordMethod: passwordMethod, passkeyMethod: passkeyMethod };
   })();
@@ -607,10 +621,12 @@ import { takeBeaconRecord, sgxNavigate, sgxReload, recordJump } from '../lib/dia
 
   /* ============ 入口 2：管理凭证 ============
      弹层「进入管理凭证」，行按站长凭证配置（/api/owner-status）：
-     - 什么都没设置 → 只显示「根凭证」（进站长凭证门）
+     - 什么都没设置 → 只显示「根凭证」（进管理凭证索引页）
      - 只设了通行密钥 → 「站长通行密钥」
      - 只设了密码 → 「站长密码」
-     - 两个都设了 → 两个都显示（进锁屏门），不显示根凭证
+     - 两个都设了 → 两个都显示（进管理凭证索引页），不显示根凭证
+     批次 A 收尾 D1：通行密钥和密码验证成功都走 goMgmt（进管理凭证索引页），
+     不再 goLock 直接进锁屏子页。
      访客会话下为假入口——弹层固定单个「根凭证」行，不读站长凭证配置；
      服务端（/api/root-auth 访客假入口）写死返回密码错误。 */
   (function () {
@@ -619,7 +635,6 @@ import { takeBeaconRecord, sgxNavigate, sgxReload, recordJump } from '../lib/dia
     /* 定稿 #16：未配 ownerkey 时管理凭证的根凭证行验证后进管理凭证索引页，
        不跳站长凭证门。 */
     const goMgmt = function () { sgxNavigate(mgmtUrl, 'security.js:613', 'mgmt-door-ok'); };
-    const goLock = function () { sgxNavigate(lockUrl, 'security.js:614', 'mgmt-door-ok'); };
     function openMgmtDoor() {
       let isVisitor = false;
       try {
@@ -635,8 +650,8 @@ import { takeBeaconRecord, sgxNavigate, sgxReload, recordJump } from '../lib/dia
         const kinds = mgmtButtons(hasPw, hasPk);
         for (const kind of kinds) {
           if (kind === 'root') methods.push(doorDlg.rootMethod(goMgmt));
-          else if (kind === 'passkey') methods.push(doorDlg.passkeyMethod(goLock));
-          else if (kind === 'password') methods.push(doorDlg.passwordMethod(goLock));
+          else if (kind === 'passkey') methods.push(doorDlg.passkeyMethod(goMgmt));
+          else if (kind === 'password') methods.push(doorDlg.passwordMethod(goMgmt));
         }
         doorDlg.open({ title: title, desc: desc, methods: methods });
       };

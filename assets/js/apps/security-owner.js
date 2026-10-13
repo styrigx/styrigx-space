@@ -17,7 +17,7 @@ import { initDoor } from './door.js';
   function t(k) {
     const v = T[k];
     if (v && typeof v === 'object') return en ? v.en : v.zh;
-    return v || k;
+    return v || (en ? 'Error (' + k + ')' : '出错了（' + k + '）');
   }
 
   initDoor({

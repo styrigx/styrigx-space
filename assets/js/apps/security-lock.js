@@ -10,6 +10,8 @@ import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
 import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton } from '../lib/dialog-behavior.js';
+import { apiErrorText } from './app-gate.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -37,7 +39,7 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
   function t(k) {
     const v = T[k];
     if (v && typeof v === 'object') return en ? v.en : v.zh;
-    return v || k;
+    return v || (en ? 'Error (' + k + ')' : '出错了（' + k + '）');
   }
   /** @param {string} id */
   function $(id) {
@@ -190,9 +192,10 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
   function isReauthError(code) {
     return code === 'session' || code === 'stepup-required' || code === 'scope' || code === 'by-root';
   }
-  /* B1：通用错误附上原始错误码和 HTTP 状态码，例如「服务器错误（scope/403）」。 */
+  /* 批次 A 收尾 E1：config 错误码映射成「服务器配置有误」，不再显示 gateSrvErr 原文。
+     srvErr 改为 apiErrorText（config → errConfig →「服务器配置有误」）。 */
   function srvErr(code, status) {
-    return t('gateSrvErr') + (code ? '（' + code + (status ? '/' + status : '') + '）' : '');
+    return apiErrorText(t, code, status);
   }
 
   /** 会话/票据失效 → 重新验证 */
@@ -309,14 +312,12 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
       sgxGoBack('security-lock.js:300', 'gate-cancel');
     });
   }
-  /* 显示/隐藏眼睛 */
+  /* 显示/隐藏眼睛（批次 A 收尾 A4：用 bindEyeButton，pointerdown 保住焦点） */
   function bindEye(btn, input) {
     if (!btn || !input) return;
     btn.innerHTML =
       '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
-    on(btn, 'click', function () {
-      const show = input.type === 'password';
-      input.type = show ? 'text' : 'password';
+    bindEyeButton(btn, input, function (show) {
       btn.setAttribute('aria-label', show ? t('eyeHide') : t('eyeShow'));
       btn.classList.toggle('off', !show);
     });
@@ -461,20 +462,23 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
       } catch (e2) {}
     }
   }
-  function closePwDlg() {
+  function closePwDlg(reason) {
+    recordDialogClose('lockpw', reason || 'unknown');
     try {
       if (pwDlg.open) pwDlg.close();
     } catch (e) {}
   }
   if (pwDlg) {
+    /* 批次 A 收尾 A1/A2：点遮罩只失焦不关闭；返回手势键盘开着先收键盘 */
     on(pwDlg, 'click', function (/** @type {MouseEvent} */ e) {
-      const el = /** @type {Element|null} */ (e.target);
-      if (el === pwDlg || (el && el.closest && el.closest('[data-pclose]'))) closePwDlg();
+      onDialogBackdrop(e, pwDlg);
     });
     on(pwDlg, 'cancel', function (/** @type {Event} */ e) {
-      e.preventDefault();
-      closePwDlg();
+      onDialogCancel(e, pwDlg, function (reason) { closePwDlg(reason); });
     });
+    /* 批次 A 收尾 A3：右上角 × 关闭按钮 */
+    const pwClose = pwDlg.querySelector('[data-dlg-close]');
+    if (pwClose) on(pwClose, 'click', function () { closePwDlg('close-btn'); });
   }
   const pwRow = $('lockmgr-pwrow');
   if (pwRow) {
@@ -576,12 +580,12 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
           return;
         }
         if (j.ok) {
-          closePwDlg();
+          closePwDlg('success');
           hasPw = true;
           refreshStatus();
           toast(hasPw && action === 'change' ? t('pwChanged') : t('pwSaved'));
         } else if (isReauthError(j.error)) {
-          closePwDlg();
+          closePwDlg('success');
           needReauth();
         } else if (j.error === 'exists' && action === 'set') {
           /* 并发已设置 → 改走 change */
@@ -597,7 +601,8 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
       });
   }
   const pwGo = $('lockpw-go');
-  if (pwGo) on(pwGo, 'click', submitPw);
+  /* 批次 A 收尾 A5：用 pointerup，不依赖 click 落点 */
+  if (pwGo) on(pwGo, 'pointerup', submitPw);
 
   /* 通行密钥命名弹层 */
   let pkNameCredId = null;
@@ -635,11 +640,24 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
     try { dlg.showModal(); } catch (e) {}
     try { input.focus({ preventScroll: true }); } catch (e2) {}
   }
-  function closePkNameDlg() {
+  function closePkNameDlg(reason) {
+    recordDialogClose('lockpkname', reason || 'unknown');
     const dlg = $('lockpkname-dlg');
     try { if (dlg && dlg.open) dlg.close(); } catch (e) {}
     pkNameCredId = null;
     pkNamePrefill = '';
+  }
+  /* 批次 A 收尾 A1/A2/A3：命名弹层遮罩不关、返回先收键盘、× 关闭 */
+  const pkNameDlg = $('lockpkname-dlg');
+  if (pkNameDlg) {
+    on(pkNameDlg, 'click', function (/** @type {MouseEvent} */ e) {
+      onDialogBackdrop(e, pkNameDlg);
+    });
+    on(pkNameDlg, 'cancel', function (/** @type {Event} */ e) {
+      onDialogCancel(e, pkNameDlg, function (reason) { closePkNameDlg(reason); });
+    });
+    const pkNameClose = pkNameDlg.querySelector('[data-dlg-close]');
+    if (pkNameClose) on(pkNameClose, 'click', function () { closePkNameDlg('close-btn'); });
   }
   const pkNameSave = $('lockpkname-save');
   if (pkNameSave) {
@@ -653,13 +671,13 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
         return;
       }
       if (!pkNameCredId) {
-        closePkNameDlg();
+        closePkNameDlg('success');
         return;
       }
       /* 没改名就不调 rename（注册时已带预填名） */
       if (name === pkNamePrefill) {
         toast(t('pkRegistered'));
-        closePkNameDlg();
+        closePkNameDlg('success');
         refreshPkList();
         return;
       }
@@ -668,7 +686,7 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
           const j = r.json;
           if (j && j.ok) {
             toast(t('pkRegistered'));
-            closePkNameDlg();
+            closePkNameDlg('success');
             refreshPkList();
           } else if (j && isReauthError(j.error)) {
             needReauth();
@@ -690,7 +708,7 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
   if (pkNameSkip) {
     on(pkNameSkip, 'click', function () {
       /* 跳过：用预填名（已在注册时设为默认值） */
-      closePkNameDlg();
+      closePkNameDlg('success');
       toast(t('pkRegistered'));
       refreshPkList();
     });
@@ -710,25 +728,27 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
       try { dlg.showModal(); } catch (e) {}
     });
   }
-  function closePkDelDlg(ok) {
+  function closePkDelDlg(ok, reason) {
+    recordDialogClose('lockpkdel', reason || 'unknown');
     const dlg = $('lockpkdel-dlg');
     try { if (dlg && dlg.open) dlg.close(); } catch (e) {}
     if (pkDelResolve) { pkDelResolve(!!ok); pkDelResolve = null; }
   }
   const pkDelCancel = $('lockpkdel-cancel');
-  if (pkDelCancel) on(pkDelCancel, 'click', function () { closePkDelDlg(false); });
+  if (pkDelCancel) on(pkDelCancel, 'click', function () { closePkDelDlg(false, 'cancel-btn'); });
   const pkDelOk = $('lockpkdel-ok');
-  if (pkDelOk) on(pkDelOk, 'click', function () { closePkDelDlg(true); });
+  if (pkDelOk) on(pkDelOk, 'click', function () { closePkDelDlg(true, 'success'); });
   const pkDelDlg = $('lockpkdel-dlg');
   if (pkDelDlg) {
+    /* 批次 A 收尾 A1/A2/A3：删除确认遮罩不关、返回先收键盘、× 关闭 */
     on(pkDelDlg, 'click', function (/** @type {MouseEvent} */ e) {
-      const el = /** @type {Element|null} */ (e.target);
-      if (el === pkDelDlg || (el && el.closest && el.closest('[data-dclose]'))) closePkDelDlg(false);
+      onDialogBackdrop(e, pkDelDlg);
     });
     on(pkDelDlg, 'cancel', function (/** @type {Event} */ e) {
-      e.preventDefault();
-      closePkDelDlg(false);
+      onDialogCancel(e, pkDelDlg, function (reason) { closePkDelDlg(false, reason); });
     });
+    const pkDelClose = pkDelDlg.querySelector('[data-dlg-close]');
+    if (pkDelClose) on(pkDelClose, 'click', function () { closePkDelDlg(false, 'close-btn'); });
   }
 
   /* 通行密钥列表（2.10.0：只显示锁屏类；应用类在应用验证分组） */

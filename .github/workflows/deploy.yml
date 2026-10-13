@@ -262,7 +262,7 @@ jobs:
               "deployment_configs": {
                   "preview": {
                       "env_vars": {
-                          "OWNER_KEY": {"type": "secret_text", "value": "${{ secrets.PREVIEW_OWNER_KEY }}"},
+                          # 批次 A 收尾 G2：代码已不读 OWNER_KEY，预览部署不再注入
                           # 2.11 定稿：代码改读 SGX_ROOT_KEY；预览用同一测试值映射（未新增 secret）
                           "SGX_ROOT_KEY": {"type": "secret_text", "value": "${{ secrets.PREVIEW_OWNER_KEY }}"},
                           "SGX_PW_PEPPER": {"type": "secret_text", "value": "${{ secrets.PREVIEW_SGX_PW_PEPPER }}"},
@@ -334,8 +334,8 @@ jobs:
           names = sorted(prod.keys())
           print("production vars:", names)
           # production 必须包含这些（包含检查：缺一个就失败；多出来的只打印）
-          # 2026-10-12：SGX_ROOT_KEY 新增、SESSION_SECRET → SGX_PW_PEPPER（2.11 用）；OWNER_KEY 暂留，2.11 验收后再移
-          required = ["OWNER_KEY", "SGX_ROOT_KEY", "SGX_PW_PEPPER", "SGX_APP_PRIVATE", "SGX_APP_PUBLIC", "SGX_LOCK_PRIVATE", "SGX_LOCK_PUBLIC", "SGX_ORIGIN", "SGX_RP_ID", "SGX_SITE", "SGX_STEPUP_PRIVATE", "SGX_STEPUP_PUBLIC", "TURNSTILE_SECRET"]
+          # 批次 A 收尾 G1：OWNER_KEY 已从 required 移除（代码不读，合并部署后由 Gray 手动删后台变量）
+          required = ["SGX_ROOT_KEY", "SGX_PW_PEPPER", "SGX_APP_PRIVATE", "SGX_APP_PUBLIC", "SGX_LOCK_PRIVATE", "SGX_LOCK_PUBLIC", "SGX_ORIGIN", "SGX_RP_ID", "SGX_SITE", "SGX_STEPUP_PRIVATE", "SGX_STEPUP_PUBLIC", "TURNSTILE_SECRET"]
           missing = [v for v in required if v not in names]
           assert not missing, f"missing production vars: {missing}"
           extra = [v for v in names if v not in required]
