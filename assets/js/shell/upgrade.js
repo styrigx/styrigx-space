@@ -13,6 +13,7 @@
  */
 import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
 import { bindEyeButton } from '../lib/dialog-behavior.js';
+import { followKeyboard } from './vk.js';
 import { STORE_CLASS_LOCKKEY } from '../lib/key-names.js';
 
 export function initUpgrade() {
@@ -62,6 +63,8 @@ export function initUpgrade() {
   /* 批次 A 验收修复 P2：访客升级弹层补眼睛按钮（初始 eye-off；每次展开复位）。
      眼睛按钮常驻 DOM，只绑一次，重复绑定会叠加 click 监听导致一次点击切两次。 */
   let resetUpgradeEye = null;
+  /* 批次 B #12：followKeyboard 返回清理函数；每次重开输入框先清旧监听，避免叠加 */
+  let stopUpgradeKb = null;
   const showInput = (kind) => {
     pendingKind = kind;
     if (errEl) errEl.hidden = true;
@@ -84,6 +87,9 @@ export function initUpgrade() {
       }
     }
     if (formEl) formEl.hidden = false;
+    /* 批次 B #12：键盘弹出时升级层整体上移，避免输入框被键盘盖住（与锁屏弹层同法） */
+    if (stopUpgradeKb) { try { stopUpgradeKb(); } catch (e) {} stopUpgradeKb = null; }
+    if (overlay && inputEl) stopUpgradeKb = followKeyboard(overlay, inputEl);
     try { if (inputEl) inputEl.focus({ preventScroll: true }); } catch (e) {}
   };
   const showOpts = () => {

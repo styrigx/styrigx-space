@@ -268,7 +268,8 @@ export function enterDoor(probe, onEnter, t) {
     const ok = isObj ? !!result.ok : !!result;
     if (ok) {
       clearLockOverlay();
-      onEnter();
+      /* 批次 B #12：把探针结果传给 onEnter（door.js 用里面的 expiresAt 启动倒计时） */
+      onEnter(isObj ? result : { ok: ok });
     } else {
       /* 定稿 #1：探针失败留页显示原因，不自动跳转 */
       showProbeFailure(t, isObj ? result : { reason: 'session' });

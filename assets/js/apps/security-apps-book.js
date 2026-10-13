@@ -10,7 +10,7 @@
  */
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
-import { api, enterDoor, apiErrorText, handleDoorError, b64urlToBuf, bufToB64url } from './app-gate.js';
+import { api, enterDoor, apiErrorText, handleDoorError, b64urlToBuf, bufToB64url, startDoorCountdown } from './app-gate.js';
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
 import { showConfirmDialog } from '../lib/dialog-behavior.js';
 import { STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY } from '../lib/key-names.js';
@@ -323,6 +323,8 @@ import { STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY } from '../lib/key-names.js';
       });
     },
     function () {
+      /* 批次 B #12：进门后启动验证剩余时间倒计时（内部拉一次 stepup status） */
+      startDoorCountdown(t);
       if (mgr) mgr.hidden = false;
       render(cachedKeys);
       initReturn();

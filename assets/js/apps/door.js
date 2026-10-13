@@ -22,6 +22,7 @@ import {
   apiErrorText,
   handleDoorError,
   clearStepupThen,
+  startDoorCountdown,
   b64urlToBuf,
   bufToB64url,
 } from './app-gate.js';
@@ -835,7 +836,7 @@ export function initDoor(o) {
             credentials: 'same-origin',
           }).then(function (r2) {
             return r2.json().then(function (j2) {
-              if (j2 && j2.ok && j2.valid) return { ok: true };
+              if (j2 && j2.ok && j2.valid) return { ok: true, expiresAt: j2.expiresAt };
               return { ok: false, reason: 'stepup', status: r2.status, api: 'POST /api/stepup', detail: j2 && j2.reason };
             }).catch(function () {
               return { ok: false, reason: 'parse', status: r2.status, api: 'POST /api/stepup' };
@@ -849,7 +850,9 @@ export function initDoor(o) {
       })
       .catch(function () { return { ok: false, reason: 'network', status: 0, api: 'GET ' + statusApi }; });
   }
-  enterDoor(probe, function () {
+  enterDoor(probe, function (result) {
+    /* 批次 B #12：探针成功后启动验证剩余时间倒计时（expiresAt 来自 stepup status） */
+    startDoorCountdown(t, result && result.expiresAt);
     refreshStatus();
     refreshPkList();
   }, t);

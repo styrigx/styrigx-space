@@ -11,7 +11,7 @@ import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton } from '../lib/dialog-behavior.js';
-import { apiErrorText, needVerify, clearStepupThen } from './app-gate.js';
+import { apiErrorText, needVerify, clearStepupThen, startDoorCountdown } from './app-gate.js';
 import { showConfirmDialog } from '../lib/dialog-behavior.js';
 import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY } from '../lib/key-names.js';
 
@@ -177,6 +177,8 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
       if (gl) gl.remove();
       document.body.classList.remove('sgx-locked');
     } catch (e) {}
+    /* 批次 B #12：进门后启动验证剩余时间倒计时（内部拉一次 stepup status） */
+    startDoorCountdown(t);
     $('lockmgr').hidden = false;
     refreshStatus();
     refreshPkList();
