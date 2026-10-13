@@ -155,7 +155,6 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
       password: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
       root: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="16" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M10.8 13.2L20 4m-3 3l3 3"/></svg>',
     };
-    const EYE = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
 
     /** 当前展开的输入区（同一时刻只展开一个） */
     let expanded = null;
@@ -437,12 +436,10 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
       const eye = document.createElement('button');
       eye.type = 'button';
       eye.className = 'sgx-pw-eye';
-      eye.innerHTML = EYE;
-      eye.setAttribute('aria-label', en ? 'Show' : '显示');
-      /* 批次 A 收尾 A4：眼睛按钮用 bindEyeButton，pointerdown 保住焦点 */
-      bindEyeButton(eye, input, function (show) {
-        eye.setAttribute('aria-label', show ? (en ? 'Hide' : '隐藏') : (en ? 'Show' : '显示'));
-        eye.classList.toggle('off', !show);
+      /* 批次 A 验收修复 P2：bindEyeButton 统一接管（初始 eye-off；expandForm 重建即复位） */
+      bindEyeButton(eye, input, {
+        showLabel: en ? 'Show password' : '显示密码',
+        hideLabel: en ? 'Hide password' : '隐藏密码',
       });
       field.appendChild(input);
       field.appendChild(eye);

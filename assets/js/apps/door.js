@@ -101,15 +101,11 @@ export function initDoor(o) {
     });
   }
 
-  /* 显示/隐藏眼睛（批次 A 收尾 A4：用 bindEyeButton，pointerdown 保住焦点） */
+  /* 显示/隐藏眼睛（批次 A 验收修复 P2：bindEyeButton 统一接管图标 + 文案 + 复位） */
+  const eyeResets = [];
   function bindEye(btn, input) {
     if (!btn || !input) return;
-    btn.innerHTML =
-      '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
-    bindEyeButton(btn, input, function (show) {
-      btn.setAttribute('aria-label', show ? t('eyeHide') : t('eyeShow'));
-      btn.classList.toggle('off', !show);
-    });
+    eyeResets.push(bindEyeButton(btn, input, { showLabel: t('eyeShow'), hideLabel: t('eyeHide') }));
   }
   document.querySelectorAll('[data-eye]').forEach(function (b) {
     const inp = $(b.getAttribute('data-eye'));
@@ -152,6 +148,8 @@ export function initDoor(o) {
       b.value = '';
       b.type = 'password';
     }
+    /* 重开弹层时眼睛按钮同步回密文态（eye-off + 显示密码） */
+    eyeResets.forEach(function (reset) { try { reset(); } catch (e) {} });
     const title = $('lockpw-title');
     if (title) title.textContent = hasPw ? t('changeTitle') : t('setTitle');
     try {

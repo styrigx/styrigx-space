@@ -271,3 +271,38 @@ test.describe('door keyboard avoidance', () => {
     );
   });
 });
+
+test.describe('door dialog eye button (批次 A 验收修复 P2)', () => {
+  test('password row expand: eye starts eye-off, toggles icon/label/pressed, keeps focus', async ({ page: pg }) => {
+    await gotoSecurity(pg);
+    await pg.locator('#sec-mgmt-cred').click();
+    const dlg = pg.locator('#sec-verify-dlg');
+    await expect(dlg).toBeVisible();
+    await pg.locator('.sgx-door-row').filter({ hasText: '站长密码' }).click();
+    const input = pg.locator('.sgx-door-expand input[type="password"]');
+    await expect(input).toBeVisible();
+    const eye = pg.locator('.sgx-door-expand .sgx-pw-eye');
+    await expect(eye).toBeVisible();
+
+    /* 初始：eye-off（SVG 含斜线）+ 显示密码 + aria-pressed=false */
+    await expect(eye).toHaveAttribute('aria-label', '显示密码');
+    await expect(eye).toHaveAttribute('aria-pressed', 'false');
+    const offHtml = await eye.evaluate((el) => el.innerHTML);
+    expect(offHtml).toContain('<line');
+
+    /* 点一次：eye（无斜线）+ 隐藏密码 + aria-pressed=true + 明文 + 焦点仍在输入框 */
+    await eye.click();
+    await expect(eye).toHaveAttribute('aria-label', '隐藏密码');
+    await expect(eye).toHaveAttribute('aria-pressed', 'true');
+    const onHtml = await eye.evaluate((el) => el.innerHTML);
+    expect(onHtml).not.toContain('<line');
+    await expect(pg.locator('.sgx-door-expand input[type="text"]')).toBeVisible();
+    await expect(input).toBeFocused();
+
+    /* 再点：恢复密文态 */
+    await eye.click();
+    await expect(eye).toHaveAttribute('aria-label', '显示密码');
+    await expect(eye).toHaveAttribute('aria-pressed', 'false');
+    await expect(pg.locator('.sgx-door-expand input[type="password"]')).toBeVisible();
+  });
+});

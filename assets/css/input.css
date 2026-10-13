@@ -1475,7 +1475,7 @@
     display: flex; align-items: center; justify-content: center;
     color: var(--m-on-surface-variant); border-radius: 999px;
     &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: -2px; }
-    &.off { opacity: .45; }
+    /* 批次 A 验收修复 P2：.off 透明机制废弃，改由 eye / eye-off 图标切换区分明密文 */
   }
   .lockmgr-pklist { list-style: none; margin: 0; padding: 8px; display: flex; flex-direction: column; gap: 8px; &[hidden] { display: none; } }
   .lockmgr-pkitem {
@@ -2419,6 +2419,10 @@
   display: block; width: 100%; padding: 12px; border: none;
   background: none; font-size: 15px; color: var(--m-on-surface-variant); cursor: pointer;
 }
+/* 批次 A 验收修复 P2：升级弹层密码框包 .sgx-pw-field（眼睛按钮绝对定位），
+   不用 280px 上限；输入框留出右侧眼睛位 */
+#sgx-upgrade-form .sgx-pw-field { max-width: none; margin-bottom: 12px; }
+#sgx-upgrade-form .sgx-upgrade-input { padding-right: 48px; }
 /* 弹层内联输入（根凭证/密码验证）：整宽输入框，配整宽实心验证按钮 */
 .sgx-upgrade-input {
   display: block; width: 100%; box-sizing: border-box;

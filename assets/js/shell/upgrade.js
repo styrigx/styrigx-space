@@ -12,6 +12,7 @@
  * 见 scripts/check-frontend.mjs）。
  */
 import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
+import { bindEyeButton } from '../lib/dialog-behavior.js';
 
 export function initUpgrade() {
   const html = document.documentElement;
@@ -32,7 +33,8 @@ export function initUpgrade() {
     '<button type="button" class="sgx-upgrade-btn" id="sgx-upgrade-mk">' + (isEn ? 'Root credential' : '根凭证') + '</button>' +
     '</div>' +
     '<div id="sgx-upgrade-form" hidden>' +
-    '<input type="password" id="sgx-upgrade-input" class="sgx-upgrade-input" autocomplete="off" />' +
+    '<div class="sgx-pw-field"><input type="password" id="sgx-upgrade-input" class="sgx-upgrade-input" autocomplete="off" />' +
+    '<button type="button" class="sgx-pw-eye" id="sgx-upgrade-eye" aria-label="' + (isEn ? 'Show password' : '显示密码') + '"></button></div>' +
     '<button type="button" class="sgx-upgrade-btn" id="sgx-upgrade-go">' + (isEn ? 'Verify' : '验证') + '</button>' +
     '<button type="button" class="sgx-upgrade-cancel" id="sgx-upgrade-back">' + (isEn ? 'Back' : '返回') + '</button>' +
     '</div>' +
@@ -56,6 +58,9 @@ export function initUpgrade() {
   const formEl = document.getElementById('sgx-upgrade-form');
   const inputEl = document.getElementById('sgx-upgrade-input');
 
+  /* 批次 A 验收修复 P2：访客升级弹层补眼睛按钮（初始 eye-off；每次展开复位）。
+     眼睛按钮常驻 DOM，只绑一次，重复绑定会叠加 click 监听导致一次点击切两次。 */
+  let resetUpgradeEye = null;
   const showInput = (kind) => {
     pendingKind = kind;
     if (errEl) errEl.hidden = true;
@@ -65,6 +70,17 @@ export function initUpgrade() {
       inputEl.placeholder = kind === 'mk'
         ? (isEn ? 'Enter root credential' : '请输入根凭证')
         : (isEn ? 'Enter unlock password' : '请输入解锁密码');
+    }
+    const eyeEl = document.getElementById('sgx-upgrade-eye');
+    if (eyeEl && inputEl) {
+      if (!resetUpgradeEye) {
+        resetUpgradeEye = bindEyeButton(eyeEl, inputEl, {
+          showLabel: isEn ? 'Show password' : '显示密码',
+          hideLabel: isEn ? 'Hide password' : '隐藏密码',
+        });
+      } else {
+        resetUpgradeEye();
+      }
     }
     if (formEl) formEl.hidden = false;
     try { if (inputEl) inputEl.focus({ preventScroll: true }); } catch (e) {}

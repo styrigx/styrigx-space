@@ -437,3 +437,35 @@ test.describe('lock password dialog keyboard avoidance (批次 A 验收修复 P1
     expect(restored).toBe('');
   });
 });
+
+test.describe('lock password dialog eye button (批次 A 验收修复 P2)', () => {
+  test.beforeEach(async ({ page }) => {
+    await blockExternalRequests(page);
+  });
+
+  test('lock password dialog: eye starts eye-off, toggles, keeps focus', async ({ page }) => {
+    await freezeTime(page);
+    await gotoLock(page);
+    await choosePassword(page);
+    const input = page.locator('#sgx-pw-input');
+    await expect(input).toBeVisible();
+    const eye = page.locator('#sgx-pw-eye');
+    await expect(eye).toBeVisible();
+
+    await expect(eye).toHaveAttribute('aria-label', '显示密码');
+    await expect(eye).toHaveAttribute('aria-pressed', 'false');
+    expect(await eye.evaluate((el) => el.innerHTML)).toContain('<line');
+
+    await eye.click();
+    await expect(eye).toHaveAttribute('aria-label', '隐藏密码');
+    await expect(eye).toHaveAttribute('aria-pressed', 'true');
+    expect(await eye.evaluate((el) => el.innerHTML)).not.toContain('<line');
+    await expect(page.locator('#sgx-pw-input[type="text"]')).toBeVisible();
+    await expect(input).toBeFocused();
+
+    await eye.click();
+    await expect(eye).toHaveAttribute('aria-label', '显示密码');
+    await expect(eye).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('#sgx-pw-input[type="password"]')).toBeVisible();
+  });
+});
