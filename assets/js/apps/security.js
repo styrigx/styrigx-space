@@ -42,26 +42,23 @@ import { exchangeRootSession } from '../lib/root-session.js';
   const cardSub = document.getElementById('sec-status-sub');
 
   /**
-   * 渲染状态。
+   * 渲染状态（定稿 #13：删除「建议操作」卡；只在全部设置时显示「一切正常」，
+   *   未设置时不显示卡片、不催促）。
    * @param {boolean} hasPw
    * @param {boolean} hasPk
    */
   function render(hasPw, hasPk) {
+    if (!(hasPw && hasPk)) {
+      if (card) card.hidden = true;
+      return;
+    }
     if (card) {
       card.hidden = false;
-      card.classList.toggle('is-ok', hasPw && hasPk);
-      card.classList.toggle('is-warn', !(hasPw && hasPk));
+      card.classList.add('is-ok');
+      card.classList.remove('is-warn');
     }
-    if (hasPw && hasPk) {
-      if (cardTitle) cardTitle.textContent = t('okTitle');
-      if (cardSub) cardSub.textContent = t('okSub');
-    } else {
-      if (cardTitle) cardTitle.textContent = t('warnTitle');
-      const miss = [];
-      if (!hasPw) miss.push(t('missPw'));
-      if (!hasPk) miss.push(t('missPk'));
-      if (cardSub) cardSub.textContent = miss.join('，');
-    }
+    if (cardTitle) cardTitle.textContent = t('okTitle');
+    if (cardSub) cardSub.textContent = t('okSub');
   }
 
   /** @param {boolean} [silent] */

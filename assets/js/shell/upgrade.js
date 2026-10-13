@@ -111,7 +111,7 @@ export function initUpgrade() {
         let rsJ = null;
         try { rsJ = await rsRes.json(); } catch (e) {}
         if (!(rsJ && rsJ.ok)) {
-          showErr(isEn ? 'Server error' : '服务器错误');
+          showErr(isEn ? 'Verification failed, please retry' : '验证失败，请重试');
           return;
         }
         // 若 URL 带 return：location.replace 当前地址，L1 校验 return 并 302；
@@ -129,7 +129,7 @@ export function initUpgrade() {
         showErr(isEn ? 'Wrong root credential' : '根凭证错误');
       }
     } catch (e) {
-      showErr(isEn ? 'Network error' : '网络错误');
+      showErr(isEn ? 'Network connection failed, please retry' : '网络连接失败，请重试');
     }
   }
 
@@ -149,7 +149,7 @@ export function initUpgrade() {
         showErr(isEn ? 'Wrong password' : '密码错误');
       }
     } catch (e) {
-      showErr(isEn ? 'Network error' : '网络错误');
+      showErr(isEn ? 'Network connection failed, please retry' : '网络连接失败，请重试');
     }
   }
 
@@ -195,7 +195,7 @@ export function initUpgrade() {
       });
       const ch = await chRes.json();
       if (!ch || !ch.ok) {
-        showErr(isEn ? 'Server error' : '服务器错误');
+        showErr(isEn ? 'Verification setup failed, please retry' : '验证初始化失败，请重试');
         return;
       }
       const allow = (ch.allowCredentials || []).map((c) => ({ id: b64urlToBuf(c.id), type: c.type }));

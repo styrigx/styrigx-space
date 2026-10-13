@@ -38,6 +38,31 @@ import { followKeyboard } from '../shell/vk.js';
     if (v && typeof v === 'object') return en ? v.en : v.zh;
     return v || k;
   }
+  /**
+   * 服务端错误码 → 用户看得懂的中文（定稿 #36：不显示内部码）。
+   * @param {string} code
+   */
+  function errMsg(code) {
+    switch (code) {
+      case 'auth': return en ? 'Wrong credential' : '凭证错误';
+      case 'locked': return t('gateLocked');
+      case 'not-found': return t('errNotFound');
+      case 'last-key': return t('errLastKey');
+      case 'params': return t('errParams');
+      case 'session': return t('sessExp');
+      case 'stepup-required': return t('errStepupExpired');
+      case 'scope': return en ? 'Verification expired, please verify again' : '验证已过期，请重新验证';
+      case 'config': return t('errConfig');
+      case 'epoch': return en ? 'Service temporarily unavailable, please try again later' : '服务暂时不可用，请稍后再试';
+      case 'server': return t('errServer');
+      case 'challenge': return t('errChallenge');
+      case 'verify': return t('errVerify');
+      case 'cancelled': return t('errCancelled');
+      case 'no-support': return t('pkNoSupport');
+      case 'unknown-key': return en ? 'Key not recognized' : '无法识别这把钥匙';
+      default: return t('errRetry');
+    }
+  }
   /** @param {string} id */
   function $(id) {
     return document.getElementById(id);
@@ -279,23 +304,45 @@ import { followKeyboard } from '../shell/vk.js';
     refreshPkList();
   }
 
+  /**
+   * 返回上一页（定稿 R1e：lockreset 重置流程中不走 history.back()，
+   * 直接清票据并 replace 到首页，避免闪一下主页）。
+   */
+  function goBack() {
+    let isLockreset = false;
+    try {
+      isLockreset = document.documentElement.dataset.sgxSession === 'lockreset';
+    } catch (e) {}
+    if (isLockreset) {
+      /* 清掉 lockreset 票据（sgx-stepup cookie），服务端即失权 */
+      try {
+        document.cookie = 'sgx-stepup=; Path=/; Max-Age=0; SameSite=Lax';
+        document.cookie = 'sgx-stepup=; Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+      } catch (e2) {}
+      /* replace 到首页：无有效会话时 middleware 直接显示锁屏，不闪主页内容 */
+      location.replace('/');
+      return;
+    }
+    history.back();
+  }
+
   if (gateDlg) {
     on(gateDlg, 'click', function (/** @type {MouseEvent} */ e) {
       const el = /** @type {Element|null} */ (e.target);
       if (el && el.closest && el.closest('[data-gclose]')) {
         /* 验证身份弹层不允许直接关闭：返回上一页 */
-        history.back();
+        goBack();
       }
     });
     on(gateDlg, 'cancel', function (/** @type {Event} */ e) {
       e.preventDefault();
-      history.back();
+      goBack();
     });
   }
   if (gateCancel) {
     /* 取消：与关闭手柄一致，返回上一页 */
     on(gateCancel, 'click', function () {
-      history.back();
+      goBack();
     });
   }
   /* 显示/隐藏眼睛 */
@@ -350,7 +397,7 @@ import { followKeyboard } from '../shell/vk.js';
       .then(function (res) {
         const j = res.json;
         if (!j) {
-          showErr('lockgate-err', t('gateSrvErr'));
+          showErr('lockgate-err', t('errParse'));
           return;
         }
         if (j.ok) {
@@ -359,8 +406,8 @@ import { followKeyboard } from '../shell/vk.js';
           showErr('lockgate-err', t('gateLocked'));
           console.error('[gate-key] rate limited');
         } else {
-          /* 2.10.1 A3：显示服务端错误码 */
-          showErr('lockgate-err', t('gateKeyWrong') + (j.error ? ' (' + j.error + ')' : ''));
+          /* 定稿 #36：显示原因，不显示内部码 */
+          showErr('lockgate-err', errMsg(j.error));
           console.error('[gate-key] failed:', j.error);
         }
       })
@@ -391,8 +438,8 @@ import { followKeyboard } from '../shell/vk.js';
         if (r.ok) {
           enterMgr();
         } else {
-          /* 2.10.1 A3：显示服务端错误码 */
-          showErr('lockgate-err', t('gatePkErr') + (r.error ? ' (' + r.error + ')' : ''));
+          /* 定稿 #36：显示原因，不显示内部码 */
+          showErr('lockgate-err', errMsg(r.error));
           console.error('[gate-pk] stepup failed:', r.error);
         }
       });
@@ -513,7 +560,7 @@ import { followKeyboard } from '../shell/vk.js';
           } else if (j && j.error === 'stepup-required') {
             needReauth();
           } else {
-            toast(t('gateSrvErr'));
+            toast(errMsg(j && j.error));
           }
         })
         .catch(function () {
@@ -561,7 +608,7 @@ import { followKeyboard } from '../shell/vk.js';
       .then(function (res) {
         const j = res.json;
         if (!j) {
-          showErr('lockpw-err', t('gateSrvErr'));
+          showErr('lockpw-err', t('errParse'));
           return;
         }
         if (j.ok) {
@@ -578,7 +625,7 @@ import { followKeyboard } from '../shell/vk.js';
           refreshStatus();
           showErr('lockpw-err', t('pwMin8'));
         } else {
-          showErr('lockpw-err', t('gateSrvErr'));
+          showErr('lockpw-err', errMsg(j.error));
         }
       })
       .catch(function () {
@@ -665,9 +712,9 @@ import { followKeyboard } from '../shell/vk.js';
             /* KV 最终一致：刚注册的 key 可能暂时读不到 */
             showErr('lockpkname-err', t('pkRetryLater'));
           } else if (!j) {
-            showErr('lockpkname-err', t('gateNetErr'));
+            showErr('lockpkname-err', t('errParse'));
           } else {
-            showErr('lockpkname-err', t('gateSrvErr'));
+            showErr('lockpkname-err', errMsg(j.error));
           }
         })
         .catch(function () {
@@ -687,13 +734,17 @@ import { followKeyboard } from '../shell/vk.js';
   /* P2-13：命名输入框聚焦时，命名弹层随键盘上移 */
   followKeyboard($('lockpkname-dlg'), $('lockpkname-input'));
 
-  /* 应用钥匙删除确认弹层（站内确认，替代原生 confirm；返回 Promise<boolean>） */
+  /* 应用钥匙删除确认弹层（站内确认，替代原生 confirm；返回 Promise<boolean>）
+     定稿 R1：删除不用「再点一次」同一按钮，改走确认弹层。 */
   let pkDelResolve = null;
-  function openPkDelDlg() {
+  /**
+   * @param {string} [msg] 确认文案，默认 t('pkDelConfirm')
+   */
+  function openPkDelDlg(msg) {
     return new Promise(function (resolve) {
       pkDelResolve = resolve;
       const desc = $('lockpkdel-desc');
-      if (desc) desc.textContent = t('pkDelConfirm');
+      if (desc) desc.textContent = msg || t('pkDelConfirm');
       const dlg = $('lockpkdel-dlg');
       if (!dlg) { resolve(false); return; }
       try { dlg.showModal(); } catch (e) {}
@@ -806,51 +857,41 @@ import { followKeyboard } from '../shell/vk.js';
           del.type = 'button';
           del.className = 'lockmgr-pkdel';
           del.textContent = t('pkDel');
-          let armed = false;
-          let armTimer = 0;
+          /* 定稿 R1：删除走确认弹层，不用「再点一次」同一按钮 */
           on(del, 'click', function (e) {
             e.stopPropagation();
-            if (!armed) {
-              armed = true;
-              del.textContent = t('pkDelAsk');
-              del.classList.add('armed');
-              armTimer = window.setTimeout(function () {
-                armed = false;
-                del.textContent = t('pkDel');
-                del.classList.remove('armed');
-              }, 3000);
-              return;
-            }
-            window.clearTimeout(armTimer);
-            api('/api/owner-passkey', { action: 'delete', credId: k.credId })
-              .then(function (r2) {
-                const jj = r2.json;
-                if (jj && jj.ok) {
-                  toast(t('pkDeleted'));
-                  /* Samsung Pass 同步：通知密码管理器删掉这把密钥 */
-                  try {
-                    if (window.PublicKeyCredential && typeof PublicKeyCredential.signalUnknownCredential === 'function') {
-                      PublicKeyCredential.signalUnknownCredential({ rpId: location.hostname, credentialId: k.credId }).catch(function () {});
-                    } else {
-                      toast(t('pkDelManual'));
-                    }
-                  } catch (e) {}
-                  /* 服务端删除成功后重新读列表刷新（KV 最终一致，边缘节点最多约 60 秒） */
-                  refreshPkList();
-                  refreshStatus();
-                } else if (jj && jj.error === 'stepup-required') {
-                  needReauth();
-                } else if (jj && jj.error === 'not-found') {
-                  toast(t('pkRetryLater'));
-                } else if (!jj) {
+            openPkDelDlg().then(function (confirmed) {
+              if (!confirmed) return;
+              api('/api/owner-passkey', { action: 'delete', credId: k.credId })
+                .then(function (r2) {
+                  const jj = r2.json;
+                  if (jj && jj.ok) {
+                    toast(t('pkDeleted'));
+                    /* Samsung Pass 同步：通知密码管理器删掉这把密钥 */
+                    try {
+                      if (window.PublicKeyCredential && typeof PublicKeyCredential.signalUnknownCredential === 'function') {
+                        PublicKeyCredential.signalUnknownCredential({ rpId: location.hostname, credentialId: k.credId }).catch(function () {});
+                      } else {
+                        toast(t('pkDelManual'));
+                      }
+                    } catch (e) {}
+                    /* 服务端删除成功后重新读列表刷新（KV 最终一致，边缘节点最多约 60 秒） */
+                    refreshPkList();
+                    refreshStatus();
+                  } else if (jj && jj.error === 'stepup-required') {
+                    needReauth();
+                  } else if (jj && jj.error === 'not-found') {
+                    toast(t('pkRetryLater'));
+                  } else if (!jj) {
+                    toast(t('errParse'));
+                  } else {
+                    toast(errMsg(jj.error));
+                  }
+                })
+                .catch(function () {
                   toast(t('gateNetErr'));
-                } else {
-                  toast(t('gateSrvErr'));
-                }
-              })
-              .catch(function () {
-                toast(t('gateNetErr'));
-              });
+                });
+            });
           });
           li.appendChild(nameWrap);
           li.appendChild(del);
@@ -911,9 +952,9 @@ import { followKeyboard } from '../shell/vk.js';
                     /* KV 最终一致：刚注册的 key 可能暂时读不到 */
                     toast(t('pkRetryLater'));
                   } else if (!jj) {
-                    toast(t('gateNetErr'));
+                    toast(t('errParse'));
                   } else {
-                    toast(t('pkDelFailed'));
+                    toast(errMsg(jj.error));
                   }
                 })
                 .catch(function () {
@@ -983,12 +1024,11 @@ import { followKeyboard } from '../shell/vk.js';
           needReauth();
         } else {
           const code = (res.json && res.json.error) || 'failed';
-          toast((t('gateSrvErr') || '失败') + ': ' + code);
+          toast(errMsg(code));
         }
       })
       .catch(function (e) {
-        const code = e && e.code ? e.code : null;
-        toast((t('gateNetErr') || '网络错误') + (code ? ': ' + code : ''));
+        toast(t('gateNetErr'));
       });
   }
 
@@ -1074,16 +1114,17 @@ import { followKeyboard } from '../shell/vk.js';
           } else if (j && j.error === 'stepup-required') {
             needReauth();
           } else {
-            toast(t('gateSrvErr'));
+            toast(errMsg(j && j.error));
           }
         })
         .catch(function (e) {
           if (!e) return;
-          if (e.kind === 'cancelled') toast(t('gateCancelled'));
+          /* 用户取消系统验证：不提示（定稿 #36） */
+          if (e.kind === 'cancelled') return;
           else if (e.kind === 'already') toast(t('pkAlready'));
           else if (e.kind === 'nosupport') toast(t('pkNoSupport'));
           else if (e.kind === 'reauth') needReauth();
-          else if (e.kind === 'server') toast(t('gateSrvErr'));
+          else if (e.kind === 'server') toast(t('errServer'));
           else if (e.kind === 'failed') toast(t('pkFailed'));
           else toast(t('gateNetErr'));
         });

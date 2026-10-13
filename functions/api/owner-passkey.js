@@ -313,7 +313,7 @@ async function checkPasskeyMgmt(request, env, kv, pkClass, op) {
     if (sv.scope !== STEPUP_SCOPE_ROOT || sv.by !== STEPUP_BY_ROOT) return deny();
   } else if (pkClass === PK_CLASS_LOCK) {
     if (isLockreset) {
-      if (op === 'rename') return deny();
+      /* 定稿 #11：重置流程需完整重设 lockkey（含改名），lockreset 下允许 rename/delete */
     } else if (sv.scope === STEPUP_SCOPE_KEYS) {
       if (sv.by === STEPUP_BY_ROOT) {
         /* by=root 的 keys 票：仅 owner 未配置时代管有效 */

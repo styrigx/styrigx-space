@@ -20,7 +20,7 @@ import { on } from '../lib/events.js';
 import { visibleInterval } from '../lib/scheduler.js';
 import { reducedMotion } from '../lib/util.js';
 import { get as featGet } from '../lib/features.js';
-import { armVerifyKeyboard } from './verify-kb.js';
+import { followKeyboard } from './vk.js';
 import { get, getJSON } from '../lib/storage.js';
 import { exchangeRootSession } from '../lib/root-session.js';
 
@@ -353,11 +353,14 @@ function showLockScreen() {
   /** @type {any} */ let widgetId = null;
   let verifyDone = false;
   let pwLockedUntil = 0;
-  /* 键盘避让清理函数 */
+  /* 键盘避让清理函数（定稿 #12：与设置页同一实现 followKeyboard） */
   let dlgKbCleanup = null;
   function armDlgKb() {
     if (dlgKbCleanup) dlgKbCleanup();
-    if (dlg) dlgKbCleanup = armVerifyKeyboard(dlg);
+    if (!dlg) return;
+    /* 弹层内容动态生成：取当前所有输入框 */
+    const inputs = Array.prototype.slice.call(dlg.querySelectorAll('input, textarea'));
+    if (inputs.length) dlgKbCleanup = followKeyboard(dlg, inputs);
   }
   function disarmDlgKb() {
     if (dlgKbCleanup) { dlgKbCleanup(); dlgKbCleanup = null; }
@@ -728,7 +731,7 @@ function showLockScreen() {
           '<span class="sgx-method-ic" aria-hidden="true">' +
           '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.9-.8"/></svg></span>' +
           '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Passkey' : '通行密钥') + '</span>' +
-          '<span class="sgx-method-desc">' + (en ? 'Unlock with fingerprint or device PIN' : '用指纹或设备 PIN 解锁') + '</span></span>' +
+          '<span class="sgx-method-desc">' + (en ? 'Unlock with fingerprint or device screen lock' : '用指纹或设备锁屏解锁') + '</span></span>' +
           '</button>'
         : '') +
       /* 3. 密码（已配置） */
@@ -988,7 +991,7 @@ function showLockScreen() {
         if (dlgState !== 'password') return;
         const j = res.j;
         if (!j) {
-          showError(en ? 'Server error' : '服务器错误');
+          showError(en ? 'Bad server response, please retry' : '服务响应异常，请重试');
           return;
         }
         if (j.ok) {
@@ -1001,7 +1004,7 @@ function showLockScreen() {
         } else if (j.error === 'not-set') {
           showError(en ? 'No password set yet' : '尚未设置密码');
         } else if (j.error === 'server') {
-          showError(en ? 'Server error' : '服务器错误');
+          showError(en ? 'Service temporarily unavailable, please try again later' : '服务暂时不可用，请稍后再试');
         } else {
           showError(en ? 'Wrong password' : '密码错误');
           if (input) input.value = '';
@@ -1009,7 +1012,7 @@ function showLockScreen() {
       })
       .catch(function () {
         if (dlgState !== 'password') return;
-        showError(en ? 'Network error' : '网络错误');
+        showError(en ? 'Network connection failed, please retry' : '网络连接失败，请重试');
       });
   }
 
@@ -1078,7 +1081,7 @@ function showLockScreen() {
         if (dlgState !== 'mgmtkey') return;
         const j = res.j;
         if (!j) {
-          showError(en ? 'Server error' : '服务器错误');
+          showError(en ? 'Bad server response, please retry' : '服务响应异常，请重试');
           return;
         }
         if (j.ok) {
@@ -1102,18 +1105,18 @@ function showLockScreen() {
                   location.href = en ? '/en/settings/security/' : '/settings/security/';
                 }
               } else {
-                showError(en ? 'Server error' : '服务器错误');
+                showError(en ? 'Verification failed, please retry' : '验证失败，请重试');
                 if (input) input.value = '';
               }
             })
             .catch(function () {
               if (dlgState !== 'mgmtkey') return;
-              showError(en ? 'Network error' : '网络错误');
+              showError(en ? 'Network connection failed, please retry' : '网络连接失败，请重试');
             });
         } else if (res.s === 429) {
           showError(en ? 'Too many attempts' : '尝试次数过多');
         } else if (res.s === 503 || res.s === 500) {
-          showError(en ? 'Server error' : '服务器错误');
+          showError(en ? 'Service temporarily unavailable, please try again later' : '服务暂时不可用，请稍后再试');
         } else {
           showError(en ? 'Wrong root credential' : '根凭证错误');
           if (input) input.value = '';
@@ -1121,7 +1124,7 @@ function showLockScreen() {
       })
       .catch(function () {
         if (dlgState !== 'mgmtkey') return;
-        showError(en ? 'Network error' : '网络错误');
+        showError(en ? 'Network connection failed, please retry' : '网络连接失败，请重试');
       });
   }
 
@@ -1201,8 +1204,8 @@ function showLockScreen() {
     /* 补充四：根凭证正确但开关无效时，在此步骤下方显示恢复开关提示。
        仅此处显示；根凭证错误、访客假入口、其他页面一律不出现。 */
     var switchHint = en
-      ? 'Owner credential unavailable? Add key recovery-switch (any value) in Cloudflare KV, valid for 24 hours, single use only.'
-      : '站长凭证也无法使用？在 Cloudflare KV 添加键 recovery-switch（值任意），24 小时内有效且仅限一次。';
+      ? 'Owner credential unavailable? Enable temporary recovery in the Cloudflare dashboard (valid for 24 hours, single use only).'
+      : '站长凭证也无法使用？可在 Cloudflare 后台开启临时恢复（24 小时内有效，仅限一次）。';
     var pkBtnHtml = hasPk
       ? '<button type="button" class="sgx-verify-skip" id="sgx-reset-pk">' + (en ? 'Use passkey' : '使用通行密钥') + '</button>'
       : '';
@@ -1308,7 +1311,7 @@ function showLockScreen() {
       })
       .catch(function () {
         if (dlgState !== 'reset-step2') return;
-        showError(en ? 'Network error' : '网络错误');
+        showError(en ? 'Network connection failed, please retry' : '网络连接失败，请重试');
       });
   }
 
@@ -1359,12 +1362,12 @@ function showLockScreen() {
     pkAuth();
   }
 
-  /* 通行密钥失败 → 同一弹层内给重试 / 用密码 */
-  function pkFailed() {
+  /* 通行密钥失败 → 同一弹层内给重试 / 用密码（定稿 R2b：说明具体原因） */
+  function pkFailed(reason) {
     if (dlgState !== 'passkey') return;
+    const msg = reason || (en ? 'Passkey verification failed' : '通行密钥验证失败');
     setBody(
-      '<div class="sgx-verify-loading"><p class="sgx-verify-failtx">' +
-        (en ? 'Passkey verification failed' : '通行密钥验证失败') +
+      '<div class="sgx-verify-loading"><p class="sgx-verify-failtx">' + msg +
         '</p><div class="sgx-verify-actions">' +
         '<button type="button" class="sgx-verify-skip" id="sgx-pk-retry">' + (en ? 'Retry' : '重试') + '</button>' +
         '<button type="button" class="sgx-verify-ghost" id="sgx-pk-topw">' + (en ? 'Use password' : '使用密码') + '</button>' +
@@ -1393,6 +1396,62 @@ function showLockScreen() {
     return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
   function pkAuth() {
+    /* 定稿 R2b：WebAuthn 系统框 45 秒不出就超时，不一直转圈 */
+    const WEBAUTHN_TIMEOUT = 45000;
+    /**
+     * @param {string} [code] 失败原因码
+     */
+    function pkFailMsg(code) {
+      switch (code) {
+        case 'timeout':
+          return en ? 'Verification timed out, no response from system' : '验证超时，系统无响应';
+        case 'cancelled':
+          return en ? 'Cancelled' : '已取消';
+        case 'not-supported':
+          return en ? 'Passkey not supported on this device' : '此设备不支持通行密钥';
+        case 'no-credential':
+          return en ? 'No passkey found on this device' : '这台设备上没有这把钥匙';
+        case 'challenge':
+          return en ? 'Verification setup failed, please retry' : '验证初始化失败，请重试';
+        case 'network':
+          return en ? 'Network connection failed, please retry' : '网络连接失败，请重试';
+        case 'unknown-key':
+          return en ? 'Key not recognized' : '无法识别这把钥匙';
+        default:
+          return en ? 'Passkey verification failed' : '通行密钥验证失败';
+      }
+    }
+    /**
+     * 给 navigator.credentials.get 加超时，系统框不出也不一直转圈。
+     * @param {any} opts
+     */
+    function getWithTimeout(opts) {
+      return new Promise(function (resolve, reject) {
+        let done = false;
+        const timer = window.setTimeout(function () {
+          if (!done) {
+            done = true;
+            reject({ name: 'TimeoutError' });
+          }
+        }, WEBAUTHN_TIMEOUT);
+        navigator.credentials.get(opts).then(
+          function (cred) {
+            if (!done) {
+              done = true;
+              window.clearTimeout(timer);
+              resolve(cred);
+            }
+          },
+          function (e) {
+            if (!done) {
+              done = true;
+              window.clearTimeout(timer);
+              reject(e);
+            }
+          }
+        );
+      });
+    }
     fetch('/api/owner-passkey', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1403,21 +1462,27 @@ function showLockScreen() {
       })
       .then(function (ch) {
         if (dlgState !== 'passkey') throw { done: true };
-        if (!ch || !ch.ok) throw new Error('challenge');
+        if (!ch || !ch.ok) throw { failCode: 'challenge' };
         const allow = (ch.allowCredentials || []).map(function (c) {
           return { id: b64urlToBuf(c.id), type: c.type };
         });
-        return navigator.credentials
-          .get({
-            publicKey: {
-              challenge: b64urlToBuf(ch.challenge),
-              allowCredentials: allow,
-              userVerification: 'required',
-              timeout: 60000,
-            },
-          })
+        return getWithTimeout({
+          publicKey: {
+            challenge: b64urlToBuf(ch.challenge),
+            allowCredentials: allow,
+            userVerification: 'required',
+            timeout: 60000,
+          },
+        })
           .then(function (cred) {
             return { cred: cred, cid: ch.cid };
+          })
+          .catch(function (e) {
+            if (e && e.name === 'TimeoutError') throw { failCode: 'timeout' };
+            if (e && e.name === 'NotAllowedError') throw { failCode: 'cancelled' };
+            if (e && e.name === 'InvalidStateError') throw { failCode: 'no-credential' };
+            if (e && e.name === 'NotSupportedError') throw { failCode: 'not-supported' };
+            throw { failCode: 'failed' };
           });
       })
       .then(function (res) {
@@ -1441,12 +1506,12 @@ function showLockScreen() {
               type: cred.type,
             },
           }),
+        }).then(function (r) {
+          return r.json().then(function (j) { return { j: j, credId: cred.id }; });
         });
       })
-      .then(function (r) {
-        return r.json();
-      })
-      .then(function (j) {
+      .then(function (res) {
+        const j = res.j;
         if (dlgState !== 'passkey') return;
         if (j && j.ok) {
           closeDialog();
@@ -1458,16 +1523,22 @@ function showLockScreen() {
                 typeof PublicKeyCredential.signalUnknownCredential === 'function') {
               PublicKeyCredential.signalUnknownCredential({
                 rpId: location.hostname,
-                credentialId: cred.id,
+                credentialId: res.credId,
               }).catch(function () {});
             }
           } catch (e) {}
-          pkFailed();
+          pkFailed(pkFailMsg(j && j.error === 'unknown-key' ? 'unknown-key' : null));
         }
       })
       .catch(function (e) {
         if (e && e.done) return;
-        pkFailed();
+        if (e && e.failCode === 'cancelled') {
+          /* 用户取消：回到方式选择，不报错 */
+          closeDialog();
+          openMethodSheet();
+          return;
+        }
+        pkFailed(pkFailMsg(e && e.failCode));
       });
   }
 

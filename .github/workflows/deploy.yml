@@ -91,6 +91,11 @@ jobs:
         # 在脚本内白名单放行）
         run: node scripts/check-frontend.mjs
 
+      - name: Key names sync check (定稿 #3)
+        # 命名常量唯一来源 functions/_kernel/key-names.js；
+        # assets/js/lib/key-names.js 必须由 scripts/gen-key-names.mjs 生成且同步
+        run: node scripts/gen-key-names.mjs --check
+
       - name: Generate blog posts data (P0-2)
         # 从博客仓库读公开文章列表，生成 data/posts.json
         # BLOG_TOKEN: 只读 token（公开仓库可匿名，但配 token 更稳）
@@ -230,6 +235,10 @@ jobs:
 
       - name: Build CSS
         run: node scripts/build-css.cjs --minify
+
+      - name: Generate key names (定稿 #3)
+        # 前端命名常量由 functions/_kernel/key-names.js 生成
+        run: node scripts/gen-key-names.mjs
 
       - name: Build site
         run: hugo --minify
@@ -389,6 +398,10 @@ jobs:
         run: node scripts/gen-posts-json.mjs
         env:
           BLOG_TOKEN: ${{ secrets.BLOG_READ_TOKEN || github.token }}
+
+      - name: Generate key names (定稿 #3)
+        # 前端命名常量由 functions/_kernel/key-names.js 生成
+        run: node scripts/gen-key-names.mjs
 
       - name: Build site
         run: hugo --minify
