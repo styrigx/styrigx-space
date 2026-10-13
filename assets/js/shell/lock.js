@@ -23,6 +23,7 @@ import { get as featGet } from '../lib/features.js';
 import { armVerifyKeyboard } from './verify-kb.js';
 import { get, getJSON } from '../lib/storage.js';
 import { exchangeRootSession } from '../lib/root-session.js';
+import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
 
 const LOCK =
   '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
@@ -317,7 +318,7 @@ function showLockScreen() {
       return;
     }
     if (ret) {
-      window.location.replace(window.location.href);
+      sgxReplace(window.location.href, 'lock.js:321', 'return-reload');
       return;
     }
     doUnlockAnimation();
@@ -1099,7 +1100,7 @@ function showLockScreen() {
                 if (ret) {
                   handleSessionOk();
                 } else {
-                  location.href = en ? '/en/settings/security/' : '/settings/security/';
+                  sgxNavigate(en ? '/en/settings/security/' : '/settings/security/', 'lock.js:1103', 'mgmtkey-ok');
                 }
               } else {
                 showError(en ? 'Server error' : '服务器错误');
@@ -1247,7 +1248,7 @@ function showLockScreen() {
     resetRootKey = null;
     closeDialog();
     /* 跳转到锁屏凭证管理页（lockreset 票据可开此页，仍进不了主页） */
-    window.location.href = en ? '/en/settings/security/lock/' : '/settings/security/lock/';
+    sgxNavigate(en ? '/en/settings/security/lock/' : '/settings/security/lock/', 'lock.js:1251', 'reset-done');
   }
 
   /* 重置步骤 2a：站长通行密钥 */

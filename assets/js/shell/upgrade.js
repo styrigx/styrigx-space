@@ -11,6 +11,8 @@
  * 根凭证/密码改用弹层内联输入，不用原生弹窗（全站禁止原生弹窗，
  * 见 scripts/check-frontend.mjs）。
  */
+import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
+
 export function initUpgrade() {
   const html = document.documentElement;
   if (html.getAttribute('data-sgx-upgrade') !== '1') return;
@@ -119,9 +121,9 @@ export function initUpgrade() {
         let ret = '';
         try { ret = new URLSearchParams(window.location.search).get('return') || ''; } catch (e) {}
         if (ret) {
-          window.location.replace(window.location.href);
+          sgxReplace(window.location.href, 'upgrade.js:123', 'upgrade-root-ok-return');
         } else {
-          location.href = isEn ? '/en/settings/security/' : '/settings/security/';
+          sgxNavigate(isEn ? '/en/settings/security/' : '/settings/security/', 'upgrade.js:125', 'upgrade-root-ok');
         }
       } else if (res.status === 429) {
         showErr(isEn ? 'Too many attempts' : '尝试次数过多');
@@ -144,7 +146,7 @@ export function initUpgrade() {
       });
       const j = await res.json();
       if (j && j.ok) {
-        location.href = returnPath;
+        sgxNavigate(returnPath, 'upgrade.js:149', 'upgrade-password-ok');
       } else {
         showErr(isEn ? 'Wrong password' : '密码错误');
       }
@@ -230,7 +232,7 @@ export function initUpgrade() {
       });
       const authJ = await authRes.json();
       if (authJ && authJ.ok) {
-        location.href = returnPath;
+        sgxNavigate(returnPath, 'upgrade.js:235', 'upgrade-passkey-ok');
       } else {
         showErr(isEn ? 'Verification failed' : '验证失败');
       }

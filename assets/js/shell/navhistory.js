@@ -2,6 +2,7 @@
  * @fileoverview 全站搜索快捷键 + 返回/Dock 历史逻辑（旧 sgx-base-a.js 上半）。
  */
 import { on, delegate } from '../lib/events.js';
+import { sgxNavigate, sgxReplace, sgxGoBack } from '../lib/diag-jumptrace.js';
 
 /**
  * 初始化：Cmd/Ctrl+K 跳浏览器页搜索；返回键与 Dock 的历史管理。
@@ -17,7 +18,7 @@ export function initNavHistory() {
       const t = /** @type {HTMLElement|null} */ (e.target);
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
       e.preventDefault();
-      location.href = bUrl + '#focus';
+      sgxNavigate(bUrl + '#focus', 'navhistory.js:21', 'cmdk-search');
     }
   });
 
@@ -49,15 +50,15 @@ export function initNavHistory() {
   }
   function goBack() {
     if (isFilesType()) {
-      location.replace(en ? '/en/files/' : '/files/');
+      sgxReplace(en ? '/en/files/' : '/files/', 'navhistory.js:54', 'goback-files');
       return;
     }
     const p = location.pathname;
     if (PRIMARY[p]) {
-      location.replace(home);
+      sgxReplace(home, 'navhistory.js:59', 'goback-primary');
       return;
     }
-    location.replace(parentOf());
+    sgxReplace(parentOf(), 'navhistory.js:62', 'goback-parent');
   }
   /* 事件委托：按钮在 <main> 里，脚本可能先执行 */
   delegate(document, 'click', '[data-go-back]', function (e) {
@@ -70,7 +71,7 @@ export function initNavHistory() {
     const isHome = p === '/' || p === '/en' || p === '/en/';
     if (isHome) return; /* 主页：不拦截，普通跳转 */
     e.preventDefault();
-    location.replace(a.getAttribute('href') || home);
+    sgxReplace(a.getAttribute('href') || home, 'navhistory.js:75', 'dock-switch');
   });
   /* 直接打开 App 页：最多插入一次主页历史，保证系统返回一次回到主页。 */
   (function () {
@@ -107,8 +108,8 @@ export function initNavHistory() {
       const r = document.referrer;
       same = !!r && new URL(r).origin === location.origin;
     } catch (_) {}
-    if (same) history.back();
-    else location.href = document.documentElement.lang === 'en' ? '/en/' : '/';
+    if (same) sgxGoBack('navhistory.js:111', 'back-top');
+    else sgxNavigate(document.documentElement.lang === 'en' ? '/en/' : '/', 'navhistory.js:112', 'back-top-home');
   });
 
   /* 双击顶栏回顶部（One UI 习惯） */
