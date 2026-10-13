@@ -452,19 +452,20 @@ test.describe('lock password dialog eye button (批次 A 验收修复 P2)', () =
     const eye = page.locator('#sgx-pw-eye');
     await expect(eye).toBeVisible();
 
-    await expect(eye).toHaveAttribute('aria-label', '显示密码');
+    /* 锁屏套件不固定语言（现有测试均用中英双语正则），aria-label 接受任一语言 */
+    await expect(eye).toHaveAttribute('aria-label', /显示密码|Show password/);
     await expect(eye).toHaveAttribute('aria-pressed', 'false');
     expect(await eye.evaluate((el) => el.innerHTML)).toContain('<line');
 
     await eye.click();
-    await expect(eye).toHaveAttribute('aria-label', '隐藏密码');
+    await expect(eye).toHaveAttribute('aria-label', /隐藏密码|Hide password/);
     await expect(eye).toHaveAttribute('aria-pressed', 'true');
     expect(await eye.evaluate((el) => el.innerHTML)).not.toContain('<line');
     await expect(page.locator('#sgx-pw-input[type="text"]')).toBeVisible();
     await expect(input).toBeFocused();
 
     await eye.click();
-    await expect(eye).toHaveAttribute('aria-label', '显示密码');
+    await expect(eye).toHaveAttribute('aria-label', /显示密码|Show password/);
     await expect(eye).toHaveAttribute('aria-pressed', 'false');
     await expect(page.locator('#sgx-pw-input[type="password"]')).toBeVisible();
   });
@@ -482,7 +483,8 @@ test.describe('lock method sheet row feedback (批次 A 验收修复 P2)', () =>
     });
     await freezeTime(page);
     await gotoLock(page);
-    await page.locator('#sgx-avatar').click();
+    /* 头像 id 是 #sgx-lock-avatar（openMethodSheet 已封装） */
+    await openMethodSheet(page);
     const pwBtn = page.locator('#sgx-mopt-pw');
     await expect(pwBtn).toBeVisible({ timeout: 5000 });
     await pwBtn.click();
