@@ -15,7 +15,7 @@
  * - layer:app:<aud> = "1"（已配置该 aud 的 app 凭证）
  */
 
-import { ownerPasskeyKey, OWNER_PASSKEY_PREFIX } from './key-names.js';
+import { ownerPasskeyKey, OWNER_PASSKEY_PREFIX, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY } from './key-names.js';
 
 /* 层标识 */
 export const LAYER_OWNER = 'owner';
@@ -144,8 +144,8 @@ async function realCredentialPresence(kv) {
           out.failed = true;
           return out;
         }
-        if (v && v.credId && (v.class || 'lock') === 'owner') out.ownerPk = true;
-        if (v && v.credId && (v.class || 'lock') === 'lock') out.lockPk = true;
+        if (v && v.credId && (v.class || STORE_CLASS_LOCKKEY) === STORE_CLASS_OWNERKEY) out.ownerPk = true;
+        if (v && v.credId && (v.class || STORE_CLASS_LOCKKEY) === STORE_CLASS_LOCKKEY) out.lockPk = true;
       }
     } else {
       /* 索引不存在：用 kv.list 补查 */
@@ -164,8 +164,8 @@ async function realCredentialPresence(kv) {
           out.failed = true;
           return out;
         }
-        if (v && v.credId && (v.class || 'lock') === 'owner') out.ownerPk = true;
-        if (v && v.credId && (v.class || 'lock') === 'lock') out.lockPk = true;
+        if (v && v.credId && (v.class || STORE_CLASS_LOCKKEY) === STORE_CLASS_OWNERKEY) out.ownerPk = true;
+        if (v && v.credId && (v.class || STORE_CLASS_LOCKKEY) === STORE_CLASS_LOCKKEY) out.lockPk = true;
       }
     }
   } catch (e) {

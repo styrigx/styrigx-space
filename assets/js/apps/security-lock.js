@@ -12,6 +12,7 @@ import { followKeyboard } from '../shell/vk.js';
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton } from '../lib/dialog-behavior.js';
 import { apiErrorText, needVerify } from './app-gate.js';
+import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY } from '../lib/key-names.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -20,14 +21,14 @@ import { apiErrorText, needVerify } from './app-gate.js';
      默认 → 锁屏凭证模式（管理 lock-pw + class=lock 通行密钥）。 */
   const MODE = (function () {
     try {
-      return new URLSearchParams(location.search).get('mode') === 'owner' ? 'owner' : 'lock';
+      return new URLSearchParams(location.search).get('mode') === STORE_CLASS_OWNERKEY ? STORE_CLASS_OWNERKEY : STORE_CLASS_LOCKKEY;
     } catch (e) {
-      return 'lock';
+      return STORE_CLASS_LOCKKEY;
     }
   })();
-  const isOwnerMode = MODE === 'owner';
-  /** 密码 kind：owner 模式用 'owner'，lock 模式用 'lock' */
-  const pwKind = isOwnerMode ? 'owner' : 'lock';
+  const isOwnerMode = MODE === STORE_CLASS_OWNERKEY;
+  /** 密码 kind：owner 模式用 'owner'，lock 模式用 'lock'（与类别常量同值） */
+  const pwKind = isOwnerMode ? STORE_CLASS_OWNERKEY : STORE_CLASS_LOCKKEY;
   /** 状态接口：owner 模式读 /api/owner-status（lock-status 在 scope=root 不可读） */
   const statusApi = isOwnerMode ? '/api/owner-status' : '/api/lock-status';
   /** @type {any} */
@@ -52,10 +53,10 @@ import { apiErrorText, needVerify } from './app-gate.js';
   let hasPw = false;
   /** 2.10.0：全量通行密钥缓存（含应用类，供应用验证分组渲染） */
   let allKeys = [];
-  /** 批次 A 验收修复 P0：本页通行密钥类别由页面决定（owner 模式 → 'owner'，
-      默认锁屏模式 → 'lock'），不按票据 scope 推断；服务端按 pkClass + 票据双重校验。
+  /** 批次 A 验收修复 P0：本页通行密钥类别由页面决定（owner 模式 → owner，
+      默认锁屏模式 → lock），不按票据 scope 推断；服务端按 pkClass + 票据双重校验。
       注：?mode=owner 无任何入口链接（站长凭证页走 door.js），此处仅保留兼容。 */
-  const pageClass = isOwnerMode ? 'owner' : 'lock';
+  const pageClass = isOwnerMode ? STORE_CLASS_OWNERKEY : STORE_CLASS_LOCKKEY;
   const pkAddClass = pageClass;
   /** 2.10.0：应用白名单（与服务端一致，book 在列） */
   var APPS = [{ aud: 'book', name: 'Book' }];
@@ -532,7 +533,7 @@ import { apiErrorText, needVerify } from './app-gate.js';
   /* 应用验证分组：list 只返回本页类别，app 类需单独发一次 list（否则分组误显示「未添加」） */
   function refreshAppKeys() {
     if (!$('lockmgr-applist')) return;
-    api('/api/owner-passkey', { action: 'list', pkClass: 'app' })
+    api('/api/owner-passkey', { action: 'list', pkClass: STORE_CLASS_APPKEY })
       .then(function (res) {
         const j = res.json;
         if (!j) return;
@@ -559,7 +560,7 @@ import { apiErrorText, needVerify } from './app-gate.js';
           return;
         }
         const keys = ((j.ok && j.keys) || []).filter(function (k) {
-          return (k.class || 'lock') === pageClass;
+          return (k.class || STORE_CLASS_LOCKKEY) === pageClass;
         });
         if (!ul) return;
         ul.innerHTML = '';
@@ -691,7 +692,7 @@ import { apiErrorText, needVerify } from './app-gate.js';
     ul.innerHTML = '';
     APPS.forEach(function (app) {
       const appKeys = allKeys.filter(function (k) {
-        return (k.class || 'lock') === 'app' && k.aud === app.aud;
+        return (k.class || STORE_CLASS_LOCKKEY) === STORE_CLASS_APPKEY && k.aud === app.aud;
       });
       const li = document.createElement('li');
       li.className = 'lockmgr-pkitem';
@@ -757,7 +758,7 @@ import { apiErrorText, needVerify } from './app-gate.js';
       toast(t('pkNoSupport'));
       return;
     }
-    api('/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: 'app', aud: aud })
+    api('/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: STORE_CLASS_APPKEY, aud: aud })
       .then(function (res) {
         const ch = res.json;
         if (!ch || !ch.ok) throw new Error((ch && ch.error) || 'challenge');
@@ -847,7 +848,7 @@ import { apiErrorText, needVerify } from './app-gate.js';
                 rp: { name: rp.name || 'Styrigx', id: rpId },
                 user: {
                   id: b64urlToBuf(user.id),
-                  name: user.name || 'lockkey',
+                  name: user.name || KEY_LOCK,
                   displayName: user.displayName || 'Sloan Gray',
                 },
                 pubKeyCredParams: [{ type: 'public-key', alg: -7 }],

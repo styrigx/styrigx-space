@@ -12,6 +12,7 @@ import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
 import { api, enterDoor, apiErrorText, handleDoorError, b64urlToBuf, bufToB64url } from './app-gate.js';
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
+import { STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY } from '../lib/key-names.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -55,7 +56,7 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       /* 批次 A 验收修复 P0：list 带页面类别 + aud，服务端只返回该应用的 app 类 */
-      body: JSON.stringify({ action: 'list', pkClass: 'app', aud: aud }),
+      body: JSON.stringify({ action: 'list', pkClass: STORE_CLASS_APPKEY, aud: aud }),
       credentials: 'include',
     }).then(function (r) {
       return r.json();
@@ -65,7 +66,7 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
         return null;
       }
       return (j.keys || []).filter(function (k) {
-        return (k.class || 'lock') === 'app' && k.aud === aud;
+        return (k.class || STORE_CLASS_LOCKKEY) === STORE_CLASS_APPKEY && k.aud === aud;
       });
     }).catch(function () {
       return null;
@@ -196,7 +197,7 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
       toast(t('gateNoSupport'));
       return;
     }
-    api('/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: 'app', aud: aud }, t)
+    api('/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: STORE_CLASS_APPKEY, aud: aud }, t)
       .then(function (res) {
         const ch = res.json;
         if (ch && ch.error && handleDoorError(t, ch.error, res.status, ch.reason)) throw { kind: 'reverify' };

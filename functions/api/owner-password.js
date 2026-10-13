@@ -53,7 +53,7 @@ import {
   LAYER_OWNER,
   LAYER_LOCK,
 } from '../_kernel/layers.js';
-import { getPasskeys, PK_CLASS_OWNER } from './owner-passkey.js';
+import { getPasskeys, PK_CLASS_OWNER, PK_CLASS_LOCK } from './owner-passkey.js';
 
 const ITERATIONS = 100000; // Workers PBKDF2 上限（实测：超过抛 NotSupportedError）
 const SALT_LEN = 16;
@@ -394,7 +394,7 @@ async function handlePost(context) {
         let lockKeys = [];
         try {
           const keys = await getPasskeys(kv);
-          lockKeys = keys.filter(function (k) { return (k.class || 'lock') === 'lock'; });
+          lockKeys = keys.filter(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK; });
         } catch (e) {}
         if (lockKeys.length === 0) {
           let ownerCfg = true;
@@ -427,7 +427,7 @@ async function handlePost(context) {
       if (kind === 'owner' && sv.by === STEPUP_BY_ROOT) {
         try {
           const keys = await getPasskeys(kv);
-          const hasOwnerKey = keys.some(function (k) { return (k.class || 'lock') === PK_CLASS_OWNER; });
+          const hasOwnerKey = keys.some(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_OWNER; });
           let hasOwnerPw = false;
           try { const r = await kv.get('owner-pw', 'json'); hasOwnerPw = !!(r && r.hash); } catch (e) {}
           if (!hasOwnerKey && !hasOwnerPw) {
@@ -445,7 +445,7 @@ async function handlePost(context) {
       if (kind === 'lock') {
         try {
           const keys = await getPasskeys(kv);
-          const hasLockKey = keys.some(function (k) { return (k.class || 'lock') === 'lock'; });
+          const hasLockKey = keys.some(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK; });
           let hasLockPw = false;
           try { const r = await kv.get('lock-pw', 'json'); hasLockPw = !!(r && r.hash); } catch (e) {}
           if (!hasLockKey && !hasLockPw) {

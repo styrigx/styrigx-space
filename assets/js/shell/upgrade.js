@@ -13,6 +13,7 @@
  */
 import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
 import { bindEyeButton } from '../lib/dialog-behavior.js';
+import { STORE_CLASS_LOCKKEY } from '../lib/key-names.js';
 
 export function initUpgrade() {
   const html = document.documentElement;
@@ -208,7 +209,7 @@ export function initUpgrade() {
       const chRes = await fetch('/api/owner-passkey', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'challenge', type: 'auth', pkClass: 'lock' }),
+        body: JSON.stringify({ action: 'challenge', type: 'auth', pkClass: STORE_CLASS_LOCKKEY }),
         credentials: 'include',
       });
       const ch = await chRes.json();

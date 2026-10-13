@@ -15,7 +15,7 @@
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
-import { KEY_LOCK } from '../lib/key-names.js';
+import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY } from '../lib/key-names.js';
 import {
   api,
   enterDoor,
@@ -571,7 +571,7 @@ export function initDoor(o) {
   /* 应用验证分组：list 只返回本页类别，app 类需单独发一次 list（否则分组误显示「未添加」） */
   function refreshAppKeys() {
     if (!$('lockmgr-applist')) return;
-    api('/api/owner-passkey', { action: 'list', pkClass: 'app' }, t)
+    api('/api/owner-passkey', { action: 'list', pkClass: STORE_CLASS_APPKEY }, t)
       .then(function (res) {
         const j = res.json;
         if (!j) return;
@@ -592,7 +592,7 @@ export function initDoor(o) {
         if (!j) return;
         if (j.error && handleDoorError(t, j.error, res.status, j.reason)) return; /* D3：已走 needVerify */
         const keys = ((j.ok && j.keys) || []).filter(function (k) {
-          return (k.class || 'lock') === o.keyClass;
+          return (k.class || STORE_CLASS_LOCKKEY) === o.keyClass;
         });
         if (!ul) return;
         ul.innerHTML = '';
@@ -614,7 +614,7 @@ export function initDoor(o) {
     ul.innerHTML = '';
     APPS.forEach(function (app) {
       const appKeys = allKeys.filter(function (k) {
-        return (k.class || 'lock') === 'app' && k.aud === app.aud;
+        return (k.class || STORE_CLASS_LOCKKEY) === STORE_CLASS_APPKEY && k.aud === app.aud;
       });
       const li = document.createElement('li');
       li.className = 'lockmgr-pkitem';
@@ -675,7 +675,7 @@ export function initDoor(o) {
       toast(t('pkNoSupport'));
       return;
     }
-    api('/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: 'app', aud: aud }, t)
+    api('/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: STORE_CLASS_APPKEY, aud: aud }, t)
       .then(function (res) {
         const ch = res.json;
         if (ch && ch.error && handleDoorError(t, ch.error, res.status, ch.reason)) throw { kind: 'reverify' };

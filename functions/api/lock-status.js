@@ -65,7 +65,7 @@ async function handleGet(context) {
     const password = !!(pw && pw.hash);
     const keys = await getPasskeys(kv);
     const passkey = keys.some(function (k) {
-      return (k.class || 'lock') === PK_CLASS_LOCK;
+      return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK;
     });
     return Response.json(
       { ok: true, password: password, passkey: passkey },

@@ -85,11 +85,19 @@ jobs:
         # 前端禁止 sgx-verified/sgx-lock-shown；禁止用 storage 存解锁状态
         run: node scripts/check-layers.mjs
 
-      - name: Frontend guard (无原生弹窗 / 无废弃 token 变量)
+      - name: Frontend guard (无原生弹窗 / 无废弃 token 变量 / 无裸类别字面量)
         # Item 25：assets/js/ 禁止 window.prompt/confirm/alert（含裸调用），
         # 禁止独立 token 变量（已废弃的内存鉴权 token 机制；Turnstile token
-        # 在脚本内白名单放行）
+        # 在脚本内白名单放行）；批次 B #3：禁止裸通行密钥类别字面量
         run: node scripts/check-frontend.mjs
+
+      - name: Generate key names (批次 B #3：前端类别常量镜像)
+        # 从 functions/_kernel/key-names.js（唯一来源）生成
+        # assets/js/lib/key-names.js；生成后 diff 非空即漂移失败，
+        # 必须本地跑 node scripts/gen-key-names.mjs 后提交生成文件。
+        run: |
+          node scripts/gen-key-names.mjs
+          git diff --exit-code -- assets/js/lib/key-names.js
 
       - name: Generate blog posts data (P0-2)
         # 从博客仓库读公开文章列表，生成 data/posts.json

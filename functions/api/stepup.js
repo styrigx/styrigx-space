@@ -36,7 +36,7 @@ import { verifySessionDetailed, getCookie } from '../_middleware.js';
 import { getSessionEpoch, ROLE_OWNER } from '../_kernel/session.js';
 import { ed25519Sign, ed25519Verify, b64urlEnc } from '../_kernel/crypto.js';
 import { randB64, verifyAssertion } from '../_kernel/passkey-verify.js';
-import { getPasskeys, PK_CLASS_OWNER } from './owner-passkey.js';
+import { getPasskeys, PK_CLASS_OWNER, PK_CLASS_APP } from './owner-passkey.js';
 import { ownerPasskeyKey } from '../_kernel/key-names.js';
 import { verifyOwnerPassword, getPepper } from './owner-password.js';
 import { isLayerConfigured, LAYER_OWNER } from '../_kernel/layers.js';
@@ -378,7 +378,7 @@ async function handlePost(context) {
           uv: stored.uv ? 1 : 0,
           class: stored.class || PK_CLASS_OWNER,
         };
-        if (ordered.class === 'app' && stored.aud) ordered.aud = stored.aud;
+        if (ordered.class === PK_CLASS_APP && stored.aud) ordered.aud = stored.aud;
         await kv.put(keyName, JSON.stringify(ordered));
       } catch (e2) {}
       /* 签发 sgx-stepup cookie：缺 SGX_STEPUP_PRIVATE 则拒绝（fail closed） */
