@@ -41,9 +41,9 @@ import { APP_AUTH_PREFIX} from './owner-passkey.js';
 /* sgx-app token 有效期：10 分钟 */
 export const APP_TOKEN_MAX_AGE = 600;
 
-/* sgx-app cookie 定义 */
+/* sgx-app cookie 定义（Max-Age 拼常量，不硬编码；批次 B #11 要求改拼常量） */
 export const APP_COOKIE = 'sgx-app';
-export const APP_COOKIE_ATTRS = 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600';
+export const APP_COOKIE_ATTRS = 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=' + APP_TOKEN_MAX_AGE;
 
 /**
 * 读取该 aud 的应用纪元（KV app-epoch:<aud>，缺失视为 0）。

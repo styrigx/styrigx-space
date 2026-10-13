@@ -128,7 +128,7 @@ test('正常签发 → 验证通过', async () => {
   assert.equal(p.by, 'owner');
   assert.equal(p.scope, 'keys');
   assert.equal(p.epoch, 0);
-  /* 有效期约 10 分钟 */
+  /* 有效期约 3 分钟（批次 B #11） */
   assert.ok(Math.abs((p.exp - p.iat) - STEPUP_MAX_AGE * 1000) < 5000);
 
   const req = new Request('https://test.example.com/api/stepup', {
@@ -144,7 +144,7 @@ test('过期 cookie 被拒', async () => {
   const env = makeEnv(kv);
   /* 手工构造过期 cookie：iat/exp 为过去，有效签名 */
   const iat = Date.now() - 20 * 60 * 1000;
-  const exp = iat + STEPUP_MAX_AGE * 1000; /* 已过期 10 分钟 */
+  const exp = iat + STEPUP_MAX_AGE * 1000; /* 已过期 3 分钟 */
   const payload = 'owner.keys.0.' + iat + '.' + exp;
   const sig = await ed25519Sign(TEST_PRIV_PEM, payload);
   const val = payload + '.' + sig;
