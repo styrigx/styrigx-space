@@ -13,7 +13,7 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton } from '../lib/dialog-behavior.js';
 import { apiErrorText, needVerify, clearStepupThen, startDoorCountdown, maybeShowFirstKeyDialog } from './app-gate.js';
 import { showConfirmDialog } from '../lib/dialog-behavior.js';
-import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY } from '../lib/key-names.js';
+import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY } from '../lib/key-names.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -52,15 +52,13 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
   }
 
   let hasPw = false;
-  /** 2.10.0：全量通行密钥缓存（含应用类，供应用验证分组渲染） */
+  /** 全量通行密钥缓存（本页类；删钥匙归零判断用） */
   let allKeys = [];
   /** 批次 A 验收修复 P0：本页通行密钥类别由页面决定（owner 模式 → owner，
       默认锁屏模式 → lock），不按票据 scope 推断；服务端按 pkClass + 票据双重校验。
       注：?mode=owner 无任何入口链接（站长凭证页走 door.js），此处仅保留兼容。 */
   const pageClass = isOwnerMode ? STORE_CLASS_OWNERKEY : STORE_CLASS_LOCKKEY;
   const pkAddClass = pageClass;
-  /** 2.10.0：应用白名单（与服务端一致，book 在列） */
-  var APPS = [{ aud: 'book', name: 'Book' }];
 
   /* ---------- 通用 ---------- */
   /** @param {string} id @param {string} msg */
@@ -153,7 +151,8 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
   function needReauth(code, detail) {
     /* P2-14：先收起当前所有 sheet 再跳验证流程，禁止弹层叠弹层 */
     closeOpenSheets();
-    const reason = code === 'session' ? 'session' : 'stepup';
+    /* 批次 B #36：网络失败透传 'network'，弹框显示网络文案 */
+    const reason = code === 'session' ? 'session' : code === 'network' ? 'network' : 'stepup';
     needVerify(t, reason, detail);
   }
 
@@ -162,7 +161,7 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
    * 切换弹层前调用，保证同一时刻只有一个弹层。
    */
   function closeOpenSheets() {
-    ['lockpw-dlg', 'lockpkname-dlg', 'lockpkdel-dlg'].forEach(function (id) {
+    ['lockpw-dlg', 'lockpkname-dlg'].forEach(function (id) {
       const d = $(id);
       try {
         if (d && d.open) d.close();
@@ -511,58 +510,6 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
   /* P2-13：命名输入框聚焦时，命名弹层随键盘上移 */
   followKeyboard($('lockpkname-dlg'), $('lockpkname-input'));
 
-  /* 应用钥匙删除确认弹层（站内确认，替代原生 confirm；返回 Promise<boolean>） */
-  let pkDelResolve = null;
-  function openPkDelDlg() {
-    return new Promise(function (resolve) {
-      pkDelResolve = resolve;
-      const desc = $('lockpkdel-desc');
-      if (desc) desc.textContent = t('pkDelConfirm');
-      const dlg = $('lockpkdel-dlg');
-      if (!dlg) { resolve(false); return; }
-      try { dlg.showModal(); } catch (e) {}
-    });
-  }
-  function closePkDelDlg(ok, reason) {
-    recordDialogClose('lockpkdel', reason || 'unknown');
-    const dlg = $('lockpkdel-dlg');
-    try { if (dlg && dlg.open) dlg.close(); } catch (e) {}
-    if (pkDelResolve) { pkDelResolve(!!ok); pkDelResolve = null; }
-  }
-  const pkDelCancel = $('lockpkdel-cancel');
-  if (pkDelCancel) on(pkDelCancel, 'click', function () { closePkDelDlg(false, 'cancel-btn'); });
-  const pkDelOk = $('lockpkdel-ok');
-  if (pkDelOk) on(pkDelOk, 'click', function () { closePkDelDlg(true, 'success'); });
-  const pkDelDlg = $('lockpkdel-dlg');
-  if (pkDelDlg) {
-    /* 批次 A 收尾 A1/A2/A3：删除确认遮罩不关、返回先收键盘、× 关闭 */
-    on(pkDelDlg, 'click', function (/** @type {MouseEvent} */ e) {
-      onDialogBackdrop(e, pkDelDlg);
-    });
-    on(pkDelDlg, 'cancel', function (/** @type {Event} */ e) {
-      onDialogCancel(e, pkDelDlg, function (reason) { closePkDelDlg(false, reason); });
-    });
-    const pkDelClose = pkDelDlg.querySelector('[data-dlg-close]');
-    if (pkDelClose) on(pkDelClose, 'click', function () { closePkDelDlg(false, 'close-btn'); });
-  }
-
-  /* 应用验证分组：list 只返回本页类别，app 类需单独发一次 list（否则分组误显示「未添加」） */
-  function refreshAppKeys() {
-    if (!$('lockmgr-applist')) return;
-    api('/api/owner-passkey', { action: 'list', pkClass: STORE_CLASS_APPKEY })
-      .then(function (res) {
-        const j = res.json;
-        if (!j) return;
-        if (j.error && isReauthError(j.error)) {
-          needReauth(j.error, j.reason);
-          return;
-        }
-        allKeys = allKeys.concat((j.ok && j.keys) || []);
-        renderAppList();
-      })
-      .catch(function () {});
-  }
-
   /* 通行密钥列表（批次 A 验收修复 P0：list 带页面类别，只显示本页类） */
   function refreshPkList() {
     const ul = $('lockmgr-pklist');
@@ -580,9 +527,8 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
         });
         if (!ul) return;
         ul.innerHTML = '';
-        // 缓存本页类 keys；应用类由 refreshAppKeys 单独拉取后合并
+        // 缓存本页类 keys（删钥匙归零判断用）
         allKeys = (j.ok && j.keys) || [];
-        refreshAppKeys();
         keys.forEach(function (k) {
           const li = document.createElement('li');
           li.className = 'lockmgr-pkitem';
@@ -712,145 +658,6 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
       .catch(function () {});
   }
 
-  /* 2.10.0：应用验证分组（每应用一行，可单独添加/删除钥匙；增删先过 stepup） */
-  function renderAppList() {
-    const ul = $('lockmgr-applist');
-    if (!ul) return;
-    ul.innerHTML = '';
-    APPS.forEach(function (app) {
-      const appKeys = allKeys.filter(function (k) {
-        return (k.class || STORE_CLASS_LOCKKEY) === STORE_CLASS_APPKEY && k.aud === app.aud;
-      });
-      const li = document.createElement('li');
-      li.className = 'lockmgr-pkitem';
-      const nameWrap = document.createElement('div');
-      nameWrap.className = 'lockmgr-pkname';
-      const label = document.createElement('span');
-      label.textContent = app.name + (appKeys.length ? '（' + appKeys.length + '）' : '（未添加）');
-      nameWrap.appendChild(label);
-      li.appendChild(nameWrap);
-      const btnWrap = document.createElement('div');
-      if (appKeys.length === 0) {
-        const add = document.createElement('button');
-        add.type = 'button';
-        add.className = 'lockmgr-add';
-        add.textContent = '＋ 添加' + app.name + '的钥匙';
-        on(add, 'click', function () {
-          addAppKey(app.aud);
-        });
-        btnWrap.appendChild(add);
-      } else {
-        appKeys.forEach(function (k) {
-          const del = document.createElement('button');
-          del.type = 'button';
-          del.className = 'lockmgr-del';
-          del.textContent = '删除';
-          del.setAttribute('aria-label', '删除' + app.name + '的钥匙');
-          on(del, 'click', function () {
-            openPkDelDlg().then(function (confirmed) {
-              if (!confirmed) return;
-              api('/api/owner-passkey', { action: 'delete', credId: k.credId })
-                .then(function (r2) {
-                  const jj = r2.json;
-                  if (jj && jj.ok) {
-                    toast(t('pkDeleted') || '已删除');
-                    /* 批次 B #9：Samsung Pass 同步：通知密码管理器删掉这把密钥 */
-                    try {
-                      if (window.PublicKeyCredential && typeof PublicKeyCredential.signalUnknownCredential === 'function') {
-                        PublicKeyCredential.signalUnknownCredential({ rpId: location.hostname, credentialId: k.credId }).catch(function () {});
-                      } else {
-                        toast(t('pkDelManual'));
-                      }
-                    } catch (e2) {}
-                    refreshPkList();
-                  } else if (jj && isReauthError(jj.error)) {
-                    needReauth(jj.error, jj.reason);
-                  } else if (jj && jj.error === 'not-found') {
-                    /* KV 最终一致：刚注册的 key 可能暂时读不到 */
-                    toast(t('pkRetryLater'));
-                  } else if (!jj) {
-                    toast(t('errParse'));
-                  } else {
-                    toast(srvErr(jj.error, r2.status));
-                  }
-                })
-                .catch(function () {
-                  toast(t('errNetwork'));
-                });
-            });
-          });
-          btnWrap.appendChild(del);
-        });
-      }
-      li.appendChild(btnWrap);
-      ul.appendChild(li);
-    });
-  }
-
-  /* 2.10.0：添加应用类通行密钥（aud 必须在白名单；服务端再校验） */
-  function addAppKey(aud) {
-    if (!window.PublicKeyCredential) {
-      toast(t('pkNoSupport'));
-      return;
-    }
-    api('/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: STORE_CLASS_APPKEY, aud: aud })
-      .then(function (res) {
-        const ch = res.json;
-        if (!ch || !ch.ok) throw new Error((ch && ch.error) || 'challenge');
-        return navigator.credentials.create({
-          publicKey: {
-            challenge: b64urlToBuf(ch.challenge),
-            rp: { id: ch.rpId, name: ch.rp.name },
-            user: {
-              id: b64urlToBuf(ch.user.id),
-              name: ch.user.name,
-              displayName: ch.user.displayName,
-            },
-            pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
-            authenticatorSelection: { userVerification: 'required', residentKey: 'required' },
-            excludeCredentials: (ch.excludeCredentials || []).map(function (c) {
-              return { id: b64urlToBuf(c.id), type: c.type };
-            }),
-            timeout: 60000,
-          },
-        }).then(function (cred) {
-          return { cred: cred, cid: ch.cid };
-        });
-      })
-      .then(function (r2) {
-        const cred = r2.cred;
-        return api('/api/owner-passkey', {
-          action: 'register',
-          cid: r2.cid,
-          credential: {
-            id: cred.id,
-            rawId: bufToB64url(cred.rawId),
-            type: cred.type,
-            response: {
-              clientDataJSON: bufToB64url(cred.response.clientDataJSON),
-              attestationObject: bufToB64url(cred.response.attestationObject),
-            },
-          },
-        });
-      })
-      .then(function (res) {
-        if (res.json && res.json.ok) {
-          toast(t('pkRegistered') || '已添加');
-          refreshPkList();
-        } else if (res.json && isReauthError(res.json.error)) {
-          needReauth(res.json.error, res.json.reason);
-        } else {
-          const code = (res.json && res.json.error) || 'failed';
-          toast(apiErrorText(t, code, res.status));
-        }
-      })
-      .catch(function (e) {
-        if (e && e.name === 'NotAllowedError') toast(t('gateCancelled'));
-        else if (e && e.name === 'InvalidStateError') toast(t('pkAlready'));
-        else toast(t('errNetwork'));
-      });
-  }
-
   /* 添加通行密钥 */
   const pkAdd = $('lockmgr-pkadd');
   if (pkAdd) {
@@ -955,15 +762,6 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
     try {
       document.title = (en ? 'Owner credential' : '站长凭证') + ' - ' + document.title.split(' - ').slice(1).join(' - ');
     } catch (e) {}
-    /* 隐藏应用验证分组（应用门独立，站长模式只管 owner 凭证） */
-    const appSec = $('lockmgr-appsec');
-    if (appSec) {
-      appSec.hidden = true;
-      const appTitle = appSec.previousElementSibling;
-      if (appTitle && appTitle.classList.contains('set-gh')) appTitle.hidden = true;
-      const appNote = appSec.nextElementSibling;
-      if (appNote && appNote.classList.contains('sec-note')) appNote.hidden = true;
-    }
   }
 
   /* 批次 B R1：重置会话下返回 → 清重置票后直跳锁屏（不经 navhistory/mgmt 中转，
@@ -1004,6 +802,7 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
       }
     })
     .catch(function () {
-      needReauth();
+      /* 批次 B #36：fetch 失败（网络/解析）走网络文案，不按验证过期处理 */
+      needReauth('network');
     });
 })();

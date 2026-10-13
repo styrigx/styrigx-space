@@ -59,21 +59,6 @@
   </div>
 </dialog>
 
-<!-- 应用钥匙删除确认弹层（站内确认，替代原生 confirm） -->
-<dialog id="lockpkdel-dlg" class="sgx-verify-dlg" aria-labelledby="lockpkdel-title">
-  <div class="sgx-verify-card">
-    {{/* 批次 A 收尾 A3：右上角 × 关闭按钮 */}}
-    <button type="button" class="sgx-dlg-close" data-dlg-close aria-label="{{ if $isEn }}Close{{ else }}关闭{{ end }}">×</button>
-    <div class="sheet-handle" data-dclose></div>
-    <h2 id="lockpkdel-title" class="sgx-verify-title">{{ if $isEn }}Delete passkey{{ else }}删除通行密钥{{ end }}</h2>
-    <p class="sgx-verify-desc" id="lockpkdel-desc"></p>
-    <div class="sgx-verify-actions">
-      <button type="button" class="sgx-verify-ghost" id="lockpkdel-cancel">{{ if $isEn }}Cancel{{ else }}取消{{ end }}</button>
-      <button type="button" class="sgx-verify-skip" id="lockpkdel-ok">{{ if $isEn }}Delete{{ else }}删除{{ end }}</button>
-    </div>
-  </div>
-</dialog>
-
 <!-- 密码设置/修改弹层 -->
 <dialog id="lockpw-dlg" class="sgx-verify-dlg" aria-labelledby="lockpw-title">
   <div class="sgx-verify-card">

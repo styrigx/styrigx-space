@@ -15,6 +15,7 @@ import { engines } from '../shell/engines.js';
 import { getHiddenApps } from '../shell/appvis.js';
 import { wellLoad, wellFlush } from '../shell/goodlock.js';
 import { setCapSearchProvider } from '../shell/capsule.js';
+import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
 import { showConfirmDialog } from '../lib/dialog-behavior.js';
 
 (function () {

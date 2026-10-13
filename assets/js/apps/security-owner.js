@@ -30,7 +30,6 @@ import { STORE_CLASS_OWNERKEY } from '../lib/key-names.js';
     statusApi: '/api/owner-status',
     pwKind: 'owner',
     keyClass: STORE_CLASS_OWNERKEY,
-    withApps: false,
     /* C1：站长凭证门返回 → 安全与隐私页（从哪里进门，就回哪里），不是设置首页 */
     homeUrl: en ? '/en/settings/security/' : '/settings/security/',
   });

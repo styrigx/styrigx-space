@@ -83,6 +83,11 @@ export function showExpiredDialog(t, kind, detail) {
     title = tx(t, 'expiredSessionTitle', '会话已失效', 'Session expired');
     desc = tx(t, 'expiredSessionDesc', '当前会话已失效，请重新解锁后继续。', 'Your session has expired. Please unlock again to continue.');
     btn = tx(t, 'expiredSessionBtn', '去锁屏', 'Go to lock screen');
+  } else if (kind === 'network') {
+    /* 批次 B #36：网络失败走网络文案，不按验证过期处理 */
+    title = tx(t, 'expiredNetworkTitle', '网络连接失败', 'Network connection failed');
+    desc = tx(t, 'errNetwork', '网络连接失败，请重试', 'Network connection failed, please retry');
+    btn = tx(t, 'expiredStepupBtn', '返回安全与隐私', 'Back to Security & privacy');
   } else if (detail === 'owner-configured') {
     /* 批次 A 验收修复 P0：代管中途站长层被配置 → 明确提示，不无提示踢回安全页 */
     title = tx(t, 'expiredStepupTitle', '验证已过期', 'Verification expired');
@@ -111,7 +116,7 @@ export function showExpiredDialog(t, kind, detail) {
 export function needVerify(t, reason, detail) {
   if (verifyJumped) return;
   verifyJumped = true;
-  const kind = reason === 'session' ? 'session' : 'stepup';
+  const kind = reason === 'session' ? 'session' : reason === 'network' ? 'network' : 'stepup';
   showExpiredDialog(t, kind, detail).catch(function () {});
 }
 
@@ -171,6 +176,41 @@ function tx(t, k, zh, en) {
     if (!isMissingTranslation(v, k)) return v;
   } catch (e) {}
   return document.documentElement.lang === 'en' ? en : zh;
+}
+
+/**
+ * 按失败原因取提示文案（探针面板用；needVerify 自批次 B #13 起走弹框，不再用它）。
+ * 批次 B 误删后 showProbeFailure 报 verifyMessage is not defined、面板不出，
+ * 在此恢复。#72 补充：探针失败时文案末尾带上服务端原因码，例如「验证已过期（no-pubkey）」。
+ * @param {(k:string)=>string} t 文案函数
+ * @param {string} [reason] 失败原因
+ * @param {string} [detail] 服务端原因码
+ */
+function verifyMessage(t, reason, detail) {
+  /* 批次 A 验收修复 P0：代管中途站长层被配置 → 明确提示，不无提示踢回安全页 */
+  if (reason === 'owner-configured' || detail === 'owner-configured') {
+    return tx(t, 'errOwnerConfigured', '站长凭证已设置，请用站长凭证重新验证', 'Owner credential is set, please verify with the owner credential again');
+  }
+  let msg;
+  switch (reason) {
+    case 'network':
+      msg = t('errNetwork');
+      break;
+    case 'parse':
+      msg = t('errParse');
+      break;
+    case 'stepup':
+      msg = t('errStepupExpired');
+      break;
+    case 'session':
+    default:
+      msg = t('sessExp');
+      break;
+  }
+  if (detail && typeof detail === 'string' && detail !== 'ok') {
+    msg += '（' + detail + '）';
+  }
+  return msg;
 }
 
 /**
