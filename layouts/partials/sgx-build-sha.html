@@ -1,0 +1,4 @@
+{{- /* #1 诊断：构建短 SHA。CI 经 SGX_BUILD_SHA 环境变量注入（github.sha）；
+   本地/测试构建默认 "dev"。站长截图确认线上版本用。 */ -}}
+{{- $s := getenv "SGX_BUILD_SHA" | default "dev" -}}
+{{- if gt (len $s) 7 }}{{ slicestr $s 0 7 }}{{ else }}{{ $s }}{{ end -}}

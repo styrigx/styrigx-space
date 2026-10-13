@@ -53,3 +53,4 @@ security:
       - '^HUGO_'
       - '^CI$'
       - '^GITHUB_SHA$'  # 2.6.0：关于本站显示构建 commit 短哈希
+      - '^SGX_BUILD_SHA$'  # #1 诊断：构建标记（仅生产构建设置，测试构建显示 dev）

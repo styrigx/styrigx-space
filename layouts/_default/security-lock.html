@@ -38,6 +38,7 @@
       </button>
     </section>
     <p class="sec-note mb-7">{{ if $isEn }}Unlock with fingerprint, face, or device passcode. Tap a device name to rename it.{{ else }}用指纹、面容或设备密码解锁。点设备名可重命名。{{ end }}</p>
+    <p class="sec-note mt-6 sgx-build-tag-wrap">{{ partial "build-tag.html" (dict "isEn" $isEn) }}</p>
   </div>
 </div>
 

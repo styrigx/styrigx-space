@@ -392,6 +392,9 @@ jobs:
 
       - name: Build site
         run: hugo --minify
+        env:
+          # #1 诊断：把短 commit SHA 写进 <html data-sgx-build> 及页面小字构建标记
+          SGX_BUILD_SHA: ${{ github.sha }}
 
       - name: Assert posts in files-index.json (P0-2)
         run: node scripts/assert-posts.mjs

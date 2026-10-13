@@ -18,6 +18,7 @@ import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
 import { mgmtButtons } from './mgmt-buttons.js';
 import { exchangeRootSession } from '../lib/root-session.js';
+import { takeJumpRecord } from './app-gate.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -244,7 +245,27 @@ import { exchangeRootSession } from '../lib/root-session.js';
             try {
               hasSession = document.documentElement.dataset.sgxRole === 'owner';
             } catch (e) {}
-            if (hasSession) return;
+            if (hasSession) {
+              /* #1 诊断：有会话时先预检刚签发的 stepup 票据。
+                 票有效才进门；无效则把接口、状态码、服务端 reason 留在弹层里，
+                 不关弹层、不跳转，方便定位。不显示密钥或 Cookie 值。 */
+              return postJSON('/api/stepup', { action: 'status' }).then(
+                function (st) {
+                  const sj = st.j;
+                  if (sj && sj.ok && sj.valid) return;
+                  const reason = (sj && sj.reason) || 'unknown';
+                  throw {
+                    message: (en ? 'Pre-check failed' : '预检未通过') +
+                      '（POST /api/stepup → ' + st.s + '，' + reason + '）',
+                  };
+                },
+                function () {
+                  throw { message: en ? 'Network connection failed, please retry' : '网络连接失败，请重试' };
+                }
+              );
+            }
+            /* 无会话路径：先走原来的换会话流程，不做 stepup 预检
+               （无会话时 middleware 对 /api/* 直接 401，预检必失败）。 */
             return exchangeRootSession().then(function (rs) {
               if (rs && rs.ok) return;
               throw { message: en ? 'Verification failed, please retry' : '验证失败，请重试' };
@@ -638,6 +659,21 @@ import { exchangeRootSession } from '../lib/root-session.js';
     });
   })();
 
+
+  /* #1 诊断：门内页跳转留痕。安全页加载时若有记录则显示一次（取即清除）。 */
+  (function () {
+    let jr = null;
+    try {
+      jr = takeJumpRecord();
+    } catch (e) {}
+    if (!jr) return;
+    const note = document.getElementById('sgx-jump-note');
+    const txt = document.getElementById('sgx-jump-note-text');
+    if (!note || !txt) return;
+    txt.textContent = (en ? 'Last door redirect: ' : '上次门内跳转：') +
+      jr.who + (jr.reason ? '（' + jr.reason + '）' : '');
+    note.hidden = false;
+  })();
 
   refresh(true);
 })();

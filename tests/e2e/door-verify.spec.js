@@ -85,6 +85,10 @@ test.describe('door verify dialog', () => {
 
   test('根凭证验证成功后直接进站长凭证门内页', async ({ page }) => {
     await mockJson(page, '**/api/root-auth', 200, { ok: true });
+    /* #1 诊断：根凭证成功后先预检 stepup 票据，valid 才进门。
+       测试环境静态构建无 data-sgx-role，显式置 owner 走有会话路径。 */
+    await page.evaluate(() => { document.documentElement.dataset.sgxRole = 'owner'; });
+    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true });
     await mockJson(page, '**/api/root-session', 200, { ok: true });
     await page.click('#sec-owner-cred');
     await expect(page.locator('#sec-verify-dlg')).toBeVisible();
@@ -93,6 +97,52 @@ test.describe('door verify dialog', () => {
     await page.locator('.sgx-door-expand textarea').fill('test-root-key');
     await page.locator('.sgx-door-actions .primary').click();
     await page.waitForURL('**/settings/security/owner/**', { timeout: 10000 });
+  });
+
+  test('根凭证成功但 stepup 预检失败时弹层不关闭并显示原因', async ({ page }) => {
+    await mockJson(page, '**/api/root-auth', 200, { ok: true });
+    /* 有会话路径才做 stepup 预检：测试环境显式置 owner */
+    await page.evaluate(() => { document.documentElement.dataset.sgxRole = 'owner'; });
+    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: false, reason: 'expired' });
+    await page.click('#sec-owner-cred');
+    await expect(page.locator('#sec-verify-dlg')).toBeVisible();
+    await page.locator('.sgx-door-row').filter({ hasText: '根凭证' }).click();
+    await page.locator('.sgx-door-expand textarea').fill('test-root-key');
+    await page.locator('.sgx-door-actions .primary').click();
+    /* 弹层不关闭，行内错误显示接口、状态码、reason */
+    const err = page.locator('.sgx-door-err:not([hidden])');
+    await expect(err.filter({ hasText: '预检未通过' })).toBeVisible({ timeout: 8000 });
+    await expect(err.filter({ hasText: 'POST /api/stepup' })).toBeVisible();
+    await expect(err.filter({ hasText: 'expired' })).toBeVisible();
+    await expect(page.locator('#sec-verify-dlg')).toBeVisible();
+    /* 未跳转，仍在安全页 */
+    expect(page.url()).toContain('/settings/security/');
+    expect(page.url()).not.toContain('/settings/security/owner/');
+  });
+
+  test('无会话时根凭证走换会话路径，不调 stepup 预检', async ({ page }) => {
+    /* 未配锁引导场景：无 owner 会话（测试环境 data-sgx-role 缺席即无会话）。
+       生产 middleware 对无会话的 /api/* 直接 401，预检必失败，
+       因此无会话路径不得调 /api/stepup，先走 /api/root-session 换会话。 */
+    await mockJson(page, '**/api/root-auth', 200, { ok: true });
+    let stepupCalls = 0;
+    await page.route('**/api/stepup', async (route) => {
+      stepupCalls++;
+      await route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: false }),
+      });
+    });
+    await mockJson(page, '**/api/root-session', 200, { ok: true });
+    await page.click('#sec-owner-cred');
+    await expect(page.locator('#sec-verify-dlg')).toBeVisible();
+    await page.locator('.sgx-door-row').filter({ hasText: '根凭证' }).click();
+    await page.locator('.sgx-door-expand textarea').fill('test-root-key');
+    await page.locator('.sgx-door-actions .primary').click();
+    /* 换会话成功后直接进门，不应被预检拦住 */
+    await page.waitForURL('**/settings/security/owner/**', { timeout: 10000 });
+    expect(stepupCalls).toBe(0);
   });
 
   test('点遮罩等同取消', async ({ page }) => {
