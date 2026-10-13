@@ -67,8 +67,30 @@ import { enterDoor, clearStepupThen } from './app-gate.js';
 
   /* C2b：系统返回手势（popstate）从索引页离开时同样清票。
      popstate 无法可靠拦截（浏览器立即导航），用 keepalive fetch 尽力而为：
-     即使页面卸载，请求仍会发出，服务端清票。不阻止导航，不干扰 inpagenav。 */
-  window.addEventListener('popstate', function () {
+     即使页面卸载，请求仍会发出，服务端清票。不阻止导航，不干扰 inpagenav。
+     审查返工：只在「即将离开索引页、目标不在管理凭证区」时才清。
+     从锁屏/应用子页返回索引页时，popstate 也会在索引页触发（bfcache 恢复或同文档历史），
+     此时目标仍在门内，清票会误清，导致回索引页后再点锁屏/应用要求重新验证。
+     目标判定：popstate 触发时 window.location 已更新为目标 URL；event.state.url 也可作参考。 */
+  window.addEventListener('popstate', function (e) {
+    let dest = '';
+    try {
+      /* 优先用 state.url（pushState 时写入），回退到当前 location */
+      if (e && e.state && e.state.url) {
+        dest = new URL(e.state.url, window.location.origin).pathname;
+      } else {
+        dest = window.location.pathname;
+      }
+    } catch (_) {
+      dest = window.location.pathname;
+    }
+    /* 管理凭证区路径（含 /en/）：索引页、锁屏、应用、Book 子页 */
+    const inMgmtArea = dest === '/settings/security/mgmt/' || dest === '/en/settings/security/mgmt/' ||
+      dest === '/settings/security/lock/' || dest === '/en/settings/security/lock/' ||
+      dest === '/settings/security/apps/' || dest === '/en/settings/security/apps/' ||
+      dest === '/settings/security/apps/book/' || dest === '/en/settings/security/apps/book/';
+    /* 目标仍在门内：不清除（回索引页后再进锁屏/应用不要求重新验证） */
+    if (inMgmtArea) return;
     try {
       fetch('/api/stepup', {
         method: 'POST',
@@ -77,7 +99,7 @@ import { enterDoor, clearStepupThen } from './app-gate.js';
         credentials: 'include',
         keepalive: true,
       }).catch(function () {});
-    } catch (e) {}
+    } catch (e2) {}
   });
 
   enterDoor(probe, onEnter, t);

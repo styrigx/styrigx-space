@@ -167,6 +167,8 @@ export async function getSessionEpoch(kv) {
  * - newEpoch：bump 后的新 epoch
  * - 属性与有效期与原会话同（同 by/role、同默认 Max-Age）；失败时静默（调用方已返回业务成功）。
  * - lockreset 等无会话场景：sess 为 null/不 ok 时不做任何事。
+ * - 必修安全项 2：by=root 的代开会话一律不重签（首次配 lock 的 bump 就是为了废止它，
+ *   重签回来等于 epoch +1 白做）。此检查写在 helper 里，所有调用点都生效。
  * @param {any} env
  * @param {Headers} headers
  * @param {{ok:boolean, by:string, role:string}|null} sess
@@ -174,6 +176,8 @@ export async function getSessionEpoch(kv) {
  */
 export async function reissueSessionWithEpoch(env, headers, sess, newEpoch) {
   if (!sess || !sess.ok || !sess.by || !sess.role) return;
+  /* 必修安全项 2：by=root 代开会话不重签，随 epoch 失效。 */
+  if (sess.by === BY_ROOT) return;
   const edPriv = (env && env.SGX_LOCK_PRIVATE) || '';
   if (!edPriv) return;
   try {

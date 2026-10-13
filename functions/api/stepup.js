@@ -97,6 +97,8 @@ export async function signStepupCookie(privatePem, by, scope, epoch) {
  * - sv：verifyStepupCookie 返回的 {ok, by, scope}（必须 ok）
  * - newEpoch：bump 后的新 epoch
  * - 失败时静默（调用方已返回业务成功）；lockreset 等场景 sv 不 ok 时不做任何事。
+ * - 必修安全项 1：by=root, scope=keys 的票一律不重签（首次配 owner 的 bump 就是为了废止它，
+ *   重签回来等于 epoch +1 白做）。此检查写在 helper 里，所有调用点都生效。
  * @param {any} env
  * @param {Headers} headers
  * @param {{ok:boolean, by:string, scope:string}|null} sv
@@ -104,6 +106,8 @@ export async function signStepupCookie(privatePem, by, scope, epoch) {
  */
 export async function reissueStepupWithEpoch(env, headers, sv, newEpoch) {
   if (!sv || !sv.ok || !sv.by || !sv.scope) return;
+  /* 必修安全项 1：by=root, scope=keys 票不重签，随 epoch 失效。 */
+  if (sv.by === STEPUP_BY_ROOT && sv.scope === STEPUP_SCOPE_KEYS) return;
   const stepupKey = env && env.SGX_STEPUP_PRIVATE;
   if (!stepupKey) return;
   try {

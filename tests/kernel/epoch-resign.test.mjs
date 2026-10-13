@@ -240,3 +240,87 @@ test('退出所有设备仍清当前 cookie（保持不变）', async () => {
   const cleared = setCookies.some((c) => c.startsWith('sgx-verified=;') && c.includes('Max-Age=0'));
   assert.equal(cleared, true, '退出所有设备应清当前 cookie');
 });
+
+/* ============ 审查返工：必修安全项 1/2，helper 层跳过 by=root ============ */
+
+test('必修安全项 2：by=root 会话不重签（首次配 lock 的 epoch bump 不被抵消）', async () => {
+  const { reissueSessionWithEpoch } = await import('../../functions/_kernel/session.js');
+  const { signSessionCookie } = await import('../../functions/_kernel/session.js');
+  const { verifySessionDetailed } = await import('../../functions/_middleware.js');
+  const kv = makeKV({ 'session-epoch': '5' });
+  /* by=root 代开会话（epoch 5） */
+  const rootSess = await signSessionCookie(LOCK_PRIV, 5, 'owner', 'root');
+  /* epoch bump 到 6（模拟首次配 lock） */
+  await kv.put('session-epoch', '6');
+  /* helper 应跳过，不发新 cookie */
+  const headers = new Headers();
+  await reissueSessionWithEpoch(testEnv(kv), headers, { ok: true, by: 'root', role: 'owner' }, 6);
+  const setCookies = headers.getSetCookie ? headers.getSetCookie() : [];
+  const reissued = setCookies.some((c) => c.startsWith('sgx-verified=') && !c.startsWith('sgx-verified=;'));
+  assert.equal(reissued, false, 'by=root 会话不应重签');
+  /* 旧会话 session-check 401（epoch 已变） */
+  const v = await verifySessionDetailed(
+    new Request('https://styrigx.com/', { headers: { Cookie: 'sgx-verified=' + rootSess } }),
+    testEnv(kv)
+  );
+  assert.equal(v.ok, false, '旧 by=root 会话应在 epoch bump 后失效');
+});
+
+test('必修安全项 1：by=root, scope=keys 票不重签（首次配 owner 的 epoch bump 不被抵消）', async () => {
+  const { reissueStepupWithEpoch, signStepupCookie, verifyStepupCookie } = await import('../../functions/api/stepup.js');
+  const kv = makeKV({ 'session-epoch': '5' });
+  /* by=root, scope=keys 票（epoch 5） */
+  const ticket = await signStepupCookie(STEPUP_PRIV, 'root', 'keys', 5);
+  /* epoch bump 到 6（模拟首次配 owner） */
+  await kv.put('session-epoch', '6');
+  /* helper 应跳过，不发新 cookie */
+  const headers = new Headers();
+  await reissueStepupWithEpoch(testEnv(kv), headers, { ok: true, by: 'root', scope: 'keys' }, 6);
+  const setCookies = headers.getSetCookie ? headers.getSetCookie() : [];
+  const reissued = setCookies.some((c) => c.startsWith('sgx-stepup=') && !c.startsWith('sgx-stepup=;'));
+  assert.equal(reissued, false, 'by=root, scope=keys 票不应重签');
+  /* 旧票验签失败（epoch 已变） */
+  const v = await verifyStepupCookie(
+    new Request('https://styrigx.com/', { headers: { Cookie: 'sgx-stepup=' + ticket } }),
+    testEnv(kv)
+  );
+  assert.equal(v.ok, false, '旧 by=root, scope=keys 票应在 epoch bump 后失效');
+});
+
+test('D2 保持：by=owner 会话 + 删 lockkey / 改密码 → 当前设备仍 200', async () => {
+  const { reissueSessionWithEpoch } = await import('../../functions/_kernel/session.js');
+  const { reissueStepupWithEpoch } = await import('../../functions/api/stepup.js');
+  const { signSessionCookie, parseSessionCookie } = await import('../../functions/_kernel/session.js');
+  const { verifySessionDetailed } = await import('../../functions/_middleware.js');
+  const kv = makeKV({ 'session-epoch': '5' });
+  /* by=owner 正常会话 */
+  const ownerSess = await signSessionCookie(LOCK_PRIV, 5, 'owner', 'owner');
+  /* epoch bump 到 6（模拟删 lockkey / 改密码） */
+  await kv.put('session-epoch', '6');
+  /* helper 应重签 */
+  const headers = new Headers();
+  await reissueSessionWithEpoch(testEnv(kv), headers, { ok: true, by: 'owner', role: 'owner' }, 6);
+  const setCookies = headers.getSetCookie ? headers.getSetCookie() : [];
+  const newSess = extractSessionCookie({ headers: { getSetCookie: () => setCookies } });
+  assert.ok(newSess, 'by=owner 会话应重签');
+  assert.equal(parseSessionCookie(newSess).epoch, 6, '新会话应为新 epoch');
+  assert.equal(parseSessionCookie(newSess).by, 'owner');
+  /* 新会话 session-check 200 */
+  const v = await verifySessionDetailed(
+    new Request('https://styrigx.com/', { headers: { Cookie: 'sgx-verified=' + newSess } }),
+    testEnv(kv)
+  );
+  assert.equal(v.ok, true, '重签后的 by=owner 会话应验签通过');
+  /* by=owner, scope=keys 票也应重签（D2 保持门内连续操作） */
+  const headers2 = new Headers();
+  await reissueStepupWithEpoch(testEnv(kv), headers2, { ok: true, by: 'owner', scope: 'keys' }, 6);
+  const setCookies2 = headers2.getSetCookie ? headers2.getSetCookie() : [];
+  const reissued2 = setCookies2.some((c) => c.startsWith('sgx-stepup=') && !c.startsWith('sgx-stepup=;'));
+  assert.equal(reissued2, true, 'by=owner, scope=keys 票应重签');
+  /* 旧 by=owner 会话失效（epoch 已变），但新会话有效 */
+  const vOld = await verifySessionDetailed(
+    new Request('https://styrigx.com/', { headers: { Cookie: 'sgx-verified=' + ownerSess } }),
+    testEnv(kv)
+  );
+  assert.equal(vOld.ok, false, '旧 by=owner 会话应在 epoch bump 后失效（新会话接替）');
+});
