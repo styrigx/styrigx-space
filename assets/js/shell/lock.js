@@ -20,7 +20,7 @@ import { on } from '../lib/events.js';
 import { visibleInterval } from '../lib/scheduler.js';
 import { reducedMotion } from '../lib/util.js';
 import { get as featGet } from '../lib/features.js';
-import { armVerifyKeyboard } from './verify-kb.js';
+import { followKeyboard } from './vk.js';
 import { get, getJSON } from '../lib/storage.js';
 import { exchangeRootSession } from '../lib/root-session.js';
 import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
@@ -355,14 +355,19 @@ function showLockScreen() {
   /** @type {any} */ let widgetId = null;
   let verifyDone = false;
   let pwLockedUntil = 0;
-  /* 键盘避让清理函数 */
+  /* 键盘避让：各态 setBody 后对新生成输入框调 followKeyboard(dlg, input)，
+     与其他弹层同一套逻辑（shell/vk.js）。作用到 dlg 而非 card，
+     避免与 card 入场动画冲突；旧 verify-kb.js（只动 card）已删除。 */
   let dlgKbCleanup = null;
-  function armDlgKb() {
-    if (dlgKbCleanup) dlgKbCleanup();
-    if (dlg) dlgKbCleanup = armVerifyKeyboard(dlg);
+  function armDlgKbFor(input) {
+    if (dlgKbCleanup) {
+      try { dlgKbCleanup(); } catch (e) {}
+      dlgKbCleanup = null;
+    }
+    if (dlg && input) dlgKbCleanup = followKeyboard(dlg, input);
   }
   function disarmDlgKb() {
-    if (dlgKbCleanup) { dlgKbCleanup(); dlgKbCleanup = null; }
+    if (dlgKbCleanup) { try { dlgKbCleanup(); } catch (e) {} dlgKbCleanup = null; }
   }
 
   function ensureDialog() {
@@ -464,7 +469,7 @@ function showLockScreen() {
       setBgHidden(false);
       return false;
     }
-    armDlgKb();
+    /* 键盘避让由各态 setBody 后 armDlgKbFor(input) 接入（输入框那时才存在） */
     /* 卡片高度稳定后（body 有 min-height）再量，避免跳动 */
     requestAnimationFrame(function () {
       liftAvatar();
@@ -922,6 +927,7 @@ function showLockScreen() {
         eye.classList.toggle('off', !show);
       });
     }
+    armDlgKbFor(input);
     if (input) {
       on(input, 'keydown', function (/** @type {KeyboardEvent} */ e) {
         if (e.key === 'Enter') {
@@ -1047,6 +1053,7 @@ function showLockScreen() {
         eye.classList.toggle('off', !show);
       });
     }
+    armDlgKbFor(input);
     if (input) {
       on(input, 'keydown', function (/** @type {KeyboardEvent} */ e) {
         if (e.key === 'Enter') {
@@ -1158,6 +1165,7 @@ function showLockScreen() {
     clearErr();
     var go = document.getElementById('sgx-reset-go');
     var input = document.getElementById('sgx-reset-root');
+    armDlgKbFor(input);
     if (input) {
       on(input, 'keydown', function (e) {
         if (e.key === 'Enter') { e.preventDefault(); submitResetRoot(); }
@@ -1222,6 +1230,7 @@ function showLockScreen() {
       '<div class="sgx-reset-switch-hint">' + switchHint + '</div>'
     );
     clearErr();
+    armDlgKbFor(document.getElementById('sgx-reset-pw'));
     var pkBtn = document.getElementById('sgx-reset-pk');
     var pwGo = document.getElementById('sgx-reset-pw-go');
     if (pkBtn) on(pkBtn, 'click', resetPk);
