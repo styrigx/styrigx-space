@@ -311,7 +311,7 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
             }
           })
           .catch(function () {
-            toast(t('gateNetErr'));
+            toast(t('errNetwork'));
           });
       }
       if (!zeroing) {
@@ -388,7 +388,7 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
         }
       })
       .catch(function () {
-        showErr('lockpw-err', t('gateNetErr'));
+        showErr('lockpw-err', t('errNetwork'));
       });
   }
   const pwGo = $('lockpw-go');
@@ -485,13 +485,13 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
             /* KV 最终一致：刚注册的 key 可能暂时读不到 */
             showErr('lockpkname-err', t('pkRetryLater'));
           } else if (!j) {
-            showErr('lockpkname-err', t('gateNetErr'));
+            showErr('lockpkname-err', t('errParse'));
           } else {
             showErr('lockpkname-err', srvErr(j.error, r.status));
           }
         })
         .catch(function () {
-          showErr('lockpkname-err', t('gateNetErr'));
+          showErr('lockpkname-err', t('errNetwork'));
         });
     });
   }
@@ -673,13 +673,13 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
                 } else if (jj && jj.error === 'not-found') {
                   toast(t('pkRetryLater'));
                 } else if (!jj) {
-                  toast(t('gateNetErr'));
+                  toast(t('errNetwork'));
                 } else {
                   toast(srvErr(jj.error, r2.status));
                 }
               })
               .catch(function () {
-                toast(t('gateNetErr'));
+                toast(t('errNetwork'));
               });
             }
             if (!zeroing) {
@@ -765,13 +765,13 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
                     /* KV 最终一致：刚注册的 key 可能暂时读不到 */
                     toast(t('pkRetryLater'));
                   } else if (!jj) {
-                    toast(t('gateNetErr'));
+                    toast(t('errParse'));
                   } else {
                     toast(srvErr(jj.error, r2.status));
                   }
                 })
                 .catch(function () {
-                  toast(t('gateNetErr'));
+                  toast(t('errNetwork'));
                 });
             });
           });
@@ -837,12 +837,13 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
           needReauth(res.json.error, res.json.reason);
         } else {
           const code = (res.json && res.json.error) || 'failed';
-          toast((t('gateSrvErr') || '失败') + ': ' + code);
+          toast(apiErrorText(t, code, res.status));
         }
       })
       .catch(function (e) {
-        const code = e && e.code ? e.code : null;
-        toast((t('gateNetErr') || '网络错误') + (code ? ': ' + code : ''));
+        if (e && e.name === 'NotAllowedError') toast(t('gateCancelled'));
+        else if (e && e.name === 'InvalidStateError') toast(t('pkAlready'));
+        else toast(t('errNetwork'));
       });
   }
 
@@ -939,7 +940,7 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
           else if (e.kind === 'reauth') needReauth(e.code, e.reason);
           else if (e.kind === 'server') toast(srvErr(e.code));
           else if (e.kind === 'failed') toast(t('pkFailed'));
-          else toast(t('gateNetErr'));
+          else toast(t('errNetwork'));
         });
     });
   }

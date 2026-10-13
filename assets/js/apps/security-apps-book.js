@@ -111,7 +111,7 @@ import { STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY } from '../lib/key-names.js';
             }
           })
           .catch(function () {
-            toast(t('gateNetErr'));
+            toast(t('errNetwork'));
             nameInput.value = lastSaved;
           });
       };
@@ -171,7 +171,7 @@ import { STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY } from '../lib/key-names.js';
               }
             })
             .catch(function () {
-              toast(t('gateNetErr'));
+              toast(t('errNetwork'));
             });
         }).catch(function () {});
       });
@@ -284,7 +284,7 @@ import { STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY } from '../lib/key-names.js';
         toast(apiErrorText(t, j && j.error, res.status));
       }
     }).catch(function () {
-      toast(t('gateNetErr'));
+      toast(t('errNetwork'));
     });
   }
 

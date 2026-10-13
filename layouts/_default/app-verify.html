@@ -201,7 +201,7 @@
           showError('该应用还没有通行密钥。', true, checked.settingsPath, checked.appName);
           return;
         }
-        showError('验证未完成：' + e.message + '。请重试。', false);
+        showError('验证未完成，请重试。', false);
         return;
       }
 
@@ -215,14 +215,16 @@
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        showError('签发失败：' + (data.error || res.status), false);
+        /* 批次 B #36：签发失败不带错误码/状态码；5xx 给服务文案 */
+        if (res.status >= 500) showError('服务暂时不可用，请稍后重试', false);
+        else if (res.status === 429) showError('尝试次数过多', false);
+        else showError('签发失败，请重试', false);
         return;
       }
 
       const data = await res.json();
       if (!data.ok) {
-        showError('签发失败：' + (data.error || 'unknown'), false);
+        showError('签发失败，请重试', false);
         return;
       }
 
@@ -231,7 +233,7 @@
       document.getElementById('appv-done').hidden = false;
       location.replace(data.return || returnUrl);
     } catch (e) {
-      showError('网络错误：' + e.message, false);
+      showError('网络连接失败，请重试', false);
     }
   }
 

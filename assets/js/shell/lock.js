@@ -25,6 +25,7 @@ import { get, getJSON } from '../lib/storage.js';
 import { exchangeRootSession } from '../lib/root-session.js';
 import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, tapFeedback } from '../lib/dialog-behavior.js';
+import { toast } from '../lib/toast.js';
 
 const LOCK =
   '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
@@ -93,6 +94,21 @@ export function initLock() {
   } catch (e) {}
   if (!ok && !isLockreset) {
     showLockScreen();
+  }
+  /* 批次 B R1：定稿 #11 一次性提示——重置流程返回锁屏时（?reset=done），
+     只显示一次「解锁方式已更新，请用新凭证解锁」，随即 replaceState 去参。 */
+  if (!ok && !isLockreset) {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('reset') === 'done') {
+        const isEn = document.documentElement.lang === 'en';
+        toast(isEn ? 'Unlock method updated, please unlock with your new credential' : '解锁方式已更新，请用新凭证解锁');
+        params.delete('reset');
+        const qs = params.toString();
+        const next = window.location.pathname + (qs ? '?' + qs : '') + window.location.hash;
+        try { window.history.replaceState(null, '', next); } catch (e) {}
+      }
+    } catch (e) {}
   }
   /* 会话有效：直接显示页面，不弹锁屏。
      防死循环失效修复：子站踢回带 ?why= 时 L1 已停止 302（返回 200 首页），
@@ -711,10 +727,15 @@ function showLockScreen() {
    */
   function buildMethodSheet(cfg) {
     const hasPk = !!(window.PublicKeyCredential);
-    const showPk = cfg.passkey && hasPk;
-    const showPw = cfg.password;
-    const showReset = cfg.passkey || cfg.password;
-    const showMk = !cfg.passkey && !cfg.password;
+    /* 批次 B #10/#16：resetOnly 时只渲染访客 + 重置锁屏（不渲染通行密钥/密码/根凭证入口）；
+       根凭证入口只在启动站（锁屏无凭证且 owner 未配置）显示。
+       fetch 失败时 cfg 为空对象 → ownerConfigured 按 true 处理（fail closed，不暴露根凭证入口）。 */
+    const resetOnly = !!cfg.resetOnly;
+    const ownerConfigured = cfg.ownerConfigured !== false;
+    const showPk = !resetOnly && cfg.passkey && hasPk;
+    const showPw = !resetOnly && cfg.password;
+    const showReset = resetOnly || cfg.passkey || cfg.password;
+    const showMk = !resetOnly && !cfg.passkey && !cfg.password && !ownerConfigured;
     const sheet = document.createElement('div');
     sheet.id = 'sgx-method-sheet';
     sheet.setAttribute('role', 'dialog');
@@ -731,7 +752,7 @@ function showLockScreen() {
       '<span class="sgx-method-ic" aria-hidden="true">' +
       '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2.5"/></svg></span>' +
       '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Visitor' : '访客进入') + '</span>' +
-      '<span class="sgx-method-desc">' + (en ? 'Verify you are human via Cloudflare' : '通过 Cloudflare 验证你不是机器人') + '</span></span>' +
+      '<span class="sgx-method-desc">' + (en ? 'Verify you are human' : '验证你不是机器人') + '</span></span>' +
       '</button>' +
       /* 2. 通行密钥（已配置且设备支持） */
       (showPk
@@ -740,7 +761,7 @@ function showLockScreen() {
           '<span class="sgx-method-ic" aria-hidden="true">' +
           '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.9-.8"/></svg></span>' +
           '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Passkey' : '通行密钥') + '</span>' +
-          '<span class="sgx-method-desc">' + (en ? 'Unlock with fingerprint or device PIN' : '用指纹或设备 PIN 解锁') + '</span></span>' +
+          '<span class="sgx-method-desc">' + (en ? 'Unlock with fingerprint, face, or device passcode' : '用指纹、面容或设备密码解锁') + '</span></span>' +
           '</button>'
         : '') +
       /* 3. 密码（已配置） */
@@ -753,7 +774,8 @@ function showLockScreen() {
           '<span class="sgx-method-desc">' + (en ? 'Enter your unlock password' : '输入解锁密码') + '</span></span>' +
           '</button>'
         : '') +
-      /* 4. 重置锁屏：验证身份后重设解锁方式（任一锁屏凭证已配置时显示） */
+      /* 4. 重置锁屏：验证身份后重设解锁方式（任一锁屏凭证已配置时显示；
+         resetOnly 时也显示——锁屏凭证已清空，靠重置锁屏重新设置） */
       (showReset
         ? '<button type="button" class="sgx-method-opt" id="sgx-mopt-reset" aria-label="' +
           (en ? 'Reset lock screen' : '重置锁屏') + '">' +
@@ -1000,7 +1022,7 @@ function showLockScreen() {
         if (dlgState !== 'password') return;
         const j = res.j;
         if (!j) {
-          showError(en ? 'Server error' : '服务器错误');
+          showError(en ? 'Unexpected server response, please retry' : '服务响应异常，请重试');
           return;
         }
         if (j.ok) {
@@ -1013,7 +1035,7 @@ function showLockScreen() {
         } else if (j.error === 'not-set') {
           showError(en ? 'No password set yet' : '尚未设置密码');
         } else if (j.error === 'server') {
-          showError(en ? 'Server error' : '服务器错误');
+          showError(en ? 'Service temporarily unavailable, please try again later' : '服务暂时不可用，请稍后重试');
         } else {
           showError(en ? 'Wrong password' : '密码错误');
           if (input) input.value = '';
@@ -1021,7 +1043,7 @@ function showLockScreen() {
       })
       .catch(function () {
         if (dlgState !== 'password') return;
-        showError(en ? 'Network error' : '网络错误');
+        showError(en ? 'Network connection failed, please retry' : '网络连接失败，请重试');
       });
   }
 
@@ -1088,7 +1110,7 @@ function showLockScreen() {
         if (dlgState !== 'mgmtkey') return;
         const j = res.j;
         if (!j) {
-          showError(en ? 'Server error' : '服务器错误');
+          showError(en ? 'Unexpected server response, please retry' : '服务响应异常，请重试');
           return;
         }
         if (j.ok) {
@@ -1112,18 +1134,18 @@ function showLockScreen() {
                   sgxNavigate(en ? '/en/settings/security/' : '/settings/security/', 'lock.js:1103', 'mgmtkey-ok');
                 }
               } else {
-                showError(en ? 'Server error' : '服务器错误');
+                showError(en ? 'Service temporarily unavailable, please try again later' : '服务暂时不可用，请稍后重试');
                 if (input) input.value = '';
               }
             })
             .catch(function () {
               if (dlgState !== 'mgmtkey') return;
-              showError(en ? 'Network error' : '网络错误');
+              showError(en ? 'Network connection failed, please retry' : '网络连接失败，请重试');
             });
         } else if (res.s === 429) {
           showError(en ? 'Too many attempts' : '尝试次数过多');
         } else if (res.s === 503 || res.s === 500) {
-          showError(en ? 'Server error' : '服务器错误');
+          showError(en ? 'Service temporarily unavailable, please try again later' : '服务暂时不可用，请稍后重试');
         } else {
           showError(en ? 'Wrong root credential' : '根凭证错误');
           if (input) input.value = '';
@@ -1131,7 +1153,7 @@ function showLockScreen() {
       })
       .catch(function () {
         if (dlgState !== 'mgmtkey') return;
-        showError(en ? 'Network error' : '网络错误');
+        showError(en ? 'Network connection failed, please retry' : '网络连接失败，请重试');
       });
   }
 
@@ -1221,8 +1243,8 @@ function showLockScreen() {
     /* 补充四：根凭证正确但开关无效时，在此步骤下方显示恢复开关提示。
        仅此处显示；根凭证错误、访客假入口、其他页面一律不出现。 */
     var switchHint = en
-      ? 'Owner credential unavailable? Add key recovery-switch (any value) in Cloudflare KV, valid for 24 hours, single use only.'
-      : '站长凭证也无法使用？在 Cloudflare KV 添加键 recovery-switch（值任意），24 小时内有效且仅限一次。';
+      ? 'Owner credential unavailable? You can enable one-time recovery in the site settings, valid for 24 hours.'
+      : '站长凭证也无法使用？可在站点后台开启一次性恢复，24 小时内有效';
     var pkBtnHtml = hasPk
       ? '<button type="button" class="sgx-verify-skip" id="sgx-reset-pk">' + (en ? 'Use passkey' : '使用通行密钥') + '</button>'
       : '';
@@ -1373,7 +1395,7 @@ function showLockScreen() {
         } else if (typeof SyntaxError !== 'undefined' && e instanceof SyntaxError) {
           showError(en ? 'Unexpected server response, please retry' : '服务响应异常，请重试');
         } else {
-          showError(en ? 'Network error' : '网络错误');
+          showError(en ? 'Verification failed' : '验证失败');
         }
       });
   }

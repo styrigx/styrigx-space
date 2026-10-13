@@ -130,7 +130,9 @@ export function initUpgrade() {
         let rsJ = null;
         try { rsJ = await rsRes.json(); } catch (e) {}
         if (!(rsJ && rsJ.ok)) {
-          showErr(isEn ? 'Server error' : '服务器错误');
+          if (!rsJ) showErr(isEn ? 'Unexpected server response, please retry' : '服务响应异常，请重试');
+          else if (rsRes.status >= 500) showErr(isEn ? 'Service temporarily unavailable, please try again later' : '服务暂时不可用，请稍后重试');
+          else showErr(isEn ? 'Verification failed' : '验证失败');
           return;
         }
         // 若 URL 带 return：location.replace 当前地址，L1 校验 return 并 302；
@@ -144,11 +146,15 @@ export function initUpgrade() {
         }
       } else if (res.status === 429) {
         showErr(isEn ? 'Too many attempts' : '尝试次数过多');
+      } else if (res.status >= 500) {
+        showErr(isEn ? 'Service temporarily unavailable, please try again later' : '服务暂时不可用，请稍后重试');
       } else {
         showErr(isEn ? 'Wrong root credential' : '根凭证错误');
       }
     } catch (e) {
-      showErr(isEn ? 'Network error' : '网络错误');
+      if (typeof TypeError !== 'undefined' && e instanceof TypeError) showErr(isEn ? 'Network connection failed, please retry' : '网络连接失败，请重试');
+      else if (typeof SyntaxError !== 'undefined' && e instanceof SyntaxError) showErr(isEn ? 'Unexpected server response, please retry' : '服务响应异常，请重试');
+      else showErr(isEn ? 'Verification failed' : '验证失败');
     }
   }
 
@@ -168,7 +174,9 @@ export function initUpgrade() {
         showErr(isEn ? 'Wrong password' : '密码错误');
       }
     } catch (e) {
-      showErr(isEn ? 'Network error' : '网络错误');
+      if (typeof TypeError !== 'undefined' && e instanceof TypeError) showErr(isEn ? 'Network connection failed, please retry' : '网络连接失败，请重试');
+      else if (typeof SyntaxError !== 'undefined' && e instanceof SyntaxError) showErr(isEn ? 'Unexpected server response, please retry' : '服务响应异常，请重试');
+      else showErr(isEn ? 'Verification failed' : '验证失败');
     }
   }
 

@@ -212,7 +212,7 @@ export function initDoor(o) {
             }
           })
           .catch(function () {
-            toast(t('gateNetErr'));
+            toast(t('errNetwork'));
           });
       }).catch(function () {});
     };
@@ -257,7 +257,7 @@ export function initDoor(o) {
       .then(function (res) {
         const j = res.json;
         if (!j) {
-          showErr('lockpw-err', t('gateNetErr'));
+          showErr('lockpw-err', t('errParse'));
           return;
         }
         if (j.ok) {
@@ -278,7 +278,7 @@ export function initDoor(o) {
         }
       })
       .catch(function () {
-        showErr('lockpw-err', t('gateNetErr'));
+        showErr('lockpw-err', t('errNetwork'));
       });
   }
   const pwGo = $('lockpw-go');
@@ -372,13 +372,13 @@ export function initDoor(o) {
             /* KV 最终一致：刚注册的钥匙可能暂时读不到 */
             showErr('lockpkname-err', t('pkRetryLater'));
           } else if (!j) {
-            showErr('lockpkname-err', t('gateNetErr'));
+            showErr('lockpkname-err', t('errParse'));
           } else {
             showErr('lockpkname-err', apiErrorText(t, j.error, r.status));
           }
         })
         .catch(function () {
-          showErr('lockpkname-err', t('gateNetErr'));
+          showErr('lockpkname-err', t('errNetwork'));
         });
     });
   }
@@ -463,7 +463,7 @@ export function initDoor(o) {
           }
         })
         .catch(function () {
-          toast(t('gateNetErr'));
+          toast(t('errNetwork'));
           nameInput.value = lastSaved;
         });
     };
@@ -520,7 +520,7 @@ export function initDoor(o) {
           }
         })
         .catch(function () {
-          toast(t('gateNetErr'));
+          toast(t('errNetwork'));
         });
     });
     li.appendChild(nameWrap);
@@ -635,7 +635,7 @@ export function initDoor(o) {
                   }
                 })
                 .catch(function () {
-                  toast(t('gateNetErr'));
+                  toast(t('errNetwork'));
                 });
             });
           });
@@ -717,7 +717,7 @@ export function initDoor(o) {
         else if (e.kind === 'nosupport') toast(t('pkNoSupport'));
         else if (e.kind === 'failed') toast(t('pkFailed'));
         else if (e.kind === 'server') toast(apiErrorText(t, e.code));
-        else toast(t('gateNetErr'));
+        else toast(t('errNetwork'));
       });
   }
 
@@ -810,7 +810,7 @@ export function initDoor(o) {
           else if (e.kind === 'nosupport') toast(t('pkNoSupport'));
           else if (e.kind === 'server') toast(apiErrorText(t, e.code));
           else if (e.kind === 'failed') toast(t('pkFailed'));
-          else toast(t('gateNetErr'));
+          else toast(t('errNetwork'));
         });
     });
   }
