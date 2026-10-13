@@ -37,6 +37,7 @@
       </button>
     </section>
     <p class="sec-note">{{ if $isEn }}Used to enter credential management. Tap a device name to rename it.{{ else }}用于进入管理凭证。点设备名可重命名。{{ end }}</p>
+    <p class="sec-note mt-6">{{ partial "build-tag.html" (dict "isEn" $isEn) }}</p>
   </div>
 </div>
 

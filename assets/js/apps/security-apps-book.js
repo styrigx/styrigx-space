@@ -10,7 +10,7 @@
  */
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
-import { api, enterDoor, apiErrorText, clearStepupThen, b64urlToBuf, bufToB64url } from './app-gate.js';
+import { api, enterDoor, apiErrorText, clearStepupThen, b64urlToBuf, bufToB64url, recordJump } from './app-gate.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -294,6 +294,7 @@ import { api, enterDoor, apiErrorText, clearStepupThen, b64urlToBuf, bufToB64url
     if (!wrap || !btn) return;
     wrap.hidden = false;
     on(btn, 'click', function () {
+      recordJump('book-return', ret);
       location.href = ret;
     });
   }

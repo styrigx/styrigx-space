@@ -9,6 +9,7 @@
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
+import { recordJump } from './app-gate.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -538,6 +539,7 @@ import { followKeyboard } from '../shell/vk.js';
         document.cookie = 'sgx-stepup=; Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
       } catch (e) {}
       /* 回安全页 */
+      recordJump('lockout', '');
       location.href = document.documentElement.lang === 'en' ? '/en/settings/security/' : '/settings/security/';
     });
   }

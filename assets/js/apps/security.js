@@ -18,6 +18,7 @@ import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
 import { mgmtButtons } from './mgmt-buttons.js';
 import { exchangeRootSession } from '../lib/root-session.js';
+import { takeJumpRecord } from './app-gate.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -237,18 +238,36 @@ import { exchangeRootSession } from '../lib/root-session.js';
         function (res) {
           const j = res.j;
           if (j && j.ok) {
-            /* 已有 owner 会话时直接进门，不需换会话。
-               只有无会话（访客+未配锁引导）才需调 /api/root-session 换站长会话，
-               否则被 middleware 拦。 */
-            let hasSession = false;
-            try {
-              hasSession = document.documentElement.dataset.sgxRole === 'owner';
-            } catch (e) {}
-            if (hasSession) return;
-            return exchangeRootSession().then(function (rs) {
-              if (rs && rs.ok) return;
-              throw { message: en ? 'Verification failed, please retry' : '验证失败，请重试' };
-            });
+            /* #1 诊断：根凭证成功后先预检刚签发的 stepup 票据。
+               票有效才进门；无效则把接口、状态码、服务端 reason 留在弹层里，
+               不关弹层、不跳转，方便定位。不显示密钥或 Cookie 值。 */
+            return postJSON('/api/stepup', { action: 'status' }).then(
+              function (st) {
+                const sj = st.j;
+                if (sj && sj.ok && sj.valid) {
+                  /* 已有 owner 会话时直接进门，不需换会话。
+                     只有无会话（访客+未配锁引导）才需调 /api/root-session 换站长会话，
+                     否则被 middleware 拦。 */
+                  let hasSession = false;
+                  try {
+                    hasSession = document.documentElement.dataset.sgxRole === 'owner';
+                  } catch (e) {}
+                  if (hasSession) return;
+                  return exchangeRootSession().then(function (rs) {
+                    if (rs && rs.ok) return;
+                    throw { message: en ? 'Verification failed, please retry' : '验证失败，请重试' };
+                  });
+                }
+                const reason = (sj && sj.reason) || 'unknown';
+                throw {
+                  message: (en ? 'Pre-check failed' : '预检未通过') +
+                    '（POST /api/stepup → ' + st.s + '，' + reason + '）',
+                };
+              },
+              function () {
+                throw { message: en ? 'Network connection failed, please retry' : '网络连接失败，请重试' };
+              }
+            );
           }
           if (res.s === 429) {
             throw { message: en ? 'Too many attempts, please try again in 15 minutes' : '尝试太多次，请 15 分钟后再试' };
@@ -638,6 +657,21 @@ import { exchangeRootSession } from '../lib/root-session.js';
     });
   })();
 
+
+  /* #1 诊断：门内页跳转留痕。安全页加载时若有记录则显示一次（取即清除）。 */
+  (function () {
+    let jr = null;
+    try {
+      jr = takeJumpRecord();
+    } catch (e) {}
+    if (!jr) return;
+    const note = document.getElementById('sgx-jump-note');
+    const txt = document.getElementById('sgx-jump-note-text');
+    if (!note || !txt) return;
+    txt.textContent = (en ? 'Last door redirect: ' : '上次门内跳转：') +
+      jr.who + (jr.reason ? '（' + jr.reason + '）' : '');
+    note.hidden = false;
+  })();
 
   refresh(true);
 })();
