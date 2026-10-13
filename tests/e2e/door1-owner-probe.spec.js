@@ -5,8 +5,8 @@
  * → 站长凭证用根凭证验证 → 停在门内页并能列出、删除 ownerkey。
  *
  * 探针必须同时验证「会话 + 门票据」：
- * - 会话有效但票据无效 → 探针失败，显示「验证已过期，请重新验证」（不是「会话过期」），
- *   跳回安全与隐私页。（修前：探针只验会话，页面进入后门内 API 全部 403，用户被动等待）
+ * - 会话有效但票据无效 → 探针失败，留在门内页显示原因（接口、状态码、服务端 reason），
+ *   不自动跳转。（修前：探针只验会话，页面进入后门内 API 全部 403，用户被动等待）
  * - 会话 + 票据都有效 → 停在门内页，列出 ownerkey，可删除。
  *
  * 运行：npx playwright test --config=playwright.config.js door1-owner-probe.spec.js
@@ -33,7 +33,7 @@ test.describe('#1 owner door probe', () => {
     });
   });
 
-  test('会话有效但票据无效 → 显示「验证已过期」并跳回安全页（不是「会话过期」）', async ({ page }) => {
+  test('会话有效但票据无效 → 留在门内页显示原因（不跳转）', async ({ page }) => {
     /* 会话有效 */
     await mockJson(page, '**/api/owner-status', 200, { ok: true, password: false, passkey: true });
     /* 票据无效（过期） */
@@ -41,14 +41,31 @@ test.describe('#1 owner door probe', () => {
 
     await page.goto('/settings/security/owner/', { waitUntil: 'domcontentloaded' });
 
-    /* 探针失败 → toast 显示「验证已过期，请重新验证」，不是「会话过期，请重新验证」 */
-    const toast = page.locator('.sgx-toast');
-    await expect(toast.filter({ hasText: '验证已过期，请重新验证' })).toBeVisible({ timeout: 10000 });
-    await expect(toast.filter({ hasText: '会话过期，请重新验证' })).toHaveCount(0);
-    /* #72 补充：toast 末尾带上服务端原因码 */
-    await expect(toast.filter({ hasText: '（expired）' })).toBeVisible({ timeout: 10000 });
+    /* 探针失败 → 留在门内页，不跳转 */
+    await expect(page).toHaveURL(/\/settings\/security\/owner\//, { timeout: 10000 });
+    await page.waitForTimeout(1500);
+    await expect(page).toHaveURL(/\/settings\/security\/owner\//);
 
-    /* 900ms 后跳回安全与隐私页 */
+    /* 失败面板可见，显示原因（不被遮罩挡住） */
+    const panel = page.locator('#sgx-probe-fail');
+    await expect(panel).toBeVisible({ timeout: 10000 });
+    /* 原因文字：「验证已过期」，不是「会话过期」 */
+    await expect(panel.filter({ hasText: '验证已过期' })).toBeVisible();
+    await expect(panel.filter({ hasText: '会话过期' })).toHaveCount(0);
+    /* 服务端原因码可见 */
+    await expect(panel.filter({ hasText: 'expired' })).toBeVisible();
+    /* 接口和状态码可见 */
+    await expect(panel.filter({ hasText: 'POST /api/stepup' })).toBeVisible();
+    await expect(panel.filter({ hasText: '200' })).toBeVisible();
+
+    /* 锁屏遮罩已移除（原因文字不被盖住） */
+    await expect(page.locator('#sgx-lock')).toHaveCount(0);
+
+    /* 「返回安全与隐私」按钮存在 */
+    const backBtn = panel.getByRole('button', { name: /返回安全与隐私/ });
+    await expect(backBtn).toBeVisible();
+    /* 点按钮才跳转 */
+    await backBtn.click();
     await expect(page).toHaveURL(/\/settings\/security\/?$/, { timeout: 10000 });
   });
 
@@ -100,7 +117,7 @@ test.describe('#1 owner door probe', () => {
     await expect(keyInput).toHaveValue('Test Owner Key');
   });
 
-  test('探针网络失败 → 显示「网络连接失败，请重试」（不是「会话过期」）', async ({ page }) => {
+  test('探针网络失败 → 留在门内页显示「网络连接失败」（不跳转）', async ({ page }) => {
     /* /api/owner-status 直接 abort（模拟网络失败） */
     await page.route('**/api/owner-status', async (route) => {
       await route.abort();
@@ -108,8 +125,15 @@ test.describe('#1 owner door probe', () => {
 
     await page.goto('/settings/security/owner/', { waitUntil: 'domcontentloaded' });
 
-    const toast = page.locator('.sgx-toast');
-    await expect(toast.filter({ hasText: '网络连接失败，请重试' })).toBeVisible({ timeout: 10000 });
-    await expect(toast.filter({ hasText: '会话过期，请重新验证' })).toHaveCount(0);
+    /* 留在门内页 */
+    await expect(page).toHaveURL(/\/settings\/security\/owner\//, { timeout: 10000 });
+    await page.waitForTimeout(1500);
+    await expect(page).toHaveURL(/\/settings\/security\/owner\//);
+
+    /* 失败面板显示网络原因，不是「会话过期」 */
+    const panel = page.locator('#sgx-probe-fail');
+    await expect(panel).toBeVisible({ timeout: 10000 });
+    await expect(panel.filter({ hasText: '网络连接失败' })).toBeVisible();
+    await expect(panel.filter({ hasText: '会话过期' })).toHaveCount(0);
   });
 });
