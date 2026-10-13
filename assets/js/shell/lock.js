@@ -24,7 +24,7 @@ import { followKeyboard } from './vk.js';
 import { get, getJSON } from '../lib/storage.js';
 import { exchangeRootSession } from '../lib/root-session.js';
 import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, tapFeedback } from '../lib/dialog-behavior.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, tapFeedback, showConfirmDialog } from '../lib/dialog-behavior.js';
 import { toast } from '../lib/toast.js';
 
 const LOCK =
@@ -45,28 +45,155 @@ function isLocalDev() {
   return /^(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
 }
 
-/* 子站验证失败提示（小字显示在页面底部；幂等，重复调用只更新文案）。
-   原在 showLockScreen 内，提到模块作用域：initLock 在会话有效时不进锁屏，
-   也需要直接显示 ?why= 原因。 */
-function showSubsiteFailure(why) {
-  let el = document.getElementById('sgx-subsite-failure');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'sgx-subsite-failure';
-    el.style.cssText = 'position:fixed;bottom:24px;left:0;right:0;text-align:center;font-size:12px;color:rgba(255,255,255,0.6);z-index:10001;';
-    document.body.appendChild(el);
+/* R3 子站回跳守卫（sessionStorage，只记目标 origin+path 与时间）。
+   why 不再等于「停止回跳」：只有「同一目标 20 秒内被踢回第二次」才算死循环。
+   回跳前记守卫；解锁成功，或打开时会话已有效且带 return：20 秒内没对同一目标
+   回跳过 → 去掉 why 后 location.replace，交给 L1 校验 return 并 302
+   （L1 仍是唯一的 return 白名单校验）；20 秒内同一目标第二次被踢回 →
+   不自动跳，显示失败卡。L1「带 why 不 302」保持不变，作服务端兜底。 */
+const RETURN_GUARD_KEY = 'sgx-return-guard';
+const RETURN_GUARD_WINDOW_MS = 20000;
+
+/** @param {string} ret @returns {string} */
+function returnTarget(ret) {
+  try {
+    const u = new URL(ret, window.location.origin);
+    return u.origin + u.pathname;
+  } catch (e) {
+    return '';
   }
-  const reasons = {
-    'no-cookie': '无凭证',
-    'bad-format': '凭证格式错误',
-    'expired': '凭证已过期',
-    'key-import': '公钥导入失败',
-    'sig': '签名验证失败',
-    'epoch-fetch': '无法获取会话纪元',
-    'epoch-stale': '凭证纪元过旧',
-    'no-config': '子站未配置公钥'
-  };
-  el.textContent = '子站验证失败：' + (reasons[why] || why);
+}
+
+/** @returns {{target:string, t:number}|null} */
+function readReturnGuard() {
+  try {
+    const raw = window.sessionStorage.getItem(RETURN_GUARD_KEY);
+    if (!raw) return null;
+    const g = JSON.parse(raw);
+    if (g && typeof g.target === 'string' && typeof g.t === 'number') return g;
+  } catch (e) {}
+  return null;
+}
+
+/** @param {string} target */
+function recordReturnGuard(target) {
+  try {
+    window.sessionStorage.setItem(RETURN_GUARD_KEY, JSON.stringify({ target: target, t: Date.now() }));
+  } catch (e) {}
+}
+
+function clearReturnGuard() {
+  try {
+    window.sessionStorage.removeItem(RETURN_GUARD_KEY);
+  } catch (e) {}
+}
+
+/** 去掉 why 后 location.replace，交给 L1 校验 return 并 302 */
+function stripWhyAndReload() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    params.delete('why');
+    const qs = params.toString();
+    const next = window.location.pathname + (qs ? '?' + qs : '') + window.location.hash;
+    sgxReplace(next, 'lock.js:return-guard', 'return-reload');
+  } catch (e) {}
+}
+
+/** 留在主站：去掉 return/why，不再触发回跳（replaceState，不重载） */
+function stayOnMain() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    params.delete('return');
+    params.delete('why');
+    const qs = params.toString();
+    const next = window.location.pathname + (qs ? '?' + qs : '') + window.location.hash;
+    try { window.history.replaceState(null, '', next); } catch (e) {}
+  } catch (e) {}
+}
+
+/**
+ * 尝试回跳（R3）。
+ * @param {string} ret
+ * @param {string} why
+ * @param {(() => void)|null} [onStay] 留在主站后调用（如锁屏页需继续开锁动画）
+ * @returns {boolean} true = 已发起回跳（重载）或已显示失败卡，调用方不再做其他事
+ */
+function attemptReturnJump(ret, why, onStay) {
+  if (!ret) return false;
+  const target = returnTarget(ret);
+  if (!target) return false;
+  const g = readReturnGuard();
+  if (g && g.target === target && Date.now() - g.t < RETURN_GUARD_WINDOW_MS) {
+    /* 20 秒内同一目标第二次被踢回 → 死循环，不自动跳，显示失败卡 */
+    showSubsiteFailure(why, ret, onStay || null);
+    return true;
+  }
+  recordReturnGuard(target);
+  stripWhyAndReload();
+  return true;
+}
+
+/* 子站验证失败提示（R3：One UI 确认弹层，不露 why 码和内部名）。
+   旧版底部浅色小字（白色 60% 看不清）已删除。幂等，重复调用只保留第一张卡。 */
+let subsiteFailureShown = false;
+/**
+ * @param {string} why
+ * @param {string} ret
+ * @param {(() => void)|null} [onStay]
+ */
+function showSubsiteFailure(why, ret, onStay) {
+  if (subsiteFailureShown) return;
+  subsiteFailureShown = true;
+  /* 删旧小字元素（若有残留） */
+  try {
+    const old = document.getElementById('sgx-subsite-failure');
+    if (old) old.remove();
+  } catch (e) {}
+  const isEn = (function () {
+    try { return document.documentElement.lang === 'en'; } catch (e) { return false; }
+  })();
+  let siteZh = '该网站';
+  let siteEn = 'this site';
+  try {
+    const host = new URL(ret || '', window.location.origin).hostname;
+    if (host === 'book.styrigx.com') { siteZh = '书库'; siteEn = 'the Library'; }
+    else if (host === 'blog.styrigx.com') { siteZh = '博客'; siteEn = 'the Blog'; }
+  } catch (e) {}
+  const title = isEn ? "Couldn't return to " + siteEn : '没能回到' + siteZh;
+  let desc;
+  if (why === 'no-cookie') {
+    desc = isEn
+      ? 'This browser has not been verified yet, or it blocked cross-site sign-in info.'
+      : '这个浏览器还没有通过验证，或拦截了跨站登录信息。';
+  } else if (why === 'expired' || why === 'epoch-stale') {
+    desc = isEn ? 'Your sign-in has expired. Please unlock again.' : '登录已过期，请重新解锁。';
+  } else if (why === 'no-config' || why === 'key-import') {
+    desc = isEn
+      ? 'Something is wrong with the site setup. Please try again later.'
+      : '网站配置有问题，请稍后再试。';
+  } else {
+    desc = isEn ? 'Please unlock again and retry.' : '请重新解锁后再试。';
+  }
+  showConfirmDialog({
+    title: title,
+    desc: desc,
+    cancelLabel: isEn ? 'Stay here' : '留在主站',
+    confirmLabel: isEn ? 'Retry' : '重试',
+  }).then(function (ok) {
+    subsiteFailureShown = false;
+    if (ok) {
+      /* 重试：清守卫，再回跳一次 */
+      clearReturnGuard();
+      if (ret) attemptReturnJump(ret, why, onStay);
+    } else {
+      stayOnMain();
+      if (onStay) {
+        try { onStay(); } catch (e) {}
+      }
+    }
+  }).catch(function () {
+    subsiteFailureShown = false;
+  });
 }
 
 /**
@@ -111,13 +238,19 @@ export function initLock() {
     } catch (e) {}
   }
   /* 会话有效：直接显示页面，不弹锁屏。
-     防死循环失效修复：子站踢回带 ?why= 时 L1 已停止 302（返回 200 首页），
-     这里直接显示失败原因，不再跳回子站。会话无效时走锁屏解锁流程，
-     解锁后 handleSessionOk 会显示（已有逻辑，不重复）。 */
+     R3：子站踢回（带 return + why）不再一律停住——守卫判定后回跳一次
+     （去掉 why 后 reload，L1 校验 return 并 302），或 20 秒内第二次踢回时显示失败卡。
+     有 why 无 return：无目标可回，显示失败卡（通用站名）。 */
   if (ok) {
     try {
-      const why = new URLSearchParams(window.location.search).get('why');
-      if (why) showSubsiteFailure(why);
+      const params = new URLSearchParams(window.location.search);
+      const ret = params.get('return') || '';
+      const why = params.get('why') || '';
+      if (ret && why) {
+        attemptReturnJump(ret, why, null);
+      } else if (why) {
+        showSubsiteFailure(why, '', null);
+      }
     } catch (e) {}
   }
 }
@@ -316,11 +449,12 @@ function showLockScreen() {
     } catch (e) {}
   }
 
-  /* 服务端已确认会话有效后的统一处理（2.4.1）：
-     - URL 带 return：不做开锁动画，直接 location.replace(location.href)，
-       交给 L1 middleware 校验 return 并 302。分层规范：return 校验只归 L1，
-       前端不再重复做白名单校验。
-     - 不带 return：保持现有开锁动画，显示桌面。 */
+  /* 服务端已确认会话有效后的统一处理（2.4.1 + R3）：
+     - URL 带 return：走守卫回跳——20 秒内没对同一目标回跳过 → 去掉 why 后
+       location.replace，交给 L1 middleware 校验 return 并 302；20 秒内同一目标
+       第二次被踢回 → 显示失败卡，不自动跳。why 只作失败卡文案，不再阻止回跳。
+       分层规范：return 校验只归 L1，前端不再重复做白名单校验。
+     - 不带 return：保持现有开锁动画，显示桌面（why 无目标时忽略）。 */
   function handleSessionOk() {
     let ret = '';
     let why = '';
@@ -329,12 +463,10 @@ function showLockScreen() {
       ret = params.get('return') || '';
       why = params.get('why') || '';
     } catch (e) {}
-    /* 诊断：如果带 why（子站验证失败被踢回），显示原因并不再自动跳回子站，避免死循环 */
-    if (why) {
-      showSubsiteFailure(why);
-      return;
-    }
     if (ret) {
+      /* 锁屏页留在主站时继续开锁动画（显示桌面） */
+      if (attemptReturnJump(ret, why, function () { doUnlockAnimation(); })) return;
+      /* ret 解析不出目标时回落：reload 同一 URL（原有行为） */
       sgxReplace(window.location.href, 'lock.js:321', 'return-reload');
       return;
     }
