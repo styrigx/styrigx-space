@@ -40,16 +40,19 @@ export function onDialogBackdrop(e, dlg) {
 }
 
 /**
- * 返回手势（cancel 事件）处理：键盘开着先收键盘，键盘已收起才关闭。
+ * 返回手势（cancel 事件）处理：键盘开着时先收起键盘，弹层保留；
+ * 键盘已收起时再次返回才关闭弹层（当作取消）。
+ *
+ * 「键盘开着」的判断：输入框聚焦 + 可视视口被压缩（软键盘顶起）+ 粗指针设备。
+ * 只用 activeElement 判断会误判：桌面端弹层自动聚焦输入框时并没有软键盘，
+ * 以及移动端键盘收起后焦点仍在输入框里——这两种情况按 Escape/返回都应直接关闭。
  * @param {Event} e cancel 事件
  * @param {HTMLElement} dlg dialog 元素
  * @param {function(string)} closeFn 关闭函数，传原因 'back'
  * @returns {boolean} 是否已处理（true = 已 preventDefault，不走默认关闭）
  */
 export function onDialogCancel(e, dlg, closeFn) {
-  const ae = document.activeElement;
-  const kbOpen = !!(ae && ae.tagName && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'));
-  if (kbOpen) {
+  if (isSoftKeyboardOpen()) {
     e.preventDefault();
     blurFocusedInput(dlg);
     return true;
@@ -57,6 +60,21 @@ export function onDialogCancel(e, dlg, closeFn) {
   e.preventDefault();
   closeFn('back');
   return true;
+}
+
+/** 软键盘是否开着：输入框聚焦 + visualViewport 被压缩 + 粗指针。 */
+function isSoftKeyboardOpen() {
+  const ae = document.activeElement;
+  const inputFocused = !!(ae && ae.tagName && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'));
+  if (!inputFocused) return false;
+  try {
+    if (typeof window === 'undefined' || !window.visualViewport) return false;
+    if (typeof window.matchMedia === 'function' && !window.matchMedia('(pointer: coarse)').matches) return false;
+    /* 软键盘通常占 200–400px；100px 阈值排除地址栏伸缩等小幅变化 */
+    return (window.innerHeight - window.visualViewport.height) > 100;
+  } catch (err) {
+    return false;
+  }
 }
 
 /** 关闭弹层时记一条诊断（原因：close-btn / back / cancel-btn / success）。 */
@@ -72,33 +90,32 @@ export function recordDialogClose(who, reason) {
  * 绑定提交按钮（验证/保存）：pointerup（要求 pointerdown 也在该按钮）+ click 兜底，去重只提交一次。
  * - pointerup：键盘收起布局移动时 click 可能落遮罩上，pointerup 不依赖 click 落点。
  * - click 兜底：键盘 Enter/空格触发按钮时只有 click，没有 pointerup。
- * - 去重：pointerup 和 click 可能都触发，用 fired 标志只提交一次；提交后重置需调用方在下一轮重新绑定或手动重置。
+ * - 去重只针对同一次手势：pointerup 提交后忽略紧跟着的那一次 click（500ms 内），
+ *   之后自动允许再次提交，不靠调用方手动 reset。提交中的重复点击由调用方
+ *   现有的 busy/disabled 逻辑挡。
  * @param {HTMLElement} btn 按钮元素
  * @param {function(Event)} handler 提交处理函数
- * @returns {function()} 重置函数，调用后允许再次提交（用于表单重置/弹层重开）
+ * @returns {function()} 重置函数（兼容旧调用，清空去重时间戳）
  */
 export function bindSubmitButton(btn, handler) {
   if (!btn || typeof handler !== 'function') return function () {};
   let downOnBtn = false;
-  let fired = false;
-  function fire(e) {
-    if (fired) return;
-    fired = true;
-    handler(e);
-  }
+  let lastPointerupFireAt = 0;
   btn.addEventListener('pointerdown', function () { downOnBtn = true; });
   btn.addEventListener('pointerleave', function () { downOnBtn = false; });
   btn.addEventListener('pointerup', function (e) {
     if (!downOnBtn) return;
     downOnBtn = false;
-    fire(e);
+    lastPointerupFireAt = Date.now();
+    handler(e);
   });
   btn.addEventListener('click', function (e) {
-    /* click 兜底：键盘 Enter/空格触发；pointerup 已提交时去重 */
-    fire(e);
+    /* click 兜底：键盘 Enter/空格触发；pointerup 刚提交的同手势 click 去重（500ms 内） */
+    if (Date.now() - lastPointerupFireAt < 500) return;
+    handler(e);
   });
   return function resetSubmitButton() {
-    fired = false;
+    lastPointerupFireAt = 0;
     downOnBtn = false;
   };
 }

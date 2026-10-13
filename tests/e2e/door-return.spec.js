@@ -149,3 +149,49 @@ function assertClearNotCalled(after, before, msg) {
     throw new Error(msg + '（before=' + before + ', after=' + after + '）');
   }
 }
+
+test.describe('bindSubmitButton 去重修复：锁屏页设置密码弹层', () => {
+  test.beforeEach(async ({ page }) => {
+    await blockExternalRequests(page);
+    await page.addInitScript(() => {
+      try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
+    });
+    /* 门内页探针通过：状态接口 + stepup status */
+    await mockJson(page, '**/api/owner-status', 200, { ok: true, password: true, passkey: true });
+    await mockJson(page, '**/api/lock-status', 200, { ok: true, password: true, passkey: true });
+    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true });
+    await mockJson(page, '**/api/owner-passkey', 200, { ok: true, keys: [], scope: 'root' });
+  });
+
+  test('两次输入不一致报错后，改对再点保存能成功', async ({ page }) => {
+    /* bindSubmitButton 回归：第一次提交（本地校验失败）后，按钮必须还能再次提交。
+       旧实现 fired 标志永不重置，第二次点击完全没反应。 */
+    let pwCalls = 0;
+    await page.route('**/api/owner-password', async (route) => {
+      pwCalls++;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true }),
+      });
+    });
+    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
+    await page.locator('#lockmgr-pwrow').click();
+    await expect(page.locator('#lockpw-dlg')).toBeVisible({ timeout: 5000 });
+    /* 第一次：两次输入不一致 → 本地校验报错，弹层不关闭 */
+    await page.locator('#lockpw-1').fill('password-one-1');
+    await page.locator('#lockpw-2').fill('password-two-2');
+    await page.locator('#lockpw-go').click();
+    await expect(page.locator('#lockpw-err:not([hidden])').filter({ hasText: '两次输入不一致' }))
+      .toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#lockpw-dlg')).toBeVisible();
+    expect(pwCalls).toBe(0);
+    /* 改对后再次点击保存，必须再次提交并成功关闭弹层 */
+    await page.locator('#lockpw-1').fill('correct-password-123');
+    await page.locator('#lockpw-2').fill('correct-password-123');
+    await page.locator('#lockpw-go').click();
+    await expect(page.locator('#lockpw-dlg')).toBeHidden({ timeout: 8000 });
+    expect(pwCalls).toBe(1);
+  });
+});

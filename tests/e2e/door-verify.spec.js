@@ -160,6 +160,41 @@ test.describe('door verify dialog', () => {
     await expect(dlg).toBeHidden({ timeout: 5000 });
   });
 
+  test('密码输错一次后改对再点验证能成功（bindSubmitButton 去重修复）', async ({ page }) => {
+    /* bindSubmitButton 回归：第一次提交失败后，按钮必须还能再次提交。
+       旧实现 fired 标志永不重置，第二次点击完全没反应。 */
+    let stepupCalls = 0;
+    await page.route('**/api/stepup', async (route) => {
+      stepupCalls++;
+      if (stepupCalls === 1) {
+        await route.fulfill({
+          status: 401,
+          contentType: 'application/json',
+          body: JSON.stringify({ ok: false, error: 'auth' }),
+        });
+      } else {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ ok: true }),
+        });
+      }
+    });
+    await page.click('#sec-mgmt-cred');
+    await expect(page.locator('#sec-verify-dlg')).toBeVisible();
+    await page.locator('.sgx-door-row').filter({ hasText: '站长密码' }).click();
+    await page.locator('.sgx-door-expand input[type="password"]').fill('wrong-password');
+    await page.locator('.sgx-door-actions .primary').click();
+    await expect(page.locator('.sgx-door-err:not([hidden])').filter({ hasText: '密码不正确' }))
+      .toBeVisible({ timeout: 8000 });
+    await expect(page.locator('#sec-verify-dlg')).toBeVisible();
+    /* 改对后再次点击验证，必须再次提交并成功进门 */
+    await page.locator('.sgx-door-expand input[type="password"]').fill('correct-password');
+    await page.locator('.sgx-door-actions .primary').click();
+    await page.waitForURL('**/settings/security/mgmt/', { timeout: 10000 });
+    expect(stepupCalls).toBe(2);
+  });
+
   test('键盘按下验证只提交一次（批次 A 收尾：pointerup + click 去重）', async ({ page }) => {
     let authCalls = 0;
     await page.route('**/api/root-auth', async (route) => {
