@@ -279,8 +279,10 @@ test.describe('door dialog eye button (批次 A 验收修复 P2)', () => {
     const dlg = pg.locator('#sec-verify-dlg');
     await expect(dlg).toBeVisible();
     await pg.locator('.sgx-door-row').filter({ hasText: '站长密码' }).click();
-    const input = pg.locator('.sgx-door-expand input[type="password"]');
+    /* locator 不带 type：切换明/密文后仍是同一元素，否则切到 text 后旧 locator 匹配不到 */
+    const input = pg.locator('.sgx-door-expand input');
     await expect(input).toBeVisible();
+    await expect(input).toHaveAttribute('type', 'password');
     const eye = pg.locator('.sgx-door-expand .sgx-pw-eye');
     await expect(eye).toBeVisible();
 
@@ -296,14 +298,14 @@ test.describe('door dialog eye button (批次 A 验收修复 P2)', () => {
     await expect(eye).toHaveAttribute('aria-pressed', 'true');
     const onHtml = await eye.evaluate((el) => el.innerHTML);
     expect(onHtml).not.toContain('<line');
-    await expect(pg.locator('.sgx-door-expand input[type="text"]')).toBeVisible();
+    await expect(input).toHaveAttribute('type', 'text');
     await expect(input).toBeFocused();
 
     /* 再点：恢复密文态 */
     await eye.click();
     await expect(eye).toHaveAttribute('aria-label', '显示密码');
     await expect(eye).toHaveAttribute('aria-pressed', 'false');
-    await expect(pg.locator('.sgx-door-expand input[type="password"]')).toBeVisible();
+    await expect(input).toHaveAttribute('type', 'password');
   });
 });
 
