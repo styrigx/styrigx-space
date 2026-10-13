@@ -93,6 +93,18 @@ function isStartupPath(pathname) {
 function isStartupApi(pathname) {
   return STARTUP_APIS.some(p => pathname === p || pathname.startsWith(p + '/'));
 }
+/* 批次 B #16 返工：启动会话分支只放行静态资源（安全页 CSS/JS 必须能加载），
+   不放行 API 白名单——/api/verify、/api/lockreset、/api/root-audit、/api/geo 等
+   虽在全局 API_WHITELIST 里，但不在 STARTUP_APIS 里，启动会话下必须拒绝。
+   此前误用 isWhitelisted 会把这些 API 一并放过（测试发现）。 */
+function isStartupStatic(pathname) {
+  if (PAGE_WHITELIST.includes(pathname)) return true;
+  if (pathname.startsWith('/assets/')) return true;
+  if (pathname === '/favicon.ico' || pathname === '/robots.txt' || pathname === '/sitemap.xml') return true;
+  if (AVATAR_RE.test(pathname)) return true;
+  if (STATIC_RE.test(pathname)) return true;
+  return false;
+}
 
 function isOwnerOnlyApi(pathname) {
   return OWNER_ONLY_APIS.some(p => pathname === p || pathname.startsWith(p + '/'));
@@ -438,7 +450,8 @@ export async function onRequest(context) {
     }
 
     /* 批次 B #16：启动会话权限收窄（middleware 强制，前端守卫只是 UX）。
-       - 静态资源/白名单：正常放行（否则安全页 CSS/JS 加载不了）。
+       - 静态资源：正常放行（否则安全页 CSS/JS 加载不了）；API 白名单不适用
+         （见 isStartupStatic；STARTUP_APIS 之外的 API 一律拒绝）。
        - 首页：302 到安全与隐私总览（会话不作废）。
        - 允许的页面/API：放行；HTML 注入 data-sgx-session="startup"。
        - 未配任何钥匙时请求非允许目标：302 回安全与隐私（页面）或 403（API），
@@ -454,7 +467,7 @@ export async function onRequest(context) {
           headers: { 'Location': loc, 'Cache-Control': 'private, no-store' },
         });
       }
-      if (isWhitelisted(pathname)) return next();
+      if (isStartupStatic(pathname)) return next();
       if ((!isApi && isStartupPath(pathname)) || (isApi && isStartupApi(pathname))) {
         const res = await next();
         const ct = res.headers.get('Content-Type') || '';
