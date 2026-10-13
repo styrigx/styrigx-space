@@ -93,6 +93,29 @@ export async function signStepupCookie(privatePem, by, scope, epoch) {
 }
 
 /**
+ * 用新 epoch 重签当前 stepup 票据（D2：epoch 推进后保持门内连续操作不中断）。
+ * - sv：verifyStepupCookie 返回的 {ok, by, scope}（必须 ok）
+ * - newEpoch：bump 后的新 epoch
+ * - 失败时静默（调用方已返回业务成功）；lockreset 等场景 sv 不 ok 时不做任何事。
+ * @param {any} env
+ * @param {Headers} headers
+ * @param {{ok:boolean, by:string, scope:string}|null} sv
+ * @param {number} newEpoch
+ */
+export async function reissueStepupWithEpoch(env, headers, sv, newEpoch) {
+  if (!sv || !sv.ok || !sv.by || !sv.scope) return;
+  const stepupKey = env && env.SGX_STEPUP_PRIVATE;
+  if (!stepupKey) return;
+  try {
+    const cv = await signStepupCookie(stepupKey, sv.by, sv.scope, newEpoch);
+    headers.append(
+      'Set-Cookie',
+      STEPUP_COOKIE + '=' + cv + '; ' + STEPUP_COOKIE_ATTRS + '; Max-Age=' + STEPUP_MAX_AGE
+    );
+  } catch (e) {}
+}
+
+/**
  * 解析 stepup cookie 值。
  * 2.11 定稿：六段式 by.scope.epoch.iat.exp.sig；
  * by=root|owner|owner+root，scope=root|keys|lockreset。

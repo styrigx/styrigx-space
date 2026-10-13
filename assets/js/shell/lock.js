@@ -23,7 +23,7 @@ import { get as featGet } from '../lib/features.js';
 import { armVerifyKeyboard } from './verify-kb.js';
 import { get, getJSON } from '../lib/storage.js';
 import { exchangeRootSession } from '../lib/root-session.js';
-import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
+import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
 
 const LOCK =
   '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
@@ -1518,7 +1518,9 @@ function showLockScreen() {
      节流 5 秒；网络错误不跳转，下次再查。
      「锁定所有设备」靠 epoch 生效，子站缓存最多约 60 秒。 */
   let lastLockCheck = 0;
-  function checkSessionForAutoLock() {
+  /* A2：留痕写上 session-check 的 HTTP 状态码 + 触发事件。
+     A6：键盘收起可能引发 focus / visibilitychange / resize，三种事件都覆盖。 */
+  function checkSessionForAutoLock(trigger) {
     const now = Date.now();
     if (now - lastLockCheck < 5000) return;
     lastLockCheck = now;
@@ -1527,18 +1529,21 @@ function showLockScreen() {
     fetch('/api/session-check', { credentials: 'same-origin' })
       .then(function (r) {
         if (r.ok) return; /* 会话有效，什么都不做 */
-        /* 401 或其他失败：重载，L1 middleware 会显示锁屏 */
-        location.reload();
+        /* 401 或其他失败：重载，L1 middleware 会显示锁屏。
+           留痕含状态码 + 触发事件，定位 #1 的「无记录重载」。 */
+        sgxReload('lock.js:1531', 'session-check=' + r.status + ';trigger=' + (trigger || 'unknown'));
       })
       .catch(function () {
         /* 网络错误：不跳转，下次再查 */
       });
   }
   document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible') checkSessionForAutoLock();
+    if (document.visibilityState === 'visible') checkSessionForAutoLock('visibilitychange');
   });
-  window.addEventListener('focus', checkSessionForAutoLock);
+  window.addEventListener('focus', function () { checkSessionForAutoLock('focus'); });
   window.addEventListener('pageshow', function (e) {
-    if (e && e.persisted) checkSessionForAutoLock();
+    if (e && e.persisted) checkSessionForAutoLock('pageshow');
   });
+  /* A6：键盘收起引发 resize 时也查一次（同 5 秒节流）。 */
+  window.addEventListener('resize', function () { checkSessionForAutoLock('resize'); });
 }

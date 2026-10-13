@@ -10,6 +10,7 @@ import { loadI18n } from '../lib/i18n.js';
 import { openSheet } from './sheet.js';
 import { reducedMotion } from '../lib/util.js';
 import { visibleInterval } from '../lib/scheduler.js';
+import { sgxNavigate } from '../lib/diag-jumptrace.js';
 
 /**
  * 读 Good Lock 模块开关（经 features.js，带编译期 build 默认）。
@@ -176,7 +177,7 @@ export function initGoodLock() {
         if (u) {
           e.preventDefault();
           if (u.indexOf('http') === 0) window.open(u, '_blank');
-          else location.href = u;
+          else sgxNavigate(u, 'goodlock.js:180', 'goodlock-shortcut');
         }
         return;
       }

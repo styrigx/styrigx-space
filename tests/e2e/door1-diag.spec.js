@@ -44,16 +44,16 @@ test.describe('#1 诊断：构建标记与跳转留痕', () => {
   test('门内页跳转留痕：安全页显示一次，刷新后消失', async ({ page }) => {
     await page.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sec-mgmt-cred')).toBeVisible({ timeout: 15000 });
-    /* 模拟门内页跳转前写入留痕 */
+    /* 模拟门内页跳转前写入留痕（新格式：数组，最近 5 条） */
     await page.evaluate(() => {
       try {
-        sessionStorage.setItem('sgx-last-jump', JSON.stringify({ who: 'probe-fail-back', reason: 'expired', at: Date.now() }));
+        sessionStorage.setItem('sgx-last-jump', JSON.stringify([{ who: 'probe-fail-back', reason: 'expired', at: Date.now(), desktop: true, visibility: 'visible' }]));
       } catch (e) {}
     });
     await page.reload({ waitUntil: 'domcontentloaded' });
     const note = page.locator('#sgx-jump-note');
     await expect(note).toBeVisible({ timeout: 15000 });
-    await expect(page.locator('#sgx-jump-note-text')).toHaveText(/上次门内跳转：probe-fail-back（expired）/);
+    await expect(page.locator('#sgx-jump-note-text')).toHaveText(/上次门内跳转1：probe-fail-back（expired）.*桌面版/);
     /* 取即清除：再刷新不再显示 */
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-jump-note')).toBeHidden({ timeout: 15000 });

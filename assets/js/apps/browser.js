@@ -13,6 +13,7 @@ import { engines } from '../shell/engines.js';
 import { bindFavFallback } from '../shell/fav.js';
 import { onDexLayoutChange } from '../shell/layout.js';
 import { onKeyboardHeight } from '../shell/vk.js';
+import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
 
 (function () {
   'use strict';
@@ -90,7 +91,7 @@ import { onKeyboardHeight } from '../shell/vk.js';
     unstickKb();
     if (!fromPop) {
       try {
-        history.back();
+      sgxGoBack('browser.js:94', 'search-blur');
       } catch (e) {}
     }
   }
@@ -666,7 +667,7 @@ import { onKeyboardHeight } from '../shell/vk.js';
     if (/^https?:\/\//i.test(u)) {
       window.open(u, '_blank', 'noopener');
     } else {
-      location.href = u;
+      sgxNavigate(u, 'browser.js:670', 'openUrl');
     }
   }
 
@@ -699,7 +700,7 @@ import { onKeyboardHeight } from '../shell/vk.js';
     if (r.kind === 'ai') {
       pushRecent(r.title);
       hideSuggest();
-      location.href = (EN ? '/en/ai/' : '/ai/') + '?q=' + encodeURIComponent(r.title);
+      sgxNavigate((EN ? '/en/ai/' : '/ai/') + '?q=' + encodeURIComponent(r.title), 'browser.js:703', 'ai-suggest');
       return;
     }
     if (r.kind === 'recent') {

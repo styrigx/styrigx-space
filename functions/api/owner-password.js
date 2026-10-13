@@ -30,10 +30,12 @@ import { b64enc, b64dec, timingSafeEqual } from '../_kernel/crypto.js';
 import {
   issueSessionCookie,
   bumpSessionEpoch,
+  reissueSessionWithEpoch,
   ROLE_OWNER,
 } from '../_kernel/session.js';
 import {
   verifyStepupCookie,
+  reissueStepupWithEpoch,
   STEPUP_BY_ROOT,
   STEPUP_BY_OWNER,
   STEPUP_SCOPE_ROOT,
@@ -358,9 +360,11 @@ async function handlePost(context) {
     }
 
     /* 会话门禁：lockreset 重置流程无会话，其余要求有效 owner 会话。
-       by=root 的代开会话在 lock 已配置时拒绝（纵深防御；epoch 机制已使其失效）。 */
+       by=root 的代开会话在 lock 已配置时拒绝（纵深防御；epoch 机制已使其失效）。
+       D2：sessP 保留到 remove/set/change，epoch 推进后用它重签当前设备会话。 */
+    let sessP = null;
     if (!isLockreset) {
-      const sessP = await verifySessionDetailed(request, env);
+      sessP = await verifySessionDetailed(request, env);
       if (!sessP.ok || sessP.role !== ROLE_OWNER) {
         return Response.json({ ok: false, error: 'session' }, { status: 401 });
       }
@@ -428,23 +432,19 @@ async function handlePost(context) {
           }
         } catch (e) {}
       }
-      /* 会话吊销：session-epoch +1（KV 出错→503，绝不继续） */
+      /* 会话吊销：session-epoch +1（KV 出错→503，绝不继续）
+         D2：epoch 推进后重签 stepup 票据 + 当前设备会话，保持门内连续操作、当前设备不掉线。 */
+      let newEpoch = null;
       try {
-        await bumpSessionEpoch(kv);
+        newEpoch = await bumpSessionEpoch(kv);
       } catch (e) {
         return Response.json({ ok: false, error: 'server' }, { status: 503 });
       }
-      /* epoch 推进后重签票据，保持门内连续操作 */
       const headers = new Headers({ 'Content-Type': 'application/json' });
-      try {
-        const stepupKey = env && env.SGX_STEPUP_PRIVATE;
-        if (stepupKey && sv.ok) {
-          const newEpoch = parseInt(await kv.get('session-epoch') || '0', 10) || 0;
-          const cv = await signStepupCookie(stepupKey, sv.by, sv.scope, newEpoch);
-          headers.append('Set-Cookie',
-            STEPUP_COOKIE + '=' + cv + '; ' + STEPUP_COOKIE_ATTRS + '; Max-Age=' + STEPUP_MAX_AGE);
-        }
-      } catch (e) {}
+      if (newEpoch !== null) {
+        await reissueStepupWithEpoch(env, headers, sv, newEpoch);
+        await reissueSessionWithEpoch(env, headers, sessP, newEpoch);
+      }
       return new Response(JSON.stringify({ ok: true }), { headers });
     }
 
@@ -499,23 +499,19 @@ async function handlePost(context) {
       } catch (e) {}
     }
 
-    /* 改密码后：session-epoch +1，旧会话 cookie 失效（KV 出错→503） */
+    /* 改密码后：session-epoch +1，旧会话 cookie 失效（KV 出错→503）
+       D2：epoch 推进后重签 stepup 票据 + 当前设备会话，保持门内连续操作、当前设备不掉线。 */
+    let newEpoch2 = null;
     try {
-      await bumpSessionEpoch(kv);
+      newEpoch2 = await bumpSessionEpoch(kv);
     } catch (e) {
       return Response.json({ ok: false, error: 'server' }, { status: 503 });
     }
-    /* epoch 推进后重签票据，保持门内连续操作 */
     const headers2 = new Headers({ 'Content-Type': 'application/json' });
-    try {
-      const stepupKey = env && env.SGX_STEPUP_PRIVATE;
-      if (stepupKey && sv.ok) {
-        const newEpoch = parseInt(await kv.get('session-epoch') || '0', 10) || 0;
-        const cv = await signStepupCookie(stepupKey, sv.by, sv.scope, newEpoch);
-        headers2.append('Set-Cookie',
-          STEPUP_COOKIE + '=' + cv + '; ' + STEPUP_COOKIE_ATTRS + '; Max-Age=' + STEPUP_MAX_AGE);
-      }
-    } catch (e) {}
+    if (newEpoch2 !== null) {
+      await reissueStepupWithEpoch(env, headers2, sv, newEpoch2);
+      await reissueSessionWithEpoch(env, headers2, sessP, newEpoch2);
+    }
     return new Response(JSON.stringify({ ok: true }), { headers: headers2 });
   }
 

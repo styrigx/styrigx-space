@@ -27,6 +27,7 @@ import { initDoor } from './door.js';
     pwKind: 'owner',
     keyClass: 'owner',
     withApps: false,
-    homeUrl: en ? '/en/settings/' : '/settings/',
+    /* C1：站长凭证门返回 → 安全与隐私页（从哪里进门，就回哪里），不是设置首页 */
+    homeUrl: en ? '/en/settings/security/' : '/settings/security/',
   });
 })();

@@ -9,6 +9,7 @@ import { getJSON, setJSON } from '../lib/storage.js';
 import { getScheduler } from '../lib/scheduler.js';
 import { openSheet } from '../shell/sheet.js';
 import { setCapSearchProvider } from '../shell/capsule.js';
+import { sgxNavigate } from '../lib/diag-jumptrace.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -487,7 +488,7 @@ import { setCapSearchProvider } from '../shell/capsule.js';
       onPick: function (v) {
         if (v === 'home') openHomeEdit();
         else if (v === 'sort') openSort();
-        else if (v === 'settings') location.href = I.setUrl || '/settings/';
+        else if (v === 'settings') sgxNavigate(I.setUrl || '/settings/', 'files.js:491', 'files-settings');
       },
     });
   }
