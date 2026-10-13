@@ -138,6 +138,18 @@ function clearLockOverlay() {
 }
 
 /**
+ * t() 兜底文案（批次 A 收尾 #36）：缺键返回通用文案而非键名。
+ * 下面的两处“键是否已定义”判断必须把通用文案也视为缺键，
+ * 否则会把兜底文案当成已定义的翻译用掉（探针面板标题/标签/按钮
+ * 会全变成“出错了，请重试”，且 apiErrorText 会丢掉错误码小字）。
+ * @param {string} v t() 返回值
+ * @param {string} k key
+ */
+function isMissingTranslation(v, k) {
+  return !v || v === k || v === '出错了，请重试' || v === 'Something went wrong, please retry';
+}
+
+/**
  * 带回退的文案：页面没定义该 key 时用中英默认值。
  * @param {(k:string)=>string} t 文案函数
  * @param {string} k key
@@ -147,7 +159,7 @@ function clearLockOverlay() {
 function tx(t, k, zh, en) {
   try {
     const v = t(k);
-    if (v && v !== k) return v;
+    if (!isMissingTranslation(v, k)) return v;
   } catch (e) {}
   return document.documentElement.lang === 'en' ? en : zh;
 }
@@ -334,7 +346,7 @@ export function apiErrorText(t, code, status) {
   const k = ERR_KEY[code];
   if (k) {
     const v = t(k);
-    if (v && v !== k) return v;
+    if (!isMissingTranslation(v, k)) return v;
   }
   let msg = t('errUnknown');
   /* 未知码：附上原始错误码和状态码，方便定位 */

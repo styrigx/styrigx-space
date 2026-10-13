@@ -24,6 +24,7 @@ import { armVerifyKeyboard } from './verify-kb.js';
 import { get, getJSON } from '../lib/storage.js';
 import { exchangeRootSession } from '../lib/root-session.js';
 import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose } from '../lib/dialog-behavior.js';
 
 const LOCK =
   '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
@@ -371,6 +372,8 @@ function showLockScreen() {
     d.setAttribute('aria-labelledby', 'sgx-verify-title');
     d.innerHTML =
       '<div class="sgx-verify-card">' +
+      /* 批次 A 收尾 A3：右上角 × 关闭按钮 */
+      '<button type="button" class="sgx-dlg-close" data-dlg-close aria-label="' + (en ? 'Close' : '关闭') + '">×</button>' +
       '<div class="sheet-handle" data-dclose aria-hidden="true"></div>' +
       '<h2 id="sgx-verify-title" class="sgx-verify-title"></h2>' +
       '<div id="sgx-verify-body" class="sgx-verify-body"></div>' +
@@ -378,14 +381,14 @@ function showLockScreen() {
       '</div>';
     document.body.appendChild(d);
     dlg = /** @type {HTMLDialogElement} */ (d);
+    /* 批次 A 收尾 A1/A2：点遮罩只失焦不关闭；返回手势键盘开着先收键盘 */
     on(d, 'click', function (/** @type {MouseEvent} */ e) {
+      if (onDialogBackdrop(e, d)) return;
       const t = /** @type {Element|null} */ (e.target);
-      if (e.target === d) closeDialog();
-      else if (t && t.closest && t.closest('[data-dclose]')) closeDialog();
+      if (t && t.closest && t.closest('[data-dlg-close]')) closeDialog('close-btn');
     });
     on(d, 'cancel', function (/** @type {Event} */ e) {
-      e.preventDefault();
-      closeDialog();
+      onDialogCancel(e, d, function (reason) { closeDialog(reason); });
     });
     return dlg;
   }
@@ -469,7 +472,8 @@ function showLockScreen() {
     return true;
   }
 
-  function closeDialog() {
+  function closeDialog(reason) {
+    recordDialogClose('lock-verify', reason || 'unknown');
     disarmDlgKb();
     resetAvatar();
     setBgHidden(false);
@@ -580,7 +584,7 @@ function showLockScreen() {
     clearErr();
     window.setTimeout(function () {
       verifyDone = true;
-      closeDialog();
+      closeDialog('success');
       unlock();
     }, 300);
   }
@@ -993,7 +997,7 @@ function showLockScreen() {
           return;
         }
         if (j.ok) {
-          closeDialog();
+          closeDialog('success');
           unlock();
         } else if (j.error === 'locked') {
           pwLockedUntil = Date.now() + 30000;
@@ -1091,7 +1095,7 @@ function showLockScreen() {
             .then(function (res2) {
               if (dlgState !== 'mgmtkey') return;
               if (res2.ok) {
-                closeDialog();
+                closeDialog('success');
                 /* 若 URL 带 return，走与密码/通行密钥相同的 handleSessionOk 路径
                    （location.replace 当前地址，L1 校验 return 并 302）；
                    无 return 才去安全页。前端不自己做 return 白名单。 */
@@ -1246,7 +1250,7 @@ function showLockScreen() {
 
   function resetDone() {
     resetRootKey = null;
-    closeDialog();
+    closeDialog('success');
     /* 跳转到锁屏凭证管理页（lockreset 票据可开此页，仍进不了主页） */
     sgxNavigate(en ? '/en/settings/security/lock/' : '/settings/security/lock/', 'lock.js:1251', 'reset-done');
   }
@@ -1450,7 +1454,7 @@ function showLockScreen() {
       .then(function (j) {
         if (dlgState !== 'passkey') return;
         if (j && j.ok) {
-          closeDialog();
+          closeDialog('success');
           unlock();
         } else {
           /* 服务端不认识这把密钥 → 通知密码管理器删掉 */

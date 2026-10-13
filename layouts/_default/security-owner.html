@@ -44,6 +44,8 @@
 <!-- 通行密钥命名弹层 -->
 <dialog id="lockpkname-dlg" class="sgx-verify-dlg" aria-labelledby="lockpkname-title">
   <div class="sgx-verify-card">
+    {{/* 批次 A 收尾 A3：右上角 × 关闭按钮 */}}
+    <button type="button" class="sgx-dlg-close" data-dlg-close aria-label="{{ if $isEn }}Close{{ else }}关闭{{ end }}">×</button>
     <div class="sheet-handle" data-pclose></div>
     <h2 id="lockpkname-title" class="sgx-verify-title">{{ if $isEn }}Name this passkey{{ else }}为这把通行密钥命名{{ end }}</h2>
     <p class="sgx-verify-desc">{{ if $isEn }}Give it a name so you can tell your passkeys apart.{{ else }}起个名字，方便区分多把通行密钥。{{ end }}</p>
@@ -59,6 +61,8 @@
 <!-- 密码设置/修改弹层 -->
 <dialog id="lockpw-dlg" class="sgx-verify-dlg" aria-labelledby="lockpw-title">
   <div class="sgx-verify-card">
+    {{/* 批次 A 收尾 A3：右上角 × 关闭按钮 */}}
+    <button type="button" class="sgx-dlg-close" data-dlg-close aria-label="{{ if $isEn }}Close{{ else }}关闭{{ end }}">×</button>
     <div class="sheet-handle" data-pclose></div>
     <h2 id="lockpw-title" class="sgx-verify-title">{{ if $isEn }}Set owner password{{ else }}设置站长密码{{ end }}</h2>
     <div class="sgx-pw-field">

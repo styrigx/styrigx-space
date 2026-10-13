@@ -4,6 +4,7 @@
  * 用 CSS 过渡；手机下滑关闭保留手写。
  */
 import { on, delegate } from '../lib/events.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose } from '../lib/dialog-behavior.js';
 
 /**
  * @typedef {Object} SheetOption
@@ -36,16 +37,15 @@ function ensure() {
   if (!dlg || !panel || !titleEl || !bodyEl) return false;
   inited = true;
   delegate(dlg, 'click', '[data-sheet-close]', function () {
-    closeSheet();
+    closeSheet('close-btn');
   });
-  /* 点击 backdrop 关闭（dialog 原生只关 Esc，backdrop 点击需手写） */
+  /* 批次 A 收尾 A1：点遮罩只失焦不关闭 */
   on(dlg, 'click', function (/** @type {MouseEvent} */ e) {
-    if (e.target === dlg) closeSheet();
+    onDialogBackdrop(e, dlg);
   });
-  /* 原生 cancel（Esc）时走统一关闭动画 */
+  /* 批次 A 收尾 A2：原生 cancel（Esc/返回）时，键盘开着先收键盘，键盘收起才关闭 */
   on(dlg, 'cancel', function (/** @type {Event} */ e) {
-    e.preventDefault();
-    closeSheet();
+    onDialogCancel(e, dlg, function (reason) { closeSheet(reason); });
   });
   /* 手机下滑关闭 */
   /** @type {number|null} */
@@ -66,7 +66,7 @@ function ensure() {
       const dy = e.touches[0].clientY - sy;
       if (dy > 90 && panel && panel.scrollTop <= 0 && window.matchMedia('(max-width:639px)').matches) {
         sy = null;
-        closeSheet();
+        closeSheet('swipe');
       }
     },
     { passive: true }
@@ -76,8 +76,10 @@ function ensure() {
 
 /**
  * 关闭 bottom sheet（带退出动画）。
+ * @param {string} [reason] 关闭原因（close-btn / back / cancel-btn / success）
  */
-export function closeSheet() {
+export function closeSheet(reason) {
+  recordDialogClose('sheet', reason || 'unknown');
   if (!ensure() || !dlg || !dlg.open || closing) return;
   closing = true;
   dlg.classList.add('sgx-closing');
@@ -120,7 +122,7 @@ export function openSheet(opts) {
         '</span>' +
         (o.checked ? '<span class="text-m-primary">✓</span>' : '');
       on(b, 'click', function () {
-        closeSheet();
+        closeSheet('pick');
         if (opts.onPick) opts.onPick(o.value);
       });
       be.appendChild(b);

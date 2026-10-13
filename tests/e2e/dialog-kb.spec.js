@@ -62,9 +62,9 @@ test.describe('door dialog UI', () => {
     await expect(cancel).toContainText('取消');
     await expect(pg.locator('#sec-verify-foot .sgx-door-actions')).toHaveCount(0);
 
-    /* 根凭证行展开：多行输入框 + 底部变「取消 / 验证」两个等宽文字按钮 */
+    /* 根凭证行展开：单行密码输入框 + 底部变「取消 / 验证」两个等宽文字按钮 */
     await rows.first().click();
-    await expect(pg.locator('.sgx-door-expand textarea')).toBeVisible();
+    await expect(pg.locator('.sgx-door-expand input[type="password"]')).toBeVisible();
     const actions = pg.locator('#sec-verify-foot .sgx-door-actions .sgx-door-textbtn');
     await expect(actions).toHaveCount(2);
     await expect(actions.nth(0)).toContainText('取消');
@@ -103,7 +103,7 @@ test.describe('door dialog UI', () => {
 
     /* 点密码行：弹层内展开输入框，不跳页，自动聚焦 */
     await rows.filter({ hasText: '站长密码' }).click();
-    const input = pg.locator('.sgx-door-expand input');
+    const input = pg.locator('.sgx-door-expand input[type="password"]');
     await expect(input).toBeVisible();
     await expect(input).toBeFocused();
 
@@ -208,7 +208,7 @@ test.describe('door keyboard avoidance', () => {
       const sheet = document.getElementById('sec-verify-dlg');
       const vv = window.__fakeVV;
       const r = sheet.getBoundingClientRect();
-      const inputEl = document.querySelector('.sgx-door-expand input, .sgx-door-expand textarea');
+      const inputEl = document.querySelector('.sgx-door-expand input[type="password"]');
       const btnEl = document.querySelector('#sec-verify-foot .sgx-door-textbtn.primary');
       const ir = inputEl.getBoundingClientRect();
       const br = btnEl.getBoundingClientRect();
@@ -253,12 +253,12 @@ test.describe('door keyboard avoidance', () => {
         await expect(pg.locator('.sgx-door-row')).toHaveCount(2);
         await pg.locator('.sgx-door-row').filter({ hasText: '站长密码' }).click();
       },
-      '.sgx-door-expand input',
+      '.sgx-door-expand input[type="password"]',
       300
     );
   });
 
-  test('owner door: keyboard raises sheet, textarea and verify stay visible', async ({ page: pg }) => {
+  test('owner door: keyboard raises sheet, input and verify stay visible', async ({ page: pg }) => {
     await keyboardAvoidance(
       pg,
       async () => {
@@ -266,7 +266,7 @@ test.describe('door keyboard avoidance', () => {
         await expect(pg.locator('.sgx-door-row')).toHaveCount(1);
         await pg.locator('.sgx-door-row').first().click();
       },
-      '.sgx-door-expand textarea',
+      '.sgx-door-expand input[type="password"]',
       300
     );
   });

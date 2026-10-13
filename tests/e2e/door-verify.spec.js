@@ -66,21 +66,21 @@ test.describe('door verify dialog', () => {
     await page.click('#sec-mgmt-cred');
     await expect(page.locator('#sec-verify-dlg')).toBeVisible();
     await page.locator('.sgx-door-row').filter({ hasText: '站长密码' }).click();
-    await page.locator('.sgx-door-expand input').fill('wrong-password');
+    await page.locator('.sgx-door-expand input[type="password"]').fill('wrong-password');
     await page.locator('.sgx-door-actions .primary').click();
     await expect(page.locator('.sgx-door-err:not([hidden])').filter({ hasText: '密码不正确' }))
       .toBeVisible({ timeout: 8000 });
     await expect(page.locator('#sec-verify-dlg')).toBeVisible();
   });
 
-  test('密码验证成功后直接进锁屏门内页', async ({ page }) => {
+  test('密码验证成功后先到管理凭证索引页（批次 A 收尾 D1）', async ({ page }) => {
     await mockJson(page, '**/api/stepup', 200, { ok: true });
     await page.click('#sec-mgmt-cred');
     await expect(page.locator('#sec-verify-dlg')).toBeVisible();
     await page.locator('.sgx-door-row').filter({ hasText: '站长密码' }).click();
-    await page.locator('.sgx-door-expand input').fill('correct-password');
+    await page.locator('.sgx-door-expand input[type="password"]').fill('correct-password');
     await page.locator('.sgx-door-actions .primary').click();
-    await page.waitForURL('**/settings/security/lock/**', { timeout: 10000 });
+    await page.waitForURL('**/settings/security/mgmt/', { timeout: 10000 });
   });
 
   test('根凭证验证成功后直接进站长凭证门内页', async ({ page }) => {
@@ -94,7 +94,7 @@ test.describe('door verify dialog', () => {
     await expect(page.locator('#sec-verify-dlg')).toBeVisible();
     await expect(page.locator('.sgx-door-row').filter({ hasText: '根凭证' })).toBeVisible();
     await page.locator('.sgx-door-row').filter({ hasText: '根凭证' }).click();
-    await page.locator('.sgx-door-expand textarea').fill('test-root-key');
+    await page.locator('.sgx-door-expand input[type="password"]').fill('test-root-key');
     await page.locator('.sgx-door-actions .primary').click();
     await page.waitForURL('**/settings/security/owner/**', { timeout: 10000 });
   });
@@ -107,7 +107,7 @@ test.describe('door verify dialog', () => {
     await page.click('#sec-owner-cred');
     await expect(page.locator('#sec-verify-dlg')).toBeVisible();
     await page.locator('.sgx-door-row').filter({ hasText: '根凭证' }).click();
-    await page.locator('.sgx-door-expand textarea').fill('test-root-key');
+    await page.locator('.sgx-door-expand input[type="password"]').fill('test-root-key');
     await page.locator('.sgx-door-actions .primary').click();
     /* 弹层不关闭，行内错误显示接口、状态码、reason */
     const err = page.locator('.sgx-door-err:not([hidden])');
@@ -138,22 +138,84 @@ test.describe('door verify dialog', () => {
     await page.click('#sec-owner-cred');
     await expect(page.locator('#sec-verify-dlg')).toBeVisible();
     await page.locator('.sgx-door-row').filter({ hasText: '根凭证' }).click();
-    await page.locator('.sgx-door-expand textarea').fill('test-root-key');
+    await page.locator('.sgx-door-expand input[type="password"]').fill('test-root-key');
     await page.locator('.sgx-door-actions .primary').click();
     /* 换会话成功后直接进门，不应被预检拦住 */
     await page.waitForURL('**/settings/security/owner/**', { timeout: 10000 });
     expect(stepupCalls).toBe(0);
   });
 
-  test('点遮罩等同取消', async ({ page }) => {
+  test('点遮罩不关闭弹层，只有 × 或取消关闭（批次 A 收尾 A1/A3）', async ({ page }) => {
     await page.click('#sec-mgmt-cred');
     const dlg = page.locator('#sec-verify-dlg');
     await expect(dlg).toBeVisible();
-    /* 点 dialog 元素本身（遮罩区域） */
+    /* 点 dialog 元素本身（遮罩区域）→ 弹层保留 */
     await page.evaluate(() => {
       const d = document.getElementById('sec-verify-dlg');
       d.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
+    await expect(dlg).toBeVisible({ timeout: 5000 });
+    /* 点 × 关闭 */
+    await page.locator('#sec-verify-close').click();
     await expect(dlg).toBeHidden({ timeout: 5000 });
+  });
+
+  test('密码输错一次后改对再点验证能成功（bindSubmitButton 去重修复）', async ({ page }) => {
+    /* bindSubmitButton 回归：第一次提交失败后，按钮必须还能再次提交。
+       旧实现 fired 标志永不重置，第二次点击完全没反应。 */
+    let stepupCalls = 0;
+    await page.route('**/api/stepup', async (route) => {
+      stepupCalls++;
+      if (stepupCalls === 1) {
+        await route.fulfill({
+          status: 401,
+          contentType: 'application/json',
+          body: JSON.stringify({ ok: false, error: 'auth' }),
+        });
+      } else {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ ok: true }),
+        });
+      }
+    });
+    await page.click('#sec-mgmt-cred');
+    await expect(page.locator('#sec-verify-dlg')).toBeVisible();
+    await page.locator('.sgx-door-row').filter({ hasText: '站长密码' }).click();
+    await page.locator('.sgx-door-expand input[type="password"]').fill('wrong-password');
+    await page.locator('.sgx-door-actions .primary').click();
+    await expect(page.locator('.sgx-door-err:not([hidden])').filter({ hasText: '密码不正确' }))
+      .toBeVisible({ timeout: 8000 });
+    await expect(page.locator('#sec-verify-dlg')).toBeVisible();
+    /* 改对后再次点击验证，必须再次提交并成功进门 */
+    await page.locator('.sgx-door-expand input[type="password"]').fill('correct-password');
+    await page.locator('.sgx-door-actions .primary').click();
+    await page.waitForURL('**/settings/security/mgmt/', { timeout: 10000 });
+    expect(stepupCalls).toBe(2);
+  });
+
+  test('键盘按下验证只提交一次（批次 A 收尾：pointerup + click 去重）', async ({ page }) => {
+    let authCalls = 0;
+    await page.route('**/api/root-auth', async (route) => {
+      authCalls++;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true }),
+      });
+    });
+    await page.evaluate(() => { document.documentElement.dataset.sgxRole = 'owner'; });
+    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true });
+    await mockJson(page, '**/api/root-session', 200, { ok: true });
+    await page.click('#sec-owner-cred');
+    await expect(page.locator('#sec-verify-dlg')).toBeVisible();
+    await page.locator('.sgx-door-row').filter({ hasText: '根凭证' }).click();
+    await page.locator('.sgx-door-expand input[type="password"]').fill('test-root-key');
+    /* 聚焦验证按钮，按 Enter → 只提交一次（click 兜底，pointerup 未触发时不重复） */
+    await page.locator('.sgx-door-actions .primary').focus();
+    await page.keyboard.press('Enter');
+    await page.waitForURL('**/settings/security/owner/**', { timeout: 10000 });
+    expect(authCalls).toBe(1);
   });
 });

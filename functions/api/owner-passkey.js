@@ -247,11 +247,21 @@ async function deletePasskey(kv, credId) {
  * 获取或创建固定用户 ID（32 字节随机，存 KV）。
  * 2.10.0：锁屏类用 'owner-user-id'；每个 aud 各一个 'owner-user-id:app:<aud>'，
  * 让密码管理器把它们存成独立条目。
+ * 批次 A 收尾 C1：owner 类改用 'owner-user-id:owner'，不再与 lock 类共用，
+ * 防止 Samsung Pass 把 ownerkey 覆盖到 lockkey 上。
  * @param {any} kv
+ * @param {string} pkClass 凭据类别：'owner' | 'lock' | 'app'
  * @param {string} [aud] 应用 aud（应用类必填）
  */
-async function getUserHandle(kv, aud) {
-  const key = aud ? 'owner-user-id:app:' + aud : 'owner-user-id';
+async function getUserHandle(kv, pkClass, aud) {
+  let key;
+  if (pkClass === PK_CLASS_OWNER) {
+    key = 'owner-user-id:owner';
+  } else if (pkClass === PK_CLASS_APP) {
+    key = 'owner-user-id:app:' + aud;
+  } else {
+    key = 'owner-user-id';
+  }
   try {
     let uh = await kv.get(key);
     if (!uh) {
@@ -474,7 +484,7 @@ async function handlePost(context) {
          displayName=Sloan Gray（常量）；
          name：站长凭证 → ownerkey；锁屏 → lockkey；app → 应用名小写+key（如 bookkey）。
          user.id 每类/aud 独立，存 KV 复用（生成方式不变）。 */
-      const userHandle = await getUserHandle(kv, pkClass === PK_CLASS_APP ? aud : '');
+      const userHandle = await getUserHandle(kv, pkClass, pkClass === PK_CLASS_APP ? aud : '');
       const userName = pkClass === PK_CLASS_OWNER ? KEY_OWNER
         : pkClass === PK_CLASS_APP ? appKeyName(aud)
         : KEY_LOCK;
@@ -682,11 +692,22 @@ async function handlePost(context) {
         requireUV: true,
       });
       /* 校验 userHandle（如果有）。2.10.1：按 pkClass/aud 取对应的 user handle，
-         应用类用 owner-user-id:app:<aud>，不再拿锁屏的比对。 */
+         应用类用 owner-user-id:app:<aud>，不再拿锁屏的比对。
+         批次 A 收尾：owner 类同时接受新 handle 'owner-user-id:owner' 和旧 handle
+         'owner-user-id'（旧 ownerkey 注册时用旧 handle）。只对 owner 类放宽，
+         lock/app 不变；验证本身仍以凭据公钥签名为准。 */
       try {
-        const expectUh = await getUserHandle(kv, pkClass === PK_CLASS_APP ? aud : '');
+        const expectUh = await getUserHandle(kv, pkClass, pkClass === PK_CLASS_APP ? aud : '');
         const gotUh = cred.response.userHandle;
-        if (expectUh && gotUh && gotUh !== expectUh) throw new Error('userHandle');
+        if (expectUh && gotUh && gotUh !== expectUh) {
+          if (pkClass === PK_CLASS_OWNER) {
+            let legacyUh = null;
+            try { legacyUh = await kv.get('owner-user-id'); } catch (e) {}
+            if (!legacyUh || gotUh !== legacyUh) throw new Error('userHandle');
+          } else {
+            throw new Error('userHandle');
+          }
+        }
       } catch (e) {
         if (e && e.message === 'userHandle') throw e;
       }

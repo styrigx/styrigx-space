@@ -17,7 +17,10 @@ import { initDoor } from './door.js';
   function t(k) {
     const v = T[k];
     if (v && typeof v === 'object') return en ? v.en : v.zh;
-    return v || k;
+    if (v) return v;
+    /* 批次 A 收尾 #36：兜底不显示内部键名；键名只记诊断 */
+    if (typeof console !== 'undefined') console.warn('[i18n] missing key:', k);
+    return en ? 'Something went wrong, please retry' : '出错了，请重试';
   }
 
   initDoor({
