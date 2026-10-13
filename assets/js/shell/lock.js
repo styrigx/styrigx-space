@@ -352,6 +352,8 @@ function showLockScreen() {
      ============================================================ */
   /** @type {HTMLDialogElement|null} */ let dlg = null;
   /** @type {string|null} */ let dlgState = null;
+  /* 批次 B R2b：通行密钥流程运行代次（新一轮 pkAuth 使旧轮回调失效） */
+  let pkRunId = 0;
   /** @type {any} */ let widgetId = null;
   let verifyDone = false;
   let pwLockedUntil = 0;
@@ -1280,8 +1282,19 @@ function showLockScreen() {
   }
 
   /* 重置步骤 2a：站长通行密钥 */
+  /* 重置步骤 2a：站长通行密钥（批次 B R2b：30 秒总超时 + get() 前隐藏 dialog + 分支文案） */
   function resetPk() {
     if (dlgState !== 'reset-step2') return;
+    const runId = ++pkRunId;
+    let timedOut = false;
+    const timer = window.setTimeout(function () {
+      timedOut = true;
+      if (runId === pkRunId && dlgState === 'reset-step2') {
+        showError(en ? 'Verification timed out, please retry' : '验证超时，请重试');
+      }
+    }, 30000);
+    function alive() { return runId === pkRunId && !timedOut; }
+    function done() { window.clearTimeout(timer); }
     fetch('/api/lockreset', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1290,22 +1303,29 @@ function showLockScreen() {
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (dlgState !== 'reset-step2') return;
+        if (!alive()) return;
         if (!j || !j.ok) {
-          showError(en ? 'Failed to start' : '启动失败');
+          showError(en ? 'Failed to start verification' : '验证初始化失败');
+          done();
           return;
         }
         var allow = (j.allowCredentials || []).map(function (c) {
           return { id: Uint8Array.from(atob(c.id.replace(/-/g, '+').replace(/_/g, '/')), function (ch) { return ch.charCodeAt(0); }), type: 'public-key' };
         });
+        var wasHidden = hideDialogForPk();
         navigator.credentials.get({
           publicKey: {
             challenge: Uint8Array.from(atob(j.challenge.replace(/-/g, '+').replace(/_/g, '/')), function (ch) { return ch.charCodeAt(0); }),
             rpId: j.rpId,
             allowCredentials: allow,
             userVerification: 'required',
+            timeout: 30000,
           },
         }).then(function (cred) {
+          restoreDialogForPk(wasHidden);
           if (dlgState !== 'reset-step2') return;
+          if (!alive()) return;
+          done();
           var b64u = function (buf) {
             return btoa(String.fromCharCode.apply(null, new Uint8Array(buf)))
               .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -1330,14 +1350,31 @@ function showLockScreen() {
             return;
           }
           submitResetOwner(proof);
-        }).catch(function () {
+        }).catch(function (e) {
+          restoreDialogForPk(wasHidden);
           if (dlgState !== 'reset-step2') return;
-          showError(en ? 'Passkey failed' : '通行密钥验证失败');
+          if (!alive()) return;
+          done();
+          if (e && e.name === 'NotAllowedError') {
+            showError(en ? 'Cancelled' : '已取消');
+          } else if (e && e.name === 'NotFoundError') {
+            showError(en ? 'No passkey found on this device' : '这台设备上没有这把钥匙');
+          } else {
+            showError(en ? 'Passkey failed' : '通行密钥验证失败');
+          }
         });
       })
-      .catch(function () {
+      .catch(function (e) {
         if (dlgState !== 'reset-step2') return;
-        showError(en ? 'Network error' : '网络错误');
+        if (!alive()) return;
+        done();
+        if (typeof TypeError !== 'undefined' && e instanceof TypeError) {
+          showError(en ? 'Network connection failed, please retry' : '网络连接失败，请重试');
+        } else if (typeof SyntaxError !== 'undefined' && e instanceof SyntaxError) {
+          showError(en ? 'Unexpected server response, please retry' : '服务响应异常，请重试');
+        } else {
+          showError(en ? 'Network error' : '网络错误');
+        }
       });
   }
 
@@ -1388,12 +1425,29 @@ function showLockScreen() {
     pkAuth();
   }
 
-  /* 通行密钥失败 → 同一弹层内给重试 / 用密码 */
-  function pkFailed() {
+  /* 通行密钥失败 → 同一弹层内给重试 / 用密码（批次 B R2b：按分支给文案） */
+  function pkFailed(err) {
     if (dlgState !== 'passkey') return;
+    let msg;
+    const kind = (err && err.kind) || '';
+    if (kind === 'timeout') {
+      msg = en ? 'Verification timed out, please retry' : '验证超时，请重试';
+    } else if (kind === 'challenge') {
+      msg = en ? 'Failed to start verification' : '验证初始化失败';
+    } else if (kind === 'network') {
+      msg = en ? 'Network connection failed, please retry' : '网络连接失败，请重试';
+    } else if (kind === 'parse') {
+      msg = en ? 'Unexpected server response, please retry' : '服务响应异常，请重试';
+    } else if (kind === 'unknown-key' || (err && err.name === 'NotFoundError')) {
+      msg = en ? 'No passkey found on this device' : '这台设备上没有这把钥匙';
+    } else if (err && err.name === 'NotAllowedError') {
+      msg = en ? 'Cancelled' : '已取消';
+    } else {
+      msg = en ? 'Passkey verification failed' : '通行密钥验证失败';
+    }
     setBody(
       '<div class="sgx-verify-loading"><p class="sgx-verify-failtx">' +
-        (en ? 'Passkey verification failed' : '通行密钥验证失败') +
+        msg +
         '</p><div class="sgx-verify-actions">' +
         '<button type="button" class="sgx-verify-skip" id="sgx-pk-retry">' + (en ? 'Retry' : '重试') + '</button>' +
         '<button type="button" class="sgx-verify-ghost" id="sgx-pk-topw">' + (en ? 'Use password' : '使用密码') + '</button>' +
@@ -1404,6 +1458,28 @@ function showLockScreen() {
     if (retry) on(retry, 'click', openPk);
     if (topw) on(topw, 'click', openPw);
     liftAvatar();
+  }
+
+  /**
+   * 批次 B R2b：get() 前临时隐藏验证 dialog（部分 Samsung Internet 上系统框
+   * 会被顶层 dialog 盖住），get() 落定后按需恢复。
+   * @returns {boolean} 是否隐藏过
+   */
+  function hideDialogForPk() {
+    if (dlg && dlg.open) {
+      try { dlg.close(); } catch (e) {}
+      return true;
+    }
+    return false;
+  }
+  /** @param {boolean} wasHidden */
+  function restoreDialogForPk(wasHidden) {
+    if (!wasHidden) return;
+    /* 对话框被正常关闭时 dlgState 已置 null，不恢复；否则恢复（passkey / reset-step2 都适用） */
+    if (dlgState === null) return;
+    if (dlg && !dlg.open) {
+      try { dlg.showModal(); } catch (e) {}
+    }
   }
 
   /** @returns {Uint8Array} */
@@ -1421,7 +1497,20 @@ function showLockScreen() {
     for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
     return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
+  /**
+   * 批次 B R2b：全链路 30 秒总超时（challenge + get + auth，Promise.race 式按代次 token 防 stale 回调）；
+   * get() 前临时隐藏验证 dialog；闭包存 authedCred 修 unknown-key 分支引用作用域外 cred 的 bug。
+   */
   function pkAuth() {
+    const runId = ++pkRunId;
+    let timedOut = false;
+    let authedCred = null;
+    const timer = window.setTimeout(function () {
+      timedOut = true;
+      if (runId === pkRunId) pkFailed({ kind: 'timeout' });
+    }, 30000);
+    function alive() { return runId === pkRunId && !timedOut; }
+    function done() { window.clearTimeout(timer); }
     fetch('/api/owner-passkey', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1432,26 +1521,35 @@ function showLockScreen() {
       })
       .then(function (ch) {
         if (dlgState !== 'passkey') throw { done: true };
-        if (!ch || !ch.ok) throw new Error('challenge');
+        if (!alive()) throw { done: true };
+        if (!ch || !ch.ok) throw { kind: 'challenge' };
         const allow = (ch.allowCredentials || []).map(function (c) {
           return { id: b64urlToBuf(c.id), type: c.type };
         });
+        const wasHidden = hideDialogForPk();
         return navigator.credentials
           .get({
             publicKey: {
               challenge: b64urlToBuf(ch.challenge),
               allowCredentials: allow,
               userVerification: 'required',
-              timeout: 60000,
+              timeout: 30000,
             },
           })
           .then(function (cred) {
+            restoreDialogForPk(wasHidden);
+            if (!alive()) throw { done: true };
             return { cred: cred, cid: ch.cid };
+          }, function (e) {
+            restoreDialogForPk(wasHidden);
+            throw e;
           });
       })
       .then(function (res) {
         if (dlgState !== 'passkey') throw { done: true };
+        if (!alive()) throw { done: true };
         const cred = res.cred;
+        authedCred = cred;
         return fetch('/api/owner-passkey', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1476,27 +1574,35 @@ function showLockScreen() {
         return r.json();
       })
       .then(function (j) {
+        done();
         if (dlgState !== 'passkey') return;
+        if (!alive()) return;
         if (j && j.ok) {
           closeDialog('success');
           unlock();
         } else {
-          /* 服务端不认识这把密钥 → 通知密码管理器删掉 */
+          /* 服务端不认识这把密钥 → 通知密码管理器删掉（用闭包 authedCred） */
           try {
-            if (j && j.error === 'unknown-key' && window.PublicKeyCredential &&
+            if (j && j.error === 'unknown-key' && authedCred && window.PublicKeyCredential &&
                 typeof PublicKeyCredential.signalUnknownCredential === 'function') {
               PublicKeyCredential.signalUnknownCredential({
                 rpId: location.hostname,
-                credentialId: cred.id,
+                credentialId: authedCred.id,
               }).catch(function () {});
             }
           } catch (e) {}
-          pkFailed();
+          pkFailed(j && j.error === 'unknown-key' ? { kind: 'unknown-key' } : undefined);
         }
       })
       .catch(function (e) {
+        done();
         if (e && e.done) return;
-        pkFailed();
+        if (!alive()) return;
+        if (e && e.kind) { pkFailed(e); return; }
+        /* fetch 抛错 → 网络；响应非 JSON → 解析 */
+        if (typeof TypeError !== 'undefined' && e instanceof TypeError) { pkFailed({ kind: 'network' }); return; }
+        if (typeof SyntaxError !== 'undefined' && e instanceof SyntaxError) { pkFailed({ kind: 'parse' }); return; }
+        pkFailed(e);
       });
   }
 

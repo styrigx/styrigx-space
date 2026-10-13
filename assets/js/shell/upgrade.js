@@ -199,8 +199,14 @@ export function initUpgrade() {
   }
 
   // 通行密钥验证：challenge → WebAuthn → auth，成功后服务端签发 owner 会话
+  // 批次 B R2b：30 秒总超时 + get() 前临时隐藏升级层 + 按分支给文案
   document.getElementById('sgx-upgrade-pk').addEventListener('click', async () => {
     if (errEl) errEl.hidden = true;
+    let timedOut = false;
+    const timer = window.setTimeout(function () {
+      timedOut = true;
+      showErr(isEn ? 'Verification timed out, please retry' : '验证超时，请重试');
+    }, 30000);
     try {
       if (!window.PublicKeyCredential) {
         showErr(isEn ? 'Not supported on this device' : '设备不支持');
@@ -212,21 +218,37 @@ export function initUpgrade() {
         body: JSON.stringify({ action: 'challenge', type: 'auth', pkClass: STORE_CLASS_LOCKKEY }),
         credentials: 'include',
       });
+      if (timedOut) return;
       const ch = await chRes.json();
+      if (timedOut) return;
       if (!ch || !ch.ok) {
-        showErr(isEn ? 'Server error' : '服务器错误');
+        showErr(isEn ? 'Failed to start verification' : '验证初始化失败');
         return;
       }
       const allow = (ch.allowCredentials || []).map((c) => ({ id: b64urlToBuf(c.id), type: c.type }));
-      const cred = await navigator.credentials.get({
-        publicKey: {
-          challenge: b64urlToBuf(ch.challenge),
-          rpId: ch.rpId,
-          allowCredentials: allow,
-          userVerification: 'required',
-          timeout: 60000,
-        },
-      });
+      /* get() 前临时隐藏升级层（系统框可能被遮罩盖住），落定后恢复 */
+      let wasHidden = false;
+      if (overlay && !overlay.hidden) { overlay.hidden = true; wasHidden = true; }
+      let cred;
+      try {
+        cred = await Promise.race([
+          navigator.credentials.get({
+            publicKey: {
+              challenge: b64urlToBuf(ch.challenge),
+              rpId: ch.rpId,
+              allowCredentials: allow,
+              userVerification: 'required',
+              timeout: 30000,
+            },
+          }),
+          new Promise(function (_, reject) {
+            window.setTimeout(function () { reject({ kind: 'timeout' }); }, 30000);
+          }),
+        ]);
+      } finally {
+        if (wasHidden) overlay.hidden = false;
+      }
+      if (timedOut) return;
       const authRes = await fetch('/api/owner-passkey', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -247,15 +269,33 @@ export function initUpgrade() {
         }),
         credentials: 'include',
       });
+      if (timedOut) return;
       const authJ = await authRes.json();
+      if (timedOut) return;
       if (authJ && authJ.ok) {
         sgxNavigate(returnPath, 'upgrade.js:235', 'upgrade-passkey-ok');
+      } else if (authJ && authJ.error === 'unknown-key') {
+        showErr(isEn ? 'No passkey found on this device' : '这台设备上没有这把钥匙');
       } else {
         showErr(isEn ? 'Verification failed' : '验证失败');
       }
     } catch (e) {
-      /* 用户取消或失败：留在原页 */
-      if (e && e.name !== 'NotAllowedError') showErr(isEn ? 'Verification failed' : '验证失败');
+      /* 用户取消留在原页；超时文案已由 timer 显示，不重复 */
+      if (e && e.kind === 'timeout') {
+        /* 已显示超时文案 */
+      } else if (e && e.name === 'NotAllowedError') {
+        /* 取消，留在原页 */
+      } else if (e && e.name === 'NotFoundError') {
+        showErr(isEn ? 'No passkey found on this device' : '这台设备上没有这把钥匙');
+      } else if (typeof TypeError !== 'undefined' && e instanceof TypeError) {
+        showErr(isEn ? 'Network connection failed, please retry' : '网络连接失败，请重试');
+      } else if (typeof SyntaxError !== 'undefined' && e instanceof SyntaxError) {
+        showErr(isEn ? 'Unexpected server response, please retry' : '服务响应异常，请重试');
+      } else if (e && e.name !== 'NotAllowedError') {
+        showErr(isEn ? 'Verification failed' : '验证失败');
+      }
+    } finally {
+      window.clearTimeout(timer);
     }
   });
 }
