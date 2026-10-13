@@ -373,3 +373,24 @@ test.describe('door dialog row feedback (批次 A 验收修复 P2)', () => {
     await expect(row.locator('.sgx-door-chev')).not.toHaveClass(/expanded/);
   });
 });
+
+test.describe('security status card wording (批次 A 验收修复 #8)', () => {
+  test('missing owner password shows 站长密码 wording (option B), not 解锁密码', async ({ page: pg }) => {
+    await pinLang(pg, 'zh');
+    await blockExternalRequests(pg);
+    /* 卡片数据源是 owner-status（站长层）：密码缺失 → 站长密码文案 */
+    await mockJson(pg, '**/api/owner-status', 200, { ok: true, password: false, passkey: true });
+    await pg.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
+    await expect(pg.locator('#sec-status-title')).toContainText('建议操作', { timeout: 15000 });
+    await expect(pg.locator('#sec-status-sub')).toHaveText('未设置站长密码');
+  });
+
+  test('missing passkey copy stays layer-neutral（未注册通行密钥）', async ({ page: pg }) => {
+    await pinLang(pg, 'zh');
+    await blockExternalRequests(pg);
+    await mockJson(pg, '**/api/owner-status', 200, { ok: true, password: true, passkey: false });
+    await pg.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
+    await expect(pg.locator('#sec-status-title')).toContainText('建议操作', { timeout: 15000 });
+    await expect(pg.locator('#sec-status-sub')).toHaveText('未注册通行密钥');
+  });
+});
