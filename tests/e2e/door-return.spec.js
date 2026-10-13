@@ -333,3 +333,41 @@ test.describe('批次 A 验收修复 P1：双向相同密码错误文案', () =>
     await expect(err).toHaveText('不能与站长密码相同');
   });
 });
+
+test.describe('批次 A 验收修复 #7：锁屏页探针失败走 needVerify（lockgate 死代码已删）', () => {
+  let pageErrors;
+  test.beforeEach(async ({ page }) => {
+    pageErrors = [];
+    page.on('pageerror', (e) => pageErrors.push(String(e && e.message ? e.message : e)));
+    await blockExternalRequests(page);
+    await page.addInitScript(() => {
+      try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
+    });
+    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true });
+    await mockJson(page, '**/api/owner-passkey', 200, { ok: true, keys: [], scope: 'root' });
+  });
+
+  test('探针 session 失败 → 无 JS 错误，toast 会话过期并跳回安全页', async ({ page }) => {
+    await mockJson(page, '**/api/lock-status', 401, { ok: false, error: 'session' });
+    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.sgx-toast')).toContainText('会话过期，请重新验证', { timeout: 5000 });
+    await expect(page).toHaveURL(/\/settings\/security\/$/, { timeout: 10000 });
+    expect(pageErrors).toEqual([]);
+  });
+
+  test('探针 scope + owner-configured → 明确提示文案并跳回安全页', async ({ page }) => {
+    await mockJson(page, '**/api/lock-status', 403, { ok: false, error: 'scope', reason: 'owner-configured' });
+    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.sgx-toast')).toContainText('站长凭证已设置，请用站长凭证重新验证', { timeout: 5000 });
+    await expect(page).toHaveURL(/\/settings\/security\/$/, { timeout: 10000 });
+    expect(pageErrors).toEqual([]);
+  });
+
+  test('探针网络失败 → 无 JS 错误，走 needVerify 跳回安全页', async ({ page }) => {
+    await page.route('**/api/lock-status', (route) => route.abort('failed'));
+    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.sgx-toast')).toContainText('会话过期，请重新验证', { timeout: 5000 });
+    await expect(page).toHaveURL(/\/settings\/security\/$/, { timeout: 10000 });
+    expect(pageErrors).toEqual([]);
+  });
+});

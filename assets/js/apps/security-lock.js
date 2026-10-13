@@ -9,9 +9,9 @@
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
-import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
+import { sgxNavigate } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton } from '../lib/dialog-behavior.js';
-import { apiErrorText } from './app-gate.js';
+import { apiErrorText, needVerify } from './app-gate.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -101,68 +101,6 @@ import { apiErrorText } from './app-gate.js';
     });
   }
 
-  /**
-   * 2.10.0：执行 stepup 验证（锁屏类通行密钥，强制 UV）。
-   * 成功后服务端设置 sgx-stepup cookie。
-   * 2.10.1 A3：返回 { ok, error }，失败时带服务端错误码。
-   * @returns {Promise<{ok:boolean, error?:string}>}
-   */
-  function doStepup() {
-    if (!window.PublicKeyCredential) {
-      return Promise.resolve({ ok: false, error: 'no-support' });
-    }
-    let lastError = 'server';
-    return api('/api/stepup', { action: 'challenge' })
-      .then(function (res) {
-        const ch = res.json;
-        if (!ch || !ch.ok) {
-          lastError = (ch && ch.error) || 'server';
-          throw { kind: 'server' };
-        }
-        const allow = (ch.allowCredentials || []).map(function (c) {
-          return { id: b64urlToBuf(c.id), type: c.type };
-        });
-        return navigator.credentials
-          .get({ publicKey: { challenge: b64urlToBuf(ch.challenge), rpId: ch.rpId, allowCredentials: allow, userVerification: 'required', timeout: 60000 } })
-          .then(function (cred) {
-            return { cred: cred, cid: ch.cid };
-          }, function (e) {
-            lastError = e && e.name === 'NotAllowedError' ? 'cancelled' : 'failed';
-            throw { kind: lastError };
-          });
-      })
-      .then(function (r2) {
-        const cred = r2.cred;
-        return fetch('/api/stepup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'verify',
-            cid: r2.cid,
-            credential: {
-              id: cred.id,
-              rawId: bufToB64url(cred.rawId),
-              type: cred.type,
-              response: {
-                clientDataJSON: bufToB64url(cred.response.clientDataJSON),
-                authenticatorData: bufToB64url(cred.response.authenticatorData),
-                signature: bufToB64url(cred.response.signature),
-                userHandle: cred.response.userHandle ? bufToB64url(cred.response.userHandle) : null,
-              },
-            },
-          }),
-          credentials: 'include',
-        }).then(parseApi);
-      })
-      .then(function (res) {
-        if (res.json && res.json.ok) return { ok: true };
-        lastError = (res.json && res.json.error) || 'verify';
-        return { ok: false, error: lastError };
-      })
-      .catch(function (e) {
-        return { ok: false, error: lastError };
-      });
-  }
   /** @param {string} s */
   function b64urlToBuf(s) {
     s = s.replace(/-/g, '+').replace(/_/g, '/');
@@ -203,18 +141,14 @@ import { apiErrorText } from './app-gate.js';
     return apiErrorText(t, code, status);
   }
 
-  /** 会话/票据失效 → 重新验证（detail='owner-configured' 时显示明确文案）。
-      批次 A 验收修复 #7 会改走 app-gate.js 的 needVerify，此处先透传 reason。 */
+  /** 会话/票据失效 → 重新验证（批次 A 验收修复 #7：改走 app-gate.js 的 needVerify，
+      和 door.js 一致；detail='owner-configured' 时 needVerify 显示明确文案）。
+      锁屏页无验证门可开：lockgate-* 元素在任何模板里都不存在，
+      旧 openGate() 在 gateOpts 为 null 时会抛 TypeError。 */
   function needReauth(detail) {
-    /* P2-14：先收起当前所有 sheet 再开验证门，禁止弹层叠弹层
-       （如通行密钥命名弹层里 stepup 失效时，不能在命名弹层上再叠验证门） */
+    /* P2-14：先收起当前所有 sheet 再跳验证流程，禁止弹层叠弹层 */
     closeOpenSheets();
-    if (detail === 'owner-configured') {
-      toast(en ? 'Owner credential is set, please verify with the owner credential again' : '站长凭证已设置，请用站长凭证重新验证');
-    } else {
-      toast(t('sessExp'));
-    }
-    openGate();
+    needVerify(t, 'session', detail);
   }
 
   /**
@@ -222,7 +156,7 @@ import { apiErrorText } from './app-gate.js';
    * 切换弹层前调用，保证同一时刻只有一个弹层。
    */
   function closeOpenSheets() {
-    ['lockpw-dlg', 'lockpkname-dlg', 'lockpkdel-dlg', 'lockgate-dlg'].forEach(function (id) {
+    ['lockpw-dlg', 'lockpkname-dlg', 'lockpkdel-dlg'].forEach(function (id) {
       const d = $(id);
       try {
         if (d && d.open) d.close();
@@ -230,68 +164,7 @@ import { apiErrorText } from './app-gate.js';
     });
   }
 
-  /* ---------- 验证身份弹层 ---------- */
-  const gateDlg = $('lockgate-dlg');
-  const gateOpts = $('lockgate-opts');
-  const gateKeyForm = $('lockgate-keyform');
-  const gatePkBtn = $('lockgate-pk');
-  const gateKeyBtn = $('lockgate-key');
-  const gateInput = $('lockgate-input');
-  const gateEye = $('lockgate-eye');
-  const gateCancel = $('lockgate-cancel');
-  /* P2-13：根凭证输入框聚焦时，验证身份弹层随键盘上移 */
-  followKeyboard(gateDlg, gateInput);
-
-  function openGate() {
-    $('lockmgr').hidden = true;
-    gateOpts.hidden = false;
-    gateKeyForm.hidden = true;
-    hideErr('lockgate-err');
-    if (gateInput) gateInput.value = '';
-    /* Phase 2 Item 8：移除「根密钥（恢复）」按钮（根凭证只在锁屏和站长凭证提权时问，
-       管理页内不再重复）。只保留通行密钥验证入口。 */
-    if (gateKeyBtn) gateKeyBtn.hidden = true;
-    /* 有通行密钥才显示该选项；配置缺失时禁用。按模式读对应的状态接口。 */
-    fetch(statusApi, { method: 'GET', credentials: 'same-origin' })
-      .then(function (r) {
-        return r.json();
-      })
-      .then(function (j) {
-        if (gatePkBtn) gatePkBtn.hidden = !(j && j.ok && j.passkey);
-        /* 检查通行密钥服务是否可用（SGX_RP_ID/SGX_ORIGIN 未配时禁用） */
-        return fetch('/api/owner-passkey', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'challenge', type: 'auth' }),
-        });
-      })
-      .then(function (r) {
-        if (!r) return;
-        return r.json().then(function (j) {
-          if (j && j.error === 'config') {
-            /* 服务端未配置：禁用所有通行密钥入口 */
-            if (gatePkBtn) gatePkBtn.hidden = true;
-            const pkAdd = $('lockmgr-pkadd');
-            if (pkAdd) pkAdd.disabled = true;
-            const pkSection = $('lockmgr-pklist');
-            if (pkSection) pkSection.hidden = true;
-          }
-        });
-      })
-      .catch(function () {
-        if (gatePkBtn) gatePkBtn.hidden = true;
-      });
-    try {
-      gateDlg.showModal();
-    } catch (e) {}
-  }
-  function closeGate() {
-    try {
-      if (gateDlg.open) gateDlg.close();
-    } catch (e) {}
-  }
   function enterMgr() {
-    closeGate();
     /* 本页有独立验证门；进管理区时去掉全局锁屏遮罩，避免盖住按钮 */
     try {
       const gl = document.getElementById('sgx-lock');
@@ -303,119 +176,16 @@ import { apiErrorText } from './app-gate.js';
     refreshPkList();
   }
 
-  if (gateDlg) {
-    on(gateDlg, 'click', function (/** @type {MouseEvent} */ e) {
-      const el = /** @type {Element|null} */ (e.target);
-      if (el && el.closest && el.closest('[data-gclose]')) {
-        /* 验证身份弹层不允许直接关闭：返回上一页 */
-        sgxGoBack('security-lock.js:289', 'gate-dlg-close');
-      }
-    });
-    on(gateDlg, 'cancel', function (/** @type {Event} */ e) {
-      e.preventDefault();
-      sgxGoBack('security-lock.js:294', 'gate-dlg-cancel');
-    });
-  }
-  if (gateCancel) {
-    /* 取消：与关闭手柄一致，返回上一页 */
-    on(gateCancel, 'click', function () {
-      sgxGoBack('security-lock.js:300', 'gate-cancel');
-    });
-  }
   /* 显示/隐藏眼睛（批次 A 验收修复 P2：bindEyeButton 统一接管图标 + 文案 + 复位） */
   const eyeResets = [];
   function bindEye(btn, input) {
     if (!btn || !input) return;
     eyeResets.push(bindEyeButton(btn, input, { showLabel: t('eyeShow'), hideLabel: t('eyeHide') }));
   }
-  bindEye(gateEye, gateInput);
   document.querySelectorAll('[data-eye]').forEach(function (b) {
     const inp = $(b.getAttribute('data-eye'));
     bindEye(b, inp);
   });
-
-  /* 使用根凭证 → 显示输入框 */
-  if (gateKeyBtn) {
-    on(gateKeyBtn, 'click', function () {
-      gateOpts.hidden = true;
-      gateKeyForm.hidden = false;
-      hideErr('lockgate-err');
-      if (gateInput) {
-        try {
-          gateInput.focus({ preventScroll: true });
-        } catch (e) {}
-      }
-    });
-  }
-  const gateBack = $('lockgate-back');
-  if (gateBack) {
-    on(gateBack, 'click', function () {
-      gateKeyForm.hidden = true;
-      gateOpts.hidden = false;
-      hideErr('lockgate-err');
-    });
-  }
-  function submitGateKey() {
-    const k = gateInput ? gateInput.value : '';
-    hideErr('lockgate-err');
-    if (!k) {
-      showErr('lockgate-err', t('gateNeedKey'));
-      return;
-    }
-    /* 2.11：根凭证 = 根恢复凭据。/api/root-auth 通过后服务端只签发
-       sgx-stepup(by=root, scope=root) cookie（不签发会话），前端直接进管理区。 */
-    api('/api/root-auth', { key: k })
-      .then(function (res) {
-        const j = res.json;
-        if (!j) {
-          showErr('lockgate-err', t('gateSrvErr'));
-          return;
-        }
-        if (j.ok) {
-          enterMgr();
-        } else if (j.error === 'locked') {
-          showErr('lockgate-err', t('gateLocked'));
-          console.error('[gate-key] rate limited');
-        } else {
-          /* 2.10.1 A3：显示服务端错误码 */
-          showErr('lockgate-err', t('gateKeyWrong') + (j.error ? ' (' + j.error + ')' : ''));
-          console.error('[gate-key] failed:', j.error);
-        }
-      })
-      .catch(function () {
-        showErr('lockgate-err', t('gateNetErr'));
-      });
-  }
-  const gateGo = $('lockgate-go');
-  if (gateGo) on(gateGo, 'click', submitGateKey);
-  if (gateInput) {
-    on(gateInput, 'keydown', function (/** @type {KeyboardEvent} */ e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        submitGateKey();
-      }
-    });
-  }
-
-  /* 使用通行密钥 → 2.10.0：走 stepup 验证（锁屏类，强制 UV），成功后服务端设 cookie */
-  if (gatePkBtn) {
-    on(gatePkBtn, 'click', function () {
-      hideErr('lockgate-err');
-      if (!window.PublicKeyCredential) {
-        showErr('lockgate-err', t('pkNoSupport'));
-        return;
-      }
-      doStepup().then(function (r) {
-        if (r.ok) {
-          enterMgr();
-        } else {
-          /* 2.10.1 A3：显示服务端错误码 */
-          showErr('lockgate-err', t('gatePkErr') + (r.error ? ' (' + r.error + ')' : ''));
-          console.error('[gate-pk] stepup failed:', r.error);
-        }
-      });
-    });
-  }
 
   /* ---------- 管理区 ---------- */
   var hasPk = false;
@@ -1168,10 +938,11 @@ import { apiErrorText } from './app-gate.js';
       if (j && j.ok) {
         enterMgr();
       } else {
-        openGate();
+        /* 批次 A 验收修复 #7：探针失败走 needVerify，不开已删除的验证门 */
+        needReauth(j && j.reason);
       }
     })
     .catch(function () {
-      openGate();
+      needReauth();
     });
 })();
