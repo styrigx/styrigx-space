@@ -19,6 +19,7 @@ import { followKeyboard } from '../shell/vk.js';
 import { mgmtButtons } from './mgmt-buttons.js';
 import { exchangeRootSession } from '../lib/root-session.js';
 import { takeJumpRecord } from './app-gate.js';
+import { takeBeaconRecord, sgxNavigate } from '../lib/diag-jumptrace.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -584,7 +585,7 @@ import { takeJumpRecord } from './app-gate.js';
         desc: en
           ? 'Verify with your root credential. After verification you can freely manage owner keys; it expires when you leave.'
           : '用根凭证验证。验证后可自由管理站长凭证，离开即失效。',
-        methods: [doorDlg.rootMethod(function () { location.href = ownerUrl; })],
+        methods: [doorDlg.rootMethod(function () { sgxNavigate(ownerUrl, 'security.js:588', 'root-ok'); })],
       });
     }
     on(row, 'click', openOwnerDoor);
@@ -609,8 +610,8 @@ import { takeJumpRecord } from './app-gate.js';
     if (!row || !doorDlg) return;
     /* 定稿 #16：未配 ownerkey 时管理凭证的根凭证行验证后进管理凭证索引页，
        不跳站长凭证门。 */
-    const goMgmt = function () { location.href = mgmtUrl; };
-    const goLock = function () { location.href = lockUrl; };
+    const goMgmt = function () { sgxNavigate(mgmtUrl, 'security.js:613', 'mgmt-door-ok'); };
+    const goLock = function () { sgxNavigate(lockUrl, 'security.js:614', 'mgmt-door-ok'); };
     function openMgmtDoor() {
       let isVisitor = false;
       try {
@@ -666,12 +667,25 @@ import { takeJumpRecord } from './app-gate.js';
     try {
       jr = takeJumpRecord();
     } catch (e) {}
-    if (!jr) return;
+    let bc = null;
+    try {
+      bc = takeBeaconRecord();
+    } catch (e) {}
+    if (!jr && !bc) return;
     const note = document.getElementById('sgx-jump-note');
     const txt = document.getElementById('sgx-jump-note-text');
     if (!note || !txt) return;
-    txt.textContent = (en ? 'Last door redirect: ' : '上次门内跳转：') +
-      jr.who + (jr.reason ? '（' + jr.reason + '）' : '');
+    const parts = [];
+    if (bc) {
+      parts.push((en ? 'Door page loaded: ' : '门内页已加载：') + bc.path +
+        '（session=' + bc.session + ',role=' + bc.role +
+        ',upgrade=' + bc.upgrade + ',build=' + bc.build + '）');
+    }
+    if (jr) {
+      parts.push((en ? 'Last door redirect: ' : '上次门内跳转：') +
+        jr.who + (jr.reason ? '（' + jr.reason + '）' : ''));
+    }
+    txt.textContent = parts.join(en ? ' | ' : '；');
     note.hidden = false;
   })();
 

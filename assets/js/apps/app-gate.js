@@ -13,6 +13,7 @@
  * - apiErrorText()：按服务端 error 码给中文提示，不说笼统的"服务器错误"。
  */
 import { toast } from '../lib/toast.js';
+import { sgxNavigate } from '../lib/diag-jumptrace.js';
 
 /** @param {string} s */
 export function b64urlToBuf(s) {
@@ -51,30 +52,9 @@ export function securityUrl() {
   return document.documentElement.lang === 'en' ? '/en/settings/security/' : '/settings/security/';
 }
 
-/* #1 诊断：门内页跳转留痕。跳转前记「谁触发的 + 原因」，
-   安全页加载时取出来显示一次（取即清除）。 */
-const JUMP_KEY = 'sgx-last-jump';
-/**
- * @param {string} who 触发方（如 probe-fail-back、needVerify、clear-stepup、lockout）
- * @param {string} [reason] 原因（服务端 reason 码等，不含密钥或 Cookie 值）
- */
-export function recordJump(who, reason) {
-  try {
-    sessionStorage.setItem(JUMP_KEY, JSON.stringify({ who: who, reason: reason || '', at: Date.now() }));
-  } catch (e) {}
-}
-/** @returns {{who:string, reason:string, at:number}|null} 取出并清除记录 */
-export function takeJumpRecord() {
-  try {
-    const raw = sessionStorage.getItem(JUMP_KEY);
-    sessionStorage.removeItem(JUMP_KEY);
-    if (!raw) return null;
-    const o = JSON.parse(raw);
-    return o && o.who ? o : null;
-  } catch (e) {
-    return null;
-  }
-}
+/* #1 诊断：门内页跳转留痕（实现已移至 lib/diag-jumptrace.js，此处 re-export 保持兼容）。
+   跳转前记「谁触发的 + 原因」，安全页加载时取出来显示一次（取即清除）。 */
+export { recordJump, takeJumpRecord } from '../lib/diag-jumptrace.js';
 
 /* 跳验证流程只跳一次（门内多个请求并发失败时不重复跳转） */
 let verifyJumped = false;
@@ -121,9 +101,8 @@ export function needVerify(t, reason, detail) {
   try {
     toast(verifyMessage(t, reason, detail));
   } catch (e) {}
-  recordJump('needVerify', (reason || 'session') + (detail ? ':' + detail : ''));
   window.setTimeout(function () {
-    location.href = securityUrl();
+    sgxNavigate(securityUrl(), 'app-gate.js:needVerify', (reason || 'session') + (detail ? ':' + detail : ''));
   }, 900);
 }
 
@@ -238,8 +217,7 @@ function showProbeFailure(t, info) {
   btn.className = 'sgx-verify-skip mt-4';
   btn.textContent = backLabel;
   btn.addEventListener('click', function () {
-    recordJump('probe-fail-back', (detail && detail !== 'ok' ? detail : reason));
-    location.href = securityUrl();
+    sgxNavigate(securityUrl(), 'app-gate.js:probe-fail-btn', (detail && detail !== 'ok' ? detail : reason));
   });
   card.appendChild(btn);
 
@@ -289,8 +267,7 @@ export function clearStepupThen(targetUrl) {
   function go() {
     if (done) return;
     done = true;
-    recordJump('clear-stepup', targetUrl);
-    location.href = targetUrl;
+    sgxNavigate(targetUrl, 'app-gate.js:clear-stepup', 'clear-stepup');
   }
   /* 兜底：3 秒还没回来也走，不把用户晾在门里 */
   window.setTimeout(go, 3000);

@@ -9,7 +9,7 @@
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
-import { recordJump } from './app-gate.js';
+import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -285,18 +285,18 @@ import { recordJump } from './app-gate.js';
       const el = /** @type {Element|null} */ (e.target);
       if (el && el.closest && el.closest('[data-gclose]')) {
         /* 验证身份弹层不允许直接关闭：返回上一页 */
-        history.back();
+        sgxGoBack('security-lock.js:289', 'gate-dlg-close');
       }
     });
     on(gateDlg, 'cancel', function (/** @type {Event} */ e) {
       e.preventDefault();
-      history.back();
+      sgxGoBack('security-lock.js:294', 'gate-dlg-cancel');
     });
   }
   if (gateCancel) {
     /* 取消：与关闭手柄一致，返回上一页 */
     on(gateCancel, 'click', function () {
-      history.back();
+      sgxGoBack('security-lock.js:300', 'gate-cancel');
     });
   }
   /* 显示/隐藏眼睛 */
@@ -539,8 +539,7 @@ import { recordJump } from './app-gate.js';
         document.cookie = 'sgx-stepup=; Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
       } catch (e) {}
       /* 回安全页 */
-      recordJump('lockout', '');
-      location.href = document.documentElement.lang === 'en' ? '/en/settings/security/' : '/settings/security/';
+      sgxNavigate(document.documentElement.lang === 'en' ? '/en/settings/security/' : '/settings/security/', 'security-lock.js:544', 'lockout');
     });
   }
   function submitPw() {

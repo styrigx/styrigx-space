@@ -64,4 +64,45 @@ test.describe('#1 诊断：构建标记与跳转留痕', () => {
     await expect(page.locator('#sec-mgmt-cred')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('#sgx-jump-note')).toBeHidden();
   });
+
+  test('门内页信标：owner 页加载时写 sessionStorage', async ({ page }) => {
+    await page.goto('/settings/security/owner/', { waitUntil: 'domcontentloaded' });
+    /* 探针无 mock 会失败留页，但 <head> 内联信标脚本先执行 */
+    const beacon = await page.evaluate(() => {
+      try {
+        const raw = sessionStorage.getItem('sgx-door-beacon');
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) { return null; }
+    });
+    expect(beacon).not.toBeNull();
+    expect(beacon.path).toBe('/settings/security/owner/');
+    expect(typeof beacon.at).toBe('number');
+    /* data-sgx-build 来自 <html> 属性 */
+    expect(beacon.build).toMatch(/^([0-9a-f]{7}|dev)$/);
+  });
+
+  test('门内页信标：安全页显示最近一条，刷新后消失', async ({ page }) => {
+    await page.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#sec-mgmt-cred')).toBeVisible({ timeout: 15000 });
+    /* 模拟门内页已加载（信标） */
+    await page.evaluate(() => {
+      try {
+        sessionStorage.setItem('sgx-door-beacon', JSON.stringify({
+          path: '/settings/security/owner/',
+          at: Date.now(),
+          session: 'valid',
+          role: 'owner',
+          upgrade: null,
+          build: 'abc1234',
+        }));
+      } catch (e) {}
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    const note = page.locator('#sgx-jump-note');
+    await expect(note).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#sgx-jump-note-text')).toHaveText(/门内页已加载：\/settings\/security\/owner\//);
+    /* 取即清除：再刷新不再显示 */
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#sgx-jump-note')).toBeHidden({ timeout: 15000 });
+  });
 });
