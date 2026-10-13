@@ -548,3 +548,52 @@ test.describe('批次 A 验收修复 #7：锁屏页探针失败走 needVerify（
     expect(pageErrors).toEqual([]);
   });
 });
+
+/* 批次 B #8/#13：安全页状态卡固定占位——卡出现前后「站长凭证」行位置不变。
+   状态接口用闸门延迟放行：先测占位态行位置，放行后等卡填入真实文案，再测一次。 */
+test.describe('批次 B #8/#13：安全页状态卡占位不跳动', () => {
+  test.beforeEach(async ({ page }) => {
+    await blockExternalRequests(page);
+    await page.addInitScript(() => {
+      try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
+    });
+  });
+
+  test('卡出现前后「站长凭证」行位置不变', async ({ page }) => {
+    let release;
+    const gate = new Promise((res) => { release = res; });
+    for (const pattern of ['**/api/owner-status', '**/api/lock-status']) {
+      await page.route(pattern, async (route) => {
+        await gate;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ ok: true, password: true, passkey: true }),
+        });
+      });
+    }
+    await page.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
+    /* 等字体加载完成 + 入场动画跑完再测位置，避免字体切换 / transform 导致漂移 */
+    await page.evaluate(() => document.fonts.ready);
+    await page.evaluate(() => Promise.all(
+      Array.from(document.querySelectorAll('.animate-fade-up')).flatMap((el) => el.getAnimations().map((a) => a.finished))
+    ));
+    /* 静态服务不注入 data-sgx-role，显式设为 owner 否则 CSS 隐藏卡片 */
+    await page.evaluate(() => {
+      try { document.documentElement.dataset.sgxRole = 'owner'; } catch (e) {}
+    });
+    /* 占位态：两张卡可见，占位文案「正在读取…」 */
+    await expect(page.locator('#sec-status-owner')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#sec-status-lock')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#sec-status-owner-title')).toHaveText('正在读取…');
+    const row = page.locator('#sec-owner-cred');
+    await expect(row).toBeVisible();
+    const yBefore = await row.evaluate((el) => el.getBoundingClientRect().top);
+    /* 放行状态接口，等卡填入真实文案（证明经历了占位→填入的过渡） */
+    release();
+    await expect(page.locator('#sec-status-owner-title')).toHaveText('站长凭证已设置', { timeout: 5000 });
+    await expect(page.locator('#sec-status-lock-title')).toHaveText('锁屏已设置', { timeout: 5000 });
+    const yAfter = await row.evaluate((el) => el.getBoundingClientRect().top);
+    expect(yAfter).toBe(yBefore);
+  });
+});

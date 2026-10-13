@@ -144,6 +144,23 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
               });
             });
           }
+          /* 安全页：mock 两层状态已配置，两张状态卡渲染后截图 */
+          if (page === '/settings/security/') {
+            await pg.route('**/api/owner-status', async (route) => {
+              await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ ok: true, password: true, passkey: true }),
+              });
+            });
+            await pg.route('**/api/lock-status', async (route) => {
+              await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ ok: true, password: true, passkey: true }),
+              });
+            });
+          }
           /* 预置主题 + 冻结时间，避免动态内容导致截图不稳定
              （锁屏由构建期 SGX_TEST_NO_LOCK=1 禁用，见 deploy.yml） */
           /* 2.8.0：固定音乐索引，避免按日期漂移导致基线不稳定 */
@@ -173,6 +190,15 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           await freezeTime(pg);
           await pg.goto(lang.prefix + page, { waitUntil: 'domcontentloaded' });
           await waitPageReady(pg);
+          /* 安全页：静态服务不注入 data-sgx-role，显式设为 owner 否则 CSS 隐藏卡片；
+             等两张状态卡填入真实文案再截图，避免抓到「正在读取…」中间态 */
+          if (page === '/settings/security/') {
+            await pg.evaluate(() => {
+              try { document.documentElement.dataset.sgxRole = 'owner'; } catch (e) {}
+            });
+            await expect(pg.locator('#sec-status-owner-title')).toHaveText(lang.name === 'en' ? 'Owner credential set' : '站长凭证已设置', { timeout: 5000 });
+            await expect(pg.locator('#sec-status-lock-title')).toHaveText(lang.name === 'en' ? 'Lock screen set' : '锁屏已设置', { timeout: 5000 });
+          }
           /* #1 诊断：构建标记小字只给真机看，视觉回归里隐藏，
              现有基线继续通过；诊断结束后删小字也不用再动基线。
              必须在 goto 之后注入（导航会丢掉之前 addStyleTag/addInitScript 加的样式，
@@ -338,6 +364,14 @@ for (const lang of DOOR_LANGS) {
               body: JSON.stringify({ ok: true, password: true, passkey: true }),
             });
           });
+          /* 两张状态卡：lock-status 也 mock 已配置，否则锁屏卡不渲染 */
+          await pg.route('**/api/lock-status', async (route) => {
+            await route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({ ok: true, password: true, passkey: true }),
+            });
+          });
           /* 报错态：密码/根凭证提交一律 401 */
           await pg.route('**/api/root-auth', async (route) => {
             await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'auth' }) });
@@ -348,6 +382,15 @@ for (const lang of DOOR_LANGS) {
           await freezeTime(pg);
           await pg.goto(lang.prefix + '/settings/security/', { waitUntil: 'domcontentloaded' });
           await waitPageReady(pg);
+
+          /* 状态卡：静态服务不注入 data-sgx-role，CSS 会按 :not(owner) 隐藏卡片。
+             显式设为 owner（模拟线上中间件注入），否则截图里卡不渲染。 */
+          await pg.evaluate(() => {
+            try { document.documentElement.dataset.sgxRole = 'owner'; } catch (e) {}
+          });
+          /* 等两张状态卡填入真实文案再截图，避免抓到「正在读取…」中间态 */
+          await expect(pg.locator('#sec-status-owner-title')).toHaveText(lang.name === 'en' ? 'Owner credential set' : '站长凭证已设置', { timeout: 5000 });
+          await expect(pg.locator('#sec-status-lock-title')).toHaveText(lang.name === 'en' ? 'Lock screen set' : '锁屏已设置', { timeout: 5000 });
 
           const rowId = door === 'owner' ? '#sec-owner-cred' : '#sec-mgmt-cred';
           await pg.locator(rowId).click();

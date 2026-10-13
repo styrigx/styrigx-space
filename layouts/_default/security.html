@@ -25,9 +25,9 @@
   </div>
 
   <!-- 状态卡片（两层状态，批次 B #13；JS 按 owner-status / lock-status 填充；访客不显示）。
-       批次 B #8：固定占位——卡片从首屏即占位（占位文案「正在读取…」），
-       内容填入时不推布局；访客由 CSS 按 data-sgx-role 隐藏。 -->
-  <a id="sec-status-owner" class="sec-status" href="{{ $ownerUrl }}" hidden>
+       批次 B #8：固定占位——卡片从首屏即占位（占位文案「正在读取…」，不带 hidden，
+       否则卡片出现时推布局）；访客由 CSS 按 data-sgx-role 隐藏。 -->
+  <a id="sec-status-owner" class="sec-status" href="{{ $ownerUrl }}">
     <span class="sec-status-ic">{{ partial "icon.html" "shield" }}</span>
     <span class="flex-1 min-w-0">
       <span class="block font-bold text-[17px]" id="sec-status-owner-title">{{ if $isEn }}Loading…{{ else }}正在读取…{{ end }}</span>
@@ -35,7 +35,7 @@
     </span>
     {{ partial "icon.html" "chev-r" }}
   </a>
-  <a id="sec-status-lock" class="sec-status" href="{{ $lockUrl }}" hidden>
+  <a id="sec-status-lock" class="sec-status" href="{{ $lockUrl }}">
     <span class="sec-status-ic">{{ partial "icon.html" "shield" }}</span>
     <span class="flex-1 min-w-0">
       <span class="block font-bold text-[17px]" id="sec-status-lock-title">{{ if $isEn }}Loading…{{ else }}正在读取…{{ end }}</span>
