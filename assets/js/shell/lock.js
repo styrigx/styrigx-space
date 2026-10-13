@@ -24,7 +24,7 @@ import { followKeyboard } from './vk.js';
 import { get, getJSON } from '../lib/storage.js';
 import { exchangeRootSession } from '../lib/root-session.js';
 import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton } from '../lib/dialog-behavior.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, tapFeedback } from '../lib/dialog-behavior.js';
 
 const LOCK =
   '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
@@ -783,16 +783,18 @@ function showLockScreen() {
       });
     });
     const close = function () { closeMethodSheet(); };
+    /* 批次 A 验收修复 P2：方法行点击轻触觉反馈。(b) 行 busy 不适用：
+       点击即关弹层并在同一 tick 打开下一态；通行密钥行 → openPk() 已有带转圈的加载态。 */
     const visitorBtn = sheet.querySelector('#sgx-mopt-visitor');
     const pkBtn = sheet.querySelector('#sgx-mopt-pk');
     const pwBtn = sheet.querySelector('#sgx-mopt-pw');
     const resetBtn = sheet.querySelector('#sgx-mopt-reset');
     const mkBtn = sheet.querySelector('#sgx-mopt-mk');
-    if (visitorBtn) on(visitorBtn, 'click', function () { close(); openVerify(); });
-    if (pkBtn) on(pkBtn, 'click', function () { close(); openPk(); });
-    if (pwBtn) on(pwBtn, 'click', function () { close(); openPw(); });
-    if (resetBtn) on(resetBtn, 'click', function () { close(); openReset(); });
-    if (mkBtn) on(mkBtn, 'click', function () { close(); openMk(); });
+    if (visitorBtn) on(visitorBtn, 'click', function () { tapFeedback(); close(); openVerify(); });
+    if (pkBtn) on(pkBtn, 'click', function () { tapFeedback(); close(); openPk(); });
+    if (pwBtn) on(pwBtn, 'click', function () { tapFeedback(); close(); openPw(); });
+    if (resetBtn) on(resetBtn, 'click', function () { tapFeedback(); close(); openReset(); });
+    if (mkBtn) on(mkBtn, 'click', function () { tapFeedback(); close(); openMk(); });
     const backdrop = sheet.querySelector('[data-close]');
     if (backdrop) on(backdrop, 'click', close);
     /* Esc 关闭 */

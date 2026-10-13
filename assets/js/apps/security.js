@@ -20,7 +20,7 @@ import { mgmtButtons } from './mgmt-buttons.js';
 import { exchangeRootSession } from '../lib/root-session.js';
 import { takeJumpRecords } from './app-gate.js';
 import { takeBeaconRecord, sgxNavigate, sgxReload, recordJump } from '../lib/diag-jumptrace.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton } from '../lib/dialog-behavior.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton, tapFeedback, setRowBusy, setRowSelected } from '../lib/dialog-behavior.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -199,10 +199,22 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
       collapse();
       try { dlg.close(); } catch (e) {}
     }
+    /** 当前展开行的行元素与箭头（collapse 时一并清除选中态 + 旋转） */
+    let expandedRow = null;
+    let expandedChev = null;
     function collapse() {
       if (expanded) {
         expanded.remove();
         expanded = null;
+      }
+      /* 批次 A 验收修复 P2：收起时清除行选中态 + 箭头旋转 */
+      if (expandedRow) {
+        setRowSelected(expandedRow, false);
+        expandedRow = null;
+      }
+      if (expandedChev) {
+        expandedChev.classList.remove('expanded');
+        expandedChev = null;
       }
       setFootSingle();
     }
@@ -399,7 +411,7 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
      * @param {HTMLElement} wrap
      * @param {HTMLElement} rowErr
      */
-    function expandForm(m, wrap, rowErr) {
+    function expandForm(m, wrap, rowErr, row, chev) {
       const wasOpen = !!(expanded && expanded.dataset.kind === m.kind);
       collapse();
       rowErr.hidden = true;
@@ -450,6 +462,15 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
       form.appendChild(errEl);
       wrap.appendChild(form);
       expanded = form;
+      /* 批次 A 验收修复 P2：展开时行选中态 + 箭头旋转 90° */
+      if (row) {
+        setRowSelected(row, true);
+        expandedRow = row;
+      }
+      if (chev) {
+        chev.classList.add('expanded');
+        expandedChev = chev;
+      }
       const doSubmit = function () { submitForm(m, input, errEl); };
       setFootDouble(doSubmit);
       /* 键盘弹出时弹层整体上移 */
@@ -469,9 +490,15 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
      * @param {HTMLElement} rowErr
      */
     function startWebauthn(m, row, chev, rowErr) {
+      /* 批次 A 验收修复 P2：busy 中重复点击（合成事件）直接丢弃，保证 challenge 只发一次 */
+      if (row.disabled) return;
       rowErr.hidden = true;
+      /* 副标题切换 busy 文案（保存原文，成功/取消/失败三路都要恢复） */
+      const subEl = row.querySelector('.sgx-door-rowsub');
+      const origSub = subEl ? subEl.textContent : '';
+      if (subEl) subEl.textContent = t('passkeyBusy');
       chev.innerHTML = '<span class="sgx-door-spin" aria-hidden="true"></span>';
-      row.disabled = true;
+      setRowBusy(row, true);
       m.submit().then(
         function () {
           closeDlg('success');
@@ -485,7 +512,8 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
         }
       ).then(function () {
         chev.innerHTML = CHEV;
-        row.disabled = false;
+        setRowBusy(row, false);
+        if (subEl) subEl.textContent = origSub;
       });
     }
     /** @param {object} m */
@@ -523,8 +551,10 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
       wrap.appendChild(rowErr);
       methodsEl.appendChild(wrap);
       on(row, 'click', function () {
+        /* 批次 A 验收修复 P2：轻触觉反馈 */
+        tapFeedback();
         if (m.field === 'webauthn') startWebauthn(m, row, chev, rowErr);
-        else expandForm(m, wrap, rowErr);
+        else expandForm(m, wrap, rowErr, row, chev);
       });
     }
 

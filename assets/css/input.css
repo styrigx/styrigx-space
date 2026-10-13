@@ -2052,8 +2052,9 @@
     background: var(--m-surface-container-highest);
     border: 1px solid var(--m-outline-variant); border-radius: 16px;
     padding: 16px; cursor: pointer; width: 100%;
-    transition: transform .12s ease, border-color .15s ease;
-    &:active { transform: scale(.98); }
+    transition: transform .12s ease, border-color .15s ease, background .12s ease;
+    /* 批次 A 验收修复 P2：按下态整行背景变色（现有 --m-container-* 色），松开恢复 */
+    &:active { transform: scale(.98); background: var(--m-container-high); }
     &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
   }
   .sgx-method-ic {
@@ -2179,6 +2180,10 @@
     min-height: 64px; padding: 12px 4px; background: none; border: 0;
     border-bottom: 1px solid var(--m-outline-variant);
     text-align: left; cursor: pointer; color: var(--m-on-surface);
+    /* 批次 A 验收修复 P2：按下态整行背景变色（现有 --m-container-* 色），松开恢复 */
+    &:active, &.sgx-row-pressed { background: var(--m-container-high); }
+    /* 选中态（根凭证/密码行展开时）：背景保持高亮 */
+    &.sgx-row-selected { background: var(--m-container-high); }
   }
   .sgx-door-method:last-child .sgx-door-row { border-bottom: 0; }
   .sgx-door-ic {
@@ -2190,8 +2195,10 @@
   .sgx-door-mid { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .sgx-door-rowtitle { font-size: 16px; font-weight: 500; }
   .sgx-door-rowsub { font-size: 13px; color: var(--m-on-surface-variant); }
-  .sgx-door-chev { color: var(--m-on-surface-variant); flex-shrink: 0; display: inline-flex; align-items: center; }
+  .sgx-door-chev { color: var(--m-on-surface-variant); flex-shrink: 0; display: inline-flex; align-items: center; transition: transform .18s ease; }
   .sgx-door-chev svg { width: 20px; height: 20px; }
+  /* 批次 A 验收修复 P2：行展开时箭头旋转 90°（右向 > → 向下） */
+  .sgx-door-chev.expanded { transform: rotate(90deg); }
   .sgx-door-spin {
     width: 20px; height: 20px; border-radius: 999px; flex-shrink: 0;
     border: 2px solid var(--m-outline-variant); border-top-color: var(--m-primary);

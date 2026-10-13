@@ -306,3 +306,70 @@ test.describe('door dialog eye button (批次 A 验收修复 P2)', () => {
     await expect(pg.locator('.sgx-door-expand input[type="password"]')).toBeVisible();
   });
 });
+
+test.describe('door dialog row feedback (批次 A 验收修复 P2)', () => {
+  test('passkey row click: immediate busy (spinner + busy subtitle + disabled), cancel restores, challenge only once', async ({ page: pg }) => {
+    await gotoSecurity(pg);
+    let challengeCalls = 0;
+    await pg.route('**/api/stepup', async (route) => {
+      const body = (route.request().postData() || '').toString();
+      if (body.includes('challenge')) challengeCalls++;
+      if (body.includes('challenge')) {
+        await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, challenge: 'AA', mode: 'mgmt' }) });
+      } else {
+        await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+      }
+    });
+    await pg.locator('#sec-mgmt-cred').click();
+    const dlg = pg.locator('#sec-verify-dlg');
+    await expect(dlg).toBeVisible();
+    const row = pg.locator('.sgx-door-row').filter({ hasText: '站长通行密钥' });
+    await expect(row).toBeVisible();
+    const origSub = await row.locator('.sgx-door-rowsub').textContent();
+
+    /* credentials.get 挂起（等测试手动取消） */
+    await pg.evaluate(() => {
+      window.__sgxRejectGet = null;
+      navigator.credentials.get = () => new Promise((_, reject) => { window.__sgxRejectGet = reject; });
+    });
+    await row.click();
+    /* 立即 busy：转圈 + busy 副标题 + 行禁用 */
+    await expect(row.locator('.sgx-door-spin')).toBeVisible({ timeout: 3000 });
+    await expect(row).toBeDisabled();
+    await expect(row.locator('.sgx-door-rowsub')).toHaveText('正在唤起通行密钥…');
+    expect(challengeCalls).toBe(1);
+    /* busy 中合成二次点击：challenge 不再发 */
+    await row.evaluate((el) => el.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    expect(challengeCalls).toBe(1);
+    /* 取消系统验证：状态恢复、无错误显示、弹层仍在 */
+    await pg.evaluate(() => {
+      const err = new DOMException('User cancelled', 'NotAllowedError');
+      window.__sgxRejectGet(err);
+    });
+    await expect(row).toBeEnabled({ timeout: 3000 });
+    expect(await row.locator('.sgx-door-chev').evaluate((el) => el.innerHTML)).toContain('<svg');
+    await expect(row.locator('.sgx-door-rowsub')).toHaveText(origSub || '');
+    await expect(dlg).toBeVisible();
+    await expect(pg.locator('.sgx-door-err:visible')).toHaveCount(0);
+  });
+
+  test('password row expand: selected + chev rotated, collapse restores; click vibrates 10ms', async ({ page: pg }) => {
+    await pg.addInitScript(() => {
+      window.__vibCalls = [];
+      navigator.vibrate = (ms) => { window.__vibCalls.push(ms); return true; };
+    });
+    await gotoSecurity(pg);
+    await pg.locator('#sec-mgmt-cred').click();
+    await expect(pg.locator('#sec-verify-dlg')).toBeVisible();
+    const row = pg.locator('.sgx-door-row').filter({ hasText: '站长密码' });
+    await row.click();
+    /* 展开：选中态 + 箭头旋转 + 振动 */
+    await expect(row).toHaveClass(/sgx-row-selected/);
+    await expect(row.locator('.sgx-door-chev')).toHaveClass(/expanded/);
+    expect(await pg.evaluate(() => window.__vibCalls)).toEqual([10]);
+    /* 再点收起：选中态 + 旋转清除 */
+    await row.click();
+    await expect(row).not.toHaveClass(/sgx-row-selected/);
+    await expect(row.locator('.sgx-door-chev')).not.toHaveClass(/expanded/);
+  });
+});

@@ -469,3 +469,25 @@ test.describe('lock password dialog eye button (批次 A 验收修复 P2)', () =
     await expect(page.locator('#sgx-pw-input[type="password"]')).toBeVisible();
   });
 });
+
+test.describe('lock method sheet row feedback (批次 A 验收修复 P2)', () => {
+  test.beforeEach(async ({ page }) => {
+    await blockExternalRequests(page);
+  });
+
+  test('method row click vibrates 10ms', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__vibCalls = [];
+      navigator.vibrate = (ms) => { window.__vibCalls.push(ms); return true; };
+    });
+    await freezeTime(page);
+    await gotoLock(page);
+    await page.locator('#sgx-avatar').click();
+    const pwBtn = page.locator('#sgx-mopt-pw');
+    await expect(pwBtn).toBeVisible({ timeout: 5000 });
+    await pwBtn.click();
+    expect(await page.evaluate(() => window.__vibCalls)).toEqual([10]);
+    /* 点击后进入密码态（弹层未关、未收键盘——行反馈不影响流程） */
+    await expect(page.locator('#sgx-pw-input')).toBeVisible();
+  });
+});

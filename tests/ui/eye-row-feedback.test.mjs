@@ -19,6 +19,10 @@ import {
   bindEyeButton,
   EYE_SVG,
   EYE_OFF_SVG,
+  tapFeedback,
+  setRowBusy,
+  clearRowBusy,
+  setRowSelected,
 } from '../../assets/js/lib/dialog-behavior.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -143,4 +147,48 @@ test('眼睛：各处不再内联眼睛 SVG、不再 toggle .off；模板文案�
   assert.ok(read('assets/js/shell/lock.js').includes('sgx-reset-root-eye'), '重置 step1 应有眼睛按钮');
   assert.ok(read('assets/js/shell/lock.js').includes('sgx-reset-pw-eye'), '重置 step2 应有眼睛按钮');
   assert.ok(read('assets/js/shell/upgrade.js').includes('sgx-upgrade-eye'), '访客升级弹层应有眼睛按钮');
+});
+
+test('行反馈：tapFeedback 有 vibrate 时以 10ms 调用，不支持时不报错', () => {
+  const calls = [];
+  /* Node 的 globalThis.navigator 是只读 getter，改在其上定义 vibrate */
+  const nav = globalThis.navigator;
+  Object.defineProperty(nav, 'vibrate', {
+    configurable: true,
+    writable: true,
+    value: (ms) => { calls.push(ms); return true; },
+  });
+  try {
+    tapFeedback();
+  } finally {
+    delete nav.vibrate;
+  }
+  assert.deepEqual(calls, [10]);
+  /* 不支持 vibrate：不报错 */
+  tapFeedback();
+});
+
+test('行反馈：busy / 选中 helper 按约定 class 增删', () => {
+  const row = fakeEl();
+  setRowBusy(row, true);
+  assert.ok(row.classList.contains('sgx-row-busy'), 'busy 应加 .sgx-row-busy');
+  assert.equal(row.disabled, true, 'busy 应禁用行防重复点击');
+  setRowBusy(row, false);
+  assert.ok(!row.classList.contains('sgx-row-busy'));
+  assert.equal(row.disabled, false);
+  clearRowBusy(row);
+  assert.ok(!row.classList.contains('sgx-row-busy'));
+  setRowSelected(row, true);
+  assert.ok(row.classList.contains('sgx-row-selected'));
+  setRowSelected(row, false);
+  assert.ok(!row.classList.contains('sgx-row-selected'));
+});
+
+test('行反馈：CSS 有按下/选中/箭头旋转规则', () => {
+  const css = read('assets/css/input.css');
+  assert.ok(css.includes('.sgx-door-row'), '应有 .sgx-door-row 规则');
+  assert.ok(css.includes('&:active, &.sgx-row-pressed'), '按下态应有背景变色');
+  assert.ok(css.includes('&.sgx-row-selected'), '应有选中态规则');
+  assert.ok(css.includes('.sgx-door-chev.expanded'), '应有箭头旋转规则');
+  assert.ok(css.includes('.sgx-method-opt'), '应有 .sgx-method-opt 规则');
 });

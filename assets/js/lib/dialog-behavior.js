@@ -178,3 +178,51 @@ export function bindEyeButton(btn, input, opts) {
     sync(false);
   };
 }
+
+/**
+ * 轻触觉反馈（批次 A 验收修复 P2）：支持 navigator.vibrate 时点击瞬间振约 10ms；
+ * 不支持就跳过，不报错。
+ */
+export function tapFeedback() {
+  try {
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      navigator.vibrate(10);
+    }
+  } catch (e) {}
+}
+
+/**
+ * 行 busy 态（批次 A 验收修复 P2）：约定 class .sgx-row-busy + 行禁用（防重复点击）。
+ * @param {HTMLElement} row 行元素
+ * @param {boolean} busy 是否 busy
+ */
+export function setRowBusy(row, busy) {
+  if (!row) return;
+  try {
+    if (busy) {
+      row.classList.add('sgx-row-busy');
+      row.disabled = true;
+    } else {
+      row.classList.remove('sgx-row-busy');
+      row.disabled = false;
+    }
+  } catch (e) {}
+}
+
+/** 清除行 busy 态（setRowBusy(row, false) 的别名）。 */
+export function clearRowBusy(row) {
+  setRowBusy(row, false);
+}
+
+/**
+ * 行选中态（批次 A 验收修复 P2）：约定 class .sgx-row-selected，背景保持高亮。
+ * @param {HTMLElement} row 行元素
+ * @param {boolean} selected 是否选中
+ */
+export function setRowSelected(row, selected) {
+  if (!row) return;
+  try {
+    if (selected) row.classList.add('sgx-row-selected');
+    else row.classList.remove('sgx-row-selected');
+  } catch (e) {}
+}
