@@ -159,4 +159,28 @@ test.describe('door verify dialog', () => {
     await page.locator('#sec-verify-close').click();
     await expect(dlg).toBeHidden({ timeout: 5000 });
   });
+
+  test('键盘按下验证只提交一次（批次 A 收尾：pointerup + click 去重）', async ({ page }) => {
+    let authCalls = 0;
+    await page.route('**/api/root-auth', async (route) => {
+      authCalls++;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true }),
+      });
+    });
+    await page.evaluate(() => { document.documentElement.dataset.sgxRole = 'owner'; });
+    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true });
+    await mockJson(page, '**/api/root-session', 200, { ok: true });
+    await page.click('#sec-owner-cred');
+    await expect(page.locator('#sec-verify-dlg')).toBeVisible();
+    await page.locator('.sgx-door-row').filter({ hasText: '根凭证' }).click();
+    await page.locator('.sgx-door-expand input[type="password"]').fill('test-root-key');
+    /* 聚焦验证按钮，按 Enter → 只提交一次（click 兜底，pointerup 未触发时不重复） */
+    await page.locator('.sgx-door-actions .primary').focus();
+    await page.keyboard.press('Enter');
+    await page.waitForURL('**/settings/security/owner/**', { timeout: 10000 });
+    expect(authCalls).toBe(1);
+  });
 });

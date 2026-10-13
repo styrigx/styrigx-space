@@ -69,11 +69,39 @@ export function recordDialogClose(who, reason) {
 }
 
 /**
- * 绑定眼睛按钮：pointerdown/mousedown preventDefault 保住焦点，click 切换显示/隐藏。
- * @param {HTMLElement} btn 眼睛按钮
- * @param {HTMLInputElement} input 密码输入框
- * @param {function(boolean)} onToggle 可选回调，参数为切换后是否显示明文
+ * 绑定提交按钮（验证/保存）：pointerup（要求 pointerdown 也在该按钮）+ click 兜底，去重只提交一次。
+ * - pointerup：键盘收起布局移动时 click 可能落遮罩上，pointerup 不依赖 click 落点。
+ * - click 兜底：键盘 Enter/空格触发按钮时只有 click，没有 pointerup。
+ * - 去重：pointerup 和 click 可能都触发，用 fired 标志只提交一次；提交后重置需调用方在下一轮重新绑定或手动重置。
+ * @param {HTMLElement} btn 按钮元素
+ * @param {function(Event)} handler 提交处理函数
+ * @returns {function()} 重置函数，调用后允许再次提交（用于表单重置/弹层重开）
  */
+export function bindSubmitButton(btn, handler) {
+  if (!btn || typeof handler !== 'function') return function () {};
+  let downOnBtn = false;
+  let fired = false;
+  function fire(e) {
+    if (fired) return;
+    fired = true;
+    handler(e);
+  }
+  btn.addEventListener('pointerdown', function () { downOnBtn = true; });
+  btn.addEventListener('pointerleave', function () { downOnBtn = false; });
+  btn.addEventListener('pointerup', function (e) {
+    if (!downOnBtn) return;
+    downOnBtn = false;
+    fire(e);
+  });
+  btn.addEventListener('click', function (e) {
+    /* click 兜底：键盘 Enter/空格触发；pointerup 已提交时去重 */
+    fire(e);
+  });
+  return function resetSubmitButton() {
+    fired = false;
+    downOnBtn = false;
+  };
+}
 export function bindEyeButton(btn, input, onToggle) {
   if (!btn || !input) return;
   btn.addEventListener('pointerdown', function (e) { e.preventDefault(); });

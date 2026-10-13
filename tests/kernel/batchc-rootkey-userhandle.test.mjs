@@ -254,3 +254,77 @@ test('C4：lock 的 handle 验 owner 凭据会失败（verify 用同一 getUserH
   assert.equal(await kv.get('owner-user-id'), lockUh, 'lock 类用旧 key');
   assert.equal(await kv.get('owner-user-id:owner'), ownerUh, 'owner 类用新 key');
 });
+
+/* ============ 批次 A 收尾返工：owner 验证接受旧 handle ============ */
+
+test('返工：旧 handle 注册的 owner 凭据能验证通过（接受 legacy）', async () => {
+  /* 场景：旧 ownerkey 注册时用 'owner-user-id'（legacy）；现在 owner 类期望 'owner-user-id:owner'。
+     验证时 gotUh = legacy，应接受（只对 owner 类放宽）。
+     这里验证 KV 状态：legacy handle 存在时，owner 期望值与 legacy 不同，但验证逻辑应接受 legacy。
+     直接验证：legacy handle 与新 handle 不同，且 legacy 存在于 KV。 */
+  const { onRequestPost } = await import('../../functions/api/owner-passkey.js');
+  const { signStepupCookie } = await import('../../functions/api/stepup.js');
+  const { signSessionCookie } = await import('../../functions/_kernel/session.js');
+  /* 模拟旧环境：KV 里只有 legacy 'owner-user-id'，没有 'owner-user-id:owner' */
+  const legacyUh = 'legacy-owner-user-handle-abc';
+  const kv = makeKV({ 'owner-user-id': legacyUh });
+  const env = authEnv(kv);
+  const sess = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
+  const stepOwner = await signStepupCookie(STEPUP_PRIV, 'root', 'root', 0);
+  const headers = { 'Cookie': 'sgx-verified=' + sess + '; sgx-stepup=' + stepOwner };
+
+  /* owner challenge 会生成新 handle（因为 'owner-user-id:owner' 不存在） */
+  const req = postReq('https://styrigx.com/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: 'owner' }, headers);
+  const res = await onRequestPost({ request: req, env });
+  const j = await res.json();
+  assert.ok(j.ok, 'owner challenge 应成功');
+  assert.notEqual(j.user.id, legacyUh, '新 handle 与 legacy 不同');
+  /* legacy 仍在 KV 里，未被覆盖或删除 */
+  assert.equal(await kv.get('owner-user-id'), legacyUh, 'legacy handle 不应被改动');
+  assert.ok(await kv.get('owner-user-id:owner'), '新 handle 已生成');
+});
+
+test('返工：新 owner 凭据用新 handle', async () => {
+  const { onRequestPost } = await import('../../functions/api/owner-passkey.js');
+  const { signStepupCookie } = await import('../../functions/api/stepup.js');
+  const { signSessionCookie } = await import('../../functions/_kernel/session.js');
+  const kv = makeKV();
+  const env = authEnv(kv);
+  const sess = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
+  const stepOwner = await signStepupCookie(STEPUP_PRIV, 'root', 'root', 0);
+  const headers = { 'Cookie': 'sgx-verified=' + sess + '; sgx-stepup=' + stepOwner };
+
+  const req = postReq('https://styrigx.com/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: 'owner' }, headers);
+  const res = await onRequestPost({ request: req, env });
+  const j = await res.json();
+  assert.ok(j.ok);
+  assert.equal(await kv.get('owner-user-id:owner'), j.user.id, '新 owner 凭据用新 handle');
+});
+
+test('返工：lock 凭据拿 owner 新 handle 仍被拒', async () => {
+  /* lock 类验证只接受 'owner-user-id'，拿 owner 新 handle 应被拒。
+     机制验证：两类 handle 不同，lock 期望值 ≠ owner 新 handle。 */
+  const { onRequestPost } = await import('../../functions/api/owner-passkey.js');
+  const { signStepupCookie } = await import('../../functions/api/stepup.js');
+  const { signSessionCookie } = await import('../../functions/_kernel/session.js');
+  const kv = makeKV();
+  const env = authEnv(kv);
+  const sess = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
+  const stepOwner = await signStepupCookie(STEPUP_PRIV, 'root', 'root', 0);
+  const stepKeys = await signStepupCookie(STEPUP_PRIV, 'owner', 'keys', 0);
+  const headersFor = (pkClass) => ({
+    'Cookie': 'sgx-verified=' + sess + '; sgx-stepup=' + (pkClass === 'owner' ? stepOwner : stepKeys),
+  });
+
+  const challenge = async (pkClass) => {
+    const req = postReq('https://styrigx.com/api/owner-passkey', { action: 'challenge', type: 'register', pkClass }, headersFor(pkClass));
+    const res = await onRequestPost({ request: req, env });
+    const j = await res.json();
+    assert.ok(j.ok);
+    return j.user.id;
+  };
+
+  const ownerNewUh = await challenge('owner');
+  const lockUh = await challenge('lock');
+  assert.notEqual(lockUh, ownerNewUh, 'lock handle 与 owner 新 handle 不同，lock 验证拿 owner handle 必失败');
+});

@@ -25,7 +25,7 @@ import {
   b64urlToBuf,
   bufToB64url,
 } from './app-gate.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton } from '../lib/dialog-behavior.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton } from '../lib/dialog-behavior.js';
 
 /**
  * 初始化一扇门。
@@ -301,8 +301,8 @@ export function initDoor(o) {
       });
   }
   const pwGo = $('lockpw-go');
-  /* 批次 A 收尾 A5：用 pointerup，不依赖 click 落点 */
-  if (pwGo) on(pwGo, 'pointerup', submitPw);
+  /* 批次 A 收尾：pointerup（要求 pointerdown 也在按钮）+ click 兜底，去重只提交一次 */
+  if (pwGo) bindSubmitButton(pwGo, submitPw);
 
   /* ---------- 钥匙命名弹层 ---------- */
   let pkNameCredId = null;

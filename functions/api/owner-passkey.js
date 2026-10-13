@@ -692,11 +692,22 @@ async function handlePost(context) {
         requireUV: true,
       });
       /* 校验 userHandle（如果有）。2.10.1：按 pkClass/aud 取对应的 user handle，
-         应用类用 owner-user-id:app:<aud>，不再拿锁屏的比对。 */
+         应用类用 owner-user-id:app:<aud>，不再拿锁屏的比对。
+         批次 A 收尾：owner 类同时接受新 handle 'owner-user-id:owner' 和旧 handle
+         'owner-user-id'（旧 ownerkey 注册时用旧 handle）。只对 owner 类放宽，
+         lock/app 不变；验证本身仍以凭据公钥签名为准。 */
       try {
         const expectUh = await getUserHandle(kv, pkClass, pkClass === PK_CLASS_APP ? aud : '');
         const gotUh = cred.response.userHandle;
-        if (expectUh && gotUh && gotUh !== expectUh) throw new Error('userHandle');
+        if (expectUh && gotUh && gotUh !== expectUh) {
+          if (pkClass === PK_CLASS_OWNER) {
+            let legacyUh = null;
+            try { legacyUh = await kv.get('owner-user-id'); } catch (e) {}
+            if (!legacyUh || gotUh !== legacyUh) throw new Error('userHandle');
+          } else {
+            throw new Error('userHandle');
+          }
+        }
       } catch (e) {
         if (e && e.message === 'userHandle') throw e;
       }

@@ -20,7 +20,7 @@ import { mgmtButtons } from './mgmt-buttons.js';
 import { exchangeRootSession } from '../lib/root-session.js';
 import { takeJumpRecords } from './app-gate.js';
 import { takeBeaconRecord, sgxNavigate, sgxReload, recordJump } from '../lib/diag-jumptrace.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton } from '../lib/dialog-behavior.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton } from '../lib/dialog-behavior.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -33,7 +33,10 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton } fr
   function t(k) {
     const v = T[k];
     if (v && typeof v === 'object') return en ? v.en : v.zh;
-    return v || (en ? 'Error (' + k + ')' : '出错了（' + k + '）');
+    if (v) return v;
+    /* 批次 A 收尾 #36：兜底不显示内部键名；键名只记诊断 */
+    if (typeof console !== 'undefined') console.warn('[i18n] missing key:', k);
+    return en ? 'Something went wrong, please retry' : '出错了，请重试';
   }
 
   const ownerUrl = en ? '/en/settings/security/owner/' : '/settings/security/owner/';
@@ -227,8 +230,8 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton } fr
       go.type = 'button';
       go.className = 'sgx-door-textbtn primary';
       go.textContent = en ? 'Verify' : '验证';
-      /* 批次 A 收尾 A5：用 pointerup，不依赖 click 落点（键盘收起布局移动时 click 可能落遮罩上） */
-      on(go, 'pointerup', onVerify);
+      /* 批次 A 收尾：pointerup（要求 pointerdown 也在按钮）+ click 兜底，去重只提交一次 */
+      bindSubmitButton(go, onVerify);
       wrap.appendChild(cancel);
       wrap.appendChild(go);
       footEl.appendChild(wrap);

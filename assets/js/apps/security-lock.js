@@ -10,7 +10,7 @@ import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
 import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton } from '../lib/dialog-behavior.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton } from '../lib/dialog-behavior.js';
 import { apiErrorText } from './app-gate.js';
 
 (function () {
@@ -39,7 +39,10 @@ import { apiErrorText } from './app-gate.js';
   function t(k) {
     const v = T[k];
     if (v && typeof v === 'object') return en ? v.en : v.zh;
-    return v || (en ? 'Error (' + k + ')' : '出错了（' + k + '）');
+    if (v) return v;
+    /* 批次 A 收尾 #36：兜底不显示内部键名；键名只记诊断 */
+    if (typeof console !== 'undefined') console.warn('[i18n] missing key:', k);
+    return en ? 'Something went wrong, please retry' : '出错了，请重试';
   }
   /** @param {string} id */
   function $(id) {
@@ -601,8 +604,8 @@ import { apiErrorText } from './app-gate.js';
       });
   }
   const pwGo = $('lockpw-go');
-  /* 批次 A 收尾 A5：用 pointerup，不依赖 click 落点 */
-  if (pwGo) on(pwGo, 'pointerup', submitPw);
+  /* 批次 A 收尾：pointerup（要求 pointerdown 也在按钮）+ click 兜底，去重只提交一次 */
+  if (pwGo) bindSubmitButton(pwGo, submitPw);
 
   /* 通行密钥命名弹层 */
   let pkNameCredId = null;
