@@ -415,7 +415,7 @@ export function maybeShowFirstKeyDialog(t, hasPw, hasPk) {
   showAlertDialog({
     title: t('firstKeyTitle'),
     desc: t('firstKeyDesc'),
-    confirmLabel: t('firstKeyOk'),
+    buttonLabel: t('firstKeyOk'),
   }).catch(function () {});
 }
 
