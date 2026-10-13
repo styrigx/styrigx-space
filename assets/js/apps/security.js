@@ -156,6 +156,9 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
       }
     });
   }
+
+  /** @param {boolean} [silent] */
+  function refresh(silent) {
     /* 访客不再调用状态接口（接口已加鉴权，访客 401）；状态卡片由 CSS 按角色隐藏。 */
     try {
       if (document.documentElement.dataset.sgxRole === 'visitor') return;
