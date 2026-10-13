@@ -48,10 +48,11 @@ import {
 import {
   issueSessionCookie,
   bumpSessionEpoch,
+  reissueSessionWithEpoch,
   ROLE_OWNER,
 } from '../_kernel/session.js';
 import { getApp } from '../_kernel/app-registry.js';
-import { verifyStepupCookie, signStepupCookie, STEPUP_COOKIE, STEPUP_COOKIE_ATTRS, STEPUP_MAX_AGE, STEPUP_BY_ROOT, STEPUP_BY_OWNER, STEPUP_SCOPE_ROOT, STEPUP_SCOPE_KEYS, STEPUP_SCOPE_LOCKRESET } from './stepup.js';
+import { verifyStepupCookie, reissueStepupWithEpoch, STEPUP_COOKIE, STEPUP_BY_ROOT, STEPUP_BY_OWNER, STEPUP_SCOPE_ROOT, STEPUP_SCOPE_KEYS, STEPUP_SCOPE_LOCKRESET } from './stepup.js';
 import { LAYER_OWNER, LAYER_LOCK, layerApp, setLayerConfigured, clearLayerConfigured, isLayerConfigured, isLockEffectivelyConfigured } from '../_kernel/layers.js';
 import { verifySessionDetailed } from '../_middleware.js';
 import {
@@ -520,11 +521,13 @@ async function handlePost(context) {
       return Response.json({ ok: false, error: 'aud' }, { status: 400 });
     }
     /* 2.11 定稿纵深防御：按 challenge 的 pkClass 再验一次统一门禁 */
+    let mgReg = null;
     {
       const mg = await checkPasskeyMgmt(request, env, kv, pkClass, 'register');
       if (!mg.ok) {
         return Response.json(mg.body, { status: mg.status });
       }
+      mgReg = mg;
     }
     try {
       /* 验证 clientData：type / challenge / origin 严格等于期望值 */
@@ -581,19 +584,21 @@ async function handlePost(context) {
          但标记/纪元失败时尽力而为；纪元推进失败则返回 503）
          - 首次配 owner：废止 by=root,scope=keys 的票（必修安全项 1）
          - 首次配 lock：废止根凭证代开的解锁会话（必修安全项 2）
-         - 首次配某 app：推进 app-epoch:<aud>（必修安全项 3） */
+         - 首次配某 app：推进 app-epoch:<aud>（必修安全项 3）
+         D2：epoch 推进后用新 epoch 重签 stepup + 当前设备会话，保持当前设备不掉线。 */
+      let regNewEpoch = null;
       try {
         if (pkClass === PK_CLASS_OWNER) {
           const was = await isLayerConfigured(kv, LAYER_OWNER);
           if (!was) {
             await setLayerConfigured(kv, LAYER_OWNER);
-            await bumpSessionEpoch(kv);
+            regNewEpoch = await bumpSessionEpoch(kv);
           }
         } else if (pkClass === PK_CLASS_LOCK) {
           const was = await isLayerConfigured(kv, LAYER_LOCK);
           if (!was) {
             await setLayerConfigured(kv, LAYER_LOCK);
-            await bumpSessionEpoch(kv);
+            regNewEpoch = await bumpSessionEpoch(kv);
           }
         } else if (pkClass === PK_CLASS_APP && aud) {
           const was = await isLayerConfigured(kv, layerApp(aud));
@@ -604,6 +609,12 @@ async function handlePost(context) {
         }
       } catch (e) {
         return Response.json({ ok: false, error: 'epoch' }, { status: 503 });
+      }
+      if (regNewEpoch !== null && mgReg) {
+        const headers = new Headers({ 'Content-Type': 'application/json' });
+        await reissueStepupWithEpoch(env, headers, mgReg.sv, regNewEpoch);
+        await reissueSessionWithEpoch(env, headers, mgReg.sess, regNewEpoch);
+        return new Response(JSON.stringify({ ok: true, credId: credIdB64 }), { headers });
       }
       return Response.json({ ok: true, credId: credIdB64 });
     } catch (e) {
@@ -836,7 +847,11 @@ async function handlePost(context) {
         }
       }
     }
-    /* 2.10.2：先推进纪元，成功才删（fail closed；纪元推进失败则密钥仍在） */
+    /* 2.10.2：先推进纪元，成功才删（fail closed；纪元推进失败则密钥仍在）
+       D1：删 owner 类钥匙不推进 session-epoch（定稿没有要求删 ownerkey 踢掉所有会话；
+       只有第 33 条要求删应用密钥时该应用授权失效，应用类只加 app-epoch）。
+       D2：删 lock 类钥匙保留 epoch +1（踢掉其他设备），但同响应重签当前设备会话。 */
+    let newEpoch = null;
     if (delClass === PK_CLASS_APP && found.aud) {
       /* 删应用类凭据 → 该应用的应用纪元 +1（失败则拒绝删除） */
       try {
@@ -845,15 +860,17 @@ async function handlePost(context) {
         return Response.json({ ok: false, error: 'epoch' }, { status: 503 });
       }
       /* 删应用类只加 app-epoch，不推进会话纪元 */
-    } else {
+    } else if (delClass === PK_CLASS_LOCK) {
       /* 删锁屏类密钥 → session-epoch +1（失败则拒绝删除，fail closed） */
       try {
         const v = parseInt(await kv.get('session-epoch') || '0', 10) || 0;
-        await kv.put('session-epoch', String(v + 1));
+        newEpoch = v + 1;
+        await kv.put('session-epoch', String(newEpoch));
       } catch (e) {
         return Response.json({ ok: false, error: 'epoch' }, { status: 503 });
       }
     }
+    /* D1：删 owner 类不推进 session-epoch（newEpoch 保持 null，不重签）。 */
     await deletePasskey(kv, credId);
     /* 2.11 定稿：删完后若该层已无凭证，清除层标记。
        root 删站长凭证 → 推进 session-epoch（已在上完成），避免无声回退到 root 代管 */
@@ -897,22 +914,13 @@ async function handlePost(context) {
         }
       }
     } catch (e) {}
-    /* 门内操作成功后不再清除 sgx-stepup。删 key 会 bump epoch 导致旧票据失效，
-       这里用新 epoch 重签一张，保持门内连续操作不中断。 */
+    /* D2：删 lock 类推进 epoch 后，用新 epoch 重签 stepup 票据 + 当前设备会话，
+       保持门内连续操作不中断、当前设备不掉线。删 owner 类不推进 epoch，无需重签。 */
     const headers = new Headers({ 'Content-Type': 'application/json' });
-    /* 删 lock/owner 类会推进 session-epoch，旧票据失效 → 重签 */
-    if (delClass !== PK_CLASS_APP && mg.sv && mg.sv.ok) {
-      try {
-        const stepupKey = env && env.SGX_STEPUP_PRIVATE;
-        if (stepupKey) {
-          const newEpoch = parseInt(await kv.get('session-epoch') || '0', 10) || 0;
-          const cv = await signStepupCookie(stepupKey, mg.sv.by, mg.sv.scope, newEpoch);
-          headers.append(
-            'Set-Cookie',
-            STEPUP_COOKIE + '=' + cv + '; ' + STEPUP_COOKIE_ATTRS + '; Max-Age=' + STEPUP_MAX_AGE
-          );
-        }
-      } catch (e) {}
+    if (newEpoch !== null && mg.sv && mg.sv.ok) {
+      await reissueStepupWithEpoch(env, headers, mg.sv, newEpoch);
+      /* 当前设备会话重签（lockreset 无会话时 mg.sess 为 null，helper 内部跳过） */
+      await reissueSessionWithEpoch(env, headers, mg.sess, newEpoch);
     }
     return new Response(JSON.stringify({ ok: true }), { headers });
   }

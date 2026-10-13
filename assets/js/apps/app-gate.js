@@ -54,7 +54,7 @@ export function securityUrl() {
 
 /* #1 诊断：门内页跳转留痕（实现已移至 lib/diag-jumptrace.js，此处 re-export 保持兼容）。
    跳转前记「谁触发的 + 原因」，安全页加载时取出来显示一次（取即清除）。 */
-export { recordJump, takeJumpRecord } from '../lib/diag-jumptrace.js';
+export { recordJump, takeJumpRecord, takeJumpRecords } from '../lib/diag-jumptrace.js';
 
 /* 跳验证流程只跳一次（门内多个请求并发失败时不重复跳转） */
 let verifyJumped = false;
@@ -323,14 +323,42 @@ var ERR_KEY = {
 
 /**
  * 按 error 码取用户文案；未知码给通用提示，不说"服务器错误"。
+ * B1：未知错误时在后面用小字附上原始错误码和 HTTP 状态码，
+ * 例如「未知错误，请稍后重试（scope/403）」。只显示错误码和状态码，
+ * 不带任何密钥、Cookie 或票据内容。
  * @param {(k:string)=>string} t 文案函数
  * @param {string} code 服务端 error 码
+ * @param {number} [status] HTTP 状态码
  */
-export function apiErrorText(t, code) {
+export function apiErrorText(t, code, status) {
   const k = ERR_KEY[code];
   if (k) {
     const v = t(k);
     if (v && v !== k) return v;
   }
-  return t('errUnknown');
+  let msg = t('errUnknown');
+  /* 未知码：附上原始错误码和状态码，方便定位 */
+  if (code) {
+    msg += '（' + code + (typeof status === 'number' && status ? '/' + status : '') + '）';
+  }
+  return msg;
+}
+
+/* D3：门内页收到这 4 个码时走 needVerify，不显示未知错误。
+   按 app-gate.js 原注释本意：它们走 needVerify 跳转，不向用户展示开发用语。 */
+const NEED_VERIFY_CODES = ['session', 'stepup-required', 'scope', 'by-root'];
+/**
+ * 门内页 API 错误分流：session/stepup-required/scope/by-root → needVerify；
+ * 其他 → 返回 false，调用方按原逻辑显示错误（含 B1 小字错误码）。
+ * @param {(k:string)=>string} t 文案函数
+ * @param {string} code 服务端 error 码
+ * @param {number} [status] HTTP 状态码
+ * @returns {boolean} true = 已走 needVerify，调用方直接 return
+ */
+export function handleDoorError(t, code, status) {
+  if (NEED_VERIFY_CODES.indexOf(code) === -1) return false;
+  /* needVerify 按真实原因提示后跳验证流程（安全与隐私页） */
+  const reason = code === 'session' ? 'session' : 'stepup';
+  needVerify(t, reason, code);
+  return true;
 }

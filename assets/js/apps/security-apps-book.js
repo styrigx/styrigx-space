@@ -10,7 +10,7 @@
  */
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
-import { api, enterDoor, apiErrorText, clearStepupThen, b64urlToBuf, bufToB64url } from './app-gate.js';
+import { api, enterDoor, apiErrorText, handleDoorError, b64urlToBuf, bufToB64url } from './app-gate.js';
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
 
 (function () {
@@ -93,13 +93,13 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
             if (jj && jj.ok) {
               lastSaved = v;
               toast(t('pkRenamed'));
-            } else if (jj && jj.error === 'stepup-required') {
-              /* 验证失效：已跳验证流程 */
+            } else if (jj && handleDoorError(t, jj.error, r2.status)) {
+              /* D3：已走 needVerify */
             } else if (jj && jj.error === 'not-found') {
               toast(t('pkRetryLater'));
               nameInput.value = lastSaved;
             } else {
-              toast(apiErrorText(t, jj && jj.error));
+              toast(apiErrorText(t, jj && jj.error, r2.status));
               nameInput.value = lastSaved;
             }
           })
@@ -161,10 +161,10 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
             if (jj && jj.ok) {
               toast(t('pkDeleted'));
               refresh();
-            } else if (jj && jj.error === 'stepup-required') {
-              /* 验证失效：已跳验证流程 */
+            } else if (jj && handleDoorError(t, jj.error, r2.status)) {
+              /* D3：已走 needVerify */
             } else {
-              toast(apiErrorText(t, jj && jj.error));
+              toast(apiErrorText(t, jj && jj.error, r2.status));
             }
           })
           .catch(function () {
@@ -194,7 +194,7 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
     api('/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: 'app', aud: aud }, t)
       .then(function (res) {
         const ch = res.json;
-        if (ch && ch.error === 'stepup-required') throw { kind: 'reverify' };
+        if (ch && ch.error && handleDoorError(t, ch.error, res.status)) throw { kind: 'reverify' };
         if (!ch || !ch.ok) throw { kind: 'server', code: ch && ch.error };
         return navigator.credentials.create({
           publicKey: {
@@ -241,10 +241,10 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
         if (res.json && res.json.ok) {
           toast(t('pkRegistered'));
           refresh();
-        } else if (res.json && res.json.error === 'stepup-required') {
-          /* 验证失效：已跳验证流程 */
+        } else if (res.json && res.json.error && handleDoorError(t, res.json.error, res.status)) {
+          /* D3：已走 needVerify */
         } else {
-          toast(apiErrorText(t, res.json && res.json.error));
+          toast(apiErrorText(t, res.json && res.json.error, res.status));
         }
       })
       .catch(function (e) {
@@ -269,12 +269,15 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
     }).then(function (r) {
       return r.json().catch(function () {
         return null;
+      }).then(function (j) {
+        return { status: r.status, json: j };
       });
-    }).then(function (j) {
+    }).then(function (res) {
+      const j = res.json;
       if (j && j.ok) {
         toast(t('sessExited'));
       } else {
-        toast(apiErrorText(t, j && j.error));
+        toast(apiErrorText(t, j && j.error, res.status));
       }
     }).catch(function () {
       toast(t('gateNetErr'));

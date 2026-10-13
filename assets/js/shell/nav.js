@@ -8,6 +8,7 @@ import { get, getJSON, setJSON } from '../lib/storage.js';
 import { get as featGet } from '../lib/features.js';
 import { visibleInterval } from '../lib/scheduler.js';
 import { onDexLayoutChange, applyLayout } from './layout.js';
+import { sgxReplace } from '../lib/diag-jumptrace.js';
 
 /**
  * @param {import('./scheduler.js').Scheduler} S
@@ -299,7 +300,7 @@ export function initNav(S) {
         const isHome = p === '/' || p === '/en' || p === '/en/';
         if (isHome) return;
         e.preventDefault();
-        location.replace(a.getAttribute('href') || '/');
+        sgxReplace(a.getAttribute('href') || '/', 'nav.js:303', 'home-grid');
       });
     /* 离开 DeX/PC 模式时关闭抽屉 */
     onDexLayoutChange(function (m) {

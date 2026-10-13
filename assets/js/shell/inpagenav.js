@@ -19,6 +19,8 @@
  * 不使用 BroadcastChannel、storage 或前端内存作为锁屏状态——每次 fetch 都经过
  * middleware 验签，等于每次切页都问了一次服务端。
  */
+/* A1：整页跳转/重载全部走带留痕的封装 */
+import { sgxAssign, sgxReload, recordJump } from '../lib/diag-jumptrace.js';
 
 const CONTENT_SELECTOR = 'main';
 const TITLE_SELECTOR = 'main h1, main h2, [data-page-title]';
@@ -218,11 +220,11 @@ export async function navigateTo(url, opts = {}) {
   try {
     targetUrl = new URL(url, window.location.href);
   } catch (e) {
-    window.location.assign(url);
+    sgxAssign(url, 'inpagenav.js:221', 'url-parse-fail');
     return;
   }
   if (targetUrl.origin !== window.location.origin) {
-    window.location.assign(url);
+    sgxAssign(url, 'inpagenav.js:225', 'cross-origin');
     return;
   }
 
@@ -230,25 +232,25 @@ export async function navigateTo(url, opts = {}) {
 
   // 已锁：整页跳转，让 middleware 302 到锁屏
   if (result.locked) {
-    window.location.assign(targetUrl.href);
+    sgxAssign(targetUrl.href, 'inpagenav.js:233', 'locked');
     return;
   }
 
   // 网络错误或解析失败：退回整页跳转
   if (result.networkError || !result.html) {
-    window.location.assign(targetUrl.href);
+    sgxAssign(targetUrl.href, 'inpagenav.js:239', 'network-or-no-html');
     return;
   }
 
   const extracted = extractContent(result.html);
   if (!extracted) {
-    window.location.assign(targetUrl.href);
+    sgxAssign(targetUrl.href, 'inpagenav.js:245', 'extract-fail');
     return;
   }
 
   // 未注册的页面退回整页跳转
   if (extracted.page && !pageModules.has(extracted.page)) {
-    window.location.assign(targetUrl.href);
+    sgxAssign(targetUrl.href, 'inpagenav.js:251', 'unregistered-page');
     return;
   }
 
@@ -393,24 +395,26 @@ export function initInPageNav() {
   });
 
   // popstate：前进/后退（目标不是 Dock 页则整页加载）
+  // A6：记录 popstate 事件（dialog 关闭 / 键盘收起 / 返回手势是否会误触发）。
   window.addEventListener('popstate', (e) => {
     const state = e.state;
+    try { recordJump('inpagenav.js:popstate', 'popstate;hasState=' + !!(state && state.url) + ';url=' + ((state && state.url) || '')); } catch (_) {}
     if (state && state.url) {
       let url;
       try {
         url = new URL(state.url, window.location.href);
       } catch (err) {
-        window.location.reload();
+        sgxReload('inpagenav.js:403', 'popstate-url-parse-fail');
         return;
       }
       if (!isDockPage(url.pathname)) {
-        window.location.assign(state.url);
+        sgxAssign(state.url, 'inpagenav.js:407', 'popstate-non-dock');
         return;
       }
       navigateTo(state.url, { push: false, scrollY: state.scrollY || 0 });
     } else {
       // 没有 state 时整页加载
-      window.location.reload();
+      sgxReload('inpagenav.js:413', 'popstate-no-state');
     }
   });
 

@@ -185,6 +185,16 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
       return '';
     }
   }
+  /* D3：session/stepup-required/scope/by-root → needReauth，不显示通用错误。
+     按 app-gate.js 注释本意：这 4 个码走重新验证流程，不向用户展示开发用语。 */
+  function isReauthError(code) {
+    return code === 'session' || code === 'stepup-required' || code === 'scope' || code === 'by-root';
+  }
+  /* B1：通用错误附上原始错误码和 HTTP 状态码，例如「服务器错误（scope/403）」。 */
+  function srvErr(code, status) {
+    return t('gateSrvErr') + (code ? '（' + code + (status ? '/' + status : '') + '）' : '');
+  }
+
   /** 会话/票据失效 → 重新验证 */
   function needReauth() {
     /* P2-14：先收起当前所有 sheet 再开验证门，禁止弹层叠弹层
@@ -511,10 +521,10 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
             /* 服务端删除成功后重新读状态刷新（KV 最终一致，边缘节点最多约 60 秒） */
             refreshStatus();
             refreshPkList();
-          } else if (j && j.error === 'stepup-required') {
+          } else if (j && isReauthError(j.error)) {
             needReauth();
           } else {
-            toast(t('gateSrvErr'));
+            toast(srvErr(j && j.error, r.status));
           }
         })
         .catch(function () {
@@ -562,7 +572,7 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
       .then(function (res) {
         const j = res.json;
         if (!j) {
-          showErr('lockpw-err', t('gateSrvErr'));
+          showErr('lockpw-err', srvErr(null, res.status));
           return;
         }
         if (j.ok) {
@@ -570,7 +580,7 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
           hasPw = true;
           refreshStatus();
           toast(hasPw && action === 'change' ? t('pwChanged') : t('pwSaved'));
-        } else if (j.error === 'stepup-required') {
+        } else if (isReauthError(j.error)) {
           closePwDlg();
           needReauth();
         } else if (j.error === 'exists' && action === 'set') {
@@ -579,7 +589,7 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
           refreshStatus();
           showErr('lockpw-err', t('pwMin8'));
         } else {
-          showErr('lockpw-err', t('gateSrvErr'));
+          showErr('lockpw-err', srvErr(j.error, res.status));
         }
       })
       .catch(function () {
@@ -660,7 +670,7 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
             toast(t('pkRegistered'));
             closePkNameDlg();
             refreshPkList();
-          } else if (j && j.error === 'stepup-required') {
+          } else if (j && isReauthError(j.error)) {
             needReauth();
           } else if (j && j.error === 'not-found') {
             /* KV 最终一致：刚注册的 key 可能暂时读不到 */
@@ -668,7 +678,7 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
           } else if (!j) {
             showErr('lockpkname-err', t('gateNetErr'));
           } else {
-            showErr('lockpkname-err', t('gateSrvErr'));
+            showErr('lockpkname-err', srvErr(j.error, r.status));
           }
         })
         .catch(function () {
@@ -729,7 +739,7 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
       .then(function (res) {
         const j = res.json;
         if (!j) return;
-        if (j.error === 'stepup-required') {
+        if (j.error && isReauthError(j.error)) {
           needReauth();
           return;
         }
@@ -766,7 +776,7 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
                 if (jj && jj.ok) {
                   lastSaved = v;
                   toast(t('pkRenamed'));
-                } else if (jj && jj.error === 'stepup-required') {
+                } else if (jj && isReauthError(jj.error)) {
                   needReauth();
                 } else {
                   nameInput.value = lastSaved;
@@ -839,14 +849,14 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
                   /* 服务端删除成功后重新读列表刷新（KV 最终一致，边缘节点最多约 60 秒） */
                   refreshPkList();
                   refreshStatus();
-                } else if (jj && jj.error === 'stepup-required') {
+                } else if (jj && isReauthError(jj.error)) {
                   needReauth();
                 } else if (jj && jj.error === 'not-found') {
                   toast(t('pkRetryLater'));
                 } else if (!jj) {
                   toast(t('gateNetErr'));
                 } else {
-                  toast(t('gateSrvErr'));
+                  toast(srvErr(jj.error, r2.status));
                 }
               })
               .catch(function () {
@@ -906,7 +916,7 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
                   if (jj && jj.ok) {
                     toast(t('pkDeleted') || '已删除');
                     refreshPkList();
-                  } else if (jj && jj.error === 'stepup-required') {
+                  } else if (jj && isReauthError(jj.error)) {
                     needReauth();
                   } else if (jj && jj.error === 'not-found') {
                     /* KV 最终一致：刚注册的 key 可能暂时读不到 */
@@ -914,7 +924,7 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
                   } else if (!jj) {
                     toast(t('gateNetErr'));
                   } else {
-                    toast(t('pkDelFailed'));
+                    toast(srvErr(jj.error, r2.status));
                   }
                 })
                 .catch(function () {
@@ -980,7 +990,7 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
         if (res.json && res.json.ok) {
           toast(t('pkRegistered') || '已添加');
           refreshPkList();
-        } else if (res.json && res.json.error === 'stepup-required') {
+        } else if (res.json && isReauthError(res.json.error)) {
           needReauth();
         } else {
           const code = (res.json && res.json.error) || 'failed';
@@ -1009,7 +1019,7 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
           const ch = res.json;
           if (!ch) throw { kind: 'server' };
           if (!ch.ok) {
-            if (ch.error === 'stepup-required') throw { kind: 'reauth' };
+            if (isReauthError(ch.error)) throw { kind: 'reauth' };
             throw { kind: 'server' };
           }
           /* 服务端下发 rp.id、用户信息、excludeCredentials；前端不硬编码、不回落 */
@@ -1072,10 +1082,10 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
             /* 注册成功 → 弹出命名弹层（预填名已提交，用户改名才调 rename） */
             openPkNameDlg(j.credId, r3.prefill);
             refreshPkList();
-          } else if (j && j.error === 'stepup-required') {
+          } else if (j && isReauthError(j.error)) {
             needReauth();
           } else {
-            toast(t('gateSrvErr'));
+            toast(srvErr(j && j.error, r.status));
           }
         })
         .catch(function (e) {
@@ -1084,7 +1094,7 @@ import { sgxGoBack, sgxNavigate } from '../lib/diag-jumptrace.js';
           else if (e.kind === 'already') toast(t('pkAlready'));
           else if (e.kind === 'nosupport') toast(t('pkNoSupport'));
           else if (e.kind === 'reauth') needReauth();
-          else if (e.kind === 'server') toast(t('gateSrvErr'));
+          else if (e.kind === 'server') toast(srvErr(e.code));
           else if (e.kind === 'failed') toast(t('pkFailed'));
           else toast(t('gateNetErr'));
         });

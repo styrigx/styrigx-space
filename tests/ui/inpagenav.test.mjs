@@ -58,10 +58,10 @@ test('已锁时切页整页跳到锁屏', () => {
   assert.ok(inpagenav.includes("res.type === 'opaqueredirect'"), '应检查 opaqueredirect');
   assert.ok(inpagenav.includes('res.status === 401'), '应检查 401');
   assert.ok(inpagenav.includes('data-sgx-session="locked"'), '应检查 data-sgx-session="locked"');
-  // 已锁时用 location.assign 整页跳转（让 middleware 302 到锁屏）
+  // 已锁时用整页跳转（让 middleware 302 到锁屏）；A1：走带留痕的 sgxAssign（内部调 location.assign）
   const lockedBlock = inpagenav.match(/if \(result\.locked\) \{[^}]+\}/s);
   assert.ok(lockedBlock, '应有已锁处理分支');
-  assert.ok(lockedBlock[0].includes('window.location.assign'), '已锁时应用 location.assign 整页跳转');
+  assert.ok(lockedBlock[0].includes('sgxAssign'), '已锁时应用 sgxAssign 整页跳转');
 });
 
 test('非 Dock 链接不被拦截', () => {

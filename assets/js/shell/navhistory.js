@@ -35,12 +35,16 @@ export function initNavHistory() {
   function parentOf() {
     const p = location.pathname;
     if (p === '/files/' || p === '/en/files/') return en ? '/en/files/' : '/files/';
-    /* 2.11：安全与隐私三级：应用详情 → 应用 → 安全与隐私；锁屏 → 安全与隐私 */
+    /* C2：管理凭证区三级返回（定稿第 31、33 条）：
+       Book 详情 → 应用；应用/锁屏 → 管理凭证索引页；索引页 → 安全与隐私。 */
     if (p === '/settings/security/apps/book/' || p === '/en/settings/security/apps/book/') {
       return en ? '/en/settings/security/apps/' : '/settings/security/apps/';
     }
     if (p === '/settings/security/apps/' || p === '/en/settings/security/apps/' ||
         p === '/settings/security/lock/' || p === '/en/settings/security/lock/') {
+      return en ? '/en/settings/security/mgmt/' : '/settings/security/mgmt/';
+    }
+    if (p === '/settings/security/mgmt/' || p === '/en/settings/security/mgmt/') {
       return en ? '/en/settings/security/' : '/settings/security/';
     }
     /* 2.6.0：设置子页的上一级是设置首页 */

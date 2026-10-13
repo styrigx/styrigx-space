@@ -20,6 +20,7 @@ import {
   api,
   enterDoor,
   apiErrorText,
+  handleDoorError,
   clearStepupThen,
   b64urlToBuf,
   bufToB64url,
@@ -34,7 +35,7 @@ import {
  * @param {string} o.pwKind 密码 kind（'owner' 或 'lock'）
  * @param {string} o.keyClass 通行密钥类别（'owner' 或 'lock'）
  * @param {boolean} o.withApps 是否含应用验证分组（仅锁屏门）
- * @param {string} o.homeUrl 返回键目标（设置首页）
+ * @param {string} o.homeUrl 返回键目标（安全与隐私页，C1：从哪里进门回哪里）
  */
 export function initDoor(o) {
   const t = o.t;
@@ -217,10 +218,10 @@ export function initDoor(o) {
             toast(t('pwDeleted'));
             refreshStatus();
             refreshPkList();
-          } else if (j && j.error === 'stepup-required') {
-            /* 验证失效：已跳验证流程 */
+          } else if (j && handleDoorError(t, j.error, r.status)) {
+            /* D3：session/stepup-required/scope/by-root 已走 needVerify */
           } else {
-            toast(apiErrorText(t, j && j.error));
+            toast(apiErrorText(t, j && j.error, r.status));
           }
         })
         .catch(function () {
@@ -281,16 +282,16 @@ export function initDoor(o) {
           hasPw = true;
           refreshStatus();
           toast(action === 'change' ? t('pwChanged') : t('pwSaved'));
-        } else if (j.error === 'stepup-required') {
+        } else if (handleDoorError(t, j.error, res.status)) {
+          /* D3：session/stepup-required/scope/by-root 已走 needVerify */
           closePwDlg();
-          /* 验证失效：已跳验证流程 */
         } else if (j.error === 'exists' && action === 'set') {
           /* 并发已设置 → 按已设置处理 */
           hasPw = true;
           refreshStatus();
-          showErr('lockpw-err', apiErrorText(t, 'exists'));
+          showErr('lockpw-err', apiErrorText(t, 'exists', res.status));
         } else {
-          showErr('lockpw-err', apiErrorText(t, j.error));
+          showErr('lockpw-err', apiErrorText(t, j.error, res.status));
         }
       })
       .catch(function () {
@@ -368,15 +369,15 @@ export function initDoor(o) {
             toast(t('pkRegistered'));
             closePkNameDlg();
             refreshPkList();
-          } else if (j && j.error === 'stepup-required') {
-            /* 验证失效：已跳验证流程 */
+          } else if (j && handleDoorError(t, j.error, r.status)) {
+            /* D3：已走 needVerify */
           } else if (j && j.error === 'not-found') {
             /* KV 最终一致：刚注册的钥匙可能暂时读不到 */
             showErr('lockpkname-err', t('pkRetryLater'));
           } else if (!j) {
             showErr('lockpkname-err', t('gateNetErr'));
           } else {
-            showErr('lockpkname-err', apiErrorText(t, j.error));
+            showErr('lockpkname-err', apiErrorText(t, j.error, r.status));
           }
         })
         .catch(function () {
@@ -452,13 +453,13 @@ export function initDoor(o) {
           if (jj && jj.ok) {
             lastSaved = v;
             toast(t('pkRenamed'));
-          } else if (jj && jj.error === 'stepup-required') {
-            /* 验证失效：已跳验证流程 */
+          } else if (jj && handleDoorError(t, jj.error, r2.status)) {
+            /* D3：已走 needVerify */
           } else if (jj && jj.error === 'not-found') {
             toast(t('pkRetryLater'));
             nameInput.value = lastSaved;
           } else {
-            toast(apiErrorText(t, jj && jj.error));
+            toast(apiErrorText(t, jj && jj.error, r2.status));
             nameInput.value = lastSaved;
           }
         })
@@ -513,10 +514,10 @@ export function initDoor(o) {
             } catch (e) {}
             refreshPkList();
             refreshStatus();
-          } else if (jj && jj.error === 'stepup-required') {
-            /* 验证失效：已跳验证流程 */
+          } else if (jj && handleDoorError(t, jj.error, r2.status)) {
+            /* D3：已走 needVerify */
           } else {
-            toast(apiErrorText(t, jj && jj.error));
+            toast(apiErrorText(t, jj && jj.error, r2.status));
           }
         })
         .catch(function () {
@@ -557,7 +558,7 @@ export function initDoor(o) {
       .then(function (res) {
         const j = res.json;
         if (!j) return;
-        if (j.error === 'stepup-required') return; /* 验证失效：已跳验证流程 */
+        if (j.error && handleDoorError(t, j.error, res.status)) return; /* D3：已走 needVerify */
         /* 按 stepup scope 决定显示哪类（服务端已按 scope 过滤） */
         const isOwnerScope = j.scope === 'root';
         pkAddClass = isOwnerScope ? 'owner' : o.keyClass;
@@ -623,7 +624,7 @@ export function initDoor(o) {
                   } else if (jj && jj.error === 'stepup-required') {
                     /* 验证失效：已跳验证流程 */
                   } else {
-                    toast(apiErrorText(t, jj && jj.error));
+                    toast(apiErrorText(t, jj && jj.error, r2.status));
                   }
                 })
                 .catch(function () {
@@ -648,7 +649,7 @@ export function initDoor(o) {
     api('/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: 'app', aud: aud }, t)
       .then(function (res) {
         const ch = res.json;
-        if (ch && ch.error === 'stepup-required') throw { kind: 'reverify' };
+        if (ch && ch.error && handleDoorError(t, ch.error, res.status)) throw { kind: 'reverify' };
         if (!ch || !ch.ok) throw { kind: 'server', code: ch && ch.error };
         return navigator.credentials.create({
           publicKey: {
@@ -695,10 +696,10 @@ export function initDoor(o) {
         if (res.json && res.json.ok) {
           toast(t('pkRegistered'));
           refreshPkList();
-        } else if (res.json && res.json.error === 'stepup-required') {
-          /* 验证失效：已跳验证流程 */
+        } else if (res.json && res.json.error && handleDoorError(t, res.json.error, res.status)) {
+          /* D3：已走 needVerify */
         } else {
-          toast(apiErrorText(t, res.json && res.json.error));
+          toast(apiErrorText(t, res.json && res.json.error, res.status));
         }
       })
       .catch(function (e) {
@@ -726,7 +727,7 @@ export function initDoor(o) {
       api('/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: pkAddClass }, t)
         .then(function (res) {
           const ch = res.json;
-          if (ch && ch.error === 'stepup-required') throw { kind: 'reverify' };
+          if (ch && ch.error && handleDoorError(t, ch.error, res.status)) throw { kind: 'reverify' };
           if (!ch || !ch.ok) throw { kind: 'server', code: ch && ch.error };
           /* 服务端下发 rp.id、用户信息、excludeCredentials；前端不硬编码、不回落 */
           const rpId = ch.rpId;
@@ -788,10 +789,10 @@ export function initDoor(o) {
             /* 注册成功 → 弹出命名弹层（预填名已提交，用户改名才调 rename） */
             openPkNameDlg(j.credId, r3.prefill);
             refreshPkList();
-          } else if (j && j.error === 'stepup-required') {
-            /* 验证失效：已跳验证流程 */
+          } else if (j && handleDoorError(t, j.error, r3.res.status)) {
+            /* D3：已走 needVerify */
           } else {
-            toast(apiErrorText(t, j && j.error));
+            toast(apiErrorText(t, j && j.error, r3.res.status));
           }
         })
         .catch(function (e) {

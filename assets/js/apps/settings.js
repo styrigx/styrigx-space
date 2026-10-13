@@ -15,6 +15,7 @@ import { engines } from '../shell/engines.js';
 import { getHiddenApps } from '../shell/appvis.js';
 import { wellLoad, wellFlush } from '../shell/goodlock.js';
 import { setCapSearchProvider } from '../shell/capsule.js';
+import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -319,7 +320,7 @@ import { setCapSearchProvider } from '../shell/capsule.js';
           np = p.replace(/^\/en(\/|$)/, '/');
           if (np === '' || np.charAt(0) !== '/') np = '/';
         }
-        location.replace(np + q + h);
+        sgxReplace(np + q + h, 'settings.js:323', 'lang-switch');
       },
     });
   });
@@ -876,7 +877,7 @@ import { setCapSearchProvider } from '../shell/capsule.js';
   rowToggle('row-reset', function () {
     removeByPrefix('sgx-');
     remove('theme');
-    location.reload();
+    sgxReload('settings.js:880', 'settings-reset');
   });
 
   /* 2.6.0：设置改为真实二级页（/settings/<cat>/）；旧 hash 由设置首页内联脚本跳转到子页；
@@ -1066,7 +1067,7 @@ import { setCapSearchProvider } from '../shell/capsule.js';
         }
       } catch (e) {}
       if (elid && elid.charAt(0) !== '/' && target.indexOf('#') < 0) target += '#' + elid;
-      window.location.href = target;
+      sgxNavigate(target, 'settings.js:1070', 'settings-search-anchor');
       return;
     }
     window.setTimeout(function () {

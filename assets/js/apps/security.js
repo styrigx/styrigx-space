@@ -18,8 +18,8 @@ import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
 import { mgmtButtons } from './mgmt-buttons.js';
 import { exchangeRootSession } from '../lib/root-session.js';
-import { takeJumpRecord } from './app-gate.js';
-import { takeBeaconRecord, sgxNavigate } from '../lib/diag-jumptrace.js';
+import { takeJumpRecords } from './app-gate.js';
+import { takeBeaconRecord, sgxNavigate, sgxReload, recordJump } from '../lib/diag-jumptrace.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -96,10 +96,10 @@ import { takeBeaconRecord, sgxNavigate } from '../lib/diag-jumptrace.js';
     const go = function () {
       fetch('/api/lock', { method: 'POST', credentials: 'include' })
         .then(function () {
-          location.reload();
+          sgxReload('security.js:99', 'lock-now-ok');
         })
         .catch(function () {
-          location.reload();
+          sgxReload('security.js:102', 'lock-now-fail');
         });
     };
     on(lockNow, 'click', go);
@@ -373,7 +373,15 @@ import { takeBeaconRecord, sgxNavigate } from '../lib/diag-jumptrace.js';
       }
       m.submit(v).then(
         function () {
+          /* A3：根凭证 submit resolve 后、closeDlg 前记「root-resolved」 */
+          if (m.kind === 'root') {
+            try { recordJump('security.js:submitForm', 'root-resolved'); } catch (e) {}
+          }
           closeDlg();
+          /* A3：onSuccess 开头再记「root-onsuccess」 */
+          if (m.kind === 'root') {
+            try { recordJump('security.js:submitForm', 'root-onsuccess'); } catch (e) {}
+          }
           m.onSuccess();
         },
         function (e) {
@@ -661,17 +669,17 @@ import { takeBeaconRecord, sgxNavigate } from '../lib/diag-jumptrace.js';
   })();
 
 
-  /* #1 诊断：门内页跳转留痕。安全页加载时若有记录则显示一次（取即清除）。 */
+  /* #1 诊断：门内页跳转留痕。安全页加载时若有记录则全部显示（取即清除）。 */
   (function () {
-    let jr = null;
+    let jrs = [];
     try {
-      jr = takeJumpRecord();
+      jrs = takeJumpRecords();
     } catch (e) {}
     let bc = null;
     try {
       bc = takeBeaconRecord();
     } catch (e) {}
-    if (!jr && !bc) return;
+    if (!jrs.length && !bc) return;
     const note = document.getElementById('sgx-jump-note');
     const txt = document.getElementById('sgx-jump-note-text');
     if (!note || !txt) return;
@@ -681,10 +689,15 @@ import { takeBeaconRecord, sgxNavigate } from '../lib/diag-jumptrace.js';
         '（session=' + bc.session + ',role=' + bc.role +
         ',upgrade=' + bc.upgrade + ',build=' + bc.build + '）');
     }
-    if (jr) {
-      parts.push((en ? 'Last door redirect: ' : '上次门内跳转：') +
-        jr.who + (jr.reason ? '（' + jr.reason + '）' : ''));
-    }
+    /* A5：最近 5 条全部显示，每条带桌面版标记 + visibilityState */
+    jrs.forEach(function (jr, i) {
+      const meta = [];
+      if (typeof jr.desktop === 'boolean') meta.push(jr.desktop ? (en ? 'desktop' : '桌面版') : (en ? 'mobile' : '手机版'));
+      if (jr.visibility) meta.push(jr.visibility);
+      parts.push((en ? 'Last door redirect ' + (i + 1) + ': ' : '上次门内跳转' + (i + 1) + '：') +
+        jr.who + (jr.reason ? '（' + jr.reason + '）' : '') +
+        (meta.length ? ' [' + meta.join(',') + ']' : ''));
+    });
     txt.textContent = parts.join(en ? ' | ' : '；');
     note.hidden = false;
   })();
