@@ -11,7 +11,8 @@ import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton } from '../lib/dialog-behavior.js';
-import { apiErrorText, needVerify } from './app-gate.js';
+import { apiErrorText, needVerify, clearStepupThen } from './app-gate.js';
+import { showConfirmDialog } from '../lib/dialog-behavior.js';
 import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY } from '../lib/key-names.js';
 
 (function () {
@@ -144,12 +145,16 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
 
   /** 会话/票据失效 → 重新验证（批次 A 验收修复 #7：改走 app-gate.js 的 needVerify，
       和 door.js 一致；detail='owner-configured' 时 needVerify 显示明确文案）。
+      批次 B #13：按真实 code 区分（session → 会话失效；stepup-required/scope/by-root → 验证过期）。
       锁屏页无验证门可开：lockgate-* 元素在任何模板里都不存在，
-      旧 openGate() 在 gateOpts 为 null 时会抛 TypeError。 */
-  function needReauth(detail) {
+      旧 openGate() 在 gateOpts 为 null 时会抛 TypeError。
+      @param {string} [code] 服务端 error 码
+      @param {string} [detail] 服务端 reason */
+  function needReauth(code, detail) {
     /* P2-14：先收起当前所有 sheet 再跳验证流程，禁止弹层叠弹层 */
     closeOpenSheets();
-    needVerify(t, 'session', detail);
+    const reason = code === 'session' ? 'session' : 'stepup';
+    needVerify(t, reason, detail);
   }
 
   /**
@@ -190,6 +195,18 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
 
   /* ---------- 管理区 ---------- */
   var hasPk = false;
+  /**
+   * 查站长层是否已配置真实凭证（批次 B #10 前端预判：删后归零时用）。
+   * 读不到（lockreset 票下 /api/owner-status 401）→ 按已配置处理，
+   * 依赖服务端 403 last-key 兜底。
+   * @returns {Promise<boolean>}
+   */
+  function checkOwnerConfigured() {
+    return fetch('/api/owner-status', { method: 'GET', credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { return !!(j && j.ok && (j.password || j.passkey)); })
+      .catch(function () { return true; });
+  }
   function refreshStatus() {
     /* 状态接口按模式选择：owner 模式读 /api/owner-status（owner-pw + class=owner），
        lock 模式读 /api/lock-status（lock-pw + class=lock）。
@@ -272,52 +289,47 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
       }
     });
   }
-  /* 删除解锁密码（两步确认） */
+  /* 删除解锁密码（批次 B R1：One UI 确认弹层；#10：删后归零时按 owner 配置分流） */
   const pwDel = $('lockmgr-pwdel');
   if (pwDel) {
-    let armed = false;
-    let armTimer = 0;
-    const origText = pwDel.textContent;
     on(pwDel, 'click', function () {
-      if (!armed) {
-        armed = true;
-        /* 如果删完后密码和通行密钥都没了，提示只能用根凭证进入 */
-        if (!hasPk) {
-          pwDel.textContent = t('pwDelWarn');
-        } else {
-          pwDel.textContent = t('pwDelAsk');
-        }
-        pwDel.classList.add('armed');
-        armTimer = window.setTimeout(function () {
-          armed = false;
-          pwDel.textContent = origText;
-          pwDel.classList.remove('armed');
-        }, 5000);
+      /* 删后锁屏凭证是否归零：本页为 lock 类且无 lock 通行密钥 */
+      const zeroing = (pageClass === STORE_CLASS_LOCKKEY) && !hasPk;
+      function doDelete() {
+        api('/api/owner-password', { action: 'remove', kind: pwKind })
+          .then(function (r) {
+            const j = r.json;
+            if (j && j.ok) {
+              toast(t('pwDeleted'));
+              /* 服务端删除成功后重新读状态刷新（KV 最终一致，边缘节点最多约 60 秒） */
+              refreshStatus();
+              refreshPkList();
+            } else if (j && isReauthError(j.error)) {
+              needReauth(j && j.error, j && j.reason);
+            } else {
+              toast(srvErr(j && j.error, r.status));
+            }
+          })
+          .catch(function () {
+            toast(t('gateNetErr'));
+          });
+      }
+      if (!zeroing) {
+        showConfirmDialog({ title: t('pwDelTitle'), desc: t('pwDelConfirm') }).then(function (ok) {
+          if (ok) doDelete();
+        }).catch(function () {});
         return;
       }
-      window.clearTimeout(armTimer);
-      api('/api/owner-password', { action: 'remove', kind: pwKind })
-        .then(function (r) {
-          const j = r.json;
-          if (j && j.ok) {
-            toast(t('pwDeleted'));
-            /* 服务端删除成功后重新读状态刷新（KV 最终一致，边缘节点最多约 60 秒） */
-            refreshStatus();
-            refreshPkList();
-          } else if (j && isReauthError(j.error)) {
-            needReauth(j && j.reason);
-          } else {
-            toast(srvErr(j && j.error, r.status));
-          }
-        })
-        .catch(function () {
-          toast(t('gateNetErr'));
-        })
-        .finally(function () {
-          armed = false;
-          pwDel.textContent = origText;
-          pwDel.classList.remove('armed');
-        });
+      /* 归零：查 owner 是否已配置（读不到按已配置处理，依赖服务端 403 兜底） */
+      checkOwnerConfigured().then(function (ownerCfg) {
+        if (!ownerCfg) {
+          toast(t('errLastKey'));
+          return;
+        }
+        showConfirmDialog({ title: t('pwDelTitle'), desc: t('delLastKeyConfirm') }).then(function (ok) {
+          if (ok) doDelete();
+        }).catch(function () {});
+      });
     });
   }
   /* Phase 2 Item 11：退出站长凭证（吊销 stepup 票据，回安全页）。
@@ -365,7 +377,7 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
           toast(hasPw && action === 'change' ? t('pwChanged') : t('pwSaved'));
         } else if (isReauthError(j.error)) {
           closePwDlg('success');
-          needReauth(j && j.reason);
+          needReauth(j && j.error, j && j.reason);
         } else if (j.error === 'exists' && action === 'set') {
           /* 并发已设置 → 改走 change */
           hasPw = true;
@@ -468,7 +480,7 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
             closePkNameDlg('success');
             refreshPkList();
           } else if (j && isReauthError(j.error)) {
-            needReauth(j && j.reason);
+            needReauth(j && j.error, j && j.reason);
           } else if (j && j.error === 'not-found') {
             /* KV 最终一致：刚注册的 key 可能暂时读不到 */
             showErr('lockpkname-err', t('pkRetryLater'));
@@ -538,7 +550,7 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
         const j = res.json;
         if (!j) return;
         if (j.error && isReauthError(j.error)) {
-          needReauth(j.reason);
+          needReauth(j.error, j.reason);
           return;
         }
         allKeys = allKeys.concat((j.ok && j.keys) || []);
@@ -556,7 +568,7 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
         const j = res.json;
         if (!j) return;
         if (j.error && isReauthError(j.error)) {
-          needReauth(j && j.reason);
+          needReauth(j && j.error, j && j.reason);
           return;
         }
         const keys = ((j.ok && j.keys) || []).filter(function (k) {
@@ -589,13 +601,16 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
                   lastSaved = v;
                   toast(t('pkRenamed'));
                 } else if (jj && isReauthError(jj.error)) {
-                  needReauth(jj.reason);
+                  needReauth(jj.error, jj.reason);
                 } else {
+                  /* 批次 B R1：改名失败 toast 具体原因，不静默回滚 */
                   nameInput.value = lastSaved;
+                  toast(apiErrorText(t, jj && jj.error, r2.status));
                 }
               })
               .catch(function () {
                 nameInput.value = lastSaved;
+                toast(t('errNetwork'));
               });
           };
           on(nameInput, 'change', saveName);
@@ -629,25 +644,17 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
           del.type = 'button';
           del.className = 'lockmgr-pkdel';
           del.textContent = t('pkDel');
-          let armed = false;
-          let armTimer = 0;
           on(del, 'click', function (e) {
             e.stopPropagation();
-            if (!armed) {
-              armed = true;
-              del.textContent = t('pkDelAsk');
-              del.classList.add('armed');
-              armTimer = window.setTimeout(function () {
-                armed = false;
-                del.textContent = t('pkDel');
-                del.classList.remove('armed');
-              }, 3000);
-              return;
-            }
-            window.clearTimeout(armTimer);
-            api('/api/owner-passkey', { action: 'delete', credId: k.credId })
-              .then(function (r2) {
-                const jj = r2.json;
+            /* 批次 B R1：One UI 确认弹层；#10：删后归零时按 owner 配置分流 */
+            const sameClass = allKeys.filter(function (x) {
+              return (x.class || STORE_CLASS_LOCKKEY) === pageClass;
+            });
+            const zeroing = (pageClass === STORE_CLASS_LOCKKEY) && sameClass.length <= 1 && !hasPw;
+            function doDelete() {
+              api('/api/owner-passkey', { action: 'delete', credId: k.credId })
+                .then(function (r2) {
+                  const jj = r2.json;
                 if (jj && jj.ok) {
                   toast(t('pkDeleted'));
                   /* Samsung Pass 同步：通知密码管理器删掉这把密钥 */
@@ -662,7 +669,7 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
                   refreshPkList();
                   refreshStatus();
                 } else if (jj && isReauthError(jj.error)) {
-                  needReauth(jj.reason);
+                  needReauth(jj.error, jj.reason);
                 } else if (jj && jj.error === 'not-found') {
                   toast(t('pkRetryLater'));
                 } else if (!jj) {
@@ -674,6 +681,22 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
               .catch(function () {
                 toast(t('gateNetErr'));
               });
+            }
+            if (!zeroing) {
+              showConfirmDialog({ title: t('pkDelTitle'), desc: t('pkDelConfirm') }).then(function (ok) {
+                if (ok) doDelete();
+              }).catch(function () {});
+              return;
+            }
+            checkOwnerConfigured().then(function (ownerCfg) {
+              if (!ownerCfg) {
+                toast(t('errLastKey'));
+                return;
+              }
+              showConfirmDialog({ title: t('pkDelTitle'), desc: t('delLastKeyConfirm') }).then(function (ok) {
+                if (ok) doDelete();
+              }).catch(function () {});
+            });
           });
           li.appendChild(nameWrap);
           li.appendChild(del);
@@ -727,9 +750,17 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
                   const jj = r2.json;
                   if (jj && jj.ok) {
                     toast(t('pkDeleted') || '已删除');
+                    /* 批次 B #9：Samsung Pass 同步：通知密码管理器删掉这把密钥 */
+                    try {
+                      if (window.PublicKeyCredential && typeof PublicKeyCredential.signalUnknownCredential === 'function') {
+                        PublicKeyCredential.signalUnknownCredential({ rpId: location.hostname, credentialId: k.credId }).catch(function () {});
+                      } else {
+                        toast(t('pkDelManual'));
+                      }
+                    } catch (e2) {}
                     refreshPkList();
                   } else if (jj && isReauthError(jj.error)) {
-                    needReauth(jj.reason);
+                    needReauth(jj.error, jj.reason);
                   } else if (jj && jj.error === 'not-found') {
                     /* KV 最终一致：刚注册的 key 可能暂时读不到 */
                     toast(t('pkRetryLater'));
@@ -772,7 +803,7 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
               displayName: ch.user.displayName,
             },
             pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
-            authenticatorSelection: { userVerification: 'required', residentKey: 'preferred' },
+            authenticatorSelection: { userVerification: 'required', residentKey: 'required' },
             excludeCredentials: (ch.excludeCredentials || []).map(function (c) {
               return { id: b64urlToBuf(c.id), type: c.type };
             }),
@@ -803,7 +834,7 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
           toast(t('pkRegistered') || '已添加');
           refreshPkList();
         } else if (res.json && isReauthError(res.json.error)) {
-          needReauth(res.json.reason);
+          needReauth(res.json.error, res.json.reason);
         } else {
           const code = (res.json && res.json.error) || 'failed';
           toast((t('gateSrvErr') || '失败') + ': ' + code);
@@ -831,7 +862,7 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
           const ch = res.json;
           if (!ch) throw { kind: 'server' };
           if (!ch.ok) {
-            if (isReauthError(ch.error)) throw { kind: 'reauth', reason: ch.reason };
+            if (isReauthError(ch.error)) throw { kind: 'reauth', code: ch.error, reason: ch.reason };
             throw { kind: 'server' };
           }
           /* 服务端下发 rp.id、用户信息、excludeCredentials；前端不硬编码、不回落 */
@@ -895,7 +926,7 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
             openPkNameDlg(j.credId, r3.prefill);
             refreshPkList();
           } else if (j && isReauthError(j.error)) {
-            needReauth(j && j.reason);
+            needReauth(j && j.error, j && j.reason);
           } else {
             toast(srvErr(j && j.error, r.status));
           }
@@ -905,7 +936,7 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
           if (e.kind === 'cancelled') toast(t('gateCancelled'));
           else if (e.kind === 'already') toast(t('pkAlready'));
           else if (e.kind === 'nosupport') toast(t('pkNoSupport'));
-          else if (e.kind === 'reauth') needReauth(e.reason);
+          else if (e.kind === 'reauth') needReauth(e.code, e.reason);
           else if (e.kind === 'server') toast(srvErr(e.code));
           else if (e.kind === 'failed') toast(t('pkFailed'));
           else toast(t('gateNetErr'));
@@ -930,6 +961,30 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
     }
   }
 
+  /* 批次 B R1：重置会话下返回 → 清重置票后直跳锁屏（不经 navhistory/mgmt 中转，
+     不闪主页）。定稿 #11：完成、返回或退出都服务端清掉重置权限并回锁屏。 */
+  let isLockresetPage = false;
+  try {
+    isLockresetPage = document.documentElement.dataset.sgxSession === 'lockreset';
+  } catch (e) {}
+  if (isLockresetPage) {
+    /* 捕获阶段拦截本页返回按钮（[data-go-back] 在 subpage-head 里） */
+    document.addEventListener('click', function (e) {
+      let el = null;
+      try {
+        el = e.target && e.target.closest ? e.target.closest('[data-go-back]') : null;
+      } catch (err) {}
+      if (!el) return;
+      e.preventDefault();
+      e.stopPropagation();
+      clearStepupThen('/?lock=1&reset=done');
+    }, true);
+    /* 返回手势：popstate 时同样清票回锁屏 */
+    window.addEventListener('popstate', function () {
+      clearStepupThen('/?lock=1&reset=done');
+    });
+  }
+
   /* Phase 2 Item 8：进入时先试状态接口（需有效 stepup/会话）。
      成功 → 直接进管理区（跳过验证门，避免第 3 次根凭证）；
      401 → 显示验证门（只剩通行密钥入口）。 */
@@ -940,7 +995,7 @@ import { KEY_LOCK, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY
         enterMgr();
       } else {
         /* 批次 A 验收修复 #7：探针失败走 needVerify，不开已删除的验证门 */
-        needReauth(j && j.reason);
+        needReauth(j && j.error, j && j.reason);
       }
     })
     .catch(function () {

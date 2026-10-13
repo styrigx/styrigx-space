@@ -15,7 +15,7 @@ import { engines } from '../shell/engines.js';
 import { getHiddenApps } from '../shell/appvis.js';
 import { wellLoad, wellFlush } from '../shell/goodlock.js';
 import { setCapSearchProvider } from '../shell/capsule.js';
-import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
+import { showConfirmDialog } from '../lib/dialog-behavior.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -585,26 +585,15 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
       if (lbl) lbl.textContent = engineName();
     }
   }
-  /* 二次确认按钮：第一次点击变红字确认态，3 秒内再点执行 */
-  /** @param {HTMLElement|null} btn @param {string} confirmLabel @param {() => void} fn */
-  function armConfirm(btn, confirmLabel, fn) {
+  /* 二次确认按钮（批次 B R1）：点后弹 One UI 确认弹层，确认才执行；取消不执行。 */
+  /** @param {HTMLElement|null} btn @param {string} title @param {string} desc @param {() => void} fn */
+  function armConfirm(btn, title, desc, fn) {
     if (!btn) return;
-    let armed = false,
-      timer = null;
-    const orig = btn.innerHTML;
     on(btn, 'click', function (e) {
       e.stopPropagation();
-      if (!armed) {
-        armed = true;
-        btn.innerHTML = '<span class="font-medium" style="color:#dc2626">' + esc(confirmLabel) + '</span>';
-        timer = window.setTimeout(function () {
-          armed = false;
-          btn.innerHTML = orig;
-        }, 3000);
-      } else {
-        if (timer) clearTimeout(timer);
-        fn();
-      }
+      showConfirmDialog({ title: title, desc: desc }).then(function (ok) {
+        if (ok) fn();
+      }).catch(function () {});
     });
   }
   /**
@@ -722,7 +711,7 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
     });
     const clr = $('apf-clear');
     if (clr)
-      armConfirm(clr, T.t('confirmClear'), function () {
+      armConfirm(clr, T.t('confirmClearTitle'), T.t('confirmClearDesc'), function () {
         remove('sgx-files-recent');
         remove('sgx-files-lastvisit');
         window.dispatchEvent(new Event('sgx-settings-changed'));
@@ -798,7 +787,7 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
     });
     const clr = $('apb-clear');
     if (clr)
-      armConfirm(clr, T.t('confirmClear'), function () {
+      armConfirm(clr, T.t('confirmClearTitle'), T.t('confirmClearDesc'), function () {
         set('sgx-browser-recent', '[]');
         window.dispatchEvent(new Event('sgx-settings-changed'));
         closeSheet();

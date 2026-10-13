@@ -25,7 +25,7 @@ import {
   b64urlToBuf,
   bufToB64url,
 } from './app-gate.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton } from '../lib/dialog-behavior.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton, showConfirmDialog } from '../lib/dialog-behavior.js';
 
 /**
  * 初始化一扇门。
@@ -192,47 +192,29 @@ export function initDoor(o) {
       }
     });
   }
-  /* 删除密码（两步确认；门内直接调接口） */
+  /* 删除密码（批次 B R1：One UI 确认弹层；门内直接调接口） */
   const pwDel = $('lockmgr-pwdel');
   if (pwDel) {
-    let armed = false;
-    let armTimer = 0;
-    const origText = pwDel.textContent;
     const go = function () {
-      if (!armed) {
-        armed = true;
-        /* 如果删完后密码和钥匙都没了，提示只能用 rootkey 进入 */
-        pwDel.textContent = hasPk ? t('pwDelAsk') : t('pwDelWarn');
-        pwDel.classList.add('armed');
-        armTimer = window.setTimeout(function () {
-          armed = false;
-          pwDel.textContent = origText;
-          pwDel.classList.remove('armed');
-        }, 5000);
-        return;
-      }
-      window.clearTimeout(armTimer);
-      api('/api/owner-password', { action: 'remove', kind: pwKind }, t)
-        .then(function (r) {
-          const j = r.json;
-          if (j && j.ok) {
-            toast(t('pwDeleted'));
-            refreshStatus();
-            refreshPkList();
-          } else if (j && handleDoorError(t, j.error, r.status, j.reason)) {
-            /* D3：session/stepup-required/scope/by-root 已走 needVerify */
-          } else {
-            toast(apiErrorText(t, j && j.error, r.status));
-          }
-        })
-        .catch(function () {
-          toast(t('gateNetErr'));
-        })
-        .finally(function () {
-          armed = false;
-          pwDel.textContent = origText;
-          pwDel.classList.remove('armed');
-        });
+      showConfirmDialog({ title: t('pwDelTitle'), desc: t('pwDelConfirm') }).then(function (ok) {
+        if (!ok) return;
+        api('/api/owner-password', { action: 'remove', kind: pwKind }, t)
+          .then(function (r) {
+            const j = r.json;
+            if (j && j.ok) {
+              toast(t('pwDeleted'));
+              refreshStatus();
+              refreshPkList();
+            } else if (j && handleDoorError(t, j.error, r.status, j.reason)) {
+              /* D3：session/stepup-required/scope/by-root 已走 needVerify */
+            } else {
+              toast(apiErrorText(t, j && j.error, r.status));
+            }
+          })
+          .catch(function () {
+            toast(t('gateNetErr'));
+          });
+      }).catch(function () {});
     };
     on(pwDel, 'click', go);
     on(pwDel, 'keydown', function (/** @type {KeyboardEvent} */ e) {
@@ -546,25 +528,13 @@ export function initDoor(o) {
     return li;
   }
 
-  /* 两步确认删除（按钮文案两段式） */
+  /* 批次 B R1：确认弹层删除（One UI 确认弹层，替代两步确认） */
   function armDelete(del, doDelete) {
-    let armed = false;
-    let armTimer = 0;
     on(del, 'click', function (e) {
       e.stopPropagation();
-      if (!armed) {
-        armed = true;
-        del.textContent = t('pkDelAsk');
-        del.classList.add('armed');
-        armTimer = window.setTimeout(function () {
-          armed = false;
-          del.textContent = t('pkDel');
-          del.classList.remove('armed');
-        }, 3000);
-        return;
-      }
-      window.clearTimeout(armTimer);
-      doDelete();
+      showConfirmDialog({ title: t('pkDelTitle'), desc: t('pkDelConfirm') }).then(function (ok) {
+        if (ok) doDelete();
+      }).catch(function () {});
     });
   }
 
@@ -649,6 +619,14 @@ export function initDoor(o) {
                   const jj = r2.json;
                   if (jj && jj.ok) {
                     toast(t('pkDeleted'));
+                    /* 批次 B #9：Samsung Pass 同步：通知密码管理器删掉这把密钥 */
+                    try {
+                      if (window.PublicKeyCredential && typeof PublicKeyCredential.signalUnknownCredential === 'function') {
+                        PublicKeyCredential.signalUnknownCredential({ rpId: location.hostname, credentialId: k.credId }).catch(function () {});
+                      } else {
+                        toast(t('pkDelManual'));
+                      }
+                    } catch (e2) {}
                     refreshPkList();
                   } else if (jj && jj.error === 'stepup-required') {
                     /* 验证失效：已跳验证流程 */
@@ -690,7 +668,7 @@ export function initDoor(o) {
               displayName: ch.user.displayName,
             },
             pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
-            authenticatorSelection: { userVerification: 'required', residentKey: 'preferred' },
+            authenticatorSelection: { userVerification: 'required', residentKey: 'required' },
             excludeCredentials: (ch.excludeCredentials || []).map(function (c) {
               return { id: b64urlToBuf(c.id), type: c.type };
             }),
