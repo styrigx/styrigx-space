@@ -2174,18 +2174,20 @@
   }
   .sgx-door-title { font-size: 20px; font-weight: 700; margin: 0; color: var(--m-on-surface); text-align: left; }
   .sgx-door-desc { font-size: 15px; line-height: 1.5; color: var(--m-on-surface-variant); margin: 8px 0 0; text-align: left; }
-  .sgx-door-methods { margin-top: 8px; }
+  /* A-3：选择框纵向 flex，行间 12px */
+  .sgx-door-methods { margin-top: 8px; display: flex; flex-direction: column; gap: 12px; }
   .sgx-door-row {
+    /* A-3：半径 16px，静止底色 --m-container，按下/选中 --m-container-high，
+       去 hairline 分隔线，行内边距 12px 16px */
     display: flex; align-items: center; gap: 14px; width: 100%;
-    min-height: 64px; padding: 12px 4px; background: none; border: 0;
-    border-bottom: 1px solid var(--m-outline-variant);
+    min-height: 64px; padding: 12px 16px; background: var(--m-container); border: 0;
+    border-radius: 16px;
     text-align: left; cursor: pointer; color: var(--m-on-surface);
     /* 批次 A 验收修复 P2：按下态整行背景变色（现有 --m-container-* 色），松开恢复 */
     &:active, &.sgx-row-pressed { background: var(--m-container-high); }
     /* 选中态（根凭证/密码行展开时）：背景保持高亮 */
     &.sgx-row-selected { background: var(--m-container-high); }
   }
-  .sgx-door-method:last-child .sgx-door-row { border-bottom: 0; }
   .sgx-door-ic {
     width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
     background: var(--m-primary-container); color: var(--m-on-primary-container);

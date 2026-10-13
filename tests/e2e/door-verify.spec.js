@@ -291,3 +291,77 @@ test.describe('A-1 进门不能马上被判过期（10 次连续进门）', () =
     expect(pageErrors).toEqual([]);
   });
 });
+
+test.describe('A-3 根凭证选择框圆角加深', () => {
+  test.beforeEach(async ({ page }) => {
+    await blockExternalRequests(page);
+    await page.addInitScript(() => {
+      try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
+    });
+    await mockJson(page, '**/api/owner-status', 200, { ok: true, password: true, passkey: true });
+    await page.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#sec-mgmt-cred')).toBeVisible({ timeout: 15000 });
+  });
+
+  /* v1.0 §五：半径 16px、静止底色 var(--m-container)、按下/选中 var(--m-container-high)、
+     无 border-bottom 分隔线、.sgx-door-methods 纵向 flex gap 12px、行内边距 12px 16px */
+  test('选择框：圆角 16px、静止底色不透明、行间距 12px、无分隔线、按下态比静止态深', async ({ page }) => {
+    await page.click('#sec-mgmt-cred');
+    await expect(page.locator('#sec-verify-dlg')).toBeVisible();
+    const rows = page.locator('.sgx-door-row');
+    await expect(rows).toHaveCount(2);
+    const row = rows.first();
+    /* 圆角 16px */
+    const radius = await row.evaluate((el) => getComputedStyle(el).borderRadius);
+    expect(radius).toBe('16px');
+    /* 行内边距 12px 16px */
+    const pad = await row.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return { top: cs.paddingTop, left: cs.paddingLeft };
+    });
+    expect(pad.top).toBe('12px');
+    expect(pad.left).toBe('16px');
+    /* 无分隔线 */
+    const borderW = await row.evaluate((el) => getComputedStyle(el).borderBottomWidth);
+    expect(borderW).toBe('0px');
+    /* 静止底色 = var(--m-container)，不透明 */
+    const colors = await row.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      const probe = document.createElement('div');
+      probe.style.background = 'var(--m-container)';
+      document.body.appendChild(probe);
+      const tokenBg = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return { rowBg: cs.backgroundColor, tokenBg };
+    });
+    expect(colors.rowBg).toBe(colors.tokenBg);
+    expect(colors.rowBg).not.toMatch(/rgba\(.*,\s*0\)/);
+    /* 行间距 12px（.sgx-door-methods 纵向 flex gap 12px） */
+    const gap = await page.locator('.sgx-door-method').evaluateAll((els) => {
+      const b0 = els[0].getBoundingClientRect();
+      const b1 = els[1].getBoundingClientRect();
+      return b1.top - (b0.top + b0.height);
+    });
+    expect(gap).toBe(12);
+    /* 按下态（.sgx-row-pressed）= var(--m-container-high)，比静止态深 */
+    const lum = await row.evaluate((el) => {
+      const parse = (c) => {
+        const m = c.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+        return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : [0, 0, 0];
+      };
+      const luminance = (rgb) => {
+        const f = (v) => {
+          const s = v / 255;
+          return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+        };
+        return 0.2126 * f(rgb[0]) + 0.7152 * f(rgb[1]) + 0.0722 * f(rgb[2]);
+      };
+      const rest = luminance(parse(getComputedStyle(el).backgroundColor));
+      el.classList.add('sgx-row-pressed');
+      const pressed = luminance(parse(getComputedStyle(el).backgroundColor));
+      el.classList.remove('sgx-row-pressed');
+      return { rest, pressed };
+    });
+    expect(lum.pressed).toBeLessThan(lum.rest);
+  });
+});
