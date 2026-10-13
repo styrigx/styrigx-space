@@ -49,16 +49,21 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
   }
 
   /** 读该 aud 的应用类钥匙；验证无效时返回 null → 跳验证流程 */
+  let lastListErr = null;
   function loadKeys() {
     return fetch('/api/owner-passkey', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'list' }),
+      /* 批次 A 验收修复 P0：list 带页面类别 + aud，服务端只返回该应用的 app 类 */
+      body: JSON.stringify({ action: 'list', pkClass: 'app', aud: aud }),
       credentials: 'include',
     }).then(function (r) {
       return r.json();
     }).then(function (j) {
-      if (!(j && j.ok)) return null;
+      if (!(j && j.ok)) {
+        lastListErr = j;
+        return null;
+      }
       return (j.keys || []).filter(function (k) {
         return (k.class || 'lock') === 'app' && k.aud === aud;
       });
@@ -93,7 +98,7 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
             if (jj && jj.ok) {
               lastSaved = v;
               toast(t('pkRenamed'));
-            } else if (jj && handleDoorError(t, jj.error, r2.status)) {
+            } else if (jj && handleDoorError(t, jj.error, r2.status, jj.reason)) {
               /* D3：已走 needVerify */
             } else if (jj && jj.error === 'not-found') {
               toast(t('pkRetryLater'));
@@ -161,7 +166,7 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
             if (jj && jj.ok) {
               toast(t('pkDeleted'));
               refresh();
-            } else if (jj && handleDoorError(t, jj.error, r2.status)) {
+            } else if (jj && handleDoorError(t, jj.error, r2.status, jj.reason)) {
               /* D3：已走 needVerify */
             } else {
               toast(apiErrorText(t, jj && jj.error, r2.status));
@@ -194,7 +199,7 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
     api('/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: 'app', aud: aud }, t)
       .then(function (res) {
         const ch = res.json;
-        if (ch && ch.error && handleDoorError(t, ch.error, res.status)) throw { kind: 'reverify' };
+        if (ch && ch.error && handleDoorError(t, ch.error, res.status, ch.reason)) throw { kind: 'reverify' };
         if (!ch || !ch.ok) throw { kind: 'server', code: ch && ch.error };
         return navigator.credentials.create({
           publicKey: {
@@ -241,7 +246,7 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
         if (res.json && res.json.ok) {
           toast(t('pkRegistered'));
           refresh();
-        } else if (res.json && res.json.error && handleDoorError(t, res.json.error, res.status)) {
+        } else if (res.json && res.json.error && handleDoorError(t, res.json.error, res.status, res.json.reason)) {
           /* D3：已走 needVerify */
         } else {
           toast(apiErrorText(t, res.json && res.json.error, res.status));
@@ -313,7 +318,9 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
     function () {
       return loadKeys().then(function (keys) {
         cachedKeys = keys;
-        return !!keys;
+        /* 探针失败时带上服务端 reason（如 owner-configured），探针面板显示明确文案 */
+        if (keys) return true;
+        return { ok: false, reason: (lastListErr && lastListErr.reason) || (lastListErr && lastListErr.error) || 'session', status: 0, api: 'POST /api/owner-passkey' };
       });
     },
     function () {

@@ -20,11 +20,11 @@ import { on } from '../lib/events.js';
 import { visibleInterval } from '../lib/scheduler.js';
 import { reducedMotion } from '../lib/util.js';
 import { get as featGet } from '../lib/features.js';
-import { armVerifyKeyboard } from './verify-kb.js';
+import { followKeyboard } from './vk.js';
 import { get, getJSON } from '../lib/storage.js';
 import { exchangeRootSession } from '../lib/root-session.js';
 import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose } from '../lib/dialog-behavior.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, tapFeedback } from '../lib/dialog-behavior.js';
 
 const LOCK =
   '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
@@ -355,14 +355,19 @@ function showLockScreen() {
   /** @type {any} */ let widgetId = null;
   let verifyDone = false;
   let pwLockedUntil = 0;
-  /* 键盘避让清理函数 */
+  /* 键盘避让：各态 setBody 后对新生成输入框调 followKeyboard(dlg, input)，
+     与其他弹层同一套逻辑（shell/vk.js）。作用到 dlg 而非 card，
+     避免与 card 入场动画冲突；旧 verify-kb.js（只动 card）已删除。 */
   let dlgKbCleanup = null;
-  function armDlgKb() {
-    if (dlgKbCleanup) dlgKbCleanup();
-    if (dlg) dlgKbCleanup = armVerifyKeyboard(dlg);
+  function armDlgKbFor(input) {
+    if (dlgKbCleanup) {
+      try { dlgKbCleanup(); } catch (e) {}
+      dlgKbCleanup = null;
+    }
+    if (dlg && input) dlgKbCleanup = followKeyboard(dlg, input);
   }
   function disarmDlgKb() {
-    if (dlgKbCleanup) { dlgKbCleanup(); dlgKbCleanup = null; }
+    if (dlgKbCleanup) { try { dlgKbCleanup(); } catch (e) {} dlgKbCleanup = null; }
   }
 
   function ensureDialog() {
@@ -464,7 +469,7 @@ function showLockScreen() {
       setBgHidden(false);
       return false;
     }
-    armDlgKb();
+    /* 键盘避让由各态 setBody 后 armDlgKbFor(input) 接入（输入框那时才存在） */
     /* 卡片高度稳定后（body 有 min-height）再量，避免跳动 */
     requestAnimationFrame(function () {
       liftAvatar();
@@ -778,16 +783,18 @@ function showLockScreen() {
       });
     });
     const close = function () { closeMethodSheet(); };
+    /* 批次 A 验收修复 P2：方法行点击轻触觉反馈。(b) 行 busy 不适用：
+       点击即关弹层并在同一 tick 打开下一态；通行密钥行 → openPk() 已有带转圈的加载态。 */
     const visitorBtn = sheet.querySelector('#sgx-mopt-visitor');
     const pkBtn = sheet.querySelector('#sgx-mopt-pk');
     const pwBtn = sheet.querySelector('#sgx-mopt-pw');
     const resetBtn = sheet.querySelector('#sgx-mopt-reset');
     const mkBtn = sheet.querySelector('#sgx-mopt-mk');
-    if (visitorBtn) on(visitorBtn, 'click', function () { close(); openVerify(); });
-    if (pkBtn) on(pkBtn, 'click', function () { close(); openPk(); });
-    if (pwBtn) on(pwBtn, 'click', function () { close(); openPw(); });
-    if (resetBtn) on(resetBtn, 'click', function () { close(); openReset(); });
-    if (mkBtn) on(mkBtn, 'click', function () { close(); openMk(); });
+    if (visitorBtn) on(visitorBtn, 'click', function () { tapFeedback(); close(); openVerify(); });
+    if (pkBtn) on(pkBtn, 'click', function () { tapFeedback(); close(); openPk(); });
+    if (pwBtn) on(pwBtn, 'click', function () { tapFeedback(); close(); openPw(); });
+    if (resetBtn) on(resetBtn, 'click', function () { tapFeedback(); close(); openReset(); });
+    if (mkBtn) on(mkBtn, 'click', function () { tapFeedback(); close(); openMk(); });
     const backdrop = sheet.querySelector('[data-close]');
     if (backdrop) on(backdrop, 'click', close);
     /* Esc 关闭 */
@@ -903,7 +910,7 @@ function showLockScreen() {
     setBody(
       '<div class="sgx-pw-field"><input type="password" id="sgx-pw-input" class="sgx-pw-input" autocomplete="current-password" ' +
         'aria-label="' + (en ? 'Password' : '密码') + '" placeholder="' + (en ? 'Password' : '密码') + '">' +
-        '<button type="button" class="sgx-pw-eye" id="sgx-pw-eye" aria-label="' + (en ? 'Show' : '显示') + '"></button></div>' +
+        '<button type="button" class="sgx-pw-eye" id="sgx-pw-eye" aria-label="' + (en ? 'Show password' : '显示密码') + '"></button></div>' +
         '<p id="sgx-pw-count" class="sgx-pw-count" hidden></p>' +
         '<button type="button" class="sgx-verify-skip" id="sgx-pw-go">' + (en ? 'Unlock' : '确定') + '</button>'
     );
@@ -912,16 +919,14 @@ function showLockScreen() {
     const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-pw-input'));
     const eye = document.getElementById('sgx-pw-eye');
     const go = document.getElementById('sgx-pw-go');
+    /* 批次 A 验收修复 P2：眼睛按钮走 bindEyeButton（初始 eye-off） */
     if (eye && input) {
-      eye.innerHTML =
-        '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
-      on(eye, 'click', function () {
-        const show = input.type === 'password';
-        input.type = show ? 'text' : 'password';
-        eye.setAttribute('aria-label', show ? (en ? 'Hide' : '隐藏') : (en ? 'Show' : '显示'));
-        eye.classList.toggle('off', !show);
+      bindEyeButton(eye, input, {
+        showLabel: en ? 'Show password' : '显示密码',
+        hideLabel: en ? 'Hide password' : '隐藏密码',
       });
     }
+    armDlgKbFor(input);
     if (input) {
       on(input, 'keydown', function (/** @type {KeyboardEvent} */ e) {
         if (e.key === 'Enter') {
@@ -1029,7 +1034,7 @@ function showLockScreen() {
     setBody(
       '<div class="sgx-pw-field"><input type="password" id="sgx-mk-input" class="sgx-pw-input" autocomplete="off" ' +
         'aria-label="' + (en ? 'Root credential' : '根凭证') + '" placeholder="' + (en ? 'Root credential' : '根凭证') + '">' +
-        '<button type="button" class="sgx-pw-eye" id="sgx-mk-eye" aria-label="' + (en ? 'Show' : '显示') + '"></button></div>' +
+        '<button type="button" class="sgx-pw-eye" id="sgx-mk-eye" aria-label="' + (en ? 'Show password' : '显示密码') + '"></button></div>' +
         '<button type="button" class="sgx-verify-skip" id="sgx-mk-go">' + (en ? 'Verify' : '验证') + '</button>'
     );
     clearErr();
@@ -1037,16 +1042,14 @@ function showLockScreen() {
     const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-mk-input'));
     const eye = document.getElementById('sgx-mk-eye');
     const go = document.getElementById('sgx-mk-go');
+    /* 批次 A 验收修复 P2：眼睛按钮走 bindEyeButton（初始 eye-off） */
     if (eye && input) {
-      eye.innerHTML =
-        '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
-      on(eye, 'click', function () {
-        const show = input.type === 'password';
-        input.type = show ? 'text' : 'password';
-        eye.setAttribute('aria-label', show ? (en ? 'Hide' : '隐藏') : (en ? 'Show' : '显示'));
-        eye.classList.toggle('off', !show);
+      bindEyeButton(eye, input, {
+        showLabel: en ? 'Show password' : '显示密码',
+        hideLabel: en ? 'Hide password' : '隐藏密码',
       });
     }
+    armDlgKbFor(input);
     if (input) {
       on(input, 'keydown', function (/** @type {KeyboardEvent} */ e) {
         if (e.key === 'Enter') {
@@ -1153,11 +1156,21 @@ function showLockScreen() {
       '<div class="sgx-reset-hint">' + (en ? 'Verify identity' : '验证身份') + '</div>' +
       '<div class="sgx-pw-field"><input type="password" id="sgx-reset-root" class="sgx-pw-input" autocomplete="off" ' +
         'placeholder="' + (en ? 'Credential' : '凭证') + '">' +
-        '<button type="button" class="sgx-verify-skip" id="sgx-reset-go">' + (en ? 'Verify' : '验证') + '</button></div>'
+        '<button type="button" class="sgx-pw-eye" id="sgx-reset-root-eye" aria-label="' + (en ? 'Show password' : '显示密码') + '"></button></div>' +
+        '<button type="button" class="sgx-verify-skip" id="sgx-reset-go">' + (en ? 'Verify' : '验证') + '</button>'
     );
     clearErr();
     var go = document.getElementById('sgx-reset-go');
     var input = document.getElementById('sgx-reset-root');
+    /* 批次 A 验收修复 P2：重置流程 step1 补眼睛按钮（初始 eye-off） */
+    var rootEye = document.getElementById('sgx-reset-root-eye');
+    if (rootEye && input) {
+      bindEyeButton(rootEye, input, {
+        showLabel: en ? 'Show password' : '显示密码',
+        hideLabel: en ? 'Hide password' : '隐藏密码',
+      });
+    }
+    armDlgKbFor(input);
     if (input) {
       on(input, 'keydown', function (e) {
         if (e.key === 'Enter') { e.preventDefault(); submitResetRoot(); }
@@ -1214,7 +1227,8 @@ function showLockScreen() {
     var pwFormHtml = hasPw
       ? '<div class="sgx-pw-field"><input type="password" id="sgx-reset-pw" class="sgx-pw-input" autocomplete="off" ' +
         'placeholder="' + (en ? 'Owner password' : '站长密码') + '">' +
-        '<button type="button" class="sgx-verify-skip" id="sgx-reset-pw-go">' + (en ? 'Verify' : '验证') + '</button></div>'
+        '<button type="button" class="sgx-pw-eye" id="sgx-reset-pw-eye" aria-label="' + (en ? 'Show password' : '显示密码') + '"></button></div>' +
+        '<button type="button" class="sgx-verify-skip" id="sgx-reset-pw-go">' + (en ? 'Verify' : '验证') + '</button>'
       : '';
     setBody(
       '<div class="sgx-reset-hint">' + (en ? 'Verify owner credential' : '验证站长凭证') + '</div>' +
@@ -1222,6 +1236,16 @@ function showLockScreen() {
       '<div class="sgx-reset-switch-hint">' + switchHint + '</div>'
     );
     clearErr();
+    armDlgKbFor(document.getElementById('sgx-reset-pw'));
+    /* 批次 A 验收修复 P2：重置流程 step2 补眼睛按钮（初始 eye-off） */
+    var pwEye = document.getElementById('sgx-reset-pw-eye');
+    var pwInput = document.getElementById('sgx-reset-pw');
+    if (pwEye && pwInput) {
+      bindEyeButton(pwEye, pwInput, {
+        showLabel: en ? 'Show password' : '显示密码',
+        hideLabel: en ? 'Hide password' : '隐藏密码',
+      });
+    }
     var pkBtn = document.getElementById('sgx-reset-pk');
     var pwGo = document.getElementById('sgx-reset-pw-go');
     if (pkBtn) on(pkBtn, 'click', resetPk);

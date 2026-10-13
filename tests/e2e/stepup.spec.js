@@ -237,7 +237,7 @@ test.describe('stepup e2e', () => {
       /* 清理：删掉测试 passkey */
       const token = await page.evaluate(() => sessionStorage.getItem('sgx-lockmgr-token'));
       const list = await (await request.post(BASE + '/api/owner-passkey', {
-        data: { action: 'list', token },
+        data: { action: 'list', pkClass: 'lock', token },
       })).json();
       for (const k of (list.keys || [])) {
         await request.post(BASE + '/api/owner-passkey', {
@@ -319,7 +319,7 @@ test.describe('stepup e2e', () => {
       /* 清理 */
       const token = await page.evaluate(() => sessionStorage.getItem('sgx-lockmgr-token'));
       const list = await (await request.post(BASE + '/api/owner-passkey', {
-        data: { action: 'list', token },
+        data: { action: 'list', pkClass: 'lock', token },
       })).json();
       for (const k of (list.keys || [])) {
         await request.post(BASE + '/api/owner-passkey', {

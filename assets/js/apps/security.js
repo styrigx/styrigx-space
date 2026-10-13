@@ -20,7 +20,7 @@ import { mgmtButtons } from './mgmt-buttons.js';
 import { exchangeRootSession } from '../lib/root-session.js';
 import { takeJumpRecords } from './app-gate.js';
 import { takeBeaconRecord, sgxNavigate, sgxReload, recordJump } from '../lib/diag-jumptrace.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton } from '../lib/dialog-behavior.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton, tapFeedback, setRowBusy, setRowSelected } from '../lib/dialog-behavior.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -155,7 +155,6 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
       password: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
       root: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="16" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M10.8 13.2L20 4m-3 3l3 3"/></svg>',
     };
-    const EYE = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
 
     /** 当前展开的输入区（同一时刻只展开一个） */
     let expanded = null;
@@ -200,10 +199,22 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
       collapse();
       try { dlg.close(); } catch (e) {}
     }
+    /** 当前展开行的行元素与箭头（collapse 时一并清除选中态 + 旋转） */
+    let expandedRow = null;
+    let expandedChev = null;
     function collapse() {
       if (expanded) {
         expanded.remove();
         expanded = null;
+      }
+      /* 批次 A 验收修复 P2：收起时清除行选中态 + 箭头旋转 */
+      if (expandedRow) {
+        setRowSelected(expandedRow, false);
+        expandedRow = null;
+      }
+      if (expandedChev) {
+        expandedChev.classList.remove('expanded');
+        expandedChev = null;
       }
       setFootSingle();
     }
@@ -400,7 +411,7 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
      * @param {HTMLElement} wrap
      * @param {HTMLElement} rowErr
      */
-    function expandForm(m, wrap, rowErr) {
+    function expandForm(m, wrap, rowErr, row, chev) {
       const wasOpen = !!(expanded && expanded.dataset.kind === m.kind);
       collapse();
       rowErr.hidden = true;
@@ -437,12 +448,10 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
       const eye = document.createElement('button');
       eye.type = 'button';
       eye.className = 'sgx-pw-eye';
-      eye.innerHTML = EYE;
-      eye.setAttribute('aria-label', en ? 'Show' : '显示');
-      /* 批次 A 收尾 A4：眼睛按钮用 bindEyeButton，pointerdown 保住焦点 */
-      bindEyeButton(eye, input, function (show) {
-        eye.setAttribute('aria-label', show ? (en ? 'Hide' : '隐藏') : (en ? 'Show' : '显示'));
-        eye.classList.toggle('off', !show);
+      /* 批次 A 验收修复 P2：bindEyeButton 统一接管（初始 eye-off；expandForm 重建即复位） */
+      bindEyeButton(eye, input, {
+        showLabel: en ? 'Show password' : '显示密码',
+        hideLabel: en ? 'Hide password' : '隐藏密码',
       });
       field.appendChild(input);
       field.appendChild(eye);
@@ -453,6 +462,15 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
       form.appendChild(errEl);
       wrap.appendChild(form);
       expanded = form;
+      /* 批次 A 验收修复 P2：展开时行选中态 + 箭头旋转 90° */
+      if (row) {
+        setRowSelected(row, true);
+        expandedRow = row;
+      }
+      if (chev) {
+        chev.classList.add('expanded');
+        expandedChev = chev;
+      }
       const doSubmit = function () { submitForm(m, input, errEl); };
       setFootDouble(doSubmit);
       /* 键盘弹出时弹层整体上移 */
@@ -472,9 +490,15 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
      * @param {HTMLElement} rowErr
      */
     function startWebauthn(m, row, chev, rowErr) {
+      /* 批次 A 验收修复 P2：busy 中重复点击（合成事件）直接丢弃，保证 challenge 只发一次 */
+      if (row.disabled) return;
       rowErr.hidden = true;
+      /* 副标题切换 busy 文案（保存原文，成功/取消/失败三路都要恢复） */
+      const subEl = row.querySelector('.sgx-door-rowsub');
+      const origSub = subEl ? subEl.textContent : '';
+      if (subEl) subEl.textContent = t('passkeyBusy');
       chev.innerHTML = '<span class="sgx-door-spin" aria-hidden="true"></span>';
-      row.disabled = true;
+      setRowBusy(row, true);
       m.submit().then(
         function () {
           closeDlg('success');
@@ -488,7 +512,8 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
         }
       ).then(function () {
         chev.innerHTML = CHEV;
-        row.disabled = false;
+        setRowBusy(row, false);
+        if (subEl) subEl.textContent = origSub;
       });
     }
     /** @param {object} m */
@@ -526,8 +551,10 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
       wrap.appendChild(rowErr);
       methodsEl.appendChild(wrap);
       on(row, 'click', function () {
+        /* 批次 A 验收修复 P2：轻触觉反馈 */
+        tapFeedback();
         if (m.field === 'webauthn') startWebauthn(m, row, chev, rowErr);
-        else expandForm(m, wrap, rowErr);
+        else expandForm(m, wrap, rowErr, row, chev);
       });
     }
 

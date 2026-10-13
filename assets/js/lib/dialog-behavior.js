@@ -119,17 +119,110 @@ export function bindSubmitButton(btn, handler) {
     downOnBtn = false;
   };
 }
-export function bindEyeButton(btn, input, onToggle) {
-  if (!btn || !input) return;
+/**
+ * 眼睛按钮（批次 A 验收修复 P2：睁眼/闭眼分离，统一在 bindEyeButton 实现）。
+ * - 密文态渲染 eye-off（带斜线），明文态渲染 eye；图标与 icon.html 的 eye/eye-off 同款路径。
+ * - 切换同步 aria-label（显示密码/隐藏密码）与 aria-pressed；.off 透明机制废弃。
+ * - 文案由调用方传入 opts { showLabel, hideLabel }，或读按钮 data-eye-show/data-eye-hide，
+ *   再兜底用按钮现有的 aria-label。
+ * - 切换不丢焦点（pointerdown/mousedown preventDefault + input.focus()），不收键盘、不关弹层。
+ * @param {HTMLElement} btn 眼睛按钮
+ * @param {HTMLInputElement} input 密码输入框
+ * @param {function(boolean)|{showLabel?:string, hideLabel?:string, onToggle?:function(boolean)}} [opts]
+ *   旧调用传 function(show) 仍兼容（仅作附加回调）；新调用传 { showLabel, hideLabel }。
+ * @returns {function()} 复位函数：把按钮 + 输入框同步回密文态（重开弹层时调用）
+ */
+export const EYE_SVG = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+export const EYE_OFF_SVG = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/><line x1="4" y1="4" x2="20" y2="20"/></svg>';
+export function bindEyeButton(btn, input, opts) {
+  if (!btn || !input) return function () {};
+  let showLabel = '';
+  let hideLabel = '';
+  let onToggle = null;
+  if (typeof opts === 'function') {
+    onToggle = opts;
+  } else if (opts && typeof opts === 'object') {
+    showLabel = opts.showLabel || '';
+    hideLabel = opts.hideLabel || '';
+    onToggle = opts.onToggle || null;
+  }
+  if (!showLabel) {
+    try { showLabel = btn.getAttribute('data-eye-show') || btn.getAttribute('aria-label') || ''; } catch (e) {}
+  }
+  if (!hideLabel) {
+    try { hideLabel = btn.getAttribute('data-eye-hide') || ''; } catch (e) {}
+  }
+  function sync(show) {
+    try { input.type = show ? 'text' : 'password'; } catch (e) {}
+    try { btn.innerHTML = show ? EYE_SVG : EYE_OFF_SVG; } catch (e) {}
+    try { btn.setAttribute('aria-pressed', show ? 'true' : 'false'); } catch (e) {}
+    if (show && hideLabel) {
+      try { btn.setAttribute('aria-label', hideLabel); } catch (e) {}
+    } else if (!show && showLabel) {
+      try { btn.setAttribute('aria-label', showLabel); } catch (e) {}
+    }
+  }
+  /* 初始化即密文态：eye-off + aria-pressed=false + 显示密码 */
+  sync(false);
   btn.addEventListener('pointerdown', function (e) { e.preventDefault(); });
   btn.addEventListener('mousedown', function (e) { e.preventDefault(); });
   btn.addEventListener('click', function (e) {
     e.preventDefault();
     const show = input.type !== 'text';
-    input.type = show ? 'text' : 'password';
-    btn.setAttribute('aria-pressed', show ? 'true' : 'false');
+    sync(show);
     if (typeof onToggle === 'function') onToggle(show);
     /* 保住焦点（眼睛按钮 preventDefault 已拦住失焦，这里再补一次） */
     try { input.focus(); } catch (e2) {}
   });
+  return function resetEyeButton() {
+    sync(false);
+  };
+}
+
+/**
+ * 轻触觉反馈（批次 A 验收修复 P2）：支持 navigator.vibrate 时点击瞬间振约 10ms；
+ * 不支持就跳过，不报错。
+ */
+export function tapFeedback() {
+  try {
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      navigator.vibrate(10);
+    }
+  } catch (e) {}
+}
+
+/**
+ * 行 busy 态（批次 A 验收修复 P2）：约定 class .sgx-row-busy + 行禁用（防重复点击）。
+ * @param {HTMLElement} row 行元素
+ * @param {boolean} busy 是否 busy
+ */
+export function setRowBusy(row, busy) {
+  if (!row) return;
+  try {
+    if (busy) {
+      row.classList.add('sgx-row-busy');
+      row.disabled = true;
+    } else {
+      row.classList.remove('sgx-row-busy');
+      row.disabled = false;
+    }
+  } catch (e) {}
+}
+
+/** 清除行 busy 态（setRowBusy(row, false) 的别名）。 */
+export function clearRowBusy(row) {
+  setRowBusy(row, false);
+}
+
+/**
+ * 行选中态（批次 A 验收修复 P2）：约定 class .sgx-row-selected，背景保持高亮。
+ * @param {HTMLElement} row 行元素
+ * @param {boolean} selected 是否选中
+ */
+export function setRowSelected(row, selected) {
+  if (!row) return;
+  try {
+    if (selected) row.classList.add('sgx-row-selected');
+    else row.classList.remove('sgx-row-selected');
+  } catch (e) {}
 }

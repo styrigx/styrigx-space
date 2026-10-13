@@ -105,7 +105,7 @@
   "okTitle" (dict "zh" "一切正常" "en" "All good")
   "okSub" (dict "zh" "密码、通行密钥均已设置" "en" "Password and passkeys are set")
   "warnTitle" (dict "zh" "建议操作" "en" "Action suggested")
-  "missPw" (dict "zh" "未设置解锁密码" "en" "No unlock password")
+  "missPw" (dict "zh" "未设置站长密码" "en" "Owner password not set")
   "missPk" (dict "zh" "未注册通行密钥" "en" "No passkeys registered")
   "lockSubBoth" (dict "zh" "密码，通行密钥" "en" "Password, passkeys")
   "lockSubPw" (dict "zh" "密码" "en" "Password")
@@ -126,6 +126,7 @@
   "errNetwork" (dict "zh" "网络连接失败，请重试" "en" "Network connection failed, please retry")
   "errParse" (dict "zh" "服务器返回异常，请重试" "en" "Unexpected server response, please retry")
   "errStepupExpired" (dict "zh" "验证已过期，请重新验证" "en" "Verification expired, please verify again")
+  "passkeyBusy" (dict "zh" "正在唤起通行密钥…" "en" "Opening passkey…")
   "sessExp" (dict "zh" "会话已过期，请重新解锁" "en" "Session expired, please unlock again")
 }}
 <script id="sgx-i18n-security" type="application/json">{{ $secI18n | jsonify | safeJS }}</script>

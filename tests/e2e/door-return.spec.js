@@ -195,3 +195,179 @@ test.describe('bindSubmitButton 去重修复：锁屏页设置密码弹层', () 
     expect(pwCalls).toBe(1);
   });
 });
+
+test.describe('批次 A 验收修复 P1：删除密码按钮', () => {
+  test.beforeEach(async ({ page }) => {
+    await blockExternalRequests(page);
+    await page.addInitScript(() => {
+      try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
+    });
+    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true });
+    await mockJson(page, '**/api/owner-passkey', 200, { ok: true, keys: [], scope: 'root' });
+  });
+
+  test('锁屏页：密码已设时「删除密码」可见，两步确认删除后状态变未设置、按钮隐藏', async ({ page }) => {
+    let pwSet = true;
+    let removeCalls = 0;
+    await page.route('**/api/lock-status', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, password: pwSet, passkey: true }),
+      });
+    });
+    await page.route('**/api/owner-password', async (route) => {
+      let body = {};
+      try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
+      if (body.action === 'remove' && body.kind === 'lock') {
+        removeCalls++;
+        pwSet = false;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true }),
+      });
+    });
+    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
+    /* 密码已设 → 删除按钮可见（回归：旧代码切不存在的 lockmgr-pwdel-wrap，按钮永不显示） */
+    await expect(page.locator('#lockmgr-pwdel')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#lockmgr-pwsub')).toContainText('已设置');
+    /* 两步确认：第一点武装，第二点真正删除 */
+    await page.locator('#lockmgr-pwdel').click();
+    await expect(page.locator('#lockmgr-pwdel')).toContainText('再点一次删除密码');
+    expect(removeCalls).toBe(0);
+    await page.locator('#lockmgr-pwdel').click();
+    expect(removeCalls).toBe(1);
+    /* 删除后状态刷新：副标题变未设置，按钮隐藏 */
+    await expect(page.locator('#lockmgr-pwsub')).toContainText('未设置', { timeout: 5000 });
+    await expect(page.locator('#lockmgr-pwdel')).toBeHidden();
+  });
+
+  test('站长页：密码已设时「删除密码」可见，两步确认删除后状态变未设置、按钮隐藏', async ({ page }) => {
+    let pwSet = true;
+    let removeCalls = 0;
+    await page.route('**/api/owner-status', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, password: pwSet, passkey: true }),
+      });
+    });
+    await page.route('**/api/owner-password', async (route) => {
+      let body = {};
+      try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
+      if (body.action === 'remove' && body.kind === 'owner') {
+        removeCalls++;
+        pwSet = false;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true }),
+      });
+    });
+    await page.goto('/settings/security/owner/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#lockmgr-pwdel')).toBeVisible({ timeout: 5000 });
+    await page.locator('#lockmgr-pwdel').click();
+    await expect(page.locator('#lockmgr-pwdel')).toContainText('再点一次删除密码');
+    expect(removeCalls).toBe(0);
+    await page.locator('#lockmgr-pwdel').click();
+    expect(removeCalls).toBe(1);
+    await expect(page.locator('#lockmgr-pwsub')).toContainText('未设置', { timeout: 5000 });
+    await expect(page.locator('#lockmgr-pwdel')).toBeHidden();
+  });
+});
+
+test.describe('批次 A 验收修复 P1：双向相同密码错误文案', () => {
+  test.beforeEach(async ({ page }) => {
+    await blockExternalRequests(page);
+    await page.addInitScript(() => {
+      try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
+    });
+    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true });
+    await mockJson(page, '**/api/owner-passkey', 200, { ok: true, keys: [], scope: 'root' });
+  });
+
+  test('站长页设站长密码与解锁密码相同 → 「不能与解锁密码相同」，不带错误码小字', async ({ page }) => {
+    await mockJson(page, '**/api/owner-status', 200, { ok: true, password: true, passkey: true });
+    await page.route('**/api/owner-password', async (route) => {
+      await route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: false, error: 'same-as-lock' }),
+      });
+    });
+    await page.goto('/settings/security/owner/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
+    await page.locator('#lockmgr-pwrow').click();
+    await expect(page.locator('#lockpw-dlg')).toBeVisible({ timeout: 5000 });
+    await page.locator('#lockpw-1').fill('00000000');
+    await page.locator('#lockpw-2').fill('00000000');
+    await page.locator('#lockpw-go').click();
+    const err = page.locator('#lockpw-err:not([hidden])');
+    await expect(err).toBeVisible({ timeout: 5000 });
+    await expect(err).toHaveText('不能与解锁密码相同');
+  });
+
+  test('锁屏页设解锁密码与站长密码相同 → 「不能与站长密码相同」，不带错误码小字', async ({ page }) => {
+    await mockJson(page, '**/api/lock-status', 200, { ok: true, password: true, passkey: true });
+    await page.route('**/api/owner-password', async (route) => {
+      await route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: false, error: 'same-as-owner' }),
+      });
+    });
+    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
+    await page.locator('#lockmgr-pwrow').click();
+    await expect(page.locator('#lockpw-dlg')).toBeVisible({ timeout: 5000 });
+    await page.locator('#lockpw-1').fill('00000000');
+    await page.locator('#lockpw-2').fill('00000000');
+    await page.locator('#lockpw-go').click();
+    const err = page.locator('#lockpw-err:not([hidden])');
+    await expect(err).toBeVisible({ timeout: 5000 });
+    await expect(err).toHaveText('不能与站长密码相同');
+  });
+});
+
+test.describe('批次 A 验收修复 #7：锁屏页探针失败走 needVerify（lockgate 死代码已删）', () => {
+  let pageErrors;
+  test.beforeEach(async ({ page }) => {
+    pageErrors = [];
+    page.on('pageerror', (e) => pageErrors.push(String(e && e.message ? e.message : e)));
+    await blockExternalRequests(page);
+    await page.addInitScript(() => {
+      try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
+    });
+    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true });
+    await mockJson(page, '**/api/owner-passkey', 200, { ok: true, keys: [], scope: 'root' });
+  });
+
+  test('探针 session 失败 → 无 JS 错误，toast 会话过期并跳回安全页', async ({ page }) => {
+    await mockJson(page, '**/api/lock-status', 401, { ok: false, error: 'session' });
+    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.sgx-toast')).toContainText('会话过期，请重新验证', { timeout: 5000 });
+    await expect(page).toHaveURL(/\/settings\/security\/$/, { timeout: 10000 });
+    expect(pageErrors).toEqual([]);
+  });
+
+  test('探针 scope + owner-configured → 明确提示文案并跳回安全页', async ({ page }) => {
+    await mockJson(page, '**/api/lock-status', 403, { ok: false, error: 'scope', reason: 'owner-configured' });
+    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.sgx-toast')).toContainText('站长凭证已设置，请用站长凭证重新验证', { timeout: 5000 });
+    await expect(page).toHaveURL(/\/settings\/security\/$/, { timeout: 10000 });
+    expect(pageErrors).toEqual([]);
+  });
+
+  test('探针网络失败 → 无 JS 错误，走 needVerify 跳回安全页', async ({ page }) => {
+    await page.route('**/api/lock-status', (route) => route.abort('failed'));
+    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.sgx-toast')).toContainText('会话过期，请重新验证', { timeout: 5000 });
+    await expect(page).toHaveURL(/\/settings\/security\/$/, { timeout: 10000 });
+    expect(pageErrors).toEqual([]);
+  });
+});

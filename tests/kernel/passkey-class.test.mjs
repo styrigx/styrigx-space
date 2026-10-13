@@ -163,7 +163,7 @@ test('无 stepup 时 list/register/delete → 403 stepup-required（2.10.1：reg
   const sessH = { Cookie: 'sgx-verified=' + sess };
   // list/delete 有会话无 stepup → 403
   for (const body of [
-    { action: 'list' },
+    { action: 'list', pkClass: 'lock' },
     { action: 'delete', credId: 'lock-key-001' },
   ]) {
     const r = await onRequestPost({ request: postReq('https://styrigx.com/api/owner-passkey', body, sessH), env });
@@ -197,7 +197,7 @@ test('有 stepup 时 list 通过', async () => {
   const sc = await mintStepup();
   const sess = await mintSession();
   const r = await onRequestPost({
-    request: postReq('https://styrigx.com/api/owner-passkey', { action: 'list' }, bothCookies(sess, sc)),
+    request: postReq('https://styrigx.com/api/owner-passkey', { action: 'list', pkClass: 'lock' }, bothCookies(sess, sc)),
     env: stepupEnv(kv),
   });
   assert.equal(r.status, 200);

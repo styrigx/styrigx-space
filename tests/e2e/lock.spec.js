@@ -327,3 +327,169 @@ test.describe('lock screen redesign (2.8.0)', () => {
     await expect(page.locator('#sgx-method-sheet')).toHaveCount(0);
   });
 });
+
+test.describe('lock password dialog keyboard avoidance (批次 A 验收修复 P1)', () => {
+  /* 注：锁屏密码弹层用例放在本文件而非 dialog-kb.spec.js——
+     dialog-kb.spec.js 跑在默认 suite（SGX_TEST_NO_LOCK=1 构建，lock.js 直接 return，
+     锁屏弹层打不开）；本文件跑锁屏 suite（生产构建），才能真正打开锁屏密码弹层。 */
+  test.beforeEach(async ({ page }) => {
+    await blockExternalRequests(page);
+  });
+
+  /* 污点 window.visualViewport 模拟键盘弹出（与 dialog-kb.spec.js 同一套做法） */
+  async function taintViewport(pg) {
+    await pg.evaluate(() => {
+      try {
+        Object.defineProperty(Navigator.prototype, 'virtualKeyboard', {
+          configurable: true,
+          get: () => undefined,
+        });
+      } catch (e) {}
+      const real = window.visualViewport;
+      const fake = {
+        width: real ? real.width : window.innerWidth,
+        height: real ? real.height : window.innerHeight,
+        offsetTop: 0,
+        offsetLeft: 0,
+        scale: 1,
+        _l: {},
+      };
+      fake.addEventListener = function (t, f) {
+        (this._l[t] = this._l[t] || []).push(f);
+      };
+      fake.removeEventListener = function (t, f) {
+        const a = this._l[t];
+        if (a) {
+          const i = a.indexOf(f);
+          if (i !== -1) a.splice(i, 1);
+        }
+      };
+      fake.__setHeight = function (h) {
+        this.height = h;
+        (this._l.resize || []).slice().forEach((f) => f());
+      };
+      Object.defineProperty(window, 'visualViewport', {
+        configurable: true,
+        get: () => fake,
+      });
+      window.__fakeVV = fake;
+    });
+  }
+
+  async function waitFrames(pg, n) {
+    await pg.evaluate(
+      (count) =>
+        new Promise((resolve) => {
+          const tick = () => {
+            if (count <= 1) resolve();
+            else {
+              count -= 1;
+              requestAnimationFrame(tick);
+            }
+          };
+          requestAnimationFrame(tick);
+        }),
+      n
+    );
+  }
+
+  test('lock password dialog follows keyboard: dlg shifts up, input stays visible, restore on blur', async ({ page }) => {
+    await freezeTime(page);
+    await gotoLock(page);
+    await taintViewport(page);
+    await choosePassword(page);
+    const dlg = page.locator('.sgx-verify-dlg');
+    await expect(dlg).toBeVisible();
+    const input = page.locator('#sgx-pw-input');
+    await expect(input).toBeVisible();
+    await expect(input).toBeFocused();
+
+    const origTransform = await dlg.evaluate((el) => el.style.transform);
+    expect(origTransform).toBe('');
+
+    /* 模拟键盘弹出：visualViewport 高度缩小 300（followKeyboard 经 rAF 节流） */
+    await page.evaluate(() => window.__fakeVV.__setHeight(window.innerHeight - 300));
+    await waitFrames(page, 3);
+    const raised = await page.evaluate(() => {
+      const d = document.querySelector('.sgx-verify-dlg');
+      const vv = window.__fakeVV;
+      const inputEl = document.getElementById('sgx-pw-input');
+      const goEl = document.getElementById('sgx-pw-go');
+      const ir = inputEl.getBoundingClientRect();
+      const br = goEl.getBoundingClientRect();
+      return {
+        transform: d.style.transform,
+        inputBottom: ir.bottom,
+        btnBottom: br.bottom,
+        vvBottom: vv.offsetTop + vv.height,
+      };
+    });
+    /* followKeyboard 作用到 dlg（不是 card）：dlg 上移键盘高度 */
+    expect(raised.transform).toBe('translateY(-300px)');
+    expect(raised.inputBottom).toBeLessThanOrEqual(raised.vvBottom + 1);
+    expect(raised.btnBottom).toBeLessThanOrEqual(raised.vvBottom + 1);
+
+    /* 恢复视口 + 失焦：弹层回到底部 */
+    await page.evaluate(() => window.__fakeVV.__setHeight(window.innerHeight));
+    await input.evaluate((el) => el.blur());
+    await waitFrames(page, 3);
+    const restored = await dlg.evaluate((el) => el.style.transform);
+    expect(restored).toBe('');
+  });
+});
+
+test.describe('lock password dialog eye button (批次 A 验收修复 P2)', () => {
+  test.beforeEach(async ({ page }) => {
+    await blockExternalRequests(page);
+  });
+
+  test('lock password dialog: eye starts eye-off, toggles, keeps focus', async ({ page }) => {
+    await freezeTime(page);
+    await gotoLock(page);
+    await choosePassword(page);
+    const input = page.locator('#sgx-pw-input');
+    await expect(input).toBeVisible();
+    const eye = page.locator('#sgx-pw-eye');
+    await expect(eye).toBeVisible();
+
+    /* 锁屏套件不固定语言（现有测试均用中英双语正则），aria-label 接受任一语言 */
+    await expect(eye).toHaveAttribute('aria-label', /显示密码|Show password/);
+    await expect(eye).toHaveAttribute('aria-pressed', 'false');
+    expect(await eye.evaluate((el) => el.innerHTML)).toContain('<line');
+
+    await eye.click();
+    await expect(eye).toHaveAttribute('aria-label', /隐藏密码|Hide password/);
+    await expect(eye).toHaveAttribute('aria-pressed', 'true');
+    expect(await eye.evaluate((el) => el.innerHTML)).not.toContain('<line');
+    await expect(page.locator('#sgx-pw-input[type="text"]')).toBeVisible();
+    await expect(input).toBeFocused();
+
+    await eye.click();
+    await expect(eye).toHaveAttribute('aria-label', /显示密码|Show password/);
+    await expect(eye).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('#sgx-pw-input[type="password"]')).toBeVisible();
+  });
+});
+
+test.describe('lock method sheet row feedback (批次 A 验收修复 P2)', () => {
+  test.beforeEach(async ({ page }) => {
+    await blockExternalRequests(page);
+  });
+
+  test('method row click vibrates 10ms', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__vibCalls = [];
+      navigator.vibrate = (ms) => { window.__vibCalls.push(ms); return true; };
+    });
+    await freezeTime(page);
+    await gotoLock(page);
+    /* 头像 id 是 #sgx-lock-avatar（openMethodSheet 已封装） */
+    await openMethodSheet(page);
+    const pwBtn = page.locator('#sgx-mopt-pw');
+    await expect(pwBtn).toBeVisible({ timeout: 5000 });
+    await pwBtn.click();
+    expect(await page.evaluate(() => window.__vibCalls)).toEqual([10]);
+    /* 点击后进入密码态（弹层未关、未收键盘——行反馈不影响流程） */
+    await expect(page.locator('#sgx-pw-input')).toBeVisible();
+  });
+});

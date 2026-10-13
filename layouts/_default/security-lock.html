@@ -85,13 +85,13 @@
       <input type="password" id="lockpw-1" class="sgx-pw-input" autocomplete="new-password"
              aria-label="{{ if $isEn }}New password{{ else }}新密码{{ end }}"
              placeholder="{{ if $isEn }}New password (min 8){{ else }}新密码（最少 8 位）{{ end }}">
-      <button type="button" class="sgx-pw-eye" data-eye="lockpw-1" aria-label="{{ if $isEn }}Show{{ else }}显示{{ end }}"></button>
+      <button type="button" class="sgx-pw-eye" data-eye="lockpw-1" aria-label="{{ if $isEn }}Show password{{ else }}显示密码{{ end }}"></button>
     </div>
     <div class="sgx-pw-field">
       <input type="password" id="lockpw-2" class="sgx-pw-input" autocomplete="new-password"
              aria-label="{{ if $isEn }}Confirm password{{ else }}确认密码{{ end }}"
              placeholder="{{ if $isEn }}Confirm password{{ else }}确认密码{{ end }}">
-      <button type="button" class="sgx-pw-eye" data-eye="lockpw-2" aria-label="{{ if $isEn }}Show{{ else }}显示{{ end }}"></button>
+      <button type="button" class="sgx-pw-eye" data-eye="lockpw-2" aria-label="{{ if $isEn }}Show password{{ else }}显示密码{{ end }}"></button>
     </div>
     <p id="lockpw-err" class="sgx-verify-err" hidden></p>
     <button type="button" class="sgx-verify-skip" id="lockpw-go">{{ if $isEn }}Save{{ else }}保存{{ end }}</button>
@@ -99,8 +99,8 @@
 </dialog>
 
 {{ $lkI18n := dict
-  "eyeShow" (dict "zh" "显示" "en" "Show")
-  "eyeHide" (dict "zh" "隐藏" "en" "Hide")
+  "eyeShow" (dict "zh" "显示密码" "en" "Show password")
+  "eyeHide" (dict "zh" "隐藏密码" "en" "Hide password")
   "pwSet" (dict "zh" "已设置" "en" "Set")
   "pwUnset" (dict "zh" "未设置" "en" "Not set")
   "pwMin8" (dict "zh" "最短 8 位" "en" "Minimum 8 characters")
@@ -145,10 +145,6 @@
   "errWrongPw" (dict "zh" "密码错误" "en" "Wrong password")
   "errShort" (dict "zh" "最短 8 位" "en" "Minimum 8 characters")
   "gateSrvErr" (dict "zh" "服务器配置有误" "en" "Server misconfigured")
-  "gateNeedKey" (dict "zh" "请输入根凭证" "en" "Enter root credential")
-  "gateLocked" (dict "zh" "尝试次数过多" "en" "Too many attempts")
-  "gateKeyWrong" (dict "zh" "根凭证不正确" "en" "Incorrect root credential")
-  "gatePkErr" (dict "zh" "通行密钥验证失败" "en" "Passkey verification failed")
   "gateCancelled" (dict "zh" "已取消" "en" "Cancelled")
   "errExists" (dict "zh" "已经设置过了" "en" "Already set")
   "errNotSet" (dict "zh" "尚未设置" "en" "Not set")
@@ -157,6 +153,9 @@
   "errAud" (dict "zh" "应用信息有误" "en" "Bad app parameter")
   "errCancelled" (dict "zh" "已取消" "en" "Cancelled")
   "errUnknown" (dict "zh" "未知错误，请稍后重试" "en" "Unknown error, please try again later")
+  "errSameAsLock" (dict "zh" "不能与解锁密码相同" "en" "Can't be the same as the unlock password")
+  "errSameAsOwner" (dict "zh" "不能与站长密码相同" "en" "Can't be the same as the owner password")
+  "errOwnerConfigured" (dict "zh" "站长凭证已设置，请用站长凭证重新验证" "en" "Owner credential is set, please verify with the owner credential again")
 }}
 <script id="sgx-i18n-lockmgr" type="application/json">{{ $lkI18n | jsonify | safeJS }}</script>
 {{ end }}
