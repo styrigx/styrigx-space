@@ -534,22 +534,22 @@ test('行为：lockreset needOwner 带 passkey/password 布尔', async () => {
   assert.equal(body.passkey, false, '应带 passkey=false');
 });
 
-test('行为：启动站 root-auth 成功 → root-session 换启动会话（by=startup）', async () => {
+test('行为：锁屏未配置时 root-auth 成功 → root-session 换站长会话', async () => {
   const { onRequestPost: rootAuthPost } = await import(REPO + 'functions/api/root-auth.js');
   const { onRequestPost: rootSessionPost } = await import(REPO + 'functions/api/root-session.js');
-  /* 两层都未配置：无标记、无 owner-pw/lock-pw、无 passkey（启动站） */
+  /* lock 未配置：无标记、无 lock-pw、无 passkey */
   const kv = makeKv({});
   const env = baseEnv(kv);
 
-  /* 1. root-auth（无会话，启动模式） */
+  /* 1. root-auth（无会话，引导模式） */
   const req1 = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345' });
   const res1 = await rootAuthPost({ request: req1, env });
-  assert.equal(res1.status, 200, '启动模式 root-auth 应成功');
+  assert.equal(res1.status, 200, '引导模式 root-auth 应成功');
   const setCookie1 = res1.headers.get('Set-Cookie') || '';
   assert.ok(setCookie1.includes('sgx-stepup='), '应签发 stepup');
   const stepupVal = setCookie1.split('sgx-stepup=')[1].split(';')[0];
 
-  /* 2. root-session（用 stepup 换启动会话，不是 owner 完整会话） */
+  /* 2. root-session（用 stepup 换会话） */
   const req2 = postReq('https://test.example.com/api/root-session', {}, {
     'Cookie': 'sgx-stepup=' + stepupVal,
   });
@@ -557,10 +557,9 @@ test('行为：启动站 root-auth 成功 → root-session 换启动会话（by=
   assert.equal(res2.status, 200, 'root-session 应成功');
   const body2 = JSON.parse(await res2.text());
   assert.equal(body2.ok, true);
-  assert.equal(body2.by, 'startup');
+  assert.equal(body2.by, 'root');
   const setCookie2 = res2.headers.get('Set-Cookie') || '';
   assert.ok(setCookie2.includes('sgx-verified='), '应签发会话');
-  assert.ok(setCookie2.includes('Max-Age=1800'), '启动会话时长 30 分钟');
 });
 
 test('行为：锁屏已配置（有真实凭证无标记）时 root-session 拒绝', async () => {

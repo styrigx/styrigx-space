@@ -13,13 +13,6 @@
  *     csrfToken、__token 等合法命名（词边界匹配）。
  *     例外（白名单，见 TOKEN_ALLOWLIST）：Turnstile 人机验证的 token
  *    （lock.js 向 /api/verify 提交验证结果用），与废弃机制无关。
- *  3. assets/js/ 下禁止裸通行密钥类别字面量（批次 B #3）：
- *     pkClass: 'owner'/'lock'/'app'、class 回落 `|| 'lock'`、钥匙名字面量
- *     'ownerkey'/'lockkey'/'bookkey'。统一 import 生成文件
- *     assets/js/lib/key-names.js 的 STORE_CLASS_* / KEY_* 常量。
- *     例外：生成文件本身豁免（它是唯一来源的镜像）；密码 kind（pwKind）、
- *     会话 role（data-sgx-role === 'owner'）、URL 参数 mode 属各自域名，
- *     与类别常量同值但不纳入本规则（本规则只匹配 pkClass/class/钥匙名模式）。
  *
  * 用法：node scripts/check-frontend.mjs
  */
@@ -107,28 +100,7 @@ function checkFile(p) {
       }
     }
   }
-
-  // 规则 3：裸通行密钥类别字面量（批次 B #3；生成文件本身豁免）
-  if (r !== 'assets/js/lib/key-names.js') {
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      for (const pat of CLASS_PATTERNS) {
-        if (pat.re.test(line)) {
-          errors.push(`${r}:${i + 1}: ${pat.desc}（用 assets/js/lib/key-names.js 的常量）: ${(origLines[i] || '').trim().slice(0, 100)}`);
-          break;
-        }
-      }
-    }
-  }
 }
-
-/* 规则 3 的匹配模式（作用于去注释后的代码） */
-const CLASS_PATTERNS = [
-  { re: /pkClass\s*:\s*['"](owner|lock|app)['"]/, desc: 'pkClass 用裸类别字面量' },
-  { re: /\|\|\s*['"]lock['"]/, desc: 'class 回落用裸字面量 \'lock\'' },
-  { re: /['"](ownerkey|lockkey|bookkey)['"]/, desc: '钥匙名用裸字面量' },
-  { re: /\.class\s*===?\s*['"](owner|lock|app)['"]/, desc: '.class 与裸类别字面量比较' },
-];
 
 const files = walk(join(ROOT, 'assets/js'));
 for (const f of files) checkFile(f);

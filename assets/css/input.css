@@ -118,9 +118,6 @@
       --m-on-rose: #ffffff;
       --m-rose-container: #f6d7de;
       --m-on-rose-container: #421322;
-      --m-error: #b3261e;
-      --m-error-container: #f9dedc;
-      --m-on-error-container: #410e0b;
       --m-surface: #f5f8fa;
       --m-on-surface: #161b20;
       --m-on-surface-variant: #41484e;
@@ -163,9 +160,6 @@
       --m-on-rose: #53182a;
       --m-rose-container: #6b2c40;
       --m-on-rose-container: #f6d7de;
-      --m-error: #f2b8b5;
-      --m-error-container: #8c1d18;
-      --m-on-error-container: #f9dedc;
       --m-surface: #10151a;
       --m-on-surface: #dfe4ea;
       --m-on-surface-variant: #a8b1bb;
@@ -334,9 +328,6 @@
       --m-on-rose: light-dark(#ffffff, #53182a);
       --m-rose-container: light-dark(#f6d7de, #6b2c40);
       --m-on-rose-container: light-dark(#421322, #f6d7de);
-      --m-error: light-dark(#b3261e, #f2b8b5);
-      --m-error-container: light-dark(#f9dedc, #8c1d18);
-      --m-on-error-container: light-dark(#410e0b, #f9dedc);
       --m-surface: light-dark(#f5f8fa, #10151a);
       --m-on-surface: light-dark(#161b20, #dfe4ea);
       --m-on-surface-variant: light-dark(#41484e, #a8b1bb);
@@ -1416,22 +1407,6 @@
     &.is-ok { background: var(--m-tertiary-container); color: var(--m-on-tertiary-container); }
     &.is-warn { background: var(--m-warm-container); color: var(--m-on-warm-container); }
   }
-  /* 批次 B #8：状态卡固定占位——站长从首屏即占位（占位文案「正在读取…」），
-     内容填入时不推布局；访客由 data-sgx-role 隐藏（JS 不拉状态接口）。 */
-  html:not([data-sgx-role="owner"]) .sec-status { display: none; }
-  html[data-sgx-role="owner"] .sec-status { display: flex; }
-  /* 批次 B #8：跳转提示固定占位——常驻布局，空时 visibility 隐藏，不推布局 */
-  #sgx-jump-note { visibility: hidden; min-height: 52px; }
-  #sgx-jump-note.sgx-jump-note-show { visibility: visible; }
-  /* 批次 B #16：新站启动提示条——顶部固定（sticky），启动会话下常显 */
-  .sgx-bootstrap-note {
-    position: sticky; top: 0; z-index: 20;
-    display: flex; align-items: center; gap: 8px;
-    padding: 12px 16px; border-radius: 1rem; margin: 0 0 12px;
-    background: var(--m-warm-container); color: var(--m-on-warm-container);
-    &[hidden] { display: none; }
-    &.sgx-bootstrap-note-flash { outline: 2px solid var(--m-error); }
-  }
   .sec-status-ic {
     width: 48px; height: 48px; border-radius: 999px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
@@ -2199,56 +2174,18 @@
   }
   .sgx-door-title { font-size: 20px; font-weight: 700; margin: 0; color: var(--m-on-surface); text-align: left; }
   .sgx-door-desc { font-size: 15px; line-height: 1.5; color: var(--m-on-surface-variant); margin: 8px 0 0; text-align: left; }
-
-  /* ===== 通用确认/提示弹层（批次 B，One UI 居中弹框）：与门验证弹层同视觉，
-     居中而非底部上滑；遮罩 40%。showConfirmDialog / showAlertDialog 用。 ===== */
-  dialog.sgx-center-dlg {
-    padding: 0; border: 0; background: transparent; outline: none;
-    margin: auto; width: calc(100% - 48px); max-width: 420px;
-    position: fixed; inset: 0; overflow: visible;
-    &:focus { outline: none; }
-    &::backdrop { background: rgba(0,0,0,.4); opacity: 0; transition: opacity .25s; }
-    &[open]::backdrop { opacity: 1; }
-    :focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
-  }
-  .sgx-center-card {
-    background: var(--m-surface); border-radius: 26px; padding: 24px;
-    display: flex; flex-direction: column; align-items: stretch; gap: 12px;
-    transform: scale(.96); opacity: 0;
-    transition: transform .25s cubic-bezier(.22,1,.36,1), opacity .25s;
-    dialog.sgx-center-dlg[open] & { transform: none; opacity: 1; }
-    .reduced-motion & { transition: none; }
-    &:focus { outline: none; }
-  }
-  .sgx-center-card .sgx-verify-title { text-align: left; }
-  .sgx-center-card .sgx-verify-desc { text-align: left; max-width: none; font-size: 15px; line-height: 1.5; }
-
-  /* ===== 门内页验证剩余时间倒计时条（批次 B #12）：顶部 sticky，每秒渲染 ===== */
-  .sgx-countdown-bar {
-    position: sticky; top: 0; z-index: 50;
-    padding: 8px 16px; text-align: center;
-    font-size: 13px; font-weight: 600; color: var(--m-on-surface);
-    background: var(--m-container);
-    border-bottom: 1px solid var(--glass-edge);
-  }
-  .sgx-countdown-bar.sgx-countdown-warn {
-    background: var(--m-error-container);
-    color: var(--m-on-error-container);
-  }
   .sgx-door-methods { margin-top: 8px; }
   .sgx-door-row {
-    /* 批次 B #14：三行统一——半径 16px，静止底色 --m-container，
-       按下/选中 --m-container-high，行间 12px，去 hairline 分隔线 */
     display: flex; align-items: center; gap: 14px; width: 100%;
-    min-height: 64px; padding: 12px 16px; background: var(--m-container);
-    border: 0; border-radius: 16px;
+    min-height: 64px; padding: 12px 4px; background: none; border: 0;
+    border-bottom: 1px solid var(--m-outline-variant);
     text-align: left; cursor: pointer; color: var(--m-on-surface);
-    margin: 0 0 12px;
     /* 批次 A 验收修复 P2：按下态整行背景变色（现有 --m-container-* 色），松开恢复 */
     &:active, &.sgx-row-pressed { background: var(--m-container-high); }
     /* 选中态（根凭证/密码行展开时）：背景保持高亮 */
     &.sgx-row-selected { background: var(--m-container-high); }
   }
+  .sgx-door-method:last-child .sgx-door-row { border-bottom: 0; }
   .sgx-door-ic {
     width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
     background: var(--m-primary-container); color: var(--m-on-primary-container);

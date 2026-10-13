@@ -24,8 +24,7 @@ import { followKeyboard } from './vk.js';
 import { get, getJSON } from '../lib/storage.js';
 import { exchangeRootSession } from '../lib/root-session.js';
 import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, tapFeedback, showConfirmDialog } from '../lib/dialog-behavior.js';
-import { toast } from '../lib/toast.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, tapFeedback } from '../lib/dialog-behavior.js';
 
 const LOCK =
   '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
@@ -45,155 +44,28 @@ function isLocalDev() {
   return /^(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
 }
 
-/* R3 子站回跳守卫（sessionStorage，只记目标 origin+path 与时间）。
-   why 不再等于「停止回跳」：只有「同一目标 20 秒内被踢回第二次」才算死循环。
-   回跳前记守卫；解锁成功，或打开时会话已有效且带 return：20 秒内没对同一目标
-   回跳过 → 去掉 why 后 location.replace，交给 L1 校验 return 并 302
-   （L1 仍是唯一的 return 白名单校验）；20 秒内同一目标第二次被踢回 →
-   不自动跳，显示失败卡。L1「带 why 不 302」保持不变，作服务端兜底。 */
-const RETURN_GUARD_KEY = 'sgx-return-guard';
-const RETURN_GUARD_WINDOW_MS = 20000;
-
-/** @param {string} ret @returns {string} */
-function returnTarget(ret) {
-  try {
-    const u = new URL(ret, window.location.origin);
-    return u.origin + u.pathname;
-  } catch (e) {
-    return '';
+/* 子站验证失败提示（小字显示在页面底部；幂等，重复调用只更新文案）。
+   原在 showLockScreen 内，提到模块作用域：initLock 在会话有效时不进锁屏，
+   也需要直接显示 ?why= 原因。 */
+function showSubsiteFailure(why) {
+  let el = document.getElementById('sgx-subsite-failure');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'sgx-subsite-failure';
+    el.style.cssText = 'position:fixed;bottom:24px;left:0;right:0;text-align:center;font-size:12px;color:rgba(255,255,255,0.6);z-index:10001;';
+    document.body.appendChild(el);
   }
-}
-
-/** @returns {{target:string, t:number}|null} */
-function readReturnGuard() {
-  try {
-    const raw = window.sessionStorage.getItem(RETURN_GUARD_KEY);
-    if (!raw) return null;
-    const g = JSON.parse(raw);
-    if (g && typeof g.target === 'string' && typeof g.t === 'number') return g;
-  } catch (e) {}
-  return null;
-}
-
-/** @param {string} target */
-function recordReturnGuard(target) {
-  try {
-    window.sessionStorage.setItem(RETURN_GUARD_KEY, JSON.stringify({ target: target, t: Date.now() }));
-  } catch (e) {}
-}
-
-function clearReturnGuard() {
-  try {
-    window.sessionStorage.removeItem(RETURN_GUARD_KEY);
-  } catch (e) {}
-}
-
-/** 去掉 why 后 location.replace，交给 L1 校验 return 并 302 */
-function stripWhyAndReload() {
-  try {
-    const params = new URLSearchParams(window.location.search);
-    params.delete('why');
-    const qs = params.toString();
-    const next = window.location.pathname + (qs ? '?' + qs : '') + window.location.hash;
-    sgxReplace(next, 'lock.js:return-guard', 'return-reload');
-  } catch (e) {}
-}
-
-/** 留在主站：去掉 return/why，不再触发回跳（replaceState，不重载） */
-function stayOnMain() {
-  try {
-    const params = new URLSearchParams(window.location.search);
-    params.delete('return');
-    params.delete('why');
-    const qs = params.toString();
-    const next = window.location.pathname + (qs ? '?' + qs : '') + window.location.hash;
-    try { window.history.replaceState(null, '', next); } catch (e) {}
-  } catch (e) {}
-}
-
-/**
- * 尝试回跳（R3）。
- * @param {string} ret
- * @param {string} why
- * @param {(() => void)|null} [onStay] 留在主站后调用（如锁屏页需继续开锁动画）
- * @returns {boolean} true = 已发起回跳（重载）或已显示失败卡，调用方不再做其他事
- */
-function attemptReturnJump(ret, why, onStay) {
-  if (!ret) return false;
-  const target = returnTarget(ret);
-  if (!target) return false;
-  const g = readReturnGuard();
-  if (g && g.target === target && Date.now() - g.t < RETURN_GUARD_WINDOW_MS) {
-    /* 20 秒内同一目标第二次被踢回 → 死循环，不自动跳，显示失败卡 */
-    showSubsiteFailure(why, ret, onStay || null);
-    return true;
-  }
-  recordReturnGuard(target);
-  stripWhyAndReload();
-  return true;
-}
-
-/* 子站验证失败提示（R3：One UI 确认弹层，不露 why 码和内部名）。
-   旧版底部浅色小字（白色 60% 看不清）已删除。幂等，重复调用只保留第一张卡。 */
-let subsiteFailureShown = false;
-/**
- * @param {string} why
- * @param {string} ret
- * @param {(() => void)|null} [onStay]
- */
-function showSubsiteFailure(why, ret, onStay) {
-  if (subsiteFailureShown) return;
-  subsiteFailureShown = true;
-  /* 删旧小字元素（若有残留） */
-  try {
-    const old = document.getElementById('sgx-subsite-failure');
-    if (old) old.remove();
-  } catch (e) {}
-  const isEn = (function () {
-    try { return document.documentElement.lang === 'en'; } catch (e) { return false; }
-  })();
-  let siteZh = '该网站';
-  let siteEn = 'this site';
-  try {
-    const host = new URL(ret || '', window.location.origin).hostname;
-    if (host === 'book.styrigx.com') { siteZh = '书库'; siteEn = 'the Library'; }
-    else if (host === 'blog.styrigx.com') { siteZh = '博客'; siteEn = 'the Blog'; }
-  } catch (e) {}
-  const title = isEn ? "Couldn't return to " + siteEn : '没能回到' + siteZh;
-  let desc;
-  if (why === 'no-cookie') {
-    desc = isEn
-      ? 'This browser has not been verified yet, or it blocked cross-site sign-in info.'
-      : '这个浏览器还没有通过验证，或拦截了跨站登录信息。';
-  } else if (why === 'expired' || why === 'epoch-stale') {
-    desc = isEn ? 'Your sign-in has expired. Please unlock again.' : '登录已过期，请重新解锁。';
-  } else if (why === 'no-config' || why === 'key-import') {
-    desc = isEn
-      ? 'Something is wrong with the site setup. Please try again later.'
-      : '网站配置有问题，请稍后再试。';
-  } else {
-    desc = isEn ? 'Please unlock again and retry.' : '请重新解锁后再试。';
-  }
-  showConfirmDialog({
-    title: title,
-    desc: desc,
-    cancelLabel: isEn ? 'Stay here' : '留在主站',
-    confirmLabel: isEn ? 'Retry' : '重试',
-  }).then(function (ok) {
-    subsiteFailureShown = false;
-    if (ok) {
-      /* 重试：清守卫，再回跳一次 */
-      clearReturnGuard();
-      if (ret) attemptReturnJump(ret, why, onStay);
-    } else {
-      stayOnMain();
-      if (onStay) {
-        try { onStay(); } catch (e) {}
-      }
-    }
-  }).catch(function () {
-    subsiteFailureShown = false;
-  });
+  const reasons = {
+    'no-cookie': '无凭证',
+    'bad-format': '凭证格式错误',
+    'expired': '凭证已过期',
+    'key-import': '公钥导入失败',
+    'sig': '签名验证失败',
+    'epoch-fetch': '无法获取会话纪元',
+    'epoch-stale': '凭证纪元过旧',
+    'no-config': '子站未配置公钥'
+  };
+  el.textContent = '子站验证失败：' + (reasons[why] || why);
 }
 
 /**
@@ -222,35 +94,14 @@ export function initLock() {
   if (!ok && !isLockreset) {
     showLockScreen();
   }
-  /* 批次 B R1：定稿 #11 一次性提示——重置流程返回锁屏时（?reset=done），
-     只显示一次「解锁方式已更新，请用新凭证解锁」，随即 replaceState 去参。 */
-  if (!ok && !isLockreset) {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('reset') === 'done') {
-        const isEn = document.documentElement.lang === 'en';
-        toast(isEn ? 'Unlock method updated, please unlock with your new credential' : '解锁方式已更新，请用新凭证解锁');
-        params.delete('reset');
-        const qs = params.toString();
-        const next = window.location.pathname + (qs ? '?' + qs : '') + window.location.hash;
-        try { window.history.replaceState(null, '', next); } catch (e) {}
-      }
-    } catch (e) {}
-  }
   /* 会话有效：直接显示页面，不弹锁屏。
-     R3：子站踢回（带 return + why）不再一律停住——守卫判定后回跳一次
-     （去掉 why 后 reload，L1 校验 return 并 302），或 20 秒内第二次踢回时显示失败卡。
-     有 why 无 return：无目标可回，显示失败卡（通用站名）。 */
+     防死循环失效修复：子站踢回带 ?why= 时 L1 已停止 302（返回 200 首页），
+     这里直接显示失败原因，不再跳回子站。会话无效时走锁屏解锁流程，
+     解锁后 handleSessionOk 会显示（已有逻辑，不重复）。 */
   if (ok) {
     try {
-      const params = new URLSearchParams(window.location.search);
-      const ret = params.get('return') || '';
-      const why = params.get('why') || '';
-      if (ret && why) {
-        attemptReturnJump(ret, why, null);
-      } else if (why) {
-        showSubsiteFailure(why, '', null);
-      }
+      const why = new URLSearchParams(window.location.search).get('why');
+      if (why) showSubsiteFailure(why);
     } catch (e) {}
   }
 }
@@ -449,12 +300,11 @@ function showLockScreen() {
     } catch (e) {}
   }
 
-  /* 服务端已确认会话有效后的统一处理（2.4.1 + R3）：
-     - URL 带 return：走守卫回跳——20 秒内没对同一目标回跳过 → 去掉 why 后
-       location.replace，交给 L1 middleware 校验 return 并 302；20 秒内同一目标
-       第二次被踢回 → 显示失败卡，不自动跳。why 只作失败卡文案，不再阻止回跳。
-       分层规范：return 校验只归 L1，前端不再重复做白名单校验。
-     - 不带 return：保持现有开锁动画，显示桌面（why 无目标时忽略）。 */
+  /* 服务端已确认会话有效后的统一处理（2.4.1）：
+     - URL 带 return：不做开锁动画，直接 location.replace(location.href)，
+       交给 L1 middleware 校验 return 并 302。分层规范：return 校验只归 L1，
+       前端不再重复做白名单校验。
+     - 不带 return：保持现有开锁动画，显示桌面。 */
   function handleSessionOk() {
     let ret = '';
     let why = '';
@@ -463,10 +313,12 @@ function showLockScreen() {
       ret = params.get('return') || '';
       why = params.get('why') || '';
     } catch (e) {}
+    /* 诊断：如果带 why（子站验证失败被踢回），显示原因并不再自动跳回子站，避免死循环 */
+    if (why) {
+      showSubsiteFailure(why);
+      return;
+    }
     if (ret) {
-      /* 锁屏页留在主站时继续开锁动画（显示桌面） */
-      if (attemptReturnJump(ret, why, function () { doUnlockAnimation(); })) return;
-      /* ret 解析不出目标时回落：reload 同一 URL（原有行为） */
       sgxReplace(window.location.href, 'lock.js:321', 'return-reload');
       return;
     }
@@ -500,8 +352,6 @@ function showLockScreen() {
      ============================================================ */
   /** @type {HTMLDialogElement|null} */ let dlg = null;
   /** @type {string|null} */ let dlgState = null;
-  /* 批次 B R2b：通行密钥流程运行代次（新一轮 pkAuth 使旧轮回调失效） */
-  let pkRunId = 0;
   /** @type {any} */ let widgetId = null;
   let verifyDone = false;
   let pwLockedUntil = 0;
@@ -859,15 +709,10 @@ function showLockScreen() {
    */
   function buildMethodSheet(cfg) {
     const hasPk = !!(window.PublicKeyCredential);
-    /* 批次 B #10/#16：resetOnly 时只渲染访客 + 重置锁屏（不渲染通行密钥/密码/根凭证入口）；
-       根凭证入口只在启动站（锁屏无凭证且 owner 未配置）显示。
-       fetch 失败时 cfg 为空对象 → ownerConfigured 按 true 处理（fail closed，不暴露根凭证入口）。 */
-    const resetOnly = !!cfg.resetOnly;
-    const ownerConfigured = cfg.ownerConfigured !== false;
-    const showPk = !resetOnly && cfg.passkey && hasPk;
-    const showPw = !resetOnly && cfg.password;
-    const showReset = resetOnly || cfg.passkey || cfg.password;
-    const showMk = !resetOnly && !cfg.passkey && !cfg.password && !ownerConfigured;
+    const showPk = cfg.passkey && hasPk;
+    const showPw = cfg.password;
+    const showReset = cfg.passkey || cfg.password;
+    const showMk = !cfg.passkey && !cfg.password;
     const sheet = document.createElement('div');
     sheet.id = 'sgx-method-sheet';
     sheet.setAttribute('role', 'dialog');
@@ -884,7 +729,7 @@ function showLockScreen() {
       '<span class="sgx-method-ic" aria-hidden="true">' +
       '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2.5"/></svg></span>' +
       '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Visitor' : '访客进入') + '</span>' +
-      '<span class="sgx-method-desc">' + (en ? 'Verify you are human' : '验证你不是机器人') + '</span></span>' +
+      '<span class="sgx-method-desc">' + (en ? 'Verify you are human via Cloudflare' : '通过 Cloudflare 验证你不是机器人') + '</span></span>' +
       '</button>' +
       /* 2. 通行密钥（已配置且设备支持） */
       (showPk
@@ -893,7 +738,7 @@ function showLockScreen() {
           '<span class="sgx-method-ic" aria-hidden="true">' +
           '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.9-.8"/></svg></span>' +
           '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Passkey' : '通行密钥') + '</span>' +
-          '<span class="sgx-method-desc">' + (en ? 'Unlock with fingerprint, face, or device passcode' : '用指纹、面容或设备密码解锁') + '</span></span>' +
+          '<span class="sgx-method-desc">' + (en ? 'Unlock with fingerprint or device PIN' : '用指纹或设备 PIN 解锁') + '</span></span>' +
           '</button>'
         : '') +
       /* 3. 密码（已配置） */
@@ -906,8 +751,7 @@ function showLockScreen() {
           '<span class="sgx-method-desc">' + (en ? 'Enter your unlock password' : '输入解锁密码') + '</span></span>' +
           '</button>'
         : '') +
-      /* 4. 重置锁屏：验证身份后重设解锁方式（任一锁屏凭证已配置时显示；
-         resetOnly 时也显示——锁屏凭证已清空，靠重置锁屏重新设置） */
+      /* 4. 重置锁屏：验证身份后重设解锁方式（任一锁屏凭证已配置时显示） */
       (showReset
         ? '<button type="button" class="sgx-method-opt" id="sgx-mopt-reset" aria-label="' +
           (en ? 'Reset lock screen' : '重置锁屏') + '">' +
@@ -1154,7 +998,7 @@ function showLockScreen() {
         if (dlgState !== 'password') return;
         const j = res.j;
         if (!j) {
-          showError(en ? 'Unexpected server response, please retry' : '服务响应异常，请重试');
+          showError(en ? 'Server error' : '服务器错误');
           return;
         }
         if (j.ok) {
@@ -1167,7 +1011,7 @@ function showLockScreen() {
         } else if (j.error === 'not-set') {
           showError(en ? 'No password set yet' : '尚未设置密码');
         } else if (j.error === 'server') {
-          showError(en ? 'Service temporarily unavailable, please try again later' : '服务暂时不可用，请稍后重试');
+          showError(en ? 'Server error' : '服务器错误');
         } else {
           showError(en ? 'Wrong password' : '密码错误');
           if (input) input.value = '';
@@ -1175,7 +1019,7 @@ function showLockScreen() {
       })
       .catch(function () {
         if (dlgState !== 'password') return;
-        showError(en ? 'Network connection failed, please retry' : '网络连接失败，请重试');
+        showError(en ? 'Network error' : '网络错误');
       });
   }
 
@@ -1242,7 +1086,7 @@ function showLockScreen() {
         if (dlgState !== 'mgmtkey') return;
         const j = res.j;
         if (!j) {
-          showError(en ? 'Unexpected server response, please retry' : '服务响应异常，请重试');
+          showError(en ? 'Server error' : '服务器错误');
           return;
         }
         if (j.ok) {
@@ -1266,18 +1110,18 @@ function showLockScreen() {
                   sgxNavigate(en ? '/en/settings/security/' : '/settings/security/', 'lock.js:1103', 'mgmtkey-ok');
                 }
               } else {
-                showError(en ? 'Service temporarily unavailable, please try again later' : '服务暂时不可用，请稍后重试');
+                showError(en ? 'Server error' : '服务器错误');
                 if (input) input.value = '';
               }
             })
             .catch(function () {
               if (dlgState !== 'mgmtkey') return;
-              showError(en ? 'Network connection failed, please retry' : '网络连接失败，请重试');
+              showError(en ? 'Network error' : '网络错误');
             });
         } else if (res.s === 429) {
           showError(en ? 'Too many attempts' : '尝试次数过多');
         } else if (res.s === 503 || res.s === 500) {
-          showError(en ? 'Service temporarily unavailable, please try again later' : '服务暂时不可用，请稍后重试');
+          showError(en ? 'Server error' : '服务器错误');
         } else {
           showError(en ? 'Wrong root credential' : '根凭证错误');
           if (input) input.value = '';
@@ -1285,7 +1129,7 @@ function showLockScreen() {
       })
       .catch(function () {
         if (dlgState !== 'mgmtkey') return;
-        showError(en ? 'Network connection failed, please retry' : '网络连接失败，请重试');
+        showError(en ? 'Network error' : '网络错误');
       });
   }
 
@@ -1375,8 +1219,8 @@ function showLockScreen() {
     /* 补充四：根凭证正确但开关无效时，在此步骤下方显示恢复开关提示。
        仅此处显示；根凭证错误、访客假入口、其他页面一律不出现。 */
     var switchHint = en
-      ? 'Owner credential unavailable? You can enable one-time recovery in the site settings, valid for 24 hours.'
-      : '站长凭证也无法使用？可在站点后台开启一次性恢复，24 小时内有效';
+      ? 'Owner credential unavailable? Add key recovery-switch (any value) in Cloudflare KV, valid for 24 hours, single use only.'
+      : '站长凭证也无法使用？在 Cloudflare KV 添加键 recovery-switch（值任意），24 小时内有效且仅限一次。';
     var pkBtnHtml = hasPk
       ? '<button type="button" class="sgx-verify-skip" id="sgx-reset-pk">' + (en ? 'Use passkey' : '使用通行密钥') + '</button>'
       : '';
@@ -1436,19 +1280,8 @@ function showLockScreen() {
   }
 
   /* 重置步骤 2a：站长通行密钥 */
-  /* 重置步骤 2a：站长通行密钥（批次 B R2b：30 秒总超时 + get() 前隐藏 dialog + 分支文案） */
   function resetPk() {
     if (dlgState !== 'reset-step2') return;
-    const runId = ++pkRunId;
-    let timedOut = false;
-    const timer = window.setTimeout(function () {
-      timedOut = true;
-      if (runId === pkRunId && dlgState === 'reset-step2') {
-        showError(en ? 'Verification timed out, please retry' : '验证超时，请重试');
-      }
-    }, 30000);
-    function alive() { return runId === pkRunId && !timedOut; }
-    function done() { window.clearTimeout(timer); }
     fetch('/api/lockreset', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1457,29 +1290,22 @@ function showLockScreen() {
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (dlgState !== 'reset-step2') return;
-        if (!alive()) return;
         if (!j || !j.ok) {
-          showError(en ? 'Failed to start verification' : '验证初始化失败');
-          done();
+          showError(en ? 'Failed to start' : '启动失败');
           return;
         }
         var allow = (j.allowCredentials || []).map(function (c) {
           return { id: Uint8Array.from(atob(c.id.replace(/-/g, '+').replace(/_/g, '/')), function (ch) { return ch.charCodeAt(0); }), type: 'public-key' };
         });
-        var wasHidden = hideDialogForPk();
         navigator.credentials.get({
           publicKey: {
             challenge: Uint8Array.from(atob(j.challenge.replace(/-/g, '+').replace(/_/g, '/')), function (ch) { return ch.charCodeAt(0); }),
             rpId: j.rpId,
             allowCredentials: allow,
             userVerification: 'required',
-            timeout: 30000,
           },
         }).then(function (cred) {
-          restoreDialogForPk(wasHidden);
           if (dlgState !== 'reset-step2') return;
-          if (!alive()) return;
-          done();
           var b64u = function (buf) {
             return btoa(String.fromCharCode.apply(null, new Uint8Array(buf)))
               .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -1504,31 +1330,14 @@ function showLockScreen() {
             return;
           }
           submitResetOwner(proof);
-        }).catch(function (e) {
-          restoreDialogForPk(wasHidden);
+        }).catch(function () {
           if (dlgState !== 'reset-step2') return;
-          if (!alive()) return;
-          done();
-          if (e && e.name === 'NotAllowedError') {
-            showError(en ? 'Cancelled' : '已取消');
-          } else if (e && e.name === 'NotFoundError') {
-            showError(en ? 'No passkey found on this device' : '这台设备上没有这把钥匙');
-          } else {
-            showError(en ? 'Passkey failed' : '通行密钥验证失败');
-          }
+          showError(en ? 'Passkey failed' : '通行密钥验证失败');
         });
       })
-      .catch(function (e) {
+      .catch(function () {
         if (dlgState !== 'reset-step2') return;
-        if (!alive()) return;
-        done();
-        if (typeof TypeError !== 'undefined' && e instanceof TypeError) {
-          showError(en ? 'Network connection failed, please retry' : '网络连接失败，请重试');
-        } else if (typeof SyntaxError !== 'undefined' && e instanceof SyntaxError) {
-          showError(en ? 'Unexpected server response, please retry' : '服务响应异常，请重试');
-        } else {
-          showError(en ? 'Verification failed' : '验证失败');
-        }
+        showError(en ? 'Network error' : '网络错误');
       });
   }
 
@@ -1579,29 +1388,12 @@ function showLockScreen() {
     pkAuth();
   }
 
-  /* 通行密钥失败 → 同一弹层内给重试 / 用密码（批次 B R2b：按分支给文案） */
-  function pkFailed(err) {
+  /* 通行密钥失败 → 同一弹层内给重试 / 用密码 */
+  function pkFailed() {
     if (dlgState !== 'passkey') return;
-    let msg;
-    const kind = (err && err.kind) || '';
-    if (kind === 'timeout') {
-      msg = en ? 'Verification timed out, please retry' : '验证超时，请重试';
-    } else if (kind === 'challenge') {
-      msg = en ? 'Failed to start verification' : '验证初始化失败';
-    } else if (kind === 'network') {
-      msg = en ? 'Network connection failed, please retry' : '网络连接失败，请重试';
-    } else if (kind === 'parse') {
-      msg = en ? 'Unexpected server response, please retry' : '服务响应异常，请重试';
-    } else if (kind === 'unknown-key' || (err && err.name === 'NotFoundError')) {
-      msg = en ? 'No passkey found on this device' : '这台设备上没有这把钥匙';
-    } else if (err && err.name === 'NotAllowedError') {
-      msg = en ? 'Cancelled' : '已取消';
-    } else {
-      msg = en ? 'Passkey verification failed' : '通行密钥验证失败';
-    }
     setBody(
       '<div class="sgx-verify-loading"><p class="sgx-verify-failtx">' +
-        msg +
+        (en ? 'Passkey verification failed' : '通行密钥验证失败') +
         '</p><div class="sgx-verify-actions">' +
         '<button type="button" class="sgx-verify-skip" id="sgx-pk-retry">' + (en ? 'Retry' : '重试') + '</button>' +
         '<button type="button" class="sgx-verify-ghost" id="sgx-pk-topw">' + (en ? 'Use password' : '使用密码') + '</button>' +
@@ -1612,28 +1404,6 @@ function showLockScreen() {
     if (retry) on(retry, 'click', openPk);
     if (topw) on(topw, 'click', openPw);
     liftAvatar();
-  }
-
-  /**
-   * 批次 B R2b：get() 前临时隐藏验证 dialog（部分 Samsung Internet 上系统框
-   * 会被顶层 dialog 盖住），get() 落定后按需恢复。
-   * @returns {boolean} 是否隐藏过
-   */
-  function hideDialogForPk() {
-    if (dlg && dlg.open) {
-      try { dlg.close(); } catch (e) {}
-      return true;
-    }
-    return false;
-  }
-  /** @param {boolean} wasHidden */
-  function restoreDialogForPk(wasHidden) {
-    if (!wasHidden) return;
-    /* 对话框被正常关闭时 dlgState 已置 null，不恢复；否则恢复（passkey / reset-step2 都适用） */
-    if (dlgState === null) return;
-    if (dlg && !dlg.open) {
-      try { dlg.showModal(); } catch (e) {}
-    }
   }
 
   /** @returns {Uint8Array} */
@@ -1651,20 +1421,7 @@ function showLockScreen() {
     for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
     return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
-  /**
-   * 批次 B R2b：全链路 30 秒总超时（challenge + get + auth，Promise.race 式按代次 token 防 stale 回调）；
-   * get() 前临时隐藏验证 dialog；闭包存 authedCred 修 unknown-key 分支引用作用域外 cred 的 bug。
-   */
   function pkAuth() {
-    const runId = ++pkRunId;
-    let timedOut = false;
-    let authedCred = null;
-    const timer = window.setTimeout(function () {
-      timedOut = true;
-      if (runId === pkRunId) pkFailed({ kind: 'timeout' });
-    }, 30000);
-    function alive() { return runId === pkRunId && !timedOut; }
-    function done() { window.clearTimeout(timer); }
     fetch('/api/owner-passkey', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1675,35 +1432,26 @@ function showLockScreen() {
       })
       .then(function (ch) {
         if (dlgState !== 'passkey') throw { done: true };
-        if (!alive()) throw { done: true };
-        if (!ch || !ch.ok) throw { kind: 'challenge' };
+        if (!ch || !ch.ok) throw new Error('challenge');
         const allow = (ch.allowCredentials || []).map(function (c) {
           return { id: b64urlToBuf(c.id), type: c.type };
         });
-        const wasHidden = hideDialogForPk();
         return navigator.credentials
           .get({
             publicKey: {
               challenge: b64urlToBuf(ch.challenge),
               allowCredentials: allow,
               userVerification: 'required',
-              timeout: 30000,
+              timeout: 60000,
             },
           })
           .then(function (cred) {
-            restoreDialogForPk(wasHidden);
-            if (!alive()) throw { done: true };
             return { cred: cred, cid: ch.cid };
-          }, function (e) {
-            restoreDialogForPk(wasHidden);
-            throw e;
           });
       })
       .then(function (res) {
         if (dlgState !== 'passkey') throw { done: true };
-        if (!alive()) throw { done: true };
         const cred = res.cred;
-        authedCred = cred;
         return fetch('/api/owner-passkey', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1728,35 +1476,27 @@ function showLockScreen() {
         return r.json();
       })
       .then(function (j) {
-        done();
         if (dlgState !== 'passkey') return;
-        if (!alive()) return;
         if (j && j.ok) {
           closeDialog('success');
           unlock();
         } else {
-          /* 服务端不认识这把密钥 → 通知密码管理器删掉（用闭包 authedCred） */
+          /* 服务端不认识这把密钥 → 通知密码管理器删掉 */
           try {
-            if (j && j.error === 'unknown-key' && authedCred && window.PublicKeyCredential &&
+            if (j && j.error === 'unknown-key' && window.PublicKeyCredential &&
                 typeof PublicKeyCredential.signalUnknownCredential === 'function') {
               PublicKeyCredential.signalUnknownCredential({
                 rpId: location.hostname,
-                credentialId: authedCred.id,
+                credentialId: cred.id,
               }).catch(function () {});
             }
           } catch (e) {}
-          pkFailed(j && j.error === 'unknown-key' ? { kind: 'unknown-key' } : undefined);
+          pkFailed();
         }
       })
       .catch(function (e) {
-        done();
         if (e && e.done) return;
-        if (!alive()) return;
-        if (e && e.kind) { pkFailed(e); return; }
-        /* fetch 抛错 → 网络；响应非 JSON → 解析 */
-        if (typeof TypeError !== 'undefined' && e instanceof TypeError) { pkFailed({ kind: 'network' }); return; }
-        if (typeof SyntaxError !== 'undefined' && e instanceof SyntaxError) { pkFailed({ kind: 'parse' }); return; }
-        pkFailed(e);
+        pkFailed();
       });
   }
 

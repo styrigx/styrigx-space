@@ -1,8 +1,7 @@
 /**
  * 锁屏凭证配置查询（补充定稿七.1，复审 §2 修正）。
  *
- * GET /api/lock-config → { ok:true, passkey:bool, password:bool,
- *   ownerConfigured:bool, resetOnly:bool }
+ * GET /api/lock-config → { ok:true, passkey:bool, password:bool }
  * - 无需鉴权（锁屏页无会话时调用）。
  * - 只返回「是否已设置」，不返回任何敏感数据。
  * - 口径统一：用 _kernel/layers.js 的 isLockEffectivelyConfigured。
@@ -10,11 +9,8 @@
  *   都算已配置（passkey/password 均为 true），避免失败时暴露根凭证入口
  *   （fail closed）。只剩标记（无真实凭证）时同样不显示根凭证入口，
  *   避免 root-auth 走假入口 401 导致锁死。
- * - 批次 B #10/#16：新增 ownerConfigured（站长层是否有效配置）、
- *   resetOnly（锁屏真实凭证为 0 且 owner 已配置 → 锁屏只显示访客 + 重置锁屏，
- *   不显示根凭证入口）。标记独有（无真实凭证）时 resetOnly 为 false。
  */
-import { isLockEffectivelyConfigured, isOwnerEffectivelyConfigured, LOCK_EMPTIED_KEY } from '../_kernel/layers.js';
+import { isLockEffectivelyConfigured } from '../_kernel/layers.js';
 import { STORE_CLASS_LOCKKEY as PK_CLASS_LOCK, ownerPasskeyKey, OWNER_PASSKEY_PREFIX } from '../_kernel/key-names.js';
 
 /**
@@ -33,19 +29,10 @@ export async function onRequestGet(context) {
         effective = true;
       }
     }
-    /* 批次 B #10/#16：站长层是否有效配置（fail closed：读取失败按已配置） */
-    let ownerConfigured = true;
-    if (kv) {
-      try {
-        ownerConfigured = await isOwnerEffectivelyConfigured(kv);
-      } catch (e) {
-        ownerConfigured = true;
-      }
-    }
     if (!effective) {
-      /* 确定未配置：显示根凭证入口（启动站）或重置入口（owner 已配置 → resetOnly） */
+      /* 确定未配置：显示根凭证入口 */
       return Response.json(
-        { ok: true, passkey: false, password: false, ownerConfigured: ownerConfigured, resetOnly: ownerConfigured },
+        { ok: true, passkey: false, password: false },
         { headers }
       );
     }
@@ -113,31 +100,19 @@ export async function onRequestGet(context) {
         passkey = true;
       }
     }
-    /* 标记独有场景：effective 为真但 granular 全否 → 不暴露根凭证入口。
-       区分两种标记独有：
-       - layer:lock-emptied（锁屏凭证被清空、owner 接管中）→ resetOnly（owner 已配置时），
-         锁屏只显示访客 + 重置锁屏；
-       - layer:lock 标记独有（无真实凭证的残留状态）→ 按已配置处理，resetOnly 为 false。 */
-    let resetOnly = false;
+    /* 标记独有场景：effective 为真但 granular 全否 → 不暴露根凭证入口 */
     if (!password && !passkey) {
-      let emptied = false;
-      try {
-        emptied = (await kv.get(LOCK_EMPTIED_KEY)) === '1';
-      } catch (e) {
-        emptied = false;
-      }
-      resetOnly = ownerConfigured && !failed && emptied;
       password = true;
       passkey = true;
     }
     return Response.json(
-      { ok: true, passkey: passkey, password: password, ownerConfigured: ownerConfigured, resetOnly: resetOnly },
+      { ok: true, passkey: passkey, password: password },
       { headers }
     );
   } catch (e) {
     /* 外层兜底：同样按已配置处理 */
     return Response.json(
-      { ok: true, passkey: true, password: true, ownerConfigured: true, resetOnly: false },
+      { ok: true, passkey: true, password: true },
       { headers }
     );
   }

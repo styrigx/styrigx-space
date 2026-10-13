@@ -651,10 +651,8 @@ test('2.11 补充四：访客假入口（root-auth）响应不含 recovery-switc
 test('2.11 补充四：前端提示仅出现在重置第二步（lock.js）', async () => {
   const fs = await import('node:fs');
   const src = fs.readFileSync(REPO + 'assets/js/shell/lock.js', 'utf8');
-  /* 提示文本存在（批次 B #6：不出现键名 recovery-switch，不出现 Cloudflare） */
-  assert.ok(src.includes('可在站点后台开启一次性恢复'), 'lock.js 应包含新版开关提示（中文）');
-  assert.ok(src.includes('enable one-time recovery in the site settings'), 'lock.js 应包含新版开关提示（英文）');
-  assert.ok(!src.includes('recovery-switch'), 'lock.js 不应出现开关 KV 键名');
+  /* 提示文本存在 */
+  assert.ok(src.includes('recovery-switch'), 'lock.js 应包含开关提示');
   /* 仅在 renderResetStep2 中出现，不在其他函数中 */
   const step2Idx = src.indexOf('function renderResetStep2');
   const hintIdx = src.indexOf('sgx-reset-switch-hint');
@@ -663,5 +661,5 @@ test('2.11 补充四：前端提示仅出现在重置第二步（lock.js）', as
   const step1Idx = src.indexOf('function renderResetStep1');
   const step1End = src.indexOf('function renderResetStep2');
   const step1Body = src.slice(step1Idx, step1End);
-  assert.ok(!step1Body.includes('sgx-reset-switch-hint'), '第一步（根凭证）不应显示开关提示');
+  assert.ok(!step1Body.includes('recovery-switch'), '第一步（根凭证）不应显示开关提示');
 });
