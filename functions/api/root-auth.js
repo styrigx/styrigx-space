@@ -2,14 +2,15 @@
  * 认证入口修正：SGX_ROOT_KEY = 根凭证。
  *
  * 入口 1（站长凭证）：有效 lock 会话 + 根凭证 → sgx-stepup(by=root, scope=root)
- * （约 10 分钟，带当前 epoch），只能管理站长凭证（ownerkey：站长密码/站长通行密钥）。
+ * （约 3 分钟，带当前 epoch），只能管理站长凭证（ownerkey：站长密码/站长通行密钥）。
  *
  * 访客假入口：访客会话（sgx-verified role=visitor）直接写死返回 401 auth：
  * 不读 D1、KV、环境变量里的任何凭证，不做任何比对；不计入 rootlimit；
  * 不写审计。状态码、响应体、响应头、固定最小延迟与真失败一致。
  * 缺 Origin 仍先 403。
  *
- * 引导：lock 层未配置时（KV 读失败按已配置处理），允许无会话直接校验根凭证。
+ * 引导：owner 与 lock 两层真实凭证都为 0（启动站）时，允许无会话直接校验根凭证
+ * （批次 B #16：启动模式；任一层已配置时无会话根凭证走假入口 401，必须走重置锁屏）。
  *
  * 不能签 sgx-app，不能签会话。
  *
@@ -32,7 +33,7 @@ import { getSessionEpoch, ROLE_OWNER, ROLE_VISITOR } from '../_kernel/session.js
 import { signStepupCookie, STEPUP_COOKIE, STEPUP_COOKIE_ATTRS, STEPUP_MAX_AGE, STEPUP_BY_ROOT, STEPUP_SCOPE_ROOT } from './stepup.js';
 import { checkRootLimit, recordRootFail, clearRootFail, getClientIp } from '../_kernel/rootlimit.js';
 import { writeRootAudit } from '../_kernel/rootlog.js';
-import { isLockEffectivelyConfigured } from '../_kernel/layers.js';
+import { isBootstrapStation } from '../_kernel/layers.js';
 import { verifySessionDetailed } from '../_middleware.js';
 
 /* 假入口与真失败的统一固定最小延迟（毫秒）：防时序区分。
@@ -146,34 +147,34 @@ async function handlePost(context) {
   const kv = env && env.OWNER_KV;
   const ip = getClientIp(request);
 
-  /* 锁屏层是否有效已配置（标记或真实凭证任一存在、或读取失败都算已配置）。
+  /* 是否启动站（两层真实凭证都为 0；KV 读失败按已配置处理）。
      先算出来，供假入口判断用。 */
-  let lockCfg = true;
+  let bootstrap = false;
   try {
-    lockCfg = await isLockEffectivelyConfigured(kv);
+    bootstrap = await isBootstrapStation(kv);
   } catch (e) {
-    lockCfg = true;
+    bootstrap = false;
   }
 
   /* ===== 访客假入口（优先）：访客会话直接写死 401 =====
      不读 D1、KV、环境变量里的任何凭证，不做任何比对；
      不计入 rootlimit；不写审计。
      状态码、响应体、固定最小延迟与真失败一致。
-     例外：锁屏未配置的引导场景下，有访客 cookie 也不走假入口，
-     必须走真路径校验根凭证（否则锁屏根凭证入口永远进不去）。
+     例外：启动站（两层都未配置）下，有访客 cookie 也不走假入口，
+     必须走真路径校验根凭证（否则启动站根凭证入口永远进不去）。
      已知风险：访客假入口不检查 rootlimit，永远不返回 429，
      访客会话可无限次试探而不触发限速；真路径与无会话假入口仍受限速保护。 */
-  if (lockCfg && await lightVisitorSession(request, env)) {
+  if (!bootstrap && await lightVisitorSession(request, env)) {
     await padTo(t0);
     return decoyAuth();
   }
 
   /* 真路径还是无会话假入口：
      - 有疑似有效 owner 会话 → 真路径
-     - 无会话但 lock 层未配置 → 真路径（引导）
-     - 无会话且 lock 已配置（或读取失败按已配置）→ 假入口 */
+     - 无会话但为启动站 → 真路径（启动模式）
+     - 无会话且任一层已配置（或读取失败按已配置）→ 假入口 */
   const looksOwner = await lightOwnerSession(request, env);
-  const realPath = looksOwner || !lockCfg;
+  const realPath = looksOwner || bootstrap;
 
   if (!realPath) {
     /* ===== 无会话假入口：写死 401，与真失败逐字节相同 =====
@@ -209,15 +210,15 @@ async function handlePost(context) {
     return Response.json({ ok: false, error: errCode }, { status: 500 });
   }
 
-  if (lockCfg) {
-    /* 正常运行：入口 1 要求有效 lock 会话。
+  if (!bootstrap) {
+    /* 非启动站：入口 1 要求有效 lock 会话。
        完整会话校验（含 KV epoch）；轻量检查通过但完整校验失败（如 epoch 已推进）→ 401 */
     const sess = await verifySessionDetailed(request, env);
     if (!sess.ok || sess.role !== ROLE_OWNER) {
       return Response.json({ ok: false, error: 'session' }, { status: 401 });
     }
   }
-  /* 引导模式（lock 未配置）：无需会话，直接校验根凭证 */
+  /* 启动站：无需会话，直接校验根凭证 */
 
   /* 限流检查：KV 出错一律拒绝（fail closed） */
   try {

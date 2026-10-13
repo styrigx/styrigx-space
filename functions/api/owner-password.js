@@ -47,10 +47,13 @@ import {
   isLayerConfigured,
   setLayerConfigured,
   clearLayerConfigured,
+  isOwnerEffectivelyConfigured,
+  setLockEmptied,
+  clearLockEmptied,
   LAYER_OWNER,
   LAYER_LOCK,
 } from '../_kernel/layers.js';
-import { getPasskeys, PK_CLASS_OWNER } from './owner-passkey.js';
+import { getPasskeys, PK_CLASS_OWNER, PK_CLASS_LOCK } from './owner-passkey.js';
 
 const ITERATIONS = 100000; // Workers PBKDF2 上限（实测：超过抛 NotSupportedError）
 const SALT_LEN = 16;
@@ -308,7 +311,8 @@ async function handlePost(context) {
   /* ============ set/change/remove（2.11 定稿） ============
      kind=owner（站长密码）：入口 1，需 stepup(scope=root, by=root)。
      kind=lock（锁屏密码）：入口 2，需 stepup(scope=keys)；owner 未配置时 root 可代管；
-       scope=lockreset 可 set/change（重置流程，无会话），不可 remove。
+       scope=lockreset 可 set/change/remove（重置流程，无会话；批次 B R1 放开 remove，
+       受 #10 最后一把规则约束：删后锁屏凭证归零且 owner 未配置时 403 last-key）。
      2.10.2 规则保留：除 lockreset 外，管理操作需 owner 会话 + sgx-stepup。
      2.8.0：lockout 已拆为独立 L2 API /api/lock-all-devices（只认 owner 会话）。 */
   if (action === 'set' || action === 'change' || action === 'remove') {
@@ -331,11 +335,10 @@ async function handlePost(context) {
       }
     } else {
       /* 锁屏密码：scope=keys（by=owner；by=root 需 owner 层未配置）；
-         scope=root + by=root 在 owner 未配置时可代管；scope=lockreset 可 set/change */
+         scope=root + by=root 在 owner 未配置时可代管；
+         scope=lockreset 可 set/change/remove（批次 B R1 放开 remove） */
       if (isLockreset) {
-        if (action === 'remove') {
-          return Response.json({ ok: false, error: 'scope' }, { status: 403 });
-        }
+        /* lockreset 下 remove 受 #10 最后一把规则约束（见 remove 分支前检查） */
       } else if (sv.scope === STEPUP_SCOPE_KEYS) {
         if (sv.by !== STEPUP_BY_ROOT) {
           /* by=owner：正常入口 2；其他 by 拒绝 */
@@ -384,6 +387,27 @@ async function handlePost(context) {
 
     /* remove：删除密码，同时清掉失败计数和锁定 */
     if (action === 'remove') {
+      /* 批次 B #10：删 lock 密码且删后锁屏凭证归零（无 lock 钥匙）时，
+         只在 owner 已有效配置时允许；owner 未配置时 403 last-key。
+         检查在任何 mutation 之前。 */
+      if (kind === 'lock') {
+        let lockKeys = [];
+        try {
+          const keys = await getPasskeys(kv);
+          lockKeys = keys.filter(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK; });
+        } catch (e) {}
+        if (lockKeys.length === 0) {
+          let ownerCfg = true;
+          try {
+            ownerCfg = await isOwnerEffectivelyConfigured(kv);
+          } catch (e) {
+            ownerCfg = true;
+          }
+          if (!ownerCfg) {
+            return Response.json({ ok: false, error: 'last-key' }, { status: 403 });
+          }
+        }
+      }
       try {
         await kv.delete(pwKey);
       } catch (e) {
@@ -403,7 +427,7 @@ async function handlePost(context) {
       if (kind === 'owner' && sv.by === STEPUP_BY_ROOT) {
         try {
           const keys = await getPasskeys(kv);
-          const hasOwnerKey = keys.some(function (k) { return (k.class || 'lock') === PK_CLASS_OWNER; });
+          const hasOwnerKey = keys.some(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_OWNER; });
           let hasOwnerPw = false;
           try { const r = await kv.get('owner-pw', 'json'); hasOwnerPw = !!(r && r.hash); } catch (e) {}
           if (!hasOwnerKey && !hasOwnerPw) {
@@ -413,21 +437,35 @@ async function handlePost(context) {
             } catch (e) {
               return Response.json({ ok: false, error: 'server' }, { status: 503 });
             }
+            /* 批次 B #10/#16：owner 删光时同时清除 lock-emptied */
+            try { await clearLockEmptied(kv); } catch (e) {}
           }
         } catch (e) {}
       }
       if (kind === 'lock') {
         try {
           const keys = await getPasskeys(kv);
-          const hasLockKey = keys.some(function (k) { return (k.class || 'lock') === 'lock'; });
+          const hasLockKey = keys.some(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK; });
           let hasLockPw = false;
           try { const r = await kv.get('lock-pw', 'json'); hasLockPw = !!(r && r.hash); } catch (e) {}
           if (!hasLockKey && !hasLockPw) {
-            /* 清标记失败不吞掉：同上 */
-            try {
-              await clearLayerConfigured(kv, LAYER_LOCK);
-            } catch (e) {
-              return Response.json({ ok: false, error: 'server' }, { status: 503 });
+            /* 批次 B #10：删光 lock 凭证且 owner 已配置 → 置 lock-emptied，
+               保留 layer:lock 不清；owner 未配置时（竞态）按旧逻辑清 layer:lock。 */
+            let ownerCfg = true;
+            try { ownerCfg = await isOwnerEffectivelyConfigured(kv); } catch (e) { ownerCfg = true; }
+            if (ownerCfg) {
+              try {
+                await setLockEmptied(kv);
+              } catch (e) {
+                return Response.json({ ok: false, error: 'server' }, { status: 503 });
+              }
+            } else {
+              try {
+                await clearLayerConfigured(kv, LAYER_LOCK);
+              } catch (e) {
+                return Response.json({ ok: false, error: 'server' }, { status: 503 });
+              }
+              try { await clearLockEmptied(kv); } catch (e) {}
             }
           }
         } catch (e) {}
@@ -495,6 +533,10 @@ async function handlePost(context) {
         const was = await isLayerConfigured(kv, layer);
         if (!was) {
           await setLayerConfigured(kv, layer);
+        }
+        /* 批次 B #10：新增 lock 密码时清除 lock-emptied（锁屏恢复正常解锁入口） */
+        if (kind === 'lock') {
+          await clearLockEmptied(kv);
         }
       } catch (e) {}
     }

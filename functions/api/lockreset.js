@@ -39,7 +39,7 @@ import {
   STEPUP_SCOPE_LOCKRESET,
 } from './stepup.js';
 import { randB64, verifyAssertion } from '../_kernel/passkey-verify.js';
-import { getPasskeys, PK_CLASS_OWNER } from './owner-passkey.js';
+import { getPasskeys, PK_CLASS_OWNER, PK_CLASS_LOCK } from './owner-passkey.js';
 import { verifyOwnerPassword, getPepper } from './owner-password.js';
 import { checkRootLimit, recordRootFail, clearRootFail, getClientIp } from '../_kernel/rootlimit.js';
 import { writeRootAudit } from '../_kernel/rootlog.js';
@@ -116,7 +116,7 @@ async function handlePost(context) {
       return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
     }
     const keys = await getPasskeys(kv);
-    const ownerKeys = keys.filter(function (k) { return (k.class || 'lock') === PK_CLASS_OWNER; });
+    const ownerKeys = keys.filter(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_OWNER; });
     if (ownerKeys.length === 0) {
       return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
     }
@@ -210,7 +210,7 @@ async function handlePost(context) {
       } catch (e) {}
       try {
         const keys = await getPasskeys(kv);
-        hasOwnerPk = keys.some(function (k) { return (k.class || 'lock') === PK_CLASS_OWNER; });
+        hasOwnerPk = keys.some(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_OWNER; });
       } catch (e) {}
       return Response.json({ ok: true, needOwner: true, passkey: hasOwnerPk, password: hasOwnerPw });
     }
@@ -281,7 +281,7 @@ async function handlePost(context) {
       } catch (e) {}
       if (!chRec || chRec.purpose !== 'lockreset' || chRec.exp < Date.now()) return false;
       const keys = await getPasskeys(kvStore);
-      const ownerKeys = keys.filter(function (k) { return (k.class || 'lock') === PK_CLASS_OWNER; });
+      const ownerKeys = keys.filter(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_OWNER; });
       const rawIdB64 = cred.rawId || '';
       let stored = null;
       for (let i = 0; i < ownerKeys.length; i++) {

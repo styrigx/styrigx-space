@@ -10,9 +10,10 @@
  */
 
 import { ed25519Verify } from './_kernel/crypto.js';
-import { SESSION_COOKIE, ROLE_OWNER, ROLE_VISITOR } from './_kernel/session.js';
+import { SESSION_COOKIE, ROLE_OWNER, ROLE_VISITOR, BY_STARTUP, clearVerifiedCookie } from './_kernel/session.js';
 import { isPublicPage } from './_kernel/public-pages.js';
 import { verifyStepupCookie, STEPUP_SCOPE_LOCKRESET } from './api/stepup.js';
+import { isBootstrapStation } from './_kernel/layers.js';
 
 /* 2.11 两扇门：安全与隐私全系主人专属。
    访客可进：/settings/ 及其子页（不含 security/ 全系）、/files/（中英文）。
@@ -53,6 +54,56 @@ function isOwnerOnlyPath(pathname) {
 /* lockreset 票据可开的路径（仅锁屏凭证管理页） */
 function isLockresetPath(pathname) {
   return LOCKRESET_PATHS.some(p => pathname === p || pathname.startsWith(p));
+}
+
+/* 批次 B #16：启动会话可访问的页面（中英两套）。
+   安全与隐私总览 + 其中配置 ownerkey（站长凭证）和 lockkey（管理凭证 → 锁屏）
+   所需的页面；应用页（/settings/security/apps/，含 book）不放行。 */
+const STARTUP_PATHS = [
+  '/settings/security/',
+  '/settings/security/owner/',
+  '/settings/security/lock/',
+  '/settings/security/mgmt/',
+  '/en/settings/security/',
+  '/en/settings/security/owner/',
+  '/en/settings/security/lock/',
+  '/en/settings/security/mgmt/',
+];
+/* 批次 B #16：启动会话可调用的 API。stepup / owner-* / lock-status 等
+   端点自身的会话检查只认 role===owner，启动会话（role=owner）可通过；
+   其余 API（verify、lockreset、lock-all-devices、app-token、root-audit 等）一律拒绝。 */
+const STARTUP_APIS = [
+  '/api/root-auth',
+  '/api/root-session',
+  '/api/stepup',
+  '/api/owner-password',
+  '/api/owner-passkey',
+  '/api/owner-status',
+  '/api/lock-status',
+  '/api/layer-status',
+  '/api/lock-config',
+  '/api/lock',
+  '/api/session-epoch',
+  '/api/session-check',
+];
+/* lockreset 票据可开的路径（仅锁屏凭证管理页） */
+function isStartupPath(pathname) {
+  return STARTUP_PATHS.some(p => pathname === p || pathname.startsWith(p));
+}
+function isStartupApi(pathname) {
+  return STARTUP_APIS.some(p => pathname === p || pathname.startsWith(p + '/'));
+}
+/* 批次 B #16 返工：启动会话分支只放行静态资源（安全页 CSS/JS 必须能加载），
+   不放行 API 白名单——/api/verify、/api/lockreset、/api/root-audit、/api/geo 等
+   虽在全局 API_WHITELIST 里，但不在 STARTUP_APIS 里，启动会话下必须拒绝。
+   此前误用 isWhitelisted 会把这些 API 一并放过（测试发现）。 */
+function isStartupStatic(pathname) {
+  if (PAGE_WHITELIST.includes(pathname)) return true;
+  if (pathname.startsWith('/assets/')) return true;
+  if (pathname === '/favicon.ico' || pathname === '/robots.txt' || pathname === '/sitemap.xml') return true;
+  if (AVATAR_RE.test(pathname)) return true;
+  if (STATIC_RE.test(pathname)) return true;
+  return false;
 }
 
 function isOwnerOnlyApi(pathname) {
@@ -168,8 +219,9 @@ export function isSafeReturn(ret) {
  * 前端只读这个，不自己猜。
  * 同时设置 Cache-Control: private, no-store（防浏览器缓存绕过锁屏）。
  * 非 HTML 响应原样返回。
+ * 批次 B #16：启动会话注入 data-sgx-session="startup"（前端据此显示启动提示条）。
  * @param {Response} res
- * @param {'valid'|'locked'} state
+ * @param {'valid'|'locked'|'startup'} state
  * @param {string|null} role 'owner'|'visitor'|null
  */
 export async function injectSessionState(res, state, role) {
@@ -281,14 +333,14 @@ export async function verifySessionReason(request, env) {
  * @returns {Promise<{status:string, role:string|null, by:string|null}>}
  *   status: 'ok' 或失败原因（no-cookie/bad-format/expired/no-pubkey/bad-sig/
  *   kv-error/epoch-low/bad-role/bad-by）；role: 'owner'|'visitor'|null；
- *   by: 'root'|'owner'|null（2.11）
+ *   by: 'root'|'owner'|'startup'|null（2.11；批次 B #16 增加 startup）
  */
 async function verifyOneCookie(val, env) {
   const parts = val.split('.');
   /* 2.11：旧四段式（无 by）一律视为无效，不留兼容层 */
   if (parts.length !== 5) return { status: 'bad-format', role: null, by: null };
   const [by, role, epochStr, expStr, sig] = parts;
-  if (by !== 'root' && by !== 'owner') return { status: 'bad-by', role: null, by: null };
+  if (by !== 'root' && by !== 'owner' && by !== BY_STARTUP) return { status: 'bad-by', role: null, by: null };
   if (role !== ROLE_OWNER && role !== ROLE_VISITOR) return { status: 'bad-role', role: null, by: null };
   const exp = parseInt(expStr, 10);
   if (!exp || exp < Date.now()) return { status: 'expired', role: null, by: null };
@@ -395,6 +447,68 @@ export async function onRequest(context) {
           headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
         });
       }
+    }
+
+    /* 批次 B #16：启动会话权限收窄（middleware 强制，前端守卫只是 UX）。
+       - 静态资源：正常放行（否则安全页 CSS/JS 加载不了）；API 白名单不适用
+         （见 isStartupStatic；STARTUP_APIS 之外的 API 一律拒绝）。
+       - 首页：302 到安全与隐私总览（会话不作废）。
+       - 允许的页面/API：放行；HTML 注入 data-sgx-session="startup"。
+       - 未配任何钥匙时请求非允许目标：302 回安全与隐私（页面）或 403（API），
+         不作废会话、不去锁屏。
+       - 已配至少一把时请求非允许目标：清 cookie + 302 到 /?lock=1（页面）
+         或 403 + 清 cookie（API）。 */
+    if (sess.ok && sess.by === BY_STARTUP) {
+      const isApi = pathname.startsWith('/api/');
+      if (isHomepage) {
+        const loc = pathname.startsWith('/en') ? '/en/settings/security/' : '/settings/security/';
+        return new Response(null, {
+          status: 302,
+          headers: { 'Location': loc, 'Cache-Control': 'private, no-store' },
+        });
+      }
+      if (isStartupStatic(pathname)) return next();
+      if ((!isApi && isStartupPath(pathname)) || (isApi && isStartupApi(pathname))) {
+        const res = await next();
+        const ct = res.headers.get('Content-Type') || '';
+        if (ct.includes('text/html')) {
+          return injectSessionState(res, 'startup', role);
+        }
+        return res;
+      }
+      /* 非允许目标：判断是否已配至少一把钥匙 */
+      let bootstrap = false;
+      try {
+        bootstrap = await isBootstrapStation(env && env.OWNER_KV);
+      } catch (e) {
+        bootstrap = false; /* 读取失败按已配置处理（fail closed） */
+      }
+      if (bootstrap) {
+        if (isApi) {
+          return new Response(JSON.stringify({ ok: false, error: 'startup' }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+          });
+        }
+        const loc = pathname.startsWith('/en') ? '/en/settings/security/' : '/settings/security/';
+        return new Response(null, {
+          status: 302,
+          headers: { 'Location': loc, 'Cache-Control': 'private, no-store' },
+        });
+      }
+      /* 已配至少一把：作废启动会话并回锁屏 */
+      if (isApi) {
+        const headers = new Headers({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+        clearVerifiedCookie(headers);
+        return new Response(JSON.stringify({ ok: false, error: 'startup-done' }), {
+          status: 403,
+          headers,
+        });
+      }
+      const headers = new Headers({ 'Cache-Control': 'private, no-store' });
+      clearVerifiedCookie(headers);
+      headers.set('Location', 'https://styrigx.com/?lock=1');
+      return new Response(null, { status: 302, headers });
     }
 
     /* L1：首页不再无条件白名单。照常返回页面，但把会话状态注入 HTML

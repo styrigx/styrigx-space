@@ -206,7 +206,7 @@ test.describe('批次 A 验收修复 P1：删除密码按钮', () => {
     await mockJson(page, '**/api/owner-passkey', 200, { ok: true, keys: [], scope: 'root' });
   });
 
-  test('锁屏页：密码已设时「删除密码」可见，两步确认删除后状态变未设置、按钮隐藏', async ({ page }) => {
+  test('锁屏页：密码已设时「删除密码」可见，确认弹层点确认删除后状态变未设置、按钮隐藏', async ({ page }) => {
     let pwSet = true;
     let removeCalls = 0;
     await page.route('**/api/lock-status', async (route) => {
@@ -234,18 +234,132 @@ test.describe('批次 A 验收修复 P1：删除密码按钮', () => {
     /* 密码已设 → 删除按钮可见（回归：旧代码切不存在的 lockmgr-pwdel-wrap，按钮永不显示） */
     await expect(page.locator('#lockmgr-pwdel')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('#lockmgr-pwsub')).toContainText('已设置');
-    /* 两步确认：第一点武装，第二点真正删除 */
+    /* 批次 B R1：点删除 → One UI 确认弹层（标题 + 文案），点确认才删除 */
+    const dlg = page.locator('dialog.sgx-center-dlg');
     await page.locator('#lockmgr-pwdel').click();
-    await expect(page.locator('#lockmgr-pwdel')).toContainText('再点一次删除密码');
+    await expect(dlg).toBeVisible({ timeout: 5000 });
+    await expect(dlg.locator('.sgx-verify-title')).toHaveText('删除密码');
+    await expect(dlg.locator('.sgx-verify-desc')).toHaveText('确定删除这个密码？');
     expect(removeCalls).toBe(0);
-    await page.locator('#lockmgr-pwdel').click();
+    await dlg.locator('button.sgx-verify-skip').click();
     expect(removeCalls).toBe(1);
     /* 删除后状态刷新：副标题变未设置，按钮隐藏 */
     await expect(page.locator('#lockmgr-pwsub')).toContainText('未设置', { timeout: 5000 });
     await expect(page.locator('#lockmgr-pwdel')).toBeHidden();
   });
 
-  test('站长页：密码已设时「删除密码」可见，两步确认删除后状态变未设置、按钮隐藏', async ({ page }) => {
+  test('锁屏页：删除密码确认弹层点取消 → 不删', async ({ page }) => {
+    let removeCalls = 0;
+    await page.route('**/api/lock-status', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, password: true, passkey: true }),
+      });
+    });
+    await page.route('**/api/owner-password', async (route) => {
+      let body = {};
+      try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
+      if (body.action === 'remove' && body.kind === 'lock') removeCalls++;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true }),
+      });
+    });
+    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#lockmgr-pwdel')).toBeVisible({ timeout: 15000 });
+    const dlg = page.locator('dialog.sgx-center-dlg');
+    await page.locator('#lockmgr-pwdel').click();
+    await expect(dlg).toBeVisible({ timeout: 5000 });
+    await dlg.locator('button.sgx-verify-ghost').click();
+    await expect(dlg).toHaveCount(0);
+    expect(removeCalls).toBe(0);
+    await expect(page.locator('#lockmgr-pwdel')).toBeVisible();
+    await expect(page.locator('#lockmgr-pwsub')).toContainText('已设置');
+  });
+
+  test('锁屏页：删最后一个锁屏凭证且 owner 已配置 → 弹 #10 确认，点确认删除', async ({ page }) => {
+    let pwSet = true;
+    let removeCalls = 0;
+    /* 锁屏无通行密钥 → 删密码即归零 */
+    await page.route('**/api/lock-status', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, password: pwSet, passkey: false }),
+      });
+    });
+    /* owner 已配置（有站长密码）→ 允许删空 */
+    await page.route('**/api/owner-status', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, password: true, passkey: false }),
+      });
+    });
+    await page.route('**/api/owner-password', async (route) => {
+      let body = {};
+      try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
+      if (body.action === 'remove' && body.kind === 'lock') {
+        removeCalls++;
+        pwSet = false;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true }),
+      });
+    });
+    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#lockmgr-pwdel')).toBeVisible({ timeout: 15000 });
+    const dlg = page.locator('dialog.sgx-center-dlg');
+    await page.locator('#lockmgr-pwdel').click();
+    await expect(dlg).toBeVisible({ timeout: 5000 });
+    await expect(dlg.locator('.sgx-verify-desc')).toHaveText('删除后锁屏只能通过重置锁屏重新设置');
+    expect(removeCalls).toBe(0);
+    await dlg.locator('button.sgx-verify-skip').click();
+    expect(removeCalls).toBe(1);
+    await expect(page.locator('#lockmgr-pwsub')).toContainText('未设置', { timeout: 5000 });
+  });
+
+  test('锁屏页：删最后一个锁屏凭证且 owner 未配置 → toast 提示，不删', async ({ page }) => {
+    let removeCalls = 0;
+    await page.route('**/api/lock-status', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, password: true, passkey: false }),
+      });
+    });
+    /* owner 未配置 → 禁止删空 */
+    await page.route('**/api/owner-status', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, password: false, passkey: false }),
+      });
+    });
+    await page.route('**/api/owner-password', async (route) => {
+      let body = {};
+      try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
+      if (body.action === 'remove' && body.kind === 'lock') removeCalls++;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true }),
+      });
+    });
+    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#lockmgr-pwdel')).toBeVisible({ timeout: 15000 });
+    await page.locator('#lockmgr-pwdel').click();
+    await expect(page.locator('.sgx-toast')).toContainText('这是最后一把解锁钥匙，请先设置解锁密码', { timeout: 5000 });
+    await expect(page.locator('dialog.sgx-center-dlg')).toHaveCount(0);
+    expect(removeCalls).toBe(0);
+    await expect(page.locator('#lockmgr-pwdel')).toBeVisible();
+  });
+
+  test('站长页：密码已设时「删除密码」可见，确认弹层点确认删除后状态变未设置、按钮隐藏', async ({ page }) => {
     let pwSet = true;
     let removeCalls = 0;
     await page.route('**/api/owner-status', async (route) => {
@@ -271,13 +385,47 @@ test.describe('批次 A 验收修复 P1：删除密码按钮', () => {
     await page.goto('/settings/security/owner/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('#lockmgr-pwdel')).toBeVisible({ timeout: 5000 });
+    /* 批次 B R1：点删除 → One UI 确认弹层，点确认才删除 */
+    const dlg = page.locator('dialog.sgx-center-dlg');
     await page.locator('#lockmgr-pwdel').click();
-    await expect(page.locator('#lockmgr-pwdel')).toContainText('再点一次删除密码');
+    await expect(dlg).toBeVisible({ timeout: 5000 });
+    await expect(dlg.locator('.sgx-verify-title')).toHaveText('删除密码');
+    await expect(dlg.locator('.sgx-verify-desc')).toHaveText('确定删除这个密码？');
     expect(removeCalls).toBe(0);
-    await page.locator('#lockmgr-pwdel').click();
+    await dlg.locator('button.sgx-verify-skip').click();
     expect(removeCalls).toBe(1);
     await expect(page.locator('#lockmgr-pwsub')).toContainText('未设置', { timeout: 5000 });
     await expect(page.locator('#lockmgr-pwdel')).toBeHidden();
+  });
+
+  test('站长页：删除密码确认弹层点取消 → 不删', async ({ page }) => {
+    let removeCalls = 0;
+    await page.route('**/api/owner-status', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, password: true, passkey: true }),
+      });
+    });
+    await page.route('**/api/owner-password', async (route) => {
+      let body = {};
+      try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
+      if (body.action === 'remove' && body.kind === 'owner') removeCalls++;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true }),
+      });
+    });
+    await page.goto('/settings/security/owner/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#lockmgr-pwdel')).toBeVisible({ timeout: 15000 });
+    const dlg = page.locator('dialog.sgx-center-dlg');
+    await page.locator('#lockmgr-pwdel').click();
+    await expect(dlg).toBeVisible({ timeout: 5000 });
+    await dlg.locator('button.sgx-verify-ghost').click();
+    await expect(dlg).toHaveCount(0);
+    expect(removeCalls).toBe(0);
+    await expect(page.locator('#lockmgr-pwdel')).toBeVisible();
   });
 });
 
@@ -347,27 +495,105 @@ test.describe('批次 A 验收修复 #7：锁屏页探针失败走 needVerify（
     await mockJson(page, '**/api/owner-passkey', 200, { ok: true, keys: [], scope: 'root' });
   });
 
-  test('探针 session 失败 → 无 JS 错误，toast 会话过期并跳回安全页', async ({ page }) => {
+  test('探针 session 失败 → 无 JS 错误，弹会话失效框，点「去锁屏」重载，不点不跳', async ({ page }) => {
     await mockJson(page, '**/api/lock-status', 401, { ok: false, error: 'session' });
     await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('.sgx-toast')).toContainText('会话过期，请重新验证', { timeout: 5000 });
-    await expect(page).toHaveURL(/\/settings\/security\/$/, { timeout: 10000 });
+    /* 批次 B #13：needVerify 改弹共用提示框，不再 toast + 自动跳转 */
+    const dlg = page.locator('dialog.sgx-center-dlg');
+    await expect(dlg).toBeVisible({ timeout: 5000 });
+    await expect(dlg.locator('.sgx-verify-title')).toHaveText('会话已失效');
+    await expect(dlg.locator('.sgx-verify-desc')).toHaveText('当前会话已失效，请重新解锁后继续。');
+    await expect(dlg.locator('button.sgx-verify-skip')).toHaveText('去锁屏');
+    /* 不点按钮 → 不跳转 */
+    await expect(page).toHaveURL(/\/settings\/security\/lock\//);
+    /* 点按钮 → 重载（探针仍 401 → 弹框再次出现） */
+    await Promise.all([
+      page.waitForEvent('load'),
+      dlg.locator('button.sgx-verify-skip').click(),
+    ]);
+    await expect(page.locator('dialog.sgx-center-dlg')).toBeVisible({ timeout: 5000 });
     expect(pageErrors).toEqual([]);
   });
 
-  test('探针 scope + owner-configured → 明确提示文案并跳回安全页', async ({ page }) => {
+  test('探针 scope + owner-configured → 弹明确提示框，点按钮后才跳回安全页', async ({ page }) => {
     await mockJson(page, '**/api/lock-status', 403, { ok: false, error: 'scope', reason: 'owner-configured' });
     await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('.sgx-toast')).toContainText('站长凭证已设置，请用站长凭证重新验证', { timeout: 5000 });
+    const dlg = page.locator('dialog.sgx-center-dlg');
+    await expect(dlg).toBeVisible({ timeout: 5000 });
+    await expect(dlg.locator('.sgx-verify-title')).toHaveText('验证已过期');
+    await expect(dlg.locator('.sgx-verify-desc')).toHaveText('站长凭证已设置，请用站长凭证重新验证');
+    await expect(dlg.locator('button.sgx-verify-skip')).toHaveText('返回安全与隐私');
+    /* 不点按钮 → 不跳转 */
+    await expect(page).toHaveURL(/\/settings\/security\/lock\//);
+    /* 点按钮 → 清票后跳回安全页 */
+    await dlg.locator('button.sgx-verify-skip').click();
     await expect(page).toHaveURL(/\/settings\/security\/$/, { timeout: 10000 });
     expect(pageErrors).toEqual([]);
   });
 
-  test('探针网络失败 → 无 JS 错误，走 needVerify 跳回安全页', async ({ page }) => {
+  test('探针网络失败 → 无 JS 错误，弹网络文案框，点按钮后才跳回安全页', async ({ page }) => {
     await page.route('**/api/lock-status', (route) => route.abort('failed'));
     await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('.sgx-toast')).toContainText('会话过期，请重新验证', { timeout: 5000 });
+    /* 批次 B #36：网络失败走网络文案，不按验证过期处理 */
+    const dlg = page.locator('dialog.sgx-center-dlg');
+    await expect(dlg).toBeVisible({ timeout: 5000 });
+    await expect(dlg.locator('.sgx-verify-title')).toHaveText('网络连接失败');
+    await expect(dlg.locator('.sgx-verify-desc')).toHaveText('网络连接失败，请重试');
+    await expect(dlg.locator('button.sgx-verify-skip')).toHaveText('返回安全与隐私');
+    /* 不点按钮 → 不跳转 */
+    await expect(page).toHaveURL(/\/settings\/security\/lock\//);
+    /* 点按钮 → 跳回安全页 */
+    await dlg.locator('button.sgx-verify-skip').click();
     await expect(page).toHaveURL(/\/settings\/security\/$/, { timeout: 10000 });
     expect(pageErrors).toEqual([]);
+  });
+});
+
+/* 批次 B #8/#13：安全页状态卡固定占位——卡出现前后「站长凭证」行位置不变。
+   状态接口用闸门延迟放行：先测占位态行位置，放行后等卡填入真实文案，再测一次。 */
+test.describe('批次 B #8/#13：安全页状态卡占位不跳动', () => {
+  test.beforeEach(async ({ page }) => {
+    await blockExternalRequests(page);
+    await page.addInitScript(() => {
+      try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
+    });
+  });
+
+  test('卡出现前后「站长凭证」行位置不变', async ({ page }) => {
+    let release;
+    const gate = new Promise((res) => { release = res; });
+    for (const pattern of ['**/api/owner-status', '**/api/lock-status']) {
+      await page.route(pattern, async (route) => {
+        await gate;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ ok: true, password: true, passkey: true }),
+        });
+      });
+    }
+    await page.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
+    /* 等字体加载完成 + 入场动画跑完再测位置，避免字体切换 / transform 导致漂移 */
+    await page.evaluate(() => document.fonts.ready);
+    await page.evaluate(() => Promise.all(
+      Array.from(document.querySelectorAll('.animate-fade-up')).flatMap((el) => el.getAnimations().map((a) => a.finished))
+    ));
+    /* 静态服务不注入 data-sgx-role，显式设为 owner 否则 CSS 隐藏卡片 */
+    await page.evaluate(() => {
+      try { document.documentElement.dataset.sgxRole = 'owner'; } catch (e) {}
+    });
+    /* 占位态：两张卡可见，占位文案「正在读取…」 */
+    await expect(page.locator('#sec-status-owner')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#sec-status-lock')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#sec-status-owner-title')).toHaveText('正在读取…');
+    const row = page.locator('#sec-owner-cred');
+    await expect(row).toBeVisible();
+    const yBefore = await row.evaluate((el) => el.getBoundingClientRect().top);
+    /* 放行状态接口，等卡填入真实文案（证明经历了占位→填入的过渡） */
+    release();
+    await expect(page.locator('#sec-status-owner-title')).toHaveText('站长凭证已设置', { timeout: 5000 });
+    await expect(page.locator('#sec-status-lock-title')).toHaveText('锁屏已设置', { timeout: 5000 });
+    const yAfter = await row.evaluate((el) => el.getBoundingClientRect().top);
+    expect(yAfter).toBe(yBefore);
   });
 });

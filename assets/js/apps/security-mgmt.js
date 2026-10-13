@@ -2,7 +2,7 @@
  * @fileoverview 管理凭证索引页（定稿 #31）：锁屏 / 应用两个入口 + 状态摘要。
  * 进门探针用 /api/lock-status（接受 stepup scope=keys），无效则跳回安全与隐私页。
  */
-import { enterDoor, clearStepupThen } from './app-gate.js';
+import { enterDoor, clearStepupThen, startDoorCountdown } from './app-gate.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -46,6 +46,8 @@ import { enterDoor, clearStepupThen } from './app-gate.js';
   }
 
   function onEnter() {
+    /* 批次 B #12：进门后启动验证剩余时间倒计时（内部拉一次 stepup status） */
+    startDoorCountdown(t);
     /* 应用摘要：固定显示 Book（目前唯一应用） */
     const appsSub = $('mgmt-apps-sub');
     if (appsSub) appsSub.textContent = 'Book';

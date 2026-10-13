@@ -59,21 +59,6 @@
   </div>
 </dialog>
 
-<!-- 应用钥匙删除确认弹层（站内确认，替代原生 confirm） -->
-<dialog id="lockpkdel-dlg" class="sgx-verify-dlg" aria-labelledby="lockpkdel-title">
-  <div class="sgx-verify-card">
-    {{/* 批次 A 收尾 A3：右上角 × 关闭按钮 */}}
-    <button type="button" class="sgx-dlg-close" data-dlg-close aria-label="{{ if $isEn }}Close{{ else }}关闭{{ end }}">×</button>
-    <div class="sheet-handle" data-dclose></div>
-    <h2 id="lockpkdel-title" class="sgx-verify-title">{{ if $isEn }}Delete passkey{{ else }}删除通行密钥{{ end }}</h2>
-    <p class="sgx-verify-desc" id="lockpkdel-desc"></p>
-    <div class="sgx-verify-actions">
-      <button type="button" class="sgx-verify-ghost" id="lockpkdel-cancel">{{ if $isEn }}Cancel{{ else }}取消{{ end }}</button>
-      <button type="button" class="sgx-verify-skip" id="lockpkdel-ok">{{ if $isEn }}Delete{{ else }}删除{{ end }}</button>
-    </div>
-  </div>
-</dialog>
-
 <!-- 密码设置/修改弹层 -->
 <dialog id="lockpw-dlg" class="sgx-verify-dlg" aria-labelledby="lockpw-title">
   <div class="sgx-verify-card">
@@ -108,6 +93,10 @@
   "pwSaved" (dict "zh" "已保存" "en" "Saved")
   "pwChanged" (dict "zh" "已修改" "en" "Changed")
   "pwDeleted" (dict "zh" "密码已删除" "en" "Password deleted")
+  "pwDelTitle" (dict "zh" "删除密码" "en" "Delete password")
+  "pwDelConfirm" (dict "zh" "确定删除这个密码？" "en" "Delete this password?")
+  "pkDelTitle" (dict "zh" "删除通行密钥" "en" "Delete passkey")
+  "delLastKeyConfirm" (dict "zh" "删除后锁屏只能通过重置锁屏重新设置" "en" "After deletion, the lock screen can only be set up again via reset lock screen")
   "pwDelAsk" (dict "zh" "再点一次删除密码" "en" "Tap again to delete password")
   "pwDelWarn" (dict "zh" "删除后只能用根凭证进入，再点一次确认" "en" "After deletion only the root credential can enter. Tap again to confirm")
   "pkRegistered" (dict "zh" "已注册" "en" "Registered")
@@ -133,10 +122,12 @@
   "errStepupExpired" (dict "zh" "验证已过期，请重新验证" "en" "Verification expired, please verify again")
   "errNetwork" (dict "zh" "网络连接失败，请重试" "en" "Network connection failed, please retry")
   "errParse" (dict "zh" "服务响应异常，请重试" "en" "Bad server response, please retry")
-  "gateNetErr" (dict "zh" "网络错误" "en" "Network error")
   "errParams" (dict "zh" "参数错误" "en" "Bad request")
   "errNotFound" (dict "zh" "找不到这把钥匙" "en" "Key not found")
   "errLastKey" (dict "zh" "这是最后一把解锁钥匙，请先设置解锁密码" "en" "This is the last unlock key; set an unlock password first")
+  "firstKeyTitle" (dict "zh" "已设置完成" "en" "Setup complete")
+  "firstKeyDesc" (dict "zh" "已设置完成。离开安全与隐私后需回锁屏重新解锁；若只设置了站长凭证，回锁屏后用「重置锁屏」设置解锁钥匙。" "en" "Setup complete. Leaving Security and privacy will return you to the lock screen to unlock again; if you only set an owner credential, use Reset lock screen there to set an unlock key.")
+  "firstKeyOk" (dict "zh" "知道了" "en" "Got it")
   "errRetry" (dict "zh" "请稍后重试" "en" "Please try again later")
   "errServer" (dict "zh" "服务暂时不可用" "en" "Service temporarily unavailable")
   "errChallenge" (dict "zh" "验证初始化失败" "en" "Verification setup failed")
@@ -144,7 +135,6 @@
   "errUvRequired" (dict "zh" "需要设备解锁确认" "en" "Device unlock required")
   "errWrongPw" (dict "zh" "密码错误" "en" "Wrong password")
   "errShort" (dict "zh" "最短 8 位" "en" "Minimum 8 characters")
-  "gateSrvErr" (dict "zh" "服务器配置有误" "en" "Server misconfigured")
   "gateCancelled" (dict "zh" "已取消" "en" "Cancelled")
   "errExists" (dict "zh" "已经设置过了" "en" "Already set")
   "errNotSet" (dict "zh" "尚未设置" "en" "Not set")

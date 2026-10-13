@@ -6,7 +6,8 @@
  *   点击行进该应用详情页（settingsPath 由模板注入，不手抄）。
  * - 反馈一律 One UI 轻提示（toast）；localStorage 经 storage.js。
  */
-import { enterDoor } from './app-gate.js';
+import { enterDoor, startDoorCountdown } from './app-gate.js';
+import { STORE_CLASS_LOCKKEY, STORE_CLASS_APPKEY } from '../lib/key-names.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -36,7 +37,7 @@ import { enterDoor } from './app-gate.js';
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       /* 批次 A 验收修复 P0：list 带页面类别，只返回 app 类 */
-      body: JSON.stringify({ action: 'list', pkClass: 'app' }),
+      body: JSON.stringify({ action: 'list', pkClass: STORE_CLASS_APPKEY }),
       credentials: 'include',
     }).then(function (r) {
       return r.json();
@@ -53,7 +54,7 @@ import { enterDoor } from './app-gate.js';
   function render(keys) {
     const audCount = {};
     (keys || []).forEach(function (k) {
-      if ((k.class || 'lock') === 'app' && k.aud) {
+      if ((k.class || STORE_CLASS_LOCKKEY) === STORE_CLASS_APPKEY && k.aud) {
         audCount[k.aud] = (audCount[k.aud] || 0) + 1;
       }
     });
@@ -77,6 +78,8 @@ import { enterDoor } from './app-gate.js';
       });
     },
     function () {
+      /* 批次 B #12：进门后启动验证剩余时间倒计时（内部拉一次 stepup status） */
+      startDoorCountdown(t);
       const mgr = document.getElementById('appmgr');
       if (mgr) mgr.hidden = false;
       render(cachedKeys);
