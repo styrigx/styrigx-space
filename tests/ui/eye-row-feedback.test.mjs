@@ -151,17 +151,24 @@ test('眼睛：各处不再内联眼睛 SVG、不再 toggle .off；模板文案�
 
 test('行反馈：tapFeedback 有 vibrate 时以 10ms 调用，不支持时不报错', () => {
   const calls = [];
-  /* Node 的 globalThis.navigator 是只读 getter，改在其上定义 vibrate */
+  const vibrate = (ms) => { calls.push(ms); return true; };
+  /* Node 20 无 globalThis.navigator（Node 21+ 才有），Node 22 的 navigator 是只读 getter：
+     有则在其上定义 vibrate，无则临时挂一个纯对象，事后还原。 */
   const nav = globalThis.navigator;
-  Object.defineProperty(nav, 'vibrate', {
-    configurable: true,
-    writable: true,
-    value: (ms) => { calls.push(ms); return true; },
-  });
-  try {
-    tapFeedback();
-  } finally {
-    delete nav.vibrate;
+  if (nav && typeof nav === 'object') {
+    Object.defineProperty(nav, 'vibrate', { configurable: true, writable: true, value: vibrate });
+    try {
+      tapFeedback();
+    } finally {
+      delete nav.vibrate;
+    }
+  } else {
+    globalThis.navigator = { vibrate };
+    try {
+      tapFeedback();
+    } finally {
+      delete globalThis.navigator;
+    }
   }
   assert.deepEqual(calls, [10]);
   /* 不支持 vibrate：不报错 */
