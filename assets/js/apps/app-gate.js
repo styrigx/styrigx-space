@@ -12,8 +12,8 @@
  *   再跳转（幂等；失败也不卡住用户）。
  * - apiErrorText()：按服务端 error 码给中文提示，不说笼统的"服务器错误"。
  */
-import { toast } from '../lib/toast.js';
-import { sgxNavigate } from '../lib/diag-jumptrace.js';
+import { sgxNavigate, sgxReload } from '../lib/diag-jumptrace.js';
+import { showAlertDialog } from '../lib/dialog-behavior.js';
 
 /** @param {string} s */
 export function b64urlToBuf(s) {
@@ -60,54 +60,59 @@ export { recordJump, takeJumpRecord, takeJumpRecords } from '../lib/diag-jumptra
 let verifyJumped = false;
 
 /**
- * 按失败原因取提示文案（定稿 #36：不许一律报「会话过期」）。
+ * 验证/会话失效 → 弹共用单按钮提示框（批次 B #13），不再 toast + 自动跳转。
+ * - 验证过期（stepup）：文案「验证已过期，请重新验证」，按钮「返回安全与隐私」，
+ *   点后清 stepup 票据再跳安全页。
+ * - 会话失效（session）：文案说明原因，按钮「去锁屏」，点后重载回锁屏。
+ * 模态阻塞，无 ×、无遮罩关闭、返回手势不关闭；防重复；弹框时停掉倒计时。
+ * 与 #8、#10、#16 的弹框共用 dialog-behavior.js 的 helper。
  * @param {(k:string)=>string} t 文案函数
- * @param {string} [reason] 失败原因：session|stepup|network|parse
- * @param {string} [detail] 服务端原因码（如 no-pubkey、epoch-changed），拼在文案末尾方便定位
+ * @param {'stepup'|'session'} kind 失效种类
+ * @param {string} [detail] 服务端 reason（如 'owner-configured'，显示明确文案）
+ * @returns {Promise<void>}
  */
-function verifyMessage(t, reason, detail) {
-  /* 批次 A 验收修复 P0：代管中途站长层被配置 → 明确提示，不无提示踢回安全页 */
-  if (reason === 'owner-configured' || detail === 'owner-configured') {
-    return tx(t, 'errOwnerConfigured', '站长凭证已设置，请用站长凭证重新验证', 'Owner credential is set, please verify with the owner credential again');
+let expiredShown = false;
+export function showExpiredDialog(t, kind, detail) {
+  if (expiredShown) return Promise.resolve();
+  expiredShown = true;
+  stopDoorCountdown();
+  let title;
+  let desc;
+  let btn;
+  if (kind === 'session') {
+    title = tx(t, 'expiredSessionTitle', '会话已失效', 'Session expired');
+    desc = tx(t, 'expiredSessionDesc', '当前会话已失效，请重新解锁后继续。', 'Your session has expired. Please unlock again to continue.');
+    btn = tx(t, 'expiredSessionBtn', '去锁屏', 'Go to lock screen');
+  } else if (detail === 'owner-configured') {
+    /* 批次 A 验收修复 P0：代管中途站长层被配置 → 明确提示，不无提示踢回安全页 */
+    title = tx(t, 'expiredStepupTitle', '验证已过期', 'Verification expired');
+    desc = tx(t, 'errOwnerConfigured', '站长凭证已设置，请用站长凭证重新验证', 'Owner credential is set, please verify with the owner credential again');
+    btn = tx(t, 'expiredStepupBtn', '返回安全与隐私', 'Back to Security & privacy');
+  } else {
+    title = tx(t, 'expiredStepupTitle', '验证已过期', 'Verification expired');
+    desc = tx(t, 'expiredStepupDesc', '验证已过期，请重新验证。', 'Verification has expired. Please verify again.');
+    btn = tx(t, 'expiredStepupBtn', '返回安全与隐私', 'Back to Security & privacy');
   }
-  let msg;
-  switch (reason) {
-    case 'network':
-      msg = t('errNetwork');
-      break;
-    case 'parse':
-      msg = t('errParse');
-      break;
-    case 'stepup':
-      msg = t('errStepupExpired');
-      break;
-    case 'session':
-    default:
-      msg = t('sessExp');
-      break;
-  }
-  /* #72 补充：探针失败时 toast 末尾带上服务端原因码，例如「验证已过期（no-pubkey）」 */
-  if (detail && typeof detail === 'string' && detail !== 'ok') {
-    msg += '（' + detail + '）';
-  }
-  return msg;
+  return showAlertDialog({ title: title, desc: desc, buttonLabel: btn }).then(function () {
+    if (kind === 'session') {
+      sgxReload('app-gate.js:showExpiredDialog', 'session-expired');
+    } else {
+      clearStepupThen(securityUrl());
+    }
+  });
 }
 
 /**
- * 验证失效 → 按真实原因提示后跳验证流程（安全与隐私页）。
+ * 验证失效 → 按真实原因弹共用提示框（批次 B #13），不再 toast + 自动跳转。
  * @param {(k:string)=>string} t 文案函数
- * @param {string} [reason] 失败原因，见 verifyMessage
- * @param {string} [detail] 服务端原因码，见 verifyMessage
+ * @param {string} [reason] 失败原因：session | stepup | 其他（按 stepup 处理）
+ * @param {string} [detail] 服务端原因码（如 'owner-configured'）
  */
 export function needVerify(t, reason, detail) {
   if (verifyJumped) return;
   verifyJumped = true;
-  try {
-    toast(verifyMessage(t, reason, detail));
-  } catch (e) {}
-  window.setTimeout(function () {
-    sgxNavigate(securityUrl(), 'app-gate.js:needVerify', (reason || 'session') + (detail ? ':' + detail : ''));
-  }, 900);
+  const kind = reason === 'session' ? 'session' : 'stepup';
+  showExpiredDialog(t, kind, detail).catch(function () {});
 }
 
 /**
@@ -344,12 +349,10 @@ var ERR_KEY = {
 
 /**
  * 按 error 码取用户文案；未知码给通用提示，不说"服务器错误"。
- * B1：未知错误时在后面用小字附上原始错误码和 HTTP 状态码，
- * 例如「未知错误，请稍后重试（scope/403）」。只显示错误码和状态码，
- * 不带任何密钥、Cookie 或票据内容。
+ * 批次 B #6：删掉 B1 后缀（不再附原始错误码和 HTTP 状态码），界面不出现内部名和错误码。
  * @param {(k:string)=>string} t 文案函数
  * @param {string} code 服务端 error 码
- * @param {number} [status] HTTP 状态码
+ * @param {number} [status] HTTP 状态码（保留入参兼容调用方，不再显示）
  */
 export function apiErrorText(t, code, status) {
   const k = ERR_KEY[code];
@@ -357,20 +360,15 @@ export function apiErrorText(t, code, status) {
     const v = t(k);
     if (!isMissingTranslation(v, k)) return v;
   }
-  let msg = t('errUnknown');
-  /* 未知码：附上原始错误码和状态码，方便定位 */
-  if (code) {
-    msg += '（' + code + (typeof status === 'number' && status ? '/' + status : '') + '）';
-  }
-  return msg;
+  return t('errUnknown');
 }
 
 /* D3：门内页收到这 4 个码时走 needVerify，不显示未知错误。
-   按 app-gate.js 原注释本意：它们走 needVerify 跳转，不向用户展示开发用语。 */
+   按 app-gate.js 原注释本意：它们走 needVerify 弹框，不向用户展示开发用语。 */
 const NEED_VERIFY_CODES = ['session', 'stepup-required', 'scope', 'by-root'];
 /**
  * 门内页 API 错误分流：session/stepup-required/scope/by-root → needVerify；
- * 其他 → 返回 false，调用方按原逻辑显示错误（含 B1 小字错误码）。
+ * 其他 → 返回 false，调用方按原逻辑显示错误。
  * @param {(k:string)=>string} t 文案函数
  * @param {string} code 服务端 error 码
  * @param {number} [status] HTTP 状态码
@@ -379,8 +377,87 @@ const NEED_VERIFY_CODES = ['session', 'stepup-required', 'scope', 'by-root'];
  */
 export function handleDoorError(t, code, status, detail) {
   if (NEED_VERIFY_CODES.indexOf(code) === -1) return false;
-  /* needVerify 按真实原因提示后跳验证流程（安全与隐私页） */
+  /* needVerify 按真实原因弹共用提示框（批次 B #13） */
   const reason = code === 'session' ? 'session' : 'stepup';
   needVerify(t, reason, detail || code);
   return true;
+}
+
+/**
+ * 倒计时格式化（批次 B #12）：毫秒 → 'm:ss'。纯函数，可单元测试。
+ * @param {number} ms 剩余毫秒
+ * @returns {string} 如 '2:59'；<=0 时返回 '0:00'
+ */
+export function formatDoorRemaining(ms) {
+  const left = Math.max(0, Math.ceil(ms / 1000));
+  const m = Math.floor(left / 60);
+  const s = left % 60;
+  return m + ':' + (s < 10 ? '0' + s : '' + s);
+}
+
+/* 门内页倒计时（批次 B #12）：顶部 sticky 条，每秒渲染一次。 */
+let countdownTimer = null;
+let countdownBar = null;
+
+/** 停掉倒计时并移除顶部条（到期弹框时调用；到 0 时自动停，不自动跳转）。 */
+export function stopDoorCountdown() {
+  if (countdownTimer !== null) {
+    try { window.clearInterval(countdownTimer); } catch (e) {}
+    countdownTimer = null;
+  }
+  if (countdownBar) {
+    try { countdownBar.remove(); } catch (e) {}
+    countdownBar = null;
+  }
+}
+
+/**
+ * 启动门内页验证剩余时间倒计时（批次 B #12，door.js / security-mgmt.js /
+ * security-apps-book.js / security-apps.js / security-lock.js 进门成功后调用）。
+ * @param {(k:string)=>string} t 文案函数
+ * @param {number} [expiresAt] 绝对时间戳（毫秒；未传时拉一次 status 取 expiresAt）
+ */
+export function startDoorCountdown(t, expiresAt) {
+  stopDoorCountdown();
+  function start(exp) {
+    if (!exp || exp <= Date.now()) return;
+    let bar = document.getElementById('sgx-door-countdown');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'sgx-door-countdown';
+      bar.className = 'sgx-countdown-bar';
+      bar.setAttribute('role', 'status');
+      if (document.body) document.body.prepend(bar);
+      else return;
+    }
+    countdownBar = bar;
+    const prefix = tx(t, 'doorCountdown', '验证剩余 ', 'Verification expires in ');
+    function render() {
+      const left = exp - Date.now();
+      if (left <= 0) {
+        stopDoorCountdown();
+        return;
+      }
+      bar.textContent = prefix + formatDoorRemaining(left);
+      if (left <= 30000) bar.classList.add('sgx-countdown-warn');
+      else bar.classList.remove('sgx-countdown-warn');
+    }
+    render();
+    countdownTimer = window.setInterval(render, 1000);
+  }
+  if (typeof expiresAt === 'number' && expiresAt > 0) {
+    start(expiresAt);
+    return;
+  }
+  /* 未传 expiresAt：拉一次 status 取（探针成功后调用，失败时不显示条） */
+  try {
+    fetch('/api/stepup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'status' }),
+      credentials: 'include',
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (j && j.ok && j.valid && typeof j.expiresAt === 'number') start(j.expiresAt);
+    }).catch(function () {});
+  } catch (e) {}
 }
