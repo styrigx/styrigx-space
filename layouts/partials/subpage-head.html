@@ -1,17 +1,30 @@
 {{/* 子页面统一标题区（One UI 8.5 设置风格）：
    进入时：大标题居中（约 40px 粗体、调色板主色），顶部大留白，内容模块下沉；
-   滚过标题区后：左上角悬浮圆形磨砂玻璃返回键 + 顶部居中小标题。
+   滚过标题区后：大标题淡出、顶栏居中小标题淡入；左返回 + 右三点吸到顶栏下方成磨砂圆。
    用法：{{ partial "subpage-head.html" (dict "title" .Title "isEn" $isEn) }}
-   一级页（我的文件/应用商店/浏览器）传 "noBack" true：展开态和折叠态都不显示返回按钮。
-   2.3.14.7：大标题下方不再放副标题。 */}}
+   "actions"：三点按钮位的 HTML（有功能的页面传入自己的按钮，如我的文件 #files-more、安全页 #sec-more）；
+     为空时输出只有图标的三点按钮（44×44，与我的文件同图标，点击无反应）。
+   "noBack"：历史参数，主页保留（主页不用本 partial）；子页一律输出返回键，本参数不再起作用。
+   "noTimeline" true：DeX 设置页左栏的紧凑标题（只要大标题，不要 data-subpage-head、
+     mini-title 和按钮；滚动联动与吸顶只走手机端那一份标题）。
+   返回键：展开态 ←（arrow-left 图标，与安全与隐私页一致）；吸顶后 .stuck 显示 ‹（主色，与我的文件折叠态一致）。
+   吸顶逻辑见 assets/js/shell/head-buttons.js；展开/折叠阈值与我的文件逐帧一致。 */}}
 {{ $en := .isEn }}
-{{ $noBack := .noBack }}
-<header class="subpage-head" data-subpage-head>
-  {{ if not $noBack }}<button type="button" class="subpage-back" data-go-back aria-label="{{ if $en }}Back{{ else }}返回{{ end }}">{{ partial "icon.html" "arrow-left" }}</button>{{ end }}
+{{ $noTimeline := .noTimeline }}
+{{ $dots := `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg>` }}
+{{ if $noTimeline }}
+<header class="subpage-head">
   <div class="subpage-hero">
     <h1 class="subpage-title">{{ .title }}</h1>
   </div>
-  {{ with .actions }}<div class="subpage-actions">{{ . }}</div>{{ end }}
 </header>
-{{ if not $noBack }}<button type="button" class="subpage-back-float" data-go-back aria-label="{{ if $en }}Back{{ else }}返回{{ end }}">{{ partial "icon.html" "arrow-left" }}</button>{{ else }}<button type="button" class="subpage-back-float subpage-back-top" data-back-top aria-label="{{ if $en }}Back{{ else }}返回{{ end }}">‹</button>{{ end }}
+{{ else }}
+<header class="subpage-head" data-subpage-head>
+  <button type="button" class="subpage-back" data-go-back aria-label="{{ if $en }}Back{{ else }}返回{{ end }}">{{ partial "icon.html" "arrow-left" }}<span class="sgx-bk-fold" aria-hidden="true">‹</span></button>
+  <div class="subpage-hero">
+    <h1 class="subpage-title">{{ .title }}</h1>
+  </div>
+  {{ with .actions }}<div class="subpage-actions">{{ . }}</div>{{ else }}<div class="subpage-actions"><button type="button" class="subpage-more" aria-label="{{ if $en }}More options{{ else }}更多选项{{ end }}">{{ $dots | safeHTML }}</button></div>{{ end }}
+</header>
 <div class="subpage-mini-title" aria-hidden="true">{{ .title }}</div>
+{{ end }}

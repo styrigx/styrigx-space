@@ -4,7 +4,7 @@ module.exports = defineConfig({
   testDir: './tests/e2e',
   /* Hark：visual 用测试构建（锁屏禁用），lock 用生产构建（锁屏启用）；
      CI 里分两次构建分别跑 */
-  testMatch: process.env.SGX_TEST_SUITE === 'lock' ? ['lock.spec.js', 'lock-flags.spec.js'] : process.env.SGX_TEST_SUITE === 'passkey' ? ['passkey.spec.js', 'stepup.spec.js'] : process.env.SGX_TEST_SUITE === 'credential' ? ['api-credential.spec.js'] : ['visual.spec.js', 'pc-layout.spec.js', 'settings-sub.spec.js', 'layout-292.spec.js', 'dialog-kb.spec.js', 'door-verify.spec.js', 'door1-owner-probe.spec.js', 'door1-diag.spec.js', 'door-return.spec.js'],
+  testMatch: process.env.SGX_TEST_SUITE === 'lock' ? ['lock.spec.js', 'lock-flags.spec.js', 'lock-reset-pk-busy.spec.js'] : process.env.SGX_TEST_SUITE === 'passkey' ? ['passkey.spec.js', 'stepup.spec.js'] : process.env.SGX_TEST_SUITE === 'credential' ? ['api-credential.spec.js'] : ['visual.spec.js', 'pc-layout.spec.js', 'settings-sub.spec.js', 'layout-292.spec.js', 'dialog-kb.spec.js', 'door-verify.spec.js', 'door1-owner-probe.spec.js', 'door1-diag.spec.js', 'door-return.spec.js', 'head-buttons.spec.js', 'capsule-back.spec.js'],
   /* 视觉回归：只跑 Chromium，保证基准一致 */
   projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
   snapshotDir: './tests/e2e/visual',

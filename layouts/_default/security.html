@@ -7,7 +7,7 @@
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 {{ $lockUrl := cond $isEn "/en/settings/security/lock/" "/settings/security/lock/" }}
 {{ $setUrl := cond $isEn "/en/settings/" "/settings/" }}
-{{ $moreBtn := printf `<button type="button" class="subpage-more" id="sec-more" aria-label="%s"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></button>` (cond $isEn "More" "更多") }}
+{{ $moreBtn := printf `<button type="button" class="subpage-more" id="sec-more" aria-label="%s"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg></button>` (cond $isEn "More" "更多") }}
 
 <div class="set-layout max-w-2xl mx-auto px-4 pb-28">
   {{ partial "subpage-head.html" (dict "title" (cond $isEn "Security and privacy" "安全与隐私") "isEn" $isEn "actions" ($moreBtn | safeHTML)) }}

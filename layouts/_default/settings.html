@@ -40,7 +40,9 @@
   {{/* DeX/PC：左右双栏。左栏标题+账户卡+分类导航；右栏详情窗格（复用子页同一套 partial）。
        security 仍是独立页面，点导航直接跳转。 */}}
   <div class="set-col-l">
-    {{ partial "subpage-head.html" (dict "title" (cond $isEn "Settings" "设置") "isEn" $isEn "noBack" true) }}
+    {{/* D3(a)：DeX 左栏标题只做紧凑展示，不带滚动时间线/mini-title/按钮；
+         滚动联动与吸顶只走手机端 set-mobile-only 那一份标题，避免 --sgx-subhead 重名。 */}}
+    {{ partial "subpage-head.html" (dict "title" (cond $isEn "Settings" "设置") "isEn" $isEn "noTimeline" true) }}
     {{ partial "sgx-account-card.html" . }}
     <aside class="set-side" aria-label="{{ if $isEn }}Categories{{ else }}分类{{ end }}">
       <nav class="flex flex-col gap-1" id="set-cat-nav">

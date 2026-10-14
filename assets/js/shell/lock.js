@@ -24,7 +24,7 @@ import { followKeyboard } from './vk.js';
 import { get, getJSON } from '../lib/storage.js';
 import { exchangeRootSession } from '../lib/root-session.js';
 import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, tapFeedback } from '../lib/dialog-behavior.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, tapFeedback, setRowBusy } from '../lib/dialog-behavior.js';
 
 const LOCK =
   '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
@@ -1241,7 +1241,9 @@ function showLockScreen() {
         '<span class="sgx-door-ic" aria-hidden="true">' + pkIcon + '</span>' +
         '<span class="sgx-door-mid"><span class="sgx-door-rowtitle">' + (en ? 'Owner passkey' : '站长通行密钥') + '</span>' +
         '<span class="sgx-door-rowsub">' + (en ? 'Use fingerprint or device screen lock' : '使用指纹或设备锁屏') + '</span></span>' +
-        '<span class="sgx-door-chev" aria-hidden="true">' + chev + '</span></button>';
+        '<span class="sgx-door-chev" aria-hidden="true">' + chev + '</span></button>' +
+        /* D1：取消验证的行内提示位（hidden 时不占位；与进入凭证弹层的 .sgx-door-err 同一样式） */
+        '<p class="sgx-door-err" id="sgx-reset-pk-err" hidden></p>';
     }
     if (hasPw) {
       rowsHtml += '<button type="button" class="sgx-door-row" id="sgx-reset-pw-row">' +
@@ -1258,8 +1260,9 @@ function showLockScreen() {
     clearErr();
     var pkRow = document.getElementById('sgx-reset-pk-row');
     var pwRow = document.getElementById('sgx-reset-pw-row');
-    if (pkRow) on(pkRow, 'click', function () { tapFeedback(); resetPk(); });
-    if (pwRow) on(pwRow, 'click', function () { tapFeedback(); renderResetPwForm(); });
+    /* D1：busy 中重复点击（合成事件）直接丢弃，保证 challenge 只发一次 */
+    if (pkRow) on(pkRow, 'click', function () { if (pkRow.disabled) return; tapFeedback(); resetPk(); });
+    if (pwRow) on(pwRow, 'click', function () { if (pwRow.disabled) return; tapFeedback(); renderResetPwForm(); });
   }
 
   /* C2：站长密码验证窗口（密码框 + C3 按钮，跟键盘上移）。取消返回选项行。 */
@@ -1339,25 +1342,51 @@ function showLockScreen() {
     sgxNavigate(en ? '/en/settings/security/lock/' : '/settings/security/lock/', 'lock.js:1251', 'reset-done');
   }
 
-  /* 重置步骤 2a：站长通行密钥 */
+  /* 重置步骤 2a：站长通行密钥。
+     D1：与进入凭证弹层（security.js startWebauthn）同一套 busy 表现——
+     副标题切 passkeyBusy 文案（security.html 同一文案）、箭头换 .sgx-door-spin、
+     两行 setRowBusy(true) 防重。返回 Promise，finally 恢复行状态。
+     取消（NotAllowedError）走行内 .sgx-door-err 提示，不报验证失败。 */
   function resetPk() {
-    if (dlgState !== 'reset-step2') return;
-    fetch('/api/lockreset', {
+    if (dlgState !== 'reset-step2') return Promise.resolve();
+    var pkRow = document.getElementById('sgx-reset-pk-row');
+    /* busy 中重复点击直接丢弃，保证 challenge 只发一次 */
+    if (pkRow && pkRow.disabled) return Promise.resolve();
+    var pwRow = document.getElementById('sgx-reset-pw-row');
+    var rowErr = document.getElementById('sgx-reset-pk-err');
+    if (rowErr) rowErr.hidden = true;
+    clearErr();
+    /* 保存原副标题/箭头（成功/取消/失败三路都要恢复） */
+    var subEl = pkRow ? pkRow.querySelector('.sgx-door-rowsub') : null;
+    var origSub = subEl ? subEl.textContent : '';
+    var chev = pkRow ? pkRow.querySelector('.sgx-door-chev') : null;
+    var origChev = chev ? chev.innerHTML : '';
+    if (subEl) subEl.textContent = en ? 'Opening passkey…' : '正在唤起通行密钥…';
+    if (chev) chev.innerHTML = '<span class="sgx-door-spin" aria-hidden="true"></span>';
+    setRowBusy(pkRow, true);
+    setRowBusy(pwRow, true);
+    var restoreRow = function () {
+      if (chev) chev.innerHTML = origChev;
+      if (subEl) subEl.textContent = origSub;
+      setRowBusy(pkRow, false);
+      setRowBusy(pwRow, false);
+    };
+    var chain = fetch('/api/lockreset', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'challenge' }),
     })
       .then(function (r) { return r.json(); })
       .then(function (j) {
-        if (dlgState !== 'reset-step2') return;
+        if (dlgState !== 'reset-step2') throw { done: true };
         if (!j || !j.ok) {
           showError(en ? 'Failed to start' : '启动失败');
-          return;
+          throw { done: true };
         }
         var allow = (j.allowCredentials || []).map(function (c) {
           return { id: Uint8Array.from(atob(c.id.replace(/-/g, '+').replace(/_/g, '/')), function (ch) { return ch.charCodeAt(0); }), type: 'public-key' };
         });
-        navigator.credentials.get({
+        return navigator.credentials.get({
           publicKey: {
             challenge: Uint8Array.from(atob(j.challenge.replace(/-/g, '+').replace(/_/g, '/')), function (ch) { return ch.charCodeAt(0); }),
             rpId: j.rpId,
@@ -1365,7 +1394,7 @@ function showLockScreen() {
             userVerification: 'required',
           },
         }).then(function (cred) {
-          if (dlgState !== 'reset-step2') return;
+          if (dlgState !== 'reset-step2') throw { done: true };
           var b64u = function (buf) {
             return btoa(String.fromCharCode.apply(null, new Uint8Array(buf)))
               .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -1387,18 +1416,29 @@ function showLockScreen() {
             };
           } catch (e) {
             showError(en ? 'Passkey failed' : '通行密钥验证失败');
-            return;
+            throw { done: true };
           }
           submitResetOwner(proof);
-        }).catch(function () {
-          if (dlgState !== 'reset-step2') return;
+        }, function (err) {
+          /* 用户取消系统验证：行内提示，不报验证失败，留在本页 */
+          if (dlgState !== 'reset-step2') throw { done: true };
+          if (err && err.name === 'NotAllowedError') {
+            if (rowErr) {
+              rowErr.textContent = en ? 'Cancelled, you can select again' : '已取消验证，可重新选择';
+              rowErr.hidden = false;
+            }
+            throw { done: true };
+          }
           showError(en ? 'Passkey failed' : '通行密钥验证失败');
+          throw { done: true };
         });
       })
-      .catch(function () {
+      .catch(function (err) {
+        if (err && err.done) return;
         if (dlgState !== 'reset-step2') return;
         showError(en ? 'Network error' : '网络错误');
       });
+    return chain.then(restoreRow, restoreRow);
   }
 
   /* 重置步骤 2b：站长密码 */

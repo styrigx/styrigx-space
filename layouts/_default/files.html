@@ -6,7 +6,7 @@
 {{ $setUrl := "/settings/" }}{{ if $isEn }}{{ $setUrl = "/en/settings/" }}{{ end }}
 
 {{ $dots := `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg>` }}
-{{ $moreBtn := printf `<button type="button" id="files-more" class="files-more-btn" aria-label="%s">%s</button>` (cond $isEn "More options" "更多选项") $dots }}
+{{ $moreBtn := printf `<button type="button" id="files-more" class="subpage-more" aria-label="%s">%s</button>` (cond $isEn "More options" "更多选项") $dots }}
 {{ $appGrid := `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>` }}
 
 {{ $cats := slice
@@ -171,17 +171,9 @@
 
 <style>
 /* ===== 我的文件（页面私有样式） ===== */
-.files-more-btn{width:44px;height:44px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;color:var(--m-on-surface);flex-shrink:0}
-.files-more-btn:hover{background:rgba(0,0,0,.05)}
-.dark .files-more-btn:hover{background:rgba(255,255,255,.08)}
-/* 2.3.14.5：⋯ 单按钮滚动停靠（替代 files-more-float 双按钮）。
-   平时在标题区原位、随内容上滚；滚到顶栏右侧位置时停住，背景淡入成 44px 磨砂圆；
-   滚回去反过来。悬浮不占布局。 */
-#files-more{transition:background-color .2s ease,border-color .2s ease,box-shadow .2s ease,right .2s ease}
-#files-more.stuck{position:fixed;top:calc(var(--nav-h,64px) + 8px + env(safe-area-inset-top,0px));z-index:55;margin:0;
-  background:var(--glass-tint);
-  border:1px solid var(--glass-edge);box-shadow:var(--glass-shadow)}
-.reduced-motion #files-more{transition:none}
+/* 2.3.14.5：⋯ 单按钮滚动停靠（替代 files-more-float 双按钮）。平时在标题区原位、随内容上滚；
+   滚到顶栏右侧位置时停住，背景淡入成 44px 磨砂圆；滚回去反过来。悬浮不占布局。
+   （按钮本体样式已并入 input.css 的 .subpage-more 统一组件，与全站一致。） */
 /* 分隔线从文字开始（图标列之外） */
 .files-rows{list-style:none;margin:0;padding:0}
 .files-rows>li+li .row-line{border-top:1px solid color-mix(in srgb,var(--m-outline) 55%,transparent)}

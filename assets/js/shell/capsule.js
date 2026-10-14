@@ -44,10 +44,17 @@ export function initCapsule() {
     let opened = false;
     const kbMaxSeen = { v: 0 };
 
+    /* D2：键盘收起即关闭的去抖（返回手势只收键盘、不触发 input blur 的兜底）。
+       kbCloseTimer：h 归 0 后 120ms 的待关闭定时器；kbLastH：最近一次收到的键盘高度。 */
+    /** @type {number|null} */
+    let kbCloseTimer = null;
+    let kbLastH = 0;
+
     /* 按键盘高度更新：宽度按 键盘高度/最终高度 同步插值；--sgx-kb 供结果浮层用 */
     /** @param {number} h */
     function kbUpdate(h) {
       h = Math.max(0, h || 0);
+      kbLastH = h;
       if (h > kbMaxSeen.v) kbMaxSeen.v = h;
       const p = kbMaxSeen.v < 1 ? 1 : Math.min(1, h / kbMaxSeen.v);
       const vw = window.innerWidth || 0;
@@ -63,6 +70,24 @@ export function initCapsule() {
       if (!document.documentElement.classList.contains('sgx-vk')) {
         const capRest = document.body.classList.contains('subpage') ? 12 : 88;
         cap.style.transform = 'translateX(-50%) translateY(' + Math.round(capRest - 12 - h) + 'px)';
+      }
+      /* D2：opened 且键盘曾弹出过（kbMaxSeen>0）、高度回到 0（≤2px）→
+         120ms 去抖后仍为 0 就 blur + close()，效果等同点页面空白。
+         中途 h 又变大（切换输入法等短暂归零）则取消。 */
+      if (opened && kbMaxSeen.v > 0 && h <= 2) {
+        if (kbCloseTimer) window.clearTimeout(kbCloseTimer);
+        kbCloseTimer = window.setTimeout(function () {
+          kbCloseTimer = null;
+          if (opened && kbLastH <= 2) {
+            try {
+              input.blur();
+            } catch (e) {}
+            close();
+          }
+        }, 120);
+      } else if (kbCloseTimer) {
+        window.clearTimeout(kbCloseTimer);
+        kbCloseTimer = null;
       }
     }
 
@@ -80,6 +105,10 @@ export function initCapsule() {
     function close() {
       if (!opened) return;
       opened = false;
+      if (kbCloseTimer) {
+        window.clearTimeout(kbCloseTimer);
+        kbCloseTimer = null;
+      }
       cap.classList.remove('open');
       cap.classList.remove('sgx-kb-sync');
       document.documentElement.classList.remove('sgx-vk');
@@ -94,6 +123,8 @@ export function initCapsule() {
         panel.innerHTML = '';
       }
       document.documentElement.style.setProperty('--sgx-kb', '0px');
+      /* D2：清空键盘高度记忆，下次打开重新统计 */
+      kbMaxSeen.v = 0;
     }
     function doSearch() {
       if (typeof provider !== 'function') return;
@@ -168,6 +199,15 @@ export function initCapsule() {
         if (hit) window.setTimeout(close, 80);
       });
     }
+    /* D2：popstate 兜底。胶囊打开时收到 popstate（键盘已收起后的返回手势），
+       效果等同点页面空白：blur + close()。 */
+    on(window, 'popstate', function () {
+      if (!opened) return;
+      try {
+        input.blur();
+      } catch (e) {}
+      close();
+    });
     /* 语音输入：走共享语音弹窗；只检测 SpeechRecognition 接口是否存在；
        不支持则麦克风不渲染（无空位、无报错） */
     const mic = cap.querySelector('[data-mic]');
