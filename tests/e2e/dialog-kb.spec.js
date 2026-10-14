@@ -57,7 +57,7 @@ test.describe('door dialog UI', () => {
     await expect(rows.first().locator('.sgx-door-chev')).toBeVisible();
 
     /* 默认底部只有「取消」文字按钮 */
-    const cancel = pg.locator('#sec-verify-foot .sgx-door-cancel');
+    const cancel = pg.locator('#sec-verify-foot .sgx-door-btn-secondary');
     await expect(cancel).toBeVisible();
     await expect(cancel).toContainText('取消');
     await expect(pg.locator('#sec-verify-foot .sgx-door-actions')).toHaveCount(0);
@@ -65,7 +65,7 @@ test.describe('door dialog UI', () => {
     /* 根凭证行展开：单行密码输入框 + 底部变「取消 / 验证」两个等宽文字按钮 */
     await rows.first().click();
     await expect(pg.locator('.sgx-door-expand input[type="password"]')).toBeVisible();
-    const actions = pg.locator('#sec-verify-foot .sgx-door-actions .sgx-door-textbtn');
+    const actions = pg.locator('#sec-verify-foot .sgx-door-actions .sgx-door-btn');
     await expect(actions).toHaveCount(2);
     await expect(actions.nth(0)).toContainText('取消');
     await expect(actions.nth(1)).toContainText('验证');
@@ -88,7 +88,7 @@ test.describe('door dialog UI', () => {
     /* 列表行样式与真入口一致 */
     await expect(rows.first().locator('.sgx-door-ic')).toBeVisible();
     await expect(rows.first().locator('.sgx-door-chev')).toBeVisible();
-    await expect(pg.locator('#sec-verify-foot .sgx-door-cancel')).toBeVisible();
+    await expect(pg.locator('#sec-verify-foot .sgx-door-btn-secondary')).toBeVisible();
   });
 
   test('mgmt dialog: password row expands inline, dialog stays in viewport', async ({ page: pg }) => {
@@ -108,7 +108,7 @@ test.describe('door dialog UI', () => {
     await expect(input).toBeFocused();
 
     /* 底部变为「取消 / 验证」两个等宽文字按钮 */
-    const actions = pg.locator('#sec-verify-foot .sgx-door-actions .sgx-door-textbtn');
+    const actions = pg.locator('#sec-verify-foot .sgx-door-actions .sgx-door-btn');
     await expect(actions).toHaveCount(2);
 
     /* 展开态弹层整体仍在视口内（键盘避让由本文件的 door keyboard avoidance 功能测试覆盖） */
@@ -209,7 +209,7 @@ test.describe('door keyboard avoidance', () => {
       const vv = window.__fakeVV;
       const r = sheet.getBoundingClientRect();
       const inputEl = document.querySelector('.sgx-door-expand input[type="password"]');
-      const btnEl = document.querySelector('#sec-verify-foot .sgx-door-textbtn.primary');
+      const btnEl = document.querySelector('#sec-verify-foot .sgx-door-btn-primary');
       const ir = inputEl.getBoundingClientRect();
       const br = btnEl.getBoundingClientRect();
       return {

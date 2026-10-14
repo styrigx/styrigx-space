@@ -67,7 +67,7 @@ test.describe('door verify dialog', () => {
     await expect(page.locator('#sec-verify-dlg')).toBeVisible();
     await page.locator('.sgx-door-row').filter({ hasText: '站长密码' }).click();
     await page.locator('.sgx-door-expand input[type="password"]').fill('wrong-password');
-    await page.locator('.sgx-door-actions .primary').click();
+    await page.locator('.sgx-door-btn-primary').click();
     await expect(page.locator('.sgx-door-err:not([hidden])').filter({ hasText: '密码不正确' }))
       .toBeVisible({ timeout: 8000 });
     await expect(page.locator('#sec-verify-dlg')).toBeVisible();
@@ -79,7 +79,7 @@ test.describe('door verify dialog', () => {
     await expect(page.locator('#sec-verify-dlg')).toBeVisible();
     await page.locator('.sgx-door-row').filter({ hasText: '站长密码' }).click();
     await page.locator('.sgx-door-expand input[type="password"]').fill('correct-password');
-    await page.locator('.sgx-door-actions .primary').click();
+    await page.locator('.sgx-door-btn-primary').click();
     await page.waitForURL('**/settings/security/mgmt/', { timeout: 10000 });
   });
 
@@ -95,7 +95,7 @@ test.describe('door verify dialog', () => {
     await expect(page.locator('.sgx-door-row').filter({ hasText: '根凭证' })).toBeVisible();
     await page.locator('.sgx-door-row').filter({ hasText: '根凭证' }).click();
     await page.locator('.sgx-door-expand input[type="password"]').fill('test-root-key');
-    await page.locator('.sgx-door-actions .primary').click();
+    await page.locator('.sgx-door-btn-primary').click();
     await page.waitForURL('**/settings/security/owner/**', { timeout: 10000 });
   });
 
@@ -108,7 +108,7 @@ test.describe('door verify dialog', () => {
     await expect(page.locator('#sec-verify-dlg')).toBeVisible();
     await page.locator('.sgx-door-row').filter({ hasText: '根凭证' }).click();
     await page.locator('.sgx-door-expand input[type="password"]').fill('test-root-key');
-    await page.locator('.sgx-door-actions .primary').click();
+    await page.locator('.sgx-door-btn-primary').click();
     /* 弹层不关闭，行内错误显示接口、状态码、reason */
     const err = page.locator('.sgx-door-err:not([hidden])');
     await expect(err.filter({ hasText: '预检未通过' })).toBeVisible({ timeout: 8000 });
@@ -139,7 +139,7 @@ test.describe('door verify dialog', () => {
     await expect(page.locator('#sec-verify-dlg')).toBeVisible();
     await page.locator('.sgx-door-row').filter({ hasText: '根凭证' }).click();
     await page.locator('.sgx-door-expand input[type="password"]').fill('test-root-key');
-    await page.locator('.sgx-door-actions .primary').click();
+    await page.locator('.sgx-door-btn-primary').click();
     /* 换会话成功后直接进门，不应被预检拦住 */
     await page.waitForURL('**/settings/security/owner/**', { timeout: 10000 });
     expect(stepupCalls).toBe(0);
@@ -184,13 +184,13 @@ test.describe('door verify dialog', () => {
     await expect(page.locator('#sec-verify-dlg')).toBeVisible();
     await page.locator('.sgx-door-row').filter({ hasText: '站长密码' }).click();
     await page.locator('.sgx-door-expand input[type="password"]').fill('wrong-password');
-    await page.locator('.sgx-door-actions .primary').click();
+    await page.locator('.sgx-door-btn-primary').click();
     await expect(page.locator('.sgx-door-err:not([hidden])').filter({ hasText: '密码不正确' }))
       .toBeVisible({ timeout: 8000 });
     await expect(page.locator('#sec-verify-dlg')).toBeVisible();
     /* 改对后再次点击验证，必须再次提交并成功进门 */
     await page.locator('.sgx-door-expand input[type="password"]').fill('correct-password');
-    await page.locator('.sgx-door-actions .primary').click();
+    await page.locator('.sgx-door-btn-primary').click();
     await page.waitForURL('**/settings/security/mgmt/', { timeout: 10000 });
     expect(stepupCalls).toBe(2);
   });
@@ -213,7 +213,7 @@ test.describe('door verify dialog', () => {
     await page.locator('.sgx-door-row').filter({ hasText: '根凭证' }).click();
     await page.locator('.sgx-door-expand input[type="password"]').fill('test-root-key');
     /* 聚焦验证按钮，按 Enter → 只提交一次（click 兜底，pointerup 未触发时不重复） */
-    await page.locator('.sgx-door-actions .primary').focus();
+    await page.locator('.sgx-door-btn-primary').focus();
     await page.keyboard.press('Enter');
     await page.waitForURL('**/settings/security/owner/**', { timeout: 10000 });
     expect(authCalls).toBe(1);
@@ -249,7 +249,7 @@ test.describe('A-1 进门不能马上被判过期（10 次连续进门）', () =
       await expect(page.locator('.sgx-door-methods .sgx-door-row').first()).toBeVisible({ timeout: 10000 });
       await page.locator('.sgx-door-row').filter({ hasText: '根凭证' }).click();
       await page.locator('.sgx-door-expand input[type="password"]').fill('test-root-key');
-      await page.locator('.sgx-door-actions .primary').click();
+      await page.locator('.sgx-door-btn-primary').click();
       await expect(page).toHaveURL(/\/settings\/security\/owner\//, { timeout: 10000 });
       /* 进门成功：门内容器可见 + 倒计时出现 */
       await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
@@ -265,7 +265,7 @@ test.describe('A-1 进门不能马上被判过期（10 次连续进门）', () =
       await expect(page.locator('.sgx-door-methods .sgx-door-row').first()).toBeVisible({ timeout: 10000 });
       await page.locator('.sgx-door-row').filter({ hasText: '站长密码' }).click();
       await page.locator('.sgx-door-expand input[type="password"]').fill('test-owner-pw');
-      await page.locator('.sgx-door-actions .primary').click();
+      await page.locator('.sgx-door-btn-primary').click();
       await expect(page).toHaveURL(/\/settings\/security\/mgmt\//, { timeout: 10000 });
       await expect(page.locator('#sgx-door-countdown')).toBeVisible({ timeout: 15000 });
     }
@@ -279,7 +279,7 @@ test.describe('A-1 进门不能马上被判过期（10 次连续进门）', () =
     await expect(page.locator('.sgx-door-methods .sgx-door-row').first()).toBeVisible({ timeout: 10000 });
     await page.locator('.sgx-door-row').filter({ hasText: '根凭证' }).click();
     await page.locator('.sgx-door-expand input[type="password"]').fill('test-root-key');
-    await page.locator('.sgx-door-actions .primary').click();
+    await page.locator('.sgx-door-btn-primary').click();
     await expect(page).toHaveURL(/\/settings\/security\/owner\//, { timeout: 10000 });
     await expect(page.locator('#sgx-door-countdown')).toBeVisible({ timeout: 15000 });
     /* 点返回按钮 → 回安全页（清票） */
