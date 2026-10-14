@@ -1331,7 +1331,14 @@
     .set-layout:has(.set-col-l) {
       max-width: none; display: grid;
       grid-template-columns: clamp(320px,36%,420px) minmax(0,1fr); gap: 16px; align-items: start;
+      position: relative; /* D4 fix: DeX settings buttons align to whole content container, not left column */
     }
+    /* D4 fix: DeX settings left-column header buttons (back + three-dot) align to the whole
+       .set-layout container with 122/122 margins (matching files on DeX per v1.3 §8),
+       not to the narrow left column. */
+    .set-col-l .subpage-head { position: static; }
+    .set-col-l .subpage-back { left: 122px; }
+    .set-col-l .subpage-actions { right: 122px; }
     /* 左栏：标题＋账号卡固定，菜单列表过长时独立滚动 */
     .set-col-l {
       display: flex; flex-direction: column; min-width: 0; min-height: 0;
