@@ -26,6 +26,7 @@ import {
   refreshDoorCountdown,
   b64urlToBuf,
   bufToB64url,
+  guardDoorExpired,
 } from './app-gate.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton } from '../lib/dialog-behavior.js';
 
@@ -202,6 +203,8 @@ export function initDoor(o) {
     let armTimer = 0;
     const origText = pwDel.textContent;
     const go = function () {
+      /* C5：已过期时第一下就弹到期框，不进入「再点一次」 */
+      if (guardDoorExpired(t)) return;
       if (!armed) {
         armed = true;
         /* 如果删完后密码和钥匙都没了，提示只能用 rootkey 进入 */
@@ -559,6 +562,8 @@ export function initDoor(o) {
     let armTimer = 0;
     on(del, 'click', function (e) {
       e.stopPropagation();
+      /* C5：已过期时第一下就弹到期框，不进入「再点一次」 */
+      if (guardDoorExpired(t)) return;
       if (!armed) {
         armed = true;
         del.textContent = t('pkDelAsk');
@@ -881,7 +886,7 @@ export function initDoor(o) {
       })
       .catch(function () { return { ok: false, reason: 'network', status: 0, api: 'GET ' + statusApi }; });
   }
-  enterDoor(probe, function (result) {
+  function onEnterDoor(result) {
     /* 探针通过后才渲染门内内容（容器默认 hidden，见模板） */
     const mgr = $('lockmgr');
     if (mgr) mgr.hidden = false;
@@ -889,5 +894,15 @@ export function initDoor(o) {
        任一请求失败也照常显示胶囊（两函数内部已吞错，Promise 恒 resolve）。 */
     const startCapsule = function () { startDoorCountdown(t, result && result.expiresAt); };
     Promise.all([refreshStatus(), refreshPkList()]).then(startCapsule, startCapsule);
-  }, t);
+  }
+  enterDoor(probe, onEnterDoor, t);
+
+  /* C4：bfcache 恢复时重探针。先隐藏门内内容，再探针；过期就弹框，
+     避免恢复的过期页直接显示内容。 */
+  window.addEventListener('pageshow', function (e) {
+    if (!e || !e.persisted) return;
+    const mgr = $('lockmgr');
+    if (mgr) mgr.hidden = true;
+    enterDoor(probe, onEnterDoor, t);
+  });
 }

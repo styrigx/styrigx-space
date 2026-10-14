@@ -52,7 +52,7 @@ test.describe('stepup e2e', () => {
     await expect(dlg).toBeVisible({ timeout: 15000 });
     await page.locator('.sgx-door-row').first().click();
     await page.locator('.sgx-door-expand input[type="password"]').fill(OWNER_KEY);
-    await page.locator('.sgx-door-actions .primary').click();
+    await page.locator('.sgx-door-btn-primary').click();
     await page.waitForURL('**/settings/security/owner/**', { timeout: 15000 });
   }
 

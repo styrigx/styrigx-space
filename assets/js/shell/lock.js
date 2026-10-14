@@ -1217,44 +1217,99 @@ function showLockScreen() {
     });
   }
 
-  /* 重置步骤 2：站长凭证（按配置显示按钮） */
+  /* 重置步骤 2：站长凭证（按配置显示选项行）。
+     C2：页面说明「选择你的站长凭证进行验证」；两行选项（圆角卡片、左图标、
+     标题+说明、右箭头），只显示已配方式。通行密钥直接拉系统窗口；
+     密码弹验证窗口（密码框 + C3 按钮，跟键盘上移）。底部恢复提示 13px 次要色。 */
+  var resetStep2HasPk = false;
+  var resetStep2HasPw = false;
   function renderResetStep2(hasPk, hasPw) {
     dlgState = 'reset-step2';
+    resetStep2HasPk = !!hasPk;
+    resetStep2HasPw = !!hasPw;
     setTitle((en ? 'Reset lock screen' : '重置锁屏') + ' (2/2)');
-    /* 补充四：根凭证正确但开关无效时，在此步骤下方显示恢复开关提示。
-       仅此处显示；根凭证错误、访客假入口、其他页面一律不出现。 */
+    /* C2：恢复提示（无 Cloudflare/KV/键名），放选项列表下方，左对齐，13px 次要色 */
     var switchHint = en
-      ? 'Owner credential unavailable? Add key recovery-switch (any value) in Cloudflare KV, valid for 24 hours, single use only.'
-      : '站长凭证也无法使用？在 Cloudflare KV 添加键 recovery-switch（值任意），24 小时内有效且仅限一次。';
-    var pkBtnHtml = hasPk
-      ? '<button type="button" class="sgx-verify-skip" id="sgx-reset-pk">' + (en ? 'Use passkey' : '使用通行密钥') + '</button>'
-      : '';
-    var pwFormHtml = hasPw
-      ? '<div class="sgx-pw-field"><input type="password" id="sgx-reset-pw" class="sgx-pw-input" autocomplete="off" ' +
-        'placeholder="' + (en ? 'Owner password' : '站长密码') + '">' +
-        '<button type="button" class="sgx-pw-eye" id="sgx-reset-pw-eye" aria-label="' + (en ? 'Show password' : '显示密码') + '"></button></div>' +
-        '<button type="button" class="sgx-verify-skip" id="sgx-reset-pw-go">' + (en ? 'Verify' : '验证') + '</button>'
-      : '';
+      ? 'Owner credential unavailable? Enable one-time recovery in the site admin, valid for 24 hours.'
+      : '站长凭证也无法使用？可在站点后台开启一次性恢复，24 小时内有效';
+    var pkIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7.5 3v5.25c0 4.6-3.2 7.9-7.5 9.75-4.3-1.85-7.5-5.15-7.5-9.75V6L12 3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9.5 12l2 2 3.5-4"/></svg>';
+    var pwIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+    var chev = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>';
+    var rowsHtml = '';
+    if (hasPk) {
+      rowsHtml += '<button type="button" class="sgx-door-row" id="sgx-reset-pk-row">' +
+        '<span class="sgx-door-ic" aria-hidden="true">' + pkIcon + '</span>' +
+        '<span class="sgx-door-mid"><span class="sgx-door-rowtitle">' + (en ? 'Owner passkey' : '站长通行密钥') + '</span>' +
+        '<span class="sgx-door-rowsub">' + (en ? 'Use fingerprint or device screen lock' : '使用指纹或设备锁屏') + '</span></span>' +
+        '<span class="sgx-door-chev" aria-hidden="true">' + chev + '</span></button>';
+    }
+    if (hasPw) {
+      rowsHtml += '<button type="button" class="sgx-door-row" id="sgx-reset-pw-row">' +
+        '<span class="sgx-door-ic" aria-hidden="true">' + pwIcon + '</span>' +
+        '<span class="sgx-door-mid"><span class="sgx-door-rowtitle">' + (en ? 'Owner password' : '站长密码') + '</span>' +
+        '<span class="sgx-door-rowsub">' + (en ? 'Enter owner password' : '输入站长密码') + '</span></span>' +
+        '<span class="sgx-door-chev" aria-hidden="true">' + chev + '</span></button>';
+    }
     setBody(
-      '<div class="sgx-reset-hint">' + (en ? 'Verify owner credential' : '验证站长凭证') + '</div>' +
-      pkBtnHtml + pwFormHtml +
-      '<div class="sgx-reset-switch-hint">' + switchHint + '</div>'
+      '<div class="sgx-reset-hint">' + (en ? 'Choose your owner credential to verify' : '选择你的站长凭证进行验证') + '</div>' +
+      '<div class="sgx-reset-opts">' + rowsHtml + '</div>' +
+      '<div class="sgx-reset-recover-hint">' + switchHint + '</div>'
     );
     clearErr();
-    armDlgKbFor(document.getElementById('sgx-reset-pw'));
-    /* 批次 A 验收修复 P2：重置流程 step2 补眼睛按钮（初始 eye-off） */
-    var pwEye = document.getElementById('sgx-reset-pw-eye');
+    var pkRow = document.getElementById('sgx-reset-pk-row');
+    var pwRow = document.getElementById('sgx-reset-pw-row');
+    if (pkRow) on(pkRow, 'click', function () { tapFeedback(); resetPk(); });
+    if (pwRow) on(pwRow, 'click', function () { tapFeedback(); renderResetPwForm(); });
+  }
+
+  /* C2：站长密码验证窗口（密码框 + C3 按钮，跟键盘上移）。取消返回选项行。 */
+  function renderResetPwForm() {
+    dlgState = 'reset-step2-pw';
+    setTitle((en ? 'Reset lock screen' : '重置锁屏') + ' (2/2)');
+    setBody(
+      '<div class="sgx-reset-hint">' + (en ? 'Owner password' : '站长密码') + '</div>' +
+      '<div class="sgx-pw-field"><input type="password" id="sgx-reset-pw" class="sgx-pw-input" autocomplete="off" ' +
+        'placeholder="' + (en ? 'Owner password' : '站长密码') + '">' +
+        '<button type="button" class="sgx-pw-eye" id="sgx-reset-pw-eye" aria-label="' + (en ? 'Show password' : '显示密码') + '"></button></div>' +
+      '<div class="sgx-door-actions">' +
+        '<button type="button" class="sgx-door-btn sgx-door-btn-secondary" id="sgx-reset-pw-cancel">' + (en ? 'Cancel' : '取消') + '</button>' +
+        '<button type="button" class="sgx-door-btn sgx-door-btn-primary" id="sgx-reset-pw-go">' + (en ? 'Verify' : '验证') + '</button>' +
+      '</div>'
+    );
+    clearErr();
     var pwInput = document.getElementById('sgx-reset-pw');
+    var pwEye = document.getElementById('sgx-reset-pw-eye');
     if (pwEye && pwInput) {
       bindEyeButton(pwEye, pwInput, {
         showLabel: en ? 'Show password' : '显示密码',
         hideLabel: en ? 'Hide password' : '隐藏密码',
       });
     }
-    var pkBtn = document.getElementById('sgx-reset-pk');
-    var pwGo = document.getElementById('sgx-reset-pw-go');
-    if (pkBtn) on(pkBtn, 'click', resetPk);
-    if (pwGo) on(pwGo, 'click', resetPw);
+    armDlgKbFor(pwInput);
+    if (pwInput) {
+      on(pwInput, 'keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); resetPwSubmit(); }
+      });
+      try { pwInput.focus({ preventScroll: true }); } catch (e) { try { pwInput.focus(); } catch (_) {} }
+    }
+    var cancelBtn = document.getElementById('sgx-reset-pw-cancel');
+    var goBtn = document.getElementById('sgx-reset-pw-go');
+    if (cancelBtn) on(cancelBtn, 'click', function () { renderResetStep2(resetStep2HasPk, resetStep2HasPw); });
+    if (goBtn) on(goBtn, 'click', resetPwSubmit);
+  }
+
+  /* C2：密码窗口的提交（从 renderResetPwForm 的输入框读值） */
+  function resetPwSubmit() {
+    if (dlgState !== 'reset-step2-pw') return;
+    var input = document.getElementById('sgx-reset-pw');
+    var pw = input ? input.value : '';
+    if (!pw) {
+      showError(en ? 'Enter owner password' : '请输入站长密码');
+      return;
+    }
+    /* 切回 step2 状态再提交（submitResetOwner 要求 dlgState 为 reset-step2） */
+    dlgState = 'reset-step2';
+    submitResetOwner({ type: 'password', password: pw });
   }
 
   /* 统一提交 verify（内部函数） */
@@ -1347,16 +1402,7 @@ function showLockScreen() {
   }
 
   /* 重置步骤 2b：站长密码 */
-  function resetPw() {
-    if (dlgState !== 'reset-step2') return;
-    var input = document.getElementById('sgx-reset-pw');
-    var pw = input ? input.value : '';
-    if (!pw) {
-      showError(en ? 'Enter owner password' : '请输入站长密码');
-      return;
-    }
-    submitResetOwner({ type: 'password', password: pw });
-  }
+  /* C2：旧 resetPw 已由 renderResetPwForm/resetPwSubmit 替代（删除） */
 
   function submitResetOwner(ownerProof) {
     if (dlgState !== 'reset-step2') return;

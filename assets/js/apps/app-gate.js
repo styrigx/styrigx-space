@@ -145,24 +145,61 @@ export function showExpiredDialog(t, kind, detail) {
   const btnLabel = isSession
     ? tx(t, 'expiredSessionBtn', '去锁屏', 'Go to lock screen')
     : tx(t, 'expiredStepupBtn', '返回安全与隐私', 'Back to Security & Privacy');
-  showCenterDialog({
+  /* C4：弹框打开时拦住返回手势。移动端返回手势走 history（非 dialog cancel 事件），
+     仅 preventDefault(cancel) 拦不住。用 pushState 占一位，popstate 时等同于
+     点按钮（不直接关框），避免退回已过期的门内页。 */
+  var backGuardActive = false;
+  function cleanupBackGuard() {
+    if (!backGuardActive) return;
+    backGuardActive = false;
+    try { window.removeEventListener('popstate', onBackPopstate); } catch (e) {}
+  }
+  function goFromDialog() {
+    cleanupBackGuard();
+    if (isSession) sgxReload('app-gate.js:showExpiredDialog', 'session-expired');
+    else clearStepupThen('/settings/security/');
+  }
+  function onBackPopstate() {
+    if (!backGuardActive || !expiredDialogOpen) return;
+    /* 返回 = 点按钮：关框并走按钮动作，不留在已过期的门内页 */
+    backGuardActive = false;
+    try { window.removeEventListener('popstate', onBackPopstate); } catch (e) {}
+    try { closeExpiredDialog(); } catch (e) {}
+    goFromDialog();
+  }
+  var closeExpiredDialog = showCenterDialog({
     title: title,
     desc: desc,
     dismissible: false,
     buttons: [{
       label: btnLabel,
       kind: 'primary',
-      onClick: function () {
-        if (isSession) sgxReload('app-gate.js:showExpiredDialog', 'session-expired');
-        else clearStepupThen('/settings/security/');
-      },
+      onClick: goFromDialog,
     }],
-    onClose: function () { expiredDialogOpen = false; },
+    onClose: function () { expiredDialogOpen = false; cleanupBackGuard(); },
   });
+  try {
+    history.pushState({ sgxExpiredDlg: 1 }, '');
+    backGuardActive = true;
+    window.addEventListener('popstate', onBackPopstate);
+  } catch (e) {}
 }
 
 /** m:ss 格式（向上取整，避免 2:59 跳 2:58 时闪 2:57） */
-function fmtDoorCountdown(ms) {
+
+/**
+ * C5：门内操作前检查倒计时是否已过期。已过期 → 直接弹到期框，
+ * 返回 true（调用方不再继续，不进入「再点一次」）；未过期 → 返回 false。
+ * @param {(k:string)=>string} t 文案函数
+ * @returns {boolean} 是否已过期（已弹框）
+ */
+export function guardDoorExpired(t) {
+  if (countdownExpiresAt > 0 && Date.now() >= countdownExpiresAt) {
+    needVerify(t, 'stepup');
+    return true;
+  }
+  return false;
+}function fmtDoorCountdown(ms) {
   const s = Math.max(0, Math.ceil(ms / 1000));
   return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 }
