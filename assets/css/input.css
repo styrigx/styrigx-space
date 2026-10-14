@@ -1326,7 +1326,9 @@
   .set-right-title { display: none; }
   .layout-dex, .layout-pc {
     .set-mobile-only { display: none; }
-    .set-layout {
+    /* D4 fix: Two-column grid only for settings index (has .set-col-l), not subpages.
+       Subpages use normal centered max-w-2xl layout. */
+    .set-layout:has(.set-col-l) {
       max-width: none; display: grid;
       grid-template-columns: clamp(320px,36%,420px) minmax(0,1fr); gap: 16px; align-items: start;
     }
