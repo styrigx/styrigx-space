@@ -366,7 +366,7 @@ for (const lang of DOOR_LANGS) {
             await expect(field).toBeVisible({ timeout: 5000 });
             if (state === 'error') {
               await field.fill('wrong-value');
-              await pg.locator('.sgx-door-actions .primary').click();
+              await pg.locator('.sgx-door-btn-primary').click();
               await expect(pg.locator('.sgx-door-err:not([hidden])')).toBeVisible({ timeout: 8000 });
             }
           }
