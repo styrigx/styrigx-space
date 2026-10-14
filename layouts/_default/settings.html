@@ -12,6 +12,13 @@
 {{ $palettes := site.Data.palettes.palettes }}
 
 <div class="set-layout max-w-2xl mx-auto px-4 pb-28">
+  {{/* DeX/PC：标准标题区（与我的文件一致：大标题居中 + 按钮在标题区下方），两栏布局在下方。
+       Gray 2026-10-15：标题从左栏拿出，字号字重top高度与我的文件 DeX 完全一致；
+       按钮中心 y、左右边距（122/122）与我的文件 DeX 对齐；两栏下沉，G=8。 */}}
+  <div class="set-dex-head">
+    {{ partial "subpage-head.html" (dict "title" (cond $isEn "Settings" "设置") "isEn" $isEn) }}
+  </div>
+
   {{/* Mobile：标题 + 账户卡 + 分类列表（进子页） */}}
   <div class="set-mobile-only">
     {{ partial "subpage-head.html" (dict "title" (cond $isEn "Settings" "设置") "isEn" $isEn "noBack" true) }}
@@ -37,12 +44,11 @@
     </div>
   </div>
 
-  {{/* DeX/PC：左右双栏。左栏标题+账户卡+分类导航；右栏详情窗格（复用子页同一套 partial）。
+  {{/* DeX/PC：左右双栏（左栏账户卡 + 分类导航，右栏详情窗格）。
+       标题区已移到上方（.set-dex-head），左栏不再放标题。
        security 仍是独立页面，点导航直接跳转。 */}}
+  <div class="set-dex-cols">
   <div class="set-col-l">
-    {{/* D3(a)：DeX 左栏标题只做紧凑展示，不带滚动时间线/mini-title/按钮；
-         滚动联动与吸顶只走手机端 set-mobile-only 那一份标题，避免 --sgx-subhead 重名。 */}}
-    {{ partial "subpage-head.html" (dict "title" (cond $isEn "Settings" "设置") "isEn" $isEn "noTimeline" true) }}
     {{ partial "sgx-account-card.html" . }}
     <aside class="set-side" aria-label="{{ if $isEn }}Categories{{ else }}分类{{ end }}">
       <nav class="flex flex-col gap-1" id="set-cat-nav">
@@ -70,6 +76,7 @@
       {{ end }}
     </div>
   </div>
+  </div>{{/* /.set-dex-cols */}}
 </div>
 
 <script>

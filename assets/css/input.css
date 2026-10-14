@@ -1320,36 +1320,38 @@
      左栏 clamp(320px,36%,420px)：大标题（公共组件，靠左）＋ 账号卡 ＋ 菜单；
      右栏占剩余宽度：顶部选中项名称 ＋ 详情卡片（最大 720px，左对齐）。
      两栏各自独立滚动，底部留出胶囊＋Dock 高度。在 .layout-dex / .layout-pc（横屏宽屏）生效。 */
-  /* 2.6.0：双栏结构只在 DeX/PC 显示；移动端只显示分类列表 */
+  /* 2.6.0：双栏结构只在 DeX/PC 显示；移动端只显示分类列表。
+     Gray 2026-10-15：DeX 标题区移到两栏上方（.set-dex-head，与我的文件一致），
+     两栏（.set-dex-cols）在按钮行下方，G=8。 */
+  .set-dex-head, .set-dex-cols { display: none; }
   .set-col-l, .set-col-r { display: none; }
   .set-side { display: none; }
   .set-right-title { display: none; }
   .layout-dex, .layout-pc {
     .set-mobile-only { display: none; }
-    /* D4 fix: Two-column grid only for settings index (has .set-col-l), not subpages.
-       Subpages use normal centered max-w-2xl layout. */
-    .set-layout:has(.set-col-l) {
+    /* 设置首页容器在 DeX 下放宽（两栏需要宽度）；子页无 .set-dex-cols，不受影响。 */
+    .set-layout:has(.set-dex-cols) { max-width: none; }
+    /* DeX 标题区：与我的文件同几何（1100px 居中 + px-4），标题字号字重top高度、
+       按钮中心 y、左右边距（122/122）自动与我的文件一致。 */
+    .set-dex-head {
+      display: block;
+      max-width: 1100px; margin-left: auto; margin-right: auto;
+      padding-left: 16px; padding-right: 16px;
+    }
+    /* 两栏布局：标题区下方，按钮底边到两栏顶边 G=8。
+       按钮在标题区底部（bottom: --sgx-head-btn-gap=8px），故 margin-top:0 即 G=8。 */
+    .set-dex-cols {
       max-width: none; display: grid;
       grid-template-columns: clamp(320px,36%,420px) minmax(0,1fr); gap: 16px; align-items: start;
-      position: relative; /* D4 fix: DeX settings buttons align to whole content container, not left column */
+      margin-top: 0;
+      position: relative;
     }
-    /* D4 fix: DeX settings left-column header buttons (back + three-dot) align to the whole
-       .set-layout container with 122/122 margins (matching files on DeX per v1.3 §8),
-       not to the narrow left column. */
-    .set-col-l .subpage-head { position: static; }
-    .set-col-l .subpage-back { left: 122px; }
-    .set-col-l .subpage-actions { right: 122px; }
-    /* 左栏：标题＋账号卡固定，菜单列表过长时独立滚动 */
+    /* 左栏：账户卡＋菜单（标题已移到 .set-dex-head）；菜单列表过长时独立滚动 */
     .set-col-l {
       display: flex; flex-direction: column; min-width: 0; min-height: 0;
       max-height: calc(100vh - var(--nav-h,64px) - 16px - env(safe-area-inset-top,0px) - 92px - env(safe-area-inset-bottom,0px));
       max-height: calc(100dvh - var(--nav-h,64px) - 16px - env(safe-area-inset-top,0px) - 92px - env(safe-area-inset-bottom,0px));
-      .subpage-head {
-        min-height: 0; min-height: 0;
-        padding: 6px 0 10px; display: flex; flex-direction: column;
-        align-items: flex-start; justify-content: flex-start; text-align: left; flex-shrink: 0;
-      }
-      .sgx-account-card { margin: 2px 0 12px; flex-shrink: 0; }
+      .sgx-account-card { margin: 0 0 12px; flex-shrink: 0; }
     }
     .set-side {
       display: flex; flex-direction: column; min-width: 0; min-height: 0; max-height: none;
