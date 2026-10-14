@@ -640,6 +640,29 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
     expect(pageErrors).toEqual([]);
   });
 
+  test('v1.1 §二.1：胶囊在首次数据加载完成后再显示（状态接口延迟时胶囊不先出现）', async ({ page }) => {
+    /* 探针通过（stepup 有效），门才能开 */
+    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
+    /* 第 1 次 owner-status（探针）立即返回；之后（refreshStatus）延迟 1500ms，模拟慢网络 */
+    let ownerStatusCount = 0;
+    await page.route('**/api/owner-status', async (route) => {
+      ownerStatusCount += 1;
+      if (ownerStatusCount > 1) await new Promise((r) => setTimeout(r, 1500));
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, password: true, passkey: true }),
+      });
+    });
+    await page.goto('/settings/security/owner/', { waitUntil: 'domcontentloaded' });
+    /* 门已开（管理区可见），但首次数据还没回来 → 胶囊不应出现 */
+    await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#sgx-door-countdown')).toHaveCount(0);
+    /* 数据回来后胶囊才出现 */
+    await expect(page.locator('#sgx-door-countdown')).toBeVisible({ timeout: 10000 });
+    expect(pageErrors).toEqual([]);
+  });
+
   test('管理凭证索引页探针成功后也显示倒计时', async ({ page }) => {
     await mockJson(page, '**/api/lock-status', 200, { ok: true, password: true, passkey: true });
     await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });

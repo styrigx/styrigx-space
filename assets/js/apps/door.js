@@ -115,8 +115,9 @@ export function initDoor(o) {
   });
 
   /* ---------- 状态 ---------- */
+  /* v1.1 §二.1：返回请求 Promise，供进门回调等首次数据加载完成后再显示胶囊 */
   function refreshStatus() {
-    fetch(statusApi, { method: 'GET', credentials: 'same-origin' })
+    return fetch(statusApi, { method: 'GET', credentials: 'same-origin' })
       .then(function (r) {
         return r.json();
       })
@@ -592,7 +593,7 @@ export function initDoor(o) {
     const ul = $('lockmgr-pklist');
     const empty = $('lockmgr-pkempty');
     /* 批次 A 验收修复 P0：list 带页面类别，服务端只返回该类 */
-    api('/api/owner-passkey', { action: 'list', pkClass: o.keyClass }, t)
+    return api('/api/owner-passkey', { action: 'list', pkClass: o.keyClass }, t)
       .then(function (res) {
         const j = res.json;
         if (!j) return;
@@ -884,8 +885,9 @@ export function initDoor(o) {
     /* 探针通过后才渲染门内内容（容器默认 hidden，见模板） */
     const mgr = $('lockmgr');
     if (mgr) mgr.hidden = false;
-    startDoorCountdown(t, result && result.expiresAt);
-    refreshStatus();
-    refreshPkList();
+    /* v1.1 §二.1：胶囊在首次数据加载完成后再显示，避免「胶囊已显示、卡片还空着」；
+       任一请求失败也照常显示胶囊（两函数内部已吞错，Promise 恒 resolve）。 */
+    const startCapsule = function () { startDoorCountdown(t, result && result.expiresAt); };
+    Promise.all([refreshStatus(), refreshPkList()]).then(startCapsule, startCapsule);
   }, t);
 }

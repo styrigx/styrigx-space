@@ -175,9 +175,10 @@ import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown } fr
       document.body.classList.remove('sgx-locked');
     } catch (e) {}
     $('lockmgr').hidden = false;
-    startDoorCountdown(t);
-    refreshStatus();
-    refreshPkList();
+    /* v1.1 §二.1：胶囊在首次数据加载完成后再显示，避免「胶囊已显示、卡片还空着」；
+       任一请求失败也照常显示胶囊（两函数内部已吞错，Promise 恒 resolve）。 */
+    const startCapsule = function () { startDoorCountdown(t); };
+    Promise.all([refreshStatus(), refreshPkList()]).then(startCapsule, startCapsule);
   }
 
   /* 显示/隐藏眼睛（批次 A 验收修复 P2：bindEyeButton 统一接管图标 + 文案 + 复位） */
@@ -193,11 +194,12 @@ import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown } fr
 
   /* ---------- 管理区 ---------- */
   var hasPk = false;
+  /* v1.1 §二.1：返回请求 Promise，供进门回调等首次数据加载完成后再显示胶囊 */
   function refreshStatus() {
     /* 状态接口按模式选择：owner 模式读 /api/owner-status（owner-pw + class=owner），
        lock 模式读 /api/lock-status（lock-pw + class=lock）。
        注意：lock-status 在 scope=root 票据下不可读，owner 模式必须用 owner-status。 */
-    fetch(statusApi, { method: 'GET', credentials: 'same-origin' })
+    return fetch(statusApi, { method: 'GET', credentials: 'same-origin' })
       .then(function (r) {
         return r.json();
       })
@@ -576,7 +578,7 @@ import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown } fr
   function refreshPkList() {
     const ul = $('lockmgr-pklist');
     const empty = $('lockmgr-pkempty');
-    api('/api/owner-passkey', { action: 'list', pkClass: pageClass })
+    return api('/api/owner-passkey', { action: 'list', pkClass: pageClass })
       .then(function (res) {
         const j = res.json;
         if (!j) return;
