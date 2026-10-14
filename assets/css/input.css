@@ -1339,9 +1339,14 @@
       padding-left: 16px; padding-right: 16px;
     }
     /* 两栏布局：标题区下方，按钮底边到两栏顶边 G=8。
-       按钮在标题区底部（bottom: --sgx-head-btn-gap=8px），故 margin-top:0 即 G=8。 */
+       按钮在标题区底部（bottom: --sgx-head-btn-gap=8px），故 margin-top:0 即 G=8。
+       Gray 2026-10-15：两栏容器与 .set-dex-head 同宽（1100px 居中），
+       内容左右边缘跟 ← ⋮ 按钮对齐（122/122）：head 外边 90px + padding 32px = 122px。
+       左右栏宽度比例不变（grid-template-columns 不动）。 */
     .set-dex-cols {
-      max-width: none; display: grid;
+      max-width: 1100px; margin-left: auto; margin-right: auto;
+      padding-left: 32px; padding-right: 32px;
+      display: grid;
       grid-template-columns: clamp(320px,36%,420px) minmax(0,1fr); gap: 16px; align-items: start;
       margin-top: 0;
       position: relative;
