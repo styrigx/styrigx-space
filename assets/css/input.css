@@ -98,6 +98,11 @@
       --m-on-primary: #ffffff;
       --m-primary-container: #d3e6f5;
       --m-on-primary-container: #0c2f47;
+      /* C3 进入凭证按钮：固定深蓝（深浅色一致，保证对比度 ≥4.5:1） */
+      --sgx-door-btn-bg: #2f5f86;
+      --sgx-door-btn-fg: #ffffff;
+      --sgx-door-btn2-bg: #dbe7f3;
+      --sgx-door-btn2-fg: #2f5f86;
       --m-secondary: #4e6577;
       --m-on-secondary: #ffffff;
       --m-secondary-container: #d1e4f3;
@@ -140,6 +145,11 @@
       --m-on-primary: #003351;
       --m-primary-container: #1e4767;
       --m-on-primary-container: #d3e6f5;
+      /* C3 进入凭证按钮：固定深蓝（深浅色一致，保证对比度 ≥4.5:1） */
+      --sgx-door-btn-bg: #2f5f86;
+      --sgx-door-btn-fg: #ffffff;
+      --sgx-door-btn2-bg: #dbe7f3;
+      --sgx-door-btn2-fg: #2f5f86;
       --m-secondary: #aec6d8;
       --m-on-secondary: #0c2f3f;
       --m-secondary-container: #324a5c;
@@ -308,6 +318,11 @@
       --m-on-primary: light-dark(#ffffff, #003351);
       --m-primary-container: light-dark(#d3e6f5, #1e4767);
       --m-on-primary-container: light-dark(#0c2f47, #d3e6f5);
+      /* C3 进入凭证按钮：固定深蓝（深浅色一致，保证对比度 ≥4.5:1） */
+      --sgx-door-btn-bg: #2f5f86;
+      --sgx-door-btn-fg: #ffffff;
+      --sgx-door-btn2-bg: #dbe7f3;
+      --sgx-door-btn2-fg: #2f5f86;
       --m-secondary: light-dark(#4e6577, #aec6d8);
       --m-on-secondary: light-dark(#ffffff, #0c2f3f);
       --m-secondary-container: light-dark(#d1e4f3, #324a5c);
@@ -2225,16 +2240,16 @@
   }
   .sgx-door-actions .sgx-door-textbtn.primary { color: var(--m-primary); font-weight: 600; }
   /* C3：进入凭证弹层底部圆角矩形按钮（等宽并排）。
-     验证：深蓝底白字（#2f5f86/#fff，对比度 6.77:1）；
-     取消：浅底深蓝字（#dbe7f3/#2f5f86，对比度 5.4:1）。
-     固定色保证深浅色模式对比度均 ≥4.5:1。 */
+     验证：深蓝底白字（对比度 6.77:1）；
+     取消：浅底深蓝字（对比度 5.4:1）。
+     固定色保证深浅色模式对比度均 ≥4.5:1（变量在 tokens 层定义）。 */
   .sgx-door-btn {
     flex: 1; border: 0; border-radius: 14px; padding: 14px 16px; min-height: 52px;
     font-size: 16px; font-weight: 600; cursor: pointer;
     display: inline-flex; align-items: center; justify-content: center;
   }
-  .sgx-door-btn-primary { background: #2f5f86; color: #ffffff; }
-  .sgx-door-btn-secondary { background: #dbe7f3; color: #2f5f86; }
+  .sgx-door-btn-primary { background: var(--sgx-door-btn-bg); color: var(--sgx-door-btn-fg); }
+  .sgx-door-btn-secondary { background: var(--sgx-door-btn2-bg); color: var(--sgx-door-btn2-fg); }
 
   /* 弹层打开时底层名字与入口：隐藏且不可交互（JS 另加 inert） */
   .sgx-bg-hidden { visibility: hidden; }
