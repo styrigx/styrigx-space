@@ -2224,6 +2224,17 @@
     font-size: 16px; cursor: pointer; color: var(--m-on-surface-variant);
   }
   .sgx-door-actions .sgx-door-textbtn.primary { color: var(--m-primary); font-weight: 600; }
+  /* C3：进入凭证弹层底部圆角矩形按钮（等宽并排）。
+     验证：深蓝底白字（#2f5f86/#fff，对比度 6.77:1）；
+     取消：浅底深蓝字（#dbe7f3/#2f5f86，对比度 5.4:1）。
+     固定色保证深浅色模式对比度均 ≥4.5:1。 */
+  .sgx-door-btn {
+    flex: 1; border: 0; border-radius: 14px; padding: 14px 16px; min-height: 52px;
+    font-size: 16px; font-weight: 600; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .sgx-door-btn-primary { background: #2f5f86; color: #ffffff; }
+  .sgx-door-btn-secondary { background: #dbe7f3; color: #2f5f86; }
 
   /* 弹层打开时底层名字与入口：隐藏且不可交互（JS 另加 inert） */
   .sgx-bg-hidden { visibility: hidden; }
@@ -2271,6 +2282,18 @@
   .sgx-verify-ghost {
     background: none; border: 1px solid var(--m-outline); border-radius: 999px;
     padding: 10px 24px; font-size: 15px; font-weight: 600; cursor: pointer; color: var(--m-on-surface);
+  }
+  /* C2：重置锁屏（2/2）选项行与恢复提示 */
+  .sgx-reset-hint {
+    font-size: 15px; color: var(--m-on-surface); text-align: left; width: 100%;
+    margin-bottom: 4px;
+  }
+  .sgx-reset-opts {
+    display: flex; flex-direction: column; gap: 12px; width: 100%;
+  }
+  .sgx-reset-recover-hint {
+    font-size: 13px; color: var(--m-on-surface-variant); text-align: left; width: 100%;
+    margin-top: 12px; line-height: 1.5;
   }
   /* 统一弹层内容区：三态同尺寸，min-height 防跳动 */
   .sgx-verify-body {

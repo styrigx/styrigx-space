@@ -11,7 +11,7 @@ import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton, showCenterDialog } from '../lib/dialog-behavior.js';
-import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown } from './app-gate.js';
+import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown, guardDoorExpired } from './app-gate.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -28,6 +28,11 @@ import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown } fr
   const isOwnerMode = MODE === 'owner';
   /** 密码 kind：owner 模式用 'owner'，lock 模式用 'lock' */
   const pwKind = isOwnerMode ? 'owner' : 'lock';
+  /** C6：重置会话模式（lockreset 票据）。重置会话里不使用门内到期框。 */
+  var isLockreset = false;
+  try {
+    isLockreset = document.documentElement.dataset.sgxSession === 'lockreset';
+  } catch (e) {}
   /** 状态接口：owner 模式读 /api/owner-status（lock-status 在 scope=root 不可读） */
   const statusApi = isOwnerMode ? '/api/owner-status' : '/api/lock-status';
   /** @type {any} */
@@ -150,8 +155,41 @@ import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown } fr
   function needReauth(code, detail) {
     /* P2-14：先收起当前所有 sheet 再弹框，禁止弹层叠弹层 */
     closeOpenSheets();
+    /* C6：重置会话里不使用门内到期框 */
+    if (isLockreset) {
+      showLockresetDoneDialog();
+      return;
+    }
     if (code === 'session') needVerify(t, 'session', detail);
     else needVerify(t, 'stepup', detail || code);
+  }
+
+  /**
+   * C6：重置会话的结束弹框（不用门内到期框）。
+   * - 已设置好凭证（hasPw || hasPk）：「解锁方式已设置，请回锁屏解锁」
+   * - 真到期（未设置好）：「验证已过期，请回锁屏重新开始」
+   * 按钮都是「去锁屏」，一律 location.replace('/?lock=1')，不经主页。
+   */
+  function showLockresetDoneDialog() {
+    var done = hasPw || hasPk;
+    showCenterDialog({
+      title: done
+        ? (en ? 'Setup complete' : '设置完成')
+        : (en ? 'Verification expired' : '验证已过期'),
+      desc: done
+        ? (en ? 'Unlock method is set. Please go back to the lock screen to unlock.'
+              : '解锁方式已设置，请回锁屏解锁')
+        : (en ? 'Please go back to the lock screen to start over.'
+              : '验证已过期，请回锁屏重新开始'),
+      dismissible: false,
+      buttons: [{
+        label: en ? 'Go to lock screen' : '去锁屏',
+        kind: 'primary',
+        onClick: function () {
+          try { location.replace('/?lock=1'); } catch (e) {}
+        },
+      }],
+    });
   }
 
   /**
@@ -284,6 +322,8 @@ import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown } fr
     let armTimer = 0;
     const origText = pwDel.textContent;
     on(pwDel, 'click', function () {
+      /* C5：已过期时第一下就弹到期框，不进入「再点一次」 */
+      if (guardDoorExpired(t)) return;
       /* v1.1 §二.4：删最后一把锁屏密码 → 跳过「再点一次」，点「删除」直接弹确认框 */
       if (pwKind === 'lock' && !hasPk) {
         var resetArmed = function () { armed = false; pwDel.textContent = origText; pwDel.classList.remove('armed'); };
@@ -495,7 +535,12 @@ import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown } fr
             refreshPkList();
             refreshDoorCountdown(t);
           } else if (j && isReauthError(j.error)) {
-            needReauth(j && j.error, j && j.reason);
+            /* C6：重置会话里 rename 被拒（scope）不是过期，行内提示，不弹框 */
+            if (isLockreset && j.error === 'scope') {
+              showErr('lockpkname-err', t('pkRenameResetNo'));
+            } else {
+              needReauth(j && j.error, j && j.reason);
+            }
           } else if (j && j.error === 'not-found') {
             /* KV 最终一致：刚注册的 key 可能暂时读不到 */
             showErr('lockpkname-err', t('pkRetryLater'));
@@ -660,6 +705,8 @@ import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown } fr
           let armTimer = 0;
           on(del, 'click', function (e) {
             e.stopPropagation();
+            /* C5：已过期时第一下就弹到期框，不进入「再点一次」 */
+            if (guardDoorExpired(t)) return;
             /* v1.1 §二.4：删最后一把锁屏钥匙 → 跳过「再点一次」，点「删除」直接弹确认框 */
             if (pageClass === 'lock' && keys.length <= 1 && !hasPw) {
               var resetPkArmed = function () { armed = false; del.textContent = t('pkDel'); del.classList.remove('armed'); };

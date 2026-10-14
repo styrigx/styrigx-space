@@ -222,7 +222,8 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
       footEl.innerHTML = '';
       const c = document.createElement('button');
       c.type = 'button';
-      c.className = 'sgx-door-cancel';
+      /* C3：取消用圆角矩形浅底深蓝字按钮 */
+      c.className = 'sgx-door-btn sgx-door-btn-secondary';
       c.textContent = en ? 'Cancel' : '取消';
       on(c, 'click', function () { closeDlg('cancel-btn'); });
       footEl.appendChild(c);
@@ -234,12 +235,14 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
       wrap.className = 'sgx-door-actions';
       const cancel = document.createElement('button');
       cancel.type = 'button';
-      cancel.className = 'sgx-door-textbtn';
+      /* C3：圆角矩形按钮，取消浅底深蓝字 */
+      cancel.className = 'sgx-door-btn sgx-door-btn-secondary';
       cancel.textContent = en ? 'Cancel' : '取消';
       on(cancel, 'click', collapse);
       const go = document.createElement('button');
       go.type = 'button';
-      go.className = 'sgx-door-textbtn primary';
+      /* C3：圆角矩形按钮，验证深蓝底白字 */
+      go.className = 'sgx-door-btn sgx-door-btn-primary';
       go.textContent = en ? 'Verify' : '验证';
       /* 批次 A 收尾：pointerup（要求 pointerdown 也在按钮）+ click 兜底，去重只提交一次 */
       bindSubmitButton(go, onVerify);
