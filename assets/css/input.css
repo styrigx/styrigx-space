@@ -1492,6 +1492,12 @@
     &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: -2px; }
     /* 批次 A 验收修复 P2：.off 透明机制废弃，改由 eye / eye-off 图标切换区分明密文 */
   }
+  /* B14 fix (Gray 2026-10-15)：锁定屏幕 360 折叠态大标题与顶栏重叠。
+     根因：页面内容太短（~878px），最大滚动仅 ~78px，不足以让标题区退出 70%
+     （折叠动画需要标题区高度 274px × 70% ≈ 192px 滚动），导致大标题不能完全
+     淡出、小标题不能淡入。给最小高度确保折叠能完成，与我的文件行为一致。
+     只影响锁定屏幕页（.lock-page），其他页面不动。 */
+  .layout-mobile .lock-page { min-height: calc(100svh + 220px); }
   .lockmgr-pklist { list-style: none; margin: 0; padding: 8px; display: flex; flex-direction: column; gap: 8px; &[hidden] { display: none; } }
   .lockmgr-pkitem {
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
