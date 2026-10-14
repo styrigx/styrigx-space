@@ -127,7 +127,8 @@ export function showExpiredDialog(t, kind, detail) {
   expiredDialogOpen = true;
   /* 探针失败也可能弹框：先移除全局锁屏遮罩，避免盖住弹框 */
   clearLockOverlay();
-  stopDoorCountdown();
+  /* v1.1 §二.2：弹框出现时隐藏倒计时胶囊（避免胶囊「验证剩余 2:55」与弹框「验证已过期」矛盾） */
+  hideDoorCountdown();
   const isSession = kind === 'session';
   const isOwnerConfigured = detail === 'owner-configured';
   const title = isSession
@@ -241,12 +242,25 @@ export function refreshDoorCountdown(t) {
   startDoorCountdown(t);
 }
 
-/** 停倒计时（弹框时调用；胶囊保留在当前值，不消失） */
+/** 停倒计时（到 0 / 取 expiresAt 失败时调用；胶囊保留在当前值，不消失） */
 export function stopDoorCountdown() {
   if (countdownTimer) {
     window.clearInterval(countdownTimer);
     countdownTimer = null;
   }
+}
+
+/**
+ * 隐藏倒计时胶囊（v1.1 §二.2：到期/会话失效弹框出现时调用）。
+ * 停表 + 把胶囊从 DOM 移除（countdownEl 置空，后续 startDoorCountdown 会重建）。
+ * 探针失败时胶囊还没创建，调用安全（直接返回）。
+ */
+function hideDoorCountdown() {
+  stopDoorCountdown();
+  try {
+    if (countdownEl) countdownEl.remove();
+  } catch (e) {}
+  countdownEl = null;
 }
 
 /**

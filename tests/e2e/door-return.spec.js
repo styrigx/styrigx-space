@@ -355,6 +355,8 @@ test.describe('批次 A 验收修复 #7：锁屏页探针失败走 needVerify（
     await expect(dlg).toBeVisible({ timeout: 5000 });
     await expect(dlg).toContainText('会话已失效');
     await expect(dlg.locator('button.sgx-verify-skip')).toHaveText('去锁屏');
+    /* v1.1 §二.2：弹框出现时倒计时胶囊隐藏 */
+    await expect(page.locator('#sgx-door-countdown')).toHaveCount(0);
     /* 不点不跳 */
     await expect(page).toHaveURL(/\/settings\/security\/lock\//);
     expect(pageErrors).toEqual([]);
@@ -517,6 +519,8 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
     await expect(dlg).toBeVisible({ timeout: 5000 });
     await expect(dlg).toContainText('验证已过期，请重新验证');
     await expect(dlg.locator('button.sgx-verify-skip')).toHaveText('返回安全与隐私');
+    /* v1.1 §二.2：弹框出现时倒计时胶囊隐藏 */
+    await expect(page.locator('#sgx-door-countdown')).toHaveCount(0);
     /* 不点不跳 */
     await expect(page).toHaveURL(/\/settings\/security\/owner\//);
     /* 票据失效后无 doStepup / challenge 请求 */
@@ -544,6 +548,8 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
     await expect(dlg).toBeVisible({ timeout: 5000 });
     await expect(dlg).toContainText('会话已失效');
     await expect(dlg.locator('button.sgx-verify-skip')).toHaveText('去锁屏');
+    /* v1.1 §二.2：弹框出现时倒计时胶囊隐藏 */
+    await expect(page.locator('#sgx-door-countdown')).toHaveCount(0);
     await expect(page).toHaveURL(/\/settings\/security\/owner\//);
     /* 点按钮 → 重载（静态构建无中间件：探针仍通过，弹框消失、倒计时重启） */
     await dlg.locator('button.sgx-verify-skip').click();
@@ -552,7 +558,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
     expect(pageErrors).toEqual([]);
   });
 
-  test('两个请求同时失败 → 只有一个弹框；遮罩、Escape 关不掉；弹框后倒计时仍在', async ({ page }) => {
+  test('两个请求同时失败 → 只有一个弹框；遮罩、Escape 关不掉；弹框后倒计时胶囊隐藏', async ({ page }) => {
     await mockJson(page, '**/api/lock-status', 200, { ok: true, password: true, passkey: false });
     await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
     /* 锁屏页：本页类 + 应用类列表同时 403 */
@@ -573,9 +579,8 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
     /* Escape 关不掉 */
     await page.keyboard.press('Escape');
     await expect(dlg).toBeVisible();
-    /* 弹框后倒计时仍在（停在当前值，不消失） */
-    await expect(page.locator('#sgx-door-countdown')).toBeVisible();
-    await expect(page.locator('#sgx-door-countdown')).toHaveText(/验证剩余 \d+:\d\d/);
+    /* v1.1 §二.2：弹框后倒计时胶囊隐藏（与弹框文案不再矛盾） */
+    await expect(page.locator('#sgx-door-countdown')).toHaveCount(0);
     expect(challengeCalls).toBe(0);
     expect(pageErrors).toEqual([]);
   });
