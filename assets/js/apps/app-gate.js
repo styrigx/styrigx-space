@@ -138,9 +138,9 @@ export function showExpiredDialog(t, kind, detail) {
   if (isOwnerConfigured) {
     desc = tx(t, 'errOwnerConfigured', '站长凭证已设置，请用站长凭证重新验证', 'Owner credential is set, please verify with the owner credential again');
   } else if (isSession) {
-    desc = tx(t, 'expiredSessionDesc', '会话已失效，请重新进入锁屏。', 'Your session has expired. Please go back to the lock screen.');
+    desc = tx(t, 'expiredSessionDesc', '请回到锁屏重新解锁', 'Please go back to the lock screen to unlock again.');
   } else {
-    desc = tx(t, 'expiredStepupDesc', '验证已过期，请重新验证', 'Verification has expired. Please verify again.');
+    desc = tx(t, 'expiredStepupDesc', '请返回安全与隐私重新验证', 'Please go back to Security & Privacy to verify again.');
   }
   const btnLabel = isSession
     ? tx(t, 'expiredSessionBtn', '去锁屏', 'Go to lock screen')

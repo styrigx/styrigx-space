@@ -517,7 +517,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
     await page.locator('#lockmgr-pwdel').click();
     const dlg = page.locator('dialog.sgx-center-dlg');
     await expect(dlg).toBeVisible({ timeout: 5000 });
-    await expect(dlg).toContainText('验证已过期，请重新验证');
+    await expect(dlg).toContainText('请返回安全与隐私重新验证');
     await expect(dlg.locator('button.sgx-verify-skip')).toHaveText('返回安全与隐私');
     /* v1.1 §二.2：弹框出现时倒计时胶囊隐藏 */
     await expect(page.locator('#sgx-door-countdown')).toHaveCount(0);
@@ -547,6 +547,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
     const dlg = page.locator('dialog.sgx-center-dlg');
     await expect(dlg).toBeVisible({ timeout: 5000 });
     await expect(dlg).toContainText('会话已失效');
+    await expect(dlg).toContainText('请回到锁屏重新解锁');
     await expect(dlg.locator('button.sgx-verify-skip')).toHaveText('去锁屏');
     /* v1.1 §二.2：弹框出现时倒计时胶囊隐藏 */
     await expect(page.locator('#sgx-door-countdown')).toHaveCount(0);
