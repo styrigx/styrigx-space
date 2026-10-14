@@ -645,11 +645,13 @@ test.describe('A-2 最后一把锁屏钥匙与 ownerkey 联动', () => {
     const lockKeys = [{ credId: 'lock-key-001', name: 'test', class: 'lock', createdAt: 1, lastUsedAt: 0 }];
     const { getDeleteCalls } = await gotoLockPage(page, { lockPw: false, lockKeys });
     await expect(page.locator('.lockmgr-pkdel')).toBeVisible({ timeout: 5000 });
-    /* 两步武装 + 确认弹框 */
-    await page.locator('.lockmgr-pkdel').click();
+    /* v1.1 §二.4：删最后一把跳过「再点一次」，点「删除」直接弹确认框（只一次确认） */
     await page.locator('.lockmgr-pkdel').click();
     const dlg = page.locator('dialog.sgx-center-dlg');
     await expect(dlg).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('dialog.sgx-center-dlg')).toHaveCount(1);
+    /* 无 armed 中间态：按钮文案仍是「删除」，没变成「再点一次删除」 */
+    await expect(page.locator('.lockmgr-pkdel')).toHaveText('删除');
     await expect(dlg).toContainText('删除后锁屏只能通过重置锁屏重新设置');
     expect(getDeleteCalls()).toBe(0);
     /* 点删除 → 调删除接口 → 成功提示 */
@@ -662,7 +664,7 @@ test.describe('A-2 最后一把锁屏钥匙与 ownerkey 联动', () => {
     const lockKeys = [{ credId: 'lock-key-001', name: 'test', class: 'lock', createdAt: 1, lastUsedAt: 0 }];
     await gotoLockPage(page, { lockPw: false, lockKeys, deleteStatus: 403, deleteBody: { ok: false, error: 'last-key' } });
     await expect(page.locator('.lockmgr-pkdel')).toBeVisible({ timeout: 5000 });
-    await page.locator('.lockmgr-pkdel').click();
+    /* v1.1 §二.4：点「删除」直接弹确认框 */
     await page.locator('.lockmgr-pkdel').click();
     const dlg = page.locator('dialog.sgx-center-dlg');
     await expect(dlg).toBeVisible({ timeout: 5000 });
@@ -673,10 +675,11 @@ test.describe('A-2 最后一把锁屏钥匙与 ownerkey 联动', () => {
   test('有 ownerkey 时删最后一把 lock 密码：先弹确认，点删除后成功', async ({ page }) => {
     const { getRemoveCalls } = await gotoLockPage(page, { lockPw: true, lockKeys: [] });
     await expect(page.locator('#lockmgr-pwdel')).toBeVisible({ timeout: 5000 });
-    await page.locator('#lockmgr-pwdel').click();
+    /* v1.1 §二.4：点「删除密码」直接弹确认框，无 armed 中间态 */
     await page.locator('#lockmgr-pwdel').click();
     const dlg = page.locator('dialog.sgx-center-dlg');
     await expect(dlg).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#lockmgr-pwdel')).toHaveText('删除密码');
     await expect(dlg).toContainText('删除后锁屏只能通过重置锁屏重新设置');
     expect(getRemoveCalls()).toBe(0);
     await dlg.locator('button', { hasText: '删除' }).click();
@@ -688,12 +691,29 @@ test.describe('A-2 最后一把锁屏钥匙与 ownerkey 联动', () => {
     const lockKeys = [{ credId: 'lock-key-001', name: 'test', class: 'lock', createdAt: 1, lastUsedAt: 0 }];
     const { getDeleteCalls } = await gotoLockPage(page, { lockPw: false, lockKeys });
     await expect(page.locator('.lockmgr-pkdel')).toBeVisible({ timeout: 5000 });
-    await page.locator('.lockmgr-pkdel').click();
+    /* v1.1 §二.4：点「删除」直接弹确认框 */
     await page.locator('.lockmgr-pkdel').click();
     const dlg = page.locator('dialog.sgx-center-dlg');
     await expect(dlg).toBeVisible({ timeout: 5000 });
     await dlg.locator('button', { hasText: '取消' }).click();
     await expect(dlg).toBeHidden();
     expect(getDeleteCalls()).toBe(0);
+  });
+
+  test('非最后一把删除保持两步武装（A 现状不变）', async ({ page }) => {
+    const lockKeys = [
+      { credId: 'lock-key-001', name: 'test1', class: 'lock', createdAt: 1, lastUsedAt: 0 },
+      { credId: 'lock-key-002', name: 'test2', class: 'lock', createdAt: 2, lastUsedAt: 0 },
+    ];
+    const { getDeleteCalls } = await gotoLockPage(page, { lockPw: false, lockKeys });
+    const firstDel = page.locator('.lockmgr-pkdel').first();
+    await expect(firstDel).toBeVisible({ timeout: 5000 });
+    /* 第 1 点武装：文案变「再点一次删除」，不弹框 */
+    await firstDel.click();
+    await expect(firstDel).toHaveText('再点一次删除');
+    await expect(page.locator('dialog.sgx-center-dlg')).toHaveCount(0);
+    /* 第 2 点才真正调删除接口 */
+    await firstDel.click();
+    await expect.poll(() => getDeleteCalls()).toBe(1);
   });
 });

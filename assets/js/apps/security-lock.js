@@ -282,6 +282,21 @@ import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown } fr
     let armTimer = 0;
     const origText = pwDel.textContent;
     on(pwDel, 'click', function () {
+      /* v1.1 §二.4：删最后一把锁屏密码 → 跳过「再点一次」，点「删除」直接弹确认框 */
+      if (pwKind === 'lock' && !hasPk) {
+        var resetArmed = function () { armed = false; pwDel.textContent = origText; pwDel.classList.remove('armed'); };
+        showCenterDialog({
+          title: t('lastKeyConfirmTitle'),
+          desc: t('lastKeyConfirmDesc'),
+          dismissible: true,
+          onCancel: resetArmed,
+          buttons: [
+            { label: t('lastKeyConfirmCancel'), kind: 'ghost', onClick: resetArmed },
+            { label: t('lastKeyConfirmDelete'), kind: 'primary', onClick: function () { doRemovePw(); } },
+          ],
+        });
+        return;
+      }
       if (!armed) {
         armed = true;
         /* 如果删完后密码和通行密钥都没了：lock 模式 → 锁屏只能通过重置锁屏重新设置；
@@ -300,23 +315,6 @@ import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown } fr
         return;
       }
       window.clearTimeout(armTimer);
-      /* A-2：删后锁屏凭证归零 → 先弹确认（与到期弹框共用 showCenterDialog），
-         点删除才真正调删除接口；服务端无 ownerkey 时仍 403 last-key。 */
-      if (pwKind === 'lock' && !hasPk) {
-        /* helper 已在按钮点击时关弹框；onClick 不传 close。取消/遮罩/Escape 都走 onCancel 复位 armed。 */
-        var resetArmed = function () { armed = false; pwDel.textContent = origText; pwDel.classList.remove('armed'); };
-        showCenterDialog({
-          title: t('lastKeyConfirmTitle'),
-          desc: t('lastKeyConfirmDesc'),
-          dismissible: true,
-          onCancel: resetArmed,
-          buttons: [
-            { label: t('lastKeyConfirmCancel'), kind: 'ghost', onClick: resetArmed },
-            { label: t('lastKeyConfirmDelete'), kind: 'primary', onClick: function () { doRemovePw(); } },
-          ],
-        });
-        return;
-      }
       doRemovePw();
       function doRemovePw() {
       api('/api/owner-password', { action: 'remove', kind: pwKind })
@@ -660,22 +658,8 @@ import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown } fr
           let armTimer = 0;
           on(del, 'click', function (e) {
             e.stopPropagation();
-            if (!armed) {
-              armed = true;
-              del.textContent = t('pkDelAsk');
-              del.classList.add('armed');
-              armTimer = window.setTimeout(function () {
-                armed = false;
-                del.textContent = t('pkDel');
-                del.classList.remove('armed');
-              }, 3000);
-              return;
-            }
-            window.clearTimeout(armTimer);
-            /* A-2：删后锁屏凭证归零 → 先弹确认（与到期弹框共用 showCenterDialog），
-               点删除才真正调删除接口；服务端无 ownerkey 时仍 403 last-key。 */
+            /* v1.1 §二.4：删最后一把锁屏钥匙 → 跳过「再点一次」，点「删除」直接弹确认框 */
             if (pageClass === 'lock' && keys.length <= 1 && !hasPw) {
-              /* helper 已在按钮点击时关弹框；onClick 不传 close。取消/遮罩/Escape 都走 onCancel 复位 armed。 */
               var resetPkArmed = function () { armed = false; del.textContent = t('pkDel'); del.classList.remove('armed'); };
               showCenterDialog({
                 title: t('lastKeyConfirmTitle'),
@@ -689,6 +673,18 @@ import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown } fr
               });
               return;
             }
+            if (!armed) {
+              armed = true;
+              del.textContent = t('pkDelAsk');
+              del.classList.add('armed');
+              armTimer = window.setTimeout(function () {
+                armed = false;
+                del.textContent = t('pkDel');
+                del.classList.remove('armed');
+              }, 3000);
+              return;
+            }
+            window.clearTimeout(armTimer);
             doDeleteKey();
             function doDeleteKey() {
             api('/api/owner-passkey', { action: 'delete', credId: k.credId })
