@@ -125,16 +125,42 @@ test.describe('door verify dialog', () => {
        生产 middleware 对无会话的 /api/* 直接 401，预检必失败，
        因此无会话路径不得调 /api/stepup，先走 /api/root-session 换会话。 */
     await mockJson(page, '**/api/root-auth', 200, { ok: true });
-    let stepupCalls = 0;
+    /* 按请求体 action 分类计数：security.js:272 预检与 door.js probe 均用
+       action 'status'，但无会话路径下预检不可能被调用（hasSession=false），
+       出现的 'status' 必为导航后 probe 的合法票据校验，不计入、给有效 mock；
+       其他 action 的 stepup 调用则为异常，计数并断言为 0。 */
+    let precheckCalls = 0;
     await page.route('**/api/stepup', async (route) => {
-      stepupCalls++;
+      let action = '';
+      try {
+        const body = route.request().postDataJSON();
+        action = (body && body.action) || '';
+      } catch (e) {}
+      if (action === 'status') {
+        /* probe 的合法调用：有效票据，不计入 */
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ ok: true, valid: true }),
+        });
+        return;
+      }
+      precheckCalls++;
       await route.fulfill({
         status: 401,
         contentType: 'application/json',
         body: JSON.stringify({ ok: false }),
       });
     });
-    await mockJson(page, '**/api/root-session', 200, { ok: true });
+    let rootSessionCalls = 0;
+    await page.route('**/api/root-session', async (route) => {
+      rootSessionCalls++;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true }),
+      });
+    });
     await page.click('#sec-owner-cred');
     await expect(page.locator('#sec-verify-dlg')).toBeVisible();
     await page.locator('.sgx-door-row').filter({ hasText: '根凭证' }).click();
@@ -142,7 +168,12 @@ test.describe('door verify dialog', () => {
     await page.locator('.sgx-door-btn-primary').click();
     /* 换会话成功后直接进门，不应被预检拦住 */
     await page.waitForURL('**/settings/security/owner/**', { timeout: 10000 });
-    expect(stepupCalls).toBe(0);
+    /* 提交时未做 stepup 预检（非 status action 的调用为 0） */
+    expect(precheckCalls).toBe(0);
+    /* 走的是换会话路径：/api/root-session 恰好 1 次 */
+    expect(rootSessionCalls).toBe(1);
+    /* probe 拿到有效票据，跳转后不应出现「验证已过期」 */
+    await expect(page.locator('text=验证已过期')).toBeHidden({ timeout: 5000 });
   });
 
   test('点遮罩不关闭弹层，只有 × 或取消关闭（批次 A 收尾 A1/A3）', async ({ page }) => {
