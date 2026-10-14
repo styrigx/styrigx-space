@@ -586,6 +586,60 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
     expect(pageErrors).toEqual([]);
   });
 
+  test('v1.1 §二.5：会话失效弹框打开时焦点在按钮上、无外框；键盘 Tab 后 :focus-visible 显示外框', async ({ page }) => {
+    await mockJson(page, '**/api/owner-status', 200, { ok: true, password: true, passkey: true });
+    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
+    await page.route('**/api/owner-password', async (route) => {
+      await route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: false, error: 'session' }),
+      });
+    });
+    await page.goto('/settings/security/owner/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#sgx-door-countdown')).toBeVisible({ timeout: 15000 });
+    await page.locator('#lockmgr-pwdel').click();
+    await page.locator('#lockmgr-pwdel').click();
+    const dlg = page.locator('dialog.sgx-center-dlg');
+    await expect(dlg).toBeVisible({ timeout: 5000 });
+    const btn = dlg.locator('button.sgx-verify-skip');
+    await expect(btn).toHaveText('去锁屏');
+    /* 打开时焦点在按钮上 */
+    await expect(btn).toBeFocused();
+    /* 编程聚焦：不显示外框（outline-style 为 none；Chrome 即使 style 为 none 也会报一个非 0 的 outline-width，故断言 style） */
+    expect(await btn.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('none');
+    /* 键盘操作后 :focus-visible 显示外框：按 Tab 切到键盘模态，再编程聚焦（此时 :focus-visible 匹配） */
+    await page.keyboard.press('Tab');
+    await btn.evaluate((el) => el.focus());
+    await expect(btn).toBeFocused();
+    expect(await btn.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid');
+    expect(await btn.evaluate((el) => getComputedStyle(el).outlineWidth)).toBe('2px');
+    expect(pageErrors).toEqual([]);
+  });
+
+  test('v1.1 §二.5：到期弹框打开时焦点在按钮上、无外框', async ({ page }) => {
+    await mockJson(page, '**/api/owner-status', 200, { ok: true, password: true, passkey: true });
+    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
+    await page.route('**/api/owner-password', async (route) => {
+      await route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: false, error: 'stepup-required', reason: 'expired' }),
+      });
+    });
+    await page.goto('/settings/security/owner/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#sgx-door-countdown')).toBeVisible({ timeout: 15000 });
+    await page.locator('#lockmgr-pwdel').click();
+    await page.locator('#lockmgr-pwdel').click();
+    const dlg = page.locator('dialog.sgx-center-dlg');
+    await expect(dlg).toBeVisible({ timeout: 5000 });
+    const btn = dlg.locator('button.sgx-verify-skip');
+    await expect(btn).toHaveText('返回安全与隐私');
+    await expect(btn).toBeFocused();
+    expect(await btn.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('none');
+    expect(pageErrors).toEqual([]);
+  });
+
   test('管理凭证索引页探针成功后也显示倒计时', async ({ page }) => {
     await mockJson(page, '**/api/lock-status', 200, { ok: true, password: true, passkey: true });
     await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });

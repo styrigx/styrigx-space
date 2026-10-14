@@ -264,6 +264,7 @@ export function showCenterDialog(opts) {
   const actions = document.createElement('div');
   actions.className = 'sgx-verify-actions';
   const buttons = Array.isArray(o.buttons) ? o.buttons : [];
+  const createdButtons = [];
   buttons.forEach(function (b) {
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -274,6 +275,7 @@ export function showCenterDialog(opts) {
       try { if (b && typeof b.onClick === 'function') b.onClick(); } catch (e) {}
     });
     actions.appendChild(btn);
+    createdButtons.push(btn);
   });
   card.appendChild(actions);
   dlg.appendChild(card);
@@ -313,5 +315,10 @@ export function showCenterDialog(opts) {
     try { dlg.remove(); } catch (e2) {}
     return function () {};
   }
+  /* v1.1 §二.5：单按钮弹框（到期/会话失效）打开时焦点放在按钮上（不显示外框，见 CSS）。
+     多按钮弹框（删除确认）不自动聚焦，避免回车误触主按钮。 */
+  try {
+    if (createdButtons.length === 1) createdButtons[0].focus();
+  } catch (e) {}
   return close;
 }

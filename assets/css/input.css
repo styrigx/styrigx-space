@@ -2292,6 +2292,8 @@
     &::backdrop { background: rgba(0,0,0,.4); opacity: 0; transition: opacity .25s; }
     &[open]::backdrop { opacity: 1; }
     :focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
+    /* v1.1 §二.5：编程/鼠标聚焦不显示外框；键盘聚焦时 :focus-visible 再显示（上条规则） */
+    button:focus:not(:focus-visible) { outline: none; }
   }
   .sgx-center-card {
     background: var(--m-surface); border-radius: 26px; padding: 24px;
