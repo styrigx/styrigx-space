@@ -145,11 +145,11 @@
       --m-on-primary: #003351;
       --m-primary-container: #1e4767;
       --m-on-primary-container: #d3e6f5;
-      /* C3 进入凭证按钮：固定深蓝（深浅色一致，保证对比度 ≥4.5:1） */
+      /* C3 进入凭证按钮：主按钮固定深蓝；次按钮深色用深 slate（保证主次层次） */
       --sgx-door-btn-bg: #2f5f86;
       --sgx-door-btn-fg: #ffffff;
-      --sgx-door-btn2-bg: #dbe7f3;
-      --sgx-door-btn2-fg: #2f5f86;
+      --sgx-door-btn2-bg: #324a5c;
+      --sgx-door-btn2-fg: #d1e4f3;
       --m-secondary: #aec6d8;
       --m-on-secondary: #0c2f3f;
       --m-secondary-container: #324a5c;
@@ -318,11 +318,11 @@
       --m-on-primary: light-dark(#ffffff, #003351);
       --m-primary-container: light-dark(#d3e6f5, #1e4767);
       --m-on-primary-container: light-dark(#0c2f47, #d3e6f5);
-      /* C3 进入凭证按钮：固定深蓝（深浅色一致，保证对比度 ≥4.5:1） */
+      /* C3 进入凭证按钮：主按钮固定深蓝；次按钮 light-dark()（浅/深，主次层次） */
       --sgx-door-btn-bg: #2f5f86;
       --sgx-door-btn-fg: #ffffff;
-      --sgx-door-btn2-bg: #dbe7f3;
-      --sgx-door-btn2-fg: #2f5f86;
+      --sgx-door-btn2-bg: light-dark(#dbe7f3, #324a5c);
+      --sgx-door-btn2-fg: light-dark(#2f5f86, #d1e4f3);
       --m-secondary: light-dark(#4e6577, #aec6d8);
       --m-on-secondary: light-dark(#ffffff, #0c2f3f);
       --m-secondary-container: light-dark(#d1e4f3, #324a5c);
