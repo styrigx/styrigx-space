@@ -20,34 +20,6 @@ import { ownerPasskeyKey, OWNER_PASSKEY_PREFIX, STORE_CLASS_OWNERKEY, STORE_CLAS
 /* 层标识 */
 export const LAYER_OWNER = 'owner';
 export const LAYER_LOCK = 'lock';
-/**
- * A-2：锁屏凭证被清空标记（锁屏钥匙/密码删到 0、owner 接管中）。
- * 语义：lock 层仍算已配置（根凭证代开继续被拒），锁屏只显示访客 + 重置锁屏。
- * 新增任一 lock 凭证（设锁屏密码/注册 lock 钥匙），或删光 owner 凭证时清除。
- */
-export const LOCK_EMPTIED_KEY = 'layer:lock-emptied';
-
-/** @param {any} kv */
-export async function setLockEmptied(kv) {
-  if (!kv) throw new Error('kv-missing');
-  await kv.put(LOCK_EMPTIED_KEY, '1');
-}
-
-/** @param {any} kv */
-export async function clearLockEmptied(kv) {
-  if (!kv) throw new Error('kv-missing');
-  await kv.delete(LOCK_EMPTIED_KEY);
-}
-
-/** @param {any} kv @returns {Promise<boolean>} */
-export async function isLockEmptied(kv) {
-  if (!kv) return false;
-  try {
-    return (await kv.get(LOCK_EMPTIED_KEY)) === '1';
-  } catch (e) {
-    return false;
-  }
-}
 
 /** @param {string} aud */
 export function layerApp(aud) { return 'app:' + aud; }
@@ -180,9 +152,9 @@ async function realCredentialPresence(kv) {
  * 锁屏层是否"有效已配置"（三处共用：root-auth / root-session / lock-config）。
  *
  * 口径统一：KV 标记 layer:lock 为 '1'，或真实锁屏凭证存在
- * （class=lock 的通行密钥，或 lock-pw 有 hash），或 layer:lock-emptied 为 '1'
- * （锁屏凭证被清空、owner 接管中，根凭证代开继续被拒），或任何读取失败，
+ * （class=lock 的通行密钥，或 lock-pw 有 hash），或任何读取失败，
  * 都算已配置。避免"有凭证无标记"时无会话根凭证仍能通过。
+ * layer:lock-emptied 是 B #10 的键，A-2 不读不写（生产残留被忽略）。
  *
  * @param {any} kv
  * @returns {Promise<boolean>}
@@ -194,13 +166,6 @@ export async function isLockEffectivelyConfigured(kv) {
     try {
       const marker = await kv.get('layer:lock');
       if (marker === '1') return true;
-    } catch (e) {
-      return true;
-    }
-    /* 1b. 锁屏凭证被清空、owner 接管中：同样算已配置（根凭证代开被拒） */
-    try {
-      const emptied = await kv.get(LOCK_EMPTIED_KEY);
-      if (emptied === '1') return true;
     } catch (e) {
       return true;
     }

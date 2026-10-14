@@ -48,8 +48,6 @@ import {
   setLayerConfigured,
   clearLayerConfigured,
   isOwnerEffectivelyConfigured,
-  setLockEmptied,
-  clearLockEmptied,
   LAYER_OWNER,
   LAYER_LOCK,
 } from '../_kernel/layers.js';
@@ -437,8 +435,6 @@ async function handlePost(context) {
             } catch (e) {
               return Response.json({ ok: false, error: 'server' }, { status: 503 });
             }
-            /* A-2：owner 删光时同时清除 lock-emptied（两层都无凭证，不再是 owner 接管态） */
-            try { await clearLockEmptied(kv); } catch (e) {}
           }
         } catch (e) {}
       }
@@ -449,23 +445,17 @@ async function handlePost(context) {
           let hasLockPw = false;
           try { const r = await kv.get('lock-pw', 'json'); hasLockPw = !!(r && r.hash); } catch (e) {}
           if (!hasLockKey && !hasLockPw) {
-            /* A-2：删光 lock 凭证且 owner 已配置 → 置 lock-emptied，
-               保留 layer:lock 不清；owner 未配置时（竞态）按旧逻辑清 layer:lock。 */
+            /* A-2：删光 lock 凭证且 owner 已配置 → 保留 layer:lock 不清；
+               owner 未配置时（竞态）按旧逻辑清 layer:lock。
+               layer:lock-emptied 是 B #10 的键，A-2 不读不写。 */
             let ownerCfg = true;
             try { ownerCfg = await isOwnerEffectivelyConfigured(kv); } catch (e) { ownerCfg = true; }
-            if (ownerCfg) {
-              try {
-                await setLockEmptied(kv);
-              } catch (e) {
-                return Response.json({ ok: false, error: 'server' }, { status: 503 });
-              }
-            } else {
+            if (!ownerCfg) {
               try {
                 await clearLayerConfigured(kv, LAYER_LOCK);
               } catch (e) {
                 return Response.json({ ok: false, error: 'server' }, { status: 503 });
               }
-              try { await clearLockEmptied(kv); } catch (e) {}
             }
           }
         } catch (e) {}
@@ -533,10 +523,6 @@ async function handlePost(context) {
         const was = await isLayerConfigured(kv, layer);
         if (!was) {
           await setLayerConfigured(kv, layer);
-        }
-        /* A-2：新增 lock 密码时清除 lock-emptied（锁屏恢复正常解锁入口） */
-        if (kind === 'lock') {
-          await clearLockEmptied(kv);
         }
       } catch (e) {}
     }

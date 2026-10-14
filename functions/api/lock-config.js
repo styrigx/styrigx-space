@@ -11,11 +11,11 @@
  *   （fail closed）。只剩标记（无真实凭证）时同样不显示根凭证入口，
  *   避免 root-auth 走假入口 401 导致锁死。
  * - A-2：新增 ownerConfigured（站长层是否有效配置）、
- *   resetOnly（锁屏真实凭证为 0 且 owner 已配置且 lock-emptied 置位 →
- *   锁屏只显示访客 + 重置锁屏，不显示根凭证入口）。标记独有
- *   （无真实凭证的残留状态）时 resetOnly 为 false。
+ *   resetOnly（锁屏真实凭证为 0 且 owner 已配置 →
+ *   锁屏只显示访客 + 重置锁屏，不显示根凭证入口）。
+ *   layer:lock-emptied 是 B #10 的键，A-2 不读不写（生产残留被忽略）。
  */
-import { isLockEffectivelyConfigured, isOwnerEffectivelyConfigured, LOCK_EMPTIED_KEY } from '../_kernel/layers.js';
+import { isLockEffectivelyConfigured, isOwnerEffectivelyConfigured } from '../_kernel/layers.js';
 import { STORE_CLASS_LOCKKEY as PK_CLASS_LOCK, ownerPasskeyKey, OWNER_PASSKEY_PREFIX } from '../_kernel/key-names.js';
 
 /**
@@ -116,19 +116,11 @@ export async function onRequestGet(context) {
       }
     }
     /* 标记独有场景：effective 为真但 granular 全否 → 不暴露根凭证入口。
-       区分两种标记独有：
-       - layer:lock-emptied（锁屏凭证被清空、owner 接管中）→ resetOnly（owner 已配置时），
-         锁屏只显示访客 + 重置锁屏；
-       - layer:lock 标记独有（无真实凭证的残留状态）→ 按已配置处理，resetOnly 为 false。 */
+       「锁屏凭证已删光」按真实凭证数判断（无 lock 密码且无 lock 通行密钥）：
+       owner 已配置时 resetOnly（锁屏只显示访客 + 重置锁屏）。 */
     let resetOnly = false;
     if (!password && !passkey) {
-      let emptied = false;
-      try {
-        emptied = (await kv.get(LOCK_EMPTIED_KEY)) === '1';
-      } catch (e) {
-        emptied = false;
-      }
-      resetOnly = ownerConfigured && !failed && emptied;
+      resetOnly = ownerConfigured && !failed;
       password = true;
       passkey = true;
     }

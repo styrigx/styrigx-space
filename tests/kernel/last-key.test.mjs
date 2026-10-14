@@ -1,10 +1,12 @@
 /**
  * A-2 最后一把锁屏钥匙与 ownerkey 联动（v1.5 #10）。
  *
- * - 删到 0 时 ownerkey 存在（站长密码或站长通行密钥任一）→ 允许，置 layer:lock-emptied，
- *   保留 layer:lock（根凭证代开继续被拒）；不存在 → 服务端 403 last-key。
+ * - 删到 0 时 ownerkey 存在（站长密码或站长通行密钥任一）→ 允许，保留 layer:lock
+ *   （根凭证代开继续被拒）；不存在 → 服务端 403 last-key。
+ * - A-2 对 layer:lock-emptied 不读不写（该键是 B #10 的，本 PR 不引入）：
+ *   删最后一把后 KV 里不出现该键；生产残留不动、不清除、不依赖。
+ * - 「锁屏凭证已删光」按真实凭证数判断：无 lock 密码且无 lock 通行密钥。
  * - 删光后 lock-config 返回 resetOnly=true（锁屏只显示访客 + 重置锁屏）。
- * - 新增 lock 凭证（设锁屏密码）→ 清除 lock-emptied；删光 owner 凭证 → 清除 lock-emptied。
  * - 空站（无任何凭证/标记）→ lock-config resetOnly=false（A 启动流程保留，根凭证入口仍显示）。
  *
  * 运行：node --test tests/kernel/last-key.test.mjs
@@ -93,7 +95,7 @@ test('setup: 生成测试密钥', async () => {
   assert.ok(STEPUP_PRIV.includes('PRIVATE KEY'));
 });
 
-test('A-2：有站长密码时删最后一把 lock 钥匙 → 200，layer:lock 保留、lock-emptied=1', async () => {
+test('A-2：有站长密码时删最后一把 lock 钥匙 → 200，layer:lock 保留、KV 不出现 layer:lock-emptied', async () => {
   const { onRequestPost } = await import('../../functions/api/owner-passkey.js');
   const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1' });
   await seedKey(kv, 'lock-key-001', 'lock');
@@ -106,7 +108,7 @@ test('A-2：有站长密码时删最后一把 lock 钥匙 → 200，layer:lock �
   });
   assert.equal(res.status, 200, await res.text());
   assert.equal(await kv.get('layer:lock'), '1', 'layer:lock 应保留（根凭证代开继续被拒）');
-  assert.equal(await kv.get('layer:lock-emptied'), '1', '应置 lock-emptied');
+  assert.equal(await kv.get('layer:lock-emptied'), null, 'A-2 不写 layer:lock-emptied，该键不应出现');
 });
 
 test('A-2：无 ownerkey 时删最后一把 lock 钥匙 → 403 last-key，钥匙还在', async () => {
@@ -138,10 +140,10 @@ test('A-2：有站长通行密钥时删最后一把 lock 钥匙 → 200（ownerk
     env: envFor(kv),
   });
   assert.equal(res.status, 200, await res.text());
-  assert.equal(await kv.get('layer:lock-emptied'), '1');
+  assert.equal(await kv.get('layer:lock-emptied'), null, 'A-2 不写 layer:lock-emptied，该键不应出现');
 });
 
-test('A-2：有 ownerkey 时删最后一把 lock 密码 → 200，lock-emptied=1', async () => {
+test('A-2：有 ownerkey 时删最后一把 lock 密码 → 200，KV 不出现 layer:lock-emptied', async () => {
   const { onRequestPost } = await import('../../functions/api/owner-password.js');
   const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1' });
   await seedPw(kv, 'owner', 'owner-pw-123');
@@ -155,7 +157,7 @@ test('A-2：有 ownerkey 时删最后一把 lock 密码 → 200，lock-emptied=1
   assert.equal(res.status, 200, await res.text());
   assert.equal(await kv.get('lock-pw'), null);
   assert.equal(await kv.get('layer:lock'), '1', 'layer:lock 应保留');
-  assert.equal(await kv.get('layer:lock-emptied'), '1', '应置 lock-emptied');
+  assert.equal(await kv.get('layer:lock-emptied'), null, 'A-2 不写 layer:lock-emptied，该键不应出现');
 });
 
 test('A-2：无 ownerkey 时删最后一把 lock 密码 → 403 last-key，密码还在', async () => {
@@ -175,9 +177,9 @@ test('A-2：无 ownerkey 时删最后一把 lock 密码 → 403 last-key，密�
   assert.ok(pw && pw.hash, '锁屏密码应还在');
 });
 
-test('A-2：lock-config emptied 态 → resetOnly=true（锁屏只显示访客 + 重置）', async () => {
+test('A-2：lock-config (b) 无真实 lock 凭证 + owner 已配置 + 无 lock-emptied → resetOnly=true', async () => {
   const { onRequestGet } = await import('../../functions/api/lock-config.js');
-  const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1', 'layer:lock-emptied': '1' });
+  const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1' });
   await seedPw(kv, 'owner', 'owner-pw-123');
   const res = await onRequestGet({ env: { OWNER_KV: kv } });
   assert.equal(res.status, 200);
@@ -188,6 +190,19 @@ test('A-2：lock-config emptied 态 → resetOnly=true（锁屏只显示访客 +
   /* 标记独有兜底：passkey/password 仍为 true（不暴露根凭证入口） */
   assert.equal(j.passkey, true);
   assert.equal(j.password, true);
+});
+
+test('A-2：lock-config (a) lock-emptied=1 残留 + 有真实 lock 凭证 → resetOnly=false（忽略该键）', async () => {
+  const { onRequestGet } = await import('../../functions/api/lock-config.js');
+  const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1', 'layer:lock-emptied': '1' });
+  await seedPw(kv, 'owner', 'owner-pw-123');
+  await seedPw(kv, 'lock', 'lock-pw-1234');
+  const res = await onRequestGet({ env: { OWNER_KV: kv } });
+  assert.equal(res.status, 200);
+  const j = await res.json();
+  assert.equal(j.ok, true);
+  assert.equal(j.resetOnly, false, '有真实 lock 凭证时 resetOnly 应为 false，残留 lock-emptied=1 被忽略');
+  assert.equal(j.ownerConfigured, true);
 });
 
 test('A-2：lock-config 空站 → resetOnly=false（A 启动流程保留，根凭证入口仍显示）', async () => {
@@ -203,7 +218,7 @@ test('A-2：lock-config 空站 → resetOnly=false（A 启动流程保留，根�
   assert.equal(j.resetOnly, false);
 });
 
-test('A-2：新增 lock 密码后清除 lock-emptied（锁屏恢复正常解锁入口）', async () => {
+test('A-2：新增 lock 密码后不动 lock-emptied 残留（留给 B 处理）', async () => {
   const { onRequestPost } = await import('../../functions/api/owner-password.js');
   const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1', 'layer:lock-emptied': '1' });
   await seedPw(kv, 'owner', 'owner-pw-123');
@@ -214,10 +229,10 @@ test('A-2：新增 lock 密码后清除 lock-emptied（锁屏恢复正常解锁�
     env: envFor(kv),
   });
   assert.equal(res.status, 200, await res.text());
-  assert.equal(await kv.get('layer:lock-emptied'), null, '新增 lock 密码应清除 lock-emptied');
+  assert.equal(await kv.get('layer:lock-emptied'), '1', 'A-2 不动 lock-emptied 残留');
 });
 
-test('A-2：删光 owner 凭证时清除 lock-emptied', async () => {
+test('A-2：删光 owner 凭证时不动 lock-emptied 残留（留给 B 处理）', async () => {
   const { onRequestPost } = await import('../../functions/api/owner-password.js');
   const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1', 'layer:lock-emptied': '1' });
   await seedPw(kv, 'owner', 'owner-pw-123');
@@ -230,5 +245,5 @@ test('A-2：删光 owner 凭证时清除 lock-emptied', async () => {
   });
   assert.equal(res.status, 200, await res.text());
   assert.equal(await kv.get('owner-pw'), null);
-  assert.equal(await kv.get('layer:lock-emptied'), null, '删光 owner 凭证应清除 lock-emptied');
+  assert.equal(await kv.get('layer:lock-emptied'), '1', 'A-2 不动 lock-emptied 残留');
 });
