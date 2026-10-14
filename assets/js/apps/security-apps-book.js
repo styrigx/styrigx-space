@@ -10,7 +10,7 @@
  */
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
-import { api, enterDoor, apiErrorText, handleDoorError, b64urlToBuf, bufToB64url } from './app-gate.js';
+import { api, enterDoor, apiErrorText, handleDoorError, startDoorCountdown, b64urlToBuf, bufToB64url } from './app-gate.js';
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
 
 (function () {
@@ -68,6 +68,7 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
         return (k.class || 'lock') === 'app' && k.aud === aud;
       });
     }).catch(function () {
+      lastListErr = { error: 'network' };
       return null;
     });
   }
@@ -320,11 +321,12 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
         cachedKeys = keys;
         /* 探针失败时带上服务端 reason（如 owner-configured），探针面板显示明确文案 */
         if (keys) return true;
-        return { ok: false, reason: (lastListErr && lastListErr.reason) || (lastListErr && lastListErr.error) || 'session', status: 0, api: 'POST /api/owner-passkey' };
+        return { ok: false, reason: (lastListErr && lastListErr.error) || 'session', detail: lastListErr && lastListErr.reason, status: 0, api: 'POST /api/owner-passkey' };
       });
     },
     function () {
       if (mgr) mgr.hidden = false;
+      startDoorCountdown(t);
       render(cachedKeys);
       initReturn();
     },

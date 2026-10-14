@@ -13,7 +13,7 @@
   {{ partial "subpage-head.html" (dict "title" (cond $isEn "Lock screen" "锁定屏幕") "isEn" $isEn) }}
 
   <!-- 管理区（直接渲染；验证无效时 JS 跳验证流程） -->
-  <div id="lockmgr">
+  <div id="lockmgr" hidden> <!-- A-1：探针通过前不渲染门内内容 -->
     <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "lock" }}</span><span>{{ if $isEn }}Unlock password{{ else }}解锁密码{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.1s">
       <div class="set-row" id="lockmgr-pwrow" role="button" tabindex="0">
@@ -110,6 +110,11 @@
   "pwDeleted" (dict "zh" "密码已删除" "en" "Password deleted")
   "pwDelAsk" (dict "zh" "再点一次删除密码" "en" "Tap again to delete password")
   "pwDelWarn" (dict "zh" "删除后只能用根凭证进入，再点一次确认" "en" "After deletion only the root credential can enter. Tap again to confirm")
+  "pwDelWarnLock" (dict "zh" "删除后锁屏只能通过重置锁屏重新设置，再点一次确认" "en" "After deletion the lock screen can only be set up again via Reset lock screen. Tap again to confirm")
+  "lastKeyConfirmTitle" (dict "zh" "删除最后一把解锁钥匙" "en" "Delete the last unlock key")
+  "lastKeyConfirmDesc" (dict "zh" "删除后锁屏只能通过重置锁屏重新设置" "en" "After deletion, the lock screen can only be set up again via Reset lock screen.")
+  "lastKeyConfirmCancel" (dict "zh" "取消" "en" "Cancel")
+  "lastKeyConfirmDelete" (dict "zh" "删除" "en" "Delete")
   "pkRegistered" (dict "zh" "已注册" "en" "Registered")
   "pkDeleted" (dict "zh" "已删除" "en" "Deleted")
   "pkDelConfirm" (dict "zh" "确定删除这把通行密钥？" "en" "Delete this passkey?")
@@ -156,6 +161,14 @@
   "errSameAsLock" (dict "zh" "不能与解锁密码相同" "en" "Can't be the same as the unlock password")
   "errSameAsOwner" (dict "zh" "不能与站长密码相同" "en" "Can't be the same as the owner password")
   "errOwnerConfigured" (dict "zh" "站长凭证已设置，请用站长凭证重新验证" "en" "Owner credential is set, please verify with the owner credential again")
+  "doorCountdown" (dict "zh" "验证剩余 {m}" "en" "Verification remaining {m}")
+  "doorCountdownExpired" (dict "zh" "已过期" "en" "Expired")
+  "expiredStepupTitle" (dict "zh" "验证已过期" "en" "Verification expired")
+  "expiredStepupDesc" (dict "zh" "请返回安全与隐私重新验证" "en" "Please go back to Security & Privacy to verify again.")
+  "expiredStepupBtn" (dict "zh" "返回安全与隐私" "en" "Back to Security & Privacy")
+  "expiredSessionTitle" (dict "zh" "会话已失效" "en" "Session expired")
+  "expiredSessionDesc" (dict "zh" "请回到锁屏重新解锁" "en" "Please go back to the lock screen to unlock again.")
+  "expiredSessionBtn" (dict "zh" "去锁屏" "en" "Go to lock screen")
 }}
 <script id="sgx-i18n-lockmgr" type="application/json">{{ $lkI18n | jsonify | safeJS }}</script>
 {{ end }}

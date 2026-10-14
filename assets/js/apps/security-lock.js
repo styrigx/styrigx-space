@@ -10,8 +10,8 @@ import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton } from '../lib/dialog-behavior.js';
-import { apiErrorText, needVerify } from './app-gate.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton, showCenterDialog } from '../lib/dialog-behavior.js';
+import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown } from './app-gate.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -143,12 +143,15 @@ import { apiErrorText, needVerify } from './app-gate.js';
 
   /** 会话/票据失效 → 重新验证（批次 A 验收修复 #7：改走 app-gate.js 的 needVerify，
       和 door.js 一致；detail='owner-configured' 时 needVerify 显示明确文案）。
-      锁屏页无验证门可开：lockgate-* 元素在任何模板里都不存在，
+      A-1：按真实 code 传参（v1.0 §三 1c）——'session' 走会话弹框，
+      'stepup-required'/'scope'/'by-root' 走验证弹框；单参调用（仅 reason，如 'owner-configured'）
+      视为验证弹框。锁屏页无验证门可开：lockgate-* 元素在任何模板里都不存在，
       旧 openGate() 在 gateOpts 为 null 时会抛 TypeError。 */
-  function needReauth(detail) {
-    /* P2-14：先收起当前所有 sheet 再跳验证流程，禁止弹层叠弹层 */
+  function needReauth(code, detail) {
+    /* P2-14：先收起当前所有 sheet 再弹框，禁止弹层叠弹层 */
     closeOpenSheets();
-    needVerify(t, 'session', detail);
+    if (code === 'session') needVerify(t, 'session', detail);
+    else needVerify(t, 'stepup', detail || code);
   }
 
   /**
@@ -172,8 +175,10 @@ import { apiErrorText, needVerify } from './app-gate.js';
       document.body.classList.remove('sgx-locked');
     } catch (e) {}
     $('lockmgr').hidden = false;
-    refreshStatus();
-    refreshPkList();
+    /* v1.1 §二.1：胶囊在首次数据加载完成后再显示，避免「胶囊已显示、卡片还空着」；
+       任一请求失败也照常显示胶囊（两函数内部已吞错，Promise 恒 resolve）。 */
+    const startCapsule = function () { startDoorCountdown(t); };
+    Promise.all([refreshStatus(), refreshPkList()]).then(startCapsule, startCapsule);
   }
 
   /* 显示/隐藏眼睛（批次 A 验收修复 P2：bindEyeButton 统一接管图标 + 文案 + 复位） */
@@ -189,11 +194,12 @@ import { apiErrorText, needVerify } from './app-gate.js';
 
   /* ---------- 管理区 ---------- */
   var hasPk = false;
+  /* v1.1 §二.1：返回请求 Promise，供进门回调等首次数据加载完成后再显示胶囊 */
   function refreshStatus() {
     /* 状态接口按模式选择：owner 模式读 /api/owner-status（owner-pw + class=owner），
        lock 模式读 /api/lock-status（lock-pw + class=lock）。
        注意：lock-status 在 scope=root 票据下不可读，owner 模式必须用 owner-status。 */
-    fetch(statusApi, { method: 'GET', credentials: 'same-origin' })
+    return fetch(statusApi, { method: 'GET', credentials: 'same-origin' })
       .then(function (r) {
         return r.json();
       })
@@ -278,11 +284,27 @@ import { apiErrorText, needVerify } from './app-gate.js';
     let armTimer = 0;
     const origText = pwDel.textContent;
     on(pwDel, 'click', function () {
+      /* v1.1 §二.4：删最后一把锁屏密码 → 跳过「再点一次」，点「删除」直接弹确认框 */
+      if (pwKind === 'lock' && !hasPk) {
+        var resetArmed = function () { armed = false; pwDel.textContent = origText; pwDel.classList.remove('armed'); };
+        showCenterDialog({
+          title: t('lastKeyConfirmTitle'),
+          desc: t('lastKeyConfirmDesc'),
+          dismissible: true,
+          onCancel: resetArmed,
+          buttons: [
+            { label: t('lastKeyConfirmCancel'), kind: 'ghost', onClick: resetArmed },
+            { label: t('lastKeyConfirmDelete'), kind: 'primary', onClick: function () { doRemovePw(); } },
+          ],
+        });
+        return;
+      }
       if (!armed) {
         armed = true;
-        /* 如果删完后密码和通行密钥都没了，提示只能用根凭证进入 */
+        /* 如果删完后密码和通行密钥都没了：lock 模式 → 锁屏只能通过重置锁屏重新设置；
+           owner 模式 → 只能用根凭证进入。 */
         if (!hasPk) {
-          pwDel.textContent = t('pwDelWarn');
+          pwDel.textContent = pwKind === 'lock' ? t('pwDelWarnLock') : t('pwDelWarn');
         } else {
           pwDel.textContent = t('pwDelAsk');
         }
@@ -295,6 +317,8 @@ import { apiErrorText, needVerify } from './app-gate.js';
         return;
       }
       window.clearTimeout(armTimer);
+      doRemovePw();
+      function doRemovePw() {
       api('/api/owner-password', { action: 'remove', kind: pwKind })
         .then(function (r) {
           const j = r.json;
@@ -303,8 +327,9 @@ import { apiErrorText, needVerify } from './app-gate.js';
             /* 服务端删除成功后重新读状态刷新（KV 最终一致，边缘节点最多约 60 秒） */
             refreshStatus();
             refreshPkList();
+            refreshDoorCountdown(t);
           } else if (j && isReauthError(j.error)) {
-            needReauth(j && j.reason);
+            needReauth(j && j.error, j && j.reason);
           } else {
             toast(srvErr(j && j.error, r.status));
           }
@@ -317,6 +342,7 @@ import { apiErrorText, needVerify } from './app-gate.js';
           pwDel.textContent = origText;
           pwDel.classList.remove('armed');
         });
+      }
     });
   }
   /* Phase 2 Item 11：退出站长凭证（吊销 stepup 票据，回安全页）。
@@ -361,10 +387,11 @@ import { apiErrorText, needVerify } from './app-gate.js';
           closePwDlg('success');
           hasPw = true;
           refreshStatus();
+          refreshDoorCountdown(t);
           toast(hasPw && action === 'change' ? t('pwChanged') : t('pwSaved'));
         } else if (isReauthError(j.error)) {
           closePwDlg('success');
-          needReauth(j && j.reason);
+          needReauth(j && j.error, j && j.reason);
         } else if (j.error === 'exists' && action === 'set') {
           /* 并发已设置 → 改走 change */
           hasPw = true;
@@ -466,8 +493,9 @@ import { apiErrorText, needVerify } from './app-gate.js';
             toast(t('pkRegistered'));
             closePkNameDlg('success');
             refreshPkList();
+            refreshDoorCountdown(t);
           } else if (j && isReauthError(j.error)) {
-            needReauth(j && j.reason);
+            needReauth(j && j.error, j && j.reason);
           } else if (j && j.error === 'not-found') {
             /* KV 最终一致：刚注册的 key 可能暂时读不到 */
             showErr('lockpkname-err', t('pkRetryLater'));
@@ -537,7 +565,7 @@ import { apiErrorText, needVerify } from './app-gate.js';
         const j = res.json;
         if (!j) return;
         if (j.error && isReauthError(j.error)) {
-          needReauth(j.reason);
+          needReauth(j.error, j.reason);
           return;
         }
         allKeys = allKeys.concat((j.ok && j.keys) || []);
@@ -550,12 +578,12 @@ import { apiErrorText, needVerify } from './app-gate.js';
   function refreshPkList() {
     const ul = $('lockmgr-pklist');
     const empty = $('lockmgr-pkempty');
-    api('/api/owner-passkey', { action: 'list', pkClass: pageClass })
+    return api('/api/owner-passkey', { action: 'list', pkClass: pageClass })
       .then(function (res) {
         const j = res.json;
         if (!j) return;
         if (j.error && isReauthError(j.error)) {
-          needReauth(j && j.reason);
+          needReauth(j && j.error, j && j.reason);
           return;
         }
         const keys = ((j.ok && j.keys) || []).filter(function (k) {
@@ -588,7 +616,7 @@ import { apiErrorText, needVerify } from './app-gate.js';
                   lastSaved = v;
                   toast(t('pkRenamed'));
                 } else if (jj && isReauthError(jj.error)) {
-                  needReauth(jj.reason);
+                  needReauth(jj.error, jj.reason);
                 } else {
                   nameInput.value = lastSaved;
                 }
@@ -632,6 +660,21 @@ import { apiErrorText, needVerify } from './app-gate.js';
           let armTimer = 0;
           on(del, 'click', function (e) {
             e.stopPropagation();
+            /* v1.1 §二.4：删最后一把锁屏钥匙 → 跳过「再点一次」，点「删除」直接弹确认框 */
+            if (pageClass === 'lock' && keys.length <= 1 && !hasPw) {
+              var resetPkArmed = function () { armed = false; del.textContent = t('pkDel'); del.classList.remove('armed'); };
+              showCenterDialog({
+                title: t('lastKeyConfirmTitle'),
+                desc: t('lastKeyConfirmDesc'),
+                dismissible: true,
+                onCancel: resetPkArmed,
+                buttons: [
+                  { label: t('lastKeyConfirmCancel'), kind: 'ghost', onClick: resetPkArmed },
+                  { label: t('lastKeyConfirmDelete'), kind: 'primary', onClick: function () { doDeleteKey(); } },
+                ],
+              });
+              return;
+            }
             if (!armed) {
               armed = true;
               del.textContent = t('pkDelAsk');
@@ -644,6 +687,8 @@ import { apiErrorText, needVerify } from './app-gate.js';
               return;
             }
             window.clearTimeout(armTimer);
+            doDeleteKey();
+            function doDeleteKey() {
             api('/api/owner-passkey', { action: 'delete', credId: k.credId })
               .then(function (r2) {
                 const jj = r2.json;
@@ -660,8 +705,9 @@ import { apiErrorText, needVerify } from './app-gate.js';
                   /* 服务端删除成功后重新读列表刷新（KV 最终一致，边缘节点最多约 60 秒） */
                   refreshPkList();
                   refreshStatus();
+                  refreshDoorCountdown(t);
                 } else if (jj && isReauthError(jj.error)) {
-                  needReauth(jj.reason);
+                  needReauth(jj.error, jj.reason);
                 } else if (jj && jj.error === 'not-found') {
                   toast(t('pkRetryLater'));
                 } else if (!jj) {
@@ -673,6 +719,7 @@ import { apiErrorText, needVerify } from './app-gate.js';
               .catch(function () {
                 toast(t('gateNetErr'));
               });
+            }
           });
           li.appendChild(nameWrap);
           li.appendChild(del);
@@ -727,8 +774,9 @@ import { apiErrorText, needVerify } from './app-gate.js';
                   if (jj && jj.ok) {
                     toast(t('pkDeleted') || '已删除');
                     refreshPkList();
+                    refreshDoorCountdown(t);
                   } else if (jj && isReauthError(jj.error)) {
-                    needReauth(jj.reason);
+                    needReauth(jj.error, jj.reason);
                   } else if (jj && jj.error === 'not-found') {
                     /* KV 最终一致：刚注册的 key 可能暂时读不到 */
                     toast(t('pkRetryLater'));
@@ -801,8 +849,9 @@ import { apiErrorText, needVerify } from './app-gate.js';
         if (res.json && res.json.ok) {
           toast(t('pkRegistered') || '已添加');
           refreshPkList();
+          refreshDoorCountdown(t);
         } else if (res.json && isReauthError(res.json.error)) {
-          needReauth(res.json.reason);
+          needReauth(res.json.error, res.json.reason);
         } else {
           const code = (res.json && res.json.error) || 'failed';
           toast((t('gateSrvErr') || '失败') + ': ' + code);
@@ -830,7 +879,7 @@ import { apiErrorText, needVerify } from './app-gate.js';
           const ch = res.json;
           if (!ch) throw { kind: 'server' };
           if (!ch.ok) {
-            if (isReauthError(ch.error)) throw { kind: 'reauth', reason: ch.reason };
+            if (isReauthError(ch.error)) throw { kind: 'reauth', code: ch.error, reason: ch.reason };
             throw { kind: 'server' };
           }
           /* 服务端下发 rp.id、用户信息、excludeCredentials；前端不硬编码、不回落 */
@@ -893,8 +942,9 @@ import { apiErrorText, needVerify } from './app-gate.js';
             /* 注册成功 → 弹出命名弹层（预填名已提交，用户改名才调 rename） */
             openPkNameDlg(j.credId, r3.prefill);
             refreshPkList();
+            refreshDoorCountdown(t);
           } else if (j && isReauthError(j.error)) {
-            needReauth(j && j.reason);
+            needReauth(j && j.error, j && j.reason);
           } else {
             toast(srvErr(j && j.error, r.status));
           }
@@ -904,7 +954,7 @@ import { apiErrorText, needVerify } from './app-gate.js';
           if (e.kind === 'cancelled') toast(t('gateCancelled'));
           else if (e.kind === 'already') toast(t('pkAlready'));
           else if (e.kind === 'nosupport') toast(t('pkNoSupport'));
-          else if (e.kind === 'reauth') needReauth(e.reason);
+          else if (e.kind === 'reauth') needReauth(e.code, e.reason);
           else if (e.kind === 'server') toast(srvErr(e.code));
           else if (e.kind === 'failed') toast(t('pkFailed'));
           else toast(t('gateNetErr'));
@@ -939,10 +989,11 @@ import { apiErrorText, needVerify } from './app-gate.js';
         enterMgr();
       } else {
         /* 批次 A 验收修复 #7：探针失败走 needVerify，不开已删除的验证门 */
-        needReauth(j && j.reason);
+        needReauth(j && j.error, j && j.reason);
       }
     })
     .catch(function () {
-      needReauth();
+      /* A-1：探针网络失败 ≠ 过期：提示网络错误，留页不弹框、不自动跳 */
+      toast(t('gateNetErr'));
     });
 })();

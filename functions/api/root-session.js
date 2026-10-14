@@ -76,7 +76,7 @@ async function handlePost(context) {
     return Response.json({ ok: false, error: 'configured' }, { status: 403 });
   }
 
-  /* 签发 by=root 的 owner 会话，约 1 小时 */
+  /* 签发 by=root 的 owner 会话，约 12 小时（ROOT_SESSION_MAX_AGE=43200，与 stepup 的 3 分钟无关） */
   const headers = new Headers({ 'Content-Type': 'application/json' });
   const sessErr = await issueSessionCookie(env, headers, ROLE_OWNER, BY_ROOT, ROOT_SESSION_MAX_AGE);
   if (sessErr) {

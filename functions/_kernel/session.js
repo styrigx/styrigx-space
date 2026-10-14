@@ -100,7 +100,7 @@ export async function signSessionCookie(privatePem, epoch, role, by, maxAge) {
  * @param {Headers} headers
  * @param {string} role 'owner' 或 'visitor'（必须显式传，非法值返回 500 invalid-role）
  * @param {string} by 'root' 或 'owner'（默认 'owner'）；2.11 root 代开时传 'root'
- * @param {number} maxAgeOverride 可选：覆盖默认 Max-Age（秒）；2.11 root 代开的解锁会话约 1 小时
+ * @param {number} maxAgeOverride 可选：覆盖默认 Max-Age（秒）；2.11 root 代开的解锁会话约 12 小时
  */
 export async function issueSessionCookie(env, headers, role, by, maxAgeOverride) {
   if (role !== ROLE_OWNER && role !== ROLE_VISITOR) {

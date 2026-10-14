@@ -690,9 +690,10 @@ function showLockScreen() {
       .then(function (j) {
         methodSheetLoading = false;
         if (methodSheet) return;
-        var cfg = { passkey: true, password: true };
+        var cfg = { passkey: true, password: true, ownerConfigured: true };
         if (j && j.ok) {
-          cfg = { passkey: !!j.passkey, password: !!j.password };
+          /* A-2：透传 resetOnly / ownerConfigured（不透传则 resetOnly 恒 false，锁屏清空态仍显示通行密钥/密码入口） */
+          cfg = { passkey: !!j.passkey, password: !!j.password, resetOnly: !!j.resetOnly, ownerConfigured: j.ownerConfigured !== false };
         }
         buildMethodSheet(cfg);
       })
@@ -700,19 +701,23 @@ function showLockScreen() {
         methodSheetLoading = false;
         if (methodSheet) return;
         /* 读取失败按已配置处理：不暴露根凭证入口 */
-        buildMethodSheet({ passkey: true, password: true });
+        buildMethodSheet({ passkey: true, password: true, ownerConfigured: true });
       });
   }
   /**
    * 按锁屏凭证配置构建方法弹层。
-   * @param {{passkey:boolean, password:boolean}} cfg
+   * @param {{passkey:boolean, password:boolean, resetOnly?:boolean, ownerConfigured?:boolean}} cfg
    */
   function buildMethodSheet(cfg) {
     const hasPk = !!(window.PublicKeyCredential);
-    const showPk = cfg.passkey && hasPk;
-    const showPw = cfg.password;
-    const showReset = cfg.passkey || cfg.password;
-    const showMk = !cfg.passkey && !cfg.password;
+    /* A-2：resetOnly 时只渲染访客 + 重置锁屏（不渲染通行密钥/密码/根凭证入口）。
+       根凭证入口只在锁屏无凭证时显示（A 启动流程保留：owner 已配置、
+       lock 从未配置的站，根凭证代开入口仍显示，故 showMk 不加 ownerConfigured 条件）。 */
+    const resetOnly = !!cfg.resetOnly;
+    const showPk = !resetOnly && cfg.passkey && hasPk;
+    const showPw = !resetOnly && cfg.password;
+    const showReset = resetOnly || cfg.passkey || cfg.password;
+    const showMk = !resetOnly && !cfg.passkey && !cfg.password;
     const sheet = document.createElement('div');
     sheet.id = 'sgx-method-sheet';
     sheet.setAttribute('role', 'dialog');

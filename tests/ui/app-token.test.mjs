@@ -160,6 +160,16 @@ test('APP_COOKIE 属性符合要求', async () => {
   assert.ok(APP_COOKIE_ATTRS.includes('Max-Age=600'));
 });
 
+test('A-1：APP_COOKIE_ATTRS 的 Max-Age 拼 APP_TOKEN_MAX_AGE 常量（不硬编码）', async () => {
+  const { APP_COOKIE_ATTRS, APP_TOKEN_MAX_AGE } = await import('../../functions/api/app-token.js');
+  assert.equal(APP_TOKEN_MAX_AGE, 600);
+  assert.ok(APP_COOKIE_ATTRS.includes('Max-Age=' + APP_TOKEN_MAX_AGE), '应拼常量，实际=' + APP_COOKIE_ATTRS);
+  /* 源码层面不得再有硬编码的 Max-Age=600（去注释后检查） */
+  const src = readFileSync(new URL('../../functions/api/app-token.js', import.meta.url), 'utf8');
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  assert.ok(!code.includes('Max-Age=600'), '源码不得硬编码 Max-Age=600，应拼 APP_TOKEN_MAX_AGE');
+});
+
 test('CI 静态检查：app-token 链路无 stepup/SGX_STEPUP_ 引用', async () => {
   const src = readFileSync(new URL('../../functions/api/app-token.js', import.meta.url), 'utf8');
   // 去掉注释后检查（注释里提到 stepup 是为了解释解耦，不算引用）

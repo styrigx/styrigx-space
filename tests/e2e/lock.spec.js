@@ -493,3 +493,45 @@ test.describe('lock method sheet row feedback (批次 A 验收修复 P2)', () =>
     await expect(page.locator('#sgx-pw-input')).toBeVisible();
   });
 });
+
+test.describe('A-2 锁屏凭证清空态（resetOnly）', () => {
+  test('锁屏凭证清空：方法弹层只显示访客 + 重置锁屏（无通行密钥/密码/根凭证入口）', async ({ page }) => {
+    await blockExternalRequests(page);
+    await freezeTime(page);
+    /* 服务端 lock-config 返回清空态：passkey/password 兜底 true + resetOnly=true */
+    await page.route('**/api/lock-config', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, passkey: true, password: true, ownerConfigured: true, resetOnly: true }),
+      });
+    });
+    await gotoLock(page);
+    await openMethodSheet(page);
+    await expect(page.locator('#sgx-mopt-visitor')).toBeVisible();
+    await expect(page.locator('#sgx-mopt-reset')).toBeVisible();
+    await expect(page.locator('#sgx-mopt-pk')).toHaveCount(0);
+    await expect(page.locator('#sgx-mopt-pw')).toHaveCount(0);
+    await expect(page.locator('#sgx-mopt-mk')).toHaveCount(0);
+    /* 访客在前，重置在后 */
+    const ids = await page.locator('.sgx-method-opt').evaluateAll((els) => els.map((el) => el.id));
+    expect(ids).toEqual(['sgx-mopt-visitor', 'sgx-mopt-reset']);
+  });
+
+  test('启动站（lock-config 全 false）：根凭证入口仍显示', async ({ page }) => {
+    await blockExternalRequests(page);
+    await freezeTime(page);
+    await page.route('**/api/lock-config', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, passkey: false, password: false, ownerConfigured: false, resetOnly: false }),
+      });
+    });
+    await gotoLock(page);
+    await openMethodSheet(page);
+    await expect(page.locator('#sgx-mopt-visitor')).toBeVisible();
+    await expect(page.locator('#sgx-mopt-mk')).toBeVisible();
+    await expect(page.locator('#sgx-mopt-reset')).toHaveCount(0);
+  });
+});

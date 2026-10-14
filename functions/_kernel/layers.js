@@ -15,11 +15,12 @@
  * - layer:app:<aud> = "1"（已配置该 aud 的 app 凭证）
  */
 
-import { ownerPasskeyKey, OWNER_PASSKEY_PREFIX } from './key-names.js';
+import { ownerPasskeyKey, OWNER_PASSKEY_PREFIX, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY } from './key-names.js';
 
 /* 层标识 */
 export const LAYER_OWNER = 'owner';
 export const LAYER_LOCK = 'lock';
+
 /** @param {string} aud */
 export function layerApp(aud) { return 'app:' + aud; }
 
@@ -78,11 +79,82 @@ export async function checkRootTakeover(kv, layer) {
 }
 
 /**
+ * 真实凭证盘点（单次遍历，供 isLock/isOwner 共用）。
+ * 只读真实凭证（密码 hash、通行密钥 class），不读 layer:* 标记。
+ * 任何一步读取失败 → failed=true（调用方按已配置处理，fail closed）。
+ * @param {any} kv
+ * @returns {Promise<{ownerPw:boolean, lockPw:boolean, ownerPk:boolean, lockPk:boolean, failed:boolean}>}
+ */
+async function realCredentialPresence(kv) {
+  const out = { ownerPw: false, lockPw: false, ownerPk: false, lockPk: false, failed: false };
+  try {
+    const ownerPw = await kv.get('owner-pw', 'json');
+    if (ownerPw && ownerPw.hash) out.ownerPw = true;
+  } catch (e) {
+    out.failed = true;
+    return out;
+  }
+  try {
+    const lockPw = await kv.get('lock-pw', 'json');
+    if (lockPw && lockPw.hash) out.lockPw = true;
+  } catch (e) {
+    out.failed = true;
+    return out;
+  }
+  try {
+    let idx = null;
+    try {
+      idx = await kv.get('owner-passkey-index', 'json');
+    } catch (e) {
+      out.failed = true;
+      return out;
+    }
+    if (Array.isArray(idx)) {
+      for (const credId of idx) {
+        let v = null;
+        try {
+          v = await kv.get(ownerPasskeyKey(credId), 'json');
+        } catch (e) {
+          out.failed = true;
+          return out;
+        }
+        if (v && v.credId && (v.class || STORE_CLASS_LOCKKEY) === STORE_CLASS_OWNERKEY) out.ownerPk = true;
+        if (v && v.credId && (v.class || STORE_CLASS_LOCKKEY) === STORE_CLASS_LOCKKEY) out.lockPk = true;
+      }
+    } else {
+      /* 索引不存在：用 kv.list 补查 */
+      let list = null;
+      try {
+        list = await kv.list({ prefix: OWNER_PASSKEY_PREFIX });
+      } catch (e) {
+        out.failed = true;
+        return out;
+      }
+      for (const k of (list && list.keys) || []) {
+        let v = null;
+        try {
+          v = await kv.get(k.name, 'json');
+        } catch (e) {
+          out.failed = true;
+          return out;
+        }
+        if (v && v.credId && (v.class || STORE_CLASS_LOCKKEY) === STORE_CLASS_OWNERKEY) out.ownerPk = true;
+        if (v && v.credId && (v.class || STORE_CLASS_LOCKKEY) === STORE_CLASS_LOCKKEY) out.lockPk = true;
+      }
+    }
+  } catch (e) {
+    out.failed = true;
+  }
+  return out;
+}
+
+/**
  * 锁屏层是否"有效已配置"（三处共用：root-auth / root-session / lock-config）。
  *
  * 口径统一：KV 标记 layer:lock 为 '1'，或真实锁屏凭证存在
  * （class=lock 的通行密钥，或 lock-pw 有 hash），或任何读取失败，
  * 都算已配置。避免"有凭证无标记"时无会话根凭证仍能通过。
+ * layer:lock-emptied 是 B #10 的键，A-2 不读不写（生产残留被忽略）。
  *
  * @param {any} kv
  * @returns {Promise<boolean>}
@@ -97,52 +169,35 @@ export async function isLockEffectivelyConfigured(kv) {
     } catch (e) {
       return true;
     }
-    /* 2. 真实凭证：锁屏密码 */
+    /* 2. 真实凭证（密码 / 通行密钥） */
+    const real = await realCredentialPresence(kv);
+    if (real.failed) return true;
+    if (real.lockPw || real.lockPk) return true;
+    return false;
+  } catch (e) {
+    return true;
+  }
+}
+
+/**
+ * 站长层是否"有效已配置"（与 isLockEffectivelyConfigured 镜像，A-2）。
+ * 口径：KV 标记 layer:owner 为 '1'，或真实站长凭证存在
+ * （class=owner 的通行密钥，或 owner-pw 有 hash），或任何读取失败，都算已配置。
+ * @param {any} kv
+ * @returns {Promise<boolean>}
+ */
+export async function isOwnerEffectivelyConfigured(kv) {
+  if (!kv) return true;
+  try {
     try {
-      const pw = await kv.get('lock-pw', 'json');
-      if (pw && pw.hash) return true;
+      const marker = await kv.get('layer:owner');
+      if (marker === '1') return true;
     } catch (e) {
       return true;
     }
-    /* 3. 真实凭证：class=lock 的通行密钥（无 class 的旧凭据视为 lock） */
-    try {
-      let idx = null;
-      try {
-        idx = await kv.get('owner-passkey-index', 'json');
-      } catch (e) {
-        return true;
-      }
-      if (Array.isArray(idx)) {
-        for (const credId of idx) {
-          let v = null;
-          try {
-            v = await kv.get(ownerPasskeyKey(credId), 'json');
-          } catch (e) {
-            return true;
-          }
-          if (v && v.credId && (v.class || 'lock') === 'lock') return true;
-        }
-      } else {
-        /* 索引不存在：用 kv.list 补查 */
-        let list = null;
-        try {
-          list = await kv.list({ prefix: OWNER_PASSKEY_PREFIX });
-        } catch (e) {
-          return true;
-        }
-        for (const k of (list && list.keys) || []) {
-          let v = null;
-          try {
-            v = await kv.get(k.name, 'json');
-          } catch (e) {
-            return true;
-          }
-          if (v && v.credId && (v.class || 'lock') === 'lock') return true;
-        }
-      }
-    } catch (e) {
-      return true;
-    }
+    const real = await realCredentialPresence(kv);
+    if (real.failed) return true;
+    if (real.ownerPw || real.ownerPk) return true;
     return false;
   } catch (e) {
     return true;

@@ -12,8 +12,8 @@
 <div class="set-layout max-w-2xl mx-auto px-4 pb-28">
   {{ partial "subpage-head.html" (dict "title" (cond $isEn "Manage credentials" "管理凭证") "isEn" $isEn) }}
 
-  <!-- 两个入口：锁屏 / 应用（右箭头 + 状态摘要） -->
-  <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.1s">
+  <!-- 两个入口：锁屏 / 应用（右箭头 + 状态摘要），探针通过前隐藏 -->
+  <section id="mgmt-main" hidden class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.1s">
     <a class="set-row" href="{{ $lockUrl }}" id="mgmt-lock-row">
       <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "lock" }}</span>
       <span class="flex-1 min-w-0">

@@ -428,3 +428,120 @@ test('#72：root-auth 签发的票 → stepup status 必须 valid=true（不 moc
   assert.equal(statusJson.ok, true);
   assert.equal(statusJson.valid, true, '刚签发的票必须 valid:true，reason=' + statusJson.reason);
 });
+
+/* ============ A-1：门内票 3 分钟 + status 回 expiresAt（先红后绿） ============ */
+
+test('A-1：STEPUP_MAX_AGE === 180（3 分钟）', () => {
+  assert.equal(STEPUP_MAX_AGE, 180);
+});
+
+test('A-1：verifyStepupCookie 返回 exp（≈ Date.now() + 180000）', async () => {
+  const kv = makeKV();
+  const env = makeEnv(kv);
+  const val = await signStepupCookie(TEST_PRIV_PEM, 'owner', 'keys', 0);
+  const req = new Request('https://test.example.com/api/stepup', {
+    headers: { Cookie: STEPUP_COOKIE + '=' + val },
+  });
+  const r = await verifyStepupCookie(req, env);
+  assert.equal(r.ok, true);
+  assert.ok(typeof r.exp === 'number', '应返回 exp');
+  assert.ok(Math.abs(r.exp - (Date.now() + 180000)) < 5000, 'exp 应 ≈ Date.now()+180000，实际=' + r.exp);
+});
+
+test('A-1：status 返回 expiresAt ≈ Date.now()+180000；无票据时无 expiresAt', async () => {
+  const kv = makeKV();
+  const env = makeEnv(kv);
+  const ownerCookie = await makeOwnerSessionCookie();
+  const stepupVal = await signStepupCookie(TEST_PRIV_PEM, 'owner', 'keys', 0);
+  const res = await stepupPost({
+    request: postReq('https://test.example.com/api/stepup', { action: 'status' }, {
+      'Cookie': 'sgx-verified=' + ownerCookie + '; ' + STEPUP_COOKIE + '=' + stepupVal,
+    }),
+    env,
+  });
+  assert.equal(res.status, 200);
+  const j = await res.json();
+  assert.equal(j.ok, true);
+  assert.equal(j.valid, true);
+  assert.ok(typeof j.expiresAt === 'number', '有效票据应回 expiresAt');
+  assert.ok(Math.abs(j.expiresAt - (Date.now() + 180000)) < 5000, 'expiresAt 应 ≈ Date.now()+180000，实际=' + j.expiresAt);
+
+  /* 无票据 → valid=false，且无 expiresAt */
+  const res2 = await stepupPost({
+    request: postReq('https://test.example.com/api/stepup', { action: 'status' }, {
+      'Cookie': 'sgx-verified=' + ownerCookie,
+    }),
+    env,
+  });
+  const j2 = await res2.json();
+  assert.equal(j2.ok, true);
+  assert.equal(j2.valid, false);
+  assert.equal(j2.expiresAt, undefined, '无票据时不应回 expiresAt');
+});
+
+test('A-1：verify-password 签发的 keys 票 Set-Cookie Max-Age=180', async () => {
+  const { makePasswordRecord } = await import('../../functions/api/owner-password.js');
+  const kv = makeKV();
+  const pepper = 'test-pepper-a1';
+  const rec = await makePasswordRecord('correct-owner-pw', pepper);
+  await kv.put('owner-pw', JSON.stringify(rec));
+  const env = makeEnv(kv, { SGX_PW_PEPPER: pepper });
+  const ownerCookie = await makeOwnerSessionCookie();
+  const res = await stepupPost({
+    request: postReq('https://test.example.com/api/stepup', { action: 'verify-password', password: 'correct-owner-pw' }, {
+      'Cookie': 'sgx-verified=' + ownerCookie,
+    }),
+    env,
+  });
+  assert.equal(res.status, 200);
+  const j = await res.json();
+  assert.equal(j.ok, true);
+  const sc = res.headers.get('Set-Cookie') || '';
+  assert.ok(sc.includes('sgx-stepup='), '应签发 sgx-stepup');
+  assert.ok(sc.includes('Max-Age=180'), 'keys 票 Set-Cookie 应为 Max-Age=180，实际=' + sc);
+});
+
+test('A-1：root-auth 签发的 root 票 Set-Cookie Max-Age=180', async () => {
+  const { onRequestPost: rootAuthPost } = await import('../../functions/api/root-auth.js');
+  const kv = makeKV();
+  const TEST_ROOT_KEY = 'test-root-key-a1';
+  const env = makeEnv(kv, { SGX_ROOT_KEY: TEST_ROOT_KEY });
+  const ownerCookie = await makeOwnerSessionCookie();
+  const authRes = await rootAuthPost({
+    request: postReq('https://test.example.com/api/root-auth', { key: TEST_ROOT_KEY }, {
+      'Cookie': 'sgx-verified=' + ownerCookie,
+    }),
+    env,
+  });
+  assert.equal(authRes.status, 200);
+  const setCookies = authRes.headers.getSetCookie ? authRes.headers.getSetCookie() : [authRes.headers.get('Set-Cookie')];
+  const stepupSetCookie = setCookies.find((c) => c && c.startsWith(STEPUP_COOKIE + '='));
+  assert.ok(stepupSetCookie, '应签发 sgx-stepup cookie');
+  assert.ok(stepupSetCookie.includes('Max-Age=180'), 'root 票 Set-Cookie 应为 Max-Age=180，实际=' + stepupSetCookie);
+});
+
+test('A-1：lockreset 签发的 lockreset 票 Set-Cookie Max-Age=180', async () => {
+  const { makePasswordRecord } = await import('../../functions/api/owner-password.js');
+  const { onRequestPost: lockresetPost } = await import('../../functions/api/lockreset.js');
+  const kv = makeKV();
+  const pepper = 'test-pepper-a1';
+  const rec = await makePasswordRecord('correct-owner-pw', pepper);
+  await kv.put('owner-pw', JSON.stringify(rec));
+  await kv.put('layer:owner', '1');
+  const env = makeEnv(kv, { SGX_ROOT_KEY: 'test-root-key-a1', SGX_PW_PEPPER: pepper });
+  const res = await lockresetPost({
+    request: postReq('https://test.example.com/api/lockreset', {
+      action: 'verify',
+      rootKey: 'test-root-key-a1',
+      ownerProof: { type: 'password', password: 'correct-owner-pw' },
+    }),
+    env,
+  });
+  assert.equal(res.status, 200);
+  const j = await res.json();
+  assert.equal(j.ok, true);
+  const setCookies = res.headers.getSetCookie ? res.headers.getSetCookie() : [res.headers.get('Set-Cookie')];
+  const stepupSetCookie = setCookies.find((c) => c && c.startsWith(STEPUP_COOKIE + '='));
+  assert.ok(stepupSetCookie, '应签发 sgx-stepup cookie');
+  assert.ok(stepupSetCookie.includes('Max-Age=180'), 'lockreset 票 Set-Cookie 应为 Max-Age=180，实际=' + stepupSetCookie);
+});

@@ -22,6 +22,8 @@ import {
   apiErrorText,
   handleDoorError,
   clearStepupThen,
+  startDoorCountdown,
+  refreshDoorCountdown,
   b64urlToBuf,
   bufToB64url,
 } from './app-gate.js';
@@ -113,8 +115,9 @@ export function initDoor(o) {
   });
 
   /* ---------- 状态 ---------- */
+  /* v1.1 §二.1：返回请求 Promise，供进门回调等首次数据加载完成后再显示胶囊 */
   function refreshStatus() {
-    fetch(statusApi, { method: 'GET', credentials: 'same-origin' })
+    return fetch(statusApi, { method: 'GET', credentials: 'same-origin' })
       .then(function (r) {
         return r.json();
       })
@@ -219,6 +222,7 @@ export function initDoor(o) {
             toast(t('pwDeleted'));
             refreshStatus();
             refreshPkList();
+            refreshDoorCountdown(t);
           } else if (j && handleDoorError(t, j.error, r.status, j.reason)) {
             /* D3：session/stepup-required/scope/by-root 已走 needVerify */
           } else {
@@ -282,6 +286,7 @@ export function initDoor(o) {
           closePwDlg('success');
           hasPw = true;
           refreshStatus();
+          refreshDoorCountdown(t);
           toast(action === 'change' ? t('pwChanged') : t('pwSaved'));
         } else if (handleDoorError(t, j.error, res.status, j.reason)) {
           /* D3：session/stepup-required/scope/by-root 已走 needVerify */
@@ -384,6 +389,7 @@ export function initDoor(o) {
             toast(t('pkRegistered'));
             closePkNameDlg('success');
             refreshPkList();
+            refreshDoorCountdown(t);
           } else if (j && handleDoorError(t, j.error, r.status, j.reason)) {
             /* D3：已走 needVerify */
           } else if (j && j.error === 'not-found') {
@@ -531,6 +537,7 @@ export function initDoor(o) {
             } catch (e) {}
             refreshPkList();
             refreshStatus();
+            refreshDoorCountdown(t);
           } else if (jj && handleDoorError(t, jj.error, r2.status, jj.reason)) {
             /* D3：已走 needVerify */
           } else {
@@ -586,7 +593,7 @@ export function initDoor(o) {
     const ul = $('lockmgr-pklist');
     const empty = $('lockmgr-pkempty');
     /* 批次 A 验收修复 P0：list 带页面类别，服务端只返回该类 */
-    api('/api/owner-passkey', { action: 'list', pkClass: o.keyClass }, t)
+    return api('/api/owner-passkey', { action: 'list', pkClass: o.keyClass }, t)
       .then(function (res) {
         const j = res.json;
         if (!j) return;
@@ -650,8 +657,9 @@ export function initDoor(o) {
                   if (jj && jj.ok) {
                     toast(t('pkDeleted'));
                     refreshPkList();
-                  } else if (jj && jj.error === 'stepup-required') {
-                    /* 验证失效：已跳验证流程 */
+                    refreshDoorCountdown(t);
+                  } else if (jj && handleDoorError(t, jj.error, r2.status, jj.reason)) {
+                    /* A-1：验证失效走 needVerify 弹框（不再吞掉 stepup-required） */
                   } else {
                     toast(apiErrorText(t, jj && jj.error, r2.status));
                   }
@@ -818,6 +826,7 @@ export function initDoor(o) {
             /* 注册成功 → 弹出命名弹层（预填名已提交，用户改名才调 rename） */
             openPkNameDlg(j.credId, r3.prefill);
             refreshPkList();
+            refreshDoorCountdown(t);
           } else if (j && handleDoorError(t, j.error, r3.res.status, j.reason)) {
             /* D3：已走 needVerify */
           } else {
@@ -857,7 +866,8 @@ export function initDoor(o) {
             credentials: 'same-origin',
           }).then(function (r2) {
             return r2.json().then(function (j2) {
-              if (j2 && j2.ok && j2.valid) return { ok: true };
+              /* A-1：探针成功带回 expiresAt，onEnter 直接启动倒计时（不解析 Cookie） */
+              if (j2 && j2.ok && j2.valid) return { ok: true, expiresAt: j2.expiresAt };
               return { ok: false, reason: 'stepup', status: r2.status, api: 'POST /api/stepup', detail: j2 && j2.reason };
             }).catch(function () {
               return { ok: false, reason: 'parse', status: r2.status, api: 'POST /api/stepup' };
@@ -871,8 +881,13 @@ export function initDoor(o) {
       })
       .catch(function () { return { ok: false, reason: 'network', status: 0, api: 'GET ' + statusApi }; });
   }
-  enterDoor(probe, function () {
-    refreshStatus();
-    refreshPkList();
+  enterDoor(probe, function (result) {
+    /* 探针通过后才渲染门内内容（容器默认 hidden，见模板） */
+    const mgr = $('lockmgr');
+    if (mgr) mgr.hidden = false;
+    /* v1.1 §二.1：胶囊在首次数据加载完成后再显示，避免「胶囊已显示、卡片还空着」；
+       任一请求失败也照常显示胶囊（两函数内部已吞错，Promise 恒 resolve）。 */
+    const startCapsule = function () { startDoorCountdown(t, result && result.expiresAt); };
+    Promise.all([refreshStatus(), refreshPkList()]).then(startCapsule, startCapsule);
   }, t);
 }

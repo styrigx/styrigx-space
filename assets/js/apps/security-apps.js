@@ -6,7 +6,7 @@
  *   点击行进该应用详情页（settingsPath 由模板注入，不手抄）。
  * - 反馈一律 One UI 轻提示（toast）；localStorage 经 storage.js。
  */
-import { enterDoor } from './app-gate.js';
+import { enterDoor, startDoorCountdown } from './app-gate.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -45,6 +45,7 @@ import { enterDoor } from './app-gate.js';
       lastListErr = j;
       return null;
     }).catch(function () {
+      lastListErr = { error: 'network' };
       return null;
     });
   }
@@ -73,12 +74,13 @@ import { enterDoor } from './app-gate.js';
         cachedKeys = keys;
         /* 探针失败时带上服务端 reason（如 owner-configured），探针面板显示明确文案 */
         if (keys) return true;
-        return { ok: false, reason: (lastListErr && lastListErr.reason) || (lastListErr && lastListErr.error) || 'session', status: 0, api: 'POST /api/owner-passkey' };
+        return { ok: false, reason: (lastListErr && lastListErr.error) || 'session', detail: lastListErr && lastListErr.reason, status: 0, api: 'POST /api/owner-passkey' };
       });
     },
     function () {
       const mgr = document.getElementById('appmgr');
       if (mgr) mgr.hidden = false;
+      startDoorCountdown(t);
       render(cachedKeys);
     },
     t
