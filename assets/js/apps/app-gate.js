@@ -183,6 +183,35 @@ function renderDoorCountdown(t) {
 }
 
 /**
+ * 等卡片入场动画结束（.animate-fade-up 的 fade-up 动画）。
+ * 无动画（非首次进入 / 减动效 / 动画已结束）时立即 resolve；
+ * 1500ms 兜底超时，避免异常动画阻塞胶囊。
+ * @returns {Promise<void>}
+ */
+function waitForCardAnimations() {
+  try {
+    const pending = [];
+    const cards = document.querySelectorAll('.animate-fade-up');
+    for (let i = 0; i < cards.length; i++) {
+      const anims = cards[i].getAnimations();
+      for (let j = 0; j < anims.length; j++) {
+        pending.push(anims[j].finished);
+      }
+    }
+    if (!pending.length) return Promise.resolve();
+    const settled = pending.map(function (p) {
+      return p.then(function () {}, function () {});
+    });
+    return Promise.race([
+      Promise.all(settled),
+      new Promise(function (resolve) { window.setTimeout(resolve, 1500); }),
+    ]);
+  } catch (e) {
+    return Promise.resolve();
+  }
+}
+
+/**
  * 启动门内倒计时（A-1）：胶囊在大标题正下方、与标题左对齐。
  * expiresAt 为服务端签发的绝对过期时刻（毫秒）；未传时拉一次 status 取 expiresAt。
  * 已启动时直接换成新的 expiresAt（门内操作重签后刷新用）。
@@ -190,37 +219,49 @@ function renderDoorCountdown(t) {
  * @param {number} [expiresAt] 服务端过期时刻（毫秒）
  */
 export function startDoorCountdown(t, expiresAt) {
+  /* v1.1 §二.2 修复（CI 38506326885 唯一失败）：到期/会话失效弹框已打开时不创建胶囊。
+     覆盖两种返回顺序：
+     - 弹框先开（锁屏页双列表 403 → needVerify → 弹框），随后 startCapsule 调起时守卫拦截；
+     - 胶囊先建，弹框后开时 showExpiredDialog → hideDoorCountdown 已移除。
+     异步分支（未传 expiresAt 时拉 status）回调会再次进入本函数，守卫同样生效，
+     不会因 stepup 请求在途、弹框中途打开而重建胶囊。 */
+  if (expiredDialogOpen) return;
   if (typeof expiresAt === 'number' && isFinite(expiresAt) && expiresAt > 0) {
-    if (!countdownEl) {
-      const el = document.createElement('div');
-      el.id = 'sgx-door-countdown';
-      el.className = 'sgx-door-countdown';
-      el.setAttribute('role', 'timer');
-      const icon = document.createElement('span');
-      icon.setAttribute('aria-hidden', 'true');
-      /* 时钟图标（与 icon.html 的 clock 同款路径） */
-      icon.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
-      const text = document.createElement('span');
-      text.className = 'sgx-door-countdown-text';
-      el.appendChild(icon);
-      el.appendChild(text);
-      const head = document.querySelector('header.subpage-head');
-      if (head) {
-        /* 放进 header 内部（大标题正下方）：.set-layout 在桌面端是 2 列 grid，
-           作为 header 的兄弟元素会被自动放到第 1 行第 2 列，与标题重叠；放进
-           header 的 flex 列里则始终在标题下方，且 align-self 左对齐。 */
-        head.appendChild(el);
-      } else {
-        const layout = document.querySelector('.set-layout');
-        if (layout) layout.insertBefore(el, layout.firstChild);
-        else document.body.insertBefore(el, document.body.firstChild);
-      }
-      countdownEl = el;
-    }
-    countdownExpiresAt = expiresAt;
-    stopDoorCountdown();
-    renderDoorCountdown(t);
-    countdownTimer = window.setInterval(function () { renderDoorCountdown(t); }, 1000);
+    /* v1.1 §二.1 补充：等卡片入场动画结束后再建胶囊，胶囊出现时卡片已不透明、无重叠，
+       避免「胶囊已显示、卡片还在淡入」。等待期间弹框若打开，守卫重新拦截，不建胶囊。 */
+    waitForCardAnimations().then(function () {
+        if (expiredDialogOpen) return;
+        if (!countdownEl) {
+        const el = document.createElement('div');
+        el.id = 'sgx-door-countdown';
+        el.className = 'sgx-door-countdown';
+        el.setAttribute('role', 'timer');
+        const icon = document.createElement('span');
+        icon.setAttribute('aria-hidden', 'true');
+        /* 时钟图标（与 icon.html 的 clock 同款路径） */
+        icon.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+        const text = document.createElement('span');
+        text.className = 'sgx-door-countdown-text';
+        el.appendChild(icon);
+        el.appendChild(text);
+        const head = document.querySelector('header.subpage-head');
+        if (head) {
+          /* 放进 header 内部（大标题正下方）：.set-layout 在桌面端是 2 列 grid，
+             作为 header 的兄弟元素会被自动放到第 1 行第 2 列，与标题重叠；放进
+             header 的 flex 列里则始终在标题下方，且 align-self 左对齐。 */
+          head.appendChild(el);
+        } else {
+          const layout = document.querySelector('.set-layout');
+          if (layout) layout.insertBefore(el, layout.firstChild);
+          else document.body.insertBefore(el, document.body.firstChild);
+        }
+        countdownEl = el;
+        }
+        countdownExpiresAt = expiresAt;
+        stopDoorCountdown();
+        renderDoorCountdown(t);
+        countdownTimer = window.setInterval(function () { renderDoorCountdown(t); }, 1000);
+    });
     return;
   }
   /* 未传 expiresAt：拉一次 status 取服务端过期时刻（前端不解析 Cookie） */

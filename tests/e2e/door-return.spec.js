@@ -500,6 +500,35 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
     expect(pageErrors).toEqual([]);
   });
 
+  test('v1.1 §二.1 补充：胶囊出现时卡片已不透明、帮助文字不与卡片重叠', async ({ page }) => {
+    await mockJson(page, '**/api/owner-status', 200, { ok: true, password: true, passkey: true });
+    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
+    await page.goto('/settings/security/owner/', { waitUntil: 'domcontentloaded' });
+    const capsule = page.locator('#sgx-door-countdown');
+    await expect(capsule).toBeVisible({ timeout: 15000 });
+    /* 胶囊出现时，卡片入场动画已结束（不透明度=1），不是半透明淡入中 */
+    const opacities = await page.locator('.animate-fade-up').evaluateAll((els) =>
+      els.map((el) => parseFloat(getComputedStyle(el).opacity))
+    );
+    expect(opacities.length).toBeGreaterThan(0);
+    opacities.forEach((o) => expect(o).toBe(1));
+    /* 帮助文字（sec-note，含「用于进入管理凭证」与「构建 dev」）不与卡片（widget）重叠 */
+    const overlap = await page.evaluate(() => {
+      const notes = Array.from(document.querySelectorAll('p.sec-note'));
+      const cards = Array.from(document.querySelectorAll('section.widget'));
+      for (const n of notes) {
+        const nb = n.getBoundingClientRect();
+        for (const c of cards) {
+          const cb = c.getBoundingClientRect();
+          if (nb.left < cb.right && nb.right > cb.left && nb.top < cb.bottom && nb.bottom > cb.top) return true;
+        }
+      }
+      return false;
+    });
+    expect(overlap).toBe(false);
+    expect(pageErrors).toEqual([]);
+  });
+
   test('门内 403 stepup-required → 弹框，不点不跳；点按钮才回安全页；无 challenge 请求', async ({ page }) => {
     await mockJson(page, '**/api/owner-status', 200, { ok: true, password: true, passkey: true });
     await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
