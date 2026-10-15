@@ -50,7 +50,7 @@
   <button type="button" id="search-mic" aria-label="{{ if $isEn }}Voice search{{ else }}语音搜索{{ end }}">
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-5a3.5 3.5 0 1 0-7 0v5A3.5 3.5 0 0 0 12 15zm6-3.5a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.94V22h2v-2.06A8 8 0 0 0 20 11.5h-2z"/></svg>
   </button>
-  <button type="button" id="search-more" aria-label="{{ if $en }}More options{{ else }}更多选项{{ end }}">
+  <button type="button" id="search-more" aria-label="{{ if $isEn }}More options{{ else }}更多选项{{ end }}">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg>
   </button>
   <button type="button" id="search-clear" aria-label="{{ if $isEn }}Clear{{ else }}清空{{ end }}" hidden>
