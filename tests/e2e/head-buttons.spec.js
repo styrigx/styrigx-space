@@ -201,7 +201,7 @@ test('D4 door pages: back + more buttons exist', async ({ page: pg }) => {
   }
 });
 
-test('D5 stuck: back and more stick in the same frame', async ({ page: pg }) => {
+test('D5 float: back and more float in the same frame (B1-7 data-state)', async ({ page: pg }) => {
   const errs = [];
   pg.on('pageerror', (e) => errs.push(e.message));
   await pinLang(pg, 'zh');
@@ -219,8 +219,8 @@ test('D5 stuck: back and more stick in the same frame', async ({ page: pg }) => 
         const mr = more.getBoundingClientRect();
         frames.push({
           y,
-          backStuck: back.classList.contains('stuck'),
-          moreStuck: more.classList.contains('stuck'),
+          backStuck: head.getAttribute('data-state') === 'float',
+          moreStuck: head.getAttribute('data-state') === 'float',
           backTop: br.top,
           moreTop: mr.top,
           dCY: Math.abs(br.top + br.height / 2 - (mr.top + mr.height / 2)),
@@ -232,8 +232,8 @@ test('D5 stuck: back and more stick in the same frame', async ({ page: pg }) => 
       return {
         frames,
         afterTop: {
-          backStuck: back.classList.contains('stuck'),
-          moreStuck: more.classList.contains('stuck'),
+          backStuck: head.getAttribute('data-state') === 'float',
+          moreStuck: head.getAttribute('data-state') === 'float',
         },
       };
     });
