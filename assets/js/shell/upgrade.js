@@ -109,6 +109,12 @@ export function initUpgrade() {
     }
     if (formEl) formEl.hidden = false;
     try { if (inputEl) inputEl.focus({ preventScroll: true }); } catch (e) {}
+    /* B1-4：键盘避让（与锁屏同一实现） */
+    try {
+      if (window.__sgxUpgradeKbCleanup) window.__sgxUpgradeKbCleanup();
+      const sheet = document.querySelector('.sgx-upgrade-sheet');
+      if (sheet && inputEl) window.__sgxUpgradeKbCleanup = followKeyboard(sheet, inputEl);
+    } catch (e2) {}
   };
   const showOpts = () => {
     pendingKind = null;
