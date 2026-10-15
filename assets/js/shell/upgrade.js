@@ -231,7 +231,12 @@ export function initUpgrade() {
           userVerification: 'required',
         }, { hideEl: dlg });
       } catch (e) {
-        showErr(passkeyErrorText(e.kind || 'failed', isEn));
+        /* B1-2：4 档文案；InvalidStateError 保持 46fe723 前的通用报错 */
+        if (e && e.kind === 'nokey' && e.cause && e.cause.name === 'InvalidStateError') {
+          showErr(isEn ? 'Verification failed' : '验证失败');
+        } else {
+          showErr(passkeyErrorText(e.kind || 'failed', isEn));
+        }
         return;
       }
       const authRes = await fetch('/api/owner-passkey', {
@@ -261,8 +266,11 @@ export function initUpgrade() {
         showErr(isEn ? 'Verification failed' : '验证失败');
       }
     } catch (e) {
-      /* 用户取消/无钥匙或失败：留在原页（B1-2：cancelled 和 nokey 都不当报错，保持 46fe723 前 NotAllowedError 的行为） */
-      if (e && e.kind !== 'cancelled' && e.kind !== 'nokey') showErr(isEn ? 'Verification failed' : '验证失败');
+      /* 用户取消/无钥匙(NotAllowedError)：留在原页不弹错；其余弹错（保持 46fe723 前 e.name !== 'NotAllowedError' 的行为） */
+      const isCancelLike = e && (e.kind === 'cancelled' ||
+        (e.kind === 'nokey' && e.cause && e.cause.name === 'NotAllowedError') ||
+        e.name === 'NotAllowedError');
+      if (!isCancelLike) showErr(isEn ? 'Verification failed' : '验证失败');
     }
   });
 }
