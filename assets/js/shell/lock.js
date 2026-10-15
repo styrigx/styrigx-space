@@ -49,25 +49,44 @@ function isLocalDev() {
 /* 子站验证失败提示（小字显示在页面底部；幂等，重复调用只更新文案）。
    原在 showLockScreen 内，提到模块作用域：initLock 在会话有效时不进锁屏，
    也需要直接显示 ?why= 原因。 */
+/* B1-8：子站回跳死循环判定（20 秒窗口）。
+   回跳记录存 sessionStorage：{ target, at }。
+   20 秒内同一 target 第二次被踢回 → 失败卡（One UI 样式，不显示原因码）。
+   否则覆盖记录，继续回跳。 */
+function checkSubsiteLoop(target) {
+  try {
+    const raw = sessionStorage.getItem('sgx-subsite-jump');
+    const now = Date.now();
+    if (raw) {
+      const rec = JSON.parse(raw);
+      if (rec.target === target && (now - rec.at) < 20000) {
+        return true; /* 死循环 */
+      }
+    }
+    sessionStorage.setItem('sgx-subsite-jump', JSON.stringify({ target: target, at: now }));
+  } catch (e) {}
+  return false;
+}
 function showSubsiteFailure(why) {
+  /* B1-8：失败卡用 One UI 样式，不显示原因码 */
   let el = document.getElementById('sgx-subsite-failure');
   if (!el) {
     el = document.createElement('div');
     el.id = 'sgx-subsite-failure';
-    el.style.cssText = 'position:fixed;bottom:24px;left:0;right:0;text-align:center;font-size:12px;color:rgba(255,255,255,0.6);z-index:10001;';
+    el.className = 'sgx-card';
+    el.style.cssText = 'position:fixed;bottom:24px;left:16px;right:16px;z-index:10001;padding:16px;text-align:center;';
+    el.innerHTML =
+      '<p style="margin:0 0 12px;font-size:15px;">' + '无法回到子站，请重试' + '</p>' +
+      '<button type="button" class="sgx-door-btn-primary" id="sgx-subsite-home">回到主站</button>';
     document.body.appendChild(el);
+    const btn = document.getElementById('sgx-subsite-home');
+    if (btn) {
+      btn.addEventListener('click', function () {
+        location.href = '/';
+      });
+    }
   }
-  const reasons = {
-    'no-cookie': '无凭证',
-    'bad-format': '凭证格式错误',
-    'expired': '凭证已过期',
-    'key-import': '公钥导入失败',
-    'sig': '签名验证失败',
-    'epoch-fetch': '无法获取会话纪元',
-    'epoch-stale': '凭证纪元过旧',
-    'no-config': '子站未配置公钥'
-  };
-  el.textContent = '子站验证失败：' + (reasons[why] || why);
+  el.hidden = false;
 }
 
 /**
@@ -315,10 +334,14 @@ function showLockScreen() {
       ret = params.get('return') || '';
       why = params.get('why') || '';
     } catch (e) {}
-    /* 诊断：如果带 why（子站验证失败被踢回），显示原因并不再自动跳回子站，避免死循环 */
+    /* B1-8：如果带 why（子站验证失败被踢回），20 秒内同一目标第二次才算死循环 */
     if (why) {
-      showSubsiteFailure(why);
-      return;
+      const target = ret || '';
+      if (checkSubsiteLoop(target)) {
+        showSubsiteFailure(why);
+        return;
+      }
+      /* 非死循环：继续回跳（覆盖记录） */
     }
     if (ret) {
       sgxReplace(window.location.href, 'lock.js:321', 'return-reload');
