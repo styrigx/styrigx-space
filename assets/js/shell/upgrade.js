@@ -267,8 +267,8 @@ export function initUpgrade() {
         showErr(isEn ? 'Verification failed' : '验证失败');
       }
     } catch (e) {
-      /* 用户取消或失败：留在原页 */
-      if (e && e.kind !== 'cancelled') showErr(isEn ? 'Verification failed' : '验证失败');
+      /* 用户取消/无钥匙或失败：留在原页（B1-2：cancelled 和 nokey 都不当报错，保持 46fe723 前 NotAllowedError 的行为） */
+      if (e && e.kind !== 'cancelled' && e.kind !== 'nokey') showErr(isEn ? 'Verification failed' : '验证失败');
     }
   });
 }

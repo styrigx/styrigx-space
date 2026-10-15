@@ -1468,11 +1468,18 @@ function showLockScreen() {
           }
           submitResetOwner(proof);
         }, function (err) {
-          /* 用户取消系统验证：行内提示，不报验证失败，留在本页 */
+          /* 用户取消/无钥匙：行内提示，不报验证失败，留在本页（B1-2：nokey 也按取消处理，保持 46fe723 前 NotAllowedError 的行为） */
           if (dlgState !== 'reset-step2') throw { done: true };
           if (err && err.kind === 'cancelled') {
             if (rowErr) {
               rowErr.textContent = en ? 'Cancelled, you can select again' : '已取消验证，可重新选择';
+              rowErr.hidden = false;
+            }
+            throw { done: true };
+          }
+          if (err && err.kind === 'nokey') {
+            if (rowErr) {
+              rowErr.textContent = passkeyErrorText('nokey', en);
               rowErr.hidden = false;
             }
             throw { done: true };
