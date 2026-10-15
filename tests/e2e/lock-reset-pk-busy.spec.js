@@ -250,6 +250,26 @@ test.describe('reset (2/2) passkey busy', () => {
     await expect(page.locator('#sgx-reset-pk-row')).toBeEnabled();
     await expect(page.locator('#sgx-reset-pw-row')).toBeEnabled();
   });
+
+  test('通用失败（SecurityError）：显示全局「通行密钥验证失败」，留在本页', async ({ page }) => {
+    /* B1-2 选项 B：failed 走全局报错（保持 46fe723 前行为） */
+    const counters = { challenge: 0 };
+    await mockLockreset(page, counters);
+    await gotoResetStep2(page);
+    await stubWebauthnPending(page);
+    await page.locator('#sgx-reset-pk-row').click();
+    await expect(page.locator('#sgx-reset-pk-row .sgx-door-spin')).toBeVisible({ timeout: 8000 });
+    await awaitPkGate(page);
+    await page.evaluate(() => {
+      window.__pkGate.reject(Object.assign(new Error('security'), { name: 'SecurityError' }));
+    });
+    await expect(page.locator('#sgx-reset-pk-row .sgx-door-spin')).toHaveCount(0, { timeout: 8000 });
+    /* 全局报错，不是行内 */
+    await expect(page.locator('#sgx-verify-err:not([hidden])')).toHaveText('通行密钥验证失败');
+    await expect(page.locator('#sgx-reset-pk-err')).toBeHidden();
+    await expect(page.locator('#sgx-verify-title')).toHaveText('重置锁屏 (2/2)');
+    expect(page.url()).toContain('?lock=1');
+  });
 });
 
 test.describe('reset (2/2) passkey busy (en)', () => {
