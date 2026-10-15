@@ -651,17 +651,6 @@ function showLockScreen() {
   function verifyFailed() {
     showTurnstileRetry(false);
   }
-    const retry = document.getElementById('sgx-verify-retry');
-    if (retry) {
-      on(retry, 'click', function () {
-        startVerify();
-      });
-      try {
-        retry.focus({ preventScroll: true });
-      } catch (e) {}
-    }
-    liftAvatar();
-  }
 
   function resetWidget() {
     try {
@@ -1556,21 +1545,6 @@ function showLockScreen() {
     liftAvatar();
   }
 
-  /** @returns {Uint8Array} */
-  function b64urlToBuf(s) {
-    s = s.replace(/-/g, '+').replace(/_/g, '/');
-    const bin = atob(s);
-    const u8 = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-    return u8;
-  }
-  /** @param {ArrayBuffer} buf */
-  function bufToB64url(buf) {
-    const u8 = new Uint8Array(buf);
-    let s = '';
-    for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
-    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  }
   function pkAuth() {
     fetch('/api/owner-passkey', {
       method: 'POST',
