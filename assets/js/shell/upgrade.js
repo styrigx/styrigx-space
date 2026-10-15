@@ -268,7 +268,7 @@ export function initUpgrade() {
       }
     } catch (e) {
       /* 用户取消或失败：留在原页 */
-      if (e && e.name !== 'NotAllowedError') showErr(isEn ? 'Verification failed' : '验证失败');
+      if (e && e.kind !== 'cancelled') showErr(isEn ? 'Verification failed' : '验证失败');
     }
   });
 }
