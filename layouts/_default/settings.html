@@ -17,11 +17,8 @@
        按钮中心 y、左右边距（122/122）与我的文件 DeX 对齐；两栏下沉，G=8。 */}}
   <div class="set-dex-head">
     {{ partial "subpage-head.html" (dict "title" (cond $isEn "Settings" "设置") "isEn" $isEn) }}
-  </div>
-
-  {{/* Mobile：标题 + 账户卡 + 分类列表（进子页） */}}
-  <div class="set-mobile-only">
-    {{ partial "subpage-head.html" (dict "title" (cond $isEn "Settings" "设置") "isEn" $isEn "noBack" true) }}
+    {{/* Mobile：账户卡 + 分类列表（进子页），与标题区同容器（D4 G 测量需为标题的兄弟节点）。 */}}
+    <div class="set-mobile-only">
     {{ partial "sgx-account-card.html" . }}
     <div class="set-main min-w-0">
       <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.1s" aria-label="{{ if $isEn }}Categories{{ else }}分类{{ end }}">
@@ -41,6 +38,7 @@
         </a>
         {{ end }}
       </section>
+    </div>
     </div>
   </div>
 

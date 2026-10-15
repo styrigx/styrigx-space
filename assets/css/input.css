@@ -1323,7 +1323,7 @@
   /* 2.6.0：双栏结构只在 DeX/PC 显示；移动端只显示分类列表。
      Gray 2026-10-15：DeX 标题区移到两栏上方（.set-dex-head，与我的文件一致），
      两栏（.set-dex-cols）在按钮行下方，G=8。 */
-  .set-dex-head, .set-dex-cols { display: none; }
+  .set-dex-cols { display: none; }
   .set-col-l, .set-col-r { display: none; }
   .set-side { display: none; }
   .set-right-title { display: none; }
