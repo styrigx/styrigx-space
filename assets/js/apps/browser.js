@@ -125,20 +125,50 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
 
   /* ============ 键盘贴合：地址栏贴键盘，无跳动（2.4.0 D：统一走 vk.js） ============ */
   /** @type {(() => void)|null} */ let kbCleanup = null;
+  /* D2：返回手势只收键盘、不触发 input blur 的兜底——与搜索胶囊（capsule.js）同一套判断 */
+  let ovKbMaxSeen = 0;
+  let ovKbLastH = 0;
+  /** @type {number|null} */ let ovKbCloseTimer = null;
   function stickKb() {
     unstickKb();
     kbCleanup = onKeyboardHeight(function (h) {
+      h = Math.max(0, h || 0);
+      ovKbLastH = h;
+      if (h > ovKbMaxSeen) ovKbMaxSeen = h;
       document.documentElement.style.setProperty('--sgx-kb', Math.round(h) + 'px');
+      /* D2：弹层开着且键盘曾弹出过、高度回到 0（≤2px）→ 120ms 去抖后仍为 0
+         就 blur + closeOverlay(false)，效果等同点蒙层空白；中途 h 变大则取消 */
+      if (ovOpen && ovKbMaxSeen > 0 && h <= 2) {
+        if (ovKbCloseTimer) window.clearTimeout(ovKbCloseTimer);
+        ovKbCloseTimer = window.setTimeout(function () {
+          ovKbCloseTimer = null;
+          if (ovOpen && ovKbLastH <= 2) {
+            try {
+              input.blur();
+            } catch (e) {}
+            closeOverlay(false);
+          }
+        }, 120);
+      } else if (ovKbCloseTimer) {
+        window.clearTimeout(ovKbCloseTimer);
+        ovKbCloseTimer = null;
+      }
     }, overlay);
   }
   function unstickKb() {
     document.documentElement.classList.remove('sgx-vk');
     overlay.classList.remove('sgx-kb-sync');
+    if (ovKbCloseTimer) {
+      window.clearTimeout(ovKbCloseTimer);
+      ovKbCloseTimer = null;
+    }
     if (kbCleanup) {
       kbCleanup();
       kbCleanup = null;
     }
     document.documentElement.style.setProperty('--sgx-kb', '0px');
+    /* D2：清空键盘高度记忆，下次打开重新统计 */
+    ovKbMaxSeen = 0;
   }
 
   /* ============ 地址栏位置 ============ */

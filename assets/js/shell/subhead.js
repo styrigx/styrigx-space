@@ -16,10 +16,23 @@ export function initSubHead(S) {
   try {
     if (window.CSS && CSS.supports && CSS.supports('view-timeline-name', '--sgx-subhead')) return;
   } catch (e) {}
-  const head = document.querySelector('[data-subpage-head]');
-  const floats = document.querySelectorAll('.subpage-back-float');
+  const heads = document.querySelectorAll('[data-subpage-head]');
+  /* D3：设置页手机/DeX 各有一份标题（DeX 那份 noTimeline 无 data-subpage-head），
+     JS 回退只取当前可见的那一份，避免选中 display:none 的标题导致阈值错乱。 */
+  let head = null;
+  for (let i = 0; i < heads.length; i++) {
+    let vis = false;
+    try {
+      vis = heads[i].getClientRects().length > 0;
+    } catch (e) {}
+    if (vis) {
+      head = heads[i];
+      break;
+    }
+  }
+  if (!head && heads.length) head = heads[0];
   const minis = document.querySelectorAll('.subpage-mini-title');
-  if (!head || (!floats.length && !minis.length)) return;
+  if (!head || !minis.length) return;
   const hero = head.querySelector('.subpage-hero');
 
   /** @param {number} y */
@@ -53,12 +66,10 @@ export function initSubHead(S) {
         ? 'translateX(-50%)'
         : 'translateX(-50%) translateY(' + (6 * (1 - mp)).toFixed(1) + 'px)';
     });
-    /* 悬浮返回键：保持原来的二值逻辑 */
+    /* D5：折叠返回键不再用独立 .subpage-back-float 元素，展开态 .subpage-back 吸顶时
+       由 head-buttons.js 加 .stuck 并切到 ‹ 图标；此处不再单独显隐悬浮键。 */
+    /* 滚动后小标题/顶栏合并为同一层模糊底（阈值与原来悬浮键一致：y > headH*0.55） */
     const show = canScroll && y > headH * 0.55;
-    floats.forEach(function (f) {
-      f.classList.toggle('show', !!show);
-    });
-    /* 滚动后小标题/返回键与顶栏合并为同一层模糊底 */
     document.body.classList.toggle('subpage-scrolled', !!show);
   }
   S.onScroll(onScroll);

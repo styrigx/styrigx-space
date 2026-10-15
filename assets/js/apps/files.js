@@ -6,7 +6,6 @@ import { on } from '../lib/events.js';
 import { registerPage } from '../shell/inpagenav.js';
 import { esc } from '../lib/util.js';
 import { getJSON, setJSON } from '../lib/storage.js';
-import { getScheduler } from '../lib/scheduler.js';
 import { openSheet } from '../shell/sheet.js';
 import { setCapSearchProvider } from '../shell/capsule.js';
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
@@ -564,46 +563,8 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
   }
   setCapSearchProvider(capSearch);
 
-  /* ---------- ⋯ 单按钮滚动停靠 ---------- */
-  const Sched = getScheduler();
-  const moreActions = document.querySelector('.subpage-actions');
-  let moreSafeTop = 0;
-  try {
-    const probe = document.createElement('div');
-    probe.style.cssText =
-      'position:fixed;top:0;left:0;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top,0px)';
-    document.body.appendChild(probe);
-    moreSafeTop = parseFloat(getComputedStyle(probe).paddingTop) || 0;
-    probe.remove();
-  } catch (e) {}
-  function moreStuckRight() {
-    const land =
-      window.matchMedia && window.matchMedia('(orientation:landscape) and (max-width:979.5px)').matches;
-    const w = land ? 640 : 1100;
-    return Math.max(16, (window.innerWidth - w) / 2 + (land ? 0 : 16));
-  }
-  /** @param {number} [y] */
-  function updateMoreStick(y) {
-    if (y === undefined) y = window.scrollY || 0;
-    if (!moreBtn || !moreActions) return;
-    const r = moreActions.getBoundingClientRect();
-    const docTop = r.top + y;
-    const navH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nav-h')) || 64;
-    const stuckTop = navH + 8 + moreSafeTop;
-    const stick = y > 0 && y >= docTop - stuckTop;
-    if (stick) {
-      moreBtn.classList.add('stuck');
-      /** @type {HTMLElement} */ (moreBtn).style.right = moreStuckRight() + 'px';
-    } else {
-      moreBtn.classList.remove('stuck');
-      /** @type {HTMLElement} */ (moreBtn).style.right = '';
-    }
-  }
-  Sched.onScroll(updateMoreStick);
-  Sched.onResize(function () {
-    updateMoreStick(window.scrollY || 0);
-  });
-  updateMoreStick(window.scrollY || 0);
+  /* ---------- ⋯ 按钮吸顶：D5 起走公共模块 shell/head-buttons.js（与原公式逐行一致） ---------- */
+  /* （原 updateMoreStick / moreStuckRight 已移入公共模块；菜单绑定保留） */
 
   /* ---------- 初始化 ---------- */
   applyHomeVis();
@@ -636,7 +597,6 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
     .catch(function () {
       if (listMode) renderList();
     });
-  updateMoreStick();
 })();
 
 /* 2.9.0 页内导航：注册 mount/unmount */

@@ -488,6 +488,8 @@
     --dock-h: 64px;
     --dex-dock-h: 64px;
     --sgx-kb: 0px;
+    /* D4：标题区按钮底边 → 第一块正文顶边（实测我的文件 = 8px）；所有子页共用 */
+    --sgx-head-btn-gap: 8px;
   }
 }
 /* stylelint-enable color-no-hex, color-named */
@@ -556,7 +558,7 @@
      isolation 限定混合范围；contain: layout style 把重排/重绘关在元素内（fixed 元素安全）。 */
   .glass,
   .dock, #dex-dock,
-  .subpage-back-float, #files-more.stuck,
+  .subpage-back.stuck, .subpage-more.stuck, #files-more.stuck,
   .layout-dex #site-nav,
   .layout-pc #site-nav,
   .layout-mobile body.subpage-scrolled #site-nav,
@@ -569,21 +571,20 @@
     contain: layout style;
   }
   /* 隐藏状态关掉模糊，不在看不见的元素上重算 */
-  .subpage-back-float:not(.show),
   .brw-ov:not(.open),
   .sgx-cap-results[hidden] {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .glass, .dock, #dex-dock, .subpage-back-float, #files-more.stuck,
+    .glass, .dock, #dex-dock, .subpage-back.stuck, .subpage-more.stuck, #files-more.stuck,
     .layout-dex #site-nav, .layout-pc #site-nav, .layout-mobile body.subpage-scrolled #site-nav,
     .sgx-searchbar, .sgx-cap, .sgx85-pill,
     /* stylelint-disable-next-line color-no-hex */
     .brw-suggest, .sgx-cap-results, .brw-ov-bar, .brw-ov, .sgx-vs-card { background: #fff; }
     /* stylelint-disable-next-line color-no-hex */
     .layout-mobile #sheet-panel, .layout-dex #sheet-panel, .layout-pc #sheet-panel { background: #fff; }
-    .dark .glass, .dark .dock, .dark #dex-dock, .dark .subpage-back-float, .dark #files-more.stuck,
+    .dark .glass, .dark .dock, .dark #dex-dock, .dark .subpage-back.stuck, .dark .subpage-more.stuck, .dark #files-more.stuck,
     .dark .layout-dex #site-nav, .dark .layout-pc #site-nav, .dark .layout-mobile body.subpage-scrolled #site-nav,
     .dark .sgx-searchbar, .dark .sgx-cap, .dark .sgx85-pill,
     .dark .brw-suggest, .dark .sgx-cap-results, .dark .brw-ov-bar, .dark .brw-ov,
@@ -637,7 +638,9 @@
      标题区 [data-subpage-head] 提供命名 view timeline；exit 区间即“滚过标题区”的过程
      （exit 0% ↔ y=0，exit 100% ↔ y=headH，与 JS 公式里的 headH 系数一一对应，
      已在 Chromium 实测验证映射关系）。
-     驱动：大标题折叠 / 小标题淡入 / 悬浮返回键 / 顶栏变实 / 品牌时间淡出。
+     驱动：大标题折叠 / 小标题淡入 / 顶栏变实 / 品牌时间淡出。
+     （D5 起折叠返回键不再用独立元素：展开态 .subpage-back 吸顶时直接变 ‹，
+     吸住时机由 head-buttons.js 与三点同一帧驱动，不走 scroll-driven。）
      不支持 view-timeline-name 的浏览器回退到现有 JS
      （body.subpage-scrolled 类 + 内联样式，见 sgx-base-a.js initBackFloat）。 */
   @supports (view-timeline-name: --sgx-subhead) {
@@ -665,28 +668,8 @@
       from { opacity: 0; transform: translateX(-50%) translateY(6px); }
       to { opacity: 1; transform: translateX(-50%) translateY(0); }
     }
-    /* 悬浮返回键：y > headH*0.55 出现（2% 区间内完成显隐；backdrop-filter 也随显隐开关，
-       保留“隐藏时不算模糊”的优化，原来靠 .show 类实现） */
-    .subpage-back-float {
-      animation: sgx-backfloat linear both;
-      animation-timeline: --sgx-subhead;
-      animation-range: exit 55% exit 57%;
-    }
-    @keyframes sgx-backfloat {
-      /* 50% 处重复 none：backdrop-filter 是可插值属性，不写中间帧的话静止态会算出
-         blur(0px) saturate(1) 而不是 none（仍可能触发背景采样）；显式 50% 保证
-         静止隐藏态精确为 none，保留“隐藏时不算模糊”的优化 */
-      from {
-        opacity: 0; transform: translateY(-8px); pointer-events: none;
-        backdrop-filter: none; -webkit-backdrop-filter: none;
-      }
-      50% { backdrop-filter: none; -webkit-backdrop-filter: none; }
-      to {
-        opacity: 1; transform: none; pointer-events: auto;
-        backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
-        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
-      }
-    }
+    /* D5：折叠返回键不再用独立元素，展开态 .subpage-back 吸顶时直接变 ‹（.stuck 切换图标）；
+       吸住时机由 head-buttons.js 与三点同一帧驱动，本段 scroll-driven 显隐删除。 */
     /* 顶栏变实：与小标题/返回键同一阈值，合并为同一层模糊底（替代 body.subpage-scrolled） */
     .layout-mobile #site-nav {
       isolation: isolate;
@@ -873,25 +856,39 @@
     .layout-dex & , .layout-pc & { min-height: 25vh; min-height: 25svh; padding-top: calc(64px + env(safe-area-inset-top,0px)); }
   }
   .layout-mobile .subpage-hero { position: relative; top: 0; }
-  .layout-mobile .subpage-back { top: calc(var(--nav-h,64px) + 12px + env(safe-area-inset-top,0px)); }
-  /* 2.9.2⑥③：返回箭头 top 必须 >= 顶栏 bottom（所有布局） */
-  .subpage-back { top: max(calc(12px + env(safe-area-inset-top,0px)), calc(var(--nav-h,64px) + 8px)); }
-  .layout-mobile .subpage-actions { top: auto; bottom: 8px; }
+  /* D4：返回键改到标题区底部，与 .subpage-actions 左右对称（left:16px ↔ right:16px，
+     bottom 同为 --sgx-head-btn-gap）。三点水平镜像：中心 y 相同、尺寸相同、同步吸顶。 */
+  .layout-mobile .subpage-actions { top: auto; bottom: var(--sgx-head-btn-gap); }
   /* 2.3.14.7：大标题滚动联动动画 2.4.0 B 起由 CSS scroll-driven animations 驱动
      （@supports 不命中时回退到 rAF 直接写 opacity/transform），不再用 CSS transition，
      避免与逐帧更新打架。2.4.0 A：will-change 不常驻，只在滚动活跃时由 JS 临时加。 */
   .reduced-motion .subpage-hero { transition: none; }
+  /* D4/D5：返回键（展开态 ← / 吸顶态 ‹）。展开态在标题区左下，与三点对称；
+     上滑吸顶时由 head-buttons.js 与三点同一帧加 .stuck，图标切到 ‹（主色磨砂圆，与我的文件折叠态一致）。 */
   .subpage-back {
-    position: absolute; left: 16px; top: calc(12px + env(safe-area-inset-top,0px));
+    position: absolute; left: 16px; top: auto; bottom: var(--sgx-head-btn-gap);
     width: 44px; height: 44px; border-radius: 999px; display: inline-flex; align-items: center;
     justify-content: center; color: var(--m-on-surface); flex-shrink: 0; z-index: 2;
     &:hover { background: rgba(0,0,0,.05); }
     .dark &:hover { background: rgba(255,255,255,.08); }
     svg { width: 24px; height: 24px; }
+    /* 折叠态图标：默认隐藏，.stuck 时显示（与 ← 互斥） */
+    .sgx-bk-fold { display: none; font-size: 26px; line-height: 1; font-weight: 400; color: var(--m-primary); }
+    &.stuck {
+      position: fixed; top: calc(var(--nav-h,64px) + 8px + env(safe-area-inset-top,0px)); bottom: auto; margin: 0;
+      left: max(16px, calc((100vw - 1100px)/2 + 16px));
+      background: var(--glass-tint); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow);
+      z-index: 55; color: var(--m-primary);
+      svg { display: none; }
+      .sgx-bk-fold { display: block; }
+    }
   }
+  /* D5：吸顶过渡只做背景/边框/阴影淡入（right 由 JS 写，减弱动效只改显隐、不做位移过渡） */
+  .subpage-back, .subpage-more { transition: background-color .2s ease, border-color .2s ease, box-shadow .2s ease, right .2s ease; }
+  .reduced-motion .subpage-back, .reduced-motion .subpage-more { transition: none; }
   .subpage-hero { min-width: 0; max-width: 640px; }
   .subpage-title { font-size: 40px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; color: var(--m-primary); }
-  .subpage-actions { position: absolute; right: 16px; top: auto; bottom: 8px; display: flex; gap: 8px; flex-shrink: 0; z-index: 2; }
+  .subpage-actions { position: absolute; right: 16px; top: auto; bottom: var(--sgx-head-btn-gap); display: flex; gap: 8px; flex-shrink: 0; z-index: 2; }
   /* 滚过标题区后的顶部居中小标题（2.4.0 B：显隐由 scroll-driven animation 按滚动进度驱动；
      @supports 不命中时回退到 rAF 直接写 opacity/transform，无 transition） */
   .subpage-mini-title {
@@ -901,25 +898,22 @@
     overflow: hidden; text-overflow: ellipsis;
   }
   .subpage-mini-title.show { opacity: 1; transform: translateX(-50%); }
-  /* 滚过标题区后的悬浮圆形返回键（手机） */
-  .subpage-back-float {
-    position: fixed; left: 16px; top: calc(12px + env(safe-area-inset-top,0px)); z-index: 55;
-    width: 48px; height: 48px; border-radius: 999px; display: flex; align-items: center; justify-content: center;
-    background: var(--glass-tint); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow);
-    opacity: 0; pointer-events: none; transform: translateY(-8px); transition: opacity .2s ease, transform .2s ease;
-    &.show { opacity: 1; pointer-events: auto; transform: none; }
-    svg { width: 24px; height: 24px; color: var(--m-primary); }
-    .layout-dex & , .layout-pc & { display: none; }
-    .reduced-motion & { transition: none; }
-    /* 2.3.14.5：一级页（noBack）折叠后在顶栏左侧淡入的返回键：44px 磨砂圆，蓝色 ‹；
-       与右侧天气对称，宽屏时跟内容区左边缘对齐；DeX 同样显示 */
-    &.subpage-back-top {
-      width: 44px; height: 44px;
-      /* 修复：停在顶栏下边缘下方（顶栏底边 + 8px），不再压进顶栏 */
-      top: calc(var(--nav-h,64px) + 8px + env(safe-area-inset-top,0px));
-      left: max(16px, calc((100vw - 1100px)/2 + 16px));
-      font-size: 26px; line-height: 1; font-weight: 400; color: var(--m-primary);
-      .layout-dex & , .layout-pc & { display: flex; }
+  /* D4：三点统一组件（44×44，与我的文件一致；图标 22px r=1.9 由模板传入）。
+     有功能的页面由各页 JS 绑定（如我的文件 #files-more、安全页 #sec-more）；
+     无功能的页面只渲染图标，点击无反应。吸顶样式见 .stuck（head-buttons.js 加类）。 */
+  .subpage-more {
+    width: 44px; height: 44px; border-radius: 999px; border: 0; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: transparent; color: var(--m-on-surface); flex-shrink: 0;
+    &:hover { background: rgba(0,0,0,.05); }
+    .dark &:hover { background: rgba(255,255,255,.08); }
+    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
+    svg { width: 22px; height: 22px; }
+    /* D5：吸顶态（与我的文件 #files-more.stuck 原样式逐属性一致） */
+    &.stuck {
+      position: fixed; top: calc(var(--nav-h,64px) + 8px + env(safe-area-inset-top,0px)); bottom: auto; margin: 0;
+      background: var(--glass-tint); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow);
+      z-index: 55;
     }
   }
 }
@@ -1326,27 +1320,43 @@
      左栏 clamp(320px,36%,420px)：大标题（公共组件，靠左）＋ 账号卡 ＋ 菜单；
      右栏占剩余宽度：顶部选中项名称 ＋ 详情卡片（最大 720px，左对齐）。
      两栏各自独立滚动，底部留出胶囊＋Dock 高度。在 .layout-dex / .layout-pc（横屏宽屏）生效。 */
-  /* 2.6.0：双栏结构只在 DeX/PC 显示；移动端只显示分类列表 */
+  /* 2.6.0：双栏结构只在 DeX/PC 显示；移动端只显示分类列表。
+     Gray 2026-10-15：DeX 标题区移到两栏上方（.set-dex-head，与我的文件一致），
+     两栏（.set-dex-cols）在按钮行下方，G=8。 */
+  .set-dex-cols { display: none; }
   .set-col-l, .set-col-r { display: none; }
   .set-side { display: none; }
   .set-right-title { display: none; }
   .layout-dex, .layout-pc {
     .set-mobile-only { display: none; }
-    .set-layout {
-      max-width: none; display: grid;
-      grid-template-columns: clamp(320px,36%,420px) minmax(0,1fr); gap: 16px; align-items: start;
+    /* 设置首页容器在 DeX 下放宽（两栏需要宽度）；子页无 .set-dex-cols，不受影响。 */
+    .set-layout:has(.set-dex-cols) { max-width: none; }
+    /* DeX 标题区：与我的文件同几何（1100px 居中 + px-4），标题字号字重top高度、
+       按钮中心 y、左右边距（122/122）自动与我的文件一致。 */
+    .set-dex-head {
+      display: block;
+      max-width: 1100px; margin-left: auto; margin-right: auto;
+      padding-left: 16px; padding-right: 16px;
     }
-    /* 左栏：标题＋账号卡固定，菜单列表过长时独立滚动 */
+    /* 两栏布局：标题区下方，按钮底边到两栏顶边 G=8。
+       按钮在标题区底部（bottom: --sgx-head-btn-gap=8px），故 margin-top:0 即 G=8。
+       Gray 2026-10-15：两栏容器与 .set-dex-head 同宽（1100px 居中），
+       内容左右边缘跟 ← ⋮ 按钮对齐（122/122）：head 外边 90px + padding 32px = 122px。
+       左右栏宽度比例不变（grid-template-columns 不动）。 */
+    .set-dex-cols {
+      max-width: 1100px; margin-left: auto; margin-right: auto;
+      padding-left: 32px; padding-right: 32px;
+      display: grid;
+      grid-template-columns: clamp(320px,36%,420px) minmax(0,1fr); gap: 16px; align-items: start;
+      margin-top: 0;
+      position: relative;
+    }
+    /* 左栏：账户卡＋菜单（标题已移到 .set-dex-head）；菜单列表过长时独立滚动 */
     .set-col-l {
       display: flex; flex-direction: column; min-width: 0; min-height: 0;
       max-height: calc(100vh - var(--nav-h,64px) - 16px - env(safe-area-inset-top,0px) - 92px - env(safe-area-inset-bottom,0px));
       max-height: calc(100dvh - var(--nav-h,64px) - 16px - env(safe-area-inset-top,0px) - 92px - env(safe-area-inset-bottom,0px));
-      .subpage-head {
-        min-height: 0; min-height: 0;
-        padding: 6px 0 10px; display: flex; flex-direction: column;
-        align-items: flex-start; justify-content: flex-start; text-align: left; flex-shrink: 0;
-      }
-      .sgx-account-card { margin: 2px 0 12px; flex-shrink: 0; }
+      .sgx-account-card { margin: 0 0 12px; flex-shrink: 0; }
     }
     .set-side {
       display: flex; flex-direction: column; min-width: 0; min-height: 0; max-height: none;
@@ -1393,8 +1403,9 @@
     .sgx-ac-sub { font-size: 12px; color: var(--m-on-surface-variant); margin-top: 2px; }
     .sgx-ac-img { width: 48px; height: 48px; border-radius: 999px; object-fit: cover; flex-shrink: 0; }
     /* 2.3.14.9：手机端设置页显示账号卡（大标题下方、第一分组上方），
-       与宽屏左栏同一组件、样式一致；宽度随容器（左右 16px 由 .set-layout 的 px-4 提供）。 */
-    .layout-mobile & { display: flex; margin: 2px 0 12px; }
+       与宽屏左栏同一组件、样式一致；宽度随容器（左右 16px 由 .set-layout 的 px-4 提供）。
+       D4：margin-top 为 0，使「三点底边 → 第一块内容顶边」= --sgx-head-btn-gap（与我的文件一致）。 */
+    .layout-mobile & { display: flex; margin: 0 0 12px; }
   }
   .set-side-title { font-size: 2rem; font-weight: 800; color: var(--m-primary); letter-spacing: -0.02em; line-height: 1.1; }
   #set-search {
@@ -1430,13 +1441,7 @@
     svg { width: 26px; height: 26px; }
   }
   .sec-note { font-size: 12px; color: var(--m-on-surface-variant); padding: 0 4px; margin: 0; }
-  .subpage-more {
-    width: 40px; height: 40px; border-radius: 999px; border: 0; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    background: transparent; color: var(--m-on-surface-variant);
-    &:active { background: var(--m-container-high); }
-    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
-  }
+  /* D4：.subpage-more 已统一为 44px 组件（见子页面标题区一节），旧 40px 规则删除。 */
   .sec-sheet-opt {
     display: flex; align-items: center; gap: 12px; width: 100%;
     padding: 14px 16px; border: 0; background: none; cursor: pointer;
@@ -1492,6 +1497,12 @@
     &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: -2px; }
     /* 批次 A 验收修复 P2：.off 透明机制废弃，改由 eye / eye-off 图标切换区分明密文 */
   }
+  /* B14 fix (Gray 2026-10-15)：锁定屏幕 360 折叠态大标题与顶栏重叠。
+     根因：页面内容太短（~878px），最大滚动仅 ~78px，不足以让标题区退出 70%
+     （折叠动画需要标题区高度 274px × 70% ≈ 192px 滚动），导致大标题不能完全
+     淡出、小标题不能淡入。给最小高度确保折叠能完成，与我的文件行为一致。
+     只影响锁定屏幕页（.lock-page），其他页面不动。 */
+  .layout-mobile .lock-page { min-height: calc(100svh + 220px); }
   .lockmgr-pklist { list-style: none; margin: 0; padding: 8px; display: flex; flex-direction: column; gap: 8px; &[hidden] { display: none; } }
   .lockmgr-pkitem {
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
@@ -2584,6 +2595,12 @@ html, body {
 .layout-dex .set-layout,
 .layout-pc .set-layout {
   contain: layout style;
+}
+/* D5：contain:layout 会把 position:fixed 后代收进 .set-layout 的包含块（不再相对视口），
+   导致吸顶按钮定位错误；有按钮吸住时临时降为 contain:style（只隔离计数器/自定义属性，
+   不影响 fixed 定位），松开即恢复。2.9.2 的布局切换隔离意图保留。 */
+.set-layout:has(.subpage-back.stuck, .subpage-more.stuck) {
+  contain: style;
 }
 
 /* 2.9.2⑦（修正版）：应用页标题收起时，天气和头像/用户名一起隐藏。

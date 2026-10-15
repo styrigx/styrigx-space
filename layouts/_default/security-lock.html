@@ -9,7 +9,7 @@
 {{ .Scratch.Set "sgx-entry" "entry-security-lock.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 
-<div class="set-layout max-w-2xl mx-auto px-4 pb-28">
+<div class="set-layout lock-page max-w-2xl mx-auto px-4 pb-28">
   {{ partial "subpage-head.html" (dict "title" (cond $isEn "Lock screen" "锁定屏幕") "isEn" $isEn) }}
 
   <!-- 管理区（直接渲染；验证无效时 JS 跳验证流程） -->
