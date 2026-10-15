@@ -84,6 +84,23 @@ export function recordDialogClose(who, reason) {
       window.recordJump('dialog-close:' + who + ':' + reason, 'dialog-behavior.js:recordDialogClose');
     }
   } catch (e) {}
+  /* B1-1：记录弹层关闭时间戳，供误触防护（400ms 内忽略点击） */
+  try {
+    window.__sgxLastDialogClosedAt = Date.now();
+  } catch (e2) {}
+}
+
+/**
+ * B1-1：弹层关闭后 400ms 内是否应忽略点击（防误触）。
+ * @returns {boolean}
+ */
+export function shouldIgnorePostDialogClick() {
+  try {
+    const t = window.__sgxLastDialogClosedAt || 0;
+    return Date.now() - t < 400;
+  } catch (e) {
+    return false;
+  }
 }
 
 /**
