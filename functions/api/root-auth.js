@@ -153,6 +153,14 @@ async function handlePost(context) {
   const kv = env && env.OWNER_KV;
   const ip = getClientIp(request);
 
+  /* 非访客路径：计算 lockCfg（供真/假路径判断用） */
+  let lockCfg = true;
+  try {
+    lockCfg = await isLockEffectivelyConfigured(kv);
+  } catch (e) {
+    lockCfg = true;
+  }
+
   /* 真路径还是无会话假入口：
      - 有疑似有效 owner 会话 → 真路径
      - 无会话但 lock 层未配置 → 真路径（引导）

@@ -36,6 +36,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const KNOWN_FIXED = new Set([
   'auth',
   'configured',
+  'denied',
   'failed',
   'hostname',
   'token',
