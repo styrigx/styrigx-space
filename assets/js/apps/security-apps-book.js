@@ -230,7 +230,7 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
           return { cred: cred, cid: ch.cid };
         }, function (e) {
           if (e && e.name === 'NotAllowedError') throw { kind: 'cancelled' };
-          if (e && e.name === 'InvalidStateError') throw { kind: 'already' };
+          if (e && e.name === 'InvalidStateError') throw { kind: 'already', fromCreate: true };
           if (e && e.name === 'NotSupportedError') throw { kind: 'nosupport' };
           throw { kind: 'failed' };
         });
