@@ -20,7 +20,7 @@ import { mgmtButtons } from './mgmt-buttons.js';
 import { exchangeRootSession } from '../lib/root-session.js';
 import { takeJumpRecords } from './app-gate.js';
 import { takeBeaconRecord, sgxNavigate, sgxReload, recordJump } from '../lib/diag-jumptrace.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton, tapFeedback, setRowBusy, setRowSelected } from '../lib/dialog-behavior.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton, tapFeedback, setRowBusy, setRowSelected, shouldIgnorePostDialogClick } from '../lib/dialog-behavior.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -92,24 +92,57 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
       });
   }
 
-  /* 立即锁定：调服务端清除 sgx-verified，然后重载 → 锁屏出现。
+  /* B1-1 立即锁定：先弹确认层，确认后调服务端清除 sgx-verified，
+     然后 location.replace('/?lock=1') → 锁屏出现（中间不渲染主页）。
      访客和站长都能用，不设限。 */
   const lockNow = document.getElementById('sec-locknow');
   if (lockNow) {
-    const go = function () {
+    const doLock = function () {
       fetch('/api/lock', { method: 'POST', credentials: 'include' })
         .then(function () {
-          sgxReload('security.js:99', 'lock-now-ok');
+          location.replace('/?lock=1');
         })
         .catch(function () {
-          sgxReload('security.js:102', 'lock-now-fail');
+          location.replace('/?lock=1');
         });
     };
-    on(lockNow, 'click', go);
+    const showConfirm = function () {
+      /* B1-1：弹层关闭后 400ms 内忽略点击（防误触） */
+      if (shouldIgnorePostDialogClick()) return;
+      let dlg = document.getElementById('sec-locknow-confirm');
+      if (!dlg) {
+        dlg = document.createElement('dialog');
+        dlg.id = 'sec-locknow-confirm';
+        dlg.className = 'sgx-verify-dlg';
+        const en = document.documentElement.lang === 'en';
+        dlg.innerHTML =
+          '<h2>' + (en ? 'Lock now?' : '立即锁定？') + '</h2>' +
+          '<p>' + (en ? 'This device will return to the lock screen.' : '当前设备会回到锁屏。') + '</p>' +
+          '<div class="sgx-door-foot">' +
+          '<button type="button" class="sgx-door-btn" data-act="cancel">' + (en ? 'Cancel' : '取消') + '</button>' +
+          '<button type="button" class="sgx-door-btn-primary" data-act="ok">' + (en ? 'Lock' : '锁定') + '</button>' +
+          '</div>';
+        document.body.appendChild(dlg);
+        onDialogBackdrop(dlg, function () { dlg.close(); recordDialogClose('locknow-confirm', 'backdrop'); });
+        onDialogCancel(dlg, function () { dlg.close(); recordDialogClose('locknow-confirm', 'cancel'); });
+        dlg.querySelector('[data-act="cancel"]').addEventListener('click', function () {
+          dlg.close();
+          recordDialogClose('locknow-confirm', 'cancel-btn');
+        });
+        dlg.querySelector('[data-act="ok"]').addEventListener('click', function () {
+          dlg.close();
+          recordDialogClose('locknow-confirm', 'confirm');
+          doLock();
+        });
+      }
+      try { dlg.showModal(); } catch (e) {}
+    };
+    on(lockNow, 'click', showConfirm);
     on(lockNow, 'keydown', function (/** @type {KeyboardEvent} */ e) {
-      if (e.key === 'Enter' || e.key === ' ') {
+      /* B1-1：只认 Enter，删 Space */
+      if (e.key === 'Enter') {
         e.preventDefault();
-        go();
+        showConfirm();
       }
     });
   }
