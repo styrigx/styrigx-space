@@ -5,6 +5,7 @@
  * 抛出带 kind 的错误：cancelled（已取消）/ timeout（超时）/ nokey（无匹配钥匙）/ failed（其他）。
  */
 import { b64urlToBuf, bufToB64url } from './b64.js';
+import { loadI18n } from './i18n.js';
 
 /**
  * @param {object} options WebAuthn get options（publicKey 部分）
@@ -70,15 +71,17 @@ export async function getPasskeyAssertion(options, opts) {
  * @returns {string}
  */
 export function passkeyErrorText(kind, en) {
-  if (en) {
-    if (kind === 'cancelled') return 'Cancelled';
-    if (kind === 'timeout') return 'Timed out, please retry';
-    if (kind === 'nokey') return 'No matching key on this device';
-    return 'Passkey verification failed';
-  }
-  if (kind === 'cancelled') return '已取消';
-  if (kind === 'timeout') return '超时，请重试';
-  if (kind === 'nokey') return '这台设备上没有这把钥匙';
-  return '通行密钥验证失败';
+  /* B1-2：文案走 i18n 表（sgx-i18n-core），无硬编码兜底 */
+  const key = kind === 'cancelled' ? 'pkCancelled'
+    : kind === 'timeout' ? 'pkTimeout'
+    : kind === 'nokey' ? 'pkNoKey'
+    : 'pkFailed';
+  try {
+    const T = loadI18n('sgx-i18n-core');
+    const text = T.t(key);
+    if (text) return text;
+  } catch (e) {}
+  console.warn('[i18n] missing key:', key);
+  return key;
 }
 
