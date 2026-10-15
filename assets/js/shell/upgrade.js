@@ -14,6 +14,8 @@
 import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
 import { bindEyeButton } from '../lib/dialog-behavior.js';
 import { followKeyboard } from './vk.js';
+import { getPasskeyAssertion, passkeyErrorText } from '../lib/passkey-assert.js';
+import { b64urlToBuf } from '../lib/b64.js';
 
 export function initUpgrade() {
   const html = document.documentElement;
@@ -224,15 +226,20 @@ export function initUpgrade() {
         return;
       }
       const allow = (ch.allowCredentials || []).map((c) => ({ id: b64urlToBuf(c.id), type: c.type }));
-      const cred = await navigator.credentials.get({
-        publicKey: {
+      /* B1-2：用公共函数（隐藏弹层 + 30s 超时 + 4 档错误） */
+      let cred;
+      try {
+        const dlg = document.querySelector('.sgx-upgrade-sheet');
+        cred = await getPasskeyAssertion({
           challenge: b64urlToBuf(ch.challenge),
           rpId: ch.rpId,
           allowCredentials: allow,
           userVerification: 'required',
-          timeout: 60000,
-        },
-      });
+        }, { hideEl: dlg });
+      } catch (e) {
+        showErr(passkeyErrorText(e.kind || 'failed', isEn));
+        return;
+      }
       const authRes = await fetch('/api/owner-passkey', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

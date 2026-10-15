@@ -25,6 +25,8 @@ import { get, getJSON } from '../lib/storage.js';
 import { exchangeRootSession } from '../lib/root-session.js';
 import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, tapFeedback, setRowBusy } from '../lib/dialog-behavior.js';
+import { getPasskeyAssertion, passkeyErrorText } from '../lib/passkey-assert.js';
+import { b64urlToBuf } from '../lib/b64.js';
 
 const LOCK =
   '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
@@ -1436,16 +1438,16 @@ function showLockScreen() {
           throw { done: true };
         }
         var allow = (j.allowCredentials || []).map(function (c) {
-          return { id: Uint8Array.from(atob(c.id.replace(/-/g, '+').replace(/_/g, '/')), function (ch) { return ch.charCodeAt(0); }), type: 'public-key' };
+          return { id: b64urlToBuf(c.id), type: 'public-key' };
         });
-        return navigator.credentials.get({
-          publicKey: {
-            challenge: Uint8Array.from(atob(j.challenge.replace(/-/g, '+').replace(/_/g, '/')), function (ch) { return ch.charCodeAt(0); }),
-            rpId: j.rpId,
-            allowCredentials: allow,
-            userVerification: 'required',
-          },
-        }).then(function (cred) {
+        /* B1-2：用公共函数（隐藏弹层 + 30s 超时 + 4 档错误） */
+        var dlgEl = document.getElementById('sgx-verify-dlg') || document.getElementById('sgx-lock');
+        return getPasskeyAssertion({
+          challenge: b64urlToBuf(j.challenge),
+          rpId: j.rpId,
+          allowCredentials: allow,
+          userVerification: 'required',
+        }, { hideEl: dlgEl }).then(function (cred) {
           if (dlgState !== 'reset-step2') throw { done: true };
           var b64u = function (buf) {
             return btoa(String.fromCharCode.apply(null, new Uint8Array(buf)))
@@ -1467,7 +1469,12 @@ function showLockScreen() {
               },
             };
           } catch (e) {
-            showError(en ? 'Passkey failed' : '通行密钥验证失败');
+            /* B1-2：4 档错误文案 */
+            if (e && e.kind) {
+              showError(passkeyErrorText(e.kind, en));
+            } else {
+              showError(en ? 'Passkey failed' : '通行密钥验证失败');
+            }
             throw { done: true };
           }
           submitResetOwner(proof);
