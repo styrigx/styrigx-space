@@ -1468,7 +1468,7 @@ function showLockScreen() {
           }
           submitResetOwner(proof);
         }, function (err) {
-          /* 用户取消/无钥匙：行内提示，不报验证失败，留在本页（B1-2：nokey 也按取消处理，保持 46fe723 前 NotAllowedError 的行为） */
+          /* 用户取消/无钥匙(NotAllowedError)：行内提示，不报验证失败，留在本页（B1-2：保持 46fe723 前 NotAllowedError 的行为） */
           if (dlgState !== 'reset-step2') throw { done: true };
           if (err && err.kind === 'cancelled') {
             if (rowErr) {
@@ -1477,13 +1477,14 @@ function showLockScreen() {
             }
             throw { done: true };
           }
-          if (err && err.kind === 'nokey') {
+          if (err && err.kind === 'nokey' && err.cause && err.cause.name === 'NotAllowedError') {
             if (rowErr) {
               rowErr.textContent = passkeyErrorText('nokey', en);
               rowErr.hidden = false;
             }
             throw { done: true };
           }
+          /* nokey(InvalidStateError)/timeout/failed：走全局报错（保持 46fe723 前行为） */
           showError(en ? 'Passkey failed' : '通行密钥验证失败');
           throw { done: true };
         });
