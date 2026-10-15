@@ -71,6 +71,19 @@ export async function onRequestPost(context) {
 /** @param {any} context */
 async function handlePost(context) {
   const { request, env } = context;
+  /* B1-9 访客假入口统一 401：访客会话直接返回，不读任何存储。 */
+  try {
+    const h = request.headers.get('Cookie') || '';
+    for (const part of h.split(';')) {
+      const kv2 = part.trim().split('=');
+      if (kv2[0] === 'sgx-verified' && kv2[1]) {
+        const parts = kv2.slice(1).join('=').split('.');
+        if (parts.length === 5 && parts[1] === 'visitor') {
+          return Response.json({ ok: false, error: 'denied' }, { status: 401 });
+        }
+      }
+    }
+  } catch (e) {}
   const kv = env && env.OWNER_KV;
   if (request.method !== 'POST') {
     return Response.json({ ok: false }, { status: 405 });
