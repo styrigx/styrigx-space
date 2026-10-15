@@ -7,6 +7,7 @@ on:
         required: true
 permissions:
   contents: write
+  actions: write
 env:
   HUGO_VERSION: '0.167.0'   # 与 deploy.yml 保持一致
 jobs:
@@ -50,4 +51,9 @@ jobs:
           git diff --cached --stat
           git commit -m "[UI] CI 更新视觉基线 (ubuntu-24.04)"
           git push
-# 推送用 GITHUB_TOKEN 不会触发 deploy.yml：推完在 PR 上 Re-run，或空提交一次
+      - name: Trigger CI on pushed branch (B1-11)
+        # B1-11：基线提交推上去后自动触发一次 deploy.yml，不再手动 Re-run。
+        # 非 main 分支只跑测试，不部署生产（deploy.yml 里分支判断）。
+        run: gh workflow run deploy.yml --ref "${{ inputs.branch }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
