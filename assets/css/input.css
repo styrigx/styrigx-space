@@ -2661,3 +2661,13 @@ html, body {
 }
 .setso-item mark { background: var(--m-primary-container); color: var(--m-on-primary-container); border-radius: 2px; }
 
+/* B1-10：底部胶囊高度变量（胶囊和 main 底部留白共用） */
+:root {
+  --sgx-bottom-dock-h: 76px;
+}
+/* 有底部胶囊的页面：main 底部留白 = 胶囊高 + 安全区 + 16px */
+.set-layout:has(.sgx-cap),
+.layout-mobile .set-layout {
+  padding-bottom: calc(var(--sgx-bottom-dock-h) + env(safe-area-inset-bottom, 0px) + 16px);
+}
+
