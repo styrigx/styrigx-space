@@ -166,6 +166,14 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
             const jj = r2.json;
             if (jj && jj.ok) {
               toast(t('pkDeleted'));
+              /* B1-5：通知密码管理器删掉这把钥匙（照搬 door.js） */
+              try {
+                if (window.PublicKeyCredential && typeof PublicKeyCredential.signalUnknownCredential === 'function') {
+                  PublicKeyCredential.signalUnknownCredential({ rpId: location.hostname, credentialId: k.credId }).catch(function () {});
+                } else {
+                  toast(t('pkDelManual'));
+                }
+              } catch (e2) {}
               refresh();
             } else if (jj && handleDoorError(t, jj.error, r2.status, jj.reason)) {
               /* D3：已走 needVerify */
@@ -212,7 +220,7 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
               displayName: ch.user.displayName,
             },
             pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
-            authenticatorSelection: { userVerification: 'required', residentKey: 'preferred' },
+            authenticatorSelection: { userVerification: 'required', residentKey: 'required' },
             excludeCredentials: (ch.excludeCredentials || []).map(function (c) {
               return { id: b64urlToBuf(c.id), type: c.type };
             }),
@@ -222,7 +230,7 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
           return { cred: cred, cid: ch.cid };
         }, function (e) {
           if (e && e.name === 'NotAllowedError') throw { kind: 'cancelled' };
-          if (e && e.name === 'InvalidStateError') throw { kind: 'already' };
+          if (e && e.name === 'InvalidStateError') throw { kind: 'already', fromCreate: true };
           if (e && e.name === 'NotSupportedError') throw { kind: 'nosupport' };
           throw { kind: 'failed' };
         });
@@ -257,7 +265,9 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
         if (!e) return;
         if (e.kind === 'reverify') return; /* 已跳验证流程 */
         if (e.kind === 'cancelled' || (e && e.name === 'NotAllowedError')) toast(t('errCancelled'));
-        else if (e.kind === 'already' || (e && e.name === 'InvalidStateError')) toast(t('pkAlready'));
+        /* B1-5：「此设备已注册过」只在 credentials.create() 抛 InvalidStateError 时出现 */
+        else if (e.kind === 'already' && e.fromCreate) toast(t('pkAlready'));
+        else if (e && e.name === 'InvalidStateError') toast(t('pkAlready'));
         else if (e.kind === 'nosupport') toast(t('gateNoSupport'));
         else if (e.kind === 'failed') toast(t('pkFailed'));
         else if (e.kind === 'server') toast(apiErrorText(t, e.code));
