@@ -20,15 +20,16 @@ for (const vp of VIEWPORTS) {
     await blockExternalRequests(page);
     await freezeTime(page);
 
-    // 设置安全页（带底部胶囊）
-    await page.goto('/settings/security/');
+    // 设置页（带底部胶囊）
+    await page.goto('/settings/');
     await expect(page.locator('#sgx-cap-settings')).toBeVisible();
 
     // 滚到底
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await page.waitForTimeout(300);
 
-    const footerBox = await page.locator('footer').boundingBox();
+    // 页脚版权文字（在 main 内 .set-layout 底部）
+    const footerBox = await page.locator('main .set-layout p.text-xs').last().boundingBox();
     const capBox = await page.locator('#sgx-cap-settings').boundingBox();
 
     expect(footerBox).not.toBeNull();
