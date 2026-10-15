@@ -2609,7 +2609,7 @@ html, body {
 
 /* B1-10：底部胶囊高度变量（胶囊和 main 底部留白共用） */
 :root {
-  --sgx-bottom-dock-h: 76px;
+  --sgx-bottom-dock-h: 56px;
 }
 /* 有底部胶囊的页面：main 底部留白 = 胶囊高 + 安全区 + 16px */
 .set-layout:has(.sgx-cap),
