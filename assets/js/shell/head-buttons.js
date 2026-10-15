@@ -1,8 +1,8 @@
 /**
  * @fileoverview 子页面标题区按钮状态（B1-7 统一标准）。
  * 状态只有两种，由滚动位置决定：
- * - data-state="solid"：y === 0（大标题完全展开），← 和 ⋮ 为实体无背景样式，在大标题下方原位。
- * - data-state="float"：y > 0（上滑中/上滑后），← 和 ⋮ 为浮动圆钮，贴在顶栏正下方。
+ * - data-state="solid"：y <= 1（大标题完全展开），← 和 ⋮ 为实体无背景样式，在大标题下方原位.
+ * - data-state="float"：y > 1（上滑中/上滑后），← 和 ⋮ 为浮动圆钮，贴在顶栏正下方。
  * 不在各页面写判断，只改这一套。
  * data-menu="none" 的 ⋮ 不绑定菜单（只作样式，点了无反应）。
  * @param {import('../lib/scheduler.js').Scheduler} [S]
@@ -68,8 +68,8 @@ export function initHeadButtons(S) {
   function updateStick(y) {
     if (y === undefined) y = window.scrollY || 0;
     /* B1-7：状态只有 solid/float 两种，由滚动位置决定。
-       y === 0 → solid（大标题完全展开）；y > 0 → float（浮动圆钮）。 */
-    const state = y === 0 ? 'solid' : 'float';
+       y <= 1 → solid（大标题完全展开，容忍亚像素）；y > 1 → float（浮动圆钮）。 */
+    const state = y <= 1 ? 'solid' : 'float';
     if (head.getAttribute('data-state') !== state) {
       head.setAttribute('data-state', state);
     }
