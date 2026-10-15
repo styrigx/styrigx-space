@@ -2610,3 +2610,54 @@ html, body {
 /* 2.9.2⑦（修正版）：应用页标题收起时，天气和头像/用户名一起隐藏。
    复用 body.subpage-scrolled 同一个收起状态，动画时机与头像一致。
    主页不受影响（主页没有 subpage-head，不会加 subpage-scrolled）。 */
+
+/* B1-6：设置搜索页 */
+.sgx-searchbar {
+  position: fixed; left: 16px; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom,0px));
+  z-index: 60; display: flex; align-items: center; gap: 8px;
+  background: var(--glass-tint); border: 1px solid var(--glass-edge);
+  border-radius: 999px; padding: 8px 8px 8px 16px;
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  box-shadow: var(--glass-shadow);
+  max-width: 640px; margin-left: auto; margin-right: auto;
+}
+.sgx-searchbar-ic { width: 22px; height: 22px; flex-shrink: 0; color: var(--m-on-surface-variant); }
+#search-input {
+  flex: 1; min-width: 0; border: 0; background: transparent; outline: none;
+  font-size: 16px; color: var(--m-on-surface);
+}
+#search-input::placeholder { color: var(--m-on-surface-variant); }
+.sgx-searchbar button {
+  width: 40px; height: 40px; border-radius: 999px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 0; color: var(--m-on-surface); cursor: pointer;
+}
+.sgx-searchbar button:hover { background: rgba(0,0,0,.05); }
+.dark .sgx-searchbar button:hover { background: rgba(255,255,255,.08); }
+.sgx-searchbar button svg { width: 22px; height: 22px; }
+.sgx-searchbar button[hidden] { display: none; }
+.sgx-search-hist {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--m-container); border-radius: 999px; padding: 6px 6px 6px 14px;
+  font-size: 14px;
+}
+.sgx-search-hist-q { background: none; border: 0; padding: 0; font-size: 14px; color: var(--m-on-surface); cursor: pointer; }
+.sgx-search-hist-x {
+  width: 24px; height: 24px; border-radius: 999px; background: none; border: 0;
+  font-size: 16px; line-height: 1; color: var(--m-on-surface-variant); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.sgx-search-group { margin-bottom: 12px; }
+.sgx-search-group-t {
+  font-size: 13px; font-weight: 600; color: var(--m-on-surface-variant);
+  padding: 0 4px; margin-bottom: 8px;
+}
+.setso-item {
+  display: flex; align-items: center; width: 100%; text-align: left;
+  background: var(--m-container-lowest); border: 1px solid var(--m-outline);
+  border-radius: 16px; padding: 12px 16px; margin-bottom: 8px;
+  cursor: pointer; text-decoration: none; color: inherit;
+}
+.setso-item mark { background: var(--m-primary-container); color: var(--m-on-primary-container); border-radius: 2px; }
+

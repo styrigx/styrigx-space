@@ -1082,6 +1082,21 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
   }
 })();
 
+  /* B1-6：设置主页点搜索框 → 进入 /settings/search/（history 推进）。
+     拦截胶囊 input 的 focus，跳转到独立搜索页。 */
+  (function () {
+    const capInput = document.getElementById('sgx-cap-input-settings');
+    if (!capInput) return;
+    capInput.addEventListener('focus', function (e) {
+      e.preventDefault();
+      try { capInput.blur(); } catch (e2) {}
+      const isEn = location.pathname.startsWith('/en/');
+      const url = isEn ? '/en/settings/search/' : '/settings/search/';
+      try { history.pushState({ sgxSearch: 1 }, '', url); } catch (e3) {}
+      location.href = url;
+    });
+  })();
+
 /* 2.9.0 页内导航：注册 mount/unmount */
 function settingsMount() {
   // 页面初始化逻辑已在 IIFE 中执行，这里预留给页内切换时的重新挂载

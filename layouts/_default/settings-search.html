@@ -1,0 +1,60 @@
+{{/* B1-6：设置搜索独立页。
+   入口：设置主页点搜索框 → /settings/search/（history 推进）。
+   内容优先：进页时大标题收起，内容紧贴顶栏下方；下拉到底露出大标题。
+   搜索栏：键盘弹起时浮在键盘上方；收起后沉到底部悬浮。
+   返回：键盘态只收键盘；沉底态返回/← 回设置主页。
+   ← 和 ⋮ 按 B1-7 标准（data-state solid/float）。 */}}
+{{ define "main" }}
+{{ .Scratch.Set "sgx-entry" "entry-settings-search.js" }}
+{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+{{ $title := cond $isEn "Search settings" "设置搜索" }}
+{{ partial "settings-i18n.html" (dict "isEn" $isEn) }}
+
+<div class="set-layout max-w-2xl mx-auto px-4 pb-40" id="search-page">
+  {{ partial "subpage-head.html" (dict "title" $title "isEn" $isEn) }}
+
+  <div class="set-main min-w-0" id="search-content">
+    {{/* 最近搜索卡（无记录时隐藏） */}}
+    <section id="search-history-card" class="widget bg-m-container-lowest border border-m-outline mb-4 overflow-hidden" hidden
+      aria-label="{{ if $isEn }}Recent searches{{ else }}最近搜索{{ end }}">
+      <div class="flex items-center justify-between px-4 py-3">
+        <h2 class="text-sm font-semibold">{{ if $isEn }}Recent searches{{ else }}最近搜索{{ end }}</h2>
+        <button type="button" id="search-history-clear" class="text-sm text-m-primary">
+          {{ if $isEn }}Clear all{{ else }}全部清除{{ end }}
+        </button>
+      </div>
+      <div id="search-history-list" class="flex flex-wrap gap-2 px-4 pb-4"></div>
+    </section>
+
+    {{/* 搜索结果 */}}
+    <section id="search-results" hidden aria-live="polite">
+      <h2 id="search-results-title" class="text-lg font-bold px-1 mb-3"></h2>
+      <div id="search-results-list" class="flex flex-col gap-3"></div>
+    </section>
+
+    {{/* 空状态（未搜索时） */}}
+    <div id="search-empty" class="text-center text-m-on-surface-variant py-16">
+      <p>{{ if $isEn }}Type to search settings{{ else }}输入关键词搜索设置{{ end }}</p>
+    </div>
+  </div>
+</div>
+
+{{/* 搜索栏：浮动，键盘态贴键盘，沉底态悬浮底部 */}}
+<div id="search-bar" class="sgx-searchbar" role="search">
+  <svg class="sgx-searchbar-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+    <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>
+  </svg>
+  <input id="search-input" type="search" autocomplete="off" enterkeyhint="search"
+    placeholder="{{ if $isEn }}Search settings{{ else }}搜索设置{{ end }}"
+    aria-label="{{ if $isEn }}Search settings{{ else }}搜索设置{{ end }}">
+  <button type="button" id="search-mic" aria-label="{{ if $isEn }}Voice search{{ else }}语音搜索{{ end }}">
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-5a3.5 3.5 0 1 0-7 0v5A3.5 3.5 0 0 0 12 15zm6-3.5a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.94V22h2v-2.06A8 8 0 0 0 20 11.5h-2z"/></svg>
+  </button>
+  <button type="button" id="search-more" aria-label="{{ if $en }}More options{{ else }}更多选项{{ end }}">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg>
+  </button>
+  <button type="button" id="search-clear" aria-label="{{ if $isEn }}Clear{{ else }}清空{{ end }}" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+  </button>
+</div>
+{{ end }}
