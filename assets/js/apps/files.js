@@ -19,7 +19,18 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
   } catch (e) {}
   const S = I.str || {},
     TYPES = I.types || [],
-    DEFAULTS = I.defaults || [];
+    DEFAULTS = I.defaults || [],
+    BOOK_HOST = I.bookHost || '';
+  /** 5.1：书库在当前标签页打开，不加 target=_blank（host 来自 sites.yaml 的 id: book，不硬编码） */
+  /** @param {string} url */
+  function isBookUrl(url) {
+    if (!url || !BOOK_HOST) return false;
+    try {
+      return new URL(url, location.origin).host === BOOK_HOST;
+    } catch (e) {
+      return false;
+    }
+  }
   /** @type {Record<string, any>} */
   const typeById = {};
   TYPES.forEach(function (/** @type {any} */ t) {
@@ -273,7 +284,7 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
     box.innerHTML = items
       .slice(0, 4)
       .map(function (it) {
-        const ext = /^https?:/.test(it.url || '');
+        const ext = /^https?:/.test(it.url || '') && !isBookUrl(it.url);
         return (
           '<a href="' + esc(it.url || '#') + '" ' + (ext ? 'target="_blank" rel="noopener"' : '') + ' ' + favAttrs(it) +
           ' class="block active:scale-95 transition-transform" aria-label="' + esc(it.title || '') + '">' +
@@ -370,7 +381,7 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
     const th = it.cover
       ? '<img src="' + esc(it.cover) + '" alt="" loading="lazy" decoding="async" width="48" height="48" class="w-12 h-12 rounded-xl object-cover shrink-0 bg-m-container">'
       : '<span class="w-12 h-12 rounded-xl ' + (t.bar || 'bg-m-container-highest') + ' text-white flex items-center justify-center shrink-0">' + (ICONS[t.icon] || ICONS.folder) + '</span>';
-    const ext = /^https?:/.test(it.url || '');
+    const ext = /^https?:/.test(it.url || '') && !isBookUrl(it.url);
     return (
       '<a href="' + esc(it.url || '#') + '" ' + (ext ? 'target="_blank" rel="noopener"' : '') + ' ' + favAttrs(it) +
       ' class="flex items-center gap-3.5 px-4 py-3 active:bg-m-container transition-colors">' + th +
@@ -385,7 +396,7 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
     const media = it.cover
       ? '<img src="' + esc(it.cover) + '" alt="" loading="lazy" decoding="async" class="w-full aspect-[4/3] object-cover bg-m-container">'
       : '<span class="w-full aspect-[4/3] ' + (t.bar || 'bg-m-container-highest') + ' text-white flex items-center justify-center">' + (ICONS[t.icon] || ICONS.folder) + '</span>';
-    const ext = /^https?:/.test(it.url || '');
+    const ext = /^https?:/.test(it.url || '') && !isBookUrl(it.url);
     return (
       '<a href="' + esc(it.url || '#') + '" ' + (ext ? 'target="_blank" rel="noopener"' : '') + ' ' + favAttrs(it) +
       ' class="block rounded-3xl overflow-hidden bg-m-container-lowest border border-m-outline active:scale-[0.98] transition-transform">' + media +

@@ -93,4 +93,8 @@ export function initHeadButtons(S) {
     updateStick(window.scrollY || 0);
   });
   updateStick(window.scrollY || 0);
+  /* 5.3 P2：bfcache 恢复时（pageshow persisted）重新计算按钮吸顶状态。 */
+  window.addEventListener('pageshow', function (e) {
+    if (e.persisted) updateStick(window.scrollY || 0);
+  });
 }

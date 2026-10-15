@@ -56,7 +56,8 @@
   "gFav" (cond $isEn "Favorites" "收藏")
   "listening" (cond $isEn "Listening…" "聆听中…")
 }}
-{{ $i18n := dict "filesBase" $filesBase "setUrl" $setUrl "types" $typeMeta "defaults" $defaults "str" $str }}
+{{ $bookSites := site.Data.sites }}{{ if $isEn }}{{ $bookSites = site.Data.en.sites }}{{ end }}{{ $bookHost := "" }}{{ range $s := $bookSites }}{{ if or (eq $s.id "book") (eq $s.id "library") }}{{ $bookHost = (urls.Parse $s.url).Host }}{{ end }}{{ end }}
+{{ $i18n := dict "filesBase" $filesBase "setUrl" $setUrl "types" $typeMeta "defaults" $defaults "str" $str "bookHost" $bookHost }}
 
 <div class="max-w-[1100px] mx-auto px-4">
   {{ partial "subpage-head.html" (dict "title" .Title "isEn" $isEn "noBack" true "actions" ($moreBtn | safeHTML)) }}
@@ -93,9 +94,9 @@
       </div>
       <ul class="files-rows">
         {{ range $si, $s := $sites }}
-        {{/* 主站是当前站，不用 target="_blank"；其他站新标签打开 */}}
-        {{ $isCurrent := eq $s.id "space" }}
-        <li><a href="{{ $s.url }}"{{ if not $isCurrent }} target="_blank" rel="noopener"{{ end }} class="flex items-center gap-4 px-1 active:bg-m-container transition-colors">
+        {{/* 主站和书库在当前标签页打开；其他站新标签打开（5.1：id 用 sites.yaml 的 book/library，不硬编码网址） */}}
+        {{ $isSameTab := or (eq $s.id "space") (eq $s.id "book") (eq $s.id "library") }}
+        <li><a href="{{ $s.url }}"{{ if not $isSameTab }} target="_blank" rel="noopener"{{ end }} class="flex items-center gap-4 px-1 active:bg-m-container transition-colors">
           <span class="w-12 h-12 shrink-0 flex items-center justify-center">{{ partial "icon.html" (dict "name" ($s.icon | default "globe") "uid" (printf "fss%d" $si)) }}</span>
           <span class="row-line flex-1 min-w-0 flex items-center justify-between gap-3 py-3.5">
             <span class="min-w-0"><span class="block truncate text-[15px] font-medium">{{ $s.title }}</span>
