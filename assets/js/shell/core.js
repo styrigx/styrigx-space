@@ -21,6 +21,7 @@ import { initLock } from './lock.js';
 import { initUpgrade } from './upgrade.js';
 import { on as featOn } from '../lib/features.js';
 import { toast } from '../lib/toast.js';
+import { syncUiCookie } from '../lib/ui-cookie.js';
 import { openSheet, closeSheet } from './sheet.js';
 import { voiceInput } from './voice.js';
 import { voiceSheet } from './voice-sheet.js';
@@ -81,6 +82,10 @@ export function initCore() {
   if (!SGX_TEST_NO_LOCK) initLock();
   initUpgrade();
   engines.init();
+
+  /* 5.2：写共享 UI cookie sgx-ui（老用户补写；设置变更时再写一次） */
+  syncUiCookie();
+  window.addEventListener('sgx-settings-changed', syncUiCookie);
 
   /* 跨脚本/模板桥接的最小公共 API */
   Object.assign(SGX, {

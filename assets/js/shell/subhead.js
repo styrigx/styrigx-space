@@ -77,4 +77,9 @@ export function initSubHead(S) {
     onScroll(window.scrollY || 0);
   });
   onScroll(window.scrollY || 0);
+  /* 5.3 P2：bfcache 恢复时（pageshow persisted）重新计算标题展开/折叠/吸顶状态，
+     否则大标题可能半透明叠在顶栏下、⋮ 保持展开态。 */
+  window.addEventListener('pageshow', function (e) {
+    if (e.persisted) onScroll(window.scrollY || 0);
+  });
 }

@@ -325,3 +325,48 @@ test('D3 settings: single head, single mini-title, numbers match files', async (
   expect(Math.abs(s.titleCY - f.titleCY), 'title center-y diff').toBeLessThanOrEqual(1);
   expect(Math.abs(s.firstTop - f.firstTop), 'first content top diff').toBeLessThanOrEqual(1);
 });
+
+test('P2 bfcache: pageshow(persisted) recalculates title state to match scrollY', async ({ page: pg }) => {
+  await gotoPage(pg, '/files/');
+  /* 滚到标题区吸顶的位置 */
+  await pg.evaluate(() => window.scrollTo(0, 600));
+  await pg.waitForTimeout(500);
+  const before = await pg.evaluate(() => {
+    const back = document.querySelector('[data-subpage-head] .subpage-back');
+    const hero = document.querySelector('[data-subpage-head] .subpage-hero');
+    return {
+      scrollY: window.scrollY,
+      backStuck: back ? back.classList.contains('stuck') : null,
+      heroOpacity: hero ? getComputedStyle(hero).opacity : null,
+      bodyScrolled: document.body.classList.contains('subpage-scrolled'),
+    };
+  });
+  /* 模拟 bfcache 恢复：先破坏状态，再派发 pageshow(persisted=true) */
+  await pg.evaluate(() => {
+    const back = document.querySelector('[data-subpage-head] .subpage-back');
+    const hero = document.querySelector('[data-subpage-head] .subpage-hero');
+    if (back) back.classList.remove('stuck');
+    if (hero) {
+      hero.style.opacity = '1';
+      hero.style.transform = '';
+    }
+    document.body.classList.remove('subpage-scrolled');
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+  });
+  await pg.waitForTimeout(300);
+  const after = await pg.evaluate(() => {
+    const back = document.querySelector('[data-subpage-head] .subpage-back');
+    const hero = document.querySelector('[data-subpage-head] .subpage-hero');
+    return {
+      scrollY: window.scrollY,
+      backStuck: back ? back.classList.contains('stuck') : null,
+      heroOpacity: hero ? getComputedStyle(hero).opacity : null,
+      bodyScrolled: document.body.classList.contains('subpage-scrolled'),
+    };
+  });
+  /* 恢复后的状态应与恢复前一致（都对应同一个 scrollY） */
+  expect(after.scrollY, 'scrollY unchanged').toBe(before.scrollY);
+  expect(after.backStuck, 'back stuck state').toBe(before.backStuck);
+  expect(after.bodyScrolled, 'body scrolled class').toBe(before.bodyScrolled);
+  expect(after.heroOpacity, 'hero opacity').toBe(before.heroOpacity);
+});
