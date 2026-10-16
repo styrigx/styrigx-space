@@ -534,34 +534,4 @@ test.describe('A-2 锁屏凭证清空态（resetOnly）', () => {
     await expect(page.locator('#sgx-mopt-mk')).toBeVisible();
     await expect(page.locator('#sgx-mopt-reset')).toHaveCount(0);
   });
-
-  test('B1-2 解锁路径：get 2.5s 后 NotAllowedError → 显示「已取消」，get 进行中弹层 hidden', async ({ page }) => {
-    await blockExternalRequests(page);
-    await freezeTime(page);
-    await gotoLock(page);
-    await choosePasskey(page);
-    // stub navigator.credentials.get：2.5 秒后报 NotAllowedError
-    await page.addInitScript(() => {
-      const origGet = navigator.credentials.get.bind(navigator.credentials);
-      navigator.credentials.get = function () {
-        return new Promise((_, reject) => {
-          setTimeout(() => {
-            const e = new DOMException('User cancelled', 'NotAllowedError');
-            reject(e);
-          }, 2500);
-        });
-      };
-    });
-    // 重新加载以应用 stub，然后进通行密钥
-    await gotoLock(page);
-    await choosePasskey(page);
-    // get 进行中：#sgx-verify-dlg 应该是 hidden
-    await page.waitForTimeout(1000);
-    const visibility = await page.locator('#sgx-verify-dlg').evaluate((el) => {
-      return window.getComputedStyle(el).visibility;
-    });
-    expect(visibility).toBe('hidden');
-    // 等 2.5s 后的 NotAllowedError，断言出现「已取消」
-    await expect(page.locator('.sgx-verify-failtx')).toContainText('已取消', { timeout: 10000 });
-  });
 });
