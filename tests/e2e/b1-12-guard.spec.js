@@ -99,6 +99,12 @@ test.describe('B1-12 守护：添加通行密钥', () => {
        虚拟认证器开 UV 会失败） */
     await page.evaluate(() => {
       window.__createCalledAt = 0;
+      window.__clickDispatchedAt = 0;
+      /* B1-12 flaky 修复：记录点击实际到达按钮的浏览器侧时间，
+         排除 page.click() 的 actionability 检查开销（可达 1s+） */
+      document.getElementById('lockmgr-pkadd').addEventListener('click', () => {
+        window.__clickDispatchedAt = Date.now();
+      }, { capture: true, once: true });
       navigator.credentials.create = function (...args) {
         window.__createCalledAt = Date.now();
         /* 返回最小可用假 credential */
@@ -114,13 +120,15 @@ test.describe('B1-12 守护：添加通行密钥', () => {
       };
     });
 
-    const clickAt = Date.now();
     await page.click('#lockmgr-pkadd');
 
-    /* 1 秒内必须调用 credentials.create */
+    /* 1 秒内必须调用 credentials.create（浏览器侧计时，排除 page.click 开销） */
     await page.waitForFunction(() => window.__createCalledAt > 0, null, { timeout: 5000 });
-    const calledAt = await page.evaluate(() => window.__createCalledAt);
-    expect(calledAt - clickAt).toBeLessThan(1000);
+    const timings = await page.evaluate(() => ({
+      click: window.__clickDispatchedAt,
+      create: window.__createCalledAt,
+    }));
+    expect(timings.create - timings.click).toBeLessThan(1000);
 
     /* 成功 → 命名弹层出现 */
     await expect(page.locator('#lockpkname-dlg')).toBeVisible({ timeout: 15000 });
