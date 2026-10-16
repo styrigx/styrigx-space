@@ -141,7 +141,7 @@ function showLockScreen() {
   }
 
   /* 头像：复用顶栏左侧头像图片 */
-  const navImg = /** @type {HTMLImageElement|null} */ (document.querySelector('#nav-brand img'));
+  const navImg = /** @type {HTMLImageElement|null} */ (document.querySelector('.sgx-tb-avatar'));
   const avatarSrc = navImg ? navImg.src : '';
 
   const wx = wxData();

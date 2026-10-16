@@ -241,14 +241,14 @@ test.describe('B1-12 守护：页面切换唯一性', () => {
     for (const url of pages) {
       await page.goto(url, { waitUntil: 'domcontentloaded' });
       /* 等页面稳定：顶栏可见 */
-      await expect(page.locator('#site-nav')).toBeVisible({ timeout: 15000 });
+      await expect(page.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
 
       /* 顶栏只有 1 个 */
       await expect(page.locator('#site-nav')).toHaveCount(1);
       /* 大标题只有 1 个（h1.subpage-title） */
       await expect(page.locator('h1.subpage-title')).toHaveCount(1);
-      /* ← 只有 1 个（.subpage-back 或 [data-go-back]） */
-      const backCount = await page.locator('.subpage-back, [data-go-back]').count();
+      /* ← 只有 1 个（顶栏返回圆 [data-go-back]） */
+      const backCount = await page.locator('[data-go-back]').count();
       expect(backCount).toBeLessThanOrEqual(1);
     }
   });

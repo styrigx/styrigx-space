@@ -7,6 +7,10 @@
      渐变 id 统一 sgxIc<Name> 前缀 + $uid，文件内唯一。 */}}
 {{ if eq $name "pen" }}
 <svg viewBox="0 0 48 48" width="100%" height="100%" aria-hidden="true"><defs><linearGradient id="sgxIcPen{{ $uid }}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5B9BD5"/><stop offset="1" stop-color="#2F6FA8"/></linearGradient><clipPath id="sgxIcPenC{{ $uid }}"><rect x="2" y="2" width="44" height="44" rx="14"/></clipPath></defs><g clip-path="url(#sgxIcPenC{{ $uid }})"><rect x="2" y="2" width="44" height="44" fill="url(#sgxIcPen{{ $uid }})"/><rect x="2" y="2" width="44" height="20" fill="#ffffff" opacity="0.12"/></g><g transform="rotate(45 24 24)"><rect x="21" y="11" width="6" height="19" rx="3" fill="#ffffff"/><path d="M21 30h6l-3 6.5z" fill="#ffffff"/></g></svg>
+{{ else if eq $name "chevron-left" }}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+{{ else if eq $name "apps-grid" }}
+<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="5" r="2"/><circle cx="12" cy="5" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="12" cy="19" r="2"/><circle cx="19" cy="19" r="2"/></svg>
 {{ else if eq $name "ticket" }}
 <svg viewBox="0 0 48 48" width="100%" height="100%" aria-hidden="true"><defs><linearGradient id="sgxIcTicket{{ $uid }}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFC24B"/><stop offset="1" stop-color="#E8930C"/></linearGradient><clipPath id="sgxIcTicketC{{ $uid }}"><rect x="2" y="2" width="44" height="44" rx="14"/></clipPath></defs><g clip-path="url(#sgxIcTicketC{{ $uid }})"><rect x="2" y="2" width="44" height="44" fill="url(#sgxIcTicket{{ $uid }})"/><rect x="2" y="2" width="44" height="20" fill="#ffffff" opacity="0.12"/></g><path fill-rule="evenodd" fill="#ffffff" d="M14 17h20a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H14a3 3 0 0 1-3-3V20a3 3 0 0 1 3-3zM11 21a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM37 21a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/><path d="M28.5 18.8v10.4" stroke="url(#sgxIcTicket{{ $uid }})" stroke-width="2" stroke-dasharray="2.4 2.4" stroke-linecap="round"/></svg>
 {{ else if eq $name "book" }}
@@ -65,8 +69,6 @@
 <svg width="20" height="20" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9h.01M9 9h.01M12 9h.01M15 9h.01M18 9h.01M6 12h.01M9 12h.01M12 12h.01M15 12h.01M18 12h.01M8.25 15h7.5M5.25 3h13.5A1.5 1.5 0 0120.25 4.5v15a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5v-15A1.5 1.5 0 015.25 3z"/></svg>
 {{ else if eq $name "layout" }}
 <svg width="20" height="20" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 5h16a1.5 1.5 0 011.5 1.5v9a1.5 1.5 0 01-1.5 1.5H4A1.5 1.5 0 012.5 15.5v-9A1.5 1.5 0 014 5zm8 12v3m-4.5 0h9"/></svg>
-{{ else if eq $name "arrow-left" }}
-<svg width="20" height="20" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg>
 {{ else if eq $name "speaker" }}
 <svg width="20" height="20" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z"/></svg>
 {{ else if eq $name "sparkles" }}
