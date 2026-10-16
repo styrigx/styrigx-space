@@ -636,11 +636,20 @@ function showLockScreen() {
     }, 300);
   }
 
-  /* 验证态：失败/超时 → 普通提示 + 重试，不出现错误码 */
-  function verifyFailed() {
+  /* B1-3 验证态：失败/超时 → 提示 + 重试，不出现错误码。
+     超时（8s 无 token）显示「验证时间过长」。 */
+  let verifyTimer = null;
+  function clearVerifyTimer() {
+    if (verifyTimer) {
+      try { clearTimeout(verifyTimer); } catch (e) {}
+      verifyTimer = null;
+    }
+  }
+  function showTurnstileRetry(isTimeout) {
+    clearVerifyTimer();
     setBody(
       '<div class="sgx-verify-loading"><p class="sgx-verify-failtx">' +
-        (en ? 'Verification failed' : '验证失败') +
+        (isTimeout ? (en ? 'Verification timed out' : '验证时间过长') : (en ? 'Verification failed' : '验证失败')) +
         '</p><button type="button" class="sgx-verify-skip" id="sgx-verify-retry">' +
         (en ? 'Retry' : '重试') +
         '</button></div>'
@@ -656,6 +665,9 @@ function showLockScreen() {
     }
     liftAvatar();
   }
+  function verifyFailed() {
+    showTurnstileRetry(false);
+  }
 
   function resetWidget() {
     try {
@@ -668,7 +680,12 @@ function showLockScreen() {
 
   function startVerify() {
     resetWidget();
+    clearVerifyTimer();
     verifyLoading();
+    /* B1-3：8s 没拿到 token → 显示「验证时间过长」+ 重试 */
+    verifyTimer = setTimeout(function () {
+      showTurnstileRetry(true);
+    }, 8000);
     loadTurnstile().then(
       function () {
         const wrap = document.getElementById('sgx-ts-wrap');
@@ -691,16 +708,17 @@ function showLockScreen() {
             /* 用户完成交互，等待 callback；保持小组件可见 */
           },
           callback: function (/** @type {string} */ token) {
+            clearVerifyTimer();
             submitToken(token);
           },
           'error-callback': function () {
-            verifyFailed();
+            showTurnstileRetry(false);
           },
           'expired-callback': function () {
             verifyFailed();
           },
           'timeout-callback': function () {
-            verifyFailed();
+            showTurnstileRetry(true);
           },
         });
       },

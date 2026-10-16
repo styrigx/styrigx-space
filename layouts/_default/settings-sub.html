@@ -20,8 +20,8 @@
 
 {{ partial "settings-i18n.html" (dict "isEn" $isEn) }}
 
-<!-- 底部搜索胶囊：子页同样可搜设置，搜到跳对应子页 -->
+<!-- 底部搜索胶囊：点一下跳搜索页 -->
 {{ partial "sgx-capsule.html" (dict "page" "settings" "isEn" $isEn
   "placeholder" (cond $isEn "Search settings" "搜索设置")
-  "panel" true) }}
+  "panel" false) }}
 {{ end }}
