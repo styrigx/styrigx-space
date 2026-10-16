@@ -236,13 +236,13 @@ test.describe('reset (2/2) passkey busy', () => {
     await stubWebauthnPending(page);
     await page.locator('#sgx-reset-pk-row').click();
     await expect(page.locator('#sgx-reset-pk-row .sgx-door-spin')).toBeVisible({ timeout: 8000 });
-    /* 非取消失败（如 InvalidStateError）：现有文案「通行密钥验证失败」 */
+    /* B1-2：InvalidStateError → nokey，显示「这台设备上没有这把钥匙」 */
     await awaitPkGate(page);
     await page.evaluate(() => {
       window.__pkGate.reject(Object.assign(new Error('failed'), { name: 'InvalidStateError' }));
     });
     await expect(page.locator('#sgx-reset-pk-row .sgx-door-spin')).toHaveCount(0, { timeout: 8000 });
-    await expect(page.locator('#sgx-verify-err:not([hidden])')).toHaveText('通行密钥验证失败');
+    await expect(page.locator('#sgx-verify-err:not([hidden])')).toHaveText('这台设备上没有这把钥匙');
     await expect(page.locator('#sgx-verify-title')).toHaveText('重置锁屏 (2/2)');
     expect(page.url()).toContain('?lock=1');
     /* 副标题/箭头恢复，两行可点 */
