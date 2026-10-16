@@ -1584,6 +1584,24 @@
     &:active { background: var(--m-container-high); }
   }
   .setso-hl { color: var(--m-primary); background: none; }
+  /* ===== B1-6b：设置搜索最近搜索卡 ===== */
+  .setso-recent-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 8px; }
+  .setso-recent-title { font-size: 13px; font-weight: 600; color: var(--m-on-surface-variant); }
+  .setso-clear { background: none; border: 0; color: var(--m-primary); font-size: 13px; cursor: pointer; padding: 4px 2px; }
+  .setso-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 2px 16px 16px; }
+  .setso-chip {
+    display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+    background: var(--m-container-high); border-radius: 999px; padding: 7px 8px 7px 14px;
+    font-size: 13px; color: var(--m-on-surface); cursor: pointer;
+    .dark & { background: rgba(255,255,255,.08); }
+  }
+  .setso-chip-tx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .setso-chip-x {
+    display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px;
+    border-radius: 999px; color: var(--m-on-surface-variant); flex-shrink: 0;
+    svg { width: 14px; height: 14px; }
+    &:active { background: rgba(0,0,0,.08); }
+  }
 }
 
 @layer sgx-components {

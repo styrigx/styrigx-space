@@ -985,6 +985,61 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
     });
     input.focus({ preventScroll: true });
     let timer = null;
+    /* B1-6b：最近搜索（localStorage 字符串数组，中英文共用） */
+    const LS_SETHIST = 'sgx-setso-history';
+    try {
+      remove('sgx-set-recent'); /* 旧 key 清理 */
+    } catch (e) {}
+    const XICON =
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>';
+    function getSetsoHist() {
+      try {
+        const a = JSON.parse(get(LS_SETHIST, '[]') || '[]');
+        return Array.isArray(a)
+          ? a.filter(function (x) { return typeof x === 'string'; }).slice(0, 10)
+          : [];
+      } catch (e) {
+        return [];
+      }
+    }
+    function setSetsoHist(a) {
+      try {
+        set(LS_SETHIST, JSON.stringify(a.slice(0, 10)));
+      } catch (e) {}
+    }
+    /** @param {string} s */
+    function pushSetsoHist(s) {
+      s = (s || '').trim();
+      if (!s) return;
+      const low = s.toLowerCase();
+      const a = getSetsoHist().filter(function (x) { return x.toLowerCase() !== low; });
+      a.unshift(s);
+      setSetsoHist(a.slice(0, 10));
+    }
+    function renderRecent() {
+      const a = getSetsoHist();
+      if (!a.length) {
+        page.innerHTML = '';
+        return;
+      }
+      let html =
+        '<div class="setso-card setso-recent" role="region" aria-label="' + esc(T.t('setsoRecent')) + '">' +
+        '<div class="setso-recent-head"><span class="setso-recent-title">' + esc(T.t('setsoRecent')) + '</span>' +
+        '<button type="button" class="setso-clear" data-setso-clear>' + esc(T.t('setsoClearAll')) + '</button></div>' +
+        '<div class="setso-chips">';
+      a.forEach(function (s, i) {
+        html +=
+          '<span class="setso-chip" data-setso-chip="' + i + '"><span class="setso-chip-tx">' + esc(s) + '</span>' +
+          '<span class="setso-chip-x" data-setso-del="' + i + '" role="button" aria-label="×">' + XICON + '</span></span>';
+      });
+      html += '</div></div>';
+      page.innerHTML = html;
+    }
+    /* 点卡片不抢输入框焦点（6c 键盘逻辑） */
+    page.addEventListener('pointerdown', function (e) {
+      const t = /** @type {Element|null} */ (e.target);
+      if (t && t.closest && t.closest('.setso-recent')) e.preventDefault();
+    });
     function hl(text, q) {
       const idx = text.toLowerCase().indexOf(q);
       if (idx < 0) return esc(text);
@@ -993,7 +1048,7 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
     function render(q) {
       q = (q || '').trim().toLowerCase();
       if (!q) {
-        page.innerHTML = '';
+        renderRecent();
         return;
       }
       const hits = SETIDX.filter(function (x) {
@@ -1031,13 +1086,43 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
     input.addEventListener('keydown', function (e) {
       if (e.key === 'Enter') {
         if (timer) clearTimeout(timer);
+        pushSetsoHist(input.value);
         render(input.value);
       }
     });
+    render(input.value); /* B1-6b：进页即渲染（空输入时显示最近搜索卡） */
     on(page, 'click', function (/** @type {MouseEvent} */ e) {
       const t = /** @type {Element|null} */ (e.target);
+      /* B1-6b：最近搜索卡交互 */
+      const del = t && t.closest ? t.closest('[data-setso-del]') : null;
+      if (del) {
+        const a = getSetsoHist();
+        a.splice(parseInt(del.getAttribute('data-setso-del') || '0', 10), 1);
+        setSetsoHist(a);
+        renderRecent();
+        return;
+      }
+      const clr = t && t.closest ? t.closest('[data-setso-clear]') : null;
+      if (clr) {
+        setSetsoHist([]);
+        page.innerHTML = '';
+        return;
+      }
+      const chip = t && t.closest ? t.closest('[data-setso-chip]') : null;
+      if (chip) {
+        const a = getSetsoHist();
+        const s = a[parseInt(chip.getAttribute('data-setso-chip') || '0', 10)] || '';
+        if (s) {
+          if (timer) clearTimeout(timer);
+          input.value = s;
+          pushSetsoHist(s);
+          render(s);
+        }
+        return;
+      }
       const b = t && t.closest ? t.closest('.setso-item') : null;
-      if (b)
+      if (b) {
+        pushSetsoHist(input.value);
         pickResult(
           b.getAttribute('data-cat') || '',
           b.getAttribute('data-el') || '',
@@ -1046,6 +1131,7 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
           b.getAttribute('data-i') || '',
           b.getAttribute('data-u') || ''
         );
+      }
     });
   })();
   /**
