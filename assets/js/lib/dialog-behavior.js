@@ -77,13 +77,8 @@ function isSoftKeyboardOpen() {
   }
 }
 
-/** 关闭弹层时记一条诊断（原因：close-btn / back / cancel-btn / success）。 */
+/** 关闭弹层时记录时间戳（who / reason 仅兼容旧调用）。 */
 export function recordDialogClose(who, reason) {
-  try {
-    if (typeof window.recordJump === 'function') {
-      window.recordJump('dialog-close:' + who + ':' + reason, 'dialog-behavior.js:recordDialogClose');
-    }
-  } catch (e) {}
   /* B1-1：记录弹层关闭时间戳，供误触防护（400ms 内忽略点击） */
   try {
     window.__sgxLastDialogClosedAt = Date.now();

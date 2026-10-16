@@ -12,11 +12,6 @@
 <div class="set-layout max-w-2xl mx-auto px-4 pb-28">
   {{ partial "subpage-head.html" (dict "title" (cond $isEn "Security and privacy" "安全与隐私") "isEn" $isEn "actions" ($moreBtn | safeHTML)) }}
 
-  <!-- #1 诊断：门内页跳转留痕。安全页加载时若有记录则显示一次，随即清除。 -->
-  <div id="sgx-jump-note" class="widget bg-m-container-lowest border border-m-outline mb-2 p-4" role="status" hidden>
-    <p class="text-sm m-0" id="sgx-jump-note-text"></p>
-  </div>
-
   <!-- 状态卡片（JS 按 /api/owner-status 填充） -->
   <a id="sec-status" class="sec-status" href="{{ $lockUrl }}" hidden>
     <span class="sec-status-ic" id="sec-status-ic">{{ partial "icon.html" "shield" }}</span>

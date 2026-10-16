@@ -54,9 +54,6 @@ export function securityUrl() {
   return document.documentElement.lang === 'en' ? '/en/settings/security/' : '/settings/security/';
 }
 
-/* #1 诊断：门内页跳转留痕（实现已移至 lib/diag-jumptrace.js，此处 re-export 保持兼容）。
-   跳转前记「谁触发的 + 原因」，安全页加载时取出来显示一次（取即清除）。 */
-export { recordJump, takeJumpRecord, takeJumpRecords } from '../lib/diag-jumptrace.js';
 
 /* 验证失效弹框只弹一次（门内多个请求并发失败时不重复弹框） */
 let verifyJumped = false;

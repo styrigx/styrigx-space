@@ -2,26 +2,6 @@
 <html lang="{{ if or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}en{{ else }}zh{{ end }}" class="scroll-smooth" data-sgx-build="{{ partial "sgx-build-sha.html" . }}">
 <head>
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
-{{/* #1 诊断：门内页已加载信标。HTML 到达浏览器即写 sessionStorage；
-   安全页显示最近一条。无信标 = 服务端没把 HTML 送到浏览器；有信标 = 前端跳走的。
-   诊断结束后删除。 */}}
-{{ if or (eq .Layout "security-owner") (eq .Layout "security-lock") (eq .Layout "security-apps") (eq .Layout "security-mgmt") }}
-<script>
-(function(){
-  try{
-    var h=document.documentElement;
-    sessionStorage.setItem('sgx-door-beacon',JSON.stringify({
-      path:location.pathname,
-      at:Date.now(),
-      session:h.getAttribute('data-sgx-session'),
-      role:h.getAttribute('data-sgx-role'),
-      upgrade:h.getAttribute('data-sgx-upgrade'),
-      build:h.getAttribute('data-sgx-build')
-    }));
-  }catch(e){}
-})();
-</script>
-{{ end }}
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 {{/* 2.4.0 H：Turnstile 站点密钥（公开） */}}

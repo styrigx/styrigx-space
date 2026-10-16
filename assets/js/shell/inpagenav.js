@@ -20,7 +20,7 @@
  * middleware 验签，等于每次切页都问了一次服务端。
  */
 /* A1：整页跳转/重载全部走带留痕的封装 */
-import { sgxAssign, sgxReload, recordJump } from '../lib/diag-jumptrace.js';
+import { sgxAssign, sgxReload } from '../lib/diag-jumptrace.js';
 import { syncTopbar } from './head-buttons.js';
 
 const CONTENT_SELECTOR = 'main';
@@ -396,10 +396,8 @@ export function initInPageNav() {
   });
 
   // popstate：前进/后退（目标不是 Dock 页则整页加载）
-  // A6：记录 popstate 事件（dialog 关闭 / 键盘收起 / 返回手势是否会误触发）。
   window.addEventListener('popstate', (e) => {
     const state = e.state;
-    try { recordJump('inpagenav.js:popstate', 'popstate;hasState=' + !!(state && state.url) + ';url=' + ((state && state.url) || '')); } catch (_) {}
     if (state && state.url) {
       let url;
       try {
