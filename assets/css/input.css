@@ -1734,7 +1734,7 @@
   .sgx-cap {
     position: fixed; left: 50%; transform: translateX(-50%); z-index: 41;
     bottom: calc(88px + env(safe-area-inset-bottom,0px));
-    display: flex; align-items: center; gap: 10px; height: 56px; border-radius: 999px;
+    display: flex; align-items: center; gap: 10px; height: var(--sgx-bottom-dock-h); border-radius: 999px;
     padding: 0 20px; width: min(64vw,300px);
     background: var(--glass-tint); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow);
     transition: bottom .25s ease, left .25s ease, right .25s ease, transform .25s ease, border-radius .25s ease, width .25s ease;
@@ -2604,3 +2604,13 @@ html, body {
 /* 2.9.2⑦（修正版）：应用页标题收起时，天气和头像/用户名一起隐藏。
    复用 body.subpage-scrolled 同一个收起状态，动画时机与头像一致。
    主页不受影响（主页没有 subpage-head，不会加 subpage-scrolled）。 */
+
+/* B1-10：底部胶囊高度变量（胶囊和 main 底部留白共用） */
+:root {
+  --sgx-bottom-dock-h: 56px;
+}
+/* 有底部胶囊的页面：main 底部留白 = 胶囊高 + 安全区 + 16px */
+.set-layout:has(.sgx-cap),
+.layout-mobile .set-layout {
+  padding-bottom: calc(var(--sgx-bottom-dock-h) + env(safe-area-inset-bottom, 0px) + 16px);
+}

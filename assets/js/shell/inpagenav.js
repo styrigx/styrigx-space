@@ -194,13 +194,11 @@ function swapContent(newContent, newTitle, newLang, newPage) {
       doSwap();
       // 内容已换，淡入新页
       requestAnimationFrame(() => {
-        main.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+        main.style.transition = 'opacity 0.2s ease';
         main.style.opacity = '1';
-        main.style.transform = 'translateY(0)';
         setTimeout(() => {
           main.style.transition = '';
           main.style.opacity = '';
-          main.style.transform = '';
         }, 250);
       });
     }, 160);
