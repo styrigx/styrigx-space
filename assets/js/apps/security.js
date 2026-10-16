@@ -120,7 +120,7 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
             '<div class="sheet-handle"></div>' +
             '<h2 class="sgx-verify-title">' + (en ? 'Lock now?' : '立即锁定？') + '</h2>' +
             '<p class="sgx-verify-desc">' + (en ? 'This device will return to the lock screen.' : '当前设备会回到锁屏。') + '</p>' +
-            '<div class="sgx-door-foot" style="gap:12px;align-self:stretch">' +
+            '<div class="sgx-door-foot" style="gap:12px;width:100%;max-width:400px">' +
               '<button type="button" class="sgx-door-btn sgx-door-btn-secondary" data-act="cancel">' + (en ? 'Cancel' : '取消') + '</button>' +
               '<button type="button" class="sgx-door-btn sgx-door-btn-primary" data-act="ok">' + (en ? 'Lock' : '锁定') + '</button>' +
             '</div>' +
