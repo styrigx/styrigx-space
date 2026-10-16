@@ -13,9 +13,10 @@
  * 时钟：page.clock.install + fastForward（Date.now 被 mock）。
  * sessionStorage 只在每个测试开始时清一次。
  *
- * 跳转断言：sgxReplace 会先写 sessionStorage['sgx-last-jump'] 再调 location.replace。
- * 用 page.route abort 掉真跳转（避免 reload 后 why 还在 URL 里误判），
- * 但 jump trace 和 subsite-jump 记录都会保留，可断言。
+ * 跳转断言（B2-1 起）：sgxReplace 不再写 sessionStorage['sgx-last-jump']（B2-1 删除诊断留痕）。
+ * 回跳 = sgxReplace(location.href)（线上由 L1 middleware 校验 return 后 302 到子站）。
+ * 测试侧监听主框架导航请求（trackJumps）：URL 带 why= 且不是测试自己 goto 发出的，
+ * 就是一次回跳。subsite-jump 记录保留在 sessionStorage，可断言。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, expect } = require('./helpers');
@@ -30,15 +31,47 @@ async function blockJsNavigation(page) {
 }
 
 
-async function getJumpTrace(page) {
-  return await page.evaluate(() => {
+/* 记录回跳：主框架导航请求、URL 带 why=、且不是测试自己 goto 发出的（gotoWhy 先登记跳过一次） */
+function trackJumps(page) {
+  page.__jumps = [];
+  page.__skipNav = 0;
+  page.on('request', (r) => {
     try {
-      const raw = sessionStorage.getItem('sgx-last-jump');
-      if (!raw) return [];
-      const arr = JSON.parse(raw);
-      return Array.isArray(arr) ? arr : [];
-    } catch (e) { return []; }
+      if (!r.isNavigationRequest() || r.frame() !== page.mainFrame()) return;
+      if (r.url().indexOf('why=') === -1) return;
+      if (page.__skipNav > 0) { page.__skipNav--; return; }
+      page.__jumps.push(r.url());
+    } catch (e) {}
   });
+}
+
+/* 测试自己发起的带 why= 的导航：不计入回跳 */
+async function gotoWhy(page, url) {
+  page.__skipNav = (page.__skipNav || 0) + 1;
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+}
+
+async function getJumpTrace(page) {
+  return (page.__jumps || []).slice();
+}
+
+function resetJumpTrace(page) {
+  if (page.__jumps) page.__jumps.length = 0;
+}
+
+/* 等决策：回跳（出现子站导航请求）或失败卡，以先出现者为准 */
+async function waitDecision(page, timeout) {
+  const end = Date.now() + (timeout || 8000);
+  while (Date.now() < end) {
+    if (page.__jumps && page.__jumps.length > 0) return 'jump';
+    const failed = await page.evaluate(() => {
+      const el = document.getElementById('sgx-subsite-failure');
+      return !!(el && !el.hidden);
+    }).catch(() => false);
+    if (failed) return 'failure';
+    await page.waitForTimeout(50);
+  }
+  throw new Error('waitDecision timeout');
 }
 
 async function getJumpRecord(page) {
@@ -48,10 +81,10 @@ async function getJumpRecord(page) {
 }
 
 async function clearJumpState(page) {
+  resetJumpTrace(page);
   await page.evaluate(() => {
     try {
       sessionStorage.removeItem('sgx-subsite-jump');
-      sessionStorage.removeItem('sgx-last-jump');
     } catch (e) {}
   });
 }
@@ -84,24 +117,15 @@ test.describe('B1-8 路径A：会话有效时被踢回', () => {
       try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
     });
     await blockJsNavigation(page);
+    trackJumps(page);
   });
 
   async function gotoKicked(page, target, why) {
     /* test-no-local-bypass：绕过 isLocalDev 检查，让 initLock 走 kickback 逻辑 */
     const url = '/?test-no-local-bypass&why=' + encodeURIComponent(why) + '&return=' + encodeURIComponent(target);
-    await page.goto(url, { waitUntil: 'domcontentloaded' });
-    /* 等 initLock 跑完：返回 'jump' 或 'failure'，以先出现者为准。
-       注意：sgxReplace 会触发 reload，jump trace 先写入，必须在 reload 前捕获决策。 */
-    const decision = await page.waitForFunction(() => {
-      try {
-        const raw = sessionStorage.getItem('sgx-last-jump');
-        if (raw && JSON.parse(raw).length > 0) return 'jump';
-      } catch (e) {}
-      const el = document.getElementById('sgx-subsite-failure');
-      if (el && !el.hidden) return 'failure';
-      return null;
-    }, null, { timeout: 8000 });
-    return await decision.jsonValue();
+    await gotoWhy(page, url);
+    /* 等 initLock 跑完：返回 'jump' 或 'failure'，以先出现者为准 */
+    return await waitDecision(page, 8000);
   }
 
   test('第一次：正常回跳（jump trace 有 replace 记录）、记录已写入、不出失败卡', async ({ page }) => {
@@ -136,7 +160,7 @@ test.describe('B1-8 路径A：会话有效时被踢回', () => {
         }
       } catch (e) {}
     });
-    await page.evaluate(() => { try { sessionStorage.removeItem('sgx-last-jump'); } catch (e) {} });
+    resetJumpTrace(page);
 
     const d2 = await gotoKicked(page, TARGET, 'no-cookie');
     expect(d2).toBe('failure');
@@ -170,7 +194,7 @@ test.describe('B1-8 路径A：会话有效时被踢回', () => {
         }
       } catch (e) {}
     });
-    await page.evaluate(() => { try { sessionStorage.removeItem('sgx-last-jump'); } catch (e) {} });
+    resetJumpTrace(page);
 
     const d2 = await gotoKicked(page, TARGET, 'no-cookie');
     expect(d2).toBe('jump');
@@ -195,7 +219,7 @@ test.describe('B1-8 路径A：会话有效时被踢回', () => {
         }
       } catch (e) {}
     });
-    await page.evaluate(() => { try { sessionStorage.removeItem('sgx-last-jump'); } catch (e) {} });
+    resetJumpTrace(page);
 
     /* 10 秒内踢回 blog（不同 target） */
     const d2 = await gotoKicked(page, TARGET_BLOG, 'expired');
@@ -225,7 +249,7 @@ test.describe('B1-8 路径A：会话有效时被踢回', () => {
         }
       } catch (e) {}
     });
-    await page.evaluate(() => { try { sessionStorage.removeItem('sgx-last-jump'); } catch (e) {} });
+    resetJumpTrace(page);
 
     /* 10 秒内第二次 */
     const d2 = await gotoKicked(page, TARGET, 'no-cookie');
@@ -248,25 +272,20 @@ test.describe('B1-8 路径B：会话无效、访客解锁后被踢回', () => {
       try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
     });
     await blockJsNavigation(page);
+    trackJumps(page);
   });
 
   /* 访客解锁流程，handleSessionOk 会被触发 */
   async function unlockAsVisitor(page, target, why) {
     const url = '/?lock=1&why=' + encodeURIComponent(why) + '&return=' + encodeURIComponent(target);
-    await page.goto(url, { waitUntil: 'domcontentloaded' });
+    await gotoWhy(page, url);
     await page.clock.install();
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
     await page.click('#sgx-lock-avatar');
     await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible({ timeout: 5000 });
     await page.click('#sgx-mopt-visitor');
     /* 等 handleSessionOk 跑完 */
-    await page.waitForFunction(() => {
-      try {
-        const raw = sessionStorage.getItem('sgx-last-jump');
-        if (raw && JSON.parse(raw).length > 0) return true;
-      } catch (e) {}
-      return !!document.getElementById('sgx-subsite-failure');
-    }, null, { timeout: 8000 });
+    await waitDecision(page, 8000);
   }
 
   test('第一次：正常回跳、记录已写入、不出失败卡', async ({ page }) => {
@@ -336,8 +355,8 @@ test.describe('B1-8 路径B：会话无效、访客解锁后被踢回', () => {
         }
       } catch (e) {}
     });
-    /* 清掉 jump trace，方便断言新增 */
-    await page.evaluate(() => { try { sessionStorage.removeItem('sgx-last-jump'); } catch (e) {} });
+    /* 清掉已记录的回跳，方便断言新增 */
+    resetJumpTrace(page);
 
     await unlockAsVisitor(page, TARGET, 'no-cookie');
 
@@ -368,7 +387,7 @@ test.describe('B1-8 路径B：会话无效、访客解锁后被踢回', () => {
         }
       } catch (e) {}
     });
-    await page.evaluate(() => { try { sessionStorage.removeItem('sgx-last-jump'); } catch (e) {} });
+    resetJumpTrace(page);
 
     await unlockAsVisitor(page, TARGET_BLOG, 'expired');
 
