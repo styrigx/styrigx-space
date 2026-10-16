@@ -13,6 +13,31 @@
  */
 import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
 import { bindEyeButton } from '../lib/dialog-behavior.js';
+import { followKeyboard } from './vk.js';
+import { getPasskeyAssertion, passkeyErrorText } from '../lib/passkey-assert.js';
+import { b64urlToBuf } from '../lib/b64.js';
+
+/**
+ * B1-2：upgrade 流程通行密钥错误的展示决策（纯函数，可单测）。
+ * 规则（与 46fe723 之前对齐）：
+ * - cancelled、NotAllowedError 产生的 nokey：以前不弹错，现在也不弹错 → 返回 null
+ * - InvalidStateError 产生的 nokey：以前弹通用报错，现在也弹通用报错
+ * - timeout / failed：弹错；文案用 B1-2 的 4 档文案（46fe723 计划内）
+ * @param {{kind?: string, cause?: {name?: string}}|null|undefined} e getPasskeyAssertion 抛出的错误
+ * @param {boolean} isEn 是否英文
+ * @returns {string|null} 要显示的文案；null 表示不弹错
+ */
+export function upgradePasskeyErrorText(e, isEn) {
+  const kind = e && e.kind;
+  const causeName = e && e.cause && e.cause.name;
+  if (kind === 'cancelled' || (kind === 'nokey' && causeName === 'NotAllowedError')) {
+    return null;
+  }
+  if (kind === 'nokey') { /* InvalidStateError */
+    return isEn ? 'Verification failed' : '验证失败';
+  }
+  return passkeyErrorText(kind || 'failed', isEn);
+}
 
 export function initUpgrade() {
   const html = document.documentElement;
@@ -217,15 +242,23 @@ export function initUpgrade() {
         return;
       }
       const allow = (ch.allowCredentials || []).map((c) => ({ id: b64urlToBuf(c.id), type: c.type }));
-      const cred = await navigator.credentials.get({
-        publicKey: {
+      /* B1-2：用公共函数（隐藏弹层 + 30s 超时 + 4 档错误） */
+      let cred;
+      try {
+        const dlg = document.querySelector('.sgx-upgrade-sheet');
+        cred = await getPasskeyAssertion({
           challenge: b64urlToBuf(ch.challenge),
           rpId: ch.rpId,
           allowCredentials: allow,
           userVerification: 'required',
-          timeout: 60000,
-        },
-      });
+        }, { hideEl: dlg });
+      } catch (e) {
+        /* B1-2：cancelled 和 NotAllowedError 的 nokey 以前不弹错，现在也不弹错；
+           InvalidStateError 保持 46fe723 前的通用报错；timeout/failed 用 4 档文案(46fe723) */
+        const msg = upgradePasskeyErrorText(e, isEn);
+        if (msg) showErr(msg);
+        return;
+      }
       const authRes = await fetch('/api/owner-passkey', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -253,8 +286,11 @@ export function initUpgrade() {
         showErr(isEn ? 'Verification failed' : '验证失败');
       }
     } catch (e) {
-      /* 用户取消或失败：留在原页 */
-      if (e && e.name !== 'NotAllowedError') showErr(isEn ? 'Verification failed' : '验证失败');
+      /* 用户取消/无钥匙(NotAllowedError)：留在原页不弹错；其余弹错（保持 46fe723 前 e.name !== 'NotAllowedError' 的行为） */
+      const isCancelLike = e && (e.kind === 'cancelled' ||
+        (e.kind === 'nokey' && e.cause && e.cause.name === 'NotAllowedError') ||
+        e.name === 'NotAllowedError');
+      if (!isCancelLike) showErr(isEn ? 'Verification failed' : '验证失败');
     }
   });
 }

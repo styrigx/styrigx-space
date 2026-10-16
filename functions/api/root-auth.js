@@ -143,29 +143,22 @@ async function handlePost(context) {
     }
   }
 
+  /* B1-9 访客假入口统一 401（安全）：访客会话直接返回 401，
+     不读任何存储（KV/D1），不区分新站旧站。放在所有 KV 读取之前。 */
+  if (await lightVisitorSession(request, env)) {
+    await padTo(t0);
+    return Response.json({ ok: false, error: 'denied' }, { status: 401 });
+  }
+
   const kv = env && env.OWNER_KV;
   const ip = getClientIp(request);
 
-  /* 锁屏层是否有效已配置（标记或真实凭证任一存在、或读取失败都算已配置）。
-     先算出来，供假入口判断用。 */
+  /* 非访客路径：计算 lockCfg（供真/假路径判断用） */
   let lockCfg = true;
   try {
     lockCfg = await isLockEffectivelyConfigured(kv);
   } catch (e) {
     lockCfg = true;
-  }
-
-  /* ===== 访客假入口（优先）：访客会话直接写死 401 =====
-     不读 D1、KV、环境变量里的任何凭证，不做任何比对；
-     不计入 rootlimit；不写审计。
-     状态码、响应体、固定最小延迟与真失败一致。
-     例外：锁屏未配置的引导场景下，有访客 cookie 也不走假入口，
-     必须走真路径校验根凭证（否则锁屏根凭证入口永远进不去）。
-     已知风险：访客假入口不检查 rootlimit，永远不返回 429，
-     访客会话可无限次试探而不触发限速；真路径与无会话假入口仍受限速保护。 */
-  if (lockCfg && await lightVisitorSession(request, env)) {
-    await padTo(t0);
-    return decoyAuth();
   }
 
   /* 真路径还是无会话假入口：
