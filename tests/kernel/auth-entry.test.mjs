@@ -189,9 +189,9 @@ test('认证入口：访客会话提交正确根凭证 → 401 密码错误，�
 
   assert.equal(res.status, 401);
   const body = await res.text();
-  assert.equal(body, JSON.stringify({ ok: false, error: 'auth' }));
+  assert.equal(body, JSON.stringify({ ok: false, error: 'denied' }));
 
-  /* 不写 KV（put 计数为 0）；允许读锁屏配置（判断引导场景），但不读凭证 */
+  /* 不写 KV（put 计数为 0）；B1-9：不读任何存储（判断引导场景），但不读凭证 */
   assert.equal(kv._calls.put, 0, '访客假入口不应写 KV');
 
   /* 不增加 rootlimit 计数 */
@@ -209,17 +209,16 @@ test('认证入口：访客假入口与真失败响应逐字节相同', async ()
   const kv1 = makeKv({ 'layer:lock': '1' });
   const kv2 = makeKv({ 'layer:lock': '1' });
 
-  /* 访客提交正确密钥 */
+  /* B1-9：访客提交任何值都返回同一个 401 denied（不读存储） */
   const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'visitor', 'owner');
   const req1 = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345' }, {
     'Cookie': 'sgx-verified=' + sessCv,
   });
   const res1 = await onRequestPost({ request: req1, env: baseEnv(kv1) });
 
-  /* Owner 会话提交错误密钥（真失败） */
-  const ownerCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
+  /* 访客提交另一个值 → 同一个 401 denied */
   const req2 = postReq('https://test.example.com/api/root-auth', { key: 'wrong-key' }, {
-    'Cookie': 'sgx-verified=' + ownerCv,
+    'Cookie': 'sgx-verified=' + sessCv,
   });
   const res2 = await onRequestPost({ request: req2, env: baseEnv(kv2) });
 
@@ -227,7 +226,8 @@ test('认证入口：访客假入口与真失败响应逐字节相同', async ()
   assert.equal(res2.status, 401);
   const b1 = await res1.text();
   const b2 = await res2.text();
-  assert.equal(b1, b2, '假入口与真失败响应应逐字节相同');
+  assert.equal(b1, b2, 'B1-9：访客任何提交应返回同一个 401');
+  assert.equal(b1, JSON.stringify({ ok: false, error: 'denied' }), 'B1-9：访客应返回 denied');
 });
 
 /* ============ 4. 管理凭证弹层按钮 ============ */
@@ -476,7 +476,7 @@ test('补充七：访客管理凭证提交任何值都返回密码错误且不�
     const res = await onRequestPost({ request: req, env });
     assert.equal(res.status, 401, '访客提交 ' + JSON.stringify(key) + ' 应 401');
     const body = await res.text();
-    assert.equal(body, JSON.stringify({ ok: false, error: 'auth' }));
+    assert.equal(body, JSON.stringify({ ok: false, error: 'denied' }));
   }
   /* 不写存储 */
   assert.equal(kv._calls.put, 0, '访客假入口不应写 KV');
@@ -629,13 +629,13 @@ test('行为：访客会话下 root-auth 不走真路径（即使 lock 未配置
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 401, '访客即使提交正确根凭证也 401');
   const body = await res.text();
-  assert.equal(body, JSON.stringify({ ok: false, error: 'auth' }));
+  assert.equal(body, JSON.stringify({ ok: false, error: 'denied' }));
 });
 
 test('行为：锁屏未配置 + 访客 cookie 时 root-auth 走真路径（不走假入口）', async () => {
   const { onRequestPost } = await import(REPO + 'functions/api/root-auth.js');
   const { signSessionCookie } = await import(REPO + 'functions/_kernel/session.js');
-  /* lock 未配置 */
+  /* B1-9：访客一律 401 denied，不区分新站旧站（lockCfg 例外已删除） */
   const kv = makeKv({});
   const env = baseEnv(kv);
   const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'visitor', 'owner');
@@ -643,7 +643,9 @@ test('行为：锁屏未配置 + 访客 cookie 时 root-auth 走真路径（不�
     'Cookie': 'sgx-verified=' + sessCv,
   });
   const res = await onRequestPost({ request: req, env });
-  assert.equal(res.status, 200, '引导场景下访客 cookie 不触发假入口，应走真路径');
+  assert.equal(res.status, 401, 'B1-9：访客一律 401，不走真路径');
+  const body = await res.text();
+  assert.equal(body, JSON.stringify({ ok: false, error: 'denied' }));
 });
 
 /* ============ 复审 §1：lockreset 票据页注入 lockreset 状态 ============ */
