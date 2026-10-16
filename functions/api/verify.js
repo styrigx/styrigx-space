@@ -67,6 +67,11 @@ export async function onRequestPost(context) {
 
   /* 校验 success、hostname、action */
   if (!vr || vr.success !== true) {
+    /* B1-3：记录 Turnstile 返回的 error-codes（只记码，不记 token） */
+    try {
+      const codes = (vr && vr['error-codes']) || [];
+      console.log('[turnstile]', JSON.stringify(codes));
+    } catch (e) {}
     return Response.json({ ok: false, error: 'failed' }, { status: 403 });
   }
   const hostname = vr.hostname || '';
