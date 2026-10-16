@@ -7,12 +7,16 @@ on:
         required: true
 permissions:
   contents: write
+  actions: write   # B1-11：推完基线后用 GITHUB_TOKEN 触发 deploy.yml
 env:
   HUGO_VERSION: '0.167.0'   # 与 deploy.yml 保持一致
 jobs:
   update:
     runs-on: ubuntu-24.04
     steps:
+      - name: Refuse main
+        if: inputs.branch == 'main'
+        run: echo "不要在 main 上更新基线" && exit 1
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.branch }}
@@ -40,6 +44,7 @@ jobs:
       - name: Update snapshots
         run: npx playwright test --config=playwright.config.js visual.spec.js --update-snapshots
       - name: Commit snapshots only
+        id: commit
         run: |
           git checkout -- hugo.yaml   # 丢掉测试用 Turnstile key 替换
           rm -f data/posts.json       # fixture 复制的临时文件，未被 git 跟踪
@@ -50,4 +55,12 @@ jobs:
           git diff --cached --stat
           git commit -m "[UI] CI 更新视觉基线 (ubuntu-24.04)"
           git push
-# 推送用 GITHUB_TOKEN 不会触发 deploy.yml：推完在 PR 上 Re-run，或空提交一次
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+      # B1-11：GITHUB_TOKEN 的 push 不会触发 deploy.yml，这里显式 dispatch 一次。
+      # deploy.yml 的 build-and-deploy 只在 main 上跑，非 main 分支只跑测试，不会部署生产。
+      - name: Trigger CI on the updated branch
+        if: steps.commit.outputs.pushed == 'true'
+        run: gh workflow run deploy.yml --ref "${{ inputs.branch }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
