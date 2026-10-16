@@ -1,10 +1,11 @@
 /**
- * B1-10｜页脚 © 被底部搜索胶囊遮挡
+ * B1-10｜页脚 © 被底部搜索胶囊遮挡（验收重写）
  *
- * 要求：滚到底时页脚完整可见，与胶囊之间至少留 16px。
- * 做法：有底部胶囊的页面给 main 底部加 padding-bottom = 胶囊高度 + 底部安全区 + 16px
- *      （用 CSS 变量 --sgx-bottom-dock-h，胶囊和留白共用）。
- * 验收：滚到底，页脚 bounding box 底部 ≤ 胶囊顶部 - 16。
+ * 要求：带底部搜索胶囊的页面，滚到底时页脚（© 行 + Powered by 行）完整可见，
+ *      页脚最后一行的底边 ≤ 胶囊顶边 - 16px。
+ * 旧版选的是 main .set-layout 里的 p.text-xs，根本不是真正的页脚（页脚是 baseof 里的 <footer>），
+ * 所以那两条“通过”等于没测。这里直接量 <footer> 里的两行文字。
+ * 覆盖：所有渲染 sgx-capsule.html 的页面（设置主页、设置子页、我的文件、应用商店），360 / 412 两种宽度。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, expect } = require('./helpers');
@@ -14,31 +15,51 @@ const VIEWPORTS = [
   { width: 412, height: 915 },
 ];
 
+const PAGES = [
+  { path: '/settings/', cap: '#sgx-cap-settings' },
+  { path: '/settings/display/', cap: '#sgx-cap-settings' },
+  { path: '/files/', cap: '#sgx-cap-files' },
+  { path: '/store/', cap: '#sgx-cap-store' },
+];
+
 for (const vp of VIEWPORTS) {
-  test(`B1-10 ${vp.width}：滚到底页脚不被胶囊遮挡（≥16px 间隙）`, async ({ page }) => {
-    await page.setViewportSize(vp);
-    await blockExternalRequests(page);
-    await freezeTime(page);
+  for (const p of PAGES) {
+    test(`B1-10 ${vp.width} ${p.path}：滚到底页脚完整可见，距胶囊 ≥16px`, async ({ page }) => {
+      await page.setViewportSize(vp);
+      await blockExternalRequests(page);
+      await freezeTime(page);
+      await page.goto(p.path);
 
-    // 设置页（带底部胶囊）
-    await page.goto('/settings/');
-    await expect(page.locator('#sgx-cap-settings')).toBeVisible();
+      const cap = page.locator(p.cap);
+      await expect(cap).toBeVisible({ timeout: 15000 });
+      const copy = page.locator('footer p').first();
+      const powered = page.locator('footer .sgx-powered');
+      await expect(copy).toHaveText(/©\s*\d{4}–\d{4} Sloan Gray/);
+      await expect(powered).toHaveCount(1);
 
-    // 滚到底
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await page.waitForTimeout(300);
+      // 滚到底，等布局稳定（两次读数一致）
+      await page.evaluate(() => window.scrollTo(0, document.scrollingElement.scrollHeight));
+      await expect.poll(async () => {
+        const a = await page.evaluate(() => window.scrollY);
+        await page.waitForTimeout(150);
+        const b = await page.evaluate(() => window.scrollY);
+        return a === b;
+      }).toBe(true);
+      await page.evaluate(() => window.scrollTo(0, document.scrollingElement.scrollHeight));
 
-    // 页脚版权文字（在 main 内 .set-layout 底部）
-    const footerBox = await page.locator('main .set-layout p.text-xs').last().boundingBox();
-    const capBox = await page.locator('#sgx-cap-settings').boundingBox();
+      const m = await page.evaluate(([capSel]) => {
+        const c = document.querySelector(capSel).getBoundingClientRect();
+        const ps = document.querySelectorAll('footer p');
+        const first = ps[0].getBoundingClientRect();
+        const last = document.querySelector('footer .sgx-powered').getBoundingClientRect();
+        return { capTop: c.top, firstTop: first.top, lastBottom: last.bottom, vh: window.innerHeight };
+      }, [p.cap]);
 
-    expect(footerBox).not.toBeNull();
-    expect(capBox).not.toBeNull();
-
-    const footerBottom = footerBox.y + footerBox.height;
-    const capTop = capBox.y;
-
-    // 页脚底 ≤ 胶囊顶 - 16
-    expect(footerBottom).toBeLessThanOrEqual(capTop - 16);
-  });
+      // 两行都在视口里
+      expect(m.firstTop, `© 行顶 ${m.firstTop}`).toBeGreaterThanOrEqual(0);
+      expect(m.lastBottom, `页脚底 ${m.lastBottom} 视口 ${m.vh}`).toBeLessThanOrEqual(m.vh);
+      // 页脚底 ≤ 胶囊顶 - 16
+      expect(m.lastBottom, `页脚底 ${m.lastBottom}，胶囊顶 ${m.capTop}`).toBeLessThanOrEqual(m.capTop - 16);
+    });
+  }
 }
