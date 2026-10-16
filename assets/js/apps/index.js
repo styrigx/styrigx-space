@@ -435,76 +435,6 @@ if (SGX_FEAT_WEATHER_SHOW)
       });
     } catch (e) {}
   }
-  /** @param {boolean} show */
-  function dexNote(show) {
-    const n = document.getElementById('nav-music-note');
-    if (n) n.style.display = show ? '' : 'none';
-    if (!show) {
-      const p = document.getElementById('dex-music-pop');
-      if (p) p.classList.add('hidden');
-    }
-  }
-  /** @type {{fn: (() => void)|null}} */
-  const syncPopRef = { fn: null };
-  function syncPop() {
-    if (syncPopRef.fn) syncPopRef.fn();
-  }
-  /* DeX 迷你窗：内容同步 + 开关 + 按钮 */
-  (function () {
-    const note = document.getElementById('nav-music-note'),
-      pop = document.getElementById('dex-music-pop');
-    if (!note || !pop) return;
-    /** 同步迷你窗内容（模块内共享，不再挂 window） */
-    function npSyncPop() {
-      if (!songs[mi]) return;
-      /** @param {string} id @param {string|number} v */
-    const setT = function (id, v) {
-        const el = document.getElementById(id);
-        if (el) el.textContent = String(v);
-      };
-      const cover = /** @type {HTMLImageElement|null} */ (document.getElementById('dmp-cover'));
-      if (cover) {
-        cover.src = songs[mi].cover;
-        cover.alt = songs[mi].title;
-      }
-      setT('dmp-title', songs[mi].title);
-      setT('dmp-artist', songs[mi].artist || '');
-      const ip = document.getElementById('dmp-ic-play'),
-        ipa = document.getElementById('dmp-ic-pause');
-      if (ip) ip.classList.toggle('hidden', playing);
-      if (ipa) ipa.classList.toggle('hidden', !playing);
-    }
-    syncPopRef.fn = npSyncPop;
-    on(note, 'click', function (e) {
-      e.stopPropagation();
-      npSyncPop();
-      pop.classList.toggle('hidden');
-    });
-    on(document, 'click', function (/** @type {MouseEvent} */ e) {
-      const t = /** @type {Element|null} */ (e.target);
-      if (!pop.classList.contains('hidden') && t && !t.closest('#dex-music-pop') && !t.closest('#nav-music-note'))
-        pop.classList.add('hidden');
-    });
-    const dp = document.getElementById('dmp-prev'),
-      dn = document.getElementById('dmp-next'),
-      dpl = document.getElementById('dmp-play');
-    if (dp)
-      on(dp, 'click', function () {
-        step(-1);
-        npSyncPop();
-      });
-    if (dn)
-      on(dn, 'click', function () {
-        step(1);
-        npSyncPop();
-      });
-    if (dpl)
-      on(dpl, 'click', function () {
-        if (playing) pause();
-        else play();
-        npSyncPop();
-      });
-  })();
   function render() {
     if (!songs.length) return;
     const s = songs[mi];
@@ -522,7 +452,6 @@ if (SGX_FEAT_WEATHER_SHOW)
     retried = false;
     setIcons();
     mediaSession();
-    syncPop();
   }
   /** @param {number} d */
   function step(d) {
@@ -544,21 +473,16 @@ if (SGX_FEAT_WEATHER_SHOW)
     if (playing || !silent) {
       playing = false;
       setIcons();
-      dexNote(false);
     }
   }
   on(au, 'play', function () {
     playing = true;
     setIcons();
-    dexNote(true);
     mediaSession();
-    syncPop();
   });
   on(au, 'pause', function () {
     playing = false;
     setIcons();
-    dexNote(false);
-    syncPop();
   });
   on(au, 'timeupdate', function () {
     const d = au.duration || 30;

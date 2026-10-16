@@ -75,9 +75,21 @@ test.describe('390×844 行为', () => {
       await expect(page.locator(sel), sel).toHaveCount(0);
     }
     const shown = await page.evaluate(() =>
-      [...document.querySelectorAll('.subpage-head .subpage-actions')].filter((e) => getComputedStyle(e).display !== 'none').length
+      [...document.querySelectorAll('.subpage-head [data-tb-more]')].filter((e) => getComputedStyle(e).display !== 'none').length
     );
     expect(shown).toBe(0);
+  });
+
+  test('标题区下沉：高度 max(280, 35% 可见高度)，padding-top 84，padding-bottom 76', async ({ page }) => {
+    await go(page, '/settings/');
+    const m = await page.evaluate(() => {
+      const h = document.querySelector('[data-subpage-head]');
+      const cs = getComputedStyle(h);
+      return { h: h.offsetHeight, pt: cs.paddingTop, pb: cs.paddingBottom, vh: window.innerHeight };
+    });
+    expect(m.h).toBeGreaterThanOrEqual(Math.max(280, Math.round(m.vh * 0.35)) - 1);
+    expect(m.pt).toBe('84px');
+    expect(m.pb).toBe('76px');
   });
 
   test('滚过标题区 × 0.55：品牌淡出、小标题在长条内可见、三个按钮不动', async ({ page }) => {

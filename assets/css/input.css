@@ -558,10 +558,6 @@
      isolation 限定混合范围；contain: layout style 把重排/重绘关在元素内（fixed 元素安全）。 */
   .glass,
   .dock, #dex-dock,
-  [data-state="float"] .subpage-back, [data-state="float"] .subpage-more, #files-more.stuck,
-  .layout-dex #site-nav,
-  .layout-pc #site-nav,
-  .layout-mobile body.subpage-scrolled #site-nav,
   .sgx-searchbar, .sgx-cap, .sgx85-pill,
   .brw-suggest, .sgx-cap-results, .brw-ov-bar, .brw-ov,
   .sgx-vs-card, #sheet-panel {
@@ -577,15 +573,13 @@
     -webkit-backdrop-filter: none;
   }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .glass, .dock, #dex-dock, [data-state="float"] .subpage-back, [data-state="float"] .subpage-more, #files-more.stuck,
-    .layout-dex #site-nav, .layout-pc #site-nav, .layout-mobile body.subpage-scrolled #site-nav,
+    .glass, .dock, #dex-dock,
     .sgx-searchbar, .sgx-cap, .sgx85-pill,
     /* stylelint-disable-next-line color-no-hex */
     .brw-suggest, .sgx-cap-results, .brw-ov-bar, .brw-ov, .sgx-vs-card { background: #fff; }
     /* stylelint-disable-next-line color-no-hex */
     .layout-mobile #sheet-panel, .layout-dex #sheet-panel, .layout-pc #sheet-panel { background: #fff; }
-    .dark .glass, .dark .dock, .dark #dex-dock, .dark [data-state="float"] .subpage-back, .dark [data-state="float"] .subpage-more, .dark #files-more.stuck,
-    .dark .layout-dex #site-nav, .dark .layout-pc #site-nav, .dark .layout-mobile body.subpage-scrolled #site-nav,
+    .dark .glass, .dark .dock, .dark #dex-dock,
     .dark .sgx-searchbar, .dark .sgx-cap, .dark .sgx85-pill,
     .dark .brw-suggest, .dark .sgx-cap-results, .dark .brw-ov-bar, .dark .brw-ov,
     /* stylelint-disable-next-line color-no-hex */
@@ -638,11 +632,8 @@
      标题区 [data-subpage-head] 提供命名 view timeline；exit 区间即“滚过标题区”的过程
      （exit 0% ↔ y=0，exit 100% ↔ y=headH，与 JS 公式里的 headH 系数一一对应，
      已在 Chromium 实测验证映射关系）。
-     驱动：大标题折叠 / 小标题淡入 / 顶栏变实 / 品牌时间淡出。
-     （D5 起折叠返回键不再用独立元素：展开态 .subpage-back 吸顶时直接变 ‹，
-     吸住时机由 head-buttons.js 与三点同一帧驱动，不走 scroll-driven。）
-     不支持 view-timeline-name 的浏览器回退到现有 JS
-     （body.subpage-scrolled 类 + 内联样式，见 sgx-base-a.js initBackFloat）。 */
+     只驱动大标题折叠；顶栏 v2.0 的品牌淡出/小标题淡入由 body.sgx-stuck 控制（head-buttons.js）。
+     不支持 view-timeline-name 的浏览器回退到 subhead.js。 */
   @supports (view-timeline-name: --sgx-subhead) {
     body { timeline-scope: --sgx-subhead; }
     /* view-timeline-inset:0 —— inset:auto 会取用 html 的 scroll-padding-top（顶栏 64px+16px），
@@ -658,69 +649,14 @@
       from { opacity: 1; transform: translateY(0); }
       to { opacity: 0; transform: translateY(-24px); }
     }
-    /* 小标题：y: headH*0.5 → headH*0.7 淡入 */
-    .subpage-mini-title {
-      animation: sgx-mini-in linear both;
-      animation-timeline: --sgx-subhead;
-      animation-range: exit 50% exit 70%;
-    }
-    @keyframes sgx-mini-in {
-      from { opacity: 0; transform: translateX(-50%) translateY(6px); }
-      to { opacity: 1; transform: translateX(-50%) translateY(0); }
-    }
-    /* D5：折叠返回键不再用独立元素，展开态 .subpage-back 吸顶时直接变 ‹（.stuck 切换图标）；
-       吸住时机由 head-buttons.js 与三点同一帧驱动，本段 scroll-driven 显隐删除。 */
-    /* 顶栏变实：与小标题/返回键同一阈值，合并为同一层模糊底（替代 body.subpage-scrolled） */
-    .layout-mobile #site-nav {
-      isolation: isolate;
-      contain: layout style;
-      animation: sgx-nav-frost linear both;
-      animation-timeline: --sgx-subhead;
-      animation-range: exit 55% exit 57%;
-    }
-    @keyframes sgx-nav-frost {
-      from {
-        background-color: transparent; padding-bottom: 0;
-        -webkit-mask-image: none; mask-image: none;
-        backdrop-filter: none; -webkit-backdrop-filter: none;
-      }
-      /* 同 sgx-backfloat：50% 保证静止态 backdrop-filter 精确为 none */
-      50% {
-        backdrop-filter: none; -webkit-backdrop-filter: none;
-        -webkit-mask-image: none; mask-image: none;
-      }
-      to {
-        background-color: var(--glass-tint); padding-bottom: 14px;
-        /* stylelint-disable-next-line color-no-hex */
-        -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 62%, transparent 100%);
-        /* stylelint-disable-next-line color-no-hex */
-        mask-image: linear-gradient(to bottom, #000 0%, #000 62%, transparent 100%);
-        backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
-        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
-      }
-    }
-    /* 品牌/时间/天气淡出：与顶栏变实同步（2.9.2⑦：天气跟头像同一状态） */
-    .layout-mobile #nav-brand, .layout-mobile #nav-time-center, .layout-mobile #nav-wx,
-    .layout-dex #nav-brand, .layout-dex #nav-time-center, .layout-dex #nav-wx {
-      animation: sgx-nav-fade linear both;
-      animation-timeline: --sgx-subhead;
-      animation-range: exit 55% exit 57%;
-    }
-    @keyframes sgx-nav-fade {
-      from { opacity: 1; pointer-events: auto; }
-      to { opacity: 0; pointer-events: none; }
-    }
   }
-  /* 减弱动效：大/小标题只淡入淡出、不位移（与 JS 回退的 reduced 行为一致；
+  /* 减弱动效：大标题只淡入淡出、不位移（与 JS 回退的 reduced 行为一致；
      scroll-driven animation 不受 animation-duration 影响，必须换 keyframes） */
   @keyframes sgx-hero-fold-rm { from { opacity: 1; } to { opacity: 0; } }
-  @keyframes sgx-mini-in-rm { from { opacity: 0; } to { opacity: 1; } }
   @media (prefers-reduced-motion: reduce) {
     .subpage-hero { animation-name: sgx-hero-fold-rm; }
-    .subpage-mini-title { animation-name: sgx-mini-in-rm; }
   }
   .reduced-motion .subpage-hero { animation-name: sgx-hero-fold-rm; }
-  .reduced-motion .subpage-mini-title { animation-name: sgx-mini-in-rm; }
 
   /* ===== 小组件通用：One UI 实体材质（2.4.0 A）：0.5px 内高光描边 +
      接触影/环境影两层柔和阴影 + 极轻噪点纹理；不用实时 blur ===== */
@@ -800,43 +736,6 @@
   body.subpage.sgx-cap-pad footer { padding-bottom: calc(56px + 12px + 21px + env(safe-area-inset-bottom,0px)); }
   .layout-dex footer , .layout-pc footer { padding-bottom: calc(21px + env(safe-area-inset-bottom, 0px)); }
 
-  /* ===== 顶栏：透明无底色无线，直接融在背景里；手机、DeX 全局显示 ===== */
-  #site-nav {
-    position: fixed; top: 0; left: 0; right: 0; background: transparent; border: 0; box-shadow: none;
-    .nav-inner { position: relative; }
-    /* DeX 顶栏：统一磨砂玻璃，去硬线 */
-    .layout-dex & , .layout-pc & { background: var(--glass-tint); }
-  }
-  /* 顶栏中间时间（带日期）：绝对居中，点击展开日历面板 */
-  #nav-time-center {
-    position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
-    display: flex; align-items: baseline; gap: 6px; white-space: nowrap; min-height: 44px; align-items: center;
-    padding: 0 12px; border-radius: 999px; color: var(--m-on-surface);
-    &:active { background: rgba(0,0,0,.05); }
-    .dark &:active { background: rgba(255,255,255,.08); }
-  }
-  #nav-time { font-size: 15px; }
-  #nav-time-date { font-size: 12px; font-weight: 500; color: var(--m-on-surface-variant); }
-  /* 顶栏右侧：音乐音符 + 天气 */
-  #nav-right { display: flex; align-items: center; gap: 2px; margin-left: auto; flex-shrink: 0; position: relative; z-index: 1; }
-  /* 手机子页面滚动后：顶栏与小标题/圆形返回键合并为同一层模糊底（JS 回退路径） */
-  #nav-brand, #nav-time-center { transition: opacity .2s ease; }
-  .layout-mobile body.subpage-scrolled #site-nav {
-    background: var(--glass-tint);
-    /* 模糊层加高：覆盖居中小标题下方 16px，渐隐更长，小标题不直接贴在卡片上 */
-    padding-bottom: 14px;
-    /* stylelint-disable-next-line color-no-hex */
-    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 62%, transparent 100%);
-    /* stylelint-disable-next-line color-no-hex */
-    mask-image: linear-gradient(to bottom, #000 0%, #000 62%, transparent 100%);
-  }
-  .layout-mobile body.subpage-scrolled #nav-brand,
-  .layout-mobile body.subpage-scrolled #nav-time-center,
-  .layout-mobile body.subpage-scrolled #nav-wx,
-  .layout-dex body.subpage-scrolled #nav-brand,
-  .layout-dex body.subpage-scrolled #nav-time-center,
-  .layout-dex body.subpage-scrolled #nav-wx { opacity: 0; pointer-events: none; }
-
   /* 手机子页面：标题区从屏幕顶部开始（顶栏透明叠在上面），main 不再额外留白 */
   .layout-mobile main:has([data-subpage-head]) { padding-top: 0; }
 
@@ -845,77 +744,23 @@
     position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
     text-align: center; min-height: 38vh; min-height: 38svh;
     padding: calc(76px + env(safe-area-inset-top,0px)) 20px clamp(120px,20vh,200px);
-    /* 手机：标题区高度 = 实际可见高度 × 0.25（JS 写 --head-h，只在加载/横竖屏更新；兜底 25svh）。
-       标题区从屏幕顶部开始（顶栏透明叠在上面），大标题沉底：标题区整体约 25% 屏高，
-       标题下方到第一块内容不超过 32px（head 的 padding-bottom）。折叠动画逻辑不变。 */
+    /* 手机（顶栏 v2.0，与 Book 一致）：标题区高度 = max(280px, 35% 可见高度)（JS 写 --head-h，
+       只在加载/横竖屏更新），padding-top 84px + 安全区，padding-bottom 76px，大标题沉底。 */
     .layout-mobile & {
-      min-height: var(--head-h, max(200px,25svh));
-      padding-top: calc(var(--nav-h,64px) + 20px + env(safe-area-inset-top,0px));
+      min-height: var(--head-h, max(280px,35svh));
+      padding-top: calc(84px + env(safe-area-inset-top,0px));
+      padding-bottom: 76px;
       justify-content: flex-end;
     }
     .layout-dex & , .layout-pc & { min-height: 25vh; min-height: 25svh; padding-top: calc(64px + env(safe-area-inset-top,0px)); }
   }
   .layout-mobile .subpage-hero { position: relative; top: 0; }
-  /* D4：返回键改到标题区底部，与 .subpage-actions 左右对称（left:16px ↔ right:16px，
-     bottom 同为 --sgx-head-btn-gap）。三点水平镜像：中心 y 相同、尺寸相同、同步吸顶。 */
-  .layout-mobile .subpage-actions { top: auto; bottom: var(--sgx-head-btn-gap); }
   /* 2.3.14.7：大标题滚动联动动画 2.4.0 B 起由 CSS scroll-driven animations 驱动
      （@supports 不命中时回退到 rAF 直接写 opacity/transform），不再用 CSS transition，
      避免与逐帧更新打架。2.4.0 A：will-change 不常驻，只在滚动活跃时由 JS 临时加。 */
   .reduced-motion .subpage-hero { transition: none; }
-  /* D4/D5：返回键（展开态 ← / 吸顶态 ‹）。展开态在标题区左下，与三点对称；
-     上滑吸顶时由 head-buttons.js 与三点同一帧加 .stuck，图标切到 ‹（主色磨砂圆，与我的文件折叠态一致）。 */
-  .subpage-back {
-    position: absolute; left: 16px; top: auto; bottom: var(--sgx-head-btn-gap);
-    width: 44px; height: 44px; border-radius: 999px; display: inline-flex; align-items: center;
-    justify-content: center; color: var(--m-on-surface); flex-shrink: 0; z-index: 2;
-    &:hover { background: rgba(0,0,0,.05); }
-    .dark &:hover { background: rgba(255,255,255,.08); }
-    svg { width: 24px; height: 24px; }
-    /* 折叠态图标：默认隐藏，.stuck 时显示（与 ← 互斥） */
-    .sgx-bk-fold { display: none; font-size: 26px; line-height: 1; font-weight: 400; color: var(--m-primary); }
-    [data-state="float"] & {
-      position: fixed; top: calc(var(--nav-h,64px) + 8px + env(safe-area-inset-top,0px)); bottom: auto; margin: 0;
-      left: max(16px, calc((100vw - 1100px)/2 + 16px));
-      background: var(--glass-tint); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow);
-      z-index: 55; color: var(--m-primary);
-      svg { display: none; }
-      .sgx-bk-fold { display: block; }
-    }
-  }
-  /* D5：吸顶过渡只做背景/边框/阴影淡入（right 由 JS 写，减弱动效只改显隐、不做位移过渡） */
-  .subpage-back, .subpage-more { transition: background-color .2s ease, border-color .2s ease, box-shadow .2s ease, right .2s ease; }
-  .reduced-motion .subpage-back, .reduced-motion .subpage-more { transition: none; }
   .subpage-hero { min-width: 0; max-width: 640px; }
   .subpage-title { font-size: 40px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; color: var(--m-primary); }
-  .subpage-actions { position: absolute; right: 16px; top: auto; bottom: var(--sgx-head-btn-gap); display: flex; gap: 8px; flex-shrink: 0; z-index: 2; }
-  /* 滚过标题区后的顶部居中小标题（2.4.0 B：显隐由 scroll-driven animation 按滚动进度驱动；
-     @supports 不命中时回退到 rAF 直接写 opacity/transform，无 transition） */
-  .subpage-mini-title {
-    position: fixed; left: 50%; top: calc(16px + env(safe-area-inset-top,0px)); z-index: 54;
-    transform: translateX(-50%) translateY(6px); opacity: 0; pointer-events: none;
-    font-size: 17px; font-weight: 700; color: var(--m-on-surface); white-space: nowrap; max-width: 60vw;
-    overflow: hidden; text-overflow: ellipsis;
-  }
-  .subpage-mini-title.show { opacity: 1; transform: translateX(-50%); }
-  /* D4：三点统一组件（44×44，与我的文件一致；图标 22px r=1.9 由模板传入）。
-     有功能的页面由各页 JS 绑定（如我的文件 #files-more、安全页 #sec-more）；
-     无功能的页面只渲染图标，点击无反应。吸顶样式见 .stuck（head-buttons.js 加类）。 */
-  .subpage-more {
-    width: 44px; height: 44px; border-radius: 999px; border: 0; cursor: pointer;
-    display: inline-flex; align-items: center; justify-content: center;
-    background: transparent; color: var(--m-on-surface); flex-shrink: 0;
-    &:hover { background: rgba(0,0,0,.05); }
-    .dark &:hover { background: rgba(255,255,255,.08); }
-    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
-    svg { width: 22px; height: 22px; }
-    /* D5：吸顶态（与我的文件 #files-more.stuck 原样式逐属性一致） */
-    [data-state="float"] & {
-      position: fixed; top: calc(var(--nav-h,64px) + 8px + env(safe-area-inset-top,0px)); bottom: auto; margin: 0;
-      background: var(--glass-tint); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow);
-      z-index: 55;
-    }
-  }
 }
 
 @layer sgx-components {
@@ -1164,39 +1009,6 @@
   /* footer 也要留出 Dock 高度：滚到底时不被 Dock 压住 */
   .layout-dex footer , .layout-pc footer { padding-bottom: calc(var(--dex-dock-h) + 12px + 16px + env(safe-area-inset-bottom,0px)); }
 
-  /* ----- 顶栏右侧托盘按钮 ----- */
-  .nav-tray-btn {
-    display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: .9rem; min-height: 44px;
-    font-size: 13px; font-weight: 600; color: var(--m-on-surface); white-space: nowrap; flex-shrink: 0;
-    &:hover { background: rgba(0,0,0,.05); }
-    .dark &:hover { background: rgba(255,255,255,.08); }
-  }
-  .nav-icobtn { padding: 8px; min-width: 44px; justify-content: center; }
-  #nav-wx-ic { font-size: 16px; line-height: 1; }
-  #nav-wx-t { font-variant-numeric: tabular-nums; }
-  #nav-time { font-variant-numeric: tabular-nums; }
-
-  /* ----- 顶栏迷你音乐控制窗（从顶栏往下展开） ----- */
-  #dex-music-pop {
-    display: none;
-    position: fixed; right: 12px; top: calc(var(--nav-h) + 8px); z-index: 91;
-    align-items: center; gap: 10px; padding: 10px 12px; border-radius: 1.25rem;
-    background: var(--m-container-lowest); border: 1px solid var(--m-outline);
-    box-shadow: 0 12px 32px -8px rgba(0,0,0,.25); max-width: 320px;
-    .layout-dex &:not(.hidden) , .layout-pc &:not(.hidden) { display: flex; }
-    &.hidden { display: none; } /* → 特异性不足以压住上一条时，见 overrides 层 */
-    @media (prefers-reduced-motion: reduce) { transition: none; }
-  }
-  .dmp-cover { width: 44px; height: 44px; border-radius: .8rem; object-fit: cover; flex-shrink: 0; }
-  .dmp-meta { min-width: 0; flex: 1; }
-  .dmp-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .dmp-artist { font-size: 11px; color: var(--m-on-surface-variant); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .dmp-btns { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
-  .dmp-btn { width: 36px; height: 36px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; color: var(--m-on-surface-variant); }
-  .dmp-btn:hover { background: var(--m-container); }
-  .dmp-play { background: var(--m-primary); color: var(--m-on-primary); }
-  .dmp-play:hover { background: var(--m-primary); }
-
   /* ----- DeX 应用抽屉（从底部 Dock 上方往上展开，贴着 Dock 对齐） ----- */
   #dex-drawer {
     display: none; position: fixed; inset: 0; z-index: 90;
@@ -1237,44 +1049,6 @@
     max-width: 100%; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   }
 
-  /* ----- 顶栏天气面板（从顶栏往下展开，不超出屏幕） ----- */
-  #nav-wx-pop {
-    display: none; position: fixed; right: 12px; top: calc(var(--nav-h) + 8px); z-index: 90;
-    width: min(300px,92vw); max-height: calc(100dvh - var(--nav-h) - 24px); overflow-y: auto;
-    &.open { display: block; }
-  }
-  .wxp-city { font-size: 13px; font-weight: 600; color: var(--m-on-surface-variant); }
-  .wxp-main { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
-  .wxp-ic { font-size: 44px; line-height: 1; }
-  .wxp-temp { font-size: 40px; font-weight: 800; letter-spacing: -0.02em; }
-  .wxp-hilo { margin-top: 8px; font-size: 13px; color: var(--m-on-surface-variant); }
-
-  /* ----- 顶栏时钟/天气面板（从顶栏往下展开，不超出屏幕） ----- */
-  #dex-clock-pop {
-    display: none; position: fixed; right: 12px; top: calc(var(--nav-h) + 8px); z-index: 90;
-    width: min(320px,92vw); max-height: calc(100dvh - var(--nav-h) - 24px); overflow-y: auto;
-    &.open { display: block; }
-    &:not(.open) { pointer-events: none; }
-  }
-  .dex-pop-card {
-    background: var(--m-container-lowest); border: 1px solid var(--m-outline); border-radius: 1.5rem;
-    background-image: var(--card-noise);
-    box-shadow: inset 0 0.5px 0 rgba(255,255,255,.65),
-      0 1px 2px rgba(16,24,40,.08),
-      0 24px 64px -16px rgba(16,24,40,.30);
-    padding: 18px;
-    .dark & {
-      box-shadow: inset 0 0.5px 0 rgba(255,255,255,.09),
-        0 1px 2px rgba(0,0,0,.45),
-        0 24px 64px -16px rgba(0,0,0,.55);
-    }
-  }
-  .dex-cal-h { font-weight: 700; font-size: 14px; margin-bottom: 8px; }
-  .dex-cal-g { display: grid; grid-template-columns: repeat(7,1fr); gap: 2px; text-align: center; font-size: 12px; }
-  .dex-cal-w { color: var(--m-on-surface-variant); font-weight: 600; padding: 4px 0; }
-  .dex-cal-d { padding: 5px 0; border-radius: 999px; color: var(--m-on-surface-variant); }
-  .dex-cal-d.today { background: var(--m-primary); color: var(--m-on-primary); font-weight: 700; }
-
   /* ----- DeX：小组件列数自适应（640–1023:2列 / 1024–1439:3列 / ≥1440:4列） ----- */
   .layout-dex #home-widgets { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .layout-dex #home-widgets > .widget { grid-column: span 1/span 1; }
@@ -1300,15 +1074,6 @@
   .layout-pc #home-widgets > #weather { grid-column: span 2/span 2; }
   /* DeX/PC 下彻底不渲染桌面图标网格（与底部 Dock 重复；DeX 下还会被 Dock 压住、上半截漏出） */
   .layout-dex #home-apps, .layout-pc #home-apps { display: none; }
-  /* 顶栏与内容区对齐：同宽容器；头像/名字贴左缘，日期时间贴右缘 */
-  .layout-pc .nav-inner { max-width: 1440px; gap: 0; }
-  .layout-pc #nav-time-center { position: static; transform: none; margin-left: auto; }
-  .layout-pc #nav-right { margin-left: 0; }
-  /* DeX 顶栏与内容区对齐：内容 1280 居中，同 PC 一套规则 */
-  .layout-dex .nav-inner { max-width: 1280px; gap: 0; }
-  .layout-dex #nav-time-center { position: static; transform: none; margin-left: auto; }
-  .layout-dex #nav-right { margin-left: 0; }
-
   /* ----- 手机模式强制（宽屏下也保持手机布局） ----- */
   .layout-mobile #home-widgets { grid-template-columns: repeat(4,minmax(0,1fr)); }
   .layout-mobile #home-widgets > .widget { grid-column: span 4/span 4; }
@@ -1350,10 +1115,6 @@
       grid-template-columns: clamp(320px,36%,420px) minmax(0,1fr); gap: 16px; align-items: start;
       margin-top: 0;
       position: relative;
-    }
-    /* B1-7：DeX 双栏下浮动圆钮定位到右栏内，不覆盖左栏 */
-    .layout-dex [data-state="float"] .subpage-back {
-      left: calc((100vw - 1100px)/2 + 32px + clamp(320px,36%,420px) + 16px);
     }
     /* 左栏：账户卡＋菜单（标题已移到 .set-dex-head）；菜单列表过长时独立滚动 */
     .set-col-l {
@@ -1445,7 +1206,6 @@
     svg { width: 26px; height: 26px; }
   }
   .sec-note { font-size: 12px; color: var(--m-on-surface-variant); padding: 0 4px; margin: 0; }
-  /* D4：.subpage-more 已统一为 44px 组件（见子页面标题区一节），旧 40px 规则删除。 */
   .sec-sheet-opt {
     display: flex; align-items: center; gap: 12px; width: 100%;
     padding: 14px 16px; border: 0; background: none; cursor: pointer;
@@ -2470,8 +2230,6 @@
 @layer overrides {
   /* DeX 下隐藏手机 Dock（兜底，布局类已控制；原 !important 已摘） */
   .layout-dex .dock { display: none; }
-  /* 隐藏优先级高于 .layout-dex #dex-music-pop:not(.hidden) 的 flex（原 !important 已摘） */
-  #dex-music-pop.hidden { display: none; }
   /* 页面底部留白：胶囊不压内容，最后一项能完整滚出（2.3.14.1：跟随胶囊高度 56px；
      原 !important 已摘，靠层顺序压过 base/components 的 main 留白） */
   body.sgx-cap-pad main { padding-bottom: calc(180px + env(safe-area-inset-bottom,0px)); }
@@ -2594,17 +2352,6 @@ html, body {
 .layout-pc .set-layout {
   contain: layout style;
 }
-/* D5：contain:layout 会把 position:fixed 后代收进 .set-layout 的包含块（不再相对视口），
-   导致吸顶按钮定位错误；有按钮吸住时临时降为 contain:style（只隔离计数器/自定义属性，
-   不影响 fixed 定位），松开即恢复。2.9.2 的布局切换隔离意图保留。 */
-.set-layout:has([data-state="float"]) {
-  contain: style;
-}
-
-/* 2.9.2⑦（修正版）：应用页标题收起时，天气和头像/用户名一起隐藏。
-   复用 body.subpage-scrolled 同一个收起状态，动画时机与头像一致。
-   主页不受影响（主页没有 subpage-head，不会加 subpage-scrolled）。 */
-
 /* B1-10：底部胶囊高度变量（胶囊和 main 底部留白共用） */
 :root {
   --sgx-bottom-dock-h: 56px;
@@ -2615,8 +2362,8 @@ html, body {
   padding-bottom: calc(var(--sgx-bottom-dock-h) + env(safe-area-inset-bottom, 0px) + 16px);
 }
 
-/* topbar v2.0 start — 与 Book 同一套（返回圆 + 长条 + 导航圆）。
-   放在所有 @layer 之外：未分层样式优先于分层样式，旧顶栏规则（磨砂、变实动画、--nav-h 量取）在此统一失效。 */
+/* topbar v2.0 start — 与 Book 同一套（返回圆 + 长条 + 导航圆）。旧顶栏（时间/日期/天气/音乐、
+   标题区 ←/⋮、吸顶浮钮）已整体删除。放在所有 @layer 之外，优先于分层样式。 */
 :root { --nav-h: 68px; }
 #site-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 50; pointer-events: none;
   background: transparent; border: 0; box-shadow: none; padding: 0;
@@ -2657,15 +2404,15 @@ html, body {
 .sgx-tb-back:focus-visible, .sgx-tb-nav:focus-visible, .sgx-tb-more:focus-visible, .sgx-tb-brand:focus-visible {
   outline: 2px solid var(--m-primary); outline-offset: 2px; }
 /* 滚动后：品牌组淡出（JS 统一给 body 加 sgx-stuck，阈值 = 标题区高度 × 0.55） */
-.sgx-tb-brand { animation: none; }
 body.sgx-stuck .sgx-tb-brand { opacity: 0; pointer-events: none; }
-/* 小标题：在长条内水平垂直居中，最大宽度 = 长条宽 - 104px（17/700，淡入时机沿用原来的标题区动画） */
-.sgx-tb-pill .subpage-mini-title { position: absolute; left: 50%; top: 0; bottom: auto; right: auto; height: 50px; line-height: 50px;
-  margin: 0; padding: 0; z-index: auto; font-size: 17px; font-weight: 700; color: var(--m-on-surface);
-  white-space: nowrap; max-width: calc(100% - 104px); overflow: hidden; text-overflow: ellipsis; pointer-events: none;
-  background: none; box-shadow: none; }
-/* 标题区里的旧 ← / ⋮ 已删除；页面自己的 ⋮ 按钮只作来源，由 topbar.js 搬进长条 */
-.subpage-head .subpage-actions, .subpage-head .subpage-back { display: none; }
+/* 小标题：在长条内水平垂直居中，最大宽度 = 长条宽 - 104px，17/700；sgx-stuck 时淡入（与 Book 一致） */
+.subpage-mini-title { opacity: 0; pointer-events: none; }
+.sgx-tb-pill .subpage-mini-title { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%) translateY(6px);
+  font-size: 17px; font-weight: 700; color: var(--m-on-surface); white-space: nowrap; max-width: calc(100% - 104px);
+  overflow: hidden; text-overflow: ellipsis; opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease; }
+body.sgx-stuck .sgx-tb-pill .subpage-mini-title { opacity: 1; transform: translate(-50%,-50%) translateY(0); }
+.reduced-motion .sgx-tb-pill .subpage-mini-title { transition: none; }
+@media (prefers-reduced-motion: reduce) { .sgx-tb-pill .subpage-mini-title { transition: none; } }
 /* 菜单：fixed，锚定在按钮下方 8px、右对齐（JS 写位置） */
 .sgx-tb-menu { position: fixed; min-width: 200px; z-index: 70; pointer-events: auto; background: var(--m-container-lowest);
   border: 1px solid var(--m-outline); border-radius: 1.25rem; box-shadow: 0 12px 32px -8px rgba(0,0,0,.25); padding: 6px; overflow: hidden; }

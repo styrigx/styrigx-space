@@ -55,12 +55,9 @@ export function syncTopbar() {
   if (mini) pill.appendChild(mini);
   /* ⋮：页面有自己的按钮就用它，没有就用默认按钮（点了无反应） */
   const cur = pill.querySelector('.sgx-tb-more');
-  const src = head ? head.querySelector('.subpage-actions button') : null;
+  const src = head ? head.querySelector('[data-tb-more] button') : null;
   const want = src || defaultMore;
   if (want && cur !== want) {
-    want.classList.remove('subpage-more', 'stuck');
-    want.classList.add('sgx-tb-more');
-    want.style.right = '';
     if (cur) cur.replaceWith(want);
     else pill.appendChild(want);
   }

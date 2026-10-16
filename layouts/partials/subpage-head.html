@@ -1,31 +1,25 @@
 {{/* 子页面统一标题区（One UI 8.5 设置风格）：
-   进入时：大标题居中（约 40px 粗体、调色板主色），顶部大留白，内容模块下沉；
-   滚过标题区后：大标题淡出、顶栏居中小标题淡入；左返回 + 右三点吸到顶栏下方成磨砂圆。
+   进入时：大标题居中（约 40px 粗体、调色板主色），标题区 max(280px, 35% 可见高度)，内容下沉；
+   滚过标题区后：大标题淡出，小标题在顶栏长条内淡入（顶栏 v2.0）。
    用法：{{ partial "subpage-head.html" (dict "title" .Title "isEn" $isEn) }}
-   "actions"：三点按钮位的 HTML（有功能的页面传入自己的按钮，如我的文件 #files-more、安全页 #sec-more）；
-     为空时输出只有图标的三点按钮（44×44，与我的文件同图标，点击无反应）。
-   "noBack"：历史参数，主页保留（主页不用本 partial）；子页一律输出返回键，本参数不再起作用。
-   "noTimeline" true：DeX 设置页左栏的紧凑标题（只要大标题+按钮，不要 data-subpage-head、
-     mini-title；滚动联动与吸顶只走手机端那一份标题）。
-   顶栏 v2.0：标题区不再有 ← 和 ⋮；返回圆和 ⋮ 都在顶栏（见 baseof.html、assets/js/shell/head-buttons.js）。 */}}
+   "actions"：页面自己的 ⋮ 按钮（如我的文件 #files-more、安全页 #sec-more，class="sgx-tb-more"），
+     由 head-buttons.js 搬进顶栏长条，替换默认 ⋮。
+   "noTimeline" true：DeX 设置页左栏的紧凑标题（只要大标题，不要 data-subpage-head、mini-title）。
+   返回圆和 ⋮ 都在顶栏（baseof.html、assets/js/shell/head-buttons.js）。 */}}
 {{ $en := .isEn }}
 {{ $noTimeline := .noTimeline }}
-{{ $dots := `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg>` }}
 {{ if $noTimeline }}
-{{/* D4 fix: DeX settings left column needs buttons (D4: all pages except home have them),
-   but no data-subpage-head (avoid duplicate timeline) and no mini-title (only one). */}}
-<header class="subpage-head" data-state="solid">
+<header class="subpage-head">
   <div class="subpage-hero">
     <h1 class="subpage-title">{{ .title }}</h1>
   </div>
 </header>
 {{ else }}
-<header class="subpage-head" data-subpage-head data-state="solid">
+<header class="subpage-head" data-subpage-head>
   <div class="subpage-hero">
     <h1 class="subpage-title">{{ .title }}</h1>
   </div>
-  {{/* 顶栏 v2.0：页面自己的 ⋮（如 #files-more、#sec-more）只作来源，隐藏输出，由 topbar.js 搬进顶栏长条 */}}
-  {{ with .actions }}<div class="subpage-actions" hidden>{{ . }}</div>{{ end }}
+  {{ with .actions }}<div data-tb-more hidden>{{ . }}</div>{{ end }}
 </header>
 <div class="subpage-mini-title" aria-hidden="true">{{ .title }}</div>
 {{ end }}

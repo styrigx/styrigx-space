@@ -247,7 +247,7 @@ test.describe('B1-12 守护：页面切换唯一性', () => {
       await expect(page.locator('#site-nav')).toHaveCount(1);
       /* 大标题只有 1 个（h1.subpage-title） */
       await expect(page.locator('h1.subpage-title')).toHaveCount(1);
-      /* ← 只有 1 个（.subpage-back 或 [data-go-back]） */
+      /* ← 只有 1 个（顶栏返回圆 [data-go-back]） */
       const backCount = await page.locator('[data-go-back]').count();
       expect(backCount).toBeLessThanOrEqual(1);
     }

@@ -147,12 +147,12 @@ function __applyLayout(){
   if(window.__dexLayoutChanged){try{window.__dexLayoutChanged(m)}catch(e){}}
 }
 __applyLayout();
-/* 手机子页面标题区高度 = 实际可见高度 × 0.25。
+/* 手机子页面标题区高度 = max(280px, 实际可见高度 × 0.35)（顶栏 v2.0，与 Book 一致）。
    只在首次加载和横竖屏切换时更新；滚动时浏览器地址栏伸缩不跟着变。 */
 window.__setHeadH=function(){
   if(!document.documentElement.classList.contains('layout-mobile'))return;
   var h=window.innerHeight||0;
-  if(h>0)document.documentElement.style.setProperty('--head-h',Math.round(h*0.25)+'px');
+  if(h>0)document.documentElement.style.setProperty('--head-h',Math.max(280,Math.round(h*0.35))+'px');
 }
 window.__setHeadH();
 (function(){
