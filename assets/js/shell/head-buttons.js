@@ -1,10 +1,11 @@
 /**
- * @fileoverview 子页面标题区按钮状态（B1-7 统一标准）。
- * 状态只有两种，由滚动位置决定：
- * - data-state="solid"：y <= 1（大标题完全展开），← 和 ⋮ 为实体无背景样式，在大标题下方原位.
- * - data-state="float"：y > 1（上滑中/上滑后），← 和 ⋮ 为浮动圆钮，贴在顶栏正下方。
- * 不在各页面写判断，只改这一套。
- * data-menu="none" 的 ⋮ 不绑定菜单（只作样式，点了无反应）。
+ * @fileoverview 顶栏 v2.0（与 Book 同一套）：返回圆 + 长条（品牌组 + ⋮）+ 导航圆。
+ * - 子页面标题区不再有 ← 和 ⋮。页面自己的 ⋮（如 #files-more、#sec-more）作为来源隐藏输出，
+ *   这里把它搬进长条替换默认 ⋮（同一个节点，页面脚本按 id 绑定的监听不受影响）。
+ * - 小标题 .subpage-mini-title 搬进长条，水平垂直居中。
+ * - 滚过标题区高度 × 0.55：body 加 sgx-stuck（品牌组淡出）。
+ * - 九宫点导航菜单：配置数组，当前站点高亮 + ✓；点外部 / Esc / 返回手势关闭。
+ * - 页内导航（inpagenav.js）换完 <main> 后调用 syncTopbar() 重新同步。
  * @param {import('../lib/scheduler.js').Scheduler} [S]
  */
 import { getScheduler } from '../lib/scheduler.js';
@@ -18,75 +19,141 @@ function isVisible(el) {
   }
 }
 
+/** 当前可见的标题区（设置页手机/DeX 各有一份，只取可见那份） */
+function currentHead() {
+  const heads = document.querySelectorAll('[data-subpage-head]');
+  for (let i = 0; i < heads.length; i++) {
+    if (isVisible(heads[i])) return /** @type {HTMLElement} */ (heads[i]);
+  }
+  return heads.length ? /** @type {HTMLElement} */ (heads[0]) : null;
+}
+
+/** 菜单：fixed，锚定在按钮下方 8px、右沿与按钮右沿对齐 */
+/** @param {HTMLElement} menu @param {Element} btn */
+export function anchorMenu(menu, btn) {
+  const r = btn.getBoundingClientRect();
+  menu.style.top = r.bottom + 8 + 'px';
+  menu.style.right = Math.max(16, window.innerWidth - r.right) + 'px';
+  menu.style.left = 'auto';
+}
+
+/** @type {HTMLElement|null} */
+let defaultMore = null;
+
+/** 把当前页的 ⋮ 和小标题同步进顶栏长条 */
+export function syncTopbar() {
+  const pill = document.querySelector('.sgx-tb-pill');
+  if (!pill) return;
+  if (!defaultMore) defaultMore = /** @type {HTMLElement|null} */ (pill.querySelector('.sgx-tb-more'));
+  /* 小标题：先清掉上一页的，再搬当前页的 */
+  pill.querySelectorAll('.subpage-mini-title').forEach(function (m) {
+    m.remove();
+  });
+  const head = currentHead();
+  const scope = head && head.parentElement ? head.parentElement : document;
+  const mini = scope.querySelector(':scope > .subpage-mini-title') || document.querySelector('main .subpage-mini-title');
+  if (mini) pill.appendChild(mini);
+  /* ⋮：页面有自己的按钮就用它，没有就用默认按钮（点了无反应） */
+  const cur = pill.querySelector('.sgx-tb-more');
+  const src = head ? head.querySelector('.subpage-actions button') : null;
+  const want = src || defaultMore;
+  if (want && cur !== want) {
+    want.classList.remove('subpage-more', 'stuck');
+    want.classList.add('sgx-tb-more');
+    want.style.right = '';
+    if (cur) cur.replaceWith(want);
+    else pill.appendChild(want);
+  }
+  updateStuck();
+}
+
+function updateStuck() {
+  const head = currentHead();
+  const y = window.scrollY || 0;
+  const past = !!head && y > head.offsetHeight * 0.55;
+  document.body.classList.toggle('sgx-stuck', past);
+}
+
+function initNavMenu() {
+  const btn = document.querySelector('.sgx-tb-nav');
+  const menu = /** @type {HTMLElement|null} */ (document.getElementById('sgx-tb-navmenu'));
+  if (!btn || !menu) return;
+  const isEn = document.documentElement.lang === 'en';
+  const host = location.host;
+  /* 菜单项配置：以后新增子站只需加一行 */
+  const items = [
+    { label: isEn ? 'Home' : '主页', url: 'https://styrigx.com' + (isEn ? '/en/' : '/'), match: /^(www\.)?styrigx\.com$|^localhost|^127\.0\.0\.1/ },
+    { label: isEn ? 'Library' : '书库', url: 'https://book.styrigx.com' + (isEn ? '/en/' : '/'), match: /(^|\.)book\.styrigx\.com$/ },
+    { label: isEn ? 'Blog' : '博客', url: 'https://blog.styrigx.com' + (isEn ? '/en/' : '/'), match: /(^|\.)blog\.styrigx\.com$/ },
+  ];
+  /** @param {{match: RegExp}} it */
+  function isCurrent(it) {
+    try {
+      return it.match.test(host);
+    } catch (e) {
+      return false;
+    }
+  }
+  const CHECK =
+    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>';
+  function render() {
+    if (!menu) return;
+    menu.innerHTML = items
+      .map(function (it, i) {
+        const cur = isCurrent(it);
+        return (
+          '<button type="button" class="sgx-tb-menu-item" role="menuitem" data-nav-i="' + i + '"' +
+          (cur ? ' aria-current="true"' : '') + '><span>' + it.label + '</span>' + (cur ? CHECK : '') + '</button>'
+        );
+      })
+      .join('');
+  }
+  function open() {
+    if (!menu || !btn) return;
+    render();
+    menu.classList.remove('hidden');
+    btn.setAttribute('aria-expanded', 'true');
+    anchorMenu(menu, btn);
+  }
+  function close() {
+    if (!menu || !btn) return;
+    menu.classList.add('hidden');
+    btn.setAttribute('aria-expanded', 'false');
+  }
+  btn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (menu.classList.contains('hidden')) open();
+    else close();
+  });
+  menu.addEventListener('click', function (e) {
+    const t = /** @type {Element|null} */ (e.target);
+    const el = t && t.closest ? t.closest('[data-nav-i]') : null;
+    if (!el) return;
+    const it = items[Number(el.getAttribute('data-nav-i'))];
+    close();
+    if (!it || isCurrent(it)) return; /* 当前站点只关闭菜单 */
+    location.href = it.url;
+  });
+  document.addEventListener('click', function (e) {
+    const t = /** @type {Element|null} */ (e.target);
+    if (!menu.classList.contains('hidden') && t && !t.closest('#sgx-tb-navmenu') && !t.closest('.sgx-tb-nav')) close();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !menu.classList.contains('hidden')) close();
+  });
+  window.addEventListener('popstate', close);
+  window.addEventListener('scroll', function () {
+    if (!menu.classList.contains('hidden')) anchorMenu(menu, btn);
+  }, { passive: true });
+}
+
 export function initHeadButtons(S) {
   const sched = S || getScheduler();
-  /* 设置页手机/DeX 各有一份标题（DeX 那份 noTimeline 无 data-subpage-head），
-     只取当前可见的那一份；主页没有标题区，直接返回。 */
-  const heads = document.querySelectorAll('[data-subpage-head]');
-  let head = null;
-  for (let i = 0; i < heads.length; i++) {
-    if (isVisible(heads[i])) {
-      head = /** @type {HTMLElement} */ (heads[i]);
-      break;
-    }
-  }
-  if (!head) return;
-  const backBtn = /** @type {HTMLElement|null} */ (head.querySelector('.subpage-back'));
-  const moreActions = /** @type {HTMLElement|null} */ (head.querySelector('.subpage-actions'));
-  const moreBtn =
-    /** @type {HTMLElement|null} */ (moreActions && moreActions.querySelector('#files-more, .subpage-more'));
-  if (!backBtn && !moreBtn) return;
-
-  /* D3：小标题是 position:fixed，必须相对视口；把它搬到 body 下，避免被
-     .set-layout 的 contain:layout 收进包含块导致定位错误（aria-hidden、无监听，移动安全）。
-     无 trap 的页面（我的文件）搬家前后视觉一致。 */
-  try {
-    const mini = head.parentElement && head.parentElement.querySelector(':scope > .subpage-mini-title');
-    if (mini && mini.parentElement !== document.body) document.body.appendChild(mini);
-  } catch (e) {}
-
-  /* safe-area-inset-top 实测（与 files.js 原实现一致） */
-  let safeTop = 0;
-  try {
-    const probe = document.createElement('div');
-    probe.style.cssText =
-      'position:fixed;top:0;left:0;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top,0px)';
-    document.body.appendChild(probe);
-    safeTop = parseFloat(getComputedStyle(probe).paddingTop) || 0;
-    probe.remove();
-  } catch (e) {}
-
-  /* 吸住时三点距右边缘（与 files.js 原实现一致：内容区 1100px，横屏小宽例外 640） */
-  function stuckRight() {
-    const land =
-      window.matchMedia && window.matchMedia('(orientation:landscape) and (max-width:979.5px)').matches;
-    const w = land ? 640 : 1100;
-    return Math.max(16, (window.innerWidth - w) / 2 + (land ? 0 : 16));
-  }
-
-  /** @param {number} [y] */
-  function updateStick(y) {
-    if (y === undefined) y = window.scrollY || 0;
-    /* B1-7：状态只有 solid/float 两种，由滚动位置决定。
-       y <= 1 → solid（大标题完全展开，容忍亚像素）；y > 1 → float（浮动圆钮）。 */
-    const state = y <= 1 ? 'solid' : 'float';
-    if (head.getAttribute('data-state') !== state) {
-      head.setAttribute('data-state', state);
-    }
-    /* 浮动时三点距右边缘（与原实现一致：内容区 1100px，横屏小宽例外 640） */
-    if (moreBtn && state === 'float') {
-      moreBtn.style.right = stuckRight() + 'px';
-    } else if (moreBtn) {
-      moreBtn.style.right = '';
-    }
-  }
-  sched.onScroll(updateStick);
-  sched.onResize(function () {
-    updateStick(window.scrollY || 0);
-  });
-  updateStick(window.scrollY || 0);
-  /* 5.3 P2：bfcache 恢复时（pageshow persisted）重新计算按钮吸顶状态。 */
+  syncTopbar();
+  initNavMenu();
+  sched.onScroll(updateStuck);
+  sched.onResize(updateStuck);
   window.addEventListener('pageshow', function (e) {
-    if (e.persisted) updateStick(window.scrollY || 0);
+    if (e.persisted) updateStuck();
   });
 }

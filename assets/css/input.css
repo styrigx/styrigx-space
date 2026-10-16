@@ -2614,3 +2614,64 @@ html, body {
 .layout-mobile .set-layout {
   padding-bottom: calc(var(--sgx-bottom-dock-h) + env(safe-area-inset-bottom, 0px) + 16px);
 }
+
+/* topbar v2.0 start — 与 Book 同一套（返回圆 + 长条 + 导航圆）。
+   放在所有 @layer 之外：未分层样式优先于分层样式，旧顶栏规则（磨砂、变实动画、--nav-h 量取）在此统一失效。 */
+:root { --nav-h: 68px; }
+#site-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 50; pointer-events: none;
+  background: transparent; border: 0; box-shadow: none; padding: 0;
+  animation: none; backdrop-filter: none; -webkit-backdrop-filter: none;
+  -webkit-mask-image: none; mask-image: none; contain: none; isolation: auto; }
+.sgx-topbar { position: fixed; top: calc(16px + env(safe-area-inset-top, 0px)); left: 16px; right: 16px;
+  height: 52px; z-index: 55; display: flex; align-items: center; gap: 8px; pointer-events: none; }
+@media (min-width: 980px) {
+  .sgx-topbar { left: 50%; right: auto; transform: translateX(-50%); width: min(calc(100vw - 32px), 1068px); }
+}
+.sgx-tb-back, .sgx-tb-pill, .sgx-tb-nav {
+  background: color-mix(in srgb, color-mix(in srgb, var(--m-primary) 10%, var(--m-surface)) 88%, transparent);
+  backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(0,0,0,.06); box-shadow: 0 8px 24px rgba(0,0,0,.14); pointer-events: auto; }
+.dark .sgx-tb-back, .dark .sgx-tb-pill, .dark .sgx-tb-nav { border-color: rgba(255,255,255,.08); box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .sgx-tb-back, .sgx-tb-pill, .sgx-tb-nav { background: color-mix(in srgb, var(--m-primary) 10%, var(--m-surface)); }
+}
+.sgx-tb-back, .sgx-tb-nav { width: 52px; height: 52px; border-radius: 999px; flex-shrink: 0; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--m-on-surface); cursor: pointer; }
+.sgx-tb-back svg { width: 24px; height: 24px; }
+.sgx-tb-nav svg { width: 22px; height: 22px; }
+.sgx-tb-pill { flex: 1; height: 52px; border-radius: 26px; min-width: 0; display: flex; align-items: center;
+  padding: 0 6px; position: relative; }
+.sgx-tb-brand { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding-left: 6px; padding-right: 8px;
+  border-radius: 20px; flex-shrink: 0; color: var(--m-on-surface); text-decoration: none; transition: opacity .2s ease; }
+.sgx-tb-avatar { width: 28px; height: 28px; border-radius: 999px; object-fit: cover; border: 1px solid var(--m-outline); flex-shrink: 0; }
+.sgx-tb-text { font-size: 15px; font-weight: 700; line-height: 1; white-space: nowrap; }
+.sgx-tb-more { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 40px; height: 40px;
+  border-radius: 999px; border: 0; background: transparent; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--m-on-surface); cursor: pointer; padding: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.sgx-tb-more svg { width: 22px; height: 22px; }
+.sgx-tb-back, .sgx-tb-nav, .sgx-tb-more { transition: background-color .15s ease; }
+.sgx-tb-back:active, .sgx-tb-nav:active, .sgx-tb-more:active { background-color: rgba(0,0,0,.06); }
+.dark .sgx-tb-back:active, .dark .sgx-tb-nav:active, .dark .sgx-tb-more:active { background-color: rgba(255,255,255,.10); }
+.reduced-motion .sgx-tb-back, .reduced-motion .sgx-tb-nav, .reduced-motion .sgx-tb-more, .reduced-motion .sgx-tb-brand { transition: none; }
+@media (prefers-reduced-motion: reduce) { .sgx-tb-back, .sgx-tb-nav, .sgx-tb-more, .sgx-tb-brand { transition: none; } }
+.sgx-tb-back:focus-visible, .sgx-tb-nav:focus-visible, .sgx-tb-more:focus-visible, .sgx-tb-brand:focus-visible {
+  outline: 2px solid var(--m-primary); outline-offset: 2px; }
+/* 滚动后：品牌组淡出（JS 统一给 body 加 sgx-stuck，阈值 = 标题区高度 × 0.55） */
+.sgx-tb-brand { animation: none; }
+body.sgx-stuck .sgx-tb-brand { opacity: 0; pointer-events: none; }
+/* 小标题：在长条内水平垂直居中，最大宽度 = 长条宽 - 104px（17/700，淡入时机沿用原来的标题区动画） */
+.sgx-tb-pill .subpage-mini-title { position: absolute; left: 50%; top: 0; bottom: auto; right: auto; height: 50px; line-height: 50px;
+  margin: 0; padding: 0; z-index: auto; font-size: 17px; font-weight: 700; color: var(--m-on-surface);
+  white-space: nowrap; max-width: calc(100% - 104px); overflow: hidden; text-overflow: ellipsis; pointer-events: none;
+  background: none; box-shadow: none; }
+/* 标题区里的旧 ← / ⋮ 已删除；页面自己的 ⋮ 按钮只作来源，由 topbar.js 搬进长条 */
+.subpage-head .subpage-actions, .subpage-head .subpage-back { display: none; }
+/* 菜单：fixed，锚定在按钮下方 8px、右对齐（JS 写位置） */
+.sgx-tb-menu { position: fixed; min-width: 200px; z-index: 70; pointer-events: auto; background: var(--m-container-lowest);
+  border: 1px solid var(--m-outline); border-radius: 1.25rem; box-shadow: 0 12px 32px -8px rgba(0,0,0,.25); padding: 6px; overflow: hidden; }
+.sgx-tb-menu.hidden { display: none; }
+.sgx-tb-menu-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 12px;
+  min-height: 48px; text-align: left; font-size: 15px; border-radius: .75rem; color: var(--m-on-surface); background: transparent; border: 0; cursor: pointer; }
+.sgx-tb-menu-item:active { background: var(--m-container); }
+.sgx-tb-menu-item[aria-current="true"] { color: var(--m-primary); font-weight: 600; }
+/* topbar v2.0 end */
