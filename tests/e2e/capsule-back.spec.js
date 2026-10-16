@@ -103,6 +103,9 @@ return { cap, input, panel: pg.locator('#sgx-cap-results-settings')};
 }
 
 test.describe('D2 capsule: back gesture equals tap-blank', () => {
+/* B1-6a：设置胶囊不再弹浮层，点一下跳搜索页。D2 的浮层行为测试不再适用，跳过。 */
+test.skip('D2 skipped: settings capsule now navigates to search page', async () => {});
+/* 以下 D2 测试针对旧浮层行为，已废弃
 test('kb 300->0 without blur closes: panel hidden+empty, --sgx-kb 0px, no.open, width empty', async ({
 page: pg,
 }) => {
@@ -294,4 +297,5 @@ fullDiff.maxDelta
 expect(capDiff.n).toBeLessThanOrEqual(120);
 expect(fullDiff.n).toBeLessThanOrEqual(120);
 });
+*/ /* B1-6a：D2 旧浮层测试结束 */
 });
