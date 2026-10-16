@@ -1030,7 +1030,7 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
       a.forEach(function (s, i) {
         html +=
           '<span class="setso-chip" data-setso-chip="' + i + '"><span class="setso-chip-tx">' + esc(s) + '</span>' +
-          '<span class="setso-chip-x" data-setso-del="' + i + '" role="button" aria-label="×">' + XICON + '</span></span>';
+          '<button type="button" class="setso-chip-x" data-setso-del="' + i + '" aria-label="' + esc(T.t('setsoDel') + ' ' + s) + '">' + XICON + '</button></span>';
       });
       html += '</div></div>';
       page.innerHTML = html;

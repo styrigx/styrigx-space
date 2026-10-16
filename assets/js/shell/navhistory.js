@@ -104,18 +104,6 @@ export function initNavHistory() {
     } catch (e) {}
   })();
 
-  /* 一级页折叠态返回键：有站内上一页就 history.back()，否则回对应语言首页 */
-  delegate(document, 'click', '[data-back-top]', function (e) {
-    e.preventDefault();
-    let same = false;
-    try {
-      const r = document.referrer;
-      same = !!r && new URL(r).origin === location.origin;
-    } catch (_) {}
-    if (same) sgxGoBack('navhistory.js:111', 'back-top');
-    else sgxNavigate(document.documentElement.lang === 'en' ? '/en/' : '/', 'navhistory.js:112', 'back-top-home');
-  });
-
   /* 双击顶栏回顶部（One UI 习惯） */
   (function () {
     const nav = document.getElementById('site-nav');

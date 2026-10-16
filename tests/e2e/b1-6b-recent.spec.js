@@ -175,4 +175,17 @@ test.describe('B1-6b 最近搜索卡', () => {
     await expect(page.locator(CARD)).toBeVisible({ timeout: 5000 });
     expect(errs).toEqual([]);
   });
+
+  test('k. 删除钮是 <button>，aria-label 里带搜索词', async ({ page }) => {
+    const errs = await gotoSearch(page);
+    await searchEnter(page, '字体');
+    await page.locator(INPUT).fill('');
+    await expect(page.locator(CARD)).toBeVisible({ timeout: 5000 });
+    const del = page.locator('.setso-chip-x').first();
+    await expect(del).toBeVisible();
+    expect(await del.evaluate((el) => el.tagName.toLowerCase())).toBe('button');
+    const label = await del.getAttribute('aria-label');
+    expect(label).toContain('字体');
+    expect(errs).toEqual([]);
+  });
 });
