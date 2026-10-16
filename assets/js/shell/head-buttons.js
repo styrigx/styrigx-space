@@ -1,13 +1,10 @@
 /**
- * @fileoverview 子页面标题区按钮吸顶（D5 公共模块，从 apps/files.js 逐行抽出）。
- * 管理展开态「左返回（.subpage-back）＋右三点（.subpage-actions 内的按钮）」：
- * 平时都在标题区底部（bottom: var(--sgx-head-btn-gap)），随内容上滚；
- * 滚到「顶栏底边 + 8px」时左右两个按钮同一帧加 .stuck，吸住成 44px 磨砂圆；
- * 滚回顶部时同时去掉 .stuck，回到标题区底部。
- * 判定公式与 files.js 原实现完全一致：
- *   stuckTop = navH + 8 + safeTop；stick = y > 0 && y >= 按钮文档top − stuckTop，
- * 因此我的文件的三点吸住时机、位置、尺寸逐帧不变。
- * 返回键吸住后图标由 CSS 切到 ‹（.subpage-back.stuck .sgx-bk-fold），与我的文件折叠态一致。
+ * @fileoverview 子页面标题区按钮状态（B1-7 统一标准）。
+ * 状态只有两种，由滚动位置决定：
+ * - data-state="solid"：y <= 1（大标题完全展开），← 和 ⋮ 为实体无背景样式，在大标题下方原位.
+ * - data-state="float"：y > 1（上滑中/上滑后），← 和 ⋮ 为浮动圆钮，贴在顶栏正下方。
+ * 不在各页面写判断，只改这一套。
+ * data-menu="none" 的 ⋮ 不绑定菜单（只作样式，点了无反应）。
  * @param {import('../lib/scheduler.js').Scheduler} [S]
  */
 import { getScheduler } from '../lib/scheduler.js';
@@ -70,22 +67,17 @@ export function initHeadButtons(S) {
   /** @param {number} [y] */
   function updateStick(y) {
     if (y === undefined) y = window.scrollY || 0;
-    /* 锚点取标题区本身：按钮文档 top = header 文档底边 − gap − 按钮高（D4 统一：gap 8px，按钮 44px）。
-       不直接取 .subpage-actions 的 rect——按钮 fixed 后它会塌陷到高度 0，导致阈值来回跳变、
-       按钮在阈值附近闪烁；header 高度稳定，推导出的阈值恒定。 */
-    const hr = head.getBoundingClientRect();
-    const headDocTop = hr.top + y;
-    const gap =
-      parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sgx-head-btn-gap')) || 8;
-    const btnH = (backBtn && backBtn.offsetHeight) || (moreBtn && moreBtn.offsetHeight) || 44;
-    const docTop = headDocTop + hr.height - gap - btnH;
-    const navH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nav-h')) || 64;
-    const stuckTop = navH + 8 + safeTop;
-    const stick = y > 0 && y >= docTop - stuckTop;
-    if (backBtn) backBtn.classList.toggle('stuck', stick);
-    if (moreBtn) {
-      moreBtn.classList.toggle('stuck', stick);
-      moreBtn.style.right = stick ? stuckRight() + 'px' : '';
+    /* B1-7：状态只有 solid/float 两种，由滚动位置决定。
+       y <= 1 → solid（大标题完全展开，容忍亚像素）；y > 1 → float（浮动圆钮）。 */
+    const state = y <= 1 ? 'solid' : 'float';
+    if (head.getAttribute('data-state') !== state) {
+      head.setAttribute('data-state', state);
+    }
+    /* 浮动时三点距右边缘（与原实现一致：内容区 1100px，横屏小宽例外 640） */
+    if (moreBtn && state === 'float') {
+      moreBtn.style.right = stuckRight() + 'px';
+    } else if (moreBtn) {
+      moreBtn.style.right = '';
     }
   }
   sched.onScroll(updateStick);

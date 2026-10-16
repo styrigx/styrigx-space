@@ -558,7 +558,7 @@
      isolation 限定混合范围；contain: layout style 把重排/重绘关在元素内（fixed 元素安全）。 */
   .glass,
   .dock, #dex-dock,
-  .subpage-back.stuck, .subpage-more.stuck, #files-more.stuck,
+  [data-state="float"] .subpage-back, [data-state="float"] .subpage-more, #files-more.stuck,
   .layout-dex #site-nav,
   .layout-pc #site-nav,
   .layout-mobile body.subpage-scrolled #site-nav,
@@ -577,14 +577,14 @@
     -webkit-backdrop-filter: none;
   }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .glass, .dock, #dex-dock, .subpage-back.stuck, .subpage-more.stuck, #files-more.stuck,
+    .glass, .dock, #dex-dock, [data-state="float"] .subpage-back, [data-state="float"] .subpage-more, #files-more.stuck,
     .layout-dex #site-nav, .layout-pc #site-nav, .layout-mobile body.subpage-scrolled #site-nav,
     .sgx-searchbar, .sgx-cap, .sgx85-pill,
     /* stylelint-disable-next-line color-no-hex */
     .brw-suggest, .sgx-cap-results, .brw-ov-bar, .brw-ov, .sgx-vs-card { background: #fff; }
     /* stylelint-disable-next-line color-no-hex */
     .layout-mobile #sheet-panel, .layout-dex #sheet-panel, .layout-pc #sheet-panel { background: #fff; }
-    .dark .glass, .dark .dock, .dark #dex-dock, .dark .subpage-back.stuck, .dark .subpage-more.stuck, .dark #files-more.stuck,
+    .dark .glass, .dark .dock, .dark #dex-dock, .dark [data-state="float"] .subpage-back, .dark [data-state="float"] .subpage-more, .dark #files-more.stuck,
     .dark .layout-dex #site-nav, .dark .layout-pc #site-nav, .dark .layout-mobile body.subpage-scrolled #site-nav,
     .dark .sgx-searchbar, .dark .sgx-cap, .dark .sgx85-pill,
     .dark .brw-suggest, .dark .sgx-cap-results, .dark .brw-ov-bar, .dark .brw-ov,
@@ -874,7 +874,7 @@
     svg { width: 24px; height: 24px; }
     /* 折叠态图标：默认隐藏，.stuck 时显示（与 ← 互斥） */
     .sgx-bk-fold { display: none; font-size: 26px; line-height: 1; font-weight: 400; color: var(--m-primary); }
-    &.stuck {
+    [data-state="float"] & {
       position: fixed; top: calc(var(--nav-h,64px) + 8px + env(safe-area-inset-top,0px)); bottom: auto; margin: 0;
       left: max(16px, calc((100vw - 1100px)/2 + 16px));
       background: var(--glass-tint); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow);
@@ -910,7 +910,7 @@
     &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
     svg { width: 22px; height: 22px; }
     /* D5：吸顶态（与我的文件 #files-more.stuck 原样式逐属性一致） */
-    &.stuck {
+    [data-state="float"] & {
       position: fixed; top: calc(var(--nav-h,64px) + 8px + env(safe-area-inset-top,0px)); bottom: auto; margin: 0;
       background: var(--glass-tint); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow);
       z-index: 55;
@@ -1350,6 +1350,10 @@
       grid-template-columns: clamp(320px,36%,420px) minmax(0,1fr); gap: 16px; align-items: start;
       margin-top: 0;
       position: relative;
+    }
+    /* B1-7：DeX 双栏下浮动圆钮定位到右栏内，不覆盖左栏 */
+    .layout-dex [data-state="float"] .subpage-back {
+      left: calc((100vw - 1100px)/2 + 32px + clamp(320px,36%,420px) + 16px);
     }
     /* 左栏：账户卡＋菜单（标题已移到 .set-dex-head）；菜单列表过长时独立滚动 */
     .set-col-l {
@@ -2599,7 +2603,7 @@ html, body {
 /* D5：contain:layout 会把 position:fixed 后代收进 .set-layout 的包含块（不再相对视口），
    导致吸顶按钮定位错误；有按钮吸住时临时降为 contain:style（只隔离计数器/自定义属性，
    不影响 fixed 定位），松开即恢复。2.9.2 的布局切换隔离意图保留。 */
-.set-layout:has(.subpage-back.stuck, .subpage-more.stuck) {
+.set-layout:has([data-state="float"]) {
   contain: style;
 }
 

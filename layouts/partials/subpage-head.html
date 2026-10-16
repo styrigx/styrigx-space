@@ -15,20 +15,20 @@
 {{ if $noTimeline }}
 {{/* D4 fix: DeX settings left column needs buttons (D4: all pages except home have them),
    but no data-subpage-head (avoid duplicate timeline) and no mini-title (only one). */}}
-<header class="subpage-head">
+<header class="subpage-head" data-state="solid">
   <button type="button" class="subpage-back" data-go-back aria-label="{{ if $en }}Back{{ else }}返回{{ end }}">{{ partial "icon.html" "arrow-left" }}<span class="sgx-bk-fold" aria-hidden="true">‹</span></button>
   <div class="subpage-hero">
     <h1 class="subpage-title">{{ .title }}</h1>
   </div>
-  <div class="subpage-actions"><button type="button" class="subpage-more" aria-label="{{ if $en }}More options{{ else }}更多选项{{ end }}">{{ $dots | safeHTML }}</button></div>
+  <div class="subpage-actions"><button type="button" class="subpage-more" data-menu="none" aria-label="{{ if $en }}More options{{ else }}更多选项{{ end }}">{{ $dots | safeHTML }}</button></div>
 </header>
 {{ else }}
-<header class="subpage-head" data-subpage-head>
+<header class="subpage-head" data-subpage-head data-state="solid">
   <button type="button" class="subpage-back" data-go-back aria-label="{{ if $en }}Back{{ else }}返回{{ end }}">{{ partial "icon.html" "arrow-left" }}<span class="sgx-bk-fold" aria-hidden="true">‹</span></button>
   <div class="subpage-hero">
     <h1 class="subpage-title">{{ .title }}</h1>
   </div>
-  {{ with .actions }}<div class="subpage-actions">{{ . }}</div>{{ else }}<div class="subpage-actions"><button type="button" class="subpage-more" aria-label="{{ if $en }}More options{{ else }}更多选项{{ end }}">{{ $dots | safeHTML }}</button></div>{{ end }}
+  {{ with .actions }}<div class="subpage-actions">{{ . }}</div>{{ else }}<div class="subpage-actions"><button type="button" class="subpage-more" data-menu="none" aria-label="{{ if $en }}More options{{ else }}更多选项{{ end }}">{{ $dots | safeHTML }}</button></div>{{ end }}
 </header>
 <div class="subpage-mini-title" aria-hidden="true">{{ .title }}</div>
 {{ end }}
