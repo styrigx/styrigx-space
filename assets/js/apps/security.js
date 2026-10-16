@@ -116,11 +116,14 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
         dlg.className = 'sgx-verify-dlg';
         const en = document.documentElement.lang === 'en';
         dlg.innerHTML =
-          '<h2>' + (en ? 'Lock now?' : '立即锁定？') + '</h2>' +
-          '<p>' + (en ? 'This device will return to the lock screen.' : '当前设备会回到锁屏。') + '</p>' +
-          '<div class="sgx-door-foot">' +
-          '<button type="button" class="sgx-door-btn" data-act="cancel">' + (en ? 'Cancel' : '取消') + '</button>' +
-          '<button type="button" class="sgx-door-btn-primary" data-act="ok">' + (en ? 'Lock' : '锁定') + '</button>' +
+          '<div class="sgx-verify-card">' +
+            '<div class="sheet-handle"></div>' +
+            '<h2 class="sgx-verify-title">' + (en ? 'Lock now?' : '立即锁定？') + '</h2>' +
+            '<p class="sgx-verify-desc">' + (en ? 'This device will return to the lock screen.' : '当前设备会回到锁屏。') + '</p>' +
+            '<div class="sgx-door-foot" style="gap:12px;align-self:stretch">' +
+              '<button type="button" class="sgx-door-btn sgx-door-btn-secondary" data-act="cancel">' + (en ? 'Cancel' : '取消') + '</button>' +
+              '<button type="button" class="sgx-door-btn sgx-door-btn-primary" data-act="ok">' + (en ? 'Lock' : '锁定') + '</button>' +
+            '</div>' +
           '</div>';
         document.body.appendChild(dlg);
         onDialogBackdrop(dlg, function () { dlg.close(); recordDialogClose('locknow-confirm', 'backdrop'); });
