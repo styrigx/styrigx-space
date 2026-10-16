@@ -71,13 +71,17 @@ function showSubsiteFailure(why) {
   /* B1-8：失败卡用 One UI 样式，不显示原因码 */
   let el = document.getElementById('sgx-subsite-failure');
   if (!el) {
+    /* B1-8：中英文切换 */
+    const isEn = document.documentElement.lang === 'en';
+    const msg = isEn ? 'Cannot return to the subsite, please try again' : '无法回到子站，请重试';
+    const homeText = isEn ? 'Back to main site' : '回到主站';
     el = document.createElement('div');
     el.id = 'sgx-subsite-failure';
     el.className = 'sgx-card';
     el.style.cssText = 'position:fixed;bottom:24px;left:16px;right:16px;z-index:10001;padding:16px;text-align:center;';
     el.innerHTML =
-      '<p style="margin:0 0 12px;font-size:15px;">' + '无法回到子站，请重试' + '</p>' +
-      '<button type="button" class="sgx-door-btn-primary" id="sgx-subsite-home">回到主站</button>';
+      '<p style="margin:0 0 12px;font-size:15px;">' + msg + '</p>' +
+      '<button type="button" class="sgx-door-btn-primary" id="sgx-subsite-home">' + homeText + '</button>';
     document.body.appendChild(el);
     const btn = document.getElementById('sgx-subsite-home');
     if (btn) {
@@ -87,6 +91,31 @@ function showSubsiteFailure(why) {
     }
   }
   el.hidden = false;
+}
+
+/* B1-8：子站回跳公共逻辑（initLock 会话有效分支 + handleSessionOk 共用）。
+   why 非空时：checkSubsiteLoop(target) 为真 → 出失败卡，返回 true；
+   否则有 return 就继续回跳（sgxReplace），返回 true；无 return 返回 false。 */
+function handleSubsiteKickback() {
+  let ret = '';
+  let why = '';
+  try {
+    const params = new URLSearchParams(window.location.search);
+    ret = params.get('return') || '';
+    why = params.get('why') || '';
+  } catch (e) {}
+  if (!why) return false;
+  const target = ret || '';
+  if (checkSubsiteLoop(target)) {
+    showSubsiteFailure(why);
+    return true;
+  }
+  /* 非死循环：继续回跳（覆盖记录） */
+  if (ret) {
+    sgxReplace(window.location.href, 'lock.js:handleSubsiteKickback', 'return-reload');
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -116,14 +145,9 @@ export function initLock() {
     showLockScreen();
   }
   /* 会话有效：直接显示页面，不弹锁屏。
-     防死循环失效修复：子站踢回带 ?why= 时 L1 已停止 302（返回 200 首页），
-     这里直接显示失败原因，不再跳回子站。会话无效时走锁屏解锁流程，
-     解锁后 handleSessionOk 会显示（已有逻辑，不重复）。 */
+     B1-8：子站踢回带 ?why= 时走 20 秒窗口逻辑（与 handleSessionOk 共用 handleSubsiteKickback）。 */
   if (ok) {
-    try {
-      const why = new URLSearchParams(window.location.search).get('why');
-      if (why) showSubsiteFailure(why);
-    } catch (e) {}
+    handleSubsiteKickback();
   }
 }
 
@@ -327,22 +351,15 @@ function showLockScreen() {
        前端不再重复做白名单校验。
      - 不带 return：保持现有开锁动画，显示桌面。 */
   function handleSessionOk() {
-    let ret = '';
-    let why = '';
-    try {
-      const params = new URLSearchParams(window.location.search);
-      ret = params.get('return') || '';
-      why = params.get('why') || '';
-    } catch (e) {}
-    /* B1-8：如果带 why（子站验证失败被踢回），20 秒内同一目标第二次才算死循环 */
-    if (why) {
-      const target = ret || '';
-      if (checkSubsiteLoop(target)) {
-        showSubsiteFailure(why);
-        return;
-      }
-      /* 非死循环：继续回跳（覆盖记录） */
+    /* B1-8：子站踢回走 20 秒窗口逻辑（与 initLock 会话有效分支共用 handleSubsiteKickback）。
+       返回 true 说明已处理（出失败卡或已回跳），直接 return。 */
+    if (handleSubsiteKickback()) {
+      return;
     }
+    let ret = '';
+    try {
+      ret = new URLSearchParams(window.location.search).get('return') || '';
+    } catch (e) {}
     if (ret) {
       sgxReplace(window.location.href, 'lock.js:321', 'return-reload');
       return;
