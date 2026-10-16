@@ -26,7 +26,7 @@ import { exchangeRootSession } from '../lib/root-session.js';
 import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, tapFeedback, setRowBusy } from '../lib/dialog-behavior.js';
 import { getPasskeyAssertion, passkeyErrorText } from '../lib/passkey-assert.js';
-import { b64urlToBuf } from '../lib/b64.js';
+import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
 
 const LOCK =
   '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
@@ -1389,7 +1389,7 @@ function showLockScreen() {
           return { id: b64urlToBuf(c.id), type: 'public-key' };
         });
         /* B1-2：用公共函数（隐藏弹层 + 30s 超时 + 4 档错误） */
-        var dlgEl = document.getElementById('sgx-verify-dlg') || document.getElementById('sgx-lock');
+        var dlgEl = document.querySelector('.sgx-verify-dlg');
         return getPasskeyAssertion({
           challenge: b64urlToBuf(j.challenge),
           rpId: j.rpId,
@@ -1444,7 +1444,7 @@ function showLockScreen() {
             throw { done: true };
           }
           /* nokey(InvalidStateError)/timeout/failed：走全局报错（保持 46fe723 前行为） */
-          showError(en ? 'Passkey failed' : '通行密钥验证失败');
+          showError(passkeyErrorText(err && err.kind, en));
           throw { done: true };
         });
       })
@@ -1495,11 +1495,11 @@ function showLockScreen() {
   }
 
   /* 通行密钥失败 → 同一弹层内给重试 / 用密码 */
-  function pkFailed() {
+  function pkFailed(msg) {
     if (dlgState !== 'passkey') return;
     setBody(
       '<div class="sgx-verify-loading"><p class="sgx-verify-failtx">' +
-        (en ? 'Passkey verification failed' : '通行密钥验证失败') +
+        (msg || (en ? 'Passkey verification failed' : '通行密钥验证失败')) +
         '</p><div class="sgx-verify-actions">' +
         '<button type="button" class="sgx-verify-skip" id="sgx-pk-retry">' + (en ? 'Retry' : '重试') + '</button>' +
         '<button type="button" class="sgx-verify-ghost" id="sgx-pk-topw">' + (en ? 'Use password' : '使用密码') + '</button>' +
@@ -1512,21 +1512,6 @@ function showLockScreen() {
     liftAvatar();
   }
 
-  /** @returns {Uint8Array} */
-  function b64urlToBuf(s) {
-    s = s.replace(/-/g, '+').replace(/_/g, '/');
-    const bin = atob(s);
-    const u8 = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-    return u8;
-  }
-  /** @param {ArrayBuffer} buf */
-  function bufToB64url(buf) {
-    const u8 = new Uint8Array(buf);
-    let s = '';
-    for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
-    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  }
   function pkAuth() {
     fetch('/api/owner-passkey', {
       method: 'POST',
@@ -1542,18 +1527,17 @@ function showLockScreen() {
         const allow = (ch.allowCredentials || []).map(function (c) {
           return { id: b64urlToBuf(c.id), type: c.type };
         });
-        return navigator.credentials
-          .get({
-            publicKey: {
-              challenge: b64urlToBuf(ch.challenge),
-              allowCredentials: allow,
-              userVerification: 'required',
-              timeout: 60000,
-            },
-          })
-          .then(function (cred) {
-            return { cred: cred, cid: ch.cid };
-          });
+        /* B1-2：用公共函数（隐藏弹层 + 30s 超时 + 4 档错误） */
+        return getPasskeyAssertion(
+          {
+            challenge: b64urlToBuf(ch.challenge),
+            allowCredentials: allow,
+            userVerification: 'required',
+          },
+          { hideEl: document.querySelector('.sgx-verify-dlg') }
+        ).then(function (cred) {
+          return { cred: cred, cid: ch.cid };
+        });
       })
       .then(function (res) {
         if (dlgState !== 'passkey') throw { done: true };
@@ -1602,7 +1586,8 @@ function showLockScreen() {
       })
       .catch(function (e) {
         if (e && e.done) return;
-        pkFailed();
+        if (e && e.kind) pkFailed(passkeyErrorText(e.kind, en));
+        else pkFailed();
       });
   }
 
