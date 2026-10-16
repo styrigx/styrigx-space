@@ -126,8 +126,12 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
             '</div>' +
           '</div>';
         document.body.appendChild(dlg);
-        onDialogBackdrop(dlg, function () { dlg.close(); recordDialogClose('locknow-confirm', 'backdrop'); });
-        onDialogCancel(dlg, function () { dlg.close(); recordDialogClose('locknow-confirm', 'cancel'); });
+        dlg.addEventListener('click', function (e) {
+          if (onDialogBackdrop(e, dlg)) { dlg.close(); recordDialogClose('locknow-confirm', 'backdrop'); }
+        });
+        dlg.addEventListener('cancel', function (e) {
+          onDialogCancel(e, dlg, function () { dlg.close(); recordDialogClose('locknow-confirm', 'cancel'); });
+        });
         dlg.querySelector('[data-act="cancel"]').addEventListener('click', function () {
           dlg.close();
           recordDialogClose('locknow-confirm', 'cancel-btn');

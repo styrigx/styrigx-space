@@ -6,7 +6,7 @@
 {{ $setUrl := "/settings/" }}{{ if $isEn }}{{ $setUrl = "/en/settings/" }}{{ end }}
 
 {{ $dots := `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg>` }}
-{{ $moreBtn := printf `<button type="button" id="files-more" class="subpage-more" aria-label="%s">%s</button>` (cond $isEn "More options" "更多选项") $dots }}
+{{ $moreBtn := printf `<button type="button" id="files-more" class="sgx-tb-more" aria-label="%s">%s</button>` (cond $isEn "More options" "更多选项") $dots }}
 {{ $appGrid := `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>` }}
 
 {{ $cats := slice
@@ -60,7 +60,7 @@
 {{ $i18n := dict "filesBase" $filesBase "setUrl" $setUrl "types" $typeMeta "defaults" $defaults "str" $str "bookHost" $bookHost }}
 
 <div class="max-w-[1100px] mx-auto px-4">
-  {{ partial "subpage-head.html" (dict "title" .Title "isEn" $isEn "noBack" true "actions" ($moreBtn | safeHTML)) }}
+  {{ partial "subpage-head.html" (dict "title" .Title "isEn" $isEn "actions" ($moreBtn | safeHTML)) }}
 
   <!-- 主页模式 -->
   <div id="files-home" class="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6">
@@ -172,9 +172,6 @@
 
 <style>
 /* ===== 我的文件（页面私有样式） ===== */
-/* 2.3.14.5：⋯ 单按钮滚动停靠（替代 files-more-float 双按钮）。平时在标题区原位、随内容上滚；
-   滚到顶栏右侧位置时停住，背景淡入成 44px 磨砂圆；滚回去反过来。悬浮不占布局。
-   （按钮本体样式已并入 input.css 的 .subpage-more 统一组件，与全站一致。） */
 /* 分隔线从文字开始（图标列之外） */
 .files-rows{list-style:none;margin:0;padding:0}
 .files-rows>li+li .row-line{border-top:1px solid color-mix(in srgb,var(--m-outline) 55%,transparent)}
