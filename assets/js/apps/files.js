@@ -574,8 +574,9 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
   }
   setCapSearchProvider(capSearch);
 
-  /* ---------- ⋯ 按钮吸顶：D5 起走公共模块 shell/head-buttons.js（与原公式逐行一致） ---------- */
-  /* （原 updateMoreStick / moreStuckRight 已移入公共模块；菜单绑定保留） */
+  /* ---------- ⋯ 按钮：顶栏统一规格 v1.0 起原按钮不再吸顶，跟着标题区滚走；
+     滚动后卡片内的 ⋮ 调用本按钮的 click() 打开同一菜单（见 shell/subhead.js）。 ---------- */
+  /* （菜单绑定保留） */
 
   /* ---------- 初始化 ---------- */
   applyHomeVis();

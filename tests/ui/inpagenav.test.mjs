@@ -139,13 +139,17 @@ test('预取结果被真正使用（issue 2）', () => {
   assert.ok(inpagenav.includes('prefetchCache.delete(url)'), '用后应删除缓存');
 });
 
-test('顶栏有纯色背景兜底（issue 5，三星浏览器）', () => {
+test('顶栏卡片有纯色背景兜底（issue 5，三星浏览器；统一规格 v1.0）', () => {
   const css = read('assets/css/input.css');
-  // #site-nav 应有 background 兜底，不只靠 backdrop-filter
-  assert.ok(css.includes('#site-nav'), '应有 #site-nav 样式');
-  const navBlock = css.match(/#site-nav \{[^}]+\}/s);
-  assert.ok(navBlock, '应找到 #site-nav 规则块');
-  assert.ok(navBlock[0].includes('background'), '#site-nav 应有 background 兜底');
+  // #site-nav 全透明，只有卡片 .sgx-topcard 有 background（含无模糊时的实色兜底）
+  assert.ok(css.includes('.sgx-topcard'), '应有 .sgx-topcard 样式');
+  const cardBlock = css.match(/\.sgx-topcard \{[^}]+\}/s);
+  assert.ok(cardBlock, '应找到 .sgx-topcard 规则块');
+  assert.ok(cardBlock[0].includes('background'), '.sgx-topcard 应有 background');
+  assert.ok(
+    css.includes('@supports not ((backdrop-filter: blur(1px))'),
+    '应有无 backdrop-filter 时的兜底'
+  );
 });
 
 test('core.js 调用了 initInPageNav', () => {

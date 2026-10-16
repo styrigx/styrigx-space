@@ -240,11 +240,12 @@ test.describe('B1-12 守护：页面切换唯一性', () => {
     const pages = ['/settings/', '/settings/security/', '/files/'];
     for (const url of pages) {
       await page.goto(url, { waitUntil: 'domcontentloaded' });
-      /* 等页面稳定：顶栏可见 */
-      await expect(page.locator('#site-nav')).toBeVisible({ timeout: 15000 });
+      /* 等页面稳定：顶栏卡片可见（#site-nav 本体全透明、无 in-flow 子节点） */
+      await expect(page.locator('#sgx-topcard')).toBeVisible({ timeout: 15000 });
 
       /* 顶栏只有 1 个 */
       await expect(page.locator('#site-nav')).toHaveCount(1);
+      await expect(page.locator('#sgx-topcard')).toHaveCount(1);
       /* 大标题只有 1 个（h1.subpage-title） */
       await expect(page.locator('h1.subpage-title')).toHaveCount(1);
       /* ← 只有 1 个（.subpage-back 或 [data-go-back]） */

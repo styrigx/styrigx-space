@@ -147,12 +147,12 @@ function __applyLayout(){
   if(window.__dexLayoutChanged){try{window.__dexLayoutChanged(m)}catch(e){}}
 }
 __applyLayout();
-/* 手机子页面标题区高度 = 实际可见高度 × 0.25。
+/* 顶栏统一规格 v1.0：手机子页面标题区高度 = max(240px, 实际可见高度 × 0.30)。
    只在首次加载和横竖屏切换时更新；滚动时浏览器地址栏伸缩不跟着变。 */
 window.__setHeadH=function(){
   if(!document.documentElement.classList.contains('layout-mobile'))return;
   var h=window.innerHeight||0;
-  if(h>0)document.documentElement.style.setProperty('--head-h',Math.round(h*0.25)+'px');
+  if(h>0)document.documentElement.style.setProperty('--head-h',Math.max(240,Math.round(h*0.30))+'px');
 }
 window.__setHeadH();
 (function(){
@@ -192,46 +192,31 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{ $aiUrl := "/ai/" }}{{ if $isEn }}{{ $aiUrl = "/en/ai/" }}{{ end }}
 {{ $setUrl := $setUrl0 }}{{ $glUrl := $glUrl0 }}{{ $filesUrl := $filesUrl0 }}{{ $storeUrl := $storeUrl0 }}
 
-<!-- 顶栏：左侧头像 / 中间时间（带日期）/ 右侧天气。手机、DeX 全局显示，无搜索框 -->
+<!-- 顶栏卡片（统一规格 v1.0）：品牌组常驻；滚动后 ←/小标题/⋮ 在卡片内切换。
+     时钟 / 天气及其弹出卡片已移除（设置项保留）。id="nav-brand" 保留供锁屏取头像。 -->
 <nav id="site-nav" class="z-50">
-  <div class="nav-inner max-w-[1100px] mx-auto px-4 py-2.5 flex items-center gap-3">
-    <a id="nav-brand" href="{{ $home }}" class="flex items-center gap-2 font-bold text-[15px] shrink-0 whitespace-nowrap relative z-[1]">
+  <div class="sgx-topcard" id="sgx-topcard">
+    <a id="nav-brand" class="sgx-topcard-brand" href="{{ $home }}">
       {{ $navAvatar := resources.Get "images/avatar.png" }}
       {{ if $navAvatar }}
       {{ $navAvatarWebp := $navAvatar.Fill "56x56 webp" }}{{ $navAvatarAvif := $navAvatar.Fill "56x56 avif" }}
-      <img src="{{ $navAvatarWebp.RelPermalink }}" srcset="{{ $navAvatarAvif.RelPermalink }} 1x" alt="Styrigx" width="28" height="28" class="w-7 h-7 rounded-full object-cover ring-1 ring-m-outline">
+      <img src="{{ $navAvatarWebp.RelPermalink }}" srcset="{{ $navAvatarAvif.RelPermalink }} 1x" alt="Styrigx" width="28" height="28" class="sgx-topcard-avatar">
       {{ else }}
-      <span class="w-7 h-7 rounded-full bg-m-primary text-m-on-primary text-xs font-bold flex items-center justify-center">S</span>
+      <span class="sgx-topcard-avatar-fb" aria-hidden="true">S</span>
       {{ end }}
-      <span>Styrigx</span>
+      <span class="sgx-topcard-name">Styrigx</span>
     </a>
-    <button type="button" id="nav-time-center" aria-label="{{ if $isEn }}Clock and calendar{{ else }}时钟和日历{{ end }}" title="{{ if $isEn }}Clock and calendar{{ else }}时钟和日历{{ end }}">
-      <span id="nav-time-date"></span><span id="nav-time" class="clock-num">--:--</span>
+    <button type="button" class="sgx-topcard-nav sgx-topcard-back" id="sgx-topcard-back" aria-label="{{ if $isEn }}Back{{ else }}返回{{ end }}">
+      {{ partial "icon.html" "arrow-left" }}
     </button>
-    <div id="nav-right">
-      <button type="button" id="nav-music-note" class="nav-tray-btn nav-icobtn" style="display:none" aria-label="{{ if $isEn }}Now playing{{ else }}正在播放{{ end }}" title="{{ if $isEn }}Now playing{{ else }}正在播放{{ end }}">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-      </button>
-      <button type="button" id="nav-wx" class="nav-tray-btn" style="display:none" aria-label="{{ if $isEn }}Weather{{ else }}天气{{ end }}" title="{{ if $isEn }}Weather{{ else }}天气{{ end }}">
-        <span id="nav-wx-ic" aria-hidden="true"></span><span id="nav-wx-t" class="clock-num"></span>
-      </button>
-    </div>
+    <button type="button" class="sgx-topcard-nav sgx-topcard-more" id="sgx-topcard-more" aria-label="{{ if $isEn }}More options{{ else }}更多选项{{ end }}">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg>
+    </button>
+    <button type="button" id="nav-music-note" class="nav-tray-btn nav-icobtn sgx-topcard-note" style="display:none" aria-label="{{ if $isEn }}Now playing{{ else }}正在播放{{ end }}" title="{{ if $isEn }}Now playing{{ else }}正在播放{{ end }}">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+    </button>
   </div>
 </nav>
-<script>
-/* 量取顶栏实际高度写入 --nav-h（顶栏 fixed，main 的 padding-top 依赖它）。
-   2.4.0-C：不再依赖 __sgxScroll（已移入 ES Module），直接监听 resize。 */
-(function(){
-  function setH(){
-    var n=document.getElementById('site-nav');
-    if(n)document.documentElement.style.setProperty('--nav-h',n.offsetHeight+'px');
-  }
-  setH();
-  var rt=null;
-  window.addEventListener('resize',function(){if(rt)clearTimeout(rt);rt=setTimeout(setH,180)});
-  window.addEventListener('load',setH);
-})();
-</script>
 
 <!-- 全站搜索已并入 /browser/（旧 #search-modal 已删除） -->
 
@@ -306,7 +291,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{ range $glMods }}{{ $idx = $idx | append (dict "t" (cond $isEn .en .zh) "d" (cond $isEn .den .dzh) "u" (print $glUrl "#mod-" .id) "c" $cGl) }}{{ end }}
 {{/* 博客文章（构建时抓 RSS，失败则跳过） */}}
 {{ $cBlog := cond $isEn "Blog" "博客" }}
-{{ with resources.GetRemote "https://blog.styrigx.com/rss.xml" }}
+{{ with false }}
   {{ range findRE "(?s)<item>.*?</item>" .Content }}
     {{ $bt := findRESubmatch "(?s)<title>(.*?)</title>" . }}
     {{ $bl := findRESubmatch "(?s)<link>(.*?)</link>" . }}
@@ -435,26 +420,6 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
     </div>
   </div>
 </div>
-
-<!-- DeX 时钟弹窗 -->
-<div id="dex-clock-pop" class="hidden" role="dialog" aria-label="{{ if $isEn }}Clock{{ else }}时钟{{ end }}">
-  <div class="dex-pop-card">
-    <div class="flex items-end justify-between gap-4">
-      <div class="min-w-0">
-        <div id="dex-pop-local" class="text-4xl font-extrabold clock-num">--:--</div>
-        <div id="dex-pop-local-c" class="text-xs text-m-on-surface-variant mt-1"></div>
-      </div>
-      <div class="text-right shrink-0">
-        <div id="dex-pop-r" class="text-2xl font-bold clock-num">--:--</div>
-        <div id="dex-pop-r-c" class="text-xs text-m-on-surface-variant mt-1"></div>
-      </div>
-    </div>
-    <div id="dex-pop-cal" class="mt-3 pt-3 border-t border-m-outline"></div>
-  </div>
-</div>
-
-<!-- 顶栏天气面板（从顶栏往下展开） -->
-<div id="nav-wx-pop" role="dialog" aria-label="{{ if $isEn }}Weather{{ else }}天气{{ end }}"></div>
 
 {{/* 2.4.0-C：全站文案（中英双语，JS 按 <html lang> 取用；同一份 JS 中英文共用缓存）。
    键：快捷键帮助 / 访客提示 / 语音输入 / 语音弹窗 */}}

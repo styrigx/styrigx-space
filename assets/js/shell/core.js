@@ -8,7 +8,6 @@ import { SGX } from '../lib/sgx.js';
 import { getScheduler, visibleInterval } from '../lib/scheduler.js';
 import { initNavHistory } from './navhistory.js';
 import { initSubHead } from './subhead.js';
-import { initHeadButtons } from './head-buttons.js';
 import { initThemeListener } from '../lib/theme.js';
 import { applyTheme, setThemeMode } from '../lib/theme.js';
 import { initNav } from './nav.js';
@@ -70,7 +69,6 @@ export function initCore() {
   initDexBridge();
   initNavHistory();
   initSubHead(S);
-  initHeadButtons(S);
   initThemeListener();
   initNav(S);
   initGoodLock();
