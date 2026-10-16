@@ -228,12 +228,16 @@ test('D5 float: back and more float in the same frame (B1-7 data-state)', async 
       }
       // 回顶
       window.scrollTo(0, 0);
-      await new Promise((res) => setTimeout(res, 300));
+      const t0 = Date.now();
+      while (head.getAttribute('data-state') !== 'solid' && Date.now() - t0 < 2000) {
+        await new Promise((res) => setTimeout(res, 50));
+      }
       return {
         frames,
         afterTop: {
           backStuck: head.getAttribute('data-state') === 'float',
           moreStuck: head.getAttribute('data-state') === 'float',
+          scrollY: window.scrollY,
         },
       };
     });
@@ -257,7 +261,7 @@ test('D5 float: back and more float in the same frame (B1-7 data-state)', async 
     }
     expect(stuckFrame, `${path} stuck at some frame`).not.toBeNull();
     // 回顶：同时去掉 .stuck
-    expect(r.afterTop.backStuck, `${path} unstuck back`).toBe(false);
+    expect(r.afterTop.backStuck, `${path} unstuck back (scrollY=${r.afterTop.scrollY})`).toBe(false);
     expect(r.afterTop.moreStuck, `${path} unstuck more`).toBe(false);
     expect(errs, `${path} pageerrors`).toEqual([]);
   }
