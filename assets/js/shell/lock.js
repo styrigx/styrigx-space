@@ -1389,7 +1389,7 @@ function showLockScreen() {
           return { id: b64urlToBuf(c.id), type: 'public-key' };
         });
         /* B1-2：用公共函数（隐藏弹层 + 30s 超时 + 4 档错误） */
-        var dlgEl = document.getElementById('sgx-verify-dlg') || document.getElementById('sgx-lock');
+        var dlgEl = document.querySelector('.sgx-verify-dlg');
         return getPasskeyAssertion({
           challenge: b64urlToBuf(j.challenge),
           rpId: j.rpId,
@@ -1534,7 +1534,7 @@ function showLockScreen() {
             allowCredentials: allow,
             userVerification: 'required',
           },
-          { hideEl: document.getElementById('sgx-verify-dlg') || document.getElementById('sgx-lock') }
+          { hideEl: document.querySelector('.sgx-verify-dlg') }
         ).then(function (cred) {
           return { cred: cred, cid: ch.cid };
         });

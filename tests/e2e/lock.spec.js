@@ -535,3 +535,99 @@ test.describe('A-2 锁屏凭证清空态（resetOnly）', () => {
     await expect(page.locator('#sgx-mopt-reset')).toHaveCount(0);
   });
 });
+
+test.describe('B1-2 普通解锁路径 pkAuth()（mock WebAuthn）', () => {
+  test.beforeEach(async ({ page }) => {
+    await blockExternalRequests(page);
+  });
+
+  const CHALLENGE_B64 = 'dGVzdC1jaGFsbGVuZ2U';
+
+  /** @param {import('@playwright/test').Page} page @param {'zh'|'en'} lang */
+  async function setupUnlockMocks(page, lang) {
+    await page.addInitScript((l) => {
+      try { localStorage.setItem('sgx-lang', l); } catch (e) {}
+    }, lang);
+    /* /api/owner-passkey challenge 桩 */
+    await page.route('**/api/owner-passkey', async (route) => {
+      let body = {};
+      try { body = route.request().postDataJSON() || {}; } catch (e) {}
+      if (body.action === 'challenge') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ ok: true, challenge: CHALLENGE_B64, allowCredentials: [], cid: 'c1' }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 400,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: false }),
+      });
+    });
+  }
+
+  /** WebAuthn get 桩：记录参数后挂起，由测试控制 reject */
+  async function stubWebauthnHang(page) {
+    await page.evaluate(() => {
+      window.__pkArgs = null;
+      window.__pkReject = null;
+      try {
+        navigator.credentials.get = function (opts) {
+          const pk = (opts && opts.publicKey) || {};
+          window.__pkArgs = {
+            timeout: pk.timeout,
+            hasSignal: !!(pk.signal instanceof AbortSignal),
+          };
+          return new Promise(function (resolve, reject) {
+            window.__pkReject = reject;
+          });
+        };
+      } catch (e) {}
+    });
+  }
+
+  for (const lang of ['zh', 'en']) {
+    test(`pkAuth: get 时弹层隐藏 / timeout 30000+signal / NotAllowedError→「${lang === 'zh' ? '已取消' : 'Cancelled'}」/ 恢复可见+重试按钮 [${lang}]`, async ({ page }) => {
+      const T = lang === 'zh'
+        ? { cancelled: '已取消', failed: '通行密钥验证失败', retry: '重试', usePw: '使用密码' }
+        : { cancelled: 'Cancelled', failed: 'Passkey verification failed', retry: 'Retry', usePw: 'Use password' };
+      /* 注意：不能 freezeTime——cancelled 判定依赖 Date.now() 的真实流逝（elapsed≥2s） */
+      await setupUnlockMocks(page, lang);
+      await gotoLock(page);
+      await stubWebauthnHang(page);
+      await choosePasskey(page);
+      /* 等 get 被调用（challenge 取回后） */
+      await page.waitForFunction(() => !!window.__pkArgs, null, { timeout: 8000 });
+      /* ① get 进行中：验证弹层不可见（visibility hidden，不是 display none） */
+      const visDuring = await page.evaluate(() => {
+        const d = document.querySelector('.sgx-verify-dlg');
+        return d ? window.getComputedStyle(d).visibility : 'missing';
+      });
+      expect(visDuring, 'get 进行中弹层应隐藏').toBe('hidden');
+      /* ② 传给 get 的 timeout 是 30000，并且带了 signal */
+      const args = await page.evaluate(() => window.__pkArgs);
+      expect(args.timeout, 'timeout 应为 30000').toBe(30000);
+      expect(args.hasSignal, '应带 AbortSignal').toBe(true);
+      /* ③ 2.5s 后抛 NotAllowedError（elapsed≥2s → kind cancelled） */
+      await page.evaluate(() => {
+        setTimeout(() => {
+          window.__pkReject(new DOMException('User cancelled', 'NotAllowedError'));
+        }, 2500);
+      });
+      const failTx = page.locator('.sgx-verify-failtx');
+      await expect(failTx, '应显示已取消文案').toContainText(T.cancelled, { timeout: 10000 });
+      const failText = await failTx.textContent();
+      expect(failText, '不应显示旧的「通行密钥验证失败」').not.toContain(T.failed);
+      /* ④ 失败后弹层恢复可见，且有「重试」和「使用密码」 */
+      const visAfter = await page.evaluate(() => {
+        const d = document.querySelector('.sgx-verify-dlg');
+        return d ? d.style.visibility : 'missing';
+      });
+      expect(visAfter, '失败后弹层应恢复可见').toBe('');
+      await expect(page.locator('#sgx-pk-retry'), '应有重试按钮').toContainText(T.retry);
+      await expect(page.locator('#sgx-pk-topw'), '应有使用密码按钮').toContainText(T.usePw);
+    });
+  }
+});
