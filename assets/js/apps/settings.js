@@ -14,7 +14,6 @@ import { setThemeMode } from '../lib/theme.js';
 import { engines } from '../shell/engines.js';
 import { getHiddenApps } from '../shell/appvis.js';
 import { wellLoad, wellFlush } from '../shell/goodlock.js';
-import { setCapSearchProvider } from '../shell/capsule.js';
 import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
 
 (function () {
@@ -958,73 +957,97 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
     }
     return null;
   }
-  /* 胶囊搜索：复用 SETIDX 索引，结果显示在胶囊上方浮层 */
-  /** @param {any} x */
-  function itemHTML(x) {
-    return (
-      '<button type="button" class="setso-item" data-cat="' + x.cat + '" data-el="' + x.el + '" data-t="' + esc(x.t) + '"' +
-      (x.p ? ' data-p="' + x.p + '"' : '') + (x.i ? ' data-i="' + x.i + '"' : '') + (x.u ? ' data-u="' + x.u + '"' : '') + '>' +
-      '<span class="flex-1 min-w-0"><span class="block font-medium truncate">' + esc(x.t) + '</span>' +
-      (x.d ? '<span class="block text-xs text-m-on-surface-variant truncate">' + esc(x.d) + '</span>' : '') + '</span>' + CHEVR + '</button>'
-    );
-  }
-  /** @param {string} q */
-  function renderSearchHTML(q) {
-    q = (q || '').trim().toLowerCase();
-    let html = '';
-    if (!q) {
-      /** @type {Array<string>} */
-      let recent = [];
-      try {
-        recent = JSON.parse(get('sgx-set-recent') || '[]');
-      } catch (e) {}
-      if (recent.length) {
-        html += '<p class="setso-sec">' + T.t('setsoRecent') + '</p>';
-        html += recent
-          .map(function (r) {
-            let f = null;
-            for (let i = 0; i < SETIDX.length; i++) {
-              if (SETIDX[i].t === r) {
-                f = SETIDX[i];
-                break;
-              }
-            }
-            return f ? itemHTML(f) : '';
-          })
-          .join('');
+  /* B1-6a：设置主页/子页的胶囊点一下就跳搜索页，不弹键盘 */
+  (function () {
+    const cap = document.getElementById('sgx-cap-settings');
+    if (!cap) return;
+    const goSearch = function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      sgxNavigate(en ? '/en/settings/search/' : '/settings/search/');
+    };
+    cap.addEventListener('touchstart', goSearch, { passive: false, capture: true });
+    cap.addEventListener('mousedown', goSearch, { passive: false, capture: true });
+  })();
+  /* B1-6a：搜索独立页逻辑 */
+  (function () {
+    const input = document.getElementById('sgx-cap-input-setsearch');
+    const page = document.getElementById('setso-page');
+    if (!input || !page) return;
+    /** @type {Array<any>} */
+    let cats = [];
+    try {
+      cats = JSON.parse(document.getElementById('sgx-settings-cats').textContent || '[]');
+    } catch (e) {}
+    const catMap = {};
+    cats.forEach(function (c) {
+      catMap[c.id] = c;
+    });
+    input.focus({ preventScroll: true });
+    let timer = null;
+    function hl(text, q) {
+      const idx = text.toLowerCase().indexOf(q);
+      if (idx < 0) return esc(text);
+      return esc(text.slice(0, idx)) + '<mark class="setso-hl">' + esc(text.slice(idx, idx + q.length)) + '</mark>' + esc(text.slice(idx + q.length));
+    }
+    function render(q) {
+      q = (q || '').trim().toLowerCase();
+      if (!q) {
+        page.innerHTML = '';
+        return;
       }
-      html += '<p class="setso-sec">' + T.t('setsoCommon') + '</p>';
-      ['seg-font', 'palette-dots', 'row-datetime'].forEach(function (eid) {
-        const f = idxByEl(eid);
-        if (f) html += itemHTML(f);
-      });
-    } else {
       const hits = SETIDX.filter(function (x) {
         return (x.t + ' ' + x.d).toLowerCase().indexOf(q) >= 0;
-      }).slice(0, 12);
-      html = hits.length
-        ? hits.map(itemHTML).join('')
-        : '<p class="px-4 py-8 text-center text-sm text-m-on-surface-variant">' + T.t('setsoNo') + '</p>';
+      });
+      if (!hits.length) {
+        page.innerHTML = '<p class="px-4 py-8 text-center text-sm text-m-on-surface-variant">' + T.t('setsoNo') + '</p>';
+        return;
+      }
+      const groups = {};
+      hits.forEach(function (x) {
+        (groups[x.cat] = groups[x.cat] || []).push(x);
+      });
+      let html = '<h2 class="setso-title">' + T.fmt('setsoResults', { n: hits.length }) + '</h2>';
+      Object.keys(groups).forEach(function (catId) {
+        const c = catMap[catId] || { zh: catId, en: catId, icon: '', bg: '', fg: '' };
+        html += '<div class="setso-card"><div class="setso-card-head"><span class="' + c.bg + ' ' + c.fg + '">' + esc(c.icon) + '</span>' + esc(en ? c.en : c.zh) + '</div>';
+        groups[catId].forEach(function (x) {
+          html +=
+            '<button type="button" class="setso-item" data-cat="' + x.cat + '" data-el="' + x.el + '" data-t="' + esc(x.t) + '"' +
+            (x.p ? ' data-p="' + x.p + '"' : '') + (x.i ? ' data-i="' + x.i + '"' : '') + (x.u ? ' data-u="' + x.u + '"' : '') + '>' +
+            '<span class="flex-1 min-w-0"><span class="block font-medium">' + hl(x.t, q) + '</span>' +
+            (x.d ? '<span class="block text-xs text-m-on-surface-variant">' + hl(x.d, q) + '</span>' : '') + '</span>' + CHEVR + '</button>';
+        });
+        html += '</div>';
+      });
+      page.innerHTML = html;
     }
-    return html;
-  }
-  setCapSearchProvider(function (pg, q) {
-    if (pg !== 'settings') return '';
-    return renderSearchHTML(q);
-  });
-  on(document, 'click', function (/** @type {MouseEvent} */ e) {
-    const t = /** @type {Element|null} */ (e.target);
-    const b = t && t.closest ? t.closest('#sgx-cap-results-settings .setso-item') : null;
-    if (b)
-      pickResult(
-        b.getAttribute('data-cat') || '',
-        b.getAttribute('data-el') || '',
-        b.getAttribute('data-t') || '',
-        b.getAttribute('data-p') || '',
-        b.getAttribute('data-i') || '',
-        b.getAttribute('data-u') || ''
-      );
-  });
+    input.addEventListener('input', function () {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(function () {
+        render(input.value);
+      }, 150);
+    });
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        if (timer) clearTimeout(timer);
+        render(input.value);
+      }
+    });
+    on(page, 'click', function (/** @type {MouseEvent} */ e) {
+      const t = /** @type {Element|null} */ (e.target);
+      const b = t && t.closest ? t.closest('.setso-item') : null;
+      if (b)
+        pickResult(
+          b.getAttribute('data-cat') || '',
+          b.getAttribute('data-el') || '',
+          b.getAttribute('data-t') || '',
+          b.getAttribute('data-p') || '',
+          b.getAttribute('data-i') || '',
+          b.getAttribute('data-u') || ''
+        );
+    });
+  })();
   /**
    * @param {string} cat
    * @param {string} elid
@@ -1033,14 +1056,6 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
    * @param {string} item
    */
   function pickResult(cat, elid, title, panel, item, url) {
-    try {
-      let r = JSON.parse(get('sgx-set-recent') || '[]');
-      r = r.filter(function (/** @type {string} */ x) {
-        return x !== title;
-      });
-      r.unshift(title);
-      set('sgx-set-recent', JSON.stringify(r.slice(0, 6)));
-    } catch (e) {}
     /* 2.6.0：面板（我的文件/应用商店/浏览器）优先原地弹层，不跳转 */
     if (panel === 'files' || panel === 'store' || panel === 'browser') {
       window.setTimeout(function () {

@@ -1,0 +1,22 @@
+{{/* B1-6a：设置搜索独立页。结构照抄 settings-sub.html。 */}}
+{{ define "main" }}
+{{ .Scratch.Set "sgx-entry" "entry-settings.js" }}
+{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+
+<div class="set-layout max-w-2xl mx-auto px-4 pb-28">
+  {{ partial "subpage-head.html" (dict "title" .Title "isEn" $isEn) }}
+  <div class="set-main min-w-0">
+    <div id="setso-page"></div>
+  </div>
+</div>
+
+{{ partial "settings-i18n.html" (dict "isEn" $isEn) }}
+
+{{/* 分类数据（id/zh/en/icon/bg/fg）供搜索页分组卡片用 */}}
+<script id="sgx-settings-cats" type="application/json">{{ (index site.Data "settings-cats").cats | jsonify | safeJS }}</script>
+
+<!-- 底部搜索胶囊：page "setsearch"，panel false -->
+{{ partial "sgx-capsule.html" (dict "page" "setsearch" "isEn" $isEn
+  "placeholder" (cond $isEn "Search settings" "搜索设置")
+  "panel" false) }}
+{{ end }}
