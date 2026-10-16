@@ -155,10 +155,13 @@ test.describe('reset (2/2) passkey busy', () => {
     await mockLockreset(page, counters);
     await gotoResetStep2(page);
     await stubWebauthnPending(page);
+    /* B1-2：用假时钟走 cancelled 分支（≥2s），不真等 */
+    await page.clock.install();
     await page.locator('#sgx-reset-pk-row').click();
     await expect(page.locator('#sgx-reset-pk-row .sgx-door-spin')).toBeVisible({ timeout: 8000 });
     /* 模拟用户在系统窗口点取消 */
     await awaitPkGate(page);
+    await page.clock.fastForward(2100);
     await page.evaluate(() => {
       window.__pkGate.reject(Object.assign(new Error('cancelled'), { name: 'NotAllowedError' }));
     });
@@ -177,6 +180,29 @@ test.describe('reset (2/2) passkey busy', () => {
     /* 留在本页：标题仍是 (2/2)，URL 未变 */
     await expect(page.locator('#sgx-verify-title')).toHaveText('重置锁屏 (2/2)');
     expect(page.url()).toContain('?lock=1');
+  });
+
+  test('无匹配钥匙（立即失败）：行内提示 nokey 文案，留在本页', async ({ page }) => {
+    /* B1-2：NotAllowedError 立即返回（<2s）走 nokey 分支，#sgx-reset-pk-err 可见且为翻译文案 */
+    const counters = { challenge: 0 };
+    await mockLockreset(page, counters);
+    await gotoResetStep2(page);
+    await stubWebauthnPending(page);
+    await page.locator('#sgx-reset-pk-row').click();
+    await expect(page.locator('#sgx-reset-pk-row .sgx-door-spin')).toBeVisible({ timeout: 8000 });
+    await awaitPkGate(page);
+    /* 立即 reject（不快进时钟），走 nokey 分支 */
+    await page.evaluate(() => {
+      window.__pkGate.reject(Object.assign(new Error('no key'), { name: 'NotAllowedError' }));
+    });
+    const rowErr = page.locator('#sgx-reset-pk-err');
+    await expect(rowErr).toBeVisible({ timeout: 8000 });
+    /* 文案是翻译后的，不是 key 名 */
+    const text = await rowErr.textContent();
+    expect(text).not.toBe('pkNoKey');
+    expect(text.length).toBeGreaterThan(0);
+    /* 留在本页 */
+    await expect(page.locator('#sgx-verify-title')).toHaveText('重置锁屏 (2/2)');
   });
 
   test('通行密钥验证成功：进入 /settings/security/lock/', async ({ page }) => {
@@ -224,6 +250,26 @@ test.describe('reset (2/2) passkey busy', () => {
     await expect(page.locator('#sgx-reset-pk-row')).toBeEnabled();
     await expect(page.locator('#sgx-reset-pw-row')).toBeEnabled();
   });
+
+  test('通用失败（SecurityError）：显示全局「通行密钥验证失败」，留在本页', async ({ page }) => {
+    /* B1-2 选项 B：failed 走全局报错（保持 46fe723 前行为） */
+    const counters = { challenge: 0 };
+    await mockLockreset(page, counters);
+    await gotoResetStep2(page);
+    await stubWebauthnPending(page);
+    await page.locator('#sgx-reset-pk-row').click();
+    await expect(page.locator('#sgx-reset-pk-row .sgx-door-spin')).toBeVisible({ timeout: 8000 });
+    await awaitPkGate(page);
+    await page.evaluate(() => {
+      window.__pkGate.reject(Object.assign(new Error('security'), { name: 'SecurityError' }));
+    });
+    await expect(page.locator('#sgx-reset-pk-row .sgx-door-spin')).toHaveCount(0, { timeout: 8000 });
+    /* 全局报错，不是行内 */
+    await expect(page.locator('#sgx-verify-err:not([hidden])')).toHaveText('通行密钥验证失败');
+    await expect(page.locator('#sgx-reset-pk-err')).toBeHidden();
+    await expect(page.locator('#sgx-verify-title')).toHaveText('重置锁屏 (2/2)');
+    expect(page.url()).toContain('?lock=1');
+  });
 });
 
 test.describe('reset (2/2) passkey busy (en)', () => {
@@ -238,6 +284,8 @@ test.describe('reset (2/2) passkey busy (en)', () => {
     await mockLockreset(page, counters);
     await gotoResetStep2(page);
     await stubWebauthnPending(page);
+    /* B1-2：用假时钟走 cancelled 分支（≥2s），不真等 */
+    await page.clock.install();
     await page.locator('#sgx-reset-pk-row').click();
     await expect(page.locator('#sgx-reset-pk-row .sgx-door-rowsub'))
       .toHaveText('Opening passkey…', { timeout: 8000 });
@@ -245,6 +293,7 @@ test.describe('reset (2/2) passkey busy (en)', () => {
     await expect(page.locator('#sgx-reset-pk-row')).toBeDisabled();
     await expect(page.locator('#sgx-reset-pw-row')).toBeDisabled();
     await awaitPkGate(page);
+    await page.clock.fastForward(2100);
     await page.evaluate(() => {
       window.__pkGate.reject(Object.assign(new Error('cancelled'), { name: 'NotAllowedError' }));
     });

@@ -476,6 +476,10 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
   "vsNoPerm" (dict "zh" "需要麦克风权限" "en" "Microphone permission needed")
   "vsAria" (dict "zh" "语音输入" "en" "Voice input")
   "vsClose" (dict "zh" "关闭" "en" "Close")
+  "pkCancelled" (dict "zh" "已取消" "en" "Cancelled")
+  "pkTimeout" (dict "zh" "超时，请重试" "en" "Timed out, please retry")
+  "pkNoKey" (dict "zh" "这台设备上没有这把钥匙" "en" "No matching key on this device")
+  "pkFailed" (dict "zh" "通行密钥验证失败" "en" "Passkey verification failed")
 }}
 <script id="sgx-i18n-core" type="application/json">{{ $coreI18n | jsonify | safeJS }}</script>
 {{/* 2.4.0-G：功能开关定义（data/features.yaml），运行时 features.js 读取 */}}
