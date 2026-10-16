@@ -137,20 +137,30 @@ test('legacy hash #display redirects to subpage', async ({ page: pg }) => {
   await expect(pg.locator('#theme-previews')).toBeVisible();
 });
 
-test('settings search result navigates to subpage', async ({ page: pg }) => {
+test('settings capsule navigates to search page', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await gotoSettings(pg, '/settings/');
-  // 胶囊本身就是输入框，直接输入
-  const input = pg.locator('#sgx-cap-input-settings');
+  // B1-6a：点胶囊跳搜索页，不弹键盘
+  const cap = pg.locator('#sgx-cap-settings');
+  await expect(cap).toBeVisible();
+  await cap.click();
+  await pg.waitForURL('**/settings/search/', { timeout: 10000 });
+  await expect(pg.locator('#sgx-cap-input-setsearch')).toBeVisible();
+});
+
+test('B1-6a search page: input filters and navigates', async ({ page: pg }) => {
+  await pinLang(pg, 'zh');
+  await gotoSettings(pg, '/settings/search/');
+  const input = pg.locator('#sgx-cap-input-setsearch');
   await expect(input).toBeVisible();
-  await input.fill('字体大小');
-  const item = pg.locator('#sgx-cap-results-settings .setso-item').first();
-  await expect(item).toBeVisible({ timeout: 10000 });
-  await expect(item).toContainText('字体大小');
-  await item.click();
-  // 跨页跳转带 #seg-font（高亮命中行），只断言 pathname
-  await pg.waitForURL((url) => new URL(url).pathname === '/settings/display/', { timeout: 10000 });
-  await expect(pg.locator('#seg-font')).toBeVisible();
+  await input.fill('字体');
+  // 等去抖 150ms + 渲染
+  await expect(pg.locator('.setso-title')).toContainText('搜索结果', { timeout: 10000 });
+  const cards = pg.locator('.setso-card');
+  expect(await cards.count()).toBeGreaterThanOrEqual(1);
+  // 点第一条会跳走
+  await pg.locator('.setso-item').first().click();
+  await pg.waitForURL((url) => new URL(url).pathname !== '/settings/search/', { timeout: 10000 });
 });
 
 test('subpage back button returns to settings home', async ({ page: pg }) => {
