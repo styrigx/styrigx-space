@@ -239,7 +239,7 @@ test.describe('批次 A 验收修复 P1：删除密码按钮', () => {
     await expect(page.locator('#lockmgr-pwdel')).toContainText('再点一次删除密码');
     expect(removeCalls).toBe(0);
     await page.locator('#lockmgr-pwdel').click();
-    expect(removeCalls).toBe(1);
+    await expect.poll(() => removeCalls).toBe(1);
     /* 删除后状态刷新：副标题变未设置，按钮隐藏 */
     await expect(page.locator('#lockmgr-pwsub')).toContainText('未设置', { timeout: 5000 });
     await expect(page.locator('#lockmgr-pwdel')).toBeHidden();
@@ -275,7 +275,7 @@ test.describe('批次 A 验收修复 P1：删除密码按钮', () => {
     await expect(page.locator('#lockmgr-pwdel')).toContainText('再点一次删除密码');
     expect(removeCalls).toBe(0);
     await page.locator('#lockmgr-pwdel').click();
-    expect(removeCalls).toBe(1);
+    await expect.poll(() => removeCalls).toBe(1);
     await expect(page.locator('#lockmgr-pwsub')).toContainText('未设置', { timeout: 5000 });
     await expect(page.locator('#lockmgr-pwdel')).toBeHidden();
   });

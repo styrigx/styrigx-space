@@ -103,23 +103,6 @@ for (const vp of PCS) {
       expect(visibleTiles).toBe(0);
     });
 
-    test('顶栏与内容区左右对齐', async ({ page }) => {
-      await gotoPC(page, vp);
-      const r = await page.evaluate(() => {
-        const pad = (el) => parseFloat(getComputedStyle(el).paddingLeft);
-        const wrap = document.querySelector('.home-wrap');
-        const nav = document.querySelector('.nav-inner');
-        const wr = wrap.getBoundingClientRect(), nr = nav.getBoundingClientRect();
-        const brand = document.getElementById('nav-brand').getBoundingClientRect();
-        const tc = document.getElementById('nav-time-center').getBoundingClientRect();
-        return {
-          contentLeft: Math.round(wr.left + pad(wrap)), contentRight: Math.round(wr.right - pad(wrap)),
-          brandLeft: Math.round(brand.left), tcRight: Math.round(tc.right),
-        };
-      });
-      expect(Math.abs(r.brandLeft - r.contentLeft)).toBeLessThanOrEqual(1);
-      expect(Math.abs(r.tcRight - r.contentRight)).toBeLessThanOrEqual(1);
-    });
   });
 }
 
@@ -140,28 +123,6 @@ test.describe('dex-layout 1366x768', () => {
     await expect(page.locator('#home-apps')).toBeHidden();
     const visibleTiles = await page.locator('.app-grid .app-tile:visible').count();
     expect(visibleTiles).toBe(0);
-  });
-
-  test('DeX 顶栏与内容区左右对齐', async ({ page }) => {
-    await gotoDex(page);
-    const r = await page.evaluate(() => {
-      const padL = (el) => parseFloat(getComputedStyle(el).paddingLeft);
-      const padR = (el) => parseFloat(getComputedStyle(el).paddingRight);
-      const wrap = document.querySelector('.home-wrap');
-      const nav = document.querySelector('.nav-inner');
-      const wr = wrap.getBoundingClientRect(), nr = nav.getBoundingClientRect();
-      const brand = document.getElementById('nav-brand').getBoundingClientRect();
-      const tc = document.getElementById('nav-time-center').getBoundingClientRect();
-      return {
-        contentLeft: Math.round(wr.left + padL(wrap)), contentRight: Math.round(wr.right - padR(wrap)),
-        navLeft: Math.round(nr.left + padL(nav)), navRight: Math.round(nr.right - padR(nav)),
-        brandLeft: Math.round(brand.left), tcRight: Math.round(tc.right),
-      };
-    });
-    expect(Math.abs(r.navLeft - r.contentLeft)).toBeLessThanOrEqual(1);
-    expect(Math.abs(r.navRight - r.contentRight)).toBeLessThanOrEqual(1);
-    expect(Math.abs(r.brandLeft - r.contentLeft)).toBeLessThanOrEqual(1);
-    expect(Math.abs(r.tcRight - r.contentRight)).toBeLessThanOrEqual(1);
   });
 
   test('DeX 下底部渐隐带不渲染', async ({ page }) => {

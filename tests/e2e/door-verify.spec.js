@@ -314,7 +314,7 @@ test.describe('A-1 进门不能马上被判过期（10 次连续进门）', () =
     await expect(page).toHaveURL(/\/settings\/security\/owner\//, { timeout: 10000 });
     await expect(page.locator('#sgx-door-countdown')).toBeVisible({ timeout: 15000 });
     /* 点返回按钮 → 回安全页（清票） */
-    await page.locator('.subpage-back').click();
+    await page.locator('.sgx-tb-back').click();
     await expect(page).toHaveURL(/\/settings\/security\/$/, { timeout: 10000 });
     /* 再次进门 → 仍需验证（验证框出现，不是直接进门） */
     await page.locator('#sec-owner-cred').click();

@@ -21,6 +21,7 @@
  */
 /* A1：整页跳转/重载全部走带留痕的封装 */
 import { sgxAssign, sgxReload, recordJump } from '../lib/diag-jumptrace.js';
+import { syncTopbar } from './head-buttons.js';
 
 const CONTENT_SELECTOR = 'main';
 const TITLE_SELECTOR = 'main h1, main h2, [data-page-title]';
@@ -171,6 +172,8 @@ function swapContent(newContent, newTitle, newLang, newPage) {
     document.title = newTitle;
     if (newLang) document.documentElement.setAttribute('lang', newLang);
     if (newPage) document.body.setAttribute('data-page', newPage);
+    // 顶栏 v2.0：新页的 ⋮ 和小标题同步进长条
+    try { syncTopbar(); } catch (e) { /* 忽略 */ }
 
     // 3. mount 新页
     const newMod = getPageModule(newPage);
