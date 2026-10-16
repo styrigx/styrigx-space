@@ -57,6 +57,16 @@ test.describe('B1-1 立即锁定', () => {
     expect(wasCalled()).toBe(false);
   });
 
+  test('点背景关闭确认层', async ({ page }) => {
+    await gotoSecurity(page);
+    await page.locator('#sec-locknow').click();
+    const dlg = page.locator('#sec-locknow-confirm');
+    await expect(dlg).toBeVisible();
+    /* 点 dialog 背景（dialog 元素本身，非卡片）关闭 */
+    await page.mouse.click(10, 10);
+    await expect(dlg).toBeHidden();
+  });
+
   test('确认后才发 /api/lock', async ({ page }) => {
     const wasCalled = await trackLockApi(page);
     await gotoSecurity(page);
