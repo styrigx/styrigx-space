@@ -68,7 +68,11 @@ export function initUpgrade() {
     '</div>';
   document.body.appendChild(overlay);
 
-  const close = () => overlay.remove();
+  const close = () => {
+    /* B1-4：关闭时解绑键盘避让监听，避免 visualViewport 监听泄漏 */
+    try { if (window.__sgxUpgradeKbCleanup) window.__sgxUpgradeKbCleanup(); } catch (e) {}
+    overlay.remove();
+  };
   const errEl = document.getElementById('sgx-upgrade-err');
   const showErr = (msg) => {
     if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
