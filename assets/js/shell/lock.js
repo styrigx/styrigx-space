@@ -49,25 +49,73 @@ function isLocalDev() {
 /* 子站验证失败提示（小字显示在页面底部；幂等，重复调用只更新文案）。
    原在 showLockScreen 内，提到模块作用域：initLock 在会话有效时不进锁屏，
    也需要直接显示 ?why= 原因。 */
+/* B1-8：子站回跳死循环判定（20 秒窗口）。
+   回跳记录存 sessionStorage：{ target, at }。
+   20 秒内同一 target 第二次被踢回 → 失败卡（One UI 样式，不显示原因码）。
+   否则覆盖记录，继续回跳。 */
+function checkSubsiteLoop(target) {
+  try {
+    const raw = sessionStorage.getItem('sgx-subsite-jump');
+    const now = Date.now();
+    if (raw) {
+      const rec = JSON.parse(raw);
+      if (rec.target === target && (now - rec.at) < 20000) {
+        return true; /* 死循环 */
+      }
+    }
+    sessionStorage.setItem('sgx-subsite-jump', JSON.stringify({ target: target, at: now }));
+  } catch (e) {}
+  return false;
+}
 function showSubsiteFailure(why) {
+  /* B1-8：失败卡用 One UI 样式，不显示原因码 */
   let el = document.getElementById('sgx-subsite-failure');
   if (!el) {
+    /* B1-8：中英文切换 */
+    const isEn = document.documentElement.lang === 'en';
+    const msg = isEn ? 'Cannot return to the subsite, please try again' : '无法回到子站，请重试';
+    const homeText = isEn ? 'Back to main site' : '回到主站';
     el = document.createElement('div');
     el.id = 'sgx-subsite-failure';
-    el.style.cssText = 'position:fixed;bottom:24px;left:0;right:0;text-align:center;font-size:12px;color:rgba(255,255,255,0.6);z-index:10001;';
+    el.className = 'sgx-card';
+    el.style.cssText = 'position:fixed;bottom:24px;left:16px;right:16px;z-index:10001;padding:16px;text-align:center;';
+    el.innerHTML =
+      '<p style="margin:0 0 12px;font-size:15px;">' + msg + '</p>' +
+      '<button type="button" class="sgx-door-btn-primary" id="sgx-subsite-home">' + homeText + '</button>';
     document.body.appendChild(el);
+    const btn = document.getElementById('sgx-subsite-home');
+    if (btn) {
+      btn.addEventListener('click', function () {
+        location.href = '/';
+      });
+    }
   }
-  const reasons = {
-    'no-cookie': '无凭证',
-    'bad-format': '凭证格式错误',
-    'expired': '凭证已过期',
-    'key-import': '公钥导入失败',
-    'sig': '签名验证失败',
-    'epoch-fetch': '无法获取会话纪元',
-    'epoch-stale': '凭证纪元过旧',
-    'no-config': '子站未配置公钥'
-  };
-  el.textContent = '子站验证失败：' + (reasons[why] || why);
+  el.hidden = false;
+}
+
+/* B1-8：子站回跳公共逻辑（initLock 会话有效分支 + handleSessionOk 共用）。
+   why 非空时：checkSubsiteLoop(target) 为真 → 出失败卡，返回 true；
+   否则有 return 就继续回跳（sgxReplace），返回 true；无 return 返回 false。 */
+function handleSubsiteKickback() {
+  let ret = '';
+  let why = '';
+  try {
+    const params = new URLSearchParams(window.location.search);
+    ret = params.get('return') || '';
+    why = params.get('why') || '';
+  } catch (e) {}
+  if (!why) return false;
+  const target = ret || '';
+  if (checkSubsiteLoop(target)) {
+    showSubsiteFailure(why);
+    return true;
+  }
+  /* 非死循环：继续回跳（覆盖记录） */
+  if (ret) {
+    sgxReplace(window.location.href, 'lock.js:handleSubsiteKickback', 'return-reload');
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -97,14 +145,9 @@ export function initLock() {
     showLockScreen();
   }
   /* 会话有效：直接显示页面，不弹锁屏。
-     防死循环失效修复：子站踢回带 ?why= 时 L1 已停止 302（返回 200 首页），
-     这里直接显示失败原因，不再跳回子站。会话无效时走锁屏解锁流程，
-     解锁后 handleSessionOk 会显示（已有逻辑，不重复）。 */
+     B1-8：子站踢回带 ?why= 时走 20 秒窗口逻辑（与 handleSessionOk 共用 handleSubsiteKickback）。 */
   if (ok) {
-    try {
-      const why = new URLSearchParams(window.location.search).get('why');
-      if (why) showSubsiteFailure(why);
-    } catch (e) {}
+    handleSubsiteKickback();
   }
 }
 
@@ -308,18 +351,15 @@ function showLockScreen() {
        前端不再重复做白名单校验。
      - 不带 return：保持现有开锁动画，显示桌面。 */
   function handleSessionOk() {
-    let ret = '';
-    let why = '';
-    try {
-      const params = new URLSearchParams(window.location.search);
-      ret = params.get('return') || '';
-      why = params.get('why') || '';
-    } catch (e) {}
-    /* 诊断：如果带 why（子站验证失败被踢回），显示原因并不再自动跳回子站，避免死循环 */
-    if (why) {
-      showSubsiteFailure(why);
+    /* B1-8：子站踢回走 20 秒窗口逻辑（与 initLock 会话有效分支共用 handleSubsiteKickback）。
+       返回 true 说明已处理（出失败卡或已回跳），直接 return。 */
+    if (handleSubsiteKickback()) {
       return;
     }
+    let ret = '';
+    try {
+      ret = new URLSearchParams(window.location.search).get('return') || '';
+    } catch (e) {}
     if (ret) {
       sgxReplace(window.location.href, 'lock.js:321', 'return-reload');
       return;
