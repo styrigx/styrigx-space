@@ -23,6 +23,10 @@ async function trackLockApi(page) {
 
 /* 进入安全页并等待加载 */
 async function gotoSecurity(page) {
+  /* 锁定中文，避免浏览器默认英文导致中文断言失败（setup，非断言） */
+  await page.addInitScript(() => {
+    try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
+  });
   await page.goto(SECURITY_URL, { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#sec-locknow')).toBeVisible({ timeout: 15000 });
 }
@@ -101,7 +105,7 @@ test.describe('B1-1 立即锁定', () => {
     await page.locator('#sec-locknow-confirm [data-act="ok"]').click();
     /* location.replace 到 /?lock=1，中间不应渲染主页（含 --:-- 时钟） */
     await page.waitForURL('**/?lock=1', { timeout: 10000 });
-    /* 主页时钟节点不应出现 */
-    await expect(page.locator('text=--:--')).toHaveCount(0);
+    /* 主页时钟节点不应出现（只查可见的，隐藏的占位不算） */
+    await expect(page.locator('text=--:--:visible')).toHaveCount(0);
   });
 });
