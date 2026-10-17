@@ -408,12 +408,12 @@ jobs:
     # 用专门的 token（GitHub 环境密钥 STYRIGX_AUTH_GATEWAY_DEPLOY，名字对应 Cloudflare 上的
     # styrigx-auth-gateway-deploy）：Workers Scripts 编辑 + Secrets Store 编辑（带 Secrets Store 绑定部署必须 Edit，Read 报 10021）
     # + Account Settings 读取 + styrigx.com 的 Workers Routes 编辑。Pages 的部署 token 不给 Worker 权限，互不影响。
-    # 这把 token 放在 GitHub 环境 auth-gateway 的环境密钥里，该环境只允许 main 分支部署：
+    # 这把 token 放在 GitHub 环境 STYRIGX_AUTH_GATEWAY_DEPLOY（与密钥同名）的环境密钥里，该环境只允许 main 分支部署：
     # 其他分支即使改了工作流也拿不到它。
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: quality
     runs-on: ubuntu-latest
-    environment: auth-gateway
+    environment: STYRIGX_AUTH_GATEWAY_DEPLOY
     steps:
       - name: Checkout
         uses: actions/checkout@v6
