@@ -403,7 +403,7 @@ jobs:
   deploy-auth-worker:
     # 鉴权 Worker styrigx-auth-gateway：main 上真部署。和 Pages 部署分开成单独的 job，
     # 这里失败不影响 Pages 上线（只会显示红叉）。
-    # 路由见 workers/auth/wrangler.toml（目前只有 styrigx.com/api/geo 试水）；workers_dev=false。
+    # 路由见 workers/auth/wrangler.toml（styrigx.com/api/*）；workers_dev=false。部署后自动冒烟检查线上。
     # 密钥全在 Secrets Store，CI 不传任何密值。
     # 用专门的 token（GitHub Secret：CLOUDFLARE_AUTH_GATEWAY_TOKEN，对应 Cloudflare 上的
     # styrigx-auth-gateway-deploy）：Workers Scripts 编辑 + Secrets Store 读取 + styrigx.com 的 Workers Routes 编辑。
@@ -428,3 +428,29 @@ jobs:
           workingDirectory: workers/auth
           wranglerVersion: '4'
           command: deploy
+
+      - name: Smoke test production /api/* (must be served by the Worker)
+        # 切流后 passkey-e2e 只测 Pages 预览，测不到生产这条路，所以部署后直接打线上。
+        # 只发不带 cookie 的只读请求，不登录、不写数据。路由生效可能要几秒，最多重试 6 次。
+        # 失败时：去 Cloudflare 后台删掉 styrigx.com/api/* 路由即可回到 Pages。
+        run: |
+          set -u
+          check() { # 路径 期望状态码
+            for i in 1 2 3 4 5 6; do
+              hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' "https://styrigx.com$1" || true)
+              code=$(printf '%s' "$hdr" | sed -n 's/^HTTP_CODE://p')
+              rt=$(printf '%s' "$hdr" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
+              echo "$1 -> $code runtime=${rt:-none} (try $i)"
+              if [ "$code" = "$2" ] && [ "$rt" = "worker" ]; then return 0; fi
+              sleep 5
+            done
+            echo "::error::$1 expected $2 from worker"; return 1
+          }
+          ok=0
+          check /api/geo 200 || ok=1
+          check /api/session-check 401 || ok=1
+          check /api/no-such-endpoint 404 || ok=1
+          home=$(curl -sS -o /dev/null -w '%{http_code}' https://styrigx.com/ || true)
+          echo "/ -> $home (Pages)"
+          case "$home" in 2*|3*) ;; *) echo "::error::homepage returned $home"; ok=1;; esac
+          exit $ok

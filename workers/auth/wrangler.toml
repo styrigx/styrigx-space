@@ -1,4 +1,4 @@
-# styrigx-auth-gateway：主站鉴权 Worker（CI 部署；目前只接 /api/geo 试水）
+# styrigx-auth-gateway：主站鉴权 Worker（CI 部署；PR3 起承接 styrigx.com/api/*）
 #
 # 代码在 workers/auth/src/，直接复用 functions/_middleware.js 和 functions/api/*。
 # 上线步骤：PR1 建好 → PR2 CI 真部署（仍不挂路由）→ PR3 先切 styrigx.com/api/geo 试水，再整体切 /api/*。
@@ -14,11 +14,18 @@ compatibility_date = "2026-10-09"
 workers_dev = false
 preview_urls = false
 
-# 路由：先只接 /api/geo 试水（只返回定位，不碰登录/会话）。其余 /api 仍由 Pages 处理。
-# 回滚：删掉这一段再部署，或在 Cloudflare 后台删这条路由，立刻回到 Pages。
-# 试水没问题后，整体切换改成 pattern = "styrigx.com/api/*"。
+# 日志：在后台 Observability 里看每个请求的路径、状态码、耗时和报错，方便切换后排查。
+# 写在这里是为了不被 CI 部署覆盖（后台手动开的设置会被下一次部署改回）。
+# 代码只打印错误名和非敏感诊断信息，不打印 cookie、令牌或密钥。免费版每天 20 万条、保留 3 天。
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+# 路由：整体承接 styrigx.com/api/*（PR2 /api/geo 试水通过后切换）。
+# 页面、/avatar/* 和 *.pages.dev 预览仍由 Pages 处理；Pages 上的 functions/api 原样保留，作为回滚目标。
+# 回滚：在 Cloudflare 后台删掉这条路由（秒级生效，流量回到 Pages），再把这里改回 /api/geo 或删掉后部署。
 [[routes]]
-pattern = "styrigx.com/api/geo"
+pattern = "styrigx.com/api/*"
 zone_name = "styrigx.com"
 
 # ---- 明文变量（与 Pages 项目 styrigx-space 的 production 一致；公钥已改放 Secrets Store）----
