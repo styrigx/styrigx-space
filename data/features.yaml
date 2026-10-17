@@ -28,6 +28,14 @@ features:
       - {id: terra, zh: 陶土, en: Terracotta}
       - {id: violet, zh: 紫, en: Violet}
       - {id: rose, zh: 蔷薇, en: Rose}
+      - {id: cherry, zh: 樱桃, en: Cherry}
+      - {id: tangerine, zh: 橘子, en: Tangerine}
+      - {id: amber, zh: 琥珀, en: Amber}
+      - {id: matcha, zh: 抹茶, en: Matcha}
+      - {id: teal, zh: 青碧, en: Teal}
+      - {id: indigo, zh: 靛蓝, en: Indigo}
+      - {id: orchid, zh: 兰紫, en: Orchid}
+      - {id: graphite, zh: 石墨, en: Graphite}
     default: lake
     key: sgx-palette
     section: theme

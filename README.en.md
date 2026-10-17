@@ -20,7 +20,7 @@ To understand the world, take it apart; to believe in it, put it back together.
 
 ## What is this
 
-My personal homepage, built to feel like a Samsung phone. Posts and the sites I use live as apps on the home screen. The interface is Styrigx UI, my own take on One UI 8.5, and it works on phone, tablet and DeX.
+My personal homepage, built to feel like a Samsung phone. Posts and the sites I use live as apps on the home screen. The interface is Styrigx UI, my own take on One UI 9.0, and it works on phone, tablet and DeX.
 
 ## Preview
 

@@ -1,6 +1,7 @@
 /**
  * @fileoverview 共享 UI 设置 cookie（5.2）：主站写入，书站读取。
- * 只含 UI 设置（时区、时钟、天气），不含任何凭证或会话信息。
+ * 只含 UI 设置（时区、时钟、天气；B2-7 起加外观：深浅色、调色板、字体大小、减弱动效），不含任何凭证或会话信息。
+ * 子站（book / blog）首帧前读它，让外观跟主站一致（主站 localStorage 是唯一来源，cookie 只是镜像，子站只读不写）。
  * cookie：sgx-ui=<base64url JSON>; Domain=styrigx.com; Path=/; Max-Age=34560000; SameSite=Lax; Secure
  * 不加 HttpOnly（书站要用 JS 读）。
  */
@@ -61,12 +62,14 @@ function readCookie() {
  *   tz1←sgx-tz1（sgx-tz1-auto 为真写 "auto"）；tz2←sgx-tz2；h12←sgx-hour12；
  *   clock←sgx-gl-clockstyle；wx←sgx-weather-show；unit←sgx-temp-unit；
  *   loc←sgx-weather-loc；city←sgx-weather-city；precise←sgx-weather-precise。
+ *   B2-7（v2）外观：mode←sgx-theme-mode（system/light/dark）；pal←sgx-palette（缺省 lake）；
+ *   fs←sgx-font-size（small/standard/large）；rm←sgx-reduced-motion（"1" 为 1）。
  * sgx-weather 是数据缓存，不进 cookie。
  */
 export function syncUiCookie() {
   var tz1Auto = boolOnNull('sgx-tz1-auto');
   var payload = {
-    v: 1,
+    v: 2,
     tz1: tz1Auto ? 'auto' : (ls('sgx-tz1') || ''),
     tz2: ls('sgx-tz2') || '',
     h12: ls('sgx-hour12') === '12' ? 1 : 0,
@@ -76,6 +79,10 @@ export function syncUiCookie() {
     loc: ls('sgx-weather-loc') || 'auto',
     city: parseJson(ls('sgx-weather-city')),
     precise: parseJson(ls('sgx-weather-precise')),
+    mode: ['light', 'dark'].indexOf(ls('sgx-theme-mode') || '') >= 0 ? ls('sgx-theme-mode') : 'system',
+    pal: /^[a-z]{2,16}$/.test(ls('sgx-palette') || '') ? ls('sgx-palette') : 'lake',
+    fs: ['small', 'large'].indexOf(ls('sgx-font-size') || '') >= 0 ? ls('sgx-font-size') : 'standard',
+    rm: ls('sgx-reduced-motion') === '1' ? 1 : 0,
   };
   var json = JSON.stringify(payload);
   /* base64url 编码（中文城市名需先 UTF-8） */
