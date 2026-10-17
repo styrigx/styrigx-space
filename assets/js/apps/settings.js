@@ -1088,9 +1088,111 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
         if (timer) clearTimeout(timer);
         pushSetsoHist(input.value);
         render(input.value);
+        input.blur(); /* B1-6c：回车 = 收键盘、搜索栏沉底，看结果 */
       }
     });
     render(input.value); /* B1-6b：进页即渲染（空输入时显示最近搜索卡） */
+
+    /* ===== B1-6c：键盘 / 沉底 / 返回手势 / 内容置顶 / ⋮ × 切换 ===== */
+    const cap = document.getElementById('sgx-cap-setsearch');
+    const capMore = cap ? cap.querySelector('[data-cap-more]') : null;
+    const capClear = cap ? cap.querySelector('[data-cap-clear]') : null;
+    /* ⋮ / ×：未输入显示 ⋮，有输入显示 × */
+    function syncTools() {
+      const has = input.value.length > 0;
+      if (capMore) /** @type {HTMLElement} */ (capMore).hidden = has;
+      if (capClear) /** @type {HTMLElement} */ (capClear).hidden = !has;
+    }
+    input.addEventListener('input', syncTools);
+    [capMore, capClear].forEach(function (b) {
+      /* 点按钮不抢输入框焦点（键盘态下点 × 不收键盘） */
+      if (b) b.addEventListener('pointerdown', function (e) { e.preventDefault(); });
+    });
+    if (capClear) {
+      capClear.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (timer) clearTimeout(timer);
+        input.value = '';
+        syncTools();
+        render('');
+        contentFirst();
+        try { input.focus({ preventScroll: true }); } catch (err) {}
+      });
+    }
+    if (capMore) {
+      /* 胶囊 ⋮ = 顶栏 ⋮（同一个菜单） */
+      capMore.addEventListener('click', function (e) {
+        e.stopPropagation();
+        const tb = /** @type {HTMLElement|null} */ (document.querySelector('.sgx-tb-pill .sgx-tb-more'));
+        if (tb) tb.click();
+      });
+    }
+    syncTools();
+
+    /* 内容置顶：滚过标题区，内容紧贴顶栏下方（顶栏下沿 68px + 16px）；往下拉到顶才露出大标题 */
+    function contentFirst() {
+      const heads = document.querySelectorAll('[data-subpage-head]');
+      let head = null;
+      for (let i = 0; i < heads.length; i++) {
+        if (heads[i].getClientRects().length) { head = /** @type {HTMLElement} */ (heads[i]); break; }
+      }
+      if (!head) return;
+      const bar = document.querySelector('.sgx-topbar');
+      const barBottom = bar ? bar.getBoundingClientRect().bottom : 68;
+      const y = Math.max(0, head.getBoundingClientRect().bottom + window.scrollY - barBottom - 16);
+      window.scrollTo(0, y);
+    }
+    try { history.scrollRestoration = 'manual'; } catch (e) {}
+    contentFirst();
+    /* 搜索后同样内容置顶 */
+    input.addEventListener('input', function () {
+      window.setTimeout(contentFirst, 170);
+    });
+
+    /* 返回手势：键盘弹出时 push 一条同 URL 的哨兵；popstate 时
+       - 键盘态：只收键盘（blur → 胶囊沉底），停留本页；
+       - 沉底态：不拦截，继续返回上一页（设置主页）。
+       哨兵在栈里期间 html[data-sgx-pop-hold] = 1，inpagenav 的 popstate 不导航。 */
+    let armed = false;
+    const root = document.documentElement;
+    function isKb() {
+      return document.activeElement === input || !!(cap && cap.classList.contains('open'));
+    }
+    function arm() {
+      if (armed) return;
+      try {
+        history.pushState(
+          { url: window.location.href, scrollY: window.scrollY, sgxSetsoKb: 1 },
+          '',
+          window.location.href
+        );
+        armed = true;
+        root.dataset.sgxPopHold = '1';
+      } catch (e) {}
+    }
+    input.addEventListener('focus', arm);
+    if (document.activeElement === input) arm(); /* 进页时已自动聚焦 */
+    /* capture：先于胶囊自己的 popstate 兜底（它会 blur），这样还能判断出事发时是否键盘态 */
+    window.addEventListener(
+      'popstate',
+      function () {
+        if (!armed) return;
+        armed = false;
+        const kb = isKb();
+        window.setTimeout(function () {
+          delete root.dataset.sgxPopHold;
+        }, 0);
+        if (kb) {
+          try { input.blur(); } catch (e) {}
+          return;
+        }
+        /* 沉底态：哨兵已出栈，再退一步才是真正的返回 */
+        window.setTimeout(function () {
+          history.back();
+        }, 0);
+      },
+      true
+    );
     on(page, 'click', function (/** @type {MouseEvent} */ e) {
       const t = /** @type {Element|null} */ (e.target);
       /* B1-6b：最近搜索卡交互 */
