@@ -312,16 +312,6 @@ features:
     section: apps
     requires: []
 
-  - id: apps-hidden
-    name: {zh: 隐藏应用, en: Hidden apps}
-    build: true
-    user: true
-    type: json
-    default: []
-    key: sgx-apps-hidden
-    section: apps
-    requires: []
-
   - id: well-tip
     name: {zh: 15 分钟提醒, en: 15-minute reminder}
     desc: {zh: 停留 15 分钟后温和提醒一次, en: A gentle nudge after 15 minutes here}

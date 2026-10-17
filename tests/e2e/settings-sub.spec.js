@@ -1,6 +1,6 @@
 /**
  * 2.6.0：设置二级页。真实断言（不 mock 自家逻辑）：
- * - Mobile /settings/ 只留账户卡 + 8 分类入口，无选项组
+ * - Mobile /settings/ 只留账户卡 + 9 分类入口，无选项组（B2-2 新增 Good Lock）
  * - DeX/PC /settings/ 左右双栏：左分类导航、右详情窗格（复用子页同一套 partial）
  * - 7 个子页可达、有返回键、有对应选项组
  * - 旧 hash 跳转到子页
@@ -16,6 +16,7 @@ const CATS = [
   { id: 'security', zh: '安全与隐私', en: 'Security and privacy' },
   { id: 'manage', zh: '常规管理', en: 'General management' },
   { id: 'apps', zh: '应用', en: 'Apps' },
+  { id: 'goodlock', zh: 'Good Lock', en: 'Good Lock' },
   { id: 'accessibility', zh: '辅助功能', en: 'Accessibility' },
   { id: 'wellbeing', zh: '数字健康', en: 'Digital wellbeing' },
   { id: 'about', zh: '关于本站', en: 'About' },
@@ -39,12 +40,12 @@ async function pinLang(pg, lang) {
 /* Mobile（竖屏）：单列分类列表 */
 test.use({ viewport: { width: 412, height: 915 } });
 
-test('settings home (mobile): account card + 8 category links, no option groups', async ({ page: pg }) => {
+test('settings home (mobile): account card + 9 category links, no option groups', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await gotoSettings(pg, '/settings/');
   // 账户卡（移动端只显示分类列表里的那张）
   await expect(pg.locator('.set-mobile-only .sgx-account-card').first()).toBeVisible();
-  // 8 个分类入口（2.8.0：分类列表移出 .set-mobile-only，改由 .set-main 内 aria-label="分类" 的 section 承载）
+  // 9 个分类入口（2.8.0：分类列表移出 .set-mobile-only，改由 .set-main 内 aria-label="分类" 的 section 承载）
   const catList = pg.locator('.set-main section[aria-label="分类"]');
   for (const c of CATS) {
     const link = catList.locator(`.set-row[href="/settings/${c.id}/"]`);
@@ -53,7 +54,7 @@ test('settings home (mobile): account card + 8 category links, no option groups'
     await expect(link, `${c.id} visible`).toBeVisible();
   }
   // 选项组与双栏导航在移动端不显示（DOM 存在但隐藏）
-  for (const gid of ['#sg-display', '#sg-theme', '#sg-manage', '#sg-apps', '#sg-accessibility', '#sg-wellbeing', '#sg-about']) {
+  for (const gid of ['#sg-display', '#sg-theme', '#sg-manage', '#sg-apps', '#sg-goodlock', '#sg-accessibility', '#sg-wellbeing', '#sg-about']) {
     await expect(pg.locator(gid), gid).toBeHidden();
   }
   await expect(pg.locator('#set-cat-nav')).toBeHidden();
@@ -66,10 +67,10 @@ test.describe('settings home (dex): two-pane', () => {
   test('left nav switches right pane in place', async ({ page: pg }) => {
     await pinLang(pg, 'zh');
     await gotoSettings(pg, '/settings/');
-    // 左栏导航可见、8 项
+    // 左栏导航可见、9 项
     const nav = pg.locator('#set-cat-nav');
     await expect(nav).toBeVisible();
-    await expect(nav.locator('.set-cat')).toHaveCount(8);
+    await expect(nav.locator('.set-cat')).toHaveCount(9);
     // 移动端列表隐藏
     await expect(pg.locator('.set-mobile-only')).toBeHidden();
     // 默认显示 display 窗格
@@ -87,7 +88,7 @@ test.describe('settings home (dex): two-pane', () => {
   });
 });
 
-test('settings home (en): 8 category links', async ({ page: pg }) => {
+test('settings home (en): 9 category links', async ({ page: pg }) => {
   await pinLang(pg, 'en');
   await gotoSettings(pg, '/en/settings/');
   for (const c of CATS) {
@@ -103,7 +104,8 @@ const SUBCHECKS = {
   /* manage：测试构建（SGX_TEST_NO_WEATHER=1，见 deploy.yml）编译期禁用天气组件，
      #row-weather 只在生产构建输出，见 layouts/partials/feature.html */
   manage: ['#row-lang', '#row-datetime'],
-  apps: ['#row-app-files', '#row-app-store', '#row-app-browser'],
+  apps: ['#row-app-files', '#row-app-browser'],
+  goodlock: ['#mod-wellbeing', '#mod-parallax', '#mod-clockstyle', '#mod-sound', '#mod-keys', '#mod-edgeglow'],
   accessibility: ['#row-motion'],
   wellbeing: ['#well-v-total'],
   about: ['#row-reset'],
@@ -292,4 +294,64 @@ test('B2-1 security page: no jump-trace diagnostics', async ({ page: pg }) => {
   await pg.locator('.sgx-tb-back').click();
   await pg.waitForURL(/\/settings\/$/, { timeout: 15000 });
   expect(await pg.evaluate(() => sessionStorage.getItem('sgx-last-jump'))).toBeNull();
+});
+
+/* B2-2：应用商店删除；Good Lock 迁入设置（应用 与 辅助功能 之间）；邀请码站进浏览器书签「我的项目」 */
+test('B2-2 Good Lock is a settings category between Apps and Accessibility', async ({ page: pg }) => {
+  await pinLang(pg, 'zh');
+  await gotoSettings(pg, '/settings/');
+  const hrefs = await pg.locator('.set-main section[aria-label="分类"] .set-row').evaluateAll((els) => els.map((e) => e.getAttribute('href')));
+  const i = hrefs.indexOf('/settings/goodlock/');
+  expect(i).toBeGreaterThan(0);
+  expect(hrefs[i - 1]).toBe('/settings/apps/');
+  expect(hrefs[i + 1]).toBe('/settings/accessibility/');
+  // 应用分类不再有应用商店
+  await gotoSettings(pg, '/settings/apps/');
+  await expect(pg.locator('#row-app-store')).toHaveCount(0);
+  await expect(pg.locator('main')).not.toContainText('应用商店');
+});
+
+test('B2-2 Good Lock subpage: rows toggle the same keys', async ({ page: pg }) => {
+  await pinLang(pg, 'zh');
+  await gotoSettings(pg, '/settings/goodlock/');
+  await expect(pg.locator('.subpage-title').first()).toContainText('Good Lock');
+  const row = pg.locator('#mod-sound');
+  const sw = row.locator('.gl-switch');
+  await expect(sw).toHaveAttribute('aria-checked', 'false');
+  await row.click();
+  await expect(sw).toHaveAttribute('aria-checked', 'true');
+  expect(await pg.evaluate(() => localStorage.getItem('sgx-gl-sound'))).toBe('1');
+  await row.click();
+  await expect(sw).toHaveAttribute('aria-checked', 'false');
+  expect(await pg.evaluate(() => localStorage.getItem('sgx-gl-sound'))).toBeNull();
+  // 默认开启的模块：关掉写 '0'
+  const wb = pg.locator('#mod-wellbeing');
+  await expect(wb.locator('.gl-switch')).toHaveAttribute('aria-checked', 'true');
+  await wb.click();
+  expect(await pg.evaluate(() => localStorage.getItem('sgx-gl-wellbeing'))).toBe('0');
+});
+
+test('B2-2 store and its apps are gone; invite site in browser bookmarks', async ({ page: pg }) => {
+  await pinLang(pg, 'zh');
+  await blockExternalRequests(pg);
+  await pg.goto('/', { waitUntil: 'domcontentloaded' });
+  await expect(pg.locator('#home-widgets')).toBeVisible({ timeout: 15000 });
+  for (const sel of ['[data-dock="store"]', '[data-navpage="store"]', 'a[href="/store/"]', 'a[href="/ai/"]', 'a[href="/books/"]', 'a[href="/music/"]', 'a[href="/goodlock/"]', '#np-widget', '#books', '#music', '[data-appid]']) {
+    await expect(pg.locator(sel), sel).toHaveCount(0);
+  }
+  await expect(pg.locator('#mobile-dock .dock-btn')).toHaveCount(3);
+  for (const p of ['/store/', '/ai/', '/books/', '/music/']) {
+    const r = await pg.request.get(p);
+    expect(r.status(), p).toBe(404);
+  }
+  const idx = await (await pg.request.get('/files-index.json')).json();
+  const bad = idx.items.filter((it) => it.type === 'book' || it.type === 'music' || /\/(store|ai|books|music)\//.test(it.url || ''));
+  expect(bad).toEqual([]);
+  // 浏览器：「我的主页」下面紧跟「我的项目」，里面是邀请码站
+  await pg.goto('/browser/', { waitUntil: 'domcontentloaded' });
+  const titles = await pg.locator('.brw-catgroup .brw-group-title').evaluateAll((els) => els.map((e) => Array.from(e.childNodes).filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim()));
+  expect(titles.slice(0, 3)).toEqual(['我的主页', '我的项目', 'AI 资讯与 Agent']);
+  const proj = pg.locator('.brw-catgroup').nth(1);
+  await expect(proj.locator('a[href="https://muse-invite.styrigx.com"]')).toHaveCount(1);
+  await expect(proj).toContainText('邀请码站');
 });

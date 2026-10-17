@@ -538,7 +538,6 @@
   /* 数据卡片固定最小高度：数据到来前后尺寸不变 */
   #dual-clock { min-height: 168px; }
   #weather { min-height: 190px; }
-  #np-widget { min-height: 138px; }
   #wx-temp { font-variant-numeric: tabular-nums; }
   .wx-fade { transition: opacity .45s ease; }
   .wx-fade.wx-out { opacity: 0; }
@@ -912,29 +911,6 @@
     .dock-btn { min-height: 48px; }
   }
 
-  /* ===== 触屏/鼠标提示文案切换 ===== */
-  .msg-tap { display: none; }
-  @media (hover:none) { .msg-tap { display: inline; } .msg-hover { display: none; } }
-
-  /* ===== 书单/歌单书架页 ===== */
-  .shelf-cover { transition: transform .25s ease, box-shadow .25s ease; }
-  .shelf-card {
-    .shelf-note {
-      position: absolute; inset: 0; display: flex; align-items: flex-end; padding: .9rem;
-      background: linear-gradient(to top, rgba(0,0,0,.82), rgba(0,0,0,.28) 55%, transparent 80%);
-      /* stylelint-disable-next-line color-no-hex */
-      color: #fff; opacity: 0; transition: opacity .25s ease; pointer-events: none;
-      p { font-size: .8rem; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
-    }
-  }
-  @media (hover:hover) {
-    .shelf-card:hover .shelf-cover { transform: translateY(-3px); box-shadow: 0 10px 24px -8px rgba(0,0,0,.25); }
-    .shelf-card:hover .shelf-note { opacity: 1; }
-  }
-  @media (hover:none) {
-    .shelf-cover:active { transform: scale(.97); }
-  }
-
   /* ===== 数字健康：分段进度条 ===== */
   .wb-bar {
     display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: var(--m-container); gap: 2px;
@@ -1053,6 +1029,9 @@
   .layout-dex #home-widgets { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .layout-dex #home-widgets > .widget { grid-column: span 1/span 1; }
   .layout-dex #home-widgets > .widget.wb-full { grid-column: span 2/span 2; }
+  /* B2-2：播放器删除后便签横跨两列 + dense 回填，避免数字花园单独占一行留空 */
+  .layout-dex #home-widgets { grid-auto-flow: dense; }
+  .layout-dex #home-widgets > #now { grid-column: span 2/span 2; }
   @media (min-width:1024px) {
     .layout-dex #home-widgets { grid-template-columns: repeat(3,minmax(0,1fr)); }
     .layout-dex #home-widgets > .widget.wb-full { grid-column: span 3/span 3; }
@@ -1065,13 +1044,14 @@
   /* ----- PC（2.5.0）：栅格布局 —— 容器 1440 居中，左右边缘对齐 ----- */
   .layout-pc .home-wrap { max-width: 1440px; }
   /* 首页小组件：2 列栅格 + dense 回填；大卡片（个人卡/博客/屏幕时间/天气）横跨整行，
-     小卡片两两并排（时钟+播放器、便签+数字花园），每行铺满无右侧空白 */
+     小卡片两两并排（时钟+便签），数字花园横跨整行（B2-2 删除播放器后），每行铺满无右侧空白 */
   .layout-pc #home-widgets { grid-template-columns: repeat(2,minmax(0,1fr)); grid-auto-flow: dense; }
   .layout-pc #home-widgets > .widget { grid-column: span 1/span 1; }
   .layout-pc #home-widgets > #w-profile,
   .layout-pc #home-widgets > #w-blog,
   .layout-pc #home-widgets > #w-screen,
-  .layout-pc #home-widgets > #weather { grid-column: span 2/span 2; }
+  .layout-pc #home-widgets > #weather,
+  .layout-pc #home-widgets > #w-garden { grid-column: span 2/span 2; }
   /* DeX/PC 下彻底不渲染桌面图标网格（与底部 Dock 重复；DeX 下还会被 Dock 压住、上半截漏出） */
   .layout-dex #home-apps, .layout-pc #home-apps { display: none; }
   /* ----- 手机模式强制（宽屏下也保持手机布局） ----- */
@@ -2238,16 +2218,12 @@
      避免滚动条跳动（auto 关键字会记住上次真实渲染尺寸，只在首次用估算值）。 */
   .brw-qa-grid,
   .brw-qa-grid-ov,
-  #dex-drawer-grid,
-  .shelf-grid,
-  .ai-grid {
+  #dex-drawer-grid {
     content-visibility: auto;
   }
   .brw-qa-grid { contain-intrinsic-size: auto 420px; }
   .brw-qa-grid-ov { contain-intrinsic-size: auto 420px; }
   #dex-drawer-grid { contain-intrinsic-size: auto 480px; }
-  .shelf-grid { contain-intrinsic-size: auto 640px; }
-  .ai-grid { contain-intrinsic-size: auto 320px; }
   /* 注：.brw-qa-grid（浏览器页快捷访问）在上面 components 层已带 content-visibility，
      这里不再重复。 */
 

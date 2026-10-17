@@ -6,6 +6,11 @@
     - name: X
       url: https://x.com/styrigx
       desc: Daily updates
+- category: My projects
+  sites:
+    - name: Invite Codes
+      url: https://muse-invite.styrigx.com
+      desc: Free Muse invite codes
 - category: AI News & Agents
   sites:
     - name: The Rundown AI

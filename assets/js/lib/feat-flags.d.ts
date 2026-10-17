@@ -22,7 +22,6 @@ declare const SGX_FEAT_SEARCH_ENGINE: boolean;
 declare const SGX_FEAT_ADDRBAR_POS: boolean;
 declare const SGX_FEAT_FILES_VIEW: boolean;
 declare const SGX_FEAT_FILES_HOME: boolean;
-declare const SGX_FEAT_APPS_HIDDEN: boolean;
 declare const SGX_FEAT_WELL_TIP: boolean;
 /* 2.8.0：SGX_FEAT_LEGACY_LOCK_SCREEN 已彻底删除 */
 declare const SGX_FEAT_OWNER_GATE: boolean;

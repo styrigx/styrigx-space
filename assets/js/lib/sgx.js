@@ -5,8 +5,6 @@
 
 /**
  * @typedef {Object} SgxBridge
- * @property {(page: string, q: string) => string} [capSearch] 胶囊搜索回调（store 页设置）
- * @property {() => void} [npPause] 暂停首页试听（首页 bundle 设置，书架页读取）
  */
 
 /** @type {any} */

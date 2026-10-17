@@ -5,7 +5,7 @@
  *      页脚最后一行的底边 ≤ 胶囊顶边 - 16px。
  * 旧版选的是 main .set-layout 里的 p.text-xs，根本不是真正的页脚（页脚是 baseof 里的 <footer>），
  * 所以那两条“通过”等于没测。这里直接量 <footer> 里的两行文字。
- * 覆盖：所有渲染 sgx-capsule.html 的页面（设置主页、设置子页、我的文件、应用商店），360 / 412 两种宽度。
+ * 覆盖：所有渲染 sgx-capsule.html 的页面（设置主页、设置子页、我的文件），360 / 412 两种宽度。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, expect } = require('./helpers');
@@ -19,7 +19,6 @@ const PAGES = [
   { path: '/settings/', cap: '#sgx-cap-settings' },
   { path: '/settings/display/', cap: '#sgx-cap-settings' },
   { path: '/files/', cap: '#sgx-cap-files' },
-  { path: '/store/', cap: '#sgx-cap-store' },
 ];
 
 for (const vp of VIEWPORTS) {

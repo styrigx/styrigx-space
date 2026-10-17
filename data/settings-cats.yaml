@@ -40,8 +40,17 @@ cats:
     fg: ""
     zh: 应用
     en: Apps
-    subzh: 我的文件、应用商店、浏览器
-    suben: My Files, Store, Internet
+    subzh: 我的文件、浏览器
+    suben: My Files, Internet
+  - id: goodlock
+    icon: gift
+    appicon: true
+    bg: ""
+    fg: ""
+    zh: Good Lock
+    en: Good Lock
+    subzh: 实验性功能模块
+    suben: Experimental modules
   - id: accessibility
     icon: person
     bg: bg-m-tertiary-container

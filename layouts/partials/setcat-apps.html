@@ -12,16 +12,6 @@
         {{ partial "icon.html" "chev-r" }}
       </div>
       {{ end }}
-      {{ if partial "feature.html" "apps-hidden" }}
-      <div class="set-row" id="row-app-store" role="button" tabindex="0">
-        <span class="set-app-ic">{{ partial "icon.html" (dict "name" "store" "uid" "setapps2") }}</span>
-        <span class="flex-1 min-w-0">
-          <span class="block font-medium">{{ if $isEn }}Store{{ else }}应用商店{{ end }}</span>
-          <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="app-store-val">--</span>
-        </span>
-        {{ partial "icon.html" "chev-r" }}
-      </div>
-      {{ end }}
       {{ if partial "feature.html" "search-engine" }}
       <div class="set-row" id="row-app-browser" role="button" tabindex="0">
         <span class="set-app-ic">{{ partial "icon.html" (dict "name" "browser" "uid" "setapps3") }}</span>

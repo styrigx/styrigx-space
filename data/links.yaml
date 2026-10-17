@@ -6,6 +6,11 @@
     - name: X
       url: https://x.com/styrigx
       desc: 日常动态
+- category: 我的项目
+  sites:
+    - name: 邀请码站
+      url: https://muse-invite.styrigx.com
+      desc: Muse 邀请码免费共享
 - category: AI 资讯与 Agent
   sites:
     - name: The Rundown AI

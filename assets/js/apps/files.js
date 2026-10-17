@@ -59,14 +59,12 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
     chev: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-m-on-surface-variant shrink-0"><path d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>',
     folder: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>',
     pen: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.86 4.49l1.69-1.69a1.88 1.88 0 112.65 2.65L10.58 16.07a4.5 4.5 0 01-1.9 1.13L6 18l.8-2.69a4.5 4.5 0 011.13-1.9z"/></svg>',
-    book: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.04A9 9 0 006 3.75c-1.05 0-2.06.18-3 .51v14.25A9 9 0 016 18c2.3 0 4.41.87 6 2.29m0-14.25a9 9 0 016-2.29c1.05 0 2.06.18 3 .51v14.25A9 9 0 0018 18a9 9 0 00-6 2.29m0-14.25v14.25"/></svg>',
-    music: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
   };
 
   /* ---------- 模式与偏好 ---------- */
   const params = new URLSearchParams(location.search);
   const qtype = params.get('type');
-  const VALID = ['post', 'book', 'music', 'site', 'fav'];
+  const VALID = ['post', 'site', 'fav'];
   const listMode = VALID.indexOf(qtype || '') >= 0;
 
   const view = get('sgx-files-view', null) || {};
@@ -597,7 +595,7 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
       const lang = en ? 'en' : 'zh';
       const arr = (j && j.items) || j;
       DATA = (Array.isArray(arr) ? arr : []).filter(function (it) {
-        return it && (!it.lang || it.lang === lang) && (it.type === 'post' || it.type === 'book' || it.type === 'music' || it.type === 'site');
+        return it && (!it.lang || it.lang === lang) && (it.type === 'post' || it.type === 'site');
       });
       if (listMode) renderList();
       else {

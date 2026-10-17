@@ -20,7 +20,7 @@ To understand the world, take it apart; to believe in it, put it back together.
 
 ## What is this
 
-My personal homepage, built to feel like a Samsung phone. Posts, books, music and the sites I use live as apps on the home screen. The interface is Styrigx UI, my own take on One UI 8.5, and it works on phone, tablet and DeX.
+My personal homepage, built to feel like a Samsung phone. Posts and the sites I use live as apps on the home screen. The interface is Styrigx UI, my own take on One UI 8.5, and it works on phone, tablet and DeX.
 
 ## Preview
 
@@ -35,9 +35,8 @@ DeX
 
 | App | Path | What it is |
 |---|---|---|
-| Home | `/en/` | Launcher: app icons, widgets and the Dock. Widgets include profile card, dual clocks, music, weather, Now notes, latest blog posts, digital garden, screen time, bookshelf, playlist and collections. |
-| My Files | `/en/files/` | Only things I wrote: posts, books, music, blog, library. |
-| Store | `/en/store/` | Apps with other people involved: AI, bookshelf, playlist, Good Lock, invite board; can be shown / hidden. |
+| Home | `/en/` | Launcher: app icons, widgets and the Dock. Widgets include profile card, dual clocks, weather, Now notes, latest blog posts, digital garden, screen time and collections. |
+| My Files | `/en/files/` | Only things I wrote: posts, blog, library. |
 | Internet | `/en/browser/` | External sites and bookmarks, switchable search engines, voice search. |
 | Settings | `/en/settings/` | Display, language, layout and other system settings, stored locally. |
 

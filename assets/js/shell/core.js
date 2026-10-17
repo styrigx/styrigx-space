@@ -1,7 +1,7 @@
 /**
  * @fileoverview 全站公共 core：所有页面入口先初始化它。
  * 包含：搜索快捷键/返回历史、子页面标题联动、主题、Dock/顶栏/抽屉、
- * Good Lock 全站模块、应用可见性、滚动边缘效果、布局钩子。
+ * Good Lock 全站模块、滚动边缘效果、布局钩子。
  * 必须跨脚本共享的最小 API 挂到 window.SGX（见 sgx.js）。
  */
 import { SGX } from '../lib/sgx.js';
@@ -13,7 +13,6 @@ import { initThemeListener } from '../lib/theme.js';
 import { applyTheme, setThemeMode } from '../lib/theme.js';
 import { initNav } from './nav.js';
 import { initGoodLock } from './goodlock.js';
-import { initAppVisibility } from './appvis.js';
 import { initInPageNav } from './inpagenav.js';
 import { initScrollFx } from './scrollfx.js';
 import { initDexBridge } from './layout.js';
@@ -74,7 +73,6 @@ export function initCore() {
   initThemeListener();
   initNav(S);
   initGoodLock();
-  initAppVisibility();
   initInPageNav();
   initScrollFx(S);
   initFeatSync();

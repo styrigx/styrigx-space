@@ -1,7 +1,7 @@
 /**
  * @fileoverview 2.9.0 页内导航（In-Page Navigation）。
  *
- * Dock 四个入口（browser / files / store / settings）点击时只替换内容区，
+ * Dock 三个入口（browser / files / settings）点击时只替换内容区，
  * 顶栏和 Dock 的 DOM 节点始终不替换。
  *
  * 流程：
@@ -15,7 +15,7 @@
  * 动画：document.startViewTransition 可用则用，否则 CSS transform/opacity；
  * prefers-reduced-motion 时只做显隐。
  *
- * 只拦截 Dock 四个入口和同源链接；带修饰键、target=_blank、外部链接走原生跳转。
+ * 只拦截 Dock 三个入口和同源链接；带修饰键、target=_blank、外部链接走原生跳转。
  * 不使用 BroadcastChannel、storage 或前端内存作为锁屏状态——每次 fetch 都经过
  * middleware 验签，等于每次切页都问了一次服务端。
  */
@@ -26,8 +26,8 @@ import { syncTopbar } from './head-buttons.js';
 const CONTENT_SELECTOR = 'main';
 const TITLE_SELECTOR = 'main h1, main h2, [data-page-title]';
 
-/** Dock 四个入口的基础路径（不含语言前缀） */
-const DOCK_BASE_PATHS = ['/files/', '/store/', '/browser/', '/settings/'];
+/** Dock 三个入口的基础路径（不含语言前缀） */
+const DOCK_BASE_PATHS = ['/files/', '/browser/', '/settings/'];
 
 /**
  * 判断 pathname 是否是 Dock 页（含 /en/ 前缀）。
@@ -355,7 +355,7 @@ function shouldIntercept(e, a) {
 
 /**
  * 初始化页内导航。
- * @param {string[]} dockPaths - Dock 四个入口的路径（如 ['/browser/', '/files/', ...]）
+ * @param {string[]} dockPaths - Dock 三个入口的路径（如 ['/browser/', '/files/', ...]）
  */
 export function initInPageNav() {
   // 拦截 Dock 点击（目标和当前页都必须是 Dock 页）

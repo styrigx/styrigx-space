@@ -1,6 +1,6 @@
 /**
  * 2.4.0 E：视觉回归测试。
- * 5 视口 × 中英 × 深浅色 × 主要页面（/、/files/、/store/、/browser/、/settings/）
+ * 5 视口 × 中英 × 深浅色 × 主要页面（/、/files/、/browser/、/settings/ 等；B2-2 删除 /store/）
  * + F 的两张基准（弹层打开、引擎菜单打开）。
  * 首次运行：npx playwright test --update-snapshots 生成基准；
  * 后续运行自动对比，不一致即失败。
@@ -19,7 +19,7 @@ const VIEWPORTS = {
   desktop: { width: 1920, height: 1080 },
 };
 /* 安全与隐私：新页面加入视觉回归（先只报告，基线未生成前不阻塞） */
-const PAGES = ['/', '/files/', '/store/', '/browser/', '/settings/', '/settings/security/', '/settings/security/lock/', '/settings/security/owner/'];
+const PAGES = ['/', '/files/', '/browser/', '/settings/', '/settings/security/', '/settings/security/lock/', '/settings/security/owner/'];
 const LANGS = [
   { prefix: '', name: 'zh' },
   { prefix: '/en', name: 'en' },
@@ -47,24 +47,13 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
         test(name, async ({ page: pg }) => {
           await pg.setViewportSize(vp);
           await blockExternalRequests(pg);
-          /* 2.8.0：files 页面书单 mock（page.route 后注册优先于 blockExternalRequests 的通配拦截）
-             封面 URL 也 route 到本地占位图，避免被拦成破图 */
+          /* 2.8.0：files 页面 mock（page.route 后注册优先于 blockExternalRequests 的通配拦截）；B2-2 删除书单条目 */
           if (page === '/files/') {
-            /* Hark：拦截 filesindex.json，取真实响应，只替换书籍条目（固定日期 10-01~10-08，在冻结时间 10-09 的 30 天窗口内），站点等保留 */
+            /* Hark：拦截 filesindex.json，取真实响应，文章换成固定 fixture（日期在冻结时间 10-09 的 30 天窗口内），站点等保留 */
             await pg.route('**/files-index.json**', async (route) => {
               const res = await route.fetch();
               const data = await res.json();
-              const items = data.items || [];
-              /* 保留非书籍条目，书籍换成 3 本固定 */
-              const kept = items.filter((it) => it.type !== 'book');
-              const books = [
-                { id: 'book-fixture-a', type: 'book', lang: 'zh', title: 'Fixture Book A', subtitle: 'Author A', url: '/books/fixture-a/', cover: '/covers/fixture-a.png', addedAt: '2026-10-08' },
-                { id: 'book-fixture-b', type: 'book', lang: 'zh', title: 'Fixture Book B', subtitle: 'Author B', url: '/books/fixture-b/', cover: '/covers/fixture-b.png', addedAt: '2026-10-05' },
-                { id: 'book-fixture-c', type: 'book', lang: 'zh', title: 'Fixture Book C', subtitle: 'Author C', url: '/books/fixture-c/', cover: '/covers/fixture-c.png', addedAt: '2026-10-01' },
-                { id: 'book-fixture-a-en', type: 'book', lang: 'en', title: 'Fixture Book A', subtitle: 'Author A', url: '/en/books/fixture-a/', cover: '/covers/fixture-a.png', addedAt: '2026-10-08' },
-                { id: 'book-fixture-b-en', type: 'book', lang: 'en', title: 'Fixture Book B', subtitle: 'Author B', url: '/en/books/fixture-b/', cover: '/covers/fixture-b.png', addedAt: '2026-10-05' },
-                { id: 'book-fixture-c-en', type: 'book', lang: 'en', title: 'Fixture Book C', subtitle: 'Author C', url: '/en/books/fixture-c/', cover: '/covers/fixture-c.png', addedAt: '2026-10-01' },
-              ];
+              const kept = data.items || [];
               /* 固定文章 fixture（rss 被锁屏 302，真数据拿不到；用固定 2 篇保证"最近添加"稳定） */
               const posts = [
                 { id: 'post-fixture-a', type: 'post', lang: 'zh', title: 'Fixture Post A', url: 'https://blog.styrigx.com/post/fixture-a/', addedAt: '2026-10-07' },
@@ -74,36 +63,8 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
               ];
               /* 去掉原有的 post 条目（可能为 0 或不稳定），换成固定 fixture */
               const noPosts = kept.filter((it) => it.type !== 'post');
-              data.items = noPosts.concat(books).concat(posts);
+              data.items = noPosts.concat(posts);
               await route.fulfill({ response: res, json: data });
-            });
-            /* Hark：route 用前后双星号通配（实际请求可能带查询参数），带 CORS 头 */
-            const SHELF_FIXTURE = {
-              books: [
-                { title: 'Book One', author: 'Author A', cover: '/covers/1.png', date: '2026-10-01', url: '#', comment: 'Test book 1' },
-                { title: 'Book Two', author: 'Author B', cover: '/covers/2.png', date: '2026-10-02', url: '#', comment: 'Test book 2' },
-                { title: 'Book Three', author: 'Author C', cover: '/covers/3.png', date: '2026-10-03', url: '#', comment: 'Test book 3' },
-              ],
-            };
-            await pg.route('**/api/shelf**', async (route) => {
-              /* Hark 修正：goto 前 pg.url() 还是 about:blank，origin 取请求头 */
-              const origin = route.request().headers()['origin'] || '*';
-              await route.fulfill({
-                status: 200,
-                contentType: 'application/json',
-                headers: {
-                  'access-control-allow-origin': origin,
-                  'access-control-allow-credentials': 'true',
-                },
-                body: JSON.stringify(SHELF_FIXTURE),
-              });
-            });
-            /* 封面图 route 到本地 1x1 占位 */
-            await pg.route('**/covers/*', async (route) => {
-              await route.fulfill({
-                contentType: 'image/png',
-                body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64'),
-              });
             });
           }
           /* 关掉动画，保证截图稳定（goto 之前设置，context 级生效） */

@@ -179,10 +179,6 @@ export function initCapsule() {
         close();
       } else if (e.key === 'Enter') {
         doSearch();
-        if (page === 'store') {
-          input.blur();
-          close();
-        }
       }
     });
     /* 失焦后收起（延迟一点，让结果里的点击先触发） */
