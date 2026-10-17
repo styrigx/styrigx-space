@@ -72,6 +72,11 @@ jobs:
         # 访客 401、根凭证 userHandle、最后一把钥匙、sitemap、i18n、页内导航、数字健康等
         run: node --test tests/kernel/*.test.mjs tests/ui/*.test.mjs
 
+      - name: Auth Worker bundle check (styrigx-auth, dry-run)
+        # workers/auth 复用 functions/ 的代码；这里只打包不部署，import 断了 CI 就红。
+        working-directory: workers/auth
+        run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/styrigx-auth-dist
+
       - name: Layer boundary check (SGX 3.0 分层规范)
         # L0-L6 依赖方向：lib 不得 import shell/apps；shell 不得 import apps；
         # 前端不得 import functions/；api/ 只能 import _kernel/；
