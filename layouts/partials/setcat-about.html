@@ -1,4 +1,5 @@
 {{/* 2.6.0：设置子页「about」分类组。左右对齐，一行放不下才换行。
+   B2-4：顺序 版本/内核/Hugo/Tailwind/构建/构建时间；GitHub 仓库行删除；重置所有设置移到常规管理。
    版本号唯一来源：data/version.yaml（ui + sgx）；Tailwind 版本读 package-lock.json 实际安装版本。 */}}
 {{ $isEn := .isEn }}{{ $featMap := .featMap }}{{ $palettes := .palettes }}
 {{ $ver := site.Data.version }}
@@ -26,10 +27,6 @@
         <span class="text-sm text-m-on-surface-variant ml-auto text-right break-words">SGX {{ $sgxVer }}</span>
       </div>
       <div class="set-row no-ic flex-wrap gap-y-1">
-        <span class="font-medium">{{ if $isEn }}Build{{ else }}构建{{ end }}</span>
-        <span class="text-sm text-m-on-surface-variant ml-auto text-right break-words font-mono">{{ $commitShort }}</span>
-      </div>
-      <div class="set-row no-ic flex-wrap gap-y-1">
         <span class="font-medium">Hugo</span>
         <span class="text-sm text-m-on-surface-variant ml-auto text-right break-words font-mono">{{ $hugoVer }}</span>
       </div>
@@ -38,15 +35,12 @@
         <span class="text-sm text-m-on-surface-variant ml-auto text-right break-words font-mono">{{ $twVer }}</span>
       </div>
       <div class="set-row no-ic flex-wrap gap-y-1">
+        <span class="font-medium">{{ if $isEn }}Build{{ else }}构建{{ end }}</span>
+        <span class="text-sm text-m-on-surface-variant ml-auto text-right break-words font-mono">{{ $commitShort }}</span>
+      </div>
+      <div class="set-row no-ic flex-wrap gap-y-1">
         <span class="font-medium">{{ if $isEn }}Built at{{ else }}构建时间{{ end }}</span>
         <span class="text-sm text-m-on-surface-variant ml-auto text-right break-words font-mono">{{ now.Format "2006-01-02 15:04" }}</span>
-      </div>
-      <a class="set-row no-ic" href="https://github.com/styrigx/styrigx-space" target="_blank" rel="noopener">
-        <span class="flex-1 font-medium">GitHub {{ if $isEn }}repository{{ else }}仓库{{ end }}</span>
-        {{ partial "icon.html" "chev-r" }}
-      </a>
-      <div class="set-row no-ic" id="row-reset" role="button" tabindex="0">
-        <span class="flex-1 font-medium text-red-600 dark:text-red-400">{{ if $isEn }}Reset all settings{{ else }}重置所有设置{{ end }}</span>
       </div>
     </section>
 </div>

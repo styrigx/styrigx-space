@@ -4,7 +4,9 @@
 {{ $links := site.Data.links }}
 {{ if $isEn }}{{ $links = site.Data.en.links }}{{ end }}
 <div class="max-w-[1100px] mx-auto px-4 pb-40">
-  {{ partial "subpage-head.html" (dict "title" (cond $isEn "Internet" "浏览器") "isEn" $isEn) }}
+  {{/* B2-4：「设置 › 应用 › 浏览器」迁入顶栏 ⋮（#brw-more，由 head-buttons.js 搬进顶栏长条） */}}
+  {{ $moreBtn := printf `<button type="button" id="brw-more" class="sgx-tb-more" aria-label="%s"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg></button>` (cond $isEn "More options" "更多选项") }}
+  {{ partial "subpage-head.html" (dict "title" (cond $isEn "Internet" "浏览器") "isEn" $isEn "actions" ($moreBtn | safeHTML)) }}
 
   <!-- 2.3.12.1 效果3：地址栏胶囊（底部悬浮，点击弹出磨砂搜索层） -->
   <button type="button" id="brw-addrbar" class="sgx85-pill" aria-label="{{ cond $isEn "Search or type URL" "搜索或输入网址" }}">
@@ -140,6 +142,12 @@
   "addrBottom" (dict "zh" "地址栏位置：底部" "en" "Address bar: Bottom")
   "clearRecent" (dict "zh" "清除最近搜索" "en" "Clear recent searches")
   "engineTitle" (dict "zh" "搜索引擎" "en" "Search engine")
+  "addrPos" (dict "zh" "地址栏位置" "en" "Address bar position")
+  "posTop" (dict "zh" "顶部" "en" "Top")
+  "posBottom" (dict "zh" "底部" "en" "Bottom")
+  "clearHist" (dict "zh" "清除浏览记录" "en" "Clear browsing history")
+  "clearHistQ" (dict "zh" "清除浏览记录？" "en" "Clear browsing history?")
+  "clear" (dict "zh" "清除" "en" "Clear")
   "engineDef" (dict "zh" "(默认)" "en" "(Default)")
   "switchEngine" (dict "zh" "切换搜索引擎（当前：{n}）" "en" "Switch search engine (current: {n})")
 }}

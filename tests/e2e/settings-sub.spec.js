@@ -1,6 +1,6 @@
 /**
  * 2.6.0：设置二级页。真实断言（不 mock 自家逻辑）：
- * - Mobile /settings/ 只留账户卡 + 9 分类入口，无选项组（B2-2 新增 Good Lock）
+ * - Mobile /settings/ 只留账户卡 + 8 分类入口，无选项组（B2-2 新增 Good Lock，B2-4 删除应用）
  * - DeX/PC /settings/ 左右双栏：左分类导航、右详情窗格（复用子页同一套 partial）
  * - 7 个子页可达、有返回键、有对应选项组
  * - 旧 hash 跳转到子页
@@ -15,7 +15,6 @@ const CATS = [
   { id: 'theme', zh: '风格', en: 'Style' },
   { id: 'security', zh: '安全与隐私', en: 'Security and privacy' },
   { id: 'manage', zh: '常规管理', en: 'General management' },
-  { id: 'apps', zh: '应用', en: 'Apps' },
   { id: 'goodlock', zh: 'Good Lock', en: 'Good Lock' },
   { id: 'accessibility', zh: '辅助功能', en: 'Accessibility' },
   { id: 'wellbeing', zh: '数字健康', en: 'Digital wellbeing' },
@@ -40,12 +39,12 @@ async function pinLang(pg, lang) {
 /* Mobile（竖屏）：单列分类列表 */
 test.use({ viewport: { width: 412, height: 915 } });
 
-test('settings home (mobile): account card + 9 category links, no option groups', async ({ page: pg }) => {
+test('settings home (mobile): account card + 8 category links, no option groups', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await gotoSettings(pg, '/settings/');
   // 账户卡（移动端只显示分类列表里的那张）
   await expect(pg.locator('.set-mobile-only .sgx-account-card').first()).toBeVisible();
-  // 9 个分类入口（2.8.0：分类列表移出 .set-mobile-only，改由 .set-main 内 aria-label="分类" 的 section 承载）
+  // 8 个分类入口（2.8.0：分类列表移出 .set-mobile-only，改由 .set-main 内 aria-label="分类" 的 section 承载）
   const catList = pg.locator('.set-main section[aria-label="分类"]');
   for (const c of CATS) {
     const link = catList.locator(`.set-row[href="/settings/${c.id}/"]`);
@@ -54,7 +53,7 @@ test('settings home (mobile): account card + 9 category links, no option groups'
     await expect(link, `${c.id} visible`).toBeVisible();
   }
   // 选项组与双栏导航在移动端不显示（DOM 存在但隐藏）
-  for (const gid of ['#sg-display', '#sg-theme', '#sg-manage', '#sg-apps', '#sg-goodlock', '#sg-accessibility', '#sg-wellbeing', '#sg-about']) {
+  for (const gid of ['#sg-display', '#sg-theme', '#sg-manage', '#sg-goodlock', '#sg-accessibility', '#sg-wellbeing', '#sg-about']) {
     await expect(pg.locator(gid), gid).toBeHidden();
   }
   await expect(pg.locator('#set-cat-nav')).toBeHidden();
@@ -70,7 +69,7 @@ test.describe('settings home (dex): two-pane', () => {
     // 左栏导航可见、9 项
     const nav = pg.locator('#set-cat-nav');
     await expect(nav).toBeVisible();
-    await expect(nav.locator('.set-cat')).toHaveCount(9);
+    await expect(nav.locator('.set-cat')).toHaveCount(8);
     // 移动端列表隐藏
     await expect(pg.locator('.set-mobile-only')).toBeHidden();
     // 默认显示 display 窗格
@@ -88,7 +87,7 @@ test.describe('settings home (dex): two-pane', () => {
   });
 });
 
-test('settings home (en): 9 category links', async ({ page: pg }) => {
+test('settings home (en): 8 category links', async ({ page: pg }) => {
   await pinLang(pg, 'en');
   await gotoSettings(pg, '/en/settings/');
   for (const c of CATS) {
@@ -103,12 +102,11 @@ const SUBCHECKS = {
   theme: ['#palette-dots'],
   /* manage：测试构建（SGX_TEST_NO_WEATHER=1，见 deploy.yml）编译期禁用天气组件，
      #row-weather 只在生产构建输出，见 layouts/partials/feature.html */
-  manage: ['#row-lang', '#row-datetime'],
-  apps: ['#row-app-files', '#row-app-browser'],
+  manage: ['#row-lang', '#row-datetime', '#row-reset'],
   goodlock: ['#mod-wellbeing', '#mod-parallax', '#mod-clockstyle', '#mod-sound', '#mod-keys', '#mod-edgeglow'],
   accessibility: ['#row-motion'],
   wellbeing: ['#well-v-total'],
-  about: ['#row-reset'],
+  about: [],
 };
 
 for (const c of CATS) {
@@ -188,8 +186,12 @@ test('about page: version rows (2.6.0 spec)', async ({ page: pg }) => {
   await expect(body).toContainText('Hugo');
   await expect(body).toContainText('Tailwind CSS');
   await expect(body).toContainText('构建时间');
-  await expect(body).toContainText('GitHub');
-  await expect(body).toContainText('重置所有设置');
+  /* B2-4：顺序 版本/内核/Hugo/Tailwind/构建/构建时间；无 GitHub 仓库行；重置移到常规管理 */
+  const labels = await body.locator('.set-row > span.font-medium').allTextContents();
+  expect(labels.map((t) => t.trim())).toEqual(['版本', '内核', 'Hugo', 'Tailwind CSS', '构建', '构建时间']);
+  await expect(body).not.toContainText('GitHub');
+  await expect(body.locator('a[href*="github.com"]')).toHaveCount(0);
+  await expect(pg.locator('#row-reset')).toHaveCount(0);
 });
 
 /* 解锁方式入口迁移：从账户卡移到「安全与隐私」第一行 */
@@ -297,18 +299,15 @@ test('B2-1 security page: no jump-trace diagnostics', async ({ page: pg }) => {
 });
 
 /* B2-2：应用商店删除；Good Lock 迁入设置（应用 与 辅助功能 之间）；邀请码站进浏览器书签「我的项目」 */
-test('B2-2 Good Lock is a settings category between Apps and Accessibility', async ({ page: pg }) => {
+test('B2-2 Good Lock is a settings category before Accessibility', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await gotoSettings(pg, '/settings/');
   const hrefs = await pg.locator('.set-main section[aria-label="分类"] .set-row').evaluateAll((els) => els.map((e) => e.getAttribute('href')));
   const i = hrefs.indexOf('/settings/goodlock/');
   expect(i).toBeGreaterThan(0);
-  expect(hrefs[i - 1]).toBe('/settings/apps/');
+  // B2-4：应用分类已删除，Good Lock 前面是常规管理
+  expect(hrefs[i - 1]).toBe('/settings/manage/');
   expect(hrefs[i + 1]).toBe('/settings/accessibility/');
-  // 应用分类不再有应用商店
-  await gotoSettings(pg, '/settings/apps/');
-  await expect(pg.locator('#row-app-store')).toHaveCount(0);
-  await expect(pg.locator('main')).not.toContainText('应用商店');
 });
 
 test('B2-2 Good Lock subpage: rows toggle the same keys', async ({ page: pg }) => {
@@ -354,4 +353,71 @@ test('B2-2 store and its apps are gone; invite site in browser bookmarks', async
   const proj = pg.locator('.brw-catgroup').nth(1);
   await expect(proj.locator('a[href="https://muse-invite.styrigx.com"]')).toHaveCount(1);
   await expect(proj).toContainText('邀请码站');
+});
+
+/* B2-4：设置里的「应用」整块删除；我的文件、浏览器的设置迁到各自顶栏 ⋮；重置所有设置在常规管理 */
+test('B2-4 settings has no Apps category; reset lives in General management', async ({ page: pg }) => {
+  await pinLang(pg, 'zh');
+  await gotoSettings(pg, '/settings/');
+  const hrefs = await pg.locator('.set-main section[aria-label="分类"] .set-row').evaluateAll((els) => els.map((e) => e.getAttribute('href')));
+  expect(hrefs).not.toContain('/settings/apps/');
+  await expect(pg.locator('#sg-apps, #row-app-files, #row-app-browser')).toHaveCount(0);
+  await gotoSettings(pg, '/settings/manage/');
+  const rows = await pg.locator('#sg-manage .set-row').evaluateAll((els) => els.map((e) => e.id));
+  expect(rows[rows.length - 1]).toBe('row-reset');
+  await expect(pg.locator('#row-reset')).toContainText('重置所有设置');
+});
+
+test('B2-4 settings search: no Apps entries; reset points to General management', async ({ page: pg }) => {
+  await pinLang(pg, 'zh');
+  await gotoSettings(pg, '/settings/search/');
+  const idx = await pg.evaluate(() => JSON.parse(document.getElementById('sgx-i18n-settings').textContent).setidx);
+  expect(idx.filter((a) => a[4] === 'apps')).toEqual([]);
+  const reset = idx.find((a) => a[0] === '重置所有设置');
+  expect(reset[4]).toBe('manage');
+  expect(reset[8]).toBe('/settings/manage/');
+});
+
+test('B2-4 My Files top-bar menu carries the former settings', async ({ page: pg }) => {
+  await pinLang(pg, 'zh');
+  await blockExternalRequests(pg);
+  await pg.goto('/files/', { waitUntil: 'domcontentloaded' });
+  await pg.locator('.sgx-tb-pill #files-more').click();
+  const sheet = pg.locator('#sheet-body');
+  await expect(sheet).toContainText('编辑主页');
+  await expect(sheet).toContainText('排序方式');
+  await expect(sheet).toContainText('默认视图');
+  await expect(sheet).toContainText('清除最近访问记录');
+  await expect(sheet).not.toContainText(/^设置$/);
+  // 默认视图 → 网格，写同一个 key
+  await sheet.getByText('默认视图').click();
+  await pg.locator('#sheet-body').getByText('网格').click();
+  await expect.poll(() => pg.evaluate(() => JSON.parse(localStorage.getItem('sgx-files-view') || '{}').layout)).toBe('grid');
+  // 清除最近访问记录：二次确认后清空
+  await pg.evaluate(() => localStorage.setItem('sgx-files-recent', JSON.stringify([{ url: '/browser/', title: 'x' }])));
+  await pg.locator('.sgx-tb-pill #files-more').click();
+  await pg.locator('#sheet-body').getByText('清除最近访问记录').click();
+  await pg.locator('#sheet-body').getByText('清除', { exact: true }).click();
+  await expect.poll(() => pg.evaluate(() => localStorage.getItem('sgx-files-recent'))).toBe('[]');
+});
+
+test('B2-4 Internet top-bar menu: engine, address bar position, clear history', async ({ page: pg }) => {
+  await pinLang(pg, 'zh');
+  await blockExternalRequests(pg);
+  await pg.goto('/browser/', { waitUntil: 'domcontentloaded' });
+  const more = pg.locator('.sgx-tb-pill #brw-more');
+  await expect(more).toHaveCount(1);
+  await more.click();
+  const sheet = pg.locator('#sheet-body');
+  await expect(sheet).toContainText('搜索引擎');
+  await expect(sheet).toContainText('地址栏位置');
+  await expect(sheet).toContainText('清除浏览记录');
+  await sheet.getByText('地址栏位置').click();
+  await pg.locator('#sheet-body').getByText('顶部', { exact: true }).click();
+  await expect(pg.locator('body')).toHaveClass(/addrbar-top/);
+  expect(await pg.evaluate(() => localStorage.getItem('sgx-addrbar-pos'))).toBe('top');
+  await more.click();
+  await pg.locator('#sheet-body').getByText('搜索引擎').click();
+  await pg.locator('#sheet-body').getByText('Bing', { exact: true }).click();
+  expect(await pg.evaluate(() => localStorage.getItem('sgx-search-engine'))).toBe('bing');
 });

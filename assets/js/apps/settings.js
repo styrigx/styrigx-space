@@ -1,5 +1,5 @@
 /**
- * @fileoverview 设置页：主题、调色板、字体、布局、搜索引擎、常规管理、应用面板、
+ * @fileoverview 设置页：主题、调色板、字体、布局、常规管理（含重置）、
  * 减弱动效、数字健康、重置、桌面双栏、设置搜索。
  * 文案来自页面内 sgx-i18n-settings JSON（中英双语），JS 与语言无关。
  */
@@ -9,9 +9,8 @@ import { esc } from '../lib/util.js';
 import { get, set, remove, removeByPrefix, getJSON, setJSON } from '../lib/storage.js';
 import { get as featGet, set as featSet, on as featOn } from '../lib/features.js';
 import { loadI18n } from '../lib/i18n.js';
-import { openSheet, closeSheet } from '../shell/sheet.js';
+import { openSheet } from '../shell/sheet.js';
 import { setThemeMode } from '../lib/theme.js';
-import { engines } from '../shell/engines.js';
 import { wellLoad, wellFlush } from '../shell/goodlock.js';
 import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
 
@@ -23,10 +22,6 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
   try {
     RAW = JSON.parse(document.getElementById('sgx-i18n-settings').textContent || '{}');
   } catch (e) {}
-  const APP_LINKS = {
-    files: RAW.linkFiles || '/files/',
-    browser: RAW.linkBrowser || '/browser/',
-  };
 
   /** @param {string} id */
   function $(id) {
@@ -51,7 +46,6 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
       }
     });
   }
-  const appSheetRow = rowToggle;
 
   /* ---- 时区列表（两边共用） ---- */
   const TZS = [
@@ -255,12 +249,6 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
   });
   paintLayout();
   featOn('layout', paintLayout);
-
-  /* ---- 搜索引擎（定义走共享模块 sgx/engines.js，与浏览器页共用同一个 localStorage key） ---- */
-  const SE = engines;
-  function engineName() {
-    return SE.name(SE.cur());
-  }
 
   /* ---- 常规管理行：当前值 ---- */
   function paintManage() {
@@ -553,228 +541,6 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
     }
   }
   rowToggle('row-weather', openWeather);
-
-  /* ================= 应用：我的文件 / 浏览器 ================= */
-  function addrbarPos() {
-    const p = featGet('addrbar-pos');
-    return p === 'top' ? 'top' : 'bottom';
-  }
-  function filesView() {
-    const v = featGet('files-view');
-    return v && typeof v === 'object' ? v : {};
-  }
-  function paintApps() {
-    const v = filesView();
-    const layout = v.layout === 'grid' ? 'grid' : 'list';
-    const f1 = $('app-files-val');
-    if (f1) f1.textContent = T.t(layout === 'grid' ? 'gridViewVal' : 'listViewVal');
-    const f3 = $('app-browser-val');
-    if (f3) f3.textContent = engineName() + ' · ' + T.t(addrbarPos() === 'top' ? 'posTop' : 'posBottom');
-    /* 浏览器面板开着时，引擎行标签实时同步（跨标签页 storage 事件同样走这里） */
-    const apb = $('apb-engine');
-    if (apb) {
-      const lbl = apb.querySelector('.text-sm');
-      if (lbl) lbl.textContent = engineName();
-    }
-  }
-  /* 二次确认按钮：第一次点击变红字确认态，3 秒内再点执行 */
-  /** @param {HTMLElement|null} btn @param {string} confirmLabel @param {() => void} fn */
-  function armConfirm(btn, confirmLabel, fn) {
-    if (!btn) return;
-    let armed = false,
-      timer = null;
-    const orig = btn.innerHTML;
-    on(btn, 'click', function (e) {
-      e.stopPropagation();
-      if (!armed) {
-        armed = true;
-        btn.innerHTML = '<span class="font-medium" style="color:#dc2626">' + esc(confirmLabel) + '</span>';
-        timer = window.setTimeout(function () {
-          armed = false;
-          btn.innerHTML = orig;
-        }, 3000);
-      } else {
-        if (timer) clearTimeout(timer);
-        fn();
-      }
-    });
-  }
-  /**
-   * @param {string} id
-   * @param {Array<{v: string, label: string}>} options
-   * @param {string} cur
-   */
-  function sheetSeg(id, options, cur) {
-    return (
-      '<div class="seg" id="' + id + '" role="group">' +
-      options
-        .map(function (o) {
-          return (
-            '<button type="button" data-v="' + o.v + '" aria-pressed="' + (o.v === cur ? 'true' : 'false') + '">' +
-            esc(o.label) + '</button>'
-          );
-        })
-        .join('') +
-      '</div>'
-    );
-  }
-  /** @param {string} id @param {(v: string) => void} onPick */
-  function wireSeg(id, onPick) {
-    document.querySelectorAll('#' + id + ' button').forEach(function (b) {
-      on(b, 'click', function () {
-        const v = b.getAttribute('data-v') || '';
-        document.querySelectorAll('#' + id + ' button').forEach(function (x) {
-          x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
-        });
-        onPick(v);
-      });
-    });
-  }
-  /** @param {string} [itemId] */
-  function hlInSheet(itemId) {
-    if (!itemId) return;
-    window.setTimeout(function () {
-      const el = document.querySelector('#sheet-body #' + itemId);
-      if (el) {
-        el.scrollIntoView({ block: 'center', behavior: reducedM ? 'auto' : 'smooth' });
-        el.classList.add('set-hl');
-        window.setTimeout(function () {
-          el.classList.remove('set-hl');
-        }, 1400);
-      }
-    }, 320);
-  }
-  /** @param {string} key @param {string} label */
-  function appOpenLink(key, label) {
-    return (
-      '<a class="set-row no-ic" href="' + APP_LINKS[key] + '">' +
-      '<span class="flex-1 font-medium text-m-primary">' + esc(label) + '</span>' + CHEVR + '</a>'
-    );
-  }
-
-  /* ---- 我的文件面板 ---- */
-  /** @param {string} [hl] */
-  function openFilesPanel(hl) {
-    const v = filesView();
-    const layout = v.layout === 'grid' ? 'grid' : 'list';
-    const sort = v.sort === 'name' ? 'name' : 'added';
-    /** @type {Record<string, any>} */
-    let home = featGet('files-home') || {};
-    const GROUPS = [
-      { id: 'cats', label: T.t('gCats') },
-      { id: 'sites', label: T.t('gSites') },
-      { id: 'recent', label: T.t('gRecent') },
-      { id: 'storage', label: T.t('gStorage') },
-      { id: 'fav', label: T.t('gFav') },
-    ];
-    const html =
-      '<div class="px-1 pb-2">' +
-      '<div class="px-5 py-4" id="apf-view"><p class="text-sm font-medium mb-3">' + T.t('filesView') + '</p>' +
-      sheetSeg('apf-view-seg', [{ v: 'list', label: T.t('viewList') }, { v: 'grid', label: T.t('viewGrid') }], layout) + '</div>' +
-      '<div class="px-5 py-4" id="apf-sort"><p class="text-sm font-medium mb-3">' + T.t('filesSort') + '</p>' +
-      sheetSeg('apf-sort-seg', [{ v: 'added', label: T.t('sortAdded') }, { v: 'name', label: T.t('sortName') }], sort) + '</div>' +
-      '<div class="px-5 py-4" id="apf-home"><p class="text-sm font-medium mb-1">' + T.t('filesHome') + '</p>' +
-      GROUPS.map(function (g) {
-        const on_ = home[g.id] !== false;
-        return (
-          '<div class="set-row no-ic" id="apf-home-' + g.id + '" role="button" tabindex="0">' +
-          '<span class="flex-1 font-medium">' + g.label + '</span>' +
-          '<span class="switch" role="switch" aria-checked="' + (on_ ? 'true' : 'false') + '"><span class="knob"></span></span></div>'
-        );
-      }).join('') + '</div>' +
-      '<div class="set-row no-ic" id="apf-clear" role="button" tabindex="0">' +
-      '<span class="flex-1 font-medium">' + T.t('filesClear') + '</span></div>' +
-      appOpenLink('files', T.t('openFiles')) +
-      '</div>';
-    openSheet({ title: T.t('filesTitle'), html: html });
-    wireSeg('apf-view-seg', function (val) {
-      const vv = filesView();
-      vv.layout = val;
-      featSet('files-view', vv);
-      paintApps();
-      window.dispatchEvent(new Event('sgx-settings-changed'));
-    });
-    wireSeg('apf-sort-seg', function (val) {
-      const vv = filesView();
-      vv.sort = val;
-      featSet('files-view', vv);
-      window.dispatchEvent(new Event('sgx-settings-changed'));
-    });
-    GROUPS.forEach(function (g) {
-      appSheetRow('apf-home-' + g.id, function () {
-        /** @type {Record<string, any>} */
-        const hh = Object.assign({}, featGet('files-home') || {});
-        const on_ = hh[g.id] !== false;
-        hh[g.id] = !on_;
-        featSet('files-home', hh);
-        const sw = document.querySelector('#apf-home-' + g.id + ' .switch');
-        if (sw) sw.setAttribute('aria-checked', !on_ ? 'true' : 'false');
-        window.dispatchEvent(new Event('sgx-settings-changed'));
-      });
-    });
-    const clr = $('apf-clear');
-    if (clr)
-      armConfirm(clr, T.t('confirmClear'), function () {
-        remove('sgx-files-recent');
-        remove('sgx-files-lastvisit');
-        window.dispatchEvent(new Event('sgx-settings-changed'));
-        closeSheet();
-      });
-    hlInSheet(hl);
-  }
-  rowToggle('row-app-files', function () {
-    openFilesPanel();
-  });
-
-  /* ---- 浏览器面板 ---- */
-  function pickEngine() {
-    const cur = SE.cur();
-    openSheet({
-      title: T.t('engineTitle'),
-      options: SE.ORDER.map(function (id) {
-        return { label: SE.name(id), value: id, checked: id === cur };
-      }),
-      onPick: function (v) {
-        SE.setCur(v); /* 存值 + 派发 sgx-settings-changed，paintApps 自动刷新 */
-        openBrowserPanel('apb-engine');
-      },
-    });
-  }
-  /** @param {string} [hl] */
-  function openBrowserPanel(hl) {
-    const pos = addrbarPos();
-    const html =
-      '<div class="px-1 pb-2">' +
-      '<div class="set-row no-ic" id="apb-engine" role="button" tabindex="0">' +
-      '<span class="flex-1 font-medium">' + T.t('engineTitle') + '</span>' +
-      '<span class="text-sm text-m-on-surface-variant">' + esc(engineName()) + '</span>' + CHEVR + '</div>' +
-      '<div class="px-5 py-4" id="apb-pos"><p class="text-sm font-medium mb-3">' + T.t('addrPos') + '</p>' +
-      sheetSeg('apb-pos-seg', [{ v: 'top', label: T.t('posTop') }, { v: 'bottom', label: T.t('posBottom') }], pos) + '</div>' +
-      '<div class="set-row no-ic" id="apb-clear" role="button" tabindex="0">' +
-      '<span class="flex-1 font-medium">' + T.t('clearHist') + '</span></div>' +
-      appOpenLink('browser', T.t('openBrowser')) +
-      '</div>';
-    openSheet({ title: T.t('browserTitle'), html: html });
-    appSheetRow('apb-engine', pickEngine);
-    wireSeg('apb-pos-seg', function (val) {
-      featSet('addrbar-pos', val);
-      paintApps();
-      window.dispatchEvent(new Event('sgx-settings-changed'));
-    });
-    const clr = $('apb-clear');
-    if (clr)
-      armConfirm(clr, T.t('confirmClear'), function () {
-        set('sgx-browser-recent', '[]');
-        window.dispatchEvent(new Event('sgx-settings-changed'));
-        closeSheet();
-      });
-    hlInSheet(hl);
-  }
-  rowToggle('row-app-browser', function () {
-    openBrowserPanel();
-  });
-  paintApps();
-  on(window, 'sgx-settings-changed', paintApps);
 
   /* ---- 减弱动效 ---- */
   function paintMotion() {
@@ -1210,14 +976,6 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
    * @param {string} item
    */
   function pickResult(cat, elid, title, panel, item, url) {
-    /* 2.6.0：面板（我的文件/浏览器）优先原地弹层，不跳转 */
-    if (panel === 'files' || panel === 'browser') {
-      window.setTimeout(function () {
-        if (panel === 'files') openFilesPanel(item);
-        else openBrowserPanel(item);
-      }, 80);
-      return;
-    }
     /* 子页 URL（u 字段；安全与隐私沿用 el 开头 / 的旧形式）→ 跳转对应子页。
        2.6.0：跨页跳转时把元素 id 带到 hash 上，子页加载后滚动并高亮命中行。 */
     var target = url || (elid && elid.charAt(0) === '/' ? elid : '');
