@@ -78,7 +78,7 @@ function initNavMenu() {
   const host = location.host;
   /* 菜单项配置：以后新增子站只需加一行 */
   const items = [
-    { label: isEn ? 'Home' : '主页', url: 'https://styrigx.com' + (isEn ? '/en/' : '/'), match: /^(www\.)?styrigx\.com$|^localhost|^127\.0\.0\.1/ },
+    { label: isEn ? 'Main Site' : '主站', url: 'https://styrigx.com' + (isEn ? '/en/' : '/'), match: /^(www\.)?styrigx\.com$|^localhost|^127\.0\.0\.1/ },
     { label: isEn ? 'Library' : '书库', url: 'https://book.styrigx.com' + (isEn ? '/en/' : '/'), match: /(^|\.)book\.styrigx\.com$/ },
     { label: isEn ? 'Blog' : '博客', url: 'https://blog.styrigx.com' + (isEn ? '/en/' : '/'), match: /(^|\.)blog\.styrigx\.com$/ },
   ];

@@ -137,6 +137,10 @@ test.describe('390×844 行为', () => {
     const menu = page.locator('#sgx-tb-navmenu');
     await expect(menu).toBeVisible();
     await expect(menu.locator('.sgx-tb-menu-item')).toHaveCount(3);
+    /* 三站统一：第一项叫「主站」（不是「主页」），顺序 主站 / 书库 / 博客 */
+    const labels = (await menu.locator('.sgx-tb-menu-item').allInnerTexts()).map((t) => t.trim());
+    const en = (await page.evaluate(() => document.documentElement.lang)) === 'en';
+    expect(labels).toEqual(en ? ['Main Site', 'Library', 'Blog'] : ['主站', '书库', '博客']);
     await expect(menu.locator('[aria-current="true"] svg')).toHaveCount(1);
     const b = await box(page, '.sgx-tb-nav');
     const m = await box(page, '#sgx-tb-navmenu');

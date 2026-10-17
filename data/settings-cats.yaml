@@ -34,10 +34,10 @@ cats:
     subzh: 语言、日期和时间、天气
     suben: Language, date & time, weather
   - id: goodlock
-    icon: gift
-    appicon: true
-    bg: ""
-    fg: ""
+    # 和其他分类一样用色块 + 线条图标（原来的渐变应用图标在列表里格格不入）
+    icon: gift-line
+    bg: bg-m-warm-container
+    fg: text-m-on-warm-container
     zh: Good Lock
     en: Good Lock
     subzh: 实验性功能模块
