@@ -87,8 +87,8 @@ export function initCore() {
   window.addEventListener('sgx-settings-changed', syncUiCookie);
 
   /* B2-7：网站数字健康——本页计时上报；页面上有数字健康卡片就拉今天的数据 */
-  initWbTrack({ key: wbAreaOf(location.pathname) });
-  loadWb();
+  if (!SGX_TEST_NO_WB) initWbTrack({ key: wbAreaOf(location.pathname) });
+  if (!SGX_TEST_NO_WB) loadWb();
 
   /* 跨脚本/模板桥接的最小公共 API */
   Object.assign(SGX, {
