@@ -131,6 +131,33 @@ test.describe('390×844 行为', () => {
     }
   });
 
+  test('主页点头像：不重新加载整页，只回到顶部', async ({ page }) => {
+    await go(page, '/');
+    const path0 = await page.evaluate(() => location.pathname);
+    await page.evaluate(() => {
+      window.__sgxNoReload = 1;
+      window.scrollTo(0, 400);
+    });
+    await page.locator('#nav-brand').click();
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+    expect(await page.evaluate(() => window.__sgxNoReload)).toBe(1);
+    expect(await page.evaluate(() => location.pathname)).toBe(path0);
+  });
+
+  test('子页面点头像：照常回主页', async ({ page }) => {
+    await go(page, '/settings/');
+    await Promise.all([page.waitForURL(/\/(en\/)?$/), page.locator('#nav-brand').click()]);
+  });
+
+  test('顶栏切页过渡名挂在有尺寸的 .sgx-topbar 上', async ({ page }) => {
+    await go(page, '/settings/');
+    const names = await page.evaluate(() => ({
+      bar: getComputedStyle(document.querySelector('.sgx-topbar')).viewTransitionName,
+      nav: getComputedStyle(document.getElementById('site-nav')).viewTransitionName,
+    }));
+    expect(names).toEqual({ bar: 'sgx-topbar', nav: 'none' });
+  });
+
   test('九宫点：3 项，当前站点有 ✓，菜单在按钮下方 8px 右对齐，Esc 关闭', async ({ page }) => {
     await go(page, '/settings/');
     await page.locator('.sgx-tb-nav').click();

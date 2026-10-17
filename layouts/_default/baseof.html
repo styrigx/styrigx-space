@@ -4,6 +4,8 @@
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+{{/* 切页时等 <main> 解析完再出第一帧，避免过渡里露出还没排好版的新页面（标准写法，Chromium 124+；不支持的浏览器忽略） */}}
+<link rel="expect" href="#sgx-main" blocking="render">
 {{/* 2.4.0 H：Turnstile 站点密钥（公开） */}}
 {{ with site.Params.turnstileSiteKey }}<meta name="sgx-turnstile" content="{{ . }}">{{ end }}
 <meta name="color-scheme" content="light dark">
@@ -271,7 +273,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 
 
 
-<main>{{ block "main" . }}{{ end }}</main>
+<main id="sgx-main">{{ block "main" . }}{{ end }}</main>
 <footer class="relative z-10 mt-4">
   <div class="max-w-[1100px] mx-auto px-6 py-8 text-center">
     <p class="text-xs text-m-on-surface-variant">© {{ site.Params.since }}–<span id="copy-year">{{ now.Year }}</span> Sloan Gray</p>

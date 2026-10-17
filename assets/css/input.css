@@ -26,8 +26,12 @@
 #dex-dock {
   view-transition-name: sgx-dock-dex;
 }
-#site-nav {
+/* 名字挂在真正有尺寸的 .sgx-topbar 上：#site-nav 自身高度是 0（子元素都是 fixed），
+   老一些的 Chromium（如三星浏览器 31 / Chromium 148）截不到它的快照，切页时顶栏会消失一帧 */
+.sgx-topbar {
   view-transition-name: sgx-topbar;
+}
+#site-nav {
   /* 三星浏览器 backdrop-filter 可能不生效，给纯色兜底 */
   /* stylelint-disable-next-line color-no-hex */
   background: var(--m-surface, var(--m-container-lowest));
