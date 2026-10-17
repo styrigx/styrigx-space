@@ -26,7 +26,7 @@
         {{ $href := cond $isEn (printf "/en/settings/%s/" .id) (printf "/settings/%s/" .id) }}
         <a class="set-row" href="{{ $href }}">
           {{ if .appicon }}
-          <span class="set-app-ic">{{ partial "icon.html" (dict "name" "appgrid-solid" "uid" "sethome") }}</span>
+          <span class="set-app-ic">{{ partial "icon.html" (dict "name" .icon "uid" (printf "sethome%s" .id)) }}</span>
           {{ else }}
           <span class="set-ic {{ .bg }} {{ .fg }}">{{ partial "icon.html" .icon }}</span>
           {{ end }}
@@ -54,7 +54,7 @@
         {{ $href := cond $isEn (printf "/en/settings/%s/" .id) (printf "/settings/%s/" .id) }}
         <a class="set-cat" data-cat="{{ .id }}" data-title="{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}" href="{{ $href }}">
           {{ if .appicon }}
-          <span class="set-app-ic">{{ partial "icon.html" (dict "name" "appgrid-solid" "uid" "setnav") }}</span>
+          <span class="set-app-ic">{{ partial "icon.html" (dict "name" .icon "uid" (printf "setnav%s" .id)) }}</span>
           {{ else }}
           <span class="set-ic {{ .bg }} {{ .fg }}">{{ partial "icon.html" .icon }}</span>
           {{ end }}
@@ -82,9 +82,9 @@
 (function () {
   try {
     var h = (location.hash || '').replace(/^#/, '');
-    var map = { display: 1, theme: 1, manage: 1, apps: 1, accessibility: 1, wellbeing: 1, about: 1, security: 1,
+    var map = { display: 1, theme: 1, manage: 1, apps: 1, goodlock: 1, accessibility: 1, wellbeing: 1, about: 1, security: 1,
       'sg-display': 'display', 'sg-theme': 'theme', 'sg-manage': 'manage', 'sg-apps': 'apps',
-      'sg-accessibility': 'accessibility', 'sg-wellbeing': 'wellbeing', 'sg-about': 'about', 'sg-security': 'security' };
+      'sg-goodlock': 'goodlock', 'sg-accessibility': 'accessibility', 'sg-wellbeing': 'wellbeing', 'sg-about': 'about', 'sg-security': 'security' };
     var cat = map[h];
     if (cat) {
       var isEn = location.pathname.indexOf('/en/') === 0;

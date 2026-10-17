@@ -155,13 +155,4 @@ test.describe('dex-layout 1366x768', () => {
     expect(res.bad).toEqual([]);
     expect(res.footerClear).toBe(true);
   });
-
-  test('歌单横向滚动区右侧有内边距（末张封面不被硬切）', async ({ page }) => {
-    await gotoDex(page);
-    const pe = await page.evaluate(() => {
-      const el = document.querySelector('#music .overflow-x-auto');
-      return parseFloat(getComputedStyle(el).paddingRight);
-    });
-    expect(pe).toBeGreaterThanOrEqual(16);
-  });
 });

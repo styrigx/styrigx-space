@@ -5,7 +5,7 @@
 import { on } from '../lib/events.js';
 import { registerPage } from '../shell/inpagenav.js';
 import { esc } from '../lib/util.js';
-import { get, set, getJSON } from '../lib/storage.js';
+import { get, set } from '../lib/storage.js';
 import { loadI18n } from '../lib/i18n.js';
 import { openSheet } from '../shell/sheet.js';
 import { voiceSheet } from '../shell/voice-sheet.js';
@@ -18,7 +18,6 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
 (function () {
   'use strict';
   const T = loadI18n('sgx-i18n-browser');
-  const EN = document.documentElement.lang === 'en';
 
   function lsGet(/** @type {string} */ k, /** @type {string} */ d) {
     const v = get(k);
@@ -461,12 +460,10 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
   /* ============ 站内搜索索引 ============ */
   const TYPE_META = {
     link: { label: T.t('catLink'), icon: 'globe' },
-    book: { label: T.t('catBook'), icon: 'book' },
-    music: { label: T.t('catMusic'), icon: 'music' },
     post: { label: T.t('catPost'), icon: 'pen' },
     app: { label: T.t('catApp'), icon: 'compass' },
   };
-  const C_CATS = ['link', 'book', 'music', 'post', 'app'].map(function (k) {
+  const C_CATS = ['link', 'post', 'app'].map(function (k) {
     return { type: k, label: TYPE_META[k].label, icon: TYPE_META[k].icon };
   });
 
@@ -475,8 +472,6 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
   function oldCatToType(c) {
     c = c || '';
     if (c.indexOf(T.t('catLink')) === 0) return 'link';
-    if (c === T.t('catBook')) return 'book';
-    if (c === T.t('catMusic')) return 'music';
     if (c === T.t('catPost')) return 'post';
     return 'app';
   }
@@ -500,13 +495,6 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
   loadInline();
 
   // 异步换上 /files-index.json（按当前语言过滤）；失败则保留内联兜底
-  /** @param {any} item */
-  function isAppHidden(item) {
-    if (!item || item.type !== 'app') return false;
-    const h = getJSON('sgx-apps-hidden', []);
-    const id = String(item.id || '').replace(/-en$/, '').replace(/^app-/, '');
-    return h.indexOf(id) !== -1;
-  }
   (function () {
     const wantLang = document.documentElement.lang === 'en' ? 'en' : 'zh';
     fetch('/files-index.json')
@@ -517,7 +505,7 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
       .then(function (j) {
         const items = ((j && j.items) || [])
           .filter(function (/** @type {any} */ x) {
-            return x && TYPE_META[x.type] && (x.lang || 'zh') === wantLang && !isAppHidden(x);
+            return x && TYPE_META[x.type] && (x.lang || 'zh') === wantLang;
           })
           .map(function (/** @type {any} */ x) {
             return { t: x.title || '', d: x.subtitle || '', u: x.url || '', type: x.type, id: x.id || '' };
@@ -527,13 +515,6 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
       .catch(function () {
         /* keep inline fallback */
       });
-    /* 应用卸载/安装后即时重过滤 */
-    on(window, 'sgx-settings-changed', function () {
-      INDEX = INDEX.filter(function (x) {
-        return !isAppHidden(x);
-      });
-      renderSuggest();
-    });
   })();
 
   /** @param {string} inner */
@@ -546,10 +527,7 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
   }
   const ICONS = {
     globe: svgIc('<path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 100-18 9 9 0 000 18zm0 0c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m-8.7 9h17.4"/>'),
-    book: svgIc('<path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/>'),
-    music: svgIc('<path stroke-linecap="round" stroke-linejoin="round" d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>'),
     pen: svgIc('<path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/>'),
-    sparkles: svgIc('<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z"/>'),
     compass: svgIc('<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M15.2 8.8l-2.7 5.7-5.7 2.7 2.7-5.7 5.7-2.7z"/>'),
     clock: svgIc('<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/>'),
     search: svgIc('<path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>'),
@@ -638,10 +616,6 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
       i = curRows.length;
     curRows.push({ kind: 'engine', title: q });
     html += rowHTML(i, ICONS.search, T.fmt('searchWith', { n: SE.name(ek) }) + ' “' + q + '”', '', '', 'brw-sg-engine');
-    /* 问 AI：跳到 /ai/?q= */
-    const aiIdx = curRows.length;
-    curRows.push({ kind: 'ai', title: q });
-    html += rowHTML(aiIdx, ICONS.sparkles, T.t('askAI') + ' “' + q + '”', '', 'AI');
     suggest.innerHTML = html;
   }
 
@@ -725,12 +699,6 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
     if (!r) return;
     if (r.kind === 'engine') {
       doSearch(r.title);
-      return;
-    }
-    if (r.kind === 'ai') {
-      pushRecent(r.title);
-      hideSuggest();
-      sgxNavigate((EN ? '/en/ai/' : '/ai/') + '?q=' + encodeURIComponent(r.title), 'browser.js:703', 'ai-suggest');
       return;
     }
     if (r.kind === 'recent') {

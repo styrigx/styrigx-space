@@ -381,10 +381,6 @@ jobs:
       - name: Build CSS
         run: node scripts/build-css.cjs --minify
 
-      - name: Fetch music previews
-        run: node scripts/music-previews.mjs
-        continue-on-error: true
-
       - name: Generate blog posts data (P0-2)
         run: node scripts/gen-posts-json.mjs
         env:

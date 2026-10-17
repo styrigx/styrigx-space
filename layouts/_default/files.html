@@ -11,20 +11,14 @@
 
 {{ $cats := slice
   (dict "id" "post" "label" (cond $isEn "Posts" "文章") "icon" "pen")
-  (dict "id" "book" "label" (cond $isEn "Books" "书") "icon" "book")
-  (dict "id" "music" "label" (cond $isEn "Music" "音乐") "icon" "music")
   (dict "id" "site" "label" (cond $isEn "My sites" "我的站点") "icon" "globe") }}
 
 {{ $typeMeta := slice
   (dict "id" "post" "label" (cond $isEn "Posts" "文章") "bar" "bg-m-primary" "fg" "text-m-primary" "icon" "pen")
-  (dict "id" "book" "label" (cond $isEn "Books" "书") "bar" "bg-m-secondary" "fg" "text-m-secondary" "icon" "book")
-  (dict "id" "music" "label" (cond $isEn "Music" "音乐") "bar" "bg-m-warm" "fg" "text-m-warm" "icon" "music")
   (dict "id" "site" "label" (cond $isEn "My sites" "我的站点") "bar" "bg-m-accent" "fg" "text-m-accent" "icon" "globe") }}
 
 {{ $defaults := slice
-  (dict "id" "fav-posts" "title" (cond $isEn "Posts" "文章") "url" (print $filesBase "?type=post"))
-  (dict "id" "fav-books" "title" (cond $isEn "Books" "书单") "url" (print $home "books/"))
-  (dict "id" "fav-music" "title" (cond $isEn "Playlist" "歌单") "url" (print $home "music/")) }}
+  (dict "id" "fav-posts" "title" (cond $isEn "Posts" "文章") "url" (print $filesBase "?type=post")) }}
 
 {{ $str := dict
   "recentAddedPre" (cond $isEn "" "最近添加了 ")

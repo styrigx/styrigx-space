@@ -25,8 +25,7 @@ export function initNavHistory() {
   /* ===== 返回逻辑：一级 App 一次回主页，二级回一级；Dock 切换不累积历史 ===== */
   const PRIMARY = {
     '/browser/': 1, '/en/browser/': 1, '/files/': 1, '/en/files/': 1,
-    '/settings/': 1, '/en/settings/': 1, '/books/': 1, '/en/books/': 1,
-    '/music/': 1, '/en/music/': 1, '/goodlock/': 1, '/en/goodlock/': 1,
+    '/settings/': 1, '/en/settings/': 1,
   };
   function isFilesType() {
     const p = location.pathname;

@@ -12,7 +12,6 @@ import { loadI18n } from '../lib/i18n.js';
 import { openSheet, closeSheet } from '../shell/sheet.js';
 import { setThemeMode } from '../lib/theme.js';
 import { engines } from '../shell/engines.js';
-import { getHiddenApps } from '../shell/appvis.js';
 import { wellLoad, wellFlush } from '../shell/goodlock.js';
 import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
 
@@ -24,10 +23,8 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
   try {
     RAW = JSON.parse(document.getElementById('sgx-i18n-settings').textContent || '{}');
   } catch (e) {}
-  const APPS_TOTAL = RAW.appsTotal || 0;
   const APP_LINKS = {
     files: RAW.linkFiles || '/files/',
-    store: RAW.linkStore || '/store/',
     browser: RAW.linkBrowser || '/browser/',
   };
 
@@ -557,7 +554,7 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
   }
   rowToggle('row-weather', openWeather);
 
-  /* ================= 应用：我的文件 / 应用商店 / 浏览器 ================= */
+  /* ================= 应用：我的文件 / 浏览器 ================= */
   function addrbarPos() {
     const p = featGet('addrbar-pos');
     return p === 'top' ? 'top' : 'bottom';
@@ -571,10 +568,6 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
     const layout = v.layout === 'grid' ? 'grid' : 'list';
     const f1 = $('app-files-val');
     if (f1) f1.textContent = T.t(layout === 'grid' ? 'gridViewVal' : 'listViewVal');
-    const h = getHiddenApps(),
-      inst = APPS_TOTAL - h.length;
-    const f2 = $('app-store-val');
-    if (f2) f2.textContent = T.fmt('storeCounts', { i: inst, u: h.length });
     const f3 = $('app-browser-val');
     if (f3) f3.textContent = engineName() + ' · ' + T.t(addrbarPos() === 'top' ? 'posTop' : 'posBottom');
     /* 浏览器面板开着时，引擎行标签实时同步（跨标签页 storage 事件同样走这里） */
@@ -731,33 +724,6 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
   }
   rowToggle('row-app-files', function () {
     openFilesPanel();
-  });
-
-  /* ---- 应用商店面板 ---- */
-  /** @param {string} [hl] */
-  function openStorePanel(hl) {
-    const h = getHiddenApps(),
-      inst = APPS_TOTAL - h.length;
-    const html =
-      '<div class="px-1 pb-2">' +
-      '<div class="set-row no-ic"><span class="flex-1 font-medium">' + T.fmt('storeCounts', { i: inst, u: h.length }) + '</span></div>' +
-      '<div class="set-row no-ic" id="aps-restore" role="button" tabindex="0">' +
-      '<span class="flex-1 font-medium text-m-primary">' + T.t('storeRestore') + '</span></div>' +
-      appOpenLink('store', T.t('openStore')) +
-      '</div>';
-    openSheet({ title: T.t('storeTitle'), html: html });
-    const rs = $('aps-restore');
-    if (rs)
-      on(rs, 'click', function () {
-        remove('sgx-apps-hidden');
-        paintApps();
-        window.dispatchEvent(new Event('sgx-settings-changed'));
-        closeSheet();
-      });
-    hlInSheet(hl);
-  }
-  rowToggle('row-app-store', function () {
-    openStorePanel();
   });
 
   /* ---- 浏览器面板 ---- */
@@ -1244,11 +1210,10 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
    * @param {string} item
    */
   function pickResult(cat, elid, title, panel, item, url) {
-    /* 2.6.0：面板（我的文件/应用商店/浏览器）优先原地弹层，不跳转 */
-    if (panel === 'files' || panel === 'store' || panel === 'browser') {
+    /* 2.6.0：面板（我的文件/浏览器）优先原地弹层，不跳转 */
+    if (panel === 'files' || panel === 'browser') {
       window.setTimeout(function () {
         if (panel === 'files') openFilesPanel(item);
-        else if (panel === 'store') openStorePanel(item);
         else openBrowserPanel(item);
       }, 80);
       return;

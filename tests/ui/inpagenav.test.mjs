@@ -98,8 +98,8 @@ test('不使用 BroadcastChannel/storage/前端内存作为锁屏状态', () => 
   assert.ok(inpagenav.includes("credentials: 'include'"), 'fetch 应带 credentials');
 });
 
-test('四个 app 模块都注册了 mount/unmount', () => {
-  for (const page of ['browser', 'files', 'store', 'settings']) {
+test('三个 Dock app 模块都注册了 mount/unmount', () => {
+  for (const page of ['browser', 'files', 'settings']) {
     const content = read(`assets/js/apps/${page}.js`);
     assert.ok(content.includes('registerPage'), `${page}.js 应调用 registerPage`);
     assert.ok(content.includes(`registerPage('${page}'`), `${page}.js 应注册 '${page}'`);

@@ -50,7 +50,7 @@ let sessArea = '';
 
 function areaOf() {
   const p = location.pathname;
-  if (p === '/goodlock/' || p === '/en/goodlock/') return 'goodlock';
+  if (p === '/settings/goodlock/' || p === '/en/settings/goodlock/') return 'goodlock';
   if (p === '/settings/' || p === '/en/settings/') return 'settings';
   if (p === '/browser/' || p === '/en/browser/') return 'browser';
   return 'home';

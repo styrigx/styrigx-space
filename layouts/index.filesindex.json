@@ -10,26 +10,6 @@
   {{ $items = $items | append (dict "id" $id "type" "post" "lang" $p.lang "title" $p.title "subtitle" "" "url" $p.url "cover" "" "addedAt" $p.date) }}
 {{ end }}
 
-{{/* ---------- 书单 ---------- */}}
-{{ range $l := $langs }}
-  {{ $books := cond (eq $l "en") site.Data.en.books site.Data.books }}
-  {{ range $i, $b := $books }}
-    {{ $id := printf "book-%d" (add $i 1) }}
-    {{ if eq $l "en" }}{{ $id = printf "book-%d-en" (add $i 1) }}{{ end }}
-    {{ $items = $items | append (dict "id" $id "type" "book" "lang" $l "title" $b.title "subtitle" ($b.author | default "") "url" (print (index $homeOf $l) "books/") "cover" (print "/" $b.cover) "addedAt" "") }}
-  {{ end }}
-{{ end }}
-
-{{/* ---------- 歌单 ---------- */}}
-{{ range $l := $langs }}
-  {{ $music := cond (eq $l "en") site.Data.en.music site.Data.music }}
-  {{ range $i, $m := $music }}
-    {{ $id := printf "music-%d" (add $i 1) }}
-    {{ if eq $l "en" }}{{ $id = printf "music-%d-en" (add $i 1) }}{{ end }}
-    {{ $items = $items | append (dict "id" $id "type" "music" "lang" $l "title" $m.title "subtitle" ($m.artist | default "") "url" (print (index $homeOf $l) "music/") "cover" (print "/" $m.cover) "addedAt" "") }}
-  {{ end }}
-{{ end }}
-
 {{/* ---------- 书签 ---------- */}}
 {{ range $l := $langs }}
   {{ $links := cond (eq $l "en") site.Data.en.links site.Data.links }}
@@ -54,28 +34,17 @@
 {{ end }}
 
 {{/* ---------- 应用 ---------- */}}
-{{/* 2.3.7：商店里的应用点击后打开应用商店里的对应应用（/store/#app-<id>）；
-     系统 App（browser/files/settings）保持直接链接 */}}
-{{ $storeApps := site.Data.apps }}
+{{/* 系统 App（browser/files/settings）直接链接；B2-2 删除应用商店 */}}
 {{ $apps := slice
   (dict "key" "browser"  "zh" "浏览器"   "en" "Internet"  "zhsub" "搜索与书签"     "ensub" "Search and bookmarks"   "path" "browser/")
   (dict "key" "files"    "zh" "我的文件" "en" "My Files"  "zhsub" "站内文件索引"   "ensub" "Site file index"        "path" "files/")
   (dict "key" "settings" "zh" "设置"     "en" "Settings"  "zhsub" "主题、语言、壁纸" "ensub" "Theme, language, wallpaper" "path" "settings/")
-  (dict "key" "store"    "zh" "应用商店" "en" "Store"     "zhsub" "站内应用"       "ensub" "Apps on this site"      "path" "store/")
 }}
 {{ range $l := $langs }}
   {{ range $a := $apps }}
     {{ $id := printf "app-%s" $a.key }}
     {{ if eq $l "en" }}{{ $id = printf "app-%s-en" $a.key }}{{ end }}
     {{ $items = $items | append (dict "id" $id "type" "app" "lang" $l "title" (index $a $l) "subtitle" (index $a (print $l "sub")) "url" (print (index $homeOf $l) $a.path) "cover" "" "addedAt" "") }}
-  {{ end }}
-  {{/* 商店应用：url 指向商店里的对应应用 */}}
-  {{ $sap := cond (eq $l "en") site.Data.en.apps site.Data.apps }}
-  {{ range $sa := $sap }}
-    {{ $id := printf "app-%s" $sa.id }}
-    {{ if eq $l "en" }}{{ $id = printf "app-%s-en" $sa.id }}{{ end }}
-    {{ $storeBase := cond (eq $l "en") "/en/store/" "/store/" }}
-    {{ $items = $items | append (dict "id" $id "type" "app" "lang" $l "title" $sa.name "subtitle" $sa.desc "url" (print $storeBase "#app-" $sa.id) "cover" "" "addedAt" ($sa.addedAt | default "")) }}
   {{ end }}
 {{ end }}
 

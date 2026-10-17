@@ -83,11 +83,8 @@
         d.classList.add('sgx-first-visit');
       }
     }catch(e){}
-    /* 正在播放：预读上次的歌序号，供首屏脚本同步使用 */
-    try{
-      var _ni=parseInt(localStorage.getItem('sgx-np-idx'),10);
-      if(!isNaN(_ni)&&_ni>=0)window.__npIdx=_ni;
-    }catch(e){}
+    /* B2-2：首页播放器、应用商店已删除，清理旧键 */
+    try{localStorage.removeItem('sgx-np-idx');localStorage.removeItem('sgx-apps-hidden')}catch(e){}
     /* 2.3.12.2：就寝模式已删除，清理旧键（之前开启过的用户不再被自动变暗） */
     try{localStorage.removeItem('sgx-bedtime')}catch(e){}
   }catch(e){}
@@ -159,18 +156,16 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 </script>
 </head>
 {{ $setUrl0 := "/settings/" }}{{ if $isEn }}{{ $setUrl0 = "/en/settings/" }}{{ end }}
-{{ $glUrl0 := "/goodlock/" }}{{ if $isEn }}{{ $glUrl0 = "/en/goodlock/" }}{{ end }}
 {{ $filesUrl0 := "/files/" }}{{ if $isEn }}{{ $filesUrl0 = "/en/files/" }}{{ end }}
-{{ $storeUrl0 := "/store/" }}{{ if $isEn }}{{ $storeUrl0 = "/en/store/" }}{{ end }}
-<body class="text-m-on-surface min-h-screen antialiased{{ if .IsHome }} has-dock{{ end }}{{ if not .IsHome }} subpage{{ end }}" data-page="{{ if or (eq .RelPermalink "/browser/") (eq .RelPermalink "/en/browser/") }}browser{{ else if eq .RelPermalink $filesUrl0 }}files{{ else if eq .RelPermalink $storeUrl0 }}store{{ else if eq .RelPermalink $setUrl0 }}settings{{ else if eq .RelPermalink $glUrl0 }}goodlock{{ end }}">
+<body class="text-m-on-surface min-h-screen antialiased{{ if .IsHome }} has-dock{{ end }}{{ if not .IsHome }} subpage{{ end }}" data-page="{{ if or (eq .RelPermalink "/browser/") (eq .RelPermalink "/en/browser/") }}browser{{ else if eq .RelPermalink $filesUrl0 }}files{{ else if eq .RelPermalink $setUrl0 }}settings{{ end }}">
 {{ partial "sgx-icon-sprite.html" . }}
 <div id="sgx-wallpaper" aria-hidden="true"></div>
 {{/* 2.4.0-C：调度器 / 边缘模糊 / 可见性定时器已移入 ES Module（assets/js/shell/），此处不再内联定义 */}}
 {{ $profile := site.Data.profile }}
 {{ $home := "/" }}{{ if $isEn }}{{ $home = "/en/" }}{{ end }}
 {{ $linksUrl := "/browser/" }}{{ if $isEn }}{{ $linksUrl = "/en/browser/" }}{{ end }}
-{{ $aiUrl := "/ai/" }}{{ if $isEn }}{{ $aiUrl = "/en/ai/" }}{{ end }}
-{{ $setUrl := $setUrl0 }}{{ $glUrl := $glUrl0 }}{{ $filesUrl := $filesUrl0 }}{{ $storeUrl := $storeUrl0 }}
+{{ $setUrl := $setUrl0 }}{{ $filesUrl := $filesUrl0 }}
+{{ $glUrl := cond $isEn "/en/settings/goodlock/" "/settings/goodlock/" }}
 
 {{/* 顶栏 v2.0（与 Book 同一套）：返回圆（主页不渲染）+ 长条（品牌组 + ⋮）+ 导航圆 */}}
 <header id="site-nav" class="z-50">
@@ -206,22 +201,15 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 
 {{/* 搜索索引 */}}
 {{ $entries := site.Data.entries.entries }}
-{{ $books := site.Data.books }}
-{{ $music := site.Data.music }}
 {{ $collections := site.Data.collections }}
 {{ $links := site.Data.links }}
 {{ if $isEn }}
-  {{ $entries = site.Data.en.entries.entries }}{{ $books = site.Data.en.books }}{{ $music = site.Data.en.music }}{{ $collections = site.Data.en.collections }}{{ $links = site.Data.en.links }}
+  {{ $entries = site.Data.en.entries.entries }}{{ $collections = site.Data.en.collections }}{{ $links = site.Data.en.links }}
 {{ end }}
-{{ $cFeatured := "精选" }}{{ $cBook := "书单" }}{{ $cMusic := "歌单" }}{{ $cColl := "收藏" }}{{ $cLink := "书签" }}
-{{ if $isEn }}{{ $cFeatured = "Featured" }}{{ $cBook = "Books" }}{{ $cMusic = "Music" }}{{ $cColl = "Collections" }}{{ $cLink = "Links" }}{{ end }}
+{{ $cFeatured := "精选" }}{{ $cColl := "收藏" }}{{ $cLink := "书签" }}
+{{ if $isEn }}{{ $cFeatured = "Featured" }}{{ $cColl = "Collections" }}{{ $cLink = "Links" }}{{ end }}
 {{ $idx := slice }}
 {{ range $e := $entries }}{{ $idx = $idx | append (dict "t" $e.name "d" ($e.desc | default "") "u" $e.url "c" $cFeatured) }}{{ end }}
-{{ range $b := $books }}{{ $idx = $idx | append (dict "t" $b.title "d" (print ($b.author | default "") " " ($b.comment | default "")) "u" (print $home "#books") "c" $cBook) }}{{ end }}
-{{ range $m := $music }}{{ $idx = $idx | append (dict "t" $m.title "d" (print ($m.artist | default "") " " ($m.comment | default "")) "u" (print $home "#music") "c" $cMusic) }}{{ end }}
-{{/* 书单 / 歌单书架页 */}}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Books" "书单") "d" (cond $isEn "All books with notes" "全部书籍与批注") "u" (cond $isEn "/en/books/" "/books/") "c" $cBook) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Playlist" "歌单") "d" (cond $isEn "All songs with notes" "全部歌曲与批注") "u" (cond $isEn "/en/music/" "/music/") "c" $cMusic) }}
 {{ range $c := $collections }}{{ $idx = $idx | append (dict "t" $c.name "d" ($c.desc | default "") "u" $c.url "c" $cColl) }}{{ end }}
 {{ range $cat := $links }}{{ range $s := $cat.sites }}{{ $idx = $idx | append (dict "t" $s.name "d" ($s.desc | default "") "u" $s.url "c" (print $cLink " · " $cat.category)) }}{{ end }}{{ end }}
 {{/* 设置页与常用设置项（$setUrl 已在 body 前定义） */}}
@@ -245,12 +233,11 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Reduce motion" "减弱动效") "d" $cSet "u" (print $setUrl "#accessibility") "c" $cSet) }}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Apps" "应用") "d" $cSet "u" (print $setUrl "#apps") "c" $cSet) }}
 {{ $idx = $idx | append (dict "t" (cond $isEn "My Files" "我的文件") "d" $cSet "u" (print $setUrl "#apps") "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Store" "应用商店") "d" $cSet "u" (print $setUrl "#apps") "c" $cSet) }}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Internet" "浏览器") "d" $cSet "u" (print $setUrl "#apps") "c" $cSet) }}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Search engine" "搜索引擎") "d" $cSet "u" (print $setUrl "#apps") "c" $cSet) }}
 {{/* 数字健康 */}}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Digital wellbeing" "数字健康") "d" (cond $isEn "Screen time" "屏幕时间") "u" (print $setUrl "#wellbeing") "c" $cSet) }}
-{{/* Good Lock 实验室（$glUrl 已在 body 前定义） */}}
+{{/* Good Lock（B2-2 起为设置子页 /settings/goodlock/） */}}
 {{ $cGl := "Good Lock" }}
 {{ $idx = $idx | append (dict "t" $cGl "d" (cond $isEn "Experimental modules" "实验性功能模块") "u" $glUrl "c" $cGl) }}
 {{ $glMods := slice
@@ -292,29 +279,19 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
   </div>
 </footer>
 
-{{/* ===== DeX 应用抽屉数据（$dexApps 供抽屉网格用）===== */}}
-{{/* ===== DeX 应用抽屉数据：4 系统 App + 商店里已安装的应用（2.3.7）===== */}}
+{{/* ===== DeX 应用抽屉数据：3 个系统 App（B2-2 删除应用商店） ===== */}}
 {{ $dexApps := slice
   (dict "name" (cond $isEn "My Files" "我的文件") "name2" "My Files 我的文件 files" "url" $filesUrl "icon" "files" "bg" "" "fg" "")
-  (dict "name" (cond $isEn "Store" "应用商店") "name2" "Store 应用商店 store apps 应用" "url" $storeUrl "icon" "store" "bg" "" "fg" "")
   (dict "name" (cond $isEn "Internet" "浏览器") "name2" "Internet 浏览器 browser links 书签" "url" $linksUrl "icon" "browser" "bg" "" "fg" "")
   (dict "name" (cond $isEn "Settings" "设置") "name2" "Settings 设置" "url" $setUrl "icon" "gear-solid" "bg" "" "fg" "")
 }}
-{{/* 商店应用（data/apps.yaml）：hidden 过滤由 JS 按 data-appid 做 */}}
-{{ $storeApps := site.Data.apps }}{{ if $isEn }}{{ $storeApps = site.Data.en.apps }}{{ end }}
-{{ range $sa := $storeApps }}
-  {{ $dexApps = $dexApps | append (dict "name" $sa.name "name2" (print $sa.name " " $sa.desc) "url" $sa.url "icon" $sa.icon "bg" "" "fg" "" "ext" $sa.ext "appid" $sa.id) }}
-{{ end }}
 
 {{ if .IsHome }}
-<!-- Mobile 悬浮 Dock：我的文件 / 应用商店 / 浏览器 / 设置（竖屏，仅主页） -->
+<!-- Mobile 悬浮 Dock：我的文件 / 浏览器 / 设置（竖屏，仅主页） -->
 <div class="dock" id="mobile-dock" role="navigation" aria-label="{{ if $isEn }}Navigation{{ else }}导航栏{{ end }}">
   <span class="dock-pill" id="dock-pill" aria-hidden="true"></span>
   <a href="{{ $filesUrl }}" class="dock-btn" data-dock="files" aria-label="{{ if $isEn }}My Files{{ else }}我的文件{{ end }}">
     <span class="dock-ic">{{ partial "icon.html" (dict "name" "files" "uid" "pd") }}</span><span class="dock-label">{{ if $isEn }}My Files{{ else }}我的文件{{ end }}</span>
-  </a>
-  <a href="{{ $storeUrl }}" class="dock-btn" data-dock="store" aria-label="{{ if $isEn }}Store{{ else }}应用商店{{ end }}">
-    <span class="dock-ic">{{ partial "icon.html" (dict "name" "store" "uid" "pd") }}</span><span class="dock-label">{{ if $isEn }}Store{{ else }}应用商店{{ end }}</span>
   </a>
   <a href="{{ $linksUrl }}" class="dock-btn" data-dock="browser" aria-label="{{ if $isEn }}Internet{{ else }}浏览器{{ end }}">
     <span class="dock-ic">{{ partial "icon.html" (dict "name" "browser" "uid" "pd") }}</span><span class="dock-label">{{ if $isEn }}Internet{{ else }}浏览器{{ end }}</span>
@@ -324,7 +301,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
   </a>
 </div>
 
-<!-- DeX/PC 底部居中 Dock（横屏，仅主页）：应用抽屉 / 我的文件 / 应用商店 / 浏览器 / 设置 -->
+<!-- DeX/PC 底部居中 Dock（横屏，仅主页）：应用抽屉 / 我的文件 / 浏览器 / 设置 -->
 <div id="dex-dock" role="navigation" aria-label="{{ if $isEn }}Navigation{{ else }}导航栏{{ end }}">
   <button type="button" id="dex-dock-drawer" class="dex-dock-btn" aria-label="{{ if $isEn }}App drawer{{ else }}应用抽屉{{ end }}" title="{{ if $isEn }}App drawer{{ else }}应用抽屉{{ end }}">
     <span class="dex-dock-ic">{{ partial "icon.html" (dict "name" "drawer" "uid" "dd") }}</span>
@@ -332,9 +309,6 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
   </button>
   <a href="{{ $filesUrl }}" class="dex-dock-btn" data-navpage="files" aria-label="{{ if $isEn }}My Files{{ else }}我的文件{{ end }}" title="{{ if $isEn }}My Files{{ else }}我的文件{{ end }}">
     <span class="dex-dock-ic">{{ partial "icon.html" (dict "name" "files" "uid" "dd") }}</span><span class="dex-dock-dot" aria-hidden="true"></span>
-  </a>
-  <a href="{{ $storeUrl }}" class="dex-dock-btn" data-navpage="store" aria-label="{{ if $isEn }}Store{{ else }}应用商店{{ end }}" title="{{ if $isEn }}Store{{ else }}应用商店{{ end }}">
-    <span class="dex-dock-ic">{{ partial "icon.html" (dict "name" "store" "uid" "dd") }}</span><span class="dex-dock-dot" aria-hidden="true"></span>
   </a>
   <a href="{{ $linksUrl }}" class="dex-dock-btn" data-navpage="browser" aria-label="{{ if $isEn }}Internet{{ else }}浏览器{{ end }}" title="{{ if $isEn }}Internet{{ else }}浏览器{{ end }}">
     <span class="dex-dock-ic">{{ partial "icon.html" (dict "name" "browser" "uid" "dd") }}</span><span class="dex-dock-dot" aria-hidden="true"></span>
@@ -361,7 +335,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
     </div>
     <div id="dex-drawer-grid">
       {{ range $di, $da := $dexApps }}
-      <a href="{{ $da.url }}" {{ if $da.ext }}target="_blank" rel="noopener"{{ end }} data-name="{{ $da.name2 }}"{{ with $da.appid }} data-appid="{{ . }}"{{ end }} class="dex-app" aria-label="{{ $da.name }}">
+      <a href="{{ $da.url }}" {{ if $da.ext }}target="_blank" rel="noopener"{{ end }} data-name="{{ $da.name2 }}" class="dex-app" aria-label="{{ $da.name }}">
         {{ if or (eq $da.icon "brands/github") (eq $da.icon "x-logo") }}
         <span class="dex-app-ic {{ $da.bg }} {{ $da.fg }}">{{ partial "icon.html" $da.icon }}</span>
         {{ else }}
