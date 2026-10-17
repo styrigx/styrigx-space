@@ -2216,7 +2216,7 @@
     border-radius: 16px;
     text-align: left; cursor: pointer; color: var(--m-on-surface);
     /* 批次 A 验收修复 P2：按下态整行背景变色（现有 --m-container-* 色），松开恢复 */
-    &:active { background: var(--m-container-high); }
+    &:active, &.sgx-row-pressed { background: var(--m-container-high); }
     /* 选中态（根凭证/密码行展开时）：背景保持高亮 */
     &.sgx-row-selected { background: var(--m-container-high); }
   }
