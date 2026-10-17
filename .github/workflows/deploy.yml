@@ -405,7 +405,7 @@ jobs:
     # 这里失败不影响 Pages 上线（只会显示红叉）。
     # 路由见 workers/auth/wrangler.toml（styrigx.com/api/*）；workers_dev=false。部署后自动冒烟检查线上。
     # 密钥全在 Secrets Store，CI 不传任何密值。
-    # 用专门的 token（GitHub Secret：CLOUDFLARE_AUTH_GATEWAY_TOKEN，对应 Cloudflare 上的
+    # 用专门的 token（GitHub 环境密钥 STYRIGX_AUTH_GATEWAY_DEPLOY，名字对应 Cloudflare 上的
     # styrigx-auth-gateway-deploy）：Workers Scripts 编辑 + Secrets Store 编辑（带 Secrets Store 绑定部署必须 Edit，Read 报 10021）
     # + Account Settings 读取 + styrigx.com 的 Workers Routes 编辑。Pages 的部署 token 不给 Worker 权限，互不影响。
     # 这把 token 放在 GitHub 环境 auth-gateway 的环境密钥里，该环境只允许 main 分支部署：
@@ -426,7 +426,7 @@ jobs:
       - name: Deploy auth Worker (styrigx-auth-gateway)
         uses: cloudflare/wrangler-action@v3
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_AUTH_GATEWAY_TOKEN }}
+          apiToken: ${{ secrets.STYRIGX_AUTH_GATEWAY_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: workers/auth
           wranglerVersion: '4'
