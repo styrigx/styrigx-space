@@ -3,7 +3,6 @@
  * 文案来自页面内 sgx-i18n-browser JSON（中英双语），JS 与语言无关。
  */
 import { on } from '../lib/events.js';
-import { registerPage } from '../shell/inpagenav.js';
 import { esc } from '../lib/util.js';
 import { get, set } from '../lib/storage.js';
 import { loadI18n } from '../lib/i18n.js';
@@ -928,13 +927,3 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
   });
   initFromUrl();
 })();
-
-/* 2.9.0 页内导航：注册 mount/unmount */
-function browserMount() {
-  // 页面初始化逻辑已在 IIFE 中执行，这里预留给页内切换时的重新挂载
-}
-function browserUnmount() {
-  // 清理定时器、事件监听和 observer
-  // 注意：IIFE 中的监听器在页内切换时需要手动清理，这里是占位实现
-}
-registerPage('browser', { mount: browserMount, unmount: browserUnmount });

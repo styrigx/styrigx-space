@@ -222,6 +222,8 @@ export function initCapsule() {
         });
       });
     }
+    /* 绑定前已聚焦（页面先聚焦了输入框）：直接展开，保证胶囊跟随键盘 */
+    if (document.activeElement === input) open();
     /* 页面底部留白：胶囊不压内容，最后一项能完整滚出 */
     document.body.classList.add('sgx-cap-pad');
   });

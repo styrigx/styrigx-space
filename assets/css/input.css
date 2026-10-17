@@ -55,7 +55,22 @@
   from { opacity: 0; transform: scale(.72); }
   to { opacity: 1; transform: scale(1); }
 }
-/* 尊重减弱动画：过渡退化为无动画 */
+/* 整页切换：淡出 → 淡入（Material fade through）。旧页先在 90ms 内淡出，新页再淡入并轻微放大，
+   两页不会半透明叠在一起。 */
+::view-transition-old(root) {
+  animation: sgx-vt-out 90ms cubic-bezier(.4, 0, 1, 1) both;
+}
+::view-transition-new(root) {
+  animation: sgx-vt-in 210ms cubic-bezier(0, 0, .2, 1) 90ms both;
+}
+@keyframes sgx-vt-out { to { opacity: 0; } }
+@keyframes sgx-vt-in { from { opacity: 0; transform: scale(.98); } }
+/* 尊重减弱动画：过渡退化为无动画（系统设置或本站「减弱动效」开关） */
+.reduced-motion::view-transition-group(*),
+.reduced-motion::view-transition-old(*),
+.reduced-motion::view-transition-new(*) {
+  animation: none !important;
+}
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*),
   ::view-transition-old(*),
@@ -541,23 +556,14 @@
   #wx-temp { font-variant-numeric: tabular-nums; }
   .wx-fade { transition: opacity .45s ease; }
   .wx-fade.wx-out { opacity: 0; }
-  .page-hero { min-height: 30vh; min-height: 30svh; }
 }
 
 /* ===== components 层 ===== */
 @layer sgx-components {
-  /* ===== 统一磨砂玻璃材质（2.4.0 A：token 化；真磨砂恢复 blur(24px) saturate(180%)）===== */
-  .glass {
-    background: var(--glass-tint);
-    border: 1px solid var(--glass-edge);
-    box-shadow: var(--glass-shadow);
-  }
   /* 浮动层统一磨砂（替代各处复制粘贴的 blur 写法）：
      滚动后的顶栏、搜索胶囊、Dock、底部弹层/语音卡、浮动菜单。
      isolation 限定混合范围；contain: layout style 把重排/重绘关在元素内（fixed 元素安全）。 */
-  .glass,
-  .dock, #dex-dock,
-  .sgx-searchbar, .sgx-cap, .sgx85-pill,
+  .dock, #dex-dock, .sgx-cap, .sgx85-pill,
   .brw-suggest, .sgx-cap-results, .brw-ov-bar, .brw-ov,
   .sgx-vs-card, #sheet-panel {
     backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
@@ -572,14 +578,13 @@
     -webkit-backdrop-filter: none;
   }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .glass, .dock, #dex-dock,
-    .sgx-searchbar, .sgx-cap, .sgx85-pill,
+    .dock, #dex-dock,
     /* stylelint-disable-next-line color-no-hex */
     .brw-suggest, .sgx-cap-results, .brw-ov-bar, .brw-ov, .sgx-vs-card { background: #fff; }
+    .sgx-cap, .sgx85-pill { background: var(--sgx-mat-solid); }
     /* stylelint-disable-next-line color-no-hex */
     .layout-mobile #sheet-panel, .layout-dex #sheet-panel, .layout-pc #sheet-panel { background: #fff; }
-    .dark .glass, .dark .dock, .dark #dex-dock,
-    .dark .sgx-searchbar, .dark .sgx-cap, .dark .sgx85-pill,
+    .dark .dock, .dark #dex-dock,
     .dark .brw-suggest, .dark .sgx-cap-results, .dark .brw-ov-bar, .dark .brw-ov,
     /* stylelint-disable-next-line color-no-hex */
     .dark .sgx-vs-card { background: #1e1e20; }
@@ -1051,7 +1056,6 @@
   /* ----- 手机模式强制（宽屏下也保持手机布局） ----- */
   .layout-mobile #home-widgets { grid-template-columns: repeat(4,minmax(0,1fr)); }
   .layout-mobile #home-widgets > .widget { grid-column: span 4/span 4; }
-  .layout-mobile .app-grid { grid-template-columns: repeat(4,minmax(0,1fr)); }
 }
 
 @layer sgx-components {
@@ -1119,8 +1123,6 @@
     .set-layout.single-cat .set-group.active { display: block; }
     .set-layout.single-cat .set-group.active > .set-gh { display: none; }
     .sgx-account-card { display: flex; }
-    /* DeX 下只保留一个“设置”大标题（subpage-head），删掉左侧栏重复的 */
-    .set-side-title { display: none; }
   }
   /* ===== 可复用账号卡：左 Sloan Gray / Styrigx，右圆形头像 =====
      2.3.14.8 宽屏左栏显示；2.3.14.9 手机端设置页复用同一组件，也显示。 */
@@ -1145,13 +1147,6 @@
        与宽屏左栏同一组件、样式一致；宽度随容器（左右 16px 由 .set-layout 的 px-4 提供）。
        D4：margin-top 为 0，使「三点底边 → 第一块内容顶边」= --sgx-head-btn-gap（与我的文件一致）。 */
     .layout-mobile & { display: flex; margin: 0 0 12px; }
-  }
-  .set-side-title { font-size: 2rem; font-weight: 800; color: var(--m-primary); letter-spacing: -0.02em; line-height: 1.1; }
-  #set-search {
-    width: 100%; border-radius: 999px; border: 1px solid var(--m-outline); background: var(--m-container-lowest);
-    padding: 10px 18px; font-size: 14px; outline: none; color: var(--m-on-surface);
-    &:focus { border-color: var(--m-primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--m-primary) 30%, transparent); }
-    &::placeholder { color: var(--m-on-surface-variant); }
   }
   .set-cat {
     display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 12px; border-radius: 1rem;
@@ -1180,51 +1175,7 @@
     svg { width: 26px; height: 26px; }
   }
   .sec-note { font-size: 12px; color: var(--m-on-surface-variant); padding: 0 4px; margin: 0; }
-  .sec-sheet-opt {
-    display: flex; align-items: center; gap: 12px; width: 100%;
-    padding: 14px 16px; border: 0; background: none; cursor: pointer;
-    font-size: 16px; color: var(--m-on-surface); text-align: left; border-radius: 12px;
-    &:active { background: var(--m-container-high); }
-    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: -2px; }
-    svg { width: 22px; height: 22px; flex-shrink: 0; }
-  }
-
-  /* ===== 锁定屏幕管理页 ===== */
-  .sgx-verify-sub { font-size: 14px; color: var(--m-on-surface-variant); margin: 0; }
   .sgx-verify-desc { font-size: 13px; color: var(--m-on-surface-variant); margin: 0; text-align: center; max-width: 300px; }
-  .sgx-verify-opts { display: flex; flex-direction: column; gap: 12px; width: 100%; }
-  /* 弹层选项按钮：实心 primary 矩形（与旧 upgrade.js 弹层 .sgx-upgrade-btn 一致） */
-  .sgx-verify-opt {
-    display: block; width: 100%; padding: 14px; margin: 0;
-    border-radius: 12px; border: none; font-size: 16px; font-weight: 600;
-    background: var(--m-primary); color: var(--m-on-primary); cursor: pointer;
-    text-align: center;
-    &:active { filter: brightness(.93); }
-    &:disabled { opacity: .5; cursor: default; }
-    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
-  }
-  /* 弹层底部取消：文字按钮（与旧 .sgx-upgrade-cancel 一致） */
-  .sgx-verify-cancel {
-    display: block; width: 100%; padding: 12px; border: none;
-    background: none; font-size: 15px; color: var(--m-on-surface-variant); cursor: pointer;
-    text-align: center;
-    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; border-radius: 8px; }
-  }
-  /* 弹层标题靠左（与旧 upgrade 弹层一致） */
-  .sgx-verify-title--left { align-self: stretch; text-align: left; }
-  /* 输入态：纵向排列，输入框整宽，验证整宽实心，返回文字按钮居中 */
-  .sgx-verify-keyform {
-    display: flex; flex-direction: column; width: 100%; gap: 12px;
-    &[hidden] { display: none; }
-    .sgx-pw-field { max-width: none; }
-    .sgx-verify-back { align-self: center; }
-  }
-  .sgx-verify-back {
-    background: none; border: 0; padding: 8px 16px; cursor: pointer;
-    font-size: 14px; color: var(--m-on-surface-variant);
-    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; border-radius: 8px; }
-  }
-  #lockgate-keyform { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; &[hidden] { display: none; } }
   .sgx-pw-field { position: relative; width: 100%; max-width: 280px; }
   .sgx-pw-field .sgx-pw-input { max-width: none; padding-right: 48px; }
   .sgx-pw-eye {
@@ -1301,13 +1252,6 @@
     display: flex; align-items: center; justify-content: center;
     svg { width: 24px; height: 24px; }
   }
-
-  /* ===== 设置页：底部渐隐（手机浮动搜索条背景；DeX 下搜索条在内容顶部，不需要）===== */
-  #settings-searchfade {
-    display: block; position: fixed; left: 0; right: 0; bottom: 0; height: 96px; z-index: 29; pointer-events: none;
-    background: linear-gradient(to bottom, rgba(0,0,0,0) 0%, var(--m-surface) 100%);
-    .layout-dex & , .layout-pc & { display: none; }
-  }
   /* ===== B1-6a：设置搜索独立页 ===== */
   .setso-title { font-size: 15px; font-weight: 600; color: var(--m-on-surface); padding: 8px 4px 12px; }
   .setso-card { background: var(--m-container); border-radius: 1.25rem; margin-bottom: 12px; overflow: hidden; }
@@ -1340,52 +1284,11 @@
 }
 
 @layer sgx-components {
-  /* ============================================================
-     统一搜索条（2.3.5.1）：browser / files / settings 同一视觉组件
-     尺寸 width min(100% - 32px, 480px)，高 48px，全圆角；
-     材质磨砂玻璃 + 细边 + 柔和阴影；手机悬浮 Dock 上方 12px，DeX 在大标题下方
-     ============================================================ */
-  .sgx-searchbar {
-    display: flex; align-items: center; gap: 2px; width: min(100% - 32px,480px); height: 48px; border-radius: 999px;
-    padding: 0 6px 0 4px; margin-left: auto; margin-right: auto;
-    background: var(--glass-tint); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow);
-    transition: transform .22s ease, opacity .22s ease;
-    .reduced-motion & { transition: none; }
-    /* 手机：悬浮在 Dock 上方 12px（Dock 高 64 + 底部 12 = 88px） */
-    .layout-mobile & {
-      position: fixed; left: 50%; transform: translateX(-50%); margin-left: 0; margin-right: 0;
-      bottom: calc(88px + env(safe-area-inset-bottom,0px)); z-index: 41;
-      /* 滚动隐藏：复用各页现有逻辑（files 自有 600ms / settings 随 Dock），行为不变 */
-      &.sgx-hide { transform: translateX(-50%) translateY(24px); opacity: 0; pointer-events: none; }
-    }
-    /* DeX：大标题下方、内容上方（和浏览器页原来一样） */
-    .layout-dex & { position: sticky; top: calc(var(--nav-h) + 10px); transform: none; z-index: 41; margin-bottom: 16px; }
-  }
-  .sgx-sb-btn {
-    width: 36px; height: 36px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
-    color: var(--m-on-surface-variant); flex-shrink: 0; background: transparent; border: 0; cursor: pointer;
-    &:active { background: rgba(0,0,0,.05); }
-    svg { width: 20px; height: 20px; }
-    /* 语音聆听中：按钮变主色 + 脉冲动画 */
-    &.sgx-mic-on {
-      color: var(--m-primary); animation: sgx-mic-pulse 1.4s ease-out infinite;
-      .reduced-motion & { animation: none; }
-    }
-  }
   @keyframes sgx-mic-pulse {
     0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--m-primary) 45%, transparent); }
     70% { box-shadow: 0 0 0 12px transparent; }
     100% { box-shadow: 0 0 0 0 transparent; }
   }
-  .sgx-sb-open {
-    flex: 1; min-width: 0; height: 100%; display: flex; align-items: center; gap: 10px;
-    padding-left: 14px; text-align: left; border-radius: 999px;
-    color: var(--m-on-surface-variant); background: transparent; border: 0; cursor: pointer;
-    &:active { transform: scale(.985); }
-  }
-  .sgx-sb-lead { display: inline-flex; flex-shrink: 0; }
-  .sgx-sb-lead svg { width: 20px; height: 20px; }
-  .sgx-sb-ph { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
   #brw-engine-ic { display: inline-flex; align-items: center; justify-content: center; }
   #brw-engine-ic img { width: 22px; height: 22px; border-radius: 999px; }
   #brw-engine-ic svg { width: 22px; height: 22px; }
@@ -1417,15 +1320,6 @@
       width: min(100% - 32px,560px); margin: 8px auto 0; max-height: 60vh; overflow-y: auto;
     }
   }
-  .brw-sug {
-    display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
-    padding: 12px 16px; min-height: 52px; color: var(--m-on-surface);
-    &:active { background: rgba(0,0,0,.05); }
-    & + & {
-      border-top: 1px solid rgba(0,0,0,.04);
-      .dark & { border-top-color: rgba(255,255,255,.06); }
-    }
-  }
   /* 快捷访问网格 */
   .brw-qa-grid {
     display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px;
@@ -1437,7 +1331,7 @@
   .brw-qa {
     display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 6px; border-radius: 1.25rem;
     background: var(--m-container-lowest); border: 1px solid rgba(0,0,0,0.04); min-height: 88px;
-    img { width: 36px; height: 36px; border-radius: .8rem; object-fit: contain; background: var(--m-container); padding: 2px; }
+    .brw-qa-ic { width: 36px; height: 36px; border-radius: .8rem; object-fit: contain; background: var(--m-container); padding: 2px; }
     span {
       font-size: 11px; color: var(--m-on-surface-variant); text-align: center; line-height: 1.3;
       display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
@@ -1464,8 +1358,8 @@
     bottom: calc(88px + env(safe-area-inset-bottom,0px));
     display: flex; align-items: center; gap: 10px; padding: 0 20px; height: 56px; border-radius: 999px;
     width: min(64vw,300px);
-    background: var(--glass-tint); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow);
-    color: var(--m-on-surface-variant); font-size: 17px; white-space: nowrap; cursor: pointer; border: 0;
+    background: var(--sgx-mat); border: 1px solid var(--sgx-mat-line); box-shadow: var(--sgx-mat-shadow);
+    color: var(--m-on-surface-variant); font-size: 17px; white-space: nowrap; cursor: pointer;
     transition: transform .22s ease, opacity .22s ease;
     svg { width: 22px; height: 22px; flex-shrink: 0; }
     &:active { transform: translateX(-50%) scale(.97); }
@@ -1489,7 +1383,7 @@
     bottom: calc(88px + env(safe-area-inset-bottom,0px));
     display: flex; align-items: center; gap: 10px; height: var(--sgx-bottom-dock-h); border-radius: 999px;
     padding: 0 20px; width: min(64vw,300px);
-    background: var(--glass-tint); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow);
+    background: var(--sgx-mat); border: 1px solid var(--sgx-mat-line); box-shadow: var(--sgx-mat-shadow);
     transition: bottom .25s ease, left .25s ease, right .25s ease, transform .25s ease, border-radius .25s ease, width .25s ease;
     .reduced-motion & { transition: none; }
     input {
@@ -1714,8 +1608,6 @@
      2.4.0 F 起完整展示：不设 max-height、不内部滚动，由 .brw-ov-top 统一滚动 */
   .brw-qa-grid-ov {
     display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 14px 8px;
-    /* 2.4.0 B：屏外跳过渲染 */
-    content-visibility: auto; contain-intrinsic-size: auto 420px;
     .layout-dex & { grid-template-columns: repeat(8,minmax(0,1fr)); }
   }
   .brw-qa-ov {
@@ -1854,10 +1746,6 @@
   .sgx-method-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .sgx-method-name { font-size: 16px; font-weight: 600; color: var(--m-on-surface); }
   .sgx-method-desc { font-size: 13px; color: var(--m-on-surface-variant); }
-  .sgx-method-badge {
-    font-size: 12px; font-weight: 600; color: var(--m-on-primary);
-    background: var(--m-primary); border-radius: 999px; padding: 4px 10px; flex-shrink: 0;
-  }
   /* 2.4.0 I：验证入口小字链接 */
   /* 2.8.0 锁屏重设计：.sgx-lock-links/.sgx-lock-pwlink 已删除（改成底部弹层选单） */
   .sgx-pw-input {
@@ -1868,43 +1756,6 @@
     &:disabled { opacity: .5; }
   }
   .sgx-pw-count { font-size: 13px; color: var(--m-on-surface-variant); margin: 0; }
-  /* 2.4.0 I：Owner 页 */
-  .owner-wrap { max-width: 560px; margin: 0 auto; padding: 0 16px 32px; }
-  .owner-card {
-    background: var(--glass-tint); border: 1px solid var(--glass-edge); border-radius: 1.5rem;
-    padding: 24px 20px; margin-top: 16px; display: flex; flex-direction: column; gap: 12px;
-  }
-  .owner-h { font-size: 18px; font-weight: 700; color: var(--m-on-surface); margin: 0; }
-  .owner-p { font-size: 14px; color: var(--m-on-surface-variant); margin: 0; }
-  .owner-input {
-    padding: 12px 16px; font-size: 16px; border: 1px solid var(--m-outline); border-radius: 12px;
-    background: var(--m-surface); color: var(--m-on-surface); width: 100%; box-sizing: border-box;
-    &:focus { outline: 2px solid var(--m-primary); outline-offset: 1px; border-color: transparent; }
-  }
-  .owner-btn {
-    background: var(--m-primary); color: var(--m-on-primary); border: 0; border-radius: 999px;
-    padding: 12px 24px; font-size: 15px; font-weight: 600; cursor: pointer;
-    &:active { transform: scale(.97); }
-  }
-  .owner-err { color: var(--m-rose); font-size: 14px; margin: 0; }
-  .owner-ok { color: var(--m-tertiary); font-size: 14px; margin: 0; }
-  /* fix/hi-owner：已注册通行密钥列表 */
-  .owner-pk-list { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-  .owner-pk-item {
-    display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    padding: 10px 14px; border: 1px solid var(--m-outline-variant); border-radius: 12px;
-    background: var(--m-surface-container-low);
-  }
-  .owner-pk-label { font-size: 14px; color: var(--m-on-surface); }
-  .owner-pk-del {
-    background: none; border: 0; color: var(--m-rose); font-size: 14px; font-weight: 600;
-    cursor: pointer; padding: 6px 8px;
-  }
-  .owner-help {
-    margin-top: 24px; padding: 0 4px; font-size: 13px; color: var(--m-on-surface-variant);
-    h3 { font-size: 14px; font-weight: 600; color: var(--m-on-surface); margin: 0 0 8px; }
-    ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
-  }
   /* 2.4.0 H：Turnstile 验证卡（<dialog>，One UI 密码界面式底部弹层）
      安全与隐私：验证/密码/通行密钥三态共用同一组件；卡片背景完全不透明；
      容器无 outline，:focus-visible 只在内部可交互元素上用本站焦点色。 */
@@ -2000,19 +1851,12 @@
   .sgx-door-err[hidden] { display: none; }
   .sgx-door-expand { padding: 8px 0 0; }
   .sgx-door-expand .sgx-pw-field { max-width: none; }
-  .sgx-door-textarea { min-height: 88px; resize: vertical; line-height: 1.5; }
-  .sgx-door-textarea.sgx-masked { -webkit-text-security: disc; }
   .sgx-door-foot { display: flex; justify-content: center; margin-top: 20px; }
   .sgx-door-cancel {
     background: none; border: 0; color: var(--m-primary);
     font-size: 16px; font-weight: 600; padding: 12px 24px; cursor: pointer;
   }
   .sgx-door-actions { display: flex; gap: 8px; width: 100%; }
-  .sgx-door-actions .sgx-door-textbtn {
-    flex: 1; background: none; border: 0; padding: 12px;
-    font-size: 16px; cursor: pointer; color: var(--m-on-surface-variant);
-  }
-  .sgx-door-actions .sgx-door-textbtn.primary { color: var(--m-primary); font-weight: 600; }
   /* C3：进入凭证弹层底部圆角矩形按钮（等宽并排）。
      验证：深蓝底白字（对比度 6.77:1）；
      取消：浅底深蓝字（对比度 5.4:1）。
@@ -2048,7 +1892,6 @@
     40%, 80% { transform: translateX(8px); }
   }
   .sgx-verify-title { font-size: 18px; font-weight: 700; color: var(--m-on-surface); margin: 0; }
-  .sgx-verify-box { display: flex; justify-content: center; min-height: 65px; align-items: center; }
   .sgx-verify-err { color: var(--m-rose); font-size: 14px; margin: 0; text-align: center; }
   /* 2.8.0：命名弹层输入框 One UI 样式（之前 class 存在但无样式定义） */
   .sgx-verify-input {
@@ -2062,7 +1905,6 @@
     &::placeholder { color: var(--m-on-surface-variant); opacity: .7; }
     &:focus { border-color: var(--m-primary); box-shadow: 0 0 0 1px var(--m-primary); }
   }
-  .sgx-verify-fallback { color: var(--m-on-surface-variant); font-size: 14px; margin: 0 0 8px; }
   .sgx-verify-skip {
     background: var(--m-primary); color: var(--m-on-primary);
     border: 0; border-radius: 999px; padding: 10px 24px; font-size: 15px; font-weight: 600; cursor: pointer;
@@ -2207,20 +2049,6 @@
 
 /* ===== utilities 层 ===== */
 @layer sgx-utilities {
-  /* ===== 2.4.0 B：长列表内容可见性优化 =====
-     content-visibility:auto 让屏外长列表跳过渲染；contain-intrinsic-size:auto <估算>
-     避免滚动条跳动（auto 关键字会记住上次真实渲染尺寸，只在首次用估算值）。 */
-  .brw-qa-grid,
-  .brw-qa-grid-ov,
-  #dex-drawer-grid {
-    content-visibility: auto;
-  }
-  .brw-qa-grid { contain-intrinsic-size: auto 420px; }
-  .brw-qa-grid-ov { contain-intrinsic-size: auto 420px; }
-  #dex-drawer-grid { contain-intrinsic-size: auto 480px; }
-  /* 注：.brw-qa-grid（浏览器页快捷访问）在上面 components 层已带 content-visibility，
-     这里不再重复。 */
-
   /* 底部弹层里的禁用行 */
   .is-disabled { opacity: .4; pointer-events: none; }
 }
@@ -2229,6 +2057,13 @@
    （按层顺序获胜，!important 只保留必须盖过 CSS animation 的减弱动效全局开关
    和无竞争的搜索高亮） */
 @layer overrides {
+  /* 内容卡片和顶栏同一材质（--sgx-mat，定义在顶栏段）。卡片后面只有固定的渐变壁纸，
+     背景模糊看不出差别，所以卡片不加 backdrop-filter（几十张卡同时模糊会拖慢滚动）。
+     只换底色：边框、阴影、悬停效果保持原样。 */
+  .widget.bg-m-container-lowest, .sgx-account-card, .link-card, .brw-qa, .brw-card, .brw-cat:not(.on):not(.is-active) {
+    background-color: var(--sgx-mat); background-image: none;
+  }
+
   /* DeX 下隐藏手机 Dock（兜底，布局类已控制；原 !important 已摘） */
   .layout-dex .dock { display: none; }
   /* 页面底部留白：胶囊不压内容，最后一项能完整滚出（2.3.14.1：跟随胶囊高度 56px；
@@ -2293,15 +2128,6 @@
   color: var(--m-error);
 }
 .sgx-upgrade-err[hidden] { display: none; }
-/* P2-12：安全页验证弹层（站长凭证/管理凭证）复用 upgrade 按钮样式：
-   整宽实心矩形按钮 + 底部取消文字按钮，标题靠左，无小字描述；
-   输入态：输入框整宽，「验证」整宽实心按钮 + 「返回」文字按钮垂直排列。 */
-.sgx-verify-card.sgx-upg-card { align-items: stretch; }
-.sgx-verify-card.sgx-upg-card .sgx-verify-title { text-align: left; }
-.sgx-verify-card.sgx-upg-card .sgx-verify-opts { gap: 0; max-width: none; }
-.sgx-verify-card.sgx-upg-card .sgx-pw-field { max-width: none; }
-.sgx-verify-card.sgx-upg-card .sgx-upg-form { display: flex; flex-direction: column; width: 100%; }
-.sgx-verify-card.sgx-upg-card .sgx-upg-form[hidden] { display: none; }
 @media (min-width: 840px) {
   #sgx-upgrade-overlay { align-items: center; }
   .sgx-upgrade-sheet { border-radius: 24px; }
@@ -2375,13 +2201,24 @@ html, body {
 @media (min-width: 980px) {
   .sgx-topbar { left: 50%; right: auto; transform: translateX(-50%); width: min(calc(100vw - 32px), 1068px); }
 }
+/* 顶栏材质（全站统一：顶栏、底部搜索栏、内容卡片都用这一套）：主色 10% 混表面色，88% 不透明 */
+:root {
+  --sgx-mat: color-mix(in srgb, color-mix(in srgb, var(--m-primary) 10%, var(--m-surface)) 88%, transparent);
+  --sgx-mat-solid: color-mix(in srgb, var(--m-primary) 10%, var(--m-surface));
+  --sgx-mat-line: rgba(0,0,0,.06);
+  --sgx-mat-shadow: 0 8px 24px rgba(0,0,0,.14);
+}
+.dark {
+  --sgx-mat-line: rgba(255,255,255,.08);
+  --sgx-mat-shadow: 0 8px 24px rgba(0,0,0,.35);
+}
 .sgx-tb-back, .sgx-tb-search, .sgx-tb-pill, .sgx-tb-nav {
-  background: color-mix(in srgb, color-mix(in srgb, var(--m-primary) 10%, var(--m-surface)) 88%, transparent);
+  background: var(--sgx-mat);
   backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(0,0,0,.06); box-shadow: 0 8px 24px rgba(0,0,0,.14); pointer-events: auto; }
-.dark .sgx-tb-back, .dark .sgx-tb-search, .dark .sgx-tb-pill, .dark .sgx-tb-nav { border-color: rgba(255,255,255,.08); box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+  border: 1px solid var(--sgx-mat-line); box-shadow: var(--sgx-mat-shadow); }
+.sgx-tb-back, .sgx-tb-search, .sgx-tb-pill, .sgx-tb-nav { pointer-events: auto; }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .sgx-tb-back, .sgx-tb-search, .sgx-tb-pill, .sgx-tb-nav { background: color-mix(in srgb, var(--m-primary) 10%, var(--m-surface)); }
+  .sgx-tb-back, .sgx-tb-search, .sgx-tb-pill, .sgx-tb-nav { background: var(--sgx-mat-solid); }
 }
 .sgx-tb-back, .sgx-tb-search, .sgx-tb-nav { width: 52px; height: 52px; border-radius: 999px; flex-shrink: 0; padding: 0;
   display: inline-flex; align-items: center; justify-content: center; color: var(--m-on-surface); cursor: pointer; }
