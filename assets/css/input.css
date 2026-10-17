@@ -906,7 +906,6 @@
 
   /* ===== 手机触控区域 ===== */
   @media (max-width:639px) {
-    .garden-pill, .stage-pill { min-height: 48px; display: inline-flex; align-items: center; }
     .app-tile { min-height: 48px; }
     .dock-btn { min-height: 48px; }
   }
@@ -1029,9 +1028,7 @@
   .layout-dex #home-widgets { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .layout-dex #home-widgets > .widget { grid-column: span 1/span 1; }
   .layout-dex #home-widgets > .widget.wb-full { grid-column: span 2/span 2; }
-  /* B2-2：播放器删除后便签横跨两列 + dense 回填，避免数字花园单独占一行留空 */
   .layout-dex #home-widgets { grid-auto-flow: dense; }
-  .layout-dex #home-widgets > #now { grid-column: span 2/span 2; }
   @media (min-width:1024px) {
     .layout-dex #home-widgets { grid-template-columns: repeat(3,minmax(0,1fr)); }
     .layout-dex #home-widgets > .widget.wb-full { grid-column: span 3/span 3; }
@@ -1043,17 +1040,14 @@
 
   /* ----- PC（2.5.0）：栅格布局 —— 容器 1440 居中，左右边缘对齐 ----- */
   .layout-pc .home-wrap { max-width: 1440px; }
-  /* 首页小组件：2 列栅格 + dense 回填；大卡片（个人卡/博客/屏幕时间/天气）横跨整行，
-     小卡片两两并排（时钟+便签），数字花园横跨整行（B2-2 删除播放器后），每行铺满无右侧空白 */
+  /* 首页小组件：2 列栅格 + dense 回填 */
   .layout-pc #home-widgets { grid-template-columns: repeat(2,minmax(0,1fr)); grid-auto-flow: dense; }
   .layout-pc #home-widgets > .widget { grid-column: span 1/span 1; }
+  /* B2-5：首页只剩名片、时钟、天气、屏幕时间，四张都整行（天气没数据时隐藏，不会留半行空白） */
   .layout-pc #home-widgets > #w-profile,
-  .layout-pc #home-widgets > #w-blog,
-  .layout-pc #home-widgets > #w-screen,
+  .layout-pc #home-widgets > #dual-clock,
   .layout-pc #home-widgets > #weather,
-  .layout-pc #home-widgets > #w-garden { grid-column: span 2/span 2; }
-  /* DeX/PC 下彻底不渲染桌面图标网格（与底部 Dock 重复；DeX 下还会被 Dock 压住、上半截漏出） */
-  .layout-dex #home-apps, .layout-pc #home-apps { display: none; }
+  .layout-pc #home-widgets > #w-screen { grid-column: span 2/span 2; }
   /* ----- 手机模式强制（宽屏下也保持手机布局） ----- */
   .layout-mobile #home-widgets { grid-template-columns: repeat(4,minmax(0,1fr)); }
   .layout-mobile #home-widgets > .widget { grid-column: span 4/span 4; }

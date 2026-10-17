@@ -74,7 +74,7 @@ jobs:
       - name: Passkey class + stepup + app-token tests (2.10.1)
         # 通行密钥分类、stepup 安全、app-token 签发与向量一致性、2.10.1 修复、
         # 认证入口（锁屏/安全页/访客假入口/重置锁屏）
-        run: node --test tests/kernel/passkey-class.test.mjs tests/kernel/passkey-list-pkclass.test.mjs tests/kernel/error-codes.test.mjs tests/kernel/stepup-security.test.mjs tests/kernel/auth-2101.test.mjs tests/kernel/auth-2102.test.mjs tests/kernel/auth-211.test.mjs tests/kernel/auth-entry.test.mjs tests/ui/app-token.test.mjs
+        run: node --test tests/kernel/passkey-class.test.mjs tests/kernel/passkey-list-pkclass.test.mjs tests/kernel/error-codes.test.mjs tests/kernel/stepup-security.test.mjs tests/kernel/auth-2101.test.mjs tests/kernel/auth-2102.test.mjs tests/kernel/auth-211.test.mjs tests/kernel/auth-entry.test.mjs tests/kernel/b2-5-books.test.mjs tests/ui/app-token.test.mjs
 
       - name: UI unit tests (2.9.0 页内导航等)
         run: node --test tests/ui/frontend-session.test.mjs tests/ui/i18n-weather.test.mjs tests/ui/inpagenav.test.mjs tests/ui/eye-row-feedback.test.mjs

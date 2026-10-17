@@ -5,7 +5,6 @@ import { on } from '../lib/events.js';
 import { get as featGet } from '../lib/features.js';
 import { visibleInterval } from '../lib/scheduler.js';
 import { get, getJSON, setJSON } from '../lib/storage.js';
-import { markAppIcon } from '../lib/vt.js';
 
 /* 双时钟 */
 (function () {
@@ -356,59 +355,4 @@ if (SGX_FEAT_WEATHER_SHOW)
     history.scrollRestoration = 'manual';
   }
   window.scrollTo(0, 0);
-})();
-
-/* 数字花园筛选 */
-(function () {
-  const pills = document.querySelectorAll('#garden-filters .garden-pill'),
-    stagePills = document.querySelectorAll('#garden-filters .stage-pill'),
-    cards = document.querySelectorAll('#garden-grid .garden-card');
-  if (!pills.length && !stagePills.length) return;
-  let activeTag = '',
-    activeStage = '';
-  const activeCls = 'rounded-full px-4 py-1.5 text-sm font-medium bg-m-primary text-m-on-primary transition-colors';
-  const idleCls =
-    'rounded-full px-4 py-1.5 text-sm font-medium border border-m-outline text-m-on-surface-variant hover:border-m-primary transition-colors';
-  function apply() {
-    cards.forEach(function (c) {
-      const el = /** @type {HTMLElement} */ (c);
-      const tags = (el.dataset.tags || '').split(',');
-      const okTag = !activeTag || tags.indexOf(activeTag) !== -1,
-        okStage = !activeStage || el.dataset.stage === activeStage;
-      el.style.display = okTag && okStage ? '' : 'none';
-    });
-  }
-  /**
-   * @param {NodeListOf<Element>} list
-   * @param {string} kind
-   * @param {(v: string) => void} set
-   */
-  function bind(list, kind, set) {
-    list.forEach(function (p) {
-      on(p, 'click', function () {
-        list.forEach(function (x) {
-          x.className = (kind === 'garden' ? 'garden-pill ' : 'stage-pill ') + idleCls;
-        });
-        p.className = (kind === 'garden' ? 'garden-pill ' : 'stage-pill ') + activeCls;
-        set(kind === 'garden' ? p.getAttribute('data-tag') || '' : p.getAttribute('data-stage') || '');
-        apply();
-      });
-    });
-  }
-  bind(pills, 'garden', function (v) {
-    activeTag = v;
-  });
-  bind(stagePills, 'stage', function (v) {
-    activeStage = v;
-  });
-})();
-
-/* 2.4.0 D：App 图标点击 → View Transitions 共享元素标记 */
-(function () {
-  document.querySelectorAll('.app-tile[href]').forEach(function (tile) {
-    on(tile, 'click', function () {
-      const icon = tile.querySelector('span');
-      if (icon) markAppIcon(/** @type {HTMLElement} */ (icon));
-    }, { capture: true });
-  });
 })();
