@@ -452,7 +452,8 @@ jobs:
           ok=0
           check /api/geo 200 || ok=1
           check /api/session-check 401 || ok=1
-          check /api/no-such-endpoint 404 || ok=1
+          # 未登录访问不存在的接口：middleware 先拦（默认拒绝），返回 401 而不是 404，这是预期。
+          check /api/no-such-endpoint 401 || ok=1
           home=$(curl -sS -o /dev/null -w '%{http_code}' https://styrigx.com/ || true)
           echo "/ -> $home (Pages)"
           case "$home" in 2*|3*) ;; *) echo "::error::homepage returned $home"; ok=1;; esac
