@@ -13,7 +13,6 @@ import { initThemeListener } from '../lib/theme.js';
 import { applyTheme, setThemeMode } from '../lib/theme.js';
 import { initNav } from './nav.js';
 import { initGoodLock } from './goodlock.js';
-import { initInPageNav } from './inpagenav.js';
 import { initScrollFx } from './scrollfx.js';
 import { initDexBridge } from './layout.js';
 import { initLock } from './lock.js';
@@ -73,7 +72,6 @@ export function initCore() {
   initThemeListener();
   initNav(S);
   initGoodLock();
-  initInPageNav();
   initScrollFx(S);
   initFeatSync();
   /* Hark：CI 测试构建禁用锁屏（构建期摇掉，线上无残留） */

@@ -102,6 +102,10 @@ export function initNavHistory() {
       sessionStorage.setItem('sgx-hist-root', '1');
     } catch (e) {}
   })();
+  /* 退回上面插入的那条主页历史（同一文档，URL 已变成上一级）：加载上一级页面 */
+  window.addEventListener('popstate', function (e) {
+    if (e.state && e.state.sgxRoot) location.replace(location.href);
+  });
 
   /* 双击顶栏回顶部（One UI 习惯） */
   (function () {

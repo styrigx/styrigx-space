@@ -4,7 +4,6 @@
  * 文案来自页面内 sgx-i18n-settings JSON（中英双语），JS 与语言无关。
  */
 import { on } from '../lib/events.js';
-import { registerPage } from '../shell/inpagenav.js';
 import { esc } from '../lib/util.js';
 import { get, set, remove, removeByPrefix, getJSON, setJSON } from '../lib/storage.js';
 import { get as featGet, set as featSet, on as featOn } from '../lib/features.js';
@@ -715,7 +714,11 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
     cats.forEach(function (c) {
       catMap[c.id] = c;
     });
-    input.focus({ preventScroll: true });
+    /* 进页聚焦放到下一帧：模块求值时搜索胶囊（initCapsule）还没绑定 focus，
+       提前聚焦会让胶囊不展开、不跟键盘（录屏里键盘弹出时胶囊不见、收起后悬在半空） */
+    requestAnimationFrame(function () {
+      try { input.focus({ preventScroll: true }); } catch (e) {}
+    });
     let timer = null;
     /* B1-6b：最近搜索（localStorage 字符串数组，中英文共用） */
     const LS_SETHIST = 'sgx-setso-history';
@@ -875,7 +878,8 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
       window.scrollTo(0, y);
     }
     try { history.scrollRestoration = 'manual'; } catch (e) {}
-    contentFirst();
+    /* 下一帧再置顶：公共初始化（initCore）会调整标题区高度，模块求值时量的位置会偏 */
+    requestAnimationFrame(contentFirst);
     /* 搜索后同样内容置顶 */
     input.addEventListener('input', function () {
       window.setTimeout(contentFirst, 170);
@@ -884,9 +888,8 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
     /* 返回手势：键盘弹出时 push 一条同 URL 的哨兵；popstate 时
        - 键盘态：只收键盘（blur → 胶囊沉底），停留本页；
        - 沉底态：不拦截，继续返回上一页（设置主页）。
-       哨兵在栈里期间 html[data-sgx-pop-hold] = 1，inpagenav 的 popstate 不导航。 */
+       */
     let armed = false;
-    const root = document.documentElement;
     function isKb() {
       return document.activeElement === input || !!(cap && cap.classList.contains('open'));
     }
@@ -899,7 +902,6 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
           window.location.href
         );
         armed = true;
-        root.dataset.sgxPopHold = '1';
       } catch (e) {}
     }
     input.addEventListener('focus', arm);
@@ -911,9 +913,6 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
         if (!armed) return;
         armed = false;
         const kb = isKb();
-        window.setTimeout(function () {
-          delete root.dataset.sgxPopHold;
-        }, 0);
         if (kb) {
           try { input.blur(); } catch (e) {}
           return;
@@ -1007,13 +1006,3 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
     }, 80);
   }
 })();
-
-/* 2.9.0 页内导航：注册 mount/unmount */
-function settingsMount() {
-  // 页面初始化逻辑已在 IIFE 中执行，这里预留给页内切换时的重新挂载
-}
-function settingsUnmount() {
-  // 清理定时器、事件监听和 observer
-  // 注意：IIFE 中的监听器在页内切换时需要手动清理，这里是占位实现
-}
-registerPage('settings', { mount: settingsMount, unmount: settingsUnmount });

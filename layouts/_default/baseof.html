@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ if or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}en{{ else }}zh{{ end }}" class="scroll-smooth" data-sgx-build="{{ partial "sgx-build-sha.html" . }}">
+<html lang="{{ if or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}en{{ else }}zh{{ end }}" data-sgx-build="{{ partial "sgx-build-sha.html" . }}">
 <head>
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 <meta charset="utf-8">

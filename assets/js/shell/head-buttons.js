@@ -5,7 +5,6 @@
  * - 小标题 .subpage-mini-title 搬进长条，水平垂直居中。
  * - 滚过标题区高度 × 0.55：body 加 sgx-stuck（头像不动，居中的 Styrigx 淡出、小标题淡入）。
  * - 九宫点导航菜单：配置数组，当前站点高亮 + ✓；点外部 / Esc / 返回手势关闭。
- * - 页内导航（inpagenav.js）换完 <main> 后调用 syncTopbar() 重新同步。
  * @param {import('../lib/scheduler.js').Scheduler} [S]
  */
 import { getScheduler } from '../lib/scheduler.js';

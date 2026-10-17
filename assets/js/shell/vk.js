@@ -40,7 +40,12 @@ export function onKeyboardHeight(cb, syncEl) {
         /** @type {any} */ (navigator).virtualKeyboard.removeEventListener('geometrychange', onGeo);
       } catch (e) {}
     });
-    cb(0);
+    /* 订阅时键盘可能已经弹出：按当前几何回调一次，而不是假定为 0 */
+    let h0 = 0;
+    try {
+      h0 = /** @type {any} */ (navigator).virtualKeyboard.boundingRect.height || 0;
+    } catch (e) {}
+    cb(Math.max(0, h0));
   } else {
     const vv = window.visualViewport;
     if (!vv) return function () {};
