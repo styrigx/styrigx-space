@@ -1,5 +1,5 @@
 # 2.6.0：设置分类定义（单数据源）。设置首页、二级页、双栏导航共用。
-# 图标/配色沿用旧版 set-cat 样式；apps 用应用图标特殊渲染（appicon: true）。
+# 图标/配色沿用旧版 set-cat 样式；appicon: true 的分类用应用图标特殊渲染。
 cats:
   - id: display
     icon: moon
@@ -33,15 +33,6 @@ cats:
     en: General management
     subzh: 语言、日期和时间、天气
     suben: Language, date & time, weather
-  - id: apps
-    icon: appgrid-solid
-    appicon: true
-    bg: ""
-    fg: ""
-    zh: 应用
-    en: Apps
-    subzh: 我的文件、浏览器
-    suben: My Files, Internet
   - id: goodlock
     icon: gift
     appicon: true

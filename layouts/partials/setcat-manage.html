@@ -26,5 +26,9 @@
         {{ partial "icon.html" "chev-r" }}
       </div>
       {{ end }}
+      {{/* B2-4：自「关于本站」移入 */}}
+      <div class="set-row no-ic" id="row-reset" role="button" tabindex="0">
+        <span class="flex-1 font-medium text-red-600 dark:text-red-400">{{ if $isEn }}Reset all settings{{ else }}重置所有设置{{ end }}</span>
+      </div>
     </section>
 </div>

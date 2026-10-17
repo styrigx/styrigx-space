@@ -414,6 +414,52 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
       });
     });
 
+  /* ============ 顶栏 ⋮（B2-4：原「设置 › 应用 › 浏览器」）：搜索引擎 / 地址栏位置 / 清除浏览记录 ============ */
+  function curPos() {
+    const p = lsGet(LS_POS, 'bottom');
+    return p === 'top' ? 'top' : 'bottom';
+  }
+  function openTbMenu() {
+    openSheet({
+      title: '',
+      options: [
+        { label: T.t('engineTitle'), sub: SE.name(curEngine()), value: 'engine' },
+        { label: T.t('addrPos'), sub: T.t(curPos() === 'top' ? 'posTop' : 'posBottom'), value: 'pos' },
+        { label: T.t('clearHist'), value: 'clear' },
+      ],
+      onPick: function (v) {
+        if (v === 'engine') openEngSheet();
+        else if (v === 'pos') {
+          const pos = curPos();
+          openSheet({
+            title: T.t('addrPos'),
+            options: [
+              { label: T.t('posTop'), value: 'top', checked: pos === 'top' },
+              { label: T.t('posBottom'), value: 'bottom', checked: pos === 'bottom' },
+            ],
+            onPick: function (p) {
+              if (p !== 'top' && p !== 'bottom') return;
+              lsSet(LS_POS, p);
+              applyPos();
+            },
+          });
+        } else if (v === 'clear') {
+          openSheet({
+            title: T.t('clearHistQ'),
+            options: [{ label: T.t('clear'), value: 'yes' }],
+            onPick: function (y) {
+              if (y !== 'yes') return;
+              lsSet(LS_RECENT, '[]');
+              renderSuggest();
+            },
+          });
+        }
+      },
+    });
+  }
+  const tbMore = document.getElementById('brw-more');
+  if (tbMore) on(tbMore, 'click', openTbMenu);
+
   /* ============ 语音输入：走共享语音弹窗；识别文字填入并展示站内建议 ============ */
   (function () {
     const SR = /** @type {any} */ (window).SpeechRecognition || /** @type {any} */ (window).webkitSpeechRecognition;

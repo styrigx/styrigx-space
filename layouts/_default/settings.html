@@ -82,8 +82,8 @@
 (function () {
   try {
     var h = (location.hash || '').replace(/^#/, '');
-    var map = { display: 1, theme: 1, manage: 1, apps: 1, goodlock: 1, accessibility: 1, wellbeing: 1, about: 1, security: 1,
-      'sg-display': 'display', 'sg-theme': 'theme', 'sg-manage': 'manage', 'sg-apps': 'apps',
+    var map = { display: 1, theme: 1, manage: 1, goodlock: 1, accessibility: 1, wellbeing: 1, about: 1, security: 1,
+      'sg-display': 'display', 'sg-theme': 'theme', 'sg-manage': 'manage',
       'sg-goodlock': 'goodlock', 'sg-accessibility': 'accessibility', 'sg-wellbeing': 'wellbeing', 'sg-about': 'about', 'sg-security': 'security' };
     var cat = map[h];
     if (cat) {

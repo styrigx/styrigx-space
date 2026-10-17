@@ -8,7 +8,6 @@ import { esc } from '../lib/util.js';
 import { getJSON, setJSON } from '../lib/storage.js';
 import { openSheet } from '../shell/sheet.js';
 import { setCapSearchProvider } from '../shell/capsule.js';
-import { sgxNavigate } from '../lib/diag-jumptrace.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -444,7 +443,7 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
   }
 
   /* ---------- ⋮ 菜单 ---------- */
-  const GROUP_LABELS = { cats: S.gCats, recent: S.gRecent, storage: S.gStorage, fav: S.gFav };
+  const GROUP_LABELS = { cats: S.gCats, sites: S.gSites, recent: S.gRecent, storage: S.gStorage, fav: S.gFav };
   function openSort() {
     openSheet({
       title: S.sortBy || '',
@@ -485,18 +484,48 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
       });
     }
   }
+  function openView() {
+    openSheet({
+      title: S.defView || '',
+      options: [
+        { label: S.list || '', value: 'list', checked: view.layout === 'list' },
+        { label: S.grid || '', value: 'grid', checked: view.layout === 'grid' },
+      ],
+      onPick: function (v) {
+        view.layout = v === 'grid' ? 'grid' : 'list';
+        saveView();
+        if (listMode) renderList();
+      },
+    });
+  }
+  /* B2-4：原「设置 › 应用 › 我的文件 › 清除最近访问记录」，二次确认后清空 */
+  function openClearRecent() {
+    openSheet({
+      title: S.clearRecentQ || '',
+      options: [{ label: S.clear || '', value: 'yes' }],
+      onPick: function (v) {
+        if (v !== 'yes') return;
+        set('sgx-files-recent', []);
+        renderRecentVisits();
+        toast(S.cleared || '');
+      },
+    });
+  }
+  /* B2-4：「设置 › 应用 › 我的文件」整体迁入这里（编辑主页、排序方式、默认视图、清除最近访问记录） */
   function openMore() {
     openSheet({
       title: '',
       options: [
         { label: S.editHome || '', value: 'home' },
         { label: S.sortBy || '', sub: view.sort === 'name' ? S.byName || '' : S.addedAt || '', value: 'sort' },
-        { label: S.settings || '', value: 'settings' },
+        { label: S.defView || '', sub: view.layout === 'grid' ? S.grid || '' : S.list || '', value: 'view' },
+        { label: S.clearRecent || '', value: 'clear' },
       ],
       onPick: function (v) {
         if (v === 'home') openHomeEdit();
         else if (v === 'sort') openSort();
-        else if (v === 'settings') sgxNavigate(I.setUrl || '/settings/', 'files.js:491', 'files-settings');
+        else if (v === 'view') openView();
+        else if (v === 'clear') openClearRecent();
       },
     });
   }

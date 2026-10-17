@@ -8,3 +8,5 @@
 /en/owner/  /en/settings/security/lock/  301
 /goodlock/  /settings/goodlock/  301
 /en/goodlock/  /en/settings/goodlock/  301
+/settings/apps/  /settings/  301
+/en/settings/apps/  /en/settings/  301

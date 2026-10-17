@@ -276,7 +276,7 @@ features:
       - {id: ecosia, zh: Ecosia, en: Ecosia}
     default: google
     key: sgx-search-engine
-    section: apps
+    section: browser
     requires: []
 
   - id: addrbar-pos
@@ -289,7 +289,7 @@ features:
       - {id: top, zh: 顶部, en: Top}
     default: bottom
     key: sgx-addrbar-pos
-    section: apps
+    section: browser
     requires: []
 
   - id: files-view
@@ -299,7 +299,7 @@ features:
     type: json
     default: {layout: list, sort: added}
     key: sgx-files-view
-    section: apps
+    section: files
     requires: []
 
   - id: files-home
@@ -309,7 +309,7 @@ features:
     type: json
     default: {cats: true, sites: true, recent: true, storage: true, fav: true}
     key: sgx-files-home
-    section: apps
+    section: files
     requires: []
 
   - id: well-tip
