@@ -1,9 +1,9 @@
 /**
- * @fileoverview 顶栏 v2.0（与 Book 同一套）：返回圆 + 长条（品牌组 + ⋮）+ 导航圆。
+ * @fileoverview 顶栏 v2.0（与 Book 同一套）：左圆（子页面返回 / 主页搜索）+ 长条（头像 + 居中 Styrigx + ⋮）+ 导航圆。
  * - 子页面标题区不再有 ← 和 ⋮。页面自己的 ⋮（如 #files-more、#sec-more）作为来源隐藏输出，
  *   这里把它搬进长条替换默认 ⋮（同一个节点，页面脚本按 id 绑定的监听不受影响）。
  * - 小标题 .subpage-mini-title 搬进长条，水平垂直居中。
- * - 滚过标题区高度 × 0.55：body 加 sgx-stuck（品牌组淡出）。
+ * - 滚过标题区高度 × 0.55：body 加 sgx-stuck（头像不动，居中的 Styrigx 淡出、小标题淡入）。
  * - 九宫点导航菜单：配置数组，当前站点高亮 + ✓；点外部 / Esc / 返回手势关闭。
  * - 页内导航（inpagenav.js）换完 <main> 后调用 syncTopbar() 重新同步。
  * @param {import('../lib/scheduler.js').Scheduler} [S]
