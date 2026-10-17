@@ -1,7 +1,7 @@
 /**
  * @fileoverview styrigx-auth-gateway：主站鉴权 Worker 入口。
  *
- * 承接 styrigx.com/api/*，代码直接复用 functions/（不复制、不改写）：
+ * 承接 styrigx.com/api/*（PR3 起整体切流），代码直接复用 functions/（不复制、不改写）：
  *   1. Secrets Store 的私密值换成字符串（secrets.js）
  *   2. 先跑主站原有的 functions/_middleware.js（会话、角色、白名单、no-store 全部照旧）
  *   3. middleware 放行后，按路由表交给 functions/api/<名字>.js
@@ -29,6 +29,13 @@ export function pickHandler(mod, method) {
   if (typeof mod[name] === 'function') return mod[name];
   if (typeof mod.onRequest === 'function') return mod.onRequest;
   return null;
+}
+
+/** 每个响应都打上 X-SGX-Runtime: worker，切流后能从外部确认请求真的走了 Worker（不含任何敏感信息） */
+export function tagRuntime(res) {
+  const out = new Response(res.body, res);
+  out.headers.set('X-SGX-Runtime', 'worker');
+  return out;
 }
 
 function json(status, body) {
@@ -75,14 +82,14 @@ export default {
     const url = new URL(request.url);
     if (!url.pathname.startsWith('/api/')) {
       /* 这个 Worker 只接 /api/*；别的路径不该路由过来 */
-      return json(404, { ok: false, error: 'not-found' });
+      return tagRuntime(json(404, { ok: false, error: 'not-found' }));
     }
     const env = await resolveSecrets(rawEnv);
     try {
-      return await middleware(makeContext(request, env, ctx, '/', (req) => dispatch(req, env, ctx)));
+      return tagRuntime(await middleware(makeContext(request, env, ctx, '/', (req) => dispatch(req, env, ctx))));
     } catch (e) {
       console.error('[sgx-auth] unhandled: ' + (e && e.name ? e.name : 'error'));
-      return json(500, { ok: false, error: 'internal' });
+      return tagRuntime(json(500, { ok: false, error: 'internal' }));
     }
   },
 };

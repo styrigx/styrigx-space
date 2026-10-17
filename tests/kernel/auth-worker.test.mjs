@@ -60,9 +60,10 @@ test('wrangler.toml：不开 workers.dev、生产模式、9 个密钥全走 Secr
     assert.match(toml, new RegExp(`binding = "${n}"\\nstore_id = "[^"]+"\\nsecret_name = "${n}"`));
   }
   assert.equal(SECRET_NAMES.length, 9);
-  /* 试水阶段只允许 /api/geo 一条路由；整体切换时改这里 */
-  assert.deepEqual([...toml.matchAll(/^pattern = "([^"]+)"$/gm)].map(m => m[1]), ['styrigx.com/api/geo']);
+  /* 只允许 styrigx.com/api/* 这一条路由：不接页面、不接别的子域 */
+  assert.deepEqual([...toml.matchAll(/^pattern = "([^"]+)"$/gm)].map(m => m[1]), ['styrigx.com/api/*']);
   assert.doesNotMatch(toml, /REPLACE_WITH_STORE_ID/);
+  assert.match(toml, /^\[observability\]\nenabled = true$/m); // 日志写进配置，免得部署把后台开关改回去
   assert.doesNotMatch(toml, /^SGX_\w+_PUBLIC = /m);
   assert.doesNotMatch(toml, /PRIVATE KEY/);
 });
@@ -109,6 +110,15 @@ test('resolveSecrets：60 秒缓存；取值失败留空且不缓存', async () 
 test('非 /api 路径 → 404', async () => {
   const res = await worker.fetch(new Request('https://styrigx.com/'), baseEnv(), CTX);
   assert.equal(res.status, 404);
+  assert.equal(res.headers.get('X-SGX-Runtime'), 'worker');
+});
+
+test('所有响应带 X-SGX-Runtime: worker，且不改动原有头和正文', async () => {
+  _resetSecretCache();
+  const res = await worker.fetch(new Request('https://styrigx.com/api/session-check'), baseEnv(), CTX);
+  assert.equal(res.status, 401);
+  assert.equal(res.headers.get('X-SGX-Runtime'), 'worker');
+  assert.deepEqual(await res.json(), { ok: false });
 });
 
 test('非 styrigx.com 的 /api 请求 → 403（与 Pages 生产规则一致）', async () => {
