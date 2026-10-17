@@ -1,5 +1,6 @@
 /**
- * @fileoverview 我的文件页：主页分组渲染、列表/网格模式、搜索、收藏、⋮ 菜单。
+ * @fileoverview 我的文件页：主页分组渲染、列表/网格模式（文章 / 书籍）、搜索、⋮ 菜单。
+ * B2-5：删除我的站点、收藏、最近添加与访问；书籍列表来自 /api/books（书库 D1 只读）。
  * 文案来自页面内 files-i18n JSON（沿用旧格式）。
  */
 import { on } from '../lib/events.js';
@@ -18,7 +19,6 @@ import { setCapSearchProvider } from '../shell/capsule.js';
   } catch (e) {}
   const S = I.str || {},
     TYPES = I.types || [],
-    DEFAULTS = I.defaults || [],
     BOOK_HOST = I.bookHost || '';
   /** 5.1：书库在当前标签页打开，不加 target=_blank（host 来自 sites.yaml 的 id: book，不硬编码） */
   /** @param {string} url */
@@ -57,13 +57,14 @@ import { setCapSearchProvider } from '../shell/capsule.js';
     search: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 21l-5.2-5.2M15.5 10.5a5 5 0 11-10 0 5 5 0 0110 0z"/></svg>',
     chev: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-m-on-surface-variant shrink-0"><path d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>',
     folder: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>',
+    book: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.04A8.97 8.97 0 006 3.75c-1.05 0-2.06.18-3 .51v14.25A8.99 8.99 0 016 18c2.3 0 4.41.87 6 2.29m0-14.25a8.97 8.97 0 016-2.29c1.05 0 2.06.18 3 .51v14.25A8.99 8.99 0 0018 18a8.97 8.97 0 00-6 2.29m0-14.25v14.25"/></svg>',
     pen: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.86 4.49l1.69-1.69a1.88 1.88 0 112.65 2.65L10.58 16.07a4.5 4.5 0 01-1.9 1.13L6 18l.8-2.69a4.5 4.5 0 011.13-1.9z"/></svg>',
   };
 
   /* ---------- 模式与偏好 ---------- */
   const params = new URLSearchParams(location.search);
   const qtype = params.get('type');
-  const VALID = ['post', 'site', 'fav'];
+  const VALID = ['post', 'book'];
   const listMode = VALID.indexOf(qtype || '') >= 0;
 
   const view = get('sgx-files-view', null) || {};
@@ -73,156 +74,20 @@ import { setCapSearchProvider } from '../shell/capsule.js';
     set('sgx-files-view', view);
   }
 
-  const GROUPS = ['cats', 'sites', 'recent', 'storage', 'fav'];
+  const GROUPS = ['cats', 'storage'];
   const homeVis = get('sgx-files-home', null) || {};
   GROUPS.forEach(function (g) {
     if (homeVis[g] === undefined) homeVis[g] = true;
   });
 
-  /* 收藏默认 4 项：首次写入 sgx-files-fav */
-  if (get('sgx-files-fav', null) === null) set('sgx-files-fav', DEFAULTS);
-
   /** @type {Array<any>} */
   let DATA = [];
-
-  /* ---------- toast ---------- */
-  /** @type {number|null} */
-  let toastTimer = null;
-  /** @param {string} msg */
-  function toast(msg) {
-    let t = $('files-toast');
-    if (!t) {
-      t = document.createElement('div');
-      t.id = 'files-toast';
-      t.className = 'files-toast';
-      t.setAttribute('role', 'status');
-      document.body.appendChild(t);
-    }
-    t.textContent = msg;
-    t.classList.add('show');
-    if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = window.setTimeout(function () {
-      const tt = $('files-toast');
-      if (tt) tt.classList.remove('show');
-    }, 2000);
-  }
-
-  /* ---------- 最近访问（只记站内） ---------- */
-  /** @param {string} u */
-  function sameOrigin(u) {
-    try {
-      return new URL(u, location.href).origin === location.origin;
-    } catch (e) {
-      return false;
-    }
-  }
-  function getRecent() {
-    return get('sgx-files-recent', []);
-  }
-  /** @param {any} item */
-  function recordVisit(item) {
-    if (!item || !item.url || !sameOrigin(item.url)) return;
-    const r = getRecent().filter(function (/** @type {any} */ x) {
-      return x.url !== item.url;
-    });
-    r.unshift({ id: item.id || item.url, title: item.title || '', url: item.url });
-    set('sgx-files-recent', r.slice(0, 4));
-  }
-  on(document, 'click', function (/** @type {MouseEvent} */ e) {
-    const t = /** @type {Element|null} */ (e.target);
-    const a = t && t.closest ? t.closest('[data-visit]') : null;
-    if (!a) return;
-    let it = null;
-    try {
-      it = JSON.parse(a.getAttribute('data-visit') || 'null');
-    } catch (err) {}
-    recordVisit(it);
-  });
-
-  /* ---------- 收藏 ---------- */
-  function getFavs() {
-    return get('sgx-files-fav', []);
-  }
-  /** @param {any} item */
-  function toggleFav(item) {
-    if (!item || !item.id) return;
-    const favs = getFavs();
-    let i = -1;
-    for (let k = 0; k < favs.length; k++) {
-      if (favs[k].id === item.id) {
-        i = k;
-        break;
-      }
-    }
-    if (i >= 0) {
-      favs.splice(i, 1);
-      toast(S.removedFav || '');
-    } else {
-      favs.unshift({ id: item.id, title: item.title || '', url: item.url || '' });
-      toast(S.addedFav || '');
-    }
-    set('sgx-files-fav', favs);
-    renderFav();
-    if (listMode && qtype === 'fav') renderList();
-  }
-  /** @param {any} it */
-  function favAttrs(it) {
-    const j = esc(JSON.stringify({ id: it.id, title: it.title, url: it.url }));
-    return "data-visit='" + j + "' data-fav-item='" + j + "'";
-  }
-
-  /* 长按：添加到收藏 / 移除 */
-  /** @param {Element|null} scope */
-  function bindLongPress(scope) {
-    if (!scope) return;
-    scope.querySelectorAll('[data-fav-item]').forEach(function (el) {
-      const ell = /** @type {any} */ (el);
-      if (ell._flp) return;
-      ell._flp = true;
-      /** @type {number|null} */
-      let timer = null;
-      let fired = false;
-      function start() {
-        fired = false;
-        timer = window.setTimeout(function () {
-          fired = true;
-          let it = null;
-          try {
-            it = JSON.parse(el.getAttribute('data-fav-item') || 'null');
-          } catch (e) {}
-          toggleFav(it);
-        }, 550);
-      }
-      function cancel() {
-        if (timer) {
-          clearTimeout(timer);
-          timer = null;
-        }
-      }
-      on(el, 'touchstart', start, { passive: true });
-      on(el, 'touchend', function () {
-        cancel();
-      });
-      on(el, 'touchmove', cancel, { passive: true });
-      on(el, 'mousedown', start);
-      on(el, 'mouseup', cancel);
-      on(el, 'mouseleave', cancel);
-      on(
-        el,
-        'click',
-        function (e) {
-          if (fired) {
-            e.preventDefault();
-            e.stopPropagation();
-            fired = false;
-          }
-        },
-        { capture: true }
-      );
-      on(el, 'contextmenu', function (e) {
-        e.preventDefault();
-      });
-    });
+  /** @type {Array<any>} */
+  let POSTS = [];
+  /** @type {Array<any>} */
+  let BOOKS = [];
+  function mergeData() {
+    DATA = POSTS.concat(BOOKS);
   }
 
   /* ---------- 排序 ---------- */
@@ -240,75 +105,7 @@ import { setCapSearchProvider } from '../shell/capsule.js';
     return arr;
   }
 
-  /* ---------- 缩略图 ---------- */
-  /** @param {any} it @param {string} cls */
-  function thumbHTML(it, cls) {
-    const t = typeById[it.type] || {};
-    const inner = it.cover
-      ? '<img src="' + esc(it.cover) + '" alt="" loading="lazy" decoding="async" class="w-full h-full object-cover">'
-      : '<span class="w-full h-full ' + (t.bar || 'bg-m-container-highest') + ' flex items-center justify-center text-white">' + (ICONS[t.icon] || '') + '</span>';
-    return (
-      '<span class="' + cls + ' relative block overflow-hidden rounded-2xl bg-m-container shrink-0">' + inner +
-      '<span class="absolute inset-x-0 bottom-0 px-1.5 pt-4 pb-1 text-[10px] leading-tight text-white truncate" style="background:linear-gradient(to top,rgba(0,0,0,.65),transparent)">' +
-      esc(it.title || '') + '</span></span>'
-    );
-  }
-
   /* ---------- 主页渲染 ---------- */
-  function renderRecent() {
-    const now = Date.now(),
-      cutoff = now - 30 * 24 * 3600 * 1000;
-    const items = DATA.filter(function (it) {
-      const t = Date.parse(it.addedAt || '');
-      return t && t >= cutoff;
-    }).sort(byAdded);
-    const titleEl = $('files-recent-title');
-    if (titleEl) titleEl.textContent = (S.recentAddedPre || '') + items.length + (S.recentAddedSuf || '');
-    /* 上次打开后有新内容 → 橙色小圆点 */
-    const lastVisit = get('sgx-files-lastvisit', 0);
-    const hasNew = items.some(function (it) {
-      return (Date.parse(it.addedAt || '') || 0) > lastVisit;
-    });
-    const dot = $('files-newdot');
-    if (dot) dot.classList.toggle('hidden', !hasNew);
-    set('sgx-files-lastvisit', now);
-    const box = $('files-recent-thumbs');
-    if (!box) return;
-    if (!items.length) {
-      box.innerHTML = '<p class="py-6 px-2 text-sm text-m-on-surface-variant">' + (S.empty || '') + '</p>';
-      return;
-    }
-    box.innerHTML = items
-      .slice(0, 4)
-      .map(function (it) {
-        const ext = /^https?:/.test(it.url || '') && !isBookUrl(it.url);
-        return (
-          '<a href="' + esc(it.url || '#') + '" ' + (ext ? 'target="_blank" rel="noopener"' : '') + ' ' + favAttrs(it) +
-          ' class="block active:scale-95 transition-transform" aria-label="' + esc(it.title || '') + '">' +
-          thumbHTML(it, 'w-20 h-20') + '</a>'
-        );
-      })
-      .join('');
-    bindLongPress(box);
-  }
-  function renderRecentVisits() {
-    const box = $('files-recent-visits');
-    if (!box) return;
-    const r = getRecent();
-    if (!r.length) {
-      box.innerHTML = '<p class="text-sm text-m-on-surface-variant">' + esc(S.noVisits || '') + '</p>';
-      return;
-    }
-    box.innerHTML = r
-      .map(function (/** @type {any} */ x) {
-        return (
-          '<a href="' + esc(x.url) + '" data-visit=\'' + esc(JSON.stringify(x)) +
-          '\' class="max-w-full truncate rounded-full bg-m-container px-3.5 py-2 text-sm active:scale-95 transition-transform">' +
-          esc(x.title || x.url) + '</a>'
-        );
-      })
-      .join('');
-  }
   function renderStorage() {
     /** @type {Record<string, number>} */
     const counts = {};
@@ -349,22 +146,6 @@ import { setCapSearchProvider } from '../shell/capsule.js';
         );
       }).join('');
   }
-  /** @param {any} it */
-  function favRowHTML(it) {
-    return (
-      '<li><div class="flex items-center gap-4 px-1">' +
-      '<span class="w-6 h-6 text-m-on-surface-variant shrink-0 inline-flex items-center justify-center">' + ICONS.folder + '</span>' +
-      '<a href="' + esc(it.url || '#') + '" ' + favAttrs(it) + ' class="row-line flex-1 min-w-0 flex items-center justify-between gap-3 py-3.5">' +
-      '<span class="truncate text-[15px]">' + esc(it.title || '') + '</span>' + ICONS.chev + '</a></div></li>'
-    );
-  }
-  function renderFav() {
-    const box = $('files-fav-list');
-    if (!box) return;
-    box.innerHTML = getFavs().map(favRowHTML).join('');
-    bindLongPress(box);
-  }
-
   function applyHomeVis() {
     document.querySelectorAll('[data-home-group]').forEach(function (g) {
       /** @type {HTMLElement} */ (g).style.display = homeVis[g.getAttribute('data-home-group') || ''] === false ? 'none' : '';
@@ -375,12 +156,14 @@ import { setCapSearchProvider } from '../shell/capsule.js';
   /** @param {any} it */
   function rowHTML(it) {
     const t = typeById[it.type] || {};
+    /* B2-5：书籍封面按书的比例（3:4） */
+    const sz = it.type === 'book' ? 'w-9 h-12 rounded-md' : 'w-12 h-12 rounded-xl';
     const th = it.cover
-      ? '<img src="' + esc(it.cover) + '" alt="" loading="lazy" decoding="async" width="48" height="48" class="w-12 h-12 rounded-xl object-cover shrink-0 bg-m-container">'
-      : '<span class="w-12 h-12 rounded-xl ' + (t.bar || 'bg-m-container-highest') + ' text-white flex items-center justify-center shrink-0">' + (ICONS[t.icon] || ICONS.folder) + '</span>';
+      ? '<img src="' + esc(it.cover) + '" alt="" loading="lazy" decoding="async" width="48" height="48" class="' + sz + ' object-cover shrink-0 bg-m-container">'
+      : '<span class="' + sz + ' ' + (t.bar || 'bg-m-container-highest') + ' text-white flex items-center justify-center shrink-0">' + (ICONS[t.icon] || ICONS.folder) + '</span>';
     const ext = /^https?:/.test(it.url || '') && !isBookUrl(it.url);
     return (
-      '<a href="' + esc(it.url || '#') + '" ' + (ext ? 'target="_blank" rel="noopener"' : '') + ' ' + favAttrs(it) +
+      '<a href="' + esc(it.url || '#') + '" ' + (ext ? 'target="_blank" rel="noopener"' : '') +
       ' class="flex items-center gap-3.5 px-4 py-3 active:bg-m-container transition-colors">' + th +
       '<span class="flex-1 min-w-0"><span class="block truncate text-[15px] font-medium">' + esc(it.title || '') + '</span>' +
       (it.subtitle ? '<span class="block truncate text-xs text-m-on-surface-variant mt-0.5">' + esc(it.subtitle) + '</span>' : '') +
@@ -390,12 +173,13 @@ import { setCapSearchProvider } from '../shell/capsule.js';
   /** @param {any} it */
   function gridCardHTML(it) {
     const t = typeById[it.type] || {};
+    const ar = it.type === 'book' ? 'aspect-[3/4]' : 'aspect-[4/3]';
     const media = it.cover
-      ? '<img src="' + esc(it.cover) + '" alt="" loading="lazy" decoding="async" class="w-full aspect-[4/3] object-cover bg-m-container">'
-      : '<span class="w-full aspect-[4/3] ' + (t.bar || 'bg-m-container-highest') + ' text-white flex items-center justify-center">' + (ICONS[t.icon] || ICONS.folder) + '</span>';
+      ? '<img src="' + esc(it.cover) + '" alt="" loading="lazy" decoding="async" class="w-full ' + ar + ' object-cover bg-m-container">'
+      : '<span class="w-full ' + ar + ' ' + (t.bar || 'bg-m-container-highest') + ' text-white flex items-center justify-center">' + (ICONS[t.icon] || ICONS.folder) + '</span>';
     const ext = /^https?:/.test(it.url || '') && !isBookUrl(it.url);
     return (
-      '<a href="' + esc(it.url || '#') + '" ' + (ext ? 'target="_blank" rel="noopener"' : '') + ' ' + favAttrs(it) +
+      '<a href="' + esc(it.url || '#') + '" ' + (ext ? 'target="_blank" rel="noopener"' : '') +
       ' class="block rounded-3xl overflow-hidden bg-m-container-lowest border border-m-outline active:scale-[0.98] transition-transform">' + media +
       '<span class="block p-3"><span class="block truncate text-sm font-medium">' + esc(it.title || '') + '</span>' +
       (it.subtitle ? '<span class="block truncate text-xs text-m-on-surface-variant mt-0.5">' + esc(it.subtitle) + '</span>' : '') +
@@ -403,17 +187,13 @@ import { setCapSearchProvider } from '../shell/capsule.js';
     );
   }
   function listItems() {
-    if (qtype === 'fav')
-      return getFavs().map(function (/** @type {any} */ f) {
-        return { id: f.id, title: f.title, subtitle: f.url, url: f.url, cover: '', type: 'fav' };
-      });
     return DATA.filter(function (it) {
       return it.type === qtype;
     });
   }
   function renderList() {
     const t = typeById[qtype || ''];
-    const title = qtype === 'fav' ? S.fav || '' : (t && t.label) || qtype;
+    const title = (t && t.label) || qtype || '';
     const items = sortItems(listItems());
     const h1 = document.querySelector('.subpage-title');
     if (h1) h1.textContent = title;
@@ -439,11 +219,10 @@ import { setCapSearchProvider } from '../shell/capsule.js';
       box.className = 'files-listrows widget bg-m-container-lowest border border-m-outline overflow-hidden';
       box.innerHTML = items.map(rowHTML).join('');
     }
-    bindLongPress(box);
   }
 
   /* ---------- ⋮ 菜单 ---------- */
-  const GROUP_LABELS = { cats: S.gCats, sites: S.gSites, recent: S.gRecent, storage: S.gStorage, fav: S.gFav };
+  const GROUP_LABELS = { cats: S.gCats, storage: S.gStorage };
   function openSort() {
     openSheet({
       title: S.sortBy || '',
@@ -498,20 +277,7 @@ import { setCapSearchProvider } from '../shell/capsule.js';
       },
     });
   }
-  /* B2-4：原「设置 › 应用 › 我的文件 › 清除最近访问记录」，二次确认后清空 */
-  function openClearRecent() {
-    openSheet({
-      title: S.clearRecentQ || '',
-      options: [{ label: S.clear || '', value: 'yes' }],
-      onPick: function (v) {
-        if (v !== 'yes') return;
-        set('sgx-files-recent', []);
-        renderRecentVisits();
-        toast(S.cleared || '');
-      },
-    });
-  }
-  /* B2-4：「设置 › 应用 › 我的文件」整体迁入这里（编辑主页、排序方式、默认视图、清除最近访问记录） */
+  /* B2-4：「设置 › 应用 › 我的文件」迁入这里；B2-5 最近访问删除，菜单只剩编辑主页、排序方式、默认视图 */
   function openMore() {
     openSheet({
       title: '',
@@ -519,39 +285,16 @@ import { setCapSearchProvider } from '../shell/capsule.js';
         { label: S.editHome || '', value: 'home' },
         { label: S.sortBy || '', sub: view.sort === 'name' ? S.byName || '' : S.addedAt || '', value: 'sort' },
         { label: S.defView || '', sub: view.layout === 'grid' ? S.grid || '' : S.list || '', value: 'view' },
-        { label: S.clearRecent || '', value: 'clear' },
       ],
       onPick: function (v) {
         if (v === 'home') openHomeEdit();
         else if (v === 'sort') openSort();
         else if (v === 'view') openView();
-        else if (v === 'clear') openClearRecent();
       },
     });
   }
   const moreBtn = $('files-more');
   if (moreBtn) on(moreBtn, 'click', openMore);
-
-  /* ---------- 最近访问 sheet ---------- */
-  const rvh = $('files-rv-head');
-  if (rvh)
-    on(rvh, 'click', function () {
-      const r = getRecent();
-      const html = r.length
-        ? '<div class="pb-2">' +
-          r
-            .map(function (/** @type {any} */ x) {
-              return (
-                '<a href="' + esc(x.url) + '" data-visit=\'' + esc(JSON.stringify(x)) +
-                '\' class="sheet-opt"><span class="flex-1 min-w-0 text-left"><span class="block font-medium truncate">' +
-                esc(x.title || x.url) + '</span></span></a>'
-              );
-            })
-            .join('') +
-          '</div>'
-        : '<p class="px-5 pb-6 text-sm text-m-on-surface-variant">' + esc(S.noVisits || '') + '</p>';
-      openSheet({ title: S.recentVisits || '', html: html });
-    });
 
   /* ---------- 站点存储：点击展开 ---------- */
   const sh = $('files-storage-head');
@@ -605,9 +348,12 @@ import { setCapSearchProvider } from '../shell/capsule.js';
   /* （原 updateMoreStick / moreStuckRight 已移入公共模块；菜单绑定保留） */
 
   /* ---------- 初始化 ---------- */
+  function refresh() {
+    mergeData();
+    if (listMode) renderList();
+    else renderStorage();
+  }
   applyHomeVis();
-  renderFav();
-  renderRecentVisits();
   if (listMode) {
     const fh = $('files-home');
     if (fh) fh.classList.add('hidden');
@@ -623,18 +369,33 @@ import { setCapSearchProvider } from '../shell/capsule.js';
     .then(function (j) {
       const lang = en ? 'en' : 'zh';
       const arr = (j && j.items) || j;
-      DATA = (Array.isArray(arr) ? arr : []).filter(function (it) {
-        return it && (!it.lang || it.lang === lang) && (it.type === 'post' || it.type === 'site');
+      POSTS = (Array.isArray(arr) ? arr : []).filter(function (it) {
+        return it && (!it.lang || it.lang === lang) && it.type === 'post';
       });
-      if (listMode) renderList();
-      else {
-        renderRecent();
-        renderStorage();
-      }
+      refresh();
     })
-    .catch(function () {
-      if (listMode) renderList();
-    });
+    .catch(refresh);
+  /* B2-5：书籍 = 书库全部书（/api/books，主人看全部，访客只看公开书）；点击在当前标签页打开阅读器 */
+  fetch('/api/books', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+    .then(function (r) {
+      if (!r.ok) throw 0;
+      return r.json();
+    })
+    .then(function (j) {
+      BOOKS = ((j && j.books) || []).map(function (/** @type {any} */ b) {
+        return {
+          id: 'book-' + b.id,
+          type: 'book',
+          title: b.title || '',
+          subtitle: b.author || '',
+          url: b.read_url || '',
+          cover: b.cover_url || '',
+          addedAt: b.added_at ? new Date(b.added_at).toISOString() : '',
+        };
+      });
+      refresh();
+    })
+    .catch(refresh);
 })();
 
 /* 2.9.0 页内导航：注册 mount/unmount */

@@ -29,6 +29,13 @@ binding = "SGX_D1"
 database_name = "styrigx-sgx"
 database_id = "2804d280-1cab-422a-834d-3390cea38976"
 
+# ---- D1 绑定（B2-5 我的文件 › 书籍）：书库库 styrigx-books，只读使用（/api/books 只做 SELECT）----
+# preview 不绑：/api/books 未绑定时返回空列表，预览不碰正式书库。
+[[d1_databases]]
+binding = "BOOKS_D1"
+database_name = "styrigx-books"
+database_id = "569d8caf-e315-471b-a080-4b9f055de5fa"
+
 # ---- preview 环境 ----
 [env.preview.vars]
 SGX_LOCK_PUBLIC = "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAxZb8houVYG+lY/Jn4A1zNJzKMb1LdDHHEIQSAjfERPU=\n-----END PUBLIC KEY-----\n"

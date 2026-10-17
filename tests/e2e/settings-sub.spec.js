@@ -387,18 +387,12 @@ test('B2-4 My Files top-bar menu carries the former settings', async ({ page: pg
   await expect(sheet).toContainText('编辑主页');
   await expect(sheet).toContainText('排序方式');
   await expect(sheet).toContainText('默认视图');
-  await expect(sheet).toContainText('清除最近访问记录');
+  await expect(sheet).not.toContainText('清除最近访问记录'); // B2-5：最近访问已删除
   await expect(sheet).not.toContainText(/^设置$/);
   // 默认视图 → 网格，写同一个 key
   await sheet.getByText('默认视图').click();
   await pg.locator('#sheet-body').getByText('网格').click();
   await expect.poll(() => pg.evaluate(() => JSON.parse(localStorage.getItem('sgx-files-view') || '{}').layout)).toBe('grid');
-  // 清除最近访问记录：二次确认后清空
-  await pg.evaluate(() => localStorage.setItem('sgx-files-recent', JSON.stringify([{ url: '/browser/', title: 'x' }])));
-  await pg.locator('.sgx-tb-pill #files-more').click();
-  await pg.locator('#sheet-body').getByText('清除最近访问记录').click();
-  await pg.locator('#sheet-body').getByText('清除', { exact: true }).click();
-  await expect.poll(() => pg.evaluate(() => localStorage.getItem('sgx-files-recent'))).toBe('[]');
 });
 
 test('B2-4 Internet top-bar menu: engine, address bar position, clear history', async ({ page: pg }) => {

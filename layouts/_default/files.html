@@ -8,37 +8,23 @@
 {{ $moreBtn := printf `<button type="button" id="files-more" class="sgx-tb-more" aria-label="%s">%s</button>` (cond $isEn "More options" "更多选项") $dots }}
 {{ $appGrid := `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>` }}
 
+{{/* B2-5：顶部分类只剩「文章」「书籍」，图标在左、名字在右（三星我的文件同款） */}}
 {{ $cats := slice
-  (dict "id" "post" "label" (cond $isEn "Posts" "文章") "icon" "pen")
-  (dict "id" "site" "label" (cond $isEn "My sites" "我的站点") "icon" "globe") }}
+  (dict "id" "post" "label" (cond $isEn "Posts" "文章") "icon" "pen-line" "fg" "text-[#3b82c4]")
+  (dict "id" "book" "label" (cond $isEn "Books" "书籍") "icon" "book-line" "fg" "text-[#3d8b6f]") }}
 
 {{ $typeMeta := slice
   (dict "id" "post" "label" (cond $isEn "Posts" "文章") "bar" "bg-m-primary" "fg" "text-m-primary" "icon" "pen")
-  (dict "id" "site" "label" (cond $isEn "My sites" "我的站点") "bar" "bg-m-accent" "fg" "text-m-accent" "icon" "globe") }}
-
-{{ $defaults := slice
-  (dict "id" "fav-posts" "title" (cond $isEn "Posts" "文章") "url" (print $filesBase "?type=post")) }}
+  (dict "id" "book" "label" (cond $isEn "Books" "书籍") "bar" "bg-emerald-600" "fg" "text-emerald-600" "icon" "book") }}
 
 {{ $str := dict
-  "recentAddedPre" (cond $isEn "" "最近添加了 ")
-  "recentAddedSuf" (cond $isEn " recently added" " 项")
-  "recentVisits" (cond $isEn "Recent" "最近访问")
-  "noVisits" (cond $isEn "No recent visits" "还没有访问记录")
   "storageTotalPre" (cond $isEn "" "共 ")
   "storageTotalSuf" (cond $isEn " items total" " 项")
-  "fav" (cond $isEn "Favorites" "收藏")
-  "viewAll" (cond $isEn "View all" "查看全部")
   "editHome" (cond $isEn "Edit home" "编辑主页")
   "sortBy" (cond $isEn "Sort by" "排序方式")
   "defView" (cond $isEn "Default view" "默认视图")
-  "clearRecent" (cond $isEn "Clear recent visits" "清除最近访问记录")
-  "clearRecentQ" (cond $isEn "Clear recent visits?" "清除最近访问记录？")
-  "clear" (cond $isEn "Clear" "清除")
-  "cleared" (cond $isEn "Cleared" "已清除")
   "addedAt" (cond $isEn "Date added" "添加时间")
   "byName" (cond $isEn "Name" "名称")
-  "addedFav" (cond $isEn "Added to favorites" "已添加到收藏")
-  "removedFav" (cond $isEn "Removed from favorites" "已从收藏移除")
   "search" (cond $isEn "Search" "搜索")
   "searchPh" (cond $isEn "Search everything…" "搜索全站内容…")
   "noResults" (cond $isEn "No results" "无结果")
@@ -48,83 +34,30 @@
   "countPre" (cond $isEn "" "共 ")
   "countSuf" (cond $isEn " items" " 项")
   "gCats" (cond $isEn "Categories" "分类")
-  "gSites" (cond $isEn "My sites" "我的站点")
-  "gRecent" (cond $isEn "Recent" "最近添加与访问")
   "gStorage" (cond $isEn "Storage" "站点存储")
-  "gFav" (cond $isEn "Favorites" "收藏")
   "listening" (cond $isEn "Listening…" "聆听中…")
 }}
 {{ $bookSites := site.Data.sites }}{{ if $isEn }}{{ $bookSites = site.Data.en.sites }}{{ end }}{{ $bookHost := "" }}{{ range $s := $bookSites }}{{ if or (eq $s.id "book") (eq $s.id "library") }}{{ $bookHost = (urls.Parse $s.url).Host }}{{ end }}{{ end }}
-{{ $i18n := dict "filesBase" $filesBase "types" $typeMeta "defaults" $defaults "str" $str "bookHost" $bookHost }}
+{{ $i18n := dict "filesBase" $filesBase "types" $typeMeta "str" $str "bookHost" $bookHost }}
 
 <div class="max-w-[1100px] mx-auto px-4">
   {{ partial "subpage-head.html" (dict "title" .Title "isEn" $isEn "actions" ($moreBtn | safeHTML)) }}
 
   <!-- 主页模式 -->
   <div id="files-home" class="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6">
-    <!-- 1. 顶部分类 -->
-    <section data-home-group="cats" class="md:col-span-2">
-      <div class="grid grid-cols-4 gap-1 sm:gap-2">
+    <!-- 1. 顶部分类（B2-5：两列，左圆形图标 + 右名称） -->
+    <section data-home-group="cats" class="md:col-span-2 widget bg-m-container-lowest border border-m-outline p-3 sm:p-4">
+      <div class="grid grid-cols-2 gap-1">
         {{ range $cats }}
-        <a href="{{ $filesBase }}?type={{ .id }}" class="flex flex-col items-center gap-1.5 py-2 active:scale-95 transition-transform" aria-label="{{ .label }}">
-          {{ if eq .icon "globe" }}
-          {{/* 2.3.12.1：我的站点快捷入口恢复彩色底座（2.3.11 的 bg-m-accent 样式） */}}
-          <span class="w-12 h-12 shrink-0 rounded-2xl bg-m-accent text-white flex items-center justify-center">
-            {{ partial "icon.html" .icon }}
-          </span>
-          {{ else }}
-          <span class="w-12 h-12 shrink-0">
-            {{ partial "icon.html" .icon }}
-          </span>
-          {{ end }}
-          <span class="text-xs text-m-on-surface-variant">{{ .label }}</span>
+        <a href="{{ $filesBase }}?type={{ .id }}" data-cat="{{ .id }}" class="files-cat flex items-center gap-3.5 rounded-2xl px-2 py-2 active:bg-m-container transition-colors">
+          <span class="w-14 h-14 shrink-0 rounded-full bg-m-container flex items-center justify-center {{ .fg }}">{{ partial "icon.html" .icon }}</span>
+          <span class="min-w-0 truncate text-[15px] font-medium">{{ .label }}</span>
         </a>
         {{ end }}
       </div>
     </section>
 
-    <!-- 1.5 我的站点（2.3.9：只有我编写、只有我有权限的站点；数据见 data/sites.yaml） -->
-    {{ $sites := site.Data.sites }}{{ if $isEn }}{{ $sites = site.Data.en.sites }}{{ end }}
-    <section data-home-group="sites" class="md:col-span-2">
-      <div class="flex items-center justify-between px-1 mb-1">
-        <h2 class="text-sm font-semibold text-m-on-surface-variant">{{ if $isEn }}My sites{{ else }}我的站点{{ end }}</h2>
-        <a href="{{ $filesBase }}?type=site" class="text-sm font-medium text-m-primary min-h-[44px] inline-flex items-center px-2 -mr-2">{{ if $isEn }}View all{{ else }}查看全部{{ end }}</a>
-      </div>
-      <ul class="files-rows">
-        {{ range $si, $s := $sites }}
-        {{/* 主站和书库在当前标签页打开；其他站新标签打开（5.1：id 用 sites.yaml 的 book/library，不硬编码网址） */}}
-        {{ $isSameTab := or (eq $s.id "space") (eq $s.id "book") (eq $s.id "library") }}
-        <li><a href="{{ $s.url }}"{{ if not $isSameTab }} target="_blank" rel="noopener"{{ end }} class="flex items-center gap-4 px-1 active:bg-m-container transition-colors">
-          <span class="w-12 h-12 shrink-0 flex items-center justify-center">{{ partial "icon.html" (dict "name" ($s.icon | default "globe") "uid" (printf "fss%d" $si)) }}</span>
-          <span class="row-line flex-1 min-w-0 flex items-center justify-between gap-3 py-3.5">
-            <span class="min-w-0"><span class="block truncate text-[15px] font-medium">{{ $s.title }}</span>
-            {{ with $s.subtitle }}<span class="block truncate text-xs text-m-on-surface-variant mt-0.5">{{ . }}</span>{{ end }}
-            </span>{{ partial "icon.html" "chev-r" }}</span></a></li>
-        {{ end }}
-      </ul>
-    </section>
-
-
-    <!-- 2. 最近添加 -->
-    <section data-home-group="recent" class="widget bg-m-container-lowest border border-m-outline p-5">
-      <a href="{{ $filesBase }}?type=post" class="flex items-center justify-between gap-2 mb-4">
-        <h2 class="font-bold text-[17px] flex items-center gap-2 min-w-0">
-          <span id="files-recent-title" class="truncate">{{ if $isEn }}0 recently added{{ else }}最近添加了 0 项{{ end }}</span>
-          <span id="files-newdot" class="hidden w-2 h-2 rounded-full bg-orange-500 shrink-0" aria-hidden="true"></span>
-        </h2>
-        <span class="shrink-0">{{ partial "icon.html" "chev-r" }}</span>
-      </a>
-      <div id="files-recent-thumbs" class="flex gap-3 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1"></div>
-      <div class="mt-4 pt-4 border-t border-m-outline">
-        <button type="button" id="files-rv-head" class="w-full flex items-center justify-between gap-2 mb-3 text-left">
-          <h3 class="font-bold text-[15px]">{{ if $isEn }}Recent{{ else }}最近访问{{ end }}</h3>
-          <span class="shrink-0">{{ partial "icon.html" "chev-r" }}</span>
-        </button>
-        <div id="files-recent-visits" class="flex flex-wrap gap-2"></div>
-      </div>
-    </section>
-
-    <!-- 3. 站点存储 -->
+    <!-- 2. 站点存储 -->
     <section data-home-group="storage" class="widget bg-m-container-lowest border border-m-outline p-5">
       <button type="button" id="files-storage-head" class="w-full flex items-center gap-4 text-left" aria-expanded="false">
         <div class="flex-1 min-w-0">
@@ -134,15 +67,6 @@
         <span id="files-segbar" class="flex h-9 w-40 sm:w-48 rounded-full overflow-hidden bg-m-container shrink-0" role="img" aria-label="{{ if $isEn }}Content by type{{ else }}按类型统计{{ end }}"></span>
       </button>
       <div id="files-storage-detail" class="hidden mt-4 pt-2 border-t border-m-outline"></div>
-    </section>
-
-    <!-- 4. 收藏 -->
-    <section data-home-group="fav">
-      <div class="flex items-center justify-between px-1 mb-1">
-        <h2 class="text-sm font-semibold text-m-on-surface-variant">{{ if $isEn }}Favorites{{ else }}收藏{{ end }}</h2>
-        <a href="{{ $filesBase }}?type=fav" class="text-sm font-medium text-m-primary min-h-[44px] inline-flex items-center px-2 -mr-2">{{ if $isEn }}View all{{ else }}查看全部{{ end }}</a>
-      </div>
-      <ul id="files-fav-list" class="files-rows"></ul>
     </section>
 
   </div>
@@ -171,19 +95,13 @@
 <style>
 /* ===== 我的文件（页面私有样式） ===== */
 /* 分隔线从文字开始（图标列之外） */
-.files-rows{list-style:none;margin:0;padding:0}
-.files-rows>li+li .row-line{border-top:1px solid color-mix(in srgb,var(--m-outline) 55%,transparent)}
+/* B2-5：分类圆形图标里的线性图标放大到 26px */
+.files-cat svg{width:26px;height:26px}
 .files-listrows>*+*{border-top:1px solid color-mix(in srgb,var(--m-outline) 55%,transparent)}
 /* 列表/网格分段开关 */
 .files-seg{display:flex;background:var(--m-container);border-radius:999px;padding:3px;gap:2px}
 .files-seg button{width:40px;height:32px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;color:var(--m-on-surface-variant)}
 .files-seg button.on{background:var(--m-container-lowest);color:var(--m-on-surface);box-shadow:0 1px 3px rgba(0,0,0,.12)}
-/* 收藏 toast */
-.files-toast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom,0px));transform:translate(-50%,16px);z-index:120;
-  max-width:min(92vw,26rem);padding:10px 18px;background:var(--m-container-lowest);color:var(--m-on-surface);
-  border:1px solid var(--m-outline);border-radius:1.25rem;box-shadow:0 16px 48px -12px rgba(0,0,0,.35);font-size:14px;
-  opacity:0;pointer-events:none;transition:opacity .3s,transform .3s}
-.files-toast.show{opacity:1;transform:translate(-50%,0)}
 </style>
 <script id="files-i18n" type="application/json">{{ $i18n | jsonify | safeJS }}</script>
 {{/* 2.4.0-C：文件页脚本走 ES Module 入口 entry-files.js；文案沿用 files-i18n JSON */}}
