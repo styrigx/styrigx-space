@@ -55,16 +55,18 @@
   from { opacity: 0; transform: scale(.72); }
   to { opacity: 1; transform: scale(1); }
 }
-/* 整页切换：淡出 → 淡入（Material fade through）。旧页先在 90ms 内淡出，新页再淡入并轻微放大，
-   两页不会半透明叠在一起。 */
-::view-transition-old(root) {
-  animation: sgx-vt-out 90ms cubic-bezier(.4, 0, 1, 1) both;
-}
+/* 整页切换：直接交叉淡化（浏览器默认的 plus-lighter 混合，两页相同的像素保持不变）。
+   原来是「先淡出到空白、再淡入并放大」：中间有一段两页都透明，露出浏览器白底，
+   壁纸和卡片整屏闪一下，加上 0.98 缩放让文字重新栅格化，手机上看起来一卡一卡。
+   现在壁纸、顶栏、dock 这些两页都有的东西在过渡中纹丝不动，只有内容在换。 */
+::view-transition-old(root),
 ::view-transition-new(root) {
-  animation: sgx-vt-in 210ms cubic-bezier(0, 0, .2, 1) 90ms both;
+  animation-duration: 180ms;
+  animation-timing-function: cubic-bezier(.2, 0, 0, 1);
 }
-@keyframes sgx-vt-out { to { opacity: 0; } }
-@keyframes sgx-vt-in { from { opacity: 0; transform: scale(.98); } }
+::view-transition-group(sgx-topbar) {
+  animation-duration: 180ms;
+}
 /* 尊重减弱动画：过渡退化为无动画（系统设置或本站「减弱动效」开关） */
 .reduced-motion::view-transition-group(*),
 .reduced-motion::view-transition-old(*),
