@@ -177,7 +177,7 @@ export function initGoodLock() {
         if (u) {
           e.preventDefault();
           if (u.indexOf('http') === 0) window.open(u, '_blank');
-          else sgxNavigate(u, 'goodlock.js:180', 'goodlock-shortcut');
+          else sgxNavigate(u);
         }
         return;
       }

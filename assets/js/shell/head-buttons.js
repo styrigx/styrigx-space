@@ -8,29 +8,14 @@
  * @param {import('../lib/scheduler.js').Scheduler} [S]
  */
 import { getScheduler } from '../lib/scheduler.js';
-import { reducedMotion } from '../lib/util.js';
+import { reducedMotion, visibleSubHead } from '../lib/util.js';
+import { sgxNavigate } from '../lib/diag-jumptrace.js';
 
-/** @param {Element} el */
-function isVisible(el) {
-  try {
-    return el.getClientRects().length > 0;
-  } catch (e) {
-    return false;
-  }
-}
-
-/** 当前可见的标题区（设置页手机/DeX 各有一份，只取可见那份） */
-function currentHead() {
-  const heads = document.querySelectorAll('[data-subpage-head]');
-  for (let i = 0; i < heads.length; i++) {
-    if (isVisible(heads[i])) return /** @type {HTMLElement} */ (heads[i]);
-  }
-  return heads.length ? /** @type {HTMLElement} */ (heads[0]) : null;
-}
+const currentHead = visibleSubHead;
 
 /** 菜单：fixed，锚定在按钮下方 8px、右沿与按钮右沿对齐 */
 /** @param {HTMLElement} menu @param {Element} btn */
-export function anchorMenu(menu, btn) {
+function anchorMenu(menu, btn) {
   const r = btn.getBoundingClientRect();
   menu.style.top = r.bottom + 8 + 'px';
   menu.style.right = Math.max(16, window.innerWidth - r.right) + 'px';
@@ -41,7 +26,7 @@ export function anchorMenu(menu, btn) {
 let defaultMore = null;
 
 /** 把当前页的 ⋮ 和小标题同步进顶栏长条 */
-export function syncTopbar() {
+function syncTopbar() {
   const pill = document.querySelector('.sgx-tb-pill');
   if (!pill) return;
   if (!defaultMore) defaultMore = /** @type {HTMLElement|null} */ (pill.querySelector('.sgx-tb-more'));
@@ -61,13 +46,38 @@ export function syncTopbar() {
     if (cur) cur.replaceWith(want);
     else pill.appendChild(want);
   }
+  measureStuck();
+  stuck = document.body.classList.contains('sgx-stuck');
   updateStuck();
 }
 
-function updateStuck() {
+/* 阈值 = 标题区高度 × 0.55：只在换页 / 尺寸变化时量一次，滚动时不再查 DOM、不读布局 */
+let stuckAt = Infinity;
+let stuck = false;
+/** @type {ResizeObserver|null} */ let headRO = null;
+/** @type {Element|null} */ let headObserved = null;
+function measureStuck() {
   const head = currentHead();
-  const y = window.scrollY || 0;
-  const past = !!head && y > head.offsetHeight * 0.55;
+  stuckAt = head ? head.offsetHeight * 0.55 : Infinity;
+  /* 标题区高度会在字体加载 / 换行后变化，盯住它，而不是每帧去量 */
+  if (head !== headObserved && typeof ResizeObserver === 'function') {
+    if (!headRO) {
+      headRO = new ResizeObserver(function () {
+        const h = currentHead();
+        stuckAt = h ? h.offsetHeight * 0.55 : Infinity;
+        updateStuck();
+      });
+    }
+    if (headObserved) headRO.unobserve(headObserved);
+    if (head) headRO.observe(head);
+    headObserved = head;
+  }
+}
+/** @param {number} [y] */
+function updateStuck(y) {
+  const past = (y == null ? window.scrollY || 0 : y) > stuckAt;
+  if (past === stuck) return;
+  stuck = past;
   document.body.classList.toggle('sgx-stuck', past);
 }
 
@@ -129,7 +139,7 @@ function initNavMenu() {
     const it = items[Number(el.getAttribute('data-nav-i'))];
     close();
     if (!it || isCurrent(it)) return; /* 当前站点只关闭菜单 */
-    location.href = it.url;
+    sgxNavigate(it.url);
   });
   document.addEventListener('click', function (e) {
     const t = /** @type {Element|null} */ (e.target);
@@ -139,9 +149,9 @@ function initNavMenu() {
     if (e.key === 'Escape' && !menu.classList.contains('hidden')) close();
   });
   window.addEventListener('popstate', close);
-  window.addEventListener('scroll', function () {
+  getScheduler().onScroll(function () {
     if (!menu.classList.contains('hidden')) anchorMenu(menu, btn);
-  }, { passive: true });
+  });
 }
 
 /* 头像（#nav-brand）链到主页。已经在主页时再点不重新加载整页（三星浏览器会露出半成品的一帧），
@@ -168,9 +178,17 @@ export function initHeadButtons(S) {
   syncTopbar();
   initNavMenu();
   initBrand();
-  sched.onScroll(updateStuck);
-  sched.onResize(updateStuck);
+  sched.onScroll(function (y) {
+    updateStuck(y);
+  });
+  sched.onResize(function () {
+    measureStuck();
+    updateStuck();
+  });
   window.addEventListener('pageshow', function (e) {
-    if (e.persisted) updateStuck();
+    if (e.persisted) {
+      measureStuck();
+      updateStuck();
+    }
   });
 }

@@ -45,14 +45,20 @@ export function initNav(S) {
     /** @type {number|null} */
     let t = null;
     const ssBar = document.getElementById('settings-searchbar-wrap');
+    let hidden = false;
     function show() {
+      t = null;
+      hidden = false;
       dock.classList.remove('dock-hide');
       if (ssBar) ssBar.classList.remove('sgx-hide');
     }
     S.onScroll(function () {
       if (reduced()) return;
-      dock.classList.add('dock-hide');
-      if (ssBar) ssBar.classList.add('sgx-hide');
+      if (!hidden) {
+        hidden = true;
+        dock.classList.add('dock-hide');
+        if (ssBar) ssBar.classList.add('sgx-hide');
+      }
       if (t) clearTimeout(t);
       t = window.setTimeout(show, 600);
     });
@@ -136,7 +142,7 @@ export function initNav(S) {
         const isHome = p === '/' || p === '/en' || p === '/en/';
         if (isHome) return;
         e.preventDefault();
-        sgxReplace(a.getAttribute('href') || '/', 'nav.js:303', 'home-grid');
+        sgxReplace(a.getAttribute('href') || '/');
       });
     /* 离开 DeX/PC 模式时关闭抽屉 */
     onDexLayoutChange(function (m) {

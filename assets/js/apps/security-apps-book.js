@@ -10,7 +10,8 @@
  */
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
-import { api, enterDoor, apiErrorText, handleDoorError, startDoorCountdown, b64urlToBuf, bufToB64url } from './app-gate.js';
+import { api, enterDoor, apiErrorText, handleDoorError, startDoorCountdown } from './app-gate.js';
+import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
 
 (function () {
@@ -314,7 +315,7 @@ import { sgxNavigate } from '../lib/diag-jumptrace.js';
     if (!wrap || !btn) return;
     wrap.hidden = false;
     on(btn, 'click', function () {
-      sgxNavigate(ret, 'security-apps-book.js:298', 'book-return');
+      sgxNavigate(ret);
     });
   }
 

@@ -1,52 +1,24 @@
 /**
- * 页面跳转的统一入口（B2：诊断留痕已删除，只剩跳转本身）。
- * 参数 who / reason 仅为兼容旧调用保留，不再记录。
+ * 页面跳转的统一入口：全站跳转都走这里，方便以后统一加过渡 / 拦截。
+ * （文件名沿用旧的诊断模块名，诊断留痕早已删除。）
  */
 
-/**
- * 跳转（location.href）。
- * @param {string} url 目标 URL
- * @param {string} [_who]
- * @param {string} [_reason]
- */
-export function sgxNavigate(url, _who, _reason) {
+/** 跳转（location.href）。 @param {string} url */
+export function sgxNavigate(url) {
   location.href = url;
 }
 
-/**
- * 跳转（location.replace，不留历史）。
- * @param {string} url 目标 URL
- * @param {string} [_who]
- * @param {string} [_reason]
- */
-export function sgxReplace(url, _who, _reason) {
+/** 跳转但不留历史（location.replace）。 @param {string} url */
+export function sgxReplace(url) {
   location.replace(url);
 }
 
-/**
- * history.back()。
- * @param {string} [_who]
- * @param {string} [_reason]
- */
-export function sgxGoBack(_who, _reason) {
+/** 返回上一页。 */
+export function sgxGoBack() {
   history.back();
 }
 
-/**
- * 重载当前页（location.reload）。
- * @param {string} [_who]
- * @param {string} [_reason]
- */
-export function sgxReload(_who, _reason) {
+/** 重载当前页。 */
+export function sgxReload() {
   location.reload();
-}
-
-/**
- * 整页跳转（location.assign）。
- * @param {string} url 目标 URL
- * @param {string} [_who]
- * @param {string} [_reason]
- */
-export function sgxAssign(url, _who, _reason) {
-  location.assign(url);
 }

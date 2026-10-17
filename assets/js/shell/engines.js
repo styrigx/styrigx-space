@@ -37,7 +37,7 @@ export function cur() {
  * @param {string} id
  * @returns {string}
  */
-export function engineName(id) {
+function engineName(id) {
   const e = ENGINES[id] || ENGINES.google;
   return e.n;
 }
@@ -47,7 +47,7 @@ export function engineName(id) {
  * @param {string|null|undefined} q
  * @returns {string}
  */
-export function engineUrl(id, q) {
+function engineUrl(id, q) {
   const e = ENGINES[id] || ENGINES.google;
   return e.u.replace('%s', encodeURIComponent(q == null ? '' : q));
 }
@@ -85,7 +85,7 @@ let storageHooked = false;
  * 跨标签页同步：别的标签页改了引擎，本页收到 storage 事件后走同一套通知。
  * 每个页面 bundle 调用一次即可（幂等）。
  */
-export function initEngines() {
+function initEngines() {
   if (storageHooked) return;
   storageHooked = true;
   on(window, 'storage', function (/** @type {StorageEvent} */ ev) {

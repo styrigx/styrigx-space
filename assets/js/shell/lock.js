@@ -86,7 +86,7 @@ function showSubsiteFailure(why) {
     const btn = document.getElementById('sgx-subsite-home');
     if (btn) {
       btn.addEventListener('click', function () {
-        location.href = '/';
+        sgxNavigate('/');
       });
     }
   }
@@ -112,7 +112,7 @@ function handleSubsiteKickback() {
   }
   /* 非死循环：继续回跳（覆盖记录） */
   if (ret) {
-    sgxReplace(window.location.href, 'lock.js:handleSubsiteKickback', 'return-reload');
+    sgxReplace(window.location.href);
     return true;
   }
   return false;
@@ -361,7 +361,7 @@ function showLockScreen() {
       ret = new URLSearchParams(window.location.search).get('return') || '';
     } catch (e) {}
     if (ret) {
-      sgxReplace(window.location.href, 'lock.js:321', 'return-reload');
+      sgxReplace(window.location.href);
       return;
     }
     doUnlockAnimation();
@@ -1172,7 +1172,7 @@ function showLockScreen() {
                 if (ret) {
                   handleSessionOk();
                 } else {
-                  sgxNavigate(en ? '/en/settings/security/' : '/settings/security/', 'lock.js:1103', 'mgmtkey-ok');
+                  sgxNavigate(en ? '/en/settings/security/' : '/settings/security/');
                 }
               } else {
                 showError(en ? 'Server error' : '服务器错误');
@@ -1399,7 +1399,7 @@ function showLockScreen() {
     resetRootKey = null;
     closeDialog('success');
     /* 跳转到锁屏凭证管理页（lockreset 票据可开此页，仍进不了主页） */
-    sgxNavigate(en ? '/en/settings/security/lock/' : '/settings/security/lock/', 'lock.js:1251', 'reset-done');
+    sgxNavigate(en ? '/en/settings/security/lock/' : '/settings/security/lock/');
   }
 
   /* 重置步骤 2a：站长通行密钥。
@@ -1695,9 +1695,7 @@ function showLockScreen() {
      节流 5 秒；网络错误不跳转，下次再查。
      「锁定所有设备」靠 epoch 生效，子站缓存最多约 60 秒。 */
   let lastLockCheck = 0;
-  /* A2：留痕写上 session-check 的 HTTP 状态码 + 触发事件。
-     A6：键盘收起可能引发 focus / visibilitychange / resize，三种事件都覆盖。 */
-  function checkSessionForAutoLock(trigger) {
+  function checkSessionForAutoLock() {
     const now = Date.now();
     if (now - lastLockCheck < 5000) return;
     lastLockCheck = now;
@@ -1706,21 +1704,26 @@ function showLockScreen() {
     fetch('/api/session-check', { credentials: 'same-origin' })
       .then(function (r) {
         if (r.ok) return; /* 会话有效，什么都不做 */
-        /* 401 或其他失败：重载，L1 middleware 会显示锁屏。
-           留痕含状态码 + 触发事件，定位 #1 的「无记录重载」。 */
-        sgxReload('lock.js:1531', 'session-check=' + r.status + ';trigger=' + (trigger || 'unknown'));
+        /* 401 或其他失败：重载，L1 middleware 会显示锁屏 */
+        sgxReload();
       })
       .catch(function () {
         /* 网络错误：不跳转，下次再查 */
       });
   }
   document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible') checkSessionForAutoLock('visibilitychange');
+    if (document.visibilityState === 'visible') checkSessionForAutoLock();
   });
-  window.addEventListener('focus', function () { checkSessionForAutoLock('focus'); });
+  window.addEventListener('focus', function () { checkSessionForAutoLock(); });
   window.addEventListener('pageshow', function (e) {
-    if (e && e.persisted) checkSessionForAutoLock('pageshow');
+    if (e && e.persisted) checkSessionForAutoLock();
   });
-  /* A6：键盘收起引发 resize 时也查一次（同 5 秒节流）。 */
-  window.addEventListener('resize', function () { checkSessionForAutoLock('resize'); });
+  /* 只在宽度变化（转屏 / DeX 改窗口）时查；键盘开合只改高度，不再因此发请求，
+     免得在浏览器页打字时被一次 401 重载打断。键盘收起后的回到前台由 focus / visibilitychange 覆盖。 */
+  let lastW = window.innerWidth;
+  window.addEventListener('resize', function () {
+    if (window.innerWidth === lastW) return;
+    lastW = window.innerWidth;
+    checkSessionForAutoLock();
+  });
 }

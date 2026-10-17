@@ -6,31 +6,15 @@
  * - 小标题与品牌淡出由顶栏 v2.0 的 body.sgx-stuck 控制（head-buttons.js）。
  * @param {import('./scheduler.js').Scheduler} S
  */
-import { reducedMotion } from '../lib/util.js';
-import { applyAppHero } from '../lib/vt.js';
+import { reducedMotion, visibleSubHead } from '../lib/util.js';
 
 export function initSubHead(S) {
-  /* 2.4.0 D：从主页图标进来的 View Transitions 共享元素 */
-  applyAppHero();
   /* 支持 view-timeline-name 时由 CSS 接管 */
   try {
     if (window.CSS && CSS.supports && CSS.supports('view-timeline-name', '--sgx-subhead')) return;
   } catch (e) {}
-  const heads = document.querySelectorAll('[data-subpage-head]');
-  /* D3：设置页手机/DeX 各有一份标题（DeX 那份 noTimeline 无 data-subpage-head），
-     JS 回退只取当前可见的那一份，避免选中 display:none 的标题导致阈值错乱。 */
-  let head = null;
-  for (let i = 0; i < heads.length; i++) {
-    let vis = false;
-    try {
-      vis = heads[i].getClientRects().length > 0;
-    } catch (e) {}
-    if (vis) {
-      head = heads[i];
-      break;
-    }
-  }
-  if (!head && heads.length) head = heads[0];
+  /* D3：设置页手机/DeX 各有一份标题，JS 回退只取当前可见的那一份 */
+  const head = visibleSubHead();
   if (!head) return;
   const hero = head.querySelector('.subpage-hero');
 

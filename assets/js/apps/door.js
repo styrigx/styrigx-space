@@ -24,10 +24,9 @@ import {
   clearStepupThen,
   startDoorCountdown,
   refreshDoorCountdown,
-  b64urlToBuf,
-  bufToB64url,
   guardDoorExpired,
 } from './app-gate.js';
+import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton } from '../lib/dialog-behavior.js';
 
 /**

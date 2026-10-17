@@ -17,24 +17,6 @@
 import { sgxNavigate, sgxReload } from '../lib/diag-jumptrace.js';
 import { showCenterDialog } from '../lib/dialog-behavior.js';
 
-/** @param {string} s */
-export function b64urlToBuf(s) {
-  s = s.replace(/-/g, '+').replace(/_/g, '/');
-  while (s.length % 4) s += '=';
-  const bin = atob(s);
-  const u8 = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-  return u8;
-}
-
-/** @param {ArrayBuffer} buf */
-export function bufToB64url(buf) {
-  const u8 = new Uint8Array(buf);
-  let s = '';
-  for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
-  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
 /**
  * 统一解析 API 响应：{ status, json }，区分网络错误/业务错误。
  * @param {Response} r
@@ -50,7 +32,7 @@ function parseApi(r) {
 }
 
 /** @returns {string} 安全与隐私页地址（验证流程入口，语言跟随） */
-export function securityUrl() {
+function securityUrl() {
   return document.documentElement.lang === 'en' ? '/en/settings/security/' : '/settings/security/';
 }
 
@@ -119,7 +101,7 @@ export function needVerify(t, reason, detail) {
  * @param {'stepup'|'session'} kind 弹框类型
  * @param {string} [detail] 服务端原因码（如 'owner-configured'）
  */
-export function showExpiredDialog(t, kind, detail) {
+function showExpiredDialog(t, kind, detail) {
   if (expiredDialogOpen) return;
   expiredDialogOpen = true;
   /* 探针失败也可能弹框：先移除全局锁屏遮罩，避免盖住弹框 */
@@ -153,7 +135,7 @@ export function showExpiredDialog(t, kind, detail) {
   }
   function goFromDialog() {
     cleanupBackGuard();
-    if (isSession) sgxReload('app-gate.js:showExpiredDialog', 'session-expired');
+    if (isSession) sgxReload();
     else clearStepupThen('/settings/security/');
   }
   function onBackPopstate() {
@@ -318,7 +300,7 @@ export function refreshDoorCountdown(t) {
 }
 
 /** 停倒计时（到 0 / 取 expiresAt 失败时调用；胶囊保留在当前值，不消失） */
-export function stopDoorCountdown() {
+function stopDoorCountdown() {
   if (countdownTimer) {
     window.clearInterval(countdownTimer);
     countdownTimer = null;
@@ -461,7 +443,7 @@ function showProbeFailure(t, info) {
   btn.className = 'sgx-verify-skip mt-4';
   btn.textContent = backLabel;
   btn.addEventListener('click', function () {
-    sgxNavigate(securityUrl(), 'app-gate.js:probe-fail-btn', (detail && detail !== 'ok' ? detail : reason));
+    sgxNavigate(securityUrl());
   });
   card.appendChild(btn);
 
@@ -521,7 +503,7 @@ export function clearStepupThen(targetUrl) {
   function go() {
     if (done) return;
     done = true;
-    sgxNavigate(targetUrl, 'app-gate.js:clear-stepup', 'clear-stepup');
+    sgxNavigate(targetUrl);
   }
   /* 兜底：3 秒还没回来也走，不把用户晾在门里 */
   window.setTimeout(go, 3000);

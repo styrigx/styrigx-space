@@ -11,7 +11,7 @@ import { loadI18n } from '../lib/i18n.js';
 import { openSheet } from '../shell/sheet.js';
 import { setThemeMode } from '../lib/theme.js';
 import { wellLoad, wellFlush } from '../shell/goodlock.js';
-import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
+import { sgxNavigate, sgxReplace, sgxGoBack, sgxReload } from '../lib/diag-jumptrace.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -303,7 +303,7 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
           np = p.replace(/^\/en(\/|$)/, '/');
           if (np === '' || np.charAt(0) !== '/') np = '/';
         }
-        sgxReplace(np + q + h, 'settings.js:323', 'lang-switch');
+        sgxReplace(np + q + h);
       },
     });
   });
@@ -607,7 +607,7 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
   rowToggle('row-reset', function () {
     removeByPrefix('sgx-');
     remove('theme');
-    sgxReload('settings.js:880', 'settings-reset');
+    sgxReload();
   });
 
   /* 2.6.0：设置改为真实二级页（/settings/<cat>/）；旧 hash 由设置首页内联脚本跳转到子页；
@@ -692,13 +692,45 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
   (function () {
     const cap = document.getElementById('sgx-cap-settings');
     if (!cap) return;
-    const goSearch = function (e) {
-      e.preventDefault();
-      e.stopPropagation();
+    const go = function () {
       sgxNavigate(en ? '/en/settings/search/' : '/settings/search/');
     };
-    cap.addEventListener('touchstart', goSearch, { passive: false, capture: true });
-    cap.addEventListener('mousedown', goSearch, { passive: false, capture: true });
+    /* 按下时 preventDefault：不让里面的输入框拿到焦点弹键盘；
+       抬起时才跳转，且手指移动超过 10px 视为滑动、不跳（以前 touchstart 就跳，滑过胶囊会误触） */
+    let sx = 0,
+      sy = 0,
+      moved = false;
+    cap.addEventListener('touchstart', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const t = e.touches[0];
+      sx = t ? t.clientX : 0;
+      sy = t ? t.clientY : 0;
+      moved = false;
+    }, { passive: false, capture: true });
+    cap.addEventListener('touchmove', function (e) {
+      const t = e.touches[0];
+      if (t && Math.hypot(t.clientX - sx, t.clientY - sy) > 10) moved = true;
+    }, { passive: true, capture: true });
+    cap.addEventListener('touchend', function (e) {
+      e.stopPropagation();
+      if (!moved) go();
+    }, { capture: true });
+    cap.addEventListener('mousedown', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }, { capture: true });
+    cap.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      go();
+    }, { capture: true });
+    cap.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        go();
+      }
+    }, { capture: true });
   })();
   /* B1-6a：搜索独立页逻辑 */
   (function () {
@@ -919,7 +951,7 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
         }
         /* 沉底态：哨兵已出栈，再退一步才是真正的返回 */
         window.setTimeout(function () {
-          history.back();
+          sgxGoBack();
         }, 0);
       },
       true
@@ -992,7 +1024,7 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
         }
       } catch (e) {}
       if (elid && elid.charAt(0) !== '/' && target.indexOf('#') < 0) target += '#' + elid;
-      sgxNavigate(target, 'settings.js:1070', 'settings-search-anchor');
+      sgxNavigate(target);
       return;
     }
     window.setTimeout(function () {

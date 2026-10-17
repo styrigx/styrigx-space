@@ -18,7 +18,7 @@ import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
 import { mgmtButtons } from './mgmt-buttons.js';
 import { exchangeRootSession } from '../lib/root-session.js';
-import { sgxNavigate, sgxReload } from '../lib/diag-jumptrace.js';
+import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton, tapFeedback, setRowBusy, setRowSelected, shouldIgnorePostDialogClick } from '../lib/dialog-behavior.js';
 
 (function () {
@@ -99,10 +99,10 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
     const doLock = function () {
       fetch('/api/lock', { method: 'POST', credentials: 'include' })
         .then(function () {
-          location.replace('/?lock=1');
+          sgxReplace('/?lock=1');
         })
         .catch(function () {
-          location.replace('/?lock=1');
+          sgxReplace('/?lock=1');
         });
     };
     const showConfirm = function () {
@@ -671,7 +671,7 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
         desc: en
           ? 'Verify with your root credential. After verification you can freely manage owner keys; it expires when you leave.'
           : '用根凭证验证。验证后可自由管理站长凭证，离开即失效。',
-        methods: [doorDlg.rootMethod(function () { sgxNavigate(ownerUrl, 'security.js:588', 'root-ok'); })],
+        methods: [doorDlg.rootMethod(function () { sgxNavigate(ownerUrl); })],
       });
     }
     on(row, 'click', openOwnerDoor);
@@ -698,7 +698,7 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
     if (!row || !doorDlg) return;
     /* 定稿 #16：未配 ownerkey 时管理凭证的根凭证行验证后进管理凭证索引页，
        不跳站长凭证门。 */
-    const goMgmt = function () { sgxNavigate(mgmtUrl, 'security.js:613', 'mgmt-door-ok'); };
+    const goMgmt = function () { sgxNavigate(mgmtUrl); };
     function openMgmtDoor() {
       let isVisitor = false;
       try {

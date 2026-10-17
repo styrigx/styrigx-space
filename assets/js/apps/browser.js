@@ -28,8 +28,7 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
 
   /* ============ 搜索引擎（定义走共享模块 sgx/engines.js，与设置页共用） ============ */
   const SE = engines;
-  const LS_RECENT = 'sgx-browser-recent',
-    LS_POS = 'sgx-addrbar-pos';
+  const LS_POS = 'sgx-addrbar-pos';
 
   function curEngine() {
     return SE.cur();
@@ -50,8 +49,14 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
 
   /* ============ 2.3.12.1 弹出层开/关：磨砂蒙层，点蒙层空白处或返回键淡出关闭 ============ */
   let ovOpen = false;
+  function focusInput() {
+    try {
+      input.focus(/** @type {any} */ ({ preventScroll: true }));
+    } catch (e) {}
+  }
   /**
-   * @param {{focus?: boolean}} [opts]
+   * @param {{focus?: boolean, instant?: boolean}} [opts]
+   *   instant：不播淡入（从别的页面带 #focus 进来时，切页过渡已经做过一次淡入）
    */
   function openOverlay(opts) {
     if (ovOpen) return;
@@ -59,14 +64,18 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
     try {
       history.pushState({ brwOv: 1 }, '');
     } catch (e) {}
+    const instant = !!(opts && opts.instant);
+    if (instant) overlay.classList.add('no-anim');
     overlay.classList.add('open');
     renderSuggest();
+    if (instant) {
+      requestAnimationFrame(function () {
+        overlay.classList.remove('no-anim');
+      });
+    }
     if (!opts || opts.focus !== false) {
-      window.setTimeout(function () {
-        try {
-          input.focus(/** @type {any} */ ({ preventScroll: true }));
-        } catch (e) {}
-      }, 180);
+      if (instant) focusInput();
+      else window.setTimeout(focusInput, 180);
     }
     stickKb();
   }
@@ -89,7 +98,7 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
     unstickKb();
     if (!fromPop) {
       try {
-      sgxGoBack('browser.js:94', 'search-blur');
+      sgxGoBack();
       } catch (e) {}
     }
   }
@@ -133,7 +142,7 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
       h = Math.max(0, h || 0);
       ovKbLastH = h;
       if (h > ovKbMaxSeen) ovKbMaxSeen = h;
-      document.documentElement.style.setProperty('--sgx-kb', Math.round(h) + 'px');
+      overlay.style.setProperty('--sgx-kb', Math.round(h) + 'px');
       /* D2：弹层开着且键盘曾弹出过、高度回到 0（≤2px）→ 120ms 去抖后仍为 0
          就 blur + closeOverlay(false)，效果等同点蒙层空白；中途 h 变大则取消 */
       if (ovOpen && ovKbMaxSeen > 0 && h <= 2) {
@@ -154,8 +163,6 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
     }, overlay);
   }
   function unstickKb() {
-    document.documentElement.classList.remove('sgx-vk');
-    overlay.classList.remove('sgx-kb-sync');
     if (ovKbCloseTimer) {
       window.clearTimeout(ovKbCloseTimer);
       ovKbCloseTimer = null;
@@ -164,7 +171,7 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
       kbCleanup();
       kbCleanup = null;
     }
-    document.documentElement.style.setProperty('--sgx-kb', '0px');
+    overlay.style.removeProperty('--sgx-kb');
     /* D2：清空键盘高度记忆，下次打开重新统计 */
     ovKbMaxSeen = 0;
   }
@@ -401,8 +408,7 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
         ],
         onPick: function (v) {
           if (v === '__clear_recent') {
-            lsSet(LS_RECENT, '[]');
-            renderSuggest();
+            clearHist();
             return;
           }
           if (v === 'top' || v === 'bottom') {
@@ -448,8 +454,7 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
             options: [{ label: T.t('clear'), value: 'yes' }],
             onPick: function (y) {
               if (y !== 'yes') return;
-              lsSet(LS_RECENT, '[]');
-              renderSuggest();
+              clearHist();
             },
           });
         }
@@ -470,7 +475,6 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
           onFinal: function (t) {
             input.value = t;
             renderSuggest();
-            showSuggest();
             try {
               input.focus(/** @type {any} */ ({ preventScroll: true }));
             } catch (e2) {}
@@ -493,7 +497,6 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
         onFinal: function (t) {
           input.value = t;
           renderSuggest();
-          showSuggest();
           try {
             input.focus(/** @type {any} */ ({ preventScroll: true }));
           } catch (e2) {}
@@ -580,33 +583,6 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
     trash: svgIc('<path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>'),
   };
 
-  /* ============ 最近搜索 ============ */
-  function getRecent() {
-    try {
-      const a = JSON.parse(lsGet(LS_RECENT, '[]'));
-      return Array.isArray(a) ? a : [];
-    } catch (e) {
-      return [];
-    }
-  }
-  /** @param {string} s */
-  function pushRecent(s) {
-    s = (s || '').trim();
-    if (!s) return;
-    const a = getRecent().filter(function (x) {
-      return x !== s;
-    });
-    a.unshift(s);
-    lsSet(LS_RECENT, JSON.stringify(a.slice(0, 8)));
-  }
-  /** @param {string} s */
-  function delRecent(s) {
-    lsSet(LS_RECENT, JSON.stringify(getRecent().filter(function (x) {
-      return x !== s;
-    })));
-    renderSuggest();
-  }
-
   /* ============ 建议列表 ============ */
   let selIdx = -1;
   /** @type {Array<any>} */
@@ -664,36 +640,6 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
     suggest.innerHTML = html;
   }
 
-  function renderRecent() {
-    const a = getRecent();
-    let html = '';
-    html += '<div class="brw-sg-group px-4 pt-3 pb-1 text-[11px] font-semibold tracking-wide text-m-on-surface-variant">' + esc(T.t('recentTitle')) + '</div>';
-    if (!a.length) {
-      html += '<div class="brw-sg-empty px-4 py-6 text-center text-sm text-m-on-surface-variant">' + esc(T.t('recentEmpty')) + '</div>';
-    } else {
-      a.forEach(function (s) {
-        const i = curRows.length;
-        curRows.push({ kind: 'recent', title: s });
-        html +=
-          '<div class="brw-sg-row flex items-center gap-3 px-4 py-2.5 cursor-pointer" role="option" data-i="' + i + '">' +
-          '<span class="brw-sg-ic shrink-0 text-m-on-surface-variant">' + ICONS.clock + '</span>' +
-          '<span class="brw-sg-tx flex-1 min-w-0"><span class="brw-sg-ti block text-sm truncate">' + esc(s) + '</span></span>' +
-          '<span class="brw-sg-del shrink-0 p-1 text-m-on-surface-variant" data-del="' + esc(s) + '" role="button" aria-label="' + esc(T.t('del')) + '">' + ICONS.x + '</span>' +
-          '</div>';
-      });
-      html +=
-        '<div class="brw-sg-clear flex items-center justify-center gap-2 px-4 py-3 text-sm text-m-on-surface-variant cursor-pointer" data-clear="1">' +
-        '<span class="brw-sg-ic">' + ICONS.trash + '</span><span>' + esc(T.t('clearAll')) + '</span></div>';
-    }
-    suggest.innerHTML = html;
-  }
-
-  function showSuggest() {
-    /* 弹出层内建议列表常驻，无需显隐 */
-  }
-  function hideSuggest() {
-    selIdx = -1;
-  }
   function paintSel() {
     const rows = suggest.querySelectorAll('.brw-sg-row');
     for (let k = 0; k < rows.length; k++) {
@@ -711,12 +657,12 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
 
   /** @param {string} u */
   function openUrl(u) {
-    hideSuggest();
+    selIdx = -1;
     if (!u) return;
     if (/^https?:\/\//i.test(u)) {
       window.open(u, '_blank', 'noopener');
     } else {
-      sgxNavigate(u, 'browser.js:670', 'openUrl');
+      sgxNavigate(u);
     }
   }
 
@@ -726,9 +672,8 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
   function doSearch(q) {
     q = (q || '').trim();
     if (!q) return;
-    pushRecent(q);
     pushHist(q);
-    hideSuggest();
+    selIdx = -1;
     if (URL_RE.test(q) && !HAS_CJK.test(q)) {
       const url = /^https?:\/\//i.test(q) ? q : 'https://' + q;
       window.open(url, '_blank', 'noopener');
@@ -746,42 +691,18 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
       doSearch(r.title);
       return;
     }
-    if (r.kind === 'recent') {
-      input.value = r.title;
-      doSearch(r.title);
-      return;
-    }
-    pushRecent(r.title);
     openUrl(r.url);
   }
 
   on(suggest, 'click', function (/** @type {MouseEvent} */ ev) {
     const et = /** @type {Element|null} */ (ev.target);
-    const del = et && et.closest ? et.closest('[data-del]') : null;
-    if (del) {
-      ev.stopPropagation();
-      delRecent(del.getAttribute('data-del') || '');
-      return;
-    }
-    const clr = et && et.closest ? et.closest('[data-clear]') : null;
-    if (clr) {
-      lsSet(LS_RECENT, '[]');
-      renderSuggest();
-      return;
-    }
     const row = et && et.closest ? et.closest('.brw-sg-row') : null;
     if (!row) return;
     activateRow(parseInt(row.getAttribute('data-i') || '-1', 10));
   });
 
-  on(input, 'input', function () {
-    renderSuggest();
-    showSuggest();
-  });
-  on(input, 'focus', function () {
-    renderSuggest();
-    showSuggest();
-  });
+  on(input, 'input', renderSuggest);
+  on(input, 'focus', renderSuggest);
   on(input, 'keydown', function (/** @type {KeyboardEvent} */ ev) {
     if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
       ev.preventDefault();
@@ -815,6 +736,10 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
   /** @param {Array<string>} a */
   function setHist(a) {
     lsSet(LS_HIST, JSON.stringify(a));
+  }
+  function clearHist() {
+    setHist([]);
+    renderSuggest();
   }
   /** @param {string} s */
   function pushHist(s) {
@@ -871,10 +796,7 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
     });
     const hc = document.getElementById('brw-hist-clear');
     if (hc)
-      on(hc, 'click', function () {
-        setHist([]);
-        renderHist();
-      });
+      on(hc, 'click', clearHist);
     const hh = document.getElementById('brw-hist-hide');
     if (hh)
       on(hh, 'click', function () {
@@ -911,19 +833,30 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
     try {
       q = new URLSearchParams(location.search).get('q');
     } catch (e) {}
-    if (q) {
-      input.value = q;
-      openOverlay();
-      renderSuggest();
-    }
-    if (location.hash === '#focus') {
-      openOverlay();
-    }
+    if (q) input.value = q;
+    if (q || location.hash === '#focus') openOverlay({ instant: true });
   }
   on(window, 'hashchange', function () {
     if (location.hash === '#focus') {
       openOverlay();
     }
   });
-  initFromUrl();
+  /* 从别的页面带 #focus / ?q= 进来：等页面真正显示（预渲染已激活、切页过渡结束）再打开弹层并聚焦，
+     避免全屏磨砂 + 键盘弹起和 180ms 交叉淡化挤在同一帧；预渲染期间聚焦也不会弹键盘。 */
+  function whenShown(/** @type {() => void} */ fn) {
+    const doc = /** @type {any} */ (document);
+    if (doc.prerendering) {
+      document.addEventListener('prerenderingchange', function () { whenShown(fn); }, { once: true });
+      return;
+    }
+    const w = /** @type {any} */ (window);
+    if ('onpagereveal' in window && !w.__sgxRevealed) {
+      window.addEventListener('pagereveal', function () { whenShown(fn); }, { once: true });
+      return;
+    }
+    const vt = w.__sgxRevealVT;
+    if (vt && vt.finished) vt.finished.then(fn, fn);
+    else fn();
+  }
+  whenShown(initFromUrl);
 })();

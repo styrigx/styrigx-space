@@ -23,23 +23,6 @@ export function isEn() {
 }
 
 /**
- * rAF 节流包装：同一帧内多次调用只执行一次。
- * @param {() => void} fn
- * @returns {() => void}
- */
-export function rafThrottle(fn) {
-  let ticking = false;
-  return function () {
-    if (ticking) return;
-    ticking = true;
-    requestAnimationFrame(function () {
-      ticking = false;
-      fn();
-    });
-  };
-}
-
-/**
  * 是否开启减弱动效（设置项或系统偏好）。
  * @returns {boolean}
  */
@@ -51,20 +34,15 @@ export function reducedMotion() {
 }
 
 /**
- * 按时区格式化当前时间（HH:MM）。
- * @param {string} tz IANA 时区
- * @param {boolean} h12 是否 12 小时制
- * @returns {string}
+ * 当前可见的子页面标题区（设置页手机 / DeX 各有一份，只取可见那份）。
+ * @returns {HTMLElement|null}
  */
-export function fmtTz(tz, h12) {
-  try {
-    return new Intl.DateTimeFormat('en-US', {
-      timeZone: tz,
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: !!h12,
-    }).format(new Date());
-  } catch (e) {
-    return '';
+export function visibleSubHead() {
+  const heads = document.querySelectorAll('[data-subpage-head]');
+  for (let i = 0; i < heads.length; i++) {
+    try {
+      if (heads[i].getClientRects().length > 0) return /** @type {HTMLElement} */ (heads[i]);
+    } catch (e) {}
   }
+  return heads.length ? /** @type {HTMLElement} */ (heads[0]) : null;
 }

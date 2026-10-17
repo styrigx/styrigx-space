@@ -27,6 +27,8 @@
 <link rel="stylesheet" href="{{ (resources.Get "css/main.css" | fingerprint).RelPermalink }}">
 {{/* 注意：main.css 已由 scripts/build-css.cjs 压缩，不再走 Hugo minify（tdewolff 不认 @view-transition） */}}
 <script>
+/* 记下这次切页的 view transition（页面脚本可等它结束再做大动作，如浏览器页带 #focus 进来时打开搜索层） */
+addEventListener('pagereveal',function(e){window.__sgxRevealVT=e.viewTransition||null;window.__sgxRevealed=1;},{once:true});
 /* 用户偏好预读：在渲染前应用，避免闪烁 */
 (function(){
   try{
@@ -202,7 +204,8 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
   </div>
 </dialog>
 
-{{/* 搜索索引 */}}
+{{/* 搜索索引：只有浏览器页用（files-index.json 失败时的兜底），其他页不再内联 */}}
+{{ if eq .Layout "browser" }}
 {{ $entries := site.Data.entries.entries }}
 {{ $collections := site.Data.collections }}
 {{ $links := site.Data.links }}
@@ -265,6 +268,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
   {{ end }}
 {{ end }}
 <script id="search-index" type="application/json">{{ (dict "items" $idx) | jsonify | safeJS }}</script>
+{{ end }}
 {{/* 2.4.0-C：旧 sgx-util.js / sgx-base-a.js 已拆为 ES Modules，随页面入口统一加载 */}}
 
 
