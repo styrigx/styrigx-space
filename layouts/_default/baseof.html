@@ -20,9 +20,9 @@
 @font-face{font-family:'Inter';font-style:normal;font-weight:400 800;font-display:optional;src:url('/fonts/inter-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
 @font-face{font-family:'Inter Fallback';src:local('Arial');size-adjust:107%;ascent-override:90%;descent-override:23%;line-gap-override:0%;}
 </style>
-<link rel="icon" href="/favicon.ico" sizes="any">
-<link rel="icon" href="/favicon-32x32.png" type="image/png">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+{{/* 标签页图标、主屏图标都用主站头像（/avatar/<尺寸>.webp，设置页可换） */}}
+<link rel="icon" href="/avatar/32.webp">
+<link rel="apple-touch-icon" href="/avatar/192.webp">
 <link rel="search" type="application/opensearchdescription+xml" title="Styrigx" href="/opensearch.xml">
 <link rel="stylesheet" href="{{ (resources.Get "css/main.css" | fingerprint).RelPermalink }}">
 {{/* 注意：main.css 已由 scripts/build-css.cjs 压缩，不再走 Hugo minify（tdewolff 不认 @view-transition） */}}
@@ -178,10 +178,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
     {{ if .IsHome }}<a class="sgx-tb-search" href="{{ $linksUrl }}#focus" aria-label="{{ if $isEn }}Search{{ else }}搜索{{ end }}">{{ partial "icon.html" "search" }}</a>{{ else }}<button type="button" class="sgx-tb-back" data-go-back aria-label="{{ if $isEn }}Back{{ else }}返回{{ end }}">{{ partial "icon.html" "chevron-left" }}</button>{{ end }}
     <div class="sgx-tb-pill">
       <a id="nav-brand" class="sgx-tb-brand" href="{{ $home }}" aria-label="Styrigx">
-        {{ $navAvatar := resources.Get "images/avatar.png" }}
-        {{ if $navAvatar }}{{ $navAvatarWebp := $navAvatar.Fill "56x56 webp" }}
-        <img src="{{ $navAvatarWebp.RelPermalink }}" alt="" width="28" height="28" class="sgx-tb-avatar">
-        {{ end }}
+        <img src="/avatar/96.webp" alt="" width="28" height="28" class="sgx-tb-avatar" data-sgx-avatar="96">
         <span class="sgx-tb-text">Styrigx</span>
       </a>
       <button type="button" class="sgx-tb-more" data-menu="none" aria-label="{{ if $isEn }}More options{{ else }}更多选项{{ end }}"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg></button>

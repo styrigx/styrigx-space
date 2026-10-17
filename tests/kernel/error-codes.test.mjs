@@ -18,6 +18,7 @@
  * - configured：root-session 403，exchangeRootSession 只返回 ok/status
  * - failed / hostname / token：verify.js，lock.js submitToken 只看 ok，固定文案
  * - stepup：root-session / root-audit 403，调用方只用 ok/status，不进 apiErrorText
+ * - bad-form / missing / bad-type / too-large：/api/avatar 换头像，avatar-edit.js 只看 ok，失败一律固定文案
  *
  * 另断言：每个 ERR_KEY 的 i18n key 都在三扇门模板
  * （security-owner / security-lock / security-apps-book）里定义，
@@ -41,6 +42,10 @@ const KNOWN_FIXED = new Set([
   'hostname',
   'token',
   'stepup',
+  'bad-form',
+  'missing',
+  'bad-type',
+  'too-large',
 ]);
 
 function read(p) {

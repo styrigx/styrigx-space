@@ -3,10 +3,14 @@
      入参：站点 URL 字符串。 */}}
 {{ $host := (urls.Parse .).Host }}
 {{ $remote := printf "https://www.google.com/s2/favicons?domain=%s&sz=64" $host }}
-{{ if or (eq $host "blog.styrigx.com") (eq $host "muse-invite.styrigx.com") }}
+{{ if eq $host "muse-invite.styrigx.com" }}
   {{ $remote = printf "https://%s/favicon.ico" $host }}
 {{ end }}
 {{ $out := $remote }}
+{{/* 主站、博客、书库的图标就是主站头像（运行时读，换头像后跟着变），不下载 */}}
+{{ if in (slice "styrigx.com" "blog.styrigx.com" "book.styrigx.com") $host }}
+  {{ $out = "/avatar/96.webp" }}
+{{ else }}
 {{ with try (resources.GetRemote $remote) }}
   {{ with .Value }}
     {{ if in (slice "image/png" "image/jpeg" "image/gif" "image/webp") .MediaType.Type }}
@@ -16,5 +20,6 @@
       {{ $out = (. | resources.Copy (printf "fav/%s%s" (replace $host "." "-") (path.Ext $remote | default ".ico")) | fingerprint "md5").RelPermalink }}
     {{ end }}
   {{ end }}
+{{ end }}
 {{ end }}
 {{ return $out }}
