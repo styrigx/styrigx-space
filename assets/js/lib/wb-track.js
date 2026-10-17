@@ -1,7 +1,7 @@
 /**
  * @fileoverview B2-7 网站数字健康计时器（主站 / 书站 / 博客共用同一份，零依赖，可原样复制）。
  *
- * 只在「页面可见」且「60 秒内有操作」时计时；挂着不动、切到后台都不算。
+ * 只在「页面可见」且「最近有操作」时计时（默认 60 秒，阅读页可放宽到几分钟）；挂着不动、切到后台都不算。
  * 时长先攒在 localStorage（sgx-wb-pending），最多 5 分钟、或页面隐藏/离开时，
  * 用 sendBeacon 以 text/plain 发到主站 /api/wellbeing（同站子域自动带 cookie，免 CORS 预检）。
  * 服务器只记站长（owner），访客上报会被丢弃。
@@ -9,7 +9,7 @@
  * 上报格式：{"d":"YYYY-MM-DD(本机日期)","s":[{"k":"home","sec":42},{"k":"book:id","t":"书名","sec":300}]}
  */
 
-const IDLE_MS = 60000; /* 超过 60 秒没操作就停表 */
+const IDLE_MS = 60000; /* 默认超过 60 秒没操作就停表 */
 const TICK_MS = 5000;
 const FLUSH_MS = 300000; /* 最多 5 分钟上报一次 */
 const MAX_SEC = 900; /* 服务器单条上限 */
@@ -71,22 +71,25 @@ export function buildBody(p) {
 
 /**
  * 启动计时（每页调用一次）。
- * @param {{key: string|null, title?: string, endpoint?: string}} opt
+ * @param {{key: string|null, title?: string|(() => string), endpoint?: string, idleMs?: number}} opt
  *   key：区域键（home/files/browser/settings/book/book:<id>/blog/post:<slug>），null 不计时
+ *   title：书名 / 文章名，可传函数（阅读器加载完才知道书名时用 () => document.title）
+ *   idleMs：多久没操作停表；阅读页建议 300000（看一页书可能几分钟不碰屏幕）
  *   endpoint：主站用相对地址 /api/wellbeing，子站用 https://styrigx.com/api/wellbeing
  * @returns {{stop: () => void, flush: () => void}|null}
  */
 export function initWbTrack(opt) {
   if (!opt || !opt.key || typeof window === 'undefined') return null;
   const key = opt.key;
-  const title = (opt.title || '').slice(0, 60);
+  const titleOf = () => String((typeof opt.title === 'function' ? opt.title() : opt.title) || '').slice(0, 60);
   const endpoint = opt.endpoint || '/api/wellbeing';
+  const idleMs = opt.idleMs && opt.idleMs > 0 ? opt.idleMs : IDLE_MS;
   let lastInput = Date.now();
   let lastTick = Date.now();
   let lastFlush = Date.now();
 
   function active() {
-    return document.visibilityState === 'visible' && Date.now() - lastInput < IDLE_MS;
+    return document.visibilityState === 'visible' && Date.now() - lastInput < idleMs;
   }
 
   function add(sec) {
@@ -98,6 +101,7 @@ export function initWbTrack(opt) {
       p = null;
     }
     if (!p) p = { d: today, s: {} };
+    const title = titleOf();
     const e = p.s[key] || { t: title, sec: 0 };
     e.sec += sec;
     if (title) e.t = title;
@@ -142,7 +146,7 @@ export function initWbTrack(opt) {
   function onInput() {
     const now = Date.now();
     /* 从闲置恢复：闲置期间不计时 */
-    if (now - lastInput >= IDLE_MS) lastTick = now;
+    if (now - lastInput >= idleMs) lastTick = now;
     lastInput = now;
   }
 

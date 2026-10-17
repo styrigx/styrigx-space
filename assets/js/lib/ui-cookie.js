@@ -57,13 +57,30 @@ function readCookie() {
 }
 
 /**
+ * 解码 cookie 值（base64url JSON），失败返回 null。
+ * @param {string} v
+ * @returns {any}
+ */
+function decodeCookie(v) {
+  if (!v) return null;
+  try {
+    var b = v.replace(/-/g, '+').replace(/_/g, '/');
+    while (b.length % 4) b += '=';
+    return JSON.parse(decodeURIComponent(escape(atob(b))));
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
  * 同步 UI 设置到共享 cookie。值没变就不重写。
  * 字段→key 对应（v1.1 勘误）：
  *   tz1←sgx-tz1（sgx-tz1-auto 为真写 "auto"）；tz2←sgx-tz2；h12←sgx-hour12；
  *   clock←sgx-gl-clockstyle；wx←sgx-weather-show；unit←sgx-temp-unit；
  *   loc←sgx-weather-loc；city←sgx-weather-city；precise←sgx-weather-precise。
  *   B2-7（v2）外观：mode←sgx-theme-mode（system/light/dark）；pal←sgx-palette（缺省 lake）；
- *   fs←sgx-font-size（small/standard/large）；rm←sgx-reduced-motion（"1" 为 1）。
+ *   fs←sgx-font-size（small/standard/large）；rm←sgx-reduced-motion（"1" 为 1）；
+ *   mat：mode 最近一次变化的时间戳（毫秒）。子站自己也能切深浅色，两边谁后改听谁的。
  * sgx-weather 是数据缓存，不进 cookie。
  */
 export function syncUiCookie() {
@@ -84,6 +101,9 @@ export function syncUiCookie() {
     fs: ['small', 'large'].indexOf(ls('sgx-font-size') || '') >= 0 ? ls('sgx-font-size') : 'standard',
     rm: ls('sgx-reduced-motion') === '1' ? 1 : 0,
   };
+  /* mat：深浅色没变就沿用旧时间戳，变了（或第一次写）记当前时间 */
+  var old = decodeCookie(readCookie());
+  payload.mat = old && old.mode === payload.mode && typeof old.mat === 'number' ? old.mat : Date.now();
   var json = JSON.stringify(payload);
   /* base64url 编码（中文城市名需先 UTF-8） */
   var b64 = btoa(unescape(encodeURIComponent(json)))
