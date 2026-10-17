@@ -8,6 +8,7 @@
  * @param {import('../lib/scheduler.js').Scheduler} [S]
  */
 import { getScheduler } from '../lib/scheduler.js';
+import { reducedMotion } from '../lib/util.js';
 
 /** @param {Element} el */
 function isVisible(el) {
@@ -143,10 +144,30 @@ function initNavMenu() {
   }, { passive: true });
 }
 
+/* 头像（#nav-brand）链到主页。已经在主页时再点不重新加载整页（三星浏览器会露出半成品的一帧），
+   只平滑回到顶部；在子页面照常跳主页。 */
+function initBrand() {
+  const brand = /** @type {HTMLAnchorElement|null} */ (document.getElementById('nav-brand'));
+  if (!brand) return;
+  brand.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    let target;
+    try {
+      target = new URL(brand.href, location.href);
+    } catch (err) {
+      return;
+    }
+    if (target.origin !== location.origin || target.pathname !== location.pathname) return;
+    e.preventDefault();
+    window.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
+  });
+}
+
 export function initHeadButtons(S) {
   const sched = S || getScheduler();
   syncTopbar();
   initNavMenu();
+  initBrand();
   sched.onScroll(updateStuck);
   sched.onResize(updateStuck);
   window.addEventListener('pageshow', function (e) {
