@@ -405,12 +405,15 @@ jobs:
     # 这里失败不影响 Pages 上线（只会显示红叉）。
     # 路由见 workers/auth/wrangler.toml（styrigx.com/api/*）；workers_dev=false。部署后自动冒烟检查线上。
     # 密钥全在 Secrets Store，CI 不传任何密值。
-    # 用专门的 token（GitHub Secret：CLOUDFLARE_AUTH_GATEWAY_TOKEN，对应 Cloudflare 上的
-    # styrigx-auth-gateway-deploy）：Workers Scripts 编辑 + Secrets Store 读取 + styrigx.com 的 Workers Routes 编辑。
-    # Pages 的部署 token 不给 Worker 权限，互不影响。
+    # 用专门的 token（GitHub 环境密钥 STYRIGX_AUTH_GATEWAY_DEPLOY，名字对应 Cloudflare 上的
+    # styrigx-auth-gateway-deploy）：Workers Scripts 编辑 + Secrets Store 编辑（带 Secrets Store 绑定部署必须 Edit，Read 报 10021）
+    # + Account Settings 读取 + styrigx.com 的 Workers Routes 编辑。Pages 的部署 token 不给 Worker 权限，互不影响。
+    # 这把 token 放在 GitHub 环境 STYRIGX_AUTH_GATEWAY_DEPLOY（与密钥同名）的环境密钥里，该环境只允许 main 分支部署：
+    # 其他分支即使改了工作流也拿不到它。
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: quality
     runs-on: ubuntu-latest
+    environment: STYRIGX_AUTH_GATEWAY_DEPLOY
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -423,7 +426,7 @@ jobs:
       - name: Deploy auth Worker (styrigx-auth-gateway)
         uses: cloudflare/wrangler-action@v3
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_AUTH_GATEWAY_TOKEN }}
+          apiToken: ${{ secrets.STYRIGX_AUTH_GATEWAY_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: workers/auth
           wranglerVersion: '4'
@@ -449,7 +452,8 @@ jobs:
           ok=0
           check /api/geo 200 || ok=1
           check /api/session-check 401 || ok=1
-          check /api/no-such-endpoint 404 || ok=1
+          # 未登录访问不存在的接口：middleware 先拦（默认拒绝），返回 401 而不是 404，这是预期。
+          check /api/no-such-endpoint 401 || ok=1
           home=$(curl -sS -o /dev/null -w '%{http_code}' https://styrigx.com/ || true)
           echo "/ -> $home (Pages)"
           case "$home" in 2*|3*) ;; *) echo "::error::homepage returned $home"; ok=1;; esac
