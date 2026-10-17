@@ -3,7 +3,7 @@
 {{ .Scratch.Set "sgx-entry" "entry-settings.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 
-<div class="set-layout max-w-2xl mx-auto px-4 pb-28">
+<div class="set-layout setso-layout max-w-2xl mx-auto px-4 pb-28">
   {{ partial "subpage-head.html" (dict "title" .Title "isEn" $isEn) }}
   <div class="set-main min-w-0">
     <div id="setso-page"></div>
@@ -18,5 +18,5 @@
 <!-- 底部搜索胶囊：page "setsearch"，panel false -->
 {{ partial "sgx-capsule.html" (dict "page" "setsearch" "isEn" $isEn
   "placeholder" (cond $isEn "Search settings" "搜索设置")
-  "panel" false) }}
+  "panel" false "tools" true) }}
 {{ end }}
