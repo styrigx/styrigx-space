@@ -25,11 +25,7 @@
       <section id="brw-qa-card" class="brw-card" aria-label="{{ cond $isEn "Quick access" "快速访问" }}">
         <div class="brw-qa-grid-ov">
           {{ range $links }}{{ range .sites }}
-          {{ $host := (urls.Parse .url).Host }}
-          {{ $iconUrl := printf "https://www.google.com/s2/favicons?domain=%s&sz=64" $host }}
-          {{ if or (eq $host "blog.styrigx.com") (eq $host "muse-invite.styrigx.com") }}
-            {{ $iconUrl = printf "https://%s/favicon.ico" $host }}
-          {{ end }}
+          {{ $iconUrl := partialCached "fav-icon.html" .url .url }}
           <a href="{{ .url }}" target="_blank" rel="noopener" class="brw-qa-ov">
             <img src="{{ $iconUrl }}" alt="" loading="lazy" decoding="async" width="56" height="56" data-favname="{{ .name }}" class="brw-qa-ov-ic">
             <span class="brw-qa-ov-name">{{ .name }}</span>
@@ -73,13 +69,9 @@
     </h2>
     <div class="brw-qa-grid">
       {{ range $links }}{{ range .sites }}
-      {{ $host := (urls.Parse .url).Host }}
-      {{ $iconUrl := printf "https://www.google.com/s2/favicons?domain=%s&sz=64" $host }}
-      {{ if or (eq $host "blog.styrigx.com") (eq $host "muse-invite.styrigx.com") }}
-        {{ $iconUrl = printf "https://%s/favicon.ico" $host }}
-      {{ end }}
+      {{ $iconUrl := partialCached "fav-icon.html" .url .url }}
       <a href="{{ .url }}" target="_blank" rel="noopener" class="brw-qa flex flex-col items-center gap-2 min-w-0">
-        <img src="{{ $iconUrl }}" alt="" loading="lazy" decoding="async" width="48" height="48" data-favname="{{ .name }}"
+        <img src="{{ $iconUrl }}" alt="" loading="eager" decoding="async" width="48" height="48" data-favname="{{ .name }}"
              class="brw-qa-ic w-12 h-12 rounded-2xl object-contain bg-m-container-lowest border border-m-outline p-1.5">
         <span class="brw-qa-name block w-full text-center text-xs text-m-on-surface truncate">{{ .name }}</span>
       </a>
@@ -106,11 +98,7 @@
       </h3>
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {{ range $c.sites }}
-        {{ $host := (urls.Parse .url).Host }}
-        {{ $iconUrl := printf "https://www.google.com/s2/favicons?domain=%s&sz=64" $host }}
-        {{ if or (eq $host "blog.styrigx.com") (eq $host "muse-invite.styrigx.com") }}
-          {{ $iconUrl = printf "https://%s/favicon.ico" $host }}
-        {{ end }}
+        {{ $iconUrl := partialCached "fav-icon.html" .url .url }}
         <a href="{{ .url }}" target="_blank" rel="noopener" data-name="{{ .name }}" data-desc="{{ .desc | default "" }}"
            class="link-card group flex items-center gap-3 rounded-[1.25rem] border border-m-outline bg-m-container-lowest px-3.5 py-3 shadow-xs hover:shadow-md hover:-translate-y-0.5 hover:border-m-primary active:scale-[0.98] transition-all">
           <img src="{{ $iconUrl }}" alt="" loading="lazy" decoding="async" width="36" height="36" data-favname="{{ .name }}"
@@ -133,9 +121,6 @@
   "catPost" (dict "zh" "博客" "en" "Blog")
   "catApp" (dict "zh" "应用" "en" "Apps")
   "searchWith" (dict "zh" "用 {n} 搜索" "en" "Search with {n}")
-  "recentTitle" (dict "zh" "最近搜索" "en" "Recent searches")
-  "recentEmpty" (dict "zh" "暂无最近搜索" "en" "No recent searches")
-  "clearAll" (dict "zh" "全部清除" "en" "Clear all")
   "del" (dict "zh" "删除" "en" "Delete")
   "menuTitle" (dict "zh" "菜单" "en" "Menu")
   "addrTop" (dict "zh" "地址栏位置：顶部" "en" "Address bar: Top")

@@ -12,7 +12,7 @@
  */
 
 /** 让当前聚焦的输入框失焦（收起键盘）。 */
-export function blurFocusedInput(dlg) {
+function blurFocusedInput(dlg) {
   const ae = document.activeElement;
   if (ae && ae.tagName && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) {
     ae.blur();

@@ -194,7 +194,7 @@ test('行反馈：busy / 选中 helper 按约定 class 增删', () => {
 test('行反馈：CSS 有按下/选中/箭头旋转规则', () => {
   const css = read('assets/css/input.css');
   assert.ok(css.includes('.sgx-door-row'), '应有 .sgx-door-row 规则');
-  assert.ok(css.includes('&:active, &.sgx-row-pressed'), '按下态应有背景变色');
+  assert.ok(css.includes('&:active { background: var(--m-container-high); }'), '按下态应有背景变色');
   assert.ok(css.includes('&.sgx-row-selected'), '应有选中态规则');
   assert.ok(css.includes('.sgx-door-chev.expanded'), '应有箭头旋转规则');
   assert.ok(css.includes('.sgx-method-opt'), '应有 .sgx-method-opt 规则');

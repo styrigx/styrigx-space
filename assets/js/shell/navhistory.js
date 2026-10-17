@@ -2,7 +2,7 @@
  * @fileoverview 全站搜索快捷键 + 返回/Dock 历史逻辑（旧 sgx-base-a.js 上半）。
  */
 import { on, delegate } from '../lib/events.js';
-import { sgxNavigate, sgxReplace, sgxGoBack } from '../lib/diag-jumptrace.js';
+import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
 
 /**
  * 初始化：Cmd/Ctrl+K 跳浏览器页搜索；返回键与 Dock 的历史管理。
@@ -18,7 +18,7 @@ export function initNavHistory() {
       const t = /** @type {HTMLElement|null} */ (e.target);
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
       e.preventDefault();
-      sgxNavigate(bUrl + '#focus', 'navhistory.js:21', 'cmdk-search');
+      sgxNavigate(bUrl + '#focus');
     }
   });
 
@@ -53,15 +53,15 @@ export function initNavHistory() {
   }
   function goBack() {
     if (isFilesType()) {
-      sgxReplace(en ? '/en/files/' : '/files/', 'navhistory.js:54', 'goback-files');
+      sgxReplace(en ? '/en/files/' : '/files/');
       return;
     }
     const p = location.pathname;
     if (PRIMARY[p]) {
-      sgxReplace(home, 'navhistory.js:59', 'goback-primary');
+      sgxReplace(home);
       return;
     }
-    sgxReplace(parentOf(), 'navhistory.js:62', 'goback-parent');
+    sgxReplace(parentOf());
   }
   /* 事件委托：按钮在 <main> 里，脚本可能先执行 */
   delegate(document, 'click', '[data-go-back]', function (e) {
@@ -74,7 +74,7 @@ export function initNavHistory() {
     const isHome = p === '/' || p === '/en' || p === '/en/';
     if (isHome) return; /* 主页：不拦截，普通跳转 */
     e.preventDefault();
-    sgxReplace(a.getAttribute('href') || home, 'navhistory.js:75', 'dock-switch');
+    sgxReplace(a.getAttribute('href') || home);
   });
   /* 直接打开 App 页：最多插入一次主页历史，保证系统返回一次回到主页。 */
   (function () {
@@ -104,7 +104,7 @@ export function initNavHistory() {
   })();
   /* 退回上面插入的那条主页历史（同一文档，URL 已变成上一级）：加载上一级页面 */
   window.addEventListener('popstate', function (e) {
-    if (e.state && e.state.sgxRoot) location.replace(location.href);
+    if (e.state && e.state.sgxRoot) sgxReplace(location.href);
   });
 
   /* 双击顶栏回顶部（One UI 习惯） */

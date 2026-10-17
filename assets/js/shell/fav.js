@@ -10,20 +10,14 @@ import { on } from '../lib/events.js';
  * @param {HTMLImageElement} img
  * @param {string} name
  */
-export function favFallback(img, name) {
+function favFallback(img, name) {
   try {
     const ch = String(name || '?').trim().charAt(0) || '?';
     const s = document.createElement('span');
     s.className = img.className;
     s.setAttribute('aria-hidden', 'true');
-    /* ai 页（旧 __aiFavFallback）：无底色、18px；其余（旧 __favFallback）：底色、15px */
-    if (img.classList.contains('ai-plat-ic')) {
-      s.style.cssText =
-        'display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;color:var(--m-on-surface-variant);';
-    } else {
-      s.style.cssText =
-        'display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:var(--m-on-surface-variant);background:var(--m-container);';
-    }
+    s.style.cssText =
+      'display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:var(--m-on-surface-variant);background:var(--m-container);';
     s.textContent = ch;
     img.replaceWith(s);
   } catch (e) {

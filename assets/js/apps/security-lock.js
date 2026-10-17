@@ -9,9 +9,10 @@
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
-import { sgxNavigate } from '../lib/diag-jumptrace.js';
+import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton, showCenterDialog } from '../lib/dialog-behavior.js';
 import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown, guardDoorExpired } from './app-gate.js';
+import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -106,21 +107,6 @@ import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown, gua
     });
   }
 
-  /** @param {string} s */
-  function b64urlToBuf(s) {
-    s = s.replace(/-/g, '+').replace(/_/g, '/');
-    const bin = atob(s);
-    const u8 = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-    return u8;
-  }
-  /** @param {ArrayBuffer} buf */
-  function bufToB64url(buf) {
-    const u8 = new Uint8Array(buf);
-    let s = '';
-    for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
-    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  }
   /** @param {number} ts */
   function fmtDate(ts) {
     try {
@@ -186,7 +172,7 @@ import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown, gua
         label: en ? 'Go to lock screen' : '去锁屏',
         kind: 'primary',
         onClick: function () {
-          try { location.replace('/?lock=1'); } catch (e) {}
+          try { sgxReplace('/?lock=1'); } catch (e) {}
         },
       }],
     });
@@ -397,7 +383,7 @@ import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown, gua
         document.cookie = 'sgx-stepup=; Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
       } catch (e) {}
       /* 回安全页 */
-      sgxNavigate(document.documentElement.lang === 'en' ? '/en/settings/security/' : '/settings/security/', 'security-lock.js:544', 'lockout');
+      sgxNavigate(document.documentElement.lang === 'en' ? '/en/settings/security/' : '/settings/security/');
     });
   }
   function submitPw() {

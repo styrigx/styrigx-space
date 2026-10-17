@@ -12,9 +12,7 @@
 
 /* ===== 2.4.0 D：跨页 View Transitions =====
    @view-transition { navigation: auto } 让同站跳转自动做过渡（渐进增强，
-   不支持的浏览器忽略）。主页 App 图标 → 子页面标题走共享元素过渡
-   （One UI 打开应用式：图标放大淡入标题区），JS 在点击时给图标和目标
-   标题写同名 view-transition-name。 */
+   不支持的浏览器忽略）。 */
 @view-transition {
   navigation: auto;
 }
@@ -30,34 +28,6 @@
    老一些的 Chromium（如三星浏览器 31 / Chromium 148）截不到它的快照，切页时顶栏会消失一帧 */
 .sgx-topbar {
   view-transition-name: sgx-topbar;
-}
-#site-nav {
-  /* 三星浏览器 backdrop-filter 可能不生效，给纯色兜底 */
-  /* stylelint-disable-next-line color-no-hex */
-  background: var(--m-surface, var(--m-container-lowest));
-}
-.dark #site-nav {
-  /* stylelint-disable-next-line color-no-hex */
-  background: var(--m-surface, #1e1e20);
-}
-/* 共享元素：App 图标 ↔ 子页面大标题 */
-::view-transition-group(sgx-app-icon) {
-  animation-duration: .38s;
-  animation-timing-function: cubic-bezier(.22, 1, .36, 1);
-}
-::view-transition-old(sgx-app-icon) {
-  animation-name: sgx-vt-icon-out;
-}
-::view-transition-new(sgx-app-icon) {
-  animation-name: sgx-vt-icon-in;
-}
-@keyframes sgx-vt-icon-out {
-  from { opacity: 1; transform: scale(1); }
-  to { opacity: 0; transform: scale(1.35); }
-}
-@keyframes sgx-vt-icon-in {
-  from { opacity: 0; transform: scale(.72); }
-  to { opacity: 1; transform: scale(1); }
 }
 /* 整页切换：直接交叉淡化（浏览器默认的 plus-lighter 混合，两页相同的像素保持不变）。
    原来是「先淡出到空白、再淡入并放大」：中间有一段两页都透明，露出浏览器白底，
@@ -923,7 +893,7 @@
   }
   /* 布局变量（与主题无关，集中到 tokens 层） */
   :root {
-    --nav-h: 64px;
+    --nav-h: 68px;
     --dock-h: 64px;
     --dex-dock-h: 64px;
     --sgx-kb: 0px;
@@ -995,6 +965,11 @@
     isolation: isolate;
     contain: layout style;
   }
+  /* 搜索层自己已全屏磨砂，里面的地址栏 / 建议列表再模糊只会采样一层近乎纯色的背景，白算 */
+  .brw-ov .brw-ov-bar, .brw-ov .brw-suggest {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
   /* 隐藏状态关掉模糊，不在看不见的元素上重算 */
   .brw-ov:not(.open),
   .sgx-cap-results[hidden] {
@@ -1013,7 +988,7 @@
     /* stylelint-disable-next-line color-no-hex */
     .dark .sgx-vs-card { background: #1e1e20; }
     /* stylelint-disable-next-line color-no-hex */
-    .dark .layout-mobile #sheet-panel, .dark .layout-dex #sheet-panel, .layout-pc #sheet-panel { background: #1e1e20; }
+    .dark .layout-mobile #sheet-panel, .dark .layout-dex #sheet-panel, .dark .layout-pc #sheet-panel { background: #1e1e20; }
   }
 
   /* ===== 顶部边缘渐进模糊（2.4.0 A）：只在滚动后出现；
@@ -1885,6 +1860,8 @@
     background: rgba(120,120,128,0.36); opacity: 0; pointer-events: none; transition: opacity .25s ease;
     &.open { opacity: 1; pointer-events: auto; }
     .reduced-motion & { transition: none; }
+    /* 带 #focus 从别的页面进来：切页已经淡入过，弹层直接到位 */
+    &.no-anim, &.no-anim .brw-ov-top, &.no-anim .brw-ov-barwrap { transition: none; }
     /* 输入态：只显示建议列表，卡片隐藏 */
     &.has-text {
       #brw-suggest { display: block; }
@@ -1892,39 +1869,30 @@
     }
   }
 
-  /* 顶部内容卡：从上方轻滑淡入，放 2.3.11 式建议列表 */
+  /* 弹层内容区：从上方轻滑淡入；纵向滚动容器（三星浏览器式），快速访问 + 最近搜索
+     从顶部自然排列，卡片不内部滚动；padding-bottom 给悬浮地址栏 + 键盘留位，
+     键盘开合只改变底部留白，内容不跳动。 */
   .brw-ov-top {
-    position: absolute; top: calc(12px + env(safe-area-inset-top,0px)); left: 16px; right: 16px;
+    position: absolute; top: calc(12px + env(safe-area-inset-top,0px)); left: 12px; right: 12px; bottom: 0;
+    display: flex; flex-direction: column; gap: 12px;
+    overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+    padding-bottom: calc(var(--sgx-kb,0px) + 12px + 56px + 12px + env(safe-area-inset-bottom,0px));
     transform: translateY(-16px); opacity: 0;
     transition: transform .28s cubic-bezier(.32,.72,.35,1), opacity .25s ease;
     .brw-ov.open & { transform: none; opacity: 1; }
     .reduced-motion & { transition: none; }
-    .layout-dex & { left: 50%; right: auto; transform: translate(-50%,-16px); width: min(560px,calc(100vw - 32px)); }
+    .layout-dex & { left: 50%; right: auto; transform: translate(-50%,-16px); width: min(640px,calc(100vw - 24px)); }
     .layout-dex .brw-ov.open & { transform: translate(-50%,0); }
-    .brw-ov-top .brw-suggest { max-height: min(52vh,480px); overflow-y: auto; -webkit-overflow-scrolling: touch; }
-  }
-  /* 2.4.0 F：弹层内容区 = 纵向滚动容器（三星浏览器式）。快速访问 + 最近搜索
-     从顶部自然排列，卡片自身不设 max-height、不内部滚动；padding-bottom 给
-     悬浮地址栏 + 键盘留位；键盘开合只改变底部留白，内容不跳动、不重新排版。 */
-  .brw-ov-top {
-    left: 12px; right: 12px; bottom: 0; display: flex; flex-direction: column; gap: 12px;
-    overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
-    padding-bottom: calc(var(--sgx-kb,0px) + 12px + 56px + 12px + env(safe-area-inset-bottom,0px));
-    transition: transform .28s cubic-bezier(.32,.72,.35,1), opacity .25s ease;
-    .reduced-motion & { transition: none; }
-    .layout-dex & { width: min(640px,calc(100vw - 24px)); }
-    .sgx-vk & { transition: transform .28s cubic-bezier(.32,.72,.35,1), opacity .25s ease; }
-    .brw-ov.sgx-kb-sync & { transition: transform .28s cubic-bezier(.32,.72,.35,1), opacity .25s ease; }
   }
   .brw-ov-barwrap {
     position: absolute; left: 16px; right: 16px; bottom: calc(var(--sgx-kb) + 12px + env(safe-area-inset-bottom,0px));
     transform: translateY(16px); opacity: 0;
-    transition: transform .28s cubic-bezier(.32,.72,.35,1), opacity .25s ease, bottom .25s ease;
+    /* bottom 跟随键盘不做过渡：键盘本身在动，bottom 再插值会每帧重排、看起来拖影 */
+    transition: transform .28s cubic-bezier(.32,.72,.35,1), opacity .25s ease;
     .brw-ov.open & { transform: none; opacity: 1; }
     .reduced-motion & { transition: none; }
-    .layout-dex & { left: 50%; right: auto; transform: translate(-50%,16px); width: min(560px,calc(100vw - 32px)); }
+    .layout-dex & { left: 50%; right: auto; transform: translate(-50%,16px); width: min(640px,calc(100vw - 24px)); }
     .layout-dex .brw-ov.open & { transform: translate(-50%,0); }
-    .layout-dex & { width: min(640px,calc(100vw - 24px)); }
     .sgx-vk .brw-ov.open & {
       bottom: calc(env(keyboard-inset-height,0px) + 12px + env(safe-area-inset-bottom,0px));
       transition: transform .28s cubic-bezier(.32,.72,.35,1), opacity .25s ease;
@@ -2248,7 +2216,7 @@
     border-radius: 16px;
     text-align: left; cursor: pointer; color: var(--m-on-surface);
     /* 批次 A 验收修复 P2：按下态整行背景变色（现有 --m-container-* 色），松开恢复 */
-    &:active, &.sgx-row-pressed { background: var(--m-container-high); }
+    &:active { background: var(--m-container-high); }
     /* 选中态（根凭证/密码行展开时）：背景保持高亮 */
     &.sgx-row-selected { background: var(--m-container-high); }
   }
@@ -2590,22 +2558,11 @@
   to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
-/* 2.9.2：任何布局都不允许横向溢出（不用 min-width 撑宽，不改 meta viewport） */
-html, body {
-  overflow-x: clip;
-}
-@supports not (overflow: clip) {
-  html, body { overflow-x: hidden; }
-}
 /* 布局切换时内容不卸载：只换 class 做重排 */
 .layout-mobile .set-layout,
 .layout-dex .set-layout,
 .layout-pc .set-layout {
   contain: layout style;
-}
-/* B1-10：底部胶囊高度变量（胶囊和 main 底部留白共用） */
-:root {
-  --sgx-bottom-dock-h: 56px;
 }
 /* 有底部胶囊的页面：main 底部留白 = 胶囊高 + 安全区 + 16px */
 .set-layout:has(.sgx-cap),
@@ -2615,7 +2572,6 @@ html, body {
 
 /* topbar v2.0 start — 与 Book 同一套（返回圆 + 长条 + 导航圆）。旧顶栏（时间/日期/天气/音乐、
    标题区 ←/⋮、吸顶浮钮）已整体删除。放在所有 @layer 之外，优先于分层样式。 */
-:root { --nav-h: 68px; }
 #site-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 50; pointer-events: none;
   background: transparent; border: 0; box-shadow: none; padding: 0;
   animation: none; backdrop-filter: none; -webkit-backdrop-filter: none;
@@ -2625,8 +2581,10 @@ html, body {
 @media (min-width: 980px) {
   .sgx-topbar { left: 50%; right: auto; transform: translateX(-50%); width: min(calc(100vw - 32px), 1068px); }
 }
-/* 顶栏材质（全站统一：顶栏、底部搜索栏、内容卡片都用这一套）：主色 10% 混表面色，88% 不透明 */
+/* 顶栏材质（全站统一：顶栏、底部搜索栏、内容卡片都用这一套）：主色 10% 混表面色，88% 不透明；
+   --sgx-bottom-dock-h：底部胶囊高度（胶囊和 main 底部留白共用） */
 :root {
+  --sgx-bottom-dock-h: 56px;
   --sgx-mat: color-mix(in srgb, color-mix(in srgb, var(--m-primary) 10%, var(--m-surface)) 88%, transparent);
   --sgx-mat-solid: color-mix(in srgb, var(--m-primary) 10%, var(--m-surface));
   --sgx-mat-line: rgba(0,0,0,.06);
@@ -2639,8 +2597,7 @@ html, body {
 .sgx-tb-back, .sgx-tb-search, .sgx-tb-pill, .sgx-tb-nav {
   background: var(--sgx-mat);
   backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid var(--sgx-mat-line); box-shadow: var(--sgx-mat-shadow); }
-.sgx-tb-back, .sgx-tb-search, .sgx-tb-pill, .sgx-tb-nav { pointer-events: auto; }
+  border: 1px solid var(--sgx-mat-line); box-shadow: var(--sgx-mat-shadow); pointer-events: auto; }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .sgx-tb-back, .sgx-tb-search, .sgx-tb-pill, .sgx-tb-nav { background: var(--sgx-mat-solid); }
 }

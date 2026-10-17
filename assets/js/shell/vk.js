@@ -6,6 +6,11 @@
  * 返回 disposer 数组的清理函数。
  */
 
+/* 同时可能有多个订阅（搜索层 + 底部弹层）：引用计数，最后一个退订时才把
+   overlaysContent 和 html.sgx-vk 还原，否则键盘会在整个会话里一直盖住页面。 */
+let vkUsers = 0;
+/** @type {boolean|null} */ let vkPrev = null;
+
 /**
  * 订阅键盘高度变化。
  * @param {(h: number) => void} cb 键盘高度（px）变化回调
@@ -18,12 +23,22 @@ export function onKeyboardHeight(cb, syncEl) {
   try {
     const vk = /** @type {any} */ (navigator).virtualKeyboard;
     if (vk && 'overlaysContent' in vk) {
+      if (vkUsers === 0) vkPrev = !!vk.overlaysContent;
       vk.overlaysContent = true;
       useVK = true;
     }
   } catch (e) {}
   if (useVK) {
+    vkUsers++;
     document.documentElement.classList.add('sgx-vk');
+    disposers.push(function () {
+      vkUsers = Math.max(0, vkUsers - 1);
+      if (vkUsers) return;
+      document.documentElement.classList.remove('sgx-vk');
+      try {
+        /** @type {any} */ (navigator).virtualKeyboard.overlaysContent = !!vkPrev;
+      } catch (e) {}
+    });
     /** @param {any} e */
     const onGeo = function (e) {
       let h = 0;
@@ -69,7 +84,10 @@ export function onKeyboardHeight(cb, syncEl) {
     });
     sched();
   }
+  let disposed = false;
   return function () {
+    if (disposed) return;
+    disposed = true;
     disposers.forEach(function (d) {
       try {
         d();

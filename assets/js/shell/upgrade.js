@@ -15,7 +15,7 @@ import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
 import { bindEyeButton } from '../lib/dialog-behavior.js';
 import { followKeyboard } from './vk.js';
 import { getPasskeyAssertion, passkeyErrorText } from '../lib/passkey-assert.js';
-import { b64urlToBuf } from '../lib/b64.js';
+import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
 
 /**
  * B1-2：upgrade 流程通行密钥错误的展示决策（纯函数，可单测）。
@@ -128,20 +128,6 @@ export function initUpgrade() {
     if (optsEl) optsEl.hidden = false;
   };
 
-  function b64urlToBuf(s) {
-    s = s.replace(/-/g, '+').replace(/_/g, '/');
-    const bin = atob(s);
-    const u8 = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-    return u8;
-  }
-  function bufToB64url(buf) {
-    const u8 = new Uint8Array(buf);
-    let s = '';
-    for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
-    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  }
-
   // 根凭证验证：root-auth → root-session 换站长会话，再按 return 跳转。
   // root-auth 成功只签发 stepup（by=root, scope=root），不换会话直接跳过去
   // 会被 middleware 弹回锁屏，所以必须先调 /api/root-session。
@@ -172,9 +158,9 @@ export function initUpgrade() {
         let ret = '';
         try { ret = new URLSearchParams(window.location.search).get('return') || ''; } catch (e) {}
         if (ret) {
-          sgxReplace(window.location.href, 'upgrade.js:123', 'upgrade-root-ok-return');
+          sgxReplace(window.location.href);
         } else {
-          sgxNavigate(isEn ? '/en/settings/security/' : '/settings/security/', 'upgrade.js:125', 'upgrade-root-ok');
+          sgxNavigate(isEn ? '/en/settings/security/' : '/settings/security/');
         }
       } else if (res.status === 429) {
         showErr(isEn ? 'Too many attempts' : '尝试次数过多');
@@ -197,7 +183,7 @@ export function initUpgrade() {
       });
       const j = await res.json();
       if (j && j.ok) {
-        sgxNavigate(returnPath, 'upgrade.js:149', 'upgrade-password-ok');
+        sgxNavigate(returnPath);
       } else {
         showErr(isEn ? 'Wrong password' : '密码错误');
       }
@@ -291,7 +277,7 @@ export function initUpgrade() {
       });
       const authJ = await authRes.json();
       if (authJ && authJ.ok) {
-        sgxNavigate(returnPath, 'upgrade.js:235', 'upgrade-passkey-ok');
+        sgxNavigate(returnPath);
       } else {
         showErr(isEn ? 'Verification failed' : '验证失败');
       }

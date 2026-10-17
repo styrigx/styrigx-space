@@ -8,6 +8,7 @@
  *
  * 上报格式：{"d":"YYYY-MM-DD(本机日期)","s":[{"k":"home","sec":42},{"k":"book:id","t":"书名","sec":300}]}
  */
+import { visibleInterval } from './scheduler.js';
 
 const IDLE_MS = 60000; /* 默认超过 60 秒没操作就停表 */
 const TICK_MS = 5000;
@@ -168,12 +169,13 @@ export function initWbTrack(opt) {
   }
   document.addEventListener('visibilitychange', onVis);
   window.addEventListener('pagehide', onHide);
-  const timer = window.setInterval(tick, TICK_MS);
+  /* 页面不可见时暂停（隐藏时 onVis 已经 tick + flush 过），不在后台每 5 秒醒一次 */
+  const stopTimer = visibleInterval(tick, TICK_MS);
 
   return {
     flush,
     stop() {
-      window.clearInterval(timer);
+      stopTimer();
       inputs.forEach((t) => window.removeEventListener(t, onInput, opts));
       document.removeEventListener('visibilitychange', onVis);
       window.removeEventListener('pagehide', onHide);

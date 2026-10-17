@@ -1,0 +1,20 @@
+{{/* 站点图标 URL（返回字符串）。构建时把图标下载到本站并转 64px webp，带指纹长期缓存；
+     下载失败才退回运行时外链（img 上的 data-favname 再兜底成首字母）。
+     入参：站点 URL 字符串。 */}}
+{{ $host := (urls.Parse .).Host }}
+{{ $remote := printf "https://www.google.com/s2/favicons?domain=%s&sz=64" $host }}
+{{ if or (eq $host "blog.styrigx.com") (eq $host "muse-invite.styrigx.com") }}
+  {{ $remote = printf "https://%s/favicon.ico" $host }}
+{{ end }}
+{{ $out := $remote }}
+{{ with try (resources.GetRemote $remote) }}
+  {{ with .Value }}
+    {{ if in (slice "image/png" "image/jpeg" "image/gif" "image/webp") .MediaType.Type }}
+      {{ $img := .Resize "64x64 webp q90" }}
+      {{ $out = ($img | resources.Copy (printf "fav/%s.webp" (replace $host "." "-")) | fingerprint "md5").RelPermalink }}
+    {{ else }}
+      {{ $out = (. | resources.Copy (printf "fav/%s%s" (replace $host "." "-") (path.Ext $remote | default ".ico")) | fingerprint "md5").RelPermalink }}
+    {{ end }}
+  {{ end }}
+{{ end }}
+{{ return $out }}

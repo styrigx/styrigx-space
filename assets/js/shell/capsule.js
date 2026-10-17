@@ -110,8 +110,6 @@ export function initCapsule() {
         kbCloseTimer = null;
       }
       cap.classList.remove('open');
-      cap.classList.remove('sgx-kb-sync');
-      document.documentElement.classList.remove('sgx-vk');
       cap.style.width = '';
       cap.style.transform = '';
       openDisposers.forEach(function (d) {

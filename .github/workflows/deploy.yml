@@ -66,18 +66,11 @@ jobs:
       - name: Build CSS
         run: node scripts/build-css.cjs --minify
 
-      - name: Session security unit tests (2.4.1)
-        # 服务端安全逻辑：cookie 设置/清除统一、KV fail closed、session-epoch 503、
-        # middleware 缺密钥 fail closed、过期/旧 epoch cookie 被拒、return 白名单
-        run: node --test tests/kernel/session-security.test.mjs
-
-      - name: Passkey class + stepup + app-token tests (2.10.1)
-        # 通行密钥分类、stepup 安全、app-token 签发与向量一致性、2.10.1 修复、
-        # 认证入口（锁屏/安全页/访客假入口/重置锁屏）
-        run: node --test tests/kernel/passkey-class.test.mjs tests/kernel/passkey-list-pkclass.test.mjs tests/kernel/error-codes.test.mjs tests/kernel/stepup-security.test.mjs tests/kernel/auth-2101.test.mjs tests/kernel/auth-2102.test.mjs tests/kernel/auth-211.test.mjs tests/kernel/auth-entry.test.mjs tests/kernel/b2-5-books.test.mjs tests/ui/app-token.test.mjs
-
-      - name: UI unit tests (2.9.0 页内导航等)
-        run: node --test tests/ui/frontend-session.test.mjs tests/ui/i18n-weather.test.mjs tests/ui/eye-row-feedback.test.mjs tests/ui/palettes.test.mjs tests/ui/wellbeing.test.mjs
+      - name: Unit tests (kernel + ui)
+        # 全部 tests/kernel、tests/ui 单元测试；新加的测试文件自动纳入，不用再改这里。
+        # 覆盖：会话 / cookie / epoch、通行密钥分类、stepup、app-token、认证入口、
+        # 访客 401、根凭证 userHandle、最后一把钥匙、sitemap、i18n、页内导航、数字健康等
+        run: node --test tests/kernel/*.test.mjs tests/ui/*.test.mjs
 
       - name: Layer boundary check (SGX 3.0 分层规范)
         # L0-L6 依赖方向：lib 不得 import shell/apps；shell 不得 import apps；
