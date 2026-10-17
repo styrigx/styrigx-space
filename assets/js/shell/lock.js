@@ -185,7 +185,8 @@ function showLockScreen() {
 
   /* 头像：复用顶栏左侧头像图片 */
   const navImg = /** @type {HTMLImageElement|null} */ (document.querySelector('.sgx-tb-avatar'));
-  const avatarSrc = navImg ? navImg.src : '';
+  /* 锁屏头像 72px：用 192 那张（顶栏是 96） */
+  const avatarSrc = navImg ? navImg.src.replace(/\/avatar\/96\.webp/, '/avatar/192.webp') : '';
 
   const wx = wxData();
   const ov = document.createElement('div');

@@ -1542,6 +1542,16 @@
     .sgx-ac-name { font-weight: 700; color: var(--m-on-surface); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .sgx-ac-sub { font-size: 12px; color: var(--m-on-surface-variant); margin-top: 2px; }
     .sgx-ac-img { width: 48px; height: 48px; border-radius: 999px; object-fit: cover; flex-shrink: 0; }
+    /* 头像按钮：访客 disabled 只看；主人可点，右下角铅笔 */
+    .sgx-ac-av { position: relative; flex-shrink: 0; padding: 0; border: 0; background: none; border-radius: 999px; cursor: default; }
+    .sgx-ac-av:not(:disabled) { cursor: pointer; }
+    .sgx-ac-av:not(:disabled):active .sgx-ac-img { filter: brightness(.88); }
+    .sgx-ac-pen {
+      position: absolute; right: -2px; bottom: -2px; width: 20px; height: 20px; border-radius: 999px;
+      display: none; align-items: center; justify-content: center;
+      background: var(--m-primary); color: var(--m-on-primary); border: 2px solid var(--m-container-lowest);
+    }
+    .sgx-ac-av:not(:disabled) .sgx-ac-pen { display: flex; }
     /* 2.3.14.9：手机端设置页显示账号卡（大标题下方、第一分组上方），
        与宽屏左栏同一组件、样式一致；宽度随容器（左右 16px 由 .set-layout 的 px-4 提供）。
        D4：margin-top 为 0，使「三点底边 → 第一块内容顶边」= --sgx-head-btn-gap（与我的文件一致）。 */
@@ -2649,3 +2659,30 @@ body.sgx-stuck .sgx-tb-pill .subpage-mini-title { opacity: 1; transform: transla
 .sgx-tb-menu-item:active { background: var(--m-container); }
 .sgx-tb-menu-item[aria-current="true"] { color: var(--m-primary); font-weight: 600; }
 /* topbar v2.0 end */
+
+/* ===== 头像裁剪（assets/js/apps/avatar-edit.js）=====
+   全屏 <dialog>：照片铺满，中间圆形取景框外压暗；拖动移动、双指 / 滚轮缩放；底部 取消 / 完成。 */
+.sgx-avc {
+  position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none;
+  margin: 0; padding: 0; border: 0; background: rgb(0,0,0); color: rgb(255,255,255);
+  &::backdrop { background: rgb(0,0,0); }
+  .sgx-avc-stage { position: absolute; inset: 0; overflow: hidden; touch-action: none; cursor: grab; }
+  .sgx-avc-stage:active { cursor: grabbing; }
+  .sgx-avc-img { position: absolute; left: 0; top: 0; transform-origin: 0 0; max-width: none; user-select: none; -webkit-user-drag: none; pointer-events: none; }
+  .sgx-avc-ring {
+    position: absolute; left: 50%; top: 50%; border-radius: 999px; pointer-events: none;
+    transform: translate(-50%,-50%);
+    box-shadow: 0 0 0 9999px rgba(0,0,0,.55); outline: 2px solid rgba(255,255,255,.9);
+  }
+  .sgx-avc-bar {
+    position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; gap: 12px;
+    padding: 16px 20px calc(16px + env(safe-area-inset-bottom,0px));
+  }
+  .sgx-avc-title { position: absolute; left: 0; right: 0; top: calc(16px + env(safe-area-inset-top,0px)); text-align: center; font-weight: 600; font-size: 16px; }
+  .sgx-avc-btn {
+    min-width: 96px; height: 44px; padding: 0 20px; border-radius: 999px; border: 0;
+    font-size: 15px; font-weight: 600; background: rgba(255,255,255,.16); color: rgb(255,255,255);
+  }
+  .sgx-avc-btn.primary { background: rgb(255,255,255); color: rgb(17,17,17); }
+  .sgx-avc-btn:disabled { opacity: .5; }
+}

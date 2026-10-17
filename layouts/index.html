@@ -15,12 +15,7 @@
 
     <!-- 名片 -->
     <div id="w-profile" class="widget col-span-4 lg:col-span-5 bg-m-primary-container text-m-on-primary-container p-6 sm:p-7 flex items-center gap-5 animate-fade-up" style="animation-delay:.08s">
-      {{ $avatar := resources.Get "images/avatar.png" }}
-      {{ if $avatar }}{{ $avatarWebp := $avatar.Fill "192x192 webp" }}{{ $avatarAvif := $avatar.Fill "192x192 avif" }}
-      <img src="{{ $avatarWebp.RelPermalink }}" srcset="{{ $avatarAvif.RelPermalink }} 1x" alt="Sloan Gray" width="96" height="96" fetchpriority="high" class="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover ring-4 ring-white/40 shadow shrink-0">
-      {{ else }}
-      <div class="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-m-primary text-m-on-primary flex items-center justify-center text-3xl font-bold ring-4 ring-white/40 shadow shrink-0">S</div>
-      {{ end }}
+      <img src="/avatar/192.webp" alt="Sloan Gray" width="96" height="96" fetchpriority="high" class="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover ring-4 ring-white/40 shadow shrink-0" data-sgx-avatar="192">
       <div class="min-w-0">
         <h1 class="text-3xl sm:text-4xl font-extrabold">Sloan Gray</h1>
         <p class="mt-1.5 text-sm opacity-80 leading-relaxed">{{ $motto }}</p>

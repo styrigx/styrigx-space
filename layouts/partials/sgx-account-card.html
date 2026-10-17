@@ -1,14 +1,16 @@
 {{/* 可复用账号卡：左 Sloan Gray / Styrigx，右圆形头像。
    2.3.14.8：设置页宽屏左栏使用；2.3.14.9：手机端设置页复用同一个组件。
-   样式、内容、点击行为（无）在两处保持一致。
+   头像读主站 /avatar/192.webp；主人会话下头像右下角出现铅笔，点头像可换照片 / 移除照片
+   （assets/js/apps/avatar-edit.js），访客只看不能点。
    「解锁方式」入口已移到「安全与隐私」分类第一行（见 security.html），这里只保留名字和头像。 */}}
-{{ $avatar := resources.Get "images/avatar.png" }}
+{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 <div class="sgx-account-card">
   <div class="sgx-ac-tx">
     <p class="sgx-ac-name">Sloan Gray</p>
     <p class="sgx-ac-sub">Styrigx</p>
   </div>
-  {{ if $avatar }}{{ $a := $avatar.Fill "96x96 webp" }}{{ $aAvif := $avatar.Fill "96x96 avif" }}
-  <img src="{{ $a.RelPermalink }}" srcset="{{ $aAvif.RelPermalink }} 1x" alt="Sloan Gray" width="48" height="48" class="sgx-ac-img">
-  {{ end }}
+  <button type="button" class="sgx-ac-av" data-avatar-edit disabled aria-label="{{ if $isEn }}Change photo{{ else }}更换头像{{ end }}">
+    <img src="/avatar/192.webp" alt="Sloan Gray" width="48" height="48" class="sgx-ac-img" data-sgx-avatar="192">
+    <span class="sgx-ac-pen" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/></svg></span>
+  </button>
 </div>
