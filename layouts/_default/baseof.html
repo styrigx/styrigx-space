@@ -167,10 +167,11 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{ $setUrl := $setUrl0 }}{{ $filesUrl := $filesUrl0 }}
 {{ $glUrl := cond $isEn "/en/settings/goodlock/" "/settings/goodlock/" }}
 
-{{/* 顶栏 v2.0（与 Book 同一套）：返回圆（主页不渲染）+ 长条（品牌组 + ⋮）+ 导航圆 */}}
+{{/* 顶栏 v2.0（与 Book 同一套）：左圆 + 长条（头像 + 居中 Styrigx + ⋮）+ 导航圆。
+   B2-3：左圆子页面是返回；主页没有可返回的地方，换成搜索圆（进浏览器并打开搜索），三块位置全站一致。 */}}
 <header id="site-nav" class="z-50">
   <div class="sgx-topbar">
-    {{ if not .IsHome }}<button type="button" class="sgx-tb-back" data-go-back aria-label="{{ if $isEn }}Back{{ else }}返回{{ end }}">{{ partial "icon.html" "chevron-left" }}</button>{{ end }}
+    {{ if .IsHome }}<a class="sgx-tb-search" href="{{ $linksUrl }}#focus" aria-label="{{ if $isEn }}Search{{ else }}搜索{{ end }}">{{ partial "icon.html" "search" }}</a>{{ else }}<button type="button" class="sgx-tb-back" data-go-back aria-label="{{ if $isEn }}Back{{ else }}返回{{ end }}">{{ partial "icon.html" "chevron-left" }}</button>{{ end }}
     <div class="sgx-tb-pill">
       <a id="nav-brand" class="sgx-tb-brand" href="{{ $home }}" aria-label="Styrigx">
         {{ $navAvatar := resources.Get "images/avatar.png" }}

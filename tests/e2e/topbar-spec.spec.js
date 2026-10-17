@@ -1,6 +1,7 @@
 /**
- * 顶栏 v2.0（与 Book 同一套）验收：返回圆 + 长条（品牌组 + ⋮）+ 导航圆。
- * Space 主页没有返回圆，长条从 x=16 开始。旧顶栏的时间/日期/天气/音乐已删除。
+ * 顶栏 v2.0（与 Book 同一套）验收：左圆 + 长条（头像 + 居中 Styrigx + ⋮）+ 导航圆。
+ * B2-3：主页左圆是搜索（进浏览器并打开搜索），不是返回；三块位置与子页面完全一致。
+ * Styrigx 在长条内水平垂直居中，头像始终显示；滚动后 Styrigx 淡出、小标题淡入。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, expect } = require('./helpers');
@@ -46,6 +47,9 @@ for (const dark of [false, true]) {
       }
       const av = await box(page, '.sgx-tb-avatar');
       expect(near(av.x - pill.x, 12), `头像左距 ${av.x - pill.x}`).toBe(true);
+      const tx = await box(page, '.sgx-tb-text');
+      expect(near(tx.x + tx.width / 2, pill.x + pill.width / 2), `Styrigx 水平居中 ${tx.x + tx.width / 2}`).toBe(true);
+      expect(near(tx.y + tx.height / 2, pill.y + pill.height / 2), `Styrigx 垂直居中 ${tx.y + tx.height / 2}`).toBe(true);
       const more = await box(page, '.sgx-tb-pill .sgx-tb-more');
       expect(near(pill.x + pill.width - (more.x + more.width / 2), 26), '⋮ 中心距长条右边 26').toBe(true);
       const bgs = await page.evaluate(() =>
@@ -55,13 +59,27 @@ for (const dark of [false, true]) {
       expect(bgs[2]).toBe(bgs[1]);
     });
 
-    test('主页：没有返回圆，长条从 x=16 开始', async ({ page }) => {
+    test('主页：左圆是搜索、不是返回，三块位置、底色与子页面一致，Styrigx 居中', async ({ page }) => {
       await go(page, '/', { dark });
       await expect(page.locator('.sgx-tb-back')).toHaveCount(0);
+      await expect(page.locator('[data-go-back]')).toHaveCount(0);
+      const search = await box(page, '.sgx-tb-search');
       const pill = await box(page, '.sgx-tb-pill');
-      expect(near(pill.x, 16), `长条 x ${pill.x}`).toBe(true);
       const nav = await box(page, '.sgx-tb-nav');
-      expect(near(nav.x + nav.width, 374)).toBe(true);
+      expect(near(search.x, 16) && near(search.x + search.width, 68), `搜索圆 x ${search.x}–${search.x + search.width}`).toBe(true);
+      expect(near(pill.x, 76) && near(pill.x + pill.width, 314), `长条 x ${pill.x}–${pill.x + pill.width}`).toBe(true);
+      expect(near(nav.x, 322) && near(nav.x + nav.width, 374), `导航圆 x ${nav.x}–${nav.x + nav.width}`).toBe(true);
+      for (const b of [search, pill, nav]) {
+        expect(near(b.y, 16), `y ${b.y}`).toBe(true);
+        expect(near(b.height, 52), `高 ${b.height}`).toBe(true);
+      }
+      const tx = await box(page, '.sgx-tb-text');
+      expect(near(tx.x + tx.width / 2, pill.x + pill.width / 2), 'Styrigx 水平居中').toBe(true);
+      const bgs = await page.evaluate(() =>
+        ['.sgx-tb-search', '.sgx-tb-pill', '.sgx-tb-nav'].map((s) => getComputedStyle(document.querySelector(s)).backgroundColor)
+      );
+      expect(bgs[0]).toBe(bgs[1]);
+      expect(bgs[2]).toBe(bgs[1]);
     });
   });
 }
@@ -92,12 +110,17 @@ test.describe('390×844 行为', () => {
     expect(m.pb).toBe('76px');
   });
 
-  test('滚过标题区 × 0.55：品牌淡出、小标题在长条内可见、三个按钮不动', async ({ page }) => {
+  test('滚过标题区 × 0.55：头像不动、Styrigx 淡出、小标题在长条内可见、三个按钮不动', async ({ page }) => {
     await go(page, '/settings/');
     const before = await Promise.all(['.sgx-tb-back', '.sgx-tb-pill .sgx-tb-more', '.sgx-tb-nav'].map((s) => box(page, s)));
     const headH = await page.evaluate(() => document.querySelector('[data-subpage-head]').offsetHeight);
     await page.evaluate((y) => window.scrollTo(0, y), Math.round(headH * 0.55 + 50));
-    await expect.poll(() => page.evaluate(() => getComputedStyle(document.querySelector('.sgx-tb-brand')).opacity)).toBe('0');
+    await expect.poll(() => page.evaluate(() => getComputedStyle(document.querySelector('.sgx-tb-text')).opacity)).toBe('0');
+    const op = await page.evaluate(() => ({
+      brand: getComputedStyle(document.querySelector('.sgx-tb-brand')).opacity,
+      avatar: getComputedStyle(document.querySelector('.sgx-tb-avatar')).opacity,
+    }));
+    expect(op, '头像一直显示').toEqual({ brand: '1', avatar: '1' });
     await expect(page.locator('.sgx-tb-pill .subpage-mini-title')).toHaveCount(1);
     await expect.poll(() =>
       page.evaluate(() => Number(getComputedStyle(document.querySelector('.sgx-tb-pill .subpage-mini-title')).opacity))
@@ -128,6 +151,14 @@ test.describe('390×844 行为', () => {
     await expect(page.locator('.sgx-tb-pill #files-more.sgx-tb-more')).toHaveCount(1);
     await page.locator('.sgx-tb-pill .sgx-tb-more').click();
     await expect(page.locator('dialog[open]').first()).toBeVisible({ timeout: 5000 });
+  });
+
+  test('主页搜索圆：进浏览器并打开搜索', async ({ page }) => {
+    await go(page, '/');
+    await page.locator('.sgx-tb-search').click();
+    await expect(page).toHaveURL(/\/browser\/#focus$/);
+    await expect(page.locator('#brw-overlay')).toHaveClass(/\bopen\b/, { timeout: 10000 });
+    await expect(page.locator('#brw-input')).toBeFocused({ timeout: 5000 });
   });
 
   test('返回圆回上一级', async ({ page }) => {
