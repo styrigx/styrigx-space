@@ -52,6 +52,7 @@ import {
   LAYER_LOCK,
 } from '../_kernel/layers.js';
 import { getPasskeys, PK_CLASS_OWNER, PK_CLASS_LOCK } from './owner-passkey.js';
+import { isSameOrigin, originDenied } from '../_kernel/http.js';
 
 const ITERATIONS = 100000; // Workers PBKDF2 上限（实测：超过抛 NotSupportedError）
 const SALT_LEN = 16;
@@ -98,7 +99,7 @@ export function getPepper(env) {
  * @param {string} pepper
  * @returns {Promise<{ok:boolean, set:boolean, needsRehash:boolean}>}
  */
-export async function checkPasswordRecord(stored, password, pepper) {
+async function checkPasswordRecord(stored, password, pepper) {
   if (!stored || !stored.salt || !stored.hash) {
     return { ok: false, set: false, needsRehash: false };
   }
@@ -150,7 +151,7 @@ export async function verifyOwnerPassword(kv, pepper, password) {
  * @param {string} password
  * @returns {Promise<{ok:boolean, set:boolean, needsRehash:boolean}>}
  */
-export async function verifyLockPassword(kv, pepper, password) {
+async function verifyLockPassword(kv, pepper, password) {
   const stored = await kv.get('lock-pw', 'json'); /* 出错直接抛 */
   return checkPasswordRecord(stored, password, pepper);
 }
@@ -173,21 +174,8 @@ async function handlePost(context) {
   if (request.method !== 'POST') {
     return Response.json({ ok: false, error: 'method' }, { status: 405 });
   }
-  /* 2.10.2：Origin 必须存在、可解析且 host 一致（CSRF 防护）；
-     缺失或解析失败一律 403，不再放行。 */
-  {
-    const origin = request.headers.get('Origin') || '';
-    let originOk = false;
-    try {
-      const url = new URL(request.url);
-      originOk = !!origin && new URL(origin).host === url.host;
-    } catch (e) {
-      originOk = false;
-    }
-    if (!originOk) {
-      return Response.json({ ok: false, error: 'origin' }, { status: 403 });
-    }
-  }
+  /* Origin 必须与本站同 host（CSRF 防护），缺失或解析失败一律 403 */
+  if (!isSameOrigin(request)) return originDenied();
   if (!kv) {
     return Response.json({ ok: false, error: 'config' }, { status: 500 });
   }

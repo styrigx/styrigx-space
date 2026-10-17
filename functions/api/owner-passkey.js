@@ -65,6 +65,7 @@ import {
   ownerPasskeyKey,
   OWNER_PASSKEY_PREFIX,
 } from '../_kernel/key-names.js';
+import { isSameOrigin, originDenied } from '../_kernel/http.js';
 
 /* 2.10.0：通行密钥分类；2.11 新增 owner。
    钥匙命名规范（key-names.js）：存储层 class 字段值保留 'owner'/'lock'/'app'
@@ -78,14 +79,19 @@ export const OWNER_DISPLAY_NAME = 'Sloan Gray';
 export const APP_AUTH_PREFIX = 'app-auth:';
 const APP_AUTH_TTL = 300; /* 5 分钟 */
 
-/* AAGUID → 密码管理器（只用于显示，不参与安全判断） */
+/* AAGUID → 密码管理器（只用于显示，不参与安全判断）。
+   取自 passkeydeveloper/passkey-authenticator-aaguids；iCloud 钥匙串通常回报全 0 AAGUID，显示为空。 */
 const AAGUID_PROVIDERS = {
-  'adce0002-35bc-c60a-648b-0b25f5f05522': 'Google 密码管理器',
-  'f8a011f3-8c0a-4d15-8006-17111f9edc7d': 'iCloud 钥匙串',
+  '53414d53-554e-4700-0000-000000000000': 'Samsung Pass',
+  'ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4': 'Google 密码管理器',
+  'fbfc3007-154e-4ecc-8c0b-6e020557d7bd': 'Apple 密码',
+  'dd4ec289-e01d-41c9-bb89-70fa845d4bf2': 'iCloud 钥匙串',
+  'd3452668-01fd-4c12-926c-83a4204853aa': 'Microsoft 密码管理器',
+  '08987058-cadc-4b81-b6e1-30de50dcbe96': 'Windows Hello',
+  '9ddd1817-af5a-4672-a2b9-3e3dd95000a9': 'Windows Hello',
+  '6028b017-b1d4-4c02-b4b3-afcdafc96bb2': 'Windows Hello',
   'bada5566-a7aa-401f-bd96-45619a55120d': '1Password',
-  'accced6a-63d0-4ef2-bb6c-7516d463e07f': 'Bitwarden',
-  '39a9f8c4-8405-4bc4-8af9-7d616b0df0ab': 'Microsoft',
-  /* Samsung Pass AAGUID 需真机确认后填入 */
+  'd548826e-79b4-db40-a3d8-11116f7e8349': 'Bitwarden',
 };
 
 /* randB64 / b64urlDec / cborDecode / parseRegAuthData / coseToJwk / derToRaw /
@@ -398,21 +404,8 @@ async function handlePost(context) {
   if (request.method !== 'POST') {
     return Response.json({ ok: false, error: 'method' }, { status: 405 });
   }
-  /* 2.10.2：Origin 必须存在、可解析且 host 一致（CSRF 防护）；
-     缺失或解析失败一律 403，不再放行。 */
-  {
-    const origin = request.headers.get('Origin') || '';
-    let originOk = false;
-    try {
-      const url = new URL(request.url);
-      originOk = !!origin && new URL(origin).host === url.host;
-    } catch (e) {
-      originOk = false;
-    }
-    if (!originOk) {
-      return Response.json({ ok: false, error: 'origin' }, { status: 403 });
-    }
-  }
+  /* Origin 必须与本站同 host（CSRF 防护），缺失或解析失败一律 403 */
+  if (!isSameOrigin(request)) return originDenied();
   if (!kv) return Response.json({ ok: false, error: 'config' }, { status: 500 });
 
   let body;

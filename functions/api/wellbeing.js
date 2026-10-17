@@ -19,7 +19,6 @@
  */
 import { verifySessionDetailed } from '../_middleware.js';
 
-export const WB_SECTIONS = ['home', 'files', 'browser', 'settings', 'book', 'blog'];
 const KEY_RE = /^(home|files|browser|settings|book|blog)$|^(book|post):[A-Za-z0-9_\-./%]{1,80}$/;
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_BODY = 4096;

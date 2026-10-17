@@ -5,7 +5,7 @@
  * 2. 会话检查：sgx-verified cookie（Ed25519 签名，epoch.exp.sig）
  *    - 有效 → next()
  *    - 无效 → 白名单放行，否则 302 到首页锁屏（?lock=1&return=原地址）
- * 3. verifySession 每次拒绝都打 [sgx-verify] fail: <原因> 日志（只记原因，
+ * 3. verifySessionDetailed 每次拒绝都打 [sgx-verify] fail: <原因> 日志（只记原因，
  *    不记密钥和 cookie 值），用于线上排查会话未被识别的问题。
  */
 
@@ -13,6 +13,7 @@ import { ed25519Verify } from './_kernel/crypto.js';
 import { SESSION_COOKIE, ROLE_OWNER, ROLE_VISITOR } from './_kernel/session.js';
 import { isPublicPage } from './_kernel/public-pages.js';
 import { verifyStepupCookie, STEPUP_SCOPE_LOCKRESET } from './api/stepup.js';
+import { withNoStore } from './_kernel/http.js';
 
 /* 2.11 两扇门：安全与隐私全系主人专属。
    访客可进：/settings/ 及其子页（不含 security/ 全系）、/files/（中英文）。
@@ -60,7 +61,7 @@ function isOwnerOnlyApi(pathname) {
 }
 
 /* 读取方 cookie 名（diag 接口用它与写入方对账；必须与 SESSION_COOKIE 一致） */
-export const READER_COOKIE_NAME = SESSION_COOKIE;
+const READER_COOKIE_NAME = SESSION_COOKIE;
 
 /* 白名单路径（验证必需 + 锁屏自身 + 静态资源） */
 const API_WHITELIST = [
@@ -140,7 +141,7 @@ export function isSafeReturnPath(ret) {
  * 只认 https://*.styrigx.com/*（含 apex）。用于 blog/book（含预览子域）
  * 解锁后跳回原站。非 https、一级域名不符、带 @ 或 \\ 的一律不认。
  */
-export function isSafeReturnUrl(ret) {
+function isSafeReturnUrl(ret) {
   if (typeof ret !== 'string' || !ret.startsWith('https://')) return false;
   let u;
   try {
@@ -158,7 +159,7 @@ export function isSafeReturnUrl(ret) {
 /**
  * ?return= 综合校验：站内路径或白名单跨站 URL。
  */
-export function isSafeReturn(ret) {
+function isSafeReturn(ret) {
   return isSafeReturnPath(ret) || isSafeReturnUrl(ret);
 }
 
@@ -204,7 +205,7 @@ export async function injectSessionState(res, state, role) {
    前端读 data-sgx-upgrade="1" 和 data-sgx-upgrade-return 打开验证层
    （只显示通行密钥+密码，不显示访客入口，带「需要主人验证」提示）。
    验证通过后前端跳回 return。绝不 302。 */
-export async function injectUpgradeState(res, role, returnPath) {
+async function injectUpgradeState(res, role, returnPath) {
   const ct = res.headers.get('Content-Type') || '';
   if (!ct.includes('text/html')) return res;
   let html = await res.text();
@@ -259,24 +260,6 @@ export async function verifySessionDetailed(request, env) {
 }
 
 /**
- * 验证会话（布尔版，保持向后兼容）。
- * @returns {Promise<boolean>}
- */
-export async function verifySession(request, env) {
-  const r = await verifySessionDetailed(request, env);
-  return r.ok;
-}
-
-/**
- * 验证会话并返回原因字符串（兼容旧测试）。
- * @returns {Promise<string>}
- */
-export async function verifySessionReason(request, env) {
-  const r = await verifySessionDetailed(request, env);
-  return r.reason;
-}
-
-/**
  * 验签单个 cookie 值（2.11：五段式 by.role.epoch.exp.sig）。
  * @returns {Promise<{status:string, role:string|null, by:string|null}>}
  *   status: 'ok' 或失败原因（no-cookie/bad-format/expired/no-pubkey/bad-sig/
@@ -315,6 +298,16 @@ async function verifyOneCookie(val, env) {
 
 /** @param {any} context */
 export async function onRequest(context) {
+  const res = await handleRequest(context);
+  /* /api/* 默认不缓存（各接口自己设过 Cache-Control 的不动） */
+  try {
+    if (new URL(context.request.url).pathname.startsWith('/api/')) return withNoStore(res);
+  } catch (e) {}
+  return res;
+}
+
+/** @param {any} context */
+async function handleRequest(context) {
   const { request, next, env } = context;
   const url = new URL(request.url);
   const host = url.hostname;
@@ -353,7 +346,7 @@ export async function onRequest(context) {
   }
 
   /* 2.4.1：会话检查（生产环境 space 站点一律执行；缺 SGX_LOCK_PUBLIC 时
-     verifySession 直接返回 false → fail closed，只放白名单路径。
+     verifySessionDetailed 返回 ok:false → fail closed，只放白名单路径。
      没有「未配置就放行」开关。）
      2.8.0 会话角色分离：L1 是唯一按角色放行的地方。
      分层规范 L1：middleware 是唯一决定是否已解锁的地方。

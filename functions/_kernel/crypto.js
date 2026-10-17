@@ -71,18 +71,6 @@ export async function hmacSign(secret, purpose, payload) {
 }
 
 /**
- * 验证 HMAC 签名。
- * @param {string} secret
- * @param {string} purpose
- * @param {string} payload
- * @param {string} sig
- */
-export async function hmacVerify(secret, purpose, payload, sig) {
-  const expect = await hmacSign(secret, purpose, payload);
-  return timingSafeEqual(sig, expect);
-}
-
-/**
  * Ed25519 签名（主站签发会话 cookie 用）。
  * @param {string} privatePem PKCS8 PEM 格式私钥
  * @param {string} payload 待签名内容

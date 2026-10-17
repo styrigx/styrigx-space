@@ -14,7 +14,7 @@
  */
 
 export const SWITCH_KV_KEY = 'recovery-switch';
-export const SWITCH_WINDOW_MS = 24 * 3600 * 1000;
+const SWITCH_WINDOW_MS = 24 * 3600 * 1000;
 
 /** @param {string} s */
 async function sha256Hex(s) {

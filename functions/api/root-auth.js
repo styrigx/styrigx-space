@@ -34,6 +34,7 @@ import { checkRootLimit, recordRootFail, clearRootFail, getClientIp } from '../_
 import { writeRootAudit } from '../_kernel/rootlog.js';
 import { isLockEffectivelyConfigured } from '../_kernel/layers.js';
 import { verifySessionDetailed } from '../_middleware.js';
+import { isSameOrigin, originDenied } from '../_kernel/http.js';
 
 /* 假入口与真失败的统一固定最小延迟（毫秒）：防时序区分。
    真失败路径的审计写入放在 padTo 之前，padTo 把总耗时对齐到此时长，
@@ -128,20 +129,8 @@ async function handlePost(context) {
   if (request.method !== 'POST') {
     return Response.json({ ok: false }, { status: 405 });
   }
-  /* Origin 必须存在、可解析且 host 一致（CSRF 防护）；缺失或解析失败一律 403 */
-  {
-    const origin = request.headers.get('Origin') || '';
-    let originOk = false;
-    try {
-      const url = new URL(request.url);
-      originOk = !!origin && new URL(origin).host === url.host;
-    } catch (e) {
-      originOk = false;
-    }
-    if (!originOk) {
-      return Response.json({ ok: false, error: 'origin' }, { status: 403 });
-    }
-  }
+  /* Origin 必须与本站同 host（CSRF 防护），缺失或解析失败一律 403 */
+  if (!isSameOrigin(request)) return originDenied();
 
   /* B1-9 访客假入口统一 401（安全）：访客会话直接返回 401，
      不读任何存储（KV/D1），不区分新站旧站。放在所有 KV 读取之前。 */

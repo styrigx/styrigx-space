@@ -10,11 +10,11 @@
  * - root-auth-global：{ count, windowStart, pausedUntil }
  */
 
-export const ROOT_IP_MAX_FAIL = 5;
-export const ROOT_IP_LOCK_MS = 15 * 60 * 1000;
-export const ROOT_GLOBAL_MAX_FAIL = 20;
-export const ROOT_GLOBAL_WINDOW_MS = 60 * 60 * 1000;
-export const ROOT_GLOBAL_PAUSE_MS = 60 * 60 * 1000;
+const ROOT_IP_MAX_FAIL = 5;
+const ROOT_IP_LOCK_MS = 15 * 60 * 1000;
+const ROOT_GLOBAL_MAX_FAIL = 20;
+const ROOT_GLOBAL_WINDOW_MS = 60 * 60 * 1000;
+const ROOT_GLOBAL_PAUSE_MS = 60 * 60 * 1000;
 
 function failKey(ip) { return 'root-auth-fail:' + ip; }
 const GLOBAL_KEY = 'root-auth-global';
