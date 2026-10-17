@@ -45,19 +45,11 @@ import { checkRootLimit, recordRootFail, clearRootFail, getClientIp } from '../_
 import { writeRootAudit } from '../_kernel/rootlog.js';
 import { isLayerConfigured, LAYER_OWNER } from '../_kernel/layers.js';
 import { checkRecoverySwitch, claimSwitchUsed } from '../_kernel/recswitch.js';
+import { isSameOrigin } from '../_kernel/http.js';
 
 const CHALLENGE_PREFIX = 'lockreset-challenge:';
 const CHALLENGE_TTL = 300; /* 5 分钟 */
 
-function checkOrigin(request) {
-  const origin = request.headers.get('Origin') || '';
-  try {
-    const url = new URL(request.url);
-    return !!origin && new URL(origin).host === url.host;
-  } catch (e) {
-    return false;
-  }
-}
 
 /** @param {any} context */
 export async function onRequestPost(context) {
@@ -88,7 +80,7 @@ async function handlePost(context) {
   if (request.method !== 'POST') {
     return Response.json({ ok: false }, { status: 405 });
   }
-  if (!checkOrigin(request)) {
+  if (!isSameOrigin(request)) {
     return Response.json({ ok: false, error: 'origin' }, { status: 403 });
   }
   if (!kv) {

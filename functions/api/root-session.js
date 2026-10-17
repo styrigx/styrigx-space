@@ -16,6 +16,7 @@
 import { issueSessionCookie, ROLE_OWNER, BY_ROOT, SESSION_MAX_AGE } from '../_kernel/session.js';
 import { verifyStepupCookie, STEPUP_BY_ROOT, STEPUP_SCOPE_ROOT } from './stepup.js';
 import { isLockEffectivelyConfigured } from '../_kernel/layers.js';
+import { isSameOrigin, originDenied } from '../_kernel/http.js';
 
 /* root 代开的会话时长：与正常解锁相同（12 小时，定稿 #10） */
 const ROOT_SESSION_MAX_AGE = SESSION_MAX_AGE;
@@ -35,20 +36,8 @@ async function handlePost(context) {
   if (request.method !== 'POST') {
     return Response.json({ ok: false }, { status: 405 });
   }
-  /* Origin 校验 */
-  {
-    const origin = request.headers.get('Origin') || '';
-    let originOk = false;
-    try {
-      const url = new URL(request.url);
-      originOk = !!origin && new URL(origin).host === url.host;
-    } catch (e) {
-      originOk = false;
-    }
-    if (!originOk) {
-      return Response.json({ ok: false, error: 'origin' }, { status: 403 });
-    }
-  }
+  /* Origin 必须与本站同 host（CSRF 防护），缺失或解析失败一律 403 */
+  if (!isSameOrigin(request)) return originDenied();
 
   const kv = env && env.OWNER_KV;
   if (!kv) {

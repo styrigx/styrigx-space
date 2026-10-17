@@ -18,13 +18,13 @@ export const SESSION_COOKIE = 'sgx-verified';
 /* cookie 属性：只定义一处（diag 接口从这里解析，不许另起炉灶） */
 export const COOKIE_ATTRS = 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax';
 export const SESSION_MAX_AGE = 43200; /* 12 小时（owner） */
-export const VISITOR_MAX_AGE = 3600; /* 1 小时（visitor），短于 owner */
-export const EPOCH_KEY = 'session-epoch';
+const VISITOR_MAX_AGE = 3600; /* 1 小时（visitor），短于 owner */
+const EPOCH_KEY = 'session-epoch';
 export const ROLE_OWNER = 'owner';
 export const ROLE_VISITOR = 'visitor';
 /* 2.11：会话签发方 */
 export const BY_ROOT = 'root';
-export const BY_OWNER = 'owner';
+const BY_OWNER = 'owner';
 
 /**
  * 设置会话 cookie（统一属性）。

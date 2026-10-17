@@ -30,27 +30,6 @@ export const STORE_CLASS_OWNERKEY = 'owner'; // ownerkey
 export const STORE_CLASS_LOCKKEY = 'lock'; // lockkey
 export const STORE_CLASS_APPKEY = 'app'; // <aud>key
 
-/* 存储层映射（KV class 字段值 → 钥匙名） */
-export const CLASS_TO_KEY = {
-  owner: KEY_OWNER,
-  lock: KEY_LOCK,
-};
-/** @param {string} pkClass 'owner'|'lock'|'app' @param {string} [aud] */
-export function classToKeyName(pkClass, aud) {
-  if (pkClass === 'app' && aud) return appKeyName(aud);
-  return CLASS_TO_KEY[pkClass] || pkClass;
-}
-
-/* 旧名 → 新名对照（PR 说明用） */
-export const KEY_NAME_MAPPING = {
-  '根凭证 / root credential': KEY_ROOT,
-  'owner passkey / 站长通行密钥': KEY_OWNER,
-  'owner password / 站长密码': KEY_OWNER,
-  'lock passkey / 锁屏通行密钥': KEY_LOCK,
-  'lock password / 解锁密码': KEY_LOCK,
-  'app passkey (book) / Book 通行密钥': 'bookkey',
-};
-
 /* 存储层 KV 键名：owner-passkey:<credId 前 12 位>。
    全仓所有读写 owner-passkey:* 键的地方都调 ownerPasskeyKey()，不手拼；
    列表扫描用 OWNER_PASSKEY_PREFIX。 */

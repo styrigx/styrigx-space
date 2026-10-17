@@ -40,13 +40,14 @@ import { getPasskeys, PK_CLASS_OWNER } from './owner-passkey.js';
 import { ownerPasskeyKey } from '../_kernel/key-names.js';
 import { verifyOwnerPassword, getPepper } from './owner-password.js';
 import { isLayerConfigured, LAYER_OWNER } from '../_kernel/layers.js';
+import { isSameOrigin, originDenied } from '../_kernel/http.js';
 
 /* stepup cookie 定义（一处定义） */
 export const STEPUP_COOKIE = 'sgx-stepup';
 export const STEPUP_MAX_AGE = 180; /* A-1：3 分钟（v1.5 #11） */
 export const STEPUP_COOKIE_ATTRS = 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Strict';
 /* challenge KV 前缀：与登录的 pk-challenge: 隔离 */
-export const STEPUP_CHALLENGE_PREFIX = 'stepup-challenge:';
+const STEPUP_CHALLENGE_PREFIX = 'stepup-challenge:';
 const STEPUP_CHALLENGE_TTL = 300; /* 5 分钟 */
 /* 2.11 定稿：stepup 票字段 by/scope */
 export const STEPUP_BY_ROOT = 'root';
@@ -219,21 +220,8 @@ async function handlePost(context) {
   if (request.method !== 'POST') {
     return Response.json({ ok: false, error: 'method' }, { status: 405 });
   }
-  /* 2.10.2：Origin 必须存在、可解析且 host 一致（CSRF 防护）；
-     缺失或解析失败一律 403，不再放行。 */
-  {
-    const origin = request.headers.get('Origin') || '';
-    let originOk = false;
-    try {
-      const url = new URL(request.url);
-      originOk = !!origin && new URL(origin).host === url.host;
-    } catch (e) {
-      originOk = false;
-    }
-    if (!originOk) {
-      return Response.json({ ok: false, error: 'origin' }, { status: 403 });
-    }
-  }
+  /* Origin 必须与本站同 host（CSRF 防护），缺失或解析失败一律 403 */
+  if (!isSameOrigin(request)) return originDenied();
   if (!kv) return Response.json({ ok: false, error: 'config' }, { status: 500 });
 
   let body;
