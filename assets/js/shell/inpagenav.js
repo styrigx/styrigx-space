@@ -397,6 +397,8 @@ export function initInPageNav() {
 
   // popstate：前进/后退（目标不是 Dock 页则整页加载）
   window.addEventListener('popstate', (e) => {
+    /* B1-6c：设置搜索页的键盘哨兵条目（同一 URL）出栈时由页面自己处理，这里不导航 */
+    if (document.documentElement.dataset.sgxPopHold === '1') return;
     const state = e.state;
     if (state && state.url) {
       let url;

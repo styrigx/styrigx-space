@@ -985,6 +985,61 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
     });
     input.focus({ preventScroll: true });
     let timer = null;
+    /* B1-6b：最近搜索（localStorage 字符串数组，中英文共用） */
+    const LS_SETHIST = 'sgx-setso-history';
+    try {
+      remove('sgx-set-recent'); /* 旧 key 清理 */
+    } catch (e) {}
+    const XICON =
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>';
+    function getSetsoHist() {
+      try {
+        const a = JSON.parse(get(LS_SETHIST, '[]') || '[]');
+        return Array.isArray(a)
+          ? a.filter(function (x) { return typeof x === 'string'; }).slice(0, 10)
+          : [];
+      } catch (e) {
+        return [];
+      }
+    }
+    function setSetsoHist(a) {
+      try {
+        set(LS_SETHIST, JSON.stringify(a.slice(0, 10)));
+      } catch (e) {}
+    }
+    /** @param {string} s */
+    function pushSetsoHist(s) {
+      s = (s || '').trim();
+      if (!s) return;
+      const low = s.toLowerCase();
+      const a = getSetsoHist().filter(function (x) { return x.toLowerCase() !== low; });
+      a.unshift(s);
+      setSetsoHist(a.slice(0, 10));
+    }
+    function renderRecent() {
+      const a = getSetsoHist();
+      if (!a.length) {
+        page.innerHTML = '';
+        return;
+      }
+      let html =
+        '<div class="setso-card setso-recent" role="region" aria-label="' + esc(T.t('setsoRecent')) + '">' +
+        '<div class="setso-recent-head"><span class="setso-recent-title">' + esc(T.t('setsoRecent')) + '</span>' +
+        '<button type="button" class="setso-clear" data-setso-clear>' + esc(T.t('setsoClearAll')) + '</button></div>' +
+        '<div class="setso-chips">';
+      a.forEach(function (s, i) {
+        html +=
+          '<span class="setso-chip" data-setso-chip="' + i + '"><span class="setso-chip-tx">' + esc(s) + '</span>' +
+          '<button type="button" class="setso-chip-x" data-setso-del="' + i + '" aria-label="' + esc(T.t('setsoDel') + ' ' + s) + '">' + XICON + '</button></span>';
+      });
+      html += '</div></div>';
+      page.innerHTML = html;
+    }
+    /* 点卡片不抢输入框焦点（6c 键盘逻辑） */
+    page.addEventListener('pointerdown', function (e) {
+      const t = /** @type {Element|null} */ (e.target);
+      if (t && t.closest && t.closest('.setso-recent')) e.preventDefault();
+    });
     function hl(text, q) {
       const idx = text.toLowerCase().indexOf(q);
       if (idx < 0) return esc(text);
@@ -993,7 +1048,7 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
     function render(q) {
       q = (q || '').trim().toLowerCase();
       if (!q) {
-        page.innerHTML = '';
+        renderRecent();
         return;
       }
       const hits = SETIDX.filter(function (x) {
@@ -1031,13 +1086,145 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
     input.addEventListener('keydown', function (e) {
       if (e.key === 'Enter') {
         if (timer) clearTimeout(timer);
+        pushSetsoHist(input.value);
         render(input.value);
+        input.blur(); /* B1-6c：回车 = 收键盘、搜索栏沉底，看结果 */
       }
     });
+    render(input.value); /* B1-6b：进页即渲染（空输入时显示最近搜索卡） */
+
+    /* ===== B1-6c：键盘 / 沉底 / 返回手势 / 内容置顶 / ⋮ × 切换 ===== */
+    const cap = document.getElementById('sgx-cap-setsearch');
+    const capMore = cap ? cap.querySelector('[data-cap-more]') : null;
+    const capClear = cap ? cap.querySelector('[data-cap-clear]') : null;
+    /* ⋮ / ×：未输入显示 ⋮，有输入显示 × */
+    function syncTools() {
+      const has = input.value.length > 0;
+      if (capMore) /** @type {HTMLElement} */ (capMore).hidden = has;
+      if (capClear) /** @type {HTMLElement} */ (capClear).hidden = !has;
+    }
+    input.addEventListener('input', syncTools);
+    [capMore, capClear].forEach(function (b) {
+      /* 点按钮不抢输入框焦点（键盘态下点 × 不收键盘） */
+      if (b) b.addEventListener('pointerdown', function (e) { e.preventDefault(); });
+    });
+    if (capClear) {
+      capClear.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (timer) clearTimeout(timer);
+        input.value = '';
+        syncTools();
+        render('');
+        contentFirst();
+        try { input.focus({ preventScroll: true }); } catch (err) {}
+      });
+    }
+    if (capMore) {
+      /* 胶囊 ⋮ = 顶栏 ⋮（同一个菜单） */
+      capMore.addEventListener('click', function (e) {
+        e.stopPropagation();
+        const tb = /** @type {HTMLElement|null} */ (document.querySelector('.sgx-tb-pill .sgx-tb-more'));
+        if (tb) tb.click();
+      });
+    }
+    syncTools();
+
+    /* 内容置顶：滚过标题区，内容紧贴顶栏下方（顶栏下沿 68px + 16px）；往下拉到顶才露出大标题 */
+    function contentFirst() {
+      const heads = document.querySelectorAll('[data-subpage-head]');
+      let head = null;
+      for (let i = 0; i < heads.length; i++) {
+        if (heads[i].getClientRects().length) { head = /** @type {HTMLElement} */ (heads[i]); break; }
+      }
+      if (!head) return;
+      const bar = document.querySelector('.sgx-topbar');
+      const barBottom = bar ? bar.getBoundingClientRect().bottom : 68;
+      const y = Math.max(0, head.getBoundingClientRect().bottom + window.scrollY - barBottom - 16);
+      window.scrollTo(0, y);
+    }
+    try { history.scrollRestoration = 'manual'; } catch (e) {}
+    contentFirst();
+    /* 搜索后同样内容置顶 */
+    input.addEventListener('input', function () {
+      window.setTimeout(contentFirst, 170);
+    });
+
+    /* 返回手势：键盘弹出时 push 一条同 URL 的哨兵；popstate 时
+       - 键盘态：只收键盘（blur → 胶囊沉底），停留本页；
+       - 沉底态：不拦截，继续返回上一页（设置主页）。
+       哨兵在栈里期间 html[data-sgx-pop-hold] = 1，inpagenav 的 popstate 不导航。 */
+    let armed = false;
+    const root = document.documentElement;
+    function isKb() {
+      return document.activeElement === input || !!(cap && cap.classList.contains('open'));
+    }
+    function arm() {
+      if (armed) return;
+      try {
+        history.pushState(
+          { url: window.location.href, scrollY: window.scrollY, sgxSetsoKb: 1 },
+          '',
+          window.location.href
+        );
+        armed = true;
+        root.dataset.sgxPopHold = '1';
+      } catch (e) {}
+    }
+    input.addEventListener('focus', arm);
+    if (document.activeElement === input) arm(); /* 进页时已自动聚焦 */
+    /* capture：先于胶囊自己的 popstate 兜底（它会 blur），这样还能判断出事发时是否键盘态 */
+    window.addEventListener(
+      'popstate',
+      function () {
+        if (!armed) return;
+        armed = false;
+        const kb = isKb();
+        window.setTimeout(function () {
+          delete root.dataset.sgxPopHold;
+        }, 0);
+        if (kb) {
+          try { input.blur(); } catch (e) {}
+          return;
+        }
+        /* 沉底态：哨兵已出栈，再退一步才是真正的返回 */
+        window.setTimeout(function () {
+          history.back();
+        }, 0);
+      },
+      true
+    );
     on(page, 'click', function (/** @type {MouseEvent} */ e) {
       const t = /** @type {Element|null} */ (e.target);
+      /* B1-6b：最近搜索卡交互 */
+      const del = t && t.closest ? t.closest('[data-setso-del]') : null;
+      if (del) {
+        const a = getSetsoHist();
+        a.splice(parseInt(del.getAttribute('data-setso-del') || '0', 10), 1);
+        setSetsoHist(a);
+        renderRecent();
+        return;
+      }
+      const clr = t && t.closest ? t.closest('[data-setso-clear]') : null;
+      if (clr) {
+        setSetsoHist([]);
+        page.innerHTML = '';
+        return;
+      }
+      const chip = t && t.closest ? t.closest('[data-setso-chip]') : null;
+      if (chip) {
+        const a = getSetsoHist();
+        const s = a[parseInt(chip.getAttribute('data-setso-chip') || '0', 10)] || '';
+        if (s) {
+          if (timer) clearTimeout(timer);
+          input.value = s;
+          pushSetsoHist(s);
+          render(s);
+        }
+        return;
+      }
       const b = t && t.closest ? t.closest('.setso-item') : null;
-      if (b)
+      if (b) {
+        pushSetsoHist(input.value);
         pickResult(
           b.getAttribute('data-cat') || '',
           b.getAttribute('data-el') || '',
@@ -1046,6 +1233,7 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
           b.getAttribute('data-i') || '',
           b.getAttribute('data-u') || ''
         );
+      }
     });
   })();
   /**
