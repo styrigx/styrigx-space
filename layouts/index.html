@@ -71,46 +71,25 @@
     </div>
     {{ end }}{{/* /weather-show */}}
 
-    <!-- 数字健康 · 我的屏幕时间 -->
-    {{ $wb := site.Data.wellbeing }}
-    {{ if $wb }}
-    {{ $wbTotal := $wb.total_minutes }}
-    {{ $wbSum := 0 }}{{ range $wb.apps }}{{ $wbSum = add $wbSum .minutes }}{{ end }}
-    {{ $wbOther := sub $wbTotal $wbSum }}
-    {{ $dp := split $wb.updated "-" }}{{ $wmo := index $dp 1 }}{{ $wda := strings.TrimLeft "0" (index $dp 2) }}
-    {{ $monEn := dict "01" "Jan" "02" "Feb" "03" "Mar" "04" "Apr" "05" "May" "06" "Jun" "07" "Jul" "08" "Aug" "09" "Sep" "10" "Oct" "11" "Nov" "12" "Dec" }}
-    <div id="w-screen" class="widget wb-full col-span-4 lg:col-span-8 bg-m-container-lowest border border-m-outline p-5 sm:p-6 animate-fade-up" style="animation-delay:.44s">
+    <!-- 数字健康 · 我的屏幕时间（B2-7：网站自己的数字健康，今天在各区域停留的时长，所有设备合计；
+         骨架固定 3 行，wb-view.js 拉 /api/wellbeing 后只替换文字和宽度，不改高度） -->
+    <div id="w-screen" data-wb-root class="widget wb-full col-span-4 lg:col-span-8 bg-m-container-lowest border border-m-outline p-5 sm:p-6 animate-fade-up" style="animation-delay:.44s">
       <div class="flex items-center justify-between gap-3 mb-4">
         <p class="text-xs font-semibold uppercase tracking-widest opacity-70">{{ if $isEn }}My screen time{{ else }}我的屏幕时间{{ end }}</p>
-        <p class="text-[11px] text-m-on-surface-variant">{{ if $isEn }}Updated {{ index $monEn $wmo }} {{ $wda }}{{ else }}更新于 {{ $wmo }}月{{ $wda }}日{{ end }}</p>
+        <p class="text-[11px] text-m-on-surface-variant" data-wb="when">{{ if $isEn }}Today · all devices{{ else }}今天 · 所有设备{{ end }}</p>
       </div>
       <div class="flex flex-col sm:flex-row sm:items-center gap-5">
-        <div class="flex-1 min-w-0 space-y-2.5">
-          {{ range $wb.apps }}
-          {{ $ah := div .minutes 60 }}{{ $am := mod .minutes 60 }}
-          <div class="flex items-center gap-2.5 text-sm">
-            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:{{ .color }}"></span>
-            <span class="font-medium truncate">{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}</span>
-            <span class="ml-auto text-m-on-surface-variant shrink-0">{{ if $isEn }}{{ if gt $ah 0 }}{{ $ah }} hr{{ end }}{{ if gt $am 0 }}{{ if gt $ah 0 }} {{ end }}{{ $am }} min{{ end }}{{ else }}{{ if gt $ah 0 }}{{ $ah }} 小时{{ end }}{{ if gt $am 0 }}{{ if gt $ah 0 }} {{ end }}{{ $am }} 分钟{{ end }}{{ end }}</span>
-          </div>
-          {{ end }}
+        <div class="flex-1 min-w-0 space-y-2.5" data-wb="rows">
+          {{ range seq 3 }}<div class="flex items-center gap-2.5 text-sm" data-wb-row style="visibility:hidden"><span class="w-2.5 h-2.5 rounded-full shrink-0"></span><span class="font-medium">--</span></div>{{ end }}
         </div>
         <div class="sm:w-56 shrink-0 sm:text-right sm:border-l sm:border-m-outline sm:pl-5">
-          {{ $th := div $wbTotal 60 }}{{ $tm := mod $wbTotal 60 }}
-          <p class="text-3xl font-extrabold tracking-tight">{{ if $isEn }}{{ $th }} hrs {{ $tm }} min{{ else }}{{ $th }} 小时 {{ $tm }} 分钟{{ end }}</p>
-          <p class="text-xs text-m-on-surface-variant mt-1">{{ if $isEn }}Screen time{{ else }}屏幕时间{{ end }}</p>
+          <p class="text-3xl font-extrabold tracking-tight" data-wb="total">--</p>
+          <p class="text-xs text-m-on-surface-variant mt-1">{{ if $isEn }}Time on this site{{ else }}在本站的时间{{ end }}</p>
         </div>
       </div>
-      <div class="wb-bar mt-5" role="img" aria-label="{{ if $isEn }}Screen time breakdown{{ else }}屏幕时间分布{{ end }}">
-        {{ range $wb.apps }}<span style="width:{{ printf "%.1f" (div (mul .minutes 100.0) $wbTotal) }}%;background:{{ .color }}"></span>{{ end }}
-        <span style="width:{{ printf "%.1f" (div (mul $wbOther 100.0) $wbTotal) }}%;background:var(--m-container-highest)"></span>
-      </div>
-      <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[11px] text-m-on-surface-variant">
-        {{ range $wb.apps }}<span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" style="background:{{ .color }}"></span>{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}</span>{{ end }}
-        <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" style="background:var(--m-container-highest);border:1px solid var(--m-outline)"></span>{{ if $isEn }}Other{{ else }}其他{{ end }}</span>
-      </div>
+      <div class="wb-bar mt-5" data-wb="bar" role="img" aria-label="{{ if $isEn }}Time breakdown{{ else }}时间分布{{ end }}"></div>
+      <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[11px] text-m-on-surface-variant min-h-[1rem]" data-wb="legend"></div>
     </div>
-    {{ end }}
   </div>
 
 </div>

@@ -1,4 +1,4 @@
-# 调色板配置（单数据源）。加颜色只改这里，不改布局。
+# 调色板配置（色板列表的单数据源）。加颜色：这里加一项，并在 assets/css/input.css 两处色板块各加一组 token（回退块 + light-dark 块）。
 # settings.html / settings-sub.html 共用 site.Data.palettes.palettes。
 palettes:
   - id: lake
@@ -21,3 +21,35 @@ palettes:
     c: "#984061"
     zh: 蔷薇
     en: Rose
+  - id: cherry
+    c: "#ba1a20"
+    zh: 樱桃
+    en: Cherry
+  - id: tangerine
+    c: "#b02e00"
+    zh: 橘子
+    en: Tangerine
+  - id: amber
+    c: "#825500"
+    zh: 琥珀
+    en: Amber
+  - id: matcha
+    c: "#3c6a00"
+    zh: 抹茶
+    en: Matcha
+  - id: teal
+    c: "#00696b"
+    zh: 青碧
+    en: Teal
+  - id: indigo
+    c: "#3d4fd3"
+    zh: 靛蓝
+    en: Indigo
+  - id: orchid
+    c: "#a62092"
+    zh: 兰紫
+    en: Orchid
+  - id: graphite
+    c: "#5e5e5e"
+    zh: 石墨
+    en: Graphite

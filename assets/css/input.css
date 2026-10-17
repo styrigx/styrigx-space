@@ -323,6 +323,215 @@
         radial-gradient(120% 90% at 50% 100%, #3a1c28 0%, transparent 60%),
         #161114;
     }
+    /* v1.4 扩充色板（Material 3 色阶，seed 生成；与 data/palettes.yaml 同步） */
+    [data-palette="cherry"] {
+      --m-primary: #ba1a20; --m-on-primary: #ffffff;
+      --m-primary-container: #ffdad6; --m-on-primary-container: #410003;
+      --m-secondary: #775653; --m-on-secondary: #ffffff;
+      --m-secondary-container: #ffdad6; --m-on-secondary-container: #2c1513;
+      --m-tertiary: #7d5729; --m-on-tertiary: #ffffff;
+      --m-tertiary-container: #ffddba; --m-on-tertiary-container: #2b1700;
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #ffdeda 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #ffe4c9 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #ffe6d8 0%, transparent 60%),
+        #fff6f5;
+    }
+    .dark[data-palette="cherry"] {
+      --m-primary: #ffb3ac; --m-on-primary: #680008;
+      --m-primary-container: #930010; --m-on-primary-container: #ffdad6;
+      --m-secondary: #e7bdb8; --m-on-secondary: #442927;
+      --m-secondary-container: #5d3f3c; --m-on-secondary-container: #ffdad6;
+      --m-tertiary: #f0bd86; --m-on-tertiary: #482a00;
+      --m-tertiary-container: #623f13; --m-on-tertiary-container: #ffddba;
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #401e1b 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #37240c 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #362112 0%, transparent 60%),
+        #181211;
+    }
+    [data-palette="tangerine"] {
+      --m-primary: #b02e00; --m-on-primary: #ffffff;
+      --m-primary-container: #ffdbd1; --m-on-primary-container: #3b0900;
+      --m-secondary: #77574e; --m-on-secondary: #ffffff;
+      --m-secondary-container: #ffdbd1; --m-on-secondary-container: #2c150f;
+      --m-tertiary: #705c25; --m-on-tertiary: #ffffff;
+      --m-tertiary-container: #fce09b; --m-on-tertiary-container: #241a00;
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #ffded6 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #fae6bb 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #ffe7d3 0%, transparent 60%),
+        #fff6f4;
+    }
+    .dark[data-palette="tangerine"] {
+      --m-primary: #ffb5a0; --m-on-primary: #5f1500;
+      --m-primary-container: #872100; --m-on-primary-container: #ffdbd1;
+      --m-secondary: #e7bdb2; --m-on-secondary: #442a22;
+      --m-secondary-container: #5d4037; --m-on-secondary-container: #ffdbd1;
+      --m-tertiary: #dfc482; --m-on-tertiary: #3e2e00;
+      --m-tertiary-container: #57440f; --m-on-tertiary-container: #fce09b;
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #401f15 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #31270a 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #34220f 0%, transparent 60%),
+        #181210;
+    }
+    [data-palette="amber"] {
+      --m-primary: #825500; --m-on-primary: #ffffff;
+      --m-primary-container: #ffddb4; --m-on-primary-container: #291800;
+      --m-secondary: #705b40; --m-on-secondary: #ffffff;
+      --m-secondary-container: #fbdebc; --m-on-secondary-container: #271904;
+      --m-tertiary: #5b6230; --m-on-tertiary: #ffffff;
+      --m-tertiary-container: #dfe8a8; --m-on-tertiary-container: #191e00;
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #ffe1bc 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #e7ebc3 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #f3ecc7 0%, transparent 60%),
+        #fff6f0;
+    }
+    .dark[data-palette="amber"] {
+      --m-primary: #ffb952; --m-on-primary: #452b00;
+      --m-primary-container: #633f00; --m-on-primary-container: #ffddb4;
+      --m-secondary: #ddc2a1; --m-on-secondary: #3e2d16;
+      --m-secondary-container: #56432b; --m-on-secondary-container: #fbdebc;
+      --m-tertiary: #c3cc8e; --m-on-tertiary: #2d3405;
+      --m-tertiary-container: #434a1a; --m-on-tertiary-container: #dfe8a8;
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #382404 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #262a0f 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #29260e 0%, transparent 60%),
+        #17130e;
+    }
+    [data-palette="matcha"] {
+      --m-primary: #3c6a00; --m-on-primary: #ffffff;
+      --m-primary-container: #b8f47a; --m-on-primary-container: #0e2000;
+      --m-secondary: #57624a; --m-on-secondary: #ffffff;
+      --m-secondary-container: #dbe7c8; --m-on-secondary-container: #151e0b;
+      --m-tertiary: #346856; --m-on-tertiary: #ffffff;
+      --m-tertiary-container: #b7eed7; --m-on-tertiary-container: #002117;
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #d9ecc1 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #d0efe1 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #d9f1e0 0%, transparent 60%),
+        #f9f8f1;
+    }
+    .dark[data-palette="matcha"] {
+      --m-primary: #9dd761; --m-on-primary: #1d3700;
+      --m-primary-container: #2c5000; --m-on-primary-container: #b8f47a;
+      --m-secondary: #bfcbad; --m-on-secondary: #2a331f;
+      --m-secondary-container: #404a34; --m-on-secondary-container: #dbe7c8;
+      --m-tertiary: #9cd2bc; --m-on-tertiary: #00382a;
+      --m-tertiary-container: #19503f; --m-on-tertiary-container: #b7eed7;
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #1e2c0f 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #112d23 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #162a1f 0%, transparent 60%),
+        #121410;
+    }
+    [data-palette="teal"] {
+      --m-primary: #00696b; --m-on-primary: #ffffff;
+      --m-primary-container: #6ff6f9; --m-on-primary-container: #002020;
+      --m-secondary: #4a6363; --m-on-secondary: #ffffff;
+      --m-secondary-container: #cce8e8; --m-on-secondary-container: #041f20;
+      --m-tertiary: #6d557e; --m-on-tertiary: #ffffff;
+      --m-tertiary-container: #f2daff; --m-on-tertiary-container: #261236;
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #c3edee 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #f5e1fe 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #d9eefa 0%, transparent 60%),
+        #f6f8f8;
+    }
+    .dark[data-palette="teal"] {
+      --m-primary: #4cdadd; --m-on-primary: #003738;
+      --m-primary-container: #004f51; --m-on-primary-container: #6ff6f9;
+      --m-secondary: #b0cccc; --m-on-secondary: #1b3435;
+      --m-secondary-container: #324b4c; --m-on-secondary-container: #cce8e8;
+      --m-tertiary: #d9bceb; --m-on-tertiary: #3c284d;
+      --m-tertiary-container: #543e64; --m-on-tertiary-container: #f2daff;
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #002d2e 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #2f2338 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #152831 0%, transparent 60%),
+        #101414;
+    }
+    [data-palette="indigo"] {
+      --m-primary: #3d4fd3; --m-on-primary: #ffffff;
+      --m-primary-container: #dfe0ff; --m-on-primary-container: #000b62;
+      --m-secondary: #5b5d72; --m-on-secondary: #ffffff;
+      --m-secondary-container: #e0e0f9; --m-on-secondary-container: #181a2c;
+      --m-tertiary: #765376; --m-on-tertiary: #ffffff;
+      --m-tertiary-container: #ffd6fc; --m-on-tertiary-container: #2d102f;
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #e2e3ff 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #fddff9 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #f5e6fe 0%, transparent 60%),
+        #faf7fb;
+    }
+    .dark[data-palette="indigo"] {
+      --m-primary: #bcc2ff; --m-on-primary: #00189a;
+      --m-primary-container: #1f33bb; --m-on-primary-container: #dfe0ff;
+      --m-secondary: #c4c5dd; --m-on-secondary: #2d2f42;
+      --m-secondary-container: #434559; --m-on-secondary-container: #e0e0f9;
+      --m-tertiary: #e4b9e2; --m-on-tertiary: #442546;
+      --m-tertiary-container: #5c3b5d; --m-on-tertiary-container: #ffd6fc;
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #222641 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #342234 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #2b2234 0%, transparent 60%),
+        #131316;
+    }
+    [data-palette="orchid"] {
+      --m-primary: #a62092; --m-on-primary: #ffffff;
+      --m-primary-container: #ffd7f0; --m-on-primary-container: #3a0032;
+      --m-secondary: #6f5767; --m-on-secondary: #ffffff;
+      --m-secondary-container: #f9daec; --m-on-secondary-container: #281623;
+      --m-tertiary: #864f52; --m-on-tertiary: #ffffff;
+      --m-tertiary-container: #ffdada; --m-on-tertiary-container: #360e12;
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #ffdbf1 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #ffe1e1 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #ffe5e7 0%, transparent 60%),
+        #fff6f8;
+    }
+    .dark[data-palette="orchid"] {
+      --m-primary: #fface7; --m-on-primary: #5e0052;
+      --m-primary-container: #850075; --m-on-primary-container: #ffd7f0;
+      --m-secondary: #dcbed0; --m-on-secondary: #3e2a38;
+      --m-secondary-container: #56404f; --m-on-secondary-container: #f9daec;
+      --m-tertiary: #fbb4b6; --m-on-tertiary: #502226;
+      --m-tertiary-container: #6a383b; --m-on-tertiary-container: #ffdada;
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #3a1f33 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #3c2021 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #371f22 0%, transparent 60%),
+        #161215;
+    }
+    [data-palette="graphite"] {
+      --m-primary: #5e5e5e; --m-on-primary: #ffffff;
+      --m-primary-container: #e2e2e2; --m-on-primary-container: #1b1b1b;
+      --m-secondary: #5e5e5e; --m-on-secondary: #ffffff;
+      --m-secondary-container: #e2e2e2; --m-on-secondary-container: #1b1b1b;
+      --m-tertiary: #5a5f66; --m-on-tertiary: #ffffff;
+      --m-tertiary-container: #dee3eb; --m-on-tertiary-container: #171c22;
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #e5e5e5 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #e6e8ee 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #ebebeb 0%, transparent 60%),
+        #f8f8f8;
+    }
+    .dark[data-palette="graphite"] {
+      --m-primary: #c6c6c6; --m-on-primary: #303030;
+      --m-primary-container: #474747; --m-on-primary-container: #e2e2e2;
+      --m-secondary: #c6c6c6; --m-on-secondary: #303030;
+      --m-secondary-container: #474747; --m-on-secondary-container: #e2e2e2;
+      --m-tertiary: #c2c7cf; --m-on-tertiary: #2c3137;
+      --m-tertiary-container: #42474e; --m-on-tertiary-container: #dee3eb;
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #282828 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #25282c 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #262626 0%, transparent 60%),
+        #131313;
+    }
   }
   @supports (color: light-dark(#000, #fff)) {
     /* 一套 token 走 light-dark()：颜色 token 按 (浅, 深) 收口；
@@ -495,6 +704,215 @@
         radial-gradient(100% 70% at 90% 10%, #3a2a14 0%, transparent 55%),
         radial-gradient(120% 90% at 50% 100%, #3a1c28 0%, transparent 60%),
         #161114;
+    }
+    /* v1.4 扩充色板（light-dark 收口；与上方回退块、data/palettes.yaml 同步） */
+    [data-palette="cherry"] {
+      --m-primary: light-dark(#ba1a20, #ffb3ac);
+      --m-on-primary: light-dark(#ffffff, #680008);
+      --m-primary-container: light-dark(#ffdad6, #930010);
+      --m-on-primary-container: light-dark(#410003, #ffdad6);
+      --m-secondary: light-dark(#775653, #e7bdb8);
+      --m-on-secondary: light-dark(#ffffff, #442927);
+      --m-secondary-container: light-dark(#ffdad6, #5d3f3c);
+      --m-on-secondary-container: light-dark(#2c1513, #ffdad6);
+      --m-tertiary: light-dark(#7d5729, #f0bd86);
+      --m-on-tertiary: light-dark(#ffffff, #482a00);
+      --m-tertiary-container: light-dark(#ffddba, #623f13);
+      --m-on-tertiary-container: light-dark(#2b1700, #ffddba);
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #ffdeda 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #ffe4c9 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #ffe6d8 0%, transparent 60%),
+        #fff6f5;
+    }
+    .dark[data-palette="cherry"] {
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #401e1b 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #37240c 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #362112 0%, transparent 60%),
+        #181211;
+    }
+    [data-palette="tangerine"] {
+      --m-primary: light-dark(#b02e00, #ffb5a0);
+      --m-on-primary: light-dark(#ffffff, #5f1500);
+      --m-primary-container: light-dark(#ffdbd1, #872100);
+      --m-on-primary-container: light-dark(#3b0900, #ffdbd1);
+      --m-secondary: light-dark(#77574e, #e7bdb2);
+      --m-on-secondary: light-dark(#ffffff, #442a22);
+      --m-secondary-container: light-dark(#ffdbd1, #5d4037);
+      --m-on-secondary-container: light-dark(#2c150f, #ffdbd1);
+      --m-tertiary: light-dark(#705c25, #dfc482);
+      --m-on-tertiary: light-dark(#ffffff, #3e2e00);
+      --m-tertiary-container: light-dark(#fce09b, #57440f);
+      --m-on-tertiary-container: light-dark(#241a00, #fce09b);
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #ffded6 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #fae6bb 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #ffe7d3 0%, transparent 60%),
+        #fff6f4;
+    }
+    .dark[data-palette="tangerine"] {
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #401f15 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #31270a 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #34220f 0%, transparent 60%),
+        #181210;
+    }
+    [data-palette="amber"] {
+      --m-primary: light-dark(#825500, #ffb952);
+      --m-on-primary: light-dark(#ffffff, #452b00);
+      --m-primary-container: light-dark(#ffddb4, #633f00);
+      --m-on-primary-container: light-dark(#291800, #ffddb4);
+      --m-secondary: light-dark(#705b40, #ddc2a1);
+      --m-on-secondary: light-dark(#ffffff, #3e2d16);
+      --m-secondary-container: light-dark(#fbdebc, #56432b);
+      --m-on-secondary-container: light-dark(#271904, #fbdebc);
+      --m-tertiary: light-dark(#5b6230, #c3cc8e);
+      --m-on-tertiary: light-dark(#ffffff, #2d3405);
+      --m-tertiary-container: light-dark(#dfe8a8, #434a1a);
+      --m-on-tertiary-container: light-dark(#191e00, #dfe8a8);
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #ffe1bc 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #e7ebc3 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #f3ecc7 0%, transparent 60%),
+        #fff6f0;
+    }
+    .dark[data-palette="amber"] {
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #382404 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #262a0f 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #29260e 0%, transparent 60%),
+        #17130e;
+    }
+    [data-palette="matcha"] {
+      --m-primary: light-dark(#3c6a00, #9dd761);
+      --m-on-primary: light-dark(#ffffff, #1d3700);
+      --m-primary-container: light-dark(#b8f47a, #2c5000);
+      --m-on-primary-container: light-dark(#0e2000, #b8f47a);
+      --m-secondary: light-dark(#57624a, #bfcbad);
+      --m-on-secondary: light-dark(#ffffff, #2a331f);
+      --m-secondary-container: light-dark(#dbe7c8, #404a34);
+      --m-on-secondary-container: light-dark(#151e0b, #dbe7c8);
+      --m-tertiary: light-dark(#346856, #9cd2bc);
+      --m-on-tertiary: light-dark(#ffffff, #00382a);
+      --m-tertiary-container: light-dark(#b7eed7, #19503f);
+      --m-on-tertiary-container: light-dark(#002117, #b7eed7);
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #d9ecc1 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #d0efe1 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #d9f1e0 0%, transparent 60%),
+        #f9f8f1;
+    }
+    .dark[data-palette="matcha"] {
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #1e2c0f 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #112d23 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #162a1f 0%, transparent 60%),
+        #121410;
+    }
+    [data-palette="teal"] {
+      --m-primary: light-dark(#00696b, #4cdadd);
+      --m-on-primary: light-dark(#ffffff, #003738);
+      --m-primary-container: light-dark(#6ff6f9, #004f51);
+      --m-on-primary-container: light-dark(#002020, #6ff6f9);
+      --m-secondary: light-dark(#4a6363, #b0cccc);
+      --m-on-secondary: light-dark(#ffffff, #1b3435);
+      --m-secondary-container: light-dark(#cce8e8, #324b4c);
+      --m-on-secondary-container: light-dark(#041f20, #cce8e8);
+      --m-tertiary: light-dark(#6d557e, #d9bceb);
+      --m-on-tertiary: light-dark(#ffffff, #3c284d);
+      --m-tertiary-container: light-dark(#f2daff, #543e64);
+      --m-on-tertiary-container: light-dark(#261236, #f2daff);
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #c3edee 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #f5e1fe 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #d9eefa 0%, transparent 60%),
+        #f6f8f8;
+    }
+    .dark[data-palette="teal"] {
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #002d2e 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #2f2338 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #152831 0%, transparent 60%),
+        #101414;
+    }
+    [data-palette="indigo"] {
+      --m-primary: light-dark(#3d4fd3, #bcc2ff);
+      --m-on-primary: light-dark(#ffffff, #00189a);
+      --m-primary-container: light-dark(#dfe0ff, #1f33bb);
+      --m-on-primary-container: light-dark(#000b62, #dfe0ff);
+      --m-secondary: light-dark(#5b5d72, #c4c5dd);
+      --m-on-secondary: light-dark(#ffffff, #2d2f42);
+      --m-secondary-container: light-dark(#e0e0f9, #434559);
+      --m-on-secondary-container: light-dark(#181a2c, #e0e0f9);
+      --m-tertiary: light-dark(#765376, #e4b9e2);
+      --m-on-tertiary: light-dark(#ffffff, #442546);
+      --m-tertiary-container: light-dark(#ffd6fc, #5c3b5d);
+      --m-on-tertiary-container: light-dark(#2d102f, #ffd6fc);
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #e2e3ff 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #fddff9 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #f5e6fe 0%, transparent 60%),
+        #faf7fb;
+    }
+    .dark[data-palette="indigo"] {
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #222641 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #342234 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #2b2234 0%, transparent 60%),
+        #131316;
+    }
+    [data-palette="orchid"] {
+      --m-primary: light-dark(#a62092, #fface7);
+      --m-on-primary: light-dark(#ffffff, #5e0052);
+      --m-primary-container: light-dark(#ffd7f0, #850075);
+      --m-on-primary-container: light-dark(#3a0032, #ffd7f0);
+      --m-secondary: light-dark(#6f5767, #dcbed0);
+      --m-on-secondary: light-dark(#ffffff, #3e2a38);
+      --m-secondary-container: light-dark(#f9daec, #56404f);
+      --m-on-secondary-container: light-dark(#281623, #f9daec);
+      --m-tertiary: light-dark(#864f52, #fbb4b6);
+      --m-on-tertiary: light-dark(#ffffff, #502226);
+      --m-tertiary-container: light-dark(#ffdada, #6a383b);
+      --m-on-tertiary-container: light-dark(#360e12, #ffdada);
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #ffdbf1 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #ffe1e1 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #ffe5e7 0%, transparent 60%),
+        #fff6f8;
+    }
+    .dark[data-palette="orchid"] {
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #3a1f33 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #3c2021 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #371f22 0%, transparent 60%),
+        #161215;
+    }
+    [data-palette="graphite"] {
+      --m-primary: light-dark(#5e5e5e, #c6c6c6);
+      --m-on-primary: light-dark(#ffffff, #303030);
+      --m-primary-container: light-dark(#e2e2e2, #474747);
+      --m-on-primary-container: light-dark(#1b1b1b, #e2e2e2);
+      --m-secondary: light-dark(#5e5e5e, #c6c6c6);
+      --m-on-secondary: light-dark(#ffffff, #303030);
+      --m-secondary-container: light-dark(#e2e2e2, #474747);
+      --m-on-secondary-container: light-dark(#1b1b1b, #e2e2e2);
+      --m-tertiary: light-dark(#5a5f66, #c2c7cf);
+      --m-on-tertiary: light-dark(#ffffff, #2c3137);
+      --m-tertiary-container: light-dark(#dee3eb, #42474e);
+      --m-on-tertiary-container: light-dark(#171c22, #dee3eb);
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #e5e5e5 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #e6e8ee 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #ebebeb 0%, transparent 60%),
+        #f8f8f8;
+    }
+    .dark[data-palette="graphite"] {
+      --m-wallpaper:
+        radial-gradient(120% 80% at 20% 0%, #282828 0%, transparent 60%),
+        radial-gradient(100% 70% at 90% 10%, #25282c 0%, transparent 55%),
+        radial-gradient(120% 90% at 50% 100%, #262626 0%, transparent 60%),
+        #131313;
     }
   }
   /* 布局变量（与主题无关，集中到 tokens 层） */

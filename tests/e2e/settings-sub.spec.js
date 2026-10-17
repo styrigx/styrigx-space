@@ -236,33 +236,23 @@ test.describe('unlock methods entry relocation', () => {
   });
 });
 
-/* v1.3 #42：调色板 8 色测试态（验证换行后仍整齐）。
-   用 JS 注入 3 个额外色块凑成 8 色，断言换行 + 末行左对齐。
+/* v1.3 #42 → B2-7：调色板换行态（B2-7 起真实色板已有 13 个，不再注入测试色块）。
+   断言换行 + 末行左对齐 + 对勾可见。
    注：像素级视觉基线需在 CI 环境生成，本地环境字体渲染有差异，故此处只做 DOM 断言。 */
 test('palette 8-color test state', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await gotoSettings(pg, '/settings/theme/');
   const grid = pg.locator('#palette-dots');
   await expect(grid).toBeVisible();
-  // 注入 3 个额外色块（8 色测试态）
+  const fs = require('fs');
+  const path = require('path');
+  const ids = [...fs.readFileSync(path.join(__dirname, '..', '..', 'data', 'palettes.yaml'), 'utf8').matchAll(/^\s*- id: ([a-z]+)$/gm)].map((m) => m[1]);
   await pg.evaluate(() => {
-    const g = document.getElementById('palette-dots');
-    const extra = [
-      { id: 't8a', c: '#b7791f', zh: '测试金' },
-      { id: 't8b', c: '#3a7bd5', zh: '测试蓝测试蓝' },
-      { id: 't8c', c: '#555555', zh: '测试灰' },
-    ];
-    for (const e of extra) {
-      const cell = document.createElement('div');
-      cell.className = 'palette-cell';
-      cell.innerHTML = `<button type="button" class="swatch" data-palette="${e.id}" style="background:${e.c}" aria-pressed="false" aria-label="${e.zh}"><svg class="swatch-check" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M9 16.2l-3.5-3.5-1.4 1.4L9 19 20.9 7.1l-1.4-1.4z" fill="currentColor"/></svg></button><span class="palette-name">${e.zh}</span>`;
-      g.appendChild(cell);
-    }
-    // 选中第一个，显示对勾
-    g.querySelector('.swatch').setAttribute('aria-pressed', 'true');
+    document.getElementById('palette-dots').querySelector('.swatch').setAttribute('aria-pressed', 'true');
   });
-  await expect(grid.locator('.palette-cell')).toHaveCount(8);
-  // 断言换行：8 色在 412px 宽度下必定换行
+  await expect(grid.locator('.palette-cell')).toHaveCount(ids.length);
+  expect(ids.length).toBeGreaterThanOrEqual(8);
+  // 断言换行：13 色在 412px 宽度下必定换行
   const boxes = await grid.locator('.palette-cell').evaluateAll((els) =>
     els.map((el) => { const r = el.getBoundingClientRect(); return { top: Math.round(r.top), left: Math.round(r.left) }; })
   );

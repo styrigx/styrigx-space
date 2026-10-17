@@ -20,6 +20,9 @@ import { initUpgrade } from './upgrade.js';
 import { on as featOn } from '../lib/features.js';
 import { toast } from '../lib/toast.js';
 import { syncUiCookie } from '../lib/ui-cookie.js';
+import { initWbTrack } from '../lib/wb-track.js';
+import { loadWb } from '../lib/wb-view.js';
+import { wbAreaOf } from '../lib/wb-area.js';
 import { openSheet, closeSheet } from './sheet.js';
 import { voiceInput } from './voice.js';
 import { voiceSheet } from './voice-sheet.js';
@@ -82,6 +85,10 @@ export function initCore() {
   /* 5.2：写共享 UI cookie sgx-ui（老用户补写；设置变更时再写一次） */
   syncUiCookie();
   window.addEventListener('sgx-settings-changed', syncUiCookie);
+
+  /* B2-7：网站数字健康——本页计时上报；页面上有数字健康卡片就拉今天的数据 */
+  if (!SGX_TEST_NO_WB) initWbTrack({ key: wbAreaOf(location.pathname) });
+  if (!SGX_TEST_NO_WB) loadWb();
 
   /* 跨脚本/模板桥接的最小公共 API */
   Object.assign(SGX, {
