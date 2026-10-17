@@ -1,33 +1,32 @@
-# styrigx-auth：主站鉴权 Worker（PR1：只建好，不接线上）
+# styrigx-auth-gateway：主站鉴权 Worker（CI 部署；目前只接 /api/geo 试水）
 #
 # 代码在 workers/auth/src/，直接复用 functions/_middleware.js 和 functions/api/*。
-# 上线步骤（后续 PR）：CI 部署 → 先把 styrigx.com/api/geo 一条路由给它试水 → 再整体切 styrigx.com/api/*。
+# 上线步骤：PR1 建好 → PR2 CI 真部署（仍不挂路由）→ PR3 先切 styrigx.com/api/geo 试水，再整体切 /api/*。
 #
 # 安全：
 # - workers_dev = false，不开 *.workers.dev 地址（它连的是正式 KV/D1，不能有未鉴权的入口）。
 # - SGX_ENV = "production"：middleware 按生产规则执行，非 styrigx.com 的 /api 请求一律 403。
 # - 私密值只在 Secrets Store（见文件末尾），不进仓库。
 
-name = "styrigx-auth"
+name = "styrigx-auth-gateway"
 main = "src/index.js"
 compatibility_date = "2026-10-09"
 workers_dev = false
 preview_urls = false
 
-# PR1 不挂任何路由；切换时在这里加：
-# [[routes]]
-# pattern = "styrigx.com/api/*"
-# zone_name = "styrigx.com"
+# 路由：先只接 /api/geo 试水（只返回定位，不碰登录/会话）。其余 /api 仍由 Pages 处理。
+# 回滚：删掉这一段再部署，或在 Cloudflare 后台删这条路由，立刻回到 Pages。
+# 试水没问题后，整体切换改成 pattern = "styrigx.com/api/*"。
+[[routes]]
+pattern = "styrigx.com/api/geo"
+zone_name = "styrigx.com"
 
-# ---- 明文变量（与 Pages 项目 styrigx-space 的 production 一致；公钥不保密）----
+# ---- 明文变量（与 Pages 项目 styrigx-space 的 production 一致；公钥已改放 Secrets Store）----
 [vars]
 SGX_ENV = "production"
 SGX_SITE = "space"
 SGX_ORIGIN = "https://styrigx.com"
 SGX_RP_ID = "styrigx.com"
-SGX_LOCK_PUBLIC = "MCowBQYDK2VwAyEAtq3DQmTYYJj/lv92roCIALF7pKqfplSJ2pWtq1CvHcc="
-SGX_STEPUP_PUBLIC = "MCowBQYDK2VwAyEAxtMe8kJcgn03XUeCfNsWXWXTxUnMThnDmusnQXwFGOk="
-SGX_APP_PUBLIC = "MCowBQYDK2VwAyEALMzibmc7WjzQHau0cEF80pZnXjKl+DBFySISmnVdIbw="
 
 # ---- 数据绑定（与 Pages 同一份，数据不搬家）----
 [[kv_namespaces]]
@@ -44,34 +43,50 @@ binding = "BOOKS_D1"
 database_name = "styrigx-books"
 database_id = "569d8caf-e315-471b-a080-4b9f055de5fa"
 
-# ---- 私密值：Secrets Store（名字与 Pages 一致）----
-# store_id 由 Styrigx 建好 Secrets Store 后填入（不是密值）。
+# ---- 密钥：Secrets Store（名字与 Pages 一致）----
+# 6 个私密值 + 3 把公钥全放 Secrets Store：换钥只在 Cloudflare 后台改，不用改代码、不用重新部署（最多 60 秒生效）。
+# store_id 是存储的编号，不是密值。
 [[secrets_store_secrets]]
 binding = "SGX_LOCK_PRIVATE"
-store_id = "REPLACE_WITH_STORE_ID"
+store_id = "a5a984f365424401bad5ad6ddcd44479"
 secret_name = "SGX_LOCK_PRIVATE"
 
 [[secrets_store_secrets]]
 binding = "SGX_STEPUP_PRIVATE"
-store_id = "REPLACE_WITH_STORE_ID"
+store_id = "a5a984f365424401bad5ad6ddcd44479"
 secret_name = "SGX_STEPUP_PRIVATE"
 
 [[secrets_store_secrets]]
 binding = "SGX_APP_PRIVATE"
-store_id = "REPLACE_WITH_STORE_ID"
+store_id = "a5a984f365424401bad5ad6ddcd44479"
 secret_name = "SGX_APP_PRIVATE"
 
 [[secrets_store_secrets]]
 binding = "SGX_ROOT_KEY"
-store_id = "REPLACE_WITH_STORE_ID"
+store_id = "a5a984f365424401bad5ad6ddcd44479"
 secret_name = "SGX_ROOT_KEY"
 
 [[secrets_store_secrets]]
 binding = "SGX_PW_PEPPER"
-store_id = "REPLACE_WITH_STORE_ID"
+store_id = "a5a984f365424401bad5ad6ddcd44479"
 secret_name = "SGX_PW_PEPPER"
 
 [[secrets_store_secrets]]
 binding = "TURNSTILE_SECRET"
-store_id = "REPLACE_WITH_STORE_ID"
+store_id = "a5a984f365424401bad5ad6ddcd44479"
 secret_name = "TURNSTILE_SECRET"
+
+[[secrets_store_secrets]]
+binding = "SGX_LOCK_PUBLIC"
+store_id = "a5a984f365424401bad5ad6ddcd44479"
+secret_name = "SGX_LOCK_PUBLIC"
+
+[[secrets_store_secrets]]
+binding = "SGX_STEPUP_PUBLIC"
+store_id = "a5a984f365424401bad5ad6ddcd44479"
+secret_name = "SGX_STEPUP_PUBLIC"
+
+[[secrets_store_secrets]]
+binding = "SGX_APP_PUBLIC"
+store_id = "a5a984f365424401bad5ad6ddcd44479"
+secret_name = "SGX_APP_PUBLIC"
