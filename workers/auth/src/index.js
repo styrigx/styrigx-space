@@ -1,5 +1,5 @@
 /**
- * @fileoverview styrigx-auth：主站鉴权 Worker 入口。
+ * @fileoverview styrigx-auth-gateway：主站鉴权 Worker 入口。
  *
  * 承接 styrigx.com/api/*，代码直接复用 functions/（不复制、不改写）：
  *   1. Secrets Store 的私密值换成字符串（secrets.js）

@@ -11,7 +11,7 @@
  * - 绝不打印密钥值。
  */
 
-/** 放在 Secrets Store 里的 6 个私密值（名字与 Pages 上一致） */
+/** 放在 Secrets Store 里的密钥（名字与 Pages 上一致）：6 个私密值 + 3 把公钥 */
 export const SECRET_NAMES = Object.freeze([
   'SGX_LOCK_PRIVATE',
   'SGX_STEPUP_PRIVATE',
@@ -19,6 +19,9 @@ export const SECRET_NAMES = Object.freeze([
   'SGX_ROOT_KEY',
   'SGX_PW_PEPPER',
   'TURNSTILE_SECRET',
+  'SGX_LOCK_PUBLIC',
+  'SGX_STEPUP_PUBLIC',
+  'SGX_APP_PUBLIC',
 ]);
 
 const TTL_MS = 60 * 1000;

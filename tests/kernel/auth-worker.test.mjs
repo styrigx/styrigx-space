@@ -52,13 +52,18 @@ test('路由表与 functions/api/*.js 一一对应', () => {
   assert.deepEqual([...API_ROUTES.keys()].sort(), files);
 });
 
-test('wrangler.toml：不开 workers.dev、生产模式、6 个私密值走 Secrets Store', () => {
+test('wrangler.toml：不开 workers.dev、生产模式、9 个密钥全走 Secrets Store、填了真实 store_id', () => {
   const toml = readFileSync(REPO + '/workers/auth/wrangler.toml', 'utf8');
   assert.match(toml, /^workers_dev = false$/m);
   assert.match(toml, /^SGX_ENV = "production"$/m);
   for (const n of SECRET_NAMES) {
     assert.match(toml, new RegExp(`binding = "${n}"\\nstore_id = "[^"]+"\\nsecret_name = "${n}"`));
   }
+  assert.equal(SECRET_NAMES.length, 9);
+  /* 试水阶段只允许 /api/geo 一条路由；整体切换时改这里 */
+  assert.deepEqual([...toml.matchAll(/^pattern = "([^"]+)"$/gm)].map(m => m[1]), ['styrigx.com/api/geo']);
+  assert.doesNotMatch(toml, /REPLACE_WITH_STORE_ID/);
+  assert.doesNotMatch(toml, /^SGX_\w+_PUBLIC = /m);
   assert.doesNotMatch(toml, /PRIVATE KEY/);
 });
 
@@ -107,7 +112,7 @@ test('非 /api 路径 → 404', async () => {
 });
 
 test('非 styrigx.com 的 /api 请求 → 403（与 Pages 生产规则一致）', async () => {
-  const res = await worker.fetch(new Request('https://styrigx-auth.example.workers.dev/api/session-check'), baseEnv(), CTX);
+  const res = await worker.fetch(new Request('https://styrigx-auth-gateway.example.workers.dev/api/session-check'), baseEnv(), CTX);
   assert.equal(res.status, 403);
 });
 

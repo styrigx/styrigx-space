@@ -72,10 +72,10 @@ jobs:
         # 访客 401、根凭证 userHandle、最后一把钥匙、sitemap、i18n、页内导航、数字健康等
         run: node --test tests/kernel/*.test.mjs tests/ui/*.test.mjs
 
-      - name: Auth Worker bundle check (styrigx-auth, dry-run)
+      - name: Auth Worker bundle check (styrigx-auth-gateway, dry-run)
         # workers/auth 复用 functions/ 的代码；这里只打包不部署，import 断了 CI 就红。
         working-directory: workers/auth
-        run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/styrigx-auth-dist
+        run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/styrigx-auth-gateway-dist
 
       - name: Layer boundary check (SGX 3.0 分层规范)
         # L0-L6 依赖方向：lib 不得 import shell/apps；shell 不得 import apps；
@@ -399,3 +399,32 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy public --project-name=styrigx-space --commit-dirty=true
+
+  deploy-auth-worker:
+    # 鉴权 Worker styrigx-auth-gateway：main 上真部署。和 Pages 部署分开成单独的 job，
+    # 这里失败不影响 Pages 上线（只会显示红叉）。
+    # 路由见 workers/auth/wrangler.toml（目前只有 styrigx.com/api/geo 试水）；workers_dev=false。
+    # 密钥全在 Secrets Store，CI 不传任何密值。
+    # 用专门的 token（GitHub Secret：CLOUDFLARE_AUTH_GATEWAY_TOKEN，对应 Cloudflare 上的
+    # styrigx-auth-gateway-deploy）：Workers Scripts 编辑 + Secrets Store 读取 + styrigx.com 的 Workers Routes 编辑。
+    # Pages 的部署 token 不给 Worker 权限，互不影响。
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Deploy auth Worker (styrigx-auth-gateway)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_AUTH_GATEWAY_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/auth
+          wranglerVersion: '4'
+          command: deploy
