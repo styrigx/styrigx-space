@@ -1,8 +1,8 @@
 /**
- * B1-3：Turnstile 8s 超时与重试。
+ * B1-3：Turnstile 15s 超时与重试。
  * - 脚本加载失败 → 显示「验证失败」+ 重试
- * - 8 秒无回调 → 显示「验证时间过长」+ 重试（假时钟，不真等 8 秒）
- * - 点「重试」→ 重新发起验证（8s 计时重启）
+ * - 15 秒无回调 → 显示「验证时间过长」+ 重试（假时钟，不真等 15 秒）
+ * - 点「重试」→ 重新发起验证（15s 计时重启）
  * - 验证成功 → 不出重试
  *
  * 注意：锁屏测试跑在生产构建（SGX_TEST_SUITE=lock）。
@@ -44,7 +44,7 @@ async function stubTurnstileNoCallback(page) {
   });
 }
 
-test.describe('B1-3 Turnstile 8s 超时与重试', () => {
+test.describe('B1-3 Turnstile 15s 超时与重试', () => {
   test.beforeEach(async ({ page }) => {
     await blockExternalRequests(page);
   });
@@ -67,35 +67,35 @@ test.describe('B1-3 Turnstile 8s 超时与重试', () => {
     await expect(page.locator('.sgx-verify-failtx')).toContainText('验证失败');
   });
 
-  test('8 秒无回调 → 显示「验证时间过长」+ 重试（假时钟）', async ({ page }) => {
+  test('15 秒无回调 → 显示「验证时间过长」+ 重试（假时钟）', async ({ page }) => {
     await setZh(page);
     await stubTurnstileNoCallback(page);
     await gotoLockOnline(page);
     await page.clock.install();
     await openVerifyFlow(page);
     await expect(page.locator('.sgx-verify-loading-tx')).toContainText('正在验证');
-    /* 8s 到：verifyTimer 触发 */
-    await page.clock.fastForward(8000);
+    /* 15s 到：verifyTimer 触发 */
+    await page.clock.fastForward(15000);
     const retry = page.locator('#sgx-verify-retry');
     await expect(retry).toBeVisible({ timeout: 5000 });
     await expect(page.locator('.sgx-verify-failtx')).toContainText('验证时间过长');
   });
 
-  test('点「重试」→ 重新发起验证（8s 计时重启）', async ({ page }) => {
+  test('点「重试」→ 重新发起验证（15s 计时重启）', async ({ page }) => {
     await setZh(page);
     await stubTurnstileNoCallback(page);
     await gotoLockOnline(page);
     await page.clock.install();
     await openVerifyFlow(page);
-    await page.clock.fastForward(8000);
+    await page.clock.fastForward(15000);
     const retry = page.locator('#sgx-verify-retry');
     await expect(retry).toBeVisible({ timeout: 5000 });
     /* 点重试：重新发起，回到「正在验证…」，重试按钮消失 */
     await retry.click();
     await expect(page.locator('.sgx-verify-loading-tx')).toContainText('正在验证');
     await expect(page.locator('#sgx-verify-retry')).toHaveCount(0);
-    /* 计时重启：再过 8s 又出重试 */
-    await page.clock.fastForward(8000);
+    /* 计时重启：再过 15s 又出重试 */
+    await page.clock.fastForward(15000);
     await expect(page.locator('#sgx-verify-retry')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('.sgx-verify-failtx')).toContainText('验证时间过长');
   });
@@ -126,5 +126,26 @@ test.describe('B1-3 Turnstile 8s 超时与重试', () => {
     /* 成功态：出现勾；重试按钮从未出现 */
     await expect(page.locator('.sgx-check')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('#sgx-verify-retry')).toHaveCount(0);
+  });
+  test('进入交互（出现勾选框）→ 计时停止，不会被「验证时间过长」冲掉', async ({ page }) => {
+    await setZh(page);
+    await page.addInitScript(() => {
+      window.turnstile = {
+        render: function (el, opts) {
+          setTimeout(function () { opts['before-interactive-callback'](); }, 50);
+          return 1;
+        },
+        reset: function () {},
+      };
+    });
+    await gotoLockOnline(page);
+    await page.clock.install();
+    await openVerifyFlow(page);
+    await page.clock.fastForward(100);
+    await expect(page.locator('#sgx-ts-wrap')).toHaveJSProperty('hidden', false, { timeout: 5000 });
+    /* 用户慢慢点：远超 15s 也不出重试，小组件还在 */
+    await page.clock.fastForward(30000);
+    await expect(page.locator('#sgx-verify-retry')).toHaveCount(0);
+    await expect(page.locator('#sgx-ts-wrap')).toHaveJSProperty('hidden', false);
   });
 });
