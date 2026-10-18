@@ -1,0 +1,112 @@
+/**
+ * @fileoverview 子站门禁：blog.styrigx.com、book.styrigx.com 的会话检查由网关统一做。
+ *
+ * 子站 Pages 不再持有任何公钥、不再带验票代码。网关在子站的页面路径上（路由见 wrangler.toml）：
+ *   - 会话有效（owner 或 visitor，与主站同一套 verifySessionDetailed：验签 + exp + epoch）→ 回源取页面，
+ *     HTML 加 private, no-store（防锁定后切回标签页看到缓存的旧页面）
+ *   - 会话无效：页面 302 到主站锁屏（?lock=1&why=…&return=原地址），/api/* 回 401 JSON（fetch 不跟跳转）
+ *   - /api/session-check：子站前端切回标签页时问的，网关直接回答（blog 认 204，book 认 200 {ok:true}）
+ *   - 静态资源后缀（被页面路由顺带覆盖到的 js/css/字体/图片）直接回源，不验会话，与原子站白名单一致
+ *
+ * 子站不做角色区分：owner、visitor 都能看页面（与原子站 middleware 一致）；
+ * 主人专属的操作（book 上传、删除）由 book 的接口自己再问网关（服务绑定 SessionVerifier）。
+ */
+import { verifySessionDetailed } from '../functions/_middleware.js';
+
+const MAIN_ORIGIN = 'https://styrigx.com';
+
+/**
+ * 子站登记表：hostname → 配置。新增子站在这里加一项，并在 wrangler.toml 登记它要验的路径。
+ * sessionCheckOk：会话有效时 /api/session-check 的回答格式（沿用各子站前端已有的约定）。
+ */
+export const SUBSITES = Object.freeze({
+  'blog.styrigx.com': { site: 'blog', sessionCheckOk: 'no-content' },
+  'book.styrigx.com': { site: 'book', sessionCheckOk: 'json' },
+});
+
+/* 不验会话的静态资源后缀（不含正文内容）。和原 blog/book middleware 白名单一致。 */
+const STATIC_EXT = new Set([
+  'css', 'js', 'mjs', 'map',
+  'woff', 'woff2', 'ttf', 'otf', 'eot',
+  'png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'svg', 'ico',
+]);
+
+/** @param {string} pathname */
+export function isStaticAsset(pathname) {
+  const dot = pathname.lastIndexOf('.');
+  const slash = pathname.lastIndexOf('/');
+  if (dot <= slash || dot < 0) return false;
+  return STATIC_EXT.has(pathname.slice(dot + 1).toLowerCase());
+}
+
+/** @param {string} hostname */
+export function subsiteFor(hostname) {
+  return Object.prototype.hasOwnProperty.call(SUBSITES, hostname) ? SUBSITES[hostname] : null;
+}
+
+const NO_STORE = 'private, no-store';
+
+function json(status, body) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': NO_STORE },
+  });
+}
+
+/**
+ * 302 到主站锁屏。why 让主站知道是子站踢回来的（主站见到 why 不再自动回跳，防两站之间死循环）。
+ * @param {URL} url
+ * @param {string} why
+ */
+export function lockRedirect(url, why) {
+  const target = MAIN_ORIGIN + '/?lock=1&why=' + encodeURIComponent(why) +
+    '&return=' + encodeURIComponent(url.origin + url.pathname + url.search);
+  return new Response(null, {
+    status: 302,
+    headers: { 'Location': target, 'Cache-Control': NO_STORE, 'X-Robots-Tag': 'noindex' },
+  });
+}
+
+/** HTML 响应加 private, no-store；其他原样返回 */
+function noStoreHtml(res) {
+  const ct = res.headers.get('Content-Type') || '';
+  if (!ct.includes('text/html')) return res;
+  const out = new Response(res.body, res);
+  out.headers.set('Cache-Control', NO_STORE);
+  return out;
+}
+
+/**
+ * 子站请求处理（只在 hostname 命中 SUBSITES 时调用）。
+ * @param {Request} request
+ * @param {Record<string, any>} env  已换好密钥字符串的 env
+ * @param {(req: Request) => Promise<Response>} origin  回源函数
+ */
+export async function handleSubsite(request, env, origin) {
+  const url = new URL(request.url);
+  const conf = subsiteFor(url.hostname);
+  if (!conf) return json(404, { ok: false, error: 'not-found' });
+  const path = url.pathname;
+
+  if (path === '/api/session-check') {
+    if (request.method !== 'GET' && request.method !== 'HEAD') return json(405, { ok: false, error: 'method' });
+    const sess = await verifySessionDetailed(request, env);
+    if (sess.ok) {
+      if (conf.sessionCheckOk === 'no-content') {
+        return new Response(null, { status: 204, headers: { 'Cache-Control': NO_STORE } });
+      }
+      return json(200, { ok: true });
+    }
+    return json(401, { ok: false, why: sess.reason === 'no-cookie' ? 'no-cookie' : 'invalid-session' });
+  }
+
+  if (isStaticAsset(path)) return origin(request);
+
+  const sess = await verifySessionDetailed(request, env);
+  if (sess.ok) return noStoreHtml(await origin(request));
+
+  const why = sess.reason === 'no-cookie' ? 'no-cookie' : 'invalid-session';
+  console.log('[sgx-subsite] deny site=' + conf.site + ' reason=' + sess.reason);
+  if (path.startsWith('/api/')) return json(401, { ok: false, error: 'unauthorized' });
+  return lockRedirect(url, why);
+}
