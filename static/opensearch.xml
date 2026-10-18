@@ -3,5 +3,5 @@
   <ShortName>Styrigx</ShortName>
   <Description>Search Styrigx's Space</Description>
   <InputEncoding>UTF-8</InputEncoding>
-  <Url type="text/html" template="https://styrigx.com/browser/?q={searchTerms}"/>
+  <Url type="text/html" template="https://styrigx.com/browser/search/?q={searchTerms}"/>
 </OpenSearchDescription>

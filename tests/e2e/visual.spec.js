@@ -194,36 +194,6 @@ test('baseline-sheet-open', async ({ page: pg }) => {
   await expect(pg).toHaveScreenshot('baseline-sheet-open.png', { animations: 'disabled' });
 });
 
-/* F 基准 2：引擎菜单打开（浏览器页搜索引擎菜单） */
-test('baseline-engine-menu', async ({ page: pg }) => {
-  await pg.setViewportSize(VIEWPORTS.mobile);
-  await blockExternalRequests(pg);
-  await pg.emulateMedia({ reducedMotion: 'reduce' });
-  /* 2.8.0：钉住中文，避免语言跟随跳转到 /en/ 导致基线语言漂移 */
-  await pg.addInitScript(() => {
-    try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
-  });
-  /* 2.8.0：中文回退字体显式化（见主循环注释），保证跨环境一致 */
-  await pg.addStyleTag({
-    content: 'html{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans CJK SC","Noto Sans CJK",sans-serif !important}',
-  });
-  await freezeTime(pg);
-  await pg.goto('/browser/', { waitUntil: 'domcontentloaded' });
-  await waitPageReady(pg);
-  /* 2.8.0：引擎切换按钮在搜索弹出层内，须先点底部地址栏胶囊打开弹出层，
-     否则按钮被页面内容盖住点不到（之前直接点导致 30s 超时） */
-  await pg.locator('#brw-addrbar').click();
-  await expect(pg.locator('#brw-overlay.open')).toBeVisible({ timeout: 10000 });
-  const btn = pg.locator('#brw-engine-btn');
-  if (await btn.count()) {
-    await btn.click();
-    /* 等引擎菜单弹出（popover 菜单容器） */
-    await expect(pg.locator('#brw-eng-menu').first()).toBeVisible({ timeout: 10000 });
-  }
-  await expect(pg).toHaveScreenshot('baseline-engine-menu.png', { animations: 'disabled' });
-});
-
-
 /* ===== 两扇门验证弹层视觉基线（第七节验收） =====
  * 手机宽度 412×915 × 中英 × 深浅色 × 两扇门 × 四态（默认/展开/报错/键盘）。
  * 首次运行加 --update-snapshots 生成基准；无横向溢出、无文字截断。

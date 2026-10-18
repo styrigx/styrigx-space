@@ -184,12 +184,11 @@ test.describe('390×844 行为', () => {
     await expect(page.locator('dialog[open]').first()).toBeVisible({ timeout: 5000 });
   });
 
-  test('主页搜索圆：进浏览器并打开搜索', async ({ page }) => {
+  test('主页搜索圆：进浏览器搜索页并聚焦', async ({ page }) => {
     await go(page, '/');
     await page.locator('.sgx-tb-search').click();
-    await expect(page).toHaveURL(/\/browser\/#focus$/);
-    await expect(page.locator('#brw-overlay')).toHaveClass(/\bopen\b/, { timeout: 10000 });
-    await expect(page.locator('#brw-input')).toBeFocused({ timeout: 5000 });
+    await expect(page).toHaveURL(/\/browser\/search\/$/);
+    await expect(page.locator('#sgx-cap-input-brwsearch')).toBeFocused({ timeout: 5000 });
   });
 
   test('返回圆回上一级', async ({ page }) => {
