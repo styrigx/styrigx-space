@@ -38,6 +38,7 @@ function trackJumps(page) {
   page.on('request', (r) => {
     try {
       if (!r.isNavigationRequest() || r.frame() !== page.mainFrame()) return;
+      page.__navCount = (page.__navCount || 0) + 1;
       if (r.url().indexOf('why=') === -1) return;
       if (page.__skipNav > 0) { page.__skipNav--; return; }
       page.__jumps.push(r.url());
@@ -72,6 +73,21 @@ async function waitDecision(page, timeout) {
     await page.waitForTimeout(50);
   }
   throw new Error('waitDecision timeout');
+}
+
+/* 回跳 = location.replace 到同一地址，页面会重载、重载后的 initLock 还会再判一次。
+   不等它停下来就去改 sessionStorage / 发下一次 goto，会和重载抢跑，
+   CI 偶发「既没回跳也没失败卡」的 waitDecision timeout。这里等到 300ms 内没有新的主框架导航为止。 */
+async function settle(page) {
+  const end = Date.now() + 5000;
+  let n = page.__navCount || 0;
+  while (Date.now() < end) {
+    await page.waitForLoadState('load').catch(() => {});
+    await page.waitForTimeout(300);
+    const m = page.__navCount || 0;
+    if (m === n) return;
+    n = m;
+  }
 }
 
 async function getJumpRecord(page) {
@@ -125,7 +141,9 @@ test.describe('B1-8 路径A：会话有效时被踢回', () => {
     const url = '/?test-no-local-bypass&why=' + encodeURIComponent(why) + '&return=' + encodeURIComponent(target);
     await gotoWhy(page, url);
     /* 等 initLock 跑完：返回 'jump' 或 'failure'，以先出现者为准 */
-    return await waitDecision(page, 8000);
+    const decision = await waitDecision(page, 8000);
+    if (decision === 'jump') await settle(page);
+    return decision;
   }
 
   test('第一次：正常回跳（jump trace 有 replace 记录）、记录已写入、不出失败卡', async ({ page }) => {
