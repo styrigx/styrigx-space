@@ -623,6 +623,7 @@ function showLockScreen() {
     const loading = dlg && dlg.querySelector('.sgx-verify-loading');
     if (loading) /** @type {HTMLElement} */ (loading).hidden = true;
     if (wrap) wrap.hidden = false;
+    clearVerifyTimer();
     liftAvatar();
   }
 
@@ -638,7 +639,10 @@ function showLockScreen() {
   }
 
   /* B1-3 验证态：失败/超时 → 提示 + 重试，不出现错误码。
-     超时（8s 无 token）显示「验证时间过长」。 */
+     超时（15s 内既没 token 也没进入交互）显示「验证时间过长」。
+     一旦 Turnstile 要求交互（出现勾选框），停掉这个计时，交给 Turnstile 自己的 timeout-callback；
+     否则用户还没点完，计时就把小组件冲掉了（访客进不去的原因）。 */
+  const VERIFY_TIMEOUT_MS = 15000;
   let verifyTimer = null;
   function clearVerifyTimer() {
     if (verifyTimer) {
@@ -683,10 +687,10 @@ function showLockScreen() {
     resetWidget();
     clearVerifyTimer();
     verifyLoading();
-    /* B1-3：8s 没拿到 token → 显示「验证时间过长」+ 重试 */
+    /* B1-3：15s 没拿到 token 也没进入交互 → 显示「验证时间过长」+ 重试 */
     verifyTimer = setTimeout(function () {
       showTurnstileRetry(true);
-    }, 8000);
+    }, VERIFY_TIMEOUT_MS);
     loadTurnstile().then(
       function () {
         const wrap = document.getElementById('sgx-ts-wrap');
