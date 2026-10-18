@@ -391,16 +391,20 @@ test('B2-4 Internet top-bar menu: engine, address bar position, clear history', 
   await pg.goto('/browser/', { waitUntil: 'domcontentloaded' });
   const more = pg.locator('.sgx-tb-pill #brw-more');
   await expect(more).toHaveCount(1);
-  await more.click();
   const sheet = pg.locator('#sheet-body');
-  await expect(sheet).toContainText('搜索引擎');
+  /* ⋮ 先被搬进顶栏，browser.js 稍后才绑定点击：点早了不出弹层（CI 偶发 30s 超时）。点到弹层出来为止 */
+  const openMenu = () => expect(async () => {
+    await more.click();
+    await expect(sheet).toContainText('搜索引擎', { timeout: 1500 });
+  }).toPass({ timeout: 15000 });
+  await openMenu();
   await expect(sheet).toContainText('地址栏位置');
   await expect(sheet).toContainText('清除浏览记录');
   await sheet.getByText('地址栏位置').click();
   await pg.locator('#sheet-body').getByText('顶部', { exact: true }).click();
   await expect(pg.locator('body')).toHaveClass(/addrbar-top/);
   expect(await pg.evaluate(() => localStorage.getItem('sgx-addrbar-pos'))).toBe('top');
-  await more.click();
+  await openMenu();
   await pg.locator('#sheet-body').getByText('搜索引擎').click();
   await pg.locator('#sheet-body').getByText('Bing', { exact: true }).click();
   expect(await pg.evaluate(() => localStorage.getItem('sgx-search-engine'))).toBe('bing');
