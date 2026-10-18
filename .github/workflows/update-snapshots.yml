@@ -37,27 +37,27 @@ jobs:
         run: |
           node scripts/gen-posts-json.mjs
           node scripts/gen-app-whitelist.mjs
-          hugo --minify
-          SGX_TEST_SUITE=lock npx playwright test --config=playwright.config.js --grep "baseline screenshot" --update-snapshots
+          hugo --minify -s web
+          SGX_TEST_SUITE=lock npx playwright test --config=tests/config/playwright.config.js --grep "baseline screenshot" --update-snapshots
       - name: Test build (same as deploy.yml visual step)
         run: |
-          sed -i "s/0x4AAAAAAFSBhpWkAwZr1SMA/1x00000000000000000000AA/g" hugo.yaml
-          cp data/posts.fixture.json data/posts.json
-          hugo --minify
+          sed -i "s/0x4AAAAAAFSBhpWkAwZr1SMA/1x00000000000000000000AA/g" web/hugo.yaml
+          cp web/data/posts.fixture.json web/data/posts.json
+          hugo --minify -s web
         env:
           SGX_TEST_NO_LOCK: "1"
           SGX_TEST_NO_WEATHER: "1"
       - name: Update snapshots
-        run: npx playwright test --config=playwright.config.js visual.spec.js --update-snapshots
+        run: npx playwright test --config=tests/config/playwright.config.js visual.spec.js --update-snapshots
       - name: Commit snapshots only
         id: commit
         run: |
-          git checkout -- hugo.yaml   # 丢掉测试用 Turnstile key 替换
-          rm -f data/posts.json       # fixture 复制的临时文件，未被 git 跟踪
-          git checkout -- data/ 2>/dev/null || true   # 生产构建生成的数据文件不提交
+          git checkout -- web/hugo.yaml   # 丢掉测试用 Turnstile key 替换
+          rm -f web/data/posts.json       # fixture 复制的临时文件，未被 git 跟踪
+          git checkout -- web/data/ 2>/dev/null || true   # 生产构建生成的数据文件不提交
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add tests/e2e/visual/visual.spec.js-snapshots tests/e2e/visual/lock.spec.js-snapshots
+          git add tests/web/e2e/visual/visual.spec.js-snapshots tests/web/e2e/visual/lock.spec.js-snapshots
           git diff --cached --quiet && echo "基线无变化" && exit 0
           git diff --cached --stat
           git commit -m "[UI] CI 更新视觉基线 (ubuntu-24.04)"

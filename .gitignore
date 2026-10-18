@@ -1,10 +1,15 @@
 node_modules/
-public/
-resources/
-.hugo_build.lock
 .DS_Store
-# CI 生成的构建产物
-assets/css/main.css
-hugo_stats.json
+
+# 网站构建产物（Hugo 在 web/ 里生成）
+web/public/
+web/resources/
+web/.hugo_build.lock
+web/hugo_stats.json
+web/assets/css/main.css
+web/data/tailwind.json
+web/data/posts.json
+
+# 测试产物
 test-results/
 playwright-report/

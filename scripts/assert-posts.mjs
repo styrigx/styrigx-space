@@ -5,7 +5,7 @@
  */
 import { readFileSync } from 'fs';
 
-const data = JSON.parse(readFileSync('public/files-index.json', 'utf-8'));
+const data = JSON.parse(readFileSync(new URL('../web/public/files-index.json', import.meta.url), 'utf-8'));
 const posts = (data.items || []).filter((it) => it.type === 'post');
 
 console.log(`Found ${posts.length} posts in files-index.json`);

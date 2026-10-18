@@ -8,7 +8,7 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const root = path.join(__dirname, '..');
+const root = path.join(__dirname, '..', 'web');
 const minify = process.argv.includes('--minify');
 const tmpTw = path.join(root, 'assets/css/.tw-out.css');
 
@@ -28,3 +28,9 @@ const out =
 
 fs.writeFileSync(path.join(root, 'assets/css/main.css'), out);
 console.log('CSS built:', out.length, 'bytes');
+
+/* Tailwind 实际安装版本 → data/tailwind.json（设置 › 关于 页显示）。
+   Hugo 只能读网站目录内的文件，读不到根目录的 package-lock.json，所以在这里转一手。 */
+const lock = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package-lock.json'), 'utf8'));
+const twPkg = (lock.packages || {})['node_modules/tailwindcss'];
+fs.writeFileSync(path.join(root, 'data/tailwind.json'), JSON.stringify({ version: twPkg ? twPkg.version : '' }) + '\n');

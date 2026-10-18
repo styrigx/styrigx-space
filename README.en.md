@@ -10,7 +10,7 @@ To understand the world, take it apart; to believe in it, put it back together.
 
 ![Hugo](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/.github/workflows/deploy.yml&query=%24.env.HUGO_VERSION&label=Hugo&style=flat-square&color=2563eb&logo=hugo)
 ![Tailwind CSS](https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/package-lock.json&query=%24.packages%5B%27node_modules%2Ftailwindcss%27%5D.version&label=Tailwind%20CSS&style=flat-square&color=2563eb&logo=tailwindcss)
-![Styrigx UI](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/hugo.yaml&query=%24.params.version&label=Styrigx%20UI&style=flat-square&color=2563eb)
+![Styrigx UI](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/web/data/version.yaml&query=%24.ui&label=Styrigx%20UI&style=flat-square&color=2563eb)
 ![Deploy](https://img.shields.io/github/actions/workflow/status/styrigx/styrigx-space/deploy.yml?style=flat-square&label=Deploy&color=2563eb)
 ![License](https://img.shields.io/badge/License-MIT-2563eb?style=flat-square)
 
@@ -52,27 +52,23 @@ The Dock only shows on the home screen; inside apps only the search bar stays at
 
 ## Run locally
 
-Requirements: Hugo extended 0.162.0, Node.js (CI uses 20, needed to build Tailwind).
+Requirements: Hugo extended 0.167.0, Node.js (CI uses 20, needed to build Tailwind).
 
 ```bash
 git clone https://github.com/styrigx/styrigx-space.git
 cd styrigx-space
 npm install
 npm run build:css
-hugo server
+hugo server -s web
 ```
 
-Open http://localhost:1313 in a browser. Build with `hugo --minify`.
+Open http://localhost:1313 in a browser. Build with `hugo --minify -s web`; output goes to `web/public/`.
 
 Pushing to main auto-deploys to Cloudflare Pages (Pages project `styrigx-space`).
 
 ## Directories
 
-- `content/`: page entries, bilingual.
-- `data/`: content data, split by language (`data/en/` is the English version; `data/wellbeing.yaml` holds screen-time data).
-- `layouts/`: templates; `_default/` holds each app page.
-- `assets/`: `css/input.css` is the Tailwind input, `main.css` is generated at build; shared JS lives here too.
-- `static/`: `_redirects` short links, `_headers` cache headers, images.
+The site lives in `web/`, Workers in `workers/`, tests in `tests/`. See [STRUCTURE.md](STRUCTURE.md) (Chinese) for the full layout.
 
 ## License
 
