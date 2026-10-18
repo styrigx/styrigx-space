@@ -59,11 +59,11 @@ async function genKeys() {
   LOCK_PUB = derToPem(await crypto.subtle.exportKey('spki', kp2.publicKey), 'PUBLIC KEY');
 }
 async function mintStepup(epoch = 0) {
-  const { signStepupCookie } = await import('../../../functions/api/stepup.js');
+  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
   return await signStepupCookie(STEPUP_PRIV, 'owner', 'keys', epoch);
 }
 async function mintSession(epoch = 0) {
-  const { signSessionCookie } = await import('../../../functions/_kernel/session.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   return await signSessionCookie(LOCK_PRIV, epoch, 'owner', 'owner');
 }
 const stepupEnv = (kv) => ({
@@ -96,7 +96,7 @@ test('setup: 生成 stepup 测试密钥', async () => {
 });
 
 test('旧凭据无 class → getPasskeys 幂等迁移为 lock', async () => {
-  const { getPasskeys } = await import('../../../functions/api/owner-passkey.js');
+  const { getPasskeys } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const kv = makeKV();
   const rec = { name: 'old', credId: 'cred-old-123', publicKey: {}, signCount: 0 };
   await kv.put('owner-passkey:' + 'cred-old-123'.slice(0, 12), JSON.stringify(rec));
@@ -109,7 +109,7 @@ test('旧凭据无 class → getPasskeys 幂等迁移为 lock', async () => {
 });
 
 test('challenge auth 默认只列 lock 凭据', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const kv = makeKV();
   await seedKey(kv, { credId: 'lock-key-001', cls: 'lock' });
   await seedKey(kv, { credId: 'app-key-001', cls: 'app', aud: 'book' });
@@ -127,7 +127,7 @@ test('challenge auth 默认只列 lock 凭据', async () => {
 });
 
 test('challenge app auth 只列该 aud 的 app 凭据', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const kv = makeKV();
   await seedKey(kv, { credId: 'lock-key-001', cls: 'lock' });
   await seedKey(kv, { credId: 'app-key-book', cls: 'app', aud: 'book' });
@@ -144,7 +144,7 @@ test('challenge app auth 只列该 aud 的 app 凭据', async () => {
 });
 
 test('challenge app auth：不在白名单的 aud → 400', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const kv = makeKV();
   const r = await onRequestPost({
     request: postReq('https://styrigx.com/api/owner-passkey', { action: 'challenge', type: 'auth', pkClass: 'app', aud: 'evil' }),
@@ -155,7 +155,7 @@ test('challenge app auth：不在白名单的 aud → 400', async () => {
 });
 
 test('无 stepup 时 list/register/delete → 403 stepup-required（2.10.1：register 还需会话）', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const kv = makeKV();
   await seedKey(kv, { credId: 'lock-key-001', cls: 'lock' });
   const env = stepupEnv(kv);
@@ -191,7 +191,7 @@ test('无 stepup 时 list/register/delete → 403 stepup-required（2.10.1：reg
 });
 
 test('有 stepup 时 list 通过', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const kv = makeKV();
   await seedKey(kv, { credId: 'lock-key-001', cls: 'lock' });
   const sc = await mintStepup();
@@ -207,7 +207,7 @@ test('有 stepup 时 list 通过', async () => {
 });
 
 test('删除 app 凭据 → app-epoch:book +1（2.10.1：不推进会话纪元）', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const kv = makeKV();
   await seedKey(kv, { credId: 'app-key-book', cls: 'app', aud: 'book' });
   const sc = await mintStepup();
@@ -231,7 +231,7 @@ test('删除 app 凭据 → app-epoch:book +1（2.10.1：不推进会话纪元�
 });
 
 test('删除 lock 凭据不推进 app-epoch', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const kv = makeKV();
   await seedKey(kv, { credId: 'lock-key-001', cls: 'lock' });
   await seedKey(kv, { credId: 'lock-key-002', cls: 'lock' });
@@ -247,7 +247,7 @@ test('删除 lock 凭据不推进 app-epoch', async () => {
 });
 
 test('无密码时禁止删除最后一把 lock 凭据', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const kv = makeKV();
   await seedKey(kv, { credId: 'lock-key-001', cls: 'lock' });
   const sc = await mintStepup();
@@ -261,7 +261,7 @@ test('无密码时禁止删除最后一把 lock 凭据', async () => {
 });
 
 test('stepup challenge 只列 lock 凭据', async () => {
-  const { onRequestPost } = await import('../../../functions/api/stepup.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
   const kv = makeKV();
   await seedKey(kv, { credId: 'lock-key-001', cls: 'lock' });
   await seedKey(kv, { credId: 'app-key-001', cls: 'app', aud: 'book' });
@@ -277,7 +277,7 @@ test('stepup challenge 只列 lock 凭据', async () => {
 });
 
 test('注册参数：challenge register 下发写死的用户信息', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const kv = makeKV();
   const sc = await mintStepup();
   const sess = await mintSession();
@@ -317,7 +317,7 @@ test('注册参数：challenge register 下发写死的用户信息', async () =
 test('CI 静态检查：verifyStepupCookie 只在安全设置接口（owner-passkey/owner-password/stepup + 2.11 root 接口）', async () => {
   const { readdirSync, readFileSync } = await import('node:fs');
   const { join } = await import('node:path');
-  const apiDir = new URL('../../../functions/api/', import.meta.url);
+  const apiDir = new URL('../../../workers/auth-gateway/functions/api/', import.meta.url);
   /* 2.11 定稿：lockreset、lock-all-devices 也需要验 stepup；
      2.11 小修：lock-status（只读锁屏凭证状态）接受 keys/lockreset 票据 */
   const allowed = new Set(['owner-passkey.js', 'owner-password.js', 'stepup.js', 'root-session.js', 'root-audit.js', 'layer-status.js', 'lockreset.js', 'lock-all-devices.js', 'lock-status.js']);
@@ -334,7 +334,7 @@ test('CI 静态检查：verifyStepupCookie 只在安全设置接口（owner-pass
 
 /* ---- P0-15：savePasskey 必须原样保存 class ---- */
 test('P0-15: savePasskey 保留 owner/lock/app，非法值拒绝', async () => {
-  const { savePasskey, PK_CLASS_OWNER, PK_CLASS_LOCK, PK_CLASS_APP } = await import('../../../functions/api/owner-passkey.js');
+  const { savePasskey, PK_CLASS_OWNER, PK_CLASS_LOCK, PK_CLASS_APP } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const kv = makeKV();
   const base = {
     name: 'test',

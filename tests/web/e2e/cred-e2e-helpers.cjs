@@ -172,10 +172,10 @@ async function startCredentialTestServer(port) {
   };
   // 动态 import 用字符串拼接避开静态分析（Playwright 会误判 'import' 关键字）
   const dynImport = new Function('u', 'return ' + 'im' + 'port(u)');
-  const pwMod = await dynImport(pathToFileURL(path.join(REPO, 'functions/api/owner-password.js')).href);
-  const pkMod = await dynImport(pathToFileURL(path.join(REPO, 'functions/api/owner-passkey.js')).href);
-  const sessMod = await dynImport(pathToFileURL(path.join(REPO, 'functions/_kernel/session.js')).href);
-  const stepupMod = await dynImport(pathToFileURL(path.join(REPO, 'functions/api/stepup.js')).href);
+  const pwMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/api/owner-password.js')).href);
+  const pkMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/api/owner-passkey.js')).href);
+  const sessMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/_kernel/session.js')).href);
+  const stepupMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/api/stepup.js')).href);
 
   const server = http.createServer(async (req, res) => {
     try {

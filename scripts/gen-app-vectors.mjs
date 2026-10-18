@@ -5,7 +5,7 @@ import { generateKeyPairSync } from 'node:crypto';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ed25519Sign } from '../functions/_kernel/crypto.js';
+import { ed25519Sign } from '../workers/auth-gateway/functions/_kernel/crypto.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

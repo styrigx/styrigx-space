@@ -22,7 +22,7 @@ import assert from 'node:assert/strict';
 const REPO = new URL('../../../', import.meta.url).pathname;
 
 /* 恢复开关 KV 键名（固定为 recovery-switch，见 functions/_kernel/recswitch.js） */
-const { SWITCH_KV_KEY } = await import('../../../functions/_kernel/recswitch.js');
+const { SWITCH_KV_KEY } = await import('../../../workers/auth-gateway/functions/_kernel/recswitch.js');
 assert.equal(SWITCH_KV_KEY, 'recovery-switch');
 
 /* 简易 KV mock */
@@ -83,7 +83,7 @@ function baseEnv(kv, overrides) {
 /* ============ 1. 越权 ============ */
 
 test('2.11 越权：scope 不匹配 403（scope=keys 的票不能进入口 1）', async () => {
-  const { verifyStepupCookie, signStepupCookie, STEPUP_SCOPE_KEYS } = await import(REPO + 'functions/api/stepup.js');
+  const { verifyStepupCookie, signStepupCookie, STEPUP_SCOPE_KEYS } = await import(REPO + '/workers/auth-gateway/functions/api/stepup.js');
   const kv = makeKv();
   const env = baseEnv(kv);
   /* 直接验票：scope=keys 的票用于要求 scope=root 的场景 → 由调用方拒绝。
@@ -93,9 +93,9 @@ test('2.11 越权：scope 不匹配 403（scope=keys 的票不能进入口 1）'
 });
 
 test('2.11 越权：已配置层拒 by=root 的票（owner-passkey 管理 owner 类）', async () => {
-  const { onRequestPost } = await import(REPO + 'functions/api/owner-passkey.js');
-  const { signStepupCookie } = await import(REPO + 'functions/api/stepup.js');
-  const { signSessionCookie } = await import(REPO + 'functions/_kernel/session.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/owner-passkey.js');
+  const { signStepupCookie } = await import(REPO + '/workers/auth-gateway/functions/api/stepup.js');
+  const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
   const kv = makeKv({
     'layer:owner': '1',
     'layer:lock': '1',
@@ -118,7 +118,7 @@ test('2.11 越权：已配置层拒 by=root 的票（owner-passkey 管理 owner 
 /* ============ 2. 无 lock 会话 ============ */
 
 test('2.11 无 lock 会话：单用站长凭证进入口 2 被拒（无会话 → 401）', async () => {
-  const { onRequestPost } = await import(REPO + 'functions/api/stepup.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/stepup.js');
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
   const env = baseEnv(kv);
   /* verify-password 需要 owner 会话；无会话 → 401 */
@@ -130,7 +130,7 @@ test('2.11 无 lock 会话：单用站长凭证进入口 2 被拒（无会话 �
 });
 
 test('2.11 无 lock 会话：单用根凭证进入口 1 被拒（无会话且 lock 已配置 → 假入口 401 auth）', async () => {
-  const { onRequestPost } = await import(REPO + 'functions/api/root-auth.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKv({ 'layer:lock': '1' });
   const env = baseEnv(kv);
   const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345' });
@@ -143,7 +143,7 @@ test('2.11 无 lock 会话：单用根凭证进入口 1 被拒（无会话且 lo
 /* ============ 3. 重置锁屏 ============ */
 
 test('2.11 重置锁屏：开关关闭时只根凭证 → 返回 needOwner（需站长凭证）', async () => {
-  const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lockreset.js');
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
   const env = baseEnv(kv); /* 无开关 → 关闭 */
   const req = postReq('https://test.example.com/api/lockreset', {
@@ -156,8 +156,8 @@ test('2.11 重置锁屏：开关关闭时只根凭证 → 返回 needOwner（需
 });
 
 test('2.11 重置锁屏：开关关闭时只站长凭证被拒（缺根凭证 → 401）', async () => {
-  const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
-  const { makePasswordRecord } = await import(REPO + 'functions/api/owner-password.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lockreset.js');
+  const { makePasswordRecord } = await import(REPO + '/workers/auth-gateway/functions/api/owner-password.js');
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
   const rec = await makePasswordRecord('owner-pass-1', 'test-pepper');
   await kv.put('owner-pw', JSON.stringify(rec));
@@ -172,7 +172,7 @@ test('2.11 重置锁屏：开关关闭时只站长凭证被拒（缺根凭证 �
 });
 
 test('2.11 重置锁屏：owner 未配置且开关关闭 → status 始终可用，verify 通用 401 auth（不泄露 not-set）', async () => {
-  const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lockreset.js');
   const kv = makeKv({ 'layer:lock': '1' }); /* owner 未配置 */
   const env = baseEnv(kv);
   const st = postReq('https://test.example.com/api/lockreset', { action: 'status' });
@@ -252,7 +252,7 @@ function switchEnv(kv, db, switchVal) {
 }
 
 test('2.11 开关：不存在 → 关闭（根凭证正确后返回 needOwner）', async () => {
-  const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lockreset.js');
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
   const db = makeD1();
   const env = switchEnv(kv, db); /* 无 recovery-switch 键 */
@@ -267,7 +267,7 @@ test('2.11 开关：不存在 → 关闭（根凭证正确后返回 needOwner）
 });
 
 test('2.11 开关：首次见到 → 有效，单根拿 lockreset（by=root, via=switch）并标记已用', async () => {
-  const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lockreset.js');
   const kv = makeKv({ 'layer:lock': '1' }); /* owner 未配置 */
   const db = makeD1();
   const env = switchEnv(kv, db, 'switch-secret-1');
@@ -288,7 +288,7 @@ test('2.11 开关：首次见到 → 有效，单根拿 lockreset（by=root, via
 });
 
 test('2.11 开关：已用后再用 → 关闭（返回 needOwner）', async () => {
-  const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lockreset.js');
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
   const db = makeD1();
   const env = switchEnv(kv, db, 'switch-secret-1');
@@ -308,7 +308,7 @@ test('2.11 开关：已用后再用 → 关闭（返回 needOwner）', async () 
 });
 
 test('2.11 开关：过期（24h+）→ 关闭', async () => {
-  const { checkRecoverySwitch } = await import(REPO + 'functions/_kernel/recswitch.js');
+  const { checkRecoverySwitch } = await import(REPO + '/workers/auth-gateway/functions/_kernel/recswitch.js');
   const kv = makeKv();
   const db = makeD1();
   kv._store.set(SWITCH_KV_KEY, 'old-secret');
@@ -324,7 +324,7 @@ test('2.11 开关：过期（24h+）→ 关闭', async () => {
 });
 
 test('2.11 开关：换新值重新开启', async () => {
-  const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lockreset.js');
   const kv = makeKv({ 'layer:lock': '1' });
   const db = makeD1();
   /* 旧值已用 */
@@ -344,7 +344,7 @@ test('2.11 开关：换新值重新开启', async () => {
 });
 
 test('2.11 开关：KV 失败 → fail closed', async () => {
-  const { checkRecoverySwitch } = await import(REPO + 'functions/_kernel/recswitch.js');
+  const { checkRecoverySwitch } = await import(REPO + '/workers/auth-gateway/functions/_kernel/recswitch.js');
   const brokenKv = { get: async () => { throw new Error('kv-down'); } };
   const db = makeD1();
   const r = await checkRecoverySwitch(brokenKv, db);
@@ -353,7 +353,7 @@ test('2.11 开关：KV 失败 → fail closed', async () => {
 });
 
 test('2.11 开关：D1 缺失/失败 → fail closed', async () => {
-  const { checkRecoverySwitch } = await import(REPO + 'functions/_kernel/recswitch.js');
+  const { checkRecoverySwitch } = await import(REPO + '/workers/auth-gateway/functions/_kernel/recswitch.js');
   const kv = makeKv();
   kv._store.set(SWITCH_KV_KEY, 'some-secret');
   /* D1 未绑定 */
@@ -366,7 +366,7 @@ test('2.11 开关：D1 缺失/失败 → fail closed', async () => {
 });
 
 test('2.11 开关：根凭证错误时不读开关 KV', async () => {
-  const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lockreset.js');
   let switchRead = false;
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
   const origGet = kv.get;
@@ -386,8 +386,8 @@ test('2.11 开关：根凭证错误时不读开关 KV', async () => {
 });
 
 test('2.11 开关：有效时单站长凭证仍被拒（根凭证优先，不可跳过）', async () => {
-  const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
-  const { makePasswordRecord } = await import(REPO + 'functions/api/owner-password.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lockreset.js');
+  const { makePasswordRecord } = await import(REPO + '/workers/auth-gateway/functions/api/owner-password.js');
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
   const rec = await makePasswordRecord('owner-pass-1', 'test-pepper');
   await kv.put('owner-pw', JSON.stringify(rec));
@@ -405,7 +405,7 @@ test('2.11 开关：有效时单站长凭证仍被拒（根凭证优先，不可
 /* ============ 5. 假入口 ============ */
 
 test('2.11 假入口：访客提交正确根凭证 → 401 auth，与错误密钥响应逐字节相同', async () => {
-  const { onRequestPost } = await import(REPO + 'functions/api/root-auth.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   const kv1 = makeKv({ 'layer:lock': '1' });
   const kv2 = makeKv({ 'layer:lock': '1' });
   const env1 = baseEnv(kv1);
@@ -425,7 +425,7 @@ test('2.11 假入口：访客提交正确根凭证 → 401 auth，与错误密�
 });
 
 test('2.11 假入口：缺 Origin → 403（先于假入口）', async () => {
-  const { onRequestPost } = await import(REPO + 'functions/api/root-auth.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKv({ 'layer:lock': '1' });
   const env = baseEnv(kv);
   const req = new Request('https://test.example.com/api/root-auth', {
@@ -440,7 +440,7 @@ test('2.11 假入口：缺 Origin → 403（先于假入口）', async () => {
 /* ============ 6. 接管 ============ */
 
 test('2.11 接管：未配 owner 时 root 可代管（scope=keys, by=root）', async () => {
-  const { checkRootTakeover, LAYER_OWNER } = await import(REPO + 'functions/_kernel/layers.js');
+  const { checkRootTakeover, LAYER_OWNER } = await import(REPO + '/workers/auth-gateway/functions/_kernel/layers.js');
   const kv = makeKv(); /* 全未配置 */
   const r = await checkRootTakeover(kv, LAYER_OWNER);
   assert.equal(r.allowed, true);
@@ -448,7 +448,7 @@ test('2.11 接管：未配 owner 时 root 可代管（scope=keys, by=root）', a
 });
 
 test('2.11 接管：配置后 root 对该层失效', async () => {
-  const { checkRootTakeover, LAYER_OWNER } = await import(REPO + 'functions/_kernel/layers.js');
+  const { checkRootTakeover, LAYER_OWNER } = await import(REPO + '/workers/auth-gateway/functions/_kernel/layers.js');
   const kv = makeKv({ 'layer:owner': '1' });
   const r = await checkRootTakeover(kv, LAYER_OWNER);
   assert.equal(r.allowed, false);
@@ -456,7 +456,7 @@ test('2.11 接管：配置后 root 对该层失效', async () => {
 });
 
 test('2.11 接管：KV 读取失败按已配置处理（root 被拒）', async () => {
-  const { checkRootTakeover, LAYER_OWNER } = await import(REPO + 'functions/_kernel/layers.js');
+  const { checkRootTakeover, LAYER_OWNER } = await import(REPO + '/workers/auth-gateway/functions/_kernel/layers.js');
   const brokenKv = {
     get: async () => { throw new Error('kv-down'); },
   };
@@ -469,9 +469,9 @@ test('2.11 接管：KV 读取失败按已配置处理（root 被拒）', async (
 /* ============ 7. pepper ============ */
 
 test('2.11 pepper：缺 pepper → fail closed（set/verify 均拒绝）', async () => {
-  const { onRequestPost } = await import(REPO + 'functions/api/owner-password.js');
-  const { signStepupCookie } = await import(REPO + 'functions/api/stepup.js');
-  const { signSessionCookie } = await import(REPO + 'functions/_kernel/session.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/owner-password.js');
+  const { signStepupCookie } = await import(REPO + '/workers/auth-gateway/functions/api/stepup.js');
+  const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1', 'session-epoch': '0' });
   const envNoPepper = baseEnv(kv, { SGX_PW_PEPPER: '' });
   const stepupCv = await signStepupCookie(TEST_PRIV_PEM, 'owner', 'keys', 0);
@@ -485,10 +485,10 @@ test('2.11 pepper：缺 pepper → fail closed（set/verify 均拒绝）', async
 });
 
 test('2.11 pepper：owner 密码 = 锁屏密码被拒（双向）', async () => {
-  const { onRequestPost } = await import(REPO + 'functions/api/owner-password.js');
-  const { makePasswordRecord } = await import(REPO + 'functions/api/owner-password.js');
-  const { signStepupCookie } = await import(REPO + 'functions/api/stepup.js');
-  const { signSessionCookie } = await import(REPO + 'functions/_kernel/session.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/owner-password.js');
+  const { makePasswordRecord } = await import(REPO + '/workers/auth-gateway/functions/api/owner-password.js');
+  const { signStepupCookie } = await import(REPO + '/workers/auth-gateway/functions/api/stepup.js');
+  const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1', 'session-epoch': '0' });
   /* 先设锁屏密码 */
   const lockRec = await makePasswordRecord('same-pass-12345', 'test-pepper');
@@ -509,7 +509,7 @@ test('2.11 pepper：owner 密码 = 锁屏密码被拒（双向）', async () => 
 /* ============ 8. root-auth ============ */
 
 test('2.11 root-auth：错误密钥 401 auth（引导模式）', async () => {
-  const { onRequestPost } = await import(REPO + 'functions/api/root-auth.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKv(); /* lock 未配置 → 引导模式 */
   const env = baseEnv(kv);
   const req = postReq('https://test.example.com/api/root-auth', { key: 'wrong-key' });
@@ -519,7 +519,7 @@ test('2.11 root-auth：错误密钥 401 auth（引导模式）', async () => {
 });
 
 test('2.11 root-auth：缺 Origin 403 origin', async () => {
-  const { onRequestPost } = await import(REPO + 'functions/api/root-auth.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKv();
   const env = baseEnv(kv);
   const req = new Request('https://test.example.com/api/root-auth', {
@@ -534,13 +534,13 @@ test('2.11 root-auth：缺 Origin 403 origin', async () => {
 
 test('2.11 root-auth：旧 /api/owner-auth 不再可用（文件不存在）', async () => {
   const fs = await import('node:fs');
-  assert.equal(fs.existsSync(REPO + 'functions/api/owner-auth.js'), false);
+  assert.equal(fs.existsSync(REPO + '/workers/auth-gateway/functions/api/owner-auth.js'), false);
 });
 
 /* ============ 9. 限速 ============ */
 
 test('2.11 限速：根凭证各路径共用计数（root-auth 失败计入 lockreset 限速）', async () => {
-  const { checkRootLimit, recordRootFail } = await import(REPO + 'functions/_kernel/rootlimit.js');
+  const { checkRootLimit, recordRootFail } = await import(REPO + '/workers/auth-gateway/functions/_kernel/rootlimit.js');
   const kv = makeKv();
   const ip = '1.2.3.4';
   /* 5 次失败后锁定 */
@@ -554,8 +554,8 @@ test('2.11 限速：根凭证各路径共用计数（root-auth 失败计入 lock
 /* ============ 10. 补充二：管理页加载触发开关计时 ============ */
 
 test('2.11 补充二：管理页（layer-status，有效会话）触发开关计时', async () => {
-  const { onRequestGet } = await import(REPO + 'functions/api/layer-status.js');
-  const { signSessionCookie } = await import(REPO + 'functions/_kernel/session.js');
+  const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/layer-status.js');
+  const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1', 'session-epoch': '0' });
   const db = makeD1();
   kv._store.set(SWITCH_KV_KEY, 'timer-secret-1');
@@ -575,12 +575,12 @@ test('2.11 补充二：管理页（layer-status，有效会话）触发开关计
 });
 
 test('2.11 补充二：计时 24 小时后，开关在重置路径上已失效', async () => {
-  const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lockreset.js');
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
   const db = makeD1();
   kv._store.set(SWITCH_KV_KEY, 'timer-secret-1');
   /* 先触发计时 */
-  const { touchRecoverySwitch } = await import(REPO + 'functions/_kernel/recswitch.js');
+  const { touchRecoverySwitch } = await import(REPO + '/workers/auth-gateway/functions/_kernel/recswitch.js');
   const env0 = baseEnv(kv, { SGX_D1: db });
   await touchRecoverySwitch(kv, db);
   /* 把首次时间拨到 25 小时前（模拟过期） */
@@ -599,7 +599,7 @@ test('2.11 补充二：计时 24 小时后，开关在重置路径上已失效',
 });
 
 test('2.11 补充二：访客请求 layer-status → 401，且不读开关 KV', async () => {
-  const { onRequestGet } = await import(REPO + 'functions/api/layer-status.js');
+  const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/layer-status.js');
   let switchRead = false;
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
   const origGet = kv.get;
@@ -620,7 +620,7 @@ test('2.11 补充二：访客请求 layer-status → 401，且不读开关 KV', 
 /* ============ 11. 补充四：恢复开关提示仅出现在重置第二步 ============ */
 
 test('2.11 补充四：根凭证错误的 lockreset 响应不含 recovery-switch', async () => {
-  const { onRequestPost } = await import(REPO + 'functions/api/lockreset.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lockreset.js');
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
   kv._store.set(SWITCH_KV_KEY, 'some-secret');
   const db = makeD1();
@@ -635,7 +635,7 @@ test('2.11 补充四：根凭证错误的 lockreset 响应不含 recovery-switch
 });
 
 test('2.11 补充四：访客假入口（root-auth）响应不含 recovery-switch', async () => {
-  const { onRequestPost } = await import(REPO + 'functions/api/root-auth.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKv({ 'layer:lock': '1' });
   kv._store.set(SWITCH_KV_KEY, 'some-secret');
   const db = makeD1();

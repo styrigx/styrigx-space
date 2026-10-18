@@ -15,10 +15,10 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
-const { onRequestGet } = await import(REPO + '/functions/avatar/[file].js');
-const { onRequestPut, onRequestDelete } = await import(REPO + '/functions/api/avatar.js');
-const { sniffImage, sizeOfFile } = await import(REPO + '/functions/_kernel/avatar.js');
-const { signSessionCookie } = await import(REPO + '/functions/_kernel/session.js');
+const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/avatar/[file].js');
+const { onRequestPut, onRequestDelete } = await import(REPO + '/workers/auth-gateway/functions/api/avatar.js');
+const { sniffImage, sizeOfFile } = await import(REPO + '/workers/auth-gateway/functions/_kernel/avatar.js');
+const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
 
 function derToPem(der, label) {
   const b64 = Buffer.from(der).toString('base64');

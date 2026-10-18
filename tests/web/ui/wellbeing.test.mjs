@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseReport, summarize, dayOk, sectionOf, onRequestPost, onRequestGet } from '../../../functions/api/wellbeing.js';
+import { parseReport, summarize, dayOk, sectionOf, onRequestPost, onRequestGet } from '../../../workers/auth-gateway/functions/api/wellbeing.js';
 import { buildBody, localDay } from '../../../web/assets/js/lib/wb-track.js';
 import { wbAreaOf } from '../../../web/assets/js/lib/wb-area.js';
 import { fmtDur } from '../../../web/assets/js/lib/wb-view.js';

@@ -2,8 +2,9 @@
 /**
  * 核对主站 Worker 路由登记（workers/auth-gateway/wrangler.toml 的 [[routes]]）：
  * 1. 主站每个 HTML 页面都被某条路由覆盖（页面必须先过网关验会话；新增页面目录忘了登记 → 失败）
- * 2. 静态资源目录不被任何路由覆盖（静态资源不过 Worker）
- * 3. 路由不重复
+ * 2. 接口和头像（/api/、/avatar/）被路由覆盖（Pages 上没有后端代码，漏了就是 404 或默认头像）
+ * 3. 静态资源目录不被任何路由覆盖（静态资源不过 Worker）
+ * 4. 路由不重复
  *
  * 需要先构建网站（hugo --minify -s web），读 web/public/ 下的 .html。
  * 用法：node scripts/check-worker-routes.mjs
@@ -18,7 +19,9 @@ const PUBLIC_DIR = path.join(REPO, 'web/public');
 /* 不需要过网关的 HTML：Pages 对不存在的路径直接回 404.html，本来就没人拦 */
 const EXEMPT = new Set(['/404.html']);
 /* 静态资源样例：都不能落进路由 */
-const STATIC_SAMPLES = ['/css/main.css', '/js/entries/entry-core.js', '/fonts/inter-latin.woff2', '/fav/x.webp', '/avatar/96.webp', '/robots.txt', '/sitemap.xml', '/favicon.ico'];
+const STATIC_SAMPLES = ['/css/main.css', '/js/entries/entry-core.js', '/fonts/inter-latin.woff2', '/fav/x.webp', '/robots.txt', '/sitemap.xml', '/favicon.ico'];
+/* 必须过网关的非页面路径 */
+const MUST_ROUTE = ['/api/geo', '/api/session-check', '/avatar/32.webp', '/avatar/512.webp'];
 
 export function readRoutes(toml) {
   return [...toml.matchAll(/^pattern = "([^"]+)"$/gm)].map(m => m[1]);
@@ -57,6 +60,9 @@ export function check(routes, pagePaths) {
   for (const p of pagePaths) {
     if (EXEMPT.has(p)) continue;
     if (!routes.some(r => routeMatches(r, HOST, p))) errors.push('页面没有路由（不过网关）：' + p);
+  }
+  for (const p of MUST_ROUTE) {
+    if (!routes.some(r => routeMatches(r, HOST, p))) errors.push('没有路由（Pages 上没有后端代码）：' + p);
   }
   for (const p of STATIC_SAMPLES) {
     const hit = routes.find(r => routeMatches(r, HOST, p));

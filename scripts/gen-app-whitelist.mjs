@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-const { APP_WHITELIST } = await import(join(ROOT, 'functions/_kernel/app-registry.js'));
+const { APP_WHITELIST } = await import(join(ROOT, 'workers/auth-gateway/functions/_kernel/app-registry.js'));
 
 if (!Array.isArray(APP_WHITELIST) || APP_WHITELIST.length === 0) {
   console.error('gen-app-whitelist.mjs: APP_WHITELIST 为空');

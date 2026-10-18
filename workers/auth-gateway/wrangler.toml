@@ -1,7 +1,7 @@
-# styrigx-auth-gateway：主站鉴权 Worker（CI 部署；承接 styrigx.com/api/* 和全部页面的会话检查）
+# styrigx-auth-gateway：主站鉴权网关（CI 部署；承接 styrigx.com/api/*、/avatar/* 和全部页面的会话检查）
 #
-# 代码在 workers/auth-gateway/src/，直接复用 functions/_middleware.js 和 functions/api/*。
-# 上线经过：先切 /api/geo 试水 → 整体切 /api/* → 接管页面会话检查（页面仍由 Pages 提供，网关验完回源）。
+# 主站全部后端代码都在本目录：src/（入口、路由表、密钥）+ functions/（middleware、接口、内核）+ migrations/（D1）。
+# Pages 只放静态文件（配置见 web/wrangler.toml），网关验完会话回源取页面。
 #
 # 安全：
 # - workers_dev = false，不开 *.workers.dev 地址（它连的是正式 KV/D1，不能有未鉴权的入口）。
@@ -24,10 +24,15 @@ head_sampling_rate = 1
 # 路由：本文件就是主站 Worker 路由的唯一登记处（scripts/check-worker-routes.mjs 在 CI 里核对）。
 # - /api/*：全部接口
 # - 页面：主站每个 HTML 页面所在目录都要在这里（新增页面目录忘了登记 → CI 红），网关验会话后回源 Pages 取页面
-# - 静态资源（/css/ /js/ /fonts/ /fav/ /avatar/ 等）不登记，不过 Worker
-# 回滚：在 Cloudflare 后台删掉对应路由（秒级生效，流量回到 Pages；Pages 的 functions 原样保留，照常验会话）。
+# - /avatar/*：主人上传的头像存在 KV，要网关读（没上传过就回源拿静态默认图）
+# - 静态资源（/css/ /js/ /fonts/ /fav/ 等）不登记，不过 Worker
+# 注意：Pages 上已经没有后端代码，删掉页面路由 = 页面不验会话，不能靠删路由回滚；出问题时 revert 对应提交重新部署。
 [[routes]]
 pattern = "styrigx.com/api/*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "styrigx.com/avatar/*"
 zone_name = "styrigx.com"
 
 [[routes]]
@@ -62,14 +67,14 @@ zone_name = "styrigx.com"
 pattern = "styrigx.com/zh/*"
 zone_name = "styrigx.com"
 
-# ---- 明文变量（与 Pages 项目 styrigx-space 的 production 一致；公钥已改放 Secrets Store）----
+# ---- 明文变量（公钥在 Secrets Store）----
 [vars]
 SGX_ENV = "production"
 SGX_SITE = "space"
 SGX_ORIGIN = "https://styrigx.com"
 SGX_RP_ID = "styrigx.com"
 
-# ---- 数据绑定（与 Pages 同一份，数据不搬家）----
+# ---- 数据绑定（正式 KV/D1）----
 [[kv_namespaces]]
 binding = "OWNER_KV"
 id = "b796097c90104000992b7713f61e16ea"
@@ -78,13 +83,14 @@ id = "b796097c90104000992b7713f61e16ea"
 binding = "SGX_D1"
 database_name = "styrigx-sgx"
 database_id = "2804d280-1cab-422a-834d-3390cea38976"
+migrations_dir = "migrations"
 
 [[d1_databases]]
 binding = "BOOKS_D1"
 database_name = "styrigx-books"
 database_id = "569d8caf-e315-471b-a080-4b9f055de5fa"
 
-# ---- 密钥：Secrets Store（名字与 Pages 一致）----
+# ---- 密钥：Secrets Store ----
 # 6 个私密值 + 3 把公钥全放 Secrets Store：换钥只在 Cloudflare 后台改，不用改代码、不用重新部署（最多 60 秒生效）。
 # store_id 是存储的编号，不是密值。
 [[secrets_store_secrets]]

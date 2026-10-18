@@ -95,9 +95,9 @@ test('setup: 生成测试密钥', async () => {
 });
 
 test('D1：删 owner 类钥匙不推进 session-epoch', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
-  const { signStepupCookie } = await import('../../../functions/api/stepup.js');
-  const { signSessionCookie } = await import('../../../functions/_kernel/session.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
+  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   const kv = makeKV({ 'session-epoch': '5' });
   await seedKey(kv, { credId: 'owner-key-001', cls: 'owner' });
   /* owner 层已配置标记（避免删光后清标记影响） */
@@ -123,10 +123,10 @@ test('D1：删 owner 类钥匙不推进 session-epoch', async () => {
 });
 
 test('D1+D4：删光 ownerkey 后设置站长密码成功（不 401 session）', async () => {
-  const { onRequestPost: pkPost } = await import('../../../functions/api/owner-passkey.js');
-  const { onRequestPost: pwPost } = await import('../../../functions/api/owner-password.js');
-  const { signStepupCookie } = await import('../../../functions/api/stepup.js');
-  const { signSessionCookie } = await import('../../../functions/_kernel/session.js');
+  const { onRequestPost: pkPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
+  const { onRequestPost: pwPost } = await import('../../../workers/auth-gateway/functions/api/owner-password.js');
+  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   const kv = makeKV({ 'session-epoch': '5' });
   await seedKey(kv, { credId: 'owner-key-001', cls: 'owner' });
   await kv.put('layer:owner', '1');
@@ -156,10 +156,10 @@ test('D1+D4：删光 ownerkey 后设置站长密码成功（不 401 session）',
 });
 
 test('D2：删 lock 类钥匙推进 epoch 并重签当前设备会话', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
-  const { signStepupCookie } = await import('../../../functions/api/stepup.js');
-  const { signSessionCookie, parseSessionCookie } = await import('../../../functions/_kernel/session.js');
-  const { verifySessionDetailed } = await import('../../../functions/_middleware.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
+  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
+  const { signSessionCookie, parseSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
+  const { verifySessionDetailed } = await import('../../../workers/auth-gateway/functions/_middleware.js');
   const kv = makeKV({ 'session-epoch': '5' });
   await seedKey(kv, { credId: 'lock-key-001', cls: 'lock' });
   await seedKey(kv, { credId: 'lock-key-002', cls: 'lock' });
@@ -194,9 +194,9 @@ test('D2：删 lock 类钥匙推进 epoch 并重签当前设备会话', async ()
 });
 
 test('D2：owner-password remove 推进 epoch 后重签当前设备会话', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-password.js');
-  const { signStepupCookie } = await import('../../../functions/api/stepup.js');
-  const { signSessionCookie, parseSessionCookie } = await import('../../../functions/_kernel/session.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-password.js');
+  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
+  const { signSessionCookie, parseSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   const kv = makeKV({ 'session-epoch': '5' });
   await kv.put('layer:owner', '1');
   await kv.put('owner-pw', JSON.stringify({ hash: 'x', salt: 'y', iterations: 100000 }));
@@ -219,9 +219,9 @@ test('D2：owner-password remove 推进 epoch 后重签当前设备会话', asyn
 });
 
 test('退出所有设备仍清当前 cookie（保持不变）', async () => {
-  const { onRequestPost } = await import('../../../functions/api/lock-all-devices.js');
-  const { signStepupCookie } = await import('../../../functions/api/stepup.js');
-  const { signSessionCookie } = await import('../../../functions/_kernel/session.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/lock-all-devices.js');
+  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   const kv = makeKV({ 'session-epoch': '5' });
   await kv.put('layer:owner', '1');
   await kv.put('layer:lock', '1');
@@ -244,9 +244,9 @@ test('退出所有设备仍清当前 cookie（保持不变）', async () => {
 /* ============ 审查返工：必修安全项 1/2，helper 层跳过 by=root ============ */
 
 test('必修安全项 2：by=root 会话不重签（首次配 lock 的 epoch bump 不被抵消）', async () => {
-  const { reissueSessionWithEpoch } = await import('../../../functions/_kernel/session.js');
-  const { signSessionCookie } = await import('../../../functions/_kernel/session.js');
-  const { verifySessionDetailed } = await import('../../../functions/_middleware.js');
+  const { reissueSessionWithEpoch } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
+  const { verifySessionDetailed } = await import('../../../workers/auth-gateway/functions/_middleware.js');
   const kv = makeKV({ 'session-epoch': '5' });
   /* by=root 代开会话（epoch 5） */
   const rootSess = await signSessionCookie(LOCK_PRIV, 5, 'owner', 'root');
@@ -267,7 +267,7 @@ test('必修安全项 2：by=root 会话不重签（首次配 lock 的 epoch bum
 });
 
 test('必修安全项 1：by=root, scope=keys 票不重签（首次配 owner 的 epoch bump 不被抵消）', async () => {
-  const { reissueStepupWithEpoch, signStepupCookie, verifyStepupCookie } = await import('../../../functions/api/stepup.js');
+  const { reissueStepupWithEpoch, signStepupCookie, verifyStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
   const kv = makeKV({ 'session-epoch': '5' });
   /* by=root, scope=keys 票（epoch 5） */
   const ticket = await signStepupCookie(STEPUP_PRIV, 'root', 'keys', 5);
@@ -288,10 +288,10 @@ test('必修安全项 1：by=root, scope=keys 票不重签（首次配 owner 的
 });
 
 test('D2 保持：by=owner 会话 + 删 lockkey / 改密码 → 当前设备仍 200', async () => {
-  const { reissueSessionWithEpoch } = await import('../../../functions/_kernel/session.js');
-  const { reissueStepupWithEpoch } = await import('../../../functions/api/stepup.js');
-  const { signSessionCookie, parseSessionCookie } = await import('../../../functions/_kernel/session.js');
-  const { verifySessionDetailed } = await import('../../../functions/_middleware.js');
+  const { reissueSessionWithEpoch } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
+  const { reissueStepupWithEpoch } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
+  const { signSessionCookie, parseSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
+  const { verifySessionDetailed } = await import('../../../workers/auth-gateway/functions/_middleware.js');
   const kv = makeKV({ 'session-epoch': '5' });
   /* by=owner 正常会话 */
   const ownerSess = await signSessionCookie(LOCK_PRIV, 5, 'owner', 'owner');

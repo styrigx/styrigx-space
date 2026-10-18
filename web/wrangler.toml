@@ -1,0 +1,37 @@
+# styrigx-space（Cloudflare Pages）：只放静态文件。
+#
+# 主站的会话检查、接口、数据绑定和密钥全在鉴权网关 workers/auth-gateway（它挂在 styrigx.com 的路由上）。
+# 生产部署没有任何变量和绑定；static/_worker.js 只把 *.pages.dev 的访问 301 到 styrigx.com。
+#
+# 本文件是 Pages 的唯一配置源（pages_build_output_dir 生效时，后台的绑定和明文变量以这里为准）。
+# 部署在 web/ 目录下执行：npx wrangler pages deploy public --project-name=styrigx-space
+#
+# preview 环境只给 passkey-e2e 用：CI 把网关打包成 _worker.js 覆盖进 public/，
+# 在 passkey-e2e.styrigx-space.pages.dev 上跑网关的同一份代码，连预览用的空 KV/D1，绝不碰正式数据。
+# 预览的私密值（测试密钥）由 CI 每次部署前写入，不进 toml。
+
+name = "styrigx-space"
+compatibility_date = "2026-10-09"
+pages_build_output_dir = "public"
+
+# ---- preview 环境（passkey-e2e）----
+[env.preview.vars]
+SGX_LOCK_PUBLIC = "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAxZb8houVYG+lY/Jn4A1zNJzKMb1LdDHHEIQSAjfERPU=\n-----END PUBLIC KEY-----\n"
+SGX_ORIGIN = "https://passkey-e2e.styrigx-space.pages.dev"
+SGX_RP_ID = "passkey-e2e.styrigx-space.pages.dev"
+SGX_SITE = "space"
+SGX_STEPUP_PUBLIC = "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA0B4XJGA9BSblvgF7KOAT7Jbp2zUMFR9PfDxKpUdxqIY=\n-----END PUBLIC KEY-----\n"
+
+# preview KV 绑定（styrigx-owner-test_preview）
+[env.preview]
+[[env.preview.kv_namespaces]]
+binding = "OWNER_KV"
+id = "5084ea8ef2444156ba48203220b93df6"
+
+# preview D1 绑定（styrigx-sgx-preview：只给预览用的空库；绝不指向正式库 styrigx-sgx）
+# 迁移文件和网关放在一起：workers/auth-gateway/migrations/
+[[env.preview.d1_databases]]
+binding = "SGX_D1"
+database_name = "styrigx-sgx-preview"
+database_id = "ea34e0a4-f543-4b58-93f8-561ad5bf3ee1"
+migrations_dir = "../workers/auth-gateway/migrations"

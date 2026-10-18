@@ -86,7 +86,7 @@ test('setup: 生成测试密钥', async () => {
 /* ============ B2：normalizeRootKey ============ */
 
 test('B2：normalizeRootKey 去掉所有空白字符', async () => {
-  const { normalizeRootKey } = await import('../../../functions/_kernel/crypto.js');
+  const { normalizeRootKey } = await import('../../../workers/auth-gateway/functions/_kernel/crypto.js');
   assert.equal(normalizeRootKey('abc def'), 'abcdef');
   assert.equal(normalizeRootKey('abc\tdef'), 'abcdef');
   assert.equal(normalizeRootKey('abc\ndef'), 'abcdef');
@@ -99,7 +99,7 @@ test('B2：normalizeRootKey 去掉所有空白字符', async () => {
 });
 
 test('B2：root-auth 带换行通过', async () => {
-  const { onRequestPost } = await import('../../../functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
   /* 引导模式：lock 未配置时无会话也能校验根凭证 */
   const req = postReq('https://styrigx.com/api/root-auth', { key: 'test-root-key-\nabc123' });
@@ -110,7 +110,7 @@ test('B2：root-auth 带换行通过', async () => {
 });
 
 test('B2：root-auth 首尾空格通过', async () => {
-  const { onRequestPost } = await import('../../../functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
   const req = postReq('https://styrigx.com/api/root-auth', { key: '  test-root-key-abc123  ' });
   const res = await onRequestPost({ request: req, env: authEnv(kv) });
@@ -119,7 +119,7 @@ test('B2：root-auth 首尾空格通过', async () => {
 });
 
 test('B2：root-auth 不带换行通过（回归）', async () => {
-  const { onRequestPost } = await import('../../../functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
   const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY });
   const res = await onRequestPost({ request: req, env: authEnv(kv) });
@@ -128,7 +128,7 @@ test('B2：root-auth 不带换行通过（回归）', async () => {
 });
 
 test('B2：root-auth 改一个字符失败', async () => {
-  const { onRequestPost } = await import('../../../functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
   const req = postReq('https://styrigx.com/api/root-auth', { key: 'test-root-key-abc124' }, { 'CF-Connecting-IP': '10.0.0.1' });
   const res = await onRequestPost({ request: req, env: authEnv(kv) });
@@ -138,7 +138,7 @@ test('B2：root-auth 改一个字符失败', async () => {
 });
 
 test('B2：root-auth 空串失败（去空白后为空一律拒绝）', async () => {
-  const { onRequestPost } = await import('../../../functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
   const req = postReq('https://styrigx.com/api/root-auth', { key: '   \n\t  ' }, { 'CF-Connecting-IP': '10.0.0.2' });
   const res = await onRequestPost({ request: req, env: authEnv(kv) });
@@ -148,7 +148,7 @@ test('B2：root-auth 空串失败（去空白后为空一律拒绝）', async ()
 });
 
 test('B2：lockreset verify 带换行通过', async () => {
-  const { onRequestPost } = await import('../../../functions/api/lockreset.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/lockreset.js');
   const kv = makeKV();
   /* 标记 owner 层已配置：根凭证正确后走 needOwner 分支（不是 401 auth） */
   await kv.put('layer:owner', '1');
@@ -163,9 +163,9 @@ test('B2：lockreset verify 带换行通过', async () => {
 /* ============ C4：user handle 按类别区分 ============ */
 
 test('C4：owner、lock、应用三类 user.id 互不相同', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
-  const { signStepupCookie } = await import('../../../functions/api/stepup.js');
-  const { signSessionCookie } = await import('../../../functions/_kernel/session.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
+  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   const kv = makeKV();
   const env = authEnv(kv);
 
@@ -197,9 +197,9 @@ test('C4：owner、lock、应用三类 user.id 互不相同', async () => {
 });
 
 test('C4：同类再次 challenge → user.id 复用', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
-  const { signStepupCookie } = await import('../../../functions/api/stepup.js');
-  const { signSessionCookie } = await import('../../../functions/_kernel/session.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
+  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   const kv = makeKV();
   const env = authEnv(kv);
   const sess = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
@@ -226,9 +226,9 @@ test('C4：lock 的 handle 验 owner 凭据会失败（verify 用同一 getUserH
   /* 机制验证：verify 时期望的 userHandle 按 pkClass 取；owner 与 lock 的期望值不同，
      所以用 lock handle 注册的凭据提交到 owner verify 时，gotUh !== expectUh → 抛 userHandle。
      这里直接验证两类的期望值不同（verify 内部用同一函数，无需构造完整 WebAuthn 断言）。 */
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
-  const { signStepupCookie } = await import('../../../functions/api/stepup.js');
-  const { signSessionCookie } = await import('../../../functions/_kernel/session.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
+  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   const kv = makeKV();
   const env = authEnv(kv);
   const sess = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
@@ -262,9 +262,9 @@ test('返工：旧 handle 注册的 owner 凭据能验证通过（接受 legacy�
      验证时 gotUh = legacy，应接受（只对 owner 类放宽）。
      这里验证 KV 状态：legacy handle 存在时，owner 期望值与 legacy 不同，但验证逻辑应接受 legacy。
      直接验证：legacy handle 与新 handle 不同，且 legacy 存在于 KV。 */
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
-  const { signStepupCookie } = await import('../../../functions/api/stepup.js');
-  const { signSessionCookie } = await import('../../../functions/_kernel/session.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
+  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   /* 模拟旧环境：KV 里只有 legacy 'owner-user-id'，没有 'owner-user-id:owner' */
   const legacyUh = 'legacy-owner-user-handle-abc';
   const kv = makeKV({ 'owner-user-id': legacyUh });
@@ -285,9 +285,9 @@ test('返工：旧 handle 注册的 owner 凭据能验证通过（接受 legacy�
 });
 
 test('返工：新 owner 凭据用新 handle', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
-  const { signStepupCookie } = await import('../../../functions/api/stepup.js');
-  const { signSessionCookie } = await import('../../../functions/_kernel/session.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
+  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   const kv = makeKV();
   const env = authEnv(kv);
   const sess = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
@@ -304,9 +304,9 @@ test('返工：新 owner 凭据用新 handle', async () => {
 test('返工：lock 凭据拿 owner 新 handle 仍被拒', async () => {
   /* lock 类验证只接受 'owner-user-id'，拿 owner 新 handle 应被拒。
      机制验证：两类 handle 不同，lock 期望值 ≠ owner 新 handle。 */
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
-  const { signStepupCookie } = await import('../../../functions/api/stepup.js');
-  const { signSessionCookie } = await import('../../../functions/_kernel/session.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
+  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   const kv = makeKV();
   const env = authEnv(kv);
   const sess = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
