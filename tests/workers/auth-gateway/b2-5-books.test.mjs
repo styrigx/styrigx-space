@@ -15,8 +15,8 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
-const { onRequestGet, toBook } = await import(REPO + '/functions/api/books.js');
-const { signSessionCookie } = await import(REPO + '/functions/_kernel/session.js');
+const { onRequestGet, toBook } = await import(REPO + '/workers/auth-gateway/functions/api/books.js');
+const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
 
 function derToPem(der, label) {
   const b64 = Buffer.from(der).toString('base64');

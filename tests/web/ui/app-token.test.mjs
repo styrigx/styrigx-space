@@ -10,8 +10,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { signAppToken, parseAppToken, APP_TOKEN_MAX_AGE, getAppEpoch, onRequest } from '../../../functions/api/app-token.js';
-import { ed25519Verify } from '../../../functions/_kernel/crypto.js';
+import { signAppToken, parseAppToken, APP_TOKEN_MAX_AGE, getAppEpoch, onRequest } from '../../../workers/auth-gateway/functions/api/app-token.js';
+import { ed25519Verify } from '../../../workers/auth-gateway/functions/_kernel/crypto.js';
 
 /* 内存临时密钥对（每次测试运行重新生成） */
 function genKeyPair() {
@@ -135,13 +135,13 @@ test('onRequest：Origin 不是主站时 403', async () => {
 });
 
 test('onRequest：不在白名单的 aud 注册意图 → 400（需先过会话，此处仅验证白名单常量）', async () => {
-  const { getApp } = await import('../../../functions/_kernel/app-registry.js');
+  const { getApp } = await import('../../../workers/auth-gateway/functions/_kernel/app-registry.js');
   assert.equal(getApp('evil'), null, '不在白名单的 aud 应返回 null');
   assert.ok(getApp('book'), 'book 应在白名单');
 });
 
 test('validateReturnUrl：origin 假冒被拒（经 app-registry）', async () => {
-  const { validateAppReturn, defaultAppReturn } = await import('../../../functions/_kernel/app-registry.js');
+  const { validateAppReturn, defaultAppReturn } = await import('../../../workers/auth-gateway/functions/_kernel/app-registry.js');
   assert.equal(validateAppReturn('book', 'https://book.styrigx.com/shelf'), 'https://book.styrigx.com/shelf');
   assert.equal(validateAppReturn('book', 'https://book.styrigx.com.evil.com/'), null);
   assert.equal(validateAppReturn('book', 'https://evil.com/'), null);
@@ -151,7 +151,7 @@ test('validateReturnUrl：origin 假冒被拒（经 app-registry）', async () =
 });
 
 test('APP_COOKIE 属性符合要求', async () => {
-  const { APP_COOKIE, APP_COOKIE_ATTRS } = await import('../../../functions/api/app-token.js');
+  const { APP_COOKIE, APP_COOKIE_ATTRS } = await import('../../../workers/auth-gateway/functions/api/app-token.js');
   assert.equal(APP_COOKIE, 'sgx-app');
   assert.ok(APP_COOKIE_ATTRS.includes('Domain=.styrigx.com'));
   assert.ok(APP_COOKIE_ATTRS.includes('HttpOnly'));
@@ -161,17 +161,17 @@ test('APP_COOKIE 属性符合要求', async () => {
 });
 
 test('A-1：APP_COOKIE_ATTRS 的 Max-Age 拼 APP_TOKEN_MAX_AGE 常量（不硬编码）', async () => {
-  const { APP_COOKIE_ATTRS, APP_TOKEN_MAX_AGE } = await import('../../../functions/api/app-token.js');
+  const { APP_COOKIE_ATTRS, APP_TOKEN_MAX_AGE } = await import('../../../workers/auth-gateway/functions/api/app-token.js');
   assert.equal(APP_TOKEN_MAX_AGE, 600);
   assert.ok(APP_COOKIE_ATTRS.includes('Max-Age=' + APP_TOKEN_MAX_AGE), '应拼常量，实际=' + APP_COOKIE_ATTRS);
   /* 源码层面不得再有硬编码的 Max-Age=600（去注释后检查） */
-  const src = readFileSync(new URL('../../../functions/api/app-token.js', import.meta.url), 'utf8');
+  const src = readFileSync(new URL('../../../workers/auth-gateway/functions/api/app-token.js', import.meta.url), 'utf8');
   const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
   assert.ok(!code.includes('Max-Age=600'), '源码不得硬编码 Max-Age=600，应拼 APP_TOKEN_MAX_AGE');
 });
 
 test('CI 静态检查：app-token 链路无 stepup/SGX_STEPUP_ 引用', async () => {
-  const src = readFileSync(new URL('../../../functions/api/app-token.js', import.meta.url), 'utf8');
+  const src = readFileSync(new URL('../../../workers/auth-gateway/functions/api/app-token.js', import.meta.url), 'utf8');
   // 去掉注释后检查（注释里提到 stepup 是为了解释解耦，不算引用）
   const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
   assert.ok(!/stepup/i.test(code), 'app-token.js 代码不得出现 stepup');
@@ -179,7 +179,7 @@ test('CI 静态检查：app-token 链路无 stepup/SGX_STEPUP_ 引用', async ()
 });
 
 test('CI 静态检查：app-token 链路不引用 OWNER_KEY（2.10.1：管理密钥不能签 sgx-app）', async () => {
-  const src = readFileSync(new URL('../../../functions/api/app-token.js', import.meta.url), 'utf8');
+  const src = readFileSync(new URL('../../../workers/auth-gateway/functions/api/app-token.js', import.meta.url), 'utf8');
   const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
   assert.ok(!/OWNER_KEY/.test(code), 'app-token.js 代码不得引用 OWNER_KEY');
 });
@@ -195,7 +195,7 @@ test('onRequest：成功签发（2.10.1 B7：verifySessionDetailed 传 env）', 
   const appPubPem = appKp.publicKey.export({ type: 'spki', format: 'pem' });
 
   // 用会话模块签一个合法的 owner 会话 cookie
-  const { signSessionCookie } = await import('../../../functions/_kernel/session.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   const sessVal = await signSessionCookie(lockPrivPem, 7, 'owner', 'owner');
 
   // mock KV：session-epoch=7，app-auth 记录有效
@@ -249,7 +249,7 @@ test('onRequest：revoke 清除 sgx-app cookie（需 owner 会话，2.11）', as
   const lockKp = generateKeyPairSync('ed25519');
   const lockPrivPem = lockKp.privateKey.export({ type: 'pkcs8', format: 'pem' });
   const lockPubPem = lockKp.publicKey.export({ type: 'spki', format: 'pem' });
-  const { signSessionCookie } = await import('../../../functions/_kernel/session.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   const sessVal = await signSessionCookie(lockPrivPem, 7, 'owner', 'owner');
   const store = new Map();
   store.set('session-epoch', '7');

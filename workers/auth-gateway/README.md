@@ -1,13 +1,17 @@
 # styrigx-auth-gateway
 
-主站鉴权 Worker。承接 `styrigx.com/api/*` 和主站全部页面目录的会话检查（页面验完回源 Pages），代码直接复用 `functions/_middleware.js` 和 `functions/api/*`，不复制。
+主站鉴权网关，也是主站全部后端代码所在。承接 `styrigx.com/api/*`、`/avatar/*` 和主站全部页面目录：先验会话，页面验完回源 Pages 取静态文件。Pages 本身只放静态文件（配置见 `web/wrangler.toml`）。
 
-- 6 个私密值 + 3 把公钥都在 Cloudflare Secrets Store，名字与 Pages 一致；换钥只在后台改，不用改代码或重新部署（最多 60 秒生效）。
-- KV / D1 与 Pages 项目 `styrigx-space` 绑定同一份，数据不搬家。
+```
+src/         入口（index.js）、接口路由表（routes.js）、Secrets Store 取值（secrets.js）
+functions/   middleware（会话、角色、锁屏）、接口（api/）、内核（_kernel/）、头像（avatar/）
+migrations/  D1 建表
+```
+
+- 6 个私密值 + 3 把公钥都在 Cloudflare Secrets Store；换钥只在后台改，不用改代码或重新部署（最多 60 秒生效）。
 - 不开 `*.workers.dev`；只通过 `styrigx.com` 的路由访问。
 - `functions/api/` 新增接口时，在 `src/routes.js` 登记一行（单测会检查）。
 - 新增页面目录时，在 `wrangler.toml` 加一条路由（`scripts/check-worker-routes.mjs` 会检查）。静态资源不登记。
-
-上线经过：接 `/api/geo` 试水 → 整体切 `/api/*` → 接管页面会话检查（部署后自动冒烟检查，响应头 `X-SGX-Runtime: worker`）。
-
-下一步：Pages 去掉 functions（`functions/`、`migrations/`、根 `wrangler.toml` 搬进本目录），预览测试改跑网关。
+- 部署顺序：main 上先部署网关并冒烟检查线上，通过后才部署 Pages。
+- 回滚：Pages 上已经没有后端代码，不能靠删路由回滚（删了页面就不验会话）；revert 对应提交重新部署。
+- 预览（passkey-e2e）：CI 把本目录打包成 Pages 的 `_worker.js`，部署到 `passkey-e2e.styrigx-space.pages.dev`，连预览用的空 KV/D1；此时页面和默认头像读 `env.ASSETS`。

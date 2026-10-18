@@ -13,3 +13,4 @@ web/data/posts.json
 # 测试产物
 test-results/
 playwright-report/
+.wrangler/

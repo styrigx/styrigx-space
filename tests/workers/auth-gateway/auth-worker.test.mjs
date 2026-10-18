@@ -11,7 +11,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -20,8 +20,8 @@ const worker = (await import(REPO + '/workers/auth-gateway/src/index.js')).defau
 const { routeKey, pickHandler } = await import(REPO + '/workers/auth-gateway/src/index.js');
 const { API_ROUTES } = await import(REPO + '/workers/auth-gateway/src/routes.js');
 const { resolveSecrets, SECRET_NAMES, _resetSecretCache } = await import(REPO + '/workers/auth-gateway/src/secrets.js');
-const pagesMw = await import(REPO + '/functions/_middleware.js');
-const { signSessionCookie } = await import(REPO + '/functions/_kernel/session.js');
+const pagesMw = await import(REPO + '/workers/auth-gateway/functions/_middleware.js');
+const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
 
 function derToPem(der, label) {
   const b64 = Buffer.from(der).toString('base64');
@@ -49,7 +49,7 @@ function baseEnv() {
 const CTX = { waitUntil() {} };
 
 test('路由表与 functions/api/*.js 一一对应', () => {
-  const files = readdirSync(REPO + '/functions/api').filter(f => f.endsWith('.js')).map(f => '/api/' + f.slice(0, -3)).sort();
+  const files = readdirSync(REPO + '/workers/auth-gateway/functions/api').filter(f => f.endsWith('.js')).map(f => '/api/' + f.slice(0, -3)).sort();
   assert.deepEqual([...API_ROUTES.keys()].sort(), files);
 });
 
@@ -247,4 +247,87 @@ test('一致性：访客调主人接口 / 无会话调非白名单接口', async
 test('一致性：PUT /api/avatar 访客 → 403', async () => {
   const res = await same((h) => new Request('https://styrigx.com/api/avatar', { method: 'PUT', headers: { ...h, Origin: 'https://styrigx.com' }, body: new FormData() }), 'visitor');
   assert.equal(res.status, 403);
+});
+
+/* ---- Pages 只放静态文件：后端代码全在网关 ---- */
+
+test('仓库：根目录没有 functions/、migrations/、wrangler.toml（Pages 部署不会再带后端代码）', () => {
+  for (const p of ['functions', 'migrations', 'wrangler.toml']) {
+    assert.equal(existsSync(REPO + '/' + p), false, p + ' 应该在 workers/auth-gateway/ 或 web/ 下');
+  }
+  assert.ok(existsSync(REPO + '/workers/auth-gateway/functions/_middleware.js'));
+  assert.ok(existsSync(REPO + '/workers/auth-gateway/migrations'));
+});
+
+test('web/wrangler.toml：Pages 生产没有变量和绑定，预览不连正式库', () => {
+  const toml = readFileSync(REPO + '/web/wrangler.toml', 'utf8');
+  const top = toml.split(/^\[/m)[0];
+  assert.match(top, /^pages_build_output_dir = "public"$/m);
+  assert.doesNotMatch(toml, /^\[vars\]$/m);
+  assert.doesNotMatch(toml, /^\[\[(kv_namespaces|d1_databases)\]\]$/m);
+  assert.doesNotMatch(toml, /b796097c90104000992b7713f61e16ea|2804d280-1cab-422a-834d-3390cea38976|569d8caf-e315-471b-a080-4b9f055de5fa/);
+  assert.doesNotMatch(toml, /PRIVATE KEY/);
+});
+
+test('Pages 静态 _worker.js：pages.dev 地址 301 到 styrigx.com，styrigx.com 原样交给静态文件', async () => {
+  const pagesWorker = (await import(REPO + '/web/static/_worker.js')).default;
+  const seen = [];
+  const env = { ASSETS: { fetch: async (req) => { seen.push(req.url); return new Response('static'); } } };
+  for (const h of ['styrigx-space.pages.dev', 'abc123.styrigx-space.pages.dev', 'passkey-e2e.styrigx-space.pages.dev']) {
+    const res = await pagesWorker.fetch(new Request('https://' + h + '/settings/?a=1'), env);
+    assert.equal(res.status, 301);
+    assert.equal(res.headers.get('Location'), 'https://styrigx.com/settings/?a=1');
+  }
+  assert.equal(seen.length, 0);
+  const ok = await pagesWorker.fetch(new Request('https://styrigx.com/css/main.css'), env);
+  assert.equal(await ok.text(), 'static');
+  assert.deepEqual(seen, ['https://styrigx.com/css/main.css']);
+});
+
+test('头像：未登录也能拿；没上传过 → 回源取静态默认图，ETag 是 d-<尺寸>', async () => {
+  _resetSecretCache();
+  await withOrigin('IMG', async (calls) => {
+    const res = await worker.fetch(new Request('https://styrigx.com/avatar/96.webp'), baseEnv(), CTX);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('ETag'), '"d-96"');
+    assert.equal(res.headers.get('X-SGX-Runtime'), 'worker');
+    assert.equal(await res.text(), 'IMG');
+    assert.equal(calls.length, 1);
+    assert.equal(new URL(calls[0].url).pathname, '/avatar/96.webp');
+  });
+});
+
+test('头像：上传过 → 读 KV，不回源；不认识的尺寸未登录 → 锁屏（与 Pages 时一致）', async () => {
+  _resetSecretCache();
+  const env = baseEnv();
+  env.OWNER_KV.m.set('avatar:ver', 'v7');
+  env.OWNER_KV.m.set('avatar:192', new Uint8Array([1, 2, 3]).buffer);
+  await withOrigin('IMG', async (calls) => {
+    const res = await worker.fetch(new Request('https://styrigx.com/avatar/192.webp'), env, CTX);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('ETag'), '"v7-192"');
+    assert.equal((await res.arrayBuffer()).byteLength, 3);
+    const bad = await worker.fetch(new Request('https://styrigx.com/avatar/100.webp'), env, CTX);
+    assert.equal(bad.status, 302);
+    assert.equal(calls.length, 0);
+  });
+});
+
+test('预览（作为 Pages 的 _worker.js 运行，有 env.ASSETS）：页面和默认头像都读 ASSETS，不发子请求', async () => {
+  _resetSecretCache();
+  const seen = [];
+  const env = {
+    SGX_SITE: 'space',
+    OWNER_KV: makeKv(),
+    ASSETS: { fetch: async (req) => { seen.push(new URL(req.url || req).pathname); return new Response(PAGE, { headers: { 'Content-Type': 'text/html' } }); } },
+  };
+  await withOrigin('X', async (calls) => {
+    const page = await worker.fetch(new Request('https://passkey-e2e.styrigx-space.pages.dev/settings/'), env, CTX);
+    assert.equal(page.status, 200);
+    const av = await worker.fetch(new Request('https://passkey-e2e.styrigx-space.pages.dev/avatar/32.webp'), env, CTX);
+    assert.equal(av.status, 200);
+    assert.equal(av.headers.get('ETag'), '"d-32"');
+    assert.deepEqual(seen, ['/settings/', '/avatar/32.webp']);
+    assert.equal(calls.length, 0);
+  });
 });

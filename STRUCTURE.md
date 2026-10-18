@@ -18,30 +18,25 @@ styrigx-space/
 ├─ LICENSE
 ├─ package.json
 ├─ package-lock.json
-├─ wrangler.toml
 └─ .gitignore
 ```
 
 | 位置 | 是什么 |
 |---|---|
-| `web/` | 网站本体（Hugo 项目），由 Cloudflare Pages 发布 |
+| `web/` | 网站本体（Hugo 项目），由 Cloudflare Pages 发布（只放静态文件） |
 | `workers/` | 所有 Cloudflare Worker，一个 Worker 一个目录 |
 | `tests/` | 全部测试，按测试对象分目录 |
 | `scripts/` | 构建、生成数据、静态检查脚本（CI 调用） |
 | `docs/` | 设计文档、截图 |
 | `.github/` | CI 工作流（GitHub 规定的位置） |
 | `package.json` `package-lock.json` | npm 依赖（npm 只认根目录） |
-| `wrangler.toml` | Pages 项目 `styrigx-space` 的配置 |
-
-> 过渡期：`functions/`（Pages 上的鉴权代码）和 `migrations/`（D1 建表）暂留根目录。
-> Pages 只认根目录的 `functions/`，要等鉴权网关接管全部页面后，和根目录 `wrangler.toml`
-> 一起搬进 `workers/auth-gateway/`（`wrangler.toml` 搬到 `web/`）。
 
 ## web/ 网站
 
 ```
 web/
 ├─ hugo.yaml
+├─ wrangler.toml
 ├─ content/
 ├─ layouts/
 ├─ assets/
@@ -55,11 +50,12 @@ web/
 | 位置 | 是什么 |
 |---|---|
 | `hugo.yaml` | Hugo 配置 |
+| `wrangler.toml` | Pages 项目 `styrigx-space` 的配置：生产不带任何变量和绑定；`preview` 环境只给 passkey-e2e 用。在 `web/` 下执行 `wrangler pages deploy public` |
 | `content/` | 页面入口，中英双语（`content/en/` 是英文） |
 | `layouts/` | 模板；`_default/` 下是各 App 页面，`partials/` 是公共片段 |
 | `assets/css/` | `input.css`、`tw-input.css` 是源文件；`main.css` 由 `scripts/build-css.cjs` 生成 |
 | `assets/js/` | 前端脚本：`lib/` 公共库、`shell/` 系统外壳、`apps/` 各 App、`entries/` 页面入口 |
-| `static/` | 原样复制：字体、头像、`_redirects`、`_headers`、`robots.txt` |
+| `static/` | 原样复制：字体、默认头像、`_redirects`、`_headers`、`robots.txt`、`_worker.js`（只把 `*.pages.dev` 跳回 `styrigx.com`） |
 | `data/` | 站点数据 yaml/json（`data/en/` 是英文版） |
 | `public/` | 构建产物，不进仓库 |
 
@@ -81,7 +77,9 @@ workers/
    ├─ wrangler.toml
    ├─ package.json
    ├─ README.md
-   └─ src/
+   ├─ src/
+   ├─ functions/
+   └─ migrations/
 ```
 
 - 目录名 = Cloudflare 上的 Worker 名去掉 `styrigx-` 前缀：`workers/auth-gateway/` ↔ `styrigx-auth-gateway`。
@@ -89,10 +87,10 @@ workers/
 
 | Worker | 目录 | 管什么 |
 |---|---|---|
-| `styrigx-auth-gateway` | `workers/auth-gateway/` | 鉴权：签发和校验会话、二次验证、应用通行证；主站 `/api/*` 和全部页面先过它验会话，页面验完回源 Pages；所有私钥只在这里（Secrets Store） |
+| `styrigx-auth-gateway` | `workers/auth-gateway/` | 主站全部后端：签发和校验会话、二次验证、应用通行证、全部接口、头像；`/api/*`、`/avatar/*` 和全部页面先过它，页面验完回源 Pages 取静态文件；所有私钥只在这里（Secrets Store） |
 
 路由登记：现在只有一个 Worker，它的 `wrangler.toml` 里的 `[[routes]]` 就是登记表。
-`scripts/check-worker-routes.mjs`（CI 跑）核对：每个 HTML 页面都有路由、静态资源（`/css/` `/js/` `/fonts/` `/fav/` `/avatar/`）不过 Worker、路由不重复。
+`scripts/check-worker-routes.mjs`（CI 跑）核对：每个 HTML 页面以及 `/api/`、`/avatar/` 都有路由，静态资源（`/css/` `/js/` `/fonts/` `/fav/`）不过 Worker，路由不重复。
 以后加第二个 Worker 时，再把登记表提成所有 Worker 共用的 `workers/routes.yaml`，并检查路径不重叠。
 
 ## tests/ 测试

@@ -53,11 +53,11 @@ async function genKeys() {
   LOCK_PUB = derToPem(await crypto.subtle.exportKey('spki', kp2.publicKey), 'PUBLIC KEY');
 }
 async function mintStepup(by = 'owner', scope = 'keys', epoch = 0) {
-  const { signStepupCookie } = await import('../../../functions/api/stepup.js');
+  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
   return await signStepupCookie(STEPUP_PRIV, by, scope, epoch);
 }
 async function mintSession(epoch = 0) {
-  const { signSessionCookie } = await import('../../../functions/_kernel/session.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   return await signSessionCookie(LOCK_PRIV, epoch, 'owner', 'owner');
 }
 const envFor = (kv, extra = {}) => ({
@@ -85,7 +85,7 @@ async function seedKey(kv, credId, cls) {
   await kv.put('owner-passkey-index', JSON.stringify(idx));
 }
 async function seedPw(kv, kind, password) {
-  const { makePasswordRecord } = await import('../../../functions/api/owner-password.js');
+  const { makePasswordRecord } = await import('../../../workers/auth-gateway/functions/api/owner-password.js');
   const rec = await makePasswordRecord(password, 'test-pepper');
   await kv.put(kind === 'owner' ? 'owner-pw' : 'lock-pw', JSON.stringify(rec));
 }
@@ -96,7 +96,7 @@ test('setup: 生成测试密钥', async () => {
 });
 
 test('A-2：有站长密码时删最后一把 lock 钥匙 → 200，layer:lock 保留、KV 不出现 layer:lock-emptied', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1' });
   await seedKey(kv, 'lock-key-001', 'lock');
   await seedPw(kv, 'owner', 'owner-pw-123');
@@ -112,7 +112,7 @@ test('A-2：有站长密码时删最后一把 lock 钥匙 → 200，layer:lock �
 });
 
 test('A-2：无 ownerkey 时删最后一把 lock 钥匙 → 403 last-key，钥匙还在', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const kv = makeKV({ 'layer:lock': '1' });
   await seedKey(kv, 'lock-key-001', 'lock');
   const sess = await mintSession();
@@ -129,7 +129,7 @@ test('A-2：无 ownerkey 时删最后一把 lock 钥匙 → 403 last-key，钥�
 });
 
 test('A-2：有站长通行密钥时删最后一把 lock 钥匙 → 200（ownerkey 任一即可）', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1' });
   await seedKey(kv, 'lock-key-001', 'lock');
   await seedKey(kv, 'owner-key-001', 'owner');
@@ -144,7 +144,7 @@ test('A-2：有站长通行密钥时删最后一把 lock 钥匙 → 200（ownerk
 });
 
 test('A-2：有 ownerkey 时删最后一把 lock 密码 → 200，KV 不出现 layer:lock-emptied', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-password.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-password.js');
   const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1' });
   await seedPw(kv, 'owner', 'owner-pw-123');
   await seedPw(kv, 'lock', 'lock-pw-1234');
@@ -161,7 +161,7 @@ test('A-2：有 ownerkey 时删最后一把 lock 密码 → 200，KV 不出现 l
 });
 
 test('A-2：无 ownerkey 时删最后一把 lock 密码 → 403 last-key，密码还在', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-password.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-password.js');
   const kv = makeKV({ 'layer:lock': '1' });
   await seedPw(kv, 'lock', 'lock-pw-1234');
   const sess = await mintSession();
@@ -178,7 +178,7 @@ test('A-2：无 ownerkey 时删最后一把 lock 密码 → 403 last-key，密�
 });
 
 test('A-2：lock-config (b) 无真实 lock 凭证 + owner 已配置 + 无 lock-emptied → resetOnly=true', async () => {
-  const { onRequestGet } = await import('../../../functions/api/lock-config.js');
+  const { onRequestGet } = await import('../../../workers/auth-gateway/functions/api/lock-config.js');
   const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1' });
   await seedPw(kv, 'owner', 'owner-pw-123');
   const res = await onRequestGet({ env: { OWNER_KV: kv } });
@@ -193,7 +193,7 @@ test('A-2：lock-config (b) 无真实 lock 凭证 + owner 已配置 + 无 lock-e
 });
 
 test('A-2：lock-config (a) lock-emptied=1 残留 + 有真实 lock 凭证 → resetOnly=false（忽略该键）', async () => {
-  const { onRequestGet } = await import('../../../functions/api/lock-config.js');
+  const { onRequestGet } = await import('../../../workers/auth-gateway/functions/api/lock-config.js');
   const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1', 'layer:lock-emptied': '1' });
   await seedPw(kv, 'owner', 'owner-pw-123');
   await seedPw(kv, 'lock', 'lock-pw-1234');
@@ -206,7 +206,7 @@ test('A-2：lock-config (a) lock-emptied=1 残留 + 有真实 lock 凭证 → re
 });
 
 test('A-2：lock-config 空站 → resetOnly=false（A 启动流程保留，根凭证入口仍显示）', async () => {
-  const { onRequestGet } = await import('../../../functions/api/lock-config.js');
+  const { onRequestGet } = await import('../../../workers/auth-gateway/functions/api/lock-config.js');
   const kv = makeKV({});
   const res = await onRequestGet({ env: { OWNER_KV: kv } });
   assert.equal(res.status, 200);
@@ -219,7 +219,7 @@ test('A-2：lock-config 空站 → resetOnly=false（A 启动流程保留，根�
 });
 
 test('A-2：新增 lock 密码后不动 lock-emptied 残留（留给 B 处理）', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-password.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-password.js');
   const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1', 'layer:lock-emptied': '1' });
   await seedPw(kv, 'owner', 'owner-pw-123');
   const sess = await mintSession();
@@ -233,7 +233,7 @@ test('A-2：新增 lock 密码后不动 lock-emptied 残留（留给 B 处理）
 });
 
 test('A-2：删光 owner 凭证时不动 lock-emptied 残留（留给 B 处理）', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-password.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-password.js');
   const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1', 'layer:lock-emptied': '1' });
   await seedPw(kv, 'owner', 'owner-pw-123');
   const sess = await mintSession();

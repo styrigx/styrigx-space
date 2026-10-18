@@ -95,14 +95,14 @@ function baseEnv(kv, overrides = {}) {
 
 /* 签一个有效的 owner 会话 cookie（role.epoch.exp.sig） */
 async function makeSessionCookie(env, role = 'owner') {
-  const { signSessionCookie } = await import('../../../functions/_kernel/session.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   const epoch = 0;
   return await signSessionCookie(env.SGX_LOCK_PRIVATE, epoch, role);
 }
 
 /* 签一个有效的 sgx-stepup cookie */
 async function makeStepupCookie(env) {
-  const { signStepupCookie } = await import('../../../functions/api/stepup.js');
+  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
   return await signStepupCookie(env.SGX_STEPUP_PRIVATE, 'owner', 'keys', 0);
 }
 
@@ -120,7 +120,7 @@ test('setup: 生成测试密钥', async () => {
 /* ============ 2：管理操作需 owner 会话 + stepup ============ */
 
 test('2a：owner-passkey list 只有 stepup 没有会话 → 401', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const kv = makeKV();
   const env = baseEnv(kv);
   const stepup = await makeStepupCookie(env);
@@ -131,7 +131,7 @@ test('2a：owner-passkey list 只有 stepup 没有会话 → 401', async () => {
 });
 
 test('2b：owner-passkey list 有会话没有 stepup → 403 stepup-required', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const kv = makeKV();
   const env = baseEnv(kv);
   const sess = await makeSessionCookie(env);
@@ -142,7 +142,7 @@ test('2b：owner-passkey list 有会话没有 stepup → 403 stepup-required', a
 });
 
 test('2c：owner-password change 只有 stepup 没有会话 → 401（2.11：需 kind=lock）', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-password.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-password.js');
   const kv = makeKV();
   const env = baseEnv(kv);
   const stepup = await makeStepupCookie(env);
@@ -152,7 +152,7 @@ test('2c：owner-password change 只有 stepup 没有会话 → 401（2.11：需
 });
 
 test('2d：/api/lock 清除 sgx-stepup 和 sgx-app', async () => {
-  const { onRequestPost } = await import('../../../functions/api/lock.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/lock.js');
   const req = postReq('https://styrigx.com/api/lock', {});
   const res = await onRequestPost({ request: req, env: {} });
   assert.equal(res.status, 200);
@@ -166,7 +166,7 @@ test('2d：/api/lock 清除 sgx-stepup 和 sgx-app', async () => {
 /* ============ 3：删应用密钥先推 epoch 再删 ============ */
 
 test('3：bumpAppEpoch 失败 → 503 且密钥仍在', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const kv = makeKV();
   const env = baseEnv(kv);
   /* 预置一把 app 类密钥 */
@@ -197,7 +197,7 @@ test('3：bumpAppEpoch 失败 → 503 且密钥仍在', async () => {
 /* ============ 4：删锁屏密钥先推 session-epoch ============ */
 
 test('4：session-epoch 推进失败 → 503 且密钥仍在（fail closed）', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const kv = makeKV();
   const env = baseEnv(kv);
   const credId = 'lockcredid12';
@@ -227,7 +227,7 @@ test('4：session-epoch 推进失败 → 503 且密钥仍在（fail closed）', 
 /* ============ 5：SGX_SITE 配错 fail closed ============ */
 
 test('5：SGX_SITE=blog 时主站 middleware 拒绝（500）', async () => {
-  const { onRequest } = await import('../../../functions/_middleware.js');
+  const { onRequest } = await import('../../../workers/auth-gateway/functions/_middleware.js');
   const req = new Request('https://styrigx.com/settings/', { method: 'GET' });
   const res = await onRequest({
     request: req,
@@ -238,7 +238,7 @@ test('5：SGX_SITE=blog 时主站 middleware 拒绝（500）', async () => {
 });
 
 test('5b：SGX_SITE 缺失时主站 middleware 拒绝（500）', async () => {
-  const { onRequest } = await import('../../../functions/_middleware.js');
+  const { onRequest } = await import('../../../workers/auth-gateway/functions/_middleware.js');
   const req = new Request('https://styrigx.com/api/session-check', { method: 'GET' });
   const res = await onRequest({
     request: req,
@@ -252,9 +252,9 @@ test('5b：SGX_SITE 缺失时主站 middleware 拒绝（500）', async () => {
 /* ============ 6：无 OWNER_KV 时 epoch 检查 fail closed ============ */
 
 test('6：verifySessionDetailed 无 KV → kv-error（不跳过）', async () => {
-  const { verifySessionDetailed } = await import('../../../functions/_middleware.js');
+  const { verifySessionDetailed } = await import('../../../workers/auth-gateway/functions/_middleware.js');
   /* 造一个格式正确但无法验 epoch 的 cookie：用真密钥签名 */
-  const { signSessionCookie } = await import('../../../functions/_kernel/session.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   const val = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
   const req = new Request('https://styrigx.com/', {
     headers: { 'Cookie': 'sgx-verified=' + val },
@@ -267,7 +267,7 @@ test('6：verifySessionDetailed 无 KV → kv-error（不跳过）', async () =>
 /* ============ 7：密码限速 KV 出错 → 503 ============ */
 
 test('7：verify 时限速 KV 出错 → 503', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-password.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-password.js');
   const kv = makeKV();
   kv._fail = true; /* 所有 KV 操作抛错 */
   const env = baseEnv(kv);
@@ -280,7 +280,7 @@ test('7：verify 时限速 KV 出错 → 503', async () => {
 /* ============ 8：审计写入失败 → 不签发会话 ============ */
 
 test('8：root-auth 审计写入失败 → 503 且无 cookie', async () => {
-  const { onRequestPost } = await import('../../../functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
   const env = baseEnv(kv);
   /* 让审计 put 失败：root-auth-audit: 前缀抛错，其他放行 */
@@ -300,7 +300,7 @@ test('8：root-auth 审计写入失败 → 503 且无 cookie', async () => {
 /* ============ 9：Origin 缺失/解析失败 → 403 ============ */
 
 test('9a：root-auth 缺 Origin → 403', async () => {
-  const { onRequestPost } = await import('../../../functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
   const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY }, { Origin: null });
   const res = await onRequestPost({ request: req, env: baseEnv(kv) });
@@ -309,7 +309,7 @@ test('9a：root-auth 缺 Origin → 403', async () => {
 });
 
 test('9b：root-auth Origin 解析失败 → 403', async () => {
-  const { onRequestPost } = await import('../../../functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
   const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY }, { Origin: '::not-a-url::' });
   const res = await onRequestPost({ request: req, env: baseEnv(kv) });
@@ -317,7 +317,7 @@ test('9b：root-auth Origin 解析失败 → 403', async () => {
 });
 
 test('9c：owner-passkey 缺 Origin → 403', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const kv = makeKV();
   const req = postReq('https://styrigx.com/api/owner-passkey', { action: 'list', pkClass: 'lock' }, { Origin: null });
   const res = await onRequestPost({ request: req, env: baseEnv(kv) });
@@ -325,7 +325,7 @@ test('9c：owner-passkey 缺 Origin → 403', async () => {
 });
 
 test('9d：stepup 缺 Origin → 403', async () => {
-  const { onRequestPost } = await import('../../../functions/api/stepup.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
   const kv = makeKV();
   const req = postReq('https://styrigx.com/api/stepup', { action: 'status' }, { Origin: null });
   const res = await onRequestPost({ request: req, env: baseEnv(kv) });

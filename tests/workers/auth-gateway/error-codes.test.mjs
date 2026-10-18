@@ -55,8 +55,8 @@ function read(p) {
 /** 提取服务端 error 码（见文件头三种模式）。 */
 function extractServerCodes() {
   const codes = new Set();
-  for (const f of readdirSync(join(ROOT, 'functions/api')).filter((x) => x.endsWith('.js'))) {
-    const src = read(join('functions/api', f));
+  for (const f of readdirSync(join(ROOT, 'workers/auth-gateway/functions/api')).filter((x) => x.endsWith('.js'))) {
+    const src = read(join('workers/auth-gateway/functions/api', f));
     for (const m of src.matchAll(/error:\s*'([a-z][a-z0-9-]*)'/g)) codes.add(m[1]);
     for (const line of src.split('\n')) {
       if (!/error|code/i.test(line)) continue;

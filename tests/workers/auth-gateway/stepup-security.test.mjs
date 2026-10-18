@@ -26,8 +26,8 @@ import {
   STEPUP_COOKIE,
   STEPUP_MAX_AGE,
   onRequestPost as stepupPost,
-} from '../../../functions/api/stepup.js';
-import { ed25519Sign } from '../../../functions/_kernel/crypto.js';
+} from '../../../workers/auth-gateway/functions/api/stepup.js';
+import { ed25519Sign } from '../../../workers/auth-gateway/functions/_kernel/crypto.js';
 
 /* ---------- mock KV ---------- */
 
@@ -390,7 +390,7 @@ test('/api/stepup status：有效 cookie → valid=true', async () => {
    证明「刚签的票」在真实签发-验签链路上有效（密钥对配对、epoch 一致、Domain 等）。
    修前：door1 e2e 测试 mock 了 stepup valid:true，证明不了这一点。 */
 test('#72：root-auth 签发的票 → stepup status 必须 valid=true（不 mock）', async () => {
-  const { onRequestPost: rootAuthPost } = await import('../../../functions/api/root-auth.js');
+  const { onRequestPost: rootAuthPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
   /* SGX_ROOT_KEY：测试用根凭证 */
   const TEST_ROOT_KEY = 'test-root-key-72';
@@ -480,7 +480,7 @@ test('A-1：status 返回 expiresAt ≈ Date.now()+180000；无票据时无 expi
 });
 
 test('A-1：verify-password 签发的 keys 票 Set-Cookie Max-Age=180', async () => {
-  const { makePasswordRecord } = await import('../../../functions/api/owner-password.js');
+  const { makePasswordRecord } = await import('../../../workers/auth-gateway/functions/api/owner-password.js');
   const kv = makeKV();
   const pepper = 'test-pepper-a1';
   const rec = await makePasswordRecord('correct-owner-pw', pepper);
@@ -502,7 +502,7 @@ test('A-1：verify-password 签发的 keys 票 Set-Cookie Max-Age=180', async ()
 });
 
 test('A-1：root-auth 签发的 root 票 Set-Cookie Max-Age=180', async () => {
-  const { onRequestPost: rootAuthPost } = await import('../../../functions/api/root-auth.js');
+  const { onRequestPost: rootAuthPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
   const TEST_ROOT_KEY = 'test-root-key-a1';
   const env = makeEnv(kv, { SGX_ROOT_KEY: TEST_ROOT_KEY });
@@ -521,8 +521,8 @@ test('A-1：root-auth 签发的 root 票 Set-Cookie Max-Age=180', async () => {
 });
 
 test('A-1：lockreset 签发的 lockreset 票 Set-Cookie Max-Age=180', async () => {
-  const { makePasswordRecord } = await import('../../../functions/api/owner-password.js');
-  const { onRequestPost: lockresetPost } = await import('../../../functions/api/lockreset.js');
+  const { makePasswordRecord } = await import('../../../workers/auth-gateway/functions/api/owner-password.js');
+  const { onRequestPost: lockresetPost } = await import('../../../workers/auth-gateway/functions/api/lockreset.js');
   const kv = makeKV();
   const pepper = 'test-pepper-a1';
   const rec = await makePasswordRecord('correct-owner-pw', pepper);

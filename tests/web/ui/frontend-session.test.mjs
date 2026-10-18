@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-import { onRequestPost as lockPost, onRequestGet as lockGet } from '../../../functions/api/lock.js';
+import { onRequestPost as lockPost, onRequestGet as lockGet } from '../../../workers/auth-gateway/functions/api/lock.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 const lockJs = readFileSync(join(root, 'web/assets/js/shell/lock.js'), 'utf8');

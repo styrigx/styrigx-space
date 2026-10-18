@@ -92,7 +92,7 @@ test('setup: 生成测试密钥', async () => {
 /* ============ A2：owner-auth ============ */
 
 test('A2：正确根密钥 → 签发 sgx-stepup(by=root, scope=root)', async () => {
-  const { onRequestPost } = await import('../../../functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
   const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY });
   const res = await onRequestPost({ request: req, env: authEnv(kv) });
@@ -107,7 +107,7 @@ test('A2：正确根密钥 → 签发 sgx-stepup(by=root, scope=root)', async ()
 });
 
 test('A2：错误根密钥 → 401 并计数', async () => {
-  const { onRequestPost } = await import('../../../functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
   const env = authEnv(kv);
   for (let i = 0; i < 3; i++) {
@@ -120,7 +120,7 @@ test('A2：错误根密钥 → 401 并计数', async () => {
 });
 
 test('A2：超限 → 429', async () => {
-  const { onRequestPost } = await import('../../../functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
   const env = authEnv(kv);
   for (let i = 0; i < 6; i++) {
@@ -133,7 +133,7 @@ test('A2：超限 → 429', async () => {
 });
 
 test('A2：缺 SGX_ROOT_KEY → 拒绝', async () => {
-  const { onRequestPost } = await import('../../../functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
   const req = postReq('https://styrigx.com/api/root-auth', { key: 'anything' });
   const res = await onRequestPost({ request: req, env: authEnv(kv, { SGX_ROOT_KEY: '' }) });
@@ -142,7 +142,7 @@ test('A2：缺 SGX_ROOT_KEY → 拒绝', async () => {
 });
 
 test('A2：缺 SGX_STEPUP_PRIVATE → 拒绝', async () => {
-  const { onRequestPost } = await import('../../../functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
   const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY });
   const res = await onRequestPost({ request: req, env: authEnv(kv, { SGX_STEPUP_PRIVATE: '' }) });
@@ -151,7 +151,7 @@ test('A2：缺 SGX_STEPUP_PRIVATE → 拒绝', async () => {
 });
 
 test('A2：每次使用写审计记录', async () => {
-  const { onRequestPost } = await import('../../../functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
   const env = authEnv(kv);
   await onRequestPost({ request: postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY }, { 'CF-Connecting-IP': '9.9.9.9' }), env });
@@ -164,7 +164,7 @@ test('A2：每次使用写审计记录', async () => {
 });
 
 test('A2：KV 出错 fail closed', async () => {
-  const { onRequestPost } = await import('../../../functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
   kv._fail = true;
   const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY });
@@ -175,7 +175,7 @@ test('A2：KV 出错 fail closed', async () => {
 /* ============ B6：register 要求 owner 会话 ============ */
 
 test('B6：无会话时 register challenge → 401', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const kv = makeKV();
   const env = authEnv(kv);
   const req = postReq('https://styrigx.com/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: 'lock' });
@@ -187,8 +187,8 @@ test('B6：无会话时 register challenge → 401', async () => {
 
 test('B9：bumpAppEpoch KV 失败 → 删除被拒绝（fail closed）', async () => {
   // 直接验证 bumpAppEpoch 的 fail-closed 语义通过 delete 路径
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
-  const { signStepupCookie } = await import('../../../functions/api/stepup.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
+  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
   const kv = makeKV();
   // 预置一把 app 凭据（credId 12 字符）
   const credId = 'appcred1234';
@@ -211,7 +211,7 @@ test('B9：bumpAppEpoch KV 失败 → 删除被拒绝（fail closed）', async (
   };
   const failEnv = authEnv(failKv);
   /* 2.10.2：delete 需 owner 会话 + stepup */
-  const { signSessionCookie } = await import('../../../functions/_kernel/session.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   const sessVal = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
   const req = postReq('https://styrigx.com/api/owner-passkey',
     { action: 'delete', credId },
@@ -222,8 +222,8 @@ test('B9：bumpAppEpoch KV 失败 → 删除被拒绝（fail closed）', async (
 });
 
 test('B10：删应用类密钥只加 app-epoch，不推进会话纪元', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
-  const { signStepupCookie } = await import('../../../functions/api/stepup.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
+  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
   const kv = makeKV({ 'session-epoch': '10', 'app-epoch:book': '2' });
   const credId = 'appcred1234'; // 12 字符，与 key 后缀一致
   const rec = {
@@ -235,7 +235,7 @@ test('B10：删应用类密钥只加 app-epoch，不推进会话纪元', async (
   const env = authEnv(kv);
   const stepupVal = await signStepupCookie(STEPUP_PRIV, 'owner', 'keys', 10);
   /* 2.10.2：delete 需 owner 会话 + stepup */
-  const { signSessionCookie } = await import('../../../functions/_kernel/session.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   const sessVal = await signSessionCookie(LOCK_PRIV, 10, 'owner', 'owner');
   const req = postReq('https://styrigx.com/api/owner-passkey',
     { action: 'delete', credId },
@@ -249,14 +249,14 @@ test('B10：删应用类密钥只加 app-epoch，不推进会话纪元', async (
 /* ============ B8：userHandle 按 pkClass/aud 取 ============ */
 
 test('B8：getUserHandle 按 aud 分键', async () => {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   // 通过 challenge register 流程间接验证：不同 aud 的 user.id 不同
   // 这里直接验证 KV 键名隔离
   const kv = makeKV();
   const env = authEnv(kv);
   // 制造一个合法会话 + stepup
-  const { signSessionCookie } = await import('../../../functions/_kernel/session.js');
-  const { signStepupCookie } = await import('../../../functions/api/stepup.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
+  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
   const sessVal = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
   const stepupVal = await signStepupCookie(STEPUP_PRIV, 'owner', 'keys', 0);
   const cookie = `sgx-verified=${sessVal}; sgx-stepup=${stepupVal}`;

@@ -56,11 +56,11 @@ async function genKeys() {
   LOCK_PUB = derToPem(await crypto.subtle.exportKey('spki', kp2.publicKey), 'PUBLIC KEY');
 }
 async function mintStepup(by, scope, epoch = 0) {
-  const { signStepupCookie } = await import('../../../functions/api/stepup.js');
+  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
   return await signStepupCookie(STEPUP_PRIV, by, scope, epoch);
 }
 async function mintSession(by = 'owner', epoch = 0) {
-  const { signSessionCookie } = await import('../../../functions/_kernel/session.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   return await signSessionCookie(LOCK_PRIV, epoch, 'owner', by);
 }
 const envFor = (kv) => ({
@@ -89,7 +89,7 @@ async function seedAll(kv) {
   await kv.put('owner-passkey-index', JSON.stringify(['lock-key-001', 'owner-key-01', 'app-key-book']));
 }
 async function listAs(kv, body, sessBy, stepupBy, stepupScope) {
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const sess = await mintSession(sessBy);
   const sc = await mintStepup(stepupBy, stepupScope);
   const r = await onRequestPost({
@@ -155,8 +155,8 @@ test('root 代管票 + owner 未配置 → list lock 成功；站长层被配置
   const kv = makeKV();
   await seedAll(kv);
   const env = envFor(kv);
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
-  const { setLayerConfigured, LAYER_OWNER } = await import('../../../functions/_kernel/layers.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
+  const { setLayerConfigured, LAYER_OWNER } = await import('../../../workers/auth-gateway/functions/_kernel/layers.js');
   const sess = await mintSession('owner');
   const sc = await mintStepup('root', 'root');
   const call = async () => {
@@ -180,7 +180,7 @@ test('root 代管票 + owner 未配置 → list lock 成功；站长层被配置
 test('keys 代管票（by=root）+ owner 已配置 → 403 scope + reason=owner-configured', async () => {
   const kv = makeKV();
   await seedAll(kv);
-  const { setLayerConfigured, LAYER_OWNER } = await import('../../../functions/_kernel/layers.js');
+  const { setLayerConfigured, LAYER_OWNER } = await import('../../../workers/auth-gateway/functions/_kernel/layers.js');
   await setLayerConfigured(kv, LAYER_OWNER);
   const { status, json } = await listAs(kv, { action: 'list', pkClass: 'lock' }, 'owner', 'root', 'keys');
   assert.equal(status, 403);
@@ -191,7 +191,7 @@ test('keys 代管票（by=root）+ owner 已配置 → 403 scope + reason=owner-
 test('lockreset 票 + pkClass=lock → 成功；+ pkClass=app → 403 scope', async () => {
   const kv = makeKV();
   await seedAll(kv);
-  const { onRequestPost } = await import('../../../functions/api/owner-passkey.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   /* lockreset 票无会话：checkPasskeyMgmt 直接放行 lock list */
   const sc = await mintStepup('owner+root', 'lockreset');
   for (const [body, want] of [

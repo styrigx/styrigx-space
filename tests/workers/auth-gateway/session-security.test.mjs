@@ -32,12 +32,12 @@ import {
   getSessionEpoch,
   bumpSessionEpoch,
   SESSION_MAX_AGE,
-} from '../../../functions/_kernel/session.js';
-import { hmacSign, b64urlEnc, ed25519Sign } from '../../../functions/_kernel/crypto.js';
-import { onRequestPost as pwPost } from '../../../functions/api/owner-password.js';
-import { onRequestPost as lockAllPost } from '../../../functions/api/lock-all-devices.js';
-import { onRequestGet as epochGet } from '../../../functions/api/session-epoch.js';
-import { onRequest as mw } from '../../../functions/_middleware.js';
+} from '../../../workers/auth-gateway/functions/_kernel/session.js';
+import { hmacSign, b64urlEnc, ed25519Sign } from '../../../workers/auth-gateway/functions/_kernel/crypto.js';
+import { onRequestPost as pwPost } from '../../../workers/auth-gateway/functions/api/owner-password.js';
+import { onRequestPost as lockAllPost } from '../../../workers/auth-gateway/functions/api/lock-all-devices.js';
+import { onRequestGet as epochGet } from '../../../workers/auth-gateway/functions/api/session-epoch.js';
+import { onRequest as mw } from '../../../workers/auth-gateway/functions/_middleware.js';
 
 /* ---------- mock KV ---------- */
 
@@ -101,14 +101,14 @@ async function genTestKeys() {
 
 /* 2.10.0：签发测试用 sgx-stepup cookie */
 async function mintStepupCookie() {
-  const { signStepupCookie } = await import('../../../functions/api/stepup.js');
+  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
   /* 2.11 定稿：signStepupCookie(privKey, by, scope, epoch) */
   return await signStepupCookie(STEPUP_PRIV_PEM, 'owner', 'keys', 0);
 }
 
 /* 2.10.2：签发测试用 owner 会话 cookie */
 async function mintSessionCookie() {
-  const { signSessionCookie } = await import('../../../functions/_kernel/session.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   return await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
 }
 
@@ -134,7 +134,7 @@ function postReq(url, body, headers = {}) {
 /* 在 owner-pw 记录里预置密码 test-pass-12345（100000 次迭代与服务端一致） */
 /* 2.11 定稿：seed lock-pw（含 pepper），供 verify 测试用 */
 async function seedPassword(kv, password = 'test-pass-12345') {
-  const { makePasswordRecord } = await import('../../../functions/api/owner-password.js');
+  const { makePasswordRecord } = await import('../../../workers/auth-gateway/functions/api/owner-password.js');
   const rec = await makePasswordRecord(password, 'test-pepper');
   await kv.put('lock-pw', JSON.stringify(rec));
 }
@@ -284,7 +284,7 @@ test('password verify：密码错误 → 403（不签发）', async () => {
  * ================================================================ */
 
 test('lock-all-devices：owner 会话 + stepup(scope=keys) → epoch+1、清 cookie 带 Domain；KV 写入出错 → 503 且 epoch 不变', async () => {
-  const { signStepupCookie } = await import('../../../functions/api/stepup.js');
+  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
   const kv = makeKV({ 'session-epoch': '2' });
   const cookie = await signSessionCookie(TEST_PRIV_PEM, 2, 'owner', 'owner');
   /* 2.11 定稿：需 stepup(scope=keys, by=owner) */
@@ -635,7 +635,7 @@ test('middleware：无有效会话访问内页 → 302 到首页锁屏（return 
  * ================================================================ */
 
 test('session-check：有效会话 → 200 {ok:true, role}；无会话/坏会话 → 401', async () => {
-  const { onRequestGet: checkGet } = await import('../../../functions/api/session-check.js');
+  const { onRequestGet: checkGet } = await import('../../../workers/auth-gateway/functions/api/session-check.js');
   const env = PROD_ENV();
 
   const mkReq = (cookie) => {
@@ -686,7 +686,7 @@ test('password verify 通过：Set-Cookie 属性齐全（Path/Secure/HttpOnly/Sa
 });
 
 test('verify（Turnstile）通过：Set-Cookie 属性齐全', async () => {
-  const { onRequestPost: verifyPost } = await import('../../../functions/api/verify.js');
+  const { onRequestPost: verifyPost } = await import('../../../workers/auth-gateway/functions/api/verify.js');
   /* mock Turnstile siteverify（只替代外网接口，逻辑走真实代码） */
   const origFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
@@ -714,7 +714,7 @@ test('verify（Turnstile）通过：Set-Cookie 属性齐全', async () => {
 });
 
 test('passkey auth 通过：Set-Cookie 属性齐全', async () => {
-  const { onRequestPost: pkPost } = await import('../../../functions/api/owner-passkey.js');
+  const { onRequestPost: pkPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const b64url = (buf) => Buffer.from(buf).toString('base64')
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
@@ -806,7 +806,7 @@ test('passkey auth 通过：Set-Cookie 属性齐全', async () => {
 /* ---------- issueSessionCookie 单元 ---------- */
 
 test('diag: issueSessionCookie 无 SGX_LOCK_PRIVATE → 500 no-session-key（不签发）', async () => {
-  const { issueSessionCookie } = await import('../../../functions/_kernel/session.js');
+  const { issueSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   const headers = new Headers();
   const err = await issueSessionCookie({ OWNER_KV: makeKV() }, headers, 'owner');
   assert.deepEqual(err, { status: 500, body: { ok: false, error: 'no-session-key' } });
@@ -814,7 +814,7 @@ test('diag: issueSessionCookie 无 SGX_LOCK_PRIVATE → 500 no-session-key（不
 });
 
 test('diag: issueSessionCookie 私钥格式错误 → 500 session-sign-failed', async () => {
-  const { issueSessionCookie } = await import('../../../functions/_kernel/session.js');
+  const { issueSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   const headers = new Headers();
   const err = await issueSessionCookie({ OWNER_KV: makeKV(), SGX_LOCK_PRIVATE: 'not-a-key' }, headers, 'owner');
   assert.deepEqual(err, { status: 500, body: { ok: false, error: 'session-sign-failed' } });
@@ -822,7 +822,7 @@ test('diag: issueSessionCookie 私钥格式错误 → 500 session-sign-failed', 
 });
 
 test('diag: issueSessionCookie KV 出错 → 503（不签发）', async () => {
-  const { issueSessionCookie } = await import('../../../functions/_kernel/session.js');
+  const { issueSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   const headers = new Headers();
   const err = await issueSessionCookie({ OWNER_KV: makeBrokenKV(), SGX_LOCK_PRIVATE: TEST_PRIV_PEM }, headers, 'owner');
   assert.equal(err.status, 503);
@@ -831,7 +831,7 @@ test('diag: issueSessionCookie KV 出错 → 503（不签发）', async () => {
 });
 
 test('diag: issueSessionCookie 正常 → null 且 Set-Cookie 已设置', async () => {
-  const { issueSessionCookie, SESSION_COOKIE } = await import('../../../functions/_kernel/session.js');
+  const { issueSessionCookie, SESSION_COOKIE } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   assert.equal(SESSION_COOKIE, 'sgx-verified');
   const headers = new Headers();
   const err = await issueSessionCookie({ OWNER_KV: makeKV(), SGX_LOCK_PRIVATE: TEST_PRIV_PEM }, headers, 'owner');
@@ -852,7 +852,7 @@ test('diag: password verify 无 SGX_LOCK_PRIVATE → 500 no-session-key（不是
 });
 
 test('diag: verify(Turnstile) 无 SGX_LOCK_PRIVATE → 500 no-session-key', async () => {
-  const { onRequestPost: verifyPost } = await import('../../../functions/api/verify.js');
+  const { onRequestPost: verifyPost } = await import('../../../workers/auth-gateway/functions/api/verify.js');
   const origFetch = globalThis.fetch;
   globalThis.fetch = async () => Response.json({ success: true, hostname: 'styrigx.com', action: 'sgx-entry' });
   try {
@@ -931,7 +931,7 @@ async function buildPasskeyAuthFixture() {
 }
 
 test('diag: passkey auth 无 SGX_LOCK_PRIVATE → 500 no-session-key（不被吞成 403）', async () => {
-  const { onRequestPost: pkPost } = await import('../../../functions/api/owner-passkey.js');
+  const { onRequestPost: pkPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const { kv, body } = await buildPasskeyAuthFixture();
   const env = {
     OWNER_KV: kv,
@@ -945,7 +945,7 @@ test('diag: passkey auth 无 SGX_LOCK_PRIVATE → 500 no-session-key（不被吞
 });
 
 test('diag: passkey auth 私钥格式错误 → 500 session-sign-failed（不被吞成 403）', async () => {
-  const { onRequestPost: pkPost } = await import('../../../functions/api/owner-passkey.js');
+  const { onRequestPost: pkPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const { kv, body } = await buildPasskeyAuthFixture();
   const env = {
     OWNER_KV: kv,
@@ -962,7 +962,7 @@ test('diag: passkey auth 私钥格式错误 → 500 session-sign-failed（不被
 /* ---------- 写入/读取对账 ---------- */
 
 test('diag: 写入/读取对账：signSessionCookie 签发的 cookie 能被 middleware 验签放行', async () => {
-  const { signSessionCookie, SESSION_COOKIE } = await import('../../../functions/_kernel/session.js');
+  const { signSessionCookie, SESSION_COOKIE } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   assert.equal(SESSION_COOKIE, 'sgx-verified');
   const cv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
   /* 2.11 定稿：payload 结构 by.role.epoch.exp.sig（5 段式） */
@@ -1122,7 +1122,7 @@ test('middleware：首页有会话 → 200 + data-sgx-session="valid"', async ()
 /* ============ 2.8.0：搜索收录 + 锁屏瘦身 ============ */
 
 test('2.8.0：锁屏态首页剥离桌面内容（SGX-DESKTOP markers）', async () => {
-  const { injectSessionState } = await import('../../../functions/_middleware.js');
+  const { injectSessionState } = await import('../../../workers/auth-gateway/functions/_middleware.js');
   const html = '<html lang="zh"><head></head><body>' +
     '<!-- SGX-DESKTOP-START --><div>书单歌单小组件</div><!-- SGX-DESKTOP-END -->' +
     '<div id="nav">导航</div></body></html>';
@@ -1134,7 +1134,7 @@ test('2.8.0：锁屏态首页剥离桌面内容（SGX-DESKTOP markers）', async
 });
 
 test('2.8.0：锁屏态首页带 X-Robots-Tag: noindex', async () => {
-  const { injectSessionState } = await import('../../../functions/_middleware.js');
+  const { injectSessionState } = await import('../../../workers/auth-gateway/functions/_middleware.js');
   const res = new Response('<html><body></body></html>', {
     headers: { 'Content-Type': 'text/html' },
   });
@@ -1163,7 +1163,7 @@ test('2.8.0：未验证 302 带 X-Robots-Tag: noindex', async () => {
  * ================================================================ */
 
 async function visitorCookie(epoch = 0) {
-  const { signSessionCookie } = await import('../../../functions/_kernel/session.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   return await signSessionCookie(TEST_PRIV_PEM, epoch, 'visitor', 'owner');
 }
 
@@ -1226,7 +1226,7 @@ test('2.11：visitor 进 /settings/display/ 严格 200；/settings/security/ 总
 
 test('2.11：lockreset 票据只放行 /settings/security/lock/，不开总览和应用页', async () => {
   await genTestKeys();
-  const { signStepupCookie } = await import('../../../functions/api/stepup.js');
+  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
   const ticket = await signStepupCookie(STEPUP_PRIV_PEM, 'owner+root', 'lockreset', 0);
   const env = {
     SGX_ENV: 'production',
@@ -1349,7 +1349,7 @@ test('2.9.3：middleware 放行 visitor 的 POST /api/lock（调 next）', async
 });
 
 test('2.9.3：POST /api/lock handler 返回 200 并清除 sgx-verified', async () => {
-  const { onRequestPost } = await import('../../../functions/api/lock.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/lock.js');
   const vCookie = await visitorCookie(0);
   for (const cookie of [vCookie, null]) {
     const r = await onRequestPost({
@@ -1387,7 +1387,7 @@ test('2.8.0：旧三段式 cookie（无 role）一律无效', async () => {
 });
 
 test('2.8.0：session-check 返回 visitor 角色', async () => {
-  const { onRequestGet: checkGet } = await import('../../../functions/api/session-check.js');
+  const { onRequestGet: checkGet } = await import('../../../workers/auth-gateway/functions/api/session-check.js');
   const env = PROD_ENV();
   const req = new Request('https://styrigx.com/api/session-check', {
     headers: { 'Cookie': 'sgx-verified=' + await visitorCookie(0) },
