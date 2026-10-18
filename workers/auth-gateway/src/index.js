@@ -1,13 +1,17 @@
 /**
  * @fileoverview styrigx-auth-gateway：主站鉴权 Worker 入口。
  *
- * 承接 styrigx.com/api/*（PR3 起整体切流），代码直接复用 functions/（不复制、不改写）：
+ * 承接 styrigx.com/api/* 和主站全部 HTML 页面目录（路由见 wrangler.toml），
+ * 代码直接复用 functions/（不复制、不改写）：
  *   1. Secrets Store 的私密值换成字符串（secrets.js）
- *   2. 先跑主站原有的 functions/_middleware.js（会话、角色、白名单、no-store 全部照旧）
- *   3. middleware 放行后，按路由表交给 functions/api/<名字>.js
+ *   2. 先跑主站原有的 functions/_middleware.js（会话、角色、白名单、no-store、锁屏瘦身全部照旧）
+ *   3. middleware 放行后：
+ *      - /api/*：按路由表交给 functions/api/<名字>.js
+ *      - 页面：回源到 Pages 取静态页（Worker 发往自己路由的子请求不会再进 Worker，直接到 Pages）
  *
  * 行为与 Pages 上完全一致：同域名（styrigx.com）、同 cookie、同 KV/D1。
  * 不在路由表里的 /api 路径 → 404；方法不支持 → 405。
+ * 静态资源（/css/ /js/ /fonts/ /fav/ /avatar/）不挂路由，不过 Worker。
  */
 import { onRequest as middleware } from '../../../functions/_middleware.js';
 import { API_ROUTES } from './routes.js';
@@ -56,6 +60,11 @@ async function dispatch(request, env, ctx) {
   return handler(makeContext(request, env, ctx, key, () => json(404, { ok: false, error: 'not-found' })));
 }
 
+/** 页面放行后回源（Pages）。redirect: manual —— Pages 的 301/308（补尾斜杠等）原样交回浏览器 */
+export function fromOrigin(req) {
+  return fetch(new Request(req, { redirect: 'manual' }));
+}
+
 function makeContext(request, env, ctx, functionPath, next) {
   return {
     request,
@@ -80,13 +89,11 @@ export default {
    */
   async fetch(request, rawEnv, ctx) {
     const url = new URL(request.url);
-    if (!url.pathname.startsWith('/api/')) {
-      /* 这个 Worker 只接 /api/*；别的路径不该路由过来 */
-      return tagRuntime(json(404, { ok: false, error: 'not-found' }));
-    }
+    const isApi = url.pathname.startsWith('/api/');
     const env = await resolveSecrets(rawEnv);
     try {
-      return tagRuntime(await middleware(makeContext(request, env, ctx, '/', (req) => dispatch(req, env, ctx))));
+      const next = isApi ? (req) => dispatch(req, env, ctx) : fromOrigin;
+      return tagRuntime(await middleware(makeContext(request, env, ctx, '/', next)));
     } catch (e) {
       console.error('[sgx-auth] unhandled: ' + (e && e.name ? e.name : 'error'));
       return tagRuntime(json(500, { ok: false, error: 'internal' }));

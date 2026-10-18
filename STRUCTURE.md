@@ -89,10 +89,11 @@ workers/
 
 | Worker | 目录 | 管什么 |
 |---|---|---|
-| `styrigx-auth-gateway` | `workers/auth-gateway/` | 鉴权：签发和校验会话、二次验证、应用通行证；所有私钥只在这里（Secrets Store） |
+| `styrigx-auth-gateway` | `workers/auth-gateway/` | 鉴权：签发和校验会话、二次验证、应用通行证；主站 `/api/*` 和全部页面先过它验会话，页面验完回源 Pages；所有私钥只在这里（Secrets Store） |
 
-> 计划中：`workers/routes.yaml` 作为所有 Worker 共用的唯一路由登记表（哪个站、哪些路径归哪个 Worker），
-> CI 检查路径不重叠、每个页面都已登记。
+路由登记：现在只有一个 Worker，它的 `wrangler.toml` 里的 `[[routes]]` 就是登记表。
+`scripts/check-worker-routes.mjs`（CI 跑）核对：每个 HTML 页面都有路由、静态资源（`/css/` `/js/` `/fonts/` `/fav/` `/avatar/`）不过 Worker、路由不重复。
+以后加第二个 Worker 时，再把登记表提成所有 Worker 共用的 `workers/routes.yaml`，并检查路径不重叠。
 
 ## tests/ 测试
 

@@ -1,7 +1,7 @@
-# styrigx-auth-gateway：主站鉴权 Worker（CI 部署；PR3 起承接 styrigx.com/api/*）
+# styrigx-auth-gateway：主站鉴权 Worker（CI 部署；承接 styrigx.com/api/* 和全部页面的会话检查）
 #
 # 代码在 workers/auth-gateway/src/，直接复用 functions/_middleware.js 和 functions/api/*。
-# 上线步骤：PR1 建好 → PR2 CI 真部署（仍不挂路由）→ PR3 先切 styrigx.com/api/geo 试水，再整体切 /api/*。
+# 上线经过：先切 /api/geo 试水 → 整体切 /api/* → 接管页面会话检查（页面仍由 Pages 提供，网关验完回源）。
 #
 # 安全：
 # - workers_dev = false，不开 *.workers.dev 地址（它连的是正式 KV/D1，不能有未鉴权的入口）。
@@ -21,11 +21,45 @@ preview_urls = false
 enabled = true
 head_sampling_rate = 1
 
-# 路由：整体承接 styrigx.com/api/*（PR2 /api/geo 试水通过后切换）。
-# 页面、/avatar/* 和 *.pages.dev 预览仍由 Pages 处理；Pages 上的 functions/api 原样保留，作为回滚目标。
-# 回滚：在 Cloudflare 后台删掉这条路由（秒级生效，流量回到 Pages），再把这里改回 /api/geo 或删掉后部署。
+# 路由：本文件就是主站 Worker 路由的唯一登记处（scripts/check-worker-routes.mjs 在 CI 里核对）。
+# - /api/*：全部接口
+# - 页面：主站每个 HTML 页面所在目录都要在这里（新增页面目录忘了登记 → CI 红），网关验会话后回源 Pages 取页面
+# - 静态资源（/css/ /js/ /fonts/ /fav/ /avatar/ 等）不登记，不过 Worker
+# 回滚：在 Cloudflare 后台删掉对应路由（秒级生效，流量回到 Pages；Pages 的 functions 原样保留，照常验会话）。
 [[routes]]
 pattern = "styrigx.com/api/*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "styrigx.com/"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "styrigx.com/en"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "styrigx.com/en/*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "styrigx.com/settings/*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "styrigx.com/files/*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "styrigx.com/browser/*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "styrigx.com/app-verify/*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "styrigx.com/zh/*"
 zone_name = "styrigx.com"
 
 # ---- 明文变量（与 Pages 项目 styrigx-space 的 production 一致；公钥已改放 Secrets Store）----

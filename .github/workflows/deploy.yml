@@ -106,6 +106,9 @@ jobs:
       - name: Build site (生产构建，用于锁屏测试)
         run: hugo --minify -s web
 
+      - name: Check auth gateway routes (每个页面都过网关，静态资源不过)
+        run: node scripts/check-worker-routes.mjs
+
       - name: Assert posts in files-index.json (P0-2)
         # 断言：type=post > 0，中英各有，URL 合法；失败则 CI 失败
         run: node scripts/assert-posts.mjs
@@ -407,7 +410,7 @@ jobs:
   deploy-auth-worker:
     # 鉴权 Worker styrigx-auth-gateway：main 上真部署。和 Pages 部署分开成单独的 job，
     # 这里失败不影响 Pages 上线（只会显示红叉）。
-    # 路由见 workers/auth-gateway/wrangler.toml（styrigx.com/api/*）；workers_dev=false。部署后自动冒烟检查线上。
+    # 路由见 workers/auth-gateway/wrangler.toml（/api/* 和全部页面目录）；workers_dev=false。部署后自动冒烟检查线上。
     # 密钥全在 Secrets Store，CI 不传任何密值。
     # 用专门的 token（GitHub 环境密钥 STYRIGX_AUTH_GATEWAY_DEPLOY，名字对应 Cloudflare 上的
     # styrigx-auth-gateway-deploy）：Workers Scripts 编辑 + Secrets Store 编辑（带 Secrets Store 绑定部署必须 Edit，Read 报 10021）
@@ -436,10 +439,10 @@ jobs:
           wranglerVersion: '4'
           command: deploy
 
-      - name: Smoke test production /api/* (must be served by the Worker)
+      - name: Smoke test production /api/* and pages (must be served by the Worker)
         # 切流后 passkey-e2e 只测 Pages 预览，测不到生产这条路，所以部署后直接打线上。
         # 只发不带 cookie 的只读请求，不登录、不写数据。路由生效可能要几秒，最多重试 6 次。
-        # 失败时：去 Cloudflare 后台删掉 styrigx.com/api/* 路由即可回到 Pages。
+        # 失败时：去 Cloudflare 后台删掉出问题的路由即可回到 Pages。
         run: |
           set -u
           check() { # 路径 期望状态码
@@ -458,7 +461,13 @@ jobs:
           check /api/session-check 401 || ok=1
           # 未登录访问不存在的接口：middleware 先拦（默认拒绝），返回 401 而不是 404，这是预期。
           check /api/no-such-endpoint 401 || ok=1
-          home=$(curl -sS -o /dev/null -w '%{http_code}' https://styrigx.com/ || true)
-          echo "/ -> $home (Pages)"
-          case "$home" in 2*|3*) ;; *) echo "::error::homepage returned $home"; ok=1;; esac
+          # 页面：网关验会话后回源 Pages。首页未登录照常 200（锁屏），内页未登录 302 到锁屏
+          check / 200 || ok=1
+          check /en/ 200 || ok=1
+          check /settings/ 302 || ok=1
+          check /browser/search/ 302 || ok=1
+          # 静态资源不过网关：不能带 worker 标记
+          css=$(curl -sS -o /dev/null -D - https://styrigx.com/robots.txt | tr -d '\r' | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
+          echo "/robots.txt runtime=${css:-none}"
+          if [ -n "$css" ]; then echo "::error::static file went through the Worker"; ok=1; fi
           exit $ok
