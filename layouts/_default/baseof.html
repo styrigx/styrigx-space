@@ -175,7 +175,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
    B2-3：左圆子页面是返回；主页没有可返回的地方，换成搜索圆（进浏览器并打开搜索），三块位置全站一致。 */}}
 <header id="site-nav" class="z-50">
   <div class="sgx-topbar">
-    {{ if .IsHome }}<a class="sgx-tb-search" href="{{ $linksUrl }}#focus" aria-label="{{ if $isEn }}Search{{ else }}搜索{{ end }}">{{ partial "icon.html" "search" }}</a>{{ else }}<button type="button" class="sgx-tb-back" data-go-back aria-label="{{ if $isEn }}Back{{ else }}返回{{ end }}">{{ partial "icon.html" "chevron-left" }}</button>{{ end }}
+    {{ if .IsHome }}<a class="sgx-tb-search" href="{{ $linksUrl }}search/" aria-label="{{ if $isEn }}Search{{ else }}搜索{{ end }}">{{ partial "icon.html" "search" }}</a>{{ else }}<button type="button" class="sgx-tb-back" data-go-back aria-label="{{ if $isEn }}Back{{ else }}返回{{ end }}">{{ partial "icon.html" "chevron-left" }}</button>{{ end }}
     <div class="sgx-tb-pill">
       <a id="nav-brand" class="sgx-tb-brand" href="{{ $home }}" aria-label="Styrigx">
         <img src="/avatar/96.webp" alt="" width="28" height="28" class="sgx-tb-avatar" data-sgx-avatar="96">

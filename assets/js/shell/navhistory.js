@@ -18,7 +18,7 @@ export function initNavHistory() {
       const t = /** @type {HTMLElement|null} */ (e.target);
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
       e.preventDefault();
-      sgxNavigate(bUrl + '#focus');
+      sgxNavigate(bUrl + 'search/');
     }
   });
 
@@ -46,6 +46,8 @@ export function initNavHistory() {
     if (p === '/settings/security/mgmt/' || p === '/en/settings/security/mgmt/') {
       return en ? '/en/settings/security/' : '/settings/security/';
     }
+    /* 浏览器搜索页的上一级是浏览器 */
+    if (p === '/browser/search/' || p === '/en/browser/search/') return bUrl;
     /* 2.6.0：设置子页的上一级是设置首页 */
     if (p !== '/settings/' && p.indexOf('/settings/') === 0) return '/settings/';
     if (p !== '/en/settings/' && p.indexOf('/en/settings/') === 0) return '/en/settings/';

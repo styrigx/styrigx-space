@@ -8,7 +8,7 @@
   {{ $moreBtn := printf `<button type="button" id="brw-more" class="sgx-tb-more" aria-label="%s"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg></button>` (cond $isEn "More options" "更多选项") }}
   {{ partial "subpage-head.html" (dict "title" (cond $isEn "Internet" "浏览器") "isEn" $isEn "actions" ($moreBtn | safeHTML)) }}
 
-  <!-- 2.3.12.1 效果3：地址栏胶囊（底部悬浮，点击弹出磨砂搜索层） -->
+  <!-- 地址栏胶囊（底部悬浮）：点一下跳独立搜索页 /browser/search/，点麦克风直接语音 -->
   <button type="button" id="brw-addrbar" class="sgx85-pill" aria-label="{{ cond $isEn "Search or type URL" "搜索或输入网址" }}">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
     <span>{{ cond $isEn "Search or type URL" "搜索或输入网址" }}</span>
@@ -16,51 +16,6 @@
       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-5a3.5 3.5 0 1 0-7 0v5A3.5 3.5 0 0 0 12 15zm6-3.5a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.94V22h2v-2.06A8 8 0 0 0 20 11.5h-2z"/></svg>
     </span>
   </button>
-
-  <!-- 2.3.12.1 效果3：磨砂弹出层。背后磨砂半透明蒙层；顶部内容卡从上方轻滑淡入（放 2.3.11 式建议列表）；
-       底部地址栏贴键盘（2.3.11 的引擎切换/输入/语音/菜单）。点蒙层空白处或返回键淡出关闭。 -->
-  <div id="brw-overlay" class="brw-ov" role="dialog" aria-modal="true" aria-label="{{ cond $isEn "Search" "搜索" }}">
-    <div class="brw-ov-top">
-      <!-- 2.3.14.4: 快速访问卡片（与页面快捷访问同数据源，数量顺序不变） -->
-      <section id="brw-qa-card" class="brw-card" aria-label="{{ cond $isEn "Quick access" "快速访问" }}">
-        <div class="brw-qa-grid-ov">
-          {{ range $links }}{{ range .sites }}
-          {{ $iconUrl := partialCached "fav-icon.html" .url .url }}
-          <a href="{{ .url }}" target="_blank" rel="noopener" class="brw-qa-ov">
-            <img src="{{ $iconUrl }}" alt="" loading="lazy" decoding="async" width="56" height="56" data-favname="{{ .name }}" class="brw-qa-ov-ic">
-            <span class="brw-qa-ov-name">{{ .name }}</span>
-          </a>
-          {{ end }}{{ end }}
-        </div>
-      </section>
-      <!-- 2.3.14.4: 最近搜索卡片 -->
-      <section id="brw-hist-card" class="brw-card" hidden aria-label="{{ cond $isEn "Recent searches" "最近搜索" }}">
-        <div class="brw-hist-head">
-          <span class="brw-hist-title">{{ cond $isEn "Recent searches" "最近搜索" }}</span>
-          <span class="brw-hist-actions">
-            <button type="button" id="brw-hist-clear">{{ cond $isEn "Clear all" "全部清除" }}</button>
-            <span class="brw-hist-sep" aria-hidden="true">|</span>
-            <button type="button" id="brw-hist-hide">{{ cond $isEn "Hide" "隐藏" }}</button>
-          </span>
-        </div>
-        <div id="brw-hist-tags" class="brw-hist-tags"></div>
-      </section>
-      <button type="button" id="brw-hist-show" class="brw-hist-show" hidden>{{ cond $isEn "Show recent searches" "显示最近搜索" }}</button>
-      <div id="brw-suggest" class="brw-suggest"></div>
-    </div>
-    <div class="brw-ov-barwrap">
-      <div class="brw-ov-bar">
-        <button type="button" id="brw-engine-btn" class="brw-ov-btn" aria-haspopup="menu" aria-expanded="false" aria-label="{{ cond $isEn "Switch search engine" "切换搜索引擎" }}"><span id="brw-engine-ic"></span><svg class="brw-eng-chev" aria-hidden="true"><use href="#sgx-ic-chev-d"/></svg></button>
-        <input id="brw-input" type="search" autocomplete="off" enterkeyhint="go" placeholder="{{ cond $isEn "Search or type URL" "搜索或输入网址" }}" aria-label="{{ cond $isEn "Search or type URL" "搜索或输入网址" }}">
-        <button type="button" id="brw-mic" class="brw-ov-btn" aria-label="{{ cond $isEn "Voice input" "语音输入" }}" style="display:none">{{ partial "icon.html" "mic" }}</button>
-        <button type="button" id="brw-menu-btn" class="brw-ov-btn" aria-label="{{ cond $isEn "Menu" "菜单" }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></button>
-      </div>
-    </div>
-    <!-- 2.4.0 F：引擎切换锚定菜单（Popover API + CSS anchor positioning；不支持 anchor 时 JS 定位） -->
-    <div id="brw-eng-menu" class="brw-eng-menu" popover>
-      <div class="brw-eng-list" role="menu" aria-label="{{ cond $isEn "Search engine" "搜索引擎" }}"></div>
-    </div>
-  </div>
 
   <!-- 快捷访问：全部分类拍平（D4：第一块内容顶边距三点底边 = --sgx-head-btn-gap，与全站一致） -->
   <section aria-label="{{ if $isEn }}Quick access{{ else }}快捷访问{{ end }}">
