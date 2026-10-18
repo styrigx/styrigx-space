@@ -163,6 +163,16 @@ function isSafeReturn(ret) {
 }
 
 /**
+ * 去掉 <html> 标签上已有的 data-sgx-* 属性，再由下面重新注入。
+ * 页面经网关回源时，Pages 也会注入一次；不去掉就会出现重复属性。
+ * 也防止页面源码里混进伪造的会话标记。
+ * @param {string} html
+ */
+export function stripSessionAttrs(html) {
+  return html.replace(/<html\b[^>]*>/i, (tag) => tag.replace(/\s+data-sgx-[a-z-]+="[^"]*"/gi, ''));
+}
+
+/**
  * L1 向 HTML 注入会话状态（2.4.1 分层规范）。
  * 把 <html> 变成 <html data-sgx-session="valid|locked" data-sgx-role="owner|visitor">，
  * 前端只读这个，不自己猜。
@@ -175,7 +185,7 @@ function isSafeReturn(ret) {
 export async function injectSessionState(res, state, role) {
   const ct = res.headers.get('Content-Type') || '';
   if (!ct.includes('text/html')) return res;
-  let html = await res.text();
+  let html = stripSessionAttrs(await res.text());
   /* 2.8.0 锁屏瘦身：锁屏态不下发桌面内容（书单、歌单、小组件等），
      只保留锁屏需要的部分（导航、头像、脚本）。
      lockreset 票据页同样受限（只能管理锁屏凭证），同样瘦身。 */
@@ -207,7 +217,7 @@ export async function injectSessionState(res, state, role) {
 async function injectUpgradeState(res, role, returnPath) {
   const ct = res.headers.get('Content-Type') || '';
   if (!ct.includes('text/html')) return res;
-  let html = await res.text();
+  const html = stripSessionAttrs(await res.text());
   let injected = html.replace(/<html(\s|>)/i, '<html data-sgx-session="valid"$1');
   if (role === ROLE_OWNER || role === ROLE_VISITOR) {
     injected = injected.replace(/<html(\s|>)/i, '<html data-sgx-role="' + role + '"$1');
