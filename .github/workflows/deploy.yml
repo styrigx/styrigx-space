@@ -241,7 +241,7 @@ jobs:
         # 只打包不部署 Worker，不需要 Worker 权限。
         run: |
           (cd workers/auth-gateway && npx --yes wrangler@4 deploy --dry-run --outdir "$RUNNER_TEMP/gateway-dist")
-          cp "$RUNNER_TEMP/gateway-dist/index.js" web/public/_worker.js
+          cp "$RUNNER_TEMP/gateway-dist/worker.js" web/public/_worker.js
           grep -q "X-SGX-Runtime" web/public/_worker.js
 
       - name: Generate Ed25519 test key pair (CI only)
@@ -483,9 +483,10 @@ jobs:
         # 失败时 Pages 不会部署（build-and-deploy 等这一步）；修好或 revert 后重新跑。
         run: |
           set -u
-          check() { # 路径 期望状态码
+          check() { # 路径（可带子站域名） 期望状态码
+            case "$1" in https://*) u="$1" ;; *) u="https://styrigx.com$1" ;; esac
             for i in 1 2 3 4 5 6; do
-              hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' "https://styrigx.com$1" || true)
+              hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' "$u" || true)
               code=$(printf '%s' "$hdr" | sed -n 's/^HTTP_CODE://p')
               rt=$(printf '%s' "$hdr" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
               echo "$1 -> $code runtime=${rt:-none} (try $i)"
@@ -506,6 +507,11 @@ jobs:
           check /browser/search/ 302 || ok=1
           # 头像：未登录也能拿（主人上传的在 KV，所以要过网关）
           check /avatar/96.webp 200 || ok=1
+          # 子站：页面未登录 302 到主站锁屏、session-check 401，都由网关回答（子站 Pages 不持钥匙）
+          check https://blog.styrigx.com/ 302 || ok=1
+          check https://blog.styrigx.com/api/session-check 401 || ok=1
+          check https://book.styrigx.com/ 302 || ok=1
+          check https://book.styrigx.com/api/session-check 401 || ok=1
           # 静态资源不过网关：不能带 worker 标记
           css=$(curl -sS -o /dev/null -D - https://styrigx.com/robots.txt | tr -d '\r' | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
           echo "/robots.txt runtime=${css:-none}"

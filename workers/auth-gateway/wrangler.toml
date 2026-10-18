@@ -1,4 +1,4 @@
-# styrigx-auth-gateway：主站鉴权网关（CI 部署；承接 styrigx.com/api/*、/avatar/* 和全部页面的会话检查）
+# styrigx-auth-gateway：鉴权网关（CI 部署；承接 styrigx.com/api/*、/avatar/*、主站全部页面，以及 blog/book 子站页面的会话检查）
 #
 # 主站全部后端代码都在本目录：src/（入口、路由表、密钥）+ functions/（middleware、接口、内核）+ migrations/（D1）。
 # Pages 只放静态文件（配置见 web/wrangler.toml），网关验完会话回源取页面。
@@ -9,7 +9,7 @@
 # - 私密值只在 Secrets Store（见文件末尾），不进仓库。
 
 name = "styrigx-auth-gateway"
-main = "src/index.js"
+main = "src/worker.js"
 compatibility_date = "2026-10-09"
 workers_dev = false
 preview_urls = false
@@ -65,6 +65,102 @@ zone_name = "styrigx.com"
 
 [[routes]]
 pattern = "styrigx.com/zh/*"
+zone_name = "styrigx.com"
+
+# ---- 子站（src/subsites.js）：只登记要验会话的页面路径，静态资源（/_astro/ /fonts/ /js/ /css/ /images/）不登记 ----
+# 子站 Pages 不持钥匙、没有验票代码，页面路由漏登记 = 那个页面不验会话；子站 CI 部署后逐个目录冒烟检查（未登录必须 302 且带 X-SGX-Runtime: worker）。
+# blog.styrigx.com（Astro，尾斜杠）
+[[routes]]
+pattern = "blog.styrigx.com/"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "blog.styrigx.com/about*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "blog.styrigx.com/archives*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "blog.styrigx.com/post/*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "blog.styrigx.com/tags/*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "blog.styrigx.com/en"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "blog.styrigx.com/en/*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "blog.styrigx.com/rss.xml"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "blog.styrigx.com/sitemap*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "blog.styrigx.com/pagefind/*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "blog.styrigx.com/api/session-check"
+zone_name = "styrigx.com"
+
+# book.styrigx.com（Hugo）。/api/* 只登记 session-check；书库数据接口另行处理，不在这里登记
+[[routes]]
+pattern = "book.styrigx.com/"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "book.styrigx.com/admin*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "book.styrigx.com/read*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "book.styrigx.com/en"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "book.styrigx.com/en/*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "book.styrigx.com/zh"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "book.styrigx.com/zh/*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "book.styrigx.com/categories*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "book.styrigx.com/tags*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "book.styrigx.com/index.xml"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "book.styrigx.com/sitemap.xml"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "book.styrigx.com/api/session-check"
 zone_name = "styrigx.com"
 
 # ---- 明文变量（公钥在 Secrets Store）----
