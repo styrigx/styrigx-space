@@ -342,7 +342,8 @@ jobs:
               f"https://api.cloudflare.com/client/v4/accounts/{ACCT}/pages/projects/styrigx-space",
               headers={"Authorization": f"Bearer {TOKEN}"})
           r = json.load(urllib.request.urlopen(req, timeout=30))
-          prod = r["result"]["deployment_configs"]["production"]["env_vars"]
+          # 生产不带任何变量时 API 返回 env_vars: null，按空处理。
+          prod = r["result"]["deployment_configs"]["production"].get("env_vars") or {}
           names = sorted(prod.keys())
           print("production vars:", names)
           # Pages 只放静态文件，会话检查全在网关；生产部署按 web/wrangler.toml 不带任何变量。
@@ -420,7 +421,7 @@ jobs:
           command: pages deploy public --project-name=styrigx-space --commit-dirty=true
 
       - name: Smoke test Pages (pages.dev must redirect, pages still behind the gateway)
-        # 只发不带 cookie 的只读请求。pages.dev 地址不经过网关，必须 301 回 styrigx.com，否则能绕过锁屏。
+        # 只发不带 cookie 的只读请求。pages.dev 地址不经过网关，必须 301 回 styrigx.com（或被 Access 拦在登录页），否则能绕过锁屏。
         run: |
           set -u
           ok=1
@@ -430,9 +431,14 @@ jobs:
             loc=$(printf '%s' "$hdr" | awk -F': ' 'tolower($1)=="location"{print $2}')
             echo "pages.dev /settings/ -> $code $loc (try $i)"
             if [ "$code" = "301" ] && [ "$loc" = "https://styrigx.com/settings/" ]; then ok=0; break; fi
+            # pages.dev 前面挂了 Cloudflare Access 时，请求先被 Access 302 到登录页，同样到不了页面，也算通过。
+            case "$loc" in
+              https://styrigx.cloudflareaccess.com/cdn-cgi/access/login/styrigx-space.pages.dev\?*)
+                [ "$code" = "302" ] && { ok=0; break; } ;;
+            esac
             sleep 5
           done
-          [ $ok = 0 ] || { echo "::error::pages.dev did not redirect to styrigx.com"; exit 1; }
+          [ $ok = 0 ] || { echo "::error::pages.dev neither redirected to styrigx.com nor sat behind Access"; exit 1; }
           hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' https://styrigx.com/settings/ | tr -d '\r')
           code=$(printf '%s' "$hdr" | sed -n 's/^HTTP_CODE://p')
           rt=$(printf '%s' "$hdr" | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
