@@ -37,7 +37,8 @@ function walk(dir, out = []) {
   return out;
 }
 
-function rel(p) { return relative(ROOT, p); }
+/* 网站源码在 web/；路径规则仍按 assets/js/... 书写，rel() 去掉 web/ 前缀 */
+function rel(p) { return relative(ROOT, p).replace(/^web\//, ''); }
 
 // 解析 import/from 路径（静态 import + 动态 import()）
 function importsOf(src) {
@@ -147,7 +148,7 @@ function checkFile(p) {
   }
 }
 
-const files = walk(join(ROOT, 'assets/js')).concat(walk(join(ROOT, 'functions')));
+const files = walk(join(ROOT, 'web/assets/js')).concat(walk(join(ROOT, 'functions')));
 for (const f of files) checkFile(f);
 
 if (errors.length) {

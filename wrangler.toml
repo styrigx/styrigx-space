@@ -7,7 +7,7 @@
 
 name = "styrigx-space"
 compatibility_date = "2026-10-09"
-pages_build_output_dir = "public"
+pages_build_output_dir = "web/public"
 
 # ---- production 明文变量（6 个）----
 [vars]

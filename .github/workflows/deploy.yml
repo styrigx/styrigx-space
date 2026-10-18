@@ -67,14 +67,14 @@ jobs:
         run: node scripts/build-css.cjs --minify
 
       - name: Unit tests (kernel + ui)
-        # 全部 tests/kernel、tests/ui 单元测试；新加的测试文件自动纳入，不用再改这里。
+        # 全部 tests/workers/auth-gateway、tests/web/ui 单元测试；新加的测试文件自动纳入，不用再改这里。
         # 覆盖：会话 / cookie / epoch、通行密钥分类、stepup、app-token、认证入口、
         # 访客 401、根凭证 userHandle、最后一把钥匙、sitemap、i18n、页内导航、数字健康等
-        run: node --test tests/kernel/*.test.mjs tests/ui/*.test.mjs
+        run: node --test tests/workers/auth-gateway/*.test.mjs tests/web/ui/*.test.mjs
 
       - name: Auth Worker bundle check (styrigx-auth-gateway, dry-run)
-        # workers/auth 复用 functions/ 的代码；这里只打包不部署，import 断了 CI 就红。
-        working-directory: workers/auth
+        # workers/auth-gateway 复用 functions/ 的代码；这里只打包不部署，import 断了 CI 就红。
+        working-directory: workers/auth-gateway
         run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/styrigx-auth-gateway-dist
 
       - name: Layer boundary check (SGX 3.0 分层规范)
@@ -104,37 +104,37 @@ jobs:
         run: node scripts/gen-app-whitelist.mjs
 
       - name: Build site (生产构建，用于锁屏测试)
-        run: hugo --minify
+        run: hugo --minify -s web
 
       - name: Assert posts in files-index.json (P0-2)
         # 断言：type=post > 0，中英各有，URL 合法；失败则 CI 失败
         run: node scripts/assert-posts.mjs
 
       - name: stylelint（禁止硬编码颜色）
-        run: npx stylelint "assets/css/input.css"
+        run: npx stylelint --config tests/config/stylelintrc.json "web/assets/css/input.css"
 
       - name: Lock screen tests (Hark：生产构建，锁屏启用)
         # 锁屏行为测试（阻塞部署）；截图基线单独跑、仅报告
         run: |
-          hugo --minify
-          SGX_TEST_SUITE=lock npx playwright test --config=playwright.config.js --grep-invert "baseline screenshot"
+          hugo --minify -s web
+          SGX_TEST_SUITE=lock npx playwright test --config=tests/config/playwright.config.js --grep-invert "baseline screenshot"
 
       - name: Lock screen baseline screenshot
         # 2.8.0：基线已重新生成，改成阻塞（失败即 CI 红）
         run: |
-          SGX_TEST_SUITE=lock npx playwright test --config=playwright.config.js --grep "baseline screenshot"
+          SGX_TEST_SUITE=lock npx playwright test --config=tests/config/playwright.config.js --grep "baseline screenshot"
 
       - name: Lock flags test (owner-gate on, default build)
         # 2.8.0：legacy-lock-screen 已删除，只剩 owner-gate 开关；默认构建下锁屏正常出现
         run: |
-          hugo --minify
-          SGX_TEST_SUITE=lock npx playwright test --config=playwright.config.js lock-flags.spec.js
+          hugo --minify -s web
+          SGX_TEST_SUITE=lock npx playwright test --config=tests/config/playwright.config.js lock-flags.spec.js
 
       - name: Lock flags test (owner-gate off)
         # owner-gate 关：锁屏完全不出现
         run: |
-          SGX_TEST_OWNER_GATE=0 hugo --minify
-          SGX_TEST_SUITE=lock SGX_TEST_FLAGS=gate-off npx playwright test --config=playwright.config.js lock-flags.spec.js
+          SGX_TEST_OWNER_GATE=0 hugo --minify -s web
+          SGX_TEST_SUITE=lock SGX_TEST_FLAGS=gate-off npx playwright test --config=tests/config/playwright.config.js lock-flags.spec.js
 
       - name: Upload lock test artifacts on failure
         # Hark：失败时上传，便于拿真实报错
@@ -150,10 +150,10 @@ jobs:
         # 视觉回归和 Lighthouse 用锁屏禁用的构建，避免锁屏干扰；
         # Turnstile 用 Cloudflare 官方测试 Key（sed 替换，不污染正式密钥）
         run: |
-          sed -i "s/0x4AAAAAAFSBhpWkAwZr1SMA/1x00000000000000000000AA/g" hugo.yaml
+          sed -i "s/0x4AAAAAAFSBhpWkAwZr1SMA/1x00000000000000000000AA/g" web/hugo.yaml
           # P0-2：视觉测试用 Fixture 数据，保证和基线一致；正式构建用真实 posts.json
-          cp data/posts.fixture.json data/posts.json
-          hugo --minify
+          cp web/data/posts.fixture.json web/data/posts.json
+          hugo --minify -s web
         env:
           SGX_TEST_NO_LOCK: "1"
           # Hark：测试构建禁用天气组件（天气依赖外网，CI 不稳定会导致
@@ -163,7 +163,7 @@ jobs:
       - name: Visual regression
         # 2.8.0：基线已重新生成（140 张页面截图），改成阻塞（失败即 CI 红）。
         # 注意：不要再被别的提交加回 continue-on-error（a8f4dffa 曾误删本行）。
-        run: npx playwright test --config=playwright.config.js
+        run: npx playwright test --config=tests/config/playwright.config.js
 
       - name: Upload visual diffs on failure
         if: failure()
@@ -176,24 +176,24 @@ jobs:
           retention-days: 30
 
       - name: PC layout assertions（2.5.0 栅格/Dock/顶栏对齐，阻塞）
-        run: npx playwright test --config=playwright.config.js pc-layout.spec.js
+        run: npx playwright test --config=tests/config/playwright.config.js pc-layout.spec.js
 
       - name: 2.9.2 layout assertions（阻塞）
-        run: npx playwright test --config=playwright.config.js layout-292.spec.js
+        run: npx playwright test --config=tests/config/playwright.config.js layout-292.spec.js
 
       - name: Lighthouse CI
-        # Hark：lhci 自己起服务（见 .lighthouserc.json 的 startServerCommand）。
+        # Hark：lhci 自己起服务（见 tests/config/lighthouserc.json 的 startServerCommand）。
         # gzip 模拟线上 Cloudflare 压缩。天气组件已在测试构建里禁用
         # （SGX_TEST_NO_WEATHER=1），无外网请求，errors-in-console 不会误报。
         run: |
-          find public -type f \( -name '*.html' -o -name '*.css' -o -name '*.js' \) -exec gzip -k -9 {} \;
-          npx lhci autorun --config=.lighthouserc.json
+          find web/public -type f \( -name '*.html' -o -name '*.css' -o -name '*.js' \) -exec gzip -k -9 {} \;
+          npx lhci autorun --config=tests/config/lighthouserc.json
 
       - name: 前端技术名词检查（安全与隐私）
         # 用户可见文案不得出现 OWNER_KEY / SESSION_SECRET / SGX_ROOT_KEY / SGX_PW_PEPPER / TURNSTILE_SECRET；
-        # 后端变量名只许出现在 functions/ 与注释里，不许进 public/ HTML。
+        # 后端变量名只许出现在 functions/ 与注释里，不许进 web/public/ HTML。
         run: |
-          if grep -rl "OWNER_KEY\|SESSION_SECRET\|SGX_ROOT_KEY\|SGX_PW_PEPPER\|TURNSTILE_SECRET" public/ --include="*.html"; then
+          if grep -rl "OWNER_KEY\|SESSION_SECRET\|SGX_ROOT_KEY\|SGX_PW_PEPPER\|TURNSTILE_SECRET" web/public/ --include="*.html"; then
             echo "FAIL: 技术变量名出现在 HTML 产物中"
             exit 1
           fi
@@ -230,7 +230,7 @@ jobs:
         run: node scripts/build-css.cjs --minify
 
       - name: Build site
-        run: hugo --minify
+        run: hugo --minify -s web
 
       - name: Generate Ed25519 test key pair (CI only)
         # 2.4.1：middleware 缺 SGX_LOCK_PUBLIC 时 fail closed，解锁接口需要
@@ -304,7 +304,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy public --project-name=styrigx-space --branch=passkey-e2e --commit-dirty=true
+          command: pages deploy web/public --project-name=styrigx-space --branch=passkey-e2e --commit-dirty=true
 
       - name: Run WebAuthn E2E
         run: |
@@ -313,7 +313,7 @@ jobs:
           SGX_TEST_CF_TOKEN="${{ secrets.CLOUDFLARE_API_TOKEN }}" \
           SGX_TEST_CF_ACCOUNT="${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" \
           SGX_TEST_PREVIEW_KV_ID="5084ea8ef2444156ba48203220b93df6" \
-          npx playwright test --config=playwright.config.js --grep "passkey e2e"
+          npx playwright test --config=tests/config/playwright.config.js --grep "passkey e2e"
         env:
           SGX_TEST_SUITE: passkey
 
@@ -389,7 +389,7 @@ jobs:
           BLOG_TOKEN: ${{ secrets.BLOG_READ_TOKEN || github.token }}
 
       - name: Build site
-        run: hugo --minify
+        run: hugo --minify -s web
         env:
           # #1 诊断：把短 commit SHA 写进 <html data-sgx-build> 及页面小字构建标记
           SGX_BUILD_SHA: ${{ github.sha }}
@@ -402,12 +402,12 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy public --project-name=styrigx-space --commit-dirty=true
+          command: pages deploy web/public --project-name=styrigx-space --commit-dirty=true
 
   deploy-auth-worker:
     # 鉴权 Worker styrigx-auth-gateway：main 上真部署。和 Pages 部署分开成单独的 job，
     # 这里失败不影响 Pages 上线（只会显示红叉）。
-    # 路由见 workers/auth/wrangler.toml（styrigx.com/api/*）；workers_dev=false。部署后自动冒烟检查线上。
+    # 路由见 workers/auth-gateway/wrangler.toml（styrigx.com/api/*）；workers_dev=false。部署后自动冒烟检查线上。
     # 密钥全在 Secrets Store，CI 不传任何密值。
     # 用专门的 token（GitHub 环境密钥 STYRIGX_AUTH_GATEWAY_DEPLOY，名字对应 Cloudflare 上的
     # styrigx-auth-gateway-deploy）：Workers Scripts 编辑 + Secrets Store 编辑（带 Secrets Store 绑定部署必须 Edit，Read 报 10021）
@@ -432,7 +432,7 @@ jobs:
         with:
           apiToken: ${{ secrets.STYRIGX_AUTH_GATEWAY_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: workers/auth
+          workingDirectory: workers/auth-gateway
           wranglerVersion: '4'
           command: deploy
 

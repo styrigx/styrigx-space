@@ -70,5 +70,5 @@ if (allPosts.length === 0) {
   process.exit(1);
 }
 
-writeFileSync('data/posts.json', JSON.stringify(allPosts, null, 2) + '\n');
+writeFileSync(new URL('../web/data/posts.json', import.meta.url), JSON.stringify(allPosts, null, 2) + '\n');
 console.log(`Wrote data/posts.json with ${allPosts.length} posts`);

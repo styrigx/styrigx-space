@@ -10,7 +10,7 @@
 
 ![Hugo](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/.github/workflows/deploy.yml&query=%24.env.HUGO_VERSION&label=Hugo&style=flat-square&color=2563eb&logo=hugo)
 ![Tailwind CSS](https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/package-lock.json&query=%24.packages%5B%27node_modules%2Ftailwindcss%27%5D.version&label=Tailwind%20CSS&style=flat-square&color=2563eb&logo=tailwindcss)
-![Styrigx UI](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/data/version.yaml&query=%24.ui&label=Styrigx%20UI&style=flat-square&color=2563eb)
+![Styrigx UI](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/web/data/version.yaml&query=%24.ui&label=Styrigx%20UI&style=flat-square&color=2563eb)
 ![Deploy](https://img.shields.io/github/actions/workflow/status/styrigx/styrigx-space/deploy.yml?style=flat-square&label=Deploy&color=2563eb)
 ![License](https://img.shields.io/badge/License-MIT-2563eb?style=flat-square)
 
@@ -52,27 +52,23 @@ Dock 只在主页显示；进入应用后底部只留搜索栏。
 
 ## 本地运行
 
-环境要求：Hugo extended 0.162.0、Node.js（CI 用 20，构建 Tailwind 需要）。
+环境要求：Hugo extended 0.167.0、Node.js（CI 用 20，构建 Tailwind 需要）。
 
 ```bash
 git clone https://github.com/styrigx/styrigx-space.git
 cd styrigx-space
 npm install
 npm run build:css
-hugo server
+hugo server -s web
 ```
 
-浏览器打开 http://localhost:1313。构建用 `hugo --minify`。
+浏览器打开 http://localhost:1313。构建用 `hugo --minify -s web`，产物在 `web/public/`。
 
 推送 main 后自动部署到 Cloudflare Pages（Pages 项目名 `styrigx-space`）。
 
 ## 目录说明
 
-- `content/`：页面入口，中英双语。
-- `data/`：内容数据，中英分开（`data/en/` 是英文版；`data/wellbeing.yaml` 是屏幕时间数据）。
-- `layouts/`：模板，`_default/` 下是各 App 页面。
-- `assets/`：`css/input.css` 是 Tailwind 输入，`main.css` 由构建生成；公共 JS 也在这里。
-- `static/`：`_redirects` 短链、`_headers` 缓存头、图片。
+网站本体在 `web/`，Worker 在 `workers/`，测试在 `tests/`。完整说明见 [STRUCTURE.md](STRUCTURE.md)。
 
 ## 许可
 

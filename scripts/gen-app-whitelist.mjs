@@ -43,5 +43,5 @@ const out = APP_WHITELIST.map((a, i) => {
   return { aud: a.aud, name: a.name, scopes: a.scopes, origin: a.origin, settingsPath: a.settingsPath };
 });
 
-writeFileSync(join(ROOT, 'data/app_whitelist.json'), JSON.stringify(out, null, 2) + '\n');
+writeFileSync(join(ROOT, 'web/data/app_whitelist.json'), JSON.stringify(out, null, 2) + '\n');
 console.log(`gen-app-whitelist.mjs: 生成 data/app_whitelist.json（${out.length} 个应用）`);

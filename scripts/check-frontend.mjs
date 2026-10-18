@@ -37,7 +37,8 @@ function walk(dir, out = []) {
   return out;
 }
 
-function rel(p) { return relative(ROOT, p); }
+/* 网站源码在 web/；路径规则仍按 assets/js/... 书写，rel() 去掉 web/ 前缀 */
+function rel(p) { return relative(ROOT, p).replace(/^web\//, ''); }
 
 function stripComments(src) {
   // 去掉块注释和行注释，但保留换行（行号与原文对齐，白名单按行放行才准）。
@@ -102,7 +103,7 @@ function checkFile(p) {
   }
 }
 
-const files = walk(join(ROOT, 'assets/js'));
+const files = walk(join(ROOT, 'web/assets/js'));
 for (const f of files) checkFile(f);
 
 if (errors.length) {
