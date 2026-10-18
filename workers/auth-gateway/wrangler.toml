@@ -9,7 +9,7 @@
 # - 私密值只在 Secrets Store（见文件末尾），不进仓库。
 
 name = "styrigx-auth-gateway"
-main = "src/index.js"
+main = "src/worker.js"
 compatibility_date = "2026-10-09"
 workers_dev = false
 preview_urls = false

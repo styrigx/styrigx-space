@@ -241,7 +241,7 @@ jobs:
         # 只打包不部署 Worker，不需要 Worker 权限。
         run: |
           (cd workers/auth-gateway && npx --yes wrangler@4 deploy --dry-run --outdir "$RUNNER_TEMP/gateway-dist")
-          cp "$RUNNER_TEMP/gateway-dist/index.js" web/public/_worker.js
+          cp "$RUNNER_TEMP/gateway-dist/worker.js" web/public/_worker.js
           grep -q "X-SGX-Runtime" web/public/_worker.js
 
       - name: Generate Ed25519 test key pair (CI only)
