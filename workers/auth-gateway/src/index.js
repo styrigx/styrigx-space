@@ -2,6 +2,7 @@
  * @fileoverview styrigx-auth-gateway：主站鉴权 Worker 入口。
  *
  * 承接 styrigx.com/api/*、/avatar/* 和主站全部 HTML 页面目录（路由见 wrangler.toml）。
+ * 子站（blog.styrigx.com、book.styrigx.com）的页面会话检查也在这里（src/subsites.js），子站 Pages 不持钥匙。
  * 主站的后端代码只在这里（workers/auth-gateway/functions/），Pages 只放静态文件：
  *   1. Secrets Store 的私密值换成字符串（secrets.js）
  *   2. 先跑 functions/_middleware.js（会话、角色、白名单、no-store、锁屏瘦身）
@@ -19,6 +20,7 @@ import { onRequest as middleware } from '../functions/_middleware.js';
 import * as avatarFile from '../functions/avatar/[file].js';
 import { API_ROUTES } from './routes.js';
 import { resolveSecrets } from './secrets.js';
+import { subsiteFor, handleSubsite } from './subsites.js';
 
 const METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
 
@@ -126,6 +128,9 @@ export default {
   async fetch(request, rawEnv, ctx) {
     const env = await resolveSecrets(rawEnv);
     try {
+      if (subsiteFor(new URL(request.url).hostname)) {
+        return tagRuntime(await handleSubsite(request, env, (req) => fromOrigin(req, env)));
+      }
       const next = (req) => route(req, env, ctx);
       return tagRuntime(await middleware(makeContext(request, env, ctx, '/', next)));
     } catch (e) {

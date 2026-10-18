@@ -87,10 +87,10 @@ workers/
 
 | Worker | 目录 | 管什么 |
 |---|---|---|
-| `styrigx-auth-gateway` | `workers/auth-gateway/` | 主站全部后端：签发和校验会话、二次验证、应用通行证、全部接口、头像；`/api/*`、`/avatar/*` 和全部页面先过它，页面验完回源 Pages 取静态文件；所有私钥只在这里（Secrets Store） |
+| `styrigx-auth-gateway` | `workers/auth-gateway/` | 主站全部后端：签发和校验会话、二次验证、应用通行证、全部接口、头像；`/api/*`、`/avatar/*` 和全部页面先过它，页面验完回源 Pages 取静态文件；blog、book 子站的页面也由它验会话（`src/subsites.js`）；所有公私钥只在这里（Secrets Store） |
 
 路由登记：现在只有一个 Worker，它的 `wrangler.toml` 里的 `[[routes]]` 就是登记表。
-`scripts/check-worker-routes.mjs`（CI 跑）核对：每个 HTML 页面以及 `/api/`、`/avatar/` 都有路由，静态资源（`/css/` `/js/` `/fonts/` `/fav/`）不过 Worker，路由不重复。
+`scripts/check-worker-routes.mjs`（CI 跑）核对：每个 HTML 页面以及 `/api/`、`/avatar/` 都有路由，静态资源（`/css/` `/js/` `/fonts/` `/fav/`）不过 Worker，路由不重复；子站路由只能是登记过的域名，静态资源不登记。子站页面是否全覆盖由子站 CI 部署后冒烟检查。
 以后加第二个 Worker 时，再把登记表提成所有 Worker 共用的 `workers/routes.yaml`，并检查路径不重叠。
 
 ## tests/ 测试
