@@ -318,7 +318,7 @@ jobs:
           SGX_TEST_SUITE: passkey
 
       - name: Guard - production vars unchanged
-        # 守卫：确认 production 环境变量未被 CI 改动
+        # 守卫：确认 production 环境变量未被 CI 改动；私密值已迁到鉴权 Worker，Pages 上不许再有
         run: |
           python3 - <<'PYEOF'
           import json, sys, urllib.request
@@ -331,15 +331,19 @@ jobs:
           prod = r["result"]["deployment_configs"]["production"]["env_vars"]
           names = sorted(prod.keys())
           print("production vars:", names)
-          # production 必须包含这些（包含检查：缺一个就失败；多出来的只打印）
-          # 批次 A 收尾 G1：OWNER_KEY 已从 required 移除（代码不读，合并部署后由 Gray 手动删后台变量）
-          required = ["SGX_ROOT_KEY", "SGX_PW_PEPPER", "SGX_APP_PRIVATE", "SGX_APP_PUBLIC", "SGX_LOCK_PRIVATE", "SGX_LOCK_PUBLIC", "SGX_ORIGIN", "SGX_RP_ID", "SGX_SITE", "SGX_STEPUP_PRIVATE", "SGX_STEPUP_PUBLIC", "TURNSTILE_SECRET"]
+          # 2026-10-18 起私密值全部只在鉴权 Worker 的 Secrets Store，Pages production 只留公钥和明文变量。
+          # 1) 页面锁屏仍由 Pages middleware 验签，这几项缺一个就失败
+          required = ["SGX_LOCK_PUBLIC", "SGX_STEPUP_PUBLIC", "SGX_ORIGIN", "SGX_RP_ID", "SGX_SITE"]
           missing = [v for v in required if v not in names]
           assert not missing, f"missing production vars: {missing}"
+          # 2) 私密值不许再出现在 Pages（防止有人加回去）
+          forbidden = ["SGX_LOCK_PRIVATE", "SGX_STEPUP_PRIVATE", "SGX_APP_PRIVATE", "SGX_ROOT_KEY", "SGX_PW_PEPPER", "TURNSTILE_SECRET", "OWNER_KEY"]
+          present = [v for v in forbidden if v in names]
+          assert not present, f"private vars must not be on Pages production: {present}"
           extra = [v for v in names if v not in required]
           if extra:
               print("extra production vars (ignored):", extra)
-          print("guard OK: required production vars all present:", required)
+          print("guard OK: required present, no private vars on Pages production")
           PYEOF
 
       - name: Upload test artifacts on failure
