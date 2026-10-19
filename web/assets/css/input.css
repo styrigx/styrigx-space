@@ -2522,12 +2522,22 @@
   border-radius: 999px; border: 0; background: transparent; display: inline-flex; align-items: center; justify-content: center;
   color: var(--m-on-surface); cursor: pointer; padding: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
 .sgx-tb-more svg { width: 22px; height: 22px; }
-.sgx-tb-back, .sgx-tb-search, .sgx-tb-nav, .sgx-tb-more { transition: background-color .15s ease; }
-.sgx-tb-back:active, .sgx-tb-search:active, .sgx-tb-nav:active, .sgx-tb-more:active { background-color: rgba(0,0,0,.06); }
-.dark .sgx-tb-back:active, .dark .sgx-tb-search:active, .dark .sgx-tb-nav:active, .dark .sgx-tb-more:active { background-color: rgba(255,255,255,.10); }
-.reduced-motion .sgx-tb-back, .reduced-motion .sgx-tb-search, .reduced-motion .sgx-tb-nav, .reduced-motion .sgx-tb-more, .reduced-motion .sgx-tb-brand { transition: none; }
-@media (prefers-reduced-motion: reduce) { .sgx-tb-back, .sgx-tb-search, .sgx-tb-nav, .sgx-tb-more, .sgx-tb-brand { transition: none; } }
-.sgx-tb-back:focus-visible, .sgx-tb-search:focus-visible, .sgx-tb-nav:focus-visible, .sgx-tb-more:focus-visible, .sgx-tb-brand:focus-visible {
+.sgx-tb-pbtn { position: absolute; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--m-on-surface); text-decoration: none; }
+.sgx-tb-pbtn svg { width: 22px; height: 22px; }
+.sgx-tb-psearch { left: 6px; }
+.sgx-tb-set { right: 6px; }
+.sgx-tb-psearch ~ .sgx-tb-brand { padding: 0; }
+/* 主页右圆：头像（以后接账号体系） */
+.sgx-tb-me { width: 52px; height: 52px; border-radius: 999px; flex-shrink: 0; overflow: hidden; display: block;
+  border: 1px solid var(--sgx-mat-line); box-shadow: var(--sgx-mat-shadow); pointer-events: auto; }
+.sgx-tb-me .sgx-tb-avatar { width: 100%; height: 100%; border: 0; display: block; }
+.sgx-tb-back, .sgx-tb-search, .sgx-tb-nav, .sgx-tb-more, .sgx-tb-pbtn { transition: background-color .15s ease; }
+.sgx-tb-back:active, .sgx-tb-search:active, .sgx-tb-nav:active, .sgx-tb-more:active, .sgx-tb-pbtn:active { background-color: rgba(0,0,0,.06); }
+.dark .sgx-tb-back:active, .dark .sgx-tb-search:active, .dark .sgx-tb-nav:active, .dark .sgx-tb-more:active, .dark .sgx-tb-pbtn:active { background-color: rgba(255,255,255,.10); }
+.reduced-motion .sgx-tb-back, .reduced-motion .sgx-tb-search, .reduced-motion .sgx-tb-nav, .reduced-motion .sgx-tb-more, .reduced-motion .sgx-tb-pbtn, .reduced-motion .sgx-tb-brand { transition: none; }
+@media (prefers-reduced-motion: reduce) { .sgx-tb-back, .sgx-tb-search, .sgx-tb-nav, .sgx-tb-more, .sgx-tb-pbtn, .sgx-tb-brand { transition: none; } }
+.sgx-tb-back:focus-visible, .sgx-tb-search:focus-visible, .sgx-tb-nav:focus-visible, .sgx-tb-more:focus-visible, .sgx-tb-pbtn:focus-visible, .sgx-tb-brand:focus-visible {
   outline: 2px solid var(--m-primary); outline-offset: 2px; }
 /* 滚动后（JS 统一给 body 加 sgx-stuck，阈值 = 标题区高度 × 0.55）：头像不动，Styrigx 上移淡出，让位给小标题 */
 body.sgx-stuck .sgx-tb-text { opacity: 0; transform: translate(-50%,-50%) translateY(-6px); }

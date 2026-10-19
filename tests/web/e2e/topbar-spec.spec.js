@@ -1,6 +1,6 @@
 /**
  * 顶栏 v2.0（与 Book 同一套）验收：左圆 + 长条（头像 + 居中 Styrigx + ⋮）+ 导航圆。
- * B2-3：主页左圆是搜索（进浏览器并打开搜索），不是返回；三块位置与子页面完全一致。
+ * 2026-10-19 主页顶栏单独一套：左圆九宫格导航，长条里左搜索、居中 Styrigx、右设置，右圆头像；三块位置与子页面一致。
  * Styrigx 在长条内水平垂直居中，头像始终显示；滚动后 Styrigx 淡出、小标题淡入。
  */
 const { test } = require('@playwright/test');
@@ -59,27 +59,34 @@ for (const dark of [false, true]) {
       expect(bgs[2]).toBe(bgs[1]);
     });
 
-    test('主页：左圆是搜索、不是返回，三块位置、底色与子页面一致，Styrigx 居中', async ({ page }) => {
+    test('主页：左圆九宫格、长条里搜索 / Styrigx / 设置、右圆头像，三块位置、底色与子页面一致', async ({ page }) => {
       await go(page, '/', { dark });
       await expect(page.locator('.sgx-tb-back')).toHaveCount(0);
       await expect(page.locator('[data-go-back]')).toHaveCount(0);
-      const search = await box(page, '.sgx-tb-search');
-      const pill = await box(page, '.sgx-tb-pill');
+      await expect(page.locator('.sgx-tb-pill .sgx-tb-more')).toHaveCount(0);
       const nav = await box(page, '.sgx-tb-nav');
-      expect(near(search.x, 16) && near(search.x + search.width, 68), `搜索圆 x ${search.x}–${search.x + search.width}`).toBe(true);
+      const pill = await box(page, '.sgx-tb-pill');
+      const me = await box(page, '.sgx-tb-me');
+      expect(near(nav.x, 16) && near(nav.x + nav.width, 68), `导航圆 x ${nav.x}–${nav.x + nav.width}`).toBe(true);
       expect(near(pill.x, 76) && near(pill.x + pill.width, 314), `长条 x ${pill.x}–${pill.x + pill.width}`).toBe(true);
-      expect(near(nav.x, 322) && near(nav.x + nav.width, 374), `导航圆 x ${nav.x}–${nav.x + nav.width}`).toBe(true);
-      for (const b of [search, pill, nav]) {
+      expect(near(me.x, 322) && near(me.x + me.width, 374), `头像圆 x ${me.x}–${me.x + me.width}`).toBe(true);
+      for (const b of [nav, pill, me]) {
         expect(near(b.y, 16), `y ${b.y}`).toBe(true);
         expect(near(b.height, 52), `高 ${b.height}`).toBe(true);
       }
+      const av = await box(page, '.sgx-tb-me .sgx-tb-avatar');
+      expect(near(av.width, 50, 2) && near(av.height, 50, 2), `头像铺满圆 ${av.width}×${av.height}`).toBe(true);
+      /* 长条内左右对称：搜索中心距左边 26，设置中心距右边 26 */
+      const search = await box(page, '.sgx-tb-psearch');
+      const set = await box(page, '.sgx-tb-set');
+      expect(near(search.x + search.width / 2 - pill.x, 26), '搜索中心距长条左边 26').toBe(true);
+      expect(near(pill.x + pill.width - (set.x + set.width / 2), 26), '设置中心距长条右边 26').toBe(true);
       const tx = await box(page, '.sgx-tb-text');
       expect(near(tx.x + tx.width / 2, pill.x + pill.width / 2), 'Styrigx 水平居中').toBe(true);
       const bgs = await page.evaluate(() =>
-        ['.sgx-tb-search', '.sgx-tb-pill', '.sgx-tb-nav'].map((s) => getComputedStyle(document.querySelector(s)).backgroundColor)
+        ['.sgx-tb-nav', '.sgx-tb-pill'].map((s) => getComputedStyle(document.querySelector(s)).backgroundColor)
       );
       expect(bgs[0]).toBe(bgs[1]);
-      expect(bgs[2]).toBe(bgs[1]);
     });
   });
 }
@@ -131,14 +138,14 @@ test.describe('390×844 行为', () => {
     }
   });
 
-  test('主页点头像：不重新加载整页，只回到顶部', async ({ page }) => {
+  test('主页点 Styrigx：不重新加载整页，只回到顶部', async ({ page }) => {
     await go(page, '/');
     const path0 = await page.evaluate(() => location.pathname);
     await page.evaluate(() => {
       window.__sgxNoReload = 1;
       window.scrollTo(0, 400);
     });
-    await page.locator('#nav-brand').click();
+    await page.locator('#nav-brand .sgx-tb-text').click();
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
     expect(await page.evaluate(() => window.__sgxNoReload)).toBe(1);
     expect(await page.evaluate(() => location.pathname)).toBe(path0);
@@ -177,24 +184,40 @@ test.describe('390×844 行为', () => {
     await expect(menu).toBeHidden();
   });
 
-  test('主页 ⋮：弹出菜单，只有「设置」，点了进设置', async ({ page }) => {
+  test('主页设置图标：直接进设置', async ({ page }) => {
     await go(page, '/');
-    const menu = page.locator('#sgx-tb-moremenu');
-    await expect(menu).toBeHidden();
-    await page.locator('.sgx-tb-pill .sgx-tb-more').click();
-    await expect(menu).toBeVisible();
-    await expect(menu.locator('.sgx-tb-menu-item')).toHaveCount(1);
     const en = (await page.evaluate(() => document.documentElement.lang)) === 'en';
-    await expect(menu.locator('.sgx-tb-menu-item')).toHaveText(en ? 'Settings' : '设置');
-    await menu.locator('.sgx-tb-menu-item').click();
+    await page.locator('.sgx-tb-set').click();
     await expect(page).toHaveURL(en ? /\/en\/settings\/$/ : /\/settings\/$/);
   });
 
-  test('主页搜索圆：进浏览器搜索页并聚焦', async ({ page }) => {
+  test('主页搜索图标：进浏览器搜索页并聚焦', async ({ page }) => {
     await go(page, '/');
-    await page.locator('.sgx-tb-search').click();
+    await page.locator('.sgx-tb-psearch').click();
     await expect(page).toHaveURL(/\/browser\/search\/$/);
     await expect(page.locator('#sgx-cap-input-brwsearch')).toBeFocused({ timeout: 5000 });
+  });
+
+  test('主页头像圆：点了不跳转', async ({ page }) => {
+    await go(page, '/');
+    const url0 = page.url();
+    await page.locator('.sgx-tb-me').click();
+    await page.waitForTimeout(300);
+    expect(page.url()).toBe(url0);
+  });
+
+  test('主页九宫格：菜单在按钮下方 8px 左对齐', async ({ page }) => {
+    await go(page, '/');
+    await page.locator('.sgx-tb-nav').click();
+    const menu = page.locator('#sgx-tb-navmenu');
+    await expect(menu).toBeVisible();
+    await expect(menu.locator('.sgx-tb-menu-item')).toHaveCount(3);
+    const b = await box(page, '.sgx-tb-nav');
+    const m = await box(page, '#sgx-tb-navmenu');
+    expect(near(m.y, b.y + b.height + 8, 2)).toBe(true);
+    expect(near(m.x, b.x)).toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
   });
 
   test('返回圆回上一级', async ({ page }) => {
