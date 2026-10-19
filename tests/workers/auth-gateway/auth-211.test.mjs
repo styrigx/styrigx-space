@@ -74,6 +74,8 @@ function baseEnv(kv, overrides) {
     SGX_STEPUP_PUBLIC: TEST_PUB_PEM,
     SGX_LOCK_PRIVATE: TEST_PRIV_PEM,
     SGX_LOCK_PUBLIC: TEST_PUB_PEM,
+    SGX_ACCOUNT_PRIVATE: TEST_PRIV_PEM,
+    SGX_ACCOUNT_PUBLIC: TEST_PUB_PEM,
     SGX_PW_PEPPER: 'test-pepper',
     SGX_RP_ID: 'test.example.com',
     SGX_ORIGIN: 'https://test.example.com',
@@ -88,8 +90,8 @@ test('2.11 越权：scope 不匹配 403（scope=keys 的票不能进入口 1）'
   const env = baseEnv(kv);
   /* 直接验票：scope=keys 的票用于要求 scope=root 的场景 → 由调用方拒绝。
      这里验证 stepup 模块本身能正确解析 by/scope */
-  const cv = await signStepupCookie(TEST_PRIV_PEM, 'owner', 'keys', 0);
-  assert.ok(cv.startsWith('owner.keys.'));
+  const cv = await signStepupCookie(TEST_PRIV_PEM, 'account', 'keys', 0);
+  assert.ok(cv.startsWith('account.keys.'));
 });
 
 test('2.11 越权：已配置层拒 by=root 的票（owner-passkey 管理 owner 类）', async () => {
@@ -474,7 +476,7 @@ test('2.11 pepper：缺 pepper → fail closed（set/verify 均拒绝）', async
   const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1', 'session-epoch': '0' });
   const envNoPepper = baseEnv(kv, { SGX_PW_PEPPER: '' });
-  const stepupCv = await signStepupCookie(TEST_PRIV_PEM, 'owner', 'keys', 0);
+  const stepupCv = await signStepupCookie(TEST_PRIV_PEM, 'account', 'keys', 0);
   const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
   const headers = { 'Cookie': 'sgx-verified=' + sessCv + '; sgx-stepup=' + stepupCv };
   /* set 无 pepper → 503 */
@@ -484,26 +486,31 @@ test('2.11 pepper：缺 pepper → fail closed（set/verify 均拒绝）', async
   assert.equal(res1.status, 503);
 });
 
-test('2.11 pepper：owner 密码 = 锁屏密码被拒（双向）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/owner-password.js');
+test('2.11 pepper：账号密码 = 锁屏密码被拒（双向；账号侧走 /api/account）', async () => {
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/account.js');
   const { makePasswordRecord } = await import(REPO + '/workers/auth-gateway/functions/api/owner-password.js');
-  const { signStepupCookie } = await import(REPO + '/workers/auth-gateway/functions/api/stepup.js');
+  const { signAccountTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/account-session.js');
   const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1', 'session-epoch': '0' });
   /* 先设锁屏密码 */
   const lockRec = await makePasswordRecord('same-pass-12345', 'test-pepper');
   await kv.put('lock-pw', JSON.stringify(lockRec));
   const env = baseEnv(kv);
-  /* 入口 1：scope=root, by=root */
-  const stepupRoot = await signStepupCookie(TEST_PRIV_PEM, 'root', 'root', 0);
+  const acc = await signAccountTicket(TEST_PRIV_PEM, 'root', 0, Date.now());
   const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
-  const headers = { 'Cookie': 'sgx-verified=' + sessCv + '; sgx-stepup=' + stepupRoot };
-  /* 设 owner 密码 = 锁屏密码 → 403 same-as-lock */
-  const req = postReq('https://test.example.com/api/owner-password',
-    { action: 'set', kind: 'owner', password: 'same-pass-12345' }, headers);
+  const headers = { 'Cookie': 'sgx-verified=' + sessCv + '; sgx-account=' + acc };
+  /* 设账号密码 = 锁屏密码 → 403 same-as-lock */
+  const req = postReq('https://test.example.com/api/account',
+    { action: 'password', password: 'same-pass-12345' }, headers);
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 403);
   assert.equal((await res.json()).error, 'same-as-lock');
+  /* owner-password 不再接受 kind=owner */
+  const { onRequestPost: pwPost } = await import(REPO + '/workers/auth-gateway/functions/api/owner-password.js');
+  const res2 = await pwPost({ request: postReq('https://test.example.com/api/owner-password',
+    { action: 'set', kind: 'owner', password: 'another-pass-123' }, headers), env });
+  assert.equal(res2.status, 400);
+  assert.equal((await res2.json()).error, 'params');
 });
 
 /* ============ 8. root-auth ============ */

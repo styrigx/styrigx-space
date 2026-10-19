@@ -1,24 +1,21 @@
 /**
  * 二次验证（step-up authentication）。
  *
- * 2.11 定稿：两扇门设计。
- * - 入口 1（root）：有效 lock 会话 + SGX_ROOT_KEY → stepup(by=root, scope=root)，
- *   只能管理站长凭证（ownerkey）
- * - 入口 2（owner）：有效 lock 会话 + 站长凭证（ownerkey）
- *   → stepup(by=owner, scope=keys)，管理 lock/APP 组；进门后增删不再二次挑战
+ * 2.11 定稿：两扇门设计；账号体系（站长凭证升级为账号）后：
+ * - 入口 1（root）：有效 lock 会话 + SGX_ROOT_KEY → stepup(by=root, scope=root)（/api/root-auth，不变）
+ * - 入口 2（账号）：有效 lock 会话 + 近期（≤10 分钟）账号登录（sgx-account，独立验证，
+ *   绝不拿 lock 会话当账号认证）→ stepup(by=account, scope=keys)，管理 lock/APP 组；
+ *   进门后增删不再二次挑战。账号凭证本身（账号密码/通行密钥）只在账号页管理（/api/account）。
  * - 重置锁屏：scope=lockreset（by=owner+root，或恢复开关开启时 by=root），
  *   只能增删 lock 凭证、设置锁屏密码
  * - scope 不匹配一律 403；lockkey 不再能开验证
  *
  * POST /api/stepup
- * - { action: 'challenge' } → 必须是已登录 owner 会话（visitor 一律拒绝）。
- *   下发 purpose=stepup 的 challenge，存 KV `stepup-challenge:<cid>`。
- * - { action: 'verify', cid, credential } → 必须是已登录 owner 会话。
- *   只认 owner class 通行密钥（2.11 起 lock 不再能开 stepup）。
+ * - { action: 'enter' } → 必须是已登录 owner 会话 + 有效 sgx-account 且 authAt 在 10 分钟内。
+ *   无账号会话 → 401 account；账号登录超过 10 分钟 → 403 account-stale（前端跳账号登录重新验证）。
  *   通过后签发 sgx-stepup cookie：by.scope.epoch.iat.exp.Ed25519(SGX_STEPUP_PRIVATE)，
- *   约 3 分钟有效；HttpOnly、Secure、SameSite=Strict。
- * - { action: 'verify-password', password } → 必须是已登录 owner 会话。
- *   校验 owner 密码（加 pepper），通过后签发 stepup(by=owner, scope=keys)。
+ *   by=account, scope=keys，约 3 分钟有效；HttpOnly、Secure、SameSite=Strict。
+ *   （原 challenge / verify / verify-password 用站长凭证直接开门，已由账号登录取代。）
  * - { action: 'takeover-keys' } → 必须是已登录 owner 会话 + 有效的
  *   stepup(by=root, scope=root)，且 owner 层未配置 → 签发 stepup(by=root, scope=keys)。
  *   owner 层已配置（含 KV 读失败按已配置）→ 403。
@@ -30,29 +27,24 @@
  * 环境变量：
  * - SGX_STEPUP_PRIVATE：Ed25519 私钥（PKCS8 PEM），缺失则拒绝签发（500 no-stepup-key）
  * - SGX_STEPUP_PUBLIC：Ed25519 公钥（SPKI PEM），缺失则验签 fail closed
- * - SGX_RP_ID / SGX_ORIGIN：与 owner-passkey 一致，不回落
+ * - SGX_ACCOUNT_PUBLIC：验账号会话（缺失 → enter 返回 401 account，其余 action 不受影响）
  */
 import { verifySessionDetailed, getCookie } from '../_middleware.js';
 import { getSessionEpoch, ROLE_OWNER } from '../_kernel/session.js';
-import { ed25519Sign, ed25519Verify, b64urlEnc } from '../_kernel/crypto.js';
-import { randB64, verifyAssertion, rpIdHashOf, consumeChallenge, findStoredKey } from '../_kernel/passkey-verify.js';
-import { getPasskeys, PK_CLASS_OWNER } from './owner-passkey.js';
-import { ownerPasskeyKey } from '../_kernel/key-names.js';
-import { verifyOwnerPassword, getPepper } from './owner-password.js';
+import { ed25519Sign, ed25519Verify } from '../_kernel/crypto.js';
+import { verifyAccountCookie } from '../_kernel/account-session.js';
 import { isLayerConfigured, LAYER_OWNER } from '../_kernel/layers.js';
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
-import { REALM_STEPUP, realmPrivateKey, realmPublicKey, realmCookie, realmClearCookie, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
+import { REALM_STEPUP, realmPrivateKey, realmPublicKey, realmCookie, realmClearCookie } from '../_kernel/realms.js';
 
 /* stepup cookie 定义（一处定义：_kernel/realms.js 的 REALM_STEPUP；这里保留原导出名） */
 export const STEPUP_COOKIE = REALM_STEPUP.cookie; /* 'sgx-stepup' */
 export const STEPUP_MAX_AGE = REALM_STEPUP.maxAge; /* A-1：3 分钟（v1.5 #11） */
 export const STEPUP_COOKIE_ATTRS = REALM_STEPUP.cookieAttrs; /* 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Strict' */
-/* challenge KV 前缀：与登录的 pk-challenge: 隔离 */
-const STEPUP_CHALLENGE_PREFIX = REALM_STEPUP.kv.challengePrefix; /* 'stepup-challenge:' */
-const STEPUP_CHALLENGE_TTL = REALM_STEPUP.kv.challengeTtl; /* 5 分钟 */
 /* 2.11 定稿：stepup 票字段 by/scope */
 export const STEPUP_BY_ROOT = 'root';
-export const STEPUP_BY_OWNER = 'owner';
+/* 账号体系：入口 2 由近期账号登录签发（取代原 by=owner 的站长凭证直开） */
+export const STEPUP_BY_ACCOUNT = 'account';
 /* lockreset 双凭证通过时 by=owner+root；恢复开关单根时 by=root */
 export const STEPUP_BY_OWNER_ROOT = 'owner+root';
 export const STEPUP_SCOPE_ROOT = 'root';
@@ -63,23 +55,23 @@ export const STEPUP_SCOPE_LOCKRESET = 'lockreset';
  * 签发 stepup cookie 值：by.scope.epoch.iat.exp.Ed25519(SGX_STEPUP_PRIVATE, "by.scope.epoch.iat.exp")。
  * 2.11 定稿：
  * - scope=root → by 必须为 root
- * - scope=keys → by 为 owner（站长凭证）或 root（owner 未配置时代管）
+ * - scope=keys → by 为 account（近期账号登录）或 root（账号未配置时代管）
  * - scope=lockreset → by 为 owner+root（双凭证）或 root（恢复开关）
  * @param {string} privatePem Ed25519 私钥（PKCS8 PEM）
- * @param {string} by 'root' | 'owner' | 'owner+root'
+ * @param {string} by 'root' | 'account' | 'owner+root'
  * @param {string} scope 'root' | 'keys' | 'lockreset'
  * @param {number} epoch 当前 session epoch
  */
 export async function signStepupCookie(privatePem, by, scope, epoch) {
-  const byOk = by === STEPUP_BY_ROOT || by === STEPUP_BY_OWNER || by === STEPUP_BY_OWNER_ROOT;
+  const byOk = by === STEPUP_BY_ROOT || by === STEPUP_BY_ACCOUNT || by === STEPUP_BY_OWNER_ROOT;
   if (!byOk) {
     throw new Error('signStepupCookie: bad by ' + JSON.stringify(by));
   }
   if (scope === STEPUP_SCOPE_ROOT) {
     if (by !== STEPUP_BY_ROOT) throw new Error('signStepupCookie: scope=root requires by=root');
   } else if (scope === STEPUP_SCOPE_KEYS) {
-    if (by !== STEPUP_BY_OWNER && by !== STEPUP_BY_ROOT) {
-      throw new Error('signStepupCookie: scope=keys requires by=owner|root');
+    if (by !== STEPUP_BY_ACCOUNT && by !== STEPUP_BY_ROOT) {
+      throw new Error('signStepupCookie: scope=keys requires by=account|root');
     }
   } else if (scope === STEPUP_SCOPE_LOCKRESET) {
     if (by !== STEPUP_BY_OWNER_ROOT && by !== STEPUP_BY_ROOT) {
@@ -122,7 +114,7 @@ export async function reissueStepupWithEpoch(env, headers, sv, newEpoch) {
 /**
  * 解析 stepup cookie 值。
  * 2.11 定稿：六段式 by.scope.epoch.iat.exp.sig；
- * by=root|owner|owner+root，scope=root|keys|lockreset。
+ * by=root|account|owner+root，scope=root|keys|lockreset（账号体系起不再有 by=owner 的票）。
  * @param {string} val
  * @returns {{by:string, scope:string, epoch:number, iat:number, exp:number, sig:string}|null}
  */
@@ -132,7 +124,7 @@ export function parseStepupCookie(val) {
   if (parts.length !== 6) return null;
   const by = parts[0];
   const scope = parts[1];
-  if (by !== STEPUP_BY_ROOT && by !== STEPUP_BY_OWNER && by !== STEPUP_BY_OWNER_ROOT) return null;
+  if (by !== STEPUP_BY_ROOT && by !== STEPUP_BY_ACCOUNT && by !== STEPUP_BY_OWNER_ROOT) return null;
   if (scope !== STEPUP_SCOPE_ROOT && scope !== STEPUP_SCOPE_KEYS && scope !== STEPUP_SCOPE_LOCKRESET) return null;
   const epoch = parseInt(parts[2], 10);
   const iat = parseInt(parts[3], 10);
@@ -203,7 +195,7 @@ export function setStepupCookie(headers, value) {
 }
 
 /**
- * 签发 stepup 票据并写入 headers（fail closed，/api/stepup 三个签发分支共用）。
+ * 签发 stepup 票据并写入 headers（fail closed，/api/stepup 两个签发分支共用）。
  * 成功返回 null；失败返回 { status, body }，调用方直接用它构造响应：
  * - SGX_STEPUP_PRIVATE 为空 → 500 no-stepup-key
  * - 读 session epoch 出错 → 503 server
@@ -213,7 +205,7 @@ export function setStepupCookie(headers, value) {
  * @param {Headers} headers
  * @param {string} by
  * @param {string} scope
- * @param {boolean} log 是否打印失败日志（verify / verify-password 打印，takeover-keys 不打印，与原代码一致）
+ * @param {boolean} log 是否打印失败日志（enter 打印，takeover-keys 不打印）
  * @returns {Promise<{status:number, body:object}|null>}
  */
 async function issueStepupCookie(env, kv, headers, by, scope, log) {
@@ -298,136 +290,20 @@ async function handlePost(context) {
     return Response.json({ ok: false, error: 'role' }, { status: 403 });
   }
 
-  /* RP_ID / 期望 origin：必须设置环境变量，不回落 */
-  const rp = rpConfig(env);
-  if (!rp) return rpConfigMissing();
-  const RP_ID = rp.rpId;
-  const EXPECT_ORIGIN = rp.origin;
-  const rpIdHash = await rpIdHashOf(RP_ID);
-
-  /* ============ challenge ============
-     2.11：只接受 owner 类通行密钥（challenge 只列 owner 凭据；lock 不再能开 stepup）。 */
-  if (action === 'challenge') {
-    const keys = await getPasskeys(kv);
-    const ownerKeys = keys.filter(function (k) { return k.class === PK_CLASS_OWNER; });
-    if (ownerKeys.length === 0) {
-      return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
+  /* ============ enter ============
+     账号体系：入口 2 —— 有效 lock 会话（上面已验）+ 独立验证的账号会话（sgx-account），
+     且账号登录在 10 分钟内 → stepup(by=account, scope=keys)。
+     lock 会话从不被当作账号认证；无账号会话 401 account，过旧 403 account-stale。 */
+  if (action === 'enter') {
+    const acc = await verifyAccountCookie(request, env);
+    if (!acc.ok) {
+      return Response.json({ ok: false, error: 'account', reason: acc.reason }, { status: 401 });
     }
-    const challenge = randB64(32);
-    const cid = randB64(16);
-    try {
-      await kv.put(
-        STEPUP_CHALLENGE_PREFIX + cid,
-        JSON.stringify({ challenge: challenge, purpose: 'stepup', exp: Date.now() + STEPUP_CHALLENGE_TTL * 1000 }),
-        { expirationTtl: STEPUP_CHALLENGE_TTL }
-      );
-    } catch (e) {
-      return Response.json({ ok: false, error: 'server' }, { status: 500 });
-    }
-    return Response.json({
-      ok: true,
-      cid: cid,
-      challenge: challenge,
-      rpId: RP_ID,
-      allowCredentials: ownerKeys.map(function (k) { return { id: k.credId, type: 'public-key' }; }),
-    });
-  }
-
-  /* ============ verify ============ */
-  if (action === 'verify') {
-    const cred = (body && body.credential) || {};
-    const cid = (body && body.cid) || '';
-    /* 只认 stepup-challenge: 前缀 —— login 的 pk-challenge: 在这里查不到，
-       用途隔离（login challenge 不能用于 stepup）。单次使用：取后即删。 */
-    const chRec = await consumeChallenge(kv, STEPUP_CHALLENGE_PREFIX + cid);
-    if (!chRec || chRec.purpose !== 'stepup' || chRec.exp < Date.now()) {
-      return Response.json({ ok: false, error: 'challenge' }, { status: 403 });
-    }
-    const keys = await getPasskeys(kv);
-    const ownerKeys = keys.filter(function (k) { return k.class === PK_CLASS_OWNER; });
-    if (ownerKeys.length === 0) {
-      return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
-    }
-    const stored = findStoredKey(ownerKeys, cred.rawId || '');
-    if (!stored || !stored.publicKey) {
-      return Response.json({ ok: false, error: 'unknown-key' }, { status: 403 });
-    }
-    /* 2.11：服务端再次校验分类（只有 owner 类能开 stepup；lock/app 一律拒绝） */
-    if (stored.class !== PK_CLASS_OWNER) {
-      return Response.json({ ok: false, error: 'class-mismatch' }, { status: 403 });
-    }
-    try {
-      /* 共享断言验证，强制 userVerification=required 并校验 UV 标志位 */
-      const checked = await verifyAssertion({
-        credential: cred,
-        challenge: chRec.challenge,
-        rpIdHash: rpIdHash,
-        expectOrigin: EXPECT_ORIGIN,
-        storedPublicKey: stored.publicKey,
-        storedSignCount: stored.signCount,
-        requireUV: true,
-      });
-      /* 更新 signCount（防克隆） */
-      stored.signCount = checked.signCount;
-      stored.lastUsedAt = Date.now();
-      try {
-        /* 更新 signCount（防克隆）：直接写 KV，不走 owner-passkey 的 savePasskey
-          （避免循环 import；字段顺序与 owner-passkey.savePasskey 一致） */
-        const keyName = ownerPasskeyKey(stored.credId);
-        const ordered = {
-          name: stored.name || '通行密钥',
-          provider: stored.provider || '',
-          aaguid: stored.aaguid || '',
-          createdAt: stored.createdAt || Date.now(),
-          lastUsedAt: stored.lastUsedAt,
-          credId: stored.credId,
-          publicKey: stored.publicKey,
-          signCount: stored.signCount || 0,
-          uv: stored.uv ? 1 : 0,
-          class: stored.class || PK_CLASS_OWNER,
-        };
-        if (ordered.class === 'app' && stored.aud) ordered.aud = stored.aud;
-        await kv.put(keyName, JSON.stringify(ordered));
-      } catch (e2) {}
-      /* 签发 sgx-stepup cookie：缺 SGX_STEPUP_PRIVATE 则拒绝（fail closed）
-         2.11：ownerkey 通行密钥 → stepup(by=owner, scope=keys) */
-      const headers = new Headers({ 'Content-Type': 'application/json' });
-      const issueErr = await issueStepupCookie(env, kv, headers, STEPUP_BY_OWNER, STEPUP_SCOPE_KEYS, true);
-      if (issueErr) return Response.json(issueErr.body, { status: issueErr.status });
-      return new Response(JSON.stringify({ ok: true }), { headers });
-    } catch (e) {
-      console.error('[stepup-verify]', e && e.message ? e.message : e);
-      const code = (e && e.message === 'uv-required') ? 'uv-required' : 'verify';
-      return Response.json({ ok: false, error: code }, { status: 403 });
-    }
-  }
-
-  /* ============ verify-password ============
-     2.11 定稿：入口 2 的密码路径。有效 lock 会话 + owner 密码
-     → stepup(by=owner, scope=keys)。缺 pepper 时 fail closed。 */
-  if (action === 'verify-password') {
-    const password = (body && body.password) || '';
-    if (!password || typeof password !== 'string') {
-      return Response.json({ ok: false, error: 'params' }, { status: 400 });
-    }
-    const pepper = getPepper(env);
-    if (!pepper) {
-      return Response.json({ ok: false, error: 'config' }, { status: 503 });
-    }
-    let vr;
-    try {
-      vr = await verifyOwnerPassword(kv, pepper, password);
-    } catch (e) {
-      return Response.json({ ok: false, error: 'server' }, { status: 503 });
-    }
-    if (!vr.set) {
-      return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
-    }
-    if (!vr.ok) {
-      return Response.json({ ok: false, error: 'wrong' }, { status: 403 });
+    if (!acc.recent) {
+      return Response.json({ ok: false, error: 'account-stale' }, { status: 403 });
     }
     const headers = new Headers({ 'Content-Type': 'application/json' });
-    const issueErr = await issueStepupCookie(env, kv, headers, STEPUP_BY_OWNER, STEPUP_SCOPE_KEYS, true);
+    const issueErr = await issueStepupCookie(env, kv, headers, STEPUP_BY_ACCOUNT, STEPUP_SCOPE_KEYS, true);
     if (issueErr) return Response.json(issueErr.body, { status: issueErr.status });
     return new Response(JSON.stringify({ ok: true }), { headers });
   }

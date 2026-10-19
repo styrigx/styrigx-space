@@ -8,7 +8,8 @@
  *   SECRET_NAMES 与 wrangler.toml 的 Secrets Store 绑定里（少一个 → 线上读不到 → fail closed）
  * - realmCookie / realmClearCookie 拼出的 Set-Cookie 与原手拼字符串相同
  * - rpConfigMissing 仍是 503 config
- * - 密码哈希搬到 _kernel/password.js 后：lock / owner 各读自己的 KV 键，旧导出仍可用
+ * - 密码哈希搬到 _kernel/password.js 后：lock / account 各读自己的 KV 键，旧导出仍可用
+ * - 账号体系：REALM_ACCOUNT（sgx-account、SGX_ACCOUNT_*）与 lock 会话完全分开
  *
  * 运行：node --test tests/workers/auth-gateway/realms.test.mjs
  */
@@ -21,7 +22,7 @@ import {
   REALM_LOCK,
   REALM_STEPUP,
   REALM_APP,
-  REALM_OWNER,
+  REALM_ACCOUNT,
   REALM_ROOT,
   SESSION_EPOCH_KEY,
   realmPrivateKey,
@@ -73,10 +74,22 @@ test('realms：线上格式与重构前字面量逐字相同', () => {
   assert.equal(REALM_APP.privateKey, 'SGX_APP_PRIVATE');
   assert.equal(REALM_APP.publicKey, 'SGX_APP_PUBLIC');
 
-  assert.equal(REALM_OWNER.kv.password, 'owner-pw');
-  assert.equal(REALM_OWNER.kv.passkeyPrefix, 'owner-passkey:');
-  assert.equal(REALM_OWNER.kv.challengePrefix, 'pk-challenge:');
-  assert.equal(REALM_OWNER.pepper, 'SGX_PW_PEPPER');
+  /* 账号体系：原站长凭证升级为账号；存储键沿用原值（迁移不搬数据） */
+  assert.equal(REALM_ACCOUNT.kv.password, 'owner-pw');
+  assert.equal(REALM_ACCOUNT.kv.passkeyPrefix, 'owner-passkey:');
+  assert.equal(REALM_ACCOUNT.storeClass, 'owner');
+  assert.equal(REALM_ACCOUNT.pepper, 'SGX_PW_PEPPER');
+  assert.equal(REALM_ACCOUNT.cookie, 'sgx-account');
+  assert.equal(REALM_ACCOUNT.cookieAttrs, 'Path=/; HttpOnly; Secure; SameSite=Strict');
+  assert.equal(REALM_ACCOUNT.maxAge, 43200);
+  assert.equal(REALM_ACCOUNT.recent, 600);
+  assert.equal(REALM_ACCOUNT.privateKey, 'SGX_ACCOUNT_PRIVATE');
+  assert.equal(REALM_ACCOUNT.publicKey, 'SGX_ACCOUNT_PUBLIC');
+  assert.equal(REALM_ACCOUNT.kv.challengePrefix, 'account-challenge:');
+  assert.equal(REALM_ACCOUNT.kv.epoch, 'account-epoch');
+  /* 锁屏/应用通行密钥的 challenge 前缀不变 */
+  assert.equal(REALM_LOCK.kv.passkeyChallengePrefix, 'pk-challenge:');
+  assert.notEqual(REALM_ACCOUNT.cookie, REALM_LOCK.cookie);
   assert.equal(REALM_LOCK.pepper, 'SGX_PW_PEPPER');
 
   assert.equal(REALM_ROOT.secret, 'SGX_ROOT_KEY');
@@ -132,6 +145,10 @@ test('realms：realmCookie / realmClearCookie 与原手拼字符串相同', () =
     'sgx-app=; Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
   );
   assert.equal(
+    realmCookie(REALM_ACCOUNT, 'v3'),
+    'sgx-account=v3; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=43200'
+  );
+  assert.equal(
     realmClearCookie(REALM_LOCK),
     'sgx-verified=; Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
   );
@@ -153,7 +170,7 @@ test('realms：rpConfig 缺变量 → null；rpConfigMissing 仍是 503 config',
   assert.deepEqual(await r.json(), { ok: false, error: 'config', message: 'SGX_RP_ID / SGX_ORIGIN 未配置' });
 });
 
-test('password：lock / owner 各读自己的 KV 键；旧导出（owner-password.js）仍可用', async () => {
+test('password：lock / account 各读自己的 KV 键；owner-password.js 导出仍可用', async () => {
   const pw = await import('../../../workers/auth-gateway/functions/_kernel/password.js');
   const legacy = await import('../../../workers/auth-gateway/functions/api/owner-password.js');
   assert.equal(legacy.getPepper, pw.getPepper);
@@ -164,9 +181,9 @@ test('password：lock / owner 各读自己的 KV 键；旧导出（owner-passwor
   assert.equal(rec.peppered, true);
   assert.equal(rec.iterations, 100000);
   const kv = makeKV({ 'owner-pw': JSON.stringify(rec) });
-  assert.deepEqual(await pw.verifyRealmPassword(kv, REALM_OWNER, 'pep', 'owner-secret-1'), { ok: true, set: true, needsRehash: false });
-  assert.deepEqual(await pw.verifyRealmPassword(kv, REALM_OWNER, 'pep', 'wrong-pass'), { ok: false, set: true, needsRehash: false });
+  assert.deepEqual(await pw.verifyRealmPassword(kv, REALM_ACCOUNT, 'pep', 'owner-secret-1'), { ok: true, set: true, needsRehash: false });
+  assert.deepEqual(await pw.verifyRealmPassword(kv, REALM_ACCOUNT, 'pep', 'wrong-pass'), { ok: false, set: true, needsRehash: false });
   /* lock 读 lock-pw：未设置 */
   assert.deepEqual(await pw.verifyRealmPassword(kv, REALM_LOCK, 'pep', 'owner-secret-1'), { ok: false, set: false, needsRehash: false });
-  assert.deepEqual(await legacy.verifyOwnerPassword(kv, 'pep', 'owner-secret-1'), { ok: true, set: true, needsRehash: false });
+  assert.deepEqual(await legacy.verifyAccountPassword(kv, 'pep', 'owner-secret-1'), { ok: true, set: true, needsRehash: false });
 });

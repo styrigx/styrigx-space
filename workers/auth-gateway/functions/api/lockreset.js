@@ -5,7 +5,7 @@
  * 1. 先输入根凭证，与环境变量比对（不读 KV）。错误按现有认证失败处理。
  * 2. 根凭证正确后才读恢复开关（KV `recovery-switch` + D1 计时/单次）。
  *    开关有效 → 签发 by=root, via=switch, scope=lockreset，并原子标记已用。
- * 3. 开关无效 → 继续要求站长凭证，通过后签发 scope=lockreset（by=owner+root）。
+ * 3. 开关无效 → 继续要求账号凭证（原站长凭证），通过后签发 scope=lockreset（by=owner+root）。
  *
  * 前端不提示开关存在；两种情况响应形态一致，由服务端决定下一步。
  * 只在重置锁屏路径、且根凭证正确后读开关，其他请求一律不读。
@@ -38,13 +38,13 @@ import {
 } from './stepup.js';
 import { randB64, verifyAssertion, rpIdHashOf, consumeChallenge, findStoredKey } from '../_kernel/passkey-verify.js';
 import { getPasskeys, PK_CLASS_OWNER } from './owner-passkey.js';
-import { verifyOwnerPassword, getPepper } from './owner-password.js';
+import { verifyAccountPassword, getPepper } from './owner-password.js';
 import { checkRootLimit, recordRootFail, clearRootFail, getClientIp } from '../_kernel/rootlimit.js';
 import { writeRootAudit } from '../_kernel/rootlog.js';
 import { isLayerConfigured, LAYER_OWNER } from '../_kernel/layers.js';
 import { checkRecoverySwitch, claimSwitchUsed } from '../_kernel/recswitch.js';
 import { isSameOrigin } from '../_kernel/http.js';
-import { REALM_LOCK, REALM_OWNER, REALM_STEPUP, REALM_ROOT, realmPrivateKey, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
+import { REALM_LOCK, REALM_ACCOUNT, REALM_STEPUP, REALM_ROOT, realmPrivateKey, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
 
 const CHALLENGE_PREFIX = REALM_STEPUP.kv.lockresetChallengePrefix; /* 'lockreset-challenge:' */
 const CHALLENGE_TTL = 300; /* 5 分钟 */
@@ -208,7 +208,7 @@ async function handlePost(context) {
       let hasOwnerPw = false;
       let hasOwnerPk = false;
       try {
-        const r = await kv.get(REALM_OWNER.kv.password, 'json');
+        const r = await kv.get(REALM_ACCOUNT.kv.password, 'json');
         hasOwnerPw = !!(r && r.hash);
       } catch (e) {}
       try {
@@ -226,7 +226,7 @@ async function handlePost(context) {
         return Response.json({ ok: false, error: 'config' }, { status: 503 });
       }
       try {
-        const vr = await verifyOwnerPassword(kv, pepper, String(proof.password || ''));
+        const vr = await verifyAccountPassword(kv, pepper, String(proof.password || ''));
         ownerOk = vr.set && vr.ok;
       } catch (e) {
         const failResp = await fail();

@@ -9,7 +9,7 @@
  *   （lock → 'lock-pw'，owner → 'owner-pw'）
  */
 import { b64enc, b64dec, timingSafeEqual } from './crypto.js';
-import { REALM_OWNER } from './realms.js';
+import { REALM_ACCOUNT } from './realms.js';
 
 export const ITERATIONS = 100000; // Workers PBKDF2 上限（实测：超过抛 NotSupportedError）
 const SALT_LEN = 16;
@@ -41,7 +41,7 @@ async function hashPassword(password, salt, iterations, pepper) {
  * @param {any} env
  */
 export function getPepper(env) {
-  return (env && env[REALM_OWNER.pepper]) || '';
+  return (env && env[REALM_ACCOUNT.pepper]) || '';
 }
 
 /**
@@ -90,7 +90,7 @@ export async function makePasswordRecord(password, pepper) {
 /**
  * 校验某个凭证域的密码（读 realm.kv.password）。KV 出错时抛错（调用方返回 503）。
  * @param {any} kv
- * @param {{kv:{password:string}}} realm REALM_LOCK / REALM_OWNER
+ * @param {{kv:{password:string}}} realm REALM_LOCK / REALM_ACCOUNT
  * @param {string} pepper
  * @param {string} password
  * @returns {Promise<{ok:boolean, set:boolean, needsRehash:boolean}>}

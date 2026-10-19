@@ -421,7 +421,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       });
       expect((await r.json()).ok).toBe(true);
 
-      // 旧 cookie 应失效（通过 owner-status 或再次 verify 验证）
+      // 旧 cookie 应失效（通过 lock-status 或再次 verify 验证）
       // 这里验证：用旧密码 verify 应失败
       r = await request.post(BASE + '/api/owner-password', {
         data: { action: 'verify', password: 'test-pass-12345' },
@@ -473,13 +473,13 @@ test.describe('passkey e2e (virtual authenticator)', () => {
     }
   });
 
-  test('注册后 owner-status.passkey 立即为 true，删光后为 false', async ({ page, request }) => {
-    /* 回归：owner-status 读旧数组，注册后仍为 false；现读索引 key */
+  test('注册后 lock-status.passkey 立即为 true，删光后为 false', async ({ page, request }) => {
+    /* 回归（原 owner-status，账号体系后改读 lock-status）：读旧数组，注册后仍为 false；现读索引 key */
     const { cdp, authenticatorId } = await addVirtualAuth(page);
     try {
       await gateWithKey(page);
       // 注册前：应为 false
-      let st = await (await request.get(BASE + '/api/owner-status')).json();
+      let st = await (await request.get(BASE + '/api/lock-status')).json();
       expect(st.ok).toBe(true);
       const before = st.passkey;
 
@@ -487,7 +487,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       await expect(page.locator('.lockmgr-pkitem').first()).toBeVisible({ timeout: 20000 });
 
       // 注册后：立即为 true（不等待 KV list 同步）
-      st = await (await request.get(BASE + '/api/owner-status')).json();
+      st = await (await request.get(BASE + '/api/lock-status')).json();
       expect(st.passkey).toBe(true);
 
       // 删光
@@ -502,7 +502,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       }
 
       // 删光后：为 false
-      st = await (await request.get(BASE + '/api/owner-status')).json();
+      st = await (await request.get(BASE + '/api/lock-status')).json();
       expect(st.passkey).toBe(false);
     } finally {
       await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
@@ -538,7 +538,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       expect(excl).toContain(credId);
 
       // status 应为 true
-      const st = await (await request.get(BASE + '/api/owner-status')).json();
+      const st = await (await request.get(BASE + '/api/lock-status')).json();
       expect(st.passkey).toBe(true);
     } finally {
       await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });

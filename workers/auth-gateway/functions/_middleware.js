@@ -21,13 +21,11 @@ import { REALM_LOCK, realmPublicKey, SESSION_EPOCH_KEY } from './_kernel/realms.
    主人专属：/settings/security/ 全系（总览、锁屏、应用）。
    visitor 访问主人专属路径 → 302 到锁屏（只一次，首页不再二次 302）。 */
 /* 定稿 #13/#14/R3：访客可进安全与隐私总览页（/settings/security/），
-   结构与站长一致；门内页（owner/lock/apps/mgmt）仍需 owner 会话（#21）。 */
+   结构与站长一致；门内页（lock/apps/mgmt）仍需 owner 会话（#21）。 */
 const OWNER_ONLY_PATHS = [
-  '/settings/security/owner/',
   '/settings/security/lock/',
   '/settings/security/apps/',
   '/settings/security/mgmt/',
-  '/en/settings/security/owner/',
   '/en/settings/security/lock/',
   '/en/settings/security/apps/',
   '/en/settings/security/mgmt/',
@@ -40,6 +38,7 @@ const LOCKRESET_PATHS = [
 ];
 /* 2.8.0：主人专属 API（visitor 调用 → 403） */
 const OWNER_ONLY_APIS = [
+  '/api/account',
   '/api/owner-password',
   '/api/owner-passkey',
   '/api/lock-all-devices',
@@ -73,7 +72,6 @@ const API_WHITELIST = [
   '/api/root-audit',
   '/api/owner-password',
   '/api/owner-passkey',
-  '/api/owner-status',
   '/api/lock-status',
   '/api/lock-config',
   '/api/session-check',

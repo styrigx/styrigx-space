@@ -1,6 +1,6 @@
 {{/* 安全与隐私（2.4.0 安全与隐私）：只读状态卡片 + 安全/隐私分组。
-   状态来自 /api/owner-status（需鉴权，只返回是否已设置）；noindex、不进 sitemap（见 baseof/sitemap）。
-   定稿：安全页只有三入口（站长凭证/管理凭证/立即锁定），无密钥分层与审计分组。
+   状态来自 GET /api/account（需鉴权，只返回账号凭证是否已设置）；noindex、不进 sitemap（见 baseof/sitemap）。
+   账号体系：安全页两个入口（管理凭证/立即锁定）；原「站长凭证」升级为账号，入口在顶栏右圆头像。
    脚本走 ES Module 入口 entry-security.js；localStorage 经 storage.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-security.js" }}
@@ -12,7 +12,7 @@
 <div class="set-layout max-w-2xl mx-auto px-4 pb-28">
   {{ partial "subpage-head.html" (dict "title" (cond $isEn "Security and privacy" "安全与隐私") "isEn" $isEn "actions" ($moreBtn | safeHTML)) }}
 
-  <!-- 状态卡片（JS 按 /api/owner-status 填充） -->
+  <!-- 状态卡片（JS 按 GET /api/account 填充：账号密码 / 账号通行密钥是否已设置） -->
   <a id="sec-status" class="sec-status" href="{{ $lockUrl }}" hidden>
     <span class="sec-status-ic" id="sec-status-ic">{{ partial "icon.html" "shield" }}</span>
     <span class="flex-1 min-w-0">
@@ -22,19 +22,10 @@
     {{ partial "icon.html" "chev-r" }}
   </a>
 
-  <!-- 安全分组：三个入口（访客与站长看到完全一样） -->
+  <!-- 安全分组：两个入口（访客与站长看到完全一样） -->
   <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Security{{ else }}安全{{ end }}</span></h2>
   <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.1s">
-    {{/* 入口 1：站长凭证 → 弹层「需要验证」→ 根凭证 → owner 凭证管理 */}}
-    <div class="set-row" id="sec-owner-cred" role="button" tabindex="0">
-      <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "shield" }}</span>
-      <span class="flex-1 min-w-0">
-        <span class="block font-medium">{{ if $isEn }}Owner credential{{ else }}站长凭证{{ end }}</span>
-        <span class="block text-xs mt-0.5 truncate text-m-primary">{{ if $isEn }}Owner passkeys and password{{ else }}站长通行密钥和密码{{ end }}</span>
-      </span>
-      {{ partial "icon.html" "chev-r" }}
-    </div>
-    {{/* 入口 2：管理凭证 → 弹层「需要凭证」→ 按配置显示按钮 → lock/APP 管理 */}}
+    {{/* 管理凭证 → 10 分钟内登录过账号直接进门；否则去账号登录（登录后自动进门）→ lock/APP 管理 */}}
     <div class="set-row" id="sec-mgmt-cred" role="button" tabindex="0">
       <span class="set-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "key" }}</span>
       <span class="flex-1 min-w-0">
@@ -51,22 +42,6 @@
       </span>
     </div>
   </section>
-
-  {{/* 两扇门验证弹层（共用组件，One UI 悬浮卡片）：
-     标题/说明/验证方式列表由 JS 按门填充；只显示已配置的方式。
-     界面不出现 stepup、票据、rootkey/ownerkey 等内部名。 */}}
-  <dialog id="sec-verify-dlg" class="sgx-door-dlg" aria-labelledby="sec-verify-title">
-    <div class="sgx-door-card" role="document">
-      {{/* 批次 A 收尾 A3：右上角 × 关闭按钮 */}}
-      <button type="button" class="sgx-dlg-close" id="sec-verify-close" aria-label="{{ if $isEn }}Close{{ else }}关闭{{ end }}">×</button>
-      <h2 id="sec-verify-title" class="sgx-door-title"></h2>
-      <p id="sec-verify-desc" class="sgx-door-desc"></p>
-      <div id="sec-verify-methods" class="sgx-door-methods"></div>
-      <div id="sec-verify-foot" class="sgx-door-foot">
-        <button type="button" class="sgx-door-cancel" id="sec-verify-cancel">{{ if $isEn }}Cancel{{ else }}取消{{ end }}</button>
-      </div>
-    </div>
-  </dialog>
 
   <!-- 隐私分组 -->
   <h2 class="set-gh"><span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "info" }}</span><span>{{ if $isEn }}Privacy{{ else }}隐私{{ end }}</span></h2>
@@ -100,8 +75,8 @@
   "okTitle" (dict "zh" "一切正常" "en" "All good")
   "okSub" (dict "zh" "密码、通行密钥均已设置" "en" "Password and passkeys are set")
   "warnTitle" (dict "zh" "建议操作" "en" "Action suggested")
-  "missPw" (dict "zh" "未设置站长密码" "en" "Owner password not set")
-  "missPk" (dict "zh" "未注册通行密钥" "en" "No passkeys registered")
+  "missPw" (dict "zh" "未设置账号密码" "en" "Account password not set")
+  "missPk" (dict "zh" "未注册账号通行密钥" "en" "No account passkeys registered")
   "lockSubBoth" (dict "zh" "密码，通行密钥" "en" "Password, passkeys")
   "lockSubPw" (dict "zh" "密码" "en" "Password")
   "lockSubPk" (dict "zh" "通行密钥" "en" "Passkeys")
@@ -113,15 +88,7 @@
   "layerConfigured" (dict "zh" "已接管" "en" "Has own credentials")
   "auditOk" (dict "zh" "成功" "en" "Success")
   "auditFail" (dict "zh" "失败" "en" "Failed")
-  "ownerCredTitle" (dict "zh" "需要验证" "en" "Verification needed")
-  "mgmtCredTitle" (dict "zh" "需要凭证" "en" "Credential needed")
-  "rootCredBtn" (dict "zh" "根凭证" "en" "Root credential")
-  "pkVerifyBtn" (dict "zh" "通行密钥验证" "en" "Verify with passkey")
-  "pwVerifyBtn" (dict "zh" "密码验证" "en" "Verify with password")
   "errNetwork" (dict "zh" "网络连接失败，请重试" "en" "Network connection failed, please retry")
-  "errParse" (dict "zh" "服务器返回异常，请重试" "en" "Unexpected server response, please retry")
-  "errStepupExpired" (dict "zh" "验证已过期，请重新验证" "en" "Verification expired, please verify again")
-  "passkeyBusy" (dict "zh" "正在唤起通行密钥…" "en" "Opening passkey…")
   "sessExp" (dict "zh" "会话已过期，请重新解锁" "en" "Session expired, please unlock again")
 }}
 <script id="sgx-i18n-security" type="application/json">{{ $secI18n | jsonify | safeJS }}</script>

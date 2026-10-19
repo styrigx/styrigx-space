@@ -195,12 +195,19 @@ test.describe('390×844 行为', () => {
     await expect(page.locator('#sgx-cap-input-brwsearch')).toBeFocused({ timeout: 5000 });
   });
 
-  test('主页头像圆：点了不跳转', async ({ page }) => {
+  test('主页头像圆：点了进账号页（账号体系入口）', async ({ page }) => {
+    /* 固定中文：不设 sgx-lang 时语言跟随浏览器（en-US）会把 / 带到 /en/ */
+    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/');
-    const url0 = page.url();
+    await expect(page.locator('.sgx-tb-me')).toHaveAttribute('href', '/settings/account/');
     await page.locator('.sgx-tb-me').click();
-    await page.waitForTimeout(300);
-    expect(page.url()).toBe(url0);
+    await page.waitForURL(/\/settings\/account\/$/);
+    await expect(page.locator('#acct-login')).toBeVisible();
+  });
+
+  test('英文页头像圆链到英文账号页', async ({ page }) => {
+    await go(page, '/en/');
+    await expect(page.locator('.sgx-tb-me')).toHaveAttribute('href', '/en/settings/account/');
   });
 
   test('主页九宫格：菜单在按钮下方 8px 左对齐', async ({ page }) => {

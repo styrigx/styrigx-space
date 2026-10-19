@@ -60,7 +60,7 @@ async function genKeys() {
 }
 async function mintStepup(epoch = 0) {
   const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
-  return await signStepupCookie(STEPUP_PRIV, 'owner', 'keys', epoch);
+  return await signStepupCookie(STEPUP_PRIV, 'account', 'keys', epoch);
 }
 async function mintSession(epoch = 0) {
   const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');

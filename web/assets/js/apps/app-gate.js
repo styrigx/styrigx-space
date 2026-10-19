@@ -56,7 +56,7 @@ let countdownExpiresAt = 0;
 function verifyMessage(t, reason, detail) {
   /* 批次 A 验收修复 P0：代管中途站长层被配置 → 明确提示，不无提示踢回安全页 */
   if (reason === 'owner-configured' || detail === 'owner-configured') {
-    return tx(t, 'errOwnerConfigured', '站长凭证已设置，请用站长凭证重新验证', 'Owner credential is set, please verify with the owner credential again');
+    return tx(t, 'errOwnerConfigured', '账号凭证已设置，请先登录账号再进入', 'Account credentials are set; please sign in to your account first');
   }
   let msg;
   switch (reason) {
@@ -97,16 +97,15 @@ export function needVerify(t, reason, detail) {
 
 /**
  * 2026-10-19：验证过期后「重新验证」的去向：安全与隐私页 + ?verify=&return=，
- * 安全页自动打开对应验证弹层，通过后回到当前门内页。
- * 站长凭证门（/owner/）用根凭证弹层，其余门用管理凭证弹层。
+ * 安全页自动走管理凭证进门（近期账号登录换票；过旧则去账号登录），通过后回到当前门内页。
+ * （账号体系：原站长凭证门已升级为账号页，不再有 verify=owner。）
  * @returns {string}
  */
 function reverifyUrl() {
   const path = window.location.pathname;
   const isEn = path.indexOf('/en/') === 0;
   const base = isEn ? '/en/settings/security/' : '/settings/security/';
-  const which = /\/settings\/security\/owner\//.test(path) ? 'owner' : 'mgmt';
-  return base + '?verify=' + which + '&return=' + encodeURIComponent(path);
+  return base + '?verify=mgmt&return=' + encodeURIComponent(path);
 }
 
 /**
@@ -130,7 +129,7 @@ function showExpiredDialog(t, kind, detail) {
     : tx(t, 'expiredStepupTitle', '验证已过期', 'Verification expired');
   let desc;
   if (isOwnerConfigured) {
-    desc = tx(t, 'errOwnerConfigured', '站长凭证已设置，请用站长凭证重新验证', 'Owner credential is set, please verify with the owner credential again');
+    desc = tx(t, 'errOwnerConfigured', '账号凭证已设置，请先登录账号再进入', 'Account credentials are set; please sign in to your account first');
   } else if (isSession) {
     desc = tx(t, 'expiredSessionDesc', '请回到锁屏重新解锁', 'Please go back to the lock screen to unlock again.');
   } else {

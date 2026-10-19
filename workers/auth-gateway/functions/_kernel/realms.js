@@ -12,10 +12,12 @@
  * - lock   会话（sgx-verified）：锁屏解锁后签发的站长/访客会话，SGX_LOCK_* 签名
  * - stepup 二次验证票据（sgx-stepup）：进「门」后的短时票据，SGX_STEPUP_* 签名
  * - app    应用通行证（sgx-app）：给子站（如 book）的短时通行证，SGX_APP_* 签名
- * - owner  站长凭证（ownerkey：站长密码 owner-pw + class=owner 通行密钥）：
- *          本身不签票，验过后签发 stepup(by=owner, scope=keys)
+ * - account 账号会话（sgx-account）：账号登录（账号通行密钥 / 账号密码 / 根凭证三选一）
+ *          成功后签发，SGX_ACCOUNT_* 签名；账号凭证（ownerkey：账号密码 owner-pw +
+ *          class=owner 通行密钥，原「站长凭证」升级而来，存储不迁移）只在账号页管理。
+ *          进「门」：近期（≤10 分钟）账号登录 → stepup(by=account, scope=keys)
  * - root   根凭证（rootkey：SGX_ROOT_KEY）：本身不签票，验过后签发
- *          stepup(by=root, scope=root) 或 lock 会话(by=root)
+ *          stepup(by=root, scope=root)、lock 会话(by=root) 或 account 会话(by=root)
  *
  * 本文件是叶子模块：只 import key-names.js（同为叶子），不 import 任何接口或 session.js，
  * 避免循环依赖。Pages 上没有 functions/（全部后端只在鉴权网关 Worker 里打包），只有一份构建。
@@ -47,10 +49,11 @@ export const REALM_LOCK = Object.freeze({
   cookie: 'sgx-verified',
   cookieAttrs: COOKIE_SCOPE + '; SameSite=Lax',
   maxAge: 43200, /* 12 小时（owner 会话）；visitor 会话 1 小时见 session.js */
-  pepper: 'SGX_PW_PEPPER', /* 锁屏密码与站长密码共用一个 pepper */
+  pepper: 'SGX_PW_PEPPER', /* 锁屏密码与账号密码共用一个 pepper */
   storeClass: STORE_CLASS_LOCKKEY,
   kv: Object.freeze({
     password: 'lock-pw',
+    passkeyChallengePrefix: 'pk-challenge:', /* 锁屏/应用通行密钥注册与登录 challenge（owner-passkey 接口） */
     epoch: SESSION_EPOCH_KEY,
   }),
 });
@@ -87,17 +90,40 @@ export const REALM_APP = Object.freeze({
   }),
 });
 
-/** 站长凭证（ownerkey）：验过后签发 stepup(by=owner, scope=keys) */
-export const REALM_OWNER = Object.freeze({
-  id: 'owner',
+/**
+ * 账号（原「站长凭证」升级）：账号登录成功后签发独立的账号会话 sgx-account。
+ *
+ * 票据：by.epoch.authAt.exp.Ed25519(SGX_ACCOUNT_PRIVATE)，见 _kernel/account-session.js。
+ * - by：passkey | password | root（三个登录入口平级，任一成功即签发）
+ * - authAt：本次登录验证的时刻（毫秒）；进门/账号页管理操作要求 now - authAt ≤ recent
+ * - epoch：account-epoch（改账号密码 / 删账号通行密钥时 +1，其他设备的账号会话失效）
+ * 与 lock 会话（sgx-verified）完全独立：lock 会话从不被当作账号认证。
+ *
+ * 迁移（不重新注册）：KV 键沿用原站长凭证的存储——账号密码仍是 'owner-pw'
+ * （同一个 SGX_PW_PEPPER，旧哈希直接可用），账号通行密钥仍是
+ * 'owner-passkey:<credId12>' 且 class='owner'（同 RP styrigx.com、同 user handle）。
+ * 只在常量层改名，不搬数据，所以无需读回退。
+ *
+ * cookie 不带 Domain（只发给 styrigx.com 主站，子站用不到）、SameSite=Strict。
+ */
+export const REALM_ACCOUNT = Object.freeze({
+  id: 'account',
   keyName: KEY_OWNER,
+  privateKey: 'SGX_ACCOUNT_PRIVATE',
+  publicKey: 'SGX_ACCOUNT_PUBLIC',
+  cookie: 'sgx-account',
+  cookieAttrs: 'Path=/; HttpOnly; Secure; SameSite=Strict',
+  maxAge: 43200, /* 12 小时（与 owner lock 会话同） */
+  recent: 600, /* 10 分钟：进门、管理账号凭证要求的「近期登录」窗口（秒） */
   pepper: 'SGX_PW_PEPPER',
-  issues: 'stepup',
   storeClass: STORE_CLASS_OWNERKEY,
+  bys: Object.freeze(['passkey', 'password', 'root']),
   kv: Object.freeze({
-    password: 'owner-pw',
-    passkeyPrefix: OWNER_PASSKEY_PREFIX,
-    challengePrefix: 'pk-challenge:', /* 通行密钥注册/登录 challenge（owner-passkey 接口） */
+    password: 'owner-pw', /* 沿用原站长密码键（迁移：不搬数据） */
+    passkeyPrefix: OWNER_PASSKEY_PREFIX, /* 'owner-passkey:'，class='owner' */
+    challengePrefix: 'account-challenge:', /* 账号登录/注册 challenge（与 pk-/stepup- 隔离） */
+    challengeTtl: 300, /* 5 分钟 */
+    epoch: 'account-epoch',
   }),
 });
 
@@ -109,29 +135,12 @@ export const REALM_ROOT = Object.freeze({
   issues: 'stepup',
 });
 
-/*
- * 将来的「账户」登录在这里加一项（本次重构不加，仅示意位置）：
- *
- * export const REALM_ACCOUNT = Object.freeze({
- *   id: 'account',
- *   privateKey: 'SGX_ACCOUNT_PRIVATE',
- *   publicKey: 'SGX_ACCOUNT_PUBLIC',
- *   cookie: '<独立的会话 cookie 名>',
- *   cookieAttrs: COOKIE_SCOPE + '; SameSite=Lax',
- *   maxAge: <秒>,
- *   kv: Object.freeze({ password: '<账户密码 KV 键>', passkeyPrefix: '<账户通行密钥前缀>' }),
- * });
- *
- * 并同步：src/secrets.js 的 SECRET_NAMES、wrangler.toml 的 secrets_store_secrets、
- * tests/workers/auth-gateway/realms.test.mjs。
- */
-
 /** 全部凭证域（按 id 索引，供测试与通用代码遍历） */
 export const REALMS = Object.freeze({
   lock: REALM_LOCK,
   stepup: REALM_STEPUP,
   app: REALM_APP,
-  owner: REALM_OWNER,
+  account: REALM_ACCOUNT,
   root: REALM_ROOT,
 });
 

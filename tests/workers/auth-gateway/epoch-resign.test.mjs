@@ -94,65 +94,27 @@ test('setup: 生成测试密钥', async () => {
   assert.ok(STEPUP_PRIV.includes('PRIVATE KEY'));
 });
 
-test('D1：删 owner 类钥匙不推进 session-epoch', async () => {
+test('D1（账号体系）：门票据（root/root 或 account/keys）不能再删账号通行密钥 → 403 scope（reason=account），epoch 不变', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
   const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   const kv = makeKV({ 'session-epoch': '5' });
   await seedKey(kv, { credId: 'owner-key-001', cls: 'owner' });
-  /* owner 层已配置标记（避免删光后清标记影响） */
   await kv.put('layer:owner', '1');
-  /* 站长密码也存在（删光钥匙后仍有密码，层标记不被清） */
-  await kv.put('owner-pw', JSON.stringify({ hash: 'x', salt: 'y', iterations: 100000 }));
-
   const sess = await signSessionCookie(LOCK_PRIV, 5, 'owner', 'owner');
-  const stepup = await signStepupCookie(STEPUP_PRIV, 'root', 'root', 5);
-  const r = await onRequestPost({
-    request: postReq('https://styrigx.com/api/owner-passkey',
-      { action: 'delete', credId: 'owner-key-001' },
-      { Cookie: 'sgx-verified=' + sess + '; sgx-stepup=' + stepup }),
-    env: testEnv(kv),
-  });
-  assert.equal(r.status, 200, '删 ownerkey 应成功');
-  const j = await r.json();
-  assert.equal(j.ok, true);
-  /* D1：epoch 不变 */
-  assert.equal(await kv.get('session-epoch'), '5', '删 ownerkey 不应推进 session-epoch');
-  /* D1：无新会话 cookie（无需重签） */
-  assert.equal(extractSessionCookie(r), null, '删 ownerkey 不应重签会话');
-});
-
-test('D1+D4：删光 ownerkey 后设置站长密码成功（不 401 session）', async () => {
-  const { onRequestPost: pkPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
-  const { onRequestPost: pwPost } = await import('../../../workers/auth-gateway/functions/api/owner-password.js');
-  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
-  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
-  const kv = makeKV({ 'session-epoch': '5' });
-  await seedKey(kv, { credId: 'owner-key-001', cls: 'owner' });
-  await kv.put('layer:owner', '1');
-
-  const sess = await signSessionCookie(LOCK_PRIV, 5, 'owner', 'owner');
-  const stepup = await signStepupCookie(STEPUP_PRIV, 'root', 'root', 5);
-  /* 删掉唯一 ownerkey（无 owner 密码 → 层标记被清，但 epoch 不变） */
-  const rDel = await pkPost({
-    request: postReq('https://styrigx.com/api/owner-passkey',
-      { action: 'delete', credId: 'owner-key-001' },
-      { Cookie: 'sgx-verified=' + sess + '; sgx-stepup=' + stepup }),
-    env: testEnv(kv),
-  });
-  assert.equal((await rDel.json()).ok, true);
+  for (const [by, scope] of [['root', 'root'], ['account', 'keys']]) {
+    const stepup = await signStepupCookie(STEPUP_PRIV, by, scope, 5);
+    const r = await onRequestPost({
+      request: postReq('https://styrigx.com/api/owner-passkey',
+        { action: 'delete', credId: 'owner-key-001' },
+        { Cookie: 'sgx-verified=' + sess + '; sgx-stepup=' + stepup }),
+      env: testEnv(kv),
+    });
+    assert.equal(r.status, 403, by + '/' + scope);
+    assert.deepEqual(await r.json(), { ok: false, error: 'scope', reason: 'account' });
+  }
   assert.equal(await kv.get('session-epoch'), '5');
-
-  /* 同一次进门：设置站长密码（stepup 仍有效，会话仍有效） */
-  const rSet = await pwPost({
-    request: postReq('https://styrigx.com/api/owner-password',
-      { action: 'set', kind: 'owner', password: 'new-owner-pw-123' },
-      { Cookie: 'sgx-verified=' + sess + '; sgx-stepup=' + stepup }),
-    env: testEnv(kv),
-  });
-  const jSet = await rSet.json();
-  assert.equal(rSet.status, 200, '设置站长密码不应 401 session，实际：' + JSON.stringify(jSet));
-  assert.equal(jSet.ok, true);
+  assert.ok(await kv.get('owner-passkey:owner-key-00'), '账号通行密钥仍在');
 });
 
 test('D2：删 lock 类钥匙推进 epoch 并重签当前设备会话', async () => {
@@ -167,7 +129,7 @@ test('D2：删 lock 类钥匙推进 epoch 并重签当前设备会话', async ()
   await kv.put('lock-pw', JSON.stringify({ hash: 'x', salt: 'y', iterations: 100000 }));
 
   const sess = await signSessionCookie(LOCK_PRIV, 5, 'owner', 'owner');
-  const stepup = await signStepupCookie(STEPUP_PRIV, 'owner', 'keys', 5);
+  const stepup = await signStepupCookie(STEPUP_PRIV, 'account', 'keys', 5);
   const r = await onRequestPost({
     request: postReq('https://styrigx.com/api/owner-passkey',
       { action: 'delete', credId: 'lock-key-001' },
@@ -193,29 +155,26 @@ test('D2：删 lock 类钥匙推进 epoch 并重签当前设备会话', async ()
   assert.equal(v.ok, true, '新会话应验签通过');
 });
 
-test('D2：owner-password remove 推进 epoch 后重签当前设备会话', async () => {
+test('D2（账号体系）：owner-password 不再接受 kind=owner（账号密码只在 /api/account 管理）', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-password.js');
   const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
-  const { signSessionCookie, parseSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   const kv = makeKV({ 'session-epoch': '5' });
   await kv.put('layer:owner', '1');
   await kv.put('owner-pw', JSON.stringify({ hash: 'x', salt: 'y', iterations: 100000 }));
-  await seedKey(kv, { credId: 'owner-key-001', cls: 'owner' });
-
   const sess = await signSessionCookie(LOCK_PRIV, 5, 'owner', 'owner');
   const stepup = await signStepupCookie(STEPUP_PRIV, 'root', 'root', 5);
-  const r = await onRequestPost({
-    request: postReq('https://styrigx.com/api/owner-password',
-      { action: 'remove', kind: 'owner' },
-      { Cookie: 'sgx-verified=' + sess + '; sgx-stepup=' + stepup }),
-    env: testEnv(kv),
-  });
-  assert.equal(r.status, 200);
-  assert.equal((await r.json()).ok, true);
-  assert.equal(await kv.get('session-epoch'), '6');
-  const newSess = extractSessionCookie(r);
-  assert.ok(newSess, '删 owner 密码应重签当前设备会话');
-  assert.equal(parseSessionCookie(newSess).epoch, 6);
+  for (const body of [{ action: 'remove', kind: 'owner' }, { action: 'set', kind: 'owner', password: 'new-owner-pw-123' }]) {
+    const r = await onRequestPost({
+      request: postReq('https://styrigx.com/api/owner-password', body,
+        { Cookie: 'sgx-verified=' + sess + '; sgx-stepup=' + stepup }),
+      env: testEnv(kv),
+    });
+    assert.equal(r.status, 400);
+    assert.equal((await r.json()).error, 'params');
+  }
+  assert.equal(await kv.get('session-epoch'), '5');
+  assert.ok(await kv.get('owner-pw'), '账号密码仍在');
 });
 
 test('退出所有设备仍清当前 cookie（保持不变）', async () => {
@@ -227,7 +186,7 @@ test('退出所有设备仍清当前 cookie（保持不变）', async () => {
   await kv.put('layer:lock', '1');
 
   const sess = await signSessionCookie(LOCK_PRIV, 5, 'owner', 'owner');
-  const stepup = await signStepupCookie(STEPUP_PRIV, 'owner', 'keys', 5);
+  const stepup = await signStepupCookie(STEPUP_PRIV, 'account', 'keys', 5);
   const r = await onRequestPost({
     request: postReq('https://styrigx.com/api/lock-all-devices', {},
       { Cookie: 'sgx-verified=' + sess + '; sgx-stepup=' + stepup }),
@@ -313,7 +272,7 @@ test('D2 保持：by=owner 会话 + 删 lockkey / 改密码 → 当前设备仍 
   assert.equal(v.ok, true, '重签后的 by=owner 会话应验签通过');
   /* by=owner, scope=keys 票也应重签（D2 保持门内连续操作） */
   const headers2 = new Headers();
-  await reissueStepupWithEpoch(testEnv(kv), headers2, { ok: true, by: 'owner', scope: 'keys' }, 6);
+  await reissueStepupWithEpoch(testEnv(kv), headers2, { ok: true, by: 'account', scope: 'keys' }, 6);
   const setCookies2 = headers2.getSetCookie ? headers2.getSetCookie() : [];
   const reissued2 = setCookies2.some((c) => c.startsWith('sgx-stepup=') && !c.startsWith('sgx-stepup=;'));
   assert.equal(reissued2, true, 'by=owner, scope=keys 票应重签');

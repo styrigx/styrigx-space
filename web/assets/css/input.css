@@ -2528,7 +2528,7 @@
 .sgx-tb-psearch, .sgx-tb-back { left: 6px; }
 .sgx-tb-set { right: 6px; }
 .sgx-tb-pbtn ~ .sgx-tb-brand { padding: 0; }
-/* 主页右圆：头像（以后接账号体系） */
+/* 右圆：头像（账号入口：链到账号登录页 / 账号页） */
 .sgx-tb-me { width: 52px; height: 52px; border-radius: 999px; flex-shrink: 0; overflow: hidden; display: block;
   border: 1px solid var(--sgx-mat-line); box-shadow: var(--sgx-mat-shadow); pointer-events: auto; }
 .sgx-tb-me .sgx-tb-avatar { width: 100%; height: 100%; border: 0; display: block; }

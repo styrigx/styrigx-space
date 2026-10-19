@@ -53,22 +53,24 @@ test('sgx-account-card.html：只保留名字和头像（解锁入口已移走�
   assert.ok(cardHtml.includes('sgx-account-card'), '账户卡主体保留');
 });
 
-test('security.html：安全分组三个入口（站长凭证/管理凭证/立即锁定）', () => {
+test('security.html：安全分组两个入口（管理凭证/立即锁定）；站长凭证已升级为账号（顶栏头像）', () => {
   const secHtml = readFileSync('web/layouts/_default/security.html', 'utf8');
-  assert.ok(secHtml.includes('id="sec-owner-cred"'), '应有站长凭证入口');
+  assert.ok(!secHtml.includes('id="sec-owner-cred"'), '站长凭证入口已移到顶栏头像（账号页）');
   assert.ok(secHtml.includes('id="sec-mgmt-cred"'), '应有管理凭证入口');
   assert.ok(secHtml.includes('id="sec-locknow"'), '应有立即锁定入口');
-  assert.ok(secHtml.includes('站长凭证'), '中文标题');
   assert.ok(secHtml.includes('管理凭证'), '中文标题');
   assert.ok(!secHtml.includes('id="sec-unlock-methods"'), '不应有解锁方式');
   assert.ok(!secHtml.includes('id="sec-app-row"'), '不应有应用验证');
+  const base = readFileSync('web/layouts/_default/baseof.html', 'utf8');
+  assert.ok(base.includes('<a class="sgx-tb-me" href="{{ $acctUrl }}"'), '顶栏右圆头像链到账号页');
 });
 
-test('security.js：三个入口，无角色条件渲染', () => {
+test('security.js：管理凭证走账号登录换门票据，无角色条件渲染', () => {
   const js = readFileSync('web/assets/js/apps/security.js', 'utf8');
-  assert.ok(js.includes("getElementById('sec-owner-cred')"), '应操作站长凭证入口');
+  assert.ok(!js.includes("getElementById('sec-owner-cred')"), '站长凭证入口已移除');
   assert.ok(js.includes("getElementById('sec-mgmt-cred')"), '应操作管理凭证入口');
   assert.ok(js.includes("getElementById('sec-locknow')"), '应操作立即锁定入口');
+  assert.ok(js.includes("stepupFetch('enter'"), '进门走 /api/stepup enter');
   assert.ok(!js.includes("role === 'visitor'"), '不应有访客角色条件分支');
 });
 

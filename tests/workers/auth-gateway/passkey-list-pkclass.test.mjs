@@ -108,7 +108,7 @@ test('list 缺 pkClass / 非法 pkClass → 400 params', async () => {
   const kv = makeKV();
   await seedAll(kv);
   for (const body of [{ action: 'list' }, { action: 'list', pkClass: 'bogus' }]) {
-    const { status, json } = await listAs(kv, body, 'owner', 'owner', 'keys');
+    const { status, json } = await listAs(kv, body, 'owner', 'account', 'keys');
     assert.equal(status, 400, JSON.stringify(body));
     assert.equal(json.error, 'params');
   }
@@ -117,7 +117,7 @@ test('list 缺 pkClass / 非法 pkClass → 400 params', async () => {
 test('keys 票 + pkClass=lock → 只返回 lock 类', async () => {
   const kv = makeKV();
   await seedAll(kv);
-  const { status, json } = await listAs(kv, { action: 'list', pkClass: 'lock' }, 'owner', 'owner', 'keys');
+  const { status, json } = await listAs(kv, { action: 'list', pkClass: 'lock' }, 'owner', 'account', 'keys');
   assert.equal(status, 200);
   assert.ok(json.ok);
   assert.deepEqual(json.keys.map((k) => k.credId), ['lock-key-001']);
@@ -126,10 +126,10 @@ test('keys 票 + pkClass=lock → 只返回 lock 类', async () => {
 test('keys 票 + pkClass=app：无 aud 返回全部 app 类；aud=book 只返回 book', async () => {
   const kv = makeKV();
   await seedAll(kv);
-  const all = await listAs(kv, { action: 'list', pkClass: 'app' }, 'owner', 'owner', 'keys');
+  const all = await listAs(kv, { action: 'list', pkClass: 'app' }, 'owner', 'account', 'keys');
   assert.equal(all.status, 200);
   assert.deepEqual(all.json.keys.map((k) => k.credId), ['app-key-book']);
-  const book = await listAs(kv, { action: 'list', pkClass: 'app', aud: 'book' }, 'owner', 'owner', 'keys');
+  const book = await listAs(kv, { action: 'list', pkClass: 'app', aud: 'book' }, 'owner', 'account', 'keys');
   assert.equal(book.status, 200);
   assert.deepEqual(book.json.keys.map((k) => k.credId), ['app-key-book']);
 });
@@ -137,18 +137,18 @@ test('keys 票 + pkClass=app：无 aud 返回全部 app 类；aud=book 只返回
 test('keys 票 + pkClass=app + aud=evil → 400 aud', async () => {
   const kv = makeKV();
   await seedAll(kv);
-  const { status, json } = await listAs(kv, { action: 'list', pkClass: 'app', aud: 'evil' }, 'owner', 'owner', 'keys');
+  const { status, json } = await listAs(kv, { action: 'list', pkClass: 'app', aud: 'evil' }, 'owner', 'account', 'keys');
   assert.equal(status, 400);
   assert.equal(json.error, 'aud');
 });
 
-test('keys 票 + pkClass=owner → 403 scope（不附 owner-configured）', async () => {
+test('keys 票 + pkClass=owner → 403 scope（账号通行密钥只在账号页管理：reason=account）', async () => {
   const kv = makeKV();
   await seedAll(kv);
-  const { status, json } = await listAs(kv, { action: 'list', pkClass: 'owner' }, 'owner', 'owner', 'keys');
+  const { status, json } = await listAs(kv, { action: 'list', pkClass: 'owner' }, 'owner', 'account', 'keys');
   assert.equal(status, 403);
   assert.equal(json.error, 'scope');
-  assert.equal(json.reason, undefined);
+  assert.equal(json.reason, 'account');
 });
 
 test('root 代管票 + owner 未配置 → list lock 成功；站长层被配置后 → 403 scope + reason=owner-configured', async () => {
@@ -209,10 +209,11 @@ test('lockreset 票 + pkClass=lock → 成功；+ pkClass=app → 403 scope', as
   }
 });
 
-test('root 票 + pkClass=owner → 只返回 owner 类', async () => {
+test('root 票 + pkClass=owner → 403 scope（账号体系：账号通行密钥改由 /api/account 管理）', async () => {
   const kv = makeKV();
   await seedAll(kv);
   const { status, json } = await listAs(kv, { action: 'list', pkClass: 'owner' }, 'owner', 'root', 'root');
-  assert.equal(status, 200);
-  assert.deepEqual(json.keys.map((k) => k.credId), ['owner-key-01']);
+  assert.equal(status, 403);
+  assert.equal(json.error, 'scope');
+  assert.equal(json.reason, 'account');
 });

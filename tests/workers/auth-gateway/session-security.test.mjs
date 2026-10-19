@@ -103,7 +103,7 @@ async function genTestKeys() {
 async function mintStepupCookie() {
   const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
   /* 2.11 定稿：signStepupCookie(privKey, by, scope, epoch) */
-  return await signStepupCookie(STEPUP_PRIV_PEM, 'owner', 'keys', 0);
+  return await signStepupCookie(STEPUP_PRIV_PEM, 'account', 'keys', 0);
 }
 
 /* 2.10.2：签发测试用 owner 会话 cookie */
@@ -288,7 +288,7 @@ test('lock-all-devices：owner 会话 + stepup(scope=keys) → epoch+1、清 coo
   const kv = makeKV({ 'session-epoch': '2' });
   const cookie = await signSessionCookie(TEST_PRIV_PEM, 2, 'owner', 'owner');
   /* 2.11 定稿：需 stepup(scope=keys, by=owner) */
-  const stepupCv = await signStepupCookie(STEPUP_PRIV_PEM, 'owner', 'keys', 2);
+  const stepupCv = await signStepupCookie(STEPUP_PRIV_PEM, 'account', 'keys', 2);
   const env = { OWNER_KV: kv, SGX_LOCK_PUBLIC: TEST_PUB_PEM, SGX_STEPUP_PUBLIC: STEPUP_PUB_PEM };
   const r = await lockAllPost({
     request: postReq('https://styrigx.com/api/lock-all-devices', {}, { 'Cookie': 'sgx-verified=' + cookie + '; sgx-stepup=' + stepupCv }),
@@ -305,7 +305,7 @@ test('lock-all-devices：owner 会话 + stepup(scope=keys) → epoch+1、清 coo
   /* 写入失败 → 503，epoch 保持原值 */
   const broken = makePutBrokenKV({ 'session-epoch': '5' });
   const cookie2 = await signSessionCookie(TEST_PRIV_PEM, 5, 'owner', 'owner');
-  const stepupCv2 = await signStepupCookie(STEPUP_PRIV_PEM, 'owner', 'keys', 5);
+  const stepupCv2 = await signStepupCookie(STEPUP_PRIV_PEM, 'account', 'keys', 5);
   const r2 = await lockAllPost({
     request: postReq('https://styrigx.com/api/lock-all-devices', {}, { 'Cookie': 'sgx-verified=' + cookie2 + '; sgx-stepup=' + stepupCv2 }),
     env: { OWNER_KV: broken, SGX_LOCK_PUBLIC: TEST_PUB_PEM, SGX_STEPUP_PUBLIC: STEPUP_PUB_PEM },
@@ -398,7 +398,7 @@ test('middleware：生产环境缺 SGX_LOCK_PUBLIC → fail closed（非白名�
   assert.equal(decodeURIComponent(loc.slice(loc.indexOf('return=') + 7)), '/settings/');
   assert.equal(r.headers.get('Cache-Control'), 'no-store');
   /* 白名单路径放行 */
-  const r2 = await mw(mwCtx('https://styrigx.com/api/owner-status', { env }));
+  const r2 = await mw(mwCtx('https://styrigx.com/api/lock-status', { env }));
   assert.equal(await r2.text(), 'NEXT-BY-APP');
   const r3 = await mw(mwCtx('https://styrigx.com/', { env }));
   assert.equal(await r3.text(), 'NEXT-BY-APP');
@@ -1217,7 +1217,7 @@ test('2.11：visitor 进 /settings/display/ 严格 200；/settings/security/ 总
     assert.equal(r.status, 200, 'visitor 访问 ' + p + ' 应 200（总览页）');
   }
   /* 定稿 #21：门内页（owner/lock/apps/mgmt）访客 302 到锁屏 */
-  for (const p of ['/settings/security/owner/', '/settings/security/lock/', '/settings/security/apps/', '/settings/security/apps/book/', '/settings/security/mgmt/']) {
+  for (const p of ['/settings/security/lock/', '/settings/security/apps/', '/settings/security/apps/book/', '/settings/security/mgmt/']) {
     const r = await mw(mwCtx('https://styrigx.com' + p, { cookie: vCookie, env: PROD_ENV() }));
     assert.equal(r.status, 302, 'visitor 访问 ' + p + ' 应 302 到锁屏');
     assert.ok(r.headers.get('Location').includes('?lock=1'), p + ' 应跳到锁屏');
@@ -1405,7 +1405,7 @@ test('定稿 #1：owner 解锁后 return 指向门内页 → 回总览页（门�
   });
   /* owner 会话 + return=门内页 → 302 到总览页，不是门内页 */
   const ctx = {
-    request: new Request('https://styrigx.com/?return=' + encodeURIComponent('/settings/security/owner/'), {
+    request: new Request('https://styrigx.com/?return=' + encodeURIComponent('/settings/security/lock/'), {
       headers: { 'Cookie': 'sgx-verified=' + oCookie },
     }),
     next: htmlNext,

@@ -3,16 +3,16 @@
  * fix/hi-owner：PBKDF2 迭代次数 600000 → 100000（Cloudflare Workers 生产环境上限，
  * 超过抛 NotSupportedError）。verify 按记录里的 iterations 校验。
  *
- * 2.11 定稿：双密码。
+ * 2.11 定稿：双密码；账号体系后：
  * - lock-pw（锁屏密码）：verify 解锁用；管理走 kind=lock（入口 2 scope=keys，
  *   或 scope=lockreset 重置流程）。
- * - owner-pw（站长密码）：入口 2 的密码路径（/api/stepup verify-password）；
- *   管理走 kind=owner（入口 1 scope=root）。
- * - owner 密码不得与锁屏密码相同（双向检查）。
+ * - owner-pw（账号密码，原站长密码）：账号登录的密码入口；只在账号页管理
+ *   （/api/account），本接口不再接受 kind=owner。
+ * - 锁屏密码不得与账号密码相同（双向检查；账号侧在 /api/account）。
  * - 哈希加 SGX_PW_PEPPER；旧 hash 下次成功登录时重哈希；缺 pepper fail closed。
  *
  * POST /api/owner-password
- * Body: { action: "set"|"change"|"verify"|"remove", kind: "lock"|"owner", ... }
+ * Body: { action: "set"|"change"|"verify"|"remove", kind: "lock", ... }
  *
  * - verify: { password } — 锁屏密码解锁验证（只认 lock-pw；IP 限流：5 次失败 → 30 秒锁定）
  * - set/change/remove: 需 kind；set/change 需 pepper
@@ -27,7 +27,7 @@
  * 外层 try/catch：任何未捕获异常都返回 JSON { ok:false, error:'server' }，不返回 500 HTML。
  */
 import { getPepper, makePasswordRecord, checkPasswordRecord, verifyRealmPassword } from '../_kernel/password.js';
-import { REALM_LOCK, REALM_OWNER } from '../_kernel/realms.js';
+import { REALM_LOCK, REALM_ACCOUNT } from '../_kernel/realms.js';
 import {
   issueSessionCookie,
   bumpSessionEpoch,
@@ -38,7 +38,7 @@ import {
   verifyStepupCookie,
   reissueStepupWithEpoch,
   STEPUP_BY_ROOT,
-  STEPUP_BY_OWNER,
+  STEPUP_BY_ACCOUNT,
   STEPUP_SCOPE_ROOT,
   STEPUP_SCOPE_KEYS,
   STEPUP_SCOPE_LOCKRESET,
@@ -52,7 +52,7 @@ import {
   LAYER_OWNER,
   LAYER_LOCK,
 } from '../_kernel/layers.js';
-import { getPasskeys, PK_CLASS_OWNER, PK_CLASS_LOCK } from './owner-passkey.js';
+import { getPasskeys, PK_CLASS_LOCK } from './owner-passkey.js';
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
 
 const MAX_FAIL = 5;
@@ -62,14 +62,15 @@ const LOCK_MS = 30000;
 export { getPepper, makePasswordRecord };
 
 /**
- * 校验 owner 密码（owner-pw）。KV 出错时抛错。
+ * 校验账号密码（owner-pw，原站长密码）。KV 出错时抛错。
+ * 账号登录（/api/account）与重置锁屏（/api/lockreset）共用。
  * @param {any} kv
  * @param {string} pepper
  * @param {string} password
  * @returns {Promise<{ok:boolean, set:boolean, needsRehash:boolean}>}
  */
-export async function verifyOwnerPassword(kv, pepper, password) {
-  return verifyRealmPassword(kv, REALM_OWNER, pepper, password);
+export async function verifyAccountPassword(kv, pepper, password) {
+  return verifyRealmPassword(kv, REALM_ACCOUNT, pepper, password);
 }
 
 /**
@@ -221,18 +222,18 @@ async function handlePost(context) {
     return new Response(JSON.stringify({ ok: true }), { headers });
   }
 
-  /* ============ set/change/remove（2.11 定稿） ============
-     kind=owner（站长密码）：入口 1，需 stepup(scope=root, by=root)。
-     kind=lock（锁屏密码）：入口 2，需 stepup(scope=keys)；owner 未配置时 root 可代管；
+  /* ============ set/change/remove（2.11 定稿；账号体系后只剩 kind=lock） ============
+     kind=owner（账号密码）已移到 /api/account（只在账号页管理）→ 这里 400 params。
+     kind=lock（锁屏密码）：入口 2，需 stepup(scope=keys)；账号未配置时 root 可代管；
        scope=lockreset 可 set/change（重置流程，无会话），不可 remove。
      2.10.2 规则保留：除 lockreset 外，管理操作需 owner 会话 + sgx-stepup。
      2.8.0：lockout 已拆为独立 L2 API /api/lock-all-devices（只认 owner 会话）。 */
   if (action === 'set' || action === 'change' || action === 'remove') {
     const kind = (body && body.kind) || '';
-    if (kind !== 'lock' && kind !== 'owner') {
+    if (kind !== 'lock') {
       return Response.json({ ok: false, error: 'params' }, { status: 400 });
     }
-    const pwKey = (kind === 'lock' ? REALM_LOCK : REALM_OWNER).kv.password; /* 'lock-pw' | 'owner-pw' */
+    const pwKey = REALM_LOCK.kv.password; /* 'lock-pw' */
 
     /* stepup 门禁（含 scope 检查） */
     const sv = await verifyStepupCookie(request, env);
@@ -240,13 +241,8 @@ async function handlePost(context) {
       return Response.json({ ok: false, error: 'stepup-required', reason: sv.reason }, { status: 403 });
     }
     const isLockreset = sv.scope === STEPUP_SCOPE_LOCKRESET;
-    if (kind === 'owner') {
-      /* 站长密码：只认入口 1（by=root, scope=root） */
-      if (sv.scope !== STEPUP_SCOPE_ROOT || sv.by !== STEPUP_BY_ROOT) {
-        return Response.json({ ok: false, error: 'scope' }, { status: 403 });
-      }
-    } else {
-      /* 锁屏密码：scope=keys（by=owner；by=root 需 owner 层未配置）；
+    {
+      /* 锁屏密码：scope=keys（by=account；by=root 需账号层未配置）；
          scope=root + by=root 在 owner 未配置时可代管；scope=lockreset 可 set/change */
       if (isLockreset) {
         if (action === 'remove') {
@@ -254,8 +250,8 @@ async function handlePost(context) {
         }
       } else if (sv.scope === STEPUP_SCOPE_KEYS) {
         if (sv.by !== STEPUP_BY_ROOT) {
-          /* by=owner：正常入口 2；其他 by 拒绝 */
-          if (sv.by !== STEPUP_BY_OWNER) {
+          /* by=account：正常入口 2；其他 by 拒绝 */
+          if (sv.by !== STEPUP_BY_ACCOUNT) {
             return Response.json({ ok: false, error: 'scope' }, { status: 403 });
           }
         } else {
@@ -335,24 +331,6 @@ async function handlePost(context) {
         const list = await kv.list({ prefix: 'pw-lock:' });
         for (const k of list.keys || []) { try { await kv.delete(k.name); } catch (e) {} }
       } catch (e) {}
-      /* 2.11 定稿：root 删除站长密码后，若站长层已无凭证则清除标记；
-         推进 session-epoch，避免无声回退到 root 代管 */
-      if (kind === 'owner' && sv.by === STEPUP_BY_ROOT) {
-        try {
-          const keys = await getPasskeys(kv);
-          const hasOwnerKey = keys.some(function (k) { return (k.class || 'lock') === PK_CLASS_OWNER; });
-          let hasOwnerPw = false;
-          try { const r = await kv.get(REALM_OWNER.kv.password, 'json'); hasOwnerPw = !!(r && r.hash); } catch (e) {}
-          if (!hasOwnerKey && !hasOwnerPw) {
-            /* 清标记失败不吞掉：标记残留会导致 root 无法代管（用户被锁死），直接 503 */
-            try {
-              await clearLayerConfigured(kv, LAYER_OWNER);
-            } catch (e) {
-              return Response.json({ ok: false, error: 'server' }, { status: 503 });
-            }
-          }
-        } catch (e) {}
-      }
       if (kind === 'lock') {
         try {
           const keys = await getPasskeys(kv);
@@ -408,14 +386,14 @@ async function handlePost(context) {
       }
     }
 
-    /* 2.11 定稿：owner 密码不得与锁屏密码相同（双向检查） */
+    /* 2.11 定稿：锁屏密码不得与账号密码相同（双向检查；账号侧见 /api/account）。
+       错误码 same-as-owner 保留原名（前端文案已改为「账号密码」）。 */
     try {
-      const otherKey = (kind === 'lock' ? REALM_OWNER : REALM_LOCK).kv.password; /* 'owner-pw' | 'lock-pw' */
-      const other = await kv.get(otherKey, 'json');
+      const other = await kv.get(REALM_ACCOUNT.kv.password, 'json'); /* 'owner-pw' */
       if (other && other.hash) {
         const cr = await checkPasswordRecord(other, newPassword, pepper);
         if (cr.ok) {
-          return Response.json({ ok: false, error: kind === 'lock' ? 'same-as-owner' : 'same-as-lock' }, { status: 403 });
+          return Response.json({ ok: false, error: 'same-as-owner' }, { status: 403 });
         }
       }
     } catch (e) {
@@ -434,7 +412,7 @@ async function handlePost(context) {
        - 首次配 lock：废止根凭证代开的解锁会话（必修安全项 2） */
     if (action === 'set') {
       try {
-        const layer = kind === 'lock' ? LAYER_LOCK : LAYER_OWNER;
+        const layer = LAYER_LOCK;
         const was = await isLayerConfigured(kv, layer);
         if (!was) {
           await setLayerConfigured(kv, layer);

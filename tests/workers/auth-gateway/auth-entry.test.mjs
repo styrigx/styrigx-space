@@ -69,6 +69,8 @@ function baseEnv(kv, overrides) {
     SGX_STEPUP_PUBLIC: TEST_PUB_PEM,
     SGX_LOCK_PRIVATE: TEST_PRIV_PEM,
     SGX_LOCK_PUBLIC: TEST_PUB_PEM,
+    SGX_ACCOUNT_PRIVATE: TEST_PRIV_PEM,
+    SGX_ACCOUNT_PUBLIC: TEST_PUB_PEM,
     SGX_PW_PEPPER: 'test-pepper',
     SGX_RP_ID: 'test.example.com',
     SGX_ORIGIN: 'https://test.example.com',
@@ -113,58 +115,30 @@ test('认证入口：锁屏方法弹层按锁屏凭证配置显示入口', () =>
 
 /* ============ 2. 安全页 DOM 一致 ============ */
 
-test('认证入口：安全页三个入口（站长凭证/管理凭证/立即锁定），访客与站长 DOM 一致', () => {
+test('认证入口：安全页两个入口（管理凭证/立即锁定），访客与站长 DOM 一致；账号登录三个入口平级', () => {
   const html = fs.readFileSync(path.join(REPO, 'web/layouts/_default/security.html'), 'utf8');
-  /* 三个入口 ID 必须存在 */
-  assert.ok(html.includes('id="sec-owner-cred"'), '应有站长凭证入口');
+  assert.ok(!html.includes('id="sec-owner-cred"'), '站长凭证入口已升级为账号（顶栏头像）');
   assert.ok(html.includes('id="sec-mgmt-cred"'), '应有管理凭证入口');
   assert.ok(html.includes('id="sec-locknow"'), '应有立即锁定入口');
-  /* 旧入口必须删除 */
   assert.ok(!html.includes('id="sec-unlock-methods"'), '不应有解锁方式');
   assert.ok(!html.includes('id="sec-app-row"'), '不应有应用验证');
   assert.ok(!html.includes('id="sec-lockall"'), '不应有锁定所有设备');
-  /* 共用验证弹层（One UI 悬浮卡片）：标题/说明/方式列表由 JS 按门填充，
-     只显示已配置的方式；旧的两个独立弹层已删除 */
-  assert.ok(html.includes('id="sec-verify-dlg"'), '应有共用验证弹层');
-  assert.ok(!html.includes('id="sec-owner-dlg"'), '不应有旧站长凭证弹层');
-  assert.ok(!html.includes('id="sec-mgmt-dlg"'), '不应有旧管理凭证弹层');
+  assert.ok(!html.includes('id="sec-verify-dlg"'), '验证弹层已移除：账号登录在账号页');
   const js = fs.readFileSync(path.join(REPO, 'web/assets/js/apps/security.js'), 'utf8');
-  /* 标题由 JS 按门设置 */
-  assert.ok(js.includes('进入站长凭证'), '站长凭证弹层标题应为「进入站长凭证」');
-  assert.ok(js.includes('进入管理凭证'), '管理凭证弹层标题应为「进入管理凭证」');
-  assert.ok(js.includes('Enter owner key'), '应有英文标题 Enter owner key');
-  assert.ok(js.includes('Enter credential management'), '应有英文标题 Enter credential management');
-  /* 界面不出现内部名：中文文案里不应有 stepup、票据、rootkey、ownerkey
-    （只允许出现在代码注释、API 路径、变量名里） */
-  const jsNoComments = js.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1');
-  for (const bad of ['票据', 'rootkey', 'ownerkey']) {
-    assert.ok(!jsNoComments.includes(bad), '界面代码不应出现「' + bad + '」');
+  /* 访客与站长都走账号登录（访客直接跳，站长先试 enter），这是唯一允许的访客条件分支 */
+  assert.ok(js.includes("dataset.sgxRole === 'visitor'"), '管理凭证应有访客分支');
+  assert.ok(js.includes("'?door=1&return='"), '未登录/过旧 → 账号登录带 door=1&return=');
+  assert.ok(!js.includes('/api/owner-status'), '不再读 owner-status');
+  /* 账号页：三个入口平级，界面不出现内部名 */
+  const acc = fs.readFileSync(path.join(REPO, 'web/assets/js/apps/account.js'), 'utf8');
+  for (const kind of ["kind: 'passkey'", "kind: 'password'", "kind: 'root'"]) {
+    assert.ok(acc.includes(kind), '账号登录应有入口 ' + kind);
   }
-  /* 'stepup' 只允许出现在 API 路径 '/api/stepup' 里 */
-  const stepupUses = (jsNoComments.match(/stepup/g) || []).length;
-  const apiUses = (jsNoComments.match(/\/api\/stepup/g) || []).length;
-  assert.ok(stepupUses === apiUses, 'stepup 只应出现在 /api/stepup 路径里');
-
-  /* 页面 DOM 完全一样；补充定稿七.2：管理凭证弹层在访客会话下为假入口
-     （固定单个根凭证行，不读配置）——这是唯一允许的访客条件分支 */
-  assert.ok(!js.includes('sec-owner-lock'), '不应有访客锁图标');
-  assert.ok(!js.includes('sec-unlock-methods'), '不应引用已删除的解锁方式');
-  assert.ok(!js.includes('sec-app-row'), '不应引用已删除的应用验证');
-  assert.ok(js.includes("dataset.sgxRole === 'visitor'"), '管理凭证弹层应有访客假入口分支');
-});
-
-test('认证入口：访客管理凭证弹层固定单个根凭证行，不读配置', () => {
-  const js = fs.readFileSync(path.join(REPO, 'web/assets/js/apps/security.js'), 'utf8');
-  /* 访客分支：直接 build(false, false)（mgmtButtons(false,false)=['root']），
-     不 fetch /api/owner-status。 */
-  const idx = js.indexOf('build(false, false)');
-  assert.ok(idx > 0, '应有访客固定渲染');
-  const elseIdx = js.indexOf('} else {', idx);
-  const vStart = js.lastIndexOf('if (isVisitor)', idx);
-  assert.ok(vStart >= 0 && elseIdx > idx, '应有访客判断与 else 分支');
-  const vBranch = js.slice(vStart, elseIdx);
-  assert.ok(vBranch.includes('build(false, false)'), '访客应固定渲染单个根凭证行');
-  assert.ok(!vBranch.includes('owner-status'), '访客分支不应读站长凭证配置');
+  assert.ok(acc.includes("target: 'account'"), '根凭证入口走 root-auth target=account');
+  const accNoComments = acc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1');
+  for (const bad of ['票据', 'rootkey', 'ownerkey', 'sgx-account', 'sgx-verified']) {
+    assert.ok(!accNoComments.includes(bad), '账号页代码不应出现「' + bad + '」');
+  }
 });
 
 /* ============ 3. 访客假入口 ============ */
@@ -232,86 +206,40 @@ test('认证入口：访客假入口与真失败响应逐字节相同', async ()
 
 /* ============ 4. 管理凭证弹层按钮 ============ */
 
-/* 行为测试：/api/owner-status 四种配置返回正确 + mgmtButtons 纯函数决策正确 */
-test('行为：管理凭证四种配置下按钮正确', async () => {
-  const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/owner-status.js');
-  const { mgmtButtons } = await import(REPO + 'web/assets/js/apps/mgmt-buttons.js');
+/* 账号体系：/api/account（GET）四种配置返回正确（取代 /api/owner-status + mgmtButtons） */
+test('行为：账号登录状态四种配置返回正确', async () => {
+  const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/account.js');
   const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
-
-  /* 纯函数决策：四种输入 → 预期按钮 */
-  assert.deepEqual(mgmtButtons(false, false), ['root'], '都没设置 → 只显示根凭证');
-  assert.deepEqual(mgmtButtons(false, true), ['passkey'], '仅通行密钥 → 通行密钥验证');
-  assert.deepEqual(mgmtButtons(true, false), ['password'], '仅密码 → 密码验证');
-  assert.deepEqual(mgmtButtons(true, true), ['passkey', 'password'], '两者都有 → 两个按钮，不显示根凭证');
-
-  /* owner 会话 */
   const ownerCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
-  const getReq = (kv) => new Request('https://test.example.com/api/owner-status', {
+  const getReq = () => new Request('https://test.example.com/api/account', {
     method: 'GET',
     headers: { 'Cookie': 'sgx-verified=' + ownerCv },
   });
-
-  /* 配置1：都没设置 */
-  {
-    const kv = makeKv({});
-    const res = await onRequestGet({ request: getReq(kv), env: baseEnv(kv) });
-    const body = await res.json();
-    assert.equal(body.ok, true);
-    assert.equal(body.password, false);
-    assert.equal(body.passkey, false);
-    assert.deepEqual(mgmtButtons(body.password, body.passkey), ['root']);
-  }
-  /* 配置2：仅密码 */
-  {
-    const kv = makeKv({ 'owner-pw': JSON.stringify({ hash: 'x', algo: 'test' }) });
-    const res = await onRequestGet({ request: getReq(kv), env: baseEnv(kv) });
-    const body = await res.json();
-    assert.equal(body.ok, true);
-    assert.equal(body.password, true);
-    assert.equal(body.passkey, false);
-    assert.deepEqual(mgmtButtons(body.password, body.passkey), ['password']);
-  }
-  /* 配置3：仅 class=owner 通行密钥 */
-  {
-    const kv = makeKv({
+  const cases = [
+    [{}, false, false],
+    [{ 'owner-pw': JSON.stringify({ hash: 'x', algo: 'test' }) }, true, false],
+    [{
       'owner-passkey-index': JSON.stringify(['testcred123456']),
       'owner-passkey:testcred1234': JSON.stringify({ credId: 'testcred123456', class: 'owner' }),
-    });
-    const res = await onRequestGet({ request: getReq(kv), env: baseEnv(kv) });
-    const body = await res.json();
-    assert.equal(body.ok, true);
-    assert.equal(body.password, false);
-    assert.equal(body.passkey, true, 'class=owner 通行密钥应被识别');
-    assert.deepEqual(mgmtButtons(body.password, body.passkey), ['passkey']);
-  }
-  /* 配置4：两者都有 */
-  {
-    const kv = makeKv({
+    }, false, true],
+    [{
       'owner-pw': JSON.stringify({ hash: 'x', algo: 'test' }),
       'owner-passkey-index': JSON.stringify(['testcred123456']),
       'owner-passkey:testcred1234': JSON.stringify({ credId: 'testcred123456', class: 'owner' }),
-    });
-    const res = await onRequestGet({ request: getReq(kv), env: baseEnv(kv) });
+    }, true, true],
+  ];
+  for (const [seed, pw, pk] of cases) {
+    const kv = makeKv(seed);
+    const res = await onRequestGet({ request: getReq(), env: baseEnv(kv) });
     const body = await res.json();
     assert.equal(body.ok, true);
-    assert.equal(body.password, true);
-    assert.equal(body.passkey, true);
-    assert.deepEqual(mgmtButtons(body.password, body.passkey), ['passkey', 'password']);
+    assert.equal(body.password, pw);
+    assert.equal(body.passkey, pk);
+    assert.equal(body.ready, true);
+    assert.equal(body.session, null, 'lock 会话不是账号会话');
   }
-  /* class=lock 的通行密钥不应被算作站长凭证 */
-  {
-    const kv = makeKv({
-      'owner-passkey-index': JSON.stringify(['testcred123456']),
-      'owner-passkey:testcred1234': JSON.stringify({ credId: 'testcred123456', class: 'lock' }),
-    });
-    const res = await onRequestGet({ request: getReq(kv), env: baseEnv(kv) });
-    const body = await res.json();
-    assert.equal(body.ok, true);
-    assert.equal(body.passkey, false, 'class=lock 不应被算作站长凭证');
-  }
-});
-
-/* ============ 6. 重置锁屏 status 不卡死 ============ */
+}
+);
 
 test('认证入口：重置锁屏 status 始终可用（不暴露站长凭证是否配置）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lockreset.js');
@@ -582,26 +510,26 @@ test('行为：锁屏已配置（有真实凭证无标记）时 root-session 拒
   assert.equal(body.error, 'configured');
 });
 
-test('行为：/api/owner-status 需鉴权，无会话 → 401', async () => {
-  const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/owner-status.js');
+test('行为：/api/account 状态需 owner lock 会话，无会话 → 401', async () => {
+  const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/account.js');
   const kv = makeKv({});
   const env = baseEnv(kv);
-  const req = new Request('https://test.example.com/api/owner-status', { method: 'GET' });
+  const req = new Request('https://test.example.com/api/account', { method: 'GET' });
   const res = await onRequestGet({ request: req, env });
   assert.equal(res.status, 401, '无会话应 401');
 });
 
-test('行为：/api/owner-status 只看 owner 类通行密钥', async () => {
-  const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/owner-status.js');
+test('行为：/api/account 状态只看 owner 类（账号）通行密钥', async () => {
+  const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/account.js');
   const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
-  /* 只有 lock 类 passkey，无 owner 密码 */
+  /* 只有 lock 类 passkey，无账号密码 */
   const kv = makeKv({
     'owner-passkey-index': JSON.stringify(['abc123']),
     'owner-passkey:abc123': JSON.stringify({ credId: 'abc123', class: 'lock', publicKey: 'x' }),
   });
   const env = baseEnv(kv);
   const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
-  const req = new Request('https://test.example.com/api/owner-status', {
+  const req = new Request('https://test.example.com/api/account', {
     method: 'GET',
     headers: { 'Cookie': 'sgx-verified=' + sessCv },
   });
@@ -782,7 +710,7 @@ test('行为：/api/lock-status keys 票据（无会话）可读', async () => {
     'lock-pw': JSON.stringify({ hash: 'lock-hash' }),
   });
   const env = baseEnv(kv);
-  const stepupCv = await signStepupCookie(TEST_PRIV_PEM, 'owner', 'keys', 0);
+  const stepupCv = await signStepupCookie(TEST_PRIV_PEM, 'account', 'keys', 0);
   const res = await onRequestGet({
     request: getReq('https://test.example.com/api/lock-status', { 'Cookie': 'sgx-stepup=' + stepupCv }),
     env,

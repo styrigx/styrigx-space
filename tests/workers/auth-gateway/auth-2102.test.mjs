@@ -103,7 +103,7 @@ async function makeSessionCookie(env, role = 'owner') {
 /* 签一个有效的 sgx-stepup cookie */
 async function makeStepupCookie(env) {
   const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
-  return await signStepupCookie(env.SGX_STEPUP_PRIVATE, 'owner', 'keys', 0);
+  return await signStepupCookie(env.SGX_STEPUP_PRIVATE, 'account', 'keys', 0);
 }
 
 function reqWithCookies(url, body, cookies, headers = {}) {
