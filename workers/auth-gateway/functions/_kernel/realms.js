@@ -13,7 +13,7 @@
  * - stepup 二次验证票据（sgx-stepup）：进「门」后的短时票据，SGX_STEPUP_* 签名
  * - app    应用通行证（sgx-app）：给子站（如 book）的短时通行证，SGX_APP_* 签名
  * - account 账号会话（sgx-account）：账号登录（账号通行密钥 / 账号密码 / 根凭证三选一）
- *          成功后签发，SGX_ACCOUNT_* 签名；账号凭证（ownerkey：账号密码 owner-pw +
+ *          成功后签发，SGX_ACCOUNT_* 签名；账号凭证（accountkey：账号密码 owner-pw +
  *          class=owner 通行密钥，原「站长凭证」升级而来，存储不迁移）只在账号页管理。
  *          进「门」：近期（≤10 分钟）账号登录 → stepup(by=account, scope=keys)
  * - root   根凭证（rootkey：SGX_ROOT_KEY）：本身不签票，验过后签发
@@ -24,7 +24,7 @@
  */
 import {
   KEY_ROOT,
-  KEY_OWNER,
+  KEY_ACCOUNT,
   KEY_LOCK,
   STORE_CLASS_OWNERKEY,
   STORE_CLASS_LOCKKEY,
@@ -108,7 +108,7 @@ export const REALM_APP = Object.freeze({
  */
 export const REALM_ACCOUNT = Object.freeze({
   id: 'account',
-  keyName: KEY_OWNER,
+  keyName: KEY_ACCOUNT,
   privateKey: 'SGX_ACCOUNT_PRIVATE',
   publicKey: 'SGX_ACCOUNT_PUBLIC',
   cookie: 'sgx-account',

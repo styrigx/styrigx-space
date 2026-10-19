@@ -31,7 +31,7 @@
  * P0-3 安全审计：
  * - 注册和解锁都要求 UV=1（userVerification: required）
  * - RP_ID/ORIGIN 必须配环境变量 SGX_RP_ID/SGX_ORIGIN，不回落
- * - 用户信息由服务端下发：displayName=Sloan Gray, name=ownerkey/lockkey/<app>key, rp.name=Styrigx
+ * - 用户信息由服务端下发：displayName=Sloan Gray, name=accountkey/lockkey/<app>key, rp.name=Styrigx
  * - 固定 user handle（KV owner-user-id），auth 时校验 userHandle
  * - register 带 excludeCredentials 防重复注册
  * - KV 结构：每把一个 key（owner-passkey:<credId前12位>），字段顺序固定
@@ -65,7 +65,7 @@ import {
   STORE_CLASS_OWNERKEY,
   STORE_CLASS_LOCKKEY,
   STORE_CLASS_APPKEY,
-  KEY_OWNER,
+  KEY_ACCOUNT,
   KEY_LOCK,
   appKeyName,
   ownerPasskeyKey,
@@ -75,7 +75,7 @@ import { isSameOrigin, originDenied } from '../_kernel/http.js';
 
 /* 2.10.0：通行密钥分类；2.11 新增 owner。
    钥匙命名规范（key-names.js）：存储层 class 字段值保留 'owner'/'lock'/'app'
-   不迁移；概念名用 ownerkey/lockkey/<aud>key（如 bookkey）。 */
+   不迁移；概念名用 accountkey/lockkey/<aud>key（如 bookkey）。 */
 export const PK_CLASS_OWNER = STORE_CLASS_OWNERKEY;
 export const PK_CLASS_LOCK = STORE_CLASS_LOCKKEY;
 export const PK_CLASS_APP = STORE_CLASS_APPKEY;
@@ -268,7 +268,7 @@ export async function deletePasskey(kv, credId) {
  * 2.10.0：锁屏类用 'owner-user-id'；每个 aud 各一个 'owner-user-id:app:<aud>'，
  * 让密码管理器把它们存成独立条目。
  * 批次 A 收尾 C1：owner 类改用 'owner-user-id:owner'，不再与 lock 类共用，
- * 防止 Samsung Pass 把 ownerkey 覆盖到 lockkey 上。
+ * 防止 Samsung Pass 把 accountkey（原 ownerkey）覆盖到 lockkey 上。
  * @param {any} kv
  * @param {string} pkClass 凭据类别：'owner' | 'lock' | 'app'
  * @param {string} [aud] 应用 aud（应用类必填）
@@ -487,10 +487,10 @@ async function handlePost(context) {
     if (type === 'register') {
       /* 下发用户信息：全部写死，用户不填。
          displayName=Sloan Gray（常量）；
-         name：站长凭证 → ownerkey；锁屏 → lockkey；app → 应用名小写+key（如 bookkey）。
+         name：账号凭证 → accountkey；锁屏 → lockkey；app → 应用名小写+key（如 bookkey）。
          user.id 每类/aud 独立，存 KV 复用（生成方式不变）。 */
       const userHandle = await getUserHandle(kv, pkClass, pkClass === PK_CLASS_APP ? aud : '');
-      const userName = pkClass === PK_CLASS_OWNER ? KEY_OWNER
+      const userName = pkClass === PK_CLASS_OWNER ? KEY_ACCOUNT
         : pkClass === PK_CLASS_APP ? appKeyName(aud)
         : KEY_LOCK;
       resp.user = {
@@ -691,7 +691,7 @@ async function handlePost(context) {
       /* 校验 userHandle（如果有）。2.10.1：按 pkClass/aud 取对应的 user handle，
          应用类用 owner-user-id:app:<aud>，不再拿锁屏的比对。
          批次 A 收尾：owner 类同时接受新 handle 'owner-user-id:owner' 和旧 handle
-         'owner-user-id'（旧 ownerkey 注册时用旧 handle）。只对 owner 类放宽，
+         'owner-user-id'（旧 ownerkey 时代注册的用旧 handle）。只对 owner 类放宽，
          lock/app 不变；验证本身仍以凭据公钥签名为准。 */
       try {
         const expectUh = await getUserHandle(kv, pkClass, pkClass === PK_CLASS_APP ? aud : '');
@@ -866,7 +866,7 @@ async function handlePost(context) {
       }
     }
     /* 2.10.2：先推进纪元，成功才删（fail closed；纪元推进失败则密钥仍在）
-       D1：删 owner 类钥匙不推进 session-epoch（定稿没有要求删 ownerkey 踢掉所有会话；
+       D1：删 owner 类钥匙不推进 session-epoch（定稿没有要求删 accountkey 踢掉所有会话；
        只有第 33 条要求删应用密钥时该应用授权失效，应用类只加 app-epoch）。
        D2：删 lock 类钥匙保留 epoch +1（踢掉其他设备），但同响应重签当前设备会话。 */
     let newEpoch = null;

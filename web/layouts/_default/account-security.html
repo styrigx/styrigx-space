@@ -1,0 +1,85 @@
+{{/* 账号 → 安全与隐私（/settings/account/security/）：账号总览「安全与隐私」一行进入。
+   管理账号凭证（accountkey）：账号密码（设置/修改；根凭证登录时为「重置」）和账号通行密钥
+   （添加 → 命名弹层、列表内点名字重命名、删除）。与锁屏页同一套弹层行为（A1 遮罩不关 / A2 返回先收键盘 / A3 × 关闭，弹层随键盘上移）。
+   未登录账号 → 跳 /settings/account/?return=<本页>；改动返回 account-stale → 跳同一地址并提示重新验证。
+   返回上一级 = 账号总览（shell/navhistory.js parentOf）。noindex（见 baseof）。
+   脚本走 ES Module 入口 entry-account-security.js。 */}}
+{{ define "main" }}
+{{ .Scratch.Set "sgx-entry" "entry-account-security.js" }}
+{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+
+<div class="set-layout max-w-2xl mx-auto px-4 pb-28">
+  {{ partial "subpage-head.html" (dict "title" (cond $isEn "Security & privacy" "安全与隐私") "isEn" $isEn) }}
+
+  <!-- 账号状态读到之前不渲染管理区（未登录直接跳账号页） -->
+  <div id="acct-sec" hidden>
+    <p class="sec-note mb-7">{{ if $isEn }}Entering credential management and changing account keys need a sign-in within the last 10 minutes.{{ else }}进入管理凭证、修改账号凭证需要 10 分钟内登录过。{{ end }}</p>
+
+    <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "lock" }}</span><span>{{ if $isEn }}Account password{{ else }}账号密码{{ end }}</span></h2>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.1s">
+      <div class="set-row" id="lockmgr-pwrow" role="button" tabindex="0">
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}Account password{{ else }}账号密码{{ end }}</span>
+          <span class="block text-xs mt-0.5 text-m-primary" id="lockmgr-pwsub">{{ if $isEn }}Loading…{{ else }}正在读取…{{ end }}</span>
+        </span>
+        {{ partial "icon.html" "chev-r" }}
+      </div>
+    </section>
+    <p class="sec-note mb-7">{{ if $isEn }}Used to sign in to your account. Minimum 8 characters.{{ else }}用于登录账号，最短 8 位。{{ end }}</p>
+
+    <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Account passkeys{{ else }}账号通行密钥{{ end }}</span></h2>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.14s">
+      <ul class="lockmgr-pklist" id="lockmgr-pklist" hidden></ul>
+      <div class="p-4" id="lockmgr-pkempty" hidden>
+        <p class="text-sm text-m-on-surface-variant m-0">{{ if $isEn }}No passkeys yet.{{ else }}还没有通行密钥。{{ end }}</p>
+      </div>
+      <button type="button" class="lockmgr-add" id="lockmgr-pkadd">
+        <span aria-hidden="true">＋</span> {{ if $isEn }}Add passkey{{ else }}添加通行密钥{{ end }}
+      </button>
+    </section>
+    <p class="sec-note">{{ if $isEn }}Sign in to your account with fingerprint, face, or device passcode. Tap a device name to rename it.{{ else }}用指纹、面容或设备密码登录账号。点设备名可重命名。{{ end }}</p>
+    <p class="sec-note mt-6 sgx-build-tag-wrap">{{ partial "build-tag.html" (dict "isEn" $isEn) }}</p>
+  </div>
+</div>
+
+<!-- 通行密钥命名弹层（与锁屏页同一套 markup / 行为） -->
+<dialog id="lockpkname-dlg" class="sgx-verify-dlg" aria-labelledby="lockpkname-title">
+  <div class="sgx-verify-card">
+    <button type="button" class="sgx-dlg-close" data-dlg-close aria-label="{{ if $isEn }}Close{{ else }}关闭{{ end }}">×</button>
+    <div class="sheet-handle" data-pclose></div>
+    <h2 id="lockpkname-title" class="sgx-verify-title">{{ if $isEn }}Name this passkey{{ else }}为这把通行密钥命名{{ end }}</h2>
+    <p class="sgx-verify-desc">{{ if $isEn }}Give it a name so you can tell your passkeys apart.{{ else }}起个名字，方便区分多把通行密钥。{{ end }}</p>
+    <input id="lockpkname-input" type="text" maxlength="40" class="sgx-verify-input" autocomplete="off" />
+    <div class="sgx-verify-actions">
+      <button type="button" class="sgx-verify-ghost" id="lockpkname-skip">{{ if $isEn }}Skip{{ else }}跳过{{ end }}</button>
+      <button type="button" class="sgx-verify-skip" id="lockpkname-save">{{ if $isEn }}Save{{ else }}保存{{ end }}</button>
+    </div>
+    <p class="sgx-verify-err" id="lockpkname-err" hidden></p>
+  </div>
+</dialog>
+
+<!-- 账号密码设置/修改弹层（lib/auth-flow.js createSetPwDialog） -->
+<dialog id="lockpw-dlg" class="sgx-verify-dlg" aria-labelledby="lockpw-title">
+  <div class="sgx-verify-card">
+    <button type="button" class="sgx-dlg-close" data-dlg-close aria-label="{{ if $isEn }}Close{{ else }}关闭{{ end }}">×</button>
+    <div class="sheet-handle" data-pclose></div>
+    <h2 id="lockpw-title" class="sgx-verify-title">{{ if $isEn }}Set account password{{ else }}设置账号密码{{ end }}</h2>
+    <div class="sgx-pw-field">
+      <input type="password" id="lockpw-1" class="sgx-pw-input" autocomplete="new-password"
+             aria-label="{{ if $isEn }}New password{{ else }}新密码{{ end }}"
+             placeholder="{{ if $isEn }}New password (min 8){{ else }}新密码（最少 8 位）{{ end }}">
+      <button type="button" class="sgx-pw-eye" data-eye="lockpw-1" aria-label="{{ if $isEn }}Show password{{ else }}显示密码{{ end }}"></button>
+    </div>
+    <div class="sgx-pw-field">
+      <input type="password" id="lockpw-2" class="sgx-pw-input" autocomplete="new-password"
+             aria-label="{{ if $isEn }}Confirm password{{ else }}确认密码{{ end }}"
+             placeholder="{{ if $isEn }}Confirm password{{ else }}确认密码{{ end }}">
+      <button type="button" class="sgx-pw-eye" data-eye="lockpw-2" aria-label="{{ if $isEn }}Show password{{ else }}显示密码{{ end }}"></button>
+    </div>
+    <p id="lockpw-err" class="sgx-verify-err" hidden></p>
+    <button type="button" class="sgx-verify-skip" id="lockpw-go">{{ if $isEn }}Save{{ else }}保存{{ end }}</button>
+  </div>
+</dialog>
+
+{{ partial "account-i18n.html" . }}
+{{ end }}

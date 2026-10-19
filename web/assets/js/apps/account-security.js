@@ -1,0 +1,460 @@
+/**
+ * @fileoverview 账号 → 安全与隐私（/settings/account/security/）：管理账号凭证（accountkey）。
+ *
+ * - 账号密码：设置 / 修改（根凭证登录时为「重置」，恢复路径）
+ * - 账号通行密钥：添加（注册成功弹命名弹层，预填设备名；改了名才调 rename）、
+ *   列表内点名字直接改名（失焦 / 回车保存）、两步确认删除
+ * - 命名弹层与锁屏页同一套行为：A1 遮罩不关、A2 返回先收键盘、A3 × 关闭，弹层随键盘上移
+ * - 进页 GET /api/account：没有账号会话 → 跳账号页 ?return=<本页> 登录后回来；
+ *   改动返回 account / account-stale → 跳 ?return=<本页>&stale=1（提示重新验证）
+ * - list 返回账号 handle → signalCurrentUserDetails（account-common.js）让密码管理器把旧条目改名 accountkey
+ */
+import { on } from '../lib/events.js';
+import { toast } from '../lib/toast.js';
+import { followKeyboard } from '../shell/vk.js';
+import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
+import { sgxReplace } from '../lib/diag-jumptrace.js';
+import { bindDataEyes, createSetPwDialog, newPwError } from '../lib/auth-flow.js';
+import { bindSubmitButton, onDialogBackdrop, onDialogCancel, recordDialogClose } from '../lib/dialog-behavior.js';
+import { ACCOUNT_API, accountUrl, createT, postJSON, errText as errTextT, signalAccountName } from './account-common.js';
+
+(function () {
+  const en = document.documentElement.lang === 'en';
+  const t = createT(en);
+  /** @param {string} id */
+  function $(id) {
+    return document.getElementById(id);
+  }
+  const root = $('acct-sec');
+  if (!root) return;
+  /** @param {string} [code] @param {number} [status] */
+  function errText(code, status) {
+    return errTextT(t, code, status);
+  }
+
+  /** 回账号页登录，登录后回本页 */
+  function goLogin(stale) {
+    sgxReplace(accountUrl(en) + '?return=' + encodeURIComponent(location.pathname) + (stale ? '&stale=1' : ''));
+  }
+
+  /**
+   * 管理接口统一错误处理：账号会话失效/过旧 → 回账号页登录；lock 会话失效 → 去锁屏。
+   * @returns {boolean} 已处理
+   */
+  function handleAuthError(res) {
+    const code = res && res.j && res.j.error;
+    if (code === 'account' || code === 'account-stale') {
+      goLogin(true);
+      return true;
+    }
+    if (code === 'session') {
+      toast(t('sessExp'));
+      sgxReplace('/?lock=1&return=' + encodeURIComponent(location.pathname));
+      return true;
+    }
+    return false;
+  }
+
+  /** @param {number} ts */
+  function fmtDate(ts) {
+    try {
+      const d = new Date(ts);
+      const p = function (n) { return String(n).padStart(2, '0'); };
+      return en
+        ? d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
+        : d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  /** 名字规则与服务端一致：去控制字符、去首尾空格、限 40 字 */
+  function cleanName(v) {
+    return String(v || '').replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, 40);
+  }
+
+  /* ================= 账号密码 ================= */
+  let hasPw = false;
+  let sessBy = '';
+  const eyeResets = bindDataEyes(t);
+  const pwDialog = createSetPwDialog({
+    $: $,
+    t: function (k) {
+      /* 根凭证登录时标题为「重置账号密码」（恢复路径） */
+      if (k === 'changeTitle' && sessBy === 'root') return t('resetTitle');
+      return t(k);
+    },
+    hideErr: function (id) { const e = $(id); if (e) e.hidden = true; },
+    followKeyboard: followKeyboard,
+    eyeResets: eyeResets,
+    hasPw: function () { return hasPw; },
+  });
+
+  function renderPwRow() {
+    const sub = $('lockmgr-pwsub');
+    if (sub) sub.textContent = hasPw ? t('pwSet') : t('pwUnset');
+  }
+
+  function submitPw() {
+    const a = /** @type {HTMLInputElement|null} */ ($('lockpw-1'));
+    const b = /** @type {HTMLInputElement|null} */ ($('lockpw-2'));
+    const va = a ? a.value : '';
+    const vb = b ? b.value : '';
+    const errEl = $('lockpw-err');
+    if (errEl) errEl.hidden = true;
+    const showErr = function (msg) {
+      if (errEl) {
+        errEl.textContent = msg;
+        errEl.hidden = false;
+      }
+    };
+    const pe = newPwError(va, vb);
+    if (pe) {
+      showErr(t(pe));
+      return;
+    }
+    postJSON(ACCOUNT_API, { action: 'password', password: va }).then(function (res) {
+      if (res.j && res.j.ok) {
+        pwDialog.close('success');
+        toast(res.j.changed ? t('pwChanged') : t('pwSaved'));
+        hasPw = true;
+        renderPwRow();
+        return;
+      }
+      if (handleAuthError(res)) {
+        pwDialog.close('reverify');
+        return;
+      }
+      showErr(errText(res.j && res.j.error, res.s));
+    }, function () {
+      showErr(t('errNetwork'));
+    });
+  }
+  const pwGo = $('lockpw-go');
+  if (pwGo) bindSubmitButton(pwGo, submitPw);
+
+  /* ================= 账号通行密钥 ================= */
+  function refreshKeys() {
+    return postJSON(ACCOUNT_API, { action: 'list' }).then(function (res) {
+      if (handleAuthError(res)) return;
+      if (!(res.j && res.j.ok)) return;
+      signalAccountName(res.j);
+      const ul = $('lockmgr-pklist');
+      const empty = $('lockmgr-pkempty');
+      const keys = res.j.keys || [];
+      if (ul) {
+        ul.innerHTML = '';
+        keys.forEach(function (k) { ul.appendChild(keyItem(k)); });
+        ul.hidden = keys.length === 0;
+      }
+      if (empty) empty.hidden = keys.length !== 0;
+    }, function () {});
+  }
+
+  function keyItem(k) {
+    const li = document.createElement('li');
+    li.className = 'lockmgr-pkitem';
+    const nameWrap = document.createElement('div');
+    nameWrap.className = 'lockmgr-pkname';
+    /* 与锁屏页一致：名字是输入框，点开直接改，失焦/回车保存 */
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.value = k.name || '';
+    nameInput.placeholder = t('pkUnnamed');
+    nameInput.maxLength = 40;
+    nameInput.setAttribute('aria-label', t('pkNameAria'));
+    let lastSaved = k.name || '';
+    const saveName = function () {
+      const v = cleanName(nameInput.value);
+      if (v === lastSaved) {
+        nameInput.value = lastSaved;
+        return;
+      }
+      if (!v) {
+        nameInput.value = lastSaved;
+        toast(t('pkNameEmpty'));
+        return;
+      }
+      postJSON(ACCOUNT_API, { action: 'rename', credId: k.credId, name: v }).then(function (res) {
+        if (res.j && res.j.ok) {
+          lastSaved = v;
+          nameInput.value = v;
+          toast(t('pkRenamed'));
+          return;
+        }
+        nameInput.value = lastSaved;
+        if (handleAuthError(res)) return;
+        toast(res.j && res.j.error === 'params' ? t('pkNameEmpty') : errText(res.j && res.j.error, res.s));
+      }, function () {
+        nameInput.value = lastSaved;
+        toast(t('errNetwork'));
+      });
+    };
+    on(nameInput, 'change', saveName);
+    on(nameInput, 'keydown', function (/** @type {KeyboardEvent} */ e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        nameInput.blur();
+      }
+      e.stopPropagation();
+    });
+    on(nameInput, 'click', function (e) { e.stopPropagation(); });
+    const meta = document.createElement('span');
+    meta.className = 'lockmgr-pkdate';
+    let metaText = t('created') + fmtDate(k.createdAt);
+    metaText += ' · ' + (k.lastUsedAt ? t('lastUsed') + fmtDate(k.lastUsedAt) : t('pkNeverUsed'));
+    if (k.provider) metaText = k.provider + ' · ' + metaText;
+    meta.textContent = metaText;
+    nameWrap.appendChild(nameInput);
+    nameWrap.appendChild(meta);
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'lockmgr-pkdel';
+    del.textContent = t('pkDel');
+    del.setAttribute('aria-label', t('pkDel') + ' ' + (k.name || t('pkUnnamed')));
+    /* 两步确认删除 */
+    let armed = false;
+    let armTimer = 0;
+    on(del, 'click', function (e) {
+      e.stopPropagation();
+      if (!armed) {
+        armed = true;
+        del.textContent = t('pkDelAsk');
+        del.classList.add('armed');
+        armTimer = window.setTimeout(function () {
+          armed = false;
+          del.textContent = t('pkDel');
+          del.classList.remove('armed');
+        }, 3000);
+        return;
+      }
+      window.clearTimeout(armTimer);
+      armed = false;
+      postJSON(ACCOUNT_API, { action: 'delete', credId: k.credId }).then(function (res) {
+        if (handleAuthError(res)) return;
+        if (res.j && res.j.ok) {
+          toast(t('pkDeleted'));
+          try {
+            const PKC = /** @type {any} */ (window.PublicKeyCredential);
+            if (PKC && typeof PKC.signalUnknownCredential === 'function') {
+              PKC.signalUnknownCredential({ rpId: location.hostname, credentialId: k.credId }).catch(function () {});
+            } else {
+              toast(t('pkDelManual'));
+            }
+          } catch (e2) {}
+          refreshKeys();
+        } else {
+          toast(errText(res.j && res.j.error, res.s));
+          del.textContent = t('pkDel');
+          del.classList.remove('armed');
+        }
+      }, function () {
+        toast(t('errNetwork'));
+      });
+    });
+    li.appendChild(nameWrap);
+    li.appendChild(del);
+    return li;
+  }
+
+  /* ---------- 命名弹层（注册成功后弹出；与锁屏页 security-lock.js 同一套） ---------- */
+  let pkNameCredId = null;
+  let pkNamePrefill = '';
+  /** 预填名：设备平台（provider 要等服务端识别 AAGUID，注册前未知） */
+  function genPkPrefillName() {
+    let device = '';
+    try {
+      const uad = /** @type {any} */ (navigator).userAgentData;
+      if (uad && uad.platform) device = uad.platform;
+    } catch (e) {}
+    return device || t('pkUnnamed');
+  }
+  function openPkNameDlg(credId, prefill) {
+    pkNameCredId = credId;
+    pkNamePrefill = prefill || '';
+    const dlg = /** @type {HTMLDialogElement|null} */ ($('lockpkname-dlg'));
+    const input = /** @type {HTMLInputElement|null} */ ($('lockpkname-input'));
+    if (!dlg || !input) return;
+    input.value = pkNamePrefill;
+    /* 异步补设备型号（userAgentData 高熵值） */
+    try {
+      const uad = /** @type {any} */ (navigator).userAgentData;
+      if (uad && uad.getHighEntropyValues) {
+        uad.getHighEntropyValues(['model']).then(function (ua) {
+          if (ua && ua.model && input && input.value === pkNamePrefill) {
+            input.value = ua.model;
+          }
+        }).catch(function () {});
+      }
+    } catch (e) {}
+    const err = $('lockpkname-err');
+    if (err) err.hidden = true;
+    try { dlg.showModal(); } catch (e) {}
+    try { input.focus({ preventScroll: true }); } catch (e2) {}
+  }
+  function closePkNameDlg(reason) {
+    recordDialogClose('lockpkname', reason || 'unknown');
+    const dlg = /** @type {HTMLDialogElement|null} */ ($('lockpkname-dlg'));
+    try { if (dlg && dlg.open) dlg.close(); } catch (e) {}
+    pkNameCredId = null;
+    pkNamePrefill = '';
+  }
+  function showNameErr(msg) {
+    const err = $('lockpkname-err');
+    if (err) {
+      err.textContent = msg;
+      err.hidden = false;
+    }
+  }
+  /* A1/A2/A3：遮罩不关、返回先收键盘、× 关闭（关闭 = 保留注册时的预填名） */
+  const pkNameDlg = $('lockpkname-dlg');
+  if (pkNameDlg) {
+    on(pkNameDlg, 'click', function (/** @type {MouseEvent} */ e) {
+      onDialogBackdrop(e, pkNameDlg);
+    });
+    on(pkNameDlg, 'cancel', function (/** @type {Event} */ e) {
+      onDialogCancel(e, pkNameDlg, function (reason) { closePkNameDlg(reason); refreshKeys(); });
+    });
+    const pkNameClose = pkNameDlg.querySelector('[data-dlg-close]');
+    if (pkNameClose) on(pkNameClose, 'click', function () { closePkNameDlg('close-btn'); refreshKeys(); });
+  }
+  const pkNameSave = $('lockpkname-save');
+  if (pkNameSave) {
+    bindSubmitButton(pkNameSave, function () {
+      const input = /** @type {HTMLInputElement|null} */ ($('lockpkname-input'));
+      const name = cleanName(input ? input.value : '');
+      if (!name) {
+        showNameErr(t('pkNameEmpty'));
+        return;
+      }
+      if (!pkNameCredId) {
+        closePkNameDlg('success');
+        return;
+      }
+      /* 没改名就不调 rename（注册时已带预填名） */
+      if (name === pkNamePrefill) {
+        toast(t('pkRegistered'));
+        closePkNameDlg('success');
+        refreshKeys();
+        return;
+      }
+      postJSON(ACCOUNT_API, { action: 'rename', credId: pkNameCredId, name: name }).then(function (res) {
+        if (res.j && res.j.ok) {
+          toast(t('pkRegistered'));
+          closePkNameDlg('success');
+          refreshKeys();
+          return;
+        }
+        if (handleAuthError(res)) {
+          closePkNameDlg('reverify');
+          return;
+        }
+        /* KV 最终一致：刚注册的 key 可能暂时读不到 */
+        if (res.j && res.j.error === 'not-found') showNameErr(t('pkRetryLater'));
+        else if (res.j && res.j.error === 'params') showNameErr(t('pkNameEmpty'));
+        else showNameErr(errText(res.j && res.j.error, res.s));
+      }, function () {
+        showNameErr(t('errNetwork'));
+      });
+    });
+  }
+  const pkNameSkip = $('lockpkname-skip');
+  if (pkNameSkip) {
+    on(pkNameSkip, 'click', function () {
+      closePkNameDlg('success');
+      toast(t('pkRegistered'));
+      refreshKeys();
+    });
+  }
+  /* 命名输入框聚焦时，弹层随键盘上移 */
+  followKeyboard($('lockpkname-dlg'), $('lockpkname-input'));
+
+  /* 添加账号通行密钥 */
+  const pkAdd = $('lockmgr-pkadd');
+  if (pkAdd) {
+    on(pkAdd, 'click', function () {
+      if (!window.PublicKeyCredential) {
+        toast(t('pkNoSupport'));
+        return;
+      }
+      postJSON(ACCOUNT_API, { action: 'register-challenge' }).then(function (res) {
+        if (handleAuthError(res)) throw { kind: 'handled' };
+        const ch = res.j;
+        if (!ch || !ch.ok) throw { kind: 'server', code: ch && ch.error, status: res.s };
+        return navigator.credentials.create({
+          publicKey: {
+            challenge: b64urlToBuf(ch.challenge),
+            rp: { name: (ch.rp && ch.rp.name) || 'Styrigx', id: ch.rpId },
+            user: { id: b64urlToBuf(ch.user.id), name: ch.user.name, displayName: ch.user.displayName },
+            pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
+            authenticatorSelection: { userVerification: 'required', residentKey: 'required' },
+            excludeCredentials: (ch.excludeCredentials || []).map(function (c) {
+              return { id: b64urlToBuf(c.id), type: c.type };
+            }),
+            attestation: 'none',
+            timeout: 60000,
+          },
+        }).then(function (cred) {
+          return { cred: /** @type {any} */ (cred), cid: ch.cid };
+        }, function (e) {
+          if (e && e.name === 'NotAllowedError') throw { kind: 'cancelled' };
+          if (e && e.name === 'InvalidStateError') throw { kind: 'already' };
+          if (e && e.name === 'NotSupportedError') throw { kind: 'nosupport' };
+          throw { kind: 'failed' };
+        });
+      }).then(function (r) {
+        const prefill = genPkPrefillName();
+        return postJSON(ACCOUNT_API, {
+          action: 'register',
+          cid: r.cid,
+          name: prefill,
+          credential: {
+            id: r.cred.id,
+            rawId: bufToB64url(r.cred.rawId),
+            type: r.cred.type,
+            response: {
+              clientDataJSON: bufToB64url(r.cred.response.clientDataJSON),
+              attestationObject: bufToB64url(r.cred.response.attestationObject),
+            },
+          },
+        }).then(function (res) {
+          return { res: res, prefill: prefill };
+        });
+      }).then(function (r2) {
+        const res = r2.res;
+        if (handleAuthError(res)) return;
+        if (res.j && res.j.ok) {
+          /* 注册成功 → 命名弹层（预填名已随 register 提交，用户改了名才调 rename） */
+          openPkNameDlg(res.j.credId, r2.prefill);
+          refreshKeys();
+        } else {
+          toast(errText(res.j && res.j.error, res.s));
+        }
+      }).catch(function (e) {
+        if (!e || e.kind === 'handled') return;
+        if (e.kind === 'cancelled') toast(t('errCancelled'));
+        else if (e.kind === 'already') toast(t('pkAlready'));
+        else if (e.kind === 'nosupport') toast(t('pkNoSupport'));
+        else if (e.kind === 'failed') toast(t('pkFailed'));
+        else if (e.kind === 'server') toast(errText(e.code, e.status));
+        else toast(t('errNetwork'));
+      });
+    });
+  }
+
+  /* 进页：读状态。没有账号会话（访客 / 只有锁屏会话 / 读失败）→ 回账号页登录 */
+  fetch(ACCOUNT_API, { method: 'GET', credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      if (!(j && j.ok && j.session && j.ready !== false)) {
+        goLogin(false);
+        return;
+      }
+      sessBy = j.session.by || '';
+      hasPw = !!j.password;
+      renderPwRow();
+      root.hidden = false;
+      refreshKeys();
+    })
+    .catch(function () { goLogin(false); });
+})();

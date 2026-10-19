@@ -1,7 +1,7 @@
 /**
  * 2.11：分层接管（layer takeover）。
  *
- * 三层：owner（ownerkey：账号密码/账号通行密钥；KV 标记沿用 layer:owner）、lock（lockkey：解锁密码/
+ * 三层：owner（accountkey：账号密码/账号通行密钥；KV 标记沿用 layer:owner）、lock（lockkey：解锁密码/
  * 锁屏通行密钥）、app:<aud>（<aud>key，如 bookkey）。钥匙命名见 key-names.js。
  *
  * 规则：

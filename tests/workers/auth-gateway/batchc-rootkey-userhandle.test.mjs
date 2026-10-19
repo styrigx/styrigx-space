@@ -287,7 +287,7 @@ test('C4：lock 的 handle 验 owner 凭据会失败（verify 用同一 getUserH
 /* ============ 批次 A 收尾返工：owner 验证接受旧 handle ============ */
 
 test('返工：旧 handle 注册的 owner 凭据能验证通过（接受 legacy）', async () => {
-  /* 场景：旧 ownerkey 注册时用 'owner-user-id'（legacy）；现在 owner 类期望 'owner-user-id:owner'。
+  /* 场景：旧 ownerkey 时代注册时用 'owner-user-id'（legacy）；现在 owner 类期望 'owner-user-id:owner'。
      验证时 gotUh = legacy，应接受（只对 owner 类放宽）。
      这里验证 KV 状态：legacy handle 存在时，owner 期望值与 legacy 不同，但验证逻辑应接受 legacy。
      直接验证：legacy handle 与新 handle 不同，且 legacy 存在于 KV。 */
@@ -324,7 +324,7 @@ test('返工：新 owner 凭据用新 handle', async () => {
   const j = await accountRegisterChallenge(kv, env);
   assert.ok(j.ok);
   assert.equal(await kv.get('owner-user-id:owner'), j.user.id, '新 owner 凭据用新 handle');
-  assert.equal(j.user.name, 'ownerkey', '账号通行密钥沿用 ownerkey 名字（密码管理器里同一条）');
+  assert.equal(j.user.name, 'accountkey', '账号通行密钥名字为 accountkey（同 handle，密码管理器里同一条）');
 });
 
 test('返工：lock 凭据拿 owner 新 handle 仍被拒', async () => {

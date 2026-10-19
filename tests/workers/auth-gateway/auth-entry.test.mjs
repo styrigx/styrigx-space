@@ -7,7 +7,7 @@
  * 3. 访客会话提交正确根凭证 → 401 密码错误，且不调用 D1/KV、不增加 rootlimit 计数
  * 4. 管理凭证弹层四种配置下按钮正确（未设置/仅通行密钥/仅密码/两者都有）
  * 5. 三类通行密钥注册 options 的 name/displayName 正确
- *    （owner→ownerkey，lock→lockkey，app→<aud小写>key；displayName 一律 Sloan Gray）
+ *    （owner→accountkey，lock→lockkey，app→<aud小写>key；displayName 一律 Sloan Gray）
  *
  * 运行：node --test tests/kernel/auth-entry.test.mjs
  */
@@ -135,9 +135,12 @@ test('认证入口：安全页两个入口（管理凭证/立即锁定），访�
     assert.ok(acc.includes(kind), '账号登录应有入口 ' + kind);
   }
   assert.ok(acc.includes("target: 'account'"), '根凭证入口走 root-auth target=account');
-  const accNoComments = acc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1');
-  for (const bad of ['票据', 'rootkey', 'ownerkey', 'sgx-account', 'sgx-verified']) {
-    assert.ok(!accNoComments.includes(bad), '账号页代码不应出现「' + bad + '」');
+  for (const f of ['account.js', 'account-security.js']) {
+    const src = f === 'account.js' ? acc : fs.readFileSync(path.join(REPO, 'web/assets/js/apps/' + f), 'utf8');
+    const noComments = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1');
+    for (const bad of ['票据', 'rootkey', 'ownerkey', 'accountkey', 'sgx-account', 'sgx-verified']) {
+      assert.ok(!noComments.includes(bad), f + ' 代码不应出现「' + bad + '」');
+    }
   }
 });
 
@@ -270,7 +273,8 @@ test('认证入口：三类通行密钥注册 options 的 name/displayName 正�
   assert.ok(src.includes("displayName: OWNER_DISPLAY_NAME"), 'displayName 应为常量');
   assert.ok(src.includes("OWNER_DISPLAY_NAME = 'Sloan Gray'"), 'displayName 应为 Sloan Gray');
   /* name 映射：用命名常量 */
-  assert.ok(src.includes("KEY_OWNER"), '站长凭证 name 应为 KEY_OWNER (ownerkey)');
+  assert.ok(src.includes("KEY_ACCOUNT"), '账号凭证 name 应为 KEY_ACCOUNT (accountkey)');
+  assert.ok(!src.includes("KEY_OWNER"), '旧常量 KEY_OWNER 已改名');
   assert.ok(src.includes("KEY_LOCK"), '锁屏 name 应为 KEY_LOCK (lockkey)');
   assert.ok(src.includes("appKeyName("), 'app name 应为小写应用名+key');
 });

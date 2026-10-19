@@ -1,7 +1,7 @@
 /**
- * A-2 最后一把锁屏钥匙与 ownerkey 联动（v1.5 #10）。
+ * A-2 最后一把锁屏钥匙与 accountkey 联动（v1.5 #10）。
  *
- * - 删到 0 时 ownerkey 存在（站长密码或站长通行密钥任一）→ 允许，保留 layer:lock
+ * - 删到 0 时 accountkey 存在（站长密码或站长通行密钥任一）→ 允许，保留 layer:lock
  *   （根凭证代开继续被拒）；不存在 → 服务端 403 last-key。
  * - A-2 对 layer:lock-emptied 不读不写（该键是 B #10 的，本 PR 不引入）：
  *   删最后一把后 KV 里不出现该键；生产残留不动、不清除、不依赖。
@@ -111,7 +111,7 @@ test('A-2：有站长密码时删最后一把 lock 钥匙 → 200，layer:lock �
   assert.equal(await kv.get('layer:lock-emptied'), null, 'A-2 不写 layer:lock-emptied，该键不应出现');
 });
 
-test('A-2：无 ownerkey 时删最后一把 lock 钥匙 → 403 last-key，钥匙还在', async () => {
+test('A-2：无 accountkey 时删最后一把 lock 钥匙 → 403 last-key，钥匙还在', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const kv = makeKV({ 'layer:lock': '1' });
   await seedKey(kv, 'lock-key-001', 'lock');
@@ -128,7 +128,7 @@ test('A-2：无 ownerkey 时删最后一把 lock 钥匙 → 403 last-key，钥�
   assert.deepEqual(keys, ['lock-key-001']);
 });
 
-test('A-2：有站长通行密钥时删最后一把 lock 钥匙 → 200（ownerkey 任一即可）', async () => {
+test('A-2：有站长通行密钥时删最后一把 lock 钥匙 → 200（accountkey 任一即可）', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
   const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1' });
   await seedKey(kv, 'lock-key-001', 'lock');
@@ -143,7 +143,7 @@ test('A-2：有站长通行密钥时删最后一把 lock 钥匙 → 200（ownerk
   assert.equal(await kv.get('layer:lock-emptied'), null, 'A-2 不写 layer:lock-emptied，该键不应出现');
 });
 
-test('A-2：有 ownerkey 时删最后一把 lock 密码 → 200，KV 不出现 layer:lock-emptied', async () => {
+test('A-2：有 accountkey 时删最后一把 lock 密码 → 200，KV 不出现 layer:lock-emptied', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-password.js');
   const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1' });
   await seedPw(kv, 'owner', 'owner-pw-123');
@@ -160,7 +160,7 @@ test('A-2：有 ownerkey 时删最后一把 lock 密码 → 200，KV 不出现 l
   assert.equal(await kv.get('layer:lock-emptied'), null, 'A-2 不写 layer:lock-emptied，该键不应出现');
 });
 
-test('A-2：无 ownerkey 时删最后一把 lock 密码 → 403 last-key，密码还在', async () => {
+test('A-2：无 accountkey 时删最后一把 lock 密码 → 403 last-key，密码还在', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-password.js');
   const kv = makeKV({ 'layer:lock': '1' });
   await seedPw(kv, 'lock', 'lock-pw-1234');

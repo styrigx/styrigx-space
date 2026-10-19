@@ -1387,7 +1387,6 @@
       display: flex; flex-direction: column; min-width: 0; min-height: 0;
       max-height: calc(100vh - var(--nav-h,64px) - 16px - env(safe-area-inset-top,0px) - 92px - env(safe-area-inset-bottom,0px));
       max-height: calc(100dvh - var(--nav-h,64px) - 16px - env(safe-area-inset-top,0px) - 92px - env(safe-area-inset-bottom,0px));
-      .sgx-account-card { margin: 0 0 12px; flex-shrink: 0; }
     }
     .set-side {
       display: flex; flex-direction: column; min-width: 0; min-height: 0; max-height: none;
@@ -1410,12 +1409,11 @@
     .set-layout.single-cat .set-group { display: none; }
     .set-layout.single-cat .set-group.active { display: block; }
     .set-layout.single-cat .set-group.active > .set-gh { display: none; }
-    .sgx-account-card { display: flex; }
   }
-  /* ===== 可复用账号卡：左 Sloan Gray / Styrigx，右圆形头像 =====
-     2.3.14.8 宽屏左栏显示；2.3.14.9 手机端设置页复用同一组件，也显示。 */
+  /* ===== 账号卡：左 Sloan Gray / Styrigx，右圆形头像（主人可换头像） =====
+     只在账号页 /settings/account/（登录后总览）顶部显示；原设置页的两处（手机 / 宽屏左栏）已移除。 */
   .sgx-account-card {
-    display: none; width: 100%; align-items: center; gap: 12px;
+    display: flex; width: 100%; align-items: center; gap: 12px; margin: 0 0 12px;
     padding: 12px 14px; border-radius: 1.25rem;
     background: var(--m-container-lowest); border: 1px solid var(--m-outline);
     background-image: var(--card-noise);
@@ -1441,10 +1439,6 @@
       background: var(--m-primary); color: var(--m-on-primary); border: 2px solid var(--m-container-lowest);
     }
     .sgx-ac-av:not(:disabled) .sgx-ac-pen { display: flex; }
-    /* 2.3.14.9：手机端设置页显示账号卡（大标题下方、第一分组上方），
-       与宽屏左栏同一组件、样式一致；宽度随容器（左右 16px 由 .set-layout 的 px-4 提供）。
-       D4：margin-top 为 0，使「三点底边 → 第一块内容顶边」= --sgx-head-btn-gap（与我的文件一致）。 */
-    .layout-mobile & { display: flex; margin: 0 0 12px; }
   }
   .set-cat {
     display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 12px; border-radius: 1rem;

@@ -1,7 +1,7 @@
 /**
  * 账号体系：账号登录 + 账号页（原「站长凭证」升级为账号）。
  *
- * 账号凭证（ownerkey）= 账号密码（KV owner-pw，SGX_PW_PEPPER）+ 账号通行密钥
+ * 账号凭证（accountkey）= 账号密码（KV owner-pw，SGX_PW_PEPPER）+ 账号通行密钥
  * （KV owner-passkey:<credId12>，class='owner'）。存储沿用原站长凭证，不迁移数据，
  * 旧的站长密码/通行密钥直接就是账号密码/通行密钥（同 RP styrigx.com，不重新注册）。
  *
@@ -24,10 +24,13 @@
  * - login-password { password } → 验账号密码 → sgx-account(by=password)
  * - logout → 清 sgx-account（幂等，不需会话）
  * 账号页管理（需有效账号会话；除只读 list 外还要求 authAt ≤ 10 分钟，过旧 403 account-stale，前端重新登录）：
- * - list → 账号通行密钥列表（只读，不要求近期）
+ * - list → 账号通行密钥列表 + userHandle（账号 handle owner-user-id:owner，非机密；
+ *   前端拿来调 PublicKeyCredential.signalCurrentUserDetails 更新密码管理器里的名字）（只读，不要求近期）
  * - register-challenge → 注册 challenge（user handle 沿用 owner-user-id:owner）
  * - register { cid, credential, name? } → 保存 class=owner 通行密钥
  * - delete { credId } → 删除账号通行密钥（account-epoch +1，当前设备账号会话重签）
+ * - rename { credId, name } → 重命名账号通行密钥（名字规则同锁屏 rename：去控制字符、去首尾空格、
+ *   1–40 字；只改 class=owner 的钥匙，别的类别 not-found；不推纪元）
  * - password { password } → 设置/修改账号密码（已有时 account-epoch +1 并重签当前会话）。
  *   根凭证登录（by=root）同样可用 → 恢复路径：忘了账号密码/丢了通行密钥用根凭证重置。
  *
@@ -63,7 +66,7 @@ import {
 } from '../_kernel/account-session.js';
 import { isLayerConfigured, setLayerConfigured, clearLayerConfigured, LAYER_OWNER } from '../_kernel/layers.js';
 import { REALM_ACCOUNT, REALM_LOCK, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
-import { KEY_OWNER } from '../_kernel/key-names.js';
+import { KEY_ACCOUNT } from '../_kernel/key-names.js';
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
 import { verifySessionDetailed } from '../_middleware.js';
 import {
@@ -271,12 +274,12 @@ async function handlePost(context) {
   }
 
   /* ============ 账号页管理：需近期账号会话 ============ */
-  const MGMT = ['list', 'register-challenge', 'register', 'delete', 'password'];
+  const MGMT = ['list', 'register-challenge', 'register', 'delete', 'rename', 'password'];
   if (MGMT.indexOf(action) === -1) return json({ ok: false, error: 'action' }, 400);
 
   const acc = await verifyAccountCookie(request, env);
   if (!acc.ok) return json({ ok: false, error: 'account', reason: acc.reason }, 401);
-  /* 只读的 list 不要求近期；改动（注册/删除/改密码）要求 10 分钟内登录过 */
+  /* 只读的 list 不要求近期；改动（注册/删除/重命名/改密码）要求 10 分钟内登录过 */
   if (!acc.recent && action !== 'list') return json({ ok: false, error: 'account-stale' }, 403);
 
   /* 首次配置账号层：标记 + session-epoch +1 + 重签当前 lock 会话（失败 503） */
@@ -299,9 +302,15 @@ async function handlePost(context) {
 
   if (action === 'list') {
     const keys = await accountKeys(kv);
+    /* 账号 handle（注册用的那个）；读不到就不给，前端不 signal。不新建（list 只读）。 */
+    let userHandle = '';
+    try { userHandle = (await kv.get('owner-user-id:owner')) || ''; } catch (e) {}
     return json({
       ok: true,
       by: acc.by,
+      userHandle: userHandle,
+      userName: KEY_ACCOUNT,
+      displayName: OWNER_DISPLAY_NAME,
       keys: keys.map(function (k) {
         return {
           credId: k.credId,
@@ -364,6 +373,20 @@ async function handlePost(context) {
     return new Response(JSON.stringify({ ok: true }), { headers });
   }
 
+  if (action === 'rename') {
+    const credId = (body && body.credId) || '';
+    if (!credId || typeof credId !== 'string') return json({ ok: false, error: 'params' }, 400);
+    /* 名字规则与 owner-passkey.js rename 一致：去控制字符、去首尾空格、限 40 字，空 → params */
+    const name = String((body && body.name) || '').replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, 40);
+    if (!name) return json({ ok: false, error: 'params' }, 400);
+    const keys = await accountKeys(kv);
+    const found = findStoredKey(keys, credId);
+    if (!found) return json({ ok: false, error: 'not-found' }, 404);
+    found.name = name;
+    try { await savePasskey(kv, found); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
+    return json({ ok: true, name: name });
+  }
+
   /* register-challenge / register：通行密钥注册 */
   if (needsRp) {
     const rp = rpConfig(env);
@@ -390,8 +413,9 @@ async function handlePost(context) {
         challenge: challenge,
         rpId: rp.rpId,
         rp: { id: rp.rpId, name: 'Styrigx' },
-        /* 用户信息与原站长通行密钥相同（同 handle），密码管理器里仍是同一条账号 */
-        user: { id: userHandle, name: KEY_OWNER, displayName: OWNER_DISPLAY_NAME },
+        /* 同 handle（owner-user-id:owner），user.name=accountkey：密码管理器里显示 accountkey；
+           已有条目由前端 signalCurrentUserDetails 改名 */
+        user: { id: userHandle, name: KEY_ACCOUNT, displayName: OWNER_DISPLAY_NAME },
         excludeCredentials: keys.map(function (k) { return { id: k.credId, type: 'public-key' }; }),
       });
     }
