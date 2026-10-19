@@ -18,8 +18,14 @@ const currentHead = visibleSubHead;
 function anchorMenu(menu, btn) {
   const r = btn.getBoundingClientRect();
   menu.style.top = r.bottom + 8 + 'px';
-  menu.style.right = Math.max(16, window.innerWidth - r.right) + 'px';
-  menu.style.left = 'auto';
+  /* 按钮在左半边（主页的九宫格）就左对齐，否则右对齐 */
+  if (r.left + r.width / 2 < window.innerWidth / 2) {
+    menu.style.left = Math.max(16, r.left) + 'px';
+    menu.style.right = 'auto';
+  } else {
+    menu.style.right = Math.max(16, window.innerWidth - r.right) + 'px';
+    menu.style.left = 'auto';
+  }
 }
 
 /** @type {HTMLElement|null} */
@@ -38,7 +44,7 @@ function syncTopbar() {
   const scope = head && head.parentElement ? head.parentElement : document;
   const mini = scope.querySelector(':scope > .subpage-mini-title') || document.querySelector('main .subpage-mini-title');
   if (mini) pill.appendChild(mini);
-  /* ⋮：页面有自己的按钮就用它，没有就用默认按钮（主页弹设置菜单，其他页点了无反应） */
+  /* ⋮：页面有自己的按钮就用它，没有就用默认按钮（点了无反应）；主页长条里没有 ⋮ */
   const cur = pill.querySelector('.sgx-tb-more');
   const src = head ? head.querySelector('[data-tb-more] button') : null;
   const want = src || defaultMore;
@@ -154,46 +160,6 @@ function initNavMenu() {
   });
 }
 
-/* 2026-10-19：主页顶栏 ⋮ → 小菜单（目前只有「设置」）。Dock 删除后设置入口在这里。
-   只在主页有 #sgx-tb-moremenu；子页面的 ⋮ 仍由页面自己接管。 */
-function initHomeMore() {
-  const menu = /** @type {HTMLElement|null} */ (document.getElementById('sgx-tb-moremenu'));
-  const btn = document.querySelector('.sgx-tb-pill .sgx-tb-more[data-menu="home"]');
-  if (!menu || !btn) return;
-  function close() {
-    if (!menu || !btn) return;
-    menu.classList.add('hidden');
-    btn.setAttribute('aria-expanded', 'false');
-  }
-  btn.addEventListener('click', function (e) {
-    e.stopPropagation();
-    if (menu.classList.contains('hidden')) {
-      menu.classList.remove('hidden');
-      btn.setAttribute('aria-expanded', 'true');
-      anchorMenu(menu, btn);
-    } else close();
-  });
-  menu.addEventListener('click', function (e) {
-    const t = /** @type {Element|null} */ (e.target);
-    const a = t && t.closest ? /** @type {HTMLAnchorElement|null} */ (t.closest('a[href]')) : null;
-    if (!a) return;
-    e.preventDefault();
-    close();
-    sgxNavigate(a.getAttribute('href') || '/');
-  });
-  document.addEventListener('click', function (e) {
-    const t = /** @type {Element|null} */ (e.target);
-    if (!menu.classList.contains('hidden') && t && !t.closest('#sgx-tb-moremenu') && !t.closest('.sgx-tb-more')) close();
-  });
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && !menu.classList.contains('hidden')) close();
-  });
-  window.addEventListener('popstate', close);
-  getScheduler().onScroll(function () {
-    if (!menu.classList.contains('hidden')) anchorMenu(menu, btn);
-  });
-}
-
 /* 头像（#nav-brand）链到主页。已经在主页时再点不重新加载整页（三星浏览器会露出半成品的一帧），
    只平滑回到顶部；在子页面照常跳主页。 */
 function initBrand() {
@@ -217,7 +183,6 @@ export function initHeadButtons(S) {
   const sched = S || getScheduler();
   syncTopbar();
   initNavMenu();
-  initHomeMore();
   initBrand();
   sched.onScroll(function (y) {
     updateStuck(y);
