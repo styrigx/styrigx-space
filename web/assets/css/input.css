@@ -2493,14 +2493,14 @@
   --sgx-mat-line: rgba(255,255,255,.08);
   --sgx-mat-shadow: 0 8px 24px rgba(0,0,0,.35);
 }
-.sgx-tb-back, .sgx-tb-search, .sgx-tb-pill, .sgx-tb-nav {
+.sgx-tb-search, .sgx-tb-pill, .sgx-tb-nav {
   background: var(--sgx-mat);
   backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
   border: 1px solid var(--sgx-mat-line); box-shadow: var(--sgx-mat-shadow); pointer-events: auto; }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .sgx-tb-back, .sgx-tb-search, .sgx-tb-pill, .sgx-tb-nav { background: var(--sgx-mat-solid); }
+  .sgx-tb-search, .sgx-tb-pill, .sgx-tb-nav { background: var(--sgx-mat-solid); }
 }
-.sgx-tb-back, .sgx-tb-search, .sgx-tb-nav { width: 52px; height: 52px; border-radius: 999px; flex-shrink: 0; padding: 0;
+.sgx-tb-search, .sgx-tb-nav { width: 52px; height: 52px; border-radius: 999px; flex-shrink: 0; padding: 0;
   display: inline-flex; align-items: center; justify-content: center; color: var(--m-on-surface); cursor: pointer; }
 .sgx-tb-back svg { width: 24px; height: 24px; }
 .sgx-tb-search { text-decoration: none; }
@@ -2522,12 +2522,12 @@
   border-radius: 999px; border: 0; background: transparent; display: inline-flex; align-items: center; justify-content: center;
   color: var(--m-on-surface); cursor: pointer; padding: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
 .sgx-tb-more svg { width: 22px; height: 22px; }
-.sgx-tb-pbtn { position: absolute; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border-radius: 999px;
+.sgx-tb-pbtn { position: absolute; border: 0; background: transparent; padding: 0; cursor: pointer; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border-radius: 999px;
   display: inline-flex; align-items: center; justify-content: center; color: var(--m-on-surface); text-decoration: none; }
 .sgx-tb-pbtn svg { width: 22px; height: 22px; }
-.sgx-tb-psearch { left: 6px; }
+.sgx-tb-psearch, .sgx-tb-back { left: 6px; }
 .sgx-tb-set { right: 6px; }
-.sgx-tb-psearch ~ .sgx-tb-brand { padding: 0; }
+.sgx-tb-pbtn ~ .sgx-tb-brand { padding: 0; }
 /* 主页右圆：头像（以后接账号体系） */
 .sgx-tb-me { width: 52px; height: 52px; border-radius: 999px; flex-shrink: 0; overflow: hidden; display: block;
   border: 1px solid var(--sgx-mat-line); box-shadow: var(--sgx-mat-shadow); pointer-events: auto; }

@@ -73,7 +73,7 @@ test('主人：选择照片 → 裁剪 → 完成，上传四个尺寸并刷新�
   for (const s of ['512', '192', '96', '32']) expect(body).toContain('name="' + s + '"');
   expect((body.match(/WEBP/g) || []).length).toBe(4);
   await expect(page.locator('.set-mobile-only .sgx-ac-img')).toHaveAttribute('src', '/avatar/192.webp?v=abc');
-  await expect(page.locator('.sgx-tb-avatar')).toHaveAttribute('src', '/avatar/96.webp?v=abc');
+  await expect(page.locator('.sgx-tb-avatar')).toHaveAttribute('src', '/avatar/192.webp?v=abc');
 });
 
 test('主人：裁剪时点取消，不上传', async ({ page }) => {
