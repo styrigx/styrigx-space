@@ -1,11 +1,12 @@
-/* B1-6c｜设置搜索页：键盘 / 沉底 / 返回手势 / 内容置顶 / 小标题 / ⋮ × 切换
+/* B1-6c｜设置搜索页：键盘 / 沉底 / 返回手势 / 内容置顶 / 小标题 / ⓧ 清空 + × 关闭
  *
  * 验收（任务书 B1-6）：
  * a. 设置主页点搜索胶囊 → 进入 /settings/search/，输入框聚焦
  * b. 进页即内容置顶：内容紧贴顶栏下方、大标题不可见、顶栏小标题「设置搜索」出现；
  *    滚到顶露出大标题、小标题消失
  * c. 输入后仍内容置顶
- * d. 未输入：⋮ 显示、× 隐藏；有输入：⋮ 隐藏、× 显示；点 × 清空、恢复 ⋮、输入框仍聚焦
+ * d. 未输入：ⓧ 清空隐藏、× 关闭显示；有输入：ⓧ 出现；点 ⓧ 清空、ⓧ 再隐藏、输入框仍聚焦；胶囊里没有 ⋮
+ * i. 点 × 关闭：键盘态 / 沉底态都直接回到设置主页
  * e. 键盘态返回（popstate）：仍在本页，输入框失焦、搜索栏沉底（不再 .open）
  * f. 沉底态返回：回到 /settings/
  * g. 沉底态点顶栏 ← ：回到 /settings/
@@ -16,7 +17,7 @@ import { test, expect } from '@playwright/test';
 
 const INPUT = '#sgx-cap-input-setsearch';
 const CAP = '#sgx-cap-setsearch';
-const MORE = '#sgx-cap-setsearch [data-cap-more]';
+const CLOSE = '#sgx-cap-setsearch [data-cap-close]';
 const CLEAR = '#sgx-cap-setsearch [data-cap-clear]';
 
 test.use({ viewport: { width: 360, height: 780 }, colorScheme: 'light' });
@@ -82,18 +83,36 @@ test('c 输入后仍内容置顶', async ({ page }) => {
   expect(g.stuck).toBe(true);
 });
 
-test('d ⋮ / × 切换，点 × 清空且不收键盘', async ({ page }) => {
+test('d ⓧ 清空随输入出现，点 ⓧ 清空且不收键盘；× 关闭常驻、没有 ⋮', async ({ page }) => {
   await enterFromSettings(page);
-  await expect(page.locator(MORE)).toBeVisible();
+  await expect(page.locator('#sgx-cap-setsearch [data-cap-more]')).toHaveCount(0);
+  await expect(page.locator(CLOSE)).toBeVisible();
   await expect(page.locator(CLEAR)).toBeHidden();
   await page.locator(INPUT).pressSequentially('字');
-  await expect(page.locator(MORE)).toBeHidden();
   await expect(page.locator(CLEAR)).toBeVisible();
+  await expect(page.locator(CLOSE)).toBeVisible();
   await page.locator(CLEAR).click();
   await expect(page.locator(INPUT)).toHaveValue('');
-  await expect(page.locator(MORE)).toBeVisible();
   await expect(page.locator(CLEAR)).toBeHidden();
+  await expect(page.locator(CLOSE)).toBeVisible();
   expect(await page.evaluate((s) => document.activeElement === document.querySelector(s), INPUT)).toBe(true);
+});
+
+test('i 键盘态点 × 关闭：直接回设置主页', async ({ page }) => {
+  await enterFromSettings(page);
+  await page.locator(INPUT).pressSequentially('字体');
+  await expect(page.locator(CAP)).toHaveClass(/\bopen\b/);
+  await page.locator(CLOSE).click();
+  await page.waitForURL(/\/settings\/$/, { timeout: 15000 });
+});
+
+test('i 沉底态点 × 关闭：直接回设置主页', async ({ page }) => {
+  await enterFromSettings(page);
+  await page.locator(INPUT).pressSequentially('字体');
+  await page.locator(INPUT).press('Enter');
+  await expect(page.locator(CAP)).not.toHaveClass(/\bopen\b/);
+  await page.locator(CLOSE).click();
+  await page.waitForURL(/\/settings\/$/, { timeout: 15000 });
 });
 
 test('e 键盘态返回：只收键盘，留在本页；f 沉底态再返回：回设置主页', async ({ page }) => {

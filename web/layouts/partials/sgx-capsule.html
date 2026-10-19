@@ -9,15 +9,17 @@
 <div id="sgx-cap-{{ $page }}" class="sgx-cap" role="search">
   <svg class="sgx-cap-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
   <input id="sgx-cap-input-{{ $page }}" type="search" autocomplete="off" enterkeyhint="search" placeholder="{{ $ph }}" aria-label="{{ $ph }}">
+  {{/* "tools" true（设置搜索 / 浏览器搜索）：有输入时麦克风左边出现 ⓧ 清空；胶囊最右端常驻 × 关闭（退出当前页）。逻辑在页面脚本里 */}}
+  {{ if .tools }}
+  <button type="button" class="sgx-cap-tool sgx-cap-clear" data-cap-clear aria-label="{{ if $isEn }}Clear{{ else }}清空{{ end }}" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7" stroke="var(--m-surface)" stroke-width="2" stroke-linecap="round"/></svg>
+  </button>
+  {{ end }}
   <button type="button" class="sgx-cap-mic" data-mic aria-label="{{ if $isEn }}Voice search{{ else }}语音搜索{{ end }}" style="display:none">
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-5a3.5 3.5 0 1 0-7 0v5A3.5 3.5 0 0 0 12 15zm6-3.5a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.94V22h2v-2.06A8 8 0 0 0 20 11.5h-2z"/></svg>
   </button>
-  {{/* B1-6c："tools" true 时胶囊右端：未输入为 ⋮，有输入换成 ×（清空），逻辑在页面脚本里 */}}
   {{ if .tools }}
-  <button type="button" class="sgx-cap-tool" data-cap-more aria-label="{{ if $isEn }}More options{{ else }}更多选项{{ end }}">
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg>
-  </button>
-  <button type="button" class="sgx-cap-tool" data-cap-clear aria-label="{{ if $isEn }}Clear{{ else }}清空{{ end }}" hidden>
+  <button type="button" class="sgx-cap-tool" data-cap-close aria-label="{{ if $isEn }}Close{{ else }}关闭{{ end }}">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
   </button>
   {{ end }}

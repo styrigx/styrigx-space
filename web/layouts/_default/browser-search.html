@@ -3,9 +3,11 @@
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-browser-search.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+{{/* 顶栏 ⋮ = 搜索引擎 / 清除最近搜索（原来在搜索胶囊右端，胶囊右端现在是 × 关闭） */}}
+{{ $moreBtn := printf `<button type="button" class="sgx-tb-more" id="brws-more" aria-label="%s"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg></button>` (cond $isEn "More" "更多") }}
 
 <div class="set-layout setso-layout max-w-2xl mx-auto px-4 pb-28">
-  {{ partial "subpage-head.html" (dict "title" .Title "isEn" $isEn) }}
+  {{ partial "subpage-head.html" (dict "title" .Title "isEn" $isEn "actions" ($moreBtn | safeHTML)) }}
   <div class="set-main min-w-0">
     <div id="brws-page"></div>
   </div>
@@ -26,7 +28,7 @@
 }}
 <script id="sgx-i18n-brws" type="application/json">{{ $i18n | jsonify | safeJS }}</script>
 
-<!-- 底部搜索胶囊：page "brwsearch"，panel false；⋮ = 搜索引擎 / 清除最近搜索，有输入时换成 × -->
+<!-- 底部搜索胶囊：page "brwsearch"，panel false；有输入时出现 ⓧ 清空，最右端 × 关闭 -->
 {{ partial "sgx-capsule.html" (dict "page" "brwsearch" "isEn" $isEn
   "placeholder" (cond $isEn "Search or type URL" "搜索或输入网址")
   "panel" false "tools" true) }}

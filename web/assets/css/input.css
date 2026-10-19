@@ -1835,7 +1835,7 @@
     }
   }
 
-  /* B1-6c：胶囊右端 ⋮ / ×（设置搜索页） */
+  /* 搜索页胶囊工具：ⓧ 清空（麦克风左边，有输入时出现）+ × 关闭（最右端，常驻） */
   .sgx-cap-tool {
     display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
     width: 36px; height: 36px; margin-right: -8px; border: 0; border-radius: 999px; padding: 0;
@@ -1843,8 +1843,12 @@
     svg { width: 22px; height: 22px; display: block; }
     &[hidden] { display: none; }
     &:active { background: color-mix(in srgb, var(--m-on-surface) 8%, transparent); }
+    &.sgx-cap-clear {
+      width: 32px; height: 32px; margin-right: 0; opacity: .6;
+      svg { width: 20px; height: 20px; }
+    }
   }
-  /* B1-6c：设置搜索页内容优先——进页即滚过标题区，内容至少一屏高，保证能停在「标题已收起」的位置 */
+  /* B1-6c：搜索页（设置搜索 / 浏览器搜索）内容优先——进页即滚过标题区，内容至少一屏高，保证能停在「标题已收起」的位置 */
   .setso-layout .set-main { min-height: calc(100svh - 84px - env(safe-area-inset-top,0px)); }
 
   /* 胶囊结果浮层：贴键盘的胶囊上方，2.3.11 式结果 + 淡入 */

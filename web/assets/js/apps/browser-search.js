@@ -243,17 +243,17 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
     }
   });
 
-  /* ============ 胶囊右端：未输入为 ⋮（搜索引擎 / 清除最近搜索），有输入为 ×（清空） ============ */
+  /* ============ 胶囊：ⓧ 清空（有输入才出现）+ × 关闭（常驻，退出搜索页） ============ */
   const cap = document.getElementById('sgx-cap-brwsearch');
-  const capMore = cap ? cap.querySelector('[data-cap-more]') : null;
+  const capClose = cap ? cap.querySelector('[data-cap-close]') : null;
   const capClear = cap ? cap.querySelector('[data-cap-clear]') : null;
+  /* 键盘哨兵是否已 push（返回手势逻辑见文件末尾） */
+  let armed = false;
   function syncTools() {
-    const has = input.value.length > 0;
-    if (capMore) /** @type {HTMLElement} */ (capMore).hidden = has;
-    if (capClear) /** @type {HTMLElement} */ (capClear).hidden = !has;
+    if (capClear) /** @type {HTMLElement} */ (capClear).hidden = input.value.length === 0;
   }
   on(input, 'input', syncTools);
-  [capMore, capClear].forEach(function (b) {
+  [capClose, capClear].forEach(function (b) {
     if (b) b.addEventListener('pointerdown', function (e) { e.preventDefault(); });
   });
   if (capClear) {
@@ -262,9 +262,48 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
       input.value = '';
       syncTools();
       render('');
+      contentFirst();
       try { input.focus({ preventScroll: true }); } catch (err) {}
     });
   }
+  if (capClose) {
+    /* × = 退出搜索页：站内进来的回到来的那一页（连同键盘哨兵一起退掉）；外部直接打开的走顶栏 ← 的上一级 */
+    on(capClose, 'click', function (/** @type {MouseEvent} */ e) {
+      e.stopPropagation();
+      let internal = false;
+      try { internal = !!document.referrer && new URL(document.referrer).origin === location.origin; } catch (err) {}
+      if (!internal) {
+        const back = /** @type {HTMLElement|null} */ (document.querySelector('.sgx-tb-back'));
+        if (back) back.click();
+        return;
+      }
+      if (armed) {
+        armed = false;
+        history.go(-2);
+      } else {
+        sgxGoBack();
+      }
+    });
+  }
+
+  /* ============ 内容置顶（与设置搜索相同）：滚过标题区，内容紧贴顶栏下方；往下拉到顶才露出大标题 ============ */
+  function contentFirst() {
+    const heads = document.querySelectorAll('[data-subpage-head]');
+    let head = null;
+    for (let i = 0; i < heads.length; i++) {
+      if (heads[i].getClientRects().length) { head = /** @type {HTMLElement} */ (heads[i]); break; }
+    }
+    if (!head) return;
+    const bar = document.querySelector('.sgx-topbar');
+    const barBottom = bar ? bar.getBoundingClientRect().bottom : 68;
+    const y = Math.max(0, head.getBoundingClientRect().bottom + window.scrollY - barBottom - 16);
+    window.scrollTo(0, y);
+  }
+  try { history.scrollRestoration = 'manual'; } catch (e) {}
+  /* 下一帧再置顶：公共初始化会调整标题区高度，模块求值时量的位置会偏 */
+  requestAnimationFrame(contentFirst);
+  on(input, 'input', function () { window.setTimeout(contentFirst, 170); });
+
   function openEngineSheet() {
     const curE = SE.cur();
     openSheet({
@@ -279,8 +318,10 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
       },
     });
   }
-  if (capMore) {
-    on(capMore, 'click', function (/** @type {MouseEvent} */ e) {
+  /* 顶栏 ⋮（#brws-more，页面通过 subpage-head 的 actions 交给顶栏）= 搜索引擎 / 清除最近搜索 */
+  const tbMore = document.getElementById('brws-more');
+  if (tbMore) {
+    on(tbMore, 'click', function (/** @type {MouseEvent} */ e) {
       e.stopPropagation();
       openSheet({
         title: '',
@@ -328,7 +369,6 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
   });
 
   /* ============ 返回手势（与设置搜索相同）：键盘态只收键盘；沉底态继续返回上一页 ============ */
-  let armed = false;
   function isKb() {
     return document.activeElement === input || !!(cap && cap.classList.contains('open'));
   }

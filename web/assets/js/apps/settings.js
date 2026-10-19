@@ -860,19 +860,19 @@ import { sgxNavigate, sgxReplace, sgxGoBack, sgxReload } from '../lib/diag-jumpt
     });
     render(input.value); /* B1-6b：进页即渲染（空输入时显示最近搜索卡） */
 
-    /* ===== B1-6c：键盘 / 沉底 / 返回手势 / 内容置顶 / ⋮ × 切换 ===== */
+    /* ===== B1-6c：键盘 / 沉底 / 返回手势 / 内容置顶 / ⓧ 清空 / × 关闭 ===== */
     const cap = document.getElementById('sgx-cap-setsearch');
-    const capMore = cap ? cap.querySelector('[data-cap-more]') : null;
+    const capClose = cap ? cap.querySelector('[data-cap-close]') : null;
+    /* 键盘哨兵是否已 push（返回手势逻辑见下方） */
+    let armed = false;
     const capClear = cap ? cap.querySelector('[data-cap-clear]') : null;
-    /* ⋮ / ×：未输入显示 ⋮，有输入显示 × */
+    /* ⓧ 清空：有输入才出现；× 关闭常驻 */
     function syncTools() {
-      const has = input.value.length > 0;
-      if (capMore) /** @type {HTMLElement} */ (capMore).hidden = has;
-      if (capClear) /** @type {HTMLElement} */ (capClear).hidden = !has;
+      if (capClear) /** @type {HTMLElement} */ (capClear).hidden = input.value.length === 0;
     }
     input.addEventListener('input', syncTools);
-    [capMore, capClear].forEach(function (b) {
-      /* 点按钮不抢输入框焦点（键盘态下点 × 不收键盘） */
+    [capClose, capClear].forEach(function (b) {
+      /* 点按钮不抢输入框焦点（键盘态下点 ⓧ 不收键盘） */
       if (b) b.addEventListener('pointerdown', function (e) { e.preventDefault(); });
     });
     if (capClear) {
@@ -886,12 +886,23 @@ import { sgxNavigate, sgxReplace, sgxGoBack, sgxReload } from '../lib/diag-jumpt
         try { input.focus({ preventScroll: true }); } catch (err) {}
       });
     }
-    if (capMore) {
-      /* 胶囊 ⋮ = 顶栏 ⋮（同一个菜单） */
-      capMore.addEventListener('click', function (e) {
+    if (capClose) {
+      /* × = 退出搜索页：站内进来的回到来的那一页（连同键盘哨兵一起退掉）；外部直接打开的走顶栏 ← 的上一级 */
+      capClose.addEventListener('click', function (e) {
         e.stopPropagation();
-        const tb = /** @type {HTMLElement|null} */ (document.querySelector('.sgx-tb-pill .sgx-tb-more'));
-        if (tb) tb.click();
+        let internal = false;
+        try { internal = !!document.referrer && new URL(document.referrer).origin === location.origin; } catch (err) {}
+        if (!internal) {
+          const back = /** @type {HTMLElement|null} */ (document.querySelector('.sgx-tb-back'));
+          if (back) back.click();
+          return;
+        }
+        if (armed) {
+          armed = false;
+          history.go(-2);
+        } else {
+          sgxGoBack();
+        }
       });
     }
     syncTools();
@@ -921,7 +932,6 @@ import { sgxNavigate, sgxReplace, sgxGoBack, sgxReload } from '../lib/diag-jumpt
        - 键盘态：只收键盘（blur → 胶囊沉底），停留本页；
        - 沉底态：不拦截，继续返回上一页（设置主页）。
        */
-    let armed = false;
     function isKb() {
       return document.activeElement === input || !!(cap && cap.classList.contains('open'));
     }
