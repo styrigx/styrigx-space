@@ -95,6 +95,20 @@ export function needVerify(t, reason, detail) {
 }
 
 /**
+ * 2026-10-19：验证过期后「重新验证」的去向：安全与隐私页 + ?verify=&return=，
+ * 安全页自动打开对应验证弹层，通过后回到当前门内页。
+ * 站长凭证门（/owner/）用根凭证弹层，其余门用管理凭证弹层。
+ * @returns {string}
+ */
+function reverifyUrl() {
+  const path = window.location.pathname;
+  const isEn = path.indexOf('/en/') === 0;
+  const base = isEn ? '/en/settings/security/' : '/settings/security/';
+  const which = /\/settings\/security\/owner\//.test(path) ? 'owner' : 'mgmt';
+  return base + '?verify=' + which + '&return=' + encodeURIComponent(path);
+}
+
+/**
  * 到期弹框（A-1，定稿 #22）：居中模态，无 ×，遮罩/返回手势不能关，
  * 并发只弹一个，弹框时停倒计时、收起其他 sheet（showCenterDialog 负责）。
  * @param {(k:string)=>string} t 文案函数
@@ -119,11 +133,11 @@ function showExpiredDialog(t, kind, detail) {
   } else if (isSession) {
     desc = tx(t, 'expiredSessionDesc', '请回到锁屏重新解锁', 'Please go back to the lock screen to unlock again.');
   } else {
-    desc = tx(t, 'expiredStepupDesc', '请返回安全与隐私重新验证', 'Please go back to Security & Privacy to verify again.');
+    desc = tx(t, 'expiredStepupDesc', '验证后回到这一页继续', 'Verify again to continue on this page.');
   }
   const btnLabel = isSession
     ? tx(t, 'expiredSessionBtn', '去锁屏', 'Go to lock screen')
-    : tx(t, 'expiredStepupBtn', '返回安全与隐私', 'Back to Security & Privacy');
+    : tx(t, 'expiredStepupBtn', '重新验证', 'Verify again');
   /* C4：弹框打开时拦住返回手势。移动端返回手势走 history（非 dialog cancel 事件），
      仅 preventDefault(cancel) 拦不住。用 pushState 占一位，popstate 时等同于
      点按钮（不直接关框），避免退回已过期的门内页。 */
@@ -136,7 +150,7 @@ function showExpiredDialog(t, kind, detail) {
   function goFromDialog() {
     cleanupBackGuard();
     if (isSession) sgxReload();
-    else clearStepupThen('/settings/security/');
+    else clearStepupThen(reverifyUrl());
   }
   function onBackPopstate() {
     if (!backGuardActive || !expiredDialogOpen) return;

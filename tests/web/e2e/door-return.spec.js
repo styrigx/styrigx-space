@@ -366,13 +366,13 @@ test.describe('批次 A 验收修复 #7：锁屏页探针失败走 needVerify（
     expect(pageErrors).toEqual([]);
   });
 
-  test('探针 scope + owner-configured → 弹验证过期框，点「返回安全与隐私」才跳', async ({ page }) => {
+  test('探针 scope + owner-configured → 弹验证过期框，点「重新验证」才跳', async ({ page }) => {
     await mockJson(page, '**/api/lock-status', 403, { ok: false, error: 'scope', reason: 'owner-configured' });
     await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
     const dlg = page.locator('dialog.sgx-center-dlg');
     await expect(dlg).toBeVisible({ timeout: 5000 });
     await expect(dlg).toContainText('站长凭证已设置，请用站长凭证重新验证');
-    await expect(dlg.locator('button.sgx-verify-skip')).toHaveText('返回安全与隐私');
+    await expect(dlg.locator('button.sgx-verify-skip')).toHaveText('重新验证');
     /* 不点不跳 */
     await expect(page).toHaveURL(/\/settings\/security\/lock\//);
     await dlg.locator('button.sgx-verify-skip').click();
@@ -546,8 +546,8 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
     await page.locator('#lockmgr-pwdel').click();
     const dlg = page.locator('dialog.sgx-center-dlg');
     await expect(dlg).toBeVisible({ timeout: 5000 });
-    await expect(dlg).toContainText('请返回安全与隐私重新验证');
-    await expect(dlg.locator('button.sgx-verify-skip')).toHaveText('返回安全与隐私');
+    await expect(dlg).toContainText('验证后回到这一页继续');
+    await expect(dlg.locator('button.sgx-verify-skip')).toHaveText('重新验证');
     /* v1.1 §二.2：弹框出现时倒计时胶囊隐藏 */
     await expect(page.locator('#sgx-door-countdown')).toHaveCount(0);
     /* 不点不跳 */
@@ -663,7 +663,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
     const dlg = page.locator('dialog.sgx-center-dlg');
     await expect(dlg).toBeVisible({ timeout: 5000 });
     const btn = dlg.locator('button.sgx-verify-skip');
-    await expect(btn).toHaveText('返回安全与隐私');
+    await expect(btn).toHaveText('重新验证');
     await expect(btn).toBeFocused();
     expect(await btn.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('none');
     expect(pageErrors).toEqual([]);

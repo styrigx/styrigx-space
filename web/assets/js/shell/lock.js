@@ -311,6 +311,33 @@ function showLockScreen() {
         /* 网络失败：保持锁屏（fail-closed） */
       });
   }
+  function initialSessionCheck() {
+    fetch('/api/session-check', { credentials: 'same-origin', cache: 'no-store' })
+      .then(function (r) {
+        if (!r.ok) return { ok: false };
+        return r.json().catch(function () { return { ok: false }; });
+      })
+      .then(function (d) {
+        if (done || !(d && d.ok === true)) return;
+        let ret = '';
+        try { ret = new URLSearchParams(window.location.search).get('return') || ''; } catch (e) {}
+        if (ret) {
+          try {
+            const k = 'sgx-initcheck-jump';
+            const prev = JSON.parse(sessionStorage.getItem(k) || 'null');
+            if (prev && prev.url === location.href && Date.now() - prev.at < 10000) return;
+            sessionStorage.setItem(k, JSON.stringify({ url: location.href, at: Date.now() }));
+          } catch (e) { return; }
+        }
+        try { console.warn('[sgx-lock] page said locked but session-check ok; unlocking'); } catch (e) {}
+        done = true;
+        closeMethodSheet();
+        if (dlg && dlg.open) closeDialog('initial-check');
+        handleSessionOk();
+      })
+      .catch(function () { /* 网络失败：保持锁屏 */ });
+  }
+
   function bindRecheck() {
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState === 'visible') recheckSession();
@@ -1693,6 +1720,17 @@ function showLockScreen() {
 
   /* 锁屏显示期间：如果用户在别的标签页解锁了，切回来时自动检测并回跳 */
   bindRecheck();
+
+  /* 2026-10-19 刷新掉锁屏修复：L1 注入 locked 时，立刻再问一次服务端
+     （/api/session-check，与页面同一套 verifySessionDetailed）。
+     服务端说会话有效 → 直接放行，不让用户对着一个本来有效的会话再解一次锁；
+     401/网络失败 → 保持锁屏（fail-closed）。
+     状态源仍只有服务端；这里不读写任何本地解锁标记。
+     带 ?return= 时 handleSessionOk 会整页重进，若页面仍判 locked 会来回跳，
+     所以 10 秒内同一地址只自动重进一次（sessionStorage 只记跳转时间，不记解锁状态）。 */
+  if (!isLocal && document.documentElement.dataset.sgxSession === 'locked') {
+    initialSessionCheck();
+  }
 
   /* 已解锁标签页的自动锁定：visibilitychange（visible）、pageshow（含 bfcache）、
      focus 时向服务端确认会话（/api/session-check），失败就重载切到锁屏。
