@@ -44,8 +44,8 @@ test.describe('#1 owner door probe', () => {
     /* A-1：探针发现票据无效 → 验证过期弹框，不自动跳转 */
     const dlg = page.locator('dialog.sgx-center-dlg');
     await expect(dlg).toBeVisible({ timeout: 10000 });
-    await expect(dlg).toContainText('请返回安全与隐私重新验证');
-    await expect(dlg.locator('button.sgx-verify-skip')).toHaveText('返回安全与隐私');
+    await expect(dlg).toContainText('验证后回到这一页继续');
+    await expect(dlg.locator('button.sgx-verify-skip')).toHaveText('重新验证');
     /* 不点不跳 */
     await expect(page).toHaveURL(/\/settings\/security\/owner\//);
 

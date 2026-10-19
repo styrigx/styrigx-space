@@ -42,6 +42,8 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
   const mgmtUrl = en ? '/en/settings/security/mgmt/' : '/settings/security/mgmt/';
 
   const card = document.getElementById('sec-status');
+  /** @type {{owner?: (t?: string) => void, mgmt?: (t?: string) => void}} */
+  const doorOpeners = {};
   const cardTitle = document.getElementById('sec-status-title');
   const cardSub = document.getElementById('sec-status-sub');
 
@@ -665,16 +667,18 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
   (function () {
     const row = document.getElementById('sec-owner-cred');
     if (!row || !doorDlg) return;
-    function openOwnerDoor() {
+    function openOwnerDoor(/** @type {string} [target] */ target) {
+      const dest = (typeof target === 'string' && target) ? target : ownerUrl;
       doorDlg.open({
         title: en ? 'Enter owner key' : '进入站长凭证',
         desc: en
           ? 'Verify with your root credential. After verification you can freely manage owner keys; it expires when you leave.'
           : '用根凭证验证。验证后可自由管理站长凭证，离开即失效。',
-        methods: [doorDlg.rootMethod(function () { sgxNavigate(ownerUrl); })],
+        methods: [doorDlg.rootMethod(function () { sgxNavigate(dest); })],
       });
     }
-    on(row, 'click', openOwnerDoor);
+    on(row, 'click', function () { openOwnerDoor(); });
+    doorOpeners.owner = openOwnerDoor;
     on(row, 'keydown', function (/** @type {KeyboardEvent} */ e) {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
@@ -699,7 +703,8 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
     /* 定稿 #16：未配 ownerkey 时管理凭证的根凭证行验证后进管理凭证索引页，
        不跳站长凭证门。 */
     const goMgmt = function () { sgxNavigate(mgmtUrl); };
-    function openMgmtDoor() {
+    function openMgmtDoor(/** @type {string} [target] */ target) {
+      const go = (typeof target === 'string' && target) ? function () { sgxNavigate(target); } : goMgmt;
       let isVisitor = false;
       try {
         isVisitor = document.documentElement.dataset.sgxRole === 'visitor';
@@ -713,9 +718,9 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
         /* 行决策走纯函数 mgmtButtons（可测试），与 /api/owner-status 的语义对齐 */
         const kinds = mgmtButtons(hasPw, hasPk);
         for (const kind of kinds) {
-          if (kind === 'root') methods.push(doorDlg.rootMethod(goMgmt));
-          else if (kind === 'passkey') methods.push(doorDlg.passkeyMethod(goMgmt));
-          else if (kind === 'password') methods.push(doorDlg.passwordMethod(goMgmt));
+          if (kind === 'root') methods.push(doorDlg.rootMethod(go));
+          else if (kind === 'passkey') methods.push(doorDlg.passkeyMethod(go));
+          else if (kind === 'password') methods.push(doorDlg.passwordMethod(go));
         }
         doorDlg.open({ title: title, desc: desc, methods: methods });
       };
@@ -738,13 +743,39 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
           });
       }
     }
-    on(row, 'click', openMgmtDoor);
+    on(row, 'click', function () { openMgmtDoor(); });
     on(row, 'keydown', function (/** @type {KeyboardEvent} */ e) {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         openMgmtDoor();
       }
     });
+    doorOpeners.mgmt = openMgmtDoor;
+
+    /* 2026-10-19：状态卡片（一切正常 / 未设置）不再是直达锁屏门内页的裸链接。
+       门内页要验证，裸链接进去只会弹「验证已过期」。改为先走管理凭证验证，
+       验证通过后进锁屏凭证页。 */
+    if (card) {
+      on(card, 'click', function (/** @type {MouseEvent} */ e) {
+        e.preventDefault();
+        openMgmtDoor(card.getAttribute('href') || '');
+      });
+    }
+  })();
+
+  /* 2026-10-19：门内页验证过期 → 弹框「重新验证」→ 回到本页并带
+     ?verify=mgmt|owner&return=<门内页>，这里自动打开对应验证弹层，
+     验证通过后回到原门内页。return 只接受本站安全设置下的门内路径。 */
+  (function () {
+    let q;
+    try { q = new URLSearchParams(window.location.search); } catch (e) { return; }
+    const which = q.get('verify');
+    if (!which) return;
+    const ret = q.get('return') || '';
+    const okRet = /^\/(en\/)?settings\/security\/(owner|lock|apps|mgmt)\/[a-z0-9\-\/]*$/.test(ret) ? ret : '';
+    try { history.replaceState(null, '', window.location.pathname); } catch (e) {}
+    if (which === 'owner' && doorOpeners.owner) doorOpeners.owner(okRet);
+    else if (which === 'mgmt' && doorOpeners.mgmt) doorOpeners.mgmt(okRet);
   })();
 
 
