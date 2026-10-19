@@ -85,9 +85,29 @@ export function initNavHistory() {
       sessionStorage.setItem('sgx-hist-root', '1');
     } catch (e) {}
   })();
-  /* 退回上面插入的那条主页历史（同一文档，URL 已变成上一级）：加载上一级页面 */
+  /* 上面插入的那条主页历史是 replaceState 改出来的「假条目」：浏览器里它的原始请求地址
+     仍是当初打开的子页（如 /settings/）。Chromium 系「请求桌面版/移动版网站」按原始请求地址
+     重载（LoadOriginalRequestURL），停在这条历史上的主页一切换就会跳到设置。
+     所以只要发现当前停在这条历史上，就用 location.replace 换成一条真正请求主页的新条目：
+     - 同一文档退回（popstate）；
+     - 跨文档退回 / 刷新 / 会话恢复（子页已换文档，浏览器直接按 URL 加载主页，不发 popstate）；
+     - bfcache 恢复（pageshow persisted）。
+     replace 前先清掉标记：同 URL 的 location.replace 会把 history.state 带到新条目，
+     不清的话新条目以后再被退回到还会被误判、白白再重载一次。 */
+  function healRoot() {
+    if (!(history.state && history.state.sgxRoot)) return false;
+    try {
+      history.replaceState(null, '', location.href);
+    } catch (e) {}
+    sgxReplace(location.href);
+    return true;
+  }
+  healRoot();
   window.addEventListener('popstate', function (e) {
-    if (e.state && e.state.sgxRoot) sgxReplace(location.href);
+    if (e.state && e.state.sgxRoot) healRoot();
+  });
+  window.addEventListener('pageshow', function (e) {
+    if (e.persisted) healRoot();
   });
 
   /* 双击顶栏回顶部（One UI 习惯） */
