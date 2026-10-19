@@ -149,7 +149,7 @@ export function initGoodLock() {
     function (/** @type {MouseEvent} */ e) {
       if (!modOn('gl-sound')) return;
       const t = /** @type {HTMLElement|null} */ (e.target);
-      if (t && t.closest && t.closest('.app-tile,.dock-btn,.nav-act')) blip();
+      if (t && t.closest && t.closest('.app-tile,.sgx-tb-menu-item,.nav-act')) blip();
     },
     { passive: true }
   );

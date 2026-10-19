@@ -88,7 +88,7 @@ test.describe('390×844 行为', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
   test('旧顶栏元素和标题区旧按钮都已删除', async ({ page }) => {
-    await go(page, '/files/');
+    await go(page, '/settings/');
     for (const sel of ['#nav-time-center', '#nav-wx', '#nav-music-note', '.nav-inner', '.subpage-back']) {
       await expect(page.locator(sel), sel).toHaveCount(0);
     }
@@ -177,11 +177,16 @@ test.describe('390×844 行为', () => {
     await expect(menu).toBeHidden();
   });
 
-  test('我的文件：顶栏 ⋮ 就是页面自己的菜单按钮，点开原来的菜单', async ({ page }) => {
-    await go(page, '/files/');
-    await expect(page.locator('.sgx-tb-pill #files-more.sgx-tb-more')).toHaveCount(1);
+  test('主页 ⋮：弹出菜单，只有「设置」，点了进设置', async ({ page }) => {
+    await go(page, '/');
+    const menu = page.locator('#sgx-tb-moremenu');
+    await expect(menu).toBeHidden();
     await page.locator('.sgx-tb-pill .sgx-tb-more').click();
-    await expect(page.locator('dialog[open]').first()).toBeVisible({ timeout: 5000 });
+    await expect(menu).toBeVisible();
+    await expect(menu.locator('.sgx-tb-menu-item')).toHaveCount(1);
+    await expect(menu.locator('.sgx-tb-menu-item')).toHaveText('设置');
+    await menu.locator('.sgx-tb-menu-item').click();
+    await expect(page).toHaveURL(/\/settings\/$/);
   });
 
   test('主页搜索圆：进浏览器搜索页并聚焦', async ({ page }) => {
