@@ -313,8 +313,20 @@ test.describe('批次 A 验收修复 #7：锁屏页探针失败走 needVerify（
     await expect(dlg.locator('button.sgx-verify-skip')).toHaveText('重新验证');
     /* 不点不跳 */
     await expect(page).toHaveURL(/\/settings\/security\/lock\//);
+    /* 账号体系：「重新验证」→ 安全页 ?verify=mgmt&return=<门内页> → 自动 POST /api/stepup enter。
+       原断言停在 /settings/security/ 只是 replaceState 和自动进门之间的瞬间状态（CI 上抓不到，竞态）；
+       这里让 enter 返回 account-stale，确定性地断言最终落到账号登录页并带回原门内页。 */
+    await page.route('**/api/stepup', async (route) => {
+      let body = {};
+      try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
+      if (body.action === 'enter') {
+        await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'account-stale' }) });
+        return;
+      }
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, valid: true }) });
+    });
     await dlg.locator('button.sgx-verify-skip').click();
-    await expect(page).toHaveURL(/\/settings\/security\/$/, { timeout: 10000 });
+    await expect(page).toHaveURL(/\/settings\/account\/\?door=1&return=%2Fsettings%2Fsecurity%2Flock%2F$/, { timeout: 10000 });
     expect(pageErrors).toEqual([]);
   });
 
