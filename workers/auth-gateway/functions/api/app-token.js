@@ -37,13 +37,14 @@ import { getSessionEpoch, ROLE_OWNER} from '../_kernel/session.js';
 import { ed25519Sign} from '../_kernel/crypto.js';
 import { getApp, isScopeAllowed, validateAppReturn, defaultAppReturn} from '../_kernel/app-registry.js';
 import { APP_AUTH_PREFIX} from './owner-passkey.js';
+import { REALM_APP, realmPrivateKey } from '../_kernel/realms.js';
 
-/* sgx-app token 有效期：10 分钟 */
-export const APP_TOKEN_MAX_AGE = 600;
+/* sgx-app token 有效期：10 分钟（凭证域配置见 _kernel/realms.js 的 REALM_APP） */
+export const APP_TOKEN_MAX_AGE = REALM_APP.maxAge;
 
 /* sgx-app cookie 定义 */
-export const APP_COOKIE = 'sgx-app';
-export const APP_COOKIE_ATTRS = 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=' + APP_TOKEN_MAX_AGE;
+export const APP_COOKIE = REALM_APP.cookie; /* 'sgx-app' */
+export const APP_COOKIE_ATTRS = REALM_APP.cookieAttrs + '; Max-Age=' + APP_TOKEN_MAX_AGE;
 
 /**
 * 读取该 aud 的应用纪元（KV app-epoch:<aud>，缺失视为 0）。
@@ -52,7 +53,7 @@ export const APP_COOKIE_ATTRS = 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; 
 * @param {string} aud
 */
 export async function getAppEpoch(kv, aud) {
-const v = await kv.get('app-epoch:' + aud);
+const v = await kv.get(REALM_APP.kv.epochPrefix + aud);
 if (v === null || v === undefined) return 0;
 return parseInt(v, 10) || 0;
 }
@@ -202,7 +203,7 @@ headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-sto
 }
 
 // 6. 签发 token（SGX_APP_PRIVATE 缺失 → fail closed）
-const privatePem = env.SGX_APP_PRIVATE;
+const privatePem = realmPrivateKey(env, REALM_APP);
 if (!privatePem) {
 return new Response(JSON.stringify({ ok: false, error: 'no-app-key'}), {
 status: 500,

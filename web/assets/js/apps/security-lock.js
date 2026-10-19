@@ -10,9 +10,10 @@ import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
 import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton, showCenterDialog } from '../lib/dialog-behavior.js';
-import { apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown, guardDoorExpired } from './app-gate.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindSubmitButton, showCenterDialog } from '../lib/dialog-behavior.js';
+import { api, apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown, guardDoorExpired } from './app-gate.js';
 import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
+import { bindDataEyes, createSetPwDialog, newPwError, pwSetRequest } from '../lib/auth-flow.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -80,32 +81,8 @@ import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
     const e = $(id);
     if (e) e.hidden = true;
   }
-  /**
-   * 统一解析 API 响应：{ status, json }，区分网络错误/服务器错误/业务错误。
-   * @param {Response} r
-   */
-  function parseApi(r) {
-    return r.text().then(function (txt) {
-      let j = null;
-      try {
-        j = JSON.parse(txt);
-      } catch (e) {}
-      return { status: r.status, json: j };
-    });
-  }
-  /** @param {string} url @param {any} body @param {boolean} [retried] */
-  function api(url, body, retried) {
-    return fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      credentials: 'include',
-    }).then(parseApi).then(function (res) {
-      /* 定稿 #19：门内不自动发起验证。stepup-required 直接返回给调用方显示，
-         不自动做 stepup 验证后重试。 */
-      return res;
-    });
-  }
+  /* 门内直调接口（POST JSON，credentials: include，返回 { status, json }）：用 app-gate.js 的 api()，
+     与 door.js 同一份；定稿 #19：不自动发起验证，stepup-required 直接返回给调用方。 */
 
   /** @param {number} ts */
   function fmtDate(ts) {
@@ -206,15 +183,7 @@ import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
   }
 
   /* 显示/隐藏眼睛（批次 A 验收修复 P2：bindEyeButton 统一接管图标 + 文案 + 复位） */
-  const eyeResets = [];
-  function bindEye(btn, input) {
-    if (!btn || !input) return;
-    eyeResets.push(bindEyeButton(btn, input, { showLabel: t('eyeShow'), hideLabel: t('eyeHide') }));
-  }
-  document.querySelectorAll('[data-eye]').forEach(function (b) {
-    const inp = $(b.getAttribute('data-eye'));
-    bindEye(b, inp);
-  });
+  const eyeResets = bindDataEyes(t);
 
   /* ---------- 管理区 ---------- */
   var hasPk = false;
@@ -243,64 +212,16 @@ import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
   }
 
   /* 密码弹层 */
-  const pwDlg = $('lockpw-dlg');
-  /* P2-13：密码输入框聚焦时，密码弹层随键盘上移（双输入框共用同一弹层） */
-  followKeyboard(pwDlg, [$('lockpw-1'), $('lockpw-2')]);
-  function openPwDlg() {
-    hideErr('lockpw-err');
-    const a = $('lockpw-1'), b = $('lockpw-2');
-    if (a) {
-      a.value = '';
-      a.type = 'password';
-    }
-    if (b) {
-      b.value = '';
-      b.type = 'password';
-    }
-    /* 重开弹层时眼睛按钮同步回密文态（eye-off + 显示密码） */
-    eyeResets.forEach(function (reset) { try { reset(); } catch (e) {} });
-    const title = $('lockpw-title');
-    if (title) title.textContent = hasPw ? t('changeTitle') : t('setTitle');
-    try {
-      pwDlg.showModal();
-    } catch (e) {}
-    if (a) {
-      try {
-        a.focus({ preventScroll: true });
-      } catch (e2) {}
-    }
-  }
-  function closePwDlg(reason) {
-    recordDialogClose('lockpw', reason || 'unknown');
-    try {
-      if (pwDlg.open) pwDlg.close();
-    } catch (e) {}
-  }
-  if (pwDlg) {
-    /* 批次 A 收尾 A1/A2：点遮罩只失焦不关闭；返回手势键盘开着先收键盘 */
-    on(pwDlg, 'click', function (/** @type {MouseEvent} */ e) {
-      onDialogBackdrop(e, pwDlg);
-    });
-    on(pwDlg, 'cancel', function (/** @type {Event} */ e) {
-      onDialogCancel(e, pwDlg, function (reason) { closePwDlg(reason); });
-    });
-    /* 批次 A 收尾 A3：右上角 × 关闭按钮 */
-    const pwClose = pwDlg.querySelector('[data-dlg-close]');
-    if (pwClose) on(pwClose, 'click', function () { closePwDlg('close-btn'); });
-  }
-  const pwRow = $('lockmgr-pwrow');
-  if (pwRow) {
-    const go = function () {
-      openPwDlg();
-    };
-    on(pwRow, 'click', go);
-    on(pwRow, 'keydown', function (/** @type {KeyboardEvent} */ e) {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        go();
-      }
-    });
-  }
+  /* 设置/修改密码弹层（打开/关闭/遮罩/× 按钮/密码行，见 lib/auth-flow.js） */
+  const pwDialog = createSetPwDialog({
+    $: $,
+    t: t,
+    hideErr: hideErr,
+    followKeyboard: followKeyboard,
+    eyeResets: eyeResets,
+    hasPw: function () { return hasPw; },
+  });
+  const closePwDlg = pwDialog.close;
   /* 删除解锁密码（两步确认） */
   const pwDel = $('lockmgr-pwdel');
   if (pwDel) {
@@ -390,18 +311,14 @@ import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
     const a = $('lockpw-1'), b = $('lockpw-2');
     const va = a ? a.value : '', vb = b ? b.value : '';
     hideErr('lockpw-err');
-    if (va.length < 8) {
-      showErr('lockpw-err', t('pwMin8'));
+    const pwErr = newPwError(va, vb);
+    if (pwErr) {
+      showErr('lockpw-err', t(pwErr));
       return;
     }
-    if (va !== vb) {
-      showErr('lockpw-err', t('pwMismatch'));
-      return;
-    }
-    const action = hasPw ? 'change' : 'set';
-    const body = action === 'set'
-      ? { action: 'set', kind: pwKind, password: va }
-      : { action: 'change', kind: pwKind, newPassword: va };
+    const req = pwSetRequest(hasPw, pwKind, va);
+    const action = req.action;
+    const body = req.body;
     api('/api/owner-password', body)
       .then(function (res) {
         const j = res.json;

@@ -17,6 +17,7 @@
  */
 import { isLockEffectivelyConfigured, isOwnerEffectivelyConfigured } from '../_kernel/layers.js';
 import { STORE_CLASS_LOCKKEY as PK_CLASS_LOCK, ownerPasskeyKey, OWNER_PASSKEY_PREFIX } from '../_kernel/key-names.js';
+import { REALM_LOCK } from '../_kernel/realms.js';
 
 /**
  * @param {any} context
@@ -58,7 +59,7 @@ export async function onRequestGet(context) {
     let failed = false;
     if (kv) {
       try {
-        const pw = await kv.get('lock-pw', 'json');
+        const pw = await kv.get(REALM_LOCK.kv.password, 'json');
         password = !!(pw && pw.hash);
       } catch (e) {
         failed = true;

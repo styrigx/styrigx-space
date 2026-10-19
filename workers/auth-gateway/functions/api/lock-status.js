@@ -20,6 +20,7 @@ import {
   STEPUP_SCOPE_LOCKRESET,
 } from './stepup.js';
 import { getPasskeys, PK_CLASS_LOCK } from './owner-passkey.js';
+import { REALM_LOCK } from '../_kernel/realms.js';
 
 /** @param {any} context */
 export async function onRequestGet(context) {
@@ -61,7 +62,7 @@ async function handleGet(context) {
 
   /* 只读锁屏凭证状态 */
   try {
-    const pw = await kv.get('lock-pw', 'json');
+    const pw = await kv.get(REALM_LOCK.kv.password, 'json');
     const password = !!(pw && pw.hash);
     const keys = await getPasskeys(kv);
     const passkey = keys.some(function (k) {

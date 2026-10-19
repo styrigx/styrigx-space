@@ -11,6 +11,7 @@
  * - checkAssertAuthData：断言时校验 authenticatorData
  * - verifyAssertion：完整断言验证（clientData + authData + signCount + 签名 + UV）
  * - randB64：challenge 随机数
+ * - rpIdHashOf / consumeChallenge / findStoredKey：各断言入口共用的小步骤
  */
 import { b64urlEnc } from './crypto.js';
 
@@ -251,4 +252,43 @@ export async function verifyAssertion(opts) {
   /* UV：requireUV 时必须为 1 */
   if (requireUV && !checked.uv) throw new Error('uv-required');
   return { signCount: checked.signCount, uv: checked.uv };
+}
+
+/**
+ * SHA-256(RP_ID)，断言/注册校验 authenticatorData 用。
+ * （stepup / lockreset / owner-passkey 原来各算一遍，抽到这里；结果相同）
+ * @param {string} rpId
+ * @returns {Promise<Uint8Array>}
+ */
+export async function rpIdHashOf(rpId) {
+  return new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rpId)));
+}
+
+/**
+ * 取出一次性 challenge 记录并立即删除（单次使用）。
+ * KV 读/删出错一律当作没有（返回 null；调用方按 challenge 无效处理）。
+ * @param {any} kv
+ * @param {string} key 完整 KV 键（前缀 + cid）
+ * @returns {Promise<any>} 记录对象或 null
+ */
+export async function consumeChallenge(kv, key) {
+  let chRec = null;
+  try {
+    chRec = await kv.get(key, 'json');
+    await kv.delete(key);
+  } catch (e) {}
+  return chRec;
+}
+
+/**
+ * 按 rawId（base64url，与存储的 credId 相同编码）在钥匙列表里找对应记录。
+ * @param {Array<{credId:string}>} keys
+ * @param {string} rawIdB64
+ * @returns {any} 找到的记录或 null
+ */
+export function findStoredKey(keys, rawIdB64) {
+  for (let i = 0; i < keys.length; i++) {
+    if (keys[i].credId === rawIdB64) return keys[i];
+  }
+  return null;
 }

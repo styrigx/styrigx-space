@@ -14,6 +14,7 @@ import { SESSION_COOKIE, ROLE_OWNER, ROLE_VISITOR } from './_kernel/session.js';
 import { isPublicPage } from './_kernel/public-pages.js';
 import { verifyStepupCookie, STEPUP_SCOPE_LOCKRESET } from './api/stepup.js';
 import { withNoStore } from './_kernel/http.js';
+import { REALM_LOCK, realmPublicKey, SESSION_EPOCH_KEY } from './_kernel/realms.js';
 
 /* 2.11 两扇门：安全与隐私全系主人专属。
    访客可进：/settings/ 及其子页（不含 security/ 全系）。
@@ -256,7 +257,7 @@ export async function verifySessionDetailed(request, env) {
       by = r.by;
     }
   }
-  const pubKey = (env && env.SGX_LOCK_PUBLIC) || '';
+  const pubKey = realmPublicKey(env, REALM_LOCK); /* SGX_LOCK_PUBLIC */
   if (reason === 'no-pubkey') {
     console.log('[sgx-verify] fail: no-pubkey pubkey_len=0');
   } else if (reason === 'bad-sig') {
@@ -285,7 +286,7 @@ async function verifyOneCookie(val, env) {
   const exp = parseInt(expStr, 10);
   if (!exp || exp < Date.now()) return { status: 'expired', role: null, by: null };
 
-  const pubKey = env && env.SGX_LOCK_PUBLIC;
+  const pubKey = realmPublicKey(env, REALM_LOCK); /* SGX_LOCK_PUBLIC */
   if (!pubKey) return { status: 'no-pubkey', role: null, by: null }; /* 未配公钥：fail closed */
   const payload = by + '.' + role + '.' + epochStr + '.' + expStr;
   if (!(await ed25519Verify(pubKey, payload, sig))) return { status: 'bad-sig', role: null, by: null };
@@ -296,7 +297,7 @@ async function verifyOneCookie(val, env) {
     if (!env || !env.OWNER_KV) {
       return { status: 'kv-error', role: null, by: null };
     }
-    const cur = parseInt(await env.OWNER_KV.get('session-epoch') || '0', 10) || 0;
+    const cur = parseInt(await env.OWNER_KV.get(SESSION_EPOCH_KEY) || '0', 10) || 0;
     const ep = parseInt(epochStr, 10) || 0;
     if (ep < cur) return { status: 'epoch-low', role: null, by: null };
   } catch (e) {

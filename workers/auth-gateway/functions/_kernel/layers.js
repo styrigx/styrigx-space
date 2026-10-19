@@ -16,6 +16,7 @@
  */
 
 import { ownerPasskeyKey, OWNER_PASSKEY_PREFIX, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY } from './key-names.js';
+import { REALM_LOCK, REALM_OWNER } from './realms.js';
 
 /* 层标识 */
 export const LAYER_OWNER = 'owner';
@@ -88,14 +89,14 @@ export async function checkRootTakeover(kv, layer) {
 async function realCredentialPresence(kv) {
   const out = { ownerPw: false, lockPw: false, ownerPk: false, lockPk: false, failed: false };
   try {
-    const ownerPw = await kv.get('owner-pw', 'json');
+    const ownerPw = await kv.get(REALM_OWNER.kv.password, 'json');
     if (ownerPw && ownerPw.hash) out.ownerPw = true;
   } catch (e) {
     out.failed = true;
     return out;
   }
   try {
-    const lockPw = await kv.get('lock-pw', 'json');
+    const lockPw = await kv.get(REALM_LOCK.kv.password, 'json');
     if (lockPw && lockPw.hash) out.lockPw = true;
   } catch (e) {
     out.failed = true;

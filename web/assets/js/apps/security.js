@@ -18,8 +18,10 @@ import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
 import { mgmtButtons } from './mgmt-buttons.js';
 import { exchangeRootSession } from '../lib/root-session.js';
+import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
+import { bindPwEye, onEnter, focusNoScroll } from '../lib/auth-flow.js';
 import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton, tapFeedback, setRowBusy, setRowSelected, shouldIgnorePostDialogClick } from '../lib/dialog-behavior.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindSubmitButton, tapFeedback, setRowBusy, setRowSelected, shouldIgnorePostDialogClick } from '../lib/dialog-behavior.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -200,20 +202,6 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
     /** 当前展开的输入区（同一时刻只展开一个） */
     let expanded = null;
 
-    /** @param {string} s */
-    function b64ToBuf(s) {
-      const bin = atob(String(s).replace(/-/g, '+').replace(/_/g, '/'));
-      const u = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
-      return u;
-    }
-    /** @param {ArrayBuffer|Uint8Array} buf */
-    function bufToB64(buf) {
-      const u = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
-      let s = '';
-      for (let i = 0; i < u.length; i++) s += String.fromCharCode(u[i]);
-      return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    }
     /**
      * @param {string} url
      * @param {object} body
@@ -366,12 +354,12 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
             throw { message: en ? 'Verification failed, please retry' : '验证失败，请重试' };
           }
           const allow = (j.allowCredentials || []).map(function (c) {
-            return { type: 'public-key', id: b64ToBuf(c.id) };
+            return { type: 'public-key', id: b64urlToBuf(c.id) };
           });
           return navigator.credentials
             .get({
               publicKey: {
-                challenge: b64ToBuf(j.challenge),
+                challenge: b64urlToBuf(j.challenge),
                 rpId: j.rpId,
                 allowCredentials: allow.length ? allow : undefined,
                 userVerification: 'required',
@@ -396,13 +384,13 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
           cid: r.cid,
           credential: {
             id: cred.id,
-            rawId: bufToB64(cred.rawId),
+            rawId: bufToB64url(cred.rawId),
             type: cred.type,
             response: {
-              authenticatorData: bufToB64(cred.response.authenticatorData),
-              clientDataJSON: bufToB64(cred.response.clientDataJSON),
-              signature: bufToB64(cred.response.signature),
-              userHandle: cred.response.userHandle ? bufToB64(cred.response.userHandle) : null,
+              authenticatorData: bufToB64url(cred.response.authenticatorData),
+              clientDataJSON: bufToB64url(cred.response.clientDataJSON),
+              signature: bufToB64url(cred.response.signature),
+              userHandle: cred.response.userHandle ? bufToB64url(cred.response.userHandle) : null,
             },
           },
         });
@@ -485,10 +473,7 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
       eye.type = 'button';
       eye.className = 'sgx-pw-eye';
       /* 批次 A 验收修复 P2：bindEyeButton 统一接管（初始 eye-off；expandForm 重建即复位） */
-      bindEyeButton(eye, input, {
-        showLabel: en ? 'Show password' : '显示密码',
-        hideLabel: en ? 'Hide password' : '隐藏密码',
-      });
+      bindPwEye(eye, input, en);
       field.appendChild(input);
       field.appendChild(eye);
       const errEl = document.createElement('p');
@@ -511,13 +496,8 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bin
       setFootDouble(doSubmit);
       /* 键盘弹出时弹层整体上移 */
       followKeyboard(dlg, input);
-      try { input.focus({ preventScroll: true }); } catch (e) { try { input.focus(); } catch (_) {} }
-      on(input, 'keydown', function (/** @type {KeyboardEvent} */ e) {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          doSubmit();
-        }
-      });
+      focusNoScroll(input);
+      onEnter(input, doSubmit);
     }
     /**
      * @param {object} m

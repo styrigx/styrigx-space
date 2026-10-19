@@ -13,13 +13,15 @@
  *   只有 key 确实不存在时才当作 0。
  */
 import { ed25519Sign } from './crypto.js';
+import { REALM_LOCK, realmPrivateKey, realmCookie, realmClearCookie, SESSION_EPOCH_KEY } from './realms.js';
 
-export const SESSION_COOKIE = 'sgx-verified';
+/* 会话凭证域配置见 realms.js（REALM_LOCK）；这里保留原导出名，调用方不变 */
+export const SESSION_COOKIE = REALM_LOCK.cookie; /* 'sgx-verified' */
 /* cookie 属性：只定义一处（diag 接口从这里解析，不许另起炉灶） */
-export const COOKIE_ATTRS = 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax';
-export const SESSION_MAX_AGE = 43200; /* 12 小时（owner） */
+export const COOKIE_ATTRS = REALM_LOCK.cookieAttrs; /* 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax' */
+export const SESSION_MAX_AGE = REALM_LOCK.maxAge; /* 12 小时（owner） */
 const VISITOR_MAX_AGE = 3600; /* 1 小时（visitor），短于 owner */
-const EPOCH_KEY = 'session-epoch';
+const EPOCH_KEY = SESSION_EPOCH_KEY; /* 'session-epoch' */
 export const ROLE_OWNER = 'owner';
 export const ROLE_VISITOR = 'visitor';
 /* 2.11：会话签发方 */
@@ -36,10 +38,7 @@ const BY_OWNER = 'owner';
  */
 export function setVerifiedCookie(headers, value, maxAge) {
   const age = maxAge || SESSION_MAX_AGE;
-  headers.append(
-    'Set-Cookie',
-    SESSION_COOKIE + '=' + value + '; ' + COOKIE_ATTRS + '; Max-Age=' + age
-  );
+  headers.append('Set-Cookie', realmCookie(REALM_LOCK, value, age));
   headers.append(
     'Set-Cookie',
     SESSION_COOKIE + '=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
@@ -52,10 +51,7 @@ export function setVerifiedCookie(headers, value, maxAge) {
  * @param {Headers} headers
  */
 export function clearVerifiedCookie(headers) {
-  headers.append(
-    'Set-Cookie',
-    SESSION_COOKIE + '=; ' + COOKIE_ATTRS + '; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
-  );
+  headers.append('Set-Cookie', realmClearCookie(REALM_LOCK));
   headers.append(
     'Set-Cookie',
     SESSION_COOKIE + '=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
@@ -107,7 +103,7 @@ export async function issueSessionCookie(env, headers, role, by, maxAgeOverride)
     return { status: 500, body: { ok: false, error: 'invalid-role' } };
   }
   by = by || BY_OWNER;
-  const edPriv = (env && env.SGX_LOCK_PRIVATE) || '';
+  const edPriv = realmPrivateKey(env, REALM_LOCK); /* SGX_LOCK_PRIVATE */
   if (!edPriv) {
     return { status: 500, body: { ok: false, error: 'no-session-key' } };
   }
@@ -178,7 +174,7 @@ export async function reissueSessionWithEpoch(env, headers, sess, newEpoch) {
   if (!sess || !sess.ok || !sess.by || !sess.role) return;
   /* 必修安全项 2：by=root 代开会话不重签，随 epoch 失效。 */
   if (sess.by === BY_ROOT) return;
-  const edPriv = (env && env.SGX_LOCK_PRIVATE) || '';
+  const edPriv = realmPrivateKey(env, REALM_LOCK); /* SGX_LOCK_PRIVATE */
   if (!edPriv) return;
   try {
     const maxAge = sess.role === ROLE_VISITOR ? VISITOR_MAX_AGE : SESSION_MAX_AGE;

@@ -35,20 +35,21 @@
 import { verifySessionDetailed, getCookie } from '../_middleware.js';
 import { getSessionEpoch, ROLE_OWNER } from '../_kernel/session.js';
 import { ed25519Sign, ed25519Verify, b64urlEnc } from '../_kernel/crypto.js';
-import { randB64, verifyAssertion } from '../_kernel/passkey-verify.js';
+import { randB64, verifyAssertion, rpIdHashOf, consumeChallenge, findStoredKey } from '../_kernel/passkey-verify.js';
 import { getPasskeys, PK_CLASS_OWNER } from './owner-passkey.js';
 import { ownerPasskeyKey } from '../_kernel/key-names.js';
 import { verifyOwnerPassword, getPepper } from './owner-password.js';
 import { isLayerConfigured, LAYER_OWNER } from '../_kernel/layers.js';
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
+import { REALM_STEPUP, realmPrivateKey, realmPublicKey, realmCookie, realmClearCookie, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
 
-/* stepup cookie 定义（一处定义） */
-export const STEPUP_COOKIE = 'sgx-stepup';
-export const STEPUP_MAX_AGE = 180; /* A-1：3 分钟（v1.5 #11） */
-export const STEPUP_COOKIE_ATTRS = 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Strict';
+/* stepup cookie 定义（一处定义：_kernel/realms.js 的 REALM_STEPUP；这里保留原导出名） */
+export const STEPUP_COOKIE = REALM_STEPUP.cookie; /* 'sgx-stepup' */
+export const STEPUP_MAX_AGE = REALM_STEPUP.maxAge; /* A-1：3 分钟（v1.5 #11） */
+export const STEPUP_COOKIE_ATTRS = REALM_STEPUP.cookieAttrs; /* 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Strict' */
 /* challenge KV 前缀：与登录的 pk-challenge: 隔离 */
-const STEPUP_CHALLENGE_PREFIX = 'stepup-challenge:';
-const STEPUP_CHALLENGE_TTL = 300; /* 5 分钟 */
+const STEPUP_CHALLENGE_PREFIX = REALM_STEPUP.kv.challengePrefix; /* 'stepup-challenge:' */
+const STEPUP_CHALLENGE_TTL = REALM_STEPUP.kv.challengeTtl; /* 5 分钟 */
 /* 2.11 定稿：stepup 票字段 by/scope */
 export const STEPUP_BY_ROOT = 'root';
 export const STEPUP_BY_OWNER = 'owner';
@@ -110,14 +111,11 @@ export async function reissueStepupWithEpoch(env, headers, sv, newEpoch) {
   if (!sv || !sv.ok || !sv.by || !sv.scope) return;
   /* 必修安全项 1：by=root, scope=keys 票不重签，随 epoch 失效。 */
   if (sv.by === STEPUP_BY_ROOT && sv.scope === STEPUP_SCOPE_KEYS) return;
-  const stepupKey = env && env.SGX_STEPUP_PRIVATE;
+  const stepupKey = realmPrivateKey(env, REALM_STEPUP); /* SGX_STEPUP_PRIVATE */
   if (!stepupKey) return;
   try {
     const cv = await signStepupCookie(stepupKey, sv.by, sv.scope, newEpoch);
-    headers.append(
-      'Set-Cookie',
-      STEPUP_COOKIE + '=' + cv + '; ' + STEPUP_COOKIE_ATTRS + '; Max-Age=' + STEPUP_MAX_AGE
-    );
+    setStepupCookie(headers, cv);
   } catch (e) {}
 }
 
@@ -178,7 +176,7 @@ export async function verifyStepupCookie(request, env) {
   const now = Date.now();
   if (p.exp <= now) return { ok: false, by: null, scope: null, reason: 'expired' };
   if (p.iat > now + 60000) return { ok: false, by: null, scope: null, reason: 'not-yet' }; /* 允许 60 秒时钟 skew */
-  const pubKey = (env && env.SGX_STEPUP_PUBLIC) || '';
+  const pubKey = realmPublicKey(env, REALM_STEPUP); /* SGX_STEPUP_PUBLIC */
   if (!pubKey) return { ok: false, by: null, scope: null, reason: 'no-pubkey' };
   /* epoch 必须等于当前 KV epoch：lock-all-devices 后旧 stepup 立即失效 */
   let curEpoch;
@@ -195,12 +193,49 @@ export async function verifyStepupCookie(request, env) {
   return { ok: true, by: p.by, scope: p.scope, reason: 'ok', exp: p.exp };
 }
 
-/** @param {Headers} headers @param {string} value */
-function setStepupCookie(headers, value) {
-  headers.append(
-    'Set-Cookie',
-    STEPUP_COOKIE + '=' + value + '; ' + STEPUP_COOKIE_ATTRS + '; Max-Age=' + STEPUP_MAX_AGE
-  );
+/**
+ * 设置 sgx-stepup cookie（<cookie>=<value>; <attrs>; Max-Age=180）。
+ * stepup / root-auth / lockreset 共用。
+ * @param {Headers} headers @param {string} value
+ */
+export function setStepupCookie(headers, value) {
+  headers.append('Set-Cookie', realmCookie(REALM_STEPUP, value));
+}
+
+/**
+ * 签发 stepup 票据并写入 headers（fail closed，/api/stepup 三个签发分支共用）。
+ * 成功返回 null；失败返回 { status, body }，调用方直接用它构造响应：
+ * - SGX_STEPUP_PRIVATE 为空 → 500 no-stepup-key
+ * - 读 session epoch 出错 → 503 server
+ * - 签名出错 → 500 sign-failed
+ * @param {any} env
+ * @param {any} kv
+ * @param {Headers} headers
+ * @param {string} by
+ * @param {string} scope
+ * @param {boolean} log 是否打印失败日志（verify / verify-password 打印，takeover-keys 不打印，与原代码一致）
+ * @returns {Promise<{status:number, body:object}|null>}
+ */
+async function issueStepupCookie(env, kv, headers, by, scope, log) {
+  const stepupKey = realmPrivateKey(env, REALM_STEPUP); /* SGX_STEPUP_PRIVATE */
+  if (!stepupKey) {
+    if (log) console.error('[stepup] SGX_STEPUP_PRIVATE 未配置，拒绝签发');
+    return { status: 500, body: { ok: false, error: 'no-stepup-key' } };
+  }
+  let epoch;
+  try {
+    epoch = await getSessionEpoch(kv);
+  } catch (e) {
+    return { status: 503, body: { ok: false, error: 'server' } };
+  }
+  try {
+    const cv = await signStepupCookie(stepupKey, by, scope, epoch);
+    setStepupCookie(headers, cv);
+  } catch (e) {
+    if (log) console.error('[stepup] sign failed', e && e.message ? e.message : e);
+    return { status: 500, body: { ok: false, error: 'sign-failed' } };
+  }
+  return null;
 }
 
 /** @param {any} context */
@@ -249,10 +284,7 @@ async function handlePost(context) {
       return Response.json({ ok: false, error: 'session' }, { status: 401 });
     }
     const headers = new Headers({ 'Content-Type': 'application/json' });
-    headers.append(
-      'Set-Cookie',
-      STEPUP_COOKIE + '=; ' + STEPUP_COOKIE_ATTRS + '; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
-    );
+    headers.append('Set-Cookie', realmClearCookie(REALM_STEPUP));
     return new Response(JSON.stringify({ ok: true }), { headers });
   }
 
@@ -267,15 +299,11 @@ async function handlePost(context) {
   }
 
   /* RP_ID / 期望 origin：必须设置环境变量，不回落 */
-  const RP_ID = env && env.SGX_RP_ID;
-  const EXPECT_ORIGIN = env && env.SGX_ORIGIN;
-  if (!RP_ID || !EXPECT_ORIGIN) {
-    return Response.json(
-      { ok: false, error: 'config', message: 'SGX_RP_ID / SGX_ORIGIN 未配置' },
-      { status: 503 }
-    );
-  }
-  const rpIdHash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(RP_ID)));
+  const rp = rpConfig(env);
+  if (!rp) return rpConfigMissing();
+  const RP_ID = rp.rpId;
+  const EXPECT_ORIGIN = rp.origin;
+  const rpIdHash = await rpIdHashOf(RP_ID);
 
   /* ============ challenge ============
      2.11：只接受 owner 类通行密钥（challenge 只列 owner 凭据；lock 不再能开 stepup）。 */
@@ -311,11 +339,7 @@ async function handlePost(context) {
     const cid = (body && body.cid) || '';
     /* 只认 stepup-challenge: 前缀 —— login 的 pk-challenge: 在这里查不到，
        用途隔离（login challenge 不能用于 stepup）。单次使用：取后即删。 */
-    let chRec = null;
-    try {
-      chRec = await kv.get(STEPUP_CHALLENGE_PREFIX + cid, 'json');
-      await kv.delete(STEPUP_CHALLENGE_PREFIX + cid);
-    } catch (e) {}
+    const chRec = await consumeChallenge(kv, STEPUP_CHALLENGE_PREFIX + cid);
     if (!chRec || chRec.purpose !== 'stepup' || chRec.exp < Date.now()) {
       return Response.json({ ok: false, error: 'challenge' }, { status: 403 });
     }
@@ -324,11 +348,7 @@ async function handlePost(context) {
     if (ownerKeys.length === 0) {
       return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
     }
-    const rawIdB64 = cred.rawId || '';
-    let stored = null;
-    for (let i = 0; i < ownerKeys.length; i++) {
-      if (ownerKeys[i].credId === rawIdB64) { stored = ownerKeys[i]; break; }
-    }
+    const stored = findStoredKey(ownerKeys, cred.rawId || '');
     if (!stored || !stored.publicKey) {
       return Response.json({ ok: false, error: 'unknown-key' }, { status: 403 });
     }
@@ -369,28 +389,11 @@ async function handlePost(context) {
         if (ordered.class === 'app' && stored.aud) ordered.aud = stored.aud;
         await kv.put(keyName, JSON.stringify(ordered));
       } catch (e2) {}
-      /* 签发 sgx-stepup cookie：缺 SGX_STEPUP_PRIVATE 则拒绝（fail closed） */
-      const stepupKey = (env && env.SGX_STEPUP_PRIVATE) || '';
-      if (!stepupKey) {
-        console.error('[stepup] SGX_STEPUP_PRIVATE 未配置，拒绝签发');
-        return Response.json({ ok: false, error: 'no-stepup-key' }, { status: 500 });
-      }
-      let epoch;
-      try {
-        epoch = await getSessionEpoch(kv);
-      } catch (e) {
-        return Response.json({ ok: false, error: 'server' }, { status: 503 });
-      }
+      /* 签发 sgx-stepup cookie：缺 SGX_STEPUP_PRIVATE 则拒绝（fail closed）
+         2.11：ownerkey 通行密钥 → stepup(by=owner, scope=keys) */
       const headers = new Headers({ 'Content-Type': 'application/json' });
-      let cv;
-      try {
-        /* 2.11：ownerkey 通行密钥 → stepup(by=owner, scope=keys) */
-        cv = await signStepupCookie(stepupKey, STEPUP_BY_OWNER, STEPUP_SCOPE_KEYS, epoch);
-      } catch (e) {
-        console.error('[stepup] sign failed', e && e.message ? e.message : e);
-        return Response.json({ ok: false, error: 'sign-failed' }, { status: 500 });
-      }
-      setStepupCookie(headers, cv);
+      const issueErr = await issueStepupCookie(env, kv, headers, STEPUP_BY_OWNER, STEPUP_SCOPE_KEYS, true);
+      if (issueErr) return Response.json(issueErr.body, { status: issueErr.status });
       return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
       console.error('[stepup-verify]', e && e.message ? e.message : e);
@@ -423,25 +426,9 @@ async function handlePost(context) {
     if (!vr.ok) {
       return Response.json({ ok: false, error: 'wrong' }, { status: 403 });
     }
-    const stepupKey = (env && env.SGX_STEPUP_PRIVATE) || '';
-    if (!stepupKey) {
-      console.error('[stepup] SGX_STEPUP_PRIVATE 未配置，拒绝签发');
-      return Response.json({ ok: false, error: 'no-stepup-key' }, { status: 500 });
-    }
-    let epoch;
-    try {
-      epoch = await getSessionEpoch(kv);
-    } catch (e) {
-      return Response.json({ ok: false, error: 'server' }, { status: 503 });
-    }
     const headers = new Headers({ 'Content-Type': 'application/json' });
-    try {
-      const cv = await signStepupCookie(stepupKey, STEPUP_BY_OWNER, STEPUP_SCOPE_KEYS, epoch);
-      setStepupCookie(headers, cv);
-    } catch (e) {
-      console.error('[stepup] sign failed', e && e.message ? e.message : e);
-      return Response.json({ ok: false, error: 'sign-failed' }, { status: 500 });
-    }
+    const issueErr = await issueStepupCookie(env, kv, headers, STEPUP_BY_OWNER, STEPUP_SCOPE_KEYS, true);
+    if (issueErr) return Response.json(issueErr.body, { status: issueErr.status });
     return new Response(JSON.stringify({ ok: true }), { headers });
   }
 
@@ -464,23 +451,9 @@ async function handlePost(context) {
     if (ownerCfg) {
       return Response.json({ ok: false, error: 'scope' }, { status: 403 });
     }
-    const stepupKey = (env && env.SGX_STEPUP_PRIVATE) || '';
-    if (!stepupKey) {
-      return Response.json({ ok: false, error: 'no-stepup-key' }, { status: 500 });
-    }
-    let epoch;
-    try {
-      epoch = await getSessionEpoch(kv);
-    } catch (e) {
-      return Response.json({ ok: false, error: 'server' }, { status: 503 });
-    }
     const headers = new Headers({ 'Content-Type': 'application/json' });
-    try {
-      const cv = await signStepupCookie(stepupKey, STEPUP_BY_ROOT, STEPUP_SCOPE_KEYS, epoch);
-      setStepupCookie(headers, cv);
-    } catch (e) {
-      return Response.json({ ok: false, error: 'sign-failed' }, { status: 500 });
-    }
+    const issueErr = await issueStepupCookie(env, kv, headers, STEPUP_BY_ROOT, STEPUP_SCOPE_KEYS, false);
+    if (issueErr) return Response.json(issueErr.body, { status: issueErr.status });
     return new Response(JSON.stringify({ ok: true }), { headers });
   }
 

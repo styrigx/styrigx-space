@@ -24,8 +24,9 @@ import { followKeyboard } from './vk.js';
 import { get, getJSON } from '../lib/storage.js';
 import { exchangeRootSession } from '../lib/root-session.js';
 import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, tapFeedback, setRowBusy } from '../lib/dialog-behavior.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose, tapFeedback, setRowBusy } from '../lib/dialog-behavior.js';
 import { getPasskeyAssertion, passkeyErrorText } from '../lib/passkey-assert.js';
+import { pwFieldHtml, bindPwEye, onEnter, focusNoScroll } from '../lib/auth-flow.js';
 import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
 
 const LOCK =
@@ -1005,9 +1006,7 @@ function showLockScreen() {
     dlgState = 'password';
     setTitle(en ? 'Enter password' : '输入密码');
     setBody(
-      '<div class="sgx-pw-field"><input type="password" id="sgx-pw-input" class="sgx-pw-input" autocomplete="current-password" ' +
-        'aria-label="' + (en ? 'Password' : '密码') + '" placeholder="' + (en ? 'Password' : '密码') + '">' +
-        '<button type="button" class="sgx-pw-eye" id="sgx-pw-eye" aria-label="' + (en ? 'Show password' : '显示密码') + '"></button></div>' +
+      pwFieldHtml({ id: 'sgx-pw-input', eyeId: 'sgx-pw-eye', autocomplete: 'current-password', ariaLabel: en ? 'Password' : '密码', placeholder: en ? 'Password' : '密码', en: en }) +
         '<p id="sgx-pw-count" class="sgx-pw-count" hidden></p>' +
         '<button type="button" class="sgx-verify-skip" id="sgx-pw-go">' + (en ? 'Unlock' : '确定') + '</button>'
     );
@@ -1017,27 +1016,11 @@ function showLockScreen() {
     const eye = document.getElementById('sgx-pw-eye');
     const go = document.getElementById('sgx-pw-go');
     /* 批次 A 验收修复 P2：眼睛按钮走 bindEyeButton（初始 eye-off） */
-    if (eye && input) {
-      bindEyeButton(eye, input, {
-        showLabel: en ? 'Show password' : '显示密码',
-        hideLabel: en ? 'Hide password' : '隐藏密码',
-      });
-    }
+    if (eye && input) bindPwEye(eye, input, en);
     armDlgKbFor(input);
     if (input) {
-      on(input, 'keydown', function (/** @type {KeyboardEvent} */ e) {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          submitPw();
-        }
-      });
-      try {
-        input.focus({ preventScroll: true });
-      } catch (e) {
-        try {
-          input.focus();
-        } catch (_) {}
-      }
+      onEnter(input, submitPw);
+      focusNoScroll(input);
     }
     if (go) on(go, 'click', submitPw);
     if (Date.now() < pwLockedUntil) pwCountdown();
@@ -1129,9 +1112,7 @@ function showLockScreen() {
     dlgState = 'mgmtkey';
     setTitle(en ? 'Root credential' : '根凭证');
     setBody(
-      '<div class="sgx-pw-field"><input type="password" id="sgx-mk-input" class="sgx-pw-input" autocomplete="off" ' +
-        'aria-label="' + (en ? 'Root credential' : '根凭证') + '" placeholder="' + (en ? 'Root credential' : '根凭证') + '">' +
-        '<button type="button" class="sgx-pw-eye" id="sgx-mk-eye" aria-label="' + (en ? 'Show password' : '显示密码') + '"></button></div>' +
+      pwFieldHtml({ id: 'sgx-mk-input', eyeId: 'sgx-mk-eye', autocomplete: 'off', ariaLabel: en ? 'Root credential' : '根凭证', placeholder: en ? 'Root credential' : '根凭证', en: en }) +
         '<button type="button" class="sgx-verify-skip" id="sgx-mk-go">' + (en ? 'Verify' : '验证') + '</button>'
     );
     clearErr();
@@ -1140,21 +1121,11 @@ function showLockScreen() {
     const eye = document.getElementById('sgx-mk-eye');
     const go = document.getElementById('sgx-mk-go');
     /* 批次 A 验收修复 P2：眼睛按钮走 bindEyeButton（初始 eye-off） */
-    if (eye && input) {
-      bindEyeButton(eye, input, {
-        showLabel: en ? 'Show password' : '显示密码',
-        hideLabel: en ? 'Hide password' : '隐藏密码',
-      });
-    }
+    if (eye && input) bindPwEye(eye, input, en);
     armDlgKbFor(input);
     if (input) {
-      on(input, 'keydown', function (/** @type {KeyboardEvent} */ e) {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          submitMk();
-        }
-      });
-      try { input.focus({ preventScroll: true }); } catch (e) { try { input.focus(); } catch (_) {} }
+      onEnter(input, submitMk);
+      focusNoScroll(input);
     }
     if (go) on(go, 'click', submitMk);
   }
@@ -1251,9 +1222,7 @@ function showLockScreen() {
     setTitle((en ? 'Reset lock screen' : '重置锁屏') + ' (1/2)');
     setBody(
       '<div class="sgx-reset-hint">' + (en ? 'Verify identity' : '验证身份') + '</div>' +
-      '<div class="sgx-pw-field"><input type="password" id="sgx-reset-root" class="sgx-pw-input" autocomplete="off" ' +
-        'placeholder="' + (en ? 'Credential' : '凭证') + '">' +
-        '<button type="button" class="sgx-pw-eye" id="sgx-reset-root-eye" aria-label="' + (en ? 'Show password' : '显示密码') + '"></button></div>' +
+      pwFieldHtml({ id: 'sgx-reset-root', eyeId: 'sgx-reset-root-eye', autocomplete: 'off', placeholder: en ? 'Credential' : '凭证', en: en }) +
         '<button type="button" class="sgx-verify-skip" id="sgx-reset-go">' + (en ? 'Verify' : '验证') + '</button>'
     );
     clearErr();
@@ -1261,18 +1230,11 @@ function showLockScreen() {
     var input = document.getElementById('sgx-reset-root');
     /* 批次 A 验收修复 P2：重置流程 step1 补眼睛按钮（初始 eye-off） */
     var rootEye = document.getElementById('sgx-reset-root-eye');
-    if (rootEye && input) {
-      bindEyeButton(rootEye, input, {
-        showLabel: en ? 'Show password' : '显示密码',
-        hideLabel: en ? 'Hide password' : '隐藏密码',
-      });
-    }
+    if (rootEye && input) bindPwEye(rootEye, input, en);
     armDlgKbFor(input);
     if (input) {
-      on(input, 'keydown', function (e) {
-        if (e.key === 'Enter') { e.preventDefault(); submitResetRoot(); }
-      });
-      try { input.focus({ preventScroll: true }); } catch (e) { try { input.focus(); } catch (_) {} }
+      onEnter(input, submitResetRoot);
+      focusNoScroll(input);
     }
     if (go) on(go, 'click', submitResetRoot);
   }
@@ -1363,9 +1325,7 @@ function showLockScreen() {
     setTitle((en ? 'Reset lock screen' : '重置锁屏') + ' (2/2)');
     setBody(
       '<div class="sgx-reset-hint">' + (en ? 'Owner password' : '站长密码') + '</div>' +
-      '<div class="sgx-pw-field"><input type="password" id="sgx-reset-pw" class="sgx-pw-input" autocomplete="off" ' +
-        'placeholder="' + (en ? 'Owner password' : '站长密码') + '">' +
-        '<button type="button" class="sgx-pw-eye" id="sgx-reset-pw-eye" aria-label="' + (en ? 'Show password' : '显示密码') + '"></button></div>' +
+      pwFieldHtml({ id: 'sgx-reset-pw', eyeId: 'sgx-reset-pw-eye', autocomplete: 'off', placeholder: en ? 'Owner password' : '站长密码', en: en }) +
       '<div class="sgx-door-actions">' +
         '<button type="button" class="sgx-door-btn sgx-door-btn-secondary" id="sgx-reset-pw-cancel">' + (en ? 'Cancel' : '取消') + '</button>' +
         '<button type="button" class="sgx-door-btn sgx-door-btn-primary" id="sgx-reset-pw-go">' + (en ? 'Verify' : '验证') + '</button>' +
@@ -1374,18 +1334,11 @@ function showLockScreen() {
     clearErr();
     var pwInput = document.getElementById('sgx-reset-pw');
     var pwEye = document.getElementById('sgx-reset-pw-eye');
-    if (pwEye && pwInput) {
-      bindEyeButton(pwEye, pwInput, {
-        showLabel: en ? 'Show password' : '显示密码',
-        hideLabel: en ? 'Hide password' : '隐藏密码',
-      });
-    }
+    if (pwEye && pwInput) bindPwEye(pwEye, pwInput, en);
     armDlgKbFor(pwInput);
     if (pwInput) {
-      on(pwInput, 'keydown', function (e) {
-        if (e.key === 'Enter') { e.preventDefault(); resetPwSubmit(); }
-      });
-      try { pwInput.focus({ preventScroll: true }); } catch (e) { try { pwInput.focus(); } catch (_) {} }
+      onEnter(pwInput, resetPwSubmit);
+      focusNoScroll(pwInput);
     }
     var cancelBtn = document.getElementById('sgx-reset-pw-cancel');
     var goBtn = document.getElementById('sgx-reset-pw-go');
@@ -1487,22 +1440,18 @@ function showLockScreen() {
           userVerification: 'required',
         }, { hideEl: dlgEl }).then(function (cred) {
           if (dlgState !== 'reset-step2') throw { done: true };
-          var b64u = function (buf) {
-            return btoa(String.fromCharCode.apply(null, new Uint8Array(buf)))
-              .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-          };
           var proof;
           try {
             proof = {
               type: 'passkey',
               cid: j.cid,
               credential: {
-                rawId: b64u(cred.rawId),
+                rawId: bufToB64url(cred.rawId),
                 response: {
-                  authenticatorData: b64u(cred.response.authenticatorData),
-                  clientDataJSON: b64u(cred.response.clientDataJSON),
-                  signature: b64u(cred.response.signature),
-                  userHandle: cred.response.userHandle ? b64u(cred.response.userHandle) : null,
+                  authenticatorData: bufToB64url(cred.response.authenticatorData),
+                  clientDataJSON: bufToB64url(cred.response.clientDataJSON),
+                  signature: bufToB64url(cred.response.signature),
+                  userHandle: cred.response.userHandle ? bufToB64url(cred.response.userHandle) : null,
                 },
               },
             };

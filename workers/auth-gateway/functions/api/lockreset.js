@@ -31,14 +31,12 @@ import { timingSafeEqual, normalizeRootKey } from '../_kernel/crypto.js';
 import { getSessionEpoch } from '../_kernel/session.js';
 import {
   signStepupCookie,
-  STEPUP_COOKIE,
-  STEPUP_COOKIE_ATTRS,
-  STEPUP_MAX_AGE,
+  setStepupCookie,
   STEPUP_BY_ROOT,
   STEPUP_BY_OWNER_ROOT,
   STEPUP_SCOPE_LOCKRESET,
 } from './stepup.js';
-import { randB64, verifyAssertion } from '../_kernel/passkey-verify.js';
+import { randB64, verifyAssertion, rpIdHashOf, consumeChallenge, findStoredKey } from '../_kernel/passkey-verify.js';
 import { getPasskeys, PK_CLASS_OWNER } from './owner-passkey.js';
 import { verifyOwnerPassword, getPepper } from './owner-password.js';
 import { checkRootLimit, recordRootFail, clearRootFail, getClientIp } from '../_kernel/rootlimit.js';
@@ -46,8 +44,9 @@ import { writeRootAudit } from '../_kernel/rootlog.js';
 import { isLayerConfigured, LAYER_OWNER } from '../_kernel/layers.js';
 import { checkRecoverySwitch, claimSwitchUsed } from '../_kernel/recswitch.js';
 import { isSameOrigin } from '../_kernel/http.js';
+import { REALM_LOCK, REALM_OWNER, REALM_STEPUP, REALM_ROOT, realmPrivateKey, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
 
-const CHALLENGE_PREFIX = 'lockreset-challenge:';
+const CHALLENGE_PREFIX = REALM_STEPUP.kv.lockresetChallengePrefix; /* 'lockreset-challenge:' */
 const CHALLENGE_TTL = 300; /* 5 分钟 */
 
 
@@ -68,7 +67,7 @@ async function handlePost(context) {
     const h = request.headers.get('Cookie') || '';
     for (const part of h.split(';')) {
       const kv2 = part.trim().split('=');
-      if (kv2[0] === 'sgx-verified' && kv2[1]) {
+      if (kv2[0] === REALM_LOCK.cookie && kv2[1]) { /* sgx-verified */
         const parts = kv2.slice(1).join('=').split('.');
         if (parts.length === 5 && parts[1] === 'visitor') {
           return Response.json({ ok: false, error: 'denied' }, { status: 401 });
@@ -104,13 +103,12 @@ async function handlePost(context) {
     });
   }
 
-  const RP_ID = env && env.SGX_RP_ID;
-  const EXPECT_ORIGIN = env && env.SGX_ORIGIN;
-  const stepupKey = (env && env.SGX_STEPUP_PRIVATE) || '';
-  const rootKey = (env && env.SGX_ROOT_KEY) || '';
-  if (!RP_ID || !EXPECT_ORIGIN) {
-    return Response.json({ ok: false, error: 'config', message: 'SGX_RP_ID / SGX_ORIGIN 未配置' }, { status: 503 });
-  }
+  const rp = rpConfig(env);
+  const stepupKey = realmPrivateKey(env, REALM_STEPUP); /* SGX_STEPUP_PRIVATE */
+  const rootKey = (env && env[REALM_ROOT.secret]) || ''; /* SGX_ROOT_KEY */
+  if (!rp) return rpConfigMissing();
+  const RP_ID = rp.rpId;
+  const EXPECT_ORIGIN = rp.origin;
   if (!stepupKey || !rootKey) {
     return Response.json({ ok: false, error: 'config' }, { status: 500 });
   }
@@ -210,7 +208,7 @@ async function handlePost(context) {
       let hasOwnerPw = false;
       let hasOwnerPk = false;
       try {
-        const r = await kv.get('owner-pw', 'json');
+        const r = await kv.get(REALM_OWNER.kv.password, 'json');
         hasOwnerPw = !!(r && r.hash);
       } catch (e) {}
       try {
@@ -257,10 +255,7 @@ async function handlePost(context) {
       const headers = new Headers({ 'Content-Type': 'application/json' });
       try {
         const cv = await signStepupCookie(stepupKey, by, STEPUP_SCOPE_LOCKRESET, epoch);
-        headers.append(
-          'Set-Cookie',
-          STEPUP_COOKIE + '=' + cv + '; ' + STEPUP_COOKIE_ATTRS + '; Max-Age=' + STEPUP_MAX_AGE
-        );
+        setStepupCookie(headers, cv);
       } catch (e) {
         await writeRootAudit(kv, ipAddr, false, { path: 'lockreset' });
         return Response.json({ ok: false, error: 'sign-failed' }, { status: 500 });
@@ -279,22 +274,14 @@ async function handlePost(context) {
     async function verifyOwnerPasskeyProof(kvStore, proofObj, rpId, expectOrigin) {
       const cid = proofObj.cid || '';
       const cred = proofObj.credential || {};
-      let chRec = null;
-      try {
-        chRec = await kvStore.get(CHALLENGE_PREFIX + cid, 'json');
-        await kvStore.delete(CHALLENGE_PREFIX + cid);
-      } catch (e) {}
+      const chRec = await consumeChallenge(kvStore, CHALLENGE_PREFIX + cid);
       if (!chRec || chRec.purpose !== 'lockreset' || chRec.exp < Date.now()) return false;
       const keys = await getPasskeys(kvStore);
       const ownerKeys = keys.filter(function (k) { return (k.class || 'lock') === PK_CLASS_OWNER; });
-      const rawIdB64 = cred.rawId || '';
-      let stored = null;
-      for (let i = 0; i < ownerKeys.length; i++) {
-        if (ownerKeys[i].credId === rawIdB64) { stored = ownerKeys[i]; break; }
-      }
+      const stored = findStoredKey(ownerKeys, cred.rawId || '');
       if (!stored || !stored.publicKey || stored.class !== PK_CLASS_OWNER) return false;
       try {
-        const rpIdHash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rpId)));
+        const rpIdHash = await rpIdHashOf(rpId);
         const checked = await verifyAssertion({
           credential: cred,
           challenge: chRec.challenge,
