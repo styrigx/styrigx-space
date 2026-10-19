@@ -26,7 +26,8 @@
  * 只接受 POST；校验 Origin；未设置密码时 verify 一律拒绝。
  * 外层 try/catch：任何未捕获异常都返回 JSON { ok:false, error:'server' }，不返回 500 HTML。
  */
-import { b64enc, b64dec, timingSafeEqual } from '../_kernel/crypto.js';
+import { getPepper, makePasswordRecord, checkPasswordRecord, verifyRealmPassword } from '../_kernel/password.js';
+import { REALM_LOCK, REALM_OWNER } from '../_kernel/realms.js';
 import {
   issueSessionCookie,
   bumpSessionEpoch,
@@ -54,83 +55,11 @@ import {
 import { getPasskeys, PK_CLASS_OWNER, PK_CLASS_LOCK } from './owner-passkey.js';
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
 
-const ITERATIONS = 100000; // Workers PBKDF2 上限（实测：超过抛 NotSupportedError）
-const SALT_LEN = 16;
-const KEY_LEN = 32; // 256 bit
 const MAX_FAIL = 5;
 const LOCK_MS = 30000;
-/**
- * 2.11：密码哈希加 pepper（SGX_PW_PEPPER）。
- * pepper 为空时按无 pepper 哈希（仅用于校验旧 hash；新 hash 必须有 pepper，
- * 调用方负责 fail closed）。
- * @param {string} password
- * @param {Uint8Array} salt
- * @param {number} iterations
- * @param {string} pepper
- */
-async function hashPassword(password, salt, iterations, pepper) {
-  const enc = new TextEncoder();
-  const pwd = pepper ? password + pepper : password;
-  const key = await crypto.subtle.importKey('raw', enc.encode(pwd), 'PBKDF2', false, ['deriveBits']);
-  const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt: salt, iterations: iterations, hash: 'SHA-256' },
-    key,
-    KEY_LEN * 8
-  );
-  return bits;
-}
 
-/**
- * 获取 pepper；缺失时返回空（调用方 fail closed）。
- * @param {any} env
- */
-export function getPepper(env) {
-  return (env && env.SGX_PW_PEPPER) || '';
-}
-
-/**
- * 校验一把密码（2.11 定稿抽出，供 /api/stepup verify-password 和 /api/lockreset 复用）。
- * - stored 为空 → { ok:false, set:false }
- * - peppered 记录：带 pepper 校验
- * - 旧记录（无 peppered 标记）：按无 pepper 校验，成功则 needsRehash=true
- * KV 读取出错时抛错（调用方返回 503）。
- * @param {object|null} stored kv.get(key,'json') 的结果
- * @param {string} password
- * @param {string} pepper
- * @returns {Promise<{ok:boolean, set:boolean, needsRehash:boolean}>}
- */
-async function checkPasswordRecord(stored, password, pepper) {
-  if (!stored || !stored.salt || !stored.hash) {
-    return { ok: false, set: false, needsRehash: false };
-  }
-  const iters = (stored.iterations && Number(stored.iterations)) || ITERATIONS;
-  const salt = new Uint8Array(b64dec(stored.salt));
-  if (stored.peppered) {
-    const bits = await hashPassword(password, salt, iters, pepper);
-    const ok = await timingSafeEqual(b64enc(bits), stored.hash);
-    return { ok, set: true, needsRehash: false };
-  }
-  const bits = await hashPassword(password, salt, iters, '');
-  const ok = await timingSafeEqual(b64enc(bits), stored.hash);
-  return { ok, set: true, needsRehash: ok };
-}
-
-/**
- * 生成一条新的 peppered 密码记录。
- * @param {string} password
- * @param {string} pepper
- */
-export async function makePasswordRecord(password, pepper) {
-  const salt = crypto.getRandomValues(new Uint8Array(SALT_LEN));
-  const bits = await hashPassword(password, salt, ITERATIONS, pepper);
-  return {
-    salt: b64enc(salt.buffer),
-    hash: b64enc(bits),
-    iterations: ITERATIONS,
-    peppered: true,
-    updatedAt: Date.now(),
-  };
-}
+/* 密码哈希/校验已搬到 _kernel/password.js（各凭证域共用）；这里保留原导出名，调用方不变 */
+export { getPepper, makePasswordRecord };
 
 /**
  * 校验 owner 密码（owner-pw）。KV 出错时抛错。
@@ -140,8 +69,7 @@ export async function makePasswordRecord(password, pepper) {
  * @returns {Promise<{ok:boolean, set:boolean, needsRehash:boolean}>}
  */
 export async function verifyOwnerPassword(kv, pepper, password) {
-  const stored = await kv.get('owner-pw', 'json'); /* 出错直接抛 */
-  return checkPasswordRecord(stored, password, pepper);
+  return verifyRealmPassword(kv, REALM_OWNER, pepper, password);
 }
 
 /**
@@ -152,8 +80,7 @@ export async function verifyOwnerPassword(kv, pepper, password) {
  * @returns {Promise<{ok:boolean, set:boolean, needsRehash:boolean}>}
  */
 async function verifyLockPassword(kv, pepper, password) {
-  const stored = await kv.get('lock-pw', 'json'); /* 出错直接抛 */
-  return checkPasswordRecord(stored, password, pepper);
+  return verifyRealmPassword(kv, REALM_LOCK, pepper, password);
 }
 
 /** @param {any} context */
@@ -277,7 +204,7 @@ async function handlePost(context) {
     /* 旧 hash 成功验证后重哈希（加 pepper），写回 lock-pw */
     if (vr.needsRehash) {
       try {
-        await kv.put('lock-pw', JSON.stringify(await makePasswordRecord(password, pepper)));
+        await kv.put(REALM_LOCK.kv.password, JSON.stringify(await makePasswordRecord(password, pepper)));
       } catch (e) {}
     }
     /* 通过：签发 Ed25519 会话 cookie（fail closed：无密钥/签发失败 → 5xx，
@@ -305,7 +232,7 @@ async function handlePost(context) {
     if (kind !== 'lock' && kind !== 'owner') {
       return Response.json({ ok: false, error: 'params' }, { status: 400 });
     }
-    const pwKey = kind === 'lock' ? 'lock-pw' : 'owner-pw';
+    const pwKey = (kind === 'lock' ? REALM_LOCK : REALM_OWNER).kv.password; /* 'lock-pw' | 'owner-pw' */
 
     /* stepup 门禁（含 scope 检查） */
     const sv = await verifyStepupCookie(request, env);
@@ -415,7 +342,7 @@ async function handlePost(context) {
           const keys = await getPasskeys(kv);
           const hasOwnerKey = keys.some(function (k) { return (k.class || 'lock') === PK_CLASS_OWNER; });
           let hasOwnerPw = false;
-          try { const r = await kv.get('owner-pw', 'json'); hasOwnerPw = !!(r && r.hash); } catch (e) {}
+          try { const r = await kv.get(REALM_OWNER.kv.password, 'json'); hasOwnerPw = !!(r && r.hash); } catch (e) {}
           if (!hasOwnerKey && !hasOwnerPw) {
             /* 清标记失败不吞掉：标记残留会导致 root 无法代管（用户被锁死），直接 503 */
             try {
@@ -431,7 +358,7 @@ async function handlePost(context) {
           const keys = await getPasskeys(kv);
           const hasLockKey = keys.some(function (k) { return (k.class || 'lock') === 'lock'; });
           let hasLockPw = false;
-          try { const r = await kv.get('lock-pw', 'json'); hasLockPw = !!(r && r.hash); } catch (e) {}
+          try { const r = await kv.get(REALM_LOCK.kv.password, 'json'); hasLockPw = !!(r && r.hash); } catch (e) {}
           if (!hasLockKey && !hasLockPw) {
             /* A-2：删光 lock 凭证且 owner 已配置 → 保留 layer:lock 不清；
                owner 未配置时（竞态）按旧逻辑清 layer:lock。
@@ -483,7 +410,7 @@ async function handlePost(context) {
 
     /* 2.11 定稿：owner 密码不得与锁屏密码相同（双向检查） */
     try {
-      const otherKey = kind === 'lock' ? 'owner-pw' : 'lock-pw';
+      const otherKey = (kind === 'lock' ? REALM_OWNER : REALM_LOCK).kv.password; /* 'owner-pw' | 'lock-pw' */
       const other = await kv.get(otherKey, 'json');
       if (other && other.hash) {
         const cr = await checkPasswordRecord(other, newPassword, pepper);

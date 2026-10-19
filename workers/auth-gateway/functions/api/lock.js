@@ -10,8 +10,7 @@
  * - 只接受 POST。
  */
 import { clearVerifiedCookie } from '../_kernel/session.js';
-import { STEPUP_COOKIE } from './stepup.js';
-import { APP_COOKIE } from './app-token.js';
+import { REALM_STEPUP, REALM_APP, realmClearCookie } from '../_kernel/realms.js';
 
 /**
  * @param {any} context
@@ -20,14 +19,8 @@ export async function onRequestPost(context) {
   const headers = new Headers({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   clearVerifiedCookie(headers);
   /* 2.10.2：锁定即清除 stepup 和 app cookie */
-  headers.append(
-    'Set-Cookie',
-    STEPUP_COOKIE + '=; Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
-  );
-  headers.append(
-    'Set-Cookie',
-    APP_COOKIE + '=; Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
-  );
+  headers.append('Set-Cookie', realmClearCookie(REALM_STEPUP)); /* sgx-stepup */
+  headers.append('Set-Cookie', realmClearCookie(REALM_APP)); /* sgx-app */
   return new Response(JSON.stringify({ ok: true }), { headers });
 }
 

@@ -19,6 +19,7 @@
  * @param {any} context
  */
 import { APP_WHITELIST } from '../_kernel/app-registry.js';
+import { REALM_APP, SESSION_EPOCH_KEY } from '../_kernel/realms.js';
 
 export async function onRequestGet(context) {
   const { env } = context;
@@ -31,7 +32,7 @@ export async function onRequestGet(context) {
   }
   let v;
   try {
-    v = await kv.get('session-epoch');
+    v = await kv.get(SESSION_EPOCH_KEY);
   } catch (e) {
     return Response.json(
       { ok: false, error: 'epoch' },
@@ -43,7 +44,7 @@ export async function onRequestGet(context) {
   const app = {};
   try {
     for (const a of APP_WHITELIST) {
-      const av = await kv.get('app-epoch:' + a.aud);
+      const av = await kv.get(REALM_APP.kv.epochPrefix + a.aud);
       app[a.aud] = av === null || av === undefined ? 0 : parseInt(av, 10) || 0;
     }
   } catch (e) {

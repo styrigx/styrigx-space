@@ -29,12 +29,13 @@
  */
 import { timingSafeEqual, ed25519Verify, normalizeRootKey } from '../_kernel/crypto.js';
 import { getSessionEpoch, ROLE_OWNER, ROLE_VISITOR } from '../_kernel/session.js';
-import { signStepupCookie, STEPUP_COOKIE, STEPUP_COOKIE_ATTRS, STEPUP_MAX_AGE, STEPUP_BY_ROOT, STEPUP_SCOPE_ROOT } from './stepup.js';
+import { signStepupCookie, setStepupCookie, STEPUP_BY_ROOT, STEPUP_SCOPE_ROOT } from './stepup.js';
 import { checkRootLimit, recordRootFail, clearRootFail, getClientIp } from '../_kernel/rootlimit.js';
 import { writeRootAudit } from '../_kernel/rootlog.js';
 import { isLockEffectivelyConfigured } from '../_kernel/layers.js';
 import { verifySessionDetailed } from '../_middleware.js';
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
+import { REALM_LOCK, REALM_STEPUP, REALM_ROOT, realmPrivateKey, realmPublicKey } from '../_kernel/realms.js';
 
 /* 假入口与真失败的统一固定最小延迟（毫秒）：防时序区分。
    真失败路径的审计写入放在 padTo 之前，padTo 把总耗时对齐到此时长，
@@ -55,55 +56,31 @@ function decoyAuth() {
 }
 
 /**
- * 轻量访客会话检查（不读 KV）：解析 cookie、验 Ed25519 签名、检查 exp 与 role。
- * 仅用于识别访客假入口；只读 SGX_LOCK_PUBLIC（公钥，非凭证）。
+ * 轻量会话检查（不读 KV）：解析 sgx-verified cookie、验 Ed25519 签名、检查 exp 与 role。
+ * 只读 SGX_LOCK_PUBLIC（公钥，非凭证）。
+ * - role=visitor：仅用于识别访客假入口
+ * - role=owner：仅用于决定走真路径还是假入口（另要求 by=root|owner）；
+ *   真路径内再做完整校验（含 KV epoch）
+ * 原 lightVisitorSession / lightOwnerSession 两份逐行相同的代码合并（行为不变）。
  * @param {any} request
  * @param {any} env
- * @returns {Promise<boolean>} 是否看起来像有效的访客会话
+ * @param {string} wantRole ROLE_VISITOR 或 ROLE_OWNER
+ * @returns {Promise<boolean>} 是否看起来像该角色的有效会话
  */
-async function lightVisitorSession(request, env) {
+async function lightSession(request, env, wantRole) {
   try {
     const h = request.headers.get('Cookie') || '';
-    const pubKey = (env && env.SGX_LOCK_PUBLIC) || '';
+    const pubKey = realmPublicKey(env, REALM_LOCK); /* SGX_LOCK_PUBLIC */
     if (!pubKey) return false;
     for (const part of h.split(';')) {
       const [k, ...v] = part.trim().split('=');
-      if (k !== 'sgx-verified') continue;
+      if (k !== REALM_LOCK.cookie) continue; /* sgx-verified */
       const val = v.join('=');
       const parts = val.split('.');
       if (parts.length !== 5) continue;
       const [by, role, epochStr, expStr, sig] = parts;
-      if (role !== ROLE_VISITOR) continue;
-      const exp = parseInt(expStr, 10);
-      if (!Number.isFinite(exp) || exp <= Date.now()) continue;
-      const payload = by + '.' + role + '.' + epochStr + '.' + expStr;
-      if (await ed25519Verify(pubKey, payload, sig)) return true;
-    }
-  } catch (e) {}
-  return false;
-}
-
-/**
- * 轻量会话检查（不读 KV）：解析 cookie、验 Ed25519 签名、检查 exp 与 role。
- * 仅用于决定走真路径还是假入口；真路径内再做完整校验（含 KV epoch）。
- * @param {any} request
- * @param {any} env
- * @returns {Promise<boolean>} 是否看起来像有效的 owner 会话
- */
-async function lightOwnerSession(request, env) {
-  try {
-    const h = request.headers.get('Cookie') || '';
-    const pubKey = (env && env.SGX_LOCK_PUBLIC) || '';
-    if (!pubKey) return false;
-    for (const part of h.split(';')) {
-      const [k, ...v] = part.trim().split('=');
-      if (k !== 'sgx-verified') continue;
-      const val = v.join('=');
-      const parts = val.split('.');
-      if (parts.length !== 5) continue;
-      const [by, role, epochStr, expStr, sig] = parts;
-      if (role !== ROLE_OWNER) continue;
-      if (by !== 'root' && by !== 'owner') continue;
+      if (role !== wantRole) continue;
+      if (wantRole === ROLE_OWNER && by !== 'root' && by !== 'owner') continue;
       const exp = parseInt(expStr, 10);
       if (!Number.isFinite(exp) || exp <= Date.now()) continue;
       const payload = by + '.' + role + '.' + epochStr + '.' + expStr;
@@ -134,7 +111,7 @@ async function handlePost(context) {
 
   /* B1-9 访客假入口统一 401（安全）：访客会话直接返回 401，
      不读任何存储（KV/D1），不区分新站旧站。放在所有 KV 读取之前。 */
-  if (await lightVisitorSession(request, env)) {
+  if (await lightSession(request, env, ROLE_VISITOR)) {
     await padTo(t0);
     return Response.json({ ok: false, error: 'denied' }, { status: 401 });
   }
@@ -154,7 +131,7 @@ async function handlePost(context) {
      - 有疑似有效 owner 会话 → 真路径
      - 无会话但 lock 层未配置 → 真路径（引导）
      - 无会话且 lock 已配置（或读取失败按已配置）→ 假入口 */
-  const looksOwner = await lightOwnerSession(request, env);
+  const looksOwner = await lightSession(request, env, ROLE_OWNER);
   const realPath = looksOwner || !lockCfg;
 
   if (!realPath) {
@@ -184,8 +161,8 @@ async function handlePost(context) {
   /* ===== 真路径 =====
      缺关键配置 → 直接拒绝（fail closed）。注意：假入口路径在上面已返回，
      这里只处理真路径，避免无会话时因缺环境变量泄露 500 config。 */
-  const rootKey = (env && env.SGX_ROOT_KEY) || '';
-  const stepupKey = (env && env.SGX_STEPUP_PRIVATE) || '';
+  const rootKey = (env && env[REALM_ROOT.secret]) || ''; /* SGX_ROOT_KEY */
+  const stepupKey = realmPrivateKey(env, REALM_STEPUP); /* SGX_STEPUP_PRIVATE */
   if (!rootKey || !stepupKey || !kv) {
     const errCode = !stepupKey ? 'no-stepup-key' : 'config';
     return Response.json({ ok: false, error: errCode }, { status: 500 });
@@ -253,10 +230,7 @@ async function handlePost(context) {
     await writeRootAudit(kv, ip, false, { path: 'root-auth' });
     return Response.json({ ok: false, error: 'sign-failed' }, { status: 500 });
   }
-  headers.append(
-    'Set-Cookie',
-    STEPUP_COOKIE + '=' + stepupVal + '; ' + STEPUP_COOKIE_ATTRS + '; Max-Age=' + STEPUP_MAX_AGE
-  );
+  setStepupCookie(headers, stepupVal);
 
   /* 审计写入失败则不签发（fail closed） */
   if (!(await writeRootAudit(kv, ip, true, { path: 'root-auth' }))) {

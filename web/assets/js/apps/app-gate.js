@@ -16,6 +16,7 @@
  */
 import { sgxNavigate, sgxReload } from '../lib/diag-jumptrace.js';
 import { showCenterDialog } from '../lib/dialog-behavior.js';
+import { stepupFetch } from '../lib/auth-flow.js';
 
 /**
  * 统一解析 API 响应：{ status, json }，区分网络错误/业务错误。
@@ -296,12 +297,7 @@ export function startDoorCountdown(t, expiresAt) {
   }
   /* 未传 expiresAt：拉一次 status 取服务端过期时刻（前端不解析 Cookie） */
   try {
-    fetch('/api/stepup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'status' }),
-      credentials: 'include',
-    }).then(function (r) { return r.json(); }).then(function (j) {
+    stepupFetch('status').then(function (r) { return r.json(); }).then(function (j) {
       if (j && j.ok && j.valid && typeof j.expiresAt === 'number') startDoorCountdown(t, j.expiresAt);
       else stopDoorCountdown();
     }).catch(function () { stopDoorCountdown(); });
@@ -339,7 +335,7 @@ function hideDoorCountdown() {
  * stepup-required → 返回给调用方显示错误，不自动跳验证流程（定稿 #19）。
  * @param {string} url
  * @param {any} body
- * @param {(k:string)=>string} t 文案函数
+ * @param {(k:string)=>string} [t] 文案函数（未使用，保留签名；security-lock.js 调用时不传）
  */
 export function api(url, body, t) {
   return fetch(url, {
@@ -522,12 +518,7 @@ export function clearStepupThen(targetUrl) {
   /* 兜底：3 秒还没回来也走，不把用户晾在门里 */
   window.setTimeout(go, 3000);
   try {
-    fetch('/api/stepup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'clear' }),
-      credentials: 'include',
-    }).then(go, go);
+    stepupFetch('clear').then(go, go);
   } catch (e) {
     go();
   }

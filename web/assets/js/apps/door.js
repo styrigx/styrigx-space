@@ -27,7 +27,8 @@ import {
   guardDoorExpired,
 } from './app-gate.js';
 import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton, bindSubmitButton } from '../lib/dialog-behavior.js';
+import { bindDataEyes, createSetPwDialog, newPwError, pwSetRequest, stepupFetch } from '../lib/auth-flow.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindSubmitButton } from '../lib/dialog-behavior.js';
 
 /**
  * 初始化一扇门。
@@ -104,15 +105,7 @@ export function initDoor(o) {
   }
 
   /* 显示/隐藏眼睛（批次 A 验收修复 P2：bindEyeButton 统一接管图标 + 文案 + 复位） */
-  const eyeResets = [];
-  function bindEye(btn, input) {
-    if (!btn || !input) return;
-    eyeResets.push(bindEyeButton(btn, input, { showLabel: t('eyeShow'), hideLabel: t('eyeHide') }));
-  }
-  document.querySelectorAll('[data-eye]').forEach(function (b) {
-    const inp = $(b.getAttribute('data-eye'));
-    bindEye(b, inp);
-  });
+  const eyeResets = bindDataEyes(t);
 
   /* ---------- 状态 ---------- */
   /* v1.1 §二.1：返回请求 Promise，供进门回调等首次数据加载完成后再显示胶囊 */
@@ -137,64 +130,17 @@ export function initDoor(o) {
   }
 
   /* ---------- 密码弹层 ---------- */
-  const pwDlg = $('lockpw-dlg');
-  followKeyboard(pwDlg, [$('lockpw-1'), $('lockpw-2')]);
-  function openPwDlg() {
-    hideErr('lockpw-err');
-    closeOpenSheets();
-    const a = $('lockpw-1'), b = $('lockpw-2');
-    if (a) {
-      a.value = '';
-      a.type = 'password';
-    }
-    if (b) {
-      b.value = '';
-      b.type = 'password';
-    }
-    /* 重开弹层时眼睛按钮同步回密文态（eye-off + 显示密码） */
-    eyeResets.forEach(function (reset) { try { reset(); } catch (e) {} });
-    const title = $('lockpw-title');
-    if (title) title.textContent = hasPw ? t('changeTitle') : t('setTitle');
-    try {
-      pwDlg.showModal();
-    } catch (e) {}
-    if (a) {
-      try {
-        a.focus({ preventScroll: true });
-      } catch (e2) {}
-    }
-  }
-  function closePwDlg(reason) {
-    recordDialogClose('lockpw', reason || 'unknown');
-    try {
-      if (pwDlg.open) pwDlg.close();
-    } catch (e) {}
-  }
-  if (pwDlg) {
-    /* 批次 A 收尾 A1/A2：点遮罩只失焦不关闭；返回手势键盘开着先收键盘 */
-    on(pwDlg, 'click', function (/** @type {MouseEvent} */ e) {
-      onDialogBackdrop(e, pwDlg);
-    });
-    on(pwDlg, 'cancel', function (/** @type {Event} */ e) {
-      onDialogCancel(e, pwDlg, function (reason) { closePwDlg(reason); });
-    });
-    /* 批次 A 收尾 A3：右上角 × 关闭按钮 */
-    const pwClose = pwDlg.querySelector('[data-dlg-close]');
-    if (pwClose) on(pwClose, 'click', function () { closePwDlg('close-btn'); });
-  }
-  const pwRow = $('lockmgr-pwrow');
-  if (pwRow) {
-    const go = function () {
-      openPwDlg();
-    };
-    on(pwRow, 'click', go);
-    on(pwRow, 'keydown', function (/** @type {KeyboardEvent} */ e) {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        go();
-      }
-    });
-  }
+  /* 设置/修改密码弹层（打开/关闭/遮罩/× 按钮/密码行，见 lib/auth-flow.js） */
+  const pwDialog = createSetPwDialog({
+    $: $,
+    t: t,
+    hideErr: hideErr,
+    followKeyboard: followKeyboard,
+    eyeResets: eyeResets,
+    hasPw: function () { return hasPw; },
+    beforeOpen: closeOpenSheets,
+  });
+  const closePwDlg = pwDialog.close;
   /* 删除密码（两步确认；门内直接调接口） */
   const pwDel = $('lockmgr-pwdel');
   if (pwDel) {
@@ -265,18 +211,14 @@ export function initDoor(o) {
     const a = $('lockpw-1'), b = $('lockpw-2');
     const va = a ? a.value : '', vb = b ? b.value : '';
     hideErr('lockpw-err');
-    if (va.length < 8) {
-      showErr('lockpw-err', t('pwMin8'));
+    const pwErr = newPwError(va, vb);
+    if (pwErr) {
+      showErr('lockpw-err', t(pwErr));
       return;
     }
-    if (va !== vb) {
-      showErr('lockpw-err', t('pwMismatch'));
-      return;
-    }
-    const action = hasPw ? 'change' : 'set';
-    const body = action === 'set'
-      ? { action: 'set', kind: pwKind, password: va }
-      : { action: 'change', kind: pwKind, newPassword: va };
+    const req = pwSetRequest(hasPw, pwKind, va);
+    const action = req.action;
+    const body = req.body;
     api('/api/owner-password', body, t)
       .then(function (res) {
         const j = res.json;
@@ -863,12 +805,7 @@ export function initDoor(o) {
             return { ok: false, reason: (j && j.error) || 'session', status: r.status, api: 'GET ' + statusApi, detail: j && j.reason };
           }
           /* 会话有效 → 再验门票据（/api/stepup status 不验会话，只验票据） */
-          return fetch('/api/stepup', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'status' }),
-            credentials: 'same-origin',
-          }).then(function (r2) {
+          return stepupFetch('status', { credentials: 'same-origin' }).then(function (r2) {
             return r2.json().then(function (j2) {
               /* A-1：探针成功带回 expiresAt，onEnter 直接启动倒计时（不解析 Cookie） */
               if (j2 && j2.ok && j2.valid) return { ok: true, expiresAt: j2.expiresAt };

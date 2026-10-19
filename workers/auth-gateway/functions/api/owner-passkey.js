@@ -44,6 +44,8 @@ import {
   parseRegAuthData,
   coseToJwk,
   verifyAssertion,
+  rpIdHashOf,
+  consumeChallenge,
 } from '../_kernel/passkey-verify.js';
 import {
   issueSessionCookie,
@@ -55,6 +57,10 @@ import { getApp } from '../_kernel/app-registry.js';
 import { verifyStepupCookie, reissueStepupWithEpoch, STEPUP_COOKIE, STEPUP_BY_ROOT, STEPUP_BY_OWNER, STEPUP_SCOPE_ROOT, STEPUP_SCOPE_KEYS, STEPUP_SCOPE_LOCKRESET } from './stepup.js';
 import { LAYER_OWNER, LAYER_LOCK, layerApp, setLayerConfigured, clearLayerConfigured, isLayerConfigured, isLockEffectivelyConfigured, isOwnerEffectivelyConfigured } from '../_kernel/layers.js';
 import { verifySessionDetailed } from '../_middleware.js';
+import { REALM_LOCK, REALM_OWNER, REALM_APP, SESSION_EPOCH_KEY, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
+
+/* 通行密钥注册/登录 challenge 的 KV 前缀（'pk-challenge:'；与 stepup-challenge: 隔离） */
+const PK_CHALLENGE_PREFIX = REALM_OWNER.kv.challengePrefix;
 import {
   STORE_CLASS_OWNERKEY,
   STORE_CLASS_LOCKKEY,
@@ -381,7 +387,7 @@ async function checkPasskeyMgmt(request, env, kv, pkClass, op) {
  * 2.10.1：KV 读写失败必须抛错（调用方 fail closed，拒绝删除），
  * 不再静默按 0 写回。 */
 async function bumpAppEpoch(kv, aud) {
-  const key = 'app-epoch:' + aud;
+  const key = REALM_APP.kv.epochPrefix + aud; /* 'app-epoch:<aud>' */
   const v = parseInt(await kv.get(key) || '0', 10) || 0;
   await kv.put(key, String(v + 1));
   return v + 1;
@@ -415,16 +421,11 @@ async function handlePost(context) {
   const action = (body && body.action) || '';
 
   /* RP_ID / 期望 origin：必须设置环境变量，不回落（防配置错误） */
-  const RP_ID = env && env.SGX_RP_ID;
-  const EXPECT_ORIGIN = env && env.SGX_ORIGIN;
-  if (!RP_ID || !EXPECT_ORIGIN) {
-    /* 缺变量：返回明确错误（503），前端据此禁用通行密钥入口 */
-    return Response.json(
-      { ok: false, error: 'config', message: 'SGX_RP_ID / SGX_ORIGIN 未配置' },
-      { status: 503 }
-    );
-  }
-  const rpIdHash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(RP_ID)));
+  const rp = rpConfig(env);
+  if (!rp) return rpConfigMissing(); /* 缺变量：返回明确错误（503），前端据此禁用通行密钥入口 */
+  const RP_ID = rp.rpId;
+  const EXPECT_ORIGIN = rp.origin;
+  const rpIdHash = await rpIdHashOf(RP_ID);
 
   /* ============ challenge ============
      2.10.0：新增 pkClass（lock/app）与 aud 参数。
@@ -472,7 +473,7 @@ async function handlePost(context) {
     const challenge = randB64(32);
     const cid = randB64(16);
     try {
-      await kv.put('pk-challenge:' + cid, JSON.stringify({ challenge, type, pkClass, aud, exp: Date.now() + 300000 }), { expirationTtl: 300 });
+      await kv.put(PK_CHALLENGE_PREFIX + cid, JSON.stringify({ challenge, type, pkClass, aud, exp: Date.now() + 300000 }), { expirationTtl: 300 });
     } catch (e) {}
     const resp = { ok: true, cid: cid, challenge: challenge, rpId: RP_ID };
     if (type === 'register') {
@@ -512,11 +513,7 @@ async function handlePost(context) {
     const cred = (body && body.credential) || {};
     const cid = (body && body.cid) || '';
     /* 取 challenge（单次使用） */
-    let chRec = null;
-    try {
-      chRec = await kv.get('pk-challenge:' + cid, 'json');
-      await kv.delete('pk-challenge:' + cid);
-    } catch (e) {}
+    const chRec = await consumeChallenge(kv, PK_CHALLENGE_PREFIX + cid);
     if (!chRec || chRec.type !== 'register' || chRec.exp < Date.now()) {
       return Response.json({ ok: false, error: 'challenge' }, { status: 403 });
     }
@@ -639,11 +636,7 @@ async function handlePost(context) {
   if (action === 'auth') {
     const cred = (body && body.credential) || {};
     const cid = (body && body.cid) || '';
-    let chRec = null;
-    try {
-      chRec = await kv.get('pk-challenge:' + cid, 'json');
-      await kv.delete('pk-challenge:' + cid);
-    } catch (e) {}
+    const chRec = await consumeChallenge(kv, PK_CHALLENGE_PREFIX + cid);
     if (!chRec || chRec.type !== 'auth' || chRec.exp < Date.now()) {
       return Response.json({ ok: false, error: 'challenge' }, { status: 403 });
     }
@@ -846,7 +839,7 @@ async function handlePost(context) {
     if (delClass === PK_CLASS_LOCK) {
       let hasLockPw = false;
       try {
-        const pwRec = await kv.get('lock-pw', 'json');
+        const pwRec = await kv.get(REALM_LOCK.kv.password, 'json');
         hasLockPw = !!(pwRec && pwRec.hash);
       } catch (e) {}
       const keys = await getPasskeys(kv);
@@ -880,9 +873,9 @@ async function handlePost(context) {
     } else if (delClass === PK_CLASS_LOCK) {
       /* 删锁屏类密钥 → session-epoch +1（失败则拒绝删除，fail closed） */
       try {
-        const v = parseInt(await kv.get('session-epoch') || '0', 10) || 0;
+        const v = parseInt(await kv.get(SESSION_EPOCH_KEY) || '0', 10) || 0;
         newEpoch = v + 1;
-        await kv.put('session-epoch', String(newEpoch));
+        await kv.put(SESSION_EPOCH_KEY, String(newEpoch));
       } catch (e) {
         return Response.json({ ok: false, error: 'epoch' }, { status: 503 });
       }
@@ -896,7 +889,7 @@ async function handlePost(context) {
       if (delClass === PK_CLASS_OWNER) {
         const hasOwnerKey = keys.some(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_OWNER; });
         let hasOwnerPw = false;
-        try { const r = await kv.get('owner-pw', 'json'); hasOwnerPw = !!(r && r.hash); } catch (e) {}
+        try { const r = await kv.get(REALM_OWNER.kv.password, 'json'); hasOwnerPw = !!(r && r.hash); } catch (e) {}
         if (!hasOwnerKey && !hasOwnerPw) {
           /* 清标记失败不吞掉：标记残留会导致 root 无法代管（用户被锁死），直接 503 */
           try {
@@ -908,7 +901,7 @@ async function handlePost(context) {
       } else if (delClass === PK_CLASS_LOCK) {
         const hasLockKey = keys.some(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK; });
         let hasLockPw = false;
-        try { const r = await kv.get('lock-pw', 'json'); hasLockPw = !!(r && r.hash); } catch (e) {}
+        try { const r = await kv.get(REALM_LOCK.kv.password, 'json'); hasLockPw = !!(r && r.hash); } catch (e) {}
         if (!hasLockKey && !hasLockPw) {
           /* A-2：删光 lock 凭证且 owner 已配置 → 保留 layer:lock 不清
              （根凭证代开继续被拒，锁屏只显示访客 + 重置）；

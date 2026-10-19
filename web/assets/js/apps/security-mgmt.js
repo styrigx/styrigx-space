@@ -3,6 +3,7 @@
  * 进门探针用 /api/lock-status（接受 stepup scope=keys），无效则跳回安全与隐私页。
  */
 import { enterDoor, clearStepupThen, startDoorCountdown } from './app-gate.js';
+import { stepupFetch } from '../lib/auth-flow.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -109,13 +110,7 @@ import { enterDoor, clearStepupThen, startDoorCountdown } from './app-gate.js';
     /* 目标仍在门内：不清除（回索引页后再进锁屏/应用不要求重新验证） */
     if (inMgmtArea) return;
     try {
-      fetch('/api/stepup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'clear' }),
-        credentials: 'include',
-        keepalive: true,
-      }).catch(function () {});
+      stepupFetch('clear', { keepalive: true }).catch(function () {});
     } catch (e2) {}
   });
 

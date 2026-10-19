@@ -10,6 +10,7 @@
 import { verifySessionDetailed } from '../_middleware.js';
 import { ROLE_OWNER } from '../_kernel/session.js';
 import { getPasskeys, PK_CLASS_OWNER } from './owner-passkey.js';
+import { REALM_OWNER } from '../_kernel/realms.js';
 
 /** @param {any} context */
 export async function onRequestGet(context) {
@@ -24,7 +25,7 @@ export async function onRequestGet(context) {
     let passkey = false;
     if (kv) {
       try {
-        const pw = await kv.get('owner-pw', 'json');
+        const pw = await kv.get(REALM_OWNER.kv.password, 'json');
         password = !!(pw && pw.hash);
       } catch (e) {}
       try {

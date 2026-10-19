@@ -8,6 +8,7 @@
 import { verifySessionDetailed } from '../functions/_middleware.js';
 import { parseAppToken, getAppEpoch, APP_COOKIE } from '../functions/api/app-token.js';
 import { ed25519Verify } from '../functions/_kernel/crypto.js';
+import { REALM_APP, realmPublicKey, SESSION_EPOCH_KEY } from '../functions/_kernel/realms.js';
 
 const MAX_COOKIE_HEADER = 8192;
 const NAME_RE = /^[a-z][a-z0-9-]{0,31}$/;
@@ -50,12 +51,12 @@ export async function checkAppPass(cookieHeader, env, aud, scope) {
   if (!NAME_RE.test(String(aud)) || !NAME_RE.test(String(scope))) return { ok: false, reason: 'bad-request' };
   const vals = allCookies(cookieHeader, APP_COOKIE);
   if (!vals.length) return { ok: false, reason: 'no-pass' };
-  const pub = env && env.SGX_APP_PUBLIC;
+  const pub = realmPublicKey(env, REALM_APP); /* SGX_APP_PUBLIC */
   if (!pub) return { ok: false, reason: 'no-pubkey' };
   if (!env.OWNER_KV) return { ok: false, reason: 'kv-error' };
   let cur, curApp;
   try {
-    cur = parseInt((await env.OWNER_KV.get('session-epoch')) || '0', 10) || 0;
+    cur = parseInt((await env.OWNER_KV.get(SESSION_EPOCH_KEY)) || '0', 10) || 0;
     curApp = await getAppEpoch(env.OWNER_KV, aud);
   } catch (e) {
     return { ok: false, reason: 'kv-error' };
