@@ -160,15 +160,14 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 </script>
 </head>
 {{ $setUrl0 := "/settings/" }}{{ if $isEn }}{{ $setUrl0 = "/en/settings/" }}{{ end }}
-{{ $filesUrl0 := "/files/" }}{{ if $isEn }}{{ $filesUrl0 = "/en/files/" }}{{ end }}
-<body class="text-m-on-surface min-h-screen antialiased{{ if .IsHome }} has-dock{{ end }}{{ if not .IsHome }} subpage{{ end }}" data-page="{{ if or (eq .RelPermalink "/browser/") (eq .RelPermalink "/en/browser/") }}browser{{ else if eq .RelPermalink $filesUrl0 }}files{{ else if eq .RelPermalink $setUrl0 }}settings{{ end }}">
+<body class="text-m-on-surface min-h-screen antialiased{{ if not .IsHome }} subpage{{ end }}" data-page="{{ if or (eq .RelPermalink "/browser/") (eq .RelPermalink "/en/browser/") }}browser{{ else if eq .RelPermalink $setUrl0 }}settings{{ end }}">
 {{ partial "sgx-icon-sprite.html" . }}
 <div id="sgx-wallpaper" aria-hidden="true"></div>
 {{/* 2.4.0-C：调度器 / 边缘模糊 / 可见性定时器已移入 ES Module（assets/js/shell/），此处不再内联定义 */}}
 {{ $profile := site.Data.profile }}
 {{ $home := "/" }}{{ if $isEn }}{{ $home = "/en/" }}{{ end }}
 {{ $linksUrl := "/browser/" }}{{ if $isEn }}{{ $linksUrl = "/en/browser/" }}{{ end }}
-{{ $setUrl := $setUrl0 }}{{ $filesUrl := $filesUrl0 }}
+{{ $setUrl := $setUrl0 }}
 {{ $glUrl := cond $isEn "/en/settings/goodlock/" "/settings/goodlock/" }}
 
 {{/* 顶栏 v2.0（与 Book 同一套）：左圆 + 长条（头像 + 居中 Styrigx + ⋮）+ 导航圆。
@@ -181,11 +180,15 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
         <img src="/avatar/96.webp" alt="" width="28" height="28" class="sgx-tb-avatar" data-sgx-avatar="96">
         <span class="sgx-tb-text">Styrigx</span>
       </a>
-      <button type="button" class="sgx-tb-more" data-menu="none" aria-label="{{ if $isEn }}More options{{ else }}更多选项{{ end }}"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg></button>
+      <button type="button" class="sgx-tb-more" data-menu="{{ if .IsHome }}home{{ else }}none{{ end }}"{{ if .IsHome }} aria-haspopup="menu" aria-expanded="false"{{ end }} aria-label="{{ if $isEn }}More options{{ else }}更多选项{{ end }}"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg></button>
     </div>
     <button type="button" class="sgx-tb-nav" aria-label="{{ if $isEn }}Apps{{ else }}导航{{ end }}" aria-haspopup="menu" aria-expanded="false">{{ partial "icon.html" "apps-grid" }}</button>
   </div>
   <div id="sgx-tb-navmenu" class="sgx-tb-menu hidden" role="menu" aria-label="{{ if $isEn }}Apps{{ else }}导航{{ end }}"></div>
+  {{/* 2026-10-19 去掉 Dock：设置入口移到主页顶栏 ⋮ 菜单（浏览器入口是左侧搜索圆） */}}
+  {{ if .IsHome }}<div id="sgx-tb-moremenu" class="sgx-tb-menu hidden" role="menu" aria-label="{{ if $isEn }}More options{{ else }}更多选项{{ end }}">
+    <a class="sgx-tb-menu-item" role="menuitem" href="{{ $setUrl }}"><span>{{ if $isEn }}Settings{{ else }}设置{{ end }}</span></a>
+  </div>{{ end }}
 </header>
 
 <!-- 全站搜索已并入 /browser/（旧 #search-modal 已删除） -->
@@ -235,7 +238,6 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Accessibility" "辅助功能") "d" $cSet "u" (print $setUrl "#accessibility") "c" $cSet) }}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Reduce motion" "减弱动效") "d" $cSet "u" (print $setUrl "#accessibility") "c" $cSet) }}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Apps" "应用") "d" $cSet "u" (print $setUrl "#apps") "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "My Files" "我的文件") "d" $cSet "u" (print $setUrl "#apps") "c" $cSet) }}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Internet" "浏览器") "d" $cSet "u" (print $setUrl "#apps") "c" $cSet) }}
 {{ $idx = $idx | append (dict "t" (cond $isEn "Search engine" "搜索引擎") "d" $cSet "u" (print $setUrl "#apps") "c" $cSet) }}
 {{/* 数字健康 */}}
@@ -283,74 +285,10 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
   </div>
 </footer>
 
-{{/* ===== DeX 应用抽屉数据：3 个系统 App（B2-2 删除应用商店） ===== */}}
-{{ $dexApps := slice
-  (dict "name" (cond $isEn "My Files" "我的文件") "name2" "My Files 我的文件 files" "url" $filesUrl "icon" "files" "bg" "" "fg" "")
-  (dict "name" (cond $isEn "Internet" "浏览器") "name2" "Internet 浏览器 browser links 书签" "url" $linksUrl "icon" "browser" "bg" "" "fg" "")
-  (dict "name" (cond $isEn "Settings" "设置") "name2" "Settings 设置" "url" $setUrl "icon" "gear-solid" "bg" "" "fg" "")
-}}
-
-{{ if .IsHome }}
-<!-- Mobile 悬浮 Dock：我的文件 / 浏览器 / 设置（竖屏，仅主页） -->
-<div class="dock" id="mobile-dock" role="navigation" aria-label="{{ if $isEn }}Navigation{{ else }}导航栏{{ end }}">
-  <span class="dock-pill" id="dock-pill" aria-hidden="true"></span>
-  <a href="{{ $filesUrl }}" class="dock-btn" data-dock="files" aria-label="{{ if $isEn }}My Files{{ else }}我的文件{{ end }}">
-    <span class="dock-ic">{{ partial "icon.html" (dict "name" "files" "uid" "pd") }}</span><span class="dock-label">{{ if $isEn }}My Files{{ else }}我的文件{{ end }}</span>
-  </a>
-  <a href="{{ $linksUrl }}" class="dock-btn" data-dock="browser" aria-label="{{ if $isEn }}Internet{{ else }}浏览器{{ end }}">
-    <span class="dock-ic">{{ partial "icon.html" (dict "name" "browser" "uid" "pd") }}</span><span class="dock-label">{{ if $isEn }}Internet{{ else }}浏览器{{ end }}</span>
-  </a>
-  <a href="{{ $setUrl }}" class="dock-btn" data-dock="settings" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}">
-    <span class="dock-ic">{{ partial "icon.html" (dict "name" "gear-solid" "uid" "pd") }}</span><span class="dock-label">{{ if $isEn }}Settings{{ else }}设置{{ end }}</span>
-  </a>
-</div>
-
-<!-- DeX/PC 底部居中 Dock（横屏，仅主页）：应用抽屉 / 我的文件 / 浏览器 / 设置 -->
-<div id="dex-dock" role="navigation" aria-label="{{ if $isEn }}Navigation{{ else }}导航栏{{ end }}">
-  <button type="button" id="dex-dock-drawer" class="dex-dock-btn" aria-label="{{ if $isEn }}App drawer{{ else }}应用抽屉{{ end }}" title="{{ if $isEn }}App drawer{{ else }}应用抽屉{{ end }}">
-    <span class="dex-dock-ic">{{ partial "icon.html" (dict "name" "drawer" "uid" "dd") }}</span>
-    <span class="dex-dock-dot" aria-hidden="true"></span>
-  </button>
-  <a href="{{ $filesUrl }}" class="dex-dock-btn" data-navpage="files" aria-label="{{ if $isEn }}My Files{{ else }}我的文件{{ end }}" title="{{ if $isEn }}My Files{{ else }}我的文件{{ end }}">
-    <span class="dex-dock-ic">{{ partial "icon.html" (dict "name" "files" "uid" "dd") }}</span><span class="dex-dock-dot" aria-hidden="true"></span>
-  </a>
-  <a href="{{ $linksUrl }}" class="dex-dock-btn" data-navpage="browser" aria-label="{{ if $isEn }}Internet{{ else }}浏览器{{ end }}" title="{{ if $isEn }}Internet{{ else }}浏览器{{ end }}">
-    <span class="dex-dock-ic">{{ partial "icon.html" (dict "name" "browser" "uid" "dd") }}</span><span class="dex-dock-dot" aria-hidden="true"></span>
-  </a>
-  <a href="{{ $setUrl }}" class="dex-dock-btn" data-navpage="settings" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}" title="{{ if $isEn }}Settings{{ else }}设置{{ end }}">
-    <span class="dex-dock-ic">{{ partial "icon.html" (dict "name" "gear-solid" "uid" "dd") }}</span><span class="dex-dock-dot" aria-hidden="true"></span>
-  </a>
-</div>
-{{ end }}
-
 <!-- 上下边缘柔和模糊渐隐 -->
 <div id="edge-top" aria-hidden="true"></div>
 <div id="edge-bottom" aria-hidden="true"></div>
 
-
-<!-- DeX 应用抽屉 -->
-<div id="dex-drawer" class="hidden" role="dialog" aria-modal="true" aria-label="{{ if $isEn }}App drawer{{ else }}应用抽屉{{ end }}">
-  <div class="dex-drawer-veil" data-dex-drawer-close></div>
-  <div class="dex-drawer-panel">
-    <div class="p-4 pb-1">
-      <input id="dex-drawer-search" type="search" autocomplete="off"
-        placeholder="{{ if $isEn }}Search apps…{{ else }}搜索应用…{{ end }}"
-        class="w-full rounded-full border border-m-outline bg-m-container px-5 py-3 text-sm outline-none placeholder:text-m-on-surface-variant focus:ring-2 focus:ring-m-primary">
-    </div>
-    <div id="dex-drawer-grid">
-      {{ range $di, $da := $dexApps }}
-      <a href="{{ $da.url }}" {{ if $da.ext }}target="_blank" rel="noopener"{{ end }} data-name="{{ $da.name2 }}" class="dex-app" aria-label="{{ $da.name }}">
-        {{ if or (eq $da.icon "brands/github") (eq $da.icon "x-logo") }}
-        <span class="dex-app-ic {{ $da.bg }} {{ $da.fg }}">{{ partial "icon.html" $da.icon }}</span>
-        {{ else }}
-        <span class="dex-app-ic dex-app-ic-full">{{ partial "icon.html" (dict "name" $da.icon "uid" (printf "dw%d" $di)) }}</span>
-        {{ end }}
-        <span class="dex-app-name">{{ $da.name }}</span>
-      </a>
-      {{ end }}
-    </div>
-  </div>
-</div>
 
 {{/* 2.4.0-C：全站文案（中英双语，JS 按 <html lang> 取用；同一份 JS 中英文共用缓存）。
    键：快捷键帮助 / 访客提示 / 语音输入 / 语音弹窗 */}}

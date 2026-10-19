@@ -16,7 +16,7 @@ import { verifyStepupCookie, STEPUP_SCOPE_LOCKRESET } from './api/stepup.js';
 import { withNoStore } from './_kernel/http.js';
 
 /* 2.11 两扇门：安全与隐私全系主人专属。
-   访客可进：/settings/ 及其子页（不含 security/ 全系）、/files/（中英文）。
+   访客可进：/settings/ 及其子页（不含 security/ 全系）。
    主人专属：/settings/security/ 全系（总览、锁屏、应用）。
    visitor 访问主人专属路径 → 302 到锁屏（只一次，首页不再二次 302）。 */
 /* 定稿 #13/#14/R3：访客可进安全与隐私总览页（/settings/security/），

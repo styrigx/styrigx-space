@@ -237,7 +237,7 @@ test.describe('B1-12 守护：页面切换唯一性', () => {
   });
 
   test('顶栏、大标题、← 同一时刻都只有 1 个', async ({ page }) => {
-    const pages = ['/settings/', '/settings/security/', '/files/'];
+    const pages = ['/settings/', '/settings/security/', '/settings/display/'];
     for (const url of pages) {
       await page.goto(url, { waitUntil: 'domcontentloaded' });
       /* 等页面稳定：顶栏可见 */

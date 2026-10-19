@@ -328,7 +328,8 @@ test('B2-2 store and its apps are gone; invite site in browser bookmarks', async
   for (const sel of ['[data-dock="store"]', '[data-navpage="store"]', 'a[href="/store/"]', 'a[href="/ai/"]', 'a[href="/books/"]', 'a[href="/music/"]', 'a[href="/goodlock/"]', '#np-widget', '#books', '#music', '[data-appid]']) {
     await expect(pg.locator(sel), sel).toHaveCount(0);
   }
-  await expect(pg.locator('#mobile-dock .dock-btn')).toHaveCount(3);
+  /* 2026-10-19：Dock 已全部删除 */
+  for (const sel of ['#mobile-dock', '#dex-dock', '#dex-drawer']) await expect(pg.locator(sel), sel).toHaveCount(0);
   for (const p of ['/store/', '/ai/', '/books/', '/music/']) {
     const r = await pg.request.get(p);
     expect(r.status(), p).toBe(404);
@@ -368,22 +369,6 @@ test('B2-4 settings search: no Apps entries; reset points to General management'
   expect(reset[8]).toBe('/settings/manage/');
 });
 
-test('B2-4 My Files top-bar menu carries the former settings', async ({ page: pg }) => {
-  await pinLang(pg, 'zh');
-  await blockExternalRequests(pg);
-  await pg.goto('/files/', { waitUntil: 'domcontentloaded' });
-  await pg.locator('.sgx-tb-pill #files-more').click();
-  const sheet = pg.locator('#sheet-body');
-  await expect(sheet).toContainText('编辑主页');
-  await expect(sheet).toContainText('排序方式');
-  await expect(sheet).toContainText('默认视图');
-  await expect(sheet).not.toContainText('清除最近访问记录'); // B2-5：最近访问已删除
-  await expect(sheet).not.toContainText(/^设置$/);
-  // 默认视图 → 网格，写同一个 key
-  await sheet.getByText('默认视图').click();
-  await pg.locator('#sheet-body').getByText('网格').click();
-  await expect.poll(() => pg.evaluate(() => JSON.parse(localStorage.getItem('sgx-files-view') || '{}').layout)).toBe('grid');
-});
 
 test('B2-4 Internet top-bar menu: engine, address bar position, clear history', async ({ page: pg }) => {
   await pinLang(pg, 'zh');

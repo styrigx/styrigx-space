@@ -2,7 +2,7 @@
  * 2.5.0 PC 布局断言（Gray 2026-10-10 验收要求）。
  * - 1920x1080 / 2560x1440 下 html 为 layout-pc
  * - 同一行卡片右边缘误差 ≤1px（栅格铺满，无右侧空白）
- * - 滚到底时 Dock 不与任何卡片/内容区元素重叠
+ * - （2026-10-19 Dock 已删除，原「滚到底 Dock 不压卡片」用例一并删除）
  * - PC 下桌面图标网格（#home-apps）彻底不渲染
  *
  * Hark 规则：domcontentloaded + 等具体元素，不用 networkidle / waitForTimeout。
@@ -69,32 +69,6 @@ for (const vp of PCS) {
       }
     });
 
-    test('滚到底 Dock 不压住任何卡片', async ({ page }) => {
-      await gotoPC(page, vp);
-      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-      await expect.poll(async () =>
-        page.evaluate(() => window.scrollY >= document.documentElement.scrollHeight - window.innerHeight - 2),
-      ).toBe(true);
-      const res = await page.evaluate(() => {
-        const dock = document.getElementById('dex-dock').getBoundingClientRect();
-        const els = [...document.querySelectorAll('main .widget, main section')]
-          .filter((e) => e.offsetParent !== null);
-        const bad = [];
-        for (const e of els) {
-          const b = e.getBoundingClientRect();
-          const hit = !(b.bottom <= dock.top || b.top >= dock.bottom || b.right <= dock.left || b.left >= dock.right);
-          if (hit) bad.push(e.id || e.className.slice(0, 30));
-        }
-        // footer 内容（去掉 padding）也不能被压
-        const f = document.querySelector('footer');
-        const fb = f.getBoundingClientRect();
-        const fcs = getComputedStyle(f);
-        const contentBottom = fb.bottom - parseFloat(fcs.paddingBottom);
-        return { bad, footerClear: contentBottom <= dock.top };
-      });
-      expect(res.bad).toEqual([]);
-      expect(res.footerClear).toBe(true);
-    });
 
     test('PC 下桌面图标网格不渲染', async ({ page }) => {
       await gotoPC(page, vp);
@@ -130,29 +104,4 @@ test.describe('dex-layout 1366x768', () => {
     await expect(page.locator('#edge-bottom')).toBeHidden();
   });
 
-  test('滚到底 Dock 不压住任何卡片', async ({ page }) => {
-    await gotoDex(page);
-    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-    await expect.poll(async () =>
-      page.evaluate(() => window.scrollY >= document.documentElement.scrollHeight - window.innerHeight - 2),
-    ).toBe(true);
-    const res = await page.evaluate(() => {
-      const dock = document.getElementById('dex-dock').getBoundingClientRect();
-      const els = [...document.querySelectorAll('main .widget, main section')]
-        .filter((e) => e.offsetParent !== null);
-      const bad = [];
-      for (const e of els) {
-        const b = e.getBoundingClientRect();
-        const hit = !(b.bottom <= dock.top || b.top >= dock.bottom || b.right <= dock.left || b.left >= dock.right);
-        if (hit) bad.push(e.id || e.className.slice(0, 30));
-      }
-      const f = document.querySelector('footer');
-      const fb = f.getBoundingClientRect();
-      const fcs = getComputedStyle(f);
-      const contentBottom = fb.bottom - parseFloat(fcs.paddingBottom);
-      return { bad, footerClear: contentBottom <= dock.top };
-    });
-    expect(res.bad).toEqual([]);
-    expect(res.footerClear).toBe(true);
-  });
 });
