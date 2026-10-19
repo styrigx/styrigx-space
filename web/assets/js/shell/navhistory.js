@@ -1,11 +1,11 @@
 /**
- * @fileoverview 全站搜索快捷键 + 返回/Dock 历史逻辑（旧 sgx-base-a.js 上半）。
+ * @fileoverview 全站搜索快捷键 + 返回历史逻辑（旧 sgx-base-a.js 上半）。
  */
 import { on, delegate } from '../lib/events.js';
 import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
 
 /**
- * 初始化：Cmd/Ctrl+K 跳浏览器页搜索；返回键与 Dock 的历史管理。
+ * 初始化：Cmd/Ctrl+K 跳浏览器页搜索；返回键的历史管理。
  */
 export function initNavHistory() {
   const en = document.documentElement.lang === 'en';
@@ -22,18 +22,13 @@ export function initNavHistory() {
     }
   });
 
-  /* ===== 返回逻辑：一级 App 一次回主页，二级回一级；Dock 切换不累积历史 ===== */
+  /* ===== 返回逻辑：一级 App 一次回主页，二级回一级 ===== */
   const PRIMARY = {
-    '/browser/': 1, '/en/browser/': 1, '/files/': 1, '/en/files/': 1,
+    '/browser/': 1, '/en/browser/': 1,
     '/settings/': 1, '/en/settings/': 1,
   };
-  function isFilesType() {
-    const p = location.pathname;
-    return (p === '/files/' || p === '/en/files/') && location.search.indexOf('type=') !== -1;
-  }
   function parentOf() {
     const p = location.pathname;
-    if (p === '/files/' || p === '/en/files/') return en ? '/en/files/' : '/files/';
     /* C2：管理凭证区三级返回（定稿第 31、33 条）：
        Book 详情 → 应用；应用/锁屏 → 管理凭证索引页；索引页 → 安全与隐私。 */
     if (p === '/settings/security/apps/book/' || p === '/en/settings/security/apps/book/') {
@@ -54,10 +49,6 @@ export function initNavHistory() {
     return home;
   }
   function goBack() {
-    if (isFilesType()) {
-      sgxReplace(en ? '/en/files/' : '/files/');
-      return;
-    }
     const p = location.pathname;
     if (PRIMARY[p]) {
       sgxReplace(home);
@@ -69,14 +60,6 @@ export function initNavHistory() {
   delegate(document, 'click', '[data-go-back]', function (e) {
     e.preventDefault();
     goBack();
-  });
-  /* Dock 在 App 之间切换：子页面用 replace 不累积历史；主页用普通跳转保留历史。 */
-  delegate(document, 'click', '#mobile-dock a[href],#dex-dock a[href]', function (e, a) {
-    const p = location.pathname;
-    const isHome = p === '/' || p === '/en' || p === '/en/';
-    if (isHome) return; /* 主页：不拦截，普通跳转 */
-    e.preventDefault();
-    sgxReplace(a.getAttribute('href') || home);
   });
   /* 直接打开 App 页：最多插入一次主页历史，保证系统返回一次回到主页。 */
   (function () {
@@ -95,9 +78,7 @@ export function initNavHistory() {
     } catch (e) {}
     if (!ext || done) return;
     try {
-      const p = location.pathname;
-      const isFT = (p === '/files/' || p === '/en/files/') && location.search.indexOf('type=') !== -1;
-      const parent = isFT ? (en ? '/en/files/' : '/files/') : home;
+      const parent = home;
       const curUrl = location.pathname + location.search + location.hash;
       history.replaceState({ sgxRoot: 1 }, '', parent);
       history.pushState({ sgxHere: 1 }, '', curUrl);

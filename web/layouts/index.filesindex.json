@@ -1,4 +1,4 @@
-{{/* 全站内容索引：/files-index.json ——「我的文件」App 与浏览器站内搜索共用这一份数据 */}}
+{{/* 全站内容索引：/files-index.json —— 浏览器站内搜索用这一份数据（2026-10-19「我的文件」已删除） */}}
 {{ $items := slice }}
 {{ $langs := slice "zh" "en" }}
 {{ $homeOf := dict "zh" "/" "en" "/en/" }}
@@ -37,7 +37,6 @@
 {{/* 系统 App（browser/files/settings）直接链接；B2-2 删除应用商店 */}}
 {{ $apps := slice
   (dict "key" "browser"  "zh" "浏览器"   "en" "Internet"  "zhsub" "搜索与书签"     "ensub" "Search and bookmarks"   "path" "browser/")
-  (dict "key" "files"    "zh" "我的文件" "en" "My Files"  "zhsub" "站内文件索引"   "ensub" "Site file index"        "path" "files/")
   (dict "key" "settings" "zh" "设置"     "en" "Settings"  "zhsub" "主题、语言、壁纸" "ensub" "Theme, language, wallpaper" "path" "settings/")
 }}
 {{ range $l := $langs }}

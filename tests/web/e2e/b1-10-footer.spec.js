@@ -18,7 +18,6 @@ const VIEWPORTS = [
 const PAGES = [
   { path: '/settings/', cap: '#sgx-cap-settings' },
   { path: '/settings/display/', cap: '#sgx-cap-settings' },
-  { path: '/files/', cap: '#sgx-cap-files' },
 ];
 
 for (const vp of VIEWPORTS) {

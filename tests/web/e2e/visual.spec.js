@@ -1,6 +1,6 @@
 /**
  * 2.4.0 E：视觉回归测试。
- * 5 视口 × 中英 × 深浅色 × 主要页面（/、/files/、/browser/、/settings/ 等；B2-2 删除 /store/）
+ * 5 视口 × 中英 × 深浅色 × 主要页面（/、/browser/、/settings/ 等；B2-2 删除 /store/，2026-10-19 删除 /files/）
  * + F 的两张基准（弹层打开、引擎菜单打开）。
  * 首次运行：npx playwright test --update-snapshots 生成基准；
  * 后续运行自动对比，不一致即失败。
@@ -19,7 +19,7 @@ const VIEWPORTS = {
   desktop: { width: 1920, height: 1080 },
 };
 /* 安全与隐私：新页面加入视觉回归（先只报告，基线未生成前不阻塞） */
-const PAGES = ['/', '/files/', '/browser/', '/settings/', '/settings/security/', '/settings/security/lock/', '/settings/security/owner/'];
+const PAGES = ['/', '/browser/', '/settings/', '/settings/security/', '/settings/security/lock/', '/settings/security/owner/'];
 const LANGS = [
   { prefix: '', name: 'zh' },
   { prefix: '/en', name: 'en' },
