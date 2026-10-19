@@ -31,7 +31,8 @@ space（styrigx.com）相当于 One UI，blog/book 等分站相当于其中的 A
 
 ### L2 系统调用：`functions/api/*`
 - 解锁：`owner-password`、`owner-passkey`、`verify`（Turnstile）。
-- 查询：`session-check`、`owner-status`。
+- 查询：`session-check`、`lock-status`、`account`（账号凭证状态 + 当前账号会话；原 `owner-status` 已删除）。
+- 账号：`account`（账号密码/账号通行密钥登录与管理）、`root-auth`（`target:'account'` 时作为账号登录第三入口）、`stepup`（`enter`：近期账号登录换管理门票据）。
 - 锁定：`lock`（清除 `Domain=.styrigx.com` 的 `sgx-verified`，blog/book 一起上锁）。
 - 前端改变会话只能通过这些接口。
 
@@ -60,6 +61,26 @@ space（styrigx.com）相当于 One UI，blog/book 等分站相当于其中的 A
 2. **已解锁**（会话有效）：打开主站或任一分站任意页面，都直接进入；
    新标签页、刷新、内页都不再出锁屏。
 3. 不允许同一浏览器同一时刻，一个站要解锁、另一个站直接进。
+
+## 账号会话（账号域）
+
+原「站长凭证」升级为账号体系，账号会话与锁屏会话**是两套独立的票据**：
+
+- 锁屏会话 `sgx-verified`（`Domain=.styrigx.com`）只回答「是否已解锁」，
+  是唯一的解锁状态源；它**从不**被当作账号认证。
+- 账号会话 `sgx-account`（无 Domain，只发给主站；`HttpOnly; Secure; SameSite=Strict`；12 小时）
+  由 `_kernel/account-session.js` 签发与验证，格式 `by.epoch.authAt.exp.sig`，
+  用 `SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC`（Ed25519，PKCS8 / SPKI PEM）签名。
+  凭证域定义在 `_kernel/realms.js` 的 `REALM_ACCOUNT`。
+- 登录入口三者平级：账号通行密钥、账号密码、根凭证；前置条件是已解锁的 owner 锁屏会话。
+- 敏感操作（「管理凭证」进门、注册/删除账号通行密钥、修改账号密码）要求 `authAt` 在 10 分钟内，
+  过旧返回 403 `account-stale`，前端回账号页重新登录。
+- 改账号密码 / 删账号通行密钥时 `account-epoch` +1，其他设备的账号会话失效，当前设备重签。
+- 存储沿用原站长凭证（`owner-pw`、`owner-passkey:*` class=owner、`owner-user-id:owner`），
+  不搬数据、无需重新注册；新增 KV 键 `account-challenge:*`、`account-epoch`。
+- 缺账号钥匙 → 账号登录 503 `config`，只影响账号登录与进门，网站其余部分不受影响。
+- 前端：账号页 `/settings/account/`（`apps/account.js`），顶栏头像链接到它；
+  原站长凭证页（`security-owner`）已删除。
 
 ## 锁定与过期
 

@@ -4,6 +4,7 @@
  * 代替 Pages 的「按文件路由」。functions/api/ 新增或删除文件时这里要同步，
  * tests/kernel/auth-worker.test.mjs 会检查两边一致，漏了 CI 会红。
  */
+import * as account from '../functions/api/account.js';
 import * as appToken from '../functions/api/app-token.js';
 import * as avatar from '../functions/api/avatar.js';
 import * as books from '../functions/api/books.js';
@@ -16,7 +17,6 @@ import * as lockStatus from '../functions/api/lock-status.js';
 import * as lockreset from '../functions/api/lockreset.js';
 import * as ownerPasskey from '../functions/api/owner-passkey.js';
 import * as ownerPassword from '../functions/api/owner-password.js';
-import * as ownerStatus from '../functions/api/owner-status.js';
 import * as rootAudit from '../functions/api/root-audit.js';
 import * as rootAuth from '../functions/api/root-auth.js';
 import * as rootSession from '../functions/api/root-session.js';
@@ -28,6 +28,7 @@ import * as wellbeing from '../functions/api/wellbeing.js';
 
 /** @type {Map<string, Record<string, Function>>} */
 export const API_ROUTES = new Map([
+  ['/api/account', account],
   ['/api/app-token', appToken],
   ['/api/avatar', avatar],
   ['/api/books', books],
@@ -40,7 +41,6 @@ export const API_ROUTES = new Map([
   ['/api/lockreset', lockreset],
   ['/api/owner-passkey', ownerPasskey],
   ['/api/owner-password', ownerPassword],
-  ['/api/owner-status', ownerStatus],
   ['/api/root-audit', rootAudit],
   ['/api/root-auth', rootAuth],
   ['/api/root-session', rootSession],

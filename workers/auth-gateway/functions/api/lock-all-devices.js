@@ -20,7 +20,7 @@ import {
   bumpSessionEpoch,
   ROLE_OWNER,
 } from '../_kernel/session.js';
-import { verifyStepupCookie, STEPUP_SCOPE_KEYS, STEPUP_BY_ROOT, STEPUP_BY_OWNER } from './stepup.js';
+import { verifyStepupCookie, STEPUP_SCOPE_KEYS, STEPUP_BY_ROOT, STEPUP_BY_ACCOUNT } from './stepup.js';
 import { isLayerConfigured, LAYER_OWNER, LAYER_LOCK } from '../_kernel/layers.js';
 
 /** @param {any} context */
@@ -64,7 +64,7 @@ async function handlePost(context) {
     if (await isLayerConfigured(kv, LAYER_OWNER)) {
       return Response.json({ ok: false, error: 'scope' }, { status: 403 });
     }
-  } else if (st.by !== STEPUP_BY_OWNER) {
+  } else if (st.by !== STEPUP_BY_ACCOUNT) {
     return Response.json({ ok: false, error: 'scope' }, { status: 403 });
   }
 

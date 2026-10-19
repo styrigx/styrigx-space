@@ -5,9 +5,9 @@
  * Cookie 名、环境变量名、Cloudflare 绑定不改。
  */
 
-/** @type {string} 「站长凭证」门外的钥匙（根凭证） */
+/** @type {string} 根凭证（账号登录入口之一，也是恢复路径） */
 export const KEY_ROOT = 'rootkey';
-/** @type {string} 「站长凭证」门内存放的钥匙，同时是「管理凭证」门外的钥匙 */
+/** @type {string} 账号凭证（账号密码、账号通行密钥；原「站长凭证」），账号登录后进「管理凭证」门 */
 export const KEY_OWNER = 'ownerkey';
 /** @type {string} 「管理凭证 → 锁屏」里存放的钥匙 */
 export const KEY_LOCK = 'lockkey';

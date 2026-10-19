@@ -1,27 +1,20 @@
 /**
  * @fileoverview 安全与隐私页。
- * - 三个入口（访客与站长看到完全一样）：站长凭证、管理凭证、立即锁定。
- * - 站长凭证 → 共用验证弹层「进入站长凭证」→ 单个「根凭证」行 → /api/root-auth
- *   → 成功后直接进站长凭证门内页（/settings/security/owner/）。
- *   访客会话下为假入口（服务端写死 401），UI 与真入口完全一致。
- * - 管理凭证 → 共用验证弹层「进入管理凭证」→ 行按站长凭证配置（/api/owner-status）：
- *   未设置→根凭证（进站长凭证门）；仅通行密钥→站长通行密钥；
- *   仅密码→站长密码；两者都有→两个行（进锁屏门）。
- *   通行密钥行点后拉起系统验证；密码/根凭证行就地展开输入框。
+ * - 两个入口（访客与站长看到完全一样）：管理凭证、立即锁定。
+ *   原「站长凭证」已升级为账号，入口移到顶栏右圆头像（账号页 /settings/account/）。
+ * - 管理凭证 → POST /api/stepup { action:'enter' }：10 分钟内登录过账号 → 直接进管理凭证；
+ *   未登录或登录过旧（account / account-stale）→ 去账号登录（?door=1&return=<门内页>），
+ *   登录后自动进门。访客也走账号登录（服务端一律拒绝，界面一致）。
  * - 立即锁定：调服务端 /api/lock 清除会话 cookie 后重载，回到锁屏。
- * - 从 /api/owner-status（需鉴权）读取只读状态，渲染状态卡片（访客不调用）。
+ * - 从 GET /api/account（需 owner 会话）读取账号凭证是否已设置，渲染状态卡片（访客不调用）。
  * - localStorage 统一走 storage.js。
  */
 import { on } from '../lib/events.js';
 import { get as storeGet } from '../lib/storage.js';
 import { toast } from '../lib/toast.js';
-import { followKeyboard } from '../shell/vk.js';
-import { mgmtButtons } from './mgmt-buttons.js';
-import { exchangeRootSession } from '../lib/root-session.js';
-import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
-import { bindPwEye, onEnter, focusNoScroll } from '../lib/auth-flow.js';
+import { stepupFetch } from '../lib/auth-flow.js';
 import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindSubmitButton, tapFeedback, setRowBusy, setRowSelected, shouldIgnorePostDialogClick } from '../lib/dialog-behavior.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose, shouldIgnorePostDialogClick } from '../lib/dialog-behavior.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -40,11 +33,11 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindSubmitButton, 
     return en ? 'Something went wrong, please retry' : '出错了，请重试';
   }
 
-  const ownerUrl = en ? '/en/settings/security/owner/' : '/settings/security/owner/';
   const mgmtUrl = en ? '/en/settings/security/mgmt/' : '/settings/security/mgmt/';
+  const acctUrl = en ? '/en/settings/account/' : '/settings/account/';
 
   const card = document.getElementById('sec-status');
-  /** @type {{owner?: (t?: string) => void, mgmt?: (t?: string) => void}} */
+  /** @type {{mgmt?: (t?: string) => void}} */
   const doorOpeners = {};
   const cardTitle = document.getElementById('sec-status-title');
   const cardSub = document.getElementById('sec-status-sub');
@@ -74,11 +67,11 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindSubmitButton, 
 
   /** @param {boolean} [silent] */
   function refresh(silent) {
-    /* 访客不再调用 /api/owner-status（接口已加鉴权，访客 401）；状态卡片保持隐藏。 */
+    /* 访客不调用 /api/account（需 owner 会话，访客 401）；状态卡片保持隐藏。 */
     try {
       if (document.documentElement.dataset.sgxRole === 'visitor') return;
     } catch (e) {}
-    fetch('/api/owner-status', { method: 'GET', credentials: 'same-origin' })
+    fetch('/api/account', { method: 'GET', credentials: 'same-origin' })
       .then(function (r) {
         return r.json();
       })
@@ -174,554 +167,46 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindSubmitButton, 
     });
   }
 
-  /* ============ 两扇门验证弹层（共用组件，One UI 悬浮卡片） ============
-     只传标题、说明和方式列表；只显示已配置的方式。
-     - 点通行密钥行：右侧 > 变加载圈并拉起系统验证；用户取消系统验证时
-       弹层保留、不提示错误。
-     - 点密码/根凭证行：弹层内就地展开输入框（显示/隐藏、自动聚焦，
-       根凭证用单行密码框（Samsung Pass 可填充），底部变为「取消」「验证」两个等宽文字按钮；
-       不跳新页、不用原生 prompt。键盘弹出时弹层整体上移（followKeyboard）。
-     - 出错在输入框下方红色小字说明原因，不用 toast，不说「服务器错误」。
-     - 成功：弹层收起并直接进入门内页面，不再停留在入口页。
-     界面不出现 stepup、票据、rootkey/ownerkey 等内部名。 */
-  const doorDlg = (function () {
-    const dlg = document.getElementById('sec-verify-dlg');
-    const titleEl = document.getElementById('sec-verify-title');
-    const descEl = document.getElementById('sec-verify-desc');
-    const methodsEl = document.getElementById('sec-verify-methods');
-    const footEl = document.getElementById('sec-verify-foot');
-    if (!dlg || !titleEl || !methodsEl || !footEl) return null;
-
-    const CHEV = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>';
-    const ICONS = {
-      passkey: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7.5 3v5.25c0 4.6-3.2 7.9-7.5 9.75-4.3-1.85-7.5-5.15-7.5-9.75V6L12 3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9.5 12l2 2 3.5-4"/></svg>',
-      password: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
-      root: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="16" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M10.8 13.2L20 4m-3 3l3 3"/></svg>',
-    };
-
-    /** 当前展开的输入区（同一时刻只展开一个） */
-    let expanded = null;
-
-    /**
-     * @param {string} url
-     * @param {object} body
-     */
-    function postJSON(url, body) {
-      return fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        credentials: 'same-origin',
-      }).then(function (r) {
-        return r.json().then(function (j) { return { s: r.status, j: j }; });
-      });
-    }
-
-    function showErr(el, msg) {
-      if (el) {
-        el.textContent = msg;
-        el.hidden = false;
-      }
-    }
-    function closeDlg(reason) {
-      recordDialogClose('sec-verify', reason || 'unknown');
-      collapse();
-      try { dlg.close(); } catch (e) {}
-    }
-    /** 当前展开行的行元素与箭头（collapse 时一并清除选中态 + 旋转） */
-    let expandedRow = null;
-    let expandedChev = null;
-    function collapse() {
-      if (expanded) {
-        expanded.remove();
-        expanded = null;
-      }
-      /* 批次 A 验收修复 P2：收起时清除行选中态 + 箭头旋转 */
-      if (expandedRow) {
-        setRowSelected(expandedRow, false);
-        expandedRow = null;
-      }
-      if (expandedChev) {
-        expandedChev.classList.remove('expanded');
-        expandedChev = null;
-      }
-      setFootSingle();
-    }
-    function setFootSingle() {
-      footEl.innerHTML = '';
-      const c = document.createElement('button');
-      c.type = 'button';
-      /* C3：取消用圆角矩形浅底深蓝字按钮 */
-      c.className = 'sgx-door-btn sgx-door-btn-secondary';
-      c.textContent = en ? 'Cancel' : '取消';
-      on(c, 'click', function () { closeDlg('cancel-btn'); });
-      footEl.appendChild(c);
-    }
-    /** @param {() => void} onVerify */
-    function setFootDouble(onVerify) {
-      footEl.innerHTML = '';
-      const wrap = document.createElement('div');
-      wrap.className = 'sgx-door-actions';
-      const cancel = document.createElement('button');
-      cancel.type = 'button';
-      /* C3：圆角矩形按钮，取消浅底深蓝字 */
-      cancel.className = 'sgx-door-btn sgx-door-btn-secondary';
-      cancel.textContent = en ? 'Cancel' : '取消';
-      on(cancel, 'click', collapse);
-      const go = document.createElement('button');
-      go.type = 'button';
-      /* C3：圆角矩形按钮，验证深蓝底白字 */
-      go.className = 'sgx-door-btn sgx-door-btn-primary';
-      go.textContent = en ? 'Verify' : '验证';
-      /* 批次 A 收尾：pointerup（要求 pointerdown 也在按钮）+ click 兜底，去重只提交一次 */
-      bindSubmitButton(go, onVerify);
-      wrap.appendChild(cancel);
-      wrap.appendChild(go);
-      footEl.appendChild(wrap);
-    }
-
-    /* ---------- 三种验证方式的提交逻辑 ---------- */
-    /** @param {string} value */
-    function submitRootValue(value) {
-      return postJSON('/api/root-auth', { key: value }).then(
-        function (res) {
-          const j = res.j;
-          if (j && j.ok) {
-            /* 已有 owner 会话时直接进门，不需换会话。
-               只有无会话（访客+未配锁引导）才需调 /api/root-session 换站长会话，
-               否则被 middleware 拦。 */
-            let hasSession = false;
-            try {
-              hasSession = document.documentElement.dataset.sgxRole === 'owner';
-            } catch (e) {}
-            if (hasSession) {
-              /* #1 诊断：有会话时先预检刚签发的 stepup 票据。
-                 票有效才进门；无效则把接口、状态码、服务端 reason 留在弹层里，
-                 不关弹层、不跳转，方便定位。不显示密钥或 Cookie 值。 */
-              return postJSON('/api/stepup', { action: 'status' }).then(
-                function (st) {
-                  const sj = st.j;
-                  if (sj && sj.ok && sj.valid) return;
-                  const reason = (sj && sj.reason) || 'unknown';
-                  throw {
-                    message: (en ? 'Pre-check failed' : '预检未通过') +
-                      '（POST /api/stepup → ' + st.s + '，' + reason + '）',
-                  };
-                },
-                function () {
-                  throw { message: en ? 'Network connection failed, please retry' : '网络连接失败，请重试' };
-                }
-              );
-            }
-            /* 无会话路径：先走原来的换会话流程，不做 stepup 预检
-               （无会话时 middleware 对 /api/* 直接 401，预检必失败）。 */
-            return exchangeRootSession().then(function (rs) {
-              if (rs && rs.ok) return;
-              throw { message: en ? 'Verification failed, please retry' : '验证失败，请重试' };
-            });
-          }
-          if (res.s === 429) {
-            throw { message: en ? 'Too many attempts, please try again in 15 minutes' : '尝试太多次，请 15 分钟后再试' };
-          }
-          /* 401（含访客假入口）：统一提示密码不正确 */
-          throw { message: en ? 'Incorrect password' : '密码不正确', clear: true };
-        },
-        function () {
-          throw { message: en ? 'Network connection failed, please retry' : '网络连接失败，请重试' };
-        }
-      );
-    }
-    /** @param {string} value */
-    function submitPasswordValue(value) {
-      return postJSON('/api/stepup', { action: 'verify-password', password: value }).then(
-        function (res) {
-          if (res.j && res.j.ok) return;
-          throw { message: en ? 'Incorrect password' : '密码不正确', clear: true };
-        },
-        function () {
-          throw { message: en ? 'Network connection failed, please retry' : '网络连接失败，请重试' };
-        }
-      );
-    }
-    function doPasskey() {
-      if (!window.PublicKeyCredential) {
-        return Promise.reject({ message: en ? 'Passkey not supported' : '不支持通行密钥' });
-      }
-      return postJSON('/api/stepup', { action: 'challenge' }).then(
-        function (res) {
-          const j = res.j;
-          if (!j || !j.ok || !j.challenge) {
-            throw { message: en ? 'Verification failed, please retry' : '验证失败，请重试' };
-          }
-          const allow = (j.allowCredentials || []).map(function (c) {
-            return { type: 'public-key', id: b64urlToBuf(c.id) };
-          });
-          return navigator.credentials
-            .get({
-              publicKey: {
-                challenge: b64urlToBuf(j.challenge),
-                rpId: j.rpId,
-                allowCredentials: allow.length ? allow : undefined,
-                userVerification: 'required',
-              },
-            })
-            .then(
-              function (cred) { return { cred: cred, cid: j.cid }; },
-              function (e) {
-                /* 用户取消系统验证：调用方保留弹层、不提示错误 */
-                if (e && e.name === 'NotAllowedError') throw { cancelled: true };
-                throw { message: en ? 'Verification failed, please retry' : '验证失败，请重试' };
-              }
-            );
-        },
-        function () {
-          throw { message: en ? 'Network connection failed, please retry' : '网络连接失败，请重试' };
-        }
-      ).then(function (r) {
-        const cred = r.cred;
-        return postJSON('/api/stepup', {
-          action: 'verify',
-          cid: r.cid,
-          credential: {
-            id: cred.id,
-            rawId: bufToB64url(cred.rawId),
-            type: cred.type,
-            response: {
-              authenticatorData: bufToB64url(cred.response.authenticatorData),
-              clientDataJSON: bufToB64url(cred.response.clientDataJSON),
-              signature: bufToB64url(cred.response.signature),
-              userHandle: cred.response.userHandle ? bufToB64url(cred.response.userHandle) : null,
-            },
-          },
-        });
-      }).then(
-        function (res) {
-          if (res.j && res.j.ok) return;
-          throw { message: en ? 'Verification failed, please retry' : '验证失败，请重试' };
-        },
-        function (e) {
-          if (e && (e.cancelled || e.message)) throw e;
-          throw { message: en ? 'Network connection failed, please retry' : '网络连接失败，请重试' };
-        }
-      );
-    }
-
-    /* ---------- 行内展开 / 加载态 ---------- */
-    /**
-     * @param {object} m
-     * @param {HTMLInputElement|HTMLTextAreaElement} input
-     * @param {HTMLElement} errEl
-     */
-    function submitForm(m, input, errEl) {
-      const v = input.value;
-      errEl.hidden = true;
-      if (!v) {
-        showErr(errEl, en ? 'Enter credential' : '请输入凭证');
-        return;
-      }
-      m.submit(v).then(
-        function () {
-          closeDlg('success');
-          m.onSuccess();
-        },
-        function (e) {
-          showErr(errEl, e && e.message ? e.message : (en ? 'Verification failed, please retry' : '验证失败，请重试'));
-          if (e && e.clear) input.value = '';
-        }
-      );
-    }
-    /**
-     * @param {object} m
-     * @param {HTMLElement} wrap
-     * @param {HTMLElement} rowErr
-     */
-    function expandForm(m, wrap, rowErr, row, chev) {
-      const wasOpen = !!(expanded && expanded.dataset.kind === m.kind);
-      collapse();
-      rowErr.hidden = true;
-      if (wasOpen) return;
-      const form = document.createElement('div');
-      form.className = 'sgx-door-expand';
-      form.dataset.kind = m.kind;
-      const field = document.createElement('div');
-      field.className = 'sgx-pw-field';
-      let input;
-      if (m.field === 'root') {
-        /* 批次 A 收尾 B1：根凭证改单行密码框，autocomplete=current-password，
-           配隐藏用户名字段（autocomplete=username，值 root），让 Samsung Pass 能填充。 */
-        const userField = document.createElement('input');
-        userField.type = 'text';
-        userField.autocomplete = 'username';
-        userField.value = 'root';
-        userField.setAttribute('aria-hidden', 'true');
-        userField.tabIndex = -1;
-        userField.style.cssText = 'position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;';
-        field.appendChild(userField);
-        input = document.createElement('input');
-        input.type = 'password';
-        input.className = 'sgx-pw-input';
-        input.autocomplete = 'current-password';
-      } else {
-        input = document.createElement('input');
-        input.type = 'password';
-        input.className = 'sgx-pw-input';
-        input.autocomplete = 'current-password';
-      }
-      input.setAttribute('aria-label', m.title);
-      input.placeholder = m.sub;
-      const eye = document.createElement('button');
-      eye.type = 'button';
-      eye.className = 'sgx-pw-eye';
-      /* 批次 A 验收修复 P2：bindEyeButton 统一接管（初始 eye-off；expandForm 重建即复位） */
-      bindPwEye(eye, input, en);
-      field.appendChild(input);
-      field.appendChild(eye);
-      const errEl = document.createElement('p');
-      errEl.className = 'sgx-door-err';
-      errEl.hidden = true;
-      form.appendChild(field);
-      form.appendChild(errEl);
-      wrap.appendChild(form);
-      expanded = form;
-      /* 批次 A 验收修复 P2：展开时行选中态 + 箭头旋转 90° */
-      if (row) {
-        setRowSelected(row, true);
-        expandedRow = row;
-      }
-      if (chev) {
-        chev.classList.add('expanded');
-        expandedChev = chev;
-      }
-      const doSubmit = function () { submitForm(m, input, errEl); };
-      setFootDouble(doSubmit);
-      /* 键盘弹出时弹层整体上移 */
-      followKeyboard(dlg, input);
-      focusNoScroll(input);
-      onEnter(input, doSubmit);
-    }
-    /**
-     * @param {object} m
-     * @param {HTMLButtonElement} row
-     * @param {HTMLElement} chev
-     * @param {HTMLElement} rowErr
-     */
-    function startWebauthn(m, row, chev, rowErr) {
-      /* 批次 A 验收修复 P2：busy 中重复点击（合成事件）直接丢弃，保证 challenge 只发一次 */
-      if (row.disabled) return;
-      rowErr.hidden = true;
-      /* 副标题切换 busy 文案（保存原文，成功/取消/失败三路都要恢复） */
-      const subEl = row.querySelector('.sgx-door-rowsub');
-      const origSub = subEl ? subEl.textContent : '';
-      if (subEl) subEl.textContent = t('passkeyBusy');
-      chev.innerHTML = '<span class="sgx-door-spin" aria-hidden="true"></span>';
-      setRowBusy(row, true);
-      m.submit().then(
-        function () {
-          closeDlg('success');
-          m.onSuccess();
-        },
-        function (e) {
-          /* 用户取消系统验证：弹层保留，不提示错误 */
-          if (!(e && e.cancelled)) {
-            showErr(rowErr, e && e.message ? e.message : (en ? 'Verification failed, please retry' : '验证失败，请重试'));
-          }
-        }
-      ).then(function () {
-        chev.innerHTML = CHEV;
-        setRowBusy(row, false);
-        if (subEl) subEl.textContent = origSub;
-      });
-    }
-    /** @param {object} m */
-    function renderMethod(m) {
-      const wrap = document.createElement('div');
-      wrap.className = 'sgx-door-method';
-      const row = document.createElement('button');
-      row.type = 'button';
-      row.className = 'sgx-door-row';
-      const ic = document.createElement('span');
-      ic.className = 'sgx-door-ic';
-      ic.setAttribute('aria-hidden', 'true');
-      ic.innerHTML = m.icon;
-      const mid = document.createElement('span');
-      mid.className = 'sgx-door-mid';
-      const rt = document.createElement('span');
-      rt.className = 'sgx-door-rowtitle';
-      rt.textContent = m.title;
-      const rs = document.createElement('span');
-      rs.className = 'sgx-door-rowsub';
-      rs.textContent = m.sub;
-      mid.appendChild(rt);
-      mid.appendChild(rs);
-      const chev = document.createElement('span');
-      chev.className = 'sgx-door-chev';
-      chev.setAttribute('aria-hidden', 'true');
-      chev.innerHTML = CHEV;
-      row.appendChild(ic);
-      row.appendChild(mid);
-      row.appendChild(chev);
-      const rowErr = document.createElement('p');
-      rowErr.className = 'sgx-door-err';
-      rowErr.hidden = true;
-      wrap.appendChild(row);
-      wrap.appendChild(rowErr);
-      methodsEl.appendChild(wrap);
-      on(row, 'click', function () {
-        /* 批次 A 验收修复 P2：轻触觉反馈 */
-        tapFeedback();
-        if (m.field === 'webauthn') startWebauthn(m, row, chev, rowErr);
-        else expandForm(m, wrap, rowErr, row, chev);
-      });
-    }
-
-    /* ---------- 方式定义 ---------- */
-    /** @param {() => void} onSuccess */
-    function rootMethod(onSuccess) {
-      return {
-        kind: 'root', field: 'root', icon: ICONS.root,
-        title: en ? 'Root credential' : '根凭证',
-        sub: en ? 'Paste or enter root credential' : '粘贴或输入根凭证',
-        submit: submitRootValue, onSuccess: onSuccess,
-      };
-    }
-    /** @param {() => void} onSuccess */
-    function passwordMethod(onSuccess) {
-      return {
-        kind: 'password', field: 'password', icon: ICONS.password,
-        title: en ? 'Owner password' : '站长密码',
-        sub: en ? 'Enter owner password' : '输入站长密码',
-        submit: submitPasswordValue, onSuccess: onSuccess,
-      };
-    }
-    /** @param {() => void} onSuccess */
-    function passkeyMethod(onSuccess) {
-      return {
-        kind: 'passkey', field: 'webauthn', icon: ICONS.passkey,
-        title: en ? 'Owner passkey' : '站长通行密钥',
-        sub: en ? 'Use fingerprint or device screen lock' : '使用指纹或设备锁屏',
-        submit: doPasskey, onSuccess: onSuccess,
-      };
-    }
-
-    /**
-     * @param {object} cfg {title, desc, methods, loadError?}
-     */
-    function open(cfg) {
-      titleEl.textContent = cfg.title;
-      descEl.textContent = cfg.desc;
-      methodsEl.innerHTML = '';
-      collapse();
-      if (cfg.loadError) {
-        const p = document.createElement('p');
-        p.className = 'sgx-door-err';
-        p.textContent = cfg.loadError;
-        methodsEl.appendChild(p);
-      } else {
-        cfg.methods.forEach(renderMethod);
-      }
-      if (typeof dlg.showModal === 'function') {
-        try { dlg.showModal(); } catch (e) {}
-      }
-    }
-
-    /* 批次 A 收尾 A1/A2：点遮罩只失焦不关闭；返回手势键盘开着先收键盘，键盘收起才关闭 */
-    dlg.addEventListener('click', function (e) {
-      onDialogBackdrop(e, dlg);
-    });
-    dlg.addEventListener('cancel', function (e) {
-      onDialogCancel(e, dlg, function (reason) { closeDlg(reason); });
-    });
-    /* 批次 A 收尾 A3：右上角 × 按钮 */
-    const closeBtn = document.getElementById('sec-verify-close');
-    if (closeBtn) {
-      on(closeBtn, 'click', function () { closeDlg('close-btn'); });
-    }
-
-    return { open: open, rootMethod: rootMethod, passwordMethod: passwordMethod, passkeyMethod: passkeyMethod };
-  })();
-
-  /* ============ 入口 1：站长凭证 ============
-     弹层「进入站长凭证」，单个「根凭证」行 → /api/root-auth →
-     成功后直接进站长凭证门内页。访客会话下服务端为假入口（写死 401），
-     UI 完全一致。 */
-  (function () {
-    const row = document.getElementById('sec-owner-cred');
-    if (!row || !doorDlg) return;
-    function openOwnerDoor(/** @type {string} [target] */ target) {
-      const dest = (typeof target === 'string' && target) ? target : ownerUrl;
-      doorDlg.open({
-        title: en ? 'Enter owner key' : '进入站长凭证',
-        desc: en
-          ? 'Verify with your root credential. After verification you can freely manage owner keys; it expires when you leave.'
-          : '用根凭证验证。验证后可自由管理站长凭证，离开即失效。',
-        methods: [doorDlg.rootMethod(function () { sgxNavigate(dest); })],
-      });
-    }
-    on(row, 'click', function () { openOwnerDoor(); });
-    doorOpeners.owner = openOwnerDoor;
-    on(row, 'keydown', function (/** @type {KeyboardEvent} */ e) {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        openOwnerDoor();
-      }
-    });
-  })();
-
-  /* ============ 入口 2：管理凭证 ============
-     弹层「进入管理凭证」，行按站长凭证配置（/api/owner-status）：
-     - 什么都没设置 → 只显示「根凭证」（进管理凭证索引页）
-     - 只设了通行密钥 → 「站长通行密钥」
-     - 只设了密码 → 「站长密码」
-     - 两个都设了 → 两个都显示（进管理凭证索引页），不显示根凭证
-     批次 A 收尾 D1：通行密钥和密码验证成功都走 goMgmt（进管理凭证索引页），
-     不再 goLock 直接进锁屏子页。
-     访客会话下为假入口——弹层固定单个「根凭证」行，不读站长凭证配置；
-     服务端（/api/root-auth 访客假入口）写死返回密码错误。 */
+  /* ============ 管理凭证 ============
+     账号体系：门票据由近期（≤10 分钟）账号登录签发（POST /api/stepup enter → by=account, scope=keys）。
+     - 成功 → 进管理凭证（或 target 指定的门内页）
+     - account / account-stale → 去账号登录（?door=1&return=），登录后账号页自动换票进门
+     - session → 会话失效，回锁屏
+     访客：直接去账号登录（界面与站长一致，服务端一律拒绝）。 */
   (function () {
     const row = document.getElementById('sec-mgmt-cred');
-    if (!row || !doorDlg) return;
-    /* 定稿 #16：未配 ownerkey 时管理凭证的根凭证行验证后进管理凭证索引页，
-       不跳站长凭证门。 */
-    const goMgmt = function () { sgxNavigate(mgmtUrl); };
+    if (!row) return;
+    let busy = false;
+    /** @param {string} dest */
+    function goAccountLogin(dest) {
+      sgxNavigate(acctUrl + '?door=1&return=' + encodeURIComponent(dest));
+    }
     function openMgmtDoor(/** @type {string} [target] */ target) {
-      const go = (typeof target === 'string' && target) ? function () { sgxNavigate(target); } : goMgmt;
+      const dest = (typeof target === 'string' && target) ? target : mgmtUrl;
       let isVisitor = false;
       try {
         isVisitor = document.documentElement.dataset.sgxRole === 'visitor';
       } catch (e) {}
-      const title = en ? 'Enter credential management' : '进入管理凭证';
-      const desc = en
-        ? 'Verify with your owner credential. After verification you can freely manage lock screen and app keys; it expires when you leave.'
-        : '用站长凭证验证。验证后可自由管理锁屏和应用的钥匙，离开即失效。';
-      const build = function (hasPw, hasPk) {
-        const methods = [];
-        /* 行决策走纯函数 mgmtButtons（可测试），与 /api/owner-status 的语义对齐 */
-        const kinds = mgmtButtons(hasPw, hasPk);
-        for (const kind of kinds) {
-          if (kind === 'root') methods.push(doorDlg.rootMethod(go));
-          else if (kind === 'passkey') methods.push(doorDlg.passkeyMethod(go));
-          else if (kind === 'password') methods.push(doorDlg.passwordMethod(go));
-        }
-        doorDlg.open({ title: title, desc: desc, methods: methods });
-      };
       if (isVisitor) {
-        build(false, false);
-      } else {
-        /* 每次打开时重新读取配置。读取失败显示错误，不退回根凭证
-           （避免显示必然失败的行）。 */
-        fetch('/api/owner-status', { method: 'GET', credentials: 'same-origin' })
-          .then(function (r) { return r.json(); })
-          .then(function (j) {
-            if (j && j.ok) build(!!j.password, !!j.passkey);
-            else throw new Error('bad');
-          })
-          .catch(function () {
-            doorDlg.open({
-              title: title, desc: desc, methods: [],
-              loadError: en ? 'Failed to load configuration' : '读取配置失败，请重试',
-            });
-          });
+        goAccountLogin(dest);
+        return;
       }
+      if (busy) return;
+      busy = true;
+      stepupFetch('enter', { credentials: 'same-origin' })
+        .then(function (r) {
+          return r.json().then(function (j) { return { s: r.status, j: j }; }, function () { return { s: r.status, j: null }; });
+        })
+        .then(function (res) {
+          const code = res.j && res.j.error;
+          if (res.j && res.j.ok) sgxNavigate(dest);
+          else if (code === 'account' || code === 'account-stale') goAccountLogin(dest);
+          else if (code === 'session' || res.s === 401) sgxReplace('/?lock=1&return=' + encodeURIComponent(window.location.pathname));
+          else toast(en ? 'Something went wrong, please retry' : '出错了，请重试');
+        }, function () {
+          toast(t('errNetwork'));
+        })
+        .then(function () { busy = false; });
     }
     on(row, 'click', function () { openMgmtDoor(); });
     on(row, 'keydown', function (/** @type {KeyboardEvent} */ e) {
@@ -732,9 +217,7 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindSubmitButton, 
     });
     doorOpeners.mgmt = openMgmtDoor;
 
-    /* 2026-10-19：状态卡片（一切正常 / 未设置）不再是直达锁屏门内页的裸链接。
-       门内页要验证，裸链接进去只会弹「验证已过期」。改为先走管理凭证验证，
-       验证通过后进锁屏凭证页。 */
+    /* 状态卡片不是直达锁屏门内页的裸链接：先走管理凭证（进门），通过后进锁屏凭证页。 */
     if (card) {
       on(card, 'click', function (/** @type {MouseEvent} */ e) {
         e.preventDefault();
@@ -743,19 +226,17 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindSubmitButton, 
     }
   })();
 
-  /* 2026-10-19：门内页验证过期 → 弹框「重新验证」→ 回到本页并带
-     ?verify=mgmt|owner&return=<门内页>，这里自动打开对应验证弹层，
-     验证通过后回到原门内页。return 只接受本站安全设置下的门内路径。 */
+  /* 门内页验证过期 → 弹框「重新验证」→ 回到本页并带 ?verify=mgmt&return=<门内页>，
+     这里自动走管理凭证进门流程，通过后回到原门内页。return 只接受本站安全设置下的门内路径。 */
   (function () {
     let q;
     try { q = new URLSearchParams(window.location.search); } catch (e) { return; }
     const which = q.get('verify');
     if (!which) return;
     const ret = q.get('return') || '';
-    const okRet = /^\/(en\/)?settings\/security\/(owner|lock|apps|mgmt)\/[a-z0-9\-\/]*$/.test(ret) ? ret : '';
+    const okRet = /^\/(en\/)?settings\/security\/(lock|apps|mgmt)\/[a-z0-9\-\/]*$/.test(ret) ? ret : '';
     try { history.replaceState(null, '', window.location.pathname); } catch (e) {}
-    if (which === 'owner' && doorOpeners.owner) doorOpeners.owner(okRet);
-    else if (which === 'mgmt' && doorOpeners.mgmt) doorOpeners.mgmt(okRet);
+    if (doorOpeners.mgmt) doorOpeners.mgmt(okRet);
   })();
 
 

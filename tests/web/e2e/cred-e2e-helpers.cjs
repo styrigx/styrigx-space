@@ -1,8 +1,8 @@
 /**
  * 凭证类 API 真请求 e2e 的共享 helper（Item 25）。
  * - makeKV：内存 KV（实现 handler 用到的 get/put/delete/list 子集）。
- * - startCredentialTestServer(port)：启动本地测试服务器，/api/owner-password
- *   与 /api/owner-passkey 路由到 functions/api/ 下的真实 handler
+ * - startCredentialTestServer(port)：启动本地测试服务器，/api/owner-password、
+ *   /api/owner-passkey、/api/account、/api/stepup 路由到 functions/api/ 下的真实 handler
  *  （onRequestPost），env 配测试密钥；返回 { kv, env, close, mintAuth }。
  * - makeAttestationCredential：Node 端合成 WebAuthn 注册 attestation
  *   （UV=1；CDP 虚拟认证器开 UV 会抛 NotAllowedError，故不用浏览器仪式）。
@@ -167,6 +167,8 @@ async function startCredentialTestServer(port) {
     SGX_LOCK_PUBLIC: pubPem,
     SGX_STEPUP_PRIVATE: privPem,
     SGX_STEPUP_PUBLIC: pubPem,
+    SGX_ACCOUNT_PRIVATE: privPem,
+    SGX_ACCOUNT_PUBLIC: pubPem,
     SGX_RP_ID: 'localhost',
     SGX_ORIGIN: origin,
   };
@@ -176,6 +178,8 @@ async function startCredentialTestServer(port) {
   const pkMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/api/owner-passkey.js')).href);
   const sessMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/_kernel/session.js')).href);
   const stepupMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/api/stepup.js')).href);
+  const acctMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/api/account.js')).href);
+  const acctSess = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/_kernel/account-session.js')).href);
 
   const server = http.createServer(async (req, res) => {
     try {
@@ -187,6 +191,8 @@ async function startCredentialTestServer(port) {
       let handler = null;
       if (req.url.startsWith('/api/owner-password')) handler = pwMod.onRequestPost;
       else if (req.url.startsWith('/api/owner-passkey')) handler = pkMod.onRequestPost;
+      else if (req.url.startsWith('/api/account')) handler = req.method === 'GET' ? acctMod.onRequestGet : acctMod.onRequestPost;
+      else if (req.url.startsWith('/api/stepup')) handler = stepupMod.onRequestPost;
       if (!handler) {
         res.writeHead(404, { 'Content-Type': 'text/plain' });
         res.end('not found');
@@ -234,11 +240,18 @@ async function startCredentialTestServer(port) {
     return { sessionCookie, stepupCookie };
   }
 
+  /* 账号会话（sgx-account）：by=passkey|password|root，authAt 默认现在；epoch 读 KV account-epoch */
+  async function mintAccount(by, authAt) {
+    const epoch = parseInt((await kv.get('account-epoch')) || '0', 10) || 0;
+    return await acctSess.signAccountTicket(privPem, by, epoch, authAt || Date.now());
+  }
+
   return {
     kv,
     env,
     origin,
     mintAuth,
+    mintAccount,
     makeAttestationCredential,
     close: () => new Promise((resolve) => server.close(resolve)),
   };

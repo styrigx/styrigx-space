@@ -1,0 +1,143 @@
+{{/* 账号（原「站长凭证」升级为账号）：顶栏右圆头像进入。
+   未登录 → 账号登录：账号通行密钥 / 账号密码 / 根凭证 三个入口平级，任一成功签发账号会话（sgx-account）。
+   已登录 → 账号页：管理账号通行密钥（添加/删除）和账号密码（设置/修改）；账号凭证只在这里管理，不在「门」里。
+   根凭证登录同样能重置账号密码、删除通行密钥（恢复路径）。
+   ?door=1&return=<门内页>：从「管理凭证」过来（账号登录超过 10 分钟或未登录），登录后自动进门。
+   访客看到的界面与站长一致（服务端一律拒绝）。noindex、不进 sitemap（见 baseof/sitemap）。
+   脚本走 ES Module 入口 entry-account.js。 */}}
+{{ define "main" }}
+{{ .Scratch.Set "sgx-entry" "entry-account.js" }}
+{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+
+<div class="set-layout max-w-2xl mx-auto px-4 pb-28">
+  {{ partial "subpage-head.html" (dict "title" (cond $isEn "Account" "账号") "isEn" $isEn) }}
+
+  <!-- 账号登录：三个入口平级（JS 渲染行，行内展开输入框） -->
+  <div id="acct-login">
+    <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Sign in to your account{{ else }}登录账号{{ end }}</span></h2>
+    <p class="sec-note mb-3" id="acct-login-desc">{{ if $isEn }}Use your account passkey, account password, or root credential.{{ else }}用账号通行密钥、账号密码或根凭证登录。{{ end }}</p>
+    <p class="sgx-door-err mb-3" id="acct-login-notice" hidden></p>
+    <div class="sgx-door-methods animate-fade-up" id="acct-methods" style="animation-delay:.1s"></div>
+    <p class="sec-note mt-6 sgx-build-tag-wrap">{{ partial "build-tag.html" (dict "isEn" $isEn) }}</p>
+  </div>
+
+  <!-- 账号页（登录后） -->
+  <div id="acct-main" hidden>
+    <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Signed in{{ else }}已登录{{ end }}</span></h2>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.1s">
+      <div class="set-row no-ic">
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">Sloan Gray</span>
+          <span class="block text-xs mt-0.5 text-m-primary" id="acct-by"></span>
+        </span>
+      </div>
+      <button type="button" class="lockmgr-delrow" id="acct-logout">{{ if $isEn }}Sign out{{ else }}退出账号{{ end }}</button>
+    </section>
+    <p class="sec-note mb-7">{{ if $isEn }}Entering credential management and changing account keys need a sign-in within the last 10 minutes.{{ else }}进入管理凭证、修改账号凭证需要 10 分钟内登录过。{{ end }}</p>
+
+    <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "lock" }}</span><span>{{ if $isEn }}Account password{{ else }}账号密码{{ end }}</span></h2>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.12s">
+      <div class="set-row" id="lockmgr-pwrow" role="button" tabindex="0">
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}Account password{{ else }}账号密码{{ end }}</span>
+          <span class="block text-xs mt-0.5 text-m-primary" id="lockmgr-pwsub">{{ if $isEn }}Loading…{{ else }}正在读取…{{ end }}</span>
+        </span>
+        {{ partial "icon.html" "chev-r" }}
+      </div>
+    </section>
+    <p class="sec-note mb-7">{{ if $isEn }}Used to sign in to your account. Minimum 8 characters.{{ else }}用于登录账号，最短 8 位。{{ end }}</p>
+
+    <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Account passkeys{{ else }}账号通行密钥{{ end }}</span></h2>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.14s">
+      <ul class="lockmgr-pklist" id="lockmgr-pklist" hidden></ul>
+      <div class="p-4" id="lockmgr-pkempty" hidden>
+        <p class="text-sm text-m-on-surface-variant m-0">{{ if $isEn }}No passkeys yet.{{ else }}还没有通行密钥。{{ end }}</p>
+      </div>
+      <button type="button" class="lockmgr-add" id="lockmgr-pkadd">
+        <span aria-hidden="true">＋</span> {{ if $isEn }}Add passkey{{ else }}添加通行密钥{{ end }}
+      </button>
+    </section>
+    <p class="sec-note">{{ if $isEn }}Used to sign in to your account with fingerprint, face, or device passcode.{{ else }}用指纹、面容或设备密码登录账号。{{ end }}</p>
+    <p class="sec-note mt-6 sgx-build-tag-wrap">{{ partial "build-tag.html" (dict "isEn" $isEn) }}</p>
+  </div>
+</div>
+
+<!-- 账号密码设置/修改弹层（lib/auth-flow.js createSetPwDialog） -->
+<dialog id="lockpw-dlg" class="sgx-verify-dlg" aria-labelledby="lockpw-title">
+  <div class="sgx-verify-card">
+    <button type="button" class="sgx-dlg-close" data-dlg-close aria-label="{{ if $isEn }}Close{{ else }}关闭{{ end }}">×</button>
+    <div class="sheet-handle" data-pclose></div>
+    <h2 id="lockpw-title" class="sgx-verify-title">{{ if $isEn }}Set account password{{ else }}设置账号密码{{ end }}</h2>
+    <div class="sgx-pw-field">
+      <input type="password" id="lockpw-1" class="sgx-pw-input" autocomplete="new-password"
+             aria-label="{{ if $isEn }}New password{{ else }}新密码{{ end }}"
+             placeholder="{{ if $isEn }}New password (min 8){{ else }}新密码（最少 8 位）{{ end }}">
+      <button type="button" class="sgx-pw-eye" data-eye="lockpw-1" aria-label="{{ if $isEn }}Show password{{ else }}显示密码{{ end }}"></button>
+    </div>
+    <div class="sgx-pw-field">
+      <input type="password" id="lockpw-2" class="sgx-pw-input" autocomplete="new-password"
+             aria-label="{{ if $isEn }}Confirm password{{ else }}确认密码{{ end }}"
+             placeholder="{{ if $isEn }}Confirm password{{ else }}确认密码{{ end }}">
+      <button type="button" class="sgx-pw-eye" data-eye="lockpw-2" aria-label="{{ if $isEn }}Show password{{ else }}显示密码{{ end }}"></button>
+    </div>
+    <p id="lockpw-err" class="sgx-verify-err" hidden></p>
+    <button type="button" class="sgx-verify-skip" id="lockpw-go">{{ if $isEn }}Save{{ else }}保存{{ end }}</button>
+  </div>
+</dialog>
+
+{{ $acI18n := dict
+  "eyeShow" (dict "zh" "显示密码" "en" "Show password")
+  "eyeHide" (dict "zh" "隐藏密码" "en" "Hide password")
+  "mPasskey" (dict "zh" "账号通行密钥" "en" "Account passkey")
+  "mPasskeySub" (dict "zh" "使用指纹或设备锁屏" "en" "Use fingerprint or device screen lock")
+  "mPassword" (dict "zh" "账号密码" "en" "Account password")
+  "mPasswordSub" (dict "zh" "输入账号密码" "en" "Enter account password")
+  "mRoot" (dict "zh" "根凭证" "en" "Root credential")
+  "mRootSub" (dict "zh" "粘贴或输入根凭证" "en" "Paste or enter root credential")
+  "verifyBtn" (dict "zh" "登录" "en" "Sign in")
+  "enterCred" (dict "zh" "请输入凭证" "en" "Enter credential")
+  "passkeyBusy" (dict "zh" "正在唤起通行密钥…" "en" "Opening passkey…")
+  "byPasskey" (dict "zh" "已用账号通行密钥登录" "en" "Signed in with account passkey")
+  "byPassword" (dict "zh" "已用账号密码登录" "en" "Signed in with account password")
+  "byRoot" (dict "zh" "已用根凭证登录（可重置账号密码、删除通行密钥）" "en" "Signed in with root credential (you can reset the password and remove passkeys)")
+  "staleNotice" (dict "zh" "登录已超过 10 分钟，请重新验证" "en" "Your sign-in is older than 10 minutes. Please verify again.")
+  "doorNotice" (dict "zh" "进入管理凭证前请先登录账号" "en" "Sign in to your account to enter credential management")
+  "configNotice" (dict "zh" "账号登录暂不可用：服务器缺少账号密钥配置" "en" "Account sign-in is unavailable: the server is missing the account key configuration")
+  "loggedOut" (dict "zh" "已退出账号" "en" "Signed out")
+  "pwSet" (dict "zh" "已设置" "en" "Set")
+  "pwUnset" (dict "zh" "未设置" "en" "Not set")
+  "pwMin8" (dict "zh" "最短 8 位" "en" "Minimum 8 characters")
+  "pwMismatch" (dict "zh" "两次输入不一致" "en" "Passwords do not match")
+  "pwSaved" (dict "zh" "已保存" "en" "Saved")
+  "pwChanged" (dict "zh" "已修改" "en" "Changed")
+  "setTitle" (dict "zh" "设置账号密码" "en" "Set account password")
+  "changeTitle" (dict "zh" "修改账号密码" "en" "Change account password")
+  "resetTitle" (dict "zh" "重置账号密码" "en" "Reset account password")
+  "pkRegistered" (dict "zh" "已注册" "en" "Registered")
+  "pkDeleted" (dict "zh" "已删除" "en" "Deleted")
+  "pkDelManual" (dict "zh" "请到 Samsung Pass 里手动删除这把通行密钥" "en" "Please delete this passkey manually in Samsung Pass")
+  "pkUnnamed" (dict "zh" "账号通行密钥" "en" "Account passkey")
+  "pkDel" (dict "zh" "删除" "en" "Delete")
+  "pkDelAsk" (dict "zh" "再点一次删除" "en" "Tap again to delete")
+  "pkNeverUsed" (dict "zh" "尚未使用" "en" "Not used yet")
+  "pkAlready" (dict "zh" "此设备已注册过" "en" "Already registered on this device")
+  "pkNoSupport" (dict "zh" "设备不支持" "en" "Not supported on this device")
+  "pkFailed" (dict "zh" "注册失败" "en" "Registration failed")
+  "errCancelled" (dict "zh" "已取消" "en" "Cancelled")
+  "errWrongPw" (dict "zh" "密码不正确" "en" "Incorrect password")
+  "errWrongRoot" (dict "zh" "根凭证不正确" "en" "Incorrect root credential")
+  "errNotSet" (dict "zh" "尚未设置" "en" "Not set")
+  "errVerify" (dict "zh" "验证失败，请重试" "en" "Verification failed, please retry")
+  "errUvRequired" (dict "zh" "需要设备解锁确认" "en" "Device unlock required")
+  "errLocked" (dict "zh" "尝试太多次，请 15 分钟后再试" "en" "Too many attempts, please try again in 15 minutes")
+  "errConfig" (dict "zh" "服务器配置有误" "en" "Server misconfigured")
+  "errServer" (dict "zh" "服务暂时不可用" "en" "Service temporarily unavailable")
+  "errShort" (dict "zh" "最短 8 位" "en" "Minimum 8 characters")
+  "errSameAsLock" (dict "zh" "不能与解锁密码相同" "en" "Can't be the same as the unlock password")
+  "errNotFound" (dict "zh" "找不到这把钥匙" "en" "Key not found")
+  "errNetwork" (dict "zh" "网络连接失败，请重试" "en" "Network connection failed, please retry")
+  "errUnknown" (dict "zh" "未知错误，请稍后重试" "en" "Unknown error, please try again later")
+  "sessExp" (dict "zh" "会话已失效，请回到锁屏重新解锁" "en" "Session expired, please unlock again from the lock screen")
+}}
+<script id="sgx-i18n-account" type="application/json">{{ $acI18n | jsonify | safeJS }}</script>
+{{ end }}

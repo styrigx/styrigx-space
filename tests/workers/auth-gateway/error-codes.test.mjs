@@ -19,9 +19,11 @@
  * - failed / hostname / token：verify.js，lock.js submitToken 只看 ok，固定文案
  * - stepup：root-session / root-audit 403，调用方只用 ok/status，不进 apiErrorText
  * - bad-form / missing / bad-type / too-large：/api/avatar 换头像，avatar-edit.js 只看 ok，失败一律固定文案
+ * - account / account-stale：账号会话缺失 / 登录超过 10 分钟（/api/stepup enter、/api/account 管理），
+ *   安全页与账号页按码跳回账号登录重新验证，不进 apiErrorText
  *
- * 另断言：每个 ERR_KEY 的 i18n key 都在三扇门模板
- * （security-owner / security-lock / security-apps-book）里定义，
+ * 另断言：每个 ERR_KEY 的 i18n key 都在门内模板
+ * （security-lock / security-apps-book；原 security-owner 已升级为账号页）里定义，
  * 否则 t() 兜底会把映射当成缺键丢掉。
  *
  * 运行：node --test tests/kernel/error-codes.test.mjs
@@ -46,6 +48,8 @@ const KNOWN_FIXED = new Set([
   'missing',
   'bad-type',
   'too-large',
+  'account',
+  'account-stale',
 ]);
 
 function read(p) {
@@ -100,10 +104,9 @@ test('same-as-lock / same-as-owner 必须在 ERR_KEY 里（双向相同密码文
   assert.equal(errKey.get('same-as-owner'), 'errSameAsOwner');
 });
 
-test('每个 ERR_KEY 的 i18n key 都在三扇门模板里定义', () => {
+test('每个 ERR_KEY 的 i18n key 都在门内模板里定义', () => {
   const { errKey } = extractFrontendMaps();
   const templates = [
-    'web/layouts/_default/security-owner.html',
     'web/layouts/_default/security-lock.html',
     'web/layouts/_default/security-apps-book.html',
   ];

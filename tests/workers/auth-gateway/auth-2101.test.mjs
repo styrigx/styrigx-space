@@ -200,7 +200,7 @@ test('B9：bumpAppEpoch KV 失败 → 删除被拒绝（fail closed）', async (
   await kv.put('owner-passkey-index', JSON.stringify([credId]));
   const env = authEnv(kv);
   // 先做一个能用的 stepup
-  const stepupVal = await signStepupCookie(STEPUP_PRIV, 'owner', 'keys', 0);
+  const stepupVal = await signStepupCookie(STEPUP_PRIV, 'account', 'keys', 0);
   // 让 bumpAppEpoch 的 put 失败：用一个会抛错的 KV 包装
   const failKv = {
     ...kv,
@@ -233,7 +233,7 @@ test('B10：删应用类密钥只加 app-epoch，不推进会话纪元', async (
   await kv.put('owner-passkey:' + credId, JSON.stringify(rec));
   await kv.put('owner-passkey-index', JSON.stringify([credId]));
   const env = authEnv(kv);
-  const stepupVal = await signStepupCookie(STEPUP_PRIV, 'owner', 'keys', 10);
+  const stepupVal = await signStepupCookie(STEPUP_PRIV, 'account', 'keys', 10);
   /* 2.10.2：delete 需 owner 会话 + stepup */
   const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   const sessVal = await signSessionCookie(LOCK_PRIV, 10, 'owner', 'owner');
@@ -258,7 +258,7 @@ test('B8：getUserHandle 按 aud 分键', async () => {
   const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
   const sessVal = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
-  const stepupVal = await signStepupCookie(STEPUP_PRIV, 'owner', 'keys', 0);
+  const stepupVal = await signStepupCookie(STEPUP_PRIV, 'account', 'keys', 0);
   const cookie = `sgx-verified=${sessVal}; sgx-stepup=${stepupVal}`;
   const req = postReq('https://styrigx.com/api/owner-passkey',
     { action: 'challenge', type: 'register', pkClass: 'app', aud: 'book' },

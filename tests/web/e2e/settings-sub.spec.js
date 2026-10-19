@@ -206,16 +206,15 @@ test.describe('unlock methods entry relocation', () => {
     await expect(pg.locator('#sgx-unlock-link')).toHaveCount(0);
   });
 
-  test('security page: three entries per final design, no unlock-methods', async ({ page: pg }) => {
+  test('security page: two entries (owner credential moved to account avatar), no unlock-methods', async ({ page: pg }) => {
     await pinLang(pg, 'zh');
     await blockExternalRequests(pg);
     await pg.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
     await expect(pg.locator('.set-layout').first()).toBeVisible({ timeout: 15000 });
-    /* 定稿 §二.1：安全页恰好三项（站长凭证/管理凭证/立即锁定），「解锁方式」已移除 */
+    /* 账号体系：安全页两项（管理凭证/立即锁定）；站长凭证升级为账号，入口在顶栏右圆头像 */
     await expect(pg.locator('#sec-unlock-methods')).toHaveCount(0);
-    const owner = pg.locator('#sec-owner-cred');
-    await expect(owner).toHaveCount(1);
-    await expect(owner).toContainText('站长凭证');
+    await expect(pg.locator('#sec-owner-cred')).toHaveCount(0);
+    await expect(pg.locator('.sgx-tb-me')).toHaveAttribute('href', '/settings/account/');
     const mgmt = pg.locator('#sec-mgmt-cred');
     await expect(mgmt).toHaveCount(1);
     await expect(mgmt).toContainText('管理凭证');
@@ -224,13 +223,13 @@ test.describe('unlock methods entry relocation', () => {
     await expect(locknow).toContainText('立即锁定');
   });
 
-  test('security page (en): three entries per final design', async ({ page: pg }) => {
+  test('security page (en): two entries', async ({ page: pg }) => {
     await pinLang(pg, 'en');
     await blockExternalRequests(pg);
     await pg.goto('/en/settings/security/', { waitUntil: 'domcontentloaded' });
     await expect(pg.locator('.set-layout').first()).toBeVisible({ timeout: 15000 });
     await expect(pg.locator('#sec-unlock-methods')).toHaveCount(0);
-    await expect(pg.locator('#sec-owner-cred')).toContainText('Owner credential');
+    await expect(pg.locator('#sec-owner-cred')).toHaveCount(0);
     await expect(pg.locator('#sec-mgmt-cred')).toContainText('Manage credentials');
     await expect(pg.locator('#sec-locknow')).toContainText('Lock now');
   });

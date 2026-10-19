@@ -19,7 +19,7 @@ import { stepupFetch } from '../lib/auth-flow.js';
       errStepupExpired: en ? 'Verification expired, please verify again' : '验证已过期，请重新验证',
       errNetwork: en ? 'Network connection failed, please retry' : '网络连接失败，请重试',
       errParse: en ? 'Bad server response, please retry' : '服务响应异常，请重试',
-      errOwnerConfigured: en ? 'Owner credential is set, please verify with the owner credential again' : '站长凭证已设置，请用站长凭证重新验证',
+      errOwnerConfigured: en ? 'Account credentials are set; please sign in to your account first' : '账号凭证已设置，请先登录账号再进入',
       doorCountdown: en ? 'Verification remaining {m}' : '验证剩余 {m}',
       doorCountdownExpired: en ? 'Expired' : '已过期',
       expiredStepupTitle: en ? 'Verification expired' : '验证已过期',

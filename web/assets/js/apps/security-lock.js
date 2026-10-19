@@ -17,26 +17,16 @@ import { bindDataEyes, createSetPwDialog, newPwError, pwSetRequest } from '../li
 
 (function () {
   const en = document.documentElement.lang === 'en';
-  /* Phase 2 Item 7：站长凭证/锁屏凭证分模式。
-     ?mode=owner → 站长凭证模式（管理 owner-pw + class=owner 通行密钥）；
-     默认 → 锁屏凭证模式（管理 lock-pw + class=lock 通行密钥）。 */
-  const MODE = (function () {
-    try {
-      return new URLSearchParams(location.search).get('mode') === 'owner' ? 'owner' : 'lock';
-    } catch (e) {
-      return 'lock';
-    }
-  })();
-  const isOwnerMode = MODE === 'owner';
-  /** 密码 kind：owner 模式用 'owner'，lock 模式用 'lock' */
-  const pwKind = isOwnerMode ? 'owner' : 'lock';
+  /* 账号体系：原 ?mode=owner（站长凭证模式）已移除——账号凭证只在账号页（/settings/account/）管理。
+     本页只管锁屏凭证（lock-pw + class=lock 通行密钥）与应用验证分组。 */
+  const pwKind = 'lock';
   /** C6：重置会话模式（lockreset 票据）。重置会话里不使用门内到期框。 */
   var isLockreset = false;
   try {
     isLockreset = document.documentElement.dataset.sgxSession === 'lockreset';
   } catch (e) {}
-  /** 状态接口：owner 模式读 /api/owner-status（lock-status 在 scope=root 不可读） */
-  const statusApi = isOwnerMode ? '/api/owner-status' : '/api/lock-status';
+  /** 状态接口：锁屏层 */
+  const statusApi = '/api/lock-status';
   /** @type {any} */
   let T = {};
   try {
@@ -59,10 +49,9 @@ import { bindDataEyes, createSetPwDialog, newPwError, pwSetRequest } from '../li
   let hasPw = false;
   /** 2.10.0：全量通行密钥缓存（含应用类，供应用验证分组渲染） */
   let allKeys = [];
-  /** 批次 A 验收修复 P0：本页通行密钥类别由页面决定（owner 模式 → 'owner'，
-      默认锁屏模式 → 'lock'），不按票据 scope 推断；服务端按 pkClass + 票据双重校验。
-      注：?mode=owner 无任何入口链接（站长凭证页走 door.js），此处仅保留兼容。 */
-  const pageClass = isOwnerMode ? 'owner' : 'lock';
+  /** 批次 A 验收修复 P0：本页通行密钥类别由页面决定（锁屏 → 'lock'），
+      不按票据 scope 推断；服务端按 pkClass + 票据双重校验。 */
+  const pageClass = 'lock';
   const pkAddClass = pageClass;
   /** 2.10.0：应用白名单（与服务端一致，book 在列） */
   var APPS = [{ aud: 'book', name: 'Book' }];
@@ -189,9 +178,9 @@ import { bindDataEyes, createSetPwDialog, newPwError, pwSetRequest } from '../li
   var hasPk = false;
   /* v1.1 §二.1：返回请求 Promise，供进门回调等首次数据加载完成后再显示胶囊 */
   function refreshStatus() {
-    /* 状态接口按模式选择：owner 模式读 /api/owner-status（owner-pw + class=owner），
+    /* 状态接口：/api/lock-status（lock-pw + class=lock；账号凭证在账号页，不在这里），
        lock 模式读 /api/lock-status（lock-pw + class=lock）。
-       注意：lock-status 在 scope=root 票据下不可读，owner 模式必须用 owner-status。 */
+       （原 owner 模式读 owner-status，已随站长凭证升级为账号移除。） */
     return fetch(statusApi, { method: 'GET', credentials: 'same-origin' })
       .then(function (r) {
         return r.json();
@@ -910,23 +899,6 @@ import { bindDataEyes, createSetPwDialog, newPwError, pwSetRequest } from '../li
           else toast(t('gateNetErr'));
         });
     });
-  }
-
-  /* Phase 2 Item 7：owner 模式的 UI 调整 */
-  if (isOwnerMode) {
-    /* 标题：站长凭证 */
-    try {
-      document.title = (en ? 'Owner credential' : '站长凭证') + ' - ' + document.title.split(' - ').slice(1).join(' - ');
-    } catch (e) {}
-    /* 隐藏应用验证分组（应用门独立，站长模式只管 owner 凭证） */
-    const appSec = $('lockmgr-appsec');
-    if (appSec) {
-      appSec.hidden = true;
-      const appTitle = appSec.previousElementSibling;
-      if (appTitle && appTitle.classList.contains('set-gh')) appTitle.hidden = true;
-      const appNote = appSec.nextElementSibling;
-      if (appNote && appNote.classList.contains('sec-note')) appNote.hidden = true;
-    }
   }
 
   /* Phase 2 Item 8：进入时先试状态接口（需有效 stepup/会话）。

@@ -72,6 +72,8 @@ function authEnv(kv, overrides = {}) {
     SGX_LOCK_PUBLIC: LOCK_PUB,
     SGX_STEPUP_PRIVATE: STEPUP_PRIV,
     SGX_STEPUP_PUBLIC: STEPUP_PUB,
+    SGX_ACCOUNT_PRIVATE: STEPUP_PRIV, /* 测试复用同一对钥匙 */
+    SGX_ACCOUNT_PUBLIC: STEPUP_PUB,
     SGX_RP_ID: 'styrigx.com',
     SGX_ORIGIN: 'https://styrigx.com',
     ...overrides,
@@ -160,6 +162,18 @@ test('B2：lockreset verify 带换行通过', async () => {
   assert.equal(j.needOwner, true, '应进入站长凭证步骤');
 });
 
+/* 账号体系：账号通行密钥（class=owner）的注册 challenge 改走 /api/account（需近期账号会话） */
+async function accountRegisterChallenge(kv, env) {
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/account.js');
+  const { signAccountTicket } = await import('../../../workers/auth-gateway/functions/_kernel/account-session.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
+  const sess = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
+  const acc = await signAccountTicket(STEPUP_PRIV, 'root', 0, Date.now());
+  const req = postReq('https://styrigx.com/api/account', { action: 'register-challenge' }, { 'Cookie': 'sgx-verified=' + sess + '; sgx-account=' + acc });
+  const res = await onRequestPost({ request: req, env });
+  return await res.json();
+}
+
 /* ============ C4：user handle 按类别区分 ============ */
 
 test('C4：owner、lock、应用三类 user.id 互不相同', async () => {
@@ -172,12 +186,17 @@ test('C4：owner、lock、应用三类 user.id 互不相同', async () => {
   /* 构造有效 owner 会话；owner 类用入口 1（by=root, scope=root），lock/app 用入口 2（by=owner, scope=keys） */
   const sess = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
   const stepOwner = await signStepupCookie(STEPUP_PRIV, 'root', 'root', 0);
-  const stepKeys = await signStepupCookie(STEPUP_PRIV, 'owner', 'keys', 0);
+  const stepKeys = await signStepupCookie(STEPUP_PRIV, 'account', 'keys', 0);
   const headersFor = (pkClass) => ({
     'Cookie': 'sgx-verified=' + sess + '; sgx-stepup=' + (pkClass === 'owner' ? stepOwner : stepKeys),
   });
 
   const challenge = async (pkClass, aud) => {
+    if (pkClass === 'owner') {
+      const ja = await accountRegisterChallenge(kv, env);
+      assert.ok(ja.ok, 'owner challenge 应成功：' + JSON.stringify(ja));
+      return ja.user.id;
+    }
     const body = { action: 'challenge', type: 'register', pkClass };
     if (aud) body.aud = aud;
     const req = postReq('https://styrigx.com/api/owner-passkey', body, headersFor(pkClass));
@@ -204,12 +223,17 @@ test('C4：同类再次 challenge → user.id 复用', async () => {
   const env = authEnv(kv);
   const sess = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
   const stepOwner = await signStepupCookie(STEPUP_PRIV, 'root', 'root', 0);
-  const stepKeys = await signStepupCookie(STEPUP_PRIV, 'owner', 'keys', 0);
+  const stepKeys = await signStepupCookie(STEPUP_PRIV, 'account', 'keys', 0);
   const headersFor = (pkClass) => ({
     'Cookie': 'sgx-verified=' + sess + '; sgx-stepup=' + (pkClass === 'owner' ? stepOwner : stepKeys),
   });
 
   const challenge = async (pkClass) => {
+    if (pkClass === 'owner') {
+      const ja = await accountRegisterChallenge(kv, env);
+      assert.ok(ja.ok);
+      return ja.user.id;
+    }
     const req = postReq('https://styrigx.com/api/owner-passkey', { action: 'challenge', type: 'register', pkClass }, headersFor(pkClass));
     const res = await onRequestPost({ request: req, env });
     const j = await res.json();
@@ -233,12 +257,17 @@ test('C4：lock 的 handle 验 owner 凭据会失败（verify 用同一 getUserH
   const env = authEnv(kv);
   const sess = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
   const stepOwner = await signStepupCookie(STEPUP_PRIV, 'root', 'root', 0);
-  const stepKeys = await signStepupCookie(STEPUP_PRIV, 'owner', 'keys', 0);
+  const stepKeys = await signStepupCookie(STEPUP_PRIV, 'account', 'keys', 0);
   const headersFor = (pkClass) => ({
     'Cookie': 'sgx-verified=' + sess + '; sgx-stepup=' + (pkClass === 'owner' ? stepOwner : stepKeys),
   });
 
   const challenge = async (pkClass) => {
+    if (pkClass === 'owner') {
+      const ja = await accountRegisterChallenge(kv, env);
+      assert.ok(ja.ok);
+      return ja.user.id;
+    }
     const req = postReq('https://styrigx.com/api/owner-passkey', { action: 'challenge', type: 'register', pkClass }, headersFor(pkClass));
     const res = await onRequestPost({ request: req, env });
     const j = await res.json();
@@ -274,9 +303,7 @@ test('返工：旧 handle 注册的 owner 凭据能验证通过（接受 legacy�
   const headers = { 'Cookie': 'sgx-verified=' + sess + '; sgx-stepup=' + stepOwner };
 
   /* owner challenge 会生成新 handle（因为 'owner-user-id:owner' 不存在） */
-  const req = postReq('https://styrigx.com/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: 'owner' }, headers);
-  const res = await onRequestPost({ request: req, env });
-  const j = await res.json();
+  const j = await accountRegisterChallenge(kv, env);
   assert.ok(j.ok, 'owner challenge 应成功');
   assert.notEqual(j.user.id, legacyUh, '新 handle 与 legacy 不同');
   /* legacy 仍在 KV 里，未被覆盖或删除 */
@@ -294,11 +321,10 @@ test('返工：新 owner 凭据用新 handle', async () => {
   const stepOwner = await signStepupCookie(STEPUP_PRIV, 'root', 'root', 0);
   const headers = { 'Cookie': 'sgx-verified=' + sess + '; sgx-stepup=' + stepOwner };
 
-  const req = postReq('https://styrigx.com/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: 'owner' }, headers);
-  const res = await onRequestPost({ request: req, env });
-  const j = await res.json();
+  const j = await accountRegisterChallenge(kv, env);
   assert.ok(j.ok);
   assert.equal(await kv.get('owner-user-id:owner'), j.user.id, '新 owner 凭据用新 handle');
+  assert.equal(j.user.name, 'ownerkey', '账号通行密钥沿用 ownerkey 名字（密码管理器里同一条）');
 });
 
 test('返工：lock 凭据拿 owner 新 handle 仍被拒', async () => {
@@ -311,12 +337,17 @@ test('返工：lock 凭据拿 owner 新 handle 仍被拒', async () => {
   const env = authEnv(kv);
   const sess = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
   const stepOwner = await signStepupCookie(STEPUP_PRIV, 'root', 'root', 0);
-  const stepKeys = await signStepupCookie(STEPUP_PRIV, 'owner', 'keys', 0);
+  const stepKeys = await signStepupCookie(STEPUP_PRIV, 'account', 'keys', 0);
   const headersFor = (pkClass) => ({
     'Cookie': 'sgx-verified=' + sess + '; sgx-stepup=' + (pkClass === 'owner' ? stepOwner : stepKeys),
   });
 
   const challenge = async (pkClass) => {
+    if (pkClass === 'owner') {
+      const ja = await accountRegisterChallenge(kv, env);
+      assert.ok(ja.ok);
+      return ja.user.id;
+    }
     const req = postReq('https://styrigx.com/api/owner-passkey', { action: 'challenge', type: 'register', pkClass }, headersFor(pkClass));
     const res = await onRequestPost({ request: req, env });
     const j = await res.json();

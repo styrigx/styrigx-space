@@ -53,14 +53,14 @@ test('路由表与 functions/api/*.js 一一对应', () => {
   assert.deepEqual([...API_ROUTES.keys()].sort(), files);
 });
 
-test('wrangler.toml：不开 workers.dev、生产模式、9 个密钥全走 Secrets Store、填了真实 store_id', () => {
+test('wrangler.toml：不开 workers.dev、生产模式、11 个密钥全走 Secrets Store、填了真实 store_id', () => {
   const toml = readFileSync(REPO + '/workers/auth-gateway/wrangler.toml', 'utf8');
   assert.match(toml, /^workers_dev = false$/m);
   assert.match(toml, /^SGX_ENV = "production"$/m);
   for (const n of SECRET_NAMES) {
     assert.match(toml, new RegExp(`binding = "${n}"\\nstore_id = "[^"]+"\\nsecret_name = "${n}"`));
   }
-  assert.equal(SECRET_NAMES.length, 9);
+  assert.equal(SECRET_NAMES.length, 11);
   /* 只接 styrigx.com 和登记过的子站（blog、book）：不接别的子域，不接静态资源（完整核对见 scripts/check-worker-routes.mjs） */
   const routes = [...toml.matchAll(/^pattern = "([^"]+)"$/gm)].map(m => m[1]);
   assert.ok(routes.includes('styrigx.com/api/*'));
@@ -175,7 +175,7 @@ test('页面：访客访问门内页 → 302 到锁屏，不回源', async () =>
   _resetSecretCache();
   const cookie = 'sgx-verified=' + (await signSessionCookie(PRIV, 0, 'visitor', 'owner'));
   await withOrigin(PAGE, async (calls) => {
-    const res = await worker.fetch(new Request('https://styrigx.com/en/settings/security/owner/', { headers: { Cookie: cookie } }), baseEnv(), CTX);
+    const res = await worker.fetch(new Request('https://styrigx.com/en/settings/security/lock/', { headers: { Cookie: cookie } }), baseEnv(), CTX);
     assert.equal(res.status, 302);
     assert.equal(calls.length, 0);
   });

@@ -49,8 +49,8 @@ test.describe('B1-12 守护：添加通行密钥', () => {
     await page.addInitScript(() => {
       try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
     });
-    /* 门内页探针通过 */
-    await mockJson(page, '**/api/owner-status', 200, { ok: true, password: true, passkey: true });
+    /* 门内页探针通过（账号体系：原站长凭证门已移除，添加通行密钥在锁屏门内页测） */
+    await mockJson(page, '**/api/lock-status', 200, { ok: true, password: true, passkey: true });
     await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true });
     await mockJson(page, '**/api/owner-passkey', 200, { ok: true, keys: [], scope: 'root' });
   });
@@ -90,7 +90,7 @@ test.describe('B1-12 守护：添加通行密钥', () => {
       }
     });
 
-    await page.goto('/settings/security/owner/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('#lockmgr-pkadd')).toBeVisible();
 
@@ -162,7 +162,7 @@ test.describe('B1-12 守护：添加通行密钥', () => {
       }
     });
 
-    await page.goto('/settings/security/owner/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
 
     /* 桩掉 create：直接失败 */
@@ -189,18 +189,20 @@ test.describe('B1-12 守护：密码自动填充', () => {
     await page.addInitScript(() => {
       try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
     });
-    await mockJson(page, '**/api/owner-status', 200, { ok: true, password: true, passkey: true });
-    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true });
   });
 
-  test('自动填充后直接点验证，不报「请输入凭证」', async ({ page }) => {
-    await page.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#sec-mgmt-cred')).toBeVisible({ timeout: 15000 });
-
-    /* 打开管理凭证验证弹层，选站长密码行 */
-    await page.click('#sec-mgmt-cred');
-    await expect(page.locator('#sec-verify-dlg')).toBeVisible();
-    await page.locator('.sgx-door-row').filter({ hasText: '站长密码' }).click();
+  test('自动填充后直接点登录，不报「请输入凭证」（账号登录：账号密码行）', async ({ page }) => {
+    let posted = null;
+    await page.route('**/api/account', async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, password: true, passkey: true, ready: true, session: null }) });
+        return;
+      }
+      posted = JSON.parse(route.request().postData() || '{}');
+      await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'wrong' }) });
+    });
+    await page.goto('/settings/account/', { waitUntil: 'domcontentloaded' });
+    await page.locator('.sgx-door-row').filter({ hasText: '账号密码' }).click();
 
     const input = page.locator('.sgx-door-expand input[type="password"]');
     await expect(input).toBeVisible();
@@ -211,17 +213,11 @@ test.describe('B1-12 守护：密码自动填充', () => {
       if (el) {
         const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
         setter.call(el, 'autofilled-password-123');
-        /* 注意：不 dispatch input 事件 */
       }
     });
 
-    /* stepup 成功 */
-    await mockJson(page, '**/api/stepup', 200, { ok: true });
-
-    /* 点验证 */
-    await page.locator('.sgx-door-btn-primary').click();
-
-    /* 不报「请输入凭证」 */
+    await page.locator('.sgx-door-expand .sgx-door-btn-primary').click();
+    await expect.poll(() => posted && posted.password).toBe('autofilled-password-123');
     await expect(
       page.locator('.sgx-door-err:not([hidden])').filter({ hasText: '请输入凭证' })
     ).toHaveCount(0, { timeout: 5000 });

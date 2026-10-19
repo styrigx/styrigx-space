@@ -54,13 +54,13 @@ import {
   ROLE_OWNER,
 } from '../_kernel/session.js';
 import { getApp } from '../_kernel/app-registry.js';
-import { verifyStepupCookie, reissueStepupWithEpoch, STEPUP_COOKIE, STEPUP_BY_ROOT, STEPUP_BY_OWNER, STEPUP_SCOPE_ROOT, STEPUP_SCOPE_KEYS, STEPUP_SCOPE_LOCKRESET } from './stepup.js';
+import { verifyStepupCookie, reissueStepupWithEpoch, STEPUP_COOKIE, STEPUP_BY_ROOT, STEPUP_BY_ACCOUNT, STEPUP_SCOPE_ROOT, STEPUP_SCOPE_KEYS, STEPUP_SCOPE_LOCKRESET } from './stepup.js';
 import { LAYER_OWNER, LAYER_LOCK, layerApp, setLayerConfigured, clearLayerConfigured, isLayerConfigured, isLockEffectivelyConfigured, isOwnerEffectivelyConfigured } from '../_kernel/layers.js';
 import { verifySessionDetailed } from '../_middleware.js';
-import { REALM_LOCK, REALM_OWNER, REALM_APP, SESSION_EPOCH_KEY, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
+import { REALM_LOCK, REALM_ACCOUNT, REALM_APP, SESSION_EPOCH_KEY, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
 
-/* 通行密钥注册/登录 challenge 的 KV 前缀（'pk-challenge:'；与 stepup-challenge: 隔离） */
-const PK_CHALLENGE_PREFIX = REALM_OWNER.kv.challengePrefix;
+/* 通行密钥注册/登录 challenge 的 KV 前缀（'pk-challenge:'；与 stepup-challenge:、account-challenge: 隔离） */
+const PK_CHALLENGE_PREFIX = REALM_LOCK.kv.passkeyChallengePrefix;
 import {
   STORE_CLASS_OWNERKEY,
   STORE_CLASS_LOCKKEY,
@@ -99,6 +99,14 @@ const AAGUID_PROVIDERS = {
   'bada5566-a7aa-401f-bd96-45619a55120d': '1Password',
   'd548826e-79b4-db40-a3d8-11116f7e8349': 'Bitwarden',
 };
+
+/**
+ * AAGUID → 密码管理器显示名（只用于显示；账号页注册账号通行密钥时复用）。
+ * @param {string} aaguid
+ */
+export function providerOf(aaguid) {
+  return (aaguid && AAGUID_PROVIDERS[String(aaguid).toLowerCase()]) || '';
+}
 
 /* randB64 / b64urlDec / cborDecode / parseRegAuthData / coseToJwk / derToRaw /
    checkAssertAuthData / verifyAssertion 已抽到 ../_kernel/passkey-verify.js（登录与 stepup 共用） */
@@ -239,7 +247,7 @@ export async function savePasskey(kv, item) {
  * @param {string} credId
  * @returns {Promise<any|null>} 被删除的记录（调用方据此判断是否推进 app-epoch）
  */
-async function deletePasskey(kv, credId) {
+export async function deletePasskey(kv, credId) {
   const keyName = ownerPasskeyKey(credId);
   let rec = null;
   try { rec = await kv.get(keyName, 'json'); } catch (e) {}
@@ -265,7 +273,7 @@ async function deletePasskey(kv, credId) {
  * @param {string} pkClass 凭据类别：'owner' | 'lock' | 'app'
  * @param {string} [aud] 应用 aud（应用类必填）
  */
-async function getUserHandle(kv, pkClass, aud) {
+export async function getUserHandle(kv, pkClass, aud) {
   let key;
   if (pkClass === PK_CLASS_OWNER) {
     key = 'owner-user-id:owner';
@@ -290,8 +298,8 @@ async function getUserHandle(kv, pkClass, aud) {
 /**
  * 2.11 定稿：passkey 管理统一门禁。
  *
- * - owner 类：只认入口 1（stepup by=root, scope=root）
- * - lock 类：入口 2（scope=keys：by=owner，或 by=root 且 owner 层未配置）；
+ * - owner 类（账号通行密钥）：账号体系起只在账号页管理（/api/account），这里一律 403 scope（reason=account）
+ * - lock 类：入口 2（scope=keys：by=account，或 by=root 且账号层未配置）；
  *   owner 未配置时 scope=root(by=root) 可直接代管；
  *   scope=lockreset 可 list/register/delete（重置流程，无会话），不可 rename
  * - app 类：入口 2（同 lock 的 keys 规则）；lockreset 一律拒绝
@@ -335,8 +343,8 @@ async function checkPasskeyMgmt(request, env, kv, pkClass, op) {
   };
 
   if (pkClass === PK_CLASS_OWNER) {
-    /* 站长凭证：只认入口 1 */
-    if (sv.scope !== STEPUP_SCOPE_ROOT || sv.by !== STEPUP_BY_ROOT) return deny();
+    /* 账号通行密钥：只在账号页（/api/account）管理，门票据一律不能管 */
+    return deny('account');
   } else if (pkClass === PK_CLASS_LOCK) {
     if (isLockreset) {
       if (op === 'rename') return deny();
@@ -344,7 +352,7 @@ async function checkPasskeyMgmt(request, env, kv, pkClass, op) {
       if (sv.by === STEPUP_BY_ROOT) {
         /* by=root 的 keys 票：仅 owner 未配置时代管有效；中途被配置 → 明确原因 */
         if (await isLayerConfigured(kv, LAYER_OWNER)) return deny('owner-configured');
-      } else if (sv.by !== STEPUP_BY_OWNER) {
+      } else if (sv.by !== STEPUP_BY_ACCOUNT) {
         return deny();
       }
     } else if (sv.scope === STEPUP_SCOPE_ROOT && sv.by === STEPUP_BY_ROOT) {
@@ -359,7 +367,7 @@ async function checkPasskeyMgmt(request, env, kv, pkClass, op) {
     if (sv.scope === STEPUP_SCOPE_KEYS) {
       if (sv.by === STEPUP_BY_ROOT) {
         if (await isLayerConfigured(kv, LAYER_OWNER)) return deny('owner-configured');
-      } else if (sv.by !== STEPUP_BY_OWNER) {
+      } else if (sv.by !== STEPUP_BY_ACCOUNT) {
         return deny();
       }
     } else if (sv.scope === STEPUP_SCOPE_ROOT && sv.by === STEPUP_BY_ROOT) {
@@ -889,7 +897,7 @@ async function handlePost(context) {
       if (delClass === PK_CLASS_OWNER) {
         const hasOwnerKey = keys.some(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_OWNER; });
         let hasOwnerPw = false;
-        try { const r = await kv.get(REALM_OWNER.kv.password, 'json'); hasOwnerPw = !!(r && r.hash); } catch (e) {}
+        try { const r = await kv.get(REALM_ACCOUNT.kv.password, 'json'); hasOwnerPw = !!(r && r.hash); } catch (e) {}
         if (!hasOwnerKey && !hasOwnerPw) {
           /* 清标记失败不吞掉：标记残留会导致 root 无法代管（用户被锁死），直接 503 */
           try {

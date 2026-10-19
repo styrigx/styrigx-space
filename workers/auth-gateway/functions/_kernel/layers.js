@@ -1,7 +1,7 @@
 /**
  * 2.11：分层接管（layer takeover）。
  *
- * 三层：owner（ownerkey：站长密码/站长通行密钥）、lock（lockkey：解锁密码/
+ * 三层：owner（ownerkey：账号密码/账号通行密钥；KV 标记沿用 layer:owner）、lock（lockkey：解锁密码/
  * 锁屏通行密钥）、app:<aud>（<aud>key，如 bookkey）。钥匙命名见 key-names.js。
  *
  * 规则：
@@ -16,7 +16,7 @@
  */
 
 import { ownerPasskeyKey, OWNER_PASSKEY_PREFIX, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY } from './key-names.js';
-import { REALM_LOCK, REALM_OWNER } from './realms.js';
+import { REALM_LOCK, REALM_ACCOUNT } from './realms.js';
 
 /* 层标识 */
 export const LAYER_OWNER = 'owner';
@@ -89,7 +89,7 @@ export async function checkRootTakeover(kv, layer) {
 async function realCredentialPresence(kv) {
   const out = { ownerPw: false, lockPw: false, ownerPk: false, lockPk: false, failed: false };
   try {
-    const ownerPw = await kv.get(REALM_OWNER.kv.password, 'json');
+    const ownerPw = await kv.get(REALM_ACCOUNT.kv.password, 'json');
     if (ownerPw && ownerPw.hash) out.ownerPw = true;
   } catch (e) {
     out.failed = true;

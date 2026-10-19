@@ -19,7 +19,8 @@ const VIEWPORTS = {
   desktop: { width: 1920, height: 1080 },
 };
 /* 安全与隐私：新页面加入视觉回归（先只报告，基线未生成前不阻塞） */
-const PAGES = ['/', '/browser/', '/settings/', '/settings/security/', '/settings/security/lock/', '/settings/security/owner/'];
+/* 账号体系：原 /settings/security/owner/（站长凭证门）升级为账号页 /settings/account/ */
+const PAGES = ['/', '/browser/', '/settings/', '/settings/security/', '/settings/security/lock/', '/settings/account/'];
 const LANGS = [
   { prefix: '', name: 'zh' },
   { prefix: '/en', name: 'en' },
@@ -71,17 +72,17 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           await pg.emulateMedia({ reducedMotion: 'reduce' });
           /* 定稿 #1：门内页探针需会话+票据都有效。视觉测试 mock 两者通过，
              避免探针失败弹 toast 导致截图不稳定。 */
-          if (page === '/settings/security/owner/' || page === '/settings/security/lock/') {
-            const statusBody = page.includes('/owner/')
-              ? { ok: true, password: false, passkey: false }
-              : { ok: true, password: false, passkey: false };
-            await pg.route('**/api/owner-status', async (route) => {
+          /* 账号页 / 安全页：GET /api/account 固定为「已设置、未登录账号」（账号页显示登录区） */
+          if (page === '/settings/account/' || page === '/settings/security/') {
+            await pg.route('**/api/account', async (route) => {
               await route.fulfill({
                 status: 200,
                 contentType: 'application/json',
-                body: JSON.stringify(statusBody),
+                body: JSON.stringify({ ok: true, password: true, passkey: true, ready: true, session: null }),
               });
             });
+          }
+          if (page === '/settings/security/lock/') {
             await pg.route('**/api/lock-status', async (route) => {
               await route.fulfill({
                 status: 200,
@@ -214,73 +215,54 @@ const DOOR_STATES = ['default', 'expanded', 'error'];
 
 for (const lang of DOOR_LANGS) {
   for (const theme of DOOR_THEMES) {
-    for (const door of ['owner', 'mgmt']) {
-      for (const state of DOOR_STATES) {
-        const name = `mobile-door-${door}-${state}-${lang.name}-${theme.name}`;
-        test(name, async ({ page: pg }) => {
-          await pg.setViewportSize(DOOR_VP);
-          await blockExternalRequests(pg);
-          await pg.emulateMedia({ reducedMotion: 'reduce' });
-          await pg.addInitScript((t) => {
-            if (t === 'dark') {
-              try { localStorage.setItem('sgx-theme-mode', 'dark'); } catch (e) {}
-            }
-          }, theme.setup);
-          await pg.addInitScript((ln) => {
-            try { localStorage.setItem('sgx-lang', ln); } catch (e) {}
-          }, lang.name);
-          await pg.addStyleTag({
-            content: 'html{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans CJK SC","Noto Sans CJK",sans-serif !important}',
-          });
-          /* 管理凭证弹层：mock 站长凭证已配置（密码+通行密钥），显示两个行 */
-          await pg.route('**/api/owner-status', async (route) => {
-            await route.fulfill({
-              status: 200,
-              contentType: 'application/json',
-              body: JSON.stringify({ ok: true, password: true, passkey: true }),
-            });
-          });
-          /* 报错态：密码/根凭证提交一律 401 */
-          await pg.route('**/api/root-auth', async (route) => {
-            await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'auth' }) });
-          });
-          await pg.route('**/api/stepup', async (route) => {
-            await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'auth' }) });
-          });
-          await freezeTime(pg);
-          await pg.goto(lang.prefix + '/settings/security/', { waitUntil: 'domcontentloaded' });
-          await waitPageReady(pg);
-
-          const rowId = door === 'owner' ? '#sec-owner-cred' : '#sec-mgmt-cred';
-          await pg.locator(rowId).click();
-          const dlg = pg.locator('#sec-verify-dlg');
-          await expect(dlg).toBeVisible({ timeout: 10000 });
-
-          if (state === 'default') {
-            /* 默认态：方法列表 */
-          } else {
-            /* 展开态/报错态/键盘态：点开文本输入行（站长凭证门=根凭证行，管理凭证门=站长密码行） */
-            const rowText = door === 'owner'
-              ? (lang.name === 'en' ? 'Root credential' : '根凭证')
-              : (lang.name === 'en' ? 'Owner password' : '站长密码');
-            await pg.locator('.sgx-door-row').filter({ hasText: rowText }).click();
-            const field = pg.locator('.sgx-door-expand input[type="password"]');
-            await expect(field).toBeVisible({ timeout: 5000 });
-            if (state === 'error') {
-              await field.fill('wrong-value');
-              await pg.locator('.sgx-door-btn-primary').click();
-              await expect(pg.locator('.sgx-door-err:not([hidden])')).toBeVisible({ timeout: 8000 });
-            }
+    /* 账号体系：原两扇门验证弹层已移除；改拍账号登录区（三个入口平级）的默认 / 展开 / 报错态 */
+    for (const state of DOOR_STATES) {
+      const name = `mobile-account-login-${state}-${lang.name}-${theme.name}`;
+      test(name, async ({ page: pg }) => {
+        await pg.setViewportSize(DOOR_VP);
+        await blockExternalRequests(pg);
+        await pg.emulateMedia({ reducedMotion: 'reduce' });
+        await pg.addInitScript((t) => {
+          if (t === 'dark') {
+            try { localStorage.setItem('sgx-theme-mode', 'dark'); } catch (e) {}
           }
-          /* 无横向溢出断言 */
-          const overflow = await pg.evaluate(() => {
-            const de = document.documentElement;
-            return de.scrollWidth - de.clientWidth;
-          });
-          if (overflow > 1) throw new Error(`横向溢出 ${overflow}px on ${name}`);
-          await expect(pg).toHaveScreenshot(`door-${door}-${state}-${lang.name}-${theme.name}.png`, { animations: 'disabled', caret: 'hide' });
+        }, theme.setup);
+        await pg.addInitScript((ln) => {
+          try { localStorage.setItem('sgx-lang', ln); } catch (e) {}
+        }, lang.name);
+        await pg.addStyleTag({
+          content: 'html{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans CJK SC","Noto Sans CJK",sans-serif !important}',
         });
-      }
+        /* 账号凭证已设置、未登录；报错态：密码登录一律 403 wrong */
+        await pg.route('**/api/account', async (route) => {
+          if (route.request().method() === 'GET') {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, password: true, passkey: true, ready: true, session: null }) });
+            return;
+          }
+          await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'wrong' }) });
+        });
+        await freezeTime(pg);
+        await pg.goto(lang.prefix + '/settings/account/', { waitUntil: 'domcontentloaded' });
+        await waitPageReady(pg);
+        await expect(pg.locator('#acct-methods .sgx-door-row')).toHaveCount(3, { timeout: 10000 });
+        if (state !== 'default') {
+          const rowText = lang.name === 'en' ? 'Account password' : '账号密码';
+          await pg.locator('.sgx-door-row').filter({ hasText: rowText }).click();
+          const field = pg.locator('.sgx-door-expand input[type="password"]');
+          await expect(field).toBeVisible({ timeout: 5000 });
+          if (state === 'error') {
+            await field.fill('wrong-value');
+            await pg.locator('.sgx-door-expand .sgx-door-btn-primary').click();
+            await expect(pg.locator('.sgx-door-expand .sgx-door-err:not([hidden])')).toBeVisible({ timeout: 8000 });
+          }
+        }
+        const overflow = await pg.evaluate(() => {
+          const de = document.documentElement;
+          return de.scrollWidth - de.clientWidth;
+        });
+        if (overflow > 1) throw new Error(`横向溢出 ${overflow}px on ${name}`);
+        await expect(pg).toHaveScreenshot(`account-login-${state}-${lang.name}-${theme.name}.png`, { animations: 'disabled', caret: 'hide' });
+      });
     }
   }
 }

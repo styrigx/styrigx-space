@@ -187,7 +187,7 @@ database_name = "styrigx-books"
 database_id = "569d8caf-e315-471b-a080-4b9f055de5fa"
 
 # ---- 密钥：Secrets Store ----
-# 6 个私密值 + 3 把公钥全放 Secrets Store：换钥只在 Cloudflare 后台改，不用改代码、不用重新部署（最多 60 秒生效）。
+# 7 个私密值 + 4 把公钥全放 Secrets Store：换钥只在 Cloudflare 后台改，不用改代码、不用重新部署（最多 60 秒生效）。
 # store_id 是存储的编号，不是密值。
 [[secrets_store_secrets]]
 binding = "SGX_LOCK_PRIVATE"
@@ -203,6 +203,11 @@ secret_name = "SGX_STEPUP_PRIVATE"
 binding = "SGX_APP_PRIVATE"
 store_id = "a5a984f365424401bad5ad6ddcd44479"
 secret_name = "SGX_APP_PRIVATE"
+
+[[secrets_store_secrets]]
+binding = "SGX_ACCOUNT_PRIVATE"
+store_id = "a5a984f365424401bad5ad6ddcd44479"
+secret_name = "SGX_ACCOUNT_PRIVATE"
 
 [[secrets_store_secrets]]
 binding = "SGX_ROOT_KEY"
@@ -233,3 +238,8 @@ secret_name = "SGX_STEPUP_PUBLIC"
 binding = "SGX_APP_PUBLIC"
 store_id = "a5a984f365424401bad5ad6ddcd44479"
 secret_name = "SGX_APP_PUBLIC"
+
+[[secrets_store_secrets]]
+binding = "SGX_ACCOUNT_PUBLIC"
+store_id = "a5a984f365424401bad5ad6ddcd44479"
+secret_name = "SGX_ACCOUNT_PUBLIC"
