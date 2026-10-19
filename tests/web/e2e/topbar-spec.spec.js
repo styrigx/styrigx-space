@@ -1,6 +1,6 @@
 /**
  * 顶栏 v2.0（与 Book 同一套）验收：左圆 + 长条（头像 + 居中 Styrigx + ⋮）+ 导航圆。
- * 2026-10-19 主页顶栏单独一套：左圆九宫格导航，长条里左搜索、居中 Styrigx、右设置，右圆头像；三块位置与子页面一致。
+ * 顶栏 v3（2026-10-19，全站同一套）：左圆九宫格、右圆头像；长条主页 = 搜索 / Styrigx / 设置，子页面 = 返回 / Styrigx / ⋮。
  * Styrigx 在长条内水平垂直居中，头像始终显示；滚动后 Styrigx 淡出、小标题淡入。
  */
 const { test } = require('@playwright/test');
@@ -33,30 +33,30 @@ for (const dark of [false, true]) {
   test.describe(`390×844 ${dark ? '暗色' : '亮色'}`, () => {
     test.use({ viewport: { width: 390, height: 844 } });
 
-    test('子页面：三块坐标、高度、品牌和 ⋮ 位置、底色一致', async ({ page }) => {
+    test('子页面：左圆九宫格、长条里返回 / Styrigx / ⋮、右圆头像，坐标、高度、底色一致', async ({ page }) => {
       await go(page, '/settings/', { dark });
-      const back = await box(page, '.sgx-tb-back');
-      const pill = await box(page, '.sgx-tb-pill');
       const nav = await box(page, '.sgx-tb-nav');
-      expect(near(back.x, 16) && near(back.x + back.width, 68), `返回圆 x ${back.x}–${back.x + back.width}`).toBe(true);
+      const pill = await box(page, '.sgx-tb-pill');
+      const me = await box(page, '.sgx-tb-me');
+      expect(near(nav.x, 16) && near(nav.x + nav.width, 68), `导航圆 x ${nav.x}–${nav.x + nav.width}`).toBe(true);
       expect(near(pill.x, 76) && near(pill.x + pill.width, 314), `长条 x ${pill.x}–${pill.x + pill.width}`).toBe(true);
-      expect(near(nav.x, 322) && near(nav.x + nav.width, 374), `导航圆 x ${nav.x}–${nav.x + nav.width}`).toBe(true);
-      for (const b of [back, pill, nav]) {
+      expect(near(me.x, 322) && near(me.x + me.width, 374), `头像圆 x ${me.x}–${me.x + me.width}`).toBe(true);
+      for (const b of [nav, pill, me]) {
         expect(near(b.y, 16), `y ${b.y}`).toBe(true);
         expect(near(b.height, 52), `高 ${b.height}`).toBe(true);
       }
-      const av = await box(page, '.sgx-tb-avatar');
-      expect(near(av.x - pill.x, 12), `头像左距 ${av.x - pill.x}`).toBe(true);
+      await expect(page.locator('.sgx-tb-pill .sgx-tb-avatar')).toHaveCount(0);
+      const back = await box(page, '.sgx-tb-pill .sgx-tb-back');
+      expect(near(back.x + back.width / 2 - pill.x, 26), '返回中心距长条左边 26').toBe(true);
       const tx = await box(page, '.sgx-tb-text');
       expect(near(tx.x + tx.width / 2, pill.x + pill.width / 2), `Styrigx 水平居中 ${tx.x + tx.width / 2}`).toBe(true);
       expect(near(tx.y + tx.height / 2, pill.y + pill.height / 2), `Styrigx 垂直居中 ${tx.y + tx.height / 2}`).toBe(true);
       const more = await box(page, '.sgx-tb-pill .sgx-tb-more');
       expect(near(pill.x + pill.width - (more.x + more.width / 2), 26), '⋮ 中心距长条右边 26').toBe(true);
       const bgs = await page.evaluate(() =>
-        ['.sgx-tb-back', '.sgx-tb-pill', '.sgx-tb-nav'].map((s) => getComputedStyle(document.querySelector(s)).backgroundColor)
+        ['.sgx-tb-nav', '.sgx-tb-pill'].map((s) => getComputedStyle(document.querySelector(s)).backgroundColor)
       );
       expect(bgs[0]).toBe(bgs[1]);
-      expect(bgs[2]).toBe(bgs[1]);
     });
 
     test('主页：左圆九宫格、长条里搜索 / Styrigx / 设置、右圆头像，三块位置、底色与子页面一致', async ({ page }) => {
@@ -117,17 +117,14 @@ test.describe('390×844 行为', () => {
     expect(m.pb).toBe('76px');
   });
 
-  test('滚过标题区 × 0.55：头像不动、Styrigx 淡出、小标题在长条内可见、三个按钮不动', async ({ page }) => {
+  test('滚过标题区 × 0.55：Styrigx 淡出、小标题在长条内可见、头像和按钮不动', async ({ page }) => {
     await go(page, '/settings/');
     const before = await Promise.all(['.sgx-tb-back', '.sgx-tb-pill .sgx-tb-more', '.sgx-tb-nav'].map((s) => box(page, s)));
     const headH = await page.evaluate(() => document.querySelector('[data-subpage-head]').offsetHeight);
     await page.evaluate((y) => window.scrollTo(0, y), Math.round(headH * 0.55 + 50));
     await expect.poll(() => page.evaluate(() => getComputedStyle(document.querySelector('.sgx-tb-text')).opacity)).toBe('0');
-    const op = await page.evaluate(() => ({
-      brand: getComputedStyle(document.querySelector('.sgx-tb-brand')).opacity,
-      avatar: getComputedStyle(document.querySelector('.sgx-tb-avatar')).opacity,
-    }));
-    expect(op, '头像一直显示').toEqual({ brand: '1', avatar: '1' });
+    const op = await page.evaluate(() => getComputedStyle(document.querySelector('.sgx-tb-me .sgx-tb-avatar')).opacity);
+    expect(op, '头像一直显示').toBe('1');
     await expect(page.locator('.sgx-tb-pill .subpage-mini-title')).toHaveCount(1);
     await expect.poll(() =>
       page.evaluate(() => Number(getComputedStyle(document.querySelector('.sgx-tb-pill .subpage-mini-title')).opacity))
@@ -151,9 +148,9 @@ test.describe('390×844 行为', () => {
     expect(await page.evaluate(() => location.pathname)).toBe(path0);
   });
 
-  test('子页面点头像：照常回主页', async ({ page }) => {
+  test('子页面点 Styrigx：照常回主页', async ({ page }) => {
     await go(page, '/settings/');
-    await Promise.all([page.waitForURL(/\/(en\/)?$/), page.locator('#nav-brand').click()]);
+    await Promise.all([page.waitForURL(/\/(en\/)?$/), page.locator('#nav-brand .sgx-tb-text').click()]);
   });
 
   test('顶栏切页过渡名挂在有尺寸的 .sgx-topbar 上', async ({ page }) => {
@@ -165,7 +162,7 @@ test.describe('390×844 行为', () => {
     expect(names).toEqual({ bar: 'sgx-topbar', nav: 'none' });
   });
 
-  test('九宫点：3 项，当前站点有 ✓，菜单在按钮下方 8px 右对齐，Esc 关闭', async ({ page }) => {
+  test('九宫点：3 项，当前站点有 ✓，菜单在按钮下方 8px 左对齐，Esc 关闭', async ({ page }) => {
     await go(page, '/settings/');
     await page.locator('.sgx-tb-nav').click();
     const menu = page.locator('#sgx-tb-navmenu');
@@ -179,7 +176,7 @@ test.describe('390×844 行为', () => {
     const b = await box(page, '.sgx-tb-nav');
     const m = await box(page, '#sgx-tb-navmenu');
     expect(near(m.y, b.y + b.height + 8, 2)).toBe(true);
-    expect(near(m.x + m.width, b.x + b.width)).toBe(true);
+    expect(near(m.x, b.x)).toBe(true);
     await page.keyboard.press('Escape');
     await expect(menu).toBeHidden();
   });
@@ -237,9 +234,9 @@ test.describe('1280×800', () => {
     const bar = await box(page, '.sgx-topbar');
     expect(near(bar.width, 1068), `宽 ${bar.width}`).toBe(true);
     expect(near(bar.x, (1280 - 1068) / 2), `x ${bar.x}`).toBe(true);
-    const back = await box(page, '.sgx-tb-back');
+    const me = await box(page, '.sgx-tb-me');
     const nav = await box(page, '.sgx-tb-nav');
     const pill = await box(page, '.sgx-tb-pill');
-    expect(near(back.width, 52) && near(nav.width, 52) && near(pill.height, 52)).toBe(true);
+    expect(near(me.width, 52) && near(nav.width, 52) && near(pill.height, 52)).toBe(true);
   });
 });
