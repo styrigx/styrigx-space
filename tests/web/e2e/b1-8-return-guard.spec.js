@@ -110,26 +110,29 @@ test.describe('B1-8 路径A：会话有效时被踢回', () => {
 
   test.beforeEach(async ({ page }) => {
     await blockExternalRequests(page);
-    await page.addInitScript(() => {
-      /* documentElement 在 addInitScript 执行时可能还不存在，用轮询等待 */
-      const setSession = () => {
-        try {
-          if (document.documentElement) {
-            document.documentElement.dataset.sgxSession = 'valid';
-            /* 英文测试会设置 __forceLang='en'，此时不覆盖 */
-            if (window.__forceLang) {
-              document.documentElement.lang = window.__forceLang;
-            } else {
-              document.documentElement.lang = 'zh';
-            }
-            return true;
-          }
-        } catch (e) {}
-        return false;
-      };
-      if (!setSession()) {
-        const iv = setInterval(() => { if (setSession()) clearInterval(iv); }, 10);
+    /* 会话状态像线上 L1 那样写进 HTML 的 <html> 标签，页面脚本一跑就能读到。
+       原先在 addInitScript 里设 dataset：那时 documentElement 还不存在，只能靠 10ms 轮询补设；
+       CI 负载高时 initLock 先跑、读到空状态 → 进锁屏、不回跳也不出失败卡 → waitDecision timeout。
+       英文测试设 page.__forceLang = 'en'。 */
+    await page.route(/^http:\/\/localhost:\d+\//, async (route) => {
+      const req = route.request();
+      if (!req.isNavigationRequest() || req.frame() !== page.mainFrame()) {
+        await route.fallback();
+        return;
       }
+      const res = await route.fetch();
+      const type = res.headers()['content-type'] || '';
+      if (type.indexOf('text/html') === -1) {
+        await route.fulfill({ response: res });
+        return;
+      }
+      const lang = page.__forceLang || 'zh';
+      const body = (await res.text()).replace(/<html([^>]*)>/i, (m, attrs) =>
+        '<html' + attrs.replace(/\s(lang|data-sgx-session)="[^"]*"/gi, '') +
+        ' lang="' + lang + '" data-sgx-session="valid">');
+      await route.fulfill({ response: res, body: body });
+    });
+    await page.addInitScript(() => {
       try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
     });
     await blockJsNavigation(page);
@@ -247,8 +250,8 @@ test.describe('B1-8 路径A：会话有效时被踢回', () => {
   });
 
   test('英文版失败卡', async ({ page }) => {
-    /* 设置标志，让 beforeEach 的脚本用英文 */
-    await page.addInitScript(() => { window.__forceLang = 'en'; });
+    /* 设置标志，让 beforeEach 注入的 <html lang> 用英文 */
+    page.__forceLang = 'en';
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await clearJumpState(page);
 
