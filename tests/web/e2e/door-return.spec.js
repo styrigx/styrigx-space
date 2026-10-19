@@ -657,7 +657,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
   });
 });
 
-test.describe('A-2 最后一把锁屏钥匙与 ownerkey 联动', () => {
+test.describe('A-2 最后一把锁屏钥匙与 accountkey 联动', () => {
   test.beforeEach(async ({ page }) => {
     await blockExternalRequests(page);
     await page.addInitScript(() => {
@@ -701,7 +701,7 @@ test.describe('A-2 最后一把锁屏钥匙与 ownerkey 联动', () => {
     return { getDeleteCalls: () => deleteCalls, getRemoveCalls: () => removeCalls };
   }
 
-  test('有 ownerkey 时删最后一把 lock 钥匙：先弹确认，点删除后成功', async ({ page }) => {
+  test('有 accountkey 时删最后一把 lock 钥匙：先弹确认，点删除后成功', async ({ page }) => {
     const lockKeys = [{ credId: 'lock-key-001', name: 'test', class: 'lock', createdAt: 1, lastUsedAt: 0 }];
     const { getDeleteCalls } = await gotoLockPage(page, { lockPw: false, lockKeys });
     await expect(page.locator('.lockmgr-pkdel')).toBeVisible({ timeout: 5000 });
@@ -720,7 +720,7 @@ test.describe('A-2 最后一把锁屏钥匙与 ownerkey 联动', () => {
     await expect(page.locator('.sgx-toast')).toContainText('已删除', { timeout: 5000 });
   });
 
-  test('无 ownerkey 时删最后一把 lock 钥匙：确认后服务端 403，提示先设置解锁密码', async ({ page }) => {
+  test('无 accountkey 时删最后一把 lock 钥匙：确认后服务端 403，提示先设置解锁密码', async ({ page }) => {
     const lockKeys = [{ credId: 'lock-key-001', name: 'test', class: 'lock', createdAt: 1, lastUsedAt: 0 }];
     await gotoLockPage(page, { lockPw: false, lockKeys, deleteStatus: 403, deleteBody: { ok: false, error: 'last-key' } });
     await expect(page.locator('.lockmgr-pkdel')).toBeVisible({ timeout: 5000 });
@@ -732,7 +732,7 @@ test.describe('A-2 最后一把锁屏钥匙与 ownerkey 联动', () => {
     await expect(page.locator('.sgx-toast')).toContainText('这是最后一把解锁钥匙，请先设置解锁密码', { timeout: 5000 });
   });
 
-  test('有 ownerkey 时删最后一把 lock 密码：先弹确认，点删除后成功', async ({ page }) => {
+  test('有 accountkey 时删最后一把 lock 密码：先弹确认，点删除后成功', async ({ page }) => {
     const { getRemoveCalls } = await gotoLockPage(page, { lockPw: true, lockKeys: [] });
     await expect(page.locator('#lockmgr-pwdel')).toBeVisible({ timeout: 5000 });
     /* v1.1 §二.4：点「删除密码」直接弹确认框，无 armed 中间态 */

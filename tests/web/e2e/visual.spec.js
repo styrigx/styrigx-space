@@ -20,7 +20,9 @@ const VIEWPORTS = {
 };
 /* 安全与隐私：新页面加入视觉回归（先只报告，基线未生成前不阻塞） */
 /* 账号体系：原 /settings/security/owner/（站长凭证门）升级为账号页 /settings/account/ */
-const PAGES = ['/', '/browser/', '/settings/', '/settings/security/', '/settings/security/lock/', '/settings/account/'];
+/* 账号页三星式总览：/settings/account/ 拍登录后的总览（登录区由下方 account-login-* 覆盖），
+   新增安全与隐私子页 /settings/account/security/ */
+const PAGES = ['/', '/browser/', '/settings/', '/settings/security/', '/settings/security/lock/', '/settings/account/', '/settings/account/security/'];
 const LANGS = [
   { prefix: '', name: 'zh' },
   { prefix: '/en', name: 'en' },
@@ -72,13 +74,31 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           await pg.emulateMedia({ reducedMotion: 'reduce' });
           /* 定稿 #1：门内页探针需会话+票据都有效。视觉测试 mock 两者通过，
              避免探针失败弹 toast 导致截图不稳定。 */
-          /* 账号页 / 安全页：GET /api/account 固定为「已设置、未登录账号」（账号页显示登录区） */
-          if (page === '/settings/account/' || page === '/settings/security/') {
+          /* 安全页：GET /api/account 固定为「已设置、未登录账号」 */
+          if (page === '/settings/security/') {
             await pg.route('**/api/account', async (route) => {
               await route.fulfill({
                 status: 200,
                 contentType: 'application/json',
                 body: JSON.stringify({ ok: true, password: true, passkey: true, ready: true, session: null }),
+              });
+            });
+          }
+          /* 账号总览 / 安全与隐私子页：已登录账号（密码登录、近期），通行密钥列表固定一把 */
+          if (page === '/settings/account/' || page === '/settings/account/security/') {
+            await pg.route('**/api/account', async (route) => {
+              if (route.request().method() === 'GET') {
+                await route.fulfill({
+                  status: 200,
+                  contentType: 'application/json',
+                  body: JSON.stringify({ ok: true, password: true, passkey: true, ready: true, session: { by: 'password', authAt: 1760000000000, expiresAt: 4102444800000, recent: true } }),
+                });
+                return;
+              }
+              await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ ok: true, keys: [{ credId: 'k1', name: 'Galaxy S26 Ultra', provider: 'Samsung Pass', createdAt: 1760000000000, lastUsedAt: 1760000000000 }] }),
               });
             });
           }
@@ -135,6 +155,9 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           await freezeTime(pg);
           await pg.goto(lang.prefix + page, { waitUntil: 'domcontentloaded' });
           await waitPageReady(pg);
+          /* 账号两页：等异步内容（总览 / 子页列表）落定再截图 */
+          if (page === '/settings/account/') await expect(pg.locator('#acct-main')).toBeVisible({ timeout: 10000 });
+          if (page === '/settings/account/security/') await expect(pg.locator('#lockmgr-pklist .lockmgr-pkitem')).toHaveCount(1, { timeout: 10000 });
           /* #1 诊断：构建标记小字只给真机看，视觉回归里隐藏，
              现有基线继续通过；诊断结束后删小字也不用再动基线。
              必须在 goto 之后注入（导航会丢掉之前 addStyleTag/addInitScript 加的样式，

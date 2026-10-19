@@ -467,16 +467,72 @@ test('账号页不能删锁屏类钥匙（404 not-found）', async () => {
   assert.ok(await kv.get('owner-passkey:' + lk.credId.slice(0, 12)));
 });
 
-test('注册 challenge：沿用 owner-user-id:owner 与 ownerkey 名字，排除已有账号通行密钥', async () => {
+test('注册 challenge：沿用 owner-user-id:owner，名字 accountkey（原 ownerkey），排除已有账号通行密钥', async () => {
   const kv = makeKV({ 'owner-user-id:owner': 'acct-handle-1' });
   const a = await seedPasskey(kv, 'owner');
   const r = await accountPost(kv, { action: 'register-challenge' }, { 'sgx-verified': await ownerSess(), 'sgx-account': await accTicket('passkey') });
   assert.equal(r.status, 200);
   const j = await r.json();
   assert.equal(j.user.id, 'acct-handle-1');
-  assert.equal(j.user.name, 'ownerkey');
+  assert.equal(j.user.name, 'accountkey');
+  assert.equal(j.user.displayName, 'Sloan Gray');
   assert.equal(j.rp.id, 'styrigx.com');
   assert.deepEqual(j.excludeCredentials, [{ id: a.credId, type: 'public-key' }]);
+});
+
+test('list：带账号 handle（owner-user-id:owner，供 signalCurrentUserDetails）+ userName accountkey；没有 handle 时为空且不新建', async () => {
+  const c = async () => ({ 'sgx-verified': await ownerSess(), 'sgx-account': await accTicket('passkey', Date.now() - 20 * 60 * 1000) });
+  const kv = makeKV({ 'owner-user-id:owner': 'acct-handle-9', 'owner-user-id': 'legacy-lock-handle' });
+  await seedPasskey(kv, 'owner');
+  const r = await accountPost(kv, { action: 'list' }, await c());
+  assert.equal(r.status, 200, 'list 只读，不要求近期');
+  const j = await r.json();
+  assert.equal(j.userHandle, 'acct-handle-9', '只给当前账号 handle，不给与 lockkey 共用的旧 handle');
+  assert.equal(j.userName, 'accountkey');
+  assert.equal(j.displayName, 'Sloan Gray');
+  const kv2 = makeKV();
+  const j2 = await (await accountPost(kv2, { action: 'list' }, await c())).json();
+  assert.equal(j2.userHandle, '');
+  assert.equal(await kv2.get('owner-user-id:owner'), null, 'list 不创建 handle');
+});
+
+test('rename：改账号通行密钥名字（清理控制字符/空格、限 40 字）；空名 400 params；锁屏类 404；不推纪元', async () => {
+  const kv = makeKV();
+  const a = await seedPasskey(kv, 'owner');
+  const lk = await seedPasskey(kv, 'lock');
+  const c = { 'sgx-verified': await ownerSess(), 'sgx-account': await accTicket('password') };
+  const long = '  Galaxy\u0007 S26 ' + 'x'.repeat(60);
+  const r = await accountPost(kv, { action: 'rename', credId: a.credId, name: long }, c);
+  assert.equal(r.status, 200);
+  const want = ('Galaxy S26 ' + 'x'.repeat(60)).slice(0, 40);
+  assert.equal((await r.json()).name, want);
+  const rec = JSON.parse(await kv.get('owner-passkey:' + a.credId.slice(0, 12)));
+  assert.equal(rec.name, want);
+  assert.equal(rec.class, 'owner', '存储层 class 仍是 owner');
+  assert.equal(await kv.get('account-epoch'), null, '重命名不推纪元');
+  const e = await accountPost(kv, { action: 'rename', credId: a.credId, name: ' \u0001 ' }, c);
+  assert.equal(e.status, 400);
+  assert.equal((await e.json()).error, 'params');
+  const m = await accountPost(kv, { action: 'rename', credId: 'nope' }, c);
+  assert.equal(m.status, 400);
+  const l = await accountPost(kv, { action: 'rename', credId: lk.credId, name: 'hack' }, c);
+  assert.equal(l.status, 404);
+  assert.equal(JSON.parse(await kv.get('owner-passkey:' + lk.credId.slice(0, 12))).name, '站长通行密钥');
+});
+
+test('rename：与 delete 同门槛 —— 没有账号会话 401 account；登录过旧 403 account-stale；访客 401', async () => {
+  const kv = makeKV();
+  const a = await seedPasskey(kv, 'owner');
+  const body = { action: 'rename', credId: a.credId, name: 'New' };
+  const r1 = await accountPost(kv, body, { 'sgx-verified': await ownerSess() });
+  assert.equal(r1.status, 401);
+  assert.equal((await r1.json()).error, 'account');
+  const r2 = await accountPost(kv, body, { 'sgx-verified': await ownerSess(), 'sgx-account': await accTicket('password', Date.now() - 11 * 60 * 1000) });
+  assert.equal(r2.status, 403);
+  assert.equal((await r2.json()).error, 'account-stale');
+  const r3 = await accountPost(kv, body, { 'sgx-verified': await visitorSess(), 'sgx-account': await accTicket('password') });
+  assert.equal(r3.status, 401);
+  assert.equal(JSON.parse(await kv.get('owner-passkey:' + a.credId.slice(0, 12))).name, '站长通行密钥');
 });
 
 test('logout：清 sgx-account（幂等，不需会话），不动 sgx-verified', async () => {

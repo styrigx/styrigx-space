@@ -1,6 +1,6 @@
 /**
  * 2.6.0：设置二级页。真实断言（不 mock 自家逻辑）：
- * - Mobile /settings/ 只留账户卡 + 8 分类入口，无选项组（B2-2 新增 Good Lock，B2-4 删除应用）
+ * - Mobile /settings/ 只留 8 分类入口（账户卡已移到账号页 /settings/account/），无选项组（B2-2 新增 Good Lock，B2-4 删除应用）
  * - DeX/PC /settings/ 左右双栏：左分类导航、右详情窗格（复用子页同一套 partial）
  * - 7 个子页可达、有返回键、有对应选项组
  * - 旧 hash 跳转到子页
@@ -39,11 +39,11 @@ async function pinLang(pg, lang) {
 /* Mobile（竖屏）：单列分类列表 */
 test.use({ viewport: { width: 412, height: 915 } });
 
-test('settings home (mobile): account card + 8 category links, no option groups', async ({ page: pg }) => {
+test('settings home (mobile): 8 category links, no account card, no option groups', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await gotoSettings(pg, '/settings/');
-  // 账户卡（移动端只显示分类列表里的那张）
-  await expect(pg.locator('.set-mobile-only .sgx-account-card').first()).toBeVisible();
+  // 账户卡已移到账号页（顶栏右圆头像进入），设置页不再有
+  await expect(pg.locator('.sgx-account-card')).toHaveCount(0);
   // 8 个分类入口（2.8.0：分类列表移出 .set-mobile-only，改由 .set-main 内 aria-label="分类" 的 section 承载）
   const catList = pg.locator('.set-main section[aria-label="分类"]');
   for (const c of CATS) {

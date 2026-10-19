@@ -79,8 +79,15 @@ space（styrigx.com）相当于 One UI，blog/book 等分站相当于其中的 A
 - 存储沿用原站长凭证（`owner-pw`、`owner-passkey:*` class=owner、`owner-user-id:owner`），
   不搬数据、无需重新注册；新增 KV 键 `account-challenge:*`、`account-epoch`。
 - 缺账号钥匙 → 账号登录 503 `config`，只影响账号登录与进门，网站其余部分不受影响。
-- 前端：账号页 `/settings/account/`（`apps/account.js`），顶栏头像链接到它；
-  原站长凭证页（`security-owner`）已删除。
+- 敏感操作还包括重命名账号通行密钥（`rename`，同样要求近期登录，不推纪元）。
+- 概念名 `accountkey`（原 `ownerkey`）：账号通行密钥注册时 WebAuthn `user.name = accountkey`；
+  存储层不变（class 仍是 `owner`，KV 仍是 `owner-pw` / `owner-passkey:*`）。`list` 返回账号 handle，
+  前端支持时调 `PublicKeyCredential.signalCurrentUserDetails` 让密码管理器把旧条目改名
+  （只对当前 handle `owner-user-id:owner`；旧 handle 与 lockkey 共用，不发）。
+- 前端：账号页 `/settings/account/`（`apps/account.js`），顶栏头像链接到它；登录后是三星式总览
+  （账号卡 + 头像编辑、已登录卡、「安全与隐私」一行）；账号密码和账号通行密钥在子页
+  `/settings/account/security/`（`apps/account-security.js`）。从头像进入时，总览的返回回到点头像时的页面
+  （`shell/navhistory.js`）。原站长凭证页（`security-owner`）已删除。
 
 ## 锁定与过期
 

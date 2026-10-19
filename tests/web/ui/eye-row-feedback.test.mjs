@@ -128,6 +128,7 @@ test('眼睛：EYE_OFF_SVG 带斜线、EYE_SVG 不带；icon.html 有 eye/eye-of
 test('眼睛：各处不再内联眼睛 SVG、不再 toggle .off；模板文案为显示密码/隐藏密码', () => {
   for (const f of [
     'web/assets/js/apps/account.js',
+    'web/assets/js/apps/account-security.js',
     'web/assets/js/apps/security-lock.js',
     'web/assets/js/apps/security.js',
     'web/assets/js/shell/lock.js',
@@ -138,7 +139,7 @@ test('眼睛：各处不再内联眼睛 SVG、不再 toggle .off；模板文案�
     assert.ok(!src.includes('M2 12s3.5-7'), f + ' 不应再内联眼睛 SVG（统一走 bindEyeButton）');
   }
   assert.ok(!read('web/assets/js/apps/security.js').includes('const EYE ='), 'security.js 的 EYE 常量应删除');
-  for (const t of ['web/layouts/_default/account.html', 'web/layouts/_default/security-lock.html']) {
+  for (const t of ['web/layouts/partials/account-i18n.html', 'web/layouts/_default/security-lock.html']) {
     const src = read(t);
     assert.ok(src.includes('"eyeShow" (dict "zh" "显示密码" "en" "Show password")'), t + ' eyeShow 应为显示密码');
     assert.ok(src.includes('"eyeHide" (dict "zh" "隐藏密码" "en" "Hide password")'), t + ' eyeHide 应为隐藏密码');

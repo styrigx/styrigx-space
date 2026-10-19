@@ -4,39 +4,26 @@
  * - 未登录：账号登录，三个入口平级 —— 账号通行密钥（POST /api/account challenge + login-passkey）、
  *   账号密码（login-password）、根凭证（POST /api/root-auth { key, target:'account' }）。
  *   任一成功即得到账号会话（服务端独立签发的 sgx-account，与锁屏会话无关）。
- * - 已登录：管理账号密码（设置/修改；根凭证登录时为「重置」）和账号通行密钥（添加/删除）。
- *   管理操作需 10 分钟内登录过；过旧（account-stale）或失效（account）→ 回到登录区重新验证。
+ * - 已登录：账号总览（三星账号式）—— 账号卡（名字 + 头像，换头像见 avatar-edit.js）、已登录卡（退出账号）、
+ *   「安全与隐私」一行（副标题：账号密码或通行密钥任一已设置 → 已保护）→ 子页
+ *   /settings/account/security/（apps/account-security.js）管理账号密码和账号通行密钥。
  * - ?door=1&return=<门内页>：从「管理凭证」过来，登录成功后 POST /api/stepup enter 换门票据再进门。
+ * - ?return=/settings/account/security/（[&stale=1]）：子页未登录/过旧时跳来，登录后回子页。
  * - 访客：界面与站长一致，服务端一律拒绝（统一显示「不正确 / 验证失败」）。
  *
- * 复用 lib/auth-flow.js：bindPwEye / onEnter / focusNoScroll（登录输入框）、
- * bindDataEyes / createSetPwDialog / newPwError（账号密码弹层）。
+ * 复用 lib/auth-flow.js：bindPwEye / onEnter / focusNoScroll（登录输入框）。
  */
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
-import { followKeyboard } from '../shell/vk.js';
 import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
 import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
-import { bindPwEye, onEnter, focusNoScroll, bindDataEyes, createSetPwDialog, newPwError, stepupFetch } from '../lib/auth-flow.js';
+import { bindPwEye, onEnter, focusNoScroll, stepupFetch } from '../lib/auth-flow.js';
 import { bindSubmitButton, tapFeedback, setRowBusy, setRowSelected } from '../lib/dialog-behavior.js';
-
-const ACCOUNT_API = '/api/account';
+import { ACCOUNT_API, ACCOUNT_RETURN_RE, createT, postJSON, errText as errTextT, signalAccountName } from './account-common.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
-  /** @type {any} */
-  let T = {};
-  try {
-    T = JSON.parse((document.getElementById('sgx-i18n-account') || {}).textContent || '{}');
-  } catch (e) {}
-  /** @param {string} k */
-  function t(k) {
-    const v = T[k];
-    if (v && typeof v === 'object') return en ? v.en : v.zh;
-    if (v) return v;
-    if (typeof console !== 'undefined') console.warn('[i18n] missing key:', k);
-    return en ? 'Something went wrong, please retry' : '出错了，请重试';
-  }
+  const t = createT(en);
   /** @param {string} id */
   function $(id) {
     return document.getElementById(id);
@@ -50,54 +37,25 @@ const ACCOUNT_API = '/api/account';
   /* ---------- 门回跳参数（只接受本站安全设置下的门内路径） ---------- */
   let doorReturn = '';
   let fromDoor = false;
+  /* 安全与隐私子页跳来（未登录 / 登录过旧）：登录后回子页 */
+  let acctReturn = '';
+  let fromStale = false;
   try {
     const q = new URLSearchParams(window.location.search);
     fromDoor = q.get('door') === '1';
     const ret = q.get('return') || '';
-    if (/^\/(en\/)?settings\/security\/(lock|apps|mgmt)\/[a-z0-9\-/]*$/.test(ret)) doorReturn = ret;
+    if (fromDoor) {
+      if (/^\/(en\/)?settings\/security\/(lock|apps|mgmt)\/[a-z0-9\-/]*$/.test(ret)) doorReturn = ret;
+    } else if (ACCOUNT_RETURN_RE.test(ret)) {
+      acctReturn = ret;
+      fromStale = q.get('stale') === '1';
+    }
   } catch (e) {}
   const mgmtUrl = en ? '/en/settings/security/mgmt/' : '/settings/security/mgmt/';
 
-  /**
-   * @param {string} url
-   * @param {object} body
-   * @returns {Promise<{s:number, j:any}>}
-   */
-  function postJSON(url, body) {
-    return fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      credentials: 'same-origin',
-    }).then(function (r) {
-      return r.json().then(function (j) { return { s: r.status, j: j }; }, function () { return { s: r.status, j: null }; });
-    });
-  }
-
   /** 服务端错误码 → 文案 */
   function errText(code, status) {
-    const map = {
-      wrong: 'errWrongPw',
-      'not-set': 'errNotSet',
-      auth: 'errWrongRoot',
-      denied: 'errWrongPw',
-      role: 'errWrongPw',
-      challenge: 'errVerify',
-      verify: 'errVerify',
-      'unknown-key': 'errVerify',
-      'class-mismatch': 'errVerify',
-      'uv-required': 'errUvRequired',
-      locked: 'errLocked',
-      config: 'errConfig',
-      server: 'errServer',
-      short: 'errShort',
-      'same-as-lock': 'errSameAsLock',
-      'not-found': 'errNotFound',
-      session: 'sessExp',
-    };
-    if (code && map[code]) return t(map[code]);
-    if (status === 429) return t('errLocked');
-    return t('errUnknown');
+    return errTextT(t, code, status);
   }
 
   /* ================= 登录区 ================= */
@@ -118,6 +76,10 @@ const ACCOUNT_API = '/api/account';
           else showLogin(t('errVerify'));
         })
         .catch(function () { showLogin(t('errNetwork')); });
+      return;
+    }
+    if (acctReturn) {
+      sgxReplace(acctReturn);
       return;
     }
     loadStatus();
@@ -346,251 +308,7 @@ const ACCOUNT_API = '/api/account';
     }
   }
 
-  /* ================= 账号页 ================= */
-  let hasPw = false;
-  let sessBy = '';
-  const eyeResets = bindDataEyes(t);
-  const pwDialog = createSetPwDialog({
-    $: $,
-    t: function (k) {
-      /* 根凭证登录时标题为「重置账号密码」（恢复路径） */
-      if (k === 'changeTitle' && sessBy === 'root') return t('resetTitle');
-      return t(k);
-    },
-    hideErr: function (id) { const e = $(id); if (e) e.hidden = true; },
-    followKeyboard: followKeyboard,
-    eyeResets: eyeResets,
-    hasPw: function () { return hasPw; },
-  });
-
-  /**
-   * 管理接口统一错误处理：账号会话失效/过旧 → 回登录区；lock 会话失效 → 去锁屏。
-   * @returns {boolean} 已处理
-   */
-  function handleAuthError(res) {
-    const code = res && res.j && res.j.error;
-    if (code === 'account' || code === 'account-stale') {
-      showLogin(t('staleNotice'));
-      return true;
-    }
-    if (code === 'session') {
-      toast(t('sessExp'));
-      sgxReplace('/?lock=1&return=' + encodeURIComponent(window.location.pathname));
-      return true;
-    }
-    return false;
-  }
-
-  /** @param {number} ts */
-  function fmtDate(ts) {
-    try {
-      const d = new Date(ts);
-      const p = function (n) { return String(n).padStart(2, '0'); };
-      return en
-        ? d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
-        : d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日';
-    } catch (e) {
-      return '';
-    }
-  }
-
-  function renderPwRow() {
-    const sub = $('lockmgr-pwsub');
-    if (sub) sub.textContent = hasPw ? t('pwSet') : t('pwUnset');
-  }
-
-  function refreshKeys() {
-    return postJSON(ACCOUNT_API, { action: 'list' }).then(function (res) {
-      if (handleAuthError(res)) return;
-      if (!(res.j && res.j.ok)) return;
-      const ul = $('lockmgr-pklist');
-      const empty = $('lockmgr-pkempty');
-      const keys = res.j.keys || [];
-      if (ul) {
-        ul.innerHTML = '';
-        keys.forEach(function (k) { ul.appendChild(keyItem(k)); });
-        ul.hidden = keys.length === 0;
-      }
-      if (empty) empty.hidden = keys.length !== 0;
-    }, function () {});
-  }
-
-  function keyItem(k) {
-    const li = document.createElement('li');
-    li.className = 'lockmgr-pkitem';
-    const nameWrap = document.createElement('div');
-    nameWrap.className = 'lockmgr-pkname';
-    const name = document.createElement('span');
-    name.textContent = k.name || t('pkUnnamed');
-    const meta = document.createElement('span');
-    meta.className = 'lockmgr-pkdate';
-    let metaText = (en ? 'Created ' : '创建于 ') + fmtDate(k.createdAt);
-    metaText += ' · ' + (k.lastUsedAt ? (en ? 'Last used ' : '最近使用 ') + fmtDate(k.lastUsedAt) : t('pkNeverUsed'));
-    if (k.provider) metaText = k.provider + ' · ' + metaText;
-    meta.textContent = metaText;
-    nameWrap.appendChild(name);
-    nameWrap.appendChild(meta);
-    const del = document.createElement('button');
-    del.type = 'button';
-    del.className = 'lockmgr-pkdel';
-    del.textContent = t('pkDel');
-    del.setAttribute('aria-label', t('pkDel') + ' ' + (k.name || t('pkUnnamed')));
-    /* 两步确认删除 */
-    let armed = false;
-    let armTimer = 0;
-    on(del, 'click', function (e) {
-      e.stopPropagation();
-      if (!armed) {
-        armed = true;
-        del.textContent = t('pkDelAsk');
-        del.classList.add('armed');
-        armTimer = window.setTimeout(function () {
-          armed = false;
-          del.textContent = t('pkDel');
-          del.classList.remove('armed');
-        }, 3000);
-        return;
-      }
-      window.clearTimeout(armTimer);
-      armed = false;
-      postJSON(ACCOUNT_API, { action: 'delete', credId: k.credId }).then(function (res) {
-        if (handleAuthError(res)) return;
-        if (res.j && res.j.ok) {
-          toast(t('pkDeleted'));
-          try {
-            const PKC = /** @type {any} */ (window.PublicKeyCredential);
-            if (PKC && typeof PKC.signalUnknownCredential === 'function') {
-              PKC.signalUnknownCredential({ rpId: location.hostname, credentialId: k.credId }).catch(function () {});
-            } else {
-              toast(t('pkDelManual'));
-            }
-          } catch (e2) {}
-          refreshKeys();
-        } else {
-          toast(errText(res.j && res.j.error, res.s));
-          del.textContent = t('pkDel');
-          del.classList.remove('armed');
-        }
-      }, function () {
-        toast(t('errNetwork'));
-      });
-    });
-    li.appendChild(nameWrap);
-    li.appendChild(del);
-    return li;
-  }
-
-  /* 添加账号通行密钥 */
-  const pkAdd = $('lockmgr-pkadd');
-  if (pkAdd) {
-    on(pkAdd, 'click', function () {
-      if (!window.PublicKeyCredential) {
-        toast(t('pkNoSupport'));
-        return;
-      }
-      postJSON(ACCOUNT_API, { action: 'register-challenge' }).then(function (res) {
-        if (handleAuthError(res)) throw { kind: 'handled' };
-        const ch = res.j;
-        if (!ch || !ch.ok) throw { kind: 'server', code: ch && ch.error, status: res.s };
-        return navigator.credentials.create({
-          publicKey: {
-            challenge: b64urlToBuf(ch.challenge),
-            rp: { name: (ch.rp && ch.rp.name) || 'Styrigx', id: ch.rpId },
-            user: { id: b64urlToBuf(ch.user.id), name: ch.user.name, displayName: ch.user.displayName },
-            pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
-            authenticatorSelection: { userVerification: 'required', residentKey: 'required' },
-            excludeCredentials: (ch.excludeCredentials || []).map(function (c) {
-              return { id: b64urlToBuf(c.id), type: c.type };
-            }),
-            attestation: 'none',
-            timeout: 60000,
-          },
-        }).then(function (cred) {
-          return { cred: /** @type {any} */ (cred), cid: ch.cid };
-        }, function (e) {
-          if (e && e.name === 'NotAllowedError') throw { kind: 'cancelled' };
-          if (e && e.name === 'InvalidStateError') throw { kind: 'already' };
-          if (e && e.name === 'NotSupportedError') throw { kind: 'nosupport' };
-          throw { kind: 'failed' };
-        });
-      }).then(function (r) {
-        let device = '';
-        try {
-          const uad = /** @type {any} */ (navigator).userAgentData;
-          if (uad && uad.platform) device = uad.platform;
-        } catch (e) {}
-        return postJSON(ACCOUNT_API, {
-          action: 'register',
-          cid: r.cid,
-          name: device || t('pkUnnamed'),
-          credential: {
-            id: r.cred.id,
-            rawId: bufToB64url(r.cred.rawId),
-            type: r.cred.type,
-            response: {
-              clientDataJSON: bufToB64url(r.cred.response.clientDataJSON),
-              attestationObject: bufToB64url(r.cred.response.attestationObject),
-            },
-          },
-        });
-      }).then(function (res) {
-        if (handleAuthError(res)) return;
-        if (res.j && res.j.ok) {
-          toast(t('pkRegistered'));
-          refreshKeys();
-        } else {
-          toast(errText(res.j && res.j.error, res.s));
-        }
-      }).catch(function (e) {
-        if (!e || e.kind === 'handled') return;
-        if (e.kind === 'cancelled') toast(t('errCancelled'));
-        else if (e.kind === 'already') toast(t('pkAlready'));
-        else if (e.kind === 'nosupport') toast(t('pkNoSupport'));
-        else if (e.kind === 'failed') toast(t('pkFailed'));
-        else if (e.kind === 'server') toast(errText(e.code, e.status));
-        else toast(t('errNetwork'));
-      });
-    });
-  }
-
-  /* 设置/修改/重置账号密码 */
-  function submitPw() {
-    const a = /** @type {HTMLInputElement|null} */ ($('lockpw-1'));
-    const b = /** @type {HTMLInputElement|null} */ ($('lockpw-2'));
-    const va = a ? a.value : '';
-    const vb = b ? b.value : '';
-    const errEl = $('lockpw-err');
-    if (errEl) errEl.hidden = true;
-    const showErr = function (msg) {
-      if (errEl) {
-        errEl.textContent = msg;
-        errEl.hidden = false;
-      }
-    };
-    const pe = newPwError(va, vb);
-    if (pe) {
-      showErr(t(pe));
-      return;
-    }
-    postJSON(ACCOUNT_API, { action: 'password', password: va }).then(function (res) {
-      if (res.j && res.j.ok) {
-        pwDialog.close('success');
-        toast(res.j.changed ? t('pwChanged') : t('pwSaved'));
-        hasPw = true;
-        renderPwRow();
-        return;
-      }
-      if (handleAuthError(res)) {
-        pwDialog.close('reverify');
-        return;
-      }
-      showErr(errText(res.j && res.j.error, res.s));
-    }, function () {
-      showErr(t('errNetwork'));
-    });
-  }
-  const pwGo = $('lockpw-go');
-  if (pwGo) bindSubmitButton(pwGo, submitPw);
+  /* ================= 账号总览 ================= */
 
   /* 退出账号 */
   const logout = $('acct-logout');
@@ -605,15 +323,27 @@ const ACCOUNT_API = '/api/account';
     });
   }
 
+  /**
+   * 密码管理器改名（ownerkey → accountkey）：支持 signalCurrentUserDetails 时才拉一次 list 拿账号 handle。
+   * 用通行密钥登录后、或进总览时都会走到这里；每页只发一次（account-common.js）。
+   */
+  function maybeSignalName() {
+    const PKC = /** @type {any} */ (window.PublicKeyCredential);
+    if (!PKC || typeof PKC.signalCurrentUserDetails !== 'function') return;
+    postJSON(ACCOUNT_API, { action: 'list' }).then(function (res) {
+      if (res.j && res.j.ok) signalAccountName(res.j);
+    }, function () {});
+  }
+
   function showMain(j) {
-    sessBy = (j.session && j.session.by) || '';
-    hasPw = !!j.password;
+    const by = (j.session && j.session.by) || '';
     const byEl = $('acct-by');
-    if (byEl) byEl.textContent = sessBy === 'root' ? t('byRoot') : sessBy === 'passkey' ? t('byPasskey') : t('byPassword');
-    renderPwRow();
+    if (byEl) byEl.textContent = by === 'root' ? t('byRoot') : by === 'passkey' ? t('byPasskey') : t('byPassword');
+    const secSub = $('acct-sec-sub');
+    if (secSub) secSub.textContent = (j.password || j.passkey) ? t('secProtected') : t('secUnprotected');
     loginEl.hidden = true;
     mainEl.hidden = false;
-    refreshKeys();
+    maybeSignalName();
   }
 
   /* 进页：读状态（访客/读失败 → 登录区，界面一致） */
@@ -631,6 +361,15 @@ const ACCOUNT_API = '/api/account';
         }
         if (j.session && j.session.recent && fromDoor) {
           afterLogin();
+          return;
+        }
+        if (acctReturn) {
+          /* 子页跳来：已有近期会话直接回去；过旧/未登录 → 登录区（过旧给提示） */
+          if (j.session && j.session.recent && !fromStale) {
+            sgxReplace(acctReturn);
+            return;
+          }
+          showLogin(j.session ? t('staleNotice') : '');
           return;
         }
         if (j.session && !fromDoor) {
