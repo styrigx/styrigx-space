@@ -966,10 +966,12 @@
     -webkit-backdrop-filter: none;
   }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    /* stylelint-disable-next-line color-no-hex */
     .brw-suggest, .sgx-cap-results, .brw-ov-bar, .brw-ov, .sgx-vs-card { background: #fff; }
     .sgx-cap, .sgx85-pill { background: var(--sgx-mat-solid); }
     /* stylelint-disable-next-line color-no-hex */
     .layout-mobile #sheet-panel, .layout-dex #sheet-panel, .layout-pc #sheet-panel { background: #fff; }
+    /* stylelint-disable-next-line color-no-hex */
     .dark .brw-suggest, .dark .sgx-cap-results, .dark .brw-ov-bar, .dark .brw-ov, .dark .sgx-vs-card { background: #1e1e20; }
     /* stylelint-disable-next-line color-no-hex */
     .dark .layout-mobile #sheet-panel, .dark .layout-dex #sheet-panel, .dark .layout-pc #sheet-panel { background: #1e1e20; }
