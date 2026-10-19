@@ -184,9 +184,10 @@ test.describe('390×844 行为', () => {
     await page.locator('.sgx-tb-pill .sgx-tb-more').click();
     await expect(menu).toBeVisible();
     await expect(menu.locator('.sgx-tb-menu-item')).toHaveCount(1);
-    await expect(menu.locator('.sgx-tb-menu-item')).toHaveText('设置');
+    const en = (await page.evaluate(() => document.documentElement.lang)) === 'en';
+    await expect(menu.locator('.sgx-tb-menu-item')).toHaveText(en ? 'Settings' : '设置');
     await menu.locator('.sgx-tb-menu-item').click();
-    await expect(page).toHaveURL(/\/settings\/$/);
+    await expect(page).toHaveURL(en ? /\/en\/settings\/$/ : /\/settings\/$/);
   });
 
   test('主页搜索圆：进浏览器搜索页并聚焦', async ({ page }) => {
