@@ -21,8 +21,8 @@ import { ed25519Sign, ed25519Verify } from './crypto.js';
 import { REALM_ACCOUNT, realmPrivateKey, realmPublicKey, realmCookie, realmClearCookie } from './realms.js';
 
 export const ACCOUNT_COOKIE = REALM_ACCOUNT.cookie; /* 'sgx-account' */
-export const ACCOUNT_MAX_AGE = REALM_ACCOUNT.maxAge; /* 12 小时 */
-export const ACCOUNT_RECENT_MS = REALM_ACCOUNT.recent * 1000; /* 10 分钟 */
+export const ACCOUNT_MAX_AGE = REALM_ACCOUNT.maxAge; /* 400 天：不点退出就一直登录 */
+export const ACCOUNT_RECENT_MS = REALM_ACCOUNT.recent * 1000; /* 10 分钟（只剩「管理凭证」进门在用） */
 export const ACCOUNT_BY_PASSKEY = 'passkey';
 export const ACCOUNT_BY_PASSWORD = 'password';
 export const ACCOUNT_BY_ROOT = 'root';
@@ -151,7 +151,8 @@ export async function verifyAccountCookie(request, env) {
 }
 
 /**
- * 账号登录是否「近期」（now - authAt ≤ 10 分钟）。进门、账号页管理操作都要求近期。
+ * 账号登录是否「近期」（now - authAt ≤ 10 分钟）。只剩「管理凭证」进门要求近期；
+ * 账号页的管理操作改为要求账号门票（_kernel/door.js）。
  * @param {number} authAt
  * @param {number} [now]
  */

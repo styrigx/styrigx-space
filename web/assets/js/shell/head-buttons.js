@@ -67,8 +67,25 @@ function initSearchBtn() {
   });
 }
 
+/**
+ * 访客：右上角头像只是装饰 —— 去掉链接（点了没反应、不跳转、键盘也聚焦不到）。
+ * 会话角色由 L1 注入 <html data-sgx-role>；锁屏未解锁时没有角色，头像保持原样（锁屏盖住它）。
+ * CSS 另有 html[data-sgx-role="visitor"] .sgx-tb-me { pointer-events:none } 兜底（JS 跑之前）。
+ */
+export function initVisitorAvatar() {
+  if (document.documentElement.getAttribute('data-sgx-role') !== 'visitor') return;
+  const me = document.querySelector('.sgx-tb-me');
+  if (!me) return;
+  me.removeAttribute('href');
+  me.setAttribute('aria-disabled', 'true');
+  me.setAttribute('tabindex', '-1');
+  me.removeAttribute('aria-label');
+  me.setAttribute('aria-hidden', 'true');
+}
+
 export function initHeadButtons() {
   initDrawer();
   initSearchBtn();
   initQuickPanel();
+  initVisitorAvatar();
 }

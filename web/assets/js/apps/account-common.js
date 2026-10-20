@@ -1,5 +1,6 @@
 /**
- * @fileoverview 账号页两页共用：账号总览（/settings/account/，含登录区）与
+ * @fileoverview 账号页共用：账号总览（/settings/account/，含登录区）、
+ * 已登录子页（/settings/account/profile/，退出账号）与
  * 安全与隐私子页（/settings/account/security/，管理账号密码和账号通行密钥）。
  *
  * - i18n：两页模板都输出同一份 #sgx-i18n-account（partials/account-i18n.html）
@@ -21,8 +22,12 @@ export function accountUrl(en) {
 export function securityUrl(en) {
   return en ? '/en/settings/account/security/' : '/settings/account/security/';
 }
-/** 账号总览登录后可回跳的本站路径（只接受安全与隐私子页） */
-export const ACCOUNT_RETURN_RE = /^\/(en\/)?settings\/account\/security\/$/;
+/** @param {boolean} en */
+export function profileUrl(en) {
+  return en ? '/en/settings/account/profile/' : '/settings/account/profile/';
+}
+/** 账号总览登录后可回跳的本站路径（只接受账号的两个子页：安全与隐私、已登录） */
+export const ACCOUNT_RETURN_RE = /^\/(en\/)?settings\/account\/(security|profile)\/$/;
 
 /**
  * @param {boolean} en
@@ -77,6 +82,7 @@ const ERR_KEYS = {
   'same-as-lock': 'errSameAsLock',
   'not-found': 'errNotFound',
   session: 'sessExp',
+  door: 'doorExpired',
 };
 
 /**

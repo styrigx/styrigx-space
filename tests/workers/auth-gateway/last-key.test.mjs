@@ -240,10 +240,12 @@ test('A-2：删光账号凭证时不动 lock-emptied 残留（留给 B 处理；
   await kv.put('owner-passkey:acct-key-000', JSON.stringify({ credId: 'acct-key-0001', class: 'owner', publicKey: {}, signCount: 0 }));
   const sess = await mintSession();
   const acc = await signAccountTicket(STEPUP_PRIV, 'root', 0, Date.now());
+  const { signDoorTicket } = await import('../../../workers/auth-gateway/functions/_kernel/door.js');
+  const door = await signDoorTicket(STEPUP_PRIV, 'account', 'root', 0); /* 删账号通行密钥要账号门票 */
   const env = Object.assign({}, envFor(kv), { SGX_ACCOUNT_PRIVATE: STEPUP_PRIV, SGX_ACCOUNT_PUBLIC: STEPUP_PUB });
   const res = await onRequestPost({
     request: postReq('https://styrigx.com/api/account', { action: 'delete', credId: 'acct-key-0001' },
-      { Cookie: 'sgx-verified=' + sess + '; sgx-account=' + acc }),
+      { Cookie: 'sgx-verified=' + sess + '; sgx-account=' + acc + '; sgx-door=' + door }),
     env,
   });
   assert.equal(res.status, 200, await res.text());

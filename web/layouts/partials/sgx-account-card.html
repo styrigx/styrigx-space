@@ -3,7 +3,7 @@
    头像读主站 /avatar/192.webp；主人会话下头像右下角出现铅笔，点头像可换照片 / 移除照片
    （assets/js/apps/avatar-edit.js，入口 entry-account.js），访客只看不能点。 */}}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
-<div class="sgx-account-card">
+<div class="sgx-account-card" data-acct-card>
   <div class="sgx-ac-tx">
     <p class="sgx-ac-name">Sloan Gray</p>
     <p class="sgx-ac-sub">Styrigx</p>

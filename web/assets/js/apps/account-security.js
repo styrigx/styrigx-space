@@ -5,8 +5,11 @@
  * - 账号通行密钥：添加（注册成功弹命名弹层，预填设备名；改了名才调 rename）、
  *   列表内点名字直接改名（失焦 / 回车保存）、两步确认删除
  * - 命名弹层与锁屏页同一套行为：A1 遮罩不关、A2 返回先收键盘、A3 × 关闭，弹层随键盘上移
- * - 进页 GET /api/account：没有账号会话 → 跳账号页 ?return=<本页> 登录后回来；
- *   改动返回 account / account-stale → 跳 ?return=<本页>&stale=1（提示重新验证）
+ * - 门（安全操作）：进页 GET /api/account —— 没有账号会话 → 跳账号页 ?return=<本页> 登录后回来；
+ *   有账号会话但没有有效门票 → 显示验证行（账号通行密钥 / 账号密码 / 根凭证，设了哪个显示哪个，
+ *   都没设只显示根凭证；door:true 换 3 分钟账号门票），通过后显示管理区 + 倒计时胶囊；
+ *   到点 / 改动返回 403 door → 回到验证行（提示「验证已过期」）。
+ *   离开本页（pagehide）→ door-clear 立即作废门票；从历史返回（bfcache）重新读状态，需要再验证。
  * - list 返回账号 handle → signalCurrentUserDetails（account-common.js）让密码管理器把旧条目改名 accountkey
  */
 import { on } from '../lib/events.js';
@@ -17,6 +20,7 @@ import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { bindDataEyes, createSetPwDialog, newPwError } from '../lib/auth-flow.js';
 import { bindSubmitButton, onDialogBackdrop, onDialogCancel, recordDialogClose } from '../lib/dialog-behavior.js';
 import { ACCOUNT_API, accountUrl, createT, postJSON, errText as errTextT, signalAccountName } from './account-common.js';
+import { accountSubmitters, renderAccountMethods, visibleKinds } from './account-methods.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -33,18 +37,107 @@ import { ACCOUNT_API, accountUrl, createT, postJSON, errText as errTextT, signal
   }
 
   /** 回账号页登录，登录后回本页 */
-  function goLogin(stale) {
-    sgxReplace(accountUrl(en) + '?return=' + encodeURIComponent(location.pathname) + (stale ? '&stale=1' : ''));
+  function goLogin() {
+    sgxReplace(accountUrl(en) + '?return=' + encodeURIComponent(location.pathname));
+  }
+
+  /* ================= 门：验证行 + 倒计时 ================= */
+  const doorEl = $('acct-door');
+  const doorMethodsEl = $('acct-door-methods');
+  const doorNotice = $('acct-door-notice');
+  const doorSubmit = accountSubmitters(t, { door: true });
+  /** GET /api/account 最近一次结果 */
+  let status = null;
+  let doorMethods = null;
+  let cdEl = null;
+  let cdTimer = 0;
+  let cdExp = 0;
+
+  function stopCountdown() {
+    if (cdTimer) window.clearInterval(cdTimer);
+    cdTimer = 0;
+    if (cdEl) {
+      try { cdEl.remove(); } catch (e) {}
+      cdEl = null;
+    }
+  }
+  /** @param {number} ms */
+  function fmtLeft(ms) {
+    const sec = Math.max(0, Math.ceil(ms / 1000));
+    return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+  }
+  function tickCountdown() {
+    if (!cdEl) return;
+    const left = cdExp - Date.now();
+    if (left <= 0) {
+      /* 到点：回到门口重新验证 */
+      showDoor(t('doorExpired'));
+      return;
+    }
+    cdEl.classList.toggle('sgx-countdown-warn', left <= 30000);
+    const tx = cdEl.querySelector('.sgx-door-countdown-text');
+    if (tx) tx.textContent = t('doorCountdown').replace('{m}', fmtLeft(left));
+  }
+  /** 门内倒计时胶囊（与锁屏凭证门同一套样式），以服务端 expiresAt 为准 @param {number} expiresAt */
+  function startCountdown(expiresAt) {
+    stopCountdown();
+    cdExp = expiresAt;
+    const el = document.createElement('div');
+    el.id = 'sgx-door-countdown';
+    el.className = 'sgx-door-countdown';
+    el.setAttribute('role', 'timer');
+    el.innerHTML = '<span aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span><span class="sgx-door-countdown-text"></span>';
+    const layout = document.querySelector('.set-layout');
+    if (layout) layout.insertBefore(el, layout.firstChild);
+    cdEl = el;
+    tickCountdown();
+    cdTimer = window.setInterval(tickCountdown, 1000);
+  }
+
+  /** 显示门口（验证行）。@param {string} [notice] */
+  function showDoor(notice) {
+    stopCountdown();
+    root.hidden = true;
+    if (!doorEl || !doorMethodsEl) return;
+    if (doorMethods) doorMethods.collapse();
+    doorMethods = renderAccountMethods({
+      el: doorMethodsEl,
+      t: function (k) { return k === 'verifyBtn' ? t('doorVerifyBtn') : t(k); },
+      en: en,
+      kinds: visibleKinds(status),
+      submit: doorSubmit,
+      onSuccess: function () { loadStatus(); },
+    });
+    if (doorNotice) {
+      doorNotice.textContent = notice || '';
+      doorNotice.hidden = !notice;
+    }
+    doorEl.hidden = false;
+  }
+
+  /** 进门：显示管理区 + 倒计时 @param {any} j */
+  function enterRoom(j) {
+    if (doorEl) doorEl.hidden = true;
+    sessBy = j.session.by || '';
+    hasPw = !!j.password;
+    renderPwRow();
+    root.hidden = false;
+    startCountdown(j.door.expiresAt);
+    refreshKeys();
   }
 
   /**
-   * 管理接口统一错误处理：账号会话失效/过旧 → 回账号页登录；lock 会话失效 → 去锁屏。
+   * 管理接口统一错误处理：账号会话失效 → 回账号页登录；门票没了/过期 → 回门口；lock 会话失效 → 去锁屏。
    * @returns {boolean} 已处理
    */
   function handleAuthError(res) {
     const code = res && res.j && res.j.error;
-    if (code === 'account' || code === 'account-stale') {
-      goLogin(true);
+    if (code === 'account') {
+      goLogin();
+      return true;
+    }
+    if (code === 'door') {
+      showDoor(t('doorExpired'));
       return true;
     }
     if (code === 'session') {
@@ -442,19 +535,38 @@ import { ACCOUNT_API, accountUrl, createT, postJSON, errText as errTextT, signal
     });
   }
 
-  /* 进页：读状态。没有账号会话（访客 / 只有锁屏会话 / 读失败）→ 回账号页登录 */
-  fetch(ACCOUNT_API, { method: 'GET', credentials: 'same-origin' })
-    .then(function (r) { return r.json(); })
-    .then(function (j) {
-      if (!(j && j.ok && j.session && j.ready !== false)) {
-        goLogin(false);
-        return;
-      }
-      sessBy = j.session.by || '';
-      hasPw = !!j.password;
-      renderPwRow();
-      root.hidden = false;
-      refreshKeys();
-    })
-    .catch(function () { goLogin(false); });
+  /* 进页：读状态。没有账号会话（访客 / 只有锁屏会话 / 读失败）→ 回账号页登录；没有门票 → 门口 */
+  function loadStatus() {
+    return fetch(ACCOUNT_API, { method: 'GET', credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!(j && j.ok && j.session && j.ready !== false)) {
+          goLogin();
+          return;
+        }
+        status = j;
+        if (j.door && typeof j.door.expiresAt === 'number' && j.door.expiresAt > Date.now()) enterRoom(j);
+        else showDoor();
+      })
+      .catch(function () { goLogin(); });
+  }
+
+  /* 离开本页：门票立即作废（keepalive，页面卸载也能发出）。从历史返回（bfcache 恢复）重新读状态 → 门口。 */
+  window.addEventListener('pagehide', function () {
+    stopCountdown();
+    try {
+      fetch(ACCOUNT_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'door-clear' }),
+        credentials: 'same-origin',
+        keepalive: true,
+      }).catch(function () {});
+    } catch (e) {}
+  });
+  window.addEventListener('pageshow', function (e) {
+    if (e && /** @type {PageTransitionEvent} */ (e).persisted) loadStatus();
+  });
+
+  loadStatus();
 })();

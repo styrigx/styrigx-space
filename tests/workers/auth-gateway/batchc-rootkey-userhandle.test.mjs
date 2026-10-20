@@ -162,14 +162,16 @@ test('B2：lockreset verify 带换行通过', async () => {
   assert.equal(j.needOwner, true, '应进入站长凭证步骤');
 });
 
-/* 账号体系：账号通行密钥（class=owner）的注册 challenge 改走 /api/account（需近期账号会话） */
+/* 账号体系：账号通行密钥（class=owner）的注册 challenge 改走 /api/account（需账号会话 + 账号门票） */
 async function accountRegisterChallenge(kv, env) {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/account.js');
   const { signAccountTicket } = await import('../../../workers/auth-gateway/functions/_kernel/account-session.js');
   const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   const sess = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
   const acc = await signAccountTicket(STEPUP_PRIV, 'root', 0, Date.now());
-  const req = postReq('https://styrigx.com/api/account', { action: 'register-challenge' }, { 'Cookie': 'sgx-verified=' + sess + '; sgx-account=' + acc });
+  const { signDoorTicket } = await import('../../../workers/auth-gateway/functions/_kernel/door.js');
+  const door = await signDoorTicket(STEPUP_PRIV, 'account', 'root', 0); /* 注册账号通行密钥要账号门票 */
+  const req = postReq('https://styrigx.com/api/account', { action: 'register-challenge' }, { 'Cookie': 'sgx-verified=' + sess + '; sgx-account=' + acc + '; sgx-door=' + door });
   const res = await onRequestPost({ request: req, env });
   return await res.json();
 }

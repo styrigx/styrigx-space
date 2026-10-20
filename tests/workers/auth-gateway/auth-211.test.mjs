@@ -497,8 +497,10 @@ test('2.11 pepper：账号密码 = 锁屏密码被拒（双向；账号侧走 /a
   await kv.put('lock-pw', JSON.stringify(lockRec));
   const env = baseEnv(kv);
   const acc = await signAccountTicket(TEST_PRIV_PEM, 'root', 0, Date.now());
+  const { signDoorTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/door.js');
+  const door = await signDoorTicket(TEST_PRIV_PEM, 'account', 'root', 0); /* 改账号密码要账号门票 */
   const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
-  const headers = { 'Cookie': 'sgx-verified=' + sessCv + '; sgx-account=' + acc };
+  const headers = { 'Cookie': 'sgx-verified=' + sessCv + '; sgx-account=' + acc + '; sgx-door=' + door };
   /* 设账号密码 = 锁屏密码 → 403 same-as-lock */
   const req = postReq('https://test.example.com/api/account',
     { action: 'password', password: 'same-pass-12345' }, headers);

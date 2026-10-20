@@ -2,15 +2,16 @@
  * 账号页 E2E（站长凭证升级为账号；静态构建 + API mock，无需真实后端）。
  *
  * 覆盖：
- * - 账号登录三个入口平级（账号通行密钥 / 账号密码 / 根凭证），中英文
+ * - 账号登录入口：设了哪个显示哪个（都没设只显示根凭证；读不到状态三个都显示），中英文
  * - 密码登录：错误行内提示；成功后进账号总览（账号卡、登录方式、「安全与隐私」一行；没有密码/通行密钥分组）
  * - 根凭证登录走 /api/root-auth { key, target:'account' }
  * - 通行密钥：取消系统验证不报错；点行立即 busy，只发一次 challenge
  * - 安全与隐私子页（/settings/account/security/）：修改密码（根凭证登录时标题为「重置账号密码」）、
  *   删除通行密钥（两步确认）、注册后命名弹层（A1/A2/A3）、列表内重命名、signalCurrentUserDetails；
  *   未登录 → 跳账号页 ?return= 登录后回来
- * - 账号总览：退出账号
- * - 管理操作返回 account-stale → 回登录区并提示重新验证
+ * - 账号总览：点账号卡进「账号信息」子页，在那里退出账号
+ * - 安全与隐私子页的门：没有门票 → 验证行（设了哪个显示哪个），door:true 验证后进门 + 倒计时；
+ *   管理操作返回 403 door → 回门口并提示「验证已过期」
  * - 只有锁屏会话（GET /api/account session=null）→ 显示登录区，不当作已登录
  * - 服务器缺账号钥匙（ready=false）→ 登录区显示配置提示
  *
@@ -21,6 +22,8 @@ const { blockExternalRequests } = require('./helpers');
 
 const SEC = '/settings/account/security/';
 const RECENT = () => ({ by: 'password', authAt: Date.now() - 1000, expiresAt: Date.now() + 3600000, recent: true });
+/* 安全与隐私子页的门票（3 分钟） */
+const DOOR = () => ({ by: 'password', expiresAt: Date.now() + 170000 });
 
 /**
  * /api/account mock：GET 返回 status；POST 按 action 返回 handlers[action]。
@@ -67,6 +70,16 @@ test.describe('账号登录', () => {
     await expect(page.locator('#acct-login-notice')).toBeHidden();
   });
 
+  test('设了哪个显示哪个：只设密码 → 密码 + 根凭证；都没设 → 只有根凭证', async ({ page }) => {
+    let st = { ok: true, password: true, passkey: false, ready: true, session: null };
+    await mockAccount(page, { status: () => st });
+    await page.goto('/settings/account/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#acct-methods .sgx-door-row .sgx-door-rowtitle')).toHaveText(['账号密码', '根凭证']);
+    st = { ok: true, password: false, passkey: false, ready: true, session: null };
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#acct-methods .sgx-door-row .sgx-door-rowtitle')).toHaveText(['根凭证']);
+  });
+
   test('英文页三个入口', async ({ page }) => {
     /* beforeEach 写了 sgx-lang=zh，会被语言跟随带回中文页；这里改成 en（后注册的 init script 后执行） */
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
@@ -99,8 +112,8 @@ test.describe('账号登录', () => {
     await input.press('Enter');
     await expect(page.locator('#acct-main')).toBeVisible();
     await expect(page.locator('#acct-login')).toBeHidden();
-    await expect(page.locator('#acct-by')).toHaveText('已用账号密码登录');
-    /* 总览：账号卡 + 已登录卡 + 安全与隐私（已保护）；密码/通行密钥分组不在总览 */
+    /* 总览：账号卡 + 安全与隐私（已保护）；已登录卡在账号信息子页；密码/通行密钥分组不在总览 */
+    await expect(page.locator('#acct-logout, #acct-by')).toHaveCount(0);
     await expect(page.locator('#acct-main .sgx-account-card')).toBeVisible();
     await expect(page.locator('#acct-sec-row')).toContainText('安全与隐私');
     await expect(page.locator('#acct-sec-sub')).toHaveText('已保护');
@@ -127,7 +140,6 @@ test.describe('账号登录', () => {
     await page.locator('.sgx-door-expand .sgx-door-btn-primary').click();
     await expect(page.locator('#acct-main')).toBeVisible();
     expect(rootBody).toEqual({ key: 'root-key-xyz', target: 'account' });
-    await expect(page.locator('#acct-by')).toContainText('已用根凭证登录');
     await expect(page.locator('#acct-sec-sub')).toHaveText('未设置登录方式');
   });
 
@@ -196,7 +208,7 @@ test.describe('安全与隐私子页', () => {
 
   test('根凭证登录：密码标题为「重置账号密码」，重置成功提示已修改', async ({ page }) => {
     const calls = await mockAccount(page, {
-      status: { ok: true, password: true, passkey: false, ready: true, session: Object.assign(RECENT(), { by: 'root' }) },
+      status: { ok: true, password: true, passkey: false, ready: true, session: Object.assign(RECENT(), { by: 'root' }), door: DOOR() },
       handlers: { list: [200, { ok: true, keys: [] }], password: [200, { ok: true, changed: true }] },
     });
     await page.goto(SEC, { waitUntil: 'domcontentloaded' });
@@ -212,7 +224,7 @@ test.describe('安全与隐私子页', () => {
 
   test('密码与解锁密码相同 → 弹层内「不能与解锁密码相同」', async ({ page }) => {
     await mockAccount(page, {
-      status: { ok: true, password: false, passkey: false, ready: true, session: RECENT() },
+      status: { ok: true, password: false, passkey: false, ready: true, session: RECENT(), door: DOOR() },
       handlers: { list: [200, { ok: true, keys: [] }], password: [403, { ok: false, error: 'same-as-lock' }] },
     });
     await page.goto(SEC, { waitUntil: 'domcontentloaded' });
@@ -227,7 +239,7 @@ test.describe('安全与隐私子页', () => {
   test('删除通行密钥：两步确认后调 delete 并刷新列表', async ({ page }) => {
     let keys = [{ credId: 'k1', name: 'Galaxy S26', provider: '', createdAt: 1760000000000, lastUsedAt: 1760000000000 }];
     const calls = await mockAccount(page, {
-      status: { ok: true, password: true, passkey: true, ready: true, session: RECENT() },
+      status: { ok: true, password: true, passkey: true, ready: true, session: RECENT(), door: DOOR() },
       handlers: {
         list: () => [200, { ok: true, keys: keys }],
         delete: () => { keys = []; return [200, { ok: true }]; },
@@ -244,10 +256,54 @@ test.describe('安全与隐私子页', () => {
     expect(calls.find((c) => c.action === 'delete')).toEqual({ action: 'delete', credId: 'k1' });
   });
 
-  test('管理操作 account-stale（登录超过 10 分钟）→ 跳账号页登录并提示重新验证', async ({ page }) => {
+  test('门：没有门票 → 验证行（设了哪个显示哪个）；密码验证带 door:true → 进门 + 倒计时胶囊', async ({ page }) => {
+    let door = null;
+    const calls = await mockAccount(page, {
+      status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT(), door: door }),
+      handlers: {
+        'login-password': (b) => { if (b.door === true) door = DOOR(); return [200, { ok: true }]; },
+        list: [200, { ok: true, keys: [] }],
+      },
+    });
+    await page.goto(SEC, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#acct-door')).toBeVisible();
+    await expect(page.locator('#acct-sec')).toBeHidden();
+    await expect(page.locator('#acct-door-methods .sgx-door-row .sgx-door-rowtitle')).toHaveText(['账号密码', '根凭证']);
+    await page.locator('#acct-door-methods .sgx-door-row').filter({ hasText: '账号密码' }).click();
+    await page.locator('#acct-door-methods .sgx-door-expand input[type="password"]').fill('pw-123456');
+    await expect(page.locator('#acct-door-methods .sgx-door-btn-primary')).toHaveText('验证');
+    await page.locator('#acct-door-methods .sgx-door-btn-primary').click();
+    await expect(page.locator('#acct-sec')).toBeVisible();
+    await expect(page.locator('#acct-door')).toBeHidden();
+    expect(calls.find((c) => c.action === 'login-password')).toEqual({ action: 'login-password', password: 'pw-123456', door: true });
+    await expect(page.locator('#sgx-door-countdown')).toContainText(/验证剩余 [23]:\d\d/);
+  });
+
+  test('门：根凭证进门带 door:true', async ({ page }) => {
+    let door = null;
+    let rootBody = null;
     await mockAccount(page, {
-      status: { ok: true, password: true, passkey: false, ready: true, session: Object.assign(RECENT(), { recent: false }) },
-      handlers: { list: [200, { ok: true, keys: [] }], password: [403, { ok: false, error: 'account-stale' }] },
+      status: () => ({ ok: true, password: false, passkey: false, ready: true, session: RECENT(), door: door }),
+      handlers: { list: [200, { ok: true, keys: [] }] },
+    });
+    await page.route('**/api/root-auth', async (route) => {
+      rootBody = JSON.parse(route.request().postData() || '{}');
+      door = DOOR();
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+    });
+    await page.goto(SEC, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#acct-door-methods .sgx-door-row .sgx-door-rowtitle')).toHaveText(['根凭证']);
+    await page.locator('#acct-door-methods .sgx-door-row').click();
+    await page.locator('#acct-door-methods .sgx-door-expand input[type="password"]').fill('root-key-xyz');
+    await page.locator('#acct-door-methods .sgx-door-btn-primary').click();
+    await expect(page.locator('#acct-sec')).toBeVisible();
+    expect(rootBody).toEqual({ key: 'root-key-xyz', target: 'account', door: true });
+  });
+
+  test('管理操作返回 403 door（门票过期）→ 回门口并提示「验证已过期」', async ({ page }) => {
+    await mockAccount(page, {
+      status: { ok: true, password: true, passkey: false, ready: true, session: RECENT(), door: DOOR() },
+      handlers: { list: [200, { ok: true, keys: [] }], password: [403, { ok: false, error: 'door' }] },
     });
     await page.goto(SEC, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#acct-sec')).toBeVisible();
@@ -255,9 +311,27 @@ test.describe('安全与隐私子页', () => {
     await page.locator('#lockpw-1').fill('another-pass-1');
     await page.locator('#lockpw-2').fill('another-pass-1');
     await page.locator('#lockpw-go').click();
-    await page.waitForURL(/\/settings\/account\/\?return=%2Fsettings%2Faccount%2Fsecurity%2F&stale=1$/);
-    await expect(page.locator('#acct-login')).toBeVisible();
-    await expect(page.locator('#acct-login-notice')).toHaveText('登录已超过 10 分钟，请重新验证');
+    await expect(page.locator('#acct-door')).toBeVisible();
+    await expect(page.locator('#acct-sec')).toBeHidden();
+    await expect(page.locator('#acct-door-notice')).toHaveText('验证已过期，请重新验证');
+    await expect(page.locator('#sgx-door-countdown')).toHaveCount(0);
+  });
+
+  test('离开本页（pagehide）：发 door-clear 作废门票', async ({ page }) => {
+    const calls = await mockAccount(page, {
+      status: { ok: true, password: true, passkey: false, ready: true, session: RECENT(), door: DOOR() },
+      handlers: { list: [200, { ok: true, keys: [] }], 'door-clear': [200, { ok: true }] },
+    });
+    /* keepalive 请求在页面卸载时发出，route 拦不稳；在 context 上听请求体 */
+    const sent = [];
+    page.context().on('request', (r) => {
+      if (r.url().endsWith('/api/account') && r.method() === 'POST') sent.push(r.postData() || '');
+    });
+    await page.goto(SEC, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#acct-sec')).toBeVisible();
+    /* 真实导航时的 keepalive 请求 Playwright 不一定看得到；直接派发 pagehide 验证监听器发出了 door-clear */
+    await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: false })));
+    await expect.poll(() => sent.concat(calls.map((c) => JSON.stringify(c))).filter((b) => b.includes('door-clear')).length).toBeGreaterThan(0);
   });
 
 });
@@ -265,15 +339,28 @@ test.describe('安全与隐私子页', () => {
 test.describe('账号总览', () => {
   test.beforeEach(async ({ page }) => { await zh(page); });
 
-  test('退出账号 → 回登录区', async ({ page }) => {
+  test('点账号卡 → 账号信息子页（已登录卡）；退出账号 → 回账号页登录区', async ({ page }) => {
+    let loggedIn = true;
     const calls = await mockAccount(page, {
-      status: { ok: true, password: true, passkey: false, ready: true, session: RECENT() },
-      handlers: { list: [200, { ok: true, keys: [] }], logout: [200, { ok: true }] },
+      status: () => ({ ok: true, password: true, passkey: false, ready: true, session: loggedIn ? RECENT() : null }),
+      handlers: { list: [200, { ok: true, keys: [] }], logout: () => { loggedIn = false; return [200, { ok: true }]; } },
     });
     await page.goto('/settings/account/', { waitUntil: 'domcontentloaded' });
+    await page.locator('#acct-main [data-acct-card] .sgx-ac-name').click();
+    await page.waitForURL(/\/settings\/account\/profile\/$/);
+    await expect(page.locator('#acct-profile')).toBeVisible();
+    await expect(page.locator('#acct-by')).toHaveText('已用账号密码登录');
     await page.locator('#acct-logout').click();
+    await page.waitForURL(/\/settings\/account\/$/);
     await expect(page.locator('#acct-login')).toBeVisible();
     expect(calls.some((c) => c.action === 'logout')).toBe(true);
+  });
+
+  test('账号信息子页：没有账号会话 → 跳账号页 ?return=子页', async ({ page }) => {
+    await mockAccount(page, { status: { ok: true, password: true, passkey: false, ready: true, session: null } });
+    await page.goto('/settings/account/profile/', { waitUntil: 'domcontentloaded' });
+    await page.waitForURL(/\/settings\/account\/\?return=%2Fsettings%2Faccount%2Fprofile%2F$/);
+    await expect(page.locator('#acct-login')).toBeVisible();
   });
 });
 
@@ -315,14 +402,15 @@ test.describe('安全与隐私子页：进入与回跳', () => {
     await page.locator('.sgx-door-expand input[type="password"]').fill('pw-123456');
     await page.locator('.sgx-door-expand .sgx-door-btn-primary').click();
     await page.waitForURL(/\/settings\/account\/security\/$/);
-    await expect(page.locator('#acct-sec')).toBeVisible();
-    await expect(page.locator('#lockmgr-pwsub')).toHaveText('已设置');
+    /* 登录只是进账号；安全与隐私还要过门 */
+    await expect(page.locator('#acct-door')).toBeVisible();
+    await expect(page.locator('#acct-sec')).toBeHidden();
   });
 
   test('英文子页：标题 Security & privacy，总览行链接到英文子页', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
     await mockAccount(page, {
-      status: { ok: true, password: false, passkey: true, ready: true, session: RECENT() },
+      status: { ok: true, password: false, passkey: true, ready: true, session: RECENT(), door: DOOR() },
       handlers: { list: [200, { ok: true, keys: [] }] },
     });
     await page.goto('/en/settings/account/', { waitUntil: 'domcontentloaded' });
@@ -342,7 +430,7 @@ test.describe('安全与隐私子页：账号通行密钥命名', () => {
   async function setup(page) {
     let keys = [];
     const calls = await mockAccount(page, {
-      status: { ok: true, password: true, passkey: false, ready: true, session: RECENT() },
+      status: { ok: true, password: true, passkey: false, ready: true, session: RECENT(), door: DOOR() },
       handlers: {
         list: () => [200, { ok: true, keys: keys, userHandle: 'acct-h', userName: 'accountkey', displayName: 'Sloan Gray' }],
         'register-challenge': [200, { ok: true, cid: 'c1', challenge: 'dGVzdC1jaGFsbGVuZ2U', rpId: 'localhost', rp: { name: 'Styrigx' }, user: { id: 'YWNjdC1o', name: 'accountkey', displayName: 'Sloan Gray' }, excludeCredentials: [] }],
@@ -410,7 +498,7 @@ test.describe('安全与隐私子页：账号通行密钥命名', () => {
     const keys0 = [{ credId: 'k1', name: 'Galaxy S26', provider: 'Samsung Pass', createdAt: 1760000000000, lastUsedAt: 0 }];
     let keys = keys0;
     const calls = await mockAccount(page, {
-      status: { ok: true, password: true, passkey: true, ready: true, session: RECENT() },
+      status: { ok: true, password: true, passkey: true, ready: true, session: RECENT(), door: DOOR() },
       handlers: {
         list: () => [200, { ok: true, keys: keys }],
         rename: (b) => { keys = [Object.assign({}, keys0[0], { name: b.name })]; return [200, { ok: true, name: b.name }]; },
@@ -431,20 +519,20 @@ test.describe('安全与隐私子页：账号通行密钥命名', () => {
     await expect(input).toHaveValue('平板');
   });
 
-  test('rename 返回 account-stale → 恢复原名并跳账号页重新登录', async ({ page }) => {
+  test('rename 返回 403 door → 回门口重新验证', async ({ page }) => {
     await mockAccount(page, {
-      status: { ok: true, password: true, passkey: true, ready: true, session: Object.assign(RECENT(), { recent: false }) },
+      status: { ok: true, password: true, passkey: true, ready: true, session: RECENT(), door: DOOR() },
       handlers: {
         list: [200, { ok: true, keys: [{ credId: 'k1', name: 'Galaxy S26', provider: '', createdAt: 1760000000000, lastUsedAt: 0 }] }],
-        rename: [403, { ok: false, error: 'account-stale' }],
+        rename: [403, { ok: false, error: 'door' }],
       },
     });
     await page.goto(SEC, { waitUntil: 'domcontentloaded' });
     const input = page.locator('#lockmgr-pklist .lockmgr-pkname input');
     await input.fill('新名字');
     await input.press('Enter');
-    await page.waitForURL(/\/settings\/account\/\?return=.*&stale=1$/);
-    await expect(page.locator('#acct-login-notice')).toHaveText('登录已超过 10 分钟，请重新验证');
+    await expect(page.locator('#acct-door')).toBeVisible();
+    await expect(page.locator('#acct-door-notice')).toHaveText('验证已过期，请重新验证');
   });
 
   test('signalCurrentUserDetails：list 带账号 handle 时发一次（name=accountkey）', async ({ page }) => {
@@ -500,5 +588,31 @@ test.describe('账号总览：signalCurrentUserDetails', () => {
     await expect(page.locator('#acct-main')).toBeVisible();
     await expect(page.locator('#acct-sec-sub')).toHaveText('已保护');
     expect(calls.filter((c) => c.action === 'list').length).toBe(0);
+  });
+});
+
+test.describe('访客头像', () => {
+  test('访客：右上角头像只是装饰 —— 没有链接、点了不跳转', async ({ page }) => {
+    await zh(page);
+    /* 像线上 L1 那样把会话角色写进 <html> */
+    await page.route(/^http:\/\/localhost:\d+\/$/, async (route) => {
+      const res = await route.fetch();
+      const body = (await res.text()).replace(/<html([^>]*)>/i, '<html$1 data-sgx-session="valid" data-sgx-role="visitor">');
+      await route.fulfill({ response: res, body: body });
+    });
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    const me = page.locator('.sgx-tb-me');
+    await expect(me).not.toHaveAttribute('href', /.*/);
+    await expect(me).toHaveAttribute('aria-disabled', 'true');
+    expect(await me.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe('none');
+    await me.click({ force: true });
+    await page.waitForTimeout(300);
+    expect(new URL(page.url()).pathname).toBe('/');
+  });
+
+  test('站长：头像照常链到账号页', async ({ page }) => {
+    await zh(page);
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.sgx-tb-me')).toHaveAttribute('href', '/settings/account/');
   });
 });

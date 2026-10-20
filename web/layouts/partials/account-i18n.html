@@ -1,4 +1,4 @@
-{{/* 账号页两页（账号总览 account.html、安全与隐私子页 account-security.html）共用的文案：
+{{/* 账号页三页（账号总览 account.html、已登录子页 account-profile.html、安全与隐私子页 account-security.html）共用的文案：
    输出 #sgx-i18n-account，JS 见 apps/account-common.js createT。用法：{{ partial "account-i18n.html" . }} */}}
 {{ $acI18n := dict
   "eyeShow" (dict "zh" "显示密码" "en" "Show password")
@@ -14,7 +14,7 @@
   "passkeyBusy" (dict "zh" "正在唤起通行密钥…" "en" "Opening passkey…")
   "byPasskey" (dict "zh" "已用账号通行密钥登录" "en" "Signed in with account passkey")
   "byPassword" (dict "zh" "已用账号密码登录" "en" "Signed in with account password")
-  "byRoot" (dict "zh" "已用根凭证登录（可重置账号密码、删除通行密钥）" "en" "Signed in with root credential (you can reset the password and remove passkeys)")
+  "byRoot" (dict "zh" "已用根凭证登录" "en" "Signed in with root credential")
   "staleNotice" (dict "zh" "登录已超过 10 分钟，请重新验证" "en" "Your sign-in is older than 10 minutes. Please verify again.")
   "doorNotice" (dict "zh" "进入管理凭证前请先登录账号" "en" "Sign in to your account to enter credential management")
   "configNotice" (dict "zh" "账号登录暂不可用：服务器缺少账号密钥配置" "en" "Account sign-in is unavailable: the server is missing the account key configuration")
@@ -61,6 +61,10 @@
   "pkNameAria" (dict "zh" "通行密钥名称" "en" "Passkey name")
   "created" (dict "zh" "创建于 " "en" "Created ")
   "lastUsed" (dict "zh" "最近使用 " "en" "Last used ")
+  "doorVerifyBtn" (dict "zh" "验证" "en" "Verify")
+  "doorExpired" (dict "zh" "验证已过期，请重新验证" "en" "Verification expired, please verify again")
+  "doorCountdown" (dict "zh" "验证剩余 {m}" "en" "Verification remaining {m}")
+  "doorCountdownExpired" (dict "zh" "已过期" "en" "Expired")
   "sessExp" (dict "zh" "会话已失效，请回到锁屏重新解锁" "en" "Session expired, please unlock again from the lock screen")
 }}
 <script id="sgx-i18n-account" type="application/json">{{ $acI18n | jsonify | safeJS }}</script>
