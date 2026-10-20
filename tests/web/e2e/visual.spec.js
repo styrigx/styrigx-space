@@ -241,6 +241,8 @@ test('baseline-drawer-open', async ({ page: pg }) => {
   await waitPageReady(pg);
   await pg.click('.sgx-tb-nav');
   await expect(pg.locator('#sgx-drawer.is-open')).toBeVisible({ timeout: 10000 });
+  /* 等抽屉稳定在打开状态再截图（不拍滑入中途） */
+  await expect(pg.locator('#sgx-drawer')).toHaveAttribute('data-state', 'open');
   await expect(pg).toHaveScreenshot('baseline-drawer-open.png', { animations: 'disabled' });
 });
 

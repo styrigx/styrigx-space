@@ -195,6 +195,8 @@ test.describe('390×844 行为', () => {
     await expect(dr.locator('.sgx-drawer-item')).toHaveCount(5);
     await page.keyboard.press('Escape');
     await expect(dr).toBeHidden();
+    await expect(dr).toHaveAttribute('data-state', 'closed');
+    await expect(dr).not.toHaveClass(/\bis-open\b/);
   });
 });
 

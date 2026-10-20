@@ -63,6 +63,13 @@ function updateStuck(y) {
 /** 抽屉滑入 / 滑出时长（与 input.css .sgx-drawer-sheet 的 transition 一致） */
 const DRAWER_MS = 220;
 
+/*
+ * 抽屉状态机（dlg.dataset.state）：closed → opening → open → closing → closed。
+ * 开合只靠我们自己的计时器推进（不等 transitionend：减弱动效 / 后台标签页 / 过渡被打断时它可能永远不来），
+ * 每次开 / 关都换一代 gen，上一代没跑完的 rAF / 计时器一律作废——
+ * 以前「刚点开（is-open 还在等两帧 rAF）就按 Esc」时，迟到的 rAF 会把 is-open 加回去，
+ * 关闭计时器看到 is-open 就不关 <dialog>，抽屉卡在打开状态（CI 偶发）。
+ */
 function initDrawer() {
   const btn = document.querySelector('.sgx-tb-nav');
   const dlg = /** @type {HTMLDialogElement|null} */ (document.getElementById('sgx-drawer'));
@@ -72,12 +79,35 @@ function initDrawer() {
   let pushed = false;
   /* 正在等哨兵出栈的 popstate：'' = 不在等；'-' = 只关闭；其他 = 关闭后要去的地址 */
   let awaiting = '';
-  /** @type {number|null} */ let closeTimer = null;
+  /* 开合代数：每次 open / hide 加一，旧代的回调看到代数变了就什么都不做 */
+  let gen = 0;
+  /** @type {number[]} */ let rafs = [];
+  /** @type {number|null} */ let timer = null;
+
+  /** @param {string} st */
+  function setState(st) {
+    dlg.setAttribute('data-state', st);
+  }
+  function cancelPending() {
+    for (let i = 0; i < rafs.length; i++) cancelAnimationFrame(rafs[i]);
+    rafs = [];
+    if (timer) clearTimeout(timer);
+    timer = null;
+  }
+  /** 收尾成「已关」：同步 class / aria / 状态；<dialog> 还开着就关掉 */
+  function settleClosed() {
+    cancelPending();
+    dlg.classList.remove('is-open');
+    btn.setAttribute('aria-expanded', 'false');
+    setState('closed');
+    if (dlg.open) dlg.close();
+  }
+  setState('closed');
 
   function open() {
     if (dlg.open) return;
-    if (closeTimer) clearTimeout(closeTimer);
-    closeTimer = null;
+    cancelPending();
+    const my = ++gen;
     dlg.classList.remove('is-open');
     try {
       dlg.showModal();
@@ -85,9 +115,22 @@ function initDrawer() {
       return;
     }
     btn.setAttribute('aria-expanded', 'true');
-    /* 下一帧再加 is-open，让滑入过渡生效 */
-    if (reducedMotion()) dlg.classList.add('is-open');
-    else requestAnimationFrame(function () { requestAnimationFrame(function () { dlg.classList.add('is-open'); }); });
+    const shown = function () {
+      if (my !== gen) return;
+      dlg.classList.add('is-open');
+      if (reducedMotion()) {
+        setState('open');
+        return;
+      }
+      timer = window.setTimeout(function () {
+        timer = null;
+        if (my === gen) setState('open');
+      }, DRAWER_MS);
+    };
+    setState('opening');
+    /* 下一帧再加 is-open，让滑入过渡生效；减弱动效直接到位 */
+    if (reducedMotion()) shown();
+    else rafs.push(requestAnimationFrame(function () { rafs.push(requestAnimationFrame(shown)); }));
     try {
       history.pushState({ sgxDrawer: 1 }, '', location.href);
       pushed = true;
@@ -97,15 +140,21 @@ function initDrawer() {
   }
   /** 只收界面（滑出后关 <dialog>），不动历史 */
   function hide() {
+    cancelPending();
+    const my = ++gen;
     btn.setAttribute('aria-expanded', 'false');
+    /* 还没真正滑出来（opening 且 is-open 没加上）或减弱动效：没有可等的滑出，直接关 */
+    const slid = dlg.classList.contains('is-open');
     dlg.classList.remove('is-open');
-    const done = function () {
-      closeTimer = null;
-      if (dlg.open && !dlg.classList.contains('is-open')) dlg.close();
-    };
-    if (closeTimer) clearTimeout(closeTimer);
-    if (reducedMotion()) done();
-    else closeTimer = window.setTimeout(done, DRAWER_MS);
+    if (!dlg.open || !slid || reducedMotion()) {
+      settleClosed();
+      return;
+    }
+    setState('closing');
+    timer = window.setTimeout(function () {
+      timer = null;
+      if (my === gen) settleClosed();
+    }, DRAWER_MS);
   }
   /**
    * 关闭抽屉；go 有值时关完再跳转（先退掉哨兵，免得目标页的返回多一步）。
@@ -152,6 +201,17 @@ function initDrawer() {
     e.preventDefault();
     close();
   });
+  /* <dialog> 被我们以外的途径关掉（浏览器连按 Esc 时可能无视 preventDefault 强关）：同步状态并退掉哨兵 */
+  dlg.addEventListener('close', function () {
+    if (dlg.getAttribute('data-state') === 'closed') return;
+    gen++;
+    settleClosed();
+    if (pushed) {
+      pushed = false;
+      awaiting = '-';
+      history.back();
+    }
+  });
   /* 系统返回：哨兵出栈 → 只关抽屉，停在本页 */
   window.addEventListener('popstate', function () {
     if (awaiting) {
@@ -170,9 +230,8 @@ function initDrawer() {
     if (e.persisted && dlg.open) {
       pushed = false;
       awaiting = '';
-      dlg.classList.remove('is-open');
-      dlg.close();
-      btn.setAttribute('aria-expanded', 'false');
+      gen++;
+      settleClosed();
     }
   });
 }

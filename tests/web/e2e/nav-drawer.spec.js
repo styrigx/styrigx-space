@@ -27,6 +27,8 @@ async function openDrawer(page) {
   await page.locator('.sgx-tb-nav').click();
   await expect(drawer(page)).toBeVisible();
   await expect(drawer(page)).toHaveClass(/\bis-open\b/);
+  /* 等滑入结束（data-state=open）再量位置 / 截图；is-open 只是过渡起点 */
+  await expect(drawer(page)).toHaveAttribute('data-state', 'open');
 }
 
 test.describe('顶栏：全站同一套，没有 ‹ 和 ⋮', () => {
@@ -104,6 +106,39 @@ test.describe('导航抽屉', () => {
     await expect(drawer(page).locator('.sgx-drawer-label')).toHaveText(['Home', 'Bookmarks', 'Library', 'Blog', 'Settings']);
     await expect(drawer(page).locator('.sgx-drawer-item').nth(1)).toHaveAttribute('href', '/en/bookmarks/');
     await expect(drawer(page).locator('.sgx-drawer-item').nth(4)).toHaveAttribute('href', '/en/settings/');
+  });
+
+  test('刚点开（滑入还没开始）就 Esc / 再点九宫格：照样关上，不卡在打开状态', async ({ page }) => {
+    await go(page, '/settings/');
+    /* 同一任务里点开再发 cancel（= Esc），保证落在 is-open 那两帧 rAF 之前 */
+    await page.evaluate(() => {
+      document.querySelector('.sgx-tb-nav').click();
+      document.getElementById('sgx-drawer').dispatchEvent(new Event('cancel', { cancelable: true }));
+    });
+    await expect(drawer(page)).toBeHidden();
+    await expect(drawer(page)).toHaveAttribute('data-state', 'closed');
+    await expect(drawer(page)).not.toHaveClass(/\bis-open\b/);
+    await expect(page.locator('.sgx-tb-nav')).toHaveAttribute('aria-expanded', 'false');
+    /* 连点两下九宫格（第二下落在滑入前）同样关上；之后还能正常再打开 */
+    await page.evaluate(() => {
+      const b = document.querySelector('.sgx-tb-nav');
+      b.click();
+      b.click();
+    });
+    await expect(drawer(page)).toBeHidden();
+    await expect(drawer(page)).toHaveAttribute('data-state', 'closed');
+    await openDrawer(page);
+    const sheet = await drawer(page).locator('.sgx-drawer-sheet').boundingBox();
+    expect(Math.abs(sheet.x)).toBeLessThanOrEqual(1);
+  });
+
+  test('减弱动效：开合立刻到位', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await go(page, '/settings/');
+    await openDrawer(page);
+    await page.keyboard.press('Escape');
+    await expect(drawer(page)).toBeHidden();
+    await expect(drawer(page)).toHaveAttribute('data-state', 'closed');
   });
 
   test('点遮罩关闭', async ({ page }) => {
