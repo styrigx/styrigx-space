@@ -15,10 +15,8 @@ import { initQuickPanel } from './quick-panel.js';
 /** 抽屉滑入 / 滑出时长（与 input.css .sgx-drawer-sheet 的 transition 一致） */
 const DRAWER_MS = 220;
 
-/*
- * 抽屉开合状态机（data-state closed/opening/open/closing、历史哨兵、作废旧 rAF / 计时器）在 modal-sheet.js，
- * 顶栏快捷面板（quick-panel.js）用同一份。
- */
+/* 抽屉开合状态机（data-state closed/opening/open/closing、历史哨兵、作废旧 rAF / 计时器）在 modal-sheet.js。
+ * 快捷面板（quick-panel.js）2026-10-20 起改为顶栏下内嵌展开，不再用它。 */
 function initDrawer() {
   const btn = /** @type {HTMLElement|null} */ (document.querySelector('.sgx-tb-nav'));
   const dlg = /** @type {HTMLDialogElement|null} */ (document.getElementById('sgx-drawer'));
