@@ -1,0 +1,30 @@
+{{/* 全网搜索页（/search/，2026-10-20 由 /browser/search/ 改名搬来，旧地址跳转过来）：做法照抄设置搜索（settings-search.html）。
+   主页顶栏长条的搜索按钮打开这里；底部是通用搜索胶囊（跟键盘走），内容是最近搜索 / 站内建议 / 引擎搜索。
+   搜索引擎、清除浏览记录在 设置 › 安全与隐私 › 隐私（不再有顶栏 ⋮）。 */}}
+{{ define "main" }}
+{{ .Scratch.Set "sgx-entry" "entry-web-search.js" }}
+{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+
+<div class="set-layout setso-layout max-w-2xl mx-auto px-4 pb-28">
+  {{ partial "subpage-head.html" (dict "title" .Title "isEn" $isEn) }}
+  <div class="set-main min-w-0">
+    <div id="brws-page"></div>
+  </div>
+</div>
+
+{{ $i18n := dict
+  "catLink" (dict "zh" "书签" "en" "Links")
+  "catPost" (dict "zh" "博客" "en" "Blog")
+  "catApp" (dict "zh" "应用" "en" "Apps")
+  "searchWith" (dict "zh" "用 {n} 搜索" "en" "Search with {n}")
+  "recent" (dict "zh" "最近搜索" "en" "Recent searches")
+  "clearAll" (dict "zh" "全部清除" "en" "Clear all")
+  "del" (dict "zh" "删除" "en" "Delete")
+}}
+<script id="sgx-i18n-brws" type="application/json">{{ $i18n | jsonify | safeJS }}</script>
+
+<!-- 底部搜索胶囊：page "brwsearch"，panel false；有输入时出现 ⓧ 清空，最右端 × 关闭 -->
+{{ partial "sgx-capsule.html" (dict "page" "brwsearch" "isEn" $isEn
+  "placeholder" (cond $isEn "Search or type URL" "搜索或输入网址")
+  "panel" false "tools" true) }}
+{{ end }}

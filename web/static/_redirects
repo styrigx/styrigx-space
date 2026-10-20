@@ -2,8 +2,12 @@
 /tp    https://github.com/styrigx/textbook-playbook    301
 /gh    https://github.com/styrigx                     301
 /gh/*  https://github.com/styrigx/:splat               301
-/links/  /browser/  301
-/en/links/  /en/browser/  301
+/links/  /bookmarks/  301
+/en/links/  /en/bookmarks/  301
+/browser/search/  /search/  301
+/en/browser/search/  /en/search/  301
+/browser/  /bookmarks/  301
+/en/browser/  /en/bookmarks/  301
 /owner/  /settings/security/lock/  301
 /en/owner/  /en/settings/security/lock/  301
 /goodlock/  /settings/goodlock/  301

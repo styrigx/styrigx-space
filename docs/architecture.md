@@ -86,8 +86,8 @@ space（styrigx.com）相当于 One UI，blog/book 等分站相当于其中的 A
   （只对当前 handle `owner-user-id:owner`；旧 handle 与 lockkey 共用，不发）。
 - 前端：账号页 `/settings/account/`（`apps/account.js`），顶栏头像链接到它；登录后是三星式总览
   （账号卡 + 头像编辑、已登录卡、「安全与隐私」一行）；账号密码和账号通行密钥在子页
-  `/settings/account/security/`（`apps/account-security.js`）。从头像进入时，总览的返回回到点头像时的页面
-  （`shell/navhistory.js`）。原站长凭证页（`security-owner`）已删除。
+  `/settings/account/security/`（`apps/account-security.js`）。顶栏没有 ‹ 返回（2026-10-20 删除），
+  返回走浏览器 / 系统返回。原站长凭证页（`security-owner`）已删除。
 
 ## 锁定与过期
 

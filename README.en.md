@@ -37,7 +37,8 @@ DeX
 |---|---|---|
 | Home | `/en/` | Launcher: app icons, widgets and the Dock. Widgets include profile card, dual clocks, weather, Now notes, latest blog posts, digital garden, screen time and collections. |
 | My Files | `/en/files/` | Only things I wrote: posts, blog, library. |
-| Internet | `/en/browser/` | External sites and bookmarks, switchable search engines, voice search. |
+| Bookmarks | `/en/bookmarks/` | External site bookmarks, filterable by category. |
+| Web search | `/en/search/` | On-site suggestions plus search with your chosen engine, voice search; pick the engine in Settings › Security and privacy. |
 | Settings | `/en/settings/` | Display, language, layout and other system settings, stored locally. |
 
 The Dock only shows on the home screen; inside apps only the search bar stays at the bottom.

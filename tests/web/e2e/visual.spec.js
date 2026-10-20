@@ -1,7 +1,8 @@
 /**
  * 2.4.0 E：视觉回归测试。
- * 5 视口 × 中英 × 深浅色 × 主要页面（/、/browser/、/settings/ 等；B2-2 删除 /store/，2026-10-19 删除 /files/）
- * + F 的两张基准（弹层打开、引擎菜单打开）。
+ * 5 视口 × 中英 × 深浅色 × 主要页面（/、/bookmarks/、/search/、/settings/ 等；B2-2 删除 /store/，2026-10-19 删除 /files/，
+ * 2026-10-20 /browser/ 拆成 /bookmarks/ + /search/）
+ * + F 的基准（弹层打开）+ 导航抽屉打开（baseline-drawer-open）。
  * 首次运行：npx playwright test --update-snapshots 生成基准；
  * 后续运行自动对比，不一致即失败。
  *
@@ -22,7 +23,7 @@ const VIEWPORTS = {
 /* 账号体系：原 /settings/security/owner/（站长凭证门）升级为账号页 /settings/account/ */
 /* 账号页三星式总览：/settings/account/ 拍登录后的总览（登录区由下方 account-login-* 覆盖），
    新增安全与隐私子页 /settings/account/security/ */
-const PAGES = ['/', '/browser/', '/settings/', '/settings/security/', '/settings/security/lock/', '/settings/account/', '/settings/account/security/'];
+const PAGES = ['/', '/bookmarks/', '/search/', '/settings/', '/settings/security/', '/settings/security/lock/', '/settings/account/', '/settings/account/security/'];
 const LANGS = [
   { prefix: '', name: 'zh' },
   { prefix: '/en', name: 'en' },
@@ -158,6 +159,12 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           /* 账号两页：等异步内容（总览 / 子页列表）落定再截图 */
           if (page === '/settings/account/') await expect(pg.locator('#acct-main')).toBeVisible({ timeout: 10000 });
           if (page === '/settings/account/security/') await expect(pg.locator('#lockmgr-pklist .lockmgr-pkitem')).toHaveCount(1, { timeout: 10000 });
+          /* 全网搜索页进页自动聚焦输入框：截图拍沉底态（收起键盘态，光标 / 胶囊展开不稳定） */
+          if (page === '/search/') {
+            await expect(pg.locator('#sgx-cap-input-brwsearch')).toBeFocused({ timeout: 10000 });
+            await pg.locator('#sgx-cap-input-brwsearch').blur();
+            await expect(pg.locator('#sgx-cap-brwsearch')).not.toHaveClass(/\bopen\b/, { timeout: 5000 });
+          }
           /* #1 诊断：构建标记小字只给真机看，视觉回归里隐藏，
              现有基线继续通过；诊断结束后删小字也不用再动基线。
              必须在 goto 之后注入（导航会丢掉之前 addStyleTag/addInitScript 加的样式，
@@ -165,10 +172,10 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           await pg.addStyleTag({
             content: '.sgx-build-tag,.sgx-build-tag-wrap{display:none !important}',
           });
-          /* 浏览器页：快捷访问 favicon 走外部请求（测试拦截 abort），失败兜底
+          /* 书签页：书签 favicon 走外部请求（测试拦截 abort），失败兜底
              异步把 img 换成首字母 span；截图前等可视区图标全部落定，
              否则截图会抓到"破图图标 vs 字母占位"的中间态导致抖动 */
-          if (page.includes('/browser')) {
+          if (page.includes('/bookmarks')) {
             try {
               await pg.waitForFunction(() => {
                 const vh = window.innerHeight || 800;
@@ -216,6 +223,27 @@ test('baseline-sheet-open', async ({ page: pg }) => {
   /* 等原生 dialog 弹层打开 */
   await expect(pg.locator('dialog[open]').first()).toBeVisible({ timeout: 10000 });
   await expect(pg).toHaveScreenshot('baseline-sheet-open.png', { animations: 'disabled' });
+});
+
+/* 导航抽屉打开（2026-10-20）：设置子页上点九宫格，抽屉滑入、设置项药丸高亮 */
+test('baseline-drawer-open', async ({ page: pg }) => {
+  await pg.setViewportSize(VIEWPORTS.mobile);
+  await blockExternalRequests(pg);
+  await pg.emulateMedia({ reducedMotion: 'reduce' });
+  await pg.addInitScript(() => {
+    try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
+  });
+  await pg.addStyleTag({
+    content: 'html{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans CJK SC","Noto Sans CJK",sans-serif !important}',
+  });
+  await freezeTime(pg);
+  await pg.goto('/settings/display/', { waitUntil: 'domcontentloaded' });
+  await waitPageReady(pg);
+  await pg.click('.sgx-tb-nav');
+  await expect(pg.locator('#sgx-drawer.is-open')).toBeVisible({ timeout: 10000 });
+  /* 等抽屉稳定在打开状态再截图（不拍滑入中途） */
+  await expect(pg.locator('#sgx-drawer')).toHaveAttribute('data-state', 'open');
+  await expect(pg).toHaveScreenshot('baseline-drawer-open.png', { animations: 'disabled' });
 });
 
 /* ===== 两扇门验证弹层视觉基线（第七节验收） =====

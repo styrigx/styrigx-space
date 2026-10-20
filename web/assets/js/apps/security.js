@@ -8,10 +8,14 @@
  * - 立即锁定：调服务端 /api/lock 清除会话 cookie 后重载，回到锁屏。
  * - 从 GET /api/account（需 owner 会话）读取账号凭证是否已设置，渲染状态卡片（访客不调用）。
  * - localStorage 统一走 storage.js。
+ * - 隐私分组（2026-10-20 从浏览器页 ⋮ 搬来）：搜索引擎（engines.js，sgx-search-engine，点行打开同一个选择弹层）、
+ *   清除浏览记录（全网搜索的最近搜索 sgx-browser-history）。原顶栏 ⋮（#sec-more = 刷新状态）已删除：进页即读取。
  */
 import { on } from '../lib/events.js';
-import { get as storeGet } from '../lib/storage.js';
+import { get as storeGet, set as storeSet } from '../lib/storage.js';
 import { toast } from '../lib/toast.js';
+import { openSheet } from '../shell/sheet.js';
+import { engines as SE } from '../shell/engines.js';
 import { stepupFetch } from '../lib/auth-flow.js';
 import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, shouldIgnorePostDialogClick } from '../lib/dialog-behavior.js';
@@ -65,8 +69,7 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, shouldIgnorePostDi
     }
   }
 
-  /** @param {boolean} [silent] */
-  function refresh(silent) {
+  function refresh() {
     /* 访客不调用 /api/account（需 owner 会话，访客 401）；状态卡片保持隐藏。 */
     try {
       if (document.documentElement.dataset.sgxRole === 'visitor') return;
@@ -78,7 +81,6 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, shouldIgnorePostDi
       .then(function (j) {
         if (j && j.ok) {
           render(!!j.password, !!j.passkey);
-          if (!silent) toast(t('refreshToast'));
         } else {
           throw new Error('bad');
         }
@@ -150,12 +152,48 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, shouldIgnorePostDi
     });
   }
 
-  const more = document.getElementById('sec-more');
-  if (more) {
-    on(more, 'click', function () {
-      refresh(false);
+  /* ============ 隐私：搜索引擎 / 清除浏览记录 ============ */
+  /** @param {Element|null} row @param {() => void} fn */
+  function bindRow(row, fn) {
+    if (!row) return;
+    on(row, 'click', fn);
+    on(row, 'keydown', function (/** @type {KeyboardEvent} */ e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        fn();
+      }
     });
   }
+  const engineVal = document.getElementById('sec-engine-val');
+  function syncEngine() {
+    if (engineVal) engineVal.textContent = SE.name(SE.cur());
+  }
+  syncEngine();
+  on(window, 'sgx-settings-changed', syncEngine);
+  bindRow(document.getElementById('sec-engine'), function () {
+    const cur = SE.cur();
+    openSheet({
+      title: t('engineTitle'),
+      options: SE.ORDER.map(function (id) {
+        return { label: SE.name(id), value: id, checked: id === cur };
+      }),
+      onPick: function (v) {
+        if (SE.ENGINES[v]) SE.setCur(v);
+        syncEngine();
+      },
+    });
+  });
+  bindRow(document.getElementById('sec-clearhist'), function () {
+    openSheet({
+      title: t('clearHistQ'),
+      options: [{ label: t('clear'), value: 'yes' }],
+      onPick: function (y) {
+        if (y !== 'yes') return;
+        storeSet('sgx-browser-history', '[]');
+        toast(t('clearedToast'));
+      },
+    });
+  });
 
   /* 重置所有设置入口：跳回设置页关于分组（由设置页处理二次确认） */
   const resetLink = document.getElementById('sec-reset-link');
@@ -240,5 +278,5 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, shouldIgnorePostDi
   })();
 
 
-  refresh(true);
+  refresh();
 })();

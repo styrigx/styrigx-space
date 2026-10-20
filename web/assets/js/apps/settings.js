@@ -887,14 +887,13 @@ import { sgxNavigate, sgxReplace, sgxGoBack, sgxReload } from '../lib/diag-jumpt
       });
     }
     if (capClose) {
-      /* × = 退出搜索页：站内进来的回到来的那一页（连同键盘哨兵一起退掉）；外部直接打开的走顶栏 ← 的上一级 */
+      /* × = 退出搜索页：站内进来的回到来的那一页（连同键盘哨兵一起退掉）；外部直接打开的回设置主页 */
       capClose.addEventListener('click', function (e) {
         e.stopPropagation();
         let internal = false;
         try { internal = !!document.referrer && new URL(document.referrer).origin === location.origin; } catch (err) {}
         if (!internal) {
-          const back = /** @type {HTMLElement|null} */ (document.querySelector('.sgx-tb-back'));
-          if (back) back.click();
+          sgxReplace(document.documentElement.lang === 'en' ? '/en/settings/' : '/settings/');
           return;
         }
         if (armed) {
@@ -953,6 +952,8 @@ import { sgxNavigate, sgxReplace, sgxGoBack, sgxReload } from '../lib/diag-jumpt
       'popstate',
       function () {
         if (!armed) return;
+        /* 出栈的是哨兵之上的条目（如导航抽屉的哨兵）：本页哨兵还在，不当作返回 */
+        if (history.state && history.state.sgxSetsoKb) return;
         armed = false;
         const kb = isKb();
         if (kb) {

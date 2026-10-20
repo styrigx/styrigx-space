@@ -2,7 +2,7 @@
  * @fileoverview 管理凭证索引页（定稿 #31）：锁屏 / 应用两个入口 + 状态摘要。
  * 进门探针用 /api/lock-status（接受 stepup scope=keys），无效则跳回安全与隐私页。
  */
-import { enterDoor, clearStepupThen, startDoorCountdown } from './app-gate.js';
+import { enterDoor, startDoorCountdown } from './app-gate.js';
 import { stepupFetch } from '../lib/auth-flow.js';
 
 (function () {
@@ -68,20 +68,6 @@ import { stepupFetch } from '../lib/auth-flow.js';
     const appsSub = $('mgmt-apps-sub');
     if (appsSub) appsSub.textContent = 'Book';
   }
-
-  /* C2b：只在索引页（离开管理凭证区时）清票后跳安全页。
-     锁屏/应用/Book 页都不加（返回目标仍在门内，加了会误清）。
-     捕获阶段监听 [data-go-back]，抢在 navhistory.js 的委托之前。 */
-  window.addEventListener('click', function (e) {
-    let el = null;
-    try {
-      el = e.target && e.target.closest ? e.target.closest('[data-go-back]') : null;
-    } catch (_) {}
-    if (!el) return;
-    e.preventDefault();
-    e.stopPropagation();
-    clearStepupThen(en ? '/en/settings/security/' : '/settings/security/');
-  }, true);
 
   /* C2b：系统返回手势（popstate）从索引页离开时同样清票。
      popstate 无法可靠拦截（浏览器立即导航），用 keepalive fetch 尽力而为：

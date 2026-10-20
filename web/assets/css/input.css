@@ -948,7 +948,7 @@
   /* 浮动层统一磨砂（替代各处复制粘贴的 blur 写法）：
      滚动后的顶栏、搜索胶囊、Dock、底部弹层/语音卡、浮动菜单。
      isolation 限定混合范围；contain: layout style 把重排/重绘关在元素内（fixed 元素安全）。 */
-  .sgx-cap, .sgx85-pill, .brw-suggest, .sgx-cap-results, .brw-ov-bar, .brw-ov, .sgx-vs-card, #sheet-panel {
+  .sgx-cap, .brw-suggest, .sgx-cap-results, .brw-ov-bar, .brw-ov, .sgx-vs-card, #sheet-panel {
     backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
     isolation: isolate;
@@ -968,7 +968,7 @@
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     /* stylelint-disable-next-line color-no-hex */
     .brw-suggest, .sgx-cap-results, .brw-ov-bar, .brw-ov, .sgx-vs-card { background: #fff; }
-    .sgx-cap, .sgx85-pill { background: var(--sgx-mat-solid); }
+    .sgx-cap { background: var(--sgx-mat-solid); }
     /* stylelint-disable-next-line color-no-hex */
     .layout-mobile #sheet-panel, .layout-dex #sheet-panel, .layout-pc #sheet-panel { background: #fff; }
     /* stylelint-disable-next-line color-no-hex */
@@ -1598,38 +1598,8 @@
   }
 
   /* ============================================================
-     浏览器 App（/browser/）：快捷访问 + 书签
+     书签页（/bookmarks/，2026-10-20 由浏览器页拆出；快捷访问、地址栏胶囊已删除）
      ============================================================ */
-  /* 建议列表 */
-  .brw-suggest {
-    border-radius: 1.5rem; overflow: hidden;
-    background: var(--glass-tint); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow);
-    .layout-mobile body.addrbar-bottom & {
-      position: fixed; left: 50%; transform: translateX(-50%); width: min(100% - 32px,560px);
-      bottom: calc(152px + env(safe-area-inset-bottom,0px)); z-index: 41; max-height: 52vh; overflow-y: auto;
-    }
-    .layout-mobile body.addrbar-top &, .layout-dex & {
-      width: min(100% - 32px,560px); margin: 8px auto 0; max-height: 60vh; overflow-y: auto;
-    }
-  }
-  /* 快捷访问网格 */
-  .brw-qa-grid {
-    display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px;
-    .layout-dex & { grid-template-columns: repeat(6,minmax(0,1fr)); }
-    @media (min-width:1280px) {
-      .layout-dex & { grid-template-columns: repeat(8,minmax(0,1fr)); }
-    }
-  }
-  .brw-qa {
-    display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 6px; border-radius: 1.25rem;
-    background: var(--m-container-lowest); border: 1px solid rgba(0,0,0,0.04); min-height: 88px;
-    .brw-qa-ic { width: 36px; height: 36px; border-radius: .8rem; object-fit: contain; background: var(--m-container); padding: 2px; }
-    span {
-      font-size: 11px; color: var(--m-on-surface-variant); text-align: center; line-height: 1.3;
-      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-    }
-    &:active { transform: scale(.96); }
-  }
   /* 书签分类筛选条：单行横滚 */
   .brw-cats { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 4px 2px 12px; }
   .brw-cats::-webkit-scrollbar { display: none; }
@@ -1643,31 +1613,6 @@
      浏览器磨砂弹出层（效果3）+ 大标题折叠（效果4）+ One UI 控件（效果5）。
      功能全部以 2.3.11 为准，这里只有效果样式。
      ============================================================ */
-
-  /* ---------- 效果1+2：底部搜索胶囊（胶囊本身就是输入框） ---------- */
-  .sgx85-pill {
-    position: fixed; left: 50%; transform: translateX(-50%); z-index: 41;
-    bottom: calc(88px + env(safe-area-inset-bottom,0px));
-    display: flex; align-items: center; gap: 10px; padding: 0 20px; height: 56px; border-radius: 999px;
-    width: min(64vw,300px);
-    background: var(--sgx-mat); border: 1px solid var(--sgx-mat-line); box-shadow: var(--sgx-mat-shadow);
-    color: var(--m-on-surface-variant); font-size: 17px; white-space: nowrap; cursor: pointer;
-    transition: transform .22s ease, opacity .22s ease;
-    svg { width: 22px; height: 22px; flex-shrink: 0; }
-    &:active { transform: translateX(-50%) scale(.97); }
-    .reduced-motion & { transition: none; }
-    /* 地址栏胶囊麦克风（2.3.14.1）：只检测 SpeechRecognition 接口是否存在，不按 UA 判断；不支持则不渲染 */
-    .sgx85-pill-mic {
-      display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; margin-left: auto; color: inherit;
-      svg { width: 22px; height: 22px; display: block; }
-      &.sgx-mic-on { color: var(--m-primary); animation: sgx-mic-pulse 1.4s ease-out infinite; }
-    }
-    .layout-dex & { max-width: 420px; }
-    /* 2.3.14.10：应用页浏览器地址栏胶囊同样下沉（必须在 body.addrbar-top 规则之前，同优先级下后者优先） */
-    body.subpage & { bottom: calc(12px + env(safe-area-inset-bottom,0px)); }
-    /* 地址栏位置设置（2.3.11）：顶部时胶囊移到顶栏下方 */
-    body.addrbar-top & { top: calc(var(--nav-h) + 12px + env(safe-area-inset-top,0px)); bottom: auto; }
-  }
 
   /* 可输入的搜索胶囊：平时是窄胶囊，聚焦时拉满宽并用 --sgx-kb 贴键盘（2.3.14.1：64% 屏宽/300px 上限，56px 高） */
   .sgx-cap {
@@ -2346,7 +2291,7 @@
   /* 内容卡片和顶栏同一材质（--sgx-mat，定义在顶栏段）。卡片后面只有固定的渐变壁纸，
      背景模糊看不出差别，所以卡片不加 backdrop-filter（几十张卡同时模糊会拖慢滚动）。
      只换底色：边框、阴影、悬停效果保持原样。 */
-  .widget.bg-m-container-lowest, .sgx-account-card, .link-card, .brw-qa, .brw-card, .brw-cat:not(.on):not(.is-active) {
+  .widget.bg-m-container-lowest, .sgx-account-card, .link-card, .brw-card, .brw-cat:not(.on):not(.is-active) {
     background-color: var(--sgx-mat); background-image: none;
   }
 
@@ -2487,16 +2432,17 @@
   --sgx-mat-line: rgba(255,255,255,.08);
   --sgx-mat-shadow: 0 8px 24px rgba(0,0,0,.35);
 }
-.sgx-tb-search, .sgx-tb-pill, .sgx-tb-nav {
+.sgx-tb-search, .sgx-tb-pill, .sgx-tb-nav, .sgx-tb-quick {
   background: var(--sgx-mat);
   backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
   border: 1px solid var(--sgx-mat-line); box-shadow: var(--sgx-mat-shadow); pointer-events: auto; }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .sgx-tb-search, .sgx-tb-pill, .sgx-tb-nav { background: var(--sgx-mat-solid); }
+  .sgx-tb-search, .sgx-tb-pill, .sgx-tb-nav, .sgx-tb-quick { background: var(--sgx-mat-solid); }
 }
-.sgx-tb-search, .sgx-tb-nav { width: 52px; height: 52px; border-radius: 999px; flex-shrink: 0; padding: 0;
+.sgx-tb-search, .sgx-tb-nav, .sgx-tb-quick { width: 52px; height: 52px; border-radius: 999px; flex-shrink: 0; padding: 0;
   display: inline-flex; align-items: center; justify-content: center; color: var(--m-on-surface); cursor: pointer; }
-.sgx-tb-back svg { width: 24px; height: 24px; }
+/* PR② 预留：快捷面板圆（长条与头像之间，与左圆同尺寸同材质）；模板里现在不渲染 */
+.sgx-tb-quick svg { width: 22px; height: 22px; }
 .sgx-tb-search { text-decoration: none; }
 .sgx-tb-search svg { width: 22px; height: 22px; }
 .sgx-tb-nav svg { width: 22px; height: 22px; }
@@ -2512,45 +2458,60 @@
   transition: opacity .2s ease, transform .2s ease; }
 .reduced-motion .sgx-tb-text { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-tb-text { transition: none; } }
-.sgx-tb-more { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 40px; height: 40px;
-  border-radius: 999px; border: 0; background: transparent; display: inline-flex; align-items: center; justify-content: center;
-  color: var(--m-on-surface); cursor: pointer; padding: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
-.sgx-tb-more svg { width: 22px; height: 22px; }
 .sgx-tb-pbtn { position: absolute; border: 0; background: transparent; padding: 0; cursor: pointer; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border-radius: 999px;
   display: inline-flex; align-items: center; justify-content: center; color: var(--m-on-surface); text-decoration: none; }
 .sgx-tb-pbtn svg { width: 22px; height: 22px; }
-.sgx-tb-psearch, .sgx-tb-back { left: 6px; }
+.sgx-tb-psearch { left: 6px; }
 .sgx-tb-set { right: 6px; }
 .sgx-tb-pbtn ~ .sgx-tb-brand { padding: 0; }
 /* 右圆：头像（账号入口：链到账号登录页 / 账号页） */
 .sgx-tb-me { width: 52px; height: 52px; border-radius: 999px; flex-shrink: 0; overflow: hidden; display: block;
   border: 1px solid var(--sgx-mat-line); box-shadow: var(--sgx-mat-shadow); pointer-events: auto; }
 .sgx-tb-me .sgx-tb-avatar { width: 100%; height: 100%; border: 0; display: block; }
-.sgx-tb-back, .sgx-tb-search, .sgx-tb-nav, .sgx-tb-more, .sgx-tb-pbtn { transition: background-color .15s ease; }
-.sgx-tb-back:active, .sgx-tb-search:active, .sgx-tb-nav:active, .sgx-tb-more:active, .sgx-tb-pbtn:active { background-color: rgba(0,0,0,.06); }
-.dark .sgx-tb-back:active, .dark .sgx-tb-search:active, .dark .sgx-tb-nav:active, .dark .sgx-tb-more:active, .dark .sgx-tb-pbtn:active { background-color: rgba(255,255,255,.10); }
-.reduced-motion .sgx-tb-back, .reduced-motion .sgx-tb-search, .reduced-motion .sgx-tb-nav, .reduced-motion .sgx-tb-more, .reduced-motion .sgx-tb-pbtn, .reduced-motion .sgx-tb-brand { transition: none; }
-@media (prefers-reduced-motion: reduce) { .sgx-tb-back, .sgx-tb-search, .sgx-tb-nav, .sgx-tb-more, .sgx-tb-pbtn, .sgx-tb-brand { transition: none; } }
-.sgx-tb-back:focus-visible, .sgx-tb-search:focus-visible, .sgx-tb-nav:focus-visible, .sgx-tb-more:focus-visible, .sgx-tb-pbtn:focus-visible, .sgx-tb-brand:focus-visible {
+.sgx-tb-search, .sgx-tb-nav, .sgx-tb-quick, .sgx-tb-pbtn { transition: background-color .15s ease; }
+.sgx-tb-search:active, .sgx-tb-nav:active, .sgx-tb-quick:active, .sgx-tb-pbtn:active { background-color: rgba(0,0,0,.06); }
+.dark .sgx-tb-search:active, .dark .sgx-tb-nav:active, .dark .sgx-tb-quick:active, .dark .sgx-tb-pbtn:active { background-color: rgba(255,255,255,.10); }
+.reduced-motion .sgx-tb-search, .reduced-motion .sgx-tb-nav, .reduced-motion .sgx-tb-quick, .reduced-motion .sgx-tb-pbtn, .reduced-motion .sgx-tb-brand { transition: none; }
+@media (prefers-reduced-motion: reduce) { .sgx-tb-search, .sgx-tb-nav, .sgx-tb-quick, .sgx-tb-pbtn, .sgx-tb-brand { transition: none; } }
+.sgx-tb-search:focus-visible, .sgx-tb-nav:focus-visible, .sgx-tb-quick:focus-visible, .sgx-tb-pbtn:focus-visible, .sgx-tb-brand:focus-visible {
   outline: 2px solid var(--m-primary); outline-offset: 2px; }
 /* 滚动后（JS 统一给 body 加 sgx-stuck，阈值 = 标题区高度 × 0.55）：头像不动，Styrigx 上移淡出，让位给小标题 */
 body.sgx-stuck .sgx-tb-text { opacity: 0; transform: translate(-50%,-50%) translateY(-6px); }
-/* 小标题：在长条内水平垂直居中，最大宽度 = 长条宽 - 104px，17/700；sgx-stuck 时淡入（与 Book 一致） */
+/* 小标题：在长条内水平垂直居中，17/700；sgx-stuck 时淡入（与 Book 一致）。
+   2026-10-20 子页长条里没有按钮了，最大宽度 = 长条宽 - 32px（原 - 104px 给 ‹ 和 ⋮ 让位） */
 .subpage-mini-title { opacity: 0; pointer-events: none; }
 .sgx-tb-pill .subpage-mini-title { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%) translateY(6px);
-  font-size: 17px; font-weight: 700; color: var(--m-on-surface); white-space: nowrap; max-width: calc(100% - 104px);
+  font-size: 17px; font-weight: 700; color: var(--m-on-surface); white-space: nowrap; max-width: calc(100% - 32px);
   overflow: hidden; text-overflow: ellipsis; opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease; }
 body.sgx-stuck .sgx-tb-pill .subpage-mini-title { opacity: 1; transform: translate(-50%,-50%) translateY(0); }
 .reduced-motion .sgx-tb-pill .subpage-mini-title { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-tb-pill .subpage-mini-title { transition: none; } }
-/* 菜单：fixed，锚定在按钮下方 8px、右对齐（JS 写位置） */
-.sgx-tb-menu { position: fixed; min-width: 200px; z-index: 70; pointer-events: auto; background: var(--m-container-lowest);
-  border: 1px solid var(--m-outline); border-radius: 1.25rem; box-shadow: 0 12px 32px -8px rgba(0,0,0,.25); padding: 6px; overflow: hidden; }
-.sgx-tb-menu.hidden { display: none; }
-.sgx-tb-menu-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 12px;
-  min-height: 48px; text-align: left; font-size: 15px; border-radius: .75rem; color: var(--m-on-surface); background: transparent; border: 0; cursor: pointer; }
-.sgx-tb-menu-item:active { background: var(--m-container); }
-.sgx-tb-menu-item[aria-current="true"] { color: var(--m-primary); font-weight: 600; }
+/* 导航抽屉（2026-10-20，Gmail Android 式左侧抽屉；baseof.html #sgx-drawer，head-buttons.js 开关）：
+   <dialog> 模态铺满视口，::backdrop 是遮罩；.sgx-drawer-sheet 从左滑入（is-open）。
+   当前项是主色容器药丸（aria-current="page"），图标 24px 描边。 */
+.sgx-drawer { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0;
+  border: 0; background: transparent; overflow: hidden; color: var(--m-on-surface); }
+.sgx-drawer::backdrop { background: rgba(0,0,0,0); transition: background-color .22s ease; }
+.sgx-drawer.is-open::backdrop { background: rgba(0,0,0,.32); }
+.sgx-drawer-sheet { position: absolute; top: 0; bottom: 0; left: 0; width: min(85vw, 320px); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--m-container-lowest); border-radius: 0 1.75rem 1.75rem 0; box-shadow: 0 12px 40px -8px rgba(0,0,0,.30);
+  padding: calc(16px + env(safe-area-inset-top, 0px)) 12px calc(16px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-104%); transition: transform .22s cubic-bezier(.2,0,0,1); }
+.sgx-drawer.is-open .sgx-drawer-sheet { transform: none; }
+.reduced-motion .sgx-drawer-sheet, .reduced-motion .sgx-drawer::backdrop { transition: none; }
+@media (prefers-reduced-motion: reduce) { .sgx-drawer-sheet, .sgx-drawer::backdrop { transition: none; } }
+.sgx-drawer-head { padding: 14px 16px 18px; font-size: 20px; font-weight: 700; color: var(--m-on-surface); }
+.sgx-drawer-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.sgx-drawer-item { display: flex; align-items: center; gap: 14px; min-height: 56px; padding: 0 20px 0 16px; border-radius: 999px;
+  font-size: 15px; font-weight: 500; color: var(--m-on-surface-variant); text-decoration: none; transition: background-color .15s ease; }
+.sgx-drawer-item:hover { background: var(--m-container); }
+.sgx-drawer-item:active { background: var(--m-container-high); }
+.sgx-drawer-item:focus-visible { outline: 2px solid var(--m-primary); outline-offset: -2px; }
+.sgx-drawer-item[aria-current="page"] { background: var(--m-primary-container); color: var(--m-on-primary-container); font-weight: 700; }
+.sgx-drawer-ic { width: 24px; height: 24px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
+.sgx-drawer-ic svg { width: 24px; height: 24px; display: block; }
+.sgx-drawer-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sgx-drawer-div { border: 0; border-top: 1px solid var(--m-outline); margin: 10px 16px; }
 /* topbar v2.0 end */
 
 /* ===== 头像裁剪（assets/js/apps/avatar-edit.js）=====

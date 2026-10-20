@@ -153,7 +153,8 @@ test.describe('A-1 进门不能马上被判过期（10 次连续进门）', () =
     await page.locator('#sec-mgmt-cred').click();
     await expect(page).toHaveURL(/\/settings\/security\/mgmt\//, { timeout: 10000 });
     await expect(page.locator('#sgx-door-countdown')).toBeVisible({ timeout: 15000 });
-    await page.locator('.sgx-tb-back').click();
+    /* 2026-10-20：顶栏没有 ‹，用系统返回离开门 */
+    await page.goBack();
     await expect(page).toHaveURL(/\/settings\/security\/$/, { timeout: 10000 });
     await page.locator('#sec-mgmt-cred').click();
     await expect(page).toHaveURL(/\/settings\/security\/mgmt\//, { timeout: 10000 });

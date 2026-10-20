@@ -52,7 +52,8 @@ function areaOf() {
   const p = location.pathname;
   if (p === '/settings/goodlock/' || p === '/en/settings/goodlock/') return 'goodlock';
   if (p === '/settings/' || p === '/en/settings/') return 'settings';
-  if (p === '/browser/' || p === '/en/browser/') return 'browser';
+  /* 区域键沿用 'browser'（历史数据不丢）：2026-10-20 浏览器页拆成 /bookmarks/ + /search/ */
+  if (p === '/bookmarks/' || p === '/en/bookmarks/' || p === '/search/' || p === '/en/search/') return 'browser';
   return 'home';
 }
 
@@ -149,7 +150,7 @@ export function initGoodLock() {
     function (/** @type {MouseEvent} */ e) {
       if (!modOn('gl-sound')) return;
       const t = /** @type {HTMLElement|null} */ (e.target);
-      if (t && t.closest && t.closest('.app-tile,.sgx-tb-menu-item,.nav-act')) blip();
+      if (t && t.closest && t.closest('.app-tile,.sgx-drawer-item,.nav-act')) blip();
     },
     { passive: true }
   );
@@ -167,7 +168,7 @@ export function initGoodLock() {
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const home = en ? '/en/' : '/',
-        links = en ? '/en/browser/' : '/browser/',
+        links = en ? '/en/bookmarks/' : '/bookmarks/',
         setUrl = en ? '/en/settings/' : '/settings/';
       if (pending) {
         pending = false;

@@ -34,9 +34,9 @@
 {{ end }}
 
 {{/* ---------- 应用 ---------- */}}
-{{/* 系统 App（browser/files/settings）直接链接；B2-2 删除应用商店 */}}
+{{/* 系统 App（书签 / 设置）直接链接；B2-2 删除应用商店；2026-10-20 浏览器拆成 书签 + 全网搜索 */}}
 {{ $apps := slice
-  (dict "key" "browser"  "zh" "浏览器"   "en" "Internet"  "zhsub" "搜索与书签"     "ensub" "Search and bookmarks"   "path" "browser/")
+  (dict "key" "bookmarks" "zh" "书签"    "en" "Bookmarks" "zhsub" "书签导航"       "ensub" "Bookmark directory"     "path" "bookmarks/")
   (dict "key" "settings" "zh" "设置"     "en" "Settings"  "zhsub" "主题、语言、壁纸" "ensub" "Theme, language, wallpaper" "path" "settings/")
 }}
 {{ range $l := $langs }}
