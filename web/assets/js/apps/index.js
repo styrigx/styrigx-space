@@ -1,5 +1,5 @@
 /**
- * @fileoverview 首页：双时钟、天气小组件、数字花园筛选。
+ * @fileoverview 首页：双时钟、天气小组件、日刻今日一句、数字花园筛选。
  */
 import { on } from '../lib/events.js';
 import { get as featGet } from '../lib/features.js';
@@ -355,4 +355,70 @@ if (SGX_FEAT_WEATHER_SHOW)
     history.scrollRestoration = 'manual';
   }
   window.scrollTo(0, 0);
+})();
+
+/* 日刻 · 今日一句：daymark.styrigx.com/api/today（公开只读，CORS 只放 https://styrigx.com）。
+   先画本地缓存（同一天才用），再静默拉新；拉失败且没缓存 → 卡片保持隐藏。
+   返回 {ok, day, quote|null}；quote = {text, trans, author, source}。 */
+(function () {
+  const root = document.getElementById('w-daymark');
+  if (!root) return;
+  const en = document.documentElement.lang === 'en';
+  const API = 'https://daymark.styrigx.com/api/today';
+  const CACHE = 'sgx-daymark-today';
+  const q = (k) => /** @type {HTMLElement|null} */ (root.querySelector('[data-dm="' + k + '"]'));
+  function todaySh() {
+    try {
+      return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    } catch (e) {
+      return '';
+    }
+  }
+  function fmtDay(day) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day || '');
+    if (!m) return '';
+    const mo = Number(m[2]), d = Number(m[3]);
+    if (!en) return mo + '月' + d + '日';
+    return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][mo - 1] + ' ' + d;
+  }
+  function setT(k, v) {
+    const el = q(k);
+    if (el) el.textContent = v || '';
+  }
+  function paint(d) {
+    if (!d || !d.ok) return;
+    setT('day', fmtDay(d.day));
+    const quote = d.quote;
+    const body = q('body'), empty = q('empty'), trans = q('trans');
+    if (quote && quote.text) {
+      setT('text', quote.text);
+      if (trans) {
+        trans.textContent = quote.trans || '';
+        trans.classList.toggle('hidden', !quote.trans);
+      }
+      const src = quote.source ? (en ? quote.source : '《' + quote.source.replace(/^《|》$/g, '') + '》') : '';
+      const by = [quote.author || '', src].filter(Boolean).join(en ? ', ' : '');
+      setT('by', by ? '— ' + by : '');
+      if (body) body.classList.remove('hidden');
+      if (empty) empty.classList.add('hidden');
+    } else {
+      if (body) body.classList.add('hidden');
+      if (empty) empty.classList.remove('hidden');
+    }
+    root.classList.remove('hidden');
+  }
+  const cached = getJSON(CACHE, null);
+  if (cached && cached.ok && cached.day === todaySh()) paint(cached);
+  if (typeof fetch !== 'function') return;
+  const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = ctl ? setTimeout(() => ctl.abort(), 8000) : 0;
+  fetch(API, { credentials: 'omit', mode: 'cors', signal: ctl ? ctl.signal : undefined })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d) => {
+      if (!d || !d.ok) return;
+      setJSON(CACHE, { ok: true, day: d.day, quote: d.quote || null });
+      paint(d);
+    })
+    .catch(() => {})
+    .finally(() => clearTimeout(timer));
 })();

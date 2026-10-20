@@ -1040,6 +1040,18 @@
     }
   }
 
+  /* ===== 日刻 · 今日一句小组件（2026-10-20）：右上角一枚大引号做底纹，正文最多 4 行 ===== */
+  .dm-w { display: block; text-decoration: none; -webkit-tap-highlight-color: transparent; transition: transform .2s ease; }
+  .dm-w:active { transform: scale(.985); }
+  .reduced-motion .dm-w:active { transform: none; }
+  .dm-w-mark { position: absolute; right: .6rem; top: -1.6rem; font: 800 9rem/1 Georgia, 'Times New Roman', serif;
+    color: var(--m-primary); opacity: .08; pointer-events: none; user-select: none; }
+  .dm-w-ic { display: inline-flex; width: 16px; height: 16px; }
+  .dm-w-ic svg { width: 16px; height: 16px; }
+  .dm-w-text { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; text-wrap: pretty; }
+  .dm-w-trans { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .dm-w-trans.hidden { display: none; }
+
   /* ===== 双时钟：昼夜配色 ===== */
   .clock-half { transition: background-color .5s ease, color .5s ease; }
   .clock-day { background: var(--m-container-lowest); color: var(--m-on-surface); }
@@ -1290,6 +1302,7 @@
   .layout-pc #home-widgets > #w-profile,
   .layout-pc #home-widgets > #dual-clock,
   .layout-pc #home-widgets > #weather,
+  .layout-pc #home-widgets > #w-daymark,
   .layout-pc #home-widgets > #w-screen { grid-column: span 2/span 2; }
   /* ----- 手机模式强制（宽屏下也保持手机布局） ----- */
   .layout-mobile #home-widgets { grid-template-columns: repeat(4,minmax(0,1fr)); }

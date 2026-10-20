@@ -181,13 +181,13 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 </header>
 
 {{/* 导航抽屉（Gmail Android 式左侧抽屉，head-buttons.js 开关）：九宫格打开；点遮罩 / 系统返回 / Esc 关闭。
-   当前页所在项用药丸高亮（aria-current="page"）；底部分隔线下只有 设置。书库、博客是子站（同一标签页打开）。 */}}
+   当前页所在项用药丸高亮（aria-current="page"）；底部分隔线下只有 设置。日刻、博客是子站（同一标签页打开；书库不再维护，2026-10-20 起导航改为日刻）。 */}}
 {{ $navCur := "" }}
 {{ if .IsHome }}{{ $navCur = "home" }}{{ else if or (eq .RelPermalink "/bookmarks/") (eq .RelPermalink "/en/bookmarks/") }}{{ $navCur = "bookmarks" }}{{ else if or (hasPrefix .RelPermalink "/settings/") (hasPrefix .RelPermalink "/en/settings/") }}{{ $navCur = "settings" }}{{ end }}
 {{ $navItems := slice
   (dict "id" "home" "icon" "nav-home" "zh" "首页" "en" "Home" "url" $home)
   (dict "id" "bookmarks" "icon" "nav-bookmark" "zh" "书签" "en" "Bookmarks" "url" $bmUrl)
-  (dict "id" "book" "icon" "nav-book" "zh" "书库" "en" "Library" "url" (cond $isEn "https://book.styrigx.com/en/" "https://book.styrigx.com/"))
+  (dict "id" "daymark" "icon" "nav-daymark" "zh" "日刻" "en" "Daymark" "url" (cond $isEn "https://daymark.styrigx.com/en/" "https://daymark.styrigx.com/"))
   (dict "id" "blog" "icon" "nav-blog" "zh" "博客" "en" "Blog" "url" (cond $isEn "https://blog.styrigx.com/en/" "https://blog.styrigx.com/"))
 }}
 <dialog id="sgx-drawer" class="sgx-drawer" aria-label="{{ if $isEn }}Navigation{{ else }}导航{{ end }}">
