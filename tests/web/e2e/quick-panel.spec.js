@@ -37,6 +37,8 @@ async function openQp(page) {
   await expect(qp(page)).toHaveClass(/\bis-open\b/);
   /* 等展开结束（data-state=open）；is-open 只是过渡起点 */
   await expect(qp(page)).toHaveAttribute('data-state', 'open');
+  /* data-state=open 可能早于过渡尾巴结束（CI 机器慢时差几像素）：等面板内所有过渡 / 动画都跑完再量 */
+  await page.waitForFunction(() => document.getElementById('sgx-qp').getAnimations({ subtree: true }).every((a) => a.playState !== 'running'));
 }
 /** 正文第一块内容（面板后面的页面列里第一个看得见的子块）的位置 */
 const firstContent = (page) => page.evaluate(() => {
