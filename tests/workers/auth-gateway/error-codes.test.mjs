@@ -21,6 +21,7 @@
  * - bad-form / missing / bad-type / too-large：/api/avatar 换头像，avatar-edit.js 只看 ok，失败一律固定文案
  * - account / account-stale：账号会话缺失 / 登录超过 10 分钟（/api/stepup enter、/api/account 管理），
  *   安全页与账号页按码跳回账号登录重新验证，不进 apiErrorText
+ * - bad-json / bad-url：/api/bookmarks、/api/bookmark-preview，书签页自己按码显示文案，不进 apiErrorText
  *
  * 另断言：每个 ERR_KEY 的 i18n key 都在门内模板
  * （security-lock / security-apps-book；原 security-owner 已升级为账号页）里定义，
@@ -50,6 +51,8 @@ const KNOWN_FIXED = new Set([
   'too-large',
   'account',
   'account-stale',
+  'bad-json',
+  'bad-url',
 ]);
 
 function read(p) {
