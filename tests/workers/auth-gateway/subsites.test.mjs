@@ -54,9 +54,10 @@ function req(url, cookieHeader) {
   return new Request(url, { headers: cookieHeader ? { Cookie: cookieHeader } : {} });
 }
 
-test('登记表：只认 blog、book', () => {
+test('登记表：只认 blog、book、daymark', () => {
   assert.ok(subsiteFor('blog.styrigx.com'));
   assert.ok(subsiteFor('book.styrigx.com'));
+  assert.ok(subsiteFor('daymark.styrigx.com'));
   assert.equal(subsiteFor('evil.styrigx.com'), null);
   assert.equal(subsiteFor('styrigx.com'), null);
   assert.equal(subsiteFor('__proto__'), null);
@@ -71,7 +72,7 @@ test('静态资源后缀判断', () => {
   assert.equal(isStaticAsset('/'), false);
 });
 
-for (const host of ['blog.styrigx.com', 'book.styrigx.com']) {
+for (const host of ['blog.styrigx.com', 'book.styrigx.com', 'daymark.styrigx.com']) {
   test(host + '：未登录页面 302 到主站锁屏，带 why=no-cookie 和 return，不回源', async () => {
     const e = env();
     const res = await worker.fetch(req('https://' + host + '/post/hello/?a=1'), e, CTX);
@@ -122,14 +123,16 @@ for (const host of ['blog.styrigx.com', 'book.styrigx.com']) {
   });
 }
 
-test('session-check：blog 有效 204、book 有效 200 {ok:true}、无效 401', async () => {
+test('session-check：blog 有效 204、book/daymark 有效 200 {ok:true}、无效 401', async () => {
   const c = await cookie('visitor');
   let res = await worker.fetch(req('https://blog.styrigx.com/api/session-check', c), env(), CTX);
   assert.equal(res.status, 204);
-  res = await worker.fetch(req('https://book.styrigx.com/api/session-check', c), env(), CTX);
-  assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { ok: true });
-  for (const host of ['blog.styrigx.com', 'book.styrigx.com']) {
+  for (const host of ['book.styrigx.com', 'daymark.styrigx.com']) {
+    res = await worker.fetch(req('https://' + host + '/api/session-check', c), env(), CTX);
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { ok: true });
+  }
+  for (const host of ['blog.styrigx.com', 'book.styrigx.com', 'daymark.styrigx.com']) {
     res = await worker.fetch(req('https://' + host + '/api/session-check'), env(), CTX);
     assert.equal(res.status, 401);
     assert.equal((await res.json()).why, 'no-cookie');

@@ -1,15 +1,15 @@
 /**
- * @fileoverview 子站门禁：blog.styrigx.com、book.styrigx.com 的会话检查由网关统一做。
+ * @fileoverview 子站门禁：blog.styrigx.com、book.styrigx.com、daymark.styrigx.com 的会话检查由网关统一做。
  *
  * 子站 Pages 不再持有任何公钥、不再带验票代码。网关在子站的页面路径上（路由见 wrangler.toml）：
  *   - 会话有效（owner 或 visitor，与主站同一套 verifySessionDetailed：验签 + exp + epoch）→ 回源取页面，
  *     HTML 加 private, no-store（防锁定后切回标签页看到缓存的旧页面）
  *   - 会话无效：页面 302 到主站锁屏（?lock=1&why=…&return=原地址），/api/* 回 401 JSON（fetch 不跟跳转）
- *   - /api/session-check：子站前端切回标签页时问的，网关直接回答（blog 认 204，book 认 200 {ok:true}）
+ *   - /api/session-check：子站前端切回标签页时问的，网关直接回答（blog 认 204，book、daymark 认 200 {ok:true}）
  *   - 静态资源后缀（被页面路由顺带覆盖到的 js/css/字体/图片）直接回源，不验会话，与原子站白名单一致
  *
  * 子站不做角色区分：owner、visitor 都能看页面（与原子站 middleware 一致）；
- * 主人专属的操作（book 上传、删除）由 book 的接口自己再问网关（服务绑定 SessionVerifier）。
+ * 主人专属的操作（book 上传、删除，daymark 记句子）由子站自己的接口 Worker 再问网关（服务绑定 SessionVerifier）。
  */
 import { verifySessionDetailed } from '../functions/_middleware.js';
 
@@ -22,6 +22,7 @@ const MAIN_ORIGIN = 'https://styrigx.com';
 export const SUBSITES = Object.freeze({
   'blog.styrigx.com': { site: 'blog', sessionCheckOk: 'no-content' },
   'book.styrigx.com': { site: 'book', sessionCheckOk: 'json' },
+  'daymark.styrigx.com': { site: 'daymark', sessionCheckOk: 'json' },
 });
 
 /* 不验会话的静态资源后缀（不含正文内容）。和原 blog/book middleware 白名单一致。 */
