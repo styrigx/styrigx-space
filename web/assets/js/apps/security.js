@@ -1,12 +1,11 @@
 /**
  * @fileoverview 安全与隐私页。
- * - 两个入口（访客与站长看到完全一样）：管理凭证、立即锁定。
- *   原「站长凭证」已升级为账号，入口移到顶栏右圆头像（账号页 /settings/account/）。
- * - 管理凭证 → POST /api/stepup { action:'enter' }：10 分钟内登录过账号 → 直接进管理凭证；
- *   未登录或登录过旧（account / account-stale）→ 去账号登录（?door=1&return=<门内页>），
- *   登录后自动进门。访客也走账号登录（服务端一律拒绝，界面一致）。
+ * - 两个入口（访客与站长看到完全一样）：锁屏凭证、立即锁定。
+ *   账号凭证在顶栏右圆头像（账号页 /settings/account/ → 安全与隐私）。
+ * - 锁屏凭证 → /settings/security/lock/（门在那一页：锁屏凭证或根凭证验一次，3 分钟门票）。
+ *   访客点进去由中间件送回锁屏（升级验证）。
  * - 立即锁定：调服务端 /api/lock 清除会话 cookie 后重载，回到锁屏。
- * - 从 GET /api/account（需 owner 会话）读取账号凭证是否已设置，渲染状态卡片（访客不调用）。
+ * - 从 GET /api/lock-status（需 owner 会话）读取锁屏凭证是否已设置，渲染状态卡片与锁屏凭证行副标题（访客不调用）。
  * - localStorage 统一走 storage.js。
  * - 隐私分组（2026-10-20 从浏览器页 ⋮ 搬来）：搜索引擎（engines.js，sgx-search-engine，点行打开同一个选择弹层）、
  *   清除浏览记录（全网搜索的最近搜索 sgx-browser-history）。原顶栏 ⋮（#sec-more = 刷新状态）已删除：进页即读取。
@@ -16,8 +15,6 @@ import { get as storeGet, set as storeSet } from '../lib/storage.js';
 import { toast } from '../lib/toast.js';
 import { openSheet } from '../shell/sheet.js';
 import { engines as SE } from '../shell/engines.js';
-import { stepupFetch } from '../lib/auth-flow.js';
-import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
 import { confirmLockNow } from '../lib/lock-now.js';
 
 (function () {
@@ -37,12 +34,8 @@ import { confirmLockNow } from '../lib/lock-now.js';
     return en ? 'Something went wrong, please retry' : '出错了，请重试';
   }
 
-  const mgmtUrl = en ? '/en/settings/security/mgmt/' : '/settings/security/mgmt/';
-  const acctUrl = en ? '/en/settings/account/' : '/settings/account/';
-
   const card = document.getElementById('sec-status');
-  /** @type {{mgmt?: (t?: string) => void}} */
-  const doorOpeners = {};
+  const lockSub = document.getElementById('sec-lock-sub');
   const cardTitle = document.getElementById('sec-status-title');
   const cardSub = document.getElementById('sec-status-sub');
 
@@ -52,6 +45,9 @@ import { confirmLockNow } from '../lib/lock-now.js';
    * @param {boolean} hasPk
    */
   function render(hasPw, hasPk) {
+    if (lockSub) {
+      lockSub.textContent = hasPw && hasPk ? t('lockSubBoth') : hasPw ? t('lockSubPw') : hasPk ? t('lockSubPk') : t('lockSubNone');
+    }
     if (card) {
       card.hidden = false;
       card.classList.toggle('is-ok', hasPw && hasPk);
@@ -70,11 +66,11 @@ import { confirmLockNow } from '../lib/lock-now.js';
   }
 
   function refresh() {
-    /* 访客不调用 /api/account（需 owner 会话，访客 401）；状态卡片保持隐藏。 */
+    /* 访客不调用 /api/lock-status（需 owner 会话，访客 401）；状态卡片保持隐藏。 */
     try {
       if (document.documentElement.dataset.sgxRole === 'visitor') return;
     } catch (e) {}
-    fetch('/api/account', { method: 'GET', credentials: 'same-origin' })
+    fetch('/api/lock-status', { method: 'GET', credentials: 'same-origin' })
       .then(function (r) {
         return r.json();
       })
@@ -158,79 +154,6 @@ import { confirmLockNow } from '../lib/lock-now.js';
       } catch (e) {}
     });
   }
-
-  /* ============ 管理凭证 ============
-     账号体系：门票据由近期（≤10 分钟）账号登录签发（POST /api/stepup enter → by=account, scope=keys）。
-     - 成功 → 进管理凭证（或 target 指定的门内页）
-     - account / account-stale → 去账号登录（?door=1&return=），登录后账号页自动换票进门
-     - session → 会话失效，回锁屏
-     访客：直接去账号登录（界面与站长一致，服务端一律拒绝）。 */
-  (function () {
-    const row = document.getElementById('sec-mgmt-cred');
-    if (!row) return;
-    let busy = false;
-    /** @param {string} dest */
-    function goAccountLogin(dest) {
-      sgxNavigate(acctUrl + '?door=1&return=' + encodeURIComponent(dest));
-    }
-    function openMgmtDoor(/** @type {string} [target] */ target) {
-      const dest = (typeof target === 'string' && target) ? target : mgmtUrl;
-      let isVisitor = false;
-      try {
-        isVisitor = document.documentElement.dataset.sgxRole === 'visitor';
-      } catch (e) {}
-      if (isVisitor) {
-        goAccountLogin(dest);
-        return;
-      }
-      if (busy) return;
-      busy = true;
-      stepupFetch('enter', { credentials: 'same-origin' })
-        .then(function (r) {
-          return r.json().then(function (j) { return { s: r.status, j: j }; }, function () { return { s: r.status, j: null }; });
-        })
-        .then(function (res) {
-          const code = res.j && res.j.error;
-          if (res.j && res.j.ok) sgxNavigate(dest);
-          else if (code === 'account' || code === 'account-stale') goAccountLogin(dest);
-          else if (code === 'session' || res.s === 401) sgxReplace('/?lock=1&return=' + encodeURIComponent(window.location.pathname));
-          else toast(en ? 'Something went wrong, please retry' : '出错了，请重试');
-        }, function () {
-          toast(t('errNetwork'));
-        })
-        .then(function () { busy = false; });
-    }
-    on(row, 'click', function () { openMgmtDoor(); });
-    on(row, 'keydown', function (/** @type {KeyboardEvent} */ e) {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        openMgmtDoor();
-      }
-    });
-    doorOpeners.mgmt = openMgmtDoor;
-
-    /* 状态卡片不是直达锁屏门内页的裸链接：先走管理凭证（进门），通过后进锁屏凭证页。 */
-    if (card) {
-      on(card, 'click', function (/** @type {MouseEvent} */ e) {
-        e.preventDefault();
-        openMgmtDoor(card.getAttribute('href') || '');
-      });
-    }
-  })();
-
-  /* 门内页验证过期 → 弹框「重新验证」→ 回到本页并带 ?verify=mgmt&return=<门内页>，
-     这里自动走管理凭证进门流程，通过后回到原门内页。return 只接受本站安全设置下的门内路径。 */
-  (function () {
-    let q;
-    try { q = new URLSearchParams(window.location.search); } catch (e) { return; }
-    const which = q.get('verify');
-    if (!which) return;
-    const ret = q.get('return') || '';
-    const okRet = /^\/(en\/)?settings\/security\/(lock|apps|mgmt)\/[a-z0-9\-\/]*$/.test(ret) ? ret : '';
-    try { history.replaceState(null, '', window.location.pathname); } catch (e) {}
-    if (doorOpeners.mgmt) doorOpeners.mgmt(okRet);
-  })();
-
 
   refresh();
 })();

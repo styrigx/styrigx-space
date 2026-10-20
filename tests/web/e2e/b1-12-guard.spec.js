@@ -51,7 +51,7 @@ test.describe('B1-12 守护：添加通行密钥', () => {
     });
     /* 门内页探针通过（账号体系：原站长凭证门已移除，添加通行密钥在锁屏门内页测） */
     await mockJson(page, '**/api/lock-status', 200, { ok: true, password: true, passkey: true });
-    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true });
+    await mockJson(page, '**/api/lock-door', 200, { ok: true, valid: true, door: 'lock', password: true, passkey: true });
     await mockJson(page, '**/api/owner-passkey', 200, { ok: true, keys: [], scope: 'root' });
   });
 

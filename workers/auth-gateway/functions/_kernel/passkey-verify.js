@@ -2,7 +2,7 @@
  * 共享 WebAuthn 验证逻辑（L3，无鉴权逻辑）。
  *
  * 从 functions/api/owner-passkey.js 抽出，供登录（owner-passkey）和
- * 二次验证（stepup）复用。安全逻辑只有一套。
+ * 锁屏通行密钥的门、重置锁屏复用。安全逻辑只有一套。
  *
  * - cborDecode：最小 CBOR 解码器（RFC 7049）
  * - parseRegAuthData：注册时解析 authenticatorData
@@ -204,7 +204,7 @@ export function checkAssertAuthData(authData, rpIdHash) {
 }
 
 /**
- * 完整 WebAuthn 断言验证（登录和 stepup 共用）。
+ * 完整 WebAuthn 断言验证（解锁、门口、账号登录共用）。
  *
  * 校验：clientData.type=webauthn.get、challenge 相等、origin 严格相等、
  * authenticatorData（rpIdHash、UP）、signCount 递增（双方非零时）、
@@ -217,7 +217,7 @@ export function checkAssertAuthData(authData, rpIdHash) {
  * @param {string} opts.expectOrigin 期望 origin（严格相等）
  * @param {object} opts.storedPublicKey 已存 JWK 公钥
  * @param {number} opts.storedSignCount 已存 signCount
- * @param {boolean} [opts.requireUV] 是否强制 UV=1（stepup 必须 true）
+ * @param {boolean} [opts.requireUV] 是否强制 UV=1（门口与解锁必须 true）
  * @returns {Promise<{signCount:number, uv:boolean}>} 成功时返回新 signCount
  * @throws {Error} 失败时抛错，message 为具体原因（challenge/origin/sig/uv-required 等）
  */
@@ -256,7 +256,7 @@ export async function verifyAssertion(opts) {
 
 /**
  * SHA-256(RP_ID)，断言/注册校验 authenticatorData 用。
- * （stepup / lockreset / owner-passkey 原来各算一遍，抽到这里；结果相同）
+ * （lockreset / owner-passkey / account 原来各算一遍，抽到这里；结果相同）
  * @param {string} rpId
  * @returns {Promise<Uint8Array>}
  */

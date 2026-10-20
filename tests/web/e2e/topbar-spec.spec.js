@@ -109,7 +109,7 @@ test.describe('390×844 行为', () => {
     ['/settings/', '设置'],
     ['/settings/account/', '账号'],
     ['/settings/security/', '安全与隐私'],
-    ['/settings/security/mgmt/', '管理凭证'],
+    ['/settings/security/lock/', '锁屏凭证'],
     ['/settings/display/', '显示'],
     ['/en/', 'Home'],
     ['/en/settings/', 'Settings'],

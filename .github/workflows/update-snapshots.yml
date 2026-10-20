@@ -36,7 +36,6 @@ jobs:
       - name: Update lock screen baseline (生产构建，锁屏启用；同 deploy.yml 的锁屏截图步骤)
         run: |
           node scripts/gen-posts-json.mjs
-          node scripts/gen-app-whitelist.mjs
           hugo --minify -s web
           SGX_TEST_SUITE=lock npx playwright test --config=tests/config/playwright.config.js --grep "baseline screenshot" --update-snapshots
         env:

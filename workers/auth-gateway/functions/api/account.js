@@ -15,7 +15,7 @@
  * GET /api/account → { ok, password, passkey, ready, session, door }
  *   - 需 owner lock 会话（访客/无会话 401）；只返回「是否已设置」，无敏感数据
  *   - ready：账号签名钥匙是否已配置（false → 登录会 503 config）
- *   - session：当前账号会话 { by, authAt, expiresAt, recent } 或 null（账号会话 400 天，不点退出一直登录）
+ *   - session：当前账号会话 { by, authAt, expiresAt } 或 null（账号会话 400 天，不点退出一直登录）
  *   - door：账号门票（安全与隐私子页）{ by, expiresAt } 或 null；前端 3 分钟倒计时以 expiresAt 为准
  *
  * POST /api/account { action, ... }（只接受同源；需 owner lock 会话，logout 除外）
@@ -133,7 +133,7 @@ export async function onRequestGet(context) {
       password: password,
       passkey: passkey,
       ready: accountKeysReady(env),
-      session: acc.ok ? { by: acc.by, authAt: acc.authAt, expiresAt: acc.exp, recent: !!acc.recent } : null,
+      session: acc.ok ? { by: acc.by, authAt: acc.authAt, expiresAt: acc.exp } : null,
       door: dv.ok ? { by: dv.by, expiresAt: dv.exp } : null,
     });
   } catch (e) {

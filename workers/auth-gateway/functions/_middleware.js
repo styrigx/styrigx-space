@@ -12,26 +12,17 @@
 import { ed25519Verify } from './_kernel/crypto.js';
 import { SESSION_COOKIE, ROLE_OWNER, ROLE_VISITOR } from './_kernel/session.js';
 import { isPublicPage } from './_kernel/public-pages.js';
-import { verifyStepupCookie, STEPUP_SCOPE_LOCKRESET } from './api/stepup.js';
+import { verifyDoorCookie, DOOR_LOCKRESET } from './_kernel/door.js';
 import { withNoStore } from './_kernel/http.js';
 import { REALM_LOCK, realmPublicKey, SESSION_EPOCH_KEY } from './_kernel/realms.js';
 
-/* 2.11 两扇门：安全与隐私全系主人专属。
-   访客可进：/settings/ 及其子页（不含 security/ 全系）。
-   主人专属：/settings/security/ 全系（总览、锁屏、应用）。
-   visitor 访问主人专属路径 → 302 到锁屏（只一次，首页不再二次 302）。 */
-/* 定稿 #13/#14/R3：访客可进安全与隐私总览页（/settings/security/），
-   结构与站长一致；门内页（lock/apps/mgmt）仍需 owner 会话（#21）。 */
+/* 定稿 #13/#14/R3：访客可进安全与隐私总览页（/settings/security/），结构与站长一致；
+   锁屏凭证页（门内）需 owner 会话，visitor 访问 → 302 到锁屏（只一次，首页不再二次 302）。 */
 const OWNER_ONLY_PATHS = [
   '/settings/security/lock/',
-  '/settings/security/apps/',
-  '/settings/security/mgmt/',
   '/en/settings/security/lock/',
-  '/en/settings/security/apps/',
-  '/en/settings/security/mgmt/',
 ];
-/* 2.11：lockreset 票据只开锁屏凭证管理页（重置锁屏流程），
-   不开安全总览和应用页。 */
+/* 重置锁屏门票（sgx-door，door=lockreset）只开锁屏凭证页（重置锁屏流程），不开安全总览。 */
 const LOCKRESET_PATHS = [
   '/settings/security/lock/',
   '/en/settings/security/lock/',
@@ -42,7 +33,7 @@ const OWNER_ONLY_APIS = [
   '/api/owner-password',
   '/api/owner-passkey',
   '/api/lock-all-devices',
-  '/api/stepup',
+  '/api/lock-door',
   '/api/bookmark-preview',
 ];
 /* 认证类 action（visitor 可调用，用于升级为 owner） */
@@ -75,6 +66,7 @@ const API_WHITELIST = [
   '/api/owner-passkey',
   '/api/lock-status',
   '/api/lock-config',
+  '/api/lock-door',
   '/api/session-check',
   '/api/session-epoch',
   '/api/verify',
@@ -382,7 +374,7 @@ async function handleRequest(context) {
 
     /* 2.8.0：访客调用主人 API → 403（改密码、通行密钥管理等）。
        2.10.1：访客就地升级——认证类 action（AUTH_ACTIONS：verify/challenge/auth/register）
-       放行，由端点自身的会话/stepup 机制保护（纵深防御），middleware 不再一律拒绝。 */
+       放行，由端点自身的会话/门票机制保护（纵深防御），middleware 不再一律拒绝。 */
     if (isVisitor && isOwnerOnlyApi(pathname)) {
       let isAuthAction = false;
       if (request.method === 'POST') {
@@ -419,8 +411,7 @@ async function handleRequest(context) {
           locPath = '';
         }
         /* 定稿 #1：门内页不能当解锁后的返回目标。已登录用户 return 指向门内页时
-           回安全与隐私总览页，用户显式验证后再进门，避免门内 API
-           因无 stepup 票据报 403「会话过期」死循环。
+           回安全与隐私总览页，用户显式点进去再过门。
            访客走下面的升级验证流程，不受影响。 */
         if (locPath && isOwnerOnlyPath(locPath) && !isVisitor) {
           safeLoc = locPath.startsWith('/en/') ? '/en/settings/security/' : '/settings/security/';
@@ -458,14 +449,14 @@ async function handleRequest(context) {
       });
     }
 
-    /* lockreset 票据可打开锁屏凭证管理页（重置锁屏流程），但仍进不了主页。
-       仅放行 /settings/security/lock/ 及其英文版（安全总览和应用页不放行）；
+    /* 重置锁屏门票可打开锁屏凭证页（重置锁屏流程），但仍进不了主页。
+       仅放行 /settings/security/lock/ 及其英文版（安全总览不放行）；
        主页仍需有效会话。
        注入专用状态 lockreset（而非 locked），前端 initLock 跳过锁屏覆盖，
        落地页可操作；票据仍只能管理锁屏凭证。 */
     if (!sessionValid && isLockresetPath(pathname)) {
-      const st = await verifyStepupCookie(request, env);
-      if (st.ok && st.scope === STEPUP_SCOPE_LOCKRESET) {
+      const st = await verifyDoorCookie(request, env, DOOR_LOCKRESET);
+      if (st.ok) {
         const res = await next();
         const ct = res.headers.get('Content-Type') || '';
         if (ct.includes('text/html')) {

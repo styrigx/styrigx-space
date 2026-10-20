@@ -1,6 +1,6 @@
 {{/* 安全与隐私（2.4.0 安全与隐私）：只读状态卡片 + 安全/隐私分组。
-   状态来自 GET /api/account（需鉴权，只返回账号凭证是否已设置）；noindex、不进 sitemap（见 baseof/sitemap）。
-   账号体系：安全页两个入口（管理凭证/立即锁定）；原「站长凭证」升级为账号，入口在顶栏右圆头像。
+   状态来自 GET /api/lock-status（需鉴权，只返回锁屏凭证是否已设置）；noindex、不进 sitemap（见 baseof/sitemap）。
+   安全分组两个入口：锁屏凭证（门在那一页，3 分钟门票）/ 立即锁定；账号凭证在顶栏右圆头像（账号 → 安全与隐私）。
    脚本走 ES Module 入口 entry-security.js；localStorage 经 storage.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-security.js" }}
@@ -10,7 +10,7 @@
 
 <div class="set-layout max-w-2xl mx-auto px-4 pb-28">
 
-  <!-- 状态卡片（JS 按 GET /api/account 填充：账号密码 / 账号通行密钥是否已设置） -->
+  <!-- 状态卡片（JS 按 GET /api/lock-status 填充：解锁密码 / 锁屏通行密钥是否已设置） -->
   <a id="sec-status" class="sec-status" href="{{ $lockUrl }}" hidden>
     <span class="sec-status-ic" id="sec-status-ic">{{ partial "icon.html" "shield" }}</span>
     <span class="flex-1 min-w-0">
@@ -23,15 +23,15 @@
   <!-- 安全分组：两个入口（访客与站长看到完全一样） -->
   <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Security{{ else }}安全{{ end }}</span></h2>
   <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.1s">
-    {{/* 管理凭证 → 10 分钟内登录过账号直接进门；否则去账号登录（登录后自动进门）→ lock/APP 管理 */}}
-    <div class="set-row" id="sec-mgmt-cred" role="button" tabindex="0">
+    {{/* 锁屏凭证 → 锁屏凭证页（进页先过门：锁屏凭证或根凭证，3 分钟门票，离开即失效） */}}
+    <a class="set-row" id="sec-lock-cred" href="{{ $lockUrl }}">
       <span class="set-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "key" }}</span>
       <span class="flex-1 min-w-0">
-        <span class="block font-medium">{{ if $isEn }}Manage credentials{{ else }}管理凭证{{ end }}</span>
-        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Lock screen, apps, sessions{{ else }}锁屏、应用、会话{{ end }}</span>
+        <span class="block font-medium">{{ if $isEn }}Lock screen credentials{{ else }}锁屏凭证{{ end }}</span>
+        <span class="block text-xs text-m-on-surface-variant mt-0.5" id="sec-lock-sub">{{ if $isEn }}Password, passkeys, sessions{{ else }}解锁密码、通行密钥、会话{{ end }}</span>
       </span>
       {{ partial "icon.html" "chev-r" }}
-    </div>
+    </a>
     <div class="set-row" id="sec-locknow" role="button" tabindex="0">
       <span class="set-ic bg-m-warm-container text-m-on-warm-container">{{ partial "icon.html" "clock" }}</span>
       <span class="flex-1 min-w-0">
@@ -85,10 +85,10 @@
 
 {{ $secI18n := dict
   "okTitle" (dict "zh" "一切正常" "en" "All good")
-  "okSub" (dict "zh" "密码、通行密钥均已设置" "en" "Password and passkeys are set")
+  "okSub" (dict "zh" "解锁密码、锁屏通行密钥均已设置" "en" "Unlock password and passkeys are set")
   "warnTitle" (dict "zh" "建议操作" "en" "Action suggested")
-  "missPw" (dict "zh" "未设置账号密码" "en" "Account password not set")
-  "missPk" (dict "zh" "未注册账号通行密钥" "en" "No account passkeys registered")
+  "missPw" (dict "zh" "未设置解锁密码" "en" "Unlock password not set")
+  "missPk" (dict "zh" "未注册锁屏通行密钥" "en" "No lock screen passkeys registered")
   "lockSubBoth" (dict "zh" "密码，通行密钥" "en" "Password, passkeys")
   "lockSubPw" (dict "zh" "密码" "en" "Password")
   "lockSubPk" (dict "zh" "通行密钥" "en" "Passkeys")

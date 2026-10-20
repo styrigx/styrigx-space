@@ -15,15 +15,16 @@
  * - 会话 cookie 改为 Ed25519 签名 + 过期时间（2.11：旧 HMAC 密钥已移除）。
  *
  * POST /api/owner-passkey
- * - { action: 'challenge', type: 'register'|'auth', pkClass, aud, cid } → 返回 challenge
- *   - register 需要 owner 会话 + sgx-stepup（2.10.1 起无例外，第一把也要）
- *   - auth 不需要（用于锁屏解锁）；app 类走单次 app-auth 记录
- * - { action: 'register', cid, credential } → 验证并追加存储（再验会话+stepup）
- * - { action: 'auth', cid, credential } → 验证断言；lock 签发会话 cookie，
- *   app 签发单次 appCid（供 /api/app-token）
- * - { action: 'list' } → 列出已注册 passkey（需 owner 会话 + sgx-stepup）
- * - { action: 'rename', credId, name } → 重命名设备名（需 owner 会话 + sgx-stepup）
- * - { action: 'delete', credId } → 删除指定 passkey（需 owner 会话 + sgx-stepup；
+ * 只管锁屏通行密钥（class=lock）；账号通行密钥（class=owner）只在 /api/account 管理。
+ * - { action: 'challenge', type: 'register'|'auth', cid } → 返回 challenge
+ *   - register 需要锁屏门票（door=lock + owner 会话，或重置锁屏门票 door=lockreset）
+ *   - auth 不需要（用于锁屏解锁 / 锁屏凭证的门）
+ * - { action: 'register', cid, credential } → 验证并追加存储（再验门票）
+ * - { action: 'auth', cid, credential, door? } → 验证断言；签发会话 cookie；
+ *   door:true（安全与隐私 → 锁屏凭证的门，需 owner 会话）改签 3 分钟锁屏门票，会话不动
+ * - { action: 'list' } → 列出锁屏通行密钥（需锁屏门票）
+ * - { action: 'rename', credId, name } → 重命名设备名（需锁屏门票；重置锁屏不可）
+ * - { action: 'delete', credId } → 删除指定 passkey（需锁屏门票；
  *   先推纪元再删，失败 503 且密钥仍在）
  *
  * 只接受 POST；Origin 缺失/解析失败/跨站一律 403。
@@ -31,7 +32,7 @@
  * P0-3 安全审计：
  * - 注册和解锁都要求 UV=1（userVerification: required）
  * - RP_ID/ORIGIN 必须配环境变量 SGX_RP_ID/SGX_ORIGIN，不回落
- * - 用户信息由服务端下发：displayName=Sloan Gray, name=accountkey/lockkey/<app>key, rp.name=Styrigx
+ * - 用户信息由服务端下发：displayName=Sloan Gray, name=lockkey, rp.name=Styrigx
  * - 固定 user handle（KV owner-user-id），auth 时校验 userHandle
  * - register 带 excludeCredentials 防重复注册
  * - KV 结构：每把一个 key（owner-passkey:<credId前12位>），字段顺序固定
@@ -53,37 +54,29 @@ import {
   reissueSessionWithEpoch,
   ROLE_OWNER,
 } from '../_kernel/session.js';
-import { getApp } from '../_kernel/app-registry.js';
-import { verifyStepupCookie, reissueStepupWithEpoch, STEPUP_COOKIE, STEPUP_BY_ROOT, STEPUP_BY_ACCOUNT, STEPUP_SCOPE_ROOT, STEPUP_SCOPE_KEYS, STEPUP_SCOPE_LOCKRESET } from './stepup.js';
-import { LAYER_OWNER, LAYER_LOCK, layerApp, setLayerConfigured, clearLayerConfigured, isLayerConfigured, isLockEffectivelyConfigured, isOwnerEffectivelyConfigured } from '../_kernel/layers.js';
+import { checkLockDoor, looksVisitor } from './lock-door.js';
+import { issueDoorCookie, reissueDoorWithEpoch, DOOR_LOCK } from '../_kernel/door.js';
+import { LAYER_LOCK, setLayerConfigured, clearLayerConfigured, isLayerConfigured, isOwnerEffectivelyConfigured } from '../_kernel/layers.js';
 import { verifySessionDetailed } from '../_middleware.js';
-import { REALM_LOCK, REALM_ACCOUNT, REALM_APP, SESSION_EPOCH_KEY, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
+import { REALM_LOCK, SESSION_EPOCH_KEY, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
 
-/* 通行密钥注册/登录 challenge 的 KV 前缀（'pk-challenge:'；与 stepup-challenge:、account-challenge: 隔离） */
+/* 通行密钥注册/登录 challenge 的 KV 前缀（'pk-challenge:'；与 account-challenge: 隔离） */
 const PK_CHALLENGE_PREFIX = REALM_LOCK.kv.passkeyChallengePrefix;
 import {
   STORE_CLASS_OWNERKEY,
   STORE_CLASS_LOCKKEY,
-  STORE_CLASS_APPKEY,
-  KEY_ACCOUNT,
   KEY_LOCK,
-  appKeyName,
   ownerPasskeyKey,
   OWNER_PASSKEY_PREFIX,
 } from '../_kernel/key-names.js';
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
 
-/* 2.10.0：通行密钥分类；2.11 新增 owner。
-   钥匙命名规范（key-names.js）：存储层 class 字段值保留 'owner'/'lock'/'app'
-   不迁移；概念名用 accountkey/lockkey/<aud>key（如 bookkey）。 */
+/* 通行密钥分类：钥匙命名规范（key-names.js）：存储层 class 字段值保留 'owner'/'lock'
+   不迁移；概念名用 accountkey/lockkey。应用凭证已删除（旧 class=app 记录不再被任何接口读取）。 */
 export const PK_CLASS_OWNER = STORE_CLASS_OWNERKEY;
 export const PK_CLASS_LOCK = STORE_CLASS_LOCKKEY;
-export const PK_CLASS_APP = STORE_CLASS_APPKEY;
 /* 所有者显示名（注册参数写死，用户不填） */
 export const OWNER_DISPLAY_NAME = 'Sloan Gray';
-/* 应用类认证完成后的单次绑定记录前缀（app-token 签发时消费） */
-export const APP_AUTH_PREFIX = 'app-auth:';
-const APP_AUTH_TTL = 300; /* 5 分钟 */
 
 /* AAGUID → 密码管理器（只用于显示，不参与安全判断）。
    取自 passkeydeveloper/passkey-authenticator-aaguids；iCloud 钥匙串通常回报全 0 AAGUID，显示为空。 */
@@ -109,7 +102,7 @@ export function providerOf(aaguid) {
 }
 
 /* randB64 / b64urlDec / cborDecode / parseRegAuthData / coseToJwk / derToRaw /
-   checkAssertAuthData / verifyAssertion 已抽到 ../_kernel/passkey-verify.js（登录与 stepup 共用） */
+   checkAssertAuthData / verifyAssertion 已抽到 ../_kernel/passkey-verify.js（解锁、账号登录、重置锁屏共用） */
 
 /**
 /**
@@ -137,7 +130,7 @@ async function ensureIndex(kv) {
   return idx;
 }
 
-/** stepup 复用：按索引读取已注册 passkey（不走 kv.list，避开最终一致延迟） */
+/** 按索引读取已注册 passkey（不走 kv.list，避开最终一致延迟） */
 export async function getPasskeys(kv) {
   try {
     /* 按索引读，不走 kv.list（避开最终一致延迟） */
@@ -198,8 +191,7 @@ export async function getPasskeys(kv) {
 
 /**
  * 保存单把通行密钥。
- * 2.10.0：记录 class（lock/app），应用类还记录 aud。
- * 2.11 定稿：owner/lock/app 三种原样保存；其他值拒绝（抛错），绝不默认归 lock。
+ * owner/lock 两种原样保存；其他值拒绝（抛错），绝不默认归 lock。
  * @param {any} kv
  * @param {any} item
  */
@@ -207,7 +199,7 @@ export async function savePasskey(kv, item) {
   const keyName = ownerPasskeyKey(item.credId);
   /* P0-15：class 必须原样保存，owner 绝不能被改成 lock */
   const cls = item.class;
-  if (cls !== PK_CLASS_OWNER && cls !== PK_CLASS_LOCK && cls !== PK_CLASS_APP) {
+  if (cls !== PK_CLASS_OWNER && cls !== PK_CLASS_LOCK) {
     throw new Error('invalid-class');
   }
   /* 字段顺序固定：name 第一位，方便后台预览 */
@@ -223,9 +215,6 @@ export async function savePasskey(kv, item) {
     uv: item.uv ? 1 : 0,
     class: cls,
   };
-  if (ordered.class === PK_CLASS_APP && item.aud) {
-    ordered.aud = String(item.aud);
-  }
   await kv.put(keyName, JSON.stringify(ordered), {
     metadata: { name: ordered.name, provider: ordered.provider, createdAt: ordered.createdAt },
   });
@@ -245,7 +234,7 @@ export async function savePasskey(kv, item) {
  * 删除单把通行密钥。
  * @param {any} kv
  * @param {string} credId
- * @returns {Promise<any|null>} 被删除的记录（调用方据此判断是否推进 app-epoch）
+ * @returns {Promise<any|null>} 被删除的记录
  */
 export async function deletePasskey(kv, credId) {
   const keyName = ownerPasskeyKey(credId);
@@ -265,23 +254,14 @@ export async function deletePasskey(kv, credId) {
 
 /**
  * 获取或创建固定用户 ID（32 字节随机，存 KV）。
- * 2.10.0：锁屏类用 'owner-user-id'；每个 aud 各一个 'owner-user-id:app:<aud>'，
- * 让密码管理器把它们存成独立条目。
+ * 锁屏类用 'owner-user-id'。
  * 批次 A 收尾 C1：owner 类改用 'owner-user-id:owner'，不再与 lock 类共用，
  * 防止 Samsung Pass 把 accountkey（原 ownerkey）覆盖到 lockkey 上。
  * @param {any} kv
- * @param {string} pkClass 凭据类别：'owner' | 'lock' | 'app'
- * @param {string} [aud] 应用 aud（应用类必填）
+ * @param {string} pkClass 凭据类别：'owner' | 'lock'
  */
-export async function getUserHandle(kv, pkClass, aud) {
-  let key;
-  if (pkClass === PK_CLASS_OWNER) {
-    key = 'owner-user-id:owner';
-  } else if (pkClass === PK_CLASS_APP) {
-    key = 'owner-user-id:app:' + aud;
-  } else {
-    key = 'owner-user-id';
-  }
+export async function getUserHandle(kv, pkClass) {
+  const key = pkClass === PK_CLASS_OWNER ? 'owner-user-id:owner' : 'owner-user-id';
   try {
     let uh = await kv.get(key);
     if (!uh) {
@@ -296,109 +276,19 @@ export async function getUserHandle(kv, pkClass, aud) {
 }
 
 /**
- * 2.11 定稿：passkey 管理统一门禁。
- *
- * - owner 类（账号通行密钥）：账号体系起只在账号页管理（/api/account），这里一律 403 scope（reason=account）
- * - lock 类：入口 2（scope=keys：by=account，或 by=root 且账号层未配置）；
- *   owner 未配置时 scope=root(by=root) 可直接代管；
- *   scope=lockreset 可 list/register/delete（重置流程，无会话），不可 rename
- * - app 类：入口 2（同 lock 的 keys 规则）；lockreset 一律拒绝
- * - 会话：除 lockreset 外，要求有效 owner 会话；by=root 的代开会话在 lock
- *   已配置时拒绝（纵深防御；epoch 机制已使其失效）
- *
+ * 锁屏通行密钥管理门禁：锁屏门票（door=lock + owner 会话），或重置锁屏门票（door=lockreset，
+ * 可 list/register/delete，不可 rename）。账号通行密钥（class=owner）只在账号页（/api/account）
+ * 管理，这里一律 403 scope（reason=account）。
  * @param {any} request
  * @param {any} env
- * @param {any} kv
- * @param {string} pkClass 'owner' | 'lock' | 'app'
+ * @param {string} pkClass
  * @param {string} op 'list' | 'register' | 'rename' | 'delete'
- * @returns {Promise<{ok:true, sv:object, sess:object|null}|{ok:false, status:number, body:object}>}
  */
-async function checkPasskeyMgmt(request, env, kv, pkClass, op) {
-  /* 先看有没有 stepup cookie：没有 → 先查会话（401）；有 → 先验票 */
-  let hasStepupCookie = false;
-  try {
-    const h = request.headers.get('Cookie') || '';
-    for (const part of h.split(';')) {
-      const [k] = part.trim().split('=');
-      if (k === STEPUP_COOKIE) { hasStepupCookie = true; break; }
-    }
-  } catch (e) {}
-  const sv = await verifyStepupCookie(request, env);
-  if (!sv.ok) {
-    if (!hasStepupCookie) {
-      /* 无 stepup 也无从判断 lockreset：先查会话 */
-      const sess0 = await verifySessionDetailed(request, env);
-      if (!sess0.ok || sess0.role !== ROLE_OWNER) {
-        return { ok: false, status: 401, body: { ok: false, error: 'session' } };
-      }
-    }
-    return { ok: false, status: 403, body: { ok: false, error: 'stepup-required', reason: sv.reason } };
+async function checkPasskeyMgmt(request, env, pkClass, op) {
+  if (pkClass !== PK_CLASS_LOCK) {
+    return { ok: false, status: 403, body: { ok: false, error: 'scope', reason: 'account' } };
   }
-  const isLockreset = sv.scope === STEPUP_SCOPE_LOCKRESET;
-  const deny = function (reason) {
-    const body = { ok: false, error: 'scope' };
-    /* 代管中途站长层被配置：前端据此显示明确文案，不无提示踢回安全页 */
-    if (reason) body.reason = reason;
-    return { ok: false, status: 403, body: body };
-  };
-
-  if (pkClass === PK_CLASS_OWNER) {
-    /* 账号通行密钥：只在账号页（/api/account）管理，门票据一律不能管 */
-    return deny('account');
-  } else if (pkClass === PK_CLASS_LOCK) {
-    if (isLockreset) {
-      if (op === 'rename') return deny();
-    } else if (sv.scope === STEPUP_SCOPE_KEYS) {
-      if (sv.by === STEPUP_BY_ROOT) {
-        /* by=root 的 keys 票：仅 owner 未配置时代管有效；中途被配置 → 明确原因 */
-        if (await isLayerConfigured(kv, LAYER_OWNER)) return deny('owner-configured');
-      } else if (sv.by !== STEPUP_BY_ACCOUNT) {
-        return deny();
-      }
-    } else if (sv.scope === STEPUP_SCOPE_ROOT && sv.by === STEPUP_BY_ROOT) {
-      /* root 直接代管未配置的 owner 层；中途被配置 → 明确原因 */
-      if (await isLayerConfigured(kv, LAYER_OWNER)) return deny('owner-configured');
-    } else {
-      return deny();
-    }
-  } else {
-    /* app 类：lockreset 一律拒绝 */
-    if (isLockreset) return deny();
-    if (sv.scope === STEPUP_SCOPE_KEYS) {
-      if (sv.by === STEPUP_BY_ROOT) {
-        if (await isLayerConfigured(kv, LAYER_OWNER)) return deny('owner-configured');
-      } else if (sv.by !== STEPUP_BY_ACCOUNT) {
-        return deny();
-      }
-    } else if (sv.scope === STEPUP_SCOPE_ROOT && sv.by === STEPUP_BY_ROOT) {
-      if (await isLayerConfigured(kv, LAYER_OWNER)) return deny('owner-configured');
-    } else {
-      return deny();
-    }
-  }
-
-  /* 会话门禁：lockreset 重置流程无会话 */
-  if (isLockreset) {
-    return { ok: true, sv: sv, sess: null };
-  }
-  const sess = await verifySessionDetailed(request, env);
-  if (!sess.ok || sess.role !== ROLE_OWNER) {
-    return { ok: false, status: 401, body: { ok: false, error: 'session' } };
-  }
-  if (sess.by === 'root' && (await isLockEffectivelyConfigured(kv))) {
-    return { ok: false, status: 403, body: { ok: false, error: 'by-root' } };
-  }
-  return { ok: true, sv: sv, sess: sess };
-}
-
-/** app-epoch:<aud> +1（删除应用类通行密钥时调用）。
- * 2.10.1：KV 读写失败必须抛错（调用方 fail closed，拒绝删除），
- * 不再静默按 0 写回。 */
-async function bumpAppEpoch(kv, aud) {
-  const key = REALM_APP.kv.epochPrefix + aud; /* 'app-epoch:<aud>' */
-  const v = parseInt(await kv.get(key) || '0', 10) || 0;
-  await kv.put(key, String(v + 1));
-  return v + 1;
+  return checkLockDoor(request, env, { allowReset: op !== 'rename' });
 }
 
 /** @param {any} context */
@@ -436,40 +326,24 @@ async function handlePost(context) {
   const rpIdHash = await rpIdHashOf(RP_ID);
 
   /* ============ challenge ============
-     2.10.0：新增 pkClass（lock/app）与 aud 参数。
-     - type=register, pkClass=lock：需 sgx-stepup，第一把除外
-     - type=register, pkClass=app：aud 必须在白名单，否则 400；必须 sgx-stepup（无例外）
-     - type=auth, pkClass=lock（默认）：challenge 只列 lock 凭据（锁屏解锁）
-     - type=auth, pkClass=app：aud 必须在白名单；challenge 只列该 aud 的 app 凭据
-  */
+     - type=register：需锁屏门票（checkPasskeyMgmt）
+     - type=auth：challenge 只列 lock 凭据（锁屏解锁 / 锁屏凭证的门） */
   if (action === 'challenge') {
     const type = (body && body.type) || '';
     if (type !== 'register' && type !== 'auth') {
       return Response.json({ ok: false, error: 'params' }, { status: 400 });
     }
-    let pkClass = (body && body.pkClass) || PK_CLASS_LOCK;
-    if (pkClass !== PK_CLASS_OWNER && pkClass !== PK_CLASS_LOCK && pkClass !== PK_CLASS_APP) {
+    const pkClass = (body && body.pkClass) || PK_CLASS_LOCK;
+    if (pkClass !== PK_CLASS_OWNER && pkClass !== PK_CLASS_LOCK) {
       return Response.json({ ok: false, error: 'params' }, { status: 400 });
-    }
-    let aud = (body && body.aud) || '';
-    if (pkClass === PK_CLASS_APP) {
-      if (!getApp(aud)) {
-        return Response.json({ ok: false, error: 'aud' }, { status: 400 });
-      }
-    } else {
-      aud = '';
     }
     const keys = await getPasskeys(kv);
     const classKeys = keys.filter(function (k) {
-      if ((k.class || PK_CLASS_LOCK) !== pkClass) return false;
-      if (pkClass === PK_CLASS_APP && k.aud !== aud) return false;
-      return true;
+      return (k.class || PK_CLASS_LOCK) === pkClass;
     });
-    /* 2.11 定稿：register 统一门禁（checkPasskeyMgmt）。
-       - owner 类：入口 1（by=root, scope=root）
-       - lock/app 类：入口 2（scope=keys）或 root 代管；lockreset 可注册 lock */
+    /* register 统一门禁（checkPasskeyMgmt）：owner 类一律拒绝（只在账号页注册） */
     if (type === 'register') {
-      const mg = await checkPasskeyMgmt(request, env, kv, pkClass, 'register');
+      const mg = await checkPasskeyMgmt(request, env, pkClass, 'register');
       if (!mg.ok) {
         return Response.json(mg.body, { status: mg.status });
       }
@@ -481,18 +355,14 @@ async function handlePost(context) {
     const challenge = randB64(32);
     const cid = randB64(16);
     try {
-      await kv.put(PK_CHALLENGE_PREFIX + cid, JSON.stringify({ challenge, type, pkClass, aud, exp: Date.now() + 300000 }), { expirationTtl: 300 });
+      await kv.put(PK_CHALLENGE_PREFIX + cid, JSON.stringify({ challenge, type, pkClass, exp: Date.now() + 300000 }), { expirationTtl: 300 });
     } catch (e) {}
     const resp = { ok: true, cid: cid, challenge: challenge, rpId: RP_ID };
     if (type === 'register') {
-      /* 下发用户信息：全部写死，用户不填。
-         displayName=Sloan Gray（常量）；
-         name：账号凭证 → accountkey；锁屏 → lockkey；app → 应用名小写+key（如 bookkey）。
-         user.id 每类/aud 独立，存 KV 复用（生成方式不变）。 */
-      const userHandle = await getUserHandle(kv, pkClass, pkClass === PK_CLASS_APP ? aud : '');
-      const userName = pkClass === PK_CLASS_OWNER ? KEY_ACCOUNT
-        : pkClass === PK_CLASS_APP ? appKeyName(aud)
-        : KEY_LOCK;
+      /* 下发用户信息：全部写死，用户不填。displayName=Sloan Gray（常量）；name=lockkey。
+         user.id 存 KV 复用（生成方式不变）。 */
+      const userHandle = await getUserHandle(kv, pkClass);
+      const userName = KEY_LOCK;
       resp.user = {
         id: userHandle,
         name: userName,
@@ -508,15 +378,15 @@ async function handlePost(context) {
       });
     }
     if (type === 'auth') {
-      /* 2.10.0：challenge 只列出本类（本 aud）的凭据；服务端 verify 时再次校验分类 */
+      /* challenge 只列出本类的凭据；服务端 verify 时再次校验分类 */
       resp.allowCredentials = classKeys.map(function (k) { return { id: k.credId, type: 'public-key' }; });
     }
     return Response.json(resp);
   }
 
   /* ============ register ============
-     2.10.0：从 challenge 记录取 pkClass/aud（不信任 body），存储时写入分类。
-     stepup 门禁已在 challenge 环节执行（第一把 lock 除外）；这里再验一次（纵深防御）。 */
+     从 challenge 记录取 pkClass（不信任 body），存储时写入分类。
+     门禁已在 challenge 环节执行；这里再验一次（纵深防御）。 */
   if (action === 'register') {
     const cred = (body && body.credential) || {};
     const cid = (body && body.cid) || '';
@@ -525,20 +395,11 @@ async function handlePost(context) {
     if (!chRec || chRec.type !== 'register' || chRec.exp < Date.now()) {
       return Response.json({ ok: false, error: 'challenge' }, { status: 403 });
     }
-    const pkClass = chRec.pkClass === PK_CLASS_APP ? PK_CLASS_APP
-      : chRec.pkClass === PK_CLASS_OWNER ? PK_CLASS_OWNER : PK_CLASS_LOCK;
-    const aud = pkClass === PK_CLASS_APP ? (chRec.aud || '') : '';
-    if (pkClass === PK_CLASS_APP && !getApp(aud)) {
-      return Response.json({ ok: false, error: 'aud' }, { status: 400 });
-    }
-    /* 2.11 定稿纵深防御：按 challenge 的 pkClass 再验一次统一门禁 */
-    let mgReg = null;
-    {
-      const mg = await checkPasskeyMgmt(request, env, kv, pkClass, 'register');
-      if (!mg.ok) {
-        return Response.json(mg.body, { status: mg.status });
-      }
-      mgReg = mg;
+    const pkClass = chRec.pkClass === PK_CLASS_OWNER ? PK_CLASS_OWNER : PK_CLASS_LOCK;
+    /* 纵深防御：按 challenge 的 pkClass 再验一次统一门禁 */
+    const mgReg = await checkPasskeyMgmt(request, env, pkClass, 'register');
+    if (!mgReg.ok) {
+      return Response.json(mgReg.body, { status: mgReg.status });
     }
     try {
       /* 验证 clientData：type / challenge / origin 严格等于期望值 */
@@ -588,42 +449,23 @@ async function handlePost(context) {
         signCount: parsed.signCount,
         uv: 1,
         class: pkClass,
-        aud: aud || undefined,
       };
       await savePasskey(kv, item);
-      /* 2.11 定稿：首次配置某层时标记 + 推进纪元（fail closed 写入失败不阻断注册主体，
-         但标记/纪元失败时尽力而为；纪元推进失败则返回 503）
-         - 首次配 owner：废止 by=root,scope=keys 的票（必修安全项 1）
-         - 首次配 lock：废止根凭证代开的解锁会话（必修安全项 2）
-         - 首次配某 app：推进 app-epoch:<aud>（必修安全项 3）
-         D2：epoch 推进后用新 epoch 重签 stepup + 当前设备会话，保持当前设备不掉线。 */
+      /* 首次配置锁屏层时标记 + 推进纪元（废止根凭证代开的解锁会话，必修安全项 2；
+         纪元推进失败则返回 503）。纪元推进后用新纪元重签门票 + 当前设备会话，保持当前设备不掉线。 */
       let regNewEpoch = null;
       try {
-        if (pkClass === PK_CLASS_OWNER) {
-          const was = await isLayerConfigured(kv, LAYER_OWNER);
-          if (!was) {
-            await setLayerConfigured(kv, LAYER_OWNER);
-            regNewEpoch = await bumpSessionEpoch(kv);
-          }
-        } else if (pkClass === PK_CLASS_LOCK) {
-          const was = await isLayerConfigured(kv, LAYER_LOCK);
-          if (!was) {
-            await setLayerConfigured(kv, LAYER_LOCK);
-            regNewEpoch = await bumpSessionEpoch(kv);
-          }
-        } else if (pkClass === PK_CLASS_APP && aud) {
-          const was = await isLayerConfigured(kv, layerApp(aud));
-          if (!was) {
-            await setLayerConfigured(kv, layerApp(aud));
-            await bumpAppEpoch(kv, aud);
-          }
+        const was = await isLayerConfigured(kv, LAYER_LOCK);
+        if (!was) {
+          await setLayerConfigured(kv, LAYER_LOCK);
+          regNewEpoch = await bumpSessionEpoch(kv);
         }
       } catch (e) {
         return Response.json({ ok: false, error: 'epoch' }, { status: 503 });
       }
-      if (regNewEpoch !== null && mgReg) {
+      if (regNewEpoch !== null) {
         const headers = new Headers({ 'Content-Type': 'application/json' });
-        await reissueStepupWithEpoch(env, headers, mgReg.sv, regNewEpoch);
+        await reissueDoorWithEpoch(env, headers, mgReg.door, mgReg.dv, regNewEpoch);
         await reissueSessionWithEpoch(env, headers, mgReg.sess, regNewEpoch);
         return new Response(JSON.stringify({ ok: true, credId: credIdB64 }), { headers });
       }
@@ -638,23 +480,33 @@ async function handlePost(context) {
   }
 
   /* ============ auth ============
-     2.10.0：按 challenge 记录的 pkClass/aud 过滤；verify 时服务端再次校验分类
-     （浏览器凭据选择器不是安全边界）。app 类成功后签发单次 app-auth 记录，
-     供 /api/app-token 消费（不经过 stepup）。 */
+     只认 lock 凭据；verify 时服务端再次校验分类（浏览器凭据选择器不是安全边界）。
+     door:true：安全与隐私 → 锁屏凭证的门，要求 owner 会话，成功只签 3 分钟锁屏门票（会话不动）；
+     访客写死失败，不读存储。 */
   if (action === 'auth') {
+    const toDoor = !!(body && body.door === true);
+    if (toDoor) {
+      if (looksVisitor(request)) {
+        return Response.json({ ok: false, error: 'verify' }, { status: 403 });
+      }
+      const ds = await verifySessionDetailed(request, env);
+      if (!ds.ok || ds.role !== ROLE_OWNER) {
+        return Response.json({ ok: false, error: 'session' }, { status: 401 });
+      }
+    }
     const cred = (body && body.credential) || {};
     const cid = (body && body.cid) || '';
     const chRec = await consumeChallenge(kv, PK_CHALLENGE_PREFIX + cid);
     if (!chRec || chRec.type !== 'auth' || chRec.exp < Date.now()) {
       return Response.json({ ok: false, error: 'challenge' }, { status: 403 });
     }
-    const pkClass = chRec.pkClass === PK_CLASS_APP ? PK_CLASS_APP : PK_CLASS_LOCK;
-    const aud = pkClass === PK_CLASS_APP ? (chRec.aud || '') : '';
+    if ((chRec.pkClass || PK_CLASS_LOCK) !== PK_CLASS_LOCK) {
+      return Response.json({ ok: false, error: 'class-mismatch' }, { status: 403 });
+    }
+    const pkClass = PK_CLASS_LOCK;
     const keys = await getPasskeys(kv);
     const classKeys = keys.filter(function (k) {
-      if ((k.class || PK_CLASS_LOCK) !== pkClass) return false;
-      if (pkClass === PK_CLASS_APP && k.aud !== aud) return false;
-      return true;
+      return (k.class || PK_CLASS_LOCK) === pkClass;
     });
     if (classKeys.length === 0) {
       return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
@@ -669,12 +521,9 @@ async function handlePost(context) {
     if (!stored || !stored.publicKey) {
       return Response.json({ ok: false, error: 'unknown-key' }, { status: 403 });
     }
-    /* 2.10.0：服务端再次校验分类和 aud（防混用） */
+    /* 服务端再次校验分类（防混用） */
     if ((stored.class || PK_CLASS_LOCK) !== pkClass) {
       return Response.json({ ok: false, error: 'class-mismatch' }, { status: 403 });
-    }
-    if (pkClass === PK_CLASS_APP && stored.aud !== aud) {
-      return Response.json({ ok: false, error: 'aud-mismatch' }, { status: 403 });
     }
     try {
       /* 共享断言验证（_kernel/passkey-verify.js）：clientData、authData、
@@ -688,23 +537,11 @@ async function handlePost(context) {
         storedSignCount: stored.signCount,
         requireUV: true,
       });
-      /* 校验 userHandle（如果有）。2.10.1：按 pkClass/aud 取对应的 user handle，
-         应用类用 owner-user-id:app:<aud>，不再拿锁屏的比对。
-         批次 A 收尾：owner 类同时接受新 handle 'owner-user-id:owner' 和旧 handle
-         'owner-user-id'（旧 ownerkey 时代注册的用旧 handle）。只对 owner 类放宽，
-         lock/app 不变；验证本身仍以凭据公钥签名为准。 */
+      /* 校验 userHandle（如果有）；验证本身仍以凭据公钥签名为准。 */
       try {
-        const expectUh = await getUserHandle(kv, pkClass, pkClass === PK_CLASS_APP ? aud : '');
+        const expectUh = await getUserHandle(kv, pkClass);
         const gotUh = cred.response.userHandle;
-        if (expectUh && gotUh && gotUh !== expectUh) {
-          if (pkClass === PK_CLASS_OWNER) {
-            let legacyUh = null;
-            try { legacyUh = await kv.get('owner-user-id'); } catch (e) {}
-            if (!legacyUh || gotUh !== legacyUh) throw new Error('userHandle');
-          } else {
-            throw new Error('userHandle');
-          }
-        }
+        if (expectUh && gotUh && gotUh !== expectUh) throw new Error('userHandle');
       } catch (e) {
         if (e && e.message === 'userHandle') throw e;
       }
@@ -712,26 +549,15 @@ async function handlePost(context) {
       stored.signCount = checked.signCount;
       stored.lastUsedAt = Date.now();
       try { await savePasskey(kv, stored); } catch (e2) {}
-      /* 通过：
-         - lock：签发 Ed25519 会话 cookie（fail closed），并签发管理 token。
-           issueSessionCookie 永不抛错，明确错误码不会被外层 catch 吞成 403。
-           2.8.0：通行密钥验证签 owner（12 小时）。
-         - app（2.10.0）：写入单次 app-auth 记录并返回 appCid，
-           供 /api/app-token 消费（全程不依赖 stepup）。 */
-      if (pkClass === PK_CLASS_APP) {
-        const appCid = randB64(16);
-        try {
-          await kv.put(
-            APP_AUTH_PREFIX + appCid,
-            JSON.stringify({ aud: aud, exp: Date.now() + APP_AUTH_TTL * 1000 }),
-            { expirationTtl: APP_AUTH_TTL }
-          );
-        } catch (e) {
-          return Response.json({ ok: false, error: 'server' }, { status: 500 });
-        }
-        return Response.json({ ok: true, appCid: appCid });
-      }
+      /* 通过：签发 Ed25519 会话 cookie（fail closed；issueSessionCookie 永不抛错，
+         明确错误码不会被外层 catch 吞成 403）。2.8.0：通行密钥验证签 owner（12 小时）。
+         door:true：只签锁屏门票（by=passkey）。 */
       const headers = new Headers({ 'Content-Type': 'application/json' });
+      if (toDoor) {
+        const dErr = await issueDoorCookie(env, headers, DOOR_LOCK, 'passkey');
+        if (dErr) return Response.json(dErr.body, { status: dErr.status });
+        return new Response(JSON.stringify({ ok: true }), { headers });
+      }
       const signErr = await issueSessionCookie(env, headers, ROLE_OWNER);
       if (signErr) {
         return new Response(JSON.stringify(signErr.body), {
@@ -739,8 +565,6 @@ async function handlePost(context) {
           headers: { 'Content-Type': 'application/json' },
         });
       }
-      /* 2.10.1：不再签发 owner-auth token（死代码已清理）；
-         管理区门禁统一走 sgx-stepup cookie。 */
       return new Response(JSON.stringify({ ok: true }), { headers });
     } catch (e) {
       console.error('[passkey-auth]', e && e.message ? e.message : e);
@@ -749,36 +573,24 @@ async function handlePost(context) {
     }
   }
 
-  /* ============ list：列出 passkey（2.11 定稿：需 owner 会话 + sgx-stepup） ============
-     批次 A 验收修复 P0：钥匙类别由页面决定，不由票据 scope 推断。
-     调用方必须显式传 pkClass（'owner' | 'lock' | 'app'，app 可带 aud 过滤单个应用）；
-     服务端用 checkPasskeyMgmt(…, pkClass, 'list') 判断权限，只返回该类。 */
+  /* ============ list：列出 passkey（需锁屏门票） ============
+     调用方必须显式传 pkClass（'lock'；'owner' 一律 403，只在账号页管理）。 */
   if (action === 'list') {
     const pkClass = body && body.pkClass;
-    if (pkClass !== PK_CLASS_OWNER && pkClass !== PK_CLASS_LOCK && pkClass !== PK_CLASS_APP) {
+    if (pkClass !== PK_CLASS_OWNER && pkClass !== PK_CLASS_LOCK) {
       return Response.json({ ok: false, error: 'params' }, { status: 400 });
     }
-    let aud = '';
-    if (pkClass === PK_CLASS_APP) {
-      aud = (body && body.aud) || '';
-      if (aud && !getApp(aud)) {
-        return Response.json({ ok: false, error: 'aud' }, { status: 400 });
-      }
-    }
-    const mg = await checkPasskeyMgmt(request, env, kv, pkClass, 'list');
+    const mg = await checkPasskeyMgmt(request, env, pkClass, 'list');
     if (!mg.ok) {
       return Response.json(mg.body, { status: mg.status });
     }
     const keys = await getPasskeys(kv);
     return Response.json({
       ok: true,
-      /* 兼容旧前端：仍回传票据 scope，但前端不再据此推断类别 */
-      scope: mg.sv.scope,
+      door: mg.door,
       keys: keys
         .filter(function (k) {
-          if ((k.class || PK_CLASS_LOCK) !== pkClass) return false;
-          if (pkClass === PK_CLASS_APP && aud && k.aud !== aud) return false;
-          return true;
+          return (k.class || PK_CLASS_LOCK) === pkClass;
         })
         .map(function (k) {
           return {
@@ -789,13 +601,12 @@ async function handlePost(context) {
             createdAt: k.createdAt || 0,
             lastUsedAt: k.lastUsedAt || 0,
             class: k.class || PK_CLASS_LOCK,
-            aud: k.aud || '',
           };
         }),
     });
   }
 
-  /* ============ rename：重命名 passkey（2.11 定稿：统一门禁；lockreset 不可 rename） ============ */
+  /* ============ rename：重命名 passkey（统一门禁；重置锁屏不可 rename） ============ */
   if (action === 'rename') {
     const credId = (body && body.credId) || '';
     let name = (body && body.name) || '';
@@ -807,7 +618,7 @@ async function handlePost(context) {
     if (!found0 || found0.credId !== credId) {
       return Response.json({ ok: false, error: 'not-found' }, { status: 404 });
     }
-    const mg = await checkPasskeyMgmt(request, env, kv, found0.class || PK_CLASS_LOCK, 'rename');
+    const mg = await checkPasskeyMgmt(request, env, found0.class || PK_CLASS_LOCK, 'rename');
     if (!mg.ok) {
       return Response.json(mg.body, { status: mg.status });
     }
@@ -819,12 +630,9 @@ async function handlePost(context) {
     return Response.json({ ok: true });
   }
 
-  /* ============ delete：删除 passkey（2.10.2：需 owner 会话 + sgx-stepup） ============
-     - 删应用类凭据 → 先 app-epoch:<aud> +1（成功才删；失败 503 且密钥仍在），
-       只作废该应用，不推进会话纪元
-     - 删锁屏类凭据 → 先 session-epoch +1（成功才删；失败 503，fail closed）
-     - 没有密码时，禁止删除最后一把 lock 凭据（保住最后一种主人解锁方式）
-     - 成功后清除 sgx-stepup */
+  /* ============ delete：删除 passkey（需锁屏门票；重置锁屏也可删） ============
+     - 先 session-epoch +1（成功才删；失败 503，fail closed），门票与当前设备会话随即重签
+     - 没有密码时，禁止删除最后一把 lock 凭据（账号未配置时；保住最后一种主人解锁方式） */
   if (action === 'delete') {
     const credId = (body && body.credId) || '';
     if (!credId) return Response.json({ ok: false, error: 'params' }, { status: 400 });
@@ -836,12 +644,11 @@ async function handlePost(context) {
       return Response.json({ ok: false, error: 'not-found' }, { status: 404 });
     }
     const delClass = found.class || PK_CLASS_LOCK;
-    /* 2.11 定稿：统一门禁（lockreset 可删 lock） */
-    const mg = await checkPasskeyMgmt(request, env, kv, delClass, 'delete');
+    /* 统一门禁（重置锁屏可删 lock） */
+    const mg = await checkPasskeyMgmt(request, env, delClass, 'delete');
     if (!mg.ok) {
       return Response.json(mg.body, { status: mg.status });
     }
-    const isLockresetOp = mg.sv.scope === STEPUP_SCOPE_LOCKRESET;
     /* A-2：锁屏凭证减到 0 的那次删除，只在 owner 已有效配置时允许；
        owner 未配置时禁止（403 last-key，文案不变）。判断在任何 mutation 之前。 */
     if (delClass === PK_CLASS_LOCK) {
@@ -865,85 +672,40 @@ async function handlePost(context) {
         }
       }
     }
-    /* 2.10.2：先推进纪元，成功才删（fail closed；纪元推进失败则密钥仍在）
-       D1：删 owner 类钥匙不推进 session-epoch（定稿没有要求删 accountkey 踢掉所有会话；
-       只有第 33 条要求删应用密钥时该应用授权失效，应用类只加 app-epoch）。
-       D2：删 lock 类钥匙保留 epoch +1（踢掉其他设备），但同响应重签当前设备会话。 */
+    /* 先推进纪元，成功才删（fail closed；纪元推进失败则密钥仍在）。
+       删 lock 类 → session-epoch +1（踢掉其他设备），同响应重签门票与当前设备会话。 */
     let newEpoch = null;
-    if (delClass === PK_CLASS_APP && found.aud) {
-      /* 删应用类凭据 → 该应用的应用纪元 +1（失败则拒绝删除） */
-      try {
-        await bumpAppEpoch(kv, found.aud);
-      } catch (e) {
-        return Response.json({ ok: false, error: 'epoch' }, { status: 503 });
-      }
-      /* 删应用类只加 app-epoch，不推进会话纪元 */
-    } else if (delClass === PK_CLASS_LOCK) {
-      /* 删锁屏类密钥 → session-epoch +1（失败则拒绝删除，fail closed） */
-      try {
-        const v = parseInt(await kv.get(SESSION_EPOCH_KEY) || '0', 10) || 0;
-        newEpoch = v + 1;
-        await kv.put(SESSION_EPOCH_KEY, String(newEpoch));
-      } catch (e) {
-        return Response.json({ ok: false, error: 'epoch' }, { status: 503 });
-      }
+    try {
+      const v = parseInt(await kv.get(SESSION_EPOCH_KEY) || '0', 10) || 0;
+      newEpoch = v + 1;
+      await kv.put(SESSION_EPOCH_KEY, String(newEpoch));
+    } catch (e) {
+      return Response.json({ ok: false, error: 'epoch' }, { status: 503 });
     }
-    /* D1：删 owner 类不推进 session-epoch（newEpoch 保持 null，不重签）。 */
     await deletePasskey(kv, credId);
-    /* 2.11 定稿：删完后若该层已无凭证，清除层标记。
-       root 删站长凭证 → 推进 session-epoch（已在上完成），避免无声回退到 root 代管 */
+    /* 删完后若锁屏层已无凭证：账号已配置 → 保留 layer:lock（根凭证代开继续被拒，
+       锁屏只显示访客 + 重置）；账号未配置（竞态）→ 清 layer:lock。 */
     try {
       const keys = await getPasskeys(kv);
-      if (delClass === PK_CLASS_OWNER) {
-        const hasOwnerKey = keys.some(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_OWNER; });
-        let hasOwnerPw = false;
-        try { const r = await kv.get(REALM_ACCOUNT.kv.password, 'json'); hasOwnerPw = !!(r && r.hash); } catch (e) {}
-        if (!hasOwnerKey && !hasOwnerPw) {
-          /* 清标记失败不吞掉：标记残留会导致 root 无法代管（用户被锁死），直接 503 */
+      const hasLockKey = keys.some(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK; });
+      let hasLockPw = false;
+      try { const r = await kv.get(REALM_LOCK.kv.password, 'json'); hasLockPw = !!(r && r.hash); } catch (e) {}
+      if (!hasLockKey && !hasLockPw) {
+        let ownerCfg = true;
+        try { ownerCfg = await isOwnerEffectivelyConfigured(kv); } catch (e) { ownerCfg = true; }
+        if (!ownerCfg) {
           try {
-            await clearLayerConfigured(kv, LAYER_OWNER);
-          } catch (e) {
-            return Response.json({ ok: false, error: 'server' }, { status: 503 });
-          }
-        }
-      } else if (delClass === PK_CLASS_LOCK) {
-        const hasLockKey = keys.some(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK; });
-        let hasLockPw = false;
-        try { const r = await kv.get(REALM_LOCK.kv.password, 'json'); hasLockPw = !!(r && r.hash); } catch (e) {}
-        if (!hasLockKey && !hasLockPw) {
-          /* A-2：删光 lock 凭证且 owner 已配置 → 保留 layer:lock 不清
-             （根凭证代开继续被拒，锁屏只显示访客 + 重置）；
-             owner 未配置时（竞态）按旧逻辑清 layer:lock。
-             layer:lock-emptied 是 B #10 的键，A-2 不读不写。 */
-          let ownerCfg = true;
-          try { ownerCfg = await isOwnerEffectivelyConfigured(kv); } catch (e) { ownerCfg = true; }
-          if (!ownerCfg) {
-            try {
-              await clearLayerConfigured(kv, LAYER_LOCK);
-            } catch (e) {
-              return Response.json({ ok: false, error: 'server' }, { status: 503 });
-            }
-          }
-        }
-      } else if (delClass === PK_CLASS_APP && found.aud) {
-        const hasAppKey = keys.some(function (k) {
-          return (k.class || PK_CLASS_LOCK) === PK_CLASS_APP && k.aud === found.aud;
-        });
-        if (!hasAppKey) {
-          /* 清标记失败不吞掉：同上 */
-          try {
-            await clearLayerConfigured(kv, layerApp(found.aud));
+            await clearLayerConfigured(kv, LAYER_LOCK);
           } catch (e) {
             return Response.json({ ok: false, error: 'server' }, { status: 503 });
           }
         }
       }
     } catch (e) {}
-    /* D2：删 lock 类推进 epoch 后，用新 epoch 重签 stepup 票据 + 当前设备会话，
-       保持门内连续操作不中断、当前设备不掉线。删 owner 类不推进 epoch，无需重签。 */
+    /* 纪元推进后重签门票 + 当前设备会话，保持门内连续操作不中断、当前设备不掉线。 */
     const headers = new Headers({ 'Content-Type': 'application/json' });
-    if (newEpoch !== null && mg.sv && mg.sv.ok) {
-      await reissueStepupWithEpoch(env, headers, mg.sv, newEpoch);
+    if (newEpoch !== null) {
+      await reissueDoorWithEpoch(env, headers, mg.door, mg.dv, newEpoch);
       /* 当前设备会话重签（lockreset 无会话时 mg.sess 为 null，helper 内部跳过） */
       await reissueSessionWithEpoch(env, headers, mg.sess, newEpoch);
     }

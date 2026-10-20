@@ -1,7 +1,6 @@
 /**
  * 服务绑定验票（workers/auth-gateway/src/verifier.js，RPC 入口 SessionVerifier 只是薄包装）：
  * - checkSession：与网关验页面同一套逻辑；只回结论
- * - checkAppPass：验签 + aud/scope + exp + session epoch + appEpoch；KV 出错 fail closed
  * - wrangler 入口导出 SessionVerifier
  *
  * 运行：node --test tests/workers/auth-gateway/verifier.test.mjs
@@ -13,9 +12,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const { checkSession, checkAppPass, currentAppEpoch } = await import(REPO + '/workers/auth-gateway/src/verifier.js');
+const { checkSession } = await import(REPO + '/workers/auth-gateway/src/verifier.js');
 const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
-const { signAppToken } = await import(REPO + '/workers/auth-gateway/functions/api/app-token.js');
 
 function derToPem(der, label) {
   const b64 = Buffer.from(der).toString('base64');
@@ -29,17 +27,14 @@ async function pair() {
   };
 }
 const LOCK = await pair();
-const APP = await pair();
 
-function env({ epoch = '0', appEpoch = null, kvThrows = false } = {}) {
+function env({ epoch = '0', kvThrows = false } = {}) {
   return {
     SGX_LOCK_PUBLIC: LOCK.pub,
-    SGX_APP_PUBLIC: APP.pub,
     OWNER_KV: {
       async get(k) {
         if (kvThrows) throw new Error('kv down');
         if (k === 'session-epoch') return epoch;
-        if (k === 'app-epoch:book') return appEpoch;
         return null;
       },
     },
@@ -60,34 +55,8 @@ test('checkSession：访客/主人有效，回角色；没有 cookie、伪造都
   assert.equal((await checkSession('sgx-verified=' + low, env({ epoch: '2' }))).ok, false);
 });
 
-test('checkAppPass：有效通行证通过，回 appEpoch', async () => {
-  const t = await signAppToken(APP.priv, 0, 3, 'book', 'upload');
-  const r = await checkAppPass('sgx-verified=x; sgx-app=' + t, env({ appEpoch: '3' }), 'book', 'upload');
-  assert.equal(r.ok, true);
-  assert.equal(r.appEpoch, 3);
-});
 
-test('checkAppPass：aud/scope 不符、伪造、epoch/appEpoch 落后、缺公钥、KV 出错一律拒绝', async () => {
-  const t = await signAppToken(APP.priv, 0, 3, 'book', 'upload');
-  const h = 'sgx-app=' + t;
-  assert.equal((await checkAppPass(h, env(), 'book', 'delete')).reason, 'scope');
-  assert.equal((await checkAppPass(h, env(), 'other', 'upload')).reason, 'scope');
-  const other = await pair();
-  const forged = await signAppToken(other.priv, 0, 3, 'book', 'upload');
-  assert.equal((await checkAppPass('sgx-app=' + forged, env(), 'book', 'upload')).reason, 'bad-sig');
-  assert.equal((await checkAppPass(h, env({ epoch: '1' }), 'book', 'upload')).reason, 'epoch-low');
-  assert.equal((await checkAppPass(h, env({ appEpoch: '4' }), 'book', 'upload')).reason, 'app-epoch-low');
-  assert.equal((await checkAppPass(h, Object.assign(env(), { SGX_APP_PUBLIC: '' }), 'book', 'upload')).reason, 'no-pubkey');
-  assert.equal((await checkAppPass(h, env({ kvThrows: true }), 'book', 'upload')).reason, 'kv-error');
-  assert.equal((await checkAppPass('', env(), 'book', 'upload')).reason, 'no-pass');
-  assert.equal((await checkAppPass(h, env(), 'Book!', 'upload')).reason, 'bad-request');
-});
 
-test('checkAppPass：多个同名 cookie 时任一有效即通过', async () => {
-  const t = await signAppToken(APP.priv, 0, 0, 'book', 'upload');
-  const r = await checkAppPass('sgx-app=junk; sgx-app=' + t, env(), 'book', 'upload');
-  assert.equal(r.ok, true);
-});
 
 test('部署入口导出 SessionVerifier，wrangler main 指向它', () => {
   const toml = readFileSync(REPO + '/workers/auth-gateway/wrangler.toml', 'utf8');
@@ -99,9 +68,3 @@ test('部署入口导出 SessionVerifier，wrangler main 指向它', () => {
   assert.match(rpc, /class SessionVerifier extends WorkerEntrypoint/);
 });
 
-test('currentAppEpoch：读 KV，缺失为 0，KV 出错 fail closed', async () => {
-  assert.deepEqual(await currentAppEpoch(env({ appEpoch: '7' }), 'book'), { ok: true, appEpoch: 7 });
-  assert.deepEqual(await currentAppEpoch(env(), 'book'), { ok: true, appEpoch: 0 });
-  assert.equal((await currentAppEpoch(env({ kvThrows: true }), 'book')).ok, false);
-  assert.equal((await currentAppEpoch(env(), '../x')).ok, false);
-});

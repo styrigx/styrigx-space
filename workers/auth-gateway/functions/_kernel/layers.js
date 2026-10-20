@@ -1,8 +1,8 @@
 /**
  * 2.11：分层接管（layer takeover）。
  *
- * 三层：owner（accountkey：账号密码/账号通行密钥；KV 标记沿用 layer:owner）、lock（lockkey：解锁密码/
- * 锁屏通行密钥）、app:<aud>（<aud>key，如 bookkey）。钥匙命名见 key-names.js。
+ * 两层：owner（accountkey：账号密码/账号通行密钥；KV 标记沿用 layer:owner）、lock（lockkey：解锁密码/
+ * 锁屏通行密钥）。钥匙命名见 key-names.js。
  *
  * 规则：
  * - 某层没有自己的凭证时，root 可代开该层。
@@ -12,7 +12,6 @@
  * KV 键：
  * - layer:owner = "1"（已配置 owner 凭证）
  * - layer:lock = "1"（已配置 lock 凭证）
- * - layer:app:<aud> = "1"（已配置该 aud 的 app 凭证）
  */
 
 import { ownerPasskeyKey, OWNER_PASSKEY_PREFIX, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY } from './key-names.js';
@@ -22,14 +21,12 @@ import { REALM_LOCK, REALM_ACCOUNT } from './realms.js';
 export const LAYER_OWNER = 'owner';
 export const LAYER_LOCK = 'lock';
 
-/** @param {string} aud */
-export function layerApp(aud) { return 'app:' + aud; }
 
 /**
  * 检查某层是否已配置自己的凭证。
  * 2.11 定稿：KV 读取失败（或无 KV）按已配置处理（root 被拒，fail closed），不再抛错。
  * @param {any} kv
- * @param {string} layer 'owner' | 'lock' | 'app:<aud>'
+ * @param {string} layer 'owner' | 'lock'
  * @returns {Promise<boolean>}
  */
 export async function isLayerConfigured(kv, layer) {

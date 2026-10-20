@@ -1,13 +1,16 @@
 /**
  * 门票（sgx-door）：进一道「门」（安全操作页）验过对应凭证后签发的 3 分钟短票。
  *
- * 每道门用自己凭证域的钥匙签，不再共用一把 stepup 钥匙：
+ * 每道门用自己凭证域的钥匙签（全站只剩账号、锁屏两套签名钥匙）：
  * - account：账号 → 安全与隐私（管理账号密码 / 账号通行密钥），SGX_ACCOUNT_* 签，
  *            纪元 = account-epoch（改账号密码 / 删账号通行密钥 +1）
- * （锁屏凭证、应用凭证两道门在下一个 PR 接入，届时在 DOORS 里加 lock / app）
+ * - lock：安全与隐私 → 锁屏凭证（管理解锁密码 / 锁屏通行密钥 / 退出所有设备 / 根凭证记录），
+ *         SGX_LOCK_* 签，纪元 = session-epoch（改锁屏凭证、退出所有设备 +1，门内操作随即重签）
+ * - lockreset：重置锁屏（丢了锁屏凭证，没有会话）—— 只能设置解锁密码 / 增删锁屏通行密钥，
+ *         SGX_LOCK_* 签，纪元 = session-epoch；by = root（恢复开关）| account+root（账号凭证 + 根凭证）
  *
  * 票据格式（七段）：door.<door>.<by>.<epoch>.<iat>.<exp>.<sig>
- * - by：本次进门用的凭证（passkey | password | root）
+ * - by：本次进门用的凭证（passkey | password | root；重置锁屏另有 account+root）
  * - sig：Ed25519(<门的私钥>, "sgx-door|door.<door>.<by>.<epoch>.<iat>.<exp>")，
  *   签名串带 "sgx-door|" 前缀做域隔离：同一把钥匙签的会话票绝不会被当成门票，反之亦然
  * 同一时刻只有一张门票（一个 cookie），进另一道门会覆盖；离开门内页前端立即调 clear。
@@ -18,7 +21,7 @@
  * 叶子模块：只 import _kernel（crypto / realms），不 import 接口或 _middleware.js。
  */
 import { ed25519Sign, ed25519Verify } from './crypto.js';
-import { REALM_ACCOUNT, realmPrivateKey, realmPublicKey, COOKIE_EXPIRED } from './realms.js';
+import { REALM_ACCOUNT, REALM_LOCK, realmPrivateKey, realmPublicKey, COOKIE_EXPIRED } from './realms.js';
 
 export const DOOR_COOKIE = 'sgx-door';
 export const DOOR_MAX_AGE = 180; /* 3 分钟，不续期 */
@@ -26,11 +29,17 @@ const DOOR_COOKIE_ATTRS = 'Path=/; HttpOnly; Secure; SameSite=Strict';
 const SIG_PREFIX = 'sgx-door|';
 
 export const DOOR_ACCOUNT = 'account';
-export const DOOR_BYS = Object.freeze(['passkey', 'password', 'root']);
+export const DOOR_LOCK = 'lock';
+export const DOOR_LOCKRESET = 'lockreset';
+export const DOOR_BY_ACCOUNT_ROOT = 'account+root';
+const BYS_NORMAL = Object.freeze(['passkey', 'password', 'root']);
+export const DOOR_BYS = Object.freeze(['passkey', 'password', 'root', DOOR_BY_ACCOUNT_ROOT]);
 
-/** 每道门：签名钥匙（凭证域）+ 纪元键 */
+/** 每道门：签名钥匙（凭证域）+ 纪元键 + 允许的 by */
 export const DOORS = Object.freeze({
-  [DOOR_ACCOUNT]: Object.freeze({ realm: REALM_ACCOUNT, epochKey: REALM_ACCOUNT.kv.epoch }),
+  [DOOR_ACCOUNT]: Object.freeze({ realm: REALM_ACCOUNT, epochKey: REALM_ACCOUNT.kv.epoch, bys: BYS_NORMAL }),
+  [DOOR_LOCK]: Object.freeze({ realm: REALM_LOCK, epochKey: REALM_LOCK.kv.epoch, bys: BYS_NORMAL }),
+  [DOOR_LOCKRESET]: Object.freeze({ realm: REALM_LOCK, epochKey: REALM_LOCK.kv.epoch, bys: Object.freeze(['root', DOOR_BY_ACCOUNT_ROOT]) }),
 });
 
 /** @param {string} door */
@@ -59,8 +68,9 @@ export async function getDoorEpoch(kv, door) {
  * @param {number} [now] 毫秒（测试用）
  */
 export async function signDoorTicket(privatePem, door, by, epoch, now) {
-  if (!doorConf(door)) throw new Error('signDoorTicket: bad door ' + JSON.stringify(door));
-  if (DOOR_BYS.indexOf(by) === -1) throw new Error('signDoorTicket: bad by ' + JSON.stringify(by));
+  const c = doorConf(door);
+  if (!c) throw new Error('signDoorTicket: bad door ' + JSON.stringify(door));
+  if (c.bys.indexOf(by) === -1) throw new Error('signDoorTicket: bad by ' + JSON.stringify(by));
   const iat = now || Date.now();
   const exp = iat + DOOR_MAX_AGE * 1000;
   const payload = 'door.' + door + '.' + by + '.' + epoch + '.' + iat + '.' + exp;
@@ -79,7 +89,8 @@ export function parseDoorTicket(val) {
   if (parts.length !== 7 || parts[0] !== 'door') return null;
   const door = parts[1];
   const by = parts[2];
-  if (!doorConf(door) || DOOR_BYS.indexOf(by) === -1) return null;
+  const c = doorConf(door);
+  if (!c || c.bys.indexOf(by) === -1) return null;
   const epoch = parseInt(parts[3], 10);
   const iat = parseInt(parts[4], 10);
   const exp = parseInt(parts[5], 10);

@@ -1,5 +1,5 @@
 ---
-title: '锁定屏幕'
+title: '锁屏凭证'
 layout: security-lock
 url: /settings/security/lock/
 ---

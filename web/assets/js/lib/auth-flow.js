@@ -1,14 +1,13 @@
 /**
  * @fileoverview 登录/验证共用积木（纯重构抽出，行为与原各处副本一致）。
  *
- * 原来锁屏（shell/lock.js）、两扇门（apps/door.js、apps/security-lock.js）、
- * 安全与隐私页验证弹层（apps/security.js）、门内倒计时与离门清票（apps/app-gate.js、
- * apps/security-mgmt.js）各自抄了一份同样的代码，这里只收「逐字相同」的部分：
+ * 原来锁屏（shell/lock.js）、门内页（apps/security-lock.js、apps/account-security.js）、
+ * 门内倒计时与离门清票（apps/app-gate.js）各自抄了一份同样的代码，这里只收「逐字相同」的部分：
  *
  * - 密码框：pwFieldHtml（锁屏弹层用的 HTML 片段）、bindPwEye（眼睛按钮中英文案）、
  *   onEnter（回车提交）、focusNoScroll（聚焦不滚动，失败退回普通 focus）
  * - 门内「设置/修改密码」弹层：bindDataEyes、createSetPwDialog、newPwError、pwSetRequest
- * - 二次验证客户端：stepupFetch（POST /api/stepup）
+ * - 锁屏凭证的门客户端：lockDoorFetch（POST /api/lock-door）
  *
  * 将来加新的凭证域（例如独立的「账户」登录）时，直接复用这些积木即可。
  * 本文件在 lib/ 层：不得 import shell/ 或 apps/（followKeyboard 由调用方传入）。
@@ -214,22 +213,22 @@ export function createSetPwDialog(o) {
 }
 
 /* ---------------------------------------------------------------------------
- * 二次验证（stepup）客户端
+ * 锁屏凭证的门（门票状态 / 清票）客户端
  * ------------------------------------------------------------------------- */
 
-export const STEPUP_API = '/api/stepup';
+export const LOCK_DOOR_API = '/api/lock-door';
 
 /**
- * POST /api/stepup（JSON）。请求体 = { action, ...extra }，字段顺序与原各处一致。
- * 返回原始 fetch Promise，响应由调用方各自解析（各处解析方式不同，故不合并）。
- * @param {string} action 'status' | 'clear' | 'verify-password' | 'challenge' | 'verify' ...
+ * POST /api/lock-door（JSON）。请求体 = { action, ...extra }。
+ * 返回原始 fetch Promise，响应由调用方各自解析。
+ * @param {string} action 'status' | 'clear'
  * @param {object} [opts]
- * @param {object} [opts.extra] 额外字段（如 { password } / { cid, credential }）
+ * @param {object} [opts.extra] 额外字段
  * @param {RequestCredentials} [opts.credentials] 默认 'include'
  * @param {boolean} [opts.keepalive] 离页时尽力送达
  * @returns {Promise<Response>}
  */
-export function stepupFetch(action, opts) {
+export function lockDoorFetch(action, opts) {
   const o = opts || {};
   /** @type {RequestInit} */
   const init = {
@@ -239,5 +238,5 @@ export function stepupFetch(action, opts) {
     credentials: o.credentials || 'include',
   };
   if (o.keepalive) init.keepalive = true;
-  return fetch(STEPUP_API, init);
+  return fetch(LOCK_DOOR_API, init);
 }

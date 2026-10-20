@@ -874,7 +874,7 @@ function showLockScreen() {
           '<span class="sgx-method-desc">' + (en ? 'Lost unlock method? Verify identity, then reset unlock method' : '丢了锁屏凭证？验证身份后重设解锁方式') + '</span></span>' +
           '</button>'
         : '') +
-      /* 5. 根凭证：锁屏凭证都没设置时显示。调 /api/root-auth（只签发 stepup，
+      /* 5. 根凭证：锁屏凭证都没设置时显示。调 /api/root-auth（只签发锁屏门票，
          不签发会话），成功后进入站长模式。走真实比对，计入 rootlimit 和审计；
          任一锁屏凭证已配置时服务端拒绝这条路径。 */
       (showMk
@@ -1120,7 +1120,7 @@ function showLockScreen() {
 
   /* ---------- 根凭证态（与验证态同一弹层） ----------
      补充定稿七.1：锁屏凭证都没设置时的方法弹层入口。调 /api/root-auth
-     （只签发 stepup(by=root, scope=root)，不签发会话），成功后进入安全与隐私页
+     （只签发锁屏门票 door=lock, by=root，不签发会话），成功后进入安全与隐私页
      （站长模式）。走真实比对，计入 rootlimit 和审计；任一锁屏凭证已配置时
      服务端拒绝这条路径（无会话假入口，写死 401）。 */
   function openMk() {
@@ -1173,7 +1173,7 @@ function showLockScreen() {
           return;
         }
         if (j.ok) {
-          /* 锁屏未配置场景：root-auth 只签发 stepup(by=root, scope=root)，
+          /* 锁屏未配置场景：root-auth 只签发锁屏门票（by=root），
              需调 /api/root-session 换站长会话（by=root，1 小时）再跳转，
              否则无会话会被 middleware 302 回锁屏。
              用共享函数 exchangeRootSession（与 security.js 共用）。 */

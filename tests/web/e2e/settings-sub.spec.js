@@ -203,13 +203,15 @@ test.describe('unlock methods entry relocation', () => {
     await blockExternalRequests(pg);
     await pg.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
     await expect(pg.locator('.set-layout').first()).toBeVisible({ timeout: 15000 });
-    /* 账号体系：安全页两项（管理凭证/立即锁定）；站长凭证升级为账号，入口在顶栏右圆头像 */
+    /* 安全页两项（锁屏凭证/立即锁定）；管理凭证已删除；账号在顶栏右圆头像 */
     await expect(pg.locator('#sec-unlock-methods')).toHaveCount(0);
     await expect(pg.locator('#sec-owner-cred')).toHaveCount(0);
     await expect(pg.locator('.sgx-tb-me')).toHaveAttribute('href', '/settings/account/');
-    const mgmt = pg.locator('#sec-mgmt-cred');
-    await expect(mgmt).toHaveCount(1);
-    await expect(mgmt).toContainText('管理凭证');
+    await expect(pg.locator('#sec-mgmt-cred')).toHaveCount(0);
+    const lockCred = pg.locator('#sec-lock-cred');
+    await expect(lockCred).toHaveCount(1);
+    await expect(lockCred).toContainText('锁屏凭证');
+    await expect(lockCred).toHaveAttribute('href', '/settings/security/lock/');
     const locknow = pg.locator('#sec-locknow');
     await expect(locknow).toHaveCount(1);
     await expect(locknow).toContainText('立即锁定');
@@ -222,7 +224,7 @@ test.describe('unlock methods entry relocation', () => {
     await expect(pg.locator('.set-layout').first()).toBeVisible({ timeout: 15000 });
     await expect(pg.locator('#sec-unlock-methods')).toHaveCount(0);
     await expect(pg.locator('#sec-owner-cred')).toHaveCount(0);
-    await expect(pg.locator('#sec-mgmt-cred')).toContainText('Manage credentials');
+    await expect(pg.locator('#sec-lock-cred')).toContainText('Lock screen credentials');
     await expect(pg.locator('#sec-locknow')).toContainText('Lock now');
   });
 });

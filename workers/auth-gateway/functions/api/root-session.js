@@ -1,20 +1,20 @@
 /**
  * 2.11 定稿：root 代开锁屏会话。
  *
- * 未配置 lock 层凭证时，root 可用 stepup(by=root, scope=root) 代开锁屏会话。
+ * 未配置 lock 层凭证时，root 可用根凭证换来的锁屏门票（sgx-door，door=lock，by=root）代开锁屏会话。
  * - 会话与正常 lockkey 解锁相同：12 小时（定稿 #10）
  * - 会话 by=root，标记为代开
  * - lock 层一旦配置自己的凭证，root 代开失效（403）
  * - KV 读取失败按已配置处理（拒绝，fail closed）
  *
  * POST /api/root-session
- * - 需要有效的 stepup(by=root, scope=root) cookie（不验 owner 会话，
+ * - 需要有效的锁屏门票 door=lock, by=root（不验 owner 会话，
  *   因为代开场景下用户可能还没有任何会话）
  *
  * 只接受 POST；校验 Origin。
  */
 import { issueSessionCookie, ROLE_OWNER, BY_ROOT, SESSION_MAX_AGE } from '../_kernel/session.js';
-import { verifyStepupCookie, STEPUP_BY_ROOT, STEPUP_SCOPE_ROOT } from './stepup.js';
+import { verifyDoorCookie, DOOR_LOCK } from '../_kernel/door.js';
 import { isLockEffectivelyConfigured } from '../_kernel/layers.js';
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
 
@@ -44,12 +44,12 @@ async function handlePost(context) {
     return Response.json({ ok: false, error: 'config' }, { status: 500 });
   }
 
-  /* 验 stepup：必须是 by=root, scope=root */
-  const st = await verifyStepupCookie(request, env);
+  /* 验门票：必须是锁屏门票，且 by=root */
+  const st = await verifyDoorCookie(request, env, DOOR_LOCK);
   if (!st.ok) {
-    return Response.json({ ok: false, error: 'stepup' }, { status: 403 });
+    return Response.json({ ok: false, error: 'door', reason: st.reason }, { status: 403 });
   }
-  if (st.by !== STEPUP_BY_ROOT || st.scope !== STEPUP_SCOPE_ROOT) {
+  if (st.by !== 'root') {
     return Response.json({ ok: false, error: 'scope' }, { status: 403 });
   }
 
@@ -65,7 +65,7 @@ async function handlePost(context) {
     return Response.json({ ok: false, error: 'configured' }, { status: 403 });
   }
 
-  /* 签发 by=root 的 owner 会话，约 12 小时（ROOT_SESSION_MAX_AGE=43200，与 stepup 的 3 分钟无关） */
+  /* 签发 by=root 的 owner 会话，约 12 小时（ROOT_SESSION_MAX_AGE=43200，与门票的 3 分钟无关） */
   const headers = new Headers({ 'Content-Type': 'application/json' });
   const sessErr = await issueSessionCookie(env, headers, ROLE_OWNER, BY_ROOT, ROOT_SESSION_MAX_AGE);
   if (sessErr) {

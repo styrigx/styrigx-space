@@ -17,15 +17,13 @@
  * - auth：lockreset 401，lock.js 按 HTTP 状态 + 固定文案处理
  * - configured：root-session 403，exchangeRootSession 只返回 ok/status
  * - failed / hostname / token：verify.js，lock.js submitToken 只看 ok，固定文案
- * - stepup：root-session / root-audit 403，调用方只用 ok/status，不进 apiErrorText
  * - bad-form / missing / bad-type / too-large：/api/avatar 换头像，avatar-edit.js 只看 ok，失败一律固定文案
- * - account / account-stale：账号会话缺失 / 登录超过 10 分钟（/api/stepup enter、/api/account 管理），
- *   安全页与账号页按码跳回账号登录重新验证，不进 apiErrorText
- * - door：账号门票缺失/过期（/api/account 管理操作），安全与隐私子页按码重新弹出进门验证，不进 apiErrorText
+ * - account：账号会话缺失（/api/account 管理），账号页按码跳回账号登录，不进 apiErrorText
+ * - door：门票缺失/过期（/api/account 管理、锁屏凭证管理），门内页按码回到门口重新验证，不进 apiErrorText
  * - bad-json / bad-url：/api/bookmarks、/api/bookmark-preview，书签页自己按码显示文案，不进 apiErrorText
  *
  * 另断言：每个 ERR_KEY 的 i18n key 都在门内模板
- * （security-lock / security-apps-book；原 security-owner 已升级为账号页）里定义，
+ * （security-lock；原 security-owner 已升级为账号页，应用凭证页已删除）里定义，
  * 否则 t() 兜底会把映射当成缺键丢掉。
  *
  * 运行：node --test tests/kernel/error-codes.test.mjs
@@ -45,14 +43,12 @@ const KNOWN_FIXED = new Set([
   'failed',
   'hostname',
   'token',
-  'stepup',
   'door',
   'bad-form',
   'missing',
   'bad-type',
   'too-large',
   'account',
-  'account-stale',
   'bad-json',
   'bad-url',
 ]);
@@ -113,7 +109,6 @@ test('每个 ERR_KEY 的 i18n key 都在门内模板里定义', () => {
   const { errKey } = extractFrontendMaps();
   const templates = [
     'web/layouts/_default/security-lock.html',
-    'web/layouts/_default/security-apps-book.html',
   ];
   for (const t of templates) {
     const src = read(t);

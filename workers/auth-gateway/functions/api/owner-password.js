@@ -4,8 +4,9 @@
  * 超过抛 NotSupportedError）。verify 按记录里的 iterations 校验。
  *
  * 2.11 定稿：双密码；账号体系后：
- * - lock-pw（锁屏密码）：verify 解锁用；管理走 kind=lock（入口 2 scope=keys，
- *   或 scope=lockreset 重置流程）。
+ * - lock-pw（锁屏密码）：verify 解锁用；verify 带 door:true 时（有 owner 会话）不签会话，改签
+ *   3 分钟锁屏门票（安全与隐私 → 锁屏凭证的门）；管理走 kind=lock（锁屏门票 door=lock，
+ *   或重置锁屏门票 door=lockreset）。
  * - owner-pw（账号密码，原站长密码）：账号登录的密码入口；只在账号页管理
  *   （/api/account），本接口不再接受 kind=owner。
  * - 锁屏密码不得与账号密码相同（双向检查；账号侧在 /api/account）。
@@ -34,22 +35,14 @@ import {
   reissueSessionWithEpoch,
   ROLE_OWNER,
 } from '../_kernel/session.js';
-import {
-  verifyStepupCookie,
-  reissueStepupWithEpoch,
-  STEPUP_BY_ROOT,
-  STEPUP_BY_ACCOUNT,
-  STEPUP_SCOPE_ROOT,
-  STEPUP_SCOPE_KEYS,
-  STEPUP_SCOPE_LOCKRESET,
-} from './stepup.js';
+import { checkLockDoor, looksVisitor } from './lock-door.js';
+import { issueDoorCookie, reissueDoorWithEpoch, DOOR_LOCK } from '../_kernel/door.js';
 import { verifySessionDetailed } from '../_middleware.js';
 import {
   isLayerConfigured,
   setLayerConfigured,
   clearLayerConfigured,
   isOwnerEffectivelyConfigured,
-  LAYER_OWNER,
   LAYER_LOCK,
 } from '../_kernel/layers.js';
 import { getPasskeys, PK_CLASS_LOCK } from './owner-passkey.js';
@@ -162,6 +155,18 @@ async function handlePost(context) {
   /* ============ verify：解锁验证（锁屏密码） ============ */
   /* 2.11 定稿：只认 lock-pw（锁屏密码）；owner 密码不能解锁（各层凭证不互相替代）。 */
   if (action === 'verify') {
+    const toDoor = !!(body && body.door === true);
+    /* 门口验证：访客写死「密码错误」，不读任何存储；不是 owner 会话 → 401 session */
+    let doorSess = null;
+    if (toDoor) {
+      if (looksVisitor(request)) {
+        return Response.json({ ok: false, error: 'wrong' }, { status: 403 });
+      }
+      doorSess = await verifySessionDetailed(request, env);
+      if (!doorSess.ok || doorSess.role !== ROLE_OWNER) {
+        return Response.json({ ok: false, error: 'session' }, { status: 401 });
+      }
+    }
     let locked = false;
     try {
       locked = await isLocked();
@@ -212,6 +217,12 @@ async function handlePost(context) {
        绝不静默跳过然后返回 ok:true）
        2.8.0：密码验证签 owner（12 小时） */
     const headers = new Headers({ 'Content-Type': 'application/json' });
+    if (toDoor) {
+      /* 门口：只签锁屏门票（3 分钟），会话不动 */
+      const dErr = await issueDoorCookie(env, headers, DOOR_LOCK, 'password');
+      if (dErr) return Response.json(dErr.body, { status: dErr.status });
+      return new Response(JSON.stringify({ ok: true }), { headers });
+    }
     const signErr = await issueSessionCookie(env, headers, ROLE_OWNER);
     if (signErr) {
       return new Response(JSON.stringify(signErr.body), {
@@ -224,9 +235,8 @@ async function handlePost(context) {
 
   /* ============ set/change/remove（2.11 定稿；账号体系后只剩 kind=lock） ============
      kind=owner（账号密码）已移到 /api/account（只在账号页管理）→ 这里 400 params。
-     kind=lock（锁屏密码）：入口 2，需 stepup(scope=keys)；账号未配置时 root 可代管；
-       scope=lockreset 可 set/change（重置流程，无会话），不可 remove。
-     2.10.2 规则保留：除 lockreset 外，管理操作需 owner 会话 + sgx-stepup。
+     kind=lock（锁屏密码）：需锁屏门票（door=lock，进门可用锁屏凭证或根凭证）+ owner 会话；
+       重置锁屏门票（door=lockreset）可 set/change（重置流程，无会话），不可 remove。
      2.8.0：lockout 已拆为独立 L2 API /api/lock-all-devices（只认 owner 会话）。 */
   if (action === 'set' || action === 'change' || action === 'remove') {
     const kind = (body && body.kind) || '';
@@ -235,58 +245,13 @@ async function handlePost(context) {
     }
     const pwKey = REALM_LOCK.kv.password; /* 'lock-pw' */
 
-    /* stepup 门禁（含 scope 检查） */
-    const sv = await verifyStepupCookie(request, env);
-    if (!sv.ok) {
-      return Response.json({ ok: false, error: 'stepup-required', reason: sv.reason }, { status: 403 });
+    /* 锁屏门禁：锁屏门票（+ owner 会话），或重置锁屏门票（只能 set/change，不能 remove）。
+       sessP 保留到 remove/set/change，纪元推进后用它重签当前设备会话。 */
+    const gate = await checkLockDoor(request, env, { allowReset: action !== 'remove' });
+    if (!gate.ok) {
+      return Response.json(gate.body, { status: gate.status });
     }
-    const isLockreset = sv.scope === STEPUP_SCOPE_LOCKRESET;
-    {
-      /* 锁屏密码：scope=keys（by=account；by=root 需账号层未配置）；
-         scope=root + by=root 在 owner 未配置时可代管；scope=lockreset 可 set/change */
-      if (isLockreset) {
-        if (action === 'remove') {
-          return Response.json({ ok: false, error: 'scope' }, { status: 403 });
-        }
-      } else if (sv.scope === STEPUP_SCOPE_KEYS) {
-        if (sv.by !== STEPUP_BY_ROOT) {
-          /* by=account：正常入口 2；其他 by 拒绝 */
-          if (sv.by !== STEPUP_BY_ACCOUNT) {
-            return Response.json({ ok: false, error: 'scope' }, { status: 403 });
-          }
-        } else {
-          /* by=root 的 keys 票：仅 owner 未配置时代管有效 */
-          const ownerCfg = await isLayerConfigured(kv, LAYER_OWNER);
-          if (ownerCfg) {
-            return Response.json({ ok: false, error: 'scope' }, { status: 403 });
-          }
-        }
-      } else if (sv.scope === STEPUP_SCOPE_ROOT && sv.by === STEPUP_BY_ROOT) {
-        const ownerCfg = await isLayerConfigured(kv, LAYER_OWNER);
-        if (ownerCfg) {
-          return Response.json({ ok: false, error: 'scope' }, { status: 403 });
-        }
-      } else {
-        return Response.json({ ok: false, error: 'scope' }, { status: 403 });
-      }
-    }
-
-    /* 会话门禁：lockreset 重置流程无会话，其余要求有效 owner 会话。
-       by=root 的代开会话在 lock 已配置时拒绝（纵深防御；epoch 机制已使其失效）。
-       D2：sessP 保留到 remove/set/change，epoch 推进后用它重签当前设备会话。 */
-    let sessP = null;
-    if (!isLockreset) {
-      sessP = await verifySessionDetailed(request, env);
-      if (!sessP.ok || sessP.role !== ROLE_OWNER) {
-        return Response.json({ ok: false, error: 'session' }, { status: 401 });
-      }
-      if (sessP.by === 'root') {
-        const lockCfg = await isLayerConfigured(kv, LAYER_LOCK);
-        if (lockCfg) {
-          return Response.json({ ok: false, error: 'by-root' }, { status: 403 });
-        }
-      }
-    }
+    const sessP = gate.sess;
 
     /* 缺 pepper 时 fail closed（set/change；remove 不需要） */
     const pepper = getPepper(env);
@@ -354,7 +319,7 @@ async function handlePost(context) {
         } catch (e) {}
       }
       /* 会话吊销：session-epoch +1（KV 出错→503，绝不继续）
-         D2：epoch 推进后重签 stepup 票据 + 当前设备会话，保持门内连续操作、当前设备不掉线。 */
+         纪元推进后重签门票 + 当前设备会话，保持门内连续操作、当前设备不掉线。 */
       let newEpoch = null;
       try {
         newEpoch = await bumpSessionEpoch(kv);
@@ -363,7 +328,7 @@ async function handlePost(context) {
       }
       const headers = new Headers({ 'Content-Type': 'application/json' });
       if (newEpoch !== null) {
-        await reissueStepupWithEpoch(env, headers, sv, newEpoch);
+        await reissueDoorWithEpoch(env, headers, gate.door, gate.dv, newEpoch);
         await reissueSessionWithEpoch(env, headers, sessP, newEpoch);
       }
       return new Response(JSON.stringify({ ok: true }), { headers });
@@ -408,7 +373,6 @@ async function handlePost(context) {
     }
 
     /* 2.11 定稿：首次配置某层时标记 + 推进 session-epoch
-       - 首次配 owner：废止 by=root,scope=keys 的票（必修安全项 1）
        - 首次配 lock：废止根凭证代开的解锁会话（必修安全项 2） */
     if (action === 'set') {
       try {
@@ -421,7 +385,7 @@ async function handlePost(context) {
     }
 
     /* 改密码后：session-epoch +1，旧会话 cookie 失效（KV 出错→503）
-       D2：epoch 推进后重签 stepup 票据 + 当前设备会话，保持门内连续操作、当前设备不掉线。 */
+       纪元推进后重签门票 + 当前设备会话，保持门内连续操作、当前设备不掉线。 */
     let newEpoch2 = null;
     try {
       newEpoch2 = await bumpSessionEpoch(kv);
@@ -430,7 +394,7 @@ async function handlePost(context) {
     }
     const headers2 = new Headers({ 'Content-Type': 'application/json' });
     if (newEpoch2 !== null) {
-      await reissueStepupWithEpoch(env, headers2, sv, newEpoch2);
+      await reissueDoorWithEpoch(env, headers2, gate.door, gate.dv, newEpoch2);
       await reissueSessionWithEpoch(env, headers2, sessP, newEpoch2);
     }
     return new Response(JSON.stringify({ ok: true }), { headers: headers2 });
