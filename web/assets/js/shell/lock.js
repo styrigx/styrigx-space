@@ -111,12 +111,27 @@ function handleSubsiteKickback() {
     showSubsiteFailure(why);
     return true;
   }
-  /* 非死循环：继续回跳（覆盖记录） */
+  /* 非死循环：继续回跳（覆盖记录）。
+     去掉 why 再重载：L1 middleware 见到 why 不 302（防两站无限 302），带着 why 重载只会回到本页，
+     首次从子站进来（why=no-cookie）解锁后就永远回不去（2026-10-20 修）。
+     去掉 why 后 L1 校验 return 再 302 到子站；子站若再踢回会重新带上 why，
+     本页再次进来时上面的 20 秒窗口判死循环、出失败卡，不会无限跳。 */
   if (ret) {
-    sgxReplace(window.location.href);
+    sgxReplace(urlWithoutWhy());
     return true;
   }
   return false;
+}
+
+/** 当前地址去掉 ?why=（其余参数原样保留） */
+function urlWithoutWhy() {
+  try {
+    const u = new URL(window.location.href);
+    u.searchParams.delete('why');
+    return u.toString();
+  } catch (e) {
+    return window.location.href;
+  }
 }
 
 /**
