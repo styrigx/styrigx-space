@@ -186,9 +186,14 @@ test.describe('A-3 账号登录选择框样式', () => {
     expect(gap).toBe('12px');
     const bg = await row.evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(bg).not.toBe('rgba(0, 0, 0, 0)');
-    const b1 = await rows.nth(0).boundingBox();
-    const b2 = await rows.nth(1).boundingBox();
-    expect(Math.round(b2.y - (b1.y + b1.height))).toBe(12);
+    /* 用布局位置量行距（offsetTop 不受外层弹层入场缩放影响；boundingBox 在动画中途会量成 9px） */
+    const gapPx = await rows.evaluateAll((els) => {
+      const [r0, r1] = /** @type {HTMLElement[]} */ (els);
+      /* 两行的 offsetParent 必须相同，否则 offsetTop 不可比 */
+      if (r0.offsetParent !== r1.offsetParent) return -1;
+      return r1.offsetTop - (r0.offsetTop + r0.offsetHeight);
+    });
+    expect(gapPx).toBe(12);
     await row.evaluate((el) => el.classList.add('sgx-row-pressed'));
     const pressed = await row.evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(pressed).not.toBe(bg);
