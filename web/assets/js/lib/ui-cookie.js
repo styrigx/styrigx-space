@@ -1,7 +1,7 @@
 /**
  * @fileoverview 共享 UI 设置 cookie（5.2）：主站写入，书站读取。
  * 只含 UI 设置（时区、时钟、天气；B2-7 起加外观：深浅色、调色板、字体大小、减弱动效），不含任何凭证或会话信息。
- * 子站（book / blog）首帧前读它，让外观跟主站一致（主站 localStorage 是唯一来源，cookie 只是镜像，子站只读不写）。
+ * 子站（blog / daymark）首帧前读它，让外观跟主站一致（主站 localStorage 是唯一来源，cookie 只是镜像，子站只读不写）。
  * cookie：sgx-ui=<base64url JSON>; Domain=styrigx.com; Path=/; Max-Age=34560000; SameSite=Lax; Secure
  * 不加 HttpOnly（书站要用 JS 读）。
  */

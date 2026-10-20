@@ -61,15 +61,18 @@ test('wrangler.toml：不开 workers.dev、生产模式、7 个密钥全走 Secr
     assert.match(toml, new RegExp(`binding = "${n}"\\nstore_id = "[^"]+"\\nsecret_name = "${n}"`));
   }
   assert.equal(SECRET_NAMES.length, 7);
-  /* 只接 styrigx.com 和登记过的子站（blog、book、daymark）：不接别的子域，不接静态资源（完整核对见 scripts/check-worker-routes.mjs） */
+  /* 只接 styrigx.com 和登记过的子站（blog、daymark）：不接别的子域，不接静态资源（完整核对见 scripts/check-worker-routes.mjs） */
   const routes = [...toml.matchAll(/^pattern = "([^"]+)"$/gm)].map(m => m[1]);
   assert.ok(routes.includes('styrigx.com/api/*'));
   assert.ok(routes.includes('styrigx.com/'));
-  for (const r of routes) assert.match(r, /^(styrigx|blog\.styrigx|book\.styrigx|daymark\.styrigx)\.com\//);
-  for (const h of ['styrigx.com', 'blog.styrigx.com', 'book.styrigx.com', 'daymark.styrigx.com']) {
+  for (const r of routes) assert.match(r, /^(styrigx|blog\.styrigx|daymark\.styrigx)\.com\//);
+  for (const h of ['styrigx.com', 'blog.styrigx.com', 'daymark.styrigx.com']) {
     assert.ok(!routes.includes(h + '/*'), '不能整站通配：静态资源不过 Worker，也给以后别的 Worker 留路径（' + h + '）');
   }
   assert.ok(!routes.some(r => r.startsWith('*')), '不能通配子域名');
+  /* 书库已下线：不再路由 book / book-preview，也不再绑定 styrigx-books D1 */
+  assert.ok(!routes.some(r => /^book(-preview)?\.styrigx\.com\//.test(r)), '书库已下线，不能再有 book 路由');
+  assert.doesNotMatch(toml, /BOOKS_D1|styrigx-books/);
   assert.doesNotMatch(toml, /REPLACE_WITH_STORE_ID/);
   assert.match(toml, /^\[observability\]\nenabled = true$/m); // 日志写进配置，免得部署把后台开关改回去
   assert.doesNotMatch(toml, /^SGX_\w+_PUBLIC = /m);

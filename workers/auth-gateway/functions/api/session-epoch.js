@@ -5,13 +5,13 @@
  * （应用凭证删除后不再返回 app 字段。）
  *
  * fail closed：KV 未绑定或读取出错时返回 503（绝不返回 {epoch:0}，
- * 否则 blog/book 会缓存 0 而放行旧 cookie）；
+ * 否则 子站 会缓存 0 而放行旧 cookie）；
  * key 确实不存在时才返回 {epoch:0}（与主站 getSessionEpoch 一致）。
  *
  * 注意：「锁定所有设备」（session-epoch +1）走 /api/lock-all-devices；
  * 改密码/删密码/删锁屏密钥时也各自 +1（见 owner-password.js、owner-passkey.js）。
- * blog/book 缓存 epoch 约 60 秒（Cache-Control: max-age=60），
- * 锁定后 blog/book 最多 60 秒内生效。
+ * 子站 缓存 epoch 约 60 秒（Cache-Control: max-age=60），
+ * 锁定后 子站 最多 60 秒内生效。
  *
  * @param {any} context
  */

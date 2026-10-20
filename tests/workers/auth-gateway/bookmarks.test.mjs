@@ -234,7 +234,7 @@ test('预览：内网、本机、自家域名、怪端口不抓', () => {
   for (const u of [
     'http://localhost/', 'http://127.0.0.1/', 'http://10.0.0.1/', 'http://192.168.1.1/', 'http://172.20.0.1/',
     'http://169.254.169.254/', 'http://[::1]/', 'http://intranet/', 'https://styrigx.com/api/x',
-    'https://book.styrigx.com/', 'https://x.local/', 'https://example.com:8080/',
+    'https://daymark.styrigx.com/', 'https://x.local/', 'https://example.com:8080/',
   ]) assert.equal(LP.previewAllowed(u), false, u);
   for (const u of ['https://github.com/', 'http://8.8.8.8/', 'https://example.com:443/']) assert.equal(LP.previewAllowed(u), true, u);
 });

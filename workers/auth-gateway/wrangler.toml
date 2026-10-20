@@ -1,4 +1,4 @@
-# styrigx-auth-gateway：鉴权网关（CI 部署；承接 styrigx.com/api/*、/avatar/*、主站全部页面，以及 blog/book/daymark 子站页面的会话检查）
+# styrigx-auth-gateway：鉴权网关（CI 部署；承接 styrigx.com/api/*、/avatar/*、主站全部页面，以及 blog/daymark 子站页面的会话检查）
 #
 # 主站全部后端代码都在本目录：src/（入口、路由表、密钥）+ functions/（middleware、接口、内核）+ migrations/（D1）。
 # Pages 只放静态文件（配置见 web/wrangler.toml），网关验完会话回源取页面。
@@ -118,55 +118,6 @@ zone_name = "styrigx.com"
 pattern = "blog.styrigx.com/api/session-check"
 zone_name = "styrigx.com"
 
-# book.styrigx.com（Hugo）。/api/* 只登记 session-check；书库数据接口另行处理，不在这里登记
-[[routes]]
-pattern = "book.styrigx.com/"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "book.styrigx.com/admin*"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "book.styrigx.com/read*"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "book.styrigx.com/en"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "book.styrigx.com/en/*"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "book.styrigx.com/zh"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "book.styrigx.com/zh/*"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "book.styrigx.com/categories*"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "book.styrigx.com/tags*"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "book.styrigx.com/index.xml"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "book.styrigx.com/sitemap.xml"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "book.styrigx.com/api/session-check"
-zone_name = "styrigx.com"
-
 # daymark.styrigx.com（每日一句，Hugo）。/api/* 只登记 session-check；句子接口在 styrigx-daymark-core（styrigx-daymark 仓库），不在这里登记
 [[routes]]
 pattern = "daymark.styrigx.com/"
@@ -213,11 +164,6 @@ binding = "SGX_D1"
 database_name = "styrigx-sgx"
 database_id = "2804d280-1cab-422a-834d-3390cea38976"
 migrations_dir = "migrations"
-
-[[d1_databases]]
-binding = "BOOKS_D1"
-database_name = "styrigx-books"
-database_id = "569d8caf-e315-471b-a080-4b9f055de5fa"
 
 # ---- 密钥：Secrets Store ----
 # 5 个私密值 + 2 把公钥全放 Secrets Store（签名钥匙只剩账号 SGX_ACCOUNT_*、锁屏 SGX_LOCK_* 两套）：换钥只在 Cloudflare 后台改，不用改代码、不用重新部署（最多 60 秒生效）。

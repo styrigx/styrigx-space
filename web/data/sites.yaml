@@ -13,10 +13,3 @@
   icon: pen
   host: blog.styrigx.com
   lock: redirect
-- id: book
-  title: 书库
-  subtitle: 个人电子书库
-  url: https://book.styrigx.com
-  icon: book
-  host: book.styrigx.com
-  lock: redirect

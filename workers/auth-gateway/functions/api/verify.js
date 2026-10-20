@@ -2,7 +2,7 @@
  * 2.4.0 H：Turnstile 入站验证。
  * POST /api/verify { token }
  * - 用 TURNSTILE_SECRET 调 siteverify，校验 success、hostname、action
- * - hostname 接受：styrigx.com 及 www/blog/book 子域（widget 配置覆盖范围）
+ * - hostname 接受：styrigx.com 及 www/blog 子域（widget 配置覆盖范围）
  * - 通过：返回 { ok: true } + 设 Ed25519 签名会话 cookie（含 session-epoch，
  *   与密码/passkey 同格式，middleware 验签；统一走 _kernel/session.js）
  * - KV 读取出错 → 503，绝不签发会话
@@ -16,7 +16,7 @@ import {
 
 const SITEVERIFY = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 /* widget styrigx-lock 的 hostname 覆盖范围 */
-const ALLOWED_HOSTNAMES = ['styrigx.com', 'www.styrigx.com', 'blog.styrigx.com', 'book.styrigx.com'];
+const ALLOWED_HOSTNAMES = ['styrigx.com', 'www.styrigx.com', 'blog.styrigx.com'];
 const ACTION = 'sgx-entry';
 
 /**

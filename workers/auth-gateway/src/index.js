@@ -2,7 +2,7 @@
  * @fileoverview styrigx-auth-gateway：主站鉴权 Worker 入口。
  *
  * 承接 styrigx.com/api/*、/avatar/* 和主站全部 HTML 页面目录（路由见 wrangler.toml）。
- * 子站（blog.styrigx.com、book.styrigx.com）的页面会话检查也在这里（src/subsites.js），子站 Pages 不持钥匙。
+ * 子站（blog.styrigx.com、daymark.styrigx.com）的页面会话检查也在这里（src/subsites.js），子站 Pages 不持钥匙。
  * 主站的后端代码只在这里（workers/auth-gateway/functions/），Pages 只放静态文件：
  *   1. Secrets Store 的私密值换成字符串（secrets.js）
  *   2. 先跑 functions/_middleware.js（会话、角色、白名单、no-store、锁屏瘦身）

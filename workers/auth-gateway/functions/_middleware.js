@@ -129,9 +129,12 @@ export function isSafeReturnPath(ret) {
 
 /**
  * 跨站回跳白名单（?return= 允许的完整 URL）：
- * 只认 https://*.styrigx.com/*（含 apex）。用于 blog/book（含预览子域）
+ * 只认 https://*.styrigx.com/*（含 apex）。用于 blog/daymark（含预览子域）
  * 解锁后跳回原站。非 https、一级域名不符、带 @ 或 \\ 的一律不认。
+ * 已下线的子站（RETIRED_RETURN_HOSTS）也不认，回首页。
  */
+const RETIRED_RETURN_HOSTS = new Set(['book.styrigx.com', 'book-preview.styrigx.com']);
+
 function isSafeReturnUrl(ret) {
   if (typeof ret !== 'string' || !ret.startsWith('https://')) return false;
   let u;
@@ -143,6 +146,7 @@ function isSafeReturnUrl(ret) {
   if (u.protocol !== 'https:' || u.username || u.password) return false;
   const host = u.hostname.toLowerCase();
   if (host !== 'styrigx.com' && !host.endsWith('.styrigx.com')) return false;
+  if (RETIRED_RETURN_HOSTS.has(host)) return false;
   if (ret.includes('\\')) return false;
   return true;
 }
