@@ -274,17 +274,10 @@ export function startDoorCountdown(t, expiresAt) {
         text.className = 'sgx-door-countdown-text';
         el.appendChild(icon);
         el.appendChild(text);
-        const head = document.querySelector('header.subpage-head');
-        if (head) {
-          /* 放进 header 内部（大标题正下方）：.set-layout 在桌面端是 2 列 grid，
-             作为 header 的兄弟元素会被自动放到第 1 行第 2 列，与标题重叠；放进
-             header 的 flex 列里则始终在标题下方，且 align-self 左对齐。 */
-          head.appendChild(el);
-        } else {
-          const layout = document.querySelector('.set-layout');
-          if (layout) layout.insertBefore(el, layout.firstChild);
-          else document.body.insertBefore(el, document.body.firstChild);
-        }
+        /* 2026-10-20 通版顶栏：子页面没有大标题区了，倒计时胶囊放在正文最前面（顶栏正下方） */
+        const layout = document.querySelector('.set-layout');
+        if (layout) layout.insertBefore(el, layout.firstChild);
+        else document.body.insertBefore(el, document.body.firstChild);
         countdownEl = el;
         }
         countdownExpiresAt = expiresAt;

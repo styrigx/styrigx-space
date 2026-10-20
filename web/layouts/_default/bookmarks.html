@@ -6,7 +6,6 @@
 {{ $links := site.Data.links }}
 {{ if $isEn }}{{ $links = site.Data.en.links }}{{ end }}
 <div class="max-w-[1100px] mx-auto px-4 pb-40">
-  {{ partial "subpage-head.html" (dict "title" (cond $isEn "Bookmarks" "书签") "isEn" $isEn) }}
 
   <!-- 书签：按分类分组 + 筛选条 -->
   <section aria-label="{{ if $isEn }}Bookmarks{{ else }}书签{{ end }}">

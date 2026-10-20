@@ -9,7 +9,6 @@
 {{ $setUrl := cond $isEn "/en/settings/" "/settings/" }}
 
 <div class="set-layout max-w-2xl mx-auto px-4 pb-28">
-  {{ partial "subpage-head.html" (dict "title" (cond $isEn "Security and privacy" "安全与隐私") "isEn" $isEn) }}
 
   <!-- 状态卡片（JS 按 GET /api/account 填充：账号密码 / 账号通行密钥是否已设置） -->
   <a id="sec-status" class="sec-status" href="{{ $lockUrl }}" hidden>

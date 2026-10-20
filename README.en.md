@@ -47,7 +47,7 @@ The Dock only shows on the home screen; inside apps only the search bar stays at
 
 - Two layouts: phone (<640px) and DeX (≥640px).
 - Light / dark follows the system by default.
-- Large titles collapse into the top-bar mini title on scroll.
+- One top bar on every page: the middle capsule shows the current page name (Home on the home page); tap it to open web search.
 - The bottom search capsule supports voice input (Chrome and Samsung Internet).
 - Two full versions: 中文 / English.
 

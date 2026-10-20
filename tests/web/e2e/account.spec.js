@@ -330,7 +330,7 @@ test.describe('安全与隐私子页：进入与回跳', () => {
     await expect(page.locator('#acct-sec-sub')).toHaveText('Protected');
     await page.locator('#acct-sec-row').click();
     await page.waitForURL(/\/en\/settings\/account\/security\/$/);
-    await expect(page.locator('.subpage-title')).toHaveText('Security & privacy');
+    await expect(page.locator('.sgx-tb-title')).toHaveText('Security & privacy');
     await expect(page.locator('#lockmgr-pwsub')).toHaveText('Not set');
   });
 });

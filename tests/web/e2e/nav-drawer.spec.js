@@ -1,7 +1,7 @@
 /**
  * 2026-10-20 导航改版验收：
  * - 顶栏全站同一套：左圆九宫格、中间长条（居中标题）、右圆头像；没有 ‹ 返回、没有 ⋮。
- * - 九宫格 → Gmail 式左侧导航抽屉：主页 / 书签 / 书库 / 博客，分隔线下只有 设置；每项有描边图标，
+ * - 九宫格 → Gmail 式左侧导航抽屉：首页 / 书签 / 书库 / 博客，分隔线下只有 设置；每项有描边图标，
  *   当前页是药丸高亮；没有 我的文件 / 帮助与反馈；点遮罩 / Esc / 系统返回关闭。
  * - /browser/ 拆成 书签 /bookmarks/（只有书签：分类筛选条 + 分组）+ 全网搜索 /search/。
  * - 搜索引擎 / 清除浏览记录搬到 设置 › 安全与隐私 › 隐私。
@@ -48,24 +48,24 @@ test.describe('顶栏：全站同一套，没有 ‹ 和 ⋮', () => {
     });
   }
 
-  test('子页长条里只有居中标题', async ({ page }) => {
+  test('子页长条里只有一个链接（搜索图标 + 居中页名）', async ({ page }) => {
     await go(page, '/settings/display/');
-    await expect(page.locator('.sgx-tb-pill a, .sgx-tb-pill button')).toHaveCount(1); /* 只有 #nav-brand */
+    await expect(page.locator('.sgx-tb-pill a, .sgx-tb-pill button')).toHaveCount(1); /* 只有 #sgx-tb-cap */
     const pill = await page.locator('.sgx-tb-pill').boundingBox();
-    const tx = await page.locator('.sgx-tb-text').boundingBox();
+    const tx = await page.locator('.sgx-tb-title').boundingBox();
     expect(Math.abs(tx.x + tx.width / 2 - (pill.x + pill.width / 2))).toBeLessThanOrEqual(1);
   });
 });
 
 test.describe('导航抽屉', () => {
-  test('打开：主页 / 书签 / 书库 / 博客，分隔线下只有 设置；每项有图标；没有 我的文件 / 帮助', async ({ page }) => {
+  test('打开：首页 / 书签 / 书库 / 博客，分隔线下只有 设置；每项有图标；没有 我的文件 / 帮助', async ({ page }) => {
     await go(page, '/settings/display/');
     await expect(page.locator('.sgx-tb-nav')).toHaveAttribute('aria-expanded', 'false');
     await openDrawer(page);
     await expect(page.locator('.sgx-tb-nav')).toHaveAttribute('aria-expanded', 'true');
     const lists = drawer(page).locator('.sgx-drawer-list');
     await expect(lists).toHaveCount(2);
-    await expect(lists.nth(0).locator('.sgx-drawer-label')).toHaveText(['主页', '书签', '书库', '博客']);
+    await expect(lists.nth(0).locator('.sgx-drawer-label')).toHaveText(['首页', '书签', '书库', '博客']);
     await expect(lists.nth(1).locator('.sgx-drawer-label')).toHaveText(['设置']);
     await expect(drawer(page).locator('hr.sgx-drawer-div')).toHaveCount(1);
     const items = drawer(page).locator('.sgx-drawer-item');
@@ -91,10 +91,10 @@ test.describe('导航抽屉', () => {
     expect(Math.abs(sheet.x)).toBeLessThanOrEqual(1);
   });
 
-  test('当前页高亮：主页 → 主页，书签页 → 书签', async ({ page }) => {
+  test('当前页高亮：主页 → 首页，书签页 → 书签', async ({ page }) => {
     await go(page, '/');
     await openDrawer(page);
-    await expect(drawer(page).locator('[aria-current="page"] .sgx-drawer-label')).toHaveText('主页');
+    await expect(drawer(page).locator('[aria-current="page"] .sgx-drawer-label')).toHaveText('首页');
     await page.goto('/bookmarks/', { waitUntil: 'domcontentloaded' });
     await openDrawer(page);
     await expect(drawer(page).locator('[aria-current="page"] .sgx-drawer-label')).toHaveText('书签');
@@ -204,7 +204,7 @@ test.describe('书签页', () => {
 
   test('只有书签：分类筛选条 + 分组；没有快捷访问、地址栏胶囊、⋮', async ({ page }) => {
     await go(page, '/bookmarks/');
-    await expect(page.locator('h1.subpage-title')).toHaveText('书签');
+    await expect(page.locator('.sgx-tb-title')).toHaveText('书签');
     await expect(page.locator('[data-brw-cat="all"]')).toBeVisible();
     expect(await page.locator('[data-brw-catgroup]').count()).toBeGreaterThan(0);
     await expect(page.locator('.brw-qa-grid, .brw-qa')).toHaveCount(0);

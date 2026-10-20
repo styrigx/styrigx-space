@@ -33,16 +33,3 @@ export function reducedMotion() {
   );
 }
 
-/**
- * 当前可见的子页面标题区（设置页手机 / DeX 各有一份，只取可见那份）。
- * @returns {HTMLElement|null}
- */
-export function visibleSubHead() {
-  const heads = document.querySelectorAll('[data-subpage-head]');
-  for (let i = 0; i < heads.length; i++) {
-    try {
-      if (heads[i].getClientRects().length > 0) return /** @type {HTMLElement} */ (heads[i]);
-    } catch (e) {}
-  }
-  return heads.length ? /** @type {HTMLElement} */ (heads[0]) : null;
-}

@@ -1,64 +1,14 @@
 /**
- * @fileoverview 顶栏 v4（2026-10-20，全站同一套）：左圆九宫格（导航抽屉）+ 长条（居中 Styrigx / 小标题）+ 右圆头像。
+ * @fileoverview 顶栏（通版，2026-10-20，全站同一套）：左圆九宫格（导航抽屉）+ 长条（搜索图标 + 当前页名）+ 右圆头像。
+ * - 长条里的页名由 baseof.html 服务端写好（主页「首页」/ Home），不再有 Styrigx ↔ 小标题的滚动切换。
+ * - 点长条：进全网搜索页 /search/（普通链接，沿用站内切页过渡）；已经在全网搜索页上时不重新加载，
+ *   只聚焦底部搜索输入框（保持搜索页原来的输入行为）。
  * - 没有 ‹ 返回和页面 ⋮：页面操作都在正文里（baseof.html 注释里有 PR② 快捷面板图标的预留位置）。
- * - 小标题 .subpage-mini-title 搬进长条，水平垂直居中。
- * - 滚过标题区高度 × 0.55：body 加 sgx-stuck（头像不动，居中的 Styrigx 淡出、小标题淡入）。
  * - 导航抽屉（#sgx-drawer，Gmail Android 式左侧抽屉，<dialog> 模态）：九宫格打开；
  *   点遮罩 / 系统返回 / Esc 关闭。打开时 push 一条同 URL 的历史哨兵，系统返回只关抽屉不离开页面。
- * @param {import('../lib/scheduler.js').Scheduler} [S]
  */
-import { getScheduler } from '../lib/scheduler.js';
-import { reducedMotion, visibleSubHead } from '../lib/util.js';
+import { reducedMotion } from '../lib/util.js';
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
-
-const currentHead = visibleSubHead;
-
-/** 把当前页的小标题同步进顶栏长条 */
-function syncTopbar() {
-  const pill = document.querySelector('.sgx-tb-pill');
-  if (!pill) return;
-  /* 小标题：先清掉上一页的，再搬当前页的 */
-  pill.querySelectorAll('.subpage-mini-title').forEach(function (m) {
-    m.remove();
-  });
-  const head = currentHead();
-  const scope = head && head.parentElement ? head.parentElement : document;
-  const mini = scope.querySelector(':scope > .subpage-mini-title') || document.querySelector('main .subpage-mini-title');
-  if (mini) pill.appendChild(mini);
-  measureStuck();
-  stuck = document.body.classList.contains('sgx-stuck');
-  updateStuck();
-}
-
-/* 阈值 = 标题区高度 × 0.55：只在换页 / 尺寸变化时量一次，滚动时不再查 DOM、不读布局 */
-let stuckAt = Infinity;
-let stuck = false;
-/** @type {ResizeObserver|null} */ let headRO = null;
-/** @type {Element|null} */ let headObserved = null;
-function measureStuck() {
-  const head = currentHead();
-  stuckAt = head ? head.offsetHeight * 0.55 : Infinity;
-  /* 标题区高度会在字体加载 / 换行后变化，盯住它，而不是每帧去量 */
-  if (head !== headObserved && typeof ResizeObserver === 'function') {
-    if (!headRO) {
-      headRO = new ResizeObserver(function () {
-        const h = currentHead();
-        stuckAt = h ? h.offsetHeight * 0.55 : Infinity;
-        updateStuck();
-      });
-    }
-    if (headObserved) headRO.unobserve(headObserved);
-    if (head) headRO.observe(head);
-    headObserved = head;
-  }
-}
-/** @param {number} [y] */
-function updateStuck(y) {
-  const past = (y == null ? window.scrollY || 0 : y) > stuckAt;
-  if (past === stuck) return;
-  stuck = past;
-  document.body.classList.toggle('sgx-stuck', past);
-}
 
 /** 抽屉滑入 / 滑出时长（与 input.css .sgx-drawer-sheet 的 transition 一致） */
 const DRAWER_MS = 220;
@@ -236,41 +186,22 @@ function initDrawer() {
   });
 }
 
-/* 头像（#nav-brand）链到主页。已经在主页时再点不重新加载整页（三星浏览器会露出半成品的一帧），
-   只平滑回到顶部；在子页面照常跳主页。 */
-function initBrand() {
-  const brand = /** @type {HTMLAnchorElement|null} */ (document.getElementById('nav-brand'));
-  if (!brand) return;
-  brand.addEventListener('click', function (e) {
+/* 长条：在全网搜索页上点它只聚焦底部输入框（不重新加载）；其他页照常走链接进 /search/ */
+function initCapsule() {
+  const cap = /** @type {HTMLAnchorElement|null} */ (document.getElementById('sgx-tb-cap'));
+  if (!cap) return;
+  cap.addEventListener('click', function (e) {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    let target;
-    try {
-      target = new URL(brand.href, location.href);
-    } catch (err) {
-      return;
-    }
-    if (target.origin !== location.origin || target.pathname !== location.pathname) return;
+    const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-cap-input-brwsearch'));
+    if (!input) return;
     e.preventDefault();
-    window.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
+    try {
+      input.focus({ preventScroll: true });
+    } catch (err) {}
   });
 }
 
-export function initHeadButtons(S) {
-  const sched = S || getScheduler();
-  syncTopbar();
+export function initHeadButtons() {
   initDrawer();
-  initBrand();
-  sched.onScroll(function (y) {
-    updateStuck(y);
-  });
-  sched.onResize(function () {
-    measureStuck();
-    updateStuck();
-  });
-  window.addEventListener('pageshow', function (e) {
-    if (e.persisted) {
-      measureStuck();
-      updateStuck();
-    }
-  });
+  initCapsule();
 }
