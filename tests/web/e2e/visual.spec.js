@@ -24,7 +24,7 @@ const VIEWPORTS = {
 /* 账号页三星式总览：/settings/account/ 拍登录后的总览（登录区由下方 account-login-* 覆盖），
    新增安全与隐私子页 /settings/account/security/（已过门；倒计时数字在截图里遮罩），
    账号信息子页 /settings/account/profile/（已登录卡 + 退出账号） */
-const PAGES = ['/', '/bookmarks/', '/search/', '/settings/', '/settings/security/', '/settings/security/lock/', '/settings/account/', '/settings/account/profile/', '/settings/account/security/'];
+const PAGES = ['/', '/bookmarks/', '/search/', '/settings/', '/settings/security/', '/settings/security/lock/', '/settings/account/', '/settings/account/profile/', '/settings/account/security/', '/settings/account/reset/'];
 const LANGS = [
   { prefix: '', name: 'zh' },
   { prefix: '/en', name: 'en' },
@@ -160,6 +160,8 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           /* 账号两页：等异步内容（总览 / 子页列表）落定再截图 */
           if (page === '/settings/account/') await expect(pg.locator('#acct-main')).toBeVisible({ timeout: 10000 });
           if (page === '/settings/account/profile/') await expect(pg.locator('#acct-profile')).toBeVisible({ timeout: 10000 });
+          if (page === '/settings/account/reset/') await expect(pg.locator('#sgx-reset-root')).toBeVisible({ timeout: 10000 });
+          if (page === '/settings/account/reset/') await expect(pg.locator('#sgx-reset-root')).toBeVisible({ timeout: 10000 });
           if (page === '/settings/account/security/') {
             await expect(pg.locator('#lockmgr-pklist .lockmgr-pkitem')).toHaveCount(1, { timeout: 10000 });
             await expect(pg.locator('#sgx-door-countdown')).toBeVisible();
@@ -292,7 +294,7 @@ const DOOR_STATES = ['default', 'expanded', 'error'];
 
 for (const lang of DOOR_LANGS) {
   for (const theme of DOOR_THEMES) {
-    /* 账号体系：原两扇门验证弹层已移除；改拍账号登录区（三个入口平级）的默认 / 展开 / 报错态 */
+    /* PR3：账号登录页（头像 + 欢迎回来 + 通行密钥登录 / 密码登录 + 无法登录？）的默认 / 密码展开 / 报错态 */
     for (const state of DOOR_STATES) {
       const name = `mobile-account-login-${state}-${lang.name}-${theme.name}`;
       test(name, async ({ page: pg }) => {
@@ -321,16 +323,17 @@ for (const lang of DOOR_LANGS) {
         await freezeTime(pg);
         await pg.goto(lang.prefix + '/settings/account/', { waitUntil: 'domcontentloaded' });
         await waitPageReady(pg);
-        await expect(pg.locator('#acct-methods .sgx-door-row')).toHaveCount(3, { timeout: 10000 });
+        await expect(pg.locator('#acct-pk-btn')).toBeVisible({ timeout: 10000 });
+        await expect(pg.locator('#acct-pw-btn')).toBeVisible();
         if (state !== 'default') {
-          const rowText = lang.name === 'en' ? 'Account password' : '账号密码';
-          await pg.locator('.sgx-door-row').filter({ hasText: rowText }).click();
-          const field = pg.locator('.sgx-door-expand input[type="password"]');
+          /* PR3：「密码登录」原地展开密码框 */
+          await pg.click('#acct-pw-btn');
+          const field = pg.locator('#acct-pw-input');
           await expect(field).toBeVisible({ timeout: 5000 });
           if (state === 'error') {
             await field.fill('wrong-value');
-            await pg.locator('.sgx-door-expand .sgx-door-btn-primary').click();
-            await expect(pg.locator('.sgx-door-expand .sgx-door-err:not([hidden])')).toBeVisible({ timeout: 8000 });
+            await pg.click('#acct-pw-go');
+            await expect(pg.locator('#acct-pw-err:not([hidden])')).toBeVisible({ timeout: 8000 });
           }
         }
         const overflow = await pg.evaluate(() => {

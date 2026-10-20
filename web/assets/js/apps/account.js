@@ -1,21 +1,23 @@
 /**
  * @fileoverview 账号页（原「站长凭证」升级为账号；顶栏右圆头像进入）。
  *
- * - 未登录：账号登录 —— 账号通行密钥 / 账号密码 / 根凭证，设了哪个显示哪个，都没设只显示根凭证
- *   （验证行见 account-methods.js）。任一成功即得到账号会话（sgx-account，400 天，不点退出一直登录；
- *   与锁屏会话无关，但进账号页的前提是锁屏已解锁）。
+ * - 未登录：账号登录（PR3，顶栏页名「登录账号」）—— 头像 + 欢迎回来；主按钮「通行密钥登录」、
+ *   次按钮「密码登录」（原地展开密码框），设了哪个显示哪个；小字「无法登录？」→ 重置登录页
+ *   （/settings/account/reset/，apps/account-reset.js）。根凭证不再是登录入口。
+ *   成功即得到账号会话（sgx-account，400 天，不点退出一直登录；与锁屏会话无关，但进账号页的前提是锁屏已解锁）。
  * - 已登录：账号总览（三星账号式）—— 账号卡（名字 + 头像，换头像见 avatar-edit.js；点卡片其余地方进
  *   下一页「已登录」/settings/account/profile/，在那里退出账号）、
  *   「安全与隐私」一行（副标题：账号密码或通行密钥任一已设置 → 已保护）→ 子页
  *   /settings/account/security/（apps/account-security.js，每次进都要验签，3 分钟门票）。
  * - ?return=/settings/account/(security|profile)/：子页没有账号会话时跳来，登录后回子页。
- * - 访客：读不到状态，三个入口都显示，服务端一律拒绝（统一显示「不正确 / 验证失败」）。
+ * - 访客：读不到状态，两个按钮都显示，服务端一律拒绝（统一显示「不正确 / 验证失败」）。
  */
 import { on } from '../lib/events.js';
 import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
-import { tapFeedback } from '../lib/dialog-behavior.js';
+import { tapFeedback, bindSubmitButton } from '../lib/dialog-behavior.js';
+import { bindPwEye, onEnter, focusNoScroll } from '../lib/auth-flow.js';
 import { ACCOUNT_API, ACCOUNT_RETURN_RE, createT, postJSON, profileUrl, signalAccountName } from './account-common.js';
-import { accountSubmitters, renderAccountMethods, visibleKinds } from './account-methods.js';
+import { accountSubmitters, visibleKinds } from './account-methods.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -26,9 +28,16 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from './account
   }
   const loginEl = $('acct-login');
   const mainEl = $('acct-main');
-  const methodsEl = $('acct-methods');
   const noticeEl = $('acct-login-notice');
-  if (!loginEl || !mainEl || !methodsEl) return;
+  const pkBtn = /** @type {HTMLButtonElement|null} */ ($('acct-pk-btn'));
+  const pkErr = $('acct-pk-err');
+  const pwBtn = /** @type {HTMLButtonElement|null} */ ($('acct-pw-btn'));
+  const pwForm = $('acct-pw-form');
+  const pwInput = /** @type {HTMLInputElement|null} */ ($('acct-pw-input'));
+  const pwErr = $('acct-pw-err');
+  const pwGo = /** @type {HTMLButtonElement|null} */ ($('acct-pw-go'));
+  const noneEl = $('acct-login-none');
+  if (!loginEl || !mainEl || !pkBtn || !pwBtn || !pwForm || !pwInput || !pwGo) return;
 
   /* 账号子页跳来（没有账号会话）：登录后回子页 */
   let acctReturn = '';
@@ -37,11 +46,16 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from './account
     if (ACCOUNT_RETURN_RE.test(ret)) acctReturn = ret;
   } catch (e) {}
 
+  /* 顶栏长条的页名：登录区「登录账号」，总览「账号」（正文不再放大标题） */
+  function setPageTitle(key) {
+    const txt = t(key);
+    const tb = document.querySelector('.sgx-tb-title');
+    if (tb) tb.textContent = txt;
+    try { document.title = txt + ' | Styrigx'; } catch (e) {}
+  }
 
   /* ================= 登录区 ================= */
   const submitters = accountSubmitters(t);
-  /** 当前渲染的验证行（showLogin 时按已设置的凭证重画） */
-  let methods = null;
 
   /** 登录成功：子页跳来 → 回子页；否则显示账号页 */
   function afterLogin() {
@@ -55,28 +69,104 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from './account
   /** GET /api/account 的最近一次结果（访客 / 读失败为 null） */
   let lastStatus = null;
 
+  function collapsePw() {
+    pwForm.hidden = true;
+    pwBtn.setAttribute('aria-expanded', 'false');
+    pwBtn.classList.remove('is-open');
+    if (pwErr) pwErr.hidden = true;
+    pwInput.value = '';
+  }
+
   /**
-   * 显示登录区。设了哪个凭证显示哪个，都没设只显示根凭证；读不到状态时三个都显示（访客与站长界面一致）。
+   * 显示登录区。设了哪个凭证显示哪个；读不到状态时两个都显示（访客与站长界面一致）。
+   * 都没设 → 只留提示和「无法登录？」。
    * @param {string} [notice]
    * @param {any} [status]
    */
   function showLogin(notice, status) {
     mainEl.hidden = true;
     loginEl.hidden = false;
-    if (methods) methods.collapse();
-    methods = renderAccountMethods({
-      el: methodsEl,
-      t: t,
-      en: en,
-      kinds: visibleKinds(status || null),
-      submit: submitters,
-      onSuccess: afterLogin,
-    });
+    setPageTitle('loginTitle');
+    collapsePw();
+    const kinds = visibleKinds(status || null);
+    pkBtn.hidden = kinds.indexOf('passkey') === -1;
+    pwBtn.hidden = kinds.indexOf('password') === -1;
+    if (pkErr) pkErr.hidden = true;
+    if (noneEl) noneEl.hidden = kinds.length > 0;
     if (noticeEl) {
       noticeEl.textContent = notice || '';
       noticeEl.hidden = !notice;
     }
   }
+
+  /* 主按钮：通行密钥登录（点了立刻 busy，只发一次 challenge；取消系统验证不报错） */
+  let pkBusy = false;
+  const pkTx = pkBtn.querySelector('.acct-login-btn-tx');
+  const pkLabel = pkTx ? pkTx.textContent : '';
+  on(pkBtn, 'click', function () {
+    if (pkBusy) return;
+    tapFeedback();
+    collapsePw();
+    if (pkErr) pkErr.hidden = true;
+    pkBusy = true;
+    pkBtn.disabled = true;
+    pkBtn.setAttribute('aria-busy', 'true');
+    if (pkTx) pkTx.textContent = t('passkeyBusy');
+    submitters.passkey().then(function () {
+      afterLogin();
+    }, function (e) {
+      if (!(e && e.cancelled) && pkErr) {
+        pkErr.textContent = (e && e.message) || t('errVerify');
+        pkErr.hidden = false;
+      }
+    }).then(function () {
+      pkBusy = false;
+      pkBtn.disabled = false;
+      pkBtn.removeAttribute('aria-busy');
+      if (pkTx) pkTx.textContent = pkLabel;
+    });
+  });
+
+  /* 次按钮：密码登录 → 原地展开 / 收起密码框 */
+  const eye = $('acct-pw-eye');
+  if (eye) bindPwEye(eye, pwInput, en);
+  on(pwBtn, 'click', function () {
+    tapFeedback();
+    if (!pwForm.hidden) {
+      collapsePw();
+      return;
+    }
+    if (pkErr) pkErr.hidden = true;
+    pwForm.hidden = false;
+    pwBtn.setAttribute('aria-expanded', 'true');
+    pwBtn.classList.add('is-open');
+    focusNoScroll(pwInput);
+  });
+  let pwBusy = false;
+  const submitPw = function () {
+    if (pwBusy) return;
+    const v = pwInput.value;
+    if (pwErr) pwErr.hidden = true;
+    if (!v) {
+      if (pwErr) {
+        pwErr.textContent = t('enterCred');
+        pwErr.hidden = false;
+      }
+      return;
+    }
+    pwBusy = true;
+    submitters.password(v).then(function () {
+      afterLogin();
+    }, function (e) {
+      if (pwErr) {
+        pwErr.textContent = (e && e.message) || t('errVerify');
+        pwErr.hidden = false;
+      }
+      if (e && e.clear) pwInput.value = '';
+    }).then(function () { pwBusy = false; });
+  };
+  bindSubmitButton(pwGo, submitPw);
+  onEnter(pwInput, submitPw);
 
   /* ================= 账号总览 ================= */
 
@@ -114,6 +204,7 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from './account
   }
 
   function showMain(j) {
+    setPageTitle('acctTitle');
     const secSub = $('acct-sec-sub');
     if (secSub) secSub.textContent = (j.password || j.passkey) ? t('secProtected') : t('secUnprotected');
     loginEl.hidden = true;

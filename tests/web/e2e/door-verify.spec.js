@@ -213,13 +213,15 @@ test.describe('A-1 进门不能马上被判过期（10 次连续进门）', () =
 
 test.describe('A-3 验证行样式', () => {
   test.beforeEach(async ({ page }) => {
+    /* PR3：账号登录页改成按钮，验证行样式改在锁屏凭证的门口量（解锁密码 + 根凭证两行） */
     await setup(page);
-    await page.goto('/settings/account/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#acct-methods .sgx-door-row')).toHaveCount(3);
+    await mockLockDoor(page);
+    await page.goto(LOCK_URL, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#lock-door-methods .sgx-door-row')).toHaveCount(2, { timeout: 15000 });
   });
 
   test('选择框：圆角 16px、静止底色不透明、行间距 12px、无分隔线、按下态比静止态深', async ({ page }) => {
-    const rows = page.locator('#acct-methods .sgx-door-row');
+    const rows = page.locator('#lock-door-methods .sgx-door-row');
     const row = rows.first();
     expect(await row.evaluate((el) => getComputedStyle(el).borderRadius)).toBe('16px');
     const pad = await row.evaluate((el) => {
@@ -229,7 +231,7 @@ test.describe('A-3 验证行样式', () => {
     expect(pad.top).toBe('12px');
     expect(pad.left).toBe('16px');
     expect(await row.evaluate((el) => getComputedStyle(el).borderBottomWidth)).toBe('0px');
-    const gap = await page.locator('#acct-methods').evaluate((el) => getComputedStyle(el).rowGap);
+    const gap = await page.locator('#lock-door-methods').evaluate((el) => getComputedStyle(el).rowGap);
     expect(gap).toBe('12px');
     const bg = await row.evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(bg).not.toBe('rgba(0, 0, 0, 0)');

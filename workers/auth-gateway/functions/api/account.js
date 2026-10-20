@@ -8,7 +8,7 @@
  * 账号登录三个入口平级，任一成功即签发账号会话 sgx-account（_kernel/account-session.js）：
  * - 账号通行密钥：本接口 challenge + login-passkey
  * - 账号密码：本接口 login-password
- * - 根凭证：/api/root-auth { key, target:'account' }（沿用根凭证的限速/审计/假入口）
+ * - 根凭证：/api/root-auth { key, purpose:'account' }（「重置登录」：根凭证不再是普通登录入口；沿用根凭证的限速/审计/假入口，另签账号门票）
  * 账号会话独立验证：lock 会话（sgx-verified）只是前置条件（必须是已解锁的 owner），
  * 从不被当作账号认证。
  *
@@ -24,7 +24,7 @@
  * - login-passkey { cid, credential, door? } → 验断言（UV=1、userHandle）→ sgx-account(by=passkey)
  * - login-password { password, door? } → 验账号密码 → sgx-account(by=password)
  *   door:true（安全与隐私子页的门）→ 另签账号门票 sgx-door(door=account)，3 分钟
- *   （根凭证进门：/api/root-auth { key, target:'account', door:true }）
+ *   （根凭证不能进门；丢了账号凭证走「重置登录」：/api/root-auth { key, purpose:'account' } 直接签会话 + 门票）
  * - logout → 清 sgx-account 和门票（幂等，不需会话）
  * - door-clear → 只清门票（离开安全与隐私子页时调；幂等，不需会话）
  * 账号页管理（需有效账号会话；除只读 list 外还要求有效的账号门票，没有/过期 403 door，前端重新进门）：

@@ -191,7 +191,7 @@ test.describe('B1-12 守护：密码自动填充', () => {
     });
   });
 
-  test('自动填充后直接点登录，不报「请输入凭证」（账号登录：账号密码行）', async ({ page }) => {
+  test('自动填充后直接点登录，不报「请输入凭证」（账号登录：密码登录）', async ({ page }) => {
     let posted = null;
     await page.route('**/api/account', async (route) => {
       if (route.request().method() === 'GET') {
@@ -202,21 +202,21 @@ test.describe('B1-12 守护：密码自动填充', () => {
       await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'wrong' }) });
     });
     await page.goto('/settings/account/', { waitUntil: 'domcontentloaded' });
-    await page.locator('.sgx-door-row').filter({ hasText: '账号密码' }).click();
+    await page.click('#acct-pw-btn');
 
-    const input = page.locator('.sgx-door-expand input[type="password"]');
+    const input = page.locator('#acct-pw-input');
     await expect(input).toBeVisible();
 
     /* 模拟浏览器自动填充：直接设 value，不触发 input 事件 */
     await page.evaluate(() => {
-      const el = document.querySelector('.sgx-door-expand input[type="password"]');
+      const el = document.querySelector('#acct-pw-input');
       if (el) {
         const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
         setter.call(el, 'autofilled-password-123');
       }
     });
 
-    await page.locator('.sgx-door-expand .sgx-door-btn-primary').click();
+    await page.click('#acct-pw-go');
     await expect.poll(() => posted && posted.password).toBe('autofilled-password-123');
     await expect(
       page.locator('.sgx-door-err:not([hidden])').filter({ hasText: '请输入凭证' })

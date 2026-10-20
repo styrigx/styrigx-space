@@ -586,12 +586,14 @@ test('2.11 补充四：C2 重置第二步恢复提示（lock.js，无键名）',
   /* C2：底部恢复提示改成新文案，不出现 recovery-switch 键名 */
   assert.ok(!src.includes('recovery-switch'), 'lock.js 不应再出现 recovery-switch 键名');
   assert.ok(!src.includes('sgx-reset-switch-hint'), '旧提示元素已删除');
-  /* 新提示文本存在，且仅在 renderResetStep2 中 */
-  const step2Idx = src.indexOf('function renderResetStep2');
-  const hintIdx = src.indexOf('站长凭证也无法使用？');
-  assert.ok(step2Idx > 0 && hintIdx > step2Idx, '新恢复提示应在 renderResetStep2 内');
-  /* 确认不在 renderResetStep1（根凭证步骤）中 */
-  const step1Idx = src.indexOf('function renderResetStep1');
-  const step1Body = src.slice(step1Idx, step2Idx);
-  assert.ok(!step1Body.includes('站长凭证也无法使用？'), '第一步（根凭证）不应显示恢复提示');
+  /* PR3：重置界面在 lib/reset-flow.js（锁屏与账号页共用），「站长」统一改「账号」；恢复提示只在第二步 */
+  const rf = fs.readFileSync(REPO + 'web/assets/js/lib/reset-flow.js', 'utf8');
+  assert.ok(!src.includes('站长') && !rf.includes('站长'), '不再出现「站长」字样');
+  assert.ok(!rf.includes('recovery-switch'), 'reset-flow.js 不应出现开关键名');
+  assert.ok(rf.includes('账号凭证也无法使用？'), '恢复提示用「账号」');
+  const step2Idx = rf.indexOf('function step2');
+  const step1Idx = rf.indexOf('function step1');
+  const hintUse = rf.indexOf("t('recover')");
+  assert.ok(step2Idx > 0 && hintUse > step2Idx, '恢复提示只在第二步');
+  assert.ok(!rf.slice(step1Idx, step2Idx).includes("t('recover')"), '第一步（根凭证）不显示恢复提示');
 });

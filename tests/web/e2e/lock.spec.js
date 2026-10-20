@@ -494,11 +494,12 @@ test.describe('lock method sheet row feedback (批次 A 验收修复 P2)', () =>
   });
 });
 
-test.describe('A-2 锁屏凭证清空态（resetOnly）', () => {
-  test('锁屏凭证清空：方法弹层只显示访客 + 重置锁屏（无通行密钥/密码/根凭证入口）', async ({ page }) => {
+test.describe('A-2 锁屏凭证清空态（resetOnly）/ 启动站（PR3：只剩「无法登录？」）', () => {
+  test('锁屏凭证清空：方法弹层只显示访客 +「无法登录？」（无通行密钥/密码/根凭证入口）', async ({ page }) => {
     await blockExternalRequests(page);
+    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
+
     await freezeTime(page);
-    /* 服务端 lock-config 返回清空态：passkey/password 兜底 true + resetOnly=true */
     await page.route('**/api/lock-config', async (route) => {
       await route.fulfill({
         status: 200,
@@ -508,18 +509,16 @@ test.describe('A-2 锁屏凭证清空态（resetOnly）', () => {
     });
     await gotoLock(page);
     await openMethodSheet(page);
-    await expect(page.locator('#sgx-mopt-visitor')).toBeVisible();
-    await expect(page.locator('#sgx-mopt-reset')).toBeVisible();
-    await expect(page.locator('#sgx-mopt-pk')).toHaveCount(0);
-    await expect(page.locator('#sgx-mopt-pw')).toHaveCount(0);
-    await expect(page.locator('#sgx-mopt-mk')).toHaveCount(0);
-    /* 访客在前，重置在后 */
     const ids = await page.locator('.sgx-method-opt').evaluateAll((els) => els.map((el) => el.id));
-    expect(ids).toEqual(['sgx-mopt-visitor', 'sgx-mopt-reset']);
+    expect(ids).toEqual(['sgx-mopt-visitor']);
+    await expect(page.locator('#sgx-mopt-cant')).toHaveText('无法登录？');
+    await expect(page.locator('#sgx-mopt-reset, #sgx-mopt-mk')).toHaveCount(0);
   });
 
-  test('启动站（lock-config 全 false）：根凭证入口仍显示', async ({ page }) => {
+  test('启动站（lock-config 全 false）：根凭证在「无法登录？」里，走 /api/root-auth（不带 purpose）→ root-session', async ({ page }) => {
     await blockExternalRequests(page);
+    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
+
     await freezeTime(page);
     await page.route('**/api/lock-config', async (route) => {
       await route.fulfill({
@@ -528,12 +527,185 @@ test.describe('A-2 锁屏凭证清空态（resetOnly）', () => {
         body: JSON.stringify({ ok: true, passkey: false, password: false, ownerConfigured: false, resetOnly: false }),
       });
     });
+    const calls = [];
+    await page.route('**/api/root-auth', async (route) => {
+      calls.push(JSON.parse(route.request().postData() || '{}'));
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+    });
+    await page.route('**/api/root-session', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"by":"root"}' }));
+    await page.route('**/settings/security/', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p id="landed">ok</p>' }));
     await gotoLock(page);
     await openMethodSheet(page);
-    await expect(page.locator('#sgx-mopt-visitor')).toBeVisible();
-    await expect(page.locator('#sgx-mopt-mk')).toBeVisible();
-    await expect(page.locator('#sgx-mopt-reset')).toHaveCount(0);
+    await expect(page.locator('#sgx-mopt-mk')).toHaveCount(0);
+    await page.click('#sgx-mopt-cant');
+    await expect(page.locator('#sgx-reset-title')).toHaveText('重置登录');
+    await page.fill('#sgx-reset-root', 'root-key');
+    await page.click('#sgx-reset-go');
+    await expect(page.locator('#landed')).toBeVisible({ timeout: 8000 });
+    expect(calls).toEqual([{ key: 'root-key' }]);
   });
+});
+
+test.describe('PR3 锁屏：无法登录？→ 弹层原地切到重置登录', () => {
+  test.beforeEach(async ({ page }) => {
+    await blockExternalRequests(page);
+    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
+
+    await freezeTime(page);
+  });
+
+  test('根凭证 → needOwner → 账号凭证行（账号通行密钥 / 账号密码，没有「站长」字样）→ 账号密码通过 → /settings/security/lock/', async ({ page }) => {
+    const bodies = [];
+    await page.route('**/api/lockreset', async (route) => {
+      const b = JSON.parse(route.request().postData() || '{}');
+      bodies.push(b);
+      if (b.ownerProof) {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+        return;
+      }
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, needOwner: true, passkey: true, password: true }) });
+    });
+    await page.route('**/settings/security/lock/', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p id="landed">ok</p>' }));
+    await gotoLock(page);
+    await openMethodSheet(page);
+    await page.click('#sgx-mopt-cant');
+    /* 同一个弹层（没有关掉再开别的） */
+    await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible();
+    await expect(page.locator('#sgx-reset-title')).toHaveText('重置登录');
+    await expect(page.locator('#sgx-mopt-visitor')).toHaveCount(0);
+    await expect(page.locator('.sgx-reset input[autocomplete="username"]')).toHaveValue('root');
+    await page.fill('#sgx-reset-root', 'root-key');
+    await page.click('#sgx-reset-go');
+    await expect(page.locator('.sgx-reset[data-step="owner"]')).toBeVisible();
+    await expect(page.locator('.sgx-reset-opts .sgx-door-rowtitle')).toHaveText(['账号通行密钥', '账号密码']);
+    await expect(page.locator('#sgx-method-sheet')).not.toContainText('站长');
+    await page.locator('.sgx-door-row').filter({ hasText: '账号密码' }).click();
+    await page.locator('.sgx-door-expand input[type="password"]').fill('acct-pw');
+    await page.locator('.sgx-door-expand .sgx-door-btn-primary').click();
+    await expect(page.locator('#landed')).toBeVisible({ timeout: 8000 });
+    expect(bodies[0]).toEqual({ action: 'verify', rootKey: 'root-key' });
+    expect(bodies[1]).toEqual({ action: 'verify', rootKey: 'root-key', ownerProof: { type: 'password', password: 'acct-pw' } });
+  });
+
+  test('恢复开关有效（verify 直接 ok）→ 不要账号凭证，直接去锁屏凭证页；根凭证错误 → 行内「验证失败」并清空', async ({ page }) => {
+    let n = 0;
+    await page.route('**/api/lockreset', async (route) => {
+      n++;
+      if (n === 1) {
+        await route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false,"error":"auth"}' });
+        return;
+      }
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+    });
+    await page.route('**/settings/security/lock/', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p id="landed">ok</p>' }));
+    await gotoLock(page);
+    await openMethodSheet(page);
+    await page.click('#sgx-mopt-cant');
+    await page.fill('#sgx-reset-root', 'wrong');
+    await page.press('#sgx-reset-root', 'Enter');
+    await expect(page.locator('#sgx-reset-err')).toHaveText('验证失败');
+    await expect(page.locator('#sgx-reset-root')).toHaveValue('');
+    await page.fill('#sgx-reset-root', 'right');
+    await page.click('#sgx-reset-go');
+    await expect(page.locator('#landed')).toBeVisible({ timeout: 8000 });
+  });
+});
+
+test.describe('PR3 锁屏版面 + 日刻今日一句', () => {
+  const QUOTE = (day) => ({ ok: true, day: day, quote: { text: '那些杀不死我的，必使我更强大。', trans: '', author: '尼采', source: '偶像的黄昏' }, note: 'PRIVATE-NOTE' });
+  async function mockDaymark(page, body, status) {
+    await page.route('https://daymark.styrigx.com/api/today', (route) => route.fulfill({
+      status: status || 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(body),
+    }));
+  }
+  function todaySh() {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  }
+  test.beforeEach(async ({ page }) => {
+    await blockExternalRequests(page);
+    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
+  });
+
+  test('日刻卡显示今日一句（只展示公开字段），点了不跳转；整组垂直居中、头像在日刻下方', async ({ page }) => {
+    await page.setViewportSize({ width: 412, height: 915 });
+    await mockDaymark(page, QUOTE(todaySh()));
+    await gotoLock(page);
+    const dm = page.locator('#sgx-lock-dm');
+    await expect(dm).toBeVisible({ timeout: 5000 });
+    await expect(dm.locator('[data-dm="text"]')).toHaveText('那些杀不死我的，必使我更强大。');
+    await expect(dm.locator('[data-dm="by"]')).toHaveText('— 尼采《偶像的黄昏》');
+    await expect(dm).not.toContainText('PRIVATE');
+    expect(await dm.evaluate((el) => el.tagName)).toBe('DIV');
+    await expect(dm.locator('a')).toHaveCount(0);
+    const url = page.url();
+    await dm.click();
+    expect(page.url()).toBe(url);
+    await expect(page.locator('#sgx-lock')).toBeVisible();
+    /* 版面：时钟在日刻上面，头像在日刻下面；上下留白差不多（不再「时钟顶上、头像压底」） */
+    const c = await page.locator('#sgx-lock-clock').boundingBox();
+    const d = await dm.boundingBox();
+    const u = await page.locator('#sgx-lock-avatar').boundingBox();
+    expect(c.y + c.height).toBeLessThan(d.y);
+    expect(d.y + d.height).toBeLessThan(u.y);
+    const top = (await page.locator('#sgx-lock-ic').boundingBox()).y;
+    const bottom = 915 - (u.y + u.height);
+    expect(Math.abs(top - bottom)).toBeLessThan(160);
+    expect(d.y + d.height + 120).toBeGreaterThan(u.y); /* 日刻和头像之间没有大空白 */
+  });
+
+  test('拉取失败 / 被拦：日刻卡不显示，其余照常；舞台不会一直透明', async ({ page }) => {
+    await mockDaymark(page, { ok: false }, 500);
+    await gotoLock(page);
+    await expect(page.locator('#sgx-lock-stage')).not.toHaveClass(/is-pending/, { timeout: 3000 });
+    await expect(page.locator('#sgx-lock-dm')).toBeHidden();
+    await expect(page.locator('#sgx-lock-avatar')).toBeVisible();
+  });
+
+  test('舞台显示后才到的句子不插进来（不跳版面），下次从缓存直接画', async ({ page }) => {
+    await page.route('https://daymark.styrigx.com/api/today', async (route) => {
+      await new Promise((r) => setTimeout(r, 2000));
+      await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(QUOTE(todaySh())) });
+    });
+    await gotoLock(page);
+    await expect(page.locator('#sgx-lock-stage')).not.toHaveClass(/is-pending/, { timeout: 3000 });
+    const before = await page.locator('#sgx-lock-avatar').boundingBox();
+    await page.waitForTimeout(2500);
+    await expect(page.locator('#sgx-lock-dm')).toBeHidden();
+    const after = await page.locator('#sgx-lock-avatar').boundingBox();
+    expect(after.y).toBe(before.y);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#sgx-lock-dm')).toBeVisible({ timeout: 3000 });
+    const cached = await page.evaluate(() => localStorage.getItem('sgx-daymark-today'));
+    expect(cached).not.toContain('PRIVATE');
+  });
+
+  test('英文：日刻卡标签 DAYMARK、出处格式 Author, Source', async ({ page }) => {
+    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
+    await mockDaymark(page, { ok: true, day: todaySh(), quote: { text: 'What does not kill me makes me stronger.', author: 'Nietzsche', source: 'Twilight of the Idols' } });
+    await page.goto('/en/?lock=1', { waitUntil: 'domcontentloaded' });
+    const dm = page.locator('#sgx-lock-dm');
+    await expect(dm).toBeVisible({ timeout: 5000 });
+    await expect(dm).toContainText('DAYMARK');
+    await expect(dm.locator('[data-dm="by"]')).toHaveText('— Nietzsche, Twilight of the Idols');
+  });
+
+  for (const theme of ['light', 'dark']) {
+    test(`lock screen with daymark baseline screenshot (${theme})`, async ({ page }) => {
+      await freezeTime(page);
+      await page.setViewportSize({ width: 412, height: 915 });
+      await page.addInitScript((t) => {
+        try { localStorage.setItem('sgx-lang', 'zh'); localStorage.setItem('sgx-theme-mode', t); } catch (e) {}
+      }, theme);
+      await mockDaymark(page, QUOTE(todaySh()));
+      await gotoLock(page);
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await expect(page.locator('#sgx-lock-dm')).toBeVisible({ timeout: 5000 });
+      await expect(page).toHaveScreenshot(`lock-screen-daymark-${theme}.png`, {
+        animations: 'disabled',
+        mask: [page.locator('#sgx-lock-clock'), page.locator('#sgx-lock-date'), page.locator('#sgx-lock-dm [data-dm="day"]')],
+      });
+    });
+  }
 });
 
 test.describe('B1-2 普通解锁路径 pkAuth()（mock WebAuthn）', () => {

@@ -79,10 +79,23 @@ function decodeCookie(v) {
  *   clock←sgx-gl-clockstyle；wx←sgx-weather-show；unit←sgx-temp-unit；
  *   loc←sgx-weather-loc；city←sgx-weather-city；precise←sgx-weather-precise。
  *   B2-7（v2）外观：mode←sgx-theme-mode（system/light/dark）；pal←sgx-palette（缺省 lake）；
+ *   accent：当前主题色种子 #rrggbb（PR3 色彩角色 token；sgx-accent 自定义优先，否则读 --sgx-seed 即预设色板的种子），
+ *   子站拿它派生同一套角色；读不到为 ''。
  *   fs←sgx-font-size（small/standard/large）；rm←sgx-reduced-motion（"1" 为 1）；
  *   mat：mode 最近一次变化的时间戳（毫秒）。子站自己也能切深浅色，两边谁后改听谁的。
  * sgx-weather 是数据缓存，不进 cookie。
  */
+/** 当前主题色种子（#rrggbb）：自定义 sgx-accent 优先，否则读 <html> 上计算出的 --sgx-seed；都没有返回 '' */
+function currentSeed() {
+  var ac = ls('sgx-accent') || '';
+  if (/^#[0-9a-fA-F]{6}$/.test(ac)) return ac.toLowerCase();
+  try {
+    var v = getComputedStyle(document.documentElement).getPropertyValue('--sgx-seed').trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(v)) return v.toLowerCase();
+  } catch (e) {}
+  return '';
+}
+
 export function syncUiCookie() {
   var tz1Auto = boolOnNull('sgx-tz1-auto');
   var payload = {
@@ -98,6 +111,7 @@ export function syncUiCookie() {
     precise: parseJson(ls('sgx-weather-precise')),
     mode: ['light', 'dark'].indexOf(ls('sgx-theme-mode') || '') >= 0 ? ls('sgx-theme-mode') : 'system',
     pal: /^[a-z]{2,16}$/.test(ls('sgx-palette') || '') ? ls('sgx-palette') : 'lake',
+    accent: currentSeed(),
     fs: ['small', 'large'].indexOf(ls('sgx-font-size') || '') >= 0 ? ls('sgx-font-size') : 'standard',
     rm: ls('sgx-reduced-motion') === '1' ? 1 : 0,
   };

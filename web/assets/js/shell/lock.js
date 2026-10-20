@@ -24,9 +24,11 @@ import { followKeyboard } from './vk.js';
 import { get, getJSON } from '../lib/storage.js';
 import { exchangeRootSession } from '../lib/root-session.js';
 import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose, tapFeedback, setRowBusy } from '../lib/dialog-behavior.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose, tapFeedback } from '../lib/dialog-behavior.js';
 import { getPasskeyAssertion, passkeyErrorText } from '../lib/passkey-assert.js';
 import { pwFieldHtml, bindPwEye, onEnter, focusNoScroll } from '../lib/auth-flow.js';
+import { mountResetFlow, resetT } from '../lib/reset-flow.js';
+import { mountDaymarkToday, daymarkCardHtml } from '../lib/daymark-today.js';
 import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
 
 const LOCK =
@@ -210,7 +212,14 @@ function showLockScreen() {
   ov.setAttribute('role', 'dialog');
   ov.setAttribute('aria-modal', 'true');
   ov.setAttribute('aria-label', en ? 'Lock screen' : '锁屏');
+  /* PR3 锁屏版面：保留锁屏的感觉（小锁 → 时钟 → 日期天气 → 日刻今日一句 → 头像解锁），
+     整组在屏幕里垂直居中，不再「时钟顶在上面、头像压在底部、中间一大片空」。
+     日刻卡只展示（div，不是链接，点了不跳转）；拉不到就不显示。
+     为了不跳版面：整组先透明，日刻有结论（缓存画上 / 拉到 / 失败）或等满 1.2 秒再一起显示；
+     之后才拉到的句子这次不再插进来（下次锁屏从缓存直接画）。 */
   ov.innerHTML =
+    '<div class="sgx-lock-stage is-pending" id="sgx-lock-stage">' +
+    '<div class="sgx-lock-head">' +
     '<div class="sgx-lock-top" id="sgx-lock-ic">' +
     LOCK +
     '</div>' +
@@ -224,6 +233,11 @@ function showLockScreen() {
         '</span></span>'
       : '') +
     '</div></div>' +
+    '<div class="widget dm-w sgx-lock-dm bg-m-container-lowest text-m-on-surface border border-m-outline overflow-hidden relative hidden" id="sgx-lock-dm" role="group" aria-label="' +
+    (en ? 'Daymark · Line of the day' : '日刻 · 今日一句') + '">' +
+    daymarkCardHtml(en, { emptyHint: false }) +
+    '</div>' +
+    '</div>' +
     '<div class="sgx-lock-user"><button type="button" id="sgx-lock-avatar" aria-label="' +
     (en ? 'Unlock, choose method' : '解锁，选择方式') +
     '" aria-haspopup="dialog">' +
@@ -232,8 +246,8 @@ function showLockScreen() {
       ? '<img src="' + avatarSrc + '" alt="Styrigx" width="72" height="72">'
       : '<span class="sgx-lock-fb" aria-hidden="true">S</span>') +
     '</button>' +
-    /* 2.8.0 锁屏重设计：只保留头像，删掉「Styrigx」文字；
-       「使用通行密钥」「使用密码」改成点击头像后弹底部选单 */
+    '<p class="sgx-lock-hint" aria-hidden="true">' + (en ? 'Tap to unlock' : '点头像解锁') + '</p>' +
+    '</div>' +
     '</div>';
   document.body.appendChild(ov);
   document.body.classList.add('sgx-locked');
@@ -242,6 +256,22 @@ function showLockScreen() {
 
   /* 2.8.0：锁屏显示时预加载 Turnstile（用户点验证时已就绪） */
   preloadTurnstile();
+
+  /* 日刻 · 今日一句（与主页同一个组件 lib/daymark-today.js，只读公开字段） */
+  const stage = document.getElementById('sgx-lock-stage');
+  let staged = false;
+  const reveal = function () {
+    if (staged) return;
+    staged = true;
+    if (stage) stage.classList.remove('is-pending');
+  };
+  const dmEl = document.getElementById('sgx-lock-dm');
+  if (dmEl) {
+    mountDaymarkToday(dmEl, { en: en, onSettled: reveal, canPaintLate: function () { return !staged; } });
+    window.setTimeout(reveal, 1200);
+  } else {
+    reveal();
+  }
 
   const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -565,6 +595,7 @@ function showLockScreen() {
 
   function closeDialog(reason) {
     recordDialogClose('lock-verify', reason || 'unknown');
+    removeWidget();
     disarmDlgKb();
     resetAvatar();
     setBgHidden(false);
@@ -596,30 +627,39 @@ function showLockScreen() {
       s.async = true;
       s.defer = true;
       s.setAttribute('data-sgx-ts', '1');
-      const to = window.setTimeout(function () {
-        reject(new Error('timeout'));
-      }, 8000);
+      /* PR3：加载失败（onerror / 8 秒超时 / 加载了但没有 window.turnstile）时把这个 <script> 摘掉，
+         下次「重试」重新插入；以前失败的标签一直留着，之后每次都走轮询分支、失败到刷新页面为止。 */
+      const fail = function (why) {
+        window.clearTimeout(to);
+        try { s.remove(); } catch (e) {}
+        reject(new Error(why));
+      };
+      const to = window.setTimeout(function () { fail('timeout'); }, 8000);
       s.onload = function () {
-        window.clearTimeout(to);
-        resolve(true);
+        if (/** @type {any} */ (window).turnstile) {
+          window.clearTimeout(to);
+          resolve(true);
+        } else {
+          fail('no-global');
+        }
       };
-      s.onerror = function () {
-        window.clearTimeout(to);
-        reject(new Error('load'));
-      };
+      s.onerror = function () { fail('load'); };
       /* 2.8.0：避免重复插入（预加载和验证时各调一次） */
-      if (!document.querySelector('script[data-sgx-ts]')) {
+      const pending = document.querySelector('script[data-sgx-ts]');
+      if (!pending) {
         document.head.appendChild(s);
       } else {
-        /* 脚本正在加载：轮询等待就绪 */
+        /* 脚本正在加载：轮询等待就绪；那次加载失败（标签被摘掉）或等满 10 秒 → reject，重试会重新插入 */
+        window.clearTimeout(to);
         let n = 0;
         const iv = window.setInterval(function () {
           if (/** @type {any} */ (window).turnstile) {
             window.clearInterval(iv);
-            window.clearTimeout(to);
             resolve(true);
-          } else if (++n > 100) {
+          } else if (!pending.isConnected || ++n > 100) {
             window.clearInterval(iv);
+            try { pending.remove(); } catch (e) {}
+            reject(new Error('load'));
           }
         }, 100);
       }
@@ -646,32 +686,20 @@ function showLockScreen() {
     } catch (e) {}
   }
 
-  /* 验证态：加载中 */
+  /* 验证态：标题 + Cloudflare 官方 Turnstile 小组件，原样显示（appearance always、托管模式、size flexible，
+     主题 / 语言跟随本站）。「正在验证… / 请验证您是真人」都是 Cloudflare 自己的界面，本站不加转圈、不设计时器。
+     PR3：以前渲染进带 hidden（display:none）的容器、appearance interaction-only，挑战既不弹勾选框也不回调，
+     三星浏览器上一直卡在「正在验证…」。容器现在一直可见。 */
   function verifyLoading() {
     dlgState = 'verify';
     setTitle(en ? "Checking you're human" : '正在确认你不是机器人');
-    setBody(
-      '<div class="sgx-verify-loading"><div class="sgx-spinner" role="progressbar" aria-label="' +
-        (en ? 'Verifying' : '正在验证') +
-        '"></div><p class="sgx-verify-loading-tx">' +
-        (en ? 'Verifying…' : '正在验证…') +
-        '</p></div><div id="sgx-ts-wrap" class="sgx-ts-wrap" hidden></div>'
-    );
+    setBody('<div id="sgx-ts-wrap" class="sgx-ts-wrap"></div>');
     clearErr();
-  }
-
-  /* 验证态：需要交互 → 在同一位置显示小组件 */
-  function verifyInteractive() {
-    const wrap = document.getElementById('sgx-ts-wrap');
-    const loading = dlg && dlg.querySelector('.sgx-verify-loading');
-    if (loading) /** @type {HTMLElement} */ (loading).hidden = true;
-    if (wrap) wrap.hidden = false;
-    clearVerifyTimer();
-    liftAvatar();
   }
 
   /* 验证态：成功 → 变勾，0.3s 后解锁 */
   function verifySuccess() {
+    removeWidget();
     setBody('<div class="sgx-verify-loading"><div class="sgx-check">' + CHECK + '</div></div>');
     clearErr();
     window.setTimeout(function () {
@@ -681,20 +709,12 @@ function showLockScreen() {
     }, 300);
   }
 
-  /* B1-3 验证态：失败/超时 → 提示 + 重试，不出现错误码。
-     超时（15s 内既没 token 也没进入交互）显示「验证时间过长」。
-     一旦 Turnstile 要求交互（出现勾选框），停掉这个计时，交给 Turnstile 自己的 timeout-callback；
-     否则用户还没点完，计时就把小组件冲掉了（访客进不去的原因）。 */
-  const VERIFY_TIMEOUT_MS = 15000;
-  let verifyTimer = null;
-  function clearVerifyTimer() {
-    if (verifyTimer) {
-      try { clearTimeout(verifyTimer); } catch (e) {}
-      verifyTimer = null;
-    }
-  }
+  /* 失败 / 超时 → 提示 + 重试，不出现错误码。
+     PR3：不设本站计时器，挑战中的重试只认 Cloudflare 自己的 timeout-callback / error-callback / expired-callback
+     （以前 15 秒计时会冲掉还在跑的托管挑战）；脚本没加载上、/api/verify 不通过也走这里（原有行为）。 */
+  /** @param {boolean} [isTimeout] */
   function showTurnstileRetry(isTimeout) {
-    clearVerifyTimer();
+    removeWidget();
     setBody(
       '<div class="sgx-verify-loading"><p class="sgx-verify-failtx">' +
         (isTimeout ? (en ? 'Verification timed out' : '验证时间过长') : (en ? 'Verification failed' : '验证失败')) +
@@ -717,25 +737,30 @@ function showLockScreen() {
     showTurnstileRetry(false);
   }
 
-  function resetWidget() {
+  /* PR3：每次渲染一个新小组件 attempt +1；旧小组件迟到的回调一律丢弃（不会 submitToken、不会改写新状态）。 */
+  let tsAttempt = 0;
+  /* PR3：重渲染 / 换内容 / 关弹层前先 turnstile.remove（以前 setBody 冲掉容器后再对脱离 DOM 的小组件 reset） */
+  function removeWidget() {
+    tsAttempt++;
     try {
-      if (widgetId !== null && /** @type {any} */ (window).turnstile) {
-        /** @type {any} */ (window).turnstile.reset(widgetId);
+      const ts = /** @type {any} */ (window).turnstile;
+      if (widgetId !== null && ts) {
+        if (typeof ts.remove === 'function') ts.remove(widgetId);
+        else ts.reset(widgetId);
       }
     } catch (e) {}
     widgetId = null;
   }
 
   function startVerify() {
-    resetWidget();
-    clearVerifyTimer();
+    removeWidget();
+    const attempt = tsAttempt;
+    /** 只认本次小组件的回调 */
+    const live = function () { return attempt === tsAttempt && dlgState === 'verify'; };
     verifyLoading();
-    /* B1-3：15s 没拿到 token 也没进入交互 → 显示「验证时间过长」+ 重试 */
-    verifyTimer = setTimeout(function () {
-      showTurnstileRetry(true);
-    }, VERIFY_TIMEOUT_MS);
     loadTurnstile().then(
       function () {
+        if (!live()) return;
         const wrap = document.getElementById('sgx-ts-wrap');
         if (!wrap || !(/** @type {any} */ (window).turnstile)) {
           verifyFailed();
@@ -745,33 +770,26 @@ function showLockScreen() {
         widgetId = /** @type {any} */ (window).turnstile.render(wrap, {
           sitekey: siteKey(),
           action: 'sgx-entry',
-          appearance: 'interaction-only',
+          appearance: 'always',
           size: 'flexible',
           theme: theme,
           language: en ? 'en' : 'zh-CN',
-          'before-interactive-callback': function () {
-            verifyInteractive();
-          },
-          'after-interactive-callback': function () {
-            /* 用户完成交互，等待 callback；保持小组件可见 */
-          },
           callback: function (/** @type {string} */ token) {
-            clearVerifyTimer();
-            submitToken(token);
+            if (live()) submitToken(token);
           },
           'error-callback': function () {
-            showTurnstileRetry(false);
+            if (live()) showTurnstileRetry(false);
           },
           'expired-callback': function () {
-            verifyFailed();
+            if (live()) verifyFailed();
           },
           'timeout-callback': function () {
-            showTurnstileRetry(true);
+            if (live()) showTurnstileRetry(true);
           },
         });
       },
       function () {
-        verifyFailed();
+        if (live()) verifyFailed();
       }
     );
   }
@@ -781,11 +799,11 @@ function showLockScreen() {
    * One UI 风格：底部弹层（宽屏居中卡片），各带图标和一行说明。
    *
    * 补充定稿七.1：入口按锁屏凭证配置显示（配置以服务端 /api/lock-config 为准，
-   * 读取失败按「已配置」处理，不暴露根凭证入口）。「访客进入」始终在第一位：
-   * - 两者都有 → 访客进入 / 通行密钥 / 密码 / 重置锁屏
-   * - 仅通行密钥 → 访客进入 / 通行密钥 / 重置锁屏
-   * - 仅密码 → 访客进入 / 密码 / 重置锁屏
-   * - 都没设置 → 访客进入 / 根凭证（不显示重置锁屏）
+   * 读取失败按「已配置」处理）。「访客进入」始终在第一位，最下面一行小字「无法登录？」（PR3）：
+   * - 两者都有 → 访客进入 / 通行密钥 / 密码 / 无法登录？
+   * - 仅通行密钥 / 仅密码 → 访客进入 / 该项 / 无法登录？
+   * - 都没设置（启动站）→ 访客进入 / 无法登录？（里面的根凭证走 root-auth 引导，原「根凭证」一行）
+   * 「无法登录？」→ 弹层原地切到重置登录（openResetInSheet）。
    * 点外部、Esc 或下滑关闭；键盘可操作。
    */
   let methodSheet = null;
@@ -818,14 +836,11 @@ function showLockScreen() {
    */
   function buildMethodSheet(cfg) {
     const hasPk = !!(window.PublicKeyCredential);
-    /* A-2：resetOnly 时只渲染访客 + 重置锁屏（不渲染通行密钥/密码/根凭证入口）。
-       根凭证入口只在锁屏无凭证时显示（A 启动流程保留：owner 已配置、
-       lock 从未配置的站，根凭证代开入口仍显示，故 showMk 不加 ownerConfigured 条件）。 */
+    /* A-2：resetOnly 时只渲染访客 +「无法登录？」（不渲染通行密钥/密码入口）。
+       PR3：根凭证不再是单独一行；锁屏凭证都没设置（启动站）时，「无法登录？」里的根凭证走 root-auth 引导。 */
     const resetOnly = !!cfg.resetOnly;
     const showPk = !resetOnly && cfg.passkey && hasPk;
     const showPw = !resetOnly && cfg.password;
-    const showReset = resetOnly || cfg.passkey || cfg.password;
-    const showMk = !resetOnly && !cfg.passkey && !cfg.password;
     const sheet = document.createElement('div');
     sheet.id = 'sgx-method-sheet';
     sheet.setAttribute('role', 'dialog');
@@ -864,28 +879,8 @@ function showLockScreen() {
           '<span class="sgx-method-desc">' + (en ? 'Enter your unlock password' : '输入解锁密码') + '</span></span>' +
           '</button>'
         : '') +
-      /* 4. 重置锁屏：验证身份后重设解锁方式（任一锁屏凭证已配置时显示） */
-      (showReset
-        ? '<button type="button" class="sgx-method-opt" id="sgx-mopt-reset" aria-label="' +
-          (en ? 'Reset lock screen' : '重置锁屏') + '">' +
-          '<span class="sgx-method-ic" aria-hidden="true">' +
-          '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></span>' +
-          '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Reset lock screen' : '重置锁屏') + '</span>' +
-          '<span class="sgx-method-desc">' + (en ? 'Lost unlock method? Verify identity, then reset unlock method' : '丢了锁屏凭证？验证身份后重设解锁方式') + '</span></span>' +
-          '</button>'
-        : '') +
-      /* 5. 根凭证：锁屏凭证都没设置时显示。调 /api/root-auth（只签发锁屏门票，
-         不签发会话），成功后进入站长模式。走真实比对，计入 rootlimit 和审计；
-         任一锁屏凭证已配置时服务端拒绝这条路径。 */
-      (showMk
-        ? '<button type="button" class="sgx-method-opt" id="sgx-mopt-mk" aria-label="' +
-          (en ? 'Root credential' : '根凭证') + '">' +
-          '<span class="sgx-method-ic" aria-hidden="true">' +
-          '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>' +
-          '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Root credential' : '根凭证') + '</span>' +
-          '<span class="sgx-method-desc">' + (en ? 'Unlock owner mode with your root credential' : '使用根凭证解锁站长模式') + '</span></span>' +
-          '</button>'
-        : '') +
+      /* 4. PR3：「无法登录？」小字（原「重置锁屏」「根凭证」两行合并到这里）：点了弹层原地切到重置登录 */
+      '<button type="button" class="sgx-sheet-cant" id="sgx-mopt-cant">' + (en ? 'Can’t sign in?' : '无法登录？') + '</button>' +
       '</div>';
     document.body.appendChild(sheet);
     methodSheet = sheet;
@@ -901,13 +896,12 @@ function showLockScreen() {
     const visitorBtn = sheet.querySelector('#sgx-mopt-visitor');
     const pkBtn = sheet.querySelector('#sgx-mopt-pk');
     const pwBtn = sheet.querySelector('#sgx-mopt-pw');
-    const resetBtn = sheet.querySelector('#sgx-mopt-reset');
-    const mkBtn = sheet.querySelector('#sgx-mopt-mk');
+    const cantBtn = sheet.querySelector('#sgx-mopt-cant');
+    const cardEl = /** @type {HTMLElement|null} */ (sheet.querySelector('.sgx-sheet-card'));
     if (visitorBtn) on(visitorBtn, 'click', function () { tapFeedback(); close(); openVerify(); });
     if (pkBtn) on(pkBtn, 'click', function () { tapFeedback(); close(); openPk(); });
     if (pwBtn) on(pwBtn, 'click', function () { tapFeedback(); close(); openPw(); });
-    if (resetBtn) on(resetBtn, 'click', function () { tapFeedback(); close(); openReset(); });
-    if (mkBtn) on(mkBtn, 'click', function () { tapFeedback(); close(); openMk(); });
+    if (cantBtn && cardEl) on(cantBtn, 'click', function () { tapFeedback(); openResetInSheet(cardEl, cfg); });
     const backdrop = sheet.querySelector('[data-close]');
     if (backdrop) on(backdrop, 'click', close);
     /* Esc 关闭 */
@@ -939,10 +933,15 @@ function showLockScreen() {
     } catch (e) {}
   }
 
-  function closeMethodSheet() {
+  /** @param {boolean} [navigating] 重置完成要跳页：不把焦点还给头像 */
+  function closeMethodSheet(navigating) {
     if (!methodSheet) return;
     const sheet = methodSheet;
     methodSheet = null;
+    if (flow) {
+      try { flow.destroy(); } catch (e) {}
+      flow = null;
+    }
     sheet.classList.remove('visible');
     if (sheet._onKey) {
       document.removeEventListener('keydown', sheet._onKey);
@@ -950,6 +949,7 @@ function showLockScreen() {
     window.setTimeout(function () {
       if (sheet.parentNode) sheet.parentNode.removeChild(sheet);
       /* 焦点回到头像 */
+      if (navigating) return;
       try {
         const av = document.getElementById('sgx-lock-avatar');
         if (av) av.focus({ preventScroll: true });
@@ -1118,419 +1118,143 @@ function showLockScreen() {
       });
   }
 
-  /* ---------- 根凭证态（与验证态同一弹层） ----------
-     补充定稿七.1：锁屏凭证都没设置时的方法弹层入口。调 /api/root-auth
-     （只签发锁屏门票 door=lock, by=root，不签发会话），成功后进入安全与隐私页
-     （站长模式）。走真实比对，计入 rootlimit 和审计；任一锁屏凭证已配置时
-     服务端拒绝这条路径（无会话假入口，写死 401）。 */
-  function openMk() {
-    dlgState = 'mgmtkey';
-    setTitle(en ? 'Root credential' : '根凭证');
-    setBody(
-      pwFieldHtml({ id: 'sgx-mk-input', eyeId: 'sgx-mk-eye', autocomplete: 'off', ariaLabel: en ? 'Root credential' : '根凭证', placeholder: en ? 'Root credential' : '根凭证', en: en }) +
-        '<button type="button" class="sgx-verify-skip" id="sgx-mk-go">' + (en ? 'Verify' : '验证') + '</button>'
-    );
-    clearErr();
-    if (!openDialog()) return;
-    const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-mk-input'));
-    const eye = document.getElementById('sgx-mk-eye');
-    const go = document.getElementById('sgx-mk-go');
-    /* 批次 A 验收修复 P2：眼睛按钮走 bindEyeButton（初始 eye-off） */
-    if (eye && input) bindPwEye(eye, input, en);
-    armDlgKbFor(input);
-    if (input) {
-      onEnter(input, submitMk);
-      focusNoScroll(input);
-    }
-    if (go) on(go, 'click', submitMk);
-  }
-
-  function submitMk() {
-    if (dlgState !== 'mgmtkey') return;
-    const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-mk-input'));
-    const key = input ? input.value : '';
-    if (!key) {
-      showError(en ? 'Enter root credential' : '请输入根凭证');
-      return;
-    }
-    fetch('/api/root-auth', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key: key }),
-    })
-      .then(function (r) {
-        return r.text().then(function (t) {
-          let j = null;
-          try { j = JSON.parse(t); } catch (e) {}
-          return { s: r.status, j: j };
+  /* ---------- 重置登录（PR3：方法弹层里的「无法登录？」原地切到 lib/reset-flow.js） ----------
+     与账号页 /settings/account/reset/ 同一个界面，提交不同：
+     - 锁屏凭证已设置（或读不到配置，按已设置处理）：根凭证 → POST /api/lockreset verify；
+       恢复开关有效直接拿到重置锁屏门票；否则服务端回 needOwner → 再验账号凭证（账号通行密钥 / 账号密码，
+       与账号登录同一套验证行）→ 门票 → 去 /settings/security/lock/ 重设解锁方式。
+     - 锁屏凭证都没设置（启动站）：根凭证 → POST /api/root-auth（锁屏门票 by=root）→ /api/root-session 换会话
+       （原「根凭证」那一行；根凭证不再是单独的解锁入口）。
+     根凭证只存在 reset-flow 的闭包里。 */
+  /**
+   * @param {HTMLElement} cardEl 方法弹层卡片
+   * @param {{passkey:boolean, password:boolean, resetOnly?:boolean}} cfg
+   */
+  function openResetInSheet(cardEl, cfg) {
+    const bootstrap = !cfg.resetOnly && !cfg.passkey && !cfg.password;
+    const T = resetT(en);
+    cardEl.innerHTML =
+      '<div class="sheet-handle" aria-hidden="true"></div>' +
+      '<h2 class="sgx-sheet-title" id="sgx-reset-title">' + T('title') + '</h2>' +
+      '<div class="sgx-sheet-reset" id="sgx-sheet-reset"></div>';
+    const sheetEl = /** @type {HTMLElement|null} */ (cardEl.closest('#sgx-method-sheet'));
+    if (sheetEl) sheetEl.setAttribute('aria-label', T('title'));
+    const host = /** @type {HTMLElement} */ (cardEl.querySelector('#sgx-sheet-reset'));
+    /** @param {any} body @returns {Promise<{s:number, j:any}>} */
+    const post = function (url, body) {
+      return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        .then(function (r) {
+          return r.text().then(function (t) {
+            let j = null;
+            try { j = JSON.parse(t); } catch (e) {}
+            return { s: r.status, j: j };
+          });
         });
-      })
-      .then(function (res) {
-        if (dlgState !== 'mgmtkey') return;
-        const j = res.j;
-        if (!j) {
-          showError(en ? 'Server error' : '服务器错误');
+    };
+    const netErr = function () { throw { message: en ? 'Network error' : '网络错误' }; };
+    const tooMany = { message: en ? 'Too many attempts' : '尝试次数过多' };
+    const failed = { message: en ? 'Verification failed' : '验证失败', clear: true };
+    /* 键盘避让：根凭证框、第二步展开的账号密码框，聚焦时卡片随键盘上移（与其他弹层同一套 followKeyboard） */
+    let kbStop = null;
+    /** @type {any} */ let kbFor = null;
+    on(host, 'focusin', function (/** @type {FocusEvent} */ e) {
+      const tg = /** @type {any} */ (e.target);
+      if (!tg || tg.tagName !== 'INPUT' || !tg.classList.contains('sgx-pw-input') || tg === kbFor) return;
+      if (kbStop) { try { kbStop(); } catch (e2) {} }
+      kbFor = tg;
+      kbStop = followKeyboard(cardEl, tg);
+    });
+    flow = mountResetFlow({
+      el: host,
+      en: en,
+      submitRoot: function (key) {
+        if (bootstrap) {
+          return post('/api/root-auth', { key: key }).then(function (res) {
+            if (res.j && res.j.ok) {
+              return exchangeRootSession().then(function (r2) {
+                if (!r2.ok) throw { message: en ? 'Server error' : '服务器错误' };
+              });
+            }
+            if (res.s === 429) throw tooMany;
+            if (res.s === 503 || res.s === 500) throw { message: en ? 'Server error' : '服务器错误' };
+            throw { message: en ? 'Wrong root credential' : '根凭证错误', clear: true };
+          }, netErr);
+        }
+        return post('/api/lockreset', { action: 'verify', rootKey: key }).then(function (res) {
+          if (res.s === 200 && res.j && res.j.ok) {
+            return res.j.needOwner ? { needOwner: { passkey: !!res.j.passkey, password: !!res.j.password } } : {};
+          }
+          if (res.s === 429) throw tooMany;
+          throw failed;
+        }, netErr);
+      },
+      owner: function (rootKey) {
+        const verify = function (proof) {
+          return post('/api/lockreset', { action: 'verify', rootKey: rootKey, ownerProof: proof }).then(function (res) {
+            if (res.s === 200 && res.j && res.j.ok && !res.j.needOwner) return;
+            if (res.s === 429) throw tooMany;
+            throw failed;
+          }, netErr);
+        };
+        return {
+          password: function (v) { return verify({ type: 'password', password: v }); },
+          passkey: function () {
+            return post('/api/lockreset', { action: 'challenge' }).then(function (res) {
+              const j = res.j;
+              if (!j || !j.ok) throw { message: en ? 'Failed to start' : '启动失败' };
+              const allow = (j.allowCredentials || []).map(function (c) {
+                return { id: b64urlToBuf(c.id), type: 'public-key' };
+              });
+              return getPasskeyAssertion({
+                challenge: b64urlToBuf(j.challenge),
+                rpId: j.rpId,
+                allowCredentials: allow,
+                userVerification: 'required',
+              }, { hideEl: sheetEl || undefined }).then(function (cred) {
+                return verify({
+                  type: 'passkey',
+                  cid: j.cid,
+                  credential: {
+                    rawId: bufToB64url(cred.rawId),
+                    response: {
+                      authenticatorData: bufToB64url(cred.response.authenticatorData),
+                      clientDataJSON: bufToB64url(cred.response.clientDataJSON),
+                      signature: bufToB64url(cred.response.signature),
+                      userHandle: cred.response.userHandle ? bufToB64url(cred.response.userHandle) : null,
+                    },
+                  },
+                });
+              }, function (err) {
+                /* 取消 / 没有匹配钥匙（NotAllowedError）：行内提示，留在本页可重新选择 */
+                if (err && err.kind === 'cancelled') throw { cancelled: true, message: en ? 'Cancelled, you can select again' : '已取消验证，可重新选择' };
+                if (err && err.kind === 'nokey' && err.cause && err.cause.name === 'NotAllowedError') throw { cancelled: true, message: passkeyErrorText('nokey', en) };
+                throw { message: err && err.kind ? passkeyErrorText(err.kind, en) : (en ? 'Passkey failed' : '通行密钥验证失败') };
+              });
+            }, function (e) {
+              if (e && e.message) throw e;
+              netErr();
+            });
+          },
+        };
+      },
+      onDone: function () {
+        if (kbStop) { try { kbStop(); } catch (e) {} kbStop = null; }
+        closeMethodSheet(true);
+        if (bootstrap) {
+          /* 与原根凭证入口相同：带 return 走 handleSessionOk（L1 校验 return），否则去安全与隐私 */
+          let ret = '';
+          try { ret = new URLSearchParams(window.location.search).get('return') || ''; } catch (e) {}
+          if (ret) handleSessionOk();
+          else sgxNavigate(en ? '/en/settings/security/' : '/settings/security/');
           return;
         }
-        if (j.ok) {
-          /* 锁屏未配置场景：root-auth 只签发锁屏门票（by=root），
-             需调 /api/root-session 换站长会话（by=root，1 小时）再跳转，
-             否则无会话会被 middleware 302 回锁屏。
-             用共享函数 exchangeRootSession（与 security.js 共用）。 */
-          exchangeRootSession()
-            .then(function (res2) {
-              if (dlgState !== 'mgmtkey') return;
-              if (res2.ok) {
-                closeDialog('success');
-                /* 若 URL 带 return，走与密码/通行密钥相同的 handleSessionOk 路径
-                   （location.replace 当前地址，L1 校验 return 并 302）；
-                   无 return 才去安全页。前端不自己做 return 白名单。 */
-                let ret = '';
-                try { ret = new URLSearchParams(window.location.search).get('return') || ''; } catch (e) {}
-                if (ret) {
-                  handleSessionOk();
-                } else {
-                  sgxNavigate(en ? '/en/settings/security/' : '/settings/security/');
-                }
-              } else {
-                showError(en ? 'Server error' : '服务器错误');
-                if (input) input.value = '';
-              }
-            })
-            .catch(function () {
-              if (dlgState !== 'mgmtkey') return;
-              showError(en ? 'Network error' : '网络错误');
-            });
-        } else if (res.s === 429) {
-          showError(en ? 'Too many attempts' : '尝试次数过多');
-        } else if (res.s === 503 || res.s === 500) {
-          showError(en ? 'Server error' : '服务器错误');
-        } else {
-          showError(en ? 'Wrong root credential' : '根凭证错误');
-          if (input) input.value = '';
-        }
-      })
-      .catch(function () {
-        if (dlgState !== 'mgmtkey') return;
-        showError(en ? 'Network error' : '网络错误');
-      });
-  }
-
-  /* ---------- 重置锁屏 ----------
-     始终先显示第一步输入框，由 verify 结果决定下一步：
-     票据 → 重设解锁方式；needOwner → 第二步；not-set → 通用失败提示（不泄露原因）。
-     第一步的根凭证存闭包变量 resetRootKey，用完即清，不挂 window。 */
-  var resetRootKey = null;
-  function openReset() {
-    dlgState = 'reset';
-    resetRootKey = null;
-    setTitle(en ? 'Reset lock screen' : '重置锁屏');
-    clearErr();
-    if (!openDialog()) return;
-    renderResetStep1();
-  }
-
-  /* 重置步骤 1：验证身份。服务端决定下一步：开关有效则直接完成，
-     否则返回 needOwner 进入第二步。 */
-  function renderResetStep1() {
-    dlgState = 'reset-step1';
-    setTitle((en ? 'Reset lock screen' : '重置锁屏') + ' (1/2)');
-    setBody(
-      '<div class="sgx-reset-hint">' + (en ? 'Verify identity' : '验证身份') + '</div>' +
-      pwFieldHtml({ id: 'sgx-reset-root', eyeId: 'sgx-reset-root-eye', autocomplete: 'off', placeholder: en ? 'Credential' : '凭证', en: en }) +
-        '<button type="button" class="sgx-verify-skip" id="sgx-reset-go">' + (en ? 'Verify' : '验证') + '</button>'
-    );
-    clearErr();
-    var go = document.getElementById('sgx-reset-go');
-    var input = document.getElementById('sgx-reset-root');
-    /* 批次 A 验收修复 P2：重置流程 step1 补眼睛按钮（初始 eye-off） */
-    var rootEye = document.getElementById('sgx-reset-root-eye');
-    if (rootEye && input) bindPwEye(rootEye, input, en);
-    armDlgKbFor(input);
-    if (input) {
-      onEnter(input, submitResetRoot);
-      focusNoScroll(input);
-    }
-    if (go) on(go, 'click', submitResetRoot);
-  }
-
-  function submitResetRoot() {
-    if (dlgState !== 'reset-step1') return;
-    var input = document.getElementById('sgx-reset-root');
-    var rootKey = input ? input.value : '';
-    if (!rootKey) {
-      showError(en ? 'Enter credential' : '请输入凭证');
-      return;
-    }
-    /* 第一步凭证存闭包变量（不用 window，用完即清），供第二步一起提交 */
-    resetRootKey = rootKey;
-    /* 立即清空输入框，不在 DOM 残留 */
-    if (input) input.value = '';
-    postResetVerify({ rootKey: rootKey }, function (res) {
-      if (dlgState !== 'reset-step1') return;
-      if (res.s === 200 && res.j && res.j.ok && !res.j.needOwner) {
-        /* 开关有效：直接完成 */
-        resetRootKey = null;
-        resetDone();
-      } else if (res.s === 200 && res.j && res.j.ok && res.j.needOwner) {
-        renderResetStep2(!!res.j.passkey, !!res.j.password);
-      } else if (res.s === 429) {
-        resetRootKey = null;
-        showError(en ? 'Too many attempts' : '尝试次数过多');
-      } else {
-        resetRootKey = null;
-        showError(en ? 'Verification failed' : '验证失败');
-        var inp = document.getElementById('sgx-reset-root');
-        if (inp) inp.value = '';
-      }
+        /* 跳转到锁屏凭证管理页（重置锁屏门票可开此页，仍进不了主页） */
+        sgxNavigate(en ? '/en/settings/security/lock/' : '/settings/security/lock/');
+      },
     });
   }
-
-  /* 重置步骤 2：站长凭证（按配置显示选项行）。
-     C2：页面说明「选择你的站长凭证进行验证」；两行选项（圆角卡片、左图标、
-     标题+说明、右箭头），只显示已配方式。通行密钥直接拉系统窗口；
-     密码弹验证窗口（密码框 + C3 按钮，跟键盘上移）。底部恢复提示 13px 次要色。 */
-  var resetStep2HasPk = false;
-  var resetStep2HasPw = false;
-  function renderResetStep2(hasPk, hasPw) {
-    dlgState = 'reset-step2';
-    resetStep2HasPk = !!hasPk;
-    resetStep2HasPw = !!hasPw;
-    setTitle((en ? 'Reset lock screen' : '重置锁屏') + ' (2/2)');
-    /* C2：恢复提示（无 Cloudflare/KV/键名），放选项列表下方，左对齐，13px 次要色 */
-    var switchHint = en
-      ? 'Owner credential unavailable? Enable one-time recovery in the site admin, valid for 24 hours.'
-      : '站长凭证也无法使用？可在站点后台开启一次性恢复，24 小时内有效';
-    var pkIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7.5 3v5.25c0 4.6-3.2 7.9-7.5 9.75-4.3-1.85-7.5-5.15-7.5-9.75V6L12 3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9.5 12l2 2 3.5-4"/></svg>';
-    var pwIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
-    var chev = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>';
-    var rowsHtml = '';
-    if (hasPk) {
-      rowsHtml += '<button type="button" class="sgx-door-row" id="sgx-reset-pk-row">' +
-        '<span class="sgx-door-ic" aria-hidden="true">' + pkIcon + '</span>' +
-        '<span class="sgx-door-mid"><span class="sgx-door-rowtitle">' + (en ? 'Owner passkey' : '站长通行密钥') + '</span>' +
-        '<span class="sgx-door-rowsub">' + (en ? 'Use fingerprint or device screen lock' : '使用指纹或设备锁屏') + '</span></span>' +
-        '<span class="sgx-door-chev" aria-hidden="true">' + chev + '</span></button>' +
-        /* D1：取消验证的行内提示位（hidden 时不占位；与进入凭证弹层的 .sgx-door-err 同一样式） */
-        '<p class="sgx-door-err" id="sgx-reset-pk-err" hidden></p>';
-    }
-    if (hasPw) {
-      rowsHtml += '<button type="button" class="sgx-door-row" id="sgx-reset-pw-row">' +
-        '<span class="sgx-door-ic" aria-hidden="true">' + pwIcon + '</span>' +
-        '<span class="sgx-door-mid"><span class="sgx-door-rowtitle">' + (en ? 'Owner password' : '站长密码') + '</span>' +
-        '<span class="sgx-door-rowsub">' + (en ? 'Enter owner password' : '输入站长密码') + '</span></span>' +
-        '<span class="sgx-door-chev" aria-hidden="true">' + chev + '</span></button>';
-    }
-    setBody(
-      '<div class="sgx-reset-hint">' + (en ? 'Choose your owner credential to verify' : '选择你的站长凭证进行验证') + '</div>' +
-      '<div class="sgx-reset-opts">' + rowsHtml + '</div>' +
-      '<div class="sgx-reset-recover-hint">' + switchHint + '</div>'
-    );
-    clearErr();
-    var pkRow = document.getElementById('sgx-reset-pk-row');
-    var pwRow = document.getElementById('sgx-reset-pw-row');
-    /* D1：busy 中重复点击（合成事件）直接丢弃，保证 challenge 只发一次 */
-    if (pkRow) on(pkRow, 'click', function () { if (pkRow.disabled) return; tapFeedback(); resetPk(); });
-    if (pwRow) on(pwRow, 'click', function () { if (pwRow.disabled) return; tapFeedback(); renderResetPwForm(); });
-  }
-
-  /* C2：站长密码验证窗口（密码框 + C3 按钮，跟键盘上移）。取消返回选项行。 */
-  function renderResetPwForm() {
-    dlgState = 'reset-step2-pw';
-    setTitle((en ? 'Reset lock screen' : '重置锁屏') + ' (2/2)');
-    setBody(
-      '<div class="sgx-reset-hint">' + (en ? 'Owner password' : '站长密码') + '</div>' +
-      pwFieldHtml({ id: 'sgx-reset-pw', eyeId: 'sgx-reset-pw-eye', autocomplete: 'off', placeholder: en ? 'Owner password' : '站长密码', en: en }) +
-      '<div class="sgx-door-actions">' +
-        '<button type="button" class="sgx-door-btn sgx-door-btn-secondary" id="sgx-reset-pw-cancel">' + (en ? 'Cancel' : '取消') + '</button>' +
-        '<button type="button" class="sgx-door-btn sgx-door-btn-primary" id="sgx-reset-pw-go">' + (en ? 'Verify' : '验证') + '</button>' +
-      '</div>'
-    );
-    clearErr();
-    var pwInput = document.getElementById('sgx-reset-pw');
-    var pwEye = document.getElementById('sgx-reset-pw-eye');
-    if (pwEye && pwInput) bindPwEye(pwEye, pwInput, en);
-    armDlgKbFor(pwInput);
-    if (pwInput) {
-      onEnter(pwInput, resetPwSubmit);
-      focusNoScroll(pwInput);
-    }
-    var cancelBtn = document.getElementById('sgx-reset-pw-cancel');
-    var goBtn = document.getElementById('sgx-reset-pw-go');
-    if (cancelBtn) on(cancelBtn, 'click', function () { renderResetStep2(resetStep2HasPk, resetStep2HasPw); });
-    if (goBtn) on(goBtn, 'click', resetPwSubmit);
-  }
-
-  /* C2：密码窗口的提交（从 renderResetPwForm 的输入框读值） */
-  function resetPwSubmit() {
-    if (dlgState !== 'reset-step2-pw') return;
-    var input = document.getElementById('sgx-reset-pw');
-    var pw = input ? input.value : '';
-    if (!pw) {
-      showError(en ? 'Enter owner password' : '请输入站长密码');
-      return;
-    }
-    /* 切回 step2 状态再提交（submitResetOwner 要求 dlgState 为 reset-step2） */
-    dlgState = 'reset-step2';
-    submitResetOwner({ type: 'password', password: pw });
-  }
-
-  /* 统一提交 verify（内部函数） */
-  function postResetVerify(body, cb) {
-    fetch('/api/lockreset', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(Object.assign({ action: 'verify' }, body)),
-    })
-      .then(function (r) {
-        return r.text().then(function (t) {
-          var j = null;
-          try { j = JSON.parse(t); } catch (e) {}
-          return { s: r.status, j: j };
-        });
-      })
-      .then(cb)
-      .catch(function () {
-        cb({ s: 0, j: null });
-      });
-  }
-
-  function resetDone() {
-    resetRootKey = null;
-    closeDialog('success');
-    /* 跳转到锁屏凭证管理页（lockreset 票据可开此页，仍进不了主页） */
-    sgxNavigate(en ? '/en/settings/security/lock/' : '/settings/security/lock/');
-  }
-
-  /* 重置步骤 2a：站长通行密钥。
-     D1：与进入凭证弹层（security.js startWebauthn）同一套 busy 表现——
-     副标题切 passkeyBusy 文案（security.html 同一文案）、箭头换 .sgx-door-spin、
-     两行 setRowBusy(true) 防重。返回 Promise，finally 恢复行状态。
-     取消（NotAllowedError）走行内 .sgx-door-err 提示，不报验证失败。 */
-  function resetPk() {
-    if (dlgState !== 'reset-step2') return Promise.resolve();
-    var pkRow = document.getElementById('sgx-reset-pk-row');
-    /* busy 中重复点击直接丢弃，保证 challenge 只发一次 */
-    if (pkRow && pkRow.disabled) return Promise.resolve();
-    var pwRow = document.getElementById('sgx-reset-pw-row');
-    var rowErr = document.getElementById('sgx-reset-pk-err');
-    if (rowErr) rowErr.hidden = true;
-    clearErr();
-    /* 保存原副标题/箭头（成功/取消/失败三路都要恢复） */
-    var subEl = pkRow ? pkRow.querySelector('.sgx-door-rowsub') : null;
-    var origSub = subEl ? subEl.textContent : '';
-    var chev = pkRow ? pkRow.querySelector('.sgx-door-chev') : null;
-    var origChev = chev ? chev.innerHTML : '';
-    if (subEl) subEl.textContent = en ? 'Opening passkey…' : '正在唤起通行密钥…';
-    if (chev) chev.innerHTML = '<span class="sgx-door-spin" aria-hidden="true"></span>';
-    setRowBusy(pkRow, true);
-    setRowBusy(pwRow, true);
-    var restoreRow = function () {
-      if (chev) chev.innerHTML = origChev;
-      if (subEl) subEl.textContent = origSub;
-      setRowBusy(pkRow, false);
-      setRowBusy(pwRow, false);
-    };
-    var chain = fetch('/api/lockreset', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'challenge' }),
-    })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (dlgState !== 'reset-step2') throw { done: true };
-        if (!j || !j.ok) {
-          showError(en ? 'Failed to start' : '启动失败');
-          throw { done: true };
-        }
-        var allow = (j.allowCredentials || []).map(function (c) {
-          return { id: b64urlToBuf(c.id), type: 'public-key' };
-        });
-        /* B1-2：用公共函数（隐藏弹层 + 30s 超时 + 4 档错误） */
-        var dlgEl = document.querySelector('.sgx-verify-dlg');
-        return getPasskeyAssertion({
-          challenge: b64urlToBuf(j.challenge),
-          rpId: j.rpId,
-          allowCredentials: allow,
-          userVerification: 'required',
-        }, { hideEl: dlgEl }).then(function (cred) {
-          if (dlgState !== 'reset-step2') throw { done: true };
-          var proof;
-          try {
-            proof = {
-              type: 'passkey',
-              cid: j.cid,
-              credential: {
-                rawId: bufToB64url(cred.rawId),
-                response: {
-                  authenticatorData: bufToB64url(cred.response.authenticatorData),
-                  clientDataJSON: bufToB64url(cred.response.clientDataJSON),
-                  signature: bufToB64url(cred.response.signature),
-                  userHandle: cred.response.userHandle ? bufToB64url(cred.response.userHandle) : null,
-                },
-              },
-            };
-          } catch (e) {
-            /* B1-2：4 档错误文案 */
-            if (e && e.kind) {
-              showError(passkeyErrorText(e.kind, en));
-            } else {
-              showError(en ? 'Passkey failed' : '通行密钥验证失败');
-            }
-            throw { done: true };
-          }
-          submitResetOwner(proof);
-        }, function (err) {
-          /* 用户取消/无钥匙(NotAllowedError)：行内提示，不报验证失败，留在本页（B1-2：保持 46fe723 前 NotAllowedError 的行为） */
-          if (dlgState !== 'reset-step2') throw { done: true };
-          if (err && err.kind === 'cancelled') {
-            if (rowErr) {
-              rowErr.textContent = en ? 'Cancelled, you can select again' : '已取消验证，可重新选择';
-              rowErr.hidden = false;
-            }
-            throw { done: true };
-          }
-          if (err && err.kind === 'nokey' && err.cause && err.cause.name === 'NotAllowedError') {
-            if (rowErr) {
-              rowErr.textContent = passkeyErrorText('nokey', en);
-              rowErr.hidden = false;
-            }
-            throw { done: true };
-          }
-          /* nokey(InvalidStateError)/timeout/failed：走全局报错（保持 46fe723 前行为） */
-          showError(passkeyErrorText(err && err.kind, en));
-          throw { done: true };
-        });
-      })
-      .catch(function (err) {
-        if (err && err.done) return;
-        if (dlgState !== 'reset-step2') return;
-        showError(en ? 'Network error' : '网络错误');
-      });
-    return chain.then(restoreRow, restoreRow);
-  }
-
-  /* 重置步骤 2b：站长密码 */
-  /* C2：旧 resetPw 已由 renderResetPwForm/resetPwSubmit 替代（删除） */
-
-  function submitResetOwner(ownerProof) {
-    if (dlgState !== 'reset-step2') return;
-    var rootKey = resetRootKey || '';
-    if (!rootKey) {
-      showError(en ? 'Session expired, restart' : '会话过期，请重新开始');
-      return;
-    }
-    postResetVerify({ rootKey: rootKey, ownerProof: ownerProof }, function (res) {
-      if (dlgState !== 'reset-step2') return;
-      if (res.s === 200 && res.j && res.j.ok) {
-        resetDone();
-      } else if (res.s === 429) {
-        showError(en ? 'Too many attempts' : '尝试次数过多');
-      } else {
-        showError(en ? 'Verification failed' : '验证失败');
-      }
-    });
-  }
+  /** @type {{destroy: () => void}|null} */
+  let flow = null;
 
   /* ---------- 通行密钥态（与验证态同一弹层） ---------- */
   function openPk() {

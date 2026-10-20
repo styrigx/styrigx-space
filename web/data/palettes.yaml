@@ -1,4 +1,4 @@
-# 调色板配置（色板列表的单数据源）。加颜色：这里加一项，并在 assets/css/input.css 两处色板块各加一组 token（回退块 + light-dark 块）。
+# 调色板配置（色板列表的单数据源）。加颜色：这里加一项，并在 web/data/palette-roles.json 加同 id 的亮 / 暗角色（色板设计稿生成），再跑 node scripts/gen-palettes.mjs 写进 input.css。
 # settings.html / settings-sub.html 共用 site.Data.palettes.palettes。
 palettes:
   - id: lake

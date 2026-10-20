@@ -1,0 +1,18 @@
+{{/* 账号 → 重置登录（/settings/account/reset/，PR3）：账号登录页小字「无法登录？」进入，页名「重置登录」只在顶栏。
+   丢了账号凭证时用根凭证验证（lib/reset-flow.js，锁屏弹层里的「无法登录？」是同一个界面）：
+   根凭证通过 → 账号会话 + 账号门票（by=root，3 分钟）→ 直接进 账号 → 安全与隐私 重设账号密码 / 通行密钥。
+   服务端若要求再验账号凭证（needOwner）则显示账号凭证行（账号重置不会出现，锁屏重置才会）。
+   noindex（见 baseof）。脚本走 ES Module 入口 entry-account-reset.js。 */}}
+{{ define "main" }}
+{{ .Scratch.Set "sgx-entry" "entry-account-reset.js" }}
+<div class="set-layout max-w-2xl mx-auto px-4 pb-28">
+  <!-- 与登录页同一个居中栏：头像 + 重置界面（同样宽、同样的强调色主按钮） -->
+  <div class="acct-login acct-reset-page">
+    <div class="acct-login-hero animate-fade-up">
+      <img class="acct-login-avatar" src="/avatar/192.webp" data-sgx-avatar="192" width="96" height="96" alt="">
+    </div>
+    <div id="acct-reset" class="acct-reset animate-fade-up" style="animation-delay:.08s"></div>
+  </div>
+</div>
+{{ partial "account-i18n.html" . }}
+{{ end }}

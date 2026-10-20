@@ -107,13 +107,16 @@ test.describe('390×844 行为', () => {
     ['/bookmarks/', '书签'],
     ['/search/', '全网搜索'],
     ['/settings/', '设置'],
-    ['/settings/account/', '账号'],
+    /* PR3：账号页没登录（这里没有账号会话）时页名是「登录账号」，登录后才是「账号」 */
+    ['/settings/account/', '登录账号'],
+    ['/settings/account/reset/', '重置登录'],
     ['/settings/security/', '安全与隐私'],
     ['/settings/security/lock/', '锁屏凭证'],
     ['/settings/display/', '显示'],
     ['/en/', 'Home'],
     ['/en/settings/', 'Settings'],
-    ['/en/settings/account/', 'Account'],
+    ['/en/settings/account/', 'Sign in'],
+    ['/en/settings/account/reset/', 'Reset sign-in'],
   ];
   for (const [path, name] of NAMES) {
     test(`${path}：长条显示当前页名「${name}」（不是 Styrigx），没有大标题区`, async ({ page }) => {
