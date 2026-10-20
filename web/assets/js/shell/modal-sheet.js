@@ -1,5 +1,5 @@
 /**
- * @fileoverview 顶栏弹出层的开合状态机（导航抽屉 #sgx-drawer、快捷面板 #sgx-qp 共用）。
+ * @fileoverview 顶栏弹出层的开合状态机（导航抽屉 #sgx-drawer；快捷面板已改为内嵌展开，不再用它）。
  *
  * dlg.dataset.state：closed → opening → open → closing → closed。
  * 开合只靠我们自己的计时器推进（不等 transitionend：减弱动效 / 后台标签页 / 过渡被打断时它可能永远不来），

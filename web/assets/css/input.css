@@ -2396,7 +2396,16 @@
   padding: 0 calc((var(--sgx-tb-btn) - var(--sgx-tb-ic)) / 2 - 1px); color: var(--m-on-surface); cursor: default; }
 .sgx-tb-avatar { width: 28px; height: 28px; border-radius: 999px; object-fit: cover; border: 1px solid var(--m-outline); flex-shrink: 0; }
 .sgx-tb-title { display: block; flex: 1; min-width: 0; text-align: center; padding: 0 4px;
-  font-size: 16px; font-weight: 700; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  font-size: 16px; font-weight: 700; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  position: relative; color: var(--m-on-surface); transition: color .15s ease; }
+/* 快捷面板开着：长条页名淡出、同位置淡入「快捷面板」（~150ms 交叉淡化；减弱动效立刻切换），收起时换回页名。
+   「快捷面板」是 ::after 生成内容（文字来自 data-qp-label），替代文本为空，读屏仍只读页名；页名文本节点与 document.title 都不动。 */
+.sgx-tb-title::after { content: attr(data-qp-label); content: attr(data-qp-label) / ""; position: absolute; inset: 0; padding: inherit;
+  overflow: hidden; text-overflow: ellipsis; color: var(--m-on-surface); opacity: 0; transition: opacity .15s ease; pointer-events: none; }
+.sgx-tb-pill:has(.sgx-tb-quick[aria-expanded="true"]) .sgx-tb-title { color: transparent; }
+.sgx-tb-pill:has(.sgx-tb-quick[aria-expanded="true"]) .sgx-tb-title::after { opacity: 1; }
+.reduced-motion .sgx-tb-title, .reduced-motion .sgx-tb-title::after { transition: none; }
+@media (prefers-reduced-motion: reduce) { .sgx-tb-title, .sgx-tb-title::after { transition: none; } }
 /* 长条里的图标按钮（搜索 / 快捷面板）：圆形点击区，按压 / 悬停态只在图标上 */
 .sgx-tb-ic { width: var(--sgx-tb-ic); height: var(--sgx-tb-ic); border-radius: 999px; flex-shrink: 0; padding: 0; border: 0; background: transparent;
   display: inline-flex; align-items: center; justify-content: center; color: var(--m-on-surface); cursor: pointer; text-decoration: none; }
@@ -2452,25 +2461,28 @@
 .sgx-drawer-ic svg { width: 24px; height: 24px; display: block; }
 .sgx-drawer-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sgx-drawer-div { border: 0; border-top: 1px solid var(--m-outline); margin: 10px 16px; }
-/* 快捷面板（2026-10-20，One UI 快捷面板式；baseof.html #sgx-qp，shell/quick-panel.js 开关）：
-   <dialog> 模态铺满视口，::backdrop 是遮罩；.sgx-qp-sheet 从顶部滑下（is-open），盖住顶栏。
-   磁贴两列圆角块，开着的磁贴是主色容器底色（aria-pressed="true"）；宽屏贴右对齐到顶栏右缘。 */
-.sgx-qp { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0;
-  border: 0; background: transparent; overflow: hidden; color: var(--m-on-surface); }
-.sgx-qp::backdrop { background: rgba(0,0,0,0); transition: background-color .24s ease; }
-.sgx-qp.is-open::backdrop { background: rgba(0,0,0,.32); }
-.sgx-qp-sheet { position: absolute; top: calc(8px + env(safe-area-inset-top, 0px)); left: 8px; right: 8px; margin: 0 auto;
-  max-width: 480px; max-height: calc(100% - 16px - env(safe-area-inset-top, 0px)); overflow-y: auto; overscroll-behavior: contain;
-  background: var(--m-container-lowest); border-radius: 28px; box-shadow: 0 12px 40px -8px rgba(0,0,0,.30);
-  padding: 16px 16px 10px; outline: none;
-  transform: translateY(calc(-100% - 24px)); transition: transform .24s cubic-bezier(.2,0,0,1); }
-.sgx-qp.is-open .sgx-qp-sheet { transform: none; }
-@media (min-width: 980px) {
-  .sgx-qp-sheet { left: auto; right: max(16px, calc((100vw - 1068px) / 2)); width: 400px; margin: 0; }
-}
-.reduced-motion .sgx-qp-sheet, .reduced-motion .sgx-qp::backdrop { transition: none; }
-@media (prefers-reduced-motion: reduce) { .sgx-qp-sheet, .sgx-qp::backdrop { transition: none; } }
-.sgx-qp-head { padding: 2px 6px 12px; font-size: 15px; font-weight: 700; color: var(--m-on-surface-variant); }
+/* 快捷面板（2026-10-20 改为内嵌；baseof.html <main> 开头的 #sgx-qp，shell/quick-panel.js 开关）：
+   正文流里的一块，宽度 = 本页内容列（JS 打开前 / 重绘时量出本页内容列里看得见的内容块的左右缘写进 --sgx-qp-l / --sgx-qp-w，量不到时按 max-w-2xl 居中）。
+   展开 / 收起用 grid-template-rows 0fr ↔ 1fr（.is-open），下面的正文跟着平滑下移 / 上移；收起后 visibility:hidden + inert。
+   面板与下方正文的间距（16px，= --sgx-content-gap）放在会被裁掉的内层里，收起时一起归零。
+   磁贴圆角块，开着的磁贴是主色容器底色（aria-pressed="true"）；面板够宽（容器 ≥ 560px）时磁贴一行排满、字号 / 布局两行并排。 */
+.sgx-qp { display: grid; grid-template-rows: 0fr; box-sizing: border-box;
+  width: var(--sgx-qp-w, min(42rem, calc(100% - 32px))); margin-left: var(--sgx-qp-l, auto); margin-right: auto;
+  color: var(--m-on-surface); transition: grid-template-rows .25s cubic-bezier(.2,0,0,1); }
+.sgx-qp.is-open { grid-template-rows: 1fr; }
+.sgx-qp-clip { min-height: 0; overflow: hidden; container-type: inline-size; }
+.sgx-qp[data-state="closed"] .sgx-qp-clip { visibility: hidden; }
+/* 完全展开后不再裁切，卡片阴影 / 焦点框不被切掉 */
+.sgx-qp[data-state="open"] .sgx-qp-clip { overflow: visible; }
+.sgx-qp-sheet { margin-bottom: var(--sgx-content-gap); padding: 16px 16px 6px; border-radius: 28px; outline: none;
+  background: var(--m-container-lowest); border: 1px solid var(--sgx-mat-line); box-shadow: 0 1px 2px rgba(16,24,40,.06);
+  opacity: 0; transform: translateY(-8px); transition: opacity .2s ease, transform .25s cubic-bezier(.2,0,0,1);
+  touch-action: pan-x pan-y; }
+.sgx-qp.is-open .sgx-qp-sheet { opacity: 1; transform: none; }
+.reduced-motion .sgx-qp, .reduced-motion .sgx-qp-sheet { transition: none; }
+@media (prefers-reduced-motion: reduce) { .sgx-qp, .sgx-qp-sheet { transition: none; } }
+/* 面板开着：长条里的图标保持按下态 */
+.sgx-tb-quick[aria-expanded="true"] { background-color: var(--m-primary-container); color: var(--m-on-primary-container); }
 .sgx-qp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .sgx-qp-tile { display: flex; align-items: center; gap: 10px; min-height: 64px; min-width: 0; padding: 10px 12px; border-radius: 22px;
   background: var(--m-container-high); color: var(--m-on-surface); text-align: left; cursor: pointer; transition: background-color .15s ease; }
@@ -2501,7 +2513,12 @@
   font-size: 14px; font-weight: 600; color: var(--m-primary); text-decoration: none; }
 .sgx-qp-all:active { background: var(--m-container); }
 .sgx-qp-all svg { color: var(--m-primary); }
-.sgx-qp-handle { width: 36px; height: 4px; border-radius: 999px; margin: 6px auto 0; background: var(--m-outline); }
+@container (min-width: 560px) {
+  .sgx-qp-sheet { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; }
+  .sgx-qp-grid, .sgx-qp-row:has(.sgx-qp-sws), .sgx-qp-all { grid-column: 1 / -1; }
+  .sgx-qp-grid { display: flex; flex-wrap: wrap; }
+  .sgx-qp-tile { flex: 1 1 150px; }
+}
 /* topbar v2.0 end */
 
 /* ===== 头像裁剪（assets/js/apps/avatar-edit.js）=====
