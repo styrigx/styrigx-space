@@ -82,11 +82,6 @@
       --m-on-primary: #ffffff;
       --m-primary-container: #d3e6f5;
       --m-on-primary-container: #0c2f47;
-      /* C3 进入凭证按钮：固定深蓝（深浅色一致，保证对比度 ≥4.5:1） */
-      --sgx-door-btn-bg: #2f5f86;
-      --sgx-door-btn-fg: #ffffff;
-      --sgx-door-btn2-bg: #dbe7f3;
-      --sgx-door-btn2-fg: #2f5f86;
       --m-secondary: #4e6577;
       --m-on-secondary: #ffffff;
       --m-secondary-container: #d1e4f3;
@@ -129,11 +124,6 @@
       --m-on-primary: #003351;
       --m-primary-container: #1e4767;
       --m-on-primary-container: #d3e6f5;
-      /* C3 进入凭证按钮：主按钮固定深蓝；次按钮深色用深 slate（保证主次层次） */
-      --sgx-door-btn-bg: #2f5f86;
-      --sgx-door-btn-fg: #ffffff;
-      --sgx-door-btn2-bg: #324a5c;
-      --sgx-door-btn2-fg: #d1e4f3;
       --m-secondary: #aec6d8;
       --m-on-secondary: #0c2f3f;
       --m-secondary-container: #324a5c;
@@ -511,11 +501,6 @@
       --m-on-primary: light-dark(#ffffff, #003351);
       --m-primary-container: light-dark(#d3e6f5, #1e4767);
       --m-on-primary-container: light-dark(#0c2f47, #d3e6f5);
-      /* C3 进入凭证按钮：主按钮固定深蓝；次按钮 light-dark()（浅/深，主次层次） */
-      --sgx-door-btn-bg: #2f5f86;
-      --sgx-door-btn-fg: #ffffff;
-      --sgx-door-btn2-bg: light-dark(#dbe7f3, #324a5c);
-      --sgx-door-btn2-fg: light-dark(#2f5f86, #d1e4f3);
       --m-secondary: light-dark(#4e6577, #aec6d8);
       --m-on-secondary: light-dark(#ffffff, #0c2f3f);
       --m-secondary-container: light-dark(#d1e4f3, #324a5c);
@@ -883,6 +868,2532 @@
         radial-gradient(120% 90% at 50% 100%, #262626 0%, transparent 60%),
         #131313;
     }
+  }
+  /* ===== 主题色 → 整套配色（PR3：全站统一的色彩角色 token，One UI 调色板 / Material You 式） =====
+     以后所有组件只用 --sgx-* 角色，不再按组件写死颜色或单独 color-mix。
+
+     来源：13 套手调色板（每套一个「场景」：主 / 辅 / 第三色、中性色调、背景三团光、危险色都按场景单独挑，
+     只有亮度阶梯共用；全部 13 × 2 套、1950 项对比度检查通过：正文 ≥4.5:1，控件 ≥3:1）。
+     - 预设：值在 web/data/palette-roles.json，由 scripts/gen-palettes.mjs 生成进下面 @gen-palettes 两行标记之间，
+       不要手改（改 JSON 后重跑脚本；单测会核对两边一致）。<html data-palette="…"> 选预设（baseof 内联脚本读 localStorage
+       sgx-palette；子站读 sgx-ui cookie 的 pal）；默认 lake 不写 data-palette，所以 lake 写在 :root / :root.dark 上。
+     - 自定义颜色：localStorage sgx-accent = #rrggbb → lib/palette-scheme.js（设计稿 scheme.js 原样移植：找最近的手调预设、
+       沿用它的色相关系并转到种子色相上、同一条亮度阶梯、对比度审计 + 自动修正）算出同一套角色，
+       lib/accent.js 写成 <style id="sgx-accent-roles">（不进 @layer，盖过下面的预设）并缓存到 sgx-accent-css；
+       baseof 内联脚本首屏直接用缓存。没有 JS / 没有缓存时退回当前预设的值（--sgx-seed 仍是自定义色，给 ui-cookie 同步子站）。
+     - 一个预设 = 亮 / 暗各 84 个角色 + 状态层：
+       强调色族：--sgx-primary / on-primary / primary-container / on-primary-container，secondary、tertiary、danger 同样四个；
+         inverse-surface / inverse-on-surface / inverse-primary（snackbar）
+       页面与背景：background、bg-gradient-1..3、bg-blob-1..3、background-css（整串壁纸）、surface-dim / surface / surface-bright
+       层级：surface-container-lowest / -low / (无后缀) / -high / -highest；别名 card、card-nested、card-nested-2、sheet、dialog、
+         drawer、menu、input-fill（深色每升一层更亮）
+       玻璃与遮罩：topbar-glass、glass-tint、glass-edge、scrim
+       文字：text-primary / text-secondary / text-tertiary / text-disabled、disabled-container
+       边线：outline（≥3:1，输入框、关着的开关、未选 chip）、outline-variant（装饰性卡片边，= 现在的 --m-outline）、divider
+       交互：focus-ring、link、link-visited、switch-track-on/-thumb-on/-track-off/-thumb-off、slider-active/-inactive/-thumb、
+         chip-selected / on-chip-selected、nav-selected / on-nav-selected、fab / on-fab、badge / on-badge、badge-info / on-badge-info
+       功能：lock-clock、lock-meta、lock-quote、lock-quote-bg、lock-unlock / on-lock-unlock、
+         daymark-card、daymark-mark、daymark-label、daymark-text、daymark-trans
+       状态层：--sgx-state-color（叠加色）+ --sgx-state-hover / -focus / -pressed / -selected / -dragged（不透明度）
+     - 旧 --m-* → 新角色（迁移时对照，不改名）：--m-on-surface = text-primary；--m-on-surface-variant = text-secondary；
+       --m-container-* = surface-container-*；--m-outline = outline-variant；--m-wallpaper = background-css；--glass-tint = glass-tint。
+       --m-accent / --m-warm / --m-rose / --m-note（图标色）不在色板里，保持不变。
+     PR3 用到（只有这些界面接了角色）：账号登录 / 密码框 / 重置登录 / 锁屏 / 锁屏解锁弹层 / Turnstile 弹层；其余组件在下一个 PR 迁过来。 */
+  /* @gen-palettes:begin（scripts/gen-palettes.mjs 由 web/data/palette-roles.json 生成，勿手改） */
+  /* 默认 · Default（lake）：清晨湖面：湖蓝为主，岸边海玻璃绿与一抹薄雾淡紫。 */
+  :root,
+  :root[data-palette="lake"] {
+    --sgx-seed: #2f5f86;
+    --sgx-primary: #2f5f86;
+    --sgx-on-primary: #f9fcff;
+    --sgx-primary-container: #d0e6fb;
+    --sgx-on-primary-container: #0b304c;
+    --sgx-secondary: #516775;
+    --sgx-on-secondary: #f9fcff;
+    --sgx-secondary-container: #d8e9f5;
+    --sgx-on-secondary-container: #192e3c;
+    --sgx-tertiary: #3b6f5f;
+    --sgx-on-tertiary: #f9fdfb;
+    --sgx-tertiary-container: #cdede2;
+    --sgx-on-tertiary-container: #003428;
+    --sgx-danger: #c22826;
+    --sgx-on-danger: #fffbfa;
+    --sgx-danger-container: #ffddd9;
+    --sgx-on-danger-container: #5f0608;
+    --sgx-background: #f0f5f9;
+    --sgx-surface-dim: #dae1e6;
+    --sgx-surface: #f4f9fc;
+    --sgx-surface-bright: #fafdff;
+    --sgx-surface-container-lowest: #fdfeff;
+    --sgx-surface-container-low: #edf3f8;
+    --sgx-surface-container: #e7eef3;
+    --sgx-surface-container-high: #e0e8ee;
+    --sgx-surface-container-highest: #dae2e8;
+    --sgx-text-primary: #111b21;
+    --sgx-text-secondary: #3e4b54;
+    --sgx-text-tertiary: #5c6a73;
+    --sgx-text-disabled: rgba(17,27,33,0.38);
+    --sgx-disabled-container: rgba(17,27,33,0.12);
+    --sgx-outline: #6d7b86;
+    --sgx-outline-variant: #c6d2db;
+    --sgx-divider: rgba(17,27,33,0.1);
+    --sgx-card: #fdfeff;
+    --sgx-card-nested: #edf3f8;
+    --sgx-card-nested-2: #e7eef3;
+    --sgx-sheet: #edf3f8;
+    --sgx-dialog: #e0e8ee;
+    --sgx-drawer: #edf3f8;
+    --sgx-menu: #e7eef3;
+    --sgx-input-fill: #dae2e8;
+    --sgx-topbar-glass: rgba(250,253,255,0.72);
+    --sgx-glass-tint: rgba(253,254,255,0.72);
+    --sgx-glass-edge: rgba(17,27,33,0.06);
+    --sgx-scrim: rgba(7,14,19,0.32);
+    --sgx-inverse-surface: #242a2e;
+    --sgx-inverse-on-surface: #ecf1f5;
+    --sgx-inverse-primary: #9dc3e3;
+    --sgx-bg-blob-1: #cde7fe;
+    --sgx-bg-blob-2: #ceefe1;
+    --sgx-bg-blob-3: #ebe4fa;
+    --sgx-bg-gradient-1: #ecf2f8;
+    --sgx-bg-gradient-2: #f0f5f9;
+    --sgx-bg-gradient-3: #f3f1f7;
+    --sgx-link: #2b5b81;
+    --sgx-link-visited: #2c6151;
+    --sgx-focus-ring: #2f5f86;
+    --sgx-switch-track-on: #2f5f86;
+    --sgx-switch-thumb-on: #f9fcff;
+    --sgx-switch-track-off: #dae2e8;
+    --sgx-switch-thumb-off: #6d7b86;
+    --sgx-slider-active: #2f5f86;
+    --sgx-slider-inactive: #d0e6fb;
+    --sgx-slider-thumb: #2f5f86;
+    --sgx-chip-selected: #d8e9f5;
+    --sgx-on-chip-selected: #192e3c;
+    --sgx-nav-selected: #d8e9f5;
+    --sgx-on-nav-selected: #192e3c;
+    --sgx-fab: #d0e6fb;
+    --sgx-on-fab: #0b304c;
+    --sgx-badge: #c22826;
+    --sgx-on-badge: #fffbfa;
+    --sgx-badge-info: #3b6f5f;
+    --sgx-on-badge-info: #f9fdfb;
+    --sgx-lock-clock: #111b21;
+    --sgx-lock-meta: #3e4b54;
+    --sgx-lock-quote: #003428;
+    --sgx-lock-quote-bg: rgba(205,237,226,0.6);
+    --sgx-lock-unlock: #2f5f86;
+    --sgx-on-lock-unlock: #f9fcff;
+    --sgx-daymark-card: #fdfeff;
+    --sgx-daymark-mark: rgba(59,111,95,0.1);
+    --sgx-daymark-label: #3b6f5f;
+    --sgx-daymark-text: #111b21;
+    --sgx-daymark-trans: #3e4b54;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #cde7fe 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #ceefe1 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #ebe4fa 0%, transparent 60%), linear-gradient(180deg, #ecf2f8 0%, #f0f5f9 55%, #f3f1f7 100%);
+    --sgx-state-color: var(--sgx-text-primary);
+    --sgx-state-hover: 0.08;
+    --sgx-state-focus: 0.1;
+    --sgx-state-pressed: 0.12;
+    --sgx-state-selected: 0.1;
+    --sgx-state-dragged: 0.16;
+  }
+  :root.dark,
+  :root.dark[data-palette="lake"] {
+    --sgx-primary: #90c4f1;
+    --sgx-on-primary: #132c41;
+    --sgx-primary-container: #284259;
+    --sgx-on-primary-container: #d9e8f7;
+    --sgx-secondary: #adc1cf;
+    --sgx-on-secondary: #202c33;
+    --sgx-secondary-container: #2d3b45;
+    --sgx-on-secondary-container: #dae5ec;
+    --sgx-tertiary: #9cc9ba;
+    --sgx-on-tertiary: #153028;
+    --sgx-tertiary-container: #23453a;
+    --sgx-on-tertiary-container: #d5eae3;
+    --sgx-danger: #f89a8f;
+    --sgx-on-danger: #4f1310;
+    --sgx-danger-container: #6c2e28;
+    --sgx-on-danger-container: #ffddd9;
+    --sgx-background: #0b0f12;
+    --sgx-surface-dim: #080b0e;
+    --sgx-surface: #0f1317;
+    --sgx-surface-bright: #2c3135;
+    --sgx-surface-container-lowest: #121619;
+    --sgx-surface-container-low: #161b1e;
+    --sgx-surface-container: #1b2024;
+    --sgx-surface-container-high: #20262b;
+    --sgx-surface-container-highest: #262d32;
+    --sgx-text-primary: #e4eaef;
+    --sgx-text-secondary: #b3bec6;
+    --sgx-text-tertiary: #909ca4;
+    --sgx-text-disabled: rgba(228,234,239,0.38);
+    --sgx-disabled-container: rgba(228,234,239,0.12);
+    --sgx-outline: #7d8890;
+    --sgx-outline-variant: #374046;
+    --sgx-divider: rgba(228,234,239,0.12);
+    --sgx-card: #121619;
+    --sgx-card-nested: #161b1e;
+    --sgx-card-nested-2: #1b2024;
+    --sgx-sheet: #161b1e;
+    --sgx-dialog: #20262b;
+    --sgx-drawer: #161b1e;
+    --sgx-menu: #1b2024;
+    --sgx-input-fill: #262d32;
+    --sgx-topbar-glass: rgba(44,49,53,0.68);
+    --sgx-glass-tint: rgba(27,32,36,0.72);
+    --sgx-glass-edge: rgba(240,246,250,0.08);
+    --sgx-scrim: rgba(1,2,3,0.6);
+    --sgx-inverse-surface: #dae3e9;
+    --sgx-inverse-on-surface: #25292c;
+    --sgx-inverse-primary: #2f5f86;
+    --sgx-bg-blob-1: #1f303e;
+    --sgx-bg-blob-2: #1b3128;
+    --sgx-bg-blob-3: #2b2633;
+    --sgx-bg-gradient-1: #101418;
+    --sgx-bg-gradient-2: #0b0f12;
+    --sgx-bg-gradient-3: #121115;
+    --sgx-link: #a1c9ed;
+    --sgx-link-visited: #9ec9ba;
+    --sgx-focus-ring: #90c4f1;
+    --sgx-switch-track-on: #90c4f1;
+    --sgx-switch-thumb-on: #132c41;
+    --sgx-switch-track-off: #262d32;
+    --sgx-switch-thumb-off: #7d8890;
+    --sgx-slider-active: #90c4f1;
+    --sgx-slider-inactive: #284259;
+    --sgx-slider-thumb: #90c4f1;
+    --sgx-chip-selected: #2d3b45;
+    --sgx-on-chip-selected: #dae5ec;
+    --sgx-nav-selected: #2d3b45;
+    --sgx-on-nav-selected: #dae5ec;
+    --sgx-fab: #284259;
+    --sgx-on-fab: #d9e8f7;
+    --sgx-badge: #f89a8f;
+    --sgx-on-badge: #4f1310;
+    --sgx-badge-info: #9cc9ba;
+    --sgx-on-badge-info: #153028;
+    --sgx-lock-clock: #e4eaef;
+    --sgx-lock-meta: #b3bec6;
+    --sgx-lock-quote: #d5eae3;
+    --sgx-lock-quote-bg: rgba(35,69,58,0.55);
+    --sgx-lock-unlock: #90c4f1;
+    --sgx-on-lock-unlock: #132c41;
+    --sgx-daymark-card: #121619;
+    --sgx-daymark-mark: rgba(156,201,186,0.14);
+    --sgx-daymark-label: #9cc9ba;
+    --sgx-daymark-text: #e4eaef;
+    --sgx-daymark-trans: #b3bec6;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #1f303e 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #1b3128 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #2b2633 0%, transparent 60%), linear-gradient(180deg, #101418 0%, #0b0f12 55%, #121115 100%);
+    --sgx-state-color: var(--sgx-text-primary);
+    --sgx-state-hover: 0.08;
+    --sgx-state-focus: 0.12;
+    --sgx-state-pressed: 0.14;
+    --sgx-state-selected: 0.12;
+    --sgx-state-dragged: 0.18;
+  }
+  /* 山绿 · Forest（forest）：雨后山径：松针绿、苔藓与远山的雾蓝。 */
+  :root[data-palette="forest"] {
+    --sgx-seed: #2f6b4f;
+    --sgx-primary: #2f6b4f;
+    --sgx-on-primary: #f8fdfa;
+    --sgx-primary-container: #d0ebdb;
+    --sgx-on-primary-container: #053723;
+    --sgx-secondary: #5a6855;
+    --sgx-on-secondary: #fafdf9;
+    --sgx-secondary-container: #dfeadb;
+    --sgx-on-secondary-container: #23301e;
+    --sgx-tertiary: #42697b;
+    --sgx-on-tertiary: #f8fcfe;
+    --sgx-tertiary-container: #d0e9f5;
+    --sgx-on-tertiary-container: #09303f;
+    --sgx-danger: #c22826;
+    --sgx-on-danger: #fffbfa;
+    --sgx-danger-container: #ffddd9;
+    --sgx-on-danger-container: #5f0608;
+    --sgx-background: #f1f6f2;
+    --sgx-surface-dim: #dbe1dd;
+    --sgx-surface: #f5f9f6;
+    --sgx-surface-bright: #fbfdfb;
+    --sgx-surface-container-lowest: #fdfefd;
+    --sgx-surface-container-low: #eff4f0;
+    --sgx-surface-container: #e8eeea;
+    --sgx-surface-container-high: #e2e9e4;
+    --sgx-surface-container-highest: #dbe3dd;
+    --sgx-text-primary: #131c16;
+    --sgx-text-secondary: #414c44;
+    --sgx-text-tertiary: #5f6b63;
+    --sgx-text-disabled: rgba(19,28,22,0.38);
+    --sgx-disabled-container: rgba(19,28,22,0.12);
+    --sgx-outline: #707d73;
+    --sgx-outline-variant: #c9d3cc;
+    --sgx-divider: rgba(19,28,22,0.1);
+    --sgx-card: #fdfefd;
+    --sgx-card-nested: #eff4f0;
+    --sgx-card-nested-2: #e8eeea;
+    --sgx-sheet: #eff4f0;
+    --sgx-dialog: #e2e9e4;
+    --sgx-drawer: #eff4f0;
+    --sgx-menu: #e8eeea;
+    --sgx-input-fill: #dbe3dd;
+    --sgx-topbar-glass: rgba(251,253,251,0.72);
+    --sgx-glass-tint: rgba(253,254,253,0.72);
+    --sgx-glass-edge: rgba(19,28,22,0.06);
+    --sgx-scrim: rgba(9,15,11,0.32);
+    --sgx-inverse-surface: #252a27;
+    --sgx-inverse-on-surface: #edf2ee;
+    --sgx-inverse-primary: #9dcab2;
+    --sgx-bg-blob-1: #ceecd9;
+    --sgx-bg-blob-2: #cfecf8;
+    --sgx-bg-blob-3: #e7ebd0;
+    --sgx-bg-gradient-1: #ecf3ee;
+    --sgx-bg-gradient-2: #f1f6f2;
+    --sgx-bg-gradient-3: #f2f3ed;
+    --sgx-link: #276448;
+    --sgx-link-visited: #345b6c;
+    --sgx-focus-ring: #2f6b4f;
+    --sgx-switch-track-on: #2f6b4f;
+    --sgx-switch-thumb-on: #f8fdfa;
+    --sgx-switch-track-off: #dbe3dd;
+    --sgx-switch-thumb-off: #707d73;
+    --sgx-slider-active: #2f6b4f;
+    --sgx-slider-inactive: #d0ebdb;
+    --sgx-slider-thumb: #2f6b4f;
+    --sgx-chip-selected: #dfeadb;
+    --sgx-on-chip-selected: #23301e;
+    --sgx-nav-selected: #dfeadb;
+    --sgx-on-nav-selected: #23301e;
+    --sgx-fab: #d0ebdb;
+    --sgx-on-fab: #053723;
+    --sgx-badge: #c22826;
+    --sgx-on-badge: #fffbfa;
+    --sgx-badge-info: #42697b;
+    --sgx-on-badge-info: #f8fcfe;
+    --sgx-lock-clock: #131c16;
+    --sgx-lock-meta: #414c44;
+    --sgx-lock-quote: #09303f;
+    --sgx-lock-quote-bg: rgba(208,233,245,0.6);
+    --sgx-lock-unlock: #2f6b4f;
+    --sgx-on-lock-unlock: #f8fdfa;
+    --sgx-daymark-card: #fdfefd;
+    --sgx-daymark-mark: rgba(66,105,123,0.1);
+    --sgx-daymark-label: #42697b;
+    --sgx-daymark-text: #131c16;
+    --sgx-daymark-trans: #414c44;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #ceecd9 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #cfecf8 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #e7ebd0 0%, transparent 60%), linear-gradient(180deg, #ecf3ee 0%, #f1f6f2 55%, #f2f3ed 100%);
+    --sgx-state-color: var(--sgx-text-primary);
+    --sgx-state-hover: 0.08;
+    --sgx-state-focus: 0.1;
+    --sgx-state-pressed: 0.12;
+    --sgx-state-selected: 0.1;
+    --sgx-state-dragged: 0.16;
+  }
+  :root.dark[data-palette="forest"] {
+    --sgx-primary: #8ccfac;
+    --sgx-on-primary: #113122;
+    --sgx-primary-container: #274837;
+    --sgx-on-primary-container: #d9ece1;
+    --sgx-secondary: #b5c2b1;
+    --sgx-on-secondary: #252d23;
+    --sgx-secondary-container: #333d30;
+    --sgx-on-secondary-container: #dee5dc;
+    --sgx-tertiary: #a1c4d4;
+    --sgx-on-tertiary: #192d36;
+    --sgx-tertiary-container: #28414c;
+    --sgx-on-tertiary-container: #d7e8f0;
+    --sgx-danger: #f89a8f;
+    --sgx-on-danger: #4f1310;
+    --sgx-danger-container: #6c2e28;
+    --sgx-on-danger-container: #ffddd9;
+    --sgx-background: #0c0f0d;
+    --sgx-surface-dim: #080c09;
+    --sgx-surface: #101411;
+    --sgx-surface-bright: #2d322e;
+    --sgx-surface-container-lowest: #131714;
+    --sgx-surface-container-low: #171b18;
+    --sgx-surface-container: #1c211d;
+    --sgx-surface-container-high: #212723;
+    --sgx-surface-container-highest: #282e2a;
+    --sgx-text-primary: #e5ebe7;
+    --sgx-text-secondary: #b5bfb8;
+    --sgx-text-tertiary: #939d96;
+    --sgx-text-disabled: rgba(229,235,231,0.38);
+    --sgx-disabled-container: rgba(229,235,231,0.12);
+    --sgx-outline: #7f8982;
+    --sgx-outline-variant: #39413b;
+    --sgx-divider: rgba(229,235,231,0.12);
+    --sgx-card: #131714;
+    --sgx-card-nested: #171b18;
+    --sgx-card-nested-2: #1c211d;
+    --sgx-sheet: #171b18;
+    --sgx-dialog: #212723;
+    --sgx-drawer: #171b18;
+    --sgx-menu: #1c211d;
+    --sgx-input-fill: #282e2a;
+    --sgx-topbar-glass: rgba(45,50,46,0.68);
+    --sgx-glass-tint: rgba(28,33,29,0.72);
+    --sgx-glass-edge: rgba(242,247,243,0.08);
+    --sgx-scrim: rgba(1,2,1,0.6);
+    --sgx-inverse-surface: #dce3de;
+    --sgx-inverse-on-surface: #262a27;
+    --sgx-inverse-primary: #2f6b4f;
+    --sgx-bg-blob-1: #203328;
+    --sgx-bg-blob-2: #1c2e36;
+    --sgx-bg-blob-3: #282b1b;
+    --sgx-bg-gradient-1: #101512;
+    --sgx-bg-gradient-2: #0c0f0d;
+    --sgx-bg-gradient-3: #11120e;
+    --sgx-link: #a1d1b7;
+    --sgx-link-visited: #a3c4d3;
+    --sgx-focus-ring: #8ccfac;
+    --sgx-switch-track-on: #8ccfac;
+    --sgx-switch-thumb-on: #113122;
+    --sgx-switch-track-off: #282e2a;
+    --sgx-switch-thumb-off: #7f8982;
+    --sgx-slider-active: #8ccfac;
+    --sgx-slider-inactive: #274837;
+    --sgx-slider-thumb: #8ccfac;
+    --sgx-chip-selected: #333d30;
+    --sgx-on-chip-selected: #dee5dc;
+    --sgx-nav-selected: #333d30;
+    --sgx-on-nav-selected: #dee5dc;
+    --sgx-fab: #274837;
+    --sgx-on-fab: #d9ece1;
+    --sgx-badge: #f89a8f;
+    --sgx-on-badge: #4f1310;
+    --sgx-badge-info: #a1c4d4;
+    --sgx-on-badge-info: #192d36;
+    --sgx-lock-clock: #e5ebe7;
+    --sgx-lock-meta: #b5bfb8;
+    --sgx-lock-quote: #d7e8f0;
+    --sgx-lock-quote-bg: rgba(40,65,76,0.55);
+    --sgx-lock-unlock: #8ccfac;
+    --sgx-on-lock-unlock: #113122;
+    --sgx-daymark-card: #131714;
+    --sgx-daymark-mark: rgba(161,196,212,0.14);
+    --sgx-daymark-label: #a1c4d4;
+    --sgx-daymark-text: #e5ebe7;
+    --sgx-daymark-trans: #b5bfb8;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #203328 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #1c2e36 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #282b1b 0%, transparent 60%), linear-gradient(180deg, #101512 0%, #0c0f0d 55%, #11120e 100%);
+    --sgx-state-color: var(--sgx-text-primary);
+    --sgx-state-hover: 0.08;
+    --sgx-state-focus: 0.12;
+    --sgx-state-pressed: 0.14;
+    --sgx-state-selected: 0.12;
+    --sgx-state-dragged: 0.18;
+  }
+  /* 陶土 · Terracotta（terra）：晒过太阳的陶罐：陶土配鼠尾草绿与细沙。 */
+  :root[data-palette="terra"] {
+    --sgx-seed: #8a4b2d;
+    --sgx-primary: #8a4b2d;
+    --sgx-on-primary: #fffbf9;
+    --sgx-primary-container: #ffdac7;
+    --sgx-on-primary-container: #4b2002;
+    --sgx-secondary: #726049;
+    --sgx-on-secondary: #fefbf8;
+    --sgx-secondary-container: #f3e4d1;
+    --sgx-on-secondary-container: #392811;
+    --sgx-tertiary: #576a4d;
+    --sgx-on-tertiary: #fafdf9;
+    --sgx-tertiary-container: #dce9d6;
+    --sgx-on-tertiary-container: #213118;
+    --sgx-danger: #c51b32;
+    --sgx-on-danger: #fffbfa;
+    --sgx-danger-container: #ffdddb;
+    --sgx-on-danger-container: #5f0412;
+    --sgx-background: #f8f2ec;
+    --sgx-surface-dim: #e5ded7;
+    --sgx-surface: #fcf7f1;
+    --sgx-surface-bright: #fffcf9;
+    --sgx-surface-container-lowest: #fffefc;
+    --sgx-surface-container-low: #f7f1eb;
+    --sgx-surface-container: #f2ebe4;
+    --sgx-surface-container-high: #ede5dd;
+    --sgx-surface-container-highest: #e8dfd6;
+    --sgx-text-primary: #21180d;
+    --sgx-text-secondary: #534739;
+    --sgx-text-tertiary: #726556;
+    --sgx-text-disabled: rgba(33,24,13,0.38);
+    --sgx-disabled-container: rgba(33,24,13,0.12);
+    --sgx-outline: #857666;
+    --sgx-outline-variant: #dacec1;
+    --sgx-divider: rgba(33,24,13,0.1);
+    --sgx-card: #fffefc;
+    --sgx-card-nested: #f7f1eb;
+    --sgx-card-nested-2: #f2ebe4;
+    --sgx-sheet: #f7f1eb;
+    --sgx-dialog: #ede5dd;
+    --sgx-drawer: #f7f1eb;
+    --sgx-menu: #f2ebe4;
+    --sgx-input-fill: #e8dfd6;
+    --sgx-topbar-glass: rgba(255,252,249,0.72);
+    --sgx-glass-tint: rgba(255,254,252,0.72);
+    --sgx-glass-edge: rgba(33,24,13,0.06);
+    --sgx-scrim: rgba(19,12,5,0.32);
+    --sgx-inverse-surface: #2e2821;
+    --sgx-inverse-on-surface: #f5efe9;
+    --sgx-inverse-primary: #e6b098;
+    --sgx-bg-blob-1: #fcdbc8;
+    --sgx-bg-blob-2: #f4e5c5;
+    --sgx-bg-blob-3: #dfedd8;
+    --sgx-bg-gradient-1: #f8efea;
+    --sgx-bg-gradient-2: #f8f2ec;
+    --sgx-bg-gradient-3: #f0f4ee;
+    --sgx-link: #814325;
+    --sgx-link-visited: #495c3f;
+    --sgx-focus-ring: #8a4b2d;
+    --sgx-switch-track-on: #8a4b2d;
+    --sgx-switch-thumb-on: #fffbf9;
+    --sgx-switch-track-off: #e8dfd6;
+    --sgx-switch-thumb-off: #857666;
+    --sgx-slider-active: #8a4b2d;
+    --sgx-slider-inactive: #ffdac7;
+    --sgx-slider-thumb: #8a4b2d;
+    --sgx-chip-selected: #f3e4d1;
+    --sgx-on-chip-selected: #392811;
+    --sgx-nav-selected: #f3e4d1;
+    --sgx-on-nav-selected: #392811;
+    --sgx-fab: #ffdac7;
+    --sgx-on-fab: #4b2002;
+    --sgx-badge: #c51b32;
+    --sgx-on-badge: #fffbfa;
+    --sgx-badge-info: #576a4d;
+    --sgx-on-badge-info: #fafdf9;
+    --sgx-lock-clock: #21180d;
+    --sgx-lock-meta: #534739;
+    --sgx-lock-quote: #213118;
+    --sgx-lock-quote-bg: rgba(220,233,214,0.6);
+    --sgx-lock-unlock: #8a4b2d;
+    --sgx-on-lock-unlock: #fffbf9;
+    --sgx-daymark-card: #fffefc;
+    --sgx-daymark-mark: rgba(87,106,77,0.1);
+    --sgx-daymark-label: #576a4d;
+    --sgx-daymark-text: #21180d;
+    --sgx-daymark-trans: #534739;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #fcdbc8 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #f4e5c5 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #dfedd8 0%, transparent 60%), linear-gradient(180deg, #f8efea 0%, #f8f2ec 55%, #f0f4ee 100%);
+    --sgx-state-color: var(--sgx-text-primary);
+    --sgx-state-hover: 0.07;
+    --sgx-state-focus: 0.1;
+    --sgx-state-pressed: 0.12;
+    --sgx-state-selected: 0.1;
+    --sgx-state-dragged: 0.16;
+  }
+  :root.dark[data-palette="terra"] {
+    --sgx-primary: #edad90;
+    --sgx-on-primary: #412010;
+    --sgx-primary-container: #5a3524;
+    --sgx-on-primary-container: #fbe0d3;
+    --sgx-secondary: #cdbba5;
+    --sgx-on-secondary: #32281c;
+    --sgx-secondary-container: #443727;
+    --sgx-on-secondary-container: #ebe1d6;
+    --sgx-tertiary: #b2c4a9;
+    --sgx-on-tertiary: #242e1e;
+    --sgx-tertiary-container: #35412f;
+    --sgx-on-tertiary-container: #dfe8db;
+    --sgx-danger: #f89996;
+    --sgx-on-danger: #4f1316;
+    --sgx-danger-container: #6c2d2d;
+    --sgx-on-danger-container: #ffdddb;
+    --sgx-background: #120d09;
+    --sgx-surface-dim: #0e0a06;
+    --sgx-surface: #16120d;
+    --sgx-surface-bright: #352f29;
+    --sgx-surface-container-lowest: #191510;
+    --sgx-surface-container-low: #1e1913;
+    --sgx-surface-container: #241e18;
+    --sgx-surface-container-high: #2a241d;
+    --sgx-surface-container-highest: #312b24;
+    --sgx-text-primary: #efe8e1;
+    --sgx-text-secondary: #c5baaf;
+    --sgx-text-tertiary: #a3988c;
+    --sgx-text-disabled: rgba(239,232,225,0.38);
+    --sgx-disabled-container: rgba(239,232,225,0.12);
+    --sgx-outline: #8f8478;
+    --sgx-outline-variant: #453d33;
+    --sgx-divider: rgba(239,232,225,0.12);
+    --sgx-card: #191510;
+    --sgx-card-nested: #1e1913;
+    --sgx-card-nested-2: #241e18;
+    --sgx-sheet: #1e1913;
+    --sgx-dialog: #2a241d;
+    --sgx-drawer: #1e1913;
+    --sgx-menu: #241e18;
+    --sgx-input-fill: #312b24;
+    --sgx-topbar-glass: rgba(53,47,41,0.68);
+    --sgx-glass-tint: rgba(36,30,24,0.72);
+    --sgx-glass-edge: rgba(250,244,238,0.08);
+    --sgx-scrim: rgba(3,1,1,0.6);
+    --sgx-inverse-surface: #e8e0d7;
+    --sgx-inverse-on-surface: #2c2824;
+    --sgx-inverse-primary: #8a4b2d;
+    --sgx-bg-blob-1: #3c291d;
+    --sgx-bg-blob-2: #342a16;
+    --sgx-bg-blob-3: #242c20;
+    --sgx-bg-gradient-1: #18120f;
+    --sgx-bg-gradient-2: #120d09;
+    --sgx-bg-gradient-3: #10120f;
+    --sgx-link: #efb59b;
+    --sgx-link-visited: #b3c4aa;
+    --sgx-focus-ring: #edad90;
+    --sgx-switch-track-on: #edad90;
+    --sgx-switch-thumb-on: #412010;
+    --sgx-switch-track-off: #312b24;
+    --sgx-switch-thumb-off: #8f8478;
+    --sgx-slider-active: #edad90;
+    --sgx-slider-inactive: #5a3524;
+    --sgx-slider-thumb: #edad90;
+    --sgx-chip-selected: #443727;
+    --sgx-on-chip-selected: #ebe1d6;
+    --sgx-nav-selected: #443727;
+    --sgx-on-nav-selected: #ebe1d6;
+    --sgx-fab: #5a3524;
+    --sgx-on-fab: #fbe0d3;
+    --sgx-badge: #f89996;
+    --sgx-on-badge: #4f1316;
+    --sgx-badge-info: #b2c4a9;
+    --sgx-on-badge-info: #242e1e;
+    --sgx-lock-clock: #efe8e1;
+    --sgx-lock-meta: #c5baaf;
+    --sgx-lock-quote: #dfe8db;
+    --sgx-lock-quote-bg: rgba(53,65,47,0.55);
+    --sgx-lock-unlock: #edad90;
+    --sgx-on-lock-unlock: #412010;
+    --sgx-daymark-card: #191510;
+    --sgx-daymark-mark: rgba(178,196,169,0.14);
+    --sgx-daymark-label: #b2c4a9;
+    --sgx-daymark-text: #efe8e1;
+    --sgx-daymark-trans: #c5baaf;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #3c291d 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #342a16 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #242c20 0%, transparent 60%), linear-gradient(180deg, #18120f 0%, #120d09 55%, #10120f 100%);
+    --sgx-state-color: var(--sgx-text-primary);
+    --sgx-state-hover: 0.09;
+    --sgx-state-focus: 0.12;
+    --sgx-state-pressed: 0.15;
+    --sgx-state-selected: 0.13;
+    --sgx-state-dragged: 0.18;
+  }
+  /* 紫 · Violet（violet）：黄昏薰衣草：柔紫、灰丁香与一点暮色玫瑰。 */
+  :root[data-palette="violet"] {
+    --sgx-seed: #6750a4;
+    --sgx-primary: #6750a4;
+    --sgx-on-primary: #fcfbff;
+    --sgx-primary-container: #e4deff;
+    --sgx-on-primary-container: #321f5c;
+    --sgx-secondary: #665f75;
+    --sgx-on-secondary: #fcfbff;
+    --sgx-secondary-container: #e8e3f5;
+    --sgx-on-secondary-container: #2e273b;
+    --sgx-tertiary: #82545e;
+    --sgx-on-tertiary: #fffafb;
+    --sgx-tertiary-container: #fcdbe1;
+    --sgx-on-tertiary-container: #431e27;
+    --sgx-danger: #c2272d;
+    --sgx-on-danger: #fffbfa;
+    --sgx-danger-container: #ffddda;
+    --sgx-on-danger-container: #5f050c;
+    --sgx-background: #f5f3fa;
+    --sgx-surface-dim: #e0dee7;
+    --sgx-surface: #f8f7fd;
+    --sgx-surface-bright: #fcfcff;
+    --sgx-surface-container-lowest: #fefeff;
+    --sgx-surface-container-low: #f3f1f9;
+    --sgx-surface-container: #edebf3;
+    --sgx-surface-container-high: #e7e5ef;
+    --sgx-surface-container-highest: #e1dfe9;
+    --sgx-text-primary: #1a1822;
+    --sgx-text-secondary: #4a4756;
+    --sgx-text-tertiary: #686575;
+    --sgx-text-disabled: rgba(26,24,34,0.38);
+    --sgx-disabled-container: rgba(26,24,34,0.12);
+    --sgx-outline: #7a7688;
+    --sgx-outline-variant: #d1cedc;
+    --sgx-divider: rgba(26,24,34,0.1);
+    --sgx-card: #fefeff;
+    --sgx-card-nested: #f3f1f9;
+    --sgx-card-nested-2: #edebf3;
+    --sgx-sheet: #f3f1f9;
+    --sgx-dialog: #e7e5ef;
+    --sgx-drawer: #f3f1f9;
+    --sgx-menu: #edebf3;
+    --sgx-input-fill: #e1dfe9;
+    --sgx-topbar-glass: rgba(252,252,255,0.72);
+    --sgx-glass-tint: rgba(254,254,255,0.72);
+    --sgx-glass-edge: rgba(26,24,34,0.06);
+    --sgx-scrim: rgba(14,12,20,0.32);
+    --sgx-inverse-surface: #29282f;
+    --sgx-inverse-on-surface: #f0eff6;
+    --sgx-inverse-primary: #c0b2f7;
+    --sgx-bg-blob-1: #e4deff;
+    --sgx-bg-blob-2: #fadde9;
+    --sgx-bg-blob-3: #dce9ff;
+    --sgx-bg-gradient-1: #f1f0f8;
+    --sgx-bg-gradient-2: #f5f3fa;
+    --sgx-bg-gradient-3: #eff3f9;
+    --sgx-link: #5c4497;
+    --sgx-link-visited: #734651;
+    --sgx-focus-ring: #6750a4;
+    --sgx-switch-track-on: #6750a4;
+    --sgx-switch-thumb-on: #fcfbff;
+    --sgx-switch-track-off: #e1dfe9;
+    --sgx-switch-thumb-off: #7a7688;
+    --sgx-slider-active: #6750a4;
+    --sgx-slider-inactive: #e4deff;
+    --sgx-slider-thumb: #6750a4;
+    --sgx-chip-selected: #e8e3f5;
+    --sgx-on-chip-selected: #2e273b;
+    --sgx-nav-selected: #e8e3f5;
+    --sgx-on-nav-selected: #2e273b;
+    --sgx-fab: #e4deff;
+    --sgx-on-fab: #321f5c;
+    --sgx-badge: #c2272d;
+    --sgx-on-badge: #fffbfa;
+    --sgx-badge-info: #82545e;
+    --sgx-on-badge-info: #fffafb;
+    --sgx-lock-clock: #1a1822;
+    --sgx-lock-meta: #4a4756;
+    --sgx-lock-quote: #431e27;
+    --sgx-lock-quote-bg: rgba(252,219,225,0.6);
+    --sgx-lock-unlock: #6750a4;
+    --sgx-on-lock-unlock: #fcfbff;
+    --sgx-daymark-card: #fefeff;
+    --sgx-daymark-mark: rgba(130,84,94,0.1);
+    --sgx-daymark-label: #82545e;
+    --sgx-daymark-text: #1a1822;
+    --sgx-daymark-trans: #4a4756;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #e4deff 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #fadde9 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #dce9ff 0%, transparent 60%), linear-gradient(180deg, #f1f0f8 0%, #f5f3fa 55%, #eff3f9 100%);
+    --sgx-state-color: var(--sgx-text-primary);
+    --sgx-state-hover: 0.08;
+    --sgx-state-focus: 0.1;
+    --sgx-state-pressed: 0.12;
+    --sgx-state-selected: 0.1;
+    --sgx-state-dragged: 0.16;
+  }
+  :root.dark[data-palette="violet"] {
+    --sgx-primary: #c0b2f7;
+    --sgx-on-primary: #2d214c;
+    --sgx-primary-container: #423666;
+    --sgx-on-primary-container: #e7e2ff;
+    --sgx-secondary: #c0bacf;
+    --sgx-on-secondary: #2c2833;
+    --sgx-secondary-container: #3b3645;
+    --sgx-on-secondary-container: #e4e1ec;
+    --sgx-tertiary: #ddb0b9;
+    --sgx-on-tertiary: #3a2228;
+    --sgx-tertiary-container: #51333a;
+    --sgx-on-tertiary-container: #f4dee2;
+    --sgx-danger: #f89a92;
+    --sgx-on-danger: #4f1313;
+    --sgx-danger-container: #6c2d2a;
+    --sgx-on-danger-container: #ffddda;
+    --sgx-background: #0f0d13;
+    --sgx-surface-dim: #0b0a0f;
+    --sgx-surface: #131217;
+    --sgx-surface-bright: #312f36;
+    --sgx-surface-container-lowest: #16151a;
+    --sgx-surface-container-low: #1a191f;
+    --sgx-surface-container: #201e25;
+    --sgx-surface-container-high: #26242b;
+    --sgx-surface-container-highest: #2c2b33;
+    --sgx-text-primary: #eae8f0;
+    --sgx-text-secondary: #bdbac7;
+    --sgx-text-tertiary: #9a98a5;
+    --sgx-text-disabled: rgba(234,232,240,0.38);
+    --sgx-disabled-container: rgba(234,232,240,0.12);
+    --sgx-outline: #878491;
+    --sgx-outline-variant: #3f3d47;
+    --sgx-divider: rgba(234,232,240,0.12);
+    --sgx-card: #16151a;
+    --sgx-card-nested: #1a191f;
+    --sgx-card-nested-2: #201e25;
+    --sgx-sheet: #1a191f;
+    --sgx-dialog: #26242b;
+    --sgx-drawer: #1a191f;
+    --sgx-menu: #201e25;
+    --sgx-input-fill: #2c2b33;
+    --sgx-topbar-glass: rgba(49,47,54,0.68);
+    --sgx-glass-tint: rgba(32,30,37,0.72);
+    --sgx-glass-edge: rgba(245,244,251,0.08);
+    --sgx-scrim: rgba(2,1,3,0.6);
+    --sgx-inverse-surface: #e2e0ea;
+    --sgx-inverse-on-surface: #29282d;
+    --sgx-inverse-primary: #6750a4;
+    --sgx-bg-blob-1: #2f2a3e;
+    --sgx-bg-blob-2: #36262d;
+    --sgx-bg-blob-3: #212937;
+    --sgx-bg-gradient-1: #141318;
+    --sgx-bg-gradient-2: #0f0d13;
+    --sgx-bg-gradient-3: #0f1216;
+    --sgx-link: #c7b8ff;
+    --sgx-link-visited: #dbb1b9;
+    --sgx-focus-ring: #c0b2f7;
+    --sgx-switch-track-on: #c0b2f7;
+    --sgx-switch-thumb-on: #2d214c;
+    --sgx-switch-track-off: #2c2b33;
+    --sgx-switch-thumb-off: #878491;
+    --sgx-slider-active: #c0b2f7;
+    --sgx-slider-inactive: #423666;
+    --sgx-slider-thumb: #c0b2f7;
+    --sgx-chip-selected: #3b3645;
+    --sgx-on-chip-selected: #e4e1ec;
+    --sgx-nav-selected: #3b3645;
+    --sgx-on-nav-selected: #e4e1ec;
+    --sgx-fab: #423666;
+    --sgx-on-fab: #e7e2ff;
+    --sgx-badge: #f89a92;
+    --sgx-on-badge: #4f1313;
+    --sgx-badge-info: #ddb0b9;
+    --sgx-on-badge-info: #3a2228;
+    --sgx-lock-clock: #eae8f0;
+    --sgx-lock-meta: #bdbac7;
+    --sgx-lock-quote: #f4dee2;
+    --sgx-lock-quote-bg: rgba(81,51,58,0.55);
+    --sgx-lock-unlock: #c0b2f7;
+    --sgx-on-lock-unlock: #2d214c;
+    --sgx-daymark-card: #16151a;
+    --sgx-daymark-mark: rgba(221,176,185,0.14);
+    --sgx-daymark-label: #ddb0b9;
+    --sgx-daymark-text: #eae8f0;
+    --sgx-daymark-trans: #bdbac7;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #2f2a3e 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #36262d 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #212937 0%, transparent 60%), linear-gradient(180deg, #141318 0%, #0f0d13 55%, #0f1216 100%);
+    --sgx-state-color: var(--sgx-text-primary);
+    --sgx-state-hover: 0.08;
+    --sgx-state-focus: 0.12;
+    --sgx-state-pressed: 0.14;
+    --sgx-state-selected: 0.12;
+    --sgx-state-dragged: 0.18;
+  }
+  /* 蔷薇 · Rose（rose）：傍晚花园：蔷薇、灰调藕荷与一抹杏色。 */
+  :root[data-palette="rose"] {
+    --sgx-seed: #984061;
+    --sgx-primary: #984061;
+    --sgx-on-primary: #fffafc;
+    --sgx-primary-container: #ffd6e2;
+    --sgx-on-primary-container: #52112d;
+    --sgx-secondary: #735b68;
+    --sgx-on-secondary: #fefafc;
+    --sgx-secondary-container: #f3e0ea;
+    --sgx-on-secondary-container: #392430;
+    --sgx-tertiary: #81593a;
+    --sgx-on-tertiary: #fefbf8;
+    --sgx-tertiary-container: #fbdeca;
+    --sgx-on-tertiary-container: #432102;
+    --sgx-danger: #c12b09;
+    --sgx-on-danger: #fffbfa;
+    --sgx-danger-container: #ffded6;
+    --sgx-on-danger-container: #5d0d00;
+    --sgx-background: #faf2f5;
+    --sgx-surface-dim: #e6dde0;
+    --sgx-surface: #fdf6f8;
+    --sgx-surface-bright: #fffbfc;
+    --sgx-surface-container-lowest: #fffefe;
+    --sgx-surface-container-low: #f8f0f3;
+    --sgx-surface-container: #f3e9ed;
+    --sgx-surface-container-high: #eee4e7;
+    --sgx-surface-container-highest: #e9dde1;
+    --sgx-text-primary: #22151a;
+    --sgx-text-secondary: #55444a;
+    --sgx-text-tertiary: #746268;
+    --sgx-text-disabled: rgba(34,21,26,0.38);
+    --sgx-disabled-container: rgba(34,21,26,0.12);
+    --sgx-outline: #87737a;
+    --sgx-outline-variant: #dccbd1;
+    --sgx-divider: rgba(34,21,26,0.1);
+    --sgx-card: #fffefe;
+    --sgx-card-nested: #f8f0f3;
+    --sgx-card-nested-2: #f3e9ed;
+    --sgx-sheet: #f8f0f3;
+    --sgx-dialog: #eee4e7;
+    --sgx-drawer: #f8f0f3;
+    --sgx-menu: #f3e9ed;
+    --sgx-input-fill: #e9dde1;
+    --sgx-topbar-glass: rgba(255,251,252,0.72);
+    --sgx-glass-tint: rgba(255,254,254,0.72);
+    --sgx-glass-edge: rgba(34,21,26,0.06);
+    --sgx-scrim: rgba(20,10,14,0.32);
+    --sgx-inverse-surface: #2f2629;
+    --sgx-inverse-on-surface: #f5eef0;
+    --sgx-inverse-primary: #efa5bc;
+    --sgx-bg-blob-1: #fcd8e2;
+    --sgx-bg-blob-2: #fde0cc;
+    --sgx-bg-blob-3: #f0e2f5;
+    --sgx-bg-gradient-1: #f8eef1;
+    --sgx-bg-gradient-2: #faf2f5;
+    --sgx-bg-gradient-3: #f4f1f6;
+    --sgx-link: #8a3355;
+    --sgx-link-visited: #724b2c;
+    --sgx-focus-ring: #984061;
+    --sgx-switch-track-on: #984061;
+    --sgx-switch-thumb-on: #fffafc;
+    --sgx-switch-track-off: #e9dde1;
+    --sgx-switch-thumb-off: #87737a;
+    --sgx-slider-active: #984061;
+    --sgx-slider-inactive: #ffd6e2;
+    --sgx-slider-thumb: #984061;
+    --sgx-chip-selected: #f3e0ea;
+    --sgx-on-chip-selected: #392430;
+    --sgx-nav-selected: #f3e0ea;
+    --sgx-on-nav-selected: #392430;
+    --sgx-fab: #ffd6e2;
+    --sgx-on-fab: #52112d;
+    --sgx-badge: #c12b09;
+    --sgx-on-badge: #fffbfa;
+    --sgx-badge-info: #81593a;
+    --sgx-on-badge-info: #fefbf8;
+    --sgx-lock-clock: #22151a;
+    --sgx-lock-meta: #55444a;
+    --sgx-lock-quote: #432102;
+    --sgx-lock-quote-bg: rgba(251,222,202,0.6);
+    --sgx-lock-unlock: #984061;
+    --sgx-on-lock-unlock: #fffafc;
+    --sgx-daymark-card: #fffefe;
+    --sgx-daymark-mark: rgba(129,89,58,0.1);
+    --sgx-daymark-label: #81593a;
+    --sgx-daymark-text: #22151a;
+    --sgx-daymark-trans: #55444a;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #fcd8e2 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #fde0cc 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #f0e2f5 0%, transparent 60%), linear-gradient(180deg, #f8eef1 0%, #faf2f5 55%, #f4f1f6 100%);
+    --sgx-state-color: var(--sgx-text-primary);
+    --sgx-state-hover: 0.08;
+    --sgx-state-focus: 0.1;
+    --sgx-state-pressed: 0.12;
+    --sgx-state-selected: 0.1;
+    --sgx-state-dragged: 0.16;
+  }
+  :root.dark[data-palette="rose"] {
+    --sgx-primary: #f3a3bc;
+    --sgx-on-primary: #461829;
+    --sgx-primary-container: #5f2d3f;
+    --sgx-on-primary-container: #fddce5;
+    --sgx-secondary: #cdb6c2;
+    --sgx-on-secondary: #32262d;
+    --sgx-secondary-container: #44343c;
+    --sgx-on-secondary-container: #ebdfe5;
+    --sgx-tertiary: #dcb598;
+    --sgx-on-tertiary: #3a2514;
+    --sgx-tertiary-container: #513722;
+    --sgx-on-tertiary-container: #f4e1d3;
+    --sgx-danger: #f89b87;
+    --sgx-on-danger: #4f1409;
+    --sgx-danger-container: #6b2f22;
+    --sgx-on-danger-container: #ffded6;
+    --sgx-background: #120c0f;
+    --sgx-surface-dim: #0e090b;
+    --sgx-surface: #171113;
+    --sgx-surface-bright: #352e31;
+    --sgx-surface-container-lowest: #191416;
+    --sgx-surface-container-low: #1f181a;
+    --sgx-surface-container: #241d1f;
+    --sgx-surface-container-high: #2b2325;
+    --sgx-surface-container-highest: #32292c;
+    --sgx-text-primary: #f0e7ea;
+    --sgx-text-secondary: #c6b8bd;
+    --sgx-text-tertiary: #a5959a;
+    --sgx-text-disabled: rgba(240,231,234,0.38);
+    --sgx-disabled-container: rgba(240,231,234,0.12);
+    --sgx-outline: #918187;
+    --sgx-outline-variant: #473b3f;
+    --sgx-divider: rgba(240,231,234,0.12);
+    --sgx-card: #191416;
+    --sgx-card-nested: #1f181a;
+    --sgx-card-nested-2: #241d1f;
+    --sgx-sheet: #1f181a;
+    --sgx-dialog: #2b2325;
+    --sgx-drawer: #1f181a;
+    --sgx-menu: #241d1f;
+    --sgx-input-fill: #32292c;
+    --sgx-topbar-glass: rgba(53,46,49,0.68);
+    --sgx-glass-tint: rgba(36,29,31,0.72);
+    --sgx-glass-edge: rgba(250,243,245,0.08);
+    --sgx-scrim: rgba(3,1,2,0.6);
+    --sgx-inverse-surface: #e9dee2;
+    --sgx-inverse-on-surface: #2d2729;
+    --sgx-inverse-primary: #984061;
+    --sgx-bg-blob-1: #3c272d;
+    --sgx-bg-blob-2: #39271b;
+    --sgx-bg-blob-3: #2e2530;
+    --sgx-bg-gradient-1: #181214;
+    --sgx-bg-gradient-2: #120c0f;
+    --sgx-bg-gradient-3: #131114;
+    --sgx-link: #f9a9c3;
+    --sgx-link-visited: #dab59b;
+    --sgx-focus-ring: #f3a3bc;
+    --sgx-switch-track-on: #f3a3bc;
+    --sgx-switch-thumb-on: #461829;
+    --sgx-switch-track-off: #32292c;
+    --sgx-switch-thumb-off: #918187;
+    --sgx-slider-active: #f3a3bc;
+    --sgx-slider-inactive: #5f2d3f;
+    --sgx-slider-thumb: #f3a3bc;
+    --sgx-chip-selected: #44343c;
+    --sgx-on-chip-selected: #ebdfe5;
+    --sgx-nav-selected: #44343c;
+    --sgx-on-nav-selected: #ebdfe5;
+    --sgx-fab: #5f2d3f;
+    --sgx-on-fab: #fddce5;
+    --sgx-badge: #f89b87;
+    --sgx-on-badge: #4f1409;
+    --sgx-badge-info: #dcb598;
+    --sgx-on-badge-info: #3a2514;
+    --sgx-lock-clock: #f0e7ea;
+    --sgx-lock-meta: #c6b8bd;
+    --sgx-lock-quote: #f4e1d3;
+    --sgx-lock-quote-bg: rgba(81,55,34,0.55);
+    --sgx-lock-unlock: #f3a3bc;
+    --sgx-on-lock-unlock: #461829;
+    --sgx-daymark-card: #191416;
+    --sgx-daymark-mark: rgba(220,181,152,0.14);
+    --sgx-daymark-label: #dcb598;
+    --sgx-daymark-text: #f0e7ea;
+    --sgx-daymark-trans: #c6b8bd;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #3c272d 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #39271b 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #2e2530 0%, transparent 60%), linear-gradient(180deg, #181214 0%, #120c0f 55%, #131114 100%);
+    --sgx-state-color: var(--sgx-text-primary);
+    --sgx-state-hover: 0.08;
+    --sgx-state-focus: 0.12;
+    --sgx-state-pressed: 0.14;
+    --sgx-state-selected: 0.12;
+    --sgx-state-dragged: 0.18;
+  }
+  /* 樱桃 · Cherry（cherry）：枝头樱桃：果红配樱花粉和一片嫩叶，像水果不像报错。 */
+  :root[data-palette="cherry"] {
+    --sgx-seed: #ba1a20;
+    --sgx-primary: #ba1a20;
+    --sgx-on-primary: #fffbfa;
+    --sgx-primary-container: #ffd7dd;
+    --sgx-on-primary-container: #5a0022;
+    --sgx-secondary: #7a5865;
+    --sgx-on-secondary: #fffafc;
+    --sgx-secondary-container: #fadde7;
+    --sgx-on-secondary-container: #3f202d;
+    --sgx-tertiary: #4b6d52;
+    --sgx-on-tertiary: #f9fdfa;
+    --sgx-tertiary-container: #d5ecd9;
+    --sgx-on-tertiary-container: #14331c;
+    --sgx-danger: #b73e00;
+    --sgx-on-danger: #fffbf9;
+    --sgx-danger-container: #ffded3;
+    --sgx-on-danger-container: #571900;
+    --sgx-background: #faf2f3;
+    --sgx-surface-dim: #e6ddde;
+    --sgx-surface: #fdf6f7;
+    --sgx-surface-bright: #fffbfc;
+    --sgx-surface-container-lowest: #fffefe;
+    --sgx-surface-container-low: #f8f0f1;
+    --sgx-surface-container: #f3eaeb;
+    --sgx-surface-container-high: #eee4e5;
+    --sgx-surface-container-highest: #e9dddf;
+    --sgx-text-primary: #211617;
+    --sgx-text-secondary: #544446;
+    --sgx-text-tertiary: #746264;
+    --sgx-text-disabled: rgba(33,22,23,0.38);
+    --sgx-disabled-container: rgba(33,22,23,0.12);
+    --sgx-outline: #867375;
+    --sgx-outline-variant: #dbccce;
+    --sgx-divider: rgba(33,22,23,0.1);
+    --sgx-card: #fffefe;
+    --sgx-card-nested: #f8f0f1;
+    --sgx-card-nested-2: #f3eaeb;
+    --sgx-sheet: #f8f0f1;
+    --sgx-dialog: #eee4e5;
+    --sgx-drawer: #f8f0f1;
+    --sgx-menu: #f3eaeb;
+    --sgx-input-fill: #e9dddf;
+    --sgx-topbar-glass: rgba(255,251,252,0.72);
+    --sgx-glass-tint: rgba(255,254,254,0.72);
+    --sgx-glass-edge: rgba(33,22,23,0.06);
+    --sgx-scrim: rgba(19,10,12,0.32);
+    --sgx-inverse-surface: #2e2727;
+    --sgx-inverse-on-surface: #f5eeef;
+    --sgx-inverse-primary: #ffa097;
+    --sgx-bg-blob-1: #fdd7e4;
+    --sgx-bg-blob-2: #fedfd1;
+    --sgx-bg-blob-3: #deeddb;
+    --sgx-bg-gradient-1: #f8eef1;
+    --sgx-bg-gradient-2: #faf2f3;
+    --sgx-bg-gradient-3: #f0f4ef;
+    --sgx-link: #a50012;
+    --sgx-link-visited: #3d5f44;
+    --sgx-focus-ring: #ba1a20;
+    --sgx-switch-track-on: #ba1a20;
+    --sgx-switch-thumb-on: #fffbfa;
+    --sgx-switch-track-off: #e9dddf;
+    --sgx-switch-thumb-off: #867375;
+    --sgx-slider-active: #ba1a20;
+    --sgx-slider-inactive: #ffd7dd;
+    --sgx-slider-thumb: #ba1a20;
+    --sgx-chip-selected: #fadde7;
+    --sgx-on-chip-selected: #3f202d;
+    --sgx-nav-selected: #fadde7;
+    --sgx-on-nav-selected: #3f202d;
+    --sgx-fab: #ffd7dd;
+    --sgx-on-fab: #5a0022;
+    --sgx-badge: #b73e00;
+    --sgx-on-badge: #fffbf9;
+    --sgx-badge-info: #4b6d52;
+    --sgx-on-badge-info: #f9fdfa;
+    --sgx-lock-clock: #211617;
+    --sgx-lock-meta: #544446;
+    --sgx-lock-quote: #14331c;
+    --sgx-lock-quote-bg: rgba(213,236,217,0.6);
+    --sgx-lock-unlock: #ba1a20;
+    --sgx-on-lock-unlock: #fffbfa;
+    --sgx-daymark-card: #fffefe;
+    --sgx-daymark-mark: rgba(75,109,82,0.1);
+    --sgx-daymark-label: #4b6d52;
+    --sgx-daymark-text: #211617;
+    --sgx-daymark-trans: #544446;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #fdd7e4 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #fedfd1 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #deeddb 0%, transparent 60%), linear-gradient(180deg, #f8eef1 0%, #faf2f3 55%, #f0f4ef 100%);
+    --sgx-state-color: var(--sgx-primary);
+    --sgx-state-hover: 0.06;
+    --sgx-state-focus: 0.09;
+    --sgx-state-pressed: 0.11;
+    --sgx-state-selected: 0.09;
+    --sgx-state-dragged: 0.14;
+  }
+  :root.dark[data-palette="cherry"] {
+    --sgx-primary: #ff9ea7;
+    --sgx-on-primary: #500a1a;
+    --sgx-primary-container: #6e202e;
+    --sgx-on-primary-container: #ffdcde;
+    --sgx-secondary: #d4b3bf;
+    --sgx-on-secondary: #36242b;
+    --sgx-secondary-container: #49313a;
+    --sgx-on-secondary-container: #f0dde3;
+    --sgx-tertiary: #a8c7ad;
+    --sgx-on-tertiary: #1d2f21;
+    --sgx-tertiary-container: #2e4332;
+    --sgx-on-tertiary-container: #dae9dd;
+    --sgx-danger: #f69e7f;
+    --sgx-on-danger: #4e1601;
+    --sgx-danger-container: #6b301b;
+    --sgx-on-danger-container: #ffded3;
+    --sgx-background: #120d0d;
+    --sgx-surface-dim: #0e090a;
+    --sgx-surface: #171112;
+    --sgx-surface-bright: #352e2f;
+    --sgx-surface-container-lowest: #191415;
+    --sgx-surface-container-low: #1e1819;
+    --sgx-surface-container: #241d1e;
+    --sgx-surface-container-high: #2b2324;
+    --sgx-surface-container-highest: #322a2b;
+    --sgx-text-primary: #f0e7e8;
+    --sgx-text-secondary: #c6b8ba;
+    --sgx-text-tertiary: #a49697;
+    --sgx-text-disabled: rgba(240,231,232,0.38);
+    --sgx-disabled-container: rgba(240,231,232,0.12);
+    --sgx-outline: #908284;
+    --sgx-outline-variant: #463b3c;
+    --sgx-divider: rgba(240,231,232,0.12);
+    --sgx-card: #191415;
+    --sgx-card-nested: #1e1819;
+    --sgx-card-nested-2: #241d1e;
+    --sgx-sheet: #1e1819;
+    --sgx-dialog: #2b2324;
+    --sgx-drawer: #1e1819;
+    --sgx-menu: #241d1e;
+    --sgx-input-fill: #322a2b;
+    --sgx-topbar-glass: rgba(53,46,47,0.68);
+    --sgx-glass-tint: rgba(36,29,30,0.72);
+    --sgx-glass-edge: rgba(250,243,244,0.08);
+    --sgx-scrim: rgba(3,1,1,0.6);
+    --sgx-inverse-surface: #e9dedf;
+    --sgx-inverse-on-surface: #2d2728;
+    --sgx-inverse-primary: #ba1a20;
+    --sgx-bg-blob-1: #3c262f;
+    --sgx-bg-blob-2: #39261e;
+    --sgx-bg-blob-3: #232c21;
+    --sgx-bg-gradient-1: #181214;
+    --sgx-bg-gradient-2: #120d0d;
+    --sgx-bg-gradient-3: #10120f;
+    --sgx-link: #ffa9b0;
+    --sgx-link-visited: #a9c7ae;
+    --sgx-focus-ring: #ff9ea7;
+    --sgx-switch-track-on: #ff9ea7;
+    --sgx-switch-thumb-on: #500a1a;
+    --sgx-switch-track-off: #322a2b;
+    --sgx-switch-thumb-off: #908284;
+    --sgx-slider-active: #ff9ea7;
+    --sgx-slider-inactive: #6e202e;
+    --sgx-slider-thumb: #ff9ea7;
+    --sgx-chip-selected: #49313a;
+    --sgx-on-chip-selected: #f0dde3;
+    --sgx-nav-selected: #49313a;
+    --sgx-on-nav-selected: #f0dde3;
+    --sgx-fab: #6e202e;
+    --sgx-on-fab: #ffdcde;
+    --sgx-badge: #f69e7f;
+    --sgx-on-badge: #4e1601;
+    --sgx-badge-info: #a8c7ad;
+    --sgx-on-badge-info: #1d2f21;
+    --sgx-lock-clock: #f0e7e8;
+    --sgx-lock-meta: #c6b8ba;
+    --sgx-lock-quote: #dae9dd;
+    --sgx-lock-quote-bg: rgba(46,67,50,0.55);
+    --sgx-lock-unlock: #ff9ea7;
+    --sgx-on-lock-unlock: #500a1a;
+    --sgx-daymark-card: #191415;
+    --sgx-daymark-mark: rgba(168,199,173,0.14);
+    --sgx-daymark-label: #a8c7ad;
+    --sgx-daymark-text: #f0e7e8;
+    --sgx-daymark-trans: #c6b8ba;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #3c262f 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #39261e 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #232c21 0%, transparent 60%), linear-gradient(180deg, #181214 0%, #120d0d 55%, #10120f 100%);
+    --sgx-state-color: var(--sgx-primary);
+    --sgx-state-hover: 0.08;
+    --sgx-state-focus: 0.11;
+    --sgx-state-pressed: 0.13;
+    --sgx-state-selected: 0.12;
+    --sgx-state-dragged: 0.16;
+  }
+  /* 橘子 · Tangerine（tangerine）：地中海柑橘：橘皮、黄油般的阳光和一汪海水。 */
+  :root[data-palette="tangerine"] {
+    --sgx-seed: #b02e00;
+    --sgx-primary: #b02e00;
+    --sgx-on-primary: #fffbf9;
+    --sgx-primary-container: #ffdaca;
+    --sgx-on-primary-container: #4f1c00;
+    --sgx-secondary: #765e49;
+    --sgx-on-secondary: #fefbf8;
+    --sgx-secondary-container: #f6e2d1;
+    --sgx-on-secondary-container: #3c2611;
+    --sgx-tertiary: #366c77;
+    --sgx-on-tertiary: #f8fdfe;
+    --sgx-tertiary-container: #caecf3;
+    --sgx-on-tertiary-container: #00323a;
+    --sgx-danger: #c3184c;
+    --sgx-on-danger: #fffafb;
+    --sgx-danger-container: #ffdcdf;
+    --sgx-on-danger-container: #5e0320;
+    --sgx-background: #f9f3ef;
+    --sgx-surface-dim: #e6ded8;
+    --sgx-surface: #fcf7f2;
+    --sgx-surface-bright: #fffcf9;
+    --sgx-surface-container-lowest: #fffefd;
+    --sgx-surface-container-low: #f8f1ec;
+    --sgx-surface-container: #f2ebe5;
+    --sgx-surface-container-high: #ede5df;
+    --sgx-surface-container-highest: #e8dfd8;
+    --sgx-text-primary: #21170f;
+    --sgx-text-secondary: #54463b;
+    --sgx-text-tertiary: #736459;
+    --sgx-text-disabled: rgba(33,23,15,0.38);
+    --sgx-disabled-container: rgba(33,23,15,0.12);
+    --sgx-outline: #857569;
+    --sgx-outline-variant: #dbcec4;
+    --sgx-divider: rgba(33,23,15,0.1);
+    --sgx-card: #fffefd;
+    --sgx-card-nested: #f8f1ec;
+    --sgx-card-nested-2: #f2ebe5;
+    --sgx-sheet: #f8f1ec;
+    --sgx-dialog: #ede5df;
+    --sgx-drawer: #f8f1ec;
+    --sgx-menu: #f2ebe5;
+    --sgx-input-fill: #e8dfd8;
+    --sgx-topbar-glass: rgba(255,252,249,0.72);
+    --sgx-glass-tint: rgba(255,254,253,0.72);
+    --sgx-glass-edge: rgba(33,23,15,0.06);
+    --sgx-scrim: rgba(19,11,6,0.32);
+    --sgx-inverse-surface: #2e2722;
+    --sgx-inverse-on-surface: #f5efea;
+    --sgx-inverse-primary: #ffa289;
+    --sgx-bg-blob-1: #ffdac8;
+    --sgx-bg-blob-2: #f1e7bd;
+    --sgx-bg-blob-3: #d1eef2;
+    --sgx-bg-gradient-1: #f9efea;
+    --sgx-bg-gradient-2: #f9f3ef;
+    --sgx-bg-gradient-3: #edf4f5;
+    --sgx-link: #9a2700;
+    --sgx-link-visited: #275e69;
+    --sgx-focus-ring: #b02e00;
+    --sgx-switch-track-on: #b02e00;
+    --sgx-switch-thumb-on: #fffbf9;
+    --sgx-switch-track-off: #e8dfd8;
+    --sgx-switch-thumb-off: #857569;
+    --sgx-slider-active: #b02e00;
+    --sgx-slider-inactive: #ffdaca;
+    --sgx-slider-thumb: #b02e00;
+    --sgx-chip-selected: #f6e2d1;
+    --sgx-on-chip-selected: #3c2611;
+    --sgx-nav-selected: #f6e2d1;
+    --sgx-on-nav-selected: #3c2611;
+    --sgx-fab: #ffdaca;
+    --sgx-on-fab: #4f1c00;
+    --sgx-badge: #c3184c;
+    --sgx-on-badge: #fffafb;
+    --sgx-badge-info: #366c77;
+    --sgx-on-badge-info: #f8fdfe;
+    --sgx-lock-clock: #21170f;
+    --sgx-lock-meta: #54463b;
+    --sgx-lock-quote: #00323a;
+    --sgx-lock-quote-bg: rgba(202,236,243,0.6);
+    --sgx-lock-unlock: #b02e00;
+    --sgx-on-lock-unlock: #fffbf9;
+    --sgx-daymark-card: #fffefd;
+    --sgx-daymark-mark: rgba(54,108,119,0.1);
+    --sgx-daymark-label: #366c77;
+    --sgx-daymark-text: #21170f;
+    --sgx-daymark-trans: #54463b;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #ffdac8 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #f1e7bd 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #d1eef2 0%, transparent 60%), linear-gradient(180deg, #f9efea 0%, #f9f3ef 55%, #edf4f5 100%);
+    --sgx-state-color: var(--sgx-primary);
+    --sgx-state-hover: 0.06;
+    --sgx-state-focus: 0.09;
+    --sgx-state-pressed: 0.11;
+    --sgx-state-selected: 0.09;
+    --sgx-state-dragged: 0.14;
+  }
+  :root.dark[data-palette="tangerine"] {
+    --sgx-primary: #ffa289;
+    --sgx-on-primary: #500f00;
+    --sgx-primary-container: #6d2511;
+    --sgx-on-primary-container: #ffded5;
+    --sgx-secondary: #d0b9a5;
+    --sgx-on-secondary: #34271c;
+    --sgx-secondary-container: #463527;
+    --sgx-on-secondary-container: #ede0d6;
+    --sgx-tertiary: #98c7d1;
+    --sgx-on-tertiary: #122f34;
+    --sgx-tertiary-container: #20434a;
+    --sgx-on-tertiary-container: #d3e9ee;
+    --sgx-danger: #f798a4;
+    --sgx-on-danger: #4e121f;
+    --sgx-danger-container: #6b2c37;
+    --sgx-on-danger-container: #ffdcdf;
+    --sgx-background: #120d0a;
+    --sgx-surface-dim: #0e0a07;
+    --sgx-surface: #16120e;
+    --sgx-surface-bright: #352f2a;
+    --sgx-surface-container-lowest: #191511;
+    --sgx-surface-container-low: #1e1915;
+    --sgx-surface-container: #241e19;
+    --sgx-surface-container-high: #2a241f;
+    --sgx-surface-container-highest: #322b25;
+    --sgx-text-primary: #efe8e2;
+    --sgx-text-secondary: #c5bab1;
+    --sgx-text-tertiary: #a3978e;
+    --sgx-text-disabled: rgba(239,232,226,0.38);
+    --sgx-disabled-container: rgba(239,232,226,0.12);
+    --sgx-outline: #90847a;
+    --sgx-outline-variant: #463c35;
+    --sgx-divider: rgba(239,232,226,0.12);
+    --sgx-card: #191511;
+    --sgx-card-nested: #1e1915;
+    --sgx-card-nested-2: #241e19;
+    --sgx-sheet: #1e1915;
+    --sgx-dialog: #2a241f;
+    --sgx-drawer: #1e1915;
+    --sgx-menu: #241e19;
+    --sgx-input-fill: #322b25;
+    --sgx-topbar-glass: rgba(53,47,42,0.68);
+    --sgx-glass-tint: rgba(36,30,25,0.72);
+    --sgx-glass-edge: rgba(250,244,239,0.08);
+    --sgx-scrim: rgba(3,1,1,0.6);
+    --sgx-inverse-surface: #e8dfd9;
+    --sgx-inverse-on-surface: #2c2824;
+    --sgx-inverse-primary: #b02e00;
+    --sgx-bg-blob-1: #3e281c;
+    --sgx-bg-blob-2: #322b0f;
+    --sgx-bg-blob-3: #1a2c2f;
+    --sgx-bg-gradient-1: #19120f;
+    --sgx-bg-gradient-2: #120d0a;
+    --sgx-bg-gradient-3: #0e1313;
+    --sgx-link: #ffac96;
+    --sgx-link-visited: #9bc7d0;
+    --sgx-focus-ring: #ffa289;
+    --sgx-switch-track-on: #ffa289;
+    --sgx-switch-thumb-on: #500f00;
+    --sgx-switch-track-off: #322b25;
+    --sgx-switch-thumb-off: #90847a;
+    --sgx-slider-active: #ffa289;
+    --sgx-slider-inactive: #6d2511;
+    --sgx-slider-thumb: #ffa289;
+    --sgx-chip-selected: #463527;
+    --sgx-on-chip-selected: #ede0d6;
+    --sgx-nav-selected: #463527;
+    --sgx-on-nav-selected: #ede0d6;
+    --sgx-fab: #6d2511;
+    --sgx-on-fab: #ffded5;
+    --sgx-badge: #f798a4;
+    --sgx-on-badge: #4e121f;
+    --sgx-badge-info: #98c7d1;
+    --sgx-on-badge-info: #122f34;
+    --sgx-lock-clock: #efe8e2;
+    --sgx-lock-meta: #c5bab1;
+    --sgx-lock-quote: #d3e9ee;
+    --sgx-lock-quote-bg: rgba(32,67,74,0.55);
+    --sgx-lock-unlock: #ffa289;
+    --sgx-on-lock-unlock: #500f00;
+    --sgx-daymark-card: #191511;
+    --sgx-daymark-mark: rgba(152,199,209,0.14);
+    --sgx-daymark-label: #98c7d1;
+    --sgx-daymark-text: #efe8e2;
+    --sgx-daymark-trans: #c5bab1;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #3e281c 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #322b0f 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #1a2c2f 0%, transparent 60%), linear-gradient(180deg, #19120f 0%, #120d0a 55%, #0e1313 100%);
+    --sgx-state-color: var(--sgx-primary);
+    --sgx-state-hover: 0.08;
+    --sgx-state-focus: 0.11;
+    --sgx-state-pressed: 0.13;
+    --sgx-state-selected: 0.12;
+    --sgx-state-dragged: 0.16;
+  }
+  /* 琥珀 · Amber（amber）：午后蜂蜜与无花果：琥珀、古铜和熟透的梅子紫。 */
+  :root[data-palette="amber"] {
+    --sgx-seed: #825500;
+    --sgx-primary: #825500;
+    --sgx-on-primary: #fefbf7;
+    --sgx-primary-container: #f6dfc2;
+    --sgx-on-primary-container: #412800;
+    --sgx-secondary: #745e4c;
+    --sgx-on-secondary: #fefbf8;
+    --sgx-secondary-container: #f5e3d4;
+    --sgx-on-secondary-container: #3a2614;
+    --sgx-tertiary: #7a576a;
+    --sgx-on-tertiary: #fefafc;
+    --sgx-tertiary-container: #f6dcea;
+    --sgx-on-tertiary-container: #3e2031;
+    --sgx-danger: #c2272d;
+    --sgx-on-danger: #fffbfa;
+    --sgx-danger-container: #ffddda;
+    --sgx-on-danger-container: #5f050c;
+    --sgx-background: #f8f4ed;
+    --sgx-surface-dim: #e4dfd6;
+    --sgx-surface: #fbf7f1;
+    --sgx-surface-bright: #fefcf9;
+    --sgx-surface-container-lowest: #fffefc;
+    --sgx-surface-container-low: #f7f2ea;
+    --sgx-surface-container: #f1ece3;
+    --sgx-surface-container-high: #ece6dd;
+    --sgx-surface-container-highest: #e6e0d5;
+    --sgx-text-primary: #20180c;
+    --sgx-text-secondary: #524738;
+    --sgx-text-tertiary: #716656;
+    --sgx-text-disabled: rgba(32,24,12,0.38);
+    --sgx-disabled-container: rgba(32,24,12,0.12);
+    --sgx-outline: #837765;
+    --sgx-outline-variant: #d8cfc1;
+    --sgx-divider: rgba(32,24,12,0.1);
+    --sgx-card: #fffefc;
+    --sgx-card-nested: #f7f2ea;
+    --sgx-card-nested-2: #f1ece3;
+    --sgx-sheet: #f7f2ea;
+    --sgx-dialog: #ece6dd;
+    --sgx-drawer: #f7f2ea;
+    --sgx-menu: #f1ece3;
+    --sgx-input-fill: #e6e0d5;
+    --sgx-topbar-glass: rgba(254,252,249,0.72);
+    --sgx-glass-tint: rgba(255,254,252,0.72);
+    --sgx-glass-edge: rgba(32,24,12,0.06);
+    --sgx-scrim: rgba(18,12,4,0.32);
+    --sgx-inverse-surface: #2d2821;
+    --sgx-inverse-on-surface: #f4efe9;
+    --sgx-inverse-primary: #dcb786;
+    --sgx-bg-blob-1: #f8dfbb;
+    --sgx-bg-blob-2: #eee7c5;
+    --sgx-bg-blob-3: #f8e0ea;
+    --sgx-bg-gradient-1: #f6f0e7;
+    --sgx-bg-gradient-2: #f8f4ed;
+    --sgx-bg-gradient-3: #f6f1f3;
+    --sgx-link: #764d00;
+    --sgx-link-visited: #6c495c;
+    --sgx-focus-ring: #825500;
+    --sgx-switch-track-on: #825500;
+    --sgx-switch-thumb-on: #fefbf7;
+    --sgx-switch-track-off: #e6e0d5;
+    --sgx-switch-thumb-off: #837765;
+    --sgx-slider-active: #825500;
+    --sgx-slider-inactive: #f6dfc2;
+    --sgx-slider-thumb: #825500;
+    --sgx-chip-selected: #f5e3d4;
+    --sgx-on-chip-selected: #3a2614;
+    --sgx-nav-selected: #f5e3d4;
+    --sgx-on-nav-selected: #3a2614;
+    --sgx-fab: #f6dfc2;
+    --sgx-on-fab: #412800;
+    --sgx-badge: #c2272d;
+    --sgx-on-badge: #fffbfa;
+    --sgx-badge-info: #7a576a;
+    --sgx-on-badge-info: #fefafc;
+    --sgx-lock-clock: #20180c;
+    --sgx-lock-meta: #524738;
+    --sgx-lock-quote: #3e2031;
+    --sgx-lock-quote-bg: rgba(246,220,234,0.6);
+    --sgx-lock-unlock: #825500;
+    --sgx-on-lock-unlock: #fefbf7;
+    --sgx-daymark-card: #fffefc;
+    --sgx-daymark-mark: rgba(122,87,106,0.1);
+    --sgx-daymark-label: #7a576a;
+    --sgx-daymark-text: #20180c;
+    --sgx-daymark-trans: #524738;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #f8dfbb 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #eee7c5 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #f8e0ea 0%, transparent 60%), linear-gradient(180deg, #f6f0e7 0%, #f8f4ed 55%, #f6f1f3 100%);
+    --sgx-state-color: var(--sgx-text-primary);
+    --sgx-state-hover: 0.07;
+    --sgx-state-focus: 0.1;
+    --sgx-state-pressed: 0.12;
+    --sgx-state-selected: 0.1;
+    --sgx-state-dragged: 0.16;
+  }
+  :root.dark[data-palette="amber"] {
+    --sgx-primary: #e8b36a;
+    --sgx-on-primary: #3c2500;
+    --sgx-primary-container: #543a14;
+    --sgx-on-primary-container: #f4e4cf;
+    --sgx-secondary: #ceb9a8;
+    --sgx-on-secondary: #33281e;
+    --sgx-secondary-container: #453629;
+    --sgx-on-secondary-container: #ece1d7;
+    --sgx-tertiary: #d5b2c5;
+    --sgx-on-tertiary: #36232e;
+    --sgx-tertiary-container: #4c3542;
+    --sgx-on-tertiary-container: #f0dfe8;
+    --sgx-danger: #f89a92;
+    --sgx-on-danger: #4f1313;
+    --sgx-danger-container: #6c2d2a;
+    --sgx-on-danger-container: #ffddda;
+    --sgx-background: #110e09;
+    --sgx-surface-dim: #0d0a06;
+    --sgx-surface: #16120d;
+    --sgx-surface-bright: #343029;
+    --sgx-surface-container-lowest: #181510;
+    --sgx-surface-container-low: #1d1913;
+    --sgx-surface-container: #231f18;
+    --sgx-surface-container-high: #29241d;
+    --sgx-surface-container-highest: #312b23;
+    --sgx-text-primary: #eee9e1;
+    --sgx-text-secondary: #c3bbae;
+    --sgx-text-tertiary: #a1988b;
+    --sgx-text-disabled: rgba(238,233,225,0.38);
+    --sgx-disabled-container: rgba(238,233,225,0.12);
+    --sgx-outline: #8e8578;
+    --sgx-outline-variant: #443d33;
+    --sgx-divider: rgba(238,233,225,0.12);
+    --sgx-card: #181510;
+    --sgx-card-nested: #1d1913;
+    --sgx-card-nested-2: #231f18;
+    --sgx-sheet: #1d1913;
+    --sgx-dialog: #29241d;
+    --sgx-drawer: #1d1913;
+    --sgx-menu: #231f18;
+    --sgx-input-fill: #312b23;
+    --sgx-topbar-glass: rgba(52,48,41,0.68);
+    --sgx-glass-tint: rgba(35,31,24,0.72);
+    --sgx-glass-edge: rgba(249,244,238,0.08);
+    --sgx-scrim: rgba(2,2,1,0.6);
+    --sgx-inverse-surface: #e7e0d6;
+    --sgx-inverse-on-surface: #2c2823;
+    --sgx-inverse-primary: #825500;
+    --sgx-bg-blob-1: #3a2b12;
+    --sgx-bg-blob-2: #302c16;
+    --sgx-bg-blob-3: #32242a;
+    --sgx-bg-gradient-1: #17130d;
+    --sgx-bg-gradient-2: #110e09;
+    --sgx-bg-gradient-3: #141012;
+    --sgx-link: #e5bd88;
+    --sgx-link-visited: #d4b3c4;
+    --sgx-focus-ring: #e8b36a;
+    --sgx-switch-track-on: #e8b36a;
+    --sgx-switch-thumb-on: #3c2500;
+    --sgx-switch-track-off: #312b23;
+    --sgx-switch-thumb-off: #8e8578;
+    --sgx-slider-active: #e8b36a;
+    --sgx-slider-inactive: #543a14;
+    --sgx-slider-thumb: #e8b36a;
+    --sgx-chip-selected: #453629;
+    --sgx-on-chip-selected: #ece1d7;
+    --sgx-nav-selected: #453629;
+    --sgx-on-nav-selected: #ece1d7;
+    --sgx-fab: #543a14;
+    --sgx-on-fab: #f4e4cf;
+    --sgx-badge: #f89a92;
+    --sgx-on-badge: #4f1313;
+    --sgx-badge-info: #d5b2c5;
+    --sgx-on-badge-info: #36232e;
+    --sgx-lock-clock: #eee9e1;
+    --sgx-lock-meta: #c3bbae;
+    --sgx-lock-quote: #f0dfe8;
+    --sgx-lock-quote-bg: rgba(76,53,66,0.55);
+    --sgx-lock-unlock: #e8b36a;
+    --sgx-on-lock-unlock: #3c2500;
+    --sgx-daymark-card: #181510;
+    --sgx-daymark-mark: rgba(213,178,197,0.14);
+    --sgx-daymark-label: #d5b2c5;
+    --sgx-daymark-text: #eee9e1;
+    --sgx-daymark-trans: #c3bbae;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #3a2b12 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #302c16 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #32242a 0%, transparent 60%), linear-gradient(180deg, #17130d 0%, #110e09 55%, #141012 100%);
+    --sgx-state-color: var(--sgx-text-primary);
+    --sgx-state-hover: 0.09;
+    --sgx-state-focus: 0.12;
+    --sgx-state-pressed: 0.15;
+    --sgx-state-selected: 0.13;
+    --sgx-state-dragged: 0.18;
+  }
+  /* 抹茶 · Matcha（matcha）：茶席：抹茶绿、竹青与焙茶陶杯的暖褐。 */
+  :root[data-palette="matcha"] {
+    --sgx-seed: #3c6a00;
+    --sgx-primary: #3c6a00;
+    --sgx-on-primary: #fafdf9;
+    --sgx-primary-container: #d4ecc3;
+    --sgx-on-primary-container: #1c3600;
+    --sgx-secondary: #62664e;
+    --sgx-on-secondary: #fbfcf8;
+    --sgx-secondary-container: #e5e9d6;
+    --sgx-on-secondary-container: #2b2e17;
+    --sgx-tertiary: #7b5c47;
+    --sgx-on-tertiary: #fffbf9;
+    --sgx-tertiary-container: #f6e0d1;
+    --sgx-on-tertiary-container: #3e2412;
+    --sgx-danger: #c22826;
+    --sgx-on-danger: #fffbfa;
+    --sgx-danger-container: #ffddd9;
+    --sgx-on-danger-container: #5f0608;
+    --sgx-background: #f5f5ee;
+    --sgx-surface-dim: #e0e0d8;
+    --sgx-surface: #f8f8f2;
+    --sgx-surface-bright: #fcfdf9;
+    --sgx-surface-container-lowest: #fefefc;
+    --sgx-surface-container-low: #f3f3ec;
+    --sgx-surface-container: #edede5;
+    --sgx-surface-container-high: #e7e8de;
+    --sgx-surface-container-highest: #e1e2d7;
+    --sgx-text-primary: #1a1a0f;
+    --sgx-text-secondary: #4a4a3b;
+    --sgx-text-tertiary: #686958;
+    --sgx-text-disabled: rgba(26,26,15,0.38);
+    --sgx-disabled-container: rgba(26,26,15,0.12);
+    --sgx-outline: #797b68;
+    --sgx-outline-variant: #d1d2c3;
+    --sgx-divider: rgba(26,26,15,0.1);
+    --sgx-card: #fefefc;
+    --sgx-card-nested: #f3f3ec;
+    --sgx-card-nested-2: #edede5;
+    --sgx-sheet: #f3f3ec;
+    --sgx-dialog: #e7e8de;
+    --sgx-drawer: #f3f3ec;
+    --sgx-menu: #edede5;
+    --sgx-input-fill: #e1e2d7;
+    --sgx-topbar-glass: rgba(252,253,249,0.72);
+    --sgx-glass-tint: rgba(254,254,252,0.72);
+    --sgx-glass-edge: rgba(26,26,15,0.06);
+    --sgx-scrim: rgba(14,14,6,0.32);
+    --sgx-inverse-surface: #292a22;
+    --sgx-inverse-on-surface: #f0f1ea;
+    --sgx-inverse-primary: #a5cc89;
+    --sgx-bg-blob-1: #d9eac7;
+    --sgx-bg-blob-2: #eee7c9;
+    --sgx-bg-blob-3: #f7e4d5;
+    --sgx-bg-gradient-1: #eff3ea;
+    --sgx-bg-gradient-2: #f5f5ee;
+    --sgx-bg-gradient-3: #f6f1ee;
+    --sgx-link: #386500;
+    --sgx-link-visited: #6c4e39;
+    --sgx-focus-ring: #3c6a00;
+    --sgx-switch-track-on: #3c6a00;
+    --sgx-switch-thumb-on: #fafdf9;
+    --sgx-switch-track-off: #e1e2d7;
+    --sgx-switch-thumb-off: #797b68;
+    --sgx-slider-active: #3c6a00;
+    --sgx-slider-inactive: #d4ecc3;
+    --sgx-slider-thumb: #3c6a00;
+    --sgx-chip-selected: #e5e9d6;
+    --sgx-on-chip-selected: #2b2e17;
+    --sgx-nav-selected: #e5e9d6;
+    --sgx-on-nav-selected: #2b2e17;
+    --sgx-fab: #d4ecc3;
+    --sgx-on-fab: #1c3600;
+    --sgx-badge: #c22826;
+    --sgx-on-badge: #fffbfa;
+    --sgx-badge-info: #7b5c47;
+    --sgx-on-badge-info: #fffbf9;
+    --sgx-lock-clock: #1a1a0f;
+    --sgx-lock-meta: #4a4a3b;
+    --sgx-lock-quote: #3e2412;
+    --sgx-lock-quote-bg: rgba(246,224,209,0.6);
+    --sgx-lock-unlock: #3c6a00;
+    --sgx-on-lock-unlock: #fafdf9;
+    --sgx-daymark-card: #fefefc;
+    --sgx-daymark-mark: rgba(123,92,71,0.1);
+    --sgx-daymark-label: #7b5c47;
+    --sgx-daymark-text: #1a1a0f;
+    --sgx-daymark-trans: #4a4a3b;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #d9eac7 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #eee7c9 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #f7e4d5 0%, transparent 60%), linear-gradient(180deg, #eff3ea 0%, #f5f5ee 55%, #f6f1ee 100%);
+    --sgx-state-color: var(--sgx-text-primary);
+    --sgx-state-hover: 0.07;
+    --sgx-state-focus: 0.1;
+    --sgx-state-pressed: 0.12;
+    --sgx-state-selected: 0.1;
+    --sgx-state-dragged: 0.16;
+  }
+  :root.dark[data-palette="matcha"] {
+    --sgx-primary: #a0ce7d;
+    --sgx-on-primary: #193200;
+    --sgx-primary-container: #2e4916;
+    --sgx-on-primary-container: #dcedd0;
+    --sgx-secondary: #bdc0aa;
+    --sgx-on-secondary: #2a2b1f;
+    --sgx-secondary-container: #393b2b;
+    --sgx-on-secondary-container: #e2e4d8;
+    --sgx-tertiary: #d5b7a3;
+    --sgx-on-tertiary: #36261b;
+    --sgx-tertiary-container: #4c382b;
+    --sgx-on-tertiary-container: #f0e1d8;
+    --sgx-danger: #f89a8f;
+    --sgx-on-danger: #4f1310;
+    --sgx-danger-container: #6c2e28;
+    --sgx-on-danger-container: #ffddd9;
+    --sgx-background: #0e0f09;
+    --sgx-surface-dim: #0b0b07;
+    --sgx-surface: #13130e;
+    --sgx-surface-bright: #30312a;
+    --sgx-surface-container-lowest: #161611;
+    --sgx-surface-container-low: #1a1a14;
+    --sgx-surface-container: #1f2019;
+    --sgx-surface-container-high: #25261e;
+    --sgx-surface-container-highest: #2c2d25;
+    --sgx-text-primary: #eaeae2;
+    --sgx-text-secondary: #bcbdb0;
+    --sgx-text-tertiary: #9a9b8d;
+    --sgx-text-disabled: rgba(234,234,226,0.38);
+    --sgx-disabled-container: rgba(234,234,226,0.12);
+    --sgx-outline: #87877a;
+    --sgx-outline-variant: #3f3f35;
+    --sgx-divider: rgba(234,234,226,0.12);
+    --sgx-card: #161611;
+    --sgx-card-nested: #1a1a14;
+    --sgx-card-nested-2: #1f2019;
+    --sgx-sheet: #1a1a14;
+    --sgx-dialog: #25261e;
+    --sgx-drawer: #1a1a14;
+    --sgx-menu: #1f2019;
+    --sgx-input-fill: #2c2d25;
+    --sgx-topbar-glass: rgba(48,49,42,0.68);
+    --sgx-glass-tint: rgba(31,32,25,0.72);
+    --sgx-glass-edge: rgba(245,246,239,0.08);
+    --sgx-scrim: rgba(2,2,1,0.6);
+    --sgx-inverse-surface: #e1e2d8;
+    --sgx-inverse-on-surface: #292924;
+    --sgx-inverse-primary: #3c6a00;
+    --sgx-bg-blob-1: #28321c;
+    --sgx-bg-blob-2: #302b19;
+    --sgx-bg-blob-3: #31261e;
+    --sgx-bg-gradient-1: #12150f;
+    --sgx-bg-gradient-2: #0e0f09;
+    --sgx-bg-gradient-3: #14110f;
+    --sgx-link: #a9d38b;
+    --sgx-link-visited: #d4b7a5;
+    --sgx-focus-ring: #a0ce7d;
+    --sgx-switch-track-on: #a0ce7d;
+    --sgx-switch-thumb-on: #193200;
+    --sgx-switch-track-off: #2c2d25;
+    --sgx-switch-thumb-off: #87877a;
+    --sgx-slider-active: #a0ce7d;
+    --sgx-slider-inactive: #2e4916;
+    --sgx-slider-thumb: #a0ce7d;
+    --sgx-chip-selected: #393b2b;
+    --sgx-on-chip-selected: #e2e4d8;
+    --sgx-nav-selected: #393b2b;
+    --sgx-on-nav-selected: #e2e4d8;
+    --sgx-fab: #2e4916;
+    --sgx-on-fab: #dcedd0;
+    --sgx-badge: #f89a8f;
+    --sgx-on-badge: #4f1310;
+    --sgx-badge-info: #d5b7a3;
+    --sgx-on-badge-info: #36261b;
+    --sgx-lock-clock: #eaeae2;
+    --sgx-lock-meta: #bcbdb0;
+    --sgx-lock-quote: #f0e1d8;
+    --sgx-lock-quote-bg: rgba(76,56,43,0.55);
+    --sgx-lock-unlock: #a0ce7d;
+    --sgx-on-lock-unlock: #193200;
+    --sgx-daymark-card: #161611;
+    --sgx-daymark-mark: rgba(213,183,163,0.14);
+    --sgx-daymark-label: #d5b7a3;
+    --sgx-daymark-text: #eaeae2;
+    --sgx-daymark-trans: #bcbdb0;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #28321c 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #302b19 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #31261e 0%, transparent 60%), linear-gradient(180deg, #12150f 0%, #0e0f09 55%, #14110f 100%);
+    --sgx-state-color: var(--sgx-text-primary);
+    --sgx-state-hover: 0.09;
+    --sgx-state-focus: 0.12;
+    --sgx-state-pressed: 0.15;
+    --sgx-state-selected: 0.13;
+    --sgx-state-dragged: 0.18;
+  }
+  /* 青碧 · Teal（teal）：翡翠泻湖：青碧海水、浅滩灰与珊瑚。 */
+  :root[data-palette="teal"] {
+    --sgx-seed: #00696b;
+    --sgx-primary: #00696b;
+    --sgx-on-primary: #f7fdfd;
+    --sgx-primary-container: #c8ebeb;
+    --sgx-on-primary-container: #003537;
+    --sgx-secondary: #4f686b;
+    --sgx-on-secondary: #f8fdfd;
+    --sgx-secondary-container: #d7ebed;
+    --sgx-on-secondary-container: #173033;
+    --sgx-tertiary: #895348;
+    --sgx-on-tertiary: #fffbfa;
+    --sgx-tertiary-container: #ffdbd4;
+    --sgx-on-tertiary-container: #481b13;
+    --sgx-danger: #c51a38;
+    --sgx-on-danger: #fffafa;
+    --sgx-danger-container: #ffdddc;
+    --sgx-on-danger-container: #5f0415;
+    --sgx-background: #eff6f6;
+    --sgx-surface-dim: #d8e2e2;
+    --sgx-surface: #f3f9fa;
+    --sgx-surface-bright: #f9fdfd;
+    --sgx-surface-container-lowest: #fcffff;
+    --sgx-surface-container-low: #ecf4f5;
+    --sgx-surface-container: #e5efef;
+    --sgx-surface-container-high: #dfe9ea;
+    --sgx-surface-container-highest: #d8e3e4;
+    --sgx-text-primary: #0e1c1d;
+    --sgx-text-secondary: #3b4d4e;
+    --sgx-text-tertiary: #586b6c;
+    --sgx-text-disabled: rgba(14,28,29,0.38);
+    --sgx-disabled-container: rgba(14,28,29,0.12);
+    --sgx-outline: #697d7e;
+    --sgx-outline-variant: #c4d4d5;
+    --sgx-divider: rgba(14,28,29,0.1);
+    --sgx-card: #fcffff;
+    --sgx-card-nested: #ecf4f5;
+    --sgx-card-nested-2: #e5efef;
+    --sgx-sheet: #ecf4f5;
+    --sgx-dialog: #dfe9ea;
+    --sgx-drawer: #ecf4f5;
+    --sgx-menu: #e5efef;
+    --sgx-input-fill: #d8e3e4;
+    --sgx-topbar-glass: rgba(249,253,253,0.72);
+    --sgx-glass-tint: rgba(252,255,255,0.72);
+    --sgx-glass-edge: rgba(14,28,29,0.06);
+    --sgx-scrim: rgba(5,15,16,0.32);
+    --sgx-inverse-surface: #222b2b;
+    --sgx-inverse-on-surface: #eaf2f2;
+    --sgx-inverse-primary: #90cacb;
+    --sgx-bg-blob-1: #c1edec;
+    --sgx-bg-blob-2: #feded4;
+    --sgx-bg-blob-3: #d6ecf8;
+    --sgx-bg-gradient-1: #e9f4f3;
+    --sgx-bg-gradient-2: #eff6f6;
+    --sgx-bg-gradient-3: #eef3f6;
+    --sgx-link: #006466;
+    --sgx-link-visited: #79453a;
+    --sgx-focus-ring: #00696b;
+    --sgx-switch-track-on: #00696b;
+    --sgx-switch-thumb-on: #f7fdfd;
+    --sgx-switch-track-off: #d8e3e4;
+    --sgx-switch-thumb-off: #697d7e;
+    --sgx-slider-active: #00696b;
+    --sgx-slider-inactive: #c8ebeb;
+    --sgx-slider-thumb: #00696b;
+    --sgx-chip-selected: #d7ebed;
+    --sgx-on-chip-selected: #173033;
+    --sgx-nav-selected: #d7ebed;
+    --sgx-on-nav-selected: #173033;
+    --sgx-fab: #c8ebeb;
+    --sgx-on-fab: #003537;
+    --sgx-badge: #c51a38;
+    --sgx-on-badge: #fffafa;
+    --sgx-badge-info: #895348;
+    --sgx-on-badge-info: #fffbfa;
+    --sgx-lock-clock: #0e1c1d;
+    --sgx-lock-meta: #3b4d4e;
+    --sgx-lock-quote: #481b13;
+    --sgx-lock-quote-bg: rgba(255,219,212,0.6);
+    --sgx-lock-unlock: #00696b;
+    --sgx-on-lock-unlock: #f7fdfd;
+    --sgx-daymark-card: #fcffff;
+    --sgx-daymark-mark: rgba(137,83,72,0.1);
+    --sgx-daymark-label: #895348;
+    --sgx-daymark-text: #0e1c1d;
+    --sgx-daymark-trans: #3b4d4e;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #c1edec 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #feded4 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #d6ecf8 0%, transparent 60%), linear-gradient(180deg, #e9f4f3 0%, #eff6f6 55%, #eef3f6 100%);
+    --sgx-state-color: var(--sgx-text-primary);
+    --sgx-state-hover: 0.08;
+    --sgx-state-focus: 0.1;
+    --sgx-state-pressed: 0.12;
+    --sgx-state-selected: 0.1;
+    --sgx-state-dragged: 0.16;
+  }
+  :root.dark[data-palette="teal"] {
+    --sgx-primary: #71d0d2;
+    --sgx-on-primary: #013132;
+    --sgx-primary-container: #1a4849;
+    --sgx-on-primary-container: #d4ecec;
+    --sgx-secondary: #acc3c5;
+    --sgx-on-secondary: #202d2e;
+    --sgx-secondary-container: #2b3d3f;
+    --sgx-on-secondary-container: #d9e6e7;
+    --sgx-tertiary: #e4afa4;
+    --sgx-on-tertiary: #3e211c;
+    --sgx-tertiary-container: #55322c;
+    --sgx-on-tertiary-container: #f8ded8;
+    --sgx-danger: #f89999;
+    --sgx-on-danger: #4f1218;
+    --sgx-danger-container: #6c2d2f;
+    --sgx-on-danger-container: #ffdddc;
+    --sgx-background: #0a1010;
+    --sgx-surface-dim: #070c0c;
+    --sgx-surface: #0e1414;
+    --sgx-surface-bright: #2a3232;
+    --sgx-surface-container-lowest: #111717;
+    --sgx-surface-container-low: #141b1c;
+    --sgx-surface-container: #192121;
+    --sgx-surface-container-high: #1f2727;
+    --sgx-surface-container-highest: #252e2f;
+    --sgx-text-primary: #e3ecec;
+    --sgx-text-secondary: #b1bfc0;
+    --sgx-text-tertiary: #8e9d9e;
+    --sgx-text-disabled: rgba(227,236,236,0.38);
+    --sgx-disabled-container: rgba(227,236,236,0.12);
+    --sgx-outline: #7a8a8a;
+    --sgx-outline-variant: #354142;
+    --sgx-divider: rgba(227,236,236,0.12);
+    --sgx-card: #111717;
+    --sgx-card-nested: #141b1c;
+    --sgx-card-nested-2: #192121;
+    --sgx-sheet: #141b1c;
+    --sgx-dialog: #1f2727;
+    --sgx-drawer: #141b1c;
+    --sgx-menu: #192121;
+    --sgx-input-fill: #252e2f;
+    --sgx-topbar-glass: rgba(42,50,50,0.68);
+    --sgx-glass-tint: rgba(25,33,33,0.72);
+    --sgx-glass-edge: rgba(239,247,247,0.08);
+    --sgx-scrim: rgba(1,2,2,0.6);
+    --sgx-inverse-surface: #d9e4e4;
+    --sgx-inverse-on-surface: #242a2a;
+    --sgx-inverse-primary: #00696b;
+    --sgx-bg-blob-1: #153333;
+    --sgx-bg-blob-2: #392620;
+    --sgx-bg-blob-3: #1e2b32;
+    --sgx-bg-gradient-1: #0e1515;
+    --sgx-bg-gradient-2: #0a1010;
+    --sgx-bg-gradient-3: #0f1214;
+    --sgx-link: #92d1d2;
+    --sgx-link-visited: #e2b0a6;
+    --sgx-focus-ring: #71d0d2;
+    --sgx-switch-track-on: #71d0d2;
+    --sgx-switch-thumb-on: #013132;
+    --sgx-switch-track-off: #252e2f;
+    --sgx-switch-thumb-off: #7a8a8a;
+    --sgx-slider-active: #71d0d2;
+    --sgx-slider-inactive: #1a4849;
+    --sgx-slider-thumb: #71d0d2;
+    --sgx-chip-selected: #2b3d3f;
+    --sgx-on-chip-selected: #d9e6e7;
+    --sgx-nav-selected: #2b3d3f;
+    --sgx-on-nav-selected: #d9e6e7;
+    --sgx-fab: #1a4849;
+    --sgx-on-fab: #d4ecec;
+    --sgx-badge: #f89999;
+    --sgx-on-badge: #4f1218;
+    --sgx-badge-info: #e4afa4;
+    --sgx-on-badge-info: #3e211c;
+    --sgx-lock-clock: #e3ecec;
+    --sgx-lock-meta: #b1bfc0;
+    --sgx-lock-quote: #f8ded8;
+    --sgx-lock-quote-bg: rgba(85,50,44,0.55);
+    --sgx-lock-unlock: #71d0d2;
+    --sgx-on-lock-unlock: #013132;
+    --sgx-daymark-card: #111717;
+    --sgx-daymark-mark: rgba(228,175,164,0.14);
+    --sgx-daymark-label: #e4afa4;
+    --sgx-daymark-text: #e3ecec;
+    --sgx-daymark-trans: #b1bfc0;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #153333 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #392620 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #1e2b32 0%, transparent 60%), linear-gradient(180deg, #0e1515 0%, #0a1010 55%, #0f1214 100%);
+    --sgx-state-color: var(--sgx-text-primary);
+    --sgx-state-hover: 0.08;
+    --sgx-state-focus: 0.12;
+    --sgx-state-pressed: 0.14;
+    --sgx-state-selected: 0.12;
+    --sgx-state-dragged: 0.18;
+  }
+  /* 靛蓝 · Indigo（indigo）：夜墨与霓虹晨光：靛蓝、钢灰蓝、一道电光青。 */
+  :root[data-palette="indigo"] {
+    --sgx-seed: #3d4fd3;
+    --sgx-primary: #3d4fd3;
+    --sgx-on-primary: #fafcff;
+    --sgx-primary-container: #d9e2ff;
+    --sgx-on-primary-container: #1a2469;
+    --sgx-secondary: #59637b;
+    --sgx-on-secondary: #fafcff;
+    --sgx-secondary-container: #dee6fa;
+    --sgx-on-secondary-container: #222a40;
+    --sgx-tertiary: #246e7e;
+    --sgx-on-tertiary: #f8fdfe;
+    --sgx-tertiary-container: #c4edf7;
+    --sgx-on-tertiary-container: #00323b;
+    --sgx-danger: #c2272d;
+    --sgx-on-danger: #fffbfa;
+    --sgx-danger-container: #ffddda;
+    --sgx-on-danger-container: #5f050c;
+    --sgx-background: #f2f4fb;
+    --sgx-surface-dim: #dcdfe8;
+    --sgx-surface: #f5f8fd;
+    --sgx-surface-bright: #fbfcff;
+    --sgx-surface-container-lowest: #fefeff;
+    --sgx-surface-container-low: #f0f2f9;
+    --sgx-surface-container: #e9ecf4;
+    --sgx-surface-container-high: #e3e7f0;
+    --sgx-surface-container-highest: #dde0ea;
+    --sgx-text-primary: #151924;
+    --sgx-text-secondary: #444957;
+    --sgx-text-tertiary: #626776;
+    --sgx-text-disabled: rgba(21,25,36,0.38);
+    --sgx-disabled-container: rgba(21,25,36,0.12);
+    --sgx-outline: #727889;
+    --sgx-outline-variant: #cbd0de;
+    --sgx-divider: rgba(21,25,36,0.1);
+    --sgx-card: #fefeff;
+    --sgx-card-nested: #f0f2f9;
+    --sgx-card-nested-2: #e9ecf4;
+    --sgx-sheet: #f0f2f9;
+    --sgx-dialog: #e3e7f0;
+    --sgx-drawer: #f0f2f9;
+    --sgx-menu: #e9ecf4;
+    --sgx-input-fill: #dde0ea;
+    --sgx-topbar-glass: rgba(251,252,255,0.72);
+    --sgx-glass-tint: rgba(254,254,255,0.72);
+    --sgx-glass-edge: rgba(21,25,36,0.06);
+    --sgx-scrim: rgba(10,13,21,0.32);
+    --sgx-inverse-surface: #262930;
+    --sgx-inverse-on-surface: #eef0f6;
+    --sgx-inverse-primary: #a6baff;
+    --sgx-bg-blob-1: #d9e2ff;
+    --sgx-bg-blob-2: #c9eef7;
+    --sgx-bg-blob-3: #f1e2f4;
+    --sgx-bg-gradient-1: #eef1fa;
+    --sgx-bg-gradient-2: #f2f4fb;
+    --sgx-bg-gradient-3: #f5f1f5;
+    --sgx-link: #3341c4;
+    --sgx-link-visited: #0f5f6f;
+    --sgx-focus-ring: #3d4fd3;
+    --sgx-switch-track-on: #3d4fd3;
+    --sgx-switch-thumb-on: #fafcff;
+    --sgx-switch-track-off: #dde0ea;
+    --sgx-switch-thumb-off: #727889;
+    --sgx-slider-active: #3d4fd3;
+    --sgx-slider-inactive: #d9e2ff;
+    --sgx-slider-thumb: #3d4fd3;
+    --sgx-chip-selected: #dee6fa;
+    --sgx-on-chip-selected: #222a40;
+    --sgx-nav-selected: #dee6fa;
+    --sgx-on-nav-selected: #222a40;
+    --sgx-fab: #d9e2ff;
+    --sgx-on-fab: #1a2469;
+    --sgx-badge: #c2272d;
+    --sgx-on-badge: #fffbfa;
+    --sgx-badge-info: #246e7e;
+    --sgx-on-badge-info: #f8fdfe;
+    --sgx-lock-clock: #151924;
+    --sgx-lock-meta: #444957;
+    --sgx-lock-quote: #00323b;
+    --sgx-lock-quote-bg: rgba(196,237,247,0.6);
+    --sgx-lock-unlock: #3d4fd3;
+    --sgx-on-lock-unlock: #fafcff;
+    --sgx-daymark-card: #fefeff;
+    --sgx-daymark-mark: rgba(36,110,126,0.1);
+    --sgx-daymark-label: #246e7e;
+    --sgx-daymark-text: #151924;
+    --sgx-daymark-trans: #444957;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #d9e2ff 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #c9eef7 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #f1e2f4 0%, transparent 60%), linear-gradient(180deg, #eef1fa 0%, #f2f4fb 55%, #f5f1f5 100%);
+    --sgx-state-color: var(--sgx-primary);
+    --sgx-state-hover: 0.06;
+    --sgx-state-focus: 0.09;
+    --sgx-state-pressed: 0.11;
+    --sgx-state-selected: 0.09;
+    --sgx-state-dragged: 0.14;
+  }
+  :root.dark[data-palette="indigo"] {
+    --sgx-primary: #a6baff;
+    --sgx-on-primary: #19235b;
+    --sgx-primary-container: #2b3979;
+    --sgx-on-primary-container: #dde6ff;
+    --sgx-secondary: #b4bed4;
+    --sgx-on-secondary: #252a36;
+    --sgx-secondary-container: #323949;
+    --sgx-on-secondary-container: #dee3ef;
+    --sgx-tertiary: #8ec9d7;
+    --sgx-on-tertiary: #073038;
+    --sgx-tertiary-container: #15444e;
+    --sgx-on-tertiary-container: #cfeaf1;
+    --sgx-danger: #f89a92;
+    --sgx-on-danger: #4f1313;
+    --sgx-danger-container: #6c2d2a;
+    --sgx-on-danger-container: #ffddda;
+    --sgx-background: #0c0e13;
+    --sgx-surface-dim: #090b0f;
+    --sgx-surface: #111318;
+    --sgx-surface-bright: #2e3036;
+    --sgx-surface-container-lowest: #14151a;
+    --sgx-surface-container-low: #181a1f;
+    --sgx-surface-container: #1d1f25;
+    --sgx-surface-container-high: #23252c;
+    --sgx-surface-container-highest: #292c33;
+    --sgx-text-primary: #e6e9f1;
+    --sgx-text-secondary: #b7bcc8;
+    --sgx-text-tertiary: #959aa7;
+    --sgx-text-disabled: rgba(230,233,241,0.38);
+    --sgx-disabled-container: rgba(230,233,241,0.12);
+    --sgx-outline: #818693;
+    --sgx-outline-variant: #3b3e48;
+    --sgx-divider: rgba(230,233,241,0.12);
+    --sgx-card: #14151a;
+    --sgx-card-nested: #181a1f;
+    --sgx-card-nested-2: #1d1f25;
+    --sgx-sheet: #181a1f;
+    --sgx-dialog: #23252c;
+    --sgx-drawer: #181a1f;
+    --sgx-menu: #1d1f25;
+    --sgx-input-fill: #292c33;
+    --sgx-topbar-glass: rgba(46,48,54,0.68);
+    --sgx-glass-tint: rgba(29,31,37,0.72);
+    --sgx-glass-edge: rgba(243,245,251,0.08);
+    --sgx-scrim: rgba(1,2,3,0.6);
+    --sgx-inverse-surface: #dee1eb;
+    --sgx-inverse-on-surface: #27292d;
+    --sgx-inverse-primary: #3d4fd3;
+    --sgx-bg-blob-1: #272d42;
+    --sgx-bg-blob-2: #172f35;
+    --sgx-bg-blob-3: #2e2530;
+    --sgx-bg-gradient-1: #12141a;
+    --sgx-bg-gradient-2: #0c0e13;
+    --sgx-bg-gradient-3: #131114;
+    --sgx-link: #aec1ff;
+    --sgx-link-visited: #91c8d6;
+    --sgx-focus-ring: #a6baff;
+    --sgx-switch-track-on: #a6baff;
+    --sgx-switch-thumb-on: #19235b;
+    --sgx-switch-track-off: #292c33;
+    --sgx-switch-thumb-off: #818693;
+    --sgx-slider-active: #a6baff;
+    --sgx-slider-inactive: #2b3979;
+    --sgx-slider-thumb: #a6baff;
+    --sgx-chip-selected: #323949;
+    --sgx-on-chip-selected: #dee3ef;
+    --sgx-nav-selected: #323949;
+    --sgx-on-nav-selected: #dee3ef;
+    --sgx-fab: #2b3979;
+    --sgx-on-fab: #dde6ff;
+    --sgx-badge: #f89a92;
+    --sgx-on-badge: #4f1313;
+    --sgx-badge-info: #8ec9d7;
+    --sgx-on-badge-info: #073038;
+    --sgx-lock-clock: #e6e9f1;
+    --sgx-lock-meta: #b7bcc8;
+    --sgx-lock-quote: #cfeaf1;
+    --sgx-lock-quote-bg: rgba(21,68,78,0.55);
+    --sgx-lock-unlock: #a6baff;
+    --sgx-on-lock-unlock: #19235b;
+    --sgx-daymark-card: #14151a;
+    --sgx-daymark-mark: rgba(142,201,215,0.14);
+    --sgx-daymark-label: #8ec9d7;
+    --sgx-daymark-text: #e6e9f1;
+    --sgx-daymark-trans: #b7bcc8;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #272d42 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #172f35 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #2e2530 0%, transparent 60%), linear-gradient(180deg, #12141a 0%, #0c0e13 55%, #131114 100%);
+    --sgx-state-color: var(--sgx-primary);
+    --sgx-state-hover: 0.08;
+    --sgx-state-focus: 0.11;
+    --sgx-state-pressed: 0.13;
+    --sgx-state-selected: 0.12;
+    --sgx-state-dragged: 0.16;
+  }
+  /* 兰紫 · Orchid（orchid）：热带兰花：洋红兰瓣、灰藕荷与花心的金。 */
+  :root[data-palette="orchid"] {
+    --sgx-seed: #a62092;
+    --sgx-primary: #a62092;
+    --sgx-on-primary: #fffafd;
+    --sgx-primary-container: #ffd4f4;
+    --sgx-on-primary-container: #4f0a45;
+    --sgx-secondary: #705b6f;
+    --sgx-on-secondary: #fefbfd;
+    --sgx-secondary-container: #f1e0f0;
+    --sgx-on-secondary-container: #372436;
+    --sgx-tertiary: #766032;
+    --sgx-on-tertiary: #fdfcf8;
+    --sgx-tertiary-container: #f2e3c6;
+    --sgx-on-tertiary-container: #392800;
+    --sgx-danger: #c22826;
+    --sgx-on-danger: #fffbfa;
+    --sgx-danger-container: #ffddd9;
+    --sgx-on-danger-container: #5f0608;
+    --sgx-background: #f8f2f7;
+    --sgx-surface-dim: #e4dde3;
+    --sgx-surface: #fbf6fa;
+    --sgx-surface-bright: #fefbfe;
+    --sgx-surface-container-lowest: #fffdff;
+    --sgx-surface-container-low: #f6f0f6;
+    --sgx-surface-container: #f1eaf0;
+    --sgx-surface-container-high: #ece4eb;
+    --sgx-surface-container-highest: #e6dde5;
+    --sgx-text-primary: #1f161e;
+    --sgx-text-secondary: #514450;
+    --sgx-text-tertiary: #70626e;
+    --sgx-text-disabled: rgba(31,22,30,0.38);
+    --sgx-disabled-container: rgba(31,22,30,0.12);
+    --sgx-outline: #827381;
+    --sgx-outline-variant: #d8ccd7;
+    --sgx-divider: rgba(31,22,30,0.1);
+    --sgx-card: #fffdff;
+    --sgx-card-nested: #f6f0f6;
+    --sgx-card-nested-2: #f1eaf0;
+    --sgx-sheet: #f6f0f6;
+    --sgx-dialog: #ece4eb;
+    --sgx-drawer: #f6f0f6;
+    --sgx-menu: #f1eaf0;
+    --sgx-input-fill: #e6dde5;
+    --sgx-topbar-glass: rgba(254,251,254,0.72);
+    --sgx-glass-tint: rgba(255,253,255,0.72);
+    --sgx-glass-edge: rgba(31,22,30,0.06);
+    --sgx-scrim: rgba(18,10,17,0.32);
+    --sgx-inverse-surface: #2d272c;
+    --sgx-inverse-on-surface: #f4eef3;
+    --sgx-inverse-primary: #f29dde;
+    --sgx-bg-blob-1: #f8d8f0;
+    --sgx-bg-blob-2: #fbe1cc;
+    --sgx-bg-blob-3: #e8e4fe;
+    --sgx-bg-gradient-1: #f7eef4;
+    --sgx-bg-gradient-2: #f8f2f7;
+    --sgx-bg-gradient-3: #f2f1f8;
+    --sgx-link: #930081;
+    --sgx-link-visited: #675223;
+    --sgx-focus-ring: #a62092;
+    --sgx-switch-track-on: #a62092;
+    --sgx-switch-thumb-on: #fffafd;
+    --sgx-switch-track-off: #e6dde5;
+    --sgx-switch-thumb-off: #827381;
+    --sgx-slider-active: #a62092;
+    --sgx-slider-inactive: #ffd4f4;
+    --sgx-slider-thumb: #a62092;
+    --sgx-chip-selected: #f1e0f0;
+    --sgx-on-chip-selected: #372436;
+    --sgx-nav-selected: #f1e0f0;
+    --sgx-on-nav-selected: #372436;
+    --sgx-fab: #ffd4f4;
+    --sgx-on-fab: #4f0a45;
+    --sgx-badge: #c22826;
+    --sgx-on-badge: #fffbfa;
+    --sgx-badge-info: #766032;
+    --sgx-on-badge-info: #fdfcf8;
+    --sgx-lock-clock: #1f161e;
+    --sgx-lock-meta: #514450;
+    --sgx-lock-quote: #392800;
+    --sgx-lock-quote-bg: rgba(242,227,198,0.6);
+    --sgx-lock-unlock: #a62092;
+    --sgx-on-lock-unlock: #fffafd;
+    --sgx-daymark-card: #fffdff;
+    --sgx-daymark-mark: rgba(118,96,50,0.1);
+    --sgx-daymark-label: #766032;
+    --sgx-daymark-text: #1f161e;
+    --sgx-daymark-trans: #514450;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #f8d8f0 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #fbe1cc 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #e8e4fe 0%, transparent 60%), linear-gradient(180deg, #f7eef4 0%, #f8f2f7 55%, #f2f1f8 100%);
+    --sgx-state-color: var(--sgx-primary);
+    --sgx-state-hover: 0.06;
+    --sgx-state-focus: 0.09;
+    --sgx-state-pressed: 0.11;
+    --sgx-state-selected: 0.09;
+    --sgx-state-dragged: 0.14;
+  }
+  :root.dark[data-palette="orchid"] {
+    --sgx-primary: #eea0dc;
+    --sgx-on-primary: #46103d;
+    --sgx-primary-container: #612456;
+    --sgx-on-primary-container: #fddaf4;
+    --sgx-secondary: #cab6c9;
+    --sgx-on-secondary: #312630;
+    --sgx-secondary-container: #423441;
+    --sgx-on-secondary-container: #eadfe9;
+    --sgx-tertiary: #cfbb92;
+    --sgx-on-tertiary: #342810;
+    --sgx-tertiary-container: #493b1d;
+    --sgx-on-tertiary-container: #ede4d0;
+    --sgx-danger: #f89a8f;
+    --sgx-on-danger: #4f1310;
+    --sgx-danger-container: #6c2e28;
+    --sgx-on-danger-container: #ffddd9;
+    --sgx-background: #110d11;
+    --sgx-surface-dim: #0d090d;
+    --sgx-surface: #161115;
+    --sgx-surface-bright: #342e33;
+    --sgx-surface-container-lowest: #181418;
+    --sgx-surface-container-low: #1d181c;
+    --sgx-surface-container: #231d22;
+    --sgx-surface-container-high: #292328;
+    --sgx-surface-container-highest: #302a30;
+    --sgx-text-primary: #eee7ed;
+    --sgx-text-secondary: #c3b8c2;
+    --sgx-text-tertiary: #a196a0;
+    --sgx-text-disabled: rgba(238,231,237,0.38);
+    --sgx-disabled-container: rgba(238,231,237,0.12);
+    --sgx-outline: #8d828c;
+    --sgx-outline-variant: #443b43;
+    --sgx-divider: rgba(238,231,237,0.12);
+    --sgx-card: #181418;
+    --sgx-card-nested: #1d181c;
+    --sgx-card-nested-2: #231d22;
+    --sgx-sheet: #1d181c;
+    --sgx-dialog: #292328;
+    --sgx-drawer: #1d181c;
+    --sgx-menu: #231d22;
+    --sgx-input-fill: #302a30;
+    --sgx-topbar-glass: rgba(52,46,51,0.68);
+    --sgx-glass-tint: rgba(35,29,34,0.72);
+    --sgx-glass-edge: rgba(249,243,248,0.08);
+    --sgx-scrim: rgba(2,1,2,0.6);
+    --sgx-inverse-surface: #e7dee6;
+    --sgx-inverse-on-surface: #2c272b;
+    --sgx-inverse-primary: #a62092;
+    --sgx-bg-blob-1: #3a2635;
+    --sgx-bg-blob-2: #37281b;
+    --sgx-bg-blob-3: #292735;
+    --sgx-bg-gradient-1: #171216;
+    --sgx-bg-gradient-2: #110d11;
+    --sgx-bg-gradient-3: #121115;
+    --sgx-link: #f8a3e5;
+    --sgx-link-visited: #cebc95;
+    --sgx-focus-ring: #eea0dc;
+    --sgx-switch-track-on: #eea0dc;
+    --sgx-switch-thumb-on: #46103d;
+    --sgx-switch-track-off: #302a30;
+    --sgx-switch-thumb-off: #8d828c;
+    --sgx-slider-active: #eea0dc;
+    --sgx-slider-inactive: #612456;
+    --sgx-slider-thumb: #eea0dc;
+    --sgx-chip-selected: #423441;
+    --sgx-on-chip-selected: #eadfe9;
+    --sgx-nav-selected: #423441;
+    --sgx-on-nav-selected: #eadfe9;
+    --sgx-fab: #612456;
+    --sgx-on-fab: #fddaf4;
+    --sgx-badge: #f89a8f;
+    --sgx-on-badge: #4f1310;
+    --sgx-badge-info: #cfbb92;
+    --sgx-on-badge-info: #342810;
+    --sgx-lock-clock: #eee7ed;
+    --sgx-lock-meta: #c3b8c2;
+    --sgx-lock-quote: #ede4d0;
+    --sgx-lock-quote-bg: rgba(73,59,29,0.55);
+    --sgx-lock-unlock: #eea0dc;
+    --sgx-on-lock-unlock: #46103d;
+    --sgx-daymark-card: #181418;
+    --sgx-daymark-mark: rgba(207,187,146,0.14);
+    --sgx-daymark-label: #cfbb92;
+    --sgx-daymark-text: #eee7ed;
+    --sgx-daymark-trans: #c3b8c2;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #3a2635 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #37281b 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #292735 0%, transparent 60%), linear-gradient(180deg, #171216 0%, #110d11 55%, #121115 100%);
+    --sgx-state-color: var(--sgx-primary);
+    --sgx-state-hover: 0.08;
+    --sgx-state-focus: 0.11;
+    --sgx-state-pressed: 0.13;
+    --sgx-state-selected: 0.12;
+    --sgx-state-dragged: 0.16;
+  }
+  /* 石墨 · Graphite（graphite）：铅笔与钢：近乎单色的石墨灰，只留一道冷蓝做点睛。 */
+  :root[data-palette="graphite"] {
+    --sgx-seed: #5e5e5e;
+    --sgx-primary: #5e5e5e;
+    --sgx-on-primary: #f9fcff;
+    --sgx-primary-container: #e0e3e7;
+    --sgx-on-primary-container: #2e2e2e;
+    --sgx-secondary: #606468;
+    --sgx-on-secondary: #f9fcff;
+    --sgx-secondary-container: #e3e6ea;
+    --sgx-on-secondary-container: #282c2f;
+    --sgx-tertiary: #006a9d;
+    --sgx-on-tertiary: #f9fcff;
+    --sgx-tertiary-container: #cce9ff;
+    --sgx-on-tertiary-container: #002f49;
+    --sgx-danger: #be2e31;
+    --sgx-on-danger: #fffbfa;
+    --sgx-danger-container: #ffddda;
+    --sgx-on-danger-container: #5f050c;
+    --sgx-background: #f2f5f7;
+    --sgx-surface-dim: #dde0e3;
+    --sgx-surface: #f6f8fa;
+    --sgx-surface-bright: #fbfcfe;
+    --sgx-surface-container-lowest: #fdfeff;
+    --sgx-surface-container-low: #f0f3f5;
+    --sgx-surface-container: #eaedf0;
+    --sgx-surface-container-high: #e4e7ea;
+    --sgx-surface-container-highest: #dee1e5;
+    --sgx-text-primary: #161a1e;
+    --sgx-text-secondary: #454a4f;
+    --sgx-text-tertiary: #63686e;
+    --sgx-text-disabled: rgba(22,26,30,0.38);
+    --sgx-disabled-container: rgba(22,26,30,0.12);
+    --sgx-outline: #747a80;
+    --sgx-outline-variant: #ccd1d6;
+    --sgx-divider: rgba(22,26,30,0.1);
+    --sgx-card: #fdfeff;
+    --sgx-card-nested: #f0f3f5;
+    --sgx-card-nested-2: #eaedf0;
+    --sgx-sheet: #f0f3f5;
+    --sgx-dialog: #e4e7ea;
+    --sgx-drawer: #f0f3f5;
+    --sgx-menu: #eaedf0;
+    --sgx-input-fill: #dee1e5;
+    --sgx-topbar-glass: rgba(251,252,254,0.72);
+    --sgx-glass-tint: rgba(253,254,255,0.72);
+    --sgx-glass-edge: rgba(22,26,30,0.06);
+    --sgx-scrim: rgba(11,14,17,0.32);
+    --sgx-inverse-surface: #27292c;
+    --sgx-inverse-on-surface: #eef0f3;
+    --sgx-inverse-primary: #bebebe;
+    --sgx-bg-blob-1: #dee4e9;
+    --sgx-bg-blob-2: #d9e9f3;
+    --sgx-bg-blob-3: #e5e8eb;
+    --sgx-bg-gradient-1: #f0f1f3;
+    --sgx-bg-gradient-2: #f2f5f7;
+    --sgx-bg-gradient-3: #f2f2f3;
+    --sgx-link: #005d8a;
+    --sgx-link-visited: #145892;
+    --sgx-focus-ring: #006a9d;
+    --sgx-switch-track-on: #006a9d;
+    --sgx-switch-thumb-on: #f9fcff;
+    --sgx-switch-track-off: #dee1e5;
+    --sgx-switch-thumb-off: #747a80;
+    --sgx-slider-active: #006a9d;
+    --sgx-slider-inactive: #cce9ff;
+    --sgx-slider-thumb: #006a9d;
+    --sgx-chip-selected: #e3e6ea;
+    --sgx-on-chip-selected: #282c2f;
+    --sgx-nav-selected: #e3e6ea;
+    --sgx-on-nav-selected: #282c2f;
+    --sgx-fab: #e0e3e7;
+    --sgx-on-fab: #2e2e2e;
+    --sgx-badge: #be2e31;
+    --sgx-on-badge: #fffbfa;
+    --sgx-badge-info: #006a9d;
+    --sgx-on-badge-info: #f9fcff;
+    --sgx-lock-clock: #161a1e;
+    --sgx-lock-meta: #454a4f;
+    --sgx-lock-quote: #002f49;
+    --sgx-lock-quote-bg: rgba(204,233,255,0.6);
+    --sgx-lock-unlock: #5e5e5e;
+    --sgx-on-lock-unlock: #f9fcff;
+    --sgx-daymark-card: #fdfeff;
+    --sgx-daymark-mark: rgba(0,106,157,0.1);
+    --sgx-daymark-label: #006a9d;
+    --sgx-daymark-text: #161a1e;
+    --sgx-daymark-trans: #454a4f;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #dee4e9 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #d9e9f3 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #e5e8eb 0%, transparent 60%), linear-gradient(180deg, #f0f1f3 0%, #f2f5f7 55%, #f2f2f3 100%);
+    --sgx-state-color: var(--sgx-text-primary);
+    --sgx-state-hover: 0.09;
+    --sgx-state-focus: 0.12;
+    --sgx-state-pressed: 0.14;
+    --sgx-state-selected: 0.12;
+    --sgx-state-dragged: 0.18;
+  }
+  :root.dark[data-palette="graphite"] {
+    --sgx-primary: #bcbec0;
+    --sgx-on-primary: #2a2a2a;
+    --sgx-primary-container: #404040;
+    --sgx-on-primary-container: #e4e6e9;
+    --sgx-secondary: #babec2;
+    --sgx-on-secondary: #282a2c;
+    --sgx-secondary-container: #37393c;
+    --sgx-on-secondary-container: #e1e3e5;
+    --sgx-tertiary: #81c6f7;
+    --sgx-on-tertiary: #002d47;
+    --sgx-tertiary-container: #034263;
+    --sgx-on-tertiary-container: #cce9ff;
+    --sgx-danger: #f89a92;
+    --sgx-on-danger: #4f1313;
+    --sgx-danger-container: #6c2d2a;
+    --sgx-on-danger-container: #ffddda;
+    --sgx-background: #0d0f10;
+    --sgx-surface-dim: #090b0d;
+    --sgx-surface: #111315;
+    --sgx-surface-bright: #2e3133;
+    --sgx-surface-container-lowest: #141618;
+    --sgx-surface-container-low: #181a1c;
+    --sgx-surface-container: #1d1f22;
+    --sgx-surface-container-high: #232528;
+    --sgx-surface-container-highest: #2a2c2f;
+    --sgx-text-primary: #e7eaed;
+    --sgx-text-secondary: #b8bdc1;
+    --sgx-text-tertiary: #969a9f;
+    --sgx-text-disabled: rgba(231,234,237,0.38);
+    --sgx-disabled-container: rgba(231,234,237,0.12);
+    --sgx-outline: #82878b;
+    --sgx-outline-variant: #3b3f43;
+    --sgx-divider: rgba(231,234,237,0.12);
+    --sgx-card: #141618;
+    --sgx-card-nested: #181a1c;
+    --sgx-card-nested-2: #1d1f22;
+    --sgx-sheet: #181a1c;
+    --sgx-dialog: #232528;
+    --sgx-drawer: #181a1c;
+    --sgx-menu: #1d1f22;
+    --sgx-input-fill: #2a2c2f;
+    --sgx-topbar-glass: rgba(46,49,51,0.68);
+    --sgx-glass-tint: rgba(29,31,34,0.72);
+    --sgx-glass-edge: rgba(243,245,248,0.08);
+    --sgx-scrim: rgba(1,2,2,0.6);
+    --sgx-inverse-surface: #dee2e5;
+    --sgx-inverse-on-surface: #27292b;
+    --sgx-inverse-primary: #5e5e5e;
+    --sgx-bg-blob-1: #2b2e32;
+    --sgx-bg-blob-2: #232d33;
+    --sgx-bg-blob-3: #27292b;
+    --sgx-bg-gradient-1: #131415;
+    --sgx-bg-gradient-2: #0d0f10;
+    --sgx-bg-gradient-3: #111212;
+    --sgx-link: #8ccdfa;
+    --sgx-link-visited: #90c3f7;
+    --sgx-focus-ring: #81c6f7;
+    --sgx-switch-track-on: #81c6f7;
+    --sgx-switch-thumb-on: #002d47;
+    --sgx-switch-track-off: #2a2c2f;
+    --sgx-switch-thumb-off: #82878b;
+    --sgx-slider-active: #81c6f7;
+    --sgx-slider-inactive: #034263;
+    --sgx-slider-thumb: #81c6f7;
+    --sgx-chip-selected: #37393c;
+    --sgx-on-chip-selected: #e1e3e5;
+    --sgx-nav-selected: #37393c;
+    --sgx-on-nav-selected: #e1e3e5;
+    --sgx-fab: #404040;
+    --sgx-on-fab: #e4e6e9;
+    --sgx-badge: #f89a92;
+    --sgx-on-badge: #4f1313;
+    --sgx-badge-info: #81c6f7;
+    --sgx-on-badge-info: #002d47;
+    --sgx-lock-clock: #e7eaed;
+    --sgx-lock-meta: #b8bdc1;
+    --sgx-lock-quote: #cce9ff;
+    --sgx-lock-quote-bg: rgba(3,66,99,0.55);
+    --sgx-lock-unlock: #bcbec0;
+    --sgx-on-lock-unlock: #2a2a2a;
+    --sgx-daymark-card: #141618;
+    --sgx-daymark-mark: rgba(129,198,247,0.14);
+    --sgx-daymark-label: #81c6f7;
+    --sgx-daymark-text: #e7eaed;
+    --sgx-daymark-trans: #b8bdc1;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #2b2e32 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #232d33 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #27292b 0%, transparent 60%), linear-gradient(180deg, #131415 0%, #0d0f10 55%, #111212 100%);
+    --sgx-state-color: var(--sgx-text-primary);
+    --sgx-state-hover: 0.1;
+    --sgx-state-focus: 0.14;
+    --sgx-state-pressed: 0.16;
+    --sgx-state-selected: 0.14;
+    --sgx-state-dragged: 0.2;
+  }
+  /* @gen-palettes:end */
+  /* 组件角色（别名层）：PR3 以前的角色名，只引用上面的角色，亮暗 / 预设 / 自定义种子随之切换（都声明在 <html> 上）。 */
+  :root {
+    --sgx-on-surface: var(--sgx-text-primary);
+    --sgx-on-surface-variant: var(--sgx-text-secondary);
+    --sgx-surface-tint-alt: var(--sgx-tertiary-container);
+    --sgx-outline-accent: var(--sgx-focus-ring);
+    --sgx-topbar-glass-edge: var(--sgx-glass-edge);
+    --sgx-slider-track: var(--sgx-slider-inactive);
+    --sgx-chip-bg: transparent;
+    --sgx-on-chip: var(--sgx-text-secondary);
+    --sgx-chip-selected-bg: var(--sgx-chip-selected);
+    /* 主按钮 = primary；次按钮（tonal）= secondary-container（规格 §4） */
+    --sgx-btn-primary-bg: var(--sgx-primary);
+    --sgx-btn-primary-fg: var(--sgx-on-primary);
+    --sgx-btn-secondary-bg: var(--sgx-secondary-container);
+    --sgx-btn-secondary-fg: var(--sgx-on-secondary-container);
+    /* C3 进入凭证按钮（锁屏 / 账号门口 / 弹层共用）：原来固定深蓝，现在跟主题色角色走 */
+    --sgx-door-btn-bg: var(--sgx-btn-primary-bg);
+    --sgx-door-btn-fg: var(--sgx-btn-primary-fg);
+    --sgx-door-btn2-bg: var(--sgx-btn-secondary-bg);
+    --sgx-door-btn2-fg: var(--sgx-btn-secondary-fg);
   }
   /* 布局变量（与主题无关，集中到 tokens 层） */
   :root {
@@ -1430,16 +3941,16 @@
     .sec-status.is-warn & { background: var(--m-warm); color: var(--m-on-warm); }
     svg { width: 26px; height: 26px; }
   }
-  .sec-note { font-size: 12px; color: var(--m-on-surface-variant); padding: 0 4px; margin: 0; }
-  .sgx-verify-desc { font-size: 13px; color: var(--m-on-surface-variant); margin: 0; text-align: center; max-width: 300px; }
+  .sec-note { font-size: 12px; color: var(--sgx-text-secondary); padding: 0 4px; margin: 0; }
+  .sgx-verify-desc { font-size: 13px; color: var(--sgx-text-secondary); margin: 0; text-align: center; max-width: 300px; }
   .sgx-pw-field { position: relative; width: 100%; max-width: 280px; }
   .sgx-pw-field .sgx-pw-input { max-width: none; padding-right: 48px; }
   .sgx-pw-eye {
     position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
     width: 36px; height: 36px; border: 0; background: none; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
-    color: var(--m-on-surface-variant); border-radius: 999px;
-    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: -2px; }
+    color: var(--sgx-text-secondary); border-radius: 999px;
+    &:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
     /* 批次 A 验收修复 P2：.off 透明机制废弃，改由 eye / eye-off 图标切换区分明密文 */
   }
   /* B14 fix (Gray 2026-10-15)：锁定屏幕 360 折叠态大标题与顶栏重叠。
@@ -1841,48 +4352,68 @@
   /* ===== 2.3.14 首页锁屏 ===== */
   #sgx-lock {
     position: fixed; inset: 0; z-index: 300; height: 100vh; height: 100dvh; overflow: hidden;
-    background: var(--m-wallpaper); color: var(--m-on-surface);
+    background: var(--sgx-background-css); color: var(--sgx-text-primary);
     -webkit-user-select: none; user-select: none;
     &.sgx-lock-out { transform: translateY(-102%); opacity: 0; transition: transform .4s ease, opacity .4s ease; }
     .reduced-motion &.sgx-lock-out { transform: none; }
   }
-  /* 顶部小锁 */
+  /* PR3 锁屏版面：小锁 → 时钟 → 日期天气 → 日刻今日一句 → 头像，整组垂直居中（锁屏的感觉，但没有中间的大空白）。
+     矮屏放不下时整页可滚动（.sgx-lock-stage margin:auto）。 */
+  #sgx-lock { display: flex; overflow-y: auto; overscroll-behavior: contain; }
+  .sgx-lock-stage {
+    margin: auto; width: 100%; max-width: 480px; box-sizing: border-box;
+    padding: calc(env(safe-area-inset-top,0px) + 28px) 20px calc(env(safe-area-inset-bottom,0px) + 32px);
+    display: flex; flex-direction: column; align-items: center;
+    transition: opacity .25s ease;
+    &.is-pending { opacity: 0; }
+    .reduced-motion & { transition: none; }
+  }
+  .sgx-lock-head { width: 100%; display: flex; flex-direction: column; align-items: center; }
+  /* 小锁 */
   .sgx-lock-top {
-    position: absolute; top: calc(env(safe-area-inset-top,0px) + 22px); left: 0; right: 0;
-    display: flex; justify-content: center; pointer-events: none; color: var(--m-on-surface-variant);
+    display: flex; justify-content: center; pointer-events: none; color: var(--sgx-lock-meta);
+    margin-bottom: 14px;
   }
-  /* 时钟区：竖屏时中心约在屏幕上部三分之一处 */
-  .sgx-lock-clockwrap {
-    position: absolute; top: 31%; left: 0; right: 0; transform: translateY(-50%);
-    text-align: center; padding: 0 16px; pointer-events: none;
-  }
+  .sgx-lock-clockwrap { text-align: center; pointer-events: none; }
   .sgx-lock-clock {
-    font-size: min(27vw,160px); font-weight: 800; letter-spacing: -0.03em; line-height: 1;
-    font-variant-numeric: tabular-nums; color: var(--m-on-surface);
+    font-size: clamp(64px, 23vw, 112px); font-weight: 800; letter-spacing: -0.03em; line-height: 1;
+    font-variant-numeric: tabular-nums; color: var(--sgx-lock-clock);
   }
   .sgx-lock-date {
-    margin-top: 10px; font-size: 17px; font-weight: 600; color: var(--m-on-surface-variant);
+    margin-top: 10px; font-size: 17px; font-weight: 600; color: var(--sgx-lock-meta);
     display: flex; align-items: center; justify-content: center; gap: 10px;
   }
   .sgx-lock-wx { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
-  /* 头像模块：距底部约 15% 屏高 */
-  .sgx-lock-user {
-    position: absolute; left: 0; right: 0; bottom: calc(15% + env(safe-area-inset-bottom,0px));
-    display: flex; flex-direction: column; align-items: center; gap: 12px;
+  /* 日刻 · 今日一句（与主页同一个组件，锁屏上只展示：不是链接、没有按压态） */
+  .sgx-lock-dm {
+    width: 100%; margin-top: 28px; padding: 20px 22px; text-align: left;
+    cursor: default; -webkit-user-select: text; user-select: text;
+    &:active { transform: none; }
+    &.hidden { display: none; }
+    .dm-w-text {
+      margin-top: 14px; font-size: 1.3rem; font-weight: 600; line-height: 1.55;
+      font-family: "Noto Serif SC", "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", Georgia, "Times New Roman", serif;
+    }
   }
+  /* 头像 + 「点头像解锁」 */
+  .sgx-lock-user {
+    margin-top: clamp(36px, 7vh, 72px);
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
+  .sgx-lock-hint { margin: 0; font-size: 13px; color: var(--sgx-text-secondary); pointer-events: none; }
   #sgx-lock-avatar {
     position: relative; width: 80px; height: 80px; border-radius: 50%; border: 0; padding: 0;
     background: none; cursor: pointer;
     /* 2.8.0：可点击提示（轻微按压缩放） */
     transition: transform .15s ease;
     &:focus { outline: none; }
-    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 4px; }
+    &:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 4px; }
     &:active { transform: scale(.93); }
     img { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; display: block; margin: 4px; position: relative; z-index: 1; }
   }
   .sgx-lock-fb {
     width: 72px; height: 72px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-    margin: 4px; background: var(--m-primary); color: var(--m-on-primary); font-size: 28px; font-weight: 800;
+    margin: 4px; background: var(--sgx-primary); color: var(--sgx-on-primary); font-size: 28px; font-weight: 800;
     position: relative; z-index: 1;
   }
   .sgx-lock-halo {
@@ -1903,7 +4434,7 @@
   }
   .sgx-sheet-card {
     position: absolute; left: 0; right: 0; bottom: 0;
-    background: var(--m-surface); border-radius: 1.75rem 1.75rem 0 0;
+    background: var(--sgx-surface); border-radius: 1.75rem 1.75rem 0 0;
     padding: 8px 20px calc(24px + env(safe-area-inset-bottom,0px));
     display: flex; flex-direction: column; gap: 12px; align-items: stretch;
     transform: translateY(102%); transition: transform .3s cubic-bezier(.22,1,.36,1);
@@ -1919,37 +4450,37 @@
     }
   }
   .sgx-sheet-title {
-    font-size: 18px; font-weight: 700; color: var(--m-on-surface);
+    font-size: 18px; font-weight: 700; color: var(--sgx-text-primary);
     text-align: center; margin: 4px 0 4px;
   }
   .sgx-method-opt {
     display: flex; align-items: center; gap: 16px; text-align: left;
-    background: var(--m-surface-container-highest);
-    border: 1px solid var(--m-outline-variant); border-radius: 16px;
+    background: var(--sgx-input-fill);
+    border: 1px solid var(--sgx-outline-variant); border-radius: 16px;
     padding: 16px; cursor: pointer; width: 100%;
     transition: transform .12s ease, border-color .15s ease, background .12s ease;
     /* 批次 A 验收修复 P2：按下态整行背景变色（现有 --m-container-* 色），松开恢复 */
-    &:active { transform: scale(.98); background: var(--m-container-high); }
-    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
+    &:active { transform: scale(.98); background: var(--sgx-surface-container-high); }
+    &:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
   }
   .sgx-method-ic {
     width: 48px; height: 48px; border-radius: 14px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
-    background: var(--m-primary-container); color: var(--m-on-primary-container);
+    background: var(--sgx-primary-container); color: var(--sgx-on-primary-container);
   }
   .sgx-method-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-  .sgx-method-name { font-size: 16px; font-weight: 600; color: var(--m-on-surface); }
-  .sgx-method-desc { font-size: 13px; color: var(--m-on-surface-variant); }
+  .sgx-method-name { font-size: 16px; font-weight: 600; color: var(--sgx-text-primary); }
+  .sgx-method-desc { font-size: 13px; color: var(--sgx-text-secondary); }
   /* 2.4.0 I：验证入口小字链接 */
   /* 2.8.0 锁屏重设计：.sgx-lock-links/.sgx-lock-pwlink 已删除（改成底部弹层选单） */
   .sgx-pw-input {
     width: 100%; max-width: 280px; padding: 12px 16px; font-size: 16px;
-    border: 1px solid var(--m-outline); border-radius: 12px;
-    background: var(--m-surface); color: var(--m-on-surface);
-    &:focus { outline: 2px solid var(--m-primary); outline-offset: 1px; border-color: transparent; }
+    border: 1px solid var(--sgx-outline-variant); border-radius: 12px;
+    background: var(--sgx-surface); color: var(--sgx-text-primary);
+    &:focus { outline: 2px solid var(--sgx-focus-ring); outline-offset: 1px; border-color: transparent; }
     &:disabled { opacity: .5; }
   }
-  .sgx-pw-count { font-size: 13px; color: var(--m-on-surface-variant); margin: 0; }
+  .sgx-pw-count { font-size: 13px; color: var(--sgx-text-secondary); margin: 0; }
   /* 2.4.0 H：Turnstile 验证卡（<dialog>，One UI 密码界面式底部弹层）
      安全与隐私：验证/密码/通行密钥三态共用同一组件；卡片背景完全不透明；
      容器无 outline，:focus-visible 只在内部可交互元素上用本站焦点色。 */
@@ -1960,11 +4491,11 @@
     &:focus { outline: none; }
     &::backdrop { background: rgba(0,0,0,.4); opacity: 0; transition: opacity .25s; }
     &[open]::backdrop { opacity: 1; }
-    :focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
+    :focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
   }
   .sgx-verify-card {
     /* 实色背景，完全不透明，不透出底下的字 */
-    background: var(--m-surface); border: 1px solid var(--glass-edge);
+    background: var(--sgx-surface); border: 1px solid var(--glass-edge);
     border-radius: 1.75rem 1.75rem 0 0; padding: 8px 20px calc(20px + env(safe-area-inset-bottom,0px));
     display: flex; flex-direction: column; align-items: center; gap: 12px;
     position: relative;
@@ -1978,10 +4509,10 @@
   .sgx-dlg-close {
     position: absolute; top: 8px; right: 12px; z-index: 2;
     width: 32px; height: 32px; border: 0; background: none; cursor: pointer;
-    font-size: 22px; line-height: 1; color: var(--m-on-surface-variant);
+    font-size: 22px; line-height: 1; color: var(--sgx-text-secondary);
     display: flex; align-items: center; justify-content: center; border-radius: 50%;
-    &:hover { background: var(--m-surface-variant); }
-    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
+    &:hover { background: var(--sgx-surface-container-high); }
+    &:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
   }
   /* ===== 两扇门验证弹层（One UI 悬浮卡片）：左右 12px、底部 12px+安全区，
      26px 圆角实心背景，遮罩 40%，底部上滑（与站内弹层同曲线） ===== */
@@ -1993,10 +4524,10 @@
     &:focus { outline: none; }
     &::backdrop { background: rgba(0,0,0,.4); opacity: 0; transition: opacity .25s; }
     &[open]::backdrop { opacity: 1; }
-    :focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
+    :focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
   }
   .sgx-door-card {
-    background: var(--m-surface); border-radius: 26px; padding: 24px;
+    background: var(--sgx-surface); border-radius: 26px; padding: 24px;
     display: flex; flex-direction: column; align-items: stretch;
     position: relative;
     max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain;
@@ -2006,48 +4537,48 @@
     .reduced-motion & { transition: none; }
     &:focus { outline: none; }
   }
-  .sgx-door-title { font-size: 20px; font-weight: 700; margin: 0; color: var(--m-on-surface); text-align: left; }
-  .sgx-door-desc { font-size: 15px; line-height: 1.5; color: var(--m-on-surface-variant); margin: 8px 0 0; text-align: left; }
+  .sgx-door-title { font-size: 20px; font-weight: 700; margin: 0; color: var(--sgx-text-primary); text-align: left; }
+  .sgx-door-desc { font-size: 15px; line-height: 1.5; color: var(--sgx-text-secondary); margin: 8px 0 0; text-align: left; }
   /* A-3：选择框纵向 flex，行间 12px */
   .sgx-door-methods { margin-top: 8px; display: flex; flex-direction: column; gap: 12px; }
   .sgx-door-row {
     /* A-3：半径 16px，静止底色 --m-container，按下/选中 --m-container-high，
        去 hairline 分隔线，行内边距 12px 16px */
     display: flex; align-items: center; gap: 14px; width: 100%;
-    min-height: 64px; padding: 12px 16px; background: var(--m-container); border: 0;
+    min-height: 64px; padding: 12px 16px; background: var(--sgx-surface-container); border: 0;
     border-radius: 16px;
-    text-align: left; cursor: pointer; color: var(--m-on-surface);
+    text-align: left; cursor: pointer; color: var(--sgx-text-primary);
     /* 批次 A 验收修复 P2：按下态整行背景变色（现有 --m-container-* 色），松开恢复 */
-    &:active, &.sgx-row-pressed { background: var(--m-container-high); }
+    &:active, &.sgx-row-pressed { background: var(--sgx-surface-container-high); }
     /* 选中态（根凭证/密码行展开时）：背景保持高亮 */
-    &.sgx-row-selected { background: var(--m-container-high); }
+    &.sgx-row-selected { background: var(--sgx-surface-container-high); }
   }
   .sgx-door-ic {
     width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
-    background: var(--m-primary-container); color: var(--m-on-primary-container);
+    background: var(--sgx-primary-container); color: var(--sgx-on-primary-container);
     display: inline-flex; align-items: center; justify-content: center;
     svg { width: 22px; height: 22px; }
   }
   .sgx-door-mid { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .sgx-door-rowtitle { font-size: 16px; font-weight: 500; }
-  .sgx-door-rowsub { font-size: 13px; color: var(--m-on-surface-variant); }
-  .sgx-door-chev { color: var(--m-on-surface-variant); flex-shrink: 0; display: inline-flex; align-items: center; transition: transform .18s ease; }
+  .sgx-door-rowsub { font-size: 13px; color: var(--sgx-text-secondary); }
+  .sgx-door-chev { color: var(--sgx-text-secondary); flex-shrink: 0; display: inline-flex; align-items: center; transition: transform .18s ease; }
   .sgx-door-chev svg { width: 20px; height: 20px; }
   /* 批次 A 验收修复 P2：行展开时箭头旋转 90°（右向 > → 向下） */
   .sgx-door-chev.expanded { transform: rotate(90deg); }
   .sgx-door-spin {
     width: 20px; height: 20px; border-radius: 999px; flex-shrink: 0;
-    border: 2px solid var(--m-outline-variant); border-top-color: var(--m-primary);
+    border: 2px solid var(--sgx-outline-variant); border-top-color: var(--sgx-primary);
     animation: sgx-spin .8s linear infinite;
     .reduced-motion & { animation-duration: 2s; }
   }
-  .sgx-door-err { color: var(--m-rose); font-size: 13px; line-height: 1.45; margin: 8px 0 0; text-align: left; }
+  .sgx-door-err { color: var(--sgx-danger); font-size: 13px; line-height: 1.45; margin: 8px 0 0; text-align: left; }
   .sgx-door-err[hidden] { display: none; }
   .sgx-door-expand { padding: 8px 0 0; }
   .sgx-door-expand .sgx-pw-field { max-width: none; }
   .sgx-door-foot { display: flex; justify-content: center; margin-top: 20px; }
   .sgx-door-cancel {
-    background: none; border: 0; color: var(--m-primary);
+    background: none; border: 0; color: var(--sgx-primary);
     font-size: 16px; font-weight: 600; padding: 12px 24px; cursor: pointer;
   }
   .sgx-door-actions { display: flex; gap: 8px; width: 100%; }
@@ -2085,49 +4616,124 @@
     20%, 60% { transform: translateX(-8px); }
     40%, 80% { transform: translateX(8px); }
   }
-  .sgx-verify-title { font-size: 18px; font-weight: 700; color: var(--m-on-surface); margin: 0; }
-  .sgx-verify-err { color: var(--m-rose); font-size: 14px; margin: 0; text-align: center; }
+  .sgx-verify-title { font-size: 18px; font-weight: 700; color: var(--sgx-text-primary); margin: 0; }
+  .sgx-verify-err { color: var(--sgx-danger); font-size: 14px; margin: 0; text-align: center; }
   /* 2.8.0：命名弹层输入框 One UI 样式（之前 class 存在但无样式定义） */
   .sgx-verify-input {
     width: 100%; max-width: 320px;
-    background: var(--m-surface-container-highest);
-    border: 1px solid var(--m-outline-variant);
+    background: var(--sgx-input-fill);
+    border: 1px solid var(--sgx-outline-variant);
     border-radius: 12px;
     padding: 12px 16px;
-    font-size: 16px; color: var(--m-on-surface);
+    font-size: 16px; color: var(--sgx-text-primary);
     outline: none;
-    &::placeholder { color: var(--m-on-surface-variant); opacity: .7; }
-    &:focus { border-color: var(--m-primary); box-shadow: 0 0 0 1px var(--m-primary); }
+    &::placeholder { color: var(--sgx-text-secondary); opacity: .7; }
+    &:focus { border-color: var(--sgx-focus-ring); box-shadow: 0 0 0 1px var(--sgx-focus-ring); }
   }
   .sgx-verify-skip {
-    background: var(--m-primary); color: var(--m-on-primary);
+    background: var(--sgx-primary); color: var(--sgx-on-primary);
     border: 0; border-radius: 999px; padding: 10px 24px; font-size: 15px; font-weight: 600; cursor: pointer;
     &:disabled { opacity: .5; }
   }
   .sgx-verify-ghost {
-    background: none; border: 1px solid var(--m-outline); border-radius: 999px;
-    padding: 10px 24px; font-size: 15px; font-weight: 600; cursor: pointer; color: var(--m-on-surface);
+    background: none; border: 1px solid var(--sgx-outline); border-radius: 999px;
+    padding: 10px 24px; font-size: 15px; font-weight: 600; cursor: pointer; color: var(--sgx-text-primary);
   }
   /* C2：重置锁屏（2/2）选项行与恢复提示 */
   .sgx-reset-hint {
-    font-size: 15px; color: var(--m-on-surface); text-align: left; width: 100%;
+    font-size: 15px; color: var(--sgx-text-primary); text-align: left; width: 100%;
     margin-bottom: 4px;
   }
   .sgx-reset-opts {
     display: flex; flex-direction: column; gap: 12px; width: 100%;
   }
   .sgx-reset-recover-hint {
-    font-size: 13px; color: var(--m-on-surface-variant); text-align: left; width: 100%;
+    font-size: 13px; color: var(--sgx-text-secondary); text-align: left; width: 100%;
     margin-top: 12px; line-height: 1.5;
   }
+  /* PR3「无法登录？」：锁屏方法弹层最下面、账号登录页与账号门口的小字链接 */
+  .sgx-sheet-cant, .acct-cant {
+    align-self: center; background: none; border: 0; padding: 10px 12px; margin-top: 2px;
+    font-size: 14px; font-weight: 600; color: var(--sgx-link); cursor: pointer; text-decoration: none;
+    border-radius: 999px;
+    &:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+    &:active { background: var(--sgx-surface-container-high); }
+  }
+  /* PR3 重置登录（lib/reset-flow.js）：账号页 /settings/account/reset/ 与锁屏弹层同一个界面 */
+  .sgx-reset { width: 100%; display: flex; flex-direction: column; gap: 12px; }
+  .sgx-reset-lead { margin: 0; font-size: 15px; color: var(--sgx-text-primary); }
+  .sgx-reset .sgx-pw-field { max-width: none; }
+  .sgx-reset .sgx-pw-input { max-width: none; }
+  .sgx-reset .sgx-door-err { margin: 0; }
+  .sgx-reset-next { width: 100%; flex: none; }
+  .sgx-reset .sgx-door-methods { margin-top: 0; }
+  .sgx-reset-none { margin: 0; font-size: 14px; color: var(--sgx-text-secondary); }
+  .sgx-sheet-reset { width: 100%; }
+  /* 账号页的重置登录：与登录页同一栏宽、居中；说明文字居中 */
+  .acct-reset { width: 100%; max-width: 360px; }
+  .acct-reset-page .acct-login-hero { margin-bottom: 20px; }
+  .acct-reset .sgx-reset-lead { text-align: center; }
+  .acct-reset .sgx-reset-recover-hint, .acct-reset .sgx-reset-none { text-align: center; }
+
+  /* PR3 账号登录：头像 + 欢迎回来 + 通行密钥登录（强调色主按钮）+ 密码登录（次按钮，原地展开）+ 无法登录？ */
+  .acct-login { display: flex; flex-direction: column; align-items: center; padding-top: clamp(16px, 6vh, 56px); }
+  .acct-login[hidden] { display: none; }
+  .acct-login-hero { display: flex; flex-direction: column; align-items: center; gap: 14px; margin-bottom: 28px; }
+  .acct-login-avatar { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 3px var(--sgx-surface), 0 0 0 5px var(--sgx-outline-variant); }
+  .acct-login-welcome { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.01em; color: var(--sgx-text-primary); }
+  .acct-login-notice { width: 100%; max-width: 360px; text-align: center; }
+  .acct-login-actions { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 12px; }
+  .acct-login-btn { width: 100%; flex: none; gap: 10px; }
+  .acct-login-btn[hidden] { display: none; }
+
+  .acct-login-btn:disabled { opacity: .7; cursor: default; }
+  .acct-login-btn-ic { display: inline-flex; width: 22px; height: 22px; }
+  .acct-login-btn-ic svg { width: 22px; height: 22px; }
+  .acct-login-actions .sgx-door-err { margin: -4px 0 0; }
+  .acct-pw-form { display: flex; flex-direction: column; gap: 12px; padding-top: 2px; }
+  .acct-pw-form[hidden] { display: none; }
+  .acct-pw-form .sgx-pw-field, .acct-pw-form .sgx-pw-input { max-width: none; }
+  .acct-login-none { margin: 0; font-size: 14px; color: var(--sgx-text-secondary); text-align: center; line-height: 1.6; }
+  .acct-login .acct-cant { margin-top: 18px; }
+  #acct-door .acct-cant { display: inline-block; margin-top: 12px; }
+  /* PR3：本 PR 动到的界面（账号登录 / 密码框 / 重置登录 / 锁屏 / 锁屏解锁弹层 / Turnstile 弹层）
+     颜色只用主题色 token（--sgx-*，见 tokens 层「主题色 → 整套配色」），不写死蓝 / 紫。 */
+  .acct-login .sgx-door-btn-primary, .sgx-reset .sgx-door-btn-primary, #acct-door .sgx-door-btn-primary,
+  .sgx-verify-dlg .sgx-door-btn-primary, .sgx-verify-dlg .sgx-verify-skip, #sgx-method-sheet .sgx-door-btn-primary {
+    background: var(--sgx-btn-primary-bg); color: var(--sgx-btn-primary-fg);
+  }
+  .acct-login .sgx-door-btn-secondary, .sgx-reset .sgx-door-btn-secondary, .sgx-verify-dlg .sgx-door-btn-secondary,
+  #sgx-method-sheet .sgx-door-btn-secondary {
+    background: var(--sgx-btn-secondary-bg); color: var(--sgx-btn-secondary-fg);
+  }
+  /* 锁屏弹层 / Turnstile 弹层的底、锁屏日刻卡：surface 角色 */
+  #sgx-method-sheet .sgx-sheet-card, .sgx-verify-dlg .sgx-verify-card { background: var(--sgx-surface); color: var(--sgx-text-primary); }
+  /* 弹层遮罩：scrim 角色 */
+  #sgx-method-sheet .sgx-sheet-backdrop, dialog.sgx-verify-dlg::backdrop, dialog.sgx-door-dlg::backdrop { background: var(--sgx-scrim, rgba(0,0,0,.4)); }
+  #sgx-method-sheet .sgx-method-opt { background: var(--sgx-surface-container); }
+  #sgx-method-sheet .sgx-method-opt:active { background: var(--sgx-surface-container-high); }
+  #sgx-method-sheet .sgx-door-row, .sgx-reset .sgx-door-row { background: var(--sgx-surface-container); }
+  /* 锁屏日刻卡：日刻角色（底 daymark-card、正文 daymark-text、译文 daymark-trans、标签 / 图标 daymark-label、大引号 daymark-mark） */
+  .sgx-lock-dm.bg-m-container-lowest { border-color: var(--sgx-outline-variant); color: var(--sgx-daymark-text); }
+  .sgx-lock-dm .dm-w-mark { color: var(--sgx-daymark-mark); opacity: 1; }
+  .sgx-lock-dm .dm-w-trans { color: var(--sgx-daymark-trans); }
+  .acct-login .sgx-pw-input:focus, .sgx-reset .sgx-pw-input:focus, .sgx-verify-dlg .sgx-pw-input:focus,
+  #acct-door .sgx-pw-input:focus, #sgx-method-sheet .sgx-pw-input:focus {
+    outline-color: var(--sgx-focus-ring);
+  }
+  .sgx-reset .sgx-door-ic, #acct-door .sgx-door-ic, #sgx-method-sheet .sgx-method-ic {
+    background: var(--sgx-primary-container); color: var(--sgx-on-primary-container);
+  }
+  .sgx-method-opt:focus-visible, #sgx-lock-avatar:focus-visible { outline-color: var(--sgx-focus-ring); }
+  .sgx-lock-dm .text-m-primary { color: var(--sgx-daymark-label); }
   /* 统一弹层内容区：三态同尺寸，min-height 防跳动 */
   .sgx-verify-body {
     display: flex; flex-direction: column; align-items: center; gap: 12px;
     width: 100%; min-height: 132px; justify-content: center;
   }
   .sgx-verify-loading { display: flex; flex-direction: column; align-items: center; gap: 14px; &[hidden] { display: none; } }
-  .sgx-verify-loading-tx { font-size: 14px; color: var(--m-on-surface-variant); margin: 0; }
-  .sgx-verify-failtx { font-size: 15px; color: var(--m-on-surface); margin: 0; font-weight: 500; }
+  .sgx-verify-loading-tx { font-size: 14px; color: var(--sgx-text-secondary); margin: 0; }
+  .sgx-verify-failtx { font-size: 15px; color: var(--sgx-text-primary); margin: 0; font-weight: 500; }
   .sgx-verify-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
   /* ===== A-1：居中模态弹层（到期弹框 / 删除确认共用，定稿 #22） =====
      无 ×，遮罩/返回手势是否关闭由调用方 dismissible 决定；
@@ -2139,12 +4745,12 @@
     &:focus { outline: none; }
     &::backdrop { background: rgba(0,0,0,.4); opacity: 0; transition: opacity .25s; }
     &[open]::backdrop { opacity: 1; }
-    :focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
+    :focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
     /* v1.1 §二.5：编程/鼠标聚焦不显示外框；键盘聚焦时 :focus-visible 再显示（上条规则） */
     button:focus:not(:focus-visible) { outline: none; }
   }
   .sgx-center-card {
-    background: var(--m-surface); border-radius: 26px; padding: 24px;
+    background: var(--sgx-surface); border-radius: 26px; padding: 24px;
     display: flex; flex-direction: column; align-items: stretch; gap: 12px;
     transform: scale(.96); opacity: 0;
     transition: transform .25s cubic-bezier(.22,1,.36,1), opacity .25s;
@@ -2161,27 +4767,26 @@
   .sgx-door-countdown {
     display: inline-flex; align-items: center; gap: 6px;
     margin: 0 0 12px; padding: 6px 12px; border-radius: 999px;
-    background: var(--m-container); color: var(--m-on-surface-variant);
+    background: var(--sgx-surface-container); color: var(--sgx-text-secondary);
     font-size: 16px; font-weight: 500; line-height: 1.4;
     svg { width: 16px; height: 16px; flex-shrink: 0; }
   }
   .sgx-door-countdown.sgx-countdown-warn {
     background: var(--m-warm-container); color: var(--m-on-warm-container);
   }
-  /* Turnstile 小组件容器：圆角 + 内边距融进弹层，无白底大框 */
+  /* Turnstile 小组件容器（PR3）：Cloudflare 官方小组件原样显示（appearance always），
+     容器只负责居中和预留高度，不加底框、不遮挡；一直可见（不用 hidden / display:none）。 */
   .sgx-ts-wrap {
-    border-radius: 16px; padding: 12px 16px; max-width: 320px; width: 100%;
-    background: var(--m-surface-container-low); border: 1px solid var(--m-outline-variant);
-    display: flex; justify-content: center; align-items: center; min-height: 65px;
-    &[hidden] { display: none; }
-    iframe { border-radius: 8px; }
+    display: flex; justify-content: center; align-items: center;
+    width: 100%; max-width: 320px; min-height: 65px;
   }
-  /* 手机横屏：左半边时钟，右半边头像，都垂直居中 */
-  @media (orientation:landscape) and (max-width:1023.5px) {
-    .sgx-lock-clockwrap { top: 50%; left: 0; right: auto; width: 50%; }
-    .sgx-lock-user { top: 50%; bottom: auto; left: 50%; right: 0; transform: translateY(-50%); }
-    .sgx-lock-clock { font-size: min(15vh,96px); }
-    .sgx-lock-top { top: calc(env(safe-area-inset-top,0px) + 14px); }
+  /* 手机横屏（矮屏）：左边 时钟 + 日期 + 日刻，右边头像，都垂直居中 */
+  @media (orientation:landscape) and (max-width:1023.5px) and (max-height:600px) {
+    .sgx-lock-stage { max-width: 860px; flex-direction: row; justify-content: center; gap: 48px; padding-top: 20px; padding-bottom: 20px; }
+    .sgx-lock-head { max-width: 460px; }
+    .sgx-lock-clock { font-size: min(20vh,88px); }
+    .sgx-lock-dm { margin-top: 16px; padding: 14px 18px; }
+    .sgx-lock-user { margin-top: 0; }
   }
   /* DeX / 电脑宽屏：时钟居中（上限 160px），头像在下方居中，悬停光环变亮 */
   @media (min-width:1024px) {
@@ -2253,6 +4858,8 @@
   .widget.bg-m-container-lowest, .sgx-account-card, .link-card, .brw-card, .brw-cat:not(.on):not(.is-active) {
     background-color: var(--sgx-mat); background-image: none;
   }
+  /* PR3：锁屏日刻卡用日刻角色（daymark-card，保留材质的 88% 不透明），不跟 --m-primary 混出来的卡片材质 */
+  .sgx-lock-dm.widget.bg-m-container-lowest { background-color: color-mix(in srgb, var(--sgx-daymark-card) 88%, transparent); }
 
   /* DeX 下隐藏手机 Dock（兜底，布局类已控制；原 !important 已摘） */
   /* 页面底部留白：胶囊不压内容，最后一项能完整滚出（2.3.14.1：跟随胶囊高度 56px；

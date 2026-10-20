@@ -1,13 +1,12 @@
 {{/* 账号（原「站长凭证」升级为账号）：顶栏右圆头像进入。
-   未登录 → 账号登录：账号通行密钥 / 账号密码 / 根凭证，设了哪个显示哪个，都没设只显示根凭证；
-   任一成功签发账号会话（sgx-account，400 天，不点退出一直登录；进账号页前提是锁屏已解锁）。
+   未登录 → 账号登录（顶栏页名「登录账号」）：头像 + 欢迎回来 + 通行密钥登录 / 密码登录 + 「无法登录？」。
+   成功签发账号会话（sgx-account，400 天，不点退出一直登录；进账号页前提是锁屏已解锁）。
+   「无法登录？」→ /settings/account/reset/（重置登录：根凭证 → 直接进 安全与隐私 重设账号凭证）。
    已登录 → 账号总览（三星账号式）：账号卡（名字 + 头像，主人可换头像；点卡片其余地方进
    「已登录」子页 /settings/account/profile/，在那里退出账号）、
    「安全与隐私」一行 → 子页 /settings/account/security/（account-security.html）管理账号密码和账号通行密钥，
    每次进都要再验一次账号凭证（3 分钟门票，离开即作废）。
    ?return=/settings/account/(security|profile)/：子页没有账号会话时跳来，登录后回子页。
-   根凭证登录同样能重置账号密码、删除通行密钥（恢复路径）。
-   ?door=1&return=<门内页>：从「管理凭证」过来（账号登录超过 10 分钟或未登录），登录后自动进门。
    访客看到的界面与站长一致（服务端一律拒绝）。noindex、不进 sitemap（见 baseof/sitemap）。
    脚本走 ES Module 入口 entry-account.js。 */}}
 {{ define "main" }}
@@ -16,13 +15,32 @@
 
 <div class="set-layout max-w-2xl mx-auto px-4 pb-28">
 
-  <!-- 账号登录：三个入口平级（JS 渲染行，行内展开输入框） -->
-  <div id="acct-login">
-    <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Sign in to your account{{ else }}登录账号{{ end }}</span></h2>
-    <p class="sec-note mb-3" id="acct-login-desc">{{ if $isEn }}Verify with any credential you've set. Once signed in, you stay signed in until you sign out.{{ else }}用已设置的任一凭证验证。登录后不点退出就一直保持登录。{{ end }}</p>
-    <p class="sgx-door-err mb-3" id="acct-login-notice" hidden></p>
-    <div class="sgx-door-methods animate-fade-up" id="acct-methods" style="animation-delay:.1s"></div>
-    <p class="sec-note mt-6 sgx-build-tag-wrap">{{ partial "build-tag.html" (dict "isEn" $isEn) }}</p>
+  <!-- 账号登录（PR3）：页名「登录账号」只在顶栏长条里（JS 按状态改），正文不再重复大标题、不放盾牌图标和构建号。
+       头像 + 「欢迎回来」→ 主按钮「通行密钥登录」（强调色）→ 次按钮「密码登录」（原地展开密码框）→ 小字「无法登录？」进重置登录。
+       设了哪个显示哪个；读不到状态（访客）两个都显示，服务端一律拒绝。根凭证不再是登录入口。 -->
+  <div id="acct-login" class="acct-login">
+    <div class="acct-login-hero animate-fade-up">
+      <img class="acct-login-avatar" src="/avatar/192.webp" data-sgx-avatar="192" width="96" height="96" alt="">
+      <p class="acct-login-welcome">{{ if $isEn }}Welcome back{{ else }}欢迎回来{{ end }}</p>
+    </div>
+    <p class="sgx-door-err acct-login-notice" id="acct-login-notice" hidden></p>
+    <div class="acct-login-actions animate-fade-up" style="animation-delay:.08s">
+      <button type="button" class="sgx-door-btn sgx-door-btn-primary acct-login-btn" id="acct-pk-btn">
+        <span class="acct-login-btn-ic" aria-hidden="true">{{ partial "icon.html" "fingerprint" }}</span><span class="acct-login-btn-tx">{{ if $isEn }}Sign in with passkey{{ else }}通行密钥登录{{ end }}</span>
+      </button>
+      <p class="sgx-door-err" id="acct-pk-err" hidden></p>
+      <button type="button" class="sgx-door-btn sgx-door-btn-secondary acct-login-btn" id="acct-pw-btn" aria-expanded="false" aria-controls="acct-pw-form">{{ if $isEn }}Sign in with password{{ else }}密码登录{{ end }}</button>
+      <div class="acct-pw-form" id="acct-pw-form" hidden>
+        <div class="sgx-pw-field">
+          <input type="password" id="acct-pw-input" class="sgx-pw-input" autocomplete="current-password" aria-label="{{ if $isEn }}Account password{{ else }}账号密码{{ end }}" placeholder="{{ if $isEn }}Account password{{ else }}账号密码{{ end }}">
+          <button type="button" class="sgx-pw-eye" id="acct-pw-eye"></button>
+        </div>
+        <p class="sgx-door-err" id="acct-pw-err" hidden></p>
+        <button type="button" class="sgx-door-btn sgx-door-btn-primary acct-login-btn" id="acct-pw-go">{{ if $isEn }}Sign in{{ else }}登录{{ end }}</button>
+      </div>
+      <p class="acct-login-none" id="acct-login-none" hidden>{{ if $isEn }}No sign-in method is set for this account yet. Use “Can’t sign in?” to set one with your root credential.{{ else }}账号还没有设置登录方式。可以点「无法登录？」用根凭证设置。{{ end }}</p>
+    </div>
+    <a class="acct-cant" id="acct-cant" href="{{ cond $isEn "/en/settings/account/reset/" "/settings/account/reset/" }}">{{ if $isEn }}Can’t sign in?{{ else }}无法登录？{{ end }}</a>
   </div>
 
   <!-- 账号总览（登录后，三星账号式）：账号卡（名字 + 头像，主人可换头像；点卡片其余地方进「已登录」子页）→ 安全与隐私 -->

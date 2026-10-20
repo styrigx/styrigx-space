@@ -14,13 +14,15 @@
  *
  * 本接口不直接签 lock 会话。
  *
- * 账号体系：body.target='account' → 根凭证作为账号登录的第三个入口，成功签发
- * 账号会话 sgx-account(by=root)，不签锁屏门票；再带 door:true（安全与隐私子页的门）时
- * 另签账号门票 sgx-door(door=account, by=root)，3 分钟。限速、审计（path=account）、访客假入口、
- * 真/假路径判断与默认目标完全相同，唯一区别：target=account 不走引导模式
- * （无有效 owner lock 会话一律走假入口）。缺 SGX_ACCOUNT_PRIVATE/PUBLIC → 503 config。
+ * 按用途签票（PR3：根凭证统一，比对只在 _kernel/root-check.js 一处）：
+ * - purpose 'lock'（默认）：锁屏门票 sgx-door(door=lock, by=root)
+ * - purpose 'account'：「重置登录」—— 根凭证不再是普通的账号登录入口，只用来重置账号登录方式：
+ *   签账号会话 sgx-account(by=root) + 账号门票 sgx-door(door=account, by=root)，3 分钟，
+ *   前端随即进 账号 → 安全与隐私 重设账号密码 / 通行密钥。不签锁屏门票。
+ *   限速、审计（path=account）、访客假入口、真/假路径判断与 lock 完全相同，唯一区别：
+ *   purpose=account 不走引导模式（无有效 owner lock 会话一律走假入口）。缺 SGX_ACCOUNT_PRIVATE/PUBLIC → 503 config。
  *
- * POST /api/root-auth { key }
+ * POST /api/root-auth { key, purpose? }
  * - 恒定时间比较 env.SGX_ROOT_KEY（防长度泄露）
  * - 限速：所有 root 路径共用一套（_kernel/rootlimit.js），仅真路径计数
  *   （单 IP 连错 5 次锁 15 分钟；全局每小时失败 20 次暂停 1 小时）
@@ -34,9 +36,10 @@
  * 只接受 POST；校验 Origin（缺失/解析失败 403）。
  * 旧 /api/owner-auth 不再可用。
  */
-import { timingSafeEqual, ed25519Verify, normalizeRootKey } from '../_kernel/crypto.js';
+import { ed25519Verify } from '../_kernel/crypto.js';
+import { checkRootCredential } from '../_kernel/root-check.js';
 import { ROLE_OWNER, ROLE_VISITOR } from '../_kernel/session.js';
-import { checkRootLimit, recordRootFail, clearRootFail, getClientIp } from '../_kernel/rootlimit.js';
+import { checkRootLimit, recordRootFail, getClientIp } from '../_kernel/rootlimit.js';
 import { writeRootAudit } from '../_kernel/rootlog.js';
 import { isLockEffectivelyConfigured } from '../_kernel/layers.js';
 import { verifySessionDetailed } from '../_middleware.js';
@@ -130,7 +133,8 @@ async function handlePost(context) {
   /* body 只读一次（target 决定签发什么；key 在限流检查之后才比对） */
   let body = null;
   try { body = await request.json(); } catch (e) {}
-  const toAccount = !!(body && body.target === 'account');
+  /* 用途：purpose='account'（重置登录：账号）；其余一律按锁屏（purpose='lock' 或不传） */
+  const toAccount = !!(body && body.purpose === 'account');
   const auditPath = toAccount ? 'account' : 'root-auth';
 
   /* 非访客路径：计算 lockCfg（供真/假路径判断用） */
@@ -146,7 +150,7 @@ async function handlePost(context) {
      - 无会话但 lock 层未配置 → 真路径（引导）
      - 无会话且 lock 已配置（或读取失败按已配置）→ 假入口 */
   const looksOwner = await lightSession(request, env, ROLE_OWNER);
-  /* 账号登录（target=account）不走引导：必须先有 owner lock 会话 */
+  /* 重置登录（purpose=account）不走引导：必须先有 owner lock 会话 */
   const realPath = looksOwner || (!lockCfg && !toAccount);
 
   if (!realPath) {
@@ -205,37 +209,16 @@ async function handlePost(context) {
   }
   /* 引导模式（lock 未配置）：无需会话，直接校验根凭证 */
 
-  /* 限流检查：KV 出错一律拒绝（fail closed） */
-  try {
-    const lim = await checkRootLimit(kv, ip);
-    if (lim.limited) {
-      await writeRootAudit(kv, ip, false, { path: auditPath });
-      return Response.json({ ok: false, error: 'locked' }, { status: 429 });
-    }
-  } catch (e) {
-    return Response.json({ ok: false, error: 'server' }, { status: 503 });
-  }
-
-  const key = (body && typeof body.key === 'string' && body.key) || '';
-
-  /* 批次 A 收尾 B2：两边都去掉空白字符后再比对；去空白后为空一律拒绝 */
-  const ok = key && normalizeRootKey(key) && (await timingSafeEqual(normalizeRootKey(key), normalizeRootKey(rootKey)));
-  if (!ok) {
-    try {
-      await recordRootFail(kv, ip);
-    } catch (e) {
-      await writeRootAudit(kv, ip, false, { path: auditPath });
-      return Response.json({ ok: false, error: 'server' }, { status: 503 });
-    }
-    /* 审计写入放在 padTo 之前：padTo 把总耗时对齐到 MIN_DELAY，
-       真失败与假入口的响应耗时一致，无法通过耗时区分。 */
-    await writeRootAudit(kv, ip, false, { path: auditPath });
-    await padTo(t0);
-    return decoyAuth(); /* 与假入口逐字节相同 */
-  }
-
-  /* 成功：清掉该 IP 的失败计数（失败不影响主流程） */
-  await clearRootFail(kv, ip);
+  /* 根凭证比对（限速 / 恒定时间比较 / 失败计数 / 审计）：全站共用一份实现（_kernel/root-check.js） */
+  const rc = await checkRootCredential({
+    env: env,
+    kv: kv,
+    ip: ip,
+    key: (body && typeof body.key === 'string' && body.key) || '',
+    auditPath: auditPath,
+    padTo: function () { return padTo(t0); },
+  });
+  if (!rc.ok) return rc.response;
 
   const headers = new Headers({ 'Content-Type': 'application/json' });
 
@@ -246,13 +229,11 @@ async function handlePost(context) {
       await writeRootAudit(kv, ip, false, { path: auditPath });
       return Response.json(accErr.body, { status: accErr.status });
     }
-    /* door:true：账号 → 安全与隐私的门，另签账号门票（3 分钟） */
-    if (body && body.door === true) {
-      const dErr = await issueDoorCookie(env, headers, DOOR_ACCOUNT, ACCOUNT_BY_ROOT);
-      if (dErr) {
-        await writeRootAudit(kv, ip, false, { path: auditPath });
-        return Response.json(dErr.body, { status: dErr.status });
-      }
+    /* 重置登录：总是另签账号门票（3 分钟），前端直接进账号 → 安全与隐私重设账号密码 / 通行密钥 */
+    const dErr = await issueDoorCookie(env, headers, DOOR_ACCOUNT, ACCOUNT_BY_ROOT);
+    if (dErr) {
+      await writeRootAudit(kv, ip, false, { path: auditPath });
+      return Response.json(dErr.body, { status: dErr.status });
     }
     if (!(await writeRootAudit(kv, ip, true, { path: auditPath }))) {
       return Response.json({ ok: false, error: 'server' }, { status: 503 });

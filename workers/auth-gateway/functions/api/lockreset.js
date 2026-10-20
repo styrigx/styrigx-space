@@ -1,11 +1,13 @@
 /**
  * 2.11 定稿 + 补充：重置锁屏（丢了 lock 凭证时）。
  *
+ * 前端「重置登录」（lib/reset-flow.js，锁屏弹层里的「无法登录？」）先交根凭证，服务端决定下一步。
+ *
  * 流程（根凭证优先）：
  * 1. 先输入根凭证，与环境变量比对（不读 KV）。错误按现有认证失败处理。
  * 2. 根凭证正确后才读恢复开关（KV `recovery-switch` + D1 计时/单次）。
  *    开关有效 → 签发重置锁屏门票 by=root（审计 via=switch），并原子标记已用。
- * 3. 开关无效 → 继续要求账号凭证（原站长凭证），通过后签发重置锁屏门票（by=account+root）。
+ * 3. 开关无效 → 继续要求账号凭证（原账号凭证），通过后签发重置锁屏门票（by=account+root）。
  *
  * 前端不提示开关存在；两种情况响应形态一致，由服务端决定下一步。
  * 只在重置锁屏路径、且根凭证正确后读开关，其他请求一律不读。
@@ -27,12 +29,12 @@
  * 根凭证失败计入共用限速；审计标记 via=switch（不对前端暴露）。
  * 只接受 POST；校验 Origin。
  */
-import { timingSafeEqual, normalizeRootKey } from '../_kernel/crypto.js';
+import { checkRootCredential } from '../_kernel/root-check.js';
 import { issueDoorCookie, DOOR_LOCKRESET, DOOR_BY_ACCOUNT_ROOT } from '../_kernel/door.js';
 import { randB64, verifyAssertion, rpIdHashOf, consumeChallenge, findStoredKey } from '../_kernel/passkey-verify.js';
 import { getPasskeys, PK_CLASS_OWNER } from './owner-passkey.js';
 import { verifyAccountPassword, getPepper } from './owner-password.js';
-import { checkRootLimit, recordRootFail, clearRootFail, getClientIp } from '../_kernel/rootlimit.js';
+import { recordRootFail, getClientIp } from '../_kernel/rootlimit.js';
 import { writeRootAudit } from '../_kernel/rootlog.js';
 import { isLayerConfigured, LAYER_OWNER } from '../_kernel/layers.js';
 import { checkRecoverySwitch, claimSwitchUsed } from '../_kernel/recswitch.js';
@@ -88,7 +90,7 @@ async function handlePost(context) {
   let ownerCfg = true;
   try { ownerCfg = await isLayerConfigured(kv, LAYER_OWNER); } catch (e) { ownerCfg = true; }
 
-  /* ============ status：始终允许进入第一步（不暴露站长凭证是否配置；
+  /* ============ status：始终允许进入第一步（不暴露账号凭证是否配置；
      不读开关；开关只在 verify 根凭证正确后读） ============ */
   if (action === 'status') {
     return Response.json({
@@ -137,22 +139,11 @@ async function handlePost(context) {
     });
   }
 
-  /* ============ verify：根凭证优先 → 开关 → 站长凭证 ============ */
+  /* ============ verify：根凭证优先 → 开关 → 账号凭证 ============ */
   if (action === 'verify') {
     const ip = getClientIp(request);
-    /* 限流（共用）：先检查，不读开关 */
-    try {
-      const lim = await checkRootLimit(kv, ip);
-      if (lim.limited) {
-        await writeRootAudit(kv, ip, false, { path: 'lockreset' });
-        return Response.json({ ok: false, error: 'locked' }, { status: 429 });
-      }
-    } catch (e) {
-      return Response.json({ ok: false, error: 'server' }, { status: 503 });
-    }
 
-    /* fail()：记失败计数；写 KV 出错时返回 503 响应对象（调用方直接返回），
-       与 root-auth 一致，不吞掉。 */
+    /* fail()：账号凭证错误时记失败计数（与根凭证共用一套限速）；写 KV 出错时返回 503 响应对象 */
     const fail = async function () {
       try {
         await recordRootFail(kv, ip);
@@ -164,22 +155,21 @@ async function handlePost(context) {
       return null;
     };
 
-    /* --- 步骤 1：根凭证与环境变量比对（不读 KV 开关） --- */
-    /* 批次 A 收尾 B2：两边都去掉空白字符后再比对；去空白后为空一律拒绝 */
-    const rk = (body && body.rootKey) || '';
-    const rootOk = rk && normalizeRootKey(rk) && (await timingSafeEqual(normalizeRootKey(rk), normalizeRootKey(rootKey)));
-    if (!rootOk) {
-      const failResp = await fail();
-      if (failResp) return failResp;
-      return Response.json({ ok: false, error: 'auth' }, { status: 401 });
-    }
-    await clearRootFail(kv, ip);
+    /* --- 步骤 1：根凭证（共用实现 _kernel/root-check.js：限速 → 比对 → 计数 / 审计；不读 KV 开关） --- */
+    const rc = await checkRootCredential({
+      env: env,
+      kv: kv,
+      ip: ip,
+      key: (body && typeof body.rootKey === 'string' && body.rootKey) || '',
+      auditPath: 'lockreset',
+    });
+    if (!rc.ok) return rc.response;
 
     /* --- 步骤 2：根凭证正确后才读恢复开关 --- */
     const db = env && env.SGX_D1;
     const sw = await checkRecoverySwitch(kv, db);
     if (sw.valid) {
-      /* 开关路径：原子标记已用（抢不到则视为已用，走站长凭证路径） */
+      /* 开关路径：原子标记已用（抢不到则视为已用，走账号凭证路径） */
       const claimed = await claimSwitchUsed(db, sw.hash);
       if (claimed) {
         return await issueLockreset(ip, 'root', { via: 'switch' });
@@ -187,8 +177,8 @@ async function handlePost(context) {
       /* 被并发抢走 → 按开关无效处理 */
     }
 
-    /* --- 步骤 3：开关无效 → 需要站长凭证 ---
-       站长凭证未配置时返回通用 401 auth（不泄露 not-set，避免暴露配置状态）。 */
+    /* --- 步骤 3：开关无效 → 需要账号凭证 ---
+       账号凭证未配置时返回通用 401 auth（不泄露 not-set，避免暴露配置状态）。 */
     if (!ownerCfg) {
       const failResp = await fail();
       if (failResp) return failResp;
@@ -197,7 +187,7 @@ async function handlePost(context) {
     const proof = (body && body.ownerProof) || null;
     if (!proof) {
       /* 响应形态与开关有效时一致（都是 200 ok），由服务端决定下一步；
-         前端据此展示站长凭证步骤，不提示开关存在。
+         前端据此展示账号凭证步骤，不提示开关存在。
          needOwner 带 passkey/password 布尔，前端按配置显示按钮，不总显示两个。 */
       let hasOwnerPw = false;
       let hasOwnerPk = false;
@@ -255,7 +245,7 @@ async function handlePost(context) {
       return new Response(JSON.stringify({ ok: true }), { headers });
     }
 
-    /* 验证站长 passkey 断言（内部函数） */
+    /* 验证账号通行密钥 断言（内部函数） */
     async function verifyOwnerPasskeyProof(kvStore, proofObj, rpId, expectOrigin) {
       const cid = proofObj.cid || '';
       const cred = proofObj.credential || {};

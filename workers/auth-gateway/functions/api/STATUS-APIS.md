@@ -42,8 +42,11 @@ cookie 值、挑战原文）。调用方列表由 `grep assets/js/` 下的 fetch
 
 ## 账号会话（sgx-account）说明
 
-- 账号登录三个入口平级：账号通行密钥（`POST /api/account` challenge + login-passkey）、
-  账号密码（login-password）、根凭证（`POST /api/root-auth { target:'account' }`）。
+- 账号登录两个入口：账号通行密钥（`POST /api/account` challenge + login-passkey）、
+  账号密码（login-password）。根凭证不再是登录入口：「无法登录？」→「重置登录」
+  （`POST /api/root-auth { key, purpose:'account' }`）签账号会话 + 账号门票（by=root），直接进安全与隐私重设。
+- 锁屏弹层的「无法登录？」走同一个重置登录界面（lib/reset-flow.js）：根凭证 → `POST /api/lockreset verify`，
+  服务端返回 needOwner 时再验账号凭证（账号通行密钥 / 账号密码）。根凭证比对全站只有 `_kernel/root-check.js` 一份。
 - 前置条件是已解锁的 owner lock 会话，但 lock 会话**从不**被当作账号认证。
 - 「管理凭证」与 stepup 已删除：锁屏凭证的门票由锁屏凭证（`owner-passkey auth` / `owner-password verify`
   带 `door:true`）或根凭证（`root-auth`）签发，SGX_LOCK_* 签名，与账号会话无关。

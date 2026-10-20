@@ -9,6 +9,7 @@
 import { get as featGet, set as featSet } from './features.js';
 import { set as sset, remove as sremove } from './storage.js';
 import { setThemeMode } from './theme.js';
+import { clearAccent } from './accent.js';
 
 /** @returns {'light'|'dark'|'system'} 主题模式偏好 */
 export function themeMode() {
@@ -40,9 +41,10 @@ export function palette() {
   return featGet('palette') || 'lake';
 }
 
-/** 设置调色板并立即生效。 @param {string} p */
+/** 设置调色板并立即生效（自定义主题色 sgx-accent 优先于预设，所以选预设时先清掉它）。 @param {string} p */
 export function setPalette(p) {
   const v = p || 'lake';
+  clearAccent();
   featSet('palette', v);
   const d = document.documentElement;
   if (v === 'lake') d.removeAttribute('data-palette');

@@ -1,0 +1,92 @@
+/**
+ * PR3 主题色角色 token：13 套手调色板（web/data/palette-roles.json）→ input.css（scripts/gen-palettes.mjs），
+ * 自定义 #rrggbb 种子 → 同一套角色（web/assets/js/lib/palette-scheme.js，设计稿 scheme.js 的移植）。
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { presetRoles, rolesFor, rolesCss, roleDecls, contrast } from '../../../web/assets/js/lib/palette-scheme.js';
+import { renderBlock, splice } from '../../../scripts/gen-palettes.mjs';
+import { ACCENT_CACHE_VER } from '../../../web/assets/js/lib/accent.js';
+
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const DATA = JSON.parse(readFileSync(path.join(REPO, 'web/data/palette-roles.json'), 'utf8'));
+const CSS = readFileSync(path.join(REPO, 'web/assets/css/input.css'), 'utf8');
+
+test('13 套预设、亮暗各 84 个角色', () => {
+  const ids = Object.keys(DATA.presets);
+  assert.equal(ids.length, 13);
+  for (const id of ids) for (const m of ['light', 'dark']) assert.equal(Object.keys(DATA.presets[id][m]).length, 84, id + ' ' + m);
+});
+
+test('移植的引擎重算 13 套预设，和 JSON 一字不差（值不是手敲的）', () => {
+  for (const id of Object.keys(DATA.presets)) {
+    const r = presetRoles(id);
+    for (const m of ['light', 'dark']) assert.deepEqual(r[m], DATA.presets[id][m], id + ' ' + m);
+    assert.deepEqual(r.lightState, DATA.presets[id].lightState);
+    assert.deepEqual(r.darkState, DATA.presets[id].darkState);
+  }
+});
+
+test('自定义种子：8 个校验种子与设计稿结果一致（最近预设 + 主色）', () => {
+  for (const [seed, ref] of Object.entries(DATA.custom)) {
+    const r = rolesFor(seed);
+    assert.equal(r.derivedFrom, ref.derivedFrom, seed);
+    for (const m of ['light', 'dark']) assert.deepEqual(r[m], ref[m], seed + ' ' + m);
+  }
+});
+
+test('自定义种子：任意颜色的 on-primary / 正文对比度够（≥4.5:1）', () => {
+  for (const seed of ['#ffd400', '#00ff00', '#000000', '#ffffff', '#123456', '#e91e63', '#9e9e9e']) {
+    const r = rolesFor(seed);
+    for (const m of ['light', 'dark']) {
+      assert.ok(contrast(r[m]['on-primary'], r[m].primary) >= 4.5, seed + ' ' + m + ' on-primary');
+      assert.ok(contrast(r[m]['text-primary'], r[m].surface) >= 4.5, seed + ' ' + m + ' text');
+      assert.ok(contrast(r[m]['on-secondary-container'], r[m]['secondary-container']) >= 4.5, seed + ' ' + m + ' tonal btn');
+    }
+  }
+});
+
+test('input.css 里的预设角色就是 gen-palettes 生成的（改 JSON 忘了重跑 → 红）', () => {
+  assert.equal(splice(CSS, renderBlock(DATA)), CSS);
+});
+
+test('每个预设都有浅色 + 深色（.dark）两段；lake 兜底在 :root / :root.dark', () => {
+  for (const id of Object.keys(DATA.presets)) {
+    assert.ok(CSS.includes(`:root[data-palette="${id}"]`), id);
+    assert.ok(CSS.includes(`:root.dark[data-palette="${id}"]`), id + ' dark');
+  }
+  assert.match(CSS, /\n {2}:root,\n {2}:root\[data-palette="lake"\] \{/);
+  assert.match(CSS, /\n {2}:root\.dark,\n {2}:root\.dark\[data-palette="lake"\] \{/);
+});
+
+test('自定义种子运行时写的变量名 = 预设的变量名（亮暗两段，盖过 tokens 层）', () => {
+  const names = (decls) => decls.map((d) => d.split(':')[0]).sort();
+  const p = DATA.presets.lake;
+  const css = rolesCss('#ff6b9d');
+  assert.match(css, /^html:root\{--sgx-seed: #ff6b9d;/);
+  assert.match(css, /html:root\.dark\{/);
+  const r = rolesFor('#ff6b9d');
+  assert.deepEqual(names(roleDecls(r.light, r.lightState)), names(roleDecls(p.light, p.lightState)));
+  assert.deepEqual(names(roleDecls(r.dark, r.darkState)), names(roleDecls(p.dark, p.darkState)));
+});
+
+test('色板列表（palettes.yaml）和角色 JSON 同一组 id / 种子', () => {
+  const yaml = readFileSync(path.join(REPO, 'web/data/palettes.yaml'), 'utf8');
+  const items = [...yaml.matchAll(/- id: (\w+)\n\s+c: "(#[0-9a-f]{6})"/g)].map((m) => [m[1], m[2]]);
+  assert.equal(items.length, 13);
+  for (const [id, c] of items) assert.equal(DATA.presets[id].seed, c, id);
+});
+
+test('baseof 首屏内联脚本认的缓存前缀 = lib/accent.js 的版本', () => {
+  const html = readFileSync(path.join(REPO, 'web/layouts/_default/baseof.html'), 'utf8');
+  assert.ok(html.includes(`ach='${ACCENT_CACHE_VER}|'+ac`), 'baseof 的 sgx-accent-css 前缀与 ACCENT_CACHE_VER 不一致');
+});
+
+test('C3 进入凭证按钮不再固定深蓝：--sgx-door-btn-* 只在别名层，引用角色', () => {
+  const defs = [...CSS.matchAll(/--sgx-door-btn2?-(?:bg|fg):\s*([^;]+);/g)].map((m) => m[1].trim());
+  assert.equal(defs.length, 4);
+  for (const v of defs) assert.match(v, /^var\(--sgx-btn-(primary|secondary)-(bg|fg)\)$/);
+});

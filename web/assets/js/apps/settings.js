@@ -10,6 +10,7 @@ import { get as featGet, set as featSet, on as featOn } from '../lib/features.js
 import { loadI18n } from '../lib/i18n.js';
 import { openSheet } from '../shell/sheet.js';
 import { setTheme, toggleFollowSystem, setPalette, setFontSize, setLayout, setReducedMotion, setLang } from '../lib/prefs.js';
+import { syncAccent } from '../lib/accent-roles.js';
 import { wellLoad, wellFlush } from '../shell/goodlock.js';
 import { sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
 
@@ -133,6 +134,8 @@ import { sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
       paintPalette();
     });
   });
+  /* 自定义主题色（sgx-accent）：缓存缺失 / 过期时按种子重算整套角色（lib/palette-scheme.js） */
+  syncAccent();
   paintPalette();
   featOn('palette', paintPalette);
 

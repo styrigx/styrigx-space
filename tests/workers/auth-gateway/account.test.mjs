@@ -257,17 +257,19 @@ test('账号通行密钥登录：锁屏类（class=lock）钥匙不能登录账�
 
 /* ============ 登录入口三：根凭证 ============ */
 
-test('根凭证登录（/api/root-auth target=account）→ sgx-account(by=root)，不签 stepup；审计 path=account', async () => {
+test('重置登录（/api/root-auth purpose=account）→ sgx-account(by=root) + 账号门票(by=root)，不签 stepup；审计 path=account', async () => {
   const { onRequestPost } = await import(API + 'root-auth.js');
   const kv = makeKV({ 'layer:lock': '1' });
   const res = await onRequestPost({
-    request: postReq('https://styrigx.com/api/root-auth', { key: ROOT_KEY, target: 'account' }, { Cookie: 'sgx-verified=' + (await ownerSess()) }),
+    request: postReq('https://styrigx.com/api/root-auth', { key: ROOT_KEY, purpose: 'account' }, { Cookie: 'sgx-verified=' + (await ownerSess()) }),
     env: envFor(kv),
   });
   assert.equal(res.status, 200);
   const acc = pickCookie(res, 'sgx-account');
   assert.ok(acc && acc.startsWith('root.0.'), '应签发 by=root 的账号会话');
   assert.equal(pickCookie(res, 'sgx-stepup'), null, '账号登录不签 stepup');
+  const door = pickCookie(res, 'sgx-door');
+  assert.ok(door && door.startsWith('door.account.root.'), '重置登录总是另签账号门票（直接进安全与隐私）');
   const audits = [...kv.store.entries()].filter(([k]) => k.startsWith('root-auth-audit:')).map(([, v]) => JSON.parse(v));
   assert.equal(audits.length, 1);
   assert.equal(audits[0].ok, true);
@@ -275,18 +277,18 @@ test('根凭证登录（/api/root-auth target=account）→ sgx-account(by=root)
 });
 
 
-test('根凭证登录 target=account：无 lock 会话（即使 lock 未配置）走假入口 401；访客 401 denied；错误根凭证 401 auth', async () => {
+test('重置登录 purpose=account：无 lock 会话（即使 lock 未配置）走假入口 401；访客 401 denied；错误根凭证 401 auth', async () => {
   const { onRequestPost } = await import(API + 'root-auth.js');
-  const kv = makeKV(); /* lock 未配置：默认目标会走引导模式，target=account 不走 */
-  let res = await onRequestPost({ request: postReq('https://styrigx.com/api/root-auth', { key: ROOT_KEY, target: 'account' }), env: envFor(kv) });
+  const kv = makeKV(); /* lock 未配置：默认目标会走引导模式，purpose=account 不走 */
+  let res = await onRequestPost({ request: postReq('https://styrigx.com/api/root-auth', { key: ROOT_KEY, purpose: 'account' }), env: envFor(kv) });
   assert.equal(res.status, 401);
   assert.deepEqual(await res.json(), { ok: false, error: 'auth' });
   assert.equal(pickCookie(res, 'sgx-account'), null);
-  res = await onRequestPost({ request: postReq('https://styrigx.com/api/root-auth', { key: ROOT_KEY, target: 'account' }, { Cookie: 'sgx-verified=' + (await visitorSess()) }), env: envFor(kv) });
+  res = await onRequestPost({ request: postReq('https://styrigx.com/api/root-auth', { key: ROOT_KEY, purpose: 'account' }, { Cookie: 'sgx-verified=' + (await visitorSess()) }), env: envFor(kv) });
   assert.equal(res.status, 401);
   assert.equal((await res.json()).error, 'denied');
   const kv2 = makeKV({ 'layer:lock': '1' });
-  res = await onRequestPost({ request: postReq('https://styrigx.com/api/root-auth', { key: 'wrong', target: 'account' }, { Cookie: 'sgx-verified=' + (await ownerSess()) }), env: envFor(kv2) });
+  res = await onRequestPost({ request: postReq('https://styrigx.com/api/root-auth', { key: 'wrong', purpose: 'account' }, { Cookie: 'sgx-verified=' + (await ownerSess()) }), env: envFor(kv2) });
   assert.equal(res.status, 401);
   assert.equal((await res.json()).error, 'auth');
 });
@@ -333,7 +335,7 @@ test('安全与隐私的门：改动必须有账号门票 —— 没有门票 40
   assert.equal(r6.status, 200);
 });
 
-test('进门：login-password / root-auth 带 door:true → 账号会话 + 3 分钟门票（sgx-door，只给主站、Strict）；GET 返回 door.expiresAt；door-clear 立即作废', async () => {
+test('进门：login-password 带 door:true / root-auth purpose=account → 账号会话 + 3 分钟门票（sgx-door，只给主站、Strict）；GET 返回 door.expiresAt；door-clear 立即作废', async () => {
   const kv = makeKV({ 'layer:owner': '1' });
   await seedPassword(kv, 'old-owner-password-1');
   const res = await accountPost(kv, { action: 'login-password', password: 'old-owner-password-1', door: true }, { 'sgx-verified': await ownerSess() });
@@ -348,9 +350,9 @@ test('进门：login-password / root-auth 带 door:true → 账号会话 + 3 分
   /* 没带 door:true 的普通登录不签门票 */
   const res2 = await accountPost(kv, { action: 'login-password', password: 'old-owner-password-1' }, { 'sgx-verified': await ownerSess() });
   assert.equal(pickCookie(res2, 'sgx-door'), null);
-  /* 根凭证进门 */
+  /* 根凭证（重置登录 purpose=account）也签账号门票 */
   const { onRequestPost } = await import(API + 'root-auth.js');
-  const rr = await onRequestPost({ request: postReq('https://styrigx.com/api/root-auth', { key: ROOT_KEY, target: 'account', door: true }, { Cookie: cookies({ 'sgx-verified': await ownerSess() }) }), env: envFor(kv) });
+  const rr = await onRequestPost({ request: postReq('https://styrigx.com/api/root-auth', { key: ROOT_KEY, purpose: 'account' }, { Cookie: cookies({ 'sgx-verified': await ownerSess() }) }), env: envFor(kv) });
   assert.equal(rr.status, 200);
   assert.ok(pickCookie(rr, 'sgx-door').startsWith('door.account.root.'));
   /* door-clear：不需会话、只清门票 */

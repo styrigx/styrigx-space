@@ -79,38 +79,22 @@ function baseEnv(kv, overrides) {
 
 /* ============ 1. 锁屏入口按配置显示（补充定稿七.1） ============ */
 
-test('认证入口：锁屏方法弹层按锁屏凭证配置显示入口', () => {
+test('认证入口：锁屏方法弹层按锁屏凭证配置显示入口（PR3：最下面一行「无法登录？」）', () => {
   const src = fs.readFileSync(path.join(REPO, 'web/assets/js/shell/lock.js'), 'utf8');
   /* 配置以服务端 /api/lock-config 为准 */
   assert.ok(src.includes('/api/lock-config'), '应从 /api/lock-config 读取配置');
-  /* 五个选项的按钮 ID 必须存在（按配置条件显示） */
   assert.ok(src.includes('sgx-mopt-visitor'), '应有访客进入');
   assert.ok(src.includes('sgx-mopt-pk'), '应有通行密钥');
   assert.ok(src.includes('sgx-mopt-pw'), '应有密码');
-  assert.ok(src.includes('sgx-mopt-reset'), '应有重置锁屏');
-  assert.ok(src.includes('sgx-mopt-mk'), '应有根凭证选项 sgx-mopt-mk（都没设置时显示）');
-  /* 根凭证小字 */
-  assert.ok(src.includes('使用根凭证解锁站长模式'), '根凭证小字应为「使用根凭证解锁站长模式」');
-  assert.ok(src.includes('Unlock owner mode with your root credential'), '应有英文小字');
-  /* openMk 函数应恢复（提交到 /api/root-auth） */
-  assert.ok(src.includes('function openMk'), '应有 openMk 处理函数');
-  assert.ok(src.includes('function submitMk'), '应有 submitMk 处理函数');
-  /* 删除的注释不应回来 */
-  assert.ok(!src.includes('根凭证：未解锁也能用'), '不应有「根凭证：未解锁也能用」注释');
-  /* 条件显示逻辑 */
-  assert.ok(src.includes('showMk'), '应有根凭证条件显示变量');
-  assert.ok(src.includes('showReset'), '应有重置锁屏条件显示变量');
-  /* 读取失败按已配置处理（不暴露根凭证入口） */
+  /* 「重置锁屏」「根凭证」两行合并为「无法登录？」→ 弹层原地切到重置登录 */
+  assert.ok(src.includes('sgx-mopt-cant'), '应有「无法登录？」');
+  assert.ok(src.includes('无法登录？') && src.includes('Can’t sign in?'), '中英文案');
+  assert.ok(!src.includes('sgx-mopt-reset') && !src.includes('function openMk'), '旧的两行已删除');
+  /* 启动站（锁屏凭证都没设）：根凭证 → /api/root-auth → /api/root-session（原 openMk 的路径） */
+  assert.ok(/bootstrap[\s\S]*?'\/api\/root-auth'[\s\S]*?exchangeRootSession/.test(src), '启动站根凭证路径保留');
+  /* 读取失败按已配置处理 */
   assert.ok(src.includes('读取失败按已配置处理'), '应有读取失败 fail closed 注释');
-  /* 重置锁屏描述应为通用说法，不出现「根凭证」 */
-  assert.ok(
-    src.includes('验证身份后重设解锁方式'),
-    '重置锁屏描述应为通用说法'
-  );
-  assert.ok(
-    !src.includes('先验证根凭证，再验证站长凭证'),
-    '重置锁屏描述不应出现根凭证'
-  );
+  assert.ok(!src.includes('先验证根凭证，再验证站长凭证'), '描述不应出现旧说法');
 });
 
 /* ============ 2. 安全页 DOM 一致 ============ */

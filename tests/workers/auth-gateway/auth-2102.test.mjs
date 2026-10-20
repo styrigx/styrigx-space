@@ -232,19 +232,20 @@ test('9c：owner-passkey 缺 Origin → 403', async () => {
 
 /* ============ 1：管理密钥入口静态检查 ============ */
 
-test('1a：锁屏方法弹层按配置显示入口（补充定稿七.1：都没设置时才有根凭证）', () => {
+test('1a：锁屏方法弹层按配置显示入口（PR3：根凭证 / 重置锁屏两行合并成「无法登录？」）', () => {
   const src = fs.readFileSync(path.join(REPO, 'web/assets/js/shell/lock.js'), 'utf8');
-  /* 根凭证选项仅在锁屏凭证都没设置时显示 */
-  assert.ok(src.includes('sgx-mopt-mk'), '应有根凭证选项按钮（条件显示）');
-  assert.ok(src.includes('function openMk'), '应有 openMk 处理函数');
-  assert.ok(src.includes('使用根凭证解锁站长模式'), '根凭证小字');
+  /* 根凭证不再是单独一行；都没设置（启动站）时「无法登录？」里的根凭证走 root-auth 引导 */
+  assert.ok(!src.includes("'sgx-mopt-mk'") && !src.includes('id="sgx-mopt-mk"'), '不应再有根凭证一行');
+  assert.ok(src.includes('sgx-mopt-cant'), '应有「无法登录？」');
+  assert.ok(src.includes('function openResetInSheet'), '弹层原地切到重置登录');
+  assert.ok(/bootstrap[\s\S]*?'\/api\/root-auth'/.test(src), '启动站：根凭证走 /api/root-auth');
   /* 配置以服务端为准 */
   assert.ok(src.includes('/api/lock-config'), '应从 /api/lock-config 读取配置');
   /* 其他选项必须存在 */
   assert.ok(src.includes('sgx-mopt-visitor'), '应有访客进入');
   assert.ok(src.includes('sgx-mopt-pk'), '应有通行密钥');
   assert.ok(src.includes('sgx-mopt-pw'), '应有密码');
-  assert.ok(src.includes('sgx-mopt-reset'), '应有重置锁屏');
+  assert.ok(!src.includes('sgx-mopt-reset'), '「重置锁屏」一行已并入「无法登录？」');
 });
 
 test('1b：升级弹层含根密钥入口', () => {
