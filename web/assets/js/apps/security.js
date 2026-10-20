@@ -18,7 +18,7 @@ import { openSheet } from '../shell/sheet.js';
 import { engines as SE } from '../shell/engines.js';
 import { stepupFetch } from '../lib/auth-flow.js';
 import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose, shouldIgnorePostDialogClick } from '../lib/dialog-behavior.js';
+import { confirmLockNow } from '../lib/lock-now.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -90,57 +90,11 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, shouldIgnorePostDi
       });
   }
 
-  /* B1-1 立即锁定：先弹确认层，确认后调服务端清除 sgx-verified，
-     然后 location.replace('/?lock=1') → 锁屏出现（中间不渲染主页）。
-     访客和站长都能用，不设限。 */
+  /* B1-1 立即锁定：确认层 + /api/lock 在 lib/lock-now.js（顶栏快捷面板的「立即锁定」磁贴共用同一份） */
   const lockNow = document.getElementById('sec-locknow');
   if (lockNow) {
-    const doLock = function () {
-      fetch('/api/lock', { method: 'POST', credentials: 'include' })
-        .then(function () {
-          sgxReplace('/?lock=1');
-        })
-        .catch(function () {
-          sgxReplace('/?lock=1');
-        });
-    };
     const showConfirm = function () {
-      /* B1-1：弹层关闭后 400ms 内忽略点击（防误触） */
-      if (shouldIgnorePostDialogClick()) return;
-      let dlg = document.getElementById('sec-locknow-confirm');
-      if (!dlg) {
-        dlg = document.createElement('dialog');
-        dlg.id = 'sec-locknow-confirm';
-        dlg.className = 'sgx-verify-dlg';
-        const en = document.documentElement.lang === 'en';
-        dlg.innerHTML =
-          '<div class="sgx-verify-card">' +
-            '<div class="sheet-handle"></div>' +
-            '<h2 class="sgx-verify-title">' + (en ? 'Lock now?' : '立即锁定？') + '</h2>' +
-            '<p class="sgx-verify-desc">' + (en ? 'This device will return to the lock screen.' : '当前设备会回到锁屏。') + '</p>' +
-            '<div class="sgx-door-foot" style="gap:12px;width:100%;max-width:400px">' +
-              '<button type="button" class="sgx-door-btn sgx-door-btn-secondary" data-act="cancel">' + (en ? 'Cancel' : '取消') + '</button>' +
-              '<button type="button" class="sgx-door-btn sgx-door-btn-primary" data-act="ok">' + (en ? 'Lock' : '锁定') + '</button>' +
-            '</div>' +
-          '</div>';
-        document.body.appendChild(dlg);
-        dlg.addEventListener('click', function (e) {
-          if (onDialogBackdrop(e, dlg)) { dlg.close(); recordDialogClose('locknow-confirm', 'backdrop'); }
-        });
-        dlg.addEventListener('cancel', function (e) {
-          onDialogCancel(e, dlg, function () { dlg.close(); recordDialogClose('locknow-confirm', 'cancel'); });
-        });
-        dlg.querySelector('[data-act="cancel"]').addEventListener('click', function () {
-          dlg.close();
-          recordDialogClose('locknow-confirm', 'cancel-btn');
-        });
-        dlg.querySelector('[data-act="ok"]').addEventListener('click', function () {
-          dlg.close();
-          recordDialogClose('locknow-confirm', 'confirm');
-          doLock();
-        });
-      }
-      try { dlg.showModal(); } catch (e) {}
+      confirmLockNow();
     };
     on(lockNow, 'click', showConfirm);
     on(lockNow, 'keydown', function (/** @type {KeyboardEvent} */ e) {

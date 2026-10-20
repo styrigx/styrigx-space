@@ -2,7 +2,7 @@
  * 2.4.0 E：视觉回归测试。
  * 5 视口 × 中英 × 深浅色 × 主要页面（/、/bookmarks/、/search/、/settings/ 等；B2-2 删除 /store/，2026-10-19 删除 /files/，
  * 2026-10-20 /browser/ 拆成 /bookmarks/ + /search/）
- * + F 的基准（弹层打开）+ 导航抽屉打开（baseline-drawer-open）。
+ * + F 的基准（弹层打开）+ 导航抽屉打开（baseline-drawer-open）+ 快捷面板打开（baseline-quick-panel-open）。
  * 首次运行：npx playwright test --update-snapshots 生成基准；
  * 后续运行自动对比，不一致即失败。
  *
@@ -244,6 +244,27 @@ test('baseline-drawer-open', async ({ page: pg }) => {
   /* 等抽屉稳定在打开状态再截图（不拍滑入中途） */
   await expect(pg.locator('#sgx-drawer')).toHaveAttribute('data-state', 'open');
   await expect(pg).toHaveScreenshot('baseline-drawer-open.png', { animations: 'disabled' });
+});
+
+/* 快捷面板打开（2026-10-20）：设置子页上点顶栏右侧滑块圆，面板从顶部滑下（与 baseline-drawer-open 同一写法） */
+test('baseline-quick-panel-open', async ({ page: pg }) => {
+  await pg.setViewportSize(VIEWPORTS.mobile);
+  await blockExternalRequests(pg);
+  await pg.emulateMedia({ reducedMotion: 'reduce' });
+  await pg.addInitScript(() => {
+    try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
+  });
+  await pg.addStyleTag({
+    content: 'html{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans CJK SC","Noto Sans CJK",sans-serif !important}',
+  });
+  await freezeTime(pg);
+  await pg.goto('/settings/display/', { waitUntil: 'domcontentloaded' });
+  await waitPageReady(pg);
+  await pg.click('.sgx-tb-quick');
+  await expect(pg.locator('#sgx-qp.is-open')).toBeVisible({ timeout: 10000 });
+  /* 等面板稳定在打开状态再截图（不拍滑下中途） */
+  await expect(pg.locator('#sgx-qp')).toHaveAttribute('data-state', 'open');
+  await expect(pg).toHaveScreenshot('baseline-quick-panel-open.png', { animations: 'disabled' });
 });
 
 /* ===== 两扇门验证弹层视觉基线（第七节验收） =====
