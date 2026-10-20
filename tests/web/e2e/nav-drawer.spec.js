@@ -2,7 +2,7 @@
  * 2026-10-20 导航改版验收：
  * - 顶栏全站同一套（v5）：九宫格圆 | 长条（搜索图标 · 页名 · 快捷面板图标，屏幕居中）| 头像圆；没有 ‹ 返回、没有 ⋮。
  * - 抽屉宽：手机竖屏（< 600px）右缘对齐长条里快捷面板图标点击区左缘；更宽固定 320px。面板底色 = 顶栏材质（跟随调色板与明暗）。
- * - 九宫格 → Gmail 式左侧导航抽屉：首页 / 书签 / 书库 / 博客，分隔线下只有 设置；每项有描边图标，
+ * - 九宫格 → Gmail 式左侧导航抽屉：首页 / 书签 / 日刻 / 博客，分隔线下只有 设置；每项有描边图标，
  *   当前页是药丸高亮；没有 我的文件 / 帮助与反馈；点遮罩 / Esc / 系统返回关闭。
  * - /browser/ 拆成 书签 /bookmarks/（只有书签：分类筛选条 + 分组）+ 全网搜索 /search/。
  * - 搜索引擎 / 清除浏览记录搬到 设置 › 安全与隐私 › 隐私。
@@ -61,14 +61,14 @@ test.describe('顶栏：全站同一套，没有 ‹ 和 ⋮', () => {
 });
 
 test.describe('导航抽屉', () => {
-  test('打开：首页 / 书签 / 书库 / 博客，分隔线下只有 设置；每项有图标；没有 我的文件 / 帮助', async ({ page }) => {
+  test('打开：首页 / 书签 / 日刻 / 博客，分隔线下只有 设置；每项有图标；没有 我的文件 / 帮助', async ({ page }) => {
     await go(page, '/settings/display/');
     await expect(page.locator('.sgx-tb-nav')).toHaveAttribute('aria-expanded', 'false');
     await openDrawer(page);
     await expect(page.locator('.sgx-tb-nav')).toHaveAttribute('aria-expanded', 'true');
     const lists = drawer(page).locator('.sgx-drawer-list');
     await expect(lists).toHaveCount(2);
-    await expect(lists.nth(0).locator('.sgx-drawer-label')).toHaveText(['首页', '书签', '书库', '博客']);
+    await expect(lists.nth(0).locator('.sgx-drawer-label')).toHaveText(['首页', '书签', '日刻', '博客']);
     await expect(lists.nth(1).locator('.sgx-drawer-label')).toHaveText(['设置']);
     await expect(drawer(page).locator('hr.sgx-drawer-div')).toHaveCount(1);
     const items = drawer(page).locator('.sgx-drawer-item');
@@ -80,7 +80,7 @@ test.describe('导航抽屉', () => {
     /* 链接 */
     await expect(items.nth(0)).toHaveAttribute('href', '/');
     await expect(items.nth(1)).toHaveAttribute('href', '/bookmarks/');
-    await expect(items.nth(2)).toHaveAttribute('href', 'https://book.styrigx.com/');
+    await expect(items.nth(2)).toHaveAttribute('href', 'https://daymark.styrigx.com/');
     await expect(items.nth(3)).toHaveAttribute('href', 'https://blog.styrigx.com/');
     await expect(items.nth(4)).toHaveAttribute('href', '/settings/');
     /* 设置子页：设置高亮（药丸 = 主色容器底色） */
@@ -103,10 +103,10 @@ test.describe('导航抽屉', () => {
     await expect(drawer(page).locator('[aria-current="page"] .sgx-drawer-label')).toHaveText('书签');
   });
 
-  test('英文：Home / Bookmarks / Library / Blog + Settings', async ({ page }) => {
+  test('英文：Home / Bookmarks / Daymark / Blog + Settings', async ({ page }) => {
     await go(page, '/en/', 'en');
     await openDrawer(page);
-    await expect(drawer(page).locator('.sgx-drawer-label')).toHaveText(['Home', 'Bookmarks', 'Library', 'Blog', 'Settings']);
+    await expect(drawer(page).locator('.sgx-drawer-label')).toHaveText(['Home', 'Bookmarks', 'Daymark', 'Blog', 'Settings']);
     await expect(drawer(page).locator('.sgx-drawer-item').nth(1)).toHaveAttribute('href', '/en/bookmarks/');
     await expect(drawer(page).locator('.sgx-drawer-item').nth(4)).toHaveAttribute('href', '/en/settings/');
   });

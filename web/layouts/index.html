@@ -4,7 +4,7 @@
 {{ $profile := site.Data.profile }}
 {{ $motto := $profile.motto_zh }}{{ if $isEn }}{{ $motto = $profile.motto_en }}{{ end }}
 
-{{/* B2-5：首页只保留名片、双时钟、天气、数字健康；便签、博客、数字花园、桌面图标、收藏全部删除 */}}
+{{/* B2-5：首页只保留名片、双时钟、天气、数字健康（2026-10-20 加日刻今日一句）；便签、博客、数字花园、桌面图标、收藏全部删除 */}}
 
 {{/* 2.8.0 锁屏瘦身：SGX-DESKTOP markers 之间的内容在锁屏态由 L1 middleware 剥离，不下发 */}}
 <!-- SGX-DESKTOP-START -->
@@ -65,6 +65,33 @@
       </div>
     </div>
     {{ end }}{{/* /weather-show */}}
+
+    <!-- 日刻 · 今日一句（2026-10-20）：读 daymark.styrigx.com/api/today（公开只读，CORS 只放主站），
+         整张卡点进日刻。没拿到数据前隐藏（同天气），当天没有公开句子时显示空状态 + 去记一句。
+         apps/index.js 填字；本地缓存 sgx-daymark-today 先画上次的，再静默刷新。
+         CI 测试构建（SGX_TEST_NO_WEATHER=1，同天气）不输出：要跨站请求，会让 Lighthouse errors-in-console 误报。 -->
+    {{ if ne (getenv "SGX_TEST_NO_WEATHER") "1" }}
+    {{ $dmUrl := cond $isEn "https://daymark.styrigx.com/en/" "https://daymark.styrigx.com/" }}
+    <a id="w-daymark" href="{{ $dmUrl }}" class="widget dm-w col-span-4 lg:col-span-4 bg-m-container-lowest text-m-on-surface border border-m-outline p-5 sm:p-6 overflow-hidden relative animate-fade-up hidden" style="animation-delay:.32s" aria-label="{{ if $isEn }}Daymark · Line of the day{{ else }}日刻 · 今日一句{{ end }}">
+      <span class="dm-w-mark" aria-hidden="true">&ldquo;</span>
+      <div class="relative flex items-center justify-between gap-3">
+        <p class="flex items-center gap-1.5 text-xs font-semibold tracking-widest text-m-primary">
+          <span class="dm-w-ic">{{ partial "icon.html" "nav-daymark" }}</span>
+          <span>{{ if $isEn }}DAYMARK{{ else }}日刻{{ end }}</span>
+        </p>
+        <p class="text-[11px] text-m-on-surface-variant" data-dm="day"></p>
+      </div>
+      <div class="relative" data-dm="body">
+        <p class="dm-w-text mt-4 text-[1.35rem] sm:text-2xl font-bold leading-snug" data-dm="text"></p>
+        <p class="dm-w-trans mt-2 text-sm text-m-on-surface-variant leading-relaxed hidden" data-dm="trans"></p>
+        <p class="mt-3 text-sm text-m-on-surface-variant text-right truncate" data-dm="by"></p>
+      </div>
+      <div class="relative hidden" data-dm="empty">
+        <p class="mt-4 text-lg font-bold">{{ if $isEn }}No line for today yet{{ else }}今天还没有句子{{ end }}</p>
+        <p class="mt-1.5 text-sm text-m-on-surface-variant">{{ if $isEn }}Tap to keep one in Daymark{{ else }}点开日刻，记下一句{{ end }}</p>
+      </div>
+    </a>
+    {{ end }}{{/* /日刻 */}}
 
     <!-- 数字健康 · 我的屏幕时间（B2-7：网站自己的数字健康，今天在各区域停留的时长，所有设备合计；
          骨架固定 3 行，wb-view.js 拉 /api/wellbeing 后只替换文字和宽度，不改高度） -->

@@ -106,8 +106,9 @@
 <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 10.5L12 3.5l8.5 7"/><path d="M5.5 9v11h4.5v-6h4v6h4.5V9"/></svg>
 {{ else if eq $name "nav-bookmark" }}
 <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5h11a1 1 0 0 1 1 1v16l-6.5-4.2-6.5 4.2v-16a1 1 0 0 1 1-1z"/></svg>
-{{ else if eq $name "nav-book" }}
-<svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5C10 4.9 7 4.2 3.5 4.2v13.6c3.5 0 6.5.7 8.5 2.3 2-1.6 5-2.3 8.5-2.3V4.2C17 4.2 14 4.9 12 6.5z"/><path d="M12 6.5v13.6"/></svg>
+{{/* 日刻：日历页 + 引号（与 daymark 站内同一个图标） */}}
+{{ else if eq $name "nav-daymark" }}
+<svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15.5" rx="2.5"/><path d="M8.5 3v4M15.5 3v4"/><path d="M10.5 11.2c-1.3.5-2 1.6-2 3.3v1.3"/><path d="M8.5 15.8h1.8v-1.9H8.6"/><path d="M15.5 11.2c-1.3.5-2 1.6-2 3.3v1.3"/><path d="M13.5 15.8h1.8v-1.9h-1.7"/></svg>
 {{ else if eq $name "nav-blog" }}
 <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4.2L19.4 8.8a2 2 0 0 0 0-2.8l-1.4-1.4a2 2 0 0 0-2.8 0L4 15.8z"/><path d="M13.5 6.5l4 4"/></svg>
 {{ else if eq $name "nav-gear" }}
