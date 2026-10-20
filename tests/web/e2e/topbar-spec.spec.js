@@ -4,6 +4,7 @@
  * 顶栏 v4（2026-10-20）：子页面长条里 ‹ 和 ⋮ 删除；九宫格改为左侧导航抽屉（见 nav-drawer.spec.js）。
  * 通版顶栏（2026-10-20）：全站长条 = 最前端搜索图标 + 当前页名（主页「首页」，不再显示 Styrigx）；点长条进全网搜索。
  * 主页长条里没有单独的设置 / 搜索按钮；没有滚动换标题；子页面没有大标题区，正文从顶栏下方 16px 开始（--sgx-content-top）。
+ * 快捷面板（2026-10-20）：长条与头像之间多一个快捷面板圆（与左圆同尺寸同材质），长条相应变短（见 quick-panel.spec.js）。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, expect } = require('./helpers');
@@ -36,15 +37,17 @@ for (const dark of [false, true]) {
     test.use({ viewport: { width: 390, height: 844 } });
 
     for (const path of ['/', '/settings/']) {
-      test(`${path}：左圆九宫格、长条（搜索图标 + 居中页名）、右圆头像，坐标、高度、底色一致`, async ({ page }) => {
+      test(`${path}：左圆九宫格、长条（搜索图标 + 居中页名）、快捷面板圆、右圆头像，坐标、高度、底色一致`, async ({ page }) => {
         await go(page, path, { dark });
         const nav = await box(page, '.sgx-tb-nav');
         const pill = await box(page, '.sgx-tb-pill');
+        const quick = await box(page, '.sgx-tb-quick');
         const me = await box(page, '.sgx-tb-me');
         expect(near(nav.x, 16) && near(nav.x + nav.width, 68), `导航圆 x ${nav.x}–${nav.x + nav.width}`).toBe(true);
-        expect(near(pill.x, 76) && near(pill.x + pill.width, 314), `长条 x ${pill.x}–${pill.x + pill.width}`).toBe(true);
+        expect(near(pill.x, 76) && near(pill.x + pill.width, 254), `长条 x ${pill.x}–${pill.x + pill.width}`).toBe(true);
+        expect(near(quick.x, 262) && near(quick.x + quick.width, 314), `快捷面板圆 x ${quick.x}–${quick.x + quick.width}`).toBe(true);
         expect(near(me.x, 322) && near(me.x + me.width, 374), `头像圆 x ${me.x}–${me.x + me.width}`).toBe(true);
-        for (const b of [nav, pill, me]) {
+        for (const b of [nav, pill, quick, me]) {
           expect(near(b.y, 16), `y ${b.y}`).toBe(true);
           expect(near(b.height, 52), `高 ${b.height}`).toBe(true);
         }
@@ -62,9 +65,10 @@ for (const dark of [false, true]) {
         expect(near(tx.x + tx.width / 2, pill.x + pill.width / 2), `页名水平居中 ${tx.x + tx.width / 2}`).toBe(true);
         expect(near(tx.y + tx.height / 2, pill.y + pill.height / 2), `页名垂直居中 ${tx.y + tx.height / 2}`).toBe(true);
         const bgs = await page.evaluate(() =>
-          ['.sgx-tb-nav', '.sgx-tb-pill'].map((s) => getComputedStyle(document.querySelector(s)).backgroundColor)
+          ['.sgx-tb-nav', '.sgx-tb-pill', '.sgx-tb-quick'].map((s) => getComputedStyle(document.querySelector(s)).backgroundColor)
         );
         expect(bgs[0]).toBe(bgs[1]);
+        expect(bgs[2]).toBe(bgs[0]);
       });
     }
   });

@@ -19,6 +19,8 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 const featuresYaml = readFileSync(join(root, 'web/data/features.yaml'), 'utf8');
 const baseofHtml = readFileSync(join(root, 'web/layouts/_default/baseof.html'), 'utf8');
 const settingsJs = readFileSync(join(root, 'web/assets/js/apps/settings.js'), 'utf8');
+/* 语言等偏好的 setter 在 lib/prefs.js（设置页和顶栏快捷面板共用） */
+const prefsJs = readFileSync(join(root, 'web/assets/js/lib/prefs.js'), 'utf8');
 const indexJs = readFileSync(join(root, 'web/assets/js/apps/index.js'), 'utf8');
 const featureHtml = readFileSync(join(root, 'web/layouts/partials/feature.html'), 'utf8');
 
@@ -63,11 +65,12 @@ test('语言：settings.js 有三档切换 UI', () => {
     settingsJs.includes("langSystem") || settingsJs.includes('跟随系统'),
     'settings.js 应有"跟随系统"选项'
   );
+  assert.ok(settingsJs.includes('setLang('), 'settings.js 选语言走共用的 setLang（lib/prefs.js）');
   assert.ok(
-    settingsJs.includes("localStorage.removeItem('sgx-lang')") ||
-    settingsJs.includes('localStorage.removeItem("sgx-lang")') ||
-    settingsJs.includes("remove('sgx-lang')") ||
-    settingsJs.includes('remove("sgx-lang")'),
+    prefsJs.includes("localStorage.removeItem('sgx-lang')") ||
+    prefsJs.includes('localStorage.removeItem("sgx-lang")') ||
+    prefsJs.includes("sremove('sgx-lang')") ||
+    prefsJs.includes("remove('sgx-lang')"),
     '选 system 时应删除 sgx-lang（恢复默认跟随系统）'
   );
 });

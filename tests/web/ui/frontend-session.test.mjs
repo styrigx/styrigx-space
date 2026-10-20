@@ -40,10 +40,13 @@ test('lock.js：会话有效时分发 sgx:session 事件', () => {
   assert.ok(lockJs.includes("CustomEvent('sgx:session'"), '应分发 sgx:session 事件');
 });
 
-test('page-security.js：立即锁定调 POST /api/lock', () => {
+test('page-security.js：立即锁定调 POST /api/lock（确认层与请求在 lib/lock-now.js，安全页和快捷面板共用）', () => {
+  const lockNowJs = readFileSync(join(root, 'web/assets/js/lib/lock-now.js'), 'utf8');
   assert.ok(!secJs.includes('sgx-lock-shown'), '不应再出现 sgx-lock-shown');
-  assert.ok(secJs.includes("fetch('/api/lock'"), '应 fetch /api/lock');
-  assert.ok(secJs.includes("method: 'POST'"), '应用 POST');
+  assert.ok(secJs.includes("from '../lib/lock-now.js'") && secJs.includes('confirmLockNow()'), '安全页应调用共用的 confirmLockNow');
+  assert.ok(!lockNowJs.includes('sgx-lock-shown'), '不应再出现 sgx-lock-shown');
+  assert.ok(lockNowJs.includes("fetch('/api/lock'"), '应 fetch /api/lock');
+  assert.ok(lockNowJs.includes("method: 'POST'"), '应用 POST');
 });
 
 test('sgx-account-card.html：只保留名字和头像（解锁入口已移走）；只在账号页使用，设置页不再放', () => {

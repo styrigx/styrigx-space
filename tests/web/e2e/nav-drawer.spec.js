@@ -1,6 +1,6 @@
 /**
  * 2026-10-20 导航改版验收：
- * - 顶栏全站同一套：左圆九宫格、中间长条（居中标题）、右圆头像；没有 ‹ 返回、没有 ⋮。
+ * - 顶栏全站同一套：左圆九宫格、中间长条（居中标题）、快捷面板圆、右圆头像；没有 ‹ 返回、没有 ⋮。
  * - 九宫格 → Gmail 式左侧导航抽屉：首页 / 书签 / 书库 / 博客，分隔线下只有 设置；每项有描边图标，
  *   当前页是药丸高亮；没有 我的文件 / 帮助与反馈；点遮罩 / Esc / 系统返回关闭。
  * - /browser/ 拆成 书签 /bookmarks/（只有书签：分类筛选条 + 分组）+ 全网搜索 /search/。
@@ -34,7 +34,7 @@ async function openDrawer(page) {
 test.describe('顶栏：全站同一套，没有 ‹ 和 ⋮', () => {
   const PAGES = ['/', '/bookmarks/', '/search/', '/settings/', '/settings/display/', '/settings/security/', '/settings/account/', '/settings/search/'];
   for (const path of PAGES) {
-    test(`${path}：九宫格 + 长条 + 头像，没有返回圆和 ⋮`, async ({ page }) => {
+    test(`${path}：九宫格 + 长条 + 快捷面板圆 + 头像，没有返回圆和 ⋮`, async ({ page }) => {
       await go(page, path);
       await expect(page.locator('.sgx-tb-back')).toHaveCount(0);
       await expect(page.locator('[data-go-back]')).toHaveCount(0);
@@ -43,8 +43,8 @@ test.describe('顶栏：全站同一套，没有 ‹ 和 ⋮', () => {
       await expect(page.locator('.sgx-topbar > .sgx-tb-nav')).toHaveCount(1);
       await expect(page.locator('.sgx-topbar > .sgx-tb-pill')).toHaveCount(1);
       await expect(page.locator('.sgx-topbar > .sgx-tb-me')).toHaveCount(1);
-      /* PR② 预留位：快捷面板圆现在不渲染 */
-      await expect(page.locator('.sgx-tb-quick')).toHaveCount(0);
+      /* 快捷面板圆（长条与头像之间，见 quick-panel.spec.js） */
+      await expect(page.locator('.sgx-topbar > .sgx-tb-quick')).toHaveCount(1);
     });
   }
 

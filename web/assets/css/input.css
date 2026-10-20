@@ -2386,7 +2386,7 @@
 }
 .sgx-tb-search, .sgx-tb-nav, .sgx-tb-quick { width: 52px; height: 52px; border-radius: 999px; flex-shrink: 0; padding: 0;
   display: inline-flex; align-items: center; justify-content: center; color: var(--m-on-surface); cursor: pointer; }
-/* PR② 预留：快捷面板圆（长条与头像之间，与左圆同尺寸同材质）；模板里现在不渲染 */
+/* 快捷面板圆（长条与头像之间，与左圆同尺寸同材质；点开 #sgx-qp） */
 .sgx-tb-quick svg { width: 22px; height: 22px; }
 .sgx-tb-search { text-decoration: none; }
 .sgx-tb-search svg { width: 22px; height: 22px; }
@@ -2395,7 +2395,8 @@
   padding: 0 6px; position: relative; }
 .sgx-tb-avatar { width: 28px; height: 28px; border-radius: 999px; object-fit: cover; border: 1px solid var(--m-outline); flex-shrink: 0; }
 /* 通版顶栏（2026-10-20）：整条长条是一个链接（点了进全网搜索）；最前端搜索图标（中心距长条左边 26，与左圆同尺寸图标），
-   当前页名在长条内水平垂直居中（左右各让出 52px，与图标对称），太长时省略号。 */
+   当前页名在长条内水平垂直居中（左右各让出 46px = 搜索图标右缘，与图标对称），太长时省略号。
+   右侧多了快捷面板圆后 390px 宽长条只剩 ~178px，页名区约 86px：「安全与隐私」放得下，英文长页名省略号。 */
 .sgx-tb-cap { position: absolute; inset: 0; border-radius: inherit; display: block; color: var(--m-on-surface); text-decoration: none;
   transition: background-color .15s ease; }
 .sgx-tb-cap:active { background-color: rgba(0,0,0,.06); }
@@ -2404,7 +2405,7 @@
 .sgx-tb-cap-ic { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); width: 40px; height: 40px;
   display: inline-flex; align-items: center; justify-content: center; color: var(--m-on-surface-variant); }
 .sgx-tb-cap-ic svg { width: 22px; height: 22px; }
-.sgx-tb-title { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); max-width: calc(100% - 104px);
+.sgx-tb-title { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); max-width: calc(100% - 92px);
   font-size: 16px; font-weight: 700; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* 右圆：头像（账号入口：链到账号登录页 / 账号页） */
 .sgx-tb-me { width: 52px; height: 52px; border-radius: 999px; flex-shrink: 0; overflow: hidden; display: block;
@@ -2443,6 +2444,56 @@
 .sgx-drawer-ic svg { width: 24px; height: 24px; display: block; }
 .sgx-drawer-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sgx-drawer-div { border: 0; border-top: 1px solid var(--m-outline); margin: 10px 16px; }
+/* 快捷面板（2026-10-20，One UI 快捷面板式；baseof.html #sgx-qp，shell/quick-panel.js 开关）：
+   <dialog> 模态铺满视口，::backdrop 是遮罩；.sgx-qp-sheet 从顶部滑下（is-open），盖住顶栏。
+   磁贴两列圆角块，开着的磁贴是主色容器底色（aria-pressed="true"）；宽屏贴右对齐到顶栏右缘。 */
+.sgx-qp { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0;
+  border: 0; background: transparent; overflow: hidden; color: var(--m-on-surface); }
+.sgx-qp::backdrop { background: rgba(0,0,0,0); transition: background-color .24s ease; }
+.sgx-qp.is-open::backdrop { background: rgba(0,0,0,.32); }
+.sgx-qp-sheet { position: absolute; top: calc(8px + env(safe-area-inset-top, 0px)); left: 8px; right: 8px; margin: 0 auto;
+  max-width: 480px; max-height: calc(100% - 16px - env(safe-area-inset-top, 0px)); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--m-container-lowest); border-radius: 28px; box-shadow: 0 12px 40px -8px rgba(0,0,0,.30);
+  padding: 16px 16px 10px; outline: none;
+  transform: translateY(calc(-100% - 24px)); transition: transform .24s cubic-bezier(.2,0,0,1); }
+.sgx-qp.is-open .sgx-qp-sheet { transform: none; }
+@media (min-width: 980px) {
+  .sgx-qp-sheet { left: auto; right: max(16px, calc((100vw - 1068px) / 2)); width: 400px; margin: 0; }
+}
+.reduced-motion .sgx-qp-sheet, .reduced-motion .sgx-qp::backdrop { transition: none; }
+@media (prefers-reduced-motion: reduce) { .sgx-qp-sheet, .sgx-qp::backdrop { transition: none; } }
+.sgx-qp-head { padding: 2px 6px 12px; font-size: 15px; font-weight: 700; color: var(--m-on-surface-variant); }
+.sgx-qp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sgx-qp-tile { display: flex; align-items: center; gap: 10px; min-height: 64px; min-width: 0; padding: 10px 12px; border-radius: 22px;
+  background: var(--m-container-high); color: var(--m-on-surface); text-align: left; cursor: pointer; transition: background-color .15s ease; }
+.sgx-qp-tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.sgx-qp-tile:active { background: var(--m-container-highest); }
+.sgx-qp-tile[aria-pressed="true"] { background: var(--m-primary-container); color: var(--m-on-primary-container); }
+.sgx-qp-tile:focus-visible, .sgx-qp-sw:focus-visible, .sgx-qp-all:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
+.sgx-qp-ic { width: 36px; height: 36px; border-radius: 999px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--m-container-lowest); color: var(--m-on-surface-variant); }
+.sgx-qp-ic svg { width: 20px; height: 20px; }
+.sgx-qp-tile[aria-pressed="true"] .sgx-qp-ic { background: var(--m-primary); color: var(--m-on-primary); }
+.sgx-qp-txt { display: flex; flex-direction: column; min-width: 0; }
+/* 英文磁贴名在 390px 宽两列里放不下一行（Follow system / Reduce motion）：最多折两行，不省略 */
+.sgx-qp-label { font-size: 14px; font-weight: 600; line-height: 1.25; overflow: hidden; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+.sgx-qp-state { font-size: 12px; line-height: 1.3; opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sgx-qp-row { margin-top: 12px; padding: 12px; border-radius: 22px; background: var(--m-container-high); }
+.sgx-qp-row-label { padding: 0 4px 8px; font-size: 13px; font-weight: 600; color: var(--m-on-surface-variant); }
+.sgx-qp-sws { display: grid; grid-template-columns: repeat(auto-fill, minmax(32px, 1fr)); gap: 8px; justify-items: center; }
+.sgx-qp-sw { width: 32px; height: 32px; border-radius: 999px; border: 0; padding: 0; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; color: rgb(255,255,255); }
+.sgx-qp-sw[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--m-container-high), 0 0 0 4px var(--m-primary); }
+.sgx-qp-sw .swatch-check { display: none; filter: drop-shadow(0 1px 2px rgba(0,0,0,.45)); }
+.sgx-qp-sw[aria-pressed="true"] .swatch-check { display: block; }
+.sgx-qp-seg button { font-size: 13px; }
+.sgx-qp-seg button:disabled { opacity: .4; cursor: default; }
+.sgx-qp-all { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 10px; min-height: 44px; border-radius: 999px;
+  font-size: 14px; font-weight: 600; color: var(--m-primary); text-decoration: none; }
+.sgx-qp-all:active { background: var(--m-container); }
+.sgx-qp-all svg { color: var(--m-primary); }
+.sgx-qp-handle { width: 36px; height: 4px; border-radius: 999px; margin: 6px auto 0; background: var(--m-outline); }
 /* topbar v2.0 end */
 
 /* ===== 头像裁剪（assets/js/apps/avatar-edit.js）=====

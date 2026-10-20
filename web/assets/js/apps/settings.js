@@ -9,7 +9,7 @@ import { get, set, remove, removeByPrefix, getJSON, setJSON } from '../lib/stora
 import { get as featGet, set as featSet, on as featOn } from '../lib/features.js';
 import { loadI18n } from '../lib/i18n.js';
 import { openSheet } from '../shell/sheet.js';
-import { setThemeMode } from '../lib/theme.js';
+import { setTheme, toggleFollowSystem, setPalette, setFontSize, setLayout, setReducedMotion, setLang } from '../lib/prefs.js';
 import { wellLoad, wellFlush } from '../shell/goodlock.js';
 import { sgxNavigate, sgxReplace, sgxGoBack, sgxReload } from '../lib/diag-jumptrace.js';
 
@@ -110,14 +110,12 @@ import { sgxNavigate, sgxReplace, sgxGoBack, sgxReload } from '../lib/diag-jumpt
   }
   document.querySelectorAll('#theme-previews .theme-prev').forEach(function (b) {
     on(b, 'click', function () {
-      setThemeMode(/** @type {any} */ (b.getAttribute('data-mode')));
+      setTheme(/** @type {any} */ (b.getAttribute('data-mode')));
       paintTheme();
     });
   });
   rowToggle('row-system', function () {
-    const m = curMode();
-    if (m === 'system') setThemeMode(document.documentElement.classList.contains('dark') ? 'dark' : 'light');
-    else setThemeMode('system');
+    toggleFollowSystem();
     paintTheme();
   });
   on(window, 'sgx-theme-changed', paintTheme);
@@ -136,13 +134,8 @@ import { sgxNavigate, sgxReplace, sgxGoBack, sgxReload } from '../lib/diag-jumpt
   }
   document.querySelectorAll('#palette-dots .swatch').forEach(function (b) {
     on(b, 'click', function () {
-      const p = b.getAttribute('data-palette') || 'lake';
-      featSet('palette', p);
-      const d = document.documentElement;
-      if (p === 'lake') d.removeAttribute('data-palette');
-      else d.setAttribute('data-palette', p);
+      setPalette(b.getAttribute('data-palette') || 'lake');
       paintPalette();
-      window.dispatchEvent(new Event('sgx-settings-changed'));
     });
   });
   paintPalette();
@@ -157,10 +150,7 @@ import { sgxNavigate, sgxReplace, sgxGoBack, sgxReload } from '../lib/diag-jumpt
   }
   document.querySelectorAll('#seg-font button').forEach(function (b) {
     on(b, 'click', function () {
-      const v = b.getAttribute('data-v') || 'standard';
-      featSet('font-size', v);
-      const d = document.documentElement;
-      d.style.fontSize = v === 'large' ? '112.5%' : v === 'small' ? '87.5%' : '';
+      setFontSize(b.getAttribute('data-v') || 'standard');
       paintFont();
     });
   });
@@ -223,11 +213,8 @@ import { sgxNavigate, sgxReplace, sgxGoBack, sgxReload } from '../lib/diag-jumpt
       layoutUndoTimer = null;
     }, 10000);
     document.getElementById('sgx-layout-undo').addEventListener('click', function () {
-      featSet('layout', oldV);
+      setLayout(oldV);
       paintLayout();
-      const w = /** @type {any} */ (window);
-      if (w.__applyLayout) w.__applyLayout();
-      window.dispatchEvent(new Event('sgx-settings-changed'));
       bar.remove();
       if (layoutUndoTimer) { clearTimeout(layoutUndoTimer); layoutUndoTimer = null; }
     });
@@ -238,11 +225,8 @@ import { sgxNavigate, sgxReplace, sgxGoBack, sgxReload } from '../lib/diag-jumpt
       const v = b.getAttribute('data-v') || 'auto';
       const oldV = featGet('layout') || 'auto';
       if (v === oldV) return;
-      featSet('layout', v);
+      setLayout(v);
       paintLayout();
-      const w = /** @type {any} */ (window);
-      if (w.__applyLayout) w.__applyLayout();
-      window.dispatchEvent(new Event('sgx-settings-changed'));
       showLayoutSnackbar(v, oldV);
     });
   });
@@ -280,30 +264,8 @@ import { sgxNavigate, sgxReplace, sgxGoBack, sgxReload } from '../lib/diag-jumpt
         { label: 'English', value: 'en', checked: cur === 'en' },
       ],
       onPick: function (v) {
-        if (v === 'system') remove('sgx-lang');
-        else set('sgx-lang', v);
-        featSet('lang', v === 'system' ? 'system' : v);
-        /* 跳到对应语言版本，保留查询参数与 hash，用 replace 不产生历史 */
-        const p = location.pathname,
-          q = location.search,
-          h = location.hash;
-        let want = v;
-        if (v === 'system') {
-          try {
-            const bl = (navigator.language || navigator.userLanguage || 'zh').toLowerCase();
-            want = bl.indexOf('zh') === 0 ? 'zh' : 'en';
-          } catch (e) {
-            want = 'zh';
-          }
-        }
-        let np;
-        if (want === 'en') {
-          np = p === '/' ? '/en/' : p === '/en' || p.indexOf('/en/') === 0 ? p : '/en' + p;
-        } else {
-          np = p.replace(/^\/en(\/|$)/, '/');
-          if (np === '' || np.charAt(0) !== '/') np = '/';
-        }
-        sgxReplace(np + q + h);
+        /* 写偏好并跳到对应语言版本（保留查询参数与 hash），replace 不产生历史 */
+        sgxReplace(setLang(/** @type {any} */ (v)));
       },
     });
   });
@@ -551,7 +513,7 @@ import { sgxNavigate, sgxReplace, sgxGoBack, sgxReload } from '../lib/diag-jumpt
     } catch (e) {}
   }
   rowToggle('row-motion', function () {
-    featSet('reduced-motion', !featGet('reduced-motion'));
+    setReducedMotion(!featGet('reduced-motion'));
     paintMotion();
   });
   paintMotion();
