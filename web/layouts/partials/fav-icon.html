@@ -8,8 +8,8 @@
   {{ $remote = printf "https://%s/favicon.ico" $host }}
 {{ end }}
 {{ $out := $remote }}
-{{/* 主站、博客、书库的图标就是主站头像（运行时读，换头像后跟着变），不下载 */}}
-{{ if in (slice "styrigx.com" "blog.styrigx.com" "book.styrigx.com") $host }}
+{{/* 主站、博客的图标就是主站头像（运行时读，换头像后跟着变），不下载 */}}
+{{ if in (slice "styrigx.com" "blog.styrigx.com") $host }}
   {{ $out = "/avatar/96.webp" }}
 {{ else }}
 {{ $local := or (resources.Get (printf "fav/%s.png" (replace $host "." "-"))) (resources.Get (printf "fav/%s.jpg" (replace $host "." "-"))) }}

@@ -508,8 +508,6 @@ jobs:
           # 子站：页面未登录 302 到主站锁屏、session-check 401，都由网关回答（子站 Pages 不持钥匙）
           check https://blog.styrigx.com/ 302 || ok=1
           check https://blog.styrigx.com/api/session-check 401 || ok=1
-          check https://book.styrigx.com/ 302 || ok=1
-          check https://book.styrigx.com/api/session-check 401 || ok=1
           # 静态资源不过网关：不能带 worker 标记
           css=$(curl -sS -o /dev/null -D - https://styrigx.com/robots.txt | tr -d '\r' | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
           echo "/robots.txt runtime=${css:-none}"

@@ -31,7 +31,7 @@ import {
   OWNER_PASSKEY_PREFIX,
 } from './key-names.js';
 
-/* 所有凭证 cookie 共用的作用域：主站与子站（blog/book）共享 */
+/* 所有凭证 cookie 共用的作用域：主站与子站（blog/daymark）共享 */
 const COOKIE_SCOPE = 'Domain=.styrigx.com; Path=/; HttpOnly; Secure';
 /* 清除 cookie 时追加的过期时间 */
 export const COOKIE_EXPIRED = 'Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT';

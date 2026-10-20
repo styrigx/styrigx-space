@@ -181,7 +181,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 </header>
 
 {{/* 导航抽屉（Gmail Android 式左侧抽屉，head-buttons.js 开关）：九宫格打开；点遮罩 / 系统返回 / Esc 关闭。
-   当前页所在项用药丸高亮（aria-current="page"）；底部分隔线下只有 设置。日刻、博客是子站（同一标签页打开；书库不再维护，2026-10-20 起导航改为日刻）。 */}}
+   当前页所在项用药丸高亮（aria-current="page"）；底部分隔线下只有 设置。日刻、博客是子站（同一标签页打开）。 */}}
 {{ $navCur := "" }}
 {{ if .IsHome }}{{ $navCur = "home" }}{{ else if or (eq .RelPermalink "/bookmarks/") (eq .RelPermalink "/en/bookmarks/") }}{{ $navCur = "bookmarks" }}{{ else if or (hasPrefix .RelPermalink "/settings/") (hasPrefix .RelPermalink "/en/settings/") }}{{ $navCur = "settings" }}{{ end }}
 {{ $navItems := slice

@@ -11,7 +11,7 @@
  * - 逻辑：KV session-epoch +1（所有设备旧 cookie 失效），用 Set-Cookie 清当前 cookie 和门票。
  * - 返回 {ok:true}。
  *
- * 注意：blog/book 缓存 epoch 约 60 秒，锁定后最多 60 秒内在 blog/book 生效。
+ * 注意：子站 缓存 epoch 约 60 秒，锁定后最多 60 秒内在 子站 生效。
  * 只接受 POST；外层 try/catch：任何未捕获异常都返回 JSON { ok:false, error:'server' }。
  */
 import { verifySessionDetailed } from '../_middleware.js';

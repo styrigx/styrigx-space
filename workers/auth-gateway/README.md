@@ -8,7 +8,7 @@ functions/   middleware（会话、角色、锁屏）、接口（api/）、内�
 migrations/  D1 建表
 ```
 
-- 子站：`blog.styrigx.com`、`book.styrigx.com` 的页面路径也登记在 `wrangler.toml`，网关验会话（owner、visitor 都放行）后回源子站 Pages；未登录 302 到主站锁屏，`/api/session-check` 由网关直接回答。子站登记表在 `src/subsites.js`，新增子站要在那里加一项并登记路由。子站 Pages 不持任何钥匙。
+- 子站：`blog.styrigx.com`、`daymark.styrigx.com` 的页面路径也登记在 `wrangler.toml`，网关验会话（owner、visitor 都放行）后回源子站 Pages；未登录 302 到主站锁屏，`/api/session-check` 由网关直接回答。子站登记表在 `src/subsites.js`，新增子站要在那里加一项并登记路由。子站 Pages 不持任何钥匙。
 - 给其他 Worker 验票：服务绑定 RPC `SessionVerifier`（`session(cookieHeader)` → `{ok, role}`；`appPass(cookieHeader, aud, scope)` → `{ok, appEpoch}`；`appEpoch(aud)` → `{ok, appEpoch}`）。调用方 wrangler.toml 写 `[[services]] binding = "AUTH"`、`service = "styrigx-auth-gateway"`、`entrypoint = "SessionVerifier"`，自己不持任何钥匙。只能经服务绑定调用，公网进不来。
 - 6 个私密值 + 3 把公钥都在 Cloudflare Secrets Store；换钥只在后台改，不用改代码或重新部署（最多 60 秒生效）。
 - 不开 `*.workers.dev`；只通过 `styrigx.com` 的路由访问。

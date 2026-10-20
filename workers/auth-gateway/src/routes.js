@@ -8,7 +8,6 @@ import * as account from '../functions/api/account.js';
 import * as avatar from '../functions/api/avatar.js';
 import * as bookmarkPreview from '../functions/api/bookmark-preview.js';
 import * as bookmarks from '../functions/api/bookmarks.js';
-import * as books from '../functions/api/books.js';
 import * as geo from '../functions/api/geo.js';
 import * as layerStatus from '../functions/api/layer-status.js';
 import * as lock from '../functions/api/lock.js';
@@ -33,7 +32,6 @@ export const API_ROUTES = new Map([
   ['/api/avatar', avatar],
   ['/api/bookmark-preview', bookmarkPreview],
   ['/api/bookmarks', bookmarks],
-  ['/api/books', books],
   ['/api/geo', geo],
   ['/api/layer-status', layerStatus],
   ['/api/lock', lock],

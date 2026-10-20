@@ -2,7 +2,7 @@
  * B1-8 子站回跳防死循环。
  *
  * 验收（任务书 B1-8）：
- * - 正常回到 blog/book（第一次被踢回 → 自动跳回子站，不出失败卡）
+ * - 正常回到 blog/daymark（第一次被踢回 → 自动跳回子站，不出失败卡）
  * - 20 秒内第二次被踢回 → 出失败卡（One UI 样式，不显示原因码）
  * - 超过 20 秒仍然正常（不算死循环，继续回跳）
  *
@@ -22,7 +22,7 @@
 const { test } = require('@playwright/test');
 const { blockExternalRequests, expect } = require('./helpers');
 
-const TARGET_BOOK = 'https://book.styrigx.com/';
+const TARGET_DAYMARK = 'https://daymark.styrigx.com/';
 const TARGET_BLOG = 'https://blog.styrigx.com/';
 
 /* 拦截由 JS 触发的导航（sgxReplace 的 location.replace），放行测试代码的 page.goto。
@@ -107,7 +107,7 @@ async function clearJumpState(page) {
 }
 
 test.describe('B1-8 路径A：会话有效时被踢回', () => {
-  const TARGET = TARGET_BOOK;
+  const TARGET = TARGET_DAYMARK;
 
   test.beforeEach(async ({ page }) => {
     await blockExternalRequests(page);
@@ -226,7 +226,7 @@ test.describe('B1-8 路径A：会话有效时被踢回', () => {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await clearJumpState(page);
 
-    /* 第一次踢回 book */
+    /* 第一次踢回 daymark */
     const d1 = await gotoKicked(page, TARGET, 'no-cookie');
     expect(d1).toBe('jump');
 
@@ -286,7 +286,7 @@ test.describe('B1-8 路径A：会话有效时被踢回', () => {
 });
 
 test.describe('B1-8 路径B：会话无效、访客解锁后被踢回', () => {
-  const TARGET = TARGET_BOOK;
+  const TARGET = TARGET_DAYMARK;
 
   test.beforeEach(async ({ page }) => {
     await blockExternalRequests(page);
@@ -394,7 +394,7 @@ test.describe('B1-8 路径B：会话无效、访客解锁后被踢回', () => {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await clearJumpState(page);
 
-    /* 第一次踢回 book */
+    /* 第一次踢回 daymark */
     await unlockAsVisitor(page, TARGET, 'no-cookie');
     const trace1 = await getJumpTrace(page);
     expect(trace1.length).toBeGreaterThan(0);

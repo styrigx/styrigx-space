@@ -5,7 +5,7 @@
  * 2. 接口和头像（/api/、/avatar/）被路由覆盖（Pages 上没有后端代码，漏了就是 404 或默认头像）
  * 3. 静态资源目录不被任何路由覆盖（静态资源不过 Worker）
  * 4. 路由不重复
- * 5. 子站（blog/book/daymark）：只能登记 SUBSITE_HOSTS 里的域名；session-check 有路由；静态资源目录不被覆盖
+ * 5. 子站（blog/daymark）：只能登记 SUBSITE_HOSTS 里的域名；session-check 有路由；静态资源目录不被覆盖
  *    （子站页面是否全覆盖，由各子站 CI 部署后逐个目录冒烟检查）
  *
  * 需要先构建网站（hugo --minify -s web），读 web/public/ 下的 .html。
@@ -29,10 +29,6 @@ const SUBSITE_HOSTS = {
   'blog.styrigx.com': {
     mustRoute: ['/', '/about/', '/archives/', '/post/x/', '/tags/x/', '/en/', '/rss.xml', '/api/session-check'],
     statics: ['/_astro/x.js', '/fonts/x.woff2', '/favicon.ico', '/robots.txt', '/manifest.json', '/og.png'],
-  },
-  'book.styrigx.com': {
-    mustRoute: ['/', '/read/', '/admin/', '/en/', '/api/session-check'],
-    statics: ['/js/x.js', '/css/x.css', '/fonts/x.woff2', '/images/x.png', '/favicon.ico', '/robots.txt', '/api/shelf'],
   },
   'daymark.styrigx.com': {
     mustRoute: ['/', '/en/', '/zh/', '/sitemap.xml', '/api/session-check'],

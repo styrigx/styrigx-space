@@ -87,7 +87,7 @@ export async function ed25519Sign(privatePem, payload) {
 }
 
 /**
- * Ed25519 验签（blog/book 验证会话 cookie 用，主站自验也用）。
+ * Ed25519 验签（子站 验证会话 cookie 用，主站自验也用）。
  * @param {string} publicPem SPKI PEM 格式公钥
  * @param {string} payload 原文
  * @param {string} sigB64url base64url 签名
