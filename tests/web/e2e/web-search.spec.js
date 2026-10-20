@@ -1,6 +1,6 @@
 /**
  * 全网搜索页（/search/，2026-10-20 由浏览器搜索 /browser/search/ 改名搬来）：做法与设置搜索一致。
- * 顶栏搜索圆（#sgx-tb-search，紧挨九宫格）打开它；旧地址 /browser/search/、/browser/?q=、/browser/#focus 都转到这里。
+ * 顶栏长条左端搜索图标（#sgx-tb-search，v5 收进长条）打开它；旧地址 /browser/search/、/browser/?q=、/browser/#focus 都转到这里。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, expect } = require('./helpers');
@@ -17,8 +17,10 @@ async function go(page, path) {
   await expect(page.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
 }
 
-test('主页点顶栏搜索圆 → 全网搜索页并聚焦；长条页名「全网搜索」', async ({ page }) => {
+test('主页点长条左端搜索图标 → 全网搜索页并聚焦；长条页名「全网搜索」', async ({ page }) => {
   await go(page, '/');
+  await expect(page.locator('.sgx-tb-pill > #sgx-tb-search')).toHaveCount(1);
+  await expect(page.locator('#sgx-tb-search')).toHaveAttribute('aria-label', '搜索');
   await page.locator('#sgx-tb-search').click();
   await expect(page).toHaveURL(/\/search\/$/);
   await expect(page.locator('#sgx-cap-input-brwsearch')).toBeFocused({ timeout: 5000 });
@@ -26,7 +28,7 @@ test('主页点顶栏搜索圆 → 全网搜索页并聚焦；长条页名「全
   await expect(page).toHaveTitle(/^全网搜索 \| Styrigx$/);
 });
 
-test('英文页长条页名 Web search；主页搜索圆 aria-label Search、链到英文搜索页', async ({ page }) => {
+test('英文页长条页名 Web search；主页搜索图标 aria-label Search、链到英文搜索页', async ({ page }) => {
   await page.addInitScript(() => {
     try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {}
   });
@@ -85,7 +87,7 @@ test('没有大标题：内容从顶栏下方 16px 开始，不用滚动', async
   expect(Math.abs(g.mainTop - (g.barBottom + 16))).toBeLessThanOrEqual(2);
 });
 
-test('在全网搜索页点顶栏搜索圆：不跳转，只聚焦底部输入框', async ({ page }) => {
+test('在全网搜索页点长条搜索图标：不跳转，只聚焦底部输入框', async ({ page }) => {
   await go(page, '/search/');
   await page.waitForTimeout(300);
   await page.evaluate(() => { window.__sgxNoReload = 1; document.activeElement && document.activeElement.blur(); });

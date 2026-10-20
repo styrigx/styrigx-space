@@ -1,7 +1,7 @@
 /**
  * 2026-10-20 导航改版验收：
- * - 顶栏全站同一套，左右对称：九宫格圆 + 搜索圆 | 长条（只显示页名，屏幕居中，不可点）| 快捷面板圆 + 头像圆；没有 ‹ 返回、没有 ⋮。
- * - 抽屉宽：手机竖屏（< 600px）右缘对齐快捷面板圆左缘；更宽固定 320px。面板底色 = 顶栏材质（跟随调色板与明暗）。
+ * - 顶栏全站同一套（v5）：九宫格圆 | 长条（搜索图标 · 页名 · 快捷面板图标，屏幕居中）| 头像圆；没有 ‹ 返回、没有 ⋮。
+ * - 抽屉宽：手机竖屏（< 600px）右缘对齐长条里快捷面板图标点击区左缘；更宽固定 320px。面板底色 = 顶栏材质（跟随调色板与明暗）。
  * - 九宫格 → Gmail 式左侧导航抽屉：首页 / 书签 / 书库 / 博客，分隔线下只有 设置；每项有描边图标，
  *   当前页是药丸高亮；没有 我的文件 / 帮助与反馈；点遮罩 / Esc / 系统返回关闭。
  * - /browser/ 拆成 书签 /bookmarks/（只有书签：分类筛选条 + 分组）+ 全网搜索 /search/。
@@ -35,24 +35,25 @@ async function openDrawer(page) {
 test.describe('顶栏：全站同一套，没有 ‹ 和 ⋮', () => {
   const PAGES = ['/', '/bookmarks/', '/search/', '/settings/', '/settings/display/', '/settings/security/', '/settings/account/'];
   for (const path of PAGES) {
-    test(`${path}：九宫格 + 搜索圆 + 长条 + 快捷面板圆 + 头像，没有返回圆和 ⋮`, async ({ page }) => {
+    test(`${path}：九宫格 + 长条（搜索 · 页名 · 快捷面板）+ 头像，没有返回圆和 ⋮`, async ({ page }) => {
       await go(page, path);
       await expect(page.locator('.sgx-tb-back')).toHaveCount(0);
       await expect(page.locator('[data-go-back]')).toHaveCount(0);
       await expect(page.locator('.sgx-tb-more')).toHaveCount(0);
       await expect(page.locator('[data-tb-more]')).toHaveCount(0);
+      await expect(page.locator('.sgx-topbar > *')).toHaveCount(3);
       await expect(page.locator('.sgx-topbar > .sgx-tb-nav')).toHaveCount(1);
-      await expect(page.locator('.sgx-topbar > .sgx-tb-search')).toHaveCount(1);
       await expect(page.locator('.sgx-topbar > .sgx-tb-pill')).toHaveCount(1);
       await expect(page.locator('.sgx-topbar > .sgx-tb-me')).toHaveCount(1);
-      /* 快捷面板圆（长条与头像之间，见 quick-panel.spec.js） */
-      await expect(page.locator('.sgx-topbar > .sgx-tb-quick')).toHaveCount(1);
+      /* 搜索、快捷面板（见 quick-panel.spec.js）都收进长条 */
+      await expect(page.locator('.sgx-tb-pill > .sgx-tb-search')).toHaveCount(1);
+      await expect(page.locator('.sgx-tb-pill > .sgx-tb-quick')).toHaveCount(1);
     });
   }
 
-  test('子页长条只是页名标签（没有链接 / 按钮 / 图标），页名在长条内居中', async ({ page }) => {
+  test('子页长条：两端搜索 / 快捷面板图标，页名在长条内居中', async ({ page }) => {
     await go(page, '/settings/display/');
-    await expect(page.locator('.sgx-tb-pill a, .sgx-tb-pill button, .sgx-tb-pill svg')).toHaveCount(0);
+    await expect(page.locator('.sgx-tb-pill a, .sgx-tb-pill button')).toHaveCount(2);
     const pill = await page.locator('.sgx-tb-pill').boundingBox();
     const tx = await page.locator('.sgx-tb-title').boundingBox();
     expect(Math.abs(tx.x + tx.width / 2 - (pill.x + pill.width / 2))).toBeLessThanOrEqual(1);
@@ -289,13 +290,15 @@ test.describe('抽屉宽度与底色', () => {
   }
 
   for (const w of [390, 412]) {
-    test(`手机竖屏 ${w}px：抽屉右缘 = 快捷面板圆左缘（±1px）`, async ({ page }) => {
+    test(`手机竖屏 ${w}px：抽屉右缘 = 长条里快捷面板图标点击区左缘（±1px）`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: 844 });
       await go(page, '/settings/');
       await openDrawer(page);
       const m = await sheetAndQuick(page);
       expect(Math.abs(m.left), `左缘 ${m.left}`).toBeLessThanOrEqual(1);
-      expect(Math.abs(m.right - m.quickLeft), `抽屉右缘 ${m.right}，快捷面板圆左缘 ${m.quickLeft}`).toBeLessThanOrEqual(1);
+      /* 390 → 268，412 → 290（视口宽 − 16 − 52 − 8 − 26 − 20） */
+      expect(Math.abs(m.width - (w - 122)), `宽 ${m.width}`).toBeLessThanOrEqual(1);
+      expect(Math.abs(m.right - m.quickLeft), `抽屉右缘 ${m.right}，快捷面板图标左缘 ${m.quickLeft}`).toBeLessThanOrEqual(1);
       /* 药丸左右各留 12px */
       expect(Math.abs(m.itemLeft - 12)).toBeLessThanOrEqual(1);
       expect(Math.abs(m.right - m.itemRight - 12)).toBeLessThanOrEqual(1);
