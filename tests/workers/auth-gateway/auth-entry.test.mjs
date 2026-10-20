@@ -115,7 +115,7 @@ test('认证入口：锁屏方法弹层按锁屏凭证配置显示入口', () =>
 
 /* ============ 2. 安全页 DOM 一致 ============ */
 
-test('认证入口：安全页两个入口（管理凭证/立即锁定），访客与站长 DOM 一致；账号登录三个入口平级', () => {
+test('认证入口：安全页两个入口（管理凭证/立即锁定），访客与站长 DOM 一致；账号登录三个入口（设了哪个显示哪个）', () => {
   const html = fs.readFileSync(path.join(REPO, 'web/layouts/_default/security.html'), 'utf8');
   assert.ok(!html.includes('id="sec-owner-cred"'), '站长凭证入口已升级为账号（顶栏头像）');
   assert.ok(html.includes('id="sec-mgmt-cred"'), '应有管理凭证入口');
@@ -129,14 +129,14 @@ test('认证入口：安全页两个入口（管理凭证/立即锁定），访�
   assert.ok(js.includes("dataset.sgxRole === 'visitor'"), '管理凭证应有访客分支');
   assert.ok(js.includes("'?door=1&return='"), '未登录/过旧 → 账号登录带 door=1&return=');
   assert.ok(!js.includes('/api/owner-status'), '不再读 owner-status');
-  /* 账号页：三个入口平级，界面不出现内部名 */
-  const acc = fs.readFileSync(path.join(REPO, 'web/assets/js/apps/account.js'), 'utf8');
+  /* 账号页 / 安全与隐私的门：三个入口（验证行在 account-methods.js），界面不出现内部名 */
+  const acc = fs.readFileSync(path.join(REPO, 'web/assets/js/apps/account-methods.js'), 'utf8');
   for (const kind of ["kind: 'passkey'", "kind: 'password'", "kind: 'root'"]) {
-    assert.ok(acc.includes(kind), '账号登录应有入口 ' + kind);
+    assert.ok(acc.includes(kind), '账号验证应有入口 ' + kind);
   }
   assert.ok(acc.includes("target: 'account'"), '根凭证入口走 root-auth target=account');
-  for (const f of ['account.js', 'account-security.js']) {
-    const src = f === 'account.js' ? acc : fs.readFileSync(path.join(REPO, 'web/assets/js/apps/' + f), 'utf8');
+  for (const f of ['account-methods.js', 'account.js', 'account-security.js', 'account-profile.js']) {
+    const src = fs.readFileSync(path.join(REPO, 'web/assets/js/apps/' + f), 'utf8');
     const noComments = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1');
     for (const bad of ['票据', 'rootkey', 'ownerkey', 'accountkey', 'sgx-account', 'sgx-verified']) {
       assert.ok(!noComments.includes(bad), f + ' 代码不应出现「' + bad + '」');

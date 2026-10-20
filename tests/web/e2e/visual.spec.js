@@ -22,8 +22,9 @@ const VIEWPORTS = {
 /* 安全与隐私：新页面加入视觉回归（先只报告，基线未生成前不阻塞） */
 /* 账号体系：原 /settings/security/owner/（站长凭证门）升级为账号页 /settings/account/ */
 /* 账号页三星式总览：/settings/account/ 拍登录后的总览（登录区由下方 account-login-* 覆盖），
-   新增安全与隐私子页 /settings/account/security/ */
-const PAGES = ['/', '/bookmarks/', '/search/', '/settings/', '/settings/security/', '/settings/security/lock/', '/settings/account/', '/settings/account/security/'];
+   新增安全与隐私子页 /settings/account/security/（已过门；倒计时数字在截图里遮罩），
+   账号信息子页 /settings/account/profile/（已登录卡 + 退出账号） */
+const PAGES = ['/', '/bookmarks/', '/search/', '/settings/', '/settings/security/', '/settings/security/lock/', '/settings/account/', '/settings/account/profile/', '/settings/account/security/'];
 const LANGS = [
   { prefix: '', name: 'zh' },
   { prefix: '/en', name: 'en' },
@@ -85,14 +86,14 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
               });
             });
           }
-          /* 账号总览 / 安全与隐私子页：已登录账号（密码登录、近期），通行密钥列表固定一把 */
-          if (page === '/settings/account/' || page === '/settings/account/security/') {
+          /* 账号总览 / 账号信息 / 安全与隐私子页：已登录账号（密码登录），已过门（倒计时数字遮罩），通行密钥列表固定一把 */
+          if (page === '/settings/account/' || page === '/settings/account/profile/' || page === '/settings/account/security/') {
             await pg.route('**/api/account', async (route) => {
               if (route.request().method() === 'GET') {
                 await route.fulfill({
                   status: 200,
                   contentType: 'application/json',
-                  body: JSON.stringify({ ok: true, password: true, passkey: true, ready: true, session: { by: 'password', authAt: 1760000000000, expiresAt: 4102444800000, recent: true } }),
+                  body: JSON.stringify({ ok: true, password: true, passkey: true, ready: true, session: { by: 'password', authAt: 1760000000000, expiresAt: 4102444800000, recent: true }, door: { by: 'password', expiresAt: 4102444800000 } }),
                 });
                 return;
               }
@@ -158,7 +159,11 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           await waitPageReady(pg);
           /* 账号两页：等异步内容（总览 / 子页列表）落定再截图 */
           if (page === '/settings/account/') await expect(pg.locator('#acct-main')).toBeVisible({ timeout: 10000 });
-          if (page === '/settings/account/security/') await expect(pg.locator('#lockmgr-pklist .lockmgr-pkitem')).toHaveCount(1, { timeout: 10000 });
+          if (page === '/settings/account/profile/') await expect(pg.locator('#acct-profile')).toBeVisible({ timeout: 10000 });
+          if (page === '/settings/account/security/') {
+            await expect(pg.locator('#lockmgr-pklist .lockmgr-pkitem')).toHaveCount(1, { timeout: 10000 });
+            await expect(pg.locator('#sgx-door-countdown')).toBeVisible();
+          }
           /* 全网搜索页进页自动聚焦输入框：截图拍沉底态（收起键盘态，光标 / 胶囊展开不稳定） */
           if (page === '/search/') {
             await expect(pg.locator('#sgx-cap-input-brwsearch')).toBeFocused({ timeout: 10000 });
@@ -191,8 +196,8 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           await expect(pg).toHaveScreenshot(`${name}.png`, {
             fullPage: false,
             animations: 'disabled',
-            /* 遮罩动态区域：时钟、天气 */
-            mask: [pg.locator('#dual-clock'), pg.locator('#weather')],
+            /* 遮罩动态区域：时钟、天气、门内倒计时数字 */
+            mask: [pg.locator('#dual-clock'), pg.locator('#weather'), pg.locator('#sgx-door-countdown .sgx-door-countdown-text')],
           });
         });
       }

@@ -1,7 +1,9 @@
 {{/* 账号 → 安全与隐私（/settings/account/security/）：账号总览「安全与隐私」一行进入。
    管理账号凭证（accountkey）：账号密码（设置/修改；根凭证登录时为「重置」）和账号通行密钥
    （添加 → 命名弹层、列表内点名字重命名、删除）。与锁屏页同一套弹层行为（A1 遮罩不关 / A2 返回先收键盘 / A3 × 关闭，弹层随键盘上移）。
-   未登录账号 → 跳 /settings/account/?return=<本页>；改动返回 account-stale → 跳同一地址并提示重新验证。
+   这是安全操作：每次进页都要先过门 —— 账号通行密钥 / 账号密码 / 根凭证三选一（设了哪个显示哪个，
+   都没设只显示根凭证），通过后签 3 分钟账号门票，页内显示倒计时；离开本页门票立即作废，再进重新验证。
+   未登录账号 → 跳 /settings/account/?return=<本页>。
    返回上一级 = 账号总览（shell/navhistory.js parentOf）。noindex（见 baseof）。
    脚本走 ES Module 入口 entry-account-security.js。 */}}
 {{ define "main" }}
@@ -10,9 +12,16 @@
 
 <div class="set-layout max-w-2xl mx-auto px-4 pb-28">
 
-  <!-- 账号状态读到之前不渲染管理区（未登录直接跳账号页） -->
+  <!-- 门：每次进页验一次账号凭证（JS 渲染验证行，设了哪个显示哪个，都没设只显示根凭证） -->
+  <div id="acct-door" hidden>
+    <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Verify it's you{{ else }}验证身份{{ end }}</span></h2>
+    <p class="sec-note mb-3">{{ if $isEn }}Changing account keys is a security action. Verify again to continue; it lasts 3 minutes and ends as soon as you leave this page.{{ else }}修改账号凭证属于安全操作，请再验证一次。验证有效 3 分钟，离开本页立即失效。{{ end }}</p>
+    <p class="sgx-door-err mb-3" id="acct-door-notice" hidden></p>
+    <div class="sgx-door-methods animate-fade-up" id="acct-door-methods" style="animation-delay:.1s"></div>
+  </div>
+
+  <!-- 门内：验证通过后才渲染（顶部倒计时胶囊由 JS 插入） -->
   <div id="acct-sec" hidden>
-    <p class="sec-note mb-7">{{ if $isEn }}Entering credential management and changing account keys need a sign-in within the last 10 minutes.{{ else }}进入管理凭证、修改账号凭证需要 10 分钟内登录过。{{ end }}</p>
 
     <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "lock" }}</span><span>{{ if $isEn }}Account password{{ else }}账号密码{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.1s">

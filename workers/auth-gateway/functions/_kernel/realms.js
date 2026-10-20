@@ -105,6 +105,7 @@ export const REALM_APP = Object.freeze({
  * 只在常量层改名，不搬数据，所以无需读回退。
  *
  * cookie 不带 Domain（只发给 styrigx.com 主站，子站用不到）、SameSite=Strict。
+ * 账号页下面的「安全与隐私」是安全操作：每次进都要再验一次账号凭证，换 3 分钟门票（_kernel/door.js）。
  */
 export const REALM_ACCOUNT = Object.freeze({
   id: 'account',
@@ -113,8 +114,11 @@ export const REALM_ACCOUNT = Object.freeze({
   publicKey: 'SGX_ACCOUNT_PUBLIC',
   cookie: 'sgx-account',
   cookieAttrs: 'Path=/; HttpOnly; Secure; SameSite=Strict',
-  maxAge: 43200, /* 12 小时（与 owner lock 会话同） */
-  recent: 600, /* 10 分钟：进门、管理账号凭证要求的「近期登录」窗口（秒） */
+  /* 400 天（浏览器 Max-Age 上限）：像手机上的账号，不点退出就一直登录；
+     进账号页仍要先解锁锁屏（owner lock 会话是前置条件） */
+  maxAge: 34560000,
+  /* 10 分钟：「管理凭证」进门（/api/stepup enter）要求的近期登录窗口（秒）；下个 PR 换成锁屏/应用各自的门后删除 */
+  recent: 600,
   pepper: 'SGX_PW_PEPPER',
   storeClass: STORE_CLASS_OWNERKEY,
   bys: Object.freeze(['passkey', 'password', 'root']),

@@ -7,6 +7,7 @@
  * - 账号会话独立：只有 lock 会话（sgx-verified）→ 不算账号；把 lock 会话值塞进 sgx-account
  *   或用别的钥匙签 → 拒绝；账号接口仍要求 owner lock 会话作为前置条件
  * - 进门：近期（≤10 分钟）账号登录 → stepup(by=account, scope=keys)；过旧 → 403 account-stale
+ * - 账号会话 400 天；账号页管理操作要账号门票 sgx-door（door:true 登录 / 根凭证签发，3 分钟，离开即清）
  * - 迁移：原站长密码 owner-pw（同 pepper）与原 owner-passkey:*（class=owner）直接可用，不重新注册
  * - 恢复：根凭证登录可重置账号密码、删除账号通行密钥；account-epoch +1，旧账号会话失效
  * - 缺 SGX_ACCOUNT_*：账号登录 503 config，其余接口不受影响
@@ -105,9 +106,25 @@ function pickCookie(res, name) {
   return null;
 }
 
+async function doorTicket(by = 'password', epoch = 0, priv, now) {
+  const { signDoorTicket } = await import(KERNEL + 'door.js');
+  return await signDoorTicket(priv || ACCOUNT.priv, 'account', by, epoch, now);
+}
+/* 管理操作要账号门票：测试里带了账号会话又没显式给 sgx-door（键不存在）时，自动补一张同纪元的门票；
+   要测「没有门票」就显式传 'sgx-door': '' */
+async function withDoor(cookieObj) {
+  const o = { ...(cookieObj || {}) };
+  if (o['sgx-account'] && !('sgx-door' in o)) {
+    const by = String(o['sgx-account']).split('.')[0];
+    const ep = parseInt(String(o['sgx-account']).split('.')[1], 10) || 0;
+    o['sgx-door'] = await doorTicket(by, ep);
+  }
+  return o;
+}
 async function accountPost(kv, body, cookieObj, envOverrides) {
   const { onRequestPost } = await import(API + 'account.js');
-  return await onRequestPost({ request: postReq('https://styrigx.com/api/account', body, { Cookie: cookies(cookieObj) }), env: envFor(kv, envOverrides) });
+  const co = await withDoor(cookieObj);
+  return await onRequestPost({ request: postReq('https://styrigx.com/api/account', body, { Cookie: cookies(co) }), env: envFor(kv, envOverrides) });
 }
 async function accountGet(kv, cookieObj, envOverrides) {
   const { onRequestGet } = await import(API + 'account.js');
@@ -198,7 +215,7 @@ test('账号密码登录（迁移：原站长密码 owner-pw 同 pepper 直接�
   assert.deepEqual(await res.json(), { ok: true });
   const sc = setCookies(res);
   assert.equal(sc.length, 1, '只签发一个 cookie：' + JSON.stringify(sc));
-  assert.match(sc[0], /^sgx-account=password\.0\.\d+\.\d+\.[A-Za-z0-9_-]+; Path=\/; HttpOnly; Secure; SameSite=Strict; Max-Age=43200$/);
+  assert.match(sc[0], /^sgx-account=password\.0\.\d+\.\d+\.[A-Za-z0-9_-]+; Path=\/; HttpOnly; Secure; SameSite=Strict; Max-Age=34560000$/);
   assert.ok(!sc[0].includes('Domain='), '账号 cookie 只给主站，不带 Domain');
   const { verifyAccountCookie } = await import(KERNEL + 'account-session.js');
   const v = await verifyAccountCookie(new Request('https://styrigx.com/', { headers: { Cookie: 'sgx-account=' + pickCookie(res, 'sgx-account') } }), envFor(kv));
@@ -382,15 +399,75 @@ test('进门：by=account 的 keys 票能管锁屏凭证（owner-passkey list lo
   assert.equal((await r.json()).keys.length, 1);
 });
 
-test('账号页管理也要求近期登录：过旧 → 403 account-stale', async () => {
+test('账号会话 400 天：登录很久以前（远超 10 分钟）也还是登录态，GET 照样返回 session', async () => {
   const kv = makeKV();
-  const r = await accountPost(kv, { action: 'password', password: 'new-password-123' }, {
-    'sgx-verified': await ownerSess(),
-    'sgx-account': await accTicket('password', Date.now() - 11 * 60 * 1000),
-  });
-  assert.equal(r.status, 403);
-  assert.equal((await r.json()).error, 'account-stale');
-  assert.equal(await kv.get('owner-pw'), null);
+  const r = await accountGet(kv, { 'sgx-verified': await ownerSess(), 'sgx-account': await accTicket('password', Date.now() - 30 * 24 * 3600 * 1000) });
+  const j = await r.json();
+  assert.equal(j.ok, true);
+  assert.ok(j.session, '账号会话仍有效');
+  assert.equal(j.door, null, '没进门就没有门票');
+});
+
+test('安全与隐私的门：改动必须有账号门票 —— 没有门票 403 door；门票过期 / 别的钥匙签 / 纪元不对都 403 door；只读 list 不要门票', async () => {
+  const kv = makeKV();
+  const base = { 'sgx-verified': await ownerSess(), 'sgx-account': await accTicket('password') };
+  const body = { action: 'password', password: 'new-password-123' };
+  const r1 = await accountPost(kv, body, { ...base, 'sgx-door': '' });
+  assert.equal(r1.status, 403);
+  assert.equal((await r1.json()).error, 'door');
+  const old = await doorTicket('password', 0, undefined, Date.now() - 181 * 1000);
+  const r2 = await accountPost(kv, body, { ...base, 'sgx-door': old });
+  assert.equal((await r2.json()).error, 'door');
+  const forged = await doorTicket('password', 0, OTHER.priv);
+  const r3 = await accountPost(kv, body, { ...base, 'sgx-door': forged });
+  assert.equal((await r3.json()).error, 'door');
+  const wrongEpoch = await doorTicket('password', 5);
+  const r4 = await accountPost(kv, body, { ...base, 'sgx-door': wrongEpoch });
+  assert.equal((await r4.json()).error, 'door');
+  /* 拿账号会话票冒充门票（同一把钥匙签）→ 格式不符，拒绝 */
+  const r5 = await accountPost(kv, body, { ...base, 'sgx-door': base['sgx-account'] });
+  assert.equal((await r5.json()).error, 'door');
+  assert.equal(await kv.get('owner-pw'), null, '一次都没改成');
+  const r6 = await accountPost(kv, { action: 'list' }, { ...base, 'sgx-door': '' });
+  assert.equal(r6.status, 200);
+});
+
+test('进门：login-password / root-auth 带 door:true → 账号会话 + 3 分钟门票（sgx-door，只给主站、Strict）；GET 返回 door.expiresAt；door-clear 立即作废', async () => {
+  const kv = makeKV({ 'layer:owner': '1' });
+  await seedPassword(kv, 'old-owner-password-1');
+  const res = await accountPost(kv, { action: 'login-password', password: 'old-owner-password-1', door: true }, { 'sgx-verified': await ownerSess() });
+  assert.equal(res.status, 200);
+  const dc = setCookies(res).find((c) => c.startsWith('sgx-door='));
+  assert.match(dc, /^sgx-door=door\.account\.password\.0\.\d+\.\d+\.[A-Za-z0-9_-]+; Path=\/; HttpOnly; Secure; SameSite=Strict; Max-Age=180$/);
+  const acc = pickCookie(res, 'sgx-account');
+  const door = pickCookie(res, 'sgx-door');
+  const g = await (await accountGet(kv, { 'sgx-verified': await ownerSess(), 'sgx-account': acc, 'sgx-door': door })).json();
+  assert.equal(g.door.by, 'password');
+  assert.ok(g.door.expiresAt > Date.now() && g.door.expiresAt <= Date.now() + 180 * 1000);
+  /* 没带 door:true 的普通登录不签门票 */
+  const res2 = await accountPost(kv, { action: 'login-password', password: 'old-owner-password-1' }, { 'sgx-verified': await ownerSess() });
+  assert.equal(pickCookie(res2, 'sgx-door'), null);
+  /* 根凭证进门 */
+  const { onRequestPost } = await import(API + 'root-auth.js');
+  const rr = await onRequestPost({ request: postReq('https://styrigx.com/api/root-auth', { key: ROOT_KEY, target: 'account', door: true }, { Cookie: cookies({ 'sgx-verified': await ownerSess() }) }), env: envFor(kv) });
+  assert.equal(rr.status, 200);
+  assert.ok(pickCookie(rr, 'sgx-door').startsWith('door.account.root.'));
+  /* door-clear：不需会话、只清门票 */
+  const c = await accountPost(kv, { action: 'door-clear' }, {});
+  const sc = setCookies(c);
+  assert.equal(sc.length, 1);
+  assert.ok(sc[0].startsWith('sgx-door=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0'));
+});
+
+test('门内改账号密码（account-epoch +1）：当前设备门票按原到期时间重签，门内可以接着操作', async () => {
+  const kv = makeKV({ 'layer:owner': '1' });
+  await seedPassword(kv, 'old-owner-password-1');
+  const door = await doorTicket('password', 0);
+  const r = await accountPost(kv, { action: 'password', password: 'brand-new-pass-1' }, { 'sgx-verified': await ownerSess(), 'sgx-account': await accTicket('password'), 'sgx-door': door });
+  assert.equal(r.status, 200);
+  const nd = pickCookie(r, 'sgx-door');
+  assert.ok(nd && nd.startsWith('door.account.password.1.'), '门票换成新纪元');
+  assert.equal(nd.split('.')[5], door.split('.')[5], '到期时间不变');
 });
 
 /* ============ 账号页：管理 + 根凭证恢复 ============ */
@@ -520,28 +597,30 @@ test('rename：改账号通行密钥名字（清理控制字符/空格、限 40 
   assert.equal(JSON.parse(await kv.get('owner-passkey:' + lk.credId.slice(0, 12))).name, '站长通行密钥');
 });
 
-test('rename：与 delete 同门槛 —— 没有账号会话 401 account；登录过旧 403 account-stale；访客 401', async () => {
+test('rename：与 delete 同门槛 —— 没有账号会话 401 account；没有门票 403 door；访客 401', async () => {
   const kv = makeKV();
   const a = await seedPasskey(kv, 'owner');
   const body = { action: 'rename', credId: a.credId, name: 'New' };
   const r1 = await accountPost(kv, body, { 'sgx-verified': await ownerSess() });
   assert.equal(r1.status, 401);
   assert.equal((await r1.json()).error, 'account');
-  const r2 = await accountPost(kv, body, { 'sgx-verified': await ownerSess(), 'sgx-account': await accTicket('password', Date.now() - 11 * 60 * 1000) });
+  const r2 = await accountPost(kv, body, { 'sgx-verified': await ownerSess(), 'sgx-account': await accTicket('password'), 'sgx-door': '' });
   assert.equal(r2.status, 403);
-  assert.equal((await r2.json()).error, 'account-stale');
+  assert.equal((await r2.json()).error, 'door');
   const r3 = await accountPost(kv, body, { 'sgx-verified': await visitorSess(), 'sgx-account': await accTicket('password') });
   assert.equal(r3.status, 401);
   assert.equal(JSON.parse(await kv.get('owner-passkey:' + a.credId.slice(0, 12))).name, '站长通行密钥');
 });
 
-test('logout：清 sgx-account（幂等，不需会话），不动 sgx-verified', async () => {
+test('logout：清 sgx-account 和门票（幂等，不需会话），不动 sgx-verified', async () => {
   const kv = makeKV();
   const r = await accountPost(kv, { action: 'logout' }, {});
   assert.equal(r.status, 200);
   const sc = setCookies(r);
-  assert.equal(sc.length, 1);
+  assert.equal(sc.length, 2);
   assert.ok(sc[0].startsWith('sgx-account=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0'));
+  assert.ok(sc[1].startsWith('sgx-door=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0'));
+  assert.ok(!sc.some((c) => c.startsWith('sgx-verified=')));
 });
 
 test('跨站请求（Origin 不同）→ 403', async () => {

@@ -1,9 +1,11 @@
 {{/* 账号（原「站长凭证」升级为账号）：顶栏右圆头像进入。
-   未登录 → 账号登录：账号通行密钥 / 账号密码 / 根凭证 三个入口平级，任一成功签发账号会话（sgx-account）。
-   已登录 → 账号总览（三星账号式）：账号卡（名字 + 头像，主人可换头像，原在设置页）、已登录卡（退出账号）、
-   「安全与隐私」一行 → 子页 /settings/account/security/（account-security.html）管理账号密码和账号通行密钥；
-   账号凭证只在那里管理，不在「门」里。
-   ?return=/settings/account/security/：子页未登录/登录过旧时跳来，登录后回子页。
+   未登录 → 账号登录：账号通行密钥 / 账号密码 / 根凭证，设了哪个显示哪个，都没设只显示根凭证；
+   任一成功签发账号会话（sgx-account，400 天，不点退出一直登录；进账号页前提是锁屏已解锁）。
+   已登录 → 账号总览（三星账号式）：账号卡（名字 + 头像，主人可换头像；点卡片其余地方进
+   「已登录」子页 /settings/account/profile/，在那里退出账号）、
+   「安全与隐私」一行 → 子页 /settings/account/security/（account-security.html）管理账号密码和账号通行密钥，
+   每次进都要再验一次账号凭证（3 分钟门票，离开即作废）。
+   ?return=/settings/account/(security|profile)/：子页没有账号会话时跳来，登录后回子页。
    根凭证登录同样能重置账号密码、删除通行密钥（恢复路径）。
    ?door=1&return=<门内页>：从「管理凭证」过来（账号登录超过 10 分钟或未登录），登录后自动进门。
    访客看到的界面与站长一致（服务端一律拒绝）。noindex、不进 sitemap（见 baseof/sitemap）。
@@ -17,26 +19,15 @@
   <!-- 账号登录：三个入口平级（JS 渲染行，行内展开输入框） -->
   <div id="acct-login">
     <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Sign in to your account{{ else }}登录账号{{ end }}</span></h2>
-    <p class="sec-note mb-3" id="acct-login-desc">{{ if $isEn }}Use your account passkey, account password, or root credential.{{ else }}用账号通行密钥、账号密码或根凭证登录。{{ end }}</p>
+    <p class="sec-note mb-3" id="acct-login-desc">{{ if $isEn }}Verify with any credential you've set. Once signed in, you stay signed in until you sign out.{{ else }}用已设置的任一凭证验证。登录后不点退出就一直保持登录。{{ end }}</p>
     <p class="sgx-door-err mb-3" id="acct-login-notice" hidden></p>
     <div class="sgx-door-methods animate-fade-up" id="acct-methods" style="animation-delay:.1s"></div>
     <p class="sec-note mt-6 sgx-build-tag-wrap">{{ partial "build-tag.html" (dict "isEn" $isEn) }}</p>
   </div>
 
-  <!-- 账号总览（登录后，三星账号式）：账号卡（名字 + 头像，主人可换头像）→ 已登录卡（退出账号）→ 安全与隐私 -->
+  <!-- 账号总览（登录后，三星账号式）：账号卡（名字 + 头像，主人可换头像；点卡片其余地方进「已登录」子页）→ 安全与隐私 -->
   <div id="acct-main" hidden>
     {{ partial "sgx-account-card.html" . }}
-    <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Signed in{{ else }}已登录{{ end }}</span></h2>
-    <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.1s">
-      <div class="set-row no-ic">
-        <span class="flex-1 min-w-0">
-          <span class="block font-medium">Sloan Gray</span>
-          <span class="block text-xs mt-0.5 text-m-primary" id="acct-by"></span>
-        </span>
-      </div>
-      <button type="button" class="lockmgr-delrow" id="acct-logout">{{ if $isEn }}Sign out{{ else }}退出账号{{ end }}</button>
-    </section>
-
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.12s" aria-label="{{ if $isEn }}Account settings{{ else }}账号设置{{ end }}">
       <a class="set-row" id="acct-sec-row" href="{{ cond $isEn "/en/settings/account/security/" "/settings/account/security/" }}">
         <span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span>

@@ -12,18 +12,22 @@
  * 账号会话独立验证：lock 会话（sgx-verified）只是前置条件（必须是已解锁的 owner），
  * 从不被当作账号认证。
  *
- * GET /api/account → { ok, password, passkey, ready, session }
+ * GET /api/account → { ok, password, passkey, ready, session, door }
  *   - 需 owner lock 会话（访客/无会话 401）；只返回「是否已设置」，无敏感数据
  *   - ready：账号签名钥匙是否已配置（false → 登录会 503 config）
- *   - session：当前账号会话 { by, authAt, expiresAt, recent } 或 null
+ *   - session：当前账号会话 { by, authAt, expiresAt, recent } 或 null（账号会话 400 天，不点退出一直登录）
+ *   - door：账号门票（安全与隐私子页）{ by, expiresAt } 或 null；前端 3 分钟倒计时以 expiresAt 为准
  *
  * POST /api/account { action, ... }（只接受同源；需 owner lock 会话，logout 除外）
  * 登录：
  * - challenge → 账号通行密钥登录 challenge（purpose=login，KV account-challenge:<cid>）
- * - login-passkey { cid, credential } → 验断言（UV=1、userHandle）→ sgx-account(by=passkey)
- * - login-password { password } → 验账号密码 → sgx-account(by=password)
- * - logout → 清 sgx-account（幂等，不需会话）
- * 账号页管理（需有效账号会话；除只读 list 外还要求 authAt ≤ 10 分钟，过旧 403 account-stale，前端重新登录）：
+ * - login-passkey { cid, credential, door? } → 验断言（UV=1、userHandle）→ sgx-account(by=passkey)
+ * - login-password { password, door? } → 验账号密码 → sgx-account(by=password)
+ *   door:true（安全与隐私子页的门）→ 另签账号门票 sgx-door(door=account)，3 分钟
+ *   （根凭证进门：/api/root-auth { key, target:'account', door:true }）
+ * - logout → 清 sgx-account 和门票（幂等，不需会话）
+ * - door-clear → 只清门票（离开安全与隐私子页时调；幂等，不需会话）
+ * 账号页管理（需有效账号会话；除只读 list 外还要求有效的账号门票，没有/过期 403 door，前端重新进门）：
  * - list → 账号通行密钥列表 + userHandle（账号 handle owner-user-id:owner，非机密；
  *   前端拿来调 PublicKeyCredential.signalCurrentUserDetails 更新密码管理器里的名字）（只读，不要求近期）
  * - register-challenge → 注册 challenge（user handle 沿用 owner-user-id:owner）
@@ -64,6 +68,7 @@ import {
   ACCOUNT_BY_PASSKEY,
   ACCOUNT_BY_PASSWORD,
 } from '../_kernel/account-session.js';
+import { verifyDoorCookie, issueDoorCookie, reissueDoorWithEpoch, clearDoorCookie, DOOR_ACCOUNT } from '../_kernel/door.js';
 import { isLayerConfigured, setLayerConfigured, clearLayerConfigured, LAYER_OWNER } from '../_kernel/layers.js';
 import { REALM_ACCOUNT, REALM_LOCK, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
 import { KEY_ACCOUNT } from '../_kernel/key-names.js';
@@ -122,12 +127,14 @@ export async function onRequestGet(context) {
       return json({ ok: false, error: 'server' }, 503);
     }
     const acc = await verifyAccountCookie(request, env);
+    const dv = acc.ok ? await verifyDoorCookie(request, env, DOOR_ACCOUNT) : { ok: false };
     return json({
       ok: true,
       password: password,
       passkey: passkey,
       ready: accountKeysReady(env),
       session: acc.ok ? { by: acc.by, authAt: acc.authAt, expiresAt: acc.exp, recent: !!acc.recent } : null,
+      door: dv.ok ? { by: dv.by, expiresAt: dv.exp } : null,
     });
   } catch (e) {
     return json({ ok: false, error: 'server' }, 500);
@@ -155,11 +162,21 @@ async function handlePost(context) {
     return json({ ok: false, error: 'body' }, 400);
   }
   const action = (body && body.action) || '';
+  /* 登录时顺带进门（安全与隐私子页的门）：只认布尔 true */
+  const wantDoor = !!(body && body.door === true);
 
   /* ============ logout（幂等，不需会话） ============ */
   if (action === 'logout') {
     const headers = new Headers({ 'Content-Type': 'application/json' });
     clearAccountCookie(headers);
+    clearDoorCookie(headers);
+    return new Response(JSON.stringify({ ok: true }), { headers });
+  }
+
+  /* ============ door-clear（离开安全与隐私子页：门票立即作废；幂等，不需会话） ============ */
+  if (action === 'door-clear') {
+    const headers = new Headers({ 'Content-Type': 'application/json' });
+    clearDoorCookie(headers);
     return new Response(JSON.stringify({ ok: true }), { headers });
   }
 
@@ -189,6 +206,10 @@ async function handlePost(context) {
     const headers = new Headers({ 'Content-Type': 'application/json' });
     const err = await issueAccountCookie(env, headers, ACCOUNT_BY_PASSWORD);
     if (err) return json(err.body, err.status);
+    if (wantDoor) {
+      const dErr = await issueDoorCookie(env, headers, DOOR_ACCOUNT, ACCOUNT_BY_PASSWORD);
+      if (dErr) return json(dErr.body, dErr.status);
+    }
     return new Response(JSON.stringify({ ok: true }), { headers });
   }
 
@@ -270,17 +291,26 @@ async function handlePost(context) {
     const headers = new Headers({ 'Content-Type': 'application/json' });
     const err = await issueAccountCookie(env, headers, ACCOUNT_BY_PASSKEY);
     if (err) return json(err.body, err.status);
+    if (wantDoor) {
+      const dErr = await issueDoorCookie(env, headers, DOOR_ACCOUNT, ACCOUNT_BY_PASSKEY);
+      if (dErr) return json(dErr.body, dErr.status);
+    }
     return new Response(JSON.stringify({ ok: true }), { headers });
   }
 
-  /* ============ 账号页管理：需近期账号会话 ============ */
+  /* ============ 账号页管理：需账号会话；改动还要账号门票 ============ */
   const MGMT = ['list', 'register-challenge', 'register', 'delete', 'rename', 'password'];
   if (MGMT.indexOf(action) === -1) return json({ ok: false, error: 'action' }, 400);
 
   const acc = await verifyAccountCookie(request, env);
   if (!acc.ok) return json({ ok: false, error: 'account', reason: acc.reason }, 401);
-  /* 只读的 list 不要求近期；改动（注册/删除/重命名/改密码）要求 10 分钟内登录过 */
-  if (!acc.recent && action !== 'list') return json({ ok: false, error: 'account-stale' }, 403);
+  /* 只读的 list 只要账号会话；改动（注册/删除/重命名/改密码）是安全操作，必须有有效的账号门票
+     （进安全与隐私子页时验过账号凭证，3 分钟，离开即作废） */
+  let door = null;
+  if (action !== 'list') {
+    door = await verifyDoorCookie(request, env, DOOR_ACCOUNT);
+    if (!door.ok) return json({ ok: false, error: 'door', reason: door.reason }, 403);
+  }
 
   /* 首次配置账号层：标记 + session-epoch +1 + 重签当前 lock 会话（失败 503） */
   async function markConfigured(headers) {
@@ -298,6 +328,8 @@ async function handlePost(context) {
   async function rotateAccount(headers) {
     const ne = await bumpAccountEpoch(kv); /* 出错抛 → 外层 500/调用方 503 */
     await issueAccountCookie(env, headers, acc.by, { authAt: acc.authAt, epoch: ne });
+    /* 门票也绑 account-epoch：当前设备的门票按原到期时间重签，门内可以接着操作 */
+    await reissueDoorWithEpoch(env, headers, DOOR_ACCOUNT, door, ne);
   }
 
   if (action === 'list') {

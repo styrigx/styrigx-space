@@ -81,7 +81,7 @@ test('realms：线上格式与重构前字面量逐字相同', () => {
   assert.equal(REALM_ACCOUNT.pepper, 'SGX_PW_PEPPER');
   assert.equal(REALM_ACCOUNT.cookie, 'sgx-account');
   assert.equal(REALM_ACCOUNT.cookieAttrs, 'Path=/; HttpOnly; Secure; SameSite=Strict');
-  assert.equal(REALM_ACCOUNT.maxAge, 43200);
+  assert.equal(REALM_ACCOUNT.maxAge, 34560000); /* 400 天：不点退出一直登录 */
   assert.equal(REALM_ACCOUNT.recent, 600);
   assert.equal(REALM_ACCOUNT.privateKey, 'SGX_ACCOUNT_PRIVATE');
   assert.equal(REALM_ACCOUNT.publicKey, 'SGX_ACCOUNT_PUBLIC');
@@ -146,7 +146,7 @@ test('realms：realmCookie / realmClearCookie 与原手拼字符串相同', () =
   );
   assert.equal(
     realmCookie(REALM_ACCOUNT, 'v3'),
-    'sgx-account=v3; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=43200'
+    'sgx-account=v3; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=34560000'
   );
   assert.equal(
     realmClearCookie(REALM_LOCK),

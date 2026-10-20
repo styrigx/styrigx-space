@@ -14,7 +14,8 @@
  * 不能签 sgx-app，不能签 lock 会话。
  *
  * 账号体系：body.target='account' → 根凭证作为账号登录的第三个入口，成功签发
- * 账号会话 sgx-account(by=root)，不签 stepup。限速、审计（path=account）、访客假入口、
+ * 账号会话 sgx-account(by=root)，不签 stepup；再带 door:true（安全与隐私子页的门）时
+ * 另签账号门票 sgx-door(door=account, by=root)，3 分钟。限速、审计（path=account）、访客假入口、
  * 真/假路径判断与默认目标完全相同，唯一区别：target=account 不走引导模式
  * （无有效 owner lock 会话一律走假入口）。缺 SGX_ACCOUNT_PRIVATE/PUBLIC → 503 config。
  *
@@ -41,6 +42,7 @@ import { isLockEffectivelyConfigured } from '../_kernel/layers.js';
 import { verifySessionDetailed } from '../_middleware.js';
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
 import { REALM_LOCK, REALM_STEPUP, REALM_ROOT, realmPrivateKey, realmPublicKey } from '../_kernel/realms.js';
+import { issueDoorCookie, DOOR_ACCOUNT } from '../_kernel/door.js';
 import { issueAccountCookie, accountKeysReady, ACCOUNT_BY_ROOT } from '../_kernel/account-session.js';
 
 /* 假入口与真失败的统一固定最小延迟（毫秒）：防时序区分。
@@ -239,6 +241,14 @@ async function handlePost(context) {
     if (accErr) {
       await writeRootAudit(kv, ip, false, { path: auditPath });
       return Response.json(accErr.body, { status: accErr.status });
+    }
+    /* door:true：账号 → 安全与隐私的门，另签账号门票（3 分钟） */
+    if (body && body.door === true) {
+      const dErr = await issueDoorCookie(env, headers, DOOR_ACCOUNT, ACCOUNT_BY_ROOT);
+      if (dErr) {
+        await writeRootAudit(kv, ip, false, { path: auditPath });
+        return Response.json(dErr.body, { status: dErr.status });
+      }
     }
     if (!(await writeRootAudit(kv, ip, true, { path: auditPath }))) {
       return Response.json({ ok: false, error: 'server' }, { status: 503 });
