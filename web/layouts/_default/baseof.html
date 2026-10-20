@@ -126,27 +126,9 @@ function __applyLayout(){
   var d=document.documentElement,m=__layoutMode();
   d.classList.remove('layout-mobile','layout-dex','layout-pc');
   d.classList.add('layout-'+m);
-  if(window.__setHeadH)window.__setHeadH();
   if(window.__dexLayoutChanged){try{window.__dexLayoutChanged(m)}catch(e){}}
 }
 __applyLayout();
-/* 手机子页面标题区高度 = max(280px, 实际可见高度 × 0.35)（顶栏 v2.0，与 Book 一致）。
-   只在首次加载和横竖屏切换时更新；滚动时浏览器地址栏伸缩不跟着变。 */
-window.__setHeadH=function(){
-  if(!document.documentElement.classList.contains('layout-mobile'))return;
-  var h=window.innerHeight||0;
-  if(h>0)document.documentElement.style.setProperty('--head-h',Math.max(280,Math.round(h*0.35))+'px');
-}
-window.__setHeadH();
-(function(){
-  var lastO=window.innerWidth>window.innerHeight?'l':'p';
-  function maybeUpd(){
-    var o=window.innerWidth>window.innerHeight?'l':'p';
-    if(o!==lastO){lastO=o;window.__setHeadH()}
-  }
-  window.addEventListener('orientationchange',function(){setTimeout(function(){lastO=window.innerWidth>window.innerHeight?'l':'p';window.__setHeadH()},300)});
-  window.addEventListener('resize',maybeUpd);
-})();
 /* 时区设置（设置页"常规管理 > 日期和时间"）：第一时区默认跟随设备 */
 window.__firstTz=function(){
   var a='1';try{a=localStorage.getItem('sgx-tz1-auto')}catch(e){}
@@ -174,17 +156,21 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{ $setUrl := $setUrl0 }}
 {{ $glUrl := cond $isEn "/en/settings/goodlock/" "/settings/goodlock/" }}
 
-{{/* 顶栏 v4（2026-10-20，全站同一套）：左圆九宫格（打开左侧导航抽屉）、中间长条（居中 Styrigx，滚动后换成页面小标题）、
-   右圆头像（账号）。子页面不再有 ‹ 返回（网站始终跑在浏览器里，用浏览器 / 系统返回）和 ⋮（页面操作都放进页面正文）。
-   主页长条两端保留 搜索（打开全网搜索）/ 设置。
+{{/* 顶栏（通版，2026-10-20，全站同一套）：左圆九宫格（打开左侧导航抽屉）、中间长条、右圆头像（账号）。
+   长条 = 最前端一个搜索图标 + 当前页名（主页「首页」/ Home，其他页用页面标题；不再显示 Styrigx、不再有滚动换标题）。
+   点长条打开全网搜索 /search/（在全网搜索页上则聚焦底部输入框，见 head-buttons.js）。
+   子页面不再有大标题区：页名只在长条里，正文从顶栏下方 --sgx-content-top 开始（input.css，全站同一个值）。
    PR② 快捷面板图标的位置：长条与头像之间，插入 <button class="sgx-tb-quick">（样式已在 input.css 预留，与左圆同尺寸），现在不渲染。 */}}
+{{ $pageName := .Title }}
+{{ if .IsHome }}{{ $pageName = cond $isEn "Home" "首页" }}
+{{ else if eq .Kind "404" }}{{ $pageName = cond $isEn "Page not found" "页面不存在" }}
+{{ else if eq .Layout "settings-sub" }}{{ $cat := .Params.cat }}{{ range (index site.Data "settings-cats").cats }}{{ if eq .id $cat }}{{ $pageName = cond $isEn .en .zh }}{{ end }}{{ end }}
+{{ end }}
 <header id="site-nav" class="z-50">
   <div class="sgx-topbar">
     <button type="button" class="sgx-tb-nav" aria-label="{{ if $isEn }}Navigation{{ else }}导航{{ end }}" aria-haspopup="dialog" aria-controls="sgx-drawer" aria-expanded="false">{{ partial "icon.html" "apps-grid" }}</button>
     <div class="sgx-tb-pill">
-      {{ if .IsHome }}<a class="sgx-tb-pbtn sgx-tb-psearch" href="{{ $searchUrl }}" aria-label="{{ if $isEn }}Web search{{ else }}全网搜索{{ end }}">{{ partial "icon.html" "search" }}</a>{{ end }}
-      <a id="nav-brand" class="sgx-tb-brand" href="{{ $home }}" aria-label="Styrigx"><span class="sgx-tb-text">Styrigx</span></a>
-      {{ if .IsHome }}<a class="sgx-tb-pbtn sgx-tb-set" href="{{ $setUrl }}" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}">{{ partial "icon.html" "gear" }}</a>{{ end }}
+      <a id="sgx-tb-cap" class="sgx-tb-cap" href="{{ $searchUrl }}" aria-label="{{ $pageName }}{{ if $isEn }}, web search{{ else }}，全网搜索{{ end }}"><span class="sgx-tb-cap-ic" aria-hidden="true">{{ partial "icon.html" "search" }}</span><span class="sgx-tb-title">{{ $pageName }}</span></a>
     </div>
     <a class="sgx-tb-me" href="{{ $acctUrl }}" aria-label="{{ if $isEn }}Account{{ else }}账号{{ end }}"><img src="/avatar/192.webp" alt="" width="52" height="52" class="sgx-tb-avatar" data-sgx-avatar="192"></a>
   </div>
@@ -195,7 +181,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{ $navCur := "" }}
 {{ if .IsHome }}{{ $navCur = "home" }}{{ else if or (eq .RelPermalink "/bookmarks/") (eq .RelPermalink "/en/bookmarks/") }}{{ $navCur = "bookmarks" }}{{ else if or (hasPrefix .RelPermalink "/settings/") (hasPrefix .RelPermalink "/en/settings/") }}{{ $navCur = "settings" }}{{ end }}
 {{ $navItems := slice
-  (dict "id" "home" "icon" "nav-home" "zh" "主页" "en" "Home" "url" $home)
+  (dict "id" "home" "icon" "nav-home" "zh" "首页" "en" "Home" "url" $home)
   (dict "id" "bookmarks" "icon" "nav-bookmark" "zh" "书签" "en" "Bookmarks" "url" $bmUrl)
   (dict "id" "book" "icon" "nav-book" "zh" "书库" "en" "Library" "url" (cond $isEn "https://book.styrigx.com/en/" "https://book.styrigx.com/"))
   (dict "id" "blog" "icon" "nav-blog" "zh" "博客" "en" "Blog" "url" (cond $isEn "https://blog.styrigx.com/en/" "https://blog.styrigx.com/"))

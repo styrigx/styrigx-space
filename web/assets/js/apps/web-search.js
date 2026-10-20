@@ -246,7 +246,6 @@ import { sgxNavigate, sgxReplace, sgxGoBack } from '../lib/diag-jumptrace.js';
       input.value = '';
       syncTools();
       render('');
-      contentFirst();
       try { input.focus({ preventScroll: true }); } catch (err) {}
     });
   }
@@ -269,23 +268,8 @@ import { sgxNavigate, sgxReplace, sgxGoBack } from '../lib/diag-jumptrace.js';
     });
   }
 
-  /* ============ 内容置顶（与设置搜索相同）：滚过标题区，内容紧贴顶栏下方；往下拉到顶才露出大标题 ============ */
-  function contentFirst() {
-    const heads = document.querySelectorAll('[data-subpage-head]');
-    let head = null;
-    for (let i = 0; i < heads.length; i++) {
-      if (heads[i].getClientRects().length) { head = /** @type {HTMLElement} */ (heads[i]); break; }
-    }
-    if (!head) return;
-    const bar = document.querySelector('.sgx-topbar');
-    const barBottom = bar ? bar.getBoundingClientRect().bottom : 68;
-    const y = Math.max(0, head.getBoundingClientRect().bottom + window.scrollY - barBottom - 16);
-    window.scrollTo(0, y);
-  }
+  /* 回到本页时从顶部开始（不恢复上次的滚动位置） */
   try { history.scrollRestoration = 'manual'; } catch (e) {}
-  /* 下一帧再置顶：公共初始化会调整标题区高度，模块求值时量的位置会偏 */
-  requestAnimationFrame(contentFirst);
-  on(input, 'input', function () { window.setTimeout(contentFirst, 170); });
 
   on(window, 'sgx-settings-changed', function () { render(input.value); });
 

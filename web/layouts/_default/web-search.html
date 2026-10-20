@@ -6,7 +6,6 @@
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 
 <div class="set-layout setso-layout max-w-2xl mx-auto px-4 pb-28">
-  {{ partial "subpage-head.html" (dict "title" .Title "isEn" $isEn) }}
   <div class="set-main min-w-0">
     <div id="brws-page"></div>
   </div>

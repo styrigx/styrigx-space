@@ -302,21 +302,21 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
     return 0.2126 * f(+m[1]) + 0.7152 * f(+m[2]) + 0.0722 * f(+m[3]);
   }
 
-  test('进门后胶囊在大标题下方、左对齐，文案「验证剩余 2:5x」；顶栏内无倒计时', async ({ page }) => {
+  test('进门后胶囊在正文最前面（顶栏下方）、左对齐，文案「验证剩余 2:5x」；顶栏内无倒计时', async ({ page }) => {
     await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
     await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
     const capsule = page.locator('#sgx-door-countdown');
     await expect(capsule).toBeVisible({ timeout: 15000 });
     await expect(capsule).toHaveText(/验证剩余 2:5\d/);
-    /* 不在全站顶栏（nav）内；正确位置是门内页大标题 header 内、标题正下方 */
-    await expect(page.locator('nav #sgx-door-countdown')).toHaveCount(0);
-    await expect(page.locator('header.subpage-head #sgx-door-countdown')).toHaveCount(1);
-    /* 大标题下方、与标题左对齐（胶囊左边缘 ≈ 内容容器左边缘） */
-    const titleBox = await page.locator('.subpage-title').boundingBox();
+    /* 不在全站顶栏内；2026-10-20 通版顶栏起没有大标题区，胶囊是正文（.set-layout）的第一个元素 */
+    await expect(page.locator('#site-nav #sgx-door-countdown')).toHaveCount(0);
+    await expect(page.locator('.set-layout > #sgx-door-countdown:first-child')).toHaveCount(1);
+    /* 在顶栏下方（不被浮动顶栏盖住）、左对齐（胶囊左边缘 ≈ 内容容器左边缘） */
+    const barBox = await page.locator('.sgx-topbar').boundingBox();
     const capBox = await capsule.boundingBox();
     const layoutBox = await page.locator('.set-layout').boundingBox();
-    expect(capBox.y).toBeGreaterThanOrEqual(titleBox.y + titleBox.height - 5);
-    /* 左对齐：胶囊在内容区左区（header 20px 内边距 + 布局 16px，约 36；居中会在 500+） */
+    expect(capBox.y).toBeGreaterThanOrEqual(barBox.y + barBox.height);
+    /* 左对齐：胶囊在内容区左区（布局 16px 内边距；居中会在 500+） */
     expect(capBox.x - layoutBox.x).toBeGreaterThanOrEqual(0);
     expect(capBox.x - layoutBox.x).toBeLessThanOrEqual(48);
     expect(pageErrors).toEqual([]);

@@ -9,7 +9,6 @@
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 
 <div class="set-layout max-w-2xl mx-auto px-4 pb-28">
-  {{ partial "subpage-head.html" (dict "title" (cond $isEn "Security & privacy" "安全与隐私") "isEn" $isEn) }}
 
   <!-- 账号状态读到之前不渲染管理区（未登录直接跳账号页） -->
   <div id="acct-sec" hidden>

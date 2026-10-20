@@ -2,9 +2,8 @@
  *
  * 验收（任务书 B1-6）：
  * a. 设置主页点搜索胶囊 → 进入 /settings/search/，输入框聚焦
- * b. 进页即内容置顶：内容紧贴顶栏下方、大标题不可见、顶栏小标题「设置搜索」出现；
- *    滚到顶露出大标题、小标题消失
- * c. 输入后仍内容置顶
+ * b. 2026-10-20 通版顶栏：没有大标题区，顶栏长条显示「设置搜索」；不滚动，内容就从顶栏下方 16px 开始
+ * c. 输入后内容仍在顶栏下方（不被浮动顶栏盖住）
  * d. 未输入：ⓧ 清空隐藏、× 关闭显示；有输入：ⓧ 出现；点 ⓧ 清空、ⓧ 再隐藏、输入框仍聚焦；胶囊里没有 ⋮
  * i. 点 × 关闭：键盘态 / 沉底态都直接回到设置主页
  * e. 键盘态返回（popstate）：仍在本页，输入框失焦、搜索栏沉底（不再 .open）
@@ -42,45 +41,35 @@ async function enterFromSettings(page) {
 
 async function geo(page) {
   return page.evaluate(() => {
-    const bar = document.querySelector('.sgx-topbar');
-    const heads = Array.from(document.querySelectorAll('[data-subpage-head]'));
-    const head = heads.find((h) => h.getClientRects().length) || heads[0];
-    const title = head.querySelector('.subpage-title');
+    const bar = document.querySelector('.sgx-tb-pill');
     const main = document.querySelector('.setso-layout .set-main');
     return {
       barBottom: bar.getBoundingClientRect().bottom,
-      titleBottom: title.getBoundingClientRect().bottom,
       mainTop: main.getBoundingClientRect().top,
-      stuck: document.body.classList.contains('sgx-stuck'),
+      bigTitles: document.querySelectorAll('.subpage-title, [data-subpage-head]').length,
       scrollY: window.scrollY,
     };
   });
 }
 
-test('a+b 进页：输入框聚焦，内容置顶，小标题出现；滚到顶露出大标题', async ({ page }) => {
+test('a+b 进页：输入框聚焦；没有大标题，长条显示「设置搜索」，内容从顶栏下方 16px 开始', async ({ page }) => {
   await enterFromSettings(page);
   expect(await page.evaluate((s) => document.activeElement === document.querySelector(s), INPUT)).toBe(true);
   const g = await geo(page);
-  expect(g.scrollY).toBeGreaterThan(0);
-  expect(g.titleBottom).toBeLessThanOrEqual(g.barBottom); // 大标题已滚到顶栏下沿之上
+  expect(g.bigTitles).toBe(0);
+  expect(g.scrollY).toBe(0);
   expect(Math.abs(g.mainTop - (g.barBottom + 16))).toBeLessThanOrEqual(2); // 内容紧贴顶栏下方
-  expect(g.stuck).toBe(true);
-  await expect(page.locator('.sgx-tb-pill .subpage-mini-title')).toHaveText('设置搜索');
-
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await expect.poll(async () => (await geo(page)).stuck).toBe(false);
-  const top = await geo(page);
-  expect(top.titleBottom).toBeGreaterThan(top.barBottom);
+  await expect(page.locator('.sgx-tb-title')).toHaveText('设置搜索');
 });
 
-test('c 输入后仍内容置顶', async ({ page }) => {
+test('c 输入后内容仍在顶栏下方', async ({ page }) => {
   await enterFromSettings(page);
   await page.locator(INPUT).pressSequentially('字体');
   await expect(page.locator('#setso-page .setso-item').first()).toBeVisible();
   await page.waitForTimeout(300);
   const g = await geo(page);
-  expect(g.titleBottom).toBeLessThanOrEqual(g.barBottom);
-  expect(g.stuck).toBe(true);
+  expect(g.mainTop).toBeGreaterThanOrEqual(g.barBottom);
+  await expect(page.locator('.sgx-tb-title')).toHaveText('设置搜索');
 });
 
 test('d ⓧ 清空随输入出现，点 ⓧ 清空且不收键盘；× 关闭常驻、没有 ⋮', async ({ page }) => {

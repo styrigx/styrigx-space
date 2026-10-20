@@ -1,6 +1,6 @@
 /**
  * @fileoverview 布局（auto/mobile/dex/pc）变更钩子。
- * <head> 内联脚本定义了 __applyLayout / __setHeadH，布局变化时调用 window.__dexLayoutChanged；
+ * <head> 内联脚本定义了 __applyLayout，布局变化时调用 window.__dexLayoutChanged；
  * 这里提供注册表，各模块订阅，替代旧代码里层层覆盖 window.__dexLayoutChanged 的写法。
  */
 

@@ -115,7 +115,8 @@ for (const c of CATS) {
     await pinLang(pg, 'zh');
     await gotoSettings(pg, `/settings/${c.id}/`);
     await expect(pg.locator('[data-go-back]'), 'no back button').toHaveCount(0);
-    await expect(pg.locator('.subpage-title').first(), 'title').toContainText(c.zh);
+    await expect(pg.locator('.sgx-tb-title'), 'capsule title').toHaveText(c.zh);
+    await expect(pg.locator('.subpage-title, [data-subpage-head]'), 'no big title').toHaveCount(0);
     for (const sel of SUBCHECKS[c.id]) {
       await expect(pg.locator(sel), sel).toHaveCount(1);
     }
@@ -304,7 +305,7 @@ test('B2-2 Good Lock is a settings category before Accessibility', async ({ page
 test('B2-2 Good Lock subpage: rows toggle the same keys', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await gotoSettings(pg, '/settings/goodlock/');
-  await expect(pg.locator('.subpage-title').first()).toContainText('Good Lock');
+  await expect(pg.locator('.sgx-tb-title')).toHaveText('Good Lock');
   const row = pg.locator('#mod-sound');
   const sw = row.locator('.gl-switch');
   await expect(sw).toHaveAttribute('aria-checked', 'false');

@@ -13,7 +13,6 @@
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 
 <div class="set-layout max-w-2xl mx-auto px-4 pb-28">
-  {{ partial "subpage-head.html" (dict "title" (cond $isEn "Account" "账号") "isEn" $isEn) }}
 
   <!-- 账号登录：三个入口平级（JS 渲染行，行内展开输入框） -->
   <div id="acct-login">

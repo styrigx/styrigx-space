@@ -64,7 +64,7 @@ function resolveLayer(fromFile, spec) {
     }
     if (fromFile.includes('/assets/js/apps/')) {
       if (['events','features','i18n','scheduler','sgx','storage','theme','toast','util','vt'].includes(base)) return 'lib';
-      if (['capsule','core','engines','fav','goodlock','layout','lock','nav','navhistory','scrollfx','sheet','subhead','vk','voice-sheet','voice'].includes(base)) return 'shell';
+      if (['capsule','core','engines','fav','goodlock','layout','lock','nav','navhistory','scrollfx','sheet','vk','voice-sheet','voice'].includes(base)) return 'shell';
       return 'apps';
     }
     return 'unknown';

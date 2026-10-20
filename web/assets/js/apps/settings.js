@@ -611,7 +611,7 @@ import { sgxNavigate, sgxReplace, sgxGoBack, sgxReload } from '../lib/diag-jumpt
   });
 
   /* 2.6.0：设置改为真实二级页（/settings/<cat>/）；旧 hash 由设置首页内联脚本跳转到子页；
-     子页返回用 subpage-head 的返回键。DeX/PC 双栏在首页内切换（下）。 */
+     子页用浏览器 / 系统返回。DeX/PC 双栏在首页内切换（下）。 */
   /* ---- 2.6.0 DeX/PC 双栏：左导航切换右窗格（复用子页同一套 partial；无 JS 时导航照常跳子页） ---- */
   (function () {
     var nav = document.getElementById('set-cat-nav');
@@ -882,7 +882,6 @@ import { sgxNavigate, sgxReplace, sgxGoBack, sgxReload } from '../lib/diag-jumpt
         input.value = '';
         syncTools();
         render('');
-        contentFirst();
         try { input.focus({ preventScroll: true }); } catch (err) {}
       });
     }
@@ -906,26 +905,8 @@ import { sgxNavigate, sgxReplace, sgxGoBack, sgxReload } from '../lib/diag-jumpt
     }
     syncTools();
 
-    /* 内容置顶：滚过标题区，内容紧贴顶栏下方（顶栏下沿 68px + 16px）；往下拉到顶才露出大标题 */
-    function contentFirst() {
-      const heads = document.querySelectorAll('[data-subpage-head]');
-      let head = null;
-      for (let i = 0; i < heads.length; i++) {
-        if (heads[i].getClientRects().length) { head = /** @type {HTMLElement} */ (heads[i]); break; }
-      }
-      if (!head) return;
-      const bar = document.querySelector('.sgx-topbar');
-      const barBottom = bar ? bar.getBoundingClientRect().bottom : 68;
-      const y = Math.max(0, head.getBoundingClientRect().bottom + window.scrollY - barBottom - 16);
-      window.scrollTo(0, y);
-    }
+    /* 回到本页时从顶部开始（不恢复上次的滚动位置） */
     try { history.scrollRestoration = 'manual'; } catch (e) {}
-    /* 下一帧再置顶：公共初始化（initCore）会调整标题区高度，模块求值时量的位置会偏 */
-    requestAnimationFrame(contentFirst);
-    /* 搜索后同样内容置顶 */
-    input.addEventListener('input', function () {
-      window.setTimeout(contentFirst, 170);
-    });
 
     /* 返回手势：键盘弹出时 push 一条同 URL 的哨兵；popstate 时
        - 键盘态：只收键盘（blur → 胶囊沉底），停留本页；

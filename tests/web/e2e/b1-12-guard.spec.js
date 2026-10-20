@@ -241,8 +241,9 @@ test.describe('B1-12 守护：页面切换唯一性', () => {
 
       /* 顶栏只有 1 个 */
       await expect(page.locator('#site-nav')).toHaveCount(1);
-      /* 大标题只有 1 个（h1.subpage-title） */
-      await expect(page.locator('h1.subpage-title')).toHaveCount(1);
+      /* 2026-10-20 通版顶栏：没有大标题区；页名只在顶栏长条里，只有 1 个 */
+      await expect(page.locator('.subpage-title, [data-subpage-head]')).toHaveCount(0);
+      await expect(page.locator('.sgx-tb-title')).toHaveCount(1);
       /* 2026-10-20：顶栏 ‹ 返回已删除（用浏览器 / 系统返回），一个都没有 */
       await expect(page.locator('[data-go-back]')).toHaveCount(0);
     }

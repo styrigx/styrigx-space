@@ -56,8 +56,9 @@ test.describe('桌面/移动版切换：主页历史的原始请求地址必须�
     await page.goto('/settings/');
     await expect.poll(() => page.evaluate(() => history.state && history.state.sgxHere)).toBe(1);
 
-    /* 点顶栏 Styrigx 离开设置（新文档）；插入的主页历史属于设置那份文档 */
-    await page.click('#nav-brand');
+    /* 从导航抽屉点「首页」离开设置（新文档）；插入的主页历史属于设置那份文档 */
+    await page.click('.sgx-tb-nav');
+    await page.click('#sgx-drawer [data-nav="home"]');
     await page.waitForURL((u) => u.pathname === '/');
     await page.waitForLoadState('load');
     const lenAfterOpen = await page.evaluate(() => history.length);
@@ -111,8 +112,9 @@ test.describe('桌面/移动版切换：主页历史的原始请求地址必须�
     await page.waitForURL((u) => u.pathname === '/');
     await page.waitForTimeout(600);
 
-    /* 站内点设置，再系统返回：主页正常退回，只请求一次 */
-    await page.click('a[href="/settings/"][aria-label="设置"]');
+    /* 站内从导航抽屉点设置（2026-10-20 主页长条里的设置按钮已删除），再系统返回：主页正常退回，只请求一次 */
+    await page.click('.sgx-tb-nav');
+    await page.click('#sgx-drawer [data-nav="settings"]');
     await page.waitForURL((u) => u.pathname === '/settings/');
     await page.waitForLoadState('load');
     docs.length = 0;
