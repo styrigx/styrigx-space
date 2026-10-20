@@ -1,10 +1,10 @@
 /**
  * 快捷面板（2026-10-20，One UI 快捷面板式）验收：
- * - 顶栏右侧（长条与头像之间）全站都有快捷面板圆 .sgx-tb-quick；点开 #sgx-qp，面板从顶部滑下。
+ * - 顶栏长条右端（v5，2026-10-20 收进长条）全站都有快捷面板图标 .sgx-tb-quick；点开 #sgx-qp，面板从顶部滑下。
  * - 关闭：再点图标 / 点遮罩 / Esc / 系统返回（历史哨兵，只关面板不离开页面）；刚点开立刻 Esc 也能关（竞态回归）。
  * - 磁贴只放设置里已有的项，写的是和设置页同一个 localStorage key（同一套 setter，lib/prefs.js），
  *   即时生效、不刷新；设置页随之同步显示。
- * - 390px 宽：长条页名放得下「安全与隐私」，英文长页名省略号，不压到快捷面板圆。
+ * - 390px 宽：长条页名放得下「安全与隐私」，英文长页名省略号，不压到两端图标。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, expect } = require('./helpers');
@@ -41,25 +41,32 @@ async function expectClosed(page) {
   await expect(page.locator('.sgx-tb-quick')).toHaveAttribute('aria-expanded', 'false');
 }
 
-test.describe('顶栏：快捷面板圆', () => {
+test.describe('顶栏：长条里的快捷面板图标', () => {
   const PAGES = ['/', '/bookmarks/', '/search/', '/settings/', '/settings/display/', '/settings/security/', '/settings/account/'];
   for (const path of PAGES) {
-    test(`${path}：九宫格 · 长条 · 快捷面板圆 · 头像`, async ({ page }) => {
+    test(`${path}：九宫格 · 长条（搜索 · 页名 · 快捷面板）· 头像`, async ({ page }) => {
       await go(page, path);
       const order = await page.evaluate(() =>
         Array.from(document.querySelector('.sgx-topbar').children).map((el) => el.className.split(' ')[0]));
-      expect(order).toEqual(['sgx-tb-nav', 'sgx-tb-pill', 'sgx-tb-quick', 'sgx-tb-me']);
+      expect(order).toEqual(['sgx-tb-nav', 'sgx-tb-pill', 'sgx-tb-me']);
+      const inner = await page.evaluate(() =>
+        Array.from(document.querySelector('.sgx-tb-pill').children).map((el) => el.className.split(' ')[0]));
+      expect(inner).toEqual(['sgx-tb-search', 'sgx-tb-title', 'sgx-tb-quick']);
       const q = page.locator('.sgx-tb-quick');
+      expect(await q.evaluate((el) => el.tagName)).toBe('BUTTON');
       await expect(q).toHaveAttribute('aria-label', '快捷面板');
       await expect(q).toHaveAttribute('aria-controls', 'sgx-qp');
+      await expect(q).toHaveAttribute('aria-haspopup', 'dialog');
+      /* 40px 圆形点击区，贴长条右端（内缩 6） */
       const qb = await q.boundingBox();
-      const nb = await page.locator('.sgx-tb-nav').boundingBox();
-      expect(Math.round(qb.width)).toBe(Math.round(nb.width));
-      expect(Math.round(qb.height)).toBe(Math.round(nb.height));
+      const pb = await page.locator('.sgx-tb-pill').boundingBox();
+      expect(Math.round(qb.width)).toBe(40);
+      expect(Math.round(qb.height)).toBe(40);
+      expect(Math.abs(pb.x + pb.width - (qb.x + qb.width) - 6)).toBeLessThanOrEqual(1);
     });
   }
 
-  test('390px：「安全与隐私」完整显示，英文长页名省略号，页名不压到图标', async ({ page }) => {
+  test('390px：「安全与隐私」完整显示，英文长页名省略号，页名不出长条', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await go(page, '/settings/security/');
     const t = page.locator('.sgx-tb-title');
@@ -73,10 +80,9 @@ test.describe('顶栏：快捷面板圆', () => {
     expect(st.sw).toBeGreaterThan(st.cw);
     const tb = await t.boundingBox();
     const pill = await page.locator('.sgx-tb-pill').boundingBox();
-    const ic = await page.locator('.sgx-tb-cap-ic').boundingBox();
-    /* 页名在长条内居中（左右对称），不压到搜索图标 */
+    /* 页名在长条内居中（左右对称），不出长条 */
     expect(Math.abs(tb.x + tb.width / 2 - (pill.x + pill.width / 2))).toBeLessThanOrEqual(1);
-    expect(tb.x).toBeGreaterThanOrEqual(ic.x + ic.width - 0.5);
+    expect(tb.x).toBeGreaterThanOrEqual(pill.x);
     expect(tb.x + tb.width).toBeLessThanOrEqual(pill.x + pill.width);
   });
 });
@@ -325,8 +331,9 @@ test.describe('快捷面板：与设置页同一个设置', () => {
     await openQp(page);
     const sb = await page.locator('.sgx-qp-sheet').boundingBox();
     const qb = await page.locator('.sgx-tb-quick').boundingBox();
-    /* 宽屏：面板靠右，在快捷面板圆这一侧 */
-    expect(sb.x + sb.width).toBeGreaterThan(qb.x);
+    /* 宽屏：面板靠右（右缘 = 顶栏右缘），盖住快捷面板图标这一侧 */
+    expect(sb.x + sb.width).toBeGreaterThan(qb.x + qb.width);
+    expect(sb.x).toBeLessThan(qb.x);
     await page.locator('#sgx-qp [data-qp-seg="layout"] [data-v="dex"]').click();
     expect(await ls(page, 'sgx-layout')).toBe('dex');
     await expect(page.locator('html')).toHaveClass(/\blayout-dex\b/);

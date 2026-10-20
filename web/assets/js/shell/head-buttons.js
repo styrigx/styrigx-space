@@ -1,9 +1,10 @@
 /**
- * @fileoverview 顶栏（通版，2026-10-20，全站同一套）：左圆九宫格（导航抽屉）+ 长条（搜索图标 + 当前页名）+ 右圆头像。
+ * @fileoverview 顶栏（通版，2026-10-20 v5，全站同一套）：两个圆 + 一个长条：
+ *   九宫格圆（导航抽屉）| 长条（搜索图标 · 当前页名 · 快捷面板图标，屏幕居中）| 头像圆。
  * - 长条里的页名由 baseof.html 服务端写好（主页「首页」/ Home），不再有 Styrigx ↔ 小标题的滚动切换。
- * - 点长条：进全网搜索页 /search/（普通链接，沿用站内切页过渡）；已经在全网搜索页上时不重新加载，
- *   只聚焦底部搜索输入框（保持搜索页原来的输入行为）。
- * - 没有 ‹ 返回和页面 ⋮：页面操作都在正文里。长条与头像之间是快捷面板圆（.sgx-tb-quick，见 quick-panel.js）。
+ * - 长条左端搜索图标（#sgx-tb-search）：进全网搜索页 /search/（普通链接，沿用站内切页过渡）；已经在全网搜索页上时
+ *   不重新加载，只聚焦底部搜索输入框（保持搜索页原来的输入行为）。
+ * - 没有 ‹ 返回和页面 ⋮：页面操作都在正文里。长条右端快捷面板图标（.sgx-tb-quick）见 quick-panel.js。
  * - 导航抽屉（#sgx-drawer，Gmail Android 式左侧抽屉，<dialog> 模态）：九宫格打开；
  *   点遮罩 / 系统返回 / Esc 关闭。打开时 push 一条同 URL 的历史哨兵，系统返回只关抽屉不离开页面。
  */
@@ -53,11 +54,11 @@ function initDrawer() {
   });
 }
 
-/* 长条：在全网搜索页上点它只聚焦底部输入框（不重新加载）；其他页照常走链接进 /search/ */
-function initCapsule() {
-  const cap = /** @type {HTMLAnchorElement|null} */ (document.getElementById('sgx-tb-cap'));
-  if (!cap) return;
-  cap.addEventListener('click', function (e) {
+/* 长条搜索图标：在全网搜索页上点它只聚焦底部输入框（不重新加载）；其他页照常走链接进 /search/ */
+function initSearchBtn() {
+  const btn = /** @type {HTMLAnchorElement|null} */ (document.getElementById('sgx-tb-search'));
+  if (!btn) return;
+  btn.addEventListener('click', function (e) {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-cap-input-brwsearch'));
     if (!input) return;
@@ -70,6 +71,6 @@ function initCapsule() {
 
 export function initHeadButtons() {
   initDrawer();
-  initCapsule();
+  initSearchBtn();
   initQuickPanel();
 }

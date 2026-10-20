@@ -19,8 +19,4 @@
 
 {{ partial "settings-i18n.html" (dict "isEn" $isEn) }}
 
-<!-- 底部搜索胶囊：点一下跳搜索页 -->
-{{ partial "sgx-capsule.html" (dict "page" "settings" "isEn" $isEn
-  "placeholder" (cond $isEn "Search settings" "搜索设置")
-  "panel" false) }}
 {{ end }}

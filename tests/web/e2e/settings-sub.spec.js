@@ -138,30 +138,19 @@ test('legacy hash #display redirects to subpage', async ({ page: pg }) => {
   await expect(pg.locator('#theme-previews')).toBeVisible();
 });
 
-test('settings capsule navigates to search page', async ({ page: pg }) => {
+test('settings search removed: no bottom search bar on settings pages; /settings/search/ is gone', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
-  await gotoSettings(pg, '/settings/');
-  // B1-6a：点胶囊跳搜索页，不弹键盘
-  const cap = pg.locator('#sgx-cap-settings');
-  await expect(cap).toBeVisible();
-  await cap.click();
-  await pg.waitForURL('**/settings/search/', { timeout: 10000 });
-  await expect(pg.locator('#sgx-cap-input-setsearch')).toBeVisible();
-});
-
-test('B1-6a search page: input filters and navigates', async ({ page: pg }) => {
-  await pinLang(pg, 'zh');
-  await gotoSettings(pg, '/settings/search/');
-  const input = pg.locator('#sgx-cap-input-setsearch');
-  await expect(input).toBeVisible();
-  await input.fill('字体');
-  // 等去抖 150ms + 渲染
-  await expect(pg.locator('.setso-title')).toContainText('搜索结果', { timeout: 10000 });
-  const cards = pg.locator('.setso-card');
-  expect(await cards.count()).toBeGreaterThanOrEqual(1);
-  // 点第一条会跳走
-  await pg.locator('.setso-item').first().click();
-  await pg.waitForURL((url) => new URL(url).pathname !== '/settings/search/', { timeout: 10000 });
+  for (const path of ['/settings/', '/settings/display/', '/settings/manage/']) {
+    await gotoSettings(pg, path);
+    await expect(pg.locator('.sgx-cap, #sgx-cap-settings, #sgx-cap-input-setsearch'), path).toHaveCount(0);
+    await expect(pg.locator('#setso-page')).toHaveCount(0);
+    const i18n = await pg.evaluate(() => JSON.parse(document.getElementById('sgx-i18n-settings').textContent));
+    expect(i18n.setidx, 'setidx index removed').toBeUndefined();
+  }
+  const res = await pg.request.get('/settings/search/');
+  expect(res.status()).toBe(404);
+  const resEn = await pg.request.get('/en/settings/search/');
+  expect(resEn.status()).toBe(404);
 });
 
 test('subpage: system back returns to settings home', async ({ page: pg }) => {
@@ -360,17 +349,6 @@ test('B2-4 settings has no Apps category; reset lives in General management', as
   expect(rows[rows.length - 1]).toBe('row-reset');
   await expect(pg.locator('#row-reset')).toContainText('重置所有设置');
 });
-
-test('B2-4 settings search: no Apps entries; reset points to General management', async ({ page: pg }) => {
-  await pinLang(pg, 'zh');
-  await gotoSettings(pg, '/settings/search/');
-  const idx = await pg.evaluate(() => JSON.parse(document.getElementById('sgx-i18n-settings').textContent).setidx);
-  expect(idx.filter((a) => a[4] === 'apps')).toEqual([]);
-  const reset = idx.find((a) => a[0] === '重置所有设置');
-  expect(reset[4]).toBe('manage');
-  expect(reset[8]).toBe('/settings/manage/');
-});
-
 
 test('Bookmarks page has no top-bar menu; engine row lives in Security and privacy', async ({ page: pg }) => {
   await pinLang(pg, 'zh');

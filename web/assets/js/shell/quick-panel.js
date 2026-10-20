@@ -1,5 +1,5 @@
 /**
- * @fileoverview 顶栏快捷面板（#sgx-qp，One UI 快捷面板式）：顶栏右侧滑块圆 .sgx-tb-quick 打开，从顶部滑下。
+ * @fileoverview 顶栏快捷面板（#sgx-qp，One UI 快捷面板式）：顶栏长条右端滑块图标 .sgx-tb-quick 打开，从顶部滑下。
  * - 开合 / 系统返回 / Esc / bfcache 走 modal-sheet.js（与导航抽屉同一个状态机：data-state closed/opening/open/closing）。
  * - 点遮罩（面板以外）关闭。
  * - 只放设置里已有的项，写法与设置页完全相同（lib/prefs.js、lib/lock-now.js 是两边共用的 setter），

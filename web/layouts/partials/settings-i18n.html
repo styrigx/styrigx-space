@@ -1,7 +1,6 @@
-{{/* 2.6.0：设置页 i18n（含 setidx），设置首页与子页共用。 */}}
+{{/* 2.6.0：设置页 i18n，设置首页与子页共用（2026-10-20 设置搜索删除，setidx 索引随之删除）。 */}}
 {{ $isEn := .isEn }}
-{{/* 2.4.0-C：设置页文案（中英双语）；脚本走 ES Module 入口 entry-settings.js。
-   setidx: [中文标题, 英文标题, 中文描述, 英文描述, 分类, 元素id, 面板, 高亮项] */}}
+{{/* 2.4.0-C：设置页文案（中英双语）；脚本走 ES Module 入口 entry-settings.js。 */}}
 {{ $setI18n := dict
   "langVal" (dict "zh" "中文" "en" "English")
   "langTitle" (dict "zh" "语言" "en" "Language")
@@ -38,52 +37,10 @@
   "catAccessibility" (dict "zh" "辅助功能" "en" "Accessibility")
   "catWellbeing" (dict "zh" "数字健康" "en" "Digital wellbeing")
   "catAbout" (dict "zh" "关于本站" "en" "About")
-  "setsoResults" (dict "zh" "搜索结果（{n} 个）" "en" "Results ({n})")
-  "setsoNo" (dict "zh" "无结果" "en" "No results")
-  "setsoRecent" (dict "zh" "最近搜索" "en" "Recent searches")
-  "setsoClearAll" (dict "zh" "全部清除" "en" "Clear all")
-  "setsoDel" (dict "zh" "删除" "en" "Remove")
   "wellNoRec" (dict "zh" "今天还没有到访记录" "en" "No visits recorded yet today")
   "areaHome" (dict "zh" "首页" "en" "Home")
   "areaLinks" (dict "zh" "导航" "en" "Bookmarks")
   "areaSettings" (dict "zh" "设置" "en" "Settings")
   "areaGoodlock" (dict "zh" "Good Lock" "en" "Good Lock")
-  "setidx" (slice
-    (slice "跟随系统" "Follow system" "显示" "Display" "display" "row-system" "" "" (cond $isEn "/en/settings/display/" "/settings/display/"))
-    (slice "字体大小" "Font size" "显示" "Display" "display" "seg-font" "" "" (cond $isEn "/en/settings/display/" "/settings/display/"))
-    (slice "布局" "Layout" "自动 / Mobile / DeX / PC" "Auto / Mobile / DeX / PC" "display" "seg-layout" "" "" (cond $isEn "/en/settings/display/" "/settings/display/"))
-    (slice "调色板" "Color palette" "风格 主题 主色 壁纸 颜色" "Style theme color wallpaper" "theme" "palette-dots" "" "" (cond $isEn "/en/settings/theme/" "/settings/theme/"))
-    (slice "风格" "Style" "主题 主色 壁纸 颜色" "theme color wallpaper" "theme" "sg-theme" "" "" (cond $isEn "/en/settings/theme/" "/settings/theme/"))
-    (slice "安全与隐私" "Security and privacy" "锁定屏幕、密码、通行密钥" "Lock screen, password, passkeys" "security" "sg-security" "" "")
-    (slice "锁定屏幕" "Lock screen" "安全与隐私" "Security and privacy" "security" (cond $isEn "/en/settings/security/lock/" "/settings/security/lock/") "" "")
-    (slice "密码" "Password" "解锁密码" "Unlock password" "security" (cond $isEn "/en/settings/security/lock/" "/settings/security/lock/") "" "")
-    (slice "通行密钥" "Passkeys" "安全与隐私" "Security and privacy" "security" (cond $isEn "/en/settings/security/lock/" "/settings/security/lock/") "" "")
-    (slice "语言" "Language" "常规管理" "General management" "manage" "row-lang" "" "" (cond $isEn "/en/settings/manage/" "/settings/manage/"))
-    (slice "日期和时间" "Date & time" "常规管理" "General management" "manage" "row-datetime" "" "" (cond $isEn "/en/settings/manage/" "/settings/manage/"))
-    (slice "第一时区" "Primary timezone" "日期和时间" "Date & time" "manage" "row-datetime" "" "" (cond $isEn "/en/settings/manage/" "/settings/manage/"))
-    (slice "第二时区" "Second timezone" "日期和时间" "Date & time" "manage" "row-datetime" "" "" (cond $isEn "/en/settings/manage/" "/settings/manage/"))
-    (slice "时区" "Time zone" "日期和时间" "Date & time" "manage" "row-datetime" "" "" (cond $isEn "/en/settings/manage/" "/settings/manage/"))
-    (slice "小时制" "Hour format" "日期和时间" "Date & time" "manage" "row-datetime" "" "" (cond $isEn "/en/settings/manage/" "/settings/manage/"))
-    (slice "天气" "Weather" "常规管理" "General management" "manage" "row-weather" "" "" (cond $isEn "/en/settings/manage/" "/settings/manage/"))
-    (slice "温度单位" "Temperature unit" "天气" "Weather" "manage" "row-weather" "" "" (cond $isEn "/en/settings/manage/" "/settings/manage/"))
-    (slice "显示天气小组件" "Show weather widget" "天气" "Weather" "manage" "row-weather" "" "" (cond $isEn "/en/settings/manage/" "/settings/manage/"))
-    (slice "Good Lock" "Good Lock" "实验性功能模块" "Experimental modules" "goodlock" "sg-goodlock" "" "" (cond $isEn "/en/settings/goodlock/" "/settings/goodlock/"))
-    (slice "数字健康" "Digital wellbeing" "Good Lock" "Good Lock" "goodlock" "mod-wellbeing" "" "" (cond $isEn "/en/settings/goodlock/" "/settings/goodlock/"))
-    (slice "视差壁纸" "Parallax wallpaper" "Good Lock" "Good Lock" "goodlock" "mod-parallax" "" "" (cond $isEn "/en/settings/goodlock/" "/settings/goodlock/"))
-    (slice "时钟样式" "Clock style" "Good Lock" "Good Lock" "goodlock" "mod-clockstyle" "" "" (cond $isEn "/en/settings/goodlock/" "/settings/goodlock/"))
-    (slice "点击音效" "Tap sounds" "Good Lock" "Good Lock" "goodlock" "mod-sound" "" "" (cond $isEn "/en/settings/goodlock/" "/settings/goodlock/"))
-    (slice "快捷键" "Keyboard shortcuts" "Good Lock" "Good Lock" "goodlock" "mod-keys" "" "" (cond $isEn "/en/settings/goodlock/" "/settings/goodlock/"))
-    (slice "边缘光效" "Edge glow" "Good Lock" "Good Lock" "goodlock" "mod-edgeglow" "" "" (cond $isEn "/en/settings/goodlock/" "/settings/goodlock/"))
-    (slice "减弱动效" "Reduce motion" "辅助功能" "Accessibility" "accessibility" "row-motion" "" "" (cond $isEn "/en/settings/accessibility/" "/settings/accessibility/"))
-    (slice "数字健康" "Digital wellbeing" "" "" "wellbeing" "sg-wellbeing" "" "" (cond $isEn "/en/settings/wellbeing/" "/settings/wellbeing/"))
-    (slice "15 分钟提醒" "15-minute reminder" "数字健康" "Digital wellbeing" "wellbeing" "row-welltip" "" "" (cond $isEn "/en/settings/wellbeing/" "/settings/wellbeing/"))
-    (slice "版本" "Version" "Styrigx UI" "Styrigx UI" "about" "sg-about" "" "" (cond $isEn "/en/settings/about/" "/settings/about/"))
-    (slice "内核" "Kernel" "SGX" "SGX" "about" "sg-about" "" "" (cond $isEn "/en/settings/about/" "/settings/about/"))
-    (slice "重置所有设置" "Reset all settings" "常规管理" "General management" "manage" "row-reset" "" "" (cond $isEn "/en/settings/manage/" "/settings/manage/"))
-    (slice "显示" "Display" "" "" "display" "sg-display" "" "" (cond $isEn "/en/settings/display/" "/settings/display/"))
-    (slice "常规管理" "General management" "" "" "manage" "sg-manage" "" "" (cond $isEn "/en/settings/manage/" "/settings/manage/"))
-    (slice "辅助功能" "Accessibility" "" "" "accessibility" "sg-accessibility" "" "" (cond $isEn "/en/settings/accessibility/" "/settings/accessibility/"))
-    (slice "关于本站" "About" "" "" "about" "sg-about" "" "" (cond $isEn "/en/settings/about/" "/settings/about/"))
-  )
 }}
 <script id="sgx-i18n-settings" type="application/json">{{ $setI18n | jsonify | safeJS }}</script>
