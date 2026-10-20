@@ -1,8 +1,8 @@
-{{/* 锁定屏幕（2.4.0 安全与隐私）：替代 /owner/。
-   两扇门（2.11）：进门只验一次（安全与隐私页入口）；本页直接渲染管理区，
-   进门探针确认验证有效，无效则跳验证流程（安全与隐私页），不弹面板。
-   管理锁屏凭证（lock-pw + class=lock 通行密钥）与应用验证分组；
-   账号凭证（原站长凭证）只在账号页 /settings/account/ 管理。
+{{/* 安全与隐私 → 锁屏凭证（/settings/security/lock/）。
+   这是安全操作页：每次进页都要先过门 —— 锁屏通行密钥 / 解锁密码（设了哪个显示哪个）+ 根凭证（一直在），
+   通过后签 3 分钟锁屏门票（SGX_LOCK_* 签），页内倒计时；离开本页门票立即作废，再进重新验证。
+   门内：解锁密码、锁屏通行密钥、会话（退出所有设备）。重置锁屏（重置门票）直接进门内。
+   账号凭证只在账号页 /settings/account/ → 安全与隐私 管理。
    noindex、不进 sitemap（见 baseof/sitemap）。
    脚本走 ES Module 入口 entry-security-lock.js；localStorage 经 storage.js。 */}}
 {{ define "main" }}
@@ -11,7 +11,15 @@
 
 <div class="set-layout lock-page max-w-2xl mx-auto px-4 pb-28">
 
-  <!-- 管理区（直接渲染；验证无效时 JS 跳验证流程） -->
+  <!-- 门：每次进页验一次锁屏凭证或根凭证（JS 渲染验证行） -->
+  <div id="lock-door" hidden>
+    <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Verify it's you{{ else }}验证身份{{ end }}</span></h2>
+    <p class="sec-note mb-3">{{ if $isEn }}Changing lock screen credentials is a security action. Verify to continue; it lasts 3 minutes and ends as soon as you leave this page.{{ else }}修改锁屏凭证属于安全操作，请先验证。验证有效 3 分钟，离开本页立即失效。{{ end }}</p>
+    <p class="sgx-door-err mb-3" id="lock-door-notice" hidden></p>
+    <div class="sgx-door-methods animate-fade-up" id="lock-door-methods" style="animation-delay:.1s"></div>
+  </div>
+
+  <!-- 门内（验证通过后才渲染；顶部倒计时胶囊由 JS 插入） -->
   <div id="lockmgr" hidden> <!-- A-1：探针通过前不渲染门内内容 -->
     <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "lock" }}</span><span>{{ if $isEn }}Unlock password{{ else }}解锁密码{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.1s">
@@ -37,6 +45,19 @@
       </button>
     </section>
     <p class="sec-note mb-7">{{ if $isEn }}Unlock with fingerprint, face, or device passcode. Tap a device name to rename it.{{ else }}用指纹、面容或设备密码解锁。点设备名可重命名。{{ end }}</p>
+
+    {{/* 会话：重置锁屏（无会话）时 JS 隐藏 */}}
+    <div id="lockmgr-sessions">
+      <h2 class="set-gh"><span class="set-ic bg-m-warm-container text-m-on-warm-container">{{ partial "icon.html" "clock" }}</span><span>{{ if $isEn }}Sessions{{ else }}会话{{ end }}</span></h2>
+      <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.18s">
+        <div class="set-row" id="lockmgr-outall" role="button" tabindex="0">
+          <span class="flex-1 min-w-0">
+            <span class="block font-medium">{{ if $isEn }}Sign out of all devices{{ else }}退出所有设备{{ end }}</span>
+            <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Every device, this one included, goes back to the lock screen{{ else }}所有设备（包括本机）回到锁屏{{ end }}</span>
+          </span>
+        </div>
+      </section>
+    </div>
     <p class="sec-note mt-6 sgx-build-tag-wrap">{{ partial "build-tag.html" (dict "isEn" $isEn) }}</p>
   </div>
 </div>
@@ -58,7 +79,7 @@
   </div>
 </dialog>
 
-<!-- 应用钥匙删除确认弹层（站内确认，替代原生 confirm） -->
+<!-- 通行密钥删除确认弹层（站内确认，替代原生 confirm） -->
 <dialog id="lockpkdel-dlg" class="sgx-verify-dlg" aria-labelledby="lockpkdel-title">
   <div class="sgx-verify-card">
     {{/* 批次 A 收尾 A3：右上角 × 关闭按钮 */}}
@@ -129,9 +150,19 @@
   "pkAlready" (dict "zh" "此设备已注册过" "en" "Already registered on this device")
   "pkNoSupport" (dict "zh" "设备不支持" "en" "Not supported on this device")
   "pkFailed" (dict "zh" "注册失败" "en" "Registration failed")
-  "appAddKey" (dict "zh" "＋ 添加{app}的钥匙" "en" "+ Add {app} key")
-  "appDelKey" (dict "zh" "删除{app}的钥匙" "en" "Delete {app} key")
-  "appKeyNone" (dict "zh" "（未添加）" "en" " (not added)")
+  "mPasskey" (dict "zh" "锁屏通行密钥" "en" "Lock screen passkey")
+  "mPasskeySub" (dict "zh" "使用指纹或设备锁屏" "en" "Use fingerprint or device screen lock")
+  "mPassword" (dict "zh" "解锁密码" "en" "Unlock password")
+  "mPasswordSub" (dict "zh" "输入解锁密码" "en" "Enter unlock password")
+  "mRoot" (dict "zh" "根凭证" "en" "Root credential")
+  "mRootSub" (dict "zh" "粘贴或输入根凭证" "en" "Paste or enter root credential")
+  "verifyBtn" (dict "zh" "验证" "en" "Verify")
+  "enterCred" (dict "zh" "请输入凭证" "en" "Enter credential")
+  "passkeyBusy" (dict "zh" "正在唤起通行密钥…" "en" "Opening passkey…")
+  "errWrongRoot" (dict "zh" "根凭证不正确" "en" "Incorrect root credential")
+  "outAllTitle" (dict "zh" "退出所有设备？" "en" "Sign out of all devices?")
+  "outAllDesc" (dict "zh" "所有设备（包括本机）都会回到锁屏，需要重新解锁" "en" "Every device, this one included, returns to the lock screen and must unlock again.")
+  "outAllBtn" (dict "zh" "退出" "en" "Sign out")
   "setTitle" (dict "zh" "设置解锁密码" "en" "Set unlock password")
   "changeTitle" (dict "zh" "修改解锁密码" "en" "Change unlock password")
   "sessExp" (dict "zh" "会话过期，请重新验证" "en" "Session expired, verify again")
@@ -155,12 +186,10 @@
   "errNotSet" (dict "zh" "尚未设置" "en" "Not set")
   "errLocked" (dict "zh" "尝试次数过多，请稍后再试" "en" "Too many attempts, please try again later")
   "errConfig" (dict "zh" "服务器配置有误" "en" "Server misconfigured")
-  "errAud" (dict "zh" "应用信息有误" "en" "Bad app parameter")
   "errCancelled" (dict "zh" "已取消" "en" "Cancelled")
   "errUnknown" (dict "zh" "未知错误，请稍后重试" "en" "Unknown error, please try again later")
   "errSameAsLock" (dict "zh" "不能与解锁密码相同" "en" "Can't be the same as the unlock password")
   "errSameAsOwner" (dict "zh" "不能与账号密码相同" "en" "Can't be the same as the account password")
-  "errOwnerConfigured" (dict "zh" "账号凭证已设置，请先登录账号再进入" "en" "Account credentials are set; please sign in to your account first")
   "doorCountdown" (dict "zh" "验证剩余 {m}" "en" "Verification remaining {m}")
   "doorCountdownExpired" (dict "zh" "已过期" "en" "Expired")
   "expiredStepupTitle" (dict "zh" "验证已过期" "en" "Verification expired")

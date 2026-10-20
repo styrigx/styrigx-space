@@ -273,13 +273,13 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       /* 1. 写入开关值 → 服务端首次见到，在 D1 记录 hash + 首次时间，开始 24h 计时 */
       await kvPut('recovery-switch', switchValue);
 
-      /* 2. 根凭证正确 + 开关在计时窗口内有效 → 签发 lockreset（via=switch），带 sgx-stepup cookie */
+      /* 2. 根凭证正确 + 开关在计时窗口内有效 → 签发 lockreset（via=switch），带 sgx-door cookie */
       let r = await lockresetVerify(OWNER_KEY);
       expect(r.status()).toBe(200);
       const body1 = await r.json();
       expect(body1.ok).toBe(true);
       expect(body1.needOwner).toBeFalsy();
-      expect(r.headers()['set-cookie'] || '').toContain('sgx-stepup=');
+      expect(r.headers()['set-cookie'] || '').toContain('sgx-door=');
 
       /* 3. 同一开关值再次使用 → 已标记已用，单次作废，走站长凭证路径 */
       r = await lockresetVerify(OWNER_KEY);
@@ -287,7 +287,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       const body2 = await r.json();
       expect(body2.ok).toBe(true);
       expect(body2.needOwner).toBe(true);
-      expect(r.headers()['set-cookie'] || '').not.toContain('sgx-stepup=');
+      expect(r.headers()['set-cookie'] || '').not.toContain('sgx-door=');
     } finally {
       /* 清理：删掉测试写入的开关值（D1 记录按 hash 隔离，无影响） */
       await kvDel('recovery-switch');
@@ -321,7 +321,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
     }
 
     try {
-      /* 1. 写入开关 → 根凭证 verify → 拿到 lockreset 票据（sgx-stepup cookie） */
+      /* 1. 写入开关 → 根凭证 verify → 拿到 lockreset 票据（sgx-door cookie） */
       await kvPut('recovery-switch', switchValue);
       const vr = await request.post(BASE + '/api/lockreset', {
         headers: { Origin: ORIGIN },
@@ -330,14 +330,14 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       expect(vr.status()).toBe(200);
       expect((await vr.json()).ok).toBe(true);
       const setCookie = vr.headers()['set-cookie'] || '';
-      expect(setCookie).toContain('sgx-stepup=');
-      const stepupVal = setCookie.split('sgx-stepup=')[1].split(';')[0];
+      expect(setCookie).toContain('sgx-door=');
+      const doorVal = setCookie.split('sgx-door=')[1].split(';')[0];
 
       /* 2. 带票据访问锁屏管理页 → data-sgx-session="lockreset"，无锁屏覆盖 */
       const ctx = page.context();
       await ctx.addCookies([{
-        name: 'sgx-stepup',
-        value: stepupVal,
+        name: 'sgx-door',
+        value: doorVal,
         domain: new URL(BASE).hostname,
         path: '/',
         httpOnly: true,
@@ -379,11 +379,11 @@ test.describe('passkey e2e (virtual authenticator)', () => {
     test.skip(r1.status() === 401, 'preview 已配置 lock，跳过引导模式 e2e');
     expect(r1.status()).toBe(200);
     const sc1 = r1.headers()['set-cookie'] || '';
-    expect(sc1).toContain('sgx-stepup=');
-    const stepupVal = sc1.split('sgx-stepup=')[1].split(';')[0];
+    expect(sc1).toContain('sgx-door=');
+    const doorVal = sc1.split('sgx-door=')[1].split(';')[0];
     /* 2. root-session 换会话 */
     const r2 = await request.post(BASE + '/api/root-session', {
-      headers: { Origin: ORIGIN, Cookie: 'sgx-stepup=' + stepupVal },
+      headers: { Origin: ORIGIN, Cookie: 'sgx-door=' + doorVal },
     });
     expect(r2.status()).toBe(200);
     const b2 = await r2.json();

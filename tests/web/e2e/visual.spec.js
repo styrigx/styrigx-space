@@ -112,7 +112,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
                 body: JSON.stringify({ ok: true, password: false, passkey: false }),
               });
             });
-            await pg.route('**/api/stepup', async (route) => {
+            await pg.route('**/api/lock-door', async (route) => {
               await route.fulfill({
                 status: 200,
                 contentType: 'application/json',

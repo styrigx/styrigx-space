@@ -59,7 +59,7 @@ web/
 | `data/` | 站点数据 yaml/json（`data/en/` 是英文版） |
 | `public/` | 构建产物，不进仓库 |
 
-构建生成、不进仓库的数据文件：`data/posts.json`、`data/app_whitelist.json` 由 `scripts/gen-*.mjs` 生成，`data/tailwind.json` 由 `scripts/build-css.cjs` 生成。
+构建生成、不进仓库的数据文件：`data/posts.json` 由 `scripts/gen-posts-json.mjs` 生成，`data/tailwind.json` 由 `scripts/build-css.cjs` 生成。
 
 本地预览：
 

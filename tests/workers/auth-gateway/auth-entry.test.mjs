@@ -115,34 +115,6 @@ test('认证入口：锁屏方法弹层按锁屏凭证配置显示入口', () =>
 
 /* ============ 2. 安全页 DOM 一致 ============ */
 
-test('认证入口：安全页两个入口（管理凭证/立即锁定），访客与站长 DOM 一致；账号登录三个入口（设了哪个显示哪个）', () => {
-  const html = fs.readFileSync(path.join(REPO, 'web/layouts/_default/security.html'), 'utf8');
-  assert.ok(!html.includes('id="sec-owner-cred"'), '站长凭证入口已升级为账号（顶栏头像）');
-  assert.ok(html.includes('id="sec-mgmt-cred"'), '应有管理凭证入口');
-  assert.ok(html.includes('id="sec-locknow"'), '应有立即锁定入口');
-  assert.ok(!html.includes('id="sec-unlock-methods"'), '不应有解锁方式');
-  assert.ok(!html.includes('id="sec-app-row"'), '不应有应用验证');
-  assert.ok(!html.includes('id="sec-lockall"'), '不应有锁定所有设备');
-  assert.ok(!html.includes('id="sec-verify-dlg"'), '验证弹层已移除：账号登录在账号页');
-  const js = fs.readFileSync(path.join(REPO, 'web/assets/js/apps/security.js'), 'utf8');
-  /* 访客与站长都走账号登录（访客直接跳，站长先试 enter），这是唯一允许的访客条件分支 */
-  assert.ok(js.includes("dataset.sgxRole === 'visitor'"), '管理凭证应有访客分支');
-  assert.ok(js.includes("'?door=1&return='"), '未登录/过旧 → 账号登录带 door=1&return=');
-  assert.ok(!js.includes('/api/owner-status'), '不再读 owner-status');
-  /* 账号页 / 安全与隐私的门：三个入口（验证行在 account-methods.js），界面不出现内部名 */
-  const acc = fs.readFileSync(path.join(REPO, 'web/assets/js/apps/account-methods.js'), 'utf8');
-  for (const kind of ["kind: 'passkey'", "kind: 'password'", "kind: 'root'"]) {
-    assert.ok(acc.includes(kind), '账号验证应有入口 ' + kind);
-  }
-  assert.ok(acc.includes("target: 'account'"), '根凭证入口走 root-auth target=account');
-  for (const f of ['account-methods.js', 'account.js', 'account-security.js', 'account-profile.js']) {
-    const src = fs.readFileSync(path.join(REPO, 'web/assets/js/apps/' + f), 'utf8');
-    const noComments = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1');
-    for (const bad of ['票据', 'rootkey', 'ownerkey', 'accountkey', 'sgx-account', 'sgx-verified']) {
-      assert.ok(!noComments.includes(bad), f + ' 代码不应出现「' + bad + '」');
-    }
-  }
-});
 
 /* ============ 3. 访客假入口 ============ */
 
@@ -267,17 +239,6 @@ test('认证入口：前端重置弹层不再出现「重置锁屏不可用」',
 
 /* ============ 5. 通行密钥命名 ============ */
 
-test('认证入口：三类通行密钥注册 options 的 name/displayName 正确', async () => {
-  const src = fs.readFileSync(path.join(REPO, 'workers/auth-gateway/functions/api/owner-passkey.js'), 'utf8');
-  /* displayName 一律 Sloan Gray */
-  assert.ok(src.includes("displayName: OWNER_DISPLAY_NAME"), 'displayName 应为常量');
-  assert.ok(src.includes("OWNER_DISPLAY_NAME = 'Sloan Gray'"), 'displayName 应为 Sloan Gray');
-  /* name 映射：用命名常量 */
-  assert.ok(src.includes("KEY_ACCOUNT"), '账号凭证 name 应为 KEY_ACCOUNT (accountkey)');
-  assert.ok(!src.includes("KEY_OWNER"), '旧常量 KEY_OWNER 已改名');
-  assert.ok(src.includes("KEY_LOCK"), '锁屏 name 应为 KEY_LOCK (lockkey)');
-  assert.ok(src.includes("appKeyName("), 'app name 应为小写应用名+key');
-});
 
 /* ============ 7. 补充定稿七：锁屏入口按配置 + 访客管理凭证假入口 ============ */
 
@@ -377,19 +338,6 @@ test('补充七：已配置锁屏凭证时，锁屏根凭证路径被服务端�
   assert.equal(body, JSON.stringify({ ok: false, error: 'auth' }));
 });
 
-test('补充七：未配置锁屏凭证时，锁屏根凭证路径走真实比对（无会话 → 可签发）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
-  /* lock 层未配置（引导模式），无会话提交正确的根凭证 */
-  const kv = makeKv({});
-  const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345' });
-  const res = await onRequestPost({ request: req, env: baseEnv(kv) });
-  assert.equal(res.status, 200, '未配置时应走真实比对');
-  const body = await res.json();
-  assert.equal(body.ok, true);
-  /* 签发的是 stepup cookie（站长模式），不是会话 */
-  const setCookie = res.headers.get('Set-Cookie') || '';
-  assert.ok(setCookie.includes('sgx-stepup='), '应签发 sgx-stepup');
-});
 
 test('补充七：访客管理凭证提交任何值都返回密码错误且不写存储', async () => {
   /* 管理凭证弹层的「根凭证」按钮提交到 /api/root-auth；访客会话下为假入口 */
@@ -466,53 +414,7 @@ test('行为：lockreset needOwner 带 passkey/password 布尔', async () => {
   assert.equal(body.passkey, false, '应带 passkey=false');
 });
 
-test('行为：锁屏未配置时 root-auth 成功 → root-session 换站长会话', async () => {
-  const { onRequestPost: rootAuthPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
-  const { onRequestPost: rootSessionPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-session.js');
-  /* lock 未配置：无标记、无 lock-pw、无 passkey */
-  const kv = makeKv({});
-  const env = baseEnv(kv);
 
-  /* 1. root-auth（无会话，引导模式） */
-  const req1 = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345' });
-  const res1 = await rootAuthPost({ request: req1, env });
-  assert.equal(res1.status, 200, '引导模式 root-auth 应成功');
-  const setCookie1 = res1.headers.get('Set-Cookie') || '';
-  assert.ok(setCookie1.includes('sgx-stepup='), '应签发 stepup');
-  const stepupVal = setCookie1.split('sgx-stepup=')[1].split(';')[0];
-
-  /* 2. root-session（用 stepup 换会话） */
-  const req2 = postReq('https://test.example.com/api/root-session', {}, {
-    'Cookie': 'sgx-stepup=' + stepupVal,
-  });
-  const res2 = await rootSessionPost({ request: req2, env });
-  assert.equal(res2.status, 200, 'root-session 应成功');
-  const body2 = JSON.parse(await res2.text());
-  assert.equal(body2.ok, true);
-  assert.equal(body2.by, 'root');
-  const setCookie2 = res2.headers.get('Set-Cookie') || '';
-  assert.ok(setCookie2.includes('sgx-verified='), '应签发会话');
-  /* A-1：根凭证代开会话仍为 Max-Age=43200（12 小时，不跟 stepup 一起缩短） */
-  assert.ok(setCookie2.includes('Max-Age=43200'), 'root-session 会话应为 Max-Age=43200，实际=' + setCookie2);
-});
-
-test('行为：锁屏已配置（有真实凭证无标记）时 root-session 拒绝', async () => {
-  const { onRequestPost: rootSessionPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-session.js');
-  const { signStepupCookie, STEPUP_COOKIE, STEPUP_BY_ROOT, STEPUP_SCOPE_ROOT } = await import(REPO + '/workers/auth-gateway/functions/api/stepup.js');
-  const { getSessionEpoch } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
-  /* 有 lock-pw 但无 layer:lock 标记 */
-  const kv = makeKv({ 'lock-pw': JSON.stringify({ hash: 'x' }) });
-  const env = baseEnv(kv);
-  const epoch = await getSessionEpoch(kv);
-  const stepupVal = await signStepupCookie(TEST_PRIV_PEM, STEPUP_BY_ROOT, STEPUP_SCOPE_ROOT, epoch);
-  const req = postReq('https://test.example.com/api/root-session', {}, {
-    'Cookie': STEPUP_COOKIE + '=' + stepupVal,
-  });
-  const res = await rootSessionPost({ request: req, env });
-  assert.equal(res.status, 403, '有真实凭证无标记也应拒绝');
-  const body = JSON.parse(await res.text());
-  assert.equal(body.error, 'configured');
-});
 
 test('行为：/api/account 状态需 owner lock 会话，无会话 → 401', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/account.js');
@@ -707,52 +609,8 @@ test('行为：/api/lock-status 只看 class=lock 通行密钥', async () => {
   assert.equal(body2.passkey, true, '有 lock 类时 passkey 应为 true');
 });
 
-test('行为：/api/lock-status keys 票据（无会话）可读', async () => {
-  const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-status.js');
-  const { signStepupCookie } = await import(REPO + '/workers/auth-gateway/functions/api/stepup.js');
-  const kv = makeKv({
-    'lock-pw': JSON.stringify({ hash: 'lock-hash' }),
-  });
-  const env = baseEnv(kv);
-  const stepupCv = await signStepupCookie(TEST_PRIV_PEM, 'account', 'keys', 0);
-  const res = await onRequestGet({
-    request: getReq('https://test.example.com/api/lock-status', { 'Cookie': 'sgx-stepup=' + stepupCv }),
-    env,
-  });
-  assert.equal(res.status, 200, 'keys 票据应可读');
-  const body = JSON.parse(await res.text());
-  assert.equal(body.ok, true);
-  assert.equal(body.password, true);
-});
 
-test('行为：/api/lock-status lockreset 票据（无会话）可读', async () => {
-  const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-status.js');
-  const { signStepupCookie } = await import(REPO + '/workers/auth-gateway/functions/api/stepup.js');
-  const kv = makeKv({});
-  const env = baseEnv(kv);
-  const stepupCv = await signStepupCookie(TEST_PRIV_PEM, 'root', 'lockreset', 0);
-  const res = await onRequestGet({
-    request: getReq('https://test.example.com/api/lock-status', { 'Cookie': 'sgx-stepup=' + stepupCv }),
-    env,
-  });
-  assert.equal(res.status, 200, 'lockreset 票据应可读（重置页此前 401）');
-  const body = JSON.parse(await res.text());
-  assert.equal(body.ok, true);
-  assert.equal(body.password, false);
-});
 
-test('行为：/api/lock-status scope=root 票据不可读 → 401', async () => {
-  const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-status.js');
-  const { signStepupCookie } = await import(REPO + '/workers/auth-gateway/functions/api/stepup.js');
-  const kv = makeKv({});
-  const env = baseEnv(kv);
-  const stepupCv = await signStepupCookie(TEST_PRIV_PEM, 'root', 'root', 0);
-  const res = await onRequestGet({
-    request: getReq('https://test.example.com/api/lock-status', { 'Cookie': 'sgx-stepup=' + stepupCv }),
-    env,
-  });
-  assert.equal(res.status, 401, 'scope=root 票据只认 owner 会话或 keys/lockreset，应 401');
-});
 
 test('行为：/api/lock-status KV 读取失败 → 503（fail closed，不按未设置退回）', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-status.js');

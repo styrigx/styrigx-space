@@ -68,7 +68,7 @@ jobs:
 
       - name: Unit tests (kernel + ui)
         # 全部 tests/workers/auth-gateway、tests/web/ui 单元测试；新加的测试文件自动纳入，不用再改这里。
-        # 覆盖：会话 / cookie / epoch、通行密钥分类、stepup、app-token、认证入口、
+        # 覆盖：会话 / cookie / epoch、锁屏门（door）、认证入口、
         # 访客 401、根凭证 userHandle、最后一把钥匙、sitemap、i18n、页内导航、数字健康等
         run: node --test tests/workers/auth-gateway/*.test.mjs tests/web/ui/*.test.mjs
 
@@ -100,12 +100,6 @@ jobs:
         run: node scripts/gen-posts-json.mjs
         env:
           BLOG_TOKEN: ${{ secrets.BLOG_READ_TOKEN || github.token }}
-
-      - name: Generate app whitelist (2.11)
-        # 从 functions/_kernel/app-registry.js 生成 data/app_whitelist.json，
-        # 供 app-verify.html 与应用管理页模板注入（前端不手抄白名单）。
-        # 失败、字段缺失 → 脚本 exit 非 0 → 构建失败
-        run: node scripts/gen-app-whitelist.mjs
 
       - name: Build site (生产构建，用于锁屏测试)
         run: hugo --minify -s web

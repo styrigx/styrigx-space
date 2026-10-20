@@ -8,13 +8,11 @@
  *   下一页「已登录」/settings/account/profile/，在那里退出账号）、
  *   「安全与隐私」一行（副标题：账号密码或通行密钥任一已设置 → 已保护）→ 子页
  *   /settings/account/security/（apps/account-security.js，每次进都要验签，3 分钟门票）。
- * - ?door=1&return=<门内页>：从「管理凭证」过来，登录成功后 POST /api/stepup enter 换门票据再进门。
  * - ?return=/settings/account/(security|profile)/：子页没有账号会话时跳来，登录后回子页。
  * - 访客：读不到状态，三个入口都显示，服务端一律拒绝（统一显示「不正确 / 验证失败」）。
  */
 import { on } from '../lib/events.js';
 import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
-import { stepupFetch } from '../lib/auth-flow.js';
 import { tapFeedback } from '../lib/dialog-behavior.js';
 import { ACCOUNT_API, ACCOUNT_RETURN_RE, createT, postJSON, profileUrl, signalAccountName } from './account-common.js';
 import { accountSubmitters, renderAccountMethods, visibleKinds } from './account-methods.js';
@@ -32,22 +30,12 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from './account
   const noticeEl = $('acct-login-notice');
   if (!loginEl || !mainEl || !methodsEl) return;
 
-  /* ---------- 门回跳参数（只接受本站安全设置下的门内路径） ---------- */
-  let doorReturn = '';
-  let fromDoor = false;
-  /* 安全与隐私子页跳来（未登录 / 登录过旧）：登录后回子页 */
+  /* 账号子页跳来（没有账号会话）：登录后回子页 */
   let acctReturn = '';
   try {
-    const q = new URLSearchParams(window.location.search);
-    fromDoor = q.get('door') === '1';
-    const ret = q.get('return') || '';
-    if (fromDoor) {
-      if (/^\/(en\/)?settings\/security\/(lock|apps|mgmt)\/[a-z0-9\-/]*$/.test(ret)) doorReturn = ret;
-    } else if (ACCOUNT_RETURN_RE.test(ret)) {
-      acctReturn = ret;
-    }
+    const ret = new URLSearchParams(window.location.search).get('return') || '';
+    if (ACCOUNT_RETURN_RE.test(ret)) acctReturn = ret;
   } catch (e) {}
-  const mgmtUrl = en ? '/en/settings/security/mgmt/' : '/settings/security/mgmt/';
 
 
   /* ================= 登录区 ================= */
@@ -55,18 +43,8 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from './account
   /** 当前渲染的验证行（showLogin 时按已设置的凭证重画） */
   let methods = null;
 
-  /** 登录成功：从门来 → 换门票据进门；否则显示账号页 */
+  /** 登录成功：子页跳来 → 回子页；否则显示账号页 */
   function afterLogin() {
-    if (fromDoor) {
-      stepupFetch('enter', { credentials: 'same-origin' })
-        .then(function (r) { return r.json(); })
-        .then(function (j) {
-          if (j && j.ok) sgxNavigate(doorReturn || mgmtUrl);
-          else showLogin(t('errVerify'), lastStatus);
-        })
-        .catch(function () { showLogin(t('errNetwork'), lastStatus); });
-      return;
-    }
     if (acctReturn) {
       sgxReplace(acctReturn);
       return;
@@ -158,10 +136,6 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from './account
           showLogin(t('configNotice'), j);
           return;
         }
-        if (j.session && j.session.recent && fromDoor) {
-          afterLogin();
-          return;
-        }
         if (acctReturn) {
           /* 安全与隐私子页跳来（没有账号会话）：已登录直接回去，否则登录后回去 */
           if (j.session) {
@@ -171,11 +145,11 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from './account
           showLogin('', j);
           return;
         }
-        if (j.session && !fromDoor) {
+        if (j.session) {
           showMain(j);
           return;
         }
-        showLogin(fromDoor ? (j.session ? t('staleNotice') : t('doorNotice')) : '', j);
+        showLogin('', j);
       })
       .catch(function () {
         lastStatus = null;

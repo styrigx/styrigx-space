@@ -4,14 +4,14 @@
  * 流程（根凭证优先）：
  * 1. 先输入根凭证，与环境变量比对（不读 KV）。错误按现有认证失败处理。
  * 2. 根凭证正确后才读恢复开关（KV `recovery-switch` + D1 计时/单次）。
- *    开关有效 → 签发 by=root, via=switch, scope=lockreset，并原子标记已用。
- * 3. 开关无效 → 继续要求账号凭证（原站长凭证），通过后签发 scope=lockreset（by=owner+root）。
+ *    开关有效 → 签发重置锁屏门票 by=root（审计 via=switch），并原子标记已用。
+ * 3. 开关无效 → 继续要求账号凭证（原站长凭证），通过后签发重置锁屏门票（by=account+root）。
  *
  * 前端不提示开关存在；两种情况响应形态一致，由服务端决定下一步。
  * 只在重置锁屏路径、且根凭证正确后读开关，其他请求一律不读。
  *
- * lockreset 票只能增删 lock 凭证、设置锁屏密码；不签 sgx-verified、不进主页面、
- * 不管 APP/会话/入口 1/入口 2。完成后推进 session-epoch，用新 lock 正常解锁。
+ * 重置锁屏门票（sgx-door，door=lockreset，SGX_LOCK_* 签，3 分钟）只能增删 lock 凭证、设置锁屏密码；
+ * 不签 sgx-verified、不进主页面、不管会话。完成后推进 session-epoch，用新 lock 正常解锁。
  *
  * owner 未配置时锁屏重置不可用（恢复开关除外）。
  *
@@ -22,20 +22,13 @@
  *     根凭证错 → 401 auth；
  *     根凭证对 + 开关有效 → lockreset（by=root, via=switch）；
  *     根凭证对 + 开关无效 + 无 ownerProof → { ok:true, needOwner:true }；
- *     根凭证对 + 开关无效 + ownerProof 有效 → lockreset（by=owner+root）
+ *     根凭证对 + 开关无效 + ownerProof 有效 → lockreset（by=account+root）
  *
  * 根凭证失败计入共用限速；审计标记 via=switch（不对前端暴露）。
  * 只接受 POST；校验 Origin。
  */
 import { timingSafeEqual, normalizeRootKey } from '../_kernel/crypto.js';
-import { getSessionEpoch } from '../_kernel/session.js';
-import {
-  signStepupCookie,
-  setStepupCookie,
-  STEPUP_BY_ROOT,
-  STEPUP_BY_OWNER_ROOT,
-  STEPUP_SCOPE_LOCKRESET,
-} from './stepup.js';
+import { issueDoorCookie, DOOR_LOCKRESET, DOOR_BY_ACCOUNT_ROOT } from '../_kernel/door.js';
 import { randB64, verifyAssertion, rpIdHashOf, consumeChallenge, findStoredKey } from '../_kernel/passkey-verify.js';
 import { getPasskeys, PK_CLASS_OWNER } from './owner-passkey.js';
 import { verifyAccountPassword, getPepper } from './owner-password.js';
@@ -44,9 +37,10 @@ import { writeRootAudit } from '../_kernel/rootlog.js';
 import { isLayerConfigured, LAYER_OWNER } from '../_kernel/layers.js';
 import { checkRecoverySwitch, claimSwitchUsed } from '../_kernel/recswitch.js';
 import { isSameOrigin } from '../_kernel/http.js';
-import { REALM_LOCK, REALM_ACCOUNT, REALM_STEPUP, REALM_ROOT, realmPrivateKey, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
+import { REALM_LOCK, REALM_ACCOUNT, REALM_ROOT, realmPrivateKey, realmPublicKey, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
 
-const CHALLENGE_PREFIX = REALM_STEPUP.kv.lockresetChallengePrefix; /* 'lockreset-challenge:' */
+/* 重置锁屏（本接口）的账号通行密钥 challenge（与 pk-challenge:、account-challenge: 隔离） */
+const CHALLENGE_PREFIX = 'lockreset-challenge:';
 const CHALLENGE_TTL = 300; /* 5 分钟 */
 
 
@@ -104,12 +98,12 @@ async function handlePost(context) {
   }
 
   const rp = rpConfig(env);
-  const stepupKey = realmPrivateKey(env, REALM_STEPUP); /* SGX_STEPUP_PRIVATE */
+  const lockKeysReady = !!(realmPrivateKey(env, REALM_LOCK) && realmPublicKey(env, REALM_LOCK)); /* SGX_LOCK_* */
   const rootKey = (env && env[REALM_ROOT.secret]) || ''; /* SGX_ROOT_KEY */
   if (!rp) return rpConfigMissing();
   const RP_ID = rp.rpId;
   const EXPECT_ORIGIN = rp.origin;
-  if (!stepupKey || !rootKey) {
+  if (!lockKeysReady || !rootKey) {
     return Response.json({ ok: false, error: 'config' }, { status: 500 });
   }
 
@@ -188,7 +182,7 @@ async function handlePost(context) {
       /* 开关路径：原子标记已用（抢不到则视为已用，走站长凭证路径） */
       const claimed = await claimSwitchUsed(db, sw.hash);
       if (claimed) {
-        return await issueLockreset(ip, STEPUP_BY_ROOT, { via: 'switch' });
+        return await issueLockreset(ip, 'root', { via: 'switch' });
       }
       /* 被并发抢走 → 按开关无效处理 */
     }
@@ -241,24 +235,15 @@ async function handlePost(context) {
       if (failResp) return failResp;
       return Response.json({ ok: false, error: 'auth' }, { status: 401 });
     }
-    return await issueLockreset(ip, STEPUP_BY_OWNER_ROOT, null);
+    return await issueLockreset(ip, DOOR_BY_ACCOUNT_ROOT, null);
 
-    /* 签发 lockreset 票（内部函数） */
+    /* 签发重置锁屏门票（sgx-door，door=lockreset，SGX_LOCK_* 签，3 分钟；内部函数） */
     async function issueLockreset(ipAddr, by, auditExtra) {
-      let epoch;
-      try {
-        epoch = await getSessionEpoch(kv);
-      } catch (e) {
-        await writeRootAudit(kv, ipAddr, false, { path: 'lockreset' });
-        return Response.json({ ok: false, error: 'server' }, { status: 503 });
-      }
       const headers = new Headers({ 'Content-Type': 'application/json' });
-      try {
-        const cv = await signStepupCookie(stepupKey, by, STEPUP_SCOPE_LOCKRESET, epoch);
-        setStepupCookie(headers, cv);
-      } catch (e) {
+      const dErr = await issueDoorCookie(env, headers, DOOR_LOCKRESET, by);
+      if (dErr) {
         await writeRootAudit(kv, ipAddr, false, { path: 'lockreset' });
-        return Response.json({ ok: false, error: 'sign-failed' }, { status: 500 });
+        return Response.json(dErr.body, { status: dErr.status });
       }
       const auditOk = await writeRootAudit(
         kv, ipAddr, true,

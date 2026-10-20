@@ -1,8 +1,9 @@
 /**
- * v1.1 C5：门内页返回目标 E2E（静态构建 + API mock，无需真实后端）。
+ * 锁屏凭证页（门内）行为 E2E（静态构建 + API mock，无需真实后端）。
  *
- * 2026-10-20：顶栏 ‹ 返回已删除，C1/C2 的「按钮返回上一级」用例随之删除；
- * 留下 C2b：系统返回从锁屏子页回到索引页不清票。
+ * 门在锁屏凭证页本身：进页 POST /api/lock-door status，valid → 门内；这里的用例默认门票有效，
+ * 测门内组件（密码弹层、删除、到期框、倒计时胶囊、最后一把钥匙）。门口本身见 door-verify.spec.js。
+ * （管理凭证索引页、stepup 已删除，原 C2b「索引页 ↔ 锁屏子页」用例随之删除。）
  *
  * 运行：npx playwright test --config=playwright.config.js door-return.spec.js
  */
@@ -20,63 +21,15 @@ async function mockJson(page, pattern, status, body) {
   });
 }
 
-test.describe('v1.1 C2b：popstate 清票不误清', () => {
-  test.beforeEach(async ({ page }) => {
-    await blockExternalRequests(page);
-    await page.addInitScript(() => {
-      try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
-    });
-    await mockJson(page, '**/api/lock-status', 200, { ok: true, password: true, passkey: true });
-    await mockJson(page, '**/api/owner-passkey', 200, { ok: true, keys: [], scope: 'root' });
-  });
-
-  /* 注意：不直接派发合成 popstate 事件——inpagenav 的 popstate 处理器会同时触发，
-     导致页面导航，干扰测试。改用真实导航（按钮返回）验证不误清；
-     目标判定逻辑（门内不清理、门外清）由代码审查 + 手动实测覆盖。 */
-  test('C2b：索引页 → 锁屏子页 → 系统返回 → 回索引页，不清票', async ({ page }) => {
-    let clearCount = 0;
-    await page.route('**/api/stepup', async (route) => {
-      let body = {};
-      try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
-      if (body.action === 'clear') clearCount++;
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ ok: true, valid: true }),
-      });
-    });
-
-    await page.goto('/settings/security/mgmt/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#mgmt-lock-sub')).toBeVisible({ timeout: 15000 });
-    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
-    const clearBefore = clearCount;
-
-    /* 系统返回 → 回索引页（整页跳转，门内页非 SPA） */
-    await page.goBack();
-    await expect(page).toHaveURL(/\/settings\/security\/mgmt\/$/, { timeout: 10000 });
-    await expect(page.locator('#mgmt-lock-sub')).toBeVisible({ timeout: 15000 });
-
-    assertClearNotCalled(clearCount, clearBefore, '从锁屏系统返回索引页不应清票');
-  });
-});
-
-/** popstate 误清断言：clear 调用次数不应增加 */
-function assertClearNotCalled(after, before, msg) {
-  if (after > before) {
-    throw new Error(msg + '（before=' + before + ', after=' + after + '）');
-  }
-}
-
 test.describe('bindSubmitButton 去重修复：锁屏页设置密码弹层', () => {
   test.beforeEach(async ({ page }) => {
     await blockExternalRequests(page);
     await page.addInitScript(() => {
       try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
     });
-    /* 门内页探针通过：状态接口 + stepup status */
+    /* 门内页探针通过：门票状态（/api/lock-door） */
     await mockJson(page, '**/api/lock-status', 200, { ok: true, password: true, passkey: true });
-    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true });
+    await mockJson(page, '**/api/lock-door', 200, { ok: true, valid: true });
     await mockJson(page, '**/api/owner-passkey', 200, { ok: true, keys: [], scope: 'root' });
   });
 
@@ -119,7 +72,7 @@ test.describe('批次 A 验收修复 P1：删除密码按钮', () => {
     await page.addInitScript(() => {
       try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
     });
-    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true });
+    await mockJson(page, '**/api/lock-door', 200, { ok: true, valid: true });
     await mockJson(page, '**/api/owner-passkey', 200, { ok: true, keys: [], scope: 'root' });
   });
 
@@ -171,7 +124,7 @@ test.describe('批次 A 验收修复 P1：双向相同密码错误文案', () =>
     await page.addInitScript(() => {
       try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
     });
-    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true });
+    await mockJson(page, '**/api/lock-door', 200, { ok: true, valid: true });
     await mockJson(page, '**/api/owner-passkey', 200, { ok: true, keys: [], scope: 'root' });
   });
 
@@ -199,7 +152,7 @@ test.describe('批次 A 验收修复 P1：双向相同密码错误文案', () =>
   });
 });
 
-test.describe('批次 A 验收修复 #7：锁屏页探针失败走 needVerify（lockgate 死代码已删）', () => {
+test.describe('锁屏凭证页进门探针（/api/lock-door status）失败', () => {
   let pageErrors;
   test.beforeEach(async ({ page }) => {
     pageErrors = [];
@@ -208,12 +161,12 @@ test.describe('批次 A 验收修复 #7：锁屏页探针失败走 needVerify（
     await page.addInitScript(() => {
       try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
     });
-    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true });
+    await mockJson(page, '**/api/lock-door', 200, { ok: true, valid: true });
     await mockJson(page, '**/api/owner-passkey', 200, { ok: true, keys: [], scope: 'root' });
   });
 
   test('探针 session 失败 → 无 JS 错误，弹会话失效框，不点不跳；点「去锁屏」才重载', async ({ page }) => {
-    await mockJson(page, '**/api/lock-status', 401, { ok: false, error: 'session' });
+    await mockJson(page, '**/api/lock-door', 401, { ok: false, error: 'session' });
     await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
     /* A-1：不再 toast + 自动跳，改弹 One UI 单按钮框 */
     const dlg = page.locator('dialog.sgx-center-dlg');
@@ -231,34 +184,8 @@ test.describe('批次 A 验收修复 #7：锁屏页探针失败走 needVerify（
     expect(pageErrors).toEqual([]);
   });
 
-  test('探针 scope + owner-configured → 弹验证过期框，点「重新验证」才跳', async ({ page }) => {
-    await mockJson(page, '**/api/lock-status', 403, { ok: false, error: 'scope', reason: 'owner-configured' });
-    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
-    const dlg = page.locator('dialog.sgx-center-dlg');
-    await expect(dlg).toBeVisible({ timeout: 5000 });
-    await expect(dlg).toContainText('账号凭证已设置，请先登录账号再进入');
-    await expect(dlg.locator('button.sgx-verify-skip')).toHaveText('重新验证');
-    /* 不点不跳 */
-    await expect(page).toHaveURL(/\/settings\/security\/lock\//);
-    /* 账号体系：「重新验证」→ 安全页 ?verify=mgmt&return=<门内页> → 自动 POST /api/stepup enter。
-       原断言停在 /settings/security/ 只是 replaceState 和自动进门之间的瞬间状态（CI 上抓不到，竞态）；
-       这里让 enter 返回 account-stale，确定性地断言最终落到账号登录页并带回原门内页。 */
-    await page.route('**/api/stepup', async (route) => {
-      let body = {};
-      try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
-      if (body.action === 'enter') {
-        await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'account-stale' }) });
-        return;
-      }
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, valid: true }) });
-    });
-    await dlg.locator('button.sgx-verify-skip').click();
-    await expect(page).toHaveURL(/\/settings\/account\/\?door=1&return=%2Fsettings%2Fsecurity%2Flock%2F$/, { timeout: 10000 });
-    expect(pageErrors).toEqual([]);
-  });
-
   test('探针网络失败 → 无 JS 错误，toast 网络提示，不自动跳，不弹过期框', async ({ page }) => {
-    await page.route('**/api/lock-status', (route) => route.abort('failed'));
+    await page.route('**/api/lock-door', (route) => route.abort('failed'));
     await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
     /* A 现有提示：gateNetErr「网络错误」，不报会话过期 */
     await expect(page.locator('.sgx-toast')).toContainText('网络错误', { timeout: 5000 });
@@ -289,6 +216,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
     await mockJson(page, '**/api/owner-passkey', 200, { ok: true, keys: [], scope: 'keys' });
     /* 账号体系：原站长凭证门已升级为账号页，门内页用锁屏页（同一套门内组件 app-gate.js）测 */
     await mockJson(page, '**/api/lock-status', 200, { ok: true, password: true, passkey: true });
+    await mockJson(page, '**/api/lock-door', 200, { ok: true, valid: true, door: 'lock', expiresAt: Date.now() + 175000, password: true, passkey: true });
   });
 
   /** 相对亮度（WCAG） */
@@ -303,7 +231,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
   }
 
   test('进门后胶囊在正文最前面（顶栏下方）、左对齐，文案「验证剩余 2:5x」；顶栏内无倒计时', async ({ page }) => {
-    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
+    await mockJson(page, '**/api/lock-door', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
     await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
     const capsule = page.locator('#sgx-door-countdown');
     await expect(capsule).toBeVisible({ timeout: 15000 });
@@ -323,7 +251,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
   });
 
   test('胶囊字号不小于正文；浅色对比度 ≥ 4.5:1', async ({ page }) => {
-    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
+    await mockJson(page, '**/api/lock-door', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
     await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
     const capsule = page.locator('#sgx-door-countdown');
     await expect(capsule).toBeVisible({ timeout: 15000 });
@@ -344,7 +272,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
     await page.addInitScript(() => {
       try { localStorage.setItem('sgx-theme-mode', 'dark'); } catch (e) {}
     });
-    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
+    await mockJson(page, '**/api/lock-door', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
     await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
     const capsule = page.locator('#sgx-door-countdown');
     await expect(capsule).toBeVisible({ timeout: 15000 });
@@ -361,7 +289,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
 
   test('剩余 ≤ 30 秒只变警示色、不改文案；到 0 停在「已过期」，URL 不变，不弹框', async ({ page }) => {
     /* 先给 25 秒：应为警示色，文案仍是「验证剩余 0:2x」 */
-    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true, expiresAt: Date.now() + 25000 });
+    await mockJson(page, '**/api/lock-door', 200, { ok: true, valid: true, expiresAt: Date.now() + 25000 });
     await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
     const capsule = page.locator('#sgx-door-countdown');
     await expect(capsule).toBeVisible({ timeout: 15000 });
@@ -376,17 +304,18 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
   });
 
   test('v1.1 §二.1 补充：胶囊出现时卡片已不透明、帮助文字不与卡片重叠', async ({ page }) => {
-    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
+    await mockJson(page, '**/api/lock-door', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
     await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
     const capsule = page.locator('#sgx-door-countdown');
     await expect(capsule).toBeVisible({ timeout: 15000 });
     /* 胶囊出现时，卡片入场动画已结束（不透明度=1），不是半透明淡入中 */
-    const opacities = await page.locator('.animate-fade-up').evaluateAll((els) =>
-      els.map((el) => parseFloat(getComputedStyle(el).opacity))
+    /* 只看门内可见的卡片（门口的验证行在门内时是 hidden，不参与入场动画） */
+    const opacities = await page.locator('#lockmgr .animate-fade-up').evaluateAll((els) =>
+      els.filter((el) => el.offsetParent !== null).map((el) => parseFloat(getComputedStyle(el).opacity))
     );
     expect(opacities.length).toBeGreaterThan(0);
     opacities.forEach((o) => expect(o).toBe(1));
-    /* 帮助文字（sec-note，含「用于进入管理凭证」与「构建 dev」）不与卡片（widget）重叠 */
+    /* 帮助文字（sec-note，含门内说明与「构建 dev」）不与卡片（widget）重叠 */
     const overlap = await page.evaluate(() => {
       const notes = Array.from(document.querySelectorAll('p.sec-note'));
       const cards = Array.from(document.querySelectorAll('section.widget'));
@@ -403,13 +332,27 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
     expect(pageErrors).toEqual([]);
   });
 
-  test('门内 403 stepup-required → 弹框，不点不跳；点按钮才重新验证（账号登录过旧→账号登录页）；无 challenge 请求', async ({ page }) => {
-    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
+  test('门内 403 door → 弹框，不点不跳；点「重新验证」清票回到本页门口；无 challenge 请求', async ({ page }) => {
+    let clears = 0;
+    let valid = true;
+    await page.route('**/api/lock-door', async (route) => {
+      let body = {};
+      try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
+      if (body.action === 'clear') {
+        clears++;
+        valid = false;
+        await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+        return;
+      }
+      const j = { ok: true, valid: valid, password: true, passkey: true };
+      if (valid) j.expiresAt = Date.now() + 175000;
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(j) });
+    });
     await page.route('**/api/owner-password', async (route) => {
       await route.fulfill({
         status: 403,
         contentType: 'application/json',
-        body: JSON.stringify({ ok: false, error: 'stepup-required', reason: 'expired' }),
+        body: JSON.stringify({ ok: false, error: 'door', reason: 'expired' }),
       });
     });
     await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
@@ -425,26 +368,19 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
     await expect(page.locator('#sgx-door-countdown')).toHaveCount(0);
     /* 不点不跳 */
     await expect(page).toHaveURL(/\/settings\/security\/lock\//);
-    /* 票据失效后无 doStepup / challenge 请求 */
+    /* 门票失效后不发起任何 WebAuthn challenge */
     expect(challengeCalls).toBe(0);
-    /* 账号体系：「重新验证」→ 安全页 ?verify=mgmt&return=<门内页> → 自动 POST /api/stepup enter；
-       账号登录已过 10 分钟（account-stale）→ 去账号登录页并带回原门内页（不再停在安全页弹验证框） */
-    await page.route('**/api/stepup', async (route) => {
-      let body = {};
-      try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
-      if (body.action === 'enter') {
-        await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'account-stale' }) });
-        return;
-      }
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, valid: true, expiresAt: Date.now() + 175000 }) });
-    });
+    /* 「重新验证」→ 清票 → 回到本页，门口出现（锁屏通行密钥 / 解锁密码 / 根凭证） */
     await dlg.locator('button.sgx-verify-skip').click();
-    await expect(page).toHaveURL(/\/settings\/account\/\?door=1&return=%2Fsettings%2Fsecurity%2Flock%2F$/, { timeout: 10000 });
+    await expect(page.locator('#lock-door')).toBeVisible({ timeout: 10000 });
+    await expect(page).toHaveURL(/\/settings\/security\/lock\/$/);
+    await expect(page.locator('#lock-door-methods .sgx-door-row')).toHaveCount(3);
+    expect(clears).toBeGreaterThan(0);
     expect(pageErrors).toEqual([]);
   });
 
   test('门内 401 session → 弹会话失效框，不点不跳；点「去锁屏」重载后倒计时重启', async ({ page }) => {
-    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
+    await mockJson(page, '**/api/lock-door', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
     await page.route('**/api/owner-password', async (route) => {
       await route.fulfill({
         status: 401,
@@ -473,13 +409,13 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
 
   test('两个请求同时失败 → 只有一个弹框；遮罩、Escape 关不掉；弹框后倒计时胶囊隐藏', async ({ page }) => {
     await mockJson(page, '**/api/lock-status', 200, { ok: true, password: true, passkey: false });
-    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
+    await mockJson(page, '**/api/lock-door', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
     /* 锁屏页：本页类 + 应用类列表同时 403 */
     await page.route('**/api/owner-passkey', async (route) => {
       await route.fulfill({
         status: 403,
         contentType: 'application/json',
-        body: JSON.stringify({ ok: false, error: 'stepup-required', reason: 'expired' }),
+        body: JSON.stringify({ ok: false, error: 'door', reason: 'expired' }),
       });
     });
     await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
@@ -499,7 +435,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
   });
 
   test('v1.1 §二.5：会话失效弹框打开时焦点在按钮上、无外框；键盘 Tab 后 :focus-visible 显示外框', async ({ page }) => {
-    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
+    await mockJson(page, '**/api/lock-door', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
     await page.route('**/api/owner-password', async (route) => {
       await route.fulfill({
         status: 401,
@@ -529,12 +465,12 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
   });
 
   test('v1.1 §二.5：到期弹框打开时焦点在按钮上、无外框', async ({ page }) => {
-    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
+    await mockJson(page, '**/api/lock-door', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
     await page.route('**/api/owner-password', async (route) => {
       await route.fulfill({
         status: 403,
         contentType: 'application/json',
-        body: JSON.stringify({ ok: false, error: 'stepup-required', reason: 'expired' }),
+        body: JSON.stringify({ ok: false, error: 'door', reason: 'expired' }),
       });
     });
     await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
@@ -551,13 +487,11 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
   });
 
   test('v1.1 §二.1：胶囊在首次数据加载完成后再显示（状态接口延迟时胶囊不先出现）', async ({ page }) => {
-    /* 探针通过（stepup 有效），门才能开 */
-    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
-    /* 第 1 次 lock-status（探针）立即返回；之后（refreshStatus）延迟 1500ms，模拟慢网络 */
-    let lockStatusCount = 0;
+    /* 探针通过（门票有效），门才能开 */
+    await mockJson(page, '**/api/lock-door', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
+    /* 探针是 /api/lock-door；lock-status 只有门内 refreshStatus 读，延迟 1500ms 模拟慢网络 */
     await page.route('**/api/lock-status', async (route) => {
-      lockStatusCount += 1;
-      if (lockStatusCount > 1) await new Promise((r) => setTimeout(r, 1500));
+      await new Promise((r) => setTimeout(r, 1500));
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -573,15 +507,6 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
     expect(pageErrors).toEqual([]);
   });
 
-  test('管理凭证索引页探针成功后也显示倒计时', async ({ page }) => {
-    await mockJson(page, '**/api/lock-status', 200, { ok: true, password: true, passkey: true });
-    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
-    await page.goto('/settings/security/mgmt/', { waitUntil: 'domcontentloaded' });
-    const capsule = page.locator('#sgx-door-countdown');
-    await expect(capsule).toBeVisible({ timeout: 15000 });
-    await expect(capsule).toHaveText(/验证剩余 2:5\d/);
-    expect(pageErrors).toEqual([]);
-  });
 });
 
 test.describe('A-2 最后一把锁屏钥匙与 accountkey 联动', () => {
@@ -590,7 +515,7 @@ test.describe('A-2 最后一把锁屏钥匙与 accountkey 联动', () => {
     await page.addInitScript(() => {
       try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
     });
-    await mockJson(page, '**/api/stepup', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
+    await mockJson(page, '**/api/lock-door', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
   });
 
   async function gotoLockPage(page, { lockPw, lockKeys, deleteStatus = 200, deleteBody = { ok: true } }) {

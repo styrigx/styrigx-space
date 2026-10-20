@@ -132,22 +132,22 @@ test.describe('account login row feedback (批次 A 验收修复 P2)', () => {
 });
 
 test.describe('security status card wording (批次 A 验收修复 #8)', () => {
-  test('missing account password shows 账号密码 wording, not 解锁密码', async ({ page: pg }) => {
+  test('missing unlock password shows 解锁密码 wording (PR2 锁屏凭证门)', async ({ page: pg }) => {
     await pinLang(pg, 'zh');
     await blockExternalRequests(pg);
-    /* 卡片数据源是 GET /api/account（账号凭证）：密码缺失 → 账号密码文案 */
-    await mockJson(pg, '**/api/account', 200, { ok: true, password: false, passkey: true, ready: true, session: null });
+    /* PR2：安全页卡片数据源是 GET /api/lock-status（锁屏凭证）；账号凭证在账号页 */
+    await mockJson(pg, '**/api/lock-status', 200, { ok: true, password: false, passkey: true });
     await pg.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
     await expect(pg.locator('#sec-status-title')).toContainText('建议操作', { timeout: 15000 });
-    await expect(pg.locator('#sec-status-sub')).toHaveText('未设置账号密码');
+    await expect(pg.locator('#sec-status-sub')).toHaveText('未设置解锁密码');
   });
 
-  test('missing passkey copy names account passkeys（未注册账号通行密钥）', async ({ page: pg }) => {
+  test('missing passkey copy names lock passkeys（未注册锁屏通行密钥）', async ({ page: pg }) => {
     await pinLang(pg, 'zh');
     await blockExternalRequests(pg);
-    await mockJson(pg, '**/api/account', 200, { ok: true, password: true, passkey: false, ready: true, session: null });
+    await mockJson(pg, '**/api/lock-status', 200, { ok: true, password: true, passkey: false });
     await pg.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
     await expect(pg.locator('#sec-status-title')).toContainText('建议操作', { timeout: 15000 });
-    await expect(pg.locator('#sec-status-sub')).toHaveText('未注册账号通行密钥');
+    await expect(pg.locator('#sec-status-sub')).toHaveText('未注册锁屏通行密钥');
   });
 });

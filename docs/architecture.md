@@ -32,7 +32,9 @@ space（styrigx.com）相当于 One UI，blog/book 等分站相当于其中的 A
 ### L2 系统调用：`functions/api/*`
 - 解锁：`owner-password`、`owner-passkey`、`verify`（Turnstile）。
 - 查询：`session-check`、`lock-status`、`account`（账号凭证状态 + 当前账号会话；原 `owner-status` 已删除）。
-- 账号：`account`（账号密码/账号通行密钥登录与管理）、`root-auth`（`target:'account'` 时作为账号登录第三入口）、`stepup`（`enter`：近期账号登录换管理门票据）。
+- 账号：`account`（账号密码/账号通行密钥登录与管理；账号 → 安全与隐私的门票 `door=account`）、`root-auth`（`target:'account'` 时作为账号登录第三入口）。
+- 锁屏凭证的门：`lock-door`（门票状态 / 清票）；进门由 `owner-passkey`/`owner-password`（`door:true`）或 `root-auth` 签 3 分钟门票 `sgx-door`（`door=lock`，SGX_LOCK_* 签）。
+- 签名钥匙只剩两套：账号 `SGX_ACCOUNT_*`、锁屏 `SGX_LOCK_*`（stepup、应用凭证已删除）。
 - 锁定：`lock`（清除 `Domain=.styrigx.com` 的 `sgx-verified`，blog/book 一起上锁）。
 - 前端改变会话只能通过这些接口。
 

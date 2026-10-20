@@ -8,16 +8,16 @@
  * 钥匙命名规范 v1.0：SGX_<PURPOSE>_PRIVATE / SGX_<PURPOSE>_PUBLIC（见 key-names.js、
  * src/secrets.js 的 SECRET_NAMES、wrangler.toml 的 secrets_store_secrets）。
  *
- * 现有凭证域：
- * - lock   会话（sgx-verified）：锁屏解锁后签发的站长/访客会话，SGX_LOCK_* 签名
- * - stepup 二次验证票据（sgx-stepup）：进「门」后的短时票据，SGX_STEPUP_* 签名
- * - app    应用通行证（sgx-app）：给子站（如 book）的短时通行证，SGX_APP_* 签名
+ * 现有凭证域（签名钥匙只剩两套：SGX_LOCK_*、SGX_ACCOUNT_*）：
+ * - lock   会话（sgx-verified）：锁屏解锁后签发的站长/访客会话，SGX_LOCK_* 签名；
+ *          锁屏凭证的门票、重置锁屏门票（sgx-door，door=lock / lockreset）也用这把钥匙签（_kernel/door.js）
  * - account 账号会话（sgx-account）：账号登录（账号通行密钥 / 账号密码 / 根凭证三选一）
  *          成功后签发，SGX_ACCOUNT_* 签名；账号凭证（accountkey：账号密码 owner-pw +
- *          class=owner 通行密钥，原「站长凭证」升级而来，存储不迁移）只在账号页管理。
- *          进「门」：近期（≤10 分钟）账号登录 → stepup(by=account, scope=keys)
+ *          class=owner 通行密钥，原「站长凭证」升级而来，存储不迁移）只在账号页管理；
+ *          账号 → 安全与隐私的门票（sgx-door，door=account）也用这把钥匙签
  * - root   根凭证（rootkey：SGX_ROOT_KEY）：本身不签票，验过后签发
- *          stepup(by=root, scope=root)、lock 会话(by=root) 或 account 会话(by=root)
+ *          锁屏门票(by=root)、account 会话(by=root) 或账号门票(by=root)
+ * （原二次验证票据、应用通行证两套钥匙已删除。）
  *
  * 本文件是叶子模块：只 import key-names.js（同为叶子），不 import 任何接口或 session.js，
  * 避免循环依赖。Pages 上没有 functions/（全部后端只在鉴权网关 Worker 里打包），只有一份构建。
@@ -28,7 +28,6 @@ import {
   KEY_LOCK,
   STORE_CLASS_OWNERKEY,
   STORE_CLASS_LOCKKEY,
-  STORE_CLASS_APPKEY,
   OWNER_PASSKEY_PREFIX,
 } from './key-names.js';
 
@@ -37,7 +36,7 @@ const COOKIE_SCOPE = 'Domain=.styrigx.com; Path=/; HttpOnly; Secure';
 /* 清除 cookie 时追加的过期时间 */
 export const COOKIE_EXPIRED = 'Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT';
 
-/* session-epoch：lock 会话、stepup 票据、app 通行证共用的吊销纪元 */
+/* session-epoch：lock 会话与锁屏门票共用的吊销纪元 */
 export const SESSION_EPOCH_KEY = 'session-epoch';
 
 /** 会话（锁屏解锁） */
@@ -53,39 +52,7 @@ export const REALM_LOCK = Object.freeze({
   storeClass: STORE_CLASS_LOCKKEY,
   kv: Object.freeze({
     password: 'lock-pw',
-    passkeyChallengePrefix: 'pk-challenge:', /* 锁屏/应用通行密钥注册与登录 challenge（owner-passkey 接口） */
-    epoch: SESSION_EPOCH_KEY,
-  }),
-});
-
-/** 二次验证票据（进门） */
-export const REALM_STEPUP = Object.freeze({
-  id: 'stepup',
-  privateKey: 'SGX_STEPUP_PRIVATE',
-  publicKey: 'SGX_STEPUP_PUBLIC',
-  cookie: 'sgx-stepup',
-  cookieAttrs: COOKIE_SCOPE + '; SameSite=Strict',
-  maxAge: 180, /* A-1：3 分钟（v1.5 #11） */
-  scopes: Object.freeze(['root', 'keys', 'lockreset']),
-  kv: Object.freeze({
-    challengePrefix: 'stepup-challenge:', /* 与登录的 pk-challenge: 隔离 */
-    challengeTtl: 300, /* 5 分钟 */
-    lockresetChallengePrefix: 'lockreset-challenge:', /* 重置锁屏（/api/lockreset）的站长通行密钥 challenge */
-    epoch: SESSION_EPOCH_KEY,
-  }),
-});
-
-/** 应用通行证（子站） */
-export const REALM_APP = Object.freeze({
-  id: 'app',
-  privateKey: 'SGX_APP_PRIVATE',
-  publicKey: 'SGX_APP_PUBLIC',
-  cookie: 'sgx-app',
-  cookieAttrs: COOKIE_SCOPE + '; SameSite=Lax',
-  maxAge: 600, /* 10 分钟 */
-  storeClass: STORE_CLASS_APPKEY,
-  kv: Object.freeze({
-    epochPrefix: 'app-epoch:',
+    passkeyChallengePrefix: 'pk-challenge:', /* 锁屏通行密钥注册与登录 challenge（owner-passkey 接口） */
     epoch: SESSION_EPOCH_KEY,
   }),
 });
@@ -117,33 +84,29 @@ export const REALM_ACCOUNT = Object.freeze({
   /* 400 天（浏览器 Max-Age 上限）：像手机上的账号，不点退出就一直登录；
      进账号页仍要先解锁锁屏（owner lock 会话是前置条件） */
   maxAge: 34560000,
-  /* 10 分钟：「管理凭证」进门（/api/stepup enter）要求的近期登录窗口（秒）；下个 PR 换成锁屏/应用各自的门后删除 */
-  recent: 600,
   pepper: 'SGX_PW_PEPPER',
   storeClass: STORE_CLASS_OWNERKEY,
   bys: Object.freeze(['passkey', 'password', 'root']),
   kv: Object.freeze({
     password: 'owner-pw', /* 沿用原站长密码键（迁移：不搬数据） */
     passkeyPrefix: OWNER_PASSKEY_PREFIX, /* 'owner-passkey:'，class='owner' */
-    challengePrefix: 'account-challenge:', /* 账号登录/注册 challenge（与 pk-/stepup- 隔离） */
+    challengePrefix: 'account-challenge:', /* 账号登录/注册 challenge（与 pk- 隔离） */
     challengeTtl: 300, /* 5 分钟 */
     epoch: 'account-epoch',
   }),
 });
 
-/** 根凭证（rootkey）：验过后签发 stepup(by=root, scope=root) 或 lock 会话(by=root) */
+/** 根凭证（rootkey）：验过后签发门票（锁屏 / 账号，by=root）或 account 会话(by=root) */
 export const REALM_ROOT = Object.freeze({
   id: 'root',
   keyName: KEY_ROOT,
   secret: 'SGX_ROOT_KEY',
-  issues: 'stepup',
+  issues: 'door',
 });
 
 /** 全部凭证域（按 id 索引，供测试与通用代码遍历） */
 export const REALMS = Object.freeze({
   lock: REALM_LOCK,
-  stepup: REALM_STEPUP,
-  app: REALM_APP,
   account: REALM_ACCOUNT,
   root: REALM_ROOT,
 });

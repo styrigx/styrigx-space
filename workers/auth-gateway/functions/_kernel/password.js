@@ -45,7 +45,7 @@ export function getPepper(env) {
 }
 
 /**
- * 校验一把密码（2.11 定稿抽出，供 /api/stepup verify-password 和 /api/lockreset 复用）。
+ * 校验一把密码（2.11 定稿抽出，供解锁、账号登录和 /api/lockreset 复用）。
  * - stored 为空 → { ok:false, set:false }
  * - peppered 记录：带 pepper 校验
  * - 旧记录（无 peppered 标记）：按无 pepper 校验，成功则 needsRehash=true

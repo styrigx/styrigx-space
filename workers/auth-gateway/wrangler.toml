@@ -68,10 +68,6 @@ pattern = "styrigx.com/search/*"
 zone_name = "styrigx.com"
 
 [[routes]]
-pattern = "styrigx.com/app-verify/*"
-zone_name = "styrigx.com"
-
-[[routes]]
 pattern = "styrigx.com/zh/*"
 zone_name = "styrigx.com"
 
@@ -224,22 +220,12 @@ database_name = "styrigx-books"
 database_id = "569d8caf-e315-471b-a080-4b9f055de5fa"
 
 # ---- 密钥：Secrets Store ----
-# 7 个私密值 + 4 把公钥全放 Secrets Store：换钥只在 Cloudflare 后台改，不用改代码、不用重新部署（最多 60 秒生效）。
+# 5 个私密值 + 2 把公钥全放 Secrets Store（签名钥匙只剩账号 SGX_ACCOUNT_*、锁屏 SGX_LOCK_* 两套）：换钥只在 Cloudflare 后台改，不用改代码、不用重新部署（最多 60 秒生效）。
 # store_id 是存储的编号，不是密值。
 [[secrets_store_secrets]]
 binding = "SGX_LOCK_PRIVATE"
 store_id = "a5a984f365424401bad5ad6ddcd44479"
 secret_name = "SGX_LOCK_PRIVATE"
-
-[[secrets_store_secrets]]
-binding = "SGX_STEPUP_PRIVATE"
-store_id = "a5a984f365424401bad5ad6ddcd44479"
-secret_name = "SGX_STEPUP_PRIVATE"
-
-[[secrets_store_secrets]]
-binding = "SGX_APP_PRIVATE"
-store_id = "a5a984f365424401bad5ad6ddcd44479"
-secret_name = "SGX_APP_PRIVATE"
 
 [[secrets_store_secrets]]
 binding = "SGX_ACCOUNT_PRIVATE"
@@ -265,16 +251,6 @@ secret_name = "TURNSTILE_SECRET"
 binding = "SGX_LOCK_PUBLIC"
 store_id = "a5a984f365424401bad5ad6ddcd44479"
 secret_name = "SGX_LOCK_PUBLIC"
-
-[[secrets_store_secrets]]
-binding = "SGX_STEPUP_PUBLIC"
-store_id = "a5a984f365424401bad5ad6ddcd44479"
-secret_name = "SGX_STEPUP_PUBLIC"
-
-[[secrets_store_secrets]]
-binding = "SGX_APP_PUBLIC"
-store_id = "a5a984f365424401bad5ad6ddcd44479"
-secret_name = "SGX_APP_PUBLIC"
 
 [[secrets_store_secrets]]
 binding = "SGX_ACCOUNT_PUBLIC"

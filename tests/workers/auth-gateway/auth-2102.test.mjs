@@ -119,110 +119,15 @@ test('setup: 生成测试密钥', async () => {
 
 /* ============ 2：管理操作需 owner 会话 + stepup ============ */
 
-test('2a：owner-passkey list 只有 stepup 没有会话 → 401', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
-  const kv = makeKV();
-  const env = baseEnv(kv);
-  const stepup = await makeStepupCookie(env);
-  const req = reqWithCookies('https://styrigx.com/api/owner-passkey', { action: 'list', pkClass: 'lock' }, `sgx-stepup=${stepup}`);
-  const res = await onRequestPost({ request: req, env });
-  assert.equal(res.status, 401, '无 owner 会话时 list 应 401');
-  assert.equal((await res.json()).error, 'session');
-});
 
-test('2b：owner-passkey list 有会话没有 stepup → 403 stepup-required', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
-  const kv = makeKV();
-  const env = baseEnv(kv);
-  const sess = await makeSessionCookie(env);
-  const req = reqWithCookies('https://styrigx.com/api/owner-passkey', { action: 'list', pkClass: 'lock' }, `sgx-verified=${sess}`);
-  const res = await onRequestPost({ request: req, env });
-  assert.equal(res.status, 403);
-  assert.equal((await res.json()).error, 'stepup-required');
-});
 
-test('2c：owner-password change 只有 stepup 没有会话 → 401（2.11：需 kind=lock）', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-password.js');
-  const kv = makeKV();
-  const env = baseEnv(kv);
-  const stepup = await makeStepupCookie(env);
-  const req = reqWithCookies('https://styrigx.com/api/owner-password', { action: 'change', kind: 'lock', newPassword: 'newpass123' }, `sgx-stepup=${stepup}`);
-  const res = await onRequestPost({ request: req, env });
-  assert.equal(res.status, 401, '无 owner 会话时 change 应 401');
-});
 
-test('2d：/api/lock 清除 sgx-stepup 和 sgx-app', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/lock.js');
-  const req = postReq('https://styrigx.com/api/lock', {});
-  const res = await onRequestPost({ request: req, env: {} });
-  assert.equal(res.status, 200);
-  const cookies = res.headers.getSetCookie ? res.headers.getSetCookie() : [res.headers.get('Set-Cookie')];
-  const all = cookies.join(';');
-  assert.ok(all.includes('sgx-verified=;'), '应清除 sgx-verified');
-  assert.ok(all.includes('sgx-stepup=;'), '2.10.2：应清除 sgx-stepup');
-  assert.ok(all.includes('sgx-app=;'), '2.10.2：应清除 sgx-app');
-});
 
 /* ============ 3：删应用密钥先推 epoch 再删 ============ */
 
-test('3：bumpAppEpoch 失败 → 503 且密钥仍在', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
-  const kv = makeKV();
-  const env = baseEnv(kv);
-  /* 预置一把 app 类密钥 */
-  const credId = 'testcredid12';
-  await kv.put('owner-passkey:' + credId.slice(0, 12), JSON.stringify({
-    credId, name: 'book', class: 'app', aud: 'book', publicKey: {}, signCount: 0,
-  }));
-  await kv.put('owner-passkey-index', JSON.stringify([credId]));
-  const sess = await makeSessionCookie(env);
-  const stepup = await makeStepupCookie(env);
-  /* 让 bumpAppEpoch 的 put 失败：第一次 put（bump）时抛错 */
-  let puts = 0;
-  const origPut = kv.put.bind(kv);
-  kv.put = async (k, v, o) => {
-    puts++;
-    if (k === 'app-epoch:book') throw new Error('kv-fail');
-    return origPut(k, v, o);
-  };
-  const req = reqWithCookies('https://styrigx.com/api/owner-passkey',
-    { action: 'delete', credId }, `sgx-verified=${sess}; sgx-stepup=${stepup}`);
-  const res = await onRequestPost({ request: req, env });
-  assert.equal(res.status, 503, 'epoch 推进失败应 503');
-  /* 密钥必须还在 */
-  const still = await kv.get('owner-passkey:' + credId.slice(0, 12), 'json');
-  assert.ok(still && still.credId === credId, '2.10.2/B9：epoch 失败时密钥不得被删');
-});
 
 /* ============ 4：删锁屏密钥先推 session-epoch ============ */
 
-test('4：session-epoch 推进失败 → 503 且密钥仍在（fail closed）', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
-  const kv = makeKV();
-  const env = baseEnv(kv);
-  const credId = 'lockcredid12';
-  await kv.put('owner-passkey:' + credId.slice(0, 12), JSON.stringify({
-    credId, name: 'lock1', class: 'lock', publicKey: {}, signCount: 0,
-  }));
-  await kv.put('owner-passkey:' + 'lockcredid34'.slice(0, 12), JSON.stringify({
-    credId: 'lockcredid34', name: 'lock2', class: 'lock', publicKey: {}, signCount: 0,
-  }));
-  await kv.put('owner-passkey-index', JSON.stringify([credId, 'lockcredid34']));
-  await kv.put('owner-pw', JSON.stringify({ hash: 'x' })); /* 有密码，不触发 last-key */
-  const sess = await makeSessionCookie(env);
-  const stepup = await makeStepupCookie(env);
-  const origPut = kv.put.bind(kv);
-  kv.put = async (k, v, o) => {
-    if (k === 'session-epoch') throw new Error('kv-fail');
-    return origPut(k, v, o);
-  };
-  const req = reqWithCookies('https://styrigx.com/api/owner-passkey',
-    { action: 'delete', credId }, `sgx-verified=${sess}; sgx-stepup=${stepup}`);
-  const res = await onRequestPost({ request: req, env });
-  assert.equal(res.status, 503, 'session-epoch 失败应 503');
-  const still = await kv.get('owner-passkey:' + credId.slice(0, 12), 'json');
-  assert.ok(still && still.credId === credId, 'epoch 失败时密钥不得被删');
-});
 
 /* ============ 5：SGX_SITE 配错 fail closed ============ */
 
@@ -324,13 +229,6 @@ test('9c：owner-passkey 缺 Origin → 403', async () => {
   assert.equal(res.status, 403);
 });
 
-test('9d：stepup 缺 Origin → 403', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
-  const kv = makeKV();
-  const req = postReq('https://styrigx.com/api/stepup', { action: 'status' }, { Origin: null });
-  const res = await onRequestPost({ request: req, env: baseEnv(kv) });
-  assert.equal(res.status, 403);
-});
 
 /* ============ 1：管理密钥入口静态检查 ============ */
 

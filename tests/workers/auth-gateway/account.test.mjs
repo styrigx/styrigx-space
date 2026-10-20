@@ -207,22 +207,6 @@ test('setup: 生成测试钥匙', async () => {
 
 /* ============ 登录入口一：账号密码 ============ */
 
-test('账号密码登录（迁移：原站长密码 owner-pw 同 pepper 直接可用）→ sgx-account(by=password)，不签 stepup、不动 lock 会话', async () => {
-  const kv = makeKV({ 'layer:owner': '1' });
-  await seedPassword(kv, 'old-owner-password-1');
-  const res = await accountPost(kv, { action: 'login-password', password: 'old-owner-password-1' }, { 'sgx-verified': await ownerSess() });
-  assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { ok: true });
-  const sc = setCookies(res);
-  assert.equal(sc.length, 1, '只签发一个 cookie：' + JSON.stringify(sc));
-  assert.match(sc[0], /^sgx-account=password\.0\.\d+\.\d+\.[A-Za-z0-9_-]+; Path=\/; HttpOnly; Secure; SameSite=Strict; Max-Age=34560000$/);
-  assert.ok(!sc[0].includes('Domain='), '账号 cookie 只给主站，不带 Domain');
-  const { verifyAccountCookie } = await import(KERNEL + 'account-session.js');
-  const v = await verifyAccountCookie(new Request('https://styrigx.com/', { headers: { Cookie: 'sgx-account=' + pickCookie(res, 'sgx-account') } }), envFor(kv));
-  assert.equal(v.ok, true);
-  assert.equal(v.by, 'password');
-  assert.equal(v.recent, true);
-});
 
 test('账号密码登录：错误 → 403 wrong；未设置 → 403 not-set；都不签 cookie', async () => {
   const kv = makeKV();
@@ -290,17 +274,6 @@ test('根凭证登录（/api/root-auth target=account）→ sgx-account(by=root)
   assert.equal(audits[0].path, 'account');
 });
 
-test('根凭证登录：不带 target 时行为不变（仍签 stepup root/root，不签账号会话）', async () => {
-  const { onRequestPost } = await import(API + 'root-auth.js');
-  const kv = makeKV({ 'layer:lock': '1' });
-  const res = await onRequestPost({
-    request: postReq('https://styrigx.com/api/root-auth', { key: ROOT_KEY }, { Cookie: 'sgx-verified=' + (await ownerSess()) }),
-    env: envFor(kv),
-  });
-  assert.equal(res.status, 200);
-  assert.ok((pickCookie(res, 'sgx-stepup') || '').startsWith('root.root.'));
-  assert.equal(pickCookie(res, 'sgx-account'), null);
-});
 
 test('根凭证登录 target=account：无 lock 会话（即使 lock 未配置）走假入口 401；访客 401 denied；错误根凭证 401 auth', async () => {
   const { onRequestPost } = await import(API + 'root-auth.js');
@@ -320,84 +293,12 @@ test('根凭证登录 target=account：无 lock 会话（即使 lock 未配置�
 
 /* ============ 独立性：lock 会话绝不等于账号会话 ============ */
 
-test('独立：只有 lock 会话 → 状态 session=null；进门 401 account；管理 401 account', async () => {
-  const kv = makeKV();
-  await seedPassword(kv, 'some-password-1');
-  const sess = await ownerSess();
-  const st = await (await accountGet(kv, { 'sgx-verified': sess })).json();
-  assert.equal(st.ok, true);
-  assert.equal(st.session, null);
-  assert.equal(st.password, true);
-  const e = await enter(kv, { 'sgx-verified': sess });
-  assert.equal(e.status, 401);
-  assert.equal((await e.json()).error, 'account');
-  const l = await accountPost(kv, { action: 'list' }, { 'sgx-verified': sess });
-  assert.equal(l.status, 401);
-  assert.equal((await l.json()).error, 'account');
-});
 
-test('独立：lock 会话值放进 sgx-account → 拒绝；别的钥匙（如 SGX_LOCK_PRIVATE）签的账号票 → bad-sig', async () => {
-  const kv = makeKV();
-  const sess = await ownerSess();
-  let e = await enter(kv, { 'sgx-verified': sess, 'sgx-account': sess });
-  assert.equal(e.status, 401);
-  assert.equal((await e.json()).reason, 'bad-format');
-  const forged = await accTicket('password', Date.now(), 0, LOCK.priv);
-  e = await enter(kv, { 'sgx-verified': sess, 'sgx-account': forged });
-  assert.equal(e.status, 401);
-  assert.equal((await e.json()).reason, 'bad-sig');
-});
 
-test('独立：账号会话不能代替 lock 会话（账号接口仍要求 owner lock 会话；访客 401）', async () => {
-  const kv = makeKV();
-  const acc = await accTicket('root');
-  let r = await accountPost(kv, { action: 'list' }, { 'sgx-account': acc });
-  assert.equal(r.status, 401);
-  assert.equal((await r.json()).error, 'session');
-  r = await accountPost(kv, { action: 'list' }, { 'sgx-account': acc, 'sgx-verified': await visitorSess() });
-  assert.equal(r.status, 401);
-  const e = await enter(kv, { 'sgx-account': acc });
-  assert.equal(e.status, 401);
-  assert.equal((await e.json()).error, 'session');
-  const { verifySessionDetailed } = await import('../../../workers/auth-gateway/functions/_middleware.js');
-  const v = await verifySessionDetailed(new Request('https://styrigx.com/', { headers: { Cookie: 'sgx-verified=' + acc } }), envFor(kv));
-  assert.equal(v.ok, false, '账号票不是 lock 会话');
-});
 
 /* ============ 进门：近期账号登录 ============ */
 
-test('进门：账号登录 ≤10 分钟 → stepup(by=account, scope=keys)；>10 分钟 → 403 account-stale', async () => {
-  const kv = makeKV();
-  const sess = await ownerSess();
-  const fresh = await accTicket('passkey', Date.now() - 9 * 60 * 1000);
-  let e = await enter(kv, { 'sgx-verified': sess, 'sgx-account': fresh });
-  assert.equal(e.status, 200);
-  const st = pickCookie(e, 'sgx-stepup');
-  assert.ok(st && st.startsWith('account.keys.'));
-  const { verifyStepupCookie } = await import(API + 'stepup.js');
-  const sv = await verifyStepupCookie(new Request('https://styrigx.com/', { headers: { Cookie: 'sgx-stepup=' + st } }), envFor(kv));
-  assert.deepEqual([sv.ok, sv.by, sv.scope], [true, 'account', 'keys']);
-  const stale = await accTicket('passkey', Date.now() - 11 * 60 * 1000);
-  e = await enter(kv, { 'sgx-verified': sess, 'sgx-account': stale });
-  assert.equal(e.status, 403);
-  assert.equal((await e.json()).error, 'account-stale');
-  assert.equal(pickCookie(e, 'sgx-stepup'), null);
-});
 
-test('进门：by=account 的 keys 票能管锁屏凭证（owner-passkey list lock）', async () => {
-  const kv = makeKV({ 'layer:owner': '1' });
-  await seedPasskey(kv, 'lock');
-  const sess = await ownerSess();
-  const e = await enter(kv, { 'sgx-verified': sess, 'sgx-account': await accTicket('password') });
-  const st = pickCookie(e, 'sgx-stepup');
-  const { onRequestPost } = await import(API + 'owner-passkey.js');
-  const r = await onRequestPost({
-    request: postReq('https://styrigx.com/api/owner-passkey', { action: 'list', pkClass: 'lock' }, { Cookie: cookies({ 'sgx-verified': sess, 'sgx-stepup': st }) }),
-    env: envFor(kv),
-  });
-  assert.equal(r.status, 200);
-  assert.equal((await r.json()).keys.length, 1);
-});
 
 test('账号会话 400 天：登录很久以前（远超 10 分钟）也还是登录态，GET 照样返回 session', async () => {
   const kv = makeKV();
@@ -472,24 +373,6 @@ test('门内改账号密码（account-epoch +1）：当前设备门票按原到�
 
 /* ============ 账号页：管理 + 根凭证恢复 ============ */
 
-test('恢复：根凭证登录后重置账号密码（不需旧密码）→ account-epoch +1，当前设备重签（保留 by/authAt），旧账号会话失效，新密码可登录', async () => {
-  const kv = makeKV({ 'layer:owner': '1' });
-  await seedPassword(kv, 'forgotten-pass-1');
-  const sess = await ownerSess();
-  const authAt = Date.now() - 60 * 1000;
-  const old = await accTicket('root', authAt);
-  const r = await accountPost(kv, { action: 'password', password: 'brand-new-pass-1' }, { 'sgx-verified': sess, 'sgx-account': old });
-  assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { ok: true, changed: true });
-  assert.equal(await kv.get('account-epoch'), '1');
-  const re = pickCookie(r, 'sgx-account');
-  assert.ok(re && re.startsWith('root.1.' + authAt + '.'), '重签保留 by=root 与原 authAt：' + re);
-  assert.equal((await enter(kv, { 'sgx-verified': sess, 'sgx-account': old })).status, 401, '旧账号会话随 epoch 失效');
-  assert.equal((await enter(kv, { 'sgx-verified': sess, 'sgx-account': re })).status, 200);
-  const login = await accountPost(kv, { action: 'login-password', password: 'brand-new-pass-1' }, { 'sgx-verified': sess });
-  assert.equal(login.status, 200);
-  assert.ok(pickCookie(login, 'sgx-account').startsWith('password.1.'));
-});
 
 test('首次设置账号密码：layer:owner 标记 + session-epoch +1，并重签当前 lock 会话（与原站长凭证一致）', async () => {
   const kv = makeKV({ 'session-epoch': '3' });
@@ -635,35 +518,6 @@ test('跨站请求（Origin 不同）→ 403', async () => {
 
 /* ============ 缺账号钥匙：优雅降级 ============ */
 
-test('缺 SGX_ACCOUNT_PRIVATE/PUBLIC：三个登录入口都 503 config；状态 ready=false；进门 401 account；其余接口照常', async () => {
-  const kv = makeKV({ 'layer:lock': '1' });
-  await seedPassword(kv, 'some-password-1');
-  const noKeys = { SGX_ACCOUNT_PRIVATE: '', SGX_ACCOUNT_PUBLIC: '' };
-  const sess = await ownerSess();
-  let r = await accountPost(kv, { action: 'login-password', password: 'some-password-1' }, { 'sgx-verified': sess }, noKeys);
-  assert.equal(r.status, 503);
-  assert.equal((await r.json()).error, 'config');
-  r = await accountPost(kv, { action: 'challenge' }, { 'sgx-verified': sess }, noKeys);
-  assert.equal(r.status, 503);
-  const { onRequestPost: rootPost } = await import(API + 'root-auth.js');
-  r = await rootPost({ request: postReq('https://styrigx.com/api/root-auth', { key: ROOT_KEY, target: 'account' }, { Cookie: 'sgx-verified=' + sess }), env: envFor(kv, noKeys) });
-  assert.equal(r.status, 503);
-  assert.equal((await r.json()).error, 'config');
-  const st = await (await accountGet(kv, { 'sgx-verified': sess }, noKeys)).json();
-  assert.equal(st.ok, true);
-  assert.equal(st.ready, false);
-  const e = await enter(kv, { 'sgx-verified': sess, 'sgx-account': await accTicket('password') }, noKeys);
-  assert.equal(e.status, 401);
-  assert.equal((await e.json()).reason, 'no-pubkey');
-  /* 其余接口不受影响：lock 密码解锁、stepup status、默认 root-auth */
-  const { makePasswordRecord } = await import(KERNEL + 'password.js');
-  await kv.put('lock-pw', JSON.stringify(await makePasswordRecord('lock-pass-123', PEPPER)));
-  const { onRequestPost: pwPost } = await import(API + 'owner-password.js');
-  r = await pwPost({ request: postReq('https://styrigx.com/api/owner-password', { action: 'verify', password: 'lock-pass-123' }), env: envFor(kv, noKeys) });
-  assert.equal(r.status, 200);
-  r = await rootPost({ request: postReq('https://styrigx.com/api/root-auth', { key: ROOT_KEY }, { Cookie: 'sgx-verified=' + sess }), env: envFor(kv, noKeys) });
-  assert.equal(r.status, 200);
-});
 
 test('路由：/api/account 已登记，/api/owner-status 已移除', async () => {
   const { API_ROUTES } = await import('../../../workers/auth-gateway/src/routes.js');

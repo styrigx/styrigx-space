@@ -6,7 +6,7 @@
  *
  * 2.10.1：直接实现验证流程（不再引用不存在的 ./passkey.js，也不再派发
  * 无人监听的 sgx:upgrade-* 事件）。访客调用认证类 action 由中间件放行
- * （AUTH_ACTIONS），端点自身做会话/stepup 校验。
+ * （AUTH_ACTIONS），端点自身做会话/门票校验。
  *
  * 根凭证/密码改用弹层内联输入，不用原生弹窗（全站禁止原生弹窗，
  * 见 scripts/check-frontend.mjs）。
@@ -129,7 +129,7 @@ export function initUpgrade() {
   };
 
   // 根凭证验证：root-auth → root-session 换站长会话，再按 return 跳转。
-  // root-auth 成功只签发 stepup（by=root, scope=root），不换会话直接跳过去
+  // root-auth 成功只签发锁屏门票（by=root），不换会话直接跳过去
   // 会被 middleware 弹回锁屏，所以必须先调 /api/root-session。
   async function verifyRoot(k) {
     try {

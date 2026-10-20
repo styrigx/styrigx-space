@@ -3,7 +3,7 @@
  *
  * GET /api/lock-status → { ok:true, password:bool, passkey:bool }
  * - 只读：返回锁屏密码是否有 hash、是否有 class=lock 的通行密钥。
- * - 鉴权：有效 owner 会话（任何 by），或有效的 stepup 票据（scope=keys / lockreset）。
+ * - 鉴权：有效 owner 会话（任何 by），或有效的重置锁屏门票（sgx-door，door=lockreset）。
  *   修复 security-lock.js refreshStatus 读 /api/owner-status 的显示错误：
  *   owner-status 读的是 owner-pw + class=owner 通行密钥（且要求 owner 会话），
  *   只设了站长密码时锁屏页误显示「已设置」，只设了锁屏密码时误显示「未设置」
@@ -14,11 +14,7 @@
  */
 import { verifySessionDetailed } from '../_middleware.js';
 import { ROLE_OWNER } from '../_kernel/session.js';
-import {
-  verifyStepupCookie,
-  STEPUP_SCOPE_KEYS,
-  STEPUP_SCOPE_LOCKRESET,
-} from './stepup.js';
+import { verifyDoorCookie, DOOR_LOCKRESET } from '../_kernel/door.js';
 import { getPasskeys, PK_CLASS_LOCK } from './owner-passkey.js';
 import { REALM_LOCK } from '../_kernel/realms.js';
 
@@ -37,12 +33,12 @@ async function handleGet(context) {
   const kv = env && env.OWNER_KV;
   if (!kv) {
     /* 未绑 KV：会话/票据校验本身也读 KV，直接按配置错误处理（fail closed）。
-       注意：实际请求中 verifySessionDetailed/verifyStepupCookie 无 KV 时均返回
+       注意：实际请求中 verifySessionDetailed/verifyDoorCookie 无 KV 时均返回
        无效，正常走 401；此处为纵深防御。 */
     return Response.json({ ok: false, error: 'config' }, { status: 500 });
   }
 
-  /* 鉴权：有效 owner 会话，或 keys/lockreset 票据 */
+  /* 鉴权：有效 owner 会话，或重置锁屏门票 */
   let authed = false;
   try {
     const sess = await verifySessionDetailed(request, env);
@@ -50,10 +46,8 @@ async function handleGet(context) {
   } catch (e) {}
   if (!authed) {
     try {
-      const st = await verifyStepupCookie(request, env);
-      if (st.ok && (st.scope === STEPUP_SCOPE_KEYS || st.scope === STEPUP_SCOPE_LOCKRESET)) {
-        authed = true;
-      }
+      const st = await verifyDoorCookie(request, env, DOOR_LOCKRESET);
+      if (st.ok) authed = true;
     } catch (e) {}
   }
   if (!authed) {

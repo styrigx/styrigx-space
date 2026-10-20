@@ -2,11 +2,12 @@
  * 凭证类 API 真请求 e2e 的共享 helper（Item 25）。
  * - makeKV：内存 KV（实现 handler 用到的 get/put/delete/list 子集）。
  * - startCredentialTestServer(port)：启动本地测试服务器，/api/owner-password、
- *   /api/owner-passkey、/api/account、/api/stepup 路由到 functions/api/ 下的真实 handler
+ *   /api/owner-passkey、/api/account、/api/lock-door 路由到 functions/api/ 下的真实 handler
  *  （onRequestPost），env 配测试密钥；返回 { kv, env, close, mintAuth }。
  * - makeAttestationCredential：Node 端合成 WebAuthn 注册 attestation
  *   （UV=1；CDP 虚拟认证器开 UV 会抛 NotAllowedError，故不用浏览器仪式）。
- * - mintAuth(by, scope)：按当前 KV session-epoch 重签会话 + stepup 票据
+ * - mintAuth(by)：按当前 KV session-epoch 重签会话 + 锁屏门票（sgx-door，door=lock）
+ * - mintAccount(by, authAt, withDoor)：账号会话；withDoor 时另签账号门票（door=account）
  *   （set/change/remove/register 会推进 epoch，每次鉴权操作前重签）。
  */
 const http = require('node:http');
@@ -152,7 +153,7 @@ async function makeAttestationCredential(challengeB64url, rpId, origin) {
  * 启动凭证测试服务器。
  * @param {number} port 监听端口
  * @returns {Promise<{kv, env, origin, close, mintAuth}>}
- *   mintAuth(stepupBy, stepupScope) → { sessionCookie, stepupCookie }
+ *   mintAuth(doorBy) → { sessionCookie, doorCookie }
  */
 async function startCredentialTestServer(port) {
   const origin = `http://localhost:${port}`;
@@ -165,8 +166,6 @@ async function startCredentialTestServer(port) {
     SGX_PW_PEPPER: 'e2e-test-pepper',
     SGX_LOCK_PRIVATE: privPem,
     SGX_LOCK_PUBLIC: pubPem,
-    SGX_STEPUP_PRIVATE: privPem,
-    SGX_STEPUP_PUBLIC: pubPem,
     SGX_ACCOUNT_PRIVATE: privPem,
     SGX_ACCOUNT_PUBLIC: pubPem,
     SGX_RP_ID: 'localhost',
@@ -177,7 +176,8 @@ async function startCredentialTestServer(port) {
   const pwMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/api/owner-password.js')).href);
   const pkMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/api/owner-passkey.js')).href);
   const sessMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/_kernel/session.js')).href);
-  const stepupMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/api/stepup.js')).href);
+  const doorApi = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/api/lock-door.js')).href);
+  const doorMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/_kernel/door.js')).href);
   const acctMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/api/account.js')).href);
   const acctSess = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/_kernel/account-session.js')).href);
 
@@ -192,7 +192,7 @@ async function startCredentialTestServer(port) {
       if (req.url.startsWith('/api/owner-password')) handler = pwMod.onRequestPost;
       else if (req.url.startsWith('/api/owner-passkey')) handler = pkMod.onRequestPost;
       else if (req.url.startsWith('/api/account')) handler = req.method === 'GET' ? acctMod.onRequestGet : acctMod.onRequestPost;
-      else if (req.url.startsWith('/api/stepup')) handler = stepupMod.onRequestPost;
+      else if (req.url.startsWith('/api/lock-door')) handler = doorApi.onRequestPost;
       if (!handler) {
         res.writeHead(404, { 'Content-Type': 'text/plain' });
         res.end('not found');
@@ -233,11 +233,11 @@ async function startCredentialTestServer(port) {
   });
   await new Promise((resolve) => server.listen(port, '127.0.0.1', resolve));
 
-  async function mintAuth(stepupBy, stepupScope) {
+  async function mintAuth(doorBy) {
     const epoch = parseInt((await kv.get('session-epoch')) || '0', 10) || 0;
     const sessionCookie = await sessMod.signSessionCookie(privPem, epoch, 'owner', 'owner');
-    const stepupCookie = await stepupMod.signStepupCookie(privPem, stepupBy, stepupScope, epoch);
-    return { sessionCookie, stepupCookie };
+    const doorCookie = await doorMod.signDoorTicket(privPem, 'lock', doorBy || 'password', epoch);
+    return { sessionCookie, doorCookie };
   }
 
   /* 账号会话（sgx-account）：by=passkey|password|root，authAt 默认现在；epoch 读 KV account-epoch */
@@ -246,12 +246,19 @@ async function startCredentialTestServer(port) {
     return await acctSess.signAccountTicket(privPem, by, epoch, authAt || Date.now());
   }
 
+  /* 账号门票（door=account），按当前 account-epoch 签 */
+  async function mintAccountDoor(by) {
+    const epoch = parseInt((await kv.get('account-epoch')) || '0', 10) || 0;
+    return await doorMod.signDoorTicket(privPem, 'account', by || 'password', epoch);
+  }
+
   return {
     kv,
     env,
     origin,
     mintAuth,
     mintAccount,
+    mintAccountDoor,
     makeAttestationCredential,
     close: () => new Promise((resolve) => server.close(resolve)),
   };

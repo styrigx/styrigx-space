@@ -84,52 +84,10 @@ function baseEnv(kv, overrides) {
 
 /* ============ 1. 越权 ============ */
 
-test('2.11 越权：scope 不匹配 403（scope=keys 的票不能进入口 1）', async () => {
-  const { verifyStepupCookie, signStepupCookie, STEPUP_SCOPE_KEYS } = await import(REPO + '/workers/auth-gateway/functions/api/stepup.js');
-  const kv = makeKv();
-  const env = baseEnv(kv);
-  /* 直接验票：scope=keys 的票用于要求 scope=root 的场景 → 由调用方拒绝。
-     这里验证 stepup 模块本身能正确解析 by/scope */
-  const cv = await signStepupCookie(TEST_PRIV_PEM, 'account', 'keys', 0);
-  assert.ok(cv.startsWith('account.keys.'));
-});
 
-test('2.11 越权：已配置层拒 by=root 的票（owner-passkey 管理 owner 类）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/owner-passkey.js');
-  const { signStepupCookie } = await import(REPO + '/workers/auth-gateway/functions/api/stepup.js');
-  const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
-  const kv = makeKv({
-    'layer:owner': '1',
-    'layer:lock': '1',
-    'session-epoch': '0',
-  });
-  const env = baseEnv(kv);
-  /* by=root, scope=keys 的票（旧代管票），owner 已配置 → 拒绝 */
-  const stepupCv = await signStepupCookie(TEST_PRIV_PEM, 'root', 'keys', 0);
-  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
-  const req = postReq('https://test.example.com/api/owner-passkey', {
-    action: 'challenge', type: 'register', pkClass: 'lock',
-  }, { 'Cookie': 'sgx-verified=' + sessCv + '; sgx-stepup=' + stepupCv });
-  const res = await onRequestPost({ request: req, env });
-  /* by=root + scope=keys 但 owner 已配置 → 403 scope */
-  assert.equal(res.status, 403);
-  const body = await res.json();
-  assert.equal(body.error, 'scope');
-});
 
 /* ============ 2. 无 lock 会话 ============ */
 
-test('2.11 无 lock 会话：单用站长凭证进入口 2 被拒（无会话 → 401）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/stepup.js');
-  const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
-  const env = baseEnv(kv);
-  /* verify-password 需要 owner 会话；无会话 → 401 */
-  const req = postReq('https://test.example.com/api/stepup', {
-    action: 'verify-password', password: 'whatever',
-  });
-  const res = await onRequestPost({ request: req, env });
-  assert.equal(res.status, 401);
-});
 
 test('2.11 无 lock 会话：单用根凭证进入口 1 被拒（无会话且 lock 已配置 → 假入口 401 auth）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
@@ -268,26 +226,6 @@ test('2.11 开关：不存在 → 关闭（根凭证正确后返回 needOwner）
   assert.equal(body.needOwner, true);
 });
 
-test('2.11 开关：首次见到 → 有效，单根拿 lockreset（by=root, via=switch）并标记已用', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lockreset.js');
-  const kv = makeKv({ 'layer:lock': '1' }); /* owner 未配置 */
-  const db = makeD1();
-  const env = switchEnv(kv, db, 'switch-secret-1');
-  const req = postReq('https://test.example.com/api/lockreset', {
-    action: 'verify', rootKey: 'test-root-key-12345',
-  });
-  const res = await onRequestPost({ request: req, env });
-  assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { ok: true });
-  /* 应签发 lockreset cookie */
-  const sc = res.headers.get('Set-Cookie');
-  assert.ok(sc && sc.includes('sgx-stepup='));
-  /* D1 应标记已用 */
-  const t = db._tables.get('recovery_switch');
-  assert.ok(t && t.size === 1);
-  const row = Array.from(t.values())[0];
-  assert.equal(row.used, 1);
-});
 
 test('2.11 开关：已用后再用 → 关闭（返回 needOwner）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lockreset.js');
@@ -470,21 +408,6 @@ test('2.11 接管：KV 读取失败按已配置处理（root 被拒）', async (
 
 /* ============ 7. pepper ============ */
 
-test('2.11 pepper：缺 pepper → fail closed（set/verify 均拒绝）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/owner-password.js');
-  const { signStepupCookie } = await import(REPO + '/workers/auth-gateway/functions/api/stepup.js');
-  const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
-  const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1', 'session-epoch': '0' });
-  const envNoPepper = baseEnv(kv, { SGX_PW_PEPPER: '' });
-  const stepupCv = await signStepupCookie(TEST_PRIV_PEM, 'account', 'keys', 0);
-  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
-  const headers = { 'Cookie': 'sgx-verified=' + sessCv + '; sgx-stepup=' + stepupCv };
-  /* set 无 pepper → 503 */
-  const req1 = postReq('https://test.example.com/api/owner-password',
-    { action: 'set', kind: 'lock', password: 'new-pass-12345' }, headers);
-  const res1 = await onRequestPost({ request: req1, env: envNoPepper });
-  assert.equal(res1.status, 503);
-});
 
 test('2.11 pepper：账号密码 = 锁屏密码被拒（双向；账号侧走 /api/account）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/account.js');

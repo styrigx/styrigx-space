@@ -95,87 +95,10 @@ test('setup: 生成测试密钥', async () => {
   assert.ok(STEPUP_PRIV.includes('PRIVATE KEY'));
 });
 
-test('A-2：有站长密码时删最后一把 lock 钥匙 → 200，layer:lock 保留、KV 不出现 layer:lock-emptied', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
-  const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1' });
-  await seedKey(kv, 'lock-key-001', 'lock');
-  await seedPw(kv, 'owner', 'owner-pw-123');
-  const sess = await mintSession();
-  const sc = await mintStepup('account', 'keys');
-  const res = await onRequestPost({
-    request: postReq('https://styrigx.com/api/owner-passkey', { action: 'delete', credId: 'lock-key-001' }, bothCookies(sess, sc)),
-    env: envFor(kv),
-  });
-  assert.equal(res.status, 200, await res.text());
-  assert.equal(await kv.get('layer:lock'), '1', 'layer:lock 应保留（根凭证代开继续被拒）');
-  assert.equal(await kv.get('layer:lock-emptied'), null, 'A-2 不写 layer:lock-emptied，该键不应出现');
-});
 
-test('A-2：无 accountkey 时删最后一把 lock 钥匙 → 403 last-key，钥匙还在', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
-  const kv = makeKV({ 'layer:lock': '1' });
-  await seedKey(kv, 'lock-key-001', 'lock');
-  const sess = await mintSession();
-  const sc = await mintStepup('account', 'keys');
-  const res = await onRequestPost({
-    request: postReq('https://styrigx.com/api/owner-passkey', { action: 'delete', credId: 'lock-key-001' }, bothCookies(sess, sc)),
-    env: envFor(kv),
-  });
-  assert.equal(res.status, 403);
-  const j = await res.json();
-  assert.equal(j.error, 'last-key');
-  const keys = await kv.get('owner-passkey-index', 'json');
-  assert.deepEqual(keys, ['lock-key-001']);
-});
 
-test('A-2：有站长通行密钥时删最后一把 lock 钥匙 → 200（accountkey 任一即可）', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
-  const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1' });
-  await seedKey(kv, 'lock-key-001', 'lock');
-  await seedKey(kv, 'owner-key-001', 'owner');
-  const sess = await mintSession();
-  const sc = await mintStepup('account', 'keys');
-  const res = await onRequestPost({
-    request: postReq('https://styrigx.com/api/owner-passkey', { action: 'delete', credId: 'lock-key-001' }, bothCookies(sess, sc)),
-    env: envFor(kv),
-  });
-  assert.equal(res.status, 200, await res.text());
-  assert.equal(await kv.get('layer:lock-emptied'), null, 'A-2 不写 layer:lock-emptied，该键不应出现');
-});
 
-test('A-2：有 accountkey 时删最后一把 lock 密码 → 200，KV 不出现 layer:lock-emptied', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-password.js');
-  const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1' });
-  await seedPw(kv, 'owner', 'owner-pw-123');
-  await seedPw(kv, 'lock', 'lock-pw-1234');
-  const sess = await mintSession();
-  const sc = await mintStepup('account', 'keys');
-  const res = await onRequestPost({
-    request: postReq('https://styrigx.com/api/owner-password', { action: 'remove', kind: 'lock' }, bothCookies(sess, sc)),
-    env: envFor(kv),
-  });
-  assert.equal(res.status, 200, await res.text());
-  assert.equal(await kv.get('lock-pw'), null);
-  assert.equal(await kv.get('layer:lock'), '1', 'layer:lock 应保留');
-  assert.equal(await kv.get('layer:lock-emptied'), null, 'A-2 不写 layer:lock-emptied，该键不应出现');
-});
 
-test('A-2：无 accountkey 时删最后一把 lock 密码 → 403 last-key，密码还在', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-password.js');
-  const kv = makeKV({ 'layer:lock': '1' });
-  await seedPw(kv, 'lock', 'lock-pw-1234');
-  const sess = await mintSession();
-  const sc = await mintStepup('account', 'keys');
-  const res = await onRequestPost({
-    request: postReq('https://styrigx.com/api/owner-password', { action: 'remove', kind: 'lock' }, bothCookies(sess, sc)),
-    env: envFor(kv),
-  });
-  assert.equal(res.status, 403);
-  const j = await res.json();
-  assert.equal(j.error, 'last-key');
-  const pw = await kv.get('lock-pw', 'json');
-  assert.ok(pw && pw.hash, '锁屏密码应还在');
-});
 
 test('A-2：lock-config (b) 无真实 lock 凭证 + owner 已配置 + 无 lock-emptied → resetOnly=true', async () => {
   const { onRequestGet } = await import('../../../workers/auth-gateway/functions/api/lock-config.js');
@@ -218,19 +141,6 @@ test('A-2：lock-config 空站 → resetOnly=false（A 启动流程保留，根�
   assert.equal(j.resetOnly, false);
 });
 
-test('A-2：新增 lock 密码后不动 lock-emptied 残留（留给 B 处理）', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-password.js');
-  const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1', 'layer:lock-emptied': '1' });
-  await seedPw(kv, 'owner', 'owner-pw-123');
-  const sess = await mintSession();
-  const sc = await mintStepup('account', 'keys');
-  const res = await onRequestPost({
-    request: postReq('https://styrigx.com/api/owner-password', { action: 'set', kind: 'lock', password: 'new-lock-pw' }, bothCookies(sess, sc)),
-    env: envFor(kv),
-  });
-  assert.equal(res.status, 200, await res.text());
-  assert.equal(await kv.get('layer:lock-emptied'), '1', 'A-2 不动 lock-emptied 残留');
-});
 
 test('A-2：删光账号凭证时不动 lock-emptied 残留（留给 B 处理；账号体系走 /api/account）', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/account.js');

@@ -222,16 +222,16 @@ test('session-epoch：KV 读取出错 → 503（不再返回 {epoch:0}）', asyn
   assert.equal(j.ok, false);
 });
 
-test('session-epoch：key 不存在 → 200 {epoch:0,app:{book:0}}（2.10.0）', async () => {
+test('session-epoch：key 不存在 → 200 {epoch:0}（应用纪元已随应用凭证删除）', async () => {
   const r = await epochGet({ env: { OWNER_KV: makeKV() } });
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { epoch: 0, app: { book: 0 } });
+  assert.deepEqual(await r.json(), { epoch: 0 });
 });
 
-test('session-epoch：有值 → 200 {epoch:N,app}（2.10.0）', async () => {
+test('session-epoch：有值 → 200 {epoch:N}', async () => {
   const r = await epochGet({ env: { OWNER_KV: makeKV({ 'session-epoch': '3', 'app-epoch:book': '2' }) } });
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { epoch: 3, app: { book: 2 } });
+  assert.deepEqual(await r.json(), { epoch: 3 });
 });
 
 /* ================================================================
@@ -283,36 +283,6 @@ test('password verify：密码错误 → 403（不签发）', async () => {
  * /api/lock-all-devices（2.8.0：从 owner-password lockout 拆出的独立 L2 API）
  * ================================================================ */
 
-test('lock-all-devices：owner 会话 + stepup(scope=keys) → epoch+1、清 cookie 带 Domain；KV 写入出错 → 503 且 epoch 不变', async () => {
-  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
-  const kv = makeKV({ 'session-epoch': '2' });
-  const cookie = await signSessionCookie(TEST_PRIV_PEM, 2, 'owner', 'owner');
-  /* 2.11 定稿：需 stepup(scope=keys, by=owner) */
-  const stepupCv = await signStepupCookie(STEPUP_PRIV_PEM, 'account', 'keys', 2);
-  const env = { OWNER_KV: kv, SGX_LOCK_PUBLIC: TEST_PUB_PEM, SGX_STEPUP_PUBLIC: STEPUP_PUB_PEM };
-  const r = await lockAllPost({
-    request: postReq('https://styrigx.com/api/lock-all-devices', {}, { 'Cookie': 'sgx-verified=' + cookie + '; sgx-stepup=' + stepupCv }),
-    env,
-  });
-  assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { ok: true });
-  assert.equal(kv.store.get('session-epoch'), '3');
-  const sc = r.headers.get('Set-Cookie');
-  assert.match(sc, /^sgx-verified=; /);
-  assert.match(sc, /Domain=\.styrigx\.com/);
-  assert.match(sc, /Max-Age=0/);
-
-  /* 写入失败 → 503，epoch 保持原值 */
-  const broken = makePutBrokenKV({ 'session-epoch': '5' });
-  const cookie2 = await signSessionCookie(TEST_PRIV_PEM, 5, 'owner', 'owner');
-  const stepupCv2 = await signStepupCookie(STEPUP_PRIV_PEM, 'account', 'keys', 5);
-  const r2 = await lockAllPost({
-    request: postReq('https://styrigx.com/api/lock-all-devices', {}, { 'Cookie': 'sgx-verified=' + cookie2 + '; sgx-stepup=' + stepupCv2 }),
-    env: { OWNER_KV: broken, SGX_LOCK_PUBLIC: TEST_PUB_PEM, SGX_STEPUP_PUBLIC: STEPUP_PUB_PEM },
-  });
-  assert.equal(r2.status, 503);
-  assert.equal(broken.store.get('session-epoch'), '5');
-});
 
 test('lock-all-devices：visitor 会话 → 403 {ok:false, error:role}（epoch 不变）', async () => {
   const kv = makeKV({ 'session-epoch': '2' });
@@ -349,19 +319,6 @@ test('lock-all-devices：旧三段式（无 role）cookie → 401 无效', async
   assert.equal(kv.store.get('session-epoch'), '2');
 });
 
-test('change/remove 密码：KV 出错 → 503（2.11：kind=lock 需 owner 会话 + stepup scope=keys）', async () => {
-  const broken = makePutBrokenKV();
-  const stepup = await mintStepupCookie();
-  const sess = await mintSessionCookie();
-  const env = { OWNER_KV: broken, SGX_STEPUP_PUBLIC: STEPUP_PUB_PEM, SGX_LOCK_PUBLIC: TEST_PUB_PEM, SGX_PW_PEPPER: 'test-pepper' };
-  /* set 会先写 lock-pw 成功，然后 bump 抛错 → 503 */
-  const r = await pwPost({
-    request: postReq('https://styrigx.com/api/owner-password', { action: 'set', kind: 'lock', password: 'another-pass-1' },
-      { 'Cookie': 'sgx-verified=' + sess + '; sgx-stepup=' + stepup }),
-    env,
-  });
-  assert.equal(r.status, 503);
-});
 
 /* ================================================================
  * _middleware
@@ -1205,7 +1162,7 @@ test('2.9.3：visitor 可以访问桌面（/）、设置（/settings/）、文�
   assert.equal(r.status, 200);
 });
 
-test('2.11：visitor 进 /settings/display/ 严格 200；/settings/security/ 总览 200（定稿 #13/R3），门内页 302 到锁屏', async () => {
+test('visitor 进 /settings/display/ 严格 200；/settings/security/ 总览 200（定稿 #13/R3），锁屏凭证页 302 到锁屏', async () => {
   const vCookie = await visitorCookie(0);
   for (const p of ['/settings/display/', '/en/settings/']) {
     const r = await mw(mwCtx('https://styrigx.com' + p, { cookie: vCookie, env: PROD_ENV() }));
@@ -1216,27 +1173,27 @@ test('2.11：visitor 进 /settings/display/ 严格 200；/settings/security/ 总
     const r = await mw(mwCtx('https://styrigx.com' + p, { cookie: vCookie, env: PROD_ENV() }));
     assert.equal(r.status, 200, 'visitor 访问 ' + p + ' 应 200（总览页）');
   }
-  /* 定稿 #21：门内页（owner/lock/apps/mgmt）访客 302 到锁屏 */
-  for (const p of ['/settings/security/lock/', '/settings/security/apps/', '/settings/security/apps/book/', '/settings/security/mgmt/']) {
+  /* 定稿 #21：锁屏凭证页访客 302 到锁屏 */
+  for (const p of ['/settings/security/lock/', '/en/settings/security/lock/']) {
     const r = await mw(mwCtx('https://styrigx.com' + p, { cookie: vCookie, env: PROD_ENV() }));
     assert.equal(r.status, 302, 'visitor 访问 ' + p + ' 应 302 到锁屏');
     assert.ok(r.headers.get('Location').includes('?lock=1'), p + ' 应跳到锁屏');
   }
 });
 
-test('2.11：lockreset 票据只放行 /settings/security/lock/，不开总览和应用页', async () => {
+test('重置锁屏门票只放行 /settings/security/lock/，不开总览；锁屏门票（door=lock）不能代替', async () => {
   await genTestKeys();
-  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
-  const ticket = await signStepupCookie(STEPUP_PRIV_PEM, 'owner+root', 'lockreset', 0);
+  const { signDoorTicket } = await import('../../../workers/auth-gateway/functions/_kernel/door.js');
+  const ticket = await signDoorTicket(TEST_PRIV_PEM, 'lockreset', 'account+root', 0);
+  const lockTicket = await signDoorTicket(TEST_PRIV_PEM, 'lock', 'root', 0);
   const env = {
     SGX_ENV: 'production',
     SGX_SITE: 'space',
     SGX_LOCK_PUBLIC: TEST_PUB_PEM,
-    SGX_STEPUP_PUBLIC: STEPUP_PUB_PEM,
     OWNER_KV: makeKV(),
   };
-  const ctx = (url) => ({
-    request: new Request(url, { headers: { 'Cookie': 'sgx-stepup=' + ticket } }),
+  const ctx = (url, t) => ({
+    request: new Request(url, { headers: { 'Cookie': 'sgx-door=' + (t || ticket) } }),
     next: async () => new Response('<html><head></head><body></body></html>', {
       status: 200,
       headers: { 'Content-Type': 'text/html; charset=utf-8' },
@@ -1247,12 +1204,15 @@ test('2.11：lockreset 票据只放行 /settings/security/lock/，不开总览�
   let r = await mw(ctx('https://styrigx.com/settings/security/lock/'));
   assert.equal(r.status, 200);
   assert.ok((await r.text()).includes('data-sgx-session="lockreset"'), '应注入 lockreset 状态');
-  /* 安全总览、应用列表、应用详情：不放行，302 到锁屏 */
-  for (const p of ['/settings/security/', '/settings/security/apps/', '/settings/security/apps/book/']) {
+  /* 安全总览：不放行，302 到锁屏 */
+  for (const p of ['/settings/security/', '/settings/']) {
     r = await mw(ctx('https://styrigx.com' + p));
-    assert.equal(r.status, 302, 'lockreset 票据访问 ' + p + ' 应 302 到锁屏');
+    assert.equal(r.status, 302, '重置门票访问 ' + p + ' 应 302 到锁屏');
     assert.ok(r.headers.get('Location').includes('?lock=1'), p + ' 应跳到锁屏');
   }
+  /* 没有会话时，锁屏门票（door=lock）不能开锁屏凭证页 */
+  r = await mw(ctx('https://styrigx.com/settings/security/lock/', lockTicket));
+  assert.equal(r.status, 302);
 });
 test('2.9.3：visitor 进 /settings/security/lock/ 只跳一次，目标不再跳', async () => {
   const vCookie = await visitorCookie(0);
@@ -1294,9 +1254,9 @@ test('2.8.0：visitor 调用主人 API → 403', async () => {
   assert.deepEqual(await r.json(), { ok: false, error: 'role' });
 });
 
-test('2.9.3：visitor 调主人专属 API 都是 403（owner-password/lock-all-devices/stepup）', async () => {
+test('2.9.3：visitor 调主人专属 API 都是 403（owner-password/lock-all-devices/lock-door）', async () => {
   const vCookie = await visitorCookie(0);
-  for (const api of ['/api/owner-password', '/api/lock-all-devices', '/api/stepup']) {
+  for (const api of ['/api/owner-password', '/api/lock-all-devices', '/api/lock-door']) {
     const ctx = {
       request: new Request('https://styrigx.com' + api, {
         method: 'POST',

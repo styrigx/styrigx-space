@@ -22,7 +22,6 @@ import { REALM_ACCOUNT, realmPrivateKey, realmPublicKey, realmCookie, realmClear
 
 export const ACCOUNT_COOKIE = REALM_ACCOUNT.cookie; /* 'sgx-account' */
 export const ACCOUNT_MAX_AGE = REALM_ACCOUNT.maxAge; /* 400 天：不点退出就一直登录 */
-export const ACCOUNT_RECENT_MS = REALM_ACCOUNT.recent * 1000; /* 10 分钟（只剩「管理凭证」进门在用） */
 export const ACCOUNT_BY_PASSKEY = 'passkey';
 export const ACCOUNT_BY_PASSWORD = 'password';
 export const ACCOUNT_BY_ROOT = 'root';
@@ -117,7 +116,7 @@ function readCookie(request, name) {
  * 验证请求里的 sgx-account。只认本 cookie，绝不读 sgx-verified。
  * @param {any} request
  * @param {any} env
- * @returns {Promise<{ok:boolean, reason:string, by?:string, epoch?:number, authAt?:number, exp?:number, recent?:boolean}>}
+ * @returns {Promise<{ok:boolean, reason:string, by?:string, epoch?:number, authAt?:number, exp?:number}>}
  *   reason: ok / no-cookie / bad-format / expired / not-yet / no-pubkey / epoch-changed / kv-error / bad-sig
  */
 export async function verifyAccountCookie(request, env) {
@@ -146,19 +145,7 @@ export async function verifyAccountCookie(request, env) {
     epoch: p.epoch,
     authAt: p.authAt,
     exp: p.exp,
-    recent: isAccountRecent(p.authAt, now),
   };
-}
-
-/**
- * 账号登录是否「近期」（now - authAt ≤ 10 分钟）。只剩「管理凭证」进门要求近期；
- * 账号页的管理操作改为要求账号门票（_kernel/door.js）。
- * @param {number} authAt
- * @param {number} [now]
- */
-export function isAccountRecent(authAt, now) {
-  const t = now || Date.now();
-  return Number.isFinite(authAt) && t - authAt <= ACCOUNT_RECENT_MS && authAt <= t + 60000;
 }
 
 /**

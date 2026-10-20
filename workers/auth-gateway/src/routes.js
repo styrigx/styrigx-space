@@ -5,7 +5,6 @@
  * tests/kernel/auth-worker.test.mjs 会检查两边一致，漏了 CI 会红。
  */
 import * as account from '../functions/api/account.js';
-import * as appToken from '../functions/api/app-token.js';
 import * as avatar from '../functions/api/avatar.js';
 import * as bookmarkPreview from '../functions/api/bookmark-preview.js';
 import * as bookmarks from '../functions/api/bookmarks.js';
@@ -15,6 +14,7 @@ import * as layerStatus from '../functions/api/layer-status.js';
 import * as lock from '../functions/api/lock.js';
 import * as lockAllDevices from '../functions/api/lock-all-devices.js';
 import * as lockConfig from '../functions/api/lock-config.js';
+import * as lockDoor from '../functions/api/lock-door.js';
 import * as lockStatus from '../functions/api/lock-status.js';
 import * as lockreset from '../functions/api/lockreset.js';
 import * as ownerPasskey from '../functions/api/owner-passkey.js';
@@ -24,14 +24,12 @@ import * as rootAuth from '../functions/api/root-auth.js';
 import * as rootSession from '../functions/api/root-session.js';
 import * as sessionCheck from '../functions/api/session-check.js';
 import * as sessionEpoch from '../functions/api/session-epoch.js';
-import * as stepup from '../functions/api/stepup.js';
 import * as verify from '../functions/api/verify.js';
 import * as wellbeing from '../functions/api/wellbeing.js';
 
 /** @type {Map<string, Record<string, Function>>} */
 export const API_ROUTES = new Map([
   ['/api/account', account],
-  ['/api/app-token', appToken],
   ['/api/avatar', avatar],
   ['/api/bookmark-preview', bookmarkPreview],
   ['/api/bookmarks', bookmarks],
@@ -41,6 +39,7 @@ export const API_ROUTES = new Map([
   ['/api/lock', lock],
   ['/api/lock-all-devices', lockAllDevices],
   ['/api/lock-config', lockConfig],
+  ['/api/lock-door', lockDoor],
   ['/api/lock-status', lockStatus],
   ['/api/lockreset', lockreset],
   ['/api/owner-passkey', ownerPasskey],
@@ -50,7 +49,6 @@ export const API_ROUTES = new Map([
   ['/api/root-session', rootSession],
   ['/api/session-check', sessionCheck],
   ['/api/session-epoch', sessionEpoch],
-  ['/api/stepup', stepup],
   ['/api/verify', verify],
   ['/api/wellbeing', wellbeing],
 ]);

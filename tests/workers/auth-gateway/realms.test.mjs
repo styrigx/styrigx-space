@@ -3,7 +3,8 @@
  *
  * 覆盖：
  * - 各凭证域的 cookie 名 / 属性 / 有效期、KV 键名与重构前字面量逐字相同
- * - 旧导出名（SESSION_COOKIE、STEPUP_COOKIE、APP_COOKIE_ATTRS…）仍等于原值
+ * - 旧导出名（SESSION_COOKIE…）仍等于原值
+ * - 签名钥匙只剩账号、锁屏两套：stepup / app 凭证域及其钥匙名全部删除
  * - 每个钥匙名都按 SGX_<PURPOSE>_PRIVATE/PUBLIC 规范，且都在 src/secrets.js 的
  *   SECRET_NAMES 与 wrangler.toml 的 Secrets Store 绑定里（少一个 → 线上读不到 → fail closed）
  * - realmCookie / realmClearCookie 拼出的 Set-Cookie 与原手拼字符串相同
@@ -20,8 +21,6 @@ import { readFileSync } from 'node:fs';
 import {
   REALMS,
   REALM_LOCK,
-  REALM_STEPUP,
-  REALM_APP,
   REALM_ACCOUNT,
   REALM_ROOT,
   SESSION_EPOCH_KEY,
@@ -58,22 +57,6 @@ test('realms：线上格式与重构前字面量逐字相同', () => {
   assert.equal(REALM_LOCK.privateKey, 'SGX_LOCK_PRIVATE');
   assert.equal(REALM_LOCK.publicKey, 'SGX_LOCK_PUBLIC');
 
-  assert.equal(REALM_STEPUP.cookie, 'sgx-stepup');
-  assert.equal(REALM_STEPUP.cookieAttrs, 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Strict');
-  assert.equal(REALM_STEPUP.maxAge, 180);
-  assert.equal(REALM_STEPUP.kv.challengePrefix, 'stepup-challenge:');
-  assert.equal(REALM_STEPUP.kv.challengeTtl, 300);
-  assert.equal(REALM_STEPUP.kv.lockresetChallengePrefix, 'lockreset-challenge:');
-  assert.equal(REALM_STEPUP.privateKey, 'SGX_STEPUP_PRIVATE');
-  assert.equal(REALM_STEPUP.publicKey, 'SGX_STEPUP_PUBLIC');
-
-  assert.equal(REALM_APP.cookie, 'sgx-app');
-  assert.equal(REALM_APP.cookieAttrs, 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax');
-  assert.equal(REALM_APP.maxAge, 600);
-  assert.equal(REALM_APP.kv.epochPrefix, 'app-epoch:');
-  assert.equal(REALM_APP.privateKey, 'SGX_APP_PRIVATE');
-  assert.equal(REALM_APP.publicKey, 'SGX_APP_PUBLIC');
-
   /* 账号体系：原站长凭证升级为账号；存储键沿用原值（迁移不搬数据） */
   assert.equal(REALM_ACCOUNT.kv.password, 'owner-pw');
   assert.equal(REALM_ACCOUNT.kv.passkeyPrefix, 'owner-passkey:');
@@ -82,12 +65,12 @@ test('realms：线上格式与重构前字面量逐字相同', () => {
   assert.equal(REALM_ACCOUNT.cookie, 'sgx-account');
   assert.equal(REALM_ACCOUNT.cookieAttrs, 'Path=/; HttpOnly; Secure; SameSite=Strict');
   assert.equal(REALM_ACCOUNT.maxAge, 34560000); /* 400 天：不点退出一直登录 */
-  assert.equal(REALM_ACCOUNT.recent, 600);
+  assert.equal(REALM_ACCOUNT.recent, undefined); /* 「管理凭证」近期登录窗口已随 stepup 删除 */
   assert.equal(REALM_ACCOUNT.privateKey, 'SGX_ACCOUNT_PRIVATE');
   assert.equal(REALM_ACCOUNT.publicKey, 'SGX_ACCOUNT_PUBLIC');
   assert.equal(REALM_ACCOUNT.kv.challengePrefix, 'account-challenge:');
   assert.equal(REALM_ACCOUNT.kv.epoch, 'account-epoch');
-  /* 锁屏/应用通行密钥的 challenge 前缀不变 */
+  /* 锁屏通行密钥的 challenge 前缀不变 */
   assert.equal(REALM_LOCK.kv.passkeyChallengePrefix, 'pk-challenge:');
   assert.notEqual(REALM_ACCOUNT.cookie, REALM_LOCK.cookie);
   assert.equal(REALM_LOCK.pepper, 'SGX_PW_PEPPER');
@@ -101,14 +84,16 @@ test('realms：旧导出名仍等于原值（调用方不变）', async () => {
   assert.equal(session.SESSION_COOKIE, 'sgx-verified');
   assert.equal(session.COOKIE_ATTRS, 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax');
   assert.equal(session.SESSION_MAX_AGE, 43200);
-  const stepup = await import('../../../workers/auth-gateway/functions/api/stepup.js');
-  assert.equal(stepup.STEPUP_COOKIE, 'sgx-stepup');
-  assert.equal(stepup.STEPUP_MAX_AGE, 180);
-  assert.equal(stepup.STEPUP_COOKIE_ATTRS, 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Strict');
-  const app = await import('../../../workers/auth-gateway/functions/api/app-token.js');
-  assert.equal(app.APP_COOKIE, 'sgx-app');
-  assert.equal(app.APP_TOKEN_MAX_AGE, 600);
-  assert.equal(app.APP_COOKIE_ATTRS, 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600');
+});
+
+test('realms：签名钥匙只剩账号、锁屏两套（stepup / app 全删）', () => {
+  assert.deepEqual(Object.keys(REALMS).sort(), ['account', 'lock', 'root']);
+  for (const n of ['SGX_STEPUP_PRIVATE', 'SGX_STEPUP_PUBLIC', 'SGX_APP_PRIVATE', 'SGX_APP_PUBLIC']) {
+    assert.ok(!SECRET_NAMES.includes(n), n + ' 不应再在 SECRET_NAMES 里');
+  }
+  const toml = readFileSync(REPO + 'workers/auth-gateway/wrangler.toml', 'utf8');
+  assert.ok(!/SGX_STEPUP_|SGX_APP_/.test(toml), 'wrangler.toml 不应再绑定 SGX_STEPUP_* / SGX_APP_*');
+  assert.ok(!toml.includes('app-verify'), 'wrangler.toml 不应再登记 /app-verify/');
 });
 
 test('realms：钥匙名符合 SGX_<PURPOSE>_PRIVATE/PUBLIC，且都在 SECRET_NAMES 与 wrangler.toml 里', () => {
@@ -129,20 +114,8 @@ test('realms：钥匙名符合 SGX_<PURPOSE>_PRIVATE/PUBLIC，且都在 SECRET_N
 
 test('realms：realmCookie / realmClearCookie 与原手拼字符串相同', () => {
   assert.equal(
-    realmCookie(REALM_STEPUP, 'v1'),
-    'sgx-stepup=v1; Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=180'
-  );
-  assert.equal(
     realmCookie(REALM_LOCK, 'v2', 3600),
     'sgx-verified=v2; Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=3600'
-  );
-  assert.equal(
-    realmClearCookie(REALM_STEPUP),
-    'sgx-stepup=; Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
-  );
-  assert.equal(
-    realmClearCookie(REALM_APP),
-    'sgx-app=; Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
   );
   assert.equal(
     realmCookie(REALM_ACCOUNT, 'v3'),
@@ -156,8 +129,8 @@ test('realms：realmCookie / realmClearCookie 与原手拼字符串相同', () =
 
 test('realms：读钥匙缺失一律返回空串（fail closed）', () => {
   assert.equal(realmPrivateKey(undefined, REALM_LOCK), '');
-  assert.equal(realmPublicKey({}, REALM_STEPUP), '');
-  assert.equal(realmPrivateKey({ SGX_APP_PRIVATE: 'x' }, REALM_APP), 'x');
+  assert.equal(realmPublicKey({}, REALM_ACCOUNT), '');
+  assert.equal(realmPrivateKey({ SGX_ACCOUNT_PRIVATE: 'x' }, REALM_ACCOUNT), 'x');
   assert.equal(realmPublicKey({ SGX_LOCK_PUBLIC: 'y' }, REALM_LOCK), 'y');
 });
 

@@ -1,8 +1,9 @@
 /**
  * 认证入口修正：SGX_ROOT_KEY = 根凭证。
  *
- * 入口 1（站长凭证）：有效 lock 会话 + 根凭证 → sgx-stepup(by=root, scope=root)
- * （约 10 分钟，带当前 epoch），只能管理站长凭证（accountkey：账号密码/账号通行密钥）。
+ * 默认（锁屏凭证的门）：有效 lock 会话 + 根凭证 → 锁屏门票 sgx-door(door=lock, by=root)，
+ * 3 分钟，SGX_LOCK_* 签名（_kernel/door.js）。锁屏未配置的引导模式（无会话）同样签这张票，
+ * 前端随后调 /api/root-session 换 by=root 的会话。
  *
  * 访客假入口：访客会话（sgx-verified role=visitor）直接写死返回 401 auth：
  * 不读 D1、KV、环境变量里的任何凭证，不做任何比对；不计入 rootlimit；
@@ -11,10 +12,10 @@
  *
  * 引导：lock 层未配置时（KV 读失败按已配置处理），允许无会话直接校验根凭证。
  *
- * 不能签 sgx-app，不能签 lock 会话。
+ * 本接口不直接签 lock 会话。
  *
  * 账号体系：body.target='account' → 根凭证作为账号登录的第三个入口，成功签发
- * 账号会话 sgx-account(by=root)，不签 stepup；再带 door:true（安全与隐私子页的门）时
+ * 账号会话 sgx-account(by=root)，不签锁屏门票；再带 door:true（安全与隐私子页的门）时
  * 另签账号门票 sgx-door(door=account, by=root)，3 分钟。限速、审计（path=account）、访客假入口、
  * 真/假路径判断与默认目标完全相同，唯一区别：target=account 不走引导模式
  * （无有效 owner lock 会话一律走假入口）。缺 SGX_ACCOUNT_PRIVATE/PUBLIC → 503 config。
@@ -23,9 +24,9 @@
  * - 恒定时间比较 env.SGX_ROOT_KEY（防长度泄露）
  * - 限速：所有 root 路径共用一套（_kernel/rootlimit.js），仅真路径计数
  *   （单 IP 连错 5 次锁 15 分钟；全局每小时失败 20 次暂停 1 小时）
- * - 通过：签发 sgx-stepup(by=root, scope=root) cookie
+ * - 通过：签发锁屏门票 sgx-door(door=lock, by=root)
  * - 失败：401 auth（并计数）；超限：429
- * - 缺 SGX_ROOT_KEY / SGX_STEPUP_PRIVATE → 拒绝（500/503）
+ * - 缺 SGX_ROOT_KEY → 500 config；缺 SGX_LOCK_PRIVATE/PUBLIC → 503 config
  *
  * 审计：真路径每次使用（成功/失败）在 KV 留一条记录（_kernel/rootlog.js）；
  * 假入口不写审计。写入失败则不签发（fail closed）。
@@ -34,15 +35,14 @@
  * 旧 /api/owner-auth 不再可用。
  */
 import { timingSafeEqual, ed25519Verify, normalizeRootKey } from '../_kernel/crypto.js';
-import { getSessionEpoch, ROLE_OWNER, ROLE_VISITOR } from '../_kernel/session.js';
-import { signStepupCookie, setStepupCookie, STEPUP_BY_ROOT, STEPUP_SCOPE_ROOT } from './stepup.js';
+import { ROLE_OWNER, ROLE_VISITOR } from '../_kernel/session.js';
 import { checkRootLimit, recordRootFail, clearRootFail, getClientIp } from '../_kernel/rootlimit.js';
 import { writeRootAudit } from '../_kernel/rootlog.js';
 import { isLockEffectivelyConfigured } from '../_kernel/layers.js';
 import { verifySessionDetailed } from '../_middleware.js';
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
-import { REALM_LOCK, REALM_STEPUP, REALM_ROOT, realmPrivateKey, realmPublicKey } from '../_kernel/realms.js';
-import { issueDoorCookie, DOOR_ACCOUNT } from '../_kernel/door.js';
+import { REALM_LOCK, REALM_ROOT, realmPrivateKey, realmPublicKey } from '../_kernel/realms.js';
+import { issueDoorCookie, DOOR_ACCOUNT, DOOR_LOCK } from '../_kernel/door.js';
 import { issueAccountCookie, accountKeysReady, ACCOUNT_BY_ROOT } from '../_kernel/account-session.js';
 
 /* 假入口与真失败的统一固定最小延迟（毫秒）：防时序区分。
@@ -177,7 +177,6 @@ async function handlePost(context) {
      缺关键配置 → 直接拒绝（fail closed）。注意：假入口路径在上面已返回，
      这里只处理真路径，避免无会话时因缺环境变量泄露 500 config。 */
   const rootKey = (env && env[REALM_ROOT.secret]) || ''; /* SGX_ROOT_KEY */
-  const stepupKey = realmPrivateKey(env, REALM_STEPUP); /* SGX_STEPUP_PRIVATE */
   if (toAccount) {
     /* 账号钥匙缺失 → 503 config（只影响账号登录）；先于根凭证比对，不浪费限流次数 */
     if (!accountKeysReady(env)) {
@@ -186,9 +185,14 @@ async function handlePost(context) {
     if (!rootKey || !kv) {
       return Response.json({ ok: false, error: 'config' }, { status: 500 });
     }
-  } else if (!rootKey || !stepupKey || !kv) {
-    const errCode = !stepupKey ? 'no-stepup-key' : 'config';
-    return Response.json({ ok: false, error: errCode }, { status: 500 });
+  } else {
+    /* 锁屏钥匙缺失 → 503 config；先于根凭证比对，不浪费限流次数 */
+    if (!realmPrivateKey(env, REALM_LOCK) || !realmPublicKey(env, REALM_LOCK)) {
+      return Response.json({ ok: false, error: 'config' }, { status: 503 });
+    }
+    if (!rootKey || !kv) {
+      return Response.json({ ok: false, error: 'config' }, { status: 500 });
+    }
   }
 
   if (lockCfg || toAccount) {
@@ -235,7 +239,7 @@ async function handlePost(context) {
 
   const headers = new Headers({ 'Content-Type': 'application/json' });
 
-  /* 账号登录：签发 sgx-account(by=root)，不签 stepup、不签 lock 会话 */
+  /* 账号登录：签发 sgx-account(by=root)，不签锁屏门票、不签 lock 会话 */
   if (toAccount) {
     const accErr = await issueAccountCookie(env, headers, ACCOUNT_BY_ROOT);
     if (accErr) {
@@ -256,22 +260,12 @@ async function handlePost(context) {
     return new Response(JSON.stringify({ ok: true }), { headers });
   }
 
-  /* 只签发 sgx-stepup(by=root, scope=root)，不签发会话 */
-  let epoch;
-  try {
-    epoch = await getSessionEpoch(kv);
-  } catch (e) {
+  /* 只签发锁屏门票（door=lock, by=root），不签发会话 */
+  const dErr = await issueDoorCookie(env, headers, DOOR_LOCK, 'root');
+  if (dErr) {
     await writeRootAudit(kv, ip, false, { path: auditPath });
-    return Response.json({ ok: false, error: 'server' }, { status: 503 });
+    return Response.json(dErr.body, { status: dErr.status });
   }
-  let stepupVal;
-  try {
-    stepupVal = await signStepupCookie(stepupKey, STEPUP_BY_ROOT, STEPUP_SCOPE_ROOT, epoch);
-  } catch (e) {
-    await writeRootAudit(kv, ip, false, { path: auditPath });
-    return Response.json({ ok: false, error: 'sign-failed' }, { status: 500 });
-  }
-  setStepupCookie(headers, stepupVal);
 
   /* 审计写入失败则不签发（fail closed） */
   if (!(await writeRootAudit(kv, ip, true, { path: auditPath }))) {
