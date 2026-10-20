@@ -14,9 +14,10 @@
  * sessionStorage 只在每个测试开始时清一次。
  *
  * 跳转断言（B2-1 起）：sgxReplace 不再写 sessionStorage['sgx-last-jump']（B2-1 删除诊断留痕）。
- * 回跳 = sgxReplace(location.href)（线上由 L1 middleware 校验 return 后 302 到子站）。
- * 测试侧监听主框架导航请求（trackJumps）：URL 带 why= 且不是测试自己 goto 发出的，
- * 就是一次回跳。subsite-jump 记录保留在 sessionStorage，可断言。
+ * 回跳 = sgxReplace(当前地址去掉 why)（线上由 L1 middleware 校验 return 后 302 到子站；
+ * 带着 why 时 L1 不 302，所以回跳必须去掉 why，2026-10-20 修）。
+ * 测试侧监听主框架导航请求（trackJumps）：URL 带 return= 且不是测试自己 goto 发出的，
+ * 就是一次回跳；回跳地址不得再带 why=。subsite-jump 记录保留在 sessionStorage，可断言。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, expect } = require('./helpers');
@@ -31,7 +32,7 @@ async function blockJsNavigation(page) {
 }
 
 
-/* 记录回跳：主框架导航请求、URL 带 why=、且不是测试自己 goto 发出的（gotoWhy 先登记跳过一次） */
+/* 记录回跳：主框架导航请求、URL 带 return=、且不是测试自己 goto 发出的（gotoWhy 先登记跳过一次） */
 function trackJumps(page) {
   page.__jumps = [];
   page.__skipNav = 0;
@@ -39,7 +40,7 @@ function trackJumps(page) {
     try {
       if (!r.isNavigationRequest() || r.frame() !== page.mainFrame()) return;
       page.__navCount = (page.__navCount || 0) + 1;
-      if (r.url().indexOf('why=') === -1) return;
+      if (r.url().indexOf('return=') === -1) return;
       if (page.__skipNav > 0) { page.__skipNav--; return; }
       page.__jumps.push(r.url());
     } catch (e) {}
@@ -317,6 +318,9 @@ test.describe('B1-8 路径B：会话无效、访客解锁后被踢回', () => {
 
     const trace = await getJumpTrace(page);
     expect(trace.length).toBeGreaterThan(0);
+    /* 回跳地址去掉了 why（带 why 时线上 L1 不 302，会卡在主站） */
+    expect(trace[0]).not.toContain('why=');
+    expect(trace[0]).toContain('return=');
     const rec = await getJumpRecord(page);
     expect(rec).not.toBeNull();
     expect(rec.target).toBe(TARGET);
