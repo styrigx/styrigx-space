@@ -44,11 +44,11 @@ async function expectClosed(page) {
 test.describe('顶栏：快捷面板圆', () => {
   const PAGES = ['/', '/bookmarks/', '/search/', '/settings/', '/settings/display/', '/settings/security/', '/settings/account/'];
   for (const path of PAGES) {
-    test(`${path}：九宫格 · 长条 · 快捷面板圆 · 头像`, async ({ page }) => {
+    test(`${path}：九宫格 · 搜索圆 · 长条 · 快捷面板圆 · 头像`, async ({ page }) => {
       await go(page, path);
       const order = await page.evaluate(() =>
         Array.from(document.querySelector('.sgx-topbar').children).map((el) => el.className.split(' ')[0]));
-      expect(order).toEqual(['sgx-tb-nav', 'sgx-tb-pill', 'sgx-tb-quick', 'sgx-tb-me']);
+      expect(order).toEqual(['sgx-tb-nav', 'sgx-tb-search', 'sgx-tb-pill', 'sgx-tb-quick', 'sgx-tb-me']);
       const q = page.locator('.sgx-tb-quick');
       await expect(q).toHaveAttribute('aria-label', '快捷面板');
       await expect(q).toHaveAttribute('aria-controls', 'sgx-qp');
@@ -59,7 +59,7 @@ test.describe('顶栏：快捷面板圆', () => {
     });
   }
 
-  test('390px：「安全与隐私」完整显示，英文长页名省略号，页名不压到图标', async ({ page }) => {
+  test('390px：「安全与隐私」完整显示，英文长页名省略号，页名不出长条', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await go(page, '/settings/security/');
     const t = page.locator('.sgx-tb-title');
@@ -73,10 +73,9 @@ test.describe('顶栏：快捷面板圆', () => {
     expect(st.sw).toBeGreaterThan(st.cw);
     const tb = await t.boundingBox();
     const pill = await page.locator('.sgx-tb-pill').boundingBox();
-    const ic = await page.locator('.sgx-tb-cap-ic').boundingBox();
-    /* 页名在长条内居中（左右对称），不压到搜索图标 */
+    /* 页名在长条内居中（左右对称），不出长条 */
     expect(Math.abs(tb.x + tb.width / 2 - (pill.x + pill.width / 2))).toBeLessThanOrEqual(1);
-    expect(tb.x).toBeGreaterThanOrEqual(ic.x + ic.width - 0.5);
+    expect(tb.x).toBeGreaterThanOrEqual(pill.x);
     expect(tb.x + tb.width).toBeLessThanOrEqual(pill.x + pill.width);
   });
 });

@@ -156,11 +156,12 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{ $setUrl := $setUrl0 }}
 {{ $glUrl := cond $isEn "/en/settings/goodlock/" "/settings/goodlock/" }}
 
-{{/* 顶栏（通版，2026-10-20，全站同一套）：左圆九宫格（打开左侧导航抽屉）、中间长条、右圆头像（账号）。
-   长条 = 最前端一个搜索图标 + 当前页名（主页「首页」/ Home，其他页用页面标题；不再显示 Styrigx、不再有滚动换标题）。
-   点长条打开全网搜索 /search/（在全网搜索页上则聚焦底部输入框，见 head-buttons.js）。
-   子页面不再有大标题区：页名只在长条里，正文从顶栏下方 --sgx-content-top 开始（input.css，全站同一个值）。
-   长条与头像之间是快捷面板圆（.sgx-tb-quick，与左圆同尺寸同材质）：点开 #sgx-qp（见下方快捷面板注释）。 */}}
+{{/* 顶栏（通版，2026-10-20，全站同一套），左右对称 2 + 1 + 2：
+   [九宫格圆（打开左侧导航抽屉）][搜索圆（进全网搜索 /search/）] — [中间长条：当前页名] — [快捷面板圆][头像圆（账号）]。
+   左右两组同宽，长条在屏幕上真正居中；长条只是页名标签（不可点，主页「首页」/ Home，其他页用页面标题），太长时省略号。
+   搜索圆是普通链接（沿用站内切页过渡）；在全网搜索页上点它只聚焦底部输入框（见 head-buttons.js）。
+   子页面没有大标题区：页名只在长条里，正文从顶栏下方 --sgx-content-top 开始（input.css，全站同一个值）。
+   快捷面板圆（.sgx-tb-quick）点开 #sgx-qp（见下方快捷面板注释）。 */}}
 {{ $pageName := .Title }}
 {{ if .IsHome }}{{ $pageName = cond $isEn "Home" "首页" }}
 {{ else if eq .Kind "404" }}{{ $pageName = cond $isEn "Page not found" "页面不存在" }}
@@ -169,9 +170,8 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 <header id="site-nav" class="z-50">
   <div class="sgx-topbar">
     <button type="button" class="sgx-tb-nav" aria-label="{{ if $isEn }}Navigation{{ else }}导航{{ end }}" aria-haspopup="dialog" aria-controls="sgx-drawer" aria-expanded="false">{{ partial "icon.html" "apps-grid" }}</button>
-    <div class="sgx-tb-pill">
-      <a id="sgx-tb-cap" class="sgx-tb-cap" href="{{ $searchUrl }}" aria-label="{{ $pageName }}{{ if $isEn }}, web search{{ else }}，全网搜索{{ end }}"><span class="sgx-tb-cap-ic" aria-hidden="true">{{ partial "icon.html" "search" }}</span><span class="sgx-tb-title">{{ $pageName }}</span></a>
-    </div>
+    <a id="sgx-tb-search" class="sgx-tb-search" href="{{ $searchUrl }}" aria-label="{{ if $isEn }}Search{{ else }}搜索{{ end }}">{{ partial "icon.html" "search" }}</a>
+    <div class="sgx-tb-pill"><span class="sgx-tb-title">{{ $pageName }}</span></div>
     <button type="button" class="sgx-tb-quick" aria-label="{{ if $isEn }}Quick panel{{ else }}快捷面板{{ end }}" aria-haspopup="dialog" aria-controls="sgx-qp" aria-expanded="false">{{ partial "icon.html" "sliders" }}</button>
     <a class="sgx-tb-me" href="{{ $acctUrl }}" aria-label="{{ if $isEn }}Account{{ else }}账号{{ end }}"><img src="/avatar/192.webp" alt="" width="52" height="52" class="sgx-tb-avatar" data-sgx-avatar="192"></a>
   </div>

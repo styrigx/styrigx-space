@@ -1492,8 +1492,6 @@
     display: flex; align-items: center; justify-content: center;
     svg { width: 24px; height: 24px; }
   }
-  /* ===== B1-6a：设置搜索独立页 ===== */
-  .setso-title { font-size: 15px; font-weight: 600; color: var(--m-on-surface); padding: 8px 4px 12px; }
   .setso-card { background: var(--m-container); border-radius: 1.25rem; margin-bottom: 12px; overflow: hidden; }
   .setso-card-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 8px; font-size: 13px; font-weight: 600; color: var(--m-on-surface-variant); }
   .setso-item {
@@ -1502,7 +1500,7 @@
     &:active { background: var(--m-container-high); }
   }
   .setso-hl { color: var(--m-primary); background: none; }
-  /* ===== B1-6b：设置搜索最近搜索卡 ===== */
+  /* ===== B1-6b：最近搜索卡 / 结果卡（全网搜索页用；设置搜索 2026-10-20 已删除） ===== */
   .setso-recent-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 8px; }
   .setso-recent-title { font-size: 13px; font-weight: 600; color: var(--m-on-surface-variant); }
   .setso-clear { background: none; border: 0; color: var(--m-primary); font-size: 13px; cursor: pointer; padding: 4px 2px; }
@@ -2246,8 +2244,6 @@
   body.sgx-cap-pad main { padding-bottom: calc(180px + env(safe-area-inset-bottom,0px)); }
   /* 2.3.14.10：应用页无 Dock，键盘跟随以下沉后的位置（12px）为起点（原 !important 已摘） */
   body.subpage.sgx-cap-pad main { padding-bottom: calc(104px + env(safe-area-inset-bottom,0px)); }
-  /* 设置页搜索跳转高亮 */
-  .set-hl { outline: 2px solid var(--m-primary) !important; outline-offset: 2px; }
 
   /* ===== 减少动态偏好：全局开关（必须保留 !important 才能盖过 animation 简写） ===== */
   @media (prefers-reduced-motion: reduce) {
@@ -2359,8 +2355,10 @@
   background: transparent; border: 0; box-shadow: none; padding: 0;
   animation: none; backdrop-filter: none; -webkit-backdrop-filter: none;
   -webkit-mask-image: none; mask-image: none; contain: none; isolation: auto; }
-.sgx-topbar { position: fixed; top: calc(16px + env(safe-area-inset-top, 0px)); left: 16px; right: 16px;
-  height: 52px; z-index: 55; display: flex; align-items: center; gap: 8px; pointer-events: none; }
+/* 顶栏尺寸 token：页边距、圆按钮直径、间距。手机竖屏导航抽屉宽度也由它们算（右缘对齐快捷面板圆左缘），改这里两边一起跟着变 */
+:root { --sgx-tb-inset: 16px; --sgx-tb-btn: 52px; --sgx-tb-gap: 8px; }
+.sgx-topbar { position: fixed; top: calc(var(--sgx-tb-inset) + env(safe-area-inset-top, 0px)); left: var(--sgx-tb-inset); right: var(--sgx-tb-inset);
+  height: var(--sgx-tb-btn); z-index: 55; display: flex; align-items: center; gap: var(--sgx-tb-gap); pointer-events: none; }
 @media (min-width: 980px) {
   .sgx-topbar { left: 50%; right: auto; transform: translateX(-50%); width: min(calc(100vw - 32px), 1068px); }
 }
@@ -2372,6 +2370,8 @@
   --sgx-mat-solid: color-mix(in srgb, var(--m-primary) 10%, var(--m-surface));
   --sgx-mat-line: rgba(0,0,0,.06);
   --sgx-mat-shadow: 0 8px 24px rgba(0,0,0,.14);
+  /* 材质毛玻璃（顶栏圆 / 长条与导航抽屉面板共用，保持一致） */
+  --sgx-mat-filter: blur(24px) saturate(180%);
 }
 .dark {
   --sgx-mat-line: rgba(255,255,255,.08);
@@ -2379,62 +2379,64 @@
 }
 .sgx-tb-search, .sgx-tb-pill, .sgx-tb-nav, .sgx-tb-quick {
   background: var(--sgx-mat);
-  backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: var(--sgx-mat-filter); -webkit-backdrop-filter: var(--sgx-mat-filter);
   border: 1px solid var(--sgx-mat-line); box-shadow: var(--sgx-mat-shadow); pointer-events: auto; }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .sgx-tb-search, .sgx-tb-pill, .sgx-tb-nav, .sgx-tb-quick { background: var(--sgx-mat-solid); }
 }
-.sgx-tb-search, .sgx-tb-nav, .sgx-tb-quick { width: 52px; height: 52px; border-radius: 999px; flex-shrink: 0; padding: 0;
+.sgx-tb-search, .sgx-tb-nav, .sgx-tb-quick { width: var(--sgx-tb-btn); height: var(--sgx-tb-btn); border-radius: 999px; flex-shrink: 0; padding: 0;
   display: inline-flex; align-items: center; justify-content: center; color: var(--m-on-surface); cursor: pointer; }
-/* 快捷面板圆（长条与头像之间，与左圆同尺寸同材质；点开 #sgx-qp） */
+/* 搜索圆（紧挨九宫格，链到 /search/）、快捷面板圆（长条与头像之间，点开 #sgx-qp）：都与九宫格同尺寸同材质 */
 .sgx-tb-quick svg { width: 22px; height: 22px; }
 .sgx-tb-search { text-decoration: none; }
 .sgx-tb-search svg { width: 22px; height: 22px; }
 .sgx-tb-nav svg { width: 22px; height: 22px; }
-.sgx-tb-pill { flex: 1; height: 52px; border-radius: 26px; min-width: 0; display: flex; align-items: center;
-  padding: 0 6px; position: relative; }
+/* 通版顶栏（2026-10-20）：左右对称 2 + 1 + 2（九宫格圆 + 搜索圆 | 长条 | 快捷面板圆 + 头像圆）。
+   左右两组同宽（--sgx-tb-btn + --sgx-tb-gap + --sgx-tb-btn），长条 flex:1 夹在中间，中心 = 顶栏中心 = 屏幕中心。
+   长条只是页名标签（不可点、没有按压态），左右对称小内边距，太长时省略号；
+   390px 宽长条约 118px，页名区约 94px：「安全与隐私」放得下，英文长页名省略号。 */
+.sgx-tb-pill { flex: 1; height: var(--sgx-tb-btn); border-radius: calc(var(--sgx-tb-btn) / 2); min-width: 0; display: flex; align-items: center; justify-content: center;
+  padding: 0 12px; color: var(--m-on-surface); cursor: default; }
 .sgx-tb-avatar { width: 28px; height: 28px; border-radius: 999px; object-fit: cover; border: 1px solid var(--m-outline); flex-shrink: 0; }
-/* 通版顶栏（2026-10-20）：整条长条是一个链接（点了进全网搜索）；最前端搜索图标（中心距长条左边 26，与左圆同尺寸图标），
-   当前页名在长条内水平垂直居中（左右各让出 46px = 搜索图标右缘，与图标对称），太长时省略号。
-   右侧多了快捷面板圆后 390px 宽长条只剩 ~178px，页名区约 86px：「安全与隐私」放得下，英文长页名省略号。 */
-.sgx-tb-cap { position: absolute; inset: 0; border-radius: inherit; display: block; color: var(--m-on-surface); text-decoration: none;
-  transition: background-color .15s ease; }
-.sgx-tb-cap:active { background-color: rgba(0,0,0,.06); }
-.dark .sgx-tb-cap:active { background-color: rgba(255,255,255,.10); }
-.sgx-tb-cap:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
-.sgx-tb-cap-ic { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); width: 40px; height: 40px;
-  display: inline-flex; align-items: center; justify-content: center; color: var(--m-on-surface-variant); }
-.sgx-tb-cap-ic svg { width: 22px; height: 22px; }
-.sgx-tb-title { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); max-width: calc(100% - 92px);
+.sgx-tb-title { display: block; min-width: 0; max-width: 100%;
   font-size: 16px; font-weight: 700; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* 右圆：头像（账号入口：链到账号登录页 / 账号页） */
-.sgx-tb-me { width: 52px; height: 52px; border-radius: 999px; flex-shrink: 0; overflow: hidden; display: block;
+.sgx-tb-me { width: var(--sgx-tb-btn); height: var(--sgx-tb-btn); border-radius: 999px; flex-shrink: 0; overflow: hidden; display: block;
   border: 1px solid var(--sgx-mat-line); box-shadow: var(--sgx-mat-shadow); pointer-events: auto; }
 .sgx-tb-me .sgx-tb-avatar { width: 100%; height: 100%; border: 0; display: block; }
 .sgx-tb-search, .sgx-tb-nav, .sgx-tb-quick { transition: background-color .15s ease; }
 .sgx-tb-search:active, .sgx-tb-nav:active, .sgx-tb-quick:active { background-color: rgba(0,0,0,.06); }
 .dark .sgx-tb-search:active, .dark .sgx-tb-nav:active, .dark .sgx-tb-quick:active { background-color: rgba(255,255,255,.10); }
-.reduced-motion .sgx-tb-search, .reduced-motion .sgx-tb-nav, .reduced-motion .sgx-tb-quick, .reduced-motion .sgx-tb-cap { transition: none; }
-@media (prefers-reduced-motion: reduce) { .sgx-tb-search, .sgx-tb-nav, .sgx-tb-quick, .sgx-tb-cap { transition: none; } }
+.reduced-motion .sgx-tb-search, .reduced-motion .sgx-tb-nav, .reduced-motion .sgx-tb-quick { transition: none; }
+@media (prefers-reduced-motion: reduce) { .sgx-tb-search, .sgx-tb-nav, .sgx-tb-quick { transition: none; } }
 .sgx-tb-search:focus-visible, .sgx-tb-nav:focus-visible, .sgx-tb-quick:focus-visible {
   outline: 2px solid var(--m-primary); outline-offset: 2px; }
 /* 导航抽屉（2026-10-20，Gmail Android 式左侧抽屉；baseof.html #sgx-drawer，head-buttons.js 开关）：
    <dialog> 模态铺满视口，::backdrop 是遮罩；.sgx-drawer-sheet 从左滑入（is-open）。
-   当前项是主色容器药丸（aria-current="page"），图标 24px 描边。 */
+   当前项是主色容器药丸（aria-current="page"），图标 24px 描边。面板底色 = 顶栏材质（--sgx-mat / --sgx-mat-filter，跟随调色板与明暗）。 */
 .sgx-drawer { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0;
   border: 0; background: transparent; overflow: hidden; color: var(--m-on-surface); }
 .sgx-drawer::backdrop { background: rgba(0,0,0,0); transition: background-color .22s ease; }
 .sgx-drawer.is-open::backdrop { background: rgba(0,0,0,.32); }
-.sgx-drawer-sheet { position: absolute; top: 0; bottom: 0; left: 0; width: min(85vw, 320px); overflow-y: auto; overscroll-behavior: contain;
-  background: var(--m-container-lowest); border-radius: 0 1.75rem 1.75rem 0; box-shadow: 0 12px 40px -8px rgba(0,0,0,.30);
+.sgx-drawer-sheet { position: absolute; top: 0; bottom: 0; left: 0; width: 320px; overflow-y: auto; overscroll-behavior: contain;
+  background: var(--sgx-mat); backdrop-filter: var(--sgx-mat-filter); -webkit-backdrop-filter: var(--sgx-mat-filter);
+  border-radius: 0 1.75rem 1.75rem 0; box-shadow: 0 12px 40px -8px rgba(0,0,0,.30);
   padding: calc(16px + env(safe-area-inset-top, 0px)) 12px calc(16px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-104%); transition: transform .22s cubic-bezier(.2,0,0,1); }
 .sgx-drawer.is-open .sgx-drawer-sheet { transform: none; }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .sgx-drawer-sheet { background: var(--sgx-mat-solid); }
+}
+/* 抽屉宽：平板 / 桌面固定 320px（Material 导航抽屉宽度）；手机竖屏（< 600px，Material compact）右缘对齐顶栏快捷面板圆左缘：
+   宽 = 视口宽 − 右页边距 − 头像圆 − 间距 − 快捷面板圆（<dialog> 铺满视口所以用 100%），全由顶栏 token 算，token 改了仍对齐 */
+@media (max-width: 599.98px) {
+  .sgx-drawer-sheet { width: calc(100% - var(--sgx-tb-inset) - 2 * var(--sgx-tb-btn) - var(--sgx-tb-gap)); }
+}
 .reduced-motion .sgx-drawer-sheet, .reduced-motion .sgx-drawer::backdrop { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-drawer-sheet, .sgx-drawer::backdrop { transition: none; } }
 .sgx-drawer-head { padding: 14px 16px 18px; font-size: 20px; font-weight: 700; color: var(--m-on-surface); }
 .sgx-drawer-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-.sgx-drawer-item { display: flex; align-items: center; gap: 14px; min-height: 56px; padding: 0 20px 0 16px; border-radius: 999px;
+.sgx-drawer-item { display: flex; align-items: center; gap: 14px; min-height: 56px; padding: 0 16px; border-radius: 999px;
   font-size: 15px; font-weight: 500; color: var(--m-on-surface-variant); text-decoration: none; transition: background-color .15s ease; }
 .sgx-drawer-item:hover { background: var(--m-container); }
 .sgx-drawer-item:active { background: var(--m-container-high); }
