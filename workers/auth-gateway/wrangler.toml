@@ -60,6 +60,14 @@ pattern = "styrigx.com/browser/*"
 zone_name = "styrigx.com"
 
 [[routes]]
+pattern = "styrigx.com/bookmarks/*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "styrigx.com/search/*"
+zone_name = "styrigx.com"
+
+[[routes]]
 pattern = "styrigx.com/app-verify/*"
 zone_name = "styrigx.com"
 

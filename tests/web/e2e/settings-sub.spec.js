@@ -2,7 +2,7 @@
  * 2.6.0：设置二级页。真实断言（不 mock 自家逻辑）：
  * - Mobile /settings/ 只留 8 分类入口（账户卡已移到账号页 /settings/account/），无选项组（B2-2 新增 Good Lock，B2-4 删除应用）
  * - DeX/PC /settings/ 左右双栏：左分类导航、右详情窗格（复用子页同一套 partial）
- * - 7 个子页可达、有返回键、有对应选项组
+ * - 7 个子页可达、有对应选项组（2026-10-20 起顶栏没有返回键）
  * - 旧 hash 跳转到子页
  * - 设置搜索结果跳子页（含跨页高亮）
  * - 中英双语
@@ -111,10 +111,10 @@ const SUBCHECKS = {
 
 for (const c of CATS) {
   if (c.id === 'security') continue; // security 子页已有测试覆盖
-  test(`subpage /settings/${c.id}/: back button + options`, async ({ page: pg }) => {
+  test(`subpage /settings/${c.id}/: no back button + options`, async ({ page: pg }) => {
     await pinLang(pg, 'zh');
     await gotoSettings(pg, `/settings/${c.id}/`);
-    await expect(pg.locator('[data-go-back]').first(), 'back button').toBeVisible();
+    await expect(pg.locator('[data-go-back]'), 'no back button').toHaveCount(0);
     await expect(pg.locator('.subpage-title').first(), 'title').toContainText(c.zh);
     for (const sel of SUBCHECKS[c.id]) {
       await expect(pg.locator(sel), sel).toHaveCount(1);
@@ -163,10 +163,12 @@ test('B1-6a search page: input filters and navigates', async ({ page: pg }) => {
   await pg.waitForURL((url) => new URL(url).pathname !== '/settings/search/', { timeout: 10000 });
 });
 
-test('subpage back button returns to settings home', async ({ page: pg }) => {
+test('subpage: system back returns to settings home', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
-  await gotoSettings(pg, '/settings/manage/');
-  await pg.locator('[data-go-back]').first().click();
+  await gotoSettings(pg, '/settings/');
+  await pg.locator('.set-main section[aria-label="分类"] a[href="/settings/manage/"]').click();
+  await pg.waitForURL('**/settings/manage/', { timeout: 10000 });
+  await pg.goBack();
   await pg.waitForURL('**/settings/', { timeout: 10000 });
 });
 
@@ -280,9 +282,9 @@ test('B2-1 security page: no jump-trace diagnostics', async ({ page: pg }) => {
   await pg.waitForTimeout(500);
   await expect(pg.locator('#sgx-jump-note')).toHaveCount(0);
   await expect(pg.locator('main')).not.toContainText(/门内跳转|门内页已加载|navhistory\.js|\.js:\d+/);
-  /* 站内返回：不再写新的留痕 */
+  /* 站内返回（系统返回）：不再写新的留痕 */
   await pg.evaluate(() => sessionStorage.removeItem('sgx-last-jump'));
-  await pg.locator('.sgx-tb-back').click();
+  await pg.goBack();
   await pg.waitForURL(/\/settings\/$/, { timeout: 15000 });
   expect(await pg.evaluate(() => sessionStorage.getItem('sgx-last-jump'))).toBeNull();
 });
@@ -319,7 +321,7 @@ test('B2-2 Good Lock subpage: rows toggle the same keys', async ({ page: pg }) =
   expect(await pg.evaluate(() => localStorage.getItem('sgx-gl-wellbeing'))).toBe('0');
 });
 
-test('B2-2 store and its apps are gone; invite site in browser bookmarks', async ({ page: pg }) => {
+test('B2-2 store and its apps are gone; invite site in bookmarks', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await blockExternalRequests(pg);
   await pg.goto('/', { waitUntil: 'domcontentloaded' });
@@ -336,8 +338,8 @@ test('B2-2 store and its apps are gone; invite site in browser bookmarks', async
   const idx = await (await pg.request.get('/files-index.json')).json();
   const bad = idx.items.filter((it) => it.type === 'book' || it.type === 'music' || /\/(store|ai|books|music)\//.test(it.url || ''));
   expect(bad).toEqual([]);
-  // 浏览器：「我的主页」下面紧跟「我的项目」，里面是邀请码站
-  await pg.goto('/browser/', { waitUntil: 'domcontentloaded' });
+  // 书签：「我的主页」下面紧跟「我的项目」，里面是邀请码站
+  await pg.goto('/bookmarks/', { waitUntil: 'domcontentloaded' });
   const titles = await pg.locator('.brw-catgroup .brw-group-title').evaluateAll((els) => els.map((e) => Array.from(e.childNodes).filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim()));
   expect(titles.slice(0, 3)).toEqual(['我的主页', '我的项目', 'AI 资讯与 Agent']);
   const proj = pg.locator('.brw-catgroup').nth(1);
@@ -345,7 +347,7 @@ test('B2-2 store and its apps are gone; invite site in browser bookmarks', async
   await expect(proj).toContainText('邀请码站');
 });
 
-/* B2-4：设置里的「应用」整块删除；我的文件、浏览器的设置迁到各自顶栏 ⋮；重置所有设置在常规管理 */
+/* B2-4：设置里的「应用」整块删除；重置所有设置在常规管理（2026-10-20：浏览器的设置不再在顶栏 ⋮，搜索引擎 / 清除浏览记录在 安全与隐私） */
 test('B2-4 settings has no Apps category; reset lives in General management', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await gotoSettings(pg, '/settings/');
@@ -369,27 +371,19 @@ test('B2-4 settings search: no Apps entries; reset points to General management'
 });
 
 
-test('B2-4 Internet top-bar menu: engine, address bar position, clear history', async ({ page: pg }) => {
+test('Bookmarks page has no top-bar menu; engine row lives in Security and privacy', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await blockExternalRequests(pg);
-  await pg.goto('/browser/', { waitUntil: 'domcontentloaded' });
-  const more = pg.locator('.sgx-tb-pill #brw-more');
-  await expect(more).toHaveCount(1);
+  await pg.goto('/bookmarks/', { waitUntil: 'domcontentloaded' });
+  await expect(pg.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
+  await expect(pg.locator('#brw-more, .sgx-tb-more')).toHaveCount(0);
+  await gotoSettings(pg, '/settings/security/');
+  const row = pg.locator('#sec-engine');
   const sheet = pg.locator('#sheet-body');
-  /* ⋮ 先被搬进顶栏，browser.js 稍后才绑定点击：点早了不出弹层（CI 偶发 30s 超时）。点到弹层出来为止 */
-  const openMenu = () => expect(async () => {
-    await more.click();
-    await expect(sheet).toContainText('搜索引擎', { timeout: 1500 });
+  await expect(async () => {
+    await row.click();
+    await expect(sheet.getByText('Bing', { exact: true })).toBeVisible({ timeout: 1500 });
   }).toPass({ timeout: 15000 });
-  await openMenu();
-  await expect(sheet).toContainText('地址栏位置');
-  await expect(sheet).toContainText('清除浏览记录');
-  await sheet.getByText('地址栏位置').click();
-  await pg.locator('#sheet-body').getByText('顶部', { exact: true }).click();
-  await expect(pg.locator('body')).toHaveClass(/addrbar-top/);
-  expect(await pg.evaluate(() => localStorage.getItem('sgx-addrbar-pos'))).toBe('top');
-  await openMenu();
-  await pg.locator('#sheet-body').getByText('搜索引擎').click();
-  await pg.locator('#sheet-body').getByText('Bing', { exact: true }).click();
+  await sheet.getByText('Bing', { exact: true }).click();
   expect(await pg.evaluate(() => localStorage.getItem('sgx-search-engine'))).toBe('bing');
 });

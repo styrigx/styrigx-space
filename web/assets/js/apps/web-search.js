@@ -1,17 +1,16 @@
 /**
- * @fileoverview 浏览器搜索独立页（/browser/search/）。
+ * @fileoverview 全网搜索页（/search/；2026-10-20 由浏览器搜索 /browser/search/ 改名搬来）。
  * 做法照抄设置搜索：底部通用搜索胶囊（capsule.js 负责跟键盘走、沉底），
  * 页面内容是 最近搜索 / 站内建议（书签、博客、应用）/ 用当前引擎搜索。
- * 取代浏览器页原来的磨砂弹出层（键盘弹起压图标、切回来残留建议卡等问题随之消失）。
+ * 搜索引擎选择、清除浏览记录在 设置 › 安全与隐私 › 隐私（security.js），本页不再有顶栏 ⋮。
  */
 import { on } from '../lib/events.js';
 import { esc } from '../lib/util.js';
 import { get, set } from '../lib/storage.js';
 import { loadI18n } from '../lib/i18n.js';
-import { openSheet } from '../shell/sheet.js';
 import { engines as SE } from '../shell/engines.js';
 import { setCapSearchProvider } from '../shell/capsule.js';
-import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
+import { sgxNavigate, sgxReplace, sgxGoBack } from '../lib/diag-jumptrace.js';
 
 (function () {
   'use strict';
@@ -44,29 +43,14 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
     setHist(a);
   }
 
-  /* ============ 站内索引（内联兜底 + 异步 /files-index.json） ============ */
+  /* ============ 站内索引（/files-index.json；浏览器页原来的内联兜底 #search-index 已删除） ============ */
   const TYPES = [
     { type: 'link', label: T.t('catLink') },
     { type: 'post', label: T.t('catPost') },
     { type: 'app', label: T.t('catApp') },
   ];
-  /** @param {string} c */
-  function oldCatToType(c) {
-    c = c || '';
-    if (c.indexOf(T.t('catLink')) === 0) return 'link';
-    if (c === T.t('catPost')) return 'post';
-    return 'app';
-  }
   /** @type {Array<{t:string,d:string,u:string,type:string}>} */
   let INDEX = [];
-  try {
-    const el = document.getElementById('search-index');
-    INDEX = (JSON.parse((el && el.textContent) || '{"items":[]}').items || []).map(function (/** @type {any} */ x) {
-      return { t: x.t || '', d: x.d || '', u: x.u || '', type: oldCatToType(x.c) };
-    });
-  } catch (e) {
-    INDEX = [];
-  }
   (function () {
     const wantLang = document.documentElement.lang === 'en' ? 'en' : 'zh';
     fetch('/files-index.json')
@@ -87,7 +71,7 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
           render(input.value);
         }
       })
-      .catch(function () { /* 保留内联兜底 */ });
+      .catch(function () { /* 拿不到索引：只剩引擎搜索 */ });
   })();
 
   /* ============ 渲染 ============ */
@@ -267,14 +251,13 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
     });
   }
   if (capClose) {
-    /* × = 退出搜索页：站内进来的回到来的那一页（连同键盘哨兵一起退掉）；外部直接打开的走顶栏 ← 的上一级 */
+    /* × = 退出搜索页：站内进来的回到来的那一页（连同键盘哨兵一起退掉）；外部直接打开的回主页 */
     on(capClose, 'click', function (/** @type {MouseEvent} */ e) {
       e.stopPropagation();
       let internal = false;
       try { internal = !!document.referrer && new URL(document.referrer).origin === location.origin; } catch (err) {}
       if (!internal) {
-        const back = /** @type {HTMLElement|null} */ (document.querySelector('.sgx-tb-back'));
-        if (back) back.click();
+        sgxReplace(document.documentElement.lang === 'en' ? '/en/' : '/');
         return;
       }
       if (armed) {
@@ -304,48 +287,6 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
   requestAnimationFrame(contentFirst);
   on(input, 'input', function () { window.setTimeout(contentFirst, 170); });
 
-  function openEngineSheet() {
-    const curE = SE.cur();
-    openSheet({
-      title: T.t('engineTitle'),
-      options: SE.ORDER.map(function (id) {
-        return { label: SE.name(id), value: id, checked: id === curE };
-      }),
-      onPick: function (v) {
-        if (!SE.ENGINES[v]) return;
-        SE.setCur(v);
-        render(input.value);
-      },
-    });
-  }
-  /* 顶栏 ⋮（#brws-more，页面通过 subpage-head 的 actions 交给顶栏）= 搜索引擎 / 清除最近搜索 */
-  const tbMore = document.getElementById('brws-more');
-  if (tbMore) {
-    on(tbMore, 'click', function (/** @type {MouseEvent} */ e) {
-      e.stopPropagation();
-      openSheet({
-        title: '',
-        options: [
-          { label: T.t('engineTitle'), sub: SE.name(SE.cur()), value: 'engine' },
-          { label: T.t('clearHist'), value: 'clear' },
-        ],
-        onPick: function (v) {
-          if (v === 'engine') openEngineSheet();
-          else if (v === 'clear') {
-            openSheet({
-              title: T.t('clearHistQ'),
-              options: [{ label: T.t('clear'), value: 'yes' }],
-              onPick: function (y) {
-                if (y !== 'yes') return;
-                setHist([]);
-                render(input.value);
-              },
-            });
-          }
-        },
-      });
-    });
-  }
   on(window, 'sgx-settings-changed', function () { render(input.value); });
 
   /* ============ 进页：?q= 预填；聚焦放下一帧（等胶囊 initCapsule 绑定好 focus） ============ */
@@ -356,7 +297,7 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
   syncTools();
   render(input.value);
   requestAnimationFrame(function () {
-    /* 浏览器页地址栏的麦克风带 #voice 进来：直接开语音（语音弹窗自己收键盘） */
+    /* 带 #voice 进来（旧浏览器页地址栏麦克风的约定，保留）：直接开语音（语音弹窗自己收键盘） */
     if (location.hash === '#voice') {
       const mic = cap ? /** @type {HTMLElement|null} */ (cap.querySelector('[data-mic]')) : null;
       try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
@@ -384,6 +325,8 @@ import { sgxNavigate, sgxGoBack } from '../lib/diag-jumptrace.js';
     'popstate',
     function () {
       if (!armed) return;
+      /* 出栈的是哨兵之上的条目（如导航抽屉的哨兵）：本页哨兵还在，不当作返回 */
+      if (history.state && history.state.sgxBrwsKb) return;
       armed = false;
       if (isKb()) {
         try { input.blur(); } catch (e) {}

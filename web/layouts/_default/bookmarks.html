@@ -1,0 +1,44 @@
+{{/* 书签页（/bookmarks/，2026-10-20 由浏览器页 /browser/ 拆出，旧地址跳转过来）：只有书签（分类筛选条 + 分组）。
+   快捷访问、底部地址栏胶囊、顶栏 ⋮ 都已删除；搜索在全网搜索页 /search/。 */}}
+{{ define "main" }}
+{{ .Scratch.Set "sgx-entry" "entry-bookmarks.js" }}
+{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+{{ $links := site.Data.links }}
+{{ if $isEn }}{{ $links = site.Data.en.links }}{{ end }}
+<div class="max-w-[1100px] mx-auto px-4 pb-40">
+  {{ partial "subpage-head.html" (dict "title" (cond $isEn "Bookmarks" "书签") "isEn" $isEn) }}
+
+  <!-- 书签：按分类分组 + 筛选条 -->
+  <section aria-label="{{ if $isEn }}Bookmarks{{ else }}书签{{ end }}">
+    <div class="brw-cats no-scrollbar mb-6 flex gap-2 overflow-x-auto whitespace-nowrap" role="tablist" aria-label="{{ if $isEn }}Filter by category{{ else }}按分类筛选{{ end }}">
+      <button type="button" class="brw-cat is-active shrink-0 rounded-full px-4 py-1.5 text-sm border border-m-outline bg-m-container-lowest text-m-on-surface-variant" data-brw-cat="all" role="tab">{{ if $isEn }}All{{ else }}全部{{ end }}</button>
+      {{ range $i, $c := $links }}
+      <button type="button" class="brw-cat shrink-0 rounded-full px-4 py-1.5 text-sm border border-m-outline bg-m-container-lowest text-m-on-surface-variant" data-brw-cat="brwcat-{{ $i }}" role="tab">{{ $c.category }}</button>
+      {{ end }}
+    </div>
+    {{ range $i, $c := $links }}
+    <div class="brw-catgroup mb-8" data-brw-catgroup="brwcat-{{ $i }}">
+      <h3 class="brw-group-title mb-4 flex items-center gap-3 text-sm font-bold">
+        <span class="w-1 h-4 rounded-full bg-m-primary"></span>{{ $c.category }}
+        <span class="text-xs font-normal text-m-on-surface-variant">{{ len $c.sites }}</span>
+      </h3>
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {{ range $c.sites }}
+        {{ $iconUrl := partialCached "fav-icon.html" .url .url }}
+        <a href="{{ .url }}" target="_blank" rel="noopener" data-name="{{ .name }}" data-desc="{{ .desc | default "" }}"
+           class="link-card group flex items-center gap-3 rounded-[1.25rem] border border-m-outline bg-m-container-lowest px-3.5 py-3 shadow-xs hover:shadow-md hover:-translate-y-0.5 hover:border-m-primary active:scale-[0.98] transition-all">
+          <img src="{{ $iconUrl }}" alt="" loading="lazy" decoding="async" width="36" height="36" data-favname="{{ .name }}"
+               class="w-9 h-9 rounded-xl shrink-0 bg-m-container-high object-contain p-0.5">
+          <span class="min-w-0">
+            <span class="block font-medium text-sm truncate group-hover:text-m-primary transition-colors">{{ .name }}</span>
+            {{ with .desc }}<span class="block text-xs text-m-on-surface-variant truncate">{{ . }}</span>{{ end }}
+          </span>
+        </a>
+        {{ end }}
+      </div>
+    </div>
+    {{ end }}
+  </section>
+</div>
+
+{{ end }}

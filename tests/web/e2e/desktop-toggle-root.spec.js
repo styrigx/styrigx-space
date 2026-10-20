@@ -5,7 +5,7 @@
  * history.replaceState 把子页自己的那条历史改成主页地址，再 pushState 回子页，
  * 好让系统返回一次回到主页。replaceState 只改 URL，不改这条历史的
  * 「原始请求地址」——在 Chromium 里它仍是当初请求的 /settings/。
- * 之后只要这条历史被跨文档加载成主页（点 ‹ 回主页后再系统返回、刷新、会话恢复），
+ * 之后只要这条历史被跨文档加载成主页（离开设置后再连续系统返回、刷新、会话恢复；2026-10-20 起顶栏没有 ‹），
  * 页面显示的是 /，但「请求桌面版/移动版网站」按原始请求地址重载
  * （NavigationControllerImpl::LoadOriginalRequestURL），于是跳到 /settings/。
  *
@@ -49,21 +49,25 @@ async function homeState(page) {
 }
 
 test.describe('桌面/移动版切换：主页历史的原始请求地址必须是主页', () => {
-  test('直接打开设置 → 点 ‹ 回主页 → 系统返回：落在插入的主页历史上时换成真正的主页请求', async ({ page }) => {
+  test('直接打开设置 → 离开 → 系统返回两次：落在插入的主页历史上时换成真正的主页请求', async ({ page }) => {
     await blockExternalRequests(page);
     const docs = trackDocs(page);
     /* 无 referrer 直接打开设置：插入一条主页历史 */
     await page.goto('/settings/');
     await expect.poll(() => page.evaluate(() => history.state && history.state.sgxHere)).toBe(1);
-    const lenAfterOpen = await page.evaluate(() => history.length);
 
-    /* 点顶栏 ‹：location.replace('/') 换掉设置这条，插入的主页历史还在它后面 */
-    await page.click('.sgx-tb-back');
+    /* 点顶栏 Styrigx 离开设置（新文档）；插入的主页历史属于设置那份文档 */
+    await page.click('#nav-brand');
     await page.waitForURL((u) => u.pathname === '/');
+    await page.waitForLoadState('load');
+    const lenAfterOpen = await page.evaluate(() => history.length);
+    /* 系统返回：回到设置（重新加载文档） */
+    await page.goBack();
+    await page.waitForURL((u) => u.pathname === '/settings/');
     await page.waitForLoadState('load');
 
     docs.length = 0;
-    /* 系统返回：跨文档回到插入的主页历史（不发 popstate） */
+    /* 再系统返回：回到插入的主页历史（Chromium 可能按同文档 popstate 或跨文档加载处理，两条路都要治好） */
     await page.goBack();
     await expect.poll(() => homeState(page).then((s) => s && s.home && s.navType)).toBe('navigate');
     await page.waitForTimeout(600);
@@ -71,8 +75,10 @@ test.describe('桌面/移动版切换：主页历史的原始请求地址必须�
     const s = await homeState(page);
     expect(s.path).toBe('/');
     expect(s.state && s.state.sgxRoot).toBeFalsy();
-    /* 退回加载一次 + 换成真正主页请求一次，不多不少（无循环） */
-    expect(docs).toEqual(['/', '/']);
+    /* 跨文档：退回加载一次 + 换成真正主页请求一次；同文档 popstate：只换一次。都不多（无循环） */
+    expect(docs.length).toBeGreaterThanOrEqual(1);
+    expect(docs.length).toBeLessThanOrEqual(2);
+    expect(docs.every((d) => d === '/')).toBe(true);
     /* 是替换，不新增历史 */
     expect(s.len).toBe(lenAfterOpen);
   });

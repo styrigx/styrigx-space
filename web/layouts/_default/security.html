@@ -7,10 +7,9 @@
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 {{ $lockUrl := cond $isEn "/en/settings/security/lock/" "/settings/security/lock/" }}
 {{ $setUrl := cond $isEn "/en/settings/" "/settings/" }}
-{{ $moreBtn := printf `<button type="button" class="sgx-tb-more" id="sec-more" aria-label="%s"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg></button>` (cond $isEn "More" "更多") }}
 
 <div class="set-layout max-w-2xl mx-auto px-4 pb-28">
-  {{ partial "subpage-head.html" (dict "title" (cond $isEn "Security and privacy" "安全与隐私") "isEn" $isEn "actions" ($moreBtn | safeHTML)) }}
+  {{ partial "subpage-head.html" (dict "title" (cond $isEn "Security and privacy" "安全与隐私") "isEn" $isEn) }}
 
   <!-- 状态卡片（JS 按 GET /api/account 填充：账号密码 / 账号通行密钥是否已设置） -->
   <a id="sec-status" class="sec-status" href="{{ $lockUrl }}" hidden>
@@ -46,6 +45,20 @@
   <!-- 隐私分组 -->
   <h2 class="set-gh"><span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "info" }}</span><span>{{ if $isEn }}Privacy{{ else }}隐私{{ end }}</span></h2>
   <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.14s">
+    {{/* 2026-10-20：搜索引擎、清除浏览记录从浏览器页 ⋮ 搬来（全网搜索页 /search/ 用；localStorage sgx-search-engine / sgx-browser-history） */}}
+    <div class="set-row no-ic" id="sec-engine" role="button" tabindex="0">
+      <span class="flex-1 min-w-0">
+        <span class="block font-medium">{{ if $isEn }}Search engine{{ else }}搜索引擎{{ end }}</span>
+        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Used by Web search{{ else }}全网搜索使用{{ end }}</span>
+      </span>
+      <span class="text-sm text-m-on-surface-variant" id="sec-engine-val">Google</span>
+    </div>
+    <div class="set-row no-ic" id="sec-clearhist" role="button" tabindex="0">
+      <span class="flex-1 min-w-0">
+        <span class="block font-medium">{{ if $isEn }}Clear browsing history{{ else }}清除浏览记录{{ end }}</span>
+        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Recent searches in Web search{{ else }}全网搜索的最近搜索{{ end }}</span>
+      </span>
+    </div>
     <div class="set-row no-ic">
       <span class="flex-1 min-w-0">
         <span class="block font-medium">{{ if $isEn }}Search engine indexing{{ else }}搜索引擎收录{{ end }}</span>
@@ -82,7 +95,10 @@
   "lockSubPk" (dict "zh" "通行密钥" "en" "Passkeys")
   "lockSubNone" (dict "zh" "未设置" "en" "Not set")
   "lockNowToast" (dict "zh" "已锁定" "en" "Locked")
-  "refreshToast" (dict "zh" "已刷新" "en" "Refreshed")
+  "engineTitle" (dict "zh" "搜索引擎" "en" "Search engine")
+  "clearHistQ" (dict "zh" "清除浏览记录？" "en" "Clear browsing history?")
+  "clear" (dict "zh" "清除" "en" "Clear")
+  "clearedToast" (dict "zh" "已清除" "en" "Cleared")
   "statusErr" (dict "zh" "读取失败" "en" "Failed to load")
   "layerTakeover" (dict "zh" "由根凭证代管" "en" "Managed by root credential")
   "layerConfigured" (dict "zh" "已接管" "en" "Has own credentials")

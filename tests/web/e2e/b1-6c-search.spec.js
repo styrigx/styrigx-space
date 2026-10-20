@@ -130,13 +130,14 @@ test('e 键盘态返回：只收键盘，留在本页；f 沉底态再返回：�
   await page.waitForURL(/\/settings\/$/, { timeout: 15000 });
 });
 
-test('g 沉底态点顶栏 ← 回设置主页', async ({ page }) => {
+test('g 沉底态系统返回回设置主页（顶栏没有 ←）', async ({ page }) => {
   await enterFromSettings(page);
   await page.locator(INPUT).pressSequentially('字体');
   await page.locator(INPUT).press('Enter'); // h：回车收键盘
   await expect(page.locator(CAP)).not.toHaveClass(/\bopen\b/);
   await expect(page.locator('#setso-page .setso-item').first()).toBeVisible();
-  await page.locator('.sgx-tb-back').click();
+  await expect(page.locator('.sgx-tb-back')).toHaveCount(0);
+  await page.goBack();
   await page.waitForURL(/\/settings\/$/, { timeout: 15000 });
 });
 

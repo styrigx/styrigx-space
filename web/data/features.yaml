@@ -284,20 +284,7 @@ features:
       - {id: ecosia, zh: Ecosia, en: Ecosia}
     default: google
     key: sgx-search-engine
-    section: browser
-    requires: []
-
-  - id: addrbar-pos
-    name: {zh: 地址栏位置, en: Address bar position}
-    build: true
-    user: true
-    type: enum
-    options:
-      - {id: bottom, zh: 底部, en: Bottom}
-      - {id: top, zh: 顶部, en: Top}
-    default: bottom
-    key: sgx-addrbar-pos
-    section: browser
+    section: security
     requires: []
 
   - id: files-view

@@ -14,9 +14,9 @@ entries:
     desc: 专业教材条目式中文知识库
     icon: book
     external: true
-  - name: 浏览器
-    url: /browser/
-    desc: 站内搜索与书签导航
+  - name: 书签
+    url: /bookmarks/
+    desc: 书签导航
     icon: browser
     external: false
   - name: GitHub

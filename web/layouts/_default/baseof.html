@@ -91,6 +91,8 @@ addEventListener('pagereveal',function(e){window.__sgxRevealVT=e.viewTransition|
     try{localStorage.removeItem('sgx-np-idx');localStorage.removeItem('sgx-apps-hidden')}catch(e){}
     /* 2.3.12.2：就寝模式已删除，清理旧键（之前开启过的用户不再被自动变暗） */
     try{localStorage.removeItem('sgx-bedtime')}catch(e){}
+    /* 2026-10-20：浏览器页拆成书签 + 全网搜索，「地址栏位置」设置已删除，清理旧键 */
+    try{localStorage.removeItem('sgx-addrbar-pos')}catch(e){}
   }catch(e){}
 })();
 </script>
@@ -160,33 +162,60 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 </script>
 </head>
 {{ $setUrl0 := "/settings/" }}{{ if $isEn }}{{ $setUrl0 = "/en/settings/" }}{{ end }}
-<body class="text-m-on-surface min-h-screen antialiased{{ if not .IsHome }} subpage{{ end }}" data-page="{{ if or (eq .RelPermalink "/browser/") (eq .RelPermalink "/en/browser/") }}browser{{ else if eq .RelPermalink $setUrl0 }}settings{{ end }}">
+<body class="text-m-on-surface min-h-screen antialiased{{ if not .IsHome }} subpage{{ end }}" data-page="{{ if or (eq .RelPermalink "/bookmarks/") (eq .RelPermalink "/en/bookmarks/") }}bookmarks{{ else if eq .RelPermalink $setUrl0 }}settings{{ end }}">
 {{ partial "sgx-icon-sprite.html" . }}
 <div id="sgx-wallpaper" aria-hidden="true"></div>
 {{/* 2.4.0-C：调度器 / 边缘模糊 / 可见性定时器已移入 ES Module（assets/js/shell/），此处不再内联定义 */}}
 {{ $profile := site.Data.profile }}
 {{ $home := "/" }}{{ if $isEn }}{{ $home = "/en/" }}{{ end }}
-{{ $linksUrl := "/browser/" }}{{ if $isEn }}{{ $linksUrl = "/en/browser/" }}{{ end }}
+{{ $bmUrl := "/bookmarks/" }}{{ if $isEn }}{{ $bmUrl = "/en/bookmarks/" }}{{ end }}
+{{ $searchUrl := "/search/" }}{{ if $isEn }}{{ $searchUrl = "/en/search/" }}{{ end }}
 {{ $acctUrl := "/settings/account/" }}{{ if $isEn }}{{ $acctUrl = "/en/settings/account/" }}{{ end }}
 {{ $setUrl := $setUrl0 }}
 {{ $glUrl := cond $isEn "/en/settings/goodlock/" "/settings/goodlock/" }}
 
-{{/* 顶栏 v3（2026-10-19，全站同一套，左右对称）：左圆九宫格导航，右圆头像（账号：点开账号登录页 / 账号页）；
-   长条：主页 = 搜索 / 居中 Styrigx / 设置；子页面 = 返回 / 居中 Styrigx（滚动后换成小标题）/ ⋮。 */}}
+{{/* 顶栏 v4（2026-10-20，全站同一套）：左圆九宫格（打开左侧导航抽屉）、中间长条（居中 Styrigx，滚动后换成页面小标题）、
+   右圆头像（账号）。子页面不再有 ‹ 返回（网站始终跑在浏览器里，用浏览器 / 系统返回）和 ⋮（页面操作都放进页面正文）。
+   主页长条两端保留 搜索（打开全网搜索）/ 设置。
+   PR② 快捷面板图标的位置：长条与头像之间，插入 <button class="sgx-tb-quick">（样式已在 input.css 预留，与左圆同尺寸），现在不渲染。 */}}
 <header id="site-nav" class="z-50">
   <div class="sgx-topbar">
-    <button type="button" class="sgx-tb-nav" aria-label="{{ if $isEn }}Apps{{ else }}导航{{ end }}" aria-haspopup="menu" aria-expanded="false">{{ partial "icon.html" "apps-grid" }}</button>
+    <button type="button" class="sgx-tb-nav" aria-label="{{ if $isEn }}Navigation{{ else }}导航{{ end }}" aria-haspopup="dialog" aria-controls="sgx-drawer" aria-expanded="false">{{ partial "icon.html" "apps-grid" }}</button>
     <div class="sgx-tb-pill">
-      {{ if .IsHome }}<a class="sgx-tb-pbtn sgx-tb-psearch" href="{{ $linksUrl }}search/" aria-label="{{ if $isEn }}Search{{ else }}搜索{{ end }}">{{ partial "icon.html" "search" }}</a>{{ else }}<button type="button" class="sgx-tb-pbtn sgx-tb-back" data-go-back aria-label="{{ if $isEn }}Back{{ else }}返回{{ end }}">{{ partial "icon.html" "chevron-left" }}</button>{{ end }}
+      {{ if .IsHome }}<a class="sgx-tb-pbtn sgx-tb-psearch" href="{{ $searchUrl }}" aria-label="{{ if $isEn }}Web search{{ else }}全网搜索{{ end }}">{{ partial "icon.html" "search" }}</a>{{ end }}
       <a id="nav-brand" class="sgx-tb-brand" href="{{ $home }}" aria-label="Styrigx"><span class="sgx-tb-text">Styrigx</span></a>
-      {{ if .IsHome }}<a class="sgx-tb-pbtn sgx-tb-set" href="{{ $setUrl }}" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}">{{ partial "icon.html" "gear" }}</a>{{ else }}<button type="button" class="sgx-tb-more" data-menu="none" aria-label="{{ if $isEn }}More options{{ else }}更多选项{{ end }}"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg></button>{{ end }}
+      {{ if .IsHome }}<a class="sgx-tb-pbtn sgx-tb-set" href="{{ $setUrl }}" aria-label="{{ if $isEn }}Settings{{ else }}设置{{ end }}">{{ partial "icon.html" "gear" }}</a>{{ end }}
     </div>
     <a class="sgx-tb-me" href="{{ $acctUrl }}" aria-label="{{ if $isEn }}Account{{ else }}账号{{ end }}"><img src="/avatar/192.webp" alt="" width="52" height="52" class="sgx-tb-avatar" data-sgx-avatar="192"></a>
   </div>
-  <div id="sgx-tb-navmenu" class="sgx-tb-menu hidden" role="menu" aria-label="{{ if $isEn }}Apps{{ else }}导航{{ end }}"></div>
 </header>
 
-<!-- 全站搜索已并入 /browser/（旧 #search-modal 已删除） -->
+{{/* 导航抽屉（Gmail Android 式左侧抽屉，head-buttons.js 开关）：九宫格打开；点遮罩 / 系统返回 / Esc 关闭。
+   当前页所在项用药丸高亮（aria-current="page"）；底部分隔线下只有 设置。书库、博客是子站（同一标签页打开）。 */}}
+{{ $navCur := "" }}
+{{ if .IsHome }}{{ $navCur = "home" }}{{ else if or (eq .RelPermalink "/bookmarks/") (eq .RelPermalink "/en/bookmarks/") }}{{ $navCur = "bookmarks" }}{{ else if or (hasPrefix .RelPermalink "/settings/") (hasPrefix .RelPermalink "/en/settings/") }}{{ $navCur = "settings" }}{{ end }}
+{{ $navItems := slice
+  (dict "id" "home" "icon" "nav-home" "zh" "主页" "en" "Home" "url" $home)
+  (dict "id" "bookmarks" "icon" "nav-bookmark" "zh" "书签" "en" "Bookmarks" "url" $bmUrl)
+  (dict "id" "book" "icon" "nav-book" "zh" "书库" "en" "Library" "url" (cond $isEn "https://book.styrigx.com/en/" "https://book.styrigx.com/"))
+  (dict "id" "blog" "icon" "nav-blog" "zh" "博客" "en" "Blog" "url" (cond $isEn "https://blog.styrigx.com/en/" "https://blog.styrigx.com/"))
+}}
+<dialog id="sgx-drawer" class="sgx-drawer" aria-label="{{ if $isEn }}Navigation{{ else }}导航{{ end }}">
+  <nav class="sgx-drawer-sheet">
+    <p class="sgx-drawer-head">Styrigx</p>
+    <ul class="sgx-drawer-list">
+      {{ range $navItems }}
+      <li><a class="sgx-drawer-item" href="{{ .url }}" data-nav="{{ .id }}"{{ if eq .id $navCur }} aria-current="page"{{ end }}><span class="sgx-drawer-ic">{{ partial "icon.html" .icon }}</span><span class="sgx-drawer-label">{{ cond $isEn .en .zh }}</span></a></li>
+      {{ end }}
+    </ul>
+    <hr class="sgx-drawer-div">
+    <ul class="sgx-drawer-list">
+      <li><a class="sgx-drawer-item" href="{{ $setUrl }}" data-nav="settings"{{ if eq $navCur "settings" }} aria-current="page"{{ end }}><span class="sgx-drawer-ic">{{ partial "icon.html" "nav-gear" }}</span><span class="sgx-drawer-label">{{ if $isEn }}Settings{{ else }}设置{{ end }}</span></a></li>
+    </ul>
+  </nav>
+</dialog>
+
+<!-- 全网搜索是独立页 /search/（旧 #search-modal 已删除） -->
 
 <!-- 通用 bottom sheet / 居中弹窗（2.4.0 D：<dialog>，原生 ::backdrop + 焦点管理） -->
 <dialog id="sheet-wrap" class="sgx-sheet" aria-labelledby="sheet-title">
@@ -199,70 +228,8 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
   </div>
 </dialog>
 
-{{/* 搜索索引：只有浏览器页用（files-index.json 失败时的兜底），其他页不再内联 */}}
-{{ if eq .Layout "browser" }}
-{{ $entries := site.Data.entries.entries }}
-{{ $collections := site.Data.collections }}
-{{ $links := site.Data.links }}
-{{ if $isEn }}
-  {{ $entries = site.Data.en.entries.entries }}{{ $collections = site.Data.en.collections }}{{ $links = site.Data.en.links }}
-{{ end }}
-{{ $cFeatured := "精选" }}{{ $cColl := "收藏" }}{{ $cLink := "书签" }}
-{{ if $isEn }}{{ $cFeatured = "Featured" }}{{ $cColl = "Collections" }}{{ $cLink = "Links" }}{{ end }}
-{{ $idx := slice }}
-{{ range $e := $entries }}{{ $idx = $idx | append (dict "t" $e.name "d" ($e.desc | default "") "u" $e.url "c" $cFeatured) }}{{ end }}
-{{ range $c := $collections }}{{ $idx = $idx | append (dict "t" $c.name "d" ($c.desc | default "") "u" $c.url "c" $cColl) }}{{ end }}
-{{ range $cat := $links }}{{ range $s := $cat.sites }}{{ $idx = $idx | append (dict "t" $s.name "d" ($s.desc | default "") "u" $s.url "c" (print $cLink " · " $cat.category)) }}{{ end }}{{ end }}
-{{/* 设置页与常用设置项（$setUrl 已在 body 前定义） */}}
-{{ $cSet := cond $isEn "Settings" "设置" }}
-{{ $idx = $idx | append (dict "t" $cSet "d" (cond $isEn "Theme, language, wallpaper" "主题、语言、壁纸") "u" $setUrl "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Dark mode" "深色模式") "d" $cSet "u" (print $setUrl "#display") "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Font size" "字体大小") "d" $cSet "u" (print $setUrl "#display") "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Layout" "布局") "d" "Mobile / DeX / PC" "u" (print $setUrl "#display") "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Style" "风格") "d" (cond $isEn "theme color wallpaper" "主题 主色 壁纸 颜色") "u" (print $setUrl "#theme") "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Color palette" "调色板") "d" (cond $isEn "Style theme color wallpaper" "风格 主题 主色 壁纸 颜色") "u" (print $setUrl "#theme") "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "General management" "常规管理") "d" $cSet "u" (print $setUrl "#manage") "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Language" "语言") "d" $cSet "u" (print $setUrl "#manage") "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Date & time" "日期和时间") "d" $cSet "u" (print $setUrl "#manage") "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Time zone" "时区") "d" $cSet "u" (print $setUrl "#manage") "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Primary timezone" "第一时区") "d" $cSet "u" (print $setUrl "#manage") "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Second timezone" "第二时区") "d" $cSet "u" (print $setUrl "#manage") "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Hour format" "小时制") "d" $cSet "u" (print $setUrl "#manage") "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Weather" "天气") "d" $cSet "u" (print $setUrl "#manage") "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Temperature unit" "温度单位") "d" $cSet "u" (print $setUrl "#manage") "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Accessibility" "辅助功能") "d" $cSet "u" (print $setUrl "#accessibility") "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Reduce motion" "减弱动效") "d" $cSet "u" (print $setUrl "#accessibility") "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Apps" "应用") "d" $cSet "u" (print $setUrl "#apps") "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Internet" "浏览器") "d" $cSet "u" (print $setUrl "#apps") "c" $cSet) }}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Search engine" "搜索引擎") "d" $cSet "u" (print $setUrl "#apps") "c" $cSet) }}
-{{/* 数字健康 */}}
-{{ $idx = $idx | append (dict "t" (cond $isEn "Digital wellbeing" "数字健康") "d" (cond $isEn "Screen time" "屏幕时间") "u" (print $setUrl "#wellbeing") "c" $cSet) }}
-{{/* Good Lock（B2-2 起为设置子页 /settings/goodlock/） */}}
-{{ $cGl := "Good Lock" }}
-{{ $idx = $idx | append (dict "t" $cGl "d" (cond $isEn "Experimental modules" "实验性功能模块") "u" $glUrl "c" $cGl) }}
-{{ $glMods := slice
-  (dict "id" "wellbeing" "zh" "数字健康" "en" "Digital wellbeing" "dzh" "访客时长提示" "den" "Visit reminders")
-  (dict "id" "parallax" "zh" "视差壁纸" "en" "Parallax wallpaper" "dzh" "壁纸随设备移动而视差" "den" "Wallpaper moves with your device")
-  (dict "id" "clockstyle" "zh" "时钟样式" "en" "Clock style" "dzh" "双时钟切换数字 / 指针" "den" "Switch dual clock between digital and analog")
-  (dict "id" "sound" "zh" "点击音效" "en" "Tap sounds" "dzh" "点图标时的轻微点击声" "den" "Subtle click sound on taps")
-  (dict "id" "keys" "zh" "快捷键" "en" "Keyboard shortcuts" "dzh" "g h / g l / g b / g s 快速跳转" "den" "Jump with g h / g l / g b / g s")
-  (dict "id" "edgeglow" "zh" "边缘光效" "en" "Edge glow" "dzh" "悬停小组件时的主色流光" "den" "Primary-color glow on widget hover")
-}}
-{{ range $glMods }}{{ $idx = $idx | append (dict "t" (cond $isEn .en .zh) "d" (cond $isEn .den .dzh) "u" (print $glUrl "#mod-" .id) "c" $cGl) }}{{ end }}
-{{/* 博客文章（构建时抓 RSS，失败则跳过） */}}
-{{ $cBlog := cond $isEn "Blog" "博客" }}
-{{ with resources.GetRemote "https://blog.styrigx.com/rss.xml" }}
-  {{ range findRE "(?s)<item>.*?</item>" .Content }}
-    {{ $bt := findRESubmatch "(?s)<title>(.*?)</title>" . }}
-    {{ $bl := findRESubmatch "(?s)<link>(.*?)</link>" . }}
-    {{ if and $bt $bl }}
-      {{ $btitle := (index (index $bt 0) 1) | replaceRE "<!\\[CDATA\\[(.*?)\\]\\]>" "$1" | htmlUnescape }}
-      {{ $idx = $idx | append (dict "t" $btitle "d" (cond $isEn "Blog article" "博客文章") "u" (index (index $bl 0) 1) "c" $cBlog) }}
-    {{ end }}
-  {{ end }}
-{{ end }}
-<script id="search-index" type="application/json">{{ (dict "items" $idx) | jsonify | safeJS }}</script>
-{{ end }}
+{{/* 2026-10-20：原浏览器页内联的搜索索引（#search-index）已删除——全网搜索页一直用 /files-index.json，
+   书签页不再需要它（设置项里的「浏览器 / 搜索引擎 #apps」也是死链接）。 */}}
 {{/* 2.4.0-C：旧 sgx-util.js / sgx-base-a.js 已拆为 ES Modules，随页面入口统一加载 */}}
 
 
@@ -290,7 +257,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{ $coreI18n := dict
   "kbdTitle" (dict "zh" "快捷键" "en" "Keyboard shortcuts")
   "kbdHome" (dict "zh" "首页" "en" "Home")
-  "kbdBrowser" (dict "zh" "浏览器" "en" "Internet")
+  "kbdBrowser" (dict "zh" "书签" "en" "Bookmarks")
   "kbdBlog" (dict "zh" "博客" "en" "Blog")
   "kbdSettings" (dict "zh" "设置" "en" "Settings")
   "wellTip" (dict "zh" "已经看了 15 分钟，起来活动一下？" "en" "You've been here 15 minutes, time for a stretch?")

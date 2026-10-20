@@ -96,6 +96,8 @@ test('wbAreaOf：主站页面映射', () => {
   assert.equal(wbAreaOf('/en/'), 'home');
   assert.equal(wbAreaOf('/files/'), 'files');
   assert.equal(wbAreaOf('/en/browser/'), 'browser');
+  assert.equal(wbAreaOf('/bookmarks/'), 'browser');
+  assert.equal(wbAreaOf('/en/search/'), 'browser');
   assert.equal(wbAreaOf('/settings/theme/'), 'settings');
   assert.equal(wbAreaOf('/app-verify/'), null);
   assert.equal(wbAreaOf('/404.html'), null);
