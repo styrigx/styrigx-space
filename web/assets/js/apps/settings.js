@@ -11,6 +11,7 @@ import { loadI18n } from '../lib/i18n.js';
 import { openSheet } from '../shell/sheet.js';
 import { setTheme, toggleFollowSystem, setPalette, setFontSize, setLayout, setReducedMotion, setLang } from '../lib/prefs.js';
 import { syncAccent } from '../lib/accent-roles.js';
+import { accent } from '../lib/accent.js';
 import { wellLoad, wellFlush } from '../shell/goodlock.js';
 import { sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
 
@@ -132,10 +133,21 @@ import { sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
       b.setAttribute('aria-pressed', b.getAttribute('data-pal-tab') === g ? 'true' : 'false');
     });
   }
+  /* 2026-10-21：默认色板 lake 没有色块，标题右端「恢复默认」（#palette-reset）= 选 lake（同一个 setPalette，自定义色一并清掉）；
+     已是默认（lake 且没有自定义主题色）时 aria-disabled 置灰、点了不动 */
+  const palReset = document.getElementById('palette-reset');
   function paintPalette() {
     const p = curPalette();
     document.querySelectorAll(SW_SEL).forEach(function (b) {
       b.setAttribute('aria-pressed', b.getAttribute('data-palette') === p ? 'true' : 'false');
+    });
+    if (palReset) palReset.setAttribute('aria-disabled', (p || 'lake') === 'lake' && !accent() ? 'true' : 'false');
+  }
+  if (palReset) {
+    on(palReset, 'click', function () {
+      if (palReset.getAttribute('aria-disabled') === 'true') return;
+      setPalette('lake');
+      paintPalette();
     });
   }
   document.querySelectorAll(SW_SEL).forEach(function (b) {

@@ -6,7 +6,11 @@
 <div class="set-group scroll-mt-24" id="sg-theme">
 <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.14s">
       <div class="p-5">
-        <p class="text-sm font-medium">{{ if $isEn }}Color palette{{ else }}调色板{{ end }}</p>
+        {{/* 2026-10-21：默认色板 lake 不再放色块，改成标题右端「恢复默认」小按钮（#palette-reset，settings.js；已是默认时 aria-disabled 置灰，不隐藏） */}}
+        <div class="flex items-center justify-between gap-3">
+          <p class="text-sm font-medium">{{ if $isEn }}Color palette{{ else }}调色板{{ end }}</p>
+          <button type="button" class="palette-reset" id="palette-reset" aria-disabled="true">{{ partial "icon.html" "undo" }}<span>{{ if $isEn }}Reset{{ else }}恢复默认{{ end }}</span></button>
+        </div>
         <p class="text-xs text-m-on-surface-variant mt-1 mb-3">{{ if $isEn }}Change the color of buttons, titles, and icons.{{ else }}更改按钮、标题和图标的颜色。{{ end }}</p>
         {{/* 2026-10-21：单色 / 撞色两个分页（One UI 调色板的「基本颜色 / 壁纸颜色」式）；默认显示当前色板所在的那组（settings.js），
            没有 JS 时显示单色组。单色 = 圆点（种子色），撞色 = 竖条胶囊（partials/palette-swatch-vars.html 的色带）。 */}}
@@ -15,7 +19,7 @@
           <button type="button" data-pal-tab="clash" aria-pressed="false">{{ if $isEn }}Clash{{ else }}撞色{{ end }}</button>
         </div>
         <div class="palette-grid" id="palette-dots" data-pal-group="mono">
-          {{ range where $palettes "group" "mono" }}
+          {{ range where (where $palettes "group" "mono") "id" "!=" "lake" }}
           <div class="palette-cell">
             <button type="button" class="swatch" data-palette="{{ .id }}" style="background:{{ .c }}" aria-pressed="false" aria-label="{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}">
               <svg class="swatch-check" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M9 16.2l-3.5-3.5-1.4 1.4L9 19 20.9 7.1l-1.4-1.4z" fill="currentColor"/></svg>

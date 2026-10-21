@@ -12,6 +12,9 @@
  *   所以面板和设置页写同一个 localStorage key、互相即时同步（features.on 订阅重绘）。
  * - 语言：切到另一种语言（显式 zh / en），关面板后 replace 到对应语言的同一页（与设置页选语言一致，不留历史）。
  * - 立即锁定：关面板后弹出与安全页相同的「立即锁定？」确认层。
+ * - 2026-10-21：减弱动效、字体大小不再放面板里（只在设置页）；调色板不放默认色板 lake 的色块，
+ *   行标题右端「恢复默认」（[data-qp-reset]）= 选 lake（同一个 setPalette，自定义主题色也一起清掉）；
+ *   已是默认（lake 且没有自定义色）时 aria-disabled 置灰、点了不动，不隐藏（免得跳版）。
  */
 import { on as featOn } from '../lib/features.js';
 import { loadI18n } from '../lib/i18n.js';
@@ -24,15 +27,12 @@ import {
   toggleFollowSystem,
   palette,
   setPalette,
-  fontSize,
-  setFontSize,
   layoutPref,
   layoutNarrow,
   setLayout,
-  reducedMotionPref,
-  setReducedMotion,
   setLang,
 } from '../lib/prefs.js';
+import { accent } from '../lib/accent.js';
 import { modalSheet } from './modal-sheet.js';
 
 /** 面板滑下 / 收起时长（与 input.css .sgx-qp-sheet 的 transition 一致） */
@@ -78,12 +78,12 @@ export function initQuickPanel() {
   function paint() {
     paintToggle('dark', isDark());
     paintToggle('system', themeMode() === 'system');
-    paintToggle('motion', reducedMotionPref());
     const p = palette();
     dlg.querySelectorAll('[data-qp-palette]').forEach(function (b) {
       b.setAttribute('aria-pressed', b.getAttribute('data-qp-palette') === p ? 'true' : 'false');
     });
-    paintSeg('font-size', fontSize());
+    const rs = dlg.querySelector('[data-qp-reset]');
+    if (rs) rs.setAttribute('aria-disabled', p === 'lake' && !accent() ? 'true' : 'false');
     paintSeg('layout', layoutPref(), layoutNarrow());
     const lang = tile('lang');
     if (lang) lang.setAttribute('aria-label', T.t('qpLangTo'));
@@ -154,7 +154,6 @@ export function initQuickPanel() {
       const id = tl.getAttribute('data-qp');
       if (id === 'dark') setTheme(isDark() ? 'light' : 'dark');
       else if (id === 'system') toggleFollowSystem();
-      else if (id === 'motion') setReducedMotion(!reducedMotionPref());
       else if (id === 'lang') {
         const url = setLang(en ? 'zh' : 'en');
         ms.close(function () {
@@ -165,6 +164,13 @@ export function initQuickPanel() {
         ms.close(confirmLockNow);
         return;
       }
+      paint();
+      return;
+    }
+    const rs = t.closest('[data-qp-reset]');
+    if (rs) {
+      /* 恢复默认：与点色块同一条路（setPalette 会顺手清掉自定义主题色）；已是默认时不动 */
+      if (rs.getAttribute('aria-disabled') !== 'true') setPalette('lake');
       paint();
       return;
     }
@@ -179,8 +185,7 @@ export function initQuickPanel() {
       const seg = sb.closest('[data-qp-seg]');
       const id = seg ? seg.getAttribute('data-qp-seg') : '';
       const v = sb.getAttribute('data-v') || '';
-      if (id === 'font-size') setFontSize(v);
-      else if (id === 'layout') setLayout(v);
+      if (id === 'layout') setLayout(v);
       paint();
       return;
     }
@@ -201,7 +206,7 @@ export function initQuickPanel() {
   const repaint = function () {
     if (ms.isOpen()) paint();
   };
-  ['theme-mode', 'palette', 'font-size', 'layout', 'reduced-motion'].forEach(function (id) {
+  ['theme-mode', 'palette', 'layout'].forEach(function (id) {
     featOn(id, repaint);
   });
   window.addEventListener('sgx-theme-changed', repaint);

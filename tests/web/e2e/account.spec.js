@@ -712,9 +712,11 @@ test.describe('主题色角色（PR3）', () => {
     await page.evaluate(() => document.documentElement.classList.add('dark'));
     expect(await roleOf(page, '--sgx-primary')).not.toBe('#ba2863');
     await page.evaluate(() => document.documentElement.classList.remove('dark'));
-    /* 回设置页点预设 lake：清掉自定义色 */
+    /* 回设置页点「恢复默认」（2026-10-21：lake 不再有色块）：清掉自定义色 */
     await page.goto('/settings/theme/', { waitUntil: 'domcontentloaded' });
-    await page.locator('#palette-dots .swatch[data-palette="lake"]').click();
+    await expect(page.locator('#palette-reset')).toHaveAttribute('aria-disabled', 'false');
+    await page.locator('#palette-reset').click();
+    await expect(page.locator('#palette-reset')).toHaveAttribute('aria-disabled', 'true');
     await expect(page.locator('style#sgx-accent-roles')).toHaveCount(0);
     expect(await page.evaluate(() => localStorage.getItem('sgx-accent'))).toBeNull();
     expect(await roleOf(page, '--sgx-primary')).toBe('#2f5f86');

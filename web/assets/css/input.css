@@ -8499,33 +8499,41 @@ html[data-sgx-role="visitor"] .sgx-tb-me { pointer-events: none; cursor: default
 .sgx-qp-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 0 0 10px 6px; }
 .sgx-qp-title { margin: 0; font-size: 18px; font-weight: 700; line-height: 1.3; color: var(--sgx-text-primary); }
 .sgx-qp-set { width: 44px; height: 44px; border-radius: 999px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
-  background-color: var(--sgx-surface-container-high); color: var(--sgx-text-primary); text-decoration: none; transition: box-shadow .15s ease; }
+  background-color: var(--m-secondary-container); color: var(--m-primary); text-decoration: none; transition: box-shadow .15s ease; }
 .sgx-qp-set svg { width: 22px; height: 22px; display: block; }
 @media (hover: hover) {
   .sgx-qp-set:hover { box-shadow: inset 0 0 0 22px var(--sgx-state-hover-bg); }
 }
 .sgx-qp-set:active { box-shadow: inset 0 0 0 22px var(--sgx-state-pressed-bg); }
 .sgx-qp-set:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+/* 2026-10-21：磁贴 / 行底色跟色板走（--m-secondary-container，单色 = 主色同色相的浅调、撞色 = 辅色色相），不再用近中性灰的 container-high；
+   开着的磁贴 = primary-container + 主色图标圆；关着的图标圆 = 最浅容器 + 主色图标；齿轮圆钮同样是 secondary-container + 主色。
+   磁贴两列：深色模式 | 跟随系统、语言 | 立即锁定（减弱动效、字体大小只在设置页）。 */
 /* 面板开着：长条里的快捷面板图标保持按下态（顶栏在面板上面，图标一直看得见，再点关闭） */
 .sgx-tb-quick[aria-expanded="true"] { background-color: var(--m-primary-container); color: var(--m-on-primary-container); }
 .sgx-qp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .sgx-qp-tile { display: flex; align-items: center; gap: 10px; min-height: 64px; min-width: 0; padding: 10px 12px; border-radius: 22px;
-  background: var(--m-container-high); color: var(--m-on-surface); text-align: left; cursor: pointer; transition: background-color .15s ease; }
+  background: var(--m-secondary-container); color: var(--m-on-secondary-container); text-align: left; cursor: pointer; transition: background-color .15s ease; }
 .sgx-qp-tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
-.sgx-qp-tile:active { background: var(--m-container-highest); }
+.sgx-qp-tile:active { background: color-mix(in srgb, var(--m-on-secondary-container) 12%, var(--m-secondary-container)); }
+.sgx-qp-tile[aria-pressed="true"]:active { background: color-mix(in srgb, var(--m-on-primary-container) 12%, var(--m-primary-container)); }
 .sgx-qp-tile[aria-pressed="true"] { background: var(--m-primary-container); color: var(--m-on-primary-container); }
 .sgx-qp-tile:focus-visible, .sgx-qp-sw:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
 .sgx-qp-ic { width: 36px; height: 36px; border-radius: 999px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
-  background: var(--m-container-lowest); color: var(--m-on-surface-variant); }
+  background: var(--m-container-lowest); color: var(--m-primary); }
 .sgx-qp-ic svg { width: 20px; height: 20px; }
 .sgx-qp-tile[aria-pressed="true"] .sgx-qp-ic { background: var(--m-primary); color: var(--m-on-primary); }
 .sgx-qp-txt { display: flex; flex-direction: column; min-width: 0; }
-/* 英文磁贴名在 390px 宽两列里放不下一行（Follow system / Reduce motion）：最多折两行，不省略 */
+/* 英文磁贴名在 390px 宽两列里放不下一行（Follow system）：最多折两行，不省略 */
 .sgx-qp-label { font-size: 14px; font-weight: 600; line-height: 1.25; overflow: hidden; overflow-wrap: anywhere;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 .sgx-qp-state { font-size: 12px; line-height: 1.3; opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sgx-qp-row { margin-top: 12px; padding: 12px; border-radius: 22px; background: var(--m-container-high); }
-.sgx-qp-row-label { padding: 0 4px 8px; font-size: 13px; font-weight: 600; color: var(--m-on-surface-variant); }
+.sgx-qp-row { margin-top: 12px; padding: 12px; border-radius: 22px; background: var(--m-secondary-container); color: var(--m-on-secondary-container); }
+.sgx-qp-row-label { padding: 0 4px 8px; font-size: 13px; font-weight: 600; color: var(--m-on-secondary-container); }
+/* 调色板行标题：左标题、右「恢复默认」（.palette-reset 在行底色上换成最浅容器，免得和行底色糊在一起） */
+.sgx-qp-row-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 8px; }
+.sgx-qp-row-head .sgx-qp-row-label { padding-bottom: 0; }
+.sgx-qp-row .palette-reset { background: var(--m-container-lowest); color: var(--m-primary); }
 .sgx-qp-sws { display: grid; grid-template-columns: repeat(auto-fill, minmax(32px, 1fr)); gap: 8px; justify-items: center; }
 /* 快捷面板色块：单色组是圆（种子色），撞色组是设置页竖条胶囊的缩小版（前四条色带：种子 / 辅色本色 / 第三色本色（亮暗一样）/ 浅色调或深色容器），两组各一行网格 */
 .sgx-qp-sw { width: 32px; height: 32px; border-radius: 999px; border: 0; padding: 0; cursor: pointer;
@@ -8536,11 +8544,22 @@ html[data-sgx-role="visitor"] .sgx-tb-me { pointer-events: none; cursor: default
   box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--m-on-surface) 14%, transparent); }
 .dark .sgx-qp-sw.swatch-clash { --sw-d: var(--swd-4); }
 .sgx-qp-sws + .sgx-qp-sws { margin-top: 12px; }
-.sgx-qp-sw[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--m-container-high), 0 0 0 4px var(--m-primary); }
+.sgx-qp-sw[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--m-secondary-container), 0 0 0 4px var(--m-primary); }
 .sgx-qp-sw .swatch-check { display: none; filter: drop-shadow(0 1px 2px rgba(0,0,0,.45)); }
 .sgx-qp-sw[aria-pressed="true"] .swatch-check { display: block; }
-.sgx-qp-seg button { font-size: 13px; }
+.sgx-qp-seg { background: var(--m-container-lowest); }
+.sgx-qp-seg button { font-size: 13px; color: var(--m-on-secondary-container); }
+.sgx-qp-seg button[aria-pressed="true"] { background: var(--m-primary-container); color: var(--m-on-primary-container); box-shadow: none; }
 .sgx-qp-seg button:disabled { opacity: .4; cursor: default; }
+/* 调色板「恢复默认」（2026-10-21：设置页 #palette-reset 与快捷面板 [data-qp-reset] 共用）：紧凑药丸、次要色（secondary-container），
+   小回转图标 + 文字；已是默认时 aria-disabled 置灰（不隐藏，标题行不跳） */
+.palette-reset { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; height: 32px; padding: 0 12px 0 10px; border: 0; border-radius: 999px;
+  background: var(--m-secondary-container); color: var(--m-primary); font-size: 13px; font-weight: 600; line-height: 1; white-space: nowrap;
+  cursor: pointer; transition: opacity .15s ease, box-shadow .15s ease; }
+.palette-reset svg { width: 16px; height: 16px; flex-shrink: 0; }
+.palette-reset:active { box-shadow: inset 0 0 0 16px var(--sgx-state-pressed-bg); }
+.palette-reset:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
+.palette-reset[aria-disabled="true"] { opacity: .38; cursor: default; box-shadow: none; }
 /* topbar v2.0 end */
 
 /* ===== 头像裁剪（assets/js/apps/avatar-edit.js）=====

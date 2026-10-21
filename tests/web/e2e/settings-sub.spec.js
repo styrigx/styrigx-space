@@ -248,7 +248,9 @@ test('palette 8-color test state', async ({ page: pg }) => {
   await pg.evaluate(() => {
     document.getElementById('palette-dots').querySelector('.swatch').setAttribute('aria-pressed', 'true');
   });
-  await expect(grid.locator('.palette-cell')).toHaveCount(ids.length);
+  /* 2026-10-21：默认 lake 不放色块（标题右端「恢复默认」代替） */
+  await expect(grid.locator('.palette-cell')).toHaveCount(ids.length - 1);
+  await expect(grid.locator('.swatch[data-palette="lake"]')).toHaveCount(0);
   expect(ids.length).toBeGreaterThanOrEqual(8);
   // 断言换行：13 色在 412px 宽度下必定换行
   const boxes = await grid.locator('.palette-cell').evaluateAll((els) =>
@@ -276,6 +278,26 @@ test('palette 8-color test state', async ({ page: pg }) => {
   await expect(pg.locator('#palette-dots-clash')).toBeVisible();
   await expect(pg.locator('#palette-dots-clash .swatch[data-palette="xforest"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(pg.locator('[data-pal-tab="clash"]')).toHaveAttribute('aria-pressed', 'true');
+  /* 恢复默认（标题行右端）：非默认时可点 → 回 lake（不存 key）、置灰（aria-disabled，不隐藏）；置灰时点了不动 */
+  const rs = pg.locator('#palette-reset');
+  await expect(rs).toHaveText('恢复默认');
+  await expect(rs).toHaveAttribute('aria-disabled', 'false');
+  const title = pg.locator('#sg-theme p.text-sm.font-medium').first();
+  const tb = await title.boundingBox();
+  const rb = await rs.boundingBox();
+  expect(rb.x).toBeGreaterThan(tb.x + tb.width);
+  expect(Math.abs(rb.y + rb.height / 2 - (tb.y + tb.height / 2))).toBeLessThanOrEqual(1.5);
+  await rs.click();
+  await expect(pg.locator('html')).not.toHaveAttribute('data-palette', /.+/);
+  expect(await pg.evaluate(() => localStorage.getItem('sgx-palette'))).toBeNull();
+  await expect(rs).toHaveAttribute('aria-disabled', 'true');
+  await expect(rs).toBeVisible();
+  await expect.poll(() => rs.evaluate((el) => Number(getComputedStyle(el).opacity))).toBeLessThan(0.6); /* opacity 有 .15s 过渡 */
+  await expect(pg.locator('#palette-dots .swatch[aria-pressed="true"], #palette-dots-clash .swatch[aria-pressed="true"]')).toHaveCount(0);
+  await rs.click({ force: true }); /* aria-disabled：强制点一下验证没反应 */
+  expect(await pg.evaluate(() => localStorage.getItem('sgx-palette'))).toBeNull();
+  await pg.reload({ waitUntil: 'domcontentloaded' });
+  await expect(pg.locator('#palette-reset')).toHaveAttribute('aria-disabled', 'true');
 });
 
 /* B2-1：诊断留痕已删除——即使 sessionStorage 里残留旧版的留痕/信标，安全与隐私页也不显示跳转日志卡；
