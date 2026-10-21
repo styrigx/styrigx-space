@@ -46,7 +46,7 @@ test('抽屉：tonal 当前项、毛玻璃面板、手机宽度由顶栏 token �
   assert.match(s, /\.dark \{ --sgx-drawer-shadow: 4px 0 12px rgba\(0,0,0,\.22\), 16px 0 48px rgba\(0,0,0,\.5\)/);
   assert.match(s, /\.sgx-drawer-sheet \{[^}]*box-shadow: var\(--sgx-drawer-shadow\)/);
   // 抽屉三段（v7）：面板竖排 flex，[头部：只有大号站名][导航列表：自己滚][底栏：钉住的整宽搜索框长条（52px，图标 + 文字一组居中）]
-  assert.match(s, /--sgx-drawer-brand-size: 26px; --sgx-drawer-brand-weight: 800; --sgx-drawer-head-gap: 32px; --sgx-drawer-search-h: 52px;/);
+  assert.match(s, /--sgx-drawer-brand-size: 32px; --sgx-drawer-brand-weight: 800; --sgx-drawer-head-gap: 32px; --sgx-drawer-search-h: 52px;/);
   assert.match(s, /\.sgx-drawer-sheet \{[^}]*overflow: hidden;[^}]*display: flex; flex-direction: column;/);
   assert.match(s, /\.sgx-drawer-head \{ flex: 0 0 auto; margin: 0 0 var\(--sgx-drawer-head-gap\);/);
   assert.match(s, /\.sgx-drawer-brand \{[^}]*font-size: var\(--sgx-drawer-brand-size\);\s*font-weight: var\(--sgx-drawer-brand-weight\)/);
