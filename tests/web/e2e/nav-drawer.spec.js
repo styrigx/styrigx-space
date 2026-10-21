@@ -9,7 +9,7 @@
  * - 九宫格 → Gmail 式左侧导航抽屉：首页 / 珍格 / 日刻 / 博客（2026-10-21 起没有 设置；书签项换成子站 珍格 Curio，入口在快捷面板齿轮）；每项有描边图标，
  *   当前页是药丸高亮；没有 我的文件 / 帮助与反馈；点遮罩 / Esc / 系统返回关闭。
  * - 2026-10-21 主站书签下线（迁到子站 珍格 Curio）：/bookmarks/ 线上 301 到 curio.styrigx.com；/browser/ → 首页搜索层（site-search.spec.js）。
- * - 搜索引擎 / 清除浏览记录搬到 设置 › 安全与隐私 › 隐私。
+ * - 搜索引擎搬到 设置 › 安全与隐私 › 隐私（清除浏览记录 2026-10-22 随最近搜索删掉）。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, expect } = require('./helpers');
@@ -328,7 +328,7 @@ test.describe('主站书签已下线', () => {
   });
 });
 
-test.describe('安全与隐私 › 隐私：搜索引擎 / 清除浏览记录', () => {
+test.describe('安全与隐私 › 隐私：搜索引擎', () => {
   test('搜索引擎行显示当前引擎，点开选 Bing → sgx-search-engine = bing', async ({ page }) => {
     await go(page, '/settings/security/');
     const row = page.locator('#sec-engine');
@@ -360,22 +360,9 @@ test.describe('安全与隐私 › 隐私：搜索引擎 / 清除浏览记录', 
       return h ? h.textContent.trim() : '';
     });
     expect(inPrivacy).toBe('隐私');
-    await expect(page.locator('#sec-clearhist')).toContainText('清除浏览记录');
+    await expect(page.locator('#sec-clearhist')).toHaveCount(0);
   });
 
-  test('清除浏览记录：确认后清空 sgx-browser-history', async ({ page }) => {
-    await page.addInitScript(() => {
-      try { if (!localStorage.getItem('sgx-browser-history')) localStorage.setItem('sgx-browser-history', JSON.stringify(['a', 'b'])); } catch (e) {}
-    });
-    await go(page, '/settings/security/');
-    const sheet = page.locator('#sheet-body');
-    await expect(async () => {
-      await page.locator('#sec-clearhist').click();
-      await expect(sheet.getByText('清除', { exact: true })).toBeVisible({ timeout: 1500 });
-    }).toPass({ timeout: 15000 });
-    await sheet.getByText('清除', { exact: true }).click();
-    expect(await page.evaluate(() => localStorage.getItem('sgx-browser-history'))).toBe('[]');
-  });
 });
 
 test.describe('抽屉宽度与底色', () => {

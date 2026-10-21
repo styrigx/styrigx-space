@@ -8327,7 +8327,7 @@ html[data-sgx-role="visitor"] .sgx-drawer-me { pointer-events: none; cursor: def
 /* @shell:begin search（共享外壳：scripts/gen-shell.mjs 原样抽到 web/shared/shell/shell.css，子站 scripts/sync-shell.mjs 同步；只用 --sgx-* 角色，不写死颜色） */
 /* 原地搜索层（2026-10-22，取代全网搜索页 /search/；JS = shell/search-layer.js → web/shared/shell/search.js，DOM 由它自己建）：
    点导航抽屉底栏的搜索框 → 抽屉复制件 .sgx-srch-ghost 盖着顶栏原地淡出（顶栏本身不动、不重绘），
-   那条搜索框原地变形成屏幕底部的搜索栏 .sgx-srch-bar（长条药丸「搜索或输入网址」+ 右边单独的 ✕ 圆，和原 /search/ 页底栏同一套尺寸 / 材质），
+   那条搜索框原地变形成屏幕底部的搜索栏 .sgx-srch-bar（长条药丸「搜索」+ 右边单独的 ✕ 圆，和原 /search/ 页底栏同一套尺寸 / 材质），
    贴着键盘（--sgx-srch-kb 由 JS 按 VirtualKeyboard / visualViewport 写）；上面是盖住当前页的磨砂结果层 .sgx-srch（顶栏在它上面，正常可点）。
    z-index：结果层 / 底栏 --sgx-srch-z（44：盖住正文，低于快捷面板 45 和顶栏）；变形那 180ms 底栏压在抽屉复制件（60）上面。
    宽屏（≥ 840px）：底栏 560px 居中，结果列最宽 640px 居中。 */
@@ -8369,13 +8369,13 @@ html[data-sgx-role="visitor"] .sgx-drawer-me { pointer-events: none; cursor: def
   justify-content: center; border-radius: 999px; cursor: pointer; color: var(--sgx-text-secondary); }
 .sgx-srch-close svg { width: 22px; height: 22px; display: block; }
 .sgx-srch-close:active, .sgx-srch-clear:active { background-image: linear-gradient(var(--sgx-state-pressed-bg), var(--sgx-state-pressed-bg)); }
-.sgx-srch-close:focus-visible, .sgx-srch-clear:focus-visible, .sgx-srch-item:focus-visible, .sgx-srch-clearall:focus-visible, .sgx-srch-chip-x:focus-visible {
+.sgx-srch-close:focus-visible, .sgx-srch-clear:focus-visible, .sgx-srch-item:focus-visible {
   outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
 /* 结果卡（亮色 72% 的 lowest、暗色 surface-bright，和抽屉里的搜索框同一档：在材质层上亮一档） */
 .sgx-srch-card { margin: 0 0 12px; border-radius: 20px; overflow: hidden; background: color-mix(in srgb, var(--sgx-surface-container-lowest) 72%, transparent);
   border: 1px solid var(--sgx-mat-line); }
 .dark .sgx-srch-card { background: var(--sgx-surface-bright); }
-.sgx-srch-card-head, .sgx-srch-recent-title { font-size: 13px; font-weight: 600; line-height: 1.4; color: var(--sgx-text-secondary); }
+.sgx-srch-card-head { font-size: 13px; font-weight: 600; line-height: 1.4; color: var(--sgx-text-secondary); }
 .sgx-srch-card-head { padding: 14px 16px 6px; }
 .sgx-srch-item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; box-sizing: border-box; padding: 10px 16px; margin: 0; border: 0;
   background: none; color: var(--sgx-text-primary); font: inherit; text-align: left; cursor: pointer; }
@@ -8388,16 +8388,14 @@ html[data-sgx-role="visitor"] .sgx-drawer-me { pointer-events: none; cursor: def
 .sgx-srch-item-t { font-size: 15px; font-weight: 500; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sgx-srch-item-d { font-size: 12px; line-height: 1.4; color: var(--sgx-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sgx-srch-hl { color: var(--sgx-primary); background: none; }
-.sgx-srch-recent-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px 8px; }
-.sgx-srch-clearall { border: 0; background: none; padding: 4px 2px; color: var(--sgx-primary); font: inherit; font-size: 13px; cursor: pointer; }
-.sgx-srch-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 2px 16px 16px; }
-.sgx-srch-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; box-sizing: border-box; padding: 7px 8px 7px 14px; border-radius: 999px;
-  background: var(--sgx-chip-selected); color: var(--sgx-on-chip-selected); font-size: 13px; line-height: 1.4; cursor: pointer; }
-.sgx-srch-chip-tx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sgx-srch-chip-x { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 999px;
-  background: none; color: inherit; cursor: pointer; }
-.sgx-srch-chip-x svg { width: 14px; height: 14px; }
-.sgx-srch-chip-x:active { background: var(--sgx-state-pressed-bg); }
+/* 空输入背景（2026-10-22，三星信息搜索页那样）：和底栏同一个放大镜放大 + 「聚合搜索」，始终在内容区（顶栏下沿到底栏上沿，底栏跟着键盘）正中，键盘弹起时逐帧跟着 --sgx-srch-kb 走，不加过渡；纯装饰、不挡点击 */
+.sgx-srch-empty { position: absolute; left: 0; right: 0; top: var(--sgx-srch-top);
+  bottom: calc(var(--sgx-srch-kb, 0px) + var(--sgx-srch-h) + 12px + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; pointer-events: none;
+  color: var(--sgx-text-secondary); }
+.sgx-srch-empty[hidden] { display: none; }
+.sgx-srch-empty-ic { width: 56px; height: 56px; }
+.sgx-srch-empty-tx { font-size: 17px; font-weight: 500; line-height: 1.4; }
 /* 关：淡出（JS 在 160ms 后把两块 hidden 掉；减弱动效不加 is-closing，直接收） */
 .sgx-srch.is-closing, .sgx-srch-bar.is-closing { opacity: 0; pointer-events: none; transition: opacity .16s ease; }
 /* 抽屉复制件：盖住顶栏，带遮罩，从抽屉当时的样子淡到透明（JS 用 Web Animations 做淡出，完了就删） */

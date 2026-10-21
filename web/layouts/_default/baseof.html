@@ -124,6 +124,8 @@ addEventListener('pagereveal',function(e){window.__sgxRevealVT=e.viewTransition|
     try{localStorage.removeItem('sgx-bedtime')}catch(e){}
     /* 2026-10-20：浏览器页拆成书签 + 全网搜索，「地址栏位置」设置已删除，清理旧键 */
     try{localStorage.removeItem('sgx-addrbar-pos')}catch(e){}
+    /* 2026-10-22：搜索层的最近搜索删掉，清理旧键 */
+    try{localStorage.removeItem('sgx-browser-history')}catch(e){}
   }catch(e){}
 })();
 </script>

@@ -10,11 +10,10 @@
  * - 从 GET /api/lock-status（需 owner 会话）读取锁屏凭证是否已设置，渲染状态卡片与锁屏凭证行副标题（访客不调用）。
  * - localStorage 统一走 storage.js。
  * - 隐私分组（2026-10-20 从浏览器页 ⋮ 搬来）：搜索引擎（engines.js，sgx-search-engine，点行打开同一个选择弹层）、
- *   清除浏览记录（全网搜索的最近搜索 sgx-browser-history）。原顶栏 ⋮（#sec-more = 刷新状态）已删除：进页即读取。
+ *   （清除浏览记录 2026-10-22 随最近搜索一起删掉）。原顶栏 ⋮（#sec-more = 刷新状态）已删除：进页即读取。
  */
 import { on } from '../lib/events.js';
-import { get as storeGet, set as storeSet } from '../lib/storage.js';
-import { toast } from '../lib/toast.js';
+import { get as storeGet } from '../lib/storage.js';
 import { openSheet } from '../shell/sheet.js';
 import { engines as SE } from '../shell/engines.js';
 import { confirmLockNow } from '../lib/lock-now.js';
@@ -115,7 +114,7 @@ import { openOwnerVerify } from '../shell/upgrade.js';
     });
   }
 
-  /* ============ 隐私：搜索引擎 / 清除浏览记录 ============ */
+  /* ============ 隐私：搜索引擎 ============ */
   /** @param {Element|null} row @param {() => void} fn */
   function bindRow(row, fn) {
     if (!row) return;
@@ -143,17 +142,6 @@ import { openOwnerVerify } from '../shell/upgrade.js';
       onPick: function (v) {
         if (SE.ENGINES[v]) SE.setCur(v);
         syncEngine();
-      },
-    });
-  });
-  bindRow(document.getElementById('sec-clearhist'), function () {
-    openSheet({
-      title: t('clearHistQ'),
-      options: [{ label: t('clear'), value: 'yes' }],
-      onPick: function (y) {
-        if (y !== 'yes') return;
-        storeSet('sgx-browser-history', '[]');
-        toast(t('clearedToast'));
       },
     });
   });

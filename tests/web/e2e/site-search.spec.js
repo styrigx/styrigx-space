@@ -1,10 +1,10 @@
 /**
  * 原地搜索层（2026-10-22，取代全网搜索页 /search/；共享外壳组件 shell/search-layer.js，主站宿主 shell/search-host.js）。
  * - 点导航抽屉底栏的搜索框：不跳页，抽屉在这次点击里关上（复制件原地淡出），搜索框变形成底部搜索栏
- *   （长条药丸「搜索或输入网址」+ 单独的 ✕ 圆，和原 /search/ 页底栏同一套），输入框同步聚焦；上方是盖住当前页的结果层。
+ *   （长条药丸「搜索」+ 单独的 ✕ 圆，和原 /search/ 页底栏同一套），输入框同步聚焦；上方是盖住当前页的结果层。
  * - 顶栏不动（不重绘、不淡、不换标题）；顶栏没有搜索图标了。
  * - 历史：抽屉的哨兵直接交给搜索层（replaceState），✕ / 系统返回关层，永远不叠条目。
- * - 最近搜索（最多 8 条，删一条 / 全部清除）、站内结果、「用 <引擎> 搜索」、回车规则、方向键。
+ * - 空输入背景（放大镜 +「聚合搜索」，内容区居中、跟着键盘）、站内结果、「用 <引擎> 搜索」、回车规则、方向键。
  * - /search/?q=、/browser/?q=、/en/search/ → 首页打开搜索层并预填；opensearch 用 /?q=。
  * - 搜索层代码懒加载：页面入口里没有它，按下九宫格才去取。
  */
@@ -19,7 +19,6 @@ async function go(page, path, opts = {}) {
   await page.addInitScript((o) => {
     try {
       localStorage.setItem('sgx-lang', o.lang || 'zh');
-      if (o.hist) localStorage.setItem('sgx-browser-history', JSON.stringify(o.hist));
       if (o.engine) localStorage.setItem('sgx-search-engine', o.engine);
       if (o.rm) localStorage.setItem('sgx-reduced-motion', '1');
     } catch (e) {}
@@ -67,7 +66,7 @@ test('点抽屉搜索框：原地打开（不跳页）、输入框同步聚焦�
   expect(new URL(page.url()).pathname).toBe('/settings/');
   await expect(layer(page)).toBeVisible();
   await expect(page.locator('.sgx-tb-title')).toHaveText(title0 || '');
-  await expect(input(page)).toHaveAttribute('placeholder', '搜索或输入网址');
+  await expect(input(page)).toHaveAttribute('placeholder', '搜索');
   /* 抽屉复制件淡完就删 */
   await expect(page.locator('.sgx-srch-ghost')).toHaveCount(0, { timeout: 2000 });
 });
@@ -96,24 +95,50 @@ test('底栏：长条药丸 + 单独的 ✕ 圆（同高 56、同材质、间距
   expect(m.lz).toBeLessThan(m.navz);
 });
 
-test('最近搜索：空输入时显示（最多 8 条），删一条、全部清除', async ({ page }) => {
-  const hist = ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9', 'a10'];
-  await go(page, '/', { hist });
+test('空输入：背景是放大镜 +「聚合搜索」，在内容区（顶栏下沿到底栏上沿）正中；没有最近搜索，旧键被清掉', async ({ page }) => {
+  await page.addInitScript(() => { try { localStorage.setItem('sgx-browser-history', JSON.stringify(['a1'])); } catch (e) {} });
+  await go(page, '/');
   await openFromDrawer(page);
-  const chips = page.locator('.sgx-srch-chip .sgx-srch-chip-tx');
-  await expect(chips).toHaveText(hist.slice(0, 8));
-  await page.locator('[data-srch-del="1"]').click();
-  await expect(chips).toHaveText(['a1', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8']);
-  await expect(input(page)).toBeFocused();
-  await page.locator('[data-srch-clear]').click();
+  const empty = page.locator('.sgx-srch-empty');
+  await expect(empty).toBeVisible();
+  await expect(empty).toHaveText('聚合搜索');
   await expect(page.locator('.sgx-srch-chip')).toHaveCount(0);
-  expect(await page.evaluate(() => localStorage.getItem('sgx-browser-history'))).toBe('[]');
+  await expect(input(page)).toHaveAttribute('placeholder', '搜索');
+  const m = await page.evaluate(() => {
+    const tb = document.querySelector('.sgx-tb-pill').getBoundingClientRect();
+    const bar = document.querySelector('.sgx-srch-bar').getBoundingClientRect();
+    const ic = document.querySelector('.sgx-srch-empty-ic').getBoundingClientRect();
+    const tx = document.querySelector('.sgx-srch-empty-tx').getBoundingClientRect();
+    const bic = document.querySelector('.sgx-srch-bar .sgx-srch-ic');
+    return { mid: (ic.top + tx.bottom) / 2, top: tb.bottom, bottom: bar.top, cx: (ic.left + ic.right) / 2, vw: innerWidth,
+      same: bic.innerHTML === document.querySelector('.sgx-srch-empty-ic').innerHTML,
+      hist: localStorage.getItem('sgx-browser-history') };
+  });
+  expect(m.same).toBe(true);
+  expect(Math.abs(m.cx - m.vw / 2)).toBeLessThanOrEqual(1);
+  /* 内容区 = 顶栏下沿 + 16px 到底栏上沿 − 12px，背景在它正中（±24px：顶部 safe-area / 留白） */
+  expect(Math.abs(m.mid - (m.top + m.bottom) / 2)).toBeLessThanOrEqual(24);
+  expect(m.hist).toBeNull();
+  /* 输入后背景藏起来，清空后回来 */
+  await input(page).fill('设置');
+  await expect(empty).toBeHidden();
+  await input(page).fill('');
+  await expect(empty).toBeVisible();
 });
 
-test('输入：站内结果 + 最后一行「用 <引擎> 搜索 “…”」（跟 设置 › 隐私 里选的引擎）；ⓧ 清空回到最近搜索', async ({ page }) => {
-  await go(page, '/', { hist: ['hello'], engine: 'bing' });
+test('空输入背景跟着键盘：底栏上移多少，背景中心上移一半', async ({ page }) => {
+  await go(page, '/');
   await openFromDrawer(page);
-  await expect(page.locator('.sgx-srch-chip-tx')).toHaveText(['hello']);
+  const at = () => page.evaluate(() => { const r = document.querySelector('.sgx-srch-empty-ic').getBoundingClientRect(); return r.top; });
+  const y0 = await at();
+  await page.evaluate(() => { document.querySelector('.sgx-srch').style.setProperty('--sgx-srch-kb', '300px'); });
+  const y1 = await at();
+  expect(Math.abs((y0 - y1) - 150)).toBeLessThanOrEqual(1);
+});
+
+test('输入：站内结果 + 最后一行「用 <引擎> 搜索 “…”」（跟 设置 › 隐私 里选的引擎）；ⓧ 清空回到空背景', async ({ page }) => {
+  await go(page, '/', { engine: 'bing' });
+  await openFromDrawer(page);
   await input(page).fill('设置');
   await expect(page.locator('[data-srch-u]').first()).toBeVisible({ timeout: 5000 });
   await expect(page.locator('[data-srch-u]').first()).toContainText('设置');
@@ -123,11 +148,11 @@ test('输入：站内结果 + 最后一行「用 <引擎> 搜索 “…”」（
   await page.locator('[data-srch-clear-input]').click();
   await expect(input(page)).toHaveValue('');
   await expect(input(page)).toBeFocused();
-  await expect(page.locator('.sgx-srch-chip-tx')).toHaveText(['hello']);
+  await expect(page.locator('.sgx-srch-empty')).toBeVisible();
   await expect(page.locator('[data-srch-clear-input]')).toBeHidden();
 });
 
-test('回车：像网址 → 新标签 https://；否则用引擎搜（新标签）；都记进最近搜索', async ({ page }) => {
+test('回车：像网址 → 新标签 https://；否则用引擎搜（新标签）；不再记录搜索历史', async ({ page }) => {
   await go(page, '/');
   await openFromDrawer(page);
   await input(page).fill('example.com');
@@ -139,7 +164,7 @@ test('回车：像网址 → 新标签 https://；否则用引擎搜（新标签
     'https://example.com',
     'https://www.google.com/search?q=' + encodeURIComponent('猫咪 图片'),
   ]);
-  expect(JSON.parse(await page.evaluate(() => localStorage.getItem('sgx-browser-history')))).toEqual(['猫咪 图片', 'example.com']);
+  expect(await page.evaluate(() => localStorage.getItem('sgx-browser-history'))).toBeNull();
   /* 回车后收键盘，层还在 */
   await expect(input(page)).not.toBeFocused();
   await expect(layer(page)).toBeVisible();
@@ -285,7 +310,7 @@ test('旧入口：/search/?q=、/browser/?q=、/browser/search/?q= → 首页打
   await go(page, '/en/search/', { lang: 'en' });
   await expect(layer(page)).toBeVisible({ timeout: 10000 });
   expect(new URL(page.url()).pathname + new URL(page.url()).search).toBe('/en/');
-  await expect(input(page)).toHaveAttribute('placeholder', 'Search or type URL');
+  await expect(input(page)).toHaveAttribute('placeholder', 'Search');
   await page.goto('/en/browser/#focus', { waitUntil: 'domcontentloaded' });
   await expect(layer(page)).toBeVisible({ timeout: 10000 });
   expect(new URL(page.url()).pathname).toBe('/en/');

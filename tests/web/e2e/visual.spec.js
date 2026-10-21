@@ -231,7 +231,7 @@ test('baseline-drawer-open', async ({ page: pg }) => {
   await expect(pg).toHaveScreenshot('baseline-drawer-open.png', { animations: 'disabled' });
 });
 
-/* 原地搜索层打开（2026-10-22）：设置子页上开抽屉、点底栏搜索框；最近搜索两条；拍收起键盘后的样子（光标不稳定） */
+/* 原地搜索层打开（2026-10-22）：设置子页上开抽屉、点底栏搜索框；空输入背景「聚合搜索」；拍收起键盘后的样子（光标不稳定） */
 test('baseline-search-open', async ({ page: pg }) => {
   await pg.setViewportSize(VIEWPORTS.mobile);
   await blockExternalRequests(pg);
@@ -239,7 +239,6 @@ test('baseline-search-open', async ({ page: pg }) => {
   await pg.addInitScript(() => {
     try {
       localStorage.setItem('sgx-lang', 'zh');
-      localStorage.setItem('sgx-browser-history', JSON.stringify(['常规设置', 'Hugo']));
     } catch (e) {}
   });
   await pg.addStyleTag({
@@ -252,7 +251,7 @@ test('baseline-search-open', async ({ page: pg }) => {
   await expect(pg.locator('#sgx-drawer')).toHaveAttribute('data-state', 'open');
   await pg.click('#sgx-drawer a.sgx-drawer-search');
   await expect(pg.locator('#sgx-srch-input')).toBeFocused({ timeout: 10000 });
-  await expect(pg.locator('.sgx-srch-chip')).toHaveCount(2);
+  await expect(pg.locator('.sgx-srch-empty')).toBeVisible();
   await pg.locator('#sgx-srch-input').blur();
   await expect(pg).toHaveScreenshot('baseline-search-open.png', { animations: 'disabled' });
 });
