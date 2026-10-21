@@ -9,6 +9,7 @@
  * 左右两组同宽，长条中心 = 屏幕中心（390 / 1280 / 1920 都量）；搜索圆进全网搜索页。
  * 顶栏 v5（2026-10-20）：两个圆 + 一个长条：九宫格圆 | 长条（左端搜索图标 · 页名 · 右端快捷面板图标）| 头像圆；
  * 两个图标各 40px 圆形点击区、对称内缩（图标中心距长条外缘 26 = 圆半径），页名在长条正中，长条在屏幕正中。
+ * 顶栏 v8（2026-10-22，三个站同一套）：九宫格圆 | 长条（只有页名）| 右圆（每站自定义；主站 = 快捷面板）；头像挪进导航抽屉头（字标右边）。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, expect } = require('./helpers');
@@ -41,51 +42,37 @@ for (const dark of [false, true]) {
     test.use({ viewport: { width: 390, height: 844 } });
 
     for (const path of ['/', '/settings/']) {
-      test(`${path}：九宫格圆、长条（搜索图标 · 页名 · 快捷面板图标，屏幕居中）、头像圆，坐标、高度、底色一致`, async ({ page }) => {
+      test(`${path}：九宫格圆、长条（只有页名，屏幕居中）、右圆（快捷面板），坐标、高度、底色一致；顶栏里没有头像`, async ({ page }) => {
         await go(page, path, { dark });
         const nav = await box(page, '.sgx-tb-nav');
         const pill = await box(page, '.sgx-tb-pill');
-        const search = await box(page, '.sgx-tb-search');
-        const quick = await box(page, '.sgx-tb-quick');
-        const me = await box(page, '.sgx-tb-me');
+        const end = await box(page, '.sgx-tb-end');
         expect(near(nav.x, 16) && near(nav.x + nav.width, 68), `导航圆 x ${nav.x}–${nav.x + nav.width}`).toBe(true);
         expect(near(pill.x, 76) && near(pill.x + pill.width, 314), `长条 x ${pill.x}–${pill.x + pill.width}`).toBe(true);
         /* 长条中心 = 屏幕中心 */
         expect(near(pill.x + pill.width / 2, 195), `长条中心 ${pill.x + pill.width / 2}`).toBe(true);
-        expect(near(me.x, 322) && near(me.x + me.width, 374), `头像圆 x ${me.x}–${me.x + me.width}`).toBe(true);
-        for (const b of [nav, pill, me]) {
+        expect(near(end.x, 322) && near(end.x + end.width, 374), `右圆 x ${end.x}–${end.x + end.width}`).toBe(true);
+        for (const b of [nav, pill, end]) {
           expect(near(b.y, 16), `y ${b.y}`).toBe(true);
           expect(near(b.height, 52), `高 ${b.height}`).toBe(true);
         }
-        /* 长条两端图标：40px 圆形点击区，左右对称内缩 6px（中心距长条外缘 26），垂直居中 */
-        expect(near(search.x, 82) && near(search.x + search.width, 122), `搜索图标 x ${search.x}–${search.x + search.width}`).toBe(true);
-        expect(near(quick.x, 268) && near(quick.x + quick.width, 308), `快捷面板图标 x ${quick.x}–${quick.x + quick.width}`).toBe(true);
-        for (const b of [search, quick]) {
-          expect(near(b.width, 40) && near(b.height, 40), `图标点击区 ${b.width}×${b.height}`).toBe(true);
-          expect(near(b.y + b.height / 2, pill.y + pill.height / 2), `图标垂直居中 ${b.y}`).toBe(true);
-        }
-        expect(near(search.x - pill.x, pill.x + pill.width - (quick.x + quick.width)), '两端图标对称内缩').toBe(true);
-        expect(await page.locator('.sgx-tb-search, .sgx-tb-quick').evaluateAll((els) => els.map((e) => getComputedStyle(e).borderRadius))).toEqual(['999px', '999px']);
-        await expect(page.locator('.sgx-tb-back')).toHaveCount(0);
-        await expect(page.locator('[data-go-back]')).toHaveCount(0);
-        await expect(page.locator('.sgx-tb-more')).toHaveCount(0);
-        await expect(page.locator('.sgx-tb-pill .sgx-tb-avatar')).toHaveCount(0);
-        const av = await box(page, '.sgx-tb-me .sgx-tb-avatar');
-        expect(near(av.width, 50, 2) && near(av.height, 50, 2), `头像铺满圆 ${av.width}×${av.height}`).toBe(true);
-        /* 顶栏只有两个圆 + 一个长条；长条里只有两个图标按钮 + 页名 */
-        expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]))).toEqual(['sgx-tb-nav', 'sgx-tb-pill', 'sgx-tb-me']);
-        await expect(page.locator('.sgx-tb-pill a, .sgx-tb-pill button')).toHaveCount(2);
+        expect(near(end.width, 52)).toBe(true);
+        await expect(page.locator('.sgx-tb-back, [data-go-back], .sgx-tb-more, .sgx-tb-search, #sgx-tb-search, .sgx-tb-me, .sgx-topbar .sgx-tb-avatar')).toHaveCount(0);
+        /* 顶栏 = 两个圆 + 一个长条；右圆就是快捷面板按钮；长条里只有页名 */
+        expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className))).toEqual(['sgx-tb-nav', 'sgx-tb-pill', 'sgx-tb-end sgx-tb-quick']);
+        expect(await page.locator('.sgx-tb-pill > *').evaluateAll((els) => els.map((e) => e.className))).toEqual(['sgx-tb-title']);
+        await expect(page.locator('.sgx-tb-pill svg, .sgx-tb-pill a, .sgx-tb-pill button')).toHaveCount(0);
+        await expect(page.locator('.sgx-tb-end svg')).toHaveCount(1);
         /* 页名在长条内水平垂直居中 */
         const tx = await box(page, '.sgx-tb-title');
         expect(near(tx.x + tx.width / 2, pill.x + pill.width / 2), `页名水平居中 ${tx.x + tx.width / 2}`).toBe(true);
         expect(near(tx.y + tx.height / 2, pill.y + pill.height / 2), `页名垂直居中 ${tx.y + tx.height / 2}`).toBe(true);
-        const bgs = await page.evaluate(() =>
-          ['.sgx-tb-nav', '.sgx-tb-pill', '.sgx-tb-search', '.sgx-tb-quick'].map((s) => getComputedStyle(document.querySelector(s)).backgroundColor)
+        /* 三块同材质 */
+        const st = await page.evaluate(() =>
+          ['.sgx-tb-nav', '.sgx-tb-pill', '.sgx-tb-end'].map((s) => { const c = getComputedStyle(document.querySelector(s)); return [c.backgroundColor, c.borderTopColor, c.boxShadow].join('|'); })
         );
-        expect(bgs[0]).toBe(bgs[1]);
-        /* 图标本身透明（按压态只在图标上，静止时与长条同底） */
-        expect(bgs[2]).toBe('rgba(0, 0, 0, 0)');
-        expect(bgs[3]).toBe('rgba(0, 0, 0, 0)');
+        expect(st[0]).toBe(st[1]);
+        expect(st[2]).toBe(st[1]);
       });
     }
   });
@@ -104,7 +91,6 @@ test.describe('390×844 行为', () => {
 
   const NAMES = [
     ['/', '首页'],
-    ['/search/', '全网搜索'],
     ['/settings/', '设置'],
     /* PR3：账号页没登录（这里没有账号会话）时页名是「登录账号」，登录后才是「账号」 */
     ['/settings/account/', '登录账号'],
@@ -124,20 +110,19 @@ test.describe('390×844 行为', () => {
       await expect(page.locator('.sgx-tb-title')).toHaveText(name);
       await expect(page.locator('.sgx-tb-pill')).not.toContainText('Styrigx');
       await expect(page.locator('.subpage-title, .subpage-hero, [data-subpage-head]')).toHaveCount(0);
-      /* 长条里只有搜索、快捷面板两个图标 */
-      await expect(page.locator('.sgx-tb-pill svg')).toHaveCount(2);
+      /* 长条里没有图标 */
+      await expect(page.locator('.sgx-tb-pill svg')).toHaveCount(0);
     });
   }
 
-  test('主页长条里没有设置按钮；长条两端只有搜索、快捷面板两个图标，页名本身不可点', async ({ page }) => {
+  test('主页长条里没有设置按钮、没有搜索图标；长条只有页名，页名本身不可点', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/');
     await expect(page.locator('.sgx-tb-set')).toHaveCount(0);
     await expect(page.locator('.sgx-tb-psearch')).toHaveCount(0);
-    expect(await page.locator('.sgx-tb-pill > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]))).toEqual(['sgx-tb-search', 'sgx-tb-title', 'sgx-tb-quick']);
+    expect(await page.locator('.sgx-tb-pill > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]))).toEqual(['sgx-tb-title']);
     await expect(page.locator('#sgx-tb-cap')).toHaveCount(0);
-    await expect(page.locator('.sgx-topbar .sgx-tb-search')).toHaveCount(1);
-    await expect(page.locator('.sgx-tb-search')).toHaveAttribute('aria-label', '搜索');
+    await expect(page.locator('.sgx-topbar .sgx-tb-search, #sgx-tb-search')).toHaveCount(0);
     expect(await page.locator('.sgx-tb-pill').evaluate((el) => getComputedStyle(el).cursor)).toBe('default');
     expect(await page.locator('.sgx-tb-title').evaluate((el) => el.tagName)).toBe('SPAN');
     await expect(page.locator('.sgx-topbar a[href$="/settings/"]')).toHaveCount(0);
@@ -160,34 +145,24 @@ test.describe('390×844 行为', () => {
   test('滚动时长条不变：页名一直显示，没有 sgx-stuck 切换，头像和按钮不动', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/settings/security/');
-    const before = await Promise.all(['.sgx-tb-pill', '.sgx-tb-me', '.sgx-tb-nav'].map((s) => box(page, s)));
+    const before = await Promise.all(['.sgx-tb-pill', '.sgx-tb-end', '.sgx-tb-nav'].map((s) => box(page, s)));
     await page.evaluate(() => window.scrollTo(0, 400));
     await page.waitForTimeout(300);
     expect(await page.evaluate(() => document.body.classList.contains('sgx-stuck'))).toBe(false);
     await expect(page.locator('.sgx-tb-title')).toHaveText('安全与隐私');
     expect(await page.evaluate(() => getComputedStyle(document.querySelector('.sgx-tb-title')).opacity)).toBe('1');
-    const after = await Promise.all(['.sgx-tb-pill', '.sgx-tb-me', '.sgx-tb-nav'].map((s) => box(page, s)));
+    const after = await Promise.all(['.sgx-tb-pill', '.sgx-tb-end', '.sgx-tb-nav'].map((s) => box(page, s)));
     for (let i = 0; i < 3; i++) {
       expect(near(after[i].x, before[i].x) && near(after[i].y, before[i].y)).toBe(true);
     }
   });
 
-  test('主页点长条里的搜索图标：进全网搜索页并聚焦', async ({ page }) => {
-    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    await go(page, '/');
-    await expect(page.locator('#sgx-tb-search')).toHaveAttribute('href', '/search/');
-    await page.locator('#sgx-tb-search').click();
-    await expect(page).toHaveURL(/\/search\/$/);
-    await expect(page.locator('#sgx-cap-input-brwsearch')).toBeFocused({ timeout: 5000 });
-  });
-
-  test('子页面点搜索图标进全网搜索页；点长条（页名）不跳转', async ({ page }) => {
+  test('点长条（页名）不跳转', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/settings/account/');
     await page.locator('.sgx-tb-title').click();
     await page.waitForTimeout(400);
     expect(new URL(page.url()).pathname).toBe('/settings/account/');
-    await Promise.all([page.waitForURL(/\/search\/$/), page.locator('.sgx-tb-search').click()]);
   });
 
   test('顶栏切页过渡名挂在有尺寸的 .sgx-topbar 上', async ({ page }) => {
@@ -199,19 +174,21 @@ test.describe('390×844 行为', () => {
     expect(names).toEqual({ bar: 'sgx-topbar', nav: 'none' });
   });
 
-  test('主页头像圆：点了进账号页（账号体系入口）', async ({ page }) => {
+  test('抽屉头的头像圆：点了进账号页（账号体系入口）', async ({ page }) => {
     /* 固定中文：不设 sgx-lang 时语言跟随浏览器（en-US）会把 / 带到 /en/ */
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/');
-    await expect(page.locator('.sgx-tb-me')).toHaveAttribute('href', '/settings/account/');
-    await page.locator('.sgx-tb-me').click();
+    await expect(page.locator('.sgx-drawer-me')).toHaveAttribute('href', '/settings/account/');
+    await page.locator('.sgx-tb-nav').click();
+    await expect(page.locator('#sgx-drawer')).toHaveAttribute('data-state', 'open');
+    await page.locator('.sgx-drawer-me').click();
     await page.waitForURL(/\/settings\/account\/$/);
     await expect(page.locator('#acct-login')).toBeVisible();
   });
 
-  test('英文页头像圆链到英文账号页', async ({ page }) => {
+  test('英文页抽屉头像链到英文账号页', async ({ page }) => {
     await go(page, '/en/');
-    await expect(page.locator('.sgx-tb-me')).toHaveAttribute('href', '/en/settings/account/');
+    await expect(page.locator('.sgx-drawer-me')).toHaveAttribute('href', '/en/settings/account/');
   });
 
   test('九宫格打开左侧导航抽屉，Esc 关闭', async ({ page }) => {
@@ -235,27 +212,26 @@ test.describe('1280×800', () => {
     const bar = await box(page, '.sgx-topbar');
     expect(near(bar.width, 1068), `宽 ${bar.width}`).toBe(true);
     expect(near(bar.x, (1280 - 1068) / 2), `x ${bar.x}`).toBe(true);
-    const me = await box(page, '.sgx-tb-me');
+    const me = await box(page, '.sgx-tb-end');
     const nav = await box(page, '.sgx-tb-nav');
     const pill = await box(page, '.sgx-tb-pill');
     expect(near(me.width, 52) && near(nav.width, 52) && near(pill.height, 52)).toBe(true);
   });
 
   for (const [w, h] of [[1280, 800], [1920, 1080]]) {
-    test(`${w}px：两侧圆同宽，长条中心 = 屏幕中心、页名中心 = 屏幕中心（±1px），两端图标对称`, async ({ page }) => {
+    test(`${w}px：两侧圆同宽，长条中心 = 屏幕中心、页名中心 = 屏幕中心（±1px）`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: h });
       await go(page, '/settings/security/');
-      const [nav, search, pill, quick, me] = await Promise.all(['.sgx-tb-nav', '.sgx-tb-search', '.sgx-tb-pill', '.sgx-tb-quick', '.sgx-tb-me'].map((s) => box(page, s)));
+      const [nav, pill, me] = await Promise.all(['.sgx-tb-nav', '.sgx-tb-pill', '.sgx-tb-end'].map((s) => box(page, s)));
       expect(near(pill.x + pill.width / 2, w / 2), `长条中心 ${pill.x + pill.width / 2}`).toBe(true);
       expect(near(pill.x - nav.x, me.x + me.width - (pill.x + pill.width)), '两侧同宽').toBe(true);
       expect(near(pill.x - (nav.x + nav.width), 8) && near(me.x - (pill.x + pill.width), 8)).toBe(true);
-      expect(near(search.x - pill.x, 6) && near(pill.x + pill.width - (quick.x + quick.width), 6), '两端图标内缩 6').toBe(true);
       const tx = await box(page, '.sgx-tb-title');
       expect(near(tx.x + tx.width / 2, w / 2), `页名中心 ${tx.x + tx.width / 2}`).toBe(true);
     });
   }
 
-  for (const path of ['/', '/settings/', '/search/']) {
+  for (const path of ['/', '/settings/']) {
     test(`${path}：宽屏正文同样从顶栏下方 16px 开始，没有大标题区`, async ({ page }) => {
       await go(page, path);
       const m = await page.evaluate(() => {

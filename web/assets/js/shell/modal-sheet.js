@@ -19,6 +19,7 @@ import { reducedMotion } from '../lib/util.js';
  * @property {(after?: () => void) => void} close 关闭（带滑出动画并退掉哨兵）；after 在哨兵出栈后执行
  * @property {() => boolean} isOpen
  * @property {() => boolean} isShown
+ * @property {() => boolean} handoff 同步关掉（不做滑出、不退哨兵），返回历史里是否留着本层的哨兵（交给接手的层，如原地搜索层用 replaceState 接过去）
  */
 
 /**
@@ -196,9 +197,20 @@ export function modalSheet(dlg, btn, opts) {
     }
   });
 
+  /** 交接：立刻关上 <dialog>（模态关了页面才能聚焦），哨兵留在历史里给接手的层 */
+  function handoff() {
+    const had = pushed;
+    pushed = false;
+    awaiting = null;
+    gen++;
+    settleClosed();
+    return had;
+  }
+
   return {
     open,
     close,
+    handoff,
     isOpen: function () {
       return dlg.open;
     },

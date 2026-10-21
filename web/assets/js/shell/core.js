@@ -25,6 +25,7 @@ import { wbAreaOf } from '../lib/wb-area.js';
 import { openSheet, closeSheet } from './sheet.js';
 import { engines } from './engines.js';
 import { initFavicon } from './favicon.js';
+import { initSearchHost } from './search-host.js';
 
 let inited = false;
 
@@ -80,6 +81,8 @@ export function initCore() {
   engines.init();
   /* 标签页图标跟主题色（换色板 / 自定义色 / 深浅色时换 SVG 图标的底色） */
   initFavicon();
+  /* 带 ?q= 进来（旧 /search/?q=、opensearch）：打开原地搜索层并预填 */
+  initSearchHost();
 
   /* 5.2：写共享 UI cookie sgx-ui（老用户补写；设置变更时再写一次） */
   syncUiCookie();

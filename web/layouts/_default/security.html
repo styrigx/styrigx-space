@@ -44,18 +44,18 @@
   <!-- 隐私分组 -->
   <h2 class="set-gh"><span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "info" }}</span><span>{{ if $isEn }}Privacy{{ else }}隐私{{ end }}</span></h2>
   <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.14s">
-    {{/* 2026-10-20：搜索引擎、清除浏览记录从浏览器页 ⋮ 搬来（全网搜索页 /search/ 用；localStorage sgx-search-engine / sgx-browser-history） */}}
+    {{/* 2026-10-20：搜索引擎、清除浏览记录从浏览器页 ⋮ 搬来（原地搜索层用；localStorage sgx-search-engine / sgx-browser-history） */}}
     <div class="set-row no-ic" id="sec-engine" role="button" tabindex="0">
       <span class="flex-1 min-w-0">
         <span class="block font-medium">{{ if $isEn }}Search engine{{ else }}搜索引擎{{ end }}</span>
-        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Used by Web search{{ else }}全网搜索使用{{ end }}</span>
+        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Used by Search{{ else }}搜索使用{{ end }}</span>
       </span>
       <span class="text-sm text-m-on-surface-variant" id="sec-engine-val">Google</span>
     </div>
     <div class="set-row no-ic" id="sec-clearhist" role="button" tabindex="0">
       <span class="flex-1 min-w-0">
         <span class="block font-medium">{{ if $isEn }}Clear browsing history{{ else }}清除浏览记录{{ end }}</span>
-        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Recent searches in Web search{{ else }}全网搜索的最近搜索{{ end }}</span>
+        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Recent searches in Search{{ else }}搜索的最近搜索{{ end }}</span>
       </span>
     </div>
     <div class="set-row no-ic">

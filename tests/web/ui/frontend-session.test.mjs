@@ -74,7 +74,7 @@ test('security.html：安全分组两个入口（锁屏凭证/立即锁定）；
   assert.ok(secHtml.includes('id="sec-locknow"'), '应有立即锁定入口');
   assert.ok(!secHtml.includes('id="sec-app-row"'), '不应有应用验证');
   const base = readFileSync('web/layouts/_default/baseof.html', 'utf8');
-  assert.ok(base.includes('<a class="sgx-tb-me" href="{{ $acctUrl }}"'), '顶栏右圆头像链到账号页');
+  assert.ok(base.includes('<a class="sgx-drawer-me" href="{{ $acctUrl }}"'), '抽屉头的头像链到账号页');
 });
 
 test('security.js：读锁屏凭证状态，不再走 stepup；无角色条件渲染', () => {

@@ -1,14 +1,14 @@
 /**
  * 2026-10-20 导航改版验收：
  * - 顶栏全站同一套（v5）：九宫格圆 | 长条（搜索图标 · 页名 · 快捷面板图标，屏幕居中）| 头像圆；没有 ‹ 返回、没有 ⋮。
- * - 抽屉宽（2026-10-21 v5）：手机竖屏（< 600px）右缘对齐长条右端直边与右圆弧的切线（412 → 310，360 → 258）；更宽固定 320px。
+ * - 抽屉宽（2026-10-22 恢复 #163 之前，和子站一致）：手机竖屏（< 600px）右缘对齐长条里快捷面板图标点击区左缘（412 → 290，360 → 238）；更宽固定 320px。
  *   面板底色 = 顶栏材质（跟随调色板与明暗）；阴影往右投、清楚可见。
  * - 抽屉三段（v7）：头部只有大号 Styrigx（26px/800，没有搜索）；导航列表自己滚（矮视口时头部 / 底栏不动），最后一项下面一条发丝分隔线；
- *   底栏钉住整宽搜索框长条（52px，AI 搜索图标 + 「搜索」一组居中，左右缘 = 药丸左右缘）。点它：抽屉原地淡出（宽度不变）→ /search/，
- *   输入框聚焦、sgx-search-from-drawer 标记读完清掉；在搜索页上只淡出并聚焦（不跳转）。
+ *   底栏钉住整宽搜索框长条（52px，AI 搜索图标 + 「搜索」一组居中，左右缘 = 药丸左右缘）。点它：原地搜索层（见 site-search.spec.js），不跳页。
+ * - 2026-10-22：长条左端的搜索图标删了（长条 = 页名 · 快捷面板图标，页名仍居中）；/search/ 页删了（只剩跳转页）。
  * - 九宫格 → Gmail 式左侧导航抽屉：首页 / 珍格 / 日刻 / 博客（2026-10-21 起没有 设置；书签项换成子站 珍格 Curio，入口在快捷面板齿轮）；每项有描边图标，
  *   当前页是药丸高亮；没有 我的文件 / 帮助与反馈；点遮罩 / Esc / 系统返回关闭。
- * - 2026-10-21 主站书签下线（迁到子站 珍格 Curio）：/bookmarks/ 线上 301 到 curio.styrigx.com；/browser/ → 全网搜索 /search/。
+ * - 2026-10-21 主站书签下线（迁到子站 珍格 Curio）：/bookmarks/ 线上 301 到 curio.styrigx.com；/browser/ → 首页搜索层（site-search.spec.js）。
  * - 搜索引擎 / 清除浏览记录搬到 设置 › 安全与隐私 › 隐私。
  */
 const { test } = require('@playwright/test');
@@ -37,9 +37,9 @@ async function openDrawer(page) {
 }
 
 test.describe('顶栏：全站同一套，没有 ‹ 和 ⋮', () => {
-  const PAGES = ['/', '/search/', '/settings/', '/settings/display/', '/settings/security/', '/settings/account/'];
+  const PAGES = ['/', '/settings/', '/settings/display/', '/settings/security/', '/settings/account/'];
   for (const path of PAGES) {
-    test(`${path}：九宫格 + 长条（搜索 · 页名 · 快捷面板）+ 头像，没有返回圆和 ⋮`, async ({ page }) => {
+    test(`${path}：九宫格 + 长条（只有页名）+ 右圆（快捷面板），没有返回圆和 ⋮、没有搜索图标、顶栏里没有头像`, async ({ page }) => {
       await go(page, path);
       await expect(page.locator('.sgx-tb-back')).toHaveCount(0);
       await expect(page.locator('[data-go-back]')).toHaveCount(0);
@@ -48,16 +48,16 @@ test.describe('顶栏：全站同一套，没有 ‹ 和 ⋮', () => {
       await expect(page.locator('.sgx-topbar > *')).toHaveCount(3);
       await expect(page.locator('.sgx-topbar > .sgx-tb-nav')).toHaveCount(1);
       await expect(page.locator('.sgx-topbar > .sgx-tb-pill')).toHaveCount(1);
-      await expect(page.locator('.sgx-topbar > .sgx-tb-me')).toHaveCount(1);
-      /* 搜索、快捷面板（见 quick-panel.spec.js）都收进长条 */
-      await expect(page.locator('.sgx-tb-pill > .sgx-tb-search')).toHaveCount(1);
-      await expect(page.locator('.sgx-tb-pill > .sgx-tb-quick')).toHaveCount(1);
+      await expect(page.locator('.sgx-topbar > .sgx-tb-end.sgx-tb-quick')).toHaveCount(1);
+      /* 2026-10-22：搜索图标删了；快捷面板挪到右圆（见 quick-panel.spec.js）；头像挪进抽屉头 */
+      await expect(page.locator('.sgx-tb-search, #sgx-tb-search, .sgx-tb-me, .sgx-topbar .sgx-tb-avatar')).toHaveCount(0);
+      await expect(page.locator('#sgx-drawer .sgx-drawer-head .sgx-drawer-me')).toHaveCount(1);
     });
   }
 
-  test('子页长条：两端搜索 / 快捷面板图标，页名在长条内居中', async ({ page }) => {
+  test('子页长条：只有页名，在长条内居中', async ({ page }) => {
     await go(page, '/settings/display/');
-    await expect(page.locator('.sgx-tb-pill a, .sgx-tb-pill button')).toHaveCount(2);
+    await expect(page.locator('.sgx-tb-pill a, .sgx-tb-pill button, .sgx-tb-pill svg')).toHaveCount(0);
     const pill = await page.locator('.sgx-tb-pill').boundingBox();
     const tx = await page.locator('.sgx-tb-title').boundingBox();
     expect(Math.abs(tx.x + tx.width / 2 - (pill.x + pill.width / 2))).toBeLessThanOrEqual(1);
@@ -112,7 +112,7 @@ test.describe('导航抽屉', () => {
     expect(bg).not.toBe(bg0);
   });
 
-  test('英文：Home / Curio / Daymark / Blog，没有 Settings；搜索框 → /en/search/', async ({ page }) => {
+  test('英文：Home / Curio / Daymark / Blog，没有 Settings；搜索框（没 JS 时）→ /en/search/', async ({ page }) => {
     await go(page, '/en/', 'en');
     await openDrawer(page);
     await expect(drawer(page).locator('.sgx-drawer-label')).toHaveText(['Home', 'Curio', 'Daymark', 'Blog']);
@@ -216,7 +216,20 @@ test.describe('抽屉三段：头部站名 / 导航列表 / 底栏搜索框', ()
       await openDrawer(page);
       const head = drawer(page).locator('.sgx-drawer-head');
       await expect(head.locator('.sgx-drawer-brand')).toHaveText('Styrigx');
-      await expect(head.locator('.sgx-drawer-search, a, input')).toHaveCount(0);
+      /* 抽屉头：字标 + 右边 52px 头像圆（链到账号页），没有搜索框 / 输入框 */
+      await expect(head.locator('.sgx-drawer-search, input')).toHaveCount(0);
+      await expect(head.locator('a')).toHaveCount(1);
+      await expect(head.locator('a.sgx-drawer-me')).toHaveAttribute('href', '/settings/account/');
+      const hm = await page.evaluate(() => {
+        const r = (q) => document.querySelector(q).getBoundingClientRect();
+        return { me: r('#sgx-drawer .sgx-drawer-me'), wm: r('#sgx-drawer .sgx-wordmark'), brand: r('#sgx-drawer .sgx-drawer-brand'), sheet: r('#sgx-drawer .sgx-drawer-sheet') };
+      });
+      expect(Math.abs(hm.me.width - 52)).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(hm.me.height - 52)).toBeLessThanOrEqual(0.5);
+      /* 同一行、垂直居中（字标盒子中心和头像中心差 ≤ 3px：字标自己往下挪了 dy 让大写字母落在行中线上） */
+      expect(Math.abs((hm.brand.top + hm.brand.bottom) / 2 - (hm.me.top + hm.me.bottom) / 2)).toBeLessThanOrEqual(3);
+      expect(hm.me.left).toBeGreaterThan(hm.wm.right);
+      expect(Math.abs(hm.sheet.right - hm.me.right - 16)).toBeLessThanOrEqual(1);
       const s = drawer(page).locator('.sgx-drawer-foot a.sgx-drawer-search');
       await expect(drawer(page).locator('a.sgx-drawer-search')).toHaveCount(1);
       await expect(s).toHaveAttribute('href', '/search/');
@@ -292,84 +305,22 @@ test.describe('抽屉三段：头部站名 / 导航列表 / 底栏搜索框', ()
     expect(after.pageY).toBe(0);
   });
 
-  test('点搜索框：抽屉原地淡出（宽度不变）→ /search/，输入框聚焦、标记清掉，不在历史里多留一步', async ({ page }) => {
-    await go(page, '/');
-    await page.goto('/settings/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('.sgx-topbar')).toBeVisible();
-    await openDrawer(page);
-    const w0 = await page.locator('#sgx-drawer .sgx-drawer-sheet').evaluate((el) => el.getBoundingClientRect().width);
-    await drawer(page).locator('a.sgx-drawer-search').click();
-    await expect(page).toHaveURL(/\/search\/$/);
-    await expect(page.locator('#sgx-cap-input-brwsearch')).toBeFocused({ timeout: 5000 });
-    expect(await page.evaluate(() => sessionStorage.getItem('sgx-search-from-drawer'))).toBeNull();
-    /* 入场动画放完 .sgx-from-drawer 摘掉 */
-    await expect(page.locator('html')).not.toHaveClass(/\bsgx-from-drawer\b/, { timeout: 3000 });
-    /* 搜索页自己会占历史（键盘 / 当前页哨兵）：一直返回到离开 /search/，落点是设置页且不是抽屉哨兵 */
-    for (let i = 0; i < 4 && new URL(page.url()).pathname === '/search/'; i++) {
-      await page.goBack();
-      await page.waitForTimeout(300);
-    }
-    await expect(page).toHaveURL(/\/settings\/$/);
-    expect(await page.evaluate(() => !!(history.state && history.state.sgxDrawer))).toBe(false);
-    await expect(drawer(page)).toBeHidden();
-    expect(w0).toBeGreaterThan(300);
-    expect(w0).toBeLessThan(320);
-  });
-
-  test('淡出途中：抽屉宽度不变、不滑出，只降 opacity', async ({ page }) => {
+  test('点搜索框：不跳页，原地打开搜索层（抽屉关上、不留抽屉哨兵）', async ({ page }) => {
     await go(page, '/settings/');
-    await openDrawer(page);
-    const r = await page.evaluate(async () => {
-      const dlg = document.getElementById('sgx-drawer');
-      const sheet = dlg.querySelector('.sgx-drawer-sheet');
-      const w0 = sheet.getBoundingClientRect().width;
-      /* 只加 is-fading 看淡出本身（不点搜索框、不跳转） */
-      dlg.classList.add('is-fading');
-      await new Promise((res) => setTimeout(res, 100));
-      const mid = { w: sheet.getBoundingClientRect().width, left: sheet.getBoundingClientRect().left, o: +getComputedStyle(dlg).opacity };
-      dlg.classList.remove('is-fading');
-      return { w0, mid };
-    });
-    expect(Math.abs(r.mid.w - r.w0)).toBeLessThanOrEqual(0.5);
-    expect(Math.abs(r.mid.left)).toBeLessThanOrEqual(0.5);
-    expect(r.mid.o).toBeGreaterThan(0);
-    expect(r.mid.o).toBeLessThan(1);
-  });
-
-  test('在全网搜索页上点搜索框：抽屉淡出后不跳转，底栏升起并聚焦输入框', async ({ page }) => {
-    await go(page, '/search/');
-    await expect(page.locator('#sgx-cap-input-brwsearch')).toHaveCount(1);
     await page.evaluate(() => { window.__sgxNoReload = 1; });
     await openDrawer(page);
     await drawer(page).locator('a.sgx-drawer-search').click();
-    await expect(page.locator('#sgx-cap-brwsearch')).toHaveClass(/\bsgx-bar-pop\b/, { timeout: 3000 });
+    await expect(page.locator('#sgx-srch-input')).toBeFocused({ timeout: 5000 });
     await expect(drawer(page)).toBeHidden();
-    await expect(page.locator('#sgx-cap-input-brwsearch')).toBeFocused();
     expect(await page.evaluate(() => window.__sgxNoReload)).toBe(1);
-    await expect(page).toHaveURL(/\/search\/$/);
+    await expect(page).toHaveURL(/\/settings\/$/);
     expect(await page.evaluate(() => !!(history.state && history.state.sgxDrawer))).toBe(false);
-    await expect(page.locator('#sgx-cap-brwsearch')).not.toHaveClass(/\bsgx-bar-pop\b/, { timeout: 3000 });
-  });
-
-  test('减弱动效：点搜索框直接进 /search/ 并聚焦，不挂 .sgx-from-drawer', async ({ page }) => {
-    await page.addInitScript(() => { try { localStorage.setItem('sgx-reduced-motion', '1'); } catch (e) {} });
-    await go(page, '/settings/');
-    await openDrawer(page);
-    await drawer(page).locator('a.sgx-drawer-search').click();
-    await expect(page).toHaveURL(/\/search\/$/);
-    await expect(page.locator('#sgx-cap-input-brwsearch')).toBeFocused({ timeout: 5000 });
-    expect(await page.evaluate(() => document.documentElement.classList.contains('sgx-from-drawer'))).toBe(false);
-    expect(await page.evaluate(() => sessionStorage.getItem('sgx-search-from-drawer'))).toBeNull();
   });
 });
 
 test.describe('主站书签已下线', () => {
-  test('/browser/ 跳到全网搜索 /search/（中英，查询串保留）；没有 /bookmarks/ 页面', async ({ page }) => {
-    await go(page, '/browser/?q=hello');
-    await expect(page).toHaveURL(/\/search\/\?q=hello$/);
-    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
-    await page.goto('/en/browser/', { waitUntil: 'domcontentloaded' });
-    await expect(page).toHaveURL(/\/en\/search\/$/);
+  test('没有 /bookmarks/ 页面（/browser/ 的去向见 site-search.spec.js）', async ({ page }) => {
+    await go(page, '/');
     for (const p of ['/bookmarks/', '/en/bookmarks/']) {
       const r = await page.request.get(p);
       expect(r.status(), p).not.toBe(200);
@@ -440,16 +391,17 @@ test.describe('抽屉宽度与底色', () => {
     });
   }
 
-  for (const [w, want] of [[360, 258], [390, 288], [412, 310]]) {
-    test(`手机竖屏 ${w}px：抽屉宽 ${want}，右缘 = 长条右端直边与右圆弧的切线（±1px）`, async ({ page }) => {
+  for (const [w, want] of [[360, 238], [390, 268], [412, 290]]) {
+    test(`手机竖屏 ${w}px：抽屉宽 ${want}（#163 之前的公式，和子站一致）`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: 844 });
       await go(page, '/settings/');
       await openDrawer(page);
       const m = await sheetAndQuick(page);
       expect(Math.abs(m.left), `左缘 ${m.left}`).toBeLessThanOrEqual(1);
-      /* 视口宽 − 16 − 52 − 8 − 26 */
+      /* 视口宽 − 16 − 52 − 8 − 26 − 20 */
       expect(Math.abs(m.width - want), `宽 ${m.width}`).toBeLessThanOrEqual(1);
-      expect(Math.abs(m.right - m.tangent), `抽屉右缘 ${m.right}，长条右圆弧切线 ${m.tangent}`).toBeLessThanOrEqual(1);
+      /* 右边露出右圆和长条右端（抽屉右缘在长条里） */
+      expect(m.right).toBeLessThan(m.tangent);
       /* 药丸左右各留 12px */
       expect(Math.abs(m.itemLeft - 12)).toBeLessThanOrEqual(1);
       expect(Math.abs(m.right - m.itemRight - 12)).toBeLessThanOrEqual(1);

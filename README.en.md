@@ -38,7 +38,7 @@ DeX
 | Home | `/en/` | Launcher: app icons, widgets and the Dock. Widgets include profile card, dual clocks, weather, Now notes, latest blog posts, digital garden, screen time and collections. |
 | My Files | `/en/files/` | Only things I wrote: posts, blog, library. |
 | Bookmarks | `/en/bookmarks/` | Moved to the [Curio](https://curio.styrigx.com/en/) subsite on 2026-10-21; the old URL 301s there. |
-| Web search | `/en/search/` | On-site suggestions plus search with your chosen engine; pick the engine in Settings › Security and privacy. |
+| Search | Navigation drawer footer | In-place search layer (no page change): recent searches, on-site results, search with your chosen engine; pick the engine in Settings › Security and privacy. Old `/en/search/?q=` links open it on the home page. |
 | Settings | `/en/settings/` | Display, language, layout and other system settings, stored locally. |
 
 The Dock only shows on the home screen; inside apps only the search bar stays at the bottom.
@@ -47,7 +47,7 @@ The Dock only shows on the home screen; inside apps only the search bar stays at
 
 - Two layouts: phone (<640px) and DeX (≥640px).
 - Light / dark follows the system by default.
-- One top bar on every page: the middle capsule shows the current page name (Home on the home page); tap it to open web search.
+- One top bar on every page: nine-dot drawer button | middle capsule with only the current page name (Home on the home page) | quick panel circle; the avatar sits in the drawer head.
 - Two full versions: 中文 / English.
 
 ## Run locally

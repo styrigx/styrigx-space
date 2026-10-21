@@ -1,0 +1,5 @@
+{{/* 顶栏右圆（每站自定义的唯一位置，2026-10-22）：外层必须是一个 class 含 sgx-tb-end 的 <button> 或 <a>（52px 圆，材质 / 按压态在共享外壳 shell.css），
+   里面一个 22px 图标。主站 = 快捷面板按钮（shell/quick-panel.js 按 .sgx-tb-quick 找它）。
+   子站在自己仓库放同名 partial（或同样结构的组件），换成自己的按钮；没有要放的就放一个链到主站的按钮，别留空（长条要两侧对称）。
+   参数：isEn、page。 */}}
+<button type="button" class="sgx-tb-end sgx-tb-quick" aria-label="{{ if .isEn }}Quick panel{{ else }}快捷面板{{ end }}" aria-haspopup="dialog" aria-controls="sgx-qp" aria-expanded="false">{{ partial "icon.html" "sliders" }}</button>

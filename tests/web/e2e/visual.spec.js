@@ -1,6 +1,6 @@
 /**
  * 2.4.0 E：视觉回归测试。
- * 5 视口 × 中英 × 深浅色 × 主要页面（/、/search/、/settings/ 等；B2-2 删除 /store/，2026-10-19 删除 /files/，
+ * 5 视口 × 中英 × 深浅色 × 主要页面（/、/settings/ 等；2026-10-22 /search/ 页删除（改成原地搜索层，见 baseline-search-open）；B2-2 删除 /store/，2026-10-19 删除 /files/，
  * 2026-10-20 /browser/ 拆成 /bookmarks/ + /search/，2026-10-21 主站书签下线（迁到 珍格 Curio），/bookmarks/ 截图删除）
  * + F 的基准（弹层打开）+ 导航抽屉打开（baseline-drawer-open）+ 快捷面板打开（baseline-quick-panel-open）。
  * 首次运行：npx playwright test --update-snapshots 生成基准；
@@ -24,7 +24,7 @@ const VIEWPORTS = {
 /* 账号页三星式总览：/settings/account/ 拍登录后的总览（登录区由下方 account-login-* 覆盖），
    新增安全与隐私子页 /settings/account/security/（已过门；倒计时数字在截图里遮罩），
    账号信息子页 /settings/account/profile/（已登录卡 + 退出账号） */
-const PAGES = ['/', '/search/', '/settings/', '/settings/security/', '/settings/security/lock/', '/settings/account/', '/settings/account/profile/', '/settings/account/security/', '/settings/account/reset/'];
+const PAGES = ['/', '/settings/', '/settings/security/', '/settings/security/lock/', '/settings/account/', '/settings/account/profile/', '/settings/account/security/', '/settings/account/reset/'];
 const LANGS = [
   { prefix: '', name: 'zh' },
   { prefix: '/en', name: 'en' },
@@ -166,12 +166,6 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
             await expect(pg.locator('#lockmgr-pklist .lockmgr-pkitem')).toHaveCount(1, { timeout: 10000 });
             await expect(pg.locator('#sgx-door-countdown')).toBeVisible();
           }
-          /* 全网搜索页进页自动聚焦输入框：截图拍沉底态（收起键盘态，光标 / 胶囊展开不稳定） */
-          if (page === '/search/') {
-            await expect(pg.locator('#sgx-cap-input-brwsearch')).toBeFocused({ timeout: 10000 });
-            await pg.locator('#sgx-cap-input-brwsearch').blur();
-            await expect(pg.locator('#sgx-cap-brwsearch')).not.toHaveClass(/\bopen\b/, { timeout: 5000 });
-          }
           /* #1 诊断：构建标记小字只给真机看，视觉回归里隐藏，
              现有基线继续通过；诊断结束后删小字也不用再动基线。
              必须在 goto 之后注入（导航会丢掉之前 addStyleTag/addInitScript 加的样式，
@@ -235,6 +229,32 @@ test('baseline-drawer-open', async ({ page: pg }) => {
   /* 等抽屉稳定在打开状态再截图（不拍滑入中途） */
   await expect(pg.locator('#sgx-drawer')).toHaveAttribute('data-state', 'open');
   await expect(pg).toHaveScreenshot('baseline-drawer-open.png', { animations: 'disabled' });
+});
+
+/* 原地搜索层打开（2026-10-22）：设置子页上开抽屉、点底栏搜索框；最近搜索两条；拍收起键盘后的样子（光标不稳定） */
+test('baseline-search-open', async ({ page: pg }) => {
+  await pg.setViewportSize(VIEWPORTS.mobile);
+  await blockExternalRequests(pg);
+  await pg.emulateMedia({ reducedMotion: 'reduce' });
+  await pg.addInitScript(() => {
+    try {
+      localStorage.setItem('sgx-lang', 'zh');
+      localStorage.setItem('sgx-browser-history', JSON.stringify(['常规设置', 'Hugo']));
+    } catch (e) {}
+  });
+  await pg.addStyleTag({
+    content: 'html{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans CJK SC","Noto Sans CJK",sans-serif !important}',
+  });
+  await freezeTime(pg);
+  await pg.goto('/settings/display/', { waitUntil: 'domcontentloaded' });
+  await waitPageReady(pg);
+  await pg.click('.sgx-tb-nav');
+  await expect(pg.locator('#sgx-drawer')).toHaveAttribute('data-state', 'open');
+  await pg.click('#sgx-drawer a.sgx-drawer-search');
+  await expect(pg.locator('#sgx-srch-input')).toBeFocused({ timeout: 10000 });
+  await expect(pg.locator('.sgx-srch-chip')).toHaveCount(2);
+  await pg.locator('#sgx-srch-input').blur();
+  await expect(pg).toHaveScreenshot('baseline-search-open.png', { animations: 'disabled' });
 });
 
 /* 快捷面板打开（2026-10-20）：设置子页上点顶栏右侧滑块圆，面板从顶部滑下（与 baseline-drawer-open 同一写法） */
