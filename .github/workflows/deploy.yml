@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  HUGO_VERSION: '0.167.0'
+  HUGO_VERSION: '0.168.0'
 
 jobs:
   # 2.4.0 E：质量闸门 —— 视觉回归 + Lighthouse CI + stylelint，不达标不部署

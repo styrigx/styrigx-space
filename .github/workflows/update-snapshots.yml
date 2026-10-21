@@ -9,7 +9,7 @@ permissions:
   contents: write
   actions: write   # B1-11：推完基线后用 GITHUB_TOKEN 触发 deploy.yml
 env:
-  HUGO_VERSION: '0.167.0'   # 与 deploy.yml 保持一致
+  HUGO_VERSION: '0.168.0'   # 与 deploy.yml 保持一致
 jobs:
   update:
     runs-on: ubuntu-24.04

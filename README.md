@@ -53,7 +53,7 @@ Dock 只在主页显示；进入应用后底部只留搜索栏。
 
 ## 本地运行
 
-环境要求：Hugo extended 0.167.0、Node.js（CI 用 20，构建 Tailwind 需要）。
+环境要求：Hugo extended 0.168.0、Node.js（CI 用 20，构建 Tailwind 需要）。
 
 ```bash
 git clone https://github.com/styrigx/styrigx-space.git
