@@ -17,7 +17,7 @@
     {
       "id": "curio",
       "icon": "nav-curio",
-      "zh": "珍格",
+      "zh": "奇趣",
       "en": "Curio",
       "origin": "https://curio.styrigx.com",
       "path": "/"
@@ -43,7 +43,7 @@
   "me": {
     "zh": "账号",
     "en": "Account",
-    "href": "https://styrigx.com/",
+    "href": "https://styrigx.com/settings/account/",
     "avatar": "https://styrigx.com/avatar/192.webp"
   },
   "search": {

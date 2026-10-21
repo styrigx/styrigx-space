@@ -216,7 +216,7 @@ const README = `# web/shared/shell（生成物，勿手改）
 ## 搜索层（search.js + shell.css 的 search 段）
 
 点导航抽屉底栏的搜索框 → 抽屉原地淡掉，搜索框变形成屏幕底部的搜索栏（药丸 + ✕ 圆，贴键盘），上面是盖住当前页的磨砂结果层
-（最近搜索 / 站内结果 / 「用 <引擎> 搜索」）。顶栏不动。✕ / 系统返回 / Esc 关闭。不跳页、最多占一条历史。
+（空输入时背景是放大镜 +「聚合搜索」；输入后是站内结果 / 「用 <引擎> 搜索」；不记搜索历史）。顶栏不动。✕ / 系统返回 / Esc 关闭。不跳页、最多占一条历史。
 
 子站接入（文件原样复制，不改）：
 1. \`node scripts/sync-shell.mjs\` 同步后，\`search.js\` 放进子站的 JS（建议单独打包、懒加载），\`shell.css\` 照旧整份引入（含 search 段）。
@@ -231,9 +231,8 @@ const README = `# web/shared/shell（生成物，勿手改）
 | 键 | 默认 | 说明 |
 |---|---|---|
 | lang | 按 \`<html lang>\` | 'zh' / 'en' 文案 |
-| index | null | 站内索引地址（files-index.json 格式 \`{items:[{type,lang,title,subtitle,url}]}\`）；null = 只有最近搜索 + 引擎搜索 |
+| index | null | 站内索引地址（files-index.json 格式 \`{items:[{type,lang,title,subtitle,url}]}\`）；null = 只有引擎搜索 |
 | types | [] | 要列出的索引类型和分组名，如 \`[{type:'post',zh:'博客',en:'Blog'}]\` |
-| recentKey / recentMax | sgx-browser-history / 8 | 最近搜索（localStorage，按站点各自一份） |
 | engineKey / engine | sgx-search-engine / — | 引擎设置（google / bing / duckduckgo / yahoo / ecosia）；engine() 优先 |
 | navigate | location.href = url | 打开同源结果（先关层、退掉哨兵再调用）；跨源结果新标签打开 |
 | strings | — | 覆盖文案 |

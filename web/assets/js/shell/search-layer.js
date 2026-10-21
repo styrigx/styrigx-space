@@ -2,8 +2,9 @@
  * @fileoverview 原地搜索层（共享外壳组件，2026-10-22；主站和三个子站同一份，子站原样复制）。
  *
  * 取代原来的全网搜索页 /search/：点导航抽屉底栏的搜索框长条，抽屉原地淡掉，那条长条在原地变成屏幕底部的
- * 搜索栏（长条药丸「搜索或输入网址」+ 右边单独的 ✕ 圆，和以前 /search/ 页底栏一样），贴着键盘；
- * 上方是盖在当前页上的磨砂结果层（最近搜索 / 站内结果 / 「用 <引擎> 搜索」），当前页和顶栏原样不动。
+ * 搜索栏（长条药丸「搜索」+ 右边单独的 ✕ 圆，和以前 /search/ 页底栏一样），贴着键盘；
+ * 上方是盖在当前页上的磨砂结果层（空输入 = 中间一个搜索图标 +「聚合搜索」；有输入 = 站内结果 / 「用 <引擎> 搜索」），当前页和顶栏原样不动。
+ * 2026-10-22：最近搜索删掉（用户：不需要），输入框占位文字统一叫「搜索」；旧的 sgx-browser-history 由 baseof 清掉。
  * ✕ / 系统返回 / Esc 关掉，回到原来的页面。
  *
  * 自成一体：不 import 任何东西，DOM 自己建，样式在 shell.css 的 search 段（只用 --sgx-* 角色）。
@@ -23,8 +24,6 @@
  * @property {'zh'|'en'} [lang] 文案语言（默认按 <html lang>）
  * @property {string|null} [index] 站内索引地址（files-index.json 格式：{ items: [{ type, lang, title, subtitle, url }] }）；null = 只有引擎搜索
  * @property {Array<{type: string, zh: string, en: string}>} [types] 索引里要列出的类型和分组名（按这个顺序）
- * @property {string} [recentKey] 最近搜索的 localStorage 键（默认 sgx-browser-history）
- * @property {number} [recentMax] 最近搜索最多几条（默认 8）
  * @property {string} [engineKey] 搜索引擎设置的 localStorage 键（默认 sgx-search-engine；没有值 = Google）
  * @property {() => string} [engine] 自己给当前引擎 id（google / bing / duckduckgo / yahoo / ecosia），优先于 engineKey
  * @property {(url: string) => void} [navigate] 打开同源结果（默认 location.href = url）
@@ -42,12 +41,12 @@
 
 const STR = {
   zh: {
-    ph: '搜索或输入网址', label: '搜索', close: '关闭搜索', clear: '清空', recent: '最近搜索', clearAll: '全部清除',
-    del: '删除', searchWith: '用 {n} 搜索', results: '搜索结果',
+    ph: '搜索', label: '搜索', close: '关闭搜索', clear: '清空', empty: '聚合搜索',
+    searchWith: '用 {n} 搜索', results: '搜索结果',
   },
   en: {
-    ph: 'Search or type URL', label: 'Search', close: 'Close search', clear: 'Clear', recent: 'Recent searches', clearAll: 'Clear all',
-    del: 'Delete', searchWith: 'Search with {n}', results: 'Search results',
+    ph: 'Search', label: 'Search', close: 'Close search', clear: 'Clear', empty: 'Unified search',
+    searchWith: 'Search with {n}', results: 'Search results',
   },
 };
 
@@ -87,12 +86,6 @@ function lsGet(k) {
     return null;
   }
 }
-/** @param {string} k @param {string} v */
-function lsSet(k, v) {
-  try {
-    localStorage.setItem(k, v);
-  } catch (e) {}
-}
 function reduced() {
   return (
     document.documentElement.classList.contains('reduced-motion') ||
@@ -103,7 +96,6 @@ function reduced() {
 const IC_SEARCH = '<svg class="sgx-srch-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>';
 const IC_CLEAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7" stroke="var(--sgx-surface)" stroke-width="2" stroke-linecap="round"/></svg>';
 const IC_CLOSE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
-const IC_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>';
 const IC_CHEV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>';
 
 /**
@@ -115,8 +107,6 @@ export function mountSearch(cfg) {
   const lang = cfg.lang || (document.documentElement.lang === 'en' ? 'en' : 'zh');
   /** @type {Record<string,string>} */
   const T = Object.assign({}, STR[lang] || STR.zh, cfg.strings || {});
-  const RECENT = cfg.recentKey || 'sgx-browser-history';
-  const RMAX = cfg.recentMax || 8;
   const EKEY = cfg.engineKey || 'sgx-search-engine';
   const TYPES = cfg.types || [];
   const navigate = cfg.navigate || function (/** @type {string} */ u) { location.href = u; };
@@ -128,8 +118,11 @@ export function mountSearch(cfg) {
   layer.hidden = true;
   layer.setAttribute('role', 'region');
   layer.setAttribute('aria-label', T.results);
-  layer.innerHTML = '<div class="sgx-srch-scroll"><div class="sgx-srch-page" id="sgx-srch-list" role="listbox" aria-label="' + esc(T.results) + '"></div></div>';
-  const scroller = /** @type {HTMLElement} */ (layer.firstElementChild);
+  /* 空输入时的背景：和底栏同一个放大镜 +「聚合搜索」，在顶栏和底栏（含键盘）之间居中（三星信息的搜索页那样） */
+  layer.innerHTML = '<div class="sgx-srch-empty" aria-hidden="true">' + IC_SEARCH.replace('sgx-srch-ic', 'sgx-srch-empty-ic') + '<span class="sgx-srch-empty-tx">' + esc(T.empty) + '</span></div>' +
+    '<div class="sgx-srch-scroll"><div class="sgx-srch-page" id="sgx-srch-list" role="listbox" aria-label="' + esc(T.results) + '"></div></div>';
+  const emptyEl = /** @type {HTMLElement} */ (layer.firstElementChild);
+  const scroller = /** @type {HTMLElement} */ (emptyEl.nextElementSibling);
   const list = /** @type {HTMLElement} */ (scroller.firstElementChild);
 
   const bar = document.createElement('div');
@@ -152,29 +145,6 @@ export function mountSearch(cfg) {
   const closeBtn = /** @type {HTMLElement} */ (bar.querySelector('[data-srch-close]'));
   root.appendChild(layer);
   root.appendChild(bar);
-
-  /* ============ 最近搜索 ============ */
-  /** @returns {string[]} */
-  function getHist() {
-    try {
-      const a = JSON.parse(lsGet(RECENT) || '[]');
-      return Array.isArray(a) ? a.filter(function (x) { return typeof x === 'string'; }).slice(0, RMAX) : [];
-    } catch (e) {
-      return [];
-    }
-  }
-  /** @param {string[]} a */
-  function setHist(a) {
-    lsSet(RECENT, JSON.stringify(a.slice(0, RMAX)));
-  }
-  /** @param {string} s */
-  function pushHist(s) {
-    s = (s || '').trim();
-    if (!s) return;
-    const a = getHist().filter(function (x) { return x !== s; });
-    a.unshift(s);
-    setHist(a);
-  }
 
   /* ============ 引擎 ============ */
   function engineId() {
@@ -245,22 +215,9 @@ export function mountSearch(cfg) {
     } else input.removeAttribute('aria-activedescendant');
   }
 
-  function renderRecent() {
-    const a = getHist();
-    if (!a.length) {
-      list.innerHTML = '';
-      return;
-    }
-    let h =
-      '<div class="sgx-srch-card sgx-srch-recent" role="group" aria-label="' + esc(T.recent) + '">' +
-      '<div class="sgx-srch-recent-head"><span class="sgx-srch-recent-title">' + esc(T.recent) + '</span>' +
-      '<button type="button" class="sgx-srch-clearall" data-srch-clear>' + esc(T.clearAll) + '</button></div><div class="sgx-srch-chips">';
-    a.forEach(function (s, i) {
-      h +=
-        '<span class="sgx-srch-chip" data-srch-chip="' + i + '"><span class="sgx-srch-chip-tx">' + esc(s) + '</span>' +
-        '<button type="button" class="sgx-srch-chip-x" data-srch-del="' + i + '" aria-label="' + esc(T.del + ' ' + s) + '">' + IC_X + '</button></span>';
-    });
-    list.innerHTML = h + '</div></div>';
+  function renderEmpty() {
+    list.innerHTML = '';
+    emptyEl.hidden = false;
   }
   /** @type {Hit[]} */
   let hits = [];
@@ -271,9 +228,10 @@ export function mountSearch(cfg) {
     active = -1;
     input.removeAttribute('aria-activedescendant');
     if (!q) {
-      renderRecent();
+      renderEmpty();
       return;
     }
+    emptyEl.hidden = true;
     const ql = q.toLowerCase();
     let h = '';
     let n = 0;
@@ -318,7 +276,6 @@ export function mountSearch(cfg) {
   function doSearch(q) {
     q = (q || '').trim();
     if (!q) return;
-    pushHist(q);
     window.open(looksLikeUrl(q) ? (/^https?:\/\//i.test(q) ? q : 'https://' + q) : engineUrl(q), '_blank', 'noopener');
   }
   /* 回车：方向键选中的行 → 打开它；标题和输入完全一样的站内结果 → 直接打开；否则按网址 / 引擎搜索 */
@@ -333,7 +290,6 @@ export function mountSearch(cfg) {
     const ql = q.toLowerCase();
     const exact = INDEX.find(function (x) { return x.t.toLowerCase() === ql; });
     if (exact) {
-      pushHist(q);
       openUrl(exact.u);
       return;
     }
@@ -380,26 +336,6 @@ export function mountSearch(cfg) {
   list.addEventListener('click', function (e) {
     const t = /** @type {Element|null} */ (e.target);
     if (!t || !t.closest) return;
-    const del = t.closest('[data-srch-del]');
-    if (del) {
-      const a = getHist();
-      a.splice(parseInt(del.getAttribute('data-srch-del') || '0', 10), 1);
-      setHist(a);
-      renderRecent();
-      return;
-    }
-    if (t.closest('[data-srch-clear]')) {
-      setHist([]);
-      renderRecent();
-      return;
-    }
-    const chip = t.closest('[data-srch-chip]');
-    if (chip) {
-      const s = getHist()[parseInt(chip.getAttribute('data-srch-chip') || '0', 10)] || '';
-      if (s) doSearch(s);
-      renderRecent();
-      return;
-    }
     if (t.closest('[data-srch-engine]')) {
       doSearch(input.value);
       render();
@@ -407,12 +343,11 @@ export function mountSearch(cfg) {
     }
     const it = t.closest('[data-srch-u]');
     if (it) {
-      pushHist(input.value);
       openUrl(it.getAttribute('data-srch-u') || '');
     }
   });
   window.addEventListener('sgx-settings-changed', function () { if (isOpen()) render(); });
-  window.addEventListener('storage', function (e) { if (isOpen() && (e.key === EKEY || e.key === RECENT)) render(); });
+  window.addEventListener('storage', function (e) { if (isOpen() && e.key === EKEY) render(); });
 
   function focusInput() {
     try {
