@@ -167,7 +167,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
    [九宫格圆（打开左侧导航抽屉）] — [长条：搜索图标 | 当前页名 | 快捷面板图标] — [头像圆（账号）]。
    长条在屏幕上真正居中（两侧各一个同尺寸圆）；长条两端图标对称内缩，页名在长条正中（不可点，主页「首页」/ Home，其他页用页面标题），太长时省略号。
    搜索图标（#sgx-tb-search）是普通链接（沿用站内切页过渡）；在全网搜索页上点它只聚焦底部输入框（见 head-buttons.js）。
-   快捷面板图标（.sgx-tb-quick）在顶栏下展开 / 收起内嵌的 #sgx-qp（见 <main> 开头的快捷面板注释），aria-expanded 同步。
+   快捷面板图标（.sgx-tb-quick）打开顶栏下方落下的面板 #sgx-qp（非模态 <dialog>，见导航抽屉后面的快捷面板注释），aria-expanded 同步。
    两个图标各自 40px 圆形点击区，按压 / 悬停态只在图标上，长条本身没有按压态。
    子页面没有大标题区：页名只在长条里，正文从顶栏下方 --sgx-content-top 开始（input.css，全站同一个值）。 */}}
 {{ $pageName := .Title }}
@@ -180,15 +180,17 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
     <button type="button" class="sgx-tb-nav" aria-label="{{ if $isEn }}Navigation{{ else }}导航{{ end }}" aria-haspopup="dialog" aria-controls="sgx-drawer" aria-expanded="false">{{ partial "icon.html" "apps-grid" }}</button>
     <div class="sgx-tb-pill">
       <a id="sgx-tb-search" class="sgx-tb-search sgx-tb-ic" href="{{ $searchUrl }}" aria-label="{{ if $isEn }}Search{{ else }}搜索{{ end }}">{{ partial "icon.html" "search" }}</a>
-      <span class="sgx-tb-title" data-qp-label="{{ if $isEn }}Quick panel{{ else }}快捷面板{{ end }}">{{ $pageName }}</span>
-      <button type="button" class="sgx-tb-quick sgx-tb-ic" aria-label="{{ if $isEn }}Quick panel{{ else }}快捷面板{{ end }}" aria-controls="sgx-qp" aria-expanded="false">{{ partial "icon.html" "sliders" }}</button>
+      <span class="sgx-tb-title">{{ $pageName }}</span>
+      <button type="button" class="sgx-tb-quick sgx-tb-ic" aria-label="{{ if $isEn }}Quick panel{{ else }}快捷面板{{ end }}" aria-haspopup="dialog" aria-controls="sgx-qp" aria-expanded="false">{{ partial "icon.html" "sliders" }}</button>
     </div>
     <a class="sgx-tb-me" href="{{ $acctUrl }}" aria-label="{{ if $isEn }}Account{{ else }}账号{{ end }}"><img src="/avatar/192.webp" alt="" width="52" height="52" class="sgx-tb-avatar" data-sgx-avatar="192"></a>
   </div>
 </header>
 
 {{/* 导航抽屉（Gmail Android 式左侧抽屉，head-buttons.js 开关）：九宫格打开；点遮罩 / 系统返回 / Esc 关闭。
-   当前页所在项用药丸高亮（aria-current="page"）；底部分隔线下只有 设置。日刻、博客是子站（同一标签页打开）。 */}}
+   当前页所在项用药丸高亮（aria-current="page"）。日刻、博客是子站（同一标签页打开）。
+   2026-10-21：抽屉里去掉了「设置」（入口在快捷面板顶栏的齿轮）。抽屉头一行：大号站名 + 搜索框长条（AI 搜索图标 + 「搜索」，
+   进全网搜索页；在搜索页上点它只关抽屉并聚焦底部输入框，见 head-buttons.js）。 */}}
 {{ $navCur := "" }}
 {{ if .IsHome }}{{ $navCur = "home" }}{{ else if or (eq .RelPermalink "/bookmarks/") (eq .RelPermalink "/en/bookmarks/") }}{{ $navCur = "bookmarks" }}{{ else if or (hasPrefix .RelPermalink "/settings/") (hasPrefix .RelPermalink "/en/settings/") }}{{ $navCur = "settings" }}{{ end }}
 {{/* 抽屉项来自 web/data/shell-nav.json（共享外壳：scripts/gen-shell.mjs 把它连同图标生成 web/shared/shell/nav.json，子站同步同一份）。
@@ -196,57 +198,37 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{ $shellNav := index site.Data "shell-nav" }}
 <dialog id="sgx-drawer" class="sgx-drawer" aria-label="{{ cond $isEn $shellNav.label.en $shellNav.label.zh }}">
   <nav class="sgx-drawer-sheet">
-    <p class="sgx-drawer-head">{{ $shellNav.brand }}</p>
+    <div class="sgx-drawer-head"><span class="sgx-drawer-brand">{{ $shellNav.brand }}</span><a id="sgx-drawer-search" class="sgx-drawer-search" href="{{ $searchUrl }}" aria-label="{{ cond $isEn $shellNav.search.en $shellNav.search.zh }}"><span class="sgx-drawer-search-ic">{{ partial "icon.html" $shellNav.search.icon }}</span><span class="sgx-drawer-search-label" aria-hidden="true">{{ cond $isEn $shellNav.search.en $shellNav.search.zh }}</span></a></div>
     <ul class="sgx-drawer-list">
       {{ range $shellNav.items }}
       <li><a class="sgx-drawer-item" href="{{ partial "shell-nav-href.html" (dict "it" . "en" $isEn) }}" data-nav="{{ .id }}"{{ if eq .id $navCur }} aria-current="page"{{ end }}><span class="sgx-drawer-ic">{{ partial "icon.html" .icon }}</span><span class="sgx-drawer-label">{{ cond $isEn .en .zh }}</span></a></li>
       {{ end }}
     </ul>
+    {{ with $shellNav.footer }}
     <hr class="sgx-drawer-div">
     <ul class="sgx-drawer-list">
-      {{ range $shellNav.footer }}
+      {{ range . }}
       <li><a class="sgx-drawer-item" href="{{ partial "shell-nav-href.html" (dict "it" . "en" $isEn) }}" data-nav="{{ .id }}"{{ if eq .id $navCur }} aria-current="page"{{ end }}><span class="sgx-drawer-ic">{{ partial "icon.html" .icon }}</span><span class="sgx-drawer-label">{{ cond $isEn .en .zh }}</span></a></li>
       {{ end }}
     </ul>
+    {{ end }}
   </nav>
 </dialog>
-
-
-<!-- 全网搜索是独立页 /search/（旧 #search-modal 已删除） -->
-
-<!-- 通用 bottom sheet / 居中弹窗（2.4.0 D：<dialog>，原生 ::backdrop + 焦点管理） -->
-<dialog id="sheet-wrap" class="sgx-sheet" aria-labelledby="sheet-title">
-  <div id="sheet-panel" class="overflow-hidden">
-    {{/* 批次 A 收尾 A3：右上角 × 关闭按钮 */}}
-    <button type="button" class="sgx-dlg-close" data-sheet-close aria-label="{{ if $isEn }}Close{{ else }}关闭{{ end }}">×</button>
-    <div class="sheet-handle" data-sheet-close></div>
-    <p id="sheet-title" class="px-5 pt-2 pb-1 text-sm font-semibold text-m-on-surface-variant"></p>
-    <div id="sheet-body" class="overflow-y-auto px-2 pb-4"></div>
-  </div>
-</dialog>
-
-{{/* 2026-10-20：原浏览器页内联的搜索索引（#search-index）已删除——全网搜索页一直用 /files-index.json，
-   书签页不再需要它（设置项里的「浏览器 / 搜索引擎 #apps」也是死链接）。 */}}
-{{/* 2.4.0-C：旧 sgx-util.js / sgx-base-a.js 已拆为 ES Modules，随页面入口统一加载 */}}
-
-
-
-
-
-
-
-<main id="sgx-main">
-{{/* 快捷面板（2026-10-20 改为内嵌，shell/quick-panel.js 开关；只放设置里已有的项）：
-   在 <main> 最前面、顶栏正下方，属于正文流：点长条里的快捷面板图标展开，下面的正文整体下移；再点图标 / 在面板上上滑 / Esc 收起，
-   离开本页即关闭。不是弹层：没有遮罩、没有拖拽把手，点面板外面、滚动都不收起。宽度与本页内容列（卡片左右边缘）一致。
+{{/* 快捷面板（2026-10-21 v6，One UI 快捷面板式，只放设置里已有的项；shell/quick-panel.js 开关）：
+   长条右端快捷面板图标打开，面板从顶栏底下钻出来、落在顶栏下方，盖住正文（正文不动）；顶栏留在最上面、不压暗，
+   再点图标 / 点遮罩 / 系统返回 / Esc / 点顶栏其他按钮（先关面板再执行）关闭（与导航抽屉同一个状态机 modal-sheet.js，非模态 show()）。
+   顶部一行：左「快捷面板」标题，右齿轮圆钮 = 全部设置（设置入口从导航抽屉挪到这里）。
    每个磁贴调用的 setter 与设置页相同（lib/prefs.js、lib/lock-now.js），两边写同一个 localStorage key，即时生效。
    磁贴：深色模式、跟随系统、减弱动效、语言（切到另一种语言）、立即锁定；
-   行：调色板、字体大小、布局；底部「全部设置」普通链接行。各项随 features.yaml 的 build 开关显示 / 隐藏。 */}}
+   行：调色板、字体大小、布局。各项随 features.yaml 的 build 开关显示 / 隐藏。 */}}
 {{ $qpFeat := dict }}
 {{ range site.Data.features.features }}{{ $qpFeat = merge $qpFeat (dict .id .) }}{{ end }}
-<section id="sgx-qp" class="sgx-qp" data-state="closed" inert aria-label="{{ if $isEn }}Quick panel{{ else }}快捷面板{{ end }}">
-  <div class="sgx-qp-clip">
-  <div class="sgx-qp-sheet">
+<dialog id="sgx-qp" class="sgx-qp" aria-labelledby="sgx-qp-title">
+  <div class="sgx-qp-sheet" tabindex="-1" autofocus>
+    <div class="sgx-qp-head">
+      <p id="sgx-qp-title" class="sgx-qp-title">{{ if $isEn }}Quick panel{{ else }}快捷面板{{ end }}</p>
+      <a class="sgx-qp-set" href="{{ $setUrl }}" aria-label="{{ if $isEn }}All settings{{ else }}全部设置{{ end }}">{{ partial "icon.html" "gear" }}</a>
+    </div>
     <div class="sgx-qp-grid">
       {{ if partial "feature.html" "theme-mode" }}
       <button type="button" class="sgx-qp-tile" data-qp="dark" aria-pressed="false"><span class="sgx-qp-ic">{{ partial "icon.html" "moon" }}</span><span class="sgx-qp-txt"><span class="sgx-qp-label">{{ if $isEn }}Dark mode{{ else }}深色模式{{ end }}</span><span class="sgx-qp-state" data-qp-state></span></span></button>
@@ -276,10 +258,34 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
       </div>
     </div>
     {{ end }}{{ end }}
-    <a class="sgx-qp-all" href="{{ $setUrl }}"><span>{{ if $isEn }}All settings{{ else }}全部设置{{ end }}</span>{{ partial "icon.html" "chev-r" }}</a>
   </div>
+</dialog>
+
+
+<!-- 全网搜索是独立页 /search/（旧 #search-modal 已删除） -->
+
+<!-- 通用 bottom sheet / 居中弹窗（2.4.0 D：<dialog>，原生 ::backdrop + 焦点管理） -->
+<dialog id="sheet-wrap" class="sgx-sheet" aria-labelledby="sheet-title">
+  <div id="sheet-panel" class="overflow-hidden">
+    {{/* 批次 A 收尾 A3：右上角 × 关闭按钮 */}}
+    <button type="button" class="sgx-dlg-close" data-sheet-close aria-label="{{ if $isEn }}Close{{ else }}关闭{{ end }}">×</button>
+    <div class="sheet-handle" data-sheet-close></div>
+    <p id="sheet-title" class="px-5 pt-2 pb-1 text-sm font-semibold text-m-on-surface-variant"></p>
+    <div id="sheet-body" class="overflow-y-auto px-2 pb-4"></div>
   </div>
-</section>
+</dialog>
+
+{{/* 2026-10-20：原浏览器页内联的搜索索引（#search-index）已删除——全网搜索页一直用 /files-index.json，
+   书签页不再需要它（设置项里的「浏览器 / 搜索引擎 #apps」也是死链接）。 */}}
+{{/* 2.4.0-C：旧 sgx-util.js / sgx-base-a.js 已拆为 ES Modules，随页面入口统一加载 */}}
+
+
+
+
+
+
+
+<main id="sgx-main">
 {{ block "main" . }}{{ end }}</main>
 <footer class="relative z-10 mt-4">
   <div class="max-w-[1100px] mx-auto px-6 py-8 text-center">

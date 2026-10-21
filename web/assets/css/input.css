@@ -4979,7 +4979,7 @@
   animation: none; backdrop-filter: none; -webkit-backdrop-filter: none;
   -webkit-mask-image: none; mask-image: none; contain: none; isolation: auto; }
 /* @shell:begin topbar-frame（共享外壳：scripts/gen-shell.mjs 原样抽到 web/shared/shell/shell.css，子站 scripts/sync-shell.mjs 同步；只用 --sgx-* 角色，不写死颜色） */
-/* 顶栏尺寸 token：页边距、圆按钮直径、间距、长条内图标点击区直径。手机竖屏导航抽屉宽度也由它们算（右缘对齐长条里快捷面板图标点击区左缘），改这里两边一起跟着变 */
+/* 顶栏尺寸 token：页边距、圆按钮直径、间距、长条内图标点击区直径。手机竖屏导航抽屉宽度也由它们算（右缘对齐长条右端直边与右圆弧的切线），改这里两边一起跟着变 */
 :root { --sgx-tb-inset: 16px; --sgx-tb-btn: 52px; --sgx-tb-gap: 8px; --sgx-tb-ic: 40px; }
 .sgx-topbar { position: fixed; top: calc(var(--sgx-tb-inset) + env(safe-area-inset-top, 0px)); left: var(--sgx-tb-inset); right: var(--sgx-tb-inset);
   height: var(--sgx-tb-btn); z-index: 55; display: flex; align-items: center; gap: var(--sgx-tb-gap); pointer-events: none; }
@@ -5030,15 +5030,7 @@
 .sgx-tb-avatar { width: 28px; height: 28px; border-radius: 999px; object-fit: cover; border: 1px solid var(--m-outline); flex-shrink: 0; }
 .sgx-tb-title { display: block; flex: 1; min-width: 0; text-align: center; padding: 0 4px;
   font-size: 16px; font-weight: 700; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  position: relative; color: var(--m-on-surface); transition: color .15s ease; }
-/* 快捷面板开着：长条页名淡出、同位置淡入「快捷面板」（~150ms 交叉淡化；减弱动效立刻切换），收起时换回页名。
-   「快捷面板」是 ::after 生成内容（文字来自 data-qp-label），替代文本为空，读屏仍只读页名；页名文本节点与 document.title 都不动。 */
-.sgx-tb-title::after { content: attr(data-qp-label); content: attr(data-qp-label) / ""; position: absolute; inset: 0; padding: inherit;
-  overflow: hidden; text-overflow: ellipsis; color: var(--m-on-surface); opacity: 0; transition: opacity .15s ease; pointer-events: none; }
-.sgx-tb-pill:has(.sgx-tb-quick[aria-expanded="true"]) .sgx-tb-title { color: transparent; }
-.sgx-tb-pill:has(.sgx-tb-quick[aria-expanded="true"]) .sgx-tb-title::after { opacity: 1; }
-.reduced-motion .sgx-tb-title, .reduced-motion .sgx-tb-title::after { transition: none; }
-@media (prefers-reduced-motion: reduce) { .sgx-tb-title, .sgx-tb-title::after { transition: none; } }
+  color: var(--m-on-surface); }
 /* 长条里的图标按钮（搜索 / 快捷面板）：圆形点击区，按压 / 悬停态只在图标上 */
 .sgx-tb-ic { width: var(--sgx-tb-ic); height: var(--sgx-tb-ic); border-radius: 999px; flex-shrink: 0; padding: 0; border: 0; background: transparent;
   display: inline-flex; align-items: center; justify-content: center; color: var(--m-on-surface); cursor: pointer; text-decoration: none; }
@@ -5072,9 +5064,9 @@ html[data-sgx-role="visitor"] .sgx-tb-me { pointer-events: none; cursor: default
 .sgx-drawer.is-open::backdrop { background: var(--sgx-scrim); }
 .sgx-drawer-sheet { position: absolute; top: 0; bottom: 0; left: 0; width: 320px; overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box;
   background: var(--sgx-mat); -webkit-backdrop-filter: var(--sgx-mat-filter);
-  border-radius: 0 1.75rem 1.75rem 0; box-shadow: 0 12px 40px -8px rgba(0,0,0,.30);
+  border-radius: 0 1.75rem 1.75rem 0; box-shadow: var(--sgx-drawer-shadow);
   padding: calc(16px + env(safe-area-inset-top, 0px)) 12px calc(16px + env(safe-area-inset-bottom, 0px));
-  transform: translateX(-104%); transition: transform .22s cubic-bezier(.2,0,0,1); }
+  transform: translateX(calc(-100% - 72px)); transition: transform .22s cubic-bezier(.2,0,0,1); }
 .sgx-drawer.is-open .sgx-drawer-sheet { transform: none; }
 @supports (backdrop-filter: blur(1px)) {
   .sgx-drawer-sheet { backdrop-filter: var(--sgx-mat-filter); }
@@ -5082,15 +5074,43 @@ html[data-sgx-role="visitor"] .sgx-tb-me { pointer-events: none; cursor: default
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .sgx-drawer-sheet { background: var(--sgx-mat-solid); }
 }
-/* 抽屉宽：平板 / 桌面固定 320px（Material 导航抽屉宽度）；手机竖屏（< 600px，Material compact）右缘对齐长条里快捷面板图标点击区左缘：
-   宽 = 视口宽 − 右页边距 − 头像圆 − 间距 − 半个圆（图标中心到长条外缘）− 半个点击区（<dialog> 铺满视口所以用 100%），
-   全由顶栏 token 算，token 改了仍对齐（412px 宽 = 290px） */
+/* 抽屉阴影（2026-10-21，ChatGPT / Muse 式）：清楚可见、往右投（近处一层收边 + 远处一层大而柔）；深色底上加深。遮罩不变 */
+:root { --sgx-drawer-shadow: 4px 0 12px rgba(0,0,0,.10), 16px 0 48px rgba(0,0,0,.24); }
+.dark { --sgx-drawer-shadow: 4px 0 12px rgba(0,0,0,.22), 16px 0 48px rgba(0,0,0,.5); }
+/* 抽屉宽：平板 / 桌面固定 320px（Material 导航抽屉宽度）；手机竖屏（< 600px，Material compact）右缘对齐顶栏长条右端
+   直边和右圆弧相接处的竖直切线（长条右圆弧半径 = 半个圆按钮，圆心距长条外缘 --sgx-tb-btn / 2）：
+   宽 = 视口宽 − 右页边距 − 头像圆 − 间距 − 半个圆（<dialog> 铺满视口所以用 100%），
+   全由顶栏 token 算，token 改了仍对齐（412px 宽 = 310px，360px 宽 = 258px） */
 @media (max-width: 599.98px) {
-  .sgx-drawer-sheet { width: calc(100% - var(--sgx-tb-inset) - 1.5 * var(--sgx-tb-btn) - var(--sgx-tb-gap) - var(--sgx-tb-ic) / 2); }
+  .sgx-drawer-sheet { width: calc(100% - var(--sgx-tb-inset) - 1.5 * var(--sgx-tb-btn) - var(--sgx-tb-gap)); }
 }
 .reduced-motion .sgx-drawer-sheet, .reduced-motion .sgx-drawer::backdrop { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-drawer-sheet, .sgx-drawer::backdrop { transition: none; } }
-.sgx-drawer-head { margin: 0; padding: 14px 16px 18px; font-size: 20px; font-weight: 700; line-height: 1.4; color: var(--sgx-text-primary); }
+/* 抽屉头（2026-10-21 v6，ChatGPT / Muse 抽屉式）：同一行 [大号站名] [12px] [搜索框长条]，竖直居中。
+   站名用抽屉头字号 token（--sgx-drawer-brand-size / -weight，26px / 800：360px 宽时右边的搜索框仍放得下「搜索 / Search」）；
+   搜索框 = 48px 高药丸（flex:1，tonal 容器底色 --sgx-surface-container-high + --sgx-mat-line 细边），里面 24px ai-search 图标 + 占位式文字
+   （--sgx-text-secondary）；右缘对齐下面导航项药丸右缘（头部右内边距 0，与列表同在面板 12px 内边距里）。
+   仍是 <a> 链到全网搜索页（在搜索页上点它只关抽屉并聚焦底部输入框，见 head-buttons.js）。
+   头部和第一项（首页）之间留 --sgx-drawer-head-gap（32px），不挤在一起。悬停 / 按下叠状态层，焦点框同其他外壳按钮。 */
+:root { --sgx-drawer-brand-size: 26px; --sgx-drawer-brand-weight: 800; --sgx-drawer-head-gap: 32px; }
+.sgx-drawer-head { margin: 0 0 var(--sgx-drawer-head-gap); padding: 4px 0 0 16px; min-height: 48px; display: flex; align-items: center; gap: 12px;
+  color: var(--sgx-text-primary); }
+.sgx-drawer-brand { flex: 0 0 auto; font-size: var(--sgx-drawer-brand-size); font-weight: var(--sgx-drawer-brand-weight); line-height: 1.2;
+  letter-spacing: -0.01em; white-space: nowrap; }
+.sgx-drawer-search { flex: 1 1 auto; min-width: 0; height: 48px; border-radius: 999px; display: flex; align-items: center; gap: 8px;
+  padding: 0 14px; box-sizing: border-box; background-color: var(--sgx-surface-container-high); border: 1px solid var(--sgx-mat-line);
+  color: var(--sgx-text-secondary); font-size: 15px; font-weight: 500; line-height: 1.4; text-decoration: none; cursor: text;
+  transition: background-color .15s ease; }
+.sgx-drawer-search-ic { width: 24px; height: 24px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; color: var(--sgx-text-primary); }
+.sgx-drawer-search-ic svg { width: 24px; height: 24px; display: block; }
+.sgx-drawer-search-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (hover: hover) {
+  .sgx-drawer-search:hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); }
+}
+.sgx-drawer-search:active { background-image: linear-gradient(var(--sgx-state-pressed-bg), var(--sgx-state-pressed-bg)); }
+.sgx-drawer-search:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+.reduced-motion .sgx-drawer-search { transition: none; }
+@media (prefers-reduced-motion: reduce) { .sgx-drawer-search { transition: none; } }
 .sgx-drawer-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .sgx-drawer-item { display: flex; align-items: center; gap: 14px; min-height: 56px; padding: 0 16px; border-radius: 999px;
   font-size: 15px; font-weight: 500; line-height: 1.4; color: var(--sgx-text-secondary); text-decoration: none; transition: background-color .15s ease; }
@@ -5103,27 +5123,43 @@ html[data-sgx-role="visitor"] .sgx-tb-me { pointer-events: none; cursor: default
 .sgx-drawer-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sgx-drawer-div { border: 0; border-top: 1px solid var(--sgx-outline-variant); margin: 10px 16px; height: 0; }
 /* @shell:end drawer */
-/* 快捷面板（2026-10-20 改为内嵌；baseof.html <main> 开头的 #sgx-qp，shell/quick-panel.js 开关）：
-   正文流里的一块，宽度 = 本页内容列（JS 打开前 / 重绘时量出本页内容列里看得见的内容块的左右缘写进 --sgx-qp-l / --sgx-qp-w，量不到时按 max-w-2xl 居中）。
-   展开 / 收起用 grid-template-rows 0fr ↔ 1fr（.is-open），下面的正文跟着平滑下移 / 上移；收起后 visibility:hidden + inert。
-   面板与下方正文的间距（16px，= --sgx-content-gap）放在会被裁掉的内层里，收起时一起归零。
-   磁贴圆角块，开着的磁贴是主色容器底色（aria-pressed="true"）；面板够宽（容器 ≥ 560px）时磁贴一行排满、字号 / 布局两行并排。 */
-.sgx-qp { display: grid; grid-template-rows: 0fr; box-sizing: border-box;
-  width: var(--sgx-qp-w, min(42rem, calc(100% - 32px))); margin-left: var(--sgx-qp-l, auto); margin-right: auto;
-  color: var(--m-on-surface); transition: grid-template-rows .25s cubic-bezier(.2,0,0,1); }
-.sgx-qp.is-open { grid-template-rows: 1fr; }
-.sgx-qp-clip { min-height: 0; overflow: hidden; container-type: inline-size; }
-.sgx-qp[data-state="closed"] .sgx-qp-clip { visibility: hidden; }
-/* 完全展开后不再裁切，卡片阴影 / 焦点框不被切掉 */
-.sgx-qp[data-state="open"] .sgx-qp-clip { overflow: visible; }
-.sgx-qp-sheet { margin-bottom: var(--sgx-content-gap); padding: 16px 16px 6px; border-radius: 28px; outline: none;
-  background: var(--m-container-lowest); border: 1px solid var(--sgx-mat-line); box-shadow: 0 1px 2px rgba(16,24,40,.06);
-  opacity: 0; transform: translateY(-8px); transition: opacity .2s ease, transform .25s cubic-bezier(.2,0,0,1);
-  touch-action: pan-x pan-y; }
-.sgx-qp.is-open .sgx-qp-sheet { opacity: 1; transform: none; }
-.reduced-motion .sgx-qp, .reduced-motion .sgx-qp-sheet { transition: none; }
-@media (prefers-reduced-motion: reduce) { .sgx-qp, .sgx-qp-sheet { transition: none; } }
-/* 面板开着：长条里的图标保持按下态 */
+/* 快捷面板（2026-10-21 v6：从顶栏下方落下的覆盖层，One UI 快捷面板式；baseof.html #sgx-qp，shell/quick-panel.js 开关）：
+   非模态 <dialog>（show()，不进顶层），fixed 铺满「顶栏下沿以下」的区域：dialog 本身就是遮罩（is-open 时 --sgx-scrim），
+   z-index 45 = 盖住正文和底部胶囊（41），但在顶栏 #site-nav（50）下面——顶栏不被遮罩压暗、图标照常可点（再点关闭）。
+   --sgx-qp-top = 顶栏下沿（与正文 --sgx-content-top 同一组 token：页边距 + 顶栏高 + 安全区）。
+   .sgx-qp-sheet 离顶栏下沿 8px；收起时整块移到 dialog 上沿之外，dialog overflow:hidden 把它裁掉，
+   所以滑下时看上去是从顶栏底下钻出来的（减弱动效直接到位）。
+   手机：左右对齐顶栏页边距（--sgx-tb-inset 16px），最宽 480px 居中；宽屏（≥ 980px）宽 400px，右缘对齐顶栏右缘。
+   顶部一行：左「快捷面板」标题，右齿轮圆钮（全部设置）。磁贴圆角块，开着的磁贴是主色容器底色（aria-pressed="true"）。 */
+:root { --sgx-qp-top: calc(var(--sgx-tb-inset) + var(--sgx-tb-btn) + env(safe-area-inset-top, 0px)); --sgx-qp-gap: 8px; }
+.sgx-qp { position: fixed; top: var(--sgx-qp-top); left: 0; right: 0; bottom: 0; z-index: 45; width: auto; height: auto; max-width: none; max-height: none;
+  margin: 0; padding: 0; border: 0; background-color: transparent; overflow: hidden; overscroll-behavior: contain; color: var(--sgx-text-primary);
+  transition: background-color .24s ease; }
+.sgx-qp.is-open { background-color: var(--sgx-scrim); }
+.sgx-qp-sheet { position: absolute; top: var(--sgx-qp-gap); left: var(--sgx-tb-inset); right: var(--sgx-tb-inset); margin: 0 auto;
+  max-width: 480px; max-height: calc(100% - 2 * var(--sgx-qp-gap) - env(safe-area-inset-bottom, 0px)); overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box;
+  background: var(--sgx-surface-container-lowest); border: 1px solid var(--sgx-mat-line); border-radius: 28px;
+  box-shadow: var(--sgx-qp-shadow); padding: 12px 16px 16px; outline: none;
+  transform: translateY(calc(-100% - var(--sgx-qp-gap) - 2px)); transition: transform .24s cubic-bezier(.2,0,0,1); }
+:root { --sgx-qp-shadow: 0 4px 12px rgba(0,0,0,.10), 0 16px 48px rgba(0,0,0,.24); }
+.dark { --sgx-qp-shadow: 0 4px 12px rgba(0,0,0,.22), 0 16px 48px rgba(0,0,0,.5); }
+.sgx-qp.is-open .sgx-qp-sheet { transform: none; }
+@media (min-width: 980px) {
+  .sgx-qp-sheet { left: auto; right: max(16px, calc((100vw - 1068px) / 2)); width: 400px; margin: 0; }
+}
+.reduced-motion .sgx-qp-sheet, .reduced-motion .sgx-qp { transition: none; }
+@media (prefers-reduced-motion: reduce) { .sgx-qp-sheet, .sgx-qp { transition: none; } }
+.sgx-qp-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 0 0 10px 6px; }
+.sgx-qp-title { margin: 0; font-size: 18px; font-weight: 700; line-height: 1.3; color: var(--sgx-text-primary); }
+.sgx-qp-set { width: 44px; height: 44px; border-radius: 999px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+  background-color: var(--sgx-surface-container-high); color: var(--sgx-text-primary); text-decoration: none; transition: box-shadow .15s ease; }
+.sgx-qp-set svg { width: 22px; height: 22px; display: block; }
+@media (hover: hover) {
+  .sgx-qp-set:hover { box-shadow: inset 0 0 0 22px var(--sgx-state-hover-bg); }
+}
+.sgx-qp-set:active { box-shadow: inset 0 0 0 22px var(--sgx-state-pressed-bg); }
+.sgx-qp-set:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+/* 面板开着：长条里的快捷面板图标保持按下态（顶栏在面板上面，图标一直看得见，再点关闭） */
 .sgx-tb-quick[aria-expanded="true"] { background-color: var(--m-primary-container); color: var(--m-on-primary-container); }
 .sgx-qp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .sgx-qp-tile { display: flex; align-items: center; gap: 10px; min-height: 64px; min-width: 0; padding: 10px 12px; border-radius: 22px;
@@ -5131,7 +5167,7 @@ html[data-sgx-role="visitor"] .sgx-tb-me { pointer-events: none; cursor: default
 .sgx-qp-tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .sgx-qp-tile:active { background: var(--m-container-highest); }
 .sgx-qp-tile[aria-pressed="true"] { background: var(--m-primary-container); color: var(--m-on-primary-container); }
-.sgx-qp-tile:focus-visible, .sgx-qp-sw:focus-visible, .sgx-qp-all:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
+.sgx-qp-tile:focus-visible, .sgx-qp-sw:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
 .sgx-qp-ic { width: 36px; height: 36px; border-radius: 999px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
   background: var(--m-container-lowest); color: var(--m-on-surface-variant); }
 .sgx-qp-ic svg { width: 20px; height: 20px; }
@@ -5151,16 +5187,6 @@ html[data-sgx-role="visitor"] .sgx-tb-me { pointer-events: none; cursor: default
 .sgx-qp-sw[aria-pressed="true"] .swatch-check { display: block; }
 .sgx-qp-seg button { font-size: 13px; }
 .sgx-qp-seg button:disabled { opacity: .4; cursor: default; }
-.sgx-qp-all { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 10px; min-height: 44px; border-radius: 999px;
-  font-size: 14px; font-weight: 600; color: var(--m-primary); text-decoration: none; }
-.sgx-qp-all:active { background: var(--m-container); }
-.sgx-qp-all svg { color: var(--m-primary); }
-@container (min-width: 560px) {
-  .sgx-qp-sheet { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; }
-  .sgx-qp-grid, .sgx-qp-row:has(.sgx-qp-sws), .sgx-qp-all { grid-column: 1 / -1; }
-  .sgx-qp-grid { display: flex; flex-wrap: wrap; }
-  .sgx-qp-tile { flex: 1 1 150px; }
-}
 /* topbar v2.0 end */
 
 /* ===== 头像裁剪（assets/js/apps/avatar-edit.js）=====

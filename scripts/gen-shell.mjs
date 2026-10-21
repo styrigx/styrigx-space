@@ -31,7 +31,8 @@ const SRC = {
 };
 /** shell.css 里按这个顺序拼 input.css 的标记段 */
 export const SHELL_REGIONS = ['topbar-frame', 'topbar-me', 'drawer'];
-const EXTRA_ICONS = ['apps-grid'];
+/* 抽屉项以外外壳要用的图标：九宫格（顶栏左圆）、AI 搜索（抽屉头站名右边的搜索框） */
+const EXTRA_ICONS = ['apps-grid', 'ai-search'];
 const HEAD = (src) =>
   `/* 由 styrigx-space scripts/gen-shell.mjs 从 ${src} 生成，勿手改；子站用 scripts/sync-shell.mjs 同步。 */\n`;
 
@@ -92,7 +93,7 @@ function renderShell() {
 function renderNav() {
   const nav = JSON.parse(readFileSync(SRC.nav, 'utf8'));
   const html = readFileSync(SRC.icons, 'utf8');
-  const names = [...new Set([...nav.items, ...nav.footer].map((i) => i.icon).concat(EXTRA_ICONS))];
+  const names = [...new Set([...nav.items, ...(nav.footer || [])].map((i) => i.icon).concat(EXTRA_ICONS))];
   const icons = {};
   for (const n of names) icons[n] = extractIcon(html, n);
   return (

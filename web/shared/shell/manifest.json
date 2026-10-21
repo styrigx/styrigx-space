@@ -4,11 +4,11 @@
   "dir": "web/shared/shell",
   "files": {
     "tokens.css": "1020df0df04415b777a61944de08c38fa19a119cf657111f1169cffd91523edf",
-    "shell.css": "fb24f81601c373f86e39059d075b505219695068bc6e3112d2391716f15a64a3",
+    "shell.css": "7b9a94297ddbd02d69a8950f19f954bedb8fa31cbd7d42fe3ad34b937458f25e",
     "palette-scheme.js": "0bee0d8370d3ed854d0345b8b3849d9dd45b7c4d007623c45455ee25885239fa",
-    "nav.json": "eb572651fd31cc341ff72ab804228b68528942d12e6f233a44dd37cc29936e59",
+    "nav.json": "e631fd25dceec1da4661a19bbd5c1f7c751100b11fd37860c9d126d02fb41bdb",
     "palettes.json": "6ec64d87323eea8038e8fff19e68ebfc6e83fc3651579f48319663f9509d50c7",
     "README.md": "53ab96da7a5fa60ad89b2aa9cf9e26b2e431bf076cc62aec4e342d1954be9ede"
   },
-  "version": "4b8f7fa1c999"
+  "version": "50b120223490"
 }

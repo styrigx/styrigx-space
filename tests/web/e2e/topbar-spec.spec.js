@@ -220,7 +220,7 @@ test.describe('390×844 行为', () => {
     await page.locator('.sgx-tb-nav').click();
     const dr = page.locator('#sgx-drawer');
     await expect(dr).toBeVisible();
-    await expect(dr.locator('.sgx-drawer-item')).toHaveCount(5);
+    await expect(dr.locator('.sgx-drawer-item')).toHaveCount(4);
     await page.keyboard.press('Escape');
     await expect(dr).toBeHidden();
     await expect(dr).toHaveAttribute('data-state', 'closed');

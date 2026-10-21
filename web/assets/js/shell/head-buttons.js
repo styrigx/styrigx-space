@@ -7,6 +7,8 @@
  * - 没有 ‹ 返回和页面 ⋮：页面操作都在正文里。长条右端快捷面板图标（.sgx-tb-quick）见 quick-panel.js。
  * - 导航抽屉（#sgx-drawer，Gmail Android 式左侧抽屉，<dialog> 模态）：九宫格打开；
  *   点遮罩 / 系统返回 / Esc 关闭。打开时 push 一条同 URL 的历史哨兵，系统返回只关抽屉不离开页面。
+ * - 抽屉头站名右边的搜索框长条（#sgx-drawer-search，2026-10-21 v6：AI 搜索图标 + 「搜索」）：和长条搜索图标同一个地址；
+ *   关抽屉后再跳转，已经在全网搜索页上时只关抽屉并聚焦底部输入框。
  */
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
 import { modalSheet } from './modal-sheet.js';
@@ -15,8 +17,20 @@ import { initQuickPanel } from './quick-panel.js';
 /** 抽屉滑入 / 滑出时长（与 input.css .sgx-drawer-sheet 的 transition 一致） */
 const DRAWER_MS = 220;
 
-/* 抽屉开合状态机（data-state closed/opening/open/closing、历史哨兵、作废旧 rAF / 计时器）在 modal-sheet.js。
- * 快捷面板（quick-panel.js）2026-10-20 起改为顶栏下内嵌展开，不再用它。 */
+/* 抽屉开合状态机（data-state closed/opening/open/closing、历史哨兵、作废旧 rAF / 计时器）在 modal-sheet.js，
+ * 顶栏快捷面板（quick-panel.js）用同一份。 */
+
+/** 全网搜索页底部输入框（只在 /search/ 上有） */
+function searchInput() {
+  return /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-cap-input-brwsearch'));
+}
+/** @param {HTMLInputElement} input */
+function focusSearch(input) {
+  try {
+    input.focus({ preventScroll: true });
+  } catch (err) {}
+}
+
 function initDrawer() {
   const btn = /** @type {HTMLElement|null} */ (document.querySelector('.sgx-tb-nav'));
   const dlg = /** @type {HTMLDialogElement|null} */ (document.getElementById('sgx-drawer'));
@@ -34,10 +48,25 @@ function initDrawer() {
     const t = /** @type {Element|null} */ (e.target);
     if (!t) return;
     if (sheet && sheet.contains(t)) {
-      const a = /** @type {HTMLAnchorElement|null} */ (t.closest ? t.closest('a.sgx-drawer-item') : null);
+      const a = /** @type {HTMLAnchorElement|null} */ (t.closest ? t.closest('a.sgx-drawer-item, a.sgx-drawer-search') : null);
       if (!a) return;
       if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       e.preventDefault();
+      /* 抽屉头搜索框：在全网搜索页上只关抽屉并聚焦底部输入框（与长条搜索图标一致） */
+      if (a.classList.contains('sgx-drawer-search')) {
+        const input = searchInput();
+        if (input) {
+          ms.close(function () {
+            /* <dialog> 真正关上时会把焦点还给九宫格：等它关完（close 事件在还焦点之后）再聚焦输入框 */
+            if (dlg.open) {
+              dlg.addEventListener('close', function () {
+                focusSearch(input);
+              }, { once: true });
+            } else focusSearch(input);
+          });
+          return;
+        }
+      }
       /* 当前页只关闭抽屉；其他项关完（哨兵出栈后）再跳转 */
       if (a.getAttribute('aria-current') === 'page') ms.close();
       else {
@@ -58,12 +87,10 @@ function initSearchBtn() {
   if (!btn) return;
   btn.addEventListener('click', function (e) {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-cap-input-brwsearch'));
+    const input = searchInput();
     if (!input) return;
     e.preventDefault();
-    try {
-      input.focus({ preventScroll: true });
-    } catch (err) {}
+    focusSearch(input);
   });
 }
 

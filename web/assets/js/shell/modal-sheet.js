@@ -1,5 +1,5 @@
 /**
- * @fileoverview 顶栏弹出层的开合状态机（导航抽屉 #sgx-drawer；快捷面板已改为内嵌展开，不再用它）。
+ * @fileoverview 顶栏弹出层的开合状态机（导航抽屉 #sgx-drawer、快捷面板 #sgx-qp 共用）。
  *
  * dlg.dataset.state：closed → opening → open → closing → closed。
  * 开合只靠我们自己的计时器推进（不等 transitionend：减弱动效 / 后台标签页 / 过渡被打断时它可能永远不来），
@@ -8,7 +8,7 @@
  * 关闭计时器看到 is-open 就不关 <dialog>，弹出层卡在打开状态（CI 偶发）。
  *
  * 打开时 push 一条同 URL 的历史哨兵，系统返回只关弹出层不离开页面；
- * Esc（原生 cancel）、点遮罩由调用方接到 close()；close(after) 先退掉哨兵、等它出栈后再执行 after
+ * Esc（模态：原生 cancel；非模态 modal:false：document keydown）走 close()，点遮罩由调用方接到 close()；close(after) 先退掉哨兵、等它出栈后再执行 after
  * （跳转 / 再弹别的层），免得目标页的返回多一步。
  */
 import { reducedMotion } from '../lib/util.js';
@@ -18,13 +18,16 @@ import { reducedMotion } from '../lib/util.js';
  * @property {() => void} open
  * @property {(after?: () => void) => void} close 关闭（带滑出动画并退掉哨兵）；after 在哨兵出栈后执行
  * @property {() => boolean} isOpen
+ * @property {() => boolean} isShown
  */
 
 /**
- * @param {HTMLDialogElement} dlg 铺满视口的 <dialog>（::backdrop 是遮罩）
+ * @param {HTMLDialogElement} dlg 弹出层 <dialog>（模态：铺满视口，::backdrop 是遮罩；非模态：调用方自己画遮罩）
  * @param {HTMLElement} btn 打开它的顶栏按钮（同步 aria-expanded）
- * @param {{ ms: number, stateKey: string, onOpen?: () => void }} opts
- *   ms：滑入 / 滑出时长（与 CSS transition 一致）；stateKey：历史哨兵 state 里的键名；onOpen：showModal 之后调用（重绘内容）
+ * @param {{ ms: number, stateKey: string, modal?: boolean, onOpen?: () => void, onClosed?: () => void }} opts
+ *   ms：滑入 / 滑出时长（与 CSS transition 一致）；stateKey：历史哨兵 state 里的键名；
+ *   modal：默认 true = showModal()；false = show()（不进顶层、不 inert 页面，快捷面板用：顶栏留在它上面可点）；
+ *   onOpen：打开之后调用（重绘内容）；onClosed：<dialog> 真正关上之后调用（非模态时还焦点用）
  * @returns {ModalSheet}
  */
 export function modalSheet(dlg, btn, opts) {
@@ -56,7 +59,14 @@ export function modalSheet(dlg, btn, opts) {
     dlg.classList.remove('is-open');
     btn.setAttribute('aria-expanded', 'false');
     setState('closed');
-    if (dlg.open) dlg.close();
+    if (dlg.open) {
+      dlg.close();
+      if (opts.onClosed) {
+        try {
+          opts.onClosed();
+        } catch (e) {}
+      }
+    }
   }
   setState('closed');
 
@@ -66,7 +76,8 @@ export function modalSheet(dlg, btn, opts) {
     const my = ++gen;
     dlg.classList.remove('is-open');
     try {
-      dlg.showModal();
+      if (opts.modal === false) dlg.show();
+      else dlg.showModal();
     } catch (e) {
       return;
     }
@@ -141,6 +152,16 @@ export function modalSheet(dlg, btn, opts) {
     e.preventDefault();
     close();
   });
+  /* 非模态没有原生 cancel：自己接 Esc（只在开着、且没被别人处理时） */
+  if (opts.modal === false) {
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape' || e.defaultPrevented || !dlg.open) return;
+      const st = dlg.getAttribute('data-state');
+      if (st !== 'open' && st !== 'opening') return;
+      e.preventDefault();
+      close();
+    });
+  }
   /* <dialog> 被我们以外的途径关掉（浏览器连按 Esc 时可能无视 preventDefault 强关）：同步状态并退掉哨兵 */
   dlg.addEventListener('close', function () {
     if (dlg.getAttribute('data-state') === 'closed') return;
@@ -180,6 +201,11 @@ export function modalSheet(dlg, btn, opts) {
     close,
     isOpen: function () {
       return dlg.open;
+    },
+    /** 开着或正在打开（正在滑出收起的不算） */
+    isShown: function () {
+      const st = dlg.getAttribute('data-state');
+      return dlg.open && (st === 'open' || st === 'opening');
     },
   };
 }
