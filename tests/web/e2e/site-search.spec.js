@@ -338,9 +338,11 @@ test('懒加载：页面入口里没有搜索层代码；按下九宫格才取',
 
 test('桌面（1280）：底栏 560px 居中，结果列最宽 640 居中', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
-  await go(page, '/', { hist: ['x'] });
+  await go(page, '/');
   await openFromDrawer(page);
-  await page.waitForTimeout(300);
+  /* 空输入没有结果卡（只有「聚合搜索」背景）：输入一个词，等站内结果卡出来再量 */
+  await input(page).fill('设置');
+  await expect(page.locator('.sgx-srch-card').first()).toBeVisible({ timeout: 5000 });
   const m = await page.evaluate(() => {
     const b = document.querySelector('.sgx-srch-bar').getBoundingClientRect();
     const c = document.querySelector('.sgx-srch-card').getBoundingClientRect();
