@@ -7,15 +7,24 @@
  * - 没有 ‹ 返回和页面 ⋮：页面操作都在正文里。长条右端快捷面板图标（.sgx-tb-quick）见 quick-panel.js。
  * - 导航抽屉（#sgx-drawer，Gmail Android 式左侧抽屉，<dialog> 模态）：九宫格打开；
  *   点遮罩 / 系统返回 / Esc 关闭。打开时 push 一条同 URL 的历史哨兵，系统返回只关抽屉不离开页面。
- * - 抽屉头站名右边的搜索框长条（#sgx-drawer-search，2026-10-21 v6：AI 搜索图标 + 「搜索」）：和长条搜索图标同一个地址；
- *   关抽屉后再跳转，已经在全网搜索页上时只关抽屉并聚焦底部输入框。
+ * - 抽屉底栏的搜索框长条（#sgx-drawer-search，2026-10-21 v7：钉在抽屉底部，AI 搜索图标 + 「搜索」居中）：和长条搜索图标同一个地址。
+ *   点它：整个抽屉原地淡出（.is-fading，只改 opacity、不改宽度不滑出，遮罩一起淡掉，CSS 见 input.css「抽屉淡出」），
+ *   淡完（FADE_MS）关上 <dialog> 并退掉抽屉的历史哨兵（不把抽屉开着的状态留在历史里），再跳搜索页，
+ *   并在 sessionStorage 记 sgx-search-from-drawer=1，搜索页据此首帧挂 .sgx-from-drawer：内容淡入、底部搜索栏从左下方随键盘升起。
+ *   已经在全网搜索页上：同样原地淡出，然后底栏做同一个升起动画（.sgx-bar-pop）并聚焦输入框（不跳转）。
+ *   减弱动效：不淡出、不做动画，直接跳 / 直接关并聚焦。
  */
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
 import { modalSheet } from './modal-sheet.js';
 import { initQuickPanel } from './quick-panel.js';
+import { reducedMotion } from '../lib/util.js';
 
 /** 抽屉滑入 / 滑出时长（与 input.css .sgx-drawer-sheet 的 transition 一致） */
 const DRAWER_MS = 220;
+/** 点抽屉搜索框后抽屉原地淡出的时长（与 input.css --sgx-drawer-fade-ms 一致） */
+const FADE_MS = 200;
+/** 搜索页读取的「从抽屉进来」标记 */
+export const FROM_DRAWER_KEY = 'sgx-search-from-drawer';
 
 /* 抽屉开合状态机（data-state closed/opening/open/closing、历史哨兵、作废旧 rAF / 计时器）在 modal-sheet.js，
  * 顶栏快捷面板（quick-panel.js）用同一份。 */
@@ -29,6 +38,25 @@ function focusSearch(input) {
   try {
     input.focus({ preventScroll: true });
   } catch (err) {}
+}
+/**
+ * 搜索页底栏从左下方升起（.sgx-bar-pop，和从抽屉进搜索页的入场同一个动画）并聚焦输入框；减弱动效只聚焦。
+ * @param {HTMLInputElement} input
+ */
+function popSearch(input) {
+  const bar = /** @type {HTMLElement|null} */ (input.closest('.sgx-cap-bar'));
+  if (bar && !reducedMotion()) {
+    const barIn = bar.querySelector('.sgx-cap-bar-in');
+    bar.classList.remove('sgx-bar-pop');
+    void bar.offsetWidth;
+    bar.classList.add('sgx-bar-pop');
+    if (barIn) {
+      barIn.addEventListener('animationend', function () {
+        bar.classList.remove('sgx-bar-pop');
+      }, { once: true });
+    }
+  }
+  focusSearch(input);
 }
 
 function initDrawer() {
@@ -52,20 +80,10 @@ function initDrawer() {
       if (!a) return;
       if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       e.preventDefault();
-      /* 抽屉头搜索框：在全网搜索页上只关抽屉并聚焦底部输入框（与长条搜索图标一致） */
+      /* 抽屉底栏搜索框：原地淡出后进搜索页；在全网搜索页上淡出后底栏升起并聚焦 */
       if (a.classList.contains('sgx-drawer-search')) {
-        const input = searchInput();
-        if (input) {
-          ms.close(function () {
-            /* <dialog> 真正关上时会把焦点还给九宫格：等它关完（close 事件在还焦点之后）再聚焦输入框 */
-            if (dlg.open) {
-              dlg.addEventListener('close', function () {
-                focusSearch(input);
-              }, { once: true });
-            } else focusSearch(input);
-          });
-          return;
-        }
+        fadeToSearch(dlg, ms, a.href);
+        return;
       }
       /* 当前页只关闭抽屉；其他项关完（哨兵出栈后）再跳转 */
       if (a.getAttribute('aria-current') === 'page') ms.close();
@@ -79,6 +97,42 @@ function initDrawer() {
     }
     ms.close();
   });
+}
+
+/**
+ * 抽屉原地淡出 → 全网搜索页（已在搜索页上：不跳转，底栏升起并聚焦）。
+ * @param {HTMLDialogElement} dlg
+ * @param {import('./modal-sheet.js').ModalSheet} ms
+ * @param {string} href
+ */
+function fadeToSearch(dlg, ms, href) {
+  if (dlg.classList.contains('is-fading')) return;
+  const input = searchInput();
+  const after = input
+    ? function () {
+      /* 在哨兵出栈的 popstate 里：等这次分发完再聚焦（胶囊自己的 popstate 兜底会把刚聚焦的输入框 blur 掉） */
+      window.setTimeout(function () { popSearch(input); }, 0);
+    }
+    : function () { sgxNavigate(href); };
+  if (!input) {
+    try {
+      sessionStorage.setItem(FROM_DRAWER_KEY, '1');
+    } catch (e) {}
+  }
+  /* 减弱动效：照常关（无动画）后跳转 / 聚焦 */
+  if (reducedMotion()) {
+    ms.close(after);
+    return;
+  }
+  dlg.classList.add('is-fading');
+  window.setTimeout(function () {
+    /* 淡完：先摘掉 is-open（没有可等的滑出，close() 立刻关上 <dialog>），再退哨兵；哨兵出栈后执行 after */
+    dlg.classList.remove('is-open');
+    ms.close(function () {
+      dlg.classList.remove('is-fading');
+      after();
+    });
+  }, FADE_MS);
 }
 
 /* 长条搜索图标：在全网搜索页上点它只聚焦底部输入框（不重新加载）；其他页照常走链接进 /search/ */

@@ -62,6 +62,11 @@ addEventListener('pagereveal',function(e){window.__sgxRevealVT=e.viewTransition|
     var rm=false;try{rm=localStorage.getItem('sgx-reduced-motion')==='1'}catch(e){}
     if(rm){d.classList.add('reduced-motion')}
     d.setAttribute('data-reduced-motion',rm?'1':'0');
+    /* 从导航抽屉进全网搜索页（head-buttons.js 记 sessionStorage sgx-search-from-drawer=1）：首帧就挂 .sgx-from-drawer
+       （顶栏 / 内容快速淡入、底部搜索栏从左下方升起，CSS 见 input.css），并跳过这一次的跨页交叉淡化；标记由 web-search.js 读完清掉 */
+    try{if(/^\/(en\/)?search\/$/.test(location.pathname)&&sessionStorage.getItem('sgx-search-from-drawer')==='1'&&!rm&&!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)){
+      d.classList.add('sgx-from-drawer');
+      window.addEventListener('pagereveal',function(e){try{if(e.viewTransition)e.viewTransition.skipTransition()}catch(x){}},{once:true})}}catch(e){}
     /* 布局偏好（实际生效的布局由 __applyLayout 计算，这里只记偏好） */
     var lm=null;try{lm=localStorage.getItem('sgx-layout')}catch(e){}
     d.setAttribute('data-layout',lm||'auto');
@@ -189,8 +194,10 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 
 {{/* 导航抽屉（Gmail Android 式左侧抽屉，head-buttons.js 开关）：九宫格打开；点遮罩 / 系统返回 / Esc 关闭。
    当前页所在项用药丸高亮（aria-current="page"）。日刻、博客是子站（同一标签页打开）。
-   2026-10-21：抽屉里去掉了「设置」（入口在快捷面板顶栏的齿轮）。抽屉头一行：大号站名 + 搜索框长条（AI 搜索图标 + 「搜索」，
-   进全网搜索页；在搜索页上点它只关抽屉并聚焦底部输入框，见 head-buttons.js）。 */}}
+   2026-10-21：抽屉里去掉了「设置」（入口在快捷面板顶栏的齿轮）。2026-10-21 v7（ChatGPT / Muse Android 抽屉式）：
+   抽屉头只有大号站名；中间 .sgx-drawer-body 放导航项（最后一项下面一条发丝分隔线），超出时只有它自己滚；底栏 .sgx-drawer-foot 钉在面板底部
+   （安全区内边距），放整宽搜索框长条（AI 搜索图标 + 「搜索」居中，<a> 进全网搜索页，没 JS 也能用；
+   JS 接管：抽屉原地淡出后进搜索页 / 在搜索页上只聚焦，见 head-buttons.js）。 */}}
 {{ $navCur := "" }}
 {{ if .IsHome }}{{ $navCur = "home" }}{{ else if or (hasPrefix .RelPermalink "/settings/") (hasPrefix .RelPermalink "/en/settings/") }}{{ $navCur = "settings" }}{{ end }}
 {{/* 抽屉项来自 web/data/shell-nav.json（共享外壳：scripts/gen-shell.mjs 把它连同图标生成 web/shared/shell/nav.json，子站同步同一份）。
@@ -198,12 +205,15 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{ $shellNav := index site.Data "shell-nav" }}
 <dialog id="sgx-drawer" class="sgx-drawer" aria-label="{{ cond $isEn $shellNav.label.en $shellNav.label.zh }}">
   <nav class="sgx-drawer-sheet">
-    <div class="sgx-drawer-head"><span class="sgx-drawer-brand">{{ $shellNav.brand }}</span><a id="sgx-drawer-search" class="sgx-drawer-search" href="{{ $searchUrl }}" aria-label="{{ cond $isEn $shellNav.search.en $shellNav.search.zh }}"><span class="sgx-drawer-search-ic">{{ partial "icon.html" $shellNav.search.icon }}</span><span class="sgx-drawer-search-label" aria-hidden="true">{{ cond $isEn $shellNav.search.en $shellNav.search.zh }}</span></a></div>
+    <div class="sgx-drawer-head"><span class="sgx-drawer-brand">{{ $shellNav.brand }}</span></div>
+    <div class="sgx-drawer-body">
     <ul class="sgx-drawer-list">
       {{ range $shellNav.items }}
       <li><a class="sgx-drawer-item" href="{{ partial "shell-nav-href.html" (dict "it" . "en" $isEn) }}" data-nav="{{ .id }}"{{ if eq .id $navCur }} aria-current="page"{{ end }}><span class="sgx-drawer-ic">{{ partial "icon.html" .icon }}</span><span class="sgx-drawer-label">{{ cond $isEn .en .zh }}</span></a></li>
       {{ end }}
     </ul>
+    {{/* 导航项下的分隔线（主站专有，ChatGPT / X 抽屉式；CSS .sgx-drawer-sep 在共享外壳段外） */}}
+    <hr class="sgx-drawer-sep" aria-hidden="true">
     {{ with $shellNav.footer }}
     <hr class="sgx-drawer-div">
     <ul class="sgx-drawer-list">
@@ -212,6 +222,8 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
       {{ end }}
     </ul>
     {{ end }}
+    </div>
+    <div class="sgx-drawer-foot"><a id="sgx-drawer-search" class="sgx-drawer-search" href="{{ $searchUrl }}" aria-label="{{ cond $isEn $shellNav.search.en $shellNav.search.zh }}"><span class="sgx-drawer-search-ic">{{ partial "icon.html" $shellNav.search.icon }}</span><span class="sgx-drawer-search-label" aria-hidden="true">{{ cond $isEn $shellNav.search.en $shellNav.search.zh }}</span></a></div>
   </nav>
 </dialog>
 {{/* 快捷面板（2026-10-21 v6，One UI 快捷面板式，只放设置里已有的项；shell/quick-panel.js 开关）：
@@ -301,7 +313,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 
 
 {{/* 2.4.0-C：全站文案（中英双语，JS 按 <html lang> 取用；同一份 JS 中英文共用缓存）。
-   键：快捷键帮助 / 访客提示 / 语音输入 / 语音弹窗 */}}
+   键：快捷键帮助 / 访客提示 / 通行密钥 / 快捷面板（2026-10-21 语音搜索已删除） */}}
 {{ $coreI18n := dict
   "kbdTitle" (dict "zh" "快捷键" "en" "Keyboard shortcuts")
   "kbdHome" (dict "zh" "首页" "en" "Home")
@@ -310,16 +322,6 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
   "kbdSettings" (dict "zh" "设置" "en" "Settings")
   "wellTip" (dict "zh" "已经看了 15 分钟，起来活动一下？" "en" "You've been here 15 minutes, time for a stretch?")
   "wellDismiss" (dict "zh" "关闭" "en" "Dismiss")
-  "listening" (dict "zh" "正在聆听…" "en" "Listening…")
-  "noSpeech" (dict "zh" "没听到声音" "en" "Didn't catch that")
-  "noPerm" (dict "zh" "请允许麦克风权限" "en" "Please allow microphone access")
-  "noSr" (dict "zh" "当前浏览器语音识别不可用，可以用键盘上的麦克风" "en" "Voice recognition unavailable, try your keyboard's mic")
-  "vsSpeak" (dict "zh" "立即说出" "en" "Speak now")
-  "vsLang" (dict "zh" "中文（中国）" "en" "English (US)")
-  "vsRetry" (dict "zh" "没听清，点麦克风重试" "en" "Didn't catch that, tap the mic to retry")
-  "vsNoPerm" (dict "zh" "需要麦克风权限" "en" "Microphone permission needed")
-  "vsAria" (dict "zh" "语音输入" "en" "Voice input")
-  "vsClose" (dict "zh" "关闭" "en" "Close")
   "pkCancelled" (dict "zh" "已取消" "en" "Cancelled")
   "pkTimeout" (dict "zh" "超时，请重试" "en" "Timed out, please retry")
   "pkNoKey" (dict "zh" "这台设备上没有这把钥匙" "en" "No matching key on this device")

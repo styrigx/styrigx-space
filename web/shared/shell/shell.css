@@ -63,10 +63,11 @@
   font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; letter-spacing: normal; }
 .sgx-drawer::backdrop { background: transparent; transition: background-color .22s ease; }
 .sgx-drawer.is-open::backdrop { background: var(--sgx-scrim); }
-.sgx-drawer-sheet { position: absolute; top: 0; bottom: 0; left: 0; width: 320px; overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box;
+.sgx-drawer-sheet { position: absolute; top: 0; bottom: 0; left: 0; width: 320px; overflow: hidden; box-sizing: border-box;
+  display: flex; flex-direction: column;
   background: var(--sgx-mat); -webkit-backdrop-filter: var(--sgx-mat-filter);
   border-radius: 0 1.75rem 1.75rem 0; box-shadow: var(--sgx-drawer-shadow);
-  padding: calc(16px + env(safe-area-inset-top, 0px)) 12px calc(16px + env(safe-area-inset-bottom, 0px));
+  padding: calc(16px + env(safe-area-inset-top, 0px)) 0 0;
   transform: translateX(calc(-100% - 72px)); transition: transform .22s cubic-bezier(.2,0,0,1); }
 .sgx-drawer.is-open .sgx-drawer-sheet { transform: none; }
 @supports (backdrop-filter: blur(1px)) {
@@ -87,24 +88,29 @@
 }
 .reduced-motion .sgx-drawer-sheet, .reduced-motion .sgx-drawer::backdrop { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-drawer-sheet, .sgx-drawer::backdrop { transition: none; } }
-/* 抽屉头（2026-10-21 v6，ChatGPT / Muse 抽屉式）：同一行 [大号站名] [12px] [搜索框长条]，竖直居中。
-   站名用抽屉头字号 token（--sgx-drawer-brand-size / -weight，26px / 800：360px 宽时右边的搜索框仍放得下「搜索 / Search」）；
-   搜索框 = 48px 高药丸（flex:1，tonal 容器底色 --sgx-surface-container-high + --sgx-mat-line 细边），里面 24px ai-search 图标 + 占位式文字
-   （--sgx-text-secondary）；右缘对齐下面导航项药丸右缘（头部右内边距 0，与列表同在面板 12px 内边距里）。
-   仍是 <a> 链到全网搜索页（在搜索页上点它只关抽屉并聚焦底部输入框，见 head-buttons.js）。
-   头部和第一项（首页）之间留 --sgx-drawer-head-gap（32px），不挤在一起。悬停 / 按下叠状态层，焦点框同其他外壳按钮。 */
-:root { --sgx-drawer-brand-size: 26px; --sgx-drawer-brand-weight: 800; --sgx-drawer-head-gap: 32px; }
-.sgx-drawer-head { margin: 0 0 var(--sgx-drawer-head-gap); padding: 4px 0 0 16px; min-height: 48px; display: flex; align-items: center; gap: 12px;
+/* 抽屉三段（2026-10-21 v7，ChatGPT / Muse Android 抽屉式）：面板 = 竖排 flex，[抽屉头][导航列表][底栏]。
+   抽屉头和底栏始终可见，只有中间 .sgx-drawer-body 自己滚（overscroll-behavior:contain，不带动后面的页面）；
+   左右 12px 内边距放在三段各自身上（滚动条贴面板边，药丸左右缘三段对齐）。
+   抽屉头 = 只有大号站名（--sgx-drawer-brand-size / -weight，26px / 800），和第一项（首页）之间留 --sgx-drawer-head-gap（32px）。
+   底栏 .sgx-drawer-foot：钉在面板底部（底内边距含 safe-area-inset-bottom），放整宽搜索框长条 .sgx-drawer-search：
+   左右缘 = 导航项药丸左右缘；--sgx-drawer-search-h（52px）高、999px 圆角，tonal 容器底色 --sgx-surface-container-high + --sgx-mat-line 细边，
+   里面 24px ai-search 图标 + 「搜索 / Search」（--sgx-text-secondary，像占位文字），图标和文字作为一组在药丸里水平居中。
+   仍是 <a> 链到全网搜索页（没 JS 也能用；主站在 JS 里接管：抽屉原地淡出后进搜索页，见 head-buttons.js 和下面「抽屉淡出」）。
+   悬停 / 按下叠状态层，焦点框同其他外壳按钮。 */
+:root { --sgx-drawer-brand-size: 26px; --sgx-drawer-brand-weight: 800; --sgx-drawer-head-gap: 32px; --sgx-drawer-search-h: 52px; }
+.sgx-drawer-head { flex: 0 0 auto; margin: 0 0 var(--sgx-drawer-head-gap); padding: 4px 12px 0 28px; min-height: 48px; display: flex; align-items: center;
   color: var(--sgx-text-primary); }
-.sgx-drawer-brand { flex: 0 0 auto; font-size: var(--sgx-drawer-brand-size); font-weight: var(--sgx-drawer-brand-weight); line-height: 1.2;
-  letter-spacing: -0.01em; white-space: nowrap; }
-.sgx-drawer-search { flex: 1 1 auto; min-width: 0; height: 48px; border-radius: 999px; display: flex; align-items: center; gap: 8px;
-  padding: 0 14px; box-sizing: border-box; background-color: var(--sgx-surface-container-high); border: 1px solid var(--sgx-mat-line);
+.sgx-drawer-brand { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: var(--sgx-drawer-brand-size);
+  font-weight: var(--sgx-drawer-brand-weight); line-height: 1.2; letter-spacing: -0.01em; white-space: nowrap; }
+.sgx-drawer-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 12px 8px; }
+.sgx-drawer-foot { flex: 0 0 auto; padding: 8px 12px calc(16px + env(safe-area-inset-bottom, 0px)); }
+.sgx-drawer-search { width: 100%; height: var(--sgx-drawer-search-h); border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 0 16px; box-sizing: border-box; background-color: var(--sgx-surface-container-high); border: 1px solid var(--sgx-mat-line);
   color: var(--sgx-text-secondary); font-size: 15px; font-weight: 500; line-height: 1.4; text-decoration: none; cursor: text;
   transition: background-color .15s ease; }
 .sgx-drawer-search-ic { width: 24px; height: 24px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; color: var(--sgx-text-primary); }
 .sgx-drawer-search-ic svg { width: 24px; height: 24px; display: block; }
-.sgx-drawer-search-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sgx-drawer-search-label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (hover: hover) {
   .sgx-drawer-search:hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); }
 }

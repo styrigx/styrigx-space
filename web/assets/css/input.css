@@ -3462,9 +3462,9 @@
 /* ===== components 层 ===== */
 @layer sgx-components {
   /* 浮动层统一磨砂（替代各处复制粘贴的 blur 写法）：
-     滚动后的顶栏、搜索胶囊、Dock、底部弹层/语音卡、浮动菜单。
+     滚动后的顶栏、搜索胶囊、Dock、底部弹层、浮动菜单。
      isolation 限定混合范围；contain: layout style 把重排/重绘关在元素内（fixed 元素安全）。 */
-  .sgx-cap, .brw-suggest, .sgx-cap-results, .brw-ov-bar, .brw-ov, .sgx-vs-card, #sheet-panel {
+  .sgx-cap, .sgx-cap-pill, .sgx-cap-close, .brw-suggest, .sgx-cap-results, .brw-ov-bar, .brw-ov, #sheet-panel {
     backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
     isolation: isolate;
@@ -3483,12 +3483,13 @@
   }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     /* stylelint-disable-next-line color-no-hex */
-    .brw-suggest, .sgx-cap-results, .brw-ov-bar, .brw-ov, .sgx-vs-card { background: #fff; }
-    .sgx-cap { background: var(--sgx-mat-solid); }
+    .brw-suggest, .sgx-cap-results, .brw-ov-bar, .brw-ov { background: #fff; }
+    .sgx-cap, .sgx-cap-pill, .sgx-cap-close { background: var(--sgx-mat-solid); }
+    .sgx-cap.sgx-cap-bar { background: none; }
     /* stylelint-disable-next-line color-no-hex */
     .layout-mobile #sheet-panel, .layout-dex #sheet-panel, .layout-pc #sheet-panel { background: #fff; }
     /* stylelint-disable-next-line color-no-hex */
-    .dark .brw-suggest, .dark .sgx-cap-results, .dark .brw-ov-bar, .dark .brw-ov, .dark .sgx-vs-card { background: #1e1e20; }
+    .dark .brw-suggest, .dark .sgx-cap-results, .dark .brw-ov-bar, .dark .brw-ov { background: #1e1e20; }
     /* stylelint-disable-next-line color-no-hex */
     .dark .layout-mobile #sheet-panel, .dark .layout-dex #sheet-panel, .dark .layout-pc #sheet-panel { background: #1e1e20; }
   }
@@ -4049,17 +4050,12 @@
 }
 
 @layer sgx-components {
-  @keyframes sgx-mic-pulse {
-    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--m-primary) 45%, transparent); }
-    70% { box-shadow: 0 0 0 12px transparent; }
-    100% { box-shadow: 0 0 0 0 transparent; }
-  }
   #brw-engine-ic { display: inline-flex; align-items: center; justify-content: center; }
   #brw-engine-ic img { width: 22px; height: 22px; border-radius: 999px; }
   #brw-engine-ic svg { width: 22px; height: 22px; }
   #brw-input { flex: 1; min-width: 0; background: transparent; border: 0; outline: none; font-size: 15px; color: var(--m-on-surface); }
   #brw-input::placeholder { color: var(--m-on-surface-variant); }
-  /* 语音 toast：小胶囊、居中偏下、3 秒自动消失（JS 控制显隐） */
+  /* toast：小胶囊、居中偏下、3 秒自动消失（JS 控制显隐） */
   .sgx-toast {
     position: fixed; left: 50%; bottom: calc(160px + env(safe-area-inset-bottom,0px)); transform: translate(-50%,16px); z-index: 200;
     /* stylelint-disable-next-line color-no-hex */
@@ -4089,6 +4085,8 @@
       flex: 1; min-width: 0; background: transparent; border: 0; outline: none;
       font-size: 17px; color: var(--m-on-surface); padding: 0;
       &::placeholder { color: var(--m-on-surface-variant); }
+      /* 浏览器自带的 type=search 清空 ×：不要（全网搜索页有自己的 ⓧ 清空） */
+      &::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; display: none; }
     }
     /* 2.3.14.10：Dock 只在主页显示；应用页（body.subpage）搜索胶囊下沉到原来 Dock 的位置（底部 12px＋安全区） */
     body.subpage & { bottom: calc(12px + env(safe-area-inset-bottom,0px)); }
@@ -4114,29 +4112,62 @@
     }
   }
   .sgx-cap-ic { width: 22px; height: 22px; flex-shrink: 0; color: var(--m-on-surface-variant); }
-  /* 胶囊麦克风（2.3.14.1）：只检测 SpeechRecognition 接口是否存在，不按 UA 判断；不支持则不渲染 */
-  .sgx-cap-mic {
-    display: inline-flex; align-items: center; justify-content: center; background: none; border: 0;
-    padding: 0; margin: 0; cursor: pointer; color: var(--m-on-surface-variant); flex-shrink: 0;
-    svg { width: 22px; height: 22px; display: block; }
-    &.sgx-mic-on {
-      color: var(--m-primary); animation: sgx-mic-pulse 1.4s ease-out infinite;
-      .reduced-motion & { animation: none; }
-    }
+  /* 全网搜索页底栏（2026-10-21 v7，"tools" 变体 .sgx-cap-bar）：[长条药丸：放大镜 · 输入框 · ⓧ 清空（有输入才出现）] [8px] [× 关闭圆]。
+     .sgx-cap 本身只是透明的定位壳（跟键盘走的几何照旧由 capsule.js 驱动，但宽度始终是左右各 16px，不做窄 → 宽插值）；
+     药丸和关闭圆各自一块胶囊材质（--sgx-mat + 细边 + 阴影），同高 --sgx-bottom-dock-h。
+     里层 .sgx-cap-bar-in 只给入场动画用（从抽屉进来时从左下方升起，见下面 sgx-bar-pop），不和外层的定位 transform 打架。 */
+  .sgx-cap.sgx-cap-bar {
+    left: 16px; right: 16px; width: auto; transform: none; padding: 0; gap: 0; border-radius: 0;
+    background: none; border: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; isolation: auto;
+    &.open, &.sgx-kb-sync.open { left: 16px; right: 16px; width: auto; transform: none; border-radius: 0; }
+    .sgx-vk &.open { left: 16px; right: 16px; transform: none; }
   }
-
-  /* 搜索页胶囊工具：ⓧ 清空（麦克风左边，有输入时出现）+ × 关闭（最右端，常驻） */
+  html:is(.layout-dex, .layout-pc) .sgx-cap.sgx-cap-bar,
+  html:is(.layout-dex, .layout-pc) .sgx-cap.sgx-cap-bar.open {
+    left: 50%; right: auto; width: min(560px, calc(100vw - 32px)); transform: translateX(-50%);
+  }
+  .sgx-cap-bar-in { display: flex; align-items: center; gap: 8px; width: 100%; height: 100%; transform-origin: left bottom; }
+  .sgx-cap-pill {
+    flex: 1 1 auto; min-width: 0; height: 100%; box-sizing: border-box; display: flex; align-items: center; gap: 10px;
+    padding: 0 8px 0 20px; border-radius: 999px;
+    background: var(--sgx-mat); border: 1px solid var(--sgx-mat-line); box-shadow: var(--sgx-mat-shadow);
+  }
+  .sgx-cap-close {
+    flex: 0 0 auto; width: var(--sgx-bottom-dock-h); height: var(--sgx-bottom-dock-h); box-sizing: border-box; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; cursor: pointer;
+    background: var(--sgx-mat); border: 1px solid var(--sgx-mat-line); box-shadow: var(--sgx-mat-shadow); color: var(--m-on-surface-variant);
+    svg { width: 22px; height: 22px; display: block; }
+    &:active { background-image: linear-gradient(color-mix(in srgb, var(--m-on-surface) 8%, transparent), color-mix(in srgb, var(--m-on-surface) 8%, transparent)); }
+    &:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+  }
+  /* ⓧ 清空：药丸里输入框右边，有输入才出现 */
   .sgx-cap-tool {
     display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
-    width: 36px; height: 36px; margin-right: -8px; border: 0; border-radius: 999px; padding: 0;
-    background: none; color: var(--m-on-surface-variant); cursor: pointer;
-    svg { width: 22px; height: 22px; display: block; }
+    width: 32px; height: 32px; border: 0; border-radius: 999px; padding: 0;
+    background: none; color: var(--m-on-surface-variant); cursor: pointer; opacity: .6;
+    svg { width: 20px; height: 20px; display: block; }
     &[hidden] { display: none; }
     &:active { background: color-mix(in srgb, var(--m-on-surface) 8%, transparent); }
-    &.sgx-cap-clear {
-      width: 32px; height: 32px; margin-right: 0; opacity: .6;
-      svg { width: 20px; height: 20px; }
-    }
+  }
+
+  /* 从导航抽屉进全网搜索页（<html>.sgx-from-drawer，baseof.html 头部内联脚本按 sessionStorage 的 sgx-search-from-drawer 加上，
+     web-search.js 读完清掉标记、动画结束摘掉 class）：顶栏和最近搜索卡快速淡入（160ms）；
+     底部搜索栏从左下方升起：translate(-24px, 40px) scale(.92)、opacity 0 → 原位（--sgx-bar-pop-ms 320ms，transform-origin 左下），
+     和键盘一起往上走、输入框已聚焦。壁纸不参与淡入（首帧就在），不闪白。减弱动效：不加 class，只聚焦。
+     在搜索页上点抽屉搜索框：抽屉原地淡出后同样只给底栏加 .sgx-bar-pop（不跳转）。 */
+  :root { --sgx-bar-pop-ms: 320ms; --sgx-from-drawer-fade-ms: 160ms; }
+  @keyframes sgx-bar-pop { from { opacity: 0; transform: translate(-24px, 40px) scale(.92); } to { opacity: 1; transform: none; } }
+  @keyframes sgx-from-drawer-fade { from { opacity: 0; } to { opacity: 1; } }
+  .sgx-from-drawer .sgx-topbar, .sgx-from-drawer #brws-page {
+    animation: sgx-from-drawer-fade var(--sgx-from-drawer-fade-ms) ease both;
+  }
+  .sgx-from-drawer .sgx-cap-bar .sgx-cap-bar-in, .sgx-cap-bar.sgx-bar-pop .sgx-cap-bar-in {
+    animation: sgx-bar-pop var(--sgx-bar-pop-ms) cubic-bezier(.2, 0, 0, 1) both;
+  }
+  .reduced-motion.sgx-from-drawer .sgx-topbar, .reduced-motion.sgx-from-drawer #brws-page,
+  .reduced-motion .sgx-cap-bar .sgx-cap-bar-in { animation: none; }
+  @media (prefers-reduced-motion: reduce) {
+    .sgx-from-drawer .sgx-topbar, .sgx-from-drawer #brws-page, .sgx-cap-bar .sgx-cap-bar-in { animation: none; }
   }
 
   /* 胶囊结果浮层：贴键盘的胶囊上方，2.3.11 式结果 + 淡入 */
@@ -4791,43 +4822,6 @@
     body.sgx-locked main, body.sgx-locked #site-nav, body.sgx-locked footer { transform: none; }
   }
 
-  /* ============================================================
-     2.3.14.6：搜索胶囊跟键盘走（无跳动）＋ 语音输入提示弹窗
-     ============================================================ */
-  /* 语音输入提示弹窗（2.4.0 D：<dialog>）：原生 ::backdrop 遮罩＋ 底部磨砂圆角卡片 */
-  dialog.sgx-vs-dlg {
-    padding: 0; border: 0; background: transparent;
-    margin: 0; width: 100%; max-width: none; max-height: none;
-    position: fixed; inset: auto 0 0 0;
-    &::backdrop { background: rgba(0,0,0,.2); opacity: 0; transition: opacity .2s ease; }
-    &.show::backdrop { opacity: 1; }
-    .reduced-motion &::backdrop { transition: none; }
-  }
-  .sgx-vs-card {
-    position: relative; margin: 0 8px calc(8px + env(safe-area-inset-bottom,0px)); height: 72px;
-    background: var(--glass-tint); border: 1px solid var(--glass-edge); border-radius: 28px;
-    display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 14px 0 20px;
-    box-shadow: 0 12px 32px rgba(0,0,0,.18); transform: translateY(120%); transition: transform .25s ease-out;
-    dialog.sgx-vs-dlg.show & { transform: none; }
-    .reduced-motion & { transition: none; }
-    .layout-dex & { margin-left: auto; margin-right: auto; width: min(480px,calc(100vw - 16px)); }
-  }
-  .sgx-vs-tx { min-width: 0; flex: 1; }
-  .sgx-vs-l1 { font-size: 17px; color: var(--m-on-surface); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .sgx-vs-l2 { font-size: 13px; color: var(--m-on-surface-variant); margin-top: 2px; }
-  .sgx-vs-btn {
-    /* stylelint-disable-next-line color-no-hex */
-    position: relative; width: 44px; height: 44px; border-radius: 50%; background: var(--m-primary); color: #fff;
-    border: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-    svg { width: 22px; height: 22px; display: block; }
-    &.listening::after {
-      content: ""; position: absolute; inset: -4px; border-radius: 50%;
-      border: 2px solid color-mix(in srgb, var(--m-primary) 45%, transparent);
-      animation: sgx-vs-halo 1.4s ease-out infinite;
-      .reduced-motion & { animation: none; }
-    }
-  }
-  @keyframes sgx-vs-halo { 0% { transform: scale(.92); opacity: .9; } 70% { transform: scale(1.12); opacity: .3; } 100% { transform: scale(1.18); opacity: 0; } }
   @keyframes sgx85-slidein { from { transform: translateX(48px); opacity: .4; } to { transform: none; opacity: 1; } }
 }
 
@@ -5051,10 +5045,11 @@ html[data-sgx-role="visitor"] .sgx-tb-me { pointer-events: none; cursor: default
   font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; letter-spacing: normal; }
 .sgx-drawer::backdrop { background: transparent; transition: background-color .22s ease; }
 .sgx-drawer.is-open::backdrop { background: var(--sgx-scrim); }
-.sgx-drawer-sheet { position: absolute; top: 0; bottom: 0; left: 0; width: 320px; overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box;
+.sgx-drawer-sheet { position: absolute; top: 0; bottom: 0; left: 0; width: 320px; overflow: hidden; box-sizing: border-box;
+  display: flex; flex-direction: column;
   background: var(--sgx-mat); -webkit-backdrop-filter: var(--sgx-mat-filter);
   border-radius: 0 1.75rem 1.75rem 0; box-shadow: var(--sgx-drawer-shadow);
-  padding: calc(16px + env(safe-area-inset-top, 0px)) 12px calc(16px + env(safe-area-inset-bottom, 0px));
+  padding: calc(16px + env(safe-area-inset-top, 0px)) 0 0;
   transform: translateX(calc(-100% - 72px)); transition: transform .22s cubic-bezier(.2,0,0,1); }
 .sgx-drawer.is-open .sgx-drawer-sheet { transform: none; }
 @supports (backdrop-filter: blur(1px)) {
@@ -5075,24 +5070,29 @@ html[data-sgx-role="visitor"] .sgx-tb-me { pointer-events: none; cursor: default
 }
 .reduced-motion .sgx-drawer-sheet, .reduced-motion .sgx-drawer::backdrop { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-drawer-sheet, .sgx-drawer::backdrop { transition: none; } }
-/* 抽屉头（2026-10-21 v6，ChatGPT / Muse 抽屉式）：同一行 [大号站名] [12px] [搜索框长条]，竖直居中。
-   站名用抽屉头字号 token（--sgx-drawer-brand-size / -weight，26px / 800：360px 宽时右边的搜索框仍放得下「搜索 / Search」）；
-   搜索框 = 48px 高药丸（flex:1，tonal 容器底色 --sgx-surface-container-high + --sgx-mat-line 细边），里面 24px ai-search 图标 + 占位式文字
-   （--sgx-text-secondary）；右缘对齐下面导航项药丸右缘（头部右内边距 0，与列表同在面板 12px 内边距里）。
-   仍是 <a> 链到全网搜索页（在搜索页上点它只关抽屉并聚焦底部输入框，见 head-buttons.js）。
-   头部和第一项（首页）之间留 --sgx-drawer-head-gap（32px），不挤在一起。悬停 / 按下叠状态层，焦点框同其他外壳按钮。 */
-:root { --sgx-drawer-brand-size: 26px; --sgx-drawer-brand-weight: 800; --sgx-drawer-head-gap: 32px; }
-.sgx-drawer-head { margin: 0 0 var(--sgx-drawer-head-gap); padding: 4px 0 0 16px; min-height: 48px; display: flex; align-items: center; gap: 12px;
+/* 抽屉三段（2026-10-21 v7，ChatGPT / Muse Android 抽屉式）：面板 = 竖排 flex，[抽屉头][导航列表][底栏]。
+   抽屉头和底栏始终可见，只有中间 .sgx-drawer-body 自己滚（overscroll-behavior:contain，不带动后面的页面）；
+   左右 12px 内边距放在三段各自身上（滚动条贴面板边，药丸左右缘三段对齐）。
+   抽屉头 = 只有大号站名（--sgx-drawer-brand-size / -weight，26px / 800），和第一项（首页）之间留 --sgx-drawer-head-gap（32px）。
+   底栏 .sgx-drawer-foot：钉在面板底部（底内边距含 safe-area-inset-bottom），放整宽搜索框长条 .sgx-drawer-search：
+   左右缘 = 导航项药丸左右缘；--sgx-drawer-search-h（52px）高、999px 圆角，tonal 容器底色 --sgx-surface-container-high + --sgx-mat-line 细边，
+   里面 24px ai-search 图标 + 「搜索 / Search」（--sgx-text-secondary，像占位文字），图标和文字作为一组在药丸里水平居中。
+   仍是 <a> 链到全网搜索页（没 JS 也能用；主站在 JS 里接管：抽屉原地淡出后进搜索页，见 head-buttons.js 和下面「抽屉淡出」）。
+   悬停 / 按下叠状态层，焦点框同其他外壳按钮。 */
+:root { --sgx-drawer-brand-size: 26px; --sgx-drawer-brand-weight: 800; --sgx-drawer-head-gap: 32px; --sgx-drawer-search-h: 52px; }
+.sgx-drawer-head { flex: 0 0 auto; margin: 0 0 var(--sgx-drawer-head-gap); padding: 4px 12px 0 28px; min-height: 48px; display: flex; align-items: center;
   color: var(--sgx-text-primary); }
-.sgx-drawer-brand { flex: 0 0 auto; font-size: var(--sgx-drawer-brand-size); font-weight: var(--sgx-drawer-brand-weight); line-height: 1.2;
-  letter-spacing: -0.01em; white-space: nowrap; }
-.sgx-drawer-search { flex: 1 1 auto; min-width: 0; height: 48px; border-radius: 999px; display: flex; align-items: center; gap: 8px;
-  padding: 0 14px; box-sizing: border-box; background-color: var(--sgx-surface-container-high); border: 1px solid var(--sgx-mat-line);
+.sgx-drawer-brand { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: var(--sgx-drawer-brand-size);
+  font-weight: var(--sgx-drawer-brand-weight); line-height: 1.2; letter-spacing: -0.01em; white-space: nowrap; }
+.sgx-drawer-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 12px 8px; }
+.sgx-drawer-foot { flex: 0 0 auto; padding: 8px 12px calc(16px + env(safe-area-inset-bottom, 0px)); }
+.sgx-drawer-search { width: 100%; height: var(--sgx-drawer-search-h); border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 0 16px; box-sizing: border-box; background-color: var(--sgx-surface-container-high); border: 1px solid var(--sgx-mat-line);
   color: var(--sgx-text-secondary); font-size: 15px; font-weight: 500; line-height: 1.4; text-decoration: none; cursor: text;
   transition: background-color .15s ease; }
 .sgx-drawer-search-ic { width: 24px; height: 24px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; color: var(--sgx-text-primary); }
 .sgx-drawer-search-ic svg { width: 24px; height: 24px; display: block; }
-.sgx-drawer-search-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sgx-drawer-search-label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (hover: hover) {
   .sgx-drawer-search:hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); }
 }
@@ -5112,6 +5112,17 @@ html[data-sgx-role="visitor"] .sgx-tb-me { pointer-events: none; cursor: default
 .sgx-drawer-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sgx-drawer-div { border: 0; border-top: 1px solid var(--sgx-outline-variant); margin: 10px 16px; height: 0; }
 /* @shell:end drawer */
+/* 抽屉导航项下的分隔线（2026-10-21 v7，只在主站，不进共享外壳；ChatGPT / X 抽屉式）：紧贴最后一项（博客）下方，
+   1px 实线发丝线（--sgx-text-primary 12% 透明度：浅色 / 深色都是低对比细线；--sgx-outline-variant 在浅色毛玻璃上几乎看不见），左右缘 = 导航项药丸左右缘，上下各留 18px；纯装饰（aria-hidden）。
+   要虚线只改 border-top-style 为 dashed。 */
+.sgx-drawer-sep { border: 0; border-top: 1px solid color-mix(in srgb, var(--sgx-text-primary) 12%, transparent); margin: 18px 0; height: 0; }
+/* 抽屉淡出（2026-10-21 v7，只在主站：子站的搜索框是跨站链接，照常跳转）：点抽屉底栏搜索框 → .sgx-drawer 加 is-fading：
+   整个抽屉原地淡出（只改 opacity，不改宽度、不滑出），遮罩一起淡掉（--sgx-drawer-fade-ms 200ms），露出底下的页面；
+   淡完再进搜索页（搜索页那边见 web-search.js / baseof.html 的 sgx-search-from-drawer）。减弱动效：JS 不加这个类，直接跳。 */
+:root { --sgx-drawer-fade-ms: 200ms; }
+.sgx-drawer.is-fading { opacity: 0; transition: opacity var(--sgx-drawer-fade-ms) ease; }
+.sgx-drawer.is-fading::backdrop { background: transparent; transition: background-color var(--sgx-drawer-fade-ms) ease; }
+.sgx-drawer.is-fading .sgx-drawer-sheet { transform: none; transition: none; }
 /* 快捷面板（2026-10-21 v6：从顶栏下方落下的覆盖层，One UI 快捷面板式；baseof.html #sgx-qp，shell/quick-panel.js 开关）：
    非模态 <dialog>（show()，不进顶层），fixed 铺满「顶栏下沿以下」的区域：dialog 本身就是遮罩（is-open 时 --sgx-scrim），
    z-index 45 = 盖住正文和底部胶囊（41），但在顶栏 #site-nav（50）下面——顶栏不被遮罩压暗、图标照常可点（再点关闭）。

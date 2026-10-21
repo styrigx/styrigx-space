@@ -1,8 +1,10 @@
 /**
  * @fileoverview 全网搜索页（/search/；2026-10-20 由浏览器搜索 /browser/search/ 改名搬来）。
- * 做法照抄设置搜索：底部通用搜索胶囊（capsule.js 负责跟键盘走、沉底），
+ * 做法照抄设置搜索：底部通用搜索胶囊（capsule.js 负责跟键盘走、沉底；本页是 tools 变体：长条药丸 + 单独的 × 关闭圆），
  * 页面内容是 最近搜索 / 站内建议（书签、博客、应用）/ 用当前引擎搜索。
  * 搜索引擎选择、清除浏览记录在 设置 › 安全与隐私 › 隐私（security.js），本页不再有顶栏 ⋮。
+ * 从导航抽屉进来（sessionStorage sgx-search-from-drawer，head-buttons.js 记）：读完清掉；<html>.sgx-from-drawer
+ * 由 baseof.html 头部内联脚本首帧挂上（淡入 + 底栏从左下方升起，CSS 见 input.css），动画放完摘掉。
  */
 import { on } from '../lib/events.js';
 import { esc } from '../lib/util.js';
@@ -11,6 +13,7 @@ import { loadI18n } from '../lib/i18n.js';
 import { engines as SE } from '../shell/engines.js';
 import { setCapSearchProvider } from '../shell/capsule.js';
 import { sgxNavigate, sgxReplace, sgxGoBack } from '../lib/diag-jumptrace.js';
+import { FROM_DRAWER_KEY } from '../shell/head-buttons.js';
 
 (function () {
   'use strict';
@@ -139,7 +142,7 @@ import { sgxNavigate, sgxReplace, sgxGoBack } from '../lib/diag-jumptrace.js';
       esc(T.fmt('searchWith', { n: SE.name(SE.cur()) })) + ' “' + esc(q) + '”</span></span>' + CHEVR + '</button></div>';
     page.innerHTML = html;
   }
-  /* 胶囊在聚焦 / 输入 / 回车 / 语音结束时回调；本页 panel 为 false，结果直接画在页面里 */
+  /* 胶囊在聚焦 / 输入 / 回车时回调；本页 panel 为 false，结果直接画在页面里 */
   setCapSearchProvider(function (pg, q) {
     if (pg === 'brwsearch') {
       render(q);
@@ -226,7 +229,7 @@ import { sgxNavigate, sgxReplace, sgxGoBack } from '../lib/diag-jumptrace.js';
     }
   });
 
-  /* ============ 胶囊：ⓧ 清空（有输入才出现）+ × 关闭（常驻，退出搜索页） ============ */
+  /* ============ 底栏：药丸里的 ⓧ 清空（有输入才出现）+ 旁边单独的 × 关闭圆（常驻，退出搜索页） ============ */
   const cap = document.getElementById('sgx-cap-brwsearch');
   const capClose = cap ? cap.querySelector('[data-cap-close]') : null;
   const capClear = cap ? cap.querySelector('[data-cap-clear]') : null;
@@ -272,6 +275,21 @@ import { sgxNavigate, sgxReplace, sgxGoBack } from '../lib/diag-jumptrace.js';
 
   on(window, 'sgx-settings-changed', function () { render(input.value); });
 
+  /* ============ 从导航抽屉进来：清掉标记；入场动画放完摘掉 .sgx-from-drawer（之后再触发的底栏动画用 .sgx-bar-pop） ============ */
+  try { sessionStorage.removeItem(FROM_DRAWER_KEY); } catch (e) {}
+  const html = document.documentElement;
+  if (html.classList.contains('sgx-from-drawer')) {
+    const barIn = cap ? cap.querySelector('.sgx-cap-bar-in') : null;
+    const drop = function () { html.classList.remove('sgx-from-drawer'); };
+    let ms = 320;
+    if (barIn) {
+      barIn.addEventListener('animationend', drop, { once: true });
+      ms = (parseFloat(getComputedStyle(barIn).animationDuration) || 0.32) * 1000;
+    }
+    /* 兜底：后台标签页 / 动画被打断时 animationend 可能不来 */
+    window.setTimeout(drop, ms + 600);
+  }
+
   /* ============ 进页：?q= 预填；聚焦放下一帧（等胶囊 initCapsule 绑定好 focus） ============ */
   try {
     const q0 = new URLSearchParams(location.search).get('q');
@@ -283,15 +301,6 @@ import { sgxNavigate, sgxReplace, sgxGoBack } from '../lib/diag-jumptrace.js';
     /* 带 #focus 进来（旧 /browser/#focus 入口，2026-10-21 起 /browser/ 直接别名到本页）：本页本来就聚焦输入框，只把 # 去掉 */
     if (location.hash === '#focus') {
       try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
-    }
-    /* 带 #voice 进来（旧浏览器页地址栏麦克风的约定，保留）：直接开语音（语音弹窗自己收键盘） */
-    if (location.hash === '#voice') {
-      const mic = cap ? /** @type {HTMLElement|null} */ (cap.querySelector('[data-mic]')) : null;
-      try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
-      if (mic && mic.style.display !== 'none') {
-        mic.click();
-        return;
-      }
     }
     try { input.focus({ preventScroll: true }); } catch (e) {}
   });

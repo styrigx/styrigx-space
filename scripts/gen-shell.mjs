@@ -31,7 +31,7 @@ const SRC = {
 };
 /** shell.css 里按这个顺序拼 input.css 的标记段 */
 export const SHELL_REGIONS = ['topbar-frame', 'topbar-me', 'drawer'];
-/* 抽屉项以外外壳要用的图标：九宫格（顶栏左圆）、AI 搜索（抽屉头站名右边的搜索框） */
+/* 抽屉项以外外壳要用的图标：九宫格（顶栏左圆）、AI 搜索（抽屉底栏钉住的搜索框长条） */
 const EXTRA_ICONS = ['apps-grid', 'ai-search'];
 const HEAD = (src) =>
   `/* 由 styrigx-space scripts/gen-shell.mjs 从 ${src} 生成，勿手改；子站用 scripts/sync-shell.mjs 同步。 */\n`;
