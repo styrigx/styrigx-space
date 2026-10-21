@@ -7,13 +7,13 @@
     "shell.css": "3129b8f69f3fb04e7667e57f1efed44b1167c2ac1fa9371c688bd158a4f48652",
     "palette-scheme.js": "ab6d347b23dc2f062f3b7ca5ae1b94543e898864a8f669972e8720d2729c50c4",
     "search.js": "d8dde105e55f610cce2a68305396efaeb1af977d5451ae921a0e999384b89af5",
-    "nav.json": "6b740255cc224cb6d5772a13b0fd598b4ef26fae62577abacbf32d6a8c53034e",
+    "nav.json": "4d71de2c4cb31ea8c9f871d576fcb07062272b30c757b42931992b6725bf02cc",
     "palettes.json": "cb95c4e6570ab1cdcb2bb82de30d709a99910157b7e1b435d9d3b9e8b00d5711",
     "ui-cookie-read.js": "1f3775827eade901a871bc46eef87a629a437547073c81ccee9499324698f0b0",
     "ui-cookie-contract.json": "c9034a3fbea2f083349fd69e58c9d6f5391ab092df1e11d2ad759b83a957c8fd",
     "favicon.js": "413b7d6098cb3b611ce1eeaeb0f5562896b8caa6e0984b16f5ce9b7c3ff5ad41",
     "favicon.svg": "368c680c7554c6cde7f6d374057011a80c564cc08eb5cd3f31af5a4dbc580f07",
-    "README.md": "fb36dd89970ac75852feb25d125d3bb287ba82fa87fcfe011bba4cbb0b4ba85c"
+    "README.md": "679086643e740a01489f77586a9b0a854d7e4498600cd47ef6b1fd9922107e5b"
   },
-  "version": "f78de356db80"
+  "version": "fd305eba4880"
 }

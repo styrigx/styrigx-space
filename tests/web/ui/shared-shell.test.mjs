@@ -59,7 +59,7 @@ test('抽屉：tonal 当前项、毛玻璃面板、手机宽度由顶栏 token �
   assert.doesNotMatch(s, /is-fading|sgx-drawer-sep|is-curtain|--sgx-curtain/);
 });
 
-test('nav.json：首页 / 珍格 / 日刻 / 博客，没有设置；抽屉头搜索框；图标都在', () => {
+test('nav.json：首页 / 奇趣 / 日刻 / 博客，没有设置；抽屉头搜索框；图标都在', () => {
   const nav = JSON.parse(files['nav.json']);
   assert.deepEqual(nav.items.map((i) => i.id), ['home', 'curio', 'daymark', 'blog']);
   // 2026-10-21：书签项换成子站 珍格 Curio（主站书签功能下线）
@@ -72,9 +72,9 @@ test('nav.json：首页 / 珍格 / 日刻 / 博客，没有设置；抽屉头搜
   assert.equal(nav.search.path, '/search/');
   assert.equal(nav.search.layer, 'search.js');
   // 2026-10-22：抽屉头头像（子站链到主站）
-  assert.deepEqual(nav.me, { zh: '账号', en: 'Account', href: 'https://styrigx.com/', avatar: 'https://styrigx.com/avatar/192.webp' });
+  assert.deepEqual(nav.me, { zh: '账号', en: 'Account', href: 'https://styrigx.com/settings/account/', avatar: 'https://styrigx.com/avatar/192.webp' });
   assert.match(nav.icons['ai-search'], /^<svg[\s\S]*M14\.9 9\.6A6 6 0 1 1 11\.6 7\.2[\s\S]*<\/svg>$/);
-  assert.deepEqual(nav.items.map((i) => i.zh), ['首页', '珍格', '日刻', '博客']);
+  assert.deepEqual(nav.items.map((i) => i.zh), ['首页', '奇趣', '日刻', '博客']);
   for (const i of [...nav.items, ...nav.footer]) assert.match(nav.icons[i.icon], /^<svg[\s\S]*<\/svg>$/, i.icon);
   assert.ok(nav.icons['apps-grid']);
 });

@@ -6,7 +6,7 @@
  * - 抽屉三段（v7）：头部只有大号 Styrigx（32px/800，没有搜索）；导航列表自己滚（矮视口时头部 / 底栏不动），最后一项下面一条发丝分隔线；
  *   底栏钉住整宽搜索框长条（52px，AI 搜索图标 + 「搜索」一组居中，左右缘 = 药丸左右缘）。点它：原地搜索层（见 site-search.spec.js），不跳页。
  * - 2026-10-22：长条左端的搜索图标删了（长条 = 页名 · 快捷面板图标，页名仍居中）；/search/ 页删了（只剩跳转页）。
- * - 九宫格 → Gmail 式左侧导航抽屉：首页 / 珍格 / 日刻 / 博客（2026-10-21 起没有 设置；书签项换成子站 珍格 Curio，入口在快捷面板齿轮）；每项有描边图标，
+ * - 九宫格 → Gmail 式左侧导航抽屉：首页 / 奇趣 / 日刻 / 博客（2026-10-21 起没有 设置；书签项换成子站 珍格 Curio，入口在快捷面板齿轮）；每项有描边图标，
  *   当前页是药丸高亮；没有 我的文件 / 帮助与反馈；点遮罩 / Esc / 系统返回关闭。
  * - 2026-10-21 主站书签下线（迁到子站 珍格 Curio）：/bookmarks/ 线上 301 到 curio.styrigx.com；/browser/ → 首页搜索层（site-search.spec.js）。
  * - 搜索引擎搬到 设置 › 安全与隐私 › 隐私（清除浏览记录 2026-10-22 随最近搜索删掉）。
@@ -65,14 +65,14 @@ test.describe('顶栏：全站同一套，没有 ‹ 和 ⋮', () => {
 });
 
 test.describe('导航抽屉', () => {
-  test('打开：首页 / 珍格 / 日刻 / 博客，没有 设置 和分隔线；每项有图标；没有 我的文件 / 帮助', async ({ page }) => {
+  test('打开：首页 / 奇趣 / 日刻 / 博客，没有 设置 和分隔线；每项有图标；没有 我的文件 / 帮助', async ({ page }) => {
     await go(page, '/settings/display/');
     await expect(page.locator('.sgx-tb-nav')).toHaveAttribute('aria-expanded', 'false');
     await openDrawer(page);
     await expect(page.locator('.sgx-tb-nav')).toHaveAttribute('aria-expanded', 'true');
     const lists = drawer(page).locator('.sgx-drawer-list');
     await expect(lists).toHaveCount(1);
-    await expect(lists.nth(0).locator('.sgx-drawer-label')).toHaveText(['首页', '珍格', '日刻', '博客']);
+    await expect(lists.nth(0).locator('.sgx-drawer-label')).toHaveText(['首页', '奇趣', '日刻', '博客']);
     await expect(drawer(page).locator('hr.sgx-drawer-div')).toHaveCount(0);
     await expect(drawer(page).locator('[data-nav="settings"]')).toHaveCount(0);
     await expect(drawer(page).locator('a[href$="/settings/"]')).toHaveCount(0);
