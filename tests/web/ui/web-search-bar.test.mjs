@@ -59,6 +59,9 @@ test('从抽屉进搜索页：首帧挂 .sgx-from-drawer，底栏从左下方升
   assert.match(css, /\.sgx-drawer\.is-fading \.sgx-drawer-sheet \{ transform: none; transition: none; \}/);
   assert.match(css, /\.sgx-drawer\.is-fading::backdrop \{ background: transparent;/);
   assert.doesNotMatch(css, /is-curtain|--sgx-curtain/);
+  /* 顶栏站住不动：不参与从抽屉进来的淡入，只有内容区（最近搜索卡）淡入 */
+  assert.match(css, /\.sgx-from-drawer #brws-page \{\s*animation: sgx-from-drawer-fade/);
+  assert.doesNotMatch(css, /\.sgx-from-drawer \.sgx-topbar/);
   const base = rd('web/layouts/_default/baseof.html');
   assert.match(base, /sessionStorage\.getItem\('sgx-search-from-drawer'\)==='1'&&!rm&&/);
   assert.match(base, /d\.classList\.add\('sgx-from-drawer'\)/);

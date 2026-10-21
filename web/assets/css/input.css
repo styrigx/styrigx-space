@@ -4151,23 +4151,23 @@
   }
 
   /* 从导航抽屉进全网搜索页（<html>.sgx-from-drawer，baseof.html 头部内联脚本按 sessionStorage 的 sgx-search-from-drawer 加上，
-     web-search.js 读完清掉标记、动画结束摘掉 class）：顶栏和最近搜索卡快速淡入（160ms）；
+     web-search.js 读完清掉标记、动画结束摘掉 class）：顶栏站住不动（首帧就在，不参与淡入，免得闪一下；2026-10-21 用户确认），只有最近搜索卡快速淡入（160ms）；
      底部搜索栏从左下方升起：translate(-24px, 40px) scale(.92)、opacity 0 → 原位（--sgx-bar-pop-ms 320ms，transform-origin 左下），
      和键盘一起往上走、输入框已聚焦。壁纸不参与淡入（首帧就在），不闪白。减弱动效：不加 class，只聚焦。
      在搜索页上点抽屉搜索框：抽屉原地淡出后同样只给底栏加 .sgx-bar-pop（不跳转）。 */
   :root { --sgx-bar-pop-ms: 320ms; --sgx-from-drawer-fade-ms: 160ms; }
   @keyframes sgx-bar-pop { from { opacity: 0; transform: translate(-24px, 40px) scale(.92); } to { opacity: 1; transform: none; } }
   @keyframes sgx-from-drawer-fade { from { opacity: 0; } to { opacity: 1; } }
-  .sgx-from-drawer .sgx-topbar, .sgx-from-drawer #brws-page {
+  .sgx-from-drawer #brws-page {
     animation: sgx-from-drawer-fade var(--sgx-from-drawer-fade-ms) ease both;
   }
   .sgx-from-drawer .sgx-cap-bar .sgx-cap-bar-in, .sgx-cap-bar.sgx-bar-pop .sgx-cap-bar-in {
     animation: sgx-bar-pop var(--sgx-bar-pop-ms) cubic-bezier(.2, 0, 0, 1) both;
   }
-  .reduced-motion.sgx-from-drawer .sgx-topbar, .reduced-motion.sgx-from-drawer #brws-page,
+  .reduced-motion.sgx-from-drawer #brws-page,
   .reduced-motion .sgx-cap-bar .sgx-cap-bar-in { animation: none; }
   @media (prefers-reduced-motion: reduce) {
-    .sgx-from-drawer .sgx-topbar, .sgx-from-drawer #brws-page, .sgx-cap-bar .sgx-cap-bar-in { animation: none; }
+    .sgx-from-drawer #brws-page, .sgx-cap-bar .sgx-cap-bar-in { animation: none; }
   }
 
   /* 胶囊结果浮层：贴键盘的胶囊上方，2.3.11 式结果 + 淡入 */
