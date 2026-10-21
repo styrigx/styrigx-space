@@ -45,7 +45,6 @@ import { sgxNavigate, sgxReplace, sgxGoBack } from '../lib/diag-jumptrace.js';
 
   /* ============ 站内索引（/files-index.json；浏览器页原来的内联兜底 #search-index 已删除） ============ */
   const TYPES = [
-    { type: 'link', label: T.t('catLink') },
     { type: 'post', label: T.t('catPost') },
     { type: 'app', label: T.t('catApp') },
   ];
@@ -61,7 +60,7 @@ import { sgxNavigate, sgxReplace, sgxGoBack } from '../lib/diag-jumptrace.js';
       .then(function (j) {
         const items = ((j && j.items) || [])
           .filter(function (/** @type {any} */ x) {
-            return x && (x.type === 'link' || x.type === 'post' || x.type === 'app') && (x.lang || 'zh') === wantLang;
+            return x && (x.type === 'post' || x.type === 'app') && (x.lang || 'zh') === wantLang;
           })
           .map(function (/** @type {any} */ x) {
             return { t: x.title || '', d: x.subtitle || '', u: x.url || '', type: x.type };
@@ -281,6 +280,10 @@ import { sgxNavigate, sgxReplace, sgxGoBack } from '../lib/diag-jumptrace.js';
   syncTools();
   render(input.value);
   requestAnimationFrame(function () {
+    /* 带 #focus 进来（旧 /browser/#focus 入口，2026-10-21 起 /browser/ 直接别名到本页）：本页本来就聚焦输入框，只把 # 去掉 */
+    if (location.hash === '#focus') {
+      try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
+    }
     /* 带 #voice 进来（旧浏览器页地址栏麦克风的约定，保留）：直接开语音（语音弹窗自己收键盘） */
     if (location.hash === '#voice') {
       const mic = cap ? /** @type {HTMLElement|null} */ (cap.querySelector('[data-mic]')) : null;

@@ -12,8 +12,8 @@ export function wbAreaOf(path) {
   const p = path.replace(/^\/en(?=\/)/, '');
   if (p === '/' || p === '') return 'home';
   if (p.startsWith('/files/')) return 'files';
-  /* 区域键沿用 'browser'：2026-10-20 浏览器页拆成 书签 /bookmarks/ + 全网搜索 /search/（旧 /browser/ 跳转过来） */
-  if (p.startsWith('/bookmarks/') || p.startsWith('/search/') || p.startsWith('/browser/') || p.startsWith('/links/')) return 'browser';
+  /* 区域键沿用 'browser'：2026-10-20 浏览器页拆成 书签 + 全网搜索 /search/；2026-10-21 主站书签下线（迁到 珍格 Curio），只剩搜索 */
+  if (p.startsWith('/search/') || p.startsWith('/browser/') || p.startsWith('/links/')) return 'browser';
   if (p.startsWith('/settings/')) return 'settings';
   return null;
 }

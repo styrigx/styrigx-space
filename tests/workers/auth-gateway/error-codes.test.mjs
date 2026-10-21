@@ -20,7 +20,6 @@
  * - bad-form / missing / bad-type / too-large：/api/avatar 换头像，avatar-edit.js 只看 ok，失败一律固定文案
  * - account：账号会话缺失（/api/account 管理），账号页按码跳回账号登录，不进 apiErrorText
  * - door：门票缺失/过期（/api/account 管理、锁屏凭证管理），门内页按码回到门口重新验证，不进 apiErrorText
- * - bad-json / bad-url：/api/bookmarks、/api/bookmark-preview，书签页自己按码显示文案，不进 apiErrorText
  *
  * 另断言：每个 ERR_KEY 的 i18n key 都在门内模板
  * （security-lock；原 security-owner 已升级为账号页，应用凭证页已删除）里定义，

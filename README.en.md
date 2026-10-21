@@ -37,7 +37,7 @@ DeX
 |---|---|---|
 | Home | `/en/` | Launcher: app icons, widgets and the Dock. Widgets include profile card, dual clocks, weather, Now notes, latest blog posts, digital garden, screen time and collections. |
 | My Files | `/en/files/` | Only things I wrote: posts, blog, library. |
-| Bookmarks | `/en/bookmarks/` | External site bookmarks, filterable by category. |
+| Bookmarks | `/en/bookmarks/` | Moved to the [Curio](https://curio.styrigx.com/en/) subsite on 2026-10-21; the old URL 301s there. |
 | Web search | `/en/search/` | On-site suggestions plus search with your chosen engine, voice search; pick the engine in Settings › Security and privacy. |
 | Settings | `/en/settings/` | Display, language, layout and other system settings, stored locally. |
 
