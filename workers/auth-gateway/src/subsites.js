@@ -31,8 +31,13 @@ const STATIC_EXT = new Set([
   'png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'svg', 'ico',
 ]);
 
+/* 不带正文的公开文件（以前子站只登记页面目录，这些都不过网关；改成整站通配后照旧放行）。
+   manifest 由浏览器不带 cookie 去取，挡了就是坏图标。 */
+const PUBLIC_FILES = new Set(['/manifest.json', '/site.webmanifest', '/robots.txt', '/favicon.ico']);
+
 /** @param {string} pathname */
 export function isStaticAsset(pathname) {
+  if (PUBLIC_FILES.has(pathname)) return true;
   const dot = pathname.lastIndexOf('.');
   const slash = pathname.lastIndexOf('/');
   if (dot <= slash || dot < 0) return false;

@@ -204,23 +204,29 @@ test.describe('lock screen', () => {
     await expect(page.locator('#sgx-pw-go')).toBeDisabled();
   });
 
-  /* 2.4.1 回跳修复：带 return 解锁后，直接 location.replace(location.href)
-     交给 L1 middleware 做 302，不再走前端 600ms 客户端跳转。
-     （测试环境是 http-server，没有 middleware，所以 URL 保持不变，
-     但能验证发生了 reload 而不是客户端跳转到 /settings/） */
-  test('unlock with ?return= reloads page for L1 302 (no client-side jump)', async ({ page }) => {
+  /* 2026-10-21：带 return 解锁后，前端问 /api/session-check?return=（服务端校验 return，与首页 302 同一个函数），
+     照服务端给的 next 跳；不再「重载锁屏地址等 L1 302」——锁屏入口 styrigx.com/?lock=1 线上曾不过网关，
+     重载回来还是锁屏（用户报告：解锁后回不到子站 / 又回到锁屏）。 */
+  test('unlock with ?return= goes to server-provided next (no reload of the lock URL)', async ({ page }) => {
     await freezeTime(page);
-    const ret = encodeURIComponent('/settings/');
-    await page.goto('/?lock=1&return=' + ret, { waitUntil: 'domcontentloaded' });
+    let unlocked = false;
+    const checks = [];
+    await page.route('**/api/owner-password', async (route) => {
+      unlocked = true;
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+    });
+    await page.route('**/api/session-check*', async (route) => {
+      checks.push(route.request().url());
+      if (!unlocked) return route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false}' });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, role: 'owner', next: '/settings/', upgrade: false }) });
+    });
+    await page.goto('/?lock=1&return=' + encodeURIComponent('/settings/') + '&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
-    /* 2.8.0：localhost 本地回退——点头像 → 方法弹层 → 选"访客进入"直接解锁（无 session-check） */
-    const navPromise = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 10000 });
-    await openMethodSheet(page);
-    await page.click('#sgx-mopt-visitor');
-    await navPromise;
-    /* 2.4.1：reload 同一个 URL（L1 会做 302），而不是 600ms 后跳到 /settings/ */
-    expect(page.url()).toContain('return=');
-    expect(page.url()).not.toMatch(/\/settings\/$/);
+    await choosePassword(page);
+    await page.fill('#sgx-pw-input', 'correctpassword');
+    await page.click('#sgx-pw-go');
+    await page.waitForURL(/\/settings\/$/, { timeout: 10000 });
+    expect(checks.some((u) => u.includes('return=' + encodeURIComponent('/settings/')))).toBe(true);
   });
 
   /* 2.4.1 回跳修复：另一个标签页解锁后，切回来自动检测并回跳。
@@ -232,7 +238,7 @@ test.describe('lock screen', () => {
   test('lock screen rechecks session on focus (401 keeps lock)', async ({ page }) => {
     await freezeTime(page);
     let fetchCount = 0;
-    await page.route('**/api/session-check', async (route) => {
+    await page.route('**/api/session-check*', async (route) => {
       fetchCount++;
       await route.fulfill({
         status: 200,
@@ -266,7 +272,7 @@ test.describe('lock screen', () => {
         await route.continue();
       }
     });
-    await page.route('**/api/session-check', async (route) => {
+    await page.route('**/api/session-check*', async (route) => {
       await route.fulfill({
         status: 401,
         contentType: 'application/json',

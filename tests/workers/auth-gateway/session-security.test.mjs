@@ -610,7 +610,7 @@ test('session-check：有效会话 → 200 {ok:true, role}；无会话/坏会话
   /* 2.8.0：返回角色 */
   let r = await checkGet({ request: mkReq(await validCookie(0)), env });
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { ok: true, role: 'owner' });
+  assert.deepEqual(await r.json(), { ok: true, role: 'owner', next: null, upgrade: false });
 
   r = await checkGet({ request: mkReq(''), env });
   assert.equal(r.status, 401);
@@ -1157,10 +1157,10 @@ test('2.9.3：visitor 可以访问桌面（/）、设置（/settings/）、文�
   r = await mw(mwCtx('https://styrigx.com/files/', { cookie: vCookie, env: PROD_ENV() }));
   assert.equal(r.status, 200);
 
-  /* 2.9.3：visitor 访问安全锁屏 → 302 到锁屏（主人专属） */
+  /* 2.9.3（2026-10-21 改）：visitor 访问锁屏凭证页 → 302 到首页主人验证（主人专属；不带 lock=1，不出锁屏） */
   r = await mw(mwCtx('https://styrigx.com/settings/security/lock/', { cookie: vCookie, env: PROD_ENV() }));
   assert.equal(r.status, 302);
-  assert.ok(r.headers.get('Location').includes('?lock=1'));
+  assert.ok(r.headers.get('Location').includes('?return=') && !r.headers.get('Location').includes('lock=1'));
 
   /* owner 访问设置 → 200 */
   const oCookie = await validCookie(0);
@@ -1179,11 +1179,12 @@ test('visitor 进 /settings/display/ 严格 200；/settings/security/ 总览 200
     const r = await mw(mwCtx('https://styrigx.com' + p, { cookie: vCookie, env: PROD_ENV() }));
     assert.equal(r.status, 200, 'visitor 访问 ' + p + ' 应 200（总览页）');
   }
-  /* 定稿 #21：锁屏凭证页访客 302 到锁屏 */
+  /* 定稿 #21（2026-10-21 改）：锁屏凭证页访客 302 到首页的主人验证（?return=，不带 lock=1：不出锁屏） */
   for (const p of ['/settings/security/lock/', '/en/settings/security/lock/']) {
     const r = await mw(mwCtx('https://styrigx.com' + p, { cookie: vCookie, env: PROD_ENV() }));
-    assert.equal(r.status, 302, 'visitor 访问 ' + p + ' 应 302 到锁屏');
-    assert.ok(r.headers.get('Location').includes('?lock=1'), p + ' 应跳到锁屏');
+    assert.equal(r.status, 302, 'visitor 访问 ' + p + ' 应 302');
+    const loc = r.headers.get('Location');
+    assert.ok(loc.includes('?return=') && !loc.includes('lock=1'), p + ' 应跳到主人验证，不是锁屏：' + loc);
   }
 });
 
@@ -1226,7 +1227,7 @@ test('2.9.3：visitor 进 /settings/security/lock/ 只跳一次，目标不再�
   let r = await mw(mwCtx('https://styrigx.com/settings/security/lock/', { cookie: vCookie, env: PROD_ENV() }));
   assert.equal(r.status, 302);
   const loc = r.headers.get('Location');
-  assert.ok(loc.includes('?lock=1'), '应跳到锁屏');
+  assert.ok(loc.includes('?return=') && !loc.includes('lock=1'), '应跳到主人验证（不带 lock=1）');
   // 第二次：带着 return 回首页，不再 302（防死循环）
   const returnUrl = 'https://styrigx.com/?return=' + encodeURIComponent('/settings/security/lock/');
   const htmlNext = async () => new Response('<html lang="zh"><head></head><body></body></html>', {
@@ -1360,7 +1361,7 @@ test('2.8.0：session-check 返回 visitor 角色', async () => {
   });
   const r = await checkGet({ request: req, env });
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { ok: true, role: 'visitor' });
+  assert.deepEqual(await r.json(), { ok: true, role: 'visitor', next: null, upgrade: false });
 });
 
 test('定稿 #1：owner 解锁后 return 指向门内页 → 回总览页（门内页不能当返回目标）', async () => {

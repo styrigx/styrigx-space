@@ -6,8 +6,10 @@
 
 {{/* B2-5：首页只保留名片、双时钟、天气、数字健康（2026-10-20 加日刻今日一句）；便签、博客、数字花园、桌面图标、收藏全部删除 */}}
 
-{{/* 2.8.0 锁屏瘦身：SGX-DESKTOP markers 之间的内容在锁屏态由 L1 middleware 剥离，不下发 */}}
-<!-- SGX-DESKTOP-START -->
+{{/* 2.8.0 锁屏瘦身：SGX-DESKTOP markers 之间的内容在锁屏态由 L1 middleware 剥离，不下发。
+   必须用 safeHTML 输出：Go 的 html/template 会删掉模板里的 HTML 注释，以前这两个标记根本没进页面，
+   锁屏态也整份下发了桌面（2026-10-21 查到）。解锁后前端换到干净地址重新取页面（lock.js proceed）。 */}}
+{{ "<!-- SGX-DESKTOP-START -->" | safeHTML }}
 <div class="home-wrap max-w-[1100px] mx-auto px-4">
 
   <!-- 小组件网格 -->
@@ -118,6 +120,6 @@
 
 <!-- 手机悬浮 Dock 已移入 baseof（全站） -->
 
-<!-- SGX-DESKTOP-END -->
+{{ "<!-- SGX-DESKTOP-END -->" | safeHTML }}
 {{/* 2.4.0-C：首页脚本走 ES Module 入口 entry-index.js（含锁屏）；旧 sgx-page-index.js / sgx-lock.html 已移除 */}}
 {{ end }}

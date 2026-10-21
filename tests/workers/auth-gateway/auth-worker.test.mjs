@@ -61,14 +61,13 @@ test('wrangler.toml：不开 workers.dev、生产模式、7 个密钥全走 Secr
     assert.match(toml, new RegExp(`binding = "${n}"\\nstore_id = "[^"]+"\\nsecret_name = "${n}"`));
   }
   assert.equal(SECRET_NAMES.length, 7);
-  /* 只接 styrigx.com 和登记过的子站（blog、daymark）：不接别的子域，不接静态资源（完整核对见 scripts/check-worker-routes.mjs） */
+  /* 2026-10-21：三站整站通配（不带 * 的规则遇到查询串不命中，锁屏入口 /?lock=1 曾因此绕过网关）。
+     只接 styrigx.com 和登记过的子站；除 daymark 的 session-check（要比 daymark-core 的 /api/* 更具体）外不许有精确规则。
+     完整核对见 scripts/check-worker-routes.mjs。 */
   const routes = [...toml.matchAll(/^pattern = "([^"]+)"$/gm)].map(m => m[1]);
-  assert.ok(routes.includes('styrigx.com/api/*'));
-  assert.ok(routes.includes('styrigx.com/'));
+  for (const h of ['styrigx.com', 'blog.styrigx.com', 'daymark.styrigx.com']) assert.ok(routes.includes(h + '/*'), h + '/*');
   for (const r of routes) assert.match(r, /^(styrigx|blog\.styrigx|daymark\.styrigx)\.com\//);
-  for (const h of ['styrigx.com', 'blog.styrigx.com', 'daymark.styrigx.com']) {
-    assert.ok(!routes.includes(h + '/*'), '不能整站通配：静态资源不过 Worker，也给以后别的 Worker 留路径（' + h + '）');
-  }
+  for (const r of routes) assert.ok(r.endsWith('*') || r === 'daymark.styrigx.com/api/session-check', '精确规则遇到查询串不命中：' + r);
   assert.ok(!routes.some(r => r.startsWith('*')), '不能通配子域名');
   /* 书库已下线：不再路由 book / book-preview，也不再绑定 styrigx-books D1 */
   assert.ok(!routes.some(r => /^book(-preview)?\.styrigx\.com\//.test(r)), '书库已下线，不能再有 book 路由');

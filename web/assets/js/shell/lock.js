@@ -49,13 +49,58 @@ function isLocalDev() {
   return /^(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
 }
 
-/* 子站验证失败提示（小字显示在页面底部；幂等，重复调用只更新文案）。
-   原在 showLockScreen 内，提到模块作用域：initLock 在会话有效时不进锁屏，
-   也需要直接显示 ?why= 原因。 */
-/* B1-8：子站回跳死循环判定（20 秒窗口）。
-   回跳记录存 sessionStorage：{ target, at }。
-   20 秒内同一 target 第二次被踢回 → 失败卡（One UI 样式，不显示原因码）。
-   否则覆盖记录，继续回跳。 */
+/* ============================================================
+   锁屏状态机（2026-10-21 重写判定部分；界面不变）。唯一状态源：服务端。
+   - 页面状态 pageState()：网关注入的 <html data-sgx-session>：
+       valid / locked / lockreset；没有这个属性 = unknown（页面没经过网关，例如路由漏了这种 URL，
+       或缓存/测试环境）。unknown 一律先画锁屏（fail closed），并立刻问服务端。
+   - 服务端回答 askServer()：GET /api/session-check[?return=]：{ok, role, next, upgrade}。
+     next 是服务端校验过的去处（与首页 302 同一个 resolveReturn）；前端不做白名单，只照着跳。
+   - 解锁成功 / 切回标签页 / bfcache 恢复 / 首帧对账，都走同一个 proceed(answer)：
+       upgrade      → 去首页 ?return=（服务端给主人验证层，不出锁屏）
+       next 是别处  → location.replace(next)（子站或站内原页面）
+       没有 next    → 页面是 locked（锁屏态被瘦身过）就换到干净地址重新取一次（服务端画 valid），
+                      valid / unknown 就原地开锁并把地址里的 lock/why/return 去掉
+     每一条都不会「重载同一个地址再等服务端 302」——那依赖锁屏页本身过网关，线上曾经不成立，
+     结果就是解锁后又回到锁屏（2026-10-21 用户报告）。
+   - 已解锁页面切回前台：问服务端，401 → 重载（服务端画锁屏）。立即锁定 = 服务端清 cookie。
+   - 本地 sessionStorage 只记「刚跳过哪里」防死循环，从不记解锁状态。
+   ============================================================ */
+
+/** @returns {'valid'|'locked'|'lockreset'|'unknown'} */
+function pageState() {
+  const s = document.documentElement.dataset.sgxSession;
+  return s === 'valid' || s === 'locked' || s === 'lockreset' ? s : 'unknown';
+}
+
+/** @param {string} k */
+function qp(k) {
+  try {
+    return new URLSearchParams(window.location.search).get(k) || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+/**
+ * 问服务端：会话是否有效、带 return 时该去哪。失败（401/网络）→ {ok:false}。
+ * @returns {Promise<{ok:boolean, role?:string, next?:string|null, upgrade?:boolean}>}
+ */
+function askServer() {
+  const ret = qp('return');
+  const url = '/api/session-check' + (ret ? '?return=' + encodeURIComponent(ret) : '');
+  return fetch(url, { credentials: 'same-origin', cache: 'no-store' })
+    .then(function (r) {
+      if (!r.ok) return { ok: false };
+      return r.json().catch(function () { return { ok: false }; });
+    })
+    .then(function (d) { return d && d.ok === true ? d : { ok: false }; })
+    .catch(function () { return { ok: false }; });
+}
+
+/* B1-8：子站回跳死循环判定（20 秒窗口）。只在子站踢回（带 ?why=）时用：
+   20 秒内同一 target 第二次被踢回 → 失败卡（One UI 样式，不显示原因码），不再跳。
+   记录 { target, at } 在真正跳之前写入。 */
 function checkSubsiteLoop(target) {
   try {
     const raw = sessionStorage.getItem('sgx-subsite-jump');
@@ -70,11 +115,9 @@ function checkSubsiteLoop(target) {
   } catch (e) {}
   return false;
 }
-function showSubsiteFailure(why) {
-  /* B1-8：失败卡用 One UI 样式，不显示原因码 */
+function showSubsiteFailure() {
   let el = document.getElementById('sgx-subsite-failure');
   if (!el) {
-    /* B1-8：中英文切换 */
     const isEn = document.documentElement.lang === 'en';
     const msg = isEn ? 'Cannot return to the subsite, please try again' : '无法回到子站，请重试';
     const homeText = isEn ? 'Back to main site' : '回到主站';
@@ -96,77 +139,142 @@ function showSubsiteFailure(why) {
   el.hidden = false;
 }
 
-/* B1-8：子站回跳公共逻辑（initLock 会话有效分支 + handleSessionOk 共用）。
-   why 非空时：checkSubsiteLoop(target) 为真 → 出失败卡，返回 true；
-   否则有 return 就继续回跳（sgxReplace），返回 true；无 return 返回 false。 */
-function handleSubsiteKickback() {
-  let ret = '';
-  let why = '';
-  try {
-    const params = new URLSearchParams(window.location.search);
-    ret = params.get('return') || '';
-    why = params.get('why') || '';
-  } catch (e) {}
-  if (!why) return false;
-  const target = ret || '';
-  if (checkSubsiteLoop(target)) {
-    showSubsiteFailure(why);
-    return true;
-  }
-  /* 非死循环：继续回跳（覆盖记录）。
-     去掉 why 再重载：L1 middleware 见到 why 不 302（防两站无限 302），带着 why 重载只会回到本页，
-     首次从子站进来（why=no-cookie）解锁后就永远回不去（2026-10-20 修）。
-     去掉 why 后 L1 校验 return 再 302 到子站；子站若再踢回会重新带上 why，
-     本页再次进来时上面的 20 秒窗口判死循环、出失败卡，不会无限跳。 */
-  if (ret) {
-    sgxReplace(urlWithoutWhy());
-    return true;
-  }
-  return false;
-}
-
-/** 当前地址去掉 ?why=（其余参数原样保留） */
-function urlWithoutWhy() {
+/** 当前地址去掉 lock / why / return（其余参数、hash 原样） */
+function cleanUrl() {
   try {
     const u = new URL(window.location.href);
+    u.searchParams.delete('lock');
     u.searchParams.delete('why');
-    return u.toString();
+    u.searchParams.delete('return');
+    return u.pathname + (u.search && u.search !== '?' ? u.search : '') + u.hash;
   } catch (e) {
-    return window.location.href;
+    return window.location.pathname;
   }
+}
+
+/** 绝对地址比较（next 可能是站内路径） @param {string} a */
+function sameAsCurrent(a) {
+  try {
+    return new URL(a, window.location.href).href === window.location.href;
+  } catch (e) {
+    return false;
+  }
+}
+
+/* locked 页面解锁后换到干净地址：10 秒内同一地址只换一次（服务端页面状态和接口说法长期不一致时不来回刷） */
+function reloadGuardOk(url) {
+  try {
+    const k = 'sgx-unlock-reload';
+    const prev = JSON.parse(sessionStorage.getItem(k) || 'null');
+    const abs = new URL(url, window.location.href).href;
+    if (prev && prev.url === abs && Date.now() - prev.at < 10000) return false;
+    sessionStorage.setItem(k, JSON.stringify({ url: abs, at: Date.now() }));
+  } catch (e) {
+    return false;
+  }
+  return true;
 }
 
 /**
- * 初始化锁屏（全站；2.4.0 H）。
+ * 服务端已确认会话有效后的唯一去处判定。
+ * @param {{next?:string|null, upgrade?:boolean}} ans
+ * @param {() => void} unlockInPlace 原地开锁（锁屏态时是开锁动画；valid 页面是空操作）
+ * @returns {'navigate'|'in-place'|'failure'}
+ */
+function proceed(ans, unlockInPlace) {
+  const why = qp('why');
+  if (ans.upgrade && ans.next) {
+    /* 访客 + 主人专属去处：首页 ?return= 由服务端给主人验证层（不出锁屏） */
+    const home = document.documentElement.lang === 'en' ? '/en/' : '/';
+    sgxReplace(home + '?return=' + encodeURIComponent(ans.next));
+    return 'navigate';
+  }
+  if (ans.next) {
+    if (why && checkSubsiteLoop(ans.next)) {
+      unlockInPlace();
+      showSubsiteFailure();
+      return 'failure';
+    }
+    if (!sameAsCurrent(ans.next)) {
+      sgxReplace(ans.next);
+      return 'navigate';
+    }
+  }
+  const clean = cleanUrl();
+  if (pageState() === 'locked' && reloadGuardOk(clean)) {
+    /* 锁屏态页面是瘦身过的（没有桌面内容）：重新取一次，服务端会画 valid */
+    sgxReplace(clean);
+    return 'navigate';
+  }
+  try { history.replaceState(history.state, '', clean); } catch (e) {}
+  unlockInPlace();
+  return 'in-place';
+}
+
+/* 已解锁页面：切回前台 / bfcache 恢复 / 转屏时向服务端确认，401 → 重载（服务端画锁屏）。
+   节流 5 秒；网络错误不跳转，下次再查。页面正显示锁屏时不查（锁屏有自己的对账）。 */
+let lastLockCheck = 0;
+function checkSessionForAutoLock() {
+  const now = Date.now();
+  if (now - lastLockCheck < 5000) return;
+  lastLockCheck = now;
+  if (document.getElementById('sgx-lock')) return;
+  fetch('/api/session-check', { credentials: 'same-origin', cache: 'no-store' })
+    .then(function (r) {
+      if (r.status === 401) sgxReload();
+    })
+    .catch(function () {});
+}
+let autoLockBound = false;
+function bindAutoLock() {
+  if (autoLockBound) return;
+  autoLockBound = true;
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') checkSessionForAutoLock();
+  });
+  window.addEventListener('focus', function () { checkSessionForAutoLock(); });
+  window.addEventListener('pageshow', function (e) {
+    if (e && e.persisted) checkSessionForAutoLock();
+  });
+  /* 只在宽度变化（转屏 / DeX 改窗口）时查；键盘开合只改高度 */
+  let lastW = window.innerWidth;
+  window.addEventListener('resize', function () {
+    if (window.innerWidth === lastW) return;
+    lastW = window.innerWidth;
+    checkSessionForAutoLock();
+  });
+}
+
+/**
+ * 初始化锁屏（全站）。
  */
 export function initLock() {
   /* Hark：CI 测试构建禁用锁屏（构建期 define，线上无绕过） */
   if (SGX_TEST_NO_LOCK) return;
-  /* 2.8.0：legacy-lock-screen 已彻底删除，只剩 owner-gate 开关 */
   if (!SGX_FEAT_OWNER_GATE) return;
-  const isLocal = isLocalDev();
-  if (isLocal) {
-    /* 本地开发没有 Functions 后端，直接显示锁屏 */
+  if (isLocalDev()) {
+    /* 本地开发没有后端，直接显示锁屏 */
     showLockScreen();
     return;
   }
-  /* 分层规范 L4：lock.js 只按 L1 给出的状态画锁屏，不自己判断。
-     L1（middleware）把会话状态注入 <html data-sgx-session="valid|locked|lockreset">，
-     这里只读这个。lockreset 票据页跳过锁屏覆盖（落地页需可操作）。 */
-  const state = document.documentElement.dataset.sgxSession;
-  const ok = state === 'valid';
-  const isLockreset = state === 'lockreset';
+  const state = pageState();
   try {
-    window.dispatchEvent(new CustomEvent('sgx:session', { detail: { ok: ok } }));
+    window.dispatchEvent(new CustomEvent('sgx:session', { detail: { ok: state === 'valid' } }));
   } catch (e) {}
-  if (!ok && !isLockreset) {
-    showLockScreen();
+  if (state === 'lockreset') return; /* 重置锁屏门票页：落地页需可操作 */
+  if (state === 'valid') {
+    bindAutoLock();
+    /* 子站踢回（带 why）但主站会话有效：问服务端 next，回子站（20 秒窗口防死循环）。
+       主人验证页（data-sgx-upgrade）带 return 但不能跳走。 */
+    if (qp('why') && qp('return') && document.documentElement.getAttribute('data-sgx-upgrade') !== '1') {
+      askServer().then(function (ans) {
+        if (ans.ok) proceed(ans, function () {});
+      });
+    }
+    return;
   }
-  /* 会话有效：直接显示页面，不弹锁屏。
-     B1-8：子站踢回带 ?why= 时走 20 秒窗口逻辑（与 handleSessionOk 共用 handleSubsiteKickback）。 */
-  if (ok) {
-    handleSubsiteKickback();
-  }
+  /* locked / unknown：先画锁屏（fail closed），锁屏里立刻对账 */
+  showLockScreen();
 }
 
 /**
@@ -295,93 +403,44 @@ function showLockScreen() {
     document.body.classList.remove('sgx-locked');
     document.documentElement.style.overflow = '';
     document.body.style.overflow = '';
+    bindAutoLock();
   }
+
+  /** 服务端确认有效后：关掉弹层，交给模块级 proceed（唯一去处判定） */
+  function onServerOk(ans) {
+    done = true;
+    try { closeMethodSheet(true); } catch (e) {}
+    if (dlg && dlg.open) closeDialog('session-ok');
+    proceed(ans, doUnlockAnimation);
+  }
+
+  /* 解锁成功（密码 / 通行密钥 / 访客）后：先向服务端确认会话真的生效，再按服务端给的 next 走；
+     没确认到 → 停在锁屏显示错误，绝不跳转。 */
   function unlock() {
     if (done) return;
     done = true;
-    /* 本地开发没有 Functions 后端，直接确认（生产环境才调 session-check） */
     if (isLocal) {
-      handleSessionOk();
+      /* 本地开发没有后端：原地开锁 */
+      doUnlockAnimation();
       return;
     }
-    /* 2.4.1 防循环：先向服务端确认会话真的生效（/api/session-check），
-       确认后才处理；没确认到 → 停在锁屏显示错误，绝不跳转。 */
-    fetch('/api/session-check', { credentials: 'same-origin' })
-      .then(function (r) {
-        if (!r.ok) return { ok: false };
-        return r.json().catch(function () {
-          return { ok: false };
-        });
-      })
-      .then(function (d) {
-        if (d && d.ok === true) {
-          handleSessionOk();
-        } else {
-          sessionCheckFailed();
-        }
-      })
-      .catch(function () {
-        sessionCheckFailed();
-      });
+    askServer().then(function (ans) {
+      if (ans.ok) onServerOk(ans);
+      else sessionCheckFailed();
+    });
   }
 
-  /* 2.4.1 回跳修复：锁屏显示期间，用户可能在别的标签页解锁了。
-     在 visibilitychange（visible）、focus、pageshow 时调 /api/session-check；
-     节流至少 1 秒，和密码/通行密钥解锁共用 done 标志。
-     ok → 走 handleSessionOk；401/网络失败 → 保持锁屏（fail-closed）。
-     禁止用 sessionStorage、localStorage、跨标签页通道或前端内存传递
-     解锁状态，状态源只有服务端 sgx-verified。 */
+  /* 锁屏显示期间（用户可能在别的标签页解锁了）：visibilitychange（visible）、focus、pageshow 时对账，
+     节流 1 秒。ok → proceed；401/网络失败 → 保持锁屏（fail closed）。 */
   let lastRecheck = 0;
   function recheckSession() {
-    if (done) return;
+    if (done || isLocal) return;
     const now = Date.now();
     if (now - lastRecheck < 1000) return;
     lastRecheck = now;
-    if (isLocal) return;
-    fetch('/api/session-check', { credentials: 'same-origin' })
-      .then(function (r) {
-        if (!r.ok) return { ok: false };
-        return r.json().catch(function () {
-          return { ok: false };
-        });
-      })
-      .then(function (d) {
-        if (done) return;
-        if (d && d.ok === true) {
-          done = true;
-          handleSessionOk();
-        }
-        /* 401：保持锁屏，什么都不做 */
-      })
-      .catch(function () {
-        /* 网络失败：保持锁屏（fail-closed） */
-      });
-  }
-  function initialSessionCheck() {
-    fetch('/api/session-check', { credentials: 'same-origin', cache: 'no-store' })
-      .then(function (r) {
-        if (!r.ok) return { ok: false };
-        return r.json().catch(function () { return { ok: false }; });
-      })
-      .then(function (d) {
-        if (done || !(d && d.ok === true)) return;
-        let ret = '';
-        try { ret = new URLSearchParams(window.location.search).get('return') || ''; } catch (e) {}
-        if (ret) {
-          try {
-            const k = 'sgx-initcheck-jump';
-            const prev = JSON.parse(sessionStorage.getItem(k) || 'null');
-            if (prev && prev.url === location.href && Date.now() - prev.at < 10000) return;
-            sessionStorage.setItem(k, JSON.stringify({ url: location.href, at: Date.now() }));
-          } catch (e) { return; }
-        }
-        try { console.warn('[sgx-lock] page said locked but session-check ok; unlocking'); } catch (e) {}
-        done = true;
-        closeMethodSheet();
-        if (dlg && dlg.open) closeDialog('initial-check');
-        handleSessionOk();
-      })
-      .catch(function () { /* 网络失败：保持锁屏 */ });
+    askServer().then(function (ans) {
+      if (!done && ans.ok) onServerOk(ans);
+    });
   }
 
   function bindRecheck() {
@@ -389,8 +448,6 @@ function showLockScreen() {
       if (document.visibilityState === 'visible') recheckSession();
     });
     window.addEventListener('focus', recheckSession);
-    /* pageshow：只在 bfcache 恢复时（persisted=true）重查，初始加载不查
-       （初始加载时 showLockScreen 已经按 L1 状态画过屏，避免 reload 循环）。 */
     window.addEventListener('pageshow', function (e) {
       if (e && e.persisted) recheckSession();
     });
@@ -417,28 +474,6 @@ function showLockScreen() {
       }
       dlgState = 'session-failed';
     } catch (e) {}
-  }
-
-  /* 服务端已确认会话有效后的统一处理（2.4.1）：
-     - URL 带 return：不做开锁动画，直接 location.replace(location.href)，
-       交给 L1 middleware 校验 return 并 302。分层规范：return 校验只归 L1，
-       前端不再重复做白名单校验。
-     - 不带 return：保持现有开锁动画，显示桌面。 */
-  function handleSessionOk() {
-    /* B1-8：子站踢回走 20 秒窗口逻辑（与 initLock 会话有效分支共用 handleSubsiteKickback）。
-       返回 true 说明已处理（出失败卡或已回跳），直接 return。 */
-    if (handleSubsiteKickback()) {
-      return;
-    }
-    let ret = '';
-    try {
-      ret = new URLSearchParams(window.location.search).get('return') || '';
-    } catch (e) {}
-    if (ret) {
-      sgxReplace(window.location.href);
-      return;
-    }
-    doUnlockAnimation();
   }
 
   /* 开锁动画（无 return 时）：显示桌面 */
@@ -1241,11 +1276,11 @@ function showLockScreen() {
         if (kbStop) { try { kbStop(); } catch (e) {} kbStop = null; }
         closeMethodSheet(true);
         if (bootstrap) {
-          /* 与原根凭证入口相同：带 return 走 handleSessionOk（L1 校验 return），否则去安全与隐私 */
-          let ret = '';
-          try { ret = new URLSearchParams(window.location.search).get('return') || ''; } catch (e) {}
-          if (ret) handleSessionOk();
-          else sgxNavigate(en ? '/en/settings/security/' : '/settings/security/');
+          /* 带 return：同样问服务端去哪（与其他解锁方式同一条路）；否则去安全与隐私 */
+          if (qp('return')) {
+            done = false;
+            unlock();
+          } else sgxNavigate(en ? '/en/settings/security/' : '/settings/security/');
           return;
         }
         /* 跳转到锁屏凭证管理页（重置锁屏门票可开此页，仍进不了主页） */
@@ -1406,55 +1441,18 @@ function showLockScreen() {
     }
   });
 
-  /* 锁屏显示期间：如果用户在别的标签页解锁了，切回来时自动检测并回跳 */
+  /* 锁屏显示期间：如果用户在别的标签页解锁了，切回来时自动检测并按服务端的 next 走 */
   bindRecheck();
 
-  /* 2026-10-19 刷新掉锁屏修复：L1 注入 locked 时，立刻再问一次服务端
-     （/api/session-check，与页面同一套 verifySessionDetailed）。
-     服务端说会话有效 → 直接放行，不让用户对着一个本来有效的会话再解一次锁；
-     401/网络失败 → 保持锁屏（fail-closed）。
-     状态源仍只有服务端；这里不读写任何本地解锁标记。
-     带 ?return= 时 handleSessionOk 会整页重进，若页面仍判 locked 会来回跳，
-     所以 10 秒内同一地址只自动重进一次（sessionStorage 只记跳转时间，不记解锁状态）。 */
-  if (!isLocal && document.documentElement.dataset.sgxSession === 'locked') {
-    initialSessionCheck();
+  /* 首帧对账：页面是 locked 或根本没有会话标记（unknown）时立刻问服务端。
+     服务端说有效 → 直接按 next 走，不让用户对着一个本来有效的会话再解一次锁（2026-10-21：
+     这是「切到别的标签页再回来就自己解锁」的根因之一——以前只有切回来才对账，首帧不对账 unknown）。 */
+  if (!isLocal) {
+    askServer().then(function (ans) {
+      if (!done && ans.ok) {
+        try { console.warn('[sgx-lock] page said ' + pageState() + ' but session-check ok'); } catch (e) {}
+        onServerOk(ans);
+      }
+    });
   }
-
-  /* 已解锁标签页的自动锁定：visibilitychange（visible）、pageshow（含 bfcache）、
-     focus 时向服务端确认会话（/api/session-check），失败就重载切到锁屏。
-     不用跨标签页广播 / storage / 前端内存做锁屏状态，状态源只有服务端。
-     节流 5 秒；网络错误不跳转，下次再查。
-     「锁定所有设备」靠 epoch 生效，子站缓存最多约 60 秒。 */
-  let lastLockCheck = 0;
-  function checkSessionForAutoLock() {
-    const now = Date.now();
-    if (now - lastLockCheck < 5000) return;
-    lastLockCheck = now;
-    /* 如果当前已是锁屏状态，不需要检查（锁屏页有自己的 recheck 逻辑） */
-    if (document.body.classList.contains('sgx-locked')) return;
-    fetch('/api/session-check', { credentials: 'same-origin' })
-      .then(function (r) {
-        if (r.ok) return; /* 会话有效，什么都不做 */
-        /* 401 或其他失败：重载，L1 middleware 会显示锁屏 */
-        sgxReload();
-      })
-      .catch(function () {
-        /* 网络错误：不跳转，下次再查 */
-      });
-  }
-  document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible') checkSessionForAutoLock();
-  });
-  window.addEventListener('focus', function () { checkSessionForAutoLock(); });
-  window.addEventListener('pageshow', function (e) {
-    if (e && e.persisted) checkSessionForAutoLock();
-  });
-  /* 只在宽度变化（转屏 / DeX 改窗口）时查；键盘开合只改高度，不再因此发请求，
-     免得在浏览器页打字时被一次 401 重载打断。键盘收起后的回到前台由 focus / visibilitychange 覆盖。 */
-  let lastW = window.innerWidth;
-  window.addEventListener('resize', function () {
-    if (window.innerWidth === lastW) return;
-    lastW = window.innerWidth;
-    checkSessionForAutoLock();
-  });
 }

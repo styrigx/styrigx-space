@@ -147,10 +147,10 @@ window.__firstTz=function(){
 window.__secondTz=function(){try{return localStorage.getItem('sgx-tz2')||'America/Los_Angeles'}catch(e){return'America/Los_Angeles'}};
 window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}catch(e){return false}};
 </script>
-{{/* 2.4.0 D：Speculation Rules —— 站内链接 hover 时 prerender（渐进增强，不支持则忽略） */}}
-<script type="speculationrules">
-{"prerender":[{"where":{"href_matches":"/*"},"eagerness":"moderate"}]}
-</script>
+{{/* 2026-10-21：删掉 2.4.0 D 的 Speculation Rules（站内链接按下 / 悬停就 prerender）。
+   预渲染是拿「按下那一刻」的 cookie 取页面并先跑脚本，点下去时直接启用这份快照：
+   访客点「锁屏凭证」时预渲染的是网关送回的锁屏/升级页，启用后整个锁屏闪一下；解锁、立即锁定、站长验证之后
+   启用的也是旧状态的页面。所有页面都要按会话出不同内容，不能预渲染。 */}}
 </head>
 {{ $setUrl0 := "/settings/" }}{{ if $isEn }}{{ $setUrl0 = "/en/settings/" }}{{ end }}
 <body class="text-m-on-surface min-h-screen antialiased{{ if not .IsHome }} subpage{{ end }}" data-page="{{ if or (eq .RelPermalink "/bookmarks/") (eq .RelPermalink "/en/bookmarks/") }}bookmarks{{ else if eq .RelPermalink $setUrl0 }}settings{{ end }}">

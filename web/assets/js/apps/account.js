@@ -11,6 +11,10 @@
  *   /settings/account/security/（apps/account-security.js，每次进都要验签，3 分钟门票）。
  * - ?return=/settings/account/(security|profile)/：子页没有账号会话时跳来，登录后回子页。
  * - 访客：读不到状态，两个按钮都显示，服务端一律拒绝（统一显示「不正确 / 验证失败」）。
+ * - 首帧（2026-10-21）：页面默认两块都隐藏；网关在 <html data-sgx-account="in|out"> 注入服务端验过的账号会话，
+ *   这里同步按它显示总览或登录区。没有这个属性（中性态）就等 /api/account。
+ *   「欢迎回来」只在服务端说未登录时出现：属性 out、或 /api/account 明确 session=null。
+ *   属性 in 而 /api/account 读不到（访客 401 / 网络）→ 保持总览，不退回登录区。
  */
 import { on } from '../lib/events.js';
 import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
@@ -37,6 +41,40 @@ import { accountSubmitters, visibleKinds } from './account-methods.js';
   const pwErr = $('acct-pw-err');
   const pwGo = /** @type {HTMLButtonElement|null} */ ($('acct-pw-go'));
   const noneEl = $('acct-login-none');
+  const hint0 = document.documentElement.dataset.sgxAccount || '';
+  if (!loginEl && mainEl && hint0 === 'in') {
+    /* 服务端说已登录，登录区没下发：只填总览；/api/account 明确说没有账号会话（刚过期 / 别处退出）
+       → 重新取页面，由服务端画登录区。读不到（访客 401 / 网络）→ 保持总览。 */
+    mainEl.hidden = false;
+    let ret0 = '';
+    try {
+      const r = new URLSearchParams(window.location.search).get('return') || '';
+      if (ACCOUNT_RETURN_RE.test(r)) ret0 = r;
+    } catch (e) {}
+    if (ret0) {
+      sgxReplace(ret0);
+      return;
+    }
+    fetch(ACCOUNT_API, { method: 'GET', credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!(j && j.ok)) return;
+        if (!j.session) {
+          window.location.reload();
+          return;
+        }
+        const secSub = $('acct-sec-sub');
+        if (secSub) secSub.textContent = (j.password || j.passkey) ? t('secProtected') : t('secUnprotected');
+        const PKC = /** @type {any} */ (window).PublicKeyCredential;
+        if (PKC && typeof PKC.signalCurrentUserDetails === 'function') {
+          postJSON(ACCOUNT_API, { action: 'list' }).then(function (res) {
+            if (res.j && res.j.ok) signalAccountName(res.j);
+          }, function () {});
+        }
+      })
+      .catch(function () {});
+    return;
+  }
   if (!loginEl || !mainEl || !pkBtn || !pwBtn || !pwForm || !pwInput || !pwGo) return;
 
   /* 账号子页跳来（没有账号会话）：登录后回子页 */
@@ -68,6 +106,8 @@ import { accountSubmitters, visibleKinds } from './account-methods.js';
 
   /** GET /api/account 的最近一次结果（访客 / 读失败为 null） */
   let lastStatus = null;
+  /** 网关注入的账号会话提示：'in' | 'out' | ''（中性） */
+  const hint = document.documentElement.dataset.sgxAccount || '';
 
   function collapsePw() {
     pwForm.hidden = true;
@@ -219,6 +259,7 @@ import { accountSubmitters, visibleKinds } from './account-methods.js';
       .then(function (j) {
         if (!(j && j.ok)) {
           lastStatus = null;
+          if (hint === 'in') return; /* 服务端已说已登录：读不到细节也不退回登录区 */
           showLogin();
           return;
         }
@@ -244,8 +285,17 @@ import { accountSubmitters, visibleKinds } from './account-methods.js';
       })
       .catch(function () {
         lastStatus = null;
+        if (hint === 'in') return;
         showLogin();
       });
+  }
+  /* 首帧：照服务端提示同步显示（总览的副标题等 /api/account 回来再填） */
+  if (hint === 'in' && !acctReturn) {
+    setPageTitle('acctTitle');
+    loginEl.hidden = true;
+    mainEl.hidden = false;
+  } else if (hint === 'out') {
+    showLogin();
   }
   loadStatus();
 })();

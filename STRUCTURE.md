@@ -89,8 +89,8 @@ workers/
 |---|---|---|
 | `styrigx-auth-gateway` | `workers/auth-gateway/` | 主站全部后端：签发和校验会话、二次验证、应用通行证、全部接口、头像；`/api/*`、`/avatar/*` 和全部页面先过它，页面验完回源 Pages 取静态文件；blog、book 子站的页面也由它验会话（`src/subsites.js`）；所有公私钥只在这里（Secrets Store） |
 
-路由登记：现在只有一个 Worker，它的 `wrangler.toml` 里的 `[[routes]]` 就是登记表。
-`scripts/check-worker-routes.mjs`（CI 跑）核对：每个 HTML 页面以及 `/api/`、`/avatar/` 都有路由，静态资源（`/css/` `/js/` `/fonts/` `/fav/`）不过 Worker，路由不重复；子站路由只能是登记过的域名，静态资源不登记。子站页面是否全覆盖由子站 CI 部署后冒烟检查。
+路由登记：现在只有一个 Worker，它的 `wrangler.toml` 里的 `[[routes]]` 就是登记表。2026-10-21 起三站都是整站通配（`styrigx.com/*`、`blog.styrigx.com/*`、`daymark.styrigx.com/*`）：Cloudflare 不带 `*` 的规则遇到查询串不命中，以前 `styrigx.com/?lock=1&return=…`（锁屏入口）和子站首页带查询串都绕过了网关。静态资源（`/css/` `/js/` `/fonts/` `/fav/` `/images/`、子站静态后缀）进 Worker 后第一行原样回源，不验会话、不打 `X-SGX-Runtime`。
+`scripts/check-worker-routes.mjs`（CI 跑，匹配规则在 `scripts/lib/cf-routes.mjs`，照线上实测）核对：每个 HTML 页面（含带查询串）、锁屏入口、`/api/`、`/avatar/` 都过网关，路由不重复，只登记三站域名，daymark 的句子接口仍归 `styrigx-daymark-core`。锁屏 / 解锁 / 回跳的完整状态机见 `docs/auth-state-machine.md`。
 以后加第二个 Worker 时，再把登记表提成所有 Worker 共用的 `workers/routes.yaml`，并检查路径不重叠。
 
 ## tests/ 测试
