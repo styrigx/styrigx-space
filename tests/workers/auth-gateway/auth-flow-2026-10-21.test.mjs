@@ -64,7 +64,7 @@ const get = (url, cookie) => worker.fetch(new Request(url, { headers: cookie ? {
 
 /* ---------------- A. 路由 ---------------- */
 const ROUTES = readRoutes(fs.readFileSync(path.join(REPO, 'workers/auth-gateway/wrangler.toml'), 'utf8'));
-const OTHER = ['daymark.styrigx.com/api/*']; /* styrigx-daymark-core（另一个仓库） */
+const OTHER = ['daymark.styrigx.com/api/*', 'curio.styrigx.com/api/*']; /* styrigx-daymark-core、styrigx-curio-core（各自的仓库） */
 
 test('A 路由匹配规则照线上实测：不带 * 的规则遇到查询串不命中；* 规则连查询串前缀匹配', () => {
   assert.equal(routeMatches('styrigx.com/', 'styrigx.com', '/'), true);
@@ -82,6 +82,7 @@ test('A 锁屏入口、带查询串的首页、所有页面都过网关（改前
     ['blog.styrigx.com', '/'], ['blog.styrigx.com', '/?utm=1'], ['blog.styrigx.com', '/rss.xml?a'], ['blog.styrigx.com', '/post/x/?a'],
     ['daymark.styrigx.com', '/'], ['daymark.styrigx.com', '/?x=1'], ['daymark.styrigx.com', '/sitemap.xml?a'],
     ['daymark.styrigx.com', '/api/session-check'],
+    ['curio.styrigx.com', '/'], ['curio.styrigx.com', '/?x=1'], ['curio.styrigx.com', '/en/?a'], ['curio.styrigx.com', '/api/session-check'],
   ];
   for (const [h, p] of mustGateway) {
     const mine = pickRoute(ROUTES, h, p);
@@ -90,6 +91,10 @@ test('A 锁屏入口、带查询串的首页、所有页面都过网关（改前
   }
   /* daymark 句子接口仍归 daymark-core（更具体的规则优先） */
   assert.equal(pickRoute(OTHER, 'daymark.styrigx.com', '/api/today').length > pickRoute(ROUTES, 'daymark.styrigx.com', '/api/today').length, true);
+  /* curio 收藏接口归 curio-core */
+  for (const p of ['/api/links', '/api/icon?id=1', '/api/import', '/api/export']) {
+    assert.equal(pickRoute(OTHER, 'curio.styrigx.com', p).length > pickRoute(ROUTES, 'curio.styrigx.com', p).length, true, p);
+  }
 });
 
 test('A 静态资源进 Worker 后原样回源：不验会话、不 302', async () => {

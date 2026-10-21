@@ -8,7 +8,8 @@
  * 2. 接口和头像（/api/、/avatar/）被路由覆盖
  * 3. 路由不重复，只登记 styrigx.com 和 SUBSITE_HOSTS 里的域名
  * 4. 子站必须登记的路径（含首页 + 查询串）都覆盖
- * 5. daymark 的句子接口（daymark.styrigx.com/api/*，styrigx-daymark-core）不能被网关更具体的规则抢走（session-check 除外）
+ * 5. daymark 的句子接口（daymark.styrigx.com/api/*，styrigx-daymark-core）、curio 的收藏接口（curio.styrigx.com/api/*，styrigx-curio-core）
+ *    不能被网关更具体的规则抢走（session-check 除外）
  * 静态资源现在也进网关（整站通配），由 src/index.js / subsites.js 原样回源；单测 auth-flow-2026-10-21 覆盖。
  *
  * 需要先构建网站（hugo --minify -s web），读 web/public/ 下的 .html。
@@ -39,6 +40,11 @@ const SUBSITE_HOSTS = {
     mustRoute: ['/', '/?x=1', '/en/', '/zh/', '/sitemap.xml', '/sitemap.xml?a', '/api/session-check'],
     /* 归 styrigx-daymark-core 的接口：网关不得有比 daymark.styrigx.com/api/* 更具体的规则 */
     otherWorker: { pattern: 'daymark.styrigx.com/api/*', samples: ['/api/quotes', '/api/today'] },
+  },
+  'curio.styrigx.com': {
+    mustRoute: ['/', '/?x=1', '/en/', '/zh/', '/sitemap.xml', '/sitemap.xml?a', '/#c/1', '/api/session-check'],
+    /* 归 styrigx-curio-core 的接口：网关不得有比 curio.styrigx.com/api/* 更具体的规则 */
+    otherWorker: { pattern: 'curio.styrigx.com/api/*', samples: ['/api/links', '/api/icon?id=1', '/api/import', '/api/export', '/api/preview?url=x'] },
   },
 };
 

@@ -3,7 +3,7 @@
  *
  * 承接 styrigx.com 整站（路由 styrigx.com/*，见 wrangler.toml）：/api/*、/avatar/*、全部页面；
  * 静态资源目录（MAIN_STATIC_PREFIXES）第一行就原样回源，不验会话、不改响应。
- * 子站（blog.styrigx.com、daymark.styrigx.com）的页面会话检查也在这里（src/subsites.js），子站 Pages 不持钥匙。
+ * 子站（blog.styrigx.com、daymark.styrigx.com、curio.styrigx.com）的页面会话检查也在这里（src/subsites.js），子站 Pages 不持钥匙。
  * 主站的后端代码只在这里（workers/auth-gateway/functions/），Pages 只放静态文件：
  *   1. Secrets Store 的私密值换成字符串（secrets.js）
  *   2. 先跑 functions/_middleware.js（会话、角色、白名单、no-store、锁屏瘦身）
