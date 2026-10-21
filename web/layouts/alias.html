@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-{{/* 搬走的页面（content 里的 aliases，如 /browser/ → /bookmarks/）：带上查询串和 # 跳到新地址（location.replace，不留历史）；
+{{/* 搬走的页面（content 里的 aliases，如 /browser/ → /search/）：带上查询串和 # 跳到新地址（location.replace，不留历史）；
    不支持脚本时 meta refresh 兜底。线上 web/static/_redirects 里同样有 301。 */}}
 <html lang="{{ if hasPrefix .Page.RelPermalink "/en/" }}en{{ else }}zh{{ end }}">
 <head>

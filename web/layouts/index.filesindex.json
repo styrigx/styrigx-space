@@ -10,18 +10,6 @@
   {{ $items = $items | append (dict "id" $id "type" "post" "lang" $p.lang "title" $p.title "subtitle" "" "url" $p.url "cover" "" "addedAt" $p.date) }}
 {{ end }}
 
-{{/* ---------- 书签 ---------- */}}
-{{ range $l := $langs }}
-  {{ $links := cond (eq $l "en") site.Data.en.links site.Data.links }}
-  {{ range $ci, $cat := $links }}
-    {{ range $si, $s := $cat.sites }}
-      {{ $id := printf "link-%d-%d" (add $ci 1) (add $si 1) }}
-      {{ if eq $l "en" }}{{ $id = printf "link-%d-%d-en" (add $ci 1) (add $si 1) }}{{ end }}
-      {{ $items = $items | append (dict "id" $id "type" "link" "lang" $l "title" $s.name "subtitle" $cat.category "url" $s.url "cover" "" "addedAt" "") }}
-    {{ end }}
-  {{ end }}
-{{ end }}
-
 {{/* ---------- 我的站点 ---------- */}}
 {{/* 2.3.9：只有我编写、只有我有权限的站点（博客等） */}}
 {{ range $l := $langs }}
@@ -34,9 +22,8 @@
 {{ end }}
 
 {{/* ---------- 应用 ---------- */}}
-{{/* 系统 App（书签 / 设置）直接链接；B2-2 删除应用商店；2026-10-20 浏览器拆成 书签 + 全网搜索 */}}
+{{/* 系统 App（设置）直接链接；B2-2 删除应用商店；2026-10-21 主站书签下线（迁到子站 珍格 curio.styrigx.com） */}}
 {{ $apps := slice
-  (dict "key" "bookmarks" "zh" "书签"    "en" "Bookmarks" "zhsub" "书签导航"       "ensub" "Bookmark directory"     "path" "bookmarks/")
   (dict "key" "settings" "zh" "设置"     "en" "Settings"  "zhsub" "主题、语言、壁纸" "ensub" "Theme, language, wallpaper" "path" "settings/")
 }}
 {{ range $l := $langs }}

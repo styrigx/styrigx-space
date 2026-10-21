@@ -4071,17 +4071,6 @@
   }
 
   /* ============================================================
-     书签页（/bookmarks/，2026-10-20 由浏览器页拆出；快捷访问、地址栏胶囊已删除）
-     ============================================================ */
-  /* 书签分类筛选条：单行横滚 */
-  .brw-cats { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 4px 2px 12px; }
-  .brw-cats::-webkit-scrollbar { display: none; }
-  .brw-cat {
-    flex-shrink: 0; border-radius: 999px; padding: 8px 16px; font-size: 13px; font-weight: 600; min-height: 44px;
-    background: var(--m-container); color: var(--m-on-surface-variant);
-    &.on { background: var(--m-primary-container); color: var(--m-on-primary-container); }
-  }
-  /* ============================================================
      One UI 8.5 视觉效果（2.3.12.1）：底部搜索胶囊（效果1+2）+
      浏览器磨砂弹出层（效果3）+ 大标题折叠（效果4）+ One UI 控件（效果5）。
      功能全部以 2.3.11 为准，这里只有效果样式。
@@ -4855,7 +4844,7 @@
   /* 内容卡片和顶栏同一材质（--sgx-mat，定义在顶栏段）。卡片后面只有固定的渐变壁纸，
      背景模糊看不出差别，所以卡片不加 backdrop-filter（几十张卡同时模糊会拖慢滚动）。
      只换底色：边框、阴影、悬停效果保持原样。 */
-  .widget.bg-m-container-lowest, .sgx-account-card, .link-card, .brw-card, .brw-cat:not(.on):not(.is-active) {
+  .widget.bg-m-container-lowest, .sgx-account-card, .brw-card {
     background-color: var(--sgx-mat); background-image: none;
   }
   /* PR3：锁屏日刻卡用日刻角色（daymark-card，保留材质的 88% 不透明），不跟 --m-primary 混出来的卡片材质 */

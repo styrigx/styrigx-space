@@ -281,7 +281,7 @@ test('B2-1 security page: no jump-trace diagnostics', async ({ page: pg }) => {
   expect(await pg.evaluate(() => sessionStorage.getItem('sgx-last-jump'))).toBeNull();
 });
 
-/* B2-2：应用商店删除；Good Lock 迁入设置（应用 与 辅助功能 之间）；邀请码站进浏览器书签「我的项目」 */
+/* B2-2：应用商店删除；Good Lock 迁入设置（应用 与 辅助功能 之间）；邀请码站进浏览器书签「我的项目」（2026-10-21 主站书签下线，书签迁到 珍格 Curio） */
 test('B2-2 Good Lock is a settings category before Accessibility', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await gotoSettings(pg, '/settings/');
@@ -313,7 +313,7 @@ test('B2-2 Good Lock subpage: rows toggle the same keys', async ({ page: pg }) =
   expect(await pg.evaluate(() => localStorage.getItem('sgx-gl-wellbeing'))).toBe('0');
 });
 
-test('B2-2 store and its apps are gone; invite site in bookmarks', async ({ page: pg }) => {
+test('B2-2 store and its apps are gone; main-site bookmarks are gone too', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await blockExternalRequests(pg);
   await pg.goto('/', { waitUntil: 'domcontentloaded' });
@@ -330,13 +330,8 @@ test('B2-2 store and its apps are gone; invite site in bookmarks', async ({ page
   const idx = await (await pg.request.get('/files-index.json')).json();
   const bad = idx.items.filter((it) => it.type === 'book' || it.type === 'music' || /\/(store|ai|books|music)\//.test(it.url || ''));
   expect(bad).toEqual([]);
-  // 书签：「我的主页」下面紧跟「我的项目」，里面是邀请码站
-  await pg.goto('/bookmarks/', { waitUntil: 'domcontentloaded' });
-  const titles = await pg.locator('.brw-catgroup .brw-group-title').evaluateAll((els) => els.map((e) => Array.from(e.childNodes).filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim()));
-  expect(titles.slice(0, 3)).toEqual(['我的主页', '我的项目', 'AI 资讯与 Agent']);
-  const proj = pg.locator('.brw-catgroup').nth(1);
-  await expect(proj.locator('a[href="https://muse-invite.styrigx.com"]')).toHaveCount(1);
-  await expect(proj).toContainText('邀请码站');
+  // 2026-10-21：主站书签下线 —— 索引里没有书签（type=link）和书签 App
+  expect(idx.items.filter((it) => it.type === 'link' || /\/bookmarks\//.test(it.url || ''))).toEqual([]);
 });
 
 /* B2-4：设置里的「应用」整块删除；重置所有设置在常规管理（2026-10-20：浏览器的设置不再在顶栏 ⋮，搜索引擎 / 清除浏览记录在 安全与隐私） */
@@ -352,10 +347,10 @@ test('B2-4 settings has no Apps category; reset lives in General management', as
   await expect(pg.locator('#row-reset')).toContainText('重置所有设置');
 });
 
-test('Bookmarks page has no top-bar menu; engine row lives in Security and privacy', async ({ page: pg }) => {
+test('Search page has no top-bar menu; engine row lives in Security and privacy', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await blockExternalRequests(pg);
-  await pg.goto('/bookmarks/', { waitUntil: 'domcontentloaded' });
+  await pg.goto('/search/', { waitUntil: 'domcontentloaded' });
   await expect(pg.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
   await expect(pg.locator('#brw-more, .sgx-tb-more')).toHaveCount(0);
   await gotoSettings(pg, '/settings/security/');

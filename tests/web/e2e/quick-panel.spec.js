@@ -55,7 +55,7 @@ async function expectClosed(page) {
 }
 
 test.describe('顶栏：长条里的快捷面板图标', () => {
-  const PAGES = ['/', '/bookmarks/', '/search/', '/settings/', '/settings/display/', '/settings/security/', '/settings/account/'];
+  const PAGES = ['/', '/search/', '/settings/', '/settings/display/', '/settings/security/', '/settings/account/'];
   for (const path of PAGES) {
     test(`${path}：九宫格 · 长条（搜索 · 页名 · 快捷面板）· 头像`, async ({ page }) => {
       await go(page, path);
@@ -536,13 +536,13 @@ test.describe('快捷面板：与设置页同一个设置', () => {
 
   test('齿轮（全部设置）：进设置页，返回回到原页（不多一步）', async ({ page }) => {
     await go(page, '/');
-    await page.goto('/bookmarks/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/search/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-topbar')).toBeVisible();
     await openQp(page);
     await page.locator('#sgx-qp a.sgx-qp-set').click();
     await expect(page).toHaveURL(/\/settings\/$/);
     await page.goBack();
-    await expect(page).toHaveURL(/\/bookmarks\/$/);
+    await expect(page).toHaveURL(/\/search\/$/);
     await expect(qp(page)).toBeHidden();
   });
 });

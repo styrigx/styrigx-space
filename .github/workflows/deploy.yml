@@ -77,10 +77,6 @@ jobs:
         working-directory: workers/auth-gateway
         run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/styrigx-auth-gateway-dist
 
-      - name: Bookmarks seed in sync (links.yaml → _kernel/bookmarks-seed.js)
-        # 书签首次导入 D1 用的种子必须和 web/data/links.yaml、en/links.yaml 一致；改了 YAML 忘了重新生成 → 红
-        run: node scripts/gen-bookmarks-seed.mjs --check
-
       - name: Shared shell in sync (web/shared/shell ← palette-roles / input.css @shell / shell-nav)
         # 子站（blog / daymark）用 scripts/sync-shell.mjs 从这里同步外壳；改了源头忘了重新生成 → 红
         run: node scripts/gen-shell.mjs --check

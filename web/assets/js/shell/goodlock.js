@@ -52,8 +52,8 @@ function areaOf() {
   const p = location.pathname;
   if (p === '/settings/goodlock/' || p === '/en/settings/goodlock/') return 'goodlock';
   if (p === '/settings/' || p === '/en/settings/') return 'settings';
-  /* 区域键沿用 'browser'（历史数据不丢）：2026-10-20 浏览器页拆成 /bookmarks/ + /search/ */
-  if (p === '/bookmarks/' || p === '/en/bookmarks/' || p === '/search/' || p === '/en/search/') return 'browser';
+  /* 区域键沿用 'browser'（历史数据不丢）：2026-10-21 主站书签下线后只剩 /search/ */
+  if (p === '/search/' || p === '/en/search/') return 'browser';
   return 'home';
 }
 
@@ -168,7 +168,7 @@ export function initGoodLock() {
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const home = en ? '/en/' : '/',
-        links = en ? '/en/bookmarks/' : '/bookmarks/',
+        links = en ? 'https://curio.styrigx.com/en/' : 'https://curio.styrigx.com/', /* g l：珍格 Curio（主站书签已迁走） */
         setUrl = en ? '/en/settings/' : '/settings/';
       if (pending) {
         pending = false;

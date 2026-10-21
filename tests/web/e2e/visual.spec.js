@@ -1,7 +1,7 @@
 /**
  * 2.4.0 E：视觉回归测试。
- * 5 视口 × 中英 × 深浅色 × 主要页面（/、/bookmarks/、/search/、/settings/ 等；B2-2 删除 /store/，2026-10-19 删除 /files/，
- * 2026-10-20 /browser/ 拆成 /bookmarks/ + /search/）
+ * 5 视口 × 中英 × 深浅色 × 主要页面（/、/search/、/settings/ 等；B2-2 删除 /store/，2026-10-19 删除 /files/，
+ * 2026-10-20 /browser/ 拆成 /bookmarks/ + /search/，2026-10-21 主站书签下线（迁到 珍格 Curio），/bookmarks/ 截图删除）
  * + F 的基准（弹层打开）+ 导航抽屉打开（baseline-drawer-open）+ 快捷面板打开（baseline-quick-panel-open）。
  * 首次运行：npx playwright test --update-snapshots 生成基准；
  * 后续运行自动对比，不一致即失败。
@@ -24,7 +24,7 @@ const VIEWPORTS = {
 /* 账号页三星式总览：/settings/account/ 拍登录后的总览（登录区由下方 account-login-* 覆盖），
    新增安全与隐私子页 /settings/account/security/（已过门；倒计时数字在截图里遮罩），
    账号信息子页 /settings/account/profile/（已登录卡 + 退出账号） */
-const PAGES = ['/', '/bookmarks/', '/search/', '/settings/', '/settings/security/', '/settings/security/lock/', '/settings/account/', '/settings/account/profile/', '/settings/account/security/', '/settings/account/reset/'];
+const PAGES = ['/', '/search/', '/settings/', '/settings/security/', '/settings/security/lock/', '/settings/account/', '/settings/account/profile/', '/settings/account/security/', '/settings/account/reset/'];
 const LANGS = [
   { prefix: '', name: 'zh' },
   { prefix: '/en', name: 'en' },
@@ -179,22 +179,6 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           await pg.addStyleTag({
             content: '.sgx-build-tag,.sgx-build-tag-wrap{display:none !important}',
           });
-          /* 书签页：书签 favicon 走外部请求（测试拦截 abort），失败兜底
-             异步把 img 换成首字母 span；截图前等可视区图标全部落定，
-             否则截图会抓到"破图图标 vs 字母占位"的中间态导致抖动 */
-          if (page.includes('/bookmarks')) {
-            try {
-              await pg.waitForFunction(() => {
-                const vh = window.innerHeight || 800;
-                const imgs = document.querySelectorAll('img[data-favname]');
-                for (const img of imgs) {
-                  const r = img.getBoundingClientRect();
-                  if (r.bottom > 0 && r.top < vh && !img.complete) return false;
-                }
-                return true;
-              }, { timeout: 20000 });
-            } catch (e) { /* 超时也不卡死：继续截图 */ }
-          }
           await expect(pg).toHaveScreenshot(`${name}.png`, {
             fullPage: false,
             animations: 'disabled',

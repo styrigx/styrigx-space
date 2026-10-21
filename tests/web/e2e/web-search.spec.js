@@ -47,9 +47,10 @@ test('输入出站内建议和引擎搜索行；ⓧ 清空后回到最近搜索'
   await go(page, '/search/');
   await expect(page.locator('#brws-page .setso-chip')).toHaveText(['hello']);
   const input = page.locator('#sgx-cap-input-brwsearch');
-  await input.fill('github');
+  /* 2026-10-21 主站书签下线：站内索引只剩文章和 App（设置） */
+  await input.fill('设置');
   await expect(page.locator('#brws-page [data-brws-u]').first()).toBeVisible({ timeout: 5000 });
-  await expect(page.locator('#brws-page [data-brws-engine]')).toContainText('github');
+  await expect(page.locator('#brws-page [data-brws-engine]')).toContainText('设置');
   await page.locator('#sgx-cap-brwsearch [data-cap-clear]').click();
   await expect(input).toHaveValue('');
   await expect(page.locator('#brws-page .setso-chip')).toHaveText(['hello']);
@@ -107,13 +108,13 @@ test('胶囊右端是 × 关闭（没有 ⋮）；顶栏也没有 ⋮（搜索�
 });
 
 test('点 × 关闭：回到进来的那一页', async ({ page }) => {
-  await go(page, '/bookmarks/');
+  await go(page, '/settings/');
   /* 站内跳转（带 referrer），和点顶栏长条一样 */
   await page.evaluate(() => { location.href = '/search/'; });
   await page.waitForURL(/\/search\/$/);
   await expect(page.locator('#sgx-cap-input-brwsearch')).toBeFocused({ timeout: 5000 });
   await page.locator('#sgx-cap-brwsearch [data-cap-close]').click();
-  await expect(page).toHaveURL(/\/bookmarks\/$/, { timeout: 10000 });
+  await expect(page).toHaveURL(/\/settings\/$/, { timeout: 10000 });
 });
 
 test('直接打开再点 × 关闭：回主页', async ({ page }) => {

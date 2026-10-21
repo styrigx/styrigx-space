@@ -153,7 +153,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
    启用的也是旧状态的页面。所有页面都要按会话出不同内容，不能预渲染。 */}}
 </head>
 {{ $setUrl0 := "/settings/" }}{{ if $isEn }}{{ $setUrl0 = "/en/settings/" }}{{ end }}
-<body class="text-m-on-surface min-h-screen antialiased{{ if not .IsHome }} subpage{{ end }}" data-page="{{ if or (eq .RelPermalink "/bookmarks/") (eq .RelPermalink "/en/bookmarks/") }}bookmarks{{ else if eq .RelPermalink $setUrl0 }}settings{{ end }}">
+<body class="text-m-on-surface min-h-screen antialiased{{ if not .IsHome }} subpage{{ end }}" data-page="{{ if eq .RelPermalink $setUrl0 }}settings{{ end }}">
 {{ partial "sgx-icon-sprite.html" . }}
 <div id="sgx-wallpaper" aria-hidden="true"></div>
 {{/* 2.4.0-C：调度器 / 边缘模糊 / 可见性定时器已移入 ES Module（assets/js/shell/），此处不再内联定义 */}}
@@ -192,7 +192,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
    2026-10-21：抽屉里去掉了「设置」（入口在快捷面板顶栏的齿轮）。抽屉头一行：大号站名 + 搜索框长条（AI 搜索图标 + 「搜索」，
    进全网搜索页；在搜索页上点它只关抽屉并聚焦底部输入框，见 head-buttons.js）。 */}}
 {{ $navCur := "" }}
-{{ if .IsHome }}{{ $navCur = "home" }}{{ else if or (eq .RelPermalink "/bookmarks/") (eq .RelPermalink "/en/bookmarks/") }}{{ $navCur = "bookmarks" }}{{ else if or (hasPrefix .RelPermalink "/settings/") (hasPrefix .RelPermalink "/en/settings/") }}{{ $navCur = "settings" }}{{ end }}
+{{ if .IsHome }}{{ $navCur = "home" }}{{ else if or (hasPrefix .RelPermalink "/settings/") (hasPrefix .RelPermalink "/en/settings/") }}{{ $navCur = "settings" }}{{ end }}
 {{/* 抽屉项来自 web/data/shell-nav.json（共享外壳：scripts/gen-shell.mjs 把它连同图标生成 web/shared/shell/nav.json，子站同步同一份）。
    主站自己的项（origin = https://styrigx.com）用站内相对地址；子站项用绝对地址，英文加 /en 前缀。 */}}
 {{ $shellNav := index site.Data "shell-nav" }}

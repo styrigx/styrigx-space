@@ -7,7 +7,7 @@
  *   右缘对齐药丸右缘；头部和首页之间留足间距。
  * - 九宫格 → Gmail 式左侧导航抽屉：首页 / 珍格 / 日刻 / 博客（2026-10-21 起没有 设置；书签项换成子站 珍格 Curio，入口在快捷面板齿轮）；每项有描边图标，
  *   当前页是药丸高亮；没有 我的文件 / 帮助与反馈；点遮罩 / Esc / 系统返回关闭。
- * - /browser/ 拆成 书签 /bookmarks/（只有书签：分类筛选条 + 分组）+ 全网搜索 /search/。
+ * - 2026-10-21 主站书签下线（迁到子站 珍格 Curio）：/bookmarks/ 线上 301 到 curio.styrigx.com；/browser/ → 全网搜索 /search/。
  * - 搜索引擎 / 清除浏览记录搬到 设置 › 安全与隐私 › 隐私。
  */
 const { test } = require('@playwright/test');
@@ -36,7 +36,7 @@ async function openDrawer(page) {
 }
 
 test.describe('顶栏：全站同一套，没有 ‹ 和 ⋮', () => {
-  const PAGES = ['/', '/bookmarks/', '/search/', '/settings/', '/settings/display/', '/settings/security/', '/settings/account/'];
+  const PAGES = ['/', '/search/', '/settings/', '/settings/display/', '/settings/security/', '/settings/account/'];
   for (const path of PAGES) {
     test(`${path}：九宫格 + 长条（搜索 · 页名 · 快捷面板）+ 头像，没有返回圆和 ⋮`, async ({ page }) => {
       await go(page, path);
@@ -284,35 +284,17 @@ test.describe('抽屉头：大号站名 + 搜索框', () => {
   });
 });
 
-test.describe('书签页', () => {
-  test('/browser/ 跳到 /bookmarks/（中英）', async ({ page }) => {
-    await go(page, '/browser/');
-    await expect(page).toHaveURL(/\/bookmarks\/$/);
-    expect(new URL(page.url()).pathname).toBe('/bookmarks/');
+test.describe('主站书签已下线', () => {
+  test('/browser/ 跳到全网搜索 /search/（中英，查询串保留）；没有 /bookmarks/ 页面', async ({ page }) => {
+    await go(page, '/browser/?q=hello');
+    await expect(page).toHaveURL(/\/search\/\?q=hello$/);
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
     await page.goto('/en/browser/', { waitUntil: 'domcontentloaded' });
-    await expect(page).toHaveURL(/\/en\/bookmarks\/$/);
-  });
-
-  test('只有书签：分类筛选条 + 分组；没有快捷访问、地址栏胶囊、⋮', async ({ page }) => {
-    await go(page, '/bookmarks/');
-    await expect(page.locator('.sgx-tb-title')).toHaveText('书签');
-    await expect(page.locator('[data-brw-cat="all"]')).toBeVisible();
-    expect(await page.locator('[data-brw-catgroup]').count()).toBeGreaterThan(0);
-    await expect(page.locator('.brw-qa-grid, .brw-qa')).toHaveCount(0);
-    await expect(page.getByText('快捷访问')).toHaveCount(0);
-    await expect(page.locator('#brw-addrbar')).toHaveCount(0);
-    await expect(page.locator('#brw-more')).toHaveCount(0);
-    await expect(page.locator('body')).not.toHaveClass(/addrbar-/);
-    /* 筛选：点第一个分类只剩一组 */
-    await page.locator('[data-brw-cat="brwcat-0"]').click();
-    await expect(page.locator('[data-brw-catgroup]:visible')).toHaveCount(1);
-  });
-
-  test('旧的地址栏位置键会被清掉', async ({ page }) => {
-    await page.addInitScript(() => { try { if (!sessionStorage.getItem('x')) { sessionStorage.setItem('x', '1'); localStorage.setItem('sgx-addrbar-pos', 'top'); } } catch (e) {} });
-    await go(page, '/bookmarks/');
-    expect(await page.evaluate(() => localStorage.getItem('sgx-addrbar-pos'))).toBeNull();
+    await expect(page).toHaveURL(/\/en\/search\/$/);
+    for (const p of ['/bookmarks/', '/en/bookmarks/']) {
+      const r = await page.request.get(p);
+      expect(r.status(), p).not.toBe(200);
+    }
   });
 });
 

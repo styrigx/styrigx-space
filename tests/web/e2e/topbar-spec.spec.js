@@ -104,7 +104,6 @@ test.describe('390×844 行为', () => {
 
   const NAMES = [
     ['/', '首页'],
-    ['/bookmarks/', '书签'],
     ['/search/', '全网搜索'],
     ['/settings/', '设置'],
     /* PR3：账号页没登录（这里没有账号会话）时页名是「登录账号」，登录后才是「账号」 */
@@ -144,7 +143,7 @@ test.describe('390×844 行为', () => {
     await expect(page.locator('.sgx-topbar a[href$="/settings/"]')).toHaveCount(0);
   });
 
-  for (const path of ['/settings/', '/settings/account/', '/bookmarks/']) {
+  for (const path of ['/settings/', '/settings/account/', '/settings/display/']) {
     test(`${path}：正文从顶栏下方 16px 开始（--sgx-content-top，全站同一个值）`, async ({ page }) => {
       await go(page, path);
       const m = await page.evaluate(() => {
