@@ -1,7 +1,7 @@
 /* 由 styrigx-space scripts/gen-shell.mjs 从 web/assets/css/input.css 的 @shell 标记段 生成，勿手改；子站用 scripts/sync-shell.mjs 同步。 */
 /* 依赖 tokens.css 的 --sgx-* 角色；不进任何 @layer。 */
 /* ---- topbar-frame ---- */
-/* 顶栏尺寸 token：页边距、圆按钮直径、间距、长条内图标点击区直径。手机竖屏导航抽屉宽度也由它们算（右缘对齐长条里快捷面板图标点击区左缘），改这里两边一起跟着变 */
+/* 顶栏尺寸 token：页边距、圆按钮直径、间距、长条内图标点击区直径。手机竖屏导航抽屉宽度也由它们算（右缘对齐长条右端直边与右圆弧的切线），改这里两边一起跟着变 */
 :root { --sgx-tb-inset: 16px; --sgx-tb-btn: 52px; --sgx-tb-gap: 8px; --sgx-tb-ic: 40px; }
 .sgx-topbar { position: fixed; top: calc(var(--sgx-tb-inset) + env(safe-area-inset-top, 0px)); left: var(--sgx-tb-inset); right: var(--sgx-tb-inset);
   height: var(--sgx-tb-btn); z-index: 55; display: flex; align-items: center; gap: var(--sgx-tb-gap); pointer-events: none; }
@@ -65,9 +65,9 @@
 .sgx-drawer.is-open::backdrop { background: var(--sgx-scrim); }
 .sgx-drawer-sheet { position: absolute; top: 0; bottom: 0; left: 0; width: 320px; overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box;
   background: var(--sgx-mat); -webkit-backdrop-filter: var(--sgx-mat-filter);
-  border-radius: 0 1.75rem 1.75rem 0; box-shadow: 0 12px 40px -8px rgba(0,0,0,.30);
+  border-radius: 0 1.75rem 1.75rem 0; box-shadow: var(--sgx-drawer-shadow);
   padding: calc(16px + env(safe-area-inset-top, 0px)) 12px calc(16px + env(safe-area-inset-bottom, 0px));
-  transform: translateX(-104%); transition: transform .22s cubic-bezier(.2,0,0,1); }
+  transform: translateX(calc(-100% - 72px)); transition: transform .22s cubic-bezier(.2,0,0,1); }
 .sgx-drawer.is-open .sgx-drawer-sheet { transform: none; }
 @supports (backdrop-filter: blur(1px)) {
   .sgx-drawer-sheet { backdrop-filter: var(--sgx-mat-filter); }
@@ -75,15 +75,43 @@
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .sgx-drawer-sheet { background: var(--sgx-mat-solid); }
 }
-/* 抽屉宽：平板 / 桌面固定 320px（Material 导航抽屉宽度）；手机竖屏（< 600px，Material compact）右缘对齐长条里快捷面板图标点击区左缘：
-   宽 = 视口宽 − 右页边距 − 头像圆 − 间距 − 半个圆（图标中心到长条外缘）− 半个点击区（<dialog> 铺满视口所以用 100%），
-   全由顶栏 token 算，token 改了仍对齐（412px 宽 = 290px） */
+/* 抽屉阴影（2026-10-21，ChatGPT / Muse 式）：清楚可见、往右投（近处一层收边 + 远处一层大而柔）；深色底上加深。遮罩不变 */
+:root { --sgx-drawer-shadow: 4px 0 12px rgba(0,0,0,.10), 16px 0 48px rgba(0,0,0,.24); }
+.dark { --sgx-drawer-shadow: 4px 0 12px rgba(0,0,0,.22), 16px 0 48px rgba(0,0,0,.5); }
+/* 抽屉宽：平板 / 桌面固定 320px（Material 导航抽屉宽度）；手机竖屏（< 600px，Material compact）右缘对齐顶栏长条右端
+   直边和右圆弧相接处的竖直切线（长条右圆弧半径 = 半个圆按钮，圆心距长条外缘 --sgx-tb-btn / 2）：
+   宽 = 视口宽 − 右页边距 − 头像圆 − 间距 − 半个圆（<dialog> 铺满视口所以用 100%），
+   全由顶栏 token 算，token 改了仍对齐（412px 宽 = 310px，360px 宽 = 258px） */
 @media (max-width: 599.98px) {
-  .sgx-drawer-sheet { width: calc(100% - var(--sgx-tb-inset) - 1.5 * var(--sgx-tb-btn) - var(--sgx-tb-gap) - var(--sgx-tb-ic) / 2); }
+  .sgx-drawer-sheet { width: calc(100% - var(--sgx-tb-inset) - 1.5 * var(--sgx-tb-btn) - var(--sgx-tb-gap)); }
 }
 .reduced-motion .sgx-drawer-sheet, .reduced-motion .sgx-drawer::backdrop { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-drawer-sheet, .sgx-drawer::backdrop { transition: none; } }
-.sgx-drawer-head { margin: 0; padding: 14px 16px 18px; font-size: 20px; font-weight: 700; line-height: 1.4; color: var(--sgx-text-primary); }
+/* 抽屉头（2026-10-21 v6，ChatGPT / Muse 抽屉式）：同一行 [大号站名] [12px] [搜索框长条]，竖直居中。
+   站名用抽屉头字号 token（--sgx-drawer-brand-size / -weight，26px / 800：360px 宽时右边的搜索框仍放得下「搜索 / Search」）；
+   搜索框 = 48px 高药丸（flex:1，tonal 容器底色 --sgx-surface-container-high + --sgx-mat-line 细边），里面 24px ai-search 图标 + 占位式文字
+   （--sgx-text-secondary）；右缘对齐下面导航项药丸右缘（头部右内边距 0，与列表同在面板 12px 内边距里）。
+   仍是 <a> 链到全网搜索页（在搜索页上点它只关抽屉并聚焦底部输入框，见 head-buttons.js）。
+   头部和第一项（首页）之间留 --sgx-drawer-head-gap（32px），不挤在一起。悬停 / 按下叠状态层，焦点框同其他外壳按钮。 */
+:root { --sgx-drawer-brand-size: 26px; --sgx-drawer-brand-weight: 800; --sgx-drawer-head-gap: 32px; }
+.sgx-drawer-head { margin: 0 0 var(--sgx-drawer-head-gap); padding: 4px 0 0 16px; min-height: 48px; display: flex; align-items: center; gap: 12px;
+  color: var(--sgx-text-primary); }
+.sgx-drawer-brand { flex: 0 0 auto; font-size: var(--sgx-drawer-brand-size); font-weight: var(--sgx-drawer-brand-weight); line-height: 1.2;
+  letter-spacing: -0.01em; white-space: nowrap; }
+.sgx-drawer-search { flex: 1 1 auto; min-width: 0; height: 48px; border-radius: 999px; display: flex; align-items: center; gap: 8px;
+  padding: 0 14px; box-sizing: border-box; background-color: var(--sgx-surface-container-high); border: 1px solid var(--sgx-mat-line);
+  color: var(--sgx-text-secondary); font-size: 15px; font-weight: 500; line-height: 1.4; text-decoration: none; cursor: text;
+  transition: background-color .15s ease; }
+.sgx-drawer-search-ic { width: 24px; height: 24px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; color: var(--sgx-text-primary); }
+.sgx-drawer-search-ic svg { width: 24px; height: 24px; display: block; }
+.sgx-drawer-search-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (hover: hover) {
+  .sgx-drawer-search:hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); }
+}
+.sgx-drawer-search:active { background-image: linear-gradient(var(--sgx-state-pressed-bg), var(--sgx-state-pressed-bg)); }
+.sgx-drawer-search:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+.reduced-motion .sgx-drawer-search { transition: none; }
+@media (prefers-reduced-motion: reduce) { .sgx-drawer-search { transition: none; } }
 .sgx-drawer-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .sgx-drawer-item { display: flex; align-items: center; gap: 14px; min-height: 56px; padding: 0 16px; border-radius: 999px;
   font-size: 15px; font-weight: 500; line-height: 1.4; color: var(--sgx-text-secondary); text-decoration: none; transition: background-color .15s ease; }

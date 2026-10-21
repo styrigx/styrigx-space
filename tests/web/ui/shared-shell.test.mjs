@@ -39,13 +39,30 @@ test('抽屉：tonal 当前项、毛玻璃面板、手机宽度由顶栏 token �
   assert.match(s, /\.sgx-drawer-sheet \{[^}]*background: var\(--sgx-mat\); -webkit-backdrop-filter: var\(--sgx-mat-filter\);/);
   assert.match(s, /@supports \(backdrop-filter: blur\(1px\)\) \{\s*\.sgx-drawer-sheet \{ backdrop-filter: var\(--sgx-mat-filter\); \}/);
   assert.match(s, /@supports \(backdrop-filter: blur\(1px\)\) \{\s*\.sgx-tb-pill, \.sgx-tb-nav \{ backdrop-filter: var\(--sgx-mat-filter\); \}/);
-  assert.match(s, /width: calc\(100% - var\(--sgx-tb-inset\) - 1\.5 \* var\(--sgx-tb-btn\) - var\(--sgx-tb-gap\) - var\(--sgx-tb-ic\) \/ 2\)/);
+  // 2026-10-21：手机竖屏右缘 = 长条右端直边与右圆弧的切线（不再扣半个点击区）
+  assert.match(s, /width: calc\(100% - var\(--sgx-tb-inset\) - 1\.5 \* var\(--sgx-tb-btn\) - var\(--sgx-tb-gap\)\); \}/);
+  assert.doesNotMatch(s, /--sgx-tb-ic\) \/ 2\)/);
+  // 阴影往右投、清楚可见，深色加深
+  assert.match(s, /--sgx-drawer-shadow: 4px 0 12px rgba\(0,0,0,\.10\), 16px 0 48px rgba\(0,0,0,\.24\)/);
+  assert.match(s, /\.dark \{ --sgx-drawer-shadow: 4px 0 12px rgba\(0,0,0,\.22\), 16px 0 48px rgba\(0,0,0,\.5\)/);
+  assert.match(s, /\.sgx-drawer-sheet \{[^}]*box-shadow: var\(--sgx-drawer-shadow\)/);
+  // 抽屉头（v6）：同一行 大号站名 + 搜索框长条（flex:1、48px 高、药丸、tonal 容器 + 细边）；头部和第一项之间留 token 间距
+  assert.match(s, /--sgx-drawer-brand-size: 26px; --sgx-drawer-brand-weight: 800; --sgx-drawer-head-gap: 32px;/);
+  assert.match(s, /\.sgx-drawer-head \{ margin: 0 0 var\(--sgx-drawer-head-gap\);[^}]*display: flex; align-items: center; gap: 12px;/);
+  assert.match(s, /\.sgx-drawer-brand \{[^}]*font-size: var\(--sgx-drawer-brand-size\); font-weight: var\(--sgx-drawer-brand-weight\)/);
+  assert.match(s, /\.sgx-drawer-search \{ flex: 1 1 auto; min-width: 0; height: 48px; border-radius: 999px;[^}]*background-color: var\(--sgx-surface-container-high\); border: 1px solid var\(--sgx-mat-line\);/);
+  assert.doesNotMatch(s, /\.sgx-drawer-search \{ width: 48px/);
 });
 
-test('nav.json：首页 / 书签 / 日刻 / 博客 + 设置，图标都在', () => {
+test('nav.json：首页 / 书签 / 日刻 / 博客，没有设置；抽屉头搜索框；图标都在', () => {
   const nav = JSON.parse(files['nav.json']);
   assert.deepEqual(nav.items.map((i) => i.id), ['home', 'bookmarks', 'daymark', 'blog']);
-  assert.deepEqual(nav.footer.map((i) => i.id), ['settings']);
+  // 2026-10-21：设置从抽屉挪到主站快捷面板顶栏，外壳不再要求有设置项（子站之后同步）
+  assert.deepEqual(nav.footer, []);
+  assert.ok(![...nav.items, ...nav.footer].some((i) => i.id === 'settings'));
+  assert.equal(nav.search.icon, 'ai-search');
+  assert.equal(nav.search.path, '/search/');
+  assert.match(nav.icons['ai-search'], /^<svg[\s\S]*M14\.9 9\.6A6 6 0 1 1 11\.6 7\.2[\s\S]*<\/svg>$/);
   assert.deepEqual(nav.items.map((i) => i.zh), ['首页', '书签', '日刻', '博客']);
   for (const i of [...nav.items, ...nav.footer]) assert.match(nav.icons[i.icon], /^<svg[\s\S]*<\/svg>$/, i.icon);
   assert.ok(nav.icons['apps-grid']);

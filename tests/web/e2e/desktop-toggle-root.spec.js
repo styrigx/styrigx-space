@@ -112,9 +112,9 @@ test.describe('桌面/移动版切换：主页历史的原始请求地址必须�
     await page.waitForURL((u) => u.pathname === '/');
     await page.waitForTimeout(600);
 
-    /* 站内从导航抽屉点设置（2026-10-20 主页长条里的设置按钮已删除），再系统返回：主页正常退回，只请求一次 */
-    await page.click('.sgx-tb-nav');
-    await page.click('#sgx-drawer [data-nav="settings"]');
+    /* 站内从快捷面板顶栏的齿轮进设置（2026-10-21 起导航抽屉里没有设置），再系统返回：主页正常退回，只请求一次 */
+    await page.click('.sgx-tb-quick');
+    await page.click('#sgx-qp a.sgx-qp-set');
     await page.waitForURL((u) => u.pathname === '/settings/');
     await page.waitForLoadState('load');
     docs.length = 0;
