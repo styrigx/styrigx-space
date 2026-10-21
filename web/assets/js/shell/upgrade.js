@@ -11,7 +11,7 @@
  * 根凭证/密码改用弹层内联输入，不用原生弹窗（全站禁止原生弹窗，
  * 见 scripts/check-frontend.mjs）。
  */
-import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
+import { sgxNavigate } from '../lib/diag-jumptrace.js';
 import { bindEyeButton } from '../lib/dialog-behavior.js';
 import { followKeyboard } from './vk.js';
 import { getPasskeyAssertion, passkeyErrorText } from '../lib/passkey-assert.js';
@@ -42,7 +42,21 @@ export function upgradePasskeyErrorText(e, isEn) {
 export function initUpgrade() {
   const html = document.documentElement;
   if (html.getAttribute('data-sgx-upgrade') !== '1') return;
-  const returnPath = html.getAttribute('data-sgx-upgrade-return') || '/';
+  openOwnerVerify(html.getAttribute('data-sgx-upgrade-return') || '/');
+}
+
+/**
+ * 站长验证层（访客 → 站长的「升级」，状态机里独立于锁屏的一态）：
+ * - 就地弹出，盖在当前页面上；不出锁屏、不跳页。
+ * - 只给站长方式：通行密钥、密码（以及根凭证兜底）；没有访客入口。
+ * - 取消 / 失败：关掉弹层留在原页；不调任何接口，访客会话原样保留。
+ * - 通过：服务端签发 owner 会话（替换访客会话）→ 跳到 returnPath（站内路径，由调用方给：
+ *   security.js 给锁屏凭证页地址；initUpgrade 给服务端校验过的 data-sgx-upgrade-return）。
+ * @param {string} returnPath
+ */
+export function openOwnerVerify(returnPath) {
+  if (document.getElementById('sgx-upgrade-overlay')) return;
+  const html = document.documentElement;
   const isEn = html.lang === 'en';
 
   // 创建遮罩和对话框
@@ -153,15 +167,8 @@ export function initUpgrade() {
           showErr(isEn ? 'Server error' : '服务器错误');
           return;
         }
-        // 若 URL 带 return：location.replace 当前地址，L1 校验 return 并 302；
-        // 无 return 才去安全页。前端不自己做 return 白名单。
-        let ret = '';
-        try { ret = new URLSearchParams(window.location.search).get('return') || ''; } catch (e) {}
-        if (ret) {
-          sgxReplace(window.location.href);
-        } else {
-          sgxNavigate(isEn ? '/en/settings/security/' : '/settings/security/');
-        }
+        // 与密码 / 通行密钥同一去处：returnPath（以前「重载当前地址等 L1 302」，锁屏入口不过网关时会卡住）
+        sgxNavigate(returnPath);
       } else if (res.status === 429) {
         showErr(isEn ? 'Too many attempts' : '尝试次数过多');
       } else {

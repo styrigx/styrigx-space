@@ -124,6 +124,11 @@ jobs:
           hugo --minify -s web
           SGX_TEST_SUITE=lock npx playwright test --config=tests/config/playwright.config.js --grep-invert "baseline screenshot"
 
+      - name: Edge flow e2e（真实网关 + 线上路由规则 + 真实域名 + 虚拟认证器；2026-10-21 三站锁屏回归）
+        # 生产构建；本地 HTTPS 代理把 styrigx.com / blog / daymark 接到真实网关代码，路由按 wrangler.toml + 线上匹配规则。
+        run: |
+          SGX_TEST_SUITE=edge npx playwright test --config=tests/config/playwright.config.js
+
       - name: Lock screen baseline screenshot
         # 2.8.0：基线已重新生成，改成阻塞（失败即 CI 红）
         run: |

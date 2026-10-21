@@ -18,7 +18,11 @@
   <!-- 账号登录（PR3）：页名「登录账号」只在顶栏长条里（JS 按状态改），正文不再重复大标题、不放盾牌图标和构建号。
        头像 + 「欢迎回来」→ 主按钮「通行密钥登录」（强调色）→ 次按钮「密码登录」（原地展开密码框）→ 小字「无法登录？」进重置登录。
        设了哪个显示哪个；读不到状态（访客）两个都显示，服务端一律拒绝。根凭证不再是登录入口。 -->
-  <div id="acct-login" class="acct-login">
+  <!-- 2026-10-21：登录区和总览默认都隐藏（中性态）。服务端（网关）在 <html data-sgx-account="in|out"> 给出账号会话，
+       网关按它改首帧：in → 登录区整段不下发（SGX-ACCT-LOGIN 标记之间）、总览去掉 hidden；out → 登录区去掉 hidden。
+       account.js 再按同一个属性接手；只有服务端说「未登录」才出现「欢迎回来」，不再先画登录区再换成总览。 -->
+{{ "<!-- SGX-ACCT-LOGIN-START -->" | safeHTML }}
+  <div id="acct-login" class="acct-login" hidden>
     <div class="acct-login-hero animate-fade-up">
       <img class="acct-login-avatar" src="/avatar/192.webp" data-sgx-avatar="192" width="96" height="96" alt="">
       <p class="acct-login-welcome">{{ if $isEn }}Welcome back{{ else }}欢迎回来{{ end }}</p>
@@ -42,6 +46,7 @@
     </div>
     <a class="acct-cant" id="acct-cant" href="{{ cond $isEn "/en/settings/account/reset/" "/settings/account/reset/" }}">{{ if $isEn }}Can’t sign in?{{ else }}无法登录？{{ end }}</a>
   </div>
+{{ "<!-- SGX-ACCT-LOGIN-END -->" | safeHTML }}
 
   <!-- 账号总览（登录后，三星账号式）：账号卡（名字 + 头像，主人可换头像；点卡片其余地方进「已登录」子页）→ 安全与隐私 -->
   <div id="acct-main" hidden>

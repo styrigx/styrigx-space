@@ -1,0 +1,252 @@
+/**
+ * 三站锁屏 / 解锁 / 回跳的端到端回归（真实网关 + 线上路由规则 + 真实域名 + 虚拟认证器）。
+ * 测试台见 edge-harness.cjs。每条对应一次真实的用户报告（2026-10-21，三星浏览器录屏）：
+ *
+ *  R1 直接打开 blog / daymark → 主站锁屏（带 return）→ 通行密钥 / 访客都进不去、回不到子站
+ *  R2 主站解锁后刷新又出现锁屏
+ *  R3 切到别的标签页再切回，主站自己解锁（cookie 一直有效，锁屏是假的）
+ *  R4 访客在 设置 › 安全与隐私 点「锁屏凭证」→ 整个锁屏闪一下又回到设置（应就地弹出站长验证）
+ *  R5 已登录账号（站长或访客）点顶栏头像 → 账号页先画「欢迎回来」登录区约 0.5 秒再换成总览
+ *  另外：立即锁定之后刷新、去子站都必须仍是锁着的；锁定后已打开的已解锁页面切回来要上锁。
+ *
+ * 运行：SGX_TEST_SUITE=edge npx playwright test --config=tests/config/playwright.config.js
+ * （需要先 hugo --minify -s web 生产构建；需要 openssl）
+ */
+const { test, expect } = require('@playwright/test');
+const { startEdge, LAUNCH } = require('./edge-harness.cjs');
+
+test.use({ launchOptions: { args: LAUNCH.args }, proxy: LAUNCH.proxy, viewport: { width: 412, height: 915 },
+  userAgent: 'Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/27.0 Chrome/125.0.0.0 Mobile Safari/537.36',
+  timezoneId: 'Asia/Shanghai', locale: 'zh-CN' });
+
+
+const MAIN = 'https://styrigx.com';
+const BLOG = 'https://blog.styrigx.com';
+const DAYMARK = 'https://daymark.styrigx.com';
+
+/** 假 Turnstile：渲染后立刻回调一个 token（网关那边的 siteverify 已打桩） */
+const FAKE_TURNSTILE = 'window.turnstile={render:function(el,o){setTimeout(function(){o.callback("edge-token")},50);return "w1"},remove:function(){},reset:function(){}};';
+
+/** @type {Awaited<ReturnType<typeof startEdge>>} */
+let edge;
+
+test.beforeAll(async () => {
+  edge = await startEdge();
+});
+test.afterEach(() => {
+  if (process.env.EDGE_DEBUG) for (const l of edge.log) if (!/\/(css|js|fonts|fav)\//.test(l[2])) console.log('[edge]', l.join(' '));
+});
+test.afterAll(async () => { if (edge) await edge.close(); });
+
+test.beforeEach(async ({ context }) => {
+  if (process.env.EDGE_DEBUG) {
+    context.on('console', (m) => console.log('[console]', m.text()));
+    edge.log.length = 0;
+  }
+  await context.route((url) => !/^https:\/\/([a-z]+\.)?styrigx\.com\//.test(url.href), (route) => {
+    if (route.request().url().startsWith('https://challenges.cloudflare.com/turnstile/')) {
+      return route.fulfill({ contentType: 'text/javascript', body: FAKE_TURNSTILE });
+    }
+    return route.abort();
+  });
+  /* 记下锁屏有没有出现过（哪怕只闪一下）：R4 要求一次都不能出现 */
+  await context.addInitScript(() => {
+    window.__sawLock = false;
+    window.__sawLogin = false;
+    window.__sawMain = false;
+    const seen = () => {
+      if (document.getElementById('sgx-lock')) window.__sawLock = true;
+      /* 登录区：节点出现就算（不论是否 hidden）；文案出现也算 */
+      if (document.getElementById('acct-login') || (document.body && /欢迎回来|Welcome back/.test(document.body.textContent || ''))) window.__sawLogin = true;
+      const m = document.getElementById('acct-main');
+      if (m && !m.hidden) window.__sawMain = true;
+    };
+    new MutationObserver(seen).observe(document, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
+  });
+});
+
+async function addAuthenticator(page) {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('WebAuthn.enable');
+  const { authenticatorId } = await cdp.send('WebAuthn.addVirtualAuthenticator', {
+    options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true },
+  });
+  /* 每个测试一把新钥匙（signCount 各自从 0 起，测试之间不互相影响） */
+  await cdp.send('WebAuthn.addCredential', { authenticatorId, credential: await edge.seedPasskey() });
+}
+
+async function setSession(context, role) {
+  const value = await edge.mintCookie(role);
+  await context.addCookies([{ name: 'sgx-verified', value, domain: '.styrigx.com', path: '/', secure: true, httpOnly: true, sameSite: 'Lax' }]);
+}
+
+async function openMethods(page) {
+  await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
+  await page.click('#sgx-lock-avatar');
+  await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible({ timeout: 5000 });
+}
+
+async function lockShownWithin(page, ms) {
+  await page.waitForTimeout(ms);
+  return page.evaluate(() => window.__sawLock === true || !!document.getElementById('sgx-lock'));
+}
+
+async function sessionRole(page) {
+  return page.evaluate(() => fetch('/api/session-check', { cache: 'no-store' }).then((r) => r.ok ? r.json() : { ok: false }).then((j) => j.ok ? j.role : null));
+}
+
+test('R1 blog 直接打开 → 主站锁屏 → 通行密钥 → 回到 blog 原地址', async ({ page }) => {
+  await addAuthenticator(page);
+  await page.goto(BLOG + '/post/hello/');
+  expect(page.url()).toContain(MAIN + '/?lock=1');
+  expect(page.url()).toContain('return=' + encodeURIComponent(BLOG + '/post/hello/'));
+  /* 锁屏页本身必须是网关给的（带 data-sgx-session），不能是 Pages 直出 */
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-session', 'locked');
+  await openMethods(page);
+  await page.click('#sgx-mopt-pk');
+  await page.waitForURL(BLOG + '/post/hello/', { timeout: 20000 });
+  await expect(page.locator('#sub-content')).toContainText('SUBSITE-CONTENT blog');
+});
+
+test('R1 daymark 直接打开 → 主站锁屏 → 访客（Turnstile）→ 回到 daymark', async ({ page }) => {
+  await page.goto(DAYMARK + '/');
+  expect(page.url()).toContain(MAIN + '/?lock=1');
+  await openMethods(page);
+  await page.click('#sgx-mopt-visitor');
+  await page.waitForURL(DAYMARK + '/', { timeout: 20000 });
+  await expect(page.locator('#sub-content')).toContainText('SUBSITE-CONTENT daymark');
+  expect(await page.evaluate(() => fetch('/api/session-check').then((r) => r.status))).toBe(200);
+});
+
+test('R1 子站首页带任意查询串也必须过网关（未登录 → 302 锁屏，不能直出正文）', async ({ page }) => {
+  for (const u of [BLOG + '/?utm=1', DAYMARK + '/?x=1', MAIN + '/?x=1']) {
+    await page.goto(u);
+    expect(page.url(), u).toContain(MAIN + '/');
+    await expect(page.locator('#sub-content')).toHaveCount(0);
+    await expect(page.locator('html')).toHaveAttribute('data-sgx-session', 'locked');
+  }
+});
+
+test('R2 主站解锁（通行密钥）→ 刷新仍是解锁的', async ({ page }) => {
+  await addAuthenticator(page);
+  await page.goto(MAIN + '/?lock=1');
+  await openMethods(page);
+  await page.click('#sgx-mopt-pk');
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-session', 'valid', { timeout: 20000 });
+  await expect(page.locator('#sgx-lock')).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-session', 'valid');
+  await page.evaluate(() => { window.__sawLock = false; });
+  expect(await lockShownWithin(page, 1500)).toBe(false);
+});
+
+test('R2/R3 有效会话打开 /?lock=1（立即锁定、子站踢回都会落到这里）→ 不出锁屏', async ({ page, context }) => {
+  await setSession(context, 'owner');
+  await page.goto(MAIN + '/?lock=1');
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-session', 'valid');
+  expect(await lockShownWithin(page, 1500)).toBe(false);
+});
+
+test('R3 子站踢回（why=no-cookie）但主站会话有效 → 直接回子站，不出锁屏', async ({ page, context }) => {
+  await setSession(context, 'owner');
+  await page.goto(MAIN + '/?lock=1&why=no-cookie&return=' + encodeURIComponent(DAYMARK + '/'));
+  await page.waitForURL(DAYMARK + '/', { timeout: 15000 });
+  await expect(page.locator('#sub-content')).toContainText('SUBSITE-CONTENT daymark');
+});
+
+test('R3 已解锁页面：别的标签页立即锁定后，切回来要上锁（状态只听服务端）', async ({ page, context }) => {
+  await setSession(context, 'owner');
+  await page.goto(MAIN + '/');
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-session', 'valid');
+  /* 切走再切回：会话有效 → 不出锁屏 */
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  expect(await lockShownWithin(page, 800)).toBe(false);
+  /* 另一个标签页立即锁定 */
+  const other = await context.newPage();
+  await other.goto(MAIN + '/settings/security/');
+  await other.evaluate(() => fetch('/api/lock', { method: 'POST' }));
+  await other.close();
+  await page.waitForTimeout(5200); /* 自动锁检查节流 5 秒 */
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-session', 'locked');
+});
+
+test('立即锁定 → 刷新仍锁定；子站也锁定', async ({ page, context }) => {
+  await setSession(context, 'owner');
+  await page.goto(MAIN + '/settings/security/');
+  await page.click('#sec-locknow');
+  await page.click('#sec-locknow-confirm [data-act="ok"]');
+  await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 10000 });
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-session', 'locked');
+  await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 10000 });
+  await page.goto(BLOG + '/');
+  expect(page.url()).toContain(MAIN + '/?lock=1');
+  await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 10000 });
+});
+
+test('R4 访客点「锁屏凭证」→ 就地站长验证（不出锁屏、不跳页）；取消仍是访客；通行密钥通过 → 锁屏凭证页', async ({ page, context }) => {
+  await addAuthenticator(page);
+  await setSession(context, 'visitor');
+  await page.goto(MAIN + '/settings/security/');
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-role', 'visitor');
+  const navs = [];
+  page.on('framenavigated', (f) => { if (f === page.mainFrame()) { navs.push(f.url()); if (process.env.EDGE_DEBUG) console.log('[nav]', f.url()); } });
+  await page.click('#sec-lock-cred');
+  const sheet = page.locator('#sgx-upgrade-overlay');
+  await expect(sheet).toBeVisible({ timeout: 5000 });
+  /* 只给站长方式：通行密钥、密码；没有访客入口 */
+  await expect(page.locator('#sgx-upgrade-pk')).toBeVisible();
+  await expect(page.locator('#sgx-upgrade-pw')).toBeVisible();
+  await expect(sheet.locator('text=访客')).toHaveCount(0);
+  expect(navs).toEqual([]);
+  expect(await lockShownWithin(page, 300)).toBe(false);
+  /* 取消：留在原页，访客会话不丢 */
+  await page.click('#sgx-upgrade-cancel');
+  await expect(sheet).toHaveCount(0);
+  expect(page.url()).toBe(MAIN + '/settings/security/');
+  expect(await sessionRole(page)).toBe('visitor');
+  /* 再点 → 通行密钥 → 站长会话 → 锁屏凭证页 */
+  await page.click('#sec-lock-cred');
+  await expect(sheet).toBeVisible({ timeout: 5000 });
+  await page.click('#sgx-upgrade-pk');
+  await page.waitForURL(MAIN + '/settings/security/lock/', { timeout: 20000 });
+  expect(await sessionRole(page)).toBe('owner');
+  expect(await page.evaluate(() => window.__sawLock === true)).toBe(false);
+});
+
+test('R4 访客直接打开锁屏凭证页地址 → 不出锁屏，出站长验证', async ({ page, context }) => {
+  await setSession(context, 'visitor');
+  await page.goto(MAIN + '/settings/security/lock/');
+  await expect(page.locator('#sgx-upgrade-overlay')).toBeVisible({ timeout: 10000 });
+  expect(await lockShownWithin(page, 500)).toBe(false);
+  expect(await sessionRole(page)).toBe('visitor');
+});
+
+for (const role of ['owner', 'visitor']) {
+  test(`R5 已登录账号（锁屏会话 ${role}）进账号页：登录区一帧都不出现（不下发节点），总览首帧可见`, async ({ page, context }) => {
+    await setSession(context, role);
+    await context.addCookies([{ name: 'sgx-account', value: await edge.mintAccount(), domain: 'styrigx.com', path: '/', secure: true, httpOnly: true, sameSite: 'Strict' }]);
+    await page.goto(MAIN + '/settings/account/', { waitUntil: 'commit' });
+    await page.waitForLoadState('domcontentloaded');
+    /* 解析完那一刻：登录区节点不存在、总览不是 hidden（不靠脚本） */
+    expect(await page.evaluate(() => window.__sawLogin)).toBe(false);
+    await expect(page.locator('#acct-main')).toBeVisible();
+    await page.waitForLoadState('networkidle').catch(() => {});
+    await page.waitForTimeout(800);
+    expect(await page.evaluate(() => window.__sawLogin)).toBe(false);
+    await expect(page.locator('html')).toHaveAttribute('data-sgx-account', 'in');
+    await expect(page.locator('#acct-main')).toBeVisible();
+    await expect(page.locator('#acct-login')).toHaveCount(0);
+  });
+}
+
+test('R5 对照：站长没有账号会话 → 只出登录区（欢迎回来），总览不出现', async ({ page, context }) => {
+  await setSession(context, 'owner');
+  await page.goto(MAIN + '/settings/account/');
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-account', 'out');
+  await expect(page.locator('#acct-login')).toBeVisible();
+  await page.waitForTimeout(800);
+  expect(await page.evaluate(() => window.__sawMain)).toBe(false);
+});

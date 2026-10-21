@@ -10,14 +10,14 @@
  * A. 会话已经有效时被踢回（initLock 分支）
  * B. 会话无效、访客解锁后被踢回（handleSessionOk 分支）
  *
- * 时钟：page.clock.install + fastForward（Date.now 被 mock）。
+ * 时钟：不 mock，直接把 sessionStorage 记录的时间改到 10 / 25 秒前。
  * sessionStorage 只在每个测试开始时清一次。
  *
- * 跳转断言（B2-1 起）：sgxReplace 不再写 sessionStorage['sgx-last-jump']（B2-1 删除诊断留痕）。
- * 回跳 = sgxReplace(当前地址去掉 why)（线上由 L1 middleware 校验 return 后 302 到子站；
- * 带着 why 时 L1 不 302，所以回跳必须去掉 why，2026-10-20 修）。
- * 测试侧监听主框架导航请求（trackJumps）：URL 带 return= 且不是测试自己 goto 发出的，
- * 就是一次回跳；回跳地址不得再带 why=。subsite-jump 记录保留在 sessionStorage，可断言。
+ * 跳转断言（2026-10-21 起）：回跳 = 前端问 /api/session-check?return=，服务端给校验过的 next，
+ * location.replace(next) 直接去子站（不再「重载锁屏地址等 L1 302」）。
+ * 这里 /api/session-check* 由测试 mock（照服务端契约：next = 请求里的 return）；
+ * 测试侧监听主框架导航请求（trackJumps）：去子站域名的导航就是一次回跳（被 blockExternalRequests 拦掉，页面不动）。
+ * subsite-jump 记录保留在 sessionStorage，可断言。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, expect } = require('./helpers');
@@ -40,8 +40,7 @@ function trackJumps(page) {
     try {
       if (!r.isNavigationRequest() || r.frame() !== page.mainFrame()) return;
       page.__navCount = (page.__navCount || 0) + 1;
-      if (r.url().indexOf('return=') === -1) return;
-      if (page.__skipNav > 0) { page.__skipNav--; return; }
+      if (!/^https:\/\/(blog|daymark)\.styrigx\.com\//.test(r.url())) return;
       page.__jumps.push(r.url());
     } catch (e) {}
   });
@@ -91,6 +90,26 @@ async function settle(page) {
   }
 }
 
+/* /api/session-check 的服务端契约 mock：已解锁 → {ok, role, next=return}；未解锁 → 401 */
+async function mockSessionCheck(page) {
+  /* 去子站的导航回 204：浏览器留在当前页（不进 chrome-error 页），sessionStorage 记录可读 */
+  await page.route(/^https:\/\/(blog|daymark)\.styrigx\.com\//, (r) => r.fulfill({ status: 204, body: '' }));
+  await page.route('**/api/session-check*', async (route) => {
+    if (page.__locked) return route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false}' });
+    const ret = new URL(route.request().url()).searchParams.get('return');
+    await route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ ok: true, role: 'visitor', next: ret || null, upgrade: false }) });
+  });
+}
+
+/* 失败卡是否显示（evaluate 读，不走 locator：页面刚被 204 取消过一次导航） */
+async function failureShown(page) {
+  return page.evaluate(() => {
+    const el = document.getElementById('sgx-subsite-failure');
+    return !!(el && !el.hidden);
+  });
+}
+
 async function getJumpRecord(page) {
   return await page.evaluate(() => {
     try { return JSON.parse(sessionStorage.getItem('sgx-subsite-jump')); } catch (e) { return null; }
@@ -138,6 +157,8 @@ test.describe('B1-8 路径A：会话有效时被踢回', () => {
     });
     await blockJsNavigation(page);
     trackJumps(page);
+    page.__locked = false;
+    await mockSessionCheck(page);
   });
 
   async function gotoKicked(page, target, why) {
@@ -295,13 +316,22 @@ test.describe('B1-8 路径B：会话无效、访客解锁后被踢回', () => {
     });
     await blockJsNavigation(page);
     trackJumps(page);
+    await mockSessionCheck(page);
+    /* 访客入口：假 Turnstile（立刻回调）+ /api/verify 成功 → 会话生效 */
+    await page.route('https://challenges.cloudflare.com/**', (r) => r.fulfill({ contentType: 'text/javascript',
+      body: 'window.turnstile={render:function(el,o){setTimeout(function(){o.callback("t")},30);return "w"},remove:function(){},reset:function(){}};' }));
+    await page.route('**/api/verify', async (route) => {
+      page.__locked = false;
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+    });
   });
 
-  /* 访客解锁流程，handleSessionOk 会被触发 */
+  /* 访客解锁流程：解锁 → session-check?return → proceed（回跳或失败卡） */
   async function unlockAsVisitor(page, target, why) {
-    const url = '/?lock=1&why=' + encodeURIComponent(why) + '&return=' + encodeURIComponent(target);
+    page.__locked = true;
+    resetJumpTrace(page);
+    const url = '/?lock=1&test-no-local-bypass=1&why=' + encodeURIComponent(why) + '&return=' + encodeURIComponent(target);
     await gotoWhy(page, url);
-    await page.clock.install();
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
     await page.click('#sgx-lock-avatar');
     await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible({ timeout: 5000 });
@@ -318,13 +348,12 @@ test.describe('B1-8 路径B：会话无效、访客解锁后被踢回', () => {
 
     const trace = await getJumpTrace(page);
     expect(trace.length).toBeGreaterThan(0);
-    /* 回跳地址去掉了 why（带 why 时线上 L1 不 302，会卡在主站） */
-    expect(trace[0]).not.toContain('why=');
-    expect(trace[0]).toContain('return=');
+    /* 回跳直接去服务端给的 next（子站原地址） */
+    expect(trace[0]).toBe(TARGET);
     const rec = await getJumpRecord(page);
     expect(rec).not.toBeNull();
     expect(rec.target).toBe(TARGET);
-    await expect(page.locator('#sgx-subsite-failure')).toBeHidden();
+    expect(await failureShown(page)).toBe(false);
   });
 
   test('10 秒内第二次：出失败卡', async ({ page }) => {
@@ -333,11 +362,10 @@ test.describe('B1-8 路径B：会话无效、访客解锁后被踢回', () => {
 
     /* 第一次 */
     await unlockAsVisitor(page, TARGET, 'no-cookie');
-    await expect(page.locator('#sgx-subsite-failure')).toBeHidden();
+    expect(await failureShown(page)).toBe(false);
 
-    /* 把记录时间设为 10 秒前（clock 在 unlockAsVisitor 里已 install，跨页面导航后需重设） */
+    /* 把记录时间设为 10 秒前 */
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await page.clock.install();
     await page.evaluate(() => {
       try {
         const raw = sessionStorage.getItem('sgx-subsite-jump');
@@ -351,9 +379,8 @@ test.describe('B1-8 路径B：会话无效、访客解锁后被踢回', () => {
 
     await unlockAsVisitor(page, TARGET, 'no-cookie');
 
-    const card = page.locator('#sgx-subsite-failure');
-    await expect(card).toBeVisible({ timeout: 5000 });
-    const text = await card.textContent();
+    expect(await failureShown(page)).toBe(true);
+    const text = await page.evaluate(() => document.getElementById('sgx-subsite-failure').textContent);
     expect(text).not.toContain('no-cookie');
     expect(text).toContain('无法回到子站');
   });
@@ -369,7 +396,6 @@ test.describe('B1-8 路径B：会话无效、访客解锁后被踢回', () => {
 
     /* 记录时间设为 25 秒前 */
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await page.clock.install();
     await page.evaluate(() => {
       try {
         const raw = sessionStorage.getItem('sgx-subsite-jump');
@@ -387,7 +413,7 @@ test.describe('B1-8 路径B：会话无效、访客解锁后被踢回', () => {
 
     const trace2 = await getJumpTrace(page);
     expect(trace2.length).toBeGreaterThan(0);
-    await expect(page.locator('#sgx-subsite-failure')).toBeHidden();
+    expect(await failureShown(page)).toBe(false);
   });
 
   test('不同 target：正常回跳、不出失败卡', async ({ page }) => {
@@ -401,7 +427,6 @@ test.describe('B1-8 路径B：会话无效、访客解锁后被踢回', () => {
 
     /* 记录时间设为 10 秒前 */
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await page.clock.install();
     await page.evaluate(() => {
       try {
         const raw = sessionStorage.getItem('sgx-subsite-jump');
@@ -418,7 +443,7 @@ test.describe('B1-8 路径B：会话无效、访客解锁后被踢回', () => {
 
     const trace2 = await getJumpTrace(page);
     expect(trace2.length).toBeGreaterThan(0);
-    await expect(page.locator('#sgx-subsite-failure')).toBeHidden();
+    expect(await failureShown(page)).toBe(false);
     const rec = await getJumpRecord(page);
     expect(rec.target).toBe(TARGET_BLOG);
   });

@@ -1,14 +1,18 @@
 /**
- * 2.4.1：会话自检接口（防解锁后跳转循环）。
- * 2.8.0：返回角色供 UI 展示（UI 不做鉴权）。
- * GET /api/session-check
- * - 有有效 sgx-verified 会话 → 200 {ok:true, role:'owner'|'visitor'}
+ * 会话自检接口：前端唯一的「现在是什么状态、接下来去哪」的来源。
+ * GET /api/session-check[?return=<url>]
+ * - 有有效 sgx-verified 会话 → 200 {ok:true, role:'owner'|'visitor', next, upgrade}
+ *   - 带 return：next = 服务端校验后的去处（与首页 302 同一个 resolveReturn：站内路径或 *.styrigx.com 白名单，
+ *     不合法回首页）；upgrade=true 表示访客要去主人专属页 → 前端就地弹站长验证，不跳、不出锁屏
+ *   - 不带 return：next = null
  * - 否则 → 401 {ok:false}
- * 锁屏前端在解锁成功后先调这个确认服务端真的认到会话，
- * 确认后才跳 ?return=；没确认到就停在锁屏显示错误，绝不跳转。
+ * 锁屏前端解锁成功后、页面状态与 cookie 可能不一致时（切回标签页、bfcache 恢复）都只问这里，
+ * 拿到 next 直接跳过去；不再「重载同一地址等 L1 302」（那依赖锁屏页本身过网关，2026-10-21 线上不成立）。
  * 只接受 GET；复用 _middleware.js 的 verifySessionDetailed（同一套验签逻辑）。
  */
-import { verifySessionDetailed } from '../_middleware.js';
+import { verifySessionDetailed, resolveReturn } from '../_middleware.js';
+
+const NO_STORE = { 'Cache-Control': 'private, no-store' };
 
 /**
  * @param {any} context
@@ -16,11 +20,17 @@ import { verifySessionDetailed } from '../_middleware.js';
 export async function onRequestGet(context) {
   const { request, env } = context;
   const sess = await verifySessionDetailed(request, env);
-  if (sess.ok) {
-    return Response.json(
-      { ok: true, role: sess.role },
-      { headers: { 'Cache-Control': 'no-store' } }
-    );
+  if (!sess.ok) return Response.json({ ok: false }, { status: 401, headers: NO_STORE });
+  let next = null;
+  let upgrade = false;
+  let ret = '';
+  try {
+    ret = new URL(request.url).searchParams.get('return') || '';
+  } catch (e) {}
+  if (ret) {
+    const dest = resolveReturn(ret, sess.role);
+    next = dest.location;
+    upgrade = dest.upgrade;
   }
-  return Response.json({ ok: false }, { status: 401 });
+  return Response.json({ ok: true, role: sess.role, next, upgrade }, { headers: NO_STORE });
 }

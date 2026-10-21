@@ -1,7 +1,8 @@
 /**
  * @fileoverview styrigx-auth-gateway：主站鉴权 Worker 入口。
  *
- * 承接 styrigx.com/api/*、/avatar/* 和主站全部 HTML 页面目录（路由见 wrangler.toml）。
+ * 承接 styrigx.com 整站（路由 styrigx.com/*，见 wrangler.toml）：/api/*、/avatar/*、全部页面；
+ * 静态资源目录（MAIN_STATIC_PREFIXES）第一行就原样回源，不验会话、不改响应。
  * 子站（blog.styrigx.com、daymark.styrigx.com）的页面会话检查也在这里（src/subsites.js），子站 Pages 不持钥匙。
  * 主站的后端代码只在这里（workers/auth-gateway/functions/），Pages 只放静态文件：
  *   1. Secrets Store 的私密值换成字符串（secrets.js）
@@ -20,7 +21,17 @@ import { onRequest as middleware } from '../functions/_middleware.js';
 import * as avatarFile from '../functions/avatar/[file].js';
 import { API_ROUTES } from './routes.js';
 import { resolveSecrets } from './secrets.js';
-import { subsiteFor, handleSubsite } from './subsites.js';
+import { subsiteFor, handleSubsite, isStaticAsset as isSubsiteStaticAsset } from './subsites.js';
+
+/* 主站静态资源目录：内容带指纹或公开（css/js/字体/收藏图标），不含任何正文。
+   2026-10-21 路由改成整站通配前这些路径不过 Worker；现在进来也原样回源，行为不变。 */
+export const MAIN_STATIC_PREFIXES = ['/css/', '/js/', '/fonts/', '/fav/', '/images/'];
+
+/** @param {URL} url */
+export function isMainStaticPassthrough(url) {
+  if (url.hostname !== 'styrigx.com') return false;
+  return MAIN_STATIC_PREFIXES.some((p) => url.pathname.startsWith(p));
+}
 
 const METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
 
@@ -126,9 +137,15 @@ export default {
    * @param {{ waitUntil(p: Promise<any>): void }} ctx
    */
   async fetch(request, rawEnv, ctx) {
+    const url0 = new URL(request.url);
+    /* 静态资源：原样回源，不验会话、不打 X-SGX-Runtime（与以前不登记路由时一致；子站 CI 冒烟据此确认静态资源不验会话） */
+    if (isMainStaticPassthrough(url0)) return fromOrigin(request, rawEnv);
+    if (subsiteFor(url0.hostname) && isSubsiteStaticAsset(url0.pathname) && url0.pathname !== '/api/session-check') {
+      return fromOrigin(request, rawEnv);
+    }
     const env = await resolveSecrets(rawEnv);
     try {
-      if (subsiteFor(new URL(request.url).hostname)) {
+      if (subsiteFor(url0.hostname)) {
         return tagRuntime(await handleSubsite(request, env, (req) => fromOrigin(req, env)));
       }
       const next = (req) => route(req, env, ctx);

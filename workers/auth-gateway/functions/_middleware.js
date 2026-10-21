@@ -15,6 +15,7 @@ import { isPublicPage } from './_kernel/public-pages.js';
 import { verifyDoorCookie, DOOR_LOCKRESET } from './_kernel/door.js';
 import { withNoStore } from './_kernel/http.js';
 import { REALM_LOCK, realmPublicKey, SESSION_EPOCH_KEY } from './_kernel/realms.js';
+import { verifyAccountCookie } from './_kernel/account-session.js';
 
 /* 定稿 #13/#14/R3：访客可进安全与隐私总览页（/settings/security/），结构与站长一致；
    锁屏凭证页（门内）需 owner 会话，visitor 访问 → 302 到锁屏（只一次，首页不再二次 302）。 */
@@ -78,7 +79,12 @@ const STATIC_RE = /\.(css|js|woff2|woff|ttf|png|svg|ico|json|xml|webmanifest)$/i
 const AVATAR_FILE_RE = /^\/avatar\/(32|96|192|512)\.webp$/;
 /* 首页由 L1 特殊处理（见下）：始终返回页面并注入 data-sgx-session，不再走白名单 */
 
+/* 2026-10-21：全站内容索引（博客标题、地址）不是静态资源，要先解锁。
+   以前根目录文件不过网关（路由只登记了页面目录），后缀白名单里的 .json 也会把它放出去。 */
+const GATED_DATA = new Set(['/files-index.json', '/en/files-index.json']);
+
 function isWhitelisted(pathname) {
+  if (GATED_DATA.has(pathname)) return false;
   if (PAGE_WHITELIST.includes(pathname)) return true;
   if (pathname.startsWith('/?lock=1') || pathname.startsWith('/en/?lock=1')) return true;
   if (pathname.startsWith('/api/')) {
@@ -178,7 +184,7 @@ export function stripSessionAttrs(html) {
  * @param {'valid'|'locked'} state
  * @param {string|null} role 'owner'|'visitor'|null
  */
-export async function injectSessionState(res, state, role) {
+export async function injectSessionState(res, state, role, account) {
   const ct = res.headers.get('Content-Type') || '';
   if (!ct.includes('text/html')) return res;
   let html = stripSessionAttrs(await res.text());
@@ -189,6 +195,18 @@ export async function injectSessionState(res, state, role) {
     html = html.replace(/<!-- SGX-DESKTOP-START -->[\s\S]*?<!-- SGX-DESKTOP-END -->/g, '');
   }
   let injected = html.replace(/<html(\s|>)/i, '<html data-sgx-session="' + state + '"$1');
+  /* 2026-10-21：账号页首帧就按服务端的账号会话画（in / out），不先画「欢迎回来」再换。
+     只是展示提示：账号页的数据和所有操作仍由 /api/account 验签。 */
+  if (account === 'in' || account === 'out') {
+    injected = injected.replace(/<html(\s|>)/i, '<html data-sgx-account="' + account + '"$1');
+    if (account === 'in') {
+      /* 已登录：登录区（欢迎回来 / 通行密钥登录 / 密码登录）整段不下发，总览首帧就可见 */
+      injected = injected.replace(/<!-- SGX-ACCT-LOGIN-START -->[\s\S]*?<!-- SGX-ACCT-LOGIN-END -->/g, '');
+      injected = injected.replace(/<div id="acct-main" hidden>/, '<div id="acct-main">');
+    } else {
+      injected = injected.replace(/<div id="acct-login" class="acct-login" hidden>/, '<div id="acct-login" class="acct-login">');
+    }
+  }
   /* 2.8.0：注入角色供 UI 展示（UI 不做鉴权） */
   if (role === ROLE_OWNER || role === ROLE_VISITOR) {
     injected = injected.replace(/<html(\s|>)/i, '<html data-sgx-role="' + role + '"$1');
@@ -301,6 +319,43 @@ async function verifyOneCookie(val, env) {
   return { status: 'ok', role, by };
 }
 
+/** 首页前缀（/ 或 /en/） */
+function homeOf(pathname) {
+  return pathname === '/en' || pathname.startsWith('/en/') ? '/en/' : '/';
+}
+
+/**
+ * 解锁后去哪（唯一实现；首页 302 和 /api/session-check?return= 共用，前端不做白名单）。
+ * - return 不合法 → 首页
+ * - 已登录用户 return 指向门内页（锁屏凭证页）→ 安全与隐私总览（定稿 #1）
+ * - 访客 + 主人专属 return → upgrade（不跳；就地站长验证）
+ * @param {string} ret 原始 return 参数
+ * @param {string|null} role 'owner'|'visitor'
+ * @returns {{location:string, upgrade:boolean}}
+ */
+export function resolveReturn(ret, role) {
+  const isVisitor = role === ROLE_VISITOR;
+  let safeLoc = isSafeReturn(ret) ? ret : '/';
+  let locPath = '';
+  try {
+    const u = new URL(safeLoc, 'https://styrigx.com');
+    locPath = u.hostname === 'styrigx.com' ? u.pathname : '';
+  } catch (e) {
+    locPath = '';
+  }
+  if (locPath && isOwnerOnlyPath(locPath) && !isVisitor) {
+    safeLoc = locPath.startsWith('/en/') ? '/en/settings/security/' : '/settings/security/';
+    locPath = safeLoc;
+  }
+  const isOwnerReturn = locPath ? isOwnerOnlyPath(locPath) : false;
+  return { location: safeLoc, upgrade: isVisitor && isOwnerReturn };
+}
+
+/** 账号页（顶栏右圆头像进入）：注入账号会话提示，首帧不闪登录区 */
+function isAccountPage(pathname) {
+  return pathname === '/settings/account/' || pathname === '/en/settings/account/';
+}
+
 /** @param {any} context */
 export async function onRequest(context) {
   const res = await handleRequest(context);
@@ -407,42 +462,29 @@ async function handleRequest(context) {
          浏览器会在主站↔子站之间无限 302。 */
       const returnPath = url.searchParams.get('return');
       if (returnPath && sessionValid && !url.searchParams.get('why')) {
-        let safeLoc = isSafeReturn(returnPath) ? returnPath : '/';
-        let locPath = '';
-        try {
-          locPath = new URL(safeLoc, 'https://styrigx.com').pathname;
-        } catch (e) {
-          locPath = '';
-        }
-        /* 定稿 #1：门内页不能当解锁后的返回目标。已登录用户 return 指向门内页时
-           回安全与隐私总览页，用户显式点进去再过门。
-           访客走下面的升级验证流程，不受影响。 */
-        if (locPath && isOwnerOnlyPath(locPath) && !isVisitor) {
-          safeLoc = locPath.startsWith('/en/') ? '/en/settings/security/' : '/settings/security/';
-          locPath = locPath.startsWith('/en/') ? '/en/settings/security/' : '/settings/security/';
-        }
-        const isOwnerReturn = locPath ? isOwnerOnlyPath(locPath) : false;
-        if (!(isVisitor && isOwnerReturn)) {
-          /* 手动构造 302（不用 Response.redirect：Node/undici 不接受相对路径，
-             Workers 可以；手动写兼容两边）。
-             no-store：绝不缓存这个跳转（2.4.1 锁屏原则）。 */
+        const dest = resolveReturn(returnPath, role);
+        if (!dest.upgrade) {
+          /* 手动构造 302（Node/undici 的 Response.redirect 不接受相对路径）。no-store：绝不缓存这个跳转。 */
           return new Response(null, {
             status: 302,
-            headers: { 'Location': safeLoc, 'Cache-Control': 'private, no-store' },
+            headers: { 'Location': dest.location, 'Cache-Control': 'private, no-store' },
           });
         }
         /* 访客 + 主人专属 return：不跳转，200 返回首页并标记升级验证。
-           前端读 data-sgx-upgrade="1" 打开验证层。 */
+           前端读 data-sgx-upgrade="1" 打开站长验证层（不出锁屏）。 */
         const res = await next();
-        return injectUpgradeState(res, role, safeLoc);
+        return injectUpgradeState(res, role, dest.location);
       }
       const res = await next();
       return injectSessionState(res, sessionValid ? 'valid' : 'locked', role);
     }
 
-    /* 2.8.0：访客访问主人专属路径（设置、我的文件）→ 302 到锁屏，让用户选密码/通行密钥 */
+    /* 访客直接打开主人专属路径（锁屏凭证页）→ 302 到首页的「站长验证」（?return=，不带 lock=1）：
+       首页按 访客 + 主人专属 return 返回 upgrade 态，前端只弹站长验证层，不出锁屏、不动访客会话。
+       （站内点「锁屏凭证」不走这里：security.js 对访客就地弹同一个验证层，不跳页。）
+       以前带 lock=1，并且 styrigx.com/ 路由不认查询串 → 锁屏页从 Pages 直出、没有会话标记 → 整个锁屏闪一下。 */
     if (isVisitor && isOwnerOnlyPath(pathname)) {
-      const dest = 'https://styrigx.com/?lock=1&return=' + encodeURIComponent(url.pathname + url.search);
+      const dest = 'https://styrigx.com' + homeOf(pathname) + '?return=' + encodeURIComponent(url.pathname + url.search);
       return new Response(null, {
         status: 302,
         headers: {
@@ -476,7 +518,15 @@ async function handleRequest(context) {
          只改 text/html，静态资源保持原缓存策略。 */
       const ct = res.headers.get('Content-Type') || '';
       if (ct.includes('text/html')) {
-        return injectSessionState(res, 'valid', role);
+        let account = null;
+        if (isAccountPage(pathname)) {
+          try {
+            account = (await verifyAccountCookie(request, env)).ok ? 'in' : 'out';
+          } catch (e) {
+            account = null; /* 读不到：不给提示，前端停在中性态等 /api/account */
+          }
+        }
+        return injectSessionState(res, 'valid', role, account);
       }
       return res;
     }

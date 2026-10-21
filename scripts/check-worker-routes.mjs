@@ -1,12 +1,15 @@
 #!/usr/bin/env node
 /**
- * 核对主站 Worker 路由登记（workers/auth-gateway/wrangler.toml 的 [[routes]]）：
- * 1. 主站每个 HTML 页面都被某条路由覆盖（页面必须先过网关验会话；新增页面目录忘了登记 → 失败）
- * 2. 接口和头像（/api/、/avatar/）被路由覆盖（Pages 上没有后端代码，漏了就是 404 或默认头像）
- * 3. 静态资源目录不被任何路由覆盖（静态资源不过 Worker）
- * 4. 路由不重复
- * 5. 子站（blog/daymark）：只能登记 SUBSITE_HOSTS 里的域名；session-check 有路由；静态资源目录不被覆盖
- *    （子站页面是否全覆盖，由各子站 CI 部署后逐个目录冒烟检查）
+ * 核对网关 Worker 路由登记（workers/auth-gateway/wrangler.toml 的 [[routes]]）。
+ * 路由匹配按线上实测的规则（scripts/lib/cf-routes.mjs）：不带 * 的规则遇到查询串不命中。
+ * 以前这里写的是「不看查询串」，于是 styrigx.com/ 这类精确规则看着覆盖了首页，
+ * 实际 /?lock=1&return=…（锁屏入口）和子站首页 /?utm=… 都绕过了网关（2026-10-21）。
+ * 1. 主站每个 HTML 页面都被路由覆盖，带查询串（?x=1）也覆盖
+ * 2. 接口和头像（/api/、/avatar/）被路由覆盖
+ * 3. 路由不重复，只登记 styrigx.com 和 SUBSITE_HOSTS 里的域名
+ * 4. 子站必须登记的路径（含首页 + 查询串）都覆盖
+ * 5. daymark 的句子接口（daymark.styrigx.com/api/*，styrigx-daymark-core）不能被网关更具体的规则抢走（session-check 除外）
+ * 静态资源现在也进网关（整站通配），由 src/index.js / subsites.js 原样回源；单测 auth-flow-2026-10-21 覆盖。
  *
  * 需要先构建网站（hugo --minify -s web），读 web/public/ 下的 .html。
  * 用法：node scripts/check-worker-routes.mjs
@@ -14,38 +17,30 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readRoutes, routeMatches, pickRoute } from './lib/cf-routes.mjs';
+
+export { readRoutes, routeMatches };
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HOST = 'styrigx.com';
 const PUBLIC_DIR = path.join(REPO, 'web/public');
 /* 不需要过网关的 HTML：Pages 对不存在的路径直接回 404.html，本来就没人拦 */
 const EXEMPT = new Set(['/404.html']);
-/* 静态资源样例：都不能落进路由 */
-const STATIC_SAMPLES = ['/css/main.css', '/js/entries/entry-core.js', '/fonts/inter-latin.woff2', '/fav/x.webp', '/robots.txt', '/sitemap.xml', '/favicon.ico'];
-/* 必须过网关的非页面路径 */
-const MUST_ROUTE = ['/api/geo', '/api/session-check', '/avatar/32.webp', '/avatar/512.webp'];
-/* 子站：域名 → { 必须登记的路径, 不许登记的静态资源样例 } */
+/* 必须过网关的非页面路径（含锁屏入口本身，带查询串） */
+const MUST_ROUTE = ['/api/geo', '/api/session-check', '/avatar/32.webp', '/avatar/512.webp',
+  '/?lock=1', '/?lock=1&why=no-cookie&return=https%3A%2F%2Fblog.styrigx.com%2F', '/?return=%2Fsettings%2Fsecurity%2Flock%2F',
+  '/en/?lock=1', '/files-index.json'];
+/* 子站：域名 → 必须登记的路径 */
 const SUBSITE_HOSTS = {
   'blog.styrigx.com': {
-    mustRoute: ['/', '/about/', '/archives/', '/post/x/', '/tags/x/', '/en/', '/rss.xml', '/api/session-check'],
-    statics: ['/_astro/x.js', '/fonts/x.woff2', '/favicon.ico', '/robots.txt', '/manifest.json', '/og.png'],
+    mustRoute: ['/', '/?utm=1', '/about/', '/archives/', '/post/x/', '/post/x/?a', '/tags/x/', '/en/', '/en/?a', '/rss.xml', '/rss.xml?a', '/api/session-check'],
   },
   'daymark.styrigx.com': {
-    mustRoute: ['/', '/en/', '/zh/', '/sitemap.xml', '/api/session-check'],
-    statics: ['/js/x.js', '/css/x.css', '/fonts/x.woff2', '/favicon.ico', '/robots.txt', '/api/quotes', '/api/today'],
+    mustRoute: ['/', '/?x=1', '/en/', '/zh/', '/sitemap.xml', '/sitemap.xml?a', '/api/session-check'],
+    /* 归 styrigx-daymark-core 的接口：网关不得有比 daymark.styrigx.com/api/* 更具体的规则 */
+    otherWorker: { pattern: 'daymark.styrigx.com/api/*', samples: ['/api/quotes', '/api/today'] },
   },
 };
-
-export function readRoutes(toml) {
-  return [...toml.matchAll(/^pattern = "([^"]+)"$/gm)].map(m => m[1]);
-}
-
-/** Cloudflare 路由规则（只用到的部分）：结尾 * 是前缀匹配，否则精确匹配；不看查询串 */
-export function routeMatches(pattern, host, pathname) {
-  const target = host + pathname;
-  if (pattern.endsWith('*')) return target.startsWith(pattern.slice(0, -1));
-  return target === pattern;
-}
 
 /** web/public 里的 a/b/index.html → /a/b/；其他 .html 原样 */
 export function htmlToPath(rel) {
@@ -73,23 +68,22 @@ export function check(routes, pagePaths) {
   }
   for (const [host, conf] of Object.entries(SUBSITE_HOSTS)) {
     for (const p of conf.mustRoute) {
-      if (!routes.some(r => routeMatches(r, host, p))) errors.push('子站路径没有路由：' + host + p);
+      if (!pickRoute(routes, host, p)) errors.push('子站路径没有路由（不过网关）：' + host + p);
     }
-    for (const p of conf.statics) {
-      const hit = routes.find(r => routeMatches(r, host, p));
-      if (hit) errors.push('子站静态资源被路由覆盖：' + host + p + ' ← ' + hit);
+    if (conf.otherWorker) {
+      for (const p of conf.otherWorker.samples) {
+        const mine = pickRoute(routes, host, p);
+        if (mine && mine.length >= conf.otherWorker.pattern.length) errors.push('网关抢了别的 Worker 的路径：' + host + p + ' ← ' + mine);
+      }
     }
   }
   for (const p of pagePaths) {
     if (EXEMPT.has(p)) continue;
-    if (!routes.some(r => routeMatches(r, HOST, p))) errors.push('页面没有路由（不过网关）：' + p);
+    if (!pickRoute(routes, HOST, p)) errors.push('页面没有路由（不过网关）：' + p);
+    if (!pickRoute(routes, HOST, p + '?x=1')) errors.push('页面带查询串时没有路由（不过网关）：' + p + '?x=1');
   }
   for (const p of MUST_ROUTE) {
-    if (!routes.some(r => routeMatches(r, HOST, p))) errors.push('没有路由（Pages 上没有后端代码）：' + p);
-  }
-  for (const p of STATIC_SAMPLES) {
-    const hit = routes.find(r => routeMatches(r, HOST, p));
-    if (hit) errors.push('静态资源被路由覆盖：' + p + ' ← ' + hit);
+    if (!pickRoute(routes, HOST, p)) errors.push('没有路由（不过网关）：' + p);
   }
   return errors;
 }

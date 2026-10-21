@@ -3,7 +3,9 @@
  * - 两个入口（访客与站长看到完全一样）：锁屏凭证、立即锁定。
  *   账号凭证在顶栏右圆头像（账号页 /settings/account/ → 安全与隐私）。
  * - 锁屏凭证 → /settings/security/lock/（门在那一页：锁屏凭证或根凭证验一次，3 分钟门票）。
- *   访客点进去由中间件送回锁屏（升级验证）。
+ *   访客（服务端注入 data-sgx-role="visitor"）点它：不跳页，就地弹站长验证层（shell/upgrade.js
+ *   openOwnerVerify：只有通行密钥 / 密码，没有访客入口）；通过 → 进锁屏凭证页；取消 → 原页，访客会话不动。
+ *   以前是跳过去由中间件 302 到 /?lock=1&return=…，那一页不过网关 → 整个锁屏闪一下（2026-10-21）。
  * - 立即锁定：调服务端 /api/lock 清除会话 cookie 后重载，回到锁屏。
  * - 从 GET /api/lock-status（需 owner 会话）读取锁屏凭证是否已设置，渲染状态卡片与锁屏凭证行副标题（访客不调用）。
  * - localStorage 统一走 storage.js。
@@ -16,6 +18,7 @@ import { toast } from '../lib/toast.js';
 import { openSheet } from '../shell/sheet.js';
 import { engines as SE } from '../shell/engines.js';
 import { confirmLockNow } from '../lib/lock-now.js';
+import { openOwnerVerify } from '../shell/upgrade.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -84,6 +87,16 @@ import { confirmLockNow } from '../lib/lock-now.js';
       .catch(function () {
         /* 读取失败：保持现状 */
       });
+  }
+
+  /* 访客点「锁屏凭证」：就地站长验证（见文件头） */
+  const lockCred = /** @type {HTMLAnchorElement|null} */ (document.getElementById('sec-lock-cred'));
+  if (lockCred) {
+    on(lockCred, 'click', function (/** @type {MouseEvent} */ e) {
+      if (document.documentElement.dataset.sgxRole !== 'visitor') return;
+      e.preventDefault();
+      openOwnerVerify(lockCred.getAttribute('href') || (en ? '/en/settings/security/lock/' : '/settings/security/lock/'));
+    });
   }
 
   /* B1-1 立即锁定：确认层 + /api/lock 在 lib/lock-now.js（顶栏快捷面板的「立即锁定」磁贴共用同一份） */

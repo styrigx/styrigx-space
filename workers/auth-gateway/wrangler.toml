@@ -1,4 +1,4 @@
-# styrigx-auth-gateway：鉴权网关（CI 部署；承接 styrigx.com/api/*、/avatar/*、主站全部页面，以及 blog/daymark 子站页面的会话检查）
+# styrigx-auth-gateway：鉴权网关（CI 部署；承接 styrigx.com、blog.styrigx.com、daymark.styrigx.com 整站请求：会话检查 + 接口；静态资源原样回源）
 #
 # 主站全部后端代码都在本目录：src/（入口、路由表、密钥）+ functions/（middleware、接口、内核）+ migrations/（D1）。
 # Pages 只放静态文件（配置见 web/wrangler.toml），网关验完会话回源取页面。
@@ -21,126 +21,27 @@ preview_urls = false
 enabled = true
 head_sampling_rate = 1
 
-# 路由：本文件就是主站 Worker 路由的唯一登记处（scripts/check-worker-routes.mjs 在 CI 里核对）。
-# - /api/*：全部接口
-# - 页面：主站每个 HTML 页面所在目录都要在这里（新增页面目录忘了登记 → CI 红），网关验会话后回源 Pages 取页面
-# - /avatar/*：主人上传的头像存在 KV，要网关读（没上传过就回源拿静态默认图）
-# - 静态资源（/css/ /js/ /fonts/ /fav/ 等）不登记，不过 Worker
-# 注意：Pages 上已经没有后端代码，删掉页面路由 = 页面不验会话，不能靠删路由回滚；出问题时 revert 对应提交重新部署。
+# 路由：本文件就是网关 Worker 路由的唯一登记处（scripts/check-worker-routes.mjs 在 CI 里核对）。
+# 2026-10-21 起三站都是整站一条通配路由（host/*）：
+# - Cloudflare 的路由规则不带 * 时要求整条 URL（含查询串）完全相等。以前登记的 styrigx.com/、blog.styrigx.com/、
+#   daymark.styrigx.com/ 这类精确规则遇到 ?lock=1、?utm=… 就不命中 → 请求直达 Pages：
+#   锁屏入口 styrigx.com/?lock=1&return=… 没有会话标记、解锁后回不去子站；子站首页带任意查询串不验会话直出正文。
+# - 通配后新增页面目录不会漏登记（fail closed）。静态资源（/css/ /js/ /fonts/ /fav/ /images/）也进 Worker，
+#   但在 src/index.js 第一行就原样回源，不验会话、不改响应（与以前不登记时行为一致）。
+# - 更具体的规则优先：daymark.styrigx.com/api/*（styrigx-daymark-core，另一个仓库）仍归句子接口 Worker；
+#   daymark.styrigx.com/api/session-check 比它更具体，归网关。
+# 注意：Pages 上已经没有后端代码，删掉路由 = 页面不验会话，不能靠删路由回滚；出问题时 revert 对应提交重新部署。
 [[routes]]
-pattern = "styrigx.com/api/*"
+pattern = "styrigx.com/*"
+zone_name = "styrigx.com"
+
+# ---- 子站（src/subsites.js）----
+[[routes]]
+pattern = "blog.styrigx.com/*"
 zone_name = "styrigx.com"
 
 [[routes]]
-pattern = "styrigx.com/avatar/*"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "styrigx.com/"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "styrigx.com/en"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "styrigx.com/en/*"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "styrigx.com/settings/*"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "styrigx.com/files/*"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "styrigx.com/browser/*"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "styrigx.com/bookmarks/*"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "styrigx.com/search/*"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "styrigx.com/zh/*"
-zone_name = "styrigx.com"
-
-# ---- 子站（src/subsites.js）：只登记要验会话的页面路径，静态资源（/_astro/ /fonts/ /js/ /css/ /images/）不登记 ----
-# 子站 Pages 不持钥匙、没有验票代码，页面路由漏登记 = 那个页面不验会话；子站 CI 部署后逐个目录冒烟检查（未登录必须 302 且带 X-SGX-Runtime: worker）。
-# blog.styrigx.com（Astro，尾斜杠）
-[[routes]]
-pattern = "blog.styrigx.com/"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "blog.styrigx.com/about*"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "blog.styrigx.com/archives*"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "blog.styrigx.com/post/*"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "blog.styrigx.com/tags/*"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "blog.styrigx.com/en"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "blog.styrigx.com/en/*"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "blog.styrigx.com/rss.xml"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "blog.styrigx.com/sitemap*"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "blog.styrigx.com/pagefind/*"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "blog.styrigx.com/api/session-check"
-zone_name = "styrigx.com"
-
-# daymark.styrigx.com（每日一句，Hugo）。/api/* 只登记 session-check；句子接口在 styrigx-daymark-core（styrigx-daymark 仓库），不在这里登记
-[[routes]]
-pattern = "daymark.styrigx.com/"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "daymark.styrigx.com/en"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "daymark.styrigx.com/en/*"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "daymark.styrigx.com/zh"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "daymark.styrigx.com/zh/*"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "daymark.styrigx.com/sitemap.xml"
+pattern = "daymark.styrigx.com/*"
 zone_name = "styrigx.com"
 
 [[routes]]
