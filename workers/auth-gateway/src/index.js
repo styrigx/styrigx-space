@@ -28,8 +28,13 @@ import { subsiteFor, handleSubsite, isStaticAsset as isSubsiteStaticAsset } from
 export const MAIN_STATIC_PREFIXES = ['/css/', '/js/', '/fonts/', '/fav/', '/images/'];
 
 /** @param {URL} url */
+/* 根目录公开文件：路由改成整站通配后它们也进了 Worker（#159），这里同样原样回源、不打标记。
+   只放这两个：内容公开且固定；sitemap.xml / files-index.json 列出页面地址，仍走网关。 */
+export const MAIN_PUBLIC_ROOT_FILES = new Set(['/robots.txt', '/favicon.ico']);
+
 export function isMainStaticPassthrough(url) {
   if (url.hostname !== 'styrigx.com') return false;
+  if (MAIN_PUBLIC_ROOT_FILES.has(url.pathname)) return true;
   return MAIN_STATIC_PREFIXES.some((p) => url.pathname.startsWith(p));
 }
 
