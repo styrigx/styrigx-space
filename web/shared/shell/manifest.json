@@ -4,7 +4,7 @@
   "dir": "web/shared/shell",
   "files": {
     "tokens.css": "4fab2634c833c36d59fa5fb8731053efee26249cdef7f797eac756e6ac76623e",
-    "shell.css": "bfd8f2489dd4c99a3961b9d2944376bafd231498dc7eea6e7efdd4b9a5bf1501",
+    "shell.css": "1ec3a3c0247f196a157ba5a571e36617ab748aabfd437b32075c1c8525fb8bc8",
     "palette-scheme.js": "ab6d347b23dc2f062f3b7ca5ae1b94543e898864a8f669972e8720d2729c50c4",
     "search.js": "c81bc50fc451ca3b95e5c1354b3300eaf4ae1153600044f934deb123cc437192",
     "nav.json": "6b740255cc224cb6d5772a13b0fd598b4ef26fae62577abacbf32d6a8c53034e",
@@ -15,5 +15,5 @@
     "favicon.svg": "368c680c7554c6cde7f6d374057011a80c564cc08eb5cd3f31af5a4dbc580f07",
     "README.md": "fb36dd89970ac75852feb25d125d3bb287ba82fa87fcfe011bba4cbb0b4ba85c"
   },
-  "version": "0ad9bdff3afb"
+  "version": "af1c05182dd1"
 }

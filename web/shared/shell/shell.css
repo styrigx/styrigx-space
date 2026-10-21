@@ -111,7 +111,8 @@
 .sgx-drawer-me { flex: 0 0 auto; position: relative; width: var(--sgx-drawer-me); height: var(--sgx-drawer-me); border-radius: 999px; overflow: hidden; display: block;
   box-sizing: border-box; border: 1px solid var(--sgx-mat-line); box-shadow: var(--sgx-mat-shadow); }
 /* 抽屉头突出（2026-10-22）：头像加一圈浅色外环 + 更深阴影；抽屉头下方一条分割线（和导航下面那条同色、同左右缩进），身份区自成一块 */
-.sgx-drawer-me { box-shadow: 0 0 0 4px color-mix(in srgb, var(--sgx-mat-solid) 92%, var(--sgx-surface-container-lowest)), 0 6px 16px rgba(0,0,0,.18); }
+/* 外环画在圆里面（padding 4px + 底色），连环共 --sgx-drawer-me（52px），头像本体 44px；整体尺寸和以前不带环的圆一样（用户 2026-10-22） */
+.sgx-drawer-me { padding: 4px; border-width: 0; background: color-mix(in srgb, var(--sgx-mat-solid) 92%, var(--sgx-surface-container-lowest)); box-shadow: 0 6px 16px rgba(0,0,0,.18); }
 .sgx-drawer-head { position: relative; margin-bottom: calc(var(--sgx-drawer-head-gap) + 4px); }
 .sgx-drawer-head::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: -18px; border-top: 1px solid var(--sgx-outline-variant); pointer-events: none; }
 .sgx-drawer-me img { width: 100%; height: 100%; display: block; border: 0; border-radius: 999px; object-fit: cover; }
