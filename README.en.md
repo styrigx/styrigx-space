@@ -53,7 +53,7 @@ The Dock only shows on the home screen; inside apps only the search bar stays at
 
 ## Run locally
 
-Requirements: Hugo extended 0.167.0, Node.js (CI uses 20, needed to build Tailwind).
+Requirements: Hugo extended 0.168.0, Node.js (CI uses 20, needed to build Tailwind).
 
 ```bash
 git clone https://github.com/styrigx/styrigx-space.git
