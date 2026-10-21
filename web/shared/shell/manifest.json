@@ -6,9 +6,9 @@
     "tokens.css": "1020df0df04415b777a61944de08c38fa19a119cf657111f1169cffd91523edf",
     "shell.css": "7b9a94297ddbd02d69a8950f19f954bedb8fa31cbd7d42fe3ad34b937458f25e",
     "palette-scheme.js": "0bee0d8370d3ed854d0345b8b3849d9dd45b7c4d007623c45455ee25885239fa",
-    "nav.json": "cf2573ac72f9fbdc6897d9f5cab1a7ee6b3cf0e6c8fce1c3e45204b24e2458d4",
+    "nav.json": "e631fd25dceec1da4661a19bbd5c1f7c751100b11fd37860c9d126d02fb41bdb",
     "palettes.json": "6ec64d87323eea8038e8fff19e68ebfc6e83fc3651579f48319663f9509d50c7",
     "README.md": "53ab96da7a5fa60ad89b2aa9cf9e26b2e431bf076cc62aec4e342d1954be9ede"
   },
-  "version": "544afe129a8e"
+  "version": "50b120223490"
 }

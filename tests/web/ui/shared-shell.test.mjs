@@ -54,16 +54,19 @@ test('抽屉：tonal 当前项、毛玻璃面板、手机宽度由顶栏 token �
   assert.doesNotMatch(s, /\.sgx-drawer-search \{ width: 48px/);
 });
 
-test('nav.json：首页 / 书签 / 日刻 / 博客，没有设置；抽屉头搜索框；图标都在', () => {
+test('nav.json：首页 / 珍格 / 日刻 / 博客，没有设置；抽屉头搜索框；图标都在', () => {
   const nav = JSON.parse(files['nav.json']);
-  assert.deepEqual(nav.items.map((i) => i.id), ['home', 'bookmarks', 'daymark', 'blog']);
+  assert.deepEqual(nav.items.map((i) => i.id), ['home', 'curio', 'daymark', 'blog']);
+  // 2026-10-21：书签项换成子站 珍格 Curio（主站书签功能下线）
+  const curio = nav.items.find((i) => i.id === 'curio');
+  assert.deepEqual([curio.icon, curio.origin, curio.path, curio.en], ['nav-curio', 'https://curio.styrigx.com', '/', 'Curio']);
   // 2026-10-21：设置从抽屉挪到主站快捷面板顶栏，外壳不再要求有设置项（子站之后同步）
   assert.deepEqual(nav.footer, []);
   assert.ok(![...nav.items, ...nav.footer].some((i) => i.id === 'settings'));
   assert.equal(nav.search.icon, 'ai-search');
   assert.equal(nav.search.path, '/search/');
   assert.match(nav.icons['ai-search'], /^<svg[\s\S]*M14\.9 9\.6A6 6 0 1 1 11\.6 7\.2[\s\S]*<\/svg>$/);
-  assert.deepEqual(nav.items.map((i) => i.zh), ['首页', '书签', '日刻', '博客']);
+  assert.deepEqual(nav.items.map((i) => i.zh), ['首页', '珍格', '日刻', '博客']);
   for (const i of [...nav.items, ...nav.footer]) assert.match(nav.icons[i.icon], /^<svg[\s\S]*<\/svg>$/, i.icon);
   assert.ok(nav.icons['apps-grid']);
 });

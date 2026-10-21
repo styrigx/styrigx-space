@@ -5,7 +5,7 @@
  *   面板底色 = 顶栏材质（跟随调色板与明暗）；阴影往右投、清楚可见。
  * - 抽屉头（v6）：同一行 大号 Styrigx（26px/800）+ 搜索框长条（AI 搜索图标 + 「搜索」→ /search/，在搜索页上只关抽屉并聚焦输入框），
  *   右缘对齐药丸右缘；头部和首页之间留足间距。
- * - 九宫格 → Gmail 式左侧导航抽屉：首页 / 书签 / 日刻 / 博客（2026-10-21 起没有 设置，入口在快捷面板齿轮）；每项有描边图标，
+ * - 九宫格 → Gmail 式左侧导航抽屉：首页 / 珍格 / 日刻 / 博客（2026-10-21 起没有 设置；书签项换成子站 珍格 Curio，入口在快捷面板齿轮）；每项有描边图标，
  *   当前页是药丸高亮；没有 我的文件 / 帮助与反馈；点遮罩 / Esc / 系统返回关闭。
  * - /browser/ 拆成 书签 /bookmarks/（只有书签：分类筛选条 + 分组）+ 全网搜索 /search/。
  * - 搜索引擎 / 清除浏览记录搬到 设置 › 安全与隐私 › 隐私。
@@ -64,14 +64,14 @@ test.describe('顶栏：全站同一套，没有 ‹ 和 ⋮', () => {
 });
 
 test.describe('导航抽屉', () => {
-  test('打开：首页 / 书签 / 日刻 / 博客，没有 设置 和分隔线；每项有图标；没有 我的文件 / 帮助', async ({ page }) => {
+  test('打开：首页 / 珍格 / 日刻 / 博客，没有 设置 和分隔线；每项有图标；没有 我的文件 / 帮助', async ({ page }) => {
     await go(page, '/settings/display/');
     await expect(page.locator('.sgx-tb-nav')).toHaveAttribute('aria-expanded', 'false');
     await openDrawer(page);
     await expect(page.locator('.sgx-tb-nav')).toHaveAttribute('aria-expanded', 'true');
     const lists = drawer(page).locator('.sgx-drawer-list');
     await expect(lists).toHaveCount(1);
-    await expect(lists.nth(0).locator('.sgx-drawer-label')).toHaveText(['首页', '书签', '日刻', '博客']);
+    await expect(lists.nth(0).locator('.sgx-drawer-label')).toHaveText(['首页', '珍格', '日刻', '博客']);
     await expect(drawer(page).locator('hr.sgx-drawer-div')).toHaveCount(0);
     await expect(drawer(page).locator('[data-nav="settings"]')).toHaveCount(0);
     await expect(drawer(page).locator('a[href$="/settings/"]')).toHaveCount(0);
@@ -84,7 +84,8 @@ test.describe('导航抽屉', () => {
     await expect(drawer(page).locator('a[href*="/files/"]')).toHaveCount(0);
     /* 链接 */
     await expect(items.nth(0)).toHaveAttribute('href', '/');
-    await expect(items.nth(1)).toHaveAttribute('href', '/bookmarks/');
+    await expect(items.nth(1)).toHaveAttribute('href', 'https://curio.styrigx.com/');
+    await expect(items.nth(1)).toHaveAttribute('data-nav', 'curio');
     await expect(items.nth(2)).toHaveAttribute('href', 'https://daymark.styrigx.com/');
     await expect(items.nth(3)).toHaveAttribute('href', 'https://blog.styrigx.com/');
     /* 设置子页：抽屉里没有对应项，没有高亮 */
@@ -94,30 +95,27 @@ test.describe('导航抽屉', () => {
     expect(Math.abs(sheet.x)).toBeLessThanOrEqual(1);
   });
 
-  test('当前页高亮：主页 → 首页，书签页 → 书签', async ({ page }) => {
+  test('当前页高亮：主页 → 首页', async ({ page }) => {
     await go(page, '/');
     await openDrawer(page);
     await expect(drawer(page).locator('[aria-current="page"] .sgx-drawer-label')).toHaveText('首页');
-    await page.goto('/bookmarks/', { waitUntil: 'domcontentloaded' });
-    await openDrawer(page);
-    await expect(drawer(page).locator('[aria-current="page"] .sgx-drawer-label')).toHaveText('书签');
   });
 
   test('当前页高亮：药丸底色与普通项不同', async ({ page }) => {
-    await go(page, '/bookmarks/');
+    await go(page, '/');
     await openDrawer(page);
     const items = drawer(page).locator('.sgx-drawer-item');
-    await expect(items.nth(1)).toHaveAttribute('aria-current', 'page');
-    const bg = await items.nth(1).evaluate((el) => getComputedStyle(el).backgroundColor);
-    const bg0 = await items.nth(0).evaluate((el) => getComputedStyle(el).backgroundColor);
+    await expect(items.nth(0)).toHaveAttribute('aria-current', 'page');
+    const bg = await items.nth(0).evaluate((el) => getComputedStyle(el).backgroundColor);
+    const bg0 = await items.nth(1).evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(bg).not.toBe(bg0);
   });
 
-  test('英文：Home / Bookmarks / Daymark / Blog，没有 Settings；搜索框 → /en/search/', async ({ page }) => {
+  test('英文：Home / Curio / Daymark / Blog，没有 Settings；搜索框 → /en/search/', async ({ page }) => {
     await go(page, '/en/', 'en');
     await openDrawer(page);
-    await expect(drawer(page).locator('.sgx-drawer-label')).toHaveText(['Home', 'Bookmarks', 'Daymark', 'Blog']);
-    await expect(drawer(page).locator('.sgx-drawer-item').nth(1)).toHaveAttribute('href', '/en/bookmarks/');
+    await expect(drawer(page).locator('.sgx-drawer-label')).toHaveText(['Home', 'Curio', 'Daymark', 'Blog']);
+    await expect(drawer(page).locator('.sgx-drawer-item').nth(1)).toHaveAttribute('href', 'https://curio.styrigx.com/en/');
     const s = drawer(page).locator('.sgx-drawer-head a.sgx-drawer-search');
     await expect(s).toHaveAttribute('href', '/en/search/');
     await expect(s).toHaveAttribute('aria-label', 'Search');
@@ -193,19 +191,19 @@ test.describe('导航抽屉', () => {
     await page.goto('/settings/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-topbar')).toBeVisible();
     await openDrawer(page);
-    await drawer(page).locator('.sgx-drawer-item', { hasText: '书签' }).click();
-    await expect(page).toHaveURL(/\/bookmarks\/$/);
+    await drawer(page).locator('.sgx-drawer-item', { hasText: '首页' }).click();
+    await expect(page).toHaveURL(/localhost:\d+\/$/);
     await page.goBack();
     await expect(page).toHaveURL(/\/settings\/$/);
     await expect(drawer(page)).toBeHidden();
   });
 
   test('点当前页那一项只关闭', async ({ page }) => {
-    await go(page, '/bookmarks/');
+    await go(page, '/');
     await openDrawer(page);
-    await drawer(page).locator('.sgx-drawer-item', { hasText: '书签' }).click();
+    await drawer(page).locator('.sgx-drawer-item', { hasText: '首页' }).click();
     await expect(drawer(page)).toBeHidden();
-    await expect(page).toHaveURL(/\/bookmarks\/$/);
+    await expect(page).toHaveURL(/localhost:\d+\/$/);
   });
 });
 
@@ -260,17 +258,17 @@ test.describe('抽屉头：大号站名 + 搜索框', () => {
 
   test('点搜索框：关抽屉后进全网搜索页，不在历史里多留一步', async ({ page }) => {
     await go(page, '/');
-    await page.goto('/bookmarks/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/settings/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-topbar')).toBeVisible();
     await openDrawer(page);
     await drawer(page).locator('a.sgx-drawer-search').click();
     await expect(page).toHaveURL(/\/search\/$/);
-    /* 搜索页自己会占历史（键盘 / 当前页哨兵）：一直返回到离开 /search/，落点是书签页且不是抽屉哨兵 */
+    /* 搜索页自己会占历史（键盘 / 当前页哨兵）：一直返回到离开 /search/，落点是设置页且不是抽屉哨兵 */
     for (let i = 0; i < 4 && new URL(page.url()).pathname === '/search/'; i++) {
       await page.goBack();
       await page.waitForTimeout(300);
     }
-    await expect(page).toHaveURL(/\/bookmarks\/$/);
+    await expect(page).toHaveURL(/\/settings\/$/);
     expect(await page.evaluate(() => !!(history.state && history.state.sgxDrawer))).toBe(false);
     await expect(drawer(page)).toBeHidden();
   });

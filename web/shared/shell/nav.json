@@ -15,12 +15,12 @@
       "path": "/"
     },
     {
-      "id": "bookmarks",
-      "icon": "nav-bookmark",
-      "zh": "书签",
-      "en": "Bookmarks",
-      "origin": "https://styrigx.com",
-      "path": "/bookmarks/"
+      "id": "curio",
+      "icon": "nav-curio",
+      "zh": "珍格",
+      "en": "Curio",
+      "origin": "https://curio.styrigx.com",
+      "path": "/"
     },
     {
       "id": "daymark",
@@ -49,7 +49,7 @@
   },
   "icons": {
     "nav-home": "<svg width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3.5 10.5L12 3.5l8.5 7\"/><path d=\"M5.5 9v11h4.5v-6h4v6h4.5V9\"/></svg>",
-    "nav-bookmark": "<svg width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M6.5 3.5h11a1 1 0 0 1 1 1v16l-6.5-4.2-6.5 4.2v-16a1 1 0 0 1 1-1z\"/></svg>",
+    "nav-curio": "<svg width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M7 4h10l4 5.2-9 10.8-9-10.8z\"/><path d=\"M3 9.2h18\"/><path d=\"M10 4l-1.6 5.2L12 20l3.6-10.8L14 4\"/></svg>",
     "nav-daymark": "<svg width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><rect x=\"4\" y=\"5\" width=\"16\" height=\"15.5\" rx=\"2.5\"/><path d=\"M8.5 3v4M15.5 3v4\"/><path d=\"M10.5 11.2c-1.3.5-2 1.6-2 3.3v1.3\"/><path d=\"M8.5 15.8h1.8v-1.9H8.6\"/><path d=\"M15.5 11.2c-1.3.5-2 1.6-2 3.3v1.3\"/><path d=\"M13.5 15.8h1.8v-1.9h-1.7\"/></svg>",
     "nav-blog": "<svg width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 20h4.2L19.4 8.8a2 2 0 0 0 0-2.8l-1.4-1.4a2 2 0 0 0-2.8 0L4 15.8z\"/><path d=\"M13.5 6.5l4 4\"/></svg>",
     "apps-grid": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" aria-hidden=\"true\"><circle cx=\"5\" cy=\"5\" r=\"2\"/><circle cx=\"12\" cy=\"5\" r=\"2\"/><circle cx=\"19\" cy=\"5\" r=\"2\"/><circle cx=\"5\" cy=\"12\" r=\"2\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/><circle cx=\"19\" cy=\"12\" r=\"2\"/><circle cx=\"5\" cy=\"19\" r=\"2\"/><circle cx=\"12\" cy=\"19\" r=\"2\"/><circle cx=\"19\" cy=\"19\" r=\"2\"/></svg>",
