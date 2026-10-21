@@ -652,7 +652,7 @@ test.describe('账号总览：signalCurrentUserDetails', () => {
 });
 
 test.describe('访客头像', () => {
-  test('访客：右上角头像只是装饰 —— 没有链接、点了不跳转', async ({ page }) => {
+  test('访客：抽屉头的头像只是装饰 —— 没有链接、点了不跳转', async ({ page }) => {
     await zh(page);
     /* 像线上 L1 那样把会话角色写进 <html> */
     await page.route(/^http:\/\/localhost:\d+\/$/, async (route) => {
@@ -661,7 +661,9 @@ test.describe('访客头像', () => {
       await route.fulfill({ response: res, body: body });
     });
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    const me = page.locator('.sgx-tb-me');
+    const me = page.locator('.sgx-drawer-me');
+    await page.locator('.sgx-tb-nav').click();
+    await expect(page.locator('#sgx-drawer')).toHaveAttribute('data-state', 'open');
     await expect(me).not.toHaveAttribute('href', /.*/);
     await expect(me).toHaveAttribute('aria-disabled', 'true');
     expect(await me.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe('none');
@@ -673,7 +675,7 @@ test.describe('访客头像', () => {
   test('站长：头像照常链到账号页', async ({ page }) => {
     await zh(page);
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('.sgx-tb-me')).toHaveAttribute('href', '/settings/account/');
+    await expect(page.locator('.sgx-drawer-me')).toHaveAttribute('href', '/settings/account/');
   });
 });
 

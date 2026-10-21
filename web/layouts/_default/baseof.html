@@ -42,6 +42,10 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="apple-touch-icon" href="/avatar/192.webp">
 <link rel="search" type="application/opensearchdescription+xml" title="Styrigx" href="/opensearch.xml">
+{{/* 原地搜索层（共享外壳组件 shell/search-layer.js，2026-10-22 取代 /search/ 页）单独打包、不进页面入口：
+   shell/search-host.js 在按下九宫格 / 打开抽屉 / Ctrl+K 时才 import() 这个地址 */}}
+{{ $searchJs := resources.Get "js/shell/search-layer.js" | js.Build (dict "minify" true "target" "es2020" "format" "esm") | fingerprint }}
+<meta name="sgx-search-src" content="{{ $searchJs.RelPermalink }}">
 <link rel="stylesheet" href="{{ (resources.Get "css/main.css" | fingerprint).RelPermalink }}">
 {{/* 注意：main.css 已由 scripts/build-css.cjs 压缩，不再走 Hugo minify（tdewolff 不认 @view-transition） */}}
 <script>
@@ -80,11 +84,6 @@ addEventListener('pagereveal',function(e){window.__sgxRevealVT=e.viewTransition|
     var rm=false;try{rm=localStorage.getItem('sgx-reduced-motion')==='1'}catch(e){}
     if(rm){d.classList.add('reduced-motion')}
     d.setAttribute('data-reduced-motion',rm?'1':'0');
-    /* 从导航抽屉进全网搜索页（head-buttons.js 记 sessionStorage sgx-search-from-drawer=1）：首帧就挂 .sgx-from-drawer
-       （顶栏 / 内容快速淡入、底部搜索栏从左下方升起，CSS 见 input.css），并跳过这一次的跨页交叉淡化；标记由 web-search.js 读完清掉 */
-    try{if(/^\/(en\/)?search\/$/.test(location.pathname)&&sessionStorage.getItem('sgx-search-from-drawer')==='1'&&!rm&&!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)){
-      d.classList.add('sgx-from-drawer');
-      window.addEventListener('pagereveal',function(e){try{if(e.viewTransition)e.viewTransition.skipTransition()}catch(x){}},{once:true})}}catch(e){}
     /* 布局偏好（实际生效的布局由 __applyLayout 计算，这里只记偏好） */
     var lm=null;try{lm=localStorage.getItem('sgx-layout')}catch(e){}
     d.setAttribute('data-layout',lm||'auto');
@@ -181,17 +180,19 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 <div id="sgx-wallpaper" aria-hidden="true"></div>
 {{/* 2.4.0-C：调度器 / 边缘模糊 / 可见性定时器已移入 ES Module（assets/js/shell/），此处不再内联定义 */}}
 {{ $profile := site.Data.profile }}
+{{/* 抽屉搜索框的 href = 没 JS 时的去处（/search/ 只是个转到首页并打开搜索层的小跳转页）；有 JS 时原地打开搜索层 */}}
 {{ $searchUrl := "/search/" }}{{ if $isEn }}{{ $searchUrl = "/en/search/" }}{{ end }}
 {{ $acctUrl := "/settings/account/" }}{{ if $isEn }}{{ $acctUrl = "/en/settings/account/" }}{{ end }}
 {{ $setUrl := $setUrl0 }}
 {{ $glUrl := cond $isEn "/en/settings/goodlock/" "/settings/goodlock/" }}
 
-{{/* 顶栏（通版，2026-10-20 v5，全站同一套）：两个圆 + 一个长条：
-   [九宫格圆（打开左侧导航抽屉）] — [长条：搜索图标 | 当前页名 | 快捷面板图标] — [头像圆（账号）]。
-   长条在屏幕上真正居中（两侧各一个同尺寸圆）；长条两端图标对称内缩，页名在长条正中（不可点，主页「首页」/ Home，其他页用页面标题），太长时省略号。
-   搜索图标（#sgx-tb-search）是普通链接（沿用站内切页过渡）；在全网搜索页上点它只聚焦底部输入框（见 head-buttons.js）。
-   快捷面板图标（.sgx-tb-quick）打开顶栏下方落下的面板 #sgx-qp（非模态 <dialog>，见导航抽屉后面的快捷面板注释），aria-expanded 同步。
-   两个图标各自 40px 圆形点击区，按压 / 悬停态只在图标上，长条本身没有按压态。
+{{/* 顶栏（通版，全站同一套，2026-10-22 v8）：两个圆 + 一个长条：
+   [九宫格圆（打开左侧导航抽屉）] — [长条：只有当前页名] — [右圆：每站自己的按钮（主站 = 快捷面板）]。
+   长条在屏幕上真正居中（两侧各一个同尺寸圆）；长条里只有页名（不可点，主页「首页」/ Home，其他页用页面标题），居中、太长时省略号，
+   三个站一模一样，不放任何图标（2026-10-22 起：搜索图标删了，搜索从抽屉底栏进原地搜索层；快捷面板图标挪到右圆）。
+   右圆 .sgx-tb-end 是唯一按站点自定义的位置：内容来自 partials/topbar-end.html（主站 = 快捷面板按钮 .sgx-tb-quick，
+   打开顶栏下方落下的面板 #sgx-qp，aria-expanded 同步）；子站在自己的同名 partial 里放别的（同一个 .sgx-tb-end 圆，样式在共享外壳 shell.css）。
+   头像从顶栏挪进导航抽屉头（字标右边，见下面抽屉）。
    子页面没有大标题区：页名只在长条里，正文从顶栏下方 --sgx-content-top 开始（input.css，全站同一个值）。 */}}
 {{ $pageName := .Title }}
 {{ if .IsHome }}{{ $pageName = cond $isEn "Home" "首页" }}
@@ -201,12 +202,8 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 <header id="site-nav" class="z-50">
   <div class="sgx-topbar">
     <button type="button" class="sgx-tb-nav" aria-label="{{ if $isEn }}Navigation{{ else }}导航{{ end }}" aria-haspopup="dialog" aria-controls="sgx-drawer" aria-expanded="false">{{ partial "icon.html" "apps-grid" }}</button>
-    <div class="sgx-tb-pill">
-      <a id="sgx-tb-search" class="sgx-tb-search sgx-tb-ic" href="{{ $searchUrl }}" aria-label="{{ if $isEn }}Search{{ else }}搜索{{ end }}">{{ partial "icon.html" "search" }}</a>
-      <span class="sgx-tb-title">{{ $pageName }}</span>
-      <button type="button" class="sgx-tb-quick sgx-tb-ic" aria-label="{{ if $isEn }}Quick panel{{ else }}快捷面板{{ end }}" aria-haspopup="dialog" aria-controls="sgx-qp" aria-expanded="false">{{ partial "icon.html" "sliders" }}</button>
-    </div>
-    <a class="sgx-tb-me" href="{{ $acctUrl }}" aria-label="{{ if $isEn }}Account{{ else }}账号{{ end }}"><img src="/avatar/192.webp" alt="" width="52" height="52" class="sgx-tb-avatar" data-sgx-avatar="192"></a>
+    <div class="sgx-tb-pill"><span class="sgx-tb-title">{{ $pageName }}</span></div>
+    {{ partial "topbar-end.html" (dict "isEn" $isEn "page" .) }}
   </div>
 </header>
 
@@ -214,8 +211,8 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
    当前页所在项用药丸高亮（aria-current="page"）。日刻、博客是子站（同一标签页打开）。
    2026-10-21：抽屉里去掉了「设置」（入口在快捷面板顶栏的齿轮）。2026-10-21 v7（ChatGPT / Muse Android 抽屉式）：
    抽屉头只有大号站名；中间 .sgx-drawer-body 放导航项（最后一项下面一条发丝分隔线），超出时只有它自己滚；底栏 .sgx-drawer-foot 钉在面板底部
-   （安全区内边距），放整宽搜索框长条（AI 搜索图标 + 「搜索」居中，<a> 进全网搜索页，没 JS 也能用；
-   JS 接管：抽屉原地淡出后进搜索页 / 在搜索页上只聚焦，见 head-buttons.js）。 */}}
+   （安全区内边距），放整宽搜索框长条（AI 搜索图标 + 「搜索」居中；<a> 没 JS 时进 /search/ 跳转页；
+   JS 接管：点击里同步打开原地搜索层，抽屉原地淡掉、搜索框变成底部搜索栏，见 head-buttons.js / search-host.js）。 */}}
 {{ $navCur := "" }}
 {{ if .IsHome }}{{ $navCur = "home" }}{{ else if or (hasPrefix .RelPermalink "/settings/") (hasPrefix .RelPermalink "/en/settings/") }}{{ $navCur = "settings" }}{{ end }}
 {{/* 抽屉项来自 web/data/shell-nav.json（共享外壳：scripts/gen-shell.mjs 把它连同图标生成 web/shared/shell/nav.json，子站同步同一份）。
@@ -224,7 +221,9 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 <dialog id="sgx-drawer" class="sgx-drawer" aria-label="{{ cond $isEn $shellNav.label.en $shellNav.label.zh }}">
   <nav class="sgx-drawer-sheet">
     {{/* 站名 = 字标 SVG（partials/shell-wordmark.html，role="img" aria-label="Styrigx"）；shell-nav.json 的 brand 文字仍保留给子站 / 无 SVG 场合 */}}
-    <div class="sgx-drawer-head"><span class="sgx-drawer-brand">{{ partial "shell-wordmark.html" . }}</span></div>
+    {{/* 抽屉头 = 字标 + 右边的头像圆（2026-10-22 从顶栏右圆挪来；共享外壳，三个站都有）：主站链到账号页（访客只是装饰，见 head-buttons.js initVisitorAvatar），
+       子站链到 shell-nav.json 的 me.href（主站）。img 仍是 .sgx-tb-avatar + data-sgx-avatar（换头像 / 锁屏头像读它） */}}
+    <div class="sgx-drawer-head"><span class="sgx-drawer-brand">{{ partial "shell-wordmark.html" . }}</span><a class="sgx-drawer-me" href="{{ $acctUrl }}" aria-label="{{ cond $isEn $shellNav.me.en $shellNav.me.zh }}"><img src="/avatar/192.webp" alt="" width="52" height="52" class="sgx-tb-avatar" data-sgx-avatar="192"></a></div>
     <div class="sgx-drawer-body">
     <ul class="sgx-drawer-list">
       {{ range $shellNav.items }}
@@ -298,7 +297,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 </dialog>
 
 
-<!-- 全网搜索是独立页 /search/（旧 #search-modal 已删除） -->
+<!-- 搜索 = 原地搜索层（DOM 由 shell/search-layer.js 建，没有独立页面） -->
 
 <!-- 通用 bottom sheet / 居中弹窗（2.4.0 D：<dialog>，原生 ::backdrop + 焦点管理） -->
 <dialog id="sheet-wrap" class="sgx-sheet" aria-labelledby="sheet-title">
@@ -311,8 +310,6 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
   </div>
 </dialog>
 
-{{/* 2026-10-20：原浏览器页内联的搜索索引（#search-index）已删除——全网搜索页一直用 /files-index.json，
-   书签页不再需要它（设置项里的「浏览器 / 搜索引擎 #apps」也是死链接）。 */}}
 {{/* 2.4.0-C：旧 sgx-util.js / sgx-base-a.js 已拆为 ES Modules，随页面入口统一加载 */}}
 
 

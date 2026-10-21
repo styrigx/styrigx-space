@@ -203,10 +203,10 @@ test.describe('unlock methods entry relocation', () => {
     await blockExternalRequests(pg);
     await pg.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
     await expect(pg.locator('.set-layout').first()).toBeVisible({ timeout: 15000 });
-    /* 安全页两项（锁屏凭证/立即锁定）；管理凭证已删除；账号在顶栏右圆头像 */
+    /* 安全页两项（锁屏凭证/立即锁定）；管理凭证已删除；账号在导航抽屉头的头像（2026-10-22 从顶栏右圆挪进去） */
     await expect(pg.locator('#sec-unlock-methods')).toHaveCount(0);
     await expect(pg.locator('#sec-owner-cred')).toHaveCount(0);
-    await expect(pg.locator('.sgx-tb-me')).toHaveAttribute('href', '/settings/account/');
+    await expect(pg.locator('.sgx-drawer-me')).toHaveAttribute('href', '/settings/account/');
     await expect(pg.locator('#sec-mgmt-cred')).toHaveCount(0);
     const lockCred = pg.locator('#sec-lock-cred');
     await expect(lockCred).toHaveCount(1);
@@ -387,10 +387,10 @@ test('B2-4 settings has no Apps category; reset lives in General management', as
   await expect(pg.locator('#row-reset')).toContainText('重置所有设置');
 });
 
-test('Search page has no top-bar menu; engine row lives in Security and privacy', async ({ page: pg }) => {
+test('No top-bar menu; search engine row lives in Security and privacy', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await blockExternalRequests(pg);
-  await pg.goto('/search/', { waitUntil: 'domcontentloaded' });
+  await pg.goto('/', { waitUntil: 'domcontentloaded' });
   await expect(pg.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
   await expect(pg.locator('#brw-more, .sgx-tb-more')).toHaveCount(0);
   await gotoSettings(pg, '/settings/security/');

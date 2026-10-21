@@ -1,6 +1,6 @@
 /**
  * 快捷面板（2026-10-21 v6：从顶栏底下落下的覆盖层，One UI 快捷面板式）验收：
- * - 顶栏长条右端全站都有快捷面板图标 .sgx-tb-quick（aria-haspopup="dialog"）；点开 #sgx-qp（非模态 <dialog> show()，
+ * - 顶栏右圆（2026-10-22 起，原来在长条右端）全站都是快捷面板按钮 .sgx-tb-end.sgx-tb-quick（aria-haspopup="dialog"）；点开 #sgx-qp（非模态 <dialog> show()，
  *   dialog 本身是遮罩，只盖顶栏下沿以下）；面板顶边在顶栏下沿下面，正文不动（#sgx-main 位置不变）。
  * - 顶栏不被盖住、不被压暗：面板开着时 elementFromPoint(图标中心) 仍是图标；图标 aria-expanded="true" + 按下态，再点（真点击）关闭。
  * - 关闭：再点图标 / 点遮罩 / Esc / 系统返回（历史哨兵，只关面板不离开页面）/ 点顶栏别的按钮（先关面板再执行）；刚点开立刻 Esc 也能关（竞态回归）。
@@ -56,17 +56,17 @@ async function expectClosed(page) {
   await expect(page.locator('.sgx-tb-quick')).toHaveAttribute('aria-expanded', 'false');
 }
 
-test.describe('顶栏：长条里的快捷面板图标', () => {
-  const PAGES = ['/', '/search/', '/settings/', '/settings/display/', '/settings/security/', '/settings/account/'];
+test.describe('顶栏：右圆 = 快捷面板按钮', () => {
+  const PAGES = ['/', '/settings/', '/settings/display/', '/settings/security/', '/settings/account/'];
   for (const path of PAGES) {
-    test(`${path}：九宫格 · 长条（搜索 · 页名 · 快捷面板）· 头像`, async ({ page }) => {
+    test(`${path}：九宫格 · 长条（只有页名）· 右圆快捷面板`, async ({ page }) => {
       await go(page, path);
       const order = await page.evaluate(() =>
         Array.from(document.querySelector('.sgx-topbar').children).map((el) => el.className.split(' ')[0]));
-      expect(order).toEqual(['sgx-tb-nav', 'sgx-tb-pill', 'sgx-tb-me']);
+      expect(order).toEqual(['sgx-tb-nav', 'sgx-tb-pill', 'sgx-tb-end']);
       const inner = await page.evaluate(() =>
         Array.from(document.querySelector('.sgx-tb-pill').children).map((el) => el.className.split(' ')[0]));
-      expect(inner).toEqual(['sgx-tb-search', 'sgx-tb-title', 'sgx-tb-quick']);
+      expect(inner).toEqual(['sgx-tb-title']);
       const q = page.locator('.sgx-tb-quick');
       expect(await q.evaluate((el) => el.tagName)).toBe('BUTTON');
       await expect(q).toHaveAttribute('aria-label', '快捷面板');
@@ -74,16 +74,17 @@ test.describe('顶栏：长条里的快捷面板图标', () => {
       await expect(q).toHaveAttribute('aria-expanded', 'false');
       /* 打开的是对话框（覆盖层） */
       await expect(q).toHaveAttribute('aria-haspopup', 'dialog');
-      /* 40px 圆形点击区，贴长条右端（内缩 6） */
+      /* 52px 圆，在长条右边 8px，右缘贴顶栏页边距 16 */
       const qb = await q.boundingBox();
       const pb = await page.locator('.sgx-tb-pill').boundingBox();
-      expect(Math.round(qb.width)).toBe(40);
-      expect(Math.round(qb.height)).toBe(40);
-      expect(Math.abs(pb.x + pb.width - (qb.x + qb.width) - 6)).toBeLessThanOrEqual(1);
+      expect(Math.round(qb.width)).toBe(52);
+      expect(Math.round(qb.height)).toBe(52);
+      expect(Math.abs(qb.x - (pb.x + pb.width) - 8)).toBeLessThanOrEqual(1);
+      expect(Math.abs(412 - (qb.x + qb.width) - 16)).toBeLessThanOrEqual(1);
     });
   }
 
-  test('390px：「安全与隐私」完整显示，英文长页名省略号，页名不出长条', async ({ page }) => {
+  test('390px：「安全与隐私」「Security and privacy」完整显示，更长的页名省略号，页名不出长条', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await go(page, '/settings/security/');
     const t = page.locator('.sgx-tb-title');
@@ -94,7 +95,10 @@ test.describe('顶栏：长条里的快捷面板图标', () => {
     await expect(t).toHaveText('Security and privacy');
     const st = await t.evaluate((el) => ({ sw: el.scrollWidth, cw: el.clientWidth, to: getComputedStyle(el).textOverflow }));
     expect(st.to).toBe('ellipsis');
-    expect(st.sw).toBeGreaterThan(st.cw);
+    /* 2026-10-22：长条里没有图标了，390 宽放得下「Security and privacy」；更长的照样省略号 */
+    expect(st.sw).toBeLessThanOrEqual(st.cw);
+    await t.evaluate((el) => { el.textContent = 'A very long English page name that cannot fit'; });
+    expect(await t.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
     const tb = await t.boundingBox();
     const pill = await page.locator('.sgx-tb-pill').boundingBox();
     /* 页名在长条内居中（左右对称），不出长条 */
@@ -232,13 +236,6 @@ test.describe('快捷面板：开合', () => {
     await expect(page.locator('#sgx-drawer')).toBeHidden();
     await expect(page).toHaveURL(/\/settings\/$/);
     expect(await page.evaluate(() => !!(history.state && (history.state.sgxQp || history.state.sgxDrawer)))).toBe(false);
-  });
-
-  test('面板开着点顶栏搜索图标：关面板后进全网搜索页', async ({ page }) => {
-    await go(page, '/settings/');
-    await openQp(page);
-    await page.locator('#sgx-tb-search').click();
-    await expect(page).toHaveURL(/\/search\/$/);
   });
 
   test('点遮罩关闭', async ({ page }) => {
@@ -670,13 +667,13 @@ test.describe('快捷面板：与设置页同一个设置', () => {
 
   test('齿轮（全部设置）：进设置页，返回回到原页（不多一步）', async ({ page }) => {
     await go(page, '/');
-    await page.goto('/search/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/settings/display/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-topbar')).toBeVisible();
     await openQp(page);
     await page.locator('#sgx-qp a.sgx-qp-set').click();
     await expect(page).toHaveURL(/\/settings\/$/);
     await page.goBack();
-    await expect(page).toHaveURL(/\/search\/$/);
+    await expect(page).toHaveURL(/\/settings\/display\/$/);
     await expect(qp(page)).toBeHidden();
   });
 });

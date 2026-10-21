@@ -1,6 +1,6 @@
 # web/shared/shell（生成物，勿手改）
 
-主站（styrigx-space）和子站（styrigx-blog、styrigx-daymark、styrigx-curio）共用的外壳：色彩角色、顶栏材质、导航抽屉、自定义主题色引擎、抽屉项、外观 cookie 读端、标签页图标。
+主站（styrigx-space）和子站（styrigx-blog、styrigx-daymark、styrigx-curio）共用的外壳：色彩角色、顶栏材质、导航抽屉、原地搜索层、自定义主题色引擎、抽屉项、外观 cookie 读端、标签页图标。
 
 - 源头：`web/data/palette-roles.json`、`web/assets/css/input.css` 的 `@shell:begin/end` 段、`web/assets/js/lib/palette-scheme.js`、
   `web/data/shell-nav.json`、`web/layouts/partials/icon.html`、`web/layouts/partials/shell-wordmark.html`（抽屉头字标，进 nav.json 的 `wordmark`）。改源头后跑 `node scripts/gen-shell.mjs`；CI 用 `--check` 核对。
@@ -32,3 +32,46 @@
   打包 `favicon.js`（ES 模块）后调 `initFavicon()`：色板 / 自定义色 / 深浅色变了就换成当前主题色。
 - 契约测试：`ui-cookie-contract.json` 是主站写端真实写出的 cookie + 期望；子站单测对每个 case 断言 `SgxUI.read('sgx-ui=' + c.cookie)` 等于 `c.read`、
   `SgxUI.resolve(c.read, 系统深色)` 等于 `c.light/c.dark.resolve`（apply 后 `<html>` 等于 `.root`）。sync-shell 拉新版本后跑一遍。
+## 顶栏 + 抽屉头头像（2026-10-22 v8，三个站一样）
+
+```html
+<div class="sgx-topbar">
+  <button class="sgx-tb-nav" aria-controls="sgx-drawer">九宫格图标</button>
+  <div class="sgx-tb-pill"><span class="sgx-tb-title">页名</span></div>   <!-- 只有页名，不放图标 -->
+  <button class="sgx-tb-end …">本站自己的图标</button>                     <!-- 唯一按站点自定义的位置 -->
+</div>
+```
+- 右圆 `.sgx-tb-end`：52px 圆、材质 / 悬停 / 按下 / 焦点框都在 shell.css；里面放一个 22px 图标。主站 = 快捷面板（`.sgx-tb-end.sgx-tb-quick`，主站 partials/topbar-end.html）；
+  子站换成自己的按钮或链接（`<a class="sgx-tb-end" …>` 也行），不要留空（两侧圆要对称）。
+- 头像不在顶栏了：抽屉头 = 字标 + 右边的头像圆（`<a class="sgx-drawer-me" href="{nav.me.href}"><img src="{nav.me.avatar}" alt=""></a>`，52px，垂直居中）。
+  主站链到账号页；子站用 nav.json 的 `me.href`（默认 https://styrigx.com/）和 `me.avatar`，aria-label 用 `me.zh / me.en`。
+- 旧的 `.sgx-tb-me`（顶栏头像圆）、`.sgx-tb-ic`（长条里的图标）样式已从共享外壳删掉，子站同步时一起换新结构。
+
+## 搜索层（search.js + shell.css 的 search 段）
+
+点导航抽屉底栏的搜索框 → 抽屉原地淡掉，搜索框变形成屏幕底部的搜索栏（药丸 + ✕ 圆，贴键盘），上面是盖住当前页的磨砂结果层
+（最近搜索 / 站内结果 / 「用 <引擎> 搜索」）。顶栏不动。✕ / 系统返回 / Esc 关闭。不跳页、最多占一条历史。
+
+子站接入（文件原样复制，不改）：
+1. `node scripts/sync-shell.mjs` 同步后，`search.js` 放进子站的 JS（建议单独打包、懒加载），`shell.css` 照旧整份引入（含 search 段）。
+2. 抽屉底栏的搜索框保持 `<a class="sgx-drawer-search" href="https://styrigx.com/search/">`（没 JS 时进主站搜索）。
+3. 打开抽屉时（或按下九宫格 / 搜索框的 pointerdown）`import()` search.js，拿到后 `const s = mountSearch(cfg)`（每页一次）。
+4. 搜索框 click 里 **同步** 调用（安卓只在用户手势里同步 focus 才弹键盘）：
+   `e.preventDefault(); s.open({ from: a, ghost: drawerDialog, handoff: () => { 同步关掉抽屉 <dialog>（不要 history.back）; return 抽屉是否 push 过历史哨兵; } })`
+   handoff 返回 true 时搜索层把那条哨兵改成自己的（replaceState），不再新增历史。
+5. 可选：页面带 `?q=` 时 `s.open({ q, focus: true })`（主站的 /search/?q= 和 opensearch 就是这样进来的）。
+
+`mountSearch(cfg)` 配置（都可省）：
+| 键 | 默认 | 说明 |
+|---|---|---|
+| lang | 按 `<html lang>` | 'zh' / 'en' 文案 |
+| index | null | 站内索引地址（files-index.json 格式 `{items:[{type,lang,title,subtitle,url}]}`）；null = 只有最近搜索 + 引擎搜索 |
+| types | [] | 要列出的索引类型和分组名，如 `[{type:'post',zh:'博客',en:'Blog'}]` |
+| recentKey / recentMax | sgx-browser-history / 8 | 最近搜索（localStorage，按站点各自一份） |
+| engineKey / engine | sgx-search-engine / — | 引擎设置（google / bing / duckduckgo / yahoo / ecosia）；engine() 优先 |
+| navigate | location.href = url | 打开同源结果（先关层、退掉哨兵再调用）；跨源结果新标签打开 |
+| strings | — | 覆盖文案 |
+| root | document.body | 挂载点 |
+
+返回 `{ open(opts), close(after?), isOpen(), input, layer, bar }`。open(opts)：from（变形起点元素）、ghost（正在关的抽屉 <dialog>）、handoff、q、focus（默认 true）。
+回车：方向键选中的行 → 打开；标题和输入完全一样的站内结果 → 打开；像网址 → 新标签 https://；否则用引擎搜（新标签）。

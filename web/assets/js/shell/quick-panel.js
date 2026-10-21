@@ -1,6 +1,6 @@
 /**
  * @fileoverview 顶栏快捷面板（#sgx-qp，One UI 快捷面板式；2026-10-21 v6：从顶栏底下落下的覆盖层）：
- *   顶栏长条右端滑块图标 .sgx-tb-quick 打开，面板从顶栏底下钻出来、落在顶栏下方盖住正文，正文不动；
+ *   顶栏右圆（滑块图标 .sgx-tb-quick，2026-10-22 从长条右端挪到右圆）打开，面板从顶栏底下钻出来、落在顶栏下方盖住正文，正文不动；
  *   顶栏一直在最上面（不被遮罩压暗），图标开着时是按下态（aria-expanded="true"），再点关闭。
  * - 非模态 <dialog>（modal-sheet.js modal:false → show()）：不进顶层，z-index 在顶栏下面；dialog 本身就是遮罩（只盖顶栏下沿以下）。
  * - 开合 / 系统返回 / Esc / bfcache 走 modal-sheet.js（与导航抽屉同一个状态机：data-state closed/opening/open/closing、历史哨兵）。

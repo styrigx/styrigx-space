@@ -309,7 +309,7 @@ function showLockScreen() {
     }
   }
 
-  /* 头像：复用顶栏左侧头像图片 */
+  /* 头像：复用导航抽屉头的头像图片（2026-10-22 从顶栏挪进抽屉） */
   const navImg = /** @type {HTMLImageElement|null} */ (document.querySelector('.sgx-tb-avatar'));
   /* 锁屏头像 72px：用 192 那张（顶栏是 96） */
   const avatarSrc = navImg ? navImg.src.replace(/\/avatar\/96\.webp/, '/avatar/192.webp') : '';

@@ -4,8 +4,9 @@
  *
  * 生成 web/shared/shell/（勿手改，改源头后重跑本脚本）：
  *   tokens.css         33 套预设（单色 17 + 撞色 16）的色彩角色（web/data/palette-roles.json，和 input.css 里 @gen-palettes 同一个函数）+ 组件别名层
- *   shell.css          顶栏圆 / 长条材质、头像圆、导航抽屉：input.css 里 /* @shell:begin <名> *\/ … /* @shell:end <名> *\/ 之间的原文
+ *   shell.css          顶栏（九宫格圆 / 只有页名的长条 / 右圆）、导航抽屉（含抽屉头头像）、原地搜索层：input.css 里 /* @shell:begin <名> *\/ … /* @shell:end <名> *\/ 之间的原文
  *   palette-scheme.js  自定义 #rrggbb 种子 → 整套角色的引擎（web/assets/js/lib/palette-scheme.js 原样复制）
+ *   search.js          原地搜索层（web/assets/js/shell/search-layer.js 原样复制；不 import 任何东西，样式在 shell.css 的 search 段）
  *   nav.json           导航抽屉的项（web/data/shell-nav.json）+ 用到的图标 SVG（web/layouts/partials/icon.html）
  *                      + 抽屉头字标 SVG wordmark（web/layouts/partials/shell-wordmark.html；brand 文字照旧保留）
  *   palettes.json      预设 id / 名字 / 种子 + 默认值 + 子站自定义色缓存版本号
@@ -34,6 +35,7 @@ const SRC = {
   nav: path.join(REPO, 'web/data/shell-nav.json'),
   icons: path.join(REPO, 'web/layouts/partials/icon.html'),
   wordmark: path.join(REPO, 'web/layouts/partials/shell-wordmark.html'),
+  search: path.join(REPO, 'web/assets/js/shell/search-layer.js'),
   reader: path.join(REPO, 'web/assets/js/lib/ui-cookie-read.js'),
   contract: path.join(REPO, 'tests/fixtures/ui-cookie-contract.json'),
   favicon: path.join(REPO, 'web/assets/js/shell/favicon.js'),
@@ -41,7 +43,7 @@ const SRC = {
 };
 export const READER_SRC = SRC.reader;
 /** shell.css 里按这个顺序拼 input.css 的标记段 */
-export const SHELL_REGIONS = ['topbar-frame', 'topbar-me', 'drawer'];
+export const SHELL_REGIONS = ['topbar-frame', 'drawer', 'search'];
 /* 抽屉项以外外壳要用的图标：九宫格（顶栏左圆）、AI 搜索（抽屉底栏钉住的搜索框长条） */
 const EXTRA_ICONS = ['apps-grid', 'ai-search'];
 const HEAD = (src) =>
@@ -136,6 +138,14 @@ function renderNav() {
   );
 }
 
+/** 原地搜索层：原样复制（必须自成一体：不能 import，子站直接当 ES module 用） */
+export function renderSearch() {
+  const src = readFileSync(SRC.search, 'utf8');
+  if (/^\s*import\s/m.test(src) || /\bimport\s*\(/.test(src.replace(/\/\*[\s\S]*?\*\//g, ''))) throw new Error('search-layer.js 不能 import 任何东西（子站原样复制）');
+  if (!/^export function mountSearch\(/m.test(src)) throw new Error('search-layer.js 必须导出 mountSearch');
+  return src;
+}
+
 function renderPalettes(data, schemeSrc) {
   /* 顺序 = palette-roles.json（= palette-scheme.js PRESETS：单色组在前、撞色组在后）；2026-10-21 起每项多一个 group（mono / clash），旧字段不变 */
   const ids = Object.keys(data.presets);
@@ -156,7 +166,7 @@ function renderPalettes(data, schemeSrc) {
 
 const README = `# web/shared/shell（生成物，勿手改）
 
-主站（styrigx-space）和子站（styrigx-blog、styrigx-daymark、styrigx-curio）共用的外壳：色彩角色、顶栏材质、导航抽屉、自定义主题色引擎、抽屉项、外观 cookie 读端、标签页图标。
+主站（styrigx-space）和子站（styrigx-blog、styrigx-daymark、styrigx-curio）共用的外壳：色彩角色、顶栏材质、导航抽屉、原地搜索层、自定义主题色引擎、抽屉项、外观 cookie 读端、标签页图标。
 
 - 源头：\`web/data/palette-roles.json\`、\`web/assets/css/input.css\` 的 \`@shell:begin/end\` 段、\`web/assets/js/lib/palette-scheme.js\`、
   \`web/data/shell-nav.json\`、\`web/layouts/partials/icon.html\`、\`web/layouts/partials/shell-wordmark.html\`（抽屉头字标，进 nav.json 的 \`wordmark\`）。改源头后跑 \`node scripts/gen-shell.mjs\`；CI 用 \`--check\` 核对。
@@ -188,6 +198,49 @@ const README = `# web/shared/shell（生成物，勿手改）
   打包 \`favicon.js\`（ES 模块）后调 \`initFavicon()\`：色板 / 自定义色 / 深浅色变了就换成当前主题色。
 - 契约测试：\`ui-cookie-contract.json\` 是主站写端真实写出的 cookie + 期望；子站单测对每个 case 断言 \`SgxUI.read(\'sgx-ui=\' + c.cookie)\` 等于 \`c.read\`、
   \`SgxUI.resolve(c.read, 系统深色)\` 等于 \`c.light/c.dark.resolve\`（apply 后 \`<html>\` 等于 \`.root\`）。sync-shell 拉新版本后跑一遍。
+## 顶栏 + 抽屉头头像（2026-10-22 v8，三个站一样）
+
+\`\`\`html
+<div class="sgx-topbar">
+  <button class="sgx-tb-nav" aria-controls="sgx-drawer">九宫格图标</button>
+  <div class="sgx-tb-pill"><span class="sgx-tb-title">页名</span></div>   <!-- 只有页名，不放图标 -->
+  <button class="sgx-tb-end …">本站自己的图标</button>                     <!-- 唯一按站点自定义的位置 -->
+</div>
+\`\`\`
+- 右圆 \`.sgx-tb-end\`：52px 圆、材质 / 悬停 / 按下 / 焦点框都在 shell.css；里面放一个 22px 图标。主站 = 快捷面板（\`.sgx-tb-end.sgx-tb-quick\`，主站 partials/topbar-end.html）；
+  子站换成自己的按钮或链接（\`<a class="sgx-tb-end" …>\` 也行），不要留空（两侧圆要对称）。
+- 头像不在顶栏了：抽屉头 = 字标 + 右边的头像圆（\`<a class="sgx-drawer-me" href="{nav.me.href}"><img src="{nav.me.avatar}" alt=""></a>\`，52px，垂直居中）。
+  主站链到账号页；子站用 nav.json 的 \`me.href\`（默认 https://styrigx.com/）和 \`me.avatar\`，aria-label 用 \`me.zh / me.en\`。
+- 旧的 \`.sgx-tb-me\`（顶栏头像圆）、\`.sgx-tb-ic\`（长条里的图标）样式已从共享外壳删掉，子站同步时一起换新结构。
+
+## 搜索层（search.js + shell.css 的 search 段）
+
+点导航抽屉底栏的搜索框 → 抽屉原地淡掉，搜索框变形成屏幕底部的搜索栏（药丸 + ✕ 圆，贴键盘），上面是盖住当前页的磨砂结果层
+（最近搜索 / 站内结果 / 「用 <引擎> 搜索」）。顶栏不动。✕ / 系统返回 / Esc 关闭。不跳页、最多占一条历史。
+
+子站接入（文件原样复制，不改）：
+1. \`node scripts/sync-shell.mjs\` 同步后，\`search.js\` 放进子站的 JS（建议单独打包、懒加载），\`shell.css\` 照旧整份引入（含 search 段）。
+2. 抽屉底栏的搜索框保持 \`<a class="sgx-drawer-search" href="https://styrigx.com/search/">\`（没 JS 时进主站搜索）。
+3. 打开抽屉时（或按下九宫格 / 搜索框的 pointerdown）\`import()\` search.js，拿到后 \`const s = mountSearch(cfg)\`（每页一次）。
+4. 搜索框 click 里 **同步** 调用（安卓只在用户手势里同步 focus 才弹键盘）：
+   \`e.preventDefault(); s.open({ from: a, ghost: drawerDialog, handoff: () => { 同步关掉抽屉 <dialog>（不要 history.back）; return 抽屉是否 push 过历史哨兵; } })\`
+   handoff 返回 true 时搜索层把那条哨兵改成自己的（replaceState），不再新增历史。
+5. 可选：页面带 \`?q=\` 时 \`s.open({ q, focus: true })\`（主站的 /search/?q= 和 opensearch 就是这样进来的）。
+
+\`mountSearch(cfg)\` 配置（都可省）：
+| 键 | 默认 | 说明 |
+|---|---|---|
+| lang | 按 \`<html lang>\` | 'zh' / 'en' 文案 |
+| index | null | 站内索引地址（files-index.json 格式 \`{items:[{type,lang,title,subtitle,url}]}\`）；null = 只有最近搜索 + 引擎搜索 |
+| types | [] | 要列出的索引类型和分组名，如 \`[{type:'post',zh:'博客',en:'Blog'}]\` |
+| recentKey / recentMax | sgx-browser-history / 8 | 最近搜索（localStorage，按站点各自一份） |
+| engineKey / engine | sgx-search-engine / — | 引擎设置（google / bing / duckduckgo / yahoo / ecosia）；engine() 优先 |
+| navigate | location.href = url | 打开同源结果（先关层、退掉哨兵再调用）；跨源结果新标签打开 |
+| strings | — | 覆盖文案 |
+| root | document.body | 挂载点 |
+
+返回 \`{ open(opts), close(after?), isOpen(), input, layer, bar }\`。open(opts)：from（变形起点元素）、ghost（正在关的抽屉 <dialog>）、handoff、q、focus（默认 true）。
+回车：方向键选中的行 → 打开；标题和输入完全一样的站内结果 → 打开；像网址 → 新标签 https://；否则用引擎搜（新标签）。
 `;
 
 /** @returns {Record<string,string>} 文件名 → 内容 */
@@ -199,6 +252,7 @@ export function renderAll() {
     'tokens.css': renderTokens(data),
     'shell.css': renderShell(),
     'palette-scheme.js': schemeSrc,
+    'search.js': renderSearch(),
     'nav.json': renderNav(),
     'palettes.json': renderPalettes(data, schemeSrc),
     'ui-cookie-read.js': reader,
