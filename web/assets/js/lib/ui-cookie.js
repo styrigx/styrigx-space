@@ -1,12 +1,17 @@
 /**
  * @fileoverview 共享 UI 设置 cookie（5.2）：主站写入，书站读取。
  * 只含 UI 设置（时区、时钟、天气；B2-7 起加外观：深浅色、调色板、字体大小、减弱动效），不含任何凭证或会话信息。
- * 子站（blog / daymark）首帧前读它，让外观跟主站一致（主站 localStorage 是唯一来源，cookie 只是镜像，子站只读不写）。
+ * 子站（blog / daymark / curio）首帧前用共享外壳的 ui-cookie-read.js 读它，让外观跟主站一致（主站 localStorage 是唯一来源，cookie 只是镜像，子站只读不写）。
+ * 契约测试：tests/fixtures/ui-cookie-contract.json（本写端真实产出的 cookie + 读端期望结果，共享外壳原样带给子站）。
  * cookie：sgx-ui=<base64url JSON>; Domain=styrigx.com; Path=/; Max-Age=34560000; SameSite=Lax; Secure
  * 不加 HttpOnly（书站要用 JS 读）。
  */
 
-var COOKIE_NAME = 'sgx-ui';
+/* 字段表 / 版本 / 编解码和子站读端共用一份（lib/ui-cookie-read.js，经典脚本，挂 window.SgxUI；共享外壳原样分发给子站） */
+import './ui-cookie-read.js';
+
+var U = /** @type {any} */ (window).SgxUI;
+var COOKIE_NAME = U.NAME;
 var COOKIE_MAX_AGE = 34560000; /* 400 天 */
 var COOKIE_ATTRS = '; Domain=styrigx.com; Path=/; Max-Age=' + COOKIE_MAX_AGE + '; SameSite=Lax; Secure';
 
@@ -52,7 +57,7 @@ function parseJson(s) {
  * @returns {string}
  */
 function readCookie() {
-  var m = document.cookie.match(new RegExp('(?:^|;\\s*)' + COOKIE_NAME + '=([^;]*)'));
+  var m = document.cookie.match(/(?:^|;\s*)sgx-ui=([^;]*)/);
   return m ? m[1] : '';
 }
 
@@ -62,14 +67,7 @@ function readCookie() {
  * @returns {any}
  */
 function decodeCookie(v) {
-  if (!v) return null;
-  try {
-    var b = v.replace(/-/g, '+').replace(/_/g, '/');
-    while (b.length % 4) b += '=';
-    return JSON.parse(decodeURIComponent(escape(atob(b))));
-  } catch (e) {
-    return null;
-  }
+  return U.decode(v);
 }
 
 /**
@@ -99,7 +97,7 @@ function currentSeed() {
 export function syncUiCookie() {
   var tz1Auto = boolOnNull('sgx-tz1-auto');
   var payload = {
-    v: 2,
+    v: U.V,
     tz1: tz1Auto ? 'auto' : (ls('sgx-tz1') || ''),
     tz2: ls('sgx-tz2') || '',
     h12: ls('sgx-hour12') === '12' ? 1 : 0,
@@ -109,19 +107,18 @@ export function syncUiCookie() {
     loc: ls('sgx-weather-loc') || 'auto',
     city: parseJson(ls('sgx-weather-city')),
     precise: parseJson(ls('sgx-weather-precise')),
-    mode: ['light', 'dark'].indexOf(ls('sgx-theme-mode') || '') >= 0 ? ls('sgx-theme-mode') : 'system',
-    pal: /^[a-z]{2,16}$/.test(ls('sgx-palette') || '') ? ls('sgx-palette') : 'lake',
+    mode: U.MODES.indexOf(ls('sgx-theme-mode') || '') >= 0 ? ls('sgx-theme-mode') : 'system',
+    /* 只写读端认识的预设（未知 id 主站本来也渲染成默认 lake） */
+    pal: Object.prototype.hasOwnProperty.call(U.PRESETS, ls('sgx-palette') || '') ? ls('sgx-palette') : U.DEFAULT_PAL,
     accent: currentSeed(),
-    fs: ['small', 'large'].indexOf(ls('sgx-font-size') || '') >= 0 ? ls('sgx-font-size') : 'standard',
+    fs: U.FONT_SIZES.indexOf(ls('sgx-font-size') || '') >= 0 ? ls('sgx-font-size') : 'standard',
     rm: ls('sgx-reduced-motion') === '1' ? 1 : 0,
   };
   /* mat：深浅色没变就沿用旧时间戳，变了（或第一次写）记当前时间 */
   var old = decodeCookie(readCookie());
   payload.mat = old && old.mode === payload.mode && typeof old.mat === 'number' ? old.mat : Date.now();
-  var json = JSON.stringify(payload);
   /* base64url 编码（中文城市名需先 UTF-8） */
-  var b64 = btoa(unescape(encodeURIComponent(json)))
-    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  var b64 = U.encode(payload);
   if (readCookie() === b64) return; /* 没变就不重写 */
   document.cookie = COOKIE_NAME + '=' + b64 + COOKIE_ATTRS;
 }
