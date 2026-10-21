@@ -3,7 +3,7 @@
  * - 顶栏全站同一套（v5）：九宫格圆 | 长条（搜索图标 · 页名 · 快捷面板图标，屏幕居中）| 头像圆；没有 ‹ 返回、没有 ⋮。
  * - 抽屉宽（2026-10-22 恢复 #163 之前，和子站一致）：手机竖屏（< 600px）右缘对齐长条里快捷面板图标点击区左缘（412 → 290，360 → 238）；更宽固定 320px。
  *   面板底色 = 顶栏材质（跟随调色板与明暗）；阴影往右投、清楚可见。
- * - 抽屉三段（v7）：头部只有大号 Styrigx（26px/800，没有搜索）；导航列表自己滚（矮视口时头部 / 底栏不动），最后一项下面一条发丝分隔线；
+ * - 抽屉三段（v7）：头部只有大号 Styrigx（32px/800，没有搜索）；导航列表自己滚（矮视口时头部 / 底栏不动），最后一项下面一条发丝分隔线；
  *   底栏钉住整宽搜索框长条（52px，AI 搜索图标 + 「搜索」一组居中，左右缘 = 药丸左右缘）。点它：原地搜索层（见 site-search.spec.js），不跳页。
  * - 2026-10-22：长条左端的搜索图标删了（长条 = 页名 · 快捷面板图标，页名仍居中）；/search/ 页删了（只剩跳转页）。
  * - 九宫格 → Gmail 式左侧导航抽屉：首页 / 珍格 / 日刻 / 博客（2026-10-21 起没有 设置；书签项换成子站 珍格 Curio，入口在快捷面板齿轮）；每项有描边图标，
@@ -210,7 +210,7 @@ test.describe('导航抽屉', () => {
 
 test.describe('抽屉三段：头部站名 / 导航列表 / 底栏搜索框', () => {
   for (const w of [412, 360]) {
-    test(`${w}px：头部只有 Styrigx（26px/800，没有搜索）；底栏钉住 52px 搜索框，图标 + 「搜索」一组居中，左右缘 = 药丸；最后一项下面有分隔线`, async ({ page }) => {
+    test(`${w}px：头部只有 Styrigx（32px/800，没有搜索）；底栏钉住 52px 搜索框，图标 + 「搜索」一组居中，左右缘 = 药丸；最后一项下面有分隔线`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: 915 });
       await go(page, '/');
       await openDrawer(page);
@@ -254,7 +254,7 @@ test.describe('抽屉三段：头部站名 / 导航列表 / 底栏搜索框', ()
           rad: getComputedStyle(b).borderTopLeftRadius, bg: getComputedStyle(b).backgroundColor,
           fs: getComputedStyle(t).fontSize, fw: getComputedStyle(t).fontWeight, lbTrunc: lb.scrollWidth > lb.clientWidth };
       });
-      expect(m.fs).toBe('26px');
+      expect(m.fs).toBe('32px');
       expect(m.fw).toBe('800');
       expect(Math.round(m.s.height)).toBe(52);
       expect(m.rad).toBe('999px');
@@ -537,16 +537,16 @@ test.describe('抽屉头字标 + 标签页图标跟主题色', () => {
       expect(m.dot).toBe(m.primary);
       expect(m.ink).toBe(m.text);
       expect(m.dot).not.toBe(m.ink);
-      /* 26px 站名：字标高 26 × 2010/2048 ≈ 25.5px，宽按 viewBox 比例 */
-      expect(Math.abs(m.h - 25.52)).toBeLessThanOrEqual(0.5);
+      /* 32px 站名（2026-10-22 从 26 加大）：字标高 32 × 2010/2048 ≈ 31.4px，宽按 viewBox 比例 */
+      expect(Math.abs(m.h - 31.41)).toBeLessThanOrEqual(0.5);
       expect(Math.abs(m.w - m.h * 5924 / 2010)).toBeLessThanOrEqual(0.5);
       /* 外层 .sgx-drawer-brand 是 overflow:hidden：字标整个在里面（y / g 下伸部、i 的圆点都不被裁） */
       expect(m.clipTop).toBeLessThanOrEqual(0.5);
       expect(m.clipBottom).toBeLessThanOrEqual(0.5);
       expect(m.clipRight).toBeLessThanOrEqual(0.5);
-      /* 大写字母上下缘 = 原来 26px / 800 文字（412 宽：约 32.5 → 51.4px，±1px） */
-      expect(Math.abs(m.capTop - 32.5)).toBeLessThanOrEqual(1);
-      expect(Math.abs(m.base - 51.4)).toBeLessThanOrEqual(1);
+      /* 2026-10-22 字标 26 → 32px：大写字母中线仍在原来的行中线（412 宽 ≈ 41.95px，±1px），字高按 32/26 放大（≈ 23.3px） */
+      expect(Math.abs((m.capTop + m.base) / 2 - 41.95)).toBeLessThanOrEqual(1);
+      expect(Math.abs((m.base - m.capTop) - 18.9 * 32 / 26)).toBeLessThanOrEqual(1);
       /* SVG 图标：默认湖蓝亮色用静态文件，其他换成主题色 data: 地址 */
       const icon = page.locator('link[rel="icon"][type="image/svg+xml"]');
       await expect(page.locator('link[rel="icon"][href="/favicon.ico"][sizes="32x32"]')).toHaveCount(1);

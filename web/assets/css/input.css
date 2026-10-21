@@ -8252,13 +8252,13 @@ html[data-sgx-role="visitor"] .sgx-drawer-me { pointer-events: none; cursor: def
 /* 抽屉三段（2026-10-21 v7，ChatGPT / Muse Android 抽屉式）：面板 = 竖排 flex，[抽屉头][导航列表][底栏]。
    抽屉头和底栏始终可见，只有中间 .sgx-drawer-body 自己滚（overscroll-behavior:contain，不带动后面的页面）；
    左右 12px 内边距放在三段各自身上（滚动条贴面板边，药丸左右缘三段对齐）。
-   抽屉头 = 只有大号站名（--sgx-drawer-brand-size / -weight，26px / 800），和第一项（首页）之间留 --sgx-drawer-head-gap（32px）。
+   抽屉头 = 大号站名（--sgx-drawer-brand-size / -weight，32px / 800，2026-10-22 从 26 加大），和第一项（首页）之间留 --sgx-drawer-head-gap（32px）。
    底栏 .sgx-drawer-foot：钉在面板底部（底内边距含 safe-area-inset-bottom），放整宽搜索框长条 .sgx-drawer-search：
    左右缘 = 导航项药丸左右缘；--sgx-drawer-search-h（52px）高、999px 圆角，底色 亮 72% --sgx-surface-container-lowest / 暗 --sgx-surface-bright + --sgx-mat-line 细边，
    里面 24px ai-search 图标 + 「搜索 / Search」（--sgx-text-secondary，像占位文字），图标和文字作为一组在药丸里水平居中。
    仍是 <a> 链到全网搜索页（没 JS 也能用；主站在 JS 里接管：抽屉原地淡出后进搜索页，见 head-buttons.js 和下面「抽屉淡出」）。
    悬停 / 按下叠状态层，焦点框同其他外壳按钮。 */
-:root { --sgx-drawer-brand-size: 26px; --sgx-drawer-brand-weight: 800; --sgx-drawer-head-gap: 32px; --sgx-drawer-search-h: 52px; }
+:root { --sgx-drawer-brand-size: 32px; --sgx-drawer-brand-weight: 800; --sgx-drawer-head-gap: 32px; --sgx-drawer-search-h: 52px; }
 .sgx-drawer-head { flex: 0 0 auto; margin: 0 0 var(--sgx-drawer-head-gap); padding: 0 16px 0 28px; min-height: var(--sgx-tb-btn); display: flex; align-items: center;
   justify-content: space-between; gap: 12px; color: var(--sgx-text-primary); }
 /* 抽屉头右边的头像圆（2026-10-22 从顶栏右圆挪来，三个站都有）：和原来顶栏的头像圆一样大（--sgx-tb-btn 52px）、一样的细边和阴影，
@@ -8268,6 +8268,10 @@ html[data-sgx-role="visitor"] .sgx-drawer-me { pointer-events: none; cursor: def
 :root { --sgx-drawer-me: var(--sgx-tb-btn); }
 .sgx-drawer-me { flex: 0 0 auto; position: relative; width: var(--sgx-drawer-me); height: var(--sgx-drawer-me); border-radius: 999px; overflow: hidden; display: block;
   box-sizing: border-box; border: 1px solid var(--sgx-mat-line); box-shadow: var(--sgx-mat-shadow); }
+/* 抽屉头突出（2026-10-22）：头像加一圈浅色外环 + 更深阴影；抽屉头下方一条分割线（和导航下面那条同色、同左右缩进），身份区自成一块 */
+.sgx-drawer-me { box-shadow: 0 0 0 4px color-mix(in srgb, var(--sgx-mat-solid) 92%, var(--sgx-surface-container-lowest)), 0 6px 16px rgba(0,0,0,.18); }
+.sgx-drawer-head { position: relative; margin-bottom: calc(var(--sgx-drawer-head-gap) + 4px); }
+.sgx-drawer-head::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: -18px; border-top: 1px solid var(--sgx-outline-variant); pointer-events: none; }
 .sgx-drawer-me img { width: 100%; height: 100%; display: block; border: 0; border-radius: 999px; object-fit: cover; }
 .sgx-drawer-me:active::after { content: ""; position: absolute; inset: 0; border-radius: 999px; background: var(--sgx-state-pressed-bg); }
 .sgx-drawer-me:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
@@ -8310,6 +8314,10 @@ html[data-sgx-role="visitor"] .sgx-drawer-me { pointer-events: none; cursor: def
 .sgx-drawer-item:active { background: var(--sgx-state-pressed-bg); }
 .sgx-drawer-item:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
 .sgx-drawer-item[aria-current="page"], .sgx-drawer-item[aria-current="page"]:hover { background: var(--sgx-nav-selected); color: var(--sgx-on-nav-selected); font-weight: 700; }
+/* 当前页尾部打勾（2026-10-22 恢复）：纯 CSS，子站同一份 shell.css 自动带上，不用改各站抽屉标记 */
+.sgx-drawer-item[aria-current="page"]::after { content: ""; flex: 0 0 auto; width: 22px; height: 22px; margin-left: auto; background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 16.2l-3.5-3.5-1.4 1.4L9 19 20.9 7.1l-1.4-1.4z'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 16.2l-3.5-3.5-1.4 1.4L9 19 20.9 7.1l-1.4-1.4z'/%3E%3C/svg%3E") center / contain no-repeat; }
 .sgx-drawer-ic { width: 24px; height: 24px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
 .sgx-drawer-ic svg { width: 24px; height: 24px; display: block; }
 .sgx-drawer-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

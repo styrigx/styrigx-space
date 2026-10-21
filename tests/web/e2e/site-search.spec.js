@@ -264,6 +264,8 @@ test('顶栏在打开过程中一直在、不动：不重绘（无 DOM 变化）
 test('减弱动效：不复制抽屉、不做变形，直接打开并聚焦', async ({ page }) => {
   await go(page, '/', { rm: true });
   await openDrawer(page);
+  /* 等懒加载的搜索层把隐藏 DOM 建好再同步点击（没到时宿主走代理输入框兜底聚焦，那条路径下面不测动画；CI 慢机上曾因此 flaky） */
+  await page.waitForFunction(() => !!document.querySelector('.sgx-srch-pill'));
   const n = await page.evaluate(() => {
     document.querySelector('#sgx-drawer a.sgx-drawer-search').click();
     return { ghosts: document.querySelectorAll('.sgx-srch-ghost').length, anims: document.querySelector('.sgx-srch-pill').getAnimations().length, focus: document.activeElement.id };
