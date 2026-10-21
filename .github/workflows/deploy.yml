@@ -81,6 +81,10 @@ jobs:
         # 书签首次导入 D1 用的种子必须和 web/data/links.yaml、en/links.yaml 一致；改了 YAML 忘了重新生成 → 红
         run: node scripts/gen-bookmarks-seed.mjs --check
 
+      - name: Shared shell in sync (web/shared/shell ← palette-roles / input.css @shell / shell-nav)
+        # 子站（blog / daymark）用 scripts/sync-shell.mjs 从这里同步外壳；改了源头忘了重新生成 → 红
+        run: node scripts/gen-shell.mjs --check
+
       - name: Layer boundary check (SGX 3.0 分层规范)
         # L0-L6 依赖方向：lib 不得 import shell/apps；shell 不得 import apps；
         # 前端不得 import functions/；api/ 只能 import _kernel/；

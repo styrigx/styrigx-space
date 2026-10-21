@@ -158,8 +158,6 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 <div id="sgx-wallpaper" aria-hidden="true"></div>
 {{/* 2.4.0-C：调度器 / 边缘模糊 / 可见性定时器已移入 ES Module（assets/js/shell/），此处不再内联定义 */}}
 {{ $profile := site.Data.profile }}
-{{ $home := "/" }}{{ if $isEn }}{{ $home = "/en/" }}{{ end }}
-{{ $bmUrl := "/bookmarks/" }}{{ if $isEn }}{{ $bmUrl = "/en/bookmarks/" }}{{ end }}
 {{ $searchUrl := "/search/" }}{{ if $isEn }}{{ $searchUrl = "/en/search/" }}{{ end }}
 {{ $acctUrl := "/settings/account/" }}{{ if $isEn }}{{ $acctUrl = "/en/settings/account/" }}{{ end }}
 {{ $setUrl := $setUrl0 }}
@@ -193,23 +191,22 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
    当前页所在项用药丸高亮（aria-current="page"）；底部分隔线下只有 设置。日刻、博客是子站（同一标签页打开）。 */}}
 {{ $navCur := "" }}
 {{ if .IsHome }}{{ $navCur = "home" }}{{ else if or (eq .RelPermalink "/bookmarks/") (eq .RelPermalink "/en/bookmarks/") }}{{ $navCur = "bookmarks" }}{{ else if or (hasPrefix .RelPermalink "/settings/") (hasPrefix .RelPermalink "/en/settings/") }}{{ $navCur = "settings" }}{{ end }}
-{{ $navItems := slice
-  (dict "id" "home" "icon" "nav-home" "zh" "首页" "en" "Home" "url" $home)
-  (dict "id" "bookmarks" "icon" "nav-bookmark" "zh" "书签" "en" "Bookmarks" "url" $bmUrl)
-  (dict "id" "daymark" "icon" "nav-daymark" "zh" "日刻" "en" "Daymark" "url" (cond $isEn "https://daymark.styrigx.com/en/" "https://daymark.styrigx.com/"))
-  (dict "id" "blog" "icon" "nav-blog" "zh" "博客" "en" "Blog" "url" (cond $isEn "https://blog.styrigx.com/en/" "https://blog.styrigx.com/"))
-}}
-<dialog id="sgx-drawer" class="sgx-drawer" aria-label="{{ if $isEn }}Navigation{{ else }}导航{{ end }}">
+{{/* 抽屉项来自 web/data/shell-nav.json（共享外壳：scripts/gen-shell.mjs 把它连同图标生成 web/shared/shell/nav.json，子站同步同一份）。
+   主站自己的项（origin = https://styrigx.com）用站内相对地址；子站项用绝对地址，英文加 /en 前缀。 */}}
+{{ $shellNav := index site.Data "shell-nav" }}
+<dialog id="sgx-drawer" class="sgx-drawer" aria-label="{{ cond $isEn $shellNav.label.en $shellNav.label.zh }}">
   <nav class="sgx-drawer-sheet">
-    <p class="sgx-drawer-head">Styrigx</p>
+    <p class="sgx-drawer-head">{{ $shellNav.brand }}</p>
     <ul class="sgx-drawer-list">
-      {{ range $navItems }}
-      <li><a class="sgx-drawer-item" href="{{ .url }}" data-nav="{{ .id }}"{{ if eq .id $navCur }} aria-current="page"{{ end }}><span class="sgx-drawer-ic">{{ partial "icon.html" .icon }}</span><span class="sgx-drawer-label">{{ cond $isEn .en .zh }}</span></a></li>
+      {{ range $shellNav.items }}
+      <li><a class="sgx-drawer-item" href="{{ partial "shell-nav-href.html" (dict "it" . "en" $isEn) }}" data-nav="{{ .id }}"{{ if eq .id $navCur }} aria-current="page"{{ end }}><span class="sgx-drawer-ic">{{ partial "icon.html" .icon }}</span><span class="sgx-drawer-label">{{ cond $isEn .en .zh }}</span></a></li>
       {{ end }}
     </ul>
     <hr class="sgx-drawer-div">
     <ul class="sgx-drawer-list">
-      <li><a class="sgx-drawer-item" href="{{ $setUrl }}" data-nav="settings"{{ if eq $navCur "settings" }} aria-current="page"{{ end }}><span class="sgx-drawer-ic">{{ partial "icon.html" "nav-gear" }}</span><span class="sgx-drawer-label">{{ if $isEn }}Settings{{ else }}设置{{ end }}</span></a></li>
+      {{ range $shellNav.footer }}
+      <li><a class="sgx-drawer-item" href="{{ partial "shell-nav-href.html" (dict "it" . "en" $isEn) }}" data-nav="{{ .id }}"{{ if eq .id $navCur }} aria-current="page"{{ end }}><span class="sgx-drawer-ic">{{ partial "icon.html" .icon }}</span><span class="sgx-drawer-label">{{ cond $isEn .en .zh }}</span></a></li>
+      {{ end }}
     </ul>
   </nav>
 </dialog>

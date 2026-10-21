@@ -1,0 +1,5 @@
+{{/* 导航抽屉项地址（web/data/shell-nav.json 一项 + 是否英文）：主站自己的项用站内相对地址，子站项用绝对地址；英文加 /en 前缀 */}}
+{{ $p := .it.path }}
+{{ if .en }}{{ $p = printf "/en%s" .it.path }}{{ end }}
+{{ if ne .it.origin "https://styrigx.com" }}{{ $p = printf "%s%s" .it.origin $p }}{{ end }}
+{{ return $p }}

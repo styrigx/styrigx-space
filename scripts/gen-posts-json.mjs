@@ -4,6 +4,7 @@
  * 背景：layouts/index.filesindex.json 用 resources.GetRemote 抓博客 rss.xml，
  * 但博客有锁屏，rss 被 302，模板静默跳过，type=post 为 0。
  * 方案：CI 用 GitHub API 读博客仓库的公开文章，生成本地 JSON，模板改读 site.Data.posts。
+ * 博客 2026-10-21 起是 Hugo：文章在 web/content/<lang>/post/*.md（旧 Astro 路径 src/content/blog/<lang> 已删除）。
  *
  * 用法：BLOG_TOKEN=xxx node scripts/gen-posts-json.mjs
  *   BLOG_TOKEN 可选（公开仓库匿名可读，但有 rate limit；CI 建议配只读 token）
@@ -18,6 +19,8 @@ import { writeFileSync } from 'fs';
 const BLOG_OWNER = 'styrigx';
 const BLOG_REPO = 'styrigx-blog';
 const TOKEN = process.env.BLOG_TOKEN || '';
+// Hugo 内容目录：web/content/<lang>/post；文件名即 slug（网址 /post/<slug>/、/en/post/<slug>/）
+const postsDir = (lang) => `web/content/${lang}/post`;
 
 async function ghApi(path) {
   const headers = {
@@ -33,10 +36,10 @@ async function ghApi(path) {
 }
 
 async function getPosts(langDir, lang) {
-  const items = await ghApi(`/repos/${BLOG_OWNER}/${BLOG_REPO}/contents/src/content/blog/${langDir}`);
+  const items = await ghApi(`/repos/${BLOG_OWNER}/${BLOG_REPO}/contents/${postsDir(langDir)}`);
   const posts = [];
   for (const item of items) {
-    if (item.type !== 'file' || !item.name.endsWith('.md')) continue;
+    if (item.type !== 'file' || !item.name.endsWith('.md') || item.name.startsWith('_')) continue;
     // 读文件内容解析 frontmatter
     const file = await ghApi(`/repos/${BLOG_OWNER}/${BLOG_REPO}/contents/${item.path}`);
     const content = Buffer.from(file.content, 'base64').toString('utf-8');
