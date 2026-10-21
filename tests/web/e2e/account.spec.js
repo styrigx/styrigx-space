@@ -702,7 +702,7 @@ test.describe('主题色角色（PR3）', () => {
     /* 设计稿校验种子：#ff6b9d → 最近预设 cherry，浅色主色压到 #ba2863（2026-10-21 容器阶梯加深后要在更深的 container-high 上仍 ≥4.6:1，比原来的 #bb2a65 深一点） */
     await expect.poll(() => roleOf(page, '--sgx-primary')).toBe('#ba2863');
     const cache = await page.evaluate(() => localStorage.getItem('sgx-accent-css'));
-    expect(cache && cache.indexOf('v3|#ff6b9d\n')).toBe(0);
+    expect(cache && cache.indexOf('v5|#ff6b9d\n')).toBe(0);
     await mockAccount(page, { status: { ok: true, password: true, passkey: true, ready: true, session: null } });
     await page.goto('/settings/account/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('style#sgx-accent-roles')).toHaveCount(1);

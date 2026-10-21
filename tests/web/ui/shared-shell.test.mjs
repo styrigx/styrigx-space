@@ -77,9 +77,10 @@ test('nav.json：首页 / 珍格 / 日刻 / 博客，没有设置；抽屉头搜
   assert.ok(nav.icons['apps-grid']);
 });
 
-test('palettes.json：13 个预设，种子和 tokens.css 的 --sgx-seed 一致', () => {
+test('palettes.json：33 个预设（单色 17 + 撞色 16，每项带 group），种子和 tokens.css 的 --sgx-seed 一致', () => {
   const p = JSON.parse(files['palettes.json']);
-  assert.equal(p.presets.length, 13);
+  assert.equal(p.presets.length, 33);
+  for (const x of p.presets) assert.ok(x.group === 'mono' || x.group === 'clash', x.id);
   assert.equal(p.default, 'lake');
   for (const { id, seed } of p.presets) {
     const sel = id === 'lake' ? ':root,\n:root[data-palette="lake"] {' : `:root[data-palette="${id}"] {`;

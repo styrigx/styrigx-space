@@ -13,11 +13,12 @@ const NAMES = {
   book: ['书籍', 'Books'],
   blog: ['博客', 'Blog'],
 };
+// 分段 / 图例圆点是不带字的填充：辅色 / 第三色用 *-fill（本色中间调，不用压深到 4.5:1 的文字色，免得发泥；2026-10-21）
 const COLORS = {
   home: 'var(--m-primary)',
   files: 'var(--m-warm)',
-  browser: 'var(--m-tertiary)',
-  settings: 'var(--m-secondary)',
+  browser: 'var(--sgx-tertiary-fill, var(--m-tertiary))',
+  settings: 'var(--sgx-secondary-fill, var(--m-secondary))',
   book: 'var(--m-rose)',
   blog: 'var(--m-on-surface-variant)',
 };

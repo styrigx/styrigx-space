@@ -3,7 +3,7 @@
  * 共享外壳（shared shell）：主站是唯一来源，子站（blog / daymark）用各自仓库的 scripts/sync-shell.mjs 一条命令同步。
  *
  * 生成 web/shared/shell/（勿手改，改源头后重跑本脚本）：
- *   tokens.css         13 套预设的色彩角色（web/data/palette-roles.json，和 input.css 里 @gen-palettes 同一个函数）+ 组件别名层
+ *   tokens.css         33 套预设（单色 17 + 撞色 16）的色彩角色（web/data/palette-roles.json，和 input.css 里 @gen-palettes 同一个函数）+ 组件别名层
  *   shell.css          顶栏圆 / 长条材质、头像圆、导航抽屉：input.css 里 /* @shell:begin <名> *\/ … /* @shell:end <名> *\/ 之间的原文
  *   palette-scheme.js  自定义 #rrggbb 种子 → 整套角色的引擎（web/assets/js/lib/palette-scheme.js 原样复制）
  *   nav.json           导航抽屉的项（web/data/shell-nav.json）+ 用到的图标 SVG（web/layouts/partials/icon.html）
@@ -71,7 +71,7 @@ function renderTokens(data) {
     .join('\n');
   return (
     HEAD('web/data/palette-roles.json') +
-    '/* 13 套预设：<html data-palette="<id>">（默认 lake 不写），深色 <html class="dark">；自定义种子在运行时用 palette-scheme.js 的 rolesCss() 覆盖。 */\n' +
+    '/* 33 套预设（单色 + 撞色）：<html data-palette="<id>">（默认 lake 不写），深色 <html class="dark">；自定义种子在运行时用 palette-scheme.js 的 rolesCss() 覆盖。 */\n' +
     block +
     '\n/* 组件角色（别名层）：只引用上面的角色 */\n' +
     aliasCss +
@@ -103,8 +103,8 @@ function renderNav() {
 }
 
 function renderPalettes(data, schemeSrc) {
-  const order = ['lake', 'forest', 'terra', 'violet', 'rose', 'cherry', 'tangerine', 'amber', 'matcha', 'teal', 'indigo', 'orchid', 'graphite'];
-  const ids = Object.keys(data.presets).sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99));
+  /* 顺序 = palette-roles.json（= palette-scheme.js PRESETS：单色组在前、撞色组在后）；2026-10-21 起每项多一个 group（mono / clash），旧字段不变 */
+  const ids = Object.keys(data.presets);
   return (
     JSON.stringify(
       {
@@ -112,7 +112,7 @@ function renderPalettes(data, schemeSrc) {
         default: 'lake',
         /* 子站缓存自定义色角色时用的版本号：引擎一变就变，旧缓存自动作废 */
         schemeVersion: sha(schemeSrc).slice(0, 12),
-        presets: ids.map((id) => ({ id, zh: data.presets[id].zh, en: data.presets[id].en, seed: data.presets[id].seed })),
+        presets: ids.map((id) => ({ id, zh: data.presets[id].zh, en: data.presets[id].en, seed: data.presets[id].seed, group: data.presets[id].group || 'mono' })),
       },
       null,
       2,

@@ -197,7 +197,8 @@ test.describe('快捷面板：开合', () => {
       return document.getElementById('sgx-qp').contains(a) || a === document.querySelector('.sgx-tb-quick');
     });
     let sawIcon = false;
-    for (let i = 0; i < 30; i++) {
+    /* 2026-10-21：调色板一行变成单色 17 + 撞色 16 个色块，一圈 Tab 超过 30 下 → 按 60 下 */
+    for (let i = 0; i < 60; i++) {
       await page.keyboard.press('Tab');
       expect(await allowed()).toBe(true);
       if (await page.evaluate(() => document.activeElement === document.querySelector('.sgx-tb-quick'))) sawIcon = true;
@@ -319,7 +320,8 @@ test.describe('快捷面板：内容', () => {
     await openQp(page);
     await expect(page.locator('#sgx-qp .sgx-qp-tile .sgx-qp-label')).toHaveText(['深色模式', '跟随系统', '减弱动效', '语言', '立即锁定']);
     await expect(page.locator('#sgx-qp .sgx-qp-row-label')).toHaveText(['调色板', '字体大小', '布局']);
-    await expect(page.locator('#sgx-qp [data-qp-palette]')).toHaveCount(13);
+    await expect(page.locator('#sgx-qp [data-qp-palette]')).toHaveCount(33);
+    await expect(page.locator('#sgx-qp .sgx-qp-sw.swatch-clash')).toHaveCount(16);
     await expect(page.locator('#sgx-qp [data-qp-seg="font-size"] button')).toHaveText(['小', '标准', '大']);
     await expect(page.locator('#sgx-qp [data-qp-seg="layout"] button')).toHaveText(['自动', 'Mobile', 'DeX', 'PC']);
     /* 顶部一行：标题 + 齿轮圆钮（全部设置）；底部没有「全部设置」行 */

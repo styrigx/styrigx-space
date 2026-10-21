@@ -1,0 +1,11 @@
+{{- /* 撞色组色块的色带（2026-10-21，One UI 调色板式竖条；设置风格页 + 快捷面板）：按 id 从 data/palette-roles.json 取，
+   返回 style 里的 CSS 变量串（input.css .swatch-clash 用）：
+   --sw-1..3 = 上面三条色带，亮暗共用：种子本色 + 辅色 / 第三色的「本色」中间调（presets[id].swatch，palette-scheme.js swatchTones()；
+   OKLCH L ≈ 0.68、黄色族更亮，彩度跟本套规格）。不用亮色的辅 / 第三色角色——那是按 4.5:1 压深的文字色，放到色块上发泥（橘子成铁锈褐）。
+   --sw-4..6 = 浅色下面三条浅色调（中性色调光 / 页面底 / 第三色容器），--swd-4..6 = 深色下的三个容器。单色组色块仍是种子色圆点，不用这个。
+   入参：dict "id" "c" */ -}}
+{{- $p := index site.Data "palette-roles" "presets" .id -}}
+{{- $l := $p.light -}}{{- $d := $p.dark -}}{{- $t := $p.swatch -}}
+{{- $s := printf "--sw-1:%s;--sw-2:%s;--sw-3:%s;--sw-4:%s;--sw-5:%s;--sw-6:%s;" .c $t.s $t.t (index $l "bg-blob-1") $l.background (index $l "tertiary-container") -}}
+{{- $s = printf "%s--swd-4:%s;--swd-5:%s;--swd-6:%s" $s (index $d "primary-container") (index $d "secondary-container") (index $d "tertiary-container") -}}
+{{- return $s -}}

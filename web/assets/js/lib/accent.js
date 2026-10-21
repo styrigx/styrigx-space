@@ -1,7 +1,7 @@
 /**
  * @fileoverview 自定义主题色（轻量部分：读 / 清除 / 插缓存，不含色板引擎；算角色在 lib/accent-roles.js）。
  * 自定义主题色（localStorage sgx-accent = #rrggbb）→ 整套色彩角色（PR3 色彩角色 token）。
- * - 角色由 lib/palette-scheme.js 算（与 13 套预设同一条管线：最近的手调预设 → 转到种子色相 → 亮度阶梯 → 对比度审计 + 修正），
+ * - 角色由 lib/palette-scheme.js 算（与预设同一条管线：最近的单色组预设 → 转到种子色相 → 亮度阶梯 → 对比度审计 + 修正），
  *   变量名与 input.css 里 @gen-palettes 生成的预设完全一致（--sgx-primary、--sgx-text-primary …，亮 / 暗两段）。
  * - 写成 <style id="sgx-accent-roles">（不进 @layer，所以盖过 tokens 层里的预设），并把 CSS 文本缓存到 sgx-accent-css，
  *   baseof 内联脚本首屏直接插缓存，不用等这个模块。
@@ -13,7 +13,7 @@ export const ACCENT_KEY = 'sgx-accent';
 export const ACCENT_CSS_KEY = 'sgx-accent-css';
 export const ACCENT_STYLE_ID = 'sgx-accent-roles';
 /** 缓存格式版本：色板引擎 / 角色名变了就加一，旧缓存自动作废（baseof 内联脚本认同一个前缀） */
-export const ACCENT_CACHE_VER = 'v3';
+export const ACCENT_CACHE_VER = 'v5';
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
 /** @returns {string} 当前自定义主题色（小写 #rrggbb），没有返回 '' */

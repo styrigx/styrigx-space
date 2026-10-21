@@ -1,55 +1,172 @@
-# 调色板配置（色板列表的单数据源）。加颜色：这里加一项，并在 web/data/palette-roles.json 加同 id 的亮 / 暗角色（色板设计稿生成），再跑 node scripts/gen-palettes.mjs 写进 input.css。
-# settings.html / settings-sub.html 共用 site.Data.palettes.palettes。
+# 调色板配置（色板列表的单数据源）。两组（2026-10-21）：group: mono = 单色（同一色相的深浅，默认 lake 在这组），group: clash = 撞色（主 / 辅 / 第三色取不同色相族）。
+# 加颜色：这里加一项（c = 种子，色块显示），在 web/assets/js/lib/palette-scheme.js 的 PRESETS 加同 id、同 group 的规格，
+# 再跑 node scripts/gen-palettes.mjs --roles（重建 web/data/palette-roles.json 并写进 input.css）和 node scripts/gen-shell.mjs；web/data/features.yaml 的 palette 选项同步加。
+# settings 风格页（setcat-theme.html，单色 / 撞色两个分页）和快捷面板（baseof.html）共用 site.Data.palettes.palettes。
 palettes:
+  # ---- 单色 Mono（17）----
   - id: lake
     c: "#2f5f86"
     zh: 默认
     en: Default
+    group: mono
   - id: forest
     c: "#2f6b4f"
     zh: 山绿
     en: Forest
+    group: mono
   - id: terra
     c: "#8a4b2d"
     zh: 陶土
     en: Terracotta
+    group: mono
   - id: violet
     c: "#6750a4"
     zh: 紫
     en: Violet
+    group: mono
   - id: rose
     c: "#984061"
     zh: 蔷薇
     en: Rose
+    group: mono
   - id: cherry
     c: "#ba1a20"
     zh: 樱桃
     en: Cherry
+    group: mono
   - id: tangerine
     c: "#b02e00"
     zh: 橘子
     en: Tangerine
+    group: mono
   - id: amber
     c: "#825500"
     zh: 琥珀
     en: Amber
+    group: mono
   - id: matcha
     c: "#3c6a00"
     zh: 抹茶
     en: Matcha
+    group: mono
   - id: teal
     c: "#00696b"
     zh: 青碧
     en: Teal
+    group: mono
   - id: indigo
     c: "#3d4fd3"
     zh: 靛蓝
     en: Indigo
+    group: mono
   - id: orchid
     c: "#a62092"
     zh: 兰紫
     en: Orchid
+    group: mono
+  - id: dustyblue
+    c: "#78909c"
+    zh: 雾霾蓝
+    en: Dusty Blue
+    group: mono
+  - id: mustard
+    c: "#d4a72c"
+    zh: 芥末黄
+    en: Mustard
+    group: mono
+  - id: sage
+    c: "#9caf88"
+    zh: 鼠尾草绿
+    en: Sage
+    group: mono
+  - id: dustyrose
+    c: "#d8a7a7"
+    zh: 干枯玫瑰
+    en: Dusty Rose
+    group: mono
   - id: graphite
     c: "#5e5e5e"
     zh: 石墨
     en: Graphite
+    group: mono
+  # ---- 撞色 Clash（16）：主色 = 同名单色的种子 ----
+  - id: xforest
+    c: "#2f6b4f"
+    zh: 山绿×橘子
+    en: Forest × Tangerine
+    group: clash
+  - id: xterra
+    c: "#8a4b2d"
+    zh: 陶土×鼠尾草
+    en: Terracotta × Sage
+    group: clash
+  - id: xviolet
+    c: "#6750a4"
+    zh: 紫×蔷薇
+    en: Violet × Rose
+    group: clash
+  - id: xrose
+    c: "#984061"
+    zh: 蔷薇×杏
+    en: Rose × Apricot
+    group: clash
+  - id: xcherry
+    c: "#ba1a20"
+    zh: 樱桃×嫩叶
+    en: Cherry × Leaf
+    group: clash
+  - id: xtangerine
+    c: "#b02e00"
+    zh: 橘子×海蓝
+    en: Tangerine × Sea Blue
+    group: clash
+  - id: xamber
+    c: "#825500"
+    zh: 琥珀×梅子
+    en: Amber × Plum
+    group: clash
+  - id: xmatcha
+    c: "#3c6a00"
+    zh: 抹茶×焙茶
+    en: Matcha × Hojicha
+    group: clash
+  - id: xteal
+    c: "#00696b"
+    zh: 青碧×樱桃
+    en: Teal × Cherry
+    group: clash
+  - id: xindigo
+    c: "#3d4fd3"
+    zh: 靛蓝×霓虹粉
+    en: Indigo × Neon Pink
+    group: clash
+  - id: xorchid
+    c: "#a62092"
+    zh: 兰紫×石板灰
+    en: Orchid × Slate
+    group: clash
+  - id: xdustyblue
+    c: "#78909c"
+    zh: 雾霾蓝×芥末黄
+    en: Dusty Blue × Mustard
+    group: clash
+  - id: xmustard
+    c: "#d4a72c"
+    zh: 芥末黄×雾霾蓝
+    en: Mustard × Dusty Blue
+    group: clash
+  - id: xsage
+    c: "#9caf88"
+    zh: 鼠尾草绿×干枯玫瑰
+    en: Sage × Dusty Rose
+    group: clash
+  - id: xdustyrose
+    c: "#d8a7a7"
+    zh: 干枯玫瑰×鼠尾草绿
+    en: Dusty Rose × Sage
+    group: clash
+  - id: xgraphite
+    c: "#5e5e5e"
+    zh: 石墨×湖蓝
+    en: Graphite × Lake Blue
+    group: clash
