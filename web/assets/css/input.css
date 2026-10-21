@@ -4978,6 +4978,7 @@
   background: transparent; border: 0; box-shadow: none; padding: 0;
   animation: none; backdrop-filter: none; -webkit-backdrop-filter: none;
   -webkit-mask-image: none; mask-image: none; contain: none; isolation: auto; }
+/* @shell:begin topbar-frame（共享外壳：scripts/gen-shell.mjs 原样抽到 web/shared/shell/shell.css，子站 scripts/sync-shell.mjs 同步；只用 --sgx-* 角色，不写死颜色） */
 /* 顶栏尺寸 token：页边距、圆按钮直径、间距、长条内图标点击区直径。手机竖屏导航抽屉宽度也由它们算（右缘对齐长条里快捷面板图标点击区左缘），改这里两边一起跟着变 */
 :root { --sgx-tb-inset: 16px; --sgx-tb-btn: 52px; --sgx-tb-gap: 8px; --sgx-tb-ic: 40px; }
 .sgx-topbar { position: fixed; top: calc(var(--sgx-tb-inset) + env(safe-area-inset-top, 0px)); left: var(--sgx-tb-inset); right: var(--sgx-tb-inset);
@@ -4985,31 +4986,40 @@
 @media (min-width: 980px) {
   .sgx-topbar { left: 50%; right: auto; transform: translateX(-50%); width: min(calc(100vw - 32px), 1068px); }
 }
-/* 顶栏材质（全站统一：顶栏、底部搜索栏、内容卡片都用这一套）：主色 10% 混表面色，88% 不透明；
-   --sgx-bottom-dock-h：底部胶囊高度（胶囊和 main 底部留白共用） */
+/* 顶栏材质（全站统一：顶栏圆 / 长条、导航抽屉、底部搜索栏、内容卡片都用这一套）：主色 10% 混表面色，88% 不透明 + 毛玻璃。
+   只引用色彩角色（--sgx-primary / --sgx-surface / --sgx-glass-edge），预设、亮暗、自定义种子都跟着变。
+   --sgx-mat-filter：毛玻璃（顶栏圆 / 长条与导航抽屉面板共用）；没有 backdrop-filter 的浏览器退回 --sgx-mat-solid。 */
 :root {
-  --sgx-bottom-dock-h: 56px;
-  --sgx-mat: color-mix(in srgb, color-mix(in srgb, var(--m-primary) 10%, var(--m-surface)) 88%, transparent);
-  --sgx-mat-solid: color-mix(in srgb, var(--m-primary) 10%, var(--m-surface));
-  --sgx-mat-line: rgba(0,0,0,.06);
+  --sgx-mat: color-mix(in srgb, color-mix(in srgb, var(--sgx-primary) 10%, var(--sgx-surface)) 88%, transparent);
+  --sgx-mat-solid: color-mix(in srgb, var(--sgx-primary) 10%, var(--sgx-surface));
+  --sgx-mat-line: var(--sgx-glass-edge);
   --sgx-mat-shadow: 0 8px 24px rgba(0,0,0,.14);
-  /* 材质毛玻璃（顶栏圆 / 长条与导航抽屉面板共用，保持一致） */
   --sgx-mat-filter: blur(24px) saturate(180%);
+  /* 状态层（悬停 / 按下）：角色里的叠加色 × 不透明度 */
+  --sgx-state-hover-bg: color-mix(in srgb, var(--sgx-state-color) calc(var(--sgx-state-hover) * 100%), transparent);
+  --sgx-state-pressed-bg: color-mix(in srgb, var(--sgx-state-color) calc(var(--sgx-state-pressed) * 100%), transparent);
 }
 .dark {
-  --sgx-mat-line: rgba(255,255,255,.08);
   --sgx-mat-shadow: 0 8px 24px rgba(0,0,0,.35);
 }
 .sgx-tb-pill, .sgx-tb-nav {
   background: var(--sgx-mat);
-  backdrop-filter: var(--sgx-mat-filter); -webkit-backdrop-filter: var(--sgx-mat-filter);
+  -webkit-backdrop-filter: var(--sgx-mat-filter);
   border: 1px solid var(--sgx-mat-line); box-shadow: var(--sgx-mat-shadow); pointer-events: auto; }
+/* 标准 backdrop-filter 单独放进 @supports：子站的压缩器（Astro/Vite、Tailwind --minify）会把同一规则里同值的
+   -webkit- / 标准两行合并成一行，Chromium（含三星浏览器）或旧 Safari 就丢了毛玻璃；分开两条规则就不会被合并 */
+@supports (backdrop-filter: blur(1px)) {
+  .sgx-tb-pill, .sgx-tb-nav { backdrop-filter: var(--sgx-mat-filter); }
+}
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .sgx-tb-pill, .sgx-tb-nav { background: var(--sgx-mat-solid); }
 }
 .sgx-tb-nav { width: var(--sgx-tb-btn); height: var(--sgx-tb-btn); border-radius: 999px; flex-shrink: 0; padding: 0;
-  display: inline-flex; align-items: center; justify-content: center; color: var(--m-on-surface); cursor: pointer; }
+  display: inline-flex; align-items: center; justify-content: center; color: var(--sgx-text-primary); cursor: pointer; }
 .sgx-tb-nav svg { width: 22px; height: 22px; }
+/* @shell:end topbar-frame */
+/* 底部胶囊高度（胶囊和 main 底部留白共用） */
+:root { --sgx-bottom-dock-h: 56px; }
 /* 通版顶栏 v5（2026-10-20）：两个圆 + 一个长条：九宫格圆 | 长条（搜索图标 · 页名 · 快捷面板图标）| 头像圆。
    两侧圆同尺寸，长条 flex:1 夹在中间，中心 = 顶栏中心 = 屏幕中心。
    长条两端图标点击区 --sgx-tb-ic（40px 圆），图标中心距长条外缘 = --sgx-tb-btn / 2（与两侧圆心到外缘一样，看上去像长条两端各嵌一个小圆）；
@@ -5033,59 +5043,66 @@
 .sgx-tb-ic { width: var(--sgx-tb-ic); height: var(--sgx-tb-ic); border-radius: 999px; flex-shrink: 0; padding: 0; border: 0; background: transparent;
   display: inline-flex; align-items: center; justify-content: center; color: var(--m-on-surface); cursor: pointer; text-decoration: none; }
 .sgx-tb-ic svg { width: 22px; height: 22px; }
-/* 右圆：头像（账号入口：链到账号登录页 / 账号页） */
+/* @shell:begin topbar-me（共享外壳：scripts/gen-shell.mjs 原样抽到 web/shared/shell/shell.css，子站 scripts/sync-shell.mjs 同步；只用 --sgx-* 角色，不写死颜色） */
+/* 右圆：头像（主站：账号入口；子站只展示） */
 .sgx-tb-me { width: var(--sgx-tb-btn); height: var(--sgx-tb-btn); border-radius: 999px; flex-shrink: 0; overflow: hidden; display: block;
   border: 1px solid var(--sgx-mat-line); box-shadow: var(--sgx-mat-shadow); pointer-events: auto; }
-.sgx-tb-me .sgx-tb-avatar { width: 100%; height: 100%; border: 0; display: block; }
-/* 访客：头像只是装饰，点了没反应（JS 另把链接去掉，见 head-buttons.js initVisitorAvatar） */
-html[data-sgx-role="visitor"] .sgx-tb-me { pointer-events: none; cursor: default; }
+.sgx-tb-me .sgx-tb-avatar { width: 100%; height: 100%; border: 0; border-radius: 999px; object-fit: cover; display: block; }
 .sgx-tb-nav, .sgx-tb-ic { transition: background-color .15s ease; }
 @media (hover: hover) {
-  .sgx-tb-nav:hover, .sgx-tb-ic:hover { background-color: rgba(0,0,0,.04); }
-  .dark .sgx-tb-nav:hover, .dark .sgx-tb-ic:hover { background-color: rgba(255,255,255,.06); }
+  .sgx-tb-nav:hover, .sgx-tb-ic:hover { background-color: var(--sgx-state-hover-bg); }
 }
-.sgx-tb-nav:active, .sgx-tb-ic:active { background-color: rgba(0,0,0,.06); }
-.dark .sgx-tb-nav:active, .dark .sgx-tb-ic:active { background-color: rgba(255,255,255,.10); }
+.sgx-tb-nav:active, .sgx-tb-ic:active { background-color: var(--sgx-state-pressed-bg); }
 .reduced-motion .sgx-tb-nav, .reduced-motion .sgx-tb-ic { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-tb-nav, .sgx-tb-ic { transition: none; } }
 .sgx-tb-nav:focus-visible, .sgx-tb-ic:focus-visible {
-  outline: 2px solid var(--m-primary); outline-offset: 2px; }
-/* 导航抽屉（2026-10-20，Gmail Android 式左侧抽屉；baseof.html #sgx-drawer，head-buttons.js 开关）：
-   <dialog> 模态铺满视口，::backdrop 是遮罩；.sgx-drawer-sheet 从左滑入（is-open）。
-   当前项是主色容器药丸（aria-current="page"），图标 24px 描边。面板底色 = 顶栏材质（--sgx-mat / --sgx-mat-filter，跟随调色板与明暗）。 */
+  outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+/* @shell:end topbar-me */
+/* 访客：头像只是装饰，点了没反应（JS 另把链接去掉，见 head-buttons.js initVisitorAvatar） */
+html[data-sgx-role="visitor"] .sgx-tb-me { pointer-events: none; cursor: default; }
+/* @shell:begin drawer（共享外壳：scripts/gen-shell.mjs 原样抽到 web/shared/shell/shell.css，子站 scripts/sync-shell.mjs 同步；只用 --sgx-* 角色，不写死颜色） */
+/* 导航抽屉（2026-10-20，Gmail Android 式左侧抽屉；主站 baseof.html #sgx-drawer，head-buttons.js 开关；子站同一份）：
+   <dialog> 模态铺满视口，::backdrop 是遮罩（--sgx-scrim）；.sgx-drawer-sheet 从左滑入（is-open）。
+   面板 = 顶栏材质（--sgx-mat + --sgx-mat-filter 毛玻璃）；当前项是 tonal 药丸（--sgx-nav-selected / --sgx-on-nav-selected = secondary-container），
+   图标 24px 描边；字体固定主站无衬线（子站正文字体不同也不影响抽屉）。 */
 .sgx-drawer { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0;
-  border: 0; background: transparent; overflow: hidden; color: var(--m-on-surface); }
-.sgx-drawer::backdrop { background: rgba(0,0,0,0); transition: background-color .22s ease; }
-.sgx-drawer.is-open::backdrop { background: rgba(0,0,0,.32); }
-.sgx-drawer-sheet { position: absolute; top: 0; bottom: 0; left: 0; width: 320px; overflow-y: auto; overscroll-behavior: contain;
-  background: var(--sgx-mat); backdrop-filter: var(--sgx-mat-filter); -webkit-backdrop-filter: var(--sgx-mat-filter);
+  border: 0; background: transparent; overflow: hidden; color: var(--sgx-text-primary);
+  font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; letter-spacing: normal; }
+.sgx-drawer::backdrop { background: transparent; transition: background-color .22s ease; }
+.sgx-drawer.is-open::backdrop { background: var(--sgx-scrim); }
+.sgx-drawer-sheet { position: absolute; top: 0; bottom: 0; left: 0; width: 320px; overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box;
+  background: var(--sgx-mat); -webkit-backdrop-filter: var(--sgx-mat-filter);
   border-radius: 0 1.75rem 1.75rem 0; box-shadow: 0 12px 40px -8px rgba(0,0,0,.30);
   padding: calc(16px + env(safe-area-inset-top, 0px)) 12px calc(16px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-104%); transition: transform .22s cubic-bezier(.2,0,0,1); }
 .sgx-drawer.is-open .sgx-drawer-sheet { transform: none; }
+@supports (backdrop-filter: blur(1px)) {
+  .sgx-drawer-sheet { backdrop-filter: var(--sgx-mat-filter); }
+}
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .sgx-drawer-sheet { background: var(--sgx-mat-solid); }
 }
 /* 抽屉宽：平板 / 桌面固定 320px（Material 导航抽屉宽度）；手机竖屏（< 600px，Material compact）右缘对齐长条里快捷面板图标点击区左缘：
    宽 = 视口宽 − 右页边距 − 头像圆 − 间距 − 半个圆（图标中心到长条外缘）− 半个点击区（<dialog> 铺满视口所以用 100%），
-   全由顶栏 token 算，token 改了仍对齐 */
+   全由顶栏 token 算，token 改了仍对齐（412px 宽 = 290px） */
 @media (max-width: 599.98px) {
   .sgx-drawer-sheet { width: calc(100% - var(--sgx-tb-inset) - 1.5 * var(--sgx-tb-btn) - var(--sgx-tb-gap) - var(--sgx-tb-ic) / 2); }
 }
 .reduced-motion .sgx-drawer-sheet, .reduced-motion .sgx-drawer::backdrop { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-drawer-sheet, .sgx-drawer::backdrop { transition: none; } }
-.sgx-drawer-head { padding: 14px 16px 18px; font-size: 20px; font-weight: 700; color: var(--m-on-surface); }
+.sgx-drawer-head { margin: 0; padding: 14px 16px 18px; font-size: 20px; font-weight: 700; line-height: 1.4; color: var(--sgx-text-primary); }
 .sgx-drawer-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .sgx-drawer-item { display: flex; align-items: center; gap: 14px; min-height: 56px; padding: 0 16px; border-radius: 999px;
-  font-size: 15px; font-weight: 500; color: var(--m-on-surface-variant); text-decoration: none; transition: background-color .15s ease; }
-.sgx-drawer-item:hover { background: var(--m-container); }
-.sgx-drawer-item:active { background: var(--m-container-high); }
-.sgx-drawer-item:focus-visible { outline: 2px solid var(--m-primary); outline-offset: -2px; }
-.sgx-drawer-item[aria-current="page"] { background: var(--m-primary-container); color: var(--m-on-primary-container); font-weight: 700; }
+  font-size: 15px; font-weight: 500; line-height: 1.4; color: var(--sgx-text-secondary); text-decoration: none; transition: background-color .15s ease; }
+.sgx-drawer-item:hover { background: var(--sgx-state-hover-bg); }
+.sgx-drawer-item:active { background: var(--sgx-state-pressed-bg); }
+.sgx-drawer-item:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
+.sgx-drawer-item[aria-current="page"], .sgx-drawer-item[aria-current="page"]:hover { background: var(--sgx-nav-selected); color: var(--sgx-on-nav-selected); font-weight: 700; }
 .sgx-drawer-ic { width: 24px; height: 24px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
 .sgx-drawer-ic svg { width: 24px; height: 24px; display: block; }
 .sgx-drawer-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sgx-drawer-div { border: 0; border-top: 1px solid var(--m-outline); margin: 10px 16px; }
+.sgx-drawer-div { border: 0; border-top: 1px solid var(--sgx-outline-variant); margin: 10px 16px; height: 0; }
+/* @shell:end drawer */
 /* 快捷面板（2026-10-20 改为内嵌；baseof.html <main> 开头的 #sgx-qp，shell/quick-panel.js 开关）：
    正文流里的一块，宽度 = 本页内容列（JS 打开前 / 重绘时量出本页内容列里看得见的内容块的左右缘写进 --sgx-qp-l / --sgx-qp-w，量不到时按 max-w-2xl 居中）。
    展开 / 收起用 grid-template-rows 0fr ↔ 1fr（.is-open），下面的正文跟着平滑下移 / 上移；收起后 visibility:hidden + inert。

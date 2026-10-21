@@ -1,0 +1,13 @@
+{
+  "brand": "Styrigx",
+  "label": { "zh": "导航", "en": "Navigation" },
+  "items": [
+    { "id": "home", "icon": "nav-home", "zh": "首页", "en": "Home", "origin": "https://styrigx.com", "path": "/" },
+    { "id": "bookmarks", "icon": "nav-bookmark", "zh": "书签", "en": "Bookmarks", "origin": "https://styrigx.com", "path": "/bookmarks/" },
+    { "id": "daymark", "icon": "nav-daymark", "zh": "日刻", "en": "Daymark", "origin": "https://daymark.styrigx.com", "path": "/" },
+    { "id": "blog", "icon": "nav-blog", "zh": "博客", "en": "Blog", "origin": "https://blog.styrigx.com", "path": "/" }
+  ],
+  "footer": [
+    { "id": "settings", "icon": "nav-gear", "zh": "设置", "en": "Settings", "origin": "https://styrigx.com", "path": "/settings/" }
+  ]
+}
