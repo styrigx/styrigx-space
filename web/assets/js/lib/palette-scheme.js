@@ -67,9 +67,11 @@ const T = {
     danger: 0.53, onDanger: 0.99, dc: 0.925, onDc: 0.31,
     // neutral stack
     dim: 0.905, bg: 0.968, surface: 0.978, bright: 0.992,
-    lowest: 0.997, low: 0.962, container: 0.944, high: 0.927, highest: 0.908,
+    // 容器阶梯（2026-10-21 搭配微调）：container / high / highest 各压深一点、装饰边线 outlineVar 0.858 → 0.842，
+    // 块与底、chip 与块、边线与卡片之间拉开到约 ΔL 0.04–0.06（旧值 0.944 / 0.927 / 0.908 时多处只差 0.017，糊在一起）
+    lowest: 0.997, low: 0.962, container: 0.940, high: 0.921, highest: 0.902,
     text1: 0.215, text2: 0.405, text3: 0.515,
-    outline: 0.575, outlineVar: 0.858,
+    outline: 0.575, outlineVar: 0.842,
     blob: 0.915, gradA: 0.958, gradB: 0.972, link: 0.455, linkVisited: 0.45,
   },
   dark: {
@@ -77,10 +79,12 @@ const T = {
     secondary: 0.80, onSecondary: 0.285, sc: 0.345, onSc: 0.915,
     tertiary: 0.80, onTertiary: 0.285, tc: 0.36, onTc: 0.92,
     danger: 0.78, onDanger: 0.29, dc: 0.385, onDc: 0.925,
-    dim: 0.148, bg: 0.165, surface: 0.185, bright: 0.31,
-    lowest: 0.198, low: 0.217, container: 0.240, high: 0.265, highest: 0.293,
+    // 暗色容器阶梯（2026-10-21）：每升一层多亮一点（container 0.240 → 0.248，high 0.265 → 0.277，highest 0.293 → 0.306，bright 0.31 → 0.325），
+    // 块对页面、磁贴对面板约 ΔL 0.06–0.08；装饰边线 0.365 → 0.38
+    dim: 0.148, bg: 0.165, surface: 0.185, bright: 0.325,
+    lowest: 0.200, low: 0.222, container: 0.248, high: 0.277, highest: 0.306,
     text1: 0.935, text2: 0.795, text3: 0.685,
-    outline: 0.62, outlineVar: 0.365,
+    outline: 0.62, outlineVar: 0.38,
     blob: 0.30, gradA: 0.19, gradB: 0.165, link: 0.82, linkVisited: 0.80,
   },
 };
@@ -163,6 +167,8 @@ function build(spec, mode) {
   return r;
 }
 
+// 导航抽屉当前项药丸的亮度（OKLCH L）：bg = 药丸，fg = 药丸上的文字 / 图标
+const NAV_SEL = { light: { bg: 0.83, fg: 0.29 }, dark: { bg: 0.365, fg: 0.93 } };
 function applyAliases(r, spec) {
   // interactive roles
   const D = r.__dark;
@@ -177,8 +183,17 @@ function applyAliases(r, spec) {
   r['slider-thumb'] = r[accent];
   r['chip-selected'] = r['secondary-container'];
   r['on-chip-selected'] = r['on-secondary-container'];
-  r['nav-selected'] = r['secondary-container'];
-  r['on-nav-selected'] = r['on-secondary-container'];
+  // 导航抽屉当前项（2026-10-21 搭配微调）：抽屉面板是顶栏材质（主色 10% 混 surface 的毛玻璃，亮色约 L 0.90、暗色约 L 0.25），
+  // secondary-container（亮 L 0.925 / 暗 L 0.345、近中性）贴在上面几乎看不出来。改成强调色色相的中等彩度 tonal 药丸，
+  // 亮度单独一档（NAV_SEL），对面板约 1.3:1（亮）/ 1.5:1（暗）：清楚但不刺眼；文字用同色相的深 / 浅色（≥ 7:1）。
+  { const P = spec.p, Te = spec.t, tert = accent === 'tertiary';
+    const pH = D && P.hd != null ? P.hd : P.h;
+    const pcH = !D && spec.pc && spec.pc.h != null ? spec.pc.h : pH;
+    const h = tert ? Te.h : pcH;
+    const c = Math.min(tert ? Te.c * 0.24 : P.c * 0.42, D ? 0.055 : 0.06);
+    r['nav-selected'] = oklch(NAV_SEL[D ? 'dark' : 'light'].bg, c, h);
+    r['on-nav-selected'] = oklch(NAV_SEL[D ? 'dark' : 'light'].fg, Math.min(c * (D ? 0.5 : 1.4), 0.08), h);
+  }
   r['fab'] = r['primary-container'];
   r['on-fab'] = r['on-primary-container'];
   r['badge'] = r['danger'];
@@ -233,6 +248,7 @@ function checks() {
   c.push(['switch-thumb-off', 'switch-track-off', 3, 'ui']);
   c.push(['slider-active', 'slider-inactive', 3, 'ui']);
   c.push(['on-chip-selected', 'chip-selected', 4.5, 'text']);
+  c.push(['on-nav-selected', 'nav-selected', 4.5, 'text']);
   c.push(['on-fab', 'fab', 4.5, 'text']);
   c.push(['daymark-label', 'daymark-card', 4.5, 'text']);
   c.push(['lock-quote', '@lock-quote-on-bg', 4.5, 'text']);

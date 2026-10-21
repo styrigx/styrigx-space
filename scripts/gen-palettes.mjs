@@ -13,11 +13,13 @@
  *
  * 用法：node scripts/gen-palettes.mjs          重新生成
  *       node scripts/gen-palettes.mjs --check  只核对（不一致 exit 1，单测 / CI 用）
+ *       node scripts/gen-palettes.mjs --roles  先用引擎（palette-scheme.js）重算 JSON 里 13 套预设和 8 个校验种子的角色值，
+ *                                              再生成 input.css（改了引擎的亮度阶梯 / 别名后用；元数据 id / 名字 / mood 不动）
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { roleDecls } from '../web/assets/js/lib/palette-scheme.js';
+import { roleDecls, presetRoles, rolesFor } from '../web/assets/js/lib/palette-scheme.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const JSON_PATH = path.join(REPO, 'web/data/palette-roles.json');
@@ -49,6 +51,19 @@ export function renderBlock(data) {
   return lines.join('\n');
 }
 
+/** 引擎重算角色值（预设 + 校验种子），保留键顺序和元数据。 @param {any} data @returns {any} */
+export function recomputeRoles(data) {
+  for (const id of Object.keys(data.presets)) {
+    const p = data.presets[id], r = presetRoles(id);
+    Object.assign(p, { light: r.light, lightState: r.lightState, dark: r.dark, darkState: r.darkState });
+  }
+  for (const seed of Object.keys(data.custom || {})) {
+    const c = data.custom[seed], r = rolesFor(seed);
+    Object.assign(c, { derivedFrom: r.derivedFrom, light: r.light, lightState: r.lightState, dark: r.dark, darkState: r.darkState, seedPrimary: r.seedPrimary });
+  }
+  return data;
+}
+
 /** @param {string} css @param {string} block @returns {string} */
 export function splice(css, block) {
   const a = css.indexOf(BEGIN);
@@ -61,6 +76,16 @@ export function splice(css, block) {
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   const data = JSON.parse(readFileSync(JSON_PATH, 'utf8'));
+  if (process.argv.includes('--roles')) {
+    const before = JSON.stringify(data, null, 1);
+    recomputeRoles(data);
+    if (JSON.stringify(data, null, 1) !== before) {
+      const d = new Date(Date.now() + 8 * 3600e3);
+      data.generated = d.toISOString().slice(0, 16).replace('T', ' ') + ' CST (UTC+08:00)';
+      writeFileSync(JSON_PATH, JSON.stringify(data, null, 1));
+      console.log('palette-roles.json recomputed from palette-scheme.js');
+    }
+  }
   const css = readFileSync(CSS_PATH, 'utf8');
   const next = splice(css, renderBlock(data));
   if (process.argv.includes('--check')) {

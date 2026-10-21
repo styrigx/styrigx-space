@@ -53,7 +53,8 @@ test('抽屉：tonal 当前项、毛玻璃面板、手机宽度由顶栏 token �
   assert.match(s, /\.sgx-drawer-brand \{[^}]*font-size: var\(--sgx-drawer-brand-size\);\s*font-weight: var\(--sgx-drawer-brand-weight\)/);
   assert.match(s, /\.sgx-drawer-body \{ flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;/);
   assert.match(s, /\.sgx-drawer-foot \{ flex: 0 0 auto;[^}]*env\(safe-area-inset-bottom/);
-  assert.match(s, /\.sgx-drawer-search \{ width: 100%; height: var\(--sgx-drawer-search-h\); border-radius: 999px; display: flex; align-items: center; justify-content: center;[^}]*background-color: var\(--sgx-surface-container-high\); border: 1px solid var\(--sgx-mat-line\);/);
+  assert.match(s, /\.sgx-drawer-search \{ width: 100%; height: var\(--sgx-drawer-search-h\); border-radius: 999px; display: flex; align-items: center; justify-content: center;[^}]*background-color: color-mix\(in srgb, var\(--sgx-surface-container-lowest\) 72%, transparent\); border: 1px solid var\(--sgx-mat-line\);/);
+  assert.match(s, /\.dark \.sgx-drawer-search \{ background-color: var\(--sgx-surface-bright\); \}/);
   assert.match(s, /\.sgx-drawer-search-label \{ flex: 0 1 auto;/);
   // 主站专有的东西不进共享外壳：抽屉淡出、导航项下的分隔线；旧的窗帘 / 加宽已删
   assert.doesNotMatch(s, /is-fading|sgx-drawer-sep|is-curtain|--sgx-curtain/);

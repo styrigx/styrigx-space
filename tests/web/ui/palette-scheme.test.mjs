@@ -90,3 +90,20 @@ test('C3 进入凭证按钮不再固定深蓝：--sgx-door-btn-* 只在别名层
   assert.equal(defs.length, 4);
   for (const v of defs) assert.match(v, /^var\(--sgx-btn-(primary|secondary)-(bg|fg)\)$/);
 });
+
+test('2026-10-21 搭配微调：抽屉当前项药丸和材质面板拉得开（不糊、不刺眼），文字 ≥ 7:1', () => {
+  // 面板 ≈ 主色 10% 混 surface（88% 不透明）叠在 遮罩 × background 上（与 input.css --sgx-mat 同一配方）
+  const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const hex = (a) => '#' + a.map((x) => Math.round(x).toString(16).padStart(2, '0')).join('');
+  const mix = (a, p, b) => hex(rgb(a).map((v, i) => v * p + rgb(b)[i] * (1 - p)));
+  const over = (rgba, bg) => { const m = rgba.match(/[\d.]+/g).map(Number); return hex(rgb(bg).map((v, i) => m[i] * m[3] + v * (1 - m[3]))); };
+  for (const [id, p] of Object.entries(DATA.presets)) {
+    for (const m of ['light', 'dark']) {
+      const r = p[m];
+      const sheet = mix(mix(r.primary, 0.1, r.surface), 0.88, over(r.scrim, r.background));
+      const k = contrast(r['nav-selected'], sheet);
+      assert.ok(k >= 1.2 && k <= 1.65, `${id} ${m} nav-selected / sheet = ${k.toFixed(2)}`);
+      assert.ok(contrast(r['on-nav-selected'], r['nav-selected']) >= 7, `${id} ${m} on-nav-selected`);
+    }
+  }
+});

@@ -1,7 +1,7 @@
 {
   "_generated": "styrigx-space scripts/gen-shell.mjs ← web/data/palette-roles.json；勿手改",
   "default": "lake",
-  "schemeVersion": "0bee0d8370d3",
+  "schemeVersion": "b014f173ae9a",
   "presets": [
     {
       "id": "lake",

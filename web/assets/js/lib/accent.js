@@ -13,7 +13,7 @@ export const ACCENT_KEY = 'sgx-accent';
 export const ACCENT_CSS_KEY = 'sgx-accent-css';
 export const ACCENT_STYLE_ID = 'sgx-accent-roles';
 /** 缓存格式版本：色板引擎 / 角色名变了就加一，旧缓存自动作废（baseof 内联脚本认同一个前缀） */
-export const ACCENT_CACHE_VER = 'v2';
+export const ACCENT_CACHE_VER = 'v3';
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
 /** @returns {string} 当前自定义主题色（小写 #rrggbb），没有返回 '' */

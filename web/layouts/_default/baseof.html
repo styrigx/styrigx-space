@@ -55,7 +55,7 @@ addEventListener('pagereveal',function(e){window.__sgxRevealVT=e.viewTransition|
     var ac=localStorage.getItem('sgx-accent');
     if(ac&&/^#[0-9a-fA-F]{6}$/.test(ac)){
       ac=ac.toLowerCase();d.style.setProperty('--sgx-seed',ac);
-      try{var acc=localStorage.getItem('sgx-accent-css')||'',ach='v2|'+ac+'\n';
+      try{var acc=localStorage.getItem('sgx-accent-css')||'',ach='v3|'+ac+'\n';
         if(acc.indexOf(ach)===0){var ast=document.createElement('style');ast.id='sgx-accent-roles';ast.textContent=acc.slice(ach.length);document.head.appendChild(ast)}}catch(e){}
     }
     /* 减弱动效 */

@@ -56,7 +56,7 @@
 /* ---- drawer ---- */
 /* 导航抽屉（2026-10-20，Gmail Android 式左侧抽屉；主站 baseof.html #sgx-drawer，head-buttons.js 开关；子站同一份）：
    <dialog> 模态铺满视口，::backdrop 是遮罩（--sgx-scrim）；.sgx-drawer-sheet 从左滑入（is-open）。
-   面板 = 顶栏材质（--sgx-mat + --sgx-mat-filter 毛玻璃）；当前项是 tonal 药丸（--sgx-nav-selected / --sgx-on-nav-selected = secondary-container），
+   面板 = 顶栏材质（--sgx-mat + --sgx-mat-filter 毛玻璃）；当前项是 tonal 药丸（--sgx-nav-selected / --sgx-on-nav-selected：强调色色相的中等彩度一档，对面板约 1.3:1 亮 / 1.5:1 暗，见 palette-scheme.js NAV_SEL），
    图标 24px 描边；字体固定主站无衬线（子站正文字体不同也不影响抽屉）。 */
 .sgx-drawer { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0;
   border: 0; background: transparent; overflow: hidden; color: var(--sgx-text-primary);
@@ -93,7 +93,7 @@
    左右 12px 内边距放在三段各自身上（滚动条贴面板边，药丸左右缘三段对齐）。
    抽屉头 = 只有大号站名（--sgx-drawer-brand-size / -weight，26px / 800），和第一项（首页）之间留 --sgx-drawer-head-gap（32px）。
    底栏 .sgx-drawer-foot：钉在面板底部（底内边距含 safe-area-inset-bottom），放整宽搜索框长条 .sgx-drawer-search：
-   左右缘 = 导航项药丸左右缘；--sgx-drawer-search-h（52px）高、999px 圆角，tonal 容器底色 --sgx-surface-container-high + --sgx-mat-line 细边，
+   左右缘 = 导航项药丸左右缘；--sgx-drawer-search-h（52px）高、999px 圆角，底色 亮 72% --sgx-surface-container-lowest / 暗 --sgx-surface-bright + --sgx-mat-line 细边，
    里面 24px ai-search 图标 + 「搜索 / Search」（--sgx-text-secondary，像占位文字），图标和文字作为一组在药丸里水平居中。
    仍是 <a> 链到全网搜索页（没 JS 也能用；主站在 JS 里接管：抽屉原地淡出后进搜索页，见 head-buttons.js 和下面「抽屉淡出」）。
    悬停 / 按下叠状态层，焦点框同其他外壳按钮。 */
@@ -105,9 +105,11 @@
 .sgx-drawer-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 12px 8px; }
 .sgx-drawer-foot { flex: 0 0 auto; padding: 8px 12px calc(16px + env(safe-area-inset-bottom, 0px)); }
 .sgx-drawer-search { width: 100%; height: var(--sgx-drawer-search-h); border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 12px;
-  padding: 0 16px; box-sizing: border-box; background-color: var(--sgx-surface-container-high); border: 1px solid var(--sgx-mat-line);
+  padding: 0 16px; box-sizing: border-box; background-color: color-mix(in srgb, var(--sgx-surface-container-lowest) 72%, transparent); border: 1px solid var(--sgx-mat-line);
   color: var(--sgx-text-secondary); font-size: 15px; font-weight: 500; line-height: 1.4; text-decoration: none; cursor: text;
   transition: background-color .15s ease; }
+/* 搜索框在材质面板上要比面板亮一档才看得出（2026-10-21）：亮色 72% 的 lowest（面板是略深的着色玻璃，纯白太跳），暗色 surface-bright；都约 1.25:1 */
+.dark .sgx-drawer-search { background-color: var(--sgx-surface-bright); }
 .sgx-drawer-search-ic { width: 24px; height: 24px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; color: var(--sgx-text-primary); }
 .sgx-drawer-search-ic svg { width: 24px; height: 24px; display: block; }
 .sgx-drawer-search-label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
