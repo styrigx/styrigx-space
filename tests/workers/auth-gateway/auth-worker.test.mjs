@@ -193,9 +193,49 @@ test('页面：Pages 的跳转（补尾斜杠）原样交回', async () => {
   }, { status: 308, headers: { Location: '/settings/' } });
 });
 
-test('stripSessionAttrs：只清 <html> 上的 data-sgx-*', () => {
+test('stripSessionAttrs：只清 <html> 上的会话标记（body 等别的标签不动）', () => {
   const html = '<html data-sgx-session="valid" lang="en" data-sgx-role="owner"><body data-sgx-x="1"></body></html>';
   assert.equal(pagesMw.stripSessionAttrs(html), '<html lang="en"><body data-sgx-x="1"></body></html>');
+});
+
+test('stripSessionAttrs：只清网关会写的会话标记，保留构建标记 data-sgx-build（2026-10-21）', () => {
+  const html = '<html data-sgx-build="abc1234" data-sgx-session="valid" lang="zh" data-sgx-role="owner" data-sgx-account="in" data-sgx-upgrade="1" data-sgx-upgrade-return="/x/"><head></head></html>';
+  assert.equal(pagesMw.stripSessionAttrs(html), '<html data-sgx-build="abc1234" lang="zh"><head></head></html>');
+});
+
+test('页面：锁屏首页保留 <head> 里的分享卡片 meta 和 <html> 上的构建标记', async () => {
+  _resetSecretCache();
+  const head = '<head><meta property="og:image" content="https://styrigx.com/og.png"><meta name="twitter:card" content="summary_large_image"><link rel="icon" type="image/svg+xml" href="/favicon.svg"></head>';
+  const page = '<!DOCTYPE html><html lang="zh" data-sgx-build="abc1234" data-sgx-session="locked">' + head + '<body><!-- SGX-DESKTOP-START -->desk<!-- SGX-DESKTOP-END -->x</body></html>';
+  await withOrigin(page, async () => {
+    const res = await worker.fetch(new Request('https://styrigx.com/'), baseEnv(), CTX);
+    assert.equal(res.status, 200);
+    const html = await res.text();
+    assert.match(html, /<html data-sgx-session="locked" lang="zh" data-sgx-build="abc1234">/);
+    assert.equal((html.match(/data-sgx-session=/g) || []).length, 1);
+    assert.ok(html.includes(head), '<head> 原样保留');
+    assert.doesNotMatch(html, /desk/);
+  });
+});
+
+test('锁着也公开：标签页图标 / 分享卡片图（Pages 中间件放行，不跳锁屏）', async () => {
+  _resetSecretCache();
+  for (const p of ['/favicon.ico', '/favicon.svg', '/og.png']) {
+    let called = 0;
+    const res = await pagesMw.onRequest({
+      request: new Request('https://styrigx.com' + p), env: baseEnv(), params: {}, data: {}, waitUntil() {},
+      next: async () => { called++; return new Response('img', { status: 200, headers: { 'Content-Type': 'image/png' } }); },
+    });
+    assert.equal(res.status, 200, p);
+    assert.equal(called, 1, p);
+    assert.equal(await res.text(), 'img', p);
+  }
+  /* 对照：未登录的内页仍跳锁屏 */
+  const res = await pagesMw.onRequest({
+    request: new Request('https://styrigx.com/settings/'), env: baseEnv(), params: {}, data: {}, waitUntil() {},
+    next: async () => new Response('page'),
+  });
+  assert.equal(res.status, 302);
 });
 
 test('所有响应带 X-SGX-Runtime: worker，且不改动原有头和正文', async () => {
