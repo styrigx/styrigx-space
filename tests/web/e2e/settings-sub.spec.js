@@ -239,11 +239,18 @@ test('palette 8-color test state', async ({ page: pg }) => {
   await expect(grid).toBeVisible();
   const fs = require('fs');
   const path = require('path');
-  const ids = [...fs.readFileSync(path.join(__dirname, '..', '..', '..', 'web', 'data', 'palettes.yaml'), 'utf8').matchAll(/^\s*- id: ([a-z]+)$/gm)].map((m) => m[1]);
+  /* 2026-10-21：两组；#palette-dots = 单色组（默认分页），#palette-dots-clash = 撞色组（隐藏，点「撞色」才显示） */
+  const yml = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'web', 'data', 'palettes.yaml'), 'utf8');
+  const items = [...yml.matchAll(/^\s*- id: ([a-z]+)\n(?:\s+\w+: .*\n)*?\s+group: (mono|clash)$/gm)].map((m) => [m[1], m[2]]);
+  const ids = items.filter((x) => x[1] === 'mono').map((x) => x[0]);
+  const clashIds = items.filter((x) => x[1] === 'clash').map((x) => x[0]);
+  expect(clashIds.length).toBe(16);
   await pg.evaluate(() => {
     document.getElementById('palette-dots').querySelector('.swatch').setAttribute('aria-pressed', 'true');
   });
-  await expect(grid.locator('.palette-cell')).toHaveCount(ids.length);
+  /* 2026-10-21：默认 lake 不放色块（标题右端「恢复默认」代替） */
+  await expect(grid.locator('.palette-cell')).toHaveCount(ids.length - 1);
+  await expect(grid.locator('.swatch[data-palette="lake"]')).toHaveCount(0);
   expect(ids.length).toBeGreaterThanOrEqual(8);
   // 断言换行：13 色在 412px 宽度下必定换行
   const boxes = await grid.locator('.palette-cell').evaluateAll((els) =>
@@ -258,6 +265,39 @@ test('palette 8-color test state', async ({ page: pg }) => {
   expect(Math.abs(lastRowLeft - firstRowLeft)).toBeLessThanOrEqual(2);
   // 选中态对勾可见
   await expect(grid.locator('.swatch[aria-pressed="true"] .swatch-check')).toBeVisible();
+  // 撞色分页：点「撞色」→ 单色网格隐藏、撞色网格显示 16 个竖条色块；点撞色色块选中后刷新，默认打开撞色分页
+  const clash = pg.locator('#palette-dots-clash');
+  await expect(clash).toBeHidden();
+  await pg.locator('[data-pal-tab="clash"]').click();
+  await expect(clash).toBeVisible();
+  await expect(grid).toBeHidden();
+  await expect(clash.locator('.swatch.swatch-clash')).toHaveCount(clashIds.length);
+  await clash.locator('.swatch[data-palette="xforest"]').click();
+  await expect(pg.locator('html')).toHaveAttribute('data-palette', 'xforest');
+  await pg.reload({ waitUntil: 'domcontentloaded' });
+  await expect(pg.locator('#palette-dots-clash')).toBeVisible();
+  await expect(pg.locator('#palette-dots-clash .swatch[data-palette="xforest"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(pg.locator('[data-pal-tab="clash"]')).toHaveAttribute('aria-pressed', 'true');
+  /* 恢复默认（标题行右端）：非默认时可点 → 回 lake（不存 key）、置灰（aria-disabled，不隐藏）；置灰时点了不动 */
+  const rs = pg.locator('#palette-reset');
+  await expect(rs).toHaveText('恢复默认');
+  await expect(rs).toHaveAttribute('aria-disabled', 'false');
+  const title = pg.locator('#sg-theme p.text-sm.font-medium').first();
+  const tb = await title.boundingBox();
+  const rb = await rs.boundingBox();
+  expect(rb.x).toBeGreaterThan(tb.x + tb.width);
+  expect(Math.abs(rb.y + rb.height / 2 - (tb.y + tb.height / 2))).toBeLessThanOrEqual(1.5);
+  await rs.click();
+  await expect(pg.locator('html')).not.toHaveAttribute('data-palette', /.+/);
+  expect(await pg.evaluate(() => localStorage.getItem('sgx-palette'))).toBeNull();
+  await expect(rs).toHaveAttribute('aria-disabled', 'true');
+  await expect(rs).toBeVisible();
+  await expect.poll(() => rs.evaluate((el) => Number(getComputedStyle(el).opacity))).toBeLessThan(0.6); /* opacity 有 .15s 过渡 */
+  await expect(pg.locator('#palette-dots .swatch[aria-pressed="true"], #palette-dots-clash .swatch[aria-pressed="true"]')).toHaveCount(0);
+  await rs.click({ force: true }); /* aria-disabled：强制点一下验证没反应 */
+  expect(await pg.evaluate(() => localStorage.getItem('sgx-palette'))).toBeNull();
+  await pg.reload({ waitUntil: 'domcontentloaded' });
+  await expect(pg.locator('#palette-reset')).toHaveAttribute('aria-disabled', 'true');
 });
 
 /* B2-1：诊断留痕已删除——即使 sessionStorage 里残留旧版的留痕/信标，安全与隐私页也不显示跳转日志卡；

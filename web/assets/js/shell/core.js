@@ -23,8 +23,6 @@ import { initWbTrack } from '../lib/wb-track.js';
 import { loadWb } from '../lib/wb-view.js';
 import { wbAreaOf } from '../lib/wb-area.js';
 import { openSheet, closeSheet } from './sheet.js';
-import { voiceInput } from './voice.js';
-import { voiceSheet } from './voice-sheet.js';
 import { engines } from './engines.js';
 
 let inited = false;
@@ -93,8 +91,6 @@ export function initCore() {
     toast,
     openSheet,
     closeSheet,
-    voiceInput,
-    voiceSheet,
     engines,
     applyTheme,
     setThemeMode,

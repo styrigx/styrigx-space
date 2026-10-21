@@ -4,7 +4,6 @@
  * 各页通过 setCapSearchProvider 注册搜索回调（替代旧 window.__sgxCapSearch）。
  */
 import { on } from '../lib/events.js';
-import { voiceSheet } from './voice-sheet.js';
 import { reducedMotion } from '../lib/util.js';
 import { onKeyboardHeight } from './vk.js';
 
@@ -43,6 +42,8 @@ export function initCapsule() {
 
     let opened = false;
     const kbMaxSeen = { v: 0 };
+    /* 全网搜索页底栏（.sgx-cap-bar：药丸 + 单独的关闭圆）：宽度始终左右各 16px，不做窄 → 宽插值 */
+    const bar = cap.classList.contains('sgx-cap-bar');
 
     /* D2：键盘收起即关闭的去抖（返回手势只收键盘、不触发 input blur 的兜底）。
        kbCloseTimer：h 归 0 后 120ms 的待关闭定时器；kbLastH：最近一次收到的键盘高度。 */
@@ -64,12 +65,14 @@ export function initCapsule() {
       const fullW = wide
         ? Math.min(480, Math.max(0, vw - 32))
         : Math.max(0, vw - 32);
-      cap.style.width = Math.round(baseW + (fullW - baseW) * p) + 'px';
+      if (!bar) cap.style.width = Math.round(baseW + (fullW - baseW) * p) + 'px';
       document.documentElement.style.setProperty('--sgx-kb', Math.round(h) + 'px');
       /* 无 VK API 时手动把胶囊顶到键盘上方 */
       if (!document.documentElement.classList.contains('sgx-vk')) {
         const capRest = document.body.classList.contains('subpage') ? 12 : 88;
-        cap.style.transform = 'translateX(-50%) translateY(' + Math.round(capRest - 12 - h) + 'px)';
+        /* 底栏在手机布局上不居中（left/right 16px），大屏布局才和普通胶囊一样 translateX(-50%) 居中 */
+        const cx = !bar || wide ? 'translateX(-50%) ' : '';
+        cap.style.transform = cx + 'translateY(' + Math.round(capRest - 12 - h) + 'px)';
       }
       /* D2：opened 且键盘曾弹出过（kbMaxSeen>0）、高度回到 0（≤2px）→
          120ms 去抖后仍为 0 就 blur + close()，效果等同点页面空白。
@@ -202,24 +205,6 @@ export function initCapsule() {
       } catch (e) {}
       close();
     });
-    /* 语音输入：走共享语音弹窗；只检测 SpeechRecognition 接口是否存在；
-       不支持则麦克风不渲染（无空位、无报错） */
-    const mic = cap.querySelector('[data-mic]');
-    const SR =
-      /** @type {any} */ (window).SpeechRecognition || /** @type {any} */ (window).webkitSpeechRecognition;
-    if (mic && SR) {
-      /** @type {HTMLElement} */ (mic).style.display = '';
-      on(mic, 'click', function (e) {
-        e.stopPropagation();
-        voiceSheet({
-          onFinal: function (t) {
-            if (!opened) open();
-            input.value = t;
-            doSearch();
-          },
-        });
-      });
-    }
     /* 绑定前已聚焦（页面先聚焦了输入框）：直接展开，保证胶囊跟随键盘 */
     if (document.activeElement === input) open();
     /* 页面底部留白：胶囊不压内容，最后一项能完整滚出 */

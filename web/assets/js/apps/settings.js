@@ -11,6 +11,7 @@ import { loadI18n } from '../lib/i18n.js';
 import { openSheet } from '../shell/sheet.js';
 import { setTheme, toggleFollowSystem, setPalette, setFontSize, setLayout, setReducedMotion, setLang } from '../lib/prefs.js';
 import { syncAccent } from '../lib/accent-roles.js';
+import { accent } from '../lib/accent.js';
 import { wellLoad, wellFlush } from '../shell/goodlock.js';
 import { sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
 
@@ -122,18 +123,46 @@ import { sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
   function curPalette() {
     return featGet('palette');
   }
-  function paintPalette() {
-    const p = curPalette();
-    document.querySelectorAll('#palette-dots .swatch').forEach(function (b) {
-      b.setAttribute('aria-pressed', b.getAttribute('data-palette') === p ? 'true' : 'false');
+  /* 两组（2026-10-21）：#palette-dots = 单色、#palette-dots-clash = 撞色；分段选择 [data-pal-tab] 切换显示哪组 */
+  const SW_SEL = '#palette-dots .swatch, #palette-dots-clash .swatch';
+  function showPalGroup(/** @type {string} */ g) {
+    document.querySelectorAll('[data-pal-group]').forEach(function (el) {
+      /** @type {HTMLElement} */ (el).hidden = el.getAttribute('data-pal-group') !== g;
+    });
+    document.querySelectorAll('[data-pal-tab]').forEach(function (b) {
+      b.setAttribute('aria-pressed', b.getAttribute('data-pal-tab') === g ? 'true' : 'false');
     });
   }
-  document.querySelectorAll('#palette-dots .swatch').forEach(function (b) {
+  /* 2026-10-21：默认色板 lake 没有色块，标题右端「恢复默认」（#palette-reset）= 选 lake（同一个 setPalette，自定义色一并清掉）；
+     已是默认（lake 且没有自定义主题色）时 aria-disabled 置灰、点了不动 */
+  const palReset = document.getElementById('palette-reset');
+  function paintPalette() {
+    const p = curPalette();
+    document.querySelectorAll(SW_SEL).forEach(function (b) {
+      b.setAttribute('aria-pressed', b.getAttribute('data-palette') === p ? 'true' : 'false');
+    });
+    if (palReset) palReset.setAttribute('aria-disabled', (p || 'lake') === 'lake' && !accent() ? 'true' : 'false');
+  }
+  if (palReset) {
+    on(palReset, 'click', function () {
+      if (palReset.getAttribute('aria-disabled') === 'true') return;
+      setPalette('lake');
+      paintPalette();
+    });
+  }
+  document.querySelectorAll(SW_SEL).forEach(function (b) {
     on(b, 'click', function () {
       setPalette(b.getAttribute('data-palette') || 'lake');
       paintPalette();
     });
   });
+  document.querySelectorAll('[data-pal-tab]').forEach(function (b) {
+    on(b, 'click', function () {
+      showPalGroup(b.getAttribute('data-pal-tab') || 'mono');
+    });
+  });
+  /* 打开时显示当前色板所在的那组（撞色色板 → 撞色分页） */
+  if (document.querySelector('#palette-dots-clash .swatch[data-palette="' + curPalette() + '"]')) showPalGroup('clash');
   /* 自定义主题色（sgx-accent）：缓存缺失 / 过期时按种子重算整套角色（lib/palette-scheme.js） */
   syncAccent();
   paintPalette();
@@ -542,7 +571,7 @@ import { sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
     const AREAS = [
       { id: 'home', label: T.t('areaHome'), color: 'var(--m-primary)' },
       { id: 'links', label: T.t('areaLinks'), color: 'var(--m-accent)' },
-      { id: 'settings', label: T.t('areaSettings'), color: 'var(--m-secondary)' },
+      { id: 'settings', label: T.t('areaSettings'), color: 'var(--sgx-secondary-fill, var(--m-secondary))' },
       { id: 'goodlock', label: T.t('areaGoodlock'), color: 'var(--m-rose)' },
     ];
     if (total <= 0) {

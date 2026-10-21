@@ -3,12 +3,12 @@
   "source": "styrigx/styrigx-space",
   "dir": "web/shared/shell",
   "files": {
-    "tokens.css": "1020df0df04415b777a61944de08c38fa19a119cf657111f1169cffd91523edf",
-    "shell.css": "7b9a94297ddbd02d69a8950f19f954bedb8fa31cbd7d42fe3ad34b937458f25e",
-    "palette-scheme.js": "0bee0d8370d3ed854d0345b8b3849d9dd45b7c4d007623c45455ee25885239fa",
+    "tokens.css": "4fab2634c833c36d59fa5fb8731053efee26249cdef7f797eac756e6ac76623e",
+    "shell.css": "545235f95a916f8836bb13a33e173bba04cc24fb558e4a6566fd4a0e82e56fca",
+    "palette-scheme.js": "ab6d347b23dc2f062f3b7ca5ae1b94543e898864a8f669972e8720d2729c50c4",
     "nav.json": "e631fd25dceec1da4661a19bbd5c1f7c751100b11fd37860c9d126d02fb41bdb",
-    "palettes.json": "6ec64d87323eea8038e8fff19e68ebfc6e83fc3651579f48319663f9509d50c7",
+    "palettes.json": "cb95c4e6570ab1cdcb2bb82de30d709a99910157b7e1b435d9d3b9e8b00d5711",
     "README.md": "53ab96da7a5fa60ad89b2aa9cf9e26b2e431bf076cc62aec4e342d1954be9ede"
   },
-  "version": "50b120223490"
+  "version": "b05344f26c3f"
 }

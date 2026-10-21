@@ -1,6 +1,6 @@
 /**
  * 调色板一致性（v1.4）：data/palettes.yaml、data/features.yaml 的 palette 选项、
- * input.css 两处色板块（回退块 + light-dark 块）必须一一对应，防止加色漏改一处。
+ * input.css 的 --sgx-* 预设段必须一一对应；旧的按色板手写 --m-* 块已收口成别名（2026-10-21 撞色）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -25,24 +25,28 @@ test('features.yaml palette 选项与 palettes.yaml 一致', () => {
   assert.deepEqual(opts, ids);
 });
 
-test('每个色板在 input.css 有回退块和 light-dark 块（浅色 + 深色）', () => {
-  for (const id of custom) {
-    const light = css.split(`    [data-palette="${id}"] {`).length - 1;
-    const dark = css.split(`    .dark[data-palette="${id}"] {`).length - 1;
-    assert.equal(light, 2, `${id} 浅色块数量 ${light}`);
-    assert.equal(dark, 2, `${id} 深色块数量 ${dark}`);
-    const ld = css.split(`    [data-palette="${id}"] {`)[2].split('}')[0];
-    for (const k of ['primary', 'on-primary', 'primary-container', 'secondary', 'tertiary', 'on-tertiary-container']) {
-      assert.match(ld, new RegExp(`--m-${k}: light-dark\\(#[0-9a-f]{6}, #[0-9a-f]{6}\\);`), `${id} 缺 ${k}`);
-    }
+test('旧 --m-* 色板块已收口：input.css 不再按色板手写 --m-*，色板相关的 --m-* 只在别名块里指向 --sgx-* 角色', () => {
+  for (const id of ids) {
+    assert.ok(!css.includes(`    [data-palette="${id}"] {`), `${id} 还有旧的 --m-* 浅色块`);
+    assert.ok(!css.includes(`    .dark[data-palette="${id}"] {`), `${id} 还有旧的 --m-* 深色块`);
+  }
+  const fam = ['primary', 'on-primary', 'primary-container', 'on-primary-container', 'secondary', 'on-secondary', 'secondary-container',
+    'on-secondary-container', 'tertiary', 'on-tertiary', 'tertiary-container', 'on-tertiary-container', 'on-surface', 'on-surface-variant', 'wallpaper'];
+  for (const k of fam) {
+    const defs = [...css.matchAll(new RegExp(`--m-${k}:\\s*([^;]+);`, 'g'))].map((m) => m[1].trim());
+    assert.equal(defs.length, 1, `--m-${k} 定义了 ${defs.length} 次`);
+    assert.match(defs[0], /^var\(--sgx-[a-z0-9-]+\)$/, `--m-${k} = ${defs[0]}`);
   }
 });
 
-test('色块颜色等于浅色 primary', () => {
+test('每个色板都有 --sgx-* 角色（gen-palettes 生成的浅色 + 深色两段），色块 c = 角色 JSON 的种子', () => {
+  const roles = JSON.parse(readFileSync(new URL('../../../web/data/palette-roles.json', import.meta.url), 'utf8')).presets;
   for (const id of custom) {
+    assert.ok(css.includes(`:root[data-palette="${id}"] {`), id);
+    assert.ok(css.includes(`:root.dark[data-palette="${id}"] {`), id + ' dark');
+  }
+  for (const id of ids) {
     const c = yaml.split(`- id: ${id}\n`)[1].match(/c: "(#[0-9a-f]{6})"/)[1];
-    const ld = css.split(`    [data-palette="${id}"] {`)[2].split('}')[0];
-    const primary = ld.match(/--m-primary: light-dark\((#[0-9a-f]{6}),/)[1];
-    assert.equal(c, primary, id);
+    assert.equal(c, roles[id].seed, id);
   }
 });

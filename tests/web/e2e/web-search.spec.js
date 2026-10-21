@@ -1,6 +1,7 @@
 /**
  * 全网搜索页（/search/，2026-10-20 由浏览器搜索 /browser/search/ 改名搬来）：做法与设置搜索一致。
  * 顶栏长条左端搜索图标（#sgx-tb-search，v5 收进长条）打开它；旧地址 /browser/search/、/browser/?q=、/browser/#focus 都转到这里。
+ * 2026-10-21 v7 底栏：长条药丸（放大镜 · 「搜索或输入网址」· 有输入才出现的 ⓧ 清空）+ 旁边单独的 × 关闭圆（同高同材质）；语音搜索整个删掉。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, expect } = require('./helpers');
@@ -38,6 +39,22 @@ test('英文页长条页名 Web search；主页搜索图标 aria-label Search、
   await expect(page.locator('#sgx-tb-search')).toHaveAttribute('href', '/en/search/');
   await page.goto('/en/search/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.sgx-tb-title')).toHaveText('Web search');
+});
+
+test('药丸里的 ⓧ 清空只在有输入时出现（在输入框右边、药丸里面）', async ({ page }) => {
+  await go(page, '/search/');
+  const clear = page.locator('#sgx-cap-brwsearch .sgx-cap-pill [data-cap-clear]');
+  await expect(clear).toBeHidden();
+  await page.locator('#sgx-cap-input-brwsearch').fill('abc');
+  await expect(clear).toBeVisible();
+  const m = await page.evaluate(() => {
+    const r = (q) => document.querySelector(q).getBoundingClientRect();
+    return { x: r('#sgx-cap-brwsearch [data-cap-clear]'), i: r('#sgx-cap-input-brwsearch'), p: r('#sgx-cap-brwsearch .sgx-cap-pill') };
+  });
+  expect(m.x.left).toBeGreaterThanOrEqual(m.i.right - 1);
+  expect(m.x.right).toBeLessThanOrEqual(m.p.right);
+  await page.locator('#sgx-cap-input-brwsearch').fill('');
+  await expect(clear).toBeHidden();
 });
 
 test('输入出站内建议和引擎搜索行；ⓧ 清空后回到最近搜索', async ({ page }) => {
@@ -99,10 +116,33 @@ test('在全网搜索页点长条搜索图标：不跳转，只聚焦底部输�
   expect(new URL(page.url()).pathname).toBe('/search/');
 });
 
-test('胶囊右端是 × 关闭（没有 ⋮）；顶栏也没有 ⋮（搜索引擎 / 清除浏览记录在 安全与隐私）', async ({ page }) => {
+test('底栏：长条药丸 + 单独的 × 关闭圆（同高、同材质、在药丸右边 8px）；没有 ⋮、没有麦克风', async ({ page }) => {
   await go(page, '/search/');
+  await page.waitForTimeout(400);
   await expect(page.locator('#sgx-cap-brwsearch [data-cap-more]')).toHaveCount(0);
   await expect(page.locator('#sgx-cap-brwsearch [data-cap-close]')).toBeVisible();
+  /* 语音搜索删了：哪儿都没有麦克风 / 语音弹窗 */
+  await expect(page.locator('[data-mic], .sgx-cap-mic, .sgx-vs-dlg')).toHaveCount(0);
+  expect(await page.evaluate(() => typeof (window.SGX || {}).voiceSheet)).toBe('undefined');
+  const pill = page.locator('#sgx-cap-brwsearch .sgx-cap-pill');
+  const close = page.locator('#sgx-cap-brwsearch .sgx-cap-close');
+  await expect(pill.locator('input#sgx-cap-input-brwsearch')).toHaveAttribute('placeholder', '搜索或输入网址');
+  await expect(pill.locator('[data-cap-close]')).toHaveCount(0);
+  const m = await page.evaluate(() => {
+    const r = (q) => document.querySelector(q).getBoundingClientRect();
+    const cs = (q) => getComputedStyle(document.querySelector(q));
+    const p = cs('#sgx-cap-brwsearch .sgx-cap-pill'), c = cs('#sgx-cap-brwsearch .sgx-cap-close');
+    return { p: r('#sgx-cap-brwsearch .sgx-cap-pill'), c: r('#sgx-cap-brwsearch .sgx-cap-close'),
+      mat: [p.backgroundColor === c.backgroundColor, p.borderTopColor === c.borderTopColor, p.boxShadow === c.boxShadow], crad: c.borderTopLeftRadius, vw: innerWidth };
+  });
+  expect(Math.abs(m.p.height - m.c.height)).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(m.c.width - m.c.height)).toBeLessThanOrEqual(0.5);
+  expect(m.crad).toBe('999px');
+  expect(m.mat).toEqual([true, true, true]);
+  expect(Math.abs(m.p.top - m.c.top)).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(m.c.left - m.p.right - 8)).toBeLessThanOrEqual(1);
+  expect(Math.abs(m.p.left - 16)).toBeLessThanOrEqual(1);
+  expect(Math.abs(m.vw - m.c.right - 16)).toBeLessThanOrEqual(1);
   await expect(page.locator('.sgx-tb-more')).toHaveCount(0);
   await expect(page.locator('#brws-more')).toHaveCount(0);
 });

@@ -46,12 +46,18 @@ test('抽屉：tonal 当前项、毛玻璃面板、手机宽度由顶栏 token �
   assert.match(s, /--sgx-drawer-shadow: 4px 0 12px rgba\(0,0,0,\.10\), 16px 0 48px rgba\(0,0,0,\.24\)/);
   assert.match(s, /\.dark \{ --sgx-drawer-shadow: 4px 0 12px rgba\(0,0,0,\.22\), 16px 0 48px rgba\(0,0,0,\.5\)/);
   assert.match(s, /\.sgx-drawer-sheet \{[^}]*box-shadow: var\(--sgx-drawer-shadow\)/);
-  // 抽屉头（v6）：同一行 大号站名 + 搜索框长条（flex:1、48px 高、药丸、tonal 容器 + 细边）；头部和第一项之间留 token 间距
-  assert.match(s, /--sgx-drawer-brand-size: 26px; --sgx-drawer-brand-weight: 800; --sgx-drawer-head-gap: 32px;/);
-  assert.match(s, /\.sgx-drawer-head \{ margin: 0 0 var\(--sgx-drawer-head-gap\);[^}]*display: flex; align-items: center; gap: 12px;/);
-  assert.match(s, /\.sgx-drawer-brand \{[^}]*font-size: var\(--sgx-drawer-brand-size\); font-weight: var\(--sgx-drawer-brand-weight\)/);
-  assert.match(s, /\.sgx-drawer-search \{ flex: 1 1 auto; min-width: 0; height: 48px; border-radius: 999px;[^}]*background-color: var\(--sgx-surface-container-high\); border: 1px solid var\(--sgx-mat-line\);/);
-  assert.doesNotMatch(s, /\.sgx-drawer-search \{ width: 48px/);
+  // 抽屉三段（v7）：面板竖排 flex，[头部：只有大号站名][导航列表：自己滚][底栏：钉住的整宽搜索框长条（52px，图标 + 文字一组居中）]
+  assert.match(s, /--sgx-drawer-brand-size: 26px; --sgx-drawer-brand-weight: 800; --sgx-drawer-head-gap: 32px; --sgx-drawer-search-h: 52px;/);
+  assert.match(s, /\.sgx-drawer-sheet \{[^}]*overflow: hidden;[^}]*display: flex; flex-direction: column;/);
+  assert.match(s, /\.sgx-drawer-head \{ flex: 0 0 auto; margin: 0 0 var\(--sgx-drawer-head-gap\);/);
+  assert.match(s, /\.sgx-drawer-brand \{[^}]*font-size: var\(--sgx-drawer-brand-size\);\s*font-weight: var\(--sgx-drawer-brand-weight\)/);
+  assert.match(s, /\.sgx-drawer-body \{ flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;/);
+  assert.match(s, /\.sgx-drawer-foot \{ flex: 0 0 auto;[^}]*env\(safe-area-inset-bottom/);
+  assert.match(s, /\.sgx-drawer-search \{ width: 100%; height: var\(--sgx-drawer-search-h\); border-radius: 999px; display: flex; align-items: center; justify-content: center;[^}]*background-color: color-mix\(in srgb, var\(--sgx-surface-container-lowest\) 72%, transparent\); border: 1px solid var\(--sgx-mat-line\);/);
+  assert.match(s, /\.dark \.sgx-drawer-search \{ background-color: var\(--sgx-surface-bright\); \}/);
+  assert.match(s, /\.sgx-drawer-search-label \{ flex: 0 1 auto;/);
+  // 主站专有的东西不进共享外壳：抽屉淡出、导航项下的分隔线；旧的窗帘 / 加宽已删
+  assert.doesNotMatch(s, /is-fading|sgx-drawer-sep|is-curtain|--sgx-curtain/);
 });
 
 test('nav.json：首页 / 珍格 / 日刻 / 博客，没有设置；抽屉头搜索框；图标都在', () => {
@@ -71,9 +77,10 @@ test('nav.json：首页 / 珍格 / 日刻 / 博客，没有设置；抽屉头搜
   assert.ok(nav.icons['apps-grid']);
 });
 
-test('palettes.json：13 个预设，种子和 tokens.css 的 --sgx-seed 一致', () => {
+test('palettes.json：33 个预设（单色 17 + 撞色 16，每项带 group），种子和 tokens.css 的 --sgx-seed 一致', () => {
   const p = JSON.parse(files['palettes.json']);
-  assert.equal(p.presets.length, 13);
+  assert.equal(p.presets.length, 33);
+  for (const x of p.presets) assert.ok(x.group === 'mono' || x.group === 'clash', x.id);
   assert.equal(p.default, 'lake');
   for (const { id, seed } of p.presets) {
     const sel = id === 'lake' ? ':root,\n:root[data-palette="lake"] {' : `:root[data-palette="${id}"] {`;
