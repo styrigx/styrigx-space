@@ -447,6 +447,41 @@ test.describe('快捷面板：内容', () => {
     expect(await cs('#sgx-qp [data-qp="dark"] .sgx-qp-ic')).toBe(await role('--m-primary'));
   });
 
+  /* 2026-10-22：面板底是悬浮层磨砂（与顶栏长条 / 导航抽屉同一份 --sgx-mat + 毛玻璃），不是不透明的纯白 / 纯色卡；
+     亮 / 暗、默认 lake、单色紫、撞色 紫×蔷薇（用户手机上那张白卡就是 xviolet 亮色）都一样 */
+  for (const [dark, palette] of [[false, null], [true, null], [false, 'violet'], [false, 'xviolet'], [true, 'xviolet']]) {
+    test(`面板底 = 悬浮层磨砂（${dark ? '暗色' : '亮色'}${palette ? '，调色板 ' + palette : ''}）`, async ({ page }) => {
+      await page.addInitScript(([d, p]) => {
+        try {
+          localStorage.setItem('sgx-theme-mode', d ? 'dark' : 'light');
+          if (p) localStorage.setItem('sgx-palette', p);
+        } catch (e) {}
+      }, [dark, palette]);
+      await go(page, '/');
+      await openQp(page);
+      const st = await page.evaluate(() => {
+        const g = (sel) => {
+          const cs = getComputedStyle(document.querySelector(sel));
+          return { bg: cs.backgroundColor, bf: cs.backdropFilter || cs.webkitBackdropFilter };
+        };
+        const role = (n) => { const d = document.createElement('div'); d.style.color = 'var(' + n + ')'; document.body.appendChild(d);
+          const c = getComputedStyle(d).color; d.remove(); return c; };
+        return { sheet: g('#sgx-qp .sgx-qp-sheet'), pill: g('.sgx-tb-pill'), lowest: role('--sgx-surface-container-lowest'),
+          pal: document.documentElement.getAttribute('data-palette'), dark: document.documentElement.classList.contains('dark') };
+      });
+      expect(st.pal).toBe(palette);
+      expect(st.dark).toBe(dark);
+      expect(st.sheet.bg).toBe(st.pill.bg);
+      expect(st.sheet.bg).not.toBe(st.lowest);
+      /* 半透明（alpha < 1）+ 毛玻璃 */
+      const alpha = (c) => { const m = c.match(/\/\s*([\d.]+)\s*\)$/) || c.match(/^rgba\([^,]+,[^,]+,[^,]+,\s*([\d.]+)\)$/); return m ? +m[1] : 1; };
+      expect(alpha(st.sheet.bg), st.sheet.bg).toBeLessThan(1);
+      expect(alpha(st.sheet.bg), st.sheet.bg).toBeGreaterThan(0.5);
+      expect(st.sheet.bf).toBe(st.pill.bf);
+      expect(st.sheet.bf).toContain('blur');
+    });
+  }
+
   test('英文文案', async ({ page }) => {
     await go(page, '/en/', 'en');
     await expect(page.locator('.sgx-tb-quick')).toHaveAttribute('aria-label', 'Quick panel');

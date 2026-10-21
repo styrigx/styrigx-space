@@ -8489,7 +8489,7 @@ html[data-sgx-role="visitor"] .sgx-tb-me { pointer-events: none; cursor: default
    .sgx-qp-sheet 离顶栏下沿 8px；收起时整块移到 dialog 上沿之外，dialog overflow:hidden 把它裁掉，
    所以滑下时看上去是从顶栏底下钻出来的（减弱动效直接到位）。
    手机：左右对齐顶栏页边距（--sgx-tb-inset 16px），最宽 480px 居中；宽屏（≥ 980px）宽 400px，右缘对齐顶栏右缘。
-   顶部一行：左「快捷面板」标题，右齿轮圆钮（全部设置）。磁贴圆角块，开着的磁贴是主色容器底色（aria-pressed="true"）。 */
+   面板底 = 悬浮层磨砂（--sgx-mat 毛玻璃，同导航抽屉）。顶部一行：左「快捷面板」标题，右齿轮圆钮（全部设置）。磁贴圆角块，开着的磁贴是主色容器底色（aria-pressed="true"）。 */
 :root { --sgx-qp-top: calc(var(--sgx-tb-inset) + var(--sgx-tb-btn) + env(safe-area-inset-top, 0px)); --sgx-qp-gap: 8px; }
 .sgx-qp { position: fixed; top: var(--sgx-qp-top); left: 0; right: 0; bottom: 0; z-index: 45; width: auto; height: auto; max-width: none; max-height: none;
   margin: 0; padding: 0; border: 0; background-color: transparent; overflow: hidden; overscroll-behavior: contain; color: var(--sgx-text-primary);
@@ -8497,9 +8497,18 @@ html[data-sgx-role="visitor"] .sgx-tb-me { pointer-events: none; cursor: default
 .sgx-qp.is-open { background-color: var(--sgx-scrim); }
 .sgx-qp-sheet { position: absolute; top: var(--sgx-qp-gap); left: var(--sgx-tb-inset); right: var(--sgx-tb-inset); margin: 0 auto;
   max-width: 480px; max-height: calc(100% - 2 * var(--sgx-qp-gap) - env(safe-area-inset-bottom, 0px)); overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box;
-  background: var(--sgx-surface-container-lowest); border: 1px solid var(--sgx-mat-line); border-radius: 28px;
+  background: var(--sgx-mat); -webkit-backdrop-filter: var(--sgx-mat-filter); border: 1px solid var(--sgx-mat-line); border-radius: 28px;
   box-shadow: var(--sgx-qp-shadow); padding: 12px 16px 16px; outline: none;
   transform: translateY(calc(-100% - var(--sgx-qp-gap) - 2px)); transition: transform .24s cubic-bezier(.2,0,0,1); }
+/* 2026-10-22：面板底 = 悬浮层磨砂（与顶栏 / 导航抽屉同一份 --sgx-mat + --sgx-mat-filter），原来写死不透明的 --sgx-surface-container-lowest，
+   手机亮色下就是一张纯白卡。标准 backdrop-filter 照抽屉的写法单独放进 @supports（防压缩器把 -webkit- / 标准两行合并）；
+   两种都不支持才退回不透明的 --sgx-mat-solid */
+@supports (backdrop-filter: blur(1px)) {
+  .sgx-qp-sheet { backdrop-filter: var(--sgx-mat-filter); }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .sgx-qp-sheet { background: var(--sgx-mat-solid); }
+}
 :root { --sgx-qp-shadow: 0 4px 12px rgba(0,0,0,.10), 0 16px 48px rgba(0,0,0,.24); }
 .dark { --sgx-qp-shadow: 0 4px 12px rgba(0,0,0,.22), 0 16px 48px rgba(0,0,0,.5); }
 .sgx-qp.is-open .sgx-qp-sheet { transform: none; }
