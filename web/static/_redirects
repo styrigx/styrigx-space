@@ -20,6 +20,5 @@
 /en/settings/apps/  /en/settings/  301
 /files/*  /  301
 /en/files/*  /en/  301
-/favicon.ico  /avatar/32.webp  301
 /favicon-32x32.png  /avatar/32.webp  301
 /apple-touch-icon.png  /avatar/192.webp  301

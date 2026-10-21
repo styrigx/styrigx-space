@@ -4,11 +4,11 @@
   "dir": "web/shared/shell",
   "files": {
     "tokens.css": "4fab2634c833c36d59fa5fb8731053efee26249cdef7f797eac756e6ac76623e",
-    "shell.css": "545235f95a916f8836bb13a33e173bba04cc24fb558e4a6566fd4a0e82e56fca",
+    "shell.css": "25284db54f0f8051ad9d4093cf491f185ef19c9f0bf2135bda11b2bc63fac849",
     "palette-scheme.js": "ab6d347b23dc2f062f3b7ca5ae1b94543e898864a8f669972e8720d2729c50c4",
-    "nav.json": "e631fd25dceec1da4661a19bbd5c1f7c751100b11fd37860c9d126d02fb41bdb",
+    "nav.json": "8591ca4889b7c8b4bcf27c81d9d7d6588bdbcef1a414a20fb0705e2dc0f0ad5b",
     "palettes.json": "cb95c4e6570ab1cdcb2bb82de30d709a99910157b7e1b435d9d3b9e8b00d5711",
-    "README.md": "53ab96da7a5fa60ad89b2aa9cf9e26b2e431bf076cc62aec4e342d1954be9ede"
+    "README.md": "ee43d330b30d4bce3ce80185b2c413912642857da8f1e6a5d57b8acfe8916902"
   },
-  "version": "b05344f26c3f"
+  "version": "6cb68d2f44f3"
 }

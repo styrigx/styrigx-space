@@ -12,7 +12,22 @@
 <meta name="theme-color" content="#f5f8fa">
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#10151a">
 <title>{{ if .IsHome }}Styrigx{{ else }}{{ .Title }} | Styrigx{{ end }}</title>
-<meta name="description" content="{{ if $isEn }}Sloan Gray’s personal space{{ else }}{{ .Site.Params.description }}{{ end }}">
+{{ $desc := cond $isEn "Sloan Gray’s personal space" .Site.Params.description }}{{ with .Description }}{{ $desc = . }}{{ end }}
+<meta name="description" content="{{ $desc }}">
+{{/* 分享卡片（2026-10-21）：og.png = 字标 + 站点描述（1200×630）；锁屏态的首页也照常下发 <head>，社交爬虫能读到 */}}
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Styrigx">
+<meta property="og:title" content="{{ if .IsHome }}Styrigx{{ else }}{{ .Title }}{{ end }}">
+<meta property="og:description" content="{{ $desc }}">
+<meta property="og:url" content="{{ .Permalink }}">
+<meta property="og:locale" content="{{ cond $isEn "en_US" "zh_CN" }}">
+<meta property="og:image" content="https://styrigx.com/og.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Styrigx">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://styrigx.com/og.png">
 {{/* fix/hi-owner：/owner/ 不被搜索引擎收录 */}}
 {{ if or (eq .Layout "security") (eq .Layout "security-lock") (eq .Layout "account") (eq .Layout "account-security") (eq .Layout "account-profile") (eq .Layout "account-reset") (eq .Layout "settings-sub") }}<meta name="robots" content="noindex,nofollow">{{ end }}
 <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
@@ -20,8 +35,11 @@
 @font-face{font-family:'Inter';font-style:normal;font-weight:400 800;font-display:optional;src:url('/fonts/inter-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
 @font-face{font-family:'Inter Fallback';src:local('Arial');size-adjust:107%;ascent-override:90%;descent-override:23%;line-gap-override:0%;}
 </style>
-{{/* 标签页图标、主屏图标都用主站头像（/avatar/<尺寸>.webp，设置页可换） */}}
-<link rel="icon" href="/avatar/32.webp">
+{{/* 标签页图标 = 品牌 S 方块（2026-10-21）：favicon.ico（16 / 32 / 48，16px 单独对齐像素）+ favicon.svg；
+   sizes="32x32" 让支持 SVG 的浏览器优先用 SVG。换了调色板 / 自定义色时 shell/favicon.js 把 SVG 图标换成当前主题色。
+   主屏图标仍用主站头像（/avatar/192.webp，设置页可换）。 */}}
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="apple-touch-icon" href="/avatar/192.webp">
 <link rel="search" type="application/opensearchdescription+xml" title="Styrigx" href="/opensearch.xml">
 <link rel="stylesheet" href="{{ (resources.Get "css/main.css" | fingerprint).RelPermalink }}">
@@ -205,7 +223,8 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{ $shellNav := index site.Data "shell-nav" }}
 <dialog id="sgx-drawer" class="sgx-drawer" aria-label="{{ cond $isEn $shellNav.label.en $shellNav.label.zh }}">
   <nav class="sgx-drawer-sheet">
-    <div class="sgx-drawer-head"><span class="sgx-drawer-brand">{{ $shellNav.brand }}</span></div>
+    {{/* 站名 = 字标 SVG（partials/shell-wordmark.html，role="img" aria-label="Styrigx"）；shell-nav.json 的 brand 文字仍保留给子站 / 无 SVG 场合 */}}
+    <div class="sgx-drawer-head"><span class="sgx-drawer-brand">{{ partial "shell-wordmark.html" . }}</span></div>
     <div class="sgx-drawer-body">
     <ul class="sgx-drawer-list">
       {{ range $shellNav.items }}

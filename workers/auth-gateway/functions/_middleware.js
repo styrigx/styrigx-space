@@ -90,7 +90,8 @@ function isWhitelisted(pathname) {
     return API_WHITELIST.some(p => pathname === p || pathname.startsWith(p + '/') || pathname.startsWith(p + '?'));
   }
   if (pathname.startsWith('/assets/')) return true;
-  if (pathname === '/favicon.ico' || pathname === '/robots.txt' || pathname === '/sitemap.xml') return true;
+  /* 标签页图标、分享卡片图（社交爬虫没有会话）：锁着也公开 */
+  if (pathname === '/favicon.ico' || pathname === '/favicon.svg' || pathname === '/og.png' || pathname === '/robots.txt' || pathname === '/sitemap.xml') return true;
   if (AVATAR_FILE_RE.test(pathname)) return true;
   if (STATIC_RE.test(pathname)) return true;
   return false;
@@ -163,14 +164,19 @@ function isSafeReturn(ret) {
   return isSafeReturnPath(ret) || isSafeReturnUrl(ret);
 }
 
+/* 网关自己注入的会话标记（只有这些会被先清掉再重新写）。
+   2026-10-21：以前清的是 <html> 上所有 data-sgx-*，把 baseof.html 写的构建标记 data-sgx-build 也一起删了；
+   现在只清网关会写的这几种：session / role / account / upgrade / upgrade-return。 */
+const SESSION_ATTR_RE = /\s+data-sgx-(?:session|role|account|upgrade|upgrade-return)="[^"]*"/gi;
+
 /**
- * 去掉 <html> 标签上已有的 data-sgx-* 属性，再由下面重新注入。
+ * 去掉 <html> 标签上已有的会话标记（SESSION_ATTR_RE），再由下面重新注入。
  * 页面经网关回源时，Pages 也会注入一次；不去掉就会出现重复属性。
- * 也防止页面源码里混进伪造的会话标记。
+ * 也防止页面源码里混进伪造的会话标记。其他 data-sgx-*（如构建标记 data-sgx-build）原样保留。
  * @param {string} html
  */
 export function stripSessionAttrs(html) {
-  return html.replace(/<html\b[^>]*>/i, (tag) => tag.replace(/\s+data-sgx-[a-z-]+="[^"]*"/gi, ''));
+  return html.replace(/<html\b[^>]*>/i, (tag) => tag.replace(SESSION_ATTR_RE, ''));
 }
 
 /**

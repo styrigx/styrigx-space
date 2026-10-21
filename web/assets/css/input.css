@@ -8429,6 +8429,18 @@ html[data-sgx-role="visitor"] .sgx-tb-me { pointer-events: none; cursor: default
   color: var(--sgx-text-primary); }
 .sgx-drawer-brand { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: var(--sgx-drawer-brand-size);
   font-weight: var(--sgx-drawer-brand-weight); line-height: 1.2; letter-spacing: -0.01em; white-space: nowrap; }
+/* 字标（2026-10-21）：抽屉头的站名是内联 SVG 字标 .sgx-wordmark（web/layouts/partials/shell-wordmark.html；共享外壳 nav.json 的 wordmark 字段是同一份）。
+   viewBox 高 2010 单位、字体 2048 单位 / em → 高 = 站名字号 × 2010/2048，字母和原来 26px 的文字一样大；宽按 viewBox 比例。
+   字母 .wm-letters = --wm-ink（跟 --sgx-text-primary），i 上的圆点 .wm-dot = --wm-accent（跟主题色 --sgx-primary：单色 / 撞色预设、自定义色、深色都跟着走）。
+   --sgx-drawer-wordmark-dy：字标盒子（25.5px）比文字行盒（31.2px）矮、圆点又在盒子顶上，居中后大写字母偏高约 2.3px；
+   往下挪 0.088 × 字号，让大写字母的上下缘和原来 26px 文字完全重合（412 宽实测 32.5 → 51.4px）。
+   用 2 倍的上外边距（不用 top / transform）：外层 .sgx-drawer-brand 是 overflow:hidden，挪出去的 y / g 下伸部会被裁掉；
+   外边距把外层撑高，居中后字标正好下移 1 倍。 */
+:root { --sgx-drawer-wordmark-dy: calc(var(--sgx-drawer-brand-size) * 0.088); }
+.sgx-wordmark { --wm-ink: var(--sgx-text-primary); --wm-accent: var(--sgx-primary); display: block; height: calc(var(--sgx-drawer-brand-size) * 2010 / 2048);
+  width: auto; aspect-ratio: 5924 / 2010; overflow: visible; margin-top: calc(2 * var(--sgx-drawer-wordmark-dy)); }
+.sgx-wordmark .wm-letters { fill: var(--wm-ink); }
+.sgx-wordmark .wm-dot { fill: var(--wm-accent); }
 .sgx-drawer-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 12px 8px; }
 .sgx-drawer-foot { flex: 0 0 auto; padding: 8px 12px calc(16px + env(safe-area-inset-bottom, 0px)); }
 .sgx-drawer-search { width: 100%; height: var(--sgx-drawer-search-h); border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 12px;

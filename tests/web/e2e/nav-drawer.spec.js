@@ -534,3 +534,78 @@ test.describe('抽屉宽度与底色', () => {
     await expect.poll(() => page.locator('.sgx-tb-nav').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(b);
   });
 });
+
+/* 2026-10-21 品牌：抽屉头站名 = 内联 SVG 字标（可访问名 Styrigx），大写字母和原来 26px 文字一样高；
+   i 上的圆点跟主题色（--sgx-primary），字母跟 --sgx-text-primary：默认湖蓝亮 / 暗、撞色 xforest 都对。
+   标签页 SVG 图标：默认色板用静态 /favicon.svg，换色板后换成主题色的 data: 图标。 */
+test.describe('抽屉头字标 + 标签页图标跟主题色', () => {
+  const CASES = [
+    { name: 'lake 亮色', pal: null, dark: false },
+    { name: 'lake 深色', pal: null, dark: true },
+    { name: 'xforest 撞色亮色', pal: 'xforest', dark: false },
+    { name: 'xforest 撞色深色', pal: 'xforest', dark: true },
+  ];
+  for (const c of CASES) {
+    test(`${c.name}：字标渲染、圆点 = --sgx-primary、字母 = --sgx-text-primary`, async ({ page }) => {
+      await page.addInitScript((o) => {
+        try {
+          if (o.pal) localStorage.setItem('sgx-palette', o.pal);
+          localStorage.setItem('sgx-theme-mode', o.dark ? 'dark' : 'light');
+        } catch (e) {}
+      }, c);
+      /* helpers 的拦截会把带 favicon 的地址换成占位 PNG；这里放行真的 /favicon.svg（后注册的路由优先） */
+      await blockExternalRequests(page);
+      await page.route('**/favicon.svg', (r) => r.continue());
+      await freezeTime(page);
+      await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
+      await page.goto('/', { waitUntil: 'domcontentloaded' });
+      await expect(page.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
+      await openDrawer(page);
+      const wm = drawer(page).locator('.sgx-drawer-brand svg.sgx-wordmark');
+      await expect(wm).toHaveCount(1);
+      await expect(wm).toHaveAttribute('role', 'img');
+      await expect(wm).toHaveAttribute('aria-label', 'Styrigx');
+      await expect(drawer(page).getByRole('img', { name: 'Styrigx' })).toHaveCount(1);
+      const m = await page.evaluate(() => {
+        const svg = document.querySelector('#sgx-drawer .sgx-wordmark');
+        const r = svg.getBoundingClientRect();
+        const br = svg.parentElement.getBoundingClientRect();
+        const probe = document.createElement('i');
+        probe.style.cssText = 'position:absolute;color:var(--sgx-primary);background:var(--sgx-text-primary)';
+        document.body.appendChild(probe);
+        const cs = getComputedStyle(probe);
+        const out = { w: r.width, h: r.height, clipTop: br.top - r.top, clipBottom: r.bottom - br.bottom, clipRight: r.right - br.right, capTop: r.top + (1578 - 1514) * r.height / 2010, base: r.top + 1578 * r.height / 2010, dot: getComputedStyle(svg.querySelector('.wm-dot')).fill,
+          ink: getComputedStyle(svg.querySelector('.wm-letters')).fill, primary: cs.color, text: cs.backgroundColor,
+          pal: document.documentElement.getAttribute('data-palette'), dark: document.documentElement.classList.contains('dark') };
+        probe.remove();
+        return out;
+      });
+      expect(m.pal).toBe(c.pal);
+      expect(m.dark).toBe(c.dark);
+      expect(m.dot).toBe(m.primary);
+      expect(m.ink).toBe(m.text);
+      expect(m.dot).not.toBe(m.ink);
+      /* 26px 站名：字标高 26 × 2010/2048 ≈ 25.5px，宽按 viewBox 比例 */
+      expect(Math.abs(m.h - 25.52)).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(m.w - m.h * 5924 / 2010)).toBeLessThanOrEqual(0.5);
+      /* 外层 .sgx-drawer-brand 是 overflow:hidden：字标整个在里面（y / g 下伸部、i 的圆点都不被裁） */
+      expect(m.clipTop).toBeLessThanOrEqual(0.5);
+      expect(m.clipBottom).toBeLessThanOrEqual(0.5);
+      expect(m.clipRight).toBeLessThanOrEqual(0.5);
+      /* 大写字母上下缘 = 原来 26px / 800 文字（412 宽：约 32.5 → 51.4px，±1px） */
+      expect(Math.abs(m.capTop - 32.5)).toBeLessThanOrEqual(1);
+      expect(Math.abs(m.base - 51.4)).toBeLessThanOrEqual(1);
+      /* SVG 图标：默认湖蓝亮色用静态文件，其他换成主题色 data: 地址 */
+      const icon = page.locator('link[rel="icon"][type="image/svg+xml"]');
+      await expect(page.locator('link[rel="icon"][href="/favicon.ico"][sizes="32x32"]')).toHaveCount(1);
+      if (!c.pal && !c.dark) {
+        await expect(icon).toHaveAttribute('href', '/favicon.svg');
+      } else {
+        await expect(icon).toHaveAttribute('href', /^data:image\/svg\+xml,/);
+        const svg = decodeURIComponent((await icon.getAttribute('href')).slice('data:image/svg+xml,'.length));
+        const hex = (rgb) => '#' + rgb.match(/\d+/g).slice(0, 3).map((n) => (+n).toString(16).padStart(2, '0')).join('');
+        expect(svg).toContain('fill="' + hex(m.primary) + '"');
+      }
+    });
+  }
+});
