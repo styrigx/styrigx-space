@@ -63,9 +63,9 @@ export function initQuickPanel() {
     dlg.querySelectorAll('[data-qp-seg="' + id + '"] button').forEach(function (b) {
       const bv = b.getAttribute('data-v');
       b.setAttribute('aria-pressed', bv === v ? 'true' : 'false');
-      /* 布局：窄屏（< 840px）时 DeX / PC 置灰（与设置页一致，偏好保留，回到大屏再生效） */
+      /* 布局：不够 DeX（宽 < 840 或高 < 500）时 DeX 置灰（与设置页一致，偏好保留，回到大屏再生效） */
       if (id === 'layout') {
-        if ((bv === 'dex' || bv === 'pc') && narrow) {
+        if (bv === 'dex' && narrow) {
           b.setAttribute('disabled', 'disabled');
           b.setAttribute('title', T.t('qpLargeOnly'));
         } else {

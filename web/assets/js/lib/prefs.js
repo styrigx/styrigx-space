@@ -68,20 +68,46 @@ export function setFontSize(v) {
   } catch (e) {}
 }
 
-/** @returns {'auto'|'mobile'|'dex'|'pc'} 布局偏好 */
-export function layoutPref() {
-  const v = featGet('layout');
-  return v === 'mobile' || v === 'dex' || v === 'pc' ? v : 'auto';
+/** 存的布局值 → 合法偏好（旧值 pc 迁到 dex，其他未知值 → auto）。 @param {any} v @returns {'auto'|'mobile'|'dex'} */
+export function normLayout(v) {
+  if (v === 'pc') return 'dex';
+  return v === 'mobile' || v === 'dex' ? v : 'auto';
 }
 
-/** 窄屏（< 840px）时 DeX / PC 偏好不生效（与 baseof.html __layoutMode 一致）。 @returns {boolean} */
+/** @returns {'auto'|'mobile'|'dex'} 布局偏好 */
+export function layoutPref() {
+  return normLayout(featGet('layout'));
+}
+
+/**
+ * DeX 需要的「大屏」：可用视口 w ≥ 840 且 h ≥ 500（与 baseof.html __layoutMode 一致）。
+ * 手机横屏视口高 ≤ ~450（最大手机短边 448 CSS px，再减浏览器栏），折叠屏内屏 / 平板 / 笔记本 / 显示器 ≥ ~600 高，
+ * 500 落在中间；840 让 Z Fold 内屏横屏（841×673）仍是 DeX。
+ * @param {number} w @param {number} h @returns {boolean}
+ */
+export function layoutBig(w, h) {
+  return w >= 840 && h >= 500;
+}
+
+/**
+ * 偏好 + 视口 → 实际布局。自动：横屏（w > h）且大屏 → dex，否则 mobile；手动 DeX 不是大屏时按 mobile。
+ * @param {any} pref @param {number} w @param {number} h @returns {'mobile'|'dex'}
+ */
+export function resolveLayout(pref, w, h) {
+  const p = normLayout(pref);
+  if (p === 'mobile') return 'mobile';
+  if (p === 'dex') return layoutBig(w, h) ? 'dex' : 'mobile';
+  return layoutBig(w, h) && w > h ? 'dex' : 'mobile';
+}
+
+/** 当前视口不够 DeX（w < 840 或 h < 500）：DeX 偏好不生效。 @returns {boolean} */
 export function layoutNarrow() {
-  return (window.innerWidth || 1280) < 840;
+  return !layoutBig(window.innerWidth || 1280, window.innerHeight || 800);
 }
 
 /** 设置布局偏好并立即重算布局。 @param {string} v */
 export function setLayout(v) {
-  featSet('layout', v === 'mobile' || v === 'dex' || v === 'pc' ? v : 'auto');
+  featSet('layout', normLayout(v));
   const w = /** @type {any} */ (window);
   if (typeof w.__applyLayout === 'function') w.__applyLayout();
 }

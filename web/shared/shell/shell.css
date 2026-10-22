@@ -48,6 +48,14 @@
 .sgx-tb-title { display: block; flex: 1; min-width: 0; text-align: center; padding: 0 12px;
   font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 16px; font-weight: 700; line-height: 1.25; letter-spacing: normal;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--sgx-text-primary); }
+/* 宽屏（≥ 600px：平板竖屏、横屏、DeX）：长条不再拉满，只包住内容（页名 / 主站标签），居中在顶栏正中；
+   两侧圆照旧贴顶栏两端（参考 Hark 顶栏：居中的标签胶囊按内容定宽）。手机（< 600px）不变。
+   min-width 防止短页名缩成小圆点；max-width 给两侧圆各留一个圆宽 + 间距，长页名省略号。 */
+@media (min-width: 600px) {
+  .sgx-tb-pill { flex: 0 1 auto; margin: 0 auto; justify-content: center;
+    min-width: 160px; max-width: min(480px, calc(100% - 2 * (var(--sgx-tb-btn) + var(--sgx-tb-gap)))); }
+  .sgx-tb-title { flex: 0 1 auto; padding: 0 16px; }
+}
 .sgx-tb-nav, .sgx-tb-end { transition: background-color .15s ease; }
 @media (hover: hover) {
   .sgx-tb-nav:hover, .sgx-tb-end:hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); }

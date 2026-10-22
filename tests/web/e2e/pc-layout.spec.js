@@ -1,9 +1,9 @@
 /**
- * 2.5.0 PC 布局断言（Gray 2026-10-10 验收要求）。
- * - 1920x1080 / 2560x1440 下 html 为 layout-pc
+ * 2.5.0 PC 布局断言（Gray 2026-10-10 验收要求）；2026-10-23 PC 档删除，DeX 接手 PC 的尺寸。
+ * - 1920x1080 / 2560x1440 下 html 为 layout-dex（自动）
  * - 同一行卡片右边缘误差 ≤1px（栅格铺满，无右侧空白）
  * - （2026-10-19 Dock 已删除，原「滚到底 Dock 不压卡片」用例一并删除）
- * - PC 下桌面图标网格（#home-apps）彻底不渲染
+ * - 宽屏 DeX 下桌面图标网格（#home-apps）彻底不渲染
  *
  * Hark 规则：domcontentloaded + 等具体元素，不用 networkidle / waitForTimeout。
  */
@@ -15,14 +15,14 @@ const PCS = [
   { width: 2560, height: 1440 },
 ];
 
-async function gotoPC(page, vp) {
+async function gotoWide(page, vp) {
   await page.setViewportSize(vp);
   await blockExternalRequests(page);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await freezeTime(page);
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#home-widgets')).toBeVisible({ timeout: 15000 });
-  await expect(page.locator('html')).toHaveClass(/layout-pc/);
+  await expect(page.locator('html')).toHaveClass(/layout-dex/);
 }
 
 function boxesIntersect(a, b) {
@@ -30,9 +30,9 @@ function boxesIntersect(a, b) {
 }
 
 for (const vp of PCS) {
-  test.describe(`pc-layout ${vp.width}x${vp.height}`, () => {
+  test.describe(`dex-wide-layout ${vp.width}x${vp.height}`, () => {
     test('同一行卡片右边缘对齐（误差≤1px）', async ({ page }) => {
-      await gotoPC(page, vp);
+      await gotoWide(page, vp);
       const rows = await page.evaluate(() => {
         const els = [...document.querySelectorAll('#home-widgets > .widget')]
           .filter((e) => e.offsetParent !== null);
@@ -70,8 +70,8 @@ for (const vp of PCS) {
     });
 
 
-    test('PC 下桌面图标网格不渲染', async ({ page }) => {
-      await gotoPC(page, vp);
+    test('宽屏 DeX 下桌面图标网格不渲染', async ({ page }) => {
+      await gotoWide(page, vp);
       await expect(page.locator('#home-apps')).toBeHidden();
       const visibleTiles = await page.locator('.app-grid .app-tile:visible').count();
       expect(visibleTiles).toBe(0);
@@ -92,7 +92,7 @@ async function gotoDex(page) {
 }
 
 test.describe('dex-layout 1366x768', () => {
-  test('DeX 下桌面图标网格不渲染（与 PC 一致）', async ({ page }) => {
+  test('DeX 下桌面图标网格不渲染', async ({ page }) => {
     await gotoDex(page);
     await expect(page.locator('#home-apps')).toBeHidden();
     const visibleTiles = await page.locator('.app-grid .app-tile:visible').count();

@@ -86,6 +86,7 @@ addEventListener('pagereveal',function(e){window.__sgxRevealVT=e.viewTransition|
     d.setAttribute('data-reduced-motion',rm?'1':'0');
     /* 布局偏好（实际生效的布局由 __applyLayout 计算，这里只记偏好） */
     var lm=null;try{lm=localStorage.getItem('sgx-layout')}catch(e){}
+    if(lm==='pc')lm='dex';
     d.setAttribute('data-layout',lm||'auto');
     /* 语言偏好：sgx-lang (system/zh/en)。system 或无偏好时跟随浏览器语言；有明确偏好且与当前路径语言不一致时 replace 跳转，不产生历史 */
     try{
@@ -131,9 +132,13 @@ addEventListener('pagereveal',function(e){window.__sgxRevealVT=e.viewTransition|
 </script>
 {{/* 2.4.0-C：旧 __sgxGet/__sgxSet/__sgxFmtTz 已移入 ES Module（assets/js/lib/storage.js、util.js），此处不再定义 */}}
 <script>
-/* 布局：auto/mobile/dex/pc —— 只看视口不嗅探 UA：竖屏 → Mobile；横屏且 <1600px → DeX；横屏且 ≥1600px → PC
-   2.9.2 窄屏保护：视口 < 840px 时忽略 dex/pc 偏好，一律按 mobile 渲染（偏好保留在 localStorage，
-   回到宽屏时再生效）。?layout=auto 可重置偏好（逃生口）。 */
+/* 布局：auto / mobile / dex —— 只看可用视口（innerWidth w × innerHeight h），不嗅探 UA。
+   自动：w > h 且 w ≥ 840 且 h ≥ 500 → DeX，其余 → Mobile。
+   手动 DeX：w < 840 或 h < 500 时按 Mobile 渲染（偏好保留在 localStorage，回到大屏再生效）。
+   为什么是 840 × 500：手机横屏视口高 ≤ ~450（最大手机短边 448 CSS px，再减浏览器栏），
+   折叠屏内屏、平板、笔记本和显示器 ≥ ~600 高，500 落在中间；840 让 Z Fold 内屏横屏（841×673）仍是 DeX。
+   旧值 pc 迁到 dex（2026-10-23 删掉 PC 档，DeX 接手 PC 的尺寸）。?layout=auto 可重置偏好（逃生口）。
+   与 assets/js/lib/prefs.js resolveLayout() 同一规则。 */
 function __layoutMode(){
   var m=null;
   try{
@@ -142,22 +147,20 @@ function __layoutMode(){
     if(q==='auto'){localStorage.setItem('sgx-layout','auto');m='auto';}
     else{
       m=localStorage.getItem('sgx-layout');
-      /* 2.5.0：旧值（tablet/phone 等）一律回落到自动；tablet 迁移代码已删除 */
-      if(m!=='auto'&&m!=='mobile'&&m!=='dex'&&m!=='pc'){localStorage.setItem('sgx-layout','auto');m='auto'}
+      if(m==='pc'){localStorage.setItem('sgx-layout','dex');m='dex'}
+      /* 旧值（tablet/phone 等）一律回落到自动 */
+      if(m!=='auto'&&m!=='mobile'&&m!=='dex'){localStorage.setItem('sgx-layout','auto');m='auto'}
     }
   }catch(e){}
   var w=window.innerWidth||1280,h=window.innerHeight||800;
-  /* 窄屏保护：< 840px 时 dex/pc 偏好不生效 */
-  if(w<840){
-    if(m==='dex'||m==='pc')return 'mobile';
-  }
-  if(m==='mobile'||m==='dex'||m==='pc')return m;
-  if(h>=w)return 'mobile';
-  return w<1600?'dex':'pc';
+  var big=w>=840&&h>=500;
+  if(m==='mobile')return 'mobile';
+  if(m==='dex')return big?'dex':'mobile';
+  return big&&w>h?'dex':'mobile';
 }
 function __applyLayout(){
   var d=document.documentElement,m=__layoutMode();
-  d.classList.remove('layout-mobile','layout-dex','layout-pc');
+  d.classList.remove('layout-mobile','layout-dex');
   d.classList.add('layout-'+m);
 }
 __applyLayout();

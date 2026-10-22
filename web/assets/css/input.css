@@ -6782,9 +6782,9 @@
   }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     /* stylelint-disable-next-line color-no-hex */
-    .layout-mobile #sheet-panel, .layout-dex #sheet-panel, .layout-pc #sheet-panel { background: #fff; }
+    .layout-mobile #sheet-panel, .layout-dex #sheet-panel { background: #fff; }
     /* stylelint-disable-next-line color-no-hex */
-    .dark .layout-mobile #sheet-panel, .dark .layout-dex #sheet-panel, .dark .layout-pc #sheet-panel { background: #1e1e20; }
+    .dark .layout-mobile #sheet-panel, .dark .layout-dex #sheet-panel { background: #1e1e20; }
   }
 
   /* ===== 顶部边缘渐进模糊（2.4.0 A）：只在滚动后出现；
@@ -6820,8 +6820,8 @@
     position: fixed; left: 0; right: 0; bottom: 0; height: 96px; z-index: 30; pointer-events: none;
     background: linear-gradient(to top, var(--m-surface), transparent);
   }
-  /* DeX/PC：底部 Dock 胶囊自带背景/毛玻璃/阴影，不需要全宽的底部渐隐带 */
-  .layout-dex #edge-bottom, .layout-pc #edge-bottom { display: none; }
+  /* DeX：底部 Dock 胶囊自带背景/毛玻璃/阴影，不需要全宽的底部渐隐带 */
+  .layout-dex #edge-bottom { display: none; }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     #edge-top { background: linear-gradient(to bottom, var(--m-surface), transparent); }
   }
@@ -6874,13 +6874,13 @@
 
   /* ===== main 底部留白：避开手机悬浮 Dock（DeX 无底部栏） ===== */
   /* DeX：无底部栏，只留 24px + 安全区 */
-  .layout-dex main , .layout-pc main { padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
+  .layout-dex main { padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
   /* 2.3.14.10：Dock 只在主页；应用页（body.subpage）底部留白按新胶囊位置重算。
      胶囊下沉后底部 12px＋安全区、顶部 68px＋安全区：页脚版权行在胶囊顶部上方 21px（与改前一致），
      主内容在胶囊顶部上方 36px（与改前一致），无 Dock 页面只留 24px/21px 呼吸。 */
   body.subpage main { padding-bottom: calc(24px + env(safe-area-inset-bottom,0px)); }
   body.subpage footer { padding-bottom: calc(21px + env(safe-area-inset-bottom,0px)); }
-  .layout-dex footer , .layout-pc footer { padding-bottom: calc(21px + env(safe-area-inset-bottom, 0px)); }
+  .layout-dex footer { padding-bottom: calc(21px + env(safe-area-inset-bottom, 0px)); }
 
 }
 
@@ -7027,7 +7027,7 @@
     dialog#sheet-wrap.sgx-open #sheet-panel { transform: translateY(0); }
     .sheet-handle { width: 40px; height: 5px; border-radius: 999px; background: var(--m-outline); margin: 10px auto 2px; flex-shrink: 0; }
   }
-  .layout-dex, .layout-pc {
+  .layout-dex {
     dialog#sheet-wrap {
       margin: auto; width: 100%; max-width: 22rem;
       &.sgx-open, &.sgx-closing { display: flex; align-items: center; justify-content: center; }
@@ -7088,51 +7088,30 @@
 
 @layer sgx-components {
   /* ============================================================
-     DeX 布局（2.5.0 起：横屏且宽度 <1600px；竖屏 → Mobile，横屏且 ≥1600px → PC）
-     布局模式由 <html> 上的 layout-mobile / layout-dex / layout-pc 类驱动，
-     只看视口不嗅探 UA，可在设置页手动覆盖（自动 / Mobile / DeX / PC）。
-     PC 沿用 DeX 任务栏与宽屏 chrome（各 .layout-dex 规则已同步带 .layout-pc），
-     DeX 内部自适应：640–1023px 小组件 2 列，1024–1439px 3 列，≥1440px 4 列；
-     <1024px 时左侧桌面图标列收起。
+     DeX 布局（2026-10-23 起：Mobile · Auto · DeX 三档，PC 档删除，DeX 接手原 PC 的尺寸）
+     布局模式由 <html> 上的 layout-mobile / layout-dex 类驱动（baseof.html __layoutMode），
+     只看可用视口不嗅探 UA：自动 = 横屏且宽 ≥ 840、高 ≥ 500 → DeX，其余 → Mobile；
+     可在设置页 / 快捷面板手动覆盖（Mobile / Auto / DeX）。
      ============================================================ */
 
-  /* ----- 首页内容区：DeX 下放宽到 1280px（盖过模板上的 max-w-[1100px]） ----- */
-  .layout-dex .home-wrap { max-width: 1280px; }
+  /* DeX 底部不再有 Dock；页面底部留 16px */
+  .layout-dex main { padding-bottom: calc(16px + env(safe-area-inset-bottom,0px)); }
+  .layout-dex footer { padding-bottom: calc(16px + env(safe-area-inset-bottom,0px)); }
 
-  /* ----- DeX/PC 底部居中 Dock（横屏）：应用抽屉 / 我的文件 / 浏览器 / 设置 ----- */
-  /* DeX 底部 Dock 不滚动隐藏；页面底部留出 Dock 高度 + 16px */
-  .layout-dex main , .layout-pc main { padding-bottom: calc(16px + env(safe-area-inset-bottom,0px)); }
-  /* footer 也要留出 Dock 高度：滚到底时不被 Dock 压住 */
-  .layout-dex footer , .layout-pc footer { padding-bottom: calc(16px + env(safe-area-inset-bottom,0px)); }
-
-  /* ----- DeX 应用抽屉（从底部 Dock 上方往上展开，贴着 Dock 对齐） ----- */
-
-  /* ----- DeX：小组件列数自适应（640–1023:2列 / 1024–1439:3列 / ≥1440:4列） ----- */
-  .layout-dex #home-widgets { grid-template-columns: repeat(2,minmax(0,1fr)); }
-  .layout-dex #home-widgets > .widget { grid-column: span 1/span 1; }
-  .layout-dex #home-widgets > .widget.wb-full { grid-column: span 2/span 2; }
-  .layout-dex #home-widgets { grid-auto-flow: dense; }
-  @media (min-width:1024px) {
-    .layout-dex #home-widgets { grid-template-columns: repeat(3,minmax(0,1fr)); }
-    .layout-dex #home-widgets > .widget.wb-full { grid-column: span 3/span 3; }
-  }
-  @media (min-width:1440px) {
-    .layout-dex #home-widgets { grid-template-columns: repeat(4,minmax(0,1fr)); }
-    .layout-dex #home-widgets > .widget.wb-full { grid-column: span 4/span 4; }
-  }
-
-  /* ----- PC（2.5.0）：栅格布局 —— 容器 1440 居中，左右边缘对齐 ----- */
-  .layout-pc .home-wrap { max-width: 1440px; }
+  /* ----- 首页栅格（原 PC 尺寸）：容器 1440 居中，左右边缘对齐 ----- */
+  .layout-dex .home-wrap { max-width: 1440px; }
   /* 首页小组件：2 列栅格 + dense 回填 */
-  .layout-pc #home-widgets { grid-template-columns: repeat(2,minmax(0,1fr)); grid-auto-flow: dense; }
-  .layout-pc #home-widgets > .widget { grid-column: span 1/span 1; }
-  /* B2-5：首页只剩名片、时钟、天气、屏幕时间，四张都整行（天气没数据时隐藏，不会留半行空白） */
-  .layout-pc #home-widgets > #w-profile,
-  .layout-pc #home-widgets > #dual-clock,
-  .layout-pc #home-widgets > #weather,
-  .layout-pc #home-widgets > #w-daymark,
-  .layout-pc #home-widgets > #w-screen { grid-column: span 2/span 2; }
+  .layout-dex #home-widgets { grid-template-columns: repeat(2,minmax(0,1fr)); grid-auto-flow: dense; }
+  .layout-dex #home-widgets > .widget { grid-column: span 1/span 1; }
+  /* B2-5：首页只剩名片、时钟、天气、日刻、屏幕时间，都整行（天气没数据时隐藏，不会留半行空白） */
+  .layout-dex #home-widgets > #w-profile,
+  .layout-dex #home-widgets > #dual-clock,
+  .layout-dex #home-widgets > #weather,
+  .layout-dex #home-widgets > #w-daymark,
+  .layout-dex #home-widgets > #w-screen { grid-column: span 2/span 2; }
   /* ----- 手机模式强制（宽屏下也保持手机布局） ----- */
+  /* 宽竖屏（平板竖屏 744–1032px 等）Mobile 不拉满：首页内容栏和设置 / 账号 / 聊天 / 状态（max-w-2xl）一样，最宽 42rem（去掉 px-4 后 640px）居中；手机宽度下不起作用 */
+  .layout-mobile .home-wrap { max-width: 42rem; }
   .layout-mobile #home-widgets { grid-template-columns: repeat(4,minmax(0,1fr)); }
   .layout-mobile #home-widgets > .widget { grid-column: span 4/span 4; }
 }
@@ -7141,19 +7120,19 @@
   /* ===== 设置页：DeX 双栏（2.3.14.8，参考 One UI 8.5 平板设置）=====
      左栏 clamp(320px,36%,420px)：分类菜单（2026-10-20 起没有大标题，页名在顶栏长条里）；
      右栏占剩余宽度：顶部选中项名称 ＋ 详情卡片（最大 720px，左对齐）。
-     两栏各自独立滚动，底部留出胶囊＋Dock 高度。在 .layout-dex / .layout-pc（横屏宽屏）生效。 */
-  /* 2.6.0：双栏结构只在 DeX/PC 显示；移动端只显示分类列表。
+     两栏各自独立滚动，底部留出胶囊＋Dock 高度。在 .layout-dex（横屏宽屏）生效。 */
+  /* 2.6.0：双栏结构只在 DeX 显示；移动端只显示分类列表。
      Gray 2026-10-15：DeX 标题区移到两栏上方（.set-dex-head，与我的文件一致），
      两栏（.set-dex-cols）在按钮行下方，G=8。 */
   .set-dex-cols { display: none; }
   .set-col-l, .set-col-r { display: none; }
   .set-side { display: none; }
   .set-right-title { display: none; }
-  .layout-dex, .layout-pc {
+  .layout-dex {
     .set-mobile-only { display: none; }
     /* 设置首页容器在 DeX 下放宽（两栏需要宽度）；子页无 .set-dex-cols，不受影响。 */
     .set-layout:has(.set-dex-cols) { max-width: none; }
-    /* .set-dex-head：现在只装手机分类列表（DeX/PC 下隐藏），保留同几何（1100px 居中 + px-4）。 */
+    /* .set-dex-head：现在只装手机分类列表（DeX 下隐藏），保留同几何（1100px 居中 + px-4）。 */
     .set-dex-head {
       display: block;
       max-width: 1100px; margin-left: auto; margin-right: auto;
@@ -8162,10 +8141,8 @@
 /* 布局切换时内容不卸载：只换 class 做重排 */
 .layout-mobile .set-layout,
 .layout-dex .set-layout,
-.layout-pc .set-layout,
 .layout-mobile .acct-layout,
-.layout-dex .acct-layout,
-.layout-pc .acct-layout {
+.layout-dex .acct-layout {
   contain: layout style;
 }
 /* 手机布局：main 底部留白 = 底栏高 + 安全区 + 16px */
@@ -8234,6 +8211,14 @@ footer.sgx-about-foot > div { padding-top: 20px; padding-bottom: 16px; }
 .sgx-tb-title { display: block; flex: 1; min-width: 0; text-align: center; padding: 0 12px;
   font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 16px; font-weight: 700; line-height: 1.25; letter-spacing: normal;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--sgx-text-primary); }
+/* 宽屏（≥ 600px：平板竖屏、横屏、DeX）：长条不再拉满，只包住内容（页名 / 主站标签），居中在顶栏正中；
+   两侧圆照旧贴顶栏两端（参考 Hark 顶栏：居中的标签胶囊按内容定宽）。手机（< 600px）不变。
+   min-width 防止短页名缩成小圆点；max-width 给两侧圆各留一个圆宽 + 间距，长页名省略号。 */
+@media (min-width: 600px) {
+  .sgx-tb-pill { flex: 0 1 auto; margin: 0 auto; justify-content: center;
+    min-width: 160px; max-width: min(480px, calc(100% - 2 * (var(--sgx-tb-btn) + var(--sgx-tb-gap)))); }
+  .sgx-tb-title { flex: 0 1 auto; padding: 0 16px; }
+}
 .sgx-tb-nav, .sgx-tb-end { transition: background-color .15s ease; }
 @media (hover: hover) {
   .sgx-tb-nav:hover, .sgx-tb-end:hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); }
@@ -8456,6 +8441,11 @@ html[data-sgx-role="visitor"] .sgx-drawer-me { pointer-events: none; cursor: def
 .sgx-tb-tab:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
 .reduced-motion .sgx-tb-tab { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-tb-tab { transition: none; } }
+/* 宽屏（≥ 600px）长条按内容定宽：三个标签各自按字定宽（最小 88px，三栏看起来等宽），不再三等分 400px */
+@media (min-width: 600px) {
+  .sgx-tb-tabs { flex: 0 0 auto; max-width: none; }
+  .sgx-tb-tab { flex: 0 0 auto; min-width: 88px; padding: 0 16px; }
+}
 /* 快捷面板（2026-10-21 v6：从顶栏下方落下的覆盖层，One UI 快捷面板式；baseof.html #sgx-qp，shell/quick-panel.js 开关）：
    非模态 <dialog>（show()，不进顶层），fixed 铺满「顶栏下沿以下」的区域：dialog 本身就是遮罩（is-open 时 --sgx-scrim），
    z-index 45 = 盖住正文和底部胶囊（41），但在顶栏 #site-nav（50）下面——顶栏不被遮罩压暗、图标照常可点（再点关闭）。
