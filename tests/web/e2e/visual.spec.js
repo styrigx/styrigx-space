@@ -20,11 +20,10 @@ const VIEWPORTS = {
   desktop: { width: 1920, height: 1080 },
 };
 /* 安全与隐私：新页面加入视觉回归（先只报告，基线未生成前不阻塞） */
-/* 账号体系：原 /settings/security/owner/（站长凭证门）升级为账号页 /settings/account/ */
-/* 账号页三星式总览：/settings/account/ 拍登录后的总览（登录区由下方 account-login-* 覆盖），
-   新增安全与隐私子页 /settings/account/security/（已过门；倒计时数字在截图里遮罩），
-   账号信息子页 /settings/account/profile/（已登录卡 + 退出账号） */
-const PAGES = ['/', '/settings/', '/settings/security/', '/settings/security/lock/', '/settings/account/', '/settings/account/profile/', '/settings/account/security/', '/settings/account/reset/'];
+/* 账号页（独立页 /account/，2026-10-22 从 /settings/account/ 挪出）三星式总览：/account/ 拍登录后的总览（登录区由下方 account-login-* 覆盖），
+   新增安全与隐私子页 /account/security/（已过门；倒计时数字在截图里遮罩），
+   账号信息子页 /account/profile/（已登录卡 + 退出账号） */
+const PAGES = ['/', '/settings/', '/settings/security/', '/settings/security/lock/', '/account/', '/account/profile/', '/account/security/', '/account/reset/'];
 const LANGS = [
   { prefix: '', name: 'zh' },
   { prefix: '/en', name: 'en' },
@@ -67,7 +66,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
             });
           }
           /* 账号总览 / 账号信息 / 安全与隐私子页：已登录账号（密码登录），已过门（倒计时数字遮罩），通行密钥列表固定一把 */
-          if (page === '/settings/account/' || page === '/settings/account/profile/' || page === '/settings/account/security/') {
+          if (page === '/account/' || page === '/account/profile/' || page === '/account/security/') {
             await pg.route('**/api/account', async (route) => {
               if (route.request().method() === 'GET') {
                 await route.fulfill({
@@ -138,11 +137,10 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           await pg.goto(lang.prefix + page, { waitUntil: 'domcontentloaded' });
           await waitPageReady(pg);
           /* 账号两页：等异步内容（总览 / 子页列表）落定再截图 */
-          if (page === '/settings/account/') await expect(pg.locator('#acct-main')).toBeVisible({ timeout: 10000 });
-          if (page === '/settings/account/profile/') await expect(pg.locator('#acct-profile')).toBeVisible({ timeout: 10000 });
-          if (page === '/settings/account/reset/') await expect(pg.locator('#sgx-reset-root')).toBeVisible({ timeout: 10000 });
-          if (page === '/settings/account/reset/') await expect(pg.locator('#sgx-reset-root')).toBeVisible({ timeout: 10000 });
-          if (page === '/settings/account/security/') {
+          if (page === '/account/') await expect(pg.locator('#acct-main')).toBeVisible({ timeout: 10000 });
+          if (page === '/account/profile/') await expect(pg.locator('#acct-profile')).toBeVisible({ timeout: 10000 });
+          if (page === '/account/reset/') await expect(pg.locator('#sgx-reset-root')).toBeVisible({ timeout: 10000 });
+          if (page === '/account/security/') {
             await expect(pg.locator('#lockmgr-pklist .lockmgr-pkitem')).toHaveCount(1, { timeout: 10000 });
             await expect(pg.locator('#sgx-door-countdown')).toBeVisible();
           }
@@ -304,7 +302,7 @@ for (const lang of DOOR_LANGS) {
           await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'wrong' }) });
         });
         await freezeTime(pg);
-        await pg.goto(lang.prefix + '/settings/account/', { waitUntil: 'domcontentloaded' });
+        await pg.goto(lang.prefix + '/account/', { waitUntil: 'domcontentloaded' });
         await waitPageReady(pg);
         await expect(pg.locator('#acct-pk-btn')).toBeVisible({ timeout: 10000 });
         await expect(pg.locator('#acct-pw-btn')).toBeVisible();

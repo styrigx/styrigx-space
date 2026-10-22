@@ -228,7 +228,7 @@ for (const role of ['owner', 'visitor']) {
   test(`R5 已登录账号（锁屏会话 ${role}）进账号页：登录区一帧都不出现（不下发节点），总览首帧可见`, async ({ page, context }) => {
     await setSession(context, role);
     await context.addCookies([{ name: 'sgx-account', value: await edge.mintAccount(), domain: 'styrigx.com', path: '/', secure: true, httpOnly: true, sameSite: 'Strict' }]);
-    await page.goto(MAIN + '/settings/account/', { waitUntil: 'commit' });
+    await page.goto(MAIN + '/account/', { waitUntil: 'commit' });
     await page.waitForLoadState('domcontentloaded');
     /* 解析完那一刻：登录区节点不存在、总览不是 hidden（不靠脚本） */
     expect(await page.evaluate(() => window.__sawLogin)).toBe(false);
@@ -244,7 +244,7 @@ for (const role of ['owner', 'visitor']) {
 
 test('R5 对照：站长没有账号会话 → 只出登录区（欢迎回来），总览不出现', async ({ page, context }) => {
   await setSession(context, 'owner');
-  await page.goto(MAIN + '/settings/account/');
+  await page.goto(MAIN + '/account/');
   await expect(page.locator('html')).toHaveAttribute('data-sgx-account', 'out');
   await expect(page.locator('#acct-login')).toBeVisible();
   await page.waitForTimeout(800);

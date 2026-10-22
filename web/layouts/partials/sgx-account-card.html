@@ -1,5 +1,5 @@
 {{/* 账号卡：左 Sloan Gray / Styrigx，右圆形头像。
-   只在账号页 /settings/account/ 登录后总览顶部使用（原在设置页手机端与宽屏左栏，2026-10 移到账号页）。
+   只在账号页 /account/ 登录后总览顶部使用。
    头像读主站 /avatar/192.webp；主人会话下头像右下角出现铅笔，点头像可换照片 / 移除照片
    （assets/js/apps/avatar-edit.js，入口 entry-account.js），访客只看不能点。 */}}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}

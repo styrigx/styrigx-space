@@ -17,12 +17,11 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindSubmitButton, 
 import { api, apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown, guardDoorExpired } from './app-gate.js';
 import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
 import { bindDataEyes, createSetPwDialog, newPwError, pwSetRequest, lockDoorFetch } from '../lib/auth-flow.js';
-import { renderAccountMethods } from './account-methods.js';
+import { renderAccountMethods } from '../lib/account-methods.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
-  /* 账号体系：原 ?mode=owner（站长凭证模式）已移除——账号凭证只在账号页（/settings/account/）管理。
-     本页只管锁屏凭证（lock-pw + class=lock 通行密钥）与应用验证分组。 */
+  /* 本页只管锁屏凭证（lock-pw + class=lock 通行密钥）。 */
   const pwKind = 'lock';
   /** C6：重置会话模式（lockreset 票据）。重置会话里不使用门内到期框。 */
   var isLockreset = false;
@@ -180,9 +179,7 @@ import { renderAccountMethods } from './account-methods.js';
   var hasPk = false;
   /* v1.1 §二.1：返回请求 Promise，供进门回调等首次数据加载完成后再显示胶囊 */
   function refreshStatus() {
-    /* 状态接口：/api/lock-status（lock-pw + class=lock；账号凭证在账号页，不在这里），
-       lock 模式读 /api/lock-status（lock-pw + class=lock）。
-       （原 owner 模式读 owner-status，已随站长凭证升级为账号移除。） */
+    /* 状态接口：/api/lock-status（lock-pw + class=lock） */
     return fetch(statusApi, { method: 'GET', credentials: 'same-origin' })
       .then(function (r) {
         return r.json();

@@ -184,7 +184,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{ $profile := site.Data.profile }}
 {{/* 抽屉搜索框的 href = 没 JS 时的去处（/search/ 只是个转到首页并打开搜索层的小跳转页）；有 JS 时原地打开搜索层 */}}
 {{ $searchUrl := "/search/" }}{{ if $isEn }}{{ $searchUrl = "/en/search/" }}{{ end }}
-{{ $acctUrl := "/settings/account/" }}{{ if $isEn }}{{ $acctUrl = "/en/settings/account/" }}{{ end }}
+{{ $acctUrl := "/account/" }}{{ if $isEn }}{{ $acctUrl = "/en/account/" }}{{ end }}
 {{ $setUrl := $setUrl0 }}
 {{ $glUrl := cond $isEn "/en/settings/goodlock/" "/settings/goodlock/" }}
 

@@ -1,10 +1,10 @@
 /**
- * @fileoverview 账号页共用：账号总览（/settings/account/，含登录区）、
- * 已登录子页（/settings/account/profile/，退出账号）与
- * 安全与隐私子页（/settings/account/security/，管理账号密码和账号通行密钥）。
+ * @fileoverview 账号页共用：账号总览（/account/，含登录区）、
+ * 已登录子页（/account/profile/，退出账号）与
+ * 安全与隐私子页（/account/security/，管理账号密码和账号通行密钥）。
  *
- * - i18n：两页模板都输出同一份 #sgx-i18n-account（partials/account-i18n.html）
- * - postJSON / errText：/api/account 调用与错误码 → 文案
+ * - i18n：各页模板都输出同一份 #sgx-i18n-account（partials/account-i18n.html）
+ * - /api/account 调用与错误码 → 文案在 lib/account-api.js（锁屏凭证页也用）
  * - signalAccountName：PublicKeyCredential.signalCurrentUserDetails 让密码管理器
  *   （Samsung Pass / Google 密码管理器）把已有账号通行密钥条目的名字更新为 accountkey。
  *   只对「当前账号 handle」（owner-user-id:owner）发；旧 handle（owner-user-id）与锁屏
@@ -12,26 +12,24 @@
  */
 import { KEY_ACCOUNT } from '../lib/key-names.js';
 
-export const ACCOUNT_API = '/api/account';
-
 /** @param {boolean} en */
 export function accountUrl(en) {
-  return en ? '/en/settings/account/' : '/settings/account/';
+  return en ? '/en/account/' : '/account/';
 }
 /** @param {boolean} en */
 export function securityUrl(en) {
-  return en ? '/en/settings/account/security/' : '/settings/account/security/';
+  return en ? '/en/account/security/' : '/account/security/';
 }
 /** @param {boolean} en */
 export function profileUrl(en) {
-  return en ? '/en/settings/account/profile/' : '/settings/account/profile/';
+  return en ? '/en/account/profile/' : '/account/profile/';
 }
 /** @param {boolean} en */
 export function devicesUrl(en) {
-  return en ? '/en/settings/account/devices/' : '/settings/account/devices/';
+  return en ? '/en/account/devices/' : '/account/devices/';
 }
 /** 账号总览登录后可回跳的本站路径（只接受账号的子页：安全与隐私、已登录、设备） */
-export const ACCOUNT_RETURN_RE = /^\/(en\/)?settings\/account\/(security|profile|devices)\/$/;
+export const ACCOUNT_RETURN_RE = /^\/(en\/)?account\/(security|profile|devices)\/$/;
 
 /**
  * @param {boolean} en
@@ -50,56 +48,6 @@ export function createT(en) {
     if (typeof console !== 'undefined') console.warn('[i18n] missing key:', k);
     return en ? 'Something went wrong, please retry' : '出错了，请重试';
   };
-}
-
-/**
- * @param {string} url
- * @param {object} body
- * @returns {Promise<{s:number, j:any}>}
- */
-export function postJSON(url, body) {
-  return fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    credentials: 'same-origin',
-  }).then(function (r) {
-    return r.json().then(function (j) { return { s: r.status, j: j }; }, function () { return { s: r.status, j: null }; });
-  });
-}
-
-const ERR_KEYS = {
-  wrong: 'errWrongPw',
-  'not-set': 'errNotSet',
-  auth: 'errWrongRoot',
-  denied: 'errWrongPw',
-  role: 'errWrongPw',
-  challenge: 'errVerify',
-  verify: 'errVerify',
-  'unknown-key': 'errVerify',
-  'class-mismatch': 'errVerify',
-  'uv-required': 'errUvRequired',
-  locked: 'errLocked',
-  config: 'errConfig',
-  server: 'errServer',
-  short: 'errShort',
-  'same-as-lock': 'errSameAsLock',
-  'not-found': 'errNotFound',
-  session: 'sessExp',
-  door: 'doorExpired',
-  current: 'devCurrent',
-};
-
-/**
- * 服务端错误码 → 文案
- * @param {function(string): string} t
- * @param {string} [code]
- * @param {number} [status]
- */
-export function errText(t, code, status) {
-  if (code && ERR_KEYS[code]) return t(ERR_KEYS[code]);
-  if (status === 429) return t('errLocked');
-  return t('errUnknown');
 }
 
 /** 每页只发一次 */

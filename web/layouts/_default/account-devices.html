@@ -1,19 +1,19 @@
-{{/* 账号 → 设备（/settings/account/devices/）：账号总览「设备」一行进入（三星账号「设备」页式）。
+{{/* 账号 → 设备（/account/devices/）：账号总览「设备」一行进入（三星账号「设备」页式）。
    「此设备」一张卡在最上面；下面「其他设备」列出这个账号在别的浏览器 / 设备上的登录，
    每台显示型号（三星型号映射成 Galaxy 名字）、浏览器、地点和上次活动时间，点「退出」两步确认后单独退出它。
    此设备不能在这里退出（用账号信息页的「退出账号」）。
-   没有账号会话 → 跳 /settings/account/?return=<本页>，登录后回来。
+   没有账号会话 → 跳 /account/?return=<本页>，登录后回来。
    数据：POST /api/account { action:'devices' } / { action:'device-revoke', sid }（只要账号会话，不进门）。
    noindex（见 baseof）。脚本走 ES Module 入口 entry-account-devices.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-account-devices.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 
-<div class="set-layout max-w-2xl mx-auto px-4 pb-28">
+<div class="acct-layout max-w-2xl mx-auto px-4 pb-28">
   <div id="acct-devices" hidden>
     <h3 class="acct-dev-h">{{ if $isEn }}This device{{ else }}此设备{{ end }}</h3>
     <section class="widget bg-m-container-lowest border border-m-outline mb-6 overflow-hidden animate-fade-up" style="animation-delay:.08s">
-      <div class="set-row" id="acct-dev-this"></div>
+      <div class="acct-row" id="acct-dev-this"></div>
     </section>
 
     <h3 class="acct-dev-h">{{ if $isEn }}Other devices{{ else }}其他设备{{ end }}</h3>
@@ -23,8 +23,8 @@
         <p class="text-sm text-m-on-surface-variant m-0">{{ if $isEn }}No other signed-in devices.{{ else }}没有其他登录的设备。{{ end }}</p>
       </div>
     </section>
-    <p class="sec-note">{{ if $isEn }}Signing out a device ends its account session right away; it has to sign in again.{{ else }}退出某台设备会立即结束它的账号会话，那台设备需要重新登录。{{ end }}</p>
-    <p class="sec-note mt-6 sgx-build-tag-wrap">{{ partial "build-tag.html" (dict "isEn" $isEn) }}</p>
+    <p class="acct-note">{{ if $isEn }}Signing out a device ends its account session right away; it has to sign in again.{{ else }}退出某台设备会立即结束它的账号会话，那台设备需要重新登录。{{ end }}</p>
+    <p class="acct-note mt-6 sgx-build-tag-wrap">{{ partial "build-tag.html" (dict "isEn" $isEn) }}</p>
   </div>
 </div>
 

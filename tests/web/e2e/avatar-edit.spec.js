@@ -1,5 +1,5 @@
 /**
- * 账号页换头像（账号卡已从设置页移到账号总览 /settings/account/）：主人会话下点账号卡头像 → 选择照片 → 裁剪（拖动、滚轮缩放）→ 完成，
+ * 账号页换头像（账号卡已从设置页移到账号总览 /account/）：主人会话下点账号卡头像 → 选择照片 → 裁剪（拖动、滚轮缩放）→ 完成，
  * PUT /api/avatar 带 512 / 192 / 96 / 32 四张 WebP，成功后页面头像换成带 ?v= 的新地址。
  * 访客：头像按钮 disabled，没有铅笔。
  * 测试构建是静态服务器：主人身份靠改写 HTML 注入 data-sgx-role，/api/avatar 用 mock。
@@ -38,7 +38,7 @@ async function asRole(page, role) {
     }
     await route.fulfill({ json: { ok: true, keys: [] } });
   });
-  await page.route('**/settings/account/', async (route) => {
+  await page.route('**/account/', async (route) => {
     const r = await route.fetch();
     const html = (await r.text()).replace(/<html/, '<html data-sgx-role="' + role + '" data-sgx-session="valid"');
     await route.fulfill({ response: r, body: html });
@@ -53,7 +53,7 @@ test('主人：选择照片 → 裁剪 → 完成，上传四个尺寸并刷新�
     put = { method: route.request().method(), body: route.request().postDataBuffer() || Buffer.alloc(0) };
     await route.fulfill({ json: { ok: true, ver: 'abc' } });
   });
-  await page.goto('/settings/account/');
+  await page.goto('/account/');
   const photo = await makePhoto(page);
   const btn = page.locator('#acct-main [data-avatar-edit]');
   await expect(btn).toBeEnabled();
@@ -91,7 +91,7 @@ test('主人：裁剪时点取消，不上传', async ({ page }) => {
     called = true;
     await route.fulfill({ json: { ok: true, ver: 'x' } });
   });
-  await page.goto('/settings/account/');
+  await page.goto('/account/');
   const photo = await makePhoto(page);
   await page.locator('#acct-main [data-avatar-edit]').click();
   const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.locator('#sheet-body .sheet-opt').first().click()]);
@@ -104,7 +104,7 @@ test('主人：裁剪时点取消，不上传', async ({ page }) => {
 
 test('访客：头像按钮不可点，没有铅笔', async ({ page }) => {
   await asRole(page, 'visitor');
-  await page.goto('/settings/account/');
+  await page.goto('/account/');
   const btn = page.locator('#acct-main [data-avatar-edit]');
   await expect(btn).toBeDisabled();
   await expect(btn.locator('.sgx-ac-pen')).toBeHidden();

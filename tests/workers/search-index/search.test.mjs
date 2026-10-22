@@ -11,7 +11,7 @@ const IX = [
   { site: 'space', items: [
     { id: 'a', type: 'setting', lang: 'zh', title: '壁纸和主题', subtitle: '', url: 'https://styrigx.com/settings/theme/' },
     { id: 'b', type: 'setting', lang: 'zh', title: '主题模式', subtitle: '显示', text: '跟随系统 浅色 深色', url: 'https://styrigx.com/settings/display/' },
-    { id: 'c', type: 'setting', lang: 'zh', title: '账号信息', subtitle: '账号', url: 'https://styrigx.com/settings/account/profile/', private: true },
+    { id: 'c', type: 'setting', lang: 'zh', title: '账号信息', subtitle: '账号', url: 'https://styrigx.com/account/profile/', private: true },
     { id: 'd', type: 'setting', lang: 'en', title: 'Theme mode', subtitle: 'Display', url: 'https://styrigx.com/en/settings/display/' },
   ] },
   { site: 'blog', items: [

@@ -72,7 +72,7 @@ test('nav.json：主站 / 奇趣 / 日刻 / 博客，没有设置；抽屉头搜
   assert.equal(nav.search.path, '/search/');
   assert.equal(nav.search.layer, 'search.js');
   // 2026-10-22：抽屉头头像（子站链到主站）
-  assert.deepEqual(nav.me, { zh: '账号', en: 'Account', href: 'https://styrigx.com/settings/account/', avatar: 'https://styrigx.com/avatar/192.webp' });
+  assert.deepEqual(nav.me, { zh: '账号', en: 'Account', href: 'https://styrigx.com/account/', avatar: 'https://styrigx.com/avatar/192.webp' });
   assert.match(nav.icons['ai-search'], /^<svg[\s\S]*M14\.9 9\.6A6 6 0 1 1 11\.6 7\.2[\s\S]*<\/svg>$/);
   assert.deepEqual(nav.items.map((i) => i.zh), ['主站', '奇趣', '日刻', '博客']);
   for (const i of [...nav.items, ...nav.footer]) assert.match(nav.icons[i.icon], /^<svg[\s\S]*<\/svg>$/, i.icon);

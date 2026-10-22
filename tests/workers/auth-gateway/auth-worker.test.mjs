@@ -377,10 +377,10 @@ test('预览（作为 Pages 的 _worker.js 运行，有 env.ASSETS）：页面�
   });
 });
 
-test('路由：账号 → 安全与隐私子页（/settings/account/security/ 与 /en/）过网关', async () => {
+test('路由：账号 → 安全与隐私子页（/account/security/ 与 /en/）过网关', async () => {
   const { readRoutes, routeMatches } = await import(REPO + '/scripts/check-worker-routes.mjs');
   const routes = readRoutes(readFileSync(path.join(REPO, 'workers/auth-gateway/wrangler.toml'), 'utf8'));
-  for (const p of ['/settings/account/', '/settings/account/security/', '/en/settings/account/security/']) {
+  for (const p of ['/account/', '/account/security/', '/en/account/security/']) {
     assert.ok(routes.some((r) => routeMatches(r, 'styrigx.com', p)), p + ' 应被路由覆盖');
   }
   for (const f of ['web/content/account-security.md', 'web/content/en/account-security.md']) {

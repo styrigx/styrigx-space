@@ -7,7 +7,7 @@
     "shell.css": "3129b8f69f3fb04e7667e57f1efed44b1167c2ac1fa9371c688bd158a4f48652",
     "palette-scheme.js": "ab6d347b23dc2f062f3b7ca5ae1b94543e898864a8f669972e8720d2729c50c4",
     "search.js": "d9b091a8cbcf675054e4fcb8ca52dfa7630f9e0bfbdb8a417ab8aafe03973ee8",
-    "nav.json": "665313fb523246fff5dddc1a920abbfe7578438b3d97673d53838bd471f70d32",
+    "nav.json": "373f01b51847f96e9e77690be94c5db1453ba5927500e53542f42e73cfd69964",
     "palettes.json": "cb95c4e6570ab1cdcb2bb82de30d709a99910157b7e1b435d9d3b9e8b00d5711",
     "ui-cookie-read.js": "1f3775827eade901a871bc46eef87a629a437547073c81ccee9499324698f0b0",
     "ui-cookie-contract.json": "c9034a3fbea2f083349fd69e58c9d6f5391ab092df1e11d2ad759b83a957c8fd",
@@ -15,5 +15,5 @@
     "favicon.svg": "368c680c7554c6cde7f6d374057011a80c564cc08eb5cd3f31af5a4dbc580f07",
     "README.md": "679086643e740a01489f77586a9b0a854d7e4498600cd47ef6b1fd9922107e5b"
   },
-  "version": "79e9f350e100"
+  "version": "4d61c2741b05"
 }

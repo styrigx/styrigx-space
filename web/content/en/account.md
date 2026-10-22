@@ -1,5 +1,5 @@
 ---
 title: 'Account'
 layout: account
-url: /en/settings/account/
+url: /en/account/
 ---

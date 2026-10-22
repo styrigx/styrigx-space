@@ -7216,10 +7216,10 @@
     .set-layout.single-cat .set-group.active > .set-gh { display: none; }
   }
   /* ===== 账号卡：左 Sloan Gray / Styrigx，右圆形头像（主人可换头像） =====
-     只在账号页 /settings/account/（登录后总览）顶部显示；原设置页的两处（手机 / 宽屏左栏）已移除。 */
+     只在账号页 /account/（登录后总览）顶部显示。 */
   .sgx-account-card {
     display: flex; width: 100%; align-items: center; gap: 12px; margin: 0 0 12px;
-    /* 2026-10-22：圆角 / 内边距和下面的设置组（.widget 1.75rem、.set-row 14px 20px）一致，同一套椭圆卡 */
+    /* 2026-10-22：圆角 / 内边距和下面的账号设置组（.widget 1.75rem、.acct-row 14px 20px）一致，同一套椭圆卡 */
     padding: 14px 20px; border-radius: 1.75rem;
     background: var(--m-container-lowest); border: 1px solid var(--m-outline);
     background-image: var(--card-noise);
@@ -7278,6 +7278,19 @@
   /* 账号 › 设备：「此设备」「其他设备」小标题（三星账号设备页式，灰色小字） */
   .acct-dev-h { font-size: 13px; font-weight: 600; color: var(--m-on-surface-variant); padding: 0 20px; margin: 0 0 8px; }
   .acct-dev-item[hidden], #acct-dev-list[hidden], #acct-dev-empty[hidden] { display: none; }
+  /* ===== 账号页（/account/*）自己的一套：外框 / 行 / 圆形图标 / 组标题 / 小字说明。
+     样子与设置页的 .set-layout / .set-row / .set-ic / .set-gh、安全页的 .sec-note 一致，但不借用它们（账号页是独立页） ===== */
+  .acct-row {
+    position: relative; display: flex; align-items: center; gap: 14px; width: 100%;
+    padding: 14px 20px; min-height: 60px; text-align: left;
+    & + .acct-row::before {
+      content: ''; position: absolute; top: 0; left: 68px; right: 0;
+      border-top: 1px solid color-mix(in srgb, var(--m-outline) 55%, transparent);
+    }
+  }
+  .acct-ic { width: 40px; height: 40px; border-radius: 999px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .acct-gh { display: flex; align-items: center; gap: 12px; padding: 0 4px; margin: 0 0 10px; font-size: 17px; font-weight: 700; color: var(--m-on-surface); letter-spacing: -0.01em; }
+  .acct-note { font-size: 12px; color: var(--sgx-text-secondary); padding: 0 4px; margin: 0; }
   .sec-note { font-size: 12px; color: var(--sgx-text-secondary); padding: 0 4px; margin: 0; }
   .sgx-verify-desc { font-size: 13px; color: var(--sgx-text-secondary); margin: 0; text-align: center; max-width: 300px; }
   .sgx-pw-field { position: relative; width: 100%; max-width: 280px; }
@@ -7876,7 +7889,7 @@
     &:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
     &:active { background: var(--sgx-surface-container-high); }
   }
-  /* PR3 重置登录（lib/reset-flow.js）：账号页 /settings/account/reset/ 与锁屏弹层同一个界面 */
+  /* PR3 重置登录（lib/reset-flow.js）：账号页 /account/reset/ 与锁屏弹层同一个界面 */
   .sgx-reset { width: 100%; display: flex; flex-direction: column; gap: 12px; }
   .sgx-reset-lead { margin: 0; font-size: 15px; color: var(--sgx-text-primary); }
   .sgx-reset .sgx-pw-field { max-width: none; }
@@ -8392,11 +8405,15 @@
 /* 布局切换时内容不卸载：只换 class 做重排 */
 .layout-mobile .set-layout,
 .layout-dex .set-layout,
-.layout-pc .set-layout {
+.layout-pc .set-layout,
+.layout-mobile .acct-layout,
+.layout-dex .acct-layout,
+.layout-pc .acct-layout {
   contain: layout style;
 }
 /* 手机布局：main 底部留白 = 底栏高 + 安全区 + 16px */
-.layout-mobile .set-layout {
+.layout-mobile .set-layout,
+.layout-mobile .acct-layout {
   padding-bottom: calc(var(--sgx-bottom-dock-h) + env(safe-area-inset-bottom, 0px) + 16px);
 }
 /* 2026-10-22：版权页脚只在「设置 › 关于本站」，紧跟卡片下方，不沉到视口底（放在分层外，压过 pb-28 / 底栏留白） */

@@ -1,5 +1,5 @@
 /**
- * @fileoverview 账号 → 重置登录（/settings/account/reset/，PR3）。
+ * @fileoverview 账号 → 重置登录（/account/reset/，PR3）。
  *
  * 与锁屏弹层里的「无法登录？」同一个界面（lib/reset-flow.js），只是提交不同：
  * 根凭证 → POST /api/root-auth { key, purpose:'account' } → 服务端签账号会话 + 账号门票（by=root）
@@ -8,7 +8,7 @@
 import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { mountResetFlow } from '../lib/reset-flow.js';
 import { createT, securityUrl } from './account-common.js';
-import { accountSubmitters } from './account-methods.js';
+import { accountSubmitters } from '../lib/account-methods.js';
 
 (function () {
   const el = document.getElementById('acct-reset');

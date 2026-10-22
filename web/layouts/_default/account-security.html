@@ -1,32 +1,32 @@
-{{/* 账号 → 安全与隐私（/settings/account/security/）：账号总览「安全与隐私」一行进入。
+{{/* 账号 → 安全与隐私（/account/security/）：账号总览「安全与隐私」一行进入。
    管理账号凭证（accountkey）：账号密码（设置/修改；根凭证登录时为「重置」）和账号通行密钥
    （添加 → 命名弹层、列表内点名字重命名、删除）。与锁屏页同一套弹层行为（A1 遮罩不关 / A2 返回先收键盘 / A3 × 关闭，弹层随键盘上移）。
    这是安全操作：每次进页都要先过门 —— 账号通行密钥 / 账号密码（设了哪个显示哪个）；根凭证不再是验证入口，
    丢了账号凭证点「无法登录？」走重置登录（根凭证直接签门票回到本页）。通过后签 3 分钟账号门票，页内显示倒计时；离开本页门票立即作废，再进重新验证。
-   未登录账号 → 跳 /settings/account/?return=<本页>。
+   未登录账号 → 跳 /account/?return=<本页>。
    返回上一级 = 账号总览（shell/navhistory.js parentOf）。noindex（见 baseof）。
    脚本走 ES Module 入口 entry-account-security.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-account-security.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 
-<div class="set-layout max-w-2xl mx-auto px-4 pb-28">
+<div class="acct-layout max-w-2xl mx-auto px-4 pb-28">
 
   <!-- 门：每次进页验一次账号凭证（JS 渲染验证行，设了哪个显示哪个；下面「无法登录？」进重置登录） -->
   <div id="acct-door" hidden>
-    <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Verify it's you{{ else }}验证身份{{ end }}</span></h2>
-    <p class="sec-note mb-3">{{ if $isEn }}Changing account keys is a security action. Verify again to continue; it lasts 3 minutes and ends as soon as you leave this page.{{ else }}修改账号凭证属于安全操作，请再验证一次。验证有效 3 分钟，离开本页立即失效。{{ end }}</p>
+    <h2 class="acct-gh"><span class="acct-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Verify it's you{{ else }}验证身份{{ end }}</span></h2>
+    <p class="acct-note mb-3">{{ if $isEn }}Changing account keys is a security action. Verify again to continue; it lasts 3 minutes and ends as soon as you leave this page.{{ else }}修改账号凭证属于安全操作，请再验证一次。验证有效 3 分钟，离开本页立即失效。{{ end }}</p>
     <p class="sgx-door-err mb-3" id="acct-door-notice" hidden></p>
     <div class="sgx-door-methods animate-fade-up" id="acct-door-methods" style="animation-delay:.1s"></div>
-    <a class="acct-cant" id="acct-door-cant" href="{{ cond $isEn "/en/settings/account/reset/" "/settings/account/reset/" }}">{{ if $isEn }}Can’t sign in?{{ else }}无法登录？{{ end }}</a>
+    <a class="acct-cant" id="acct-door-cant" href="{{ cond $isEn "/en/account/reset/" "/account/reset/" }}">{{ if $isEn }}Can’t sign in?{{ else }}无法登录？{{ end }}</a>
   </div>
 
   <!-- 门内：验证通过后才渲染（顶部倒计时胶囊由 JS 插入） -->
   <div id="acct-sec" hidden>
 
-    <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "lock" }}</span><span>{{ if $isEn }}Account password{{ else }}账号密码{{ end }}</span></h2>
+    <h2 class="acct-gh"><span class="acct-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "lock" }}</span><span>{{ if $isEn }}Account password{{ else }}账号密码{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.1s">
-      <div class="set-row" id="lockmgr-pwrow" role="button" tabindex="0">
+      <div class="acct-row" id="lockmgr-pwrow" role="button" tabindex="0">
         <span class="flex-1 min-w-0">
           <span class="block font-medium">{{ if $isEn }}Account password{{ else }}账号密码{{ end }}</span>
           <span class="block text-xs mt-0.5 text-m-primary" id="lockmgr-pwsub">{{ if $isEn }}Loading…{{ else }}正在读取…{{ end }}</span>
@@ -34,9 +34,9 @@
         {{ partial "icon.html" "chev-r" }}
       </div>
     </section>
-    <p class="sec-note mb-7">{{ if $isEn }}Used to sign in to your account. Minimum 8 characters.{{ else }}用于登录账号，最短 8 位。{{ end }}</p>
+    <p class="acct-note mb-7">{{ if $isEn }}Used to sign in to your account. Minimum 8 characters.{{ else }}用于登录账号，最短 8 位。{{ end }}</p>
 
-    <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Account passkeys{{ else }}账号通行密钥{{ end }}</span></h2>
+    <h2 class="acct-gh"><span class="acct-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Account passkeys{{ else }}账号通行密钥{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.14s">
       <ul class="lockmgr-pklist" id="lockmgr-pklist" hidden></ul>
       <div class="p-4" id="lockmgr-pkempty" hidden>
@@ -46,8 +46,8 @@
         <span aria-hidden="true">＋</span> {{ if $isEn }}Add passkey{{ else }}添加通行密钥{{ end }}
       </button>
     </section>
-    <p class="sec-note">{{ if $isEn }}Sign in to your account with fingerprint, face, or device passcode. Tap a device name to rename it.{{ else }}用指纹、面容或设备密码登录账号。点设备名可重命名。{{ end }}</p>
-    <p class="sec-note mt-6 sgx-build-tag-wrap">{{ partial "build-tag.html" (dict "isEn" $isEn) }}</p>
+    <p class="acct-note">{{ if $isEn }}Sign in to your account with fingerprint, face, or device passcode. Tap a device name to rename it.{{ else }}用指纹、面容或设备密码登录账号。点设备名可重命名。{{ end }}</p>
+    <p class="acct-note mt-6 sgx-build-tag-wrap">{{ partial "build-tag.html" (dict "isEn" $isEn) }}</p>
   </div>
 </div>
 

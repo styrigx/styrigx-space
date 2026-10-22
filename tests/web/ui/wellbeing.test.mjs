@@ -99,6 +99,8 @@ test('wbAreaOf：主站页面映射', () => {
   assert.equal(wbAreaOf('/bookmarks/'), null); /* 2026-10-21 主站书签下线 */
   assert.equal(wbAreaOf('/en/search/'), 'browser');
   assert.equal(wbAreaOf('/settings/theme/'), 'settings');
+  assert.equal(wbAreaOf('/account/'), 'settings'); /* 账号页挪到 /account/，时长仍记在设置 */
+  assert.equal(wbAreaOf('/en/account/devices/'), 'settings');
   assert.equal(wbAreaOf('/app-verify/'), null);
   assert.equal(wbAreaOf('/404.html'), null);
 });

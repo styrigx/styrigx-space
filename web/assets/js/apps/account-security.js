@@ -1,5 +1,5 @@
 /**
- * @fileoverview 账号 → 安全与隐私（/settings/account/security/）：管理账号凭证（accountkey）。
+ * @fileoverview 账号 → 安全与隐私（/account/security/）：管理账号凭证（accountkey）。
  *
  * - 账号密码：设置 / 修改（根凭证登录时为「重置」，恢复路径）
  * - 账号通行密钥：添加（注册成功弹命名弹层，预填设备名；改了名才调 rename）、
@@ -19,8 +19,9 @@ import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { bindDataEyes, createSetPwDialog, newPwError } from '../lib/auth-flow.js';
 import { bindSubmitButton, onDialogBackdrop, onDialogCancel, recordDialogClose } from '../lib/dialog-behavior.js';
-import { ACCOUNT_API, accountUrl, createT, postJSON, errText as errTextT, signalAccountName } from './account-common.js';
-import { accountSubmitters, renderAccountMethods, visibleKinds } from './account-methods.js';
+import { accountUrl, createT, signalAccountName } from './account-common.js';
+import { ACCOUNT_API, postJSON, errText as errTextT } from '../lib/account-api.js';
+import { accountSubmitters, renderAccountMethods, visibleKinds } from '../lib/account-methods.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -87,7 +88,7 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from './account
     el.className = 'sgx-door-countdown';
     el.setAttribute('role', 'timer');
     el.innerHTML = '<span aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span><span class="sgx-door-countdown-text"></span>';
-    const layout = document.querySelector('.set-layout');
+    const layout = document.querySelector('.acct-layout');
     if (layout) layout.insertBefore(el, layout.firstChild);
     cdEl = el;
     tickCountdown();

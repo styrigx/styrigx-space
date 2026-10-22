@@ -5,8 +5,8 @@
  * 来源（都在 hugo 构建后的 web/public/ 里）：
  *   - files-index.json：我的站点、应用（type site / app）。博客文章不在这里：博客自己写 KV site:blog，
  *     主站不再顺带（2026-10-22 删掉 gen-posts-json）；万一 files-index 里混进 type post 也丢掉
- *   - settings/**、en/settings/** 每个页面：标题取 <title> 去掉「 | Styrigx」，类型 setting
- *     账号页（/settings/account/…）标 private（只给站长搜到）；二级页副标题 = 上一级页名（两个「安全与隐私」分得清）
+ *   - settings/**、en/settings/**、account/**、en/account/** 每个页面：标题取 <title> 去掉「 | Styrigx」，类型 setting
+ *     账号页（/account/…）标 private（只给站长搜到）；二级页副标题 = 上一级页名（两个「安全与隐私」分得清）
  *   - data/features.yaml 里用户能改的开关（user: true、build: true、有 section 页）：名字 + 选项名，跳到所在设置页
  * 格式见 workers/search-index/src/rank.js 顶部。deploy.yml 的 deploy-search-worker 把它写进 KV。
  *
@@ -54,7 +54,7 @@ export function build() {
     if (!x || !x.title || !x.url || x.type === 'post') continue;
     items.push({ id: x.id, type: x.type, lang: x.lang || 'zh', title: x.title, subtitle: x.subtitle || '', url: x.url.startsWith('/') ? ORIGIN + x.url : x.url });
   }
-  for (const [lang, base] of [['zh', 'settings'], ['en', 'en/settings']]) {
+  for (const [lang, base] of [['zh', 'settings'], ['en', 'en/settings'], ['zh', 'account'], ['en', 'en/account']]) {
     for (const f of htmlFiles(path.join(PUB, base))) {
       const rel = '/' + path.relative(PUB, path.dirname(f)).split(path.sep).join('/') + '/';
       const title = pageTitle(readFileSync(f, 'utf8'));
@@ -66,7 +66,7 @@ export function build() {
         title,
         subtitle: '',
         url: ORIGIN + rel,
-        private: /\/settings\/account\//.test(rel) || undefined,
+        private: /^\/(en\/)?account\//.test(rel) || undefined,
       });
     }
   }

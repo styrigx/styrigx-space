@@ -9,11 +9,12 @@
  * root(value)：重置登录（账号）第一步，POST /api/root-auth { purpose:'account' }（不是登录入口）。
  *
  * 行的渲染在 lib/cred-rows.js（锁屏弹层的重置登录也用它）。
+ * 放在 lib/：账号页（apps/account*.js）和锁屏凭证页（apps/security-lock.js）都 import 它。
  */
-import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
-import { renderCredRows, CRED_ICONS } from '../lib/cred-rows.js';
-import { ACCOUNT_API, postJSON, errText as errTextT } from './account-common.js';
-import { deviceHints } from '../lib/device-hints.js';
+import { b64urlToBuf, bufToB64url } from './b64.js';
+import { renderCredRows, CRED_ICONS } from './cred-rows.js';
+import { ACCOUNT_API, postJSON, errText as errTextT } from './account-api.js';
+import { deviceHints } from './device-hints.js';
 
 /**
  * 要显示的入口（固定顺序：通行密钥、密码）。PR3：根凭证不再是登录入口（改走「无法登录？」→ 重置登录）。

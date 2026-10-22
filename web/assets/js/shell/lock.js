@@ -1154,7 +1154,7 @@ function showLockScreen() {
   }
 
   /* ---------- 重置登录（PR3：方法弹层里的「无法登录？」原地切到 lib/reset-flow.js） ----------
-     与账号页 /settings/account/reset/ 同一个界面，提交不同：
+     与账号页 /account/reset/ 同一个界面，提交不同：
      - 锁屏凭证已设置（或读不到配置，按已设置处理）：根凭证 → POST /api/lockreset verify；
        恢复开关有效直接拿到重置锁屏门票；否则服务端回 needOwner → 再验账号凭证（账号通行密钥 / 账号密码，
        与账号登录同一套验证行）→ 门票 → 去 /settings/security/lock/ 重设解锁方式。
