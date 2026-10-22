@@ -94,7 +94,8 @@ function reduced() {
   );
 }
 
-const IC_SEARCH = '<svg class="sgx-srch-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>';
+/* 和抽屉底栏搜索框同一个图标（nav.json 的 ai-search：放大镜 + 右上角四角星），2026-10-22 用户要求统一 */
+const IC_SEARCH = '<svg class="sgx-srch-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.9 9.6A6 6 0 1 1 11.6 7.2"/><path d="M14.3 17.3L19.5 22.5"/><path d="M18.5 1.8c.3 2 1.2 2.9 3.2 3.2-2 .3-2.9 1.2-3.2 3.2-.3-2-1.2-2.9-3.2-3.2 2-.3 2.9-1.2 3.2-3.2z" fill="currentColor" stroke-width="1.2"/></svg>';
 const IC_CLEAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7" stroke="var(--sgx-surface)" stroke-width="2" stroke-linecap="round"/></svg>';
 const IC_CLOSE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 const IC_CHEV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>';
