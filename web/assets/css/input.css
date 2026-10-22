@@ -7737,7 +7737,7 @@
   /* PR3：本 PR 动到的界面（账号登录 / 密码框 / 重置登录 / 锁屏 / 锁屏解锁弹层 / Turnstile 弹层）
      颜色只用主题色 token（--sgx-*，见 tokens 层「主题色 → 整套配色」），不写死蓝 / 紫。 */
   .acct-login .sgx-door-btn-primary, .sgx-reset .sgx-door-btn-primary, #acct-door .sgx-door-btn-primary,
-  .sgx-verify-dlg .sgx-door-btn-primary, .sgx-verify-dlg .sgx-verify-skip, #sgx-method-sheet .sgx-door-btn-primary {
+  .sgx-verify-dlg .sgx-door-btn-primary, .sgx-verify-dlg .sgx-verify-skip, #sgx-method-sheet .sgx-door-btn-primary, #sgx-lock .sgx-door-btn-primary {
     background: var(--sgx-btn-primary-bg); color: var(--sgx-btn-primary-fg);
   }
   .acct-login .sgx-door-btn-secondary, .sgx-reset .sgx-door-btn-secondary, .sgx-verify-dlg .sgx-door-btn-secondary,
@@ -7829,6 +7829,56 @@
   /* DeX / 电脑宽屏：时钟居中（上限 160px），头像在下方居中，悬停光环变亮 */
   @media (min-width:1024px) {
     @media (hover: hover) and (pointer: fine) { #sgx-lock-avatar:hover .sgx-lock-halo { opacity: 1; border-color: rgba(255,255,255,.95); box-shadow: 0 0 28px rgba(255,255,255,.65); } }
+  }
+  /* 2026-10-23 锁屏视觉统一：和账号登录页同一套玻璃背景（.sgx-glass-bg）与版面。
+     顶栏位置只有标题长条「解锁屏幕」，没有抽屉 / 快捷面板按钮；左上字标；头像 → 欢迎回来 / 很高兴再次见到你 → 解锁按钮 → 底部站点清单。 */
+  #sgx-lock { background: var(--m-surface); flex-direction: column; }
+  #sgx-lock .sgx-glass-bg { position: fixed; }
+  .sgx-lock-tb {
+    position: relative; z-index: 1; flex: none; box-sizing: border-box;
+    width: var(--sgx-shell-w, 100%); max-width: 100%; margin: 0 auto;
+    padding: calc(env(safe-area-inset-top, 0px) + var(--sgx-tb-inset)) var(--sgx-tb-inset) 0;
+  }
+  .sgx-lock-tb-title {
+    display: flex; align-items: center; justify-content: center; height: var(--sgx-tb-btn); border-radius: 999px;
+    font-size: 16px; font-weight: 700; color: var(--sgx-text-primary);
+    background: color-mix(in oklch, var(--sgx-surface) 72%, transparent);
+    -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2);
+    box-shadow: 0 1px 0 rgba(255 255 255 / .5) inset, 0 6px 18px -12px rgba(0 0 0 / .25);
+  }
+  .sgx-lock-stage {
+    position: relative; z-index: 1; margin: 0 auto; flex: 1 0 auto; max-width: 480px;
+    padding: 24px 20px calc(env(safe-area-inset-bottom, 0px) + 24px);
+  }
+  .sgx-lock-head { align-items: stretch; }
+  .sgx-lock-brand { display: flex; flex-direction: column; gap: 10px; padding-left: 10px; margin: 8px 0 0; color: var(--sgx-text-primary); text-align: left; }
+  .sgx-lock-brand-name { display: block; line-height: 0; --sgx-drawer-brand-size: clamp(54px, 15vw, 66px); --sgx-drawer-wordmark-dy: 0px; }
+  .sgx-lock-brand-tx { font-size: 56px; line-height: 1; font-weight: 700; }
+  .sgx-lock-brand-tag { font-size: 15px; line-height: 1.5; color: var(--sgx-text-secondary); }
+  /* 小锁：解锁动画要换成开锁图标，所以留着，但只是一个很淡的装饰，放在字标下方居中 */
+  .sgx-lock-top { margin: 18px 0 0; opacity: .55; }
+  .sgx-lock-user { margin-top: 20px; width: 100%; gap: 0; }
+  #sgx-lock-avatar { width: 130px; height: 130px; }
+  #sgx-lock-avatar img, .sgx-lock-fb { width: 120px; height: 120px; margin: 5px; }
+  #sgx-lock-avatar img { box-shadow: 0 0 0 5px rgba(255 255 255 / .92), 0 14px 30px -10px rgba(0 0 0 / .25); }
+  :root.dark #sgx-lock-avatar img { box-shadow: 0 0 0 4px rgba(255 255 255 / .2), 0 14px 30px -10px rgba(0 0 0 / .5); }
+  .sgx-lock-welcome { margin: 18px 0 0; font-size: 24px; font-weight: 700; letter-spacing: -0.01em; color: var(--sgx-text-primary); }
+  .sgx-lock-sub { margin: 6px 0 0; font-size: 14px; letter-spacing: .04em; color: var(--sgx-text-secondary); }
+  .sgx-lock-go {
+    width: 100%; max-width: 360px; margin-top: 28px; border-radius: 20px; min-height: 56px; gap: 10px;
+    display: inline-flex; align-items: center; justify-content: center;
+    box-shadow: inset 0 1px 0 rgba(255 255 255 / .22), 0 12px 24px -12px color-mix(in oklch, var(--sgx-primary) 70%, transparent);
+    svg { width: 20px; height: 20px; }
+  }
+  .sgx-lock-foot { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: auto; padding-top: 40px; color: var(--sgx-text-primary); }
+  .sgx-lock-foot-name { font-size: 16px; font-weight: 600; letter-spacing: .2em; opacity: .6; }
+  .sgx-lock-foot-list { font-size: 10px; letter-spacing: .22em; color: var(--sgx-text-secondary); text-align: center; }
+  /* 手机横屏（矮屏）：左边字标，右边头像 + 按钮 */
+  @media (orientation:landscape) and (max-width:1023.5px) and (max-height:600px) {
+    .sgx-lock-stage { max-width: 860px; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 0 48px; padding-top: 12px; }
+    .sgx-lock-head { flex: 1 1 300px; max-width: 360px; }
+    .sgx-lock-user { flex: 1 1 300px; margin-top: 0; }
+    .sgx-lock-foot { flex-basis: 100%; padding-top: 16px; }
   }
   /* 解锁时首页从 96% 缩放回 100%（约 400ms，与锁屏滑出同步） */
   main, #site-nav, footer { transition: transform .4s ease; }
