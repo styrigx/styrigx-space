@@ -98,15 +98,6 @@ function isWhitelisted(pathname) {
   return false;
 }
 
-export function getCookie(request, name) {
-  const h = request.headers.get('Cookie') || '';
-  for (const part of h.split(';')) {
-    const [k, ...v] = part.trim().split('=');
-    if (k === name) return v.join('=');
-  }
-  return '';
-}
-
 /**
  * 取出 Cookie 头里**所有**同名 cookie 的值（2.4.1 dedup：旧版无 Domain 的
  * 主机绑定 sgx-verified 可能和新版带 Domain 的并存，浏览器会把两个都发过来）。

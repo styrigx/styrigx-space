@@ -40,16 +40,13 @@ function postReq(url, body, headers = {}) {
   });
 }
 
-let STEPUP_PRIV = '', STEPUP_PUB = '', LOCK_PRIV = '', LOCK_PUB = '';
+let LOCK_PRIV = '', LOCK_PUB = '';
 function derToPem(der, label) {
   const b64 = Buffer.from(der).toString('base64');
   const lines = b64.match(/.{1,64}/g).join('\n');
   return `-----BEGIN ${label}-----\n${lines}\n-----END ${label}-----`;
 }
 async function genKeys() {
-  const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-  STEPUP_PRIV = derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY');
-  STEPUP_PUB = derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY');
   const kp2 = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
   LOCK_PRIV = derToPem(await crypto.subtle.exportKey('pkcs8', kp2.privateKey), 'PRIVATE KEY');
   LOCK_PUB = derToPem(await crypto.subtle.exportKey('spki', kp2.publicKey), 'PUBLIC KEY');
@@ -59,8 +56,6 @@ const testEnv = (kv) => ({
   OWNER_KV: kv,
   SGX_LOCK_PRIVATE: LOCK_PRIV,
   SGX_LOCK_PUBLIC: LOCK_PUB,
-  SGX_STEPUP_PRIVATE: STEPUP_PRIV,
-  SGX_STEPUP_PUBLIC: STEPUP_PUB,
   SGX_RP_ID: 'styrigx.com',
   SGX_ORIGIN: 'https://styrigx.com',
   SGX_PW_PEPPER: 'test-pepper',
@@ -91,7 +86,7 @@ function extractSessionCookie(res) {
 
 test('setup: 生成测试密钥', async () => {
   await genKeys();
-  assert.ok(STEPUP_PRIV.includes('PRIVATE KEY'));
+  assert.ok(LOCK_PRIV.includes('PRIVATE KEY'));
 });
 
 

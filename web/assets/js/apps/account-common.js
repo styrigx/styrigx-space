@@ -24,10 +24,6 @@ export function securityUrl(en) {
 export function profileUrl(en) {
   return en ? '/en/account/profile/' : '/account/profile/';
 }
-/** @param {boolean} en */
-export function devicesUrl(en) {
-  return en ? '/en/account/devices/' : '/account/devices/';
-}
 /** 账号总览登录后可回跳的本站路径（只接受账号的子页：安全与隐私、已登录、设备） */
 export const ACCOUNT_RETURN_RE = /^\/(en\/)?account\/(security|profile|devices)\/$/;
 

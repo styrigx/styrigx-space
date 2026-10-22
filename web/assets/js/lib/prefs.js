@@ -86,11 +86,6 @@ export function setLayout(v) {
   if (typeof w.__applyLayout === 'function') w.__applyLayout();
 }
 
-/** @returns {boolean} 减弱动效是否开启 */
-export function reducedMotionPref() {
-  return !!featGet('reduced-motion');
-}
-
 /** 设置减弱动效并立即生效。 @param {boolean} on */
 export function setReducedMotion(on) {
   featSet('reduced-motion', !!on);
@@ -99,12 +94,6 @@ export function setReducedMotion(on) {
   try {
     d.setAttribute('data-reduced-motion', on ? '1' : '0');
   } catch (e) {}
-}
-
-/** @returns {'system'|'zh'|'en'} 语言偏好（sgx-lang） */
-export function langPref() {
-  const v = featGet('lang');
-  return v === 'zh' || v === 'en' ? v : 'system';
 }
 
 /**

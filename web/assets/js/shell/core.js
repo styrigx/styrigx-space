@@ -13,7 +13,6 @@ import { applyTheme, setThemeMode } from '../lib/theme.js';
 import { initNav } from './nav.js';
 import { initGoodLock } from './goodlock.js';
 import { initScrollFx } from './scrollfx.js';
-import { initDexBridge } from './layout.js';
 import { initLock } from './lock.js';
 import { initUpgrade } from './upgrade.js';
 import { on as featOn } from '../lib/features.js';
@@ -68,7 +67,6 @@ export function initCore() {
   if (inited) return;
   inited = true;
   const S = getScheduler();
-  initDexBridge();
   initNavHistory();
   initHeadButtons();
   initThemeListener();

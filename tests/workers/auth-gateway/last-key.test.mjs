@@ -38,7 +38,7 @@ function postReq(url, body, headers = {}) {
   return new Request(url, { method: 'POST', headers: h, body: JSON.stringify(body) });
 }
 
-let STEPUP_PRIV = '', STEPUP_PUB = '', LOCK_PRIV = '', LOCK_PUB = '';
+let ACCT_PRIV = '', ACCT_PUB = '', LOCK_PRIV = '', LOCK_PUB = '';
 function derToPem(der, label) {
   const b64 = Buffer.from(der).toString('base64');
   const lines = b64.match(/.{1,64}/g).join('\n');
@@ -46,15 +46,11 @@ function derToPem(der, label) {
 }
 async function genKeys() {
   const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-  STEPUP_PRIV = derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY');
-  STEPUP_PUB = derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY');
+  ACCT_PRIV = derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY');
+  ACCT_PUB = derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY');
   const kp2 = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
   LOCK_PRIV = derToPem(await crypto.subtle.exportKey('pkcs8', kp2.privateKey), 'PRIVATE KEY');
   LOCK_PUB = derToPem(await crypto.subtle.exportKey('spki', kp2.publicKey), 'PUBLIC KEY');
-}
-async function mintStepup(by = 'account', scope = 'keys', epoch = 0) {
-  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
-  return await signStepupCookie(STEPUP_PRIV, by, scope, epoch);
 }
 async function mintSession(epoch = 0) {
   const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
@@ -64,14 +60,11 @@ const envFor = (kv, extra = {}) => ({
   OWNER_KV: kv,
   SGX_LOCK_PRIVATE: LOCK_PRIV,
   SGX_LOCK_PUBLIC: LOCK_PUB,
-  SGX_STEPUP_PRIVATE: STEPUP_PRIV,
-  SGX_STEPUP_PUBLIC: STEPUP_PUB,
   SGX_RP_ID: 'styrigx.com',
   SGX_ORIGIN: 'https://styrigx.com',
   SGX_PW_PEPPER: 'test-pepper',
   ...extra,
 });
-const bothCookies = (s, t) => ({ Cookie: 'sgx-verified=' + s + '; sgx-stepup=' + t });
 
 async function seedKey(kv, credId, cls) {
   const rec = {
@@ -92,7 +85,7 @@ async function seedPw(kv, kind, password) {
 
 test('setup: 生成测试密钥', async () => {
   await genKeys();
-  assert.ok(STEPUP_PRIV.includes('PRIVATE KEY'));
+  assert.ok(ACCT_PRIV.includes('PRIVATE KEY'));
 });
 
 
@@ -149,10 +142,10 @@ test('A-2：删光账号凭证时不动 lock-emptied 残留（留给 B 处理；
   await kv.put('owner-passkey-index', JSON.stringify(['acct-key-0001']));
   await kv.put('owner-passkey:acct-key-000', JSON.stringify({ credId: 'acct-key-0001', class: 'owner', publicKey: {}, signCount: 0 }));
   const sess = await mintSession();
-  const acc = await signAccountTicket(STEPUP_PRIV, 'root', 0, Date.now());
+  const acc = await signAccountTicket(ACCT_PRIV, 'root', 0, Date.now());
   const { signDoorTicket } = await import('../../../workers/auth-gateway/functions/_kernel/door.js');
-  const door = await signDoorTicket(STEPUP_PRIV, 'account', 'root', 0); /* 删账号通行密钥要账号门票 */
-  const env = Object.assign({}, envFor(kv), { SGX_ACCOUNT_PRIVATE: STEPUP_PRIV, SGX_ACCOUNT_PUBLIC: STEPUP_PUB });
+  const door = await signDoorTicket(ACCT_PRIV, 'account', 'root', 0); /* 删账号通行密钥要账号门票 */
+  const env = Object.assign({}, envFor(kv), { SGX_ACCOUNT_PRIVATE: ACCT_PRIV, SGX_ACCOUNT_PUBLIC: ACCT_PUB });
   const res = await onRequestPost({
     request: postReq('https://styrigx.com/api/account', { action: 'delete', credId: 'acct-key-0001' },
       { Cookie: 'sgx-verified=' + sess + '; sgx-account=' + acc + '; sgx-door=' + door }),

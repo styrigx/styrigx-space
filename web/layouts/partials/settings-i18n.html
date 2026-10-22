@@ -2,7 +2,6 @@
 {{ $isEn := .isEn }}
 {{/* 2.4.0-C：设置页文案（中英双语）；脚本走 ES Module 入口 entry-settings.js。 */}}
 {{ $setI18n := dict
-  "langVal" (dict "zh" "中文" "en" "English")
   "langTitle" (dict "zh" "语言" "en" "Language")
   "langSystem" (dict "zh" "跟随系统" "en" "Follow system")
   "dtTitle" (dict "zh" "日期和时间" "en" "Date & time")
@@ -28,15 +27,7 @@
   "wxLocPrecise" (dict "zh" "使用精确定位" "en" "Use precise location")
   "wxLocPreciseDesc" (dict "zh" "仅在你点击时获取位置" "en" "Only when you tap")
   "wxCityPh" (dict "zh" "输入城市名" "en" "Enter city name")
-  "wxCitySaved" (dict "zh" "已保存" "en" "Saved")
   "wxLocating" (dict "zh" "定位中…" "en" "Locating…")
-  "catDisplay" (dict "zh" "显示" "en" "Display")
-  "catTheme" (dict "zh" "风格" "en" "Style")
-  "catSecurity" (dict "zh" "安全与隐私" "en" "Security and privacy")
-  "catManage" (dict "zh" "常规管理" "en" "General management")
-  "catAccessibility" (dict "zh" "辅助功能" "en" "Accessibility")
-  "catWellbeing" (dict "zh" "数字健康" "en" "Digital wellbeing")
-  "catAbout" (dict "zh" "关于本站" "en" "About")
   "wellNoRec" (dict "zh" "今天还没有到访记录" "en" "No visits recorded yet today")
   "areaHome" (dict "zh" "首页" "en" "Home")
   "areaLinks" (dict "zh" "搜索" "en" "Search")

@@ -82,9 +82,6 @@ function derToPem(der, label) {
 
 let TEST_PRIV_PEM = '';
 let TEST_PUB_PEM = '';
-/* 2.10.0：stepup 测试密钥对 */
-let STEPUP_PRIV_PEM = '';
-let STEPUP_PUB_PEM = '';
 
 async function genTestKeys() {
   const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
@@ -92,19 +89,8 @@ async function genTestKeys() {
   const pubDer = await crypto.subtle.exportKey('spki', kp.publicKey);
   TEST_PRIV_PEM = derToPem(privDer, 'PRIVATE KEY');
   TEST_PUB_PEM = derToPem(pubDer, 'PUBLIC KEY');
-  const skp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-  const sprivDer = await crypto.subtle.exportKey('pkcs8', skp.privateKey);
-  const spubDer = await crypto.subtle.exportKey('spki', skp.publicKey);
-  STEPUP_PRIV_PEM = derToPem(sprivDer, 'PRIVATE KEY');
-  STEPUP_PUB_PEM = derToPem(spubDer, 'PUBLIC KEY');
 }
 
-/* 2.10.0：签发测试用 sgx-stepup cookie */
-async function mintStepupCookie() {
-  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
-  /* 2.11 定稿：signStepupCookie(privKey, by, scope, epoch) */
-  return await signStepupCookie(STEPUP_PRIV_PEM, 'account', 'keys', 0);
-}
 
 /* 2.10.2：签发测试用 owner 会话 cookie */
 async function mintSessionCookie() {

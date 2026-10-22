@@ -94,6 +94,8 @@ test('realms：签名钥匙只剩账号、锁屏两套（stepup / app 全删）'
   const toml = readFileSync(REPO + 'workers/auth-gateway/wrangler.toml', 'utf8');
   assert.ok(!/SGX_STEPUP_|SGX_APP_/.test(toml), 'wrangler.toml 不应再绑定 SGX_STEPUP_* / SGX_APP_*');
   assert.ok(!toml.includes('app-verify'), 'wrangler.toml 不应再登记 /app-verify/');
+  const pagesToml = readFileSync(REPO + 'web/wrangler.toml', 'utf8');
+  assert.ok(!/SGX_STEPUP_|SGX_APP_/.test(pagesToml), 'web/wrangler.toml（Pages 预览）也不应再有 SGX_STEPUP_* / SGX_APP_*');
 });
 
 test('realms：钥匙名符合 SGX_<PURPOSE>_PRIVATE/PUBLIC，且都在 SECRET_NAMES 与 wrangler.toml 里', () => {

@@ -20,7 +20,6 @@ SGX_LOCK_PUBLIC = "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAxZb8houVYG+lY/Jn4
 SGX_ORIGIN = "https://passkey-e2e.styrigx-space.pages.dev"
 SGX_RP_ID = "passkey-e2e.styrigx-space.pages.dev"
 SGX_SITE = "space"
-SGX_STEPUP_PUBLIC = "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA0B4XJGA9BSblvgF7KOAT7Jbp2zUMFR9PfDxKpUdxqIY=\n-----END PUBLIC KEY-----\n"
 
 # preview KV 绑定（styrigx-auth-gateway-preview，原 styrigx-owner-test_preview；styrigx-account-preview）
 [env.preview]

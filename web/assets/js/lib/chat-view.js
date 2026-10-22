@@ -252,7 +252,7 @@ export function createSseParser(onEvent) {
   };
 }
 
-/* 与 workers/auth-gateway/functions/api/chat.js 的上限一致 */
+/* 与 workers/chat/src/chat.js 的上限一致 */
 export const MAX_MESSAGES = 20;
 export const MAX_TEXT = 4000;
 export const MAX_TOTAL = 24000;

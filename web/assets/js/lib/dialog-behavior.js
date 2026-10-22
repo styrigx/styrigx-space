@@ -221,11 +221,6 @@ export function setRowBusy(row, busy) {
   } catch (e) {}
 }
 
-/** 清除行 busy 态（setRowBusy(row, false) 的别名）。 */
-export function clearRowBusy(row) {
-  setRowBusy(row, false);
-}
-
 /**
  * 行选中态（批次 A 验收修复 P2）：约定 class .sgx-row-selected，背景保持高亮。
  * @param {HTMLElement} row 行元素

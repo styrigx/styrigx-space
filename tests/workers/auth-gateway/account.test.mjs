@@ -49,7 +49,7 @@ async function edPair() {
   };
 }
 
-let LOCK, STEPUP, ACCOUNT, OTHER;
+let LOCK, ACCOUNT, OTHER;
 const ROOT_KEY = 'test-root-key-account-123';
 const PEPPER = 'test-pepper-acc';
 
@@ -59,8 +59,6 @@ function envFor(kv, overrides = {}) {
     SGX_ROOT_KEY: ROOT_KEY,
     SGX_LOCK_PRIVATE: LOCK.priv,
     SGX_LOCK_PUBLIC: LOCK.pub,
-    SGX_STEPUP_PRIVATE: STEPUP.priv,
-    SGX_STEPUP_PUBLIC: STEPUP.pub,
     SGX_ACCOUNT_PRIVATE: ACCOUNT.priv,
     SGX_ACCOUNT_PUBLIC: ACCOUNT.pub,
     SGX_PW_PEPPER: PEPPER,
@@ -130,10 +128,6 @@ async function accountGet(kv, cookieObj, envOverrides) {
   const { onRequestGet } = await import(API + 'account.js');
   return await onRequestGet({ request: getReq('https://styrigx.com/api/account', { Cookie: cookies(cookieObj) }), env: envFor(kv, envOverrides) });
 }
-async function enter(kv, cookieObj, envOverrides) {
-  const { onRequestPost } = await import(API + 'stepup.js');
-  return await onRequestPost({ request: postReq('https://styrigx.com/api/stepup', { action: 'enter' }, { Cookie: cookies(cookieObj) }), env: envFor(kv, envOverrides) });
-}
 async function seedPassword(kv, pw) {
   const { makePasswordRecord } = await import(KERNEL + 'password.js');
   await kv.put('owner-pw', JSON.stringify(await makePasswordRecord(pw, PEPPER)));
@@ -199,7 +193,6 @@ async function assertion(kp, credId, challenge, userHandle) {
 
 test('setup: 生成测试钥匙', async () => {
   LOCK = await edPair();
-  STEPUP = await edPair();
   ACCOUNT = await edPair();
   OTHER = await edPair();
   assert.ok(ACCOUNT.priv.includes('PRIVATE KEY'));

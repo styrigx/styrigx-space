@@ -109,12 +109,6 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           }
           /* 预置主题 + 冻结时间，避免动态内容导致截图不稳定
              （锁屏由构建期 SGX_TEST_NO_LOCK=1 禁用，见 deploy.yml） */
-          /* 2.8.0：固定音乐索引，避免按日期漂移导致基线不稳定 */
-          if (page === '/' || page === '/en/') {
-            await pg.addInitScript(() => {
-              try { localStorage.setItem('sgx-np-idx', '0'); } catch (e) {}
-            });
-          }
           await pg.addInitScript((t) => {
             if (t === 'dark') {
               try { localStorage.setItem('sgx-theme-mode', 'dark'); } catch (e) {}

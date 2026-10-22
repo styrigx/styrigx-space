@@ -44,7 +44,7 @@ function postReq(url, body, headers = {}) {
   });
 }
 
-let STEPUP_PRIV = '', STEPUP_PUB = '', LOCK_PRIV = '', LOCK_PUB = '';
+let ACCT_PRIV = '', ACCT_PUB = '', LOCK_PRIV = '', LOCK_PUB = '';
 function derToPem(der, label) {
   const b64 = Buffer.from(der).toString('base64');
   const lines = b64.match(/.{1,64}/g).join('\n');
@@ -59,7 +59,7 @@ async function genKeys() {
     };
   };
   const l = await mk(); LOCK_PRIV = l.priv; LOCK_PUB = l.pub;
-  const s = await mk(); STEPUP_PRIV = s.priv; STEPUP_PUB = s.pub;
+  const s = await mk(); ACCT_PRIV = s.priv; ACCT_PUB = s.pub;
 }
 
 const SGX_ROOT_KEY = 'test-root-key-abc123';
@@ -70,10 +70,8 @@ function authEnv(kv, overrides = {}) {
     SGX_ROOT_KEY,
     SGX_LOCK_PRIVATE: LOCK_PRIV,
     SGX_LOCK_PUBLIC: LOCK_PUB,
-    SGX_STEPUP_PRIVATE: STEPUP_PRIV,
-    SGX_STEPUP_PUBLIC: STEPUP_PUB,
-    SGX_ACCOUNT_PRIVATE: STEPUP_PRIV, /* 测试复用同一对钥匙 */
-    SGX_ACCOUNT_PUBLIC: STEPUP_PUB,
+    SGX_ACCOUNT_PRIVATE: ACCT_PRIV, /* 测试复用同一对钥匙 */
+    SGX_ACCOUNT_PUBLIC: ACCT_PUB,
     SGX_RP_ID: 'styrigx.com',
     SGX_ORIGIN: 'https://styrigx.com',
     ...overrides,
@@ -82,7 +80,7 @@ function authEnv(kv, overrides = {}) {
 
 test('setup: 生成测试密钥', async () => {
   await genKeys();
-  assert.ok(LOCK_PRIV && STEPUP_PRIV);
+  assert.ok(LOCK_PRIV && ACCT_PRIV);
 });
 
 /* ============ B2：normalizeRootKey ============ */
@@ -168,9 +166,9 @@ async function accountRegisterChallenge(kv, env) {
   const { signAccountTicket } = await import('../../../workers/auth-gateway/functions/_kernel/account-session.js');
   const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
   const sess = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
-  const acc = await signAccountTicket(STEPUP_PRIV, 'root', 0, Date.now());
+  const acc = await signAccountTicket(ACCT_PRIV, 'root', 0, Date.now());
   const { signDoorTicket } = await import('../../../workers/auth-gateway/functions/_kernel/door.js');
-  const door = await signDoorTicket(STEPUP_PRIV, 'account', 'root', 0); /* 注册账号通行密钥要账号门票 */
+  const door = await signDoorTicket(ACCT_PRIV, 'account', 'root', 0); /* 注册账号通行密钥要账号门票 */
   const req = postReq('https://styrigx.com/api/account', { action: 'register-challenge' }, { 'Cookie': 'sgx-verified=' + sess + '; sgx-account=' + acc + '; sgx-door=' + door });
   const res = await onRequestPost({ request: req, env });
   return await res.json();
