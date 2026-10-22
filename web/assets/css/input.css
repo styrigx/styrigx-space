@@ -6762,11 +6762,6 @@
     padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   }
   footer { padding-bottom: calc(21px + env(safe-area-inset-bottom, 0px)); }
-  /* 2.3.14.2：页脚多了一行 Powered by Styrigx UI（11px/行高1.5＋上间距4px≈21px），三处页脚留白同步加高 */
-  .sgx-powered {
-    margin-top: 4px; font-size: 11px; line-height: 1.5; text-align: center;
-    color: color-mix(in srgb, var(--m-on-surface-variant) 62%, transparent);
-  }
   html { scroll-padding-top: calc(var(--nav-h) + var(--sgx-content-gap)); }
   /* 数据卡片固定最小高度：数据到来前后尺寸不变 */
   #dual-clock { min-height: 168px; }

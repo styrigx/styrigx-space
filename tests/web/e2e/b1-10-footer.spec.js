@@ -1,7 +1,7 @@
 /**
  * B1-10｜页脚（2026-10-22 重写）
  *
- * 用户定：版权「© 年份 Sloan Gray / Powered by Styrigx UI」不再每页显示，
+ * 用户定：版权「© 年份 Sloan Gray」不再每页显示（Powered by 一行已删），
  * 只留在「设置 › 关于本站」，紧跟卡片下方，不沉到视口底。
  * 覆盖：关于页（中 / 英）有页脚且紧跟卡片；主页、设置、设置子页、聊天、状态没有页脚。360 / 412 两种宽度。
  */
@@ -37,14 +37,15 @@ for (const vp of VIEWPORTS) {
       await expect(page.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
       const copy = page.locator('footer p').first();
       await expect(copy).toHaveText(/©\s*\d{4}–\d{4} Sloan Gray/);
-      await expect(page.locator('footer .sgx-powered')).toHaveText('Powered by Styrigx UI');
+      await expect(page.locator('footer p')).toHaveCount(1);
+      await expect(page.locator('.sgx-powered')).toHaveCount(0);
 
       await page.evaluate(() => window.scrollTo(0, document.scrollingElement.scrollHeight));
       await page.waitForTimeout(200);
       const m = await page.evaluate(() => {
         const main = document.querySelector('#sgx-main .widget').getBoundingClientRect();
         const first = document.querySelector('footer p').getBoundingClientRect();
-        const last = document.querySelector('footer .sgx-powered').getBoundingClientRect();
+        const last = first;
         return { mainBottom: main.bottom, firstTop: first.top, lastBottom: last.bottom, vh: window.innerHeight };
       });
       expect(m.firstTop).toBeGreaterThanOrEqual(0);
