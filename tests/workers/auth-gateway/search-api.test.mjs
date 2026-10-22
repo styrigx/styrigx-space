@@ -204,3 +204,33 @@ test('头像分库：新库没有时读旧库；上传写新库并清旧库', as
   assert.equal(r.headers.get('ETag'), '"v1-96"');
   assert.equal(r.headers.get('Content-Type'), 'image/png');
 });
+
+/* ---- 站点监测 /api/status（2026-10-22）：同样是网关只做门，转给 styrigx-status ---- */
+async function statusCall(kv, cookieObj, svc) {
+  const m = await import(API + 'status.js');
+  const req = new Request('https://styrigx.com/api/status', { headers: { Cookie: cookies(cookieObj) } });
+  return await m.onRequestGet({ request: req, env: Object.assign(envFor(kv), svc === undefined ? {} : { STATUS: svc }) });
+}
+function fakeStatus(log, status = 200) {
+  return { async fetch(req) { log.push(req.url); return new Response(JSON.stringify({ ok: status === 200, sites: [] }), { status }); } };
+}
+
+test('/api/status：没会话 401 不转发；站长 / 访客都转到 /summary，原样回', async () => {
+  const log = [];
+  assert.equal((await statusCall(makeKV(), {}, fakeStatus(log))).status, 401);
+  assert.equal(log.length, 0);
+  let r = await statusCall(makeKV(), { 'sgx-verified': await ownerSess() }, fakeStatus(log));
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), { ok: true, sites: [] });
+  assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
+  r = await statusCall(makeKV(), { 'sgx-verified': await visitorSess() }, fakeStatus(log));
+  assert.equal(r.status, 200);
+  assert.deepEqual(log.map((u) => new URL(u).pathname), ['/summary', '/summary']);
+});
+
+test('/api/status：没绑定 503；上游抛错 / 回非 200 都是 503', async () => {
+  const sess = { 'sgx-verified': await ownerSess() };
+  assert.equal((await statusCall(makeKV(), sess, undefined)).status, 503);
+  assert.equal((await statusCall(makeKV(), sess, { async fetch() { throw new Error('x'); } })).status, 503);
+  assert.equal((await statusCall(makeKV(), sess, fakeStatus([], 503))).status, 503);
+});
