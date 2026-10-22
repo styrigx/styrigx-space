@@ -93,6 +93,8 @@ export const REALM_ACCOUNT = Object.freeze({
     challengePrefix: 'account-challenge:', /* 账号登录/注册 challenge（与 pk- 隔离） */
     challengeTtl: 300, /* 5 分钟 */
     epoch: 'account-epoch',
+    devicePrefix: 'account-dev:', /* 已登录设备记录（每次登录一条，sid 为键；设备页列出、可单独退出） */
+    revokedPrefix: 'account-revoked:', /* 被单独退出的会话 sid（黑名单，TTL 同账号会话） */
   }),
 });
 

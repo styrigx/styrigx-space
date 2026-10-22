@@ -50,3 +50,7 @@ cookie 值、挑战原文）。调用方列表由 `grep assets/js/` 下的 fetch
 - 前置条件是已解锁的 owner lock 会话，但 lock 会话**从不**被当作账号认证。
 - 「管理凭证」与 stepup 已删除：锁屏凭证的门票由锁屏凭证（`owner-passkey auth` / `owner-password verify`
   带 `door:true`）或根凭证（`root-auth`）签发，SGX_LOCK_* 签名，与账号会话无关。
+
+## 账号云同步（不算状态接口）
+
+- `GET/POST /api/prefs`：owner lock 会话 + 账号会话（sgx-account）。存 KV `account-prefs`，逐项 `{ v, t }` 新的赢；只同步 `sgx-` 开头的设置项（白名单在 `assets/js/lib/cloud-sync.js`）。调用方：`assets/js/lib/cloud-sync.js`（主站每页加载拉一次、设置改动后防抖推）、`assets/js/apps/account.js`（账号页「云同步」行）。

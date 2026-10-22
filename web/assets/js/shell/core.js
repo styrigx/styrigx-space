@@ -19,6 +19,7 @@ import { initUpgrade } from './upgrade.js';
 import { on as featOn } from '../lib/features.js';
 import { toast } from '../lib/toast.js';
 import { syncUiCookie } from '../lib/ui-cookie.js';
+import { initCloudSync } from '../lib/cloud-sync.js';
 import { initWbTrack } from '../lib/wb-track.js';
 import { loadWb } from '../lib/wb-view.js';
 import { wbAreaOf } from '../lib/wb-area.js';
@@ -87,6 +88,8 @@ export function initCore() {
   /* 5.2：写共享 UI cookie sgx-ui（老用户补写；设置变更时再写一次） */
   syncUiCookie();
   window.addEventListener('sgx-settings-changed', syncUiCookie);
+  /* 账号云同步：登录了账号的站长，设置项跨设备同步（lib/cloud-sync.js；访客 / 没登录账号不请求） */
+  initCloudSync().catch(function () {});
 
   /* B2-7：网站数字健康——本页计时上报；页面上有数字健康卡片就拉今天的数据 */
   if (!SGX_TEST_NO_WB) initWbTrack({ key: wbAreaOf(location.pathname) });

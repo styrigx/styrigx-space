@@ -26,8 +26,12 @@ export function securityUrl(en) {
 export function profileUrl(en) {
   return en ? '/en/settings/account/profile/' : '/settings/account/profile/';
 }
-/** 账号总览登录后可回跳的本站路径（只接受账号的两个子页：安全与隐私、已登录） */
-export const ACCOUNT_RETURN_RE = /^\/(en\/)?settings\/account\/(security|profile)\/$/;
+/** @param {boolean} en */
+export function devicesUrl(en) {
+  return en ? '/en/settings/account/devices/' : '/settings/account/devices/';
+}
+/** 账号总览登录后可回跳的本站路径（只接受账号的子页：安全与隐私、已登录、设备） */
+export const ACCOUNT_RETURN_RE = /^\/(en\/)?settings\/account\/(security|profile|devices)\/$/;
 
 /**
  * @param {boolean} en
@@ -83,6 +87,7 @@ const ERR_KEYS = {
   'not-found': 'errNotFound',
   session: 'sessExp',
   door: 'doorExpired',
+  current: 'devCurrent',
 };
 
 /**

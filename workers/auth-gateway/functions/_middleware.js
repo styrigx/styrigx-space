@@ -35,6 +35,7 @@ const OWNER_ONLY_APIS = [
   '/api/owner-passkey',
   '/api/lock-all-devices',
   '/api/lock-door',
+  '/api/prefs', /* 账号云同步：还要账号会话（接口里验） */
 ];
 /* 认证类 action（visitor 可调用，用于升级为 owner） */
 const AUTH_ACTIONS = new Set(['verify', 'challenge', 'register', 'auth']);

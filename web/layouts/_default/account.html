@@ -4,6 +4,7 @@
    「无法登录？」→ /settings/account/reset/（重置登录：根凭证 → 直接进 安全与隐私 重设账号凭证）。
    已登录 → 账号总览（三星账号式）：账号卡（名字 + 头像，主人可换头像；点卡片其余地方进
    「已登录」子页 /settings/account/profile/，在那里退出账号）、
+   「设备」一行 → 子页 /settings/account/devices/（account-devices.html）：此设备 + 其他登录的设备，可单独退出；
    「安全与隐私」一行 → 子页 /settings/account/security/（account-security.html）管理账号密码和账号通行密钥，
    每次进都要再验一次账号凭证（3 分钟门票，离开即作废）。
    ?return=/settings/account/(security|profile)/：子页没有账号会话时跳来，登录后回子页。
@@ -48,10 +49,19 @@
   </div>
 {{ "<!-- SGX-ACCT-LOGIN-END -->" | safeHTML }}
 
-  <!-- 账号总览（登录后，三星账号式）：账号卡（名字 + 头像，主人可换头像；点卡片其余地方进「已登录」子页）→ 安全与隐私 -->
+  <!-- 账号总览（登录后，三星账号式）：账号卡（名字 + 头像，主人可换头像；点卡片其余地方进「已登录」子页）
+       → 一组：设备（登录过的设备，可单独退出）/ 安全与隐私 / 云同步（开关，设置项跨设备同步，lib/cloud-sync.js） -->
   <div id="acct-main" hidden>
     {{ partial "sgx-account-card.html" . }}
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.12s" aria-label="{{ if $isEn }}Account settings{{ else }}账号设置{{ end }}">
+      <a class="set-row" id="acct-dev-row" href="{{ cond $isEn "/en/settings/account/devices/" "/settings/account/devices/" }}">
+        <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "device" }}</span>
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}Devices{{ else }}设备{{ end }}</span>
+          <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="acct-dev-sub"></span>
+        </span>
+        {{ partial "icon.html" "chev-r" }}
+      </a>
       <a class="set-row" id="acct-sec-row" href="{{ cond $isEn "/en/settings/account/security/" "/settings/account/security/" }}">
         <span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span>
         <span class="flex-1 min-w-0">
@@ -60,6 +70,14 @@
         </span>
         {{ partial "icon.html" "chev-r" }}
       </a>
+      <div class="set-row" id="acct-sync-row" role="button" tabindex="0">
+        <span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "cloud" }}</span>
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}Cloud sync{{ else }}云同步{{ end }}</span>
+          <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="acct-sync-sub"></span>
+        </span>
+        <span class="switch" id="acct-sync-sw" role="switch" aria-checked="false" aria-label="{{ if $isEn }}Cloud sync{{ else }}云同步{{ end }}"><span class="knob"></span></span>
+      </div>
     </section>
     <p class="sec-note mt-6 sgx-build-tag-wrap">{{ partial "build-tag.html" (dict "isEn" $isEn) }}</p>
   </div>
