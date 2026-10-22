@@ -4,7 +4,7 @@
  *
  * 来源（都在 hugo 构建后的 web/public/ 里）：
  *   - files-index.json：我的站点、应用（type site / app）。博客文章不在这里：博客自己写 KV site:blog，
- *     主站不再顺带（2026-10-22 删掉 gen-posts-json）；万一 files-index 里混进 type post 也丢掉
+ *     主站不再顺带
  *   - settings/**、en/settings/**、account/**、en/account/** 每个页面：标题取 <title> 去掉「 | Styrigx」，类型 setting
  *     账号页（/account/…）标 private（只给站长搜到）；二级页副标题 = 上一级页名（两个「安全与隐私」分得清）
  *   - data/features.yaml 里用户能改的开关（user: true、build: true、有 section 页）：名字 + 选项名，跳到所在设置页
@@ -51,7 +51,7 @@ export function build() {
   const items = [];
   const fi = JSON.parse(readFileSync(path.join(PUB, 'files-index.json'), 'utf8'));
   for (const x of fi.items || []) {
-    if (!x || !x.title || !x.url || x.type === 'post') continue;
+    if (!x || !x.title || !x.url) continue;
     items.push({ id: x.id, type: x.type, lang: x.lang || 'zh', title: x.title, subtitle: x.subtitle || '', url: x.url.startsWith('/') ? ORIGIN + x.url : x.url });
   }
   for (const [lang, base] of [['zh', 'settings'], ['en', 'en/settings'], ['zh', 'account'], ['en', 'en/account']]) {

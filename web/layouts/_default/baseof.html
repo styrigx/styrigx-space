@@ -159,7 +159,6 @@ function __applyLayout(){
   var d=document.documentElement,m=__layoutMode();
   d.classList.remove('layout-mobile','layout-dex','layout-pc');
   d.classList.add('layout-'+m);
-  if(window.__dexLayoutChanged){try{window.__dexLayoutChanged(m)}catch(e){}}
 }
 __applyLayout();
 /* 时区设置（设置页"常规管理 > 日期和时间"）：第一时区默认跟随设备 */
@@ -181,12 +180,10 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{ partial "sgx-icon-sprite.html" . }}
 <div id="sgx-wallpaper" aria-hidden="true"></div>
 {{/* 2.4.0-C：调度器 / 边缘模糊 / 可见性定时器已移入 ES Module（assets/js/shell/），此处不再内联定义 */}}
-{{ $profile := site.Data.profile }}
 {{/* 抽屉搜索框的 href = 没 JS 时的去处（/search/ 只是个转到首页并打开搜索层的小跳转页）；有 JS 时原地打开搜索层 */}}
 {{ $searchUrl := "/search/" }}{{ if $isEn }}{{ $searchUrl = "/en/search/" }}{{ end }}
 {{ $acctUrl := "/account/" }}{{ if $isEn }}{{ $acctUrl = "/en/account/" }}{{ end }}
 {{ $setUrl := $setUrl0 }}
-{{ $glUrl := cond $isEn "/en/settings/goodlock/" "/settings/goodlock/" }}
 
 {{/* 顶栏（通版，全站同一套，2026-10-22 v8）：两个圆 + 一个长条：
    [九宫格圆（打开左侧导航抽屉）] — [长条：只有当前页名] — [右圆：每站自己的按钮（主站 = 快捷面板）]。
@@ -220,7 +217,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
    （安全区内边距），放整宽搜索框长条（AI 搜索图标 + 「搜索」居中；<a> 没 JS 时进 /search/ 跳转页；
    JS 接管：点击里同步打开原地搜索层，抽屉原地淡掉、搜索框变成底部搜索栏，见 head-buttons.js / search-host.js）。 */}}
 {{ $navCur := "" }}
-{{ if .IsHome }}{{ $navCur = "home" }}{{ else if or (hasPrefix .RelPermalink "/settings/") (hasPrefix .RelPermalink "/en/settings/") }}{{ $navCur = "settings" }}{{ end }}
+{{ if .IsHome }}{{ $navCur = "home" }}{{ end }}
 {{/* 抽屉项来自 web/data/shell-nav.json（共享外壳：scripts/gen-shell.mjs 把它连同图标生成 web/shared/shell/nav.json，子站同步同一份）。
    主站自己的项（origin = https://styrigx.com）用站内相对地址；子站项用绝对地址，英文加 /en 前缀。 */}}
 {{ $shellNav := index site.Data "shell-nav" }}

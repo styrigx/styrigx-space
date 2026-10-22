@@ -63,7 +63,7 @@ function derToPem(der, label) {
   return `-----BEGIN ${label}-----\n${lines}\n-----END ${label}-----`;
 }
 
-let LOCK_PRIV = '', LOCK_PUB = '', STEPUP_PRIV = '', STEPUP_PUB = '';
+let LOCK_PRIV = '', LOCK_PUB = '';
 async function genKeys() {
   const mk = async () => {
     const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
@@ -73,7 +73,6 @@ async function genKeys() {
     };
   };
   const l = await mk(); LOCK_PRIV = l.priv; LOCK_PUB = l.pub;
-  const s = await mk(); STEPUP_PRIV = s.priv; STEPUP_PUB = s.pub;
 }
 
 const SGX_ROOT_KEY = 'test-owner-key-2102';
@@ -84,8 +83,6 @@ function baseEnv(kv, overrides = {}) {
     SGX_ROOT_KEY,
     SGX_LOCK_PRIVATE: LOCK_PRIV,
     SGX_LOCK_PUBLIC: LOCK_PUB,
-    SGX_STEPUP_PRIVATE: STEPUP_PRIV,
-    SGX_STEPUP_PUBLIC: STEPUP_PUB,
     SGX_RP_ID: 'styrigx.com',
     SGX_ORIGIN: 'https://styrigx.com',
     SGX_SITE: 'space',
@@ -100,12 +97,6 @@ async function makeSessionCookie(env, role = 'owner') {
   return await signSessionCookie(env.SGX_LOCK_PRIVATE, epoch, role);
 }
 
-/* 签一个有效的 sgx-stepup cookie */
-async function makeStepupCookie(env) {
-  const { signStepupCookie } = await import('../../../workers/auth-gateway/functions/api/stepup.js');
-  return await signStepupCookie(env.SGX_STEPUP_PRIVATE, 'account', 'keys', 0);
-}
-
 function reqWithCookies(url, body, cookies, headers = {}) {
   const h = { ...headers };
   if (cookies) h['Cookie'] = cookies;
@@ -114,7 +105,7 @@ function reqWithCookies(url, body, cookies, headers = {}) {
 
 test('setup: 生成测试密钥', async () => {
   await genKeys();
-  assert.ok(LOCK_PRIV && STEPUP_PRIV);
+  assert.ok(LOCK_PRIV && LOCK_PUB);
 });
 
 /* ============ 2：管理操作需 owner 会话 + stepup ============ */

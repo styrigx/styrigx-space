@@ -55,7 +55,7 @@ function derToPem(der, label) {
   return `-----BEGIN ${label}-----\n${lines}\n-----END ${label}-----`;
 }
 
-let LOCK_PRIV = '', LOCK_PUB = '', STEPUP_PRIV = '', STEPUP_PUB = '';
+let LOCK_PRIV = '', LOCK_PUB = '';
 async function genKeys() {
   const mk = async () => {
     const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
@@ -65,7 +65,6 @@ async function genKeys() {
     };
   };
   const l = await mk(); LOCK_PRIV = l.priv; LOCK_PUB = l.pub;
-  const s = await mk(); STEPUP_PRIV = s.priv; STEPUP_PUB = s.pub;
 }
 
 const SGX_ROOT_KEY = 'test-owner-key-12345';
@@ -76,8 +75,6 @@ function authEnv(kv, overrides = {}) {
     SGX_ROOT_KEY,
     SGX_LOCK_PRIVATE: LOCK_PRIV,
     SGX_LOCK_PUBLIC: LOCK_PUB,
-    SGX_STEPUP_PRIVATE: STEPUP_PRIV,
-    SGX_STEPUP_PUBLIC: STEPUP_PUB,
     SGX_RP_ID: 'styrigx.com',
     SGX_ORIGIN: 'https://styrigx.com',
     ...overrides,
@@ -86,7 +83,7 @@ function authEnv(kv, overrides = {}) {
 
 test('setup: 生成测试密钥', async () => {
   await genKeys();
-  assert.ok(LOCK_PRIV && STEPUP_PRIV);
+  assert.ok(LOCK_PRIV && LOCK_PUB);
 });
 
 /* ============ A2：owner-auth ============ */

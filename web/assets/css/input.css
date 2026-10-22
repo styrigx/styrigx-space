@@ -6744,8 +6744,6 @@
   h1, h2, h3 { letter-spacing: -0.02em; }
   @keyframes fade-up { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
   .sgx-first-visit .animate-fade-up { animation: fade-up .7s cubic-bezier(.22,1,.36,1) both; }
-  .no-scrollbar::-webkit-scrollbar { display: none; }
-  .no-scrollbar { scrollbar-width: none; }
   /* 时钟数字：粗圆体风格 */
   .clock-num {
     font-variant-numeric: tabular-nums;
@@ -6776,29 +6774,15 @@
   /* 浮动层统一磨砂（替代各处复制粘贴的 blur 写法）：
      滚动后的顶栏、搜索胶囊、Dock、底部弹层、浮动菜单。
      isolation 限定混合范围；contain: layout style 把重排/重绘关在元素内（fixed 元素安全）。 */
-  .brw-suggest, .brw-ov-bar, .brw-ov, #sheet-panel {
+  #sheet-panel {
     backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
     isolation: isolate;
     contain: layout style;
   }
-  /* 搜索层自己已全屏磨砂，里面的地址栏 / 建议列表再模糊只会采样一层近乎纯色的背景，白算 */
-  .brw-ov .brw-ov-bar, .brw-ov .brw-suggest {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-  /* 隐藏状态关掉模糊，不在看不见的元素上重算 */
-  .brw-ov:not(.open) {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     /* stylelint-disable-next-line color-no-hex */
-    .brw-suggest, .brw-ov-bar, .brw-ov { background: #fff; }
-    /* stylelint-disable-next-line color-no-hex */
     .layout-mobile #sheet-panel, .layout-dex #sheet-panel, .layout-pc #sheet-panel { background: #fff; }
-    /* stylelint-disable-next-line color-no-hex */
-    .dark .brw-suggest, .dark .brw-ov-bar, .dark .brw-ov { background: #1e1e20; }
     /* stylelint-disable-next-line color-no-hex */
     .dark .layout-mobile #sheet-panel, .dark .layout-dex #sheet-panel, .dark .layout-pc #sheet-panel { background: #1e1e20; }
   }
@@ -7328,13 +7312,6 @@
     &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: -2px; }
     &.armed { color: var(--m-on-surface); background: var(--m-rose-container); }
   }
-  .lockmgr-del {
-    display: block; width: 100%; padding: 14px; border: 1px solid var(--m-rose); border-radius: 12px;
-    background: none; cursor: pointer; font-size: 15px; font-weight: 600; color: var(--m-rose);
-    &:active { background: var(--m-rose-container); }
-    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
-    &.armed { background: var(--m-rose); color: var(--m-on-rose); border-color: var(--m-rose); }
-  }
   .lockmgr-add {
     display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
     padding: 14px; border: 0; background: none; cursor: pointer;
@@ -7372,11 +7349,6 @@
 }
 
 @layer sgx-components {
-  #brw-engine-ic { display: inline-flex; align-items: center; justify-content: center; }
-  #brw-engine-ic img { width: 22px; height: 22px; border-radius: 999px; }
-  #brw-engine-ic svg { width: 22px; height: 22px; }
-  #brw-input { flex: 1; min-width: 0; background: transparent; border: 0; outline: none; font-size: 15px; color: var(--m-on-surface); }
-  #brw-input::placeholder { color: var(--m-on-surface-variant); }
   /* toast：小胶囊、居中偏下、3 秒自动消失（JS 控制显隐） */
   .sgx-toast {
     position: fixed; left: 50%; bottom: calc(160px + env(safe-area-inset-bottom,0px)); transform: translate(-50%,16px); z-index: 200;
@@ -7397,188 +7369,6 @@
 }
 
 @layer sgx-components {
-  /* ---------- 效果3：浏览器磨砂弹出层 ---------- */
-  .brw-ov {
-    position: fixed; inset: 0; z-index: 120;
-    background: rgba(120,120,128,0.36); opacity: 0; pointer-events: none; transition: opacity .25s ease;
-    &.open { opacity: 1; pointer-events: auto; }
-    .reduced-motion & { transition: none; }
-    /* 带 #focus 从别的页面进来：切页已经淡入过，弹层直接到位 */
-    &.no-anim, &.no-anim .brw-ov-top, &.no-anim .brw-ov-barwrap { transition: none; }
-    /* 输入态：只显示建议列表，卡片隐藏 */
-    &.has-text {
-      #brw-suggest { display: block; }
-      #brw-qa-card, #brw-hist-card, #brw-hist-show { display: none; }
-    }
-  }
-
-  /* 弹层内容区：从上方轻滑淡入；纵向滚动容器（三星浏览器式），快速访问 + 最近搜索
-     从顶部自然排列，卡片不内部滚动；padding-bottom 给悬浮地址栏 + 键盘留位，
-     键盘开合只改变底部留白，内容不跳动。 */
-  .brw-ov-top {
-    position: absolute; top: calc(12px + env(safe-area-inset-top,0px)); left: 12px; right: 12px; bottom: 0;
-    display: flex; flex-direction: column; gap: 12px;
-    overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
-    padding-bottom: calc(var(--sgx-kb,0px) + 12px + 56px + 12px + env(safe-area-inset-bottom,0px));
-    transform: translateY(-16px); opacity: 0;
-    transition: transform .28s cubic-bezier(.32,.72,.35,1), opacity .25s ease;
-    .brw-ov.open & { transform: none; opacity: 1; }
-    .reduced-motion & { transition: none; }
-    .layout-dex & { left: 50%; right: auto; transform: translate(-50%,-16px); width: min(640px,calc(100vw - 24px)); }
-    .layout-dex .brw-ov.open & { transform: translate(-50%,0); }
-  }
-  .brw-ov-barwrap {
-    position: absolute; left: 16px; right: 16px; bottom: calc(var(--sgx-kb) + 12px + env(safe-area-inset-bottom,0px));
-    transform: translateY(16px); opacity: 0;
-    /* bottom 跟随键盘不做过渡：键盘本身在动，bottom 再插值会每帧重排、看起来拖影 */
-    transition: transform .28s cubic-bezier(.32,.72,.35,1), opacity .25s ease;
-    .brw-ov.open & { transform: none; opacity: 1; }
-    .reduced-motion & { transition: none; }
-    .layout-dex & { left: 50%; right: auto; transform: translate(-50%,16px); width: min(640px,calc(100vw - 24px)); }
-    .layout-dex .brw-ov.open & { transform: translate(-50%,0); }
-    .sgx-vk .brw-ov.open & {
-      bottom: calc(env(keyboard-inset-height,0px) + 12px + env(safe-area-inset-bottom,0px));
-      transition: transform .28s cubic-bezier(.32,.72,.35,1), opacity .25s ease;
-    }
-    .brw-ov.sgx-kb-sync & { transition: transform .28s cubic-bezier(.32,.72,.35,1), opacity .25s ease; }
-  }
-  .brw-ov-bar {
-    display: flex; align-items: center; gap: 2px; height: 56px; border-radius: 999px; padding: 0 6px 0 4px;
-    background: var(--glass-tint); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow);
-    input {
-      flex: 1; min-width: 0; background: transparent; border: 0; outline: none;
-      font-size: 16px; color: var(--m-on-surface); padding: 0 8px;
-      &::placeholder { color: var(--m-on-surface-variant); }
-    }
-  }
-  .brw-ov-btn {
-    width: 44px; height: 44px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
-    color: var(--m-on-surface-variant); background: transparent; border: 0; cursor: pointer; flex-shrink: 0;
-    &:active { background: rgba(0,0,0,.06); }
-    svg { width: 22px; height: 22px; }
-  }
-  /* ============================================================
-     2.4.0 F：引擎切换（三星浏览器式：logo + ▾，锚定弹出菜单）
-     ============================================================ */
-  #brw-engine-btn {
-    anchor-name: --brw-eng-btn; width: auto; min-width: 44px; height: 44px; padding: 0 10px 0 4px; gap: 2px;
-    &[aria-expanded="true"] {
-      background: rgba(0,0,0,.06);
-      .dark & { background: rgba(255,255,255,.08); }
-    }
-  }
-  .brw-eng-chev {
-    width: 16px; height: 16px; color: var(--m-on-surface-variant); flex-shrink: 0; transition: transform .18s ease;
-    #brw-engine-btn[aria-expanded="true"] & { transform: rotate(180deg); }
-    .reduced-motion & { transition: none; }
-  }
-  /* 锚定菜单：Popover API + CSS anchor positioning，空间不足自动上翻；
-     不支持 anchor positioning 时 .no-anchor 走 JS 定位。
-     position:fixed（而非 absolute）：flip 的可用空间按视口算，不受身后长页面的文档高度干扰 */
-  .brw-eng-menu { padding: 0; border: 0; background: transparent; overflow: visible; }
-  .brw-eng-menu:focus { outline: none; }
-  @supports (position-anchor: --brw-eng-btn) {
-    .brw-eng-menu {
-      position: fixed; position-anchor: --brw-eng-btn;
-      inset: auto; top: anchor(bottom); left: anchor(left); margin: 8px 0; position-try-fallbacks: flip-block;
-    }
-  }
-  .brw-eng-menu.no-anchor { position: fixed; inset: auto; margin: 0; }
-  .brw-eng-list {
-    min-width: 232px; max-width: min(320px,calc(100vw - 32px));
-    max-height: min(70vh,380px); overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
-    background: var(--glass-tint); border: 1px solid var(--glass-edge); border-radius: 20px;
-    box-shadow: var(--glass-shadow);
-    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
-    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
-    isolation: isolate;
-    padding: 6px; transform-origin: top left;
-    .brw-eng-menu.flip & { transform-origin: bottom left; }
-  }
-  .brw-eng-item {
-    display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px;
-    padding: 8px 12px; background: none; border: 0; border-radius: 14px; cursor: pointer;
-    color: var(--m-on-surface); text-align: left; font-size: 15px; font-family: inherit;
-    &:active { background: rgba(0,0,0,.05); }
-    .dark &:active { background: rgba(255,255,255,.07); }
-    &[aria-checked="true"] {
-      background: color-mix(in srgb,var(--m-primary) 10%,transparent);
-      .brw-eng-name { color: var(--m-primary); font-weight: 600; }
-      .brw-eng-check { opacity: 1; }
-    }
-    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: -2px; }
-  }
-  .brw-eng-logo { width: 24px; height: 24px; flex-shrink: 0; display: inline-flex; }
-  .brw-eng-logo svg { display: block; }
-  .brw-eng-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .brw-eng-def { color: var(--m-on-surface-variant); font-size: 13px; font-weight: 400; }
-  .brw-eng-check { width: 18px; height: 18px; color: var(--m-primary); flex-shrink: 0; opacity: 0; }
-  /* 从锚点缩放弹出 */
-  .brw-eng-menu:popover-open .brw-eng-list { animation: brw-eng-pop .18s ease-out; }
-  @keyframes brw-eng-pop { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: none; } }
-  @media (prefers-reduced-motion: reduce) {
-    .brw-eng-menu:popover-open .brw-eng-list { animation: none; }
-  }
-  .reduced-motion .brw-eng-menu:popover-open .brw-eng-list { animation: none; }
-  /* ============================================================
-     2.3.14.4：浏览器弹层内快速访问卡片 + 最近搜索卡片
-     ============================================================ */
-  .brw-card {
-    /* stylelint-disable-next-line color-no-hex */
-    background: #fff; border-radius: 1.5rem; border: 1px solid rgba(0,0,0,.05);
-    background-image: var(--card-noise);
-    box-shadow: inset 0 0.5px 0 rgba(255,255,255,.65),
-      0 1px 2px rgba(16,24,40,.08),
-      0 12px 32px -8px rgba(16,24,40,.20);
-    padding: 16px 12px;
-    .dark & {
-      /* stylelint-disable-next-line color-no-hex */
-      background: #1e1e20; border-color: rgba(255,255,255,.07);
-      box-shadow: inset 0 0.5px 0 rgba(255,255,255,.09),
-        0 1px 2px rgba(0,0,0,.45),
-        0 16px 40px -8px rgba(0,0,0,.55);
-    }
-  }
-  /* 快速访问卡片：每行5个，图标56px圆角+下方名称（最多两行居中）；
-     2.4.0 F 起完整展示：不设 max-height、不内部滚动，由 .brw-ov-top 统一滚动 */
-  .brw-qa-grid-ov {
-    display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 14px 8px;
-    .layout-dex & { grid-template-columns: repeat(8,minmax(0,1fr)); }
-  }
-  .brw-qa-ov {
-    display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0;
-    text-decoration: none; -webkit-tap-highlight-color: transparent;
-    &:active { transform: scale(.96); }
-  }
-  .brw-qa-ov-ic { width: 56px; height: 56px; border-radius: 1.1rem; object-fit: contain; background: var(--m-container-lowest); border: 1px solid rgba(0,0,0,.04); padding: 6px; }
-  .brw-qa-ov-name {
-    font-size: 12px; line-height: 1.35; color: var(--m-on-surface-variant); text-align: center; max-width: 100%;
-    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-  }
-  /* 最近搜索卡片：2.4.0 F 起完整展示，不设 max-height、不内部滚动 */
-  #brw-hist-card { padding: 14px 16px; }
-  .brw-hist-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-  .brw-hist-title { font-size: 12px; color: var(--m-on-surface-variant); }
-  .brw-hist-actions { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--m-primary); }
-  .brw-hist-actions button { background: none; border: 0; color: inherit; font: inherit; cursor: pointer; padding: 4px 2px; }
-  .brw-hist-sep { opacity: .5; }
-  .brw-hist-tags { display: flex; flex-wrap: wrap; gap: 8px; }
-  .brw-hist-tag {
-    display: inline-flex; align-items: center; gap: 6px; max-width: 100%; background: var(--m-container);
-    border-radius: 999px; padding: 7px 8px 7px 14px; font-size: 13px; color: var(--m-on-surface); cursor: pointer;
-    .dark & { background: rgba(255,255,255,.08); }
-  }
-  .brw-hist-tx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .brw-hist-x {
-    display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px;
-    border-radius: 999px; color: var(--m-on-surface-variant); flex-shrink: 0;
-    svg { width: 14px; height: 14px; }
-    &:active { background: rgba(0,0,0,.08); }
-  }
-  .brw-hist-show { align-self: center; background: none; border: 0; color: var(--m-on-surface-variant); font-size: 12px; cursor: pointer; padding: 6px 12px; }
-  #brw-qa-card[hidden], #brw-hist-card[hidden], #brw-hist-show[hidden] { display: none; }
-  #brw-suggest { display: none; }
-
   /* ===== 2.3.14 首页锁屏 ===== */
   #sgx-lock {
     position: fixed; inset: 0; z-index: 300; height: 100vh; height: 100dvh; overflow: hidden;
@@ -7744,31 +7534,6 @@
     &:hover { background: var(--sgx-surface-container-high); }
     &:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
   }
-  /* ===== 两扇门验证弹层（One UI 悬浮卡片）：左右 12px、底部 12px+安全区，
-     26px 圆角实心背景，遮罩 40%，底部上滑（与站内弹层同曲线） ===== */
-  dialog.sgx-door-dlg {
-    padding: 0; border: 0; background: transparent; outline: none;
-    margin: 0 auto calc(12px + env(safe-area-inset-bottom,0px));
-    width: calc(100% - 24px); max-width: 480px; max-height: calc(100dvh - 32px);
-    position: fixed; inset: auto 0 0 0; overflow: visible;
-    &:focus { outline: none; }
-    &::backdrop { background: rgba(0,0,0,.4); opacity: 0; transition: opacity .25s; }
-    &[open]::backdrop { opacity: 1; }
-    :focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
-  }
-  .sgx-door-card {
-    background: var(--sgx-surface); border-radius: 26px; padding: 24px;
-    display: flex; flex-direction: column; align-items: stretch;
-    position: relative;
-    max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain;
-    transform: translateY(32px); opacity: 0;
-    transition: transform .32s cubic-bezier(.22,1,.36,1), opacity .25s;
-    dialog.sgx-door-dlg[open] & { transform: none; opacity: 1; }
-    .reduced-motion & { transition: none; }
-    &:focus { outline: none; }
-  }
-  .sgx-door-title { font-size: 20px; font-weight: 700; margin: 0; color: var(--sgx-text-primary); text-align: left; }
-  .sgx-door-desc { font-size: 15px; line-height: 1.5; color: var(--sgx-text-secondary); margin: 8px 0 0; text-align: left; }
   /* A-3：选择框纵向 flex，行间 12px */
   .sgx-door-methods { margin-top: 8px; display: flex; flex-direction: column; gap: 12px; }
   .sgx-door-row {
@@ -7807,10 +7572,6 @@
   .sgx-door-expand { padding: 8px 0 0; }
   .sgx-door-expand .sgx-pw-field { max-width: none; }
   .sgx-door-foot { display: flex; justify-content: center; margin-top: 20px; }
-  .sgx-door-cancel {
-    background: none; border: 0; color: var(--sgx-primary);
-    font-size: 16px; font-weight: 600; padding: 12px 24px; cursor: pointer;
-  }
   .sgx-door-actions { display: flex; gap: 8px; width: 100%; }
   /* C3：进入凭证弹层底部圆角矩形按钮（等宽并排）。
      验证：深蓝底白字（对比度 6.77:1）；
@@ -7870,10 +7631,6 @@
     padding: 10px 24px; font-size: 15px; font-weight: 600; cursor: pointer; color: var(--sgx-text-primary);
   }
   /* C2：重置锁屏（2/2）选项行与恢复提示 */
-  .sgx-reset-hint {
-    font-size: 15px; color: var(--sgx-text-primary); text-align: left; width: 100%;
-    margin-bottom: 4px;
-  }
   .sgx-reset-opts {
     display: flex; flex-direction: column; gap: 12px; width: 100%;
   }
@@ -7939,7 +7696,7 @@
   /* 锁屏弹层 / Turnstile 弹层的底、锁屏日刻卡：surface 角色 */
   #sgx-method-sheet .sgx-sheet-card, .sgx-verify-dlg .sgx-verify-card { background: var(--sgx-surface); color: var(--sgx-text-primary); }
   /* 弹层遮罩：scrim 角色 */
-  #sgx-method-sheet .sgx-sheet-backdrop, dialog.sgx-verify-dlg::backdrop, dialog.sgx-door-dlg::backdrop { background: var(--sgx-scrim, rgba(0,0,0,.4)); }
+  #sgx-method-sheet .sgx-sheet-backdrop, dialog.sgx-verify-dlg::backdrop { background: var(--sgx-scrim, rgba(0,0,0,.4)); }
   #sgx-method-sheet .sgx-method-opt { background: var(--sgx-surface-container); }
   #sgx-method-sheet .sgx-method-opt:active { background: var(--sgx-surface-container-high); }
   #sgx-method-sheet .sgx-door-row, .sgx-reset .sgx-door-row { background: var(--sgx-surface-container); }
@@ -8302,7 +8059,7 @@
   /* 内容卡片和顶栏同一材质（--sgx-mat，定义在顶栏段）。卡片后面只有固定的渐变壁纸，
      背景模糊看不出差别，所以卡片不加 backdrop-filter（几十张卡同时模糊会拖慢滚动）。
      只换底色：边框、阴影、悬停效果保持原样。 */
-  .widget.bg-m-container-lowest, .sgx-account-card, .brw-card {
+  .widget.bg-m-container-lowest, .sgx-account-card {
     background-color: var(--sgx-mat); background-image: none;
   }
   /* PR3：锁屏日刻卡用日刻角色（daymark-card，保留材质的 88% 不透明），不跟 --m-primary 混出来的卡片材质 */

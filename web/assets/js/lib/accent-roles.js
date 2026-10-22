@@ -3,7 +3,7 @@
  */
 import { rolesCss } from './palette-scheme.js';
 import { set as sset, get as sget } from './storage.js';
-import { ACCENT_KEY, ACCENT_CSS_KEY, accent, cacheHead, injectAccentCss, clearAccent } from './accent.js';
+import { ACCENT_CSS_KEY, accent, cacheHead, injectAccentCss } from './accent.js';
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
@@ -20,22 +20,6 @@ export function applyAccent(seed) {
   injectAccentCss(css);
   document.documentElement.style.setProperty('--sgx-seed', s);
   return css;
-}
-
-/**
- * 设置 / 清除自定义主题色。传 '' 或 null = 回到预设色板。
- * @param {string|null} seed
- */
-export function setAccent(seed) {
-  if (seed && HEX.test(seed)) {
-    sset(ACCENT_KEY, seed.toLowerCase());
-    applyAccent(seed);
-  } else {
-    clearAccent();
-  }
-  try {
-    window.dispatchEvent(new CustomEvent('sgx-settings-changed', { detail: { id: 'accent' } }));
-  } catch (e) {}
 }
 
 /** 页面加载后核对：设了自定义色但缓存缺失 / 过期（引擎升级、别的页改过） → 重新算一遍。 */

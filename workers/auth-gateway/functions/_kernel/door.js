@@ -33,7 +33,6 @@ export const DOOR_LOCK = 'lock';
 export const DOOR_LOCKRESET = 'lockreset';
 export const DOOR_BY_ACCOUNT_ROOT = 'account+root';
 const BYS_NORMAL = Object.freeze(['passkey', 'password', 'root']);
-export const DOOR_BYS = Object.freeze(['passkey', 'password', 'root', DOOR_BY_ACCOUNT_ROOT]);
 
 /** 每道门：签名钥匙（凭证域）+ 纪元键 + 允许的 by */
 export const DOORS = Object.freeze({

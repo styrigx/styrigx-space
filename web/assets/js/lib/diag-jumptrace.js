@@ -13,11 +13,6 @@ export function sgxReplace(url) {
   location.replace(url);
 }
 
-/** 返回上一页。 */
-export function sgxGoBack() {
-  history.back();
-}
-
 /** 重载当前页。 */
 export function sgxReload() {
   location.reload();

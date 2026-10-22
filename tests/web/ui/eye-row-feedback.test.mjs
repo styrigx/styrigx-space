@@ -21,7 +21,6 @@ import {
   EYE_OFF_SVG,
   tapFeedback,
   setRowBusy,
-  clearRowBusy,
   setRowSelected,
 } from '../../../web/assets/js/lib/dialog-behavior.js';
 
@@ -187,8 +186,6 @@ test('行反馈：busy / 选中 helper 按约定 class 增删', () => {
   setRowBusy(row, false);
   assert.ok(!row.classList.contains('sgx-row-busy'));
   assert.equal(row.disabled, false);
-  clearRowBusy(row);
-  assert.ok(!row.classList.contains('sgx-row-busy'));
   setRowSelected(row, true);
   assert.ok(row.classList.contains('sgx-row-selected'));
   setRowSelected(row, false);

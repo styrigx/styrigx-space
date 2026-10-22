@@ -65,8 +65,6 @@ function baseEnv(kv, overrides) {
   return Object.assign({
     OWNER_KV: kv,
     SGX_ROOT_KEY: 'test-root-key-12345',
-    SGX_STEPUP_PRIVATE: TEST_PRIV_PEM,
-    SGX_STEPUP_PUBLIC: TEST_PUB_PEM,
     SGX_LOCK_PRIVATE: TEST_PRIV_PEM,
     SGX_LOCK_PUBLIC: TEST_PUB_PEM,
     SGX_ACCOUNT_PRIVATE: TEST_PRIV_PEM,
