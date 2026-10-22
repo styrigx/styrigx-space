@@ -29,7 +29,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://styrigx.com/og.png">
 {{/* fix/hi-owner：/owner/ 不被搜索引擎收录 */}}
-{{ if or (eq .Layout "security") (eq .Layout "security-lock") (eq .Layout "account") (eq .Layout "account-security") (eq .Layout "account-profile") (eq .Layout "account-devices") (eq .Layout "account-reset") (eq .Layout "settings-sub") }}<meta name="robots" content="noindex,nofollow">{{ end }}
+{{ if or (eq .Layout "security") (eq .Layout "security-lock") (eq .Layout "account") (eq .Layout "account-security") (eq .Layout "account-profile") (eq .Layout "account-devices") (eq .Layout "account-reset") (eq .Layout "settings-sub") (eq .Layout "status") (eq .Layout "chat") }}<meta name="robots" content="noindex,nofollow">{{ end }}
 <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
 <style>
 @font-face{font-family:'Inter';font-style:normal;font-weight:400 800;font-display:optional;src:url('/fonts/inter-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
@@ -204,7 +204,11 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 <header id="site-nav" class="z-50">
   <div class="sgx-topbar">
     <button type="button" class="sgx-tb-nav" aria-label="{{ if $isEn }}Navigation{{ else }}导航{{ end }}" aria-haspopup="dialog" aria-controls="sgx-drawer" aria-expanded="false">{{ partial "icon.html" "apps-grid" }}</button>
-    <div class="sgx-tb-pill"><span class="sgx-tb-title">{{ $pageName }}</span></div>
+    {{/* 主站顶栏三栏（2026-10-22）：主页 / 聊天 / 状态这三页长条里是三个标签（partials/topbar-tabs.html，data/topbar-tabs.yaml），不放页名；
+       其他页照旧只有页名。只在主站（子站顶栏、共享外壳不变）。 */}}
+    {{ $tabCur := "" }}
+    {{ if .IsHome }}{{ $tabCur = "home" }}{{ else }}{{ range (index site.Data "topbar-tabs").tabs }}{{ if eq .layout $.Layout }}{{ $tabCur = .id }}{{ end }}{{ end }}{{ end }}
+    <div class="sgx-tb-pill{{ if $tabCur }} sgx-tb-pill-tabs{{ end }}">{{ if $tabCur }}{{ partial "topbar-tabs.html" (dict "isEn" $isEn "cur" $tabCur) }}{{ else }}<span class="sgx-tb-title">{{ $pageName }}</span>{{ end }}</div>
     {{ partial "topbar-end.html" (dict "isEn" $isEn "page" .) }}
   </div>
 </header>

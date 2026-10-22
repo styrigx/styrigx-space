@@ -1,0 +1,9 @@
+{{/* 主站顶栏三栏（2026-10-22）：主页 / 聊天 / 状态（en：Home / Chat / Status），数据 data/topbar-tabs.yaml。
+   放在长条 .sgx-tb-pill 里、代替页名；当前页 aria-current="page"（药丸高亮，--sgx-nav-selected，同导航抽屉当前项）。
+   只有这三页用（baseof 按 $tabCur 判断），其他页长条照旧是页名。英文加 /en 前缀。参数：isEn、cur（当前栏 id）。 */}}
+<nav class="sgx-tb-tabs" aria-label="{{ if .isEn }}Main{{ else }}主站{{ end }}">
+  {{ range (index site.Data "topbar-tabs").tabs }}
+  {{ $href := .path }}{{ if $.isEn }}{{ $href = cond (eq .path "/") "/en/" (print "/en" .path) }}{{ end }}
+  <a class="sgx-tb-tab" href="{{ $href }}" data-tab="{{ .id }}"{{ if eq .id $.cur }} aria-current="page"{{ end }}>{{ cond $.isEn .en .zh }}</a>
+  {{ end }}
+</nav>

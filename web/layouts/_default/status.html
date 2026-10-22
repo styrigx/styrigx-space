@@ -1,0 +1,50 @@
+{{/* 状态页（/status/，2026-10-22 PR2）：主站顶栏三栏的「状态」（主页 / 聊天 / 状态）。
+   读 GET /api/status（网关验锁屏会话，owner / visitor 都能看；数据形状见 workers/status/src/monitor.js summary），
+   同源 cookie（credentials: same-origin），页面可见时每 60 秒刷新（lib/scheduler.js visibleInterval，切到后台停、回来先刷一次）。
+   结构：横幅（全部正常 / 有 N 个故障）→ 每站一张卡（站名、当前状态、最近一次检查的延迟、90 天可用率条 + 百分比）→ 近期故障（北京时间）。
+   四种状态（#st-root data-state）：loading 骨架 · ready 有数据 · empty 还没有任何检查结果 · error 第一次就失败（之后刷新失败只在页脚提示，保留旧数据）。
+   页面本身跟其他主站页面一样过网关（整站通配路由，没会话 302 锁屏），不进 sitemap，noindex（见 baseof）。
+   渲染：lib/status-view.js（纯函数，tests/web/ui/status-view.test.mjs）；DOM / 请求：apps/status.js；入口 entry-status.js。 */}}
+{{ define "main" }}
+{{ .Scratch.Set "sgx-entry" "entry-status.js" }}
+{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+
+<div class="st-wrap max-w-2xl mx-auto px-4 pb-28" id="st-root" data-state="loading" aria-busy="true">
+  <h1 class="sr-only">{{ if $isEn }}Status{{ else }}状态{{ end }}</h1>
+
+  <section id="st-banner" class="widget st-banner animate-fade-up" data-state="loading" role="status" aria-live="polite" style="animation-delay:.04s">
+    <span class="st-banner-ic" aria-hidden="true"></span>
+    <div class="st-banner-txt">
+      <p class="st-banner-title" data-st="title">{{ if $isEn }}Loading…{{ else }}正在加载…{{ end }}</p>
+      <p class="st-banner-sub" data-st="sub"></p>
+    </div>
+  </section>
+
+  {{/* 第一次加载失败 / 会话过期 */}}
+  <section id="st-error" class="widget bg-m-container-lowest st-msg" hidden>
+    <p class="st-msg-title" data-st="err-title"></p>
+    <p class="st-msg-sub" data-st="err-sub"></p>
+    <button type="button" class="st-btn" data-st="err-btn"></button>
+  </section>
+
+  {{/* 接口通了但还没有任何检查结果（Worker 刚上线） */}}
+  <section id="st-empty" class="widget bg-m-container-lowest st-msg" hidden>
+    <p class="st-msg-title">{{ if $isEn }}No data yet{{ else }}还没有监测数据{{ end }}</p>
+    <p class="st-msg-sub">{{ if $isEn }}Results show up after the first round of checks, in about a minute.{{ else }}第一轮检查完成后（约 1 分钟）这里会显示结果。{{ end }}</p>
+  </section>
+
+  {{/* 每站一张卡：加载中先放 5 张骨架（同高），apps/status.js 拿到数据后整块替换 */}}
+  <div id="st-sites" class="st-sites">
+    {{ range seq 5 }}<div class="widget bg-m-container-lowest st-card st-skel" aria-hidden="true"><span class="st-skel-line st-skel-w40"></span><span class="st-skel-line st-skel-w60"></span><span class="st-skel-bar"></span></div>{{ end }}
+  </div>
+
+  <section id="st-inc-wrap" class="st-inc-wrap" hidden>
+    <h3 class="acct-dev-h">{{ if $isEn }}Recent incidents{{ else }}近期故障{{ end }}</h3>
+    <div id="st-inc" class="widget bg-m-container-lowest st-inc-card"></div>
+  </section>
+
+  <p class="sec-note st-foot" id="st-foot" aria-live="polite"></p>
+</div>
+
+{{ partial "status-i18n.html" . }}
+{{ end }}
