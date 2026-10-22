@@ -8,7 +8,7 @@
 {{ $lockUrl := cond $isEn "/en/settings/security/lock/" "/settings/security/lock/" }}
 {{ $setUrl := cond $isEn "/en/settings/" "/settings/" }}
 
-<div class="set-layout max-w-2xl mx-auto px-4 pb-28">
+<div class="set-layout pb-28">
 
   <!-- 状态卡片（JS 按 GET /api/lock-status 填充：解锁密码 / 锁屏通行密钥是否已设置） -->
   <a id="sec-status" class="sec-status" href="{{ $lockUrl }}" hidden>

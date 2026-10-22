@@ -8,7 +8,7 @@
 {{ .Scratch.Set "sgx-entry" "entry-security-lock.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 
-<div class="set-layout lock-page max-w-2xl mx-auto px-4 pb-28">
+<div class="set-layout lock-page pb-28">
 
   <!-- 门：每次进页验一次锁屏凭证或根凭证（JS 渲染验证行） -->
   <div id="lock-door" hidden>

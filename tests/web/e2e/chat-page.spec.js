@@ -504,8 +504,12 @@ test.describe('聊天页（桌面 1280×800）', () => {
     expect(calls[0].body.messages[0].text).toBe('第一行\n第二行');
     await expect(page.locator('.chat-msg[data-role="user"] .chat-bubble br')).toHaveCount(1);
     const bar = await page.locator('.chat-composer').boundingBox();
+    /* 2026-10-23 PR-D：DeX 下正文列和输入栏都是 760，在外壳框里居中 */
     expect(Math.abs(bar.x + bar.width / 2 - 640)).toBeLessThanOrEqual(1);
-    expect(bar.width).toBeLessThanOrEqual(640);
+    expect(Math.abs(bar.width - 760)).toBeLessThanOrEqual(1);
+    const list = await page.locator('#chat-list').boundingBox();
+    expect(Math.abs(list.x - bar.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(list.width - bar.width)).toBeLessThanOrEqual(1);
   });
 
   test('模型切换（宽屏）：贴着药丸上方的浮层，左边对齐药丸', async ({ page }) => {

@@ -211,16 +211,29 @@ test.describe('390×844 行为', () => {
 test.describe('1280×800', () => {
   test.use({ viewport: { width: 1280, height: 800 } });
 
-  test('容器宽 1068 居中，三块尺寸与手机相同', async ({ page }) => {
-    await go(page, '/settings/');
-    const bar = await box(page, '.sgx-topbar');
-    expect(near(bar.width, 1068), `宽 ${bar.width}`).toBe(true);
-    expect(near(bar.x, (1280 - 1068) / 2), `x ${bar.x}`).toBe(true);
-    const me = await box(page, '.sgx-tb-end');
-    const nav = await box(page, '.sgx-tb-nav');
-    const pill = await box(page, '.sgx-tb-pill');
-    expect(near(me.width, 52) && near(nav.width, 52) && near(pill.height, 52)).toBe(true);
-  });
+  /* 2026-10-23 PR-D：顶栏 = 外壳框 --sgx-shell-w = min(100% − 2 × 页边距, 最宽)，最宽 DeX 1440 / Mobile 640；
+     页边距 ≥ 600 宽 = clamp(16, 5.333 + 2.2222vw, 48)；圆按钮 clamp(52, 42 + 1.667vw, 56)（≥ 840 宽 56），间距 clamp(8, −2 + 1.667vw, 12） */
+  for (const [w, h] of [[600, 900], [840, 600], [1280, 800], [1920, 1080], [2560, 1440]]) {
+    test(`${w}×${h}：外壳框宽 / 页边距 / 圆按钮按公式（±1px），居中`, async ({ page }) => {
+      await page.setViewportSize({ width: w, height: h });
+      await go(page, '/settings/');
+      const m = Math.min(48, Math.max(16, 5.333 + 0.022222 * w));
+      const max = w >= 840 && h >= 500 && w > h ? 1440 : 640;
+      const want = Math.min(w - 2 * m, max);
+      const btn = Math.min(56, Math.max(52, 42 + 0.01667 * w));
+      const gap = Math.min(12, Math.max(8, -2 + 0.01667 * w));
+      const bar = await box(page, '.sgx-topbar');
+      expect(near(bar.width, want), `宽 ${bar.width} ≠ ${want}`).toBe(true);
+      expect(near(bar.x, (w - want) / 2), `x ${bar.x}`).toBe(true);
+      const me = await box(page, '.sgx-tb-end');
+      const nav = await box(page, '.sgx-tb-nav');
+      const pill = await box(page, '.sgx-tb-pill');
+      expect(near(me.width, btn) && near(nav.width, btn) && near(pill.height, btn), `圆 ${nav.width} / ${me.width}，长条高 ${pill.height}，应为 ${btn}`).toBe(true);
+      expect(near(nav.x, bar.x) && near(me.x + me.width, bar.x + bar.width), '两侧圆外缘 = 框边').toBe(true);
+      const g = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.sgx-topbar')).columnGap));
+      expect(Math.abs(g - gap), `间距 ${g} ≠ ${gap}`).toBeLessThanOrEqual(0.5);
+    });
+  }
 
   for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     test(`${w}px：两侧圆同宽贴顶栏两端，长条只包住页名、中心 = 屏幕中心、页名中心 = 屏幕中心（±1px）`, async ({ page }) => {

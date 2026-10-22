@@ -4,6 +4,14 @@
 @source "../../content";
 
 @custom-variant dark (&:where(.dark, .dark *));
+/* 悬停只给鼠标 / 触控板（2026-10-23 PR-D，和 input.css 同一条规则）：Tailwind 默认的 hover: 是 @media (hover: hover)，这里再加 pointer: fine */
+@custom-variant hover {
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      @slot;
+    }
+  }
+}
 
 @theme {
   --font-sans: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";

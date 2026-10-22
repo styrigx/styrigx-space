@@ -9,7 +9,7 @@
 {{ .Scratch.Set "sgx-entry" "entry-status.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 
-<div class="st-wrap max-w-2xl mx-auto px-4 pb-28" id="st-root" data-state="loading" aria-busy="true">
+<div class="st-wrap pb-28" id="st-root" data-state="loading" aria-busy="true">
   <h1 class="sr-only">{{ if $isEn }}Status{{ else }}状态{{ end }}</h1>
 
   <section id="st-banner" class="widget st-banner animate-fade-up" data-state="loading" role="status" aria-live="polite" style="animation-delay:.04s">

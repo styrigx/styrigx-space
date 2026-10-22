@@ -11,7 +11,7 @@
 {{ range site.Data.features.features }}{{ $featMap = merge $featMap (dict .id .) }}{{ end }}
 {{ $palettes := site.Data.palettes.palettes }}
 
-<div class="set-layout max-w-2xl mx-auto px-4 pb-28">
+<div class="set-layout pb-28">
   {{/* 2026-10-20 通版顶栏：大标题区已删除（页名只在顶栏长条里）。.set-dex-head 现在只装手机的分类列表；
        DeX 两栏（.set-dex-cols）直接从顶栏下方 --sgx-content-top 开始。 */}}
   <div class="set-dex-head">

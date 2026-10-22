@@ -9,7 +9,7 @@
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-chat.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
-<div class="chat-wrap max-w-2xl mx-auto px-4" id="chat-root" aria-busy="true">
+<div class="chat-wrap" id="chat-root" aria-busy="true">
   <h1 class="sr-only">{{ if $isEn }}Chat{{ else }}聊天{{ end }}</h1>
 
   <section id="chat-empty" class="widget bg-m-container-lowest st-msg chat-empty animate-fade-up" style="animation-delay:.04s">
