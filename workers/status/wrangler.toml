@@ -23,9 +23,9 @@ crons = ["* * * * *"]
 enabled = true
 head_sampling_rate = 1
 
-# D1 styrigx-status：首次部署前在 Cloudflare 建好，把 id 填到这里（占位 id 只够 CI 的 dry-run 打包）。
+# D1 styrigx-status（2026-10-22 建）。
 [[d1_databases]]
 binding = "STATUS_DB"
 database_name = "styrigx-status"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "31970da7-4b8f-4180-ad93-c170649188dc"
 migrations_dir = "migrations"
