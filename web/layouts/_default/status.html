@@ -1,7 +1,7 @@
 {{/* 状态页（/status/，2026-10-22 PR2）：主站顶栏三栏的「状态」（主页 / 聊天 / 状态）。
    读 GET /api/status（网关验锁屏会话，owner / visitor 都能看；数据形状见 workers/status/src/monitor.js summary），
    同源 cookie（credentials: same-origin），页面可见时每 60 秒刷新（lib/scheduler.js visibleInterval，切到后台停、回来先刷一次）。
-   结构：横幅（全部正常 / 有 N 个故障）→ 每站一张卡（站名、当前状态、最近一次检查的延迟、90 天可用率条 + 百分比）→ 近期故障（北京时间）。
+   结构：横幅（全部正常 / 有 N 个故障）→ 每站一张卡（站名、当前状态、最近一次检查的延迟、90 天可用率条 + 百分比）→ 用量（PR3）→ 近期故障（北京时间）。
    四种状态（#st-root data-state）：loading 骨架 · ready 有数据 · empty 还没有任何检查结果 · error 第一次就失败（之后刷新失败只在页脚提示，保留旧数据）。
    页面本身跟其他主站页面一样过网关（整站通配路由，没会话 302 锁屏），不进 sitemap，noindex（见 baseof）。
    渲染：lib/status-view.js（纯函数，tests/web/ui/status-view.test.mjs）；DOM / 请求：apps/status.js；入口 entry-status.js。 */}}
@@ -37,6 +37,13 @@
   <div id="st-sites" class="st-sites">
     {{ range seq 5 }}<div class="widget bg-m-container-lowest st-card st-skel" aria-hidden="true"><span class="st-skel-line st-skel-w40"></span><span class="st-skel-line st-skel-w60"></span><span class="st-skel-bar"></span></div>{{ end }}
   </div>
+
+  {{/* 用量（PR3）：Cloudflare 免费额度用量（Workers 今天的请求数、D1 / R2 / KV 存储），监测 Worker 每小时 41 分收一次；
+     数据在 /api/status 的 usage / usage_reason，渲染 lib/status-view.js renderUsage。没配 token → 一行「用量未配置」。 */}}
+  <section id="st-usage-wrap" class="st-usage-wrap" aria-labelledby="st-usage-h" hidden>
+    <h3 class="acct-dev-h" id="st-usage-h">{{ if $isEn }}Usage{{ else }}用量{{ end }}</h3>
+    <div id="st-usage" class="widget bg-m-container-lowest st-usage-card"></div>
+  </section>
 
   <section id="st-inc-wrap" class="st-inc-wrap" hidden>
     <h3 class="acct-dev-h">{{ if $isEn }}Recent incidents{{ else }}近期故障{{ end }}</h3>

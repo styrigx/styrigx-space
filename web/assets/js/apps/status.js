@@ -6,13 +6,14 @@
  *   已经有数据后刷新失败 → 保留旧数据，页脚说「刷新失败，显示的是 hh:mm 的数据」。
  * - 接口通了但所有站都还没检查过 → 空状态卡。
  * - 点可用率条上的某一天 → 卡片底部显示那天的可用率 / 检查次数 / 平均延迟。
+ * - 站点卡下面是「用量」（PR3）：data.usage 有 → 每项值 / 上限 / 进度条 + 「更新于 N 分钟前」；null → 「用量未配置」等一行提示。
  * 渲染全在 lib/status-view.js（纯函数，单测覆盖）；这里只管 DOM 和请求。
  */
 import { on } from '../lib/events.js';
 import { loadI18n } from '../lib/i18n.js';
 import { isEn } from '../lib/util.js';
 import { visibleInterval } from '../lib/scheduler.js';
-import { bannerInfo, bjDay, buildSlots, fmtBjTime, isEmptySummary, renderIncidents, renderSite, slotText } from '../lib/status-view.js';
+import { bannerInfo, bjDay, buildSlots, fmtBjTime, isEmptySummary, renderIncidents, renderSite, renderUsage, slotText } from '../lib/status-view.js';
 
 export const STATUS_API = '/api/status';
 export const REFRESH_MS = 60 * 1000;
@@ -29,6 +30,8 @@ function init() {
   const banner = $('st-banner');
   const sitesEl = $('st-sites');
   const incWrap = $('st-inc-wrap');
+  const usageWrap = $('st-usage-wrap');
+  const usageEl = $('st-usage');
   const incEl = $('st-inc');
   const errEl = $('st-error');
   const emptyEl = $('st-empty');
@@ -53,6 +56,7 @@ function init() {
     banner.hidden = s === 'error' || s === 'empty';
     sitesEl.hidden = s === 'error' || s === 'empty';
     incWrap.hidden = s !== 'ready';
+    usageWrap.hidden = s !== 'ready';
     if (s === 'error' || s === 'empty') foot.textContent = '';
   }
 
@@ -66,6 +70,8 @@ function init() {
     /** @type {HTMLElement} */ (banner.querySelector('[data-st="sub"]')).textContent = b.sub;
     sitesEl.innerHTML = (data.sites || []).map((s) => renderSite(s, ctx)).join('');
     incEl.innerHTML = renderIncidents(data.incidents || [], ctx);
+    /* 旧版监测 Worker 没有 usage 字段 → 按没配处理 */
+    usageEl.innerHTML = renderUsage(data.usage || null, data.usage_reason || (data.usage === undefined ? 'not-configured' : null), ctx);
     foot.textContent = fmt('updated', { time: fmtBjTime(gotAt, en, bjDay(now)) });
   }
 

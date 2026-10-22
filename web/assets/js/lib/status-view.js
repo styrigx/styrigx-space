@@ -338,3 +338,154 @@ export function renderIncidents(incidents, ctx) {
   });
   return '<ul class="st-inc-list">' + items.join('') + '</ul>';
 }
+
+/* ===== 用量（2026-10-22 PR3）=====
+ * 数据 = /api/status 的 usage / usage_reason（workers/status/src/usage.js readUsage）：
+ *   usage: { fetched_at, stale?, last_error?,
+ *            workers: { requests, limit, day } | null,
+ *            d1: { total_bytes, limit_bytes, per_db_limit_bytes, databases: [{ name, bytes }] } | null,
+ *            r2: { bytes, objects, buckets, limit_bytes } | null,
+ *            kv: { bytes|null, keys|null, namespaces|null, limit_bytes, error? } | null,
+ *            errors: { [part]: code } } | null
+ *   usage_reason: null | 'not-configured' | 'secret-missing' | 'not-collected' | 'api-error' | 'db'（secret-missing 也显示「用量未配置」）
+ * 进度条：> 70% 琥珀（warn），> 90% 红（crit）。字节按十进制（1 GB = 10^9 B），和 Cloudflare 文档的额度写法一致。 */
+
+/** 琥珀 / 红的门槛（百分比，严格大于） */
+export const USAGE_WARN = 70;
+export const USAGE_CRIT = 90;
+
+/** 千分位（不依赖运行环境的 locale） @param {number} n */
+export function fmtCount(n) {
+  const v = Math.round(Number(n) || 0);
+  return String(Math.abs(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ',').replace(/^/, v < 0 ? '-' : '');
+}
+
+/** 字节 → 「512 B」「5.3 MB」「392 MB」「2 GB」（十进制；< 10 留一位小数，去掉 .0） @param {number|null|undefined} b */
+export function fmtBytes(b) {
+  if (b == null || !Number.isFinite(Number(b))) return '—';
+  let v = Math.max(0, Number(b));
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0;
+  while (v >= 1000 && i < units.length - 1) {
+    v /= 1000;
+    i++;
+  }
+  if (i === 0) return Math.round(v) + ' B';
+  let s = v < 10 ? v.toFixed(1) : String(Math.round(v));
+  if (s.endsWith('.0')) s = s.slice(0, -2);
+  /* 999.6 MB 四舍五入成 1000 MB：进一位 */
+  if (s === '1000' && i < units.length - 1) return '1 ' + units[i + 1];
+  return s + ' ' + units[i];
+}
+
+/** 用了多少（百分比，0–∞，不封顶；limit 不对 → null） @param {number|null|undefined} value @param {number} limit */
+export function usagePct(value, limit) {
+  if (value == null || !Number.isFinite(Number(value)) || !(Number(limit) > 0)) return null;
+  return (Math.max(0, Number(value)) / Number(limit)) * 100;
+}
+
+/** 百分比文字：「73.5%」「<0.1%」「0%」 @param {number|null} p */
+export function fmtUsagePct(p) {
+  if (p == null) return '—';
+  if (p === 0) return '0%';
+  if (p < 0.1) return '<0.1%';
+  return (p < 10 ? p.toFixed(1) : p >= 100 ? String(Math.round(p)) : p.toFixed(1)).replace(/\.0$/, '') + '%';
+}
+
+/** 进度条等级：ok · warn（> 70%）· crit（> 90%）· none（没数据） @param {number|null} p */
+export function usageLevel(p) {
+  if (p == null) return 'none';
+  if (p > USAGE_CRIT) return 'crit';
+  if (p > USAGE_WARN) return 'warn';
+  return 'ok';
+}
+
+/**
+ * 用量条目（渲染前的纯数据，单测直接看它）。顺序：Workers 请求 → D1 合计 → 每个 D1 库（缩进）→ R2 → KV。
+ * 某一项拿不到（null）→ 一行「暂时拿不到」，没有进度条。
+ * @param {any} usage
+ * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, en:boolean}} ctx
+ * @returns {Array<{key:string, label:string, value:string, limit:string, pct:number|null, level:string, sub:string, child:boolean}>}
+ */
+export function usageItems(usage, ctx) {
+  const out = [];
+  const u = usage || {};
+  /** @param {string} key @param {string} label @param {number|null} val @param {number} lim @param {(n:number)=>string} f @param {string} sub @param {boolean} [child] */
+  const add = (key, label, val, lim, f, sub, child = false) => {
+    const pct = usagePct(val, lim);
+    out.push({ key, label, value: val == null ? '—' : f(val), limit: f(lim), pct, level: usageLevel(pct), sub, child });
+  };
+  const missing = (/** @type {string} */ key, /** @type {string} */ label) =>
+    out.push({ key, label, value: '—', limit: '', pct: null, level: 'none', sub: ctx.t('uUnavailable'), child: false });
+
+  if (u.workers) add('workers', ctx.t('uWorkers'), Number(u.workers.requests) || 0, Number(u.workers.limit) || 100000, fmtCount, ctx.t('uWorkersSub'));
+  else missing('workers', ctx.t('uWorkers'));
+
+  if (u.d1) {
+    const dbs = Array.isArray(u.d1.databases) ? u.d1.databases : [];
+    add('d1', ctx.t('uD1'), Number(u.d1.total_bytes) || 0, Number(u.d1.limit_bytes) || 5e9, fmtBytes,
+      ctx.fmt('uD1Sub', { n: dbs.length, per: fmtBytes(Number(u.d1.per_db_limit_bytes) || 5e8) }));
+    for (const d of dbs) add('d1db', String(d.name || ''), Number(d.bytes) || 0, Number(u.d1.per_db_limit_bytes) || 5e8, fmtBytes, '', true);
+  } else missing('d1', ctx.t('uD1'));
+
+  if (u.r2) add('r2', ctx.t('uR2'), Number(u.r2.bytes) || 0, Number(u.r2.limit_bytes) || 1e10, fmtBytes,
+    ctx.fmt('uR2Sub', { buckets: fmtCount(u.r2.buckets), objects: fmtCount(u.r2.objects) }));
+  else missing('r2', ctx.t('uR2'));
+
+  if (u.kv) {
+    const lim = Number(u.kv.limit_bytes) || 1e9;
+    if (u.kv.bytes == null) {
+      add('kv', ctx.t('uKV'), null, lim, fmtBytes,
+        u.kv.namespaces == null ? ctx.t('uUnavailable') : ctx.fmt('uKVSubNoBytes', { n: fmtCount(u.kv.namespaces) }));
+    } else {
+      add('kv', ctx.t('uKV'), Number(u.kv.bytes) || 0, lim, fmtBytes,
+        ctx.fmt('uKVSub', { n: fmtCount(u.kv.namespaces || 0), keys: fmtCount(u.kv.keys || 0) }));
+    }
+  } else missing('kv', ctx.t('uKV'));
+  return out;
+}
+
+/**
+ * 「用量」区块里卡片的 HTML（标题 h3 在模板里）：
+ *   有数据 → div.st-usage（每项：名字 · 值 / 上限 · 百分比 · 进度条 · 说明）+ 页脚「更新于 N 分钟前（北京时间 hh:mm）」
+ *   usage = null → 一行提示（not-configured「用量未配置」；not-collected 还没收过；其他 暂时拿不到）
+ * @param {any} usage
+ * @param {string|null|undefined} reason
+ * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, en:boolean, now:number}} ctx
+ */
+export function renderUsage(usage, reason, ctx) {
+  if (!usage) {
+    const r = reason || 'not-configured';
+    const k = r === 'not-configured' || r === 'secret-missing' ? 'uNotConfigured' : r === 'not-collected' ? 'uNotCollected' : 'uError';
+    return (
+      '<div class="st-usage-none" data-reason="' + esc(r) + '">' +
+        '<p class="st-usage-none-title">' + esc(ctx.t(k)) + '</p>' +
+        '<p class="st-usage-none-sub">' + esc(ctx.t(k + 'Sub')) + '</p>' +
+      '</div>'
+    );
+  }
+  const rows = usageItems(usage, ctx).map((x) => {
+    const pctTxt = fmtUsagePct(x.pct);
+    const val = x.limit ? ctx.fmt('uOf', { value: x.value, limit: x.limit }) : x.value;
+    const bar = x.pct == null
+      ? ''
+      : '<div class="st-u-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.min(100, Math.round(x.pct)) +
+        '" aria-label="' + esc(ctx.fmt('uBarLabel', { name: x.label, pct: pctTxt })) + '">' +
+        '<span class="st-u-fill" data-level="' + x.level + '" style="width:' + (x.pct > 0 ? Math.min(100, Math.max(1, x.pct)).toFixed(1) : '0') + '%"></span></div>';
+    return (
+      '<li class="st-u" data-key="' + esc(x.key) + '" data-level="' + x.level + '"' + (x.child ? ' data-child="1"' : '') + '>' +
+        '<div class="st-u-head">' +
+          '<span class="st-u-name">' + esc(x.label) + '</span>' +
+          '<span class="st-u-val">' + esc(val) + (x.pct == null ? '' : '<span class="st-u-pct">' + esc(pctTxt) + '</span>') + '</span>' +
+        '</div>' +
+        bar +
+        (x.sub ? '<p class="st-u-sub">' + esc(x.sub) + '</p>' : '') +
+      '</li>'
+    );
+  });
+  const at = Number(usage.fetched_at) || 0;
+  const foot = at
+    ? ctx.fmt('uUpdated', { ago: fmtAgo(at, ctx.now, ctx.fmt), time: fmtBjTime(at, ctx.en, bjDay(ctx.now)) }) + (usage.stale ? ctx.t('uStale') : '')
+    : '';
+  return '<ul class="st-usage">' + rows.join('') + '</ul>' + (foot ? '<p class="st-usage-foot"' + (usage.stale ? ' data-stale="1"' : '') + '>' + esc(foot) + '</p>' : '');
+}

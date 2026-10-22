@@ -7,6 +7,11 @@
  *   normal()  全部正常；两条已恢复的故障（博客 12 天前 25 分钟 HTTP 502、日刻 20 天前 2 小时超时）
  *   oneDown() 奇趣（curio）当前故障：连续 7 次超时，开着一条 7 分钟前开始的故障
  *   empty()   Worker 刚上线：5 个站都还没检查过
+ *   usage()   用量快照（PR3，形状 = workers/status/src/usage.js collectUsage）：18 分钟前收的；
+ *             Workers 73,456 / 100,000（73.5% 琥珀）、D1 合计 483.4 MB / 5 GB（styrigx-status 468 MB / 500 MB = 93.6% 红）、
+ *             R2 2.01 GB / 10 GB、KV 5.3 MB / 1 GB
+ *   withUsage(data, usage, reason)  给任意一份汇总加上 usage / usage_reason（usage = null 时 reason 默认 not-configured）
+ * normal() / oneDown() / empty() 本身不带 usage 字段（= 旧版 Worker，页面按「用量未配置」处理）。
  */
 const NOW = Date.parse('2026-10-09T04:00:00Z');
 const DAY = 24 * 3600 * 1000;
@@ -91,4 +96,26 @@ function empty() {
   };
 }
 
-module.exports = { NOW, TODAY, DAY, MIN, normal, oneDown, empty };
+function usage(over = {}) {
+  return Object.assign({
+    fetched_at: NOW - 18 * MIN,
+    workers: { requests: 73456, limit: 100000, day: '2026-10-09' },
+    d1: {
+      total_bytes: 483400000, limit_bytes: 5e9, per_db_limit_bytes: 5e8,
+      databases: [
+        { name: 'styrigx-status', bytes: 468000000 },
+        { name: 'styrigx-auth', bytes: 12000000 },
+        { name: 'styrigx-sgx', bytes: 3400000 },
+      ],
+    },
+    r2: { bytes: 2010000000, objects: 1234, buckets: 2, limit_bytes: 1e10 },
+    kv: { bytes: 5300000, keys: 420, namespaces: 3, limit_bytes: 1e9 },
+    errors: {},
+  }, over);
+}
+
+function withUsage(data, u, reason) {
+  return Object.assign(data, { usage: u, usage_reason: u ? null : (reason || 'not-configured') });
+}
+
+module.exports = { NOW, TODAY, DAY, MIN, normal, oneDown, empty, usage, withUsage };

@@ -2,6 +2,7 @@
  * @fileoverview 监测的核心逻辑：发请求、根据上一轮状态算出这一轮要写什么（纯函数，好测）、写进 D1、读汇总。
  */
 import { TARGETS, TIMEOUT_MS, FAIL_THRESHOLD, KEEP_MS } from './targets.js';
+import { readUsage } from './usage.js';
 
 const DAY_MS = 24 * 3600 * 1000;
 const CN_OFFSET_MS = 8 * 3600 * 1000; // 北京时间，没有夏令时
@@ -145,10 +146,12 @@ export async function runOnce(env, at, doFetch = fetch) {
  *   days：每站最近 90 天每日 { day, total, ok, avg_ms }（旧 → 新）
  *   recent：每站最近 24 小时每次检查 [at, ok, ms]（画响应时间用）
  *   incidents：最近 20 条故障（新 → 旧，开着的 ended_at = null）
+ *   usage / usage_reason：Cloudflare 用量快照（src/usage.js readUsage；读不到只是 usage = null + 原因，不影响其余部分）
  * @param {D1Database} db
  * @param {number} now
+ * @param {any} [env]  读 CF_USAGE_TOKEN / CF_ACCOUNT_ID 是否配置；不传 = 没配
  */
-export async function summary(db, now) {
+export async function summary(db, now, env) {
   const since24 = now - DAY_MS;
   const from90 = dayOf(now - 89 * DAY_MS);
   const [st, days, recent, inc] = await db.batch([
@@ -180,12 +183,15 @@ export async function summary(db, now) {
       recent: r.map((x) => [Number(x.at), x.ok ? 1 : 0, Number(x.ms)]),
     };
   });
+  const u = await readUsage(db, env);
   return {
     ok: true,
     now,
     today,
     all_up: sites.every((s) => s.up !== false),
     sites,
+    usage: u.usage,
+    usage_reason: u.usage_reason,
     incidents: (inc.results || []).map((x) => ({
       id: Number(x.id), site: x.site, started_at: Number(x.started_at),
       ended_at: x.ended_at == null ? null : Number(x.ended_at), cause: x.cause,
