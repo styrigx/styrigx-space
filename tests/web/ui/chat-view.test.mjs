@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   buildPayload, createSseParser, errorInfo, renderInline, renderMarkdown, renderSources, safeUrl, sourceLabel, MAX_MESSAGES, MAX_TOTAL,
+  parseModels, pickModel, modelOptionsHtml, modelFootText,
 } from '../../../web/assets/js/lib/chat-view.js';
 
 /** 渲染结果里不允许出现的东西：任何真标签都只能是白名单里的 */
@@ -175,13 +176,68 @@ test('errorInfo：额度 / 没配置 / 太长 不给重试，其他给', () => {
   assert.deepEqual(errorInfo('whatever'), { key: 'errUpstream', retry: true });
 });
 
+test('errorInfo 按模型：429 / model_unavailable 有模型切换 → 「换个模型」按钮（不给重试）；没有切换 → 退回旧文案 / 重试；bad_model → 重试', () => {
+  assert.deepEqual(errorInfo('rate_limited', true), { key: 'errRateModel', retry: false, pick: true });
+  assert.deepEqual(errorInfo('rate_limited', false), { key: 'errRate', retry: false });
+  assert.deepEqual(errorInfo('model_unavailable', true), { key: 'errModel', retry: false, pick: true });
+  assert.deepEqual(errorInfo('model_unavailable', false), { key: 'errModel', retry: true });
+  assert.deepEqual(errorInfo('model_unavailable'), { key: 'errModel', retry: true });
+  assert.deepEqual(errorInfo('bad_model', true), { key: 'errBadModel', retry: true });
+  assert.deepEqual(errorInfo('upstream', true), { key: 'errUpstream', retry: true });
+  assert.deepEqual(errorInfo('no_key', true), { key: 'errNoKey', retry: false });
+});
+
+const LIST = { ok: true, default: 'gemini-2.5-flash', models: [
+  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', search: true },
+  { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash', search: false },
+] };
+
+test('parseModels：形状不对 → null；去重、label 兜底 id、search 只认 true；default 不在列表 → 第一个', () => {
+  for (const bad of [null, {}, { ok: false, models: [] }, { ok: true }, { ok: true, models: 'x' }, { ok: true, models: [] }, { ok: true, models: [{ id: '' }, { id: 5 }, null] }]) {
+    assert.equal(parseModels(bad), null, JSON.stringify(bad));
+  }
+  assert.deepEqual(parseModels(LIST), { def: 'gemini-2.5-flash', models: LIST.models });
+  assert.deepEqual(parseModels({ ok: true, default: 'gone', models: [{ id: 'a', search: 'true' }, { id: 'a', label: 'dup' }, { id: 'b', label: ' B ', search: true }] }), {
+    def: 'a', models: [{ id: 'a', label: 'a', search: false }, { id: 'b', label: 'B', search: true }],
+  });
+});
+
+test('pickModel：存的还在列表 → 用它；不在 / 没存 / 坏值 → 默认', () => {
+  const l = parseModels(LIST);
+  assert.equal(pickModel(l, 'gemini-3.8-flash'), 'gemini-3.8-flash');
+  for (const v of [null, undefined, '', 'gemini-9', 5]) assert.equal(pickModel(l, /** @type {any} */ (v)), 'gemini-2.5-flash');
+});
+
+test('modelOptionsHtml：role=option、当前项 aria-selected + 对勾 + tabindex 0；联网 / 不联网药丸；名字转义', () => {
+  const html = modelOptionsHtml([...LIST.models, { id: 'x"><img', label: '<img src=x onerror=1>', search: false }], 'gemini-3.8-flash', { web: '联网', noWeb: '不联网' });
+  const rows = html.split('</li>').filter(Boolean);
+  assert.equal(rows.length, 3);
+  assert.match(rows[0], /role="option" data-id="gemini-2\.5-flash" aria-selected="false" tabindex="-1"/);
+  assert.match(rows[0], /<span class="chat-ms-badge" data-web="1">联网<\/span>/);
+  assert.doesNotMatch(rows[0], /<svg[^>]*><path d="M5 12\.5/);
+  assert.match(rows[1], /aria-selected="true" tabindex="0"/);
+  assert.match(rows[1], /data-web="0">不联网</);
+  assert.match(rows[1], /class="chat-ms-check"><svg/);
+  assert.ok(!html.includes('<img'), '名字 / id 要转义');
+  assert.match(rows[2], /data-id="x&quot;&gt;&lt;img"/);
+  assert.match(rows[2], /&lt;img src=x onerror=1&gt;/);
+  assert.equal((html.match(/chat-ms-ic"><svg/g) || []).length, 3, '每行一个四角星');
+});
+
+test('modelFootText：模型名；没联网 → 「· 未联网」；没有模型名 → 空', () => {
+  assert.equal(modelFootText('Gemini 3.8 Flash', false, '未联网'), 'Gemini 3.8 Flash');
+  assert.equal(modelFootText('Gemini 2.5 Flash', true, '未联网'), 'Gemini 2.5 Flash · 未联网');
+  assert.equal(modelFootText('', true, '未联网'), '');
+  assert.equal(modelFootText(undefined, false, 'x'), '');
+});
+
 test('文案：apps/chat.js 用到的 key 在 chat-i18n.html 里都有中英', () => {
   const src = readFileSync(new URL('../../../web/layouts/partials/chat-i18n.html', import.meta.url), 'utf8');
   const dict = {};
   for (const m of src.matchAll(/"([A-Za-z0-9]+)" \(dict "zh" "([^"]*)" "en" "([^"]*)"\)/g)) dict[m[1]] = { zh: m[2], en: m[3] };
   const app = readFileSync(new URL('../../../web/assets/js/apps/chat.js', import.meta.url), 'utf8');
   const used = new Set([...app.matchAll(/\bt\('([A-Za-z0-9]+)'\)/g)].map((m) => m[1]));
-  for (const k of ['errRate', 'errNoKey', 'errTooLong', 'errUpstream']) used.add(k);
+  for (const k of ['errRate', 'errNoKey', 'errTooLong', 'errUpstream', 'errRateModel', 'errModel', 'errBadModel']) used.add(k);
   for (const k of ['errAuth', 'errAuthSub', 'ownerOnly', 'ownerOnlySub', 'stop', 'send']) used.add(k);
   for (const k of used) {
     assert.ok(dict[k], 'chat-i18n.html 缺文案：' + k);
@@ -189,6 +245,13 @@ test('文案：apps/chat.js 用到的 key 在 chat-i18n.html 里都有中英', (
   }
   assert.equal(dict.errRate.zh, '今天的免费额度用完了，明天再来');
   assert.equal(dict.errNoKey.zh, '聊天还没配置');
+  assert.equal(dict.errRateModel.zh, '这个模型的免费额度用完了，可以换个模型');
+  assert.equal(dict.errRateModel.en, "This model's free quota is used up — try another");
+  assert.equal(dict.errModel.zh, '这个模型现在用不了，换一个试试');
+  assert.equal(dict.errModel.en, "This model isn't available right now — try another");
+  assert.deepEqual(dict.web, { zh: '联网', en: 'Web' });
+  assert.deepEqual(dict.noWeb, { zh: '不联网', en: 'No web' });
+  assert.deepEqual(dict.noWebUsed, { zh: '未联网', en: 'No web' });
   assert.equal(dict.ownerOnly.zh, '聊天仅主人可用');
   assert.equal(dict.ownerOnly.en, 'Chat is owner-only');
 });

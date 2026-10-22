@@ -1,5 +1,6 @@
 /**
  * 聊天 /api/chat（网关，2026-10-22，functions/api/chat.js）：门（同源 / 会话 / 只许站长）、请求校验、没钥匙、
+ * 模型切换（CHAT_MODELS 白名单、GET 列表、bad_model、每个模型的工具开关、model_unavailable、工具被拒不带工具重试一次）、
  * Gemini SSE → 我们自己的事件（delta / sources / done / error，来源去重 ≤ 8）、上游 429 → rate_limited、OpenAI 兼容模式。
  * 上游 fetch 一律 mock（globalThis.fetch），不发真实请求；Ed25519 测试钥匙在测试内临时生成。
  * 运行：node --test tests/workers/auth-gateway/chat-api.test.mjs
@@ -295,4 +296,224 @@ test('gateway 中间件：/api/chat 没会话 401（不进接口）；访客能�
   r = await mw(mk(VISITOR));
   assert.equal(r.status, 403);
   assert.equal((await r.json()).error, 'owner_only');
+});
+
+/* ---------- 模型切换（2026-10-22）：CHAT_MODELS 白名单、GET /api/chat、POST model、每个模型的工具开关、上游按模型的错误 ---------- */
+
+const MODELS_JSON = JSON.stringify([
+  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', search: true },
+  { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite', search: true },
+  { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash', search: false },
+  { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite', search: false },
+]);
+const menv = (over = {}) => env({ CHAT_MODELS: MODELS_JSON, ...over });
+function getReq({ cookie = OWNER, origin } = {}) {
+  const headers = {};
+  if (cookie) headers.Cookie = 'sgx-verified=' + cookie;
+  if (origin) headers.Origin = origin;
+  return new Request('https://styrigx.com/api/chat', { method: 'GET', headers });
+}
+const getCall = (r, e = menv()) => chat.onRequestGet({ request: r, env: e });
+
+test('wrangler.toml：CHAT_MODELS 是合法 JSON，2.5 Flash / Flash-Lite 联网、3.x 不联网；CHAT_MODEL 在列表里', () => {
+  const toml = readFileSync(REPO + 'workers/auth-gateway/wrangler.toml', 'utf8');
+  const m = toml.match(/^CHAT_MODELS = '(.*)'$/m);
+  assert.ok(m, 'CHAT_MODELS 要是一行单引号字面量字符串');
+  const list = JSON.parse(m[1]);
+  assert.deepEqual(list.map((x) => [x.id, x.search]), [
+    ['gemini-2.5-flash', true], ['gemini-2.5-flash-lite', true], ['gemini-3.8-flash', false], ['gemini-3.5-flash-lite', false],
+  ]);
+  const r = chat.chatModels({ CHAT_MODELS: m[1], CHAT_MODEL: 'gemini-2.5-flash', CHAT_SEARCH: 'on' });
+  assert.equal(r.def, 'gemini-2.5-flash');
+  assert.equal(r.models.length, 4);
+});
+
+test('GET /api/chat：没会话 / 坏会话 401、访客 403 owner_only；站长 200 { ok, default, models }，不看 Origin、不调上游、不读钥匙', async () => {
+  mockFetch(() => { throw new Error('不应调用上游'); });
+  let r = await getCall(getReq({ cookie: null }));
+  assert.equal(r.status, 401);
+  assert.equal((await r.json()).error, 'unauthorized');
+  r = await getCall(getReq({ cookie: 'garbage.1.2' }));
+  assert.equal(r.status, 401);
+  r = await getCall(getReq({ cookie: VISITOR }));
+  assert.equal(r.status, 403);
+  assert.deepEqual(await r.json(), { ok: false, error: 'owner_only' });
+  const e = menv();
+  e.SGX_CHAT_API_KEY = { async get() { throw new Error('不该读钥匙'); } };
+  r = await getCall(getReq(), e);
+  assert.equal(r.status, 200);
+  assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
+  assert.deepEqual(await r.json(), {
+    ok: true,
+    default: 'gemini-2.5-flash',
+    models: [
+      { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', search: true },
+      { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite', search: true },
+      { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash', search: false },
+      { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite', search: false },
+    ],
+  });
+  /* 带了别的 Origin 也一样（GET 只读） */
+  r = await getCall(getReq({ origin: 'https://styrigx.com' }));
+  assert.equal(r.status, 200);
+  assert.equal(fetchLog.length, 0);
+  /* 路由：同一个模块的 onRequestGet */
+  const { pickHandler } = await import('../../../workers/auth-gateway/src/index.js');
+  assert.equal(pickHandler(API_ROUTES.get('/api/chat'), 'GET'), chat.onRequestGet);
+  assert.equal(pickHandler(API_ROUTES.get('/api/chat'), 'POST'), chat.onRequestPost);
+});
+
+test('CHAT_MODELS 坏 / 没配 / 没一条合格 → 退回只有 CHAT_MODEL；坏条目跳过、去重、没 label 用 id；总开关 off / openai 模式 search 一律 false', async () => {
+  const fb = (search) => ({ def: 'gemini-2.5-flash', models: [{ id: 'gemini-2.5-flash', label: 'gemini-2.5-flash', search }] });
+  for (const bad of [undefined, '', '{nope', '[]', '"x"', '{"id":"a"}', JSON.stringify([{ id: 'bad id!' }, { id: 5 }, null, { label: 'x' }, { id: '' }])]) {
+    assert.deepEqual(chat.chatModels(env({ CHAT_MODELS: bad })), fb(true), String(bad));
+  }
+  assert.deepEqual(chat.chatModels(env({ CHAT_MODELS: '{nope', CHAT_SEARCH: 'off' })), fb(false));
+  let r = await getCall(getReq(), env({ CHAT_MODELS: '{nope' }));
+  assert.deepEqual(await r.json(), { ok: true, default: 'gemini-2.5-flash', models: fb(true).models });
+  /* 坏条目跳过 + 去重 + label 兜底；search 只认 true */
+  const mixed = JSON.stringify([{ id: 'x/../y z' }, { id: 'm1', search: 'yes' }, { id: 'm1', label: 'dup' }, { id: 'm2', label: '  M2  ', search: true }]);
+  assert.deepEqual(chat.chatModels(env({ CHAT_MODELS: mixed })), {
+    def: 'm1', /* CHAT_MODEL 不在列表里 → 第一个 */
+    models: [{ id: 'm1', label: 'm1', search: false }, { id: 'm2', label: 'M2', search: true }],
+  });
+  /* 数组本身（不是字符串）也认 */
+  assert.equal(chat.chatModels(env({ CHAT_MODELS: [{ id: 'gemini-2.5-flash', search: true }] })).models[0].search, true);
+  /* 最多 12 条 */
+  assert.equal(chat.chatModels(env({ CHAT_MODELS: JSON.stringify(Array.from({ length: 20 }, (_, i) => ({ id: 'm' + i }))) })).models.length, chat.MAX_MODELS);
+  assert.ok(chat.chatModels(menv({ CHAT_SEARCH: 'off' })).models.every((m) => !m.search));
+  assert.ok(chat.chatModels(menv({ CHAT_PROVIDER: 'openai' })).models.every((m) => !m.search));
+});
+
+test('POST model：不在白名单 / 不是字符串 → 400 bad_model，不调上游；null / 不给 → 默认模型', async () => {
+  mockFetch(() => { throw new Error('不应调用上游'); });
+  for (const model of ['evil-model', 'gemini-2.5-pro', '', 5, true, {}, ['gemini-2.5-flash'], '../gemini-2.5-flash', 'GEMINI-2.5-FLASH']) {
+    const r = await call(req({ messages: MSGS, model }), menv());
+    assert.equal(r.status, 400, JSON.stringify(model));
+    assert.deepEqual(await r.json(), { ok: false, error: 'bad_model' });
+  }
+  /* 回退列表时也只认 CHAT_MODEL */
+  let r = await call(req({ messages: MSGS, model: 'gemini-3.8-flash' }), env());
+  assert.equal(r.status, 400);
+  assert.equal(fetchLog.length, 0);
+  for (const model of [null, undefined]) {
+    mockFetch(() => sseResponse([gem('ok')]));
+    r = await call(req({ messages: MSGS, model }), menv());
+    assert.equal(r.status, 200);
+    await r.text();
+    assert.match(fetchLog[0].url, /\/models\/gemini-2\.5-flash:streamGenerateContent/);
+  }
+});
+
+test('每个模型的工具：2.5 Flash-Lite 带 google_search + url_context；3.x 不带（系统提示也不提搜索）；总开关 off 都不带；openai 模式 model 原样转发', async () => {
+  mockFetch(() => sseResponse([gem('ok')]));
+  await (await call(req({ messages: MSGS, model: 'gemini-2.5-flash-lite' }), menv())).text();
+  assert.equal(fetchLog[0].url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:streamGenerateContent?alt=sse');
+  assert.deepEqual(fetchLog[0].body.tools, [{ google_search: {} }, { url_context: {} }]);
+  assert.match(fetchLog[0].body.systemInstruction.parts[0].text, /Google Search/);
+
+  mockFetch(() => sseResponse([gem('ok')]));
+  await (await call(req({ messages: MSGS, model: 'gemini-3.8-flash' }), menv())).text();
+  assert.equal(fetchLog[0].url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:streamGenerateContent?alt=sse');
+  assert.equal(fetchLog[0].body.tools, undefined);
+  assert.doesNotMatch(fetchLog[0].body.systemInstruction.parts[0].text, /Google Search/);
+  assert.match(fetchLog[0].body.systemInstruction.parts[0].text, /not available/);
+
+  mockFetch(() => sseResponse([gem('ok')]));
+  await (await call(req({ messages: MSGS, model: 'gemini-2.5-flash' }), menv({ CHAT_SEARCH: 'off' }))).text();
+  assert.equal(fetchLog[0].body.tools, undefined);
+
+  const oe = menv({ CHAT_PROVIDER: 'openai', CHAT_API_BASE: 'https://api.example.com/v1', CHAT_MODELS: JSON.stringify([{ id: 'org/a', search: true }, { id: 'b' }]), CHAT_MODEL: 'org/a' });
+  mockFetch(() => sseResponse([{ choices: [{ delta: { content: 'x' } }] }, '[DONE]']));
+  await (await call(req({ messages: MSGS, model: 'b' }), oe)).text();
+  assert.equal(fetchLog[0].url, 'https://api.example.com/v1/chat/completions');
+  assert.equal(fetchLog[0].body.model, 'b');
+  assert.equal(fetchLog[0].body.tools, undefined);
+  mockFetch(() => sseResponse([{ choices: [{ delta: { content: 'x' } }] }, '[DONE]']));
+  await (await call(req({ messages: MSGS }), oe)).text();
+  assert.equal(fetchLog[0].body.model, 'org/a');
+  /* openai 模式也只认自己的列表 */
+  const rb = await call(req({ messages: MSGS, model: 'gemini-2.5-flash' }), oe);
+  assert.equal(rb.status, 400);
+  assert.equal((await rb.json()).error, 'bad_model');
+});
+
+test('classifyUpstream：429 → rate_limited；400 带工具 + 说工具 → tools；404 / 403·400 not found·not supported·permission → model_unavailable；其他 → upstream', () => {
+  const C = chat.classifyUpstream;
+  assert.equal(C(429, '', true), 'rate_limited');
+  assert.equal(C(429, 'model not found', false), 'rate_limited');
+  assert.equal(C(400, '{"error":{"message":"Tool use with google_search is not supported for this model."}}', true), 'tools');
+  assert.equal(C(400, 'Search Grounding is not supported.', true), 'tools');
+  assert.equal(C(400, 'url_context is unsupported', true), 'tools');
+  /* 没带工具时说工具 → 不是 tools（不会无限重试） */
+  assert.equal(C(400, 'google_search is not supported', false), 'model_unavailable');
+  assert.equal(C(400, 'tools are bad', false), 'upstream');
+  assert.equal(C(404, '', false), 'model_unavailable');
+  assert.equal(C(404, '{"error":{"status":"NOT_FOUND"}}', true), 'model_unavailable');
+  assert.equal(C(403, '{"error":{"status":"PERMISSION_DENIED","message":"permission denied for model"}}', false), 'model_unavailable');
+  assert.equal(C(400, 'models/gemini-9 is not found for API version v1beta, or is not supported for generateContent', false), 'model_unavailable');
+  assert.equal(C(400, 'This model is not available on the free tier', false), 'model_unavailable');
+  assert.equal(C(403, '{"error":{}}', false), 'upstream');
+  assert.equal(C(400, 'API key not valid', false), 'upstream');
+  assert.equal(C(500, 'not found', false), 'upstream');
+  assert.equal(C(503, '', true), 'upstream');
+});
+
+test('上游按模型的错误：404 / 403 permission / 400 not supported → 502 model_unavailable；429 → rate_limited；流里 404 → error model_unavailable', async () => {
+  const cases = [
+    [404, '{"error":{"code":404,"status":"NOT_FOUND"}}'],
+    [403, '{"error":{"code":403,"message":"Permission denied on model","status":"PERMISSION_DENIED"}}'],
+    [400, '{"error":{"code":400,"message":"models/gemini-3.8-flash is not supported for streamGenerateContent"}}'],
+  ];
+  for (const [st, body] of cases) {
+    for (const model of ['gemini-2.5-flash', 'gemini-3.8-flash']) {
+      mockFetch(() => new Response(body, { status: st }));
+      const r = await call(req({ messages: MSGS, model }), menv());
+      assert.equal(r.status, 502, st + ' ' + model);
+      assert.deepEqual(await r.json(), { ok: false, error: 'model_unavailable' });
+      assert.equal(fetchLog.length, 1, '不重试');
+    }
+  }
+  mockFetch(() => new Response('{"error":{"code":429}}', { status: 429 }));
+  let r = await call(req({ messages: MSGS, model: 'gemini-3.8-flash' }), menv());
+  assert.equal(r.status, 429);
+  assert.deepEqual(await r.json(), { ok: false, error: 'rate_limited' });
+  assert.equal(fetchLog.length, 1);
+  mockFetch(() => sseResponse([gem('半'), { error: { code: 404, status: 'NOT_FOUND' } }]));
+  const ev = await events(await call(req({ messages: MSGS }), menv()));
+  assert.deepEqual(ev, [{ t: 'delta', text: '半' }, { t: 'error', code: 'model_unavailable' }]);
+});
+
+test('工具被上游拒（400 说 google_search 不支持）→ 不带工具重试一次，回答开头 meta web:false；只重试一次；不联网模型不重试', async () => {
+  const toolErr = '{"error":{"code":400,"message":"Tool use with google_search is not supported for this model","status":"INVALID_ARGUMENT"}}';
+  let n = 0;
+  mockFetch(() => (n++ === 0 ? new Response(toolErr, { status: 400 }) : sseResponse([gem('凭记忆回答')])));
+  let r = await call(req({ messages: MSGS, model: 'gemini-2.5-flash-lite' }), menv());
+  assert.equal(r.status, 200);
+  const ev = await events(r);
+  assert.deepEqual(ev, [{ t: 'meta', web: false }, { t: 'delta', text: '凭记忆回答' }, { t: 'done' }]);
+  assert.equal(fetchLog.length, 2);
+  assert.deepEqual(fetchLog[0].body.tools, [{ google_search: {} }, { url_context: {} }]);
+  assert.equal(fetchLog[1].body.tools, undefined);
+  assert.equal(fetchLog[1].url, fetchLog[0].url, '同一个模型');
+  assert.doesNotMatch(fetchLog[1].body.systemInstruction.parts[0].text, /Google Search/);
+  /* 第二次还是 400 → 不再重试，502 upstream */
+  mockFetch(() => new Response(toolErr, { status: 400 }));
+  r = await call(req({ messages: MSGS, model: 'gemini-2.5-flash' }), menv());
+  assert.equal(r.status, 502);
+  assert.equal(fetchLog.length, 2);
+  /* 第二次 429 → rate_limited */
+  n = 0;
+  mockFetch(() => (n++ === 0 ? new Response(toolErr, { status: 400 }) : new Response('{}', { status: 429 })));
+  r = await call(req({ messages: MSGS }), menv());
+  assert.equal(r.status, 429);
+  /* 不联网的模型本来就没带工具：同样的 400 不重试 */
+  mockFetch(() => new Response(toolErr, { status: 400 }));
+  r = await call(req({ messages: MSGS, model: 'gemini-3.8-flash' }), menv());
+  assert.equal(fetchLog.length, 1);
+  assert.equal(r.status, 502);
+  /* 正常联网回答不发 meta */
+  mockFetch(() => sseResponse([gem('ok')]));
+  const ev2 = await events(await call(req({ messages: MSGS }), menv()));
+  assert.deepEqual(ev2.map((e) => e.t), ['delta', 'done']);
 });

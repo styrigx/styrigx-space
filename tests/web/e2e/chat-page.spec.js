@@ -8,6 +8,9 @@
  *   503 no_key →「聊天还没配置」；502 upstream → 重试按钮（点了重新问）；401 →「会话已过期」+ 重新解锁。
  * - XSS：模型输出里的 <img onerror>、<script>、javascript: 链接都不会变成元素 / 链接。
  * - 手机 412×915：输入栏在底部、不压顶栏、不横向溢出；滚到底最后一条不被输入栏挡住。
+ * - 模型切换（2026-10-22）：GET /api/chat 给列表 → 输入栏上方药丸；点开底部面板（标题 + ✕、遮罩 / Esc 关、联网 / 不联网药丸、对勾）；
+ *   选不联网模型 → POST 带 model、回答脚注是模型名；存 localStorage sgx-chat-model，刷新还在；列表拿不到 → 药丸藏着、不带 model；
+ *   429 / model_unavailable →「换个模型」按钮打开面板；meta web:false → 脚注「· 未联网」；宽屏 = 贴着药丸的浮层。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, expect } = require('./helpers');
@@ -22,13 +25,24 @@ const ANSWER = ['Hugo 的最新版本是 **v0.168.0**。', '\n\n- 发布于 10 �
 function sse(events) {
   return events.map((e) => 'data: ' + JSON.stringify(e) + '\n\n').join('');
 }
+const MODELS = {
+  ok: true,
+  default: 'gemini-2.5-flash',
+  models: [
+    { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', search: true },
+    { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite', search: true },
+    { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash', search: false },
+    { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite', search: false },
+  ],
+};
 const okBody = (parts = ANSWER, sources = SOURCES) => sse([...parts.map((text) => ({ t: 'delta', text })), ...(sources ? [{ t: 'sources', items: sources }] : []), { t: 'done' }]);
 
 /**
  * @param {import('@playwright/test').Page} page
  * @param {string} path
- * @param {{api?: any, visitor?: boolean, lang?: string}} [opt]
- *   api：函数 (n, body) → { status?, body, json? }；不给 = 正常回答
+ * @param {{api?: any, visitor?: boolean, lang?: string, models?: any}} [opt]
+ *   api：函数 (n, body) → { status?, body, json? }；不给 = 正常回答（只管 POST）
+ *   models：GET /api/chat 的 JSON（200）；'fail' = 500；不给 = 404（同静态服务器：没有模型切换，老用例照旧）
  */
 async function go(page, path, opt = {}) {
   const lang = opt.lang || (path.startsWith('/en/') ? 'en' : 'zh');
@@ -44,8 +58,16 @@ async function go(page, path, opt = {}) {
     });
   }
   const calls = [];
+  /** @type {number[]} */
+  const gets = [];
   await page.route('**/api/chat', async (route) => {
     const req = route.request();
+    if (req.method() === 'GET') {
+      gets.push(1);
+      if (opt.models && opt.models !== 'fail') await route.fulfill({ status: 200, contentType: 'application/json; charset=utf-8', body: JSON.stringify(opt.models) });
+      else await route.fulfill({ status: opt.models === 'fail' ? 500 : 404, contentType: 'application/json; charset=utf-8', body: '{"ok":false}' });
+      return;
+    }
     calls.push({ method: req.method(), body: req.postDataJSON(), headers: req.headers() });
     const r = opt.api ? opt.api(calls.length, req.postDataJSON()) : { body: okBody() };
     if (r.json) {
@@ -57,6 +79,8 @@ async function go(page, path, opt = {}) {
   await page.goto(path, { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
   await expect(page.locator('#chat-root')).not.toHaveAttribute('aria-busy', 'true');
+  // @ts-ignore
+  calls.gets = gets;
   return calls;
 }
 
@@ -68,7 +92,7 @@ async function manualStream(page) {
     window.__chatCalls = 0;
     window.fetch = (input, init) => {
       const url = typeof input === 'string' ? input : input.url;
-      if (!url.endsWith('/api/chat')) return real(input, init);
+      if (!url.endsWith('/api/chat') || !init || init.method !== 'POST') return real(input, init);
       // @ts-ignore
       window.__chatCalls++;
       const enc = new TextEncoder();
@@ -204,6 +228,9 @@ test.describe('聊天页（手机 412×915）', () => {
     await expect(page.locator('#chat-empty')).toBeHidden();
     await expect(page.locator('#chat-input')).toBeDisabled();
     expect(calls.length).toBe(0);
+    // @ts-ignore
+    expect(calls.gets.length).toBe(0);
+    await expect(page.locator('#chat-model')).toBeHidden();
   });
 
   test('429 / SSE rate_limited →「今天的免费额度用完了，明天再来」，没有重试', async ({ page }) => {
@@ -289,6 +316,179 @@ test.describe('聊天页（手机 412×915）', () => {
   });
 });
 
+test.describe('聊天页 · 模型切换（手机 412×915）', () => {
+  test.use({ viewport: { width: 412, height: 915 } });
+  const sheet = (page) => page.locator('#chat-ms');
+  const opts = (page) => page.locator('#chat-ms .chat-ms-opt');
+
+  test('药丸 → 底部面板（标题 + ✕、4 行、联网 / 不联网、对勾）；遮罩 / Esc / ✕ 都能关；面板在顶栏和输入栏上面', async ({ page }) => {
+    await go(page, '/chat/', { models: MODELS });
+    const btn = page.locator('#chat-model');
+    await expect(btn).toBeVisible();
+    await expect(btn.locator('.chat-model-lbl')).toHaveText('Gemini 2.5 Flash');
+    await expect(btn).toHaveAttribute('aria-haspopup', 'listbox');
+    await expect(btn).toHaveAttribute('aria-expanded', 'false');
+    /* 药丸在输入栏正上方，不重叠 */
+    const pb = await btn.boundingBox();
+    const bar = await page.locator('.chat-bar').boundingBox();
+    expect(pb.y + pb.height).toBeLessThanOrEqual(bar.y);
+    expect(pb.x).toBeGreaterThanOrEqual(bar.x - 1);
+
+    await btn.click();
+    await expect(sheet(page)).toHaveAttribute('data-state', 'open');
+    await expect(btn).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('#chat-ms-title')).toHaveText('选择模型');
+    await expect(page.locator('#chat-ms-list')).toHaveAttribute('role', 'listbox');
+    await expect(opts(page)).toHaveCount(4);
+    await expect(opts(page).locator('.chat-ms-lbl')).toHaveText(['Gemini 2.5 Flash', 'Gemini 2.5 Flash-Lite', 'Gemini 3.8 Flash', 'Gemini 3.5 Flash-Lite']);
+    await expect(opts(page).locator('.chat-ms-badge')).toHaveText(['联网', '联网', '不联网', '不联网']);
+    await expect(opts(page).nth(0)).toHaveAttribute('aria-selected', 'true');
+    await expect(opts(page).nth(0).locator('.chat-ms-check svg')).toHaveCount(1);
+    await expect(opts(page).nth(2).locator('.chat-ms-check svg')).toHaveCount(0);
+    await expect(opts(page).nth(0)).toBeFocused();
+    /* 底部面板：贴底、满宽、行高 ≥ 56 */
+    const sb = await page.locator('.chat-ms-sheet').boundingBox();
+    expect(Math.round(sb.y + sb.height)).toBe(915);
+    expect(Math.round(sb.width)).toBe(412);
+    const rb = await opts(page).nth(0).boundingBox();
+    expect(rb.height).toBeGreaterThanOrEqual(56);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(412);
+    /* 面板盖住输入栏（顶层）；顶栏在遮罩下面点不到 */
+    const hitBar = await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('#chat-ms'), [bar.x + bar.width / 2, bar.y + bar.height / 2]);
+    expect(hitBar).toBe(true);
+    const hitTop = await page.evaluate(() => { const el = document.elementFromPoint(206, 30); return el ? el.id || el.className : ''; });
+    expect(hitTop).toBe('chat-ms');
+
+    await page.keyboard.press('Escape');
+    await expect(sheet(page)).toHaveAttribute('data-state', 'closed');
+    await expect(btn).toHaveAttribute('aria-expanded', 'false');
+    await expect(btn).toBeFocused();
+    /* 点遮罩关 */
+    await btn.click();
+    await expect(sheet(page)).toHaveAttribute('data-state', 'open');
+    await page.mouse.click(206, 120);
+    await expect(sheet(page)).toHaveAttribute('data-state', 'closed');
+    /* ✕ 关 */
+    await btn.click();
+    await expect(sheet(page)).toHaveAttribute('data-state', 'open');
+    await page.locator('.chat-ms-x').click();
+    await expect(sheet(page)).toHaveAttribute('data-state', 'closed');
+    await expect(page).toHaveURL(/\/chat\/$/);
+  });
+
+  test('选不联网模型：POST 带 model、脚注是模型名；存 localStorage，刷新还在；键盘 ↓ + Enter 也能选', async ({ page }) => {
+    const calls = await go(page, '/chat/', { models: MODELS, api: () => ({ body: okBody(['凭记忆回答'], null) }) });
+    await page.locator('#chat-model').click();
+    await opts(page).nth(2).click();
+    await expect(sheet(page)).toHaveAttribute('data-state', 'closed');
+    await expect(page.locator('#chat-model .chat-model-lbl')).toHaveText('Gemini 3.8 Flash');
+    expect(await page.evaluate(() => localStorage.getItem('sgx-chat-model'))).toBe('gemini-3.8-flash');
+    /* 不联网模型：占位符不再说「联网查」 */
+    await expect(page.locator('#chat-input')).toHaveAttribute('placeholder', '问点什么…');
+    await page.locator('#chat-input').fill('不联网问一下');
+    await page.locator('#chat-send').click();
+    const ans = page.locator('.chat-msg[data-role="model"]');
+    await expect(ans.locator('.chat-md')).toHaveText('凭记忆回答');
+    await expect(ans.locator('.chat-foot')).toHaveText('Gemini 3.8 Flash');
+    expect(calls[0].body).toEqual({ messages: [{ role: 'user', text: '不联网问一下' }], model: 'gemini-3.8-flash' });
+    /* 刷新：选择还在、旧回答的脚注还在 */
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#chat-model .chat-model-lbl')).toHaveText('Gemini 3.8 Flash');
+    await expect(page.locator('.chat-msg[data-role="model"] .chat-foot')).toHaveText('Gemini 3.8 Flash');
+    /* 键盘：打开 → 焦点在当前（第 3 行）→ ↓ → Enter 选第 4 行 */
+    await page.locator('#chat-model').focus();
+    await page.keyboard.press('Enter');
+    await expect(sheet(page)).toHaveAttribute('data-state', 'open');
+    await expect(opts(page).nth(2)).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(opts(page).nth(3)).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(sheet(page)).toHaveAttribute('data-state', 'closed');
+    await expect(page.locator('#chat-model .chat-model-lbl')).toHaveText('Gemini 3.5 Flash-Lite');
+    /* 选回默认 → 不存 */
+    await page.locator('#chat-model').click();
+    await opts(page).nth(0).click();
+    expect(await page.evaluate(() => localStorage.getItem('sgx-chat-model'))).toBeNull();
+    await expect(page.locator('#chat-input')).toHaveAttribute('placeholder', '问点什么，联网查…');
+  });
+
+  test('存的模型已经不在列表里 → 用默认', async ({ page }) => {
+    await page.addInitScript(() => { try { localStorage.setItem('sgx-chat-model', 'gemini-old'); } catch (e) {} });
+    await go(page, '/chat/', { models: MODELS });
+    await expect(page.locator('#chat-model .chat-model-lbl')).toHaveText('Gemini 2.5 Flash');
+  });
+
+  test('列表请求失败 → 不显示模型切换，用服务器默认', async ({ page }) => {
+    const calls = await go(page, '/chat/', { models: 'fail', api: () => ({ body: okBody(['好'], null) }) });
+    await page.locator('#chat-input').fill('a');
+    await page.locator('#chat-send').click();
+    await expect(page.locator('.chat-msg[data-role="model"] .chat-md')).toHaveText('好');
+    await expect(page.locator('#chat-model')).toBeHidden();
+    await expect(page.locator('.chat-foot')).toHaveCount(0);
+    expect(calls[0].body).toEqual({ messages: [{ role: 'user', text: 'a' }] });
+    // @ts-ignore
+    expect(calls.gets.length).toBe(1);
+  });
+
+  test('429 →「这个模型的免费额度用完了」+「换个模型」打开面板；model_unavailable 同样；bad_model → 换回默认 + 重试', async ({ page }) => {
+    const calls = await go(page, '/chat/', {
+      models: MODELS,
+      api: (n) => [
+        { status: 429, json: { ok: false, error: 'rate_limited' } },
+        { status: 502, json: { ok: false, error: 'model_unavailable' } },
+        { status: 400, json: { ok: false, error: 'bad_model' } },
+        { body: okBody(['默认模型答的'], null) },
+      ][n - 1],
+    });
+    await page.locator('#chat-input').fill('a');
+    await page.locator('#chat-send').click();
+    await expect(page.locator('.chat-err .chat-err-txt')).toHaveText('这个模型的免费额度用完了，可以换个模型');
+    await expect(page.locator('.chat-err [data-action="retry"]')).toHaveCount(0);
+    await page.locator('.chat-err [data-action="pick"]').click();
+    await expect(sheet(page)).toHaveAttribute('data-state', 'open');
+    await opts(page).nth(1).click();
+    await expect(sheet(page)).toHaveAttribute('data-state', 'closed');
+    await expect(page.locator('#chat-model .chat-model-lbl')).toHaveText('Gemini 2.5 Flash-Lite');
+    await page.locator('#chat-input').fill('b');
+    await page.locator('#chat-send').click();
+    await expect(page.locator('.chat-err .chat-err-txt')).toHaveText('这个模型现在用不了，换一个试试');
+    await expect(page.locator('.chat-err [data-action="pick"]')).toHaveText('换个模型');
+    expect(calls[1].body.model).toBe('gemini-2.5-flash-lite');
+    /* 选 3.8 Flash，服务器说 bad_model（白名单改了）→ 换回默认，重试用默认 */
+    await page.locator('.chat-err [data-action="pick"]').click();
+    await opts(page).nth(2).click();
+    await expect(sheet(page)).toHaveAttribute('data-state', 'closed');
+    await page.locator('#chat-input').fill('c');
+    await page.locator('#chat-send').click();
+    await expect(page.locator('.chat-err .chat-err-txt')).toHaveText('这个模型已经下线了，已换回默认模型');
+    await expect(page.locator('#chat-model .chat-model-lbl')).toHaveText('Gemini 2.5 Flash');
+    await page.locator('.chat-err [data-action="retry"]').click();
+    await expect(page.locator('.chat-msg[data-role="model"] .chat-md').last()).toHaveText('默认模型答的');
+    expect(calls[3].body.model).toBe('gemini-2.5-flash');
+    await expect(page.locator('.chat-msg[data-role="model"] .chat-foot').last()).toHaveText('Gemini 2.5 Flash');
+  });
+
+  test('SSE meta web:false（上游拒了搜索工具、不带工具重试）→ 脚注「Gemini 2.5 Flash · 未联网」', async ({ page }) => {
+    await go(page, '/chat/', { models: MODELS, api: () => ({ body: sse([{ t: 'meta', web: false }, { t: 'delta', text: '没联网的回答' }, { t: 'done' }]) }) });
+    await page.locator('#chat-input').fill('a');
+    await page.locator('#chat-send').click();
+    await expect(page.locator('.chat-msg[data-role="model"] .chat-foot')).toHaveText('Gemini 2.5 Flash · 未联网');
+    await expect(page.locator('.chat-msg[data-role="model"] .chat-foot')).toHaveAttribute('data-noweb', '1');
+  });
+
+  test('英文：Choose model / Web / No web / 额度文案', async ({ page }) => {
+    await go(page, '/en/chat/', { models: MODELS, api: () => ({ status: 429, json: { ok: false, error: 'rate_limited' } }) });
+    await page.locator('#chat-model').click();
+    await expect(page.locator('#chat-ms-title')).toHaveText('Choose model');
+    await expect(page.locator('.chat-ms-x')).toHaveAttribute('aria-label', 'Close');
+    await expect(opts(page).locator('.chat-ms-badge')).toHaveText(['Web', 'Web', 'No web', 'No web']);
+    await page.keyboard.press('Escape');
+    await page.locator('.chat-ex').first().click();
+    await expect(page.locator('.chat-err .chat-err-txt')).toHaveText("This model's free quota is used up — try another");
+    await expect(page.locator('.chat-err [data-action="pick"]')).toHaveText('Switch model');
+  });
+});
+
 test.describe('聊天页（桌面 1280×800）', () => {
   test.use({ viewport: { width: 1280, height: 800 } });
 
@@ -307,5 +507,20 @@ test.describe('聊天页（桌面 1280×800）', () => {
     const bar = await page.locator('.chat-composer').boundingBox();
     expect(Math.abs(bar.x + bar.width / 2 - 640)).toBeLessThanOrEqual(1);
     expect(bar.width).toBeLessThanOrEqual(640);
+  });
+
+  test('模型切换（宽屏）：贴着药丸上方的浮层，左边对齐药丸', async ({ page }) => {
+    await go(page, '/chat/', { models: MODELS });
+    const btn = page.locator('#chat-model');
+    await btn.click();
+    await expect(page.locator('#chat-ms')).toHaveAttribute('data-state', 'open');
+    const pb = await btn.boundingBox();
+    const sb = await page.locator('.chat-ms-sheet').boundingBox();
+    expect(sb.y + sb.height).toBeLessThanOrEqual(pb.y);
+    expect(sb.y + sb.height).toBeGreaterThan(pb.y - 20);
+    expect(Math.abs(sb.x - pb.x)).toBeLessThanOrEqual(2);
+    expect(sb.width).toBeLessThanOrEqual(362);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#chat-ms')).toHaveAttribute('data-state', 'closed');
   });
 });

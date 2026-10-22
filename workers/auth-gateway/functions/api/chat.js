@@ -8,22 +8,32 @@
  * - 只接受同源 POST（_kernel/http.js isSameOrigin，同 /api/prefs）→ 否则 403 origin
  * - 锁屏会话：没有 / 无效 → 401；访客（visitor）→ 403 { error: 'owner_only' }（聊天额度是站长的，访客不能用）
  *
- *   POST /api/chat  { messages: [{ role: 'user'|'model', text }] }
+ *   GET  /api/chat  → 200 { ok:true, default:'<id>', models:[{ id, label, search }] }（模型切换用；同样只许站长：401 / 403 owner_only）
+ *     search = 这个模型实际会不会带联网工具（CHAT_SEARCH=off 或 openai 模式时一律 false）。
+ *   POST /api/chat  { messages: [{ role: 'user'|'model', text }], model?: '<id>' }
+ *   model 可选：必须是 CHAT_MODELS 白名单里的 id → 否则 400 { error: 'bad_model' }（绝不接受任意模型名）；不给 = 默认模型。
  *   校验：1–20 条，每条 text 是非空字符串、≤ 4000 字，合计 ≤ 24000 字，最后一条必须是 user → 否则 400 { error: 'bad_request' }
  *   → 200 text/event-stream，每个事件一行 `data: <JSON>`：
  *       {"t":"delta","text":"…"}                      回答的一段（按顺序拼起来）
+ *       {"t":"meta","web":false}                     只在「工具被上游拒了、不带工具重试」时第一条发：这次回答没联网
  *       {"t":"sources","items":[{"title","uri"}]}     检索来源（gemini 才有，去重、最多 8 条；没有就不发）
  *       {"t":"done"}                                  正常结束
- *       {"t":"error","code":"rate_limited"|"upstream"} 流到一半出错（之后不再有事件）
+ *       {"t":"error","code":"rate_limited"|"model_unavailable"|"upstream"} 流到一半出错（之后不再有事件）
  *   开始流之前的错误回 JSON { ok:false, error }：
- *       400 bad_request · 401 unauthorized · 403 origin / owner_only · 405 method
- *       503 no_key（没配钥匙 / 读不到）· 429 rate_limited（上游 429，免费额度用完）· 502 upstream（上游其他错误 / 超时）
+ *       400 bad_request / bad_model · 401 unauthorized · 403 origin / owner_only · 405 method
+ *       503 no_key（没配钥匙 / 读不到）· 429 rate_limited（上游 429，这个模型的免费额度用完）·
+ *       502 model_unavailable（上游 404，或 403 / 400 说模型 not found / not supported / permission）· 502 upstream（上游其他错误 / 超时）
+ *   上游 400 说的是工具 / 搜索接地（google_search 等不支持）→ 不带工具自动重试一次（只一次），回答开头带 meta web:false。
  *
  * 配置（wrangler.toml [vars]）：
  *   CHAT_PROVIDER  "gemini"（默认）| "openai"（任意 OpenAI 兼容接口，没有联网检索）
  *   CHAT_API_BASE  gemini："https://generativelanguage.googleapis.com/v1beta"；openai：到 /v1 为止
  *   CHAT_MODEL     "gemini-2.5-flash"（免费档能用 Google 搜索接地的只有 2.5 flash / flash-lite，2026-10-22 查 ai.google.dev）
- *   CHAT_SEARCH    "on" | "off"（gemini 才看：开 = tools 里加 google_search + url_context）
+ *   CHAT_SEARCH    "on" | "off"：总开关（gemini 才看；off = 哪个模型都不带联网工具）
+ *   CHAT_MODELS    模型白名单（JSON 字符串，2026-10-22）：[{ "id", "label", "search" }]。
+ *                  search = 这个模型带不带 google_search + url_context（免费档 Gemini 3+ 的搜索接地是「Not available」，只有 2.5 Flash / Flash-Lite 能开）。
+ *                  CHAT_MODEL 是默认 id（不在白名单里就用第一个）；CHAT_MODELS 没配 / 坏 JSON / 没有一条合格 →
+ *                  退回只有 [{ id: CHAT_MODEL, label: CHAT_MODEL, search: CHAT_SEARCH 开 }]。openai 模式也用这份列表（search 忽略）。
  * 钥匙：Secrets Store 绑定 SGX_CHAT_API_KEY（await env.SGX_CHAT_API_KEY.get()；本地测试可以直接是字符串）。
  *   不进 src/secrets.js 的 SECRET_NAMES：那份是每个请求都预读的签名钥匙，聊天钥匙只在这里用到时才读，
  *   没配 / 读失败也只影响聊天（503 no_key），不拖累锁屏、账号等其他接口。钥匙绝不回给浏览器、绝不打印。
@@ -53,16 +63,50 @@ function json(status, body) {
 
 /**
  * 系统提示：简短回答、用用户的语言、凡是时效性的东西先搜、给出处。today = UTC 日期（模型不知道今天几号）。
+ * search = false（不联网的模型 / 工具被上游拒了重试）：不提搜索，改成「靠已有知识回答、可能过时就直说」。
  * @param {string} today YYYY-MM-DD
+ * @param {boolean} [search]
  */
-export function systemPrompt(today) {
+export function systemPrompt(today, search = true) {
   return [
     'You are the web-search helper on a personal website. Today is ' + today + ' (UTC).',
     'Answer concisely in the language the user writes in (中文问就用简体中文回答).',
-    'Use Google Search for anything current, factual, or that you are not sure about; read linked pages when the user gives a URL.',
-    'Base the answer on what you found and mention the sources. If the results do not answer it, say so plainly.',
+    search
+      ? 'Use Google Search for anything current, factual, or that you are not sure about; read linked pages when the user gives a URL.'
+      : 'Web search is not available for this answer: reply from what you already know and say plainly when it may be out of date.',
+    search
+      ? 'Base the answer on what you found and mention the sources. If the results do not answer it, say so plainly.'
+      : 'Do not invent sources or links.',
     'Use short paragraphs, bullet lists and **bold** sparingly; no tables, no HTML.',
   ].join('\n');
+}
+
+/**
+ * 上游没成功（HTTP 非 2xx）→ 我们的错误码。text = 上游错误体（只用来分类，不回给浏览器、不打印）。
+ *   429 → rate_limited（这个模型的免费额度用完了）
+ *   400 + 带了工具 + 错误说的是工具 / 搜索接地（google_search、url_context、grounding、tool）→ tools（不带工具重试一次）
+ *   404；403 / 400 且说 not found / not supported / permission / not available → model_unavailable（换个模型）
+ *   其他 → upstream
+ * @param {number} status @param {string} text @param {boolean} hadTools
+ * @returns {'rate_limited'|'tools'|'model_unavailable'|'upstream'}
+ */
+export function classifyUpstream(status, text, hadTools) {
+  const t = String(text || '');
+  if (status === 429) return 'rate_limited';
+  if (status === 400 && hadTools && /google_search|url_context|grounding|\btools?\b/i.test(t)) return 'tools';
+  if (status === 404) return 'model_unavailable';
+  if ((status === 403 || status === 400) && /not[ _]found|not[ _]supported|permission|not[ _]available|unsupported/i.test(t)) return 'model_unavailable';
+  return 'upstream';
+}
+
+/** 读上游错误体（最多 4 KB，读失败 → ''） @param {Response} res */
+async function errText(res) {
+  try {
+    const t = await res.text();
+    return t.slice(0, 4096);
+  } catch (e) {
+    return '';
+  }
 }
 
 /**
@@ -104,13 +148,69 @@ async function readKey(env) {
   return '';
 }
 
-/** @param {any} env */
-function chatConfig(env) {
+export const MAX_MODELS = 12;
+/** 模型 id：只许这些字符（进 URL 路径前还会 encodeURIComponent）；openai 兼容接口常见的 org/model 也认 */
+const MODEL_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,99}$/;
+
+/**
+ * 模型白名单（CHAT_MODELS）。坏的条目跳过、id 去重、最多 MAX_MODELS 条；一条合格的都没有 → 退回只有默认模型。
+ * search：gemini + CHAT_SEARCH 开 + 这条 search === true 才是 true。
+ * @param {any} env
+ * @returns {{ def: string, models: Array<{id:string, label:string, search:boolean}> }}
+ */
+export function chatModels(env) {
+  const provider = String((env && env.CHAT_PROVIDER) || 'gemini').toLowerCase() === 'openai' ? 'openai' : 'gemini';
+  const globalSearch = provider === 'gemini' && String((env && env.CHAT_SEARCH) || 'on').toLowerCase() !== 'off';
+  const fallbackId = String((env && env.CHAT_MODEL) || DEFAULT_MODEL);
+  let raw = env && env.CHAT_MODELS;
+  if (typeof raw === 'string') {
+    try { raw = JSON.parse(raw); } catch (e) { raw = null; }
+  }
+  /** @type {Array<{id:string, label:string, search:boolean}>} */
+  const models = [];
+  if (Array.isArray(raw)) {
+    for (const m of raw) {
+      if (models.length >= MAX_MODELS) break;
+      if (!m || typeof m !== 'object' || typeof m.id !== 'string' || !MODEL_ID_RE.test(m.id)) continue;
+      if (models.some((x) => x.id === m.id)) continue;
+      const label = typeof m.label === 'string' && m.label.trim() ? m.label.trim().slice(0, 60) : m.id;
+      models.push({ id: m.id, label, search: globalSearch && m.search === true });
+    }
+  }
+  if (!models.length) return { def: fallbackId, models: [{ id: fallbackId, label: fallbackId, search: globalSearch }] };
+  const def = models.some((x) => x.id === fallbackId) ? fallbackId : models[0].id;
+  return { def, models };
+}
+
+/**
+ * @param {any} env
+ * @param {string} [modelId] 已经核对过在白名单里的 id；不给 = 默认
+ */
+function chatConfig(env, modelId) {
   const provider = String((env && env.CHAT_PROVIDER) || 'gemini').toLowerCase() === 'openai' ? 'openai' : 'gemini';
   const base = String((env && env.CHAT_API_BASE) || (provider === 'gemini' ? DEFAULT_GEMINI_BASE : '')).replace(/\/+$/, '');
-  const model = String((env && env.CHAT_MODEL) || DEFAULT_MODEL);
-  const search = String((env && env.CHAT_SEARCH) || 'on').toLowerCase() !== 'off';
-  return { provider, base, model, search };
+  const { def, models } = chatModels(env);
+  const m = models.find((x) => x.id === (modelId || def)) || models[0];
+  return { provider, base, model: m.id, search: m.search };
+}
+
+/** 门：会话 + 只许站长。通过 → null；否则错误响应 @param {Request} request @param {any} env */
+async function ownerGate(request, env) {
+  const sess = await verifySessionDetailed(request, env);
+  if (!sess.ok) return json(401, { ok: false, error: 'unauthorized' });
+  if (sess.role !== ROLE_OWNER) return json(403, { ok: false, error: 'owner_only' });
+  return null;
+}
+
+/**
+ * GET /api/chat：模型列表（页面的模型切换）。不看 Origin（同源 GET 浏览器不带 Origin）；只读、不碰钥匙、不调上游。
+ * @param {{request: Request, env: any}} ctx
+ */
+export async function onRequestGet({ request, env }) {
+  const denied = await ownerGate(request, env);
+  if (denied) return denied;
+  const { def, models } = chatModels(env);
+  return json(200, { ok: true, default: def, models });
 }
 
 /**
@@ -190,7 +290,7 @@ function geminiRequest(cfg, key, messages, signal) {
   /** @type {any} */
   const body = {
     contents: messages.map((m) => ({ role: m.role, parts: [{ text: m.text }] })),
-    systemInstruction: { parts: [{ text: systemPrompt(new Date().toISOString().slice(0, 10)) }] },
+    systemInstruction: { parts: [{ text: systemPrompt(new Date().toISOString().slice(0, 10), cfg.search) }] },
   };
   if (cfg.search) body.tools = [{ google_search: {} }, { url_context: {} }];
   const url = cfg.base + '/models/' + encodeURIComponent(cfg.model) + ':streamGenerateContent?alt=sse';
@@ -207,7 +307,7 @@ function openaiRequest(cfg, key, messages, signal) {
   const body = {
     model: cfg.model,
     stream: true,
-    messages: [{ role: 'system', content: systemPrompt(new Date().toISOString().slice(0, 10)) }].concat(
+    messages: [{ role: 'system', content: systemPrompt(new Date().toISOString().slice(0, 10), false) }].concat(
       messages.map((m) => ({ role: m.role === 'model' ? 'assistant' : 'user', content: m.text }))
     ),
   };
@@ -236,16 +336,20 @@ function hasKeyBinding(env) {
 export async function onRequestPost({ request, env }) {
   if (request.method !== 'POST') return json(405, { ok: false, error: 'method' });
   if (!isSameOrigin(request)) return originDenied();
-  const sess = await verifySessionDetailed(request, env);
-  if (!sess.ok) return json(401, { ok: false, error: 'unauthorized' });
-  if (sess.role !== ROLE_OWNER) return json(403, { ok: false, error: 'owner_only' });
+  const denied = await ownerGate(request, env);
+  if (denied) return denied;
 
   let body;
   try { body = await request.json(); } catch (e) { return json(400, { ok: false, error: 'bad_request' }); }
   const v = validateMessages(body);
   if (!v.ok) return json(400, { ok: false, error: 'bad_request' });
+  /* 模型：只认白名单里的 id（null / 不给 = 默认） */
+  const want = body.model;
+  if (want !== undefined && want !== null && (typeof want !== 'string' || !chatModels(env).models.some((x) => x.id === want))) {
+    return json(400, { ok: false, error: 'bad_model' });
+  }
 
-  const cfg = chatConfig(env);
+  const cfg = chatConfig(env, typeof want === 'string' ? want : undefined);
   if (!hasKeyBinding(env) || !cfg.base) return json(503, { ok: false, error: 'no_key' });
   const key = await readKey(env);
   if (!key) return json(503, { ok: false, error: 'no_key' });
@@ -257,8 +361,23 @@ export async function onRequestPost({ request, env }) {
 
   /** @type {Response} */
   let up;
+  /* 工具（搜索接地）被上游拒了 → 不带工具重试一次，这次回答开头发 {"t":"meta","web":false}（页面脚注「未联网」） */
+  let degraded = false;
   try {
-    up = cfg.provider === 'gemini' ? await geminiRequest(cfg, key, v.messages, ac.signal) : await openaiRequest(cfg, key, v.messages, ac.signal);
+    const attempt = (/** @type {any} */ c) => (c.provider === 'gemini' ? geminiRequest(c, key, v.messages, ac.signal) : openaiRequest(c, key, v.messages, ac.signal));
+    up = await attempt(cfg);
+    if (!up.ok && up.status === 400 && cfg.provider === 'gemini' && cfg.search) {
+      const kind = classifyUpstream(up.status, await errText(up), true);
+      if (kind === 'tools') {
+        console.error('[chat] tools rejected, retrying without tools');
+        degraded = true;
+        up = await attempt({ ...cfg, search: false });
+      } else {
+        clearTimeout(timer);
+        console.error('[chat] upstream status', up.status);
+        return json(502, { ok: false, error: kind === 'model_unavailable' ? 'model_unavailable' : 'upstream' });
+      }
+    }
   } catch (e) {
     clearTimeout(timer);
     console.error('[chat] upstream fetch failed', e && /** @type {any} */ (e).name);
@@ -267,8 +386,10 @@ export async function onRequestPost({ request, env }) {
   if (!up.ok || !up.body) {
     clearTimeout(timer);
     console.error('[chat] upstream status', up.status);
+    const kind = up.ok ? 'upstream' : classifyUpstream(up.status, await errText(up), false);
     try { await up.body?.cancel(); } catch (e) {}
-    if (up.status === 429) return json(429, { ok: false, error: 'rate_limited' });
+    if (kind === 'rate_limited') return json(429, { ok: false, error: 'rate_limited' });
+    if (kind === 'model_unavailable') return json(502, { ok: false, error: 'model_unavailable' });
     return json(502, { ok: false, error: 'upstream' });
   }
 
@@ -282,6 +403,7 @@ export async function onRequestPost({ request, env }) {
       const sources = [];
       let failed = false;
       try {
+        if (degraded) send({ t: 'meta', web: false });
         for await (const data of sseData(upBody)) {
           if (cfg.provider === 'openai') {
             if (data.trim() === '[DONE]') break;
@@ -295,7 +417,8 @@ export async function onRequestPost({ request, env }) {
             try { chunk = JSON.parse(data); } catch (e) { continue; }
             if (chunk && chunk.error) {
               failed = true;
-              send({ t: 'error', code: chunk.error.code === 429 || chunk.error.status === 'RESOURCE_EXHAUSTED' ? 'rate_limited' : 'upstream' });
+              const ec = chunk.error.code === 429 || chunk.error.status === 'RESOURCE_EXHAUSTED' ? 'rate_limited' : chunk.error.code === 404 || chunk.error.status === 'NOT_FOUND' ? 'model_unavailable' : 'upstream';
+              send({ t: 'error', code: ec });
               break;
             }
             const r = geminiChunk(chunk);

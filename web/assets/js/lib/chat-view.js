@@ -1,5 +1,6 @@
 /**
- * @fileoverview 聊天页（/chat/）的纯函数：安全的轻量 Markdown 渲染、来源 chip、SSE 解析、发给 /api/chat 的对话裁剪。
+ * @fileoverview 聊天页（/chat/）的纯函数：安全的轻量 Markdown 渲染、来源 chip、SSE 解析、发给 /api/chat 的对话裁剪、
+ *   模型切换（GET /api/chat 列表解析、选哪个、面板行 HTML、回答脚注）。
  * 没有 DOM、没有请求（apps/chat.js 负责），node --test 直接测（tests/web/ui/chat-view.test.mjs）。
  *
  * Markdown 只认这些：段落（空行分段，段内换行 = <br>）、#–###### 标题（渲染成加粗段落）、- / * / + / 1. 列表、> 引用、
@@ -288,14 +289,85 @@ export function buildPayload(msgs) {
 }
 
 /**
- * 错误码 → 文案 key + 是否给「重试」。
- * @param {string} code rate_limited | no_key | owner_only | unauthorized | bad_request | upstream | network
+ * 错误码 → 文案 key + 是否给「重试」/「换模型」（pick：按钮打开模型面板；只有模型切换能用时 canPick = true 才给）。
+ * @param {string} code rate_limited | model_unavailable | bad_model | no_key | owner_only | unauthorized | bad_request | upstream | network
+ * @param {boolean} [canPick] 模型切换在不在（模型列表拿到了、≥ 2 个）
+ * @returns {{key:string, retry:boolean, pick?:boolean}}
  */
-export function errorInfo(code) {
+export function errorInfo(code, canPick) {
   switch (code) {
-    case 'rate_limited': return { key: 'errRate', retry: false };
+    case 'rate_limited': return canPick ? { key: 'errRateModel', retry: false, pick: true } : { key: 'errRate', retry: false };
+    case 'model_unavailable': return canPick ? { key: 'errModel', retry: false, pick: true } : { key: 'errModel', retry: true };
+    case 'bad_model': return { key: 'errBadModel', retry: true };
     case 'no_key': return { key: 'errNoKey', retry: false };
     case 'bad_request': return { key: 'errTooLong', retry: false };
     default: return { key: 'errUpstream', retry: true };
   }
+}
+
+/**
+ * @typedef {{id:string, label:string, search:boolean}} ChatModel
+ */
+
+/**
+ * GET /api/chat 的回答 → { def, models }；形状不对 / 没有模型 → null（页面就不显示模型切换，用服务器默认）。
+ * 只留 id 是非空字符串的条目（去重），label 兜底 id，search 只认 true；def 不在列表里 → 第一个。
+ * @param {any} j
+ * @returns {{def:string, models:ChatModel[]}|null}
+ */
+export function parseModels(j) {
+  if (!j || j.ok !== true || !Array.isArray(j.models)) return null;
+  /** @type {ChatModel[]} */
+  const models = [];
+  for (const m of j.models) {
+    if (!m || typeof m.id !== 'string' || !m.id || m.id.length > 100 || models.some((x) => x.id === m.id)) continue;
+    const label = typeof m.label === 'string' && m.label.trim() ? m.label.trim().slice(0, 60) : m.id;
+    models.push({ id: m.id, label, search: m.search === true });
+  }
+  if (!models.length) return null;
+  const def = typeof j.default === 'string' && models.some((x) => x.id === j.default) ? j.default : models[0].id;
+  return { def, models };
+}
+
+/**
+ * 当前模型：本地存的还在列表里就用它，否则默认。
+ * @param {{def:string, models:ChatModel[]}} list
+ * @param {string|null|undefined} stored localStorage sgx-chat-model
+ */
+export function pickModel(list, stored) {
+  return typeof stored === 'string' && list.models.some((m) => m.id === stored) ? stored : list.def;
+}
+
+/** Gemini 四角星（品牌小图标，currentColor） */
+export const SPARKLE_SVG = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M12 2c.35 4.9 2.6 8.65 10 10-7.4 1.35-9.65 5.1-10 10-.35-4.9-2.6-8.65-10-10 7.4-1.35 9.65-5.1 10-10z"/></svg>';
+const CHECK_SVG = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+
+/**
+ * 模型面板的行（role="option"，当前那个 aria-selected="true" + 右边对勾、tabindex=0，其余 -1）。
+ * 每行：四角星 · 名字（大字）· 紧跟名字的小药丸（联网 = 强调色；不联网 = 灰）· 最右对勾。
+ * @param {ChatModel[]} models
+ * @param {string} current
+ * @param {{web:string, noWeb:string}} labels
+ */
+export function modelOptionsHtml(models, current, labels) {
+  return models.map((m) => {
+    const sel = m.id === current;
+    const badge = m.search
+      ? '<span class="chat-ms-badge" data-web="1">' + esc(labels.web) + '</span>'
+      : '<span class="chat-ms-badge" data-web="0">' + esc(labels.noWeb) + '</span>';
+    return '<li class="chat-ms-opt" role="option" data-id="' + esc(m.id) + '"'
+      + ' aria-selected="' + (sel ? 'true' : 'false') + '" tabindex="' + (sel ? '0' : '-1') + '">'
+      + '<span class="chat-ms-ic">' + SPARKLE_SVG + '</span>'
+      + '<span class="chat-ms-name"><span class="chat-ms-lbl">' + esc(m.label) + '</span>' + badge + '</span>'
+      + '<span class="chat-ms-check">' + (sel ? CHECK_SVG : '') + '</span></li>';
+  }).join('');
+}
+
+/**
+ * 回答气泡下的模型脚注文字：「Gemini 3.8 Flash」；这次没联网（工具被拒重试）→「Gemini 2.5 Flash · 未联网」。没有模型名 → ''。
+ * @param {string|undefined} label @param {boolean|undefined} noWeb @param {string} noWebText
+ */
+export function modelFootText(label, noWeb, noWebText) {
+  if (!label) return '';
+  return noWeb ? label + ' · ' + noWebText : label;
 }
