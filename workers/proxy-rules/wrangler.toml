@@ -1,0 +1,19 @@
+# styrigx-proxy-rules：规则集加速反代（CI 部署；只干一件事——转发规则集文件，现在的上游是 MetaCubeX/meta-rules-dat；名字不绑内核和上游，换了只改代码）
+#
+# 公开地址只有自定义域名 proxy-rules.styrigx.com；不开 workers.dev、不开预览地址。
+# 没有绑定、没有变量和密钥，不过鉴权网关（规则集本来就是公开文件，客户端也带不了会话）。
+# 旧的后台手写 Worker mihomo-mrs（mihomo-mrs.styrigx.com）过渡期继续在线，客户端订阅换完后连同 DNS 一起删。
+
+name = "styrigx-proxy-rules"
+main = "src/index.js"
+compatibility_date = "2026-10-09"
+workers_dev = false
+preview_urls = false
+
+routes = [
+  { pattern = "proxy-rules.styrigx.com", custom_domain = true },
+]
+
+[observability]
+enabled = true
+head_sampling_rate = 1

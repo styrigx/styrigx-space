@@ -70,7 +70,7 @@ jobs:
         # 全部 tests/workers/auth-gateway、tests/web/ui 单元测试；新加的测试文件自动纳入，不用再改这里。
         # 覆盖：会话 / cookie / epoch、锁屏门（door）、认证入口、
         # 访客 401、根凭证 userHandle、最后一把钥匙、sitemap、i18n、页内导航、数字健康等
-        run: node --test tests/workers/auth-gateway/*.test.mjs tests/workers/search-index/*.test.mjs tests/web/ui/*.test.mjs
+        run: node --test tests/workers/auth-gateway/*.test.mjs tests/workers/search-index/*.test.mjs tests/workers/proxy-rules/*.test.mjs tests/web/ui/*.test.mjs
 
       - name: Auth Worker bundle check (styrigx-auth-gateway, dry-run)
         # 主站后端代码全在 workers/auth-gateway（src/ + functions/）；这里只打包不部署，import 断了 CI 就红。
@@ -80,6 +80,10 @@ jobs:
       - name: Search Worker bundle check (styrigx-search-index, dry-run)
         working-directory: workers/search-index
         run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/styrigx-search-dist
+
+      - name: Proxy rules Worker bundle check (styrigx-proxy-rules, dry-run)
+        working-directory: workers/proxy-rules
+        run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/styrigx-proxy-rules-dist
 
       - name: Shared shell in sync (web/shared/shell ← palette-roles / input.css @shell / shell-nav)
         # 子站（blog / daymark）用 scripts/sync-shell.mjs 从这里同步外壳；改了源头忘了重新生成 → 红
@@ -508,6 +512,55 @@ jobs:
           workingDirectory: workers/search-index
           wranglerVersion: '4'
           command: kv key put site:space --path=${{ runner.temp }}/search-space.json --binding=SEARCH_KV --remote
+
+  deploy-proxy-rules-worker:
+    # 规则集反代 styrigx-proxy-rules（workers/proxy-rules）：独立部署，不等也不挡网关和 Pages。
+    # 公开地址只有自定义域名 proxy-rules.styrigx.com（wrangler.toml 的 routes，custom_domain）。
+    # token：Cloudflare 上 styrigx-proxy-rules-deploy = GitHub 环境 STYRIGX_PROXY_RULES_DEPLOY 里的同名密钥，
+    # 权限 Workers Scripts 编辑 + Account Settings 读取 + styrigx.com 的 Workers Routes 编辑；环境只允许 main。
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: quality
+    runs-on: ubuntu-latest
+    environment: STYRIGX_PROXY_RULES_DEPLOY
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Deploy proxy rules Worker (styrigx-proxy-rules)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.STYRIGX_PROXY_RULES_DEPLOY }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/proxy-rules
+          wranglerVersion: '4'
+          command: deploy
+
+      - name: Smoke test proxy-rules.styrigx.com
+        # 只发只读请求。新域名第一次绑定要等证书签发，最多重试 12 次（约 2 分钟）。
+        run: |
+          set -u
+          B=https://proxy-rules.styrigx.com
+          check() { # 路径 期望状态码
+            for i in $(seq 1 12); do
+              code=$(curl -sS -o /dev/null -w '%{http_code}' "$B$1" || true)
+              echo "$1 -> $code (try $i)"
+              [ "$code" = "$2" ] && return 0
+              sleep 10
+            done
+            echo "::error::$1 expected $2"; return 1
+          }
+          ok=0
+          check /healthz 200 || ok=1
+          check /MetaCubeX/meta-rules-dat/meta/geo/geosite/cn.mrs 200 || ok=1
+          check /MetaCubeX/meta-rules-dat/meta/geo/geoip/cn.mrs 200 || ok=1
+          # 白名单外不转发
+          check /MetaCubeX/meta-rules-dat/meta/README.md 404 || ok=1
+          exit $ok
 
   deploy-auth-worker:
     # 鉴权网关 styrigx-auth-gateway：main 上真部署。先于 Pages 部署（Pages 只放静态文件，靠网关验会话）。
