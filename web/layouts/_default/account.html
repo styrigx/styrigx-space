@@ -27,7 +27,7 @@
        account.js 再按同一个属性接手；只有服务端说「未登录」才出现「欢迎回来」，不再先画登录区再换成总览。 -->
 {{ "<!-- SGX-ACCT-LOGIN-START -->" | safeHTML }}
   <div id="acct-login" class="acct-login" hidden>
-    <div class="acct-brand" aria-hidden="true"><span class="acct-brand-name">Styrigx</span><span class="acct-brand-tag">A Personal<br>Digital Space</span></div>
+    <div class="acct-brand" aria-hidden="true"><span class="acct-brand-name">{{ partial "shell-wordmark.html" . }}</span><span class="acct-brand-tag">A Personal<br>Digital Space</span></div>
     <div class="acct-login-hero animate-fade-up">
       <img class="acct-login-avatar" src="/avatar/192.webp" data-sgx-avatar="192" width="96" height="96" alt="">
       <p class="acct-login-welcome">{{ if $isEn }}Welcome back{{ else }}欢迎回来{{ end }}</p>

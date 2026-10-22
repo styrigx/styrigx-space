@@ -105,7 +105,7 @@ test.describe('账号登录', () => {
     const gb = await page.locator('.acct-glass').boundingBox();
     const vp = page.viewportSize();
     expect(gb && vp && Math.round(gb.width) === vp.width && Math.round(gb.height) === vp.height).toBe(true);
-    await expect(page.locator('.acct-brand-name')).toHaveText('Styrigx');
+    await expect(page.locator('.acct-brand-name .sgx-wordmark')).toHaveAttribute('aria-label', 'Styrigx');
     await expect(page.locator('.acct-login-sub')).toHaveText('记录 · 收藏 · 探索 · 享受');
     await expect(page.locator('.acct-login-foot-list')).toHaveText('MOBILE · DEX · SPACE · CURIO · BLOG · DAYMARK');
   });
