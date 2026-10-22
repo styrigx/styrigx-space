@@ -16,6 +16,7 @@ import * as lockStatus from '../functions/api/lock-status.js';
 import * as lockreset from '../functions/api/lockreset.js';
 import * as ownerPasskey from '../functions/api/owner-passkey.js';
 import * as ownerPassword from '../functions/api/owner-password.js';
+import * as prefs from '../functions/api/prefs.js';
 import * as rootAudit from '../functions/api/root-audit.js';
 import * as rootAuth from '../functions/api/root-auth.js';
 import * as rootSession from '../functions/api/root-session.js';
@@ -38,6 +39,7 @@ export const API_ROUTES = new Map([
   ['/api/lockreset', lockreset],
   ['/api/owner-passkey', ownerPasskey],
   ['/api/owner-password', ownerPassword],
+  ['/api/prefs', prefs],
   ['/api/root-audit', rootAudit],
   ['/api/root-auth', rootAuth],
   ['/api/root-session', rootSession],

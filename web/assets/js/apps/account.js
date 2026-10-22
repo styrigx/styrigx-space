@@ -16,6 +16,8 @@
  *   「欢迎回来」只在服务端说未登录时出现：属性 out、或 /api/account 明确 session=null。
  *   属性 in 而 /api/account 读不到（访客 401 / 网络）→ 保持总览，不退回登录区。
  */
+import { initCloudSync, syncEnabled, SWITCH_KEY, LAST_KEY, AUTH_KEY } from '../lib/cloud-sync.js';
+import { get as sget, set as sset } from '../lib/storage.js';
 import { on } from '../lib/events.js';
 import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
 import { tapFeedback, bindSubmitButton } from '../lib/dialog-behavior.js';
@@ -31,6 +33,43 @@ import { accountSubmitters, visibleKinds } from './account-methods.js';
     const el = document.getElementById('acct-dev-sub');
     if (el) el.textContent = (j && j.session && j.session.device) || t('devThis');
   }
+
+  /* ===== 云同步一行（开关；lib/cloud-sync.js 做实际同步） ===== */
+  function fillSync() {
+    const sw = document.getElementById('acct-sync-sw');
+    const sub = document.getElementById('acct-sync-sub');
+    const on = syncEnabled();
+    if (sw) sw.setAttribute('aria-checked', on ? 'true' : 'false');
+    if (!sub) return;
+    if (!on) { sub.textContent = t('syncOff'); return; }
+    const last = parseInt(sget(LAST_KEY) || '0', 10) || 0;
+    if (!last) { sub.textContent = t('syncOn'); return; }
+    const d = new Date(last);
+    const pad = function (n) { return (n < 10 ? '0' : '') + n; };
+    const today = new Date().toDateString() === d.toDateString();
+    const when = (today ? '' : (d.getMonth() + 1) + (en ? '/' : '月') + d.getDate() + (en ? ' ' : '日 ')) + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    sub.textContent = t('syncLast') + when;
+  }
+  /** 登录了账号的总览：清掉「没登录账号」标记，立刻同步一次 */
+  function startSync() {
+    sset(AUTH_KEY, 'in');
+    fillSync();
+    if (syncEnabled()) initCloudSync({ force: true }).then(fillSync, fillSync);
+  }
+  (function bindSync() {
+    const row = document.getElementById('acct-sync-row');
+    if (!row) return;
+    const toggle = function () {
+      const on = !syncEnabled();
+      sset(SWITCH_KEY, on ? null : '0');
+      fillSync();
+      if (on) initCloudSync({ force: true }).then(fillSync, fillSync);
+    };
+    row.addEventListener('click', toggle);
+    row.addEventListener('keydown', function (/** @type {KeyboardEvent} */ e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+    });
+  })();
   /** @param {string} id */
   function $(id) {
     return document.getElementById(id);
@@ -71,6 +110,7 @@ import { accountSubmitters, visibleKinds } from './account-methods.js';
         const secSub = $('acct-sec-sub');
         if (secSub) secSub.textContent = (j.password || j.passkey) ? t('secProtected') : t('secUnprotected');
         fillDevSub(j);
+        startSync();
         const PKC = /** @type {any} */ (window).PublicKeyCredential;
         if (PKC && typeof PKC.signalCurrentUserDetails === 'function') {
           postJSON(ACCOUNT_API, { action: 'list' }).then(function (res) {
@@ -254,6 +294,7 @@ import { accountSubmitters, visibleKinds } from './account-methods.js';
     const secSub = $('acct-sec-sub');
     if (secSub) secSub.textContent = (j.password || j.passkey) ? t('secProtected') : t('secUnprotected');
     fillDevSub(j);
+    startSync();
     loginEl.hidden = true;
     mainEl.hidden = false;
     maybeSignalName();

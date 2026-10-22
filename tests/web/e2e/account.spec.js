@@ -773,3 +773,28 @@ test.describe('设备子页（2026-10-22）', () => {
     await expect(page.locator('#acct-login')).toBeVisible();
   });
 });
+
+test.describe('云同步一行（2026-10-22）', () => {
+  test.beforeEach(async ({ page }) => { await zh(page); });
+
+  test('在安全与隐私下面；默认开，点一下关（sgx-cloud-sync=0），再点打开', async ({ page }) => {
+    await mockAccount(page, {
+      status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }),
+      handlers: { list: [200, { ok: true, keys: [] }] },
+    });
+    await page.goto('/settings/account/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#acct-main')).toBeVisible();
+    const ids = await page.locator('#acct-main section .set-row').evaluateAll((els) => els.map((e) => e.id));
+    expect(ids).toEqual(['acct-dev-row', 'acct-sec-row', 'acct-sync-row']);
+    const sw = page.locator('#acct-sync-sw');
+    await expect(sw).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator('#acct-sync-sub')).toHaveText('已开启，设置在登录的设备间同步');
+    await page.locator('#acct-sync-row').click();
+    await expect(sw).toHaveAttribute('aria-checked', 'false');
+    await expect(page.locator('#acct-sync-sub')).toHaveText('已关闭，设置只存在此设备');
+    expect(await page.evaluate(() => localStorage.getItem('sgx-cloud-sync'))).toBe('0');
+    await page.locator('#acct-sync-row').click();
+    await expect(sw).toHaveAttribute('aria-checked', 'true');
+    expect(await page.evaluate(() => localStorage.getItem('sgx-cloud-sync'))).toBe(null);
+  });
+});

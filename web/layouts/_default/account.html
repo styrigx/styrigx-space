@@ -50,7 +50,7 @@
 {{ "<!-- SGX-ACCT-LOGIN-END -->" | safeHTML }}
 
   <!-- 账号总览（登录后，三星账号式）：账号卡（名字 + 头像，主人可换头像；点卡片其余地方进「已登录」子页）
-       → 一组：设备（登录过的设备，可单独退出）/ 安全与隐私 -->
+       → 一组：设备（登录过的设备，可单独退出）/ 安全与隐私 / 云同步（开关，设置项跨设备同步，lib/cloud-sync.js） -->
   <div id="acct-main" hidden>
     {{ partial "sgx-account-card.html" . }}
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.12s" aria-label="{{ if $isEn }}Account settings{{ else }}账号设置{{ end }}">
@@ -70,6 +70,14 @@
         </span>
         {{ partial "icon.html" "chev-r" }}
       </a>
+      <div class="set-row" id="acct-sync-row" role="button" tabindex="0">
+        <span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "cloud" }}</span>
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}Cloud sync{{ else }}云同步{{ end }}</span>
+          <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="acct-sync-sub"></span>
+        </span>
+        <span class="switch" id="acct-sync-sw" role="switch" aria-checked="false" aria-label="{{ if $isEn }}Cloud sync{{ else }}云同步{{ end }}"><span class="knob"></span></span>
+      </div>
     </section>
     <p class="sec-note mt-6 sgx-build-tag-wrap">{{ partial "build-tag.html" (dict "isEn" $isEn) }}</p>
   </div>
