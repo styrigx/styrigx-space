@@ -163,8 +163,8 @@ test.describe('聊天页（手机 412×915）', () => {
     expect(calls[1].body.messages.map((x) => x.role)).toEqual(['user', 'model', 'user']);
     expect(calls[1].body.messages[1].text).toContain('**v0.168.0**');
     /* sessionStorage 里有；刷新后还在 */
-    const stored = await page.evaluate(() => JSON.parse(sessionStorage.getItem('sgx-chat-convo') || 'null'));
-    expect(stored.msgs.length).toBe(4);
+    /* 第二条回答流完（done）才写进 sessionStorage：轮询等它，别在流式中途读 */
+    await expect.poll(() => page.evaluate(() => (JSON.parse(sessionStorage.getItem('sgx-chat-convo') || 'null') || { msgs: [] }).msgs.length)).toBe(4);
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(page.locator('.chat-msg[data-role="model"]')).toHaveCount(2);
     await expect(page.locator('.chat-msg[data-role="model"]').first().locator('.chat-src')).toHaveCount(2);

@@ -84,6 +84,11 @@ workers/
 │  ├─ wrangler.toml
 │  ├─ package.json
 │  └─ src/
+├─ chat/
+│  ├─ wrangler.toml
+│  ├─ package.json
+│  ├─ README.md
+│  └─ src/
 └─ proxy-rules/
    ├─ wrangler.toml
    ├─ package.json
@@ -97,6 +102,7 @@ workers/
 |---|---|---|
 | `styrigx-auth-gateway` | `workers/auth-gateway/` | 主站全部后端：签发和校验会话、二次验证、应用通行证、全部接口、头像；`/api/*`、`/avatar/*` 和全部页面先过它，页面验完回源 Pages 取静态文件；blog、book 子站的页面也由它验会话（`src/subsites.js`）；所有公私钥只在这里（Secrets Store） |
 | `styrigx-search-index` | `workers/search-index/` | 全站搜索：没有公开地址，只经网关的服务绑定 `SEARCH` 进来（`/api/search` 先验会话）；索引在 KV `styrigx-search-index` |
+| `styrigx-chat` | `workers/chat/` | 聊天后端（2026-10-22 从网关拆出来）：没有公开地址，只经网关的服务绑定 `CHAT` 进来（`/api/chat` 先验同源 + 会话 + 只许站长，回答原样流回）；转给 Gemini（或 OpenAI 兼容接口），不存对话；钥匙 `SGX_CHAT_API_KEY`（Secrets Store）和 `CHAT_*` 变量只在这里 |
 | `styrigx-proxy-rules` | `workers/proxy-rules/` | 规则集加速反代：`proxy-rules.styrigx.com`（自定义域名，不过网关），只放行 MetaCubeX/meta-rules-dat 的 geosite/geoip 规则集（`.mrs` `.yaml` `.list`），上游 jsDelivr → raw.githubusercontent，边缘缓存 24 小时 |
 
 路由登记：现在只有一个 Worker，它的 `wrangler.toml` 里的 `[[routes]]` 就是登记表。2026-10-21 起三站都是整站通配（`styrigx.com/*`、`blog.styrigx.com/*`、`daymark.styrigx.com/*`）：Cloudflare 不带 `*` 的规则遇到查询串不命中，以前 `styrigx.com/?lock=1&return=…`（锁屏入口）和子站首页带查询串都绕过了网关。静态资源（`/css/` `/js/` `/fonts/` `/fav/` `/images/`、子站静态后缀）进 Worker 后第一行原样回源，不验会话、不打 `X-SGX-Runtime`。
@@ -114,6 +120,7 @@ tests/
 ├─ workers/
 │  ├─ auth-gateway/
 │  ├─ search-index/
+│  ├─ chat/
 │  └─ proxy-rules/
 └─ fixtures/
 ```
@@ -125,6 +132,7 @@ tests/
 | `web/ui/` | 前端单元测试（`node --test`） |
 | `workers/auth-gateway/` | 鉴权单元测试（`node --test`） |
 | `workers/search-index/` | 全站搜索单元测试 |
+| `workers/chat/` | 聊天 Worker 单元测试（网关那边的门和转发在 `workers/auth-gateway/chat-api.test.mjs`） |
 | `workers/proxy-rules/` | 规则集反代单元测试 |
 | `fixtures/` | 测试用固定数据 |
 

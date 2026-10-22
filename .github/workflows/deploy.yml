@@ -70,12 +70,16 @@ jobs:
         # 全部 tests/workers/auth-gateway、tests/web/ui 单元测试；新加的测试文件自动纳入，不用再改这里。
         # 覆盖：会话 / cookie / epoch、锁屏门（door）、认证入口、
         # 访客 401、根凭证 userHandle、最后一把钥匙、sitemap、i18n、页内导航、数字健康等
-        run: node --test tests/workers/auth-gateway/*.test.mjs tests/workers/search-index/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs tests/web/ui/*.test.mjs
+        run: node --test tests/workers/auth-gateway/*.test.mjs tests/workers/chat/*.test.mjs tests/workers/search-index/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs tests/web/ui/*.test.mjs
 
       - name: Auth Worker bundle check (styrigx-auth-gateway, dry-run)
         # 主站后端代码全在 workers/auth-gateway（src/ + functions/）；这里只打包不部署，import 断了 CI 就红。
         working-directory: workers/auth-gateway
         run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/styrigx-auth-gateway-dist
+
+      - name: Chat Worker bundle check (styrigx-chat, dry-run)
+        working-directory: workers/chat
+        run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/styrigx-chat-dist
 
       - name: Search Worker bundle check (styrigx-search-index, dry-run)
         working-directory: workers/search-index
@@ -529,6 +533,59 @@ jobs:
           wranglerVersion: '4'
           command: deploy
 
+  deploy-chat-worker:
+    # 聊天 styrigx-chat（workers/chat，2026-10-22 从网关拆出来）：先于网关部署（网关的服务绑定 CHAT 指向它，它不在就部署不了）。
+    # 没有公开地址（workers_dev=false、preview_urls=false、没有路由），只能从网关 /api/chat 进（网关先验同源 + 会话 + 只许站长）。
+    # 钥匙：Secrets Store 的 SGX_CHAT_API_KEY 只绑在这里（网关不绑）。Cloudflare 部署时会核对 Secrets Store 绑定，
+    # 密钥还没建 → 第一步部署失败；这时退一步部署不带钥匙绑定的同一份代码（从第一个 [[secrets_store_secrets]] 删到文件末尾），
+    # 聊天回 503 no_key，job 仍然成功，网关和 Pages 照常部署。建好密钥后下一次部署自动带上绑定。
+    # 两步都失败（代码 / token 问题）→ job 红，网关不部署（它的服务绑定指向的 Worker 可能还不存在）。
+    # token：Cloudflare 上 styrigx-chat-deploy = GitHub 环境 STYRIGX_CHAT_DEPLOY 里的同名环境密钥 STYRIGX_CHAT_DEPLOY，
+    # 权限 Workers Scripts 编辑 + Secrets Store 编辑（带 Secrets Store 绑定部署必须 Edit，Read 报 10021，同鉴权网关）
+    # + Account Settings 读取；没有路由，不需要 Workers Routes 权限。环境只允许 main。
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: quality
+    runs-on: ubuntu-latest
+    environment: STYRIGX_CHAT_DEPLOY
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Deploy chat Worker (styrigx-chat)
+        id: deploy_chat
+        continue-on-error: true
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.STYRIGX_CHAT_DEPLOY }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/chat
+          wranglerVersion: '4'
+          command: deploy
+
+      - name: Prepare keyless config (fallback)
+        if: steps.deploy_chat.outcome == 'failure'
+        working-directory: workers/chat
+        run: |
+          echo "::warning::styrigx-chat deploy failed (SGX_CHAT_API_KEY missing in Secrets Store?); deploying without the key binding, /api/chat will answer 503 no_key"
+          sed '/^\[\[secrets_store_secrets\]\]/,$d' wrangler.toml > wrangler.nokey.toml
+          if grep -q "secrets_store_secrets" wrangler.nokey.toml; then echo "::error::keyless config still has a Secrets Store binding"; exit 1; fi
+          grep -q '^name = "styrigx-chat"$' wrangler.nokey.toml
+
+      - name: Deploy chat Worker without key binding (fallback)
+        if: steps.deploy_chat.outcome == 'failure'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.STYRIGX_CHAT_DEPLOY }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/chat
+          wranglerVersion: '4'
+          command: deploy --config wrangler.nokey.toml
+
   deploy-proxy-rules-worker:
     # 规则集反代 styrigx-proxy-rules（workers/proxy-rules）：独立部署，不等也不挡网关和 Pages。
     # 公开地址只有自定义域名 proxy-rules.styrigx.com（wrangler.toml 的 routes，custom_domain）。
@@ -582,6 +639,7 @@ jobs:
     # 鉴权网关 styrigx-auth-gateway：main 上真部署。先于 Pages 部署（Pages 只放静态文件，靠网关验会话）。
     # 路由见 workers/auth-gateway/wrangler.toml（/api/*、/avatar/* 和全部页面目录）；workers_dev=false。部署后自动冒烟检查线上。
     # Pages 部署（build-and-deploy）等这里成功后才开始。
+    # 服务绑定指向的 Worker 要先在：needs 里的 deploy-search-worker / deploy-status-worker / deploy-chat-worker 先部署。
     # 密钥全在 Secrets Store，CI 不传任何密值。
     # 用专门的 token（GitHub 环境密钥 STYRIGX_AUTH_GATEWAY_DEPLOY，名字对应 Cloudflare 上的
     # styrigx-auth-gateway-deploy）：Workers Scripts 编辑 + Secrets Store 编辑（带 Secrets Store 绑定部署必须 Edit，Read 报 10021）
@@ -589,7 +647,7 @@ jobs:
     # 这把 token 放在 GitHub 环境 STYRIGX_AUTH_GATEWAY_DEPLOY（与密钥同名）的环境密钥里，该环境只允许 main 分支部署：
     # 其他分支即使改了工作流也拿不到它。
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    needs: [quality, deploy-search-worker, deploy-status-worker]
+    needs: [quality, deploy-search-worker, deploy-status-worker, deploy-chat-worker]
     runs-on: ubuntu-latest
     environment: STYRIGX_AUTH_GATEWAY_DEPLOY
     steps:
@@ -636,6 +694,8 @@ jobs:
           check 'https://blog.styrigx.com/api/search?q=a' 401 || ok=1
           # 站点监测：没会话 401
           check /api/status 401 || ok=1
+          # 聊天：没会话 401（网关先拦，不进 styrigx-chat）
+          check /api/chat 401 || ok=1
           # 未登录访问不存在的接口：middleware 先拦（默认拒绝），返回 401 而不是 404，这是预期。
           check /api/no-such-endpoint 401 || ok=1
           # 页面：网关验会话后回源 Pages。首页未登录照常 200（锁屏），内页未登录 302 到锁屏
