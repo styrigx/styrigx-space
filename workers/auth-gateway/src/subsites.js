@@ -5,6 +5,7 @@
  *   - 会话有效（owner 或 visitor，与主站同一套 verifySessionDetailed：验签 + exp + epoch）→ 回源取页面，
  *     HTML 加 private, no-store（防锁定后切回标签页看到缓存的旧页面）
  *   - 会话无效：页面 302 到主站锁屏（?lock=1&why=…&return=原地址），/api/* 回 401 JSON（fetch 不跟跳转）
+ *   - /api/search：全站搜索，和主站同一个处理（functions/api/search.js）
  *   - /api/session-check：子站前端切回标签页时问的，网关直接回答（blog 认 204，daymark、curio 认 200 {ok:true}）
  *   - 静态资源后缀（被页面路由顺带覆盖到的 js/css/字体/图片）直接回源，不验会话，与原子站白名单一致
  *
@@ -12,6 +13,7 @@
  * 主人专属的操作（daymark 记句子、curio 改收藏 / 导入）由子站自己的接口 Worker 再问网关（服务绑定 SessionVerifier）。
  */
 import { verifySessionDetailed } from '../functions/_middleware.js';
+import * as searchApi from '../functions/api/search.js';
 
 const MAIN_ORIGIN = 'https://styrigx.com';
 
@@ -104,6 +106,12 @@ export async function handleSubsite(request, env, origin) {
       return json(200, { ok: true });
     }
     return json(401, { ok: false, why: sess.reason === 'no-cookie' ? 'no-cookie' : 'invalid-session' });
+  }
+
+  /* 全站搜索：子站也问网关（functions/api/search.js 自己验会话，再转 styrigx-search-index） */
+  if (path === '/api/search') {
+    if (request.method !== 'GET') return json(405, { ok: false, error: 'method' });
+    return searchApi.onRequestGet({ request, env });
   }
 
   if (isStaticAsset(path)) return origin(request);

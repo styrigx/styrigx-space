@@ -23,6 +23,15 @@ const MAX_ITEMS = 80;
 const MAX_VALUE = 600;
 const SKEW_MS = 60 * 1000;
 
+
+/**
+ * 云同步存在账号资料库 styrigx-account（ACCOUNT_KV，2026-10-22 分库）；没绑时退回 OWNER_KV（本地 / 旧预览）。
+ * @param {any} env
+ */
+function prefsKv(env) {
+  return (env && (env.ACCOUNT_KV || env.OWNER_KV)) || null;
+}
+
 /** @param {object} body @param {number} [status] */
 function json(body, status) {
   return Response.json(body, { status: status || 200, headers: { 'Cache-Control': 'no-store' } });
@@ -34,7 +43,7 @@ async function gate(request, env) {
   if (!sess.ok || sess.role !== ROLE_OWNER) return json({ ok: false, error: 'session' }, 401);
   const acc = await verifyAccountCookie(request, env);
   if (!acc.ok) return json({ ok: false, error: 'account', reason: acc.reason }, 401);
-  if (!(env && env.OWNER_KV)) return json({ ok: false, error: 'config' }, 500);
+  if (!prefsKv(env)) return json({ ok: false, error: 'config' }, 500);
   return null;
 }
 
@@ -97,7 +106,7 @@ export async function onRequestGet(context) {
     const g = await gate(request, env);
     if (g) return g;
     let p;
-    try { p = await readPrefs(env.OWNER_KV); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
+    try { p = await readPrefs(prefsKv(env)); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
     return json({ ok: true, items: p.items, updatedAt: p.updatedAt });
   } catch (e) {
     return json({ ok: false, error: 'server' }, 500);
@@ -116,7 +125,7 @@ export async function onRequestPost(context) {
     try { body = await request.json(); } catch (e) { return json({ ok: false, error: 'body' }, 400); }
     const now = Date.now();
     const changes = cleanChanges(body && body.changes, now);
-    const kv = env.OWNER_KV;
+    const kv = prefsKv(env);
     let p;
     try { p = await readPrefs(kv); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
     const items = Object.assign({}, p.items);

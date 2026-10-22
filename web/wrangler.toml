@@ -22,11 +22,15 @@ SGX_RP_ID = "passkey-e2e.styrigx-space.pages.dev"
 SGX_SITE = "space"
 SGX_STEPUP_PUBLIC = "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA0B4XJGA9BSblvgF7KOAT7Jbp2zUMFR9PfDxKpUdxqIY=\n-----END PUBLIC KEY-----\n"
 
-# preview KV 绑定（styrigx-owner-test_preview）
+# preview KV 绑定（styrigx-auth-gateway-preview，原 styrigx-owner-test_preview；styrigx-account-preview）
 [env.preview]
 [[env.preview.kv_namespaces]]
 binding = "OWNER_KV"
 id = "5084ea8ef2444156ba48203220b93df6"
+
+[[env.preview.kv_namespaces]]
+binding = "ACCOUNT_KV"
+id = "a5ee2a75f00d4308959b2bea55247ff6"
 
 # preview D1 绑定（styrigx-sgx-preview：只给预览用的空库；绝不指向正式库 styrigx-sgx）
 # 迁移文件和网关放在一起：workers/auth-gateway/migrations/

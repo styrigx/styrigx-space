@@ -70,12 +70,16 @@ jobs:
         # 全部 tests/workers/auth-gateway、tests/web/ui 单元测试；新加的测试文件自动纳入，不用再改这里。
         # 覆盖：会话 / cookie / epoch、锁屏门（door）、认证入口、
         # 访客 401、根凭证 userHandle、最后一把钥匙、sitemap、i18n、页内导航、数字健康等
-        run: node --test tests/workers/auth-gateway/*.test.mjs tests/web/ui/*.test.mjs
+        run: node --test tests/workers/auth-gateway/*.test.mjs tests/workers/search-index/*.test.mjs tests/web/ui/*.test.mjs
 
       - name: Auth Worker bundle check (styrigx-auth-gateway, dry-run)
         # 主站后端代码全在 workers/auth-gateway（src/ + functions/）；这里只打包不部署，import 断了 CI 就红。
         working-directory: workers/auth-gateway
         run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/styrigx-auth-gateway-dist
+
+      - name: Search Worker bundle check (styrigx-search-index, dry-run)
+        working-directory: workers/search-index
+        run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/styrigx-search-dist
 
       - name: Shared shell in sync (web/shared/shell ← palette-roles / input.css @shell / shell-nav)
         # 子站（blog / daymark）用 scripts/sync-shell.mjs 从这里同步外壳；改了源头忘了重新生成 → 红
@@ -448,6 +452,63 @@ jobs:
           echo "styrigx.com /settings/ -> $code runtime=${rt:-none}"
           [ "$code" = "302" ] && [ "$rt" = "worker" ] || { echo "::error::/settings/ not locked by the gateway"; exit 1; }
 
+  deploy-search-worker:
+    # 全站搜索 styrigx-search-index（workers/search-index）：先于网关部署（网关的服务绑定 SEARCH 指向它，它不在就部署不了）。
+    # 没有公开地址（workers_dev=false、没有路由），只能从网关 /api/search 进。
+    # 部署后把主站索引写进 KV styrigx-search-index 的 site:space（scripts/build-search-index.mjs，要先构建网站）。
+    # token：Cloudflare 上 styrigx-search-index-deploy = GitHub 环境 STYRIGX_SEARCH_INDEX_DEPLOY 里的同名密钥，
+    # 权限 Workers Scripts 编辑 + Workers KV Storage 编辑 + Account Settings 读取；环境只允许 main。
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: quality
+    runs-on: ubuntu-latest
+    environment: STYRIGX_SEARCH_INDEX_DEPLOY
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: ${{ env.HUGO_VERSION }}
+          extended: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate blog posts data
+        run: node scripts/gen-posts-json.mjs
+        env:
+          BLOG_TOKEN: ${{ secrets.BLOG_READ_TOKEN || github.token }}
+
+      - name: Build site (for the search index)
+        run: node scripts/build-css.cjs --minify && hugo --minify -s web
+
+      - name: Build search index (site:space)
+        run: node scripts/build-search-index.mjs --out "$RUNNER_TEMP/search-space.json"
+
+      - name: Deploy search Worker (styrigx-search-index)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.STYRIGX_SEARCH_INDEX_DEPLOY }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/search-index
+          wranglerVersion: '4'
+          command: deploy
+
+      - name: Upload search index to KV
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.STYRIGX_SEARCH_INDEX_DEPLOY }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/search-index
+          wranglerVersion: '4'
+          command: kv key put site:space --path=${{ runner.temp }}/search-space.json --binding=SEARCH_KV --remote
+
   deploy-auth-worker:
     # 鉴权网关 styrigx-auth-gateway：main 上真部署。先于 Pages 部署（Pages 只放静态文件，靠网关验会话）。
     # 路由见 workers/auth-gateway/wrangler.toml（/api/*、/avatar/* 和全部页面目录）；workers_dev=false。部署后自动冒烟检查线上。
@@ -459,7 +520,7 @@ jobs:
     # 这把 token 放在 GitHub 环境 STYRIGX_AUTH_GATEWAY_DEPLOY（与密钥同名）的环境密钥里，该环境只允许 main 分支部署：
     # 其他分支即使改了工作流也拿不到它。
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    needs: quality
+    needs: [quality, deploy-search-worker]
     runs-on: ubuntu-latest
     environment: STYRIGX_AUTH_GATEWAY_DEPLOY
     steps:
@@ -501,6 +562,9 @@ jobs:
           ok=0
           check /api/geo 200 || ok=1
           check /api/session-check 401 || ok=1
+          # 全站搜索：没会话 401（网关先拦），子站同样
+          check '/api/search?q=a' 401 || ok=1
+          check 'https://blog.styrigx.com/api/search?q=a' 401 || ok=1
           # 未登录访问不存在的接口：middleware 先拦（默认拒绝），返回 401 而不是 404，这是预期。
           check /api/no-such-endpoint 401 || ok=1
           # 页面：网关验会话后回源 Pages。首页未登录照常 200（锁屏），内页未登录 302 到锁屏
