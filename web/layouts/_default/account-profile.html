@@ -6,7 +6,7 @@
 {{ .Scratch.Set "sgx-entry" "entry-account-profile.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 
-<div class="acct-layout max-w-2xl mx-auto px-4 pb-28">
+<div class="acct-layout pb-28">
   <div id="acct-profile" hidden>
     <h2 class="acct-gh"><span class="acct-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Signed in{{ else }}已登录{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.1s">

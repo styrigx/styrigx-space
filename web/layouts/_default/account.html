@@ -14,7 +14,7 @@
 {{ .Scratch.Set "sgx-entry" "entry-account.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 
-<div class="acct-layout max-w-2xl mx-auto px-4 pb-28">
+<div class="acct-layout pb-28">
 
   <!-- 账号登录（PR3）：页名「登录账号」只在顶栏长条里（JS 按状态改），正文不再重复大标题、不放盾牌图标和构建号。
        头像 + 「欢迎回来」→ 主按钮「通行密钥登录」（强调色）→ 次按钮「密码登录」（原地展开密码框）→ 小字「无法登录？」进重置登录。

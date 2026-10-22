@@ -336,6 +336,22 @@ test('懒加载：页面入口里没有搜索层代码；按下九宫格才取',
   await expect.poll(() => reqs.length).toBe(1);
 });
 
+/* 2026-10-23 PR-D：< 840 宽底栏左右缘对齐外壳框（= 顶栏两侧圆外缘）：手机 16px 页边距，宽竖屏 Mobile 跟 640 框 */
+for (const [w, h] of [[412, 915], [768, 1024]]) {
+  test(`${w}×${h}：底栏左右缘 = 顶栏左右缘`, async ({ page }) => {
+    await page.setViewportSize({ width: w, height: h });
+    await go(page, '/');
+    await openFromDrawer(page);
+    const m = await page.evaluate(() => {
+      const b = document.querySelector('.sgx-srch-bar').getBoundingClientRect();
+      const t = document.querySelector('.sgx-topbar').getBoundingClientRect();
+      return { bl: b.left, br: b.right, tl: t.left, tr: t.right };
+    });
+    expect(Math.abs(m.bl - m.tl), `左 ${m.bl} / ${m.tl}`).toBeLessThanOrEqual(1);
+    expect(Math.abs(m.br - m.tr), `右 ${m.br} / ${m.tr}`).toBeLessThanOrEqual(1);
+  });
+}
+
 test('桌面（1280）：底栏 560px 居中，结果列最宽 640 居中', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await go(page, '/');

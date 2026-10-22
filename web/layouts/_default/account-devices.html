@@ -9,7 +9,7 @@
 {{ .Scratch.Set "sgx-entry" "entry-account-devices.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 
-<div class="acct-layout max-w-2xl mx-auto px-4 pb-28">
+<div class="acct-layout pb-28">
   <div id="acct-devices" hidden>
     <h3 class="acct-dev-h">{{ if $isEn }}This device{{ else }}此设备{{ end }}</h3>
     <section class="widget bg-m-container-lowest border border-m-outline mb-6 overflow-hidden animate-fade-up" style="animation-delay:.08s">

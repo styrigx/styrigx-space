@@ -212,6 +212,10 @@ const README = `# web/shared/shell（生成物，勿手改）
 - 头像不在顶栏了：抽屉头 = 字标 + 右边的头像圆（\`<a class="sgx-drawer-me" href="{nav.me.href}"><img src="{nav.me.avatar}" alt=""></a>\`，52px，垂直居中）。
   主站链到账号页；子站用 nav.json 的 \`me.href\`（默认 https://styrigx.com/）和 \`me.avatar\`，aria-label 用 \`me.zh / me.en\`。
 - 旧的 \`.sgx-tb-me\`（顶栏头像圆）、\`.sgx-tb-ic\`（长条里的图标）样式已从共享外壳删掉，子站同步时一起换新结构。
+- 尺寸体系（2026-10-23）：\`--sgx-page-m\`（左右页边距：< 600 宽 16px，≥ 600 宽 clamp(16px, 5.333px + 2.2222vw, 48px)）、
+  \`--sgx-tb-btn\`（圆按钮 52 → 56）、\`--sgx-tb-gap\`（8 → 12）、\`--sgx-content-max\`（外壳框最宽，默认 1068，本站可改）、
+  \`--sgx-shell-w\` = min(100% − 2 × 页边距, 最宽)。顶栏 = 这个框（left / right 0 + margin auto + width，不用 transform），两侧圆外缘 = 框边；
+  子站自己的页面外框用 \`width: var(--sgx-shell-w); margin: 0 auto\` 就和顶栏对齐。< 840 宽的底部搜索栏也对齐这个框。
 
 ## 搜索层（search.js + shell.css 的 search 段）
 

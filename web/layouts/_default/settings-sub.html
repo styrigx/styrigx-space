@@ -11,7 +11,7 @@
 {{ range site.Data.features.features }}{{ $featMap = merge $featMap (dict .id .) }}{{ end }}
 {{ $palettes := site.Data.palettes.palettes }}
 
-<div class="set-layout max-w-2xl mx-auto px-4 pb-28">
+<div class="set-layout pb-28">
   <div class="set-main min-w-0">
     {{ partial (printf "setcat-%s.html" $cat) (dict "isEn" $isEn "featMap" $featMap "palettes" $palettes) }}
   </div>

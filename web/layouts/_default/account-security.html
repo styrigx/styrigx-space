@@ -10,7 +10,7 @@
 {{ .Scratch.Set "sgx-entry" "entry-account-security.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 
-<div class="acct-layout max-w-2xl mx-auto px-4 pb-28">
+<div class="acct-layout pb-28">
 
   <!-- 门：每次进页验一次账号凭证（JS 渲染验证行，设了哪个显示哪个；下面「无法登录？」进重置登录） -->
   <div id="acct-door" hidden>

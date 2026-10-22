@@ -10,7 +10,7 @@
    必须用 safeHTML 输出：Go 的 html/template 会删掉模板里的 HTML 注释，以前这两个标记根本没进页面，
    锁屏态也整份下发了桌面（2026-10-21 查到）。解锁后前端换到干净地址重新取页面（lock.js proceed）。 */}}
 {{ "<!-- SGX-DESKTOP-START -->" | safeHTML }}
-<div class="home-wrap max-w-[1100px] mx-auto px-4">
+<div class="home-wrap">
 
   <!-- 小组件网格 -->
   <div id="home-widgets" class="grid grid-cols-4 lg:grid-cols-8 gap-3">

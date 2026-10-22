@@ -4,7 +4,7 @@
   "dir": "web/shared/shell",
   "files": {
     "tokens.css": "4fab2634c833c36d59fa5fb8731053efee26249cdef7f797eac756e6ac76623e",
-    "shell.css": "d6b5cf5125a2e8089d540d308264b007717d71f8fb59fe34311e98008959b25c",
+    "shell.css": "27015ff88e94aff5a13864350d37cb12b7963ac8046dde294ca63355f5c16330",
     "palette-scheme.js": "ab6d347b23dc2f062f3b7ca5ae1b94543e898864a8f669972e8720d2729c50c4",
     "search.js": "d9b091a8cbcf675054e4fcb8ca52dfa7630f9e0bfbdb8a417ab8aafe03973ee8",
     "nav.json": "373f01b51847f96e9e77690be94c5db1453ba5927500e53542f42e73cfd69964",
@@ -13,7 +13,7 @@
     "ui-cookie-contract.json": "c9034a3fbea2f083349fd69e58c9d6f5391ab092df1e11d2ad759b83a957c8fd",
     "favicon.js": "413b7d6098cb3b611ce1eeaeb0f5562896b8caa6e0984b16f5ce9b7c3ff5ad41",
     "favicon.svg": "368c680c7554c6cde7f6d374057011a80c564cc08eb5cd3f31af5a4dbc580f07",
-    "README.md": "679086643e740a01489f77586a9b0a854d7e4498600cd47ef6b1fd9922107e5b"
+    "README.md": "d00ade3c006533647168f7e5ecda9964f867a68222519e3fd49db9ed10c4a187"
   },
-  "version": "95d4b9c74b88"
+  "version": "61ffee8b0541"
 }

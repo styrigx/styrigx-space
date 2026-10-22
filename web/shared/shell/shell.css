@@ -6,11 +6,19 @@
    右圆是唯一按站点自定义的位置（主站 = 快捷面板按钮；子站自己放），样式统一在这里。头像在导航抽屉头（见 drawer 段 .sgx-drawer-me）。 */
 /* 顶栏尺寸 token：页边距、圆按钮直径、间距、长条内图标点击区直径（--sgx-tb-ic：长条里已经不放图标，只留给抽屉宽度公式用）。手机竖屏导航抽屉宽度也由它们算，改这里两边一起跟着变 */
 :root { --sgx-tb-inset: 16px; --sgx-tb-btn: 52px; --sgx-tb-gap: 8px; --sgx-tb-ic: 40px; }
-.sgx-topbar { position: fixed; top: calc(var(--sgx-tb-inset) + env(safe-area-inset-top, 0px)); left: var(--sgx-tb-inset); right: var(--sgx-tb-inset);
-  height: var(--sgx-tb-btn); z-index: 55; display: flex; align-items: center; gap: var(--sgx-tb-gap); pointer-events: none; }
-@media (min-width: 980px) {
-  .sgx-topbar { left: 50%; right: auto; transform: translateX(-50%); width: min(calc(100vw - 32px), 1068px); }
+/* 尺寸体系（2026-10-23 PR-D）：间距 / 页边距按 8 的倍数，组件允许 4px 子网格；宽度之间用 clamp() 连续插值，断点只用来切换模式 / 列数。
+   --sgx-page-m：左右页边距（手机 < 600px 固定 16px；≥ 600px 从 840 宽 24px 线性到 1920 宽 48px，两头封顶）。
+   --sgx-tb-btn / --sgx-tb-gap：圆按钮直径 / 间距，600 宽 52 / 8 线性到 840 宽 56 / 12（< 600 仍是 52 / 8）。
+   --sgx-content-max：外壳框最宽（子站默认 1068；主站按布局模式改，见 input.css 主站 layout 段）。
+   --sgx-shell-w：外壳框宽 = min(100% − 2 × 页边距, 最宽)；顶栏和其他公共位置（< 840 宽的底部搜索栏、各站页面外框）都对齐它。
+   --sgx-tb-inset 只剩顶栏上边距（16px，和横向页边距分开）和手机抽屉宽度公式在用。 */
+:root { --sgx-page-m: 16px; --sgx-content-max: 1068px; --sgx-shell-w: min(100% - 2 * var(--sgx-page-m), var(--sgx-content-max)); }
+@media (min-width: 600px) {
+  :root { --sgx-page-m: clamp(16px, 5.333px + 2.2222vw, 48px); --sgx-tb-btn: clamp(52px, 42px + 1.667vw, 56px); --sgx-tb-gap: clamp(8px, -2px + 1.667vw, 12px); }
 }
+/* 顶栏 = 外壳框：left / right 0 + margin auto + width，两侧圆的外缘就是框的左右边（不用 transform 居中） */
+.sgx-topbar { position: fixed; top: calc(var(--sgx-tb-inset) + env(safe-area-inset-top, 0px)); left: 0; right: 0; margin: 0 auto; width: var(--sgx-shell-w);
+  height: var(--sgx-tb-btn); z-index: 55; display: flex; align-items: center; gap: var(--sgx-tb-gap); pointer-events: none; }
 /* 顶栏材质（全站统一：顶栏圆 / 长条、导航抽屉、底部搜索栏、内容卡片都用这一套）：主色 10% 混表面色，88% 不透明 + 毛玻璃。
    只引用色彩角色（--sgx-primary / --sgx-surface / --sgx-glass-edge），预设、亮暗、自定义种子都跟着变。
    --sgx-mat-filter：毛玻璃（顶栏圆 / 长条与导航抽屉面板共用）；没有 backdrop-filter 的浏览器退回 --sgx-mat-solid。 */
@@ -57,7 +65,7 @@
   .sgx-tb-title { flex: 0 1 auto; padding: 0 16px; }
 }
 .sgx-tb-nav, .sgx-tb-end { transition: background-color .15s ease; }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .sgx-tb-nav:hover, .sgx-tb-end:hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); }
 }
 .sgx-tb-nav:active, .sgx-tb-end:active { background-image: linear-gradient(var(--sgx-state-pressed-bg), var(--sgx-state-pressed-bg)); }
@@ -151,7 +159,7 @@
 .sgx-drawer-search-ic { width: 24px; height: 24px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; color: var(--sgx-text-primary); }
 .sgx-drawer-search-ic svg { width: 24px; height: 24px; display: block; }
 .sgx-drawer-search-label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .sgx-drawer-search:hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); }
 }
 .sgx-drawer-search:active { background-image: linear-gradient(var(--sgx-state-pressed-bg), var(--sgx-state-pressed-bg)); }
@@ -161,7 +169,9 @@
 .sgx-drawer-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .sgx-drawer-item { display: flex; align-items: center; gap: 14px; min-height: 56px; padding: 0 16px; border-radius: 999px;
   font-size: 15px; font-weight: 500; line-height: 1.4; color: var(--sgx-text-secondary); text-decoration: none; transition: background-color .15s ease; }
-.sgx-drawer-item:hover { background: var(--sgx-state-hover-bg); }
+@media (hover: hover) and (pointer: fine) {
+  .sgx-drawer-item:hover { background: var(--sgx-state-hover-bg); }
+}
 .sgx-drawer-item:active { background: var(--sgx-state-pressed-bg); }
 .sgx-drawer-item:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
 .sgx-drawer-item[aria-current="page"], .sgx-drawer-item[aria-current="page"]:hover { background: var(--sgx-nav-selected); color: var(--sgx-on-nav-selected); font-weight: 700; }
@@ -179,7 +189,7 @@
    那条搜索框原地变形成屏幕底部的搜索栏 .sgx-srch-bar（长条药丸「搜索」+ 右边单独的 ✕ 圆，和原 /search/ 页底栏同一套尺寸 / 材质），
    贴着键盘（--sgx-srch-kb 由 JS 按 VirtualKeyboard / visualViewport 写）；上面是盖住当前页的磨砂结果层 .sgx-srch（顶栏在它上面，正常可点）。
    z-index：结果层 / 底栏 --sgx-srch-z（44：盖住正文，低于快捷面板 45 和顶栏）；变形那 180ms 底栏压在抽屉复制件（60）上面。
-   宽屏（≥ 840px）：底栏 560px 居中，结果列最宽 640px 居中。 */
+   < 840px：底栏左右缘对齐外壳框（--sgx-shell-w，手机 = 16px 页边距）；宽屏（≥ 840px）：底栏 560px 居中，结果列最宽 640px 居中。 */
 :root { --sgx-srch-h: 56px; --sgx-srch-z: 44; --sgx-srch-top: calc(var(--sgx-tb-inset) + var(--sgx-tb-btn) + 16px + env(safe-area-inset-top, 0px)); }
 .sgx-srch { position: fixed; inset: 0; z-index: var(--sgx-srch-z); background: var(--sgx-mat); -webkit-backdrop-filter: var(--sgx-mat-filter);
   color: var(--sgx-text-primary); font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; letter-spacing: normal; }
@@ -195,7 +205,7 @@
 /* min-height 多 1px：内容很短时也能自己滚，滑动不会带动后面的页面 */
 .sgx-srch-page { box-sizing: border-box; min-height: calc(100% + 1px); max-width: 672px; margin: 0 auto;
   padding: var(--sgx-srch-top) 16px calc(var(--sgx-srch-kb, 0px) + var(--sgx-srch-h) + 28px + env(safe-area-inset-bottom, 0px)); }
-.sgx-srch-bar { position: fixed; left: var(--sgx-tb-inset); right: var(--sgx-tb-inset); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); height: var(--sgx-srch-h);
+.sgx-srch-bar { position: fixed; left: calc((100% - var(--sgx-shell-w)) / 2); right: calc((100% - var(--sgx-shell-w)) / 2); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); height: var(--sgx-srch-h);
   z-index: var(--sgx-srch-z); transform: translateY(calc(-1 * var(--sgx-srch-kb, 0px))); font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; }
 .sgx-srch-bar.is-morph { z-index: 61; }
 @media (min-width: 840px) {
@@ -228,7 +238,7 @@
 .sgx-srch-card-head { padding: 14px 16px 6px; }
 .sgx-srch-item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; box-sizing: border-box; padding: 10px 16px; margin: 0; border: 0;
   background: none; color: var(--sgx-text-primary); font: inherit; text-align: left; cursor: pointer; }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .sgx-srch-item:hover { background: var(--sgx-state-hover-bg); }
 }
 .sgx-srch-item:active, .sgx-srch-item.is-active { background: var(--sgx-state-pressed-bg); }

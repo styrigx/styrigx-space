@@ -6,6 +6,10 @@
  *   favicon 返回本地占位图，保证截图稳定。
  * - freezeTime(page)：冻结时间到 2026-10-09 12:00:00+08:00。
  *
+ * - setHomeCards(page, { weather, daymark })：模拟首页天气 / 日刻有没有数据（true = 显示，false = .hidden）。
+ *   测试构建（SGX_TEST_NO_WEATHER=1）两张卡都不输出，缺的就在时钟后面补一张同 id 的占位卡（和真卡一样是 .widget，
+ *   高度 160），再按参数切 .hidden —— 和 index.js / daymark-today.js 显隐真卡的方式一致。
+ *
  * 注意：/api/* 的 mock 由各测试自己在测试体内注册（注册顺序靠后，
  * Playwright 按注册倒序匹配，mock 会优先于本 helper 的通配拦截生效）。
  */
@@ -59,4 +63,26 @@ async function freezeTime(page) {
   });
 }
 
-module.exports = { blockExternalRequests, freezeTime, expect };
+/** 首页天气 / 日刻卡显隐（见文件头） */
+async function setHomeCards(page, { weather, daymark }) {
+  await page.evaluate(([wx, dm]) => {
+    const grid = document.querySelector('#home-widgets');
+    const clock = document.getElementById('dual-clock');
+    let after = clock;
+    for (const [id, tag, on] of [['weather', 'div', wx], ['w-daymark', 'a', dm]]) {
+      let el = document.getElementById(id);
+      if (!el) {
+        el = document.createElement(tag);
+        el.id = id;
+        el.className = 'widget hidden';
+        el.style.minHeight = '160px';
+        after.after(el);
+      }
+      el.classList.toggle('hidden', !on);
+      after = el;
+    }
+    void grid.offsetWidth;
+  }, [!!weather, !!daymark]);
+}
+
+module.exports = { blockExternalRequests, freezeTime, setHomeCards, expect };
