@@ -1,0 +1,29 @@
+{{/* 聊天页（/chat/）文案：输出 #sgx-i18n-chat，JS 见 apps/chat.js（lib/i18n.js loadI18n）。
+   用法：{{ partial "chat-i18n.html" . }} */}}
+{{ $chatI18n := dict
+  "send" (dict "zh" "发送" "en" "Send")
+  "stop" (dict "zh" "停止" "en" "Stop")
+  "thinking" (dict "zh" "正在检索…" "en" "Searching…")
+  "stopped" (dict "zh" "已停止" "en" "Stopped")
+  "sources" (dict "zh" "来源" "en" "Sources")
+  "retry" (dict "zh" "重试" "en" "Retry")
+  "unlock" (dict "zh" "重新解锁" "en" "Unlock")
+  "errRate" (dict "zh" "今天的免费额度用完了，明天再来" "en" "Today's free quota is used up. Try again tomorrow.")
+  "errNoKey" (dict "zh" "聊天还没配置" "en" "Chat isn't set up yet")
+  "errTooLong" (dict "zh" "这段对话太长了，开个新对话吧" "en" "This conversation is too long. Start a new chat.")
+  "errUpstream" (dict "zh" "出错了，没拿到回答" "en" "Something went wrong and no answer came back")
+  "errAuth" (dict "zh" "会话已过期" "en" "Session expired")
+  "errAuthSub" (dict "zh" "重新解锁后再聊。" "en" "Unlock again to keep chatting.")
+  "ownerOnly" (dict "zh" "聊天仅主人可用" "en" "Chat is owner-only")
+  "errRateModel" (dict "zh" "这个模型的免费额度用完了，可以换个模型" "en" "This model's free quota is used up — try another")
+  "errModel" (dict "zh" "这个模型现在用不了，换一个试试" "en" "This model isn't available right now — try another")
+  "errBadModel" (dict "zh" "这个模型已经下线了，已换回默认模型" "en" "That model was removed — switched back to the default")
+  "pickModel" (dict "zh" "换个模型" "en" "Switch model")
+  "model" (dict "zh" "模型" "en" "Model")
+  "web" (dict "zh" "联网" "en" "Web")
+  "noWeb" (dict "zh" "不联网" "en" "No web")
+  "phNoWeb" (dict "zh" "问点什么…" "en" "Ask anything…")
+  "noWebUsed" (dict "zh" "未联网" "en" "No web")
+  "ownerOnlySub" (dict "zh" "访客可以看看别的页面。" "en" "Visitors can still browse the rest of the site.")
+}}
+<script id="sgx-i18n-chat" type="application/json">{{ $chatI18n | jsonify | safeJS }}</script>

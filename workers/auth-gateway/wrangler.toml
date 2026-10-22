@@ -63,6 +63,19 @@ SGX_ENV = "production"
 SGX_SITE = "space"
 SGX_ORIGIN = "https://styrigx.com"
 SGX_RP_ID = "styrigx.com"
+# 聊天 /api/chat（functions/api/chat.js，2026-10-22）：只做联网检索，不存对话。
+# CHAT_PROVIDER = "gemini"（原生 streamGenerateContent + Google 搜索接地）或 "openai"（任意 OpenAI 兼容接口，没有联网检索）。
+# 免费档能用 Google 搜索接地的只有 gemini-2.5-flash / gemini-2.5-flash-lite（每天合计 500 次）；Gemini 的 OpenAI 兼容端点不支持搜索接地。
+# 钥匙在 Secrets Store 的 SGX_CHAT_API_KEY（见文件末尾）；没配 → /api/chat 回 503 no_key，不影响其他接口。
+CHAT_PROVIDER = "gemini"
+CHAT_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
+CHAT_MODEL = "gemini-2.5-flash"
+CHAT_SEARCH = "on"
+# 模型切换（2026-10-22）：聊天页可选的模型白名单，POST /api/chat 只认这里的 id（GET /api/chat 把列表给页面）。CHAT_MODEL 是默认。
+# search = 带不带 Google 搜索 / url_context 工具：免费档只有 2.5 Flash / Flash-Lite 能搜索接地（合计每天 500 次）；
+# Gemini 3+ 免费档能免费生成文字，但搜索接地是「Not available」（ai.google.dev 价格页，2026-10-22），所以不联网。
+# CHAT_SEARCH = "off" 仍是总开关（哪个都不联网）。坏 JSON → 退回只有 CHAT_MODEL 一个。
+CHAT_MODELS = '[{"id":"gemini-2.5-flash","label":"Gemini 2.5 Flash","search":true},{"id":"gemini-2.5-flash-lite","label":"Gemini 2.5 Flash-Lite","search":true},{"id":"gemini-3.8-flash","label":"Gemini 3.8 Flash","search":false},{"id":"gemini-3.5-flash-lite","label":"Gemini 3.5 Flash-Lite","search":false}]'
 
 # ---- 服务绑定 ----
 # 全站搜索 styrigx-search-index（workers/search-index；没有公开地址，只能从这里进）。/api/search 验完会话转给它。
@@ -131,3 +144,12 @@ secret_name = "SGX_LOCK_PUBLIC"
 binding = "SGX_ACCOUNT_PUBLIC"
 store_id = "a5a984f365424401bad5ad6ddcd44479"
 secret_name = "SGX_ACCOUNT_PUBLIC"
+
+# 聊天钥匙（Gemini API key，不绑结算的 Google 小号）：只有 /api/chat 在用到时读（functions/api/chat.js），
+# 不在 src/secrets.js 的 SECRET_NAMES 里（那份是每个请求都预读的签名钥匙），读不到只影响聊天。
+# 部署前要先在 Secrets Store 建好这个密钥（作用域含 workers）：部署时 Cloudflare 会核对每个 Secrets Store 绑定，
+# 绑定一个还不存在的密钥会让整个网关部署失败（不只是聊天）。
+[[secrets_store_secrets]]
+binding = "SGX_CHAT_API_KEY"
+store_id = "a5a984f365424401bad5ad6ddcd44479"
+secret_name = "SGX_CHAT_API_KEY"
