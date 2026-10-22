@@ -1,15 +1,15 @@
 /**
- * @fileoverview 账号页（原「站长凭证」升级为账号；顶栏右圆头像进入）。
+ * @fileoverview 账号页（/account/，抽屉头的头像圆进入）。
  *
  * - 未登录：账号登录（PR3，顶栏页名「登录账号」）—— 头像 + 欢迎回来；主按钮「通行密钥登录」、
  *   次按钮「密码登录」（原地展开密码框），设了哪个显示哪个；小字「无法登录？」→ 重置登录页
- *   （/settings/account/reset/，apps/account-reset.js）。根凭证不再是登录入口。
+ *   （/account/reset/，apps/account-reset.js）。根凭证不再是登录入口。
  *   成功即得到账号会话（sgx-account，400 天，不点退出一直登录；与锁屏会话无关，但进账号页的前提是锁屏已解锁）。
  * - 已登录：账号总览（三星账号式）—— 账号卡（名字 + 头像，换头像见 avatar-edit.js；点卡片其余地方进
- *   下一页「已登录」/settings/account/profile/，在那里退出账号）、
+ *   下一页「已登录」/account/profile/，在那里退出账号）、
  *   「安全与隐私」一行（副标题：账号密码或通行密钥任一已设置 → 已保护）→ 子页
- *   /settings/account/security/（apps/account-security.js，每次进都要验签，3 分钟门票）。
- * - ?return=/settings/account/(security|profile)/：子页没有账号会话时跳来，登录后回子页。
+ *   /account/security/（apps/account-security.js，每次进都要验签，3 分钟门票）。
+ * - ?return=/account/(security|profile)/：子页没有账号会话时跳来，登录后回子页。
  * - 访客：读不到状态，两个按钮都显示，服务端一律拒绝（统一显示「不正确 / 验证失败」）。
  * - 首帧（2026-10-21）：页面默认两块都隐藏；网关在 <html data-sgx-account="in|out"> 注入服务端验过的账号会话，
  *   这里同步按它显示总览或登录区。没有这个属性（中性态）就等 /api/account。
@@ -22,8 +22,9 @@ import { on } from '../lib/events.js';
 import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
 import { tapFeedback, bindSubmitButton } from '../lib/dialog-behavior.js';
 import { bindPwEye, onEnter, focusNoScroll } from '../lib/auth-flow.js';
-import { ACCOUNT_API, ACCOUNT_RETURN_RE, createT, postJSON, profileUrl, signalAccountName } from './account-common.js';
-import { accountSubmitters, visibleKinds } from './account-methods.js';
+import { ACCOUNT_RETURN_RE, createT, profileUrl, signalAccountName } from './account-common.js';
+import { ACCOUNT_API, postJSON } from '../lib/account-api.js';
+import { accountSubmitters, visibleKinds } from '../lib/account-methods.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';

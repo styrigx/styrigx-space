@@ -359,7 +359,7 @@ export function resolveReturn(ret, role) {
 
 /** 账号页（顶栏右圆头像进入）：注入账号会话提示，首帧不闪登录区 */
 function isAccountPage(pathname) {
-  return pathname === '/settings/account/' || pathname === '/en/settings/account/';
+  return pathname === '/account/' || pathname === '/en/account/';
 }
 
 /** @param {any} context */

@@ -1,20 +1,20 @@
-{{/* 账号（原「站长凭证」升级为账号）：顶栏右圆头像进入。
+{{/* 账号（/account/，独立页，不挂在设置下）：抽屉头的头像圆进入。
    未登录 → 账号登录（顶栏页名「登录账号」）：头像 + 欢迎回来 + 通行密钥登录 / 密码登录 + 「无法登录？」。
    成功签发账号会话（sgx-account，400 天，不点退出一直登录；进账号页前提是锁屏已解锁）。
-   「无法登录？」→ /settings/account/reset/（重置登录：根凭证 → 直接进 安全与隐私 重设账号凭证）。
+   「无法登录？」→ /account/reset/（重置登录：根凭证 → 直接进 安全与隐私 重设账号凭证）。
    已登录 → 账号总览（三星账号式）：账号卡（名字 + 头像，主人可换头像；点卡片其余地方进
-   「已登录」子页 /settings/account/profile/，在那里退出账号）、
-   「设备」一行 → 子页 /settings/account/devices/（account-devices.html）：此设备 + 其他登录的设备，可单独退出；
-   「安全与隐私」一行 → 子页 /settings/account/security/（account-security.html）管理账号密码和账号通行密钥，
+   「已登录」子页 /account/profile/，在那里退出账号）、
+   「设备」一行 → 子页 /account/devices/（account-devices.html）：此设备 + 其他登录的设备，可单独退出；
+   「安全与隐私」一行 → 子页 /account/security/（account-security.html）管理账号密码和账号通行密钥，
    每次进都要再验一次账号凭证（3 分钟门票，离开即作废）。
-   ?return=/settings/account/(security|profile)/：子页没有账号会话时跳来，登录后回子页。
+   ?return=/account/(security|profile)/：子页没有账号会话时跳来，登录后回子页。
    访客看到的界面与站长一致（服务端一律拒绝）。noindex、不进 sitemap（见 baseof/sitemap）。
    脚本走 ES Module 入口 entry-account.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-account.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 
-<div class="set-layout max-w-2xl mx-auto px-4 pb-28">
+<div class="acct-layout max-w-2xl mx-auto px-4 pb-28">
 
   <!-- 账号登录（PR3）：页名「登录账号」只在顶栏长条里（JS 按状态改），正文不再重复大标题、不放盾牌图标和构建号。
        头像 + 「欢迎回来」→ 主按钮「通行密钥登录」（强调色）→ 次按钮「密码登录」（原地展开密码框）→ 小字「无法登录？」进重置登录。
@@ -45,7 +45,7 @@
       </div>
       <p class="acct-login-none" id="acct-login-none" hidden>{{ if $isEn }}No sign-in method is set for this account yet. Use “Can’t sign in?” to set one with your root credential.{{ else }}账号还没有设置登录方式。可以点「无法登录？」用根凭证设置。{{ end }}</p>
     </div>
-    <a class="acct-cant" id="acct-cant" href="{{ cond $isEn "/en/settings/account/reset/" "/settings/account/reset/" }}">{{ if $isEn }}Can’t sign in?{{ else }}无法登录？{{ end }}</a>
+    <a class="acct-cant" id="acct-cant" href="{{ cond $isEn "/en/account/reset/" "/account/reset/" }}">{{ if $isEn }}Can’t sign in?{{ else }}无法登录？{{ end }}</a>
   </div>
 {{ "<!-- SGX-ACCT-LOGIN-END -->" | safeHTML }}
 
@@ -54,24 +54,24 @@
   <div id="acct-main" hidden>
     {{ partial "sgx-account-card.html" . }}
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.12s" aria-label="{{ if $isEn }}Account settings{{ else }}账号设置{{ end }}">
-      <a class="set-row" id="acct-dev-row" href="{{ cond $isEn "/en/settings/account/devices/" "/settings/account/devices/" }}">
-        <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "device" }}</span>
+      <a class="acct-row" id="acct-dev-row" href="{{ cond $isEn "/en/account/devices/" "/account/devices/" }}">
+        <span class="acct-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "device" }}</span>
         <span class="flex-1 min-w-0">
           <span class="block font-medium">{{ if $isEn }}Devices{{ else }}设备{{ end }}</span>
           <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="acct-dev-sub"></span>
         </span>
         {{ partial "icon.html" "chev-r" }}
       </a>
-      <a class="set-row" id="acct-sec-row" href="{{ cond $isEn "/en/settings/account/security/" "/settings/account/security/" }}">
-        <span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span>
+      <a class="acct-row" id="acct-sec-row" href="{{ cond $isEn "/en/account/security/" "/account/security/" }}">
+        <span class="acct-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span>
         <span class="flex-1 min-w-0">
           <span class="block font-medium">{{ if $isEn }}Security &amp; privacy{{ else }}安全与隐私{{ end }}</span>
           <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="acct-sec-sub"></span>
         </span>
         {{ partial "icon.html" "chev-r" }}
       </a>
-      <div class="set-row" id="acct-sync-row" role="button" tabindex="0">
-        <span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "cloud" }}</span>
+      <div class="acct-row" id="acct-sync-row" role="button" tabindex="0">
+        <span class="acct-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "cloud" }}</span>
         <span class="flex-1 min-w-0">
           <span class="block font-medium">{{ if $isEn }}Cloud sync{{ else }}云同步{{ end }}</span>
           <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="acct-sync-sub"></span>
@@ -79,7 +79,7 @@
         <span class="switch" id="acct-sync-sw" role="switch" aria-checked="false" aria-label="{{ if $isEn }}Cloud sync{{ else }}云同步{{ end }}"><span class="knob"></span></span>
       </div>
     </section>
-    <p class="sec-note mt-6 sgx-build-tag-wrap">{{ partial "build-tag.html" (dict "isEn" $isEn) }}</p>
+    <p class="acct-note mt-6 sgx-build-tag-wrap">{{ partial "build-tag.html" (dict "isEn" $isEn) }}</p>
   </div>
 </div>
 

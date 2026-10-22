@@ -57,7 +57,7 @@ async function expectClosed(page) {
 }
 
 test.describe('顶栏：右圆 = 快捷面板按钮', () => {
-  const PAGES = ['/', '/settings/', '/settings/display/', '/settings/security/', '/settings/account/'];
+  const PAGES = ['/', '/settings/', '/settings/display/', '/settings/security/', '/account/'];
   for (const path of PAGES) {
     test(`${path}：九宫格 · 长条（${path === '/' ? '主页 / 聊天 / 状态三栏' : '只有页名'}）· 右圆快捷面板`, async ({ page }) => {
       await go(page, path);

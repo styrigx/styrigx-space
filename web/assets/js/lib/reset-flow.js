@@ -1,5 +1,5 @@
 /**
- * @fileoverview 「重置登录」界面（PR3）：账号页「无法登录？」→ /settings/account/reset/，
+ * @fileoverview 「重置登录」界面（PR3）：账号页「无法登录？」→ /account/reset/，
  * 锁屏弹层里的「无法登录？」→ 弹层原地切到同一个界面。两处只是提交函数不同。
  *
  * 流程（服务端决定下一步）：

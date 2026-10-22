@@ -2,7 +2,6 @@
    这是安全操作页：每次进页都要先过门 —— 锁屏通行密钥 / 解锁密码（设了哪个显示哪个）+ 根凭证（一直在），
    通过后签 3 分钟锁屏门票（SGX_LOCK_* 签），页内倒计时；离开本页门票立即作废，再进重新验证。
    门内：解锁密码、锁屏通行密钥、会话（退出所有设备）。重置锁屏（重置门票）直接进门内。
-   账号凭证只在账号页 /settings/account/ → 安全与隐私 管理。
    noindex、不进 sitemap（见 baseof/sitemap）。
    脚本走 ES Module 入口 entry-security-lock.js；localStorage 经 storage.js。 */}}
 {{ define "main" }}

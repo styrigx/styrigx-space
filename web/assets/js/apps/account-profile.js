@@ -1,5 +1,5 @@
 /**
- * @fileoverview 账号 → 账号信息（/settings/account/profile/）：已登录卡 + 退出账号。
+ * @fileoverview 账号 → 账号信息（/account/profile/）：已登录卡 + 退出账号。
  *
  * - 进页 GET /api/account：没有账号会话（访客 / 只有锁屏会话 / 读失败）→ 回账号页登录，登录后回本页
  * - 退出账号：POST /api/account logout（清账号会话和门票）→ 回账号页（登录区）
@@ -7,7 +7,8 @@
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';
-import { ACCOUNT_API, accountUrl, createT, postJSON } from './account-common.js';
+import { accountUrl, createT } from './account-common.js';
+import { ACCOUNT_API, postJSON } from '../lib/account-api.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';

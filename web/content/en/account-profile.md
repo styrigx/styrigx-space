@@ -1,5 +1,5 @@
 ---
 title: 'Account info'
 layout: account-profile
-url: /en/settings/account/profile/
+url: /en/account/profile/
 ---

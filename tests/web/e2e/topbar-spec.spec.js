@@ -97,14 +97,14 @@ test.describe('390×844 行为', () => {
   const NAMES = [
     ['/settings/', '设置'],
     /* PR3：账号页没登录（这里没有账号会话）时页名是「登录账号」，登录后才是「账号」 */
-    ['/settings/account/', '登录账号'],
-    ['/settings/account/reset/', '重置登录'],
+    ['/account/', '登录账号'],
+    ['/account/reset/', '重置登录'],
     ['/settings/security/', '安全与隐私'],
     ['/settings/security/lock/', '锁屏凭证'],
     ['/settings/display/', '显示'],
     ['/en/settings/', 'Settings'],
-    ['/en/settings/account/', 'Sign in'],
-    ['/en/settings/account/reset/', 'Reset sign-in'],
+    ['/en/account/', 'Sign in'],
+    ['/en/account/reset/', 'Reset sign-in'],
   ];
   for (const [path, name] of NAMES) {
     test(`${path}：长条显示当前页名「${name}」（不是 Styrigx），没有大标题区`, async ({ page }) => {
@@ -132,7 +132,7 @@ test.describe('390×844 行为', () => {
     await expect(page.locator('.sgx-topbar a[href$="/settings/"]')).toHaveCount(0);
   });
 
-  for (const path of ['/settings/', '/settings/account/', '/settings/display/']) {
+  for (const path of ['/settings/', '/account/', '/settings/display/']) {
     test(`${path}：正文从顶栏下方 16px 开始（--sgx-content-top，全站同一个值）`, async ({ page }) => {
       await go(page, path);
       const m = await page.evaluate(() => {
@@ -163,10 +163,10 @@ test.describe('390×844 行为', () => {
 
   test('点长条（页名）不跳转', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    await go(page, '/settings/account/');
+    await go(page, '/account/');
     await page.locator('.sgx-tb-title').click();
     await page.waitForTimeout(400);
-    expect(new URL(page.url()).pathname).toBe('/settings/account/');
+    expect(new URL(page.url()).pathname).toBe('/account/');
   });
 
   test('顶栏切页过渡名挂在有尺寸的 .sgx-topbar 上', async ({ page }) => {
@@ -182,17 +182,17 @@ test.describe('390×844 行为', () => {
     /* 固定中文：不设 sgx-lang 时语言跟随浏览器（en-US）会把 / 带到 /en/ */
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/');
-    await expect(page.locator('.sgx-drawer-me')).toHaveAttribute('href', '/settings/account/');
+    await expect(page.locator('.sgx-drawer-me')).toHaveAttribute('href', '/account/');
     await page.locator('.sgx-tb-nav').click();
     await expect(page.locator('#sgx-drawer')).toHaveAttribute('data-state', 'open');
     await page.locator('.sgx-drawer-me').click();
-    await page.waitForURL(/\/settings\/account\/$/);
+    await page.waitForURL(/\/account\/$/);
     await expect(page.locator('#acct-login')).toBeVisible();
   });
 
   test('英文页抽屉头像链到英文账号页', async ({ page }) => {
     await go(page, '/en/');
-    await expect(page.locator('.sgx-drawer-me')).toHaveAttribute('href', '/en/settings/account/');
+    await expect(page.locator('.sgx-drawer-me')).toHaveAttribute('href', '/en/account/');
   });
 
   test('九宫格打开左侧导航抽屉，Esc 关闭', async ({ page }) => {

@@ -1,5 +1,5 @@
 /**
- * @fileoverview 账号 → 设备（/settings/account/devices/）：此设备 + 其他登录的设备，可单独退出。
+ * @fileoverview 账号 → 设备（/account/devices/）：此设备 + 其他登录的设备，可单独退出。
  *
  * - 进页 POST /api/account { action:'devices' }：没有账号会话（401）→ 回账号页登录，登录后回本页
  * - 此设备一张卡在最上面（服务端标 current 并排第一）；不能在这里退出
@@ -8,7 +8,8 @@
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';
-import { ACCOUNT_API, accountUrl, createT, postJSON, errText } from './account-common.js';
+import { accountUrl, createT } from './account-common.js';
+import { ACCOUNT_API, postJSON, errText } from '../lib/account-api.js';
 
 const ICONS = {
   phone: '<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path stroke-linecap="round" d="M10.5 18.5h3"/></svg>',
@@ -84,7 +85,7 @@ export function deviceSub(t, d, en) {
     if (!thisRow) return;
     thisRow.textContent = '';
     const ic = document.createElement('span');
-    ic.className = 'set-ic bg-m-primary-container text-m-on-primary-container';
+    ic.className = 'acct-ic bg-m-primary-container text-m-on-primary-container';
     ic.innerHTML = ICONS[deviceKind(d || {})];
     const tx = document.createElement('span');
     tx.className = 'flex-1 min-w-0';
@@ -103,9 +104,9 @@ export function deviceSub(t, d, en) {
   /** @param {any} d */
   function otherItem(d) {
     const li = document.createElement('div');
-    li.className = 'set-row acct-dev-item';
+    li.className = 'acct-row acct-dev-item';
     const ic = document.createElement('span');
-    ic.className = 'set-ic bg-m-accent-container text-m-on-accent-container';
+    ic.className = 'acct-ic bg-m-accent-container text-m-on-accent-container';
     ic.innerHTML = ICONS[deviceKind(d)];
     const wrap = document.createElement('span');
     wrap.className = 'flex-1 min-w-0';

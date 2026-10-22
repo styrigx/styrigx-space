@@ -1,6 +1,6 @@
 /**
  * 2.6.0：设置二级页。真实断言（不 mock 自家逻辑）：
- * - Mobile /settings/ 只留 8 分类入口（账户卡已移到账号页 /settings/account/），无选项组（B2-2 新增 Good Lock，B2-4 删除应用）
+ * - Mobile /settings/ 只留 8 分类入口（账户卡已移到账号页 /account/），无选项组（B2-2 新增 Good Lock，B2-4 删除应用）
  * - DeX/PC /settings/ 左右双栏：左分类导航、右详情窗格（复用子页同一套 partial）
  * - 7 个子页可达、有对应选项组（2026-10-20 起顶栏没有返回键）
  * - 旧 hash 跳转到子页
@@ -206,7 +206,7 @@ test.describe('unlock methods entry relocation', () => {
     /* 安全页两项（锁屏凭证/立即锁定）；管理凭证已删除；账号在导航抽屉头的头像（2026-10-22 从顶栏右圆挪进去） */
     await expect(pg.locator('#sec-unlock-methods')).toHaveCount(0);
     await expect(pg.locator('#sec-owner-cred')).toHaveCount(0);
-    await expect(pg.locator('.sgx-drawer-me')).toHaveAttribute('href', '/settings/account/');
+    await expect(pg.locator('.sgx-drawer-me')).toHaveAttribute('href', '/account/');
     await expect(pg.locator('#sec-mgmt-cred')).toHaveCount(0);
     const lockCred = pg.locator('#sec-lock-cred');
     await expect(lockCred).toHaveCount(1);

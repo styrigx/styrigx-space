@@ -1,7 +1,6 @@
 /**
  * @fileoverview 安全与隐私页。
  * - 两个入口（访客与站长看到完全一样）：锁屏凭证、立即锁定。
- *   账号凭证在顶栏右圆头像（账号页 /settings/account/ → 安全与隐私）。
  * - 锁屏凭证 → /settings/security/lock/（门在那一页：锁屏凭证或根凭证验一次，3 分钟门票）。
  *   访客（服务端注入 data-sgx-role="visitor"）点它：不跳页，就地弹站长验证层（shell/upgrade.js
  *   openOwnerVerify：只有通行密钥 / 密码，没有访客入口）；通过 → 进锁屏凭证页；取消 → 原页，访客会话不动。

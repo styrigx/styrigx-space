@@ -1,8 +1,8 @@
 /**
  * @fileoverview 凭证验证行（一行一个凭证：通行密钥点行直接调起系统验证；密码点行在行下展开输入框）。
  *
- * 从 apps/account-methods.js 抽到 lib/（PR3）：账号 → 安全与隐私的门、「重置登录」第二步
- * （账号页的 /settings/account/reset/ 与锁屏弹层里的同一个重置界面，lib/reset-flow.js）共用同一套行。
+ * 从 account-methods.js 抽出（PR3）：账号 → 安全与隐私的门、「重置登录」第二步
+ * （账号页的 /account/reset/ 与锁屏弹层里的同一个重置界面，lib/reset-flow.js）共用同一套行。
  * 行的内容（图标、标题、提交函数）由调用方给；失败 reject { message, clear?, cancelled? }。
  * 本文件在 lib/ 层：不 import shell/ 或 apps/。
  */

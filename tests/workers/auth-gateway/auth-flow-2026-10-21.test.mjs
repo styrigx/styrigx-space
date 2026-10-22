@@ -52,7 +52,7 @@ function env() {
         seen.push(u.hostname + u.pathname);
         if (u.pathname.endsWith('.css')) return new Response('css', { headers: { 'Content-Type': 'text/css' } });
         if (u.pathname.endsWith('.json')) return new Response('{"items":[]}', { headers: { 'Content-Type': 'application/json' } });
-        const html = u.pathname.includes('/settings/account/') ? ACCOUNT_HTML : DESKTOP_HTML;
+        const html = u.pathname.includes('/account/') ? ACCOUNT_HTML : DESKTOP_HTML;
         return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=300' } });
       },
     },
@@ -188,14 +188,14 @@ test('D 首页模板用 safeHTML 输出瘦身标记（Go 模板会删 HTML 注�
 /* ---------------- E. 账号页首帧 ---------------- */
 for (const role of ['owner', 'visitor']) {
   test(`E 账号页（锁屏 ${role} + 账号会话）：data-sgx-account=in，登录区不下发，总览不 hidden`, async () => {
-    const html = await (await get('https://styrigx.com/settings/account/', (await lockCookie(role)) + '; ' + (await accountCookie()))).text();
+    const html = await (await get('https://styrigx.com/account/', (await lockCookie(role)) + '; ' + (await accountCookie()))).text();
     assert.match(html, /data-sgx-account="in"/);
     assert.doesNotMatch(html, /acct-login|欢迎回来/);
     assert.match(html, /<div id="acct-main">/);
   });
 }
 test('E 账号页（站长，无账号会话）：data-sgx-account=out，登录区去掉 hidden', async () => {
-  const html = await (await get('https://styrigx.com/settings/account/', await lockCookie('owner'))).text();
+  const html = await (await get('https://styrigx.com/account/', await lockCookie('owner'))).text();
   assert.match(html, /data-sgx-account="out"/);
   assert.match(html, /<div id="acct-login" class="acct-login">/);
   assert.match(html, /<div id="acct-main" hidden>/);

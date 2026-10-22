@@ -37,7 +37,7 @@ async function openDrawer(page) {
 }
 
 test.describe('顶栏：全站同一套，没有 ‹ 和 ⋮', () => {
-  const PAGES = ['/', '/settings/', '/settings/display/', '/settings/security/', '/settings/account/'];
+  const PAGES = ['/', '/settings/', '/settings/display/', '/settings/security/', '/account/'];
   for (const path of PAGES) {
     test(`${path}：九宫格 + 长条（只有页名）+ 右圆（快捷面板），没有返回圆和 ⋮、没有搜索图标、顶栏里没有头像`, async ({ page }) => {
       await go(page, path);
@@ -219,7 +219,7 @@ test.describe('抽屉三段：头部站名 / 导航列表 / 底栏搜索框', ()
       /* 抽屉头：字标 + 右边 52px 头像圆（链到账号页），没有搜索框 / 输入框 */
       await expect(head.locator('.sgx-drawer-search, input')).toHaveCount(0);
       await expect(head.locator('a')).toHaveCount(1);
-      await expect(head.locator('a.sgx-drawer-me')).toHaveAttribute('href', '/settings/account/');
+      await expect(head.locator('a.sgx-drawer-me')).toHaveAttribute('href', '/account/');
       const hm = await page.evaluate(() => {
         const r = (q) => document.querySelector(q).getBoundingClientRect();
         return { me: r('#sgx-drawer .sgx-drawer-me'), wm: r('#sgx-drawer .sgx-wordmark'), brand: r('#sgx-drawer .sgx-drawer-brand'), sheet: r('#sgx-drawer .sgx-drawer-sheet') };
