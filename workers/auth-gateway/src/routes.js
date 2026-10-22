@@ -23,6 +23,7 @@ import * as rootSession from '../functions/api/root-session.js';
 import * as search from '../functions/api/search.js';
 import * as sessionCheck from '../functions/api/session-check.js';
 import * as sessionEpoch from '../functions/api/session-epoch.js';
+import * as status from '../functions/api/status.js';
 import * as verify from '../functions/api/verify.js';
 import * as wellbeing from '../functions/api/wellbeing.js';
 
@@ -47,6 +48,7 @@ export const API_ROUTES = new Map([
   ['/api/search', search],
   ['/api/session-check', sessionCheck],
   ['/api/session-epoch', sessionEpoch],
+  ['/api/status', status],
   ['/api/verify', verify],
   ['/api/wellbeing', wellbeing],
 ]);

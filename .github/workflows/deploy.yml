@@ -70,7 +70,7 @@ jobs:
         # 全部 tests/workers/auth-gateway、tests/web/ui 单元测试；新加的测试文件自动纳入，不用再改这里。
         # 覆盖：会话 / cookie / epoch、锁屏门（door）、认证入口、
         # 访客 401、根凭证 userHandle、最后一把钥匙、sitemap、i18n、页内导航、数字健康等
-        run: node --test tests/workers/auth-gateway/*.test.mjs tests/workers/search-index/*.test.mjs tests/workers/proxy-rules/*.test.mjs tests/web/ui/*.test.mjs
+        run: node --test tests/workers/auth-gateway/*.test.mjs tests/workers/search-index/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs tests/web/ui/*.test.mjs
 
       - name: Auth Worker bundle check (styrigx-auth-gateway, dry-run)
         # 主站后端代码全在 workers/auth-gateway（src/ + functions/）；这里只打包不部署，import 断了 CI 就红。
@@ -80,6 +80,10 @@ jobs:
       - name: Search Worker bundle check (styrigx-search-index, dry-run)
         working-directory: workers/search-index
         run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/styrigx-search-dist
+
+      - name: Status Worker bundle check (styrigx-status, dry-run)
+        working-directory: workers/status
+        run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/styrigx-status-dist
 
       - name: Proxy rules Worker bundle check (styrigx-proxy-rules, dry-run)
         working-directory: workers/proxy-rules
@@ -513,6 +517,43 @@ jobs:
           wranglerVersion: '4'
           command: kv key put site:space --path=${{ runner.temp }}/search-space.json --binding=SEARCH_KV --remote
 
+  deploy-status-worker:
+    # 站点监测 styrigx-status（workers/status）：先于网关部署（网关的服务绑定 STATUS 指向它，它不在就部署不了）。
+    # 没有公开地址（workers_dev=false、没有路由），Cron 每分钟检查一轮；数据只能从网关 /api/status 进。
+    # 先把 D1 styrigx-status 的表结构迁到最新（migrations/，已迁过的跳过），再部署。
+    # token：Cloudflare 上 styrigx-status-deploy = GitHub 环境 STYRIGX_STATUS_DEPLOY 里的同名密钥，
+    # 权限 Workers Scripts 编辑 + D1 编辑 + Account Settings 读取；环境只允许 main。
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: quality
+    runs-on: ubuntu-latest
+    environment: STYRIGX_STATUS_DEPLOY
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Apply D1 migrations (styrigx-status)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/status
+          wranglerVersion: '4'
+          command: d1 migrations apply styrigx-status --remote
+
+      - name: Deploy status Worker (styrigx-status)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/status
+          wranglerVersion: '4'
+          command: deploy
+
   deploy-proxy-rules-worker:
     # 规则集反代 styrigx-proxy-rules（workers/proxy-rules）：独立部署，不等也不挡网关和 Pages。
     # 公开地址只有自定义域名 proxy-rules.styrigx.com（wrangler.toml 的 routes，custom_domain）。
@@ -573,7 +614,7 @@ jobs:
     # 这把 token 放在 GitHub 环境 STYRIGX_AUTH_GATEWAY_DEPLOY（与密钥同名）的环境密钥里，该环境只允许 main 分支部署：
     # 其他分支即使改了工作流也拿不到它。
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    needs: [quality, deploy-search-worker]
+    needs: [quality, deploy-search-worker, deploy-status-worker]
     runs-on: ubuntu-latest
     environment: STYRIGX_AUTH_GATEWAY_DEPLOY
     steps:
@@ -618,6 +659,8 @@ jobs:
           # 全站搜索：没会话 401（网关先拦），子站同样
           check '/api/search?q=a' 401 || ok=1
           check 'https://blog.styrigx.com/api/search?q=a' 401 || ok=1
+          # 站点监测：没会话 401
+          check /api/status 401 || ok=1
           # 未登录访问不存在的接口：middleware 先拦（默认拒绝），返回 401 而不是 404，这是预期。
           check /api/no-such-endpoint 401 || ok=1
           # 页面：网关验会话后回源 Pages。首页未登录照常 200（锁屏），内页未登录 302 到锁屏

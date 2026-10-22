@@ -1,0 +1,31 @@
+# styrigx-status：站点监测（CI 部署；只干一件事——每分钟检查一遍各站，记进 D1，给主站监测页出数据）
+#
+# 没有公开地址：不开 workers.dev、不挂路由、不挂域名。
+#   - 定时：Cron 每分钟一次（src/index.js scheduled），检查 src/targets.js 里的 5 个地址，10 秒超时，
+#     连续 3 次失败开一条故障，恢复后自动关。
+#   - 读数据：唯一入口是鉴权网关 styrigx-auth-gateway 的服务绑定 STATUS（主站 /api/status 验完会话转进来）。
+# 所以这里不验 cookie、不持任何钥匙。
+#
+# 数据：D1 styrigx-status（表结构见 migrations/）。原始检查记录留 7 天，每日汇总长期保留。
+
+name = "styrigx-status"
+main = "src/index.js"
+compatibility_date = "2026-10-09"
+# 检查请求按公网发出（同账号同区域的子站也走公网，经过网关和 Pages，和访客看到的一样）
+compatibility_flags = ["global_fetch_strictly_public"]
+workers_dev = false
+preview_urls = false
+
+[triggers]
+crons = ["* * * * *"]
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+# D1 styrigx-status：首次部署前在 Cloudflare 建好，把 id 填到这里（占位 id 只够 CI 的 dry-run 打包）。
+[[d1_databases]]
+binding = "STATUS_DB"
+database_name = "styrigx-status"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"

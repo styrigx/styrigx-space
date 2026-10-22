@@ -71,6 +71,12 @@ SGX_RP_ID = "styrigx.com"
 binding = "SEARCH"
 service = "styrigx-search-index"
 
+# 站点监测 styrigx-status（workers/status；没有公开地址，只能从这里进）。/api/status 验完会话转给它。
+# 部署顺序：deploy.yml 里 deploy-status-worker 先于本 Worker。
+[[services]]
+binding = "STATUS"
+service = "styrigx-status"
+
 # ---- 数据绑定（正式 KV/D1）----
 # 认证库 styrigx-auth-gateway（原 styrigx-owner，2026-10-22 改名，id 不变）：锁屏 / 账号的密码哈希、通行密钥、会话、设备、限流。
 [[kv_namespaces]]
