@@ -303,8 +303,7 @@ test.describe('聊天页（手机 412×915）', () => {
     const last = await page.locator('.chat-msg[data-role="model"]').last().boundingBox();
     const bar2 = await page.locator('.chat-bar').boundingBox();
     expect(last.y + last.height).toBeLessThanOrEqual(bar2.y);
-    const foot = await page.locator('footer .sgx-powered').boundingBox();
-    expect(foot.y + foot.height).toBeLessThanOrEqual(bar2.y);
+    await expect(page.locator('footer')).toHaveCount(0);
   });
 
   test('英文：文案、占位符、错误', async ({ page }) => {

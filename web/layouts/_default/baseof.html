@@ -326,13 +326,16 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 
 <main id="sgx-main">
 {{ block "main" . }}{{ end }}</main>
-<footer class="relative z-10 mt-4">
+{{/* 2026-10-22：版权页脚只在「设置 › 关于本站」显示，紧跟卡片；其他页不再显示 */}}
+{{ if eq .Params.cat "about" }}
+<footer class="relative z-10 mt-4 sgx-about-foot">
   <div class="max-w-[1100px] mx-auto px-6 py-8 text-center">
     <p class="text-xs text-m-on-surface-variant">© {{ site.Params.since }}–<span id="copy-year">{{ now.Year }}</span> Sloan Gray</p>
     <p class="sgx-powered">Powered by Styrigx UI</p>
     <script>document.getElementById('copy-year').textContent=new Date().getFullYear();</script>
   </div>
 </footer>
+{{ end }}
 
 <!-- 上下边缘柔和模糊渐隐 -->
 <div id="edge-top" aria-hidden="true"></div>

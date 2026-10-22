@@ -8101,10 +8101,10 @@
   /* ===== 聊天页（/chat/，2026-10-22；layouts/_default/chat.html + apps/chat.js + lib/chat-view.js）=====
      空状态卡（同状态页 .st-msg）→ 消息列表（用户 = 右侧主色容器气泡；回答 = 左侧内容卡片材质，安全 Markdown + 来源 chip）→
      底部悬浮输入栏（毛玻璃胶囊，z 41 = 底部胶囊层：盖住正文和底部渐隐带，低于搜索层 44 / 快捷面板 45 / 顶栏 50）。
-     正文和页脚底部都给输入栏留位，滚到底不被压住。 */
+     正文底部给输入栏留位（2026-10-22 起聊天页没有页脚），滚到底不被压住。 */
   .chat-wrap { display: flex; flex-direction: column; gap: 12px; padding-bottom: 16px; }
   .chat-wrap [hidden], .chat-composer [hidden] { display: none; }
-  body:has(#chat-composer) footer { padding-bottom: calc(21px + 84px + env(safe-area-inset-bottom, 0px)); }
+  body:has(#chat-composer) main { padding-bottom: calc(24px + 84px + env(safe-area-inset-bottom, 0px)); }
   .chat-examples { display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: 100%; max-width: 340px; margin-top: 12px; }
   .chat-ex { min-height: 40px; padding: 8px 16px; border: 1px solid var(--m-outline); border-radius: 999px; background-color: transparent;
     color: var(--sgx-text-primary); font-size: 14px; line-height: 1.4; cursor: pointer; overflow-wrap: anywhere; }
@@ -8186,7 +8186,7 @@
      面板 = 模态 <dialog>（顶层，盖住顶栏和输入栏），::backdrop = --sgx-scrim；开合 is-open 由 shell/modal-sheet.js 加（240ms）。
      手机（layout-mobile）：底部面板，上圆角 28px、底部留安全区，最宽 640px 居中；宽屏：360px 浮层贴在药丸上方（--chat-ms-left / --chat-ms-bottom 由 JS 量），遮罩透明。
      行：四角星 · 名字 17px · 紧跟的小药丸（联网 = primary-container，不联网 = 描边灰）· 最右对勾；行高 60px。 */
-  body:has(#chat-model:not([hidden])) footer { padding-bottom: calc(21px + 124px + env(safe-area-inset-bottom, 0px)); }
+  body:has(#chat-model:not([hidden])) main { padding-bottom: calc(24px + 124px + env(safe-area-inset-bottom, 0px)); }
   .chat-tools { display: flex; align-items: center; min-width: 0; }
   .chat-model-btn { display: inline-flex; align-items: center; gap: 6px; max-width: 75%; height: 32px; margin: 0 0 8px; padding: 0 10px 0 9px; box-sizing: border-box;
     border-radius: 999px; font: inherit; font-size: 13px; font-weight: 600; line-height: 1; cursor: pointer; color: var(--sgx-text-primary);
@@ -8404,6 +8404,12 @@
 .layout-mobile .set-layout {
   padding-bottom: calc(var(--sgx-bottom-dock-h) + env(safe-area-inset-bottom, 0px) + 16px);
 }
+/* 2026-10-22：版权页脚只在「设置 › 关于本站」，紧跟卡片下方，不沉到视口底（放在分层外，压过 pb-28 / 底栏留白） */
+body:has(footer.sgx-about-foot) main { flex: 0 0 auto; padding-bottom: 0; }
+body:has(footer.sgx-about-foot) .set-layout { padding-bottom: 0; }
+body:has(footer.sgx-about-foot) .set-layout .widget { margin-bottom: 0; }
+body footer.sgx-about-foot { margin-top: 0; padding-bottom: env(safe-area-inset-bottom, 0px); }
+footer.sgx-about-foot > div { padding-top: 20px; padding-bottom: 16px; }
 
 /* topbar v2.0 start — 与 Book 同一套（返回圆 + 长条 + 导航圆）。旧顶栏（时间/日期/天气/音乐、
    标题区 ←/⋮、吸顶浮钮）已整体删除。放在所有 @layer 之外，优先于分层样式。 */
