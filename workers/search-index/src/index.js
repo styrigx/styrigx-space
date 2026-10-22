@@ -20,8 +20,9 @@ async function loadIndexes(env) {
   const kv = env && env.SEARCH_KV;
   if (!kv) throw new Error('no-kv');
   const data = (await Promise.all(SITES.map((s) => kv.get('site:' + s, 'json').catch(() => null))))
-    .filter(Boolean)
-    .map((ix, i) => ({ site: SITES[i], items: ix.items || [] }));
+    // 先按下标配上站名再过滤：缺了某站的 key 时，后面的站不会被错标成别的站
+    .map((ix, i) => (ix ? { site: SITES[i], items: ix.items || [] } : null))
+    .filter(Boolean);
   cache = { at: Date.now(), data };
   return data;
 }
