@@ -65,14 +65,14 @@ test.describe('顶栏：全站同一套，没有 ‹ 和 ⋮', () => {
 });
 
 test.describe('导航抽屉', () => {
-  test('打开：首页 / 奇趣 / 日刻 / 博客，没有 设置 和分隔线；每项有图标；没有 我的文件 / 帮助', async ({ page }) => {
+  test('打开：主站 / 奇趣 / 日刻 / 博客，没有 设置 和分隔线；每项有图标；没有 我的文件 / 帮助', async ({ page }) => {
     await go(page, '/settings/display/');
     await expect(page.locator('.sgx-tb-nav')).toHaveAttribute('aria-expanded', 'false');
     await openDrawer(page);
     await expect(page.locator('.sgx-tb-nav')).toHaveAttribute('aria-expanded', 'true');
     const lists = drawer(page).locator('.sgx-drawer-list');
     await expect(lists).toHaveCount(1);
-    await expect(lists.nth(0).locator('.sgx-drawer-label')).toHaveText(['首页', '奇趣', '日刻', '博客']);
+    await expect(lists.nth(0).locator('.sgx-drawer-label')).toHaveText(['主站', '奇趣', '日刻', '博客']);
     await expect(drawer(page).locator('hr.sgx-drawer-div')).toHaveCount(0);
     await expect(drawer(page).locator('[data-nav="settings"]')).toHaveCount(0);
     await expect(drawer(page).locator('a[href$="/settings/"]')).toHaveCount(0);
@@ -96,10 +96,10 @@ test.describe('导航抽屉', () => {
     expect(Math.abs(sheet.x)).toBeLessThanOrEqual(1);
   });
 
-  test('当前页高亮：主页 → 首页', async ({ page }) => {
+  test('当前页高亮：主页 → 主站', async ({ page }) => {
     await go(page, '/');
     await openDrawer(page);
-    await expect(drawer(page).locator('[aria-current="page"] .sgx-drawer-label')).toHaveText('首页');
+    await expect(drawer(page).locator('[aria-current="page"] .sgx-drawer-label')).toHaveText('主站');
   });
 
   test('当前页高亮：药丸底色与普通项不同', async ({ page }) => {
@@ -115,7 +115,7 @@ test.describe('导航抽屉', () => {
   test('英文：Home / Curio / Daymark / Blog，没有 Settings；搜索框（没 JS 时）→ /en/search/', async ({ page }) => {
     await go(page, '/en/', 'en');
     await openDrawer(page);
-    await expect(drawer(page).locator('.sgx-drawer-label')).toHaveText(['Home', 'Curio', 'Daymark', 'Blog']);
+    await expect(drawer(page).locator('.sgx-drawer-label')).toHaveText(['Main site', 'Curio', 'Daymark', 'Blog']);
     await expect(drawer(page).locator('.sgx-drawer-item').nth(1)).toHaveAttribute('href', 'https://curio.styrigx.com/en/');
     const s = drawer(page).locator('.sgx-drawer-foot a.sgx-drawer-search');
     await expect(s).toHaveAttribute('href', '/en/search/');
@@ -192,7 +192,7 @@ test.describe('导航抽屉', () => {
     await page.goto('/settings/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-topbar')).toBeVisible();
     await openDrawer(page);
-    await drawer(page).locator('.sgx-drawer-item', { hasText: '首页' }).click();
+    await drawer(page).locator('.sgx-drawer-item', { hasText: '主站' }).click();
     await expect(page).toHaveURL(/localhost:\d+\/$/);
     await page.goBack();
     await expect(page).toHaveURL(/\/settings\/$/);
@@ -202,7 +202,7 @@ test.describe('导航抽屉', () => {
   test('点当前页那一项只关闭', async ({ page }) => {
     await go(page, '/');
     await openDrawer(page);
-    await drawer(page).locator('.sgx-drawer-item', { hasText: '首页' }).click();
+    await drawer(page).locator('.sgx-drawer-item', { hasText: '主站' }).click();
     await expect(drawer(page)).toBeHidden();
     await expect(page).toHaveURL(/localhost:\d+\/$/);
   });
