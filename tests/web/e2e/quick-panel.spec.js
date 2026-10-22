@@ -59,14 +59,15 @@ async function expectClosed(page) {
 test.describe('顶栏：右圆 = 快捷面板按钮', () => {
   const PAGES = ['/', '/settings/', '/settings/display/', '/settings/security/', '/settings/account/'];
   for (const path of PAGES) {
-    test(`${path}：九宫格 · 长条（只有页名）· 右圆快捷面板`, async ({ page }) => {
+    test(`${path}：九宫格 · 长条（${path === '/' ? '主页 / 聊天 / 状态三栏' : '只有页名'}）· 右圆快捷面板`, async ({ page }) => {
       await go(page, path);
       const order = await page.evaluate(() =>
         Array.from(document.querySelector('.sgx-topbar').children).map((el) => el.className.split(' ')[0]));
       expect(order).toEqual(['sgx-tb-nav', 'sgx-tb-pill', 'sgx-tb-end']);
       const inner = await page.evaluate(() =>
         Array.from(document.querySelector('.sgx-tb-pill').children).map((el) => el.className.split(' ')[0]));
-      expect(inner).toEqual(['sgx-tb-title']);
+      /* 主页长条里是三栏标签（2026-10-22，status-page.spec.js），其他页是页名 */
+      expect(inner).toEqual([path === '/' ? 'sgx-tb-tabs' : 'sgx-tb-title']);
       const q = page.locator('.sgx-tb-quick');
       expect(await q.evaluate((el) => el.tagName)).toBe('BUTTON');
       await expect(q).toHaveAttribute('aria-label', '快捷面板');

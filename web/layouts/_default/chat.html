@@ -1,0 +1,13 @@
+{{/* 聊天（/chat/，2026-10-22 PR2 占位）：主站顶栏三栏的「聊天」（主页 / 聊天 / 状态）。功能下一步做，现在只有一张「聊天即将上线」卡。
+   和其他主站页面一样过网关（没会话 302 锁屏），noindex（见 baseof）。没有页面脚本，只加载公共 core。 */}}
+{{ define "main" }}
+{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+<div class="max-w-2xl mx-auto px-4 pb-28" id="chat-root">
+  <h1 class="sr-only">{{ if $isEn }}Chat{{ else }}聊天{{ end }}</h1>
+  <section class="widget bg-m-container-lowest st-msg chat-soon animate-fade-up" style="animation-delay:.04s">
+    <span class="chat-soon-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.1A8 8 0 1 1 20 12z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"/></svg></span>
+    <p class="st-msg-title">{{ if $isEn }}Chat coming soon{{ else }}聊天即将上线{{ end }}</p>
+    <p class="st-msg-sub">{{ if $isEn }}This is where chat will live. Check back soon.{{ else }}聊天功能正在做，很快就来。{{ end }}</p>
+  </section>
+</div>
+{{ end }}

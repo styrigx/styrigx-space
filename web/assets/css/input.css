@@ -8028,6 +8028,90 @@
 }
 
 /* ===== utilities 层 ===== */
+@layer sgx-components {
+  /* ===== 状态页（/status/，2026-10-22 PR2；layouts/_default/status.html + apps/status.js）=====
+     横幅（全部正常 = 第三色容器 / 有故障 = danger 容器）→ 每站一张卡（站名 + 域名、状态 chip、最近一次检查、90 格可用率条）→ 近期故障。
+     色块：ok = --sgx-tertiary-fill（卡片上 ≥3:1）、minor 部分故障 = --m-warm、down = --sgx-danger、没数据 = 最高层容器。手机格间距 1px。 */
+  .st-wrap { display: flex; flex-direction: column; gap: 12px; }
+  .st-wrap [hidden] { display: none; }
+  .st-banner { display: flex; align-items: center; gap: 14px; padding: 18px 20px; border: 1px solid var(--m-outline);
+    background-color: var(--sgx-mat); background-image: none; color: var(--sgx-text-primary); }
+  .st-banner[data-state="up"] { background-color: var(--sgx-tertiary-container); color: var(--sgx-on-tertiary-container); border-color: transparent; }
+  .st-banner[data-state="down"] { background-color: var(--sgx-danger-container); color: var(--sgx-on-danger-container); border-color: transparent; }
+  .st-banner-ic { width: 44px; height: 44px; border-radius: 999px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+    background-color: var(--sgx-surface-container-high); }
+  .st-banner[data-state="up"] .st-banner-ic { background-color: var(--sgx-tertiary); color: var(--sgx-on-tertiary); }
+  .st-banner[data-state="down"] .st-banner-ic { background-color: var(--sgx-danger); color: var(--sgx-on-danger); }
+  .st-banner-txt { min-width: 0; }
+  .st-banner-title { margin: 0; font-size: 18px; font-weight: 800; line-height: 1.3; }
+  .st-banner-sub { margin: 2px 0 0; font-size: 13px; line-height: 1.4; opacity: .85; }
+  .st-banner-sub:empty { display: none; }
+  .st-sites { display: flex; flex-direction: column; gap: 12px; }
+  /* 卡片底色 = 内容卡片材质（.widget.bg-m-container-lowest → overrides 层的 --sgx-mat），这里只管边框和排版 */
+  .st-card { padding: 16px 18px 14px; border: 1px solid var(--m-outline); color: var(--sgx-text-primary); }
+  .st-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .st-card-id { min-width: 0; }
+  .st-name { margin: 0; font-size: 17px; font-weight: 700; line-height: 1.3; }
+  .st-host { margin: 2px 0 0; font-size: 12px; color: var(--sgx-text-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .st-chip { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; height: 28px; padding: 0 12px 0 10px; border-radius: 999px;
+    font-size: 13px; font-weight: 600; line-height: 1; white-space: nowrap; background-color: var(--sgx-surface-container-high); color: var(--sgx-text-secondary); }
+  .st-chip[data-state="up"] { background-color: var(--sgx-tertiary-container); color: var(--sgx-on-tertiary-container); }
+  .st-chip[data-state="down"] { background-color: var(--sgx-danger-container); color: var(--sgx-on-danger-container); }
+  .st-chip[data-state="flaky"] { background-color: var(--m-warm-container); color: var(--m-on-warm-container); }
+  .st-dot { width: 8px; height: 8px; border-radius: 999px; background-color: currentColor; }
+  .st-chip[data-state="up"] .st-dot { background-color: var(--sgx-tertiary); }
+  .st-chip[data-state="down"] .st-dot { background-color: var(--sgx-danger); }
+  .st-chip[data-state="flaky"] .st-dot { background-color: var(--m-warm); }
+  .st-meta { display: flex; flex-wrap: wrap; gap: 0 6px; margin: 10px 0 12px; font-size: 13px; line-height: 1.4; color: var(--sgx-text-secondary); }
+  .st-meta-last { font-variant-numeric: tabular-nums; }
+  .st-meta-last[data-ok="0"] { color: var(--sgx-danger); font-weight: 600; }
+  .st-sep { opacity: .6; }
+  .st-bar { display: flex; align-items: stretch; gap: 2px; height: 32px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .st-cell { flex: 1 1 0; min-width: 0; border-radius: 2px; background-color: var(--sgx-surface-container-highest); }
+  .st-cell[data-level="ok"] { background-color: var(--sgx-tertiary-fill); }
+  .st-cell[data-level="minor"] { background-color: var(--m-warm); }
+  .st-cell[data-level="down"] { background-color: var(--sgx-danger); }
+  .st-cell[data-picked] { outline: 2px solid var(--sgx-text-primary); outline-offset: 1px; }
+  @media (hover: hover) { .st-cell:hover { opacity: .75; } }
+  @media (max-width: 599px) { .st-bar { gap: 1px; height: 28px; } .st-cell { border-radius: 1px; } }
+  .st-bar-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 11px; color: var(--sgx-text-tertiary); }
+  .st-pct { font-size: 12px; font-weight: 700; color: var(--sgx-text-primary); font-variant-numeric: tabular-nums; }
+  .st-detail { margin: 8px 0 0; font-size: 12px; color: var(--sgx-text-secondary); }
+  /* 加载骨架：和真卡差不多高，数据到了整块替换不跳版 */
+  .st-skel { display: flex; flex-direction: column; gap: 10px; min-height: 150px; box-sizing: border-box; }
+  .st-skel-line, .st-skel-bar, #st-banner[data-state="loading"] .st-banner-ic { background-color: var(--sgx-surface-container-high); animation: st-pulse 1.2s ease-in-out infinite alternate; }
+  .st-skel-line { height: 14px; border-radius: 7px; }
+  .st-skel-w40 { width: 40%; }
+  .st-skel-w60 { width: 60%; }
+  .st-skel-bar { margin-top: auto; height: 32px; border-radius: 6px; }
+  @keyframes st-pulse { from { opacity: .55; } to { opacity: 1; } }
+  .reduced-motion .st-skel-line, .reduced-motion .st-skel-bar, .reduced-motion #st-banner .st-banner-ic { animation: none; }
+  @media (prefers-reduced-motion: reduce) { .st-skel-line, .st-skel-bar, #st-banner .st-banner-ic { animation: none; } }
+  /* 空 / 错误 / 聊天占位：居中一张卡 */
+  .st-msg { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 28px 22px; text-align: center;
+    border: 1px solid var(--m-outline); color: var(--sgx-text-primary); }
+  .st-msg-title { margin: 0; font-size: 18px; font-weight: 800; line-height: 1.3; }
+  .st-msg-sub { margin: 0; max-width: 320px; font-size: 13px; line-height: 1.5; color: var(--sgx-text-secondary); }
+  .st-btn { margin-top: 10px; height: 40px; padding: 0 22px; border: 0; border-radius: 999px; font-size: 14px; font-weight: 600; cursor: pointer;
+    background-color: var(--sgx-primary); color: var(--sgx-on-primary); }
+  .st-btn:active { background-image: linear-gradient(var(--sgx-state-pressed-bg), var(--sgx-state-pressed-bg)); }
+  .st-btn:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+  .chat-soon-ic { width: 56px; height: 56px; margin-bottom: 6px; border-radius: 18px; display: inline-flex; align-items: center; justify-content: center;
+    background-color: var(--sgx-primary-container); color: var(--sgx-on-primary-container); }
+  /* 近期故障 */
+  .st-inc-wrap { margin-top: 12px; }
+  .st-inc-card { overflow: hidden; border: 1px solid var(--m-outline); color: var(--sgx-text-primary); }
+  .st-inc-list { list-style: none; margin: 0; padding: 0; }
+  .st-inc { padding: 14px 18px; }
+  .st-inc + .st-inc { border-top: 1px solid var(--sgx-divider); }
+  .st-inc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .st-inc-site { font-size: 15px; font-weight: 700; }
+  .st-inc-cause { margin: 4px 0 0; font-size: 13px; }
+  .st-inc-time { display: flex; flex-wrap: wrap; gap: 0 6px; margin: 2px 0 0; font-size: 12px; line-height: 1.5; color: var(--sgx-text-secondary); font-variant-numeric: tabular-nums; }
+  .st-inc-none { margin: 0; padding: 16px 18px; font-size: 13px; color: var(--sgx-text-secondary); }
+  .st-foot { margin-top: 4px; text-align: center; }
+}
+
 @layer sgx-utilities {
   /* 底部弹层里的禁用行 */
   .is-disabled { opacity: .4; pointer-events: none; }
@@ -8409,6 +8493,24 @@ html[data-sgx-role="visitor"] .sgx-drawer-me { pointer-events: none; cursor: def
    1px 实线发丝线（--sgx-text-primary 12% 透明度：浅色 / 深色都是低对比细线；--sgx-outline-variant 在浅色毛玻璃上几乎看不见），左右缘 = 导航项药丸左右缘，上下各留 18px；纯装饰（aria-hidden）。
    要虚线只改 border-top-style 为 dashed。 */
 .sgx-drawer-sep { border: 0; border-top: 1px solid color-mix(in srgb, var(--sgx-text-primary) 12%, transparent); margin: 18px 0; height: 0; }
+/* 主站顶栏三栏（2026-10-22，只在主站，不进共享外壳；子站长条照旧只有页名）：主页 / 聊天 / 状态这三页的长条里是三个标签 .sgx-tb-tab
+   （partials/topbar-tabs.html，data/topbar-tabs.yaml），代替页名。标签高 = --sgx-tb-ic（40px），正好填满长条内边距里的高度；
+   三等分、宽屏最宽 400px 居中。当前页 aria-current="page" = 导航抽屉当前项同一套 tonal 药丸（--sgx-nav-selected / --sgx-on-nav-selected），
+   其他两个是次要文字色，悬停 / 按下走状态层。只用 --sgx-* 角色，不写死颜色。 */
+.sgx-tb-tabs { flex: 1; min-width: 0; max-width: 400px; height: var(--sgx-tb-ic); margin: 0 auto; display: flex; align-items: center; gap: 4px; }
+.sgx-tb-tab { flex: 1 1 0; min-width: 0; height: 100%; box-sizing: border-box; padding: 0 6px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 15px; font-weight: 600; line-height: 1.2; letter-spacing: normal;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--sgx-text-secondary); text-decoration: none; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; transition: background-color .15s ease, color .15s ease; }
+.sgx-tb-tab[aria-current="page"] { background-color: var(--sgx-nav-selected); color: var(--sgx-on-nav-selected); font-weight: 700; }
+@media (hover: hover) {
+  .sgx-tb-tab:not([aria-current="page"]):hover { background-color: var(--sgx-state-hover-bg); color: var(--sgx-text-primary); }
+}
+.sgx-tb-tab:active { background-image: linear-gradient(var(--sgx-state-pressed-bg), var(--sgx-state-pressed-bg)); }
+.sgx-tb-tab:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
+.reduced-motion .sgx-tb-tab { transition: none; }
+@media (prefers-reduced-motion: reduce) { .sgx-tb-tab { transition: none; } }
 /* 快捷面板（2026-10-21 v6：从顶栏下方落下的覆盖层，One UI 快捷面板式；baseof.html #sgx-qp，shell/quick-panel.js 开关）：
    非模态 <dialog>（show()，不进顶层），fixed 铺满「顶栏下沿以下」的区域：dialog 本身就是遮罩（is-open 时 --sgx-scrim），
    z-index 45 = 盖住正文和底部胶囊（41），但在顶栏 #site-nav（50）下面——顶栏不被遮罩压暗、图标照常可点（再点关闭）。

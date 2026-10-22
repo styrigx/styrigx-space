@@ -101,7 +101,10 @@ test('顶栏 v8（2026-10-22）：九宫格圆 | 只有页名的长条 | 右圆 
   assert.match(s, /:root \{ --sgx-drawer-me: var\(--sgx-tb-btn\); \}/);
   assert.match(s, /\.sgx-drawer-me \{[^}]*width: var\(--sgx-drawer-me\); height: var\(--sgx-drawer-me\); border-radius: 999px;[^}]*box-shadow: var\(--sgx-mat-shadow\);/);
   const base = readFileSync(path.join(REPO, 'web/layouts/_default/baseof.html'), 'utf8');
-  assert.match(base, /<div class="sgx-tb-pill"><span class="sgx-tb-title">\{\{ \$pageName \}\}<\/span><\/div>\n\s*\{\{ partial "topbar-end\.html"/);
+  /* 主站顶栏三栏（2026-10-22 PR2，只在主站）：主页 / 聊天 / 状态三页长条里是 partials/topbar-tabs.html，其他页仍只有页名 */
+  assert.match(base, /<div class="sgx-tb-pill\{\{ if \$tabCur \}\} sgx-tb-pill-tabs\{\{ end \}\}">\{\{ if \$tabCur \}\}\{\{ partial "topbar-tabs\.html" \(dict "isEn" \$isEn "cur" \$tabCur\) \}\}\{\{ else \}\}<span class="sgx-tb-title">\{\{ \$pageName \}\}<\/span>\{\{ end \}\}<\/div>\n\s*\{\{ partial "topbar-end\.html"/);
+  /* 三栏样式只在主站段，不进共享外壳 */
+  assert.doesNotMatch(s, /sgx-tb-tab/);
   const end = readFileSync(path.join(REPO, 'web/layouts/partials/topbar-end.html'), 'utf8');
   assert.match(end, /<button type="button" class="sgx-tb-end sgx-tb-quick"/);
 });
