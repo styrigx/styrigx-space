@@ -8,6 +8,22 @@ export const AVATAR_SIZES = [32, 96, 192, 512];
 /* 每个尺寸的上限（字节）：给足余量，正常照片远小于此 */
 export const AVATAR_MAX = { 32: 64 * 1024, 96: 128 * 1024, 192: 384 * 1024, 512: 1536 * 1024 };
 export const KEY_VER = 'avatar:ver';
+
+/**
+ * 头像存在哪个 KV（2026-10-22 起分库）：账号资料库 styrigx-account（ACCOUNT_KV）。
+ * 没绑 ACCOUNT_KV（本地 / 旧预览）→ 退回认证库 OWNER_KV。
+ * @param {any} env
+ */
+export function avatarKv(env) {
+  return (env && (env.ACCOUNT_KV || env.OWNER_KV)) || null;
+}
+/**
+ * 分库前上传的头像还在认证库 OWNER_KV：读的时候新库没有就看旧库，下次上传 / 移除时清掉旧库。
+ * @param {any} env
+ */
+export function legacyAvatarKv(env) {
+  return env && env.ACCOUNT_KV && env.OWNER_KV && env.ACCOUNT_KV !== env.OWNER_KV ? env.OWNER_KV : null;
+}
 /** @param {number} s */
 export const keyOf = (s) => 'avatar:' + s;
 export const PUBLIC_CACHE = 'public, max-age=300, stale-while-revalidate=2592000';

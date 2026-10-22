@@ -64,10 +64,23 @@ SGX_SITE = "space"
 SGX_ORIGIN = "https://styrigx.com"
 SGX_RP_ID = "styrigx.com"
 
+# ---- 服务绑定 ----
+# 全站搜索 styrigx-search-index（workers/search-index；没有公开地址，只能从这里进）。/api/search 验完会话转给它。
+# 部署顺序：deploy.yml 里 deploy-search-worker 先于本 Worker。
+[[services]]
+binding = "SEARCH"
+service = "styrigx-search-index"
+
 # ---- 数据绑定（正式 KV/D1）----
+# 认证库 styrigx-auth-gateway（原 styrigx-owner，2026-10-22 改名，id 不变）：锁屏 / 账号的密码哈希、通行密钥、会话、设备、限流。
 [[kv_namespaces]]
 binding = "OWNER_KV"
 id = "b796097c90104000992b7713f61e16ea"
+
+# 账号资料库 styrigx-account（2026-10-22 分出来）：头像（avatar:*）、云同步（account-prefs）。
+[[kv_namespaces]]
+binding = "ACCOUNT_KV"
+id = "b20701f5f48e498e897bc6f0bd81643f"
 
 [[d1_databases]]
 binding = "SGX_D1"

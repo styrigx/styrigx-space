@@ -45,9 +45,15 @@ function instance() {
     inst = mod.mountSearch({
       lang: en ? 'en' : 'zh',
       index: '/files-index.json',
+      /* 全站搜索（网关验会话 → styrigx-search-index）；拿不到就只用上面的本地索引 */
+      api: '/api/search',
       types: [
+        { type: 'setting', zh: '设置', en: 'Settings' },
         { type: 'post', zh: '博客', en: 'Blog' },
         { type: 'app', zh: '应用', en: 'Apps' },
+        { type: 'site', zh: '站点', en: 'Sites' },
+        { type: 'quote', zh: '日刻', en: 'Daymark' },
+        { type: 'item', zh: '奇趣', en: 'Curio' },
       ],
       navigate: sgxNavigate,
     });

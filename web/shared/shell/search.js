@@ -23,6 +23,7 @@
  * @typedef {Object} SearchConfig
  * @property {'zh'|'en'} [lang] 文案语言（默认按 <html lang>）
  * @property {string|null} [index] 站内索引地址（files-index.json 格式：{ items: [{ type, lang, title, subtitle, url }] }）；null = 只有引擎搜索
+ * @property {string|null} [api] 全站搜索接口（/api/search，网关验会话后转 styrigx-search）；有就优先用它的结果，失败退回 index
  * @property {Array<{type: string, zh: string, en: string}>} [types] 索引里要列出的类型和分组名（按这个顺序）
  * @property {string} [engineKey] 搜索引擎设置的 localStorage 键（默认 sgx-search-engine；没有值 = Google）
  * @property {() => string} [engine] 自己给当前引擎 id（google / bing / duckduckgo / yahoo / ecosia），优先于 engineKey
@@ -185,6 +186,39 @@ export function mountSearch(cfg) {
       .catch(function () { indexAsked = false; /* 拿不到索引：只剩引擎搜索，下次打开再试 */ });
   }
 
+  /* ============ 全站搜索接口（有 cfg.api 时；打一个字防抖 150ms，旧回答作废） ============ */
+  /** @type {{q: string, hits: Hit[]}|null} */
+  let apiRes = null;
+  let apiDown = false;
+  let apiTimer = 0;
+  let apiSeq = 0;
+  /** @param {string} q */
+  function askApi(q) {
+    if (!cfg || !cfg.api || apiDown) return;
+    window.clearTimeout(apiTimer);
+    if (!q) return;
+    const seq = ++apiSeq;
+    apiTimer = window.setTimeout(function () {
+      fetch(cfg.api + '?q=' + encodeURIComponent(q) + '&lang=' + lang + '&limit=30', { credentials: 'same-origin' })
+        .then(function (r) {
+          if (r.status === 401 || r.status === 404) apiDown = true; /* 没会话 / 没这个接口：这次打开只用本地索引 */
+          if (!r.ok) throw new Error('bad status ' + r.status);
+          return r.json();
+        })
+        .then(function (j) {
+          if (seq !== apiSeq) return;
+          apiRes = {
+            q: q,
+            hits: ((j && j.hits) || []).map(function (/** @type {any} */ x) {
+              return { t: String(x.title || ''), d: String(x.subtitle || ''), u: String(x.url || ''), type: String(x.type || '') };
+            }),
+          };
+          if (isOpen() && input.value.trim() === q) render();
+        })
+        .catch(function () {});
+    }, 150);
+  }
+
   /* ============ 渲染 ============ */
   /** @param {string} text @param {string} q */
   function hl(text, q) {
@@ -233,12 +267,17 @@ export function mountSearch(cfg) {
     }
     emptyEl.hidden = true;
     const ql = q.toLowerCase();
+    /* 接口对这句话的回答到了就用它（已按相关度排好），否则先用本地索引顶着 */
+    const fromApi = apiRes && apiRes.q === q ? apiRes.hits : null;
+    if (!fromApi) askApi(q);
     let h = '';
     let n = 0;
     TYPES.forEach(function (c) {
-      const hs = INDEX.filter(function (x) {
-        return x.type === c.type && (x.t + ' ' + (x.d || '')).toLowerCase().indexOf(ql) !== -1;
-      }).slice(0, 5);
+      const hs = (fromApi
+        ? fromApi.filter(function (x) { return x.type === c.type; })
+        : INDEX.filter(function (x) {
+          return x.type === c.type && (x.t + ' ' + (x.d || '')).toLowerCase().indexOf(ql) !== -1;
+        })).slice(0, 5);
       if (!hs.length) return;
       h += '<div class="sgx-srch-card" role="group" aria-label="' + esc(lang === 'en' ? c.en : c.zh) + '"><div class="sgx-srch-card-head">' + esc(lang === 'en' ? c.en : c.zh) + '</div>';
       hs.forEach(function (x) {
@@ -262,9 +301,17 @@ export function mountSearch(cfg) {
   function openUrl(u) {
     if (!u) return;
     let same = true;
+    let sibling = false;
     try {
-      same = new URL(u, location.href).origin === location.origin;
+      const t = new URL(u, location.href);
+      same = t.origin === location.origin;
+      /* 全站搜索的结果可能在兄弟站（blog / daymark / curio）：同一个人的站，当前标签页跳过去 */
+      sibling = !same && t.protocol === 'https:' && /(^|\.)styrigx\.com$/.test(t.hostname);
     } catch (e) {}
+    if (sibling) {
+      close(function () { location.href = u; });
+      return;
+    }
     if (!same) {
       window.open(u, '_blank', 'noopener');
       return;
@@ -288,7 +335,8 @@ export function mountSearch(cfg) {
       return;
     }
     const ql = q.toLowerCase();
-    const exact = INDEX.find(function (x) { return x.t.toLowerCase() === ql; });
+    const pool = apiRes && apiRes.q === q ? apiRes.hits.concat(INDEX) : INDEX;
+    const exact = pool.find(function (x) { return x.t.toLowerCase() === ql; });
     if (exact) {
       openUrl(exact.u);
       return;
@@ -472,6 +520,7 @@ export function mountSearch(cfg) {
 
   /** @param {OpenOptions} [o] */
   function open(o) {
+    apiDown = false; /* 每次打开重新试一次接口（可能刚解锁） */
     o = o || {};
     const motion = !reduced();
     /* 1. 量起点、复制抽屉（抽屉还开着时） */

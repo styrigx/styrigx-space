@@ -51,6 +51,10 @@ const KNOWN_FIXED = new Set([
   'bad-json',
   'bad-url',
   'current', /* 账号 › 设备：不能在设备页退出此设备（account-common.js ERR_KEYS → devCurrent） */
+  /* 全站搜索 /api/search：前端不显示错误，任何失败都退回本地索引（shell/search-layer.js askApi） */
+  'too-long',
+  'unauthorized',
+  'upstream',
 ]);
 
 function read(p) {

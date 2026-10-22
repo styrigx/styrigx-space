@@ -20,6 +20,7 @@ import * as prefs from '../functions/api/prefs.js';
 import * as rootAudit from '../functions/api/root-audit.js';
 import * as rootAuth from '../functions/api/root-auth.js';
 import * as rootSession from '../functions/api/root-session.js';
+import * as search from '../functions/api/search.js';
 import * as sessionCheck from '../functions/api/session-check.js';
 import * as sessionEpoch from '../functions/api/session-epoch.js';
 import * as verify from '../functions/api/verify.js';
@@ -43,6 +44,7 @@ export const API_ROUTES = new Map([
   ['/api/root-audit', rootAudit],
   ['/api/root-auth', rootAuth],
   ['/api/root-session', rootSession],
+  ['/api/search', search],
   ['/api/session-check', sessionCheck],
   ['/api/session-epoch', sessionEpoch],
   ['/api/verify', verify],
