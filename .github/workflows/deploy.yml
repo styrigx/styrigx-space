@@ -105,23 +105,11 @@ jobs:
         # 在脚本内白名单放行）
         run: node scripts/check-frontend.mjs
 
-      - name: Generate blog posts data (P0-2)
-        # 从博客仓库读公开文章列表，生成 data/posts.json
-        # BLOG_TOKEN: 只读 token（公开仓库可匿名，但配 token 更稳）
-        # 失败、0 篇 → 脚本 exit 非 0 → 构建失败
-        run: node scripts/gen-posts-json.mjs
-        env:
-          BLOG_TOKEN: ${{ secrets.BLOG_READ_TOKEN || github.token }}
-
       - name: Build site (生产构建，用于锁屏测试)
         run: hugo --minify -s web
 
       - name: Check auth gateway routes (每个页面都过网关，静态资源不过)
         run: node scripts/check-worker-routes.mjs
-
-      - name: Assert posts in files-index.json (P0-2)
-        # 断言：type=post > 0，中英各有，URL 合法；失败则 CI 失败
-        run: node scripts/assert-posts.mjs
 
       - name: stylelint（禁止硬编码颜色）
         run: npx stylelint --config tests/config/stylelintrc.json "web/assets/css/input.css"
@@ -169,8 +157,6 @@ jobs:
         # Turnstile 用 Cloudflare 官方测试 Key（sed 替换，不污染正式密钥）
         run: |
           sed -i "s/0x4AAAAAAFSBhpWkAwZr1SMA/1x00000000000000000000AA/g" web/hugo.yaml
-          # P0-2：视觉测试用 Fixture 数据，保证和基线一致；正式构建用真实 posts.json
-          cp web/data/posts.fixture.json web/data/posts.json
           hugo --minify -s web
         env:
           SGX_TEST_NO_LOCK: "1"
@@ -406,19 +392,11 @@ jobs:
       - name: Build CSS
         run: node scripts/build-css.cjs --minify
 
-      - name: Generate blog posts data (P0-2)
-        run: node scripts/gen-posts-json.mjs
-        env:
-          BLOG_TOKEN: ${{ secrets.BLOG_READ_TOKEN || github.token }}
-
       - name: Build site
         run: hugo --minify -s web
         env:
           # #1 诊断：把短 commit SHA 写进 <html data-sgx-build> 及页面小字构建标记
           SGX_BUILD_SHA: ${{ github.sha }}
-
-      - name: Assert posts in files-index.json (P0-2)
-        run: node scripts/assert-posts.mjs
 
       - name: Assert static-only Pages build
         # 生产部署只能带静态的 _worker.js（只做 pages.dev → styrigx.com 跳转），不能带网关代码
@@ -487,11 +465,6 @@ jobs:
 
       - name: Install dependencies
         run: npm install
-
-      - name: Generate blog posts data
-        run: node scripts/gen-posts-json.mjs
-        env:
-          BLOG_TOKEN: ${{ secrets.BLOG_READ_TOKEN || github.token }}
 
       - name: Build site (for the search index)
         run: node scripts/build-css.cjs --minify && hugo --minify -s web

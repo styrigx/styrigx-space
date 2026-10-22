@@ -8,7 +8,6 @@ web/.hugo_build.lock
 web/hugo_stats.json
 web/assets/css/main.css
 web/data/tailwind.json
-web/data/posts.json
 
 # 测试产物
 test-results/

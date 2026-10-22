@@ -52,26 +52,6 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
         test(name, async ({ page: pg }) => {
           await pg.setViewportSize(vp);
           await blockExternalRequests(pg);
-          /* 2.8.0：files 页面 mock（page.route 后注册优先于 blockExternalRequests 的通配拦截）；B2-2 删除书单条目 */
-          if (page === '/files/') {
-            /* Hark：拦截 filesindex.json，取真实响应，文章换成固定 fixture（日期在冻结时间 10-09 的 30 天窗口内），站点等保留 */
-            await pg.route('**/files-index.json**', async (route) => {
-              const res = await route.fetch();
-              const data = await res.json();
-              const kept = data.items || [];
-              /* 固定文章 fixture（rss 被锁屏 302，真数据拿不到；用固定 2 篇保证"最近添加"稳定） */
-              const posts = [
-                { id: 'post-fixture-a', type: 'post', lang: 'zh', title: 'Fixture Post A', url: 'https://blog.styrigx.com/post/fixture-a/', addedAt: '2026-10-07' },
-                { id: 'post-fixture-b', type: 'post', lang: 'zh', title: 'Fixture Post B', url: 'https://blog.styrigx.com/post/fixture-b/', addedAt: '2026-10-03' },
-                { id: 'post-fixture-a-en', type: 'post', lang: 'en', title: 'Fixture Post A', url: 'https://blog.styrigx.com/en/post/fixture-a/', addedAt: '2026-10-07' },
-                { id: 'post-fixture-b-en', type: 'post', lang: 'en', title: 'Fixture Post B', url: 'https://blog.styrigx.com/en/post/fixture-b/', addedAt: '2026-10-03' },
-              ];
-              /* 去掉原有的 post 条目（可能为 0 或不稳定），换成固定 fixture */
-              const noPosts = kept.filter((it) => it.type !== 'post');
-              data.items = noPosts.concat(posts);
-              await route.fulfill({ response: res, json: data });
-            });
-          }
           /* 关掉动画，保证截图稳定（goto 之前设置，context 级生效） */
           await pg.emulateMedia({ reducedMotion: 'reduce' });
           /* 定稿 #1：门内页探针需会话+票据都有效。视觉测试 mock 两者通过，
