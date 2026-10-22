@@ -7659,6 +7659,53 @@
   .acct-login-none { margin: 0; font-size: 14px; color: var(--sgx-text-secondary); text-align: center; line-height: 1.6; }
   .acct-login .acct-cant { margin-top: 18px; }
   #acct-door .acct-cant { display: inline-block; margin-top: 12px; }
+  /* 2026-10-23 背景方案 C（用户定稿：图 3 玻璃复刻 + 主题色）。
+     .sgx-glass-bg：fixed 全屏装饰层，盖在 #sgx-wallpaper 之上、内容之下。
+     底 = 主色 → 页面底色 → 第二色的柔和渐变（只取色相，明度 / 彩度压低）；
+     上 = 灰度玻璃明度图（/images/bg/glass-*.webp），mix-blend-mode: luminosity 只给明暗，颜色跟调色板走。
+     顶栏区域干净：遮罩从顶栏下沿开始淡入，玻璃不穿过顶栏。账号登录页与锁屏共用。 */
+  .sgx-glass-bg {
+    --g-a1: oklch(from var(--sgx-primary) .92 min(calc(c * .45), .05) h);
+    --g-a2: oklch(from var(--sgx-secondary) .93 min(calc(c * .5), .05) h);
+    --g-a0: oklch(from var(--sgx-primary) .97 .012 h);
+    --g-top: calc(env(safe-area-inset-top, 0px) + var(--sgx-tb-inset) + var(--sgx-tb-btn));
+    position: fixed; inset: 0; z-index: 0; pointer-events: none; isolation: isolate;
+    background: linear-gradient(160deg, var(--g-a1) 0%, var(--g-a0) 45%, var(--g-a2) 100%);
+    -webkit-mask: linear-gradient(to bottom, transparent 0, transparent var(--g-top), rgb(0 0 0) calc(var(--g-top) + 96px));
+    mask: linear-gradient(to bottom, transparent 0, transparent var(--g-top), rgb(0 0 0) calc(var(--g-top) + 96px));
+  }
+  .sgx-glass-bg::before {
+    content: ''; position: absolute; inset: 0;
+    background: url(/images/bg/glass-light.webp) center / cover no-repeat;
+    mix-blend-mode: luminosity;
+  }
+  :root.dark .sgx-glass-bg {
+    --g-a1: oklch(from var(--sgx-primary) .34 min(c, .06) h);
+    --g-a2: oklch(from var(--sgx-secondary) .30 min(c, .05) h);
+    --g-a0: oklch(from var(--sgx-primary) .22 .02 h);
+  }
+  :root.dark .sgx-glass-bg::before {
+    background-image: url(/images/bg/glass-dark.webp); mix-blend-mode: screen; opacity: .75;
+  }
+  /* 账号页：只有登录区显示时才铺玻璃（总览、子页不铺）；内容在玻璃层之上 */
+  .acct-glass { display: none; }
+  body:has(#acct-login:not([hidden])) .acct-glass { display: block; }
+  body:has(#acct-login:not([hidden])) .acct-layout { position: relative; z-index: 1; }
+  /* 左上角站名（图 3）：顶栏下方、靠左 */
+  .acct-brand { align-self: stretch; display: flex; flex-direction: column; gap: 10px; margin: 8px 0 28px; padding-left: 10px; color: var(--sgx-text-primary); }
+  .acct-brand-name { font-size: clamp(40px, 11vw, 52px); line-height: 1; font-weight: 400; letter-spacing: .01em; }
+  .acct-brand-tag { font-size: 15px; line-height: 1.5; color: var(--sgx-text-secondary); }
+  .acct-login-sub { margin: -8px 0 0; font-size: 14px; letter-spacing: .04em; color: var(--sgx-text-secondary); }
+  .acct-login .acct-login-avatar { width: 120px; height: 120px; box-shadow: 0 0 0 5px rgba(255 255 255 / .92), 0 14px 30px -10px rgba(0 0 0 / .25); }
+  :root.dark .acct-login .acct-login-avatar { box-shadow: 0 0 0 4px rgba(255 255 255 / .2), 0 14px 30px -10px rgba(0 0 0 / .5); }
+  /* 按钮：颜色仍用主题色角色（--sgx-btn-*，与锁屏弹层一致、对比度已审），这里只加圆角、高度和投影 */
+  .acct-login .sgx-door-btn { border-radius: 20px; min-height: 56px; }
+  .acct-login .sgx-door-btn-primary { box-shadow: inset 0 1px 0 rgba(255 255 255 / .22), 0 12px 24px -12px color-mix(in oklch, var(--sgx-primary) 70%, transparent); }
+  .acct-login .sgx-door-btn-secondary { box-shadow: inset 0 1px 0 rgba(255 255 255 / .6), 0 8px 20px -12px rgba(0 0 0 / .2); }
+  /* 底部：站名 + 站点清单 */
+  .acct-login-foot { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 48px; color: var(--sgx-text-primary); }
+  .acct-login-foot-name { font-size: 16px; font-weight: 600; letter-spacing: .2em; opacity: .6; }
+  .acct-login-foot-list { font-size: 10px; letter-spacing: .22em; color: var(--sgx-text-secondary); text-align: center; }
   /* PR3：本 PR 动到的界面（账号登录 / 密码框 / 重置登录 / 锁屏 / 锁屏解锁弹层 / Turnstile 弹层）
      颜色只用主题色 token（--sgx-*，见 tokens 层「主题色 → 整套配色」），不写死蓝 / 紫。 */
   .acct-login .sgx-door-btn-primary, .sgx-reset .sgx-door-btn-primary, #acct-door .sgx-door-btn-primary,

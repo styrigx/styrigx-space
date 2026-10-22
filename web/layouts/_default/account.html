@@ -1,5 +1,5 @@
 {{/* 账号（/account/，独立页，不挂在设置下）：抽屉头的头像圆进入。
-   未登录 → 账号登录（顶栏页名「登录账号」）：头像 + 欢迎回来 + 通行密钥登录 / 密码登录 + 「无法登录？」。
+   未登录 → 账号登录（顶栏页名「登录账号」，背景方案 C：玻璃背景 + 左上站名 + 底部站点清单）：头像 + 欢迎回来 + 记录 · 收藏 · 探索 · 享受 + 通行密钥登录 / 密码登录 + 「无法登录？」。
    成功签发账号会话（sgx-account，400 天，不点退出一直登录；进账号页前提是锁屏已解锁）。
    「无法登录？」→ /account/reset/（重置登录：根凭证 → 直接进 安全与隐私 重设账号凭证）。
    已登录 → 账号总览（三星账号式）：账号卡（名字 + 头像，主人可换头像；点卡片其余地方进
@@ -14,6 +14,9 @@
 {{ .Scratch.Set "sgx-entry" "entry-account.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 
+{{/* 2026-10-23 背景方案 C：玻璃背景（共用组件 .sgx-glass-bg，锁屏同一套），只在登录区显示时出现。
+   放在 .acct-layout 外面：.acct-layout 有 contain: layout，会把 fixed 层框在栏宽里。纯装饰。 */}}
+<div class="sgx-glass-bg acct-glass" aria-hidden="true"></div>
 <div class="acct-layout pb-28">
 
   <!-- 账号登录（PR3）：页名「登录账号」只在顶栏长条里（JS 按状态改），正文不再重复大标题、不放盾牌图标和构建号。
@@ -24,9 +27,11 @@
        account.js 再按同一个属性接手；只有服务端说「未登录」才出现「欢迎回来」，不再先画登录区再换成总览。 -->
 {{ "<!-- SGX-ACCT-LOGIN-START -->" | safeHTML }}
   <div id="acct-login" class="acct-login" hidden>
+    <div class="acct-brand" aria-hidden="true"><span class="acct-brand-name">Styrigx</span><span class="acct-brand-tag">A Personal<br>Digital Space</span></div>
     <div class="acct-login-hero animate-fade-up">
       <img class="acct-login-avatar" src="/avatar/192.webp" data-sgx-avatar="192" width="96" height="96" alt="">
       <p class="acct-login-welcome">{{ if $isEn }}Welcome back{{ else }}欢迎回来{{ end }}</p>
+      <p class="acct-login-sub">{{ if $isEn }}Record · Collect · Explore · Enjoy{{ else }}记录 · 收藏 · 探索 · 享受{{ end }}</p>
     </div>
     <p class="sgx-door-err acct-login-notice" id="acct-login-notice" hidden></p>
     <div class="acct-login-actions animate-fade-up" style="animation-delay:.08s">
@@ -46,6 +51,7 @@
       <p class="acct-login-none" id="acct-login-none" hidden>{{ if $isEn }}No sign-in method is set for this account yet. Use “Can’t sign in?” to set one with your root credential.{{ else }}账号还没有设置登录方式。可以点「无法登录？」用根凭证设置。{{ end }}</p>
     </div>
     <a class="acct-cant" id="acct-cant" href="{{ cond $isEn "/en/account/reset/" "/account/reset/" }}">{{ if $isEn }}Can’t sign in?{{ else }}无法登录？{{ end }}</a>
+    <div class="acct-login-foot" aria-hidden="true"><span class="acct-login-foot-name">Styrigx</span><span class="acct-login-foot-list">MOBILE · DEX · SPACE · CURIO · BLOG · DAYMARK</span></div>
   </div>
 {{ "<!-- SGX-ACCT-LOGIN-END -->" | safeHTML }}
 
