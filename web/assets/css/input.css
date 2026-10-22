@@ -8110,6 +8110,34 @@
   .st-inc-time { display: flex; flex-wrap: wrap; gap: 0 6px; margin: 2px 0 0; font-size: 12px; line-height: 1.5; color: var(--sgx-text-secondary); font-variant-numeric: tabular-nums; }
   .st-inc-none { margin: 0; padding: 16px 18px; font-size: 13px; color: var(--sgx-text-secondary); }
   .st-foot { margin-top: 4px; text-align: center; }
+  /* 用量（PR3，2026-10-22）：站点卡下面一张卡，一行一项（名字 · 值 / 上限 · 百分比 · 进度条 · 说明），D1 每个库缩进在合计下面。
+     进度条：正常 = --sgx-primary，> 70% 琥珀 = --m-warm，> 90% 红 = --sgx-danger；底轨 = 最高层容器（同可用率条的「无数据」格）。 */
+  .st-usage-wrap { margin-top: 12px; }
+  .st-usage-card { overflow: hidden; border: 1px solid var(--m-outline); color: var(--sgx-text-primary); }
+  .st-usage { list-style: none; margin: 0; padding: 4px 0; }
+  .st-u { padding: 12px 18px; }
+  .st-u + .st-u:not([data-child]) { border-top: 1px solid var(--sgx-divider); }
+  .st-u[data-child] { padding: 4px 18px 10px 34px; }
+  .st-u-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .st-u-name { min-width: 0; font-size: 15px; font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }
+  .st-u[data-child] .st-u-name { font-size: 13px; font-weight: 600; color: var(--sgx-text-secondary); }
+  .st-u-val { flex-shrink: 0; display: inline-flex; align-items: baseline; gap: 8px; font-size: 13px; color: var(--sgx-text-secondary);
+    font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .st-u-pct { min-width: 44px; text-align: right; font-size: 13px; font-weight: 700; color: var(--sgx-text-primary); }
+  .st-u[data-level="warn"] .st-u-pct { color: var(--m-on-warm-container); }
+  .st-u[data-level="crit"] .st-u-pct { color: var(--sgx-danger); }
+  .st-u-track { position: relative; height: 8px; margin-top: 8px; border-radius: 999px; overflow: hidden; background-color: var(--sgx-surface-container-highest); }
+  .st-u[data-child] .st-u-track { height: 6px; margin-top: 6px; }
+  .st-u-fill { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background-color: var(--sgx-primary); }
+  .st-u-fill[data-level="warn"] { background-color: var(--m-warm); }
+  .st-u-fill[data-level="crit"] { background-color: var(--sgx-danger); }
+  .st-u-sub { margin: 6px 0 0; font-size: 12px; line-height: 1.45; color: var(--sgx-text-tertiary); }
+  .st-u[data-level="none"] .st-u-sub { margin-top: 2px; }
+  .st-usage-foot { margin: 0; padding: 10px 18px 14px; border-top: 1px solid var(--sgx-divider); font-size: 12px; line-height: 1.5; color: var(--sgx-text-secondary); }
+  .st-usage-foot[data-stale] { color: var(--m-on-warm-container); }
+  .st-usage-none { padding: 16px 18px; }
+  .st-usage-none-title { margin: 0; font-size: 15px; font-weight: 700; }
+  .st-usage-none-sub { margin: 4px 0 0; font-size: 13px; line-height: 1.5; color: var(--sgx-text-secondary); }
 }
 
 @layer sgx-utilities {

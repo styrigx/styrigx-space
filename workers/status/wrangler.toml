@@ -3,10 +3,14 @@
 # 没有公开地址：不开 workers.dev、不挂路由、不挂域名。
 #   - 定时：Cron 每分钟一次（src/index.js scheduled），检查 src/targets.js 里的 5 个地址，10 秒超时，
 #     连续 3 次失败开一条故障，恢复后自动关。
+#   - 用量：Cron 每小时 41 分一次（src/usage.js），用只读 token 读 Cloudflare API（D1 / R2 / KV 存储、今天的 Workers 请求数），
+#     最新快照存 D1 表 usage（migrations/0002_usage.sql）。
 #   - 读数据：唯一入口是鉴权网关 styrigx-auth-gateway 的服务绑定 STATUS（主站 /api/status 验完会话转进来）。
-# 所以这里不验 cookie、不持任何钥匙。
-#
-# 数据：D1 styrigx-status（表结构见 migrations/）。原始检查记录留 7 天，每日汇总长期保留。
+# 这里不验 cookie。唯一的钥匙是用量那把只读 token，放在 Cloudflare Secrets Store（和鉴权网关同一个 store），仓库里不写值：
+#   Secrets Store 里建一条 secret_name = "SGX_CF_USAGE_TOKEN"，值 = 自定义 API token，Account 级只读：
+#     Account Analytics Read · D1 Read · Workers R2 Storage Read · Workers KV Storage Read
+#   账号 id 用普通 Worker secret：npx wrangler secret put CF_ACCOUNT_ID（不进仓库，部署不会冲掉）
+# 没配 → 用量 Cron 什么都不做，状态页「用量」显示「用量未配置」；/api/status 其余部分不受影响。
 
 name = "styrigx-status"
 main = "src/index.js"
@@ -17,7 +21,9 @@ workers_dev = false
 preview_urls = false
 
 [triggers]
-crons = ["* * * * *"]
+# 第一条：每分钟检查各站；第二条：每小时 41 分收一次用量（index.js 按 event.cron 分流）。
+# 注意：免费账号整个账号最多 5 个 Cron Trigger（https://developers.cloudflare.com/workers/platform/limits/），这里占 2 个。
+crons = ["* * * * *", "41 * * * *"]
 
 [observability]
 enabled = true
@@ -29,3 +35,10 @@ binding = "STATUS_DB"
 database_name = "styrigx-status"
 database_id = "31970da7-4b8f-4180-ad93-c170649188dc"
 migrations_dir = "migrations"
+
+# 用量 token（PR3）：Secrets Store 绑定，代码里 await env.CF_USAGE_TOKEN.get()。store_id 同 workers/auth-gateway/wrangler.toml（是存储编号，不是密值）。
+# 部署这个 Worker 的 token（styrigx-status-deploy）因此要多一项 Secrets Store 编辑（带 Secrets Store 绑定部署必须 Edit，Read 报 10021）。
+[[secrets_store_secrets]]
+binding = "CF_USAGE_TOKEN"
+store_id = "a5a984f365424401bad5ad6ddcd44479"
+secret_name = "SGX_CF_USAGE_TOKEN"
