@@ -26,6 +26,11 @@ import { accountSubmitters, visibleKinds } from './account-methods.js';
 (function () {
   const en = document.documentElement.lang === 'en';
   const t = createT(en);
+  /** 总览「设备」一行的副标题：此设备的名字（服务端 session.device；没有就「此设备」） @param {any} j */
+  function fillDevSub(j) {
+    const el = document.getElementById('acct-dev-sub');
+    if (el) el.textContent = (j && j.session && j.session.device) || t('devThis');
+  }
   /** @param {string} id */
   function $(id) {
     return document.getElementById(id);
@@ -65,6 +70,7 @@ import { accountSubmitters, visibleKinds } from './account-methods.js';
         }
         const secSub = $('acct-sec-sub');
         if (secSub) secSub.textContent = (j.password || j.passkey) ? t('secProtected') : t('secUnprotected');
+        fillDevSub(j);
         const PKC = /** @type {any} */ (window).PublicKeyCredential;
         if (PKC && typeof PKC.signalCurrentUserDetails === 'function') {
           postJSON(ACCOUNT_API, { action: 'list' }).then(function (res) {
@@ -247,6 +253,7 @@ import { accountSubmitters, visibleKinds } from './account-methods.js';
     setPageTitle('acctTitle');
     const secSub = $('acct-sec-sub');
     if (secSub) secSub.textContent = (j.password || j.passkey) ? t('secProtected') : t('secUnprotected');
+    fillDevSub(j);
     loginEl.hidden = true;
     mainEl.hidden = false;
     maybeSignalName();

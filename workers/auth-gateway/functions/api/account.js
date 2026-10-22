@@ -13,6 +13,7 @@
  * 从不被当作账号认证。
  *
  * GET /api/account → { ok, password, passkey, ready, session, door }
+ *   - session.device：此设备的名字（设备页 / 总览「设备」一行用；旧票或没记录时 ''）
  *   - 需 owner lock 会话（访客/无会话 401）；只返回「是否已设置」，无敏感数据
  *   - ready：账号签名钥匙是否已配置（false → 登录会 503 config）
  *   - session：当前账号会话 { by, authAt, expiresAt } 或 null（账号会话 400 天，不点退出一直登录）
@@ -35,6 +36,9 @@
  * - delete { credId } → 删除账号通行密钥（account-epoch +1，当前设备账号会话重签）
  * - rename { credId, name } → 重命名账号通行密钥（名字规则同锁屏 rename：去控制字符、去首尾空格、
  *   1–40 字；只改 class=owner 的钥匙，别的类别 not-found；不推纪元）
+ * 设备（只要账号会话，不进门；记录见 _kernel/account-devices.js）：
+ * - devices → { devices: [{ sid, current, name, model, platform, browser, country, city, by, createdAt, lastSeen }] }，此设备排第一
+ * - device-revoke { sid } → 单独退出那台设备（删记录 + 拉黑 sid）；不能退出此设备（400 current，用退出账号）
  * - password { password } → 设置/修改账号密码（已有时 account-epoch +1 并重签当前会话）。
  *   根凭证登录（by=root）同样可用 → 恢复路径：忘了账号密码/丢了通行密钥用根凭证重置。
  *
@@ -65,9 +69,11 @@ import {
   bumpAccountEpoch,
   accountKeysReady,
   accountConfigMissing,
+  loginOpts,
   ACCOUNT_BY_PASSKEY,
   ACCOUNT_BY_PASSWORD,
 } from '../_kernel/account-session.js';
+import { listDevices, revokeDevice, pruneOtherDevices, deviceView, getDevice, isSid, DEVICE_PREFIX } from '../_kernel/account-devices.js';
 import { verifyDoorCookie, issueDoorCookie, reissueDoorWithEpoch, clearDoorCookie, DOOR_ACCOUNT } from '../_kernel/door.js';
 import { isLayerConfigured, setLayerConfigured, clearLayerConfigured, LAYER_OWNER } from '../_kernel/layers.js';
 import { REALM_ACCOUNT, REALM_LOCK, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
@@ -128,14 +134,27 @@ export async function onRequestGet(context) {
     }
     const acc = await verifyAccountCookie(request, env);
     const dv = acc.ok ? await verifyDoorCookie(request, env, DOOR_ACCOUNT) : { ok: false };
-    return json({
+    /* 旧五段票（设备页上线前登录的）：原 by/authAt 换成带 sid 的新票并记一条设备，不用重新登录 */
+    /* 账号总览「设备」一行的副标题：此设备的名字 */
+    let devName = '';
+    if (acc.ok && acc.sid) {
+      try {
+        const d = await getDevice(kv, acc.sid);
+        if (d) devName = deviceView(d, acc.sid).name;
+      } catch (e) {}
+    }
+    const headers = new Headers({ 'Content-Type': 'application/json' });
+    if (acc.ok && !acc.sid) {
+      await issueAccountCookie(env, headers, acc.by, { authAt: acc.authAt, epoch: acc.epoch, request: request });
+    }
+    return new Response(JSON.stringify({
       ok: true,
       password: password,
       passkey: passkey,
       ready: accountKeysReady(env),
-      session: acc.ok ? { by: acc.by, authAt: acc.authAt, expiresAt: acc.exp } : null,
+      session: acc.ok ? { by: acc.by, authAt: acc.authAt, expiresAt: acc.exp, device: devName } : null,
       door: dv.ok ? { by: dv.by, expiresAt: dv.exp } : null,
-    });
+    }), { headers });
   } catch (e) {
     return json({ ok: false, error: 'server' }, 500);
   }
@@ -168,6 +187,11 @@ async function handlePost(context) {
   /* ============ logout（幂等，不需会话） ============ */
   if (action === 'logout') {
     const headers = new Headers({ 'Content-Type': 'application/json' });
+    /* 本机的设备记录也删掉（并拉黑 sid，防 cookie 被拷走后继续用）；验不过就只清 cookie */
+    try {
+      const cur = await verifyAccountCookie(request, env);
+      if (cur.ok && cur.sid && kv) await revokeDevice(kv, cur.sid);
+    } catch (e) {}
     clearAccountCookie(headers);
     clearDoorCookie(headers);
     return new Response(JSON.stringify({ ok: true }), { headers });
@@ -204,7 +228,7 @@ async function handlePost(context) {
       try { await kv.put(REALM_ACCOUNT.kv.password, JSON.stringify(await makePasswordRecord(password, pepper))); } catch (e) {}
     }
     const headers = new Headers({ 'Content-Type': 'application/json' });
-    const err = await issueAccountCookie(env, headers, ACCOUNT_BY_PASSWORD);
+    const err = await issueAccountCookie(env, headers, ACCOUNT_BY_PASSWORD, await loginOpts(request, env, body));
     if (err) return json(err.body, err.status);
     if (wantDoor) {
       const dErr = await issueDoorCookie(env, headers, DOOR_ACCOUNT, ACCOUNT_BY_PASSWORD);
@@ -289,7 +313,7 @@ async function handlePost(context) {
       return json({ ok: false, error: code }, 403);
     }
     const headers = new Headers({ 'Content-Type': 'application/json' });
-    const err = await issueAccountCookie(env, headers, ACCOUNT_BY_PASSKEY);
+    const err = await issueAccountCookie(env, headers, ACCOUNT_BY_PASSKEY, await loginOpts(request, env, body));
     if (err) return json(err.body, err.status);
     if (wantDoor) {
       const dErr = await issueDoorCookie(env, headers, DOOR_ACCOUNT, ACCOUNT_BY_PASSKEY);
@@ -299,7 +323,7 @@ async function handlePost(context) {
   }
 
   /* ============ 账号页管理：需账号会话；改动还要账号门票 ============ */
-  const MGMT = ['list', 'register-challenge', 'register', 'delete', 'rename', 'password'];
+  const MGMT = ['list', 'register-challenge', 'register', 'delete', 'rename', 'password', 'devices', 'device-revoke'];
   if (MGMT.indexOf(action) === -1) return json({ ok: false, error: 'action' }, 400);
 
   const acc = await verifyAccountCookie(request, env);
@@ -307,6 +331,25 @@ async function handlePost(context) {
   /* 只读的 list 只要账号会话；改动（注册/删除/重命名/改密码）是安全操作，必须有有效的账号门票
      （进安全与隐私子页时验过账号凭证，3 分钟，离开即作废） */
   let door = null;
+  /* 设备页（列出 / 单独退出别的设备）只要账号会话，不进门 */
+  if (action === 'devices') {
+    let all;
+    try { all = await listDevices(kv); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
+    const cur = acc.sid || '';
+    const views = all.map(function (d) { return deviceView(d, cur); });
+    views.sort(function (a, b) { return (b.current ? 1 : 0) - (a.current ? 1 : 0); });
+    return json({ ok: true, devices: views });
+  }
+  if (action === 'device-revoke') {
+    const sid = (body && body.sid) || '';
+    if (!isSid(sid)) return json({ ok: false, error: 'params' }, 400);
+    if (sid === acc.sid) return json({ ok: false, error: 'current' }, 400);
+    let rec = null;
+    try { rec = await kv.get(DEVICE_PREFIX + sid, 'json'); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
+    if (!rec) return json({ ok: false, error: 'not-found' }, 404);
+    try { await revokeDevice(kv, sid); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
+    return json({ ok: true });
+  }
   if (action !== 'list') {
     door = await verifyDoorCookie(request, env, DOOR_ACCOUNT);
     if (!door.ok) return json({ ok: false, error: 'door', reason: door.reason }, 403);
@@ -327,7 +370,9 @@ async function handlePost(context) {
   /* 账号凭证变更（改密码/删通行密钥）：account-epoch +1，当前设备账号会话保留原 by/authAt 重签 */
   async function rotateAccount(headers) {
     const ne = await bumpAccountEpoch(kv); /* 出错抛 → 外层 500/调用方 503 */
-    await issueAccountCookie(env, headers, acc.by, { authAt: acc.authAt, epoch: ne });
+    await issueAccountCookie(env, headers, acc.by, { authAt: acc.authAt, epoch: ne, sid: acc.sid, record: false });
+    /* 其他设备的票据随纪元失效：设备页上也不再列它们 */
+    await pruneOtherDevices(kv, acc.sid || '');
     /* 门票也绑 account-epoch：当前设备的门票按原到期时间重签，门内可以接着操作 */
     await reissueDoorWithEpoch(env, headers, DOOR_ACCOUNT, door, ne);
   }

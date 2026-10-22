@@ -50,6 +50,7 @@ const KNOWN_FIXED = new Set([
   'account',
   'bad-json',
   'bad-url',
+  'current', /* 账号 › 设备：不能在设备页退出此设备（account-common.js ERR_KEYS → devCurrent） */
 ]);
 
 function read(p) {

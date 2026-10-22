@@ -46,7 +46,7 @@ import { verifySessionDetailed } from '../_middleware.js';
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
 import { REALM_LOCK, REALM_ROOT, realmPrivateKey, realmPublicKey } from '../_kernel/realms.js';
 import { issueDoorCookie, DOOR_ACCOUNT, DOOR_LOCK } from '../_kernel/door.js';
-import { issueAccountCookie, accountKeysReady, ACCOUNT_BY_ROOT } from '../_kernel/account-session.js';
+import { issueAccountCookie, accountKeysReady, loginOpts, ACCOUNT_BY_ROOT } from '../_kernel/account-session.js';
 
 /* 假入口与真失败的统一固定最小延迟（毫秒）：防时序区分。
    真失败路径的审计写入放在 padTo 之前，padTo 把总耗时对齐到此时长，
@@ -224,7 +224,7 @@ async function handlePost(context) {
 
   /* 账号登录：签发 sgx-account(by=root)，不签锁屏门票、不签 lock 会话 */
   if (toAccount) {
-    const accErr = await issueAccountCookie(env, headers, ACCOUNT_BY_ROOT);
+    const accErr = await issueAccountCookie(env, headers, ACCOUNT_BY_ROOT, await loginOpts(request, env, body));
     if (accErr) {
       await writeRootAudit(kv, ip, false, { path: auditPath });
       return Response.json(accErr.body, { status: accErr.status });

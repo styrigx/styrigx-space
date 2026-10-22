@@ -245,7 +245,7 @@ test.describe('重置登录（/settings/account/reset/）', () => {
     await page.fill('#sgx-reset-root', 'root-key-xyz');
     await page.click('#sgx-reset-go');
     await expect(page).toHaveURL(/\/settings\/account\/security\/$/);
-    expect(rootBody).toEqual({ key: 'root-key-xyz', purpose: 'account' });
+    expect(rootBody).toMatchObject({ key: 'root-key-xyz', purpose: 'account' }); /* 另带 device（型号 / 平台，设备页用） */
   });
 
   test('根凭证错误 → 行内「根凭证不正确」并清空；空值提示', async ({ page }) => {
@@ -343,7 +343,7 @@ test.describe('安全与隐私子页', () => {
     await page.locator('#acct-door-methods .sgx-door-btn-primary').click();
     await expect(page.locator('#acct-sec')).toBeVisible();
     await expect(page.locator('#acct-door')).toBeHidden();
-    expect(calls.find((c) => c.action === 'login-password')).toEqual({ action: 'login-password', password: 'pw-123456', door: true });
+    expect(calls.find((c) => c.action === 'login-password')).toMatchObject({ action: 'login-password', password: 'pw-123456', door: true });
     await expect(page.locator('#sgx-door-countdown')).toContainText(/验证剩余 [23]:\d\d/);
   });
 
@@ -722,5 +722,54 @@ test.describe('主题色角色（PR3）', () => {
     await expect(page.locator('style#sgx-accent-roles')).toHaveCount(0);
     expect(await page.evaluate(() => localStorage.getItem('sgx-accent'))).toBeNull();
     expect(await roleOf(page, '--sgx-primary')).toBe('#2f5f86');
+  });
+});
+
+test.describe('设备子页（2026-10-22）', () => {
+  test.beforeEach(async ({ page }) => { await zh(page); });
+
+  const DEVS = () => [
+    { sid: 'aaaaaaaaaaaaaaaa', current: true, name: 'Galaxy S23 Ultra', model: 'SM-S918B', platform: 'Android', browser: 'Samsung Internet', country: 'CN', lastSeen: Date.now() },
+    { sid: 'bbbbbbbbbbbbbbbb', current: false, name: 'Windows', platform: 'Windows', browser: 'Chrome', country: 'CN', lastSeen: Date.now() - 3 * 3600e3 },
+  ];
+
+  test('总览「设备」一行显示此设备名字 → 进设备页；此设备在最上面，其他设备两步确认退出', async ({ page }) => {
+    let devs = DEVS();
+    const calls = await mockAccount(page, {
+      status: () => ({ ok: true, password: true, passkey: false, ready: true, session: { ...RECENT(), device: 'Galaxy S23 Ultra' } }),
+      handlers: {
+        list: [200, { ok: true, keys: [] }],
+        devices: () => [200, { ok: true, devices: devs }],
+        'device-revoke': (b) => { devs = devs.filter((d) => d.sid !== b.sid); return [200, { ok: true }]; },
+      },
+    });
+    await page.goto('/settings/account/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#acct-dev-sub')).toHaveText('Galaxy S23 Ultra');
+    await page.locator('#acct-dev-row').click();
+    await page.waitForURL(/\/settings\/account\/devices\/$/);
+    await expect(page.locator('#acct-devices')).toBeVisible();
+    await expect(page.locator('#acct-dev-this')).toContainText('Galaxy S23 Ultra');
+    await expect(page.locator('#acct-dev-this')).toContainText('当前在线');
+    const rows = page.locator('#acct-dev-list .acct-dev-item');
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText('Windows');
+    await expect(rows.first()).toContainText('3 小时前活动 · Chrome');
+    const btn = rows.first().locator('button');
+    await btn.click();
+    await expect(btn).toHaveText('再点一次退出');
+    expect(calls.some((c) => c.action === 'device-revoke')).toBe(false);
+    await btn.click();
+    await expect(page.locator('#acct-dev-empty')).toBeVisible();
+    expect(calls.find((c) => c.action === 'device-revoke').sid).toBe('bbbbbbbbbbbbbbbb');
+  });
+
+  test('设备子页：没有账号会话（401）→ 跳账号页 ?return=子页', async ({ page }) => {
+    await mockAccount(page, {
+      status: { ok: true, password: true, passkey: false, ready: true, session: null },
+      handlers: { devices: [401, { ok: false, error: 'account' }] },
+    });
+    await page.goto('/settings/account/devices/', { waitUntil: 'domcontentloaded' });
+    await page.waitForURL(/\/settings\/account\/\?return=%2Fsettings%2Faccount%2Fdevices%2F$/);
+    await expect(page.locator('#acct-login')).toBeVisible();
   });
 });
