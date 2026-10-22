@@ -35,16 +35,11 @@ jobs:
         run: node scripts/build-css.cjs --minify
       - name: Update lock screen baseline (生产构建，锁屏启用；同 deploy.yml 的锁屏截图步骤)
         run: |
-          node scripts/gen-posts-json.mjs
           hugo --minify -s web
           SGX_TEST_SUITE=lock npx playwright test --config=tests/config/playwright.config.js --grep "baseline screenshot" --update-snapshots
-        env:
-          # 同 deploy.yml：匿名读博客仓库会撞 GitHub API 限流（runner 共享 IP，403），必须带 token
-          BLOG_TOKEN: ${{ secrets.BLOG_READ_TOKEN || github.token }}
       - name: Test build (same as deploy.yml visual step)
         run: |
           sed -i "s/0x4AAAAAAFSBhpWkAwZr1SMA/1x00000000000000000000AA/g" web/hugo.yaml
-          cp web/data/posts.fixture.json web/data/posts.json
           hugo --minify -s web
         env:
           SGX_TEST_NO_LOCK: "1"
@@ -55,7 +50,6 @@ jobs:
         id: commit
         run: |
           git checkout -- web/hugo.yaml   # 丢掉测试用 Turnstile key 替换
-          rm -f web/data/posts.json       # fixture 复制的临时文件，未被 git 跟踪
           git checkout -- web/data/ 2>/dev/null || true   # 生产构建生成的数据文件不提交
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

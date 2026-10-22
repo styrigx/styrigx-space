@@ -372,6 +372,8 @@ test('B2-2 store and its apps are gone; main-site bookmarks are gone too', async
   expect(bad).toEqual([]);
   // 2026-10-21：主站书签下线 —— 索引里没有书签（type=link）和书签 App
   expect(idx.items.filter((it) => it.type === 'link' || /\/bookmarks\//.test(it.url || ''))).toEqual([]);
+  // 2026-10-22：主站不再顺带博客文章（博客自己写搜索索引 site:blog）—— 索引里没有 type=post
+  expect(idx.items.filter((it) => it.type === 'post')).toEqual([]);
 });
 
 /* B2-4：设置里的「应用」整块删除；重置所有设置在常规管理（2026-10-20：浏览器的设置不再在顶栏 ⋮，搜索引擎 / 清除浏览记录在 安全与隐私） */
