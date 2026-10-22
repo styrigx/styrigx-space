@@ -1,5 +1,5 @@
 /**
- * @fileoverview 布局（auto/mobile/dex/pc）：<head> 内联脚本定义了 __applyLayout（按设置切 layout-* class）。
+ * @fileoverview 布局（auto/mobile/dex）：<head> 内联脚本定义了 __applyLayout（按设置切 layout-* class）。
  */
 
 /**

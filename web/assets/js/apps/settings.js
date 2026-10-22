@@ -9,7 +9,7 @@ import { get, set, remove, removeByPrefix, getJSON, setJSON } from '../lib/stora
 import { get as featGet, set as featSet, on as featOn } from '../lib/features.js';
 import { loadI18n } from '../lib/i18n.js';
 import { openSheet } from '../shell/sheet.js';
-import { setTheme, toggleFollowSystem, setPalette, setFontSize, setLayout, setReducedMotion, setLang } from '../lib/prefs.js';
+import { setTheme, toggleFollowSystem, setPalette, setFontSize, setLayout, setReducedMotion, setLang, normLayout, layoutNarrow } from '../lib/prefs.js';
 import { syncAccent } from '../lib/accent-roles.js';
 import { accent } from '../lib/accent.js';
 import { wellLoad, wellFlush } from '../shell/goodlock.js';
@@ -184,35 +184,36 @@ import { sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
   paintFont();
   featOn('font-size', paintFont);
 
-  /* ---- 布局：自动 / Mobile / DeX / PC ---- */
+  /* ---- 布局：Mobile / Auto / DeX ---- */
   function paintLayout() {
     let v = featGet('layout');
-    /* 2.5.0：旧值（tablet/phone 等）一律回落到自动 */
-    if (v !== 'auto' && v !== 'mobile' && v !== 'dex' && v !== 'pc') {
-      v = 'auto';
-      featSet('layout', 'auto');
+    /* 旧值 pc → dex；其他旧值（tablet/phone 等）一律回落到自动 */
+    if (v !== 'auto' && v !== 'mobile' && v !== 'dex') {
+      v = normLayout(v);
+      featSet('layout', v);
     }
-    /* 2.9.2 窄屏保护：< 840px 时 DeX/PC 置灰（仅在大屏生效），偏好保留 */
-    const isNarrow = (window.innerWidth || 1280) < 840;
+    /* 不够 DeX（宽 < 840 或高 < 500）：DeX 置灰，偏好保留，回到大屏再生效 */
+    const isNarrow = layoutNarrow();
+    const en = document.documentElement.lang === 'en';
     document.querySelectorAll('#seg-layout button').forEach(function (b) {
       const bv = b.getAttribute('data-v');
       b.setAttribute('aria-pressed', bv === v ? 'true' : 'false');
-      if ((bv === 'dex' || bv === 'pc') && isNarrow) {
+      if (bv === 'dex' && isNarrow) {
         b.setAttribute('disabled', 'disabled');
-        b.setAttribute('title', '仅在大屏生效');
+        b.setAttribute('title', en ? 'Large screens only' : '仅在大屏生效');
       } else {
         b.removeAttribute('disabled');
         b.removeAttribute('title');
       }
     });
-    // 窄屏提示
+    // 不够 DeX 的提示
     let hint = document.getElementById('seg-layout-narrow-hint');
     if (isNarrow) {
       if (!hint) {
         hint = document.createElement('p');
         hint.id = 'seg-layout-narrow-hint';
         hint.className = 'text-[12px] opacity-60 mt-1';
-        hint.textContent = 'DeX / PC 仅在大屏生效（当前为窄屏）';
+        hint.textContent = en ? 'DeX only works on large screens (not met here)' : 'DeX 仅在大屏生效（当前不满足）';
         const seg = document.getElementById('seg-layout');
         if (seg && seg.parentNode) seg.parentNode.appendChild(hint);
       }
@@ -227,7 +228,7 @@ import { sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
     const old = document.getElementById('sgx-layout-snackbar');
     if (old) old.remove();
     if (layoutUndoTimer) { clearTimeout(layoutUndoTimer); layoutUndoTimer = null; }
-    const names = { auto: '自动', mobile: 'Mobile', dex: 'DeX', pc: 'PC' };
+    const names = { auto: 'Auto', mobile: 'Mobile', dex: 'DeX' };
     const bar = document.createElement('div');
     bar.id = 'sgx-layout-snackbar';
     bar.setAttribute('role', 'status');
@@ -600,16 +601,15 @@ import { sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
   });
 
   /* 2.6.0：设置改为真实二级页（/settings/<cat>/）；旧 hash 由设置首页内联脚本跳转到子页；
-     子页用浏览器 / 系统返回。DeX/PC 双栏在首页内切换（下）。 */
-  /* ---- 2.6.0 DeX/PC 双栏：左导航切换右窗格（复用子页同一套 partial；无 JS 时导航照常跳子页） ---- */
+     子页用浏览器 / 系统返回。DeX 双栏在首页内切换（下）。 */
+  /* ---- 2.6.0 DeX 双栏：左导航切换右窗格（复用子页同一套 partial；无 JS 时导航照常跳子页） ---- */
   (function () {
     var nav = document.getElementById('set-cat-nav');
     var layout = document.querySelector('.set-layout');
     if (!nav || !layout) return;
     var panes = document.getElementById('set-panes');
     if (!panes) return;
-    var isWide = document.documentElement.classList.contains('layout-dex') ||
-      document.documentElement.classList.contains('layout-pc');
+    var isWide = document.documentElement.classList.contains('layout-dex');
     function showPane(id, title) {
       var groups = panes.querySelectorAll('.set-group');
       groups.forEach(function (g) {

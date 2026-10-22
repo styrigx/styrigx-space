@@ -2,7 +2,7 @@
  * 2.9.2 布局切换修复（三星浏览器实机录屏发现的问题）。
  *
  * 测试（Playwright，390px 视口）：
- * - localStorage sgx-layout=pc 时，html 为 layout-mobile（窄屏保护）
+ * - localStorage sgx-layout=dex（或旧值 pc → 迁到 dex）时，html 为 layout-mobile（窄屏保护）
  * - scrollWidth <= innerWidth（无横向溢出）
  * - ?layout=auto 能重置偏好
  * - 切换布局时主内容节点始终存在且可见（不空白）
@@ -36,18 +36,18 @@ function boxesIntersect(a, b) {
          a.y < b.y + b.height && a.y + a.height > b.y;
 }
 
-test('窄屏保护：sgx-layout=pc 时 html 仍为 layout-mobile', async ({ page }) => {
+test('窄屏保护：旧值 sgx-layout=pc 迁到 dex，html 仍为 layout-mobile', async ({ page }) => {
   await gotoWithLayout(page, 'pc');
   await expect(page.locator('html')).toHaveClass(/layout-mobile/);
-  // 偏好保留在 localStorage（回到宽屏时生效）
+  // 偏好迁到 dex 并保留在 localStorage（回到宽屏时生效）
   const saved = await page.evaluate(() => {
     try { return localStorage.getItem('sgx-layout'); } catch (e) { return null; }
   });
-  expect(saved).toBe('pc');
+  expect(saved).toBe('dex');
 });
 
 test('无横向溢出：scrollWidth <= innerWidth', async ({ page }) => {
-  await gotoWithLayout(page, 'pc');
+  await gotoWithLayout(page, 'dex');
   const overflow = await page.evaluate(() => {
     return {
       scrollWidth: document.documentElement.scrollWidth,

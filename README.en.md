@@ -45,7 +45,7 @@ The Dock only shows on the home screen; inside apps only the search bar stays at
 
 ## A few Styrigx UI details
 
-- Two layouts: phone (<640px) and DeX (≥640px).
+- Three layout options, Mobile · Auto · DeX: on Auto, landscape viewports at least 840 wide and 500 tall get DeX, everything else gets Mobile (viewport only, no device sniffing).
 - Light / dark follows the system by default.
 - One top bar on every page: nine-dot drawer button | middle capsule with only the current page name | quick panel circle; the avatar sits in the drawer head. On Home / Chat / Status the capsule holds those three tabs instead (main site only).
 - Two full versions: 中文 / English.

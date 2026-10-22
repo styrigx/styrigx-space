@@ -89,10 +89,9 @@ features:
     user: true
     type: enum
     options:
-      - {id: auto, zh: 自动, en: Auto}
       - {id: mobile, zh: Mobile, en: Mobile}
+      - {id: auto, zh: Auto, en: Auto}
       - {id: dex, zh: DeX, en: DeX}
-      - {id: pc, zh: PC, en: PC}
     default: auto
     key: sgx-layout
     section: display

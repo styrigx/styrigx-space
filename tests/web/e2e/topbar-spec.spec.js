@@ -223,13 +223,17 @@ test.describe('1280×800', () => {
   });
 
   for (const [w, h] of [[1280, 800], [1920, 1080]]) {
-    test(`${w}px：两侧圆同宽，长条中心 = 屏幕中心、页名中心 = 屏幕中心（±1px）`, async ({ page }) => {
+    test(`${w}px：两侧圆同宽贴顶栏两端，长条只包住页名、中心 = 屏幕中心、页名中心 = 屏幕中心（±1px）`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: h });
       await go(page, '/settings/security/');
-      const [nav, pill, me] = await Promise.all(['.sgx-tb-nav', '.sgx-tb-pill', '.sgx-tb-end'].map((s) => box(page, s)));
+      const [bar, nav, pill, me] = await Promise.all(['.sgx-topbar', '.sgx-tb-nav', '.sgx-tb-pill', '.sgx-tb-end'].map((s) => box(page, s)));
       expect(near(pill.x + pill.width / 2, w / 2), `长条中心 ${pill.x + pill.width / 2}`).toBe(true);
       expect(near(pill.x - nav.x, me.x + me.width - (pill.x + pill.width)), '两侧同宽').toBe(true);
-      expect(near(pill.x - (nav.x + nav.width), 8) && near(me.x - (pill.x + pill.width), 8)).toBe(true);
+      /* 2026-10-23：宽屏长条按内容定宽（min 160 / max 480），不再拉满；两侧圆仍贴顶栏两端 */
+      expect(near(nav.x, bar.x) && near(me.x + me.width, bar.x + bar.width), '两侧圆贴顶栏两端').toBe(true);
+      expect(pill.width, `长条宽 ${pill.width}`).toBeGreaterThanOrEqual(159);
+      expect(pill.width, `长条宽 ${pill.width}`).toBeLessThanOrEqual(481);
+      expect(pill.x - (nav.x + nav.width), '长条和左圆之间留空').toBeGreaterThan(8);
       const tx = await box(page, '.sgx-tb-title');
       expect(near(tx.x + tx.width / 2, w / 2), `页名中心 ${tx.x + tx.width / 2}`).toBe(true);
     });
