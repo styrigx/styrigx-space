@@ -14,9 +14,6 @@
 {{ .Scratch.Set "sgx-entry" "entry-account.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 
-{{/* 2026-10-23 背景方案 C：玻璃背景（共用组件 .sgx-glass-bg，锁屏同一套），只在登录区显示时出现。
-   放在 .acct-layout 外面：.acct-layout 有 contain: layout，会把 fixed 层框在栏宽里。纯装饰。 */}}
-<div class="sgx-glass-bg acct-glass" aria-hidden="true"></div>
 <div class="acct-layout pb-28">
 
   <!-- 账号登录（PR3）：页名「登录账号」只在顶栏长条里（JS 按状态改），正文不再重复大标题、不放盾牌图标和构建号。
@@ -88,6 +85,11 @@
     <p class="acct-note mt-6 sgx-build-tag-wrap">{{ partial "build-tag.html" (dict "isEn" $isEn) }}</p>
   </div>
 </div>
+
+{{/* 2026-10-23 背景方案 C：玻璃背景（共用组件 .sgx-glass-bg，锁屏同一套），只在登录区显示时出现。
+   放在 .acct-layout 外面：.acct-layout 有 contain: layout，会把 fixed 层框在栏宽里。纯装饰。
+   放在 .acct-layout 后面（不是 main 的第一个子元素）：正文首块顶对齐的检查看 main 的第一个子元素；层级靠 z-index。 */}}
+<div class="sgx-glass-bg acct-glass" aria-hidden="true"></div>
 
 {{ partial "account-i18n.html" . }}
 {{ end }}
