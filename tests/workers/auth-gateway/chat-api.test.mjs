@@ -1,8 +1,10 @@
 /**
- * 聊天 /api/chat（网关，2026-10-22，functions/api/chat.js）：门（同源 / 会话 / 只许站长）、请求校验、没钥匙、
- * 模型切换（CHAT_MODELS 白名单、GET 列表、bad_model、每个模型的工具开关、model_unavailable、工具被拒不带工具重试一次）、
- * Gemini SSE → 我们自己的事件（delta / sources / done / error，来源去重 ≤ 8）、上游 429 → rate_limited、OpenAI 兼容模式。
- * 上游 fetch 一律 mock（globalThis.fetch），不发真实请求；Ed25519 测试钥匙在测试内临时生成。
+ * 聊天 /api/chat（网关，functions/api/chat.js）：2026-10-22 起网关只做门 + 转发，聊天本身在 styrigx-chat（workers/chat）。
+ * 这里测：门（同源 / 会话 / 只许站长，GET 和 POST）、转发（服务绑定 CHAT、路径、X-Sgx-Role、请求体原样、不转 cookie）、
+ * 响应原样流回（状态码 / 头 / SSE 不缓冲）、没绑定 503 no_key、绑定抛错 502 upstream、wrangler.toml（CHAT 绑定，
+ * 没有 CHAT_* 变量和聊天钥匙绑定）、中间件；再接上真的 styrigx-chat 跑一遍端到端（上游 fetch mock）。
+ * 聊天内核（校验、模型、SSE 转换、错误映射）见 tests/workers/chat/chat.test.mjs。
+ * Ed25519 测试钥匙在测试内临时生成。
  * 运行：node --test tests/workers/auth-gateway/chat-api.test.mjs
  */
 import { test, afterEach } from 'node:test';
@@ -12,6 +14,7 @@ import { signSessionCookie } from '../../../workers/auth-gateway/functions/_kern
 import * as chat from '../../../workers/auth-gateway/functions/api/chat.js';
 import { API_ROUTES } from '../../../workers/auth-gateway/src/routes.js';
 import { SECRET_NAMES } from '../../../workers/auth-gateway/src/secrets.js';
+import chatWorker from '../../../workers/chat/src/index.js';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 
@@ -29,16 +32,23 @@ function kv() {
   const m = new Map();
   return { async get(k) { return m.has(k) ? m.get(k) : null; }, async put(k, v) { m.set(k, String(v)); }, async delete(k) { m.delete(k); }, async list() { return { keys: [] }; } };
 }
-/** Secrets Store 绑定的样子 */
-const storeKey = (v) => ({ async get() { if (v instanceof Error) throw v; return v; } });
+
+/** 假的服务绑定：记下每个转进来的请求，按 fn 回答 */
+let svcLog = [];
+function svc(fn) {
+  return {
+    async fetch(r) {
+      const body = r.method === 'GET' ? null : await r.clone().text();
+      svcLog.push({ url: r.url, method: r.method, headers: Object.fromEntries(r.headers), body, signal: r.signal });
+      return fn(r);
+    },
+  };
+}
+const noCall = () => svc(() => { throw new Error('不应转给 styrigx-chat'); });
 
 function env(over = {}) {
-  return {
-    SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, OWNER_KV: kv(),
-    CHAT_PROVIDER: 'gemini', CHAT_API_BASE: 'https://generativelanguage.googleapis.com/v1beta', CHAT_MODEL: 'gemini-2.5-flash', CHAT_SEARCH: 'on',
-    SGX_CHAT_API_KEY: storeKey('test-chat-key'),
-    ...over,
-  };
+  svcLog = [];
+  return { SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, OWNER_KV: kv(), CHAT: noCall(), ...over };
 }
 
 const MSGS = [{ role: 'user', text: 'Hugo 最新版本？' }];
@@ -48,19 +58,18 @@ function req(body, { cookie = OWNER, origin = 'https://styrigx.com', raw } = {})
   if (origin) headers.Origin = origin;
   return new Request('https://styrigx.com/api/chat', { method: 'POST', headers, body: raw !== undefined ? raw : JSON.stringify(body) });
 }
-const call = (r, e = env()) => chat.onRequestPost({ request: r, env: e });
-
-/** 一个按段吐出的上游 SSE 响应 */
-function sseResponse(blocks, status = 200, sep = '\r\n\r\n') {
-  const enc = new TextEncoder();
-  const text = blocks.map((b) => 'data: ' + (typeof b === 'string' ? b : JSON.stringify(b)) + sep).join('');
-  /* 故意按 7 字节切块，测跨块拼接 */
-  const parts = [];
-  for (let i = 0; i < text.length; i += 7) parts.push(text.slice(i, i + 7));
-  return new Response(new ReadableStream({ start(c) { for (const p of parts) c.enqueue(enc.encode(p)); c.close(); } }), { status, headers: { 'Content-Type': 'text/event-stream' } });
+function getReq({ cookie = OWNER, origin } = {}) {
+  const headers = {};
+  if (cookie) headers.Cookie = 'sgx-verified=' + cookie;
+  if (origin) headers.Origin = origin;
+  return new Request('https://styrigx.com/api/chat', { method: 'GET', headers });
 }
+const call = (r, e = env()) => chat.onRequestPost({ request: r, env: e });
+const getCall = (r, e = env()) => chat.onRequestGet({ request: r, env: e });
 
-/** 读完我们的 SSE，解析成事件数组 */
+const jsonRes = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'private, no-store' } });
+
+/** 读完 SSE，解析成事件数组 */
 async function events(res) {
   const text = await res.text();
   return text.split('\n\n').filter(Boolean).map((b) => {
@@ -80,208 +89,142 @@ function mockFetch(fn) {
 }
 afterEach(() => { globalThis.fetch = realFetch; });
 
-const gem = (text, extra = {}) => ({ candidates: [{ content: { role: 'model', parts: [{ text }] }, ...extra }] });
+/** 去掉注释行的 toml */
+const tomlCode = (p) => readFileSync(REPO + p, 'utf8').split('\n').filter((l) => !l.trim().startsWith('#')).join('\n');
 
-test('路由表登记了 /api/chat；聊天钥匙不进每个请求都预读的 SECRET_NAMES；wrangler.toml 有变量和 Secrets Store 绑定', () => {
+test('路由表登记了 /api/chat；网关 wrangler.toml：服务绑定 CHAT → styrigx-chat，没有 CHAT_* 变量、没有聊天钥匙绑定；钥匙不在 SECRET_NAMES', () => {
   assert.equal(API_ROUTES.get('/api/chat'), chat);
   assert.ok(!SECRET_NAMES.includes('SGX_CHAT_API_KEY'));
-  const toml = readFileSync(REPO + 'workers/auth-gateway/wrangler.toml', 'utf8');
-  assert.match(toml, /^CHAT_PROVIDER = "gemini"$/m);
-  assert.match(toml, /^CHAT_API_BASE = "https:\/\/generativelanguage\.googleapis\.com\/v1beta"$/m);
-  assert.match(toml, /^CHAT_MODEL = "gemini-2\.5-flash"$/m);
-  assert.match(toml, /^CHAT_SEARCH = "on"$/m);
-  assert.match(toml, /binding = "SGX_CHAT_API_KEY"\nstore_id = "a5a984f365424401bad5ad6ddcd44479"\nsecret_name = "SGX_CHAT_API_KEY"/);
+  const toml = tomlCode('workers/auth-gateway/wrangler.toml');
+  assert.match(toml, /\[\[services\]\]\nbinding = "CHAT"\nservice = "styrigx-chat"/);
+  assert.doesNotMatch(toml, /^CHAT_/m);
+  assert.doesNotMatch(toml, /SGX_CHAT_API_KEY/);
+  /* 网关的 Secrets Store 绑定只剩签名钥匙那 7 个（缺了哪个都会让网关部署失败，所以不能多绑） */
+  const bound = [...toml.matchAll(/\[\[secrets_store_secrets\]\]\nbinding = "([A-Z_]+)"/g)].map((m) => m[1]).sort();
+  assert.deepEqual(bound, [...SECRET_NAMES].sort());
 });
 
-test('门：不同源 / 没 Origin 403 origin；没会话 / 坏会话 401；访客 403 owner_only；都不调上游', async () => {
-  mockFetch(() => { throw new Error('不应调用上游'); });
-  let r = await call(req({ messages: MSGS }, { origin: 'https://evil.example' }));
+test('POST 门：不同源 / 没 Origin 403 origin；没会话 / 坏会话 401；访客 403 owner_only；都不转给 styrigx-chat', async () => {
+  const e = env();
+  let r = await call(req({ messages: MSGS }, { origin: 'https://evil.example' }), e);
   assert.equal(r.status, 403);
   assert.equal((await r.json()).error, 'origin');
-  r = await call(req({ messages: MSGS }, { origin: null }));
+  r = await call(req({ messages: MSGS }, { origin: null }), e);
   assert.equal(r.status, 403);
-  r = await call(req({ messages: MSGS }, { cookie: null }));
+  r = await call(req({ messages: MSGS }, { cookie: null }), e);
   assert.equal(r.status, 401);
-  r = await call(req({ messages: MSGS }, { cookie: 'garbage.1.2' }));
+  assert.equal((await r.json()).error, 'unauthorized');
+  r = await call(req({ messages: MSGS }, { cookie: 'garbage.1.2' }), e);
   assert.equal(r.status, 401);
-  r = await call(req({ messages: MSGS }, { cookie: VISITOR }));
+  r = await call(req({ messages: MSGS }, { cookie: VISITOR }), e);
   assert.equal(r.status, 403);
   assert.deepEqual(await r.json(), { ok: false, error: 'owner_only' });
   assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
-  assert.equal(fetchLog.length, 0);
+  /* 门在没绑定 CHAT 时也照样先拦 */
+  r = await call(req({ messages: MSGS }, { cookie: VISITOR }), env({ CHAT: undefined }));
+  assert.equal(r.status, 403);
+  assert.equal(svcLog.length, 0);
 });
 
-test('校验：坏 JSON、空、> 20 条、单条 > 4000、合计 > 24000、最后不是 user、坏角色、空文字 → 400', async () => {
-  mockFetch(() => { throw new Error('不应调用上游'); });
-  const bad = [
-    { raw: '{nope' },
-    {},
-    { messages: [] },
-    { messages: 'x' },
-    { messages: Array.from({ length: 21 }, (_, i) => ({ role: i % 2 ? 'model' : 'user', text: 'x' })) },
-    { messages: [{ role: 'user', text: 'x'.repeat(4001) }] },
-    { messages: Array.from({ length: 7 }, (_, i) => ({ role: i % 2 ? 'model' : 'user', text: 'x'.repeat(3500) })) },
-    { messages: [{ role: 'user', text: 'a' }, { role: 'model', text: 'b' }] },
-    { messages: [{ role: 'system', text: 'a' }] },
-    { messages: [{ role: 'assistant', text: 'a' }, { role: 'user', text: 'b' }] },
-    { messages: [{ role: 'user', text: '   ' }] },
-    { messages: [{ role: 'user', text: 5 }] },
-  ];
-  for (const b of bad) {
-    const r = await call(b.raw !== undefined ? req(null, { raw: b.raw }) : req(b));
-    assert.equal(r.status, 400, JSON.stringify(b).slice(0, 80));
-    assert.equal((await r.json()).error, 'bad_request');
+test('GET 门：没会话 / 坏会话 401、访客 403 owner_only；站长 → GET /models 原样转回，不看 Origin；路由按方法分到 onRequestGet / onRequestPost', async () => {
+  const e = env();
+  let r = await getCall(getReq({ cookie: null }), e);
+  assert.equal(r.status, 401);
+  assert.equal((await r.json()).error, 'unauthorized');
+  r = await getCall(getReq({ cookie: 'garbage.1.2' }), e);
+  assert.equal(r.status, 401);
+  r = await getCall(getReq({ cookie: VISITOR }), e);
+  assert.equal(r.status, 403);
+  assert.deepEqual(await r.json(), { ok: false, error: 'owner_only' });
+  assert.equal(svcLog.length, 0);
+  const list = { ok: true, default: 'm1', models: [{ id: 'm1', label: 'M1', search: true }] };
+  const e2 = env({ CHAT: svc(() => jsonRes(200, list)) });
+  for (const origin of [undefined, 'https://styrigx.com', 'https://evil.example']) {
+    r = await getCall(getReq({ origin }), e2);
+    assert.equal(r.status, 200);
+    assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
+    assert.deepEqual(await r.json(), list);
   }
-  /* 边界：正好 20 条、单条 4000、合计 24000 → 通过校验 */
-  const ok20 = Array.from({ length: 20 }, (_, i) => ({ role: i % 2 ? 'model' : 'user', text: 'x' })).concat([]);
-  ok20[19] = { role: 'user', text: 'x' };
-  assert.equal(chat.validateMessages({ messages: ok20 }).ok, true);
-  assert.equal(chat.validateMessages({ messages: [{ role: 'user', text: 'x'.repeat(4000) }] }).ok, true);
-  const six = Array.from({ length: 6 }, (_, i) => ({ role: i % 2 ? 'model' : 'user', text: 'x'.repeat(4000) }));
-  six[5].role = 'user';
-  six[4].role = 'model';
-  assert.equal(chat.validateMessages({ messages: six }).ok, true);
-  assert.equal(fetchLog.length, 0);
+  assert.equal(svcLog.length, 3);
+  assert.equal(svcLog[0].url, 'https://styrigx-chat/models');
+  assert.equal(svcLog[0].method, 'GET');
+  assert.equal(svcLog[0].headers['x-sgx-role'], 'owner');
+  assert.ok(!('cookie' in svcLog[0].headers), '不转 cookie');
+  const { pickHandler } = await import('../../../workers/auth-gateway/src/index.js');
+  assert.equal(pickHandler(API_ROUTES.get('/api/chat'), 'GET'), chat.onRequestGet);
+  assert.equal(pickHandler(API_ROUTES.get('/api/chat'), 'POST'), chat.onRequestPost);
 });
 
-test('没钥匙：没绑定 / 绑定读出空 / 读抛错 → 503 no_key，不调上游、不打印钥匙', async () => {
-  mockFetch(() => { throw new Error('不应调用上游'); });
-  for (const k of [undefined, storeKey(''), storeKey(new Error('secret not found')), '']) {
-    const e = env();
-    if (k === undefined) delete e.SGX_CHAT_API_KEY; else e.SGX_CHAT_API_KEY = k;
-    const r = await call(req({ messages: MSGS }), e);
+test('POST 转发：POST https://styrigx-chat/chat、X-Sgx-Role: owner、Content-Type 原样、请求体一字不改（坏 JSON 也原样，由 styrigx-chat 回 400）、不转 cookie / Origin、带 signal', async () => {
+  const e = env({ CHAT: svc(() => jsonRes(400, { ok: false, error: 'bad_request' })) });
+  const raw = JSON.stringify({ messages: MSGS, model: 'gemini-2.5-flash-lite' });
+  let r = await call(req(null, { raw }), e);
+  assert.equal(r.status, 400);
+  assert.equal(svcLog.length, 1);
+  const f = svcLog[0];
+  assert.equal(f.url, 'https://styrigx-chat/chat');
+  assert.equal(f.method, 'POST');
+  assert.equal(f.headers['x-sgx-role'], 'owner');
+  assert.equal(f.headers['content-type'], 'application/json');
+  assert.equal(f.body, raw);
+  assert.ok(!('cookie' in f.headers) && !('origin' in f.headers));
+  assert.ok(f.signal, '要带 AbortSignal（浏览器断开一起取消）');
+  r = await call(req(null, { raw: '{nope' }), e);
+  assert.equal(svcLog[1].body, '{nope');
+  assert.deepEqual(await r.json(), { ok: false, error: 'bad_request' });
+});
+
+test('响应原样流回：JSON 错误（400 bad_request / bad_model、503 no_key、429 rate_limited、502 model_unavailable / upstream）状态码 + 体 + 头不改；SSE 不缓冲', async () => {
+  for (const [st, code] of [[400, 'bad_request'], [400, 'bad_model'], [503, 'no_key'], [429, 'rate_limited'], [502, 'model_unavailable'], [502, 'upstream']]) {
+    const r = await call(req({ messages: MSGS }), env({ CHAT: svc(() => jsonRes(st, { ok: false, error: code })) }));
+    assert.equal(r.status, st, code);
+    assert.equal(r.headers.get('Content-Type'), 'application/json; charset=utf-8');
+    assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
+    assert.deepEqual(await r.json(), { ok: false, error: code });
+  }
+  /* SSE：第一段到了就能读到（styrigx-chat 的流还没结束），不等整段回答 */
+  const enc = new TextEncoder();
+  let ctl;
+  const upstream = new ReadableStream({ start(c) { ctl = c; } });
+  const sseHeaders = { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' };
+  const r = await call(req({ messages: MSGS }), env({ CHAT: svc(() => new Response(upstream, { status: 200, headers: sseHeaders })) }));
+  assert.equal(r.status, 200);
+  for (const [k, v] of Object.entries(sseHeaders)) assert.equal(r.headers.get(k), v, k);
+  const reader = r.body.getReader();
+  ctl.enqueue(enc.encode('data: {"t":"delta","text":"半"}\n\n'));
+  const first = await reader.read();
+  assert.equal(new TextDecoder().decode(first.value), 'data: {"t":"delta","text":"半"}\n\n');
+  ctl.enqueue(enc.encode('data: {"t":"done"}\n\n'));
+  ctl.close();
+  const second = await reader.read();
+  assert.equal(new TextDecoder().decode(second.value), 'data: {"t":"done"}\n\n');
+  assert.equal((await reader.read()).done, true);
+});
+
+test('浏览器断开 → 取消流回去的 body → styrigx-chat 的流也被取消', async () => {
+  let cancelled = false;
+  const upstream = new ReadableStream({ pull() {}, cancel() { cancelled = true; } });
+  const r = await call(req({ messages: MSGS }), env({ CHAT: svc(() => new Response(upstream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } })) }));
+  await r.body.cancel();
+  assert.equal(cancelled, true);
+});
+
+test('没绑定 CHAT → 503 no_key（GET / POST）；调 styrigx-chat 抛错 → 502 upstream', async () => {
+  for (const CHAT of [undefined, null, {}, { fetch: 'x' }]) {
+    let r = await call(req({ messages: MSGS }), env({ CHAT }));
+    assert.equal(r.status, 503);
+    assert.deepEqual(await r.json(), { ok: false, error: 'no_key' });
+    r = await getCall(getReq(), env({ CHAT }));
     assert.equal(r.status, 503);
     assert.deepEqual(await r.json(), { ok: false, error: 'no_key' });
   }
-  assert.equal(fetchLog.length, 0);
-});
-
-test('gemini：请求形状（streamGenerateContent?alt=sse、x-goog-api-key、角色、搜索工具、系统提示）', async () => {
-  mockFetch(() => sseResponse([gem('ok', { finishReason: 'STOP' })]));
-  const msgs = [{ role: 'user', text: 'Q1' }, { role: 'model', text: 'A1' }, { role: 'user', text: 'Q2' }];
-  const r = await call(req({ messages: msgs }));
-  assert.equal(r.status, 200);
-  await r.text();
-  assert.equal(fetchLog.length, 1);
-  const f = fetchLog[0];
-  assert.equal(f.url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse');
-  assert.equal(f.init.method, 'POST');
-  assert.equal(f.init.headers['x-goog-api-key'], 'test-chat-key');
-  assert.ok(!('Authorization' in f.init.headers));
-  assert.deepEqual(f.body.contents, [
-    { role: 'user', parts: [{ text: 'Q1' }] },
-    { role: 'model', parts: [{ text: 'A1' }] },
-    { role: 'user', parts: [{ text: 'Q2' }] },
-  ]);
-  assert.deepEqual(f.body.tools, [{ google_search: {} }, { url_context: {} }]);
-  assert.match(f.body.systemInstruction.parts[0].text, /Google Search/);
-  assert.match(f.body.systemInstruction.parts[0].text, /Today is \d{4}-\d{2}-\d{2}/);
-  assert.ok(f.init.signal, '要带 AbortSignal（超时 / 浏览器断开）');
-  /* CHAT_SEARCH=off → 不带工具 */
-  mockFetch(() => sseResponse([gem('ok')]));
-  await (await call(req({ messages: MSGS }), env({ CHAT_SEARCH: 'off' }))).text();
-  assert.equal(fetchLog[0].body.tools, undefined);
-  /* 普通字符串钥匙（本地）也行 */
-  mockFetch(() => sseResponse([gem('ok')]));
-  await (await call(req({ messages: MSGS }), env({ SGX_CHAT_API_KEY: 'plain-key' }))).text();
-  assert.equal(fetchLog[0].init.headers['x-goog-api-key'], 'plain-key');
-});
-
-test('gemini SSE → delta / sources / done：跳过 thought、来源去重 + 只要 http(s) + 最多 8 条、url_context 也算来源', async () => {
-  const chunks = Array.from({ length: 10 }, (_, i) => ({ web: { uri: 'https://vertexaisearch.cloud.google.com/r/' + i, title: 'site' + i + '.com' } }));
-  mockFetch(() => sseResponse([
-    { candidates: [{ content: { parts: [{ text: '想一想', thought: true }, { text: 'Hugo ' }] } }] },
-    gem('**v0.168.0**'),
-    '{bad json',
-    gem('。', {
-      finishReason: 'STOP',
-      groundingMetadata: { groundingChunks: [chunks[0], chunks[0], { web: { uri: 'javascript:alert(1)', title: 'x' } }, ...chunks.slice(1)] },
-    }),
-  ]));
-  const r = await call(req({ messages: MSGS }));
-  assert.equal(r.status, 200);
-  assert.match(r.headers.get('Content-Type'), /^text\/event-stream/);
-  assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
-  const ev = await events(r);
-  assert.deepEqual(ev.filter((e) => e.t === 'delta').map((e) => e.text), ['Hugo ', '**v0.168.0**', '。']);
-  const src = ev.find((e) => e.t === 'sources');
-  assert.equal(src.items.length, 8);
-  assert.deepEqual(src.items[0], { title: 'site0.com', uri: 'https://vertexaisearch.cloud.google.com/r/0' });
-  assert.equal(new Set(src.items.map((s) => s.uri)).size, 8);
-  assert.ok(src.items.every((s) => s.uri.startsWith('https://')));
-  assert.deepEqual(ev[ev.length - 1], { t: 'done' });
-  assert.ok(ev.indexOf(src) < ev.length - 1, 'sources 在 done 前面');
-
-  /* url_context：读成功的地址也进来源；没有接地 → 不发 sources；\n\n 分隔也认 */
-  mockFetch(() => sseResponse([gem('读了', { urlContextMetadata: { urlMetadata: [
-    { retrievedUrl: 'https://example.com/a', urlRetrievalStatus: 'URL_RETRIEVAL_STATUS_SUCCESS' },
-    { retrievedUrl: 'https://example.com/b', urlRetrievalStatus: 'URL_RETRIEVAL_STATUS_ERROR' },
-  ] } })], 200, '\n\n'));
-  let e2 = await events(await call(req({ messages: MSGS })));
-  assert.deepEqual(e2.find((e) => e.t === 'sources').items, [{ title: '', uri: 'https://example.com/a' }]);
-  mockFetch(() => sseResponse([gem('无来源')]));
-  e2 = await events(await call(req({ messages: MSGS })));
-  assert.deepEqual(e2.map((e) => e.t), ['delta', 'done']);
-});
-
-test('gemini：上游 429 → 429 rate_limited；其他错误 / fetch 抛错 → 502 upstream；流里的 error / 被拦截 → error 事件', async () => {
-  mockFetch(() => new Response('{"error":{"code":429,"status":"RESOURCE_EXHAUSTED"}}', { status: 429 }));
-  let r = await call(req({ messages: MSGS }));
-  assert.equal(r.status, 429);
-  assert.deepEqual(await r.json(), { ok: false, error: 'rate_limited' });
-  for (const st of [400, 403, 500, 503]) {
-    mockFetch(() => new Response('{"error":{}}', { status: st }));
-    r = await call(req({ messages: MSGS }));
-    assert.equal(r.status, 502, String(st));
-    assert.equal((await r.json()).error, 'upstream');
-  }
-  mockFetch(() => { throw new TypeError('network'); });
-  r = await call(req({ messages: MSGS }));
+  const boom = svc(() => { throw new TypeError('service down'); });
+  let r = await call(req({ messages: MSGS }), env({ CHAT: boom }));
   assert.equal(r.status, 502);
-  /* 流到一半 */
-  mockFetch(() => sseResponse([gem('半'), { error: { code: 429, status: 'RESOURCE_EXHAUSTED' } }, gem('不该出现')]));
-  let ev = await events(await call(req({ messages: MSGS })));
-  assert.deepEqual(ev, [{ t: 'delta', text: '半' }, { t: 'error', code: 'rate_limited' }]);
-  mockFetch(() => sseResponse([{ promptFeedback: { blockReason: 'SAFETY' } }]));
-  ev = await events(await call(req({ messages: MSGS })));
-  assert.deepEqual(ev, [{ t: 'error', code: 'upstream' }]);
-  /* 上游流读到一半抛错 */
-  mockFetch(() => new Response(new ReadableStream({
-    n: 0,
-    pull(c) { if (this.n++ === 0) c.enqueue(new TextEncoder().encode('data: ' + JSON.stringify(gem('a')) + '\n\n')); else c.error(new Error('reset')); },
-  }), { status: 200 }));
-  ev = await events(await call(req({ messages: MSGS })));
-  assert.deepEqual(ev, [{ t: 'delta', text: 'a' }, { t: 'error', code: 'upstream' }]);
-});
-
-test('openai 模式：/chat/completions、Bearer、model → assistant、system 提示、stream:true；增量转成 delta，没有 sources；429 → rate_limited', async () => {
-  const e = env({ CHAT_PROVIDER: 'openai', CHAT_API_BASE: 'https://api.example.com/v1/', CHAT_MODEL: 'some-model' });
-  mockFetch(() => sseResponse([
-    { choices: [{ delta: { role: 'assistant' } }] },
-    { choices: [{ delta: { content: '你' } }] },
-    { choices: [{ delta: { content: '好' } }] },
-    { choices: [{ delta: {}, finish_reason: 'stop' }] },
-    '[DONE]',
-  ]));
-  const r = await call(req({ messages: [{ role: 'user', text: 'Q1' }, { role: 'model', text: 'A1' }, { role: 'user', text: 'Q2' }] }), e);
-  assert.equal(r.status, 200);
-  const ev = await events(r);
-  assert.deepEqual(ev, [{ t: 'delta', text: '你' }, { t: 'delta', text: '好' }, { t: 'done' }]);
-  const f = fetchLog[0];
-  assert.equal(f.url, 'https://api.example.com/v1/chat/completions');
-  assert.equal(f.init.headers.Authorization, 'Bearer test-chat-key');
-  assert.equal(f.body.model, 'some-model');
-  assert.equal(f.body.stream, true);
-  assert.deepEqual(f.body.messages.map((m) => m.role), ['system', 'user', 'assistant', 'user']);
-  assert.equal(f.body.messages[2].content, 'A1');
-  assert.equal(f.body.tools, undefined);
-  mockFetch(() => new Response('{}', { status: 429 }));
-  const r2 = await call(req({ messages: MSGS }), e);
-  assert.equal(r2.status, 429);
-  /* openai 模式没配 CHAT_API_BASE → 按没配置处理 */
-  mockFetch(() => { throw new Error('不应调用上游'); });
-  const r3 = await call(req({ messages: MSGS }), env({ CHAT_PROVIDER: 'openai', CHAT_API_BASE: '' }));
-  assert.equal(r3.status, 503);
+  assert.deepEqual(await r.json(), { ok: false, error: 'upstream' });
+  assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
+  r = await getCall(getReq(), env({ CHAT: boom }));
+  assert.equal(r.status, 502);
 });
 
 test('gateway 中间件：/api/chat 没会话 401（不进接口）；访客能到接口（由接口回 owner_only）', async () => {
@@ -298,222 +241,66 @@ test('gateway 中间件：/api/chat 没会话 401（不进接口）；访客能�
   assert.equal((await r.json()).error, 'owner_only');
 });
 
-/* ---------- 模型切换（2026-10-22）：CHAT_MODELS 白名单、GET /api/chat、POST model、每个模型的工具开关、上游按模型的错误 ---------- */
+/* ---------- 端到端：网关 → 真的 styrigx-chat（workers/chat/src/index.js）→ mock 的 Gemini ---------- */
 
+const gem = (text, extra = {}) => ({ candidates: [{ content: { role: 'model', parts: [{ text }] }, ...extra }] });
+function sseResponse(blocks, status = 200) {
+  const enc = new TextEncoder();
+  const text = blocks.map((b) => 'data: ' + (typeof b === 'string' ? b : JSON.stringify(b)) + '\r\n\r\n').join('');
+  return new Response(new ReadableStream({ start(c) { for (let i = 0; i < text.length; i += 7) c.enqueue(enc.encode(text.slice(i, i + 7))); c.close(); } }), { status, headers: { 'Content-Type': 'text/event-stream' } });
+}
 const MODELS_JSON = JSON.stringify([
   { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', search: true },
-  { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite', search: true },
   { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash', search: false },
-  { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite', search: false },
 ]);
-const menv = (over = {}) => env({ CHAT_MODELS: MODELS_JSON, ...over });
-function getReq({ cookie = OWNER, origin } = {}) {
-  const headers = {};
-  if (cookie) headers.Cookie = 'sgx-verified=' + cookie;
-  if (origin) headers.Origin = origin;
-  return new Request('https://styrigx.com/api/chat', { method: 'GET', headers });
+function chatEnv(over = {}) {
+  return {
+    CHAT_PROVIDER: 'gemini', CHAT_API_BASE: 'https://generativelanguage.googleapis.com/v1beta', CHAT_MODEL: 'gemini-2.5-flash', CHAT_SEARCH: 'on',
+    CHAT_MODELS: MODELS_JSON, SGX_CHAT_API_KEY: { async get() { return 'test-chat-key'; } }, ...over,
+  };
 }
-const getCall = (r, e = menv()) => chat.onRequestGet({ request: r, env: e });
+/** 服务绑定 = 真的 styrigx-chat */
+const e2e = (over = {}) => env({ CHAT: { fetch: (r) => chatWorker.fetch(r, chatEnv(over)) } });
 
-test('wrangler.toml：CHAT_MODELS 是合法 JSON，2.5 Flash / Flash-Lite 联网、3.x 不联网；CHAT_MODEL 在列表里', () => {
-  const toml = readFileSync(REPO + 'workers/auth-gateway/wrangler.toml', 'utf8');
-  const m = toml.match(/^CHAT_MODELS = '(.*)'$/m);
-  assert.ok(m, 'CHAT_MODELS 要是一行单引号字面量字符串');
-  const list = JSON.parse(m[1]);
-  assert.deepEqual(list.map((x) => [x.id, x.search]), [
-    ['gemini-2.5-flash', true], ['gemini-2.5-flash-lite', true], ['gemini-3.8-flash', false], ['gemini-3.5-flash-lite', false],
-  ]);
-  const r = chat.chatModels({ CHAT_MODELS: m[1], CHAT_MODEL: 'gemini-2.5-flash', CHAT_SEARCH: 'on' });
-  assert.equal(r.def, 'gemini-2.5-flash');
-  assert.equal(r.models.length, 4);
-});
-
-test('GET /api/chat：没会话 / 坏会话 401、访客 403 owner_only；站长 200 { ok, default, models }，不看 Origin、不调上游、不读钥匙', async () => {
-  mockFetch(() => { throw new Error('不应调用上游'); });
-  let r = await getCall(getReq({ cookie: null }));
-  assert.equal(r.status, 401);
-  assert.equal((await r.json()).error, 'unauthorized');
-  r = await getCall(getReq({ cookie: 'garbage.1.2' }));
-  assert.equal(r.status, 401);
-  r = await getCall(getReq({ cookie: VISITOR }));
-  assert.equal(r.status, 403);
-  assert.deepEqual(await r.json(), { ok: false, error: 'owner_only' });
-  const e = menv();
-  e.SGX_CHAT_API_KEY = { async get() { throw new Error('不该读钥匙'); } };
-  r = await getCall(getReq(), e);
+test('端到端：GET 模型列表、POST 流式回答（delta / sources / done）、模型切换、bad_request / bad_model / no_key / rate_limited，和拆分前同一套 API', async () => {
+  let r = await getCall(getReq(), e2e());
   assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), { ok: true, default: 'gemini-2.5-flash', models: JSON.parse(MODELS_JSON) });
+
+  mockFetch(() => sseResponse([gem('Hugo '), gem('v0.168.0', { groundingMetadata: { groundingChunks: [{ web: { uri: 'https://gohugo.io/', title: 'gohugo.io' } }] } })]));
+  r = await call(req({ messages: MSGS }), e2e());
+  assert.equal(r.status, 200);
+  assert.match(r.headers.get('Content-Type'), /^text\/event-stream/);
   assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
-  assert.deepEqual(await r.json(), {
-    ok: true,
-    default: 'gemini-2.5-flash',
-    models: [
-      { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', search: true },
-      { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite', search: true },
-      { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash', search: false },
-      { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite', search: false },
-    ],
-  });
-  /* 带了别的 Origin 也一样（GET 只读） */
-  r = await getCall(getReq({ origin: 'https://styrigx.com' }));
-  assert.equal(r.status, 200);
-  assert.equal(fetchLog.length, 0);
-  /* 路由：同一个模块的 onRequestGet */
-  const { pickHandler } = await import('../../../workers/auth-gateway/src/index.js');
-  assert.equal(pickHandler(API_ROUTES.get('/api/chat'), 'GET'), chat.onRequestGet);
-  assert.equal(pickHandler(API_ROUTES.get('/api/chat'), 'POST'), chat.onRequestPost);
-});
+  assert.deepEqual(await events(r), [
+    { t: 'delta', text: 'Hugo ' }, { t: 'delta', text: 'v0.168.0' },
+    { t: 'sources', items: [{ title: 'gohugo.io', uri: 'https://gohugo.io/' }] }, { t: 'done' },
+  ]);
+  assert.equal(fetchLog[0].url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse');
+  assert.equal(fetchLog[0].init.headers['x-goog-api-key'], 'test-chat-key');
+  assert.deepEqual(fetchLog[0].body.contents, [{ role: 'user', parts: [{ text: 'Hugo 最新版本？' }] }]);
 
-test('CHAT_MODELS 坏 / 没配 / 没一条合格 → 退回只有 CHAT_MODEL；坏条目跳过、去重、没 label 用 id；总开关 off / openai 模式 search 一律 false', async () => {
-  const fb = (search) => ({ def: 'gemini-2.5-flash', models: [{ id: 'gemini-2.5-flash', label: 'gemini-2.5-flash', search }] });
-  for (const bad of [undefined, '', '{nope', '[]', '"x"', '{"id":"a"}', JSON.stringify([{ id: 'bad id!' }, { id: 5 }, null, { label: 'x' }, { id: '' }])]) {
-    assert.deepEqual(chat.chatModels(env({ CHAT_MODELS: bad })), fb(true), String(bad));
-  }
-  assert.deepEqual(chat.chatModels(env({ CHAT_MODELS: '{nope', CHAT_SEARCH: 'off' })), fb(false));
-  let r = await getCall(getReq(), env({ CHAT_MODELS: '{nope' }));
-  assert.deepEqual(await r.json(), { ok: true, default: 'gemini-2.5-flash', models: fb(true).models });
-  /* 坏条目跳过 + 去重 + label 兜底；search 只认 true */
-  const mixed = JSON.stringify([{ id: 'x/../y z' }, { id: 'm1', search: 'yes' }, { id: 'm1', label: 'dup' }, { id: 'm2', label: '  M2  ', search: true }]);
-  assert.deepEqual(chat.chatModels(env({ CHAT_MODELS: mixed })), {
-    def: 'm1', /* CHAT_MODEL 不在列表里 → 第一个 */
-    models: [{ id: 'm1', label: 'm1', search: false }, { id: 'm2', label: 'M2', search: true }],
-  });
-  /* 数组本身（不是字符串）也认 */
-  assert.equal(chat.chatModels(env({ CHAT_MODELS: [{ id: 'gemini-2.5-flash', search: true }] })).models[0].search, true);
-  /* 最多 12 条 */
-  assert.equal(chat.chatModels(env({ CHAT_MODELS: JSON.stringify(Array.from({ length: 20 }, (_, i) => ({ id: 'm' + i }))) })).models.length, chat.MAX_MODELS);
-  assert.ok(chat.chatModels(menv({ CHAT_SEARCH: 'off' })).models.every((m) => !m.search));
-  assert.ok(chat.chatModels(menv({ CHAT_PROVIDER: 'openai' })).models.every((m) => !m.search));
-});
+  mockFetch(() => sseResponse([gem('ok')]));
+  await (await call(req({ messages: MSGS, model: 'gemini-3.8-flash' }), e2e())).text();
+  assert.match(fetchLog[0].url, /\/models\/gemini-3\.8-flash:/);
+  assert.equal(fetchLog[0].body.tools, undefined);
 
-test('POST model：不在白名单 / 不是字符串 → 400 bad_model，不调上游；null / 不给 → 默认模型', async () => {
   mockFetch(() => { throw new Error('不应调用上游'); });
-  for (const model of ['evil-model', 'gemini-2.5-pro', '', 5, true, {}, ['gemini-2.5-flash'], '../gemini-2.5-flash', 'GEMINI-2.5-FLASH']) {
-    const r = await call(req({ messages: MSGS, model }), menv());
-    assert.equal(r.status, 400, JSON.stringify(model));
-    assert.deepEqual(await r.json(), { ok: false, error: 'bad_model' });
-  }
-  /* 回退列表时也只认 CHAT_MODEL */
-  let r = await call(req({ messages: MSGS, model: 'gemini-3.8-flash' }), env());
+  r = await call(req(null, { raw: '{nope' }), e2e());
   assert.equal(r.status, 400);
+  assert.deepEqual(await r.json(), { ok: false, error: 'bad_request' });
+  r = await call(req({ messages: MSGS, model: 'evil-model' }), e2e());
+  assert.equal(r.status, 400);
+  assert.deepEqual(await r.json(), { ok: false, error: 'bad_model' });
+  r = await call(req({ messages: MSGS }), e2e({ SGX_CHAT_API_KEY: undefined }));
+  assert.equal(r.status, 503);
+  assert.deepEqual(await r.json(), { ok: false, error: 'no_key' });
+  r = await call(req({ messages: MSGS }, { cookie: VISITOR }), e2e());
+  assert.equal(r.status, 403);
   assert.equal(fetchLog.length, 0);
-  for (const model of [null, undefined]) {
-    mockFetch(() => sseResponse([gem('ok')]));
-    r = await call(req({ messages: MSGS, model }), menv());
-    assert.equal(r.status, 200);
-    await r.text();
-    assert.match(fetchLog[0].url, /\/models\/gemini-2\.5-flash:streamGenerateContent/);
-  }
-});
 
-test('每个模型的工具：2.5 Flash-Lite 带 google_search + url_context；3.x 不带（系统提示也不提搜索）；总开关 off 都不带；openai 模式 model 原样转发', async () => {
-  mockFetch(() => sseResponse([gem('ok')]));
-  await (await call(req({ messages: MSGS, model: 'gemini-2.5-flash-lite' }), menv())).text();
-  assert.equal(fetchLog[0].url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:streamGenerateContent?alt=sse');
-  assert.deepEqual(fetchLog[0].body.tools, [{ google_search: {} }, { url_context: {} }]);
-  assert.match(fetchLog[0].body.systemInstruction.parts[0].text, /Google Search/);
-
-  mockFetch(() => sseResponse([gem('ok')]));
-  await (await call(req({ messages: MSGS, model: 'gemini-3.8-flash' }), menv())).text();
-  assert.equal(fetchLog[0].url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:streamGenerateContent?alt=sse');
-  assert.equal(fetchLog[0].body.tools, undefined);
-  assert.doesNotMatch(fetchLog[0].body.systemInstruction.parts[0].text, /Google Search/);
-  assert.match(fetchLog[0].body.systemInstruction.parts[0].text, /not available/);
-
-  mockFetch(() => sseResponse([gem('ok')]));
-  await (await call(req({ messages: MSGS, model: 'gemini-2.5-flash' }), menv({ CHAT_SEARCH: 'off' }))).text();
-  assert.equal(fetchLog[0].body.tools, undefined);
-
-  const oe = menv({ CHAT_PROVIDER: 'openai', CHAT_API_BASE: 'https://api.example.com/v1', CHAT_MODELS: JSON.stringify([{ id: 'org/a', search: true }, { id: 'b' }]), CHAT_MODEL: 'org/a' });
-  mockFetch(() => sseResponse([{ choices: [{ delta: { content: 'x' } }] }, '[DONE]']));
-  await (await call(req({ messages: MSGS, model: 'b' }), oe)).text();
-  assert.equal(fetchLog[0].url, 'https://api.example.com/v1/chat/completions');
-  assert.equal(fetchLog[0].body.model, 'b');
-  assert.equal(fetchLog[0].body.tools, undefined);
-  mockFetch(() => sseResponse([{ choices: [{ delta: { content: 'x' } }] }, '[DONE]']));
-  await (await call(req({ messages: MSGS }), oe)).text();
-  assert.equal(fetchLog[0].body.model, 'org/a');
-  /* openai 模式也只认自己的列表 */
-  const rb = await call(req({ messages: MSGS, model: 'gemini-2.5-flash' }), oe);
-  assert.equal(rb.status, 400);
-  assert.equal((await rb.json()).error, 'bad_model');
-});
-
-test('classifyUpstream：429 → rate_limited；400 带工具 + 说工具 → tools；404 / 403·400 not found·not supported·permission → model_unavailable；其他 → upstream', () => {
-  const C = chat.classifyUpstream;
-  assert.equal(C(429, '', true), 'rate_limited');
-  assert.equal(C(429, 'model not found', false), 'rate_limited');
-  assert.equal(C(400, '{"error":{"message":"Tool use with google_search is not supported for this model."}}', true), 'tools');
-  assert.equal(C(400, 'Search Grounding is not supported.', true), 'tools');
-  assert.equal(C(400, 'url_context is unsupported', true), 'tools');
-  /* 没带工具时说工具 → 不是 tools（不会无限重试） */
-  assert.equal(C(400, 'google_search is not supported', false), 'model_unavailable');
-  assert.equal(C(400, 'tools are bad', false), 'upstream');
-  assert.equal(C(404, '', false), 'model_unavailable');
-  assert.equal(C(404, '{"error":{"status":"NOT_FOUND"}}', true), 'model_unavailable');
-  assert.equal(C(403, '{"error":{"status":"PERMISSION_DENIED","message":"permission denied for model"}}', false), 'model_unavailable');
-  assert.equal(C(400, 'models/gemini-9 is not found for API version v1beta, or is not supported for generateContent', false), 'model_unavailable');
-  assert.equal(C(400, 'This model is not available on the free tier', false), 'model_unavailable');
-  assert.equal(C(403, '{"error":{}}', false), 'upstream');
-  assert.equal(C(400, 'API key not valid', false), 'upstream');
-  assert.equal(C(500, 'not found', false), 'upstream');
-  assert.equal(C(503, '', true), 'upstream');
-});
-
-test('上游按模型的错误：404 / 403 permission / 400 not supported → 502 model_unavailable；429 → rate_limited；流里 404 → error model_unavailable', async () => {
-  const cases = [
-    [404, '{"error":{"code":404,"status":"NOT_FOUND"}}'],
-    [403, '{"error":{"code":403,"message":"Permission denied on model","status":"PERMISSION_DENIED"}}'],
-    [400, '{"error":{"code":400,"message":"models/gemini-3.8-flash is not supported for streamGenerateContent"}}'],
-  ];
-  for (const [st, body] of cases) {
-    for (const model of ['gemini-2.5-flash', 'gemini-3.8-flash']) {
-      mockFetch(() => new Response(body, { status: st }));
-      const r = await call(req({ messages: MSGS, model }), menv());
-      assert.equal(r.status, 502, st + ' ' + model);
-      assert.deepEqual(await r.json(), { ok: false, error: 'model_unavailable' });
-      assert.equal(fetchLog.length, 1, '不重试');
-    }
-  }
   mockFetch(() => new Response('{"error":{"code":429}}', { status: 429 }));
-  let r = await call(req({ messages: MSGS, model: 'gemini-3.8-flash' }), menv());
+  r = await call(req({ messages: MSGS }), e2e());
   assert.equal(r.status, 429);
   assert.deepEqual(await r.json(), { ok: false, error: 'rate_limited' });
-  assert.equal(fetchLog.length, 1);
-  mockFetch(() => sseResponse([gem('半'), { error: { code: 404, status: 'NOT_FOUND' } }]));
-  const ev = await events(await call(req({ messages: MSGS }), menv()));
-  assert.deepEqual(ev, [{ t: 'delta', text: '半' }, { t: 'error', code: 'model_unavailable' }]);
-});
-
-test('工具被上游拒（400 说 google_search 不支持）→ 不带工具重试一次，回答开头 meta web:false；只重试一次；不联网模型不重试', async () => {
-  const toolErr = '{"error":{"code":400,"message":"Tool use with google_search is not supported for this model","status":"INVALID_ARGUMENT"}}';
-  let n = 0;
-  mockFetch(() => (n++ === 0 ? new Response(toolErr, { status: 400 }) : sseResponse([gem('凭记忆回答')])));
-  let r = await call(req({ messages: MSGS, model: 'gemini-2.5-flash-lite' }), menv());
-  assert.equal(r.status, 200);
-  const ev = await events(r);
-  assert.deepEqual(ev, [{ t: 'meta', web: false }, { t: 'delta', text: '凭记忆回答' }, { t: 'done' }]);
-  assert.equal(fetchLog.length, 2);
-  assert.deepEqual(fetchLog[0].body.tools, [{ google_search: {} }, { url_context: {} }]);
-  assert.equal(fetchLog[1].body.tools, undefined);
-  assert.equal(fetchLog[1].url, fetchLog[0].url, '同一个模型');
-  assert.doesNotMatch(fetchLog[1].body.systemInstruction.parts[0].text, /Google Search/);
-  /* 第二次还是 400 → 不再重试，502 upstream */
-  mockFetch(() => new Response(toolErr, { status: 400 }));
-  r = await call(req({ messages: MSGS, model: 'gemini-2.5-flash' }), menv());
-  assert.equal(r.status, 502);
-  assert.equal(fetchLog.length, 2);
-  /* 第二次 429 → rate_limited */
-  n = 0;
-  mockFetch(() => (n++ === 0 ? new Response(toolErr, { status: 400 }) : new Response('{}', { status: 429 })));
-  r = await call(req({ messages: MSGS }), menv());
-  assert.equal(r.status, 429);
-  /* 不联网的模型本来就没带工具：同样的 400 不重试 */
-  mockFetch(() => new Response(toolErr, { status: 400 }));
-  r = await call(req({ messages: MSGS, model: 'gemini-3.8-flash' }), menv());
-  assert.equal(fetchLog.length, 1);
-  assert.equal(r.status, 502);
-  /* 正常联网回答不发 meta */
-  mockFetch(() => sseResponse([gem('ok')]));
-  const ev2 = await events(await call(req({ messages: MSGS }), menv()));
-  assert.deepEqual(ev2.map((e) => e.t), ['delta', 'done']);
 });
