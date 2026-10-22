@@ -6,6 +6,7 @@
  */
 import * as account from '../functions/api/account.js';
 import * as avatar from '../functions/api/avatar.js';
+import * as chat from '../functions/api/chat.js';
 import * as geo from '../functions/api/geo.js';
 import * as layerStatus from '../functions/api/layer-status.js';
 import * as lock from '../functions/api/lock.js';
@@ -31,6 +32,7 @@ import * as wellbeing from '../functions/api/wellbeing.js';
 export const API_ROUTES = new Map([
   ['/api/account', account],
   ['/api/avatar', avatar],
+  ['/api/chat', chat],
   ['/api/geo', geo],
   ['/api/layer-status', layerStatus],
   ['/api/lock', lock],

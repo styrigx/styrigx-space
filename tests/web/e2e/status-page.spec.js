@@ -7,7 +7,7 @@
  * - 用量（PR3）：站点卡下面「用量」卡（Workers / D1 / R2 / KV：值 / 上限 / 百分比 / 进度条，> 70% 琥珀、> 90% 红，「更新于 N 分钟前」）；
  *   usage = null → 「用量未配置」；加载中 / 出错 / 空状态不显示。
  * - 手机 412×915（三星）和桌面 1280×800 都跑；手机不横向溢出。
- * 聊天：占位页「聊天即将上线」。
+ * 聊天：切到聊天页能看到空状态「问点需要联网查的」（聊天本身见 chat-page.spec.js）。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, expect } = require('./helpers');
@@ -106,14 +106,14 @@ for (const [label, viewport] of VIEWPORTS) {
       await expect(page.locator('.sgx-tb-tab[data-tab="status"]')).toHaveAttribute('aria-current', 'page');
     });
 
-    test('点标签切页：主页 → 状态 → 聊天（占位页）→ 主页', async ({ page }) => {
+    test('点标签切页：主页 → 状态 → 聊天 → 主页', async ({ page }) => {
       await go(page, '/');
       await page.locator('.sgx-tb-tab[data-tab="status"]').click();
       await page.waitForURL(/\/status\/$/);
       await expect(page.locator('#st-banner')).toHaveAttribute('data-state', 'up');
       await page.locator('.sgx-tb-tab[data-tab="chat"]').click();
       await page.waitForURL(/\/chat\/$/);
-      await expect(page.locator('.chat-soon .st-msg-title')).toHaveText('聊天即将上线');
+      await expect(page.locator('#chat-empty .st-msg-title')).toHaveText('问点需要联网查的');
       await expect(page.locator('.sgx-tb-tab[data-tab="chat"]')).toHaveAttribute('aria-current', 'page');
       await page.locator('.sgx-tb-tab[data-tab="home"]').click();
       await page.waitForURL((u) => new URL(u).pathname === '/');
@@ -371,13 +371,13 @@ test.describe('自动刷新', () => {
   });
 });
 
-test.describe('聊天占位页', () => {
+test.describe('聊天页空状态', () => {
   test.use({ viewport: { width: 412, height: 915 } });
 
-  test('/chat/ 和 /en/chat/：「聊天即将上线」/「Chat coming soon」', async ({ page }) => {
+  test('/chat/ 和 /en/chat/：「问点需要联网查的」/「Ask something that needs the web」', async ({ page }) => {
     await go(page, '/chat/', { api: null });
-    await expect(page.locator('.chat-soon .st-msg-title')).toHaveText('聊天即将上线');
+    await expect(page.locator('#chat-empty .st-msg-title')).toHaveText('问点需要联网查的');
     await go(page, '/en/chat/', { api: null });
-    await expect(page.locator('.chat-soon .st-msg-title')).toHaveText('Chat coming soon');
+    await expect(page.locator('#chat-empty .st-msg-title')).toHaveText('Ask something that needs the web');
   });
 });

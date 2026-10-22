@@ -63,6 +63,14 @@ SGX_ENV = "production"
 SGX_SITE = "space"
 SGX_ORIGIN = "https://styrigx.com"
 SGX_RP_ID = "styrigx.com"
+# 聊天 /api/chat（functions/api/chat.js，2026-10-22）：只做联网检索，不存对话。
+# CHAT_PROVIDER = "gemini"（原生 streamGenerateContent + Google 搜索接地）或 "openai"（任意 OpenAI 兼容接口，没有联网检索）。
+# 免费档能用 Google 搜索接地的只有 gemini-2.5-flash / gemini-2.5-flash-lite（每天合计 500 次）；Gemini 的 OpenAI 兼容端点不支持搜索接地。
+# 钥匙在 Secrets Store 的 SGX_CHAT_API_KEY（见文件末尾）；没配 → /api/chat 回 503 no_key，不影响其他接口。
+CHAT_PROVIDER = "gemini"
+CHAT_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
+CHAT_MODEL = "gemini-2.5-flash"
+CHAT_SEARCH = "on"
 
 # ---- 服务绑定 ----
 # 全站搜索 styrigx-search-index（workers/search-index；没有公开地址，只能从这里进）。/api/search 验完会话转给它。
@@ -131,3 +139,12 @@ secret_name = "SGX_LOCK_PUBLIC"
 binding = "SGX_ACCOUNT_PUBLIC"
 store_id = "a5a984f365424401bad5ad6ddcd44479"
 secret_name = "SGX_ACCOUNT_PUBLIC"
+
+# 聊天钥匙（Gemini API key，不绑结算的 Google 小号）：只有 /api/chat 在用到时读（functions/api/chat.js），
+# 不在 src/secrets.js 的 SECRET_NAMES 里（那份是每个请求都预读的签名钥匙），读不到只影响聊天。
+# 部署前要先在 Secrets Store 建好这个密钥（作用域含 workers）：部署时 Cloudflare 会核对每个 Secrets Store 绑定，
+# 绑定一个还不存在的密钥会让整个网关部署失败（不只是聊天）。
+[[secrets_store_secrets]]
+binding = "SGX_CHAT_API_KEY"
+store_id = "a5a984f365424401bad5ad6ddcd44479"
+secret_name = "SGX_CHAT_API_KEY"

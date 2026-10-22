@@ -11,7 +11,8 @@
  * - 绝不打印密钥值。
  */
 
-/** 放在 Secrets Store 里的密钥：5 个私密值 + 2 把公钥（签名钥匙只剩账号、锁屏两套） */
+/** 放在 Secrets Store 里的密钥：5 个私密值 + 2 把公钥（签名钥匙只剩账号、锁屏两套）。
+ *  聊天钥匙 SGX_CHAT_API_KEY 故意不在这里：只有 /api/chat 用到时才读（functions/api/chat.js），读不到不影响别的接口。 */
 export const SECRET_NAMES = Object.freeze([
   'SGX_LOCK_PRIVATE',
   'SGX_ACCOUNT_PRIVATE',
