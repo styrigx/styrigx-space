@@ -87,7 +87,33 @@ import { accountSubmitters, visibleKinds } from '../lib/account-methods.js';
   const pwGo = /** @type {HTMLButtonElement|null} */ ($('acct-pw-go'));
   const noneEl = $('acct-login-none');
   const hint0 = document.documentElement.dataset.sgxAccount || '';
+  /* 2026-10-23 修：服务端已登录、没下发登录区的分支（下面 hint0 === 'in'）提前 return，原来走不到这里，线上账号卡点了没反应。
+     抽成函数，两个分支都绑。
+     点账号卡（头像以外的地方）→ 下一页「已登录」（账号信息、退出账号）。头像按钮自己管换照片。 */
+  function bindAccountCard() {
+    const card = mainEl ? mainEl.querySelector('[data-acct-card]') : null;
+    if (card) {
+      card.setAttribute('role', 'link');
+      card.setAttribute('tabindex', '0');
+      const go = function () { sgxNavigate(profileUrl(en)); };
+      on(card, 'click', function (e) {
+        const target = /** @type {HTMLElement} */ (e.target);
+        if (target && target.closest && target.closest('[data-avatar-edit]')) return;
+        tapFeedback();
+        go();
+      });
+      on(card, 'keydown', function (e) {
+        const ev = /** @type {KeyboardEvent} */ (e);
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          ev.preventDefault();
+          go();
+        }
+      });
+    }
+  }
+
   if (!loginEl && mainEl && hint0 === 'in') {
+    bindAccountCard();
     /* 服务端说已登录，登录区没下发：只填总览；/api/account 明确说没有账号会话（刚过期 / 别处退出）
        → 重新取页面，由服务端画登录区。读不到（访客 401 / 网络）→ 保持总览。 */
     mainEl.hidden = false;
@@ -257,26 +283,7 @@ import { accountSubmitters, visibleKinds } from '../lib/account-methods.js';
 
   /* ================= 账号总览 ================= */
 
-  /* 点账号卡（头像以外的地方）→ 下一页「已登录」（账号信息、退出账号）。头像按钮自己管换照片。 */
-  const card = mainEl.querySelector('[data-acct-card]');
-  if (card) {
-    card.setAttribute('role', 'link');
-    card.setAttribute('tabindex', '0');
-    const go = function () { sgxNavigate(profileUrl(en)); };
-    on(card, 'click', function (e) {
-      const target = /** @type {HTMLElement} */ (e.target);
-      if (target && target.closest && target.closest('[data-avatar-edit]')) return;
-      tapFeedback();
-      go();
-    });
-    on(card, 'keydown', function (e) {
-      const ev = /** @type {KeyboardEvent} */ (e);
-      if (ev.key === 'Enter' || ev.key === ' ') {
-        ev.preventDefault();
-        go();
-      }
-    });
-  }
+  bindAccountCard();
 
   /**
    * 密码管理器改名（ownerkey → accountkey）：支持 signalCurrentUserDetails 时才拉一次 list 拿账号 handle。
