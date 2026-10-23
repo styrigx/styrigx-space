@@ -13,7 +13,8 @@ import worker from '../../../workers/status/src/index.js';
 
 let sqlite = null;
 try { sqlite = await import('node:sqlite'); } catch {}
-const SCHEMA = readFileSync(new URL('../../../workers/status/migrations/0001_init.sql', import.meta.url), 'utf8');
+const SCHEMA = ['0001_init.sql', '0002_usage.sql', '0003_cut_reads.sql']
+  .map((f) => readFileSync(new URL('../../../workers/status/migrations/' + f, import.meta.url), 'utf8')).join('\n');
 
 /** 用 node:sqlite 模拟 D1（prepare / bind / batch / first / all / run） */
 function d1() {
@@ -144,8 +145,9 @@ test('真 SQL：汇总——当前状态、24 小时 / 30 天可用率、每日�
   assert.equal(curio.up, true);
   assert.equal(curio.uptime.h24, 25);
   assert.equal(curio.uptime.d30, 25);
-  assert.equal(curio.recent.length, 4);
-  assert.deepEqual(curio.recent.map((x) => x[1]), [0, 0, 0, 1]);
+  /* 4 次检查都在同一小时：一格，这小时有失败 → 0 */
+  assert.equal(curio.recent.length, 1);
+  assert.deepEqual(curio.recent.map((x) => x[1]), [0]);
   assert.deepEqual(curio.days.map((d) => [d.day, d.total, d.ok]), [['2026-10-22', 4, 1]]);
   assert.equal(s.incidents.length, 1);
   assert.deepEqual([s.incidents[0].site, s.incidents[0].cause, s.incidents[0].ended_at], ['curio', 'network', t0 + 3 * M]);
@@ -163,8 +165,10 @@ test('写库：一个 batch 写完（检查、每日、状态、开 / 关故障�
   await persist(db, p, { prune: 1 });
   assert.equal(seen.length, 1);
   const sqls = seen[0].map((x) => x.sql.split(' ').slice(0, 3).join(' '));
-  assert.deepEqual(sqls, ['INSERT INTO checks', 'INSERT INTO daily', 'INSERT INTO state', 'INSERT INTO incidents', 'DELETE FROM checks']);
-  assert.deepEqual(seen[0][3].a, ['blog', 9, 'timeout']);
+  assert.deepEqual(sqls, ['INSERT INTO checks', 'INSERT INTO daily', 'INSERT INTO hourly', 'INSERT INTO state', 'INSERT INTO incidents', 'DELETE FROM checks']);
+  assert.deepEqual(seen[0][4].a, ['blog', 9, 'timeout']);
+  /* 状态里带着这一串第一次失败的时间 */
+  assert.equal(seen[0][3].a[2], 9);
 });
 
 test('入口：只认 GET /summary；库出错 503；scheduled 交给 waitUntil', async () => {
@@ -178,4 +182,34 @@ test('入口：只认 GET /summary；库出错 503；scheduled 交给 waitUntil'
   await worker.scheduled({ scheduledTime: 1 }, bad, { waitUntil: (p) => { waited = p; } });
   assert.ok(waited instanceof Promise);
   await waited; /* 出错只记日志，不抛 */
+});
+
+test('读取量：每分钟一轮只读 state 和开着的故障，不读 checks；汇总也不读 checks', async () => {
+  const sqls = [];
+  const db = {
+    prepare: (sql) => { sqls.push(sql); const o = { sql, bind: () => o }; return o; },
+    async batch(list) { return list.map(() => ({ results: [] })); },
+  };
+  await runOnce({ STATUS_DB: db }, Date.UTC(2026, 9, 23, 4, 1), fakeFetch({}));
+  const reads = sqls.filter((q) => /^\s*select/i.test(q));
+  assert.ok(reads.length > 0);
+  assert.ok(reads.every((q) => !/\bchecks\b/.test(q)), reads.join(' | '));
+  sqls.length = 0;
+  await summary(db, Date.UTC(2026, 9, 23, 4, 1)).catch(() => {});
+  assert.ok(sqls.filter((q) => /^\s*select/i.test(q)).every((q) => !/\bchecks\b/.test(q)));
+});
+
+test('真 SQL：第一次失败时间存在 state 里，恢复清零', { skip: !sqlite && '需要 node:sqlite' }, async () => {
+  const db = d1();
+  const env = { STATUS_DB: db };
+  const M = 60000;
+  const t0 = Date.UTC(2026, 9, 23, 4, 1);
+  const bad = fakeFetch({ 'https://blog.styrigx.com/robots.txt': 502 });
+  await runOnce(env, t0, bad);
+  await runOnce(env, t0 + M, bad);
+  assert.equal((await loadPrev(db)).get('blog').firstFailAt, t0);
+  await runOnce(env, t0 + 2 * M, fakeFetch({}));
+  assert.equal((await loadPrev(db)).get('blog').firstFailAt, 0);
+  const h = db.raw.prepare("SELECT * FROM hourly WHERE site = 'blog'").all();
+  assert.deepEqual([h.length, h[0].total, h[0].ok_count], [1, 3, 1]);
 });

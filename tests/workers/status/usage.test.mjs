@@ -15,7 +15,7 @@ import worker from '../../../workers/status/src/index.js';
 
 let sqlite = null;
 try { sqlite = await import('node:sqlite'); } catch {}
-const SCHEMA = ['0001_init.sql', '0002_usage.sql']
+const SCHEMA = ['0001_init.sql', '0002_usage.sql', '0003_cut_reads.sql']
   .map((f) => readFileSync(new URL('../../../workers/status/migrations/' + f, import.meta.url), 'utf8')).join('\n');
 
 /** node:sqlite 模拟 D1（prepare / bind / first / run / batch） */
@@ -266,8 +266,9 @@ test('/summary：带 usage + usage_reason；用量读挂了不影响站点数据
   s = await summary(db, NOW + 60e3, ENV);
   assert.equal(s.usage.fetched_at, NOW);
   assert.equal(s.usage.d1.databases.length, 2);
-  /* 迁移没跑：站点照常，usage = null / db */
-  const old = d1(readFileSync(new URL('../../../workers/status/migrations/0001_init.sql', import.meta.url), 'utf8'));
+  /* usage 迁移没跑：站点照常，usage = null / db */
+  const old = d1(['0001_init.sql', '0003_cut_reads.sql']
+    .map((f) => readFileSync(new URL('../../../workers/status/migrations/' + f, import.meta.url), 'utf8')).join('\n'));
   s = await summary(old, NOW, ENV);
   assert.equal(s.ok, true);
   assert.equal(s.sites.length, 5);
