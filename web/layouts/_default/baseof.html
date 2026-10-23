@@ -229,7 +229,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
     {{/* 站名 = 字标 SVG（partials/shell-wordmark.html，role="img" aria-label="Styrigx"）；shell-nav.json 的 brand 文字仍保留给子站 / 无 SVG 场合 */}}
     {{/* 抽屉头 = 字标 + 右边的头像圆（2026-10-22 从顶栏右圆挪来；共享外壳，三个站都有）：主站链到账号页（访客只是装饰，见 head-buttons.js initVisitorAvatar），
        子站链到 shell-nav.json 的 me.href（主站）。img 仍是 .sgx-tb-avatar + data-sgx-avatar（换头像 / 锁屏头像读它） */}}
-    <div class="sgx-drawer-head"><span class="sgx-drawer-id"><span class="sgx-drawer-brand">{{ partial "shell-wordmark.html" . }}</span><span class="sgx-drawer-tag">A Personal Digital Space</span></span><a class="sgx-drawer-me" href="{{ $acctUrl }}" aria-label="{{ cond $isEn $shellNav.me.en $shellNav.me.zh }}"><img src="/avatar/192.webp" alt="" width="52" height="52" class="sgx-tb-avatar" data-sgx-avatar="192"></a></div>
+    <div class="sgx-drawer-head"><span class="sgx-drawer-brand">{{ partial "shell-wordmark.html" . }}</span><a class="sgx-drawer-me" href="{{ $acctUrl }}" aria-label="{{ cond $isEn $shellNav.me.en $shellNav.me.zh }}"><img src="/avatar/192.webp" alt="" width="52" height="52" class="sgx-tb-avatar" data-sgx-avatar="192"></a></div>
     <div class="sgx-drawer-body">
     <ul class="sgx-drawer-list">
       {{ range $shellNav.items }}

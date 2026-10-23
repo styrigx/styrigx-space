@@ -7909,7 +7909,7 @@
   body:has(#acct-login:not([hidden])) main { display: flex; flex-direction: column; }
   body:has(#acct-login:not([hidden])) .acct-layout { flex: 1 0 auto; display: flex; flex-direction: column; }
   body:has(#acct-login:not([hidden])) .acct-login { flex: 1 0 auto; justify-content: center; padding-top: 0; }
-  /* 2026-10-23：左上角站名 + A Personal Digital Space 删掉（标语挪到抽屉头 .sgx-drawer-tag） */
+  /* 2026-10-23：左上角站名 + A Personal Digital Space 删掉（挪到抽屉头试过，用户嫌丑，同日也删了） */
   .acct-login-sub { margin: -8px 0 0; font-size: 14px; letter-spacing: .04em; color: var(--sgx-text-secondary); }
   .acct-login .acct-login-avatar { width: 120px; height: 120px; box-shadow: 0 0 0 5px rgba(255 255 255 / .92), 0 14px 30px -10px rgba(0 0 0 / .25); }
   :root.dark .acct-login .acct-login-avatar { box-shadow: 0 0 0 4px rgba(255 255 255 / .2), 0 14px 30px -10px rgba(0 0 0 / .5); }
@@ -8604,10 +8604,6 @@ html[data-sgx-role="visitor"] .sgx-drawer-me { pointer-events: none; cursor: def
 .sgx-drawer-me img { width: 100%; height: 100%; display: block; border: 0; border-radius: 999px; object-fit: cover; }
 .sgx-drawer-me:active::after { content: ""; position: absolute; inset: 0; border-radius: 999px; background: var(--sgx-state-pressed-bg); }
 .sgx-drawer-me:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
-/* 2026-10-23 抽屉头：字标下面一行小字标语（从锁屏 / 登录页左上角挪过来） */
-/* 标语绝对定位挂在字标正下方：字标的位置、抽屉头高度和分隔线都不变（标语落在字标和分隔线之间的空白里） */
-.sgx-drawer-id { flex: 0 1 auto; min-width: 0; position: relative; display: flex; }
-.sgx-drawer-tag { position: absolute; left: 0; top: calc(100% - 2px); max-width: 100%; font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: .04em; color: var(--sgx-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sgx-drawer-brand { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: var(--sgx-drawer-brand-size);
   font-weight: var(--sgx-drawer-brand-weight); line-height: 1.2; letter-spacing: -0.01em; white-space: nowrap; }
 /* 字标（2026-10-21）：抽屉头的站名是内联 SVG 字标 .sgx-wordmark（web/layouts/partials/shell-wordmark.html；共享外壳 nav.json 的 wordmark 字段是同一份）。

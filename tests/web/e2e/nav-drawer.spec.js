@@ -115,7 +115,7 @@ test.describe('导航抽屉', () => {
   test('英文：Home / Curio / Daymark / Blog，没有 Settings；搜索框（没 JS 时）→ /en/search/', async ({ page }) => {
     await go(page, '/en/', 'en');
     await openDrawer(page);
-    await expect(drawer(page).locator('.sgx-drawer-label')).toHaveText(['Main site', 'Curio', 'Daymark', 'Blog']);
+    await expect(drawer(page).locator('.sgx-drawer-label')).toHaveText(['Space', 'Curio', 'Daymark', 'Blog']);
     await expect(drawer(page).locator('.sgx-drawer-item').nth(1)).toHaveAttribute('href', 'https://curio.styrigx.com/en/');
     const s = drawer(page).locator('.sgx-drawer-foot a.sgx-drawer-search');
     await expect(s).toHaveAttribute('href', '/en/search/');
@@ -216,24 +216,21 @@ test.describe('抽屉三段：头部站名 / 导航列表 / 底栏搜索框', ()
       await openDrawer(page);
       const head = drawer(page).locator('.sgx-drawer-head');
       await expect(head.locator('.sgx-drawer-brand')).toHaveText('Styrigx');
-      /* 2026-10-23：字标下面一行标语 */
-      await expect(head.locator('.sgx-drawer-tag')).toHaveText('A Personal Digital Space');
+      /* 2026-10-23：字标下面不再有标语 */
+      await expect(head.locator('.sgx-drawer-tag')).toHaveCount(0);
       /* 抽屉头：字标 + 右边 52px 头像圆（链到账号页），没有搜索框 / 输入框 */
       await expect(head.locator('.sgx-drawer-search, input')).toHaveCount(0);
       await expect(head.locator('a')).toHaveCount(1);
       await expect(head.locator('a.sgx-drawer-me')).toHaveAttribute('href', '/account/');
       const hm = await page.evaluate(() => {
         const r = (q) => document.querySelector(q).getBoundingClientRect();
-        return { me: r('#sgx-drawer .sgx-drawer-me'), wm: r('#sgx-drawer .sgx-wordmark'), brand: r('#sgx-drawer .sgx-drawer-brand'), tag: r('#sgx-drawer .sgx-drawer-tag'), item: r('#sgx-drawer .sgx-drawer-item'), sheet: r('#sgx-drawer .sgx-drawer-sheet') };
+        return { me: r('#sgx-drawer .sgx-drawer-me'), wm: r('#sgx-drawer .sgx-wordmark'), brand: r('#sgx-drawer .sgx-drawer-brand'), sheet: r('#sgx-drawer .sgx-drawer-sheet') };
       });
       expect(Math.abs(hm.me.width - 52)).toBeLessThanOrEqual(0.5);
       expect(Math.abs(hm.me.height - 52)).toBeLessThanOrEqual(0.5);
-      /* 同一行、垂直居中（字标盒子中心和头像中心差 ≤ 3px：字标自己往下挪了 dy 让大写字母落在行中线上；标语挂在字标下方，不占行高） */
+      /* 同一行、垂直居中（字标盒子中心和头像中心差 ≤ 3px：字标自己往下挪了 dy 让大写字母落在行中线上） */
       expect(Math.abs((hm.brand.top + hm.brand.bottom) / 2 - (hm.me.top + hm.me.bottom) / 2)).toBeLessThanOrEqual(3);
       expect(hm.me.left).toBeGreaterThan(hm.wm.right);
-      expect(hm.me.left).toBeGreaterThan(hm.tag.right);
-      expect(hm.tag.top).toBeGreaterThanOrEqual(hm.wm.bottom - 3);
-      expect(hm.tag.bottom + 12).toBeLessThan(hm.item.top);
       expect(Math.abs(hm.sheet.right - hm.me.right - 16)).toBeLessThanOrEqual(1);
       const s = drawer(page).locator('.sgx-drawer-foot a.sgx-drawer-search');
       await expect(drawer(page).locator('a.sgx-drawer-search')).toHaveCount(1);
