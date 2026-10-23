@@ -14,6 +14,7 @@
  *
  * 运行：node --test tests/workers/auth-gateway/account.test.mjs
  */
+import { signRole } from './_tk.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -85,7 +86,7 @@ async function ownerSess(epoch = 0) {
 }
 async function visitorSess() {
   const { signSessionCookie } = await import(KERNEL + 'session.js');
-  return await signSessionCookie(LOCK.priv, 0, 'visitor', 'owner');
+  return await signRole(signSessionCookie, LOCK.priv, 0, 'visitor', 'owner');
 }
 async function accTicket(by = 'password', authAt = Date.now(), epoch = 0, priv) {
   const { signAccountTicket } = await import(KERNEL + 'account-session.js');

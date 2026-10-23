@@ -7,6 +7,7 @@
  * Ed25519 测试钥匙在测试内临时生成。
  * 运行：node --test tests/workers/auth-gateway/chat-api.test.mjs
  */
+import { signRole } from './_tk.mjs';
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -26,7 +27,7 @@ const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', '
 const PRIV = derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY');
 const PUB = derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY');
 const OWNER = await signSessionCookie(PRIV, 0, 'owner');
-const VISITOR = await signSessionCookie(PRIV, 0, 'visitor', 'owner');
+const VISITOR = await signRole(signSessionCookie, PRIV, 0, 'visitor', 'owner');
 
 function kv() {
   const m = new Map();

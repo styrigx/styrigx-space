@@ -8,6 +8,7 @@
  *
  * 运行：node --test tests/kernel/auth-worker.test.mjs
  */
+import { signRole } from './_tk.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -54,14 +55,15 @@ test('路由表与 functions/api/*.js 一一对应', () => {
   assert.deepEqual([...API_ROUTES.keys()].sort(), files);
 });
 
-test('wrangler.toml：不开 workers.dev、生产模式、7 个密钥全走 Secrets Store、填了真实 store_id', () => {
+test('wrangler.toml：不开 workers.dev、生产模式、6 个密钥全走 Secrets Store、填了真实 store_id', () => {
   const toml = readFileSync(REPO + '/workers/auth-gateway/wrangler.toml', 'utf8');
   assert.match(toml, /^workers_dev = false$/m);
   assert.match(toml, /^SGX_ENV = "production"$/m);
   for (const n of SECRET_NAMES) {
     assert.match(toml, new RegExp(`binding = "${n}"\\nstore_id = "[^"]+"\\nsecret_name = "${n}"`));
   }
-  assert.equal(SECRET_NAMES.length, 7);
+  assert.equal(SECRET_NAMES.length, 6);
+  assert.ok(!SECRET_NAMES.includes('TURNSTILE_SECRET'), 'Turnstile 已删，不再绑定');
   /* 2026-10-21：三站整站通配（不带 * 的规则遇到查询串不命中，锁屏入口 /?lock=1 曾因此绕过网关）。
      只接 styrigx.com 和登记过的子站；除 daymark、curio 的 session-check（要比各自 core 的 /api/* 更具体）外不许有精确规则。
      完整核对见 scripts/check-worker-routes.mjs。 */
@@ -176,7 +178,7 @@ test('页面：主人访问门内页 → 回源、valid + owner，带 cookie 回
 
 test('页面：访客访问门内页 → 302 到锁屏，不回源', async () => {
   _resetSecretCache();
-  const cookie = 'sgx-verified=' + (await signSessionCookie(PRIV, 0, 'visitor', 'owner'));
+  const cookie = 'sgx-verified=' + (await signRole(signSessionCookie, PRIV, 0, 'visitor', 'owner'));
   await withOrigin(PAGE, async (calls) => {
     const res = await worker.fetch(new Request('https://styrigx.com/en/settings/security/lock/', { headers: { Cookie: cookie } }), baseEnv(), CTX);
     assert.equal(res.status, 302);
@@ -269,7 +271,7 @@ async function viaPages(req, env) {
 async function same(makeReq, role) {
   _resetSecretCache();
   const headers = {};
-  if (role) headers.Cookie = 'sgx-verified=' + (await signSessionCookie(PRIV, 0, role, 'owner'));
+  if (role) headers.Cookie = 'sgx-verified=' + (await signRole(signSessionCookie, PRIV, 0, role, 'owner'));
   const a = await worker.fetch(makeReq(headers), baseEnv(), CTX);
   const b = await viaPages(makeReq(headers), baseEnv());
   assert.equal(a.status, b.status);

@@ -8,6 +8,7 @@
  *
  * 运行：node --test tests/kernel/avatar.test.mjs
  */
+import { signRole } from './_tk.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -60,7 +61,7 @@ function env(kv) {
   };
 }
 async function cookie(role) {
-  return 'sgx-verified=' + (await signSessionCookie(PRIV, 0, role, 'owner'));
+  return 'sgx-verified=' + (await signRole(signSessionCookie, PRIV, 0, role, 'owner'));
 }
 function form(parts) {
   const fd = new FormData();

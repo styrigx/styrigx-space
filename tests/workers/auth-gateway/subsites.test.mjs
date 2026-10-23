@@ -8,6 +8,7 @@
  *
  * 运行：node --test tests/workers/auth-gateway/subsites.test.mjs
  */
+import { signRole } from './_tk.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -46,7 +47,7 @@ function env(epoch = '0') {
 }
 
 async function cookie(role = 'visitor', epoch = 0) {
-  const v = await signSessionCookie(PRIV, epoch, role, 'owner');
+  const v = await signRole(signSessionCookie, PRIV, epoch, role, 'owner');
   return 'sgx-verified=' + v;
 }
 

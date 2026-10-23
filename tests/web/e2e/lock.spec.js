@@ -2,7 +2,7 @@
  * Hark：锁屏专用测试（与视觉回归/Lighthouse 分离）。
  * - 未解锁时锁屏覆盖内容（无法交互）
  * - ?lock=1 强制触发锁屏
- * - Turnstile 验证卡行为
+ * - 访客进入（临时钥匙）弹层行为
  * - 锁屏基准截图（Hark：冻结时间 + 遮罩时钟/日期/天气，否则每次必然不同）
  *
  * 注意：这些测试需要锁屏启用的构建（生产构建）；CI 的 visual/Lighthouse
@@ -78,7 +78,7 @@ test.describe('lock screen', () => {
 
   test('avatar → method sheet → visitor unlocks (local fallback)', async ({ page }) => {
     await freezeTime(page);
-    /* 2.8.0：localhost 本地回退——点头像 → 方法弹层 → 选"访客进入"直接解锁（无 Turnstile），验证兜底路径 */
+    /* 2.8.0：localhost 本地回退——点头像 → 方法弹层 → 选"访客进入"直接解锁（本地不输临时钥匙），验证兜底路径 */
     await gotoLock(page);
     await openMethodSheet(page);
     await page.click('#sgx-mopt-visitor');
@@ -153,6 +153,60 @@ test.describe('lock screen', () => {
     /* 应提示密码错误（mock 返回 wrong） */
     const err = page.locator('#sgx-verify-err');
     await expect(err).toHaveText(/密码错误|wrong/i, { timeout: 10000 });
+  });
+
+  /* 2026-10-23：访客进入 = 输入临时钥匙（取代 Turnstile）。test-no-local-bypass 让 localhost 也走线上逻辑 */
+  test('visitor: temporary key dialog — wrong key shows error, right key unlocks (mocked API)', async ({ page }) => {
+    await freezeTime(page);
+    const seen = [];
+    await page.route('**/api/lock-temp-unlock', async (route) => {
+      const body = JSON.parse(route.request().postData() || '{}');
+      seen.push(body.code);
+      const ok = body.code === 'abcd-efgh-jkmn';
+      await route.fulfill({ status: ok ? 200 : 403, contentType: 'application/json',
+        body: JSON.stringify(ok ? { ok: true, role: 'visitor' } : { ok: false, error: 'wrong' }) });
+    });
+    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
+    await page.goto('/?lock=1&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
+    await openMethodSheet(page);
+    /* 方法弹层：访客进入在第一行，说明是临时钥匙，不再提 Cloudflare / 机器人 */
+    const opt = page.locator('#sgx-mopt-visitor');
+    await expect(opt).toContainText('访客进入');
+    await expect(opt).toContainText('临时钥匙');
+    await expect(page.locator('#sgx-method-sheet')).not.toContainText(/Cloudflare|机器人/);
+    await opt.click();
+    const input = page.locator('#sgx-temp-input');
+    await expect(input).toBeVisible({ timeout: 5000 });
+    await expect(input).toHaveAttribute('autocomplete', 'off');
+    /* 空着点确定：提示输入，不发请求 */
+    await page.click('#sgx-temp-go');
+    await expect(page.locator('#sgx-verify-err')).toHaveText('请输入临时钥匙');
+    expect(seen).toEqual([]);
+    await input.fill('AAAA-BBBB-CCCC');
+    await input.press('Enter');
+    await expect(page.locator('#sgx-verify-err')).toHaveText('临时钥匙无效或已过期', { timeout: 10000 });
+    await expect(input).toHaveValue('');
+    await input.fill('abcd-efgh-jkmn');
+    await page.click('#sgx-temp-go');
+    expect(await page.evaluate(() => typeof window.turnstile)).toBe('undefined');
+    await expect.poll(() => seen.length).toBe(2);
+  });
+
+  test('visitor: temporary key locked out (429) disables input with countdown (mocked API)', async ({ page }) => {
+    await freezeTime(page);
+    await page.route('**/api/lock-temp-unlock', (route) => route.fulfill({ status: 429, contentType: 'application/json', body: '{"ok":false,"error":"locked"}' }));
+    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
+    await page.goto('/?lock=1&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
+    await openMethodSheet(page);
+    await page.click('#sgx-mopt-visitor');
+    await page.fill('#sgx-temp-input', 'AAAA-BBBB-CCCC');
+    await page.click('#sgx-temp-go');
+    await expect(page.locator('#sgx-verify-err')).toHaveText('尝试次数过多', { timeout: 10000 });
+    await expect(page.locator('#sgx-temp-count')).toHaveText(/15 分钟后可再试/);
+    await expect(page.locator('#sgx-temp-input')).toBeDisabled();
+    await expect(page.locator('#sgx-temp-go')).toBeDisabled();
   });
 
   test('locked out after 5 wrong attempts (mocked API)', async ({ page }) => {

@@ -785,6 +785,110 @@ test.describe('设备子页（2026-10-22）', () => {
   });
 });
 
+test.describe('账号 → 临时钥匙（2026-10-23，取代 Turnstile 访客进入）', () => {
+  test.beforeEach(async ({ page }) => { await zh(page); });
+
+  /** mock /api/lock-temp：keys 是服务端的「有效钥匙」列表 */
+  async function mockTemp(page, init) {
+    const st = { keys: init || [], calls: [] };
+    await page.route('**/api/lock-temp', async (route) => {
+      const b = JSON.parse(route.request().postData() || '{}');
+      st.calls.push(b);
+      let res = [400, { ok: false, error: 'action' }];
+      if (b.action === 'list') res = [200, { ok: true, keys: st.keys }];
+      if (b.action === 'create') {
+        const key = { id: 'k' + String(st.keys.length + 1).padStart(15, '0'), name: b.name || '', createdAt: Date.now(),
+          expiresAt: Date.now() + (b.hours ? b.hours * 3600e3 : b.days * 86400e3) };
+        st.keys = [key, ...st.keys];
+        res = [200, { ok: true, key, code: 'ABCD-EFGH-JKMN' }];
+      }
+      if (b.action === 'revoke') { st.keys = st.keys.filter((k) => k.id !== b.id); res = [200, { ok: true }]; }
+      await route.fulfill({ status: res[0], contentType: 'application/json', body: JSON.stringify(res[1]) });
+    });
+    return st;
+  }
+
+  test('总览有「临时钥匙」一行 → 子页；新建（名字 + 7 天）→ 只显示一次临时码，可复制；列表显示名字和剩余时间', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await mockAccount(page, {
+      status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }),
+      handlers: { list: [200, { ok: true, keys: [] }] },
+    });
+    const st = await mockTemp(page);
+    await page.goto('/account/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#acct-tk-row')).toContainText('临时钥匙');
+    await page.locator('#acct-tk-row').click();
+    await page.waitForURL(/\/account\/temp-keys\/$/);
+    await expect(page.locator('#acct-tk')).toBeVisible();
+    await expect(page.locator('#acct-tk-empty')).toBeVisible();
+    await page.locator('#acct-tk-new').click();
+    const dlg = page.locator('#tk-dlg');
+    await expect(dlg).toBeVisible();
+    await expect(page.locator('#tk-dur')).toHaveValue('h24');
+    /* 下拉：1–24 小时 + 3 / 7 / 15 / 30 天，一共 28 项 */
+    expect(await page.locator('#tk-dur option').count()).toBe(28);
+    await page.fill('#tk-name', '小明');
+    await page.selectOption('#tk-dur', 'd7');
+    await page.click('#tk-go');
+    await expect(page.locator('#tk-code')).toHaveText('ABCD-EFGH-JKMN');
+    await expect(page.locator('#tk-done-sub')).toHaveText('小明 · 有效期 7 天，到期自动失效');
+    await expect(page.locator('#tk-form')).toBeHidden();
+    expect(st.calls.find((c) => c.action === 'create')).toEqual({ action: 'create', name: '小明', days: 7 });
+    await page.click('#tk-copy');
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('ABCD-EFGH-JKMN');
+    await page.click('#tk-dlg [data-dlg-close]');
+    const rows = page.locator('#acct-tk-list .acct-dev-item');
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText('小明');
+    await expect(rows.first()).toContainText(/剩余 [67] 天/);
+    /* 再开一次：回到表单，上次的码不留 */
+    await page.locator('#acct-tk-new').click();
+    await expect(page.locator('#tk-form')).toBeVisible();
+    await expect(page.locator('#tk-done')).toBeHidden();
+    await expect(page.locator('#tk-name')).toHaveValue('');
+  });
+
+  test('作废两步确认；没名字显示「未命名」；小时级显示剩余小时分钟', async ({ page }) => {
+    const st = await mockTemp(page, [
+      { id: 'a000000000000001', name: '', createdAt: Date.now(), expiresAt: Date.now() + 2 * 3600e3 + 5 * 60e3 },
+    ]);
+    await page.goto('/account/temp-keys/', { waitUntil: 'domcontentloaded' });
+    const row = page.locator('#acct-tk-list .acct-dev-item').first();
+    await expect(row).toContainText('未命名');
+    await expect(row).toContainText(/剩余 2 小时 [56] 分钟/);
+    const btn = row.locator('button');
+    await btn.click();
+    await expect(btn).toHaveText('再点一次作废');
+    expect(st.calls.some((c) => c.action === 'revoke')).toBe(false);
+    await btn.click();
+    await expect(page.locator('#acct-tk-empty')).toBeVisible();
+    expect(st.calls.find((c) => c.action === 'revoke').id).toBe('a000000000000001');
+  });
+
+  test('已满 20 把：弹层里提示，不关弹层', async ({ page }) => {
+    await page.route('**/api/lock-temp', async (route) => {
+      const b = JSON.parse(route.request().postData() || '{}');
+      if (b.action === 'list') return route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"keys":[]}' });
+      return route.fulfill({ status: 409, contentType: 'application/json', body: '{"ok":false,"error":"full"}' });
+    });
+    await page.goto('/account/temp-keys/', { waitUntil: 'domcontentloaded' });
+    await page.locator('#acct-tk-new').click();
+    await page.click('#tk-go');
+    await expect(page.locator('#tk-err')).toHaveText('最多同时 20 把，先作废几把');
+    await expect(page.locator('#tk-dlg')).toBeVisible();
+  });
+
+  test('没有账号会话（401 account）→ 跳账号页 ?return=子页', async ({ page }) => {
+    await mockAccount(page, {
+      status: { ok: true, password: true, passkey: false, ready: true, session: null },
+      handlers: {},
+    });
+    await page.route('**/api/lock-temp', (route) => route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false,"error":"account"}' }));
+    await page.goto('/account/temp-keys/', { waitUntil: 'domcontentloaded' });
+    await page.waitForURL(/\/account\/\?return=%2Faccount%2Ftemp-keys%2F$/);
+  });
+});
+
 test.describe('云同步一行（2026-10-22）', () => {
   test.beforeEach(async ({ page }) => { await zh(page); });
 
@@ -796,7 +900,7 @@ test.describe('云同步一行（2026-10-22）', () => {
     await page.goto('/account/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#acct-main')).toBeVisible();
     const ids = await page.locator('#acct-main section .acct-row').evaluateAll((els) => els.map((e) => e.id));
-    expect(ids).toEqual(['acct-dev-row', 'acct-sec-row', 'acct-sync-row']);
+    expect(ids).toEqual(['acct-dev-row', 'acct-tk-row', 'acct-sec-row', 'acct-sync-row']);
     const sw = page.locator('#acct-sync-sw');
     await expect(sw).toHaveAttribute('aria-checked', 'true');
     await expect(page.locator('#acct-sync-sub')).toHaveText('已开启，设置在登录的设备间同步');
@@ -825,7 +929,7 @@ test.describe('账号页是独立页 /account/（2026-10-22 从 /settings/accoun
       status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }),
       handlers: { list: [200, { ok: true, keys: [] }], devices: [200, { ok: true, devices: [] }] },
     });
-    for (const p of ['/account/', '/account/profile/', '/account/security/', '/account/reset/', '/account/devices/']) {
+    for (const p of ['/account/', '/account/profile/', '/account/security/', '/account/reset/', '/account/devices/', '/account/temp-keys/']) {
       await page.goto(p, { waitUntil: 'domcontentloaded' });
       await expect(page.locator('main .acct-layout')).toHaveCount(1);
       await expect(page.locator('main .set-layout, main .set-row, main .set-ic, main .set-gh, main .sec-note')).toHaveCount(0);

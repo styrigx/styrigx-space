@@ -11,6 +11,7 @@
  *
  * 运行：node --test tests/kernel/auth-entry.test.mjs
  */
+import { signRole } from './_tk.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -108,7 +109,7 @@ test('认证入口：访客会话提交正确根凭证 → 401 密码错误，�
   const env = baseEnv(kv);
 
   /* 构造有效访客会话 cookie */
-  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'visitor', 'owner');
+  const sessCv = await signRole(signSessionCookie, TEST_PRIV_PEM, 0, 'visitor', 'owner');
 
   /* 提交正确的根凭证 */
   const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345' }, {
@@ -141,7 +142,7 @@ test('认证入口：访客假入口与真失败响应逐字节相同', async ()
   const kv2 = makeKv({ 'layer:lock': '1' });
 
   /* B1-9：访客提交任何值都返回同一个 401 denied（不读存储） */
-  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'visitor', 'owner');
+  const sessCv = await signRole(signSessionCookie, TEST_PRIV_PEM, 0, 'visitor', 'owner');
   const req1 = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345' }, {
     'Cookie': 'sgx-verified=' + sessCv,
   });
@@ -328,7 +329,7 @@ test('补充七：访客管理凭证提交任何值都返回密码错误且不�
 
   const kv = makeKv({ 'layer:lock': '1' });
   const env = baseEnv(kv);
-  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'visitor', 'owner');
+  const sessCv = await signRole(signSessionCookie, TEST_PRIV_PEM, 0, 'visitor', 'owner');
 
   /* 提交任意值（包括错误值） */
   for (const key of ['whatever', '', 'test-root-key-12345']) {
@@ -437,7 +438,7 @@ test('行为：访客会话下 root-auth 不走真路径（即使 lock 未配置
   /* lock 已配置 */
   const kv = makeKv({ 'layer:lock': '1' });
   const env = baseEnv(kv);
-  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'visitor', 'owner');
+  const sessCv = await signRole(signSessionCookie, TEST_PRIV_PEM, 0, 'visitor', 'owner');
   /* 提交正确的根凭证 */
   const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345' }, {
     'Cookie': 'sgx-verified=' + sessCv,
@@ -454,7 +455,7 @@ test('行为：锁屏未配置 + 访客 cookie 时 root-auth 走真路径（不�
   /* B1-9：访客一律 401 denied，不区分新站旧站（lockCfg 例外已删除） */
   const kv = makeKv({});
   const env = baseEnv(kv);
-  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'visitor', 'owner');
+  const sessCv = await signRole(signSessionCookie, TEST_PRIV_PEM, 0, 'visitor', 'owner');
   const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345' }, {
     'Cookie': 'sgx-verified=' + sessCv,
   });
@@ -512,7 +513,7 @@ test('行为：/api/lock-status 访客会话 → 401', async () => {
   const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
   const kv = makeKv({});
   const env = baseEnv(kv);
-  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'visitor', 'owner');
+  const sessCv = await signRole(signSessionCookie, TEST_PRIV_PEM, 0, 'visitor', 'owner');
   const res = await onRequestGet({
     request: getReq('https://test.example.com/api/lock-status', { 'Cookie': 'sgx-verified=' + sessCv }),
     env,

@@ -5,6 +5,7 @@
  *
  * 运行：node --test tests/workers/auth-gateway/verifier.test.mjs
  */
+import { signRole } from './_tk.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -43,7 +44,7 @@ function env({ epoch = '0', kvThrows = false } = {}) {
 
 test('checkSession：访客/主人有效，回角色；没有 cookie、伪造都无效', async () => {
   for (const role of ['owner', 'visitor']) {
-    const c = await signSessionCookie(LOCK.priv, 0, role, 'owner');
+    const c = await signRole(signSessionCookie, LOCK.priv, 0, role, 'owner');
     assert.deepEqual(await checkSession('a=1; sgx-verified=' + c, env()), { ok: true, role });
   }
   assert.deepEqual(await checkSession('', env()), { ok: false, reason: 'no-cookie' });

@@ -11,14 +11,13 @@
  * - 绝不打印密钥值。
  */
 
-/** 放在 Secrets Store 里的密钥：5 个私密值 + 2 把公钥（签名钥匙只剩账号、锁屏两套）。
+/** 放在 Secrets Store 里的密钥：4 个私密值 + 2 把公钥（TURNSTILE_SECRET 2026-10-23 随 Turnstile 访客进入一起删掉）（签名钥匙只剩账号、锁屏两套）。
  *  聊天钥匙 SGX_CHAT_API_KEY 不在这里：2026-10-22 起只绑在聊天 Worker styrigx-chat（workers/chat），网关不碰。 */
 export const SECRET_NAMES = Object.freeze([
   'SGX_LOCK_PRIVATE',
   'SGX_ACCOUNT_PRIVATE',
   'SGX_ROOT_KEY',
   'SGX_PW_PEPPER',
-  'TURNSTILE_SECRET',
   'SGX_LOCK_PUBLIC',
   'SGX_ACCOUNT_PUBLIC',
 ]);

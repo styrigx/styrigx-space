@@ -53,7 +53,7 @@
 {{ "<!-- SGX-ACCT-LOGIN-END -->" | safeHTML }}
 
   <!-- 账号总览（登录后，三星账号式）：账号卡（名字 + 头像，主人可换头像；点卡片其余地方进「已登录」子页）
-       → 一组：设备（登录过的设备，可单独退出）/ 安全与隐私 / 云同步（开关，设置项跨设备同步，lib/cloud-sync.js） -->
+       → 一组：设备（登录过的设备，可单独退出）/ 临时钥匙（给访客的临时 LockKey）/ 安全与隐私 / 云同步（开关，设置项跨设备同步，lib/cloud-sync.js） -->
   <div id="acct-main" hidden>
     {{ partial "sgx-account-card.html" . }}
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.12s" aria-label="{{ if $isEn }}Account settings{{ else }}账号设置{{ end }}">
@@ -62,6 +62,14 @@
         <span class="flex-1 min-w-0">
           <span class="block font-medium">{{ if $isEn }}Devices{{ else }}设备{{ end }}</span>
           <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="acct-dev-sub"></span>
+        </span>
+        {{ partial "icon.html" "chev-r" }}
+      </a>
+      <a class="acct-row" id="acct-tk-row" href="{{ cond $isEn "/en/account/temp-keys/" "/account/temp-keys/" }}">
+        <span class="acct-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "key" }}</span>
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}Temporary keys{{ else }}临时钥匙{{ end }}</span>
+          <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate">{{ if $isEn }}Let visitors past the lock screen{{ else }}给访客的进门钥匙{{ end }}</span>
         </span>
         {{ partial "icon.html" "chev-r" }}
       </a>

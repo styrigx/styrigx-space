@@ -10,8 +10,7 @@
  * - 网关 = 仓库里真实的 workers/auth-gateway/src/index.js（真实验签、epoch、Set-Cookie 属性），
  *   env 用临时 Ed25519 钥匙 + 内存 KV；Pages = web/public（主站，Cache-Control 照 _headers 的 /*）
  *   和两个子站的固定页面。
- * - Turnstile 的 siteverify 在本进程里打桩（success、hostname=styrigx.com、action=sgx-entry）；
- *   浏览器侧的 Turnstile 脚本由测试用 page.route 换成假的（立刻回调一个 token）。
+ * - 访客进入用临时 LockKey：seedTempKey() 在 KV 里签发一把，返回临时码（2026-10-23 取代 Turnstile）。
  * - seedPasskey()：在 KV 里登记一把锁屏通行密钥，返回 CDP WebAuthn.addCredential 用的参数。
  */
 const https = require('node:https');
@@ -123,13 +122,14 @@ function pagesFor(req) {
 
 /**
  * 启动测试台。
- * @returns {Promise<{kv:any, env:any, log:string[], close:()=>Promise<void>, seedPasskey:()=>Promise<any>, mintCookie:(role:string)=>Promise<string>}>}
+ * @returns {Promise<{kv:any, env:any, log:string[], close:()=>Promise<void>, seedPasskey:()=>Promise<any>, seedTempKey:()=>Promise<string>, mintCookie:(role:string)=>Promise<string>, mintTk:()=>Promise<string>}>}
  */
 async function startEdge() {
   const { readRoutes, pickRoute } = await dynImport(pathToFileURL(path.join(__dirname, '..', '..', '..', 'scripts/lib/cf-routes.mjs')).href);
   const routes = readRoutes(fs.readFileSync(path.join(REPO, 'workers/auth-gateway/wrangler.toml'), 'utf8'));
   const gateway = (await mod('workers/auth-gateway/src/index.js')).default;
   const sessMod = await mod('workers/auth-gateway/functions/_kernel/session.js');
+  const tempMod = await mod('workers/auth-gateway/functions/_kernel/temp-lock.js');
 
   const kv = makeKV();
   const lkp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
@@ -142,19 +142,10 @@ async function startEdge() {
     SGX_LOCK_PRIVATE: privPem, SGX_LOCK_PUBLIC: pubPem,
     SGX_ACCOUNT_PRIVATE: privPem, SGX_ACCOUNT_PUBLIC: pubPem,
     SGX_ROOT_KEY: 'edge-test-root-key-not-a-secret', SGX_PW_PEPPER: 'edge-test-pepper',
-    TURNSTILE_SECRET: 'edge-test-turnstile-secret',
     ASSETS: { fetch: (input, init) => pagesFor(input instanceof Request ? input : new Request(input, init)) },
   };
 
-  /* siteverify 打桩（只拦这一个地址） */
   const realFetch = globalThis.fetch;
-  globalThis.fetch = async (input, init) => {
-    const url = typeof input === 'string' ? input : input.url;
-    if (String(url).startsWith('https://challenges.cloudflare.com/turnstile/v0/siteverify')) {
-      return Response.json({ success: true, hostname: 'styrigx.com', action: 'sgx-entry' });
-    }
-    return realFetch(input, init);
-  };
 
   /** 每个请求：[走哪条路, 方法, URL, 状态] */
   const log = [];
@@ -248,10 +239,22 @@ async function startEdge() {
     };
   }
 
-  /** 按当前 epoch 签一个会话 cookie 值（owner / visitor） */
+  /** 按当前 epoch 签一个会话 cookie 值（owner / visitor；visitor 还要配 mintTk() 的钥匙票） */
   async function mintCookie(role) {
     const ep = await sessMod.getSessionEpoch(kv);
     return sessMod.signSessionCookie(privPem, ep, role, 'owner');
+  }
+
+  /** 签发一把 1 小时的临时 LockKey，返回临时码（XXXX-XXXX-XXXX） */
+  async function seedTempKey() {
+    const r = await tempMod.createTemp(kv, env.SGX_PW_PEPPER, { name: 'edge', ms: 3600 * 1000 });
+    return r.code;
+  }
+
+  /** 钥匙票 sgx-tk 的值（配 mintCookie('visitor') 用；钥匙本身登记在 KV） */
+  async function mintTk() {
+    const r = await tempMod.createTemp(kv, env.SGX_PW_PEPPER, { name: 'edge', ms: 3600 * 1000 });
+    return tempMod.signTk(env, r.key.id, Date.now() + 3600 * 1000);
   }
 
   /** 账号会话 cookie 值（sgx-account，by=passkey，当前 account-epoch） */
@@ -268,7 +271,7 @@ async function startEdge() {
     await new Promise((r) => proxy.close(() => r()));
   }
 
-  return { kv, env, log, close, seedPasskey, mintCookie, mintAccount };
+  return { kv, env, log, close, seedPasskey, seedTempKey, mintCookie, mintTk, mintAccount };
 }
 
 module.exports = { startEdge, LAUNCH, PROXY_PORT, REPO };

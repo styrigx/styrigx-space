@@ -21,6 +21,7 @@
  * 说明：mock KV 只替代 Cloudflare KV（外部环境敏感项），被测的是自家逻辑；
  * Ed25519 测试密钥在测试内临时生成，不用生产密钥、不进仓库。
  */
+import { signRole } from './_tk.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -272,7 +273,7 @@ test('password verify：密码错误 → 403（不签发）', async () => {
 
 test('lock-all-devices：visitor 会话 → 403 {ok:false, error:role}（epoch 不变）', async () => {
   const kv = makeKV({ 'session-epoch': '2' });
-  const cookie = await signSessionCookie(TEST_PRIV_PEM, 2, 'visitor', 'owner');
+  const cookie = await signRole(signSessionCookie, TEST_PRIV_PEM, 2, 'visitor', 'owner');
   const env = { KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, SGX_LOCK_PUBLIC: TEST_PUB_PEM };
   const r = await lockAllPost({
     request: postReq('https://styrigx.com/api/lock-all-devices', {}, { 'Cookie': 'sgx-verified=' + cookie }),
@@ -634,32 +635,22 @@ test('password verify 通过：Set-Cookie 属性齐全（Path/Secure/HttpOnly/Sa
   assertSessionCookieAttrs(r.headers.get('Set-Cookie'));
 });
 
-test('verify（Turnstile）通过：Set-Cookie 属性齐全', async () => {
-  const { onRequestPost: verifyPost } = await import('../../../workers/auth-gateway/functions/api/verify.js');
-  /* mock Turnstile siteverify（只替代外网接口，逻辑走真实代码） */
-  const origFetch = globalThis.fetch;
-  globalThis.fetch = async (url, init) => {
-    assert.ok(String(url).includes('challenges.cloudflare.com'));
-    return Response.json({ success: true, hostname: 'styrigx.com', action: 'sgx-entry' });
-  };
-  try {
-    const kv = makeKV();
-    const env = {
-      KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
-      TURNSTILE_SECRET: 'test-secret',
-      SGX_LOCK_PRIVATE: TEST_PRIV_PEM,
-    };
-    const r = await verifyPost({
-      request: postReq('https://styrigx.com/api/verify', { token: 'test-token' }),
-      env,
-    });
-    assert.equal(r.status, 200);
-    assert.deepEqual(await r.json(), { ok: true });
-    /* 2.8.0：Turnstile 签 visitor，Max-Age=3600 */
-    assertSessionCookieAttrs(r.headers.get('Set-Cookie'), '3600');
-  } finally {
-    globalThis.fetch = origFetch;
-  }
+test('临时 LockKey 进门通过：Set-Cookie 属性齐全（visitor + 钥匙票，Max-Age = 剩余时间封顶 12 小时）', async () => {
+  const { onRequestPost: tkPost } = await import('../../../workers/auth-gateway/functions/api/lock-temp-unlock.js');
+  const { createTemp } = await import('../../../workers/auth-gateway/functions/_kernel/temp-lock.js');
+  const kv = makeKV();
+  const { code } = await createTemp(kv, 'test-pepper', { name: '', ms: 30 * 24 * 3600 * 1000 });
+  const env = { KV_LOCK_DOOR: kv, SGX_LOCK_PRIVATE: TEST_PRIV_PEM, SGX_PW_PEPPER: 'test-pepper' };
+  const r = await tkPost({ request: postReq('https://styrigx.com/api/lock-temp-unlock', { code }), env });
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), { ok: true, role: 'visitor' });
+  const all = r.headers.getSetCookie();
+  assertSessionCookieAttrs(all.find((c) => c.startsWith('sgx-verified=') && c.includes('Domain=')), '43200');
+  const tk = all.find((c) => c.startsWith('sgx-tk='));
+  assert.ok(tk, '必须带钥匙票');
+  assert.match(tk, /Domain=\.styrigx\.com/);
+  assert.match(tk, /HttpOnly/);
+  assert.match(tk, /Max-Age=43200/);
 });
 
 test('passkey auth 通过：Set-Cookie 属性齐全', async () => {
@@ -800,22 +791,16 @@ test('diag: password verify 无 SGX_LOCK_PRIVATE → 500 no-session-key（不是
   assert.equal(r.headers.get('Set-Cookie'), null);
 });
 
-test('diag: verify(Turnstile) 无 SGX_LOCK_PRIVATE → 500 no-session-key', async () => {
-  const { onRequestPost: verifyPost } = await import('../../../workers/auth-gateway/functions/api/verify.js');
-  const origFetch = globalThis.fetch;
-  globalThis.fetch = async () => Response.json({ success: true, hostname: 'styrigx.com', action: 'sgx-entry' });
-  try {
-    const env = { KV_LOCK_DOOR: makeKV(), TURNSTILE_SECRET: 'ts-test', };
-    const r = await verifyPost({
-      request: postReq('https://styrigx.com/api/verify', { token: 'test-token' }),
-      env,
-    });
-    assert.equal(r.status, 500);
-    assert.deepEqual(await r.json(), { ok: false, error: 'no-session-key' });
-    assert.equal(r.headers.get('Set-Cookie'), null);
-  } finally {
-    globalThis.fetch = origFetch;
-  }
+test('diag: 临时 LockKey 进门 无 SGX_LOCK_PRIVATE → 500 no-session-key，不下发 cookie', async () => {
+  const { onRequestPost: tkPost } = await import('../../../workers/auth-gateway/functions/api/lock-temp-unlock.js');
+  const { createTemp } = await import('../../../workers/auth-gateway/functions/_kernel/temp-lock.js');
+  const kv = makeKV();
+  const { code } = await createTemp(kv, 'test-pepper', { name: '', ms: 3600 * 1000 });
+  const env = { KV_LOCK_DOOR: kv, SGX_PW_PEPPER: 'test-pepper' };
+  const r = await tkPost({ request: postReq('https://styrigx.com/api/lock-temp-unlock', { code }), env });
+  assert.equal(r.status, 500);
+  assert.deepEqual(await r.json(), { ok: false, error: 'no-session-key' });
+  assert.equal(r.headers.get('Set-Cookie'), null);
 });
 
 /* 构造一次有效的 passkey auth 请求体（WebAuthn 断言在测试内真实生成） */
@@ -1113,7 +1098,7 @@ test('2.8.0：未验证 302 带 X-Robots-Tag: noindex', async () => {
 
 async function visitorCookie(epoch = 0) {
   const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
-  return await signSessionCookie(TEST_PRIV_PEM, epoch, 'visitor', 'owner');
+  return await signRole(signSessionCookie, TEST_PRIV_PEM, epoch, 'visitor', 'owner');
 }
 
 test('2.9.3：visitor 可以访问桌面（/）、设置（/settings/）、文件（/files/），owner 可以访问安全锁屏', async () => {

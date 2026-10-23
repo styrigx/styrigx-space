@@ -13,6 +13,7 @@
  *
  * 运行：node --test tests/workers/auth-gateway/auth-flow-2026-10-21.test.mjs
  */
+import { signRole } from './_tk.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -59,7 +60,7 @@ function env() {
     },
   };
 }
-const lockCookie = async (role) => 'sgx-verified=' + (await signSessionCookie(PRIV, 0, role, 'owner'));
+const lockCookie = async (role) => 'sgx-verified=' + (await signRole(signSessionCookie, PRIV, 0, role, 'owner'));
 const accountCookie = async () => 'sgx-account=' + (await signAccountTicket(PRIV, 'passkey', 0, Date.now()));
 const get = (url, cookie) => worker.fetch(new Request(url, { headers: cookie ? { Cookie: cookie } : {} }), env(), CTX);
 
@@ -187,7 +188,14 @@ test('D 首页模板用 safeHTML 输出瘦身标记（Go 模板会删 HTML 注�
 });
 
 /* ---------------- E. 账号页首帧 ---------------- */
-for (const role of ['owner', 'visitor']) {
+test('E 账号页（访客）：访客眼里没有账号——/account/ 及子页（中英）一律 302 回首页，不出页面', async () => {
+  for (const p of ['/account/', '/account/devices/', '/account/temp-keys/', '/account/security/', '/en/account/', '/en/account/profile/']) {
+    const res = await get('https://styrigx.com' + p, (await lockCookie('visitor')) + '; ' + (await accountCookie()));
+    assert.equal(res.status, 302, p);
+    assert.equal(res.headers.get('Location'), 'https://styrigx.com' + (p.startsWith('/en/') ? '/en/' : '/'), p);
+  }
+});
+for (const role of ['owner']) {
   test(`E 账号页（锁屏 ${role} + 账号会话）：data-sgx-account=in，登录区不下发，总览不 hidden`, async () => {
     const html = await (await get('https://styrigx.com/account/', (await lockCookie(role)) + '; ' + (await accountCookie()))).text();
     assert.match(html, /data-sgx-account="in"/);

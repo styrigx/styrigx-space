@@ -7487,6 +7487,17 @@
   .acct-ic { width: 40px; height: 40px; border-radius: 999px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .acct-gh { display: flex; align-items: center; gap: 12px; padding: 0 4px; margin: 0 0 10px; font-size: 17px; font-weight: 700; color: var(--m-on-surface); letter-spacing: -0.01em; }
   .acct-note { font-size: 12px; color: var(--sgx-text-secondary); padding: 0 4px; margin: 0; }
+  /* 2026-10-23 账号 → 临时钥匙：新建弹层（名字 + 有效期下拉）和签发后的临时码 */
+  .tk-form, .tk-done { display: flex; flex-direction: column; align-items: stretch; gap: 12px; width: 100%; max-width: 320px; &[hidden] { display: none; } }
+  .tk-form .sgx-pw-input { max-width: none; }
+  .tk-label { font-size: 13px; color: var(--sgx-text-secondary); margin: 4px 4px -6px; }
+  .tk-select { appearance: none; -webkit-appearance: none; cursor: pointer;
+    background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position: calc(100% - 22px) 50%, calc(100% - 16px) 50%; background-size: 6px 6px; background-repeat: no-repeat; padding-right: 40px; }
+  .tk-code { margin: 4px 0 0; text-align: center; font-size: 26px; font-weight: 700; letter-spacing: .12em; font-variant-numeric: tabular-nums;
+    color: var(--sgx-text-primary); user-select: all; -webkit-user-select: all; word-break: break-all; }
+  .tk-done-sub { margin: 0; text-align: center; font-size: 14px; color: var(--sgx-text-secondary); }
+  .tk-done-warn { margin: 0; text-align: center; font-size: 13px; color: var(--sgx-text-secondary); }
   .sec-note { font-size: 12px; color: var(--sgx-text-secondary); padding: 0 4px; margin: 0; }
   .sgx-verify-desc { font-size: 13px; color: var(--sgx-text-secondary); margin: 0; text-align: center; max-width: 300px; }
   .sgx-pw-field { position: relative; width: 100%; max-width: 280px; }
@@ -7544,7 +7555,7 @@
   }
   #lockmgr-pkempty[hidden] { display: none; }
 
-  /* ===== One UI 圆形进度（Turnstile 加载态） ===== */
+  /* ===== One UI 圆形进度（通行密钥等加载态） ===== */
   .sgx-spinner {
     width: 44px; height: 44px; border-radius: 999px; flex-shrink: 0;
     border: 4px solid var(--m-container-highest); border-top-color: var(--m-primary);
@@ -7552,12 +7563,6 @@
     .reduced-motion & { animation-duration: 2s; }
   }
   @keyframes sgx-spin { to { transform: rotate(360deg); } }
-  .sgx-check {
-    width: 44px; height: 44px; border-radius: 999px; flex-shrink: 0;
-    background: var(--sgx-success); color: var(--sgx-on-success);
-    display: flex; align-items: center; justify-content: center;
-    svg { width: 24px; height: 24px; }
-  }
 }
 
 @layer sgx-components {
@@ -7707,8 +7712,12 @@
     &:disabled { opacity: .5; }
   }
   .sgx-pw-count { font-size: 13px; color: var(--sgx-text-secondary); margin: 0; }
-  /* 2.4.0 H：Turnstile 验证卡（<dialog>，One UI 密码界面式底部弹层）
-     安全与隐私：验证/密码/通行密钥三态共用同一组件；卡片背景完全不透明；
+  /* 2026-10-23 临时钥匙（访客进入）：等宽数字、字距略开，输入时自动大写；不带眼睛按钮，右边距还原 */
+  .sgx-pw-field .sgx-temp-input { padding-right: 16px; letter-spacing: .08em; text-transform: uppercase; font-variant-numeric: tabular-nums; }
+  .sgx-temp-input::placeholder { letter-spacing: .08em; }
+  .sgx-temp-hint { font-size: 13px; color: var(--sgx-text-secondary); margin: 0; }
+  /* 2.4.0 H：锁屏验证卡（<dialog>，One UI 密码界面式底部弹层）
+     安全与隐私：临时钥匙/密码/通行密钥三态共用同一组件；卡片背景完全不透明；
      容器无 outline，:focus-visible 只在内部可交互元素上用本站焦点色。 */
   dialog.sgx-verify-dlg {
     padding: 0; border: 0; background: transparent; outline: none;
@@ -7918,7 +7927,7 @@
   .acct-login .sgx-door-btn-primary { box-shadow: inset 0 1px 0 rgba(255 255 255 / .22), 0 12px 24px -12px color-mix(in oklch, var(--sgx-primary-fill) 70%, transparent); }
   .acct-login .sgx-door-btn-secondary { box-shadow: inset 0 1px 0 rgba(255 255 255 / .6), 0 8px 20px -12px rgba(0 0 0 / .2); }
   /* 底部：站名 + 站点清单 */
-  /* PR3：本 PR 动到的界面（账号登录 / 密码框 / 重置登录 / 锁屏 / 锁屏解锁弹层 / Turnstile 弹层）
+  /* PR3：本 PR 动到的界面（账号登录 / 密码框 / 重置登录 / 锁屏 / 锁屏解锁弹层）
      颜色只用主题色 token（--sgx-*，见 tokens 层「主题色 → 整套配色」），不写死蓝 / 紫。 */
   .acct-login .sgx-door-btn-primary, .sgx-reset .sgx-door-btn-primary, #acct-door .sgx-door-btn-primary,
   .sgx-verify-dlg .sgx-door-btn-primary, .sgx-verify-dlg .sgx-verify-skip, #sgx-method-sheet .sgx-door-btn-primary, #sgx-lock .sgx-door-btn-primary {
@@ -7928,7 +7937,7 @@
   #sgx-method-sheet .sgx-door-btn-secondary {
     background: var(--sgx-btn-secondary-bg); color: var(--sgx-btn-secondary-fg);
   }
-  /* 锁屏弹层 / Turnstile 弹层的底、锁屏日刻卡：surface 角色 */
+  /* 锁屏弹层的底、锁屏日刻卡：surface 角色 */
   #sgx-method-sheet .sgx-sheet-card, .sgx-verify-dlg .sgx-verify-card { background: var(--sgx-surface); color: var(--sgx-text-primary); }
   /* 弹层遮罩：scrim 角色 */
   #sgx-method-sheet .sgx-sheet-backdrop, dialog.sgx-verify-dlg::backdrop { background: var(--sgx-scrim, rgba(0,0,0,.4)); }
@@ -7995,12 +8004,6 @@
   }
   .sgx-door-countdown.sgx-countdown-warn {
     background: var(--m-warm-container); color: var(--m-on-warm-container);
-  }
-  /* Turnstile 小组件容器（PR3）：Cloudflare 官方小组件原样显示（appearance always），
-     容器只负责居中和预留高度，不加底框、不遮挡；一直可见（不用 hidden / display:none）。 */
-  .sgx-ts-wrap {
-    display: flex; justify-content: center; align-items: center;
-    width: 100%; max-width: 320px; min-height: 65px;
   }
   /* 手机横屏（矮屏）：左边 时钟 + 日期 + 日刻，右边头像，都垂直居中 */
   @media (orientation:landscape) and (max-width:1023.5px) and (max-height:600px) {

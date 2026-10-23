@@ -11,8 +11,7 @@
  *     如 `let token`、`token = null`、`token:` 传参等；后端改用 cookie 鉴权后
  *     该机制已删除，残留即 bug）。只匹配独立的 token 标识符，不误伤
  *     csrfToken、__token 等合法命名（词边界匹配）。
- *     例外（白名单，见 TOKEN_ALLOWLIST）：Turnstile 人机验证的 token
- *    （lock.js 向 /api/verify 提交验证结果用），与废弃机制无关。
+ *     （2026-10-23 Turnstile 已删，原 TOKEN_ALLOWLIST 的三条例外随之清空。）
  *
  * 用法：node scripts/check-frontend.mjs
  */
@@ -48,13 +47,8 @@ function stripComments(src) {
     .replace(/\/\/[^\n]*/g, (m) => ' '.repeat(m.length));
 }
 
-/* Turnstile 人机验证 token（合法）：lock.js 把验证结果 POST 给 /api/verify 用。
-   与已废弃的「内存鉴权 token」机制无关，故白名单放行。contains 匹配原始行。 */
-const TOKEN_ALLOWLIST = [
-  { file: 'assets/js/shell/lock.js', contains: '/** @type {string} */ token)' },
-  { file: 'assets/js/shell/lock.js', contains: 'function submitToken(token)' },
-  { file: 'assets/js/shell/lock.js', contains: '{ token: token }' },
-];
+/* 例外白名单（contains 匹配原始行）。2026-10-23 Turnstile 删掉后为空。 */
+const TOKEN_ALLOWLIST = [];
 
 function isTokenAllowlisted(r, line) {
   return TOKEN_ALLOWLIST.some(function (e) {

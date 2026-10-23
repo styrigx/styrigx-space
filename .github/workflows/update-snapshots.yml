@@ -39,7 +39,6 @@ jobs:
           SGX_TEST_SUITE=lock npx playwright test --config=tests/config/playwright.config.js --grep "baseline screenshot" --update-snapshots
       - name: Test build (same as deploy.yml visual step)
         run: |
-          sed -i "s/0x4AAAAAAFSBhpWkAwZr1SMA/1x00000000000000000000AA/g" web/hugo.yaml
           hugo --minify -s web
         env:
           SGX_TEST_NO_LOCK: "1"
@@ -49,7 +48,6 @@ jobs:
       - name: Commit snapshots only
         id: commit
         run: |
-          git checkout -- web/hugo.yaml   # 丢掉测试用 Turnstile key 替换
           git checkout -- web/data/ 2>/dev/null || true   # 生产构建生成的数据文件不提交
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
