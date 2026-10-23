@@ -82,7 +82,9 @@ async function settle(page) {
   const end = Date.now() + 5000;
   let n = page.__navCount || 0;
   while (Date.now() < end) {
-    await page.waitForLoadState('load').catch(() => {});
+    /* load 也要限时：回跳若发生在 load 之前（锁屏脚本变轻后 initLock 更早跑完），
+       去子站的 204 导航会让本页的 load 事件不再触发，不限时就一直等到用例 30 秒超时。 */
+    await page.waitForLoadState('load', { timeout: 1000 }).catch(() => {});
     await page.waitForTimeout(300);
     const m = page.__navCount || 0;
     if (m === n) return;
