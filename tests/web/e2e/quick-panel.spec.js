@@ -329,7 +329,7 @@ test.describe('快捷面板：内容', () => {
     await openQp(page);
     await expect(page.locator('#sgx-qp .sgx-qp-tile .sgx-qp-label')).toHaveText(['深色模式', '跟随系统', '语言', '立即锁定']);
     await expect(page.locator('#sgx-qp .sgx-qp-tile')).toHaveCount(4);
-    /* 减弱动效、字体大小只在设置页 */
+    /* 减弱动效、字体大小已删除（2026-10-23 PR-E） */
     await expect(page.locator('#sgx-qp [data-qp="motion"]')).toHaveCount(0);
     await expect(page.locator('#sgx-qp [data-qp-seg="font-size"]')).toHaveCount(0);
     await expect(page.locator('#sgx-qp .sgx-qp-row-label')).toHaveText(['调色板', '布局']);
@@ -537,18 +537,22 @@ test.describe('快捷面板：与设置页同一个设置', () => {
     await expect(tile(page, 'system')).toHaveAttribute('aria-pressed', 'false');
   });
 
-  test('减弱动效 / 字体大小只在设置页：面板里没有，设置页照常', async ({ page }) => {
-    await go(page, '/settings/accessibility/');
+  test('减弱动效 / 字体大小已删除：面板和设置页都没有，旧值不起作用', async ({ page }) => {
+    await page.addInitScript(() => {
+      try { localStorage.setItem('sgx-reduced-motion', '1'); localStorage.setItem('sgx-font-size', 'large'); } catch (e) {}
+    });
+    await go(page, '/settings/display/');
     await openQp(page);
     await expect(page.locator('#sgx-qp [data-qp="motion"]')).toHaveCount(0);
     await expect(page.locator('#sgx-qp [data-qp-seg="font-size"]')).toHaveCount(0);
     await page.keyboard.press('Escape');
     await expectClosed(page);
-    await page.locator('#sw-motion').click();
-    expect(await ls(page, 'sgx-reduced-motion')).toBe('1');
-    await page.goto('/settings/display/', { waitUntil: 'domcontentloaded' });
-    await page.locator('#seg-font [data-v="large"]').click();
-    expect(await ls(page, 'sgx-font-size')).toBe('large');
+    await expect(page.locator('#seg-font, #row-motion, #sw-motion')).toHaveCount(0);
+    /* 旧 localStorage 值：首屏清掉，<html> 不放大、不带 reduced-motion（系统没开减弱动效） */
+    expect(await ls(page, 'sgx-reduced-motion')).toBeNull();
+    expect(await ls(page, 'sgx-font-size')).toBeNull();
+    expect(await page.evaluate(() => document.documentElement.style.fontSize)).toBe('');
+    await expect(page.locator('html')).not.toHaveClass(/(^|\s)reduced-motion(\s|$)/);
   });
 
   test('调色板：写 sgx-palette，即时换色；设置页同步', async ({ page }) => {

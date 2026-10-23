@@ -551,7 +551,7 @@
       }
     },
     {
-      "name": "大字号 + 减弱动效 + 时钟 / 天气字段（中文城市名）",
+      "name": "旧的大字号 + 减弱动效 key 不再生效 + 时钟 / 天气字段（中文城市名）",
       "source": "writer",
       "local": {
         "sgx-font-size": "large",
@@ -566,14 +566,14 @@
         "sgx-weather-loc": "city",
         "sgx-weather-city": "{\"name\":\"上海\",\"lat\":31.23,\"lon\":121.47}"
       },
-      "cookie": "eyJ2IjoyLCJ0ejEiOiJBc2lhL1NoYW5naGFpIiwidHoyIjoiQW1lcmljYS9Mb3NfQW5nZWxlcyIsImgxMiI6MSwiY2xvY2siOiJhbmFsb2ciLCJ3eCI6MCwidW5pdCI6ImYiLCJsb2MiOiJjaXR5IiwiY2l0eSI6eyJuYW1lIjoi5LiK5rW3IiwibGF0IjozMS4yMywibG9uIjoxMjEuNDd9LCJwcmVjaXNlIjpudWxsLCJtb2RlIjoic3lzdGVtIiwicGFsIjoibGFrZSIsImFjY2VudCI6IiMyZjVmODYiLCJmcyI6ImxhcmdlIiwicm0iOjEsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
+      "cookie": "eyJ2IjoyLCJ0ejEiOiJBc2lhL1NoYW5naGFpIiwidHoyIjoiQW1lcmljYS9Mb3NfQW5nZWxlcyIsImgxMiI6MSwiY2xvY2siOiJhbmFsb2ciLCJ3eCI6MCwidW5pdCI6ImYiLCJsb2MiOiJjaXR5IiwiY2l0eSI6eyJuYW1lIjoi5LiK5rW3IiwibGF0IjozMS4yMywibG9uIjoxMjEuNDd9LCJwcmVjaXNlIjpudWxsLCJtb2RlIjoic3lzdGVtIiwicGFsIjoibGFrZSIsImFjY2VudCI6IiMyZjVmODYiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
       "read": {
         "v": 2,
         "mode": "system",
         "pal": "lake",
         "accent": "#2f5f86",
-        "fs": "large",
-        "rm": 1,
+        "fs": "standard",
+        "rm": 0,
         "mat": 1761062400000,
         "tz1": "Asia/Shanghai",
         "tz2": "America/Los_Angeles",
@@ -594,20 +594,20 @@
           "mode": "system",
           "dark": false,
           "pal": "lake",
-          "fs": "large",
-          "rm": true,
+          "fs": "standard",
+          "rm": false,
           "seed": ""
         },
         "root": {
           "dark": false,
           "data-theme-mode": "system",
           "data-dark": "0",
-          "data-font-size": "large",
-          "fontSize": "112.5%",
+          "data-font-size": "standard",
+          "fontSize": "",
           "data-palette": null,
           "--sgx-seed": "",
-          "reduced-motion": true,
-          "data-reduced-motion": "1"
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
         }
       },
       "dark": {
@@ -615,37 +615,37 @@
           "mode": "system",
           "dark": true,
           "pal": "lake",
-          "fs": "large",
-          "rm": true,
+          "fs": "standard",
+          "rm": false,
           "seed": ""
         },
         "root": {
           "dark": true,
           "data-theme-mode": "system",
           "data-dark": "1",
-          "data-font-size": "large",
-          "fontSize": "112.5%",
+          "data-font-size": "standard",
+          "fontSize": "",
           "data-palette": null,
           "--sgx-seed": "",
-          "reduced-motion": true,
-          "data-reduced-motion": "1"
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
         }
       }
     },
     {
-      "name": "小字号",
+      "name": "旧的小字号 key 不再生效",
       "source": "writer",
       "local": {
         "sgx-font-size": "small",
         "sgx-theme-mode": "light"
       },
-      "cookie": "eyJ2IjoyLCJ0ejEiOiJhdXRvIiwidHoyIjoiIiwiaDEyIjowLCJjbG9jayI6ImRpZ2l0YWwiLCJ3eCI6MSwidW5pdCI6ImMiLCJsb2MiOiJhdXRvIiwiY2l0eSI6bnVsbCwicHJlY2lzZSI6bnVsbCwibW9kZSI6ImxpZ2h0IiwicGFsIjoibGFrZSIsImFjY2VudCI6IiMyZjVmODYiLCJmcyI6InNtYWxsIiwicm0iOjAsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
+      "cookie": "eyJ2IjoyLCJ0ejEiOiJhdXRvIiwidHoyIjoiIiwiaDEyIjowLCJjbG9jayI6ImRpZ2l0YWwiLCJ3eCI6MSwidW5pdCI6ImMiLCJsb2MiOiJhdXRvIiwiY2l0eSI6bnVsbCwicHJlY2lzZSI6bnVsbCwibW9kZSI6ImxpZ2h0IiwicGFsIjoibGFrZSIsImFjY2VudCI6IiMyZjVmODYiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
       "read": {
         "v": 2,
         "mode": "light",
         "pal": "lake",
         "accent": "#2f5f86",
-        "fs": "small",
+        "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
         "tz1": "auto",
@@ -663,7 +663,7 @@
           "mode": "light",
           "dark": false,
           "pal": "lake",
-          "fs": "small",
+          "fs": "standard",
           "rm": false,
           "seed": ""
         },
@@ -671,8 +671,8 @@
           "dark": false,
           "data-theme-mode": "light",
           "data-dark": "0",
-          "data-font-size": "small",
-          "fontSize": "87.5%",
+          "data-font-size": "standard",
+          "fontSize": "",
           "data-palette": null,
           "--sgx-seed": "",
           "reduced-motion": false,
@@ -684,7 +684,7 @@
           "mode": "light",
           "dark": false,
           "pal": "lake",
-          "fs": "small",
+          "fs": "standard",
           "rm": false,
           "seed": ""
         },
@@ -692,8 +692,8 @@
           "dark": false,
           "data-theme-mode": "light",
           "data-dark": "0",
-          "data-font-size": "small",
-          "fontSize": "87.5%",
+          "data-font-size": "standard",
+          "fontSize": "",
           "data-palette": null,
           "--sgx-seed": "",
           "reduced-motion": false,

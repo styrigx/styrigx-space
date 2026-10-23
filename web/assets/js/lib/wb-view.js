@@ -57,7 +57,7 @@ function nameOf(k, en) {
 
 /**
  * 把接口数据画进容器。
- * @param {HTMLElement} root 含 [data-wb=rows|total|bar|legend|when] 的容器
+ * @param {HTMLElement} root 含 [data-wb=rows|total|bar|legend|scope] 的容器
  * @param {{total:number, sections:{k:string,sec:number}[], items:{k:string,t:string,sec:number}[]}} data
  * @param {boolean} en
  */
@@ -87,6 +87,9 @@ export function renderWb(root, data, en) {
   }
   const t = q('total');
   if (t) t.textContent = fmtDur(total, en, true);
+  /* 设置 › 数字健康的卡片先画本机记录，拉到所有设备的数据后把范围标签换掉（2026-10-23 PR-E） */
+  const scope = q('scope');
+  if (scope) scope.textContent = en ? 'Today · all devices' : '今天 · 所有设备';
   const bar = q('bar');
   const shown = secs.slice(0, 5);
   if (bar) {

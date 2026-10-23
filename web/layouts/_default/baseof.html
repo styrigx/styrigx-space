@@ -63,11 +63,8 @@ addEventListener('pagereveal',function(e){window.__sgxRevealVT=e.viewTransition|
     /* 2.4.0-G：影响外观的开关统一写 <html> data-* 属性（CSS 用属性选择器响应；class 保留做兼容） */
     d.setAttribute('data-theme-mode',m||'system');
     d.setAttribute('data-dark',wantDark?'1':'0');
-    /* 字体大小偏好 */
-    var fs=localStorage.getItem('sgx-font-size');
-    if(fs==='large'){d.style.fontSize='112.5%'}
-    else if(fs==='small'){d.style.fontSize='87.5%'}
-    d.setAttribute('data-font-size',fs||'standard');
+    /* 2026-10-23 PR-E：字体大小 / 减弱动效 / 点击音效 / 边缘光效 / 视差壁纸 / Good Lock 数字健康总开关已删除，旧值一次性清掉（不再有任何效果） */
+    try{['sgx-font-size','sgx-reduced-motion','sgx-gl-sound','sgx-gl-edgeglow','sgx-gl-parallax','sgx-gl-wellbeing'].forEach(function(k){localStorage.removeItem(k)})}catch(e){}
     /* 调色板 */
     var p=localStorage.getItem('sgx-palette');
     if(p&&p!=='lake'){d.setAttribute('data-palette',p)}
@@ -80,10 +77,11 @@ addEventListener('pagereveal',function(e){window.__sgxRevealVT=e.viewTransition|
       try{var acc=localStorage.getItem('sgx-accent-css')||'',ach='v5|'+ac+'\n';
         if(acc.indexOf(ach)===0){var ast=document.createElement('style');ast.id='sgx-accent-roles';ast.textContent=acc.slice(ach.length);document.head.appendChild(ast)}}catch(e){}
     }
-    /* 减弱动效 */
-    var rm=false;try{rm=localStorage.getItem('sgx-reduced-motion')==='1'}catch(e){}
-    if(rm){d.classList.add('reduced-motion')}
-    d.setAttribute('data-reduced-motion',rm?'1':'0');
+    /* 减弱动效：只跟系统 prefers-reduced-motion（本站开关 2026-10-23 删除）；class 照旧落在 <html> 上，CSS / JS 里的 .reduced-motion 规则不用改。系统设置变了即时跟上 */
+    var rmq=null;try{rmq=matchMedia('(prefers-reduced-motion: reduce)')}catch(e){}
+    var rmSet=function(){var rm=!!(rmq&&rmq.matches);d.classList.toggle('reduced-motion',rm);d.setAttribute('data-reduced-motion',rm?'1':'0')};
+    rmSet();
+    try{if(rmq){if(rmq.addEventListener)rmq.addEventListener('change',rmSet);else if(rmq.addListener)rmq.addListener(rmSet)}}catch(e){}
     /* 布局偏好（实际生效的布局由 __applyLayout 计算，这里只记偏好） */
     var lm=null;try{lm=localStorage.getItem('sgx-layout')}catch(e){}
     if(lm==='pc')lm='dex';

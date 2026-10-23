@@ -1,0 +1,60 @@
+{{/* 设置子页「高级功能」（2026-10-23 PR-E，原 Good Lock /settings/goodlock/，旧地址 alias + _redirects 跳到 /settings/advanced/）。
+   日期和时间（含时钟样式）、天气自原「常规管理」移入；快捷键是原 Good Lock 里留下的唯一模块。
+   点击音效、边缘光效、视差壁纸、数字健康总开关已删除；15 分钟提醒只在「数字健康」。
+   设置首页 DeX 双栏也会渲染本 partial，快捷键开关脚本按 data-gl-bound 防重复绑定。 */}}
+{{ $isEn := .isEn }}{{ $featMap := .featMap }}
+<div class="set-group scroll-mt-24" id="sg-advanced">
+<section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.18s">
+      {{ if partial "feature.html" "tz1" }}
+      <div class="set-row" id="row-datetime" role="button" tabindex="0">
+        <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "clock" }}</span>
+        <span class="flex-1 font-medium">{{ if $isEn }}Date &amp; time{{ else }}日期和时间{{ end }}</span>
+        <span id="dt-val" class="text-sm text-m-on-surface-variant">--</span>
+        {{ partial "icon.html" "chev-r" }}
+      </div>
+      {{ end }}
+      {{ if partial "feature.html" "weather-show" }}
+      <div class="set-row" id="row-weather" role="button" tabindex="0">
+        <span class="set-ic bg-m-warm-container text-m-on-warm-container">{{ partial "icon.html" "thermo" }}</span>
+        <span class="flex-1 font-medium">{{ if $isEn }}Weather{{ else }}天气{{ end }}</span>
+        <span id="wx-val" class="text-sm text-m-on-surface-variant">℃</span>
+        {{ partial "icon.html" "chev-r" }}
+      </div>
+      {{ end }}
+      {{ if partial "feature.html" "gl-keys" }}
+      {{ with index $featMap "gl-keys" }}
+      {{ $label := cond $isEn .name.en .name.zh }}
+      <div class="set-row gl-row scroll-mt-28" id="mod-keys" role="button" tabindex="0" data-feature="{{ .id }}">
+        <span class="set-ic {{ .bg }} {{ .fg }}">{{ partial "icon.html" .icon }}</span>
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ $label }}</span>
+          <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ cond $isEn .desc.en .desc.zh }}</span>
+        </span>
+        <span class="switch gl-switch" data-key="{{ .key }}" data-def="{{ if .default }}1{{ else }}0{{ end }}" role="switch" aria-checked="false" aria-label="{{ $label }}"><span class="knob"></span></span>
+      </div>
+      {{ end }}
+      {{ end }}
+    </section>
+</div>
+<script>
+(function(){
+  function get(k){try{return localStorage.getItem(k)}catch(e){return null}}
+  function set(k,v){try{if(v===null||v===undefined){localStorage.removeItem(k)}else{localStorage.setItem(k,v)}}catch(e){}}
+  function isOn(key,def){var v=get(key);return def?(v!=='0'):(v==='1')}
+  function paint(sw){sw.setAttribute('aria-checked',isOn(sw.getAttribute('data-key'),sw.getAttribute('data-def')==='1')?'true':'false')}
+  document.querySelectorAll('.gl-row:not([data-gl-bound])').forEach(function(row){
+    var sw=row.querySelector('.gl-switch');if(!sw)return;
+    row.setAttribute('data-gl-bound','1');
+    paint(sw);
+    function toggle(){
+      var key=sw.getAttribute('data-key'),def=sw.getAttribute('data-def')==='1';
+      var on=!isOn(key,def);
+      set(key,on===def?null:(on?'1':'0'));
+      paint(sw);
+      window.dispatchEvent(new Event('sgx-settings-changed'));
+    }
+    row.addEventListener('click',toggle);
+    row.addEventListener('keydown',function(e){if(e.target!==row)return;if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle()}});
+  });
+})();
+</script>

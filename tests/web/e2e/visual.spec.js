@@ -157,7 +157,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
   }
 }
 
-/* F 基准 1：弹层打开（2.6.0 起日期时间行在 /settings/manage/ 子页） */
+/* F 基准 1：弹层打开（2.6.0 起日期时间行在子页；2026-10-23 PR-E 起在 /settings/advanced/） */
 test('baseline-sheet-open', async ({ page: pg }) => {
   await pg.setViewportSize(VIEWPORTS.mobile);
   await blockExternalRequests(pg);
@@ -171,7 +171,7 @@ test('baseline-sheet-open', async ({ page: pg }) => {
     content: 'html{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans CJK SC","Noto Sans CJK",sans-serif !important}',
   });
   await freezeTime(pg);
-  await pg.goto('/settings/manage/', { waitUntil: 'domcontentloaded' });
+  await pg.goto('/settings/advanced/', { waitUntil: 'domcontentloaded' });
   await waitPageReady(pg);
   /* 2.8.0：等目标行就绪（可能在折叠区下方） */
   await pg.locator('#row-datetime').waitFor({ state: 'visible', timeout: 15000 });

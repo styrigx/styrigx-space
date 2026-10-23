@@ -15,12 +15,13 @@ test.use({ viewport: { width: 412, height: 915 } });
 
 async function go(page, path, opts = {}) {
   await blockExternalRequests(page);
+  /* 减弱动效只跟系统设置（2026-10-23 PR-E 删了本站开关） */
+  if (opts.rm) await page.emulateMedia({ reducedMotion: 'reduce' });
   await freezeTime(page);
   await page.addInitScript((o) => {
     try {
       localStorage.setItem('sgx-lang', o.lang || 'zh');
       if (o.engine) localStorage.setItem('sgx-search-engine', o.engine);
-      if (o.rm) localStorage.setItem('sgx-reduced-motion', '1');
     } catch (e) {}
     /* window.open 记下来，不真开 */
     window.__opened = [];

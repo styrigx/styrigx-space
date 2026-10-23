@@ -1,28 +1,18 @@
-{{/* 2.6.0：设置子页「wellbeing」分类组（自 settings.html 抽取，set-gh 标题由子页大标题替代）。 */}}
+{{/* 2.6.0：设置子页「wellbeing」分类组。
+   2026-10-23 PR-E：两张时间卡并成一张 —— 登录（站长会话）时显示所有设备（/api/wellbeing，wb-view.js 渲染，[data-wb-root]），
+   没登录时只显示本机记录（settings.js 从 sgx-well-v 画，同一组 data-wb 槽位）；15 分钟提醒只在这里。 */}}
 {{ $isEn := .isEn }}{{ $featMap := .featMap }}{{ $palettes := .palettes }}
 <div class="set-group scroll-mt-24" id="sg-wellbeing">
 <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.26s">
-      {{/* B2-7：我的屏幕时间 = 网站自己的数字健康（/api/wellbeing，wb-view.js 渲染） */}}
-      <div class="p-5" data-wb-root>
+      <div class="p-5" id="wb-card" data-wb-root>
         <div class="flex items-baseline justify-between gap-3 mb-3">
           <p class="text-sm font-medium">{{ if $isEn }}My screen time{{ else }}我的屏幕时间{{ end }}</p>
-          <p class="text-[11px] text-m-on-surface-variant">{{ if $isEn }}Today · all devices{{ else }}今天 · 所有设备{{ end }}</p>
+          <p class="text-[11px] text-m-on-surface-variant text-right" data-wb="scope">{{ if $isEn }}Today · this device{{ else }}今天 · 本机{{ end }}</p>
         </div>
         <p class="text-2xl font-extrabold tracking-tight mb-3" data-wb="total">--</p>
         <div class="wb-bar" data-wb="bar" role="img" aria-label="{{ if $isEn }}Time breakdown{{ else }}时间分布{{ end }}"></div>
         <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[11px] text-m-on-surface-variant min-h-[1rem]" data-wb="legend"></div>
       </div>
-      {{/* 你的数字健康（访客，只存本地） */}}
-      <div class="p-5 pt-1">
-        <div class="flex items-baseline justify-between gap-3 mb-3">
-          <p class="text-sm font-medium">{{ if $isEn }}Your visit today{{ else }}你今天的到访{{ end }}</p>
-          <p class="text-[11px] text-m-on-surface-variant">{{ if $isEn }}Stored on this device only{{ else }}只保存在本机{{ end }}</p>
-        </div>
-        <p class="text-2xl font-extrabold tracking-tight mb-3"><span id="well-v-total">0</span> <span class="text-sm font-medium text-m-on-surface-variant">{{ if $isEn }}min{{ else }}分钟{{ end }}</span></p>
-        <div class="wb-bar" id="well-v-bar" role="img" aria-label="{{ if $isEn }}Your visit breakdown{{ else }}到访分布{{ end }}"></div>
-        <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[11px] text-m-on-surface-variant" id="well-v-legend"></div>
-      </div>
-      {{/* 2.4.0-G：15 分钟提醒由 features.yaml 生成 */}}
       {{ if partial "feature.html" "well-tip" }}{{ partial "settings-row.html" (dict "f" (index $featMap "well-tip") "isEn" $isEn) }}{{ end }}
     </section>
 </div>

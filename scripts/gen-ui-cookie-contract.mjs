@@ -38,15 +38,16 @@ const WRITER_CASES = [
   { name: '自定义主题色（lake 上）', local: { 'sgx-accent': '#1F8A70' }, expect: { accent: '#1f8a70' } },
   { name: '自定义主题色（撞色 xrose 上，深色）', local: { 'sgx-theme-mode': 'dark', 'sgx-palette': 'xrose', 'sgx-accent': '#d0a020' }, expect: { mode: 'dark', pal: 'xrose', accent: '#d0a020' } },
   {
-    name: '大字号 + 减弱动效 + 时钟 / 天气字段（中文城市名）',
+    /* 2026-10-23 PR-E：字体大小 / 减弱动效设置删除 —— 本地残留的旧值写端不再带出去，fs / rm 固定默认 */
+    name: '旧的大字号 + 减弱动效 key 不再生效 + 时钟 / 天气字段（中文城市名）',
     local: {
       'sgx-font-size': 'large', 'sgx-reduced-motion': '1', 'sgx-tz1-auto': '0', 'sgx-tz1': 'Asia/Shanghai', 'sgx-tz2': 'America/Los_Angeles',
       'sgx-hour12': '12', 'sgx-gl-clockstyle': '1', 'sgx-weather-show': '0', 'sgx-temp-unit': 'f', 'sgx-weather-loc': 'city',
       'sgx-weather-city': '{"name":"上海","lat":31.23,"lon":121.47}',
     },
-    expect: { fs: 'large', rm: 1, accent: '#2f5f86', tz1: 'Asia/Shanghai', tz2: 'America/Los_Angeles', h12: 1, clock: 'analog', wx: 0, unit: 'f', loc: 'city', city: { name: '上海', lat: 31.23, lon: 121.47 } },
+    expect: { accent: '#2f5f86', tz1: 'Asia/Shanghai', tz2: 'America/Los_Angeles', h12: 1, clock: 'analog', wx: 0, unit: 'f', loc: 'city', city: { name: '上海', lat: 31.23, lon: 121.47 } },
   },
-  { name: '小字号', local: { 'sgx-font-size': 'small', 'sgx-theme-mode': 'light' }, expect: { mode: 'light', fs: 'small', accent: '#2f5f86' } },
+  { name: '旧的小字号 key 不再生效', local: { 'sgx-font-size': 'small', 'sgx-theme-mode': 'light' }, expect: { mode: 'light', accent: '#2f5f86' } },
   { name: '本地存了不认识的色板 id（写端写 lake）', local: { 'sgx-palette': 'neon', 'sgx-theme-mode': 'dark' }, expect: { mode: 'dark', accent: '#2f5f86' } },
 ];
 

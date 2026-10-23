@@ -1,19 +1,19 @@
 /**
- * @fileoverview Good Lock 实验室：全站生效的模块（旧 sgx-base-a.js 末尾）。
- * 视差壁纸 / 点击音效 / 快捷键 / 边缘光效 / 访客数字健康（只存本地）。
- * 2.4.0-G：开关经 features.js 统一读写；各模块另有 SGX_FEAT_* 编译期开关。
+ * @fileoverview 全站生效的小模块（文件名沿用旧的 goodlock.js；设置里叫「高级功能」）：
+ * 快捷键（设置 › 高级功能）、本机到访计时 + 15 分钟提醒（设置 › 数字健康，只存本地）。
+ * 2026-10-23 PR-E：视差壁纸、点击音效、边缘光效删除；数字健康不再有总开关（计时一直开，提醒只看 well-tip）。
+ * 开关经 features.js 统一读写；各模块另有 SGX_FEAT_* 编译期开关。
  */
 import { on } from '../lib/events.js';
 import { get, set } from '../lib/storage.js';
 import { get as featGet } from '../lib/features.js';
 import { loadI18n } from '../lib/i18n.js';
 import { openSheet } from './sheet.js';
-import { reducedMotion } from '../lib/util.js';
 import { visibleInterval } from '../lib/scheduler.js';
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
 
 /**
- * 读 Good Lock 模块开关（经 features.js，带编译期 build 默认）。
+ * 读模块开关（经 features.js，带编译期 build 默认）。
  * @param {string} id 功能 id（gl-*）
  */
 function modOn(id) {
@@ -50,8 +50,8 @@ let sessArea = '';
 
 function areaOf() {
   const p = location.pathname;
-  if (p === '/settings/goodlock/' || p === '/en/settings/goodlock/') return 'goodlock';
-  if (p === '/settings/' || p === '/en/settings/') return 'settings';
+  /* 设置首页和各设置子页都算「设置」（旧数据里的 'goodlock' 区域在数字健康卡里并进设置） */
+  if (/^(\/en)?\/settings\//.test(p)) return 'settings';
   /* 区域键沿用 'browser'（历史数据不丢）：2026-10-21 主站书签下线后只剩 /search/ */
   if (p === '/search/' || p === '/en/search/') return 'browser';
   return 'home';
@@ -72,89 +72,12 @@ export function wellFlush() {
 }
 
 /**
- * 初始化 Good Lock 全站模块。
+ * 初始化全站模块（快捷键、本机到访计时 / 15 分钟提醒）。
  */
 export function initGoodLock() {
   const T = loadI18n('sgx-i18n-core');
   const en = document.documentElement.lang === 'en';
   sessArea = areaOf();
-
-  /* ---- 视差壁纸 ---- */
-  function parallaxOn() {
-    return modOn('gl-parallax');
-  }
-  /** @param {number} x @param {number} y */
-  function applyParallax(x, y) {
-    if (!parallaxOn() || reducedMotion()) return;
-    const wp = document.getElementById('sgx-wallpaper');
-    if (wp) wp.style.backgroundPosition = x.toFixed(1) + 'px ' + y.toFixed(1) + 'px';
-  }
-  /* ---- 视差壁纸（2.4.0-G：SGX_FEAT_GL_PARALLAX 编译期可移除） ---- */
-  if (SGX_FEAT_GL_PARALLAX && parallaxOn() && !reducedMotion()) {
-    let raf = null,
-      lx = 0,
-      ly = 0;
-    on(
-      window,
-      'mousemove',
-      function (/** @type {MouseEvent} */ e) {
-        lx = (e.clientX / window.innerWidth - 0.5) * 22;
-        ly = (e.clientY / window.innerHeight - 0.5) * 22;
-        if (!raf)
-          raf = requestAnimationFrame(function () {
-            raf = null;
-            applyParallax(lx, ly);
-          });
-      },
-      { passive: true }
-    );
-    on(
-      window,
-      'deviceorientation',
-      function (/** @type {any} */ e) {
-        if (e.gamma === null || e.beta === null) return;
-        applyParallax(e.gamma * 0.35, e.beta * 0.2);
-      },
-      { passive: true }
-    );
-  }
-
-  /* ---- 点击音效（Web Audio 合成；2.4.0-G：SGX_FEAT_GL_SOUND 编译期可移除） ---- */
-  if (SGX_FEAT_GL_SOUND) {
-  /** @type {any} */
-  let ac = null;
-  function blip() {
-    try {
-      const AC = /** @type {any} */ (window).AudioContext || /** @type {any} */ (window).webkitAudioContext;
-      if (!AC) return;
-      const ctx = ac || (ac = new AC());
-      if (ctx.state === 'suspended') ctx.resume();
-      const o = ctx.createOscillator(),
-        g = ctx.createGain(),
-        t = ctx.currentTime;
-      o.type = 'sine';
-      o.frequency.setValueAtTime(1250, t);
-      o.frequency.exponentialRampToValueAtTime(880, t + 0.05);
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(0.06, t + 0.008);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
-      o.connect(g);
-      g.connect(ctx.destination);
-      o.start(t);
-      o.stop(t + 0.1);
-    } catch (e) {}
-  }
-  on(
-    document,
-    'click',
-    function (/** @type {MouseEvent} */ e) {
-      if (!modOn('gl-sound')) return;
-      const t = /** @type {HTMLElement|null} */ (e.target);
-      if (t && t.closest && t.closest('.app-tile,.sgx-drawer-item,.nav-act')) blip();
-    },
-    { passive: true }
-  );
-  } /* /SGX_FEAT_GL_SOUND */
 
   /* ---- 快捷键（桌面端；2.4.0-G：SGX_FEAT_GL_KEYS 编译期可移除） ---- */
   if (SGX_FEAT_GL_KEYS) {
@@ -212,11 +135,8 @@ export function initGoodLock() {
   })();
   } /* /SGX_FEAT_GL_KEYS */
 
-  /* ---- 边缘光效（2.4.0-G：SGX_FEAT_GL_EDGEGLOW 编译期可移除） ---- */
-  if (SGX_FEAT_GL_EDGEGLOW && modOn('gl-edgeglow')) document.body.classList.add('gl-edgeglow');
-
-  /* ---- 访客数字健康（只存本地；2.4.0-G：SGX_FEAT_GL_WELLBEING 编译期可移除） ---- */
-  if (SGX_FEAT_GL_WELLBEING) {
+  /* ---- 本机到访计时（只存本地；设置 › 数字健康 没登录时显示它） ---- */
+  {
   on(window, 'pagehide', function () {
     wellFlush();
   });
@@ -252,7 +172,6 @@ export function initGoodLock() {
     window.setTimeout(hide, 12000);
   }
   function checkTip() {
-    if (!modOn('gl-wellbeing')) return;
     if (!SGX_FEAT_WELL_TIP || !featGet('well-tip')) return;
     const today = dayStr(new Date());
     if (get('sgx-well-tipday') === today) return;
@@ -264,14 +183,5 @@ export function initGoodLock() {
     }
   }
   visibleInterval(checkTip, 30000);
-  } /* /SGX_FEAT_GL_WELLBEING */
-
-  /* ---- 设置变更时重应用 ---- */
-  on(window, 'sgx-settings-changed', function () {
-    if (SGX_FEAT_GL_EDGEGLOW) document.body.classList.toggle('gl-edgeglow', modOn('gl-edgeglow'));
-    if (SGX_FEAT_GL_PARALLAX && parallaxOn() && reducedMotion()) {
-      const wp2 = document.getElementById('sgx-wallpaper');
-      if (wp2) wp2.style.backgroundPosition = '';
-    }
-  });
+  } /* /本机到访计时 */
 }
