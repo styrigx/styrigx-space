@@ -7008,9 +7008,9 @@
   .set-row-head { display: flex; align-items: center; gap: 14px; width: 100%; }
   .set-row-sub { padding: 12px 0 2px 54px; } /* 54=40图标+14间距：控件左缘与标题文字对齐，右缘与行内边距(20px)齐平 */
   .set-ic { width: 40px; height: 40px; border-radius: 999px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .set-app-ic { width: 40px; height: 40px; flex-shrink: 0; display: block; }
-  .set-app-ic svg { width: 100%; height: 100%; display: block; }
-  .set-cat .set-app-ic { width: 40px; height: 40px; }
+  /* 设置首页分组卡片（2026-10-23 PR-E，One UI 式）：每组一张圆角卡，卡与卡之间留缝；DeX 左栏导航在组与组之间多留一点 */
+  .set-cards { display: flex; flex-direction: column; gap: 16px; margin-bottom: 1.75rem; }
+  .set-cat-gap { margin-top: 10px; }
 
   /* ===== 主题预览卡 ===== */
   .theme-prev {
@@ -7088,16 +7088,9 @@
     > span:last-child { border-radius: 0 999px 999px 0; }
   }
 
-  /* ===== Good Lock：实验标签 ===== */
-  .exp-tag { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--m-on-primary-container); background: var(--m-primary-container); border: 1px solid var(--m-primary); border-radius: 999px; padding: 2px 8px; }
-
   /* ===== 指针时钟 ===== */
   .analog-face { width: 5.5rem; height: 5.5rem; max-width: 100%; }
   #clk-l-time.analog-on, #clk-r-time.analog-on { line-height: 0; }
-
-  /* ===== Good Lock：边缘光效 ===== */
-  .gl-edgeglow .widget { transition: box-shadow .3s ease; }
-  @media (hover: hover) and (pointer: fine) { .gl-edgeglow .widget:hover { box-shadow: 0 0 0 2px var(--m-primary), 0 10px 32px -10px var(--m-primary); } }
 
   /* ===== 数字健康：15 分钟提示 ===== */
   #well-toast {

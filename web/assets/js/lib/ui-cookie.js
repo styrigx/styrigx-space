@@ -79,7 +79,7 @@ function decodeCookie(v) {
  *   B2-7（v2）外观：mode←sgx-theme-mode（system/light/dark）；pal←sgx-palette（缺省 lake）；
  *   accent：当前主题色种子 #rrggbb（PR3 色彩角色 token；sgx-accent 自定义优先，否则读 --sgx-seed 即预设色板的种子），
  *   子站拿它派生同一套角色；读不到为 ''。
- *   fs←sgx-font-size（small/standard/large）；rm←sgx-reduced-motion（"1" 为 1）；
+ *   fs / rm：固定 'standard' / 0（2026-10-23 PR-E 删了字体大小、减弱动效设置；子站减弱动效跟系统 prefers-reduced-motion）；
  *   mat：mode 最近一次变化的时间戳（毫秒）。子站自己也能切深浅色，两边谁后改听谁的。
  * sgx-weather 是数据缓存，不进 cookie。
  */
@@ -111,8 +111,9 @@ export function syncUiCookie() {
     /* 只写读端认识的预设（未知 id 主站本来也渲染成默认 lake） */
     pal: Object.prototype.hasOwnProperty.call(U.PRESETS, ls('sgx-palette') || '') ? ls('sgx-palette') : U.DEFAULT_PAL,
     accent: currentSeed(),
-    fs: U.FONT_SIZES.indexOf(ls('sgx-font-size') || '') >= 0 ? ls('sgx-font-size') : 'standard',
-    rm: ls('sgx-reduced-motion') === '1' ? 1 : 0,
+    /* fs / rm：字体大小、减弱动效两个设置 2026-10-23 删除，字段保留（子站读端认识它们）但固定写默认值，旧 localStorage 值不再带给子站 */
+    fs: 'standard',
+    rm: 0,
   };
   /* mat：深浅色没变就沿用旧时间戳，变了（或第一次写）记当前时间 */
   var old = decodeCookie(readCookie());

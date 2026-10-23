@@ -1,6 +1,6 @@
 /**
  * 快捷面板 / 设置页调色板模板（2026-10-21）：
- * - 快捷面板磁贴只剩 深色模式 | 跟随系统、语言 | 立即锁定；减弱动效、字体大小只在设置页（设置本身、存储 key 不动）。
+ * - 快捷面板磁贴只剩 深色模式 | 跟随系统、语言 | 立即锁定；减弱动效、字体大小 2026-10-23 PR-E 起整个删除（字体靠浏览器缩放，动效跟系统）。
  * - 默认色板 lake 不放色块（快捷面板 + 设置页单色组），改成标题行右端「恢复默认」，初始 aria-disabled；
  *   点它走 setPalette('lake')（与点色块同一条路，自定义主题色一起清掉）。
  * - 磁贴 / 行 / 齿轮底色读色板容器（--m-secondary-container），不是 container-high。
@@ -24,11 +24,10 @@ test('快捷面板磁贴：dark / system / lang / lock，没有减弱动效和�
   assert.ok(!qpHtml.includes('reduced-motion'));
   assert.ok(!qpHtml.includes('font-size'));
   assert.ok(!/setReducedMotion|setFontSize|reducedMotionPref|fontSize\(/.test(qpJs));
-  /* 设置本身还在 */
-  assert.match(feats, /- id: reduced-motion/);
-  assert.match(feats, /- id: font-size/);
-  assert.match(setJs, /setReducedMotion/);
-  assert.match(setJs, /setFontSize/);
+  /* 2026-10-23 PR-E：设置本身也删了 */
+  assert.doesNotMatch(feats, /- id: reduced-motion/);
+  assert.doesNotMatch(feats, /- id: font-size/);
+  assert.doesNotMatch(setJs, /setReducedMotion|setFontSize|seg-font|row-motion/);
 });
 
 test('lake 不放色块；两处都有「恢复默认」，初始 aria-disabled，点了 setPalette(lake)', () => {

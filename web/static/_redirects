@@ -10,8 +10,14 @@
 /en/links/  https://curio.styrigx.com/en/  301
 /owner/  /settings/security/lock/  301
 /en/owner/  /en/settings/security/lock/  301
-/goodlock/  /settings/goodlock/  301
-/en/goodlock/  /en/settings/goodlock/  301
+/goodlock/  /settings/advanced/  301
+/en/goodlock/  /en/settings/advanced/  301
+/settings/goodlock/  /settings/advanced/  301
+/en/settings/goodlock/  /en/settings/advanced/  301
+/settings/manage/  /settings/  301
+/en/settings/manage/  /en/settings/  301
+/settings/accessibility/  /settings/  301
+/en/settings/accessibility/  /en/settings/  301
 /settings/apps/  /settings/  301
 /en/settings/apps/  /en/settings/  301
 /files/*  /  301

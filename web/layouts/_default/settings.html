@@ -18,23 +18,24 @@
     {{/* Mobile：分类列表（进子页）。 */}}
     <div class="set-mobile-only">
     <div class="set-main min-w-0">
-      <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.1s" aria-label="{{ if $isEn }}Categories{{ else }}分类{{ end }}">
-        {{ range $cats }}
+      {{/* 2026-10-23 PR-E：每个分类单独一张圆角卡（data 里 group 各不相同）。
+           外层 aria-label="分类" 只有一个（测试和读屏都按它找分类列表）。 */}}
+      {{ $groups := slice }}
+      {{ range $cats }}{{ if not (in $groups .group) }}{{ $groups = $groups | append .group }}{{ end }}{{ end }}
+      <div class="set-cards" role="group" aria-label="{{ if $isEn }}Categories{{ else }}分类{{ end }}">
+      {{ range $gi, $g := $groups }}
+      <section class="widget set-card bg-m-container-lowest border border-m-outline overflow-hidden animate-fade-up" style="animation-delay:{{ add 0.1 (mul $gi 0.04) }}s" data-set-group="{{ $g }}">
+        {{ range where $cats "group" $g }}
         {{ $href := cond $isEn (printf "/en/settings/%s/" .id) (printf "/settings/%s/" .id) }}
         <a class="set-row" href="{{ $href }}">
-          {{ if .appicon }}
-          <span class="set-app-ic">{{ partial "icon.html" (dict "name" .icon "uid" (printf "sethome%s" .id)) }}</span>
-          {{ else }}
           <span class="set-ic {{ .bg }} {{ .fg }}">{{ partial "icon.html" .icon }}</span>
-          {{ end }}
-          <span class="flex-1 min-w-0">
-            <span class="block font-medium">{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}</span>
-            <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate">{{ if $isEn }}{{ .suben }}{{ else }}{{ .subzh }}{{ end }}</span>
-          </span>
+          <span class="flex-1 min-w-0 block font-medium">{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}</span>
           {{ partial "icon.html" "chev-r" }}
         </a>
         {{ end }}
       </section>
+      {{ end }}
+      </div>
     </div>
     </div>
   </div>
@@ -46,16 +47,14 @@
   <div class="set-col-l">
     <aside class="set-side" aria-label="{{ if $isEn }}Categories{{ else }}分类{{ end }}">
       <nav class="flex flex-col gap-1" id="set-cat-nav">
+        {{ $prevGroup := 0 }}
         {{ range $cats }}
         {{ $href := cond $isEn (printf "/en/settings/%s/" .id) (printf "/settings/%s/" .id) }}
-        <a class="set-cat" data-cat="{{ .id }}" data-title="{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}" href="{{ $href }}">
-          {{ if .appicon }}
-          <span class="set-app-ic">{{ partial "icon.html" (dict "name" .icon "uid" (printf "setnav%s" .id)) }}</span>
-          {{ else }}
+        <a class="set-cat{{ if and $prevGroup (ne $prevGroup .group) }} set-cat-gap{{ end }}" data-cat="{{ .id }}" data-title="{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}" href="{{ $href }}">
           <span class="set-ic {{ .bg }} {{ .fg }}">{{ partial "icon.html" .icon }}</span>
-          {{ end }}
           <span>{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}</span>
         </a>
+        {{ $prevGroup = .group }}
         {{ end }}
       </nav>
     </aside>
@@ -78,9 +77,10 @@
 (function () {
   try {
     var h = (location.hash || '').replace(/^#/, '');
-    var map = { display: 1, theme: 1, manage: 1, goodlock: 1, accessibility: 1, wellbeing: 1, about: 1, security: 1,
-      'sg-display': 'display', 'sg-theme': 'theme', 'sg-manage': 'manage',
-      'sg-goodlock': 'goodlock', 'sg-accessibility': 'accessibility', 'sg-wellbeing': 'wellbeing', 'sg-about': 'about', 'sg-security': 'security' };
+    /* 2026-10-23 PR-E：manage / accessibility 删除（回设置首页，不跳）；goodlock → advanced */
+    var map = { display: 1, theme: 1, advanced: 1, wellbeing: 1, about: 1, security: 1, goodlock: 'advanced',
+      'sg-display': 'display', 'sg-theme': 'theme', 'sg-advanced': 'advanced', 'sg-goodlock': 'advanced',
+      'sg-wellbeing': 'wellbeing', 'sg-about': 'about', 'sg-security': 'security' };
     var cat = map[h];
     if (cat) {
       var isEn = location.pathname.indexOf('/en/') === 0;

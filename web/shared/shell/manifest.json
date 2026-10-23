@@ -10,10 +10,10 @@
     "nav.json": "373f01b51847f96e9e77690be94c5db1453ba5927500e53542f42e73cfd69964",
     "palettes.json": "cb95c4e6570ab1cdcb2bb82de30d709a99910157b7e1b435d9d3b9e8b00d5711",
     "ui-cookie-read.js": "1f3775827eade901a871bc46eef87a629a437547073c81ccee9499324698f0b0",
-    "ui-cookie-contract.json": "c9034a3fbea2f083349fd69e58c9d6f5391ab092df1e11d2ad759b83a957c8fd",
+    "ui-cookie-contract.json": "0a785b221628f5aec73033d7fa58b0ff209ef900bd9ee53ab560ecd3e8cfbfc3",
     "favicon.js": "413b7d6098cb3b611ce1eeaeb0f5562896b8caa6e0984b16f5ce9b7c3ff5ad41",
     "favicon.svg": "368c680c7554c6cde7f6d374057011a80c564cc08eb5cd3f31af5a4dbc580f07",
     "README.md": "d00ade3c006533647168f7e5ecda9964f867a68222519e3fd49db9ed10c4a187"
   },
-  "version": "61ffee8b0541"
+  "version": "53fcf8f1819b"
 }

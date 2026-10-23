@@ -41,7 +41,8 @@ const measure = () => {
   const out = {
     dark: d.classList.contains('dark'),
     reducedMotion: d.classList.contains('reduced-motion'),
-    attrs: Object.fromEntries(['data-theme-mode', 'data-dark', 'data-palette', 'data-font-size', 'data-reduced-motion'].map((k) => [k, d.getAttribute(k)])),
+    /* data-font-size 不比：主站 2026-10-23 删了字体大小设置、不再写这个属性；子站读端照旧按 cookie 的 fs 写（写端固定 standard），只比实际字号 fontSize */
+    attrs: Object.fromEntries(['data-theme-mode', 'data-dark', 'data-palette', 'data-reduced-motion'].map((k) => [k, d.getAttribute(k)])),
     fontSize: d.style.fontSize,
     seed: d.style.getPropertyValue('--sgx-seed'),
     hasRoles: !!document.getElementById('sgx-accent-roles'),
@@ -139,7 +140,7 @@ test.describe('子站读端 = 主站外观（真写端 cookie → 共享外壳 u
       await sub.addCookies([{ name: 'sgx-ui', value, url: baseURL }]);
       await sp.goto(SUB, { waitUntil: 'load' });
       const s = await sp.evaluate(measure);
-      expect(s.attrs).toEqual({ 'data-theme-mode': 'system', 'data-dark': '1', 'data-palette': null, 'data-font-size': 'standard', 'data-reduced-motion': '0' });
+      expect(s.attrs).toEqual({ 'data-theme-mode': 'system', 'data-dark': '1', 'data-palette': null, 'data-reduced-motion': '0' });
       expect(s.dark).toBe(true);
       expect(s.dot).toBe(s.primary);
       expect(errors).toEqual([]);

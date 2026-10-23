@@ -1,19 +1,20 @@
 /**
- * @fileoverview 设置页：主题、调色板、字体、布局、常规管理（含重置）、
- * 减弱动效、数字健康、重置、桌面双栏。
+ * @fileoverview 设置页：显示（主题、布局、语言）、风格（调色板）、高级功能（日期和时间 / 时钟样式、天气）、
+ * 数字健康、桌面双栏。（2026-10-23 PR-E：字体大小、减弱动效、重置所有设置删除）
  * 文案来自页面内 sgx-i18n-settings JSON（中英双语），JS 与语言无关。
  */
 import { on } from '../lib/events.js';
 import { esc } from '../lib/util.js';
-import { get, set, remove, removeByPrefix, getJSON, setJSON } from '../lib/storage.js';
+import { get, set, remove, getJSON, setJSON } from '../lib/storage.js';
 import { get as featGet, set as featSet, on as featOn } from '../lib/features.js';
 import { loadI18n } from '../lib/i18n.js';
 import { openSheet } from '../shell/sheet.js';
-import { setTheme, toggleFollowSystem, setPalette, setFontSize, setLayout, setReducedMotion, setLang, normLayout, layoutNarrow } from '../lib/prefs.js';
+import { setTheme, toggleFollowSystem, setPalette, setLayout, setLang, normLayout, layoutNarrow } from '../lib/prefs.js';
 import { syncAccent } from '../lib/accent-roles.js';
 import { accent } from '../lib/accent.js';
 import { wellLoad, wellFlush } from '../shell/goodlock.js';
-import { sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
+import { fmtDur } from '../lib/wb-view.js';
+import { sgxReplace } from '../lib/diag-jumptrace.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -168,22 +169,6 @@ import { sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
   paintPalette();
   featOn('palette', paintPalette);
 
-  /* ---- 字体大小 ---- */
-  function paintFont() {
-    const v = featGet('font-size');
-    document.querySelectorAll('#seg-font button').forEach(function (b) {
-      b.setAttribute('aria-pressed', b.getAttribute('data-v') === v ? 'true' : 'false');
-    });
-  }
-  document.querySelectorAll('#seg-font button').forEach(function (b) {
-    on(b, 'click', function () {
-      setFontSize(b.getAttribute('data-v') || 'standard');
-      paintFont();
-    });
-  });
-  paintFont();
-  featOn('font-size', paintFont);
-
   /* ---- 布局：Mobile / Auto / DeX ---- */
   function paintLayout() {
     let v = featGet('layout');
@@ -261,7 +246,7 @@ import { sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
   paintLayout();
   featOn('layout', paintLayout);
 
-  /* ---- 常规管理行：当前值 ---- */
+  /* ---- 语言（显示）/ 日期和时间、天气（高级功能）行：当前值 ---- */
   function paintManage() {
     const lv = $('lang-val');
     if (lv) {
@@ -303,6 +288,7 @@ import { sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
     const auto = tz1auto();
     const tz1cur = featGet('tz1');
     const h12 = featGet('hour12') === '12';
+    const analog = !!featGet('gl-clockstyle');
     const html =
       '<div class="px-1 pb-2">' +
       '<div class="set-row no-ic" id="dt-auto" role="button" tabindex="0">' +
@@ -320,6 +306,11 @@ import { sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
       '<button type="button" data-v="12" aria-pressed="' + (h12 ? 'true' : 'false') + '">' + T.t('dt12') + '</button>' +
       '<button type="button" data-v="24" aria-pressed="' + (h12 ? 'false' : 'true') + '">' + T.t('dt24') + '</button>' +
       '</div></div>' +
+      /* 2026-10-23 PR-E：时钟样式（原 Good Lock 模块）并进日期和时间；key 仍是 sgx-gl-clockstyle */
+      '<div class="set-row no-ic" id="dt-clock" role="button" tabindex="0">' +
+      '<span class="flex-1 min-w-0"><span class="block font-medium">' + T.t('dtClock') + '</span>' +
+      '<span class="block text-xs text-m-on-surface-variant mt-0.5">' + T.t('dtClockSub') + '</span></span>' +
+      '<span class="switch" id="dt-clock-sw" role="switch" aria-checked="' + (analog ? 'true' : 'false') + '" aria-label="' + T.t('dtClock') + '"><span class="knob"></span></span></div>' +
       '<p class="px-5 pb-3 text-xs text-m-on-surface-variant">' + T.t('dtNote') + '</p>' +
       '</div>';
     openSheet({ title: T.t('dtTitle'), html: html });
@@ -348,6 +339,12 @@ import { sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
       });
       sheetRow('dt-tz2', function () {
         openTzPicker('sgx-tz2', openDateTime);
+      });
+      sheetRow('dt-clock', function () {
+        const on_ = !featGet('gl-clockstyle');
+        featSet('gl-clockstyle', on_);
+        setSwitch('dt-clock-sw', on_);
+        window.dispatchEvent(new Event('sgx-settings-changed'));
       });
     })();
   }
@@ -531,22 +528,6 @@ import { sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
   }
   rowToggle('row-weather', openWeather);
 
-  /* ---- 减弱动效 ---- */
-  function paintMotion() {
-    const on_ = !!featGet('reduced-motion');
-    setSwitch('sw-motion', on_);
-    document.documentElement.classList.toggle('reduced-motion', on_);
-    try {
-      document.documentElement.setAttribute('data-reduced-motion', on_ ? '1' : '0');
-    } catch (e) {}
-  }
-  rowToggle('row-motion', function () {
-    setReducedMotion(!featGet('reduced-motion'));
-    paintMotion();
-  });
-  paintMotion();
-  featOn('reduced-motion', paintMotion);
-
   /* ---- 数字健康：访客时长提示 ---- */
   function paintWellTip() {
     setSwitch('sw-welltip', !!featGet('well-tip'));
@@ -557,32 +538,44 @@ import { sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
   });
   paintWellTip();
   featOn('well-tip', paintWellTip);
-  /* 访客到访分布 */
+  /* 屏幕时间卡（2026-10-23 PR-E 两张并一张）：先画本机记录（sgx-well-v）；站长会话下 core 的 loadWb() 拉到所有设备的数据后
+     覆盖同一组 [data-wb] 槽位并把范围改成「所有设备」。不是站长会话就去掉 data-wb-root，不显示站长的数据。 */
   (function () {
-    const totalEl = $('well-v-total'),
-      bar = $('well-v-bar'),
-      legend = $('well-v-legend');
+    const card = $('wb-card');
+    if (!card) return;
+    if (document.documentElement.getAttribute('data-sgx-role') !== 'owner') card.removeAttribute('data-wb-root');
+    const q = function (/** @type {string} */ n) {
+      return /** @type {HTMLElement|null} */ (card.querySelector('[data-wb="' + n + '"]'));
+    };
+    const totalEl = q('total'),
+      bar = q('bar'),
+      legend = q('legend');
     if (!totalEl || !bar) return;
     let v = wellLoad();
     try {
       v = wellFlush();
     } catch (e) {}
-    const total = Math.max(0, Math.round(v.min || 0));
-    totalEl.textContent = String(total);
+    const ar = v.areas || {};
+    /* 旧数据：'goodlock' 区域（原 Good Lock 页）并进设置；搜索页的区域键是 'browser'（更早是 'links'） */
+    const mins = {
+      home: ar.home || 0,
+      links: (ar.browser || 0) + (ar.links || 0),
+      settings: (ar.settings || 0) + (ar.goodlock || 0),
+    };
+    const total = Math.max(0, v.min || 0);
+    totalEl.textContent = fmtDur(total * 60, en, true);
     const AREAS = [
       { id: 'home', label: T.t('areaHome'), color: 'var(--m-primary)' },
       { id: 'links', label: T.t('areaLinks'), color: 'var(--m-accent)' },
       { id: 'settings', label: T.t('areaSettings'), color: 'var(--sgx-secondary-fill, var(--m-secondary))' },
-      { id: 'goodlock', label: T.t('areaGoodlock'), color: 'var(--m-rose)' },
     ];
-    if (total <= 0) {
+    if (total < 1) {
       bar.innerHTML = '<span style="width:100%;background:var(--m-container-highest)"></span>';
       if (legend) legend.innerHTML = '<span>' + T.t('wellNoRec') + '</span>';
       return;
     }
     bar.innerHTML = AREAS.map(function (a) {
-      const m = v.areas[a.id] || 0,
-        pct = Math.max(0, (m / total) * 100);
+      const pct = Math.max(0, (/** @type {any} */ (mins)[a.id] / total) * 100);
       return '<span style="width:' + pct.toFixed(1) + '%;background:' + a.color + '" title="' + a.label + '"></span>';
     }).join('');
     if (legend)
@@ -592,13 +585,6 @@ import { sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
         );
       }).join('');
   })();
-
-  /* ---- 重置 ---- */
-  rowToggle('row-reset', function () {
-    removeByPrefix('sgx-');
-    remove('theme');
-    sgxReload();
-  });
 
   /* 2.6.0：设置改为真实二级页（/settings/<cat>/）；旧 hash 由设置首页内联脚本跳转到子页；
      子页用浏览器 / 系统返回。DeX 双栏在首页内切换（下）。 */

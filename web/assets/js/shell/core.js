@@ -1,7 +1,7 @@
 /**
  * @fileoverview 全站公共 core：所有页面入口先初始化它。
  * 包含：搜索快捷键/返回历史、子页面标题联动、主题、Dock/顶栏/抽屉、
- * Good Lock 全站模块、滚动边缘效果、布局钩子。
+ * 高级功能全站模块（快捷键）+ 本机到访计时 / 15 分钟提醒、滚动边缘效果、布局钩子。
  * 必须跨脚本共享的最小 API 挂到 window.SGX（见 sgx.js）。
  */
 import { SGX } from '../lib/sgx.js';
@@ -42,18 +42,7 @@ function initFeatSync() {
     if (!v || v === 'lake') d.removeAttribute('data-palette');
     else d.setAttribute('data-palette', v);
   });
-  featOn('font-size', function (v) {
-    d.style.fontSize = v === 'large' ? '112.5%' : v === 'small' ? '87.5%' : '';
-    try {
-      d.setAttribute('data-font-size', v || 'standard');
-    } catch (e) {}
-  });
-  featOn('reduced-motion', function (v) {
-    d.classList.toggle('reduced-motion', !!v);
-    try {
-      d.setAttribute('data-reduced-motion', v ? '1' : '0');
-    } catch (e) {}
-  });
+  /* 字体大小、减弱动效两个开关 2026-10-23 删除（减弱动效只跟系统，baseof 内联脚本监听 prefers-reduced-motion） */
   featOn('layout', function () {
     const w = /** @type {any} */ (window);
     if (typeof w.__applyLayout === 'function') w.__applyLayout();
