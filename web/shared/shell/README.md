@@ -8,6 +8,10 @@
   它按 `manifest.json` 从 raw.githubusercontent.com 拉这些文件、逐个校验 sha256，写进子站的标记段 / 供应商目录。
 - 主题跨站：主站把外观写进 `sgx-ui` cookie（Domain=styrigx.com）：`pal` = 预设 id，`accent` = 当前种子 #rrggbb。
   子站：`accent` 等于该预设种子 → 只设 `data-palette`；不等 → 自定义色，用 `palette-scheme.js` 的 `rolesCss(seed)` 算整套角色。
+  旧撞色 id `x<id>`（2026-10-23 PR-G 前）读端自动迁到 `<id>`，cookie 里旧版本的种子也认作预设。
+- 调色板（2026-10-23 PR-G 七色）：22 套 = 1 背景色 + 6 前景撞色。子站只消费主站给的 token，不自己定义主题色；当前色板由主站决定。
+  `palettes.json` 每套带 `tokens.light` / `tokens.dark`（Shell：bg-1..7、表面 / 容器、玻璃、遮罩；Semantic：主 / 辅 / 第三色族、选中、链接、边线、文字；
+  外加 fg-1..6（-tint / -ink）、chart-1..6、tag-bg / tag-fg），和 `tokens.css` 里同名 `--sgx-*` 变量一样。怎么用见主站 `docs/palette-usage.md`。
 
 ## 子站读外观：ui-cookie-read.js（只读，永远不写 sgx-ui）
 
@@ -20,10 +24,10 @@
 
 - `SgxUI.read()` → 校验过的 `{v, mode, pal, accent, fs, rm, mat, tz1, tz2, h12, clock, wx, unit, loc, city, precise}`；没有 / 乱码 / 版本不认识 → `null`。
 - `SgxUI.apply(root, opts)` → `<html>` 落成和主站一样：`class="dark"`、`data-theme-mode`、`data-dark`、`font-size` + `data-font-size`、
-  `data-palette`（lake 不写）、自定义色时内联 `--sgx-seed` + `<style id="sgx-accent-roles">`（本站 localStorage `sgx-shell-accent-css` 缓存，首行「SCHEME_VER|#种子」）、
-  `class="reduced-motion"` + `data-reduced-motion`。跟随系统时自动监听 `prefers-color-scheme`。cookie 坏了 = lake + 跟随系统，不抛错、不跳转。
+  `data-palette`（默认 dustyblue 不写）、自定义色时内联 `--sgx-seed` + `<style id="sgx-accent-roles">`（本站 localStorage `sgx-shell-accent-css` 缓存，首行「SCHEME_VER|#种子」）、
+  `class="reduced-motion"` + `data-reduced-motion`。跟随系统时自动监听 `prefers-color-scheme`。cookie 坏了 = 默认 dustyblue + 跟随系统，不抛错、不跳转。
   `opts.rolesCss`：同步可用的引擎；`opts.onMiss(seed)`：没缓存时回调；`opts.watch: false`：不监听。
-- 子站要的 CSS：`tokens.css`（33 套预设 + 别名层）+ `shell.css`（含字标 `.wm-dot` = `--sgx-primary`）。抽屉头用 `nav.json` 的 `wordmark` SVG。
+- 子站要的 CSS：`tokens.css`（22 套七色调色板 + tag / chart 派生 token + 别名层）+ `shell.css`（含字标 `.wm-dot` = `--sgx-primary`）。抽屉头用 `nav.json` 的 `wordmark` SVG。
 - 读端不认 `theme` 别名和大写 accent（写端从不写）；自定义色的种子在内联 `--sgx-seed`（不再用 `data-sgx-seed`）。
   站点自己的样式钩子（如博客的 `data-theme` / `color-scheme`）用 `apply()` 的返回值 `{mode, dark, pal, fs, rm, seed}` 自己补。
 - sync-shell 的 SITE.targets 加：`ui-cookie-read.js`（kind `file`）、`ui-cookie-contract.json`（kind `json`，原样）、

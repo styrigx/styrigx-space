@@ -19,12 +19,13 @@
 /* 顶栏 = 外壳框：left / right 0 + margin auto + width，两侧圆的外缘就是框的左右边（不用 transform 居中） */
 .sgx-topbar { position: fixed; top: calc(var(--sgx-tb-inset) + env(safe-area-inset-top, 0px)); left: 0; right: 0; margin: 0 auto; width: var(--sgx-shell-w);
   height: var(--sgx-tb-btn); z-index: 55; display: flex; align-items: center; gap: var(--sgx-tb-gap); pointer-events: none; }
-/* 顶栏材质（全站统一：顶栏圆 / 长条、导航抽屉、底部搜索栏、内容卡片都用这一套）：主色 10% 混表面色，88% 不透明 + 毛玻璃。
-   只引用色彩角色（--sgx-primary / --sgx-surface / --sgx-glass-edge），预设、亮暗、自定义种子都跟着变。
+/* 顶栏材质（全站统一：顶栏圆 / 长条、导航抽屉、底部搜索栏、内容卡片都用这一套）：中性表面色 88% 不透明 + 毛玻璃。
+   PR-G 三层规则：材质只用中性色（--sgx-surface 只带一点背景色相），不混主题色（以前混 10% 主色；七色调色板的主色是撞色，混进壳会染色）；
+   顶栏、抽屉、内容卡片是同一个壳，所有主题的透明度 / 模糊 / 描边一样。
    --sgx-mat-filter：毛玻璃（顶栏圆 / 长条与导航抽屉面板共用）；没有 backdrop-filter 的浏览器退回 --sgx-mat-solid。 */
 :root {
-  --sgx-mat: color-mix(in srgb, color-mix(in srgb, var(--sgx-primary) 10%, var(--sgx-surface)) 88%, transparent);
-  --sgx-mat-solid: color-mix(in srgb, var(--sgx-primary) 10%, var(--sgx-surface));
+  --sgx-mat: color-mix(in srgb, var(--sgx-surface) 88%, transparent);
+  --sgx-mat-solid: var(--sgx-surface);
   --sgx-mat-line: var(--sgx-glass-edge);
   --sgx-mat-shadow: 0 8px 24px rgba(0,0,0,.14);
   --sgx-mat-filter: blur(24px) saturate(180%);

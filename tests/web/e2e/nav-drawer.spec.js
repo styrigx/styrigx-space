@@ -466,7 +466,8 @@ test.describe('抽屉宽度与底色', () => {
     });
   }
 
-  test('调色板变了抽屉底色跟着变（lake ≠ forest）', async ({ page }) => {
+  /* 2026-10-23 PR-G：材质是中性色，只带一点背景色相（不混主色），所以换色板后仍略有不同 */
+  test('调色板变了抽屉底色跟着变（默认 dustyblue ≠ forest，中性底带背景色相）', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await go(page, '/settings/');
     await openDrawer(page);
@@ -480,20 +481,20 @@ test.describe('抽屉宽度与底色', () => {
 });
 
 /* 2026-10-21 品牌：抽屉头站名 = 内联 SVG 字标（可访问名 Styrigx），大写字母和原来 26px 文字一样高；
-   i 上的圆点跟主题色（--sgx-primary），字母跟 --sgx-text-primary：默认湖蓝亮 / 暗、撞色 xforest 都对。
+   i 上的圆点跟主题色（--sgx-primary），字母跟 --sgx-text-primary：默认 dustyblue 亮 / 暗、forest（含旧撞色 id xforest 迁移）都对。
    标签页 SVG 图标：默认色板用静态 /favicon.svg，换色板后换成主题色的 data: 图标。 */
 test.describe('抽屉头字标 + 标签页图标跟主题色', () => {
   const CASES = [
-    { name: 'lake 亮色', pal: null, dark: false },
-    { name: 'lake 深色', pal: null, dark: true },
-    { name: 'xforest 撞色亮色', pal: 'xforest', dark: false },
-    { name: 'xforest 撞色深色', pal: 'xforest', dark: true },
+    { name: 'dustyblue 亮色', pal: null, dark: false },
+    { name: 'dustyblue 深色', pal: null, dark: true },
+    { name: 'forest 亮色（存的是旧撞色 xforest，首屏迁到 forest）', store: 'xforest', pal: 'forest', dark: false },
+    { name: 'forest 深色', pal: 'forest', dark: true },
   ];
   for (const c of CASES) {
     test(`${c.name}：字标渲染、圆点 = --sgx-primary、字母 = --sgx-text-primary`, async ({ page }) => {
       await page.addInitScript((o) => {
         try {
-          if (o.pal) localStorage.setItem('sgx-palette', o.pal);
+          if (o.store || o.pal) localStorage.setItem('sgx-palette', o.store || o.pal);
           localStorage.setItem('sgx-theme-mode', o.dark ? 'dark' : 'light');
         } catch (e) {}
       }, c);
@@ -539,7 +540,7 @@ test.describe('抽屉头字标 + 标签页图标跟主题色', () => {
       /* 2026-10-22 字标 26 → 32px：大写字母中线仍在原来的行中线（412 宽 ≈ 41.95px，±1px），字高按 32/26 放大（≈ 23.3px） */
       expect(Math.abs((m.capTop + m.base) / 2 - 41.95)).toBeLessThanOrEqual(1);
       expect(Math.abs((m.base - m.capTop) - 18.9 * 32 / 26)).toBeLessThanOrEqual(1);
-      /* SVG 图标：默认湖蓝亮色用静态文件，其他换成主题色 data: 地址 */
+      /* SVG 图标：默认 dustyblue 亮色用静态文件，其他换成主题色 data: 地址 */
       const icon = page.locator('link[rel="icon"][type="image/svg+xml"]');
       await expect(page.locator('link[rel="icon"][href="/favicon.ico"][sizes="32x32"]')).toHaveCount(1);
       if (!c.pal && !c.dark) {

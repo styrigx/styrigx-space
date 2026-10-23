@@ -3,17 +3,18 @@
   "source": "styrigx/styrigx-space",
   "dir": "web/shared/shell",
   "files": {
-    "tokens.css": "4fab2634c833c36d59fa5fb8731053efee26249cdef7f797eac756e6ac76623e",
-    "shell.css": "fdbd55838fb7b412d2ea8f71f11a1abeb1c23238fbe2c0446f56d067288454fc",
-    "palette-scheme.js": "ab6d347b23dc2f062f3b7ca5ae1b94543e898864a8f669972e8720d2729c50c4",
+    "tokens.css": "5fe294b92a0fd42079e966ec7d23aba951762447df220783a74f4ec7814b7b43",
+    "shell.css": "8798290e3ad90c3892afecbfad1f1b97b683296a38398f3dc3d41799adeb4853",
+    "palette-scheme.js": "c51e4304e54ee888768144ca29bc52898479e79dd7ba4dfdda37e8664e7c2f63",
     "search.js": "d9b091a8cbcf675054e4fcb8ca52dfa7630f9e0bfbdb8a417ab8aafe03973ee8",
     "nav.json": "373f01b51847f96e9e77690be94c5db1453ba5927500e53542f42e73cfd69964",
-    "palettes.json": "cb95c4e6570ab1cdcb2bb82de30d709a99910157b7e1b435d9d3b9e8b00d5711",
-    "ui-cookie-read.js": "1f3775827eade901a871bc46eef87a629a437547073c81ccee9499324698f0b0",
-    "ui-cookie-contract.json": "0a785b221628f5aec73033d7fa58b0ff209ef900bd9ee53ab560ecd3e8cfbfc3",
-    "favicon.js": "413b7d6098cb3b611ce1eeaeb0f5562896b8caa6e0984b16f5ce9b7c3ff5ad41",
-    "favicon.svg": "368c680c7554c6cde7f6d374057011a80c564cc08eb5cd3f31af5a4dbc580f07",
-    "README.md": "d00ade3c006533647168f7e5ecda9964f867a68222519e3fd49db9ed10c4a187"
+    "palettes.json": "8acce76979dfeec50d305c8f84e59a83c56b7bbbfa4b45c2f85d631f90bc3c08",
+    "ui-cookie-read.js": "370a9d39abd0d40fb6a85df597fcd9a34c5ea40bb847c87f57d7f0757d6e70bf",
+    "ui-cookie-contract.json": "677ab3413abcad31e6a170d4c77e999d6cb7c22fe2cbc751332e65b66f7975a0",
+    "favicon.js": "044b254ca9d7069bb9ecba436dedc94a1a5d0fa02078d9c10ac0c2db696f5d62",
+    "favicon.svg": "d0140f4bb1f7fe856fc499f996b347bbbcab55c1f15e2c4a6d94b118c3aa569b",
+    "README.md": "7db15a956ec2adf989cc892d63d9e42fb06fecde65d3674198ad22890a7f17b1"
   },
-  "version": "8606f9a7c68b"
+  "version": "a0ce6e491194",
+  "rulesVersion": "palette-rules-1"
 }

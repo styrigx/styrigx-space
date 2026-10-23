@@ -4,17 +4,17 @@
   "now": 1761062400000,
   "cases": [
     {
-      "name": "lake 亮色",
+      "name": "默认 dustyblue 亮色",
       "source": "writer",
       "local": {
         "sgx-theme-mode": "light"
       },
-      "cookie": "eyJ2IjoyLCJ0ejEiOiJhdXRvIiwidHoyIjoiIiwiaDEyIjowLCJjbG9jayI6ImRpZ2l0YWwiLCJ3eCI6MSwidW5pdCI6ImMiLCJsb2MiOiJhdXRvIiwiY2l0eSI6bnVsbCwicHJlY2lzZSI6bnVsbCwibW9kZSI6ImxpZ2h0IiwicGFsIjoibGFrZSIsImFjY2VudCI6IiMyZjVmODYiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
+      "cookie": "eyJ2IjoyLCJ0ejEiOiJhdXRvIiwidHoyIjoiIiwiaDEyIjowLCJjbG9jayI6ImRpZ2l0YWwiLCJ3eCI6MSwidW5pdCI6ImMiLCJsb2MiOiJhdXRvIiwiY2l0eSI6bnVsbCwicHJlY2lzZSI6bnVsbCwibW9kZSI6ImxpZ2h0IiwicGFsIjoiZHVzdHlibHVlIiwiYWNjZW50IjoiI2Q0YTcyYyIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibWF0IjoxNzYxMDYyNDAwMDAwfQ",
       "read": {
         "v": 2,
         "mode": "light",
-        "pal": "lake",
-        "accent": "#2f5f86",
+        "pal": "dustyblue",
+        "accent": "#d4a72c",
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
@@ -32,7 +32,7 @@
         "resolve": {
           "mode": "light",
           "dark": false,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -53,7 +53,7 @@
         "resolve": {
           "mode": "light",
           "dark": false,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -72,17 +72,17 @@
       }
     },
     {
-      "name": "lake 深色",
+      "name": "默认 dustyblue 深色",
       "source": "writer",
       "local": {
         "sgx-theme-mode": "dark"
       },
-      "cookie": "eyJ2IjoyLCJ0ejEiOiJhdXRvIiwidHoyIjoiIiwiaDEyIjowLCJjbG9jayI6ImRpZ2l0YWwiLCJ3eCI6MSwidW5pdCI6ImMiLCJsb2MiOiJhdXRvIiwiY2l0eSI6bnVsbCwicHJlY2lzZSI6bnVsbCwibW9kZSI6ImRhcmsiLCJwYWwiOiJsYWtlIiwiYWNjZW50IjoiIzJmNWY4NiIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibWF0IjoxNzYxMDYyNDAwMDAwfQ",
+      "cookie": "eyJ2IjoyLCJ0ejEiOiJhdXRvIiwidHoyIjoiIiwiaDEyIjowLCJjbG9jayI6ImRpZ2l0YWwiLCJ3eCI6MSwidW5pdCI6ImMiLCJsb2MiOiJhdXRvIiwiY2l0eSI6bnVsbCwicHJlY2lzZSI6bnVsbCwibW9kZSI6ImRhcmsiLCJwYWwiOiJkdXN0eWJsdWUiLCJhY2NlbnQiOiIjZDRhNzJjIiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJtYXQiOjE3NjEwNjI0MDAwMDB9",
       "read": {
         "v": 2,
         "mode": "dark",
-        "pal": "lake",
-        "accent": "#2f5f86",
+        "pal": "dustyblue",
+        "accent": "#d4a72c",
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
@@ -100,7 +100,7 @@
         "resolve": {
           "mode": "dark",
           "dark": true,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -121,7 +121,7 @@
         "resolve": {
           "mode": "dark",
           "dark": true,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -143,12 +143,12 @@
       "name": "跟随系统（空 localStorage）",
       "source": "writer",
       "local": {},
-      "cookie": "eyJ2IjoyLCJ0ejEiOiJhdXRvIiwidHoyIjoiIiwiaDEyIjowLCJjbG9jayI6ImRpZ2l0YWwiLCJ3eCI6MSwidW5pdCI6ImMiLCJsb2MiOiJhdXRvIiwiY2l0eSI6bnVsbCwicHJlY2lzZSI6bnVsbCwibW9kZSI6InN5c3RlbSIsInBhbCI6Imxha2UiLCJhY2NlbnQiOiIjMmY1Zjg2IiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJtYXQiOjE3NjEwNjI0MDAwMDB9",
+      "cookie": "eyJ2IjoyLCJ0ejEiOiJhdXRvIiwidHoyIjoiIiwiaDEyIjowLCJjbG9jayI6ImRpZ2l0YWwiLCJ3eCI6MSwidW5pdCI6ImMiLCJsb2MiOiJhdXRvIiwiY2l0eSI6bnVsbCwicHJlY2lzZSI6bnVsbCwibW9kZSI6InN5c3RlbSIsInBhbCI6ImR1c3R5Ymx1ZSIsImFjY2VudCI6IiNkNGE3MmMiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
       "read": {
         "v": 2,
         "mode": "system",
-        "pal": "lake",
-        "accent": "#2f5f86",
+        "pal": "dustyblue",
+        "accent": "#d4a72c",
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
@@ -166,7 +166,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -187,7 +187,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -206,18 +206,18 @@
       }
     },
     {
-      "name": "撞色 xforest 亮色",
+      "name": "湖蓝 lake 亮色（PR-G 起是普通色板）",
       "source": "writer",
       "local": {
         "sgx-theme-mode": "light",
-        "sgx-palette": "xforest"
+        "sgx-palette": "lake"
       },
-      "cookie": "eyJ2IjoyLCJ0ejEiOiJhdXRvIiwidHoyIjoiIiwiaDEyIjowLCJjbG9jayI6ImRpZ2l0YWwiLCJ3eCI6MSwidW5pdCI6ImMiLCJsb2MiOiJhdXRvIiwiY2l0eSI6bnVsbCwicHJlY2lzZSI6bnVsbCwibW9kZSI6ImxpZ2h0IiwicGFsIjoieGZvcmVzdCIsImFjY2VudCI6IiMyZjZiNGYiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
+      "cookie": "eyJ2IjoyLCJ0ejEiOiJhdXRvIiwidHoyIjoiIiwiaDEyIjowLCJjbG9jayI6ImRpZ2l0YWwiLCJ3eCI6MSwidW5pdCI6ImMiLCJsb2MiOiJhdXRvIiwiY2l0eSI6bnVsbCwicHJlY2lzZSI6bnVsbCwibW9kZSI6ImxpZ2h0IiwicGFsIjoibGFrZSIsImFjY2VudCI6IiNmMTdmNzIiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
       "read": {
         "v": 2,
         "mode": "light",
-        "pal": "xforest",
-        "accent": "#2f6b4f",
+        "pal": "lake",
+        "accent": "#f17f72",
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
@@ -235,7 +235,7 @@
         "resolve": {
           "mode": "light",
           "dark": false,
-          "pal": "xforest",
+          "pal": "lake",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -246,7 +246,7 @@
           "data-dark": "0",
           "data-font-size": "standard",
           "fontSize": "",
-          "data-palette": "xforest",
+          "data-palette": "lake",
           "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
@@ -256,7 +256,7 @@
         "resolve": {
           "mode": "light",
           "dark": false,
-          "pal": "xforest",
+          "pal": "lake",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -267,7 +267,7 @@
           "data-dark": "0",
           "data-font-size": "standard",
           "fontSize": "",
-          "data-palette": "xforest",
+          "data-palette": "lake",
           "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
@@ -275,18 +275,18 @@
       }
     },
     {
-      "name": "撞色 xforest 深色",
+      "name": "旧撞色 xforest → forest（深色）",
       "source": "writer",
       "local": {
         "sgx-theme-mode": "dark",
         "sgx-palette": "xforest"
       },
-      "cookie": "eyJ2IjoyLCJ0ejEiOiJhdXRvIiwidHoyIjoiIiwiaDEyIjowLCJjbG9jayI6ImRpZ2l0YWwiLCJ3eCI6MSwidW5pdCI6ImMiLCJsb2MiOiJhdXRvIiwiY2l0eSI6bnVsbCwicHJlY2lzZSI6bnVsbCwibW9kZSI6ImRhcmsiLCJwYWwiOiJ4Zm9yZXN0IiwiYWNjZW50IjoiIzJmNmI0ZiIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibWF0IjoxNzYxMDYyNDAwMDAwfQ",
+      "cookie": "eyJ2IjoyLCJ0ejEiOiJhdXRvIiwidHoyIjoiIiwiaDEyIjowLCJjbG9jayI6ImRpZ2l0YWwiLCJ3eCI6MSwidW5pdCI6ImMiLCJsb2MiOiJhdXRvIiwiY2l0eSI6bnVsbCwicHJlY2lzZSI6bnVsbCwibW9kZSI6ImRhcmsiLCJwYWwiOiJmb3Jlc3QiLCJhY2NlbnQiOiIjZjA4YTNjIiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJtYXQiOjE3NjEwNjI0MDAwMDB9",
       "read": {
         "v": 2,
         "mode": "dark",
-        "pal": "xforest",
-        "accent": "#2f6b4f",
+        "pal": "forest",
+        "accent": "#f08a3c",
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
@@ -304,7 +304,7 @@
         "resolve": {
           "mode": "dark",
           "dark": true,
-          "pal": "xforest",
+          "pal": "forest",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -315,7 +315,7 @@
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
-          "data-palette": "xforest",
+          "data-palette": "forest",
           "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
@@ -325,7 +325,7 @@
         "resolve": {
           "mode": "dark",
           "dark": true,
-          "pal": "xforest",
+          "pal": "forest",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -336,7 +336,7 @@
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
-          "data-palette": "xforest",
+          "data-palette": "forest",
           "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
@@ -344,18 +344,18 @@
       }
     },
     {
-      "name": "单色 violet 跟随系统",
+      "name": "violet 跟随系统",
       "source": "writer",
       "local": {
         "sgx-theme-mode": "system",
         "sgx-palette": "violet"
       },
-      "cookie": "eyJ2IjoyLCJ0ejEiOiJhdXRvIiwidHoyIjoiIiwiaDEyIjowLCJjbG9jayI6ImRpZ2l0YWwiLCJ3eCI6MSwidW5pdCI6ImMiLCJsb2MiOiJhdXRvIiwiY2l0eSI6bnVsbCwicHJlY2lzZSI6bnVsbCwibW9kZSI6InN5c3RlbSIsInBhbCI6InZpb2xldCIsImFjY2VudCI6IiM2NzUwYTQiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
+      "cookie": "eyJ2IjoyLCJ0ejEiOiJhdXRvIiwidHoyIjoiIiwiaDEyIjowLCJjbG9jayI6ImRpZ2l0YWwiLCJ3eCI6MSwidW5pdCI6ImMiLCJsb2MiOiJhdXRvIiwiY2l0eSI6bnVsbCwicHJlY2lzZSI6bnVsbCwibW9kZSI6InN5c3RlbSIsInBhbCI6InZpb2xldCIsImFjY2VudCI6IiNkNDYyOGYiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
       "read": {
         "v": 2,
         "mode": "system",
         "pal": "violet",
-        "accent": "#6750a4",
+        "accent": "#d4628f",
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
@@ -413,16 +413,85 @@
       }
     },
     {
-      "name": "自定义主题色（lake 上）",
+      "name": "新色板 glacier 亮色",
+      "source": "writer",
+      "local": {
+        "sgx-theme-mode": "light",
+        "sgx-palette": "glacier"
+      },
+      "cookie": "eyJ2IjoyLCJ0ejEiOiJhdXRvIiwidHoyIjoiIiwiaDEyIjowLCJjbG9jayI6ImRpZ2l0YWwiLCJ3eCI6MSwidW5pdCI6ImMiLCJsb2MiOiJhdXRvIiwiY2l0eSI6bnVsbCwicHJlY2lzZSI6bnVsbCwibW9kZSI6ImxpZ2h0IiwicGFsIjoiZ2xhY2llciIsImFjY2VudCI6IiNmMTdmNzIiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
+      "read": {
+        "v": 2,
+        "mode": "light",
+        "pal": "glacier",
+        "accent": "#f17f72",
+        "fs": "standard",
+        "rm": 0,
+        "mat": 1761062400000,
+        "tz1": "auto",
+        "tz2": "",
+        "h12": 0,
+        "clock": "digital",
+        "wx": 1,
+        "unit": "c",
+        "loc": "auto",
+        "city": null,
+        "precise": null
+      },
+      "light": {
+        "resolve": {
+          "mode": "light",
+          "dark": false,
+          "pal": "glacier",
+          "fs": "standard",
+          "rm": false,
+          "seed": ""
+        },
+        "root": {
+          "dark": false,
+          "data-theme-mode": "light",
+          "data-dark": "0",
+          "data-font-size": "standard",
+          "fontSize": "",
+          "data-palette": "glacier",
+          "--sgx-seed": "",
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
+        }
+      },
+      "dark": {
+        "resolve": {
+          "mode": "light",
+          "dark": false,
+          "pal": "glacier",
+          "fs": "standard",
+          "rm": false,
+          "seed": ""
+        },
+        "root": {
+          "dark": false,
+          "data-theme-mode": "light",
+          "data-dark": "0",
+          "data-font-size": "standard",
+          "fontSize": "",
+          "data-palette": "glacier",
+          "--sgx-seed": "",
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
+        }
+      }
+    },
+    {
+      "name": "自定义主题色（默认色板上）",
       "source": "writer",
       "local": {
         "sgx-accent": "#1F8A70"
       },
-      "cookie": "eyJ2IjoyLCJ0ejEiOiJhdXRvIiwidHoyIjoiIiwiaDEyIjowLCJjbG9jayI6ImRpZ2l0YWwiLCJ3eCI6MSwidW5pdCI6ImMiLCJsb2MiOiJhdXRvIiwiY2l0eSI6bnVsbCwicHJlY2lzZSI6bnVsbCwibW9kZSI6InN5c3RlbSIsInBhbCI6Imxha2UiLCJhY2NlbnQiOiIjMWY4YTcwIiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJtYXQiOjE3NjEwNjI0MDAwMDB9",
+      "cookie": "eyJ2IjoyLCJ0ejEiOiJhdXRvIiwidHoyIjoiIiwiaDEyIjowLCJjbG9jayI6ImRpZ2l0YWwiLCJ3eCI6MSwidW5pdCI6ImMiLCJsb2MiOiJhdXRvIiwiY2l0eSI6bnVsbCwicHJlY2lzZSI6bnVsbCwibW9kZSI6InN5c3RlbSIsInBhbCI6ImR1c3R5Ymx1ZSIsImFjY2VudCI6IiMxZjhhNzAiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
       "read": {
         "v": 2,
         "mode": "system",
-        "pal": "lake",
+        "pal": "dustyblue",
         "accent": "#1f8a70",
         "fs": "standard",
         "rm": 0,
@@ -441,7 +510,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": "#1f8a70"
@@ -462,7 +531,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": "#1f8a70"
@@ -481,18 +550,18 @@
       }
     },
     {
-      "name": "自定义主题色（撞色 xrose 上，深色）",
+      "name": "自定义主题色（旧撞色 xrose → rose，深色）",
       "source": "writer",
       "local": {
         "sgx-theme-mode": "dark",
         "sgx-palette": "xrose",
         "sgx-accent": "#d0a020"
       },
-      "cookie": "eyJ2IjoyLCJ0ejEiOiJhdXRvIiwidHoyIjoiIiwiaDEyIjowLCJjbG9jayI6ImRpZ2l0YWwiLCJ3eCI6MSwidW5pdCI6ImMiLCJsb2MiOiJhdXRvIiwiY2l0eSI6bnVsbCwicHJlY2lzZSI6bnVsbCwibW9kZSI6ImRhcmsiLCJwYWwiOiJ4cm9zZSIsImFjY2VudCI6IiNkMGEwMjAiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
+      "cookie": "eyJ2IjoyLCJ0ejEiOiJhdXRvIiwidHoyIjoiIiwiaDEyIjowLCJjbG9jayI6ImRpZ2l0YWwiLCJ3eCI6MSwidW5pdCI6ImMiLCJsb2MiOiJhdXRvIiwiY2l0eSI6bnVsbCwicHJlY2lzZSI6bnVsbCwibW9kZSI6ImRhcmsiLCJwYWwiOiJyb3NlIiwiYWNjZW50IjoiI2QwYTAyMCIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibWF0IjoxNzYxMDYyNDAwMDAwfQ",
       "read": {
         "v": 2,
         "mode": "dark",
-        "pal": "xrose",
+        "pal": "rose",
         "accent": "#d0a020",
         "fs": "standard",
         "rm": 0,
@@ -511,7 +580,7 @@
         "resolve": {
           "mode": "dark",
           "dark": true,
-          "pal": "xrose",
+          "pal": "rose",
           "fs": "standard",
           "rm": false,
           "seed": "#d0a020"
@@ -522,7 +591,7 @@
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
-          "data-palette": "xrose",
+          "data-palette": "rose",
           "--sgx-seed": "#d0a020",
           "reduced-motion": false,
           "data-reduced-motion": "0"
@@ -532,7 +601,7 @@
         "resolve": {
           "mode": "dark",
           "dark": true,
-          "pal": "xrose",
+          "pal": "rose",
           "fs": "standard",
           "rm": false,
           "seed": "#d0a020"
@@ -543,7 +612,7 @@
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
-          "data-palette": "xrose",
+          "data-palette": "rose",
           "--sgx-seed": "#d0a020",
           "reduced-motion": false,
           "data-reduced-motion": "0"
@@ -566,12 +635,12 @@
         "sgx-weather-loc": "city",
         "sgx-weather-city": "{\"name\":\"上海\",\"lat\":31.23,\"lon\":121.47}"
       },
-      "cookie": "eyJ2IjoyLCJ0ejEiOiJBc2lhL1NoYW5naGFpIiwidHoyIjoiQW1lcmljYS9Mb3NfQW5nZWxlcyIsImgxMiI6MSwiY2xvY2siOiJhbmFsb2ciLCJ3eCI6MCwidW5pdCI6ImYiLCJsb2MiOiJjaXR5IiwiY2l0eSI6eyJuYW1lIjoi5LiK5rW3IiwibGF0IjozMS4yMywibG9uIjoxMjEuNDd9LCJwcmVjaXNlIjpudWxsLCJtb2RlIjoic3lzdGVtIiwicGFsIjoibGFrZSIsImFjY2VudCI6IiMyZjVmODYiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
+      "cookie": "eyJ2IjoyLCJ0ejEiOiJBc2lhL1NoYW5naGFpIiwidHoyIjoiQW1lcmljYS9Mb3NfQW5nZWxlcyIsImgxMiI6MSwiY2xvY2siOiJhbmFsb2ciLCJ3eCI6MCwidW5pdCI6ImYiLCJsb2MiOiJjaXR5IiwiY2l0eSI6eyJuYW1lIjoi5LiK5rW3IiwibGF0IjozMS4yMywibG9uIjoxMjEuNDd9LCJwcmVjaXNlIjpudWxsLCJtb2RlIjoic3lzdGVtIiwicGFsIjoiZHVzdHlibHVlIiwiYWNjZW50IjoiI2Q0YTcyYyIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibWF0IjoxNzYxMDYyNDAwMDAwfQ",
       "read": {
         "v": 2,
         "mode": "system",
-        "pal": "lake",
-        "accent": "#2f5f86",
+        "pal": "dustyblue",
+        "accent": "#d4a72c",
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
@@ -593,7 +662,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -614,7 +683,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -639,12 +708,12 @@
         "sgx-font-size": "small",
         "sgx-theme-mode": "light"
       },
-      "cookie": "eyJ2IjoyLCJ0ejEiOiJhdXRvIiwidHoyIjoiIiwiaDEyIjowLCJjbG9jayI6ImRpZ2l0YWwiLCJ3eCI6MSwidW5pdCI6ImMiLCJsb2MiOiJhdXRvIiwiY2l0eSI6bnVsbCwicHJlY2lzZSI6bnVsbCwibW9kZSI6ImxpZ2h0IiwicGFsIjoibGFrZSIsImFjY2VudCI6IiMyZjVmODYiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
+      "cookie": "eyJ2IjoyLCJ0ejEiOiJhdXRvIiwidHoyIjoiIiwiaDEyIjowLCJjbG9jayI6ImRpZ2l0YWwiLCJ3eCI6MSwidW5pdCI6ImMiLCJsb2MiOiJhdXRvIiwiY2l0eSI6bnVsbCwicHJlY2lzZSI6bnVsbCwibW9kZSI6ImxpZ2h0IiwicGFsIjoiZHVzdHlibHVlIiwiYWNjZW50IjoiI2Q0YTcyYyIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibWF0IjoxNzYxMDYyNDAwMDAwfQ",
       "read": {
         "v": 2,
         "mode": "light",
-        "pal": "lake",
-        "accent": "#2f5f86",
+        "pal": "dustyblue",
+        "accent": "#d4a72c",
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
@@ -662,7 +731,7 @@
         "resolve": {
           "mode": "light",
           "dark": false,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -683,7 +752,7 @@
         "resolve": {
           "mode": "light",
           "dark": false,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -702,18 +771,18 @@
       }
     },
     {
-      "name": "本地存了不认识的色板 id（写端写 lake）",
+      "name": "本地存了不认识的色板 id（写端写默认 dustyblue）",
       "source": "writer",
       "local": {
         "sgx-palette": "neon",
         "sgx-theme-mode": "dark"
       },
-      "cookie": "eyJ2IjoyLCJ0ejEiOiJhdXRvIiwidHoyIjoiIiwiaDEyIjowLCJjbG9jayI6ImRpZ2l0YWwiLCJ3eCI6MSwidW5pdCI6ImMiLCJsb2MiOiJhdXRvIiwiY2l0eSI6bnVsbCwicHJlY2lzZSI6bnVsbCwibW9kZSI6ImRhcmsiLCJwYWwiOiJsYWtlIiwiYWNjZW50IjoiIzJmNWY4NiIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibWF0IjoxNzYxMDYyNDAwMDAwfQ",
+      "cookie": "eyJ2IjoyLCJ0ejEiOiJhdXRvIiwidHoyIjoiIiwiaDEyIjowLCJjbG9jayI6ImRpZ2l0YWwiLCJ3eCI6MSwidW5pdCI6ImMiLCJsb2MiOiJhdXRvIiwiY2l0eSI6bnVsbCwicHJlY2lzZSI6bnVsbCwibW9kZSI6ImRhcmsiLCJwYWwiOiJkdXN0eWJsdWUiLCJhY2NlbnQiOiIjZDRhNzJjIiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJtYXQiOjE3NjEwNjI0MDAwMDB9",
       "read": {
         "v": 2,
         "mode": "dark",
-        "pal": "lake",
-        "accent": "#2f5f86",
+        "pal": "dustyblue",
+        "accent": "#d4a72c",
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
@@ -731,7 +800,7 @@
         "resolve": {
           "mode": "dark",
           "dark": true,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -752,7 +821,7 @@
         "resolve": {
           "mode": "dark",
           "dark": true,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -779,7 +848,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -800,7 +869,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -825,7 +894,7 @@
       "read": {
         "v": 1,
         "mode": "system",
-        "pal": "lake",
+        "pal": "dustyblue",
         "accent": "",
         "fs": "standard",
         "rm": 0,
@@ -844,7 +913,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -865,7 +934,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -890,7 +959,7 @@
       "read": {
         "v": 1,
         "mode": "system",
-        "pal": "lake",
+        "pal": "dustyblue",
         "accent": "",
         "fs": "large",
         "rm": 1,
@@ -909,7 +978,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "large",
           "rm": true,
           "seed": ""
@@ -930,7 +999,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "large",
           "rm": true,
           "seed": ""
@@ -1020,7 +1089,7 @@
       "read": {
         "v": 2,
         "mode": "system",
-        "pal": "lake",
+        "pal": "dustyblue",
         "accent": "",
         "fs": "standard",
         "rm": 0,
@@ -1039,7 +1108,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1060,7 +1129,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1115,7 +1184,7 @@
           "data-dark": "0",
           "data-font-size": "standard",
           "fontSize": "",
-          "data-palette": null,
+          "data-palette": "lake",
           "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
@@ -1136,7 +1205,7 @@
           "data-dark": "0",
           "data-font-size": "standard",
           "fontSize": "",
-          "data-palette": null,
+          "data-palette": "lake",
           "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
@@ -1144,13 +1213,208 @@
       }
     },
     {
-      "name": "accent 简写 #abc → 不认",
+      "name": "旧 cookie：撞色 xforest + 旧种子 → forest 预设（不当自定义色）",
       "source": "handmade",
-      "cookie": "eyJ2IjoyLCJhY2NlbnQiOiIjYWJjIn0",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoibGlnaHQiLCJwYWwiOiJ4Zm9yZXN0IiwiYWNjZW50IjoiIzJmNmI0ZiIsIm1hdCI6MTc1MDAwMDAwMDAwMH0",
+      "read": {
+        "v": 2,
+        "mode": "light",
+        "pal": "forest",
+        "accent": "#2f6b4f",
+        "fs": "standard",
+        "rm": 0,
+        "mat": 1750000000000,
+        "tz1": "auto",
+        "tz2": "",
+        "h12": 0,
+        "clock": "digital",
+        "wx": 1,
+        "unit": "c",
+        "loc": "auto",
+        "city": null,
+        "precise": null
+      },
+      "light": {
+        "resolve": {
+          "mode": "light",
+          "dark": false,
+          "pal": "forest",
+          "fs": "standard",
+          "rm": false,
+          "seed": ""
+        },
+        "root": {
+          "dark": false,
+          "data-theme-mode": "light",
+          "data-dark": "0",
+          "data-font-size": "standard",
+          "fontSize": "",
+          "data-palette": "forest",
+          "--sgx-seed": "",
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
+        }
+      },
+      "dark": {
+        "resolve": {
+          "mode": "light",
+          "dark": false,
+          "pal": "forest",
+          "fs": "standard",
+          "rm": false,
+          "seed": ""
+        },
+        "root": {
+          "dark": false,
+          "data-theme-mode": "light",
+          "data-dark": "0",
+          "data-font-size": "standard",
+          "fontSize": "",
+          "data-palette": "forest",
+          "--sgx-seed": "",
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
+        }
+      }
+    },
+    {
+      "name": "旧 cookie：lake + 旧默认种子 → lake 预设",
+      "source": "handmade",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6Imxha2UiLCJhY2NlbnQiOiIjMmY1Zjg2IiwibWF0IjoxNzUwMDAwMDAwMDAwfQ",
+      "read": {
+        "v": 2,
+        "mode": "dark",
+        "pal": "lake",
+        "accent": "#2f5f86",
+        "fs": "standard",
+        "rm": 0,
+        "mat": 1750000000000,
+        "tz1": "auto",
+        "tz2": "",
+        "h12": 0,
+        "clock": "digital",
+        "wx": 1,
+        "unit": "c",
+        "loc": "auto",
+        "city": null,
+        "precise": null
+      },
+      "light": {
+        "resolve": {
+          "mode": "dark",
+          "dark": true,
+          "pal": "lake",
+          "fs": "standard",
+          "rm": false,
+          "seed": ""
+        },
+        "root": {
+          "dark": true,
+          "data-theme-mode": "dark",
+          "data-dark": "1",
+          "data-font-size": "standard",
+          "fontSize": "",
+          "data-palette": "lake",
+          "--sgx-seed": "",
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
+        }
+      },
+      "dark": {
+        "resolve": {
+          "mode": "dark",
+          "dark": true,
+          "pal": "lake",
+          "fs": "standard",
+          "rm": false,
+          "seed": ""
+        },
+        "root": {
+          "dark": true,
+          "data-theme-mode": "dark",
+          "data-dark": "1",
+          "data-font-size": "standard",
+          "fontSize": "",
+          "data-palette": "lake",
+          "--sgx-seed": "",
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
+        }
+      }
+    },
+    {
+      "name": "旧 cookie：xrose + 自定义色 → rose + 自定义色",
+      "source": "handmade",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6Inhyb3NlIiwiYWNjZW50IjoiI2QwYTAyMCIsIm1hdCI6MTc1MDAwMDAwMDAwMH0",
+      "read": {
+        "v": 2,
+        "mode": "dark",
+        "pal": "rose",
+        "accent": "#d0a020",
+        "fs": "standard",
+        "rm": 0,
+        "mat": 1750000000000,
+        "tz1": "auto",
+        "tz2": "",
+        "h12": 0,
+        "clock": "digital",
+        "wx": 1,
+        "unit": "c",
+        "loc": "auto",
+        "city": null,
+        "precise": null
+      },
+      "light": {
+        "resolve": {
+          "mode": "dark",
+          "dark": true,
+          "pal": "rose",
+          "fs": "standard",
+          "rm": false,
+          "seed": "#d0a020"
+        },
+        "root": {
+          "dark": true,
+          "data-theme-mode": "dark",
+          "data-dark": "1",
+          "data-font-size": "standard",
+          "fontSize": "",
+          "data-palette": "rose",
+          "--sgx-seed": "#d0a020",
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
+        }
+      },
+      "dark": {
+        "resolve": {
+          "mode": "dark",
+          "dark": true,
+          "pal": "rose",
+          "fs": "standard",
+          "rm": false,
+          "seed": "#d0a020"
+        },
+        "root": {
+          "dark": true,
+          "data-theme-mode": "dark",
+          "data-dark": "1",
+          "data-font-size": "standard",
+          "fontSize": "",
+          "data-palette": "rose",
+          "--sgx-seed": "#d0a020",
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
+        }
+      }
+    },
+    {
+      "name": "不认识的 x 开头 id（xneon）→ 默认",
+      "source": "handmade",
+      "cookie": "eyJ2IjoyLCJwYWwiOiJ4bmVvbiJ9",
       "read": {
         "v": 2,
         "mode": "system",
-        "pal": "lake",
+        "pal": "dustyblue",
         "accent": "",
         "fs": "standard",
         "rm": 0,
@@ -1169,7 +1433,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1190,7 +1454,72 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "lake",
+          "pal": "dustyblue",
+          "fs": "standard",
+          "rm": false,
+          "seed": ""
+        },
+        "root": {
+          "dark": true,
+          "data-theme-mode": "system",
+          "data-dark": "1",
+          "data-font-size": "standard",
+          "fontSize": "",
+          "data-palette": null,
+          "--sgx-seed": "",
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
+        }
+      }
+    },
+    {
+      "name": "accent 简写 #abc → 不认",
+      "source": "handmade",
+      "cookie": "eyJ2IjoyLCJhY2NlbnQiOiIjYWJjIn0",
+      "read": {
+        "v": 2,
+        "mode": "system",
+        "pal": "dustyblue",
+        "accent": "",
+        "fs": "standard",
+        "rm": 0,
+        "mat": 0,
+        "tz1": "auto",
+        "tz2": "",
+        "h12": 0,
+        "clock": "digital",
+        "wx": 1,
+        "unit": "c",
+        "loc": "auto",
+        "city": null,
+        "precise": null
+      },
+      "light": {
+        "resolve": {
+          "mode": "system",
+          "dark": false,
+          "pal": "dustyblue",
+          "fs": "standard",
+          "rm": false,
+          "seed": ""
+        },
+        "root": {
+          "dark": false,
+          "data-theme-mode": "system",
+          "data-dark": "0",
+          "data-font-size": "standard",
+          "fontSize": "",
+          "data-palette": null,
+          "--sgx-seed": "",
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
+        }
+      },
+      "dark": {
+        "resolve": {
+          "mode": "system",
+          "dark": true,
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1215,7 +1544,7 @@
       "read": {
         "v": 2,
         "mode": "system",
-        "pal": "lake",
+        "pal": "dustyblue",
         "accent": "",
         "fs": "standard",
         "rm": 0,
@@ -1234,7 +1563,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1255,7 +1584,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1282,7 +1611,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1303,7 +1632,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1330,7 +1659,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1351,7 +1680,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1378,7 +1707,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1399,7 +1728,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1426,7 +1755,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1447,7 +1776,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1474,7 +1803,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1495,7 +1824,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1522,7 +1851,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1543,7 +1872,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1570,7 +1899,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1591,7 +1920,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "lake",
+          "pal": "dustyblue",
           "fs": "standard",
           "rm": false,
           "seed": ""

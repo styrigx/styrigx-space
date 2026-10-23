@@ -12,9 +12,9 @@
  *   所以面板和设置页写同一个 localStorage key、互相即时同步（features.on 订阅重绘）。
  * - 语言：切到另一种语言（显式 zh / en），关面板后 replace 到对应语言的同一页（与设置页选语言一致，不留历史）。
  * - 立即锁定：关面板后弹出与安全页相同的「立即锁定？」确认层。
- * - 2026-10-21：减弱动效、字体大小不再放面板里（只在设置页）；调色板不放默认色板 lake 的色块，
- *   行标题右端「恢复默认」（[data-qp-reset]）= 选 lake（同一个 setPalette，自定义主题色也一起清掉）；
- *   已是默认（lake 且没有自定义色）时 aria-disabled 置灰、点了不动，不隐藏（免得跳版）。
+ * - 2026-10-21：减弱动效、字体大小不再放面板里（只在设置页）；行标题右端「恢复默认」（[data-qp-reset]）= 选默认色板
+ *   （2026-10-23 PR-G 起 dustyblue；同一个 setPalette，自定义主题色也一起清掉）；已是默认且没有自定义色时 aria-disabled 置灰、点了不动，不隐藏（免得跳版）。
+ *   PR-G：22 套七色调色板一个网格（不再分单色 / 撞色两行），色块和设置页同一种光晕方块（.pal-tile）。
  */
 import { on as featOn } from '../lib/features.js';
 import { loadI18n } from '../lib/i18n.js';
@@ -27,6 +27,7 @@ import {
   toggleFollowSystem,
   palette,
   setPalette,
+  DEFAULT_PALETTE,
   layoutPref,
   layoutNarrow,
   setLayout,
@@ -83,7 +84,7 @@ export function initQuickPanel() {
       b.setAttribute('aria-pressed', b.getAttribute('data-qp-palette') === p ? 'true' : 'false');
     });
     const rs = dlg.querySelector('[data-qp-reset]');
-    if (rs) rs.setAttribute('aria-disabled', p === 'lake' && !accent() ? 'true' : 'false');
+    if (rs) rs.setAttribute('aria-disabled', p === DEFAULT_PALETTE && !accent() ? 'true' : 'false');
     paintSeg('layout', layoutPref(), layoutNarrow());
     const lang = tile('lang');
     if (lang) lang.setAttribute('aria-label', T.t('qpLangTo'));
@@ -170,13 +171,13 @@ export function initQuickPanel() {
     const rs = t.closest('[data-qp-reset]');
     if (rs) {
       /* 恢复默认：与点色块同一条路（setPalette 会顺手清掉自定义主题色）；已是默认时不动 */
-      if (rs.getAttribute('aria-disabled') !== 'true') setPalette('lake');
+      if (rs.getAttribute('aria-disabled') !== 'true') setPalette(DEFAULT_PALETTE);
       paint();
       return;
     }
     const sw = t.closest('[data-qp-palette]');
     if (sw) {
-      setPalette(sw.getAttribute('data-qp-palette') || 'lake');
+      setPalette(sw.getAttribute('data-qp-palette') || DEFAULT_PALETTE);
       paint();
       return;
     }

@@ -76,7 +76,7 @@ function decodeCookie(v) {
  *   tz1←sgx-tz1（sgx-tz1-auto 为真写 "auto"）；tz2←sgx-tz2；h12←sgx-hour12；
  *   clock←sgx-gl-clockstyle；wx←sgx-weather-show；unit←sgx-temp-unit；
  *   loc←sgx-weather-loc；city←sgx-weather-city；precise←sgx-weather-precise。
- *   B2-7（v2）外观：mode←sgx-theme-mode（system/light/dark）；pal←sgx-palette（缺省 lake）；
+ *   B2-7（v2）外观：mode←sgx-theme-mode（system/light/dark）；pal←sgx-palette（缺省 dustyblue）；
  *   accent：当前主题色种子 #rrggbb（PR3 色彩角色 token；sgx-accent 自定义优先，否则读 --sgx-seed 即预设色板的种子），
  *   子站拿它派生同一套角色；读不到为 ''。
  *   fs / rm：固定 'standard' / 0（2026-10-23 PR-E 删了字体大小、减弱动效设置；子站减弱动效跟系统 prefers-reduced-motion）；
@@ -108,8 +108,8 @@ export function syncUiCookie() {
     city: parseJson(ls('sgx-weather-city')),
     precise: parseJson(ls('sgx-weather-precise')),
     mode: U.MODES.indexOf(ls('sgx-theme-mode') || '') >= 0 ? ls('sgx-theme-mode') : 'system',
-    /* 只写读端认识的预设（未知 id 主站本来也渲染成默认 lake） */
-    pal: Object.prototype.hasOwnProperty.call(U.PRESETS, ls('sgx-palette') || '') ? ls('sgx-palette') : U.DEFAULT_PAL,
+    /* 只写读端认识的预设（旧撞色 x<id> → <id>；未知 id 主站本来也渲染成默认 dustyblue） */
+    pal: U.normPal(ls('sgx-palette')),
     accent: currentSeed(),
     /* fs / rm：字体大小、减弱动效两个设置 2026-10-23 删除，字段保留（子站读端认识它们）但固定写默认值，旧 localStorage 值不再带给子站 */
     fs: 'standard',

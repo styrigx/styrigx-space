@@ -40,7 +40,11 @@ test('外壳 CSS：字标高 = 站名字号 × 2010/2048，字母跟 text-primar
 
 test('标签页图标 + 分享卡片：静态文件齐全、尺寸对', () => {
   const svg = rd('web/static/favicon.svg').toString();
-  assert.match(svg, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 1000 1000"><path fill="#2f5f86" d="M[^"]+"\/><path fill="#fff" d="M[^"]+"\/><\/svg>$/);
+  /* 2026-10-23 PR-G：方块 = 默认色板 dustyblue 的浅色主色（palette-roles.json），和 favicon.js 的 BG 同一个值 */
+  const dflt = JSON.parse(rd('web/data/palette-roles.json').toString()).presets.dustyblue.light.primary;
+  assert.equal(dflt, '#7e6000');
+  assert.ok(rd('web/assets/js/shell/favicon.js').toString().includes(`const BG = '${dflt}';`));
+  assert.match(svg, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 1000 1000"><path fill="#7e6000" d="M[^"]+"\/><path fill="#fff" d="M[^"]+"\/><\/svg>$/);
   assert.ok(svg.length < 2000, 'favicon.svg ' + svg.length);
   const ico = rd('web/static/favicon.ico');
   assert.equal(ico.readUInt16LE(0), 0);
@@ -76,6 +80,6 @@ test('favicon.js：颜色转十六进制；只换默认两色，认不出的 SVG
   const out = decodeURIComponent(url.slice('data:image/svg+xml,'.length));
   assert.match(out, /fill="#2f6b4f"/);
   assert.match(out, /fill="#f7fcf9"/);
-  assert.doesNotMatch(out, /#2f5f86|fill="#fff"/);
+  assert.doesNotMatch(out, /#7e6000|fill="#fff"/);
   assert.equal(recolor('<svg><path fill="red"/></svg>', '#000000', '#ffffff'), '');
 });

@@ -255,8 +255,8 @@ test.describe('unlock methods entry relocation', () => {
   });
 });
 
-/* v1.3 #42 → B2-7：调色板换行态（B2-7 起真实色板已有 13 个，不再注入测试色块）。
-   断言换行 + 末行左对齐 + 对勾可见。
+/* v1.3 #42 → B2-7 → 2026-10-23 PR-G 七色调色板：22 套一个列表，按 group 分组（冷调 / 自然 / 暖调 / 花色 / 中性），没有单色 / 撞色分页。
+   断言分组 + 412 宽每行 4 个 + 末行左对齐 + 选中描边 / 对勾 + 预览卡跟着换 + 键盘可选 + 恢复默认。
    注：像素级视觉基线需在 CI 环境生成，本地环境字体渲染有差异，故此处只做 DOM 断言。 */
 test('palette 8-color test state', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
@@ -265,65 +265,97 @@ test('palette 8-color test state', async ({ page: pg }) => {
   await expect(grid).toBeVisible();
   const fs = require('fs');
   const path = require('path');
-  /* 2026-10-21：两组；#palette-dots = 单色组（默认分页），#palette-dots-clash = 撞色组（隐藏，点「撞色」才显示） */
   const yml = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'web', 'data', 'palettes.yaml'), 'utf8');
-  const items = [...yml.matchAll(/^\s*- id: ([a-z]+)\n(?:\s+\w+: .*\n)*?\s+group: (mono|clash)$/gm)].map((m) => [m[1], m[2]]);
-  const ids = items.filter((x) => x[1] === 'mono').map((x) => x[0]);
-  const clashIds = items.filter((x) => x[1] === 'clash').map((x) => x[0]);
-  expect(clashIds.length).toBe(16);
-  await pg.evaluate(() => {
-    document.getElementById('palette-dots').querySelector('.swatch').setAttribute('aria-pressed', 'true');
-  });
-  /* 2026-10-21：默认 lake 不放色块（标题右端「恢复默认」代替） */
-  await expect(grid.locator('.palette-cell')).toHaveCount(ids.length - 1);
-  await expect(grid.locator('.swatch[data-palette="lake"]')).toHaveCount(0);
-  expect(ids.length).toBeGreaterThanOrEqual(8);
-  // 断言换行：13 色在 412px 宽度下必定换行
-  const boxes = await grid.locator('.palette-cell').evaluateAll((els) =>
+  const items = [...yml.matchAll(/^\s*- id: ([a-z]+)\n(?:\s+\w+: .*\n)*?\s+group: ([a-z]+)$/gm)].map((m) => [m[1], m[2]]);
+  expect(items.length).toBe(22);
+  /* 没有单色 / 撞色分页，没有撞色胶囊 */
+  await expect(pg.locator('[data-pal-tab]')).toHaveCount(0);
+  await expect(pg.locator('#palette-dots-clash, .swatch-clash')).toHaveCount(0);
+  await expect(pg.locator('#sg-theme .text-m-on-surface-variant').first()).toHaveText('背景光晕和按钮、标题、图标一起换色。');
+  /* 分组标题 + 每组的色块（顺序 = palettes.yaml） */
+  await expect(grid.locator('.pal-group-title')).toHaveText(['冷调', '自然', '暖调', '花色', '中性']);
+  const groups = grid.locator('.pal-grid');
+  await expect(groups).toHaveCount(5);
+  for (const [i, g] of ['cool', 'nature', 'warm', 'floral', 'neutral'].entries()) {
+    const want = items.filter((x) => x[1] === g).map((x) => x[0]);
+    expect(await groups.nth(i).locator('.pal-tile').evaluateAll((els) => els.map((e) => e.getAttribute('data-palette')))).toEqual(want);
+  }
+  await expect(grid.locator('.pal-tile')).toHaveCount(22);
+  /* 默认 dustyblue 有「默认」标，初始选中；其他都没选 */
+  await expect(grid.locator('.palette-cell:has([data-palette="dustyblue"]) .pal-def')).toHaveText('默认');
+  await expect(grid.locator('.pal-def')).toHaveCount(1);
+  await expect(grid.locator('.pal-tile[aria-pressed="true"]')).toHaveCount(1);
+  await expect(grid.locator('[data-palette="dustyblue"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(grid.locator('.pal-tile[aria-pressed="true"] .pal-check')).toBeVisible();
+  /* 412 宽：冷调 6 个排成 4 + 2，末行左对齐；色块是正方形，6 个前景色点 */
+  const boxes = await groups.nth(0).locator('.palette-cell').evaluateAll((els) =>
     els.map((el) => { const r = el.getBoundingClientRect(); return { top: Math.round(r.top), left: Math.round(r.left) }; })
   );
-  const rows = new Set(boxes.map((b) => b.top));
-  expect(rows.size).toBeGreaterThan(1);
-  // 末行左对齐：最后一行第一个 cell 的 left 与第一行第一个 cell 的 left 一致（±2px）
-  const firstRowLeft = Math.min(...boxes.filter((b) => b.top === Math.min(...[...rows])).map((b) => b.left));
-  const lastRowTop = Math.max(...[...rows]);
-  const lastRowLeft = Math.min(...boxes.filter((b) => b.top === lastRowTop).map((b) => b.left));
-  expect(Math.abs(lastRowLeft - firstRowLeft)).toBeLessThanOrEqual(2);
-  // 选中态对勾可见
-  await expect(grid.locator('.swatch[aria-pressed="true"] .swatch-check')).toBeVisible();
-  // 撞色分页：点「撞色」→ 单色网格隐藏、撞色网格显示 16 个竖条色块；点撞色色块选中后刷新，默认打开撞色分页
-  const clash = pg.locator('#palette-dots-clash');
-  await expect(clash).toBeHidden();
-  await pg.locator('[data-pal-tab="clash"]').click();
-  await expect(clash).toBeVisible();
-  await expect(grid).toBeHidden();
-  await expect(clash.locator('.swatch.swatch-clash')).toHaveCount(clashIds.length);
-  await clash.locator('.swatch[data-palette="xforest"]').click();
-  await expect(pg.locator('html')).toHaveAttribute('data-palette', 'xforest');
+  const rows = [...new Set(boxes.map((b) => b.top))];
+  expect(rows.length).toBe(2);
+  expect(boxes.filter((b) => b.top === rows[0]).length).toBe(4);
+  expect(Math.abs(boxes[4].left - boxes[0].left)).toBeLessThanOrEqual(2);
+  const tb = await grid.locator('.pal-tile').first().boundingBox();
+  expect(Math.abs(tb.width - tb.height)).toBeLessThanOrEqual(1);
+  await expect(grid.locator('.pal-tile').first().locator('.pal-dots i')).toHaveCount(6);
+  /* 预览卡：浅色 / 深色两部小手机（只有文字标签，没有单选、不能点），名字 = 当前色板 */
+  const pv = pg.locator('#pal-preview');
+  await expect(pv.locator('.pal-mini')).toHaveCount(2);
+  await expect(pv.locator('.pal-pv-label')).toHaveText(['浅色', '深色']);
+  await expect(pv.locator('input, button, [role="radio"]')).toHaveCount(0);
+  await expect(pg.locator('#pal-preview-name')).toHaveText('雾霾蓝');
+  /* 选山绿：写 sgx-palette、整页换色、预览卡换成山绿的变量；刷新后仍选中 */
+  await grid.locator('.pal-tile[data-palette="forest"]').click();
+  await expect(pg.locator('html')).toHaveAttribute('data-palette', 'forest');
+  await expect(grid.locator('[data-palette="forest"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(grid.locator('[data-palette="dustyblue"]')).toHaveAttribute('aria-pressed', 'false');
+  await expect(pg.locator('#pal-preview-name')).toHaveText('山绿');
+  expect(await pv.getAttribute('style')).toBe(await grid.locator('[data-palette="forest"]').getAttribute('style'));
   await pg.reload({ waitUntil: 'domcontentloaded' });
-  await expect(pg.locator('#palette-dots-clash')).toBeVisible();
-  await expect(pg.locator('#palette-dots-clash .swatch[data-palette="xforest"]')).toHaveAttribute('aria-pressed', 'true');
-  await expect(pg.locator('[data-pal-tab="clash"]')).toHaveAttribute('aria-pressed', 'true');
-  /* 恢复默认（标题行右端）：非默认时可点 → 回 lake（不存 key）、置灰（aria-disabled，不隐藏）；置灰时点了不动 */
+  await expect(pg.locator('#palette-dots [data-palette="forest"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(pg.locator('#pal-preview-name')).toHaveText('山绿');
+  /* 键盘：焦点到色块、Enter 选中 */
+  await pg.locator('#palette-dots [data-palette="cream"]').focus();
+  await pg.keyboard.press('Enter');
+  await expect(pg.locator('html')).toHaveAttribute('data-palette', 'cream');
+  await expect(pg.locator('#palette-dots [data-palette="cream"]')).toHaveAttribute('aria-pressed', 'true');
+  /* 恢复默认（标题行右端）：非默认时可点 → 回 dustyblue（不存 key）、置灰（aria-disabled，不隐藏）；置灰时点了不动 */
   const rs = pg.locator('#palette-reset');
   await expect(rs).toHaveText('恢复默认');
   await expect(rs).toHaveAttribute('aria-disabled', 'false');
   const title = pg.locator('#sg-theme p.text-sm.font-medium').first();
-  const tb = await title.boundingBox();
+  const tt = await title.boundingBox();
   const rb = await rs.boundingBox();
-  expect(rb.x).toBeGreaterThan(tb.x + tb.width);
-  expect(Math.abs(rb.y + rb.height / 2 - (tb.y + tb.height / 2))).toBeLessThanOrEqual(1.5);
+  expect(rb.x).toBeGreaterThan(tt.x + tt.width);
+  expect(Math.abs(rb.y + rb.height / 2 - (tt.y + tt.height / 2))).toBeLessThanOrEqual(1.5);
   await rs.click();
   await expect(pg.locator('html')).not.toHaveAttribute('data-palette', /.+/);
   expect(await pg.evaluate(() => localStorage.getItem('sgx-palette'))).toBeNull();
   await expect(rs).toHaveAttribute('aria-disabled', 'true');
   await expect(rs).toBeVisible();
   await expect.poll(() => rs.evaluate((el) => Number(getComputedStyle(el).opacity))).toBeLessThan(0.6); /* opacity 有 .15s 过渡 */
-  await expect(pg.locator('#palette-dots .swatch[aria-pressed="true"], #palette-dots-clash .swatch[aria-pressed="true"]')).toHaveCount(0);
+  await expect(pg.locator('#palette-dots .pal-tile[aria-pressed="true"]')).toHaveCount(1);
+  await expect(pg.locator('#palette-dots [data-palette="dustyblue"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(pg.locator('#pal-preview-name')).toHaveText('雾霾蓝');
   await rs.click({ force: true }); /* aria-disabled：强制点一下验证没反应 */
   expect(await pg.evaluate(() => localStorage.getItem('sgx-palette'))).toBeNull();
   await pg.reload({ waitUntil: 'domcontentloaded' });
   await expect(pg.locator('#palette-reset')).toHaveAttribute('aria-disabled', 'true');
+});
+
+/* 2026-10-23 PR-G：单色 / 撞色合并，旧的撞色 id x<id> 首屏迁到 <id>（localStorage 也改写），不认识的 id 清掉回默认 */
+test('旧撞色 id 迁移：xforest → forest；不认识的 id → 默认 dustyblue', async ({ page: pg }) => {
+  await pinLang(pg, 'zh');
+  await pg.addInitScript(() => { try { if (!sessionStorage.getItem('mig')) { localStorage.setItem('sgx-palette', 'xforest'); sessionStorage.setItem('mig', '1'); } } catch (e) {} });
+  await gotoSettings(pg, '/settings/theme/');
+  await expect(pg.locator('html')).toHaveAttribute('data-palette', 'forest');
+  expect(await pg.evaluate(() => localStorage.getItem('sgx-palette'))).toBe('forest');
+  await expect(pg.locator('#palette-dots [data-palette="forest"]')).toHaveAttribute('aria-pressed', 'true');
+  await pg.evaluate(() => localStorage.setItem('sgx-palette', 'neon'));
+  await pg.reload({ waitUntil: 'domcontentloaded' });
+  await expect(pg.locator('html')).not.toHaveAttribute('data-palette', /.+/);
+  expect(await pg.evaluate(() => localStorage.getItem('sgx-palette'))).toBeNull();
+  await expect(pg.locator('#palette-dots [data-palette="dustyblue"]')).toHaveAttribute('aria-pressed', 'true');
 });
 
 /* B2-1：诊断留痕已删除——即使 sessionStorage 里残留旧版的留痕/信标，安全与隐私页也不显示跳转日志卡；

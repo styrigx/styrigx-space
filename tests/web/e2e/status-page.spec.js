@@ -293,10 +293,10 @@ for (const [label, viewport] of VIEWPORTS) {
       const inc = await box(page, '#st-inc-wrap');
       expect(u.y).toBeGreaterThan(lastCard.y + lastCard.height);
       expect(inc.y).toBeGreaterThan(u.y + u.height - 1);
-      /* 进度条：宽度 ∝ 用量；琥珀 = --m-warm，红 = --sgx-danger，正常 = --sgx-primary */
+      /* 进度条：宽度 ∝ 用量；琥珀 = --m-warm，红 = --sgx-danger，正常 = --sgx-primary-fill（填充档，2026-10-23 PR-G 修订） */
       const fills = await page.locator('#st-usage .st-u').evaluateAll((els) => {
         const color = (v) => { const d = document.createElement('div'); d.style.background = 'var(' + v + ')'; document.body.appendChild(d); const c = getComputedStyle(d).backgroundColor; d.remove(); return c; };
-        const ref = { ok: color('--sgx-primary'), warn: color('--m-warm'), crit: color('--sgx-danger') };
+        const ref = { ok: color('--sgx-primary-fill'), warn: color('--m-warm'), crit: color('--sgx-danger') };
         return els.map((li) => {
           const tr = li.querySelector('.st-u-track').getBoundingClientRect();
           const f = li.querySelector('.st-u-fill');

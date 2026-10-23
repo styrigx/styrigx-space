@@ -12,6 +12,7 @@ import { renderAll, OUT_DIR, SHELL_REGIONS, extractRegion } from '../../../scrip
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const files = renderAll();
+const ROLES = JSON.parse(readFileSync(path.join(REPO, 'web/data/palette-roles.json'), 'utf8'));
 
 test('web/shared/shell 和源头一致（改了源头要重跑 node scripts/gen-shell.mjs）', () => {
   for (const [k, v] of Object.entries(files)) assert.equal(readFileSync(path.join(OUT_DIR, k), 'utf8'), v, k);
@@ -79,15 +80,42 @@ test('nav.json：主站 / 奇趣 / 日刻 / 博客，没有设置；抽屉头搜
   assert.ok(nav.icons['apps-grid']);
 });
 
-test('palettes.json：33 个预设（单色 17 + 撞色 16，每项带 group），种子和 tokens.css 的 --sgx-seed 一致', () => {
+test('palettes.json：22 套七色调色板（每项带 group / bg / 6 前景 + 亮暗 Shell + Semantic token），种子和 tokens.css 的 --sgx-seed 一致', () => {
   const p = JSON.parse(files['palettes.json']);
-  assert.equal(p.presets.length, 33);
-  for (const x of p.presets) assert.ok(x.group === 'mono' || x.group === 'clash', x.id);
-  assert.equal(p.default, 'lake');
+  assert.equal(p.presets.length, 22);
+  assert.deepEqual(p.groups.map((g) => g.id), ['cool', 'nature', 'warm', 'floral', 'neutral']);
+  for (const x of p.presets) {
+    assert.ok(p.groups.some((g) => g.id === x.group), x.id);
+    assert.match(x.bg, /^#[0-9a-f]{6}$/, x.id);
+    assert.equal(x.fg.length, 6, x.id);
+    assert.equal(x.seed, x.fg[0], x.id + ' 种子 = 前景 1');
+    assert.ok(!/^x[a-z]/.test(x.id), x.id + ' 撞色 x* id 已删除');
+    for (const m of ['light', 'dark']) {
+      const t = x.tokens[m];
+      for (const k of ['bg-1', 'bg-7', 'surface', 'topbar-glass', 'primary', 'on-primary', 'primary-container', 'secondary', 'nav-selected', 'link', 'outline-variant', 'text-primary', 'text-secondary', 'chart-1', 'chart-6', 'tag-bg', 'tag-fg'])
+        assert.ok(typeof t[k] === 'string' && t[k], `${x.id} ${m} ${k}`);
+      // chart-N = 引擎生成的角色（本色 → ink 回退，对比度 / 区分度单测在 palette-scheme.test.mjs）
+      for (let i = 1; i <= 6; i++) assert.equal(t['chart-' + i], ROLES.presets[x.id][m]['chart-' + i], `${x.id} ${m} chart-${i}`);
+      // 完整导出：填充档、固定状态色、焦点环、状态层、前景四档都在
+      for (const k of ['primary-fill', 'on-primary-fill', 'focus-ring', 'danger', 'on-danger-container', 'success', 'success-container', 'warning', 'on-warning',
+        'warning-container', 'info', 'on-info-container', 'state-color', 'state-hover', 'state-pressed', 'fg-1-on', 'fg-6-on', 'night-card', 'switch-track-on'])
+        assert.ok(t[k] !== undefined && t[k] !== '', `${x.id} ${m} ${k}`);
+      // tokens.css 里同名变量同值
+      assert.ok(files['tokens.css'].includes(`--sgx-bg-1: ${t['bg-1']};`), `${x.id} ${m} bg-1 in tokens.css`);
+    }
+  }
+  assert.equal(p.default, 'dustyblue');
+  assert.equal(p.rulesVersion, 'palette-rules-1');
+  assert.equal(JSON.parse(files['manifest.json']).rulesVersion, 'palette-rules-1');
+  assert.equal(p.presets[0].id, 'dustyblue');
   for (const { id, seed } of p.presets) {
-    const sel = id === 'lake' ? ':root,\n:root[data-palette="lake"] {' : `:root[data-palette="${id}"] {`;
+    const sel = id === 'dustyblue' ? ':root,\n:root[data-palette="dustyblue"] {' : `:root[data-palette="${id}"] {`;
     assert.ok(files['tokens.css'].includes(`${sel}\n  --sgx-seed: ${seed};`), id);
   }
+  // 调色板派生 token（tag）在 tokens.css；chart-1..6 是每套生成的角色
+  assert.match(files['tokens.css'], /--sgx-chart-1: #[0-9a-f]{6};/);
+  assert.doesNotMatch(files['tokens.css'], /--sgx-chart-1: var\(--sgx-fg-1\);/);
+  assert.match(files['tokens.css'], /--sgx-tag-bg: var\(--sgx-fg-4-tint\);/);
 });
 
 test('顶栏 v8（2026-10-22）：九宫格圆 | 只有页名的长条 | 右圆 .sgx-tb-end（每站自定义），三块同材质；头像在抽屉头 .sgx-drawer-me（52px）', () => {

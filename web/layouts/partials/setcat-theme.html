@@ -1,40 +1,53 @@
 {{/* 2.6.0：设置子页「theme」分类组（自 settings.html 抽取，set-gh 标题由子页大标题替代）。
    v1.3 #40：调色板用 CSS grid 自适应列（.palette-grid），不再 flex-wrap。
    v1.3 #42：色板数据走 data/palettes.yaml（单数组配置），加颜色只改配置。
-   2026-10-21：单色 / 撞色两组分页；撞色色块是 One UI 式竖条胶囊，色带 = 主 / 辅 / 第三色 + 浅色调（partials/palette-swatch-vars.html）。 */}}
+   2026-10-23 PR-G 七色调色板：单色 / 撞色分页删掉，22 套一个列表、按 group 分组（冷调 / 自然 / 暖调 / 花色 / 中性）。
+   上面一张预览卡（One UI「显示」式）：浅色 / 深色两部小手机画首页缩略（顶栏、资料卡、双时钟、屏幕时间），只是预览，不是深浅色开关；
+   色块 = 圆角方形光晕（背景 7 档，跟当前深浅色）+ 底部 6 个前景色圆点。颜色变量都来自 partials/palette-tile-vars.html。 */}}
 {{ $isEn := .isEn }}{{ $featMap := .featMap }}{{ $palettes := .palettes }}
+{{ $defId := "" }}{{ range site.Data.features.features }}{{ if eq .id "palette" }}{{ $defId = .default }}{{ end }}{{ end }}
+{{ $defPal := index (where $palettes "id" $defId) 0 }}
 <div class="set-group scroll-mt-24" id="sg-theme">
 <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.14s">
       <div class="p-5">
-        {{/* 2026-10-21：默认色板 lake 不再放色块，改成标题右端「恢复默认」小按钮（#palette-reset，settings.js；已是默认时 aria-disabled 置灰，不隐藏） */}}
+        {{/* 标题右端「恢复默认」小按钮（#palette-reset，settings.js；已是默认时 aria-disabled 置灰，不隐藏） */}}
         <div class="flex items-center justify-between gap-3">
           <p class="text-sm font-medium">{{ if $isEn }}Color palette{{ else }}调色板{{ end }}</p>
           <button type="button" class="palette-reset" id="palette-reset" aria-disabled="true">{{ partial "icon.html" "undo" }}<span>{{ if $isEn }}Reset{{ else }}恢复默认{{ end }}</span></button>
         </div>
-        <p class="text-xs text-m-on-surface-variant mt-1 mb-3">{{ if $isEn }}Change the color of buttons, titles, and icons.{{ else }}更改按钮、标题和图标的颜色。{{ end }}</p>
-        {{/* 2026-10-21：单色 / 撞色两个分页（One UI 调色板的「基本颜色 / 壁纸颜色」式）；默认显示当前色板所在的那组（settings.js），
-           没有 JS 时显示单色组。单色 = 圆点（种子色），撞色 = 竖条胶囊（partials/palette-swatch-vars.html 的色带）。 */}}
-        <div class="seg palette-tabs" role="group" aria-label="{{ if $isEn }}Palette group{{ else }}色板分组{{ end }}">
-          <button type="button" data-pal-tab="mono" aria-pressed="true">{{ if $isEn }}Mono{{ else }}单色{{ end }}</button>
-          <button type="button" data-pal-tab="clash" aria-pressed="false">{{ if $isEn }}Clash{{ else }}撞色{{ end }}</button>
-        </div>
-        <div class="palette-grid" id="palette-dots" data-pal-group="mono">
-          {{ range where (where $palettes "group" "mono") "id" "!=" "lake" }}
-          <div class="palette-cell">
-            <button type="button" class="swatch" data-palette="{{ .id }}" style="background:{{ .c }}" aria-pressed="false" aria-label="{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}">
-              <svg class="swatch-check" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M9 16.2l-3.5-3.5-1.4 1.4L9 19 20.9 7.1l-1.4-1.4z" fill="currentColor"/></svg>
-            </button>
-            <span class="palette-name">{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}</span>
+        <p class="text-xs text-m-on-surface-variant mt-1 mb-3">{{ if $isEn }}The background glow, buttons, titles and icons change together.{{ else }}背景光晕和按钮、标题、图标一起换色。{{ end }}</p>
+        {{/* 预览卡：没有 JS 时显示默认色板；settings.js 选中色块后把色块上的变量（style）和名字拷过来 */}}
+        <div class="pal-preview" id="pal-preview" style="{{ partial "palette-tile-vars.html" (dict "id" $defId "full" true) | safeCSS }}">
+          <div class="pal-pv-head"><b id="pal-preview-name">{{ if $isEn }}{{ $defPal.en }}{{ else }}{{ $defPal.zh }}{{ end }}</b><span>{{ if $isEn }}Current palette{{ else }}当前调色板{{ end }}</span></div>
+          <div class="pal-pv-row" aria-hidden="true">
+            {{ range $m := slice "l" "d" }}
+            <div class="pal-pv-col">
+              <div class="pal-mini pal-mini-{{ $m }}">
+                <div class="pm-top"><span class="pm-c"><i></i></span><span class="pm-pill"><b></b><i></i><i></i></span><span class="pm-c"><i></i></span></div>
+                <div class="pm-card pm-prof"><span class="pm-av"></span><span class="pm-lines"><i class="pm-name"></i><i></i><i class="pm-short"></i></span></div>
+                <div class="pm-card pm-clock"><span class="pm-day"><i class="pm-sm"></i><i class="pm-big"></i><i class="pm-sm"></i></span><span class="pm-night"><i class="pm-sm"></i><i class="pm-big"></i><i class="pm-sm"></i></span></div>
+                <div class="pm-card pm-wb"><i class="pm-lbl"></i><span class="pm-row"><b></b><i></i></span><span class="pm-row"><b></b><i></i></span><span class="pm-row"><b></b><i></i></span><span class="pm-bar"><b></b><b></b><b></b></span></div>
+              </div>
+              <span class="pal-pv-label">{{ if eq $m "l" }}{{ if $isEn }}Light{{ else }}浅色{{ end }}{{ else }}{{ if $isEn }}Dark{{ else }}深色{{ end }}{{ end }}</span>
+            </div>
+            {{ end }}
           </div>
-          {{ end }}
         </div>
-        <div class="palette-grid palette-grid-clash" id="palette-dots-clash" data-pal-group="clash" hidden>
-          {{ range where $palettes "group" "clash" }}
-          <div class="palette-cell">
-            <button type="button" class="swatch swatch-clash" data-palette="{{ .id }}" style="{{ partial "palette-swatch-vars.html" (dict "id" .id "c" .c) | safeCSS }}" aria-pressed="false" aria-label="{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}">
-              <svg class="swatch-check" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M9 16.2l-3.5-3.5-1.4 1.4L9 19 20.9 7.1l-1.4-1.4z" fill="currentColor"/></svg>
-            </button>
-            <span class="palette-name">{{ if $isEn }}{{ .en }}{{ else }}{{ $seg := split .zh "×" }}{{ range $i, $x := $seg }}<span class="pn-seg">{{ $x }}{{ if lt $i (sub (len $seg) 1) }}×{{ end }}</span>{{ if lt $i (sub (len $seg) 1) }}<wbr>{{ end }}{{ end }}{{ end }}</span>
+        <div id="palette-dots">
+          {{ range site.Data.palettes.groups }}
+          {{ $g := . }}
+          <p class="pal-group-title">{{ if $isEn }}{{ $g.en }}{{ else }}{{ $g.zh }}{{ end }}</p>
+          <div class="palette-grid pal-grid" role="group" aria-label="{{ if $isEn }}{{ $g.en }}{{ else }}{{ $g.zh }}{{ end }}">
+            {{ range where $palettes "group" $g.id }}
+            {{ $name := cond $isEn .en .zh }}
+            <div class="palette-cell">
+              <button type="button" class="pal-tile" data-palette="{{ .id }}" data-name="{{ $name }}" style="{{ partial "palette-tile-vars.html" (dict "id" .id "full" true) | safeCSS }}" aria-pressed="false" aria-label="{{ $name }}{{ if eq .id $defId }}{{ if $isEn }} (default){{ else }}（默认）{{ end }}{{ end }}">
+                <span class="pal-check" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M9 16.2l-3.5-3.5-1.4 1.4L9 19 20.9 7.1l-1.4-1.4z" fill="currentColor"/></svg></span>
+                <span class="pal-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>
+              </button>
+              <span class="palette-name"><span class="pal-nm">{{ $name }}</span>{{ if eq .id $defId }}<em class="pal-def">{{ if $isEn }}Default{{ else }}默认{{ end }}</em>{{ end }}</span>
+            </div>
+            {{ end }}
           </div>
           {{ end }}
         </div>

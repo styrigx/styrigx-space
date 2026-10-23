@@ -5,10 +5,10 @@
  *   写端也用这里的 NAME / V / MODES / FONT_SIZES / PRESETS / encode / decode，两边同一份字段表，不会各说各话。
  * - 经典脚本、ES5、无依赖：子站原样内联进 <head>（共享外壳 web/shared/shell/ui-cookie-read.js 就是本文件），
  *   也能被打包器当副作用模块 import。挂在 window.SgxUI 上。
- * - 校验严格：v 只认 1 / 2；mode ∈ system/light/dark；pal 必须是已知预设；accent 必须 ^#[0-9a-f]{6}$。
- *   cookie 缺失 / 乱码 / 版本不认识 → read() 返回 null，apply() 按默认（lake + 跟随系统）渲染，绝不抛错、绝不跳转。
+ * - 校验严格：v 只认 1 / 2；mode ∈ system/light/dark；pal 必须是已知预设（旧撞色 x<id> 迁到 <id>）；accent 必须 ^#[0-9a-f]{6}$。
+ *   cookie 缺失 / 乱码 / 版本不认识 → read() 返回 null，apply() 按默认（dustyblue + 跟随系统）渲染，绝不抛错、绝不跳转。
  * - apply(root) 落的状态 = 主站 baseof 内联脚本：class dark、data-theme-mode、data-dark、font-size、data-font-size、
- *   data-palette（lake 不写）、自定义色时 --sgx-seed + <style id="sgx-accent-roles">、class reduced-motion、data-reduced-motion。
+ *   data-palette（默认 dustyblue 不写）、自定义色时 --sgx-seed + <style id="sgx-accent-roles">、class reduced-motion、data-reduced-motion。
  *
  * API：
  *   SgxUI.read([cookieString])          → 校验后的对象 {v, mode, pal, accent, fs, rm, mat, tz1, tz2, h12, clock, wx, unit, loc, city, precise} 或 null
@@ -23,8 +23,8 @@
 (function (g) {
   'use strict';
   /* @ui-cookie-presets:begin（scripts/gen-shell.mjs 按 web/data/palette-roles.json + palette-scheme.js 生成，勿手改） */
-  var PRESETS = {"lake":"#2f5f86","forest":"#2f6b4f","terra":"#8a4b2d","violet":"#6750a4","rose":"#984061","cherry":"#ba1a20","tangerine":"#b02e00","amber":"#825500","matcha":"#3c6a00","teal":"#00696b","indigo":"#3d4fd3","orchid":"#a62092","dustyblue":"#78909c","mustard":"#d4a72c","sage":"#9caf88","dustyrose":"#d8a7a7","graphite":"#5e5e5e","xforest":"#2f6b4f","xterra":"#8a4b2d","xviolet":"#6750a4","xrose":"#984061","xcherry":"#ba1a20","xtangerine":"#b02e00","xamber":"#825500","xmatcha":"#3c6a00","xteal":"#00696b","xindigo":"#3d4fd3","xorchid":"#a62092","xdustyblue":"#78909c","xmustard":"#d4a72c","xsage":"#9caf88","xdustyrose":"#d8a7a7","xgraphite":"#5e5e5e"};
-  var SCHEME_VER = 'ab6d347b23dc';
+  var PRESETS = {"dustyblue":"#d4a72c","lake":"#f17f72","glacier":"#f17f72","indigo":"#f2559b","teal":"#d6334a","violet":"#d4628f","forest":"#f08a3c","matcha":"#c46a43","sage":"#cf9494","cherry":"#86ad3f","tangerine":"#168f9c","coral":"#168f9c","terra":"#94a982","amber":"#b54a88","mustard":"#7a95ab","champagne":"#536dfa","rose":"#f2a86b","berry":"#e3a93b","orchid":"#7a95ab","dustyrose":"#94a982","graphite":"#4f86b5","cream":"#168f9c"};
+  var SCHEME_VER = 'c51e4304e54e';
   /* @ui-cookie-presets:end */
 
   var NAME = 'sgx-ui';
@@ -33,7 +33,9 @@
   var VERSIONS = [1, 2];
   var MODES = ['system', 'light', 'dark'];
   var FONT_SIZES = ['standard', 'small', 'large'];
-  var DEFAULT_PAL = 'lake';
+  var DEFAULT_PAL = 'dustyblue';
+  /* 2026-10-23 PR-G 七色调色板之前的预设种子（单色组；撞色 x<id> 和同名单色一样）：旧 cookie 里 accent = 旧种子时仍当预设，不当自定义色。不随引擎变，手写。 */
+  var LEGACY_SEEDS = {"lake":"#2f5f86","forest":"#2f6b4f","terra":"#8a4b2d","violet":"#6750a4","rose":"#984061","cherry":"#ba1a20","tangerine":"#b02e00","amber":"#825500","matcha":"#3c6a00","teal":"#00696b","indigo":"#3d4fd3","orchid":"#a62092","dustyblue":"#78909c","mustard":"#d4a72c","sage":"#9caf88","dustyrose":"#d8a7a7","graphite":"#5e5e5e"};
   var HEX = /^#[0-9a-f]{6}$/;
   var TZ = /^[A-Za-z0-9_+\-\/]{1,64}$/;
   var CACHE_KEY = 'sgx-shell-accent-css';
@@ -67,6 +69,13 @@
     return m ? m[1] : '';
   }
 
+  /** 色板 id 归一：旧撞色 x<id> → <id>（2026-10-23 PR-G 合并）；不认识 → 默认 */
+  function normPal(p) {
+    if (typeof p !== 'string') return DEFAULT_PAL;
+    if (!has(PRESETS, p) && /^x[a-z]+$/.test(p) && has(PRESETS, p.slice(1))) p = p.slice(1);
+    return has(PRESETS, p) ? p : DEFAULT_PAL;
+  }
+
   /** 解码后的对象 → 校验过的对象；不是对象 / 版本不认识返回 null。单个字段不合法就按默认值。 */
   function normalize(o) {
     if (!isObj(o) || typeof o.v !== 'number' || !inList(VERSIONS, o.v)) return null;
@@ -74,7 +83,7 @@
     return {
       v: o.v,
       mode: inList(MODES, o.mode) ? o.mode : 'system',
-      pal: typeof o.pal === 'string' && has(PRESETS, o.pal) ? o.pal : DEFAULT_PAL,
+      pal: normPal(o.pal),
       accent: str(o.accent, HEX, ''),
       fs: inList(FONT_SIZES, o.fs) ? o.fs : 'standard',
       rm: o.rm === 1 ? 1 : 0,
@@ -111,7 +120,7 @@
       fs: ui ? ui.fs : 'standard',
       rm: !!(ui && ui.rm === 1),
       /* accent 等于该预设的种子 = 预设色板；不等 = 自定义主题色（主站 sgx-accent） */
-      seed: acc && acc !== PRESETS[pal] ? acc : ''
+      seed: acc && acc !== PRESETS[pal] && acc !== LEGACY_SEEDS[pal] ? acc : ''
     };
   }
 
@@ -207,6 +216,7 @@
     FONT_SIZES: FONT_SIZES,
     PRESETS: PRESETS,
     DEFAULT_PAL: DEFAULT_PAL,
+    normPal: normPal,
     SCHEME_VER: SCHEME_VER,
     CACHE_KEY: CACHE_KEY,
     STYLE_ID: STYLE_ID,

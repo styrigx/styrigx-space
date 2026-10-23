@@ -15,7 +15,7 @@ const NAMES = {
 };
 // 分段 / 图例圆点是不带字的填充：辅色 / 第三色用 *-fill（本色中间调，不用压深到 4.5:1 的文字色，免得发泥；2026-10-21）
 const COLORS = {
-  home: 'var(--m-primary)',
+  home: 'var(--m-primary-fill, var(--m-primary))',
   files: 'var(--m-warm)',
   browser: 'var(--sgx-tertiary-fill, var(--m-tertiary))',
   settings: 'var(--sgx-secondary-fill, var(--m-secondary))',

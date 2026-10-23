@@ -56,9 +56,9 @@ const measure = () => {
 };
 
 const CASES = [
-  { name: 'lake 深色', page: '/', local: { 'sgx-theme-mode': 'dark' }, want: { pal: null, dark: true } },
-  { name: '撞色 xforest 亮色', page: '/', local: { 'sgx-theme-mode': 'light', 'sgx-palette': 'xforest' }, want: { pal: 'xforest', dark: false } },
-  { name: '撞色 xforest 深色', page: '/', local: { 'sgx-theme-mode': 'dark', 'sgx-palette': 'xforest' }, want: { pal: 'xforest', dark: true } },
+  { name: '默认 dustyblue 深色', page: '/', local: { 'sgx-theme-mode': 'dark' }, want: { pal: null, dark: true } },
+  { name: 'forest 亮色（存的是旧撞色 xforest，主站首屏迁到 forest）', page: '/', local: { 'sgx-theme-mode': 'light', 'sgx-palette': 'xforest' }, want: { pal: 'forest', dark: false } },
+  { name: 'lake 深色（PR-G 起是普通色板）', page: '/', local: { 'sgx-theme-mode': 'dark', 'sgx-palette': 'lake' }, want: { pal: 'lake', dark: true } },
   /* 自定义色：设置页加载时 syncAccent 才算角色，所以主站这边量设置页 */
   { name: '自定义主题色 #1f8a70 跟随系统（系统深色）', page: '/settings/', local: { 'sgx-accent': '#1f8a70' }, scheme: 'dark', want: { pal: null, dark: true, seed: '#1f8a70' } },
 ];
@@ -129,7 +129,7 @@ test.describe('子站读端 = 主站外观（真写端 cookie → 共享外壳 u
     });
   }
 
-  test('坏 cookie / 未知版本：子站按 lake + 跟随系统，不报错', async ({ browser, baseURL }) => {
+  test('坏 cookie / 未知版本：子站按默认 dustyblue + 跟随系统，不报错', async ({ browser, baseURL }) => {
     for (const value of ['%%%garbage', 'eyJ2IjozLCJtb2RlIjoiZGFyayJ9' /* {"v":3,"mode":"dark"} */]) {
       const sub = await browser.newContext({ colorScheme: 'dark' });
       const sp = await sub.newPage();

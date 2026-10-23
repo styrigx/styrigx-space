@@ -3,7 +3,7 @@
  * - 快捷面板磁贴只剩 深色模式 | 跟随系统、语言 | 立即锁定；减弱动效、字体大小 2026-10-23 PR-E 起整个删除（字体靠浏览器缩放，动效跟系统）。
  * - 默认色板 lake 不放色块（快捷面板 + 设置页单色组），改成标题行右端「恢复默认」，初始 aria-disabled；
  *   点它走 setPalette('lake')（与点色块同一条路，自定义主题色一起清掉）。
- * - 磁贴 / 行 / 齿轮底色读色板容器（--m-secondary-container），不是 container-high。
+ * - 磁贴 / 行 / 齿轮 / 恢复默认 = 中性玻璃（--sgx-qp-glass，2026-10-23 PR-G 修订；不再铺 --m-secondary-container）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -30,30 +30,36 @@ test('快捷面板磁贴：dark / system / lang / lock，没有减弱动效和�
   assert.doesNotMatch(setJs, /setReducedMotion|setFontSize|seg-font|row-motion/);
 });
 
-test('lake 不放色块；两处都有「恢复默认」，初始 aria-disabled，点了 setPalette(lake)', () => {
-  const lakeless = /range where \(where [^)]+"group" "mono"\) "id" "!=" "lake"/;
-  assert.match(qpHtml, lakeless);
-  assert.match(theme, lakeless);
+test('七色调色板（PR-G）：两处都是 22 个 .pal-tile、不分单色 / 撞色；都有「恢复默认」，初始 aria-disabled，点了 setPalette(DEFAULT_PALETTE = dustyblue)', () => {
+  assert.match(qpHtml, /\{\{ range site\.Data\.palettes\.palettes \}\}<button type="button" class="sgx-qp-sw pal-tile"/);
+  assert.doesNotMatch(qpHtml, /swatch-clash|"group" "mono"|"group" "clash"/);
+  assert.doesNotMatch(theme, /swatch-clash|data-pal-tab|palette-dots-clash/);
+  assert.match(theme, /range site\.Data\.palettes\.groups/);
   assert.match(qpHtml, /<button type="button" class="palette-reset" data-qp-reset aria-disabled="true">/);
   assert.match(theme, /<button type="button" class="palette-reset" id="palette-reset" aria-disabled="true">/);
   assert.match(qpHtml, /恢复默认/);
   assert.match(theme, /Reset/);
   for (const js of [qpJs, setJs]) {
-    assert.match(js, /setPalette\('lake'\)/);
-    assert.match(js, /=== 'lake' && !accent\(\)/);
+    assert.match(js, /setPalette\(DEFAULT_PALETTE\)/);
+    assert.match(js, /=== DEFAULT_PALETTE && !accent\(\)/);
+    assert.doesNotMatch(js, /'lake'/);
   }
 });
 
-test('配色：磁贴 / 行 / 齿轮读 secondary-container，开着读 primary-container + 主色图标圆', () => {
+test('配色（2026-10-23 PR-G 修订）：磁贴 / 行 / 齿轮 / 恢复默认 = 中性玻璃（不铺 secondary-container）；开着读 primary-container + 填充档图标圆；选中分段 = 填充档', () => {
   const rule = (sel) => {
     const i = css.indexOf('\n' + sel + ' {');
     assert.ok(i >= 0, sel);
     return css.slice(i, css.indexOf('}', i));
   };
-  assert.match(rule('.sgx-qp-tile'), /background: var\(--m-secondary-container\)/);
-  assert.match(rule('.sgx-qp-row'), /background: var\(--m-secondary-container\)/);
-  assert.match(rule('.sgx-qp-set'), /background-color: var\(--m-secondary-container\)/);
+  assert.match(css, /--sgx-qp-glass: color-mix\(in srgb, var\(--sgx-surface-container-lowest\) 62%, transparent\)/);
+  assert.match(rule('.sgx-qp-tile'), /background: var\(--sgx-qp-glass\)/);
+  assert.match(rule('.sgx-qp-row'), /background: var\(--sgx-qp-glass\)/);
+  assert.match(rule('.sgx-qp-set'), /background-color: var\(--sgx-qp-glass\)/);
+  assert.match(rule('.palette-reset'), /background: var\(--sgx-qp-glass\)/);
+  for (const sel of ['.sgx-qp-tile', '.sgx-qp-row', '.sgx-qp-set', '.palette-reset']) assert.doesNotMatch(rule(sel), /secondary-container/, sel);
   assert.match(rule('.sgx-qp-tile[aria-pressed="true"]'), /background: var\(--m-primary-container\)/);
-  assert.match(rule('.sgx-qp-tile[aria-pressed="true"] .sgx-qp-ic'), /background: var\(--m-primary\)/);
+  assert.match(rule('.sgx-qp-tile[aria-pressed="true"] .sgx-qp-ic'), /background: var\(--m-primary-fill\); color: var\(--m-on-primary-fill\)/);
+  assert.match(rule('.sgx-qp-seg button[aria-pressed="true"]'), /background: var\(--m-primary-fill\); color: var\(--m-on-primary-fill\)/);
   assert.match(rule('.palette-reset[aria-disabled="true"]'), /opacity: \.38/);
 });
