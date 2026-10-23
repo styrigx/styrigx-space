@@ -142,7 +142,7 @@ export async function persist(db, p, opt = {}) {
  * @param {typeof fetch} [doFetch]
  */
 export async function runOnce(env, at, doFetch = fetch) {
-  const db = env.STATUS_DB;
+  const db = env.D1_UPTIME_MONITOR;
   const [prev, results] = await Promise.all([loadPrev(db), Promise.all(TARGETS.map((t) => checkOne(t, doFetch)))]);
   const p = plan(prev, results, at);
   const minute = Math.floor(at / 60000) % 60;
@@ -157,9 +157,9 @@ export async function runOnce(env, at, doFetch = fetch) {
  *   recent：每站最近 24 小时每小时一格 [整点, 这小时全成功 ? 1 : 0, 成功的平均耗时]（来自 hourly 表，不读 checks）
  *   incidents：最近 20 条故障（新 → 旧，开着的 ended_at = null）
  *   usage / usage_reason：Cloudflare 用量快照（src/usage.js readUsage；读不到只是 usage = null + 原因，不影响其余部分）
- * @param {D1Database} db
+ * @param {D1Database} db  D1_UPTIME_MONITOR（state / daily / hourly / incidents）
  * @param {number} now
- * @param {any} [env]  读 CF_USAGE_TOKEN / CF_ACCOUNT_ID 是否配置；不传 = 没配
+ * @param {any} [env]  读 SGX_CF_USAGE_TOKEN / CF_ACCOUNT_ID 是否配置，用量快照从 env.D1_CLOUDFLARE_USAGE 读；不传 = 没配
  */
 export async function summary(db, now, env) {
   const since24 = Math.floor((now - DAY_MS) / HOUR_MS) * HOUR_MS;
@@ -195,7 +195,7 @@ export async function summary(db, now, env) {
         Number(x.ok_count) ? Math.round(Number(x.ms_sum) / Number(x.ok_count)) : 0]),
     };
   });
-  const u = await readUsage(db, env);
+  const u = await readUsage(env && env.D1_CLOUDFLARE_USAGE, env); /* usage 表是另一套数据：单独一条查询，不进上面的 batch */
   return {
     ok: true,
     now,

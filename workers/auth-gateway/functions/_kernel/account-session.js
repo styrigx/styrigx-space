@@ -142,7 +142,7 @@ export async function verifyAccountCookie(request, env) {
   if (!pub) return { ok: false, reason: 'no-pubkey' };
   let cur;
   try {
-    cur = await getAccountEpoch(env && env.OWNER_KV);
+    cur = await getAccountEpoch(env && env.KV_ACCOUNT_LOGIN);
   } catch (e) {
     return { ok: false, reason: 'kv-error' };
   }
@@ -150,7 +150,7 @@ export async function verifyAccountCookie(request, env) {
   const ok = await ed25519Verify(pub, p.by + '.' + p.epoch + '.' + p.authAt + '.' + p.exp + (p.sid ? '.' + p.sid : ''), p.sig);
   if (!ok) return { ok: false, reason: 'bad-sig' };
   if (p.sid) {
-    const kv = env && env.OWNER_KV;
+    const kv = env && env.KV_ACCOUNT_LOGIN;
     try {
       if (await isRevoked(kv, p.sid)) return { ok: false, reason: 'revoked' };
     } catch (e) {
@@ -217,7 +217,7 @@ export async function issueAccountCookie(env, headers, by, opts) {
   let epoch = o.epoch;
   if (typeof epoch !== 'number') {
     try {
-      epoch = await getAccountEpoch(env && env.OWNER_KV);
+      epoch = await getAccountEpoch(env && env.KV_ACCOUNT_LOGIN);
     } catch (e) {
       return { status: 503, body: { ok: false, error: 'server' } };
     }
@@ -227,9 +227,9 @@ export async function issueAccountCookie(env, headers, by, opts) {
     const sid = isSid(o.sid || '') ? o.sid : newSid();
     const cv = await signAccountTicket(realmPrivateKey(env, REALM_ACCOUNT), by, epoch, authAt, undefined, sid);
     headers.append('Set-Cookie', realmCookie(REALM_ACCOUNT, cv));
-    if (o.record !== false && env && env.OWNER_KV) {
+    if (o.record !== false && env && env.KV_ACCOUNT_LOGIN) {
       try {
-        await recordLogin(env.OWNER_KV, sid, by, authAt, deviceInfo(o.request, o.device));
+        await recordLogin(env.KV_ACCOUNT_LOGIN, sid, by, authAt, deviceInfo(o.request, o.device));
       } catch (e) { /* 设备记录写不进去不挡登录：验证时 touchDevice 会补 */ }
     }
   } catch (e) {

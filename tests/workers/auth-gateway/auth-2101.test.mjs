@@ -71,7 +71,7 @@ const SGX_ROOT_KEY = 'test-owner-key-12345';
 
 function authEnv(kv, overrides = {}) {
   return {
-    OWNER_KV: kv,
+    KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
     SGX_ROOT_KEY,
     SGX_LOCK_PRIVATE: LOCK_PRIV,
     SGX_LOCK_PUBLIC: LOCK_PUB,

@@ -46,7 +46,7 @@ function d1(schema = SCHEMA) {
 
 const ACC = 'acc123';
 const TOKEN = 'test-token-not-real';
-const ENV = { CF_USAGE_TOKEN: TOKEN, CF_ACCOUNT_ID: ACC };
+const ENV = { SGX_CF_USAGE_TOKEN: TOKEN, CF_ACCOUNT_ID: ACC };
 const NOW = Date.parse('2026-10-22T10:41:00Z');
 
 const ok = (result) => new Response(JSON.stringify({ success: true, errors: [], messages: [], result }), { status: 200 });
@@ -62,7 +62,7 @@ function cfMock(over = {}) {
     d1List: () => ok([{ uuid: 'u-auth', name: 'styrigx-auth' }, { uuid: 'u-status', name: 'styrigx-status' }]),
     d1Get: (uuid) => ok({ uuid, name: uuid === 'u-auth' ? 'styrigx-auth' : 'styrigx-status', file_size: uuid === 'u-auth' ? 12_000_000 : 380_000_000 }),
     r2Buckets: () => ok({ buckets: [{ name: 'files' }, { name: 'avatars' }] }),
-    kvList: () => ok([{ id: 'ns1', title: 'SEARCH_KV' }, { id: 'ns2', title: 'SESSIONS' }, { id: 'ns3', title: 'EMPTY' }]),
+    kvList: () => ok([{ id: 'ns1', title: 'KV_SEARCH_INDEX' }, { id: 'ns2', title: 'SESSIONS' }, { id: 'ns3', title: 'EMPTY' }]),
     workers: () => gqlOk({ workersInvocationsAdaptive: [{ sum: { requests: 73_456 } }] }),
     r2: () => gqlOk({ r2StorageAdaptiveGroups: [
       /* 新 → 旧：files 取最新一行（不是最大值） */
@@ -108,25 +108,25 @@ test('免费额度常量（2026-10-22 对过文档）：Workers 10 万次/天、
   const toml = readFileSync(new URL('../../../workers/status/wrangler.toml', import.meta.url), 'utf8');
   assert.match(toml, /crons = \["\* \* \* \* \*", "41 \* \* \* \*"\]/);
   /* 仓库里不写 token / 账号 id 的值（只能是 secret） */
-  assert.doesNotMatch(toml, /CF_USAGE_TOKEN\s*=/);
+  assert.doesNotMatch(toml, /SGX_CF_USAGE_TOKEN\s*=/);
   assert.doesNotMatch(toml, /CF_ACCOUNT_ID\s*=/);
   /* token 走 Secrets Store：同鉴权网关的 store，secret_name 固定 */
   const gw = readFileSync(new URL('../../../workers/auth-gateway/wrangler.toml', import.meta.url), 'utf8');
   const storeId = gw.match(/store_id = "([0-9a-f]+)"/)[1];
-  assert.match(toml, new RegExp('\\[\\[secrets_store_secrets\\]\\]\\s*binding = "CF_USAGE_TOKEN"\\s*store_id = "' + storeId + '"\\s*secret_name = "SGX_CF_USAGE_TOKEN"'));
+  assert.match(toml, new RegExp('\\[\\[secrets_store_secrets\\]\\]\\s*binding = "SGX_CF_USAGE_TOKEN"\\s*store_id = "' + storeId + '"\\s*secret_name = "SGX_CF_USAGE_TOKEN"'));
 });
 
 test('Secrets Store 绑定：await get() 取 token；get() 抛错 → secret-missing；取到空 → not-configured；都不碰网络、/summary 不坏', async () => {
   const { doFetch, calls } = cfMock();
-  const bound = { CF_USAGE_TOKEN: { get: async () => TOKEN }, CF_ACCOUNT_ID: ACC };
+  const bound = { SGX_CF_USAGE_TOKEN: { get: async () => TOKEN }, CF_ACCOUNT_ID: ACC };
   const r = await collectUsage(bound, NOW, doFetch);
   assert.equal(r.ok, true);
   assert.ok(calls.every((c) => c.auth === 'Bearer ' + TOKEN));
-  const missing = { CF_USAGE_TOKEN: { get: async () => { throw new Error('secret not found'); } }, CF_ACCOUNT_ID: ACC };
+  const missing = { SGX_CF_USAGE_TOKEN: { get: async () => { throw new Error('secret not found'); } }, CF_ACCOUNT_ID: ACC };
   const m2 = cfMock();
   assert.deepEqual(await collectUsage(missing, NOW, m2.doFetch), { ok: false, reason: 'secret-missing' });
-  assert.deepEqual(await collectUsage({ CF_USAGE_TOKEN: { get: async () => null }, CF_ACCOUNT_ID: ACC }, NOW, m2.doFetch), { ok: false, reason: 'not-configured' });
-  assert.deepEqual(await collectUsage({ CF_USAGE_TOKEN: {}, CF_ACCOUNT_ID: ACC }, NOW, m2.doFetch), { ok: false, reason: 'not-configured' });
+  assert.deepEqual(await collectUsage({ SGX_CF_USAGE_TOKEN: { get: async () => null }, CF_ACCOUNT_ID: ACC }, NOW, m2.doFetch), { ok: false, reason: 'not-configured' });
+  assert.deepEqual(await collectUsage({ SGX_CF_USAGE_TOKEN: {}, CF_ACCOUNT_ID: ACC }, NOW, m2.doFetch), { ok: false, reason: 'not-configured' });
   assert.equal(m2.calls.length, 0);
   const boom = { prepare() { throw new Error('should not touch db'); } };
   assert.deepEqual(await readUsage(boom, missing), { usage: null, usage_reason: 'secret-missing' });
@@ -168,7 +168,7 @@ test('成功：四项都有；D1 每库大小 + 合计；R2 取每桶最新一�
 });
 
 test('没配 token（或没配账号 id）→ not-configured，一个请求都不发', async () => {
-  for (const env of [{}, { CF_ACCOUNT_ID: ACC }, { CF_USAGE_TOKEN: TOKEN }, { CF_USAGE_TOKEN: '  ', CF_ACCOUNT_ID: ACC }]) {
+  for (const env of [{}, { CF_ACCOUNT_ID: ACC }, { SGX_CF_USAGE_TOKEN: TOKEN }, { SGX_CF_USAGE_TOKEN: '  ', CF_ACCOUNT_ID: ACC }]) {
     const { doFetch, calls } = cfMock();
     assert.deepEqual(await collectUsage(env, NOW, doFetch), { ok: false, reason: 'not-configured' });
     assert.equal(calls.length, 0);
@@ -234,19 +234,19 @@ test('写库：成功覆盖快照；之后失败 → 旧快照留着、stale + l
   await persistUsage(db, { ok: false, reason: 'not-configured' }, NOW);
   assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM usage').get().n, 0);
   const { doFetch } = cfMock();
-  const r1 = await runUsage({ ...ENV, STATUS_DB: db }, NOW, doFetch);
+  const r1 = await runUsage({ ...ENV, D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db }, NOW, doFetch);
   assert.equal(r1.ok, true);
   let u = await readUsage(db, ENV);
   assert.equal(u.usage_reason, null);
   assert.equal(u.usage.fetched_at, NOW);
   assert.equal(u.usage.workers.requests, 73456);
   assert.equal(u.usage.stale, undefined);
-  await runUsage({ ...ENV, STATUS_DB: db }, NOW + 3600e3, cfMock({ d1List: () => new Response('', { status: 403 }), workers: () => new Response('', { status: 403 }), r2: () => new Response('', { status: 403 }), kv: () => new Response('', { status: 403 }), kvList: () => new Response('', { status: 403 }) }).doFetch);
+  await runUsage({ ...ENV, D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db }, NOW + 3600e3, cfMock({ d1List: () => new Response('', { status: 403 }), workers: () => new Response('', { status: 403 }), r2: () => new Response('', { status: 403 }), kv: () => new Response('', { status: 403 }), kvList: () => new Response('', { status: 403 }) }).doFetch);
   u = await readUsage(db, ENV);
   assert.equal(u.usage.fetched_at, NOW);
   assert.equal(u.usage.stale, true);
   assert.equal(u.usage.last_error, 'api-error');
-  await runUsage({ ...ENV, STATUS_DB: db }, NOW + 7200e3, doFetch);
+  await runUsage({ ...ENV, D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db }, NOW + 7200e3, doFetch);
   u = await readUsage(db, ENV);
   assert.equal(u.usage.fetched_at, NOW + 7200e3);
   assert.equal(u.usage.stale, undefined);
@@ -262,19 +262,19 @@ test('/summary：带 usage + usage_reason；用量读挂了不影响站点数据
   assert.equal(s.usage, null);
   assert.equal(s.usage_reason, 'not-configured');
   assert.equal(s.sites.length, 5);
-  await runUsage({ ...ENV, STATUS_DB: db }, NOW, cfMock().doFetch);
-  s = await summary(db, NOW + 60e3, ENV);
+  await runUsage({ ...ENV, D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db }, NOW, cfMock().doFetch);
+  s = await summary(db, NOW + 60e3, { ...ENV, D1_CLOUDFLARE_USAGE: db });
   assert.equal(s.usage.fetched_at, NOW);
   assert.equal(s.usage.d1.databases.length, 2);
   /* usage 迁移没跑：站点照常，usage = null / db */
   const old = d1(['0001_init.sql', '0003_cut_reads.sql']
     .map((f) => readFileSync(new URL('../../../workers/status/migrations/' + f, import.meta.url), 'utf8')).join('\n'));
-  s = await summary(old, NOW, ENV);
+  s = await summary(old, NOW, { ...ENV, D1_CLOUDFLARE_USAGE: old });
   assert.equal(s.ok, true);
   assert.equal(s.sites.length, 5);
   assert.deepEqual([s.usage, s.usage_reason], [null, 'db']);
   /* 入口：GET /summary 200 带 usage */
-  const res = await worker.fetch(new Request('https://styrigx-status/summary'), { STATUS_DB: db, ...ENV });
+  const res = await worker.fetch(new Request('https://styrigx-status/summary'), { D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db, ...ENV });
   assert.equal(res.status, 200);
   const j = await res.json();
   assert.equal(j.usage.workers.requests, 73456);
@@ -289,7 +289,7 @@ test('Cron 分流：41 * * * * 只收用量（没配 → 不碰网络、不写�
   try {
     let wrote = 0;
     const db = { prepare: () => ({ bind: () => ({ run: async () => { wrote++; } }) }) };
-    await worker.scheduled({ cron: USAGE_CRON, scheduledTime: NOW }, { STATUS_DB: db }, ctx);
+    await worker.scheduled({ cron: USAGE_CRON, scheduledTime: NOW }, { D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db }, ctx);
     await Promise.all(waits);
     assert.equal(waits.length, 1);
     assert.equal(fetched, 0);

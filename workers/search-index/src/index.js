@@ -17,7 +17,7 @@ let cache = null;
 /** @param {any} env */
 async function loadIndexes(env) {
   if (cache && Date.now() - cache.at < CACHE_MS) return cache.data;
-  const kv = env && env.SEARCH_KV;
+  const kv = env && env.KV_SEARCH_INDEX;
   if (!kv) throw new Error('no-kv');
   const data = (await Promise.all(SITES.map((s) => kv.get('site:' + s, 'json').catch(() => null))))
     // 先按下标配上站名再过滤：缺了某站的 key 时，后面的站不会被错标成别的站

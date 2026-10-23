@@ -57,7 +57,7 @@ function kvOf(map) {
 
 test('入口：GET /search 回结果、不回正文；角色头只认 owner；没 KV 503', async () => {
   _resetCache();
-  const env = { SEARCH_KV: kvOf({ 'site:space': JSON.stringify(IX[0]), 'site:blog': JSON.stringify(IX[1]) }) };
+  const env = { KV_SEARCH_INDEX: kvOf({ 'site:space': JSON.stringify(IX[0]), 'site:blog': JSON.stringify(IX[1]) }) };
   let r = await worker.fetch(new Request('https://x/search?q=' + encodeURIComponent('主题模式') + '&lang=zh'), env);
   let j = await r.json();
   assert.equal(r.status, 200);

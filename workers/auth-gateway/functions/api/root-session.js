@@ -39,7 +39,7 @@ async function handlePost(context) {
   /* Origin 必须与本站同 host（CSRF 防护），缺失或解析失败一律 403 */
   if (!isSameOrigin(request)) return originDenied();
 
-  const kv = env && env.OWNER_KV;
+  const kv = env && env.KV_LOCK_DOOR;
   if (!kv) {
     return Response.json({ ok: false, error: 'config' }, { status: 500 });
   }

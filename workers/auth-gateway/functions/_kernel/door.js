@@ -47,6 +47,16 @@ function doorConf(door) {
 }
 
 /**
+ * 门的纪元键在哪个绑定：账号门（account-epoch）→ KV_ACCOUNT_LOGIN；锁屏门 / 重置门（session-epoch）→ KV_LOCK_DOOR。
+ * 没绑 → null（getDoorEpoch 抛错，调用方 fail closed）。
+ * @param {any} env @param {string} door
+ */
+export function doorKv(env, door) {
+  if (!env) return null;
+  return (door === DOOR_ACCOUNT ? env.KV_ACCOUNT_LOGIN : env.KV_LOCK_DOOR) || null;
+}
+
+/**
  * 读门的纪元（键不存在当 0；KV 出错抛错，调用方 fail closed）。
  * @param {any} kv @param {string} door
  */
@@ -133,7 +143,7 @@ export async function verifyDoorCookie(request, env, door) {
     if (!pub) return { ok: false, reason: 'no-pubkey' };
     let cur;
     try {
-      cur = await getDoorEpoch(env && env.OWNER_KV, door);
+      cur = await getDoorEpoch(doorKv(env, door), door);
     } catch (e) {
       return { ok: false, reason: 'kv-error' };
     }
@@ -164,7 +174,7 @@ export async function issueDoorCookie(env, headers, door, by, opts) {
   let epoch = opts && typeof opts.epoch === 'number' ? opts.epoch : null;
   if (epoch === null) {
     try {
-      epoch = await getDoorEpoch(env && env.OWNER_KV, door);
+      epoch = await getDoorEpoch(doorKv(env, door), door);
     } catch (e) {
       return { status: 503, body: { ok: false, error: 'server' } };
     }

@@ -2,7 +2,7 @@
  * @fileoverview styrigx-status 入口（2026-10-22）。
  *   scheduled：
  *     "* * * * *"   每分钟一轮检查（src/monitor.js runOnce）
- *     "41 * * * *"  每小时一次读 Cloudflare 用量（src/usage.js runUsage；没配 CF_USAGE_TOKEN 就什么都不做）
+ *     "41 * * * *"  每小时一次读 Cloudflare 用量（src/usage.js runUsage；没配 SGX_CF_USAGE_TOKEN 就什么都不做）
  *   fetch：只接网关服务绑定转来的 GET /summary（没有公开地址，见 wrangler.toml）
  *     → 200 { ok, now, today, all_up, sites: [...], incidents: [...], usage, usage_reason }（字段见 monitor.js summary）
  *     503 { ok:false, error:'db' } 库不可用
@@ -25,7 +25,7 @@ export default {
     if (url.pathname !== '/summary') return json(404, { ok: false, error: 'not-found' });
     if (request.method !== 'GET') return json(405, { ok: false, error: 'method' });
     try {
-      return json(200, await summary(env.STATUS_DB, Date.now(), env));
+      return json(200, await summary(env.D1_UPTIME_MONITOR, Date.now(), env));
     } catch (e) {
       console.error('[status] summary failed', e && /** @type {any} */ (e).message);
       return json(503, { ok: false, error: 'db' });

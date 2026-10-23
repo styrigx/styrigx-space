@@ -2,28 +2,21 @@
  * GET /avatar/<尺寸>.webp（尺寸 32 / 96 / 192 / 512）—— 主站头像，公开。
  * 主站顶栏、首页名片、锁屏、设置账户卡、标签页图标，以及博客的头像和图标都读这里。
  *
- * - 主人上传过（账号库 ACCOUNT_KV 有 avatar:ver；分库前上传的还在认证库 OWNER_KV，新库没有时读旧库）→ 读 `avatar:<尺寸>`；
+ * - 主人上传过（KV_PROFILE 有 avatar:ver）→ 读 `avatar:<尺寸>`；
  *   否则交给静态资源 static/avatar/<尺寸>.webp（默认头像；本地静态服务器测试时也直接命中它）。
  * - Cache-Control: public, max-age=300, stale-while-revalidate=30 天（换头像后最多旧一次）；
  *   ETag = "<版本>-<尺寸>"，默认图是 "d-<尺寸>"；If-None-Match 命中回 304。
  *   设置页靠 ETag 是不是 "d-" 开头判断有没有自定义头像。
  * - 不认识的尺寸 → 404。
  */
-import { sizeOfFile, keyOf, KEY_VER, PUBLIC_CACHE, NO_STORE, avatarKv, legacyAvatarKv } from '../_kernel/avatar.js';
+import { sizeOfFile, keyOf, KEY_VER, PUBLIC_CACHE, NO_STORE, avatarKv } from '../_kernel/avatar.js';
 
 /** @param {any} context */
 export async function onRequestGet(context) {
   const { request, env, params } = context;
   const s = sizeOfFile(params && params.file);
   if (!s) return new Response(null, { status: 404, headers: NO_STORE });
-  let kv = avatarKv(env);
-  /* 新库没有上传记录、旧库有 → 这次读旧库 */
-  const old = legacyAvatarKv(env);
-  if (kv && old) {
-    try {
-      if (!(await kv.get(KEY_VER, { cacheTtl: 60 })) && (await old.get(KEY_VER, { cacheTtl: 60 }))) kv = old;
-    } catch (e) {}
-  }
+  const kv = avatarKv(env);
   let ver = '';
   /** @type {ArrayBuffer|null} */
   let body = null;

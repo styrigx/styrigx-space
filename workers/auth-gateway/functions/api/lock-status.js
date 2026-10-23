@@ -30,7 +30,7 @@ export async function onRequestGet(context) {
 /** @param {any} context */
 async function handleGet(context) {
   const { request, env } = context;
-  const kv = env && env.OWNER_KV;
+  const kv = env && env.KV_LOCK_DOOR;
   if (!kv) {
     /* 未绑 KV：会话/票据校验本身也读 KV，直接按配置错误处理（fail closed）。
        注意：实际请求中 verifySessionDetailed/verifyDoorCookie 无 KV 时均返回

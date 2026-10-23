@@ -106,7 +106,7 @@ test('计划：失败 1、2 次不开故障；第 3 次开，起点是第一次�
 
 test('真 SQL：连续 3 分钟 502 开故障，第 4 分钟恢复关上；每日汇总累加；7 天前的记录整点清掉', { skip: !sqlite && '需要 node:sqlite' }, async () => {
   const db = d1();
-  const env = { STATUS_DB: db };
+  const env = { D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db };
   const M = 60000;
   const t0 = Date.UTC(2026, 9, 22, 4, 1); // 北京 12:01
   /* 先塞一条 8 天前的旧记录 */
@@ -132,7 +132,7 @@ test('真 SQL：连续 3 分钟 502 开故障，第 4 分钟恢复关上；每�
 
 test('真 SQL：汇总——当前状态、24 小时 / 30 天可用率、每日、最近检查、故障', { skip: !sqlite && '需要 node:sqlite' }, async () => {
   const db = d1();
-  const env = { STATUS_DB: db };
+  const env = { D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db };
   const M = 60000;
   const t0 = Date.UTC(2026, 9, 22, 4, 1);
   for (let i = 0; i < 4; i++) await runOnce(env, t0 + i * M, fakeFetch(i < 3 ? { 'https://curio.styrigx.com/robots.txt': 'network' } : {}));
@@ -174,7 +174,7 @@ test('写库：一个 batch 写完（检查、每日、状态、开 / 关故障�
 test('入口：只认 GET /summary；库出错 503；scheduled 交给 waitUntil', async () => {
   assert.equal((await worker.fetch(new Request('https://status/x'), {})).status, 404);
   assert.equal((await worker.fetch(new Request('https://status/summary', { method: 'POST' }), {})).status, 405);
-  const bad = { STATUS_DB: { prepare() { throw new Error('boom'); }, batch() { throw new Error('boom'); } } };
+  const bad = { D1_UPTIME_MONITOR: { prepare() { throw new Error('boom'); }, batch() { throw new Error('boom'); } } };
   const r = await worker.fetch(new Request('https://status/summary'), bad);
   assert.equal(r.status, 503);
   assert.deepEqual(await r.json(), { ok: false, error: 'db' });
@@ -190,7 +190,7 @@ test('读取量：每分钟一轮只读 state 和开着的故障，不读 checks
     prepare: (sql) => { sqls.push(sql); const o = { sql, bind: () => o }; return o; },
     async batch(list) { return list.map(() => ({ results: [] })); },
   };
-  await runOnce({ STATUS_DB: db }, Date.UTC(2026, 9, 23, 4, 1), fakeFetch({}));
+  await runOnce({ D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db }, Date.UTC(2026, 9, 23, 4, 1), fakeFetch({}));
   const reads = sqls.filter((q) => /^\s*select/i.test(q));
   assert.ok(reads.length > 0);
   assert.ok(reads.every((q) => !/\bchecks\b/.test(q)), reads.join(' | '));
@@ -201,7 +201,7 @@ test('读取量：每分钟一轮只读 state 和开着的故障，不读 checks
 
 test('真 SQL：第一次失败时间存在 state 里，恢复清零', { skip: !sqlite && '需要 node:sqlite' }, async () => {
   const db = d1();
-  const env = { STATUS_DB: db };
+  const env = { D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db };
   const M = 60000;
   const t0 = Date.UTC(2026, 9, 23, 4, 1);
   const bad = fakeFetch({ 'https://blog.styrigx.com/robots.txt': 502 });

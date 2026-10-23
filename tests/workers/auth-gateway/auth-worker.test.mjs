@@ -44,7 +44,8 @@ function makeKv() {
 }
 const store = (v) => ({ get: async () => v });
 function baseEnv() {
-  return { SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, OWNER_KV: makeKv() };
+  const kv = makeKv();
+  return { SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, KV_PROFILE: makeKv() };
 }
 const CTX = { waitUntil() {} };
 
@@ -91,11 +92,11 @@ test('routeKey / pickHandler 与 Pages 一致', () => {
 test('resolveSecrets：绑定 → 字符串；字符串原样；其他绑定不动', async () => {
   _resetSecretCache();
   const kv = makeKv();
-  const env = { SGX_LOCK_PRIVATE: store('L'), SGX_PW_PEPPER: 'P', OWNER_KV: kv, SGX_SITE: 'space' };
+  const env = { SGX_LOCK_PRIVATE: store('L'), SGX_PW_PEPPER: 'P', KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, SGX_SITE: 'space' };
   const out = await resolveSecrets(env, 1000);
   assert.equal(out.SGX_LOCK_PRIVATE, 'L');
   assert.equal(out.SGX_PW_PEPPER, 'P');
-  assert.equal(out.OWNER_KV, kv);
+  assert.equal(out.KV_LOCK_DOOR, kv);
   assert.equal(out.SGX_SITE, 'space');
   assert.equal('SGX_ROOT_KEY' in out, false);
   assert.equal(typeof env.SGX_LOCK_PRIVATE, 'object'); /* 不改原 env */
@@ -345,8 +346,8 @@ test('头像：未登录也能拿；没上传过 → 回源取静态默认图，
 test('头像：上传过 → 读 KV，不回源；不认识的尺寸未登录 → 锁屏（与 Pages 时一致）', async () => {
   _resetSecretCache();
   const env = baseEnv();
-  env.OWNER_KV.m.set('avatar:ver', 'v7');
-  env.OWNER_KV.m.set('avatar:192', new Uint8Array([1, 2, 3]).buffer);
+  env.KV_PROFILE.m.set('avatar:ver', 'v7');
+  env.KV_PROFILE.m.set('avatar:192', new Uint8Array([1, 2, 3]).buffer);
   await withOrigin('IMG', async (calls) => {
     const res = await worker.fetch(new Request('https://styrigx.com/avatar/192.webp'), env, CTX);
     assert.equal(res.status, 200);
@@ -363,7 +364,7 @@ test('预览（作为 Pages 的 _worker.js 运行，有 env.ASSETS）：页面�
   const seen = [];
   const env = {
     SGX_SITE: 'space',
-    OWNER_KV: makeKv(),
+    KV_LOCK_DOOR: makeKv(),
     ASSETS: { fetch: async (req) => { seen.push(new URL(req.url || req).pathname); return new Response(PAGE, { headers: { 'Content-Type': 'text/html' } }); } },
   };
   await withOrigin('X', async (calls) => {

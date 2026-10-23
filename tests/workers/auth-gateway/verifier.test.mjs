@@ -31,7 +31,7 @@ const LOCK = await pair();
 function env({ epoch = '0', kvThrows = false } = {}) {
   return {
     SGX_LOCK_PUBLIC: LOCK.pub,
-    OWNER_KV: {
+    KV_LOCK_DOOR: {
       async get(k) {
         if (kvThrows) throw new Error('kv down');
         if (k === 'session-epoch') return epoch;

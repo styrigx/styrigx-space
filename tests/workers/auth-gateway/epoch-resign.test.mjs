@@ -53,7 +53,7 @@ async function genKeys() {
 }
 
 const testEnv = (kv) => ({
-  OWNER_KV: kv,
+  KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
   SGX_LOCK_PRIVATE: LOCK_PRIV,
   SGX_LOCK_PUBLIC: LOCK_PUB,
   SGX_RP_ID: 'styrigx.com',

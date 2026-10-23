@@ -21,7 +21,7 @@ import { REALM_ROOT } from './realms.js';
 /**
  * @param {object} o
  * @param {any} o.env
- * @param {any} o.kv OWNER_KV
+ * @param {any} o.kv KV_LOCK_DOOR
  * @param {string} o.ip
  * @param {string} o.key 用户输入的根凭证
  * @param {string} o.auditPath 审计 path（root-auth / account / lockreset）

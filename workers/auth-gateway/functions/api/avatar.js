@@ -11,22 +11,12 @@
  */
 import { verifySessionDetailed } from '../_middleware.js';
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
-import { AVATAR_SIZES, AVATAR_MAX, KEY_VER, keyOf, sniffImage, NO_STORE, avatarKv, legacyAvatarKv } from '../_kernel/avatar.js';
+import { AVATAR_SIZES, AVATAR_MAX, KEY_VER, keyOf, sniffImage, NO_STORE, avatarKv } from '../_kernel/avatar.js';
 
 /** @param {any} env @param {Request} request */
 async function isOwner(request, env) {
   const sess = await verifySessionDetailed(request, env);
   return sess.ok && sess.role === 'owner';
-}
-
-/** 分库前留在认证库的旧头像：上传 / 移除后删掉（失败不影响结果，下次再删） @param {any} env */
-async function clearLegacy(env) {
-  const old = legacyAvatarKv(env);
-  if (!old) return;
-  try {
-    await old.delete(KEY_VER);
-    for (const s of AVATAR_SIZES) await old.delete(keyOf(s));
-  } catch (e) {}
 }
 
 /** @param {any} context */
@@ -60,7 +50,6 @@ export async function onRequestPut(context) {
     for (const it of imgs) await kv.put(keyOf(it.s), it.buf, { metadata: { type: it.type } });
     const ver = Date.now().toString(36);
     await kv.put(KEY_VER, ver);
-    await clearLegacy(env);
     return Response.json({ ok: true, ver }, { headers: NO_STORE });
   } catch (e) {
     return Response.json({ ok: false, error: 'server' }, { status: 500, headers: NO_STORE });
@@ -77,7 +66,6 @@ export async function onRequestDelete(context) {
   try {
     await kv.delete(KEY_VER);
     for (const s of AVATAR_SIZES) await kv.delete(keyOf(s));
-    await clearLegacy(env);
     return Response.json({ ok: true }, { headers: NO_STORE });
   } catch (e) {
     return Response.json({ ok: false, error: 'server' }, { status: 500, headers: NO_STORE });

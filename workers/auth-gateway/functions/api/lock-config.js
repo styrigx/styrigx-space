@@ -25,7 +25,7 @@ import { REALM_LOCK } from '../_kernel/realms.js';
 export async function onRequestGet(context) {
   const headers = { 'Cache-Control': 'no-store' };
   try {
-    const kv = context.env && context.env.OWNER_KV;
+    const kv = context.env && context.env.KV_LOCK_DOOR;
     /* 口径统一：标记或真实凭证任一存在、或读取失败，都算已配置 */
     let effective = true;
     if (kv) {

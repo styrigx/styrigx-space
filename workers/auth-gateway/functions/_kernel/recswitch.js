@@ -24,7 +24,7 @@ async function sha256Hex(s) {
 
 /**
  * 检查开关是否有效。
- * @param {any} kv OWNER_KV
+ * @param {any} kv KV_LOCK_DOOR
  * @param {any} db D1 binding（缺失则 fail closed）
  * @returns {Promise<{valid:boolean, hash:string|null, reason:string}>}
  *   reason: 'first-seen' | 'within-window' | 'not-set' | 'empty' |
@@ -85,7 +85,7 @@ export async function checkRecoverySwitch(kv, db) {
  * 轻触开关计时（管理页加载时调用）。
  * 若 KV 中有新值（D1 未见过），在 D1 记录 hash 与首次时间，开始 24 小时计时。
  * 只计时：不签票、不标记已用。所有错误一律吞掉，不影响调用方。
- * @param {any} kv OWNER_KV
+ * @param {any} kv KV_LOCK_DOOR
  * @param {any} db D1 binding
  * @returns {Promise<void>}
  */

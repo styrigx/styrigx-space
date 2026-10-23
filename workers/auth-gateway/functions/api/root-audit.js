@@ -22,7 +22,7 @@ export async function onRequestGet(context) {
 /** @param {any} context */
 async function handleGet(context) {
   const { request, env } = context;
-  const kv = env && env.OWNER_KV;
+  const kv = env && env.KV_LOCK_DOOR;
   if (!kv) {
     return Response.json({ ok: false, error: 'config' }, { status: 500 });
   }

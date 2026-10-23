@@ -57,7 +57,7 @@ async function mintSession(epoch = 0) {
   return await signSessionCookie(LOCK_PRIV, epoch, 'owner', 'owner');
 }
 const envFor = (kv, extra = {}) => ({
-  OWNER_KV: kv,
+  KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
   SGX_LOCK_PRIVATE: LOCK_PRIV,
   SGX_LOCK_PUBLIC: LOCK_PUB,
   SGX_RP_ID: 'styrigx.com',
@@ -97,7 +97,7 @@ test('A-2：lock-config (b) 无真实 lock 凭证 + owner 已配置 + 无 lock-e
   const { onRequestGet } = await import('../../../workers/auth-gateway/functions/api/lock-config.js');
   const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1' });
   await seedPw(kv, 'owner', 'owner-pw-123');
-  const res = await onRequestGet({ env: { OWNER_KV: kv } });
+  const res = await onRequestGet({ env: { KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv } });
   assert.equal(res.status, 200);
   const j = await res.json();
   assert.equal(j.ok, true);
@@ -113,7 +113,7 @@ test('A-2：lock-config (a) lock-emptied=1 残留 + 有真实 lock 凭证 → re
   const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1', 'layer:lock-emptied': '1' });
   await seedPw(kv, 'owner', 'owner-pw-123');
   await seedPw(kv, 'lock', 'lock-pw-1234');
-  const res = await onRequestGet({ env: { OWNER_KV: kv } });
+  const res = await onRequestGet({ env: { KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv } });
   assert.equal(res.status, 200);
   const j = await res.json();
   assert.equal(j.ok, true);
@@ -124,7 +124,7 @@ test('A-2：lock-config (a) lock-emptied=1 残留 + 有真实 lock 凭证 → re
 test('A-2：lock-config 空站 → resetOnly=false（A 启动流程保留，根凭证入口仍显示）', async () => {
   const { onRequestGet } = await import('../../../workers/auth-gateway/functions/api/lock-config.js');
   const kv = makeKV({});
-  const res = await onRequestGet({ env: { OWNER_KV: kv } });
+  const res = await onRequestGet({ env: { KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv } });
   assert.equal(res.status, 200);
   const j = await res.json();
   assert.equal(j.ok, true);

@@ -63,7 +63,7 @@ await genTestKeys();
 
 function baseEnv(kv, overrides) {
   return Object.assign({
-    OWNER_KV: kv,
+    KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
     SGX_ROOT_KEY: 'test-root-key-12345',
     SGX_LOCK_PRIVATE: TEST_PRIV_PEM,
     SGX_LOCK_PUBLIC: TEST_PUB_PEM,
@@ -617,7 +617,8 @@ test('行为：/api/lock-status 未绑 KV → 500', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-status.js');
   const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
   const env = baseEnv(makeKv({}));
-  delete env.OWNER_KV;
+  delete env.KV_LOCK_DOOR;
+  delete env.KV_ACCOUNT_LOGIN;
   const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
   const res = await onRequestGet({
     request: getReq('https://test.example.com/api/lock-status', { 'Cookie': 'sgx-verified=' + sessCv }),
