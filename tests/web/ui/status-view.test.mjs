@@ -114,7 +114,7 @@ test('siteState：等待检查 / 故障 / 波动（失败但没到阈值）/ 正
 
 test('站名 / 域名 / 原因 / 最近一次检查', () => {
   assert.deepEqual(fx.normal().sites.map((s) => siteName(s, false)), ['主站', '博客', '日刻', '奇趣', '规则集']);
-  assert.deepEqual(fx.normal().sites.map((s) => siteName(s, true)), ['Main site', 'Blog', 'Daymark', 'Curio', 'Proxy rules']);
+  assert.deepEqual(fx.normal().sites.map((s) => siteName(s, true)), ['Space', 'Blog', 'Daymark', 'Curio', 'Proxy rules']);
   assert.equal(siteName({ site: 'new', zh: '新站', en: 'New' }, true), 'New');
   assert.equal(hostOf('https://blog.styrigx.com/robots.txt'), 'blog.styrigx.com');
   assert.equal(hostOf('not a url'), '');

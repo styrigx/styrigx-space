@@ -24,7 +24,7 @@ export const BAR_DAYS = 90;
 
 /** 页面上的站名（2026-10-22 定：主站 / 博客 / 日刻 / 奇趣 / 规则集）；接口里的 zh / en 兜底 */
 export const SITE_NAMES = {
-  space: { zh: '主站', en: 'Main site' },
+  space: { zh: '主站', en: 'Space' },
   blog: { zh: '博客', en: 'Blog' },
   daymark: { zh: '日刻', en: 'Daymark' },
   curio: { zh: '奇趣', en: 'Curio' },

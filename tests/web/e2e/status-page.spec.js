@@ -207,7 +207,7 @@ for (const [label, viewport] of VIEWPORTS) {
     test('英文页：横幅 / 卡片 / 故障都是英文', async ({ page }) => {
       await go(page, '/en/status/', { api: fx.oneDown() });
       await expect(page.locator('#st-banner .st-banner-title')).toHaveText('1 service down');
-      await expect(page.locator('.st-card .st-name')).toHaveText(['Main site', 'Blog', 'Daymark', 'Curio', 'Proxy rules']);
+      await expect(page.locator('.st-card .st-name')).toHaveText(['Space', 'Blog', 'Daymark', 'Curio', 'Proxy rules']);
       await expect(page.locator('.st-card[data-site="curio"] .st-chip')).toHaveText('Down');
       await expect(page.locator('.st-card[data-site="space"] .st-pct')).toHaveText('100% uptime');
       await expect(page.locator('#st-inc .st-inc').first().locator('.st-chip')).toHaveText('Ongoing');
