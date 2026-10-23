@@ -55,7 +55,7 @@ const PEPPER = 'test-pepper-acc';
 
 function envFor(kv, overrides = {}) {
   return {
-    OWNER_KV: kv,
+    KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
     SGX_ROOT_KEY: ROOT_KEY,
     SGX_LOCK_PRIVATE: LOCK.priv,
     SGX_LOCK_PUBLIC: LOCK.pub,

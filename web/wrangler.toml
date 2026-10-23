@@ -23,18 +23,32 @@ SGX_SITE = "space"
 
 # preview KV 绑定（styrigx-auth-gateway-preview，原 styrigx-owner-test_preview；styrigx-account-preview）
 [env.preview]
+# 绑定名同正式（workers/auth-gateway/wrangler.toml）：一个库几套数据绑几个名字，id 相同。
 [[env.preview.kv_namespaces]]
-binding = "OWNER_KV"
+binding = "KV_LOCK_DOOR"
 id = "5084ea8ef2444156ba48203220b93df6"
 
 [[env.preview.kv_namespaces]]
-binding = "ACCOUNT_KV"
+binding = "KV_ACCOUNT_LOGIN"
+id = "5084ea8ef2444156ba48203220b93df6"
+
+[[env.preview.kv_namespaces]]
+binding = "KV_PROFILE"
+id = "a5ee2a75f00d4308959b2bea55247ff6"
+
+[[env.preview.kv_namespaces]]
+binding = "KV_SETTINGS_SYNC"
 id = "a5ee2a75f00d4308959b2bea55247ff6"
 
 # preview D1 绑定（styrigx-auth-gateway-preview：只给预览用的空库；绝不指向正式库 styrigx-auth-gateway）
 # 迁移文件和网关放在一起：workers/auth-gateway/migrations/
 [[env.preview.d1_databases]]
-binding = "SGX_D1"
+binding = "D1_LOCK_RESET"
 database_name = "styrigx-auth-gateway-preview"
 database_id = "d417e421-75bb-4425-bdc8-54856b88578f"
 migrations_dir = "../workers/auth-gateway/migrations"
+
+[[env.preview.d1_databases]]
+binding = "D1_WELLBEING"
+database_name = "styrigx-auth-gateway-preview"
+database_id = "d417e421-75bb-4425-bdc8-54856b88578f"

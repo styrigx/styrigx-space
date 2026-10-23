@@ -71,7 +71,7 @@ async function handlePost(context) {
       }
     }
   } catch (e) {}
-  const kv = env && env.OWNER_KV;
+  const kv = env && env.KV_LOCK_DOOR;
   if (request.method !== 'POST') {
     return Response.json({ ok: false }, { status: 405 });
   }
@@ -166,7 +166,7 @@ async function handlePost(context) {
     if (!rc.ok) return rc.response;
 
     /* --- 步骤 2：根凭证正确后才读恢复开关 --- */
-    const db = env && env.SGX_D1;
+    const db = env && env.D1_LOCK_RESET;
     const sw = await checkRecoverySwitch(kv, db);
     if (sw.valid) {
       /* 开关路径：原子标记已用（抢不到则视为已用，走账号凭证路径） */

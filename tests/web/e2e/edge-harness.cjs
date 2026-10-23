@@ -137,7 +137,8 @@ async function startEdge() {
   const pubPem = derToPem(await crypto.subtle.exportKey('spki', lkp.publicKey), 'PUBLIC KEY');
   const env = {
     SGX_ENV: 'production', SGX_SITE: 'space', SGX_ORIGIN: 'https://styrigx.com', SGX_RP_ID: 'styrigx.com',
-    OWNER_KV: kv,
+    KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
+    KV_PROFILE: kv, KV_SETTINGS_SYNC: kv, /* 正式是另一个库（styrigx-account）；键不重叠，测试里共用一个 */
     SGX_LOCK_PRIVATE: privPem, SGX_LOCK_PUBLIC: pubPem,
     SGX_ACCOUNT_PRIVATE: privPem, SGX_ACCOUNT_PUBLIC: pubPem,
     SGX_ROOT_KEY: 'edge-test-root-key-not-a-secret', SGX_PW_PEPPER: 'edge-test-pepper',

@@ -10,19 +10,12 @@ export const AVATAR_MAX = { 32: 64 * 1024, 96: 128 * 1024, 192: 384 * 1024, 512:
 export const KEY_VER = 'avatar:ver';
 
 /**
- * 头像存在哪个 KV（2026-10-22 起分库）：账号资料库 styrigx-account（ACCOUNT_KV）。
- * 没绑 ACCOUNT_KV（本地 / 旧预览）→ 退回认证库 OWNER_KV。
+ * 头像存在 KV_PROFILE（账号资料库 styrigx-account 里的 avatar:*）。
+ * 没绑 → null（上传 / 移除 500，读取走默认头像）。
  * @param {any} env
  */
 export function avatarKv(env) {
-  return (env && (env.ACCOUNT_KV || env.OWNER_KV)) || null;
-}
-/**
- * 分库前上传的头像还在认证库 OWNER_KV：读的时候新库没有就看旧库，下次上传 / 移除时清掉旧库。
- * @param {any} env
- */
-export function legacyAvatarKv(env) {
-  return env && env.ACCOUNT_KV && env.OWNER_KV && env.ACCOUNT_KV !== env.OWNER_KV ? env.OWNER_KV : null;
+  return (env && env.KV_PROFILE) || null;
 }
 /** @param {number} s */
 export const keyOf = (s) => 'avatar:' + s;

@@ -45,7 +45,8 @@ function env() {
   return {
     seen,
     SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, SGX_ACCOUNT_PUBLIC: PUB,
-    OWNER_KV: { async get() { return null; }, async put() {} },
+    KV_LOCK_DOOR: { async get() { return null; }, async put() {} },
+    KV_ACCOUNT_LOGIN: { async get() { return null; }, async put() {} },
     ASSETS: {
       async fetch(req) {
         const u = new URL(req.url);

@@ -127,7 +127,7 @@ async function handlePost(context) {
     return Response.json({ ok: false, error: 'denied' }, { status: 401 });
   }
 
-  const kv = env && env.OWNER_KV;
+  const kv = env && env.KV_LOCK_DOOR;
   const ip = getClientIp(request);
 
   /* body 只读一次（target 决定签发什么；key 在限流检查之后才比对） */

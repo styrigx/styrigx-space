@@ -68,7 +68,7 @@ function makeKV(seed = {}, { throwOn = null } = {}) {
 }
 
 const envFor = (kv, extra = {}) => ({
-  OWNER_KV: kv,
+  KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
   SGX_LOCK_PRIVATE: LOCK.priv,
   SGX_LOCK_PUBLIC: LOCK.pub,
   SGX_ACCOUNT_PRIVATE: ACCT.priv,

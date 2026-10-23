@@ -65,7 +65,7 @@ test('summarize：按区域合计；书名只给 owner', () => {
 
 test('POST / GET：无会话 401，不碰数据库', async () => {
   let touched = false;
-  const env = { SGX_D1: { prepare() { touched = true; } } };
+  const env = { D1_WELLBEING: { prepare() { touched = true; } } };
   const post = await onRequestPost({ request: new Request('https://styrigx.com/api/wellbeing', { method: 'POST', body: '{}' }), env });
   assert.equal(post.status, 401);
   const get = await onRequestGet({ request: new Request('https://styrigx.com/api/wellbeing'), env });

@@ -48,7 +48,7 @@ const noCall = () => svc(() => { throw new Error('不应转给 styrigx-chat'); }
 
 function env(over = {}) {
   svcLog = [];
-  return { SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, OWNER_KV: kv(), CHAT: noCall(), ...over };
+  return { SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, KV_LOCK_DOOR: kv(), CHAT: noCall(), ...over };
 }
 
 const MSGS = [{ role: 'user', text: 'Hugo 最新版本？' }];

@@ -19,7 +19,7 @@
  * - set/change/remove: 需 kind；set/change 需 pepper
  * 2.8.0：lockout（锁定所有设备）已拆为独立 L2 API /api/lock-all-devices。
  *
- * 密码存储：PBKDF2-SHA256 + 随机 salt + pepper，存 OWNER_KV；恒定时间比较。
+ * 密码存储：PBKDF2-SHA256 + 随机 salt + pepper，存 KV_LOCK_DOOR；恒定时间比较。
  * 会话可吊销：KV 存 session-epoch，Ed25519(SGX_LOCK_PRIVATE) 签进 cookie；
  * 改密码/删密码时 +1，旧 cookie 失效（锁定所有设备走 /api/lock-all-devices）。
  * sgx-verified cookie 的设置/清除统一走 _kernel/session.js（属性只定义一处）。
@@ -90,7 +90,7 @@ export async function onRequestPost(context) {
 /** @param {any} context */
 async function handlePost(context) {
   const { request, env } = context;
-  const kv = env && env.OWNER_KV;
+  const kv = env && env.KV_LOCK_DOOR;
 
   if (request.method !== 'POST') {
     return Response.json({ ok: false, error: 'method' }, { status: 405 });

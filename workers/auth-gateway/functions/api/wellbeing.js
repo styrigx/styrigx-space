@@ -9,13 +9,13 @@
  *   - t：可选标题（书名 / 文章名），最长 60 字
  *   - sec：本次累计秒数，1–900（客户端最多 5 分钟一报，留余量）
  *   - 只记 owner：visitor 会话直接 204 丢弃，访客的时长不进站长的数字健康
- *   - 写入 D1（SGX_D1）wb_daily，同一天同一键原子累加，跨设备天然合并
+ *   - 写入 D1（D1_WELLBEING）wb_daily，同一天同一键原子累加，跨设备天然合并
  * GET /api/wellbeing?d=YYYY-MM-DD  读取某天汇总（默认服务器 UTC 今天）
  *   - 任何有效会话可读（首页小组件访客也能看到站长的数字健康，和原来的静态数据一致）
  *   - 书名 / 文章名只返回给 owner；visitor 只拿到区域合计
  *   - 返回 {ok, d, total, sections:[{k,sec}], items:[{k,t,sec}]}
  *
- * 不涉及任何密钥 / 会话签发；未绑定 SGX_D1（本地 / preview）时 POST 204、GET 返回空。
+ * 不涉及任何密钥 / 会话签发；未绑定 D1_WELLBEING（本地 / preview）时 POST 204、GET 返回空。
  */
 import { verifySessionDetailed } from '../_middleware.js';
 
@@ -111,7 +111,7 @@ export async function onRequestPost(context) {
   const sess = await verifySessionDetailed(request, env);
   if (!sess.ok) return new Response(null, { status: 401, headers: NO_STORE });
   if (sess.role !== 'owner') return new Response(null, { status: 204, headers: NO_STORE });
-  const db = env && env.SGX_D1;
+  const db = env && env.D1_WELLBEING;
   if (!db) return new Response(null, { status: 204, headers: NO_STORE });
   const raw = await request.text();
   if (raw.length > MAX_BODY) return new Response(null, { status: 413, headers: NO_STORE });
@@ -152,7 +152,7 @@ export async function onRequestGet(context) {
   const qd = url.searchParams.get('d') || '';
   const d = dayOk(qd) ? qd : utcDay(new Date());
   const empty = { ok: true, d, total: 0, sections: [], items: [] };
-  const db = env && env.SGX_D1;
+  const db = env && env.D1_WELLBEING;
   if (!db) return Response.json(empty, { headers: NO_STORE });
   try {
     await db.prepare(SCHEMA).run();

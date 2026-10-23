@@ -107,7 +107,7 @@ export async function issueSessionCookie(env, headers, role, by, maxAgeOverride)
   if (!edPriv) {
     return { status: 500, body: { ok: false, error: 'no-session-key' } };
   }
-  const kv = env && env.OWNER_KV;
+  const kv = env && env.KV_LOCK_DOOR;
   let epoch;
   try {
     epoch = await getSessionEpoch(kv);

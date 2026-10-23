@@ -492,7 +492,7 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: workers/search-index
           wranglerVersion: '4'
-          command: kv key put site:space --path=${{ runner.temp }}/search-space.json --binding=SEARCH_KV --remote
+          command: kv key put site:space --path=${{ runner.temp }}/search-space.json --binding=KV_SEARCH_INDEX --remote
 
   deploy-status-worker:
     # 站点监测 styrigx-status（workers/status）：先于网关部署（网关的服务绑定 STATUS 指向它，它不在就部署不了）。
@@ -500,7 +500,7 @@ jobs:
     # 先把 D1 styrigx-status 的表结构迁到最新（migrations/，已迁过的跳过），再部署。
     # token：Cloudflare 上 styrigx-status-deploy = GitHub 环境 STYRIGX_STATUS_DEPLOY 里的同名密钥，
     # 权限 Workers Scripts 编辑 + D1 编辑 + Account Settings 读取 + Secrets Store 编辑（PR3 起有 Secrets Store 绑定
-    # CF_USAGE_TOKEN，部署必须 Edit，Read 报 10021，同鉴权网关）；环境只允许 main。
+    # SGX_CF_USAGE_TOKEN，部署必须 Edit，Read 报 10021，同鉴权网关）；环境只允许 main。
     # 迁移 migrations/0002_usage.sql（用量快照表）由下面的 d1 migrations apply 自动跑。
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: quality

@@ -20,5 +20,5 @@ head_sampling_rate = 1
 
 # KV styrigx-search-index（2026-10-22 已建）。
 [[kv_namespaces]]
-binding = "SEARCH_KV"
+binding = "KV_SEARCH_INDEX"
 id = "bd1babcc3fe74d58994e254c74d34ced"

@@ -92,7 +92,7 @@ test('B1-9 验收（真实 Miniflare）：访客 401 统一', async (t) => {
         },
         body: JSON.stringify({ key: 'any-value-' + Math.random() }),
       });
-      const env = { SGX_LOCK_PUBLIC: TEST_PUB_PEM, SGX_ROOT_KEY: 'test-root-key-12345', OWNER_KV: kv };
+      const env = { SGX_LOCK_PUBLIC: TEST_PUB_PEM, SGX_ROOT_KEY: 'test-root-key-12345', KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv };
       const res = await onRequestPost({ request: req, env });
 
       assert.equal(res.status, 401, 'KV=' + JSON.stringify(kvInit) + ' 应返回 401');
@@ -129,7 +129,7 @@ test('B1-9 验收（真实 Miniflare）：访客 401 统一', async (t) => {
         },
         body: JSON.stringify({ key: 'any-value' }),
       });
-      const env = { SGX_LOCK_PUBLIC: TEST_PUB_PEM, OWNER_KV: kv };
+      const env = { SGX_LOCK_PUBLIC: TEST_PUB_PEM, KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv };
       const res = await onRequestPost({ request: req, env });
 
       assert.equal(res.status, 401, 'lockreset KV=' + JSON.stringify(kvInit) + ' 应返回 401');

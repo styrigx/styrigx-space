@@ -19,7 +19,7 @@ import { SESSION_EPOCH_KEY } from '../_kernel/realms.js';
 
 export async function onRequestGet(context) {
   const { env } = context;
-  const kv = env && env.OWNER_KV;
+  const kv = env && env.KV_LOCK_DOOR;
   if (!kv) {
     return Response.json(
       { ok: false, error: 'epoch' },

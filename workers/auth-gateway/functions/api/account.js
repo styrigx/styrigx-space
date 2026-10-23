@@ -121,9 +121,10 @@ async function ownerLockSession(request, env) {
 export async function onRequestGet(context) {
   try {
     const { request, env } = context;
-    const kv = env && env.OWNER_KV;
+    const kv = env && env.KV_LOCK_DOOR;
+    const akv = env && env.KV_ACCOUNT_LOGIN; /* account-* 键（设备记录、challenge、account-epoch） */
     if (!(await ownerLockSession(request, env))) return json({ ok: false, error: 'session' }, 401);
-    if (!kv) return json({ ok: false, error: 'config' }, 500);
+    if (!kv || !akv) return json({ ok: false, error: 'config' }, 500);
     let password = false;
     let passkey = false;
     try {
@@ -139,7 +140,7 @@ export async function onRequestGet(context) {
     let devName = '';
     if (acc.ok && acc.sid) {
       try {
-        const d = await getDevice(kv, acc.sid);
+        const d = await getDevice(akv, acc.sid);
         if (d) devName = deviceView(d, acc.sid).name;
       } catch (e) {}
     }
@@ -172,7 +173,8 @@ export async function onRequestPost(context) {
 /** @param {any} context */
 async function handlePost(context) {
   const { request, env } = context;
-  const kv = env && env.OWNER_KV;
+  const kv = env && env.KV_LOCK_DOOR;
+  const akv = env && env.KV_ACCOUNT_LOGIN; /* account-* 键（设备记录、challenge、account-epoch） */
   if (request.method !== 'POST') return json({ ok: false, error: 'method' }, 405);
   if (!isSameOrigin(request)) return originDenied();
 
@@ -190,7 +192,7 @@ async function handlePost(context) {
     /* 本机的设备记录也删掉（并拉黑 sid，防 cookie 被拷走后继续用）；验不过就只清 cookie */
     try {
       const cur = await verifyAccountCookie(request, env);
-      if (cur.ok && cur.sid && kv) await revokeDevice(kv, cur.sid);
+      if (cur.ok && cur.sid && akv) await revokeDevice(akv, cur.sid);
     } catch (e) {}
     clearAccountCookie(headers);
     clearDoorCookie(headers);
@@ -207,7 +209,7 @@ async function handlePost(context) {
   /* 其余 action：先要 owner lock 会话（前置条件；visitor 已被 middleware 403） */
   const sess = await ownerLockSession(request, env);
   if (!sess) return json({ ok: false, error: 'session' }, 401);
-  if (!kv) return json({ ok: false, error: 'config' }, 500);
+  if (!kv || !akv) return json({ ok: false, error: 'config' }, 500);
 
   /* ============ login-password ============ */
   if (action === 'login-password') {
@@ -250,7 +252,7 @@ async function handlePost(context) {
     const challenge = randB64(32);
     const cid = randB64(16);
     try {
-      await kv.put(
+      await akv.put(
         CHALLENGE_PREFIX + cid,
         JSON.stringify({ challenge: challenge, purpose: 'login', exp: Date.now() + CHALLENGE_TTL * 1000 }),
         { expirationTtl: CHALLENGE_TTL }
@@ -274,7 +276,7 @@ async function handlePost(context) {
     if (!rp) return rpConfigMissing();
     const cred = (body && body.credential) || {};
     const cid = (body && body.cid) || '';
-    const chRec = await consumeChallenge(kv, CHALLENGE_PREFIX + cid);
+    const chRec = await consumeChallenge(akv, CHALLENGE_PREFIX + cid);
     if (!chRec || chRec.purpose !== 'login' || chRec.exp < Date.now()) {
       return json({ ok: false, error: 'challenge' }, 403);
     }
@@ -334,7 +336,7 @@ async function handlePost(context) {
   /* 设备页（列出 / 单独退出别的设备）只要账号会话，不进门 */
   if (action === 'devices') {
     let all;
-    try { all = await listDevices(kv); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
+    try { all = await listDevices(akv); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
     const cur = acc.sid || '';
     const views = all.map(function (d) { return deviceView(d, cur); });
     views.sort(function (a, b) { return (b.current ? 1 : 0) - (a.current ? 1 : 0); });
@@ -345,9 +347,9 @@ async function handlePost(context) {
     if (!isSid(sid)) return json({ ok: false, error: 'params' }, 400);
     if (sid === acc.sid) return json({ ok: false, error: 'current' }, 400);
     let rec = null;
-    try { rec = await kv.get(DEVICE_PREFIX + sid, 'json'); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
+    try { rec = await akv.get(DEVICE_PREFIX + sid, 'json'); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
     if (!rec) return json({ ok: false, error: 'not-found' }, 404);
-    try { await revokeDevice(kv, sid); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
+    try { await revokeDevice(akv, sid); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
     return json({ ok: true });
   }
   if (action !== 'list') {
@@ -369,10 +371,10 @@ async function handlePost(context) {
   }
   /* 账号凭证变更（改密码/删通行密钥）：account-epoch +1，当前设备账号会话保留原 by/authAt 重签 */
   async function rotateAccount(headers) {
-    const ne = await bumpAccountEpoch(kv); /* 出错抛 → 外层 500/调用方 503 */
+    const ne = await bumpAccountEpoch(akv); /* 出错抛 → 外层 500/调用方 503 */
     await issueAccountCookie(env, headers, acc.by, { authAt: acc.authAt, epoch: ne, sid: acc.sid, record: false });
     /* 其他设备的票据随纪元失效：设备页上也不再列它们 */
-    await pruneOtherDevices(kv, acc.sid || '');
+    await pruneOtherDevices(akv, acc.sid || '');
     /* 门票也绑 account-epoch：当前设备的门票按原到期时间重签，门内可以接着操作 */
     await reissueDoorWithEpoch(env, headers, DOOR_ACCOUNT, door, ne);
   }
@@ -476,7 +478,7 @@ async function handlePost(context) {
       const challenge = randB64(32);
       const cid = randB64(16);
       try {
-        await kv.put(
+        await akv.put(
           CHALLENGE_PREFIX + cid,
           JSON.stringify({ challenge: challenge, purpose: 'register', exp: Date.now() + CHALLENGE_TTL * 1000 }),
           { expirationTtl: CHALLENGE_TTL }
@@ -500,7 +502,7 @@ async function handlePost(context) {
     /* action === 'register' */
     const cred = (body && body.credential) || {};
     const cid = (body && body.cid) || '';
-    const chRec = await consumeChallenge(kv, CHALLENGE_PREFIX + cid);
+    const chRec = await consumeChallenge(akv, CHALLENGE_PREFIX + cid);
     if (!chRec || chRec.purpose !== 'register' || chRec.exp < Date.now()) {
       return json({ ok: false, error: 'challenge' }, 403);
     }

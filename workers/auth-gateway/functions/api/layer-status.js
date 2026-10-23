@@ -25,7 +25,7 @@ export async function onRequestGet(context) {
 /** @param {any} context */
 async function handleGet(context) {
   const { request, env } = context;
-  const kv = env && env.OWNER_KV;
+  const kv = env && env.KV_LOCK_DOOR;
   if (!kv) {
     return Response.json({ ok: false, error: 'config' }, { status: 500 });
   }
@@ -38,7 +38,7 @@ async function handleGet(context) {
   /* 补充二：管理页加载时触发开关计时（只计时，不签票不标记已用；
      失败不影响页面加载；访客到不了这里） */
   try {
-    await touchRecoverySwitch(kv, env && env.SGX_D1);
+    await touchRecoverySwitch(kv, env && env.D1_LOCK_RESET);
   } catch (e) {}
 
   try {

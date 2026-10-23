@@ -86,21 +86,39 @@ binding = "CHAT"
 service = "styrigx-chat"
 
 # ---- 数据绑定（正式 KV/D1）----
-# 认证库 styrigx-auth-gateway（原 styrigx-owner，2026-10-22 改名，id 不变）：锁屏 / 账号的密码哈希、通行密钥、会话、设备、限流。
+# 绑定名 = <类型>_<存放的内容>（2026-10-24）：一个资源里有几套数据就绑几个名字，id 相同。
+# 认证库 styrigx-auth-gateway（原 styrigx-owner，2026-10-22 改名，id 不变）：
+# - KV_LOCK_DOOR：锁屏 / 门 / 根凭证（lock-pw、owner-pw、owner-passkey:*、owner-user-id*、pk-challenge:*、pw-fail:/pw-lock:*、
+#   lockreset-challenge:*、recovery-switch、session-epoch、layer:*、root-auth-*），以及其余非 account- 键
+# - KV_ACCOUNT_LOGIN：账号登录（account-epoch、account-challenge:*、account-dev:*、account-revoked:*）
 [[kv_namespaces]]
-binding = "OWNER_KV"
+binding = "KV_LOCK_DOOR"
 id = "b796097c90104000992b7713f61e16ea"
 
-# 账号资料库 styrigx-account（2026-10-22 分出来）：头像（avatar:*）、云同步（account-prefs）。
 [[kv_namespaces]]
-binding = "ACCOUNT_KV"
+binding = "KV_ACCOUNT_LOGIN"
+id = "b796097c90104000992b7713f61e16ea"
+
+# 账号资料库 styrigx-account（2026-10-22 分出来）：KV_PROFILE = 头像（avatar:*）；KV_SETTINGS_SYNC = 云同步（account-prefs）。
+[[kv_namespaces]]
+binding = "KV_PROFILE"
 id = "b20701f5f48e498e897bc6f0bd81643f"
 
+[[kv_namespaces]]
+binding = "KV_SETTINGS_SYNC"
+id = "b20701f5f48e498e897bc6f0bd81643f"
+
+# D1 styrigx-auth-gateway：D1_LOCK_RESET = recovery_switch；D1_WELLBEING = wb_daily。同一个库，migrations_dir 只配在第一个上。
 [[d1_databases]]
-binding = "SGX_D1"
+binding = "D1_LOCK_RESET"
 database_name = "styrigx-auth-gateway"
 database_id = "6931d1da-3502-480d-b0bd-de1bc4829d1d"
 migrations_dir = "migrations"
+
+[[d1_databases]]
+binding = "D1_WELLBEING"
+database_name = "styrigx-auth-gateway"
+database_id = "6931d1da-3502-480d-b0bd-de1bc4829d1d"
 
 # ---- 密钥：Secrets Store ----
 # 聊天钥匙 SGX_CHAT_API_KEY 不在这里（2026-10-22 起只绑在 styrigx-chat，见 workers/chat/wrangler.toml）。

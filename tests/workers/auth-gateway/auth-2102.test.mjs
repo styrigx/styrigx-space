@@ -7,7 +7,7 @@
  * - 3：删应用密钥先推 app-epoch 再删；推失败 503 且密钥仍在
  * - 4：删锁屏密钥先推 session-epoch 再删；失败 503（fail closed）
  * - 5：主站 SGX_SITE 配错 → 500（fail closed）
- * - 6：无 OWNER_KV 时 epoch 检查 fail closed（kv-error）
+ * - 6：无 KV_LOCK_DOOR 时 epoch 检查 fail closed（kv-error）
  * - 7：密码限速 KV 出错 → 503（fail closed）
  * - 8：管理密钥审计写入失败 → 不签发会话，503
  * - 9：Origin 缺失/解析失败 → 403
@@ -79,7 +79,7 @@ const SGX_ROOT_KEY = 'test-owner-key-2102';
 
 function baseEnv(kv, overrides = {}) {
   return {
-    OWNER_KV: kv,
+    KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
     SGX_ROOT_KEY,
     SGX_LOCK_PRIVATE: LOCK_PRIV,
     SGX_LOCK_PUBLIC: LOCK_PUB,
@@ -145,7 +145,7 @@ test('5b：SGX_SITE 缺失时主站 middleware 拒绝（500）', async () => {
   assert.equal((await res.json()).error, 'config');
 });
 
-/* ============ 6：无 OWNER_KV 时 epoch 检查 fail closed ============ */
+/* ============ 6：无 KV_LOCK_DOOR 时 epoch 检查 fail closed ============ */
 
 test('6：verifySessionDetailed 无 KV → kv-error（不跳过）', async () => {
   const { verifySessionDetailed } = await import('../../../workers/auth-gateway/functions/_middleware.js');

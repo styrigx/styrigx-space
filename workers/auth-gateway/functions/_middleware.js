@@ -302,12 +302,12 @@ async function verifyOneCookie(val, env) {
   if (!(await ed25519Verify(pubKey, payload, sig))) return { status: 'bad-sig', role: null, by: null };
 
   /* epoch 检查：cookie 的 epoch 必须 >= KV 中的 session-epoch。
-     2.10.2：无 OWNER_KV 时 fail closed（不再跳过检查）。 */
+     2.10.2：无 KV_LOCK_DOOR 时 fail closed（不再跳过检查）。 */
   try {
-    if (!env || !env.OWNER_KV) {
+    if (!env || !env.KV_LOCK_DOOR) {
       return { status: 'kv-error', role: null, by: null };
     }
-    const cur = parseInt(await env.OWNER_KV.get(SESSION_EPOCH_KEY) || '0', 10) || 0;
+    const cur = parseInt(await env.KV_LOCK_DOOR.get(SESSION_EPOCH_KEY) || '0', 10) || 0;
     const ep = parseInt(epochStr, 10) || 0;
     if (ep < cur) return { status: 'epoch-low', role: null, by: null };
   } catch (e) {

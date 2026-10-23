@@ -55,7 +55,7 @@ function makeKv(init = {}) {
 function env(kv) {
   return {
     SGX_LOCK_PUBLIC: PUB,
-    OWNER_KV: kv,
+    KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, KV_PROFILE: kv,
     ASSETS: { fetch: async (u) => new Response('DEFAULT:' + new URL(u).pathname, { status: 200 }) },
   };
 }

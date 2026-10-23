@@ -25,11 +25,11 @@ const SKEW_MS = 60 * 1000;
 
 
 /**
- * 云同步存在账号资料库 styrigx-account（ACCOUNT_KV，2026-10-22 分库）；没绑时退回 OWNER_KV（本地 / 旧预览）。
+ * 云同步存在 KV_SETTINGS_SYNC（账号资料库 styrigx-account 里的 account-prefs）；没绑 → 500 config。
  * @param {any} env
  */
 function prefsKv(env) {
-  return (env && (env.ACCOUNT_KV || env.OWNER_KV)) || null;
+  return (env && env.KV_SETTINGS_SYNC) || null;
 }
 
 /** @param {object} body @param {number} [status] */

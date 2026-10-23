@@ -4,9 +4,9 @@
  * /summary 带上它给状态页「用量」卡片。
  *
  * 钥匙（仓库里不写任何值）：
- *   CF_USAGE_TOKEN  Secrets Store 绑定（wrangler.toml [[secrets_store_secrets]]，store 同鉴权网关，
- *                   secret_name = "SGX_CF_USAGE_TOKEN"），代码里 `await env.CF_USAGE_TOKEN.get()`；
- *                   测试 / 本地也可以直接是字符串。只读 API token，权限（全部是 Account 级、Read）：
+ *   SGX_CF_USAGE_TOKEN  Secrets Store 绑定（wrangler.toml [[secrets_store_secrets]]，store 同鉴权网关，
+ *                       secret_name = "SGX_CF_USAGE_TOKEN"），代码里 `await env.SGX_CF_USAGE_TOKEN.get()`；
+ *                       测试 / 本地也可以直接是字符串。只读 API token，权限（全部是 Account 级、Read）：
  *                     Account Analytics Read      ← GraphQL：Workers 请求数、R2 存储、KV 存储
  *                     D1 Read                     ← D1 库列表 + 每个库的 file_size
  *                     Workers R2 Storage Read     ← R2 存储桶列表（桶数）
@@ -75,7 +75,7 @@ async function readSecret(v) {
  */
 export async function usageCreds(env) {
   try {
-    const token = await readSecret(env && env.CF_USAGE_TOKEN);
+    const token = await readSecret(env && env.SGX_CF_USAGE_TOKEN);
     const account = await readSecret(env && env.CF_ACCOUNT_ID);
     if (!token || !account) return { token: '', account: '', reason: 'not-configured' };
     return { token, account, reason: null };
@@ -301,7 +301,7 @@ export async function persistUsage(db, r, now) {
 /** Cron 入口：收一轮 → 写库 */
 export async function runUsage(env, now, doFetch = fetch) {
   const r = await collectUsage(env, now, doFetch);
-  await persistUsage(env.STATUS_DB, r, now);
+  await persistUsage(env.D1_CLOUDFLARE_USAGE, r, now);
   if (!r.ok) console.warn('[status] usage', r.reason, r.errors ? JSON.stringify(r.errors) : '');
   return r;
 }
