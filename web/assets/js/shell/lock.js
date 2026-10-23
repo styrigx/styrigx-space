@@ -27,8 +27,6 @@ import { pwFieldHtml, bindPwEye, onEnter, focusNoScroll } from '../lib/auth-flow
 import { mountResetFlow, resetT } from '../lib/reset-flow.js';
 import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
 
-const LOCK =
-  '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
 const UNLOCK =
   '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.9-1"/></svg>';
 const CHECK =
@@ -302,8 +300,9 @@ function showLockScreen() {
      为了不跳版面：整组先透明，日刻有结论（缓存画上 / 拉到 / 失败）或等满 1.2 秒再一起显示；
      之后才拉到的句子这次不再插进来（下次锁屏从缓存直接画）。 */
   /* 2026-10-23 锁屏视觉统一（用户定稿）：和账号登录页同一套玻璃背景与版面 ——
-     顶栏位置只放标题「解锁屏幕」（锁屏盖住整页，抽屉 / 快捷面板按钮不在锁屏上，不能绕过）；
-     （2026-10-23：左上字标和 A Personal Digital Space 删掉，标语挪到抽屉头）头像（点它解锁）→ 欢迎回来 / 很高兴再次见到你 → 解锁按钮 → 底部站点清单。
+     顶栏和全站一样是三件套（两侧圆只是外观，点不了，锁屏不能绕过）；
+     头像（点它解锁）→ 欢迎回来 / 很高兴再次见到你 → 解锁按钮，整组在屏幕上下左右居中。
+     （2026-10-23：小锁图标、左上字标、底部站点清单删掉；A Personal Digital Space 挪到抽屉头）
      时钟、日期天气、日刻不再放在锁屏上。解锁、凭证、会话逻辑不变：按钮只是转点头像。 */
   ov.innerHTML =
     '<div class="sgx-glass-bg" aria-hidden="true"></div>' +
@@ -313,9 +312,6 @@ function showLockScreen() {
     '<span class="sgx-tb-end" aria-hidden="true">' + tbEndIc + '</span>' +
     '</div>' +
     '<div class="sgx-lock-stage is-pending" id="sgx-lock-stage">' +
-    '<div class="sgx-lock-head">' +
-    '<div class="sgx-lock-top" id="sgx-lock-ic" aria-hidden="true">' + LOCK + '</div>' +
-    '</div>' +
     '<div class="sgx-lock-user"><button type="button" id="sgx-lock-avatar" aria-label="' +
     (en ? 'Unlock, choose method' : '解锁，选择方式') +
     '" aria-haspopup="dialog">' +
@@ -423,8 +419,6 @@ function showLockScreen() {
 
   /* 开锁动画（无 return 时）：显示桌面 */
   function doUnlockAnimation() {
-    const ic = document.getElementById('sgx-lock-ic');
-    if (ic) ic.innerHTML = UNLOCK;
     if (reducedMotion()) {
       ov.style.transition = 'opacity .25s ease';
       ov.style.opacity = '0';

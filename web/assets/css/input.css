@@ -7388,12 +7388,6 @@
     &.is-pending { opacity: 0; }
     .reduced-motion & { transition: none; }
   }
-  .sgx-lock-head { width: 100%; display: flex; flex-direction: column; align-items: center; }
-  /* 小锁 */
-  .sgx-lock-top {
-    display: flex; justify-content: center; pointer-events: none; color: var(--sgx-lock-meta);
-    margin-bottom: 14px;
-  }
   .sgx-lock-clockwrap { text-align: center; pointer-events: none; }
   .sgx-lock-clock {
     font-size: clamp(64px, 23vw, 112px); font-weight: 800; letter-spacing: -0.03em; line-height: 1;
@@ -7699,6 +7693,10 @@
   .acct-glass { display: none; }
   body:has(#acct-login:not([hidden])) .acct-glass { display: block; }
   body:has(#acct-login:not([hidden])) .acct-layout { position: relative; z-index: 1; }
+  /* 2026-10-23（用户：太靠上了）：登录区在顶栏下面的空间里上下居中 —— main → .acct-layout → 登录区一路撑满，登录区内容居中 */
+  body:has(#acct-login:not([hidden])) main { display: flex; flex-direction: column; }
+  body:has(#acct-login:not([hidden])) .acct-layout { flex: 1 0 auto; display: flex; flex-direction: column; }
+  body:has(#acct-login:not([hidden])) .acct-login { flex: 1 0 auto; justify-content: center; padding-top: 0; }
   /* 2026-10-23：左上角站名 + A Personal Digital Space 删掉（标语挪到抽屉头 .sgx-drawer-tag） */
   .acct-login-sub { margin: -8px 0 0; font-size: 14px; letter-spacing: .04em; color: var(--sgx-text-secondary); }
   .acct-login .acct-login-avatar { width: 120px; height: 120px; box-shadow: 0 0 0 5px rgba(255 255 255 / .92), 0 14px 30px -10px rgba(0 0 0 / .25); }
@@ -7795,7 +7793,6 @@
   /* 手机横屏（矮屏）：左边 时钟 + 日期 + 日刻，右边头像，都垂直居中 */
   @media (orientation:landscape) and (max-width:1023.5px) and (max-height:600px) {
     .sgx-lock-stage { max-width: 860px; flex-direction: row; justify-content: center; gap: 48px; padding-top: 20px; padding-bottom: 20px; }
-    .sgx-lock-head { max-width: 460px; }
     .sgx-lock-clock { font-size: min(20vh,88px); }
     .sgx-lock-dm { margin-top: 16px; padding: 14px 18px; }
     .sgx-lock-user { margin-top: 0; }
@@ -7816,14 +7813,13 @@
   }
   /* 锁屏顶栏的两侧圆只是外观：不可点、没有按压态 */
   .sgx-lock-tb .sgx-tb-nav, .sgx-lock-tb .sgx-tb-end, .sgx-lock-tb .sgx-tb-pill { pointer-events: none; cursor: default; }
+  /* 头像 + 欢迎语 + 解锁按钮一组，在整块屏幕上上下左右居中（2026-10-23 用户：太靠上了）：
+     舞台撑满顶栏下面的空间、内容居中；底部多留一个顶栏的高度，抵掉顶栏占的位置，看起来落在屏幕正中。小锁图标 2026-10-23 删掉。 */
   .sgx-lock-stage {
-    position: relative; z-index: 1; margin: 0 auto; flex: 1 0 auto; max-width: 480px;
-    padding: 24px 20px calc(env(safe-area-inset-bottom, 0px) + 24px);
+    position: relative; z-index: 1; margin: 0 auto; flex: 1 0 auto; max-width: 480px; justify-content: center;
+    padding: 24px 20px calc(env(safe-area-inset-bottom, 0px) + 24px + var(--sgx-tb-inset) + var(--sgx-tb-btn));
   }
-  .sgx-lock-head { align-items: stretch; }
-  /* 小锁：解锁动画要换成开锁图标，所以留着，但只是一个很淡的装饰，放在字标下方居中 */
-  .sgx-lock-top { margin: 18px 0 0; opacity: .55; align-self: center; }
-  .sgx-lock-user { margin-top: 20px; width: 100%; gap: 0; }
+  .sgx-lock-user { margin-top: 0; width: 100%; gap: 0; }
   #sgx-lock-avatar { width: 130px; height: 130px; }
   #sgx-lock-avatar img, .sgx-lock-fb { width: 120px; height: 120px; margin: 5px; }
   #sgx-lock-avatar img { box-shadow: 0 0 0 5px rgba(255 255 255 / .92), 0 14px 30px -10px rgba(0 0 0 / .25); }
@@ -7836,11 +7832,10 @@
     box-shadow: inset 0 1px 0 rgba(255 255 255 / .22), 0 12px 24px -12px color-mix(in oklch, var(--sgx-primary) 70%, transparent);
     svg { width: 20px; height: 20px; }
   }
-  /* 手机横屏（矮屏）：左边字标，右边头像 + 按钮 */
+  /* 手机横屏（矮屏）：一列居中，上下留白收小 */
   @media (orientation:landscape) and (max-width:1023.5px) and (max-height:600px) {
-    .sgx-lock-stage { max-width: 860px; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 0 48px; padding-top: 12px; }
-    .sgx-lock-head { flex: 1 1 300px; max-width: 360px; }
-    .sgx-lock-user { flex: 1 1 300px; margin-top: 0; }
+    .sgx-lock-stage { flex-direction: column; padding-top: 8px; padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); }
+    .sgx-lock-user { flex: none; }
   }
   /* 解锁时首页从 96% 缩放回 100%（约 400ms，与锁屏滑出同步） */
   main, #site-nav, footer { transition: transform .4s ease; }
