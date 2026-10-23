@@ -37,18 +37,28 @@ export function toggleFollowSystem() {
   else setThemeMode('system');
 }
 
-/** @returns {string} 调色板 id（默认 lake） */
+/** 默认调色板（2026-10-23 PR-G 七色调色板：雾霾蓝；= features.yaml palette.default = palettes.json default） */
+export const DEFAULT_PALETTE = 'dustyblue';
+
+/** 存的调色板值 → 合法 id：旧撞色 x<id> 迁到 <id>（PR-G 合并单色 / 撞色），空值 → 默认。
+ *  不认识的 id 原样返回（CSS 里没有对应规则，页面本来就渲染成默认；baseof 内联脚本按色板清单清掉）。 @param {any} v @returns {string} */
+export function normPalette(v) {
+  if (typeof v !== 'string' || !v) return DEFAULT_PALETTE;
+  return /^x[a-z]+$/.test(v) ? v.slice(1) : v;
+}
+
+/** @returns {string} 调色板 id（默认 dustyblue） */
 export function palette() {
-  return featGet('palette') || 'lake';
+  return normPalette(featGet('palette'));
 }
 
 /** 设置调色板并立即生效（自定义主题色 sgx-accent 优先于预设，所以选预设时先清掉它）。 @param {string} p */
 export function setPalette(p) {
-  const v = p || 'lake';
+  const v = normPalette(p);
   clearAccent();
   featSet('palette', v);
   const d = document.documentElement;
-  if (v === 'lake') d.removeAttribute('data-palette');
+  if (v === DEFAULT_PALETTE) d.removeAttribute('data-palette');
   else d.setAttribute('data-palette', v);
 }
 

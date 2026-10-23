@@ -692,13 +692,15 @@ test.describe('主题色角色（PR3）', () => {
 
   const roleOf = (page, v) => page.evaluate((vv) => getComputedStyle(document.documentElement).getPropertyValue(vv).trim(), v);
 
-  test('预设色板：登录页按钮用该预设手调的角色（terra 浅色主色 = 种子 #8a4b2d，次按钮 = secondary-container）', async ({ page }) => {
+  test('预设色板：登录页按钮用该预设的角色（2026-10-23 PR-G 七色：terra 浅色主色（ink）= 前景 1 鼠尾草按对比度压深 #566a44；主按钮 = 填充档 = 鼠尾草本色 #94a982 + 深墨字；次按钮 = secondary-container）', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-palette', 'terra'); localStorage.setItem('sgx-theme-mode', 'light'); } catch (e) {} });
     await mockAccount(page, { status: { ok: true, password: true, passkey: true, ready: true, session: null } });
     await page.goto('/account/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#acct-pk-btn')).toBeVisible();
-    expect(await roleOf(page, '--sgx-primary')).toBe('#8a4b2d');
-    expect(await page.locator('#acct-pk-btn').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(138, 75, 45)');
+    expect(await roleOf(page, '--sgx-primary')).toBe('#566a44');
+    expect(await roleOf(page, '--sgx-primary-fill')).toBe('#94a982');
+    expect(await page.locator('#acct-pk-btn').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(148, 169, 130)');
+    expect(await page.locator('#acct-pk-btn').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(28, 33, 23)');
     expect(await roleOf(page, '--sgx-btn-secondary-bg')).toBe(await roleOf(page, '--sgx-secondary-container'));
   });
 
@@ -709,27 +711,28 @@ test.describe('主题色角色（PR3）', () => {
       } catch (e) {}
     });
     await page.goto('/settings/theme/', { waitUntil: 'domcontentloaded' });
-    /* 设计稿校验种子：#ff6b9d → 最近预设 cherry，浅色主色压到 #ba2863（2026-10-21 容器阶梯加深后要在更深的 container-high 上仍 ≥4.6:1，比原来的 #bb2a65 深一点） */
+    /* 设计稿校验种子：#ff6b9d → 最近预设（PR-G 起 indigo，前景 1 霓虹粉），浅色主色压到 #ba2863（2026-10-21 容器阶梯加深后要在更深的 container-high 上仍 ≥4.6:1，比原来的 #bb2a65 深一点） */
     await expect.poll(() => roleOf(page, '--sgx-primary')).toBe('#ba2863');
     const cache = await page.evaluate(() => localStorage.getItem('sgx-accent-css'));
-    expect(cache && cache.indexOf('v5|#ff6b9d\n')).toBe(0);
+    expect(cache && cache.indexOf('v7|#ff6b9d\n')).toBe(0);
     await mockAccount(page, { status: { ok: true, password: true, passkey: true, ready: true, session: null } });
     await page.goto('/account/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('style#sgx-accent-roles')).toHaveCount(1);
     expect(await roleOf(page, '--sgx-primary')).toBe('#ba2863');
-    expect(await page.locator('#acct-pk-btn').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(186, 40, 99)');
+    /* 主按钮 = 填充档：种子本色 #ff6b9d + 自动挑的深墨字（2026-10-23 PR-G 修订） */
+    expect(await page.locator('#acct-pk-btn').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 107, 157)');
     /* 深色：同一种子的深色角色 */
     await page.evaluate(() => document.documentElement.classList.add('dark'));
     expect(await roleOf(page, '--sgx-primary')).not.toBe('#ba2863');
     await page.evaluate(() => document.documentElement.classList.remove('dark'));
-    /* 回设置页点「恢复默认」（2026-10-21：lake 不再有色块）：清掉自定义色 */
+    /* 回设置页点「恢复默认」：清掉自定义色，回到默认 dustyblue（浅色主色 = 前景 1 芥末按对比度压深） */
     await page.goto('/settings/theme/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#palette-reset')).toHaveAttribute('aria-disabled', 'false');
     await page.locator('#palette-reset').click();
     await expect(page.locator('#palette-reset')).toHaveAttribute('aria-disabled', 'true');
     await expect(page.locator('style#sgx-accent-roles')).toHaveCount(0);
     expect(await page.evaluate(() => localStorage.getItem('sgx-accent'))).toBeNull();
-    expect(await roleOf(page, '--sgx-primary')).toBe('#2f5f86');
+    expect(await roleOf(page, '--sgx-primary')).toBe('#7e6000');
   });
 });
 

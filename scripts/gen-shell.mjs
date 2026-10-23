@@ -3,13 +3,15 @@
  * 共享外壳（shared shell）：主站是唯一来源，子站（blog / daymark）用各自仓库的 scripts/sync-shell.mjs 一条命令同步。
  *
  * 生成 web/shared/shell/（勿手改，改源头后重跑本脚本）：
- *   tokens.css         33 套预设（单色 17 + 撞色 16）的色彩角色（web/data/palette-roles.json，和 input.css 里 @gen-palettes 同一个函数）+ 组件别名层
+ *   tokens.css         22 套七色调色板的色彩角色 + 色调 token（--sgx-bg-1..7 / --sgx-fg-1..6；web/data/palette-roles.json，和 input.css 里 @gen-palettes 同一个函数）
+ *                      + 调色板派生 token（tag / chart）+ 组件别名层
  *   shell.css          顶栏（九宫格圆 / 只有页名的长条 / 右圆）、导航抽屉（含抽屉头头像）、原地搜索层：input.css 里 /* @shell:begin <名> *\/ … /* @shell:end <名> *\/ 之间的原文
  *   palette-scheme.js  自定义 #rrggbb 种子 → 整套角色的引擎（web/assets/js/lib/palette-scheme.js 原样复制）
  *   search.js          原地搜索层（web/assets/js/shell/search-layer.js 原样复制；不 import 任何东西，样式在 shell.css 的 search 段）
  *   nav.json           导航抽屉的项（web/data/shell-nav.json）+ 用到的图标 SVG（web/layouts/partials/icon.html）
  *                      + 抽屉头字标 SVG wordmark（web/layouts/partials/shell-wordmark.html；brand 文字照旧保留）
- *   palettes.json      预设 id / 名字 / 种子 + 默认值 + 子站自定义色缓存版本号
+ *   palettes.json      预设 id / 名字 / 分组 / 种子 / 背景色 / 6 前景 + 每套亮暗的 Shell + Semantic token 值（含 bg-1..7、chart-1..6）
+ *                      + 默认值 + 子站自定义色缓存版本号（子站只消费，不自己定义主题色）
  *   ui-cookie-read.js  sgx-ui cookie 只读解析器（web/assets/js/lib/ui-cookie-read.js 原样复制；经典脚本 ES5，子站内联进 <head>）
  *                      源文件里 @ui-cookie-presets 段（预设 id → 种子 + 引擎版本）由本脚本按 palette-roles.json 重写
  *   ui-cookie-contract.json  写端真实产出的 cookie + 读端期望（tests/fixtures/ui-cookie-contract.json 原样复制，gen-ui-cookie-contract.mjs 生成）
@@ -25,6 +27,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderBlock } from './gen-palettes.mjs';
+import { DEFAULT_ID, GROUPS } from '../web/assets/js/lib/palette-scheme.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const OUT_DIR = path.join(REPO, 'web/shared/shell');
@@ -104,10 +107,18 @@ function renderTokens(data) {
     .split('\n')
     .map((l) => l.replace(/^ {2}/, ''))
     .join('\n');
+  const derived = css.match(/\/\* 调色板派生 token（tag \/ chart[^*]*\*\/\n\s*(:root \{[\s\S]*?\n\s*\})/);
+  if (!derived) throw new Error('input.css 里找不到调色板派生 token（tag / chart）');
+  const derivedCss = derived[1]
+    .split('\n')
+    .map((l) => l.replace(/^ {2}/, ''))
+    .join('\n');
   return (
     HEAD('web/data/palette-roles.json') +
-    '/* 33 套预设（单色 + 撞色）：<html data-palette="<id>">（默认 lake 不写），深色 <html class="dark">；自定义种子在运行时用 palette-scheme.js 的 rolesCss() 覆盖。 */\n' +
+    '/* 22 套七色调色板（1 背景色 + 6 前景撞色）：<html data-palette="<id>">（默认 dustyblue 不写），深色 <html class="dark">；自定义种子在运行时用 palette-scheme.js 的 rolesCss() 覆盖。 */\n' +
     block +
+    '\n/* 调色板派生 token（tag / chart）：只引用上面的色调 token */\n' +
+    derivedCss +
     '\n/* 组件角色（别名层）：只引用上面的角色 */\n' +
     aliasCss +
     '\n'
@@ -146,17 +157,62 @@ export function renderSearch() {
   return src;
 }
 
+/** 调色板用法规则版本（填充 vs ink、大面积块中性化、固定状态色、图表 3:1 回退、合成底审计；docs/palette-usage.md） */
+export const RULES_VERSION = 'palette-rules-1';
+
+/* palettes.json 每套带的 token（子站只消费这些，不自己定义主题色）：
+   Shell = 页面底 / 光晕（bg-1..7）、材质（表面、容器、玻璃、遮罩）；Semantic = 主 / 辅 / 第三色族、选中、链接、边线、文字；
+   另加前景 6 色（fg-N / -tint / -ink）和 chart-1..6（= fg-1..6 本色，卡片上不到 3:1 的逐色退到 ink）、tag-bg / tag-fg（= fg-4 tint / ink）。 */
+const SHELL_KEYS = ['bg-1', 'bg-2', 'bg-3', 'bg-4', 'bg-5', 'bg-6', 'bg-7', 'background', 'surface', 'surface-dim', 'surface-bright',
+  'surface-container-lowest', 'surface-container-low', 'surface-container', 'surface-container-high', 'surface-container-highest',
+  'topbar-glass', 'glass-tint', 'glass-edge', 'scrim'];
+const SEMANTIC_KEYS = ['primary', 'on-primary', 'primary-container', 'on-primary-container', 'secondary', 'on-secondary', 'secondary-container',
+  'on-secondary-container', 'tertiary', 'on-tertiary', 'tertiary-container', 'on-tertiary-container', 'nav-selected', 'on-nav-selected',
+  'chip-selected', 'on-chip-selected', 'link', 'link-visited', 'focus-ring', 'outline', 'outline-variant', 'divider',
+  'text-primary', 'text-secondary', 'text-tertiary', 'danger', 'on-danger',
+  /* 2026-10-23 PR-G 修订：填充档（前景 1 本色 + 自动 on 色）、固定成功色 */
+  'primary-fill', 'on-primary-fill', 'success', 'on-success', 'success-container', 'on-success-container',
+  'warning', 'on-warning', 'warning-container', 'on-warning-container', 'info', 'on-info', 'info-container', 'on-info-container'];
+/** 完整导出（2026-10-23 PR-G 修订：「按需索取」）：每套亮 / 暗 = 全部角色（Shell + Semantic + 交互 / 功能 / 固定状态色 / chart）
+ *  + 全部色调 token（bg-1..7、fg-1..6 本色 / -tint / -ink / -on）+ tag + 状态层（state-color 解析成颜色）。
+ *  SHELL_KEYS / SEMANTIC_KEYS 只用来给子站文档分组，值不再筛掉。
+ *  @param {any} p 预设 @param {'light'|'dark'} m */
+export function sharedTokens(p, m) {
+  const roles = p[m], tones = p[m + 'Tones'], st = p[m + 'State'], out = {};
+  for (const k of SHELL_KEYS) out[k] = k in tones ? tones[k] : roles[k];
+  for (const k of SEMANTIC_KEYS) out[k] = roles[k];
+  for (const [k, v] of Object.entries(roles)) {
+    if (k === 'bg-gradient') { v.forEach((c, i) => { out['bg-gradient-' + (i + 1)] = c; }); continue; }
+    if (!(k in out)) out[k] = v;
+  }
+  for (const [k, v] of Object.entries(tones)) if (!(k in out)) out[k] = v;
+  out['tag-bg'] = tones['fg-4-tint']; out['tag-fg'] = tones['fg-4-ink'];
+  if (st) {
+    out['state-color'] = st.color === 'primary' ? roles.primary : roles['text-primary'];
+    for (const k of ['hover', 'focus', 'pressed', 'selected', 'dragged']) out['state-' + k] = st[k];
+  }
+  return out;
+}
+
 function renderPalettes(data, schemeSrc) {
-  /* 顺序 = palette-roles.json（= palette-scheme.js PRESETS：单色组在前、撞色组在后）；2026-10-21 起每项多一个 group（mono / clash），旧字段不变 */
+  /* 顺序 = palette-roles.json（= palette-scheme.js PRESETS = 设置页网格顺序，按 group 分组）；2026-10-23 PR-G 起 22 套七色调色板，
+     group = cool / nature / warm / floral / neutral，每项带 bg / fg 和亮暗 tokens */
   const ids = Object.keys(data.presets);
   return (
     JSON.stringify(
       {
         _generated: 'styrigx-space scripts/gen-shell.mjs ← web/data/palette-roles.json；勿手改',
-        default: 'lake',
+        default: DEFAULT_ID,
         /* 子站缓存自定义色角色时用的版本号：引擎一变就变，旧缓存自动作废 */
         schemeVersion: sha(schemeSrc).slice(0, 12),
-        presets: ids.map((id) => ({ id, zh: data.presets[id].zh, en: data.presets[id].en, seed: data.presets[id].seed, group: data.presets[id].group || 'mono' })),
+        /* 子站据此判断自己消费的是哪一版调色板用法规则（docs/palette-usage.md）；规则变了手动加一 */
+        rulesVersion: RULES_VERSION,
+        groups: GROUPS,
+        presets: ids.map((id) => {
+          const p = data.presets[id];
+          return { id, zh: p.zh, en: p.en, seed: p.seed, group: p.group, bg: p.bg, fg: p.fg,
+            tokens: { light: sharedTokens(p, 'light'), dark: sharedTokens(p, 'dark') } };
+        }),
       },
       null,
       2,
@@ -174,6 +230,10 @@ const README = `# web/shared/shell（生成物，勿手改）
   它按 \`manifest.json\` 从 raw.githubusercontent.com 拉这些文件、逐个校验 sha256，写进子站的标记段 / 供应商目录。
 - 主题跨站：主站把外观写进 \`sgx-ui\` cookie（Domain=styrigx.com）：\`pal\` = 预设 id，\`accent\` = 当前种子 #rrggbb。
   子站：\`accent\` 等于该预设种子 → 只设 \`data-palette\`；不等 → 自定义色，用 \`palette-scheme.js\` 的 \`rolesCss(seed)\` 算整套角色。
+  旧撞色 id \`x<id>\`（2026-10-23 PR-G 前）读端自动迁到 \`<id>\`，cookie 里旧版本的种子也认作预设。
+- 调色板（2026-10-23 PR-G 七色）：22 套 = 1 背景色 + 6 前景撞色。子站只消费主站给的 token，不自己定义主题色；当前色板由主站决定。
+  \`palettes.json\` 每套带 \`tokens.light\` / \`tokens.dark\`（Shell：bg-1..7、表面 / 容器、玻璃、遮罩；Semantic：主 / 辅 / 第三色族、选中、链接、边线、文字；
+  外加 fg-1..6（-tint / -ink）、chart-1..6、tag-bg / tag-fg），和 \`tokens.css\` 里同名 \`--sgx-*\` 变量一样。怎么用见主站 \`docs/palette-usage.md\`。
 
 ## 子站读外观：ui-cookie-read.js（只读，永远不写 sgx-ui）
 
@@ -186,10 +246,10 @@ const README = `# web/shared/shell（生成物，勿手改）
 
 - \`SgxUI.read()\` → 校验过的 \`{v, mode, pal, accent, fs, rm, mat, tz1, tz2, h12, clock, wx, unit, loc, city, precise}\`；没有 / 乱码 / 版本不认识 → \`null\`。
 - \`SgxUI.apply(root, opts)\` → \`<html>\` 落成和主站一样：\`class="dark"\`、\`data-theme-mode\`、\`data-dark\`、\`font-size\` + \`data-font-size\`、
-  \`data-palette\`（lake 不写）、自定义色时内联 \`--sgx-seed\` + \`<style id="sgx-accent-roles">\`（本站 localStorage \`sgx-shell-accent-css\` 缓存，首行「SCHEME_VER|#种子」）、
-  \`class="reduced-motion"\` + \`data-reduced-motion\`。跟随系统时自动监听 \`prefers-color-scheme\`。cookie 坏了 = lake + 跟随系统，不抛错、不跳转。
+  \`data-palette\`（默认 dustyblue 不写）、自定义色时内联 \`--sgx-seed\` + \`<style id="sgx-accent-roles">\`（本站 localStorage \`sgx-shell-accent-css\` 缓存，首行「SCHEME_VER|#种子」）、
+  \`class="reduced-motion"\` + \`data-reduced-motion\`。跟随系统时自动监听 \`prefers-color-scheme\`。cookie 坏了 = 默认 dustyblue + 跟随系统，不抛错、不跳转。
   \`opts.rolesCss\`：同步可用的引擎；\`opts.onMiss(seed)\`：没缓存时回调；\`opts.watch: false\`：不监听。
-- 子站要的 CSS：\`tokens.css\`（33 套预设 + 别名层）+ \`shell.css\`（含字标 \`.wm-dot\` = \`--sgx-primary\`）。抽屉头用 \`nav.json\` 的 \`wordmark\` SVG。
+- 子站要的 CSS：\`tokens.css\`（22 套七色调色板 + tag / chart 派生 token + 别名层）+ \`shell.css\`（含字标 \`.wm-dot\` = \`--sgx-primary\`）。抽屉头用 \`nav.json\` 的 \`wordmark\` SVG。
 - 读端不认 \`theme\` 别名和大写 accent（写端从不写）；自定义色的种子在内联 \`--sgx-seed\`（不再用 \`data-sgx-seed\`）。
   站点自己的样式钩子（如博客的 \`data-theme\` / \`color-scheme\`）用 \`apply()\` 的返回值 \`{mode, dark, pal, fs, rm, seed}\` 自己补。
 - sync-shell 的 SITE.targets 加：\`ui-cookie-read.js\`（kind \`file\`）、\`ui-cookie-contract.json\`（kind \`json\`，原样）、
@@ -271,6 +331,7 @@ export function renderAll() {
     files: Object.fromEntries(Object.entries(files).map(([k, v]) => [k, sha(v)])),
   };
   manifest.version = sha(JSON.stringify(manifest.files)).slice(0, 12);
+  manifest.rulesVersion = RULES_VERSION;
   files['manifest.json'] = JSON.stringify(manifest, null, 2) + '\n';
   return files;
 }

@@ -1,172 +1,130 @@
-# 调色板配置（色板列表的单数据源）。两组（2026-10-21）：group: mono = 单色（同一色相的深浅，默认 lake 在这组），group: clash = 撞色（主 / 辅 / 第三色取不同色相族）。
-# 加颜色：这里加一项（c = 种子，色块显示），在 web/assets/js/lib/palette-scheme.js 的 PRESETS 加同 id、同 group 的规格，
+# 调色板配置（色板列表的单数据源）。2026-10-23 PR-G 七色调色板：22 套，每套 = 1 个背景色（c，7 档深浅 → 光晕）+ 6 个前景撞色；
+# 原来的单色 / 撞色两组合并，x* 撞色 id 删除（旧值 x<id> 迁到 <id>）。默认 dustyblue（雾霾蓝）。
+# group = 设置风格页的分组（cool 冷调 / nature 自然 / warm 暖调 / floral 花色 / neutral 中性），顺序 = 网格顺序。
+# 加颜色：这里加一项，在 web/assets/js/lib/palette-scheme.js 的 THEMES 加同 id、同 group、同背景色的一行（6 个前景从 FG_POOL 里挑），
 # 再跑 node scripts/gen-palettes.mjs --roles（重建 web/data/palette-roles.json 并写进 input.css）和 node scripts/gen-shell.mjs；web/data/features.yaml 的 palette 选项同步加。
-# settings 风格页（setcat-theme.html，单色 / 撞色两个分页）和快捷面板（baseof.html）共用 site.Data.palettes.palettes。
+# settings 风格页（setcat-theme.html）和快捷面板（baseof.html）共用 site.Data.palettes.palettes；色块颜色走 partials/palette-tile-vars.html。
+# 单一数据源：颜色值只在 palette-scheme.js 的 THEMES / FG_POOL；这里的 c / zh / en / group 是副本，单测（palette-scheme.test.mjs）逐项核对，不一致就红。
+#   色块 / 预览卡的颜色从生成的 data/palette-roles.json 取（palette-tile-vars.html），和页面角色同一份数据。
+# 档位用法（硬规则，详见 docs/palette-usage.md）：
+#   - 背景 7 档（--sgx-bg-1..7）：每个模式各一条阶梯，只给光晕和页面底（bg-1）；不当大面积内容表面，不放在文字底下。
+#   - 前景 tint = 浅底（chip / 标签 / 选中底）；base = 填充（按钮 / 开关 / 进度 / 选中分段，上面的字由引擎自动挑 on-primary-fill）；ink = 文字 / 图标。
+#   - 前景 5–6 只给图表和设置页色块 / 预览。
+#   - 深色 / 饱和的档位永远不当大面积底色铺在文字下面。
+groups:
+  - {id: cool, zh: 冷调, en: Cool}
+  - {id: nature, zh: 自然, en: Nature}
+  - {id: warm, zh: 暖调, en: Warm}
+  - {id: floral, zh: 花色, en: Floral}
+  - {id: neutral, zh: 中性, en: Neutral}
 palettes:
-  # ---- 单色 Mono（17）----
-  - id: lake
-    c: "#2f5f86"
-    zh: 默认
-    en: Default
-    group: mono
-  - id: forest
-    c: "#2f6b4f"
-    zh: 山绿
-    en: Forest
-    group: mono
-  - id: terra
-    c: "#8a4b2d"
-    zh: 陶土
-    en: Terracotta
-    group: mono
-  - id: violet
-    c: "#6750a4"
-    zh: 紫
-    en: Violet
-    group: mono
-  - id: rose
-    c: "#984061"
-    zh: 蔷薇
-    en: Rose
-    group: mono
-  - id: cherry
-    c: "#ba1a20"
-    zh: 樱桃
-    en: Cherry
-    group: mono
-  - id: tangerine
-    c: "#b02e00"
-    zh: 橘子
-    en: Tangerine
-    group: mono
-  - id: amber
-    c: "#825500"
-    zh: 琥珀
-    en: Amber
-    group: mono
-  - id: matcha
-    c: "#3c6a00"
-    zh: 抹茶
-    en: Matcha
-    group: mono
-  - id: teal
-    c: "#00696b"
-    zh: 青碧
-    en: Teal
-    group: mono
-  - id: indigo
-    c: "#3d4fd3"
-    zh: 靛蓝
-    en: Indigo
-    group: mono
-  - id: orchid
-    c: "#a62092"
-    zh: 兰紫
-    en: Orchid
-    group: mono
   - id: dustyblue
     c: "#78909c"
     zh: 雾霾蓝
     en: Dusty Blue
-    group: mono
-  - id: mustard
-    c: "#d4a72c"
-    zh: 芥末黄
-    en: Mustard
-    group: mono
+    group: cool
+  - id: lake
+    c: "#2f5f86"
+    zh: 湖蓝
+    en: Lake
+    group: cool
+  - id: glacier
+    c: "#72c7e8"
+    zh: 冰川蓝
+    en: Glacier
+    group: cool
+  - id: indigo
+    c: "#3d4fd3"
+    zh: 靛蓝
+    en: Indigo
+    group: cool
+  - id: teal
+    c: "#00696b"
+    zh: 青碧
+    en: Teal
+    group: cool
+  - id: violet
+    c: "#6750a4"
+    zh: 紫
+    en: Violet
+    group: cool
+  - id: forest
+    c: "#2f6b4f"
+    zh: 山绿
+    en: Forest
+    group: nature
+  - id: matcha
+    c: "#3c6a00"
+    zh: 抹茶
+    en: Matcha
+    group: nature
   - id: sage
     c: "#9caf88"
     zh: 鼠尾草绿
     en: Sage
-    group: mono
+    group: nature
+  - id: cherry
+    c: "#ba1a20"
+    zh: 樱桃
+    en: Cherry
+    group: warm
+  - id: tangerine
+    c: "#b02e00"
+    zh: 橘子
+    en: Tangerine
+    group: warm
+  - id: coral
+    c: "#f17f72"
+    zh: 珊瑚
+    en: Coral
+    group: warm
+  - id: terra
+    c: "#8a4b2d"
+    zh: 陶土
+    en: Terracotta
+    group: warm
+  - id: amber
+    c: "#825500"
+    zh: 琥珀
+    en: Amber
+    group: warm
+  - id: mustard
+    c: "#d4a72c"
+    zh: 芥末黄
+    en: Mustard
+    group: warm
+  - id: champagne
+    c: "#c5a66a"
+    zh: 香槟金
+    en: Champagne
+    group: warm
+  - id: rose
+    c: "#984061"
+    zh: 蔷薇
+    en: Rose
+    group: floral
+  - id: berry
+    c: "#b54a88"
+    zh: 莓果
+    en: Berry
+    group: floral
+  - id: orchid
+    c: "#a62092"
+    zh: 兰紫
+    en: Orchid
+    group: floral
   - id: dustyrose
     c: "#d8a7a7"
     zh: 干枯玫瑰
     en: Dusty Rose
-    group: mono
+    group: floral
   - id: graphite
     c: "#5e5e5e"
     zh: 石墨
     en: Graphite
-    group: mono
-  # ---- 撞色 Clash（16）：主色 = 同名单色的种子 ----
-  - id: xforest
-    c: "#2f6b4f"
-    zh: 山绿×橘子
-    en: Forest × Tangerine
-    group: clash
-  - id: xterra
-    c: "#8a4b2d"
-    zh: 陶土×鼠尾草
-    en: Terracotta × Sage
-    group: clash
-  - id: xviolet
-    c: "#6750a4"
-    zh: 紫×蔷薇
-    en: Violet × Rose
-    group: clash
-  - id: xrose
-    c: "#984061"
-    zh: 蔷薇×杏
-    en: Rose × Apricot
-    group: clash
-  - id: xcherry
-    c: "#ba1a20"
-    zh: 樱桃×嫩叶
-    en: Cherry × Leaf
-    group: clash
-  - id: xtangerine
-    c: "#b02e00"
-    zh: 橘子×海蓝
-    en: Tangerine × Sea Blue
-    group: clash
-  - id: xamber
-    c: "#825500"
-    zh: 琥珀×梅子
-    en: Amber × Plum
-    group: clash
-  - id: xmatcha
-    c: "#3c6a00"
-    zh: 抹茶×焙茶
-    en: Matcha × Hojicha
-    group: clash
-  - id: xteal
-    c: "#00696b"
-    zh: 青碧×樱桃
-    en: Teal × Cherry
-    group: clash
-  - id: xindigo
-    c: "#3d4fd3"
-    zh: 靛蓝×霓虹粉
-    en: Indigo × Neon Pink
-    group: clash
-  - id: xorchid
-    c: "#a62092"
-    zh: 兰紫×石板灰
-    en: Orchid × Slate
-    group: clash
-  - id: xdustyblue
-    c: "#78909c"
-    zh: 雾霾蓝×芥末黄
-    en: Dusty Blue × Mustard
-    group: clash
-  - id: xmustard
-    c: "#d4a72c"
-    zh: 芥末黄×雾霾蓝
-    en: Mustard × Dusty Blue
-    group: clash
-  - id: xsage
-    c: "#9caf88"
-    zh: 鼠尾草绿×干枯玫瑰
-    en: Sage × Dusty Rose
-    group: clash
-  - id: xdustyrose
-    c: "#d8a7a7"
-    zh: 干枯玫瑰×鼠尾草绿
-    en: Dusty Rose × Sage
-    group: clash
-  - id: xgraphite
-    c: "#5e5e5e"
-    zh: 石墨×湖蓝
-    en: Graphite × Lake Blue
-    group: clash
+    group: neutral
+  - id: cream
+    c: "#f0e6d5"
+    zh: 奶油白
+    en: Cream
+    group: neutral

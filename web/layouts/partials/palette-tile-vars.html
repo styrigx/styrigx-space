@@ -1,0 +1,18 @@
+{{- /* 七色调色板色块 / 预览卡的 CSS 变量（2026-10-23 PR-G；设置风格页 .pal-tile + #pal-preview，快捷面板 .sgx-qp-sw）：
+   按 id 从 data/palette-roles.json 取，返回 style 里的变量串。浅色 --pl-*、深色 --pd-*：
+   b1..b7 = 背景 7 档（光晕），f1..f6 = 前景 6 色本色；预览卡（首页缩略）另用 pc / opc（顶栏页名药丸 = primary-container / on-）、
+   nc / onc（夜间时钟卡底 / 字）、pf（填充档 primary-fill：头像环、图表段）、tx（正文色，资料卡 / 时钟的名字条）、sf（材质表面）、ln（卡片描边 = outline-variant）、t / tf / sf2（屏幕时间：第三色字、第三 / 辅色填充）。
+   色块跟着当前深浅色（CSS 在 .dark 下换成 --pd-*）；预览卡两部小手机分别固定用 --pl-* / --pd-*。
+   入参：dict "id" 色板 id "full" 是否带预览卡用的那几个（设置风格页 true；快捷面板只要色块，false，每页少写一截内联样式） */ -}}
+{{- $p := index site.Data "palette-roles" "presets" .id -}}{{- $full := .full -}}
+{{- $s := "" -}}
+{{- range $m := slice "light" "dark" -}}
+  {{- $k := cond (eq $m "light") "pl" "pd" -}}
+  {{- $r := index $p $m -}}{{- $t := index $p (printf "%sTones" $m) -}}
+  {{- range $i := seq 7 }}{{ $s = printf "%s--%s-b%d:%s;" $s $k $i (index $t (printf "bg-%d" $i)) }}{{ end -}}
+  {{- range $i := seq 6 }}{{ $s = printf "%s--%s-f%d:%s;" $s $k $i (index $t (printf "fg-%d" $i)) }}{{ end -}}
+  {{- if $full }}{{ $s = printf "%s--%s-pc:%s;--%s-opc:%s;--%s-nc:%s;--%s-sf:%s;--%s-ln:%s;--%s-t:%s;--%s-tf:%s;--%s-sf2:%s;--%s-p:%s;--%s-onc:%s;--%s-pf:%s;--%s-tx:%s;" $s
+      $k (index $r "primary-container") $k (index $r "on-primary-container") $k (index $r "night-card") $k (index $r "surface-container-lowest")
+      $k (index $r "outline-variant") $k (index $r "tertiary") $k (index $r "tertiary-fill") $k (index $r "secondary-fill") $k (index $r "primary") $k (index $r "on-night-card") $k (index $r "primary-fill") $k (index $r "text-primary") }}{{ end -}}
+{{- end -}}
+{{- return $s -}}

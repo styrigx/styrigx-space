@@ -1,13 +1,13 @@
 /**
  * @fileoverview 标签页图标跟主题色（2026-10-21）。
  *
- * 静态图标：/favicon.ico（16 / 32 / 48）+ /favicon.svg（湖蓝方块 + 白色 S，默认色板 lake 的主题色）。
+ * 静态图标：/favicon.ico（16 / 32 / 48）+ /favicon.svg（默认色板 dustyblue 浅色主色方块 + 白色 S；2026-10-23 PR-G 起，原来是 lake 湖蓝）。
  * 换了调色板（data-palette）、自定义主题色（<style id="sgx-accent-roles">）或深浅色时，
  * 把 <link rel="icon" type="image/svg+xml"> 换成同一个 SVG 的 data: 地址：方块底 = 当前 --sgx-primary，S = --sgx-on-primary。
- * 和静态图标同色（默认 lake 亮色）就换回 /favicon.svg。取不到 SVG / 颜色就什么都不做（静态图标照常生效）。
+ * 和静态图标同色（默认 dustyblue 亮色）就换回 /favicon.svg。取不到 SVG / 颜色就什么都不做（静态图标照常生效）。
  */
 const SRC = '/favicon.svg';
-const BG = '#2f5f86';
+const BG = '#7e6000';
 const FG = '#fff';
 const HEX = /^#[0-9a-f]{6}$/;
 

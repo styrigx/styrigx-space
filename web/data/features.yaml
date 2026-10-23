@@ -26,40 +26,29 @@ features:
     user: true
     type: enum
     options:
-      - {id: lake, zh: 默认, en: Default}
-      - {id: forest, zh: 山绿, en: Forest}
-      - {id: terra, zh: 陶土, en: Terracotta}
+      - {id: dustyblue, zh: 雾霾蓝, en: Dusty Blue}
+      - {id: lake, zh: 湖蓝, en: Lake}
+      - {id: glacier, zh: 冰川蓝, en: Glacier}
+      - {id: indigo, zh: 靛蓝, en: Indigo}
+      - {id: teal, zh: 青碧, en: Teal}
       - {id: violet, zh: 紫, en: Violet}
-      - {id: rose, zh: 蔷薇, en: Rose}
+      - {id: forest, zh: 山绿, en: Forest}
+      - {id: matcha, zh: 抹茶, en: Matcha}
+      - {id: sage, zh: 鼠尾草绿, en: Sage}
       - {id: cherry, zh: 樱桃, en: Cherry}
       - {id: tangerine, zh: 橘子, en: Tangerine}
+      - {id: coral, zh: 珊瑚, en: Coral}
+      - {id: terra, zh: 陶土, en: Terracotta}
       - {id: amber, zh: 琥珀, en: Amber}
-      - {id: matcha, zh: 抹茶, en: Matcha}
-      - {id: teal, zh: 青碧, en: Teal}
-      - {id: indigo, zh: 靛蓝, en: Indigo}
-      - {id: orchid, zh: 兰紫, en: Orchid}
-      - {id: dustyblue, zh: 雾霾蓝, en: Dusty Blue}
       - {id: mustard, zh: 芥末黄, en: Mustard}
-      - {id: sage, zh: 鼠尾草绿, en: Sage}
+      - {id: champagne, zh: 香槟金, en: Champagne}
+      - {id: rose, zh: 蔷薇, en: Rose}
+      - {id: berry, zh: 莓果, en: Berry}
+      - {id: orchid, zh: 兰紫, en: Orchid}
       - {id: dustyrose, zh: 干枯玫瑰, en: Dusty Rose}
       - {id: graphite, zh: 石墨, en: Graphite}
-      - {id: xforest, zh: 山绿×橘子, en: Forest × Tangerine}
-      - {id: xterra, zh: 陶土×鼠尾草, en: Terracotta × Sage}
-      - {id: xviolet, zh: 紫×蔷薇, en: Violet × Rose}
-      - {id: xrose, zh: 蔷薇×杏, en: Rose × Apricot}
-      - {id: xcherry, zh: 樱桃×嫩叶, en: Cherry × Leaf}
-      - {id: xtangerine, zh: 橘子×海蓝, en: Tangerine × Sea Blue}
-      - {id: xamber, zh: 琥珀×梅子, en: Amber × Plum}
-      - {id: xmatcha, zh: 抹茶×焙茶, en: Matcha × Hojicha}
-      - {id: xteal, zh: 青碧×樱桃, en: Teal × Cherry}
-      - {id: xindigo, zh: 靛蓝×霓虹粉, en: Indigo × Neon Pink}
-      - {id: xorchid, zh: 兰紫×石板灰, en: Orchid × Slate}
-      - {id: xdustyblue, zh: 雾霾蓝×芥末黄, en: Dusty Blue × Mustard}
-      - {id: xmustard, zh: 芥末黄×雾霾蓝, en: Mustard × Dusty Blue}
-      - {id: xsage, zh: 鼠尾草绿×干枯玫瑰, en: Sage × Dusty Rose}
-      - {id: xdustyrose, zh: 干枯玫瑰×鼠尾草绿, en: Dusty Rose × Sage}
-      - {id: xgraphite, zh: 石墨×湖蓝, en: Graphite × Lake Blue}
-    default: lake
+      - {id: cream, zh: 奶油白, en: Cream}
+    default: dustyblue
     key: sgx-palette
     section: theme
     requires: []

@@ -91,9 +91,9 @@ test('夹具没过期：写端真实产出 = tests/fixtures/ui-cookie-contract.j
   assert.equal(await renderContract(), readFileSync(FIXTURE, 'utf8'));
 });
 
-test('夹具覆盖：lake 亮 / 暗、跟随系统、撞色 xforest、自定义色、旧 v1 / v2、未知版本、乱码', () => {
+test('夹具覆盖：默认 dustyblue 亮 / 暗、跟随系统、lake、旧撞色 xforest 迁移、自定义色、旧 v1 / v2、旧种子、未知版本、乱码', () => {
   const names = fx.cases.map((c) => c.name).join('|');
-  for (const k of ['lake 亮色', 'lake 深色', '跟随系统', 'xforest', '自定义主题色', '旧 v1', '旧 v2', '未知版本', '乱码']) assert.match(names, new RegExp(k), k);
+  for (const k of ['默认 dustyblue 亮色', '默认 dustyblue 深色', '跟随系统', '湖蓝 lake', '旧撞色 xforest', '自定义主题色', '旧 v1', '旧 v2', '旧 cookie：撞色 xforest \\+ 旧种子', '未知版本', '乱码']) assert.match(names, new RegExp(k), k);
   assert.ok(fx.cases.filter((c) => c.source === 'writer').length >= 8);
 });
 
@@ -165,7 +165,7 @@ test('共享外壳原样带上读端 / 夹具 / 图标', () => {
 const cookieOf = (name) => 'sgx-ui=' + fx.cases.find((c) => c.name === name).cookie;
 
 test('自定义色：有缓存首帧插 <style id="sgx-accent-roles">；没缓存回调 onMiss；给了引擎就同步算并写缓存', () => {
-  const name = '自定义主题色（lake 上）';
+  const name = '自定义主题色（默认色板上）';
   const s1 = sandbox({ cookie: cookieOf(name) });
   let missed = '';
   s1.U.apply(s1.html, { onMiss: (seed) => { missed = seed; } });
@@ -185,11 +185,16 @@ test('自定义色：有缓存首帧插 <style id="sgx-accent-roles">；没缓�
   assert.equal(s3.ls.get('sgx-shell-accent-css'), palettes.schemeVersion + '|#1f8a70\nNEW #1f8a70');
 
   /* 主站换回预设：再 apply 一次，--sgx-seed 和 <style> 都撤掉 */
-  s2.setCookie(cookieOf('撞色 xforest 深色'));
+  s2.setCookie(cookieOf('旧撞色 xforest → forest（深色）'));
   s2.U.apply(s2.html);
   assert.equal(s2.ctx.document.getElementById('sgx-accent-roles'), null);
   assert.equal(s2.html.style.getPropertyValue('--sgx-seed'), '');
-  assert.equal(s2.html.getAttribute('data-palette'), 'xforest');
+  assert.equal(s2.html.getAttribute('data-palette'), 'forest');
+  /* PR-G 前的旧 cookie（pal = x<id>，accent = 旧种子）：迁到 <id>，按预设渲染，不当自定义色 */
+  s2.setCookie(cookieOf('旧 cookie：撞色 xforest + 旧种子 → forest 预设（不当自定义色）'));
+  s2.U.apply(s2.html);
+  assert.equal(s2.html.getAttribute('data-palette'), 'forest');
+  assert.equal(s2.html.style.getPropertyValue('--sgx-seed'), '');
 });
 
 test('跟随系统：系统深浅色一变就重落；cookie 指定了 light / dark 时不动；只挂一次监听', () => {
@@ -202,7 +207,7 @@ test('跟随系统：系统深浅色一变就重落；cookie 指定了 light / d
   assert.equal(s.html.classList.contains('dark'), true);
   assert.equal(s.html.getAttribute('data-dark'), '1');
   assert.equal(s.html.getAttribute('data-theme-mode'), 'system');
-  s.setCookie(cookieOf('lake 亮色'));
+  s.setCookie(cookieOf('默认 dustyblue 亮色'));
   s.flip(true);
   assert.equal(s.html.classList.contains('dark'), false);
   const n = sandbox();
@@ -210,12 +215,12 @@ test('跟随系统：系统深浅色一变就重落；cookie 指定了 light / d
   assert.equal(n.listeners.length, 0);
 });
 
-test('坏 cookie / 没有 DOM 能力也不抛：lake + 跟随系统', () => {
+test('坏 cookie / 没有 DOM 能力也不抛：默认 dustyblue + 跟随系统', () => {
   const s = sandbox({ cookie: 'sgx-ui=%%%' });
   assert.equal(s.U.read(), null);
   assert.equal(s.U.decode(''), null);
   assert.equal(s.U.decode(null), null);
   assert.equal(s.U.read(null), null);
   const a = s.U.apply(s.html);
-  assert.deepEqual(plain(a), { mode: 'system', dark: false, pal: 'lake', fs: 'standard', rm: false, seed: '' });
+  assert.deepEqual(plain(a), { mode: 'system', dark: false, pal: 'dustyblue', fs: 'standard', rm: false, seed: '' });
 });

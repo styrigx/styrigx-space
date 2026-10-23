@@ -16,6 +16,7 @@ import { initScrollFx } from './scrollfx.js';
 import { initLock } from './lock.js';
 import { initUpgrade } from './upgrade.js';
 import { on as featOn } from '../lib/features.js';
+import { normPalette, DEFAULT_PALETTE } from '../lib/prefs.js';
 import { toast } from '../lib/toast.js';
 import { syncUiCookie } from '../lib/ui-cookie.js';
 import { initCloudSync } from '../lib/cloud-sync.js';
@@ -39,8 +40,9 @@ function initFeatSync() {
     applyTheme();
   });
   featOn('palette', function (v) {
-    if (!v || v === 'lake') d.removeAttribute('data-palette');
-    else d.setAttribute('data-palette', v);
+    const p = normPalette(v);
+    if (p === DEFAULT_PALETTE) d.removeAttribute('data-palette');
+    else d.setAttribute('data-palette', p);
   });
   /* 字体大小、减弱动效两个开关 2026-10-23 删除（减弱动效只跟系统，baseof 内联脚本监听 prefers-reduced-motion） */
   featOn('layout', function () {

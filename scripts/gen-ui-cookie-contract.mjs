@@ -25,18 +25,25 @@ export const NOW = 1761062400000;
 
 /** 读端期望的默认值（没有 cookie / 字段不合法） */
 const BASE = { tz1: 'auto', tz2: '', h12: 0, clock: 'digital', wx: 1, unit: 'c', loc: 'auto', city: null, precise: null };
-const V2 = (o) => ({ v: 2, mode: 'system', pal: 'lake', accent: '', fs: 'standard', rm: 0, mat: NOW, ...BASE, ...o });
+const V2 = (o) => ({ v: 2, mode: 'system', pal: 'dustyblue', accent: '', fs: 'standard', rm: 0, mat: NOW, ...BASE, ...o });
+/** 写端用例里的种子 = 当前 palette-roles.json 里该预设的种子（七色调色板 = 前景 1） */
+const SEEDS = Object.fromEntries(Object.entries(JSON.parse(readFileSync(ROLES, 'utf8')).presets).map(([id, p]) => [id, p.seed]));
+/** 2026-10-23 PR-G 之前的预设种子（读端 LEGACY_SEEDS，旧 cookie 的 accent 仍当预设） */
+const OLD = { forest: '#2f6b4f', rose: '#984061', lake: '#2f5f86' };
+/** 读端的旧种子表原文（ui-cookie-read.js 的 LEGACY_SEEDS），期望按同一张表算 */
+const LEGACY = JSON.parse(readFileSync(path.join(REPO, 'web/assets/js/lib/ui-cookie-read.js'), 'utf8').match(/var LEGACY_SEEDS = (\{[^}]*\});/)[1]);
 
 /* 写端用例：local = 主站 localStorage；expect = 读端 read() 期望（省略的字段 = V2 默认） */
 const WRITER_CASES = [
-  { name: 'lake 亮色', local: { 'sgx-theme-mode': 'light' }, expect: { mode: 'light', accent: '#2f5f86' } },
-  { name: 'lake 深色', local: { 'sgx-theme-mode': 'dark' }, expect: { mode: 'dark', accent: '#2f5f86' } },
-  { name: '跟随系统（空 localStorage）', local: {}, expect: { accent: '#2f5f86' } },
-  { name: '撞色 xforest 亮色', local: { 'sgx-theme-mode': 'light', 'sgx-palette': 'xforest' }, expect: { mode: 'light', pal: 'xforest', accent: '#2f6b4f' } },
-  { name: '撞色 xforest 深色', local: { 'sgx-theme-mode': 'dark', 'sgx-palette': 'xforest' }, expect: { mode: 'dark', pal: 'xforest', accent: '#2f6b4f' } },
-  { name: '单色 violet 跟随系统', local: { 'sgx-theme-mode': 'system', 'sgx-palette': 'violet' }, expect: { pal: 'violet', accent: '#6750a4' } },
-  { name: '自定义主题色（lake 上）', local: { 'sgx-accent': '#1F8A70' }, expect: { accent: '#1f8a70' } },
-  { name: '自定义主题色（撞色 xrose 上，深色）', local: { 'sgx-theme-mode': 'dark', 'sgx-palette': 'xrose', 'sgx-accent': '#d0a020' }, expect: { mode: 'dark', pal: 'xrose', accent: '#d0a020' } },
+  { name: '默认 dustyblue 亮色', local: { 'sgx-theme-mode': 'light' }, expect: { mode: 'light', accent: SEEDS.dustyblue } },
+  { name: '默认 dustyblue 深色', local: { 'sgx-theme-mode': 'dark' }, expect: { mode: 'dark', accent: SEEDS.dustyblue } },
+  { name: '跟随系统（空 localStorage）', local: {}, expect: { accent: SEEDS.dustyblue } },
+  { name: '湖蓝 lake 亮色（PR-G 起是普通色板）', local: { 'sgx-theme-mode': 'light', 'sgx-palette': 'lake' }, expect: { mode: 'light', pal: 'lake', accent: SEEDS.lake } },
+  { name: '旧撞色 xforest → forest（深色）', local: { 'sgx-theme-mode': 'dark', 'sgx-palette': 'xforest' }, expect: { mode: 'dark', pal: 'forest', accent: SEEDS.forest } },
+  { name: 'violet 跟随系统', local: { 'sgx-theme-mode': 'system', 'sgx-palette': 'violet' }, expect: { pal: 'violet', accent: SEEDS.violet } },
+  { name: '新色板 glacier 亮色', local: { 'sgx-theme-mode': 'light', 'sgx-palette': 'glacier' }, expect: { mode: 'light', pal: 'glacier', accent: SEEDS.glacier } },
+  { name: '自定义主题色（默认色板上）', local: { 'sgx-accent': '#1F8A70' }, expect: { accent: '#1f8a70' } },
+  { name: '自定义主题色（旧撞色 xrose → rose，深色）', local: { 'sgx-theme-mode': 'dark', 'sgx-palette': 'xrose', 'sgx-accent': '#d0a020' }, expect: { mode: 'dark', pal: 'rose', accent: '#d0a020' } },
   {
     /* 2026-10-23 PR-E：字体大小 / 减弱动效设置删除 —— 本地残留的旧值写端不再带出去，fs / rm 固定默认 */
     name: '旧的大字号 + 减弱动效 key 不再生效 + 时钟 / 天气字段（中文城市名）',
@@ -45,10 +52,10 @@ const WRITER_CASES = [
       'sgx-hour12': '12', 'sgx-gl-clockstyle': '1', 'sgx-weather-show': '0', 'sgx-temp-unit': 'f', 'sgx-weather-loc': 'city',
       'sgx-weather-city': '{"name":"上海","lat":31.23,"lon":121.47}',
     },
-    expect: { accent: '#2f5f86', tz1: 'Asia/Shanghai', tz2: 'America/Los_Angeles', h12: 1, clock: 'analog', wx: 0, unit: 'f', loc: 'city', city: { name: '上海', lat: 31.23, lon: 121.47 } },
+    expect: { accent: SEEDS.dustyblue, tz1: 'Asia/Shanghai', tz2: 'America/Los_Angeles', h12: 1, clock: 'analog', wx: 0, unit: 'f', loc: 'city', city: { name: '上海', lat: 31.23, lon: 121.47 } },
   },
-  { name: '旧的小字号 key 不再生效', local: { 'sgx-font-size': 'small', 'sgx-theme-mode': 'light' }, expect: { mode: 'light', accent: '#2f5f86' } },
-  { name: '本地存了不认识的色板 id（写端写 lake）', local: { 'sgx-palette': 'neon', 'sgx-theme-mode': 'dark' }, expect: { mode: 'dark', accent: '#2f5f86' } },
+  { name: '旧的小字号 key 不再生效', local: { 'sgx-font-size': 'small', 'sgx-theme-mode': 'light' }, expect: { mode: 'light', accent: SEEDS.dustyblue } },
+  { name: '本地存了不认识的色板 id（写端写默认 dustyblue）', local: { 'sgx-palette': 'neon', 'sgx-theme-mode': 'dark' }, expect: { mode: 'dark', accent: SEEDS.dustyblue } },
 ];
 
 const b64 = (o) => Buffer.from(typeof o === 'string' ? o : JSON.stringify(o), 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -76,7 +83,12 @@ const HANDMADE = [
     cookie: b64({ v: 2, mode: 'blue', pal: 'neon', accent: '#GGGGGG', fs: 'huge', rm: true, mat: -5, tz1: '../../etc', tz2: 5, h12: '1', clock: 'sundial', wx: 'no', unit: 'k', loc: 'SOME PLACE', city: [1, 2], precise: 'x' }),
     read: { ...V2({ mat: 0 }), wx: 1 },
   },
-  { name: 'accent 大写 → 严格校验不认（写端永远写小写）', cookie: b64({ v: 2, pal: 'lake', accent: '#2F5F86', mode: 'light' }), read: V2({ mode: 'light', mat: 0 }) },
+  { name: 'accent 大写 → 严格校验不认（写端永远写小写）', cookie: b64({ v: 2, pal: 'lake', accent: '#2F5F86', mode: 'light' }), read: V2({ mode: 'light', pal: 'lake', mat: 0 }) },
+  /* 2026-10-23 PR-G：旧主站写的 cookie（撞色 x<id> / 旧种子）在子站照样认 */
+  { name: '旧 cookie：撞色 xforest + 旧种子 → forest 预设（不当自定义色）', cookie: b64({ v: 2, mode: 'light', pal: 'xforest', accent: OLD.forest, mat: 1750000000000 }), read: V2({ mode: 'light', pal: 'forest', accent: OLD.forest, mat: 1750000000000 }) },
+  { name: '旧 cookie：lake + 旧默认种子 → lake 预设', cookie: b64({ v: 2, mode: 'dark', pal: 'lake', accent: OLD.lake, mat: 1750000000000 }), read: V2({ mode: 'dark', pal: 'lake', accent: OLD.lake, mat: 1750000000000 }) },
+  { name: '旧 cookie：xrose + 自定义色 → rose + 自定义色', cookie: b64({ v: 2, mode: 'dark', pal: 'xrose', accent: '#d0a020', mat: 1750000000000 }), read: V2({ mode: 'dark', pal: 'rose', accent: '#d0a020', mat: 1750000000000 }) },
+  { name: '不认识的 x 开头 id（xneon）→ 默认', cookie: b64({ v: 2, pal: 'xneon' }), read: V2({ mat: 0 }) },
   { name: 'accent 简写 #abc → 不认', cookie: b64({ v: 2, accent: '#abc' }), read: V2({ mat: 0 }) },
   { name: 'theme 别名（旧博客契约）不认，只看 mode', cookie: b64({ v: 2, theme: 'dark' }), read: V2({ mat: 0 }) },
   { name: '未知版本 v3', cookie: b64({ v: 3, mode: 'dark', pal: 'forest' }), read: null },
@@ -93,12 +105,12 @@ function expectations(read, seeds) {
   const out = {};
   for (const sys of ['light', 'dark']) {
     const mode = read ? read.mode : 'system';
-    const pal = read ? read.pal : 'lake';
+    const pal = read ? read.pal : 'dustyblue';
     const acc = read ? read.accent : '';
     const dark = mode === 'dark' || (mode === 'system' && sys === 'dark');
     const fs = read ? read.fs : 'standard';
     const rm = !!(read && read.rm === 1);
-    const seed = acc && acc !== seeds[pal] ? acc : '';
+    const seed = acc && acc !== seeds[pal] && acc !== LEGACY[pal] ? acc : '';
     out[sys] = {
       resolve: { mode, dark, pal, fs, rm, seed },
       root: {
@@ -107,7 +119,7 @@ function expectations(read, seeds) {
         'data-dark': dark ? '1' : '0',
         'data-font-size': fs,
         fontSize: fs === 'large' ? '112.5%' : fs === 'small' ? '87.5%' : '',
-        'data-palette': pal === 'lake' ? null : pal,
+        'data-palette': pal === 'dustyblue' ? null : pal,
         '--sgx-seed': seed,
         'reduced-motion': rm,
         'data-reduced-motion': rm ? '1' : '0',
@@ -121,7 +133,7 @@ function expectations(read, seeds) {
 async function runWriter(cases, seeds) {
   const store = new Map();
   let jar = '';
-  let pal = 'lake';
+  let pal = 'dustyblue';
   const g = /** @type {any} */ (globalThis);
   const saved = { window: g.window, document: g.document, localStorage: g.localStorage, getComputedStyle: g.getComputedStyle, now: Date.now };
   g.window = g;
@@ -131,8 +143,9 @@ async function runWriter(cases, seeds) {
     get cookie() { return jar; },
     set cookie(v) { const m = String(v).match(/^sgx-ui=([^;]*)/); if (m) jar = 'sgx-ui=' + m[1]; },
   };
-  /* 主站页面上 <html> 的 --sgx-seed = 当前预设的种子（tokens 层；未知 id 没有匹配的规则 → 默认 lake） */
-  g.getComputedStyle = () => ({ getPropertyValue: (n) => (n === '--sgx-seed' ? ' ' + (seeds[pal] || seeds.lake) : '') });
+  /* 主站页面上 <html> 的 --sgx-seed = 当前预设的种子（tokens 层；未知 id 没有匹配的规则 → 默认 dustyblue；
+     旧撞色 x<id> 在 baseof 内联脚本里已经迁到 <id>，所以按迁移后的 id 取） */
+  g.getComputedStyle = () => ({ getPropertyValue: (n) => (n === '--sgx-seed' ? ' ' + (seeds[pal] || seeds.dustyblue) : '') });
   Date.now = () => NOW;
   try {
     const { syncUiCookie } = await import(pathToFileURL(WRITER).href + '?contract=' + process.pid);
@@ -141,7 +154,7 @@ async function runWriter(cases, seeds) {
       store.clear();
       jar = '';
       for (const [k, v] of Object.entries(c.local)) store.set(k, v);
-      pal = c.local['sgx-palette'] || 'lake';
+      pal = (c.local['sgx-palette'] || 'dustyblue').replace(/^x(?=[a-z]+$)/, '');
       syncUiCookie();
       out.push(jar.replace(/^sgx-ui=/, ''));
     }

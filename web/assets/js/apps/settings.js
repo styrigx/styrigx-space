@@ -9,7 +9,7 @@ import { get, set, remove, getJSON, setJSON } from '../lib/storage.js';
 import { get as featGet, set as featSet, on as featOn } from '../lib/features.js';
 import { loadI18n } from '../lib/i18n.js';
 import { openSheet } from '../shell/sheet.js';
-import { setTheme, toggleFollowSystem, setPalette, setLayout, setLang, normLayout, layoutNarrow } from '../lib/prefs.js';
+import { setTheme, toggleFollowSystem, setPalette, palette, DEFAULT_PALETTE, setLayout, setLang, normLayout, layoutNarrow } from '../lib/prefs.js';
 import { syncAccent } from '../lib/accent-roles.js';
 import { accent } from '../lib/accent.js';
 import { wellLoad, wellFlush } from '../shell/goodlock.js';
@@ -120,50 +120,44 @@ import { sgxReplace } from '../lib/diag-jumptrace.js';
   paintTheme();
   featOn('theme-mode', paintTheme);
 
-  /* ---- 调色板（第一个 = 默认，即头像取色） ---- */
-  function curPalette() {
-    return featGet('palette');
+  /* ---- 调色板（2026-10-23 PR-G 七色调色板：22 套一个列表、按组分组；默认 dustyblue） ---- */
+  /* 色块 .pal-tile（#palette-dots 下，按 group 分组的网格）；上面的预览卡 #pal-preview 显示当前色板：
+     选中后把色块 style 上的颜色变量（partials/palette-tile-vars.html）和名字拷到预览卡，两部小手机（浅色 / 深色）跟着换色。 */
+  const SW_SEL = '#palette-dots .pal-tile';
+  const preview = document.getElementById('pal-preview');
+  const previewName = document.getElementById('pal-preview-name');
+  function paintPreview(/** @type {string} */ p) {
+    if (!preview) return;
+    const tile = document.querySelector(SW_SEL + '[data-palette="' + p + '"]') || document.querySelector(SW_SEL + '[data-palette="' + DEFAULT_PALETTE + '"]');
+    if (!tile) return;
+    const st = tile.getAttribute('style') || '';
+    if (preview.getAttribute('style') !== st) preview.setAttribute('style', st);
+    if (previewName) previewName.textContent = tile.getAttribute('data-name') || '';
   }
-  /* 两组（2026-10-21）：#palette-dots = 单色、#palette-dots-clash = 撞色；分段选择 [data-pal-tab] 切换显示哪组 */
-  const SW_SEL = '#palette-dots .swatch, #palette-dots-clash .swatch';
-  function showPalGroup(/** @type {string} */ g) {
-    document.querySelectorAll('[data-pal-group]').forEach(function (el) {
-      /** @type {HTMLElement} */ (el).hidden = el.getAttribute('data-pal-group') !== g;
-    });
-    document.querySelectorAll('[data-pal-tab]').forEach(function (b) {
-      b.setAttribute('aria-pressed', b.getAttribute('data-pal-tab') === g ? 'true' : 'false');
-    });
-  }
-  /* 2026-10-21：默认色板 lake 没有色块，标题右端「恢复默认」（#palette-reset）= 选 lake（同一个 setPalette，自定义色一并清掉）；
-     已是默认（lake 且没有自定义主题色）时 aria-disabled 置灰、点了不动 */
+  /* 标题右端「恢复默认」（#palette-reset）= 选默认色板（同一个 setPalette，自定义色一并清掉）；
+     已是默认（且没有自定义主题色）时 aria-disabled 置灰、点了不动 */
   const palReset = document.getElementById('palette-reset');
   function paintPalette() {
-    const p = curPalette();
+    const p = palette();
     document.querySelectorAll(SW_SEL).forEach(function (b) {
       b.setAttribute('aria-pressed', b.getAttribute('data-palette') === p ? 'true' : 'false');
     });
-    if (palReset) palReset.setAttribute('aria-disabled', (p || 'lake') === 'lake' && !accent() ? 'true' : 'false');
+    paintPreview(p);
+    if (palReset) palReset.setAttribute('aria-disabled', p === DEFAULT_PALETTE && !accent() ? 'true' : 'false');
   }
   if (palReset) {
     on(palReset, 'click', function () {
       if (palReset.getAttribute('aria-disabled') === 'true') return;
-      setPalette('lake');
+      setPalette(DEFAULT_PALETTE);
       paintPalette();
     });
   }
   document.querySelectorAll(SW_SEL).forEach(function (b) {
     on(b, 'click', function () {
-      setPalette(b.getAttribute('data-palette') || 'lake');
+      setPalette(b.getAttribute('data-palette') || DEFAULT_PALETTE);
       paintPalette();
     });
   });
-  document.querySelectorAll('[data-pal-tab]').forEach(function (b) {
-    on(b, 'click', function () {
-      showPalGroup(b.getAttribute('data-pal-tab') || 'mono');
-    });
-  });
-  /* 打开时显示当前色板所在的那组（撞色色板 → 撞色分页） */
-  if (document.querySelector('#palette-dots-clash .swatch[data-palette="' + curPalette() + '"]')) showPalGroup('clash');
   /* 自定义主题色（sgx-accent）：缓存缺失 / 过期时按种子重算整套角色（lib/palette-scheme.js） */
   syncAccent();
   paintPalette();
@@ -565,7 +559,7 @@ import { sgxReplace } from '../lib/diag-jumptrace.js';
     const total = Math.max(0, v.min || 0);
     totalEl.textContent = fmtDur(total * 60, en, true);
     const AREAS = [
-      { id: 'home', label: T.t('areaHome'), color: 'var(--m-primary)' },
+      { id: 'home', label: T.t('areaHome'), color: 'var(--m-primary-fill, var(--m-primary))' },
       { id: 'links', label: T.t('areaLinks'), color: 'var(--m-accent)' },
       { id: 'settings', label: T.t('areaSettings'), color: 'var(--sgx-secondary-fill, var(--m-secondary))' },
     ];

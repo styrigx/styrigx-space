@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 /**
- * 主题色角色 token：把手调好的 33 套色板（单色 17 + 撞色 16；web/data/palette-roles.json，亮 / 暗各 87 个角色 + 状态层）
+ * 主题色角色 token：把 22 套七色调色板（1 背景色 + 6 前景撞色，2026-10-23 PR-G；web/data/palette-roles.json，亮 / 暗各 94 个角色 + 状态层
+ * + 色调 token：背景 7 档 --sgx-bg-1..7、前景 6 色 --sgx-fg-1..6 及 -tint / -ink）
  * 生成进 web/assets/css/input.css 的 tokens 层（两行标记之间，见 BEGIN / END），值不手敲。
  *
  * 每个预设生成两段：
  *   :root[data-palette="<id>"]       浅色
  *   :root.dark[data-palette="<id>"]  深色（站点的深色是 <html class="dark">）
- * 默认色板 lake 不写 data-palette，所以 lake 写在 :root / :root.dark 上（同时兜住未知的 data-palette 值）。
+ * 默认色板 dustyblue（雾霾蓝）不写 data-palette，所以 dustyblue 写在 :root / :root.dark 上（同时兜住未知的 data-palette 值）。
  * 变量名：--sgx-<角色>（bg-gradient 拆成 --sgx-bg-gradient-1..3；状态层 --sgx-state-color / -hover / -focus / -pressed / -selected / -dragged），
  * 和自定义种子在运行时写的变量名同一个函数出（web/assets/js/lib/palette-scheme.js 的 roleDecls）。
  * 每个预设另写 --sgx-seed（= 色板种子，ui-cookie 把它同步给子站）。
@@ -19,7 +20,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { roleDecls, presetRoles, rolesFor, swatchTones, PRESETS } from '../web/assets/js/lib/palette-scheme.js';
+import { roleDecls, toneDecls, presetRoles, rolesFor, PRESETS, DEFAULT_ID } from '../web/assets/js/lib/palette-scheme.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const JSON_PATH = path.join(REPO, 'web/data/palette-roles.json');
@@ -36,15 +37,17 @@ export function renderBlock(data) {
   const lines = [ind + BEGIN];
   for (const id of ids) {
     const p = data.presets[id];
-    const lightSel = id === 'lake' ? `:root,\n${ind}:root[data-palette="lake"]` : `:root[data-palette="${id}"]`;
-    const darkSel = id === 'lake' ? `:root.dark,\n${ind}:root.dark[data-palette="lake"]` : `:root.dark[data-palette="${id}"]`;
+    const lightSel = id === DEFAULT_ID ? `:root,\n${ind}:root[data-palette="${id}"]` : `:root[data-palette="${id}"]`;
+    const darkSel = id === DEFAULT_ID ? `:root.dark,\n${ind}:root.dark[data-palette="${id}"]` : `:root.dark[data-palette="${id}"]`;
     lines.push(`${ind}/* ${p.zh} · ${p.en}（${id}）：${p.mood && p.mood.zh ? p.mood.zh : ''} */`);
     lines.push(`${ind}${lightSel} {`);
     lines.push(`${ind}  --sgx-seed: ${p.seed};`);
     for (const d of roleDecls(p.light, p.lightState)) lines.push(`${ind}  ${d}`);
+    for (const d of toneDecls(p.lightTones)) lines.push(`${ind}  ${d}`);
     lines.push(`${ind}}`);
     lines.push(`${ind}${darkSel} {`);
     for (const d of roleDecls(p.dark, p.darkState)) lines.push(`${ind}  ${d}`);
+    for (const d of toneDecls(p.darkTones)) lines.push(`${ind}  ${d}`);
     lines.push(`${ind}}`);
   }
   lines.push(ind + END);
@@ -57,12 +60,13 @@ export function recomputeRoles(data) {
   const presets = {};
   for (const x of PRESETS) {
     const r = presetRoles(x.id);
-    presets[x.id] = { id: x.id, zh: x.zh, en: x.en, seed: x.seed, group: x.group, mood: x.mood, swatch: swatchTones(x.id), light: r.light, lightState: r.lightState, dark: r.dark, darkState: r.darkState };
+    presets[x.id] = { id: x.id, zh: x.zh, en: x.en, seed: x.seed, group: x.group, bg: x.bg, fg: x.fg, fgNames: x.fgNames, mood: x.mood,
+      light: r.light, lightState: r.lightState, lightTones: r.lightTones, dark: r.dark, darkState: r.darkState, darkTones: r.darkTones };
   }
   data.presets = presets;
   for (const seed of Object.keys(data.custom || {})) {
     const c = data.custom[seed], r = rolesFor(seed);
-    Object.assign(c, { derivedFrom: r.derivedFrom, light: r.light, lightState: r.lightState, dark: r.dark, darkState: r.darkState, seedPrimary: r.seedPrimary });
+    Object.assign(c, { derivedFrom: r.derivedFrom, light: r.light, lightState: r.lightState, lightTones: r.lightTones, dark: r.dark, darkState: r.darkState, darkTones: r.darkTones, seedPrimary: r.seedPrimary });
   }
   return data;
 }

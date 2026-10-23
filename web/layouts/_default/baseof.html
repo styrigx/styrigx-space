@@ -65,16 +65,18 @@ addEventListener('pagereveal',function(e){window.__sgxRevealVT=e.viewTransition|
     d.setAttribute('data-dark',wantDark?'1':'0');
     /* 2026-10-23 PR-E：字体大小 / 减弱动效 / 点击音效 / 边缘光效 / 视差壁纸 / Good Lock 数字健康总开关已删除，旧值一次性清掉（不再有任何效果） */
     try{['sgx-font-size','sgx-reduced-motion','sgx-gl-sound','sgx-gl-edgeglow','sgx-gl-parallax','sgx-gl-wellbeing'].forEach(function(k){localStorage.removeItem(k)})}catch(e){}
-    /* 调色板 */
-    var p=localStorage.getItem('sgx-palette');
-    if(p&&p!=='lake'){d.setAttribute('data-palette',p)}
+    /* 调色板（2026-10-23 PR-G 七色调色板）：旧撞色 x<id> 迁到 <id>；不认识的 id、等于默认（dustyblue）的值清掉（默认不写 key，同 features.set） */
+    var p=localStorage.getItem('sgx-palette'),PK={{ $palIds := slice }}{{ range site.Data.palettes.palettes }}{{ $palIds = $palIds | append .id }}{{ end }}{{ $palIds | jsonify | safeJS }},PD='dustyblue';
+    if(p&&PK.indexOf(p)<0&&/^x[a-z]+$/.test(p)&&PK.indexOf(p.slice(1))>=0){p=p.slice(1);localStorage.setItem('sgx-palette',p)}
+    if(p&&(PK.indexOf(p)<0||p===PD)){localStorage.removeItem('sgx-palette');p=null}
+    if(p){d.setAttribute('data-palette',p)}
     /* 自定义主题色（PR3 色彩角色 token，见 input.css「主题色 → 整套配色」）：sgx-accent=#rrggbb 时优先于预设。
        整套角色由 lib/accent.js 算好缓存在 sgx-accent-css（首行「v2|#种子」），这里首屏直接插 <style>；
        缓存对不上就先用预设的角色（设置页加载时 syncAccent 会重算）。 */
     var ac=localStorage.getItem('sgx-accent');
     if(ac&&/^#[0-9a-fA-F]{6}$/.test(ac)){
       ac=ac.toLowerCase();d.style.setProperty('--sgx-seed',ac);
-      try{var acc=localStorage.getItem('sgx-accent-css')||'',ach='v5|'+ac+'\n';
+      try{var acc=localStorage.getItem('sgx-accent-css')||'',ach='v7|'+ac+'\n';
         if(acc.indexOf(ach)===0){var ast=document.createElement('style');ast.id='sgx-accent-roles';ast.textContent=acc.slice(ach.length);document.head.appendChild(ast)}}catch(e){}
     }
     /* 减弱动效：只跟系统 prefers-reduced-motion（本站开关 2026-10-23 删除）；class 照旧落在 <html> 上，CSS / JS 里的 .reduced-motion 规则不用改。系统设置变了即时跟上 */
@@ -256,7 +258,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
    磁贴（两列）：深色模式 | 跟随系统，语言（切到另一种语言）| 立即锁定；
    行：调色板、布局。各项随 features.yaml 的 build 开关显示 / 隐藏。
    2026-10-21：减弱动效、字体大小只留在设置页（无障碍 / 显示），面板里不再放；
-   调色板不放默认色板 lake 的色块，改成行标题右端的「恢复默认」小按钮（已是默认时置灰 aria-disabled，不隐藏，免得跳版）。 */}}
+   调色板行标题右端「恢复默认」小按钮（回到默认 dustyblue；已是默认时置灰 aria-disabled，不隐藏，免得跳版）。 */}}
 {{ $qpFeat := dict }}
 {{ range site.Data.features.features }}{{ $qpFeat = merge $qpFeat (dict .id .) }}{{ end }}
 <dialog id="sgx-qp" class="sgx-qp" aria-labelledby="sgx-qp-title">
@@ -281,11 +283,9 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
         <p class="sgx-qp-row-label">{{ if $isEn }}Color palette{{ else }}调色板{{ end }}</p>
         <button type="button" class="palette-reset" data-qp-reset aria-disabled="true">{{ partial "icon.html" "undo" }}<span>{{ if $isEn }}Reset{{ else }}恢复默认{{ end }}</span></button>
       </div>
+      {{/* 2026-10-23 PR-G：22 套七色调色板一个网格（不分单色 / 撞色），色块和设置页同一种光晕方块 + 6 个前景色点（.pal-tile，不显示名字） */}}
       <div class="sgx-qp-sws" role="group" aria-label="{{ if $isEn }}Color palette{{ else }}调色板{{ end }}">
-        {{ range where (where site.Data.palettes.palettes "group" "mono") "id" "!=" "lake" }}<button type="button" class="sgx-qp-sw" data-qp-palette="{{ .id }}" style="background:{{ .c }}" aria-pressed="false" aria-label="{{ cond $isEn .en .zh }}"><svg class="swatch-check" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 16.2l-3.5-3.5-1.4 1.4L9 19 20.9 7.1l-1.4-1.4z" fill="currentColor"/></svg></button>{{ end }}
-      </div>
-      <div class="sgx-qp-sws" role="group" aria-label="{{ if $isEn }}Clash palettes{{ else }}撞色调色板{{ end }}">
-        {{ range where site.Data.palettes.palettes "group" "clash" }}<button type="button" class="sgx-qp-sw swatch-clash" data-qp-palette="{{ .id }}" style="{{ partial "palette-swatch-vars.html" (dict "id" .id "c" .c) | safeCSS }}" aria-pressed="false" aria-label="{{ cond $isEn .en .zh }}"><svg class="swatch-check" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M9 16.2l-3.5-3.5-1.4 1.4L9 19 20.9 7.1l-1.4-1.4z" fill="currentColor"/></svg></button>{{ end }}
+        {{ range site.Data.palettes.palettes }}<button type="button" class="sgx-qp-sw pal-tile" data-qp-palette="{{ .id }}" style="{{ partial "palette-tile-vars.html" (dict "id" .id "full" false) | safeCSS }}" aria-pressed="false" aria-label="{{ cond $isEn .en .zh }}"><span class="pal-check" aria-hidden="true"><svg viewBox="0 0 24 24" width="12" height="12"><path d="M9 16.2l-3.5-3.5-1.4 1.4L9 19 20.9 7.1l-1.4-1.4z" fill="currentColor"/></svg></span><span class="pal-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span></button>{{ end }}
       </div>
     </div>
     {{ end }}
