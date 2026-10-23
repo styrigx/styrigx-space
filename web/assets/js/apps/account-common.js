@@ -1,9 +1,11 @@
 /**
- * @fileoverview 账号页共用：账号总览（/account/，含登录区）、
- * 已登录子页（/account/profile/，退出账号）与
- * 安全与隐私子页（/account/security/，管理账号密码和账号通行密钥）。
+ * @fileoverview 账号页共用：账号总览（/account/，含登录区）和各子页
+ * （设备 /account/devices/、临时钥匙、安全与隐私 /account/security/、云同步 /account/sync/、服务状态 /account/status/）。
+ * 2026-10-24 PR4：「账号信息」子页（/account/profile/）删除，登录方式和「退出账号」挪进设备页「此设备」卡。
  *
  * - i18n：各页模板都输出同一份 #sgx-i18n-account（partials/account-i18n.html）
+ * - requireAccountSession：子页进页查一次账号会话，明确没有 → 回账号页登录，登录后回子页
+ * - syncSubText：云同步一行 / 云同步页总开关的副标题（已开启 / 已关闭 / 上次同步 hh:mm）
  * - /api/account 调用与错误码 → 文案在 lib/account-api.js（锁屏凭证页也用）
  * - signalAccountName：PublicKeyCredential.signalCurrentUserDetails 让密码管理器
  *   （Samsung Pass / Google 密码管理器）把已有账号通行密钥条目的名字更新为 AccountKey。
@@ -11,6 +13,10 @@
  *   LockKey 共用，绝不能对它发，否则会把 LockKey 条目改名。
  */
 import { KEY_ACCOUNT } from '../lib/key-names.js';
+import { ACCOUNT_API } from '../lib/account-api.js';
+import { syncEnabled, LAST_KEY } from '../lib/cloud-sync.js';
+import { get as sget } from '../lib/storage.js';
+import { sgxReplace } from '../lib/diag-jumptrace.js';
 
 /** @param {boolean} en */
 export function accountUrl(en) {
@@ -20,12 +26,48 @@ export function accountUrl(en) {
 export function securityUrl(en) {
   return en ? '/en/account/security/' : '/account/security/';
 }
-/** @param {boolean} en */
-export function profileUrl(en) {
-  return en ? '/en/account/profile/' : '/account/profile/';
+/** 账号总览登录后可回跳的本站路径（只接受账号的子页：安全与隐私、设备、云同步、服务状态） */
+export const ACCOUNT_RETURN_RE = /^\/(en\/)?account\/(security|devices|sync|status)\/$/;
+
+/** 回账号页登录，登录后回当前子页 @param {boolean} en */
+export function goAccountLogin(en) {
+  sgxReplace(accountUrl(en) + '?return=' + encodeURIComponent(location.pathname));
 }
-/** 账号总览登录后可回跳的本站路径（只接受账号的子页：安全与隐私、已登录、设备） */
-export const ACCOUNT_RETURN_RE = /^\/(en\/)?account\/(security|profile|devices)\/$/;
+
+/**
+ * 账号子页进页查一次账号会话（GET /api/account）：服务端明确说没有账号会话（ok 且 session=null）→ 回账号页登录。
+ * 读不到（网络 / 访客 401 / 非 JSON）不跳，返回 null；有会话返回那份状态。
+ * @param {boolean} en
+ * @returns {Promise<any|null>}
+ */
+export function requireAccountSession(en) {
+  return fetch(ACCOUNT_API, { method: 'GET', credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      if (j && j.ok && !j.session) {
+        goAccountLogin(en);
+        return null;
+      }
+      return j && j.ok ? j : null;
+    }, function () { return null; });
+}
+
+/**
+ * 云同步副标题：关 → 「已关闭…」；开、没同步过 → 「已开启…」；开、同步过 → 「上次同步 [M月D日 ]hh:mm」。
+ * @param {function(string): string} t
+ * @param {boolean} en
+ * @param {number} [now]
+ */
+export function syncSubText(t, en, now) {
+  if (!syncEnabled()) return t('syncOff');
+  const last = parseInt(sget(LAST_KEY) || '0', 10) || 0;
+  if (!last) return t('syncOn');
+  const d = new Date(last);
+  const pad = function (/** @type {number} */ n) { return (n < 10 ? '0' : '') + n; };
+  const today = new Date(now || Date.now()).toDateString() === d.toDateString();
+  const when = (today ? '' : (d.getMonth() + 1) + (en ? '/' : '月') + d.getDate() + (en ? ' ' : '日 ')) + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  return t('syncLast') + when;
+}
 
 /**
  * @param {boolean} en

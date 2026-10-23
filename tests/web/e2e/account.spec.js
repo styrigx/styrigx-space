@@ -10,7 +10,8 @@
  * - 安全与隐私子页（/account/security/）：修改密码（根凭证登录时标题为「重置账号密码」）、
  *   删除通行密钥（两步确认）、注册后命名弹层（A1/A2/A3）、列表内重命名、signalCurrentUserDetails；
  *   未登录 → 跳账号页 ?return= 登录后回来
- * - 账号总览：点账号卡进「账号信息」子页，在那里退出账号
+ * - 账号总览（2026-10-24 PR4）：账号卡只展示（已登录，点头像换头像，见 avatar-edit.spec.js），「账号信息」子页删除；
+ *   登录方式 / 退出账号 / 保持登录说明在设备页「此设备」卡；云同步一行进 /account/sync/（总开关 + 同步项）
  * - 安全与隐私子页的门：没有门票 → 验证行（设了哪个显示哪个），door:true 验证后进门 + 倒计时；
  *   管理操作返回 403 door → 回门口并提示「验证已过期」
  * - 只有锁屏会话（GET /api/account session=null）→ 显示登录区，不当作已登录
@@ -404,28 +405,20 @@ test.describe('安全与隐私子页', () => {
 test.describe('账号总览', () => {
   test.beforeEach(async ({ page }) => { await zh(page); });
 
-  test('点账号卡 → 账号信息子页（已登录卡）；退出账号 → 回账号页登录区', async ({ page }) => {
-    let loggedIn = true;
-    const calls = await mockAccount(page, {
-      status: () => ({ ok: true, password: true, passkey: false, ready: true, session: loggedIn ? RECENT() : null }),
-      handlers: { list: [200, { ok: true, keys: [] }], logout: () => { loggedIn = false; return [200, { ok: true }]; } },
+  test('PR4：账号卡点了不跳页（没有「账号信息」子页）；两组：设备 / 临时钥匙 / 安全与隐私，云同步 / 服务状态', async ({ page }) => {
+    await mockAccount(page, {
+      status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }),
+      handlers: { list: [200, { ok: true, keys: [] }] },
     });
     await page.goto('/account/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#acct-main')).toBeVisible();
+    await expect(page.locator('#acct-main [data-acct-card] .sgx-ac-state')).toHaveText('已登录');
     await page.locator('#acct-main [data-acct-card] .sgx-ac-name').click();
-    await page.waitForURL(/\/account\/profile\/$/);
-    await expect(page.locator('#acct-profile')).toBeVisible();
-    await expect(page.locator('#acct-by')).toHaveText('已用账号密码登录');
-    await page.locator('#acct-logout').click();
-    await page.waitForURL(/\/account\/$/);
-    await expect(page.locator('#acct-login')).toBeVisible();
-    expect(calls.some((c) => c.action === 'logout')).toBe(true);
-  });
-
-  test('账号信息子页：没有账号会话 → 跳账号页 ?return=子页', async ({ page }) => {
-    await mockAccount(page, { status: { ok: true, password: true, passkey: false, ready: true, session: null } });
-    await page.goto('/account/profile/', { waitUntil: 'domcontentloaded' });
-    await page.waitForURL(/\/account\/\?return=%2Faccount%2Fprofile%2F$/);
-    await expect(page.locator('#acct-login')).toBeVisible();
+    await page.waitForTimeout(400);
+    expect(new URL(page.url()).pathname).toBe('/account/');
+    await expect(page.locator('a[href*="/account/profile/"]')).toHaveCount(0);
+    const groups = await page.locator('#acct-main section').evaluateAll((els) => els.map((x) => Array.from(x.querySelectorAll('.acct-row')).map((r) => r.id)));
+    expect(groups).toEqual([['acct-dev-row', 'acct-tk-row', 'acct-sec-row'], ['acct-sync-row', 'acct-st-row']]);
   });
 });
 
@@ -738,7 +731,7 @@ test.describe('设备子页（2026-10-22）', () => {
   test.beforeEach(async ({ page }) => { await zh(page); });
 
   const DEVS = () => [
-    { sid: 'aaaaaaaaaaaaaaaa', current: true, name: 'Galaxy S23 Ultra', model: 'SM-S918B', platform: 'Android', browser: 'Samsung Internet', country: 'CN', lastSeen: Date.now() },
+    { sid: 'aaaaaaaaaaaaaaaa', current: true, name: 'Galaxy S23 Ultra', model: 'SM-S918B', platform: 'Android', browser: 'Samsung Internet', country: 'CN', by: 'password', lastSeen: Date.now() },
     { sid: 'bbbbbbbbbbbbbbbb', current: false, name: 'Windows', platform: 'Windows', browser: 'Chrome', country: 'CN', lastSeen: Date.now() - 3 * 3600e3 },
   ];
 
@@ -759,6 +752,12 @@ test.describe('设备子页（2026-10-22）', () => {
     await expect(page.locator('#acct-devices')).toBeVisible();
     await expect(page.locator('#acct-dev-this')).toContainText('Galaxy S23 Ultra');
     await expect(page.locator('#acct-dev-this')).toContainText('当前在线');
+    /* PR4：此设备卡 = 设备行 + 登录方式 + 退出账号；卡下面是保持登录的说明 */
+    expect(await page.locator('#acct-dev-this-card > *').evaluateAll((els) => els.map((e) => e.id))).toEqual(['acct-dev-this', 'acct-dev-by-row', 'acct-logout']);
+    await expect(page.locator('#acct-dev-by-row')).toContainText('登录方式');
+    await expect(page.locator('#acct-by')).toHaveText('已用账号密码登录');
+    await expect(page.locator('#acct-dev-this-card #acct-logout')).toHaveText('退出账号');
+    await expect(page.locator('#acct-keep-note')).toHaveText('不点退出，这个浏览器会一直保持登录。');
     const rows = page.locator('#acct-dev-list .acct-dev-item');
     await expect(rows).toHaveCount(1);
     await expect(rows.first()).toContainText('Windows');
@@ -770,6 +769,38 @@ test.describe('设备子页（2026-10-22）', () => {
     await btn.click();
     await expect(page.locator('#acct-dev-empty')).toBeVisible();
     expect(calls.find((c) => c.action === 'device-revoke').sid).toBe('bbbbbbbbbbbbbbbb');
+  });
+
+  test('PR4 此设备卡：登录方式（设备记录没有 by 时读 GET /api/account）；退出账号 → POST logout → 回账号页登录区', async ({ page }) => {
+    let loggedIn = true;
+    const calls = await mockAccount(page, {
+      status: () => ({ ok: true, password: true, passkey: true, ready: true, session: loggedIn ? { ...RECENT(), by: 'passkey' } : null }),
+      handlers: {
+        list: [200, { ok: true, keys: [] }],
+        devices: [200, { ok: true, devices: [{ sid: 'aaaaaaaaaaaaaaaa', current: true, name: 'iPhone', platform: 'iOS', browser: 'Safari', lastSeen: Date.now() }] }],
+        logout: () => { loggedIn = false; return [200, { ok: true }]; },
+      },
+    });
+    await page.goto('/account/devices/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#acct-devices')).toBeVisible();
+    await expect(page.locator('#acct-by')).toHaveText('已用账号通行密钥登录');
+    await page.locator('#acct-logout').click();
+    await page.waitForURL(/\/account\/$/);
+    await expect(page.locator('#acct-login')).toBeVisible();
+    expect(calls.some((c) => c.action === 'logout')).toBe(true);
+  });
+
+  test('PR4 此设备卡（英文）：Sign-in method / Sign out / 保持登录说明', async ({ page }) => {
+    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
+    await mockAccount(page, {
+      status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }),
+      handlers: { devices: [200, { ok: true, devices: [{ sid: 'aaaaaaaaaaaaaaaa', current: true, name: 'Windows', platform: 'Windows', browser: 'Chrome', by: 'root', lastSeen: Date.now() }] }] },
+    });
+    await page.goto('/en/account/devices/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#acct-dev-by-row')).toContainText('Sign-in method');
+    await expect(page.locator('#acct-by')).toHaveText('Signed in with root credential');
+    await expect(page.locator('#acct-logout')).toHaveText('Sign out');
+    await expect(page.locator('#acct-keep-note')).toHaveText('You stay signed in on this browser until you sign out.');
   });
 
   test('设备子页：没有账号会话（401）→ 跳账号页 ?return=子页', async ({ page }) => {
@@ -887,28 +918,96 @@ test.describe('账号 → 临时钥匙（2026-10-23，取代 Turnstile 访客进
   });
 });
 
-test.describe('云同步一行（2026-10-22）', () => {
+test.describe('云同步（2026-10-24 PR4：总览一行 → 子页 /account/sync/）', () => {
   test.beforeEach(async ({ page }) => { await zh(page); });
+  const SYNCED = ['sgx-theme-mode', 'sgx-palette', 'sgx-accent', 'sgx-tz1-auto', 'sgx-tz1', 'sgx-tz2', 'sgx-hour12', 'sgx-gl-clockstyle',
+    'sgx-weather-show', 'sgx-temp-unit', 'sgx-weather-loc', 'sgx-weather-city', 'sgx-search-engine', 'sgx-gl-keys', 'sgx-well-tip', 'sgx-files-view', 'sgx-files-home'];
 
-  test('在安全与隐私下面；默认开，点一下关（sgx-cloud-sync=0），再点打开', async ({ page }) => {
+  test('总览「云同步」一行是可进入的行（链接 + 箭头，不再是开关）；副标题照旧显示状态', async ({ page }) => {
     await mockAccount(page, {
       status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }),
       handlers: { list: [200, { ok: true, keys: [] }] },
     });
     await page.goto('/account/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#acct-main')).toBeVisible();
-    const ids = await page.locator('#acct-main section .acct-row').evaluateAll((els) => els.map((e) => e.id));
-    expect(ids).toEqual(['acct-dev-row', 'acct-tk-row', 'acct-sec-row', 'acct-sync-row']);
+    const row = page.locator('#acct-sync-row');
+    await expect(row).toHaveAttribute('href', '/account/sync/');
+    await expect(row.locator('.switch')).toHaveCount(0);
+    await expect(page.locator('#acct-sync-sub')).toHaveText('已开启，设置在登录的设备间同步');
+    await row.click();
+    await page.waitForURL(/\/account\/sync\/$/);
+    await expect(page.locator('.sgx-tb-title')).toHaveText('云同步');
+  });
+
+  test('子页：总开关默认开，点一下关（sgx-cloud-sync=0，列表变淡、总览副标题跟着变），再点打开', async ({ page }) => {
+    await mockAccount(page, { status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }) });
+    await page.goto('/account/sync/', { waitUntil: 'domcontentloaded' });
     const sw = page.locator('#acct-sync-sw');
     await expect(sw).toHaveAttribute('aria-checked', 'true');
     await expect(page.locator('#acct-sync-sub')).toHaveText('已开启，设置在登录的设备间同步');
     await page.locator('#acct-sync-row').click();
     await expect(sw).toHaveAttribute('aria-checked', 'false');
     await expect(page.locator('#acct-sync-sub')).toHaveText('已关闭，设置只存在此设备');
+    await expect(page.locator('#acct-sync-items')).toHaveClass(/\bis-off\b/);
     expect(await page.evaluate(() => localStorage.getItem('sgx-cloud-sync'))).toBe('0');
-    await page.locator('#acct-sync-row').click();
+    await page.keyboard.press('Tab');
+    await page.locator('#acct-sync-row').press('Enter');
     await expect(sw).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator('#acct-sync-items')).not.toHaveClass(/\bis-off\b/);
     expect(await page.evaluate(() => localStorage.getItem('sgx-cloud-sync'))).toBe(null);
+  });
+
+  test('子页列出实际同步的每一项（分组卡片），带本机当前值；不列语言 / 布局', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('sgx-theme-mode', 'dark');
+      localStorage.setItem('sgx-palette', 'lake');
+      localStorage.setItem('sgx-accent', '#3d7bd9');
+      localStorage.setItem('sgx-hour12', '12');
+      localStorage.setItem('sgx-weather-show', '0');
+      localStorage.setItem('sgx-weather-city', JSON.stringify({ name: 'Shanghai', lat: 31.2, lon: 121.5 }));
+      localStorage.setItem('sgx-gl-keys', '1');
+    });
+    await mockAccount(page, { status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }) });
+    await page.goto('/account/sync/', { waitUntil: 'domcontentloaded' });
+    const keys = await page.locator('#acct-sync-items [data-sync-key]').evaluateAll((els) => els.map((e) => e.getAttribute('data-sync-key')));
+    expect([...keys].sort()).toEqual([...SYNCED].sort());
+    expect(keys).not.toContain('sgx-lang');
+    expect(keys).not.toContain('sgx-layout');
+    await expect(page.locator('#acct-sync-items h3')).toHaveText(['外观', '日期和时间', '天气', '其他']);
+    await expect(page.locator('#acct-sync-items section')).toHaveCount(4);
+    const val = (k) => page.locator(`[data-sync-key="${k}"] [data-sync-val]`);
+    await expect(page.locator('[data-sync-key="sgx-theme-mode"]')).toContainText('主题模式');
+    await expect(val('sgx-theme-mode')).toHaveText('深色');
+    await expect(val('sgx-palette')).toHaveText('湖蓝');
+    await expect(val('sgx-accent')).toHaveText('#3D7BD9');
+    await expect(page.locator('[data-sync-key="sgx-accent"] [data-sync-swatch]')).toBeVisible();
+    await expect(val('sgx-hour12')).toHaveText('12 小时制');
+    await expect(val('sgx-tz1-auto')).toHaveText('开');
+    await expect(val('sgx-weather-show')).toHaveText('关');
+    await expect(val('sgx-weather-city')).toHaveText('Shanghai');
+    await expect(val('sgx-weather-loc')).toHaveText('自动（IP 定位）');
+    await expect(val('sgx-gl-keys')).toHaveText('开');
+    await expect(val('sgx-files-view')).toHaveText('默认');
+    await expect(page.locator('main')).toContainText('语言和布局跟随每台设备各自的设置，不同步。');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+
+  test('英文子页：Cloud sync / Appearance … / On · Off', async ({ page }) => {
+    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); localStorage.setItem('sgx-cloud-sync', '0'); } catch (e) {} });
+    await mockAccount(page, { status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }) });
+    await page.goto('/en/account/sync/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.sgx-tb-title')).toHaveText('Cloud sync');
+    await expect(page.locator('#acct-sync-sub')).toHaveText('Off. Settings stay on this device');
+    await expect(page.locator('#acct-sync-items h3')).toHaveText(['Appearance', 'Date & time', 'Weather', 'More']);
+    await expect(page.locator('[data-sync-key="sgx-theme-mode"] [data-sync-val]')).toHaveText('Follow system');
+    await expect(page.locator('[data-sync-key="sgx-weather-show"] [data-sync-val]')).toHaveText('On');
+    await expect(page.locator('[data-sync-key="sgx-accent"] [data-sync-val]')).toHaveText('Not set');
+  });
+
+  test('子页：没有账号会话 → 跳账号页 ?return=子页', async ({ page }) => {
+    await mockAccount(page, { status: { ok: true, password: true, passkey: false, ready: true, session: null } });
+    await page.goto('/account/sync/', { waitUntil: 'domcontentloaded' });
+    await page.waitForURL(/\/account\/\?return=%2Faccount%2Fsync%2F$/);
+    await expect(page.locator('#acct-login')).toBeVisible();
   });
 });
 
@@ -927,7 +1026,7 @@ test.describe('账号页是独立页 /account/（2026-10-22 从 /settings/accoun
       status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }),
       handlers: { list: [200, { ok: true, keys: [] }], devices: [200, { ok: true, devices: [] }] },
     });
-    for (const p of ['/account/', '/account/profile/', '/account/security/', '/account/reset/', '/account/devices/', '/account/temp-keys/']) {
+    for (const p of ['/account/', '/account/security/', '/account/reset/', '/account/devices/', '/account/temp-keys/', '/account/sync/', '/account/status/']) {
       await page.goto(p, { waitUntil: 'domcontentloaded' });
       await expect(page.locator('main .acct-layout')).toHaveCount(1);
       await expect(page.locator('main .set-layout, main .set-row, main .set-ic, main .set-gh, main .sec-note')).toHaveCount(0);

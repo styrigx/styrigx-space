@@ -1,6 +1,6 @@
 /**
- * @fileoverview 状态页（/status/）的纯函数：北京时间格式、时长、可用率、每日色块、当前状态，以及卡片 / 故障列表的 HTML。
- * 没有 DOM、没有请求（apps/status.js 负责取 /api/status、插进页面、每 60 秒刷新），node --test 直接测
+ * @fileoverview 服务状态（账号 → 服务状态 /account/status/；2026-10-24 PR4 前是顶栏「状态」页）的纯函数：北京时间格式、时长、可用率、每日色块、当前状态，以及卡片 / 故障列表的 HTML。
+ * 没有 DOM、没有请求（apps/account-status.js 负责取 /api/status、插进页面、每 60 秒刷新），node --test 直接测
  * （tests/web/ui/status-view.test.mjs）。
  *
  * 数据形状 = /api/status（网关转 styrigx-status 的 /summary，见 workers/status/src/monitor.js summary）：
@@ -273,7 +273,7 @@ export function uptime90(s) {
 }
 
 /**
- * 一张站点卡（article.st-card）。色块是 span，整条 role="img" 带可读的总结；点色块的说明由 apps/status.js 填进 .st-detail。
+ * 一张站点卡（article.st-card）。色块是 span，整条 role="img" 带可读的总结；点色块的说明由 apps/account-status.js 填进 .st-detail。
  * @param {any} s
  * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, en:boolean, now:number, today:string}} ctx
  */

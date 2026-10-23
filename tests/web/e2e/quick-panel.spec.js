@@ -57,17 +57,18 @@ async function expectClosed(page) {
 }
 
 test.describe('顶栏：右圆 = 快捷面板按钮', () => {
+  const TABS = (p) => p === '/' || p === '/settings/';
   const PAGES = ['/', '/settings/', '/settings/display/', '/settings/security/', '/account/'];
   for (const path of PAGES) {
-    test(`${path}：九宫格 · 长条（${path === '/' ? '主页 / 聊天 / 状态三栏' : '只有页名'}）· 右圆快捷面板`, async ({ page }) => {
+    test(`${path}：九宫格 · 长条（${TABS(path) ? '主页 / 聊天 / 设置三栏' : '只有页名'}）· 右圆快捷面板`, async ({ page }) => {
       await go(page, path);
       const order = await page.evaluate(() =>
         Array.from(document.querySelector('.sgx-topbar').children).map((el) => el.className.split(' ')[0]));
       expect(order).toEqual(['sgx-tb-nav', 'sgx-tb-pill', 'sgx-tb-end']);
       const inner = await page.evaluate(() =>
         Array.from(document.querySelector('.sgx-tb-pill').children).map((el) => el.className.split(' ')[0]));
-      /* 主页长条里是三栏标签（2026-10-22，status-page.spec.js），其他页是页名 */
-      expect(inner).toEqual([path === '/' ? 'sgx-tb-tabs' : 'sgx-tb-title']);
+      /* 主页、设置首页长条里是三栏标签（2026-10-22；PR4 第三栏换成设置，account-status.spec.js），其他页是页名 */
+      expect(inner).toEqual([TABS(path) ? 'sgx-tb-tabs' : 'sgx-tb-title']);
       const q = page.locator('.sgx-tb-quick');
       expect(await q.evaluate((el) => el.tagName)).toBe('BUTTON');
       await expect(q).toHaveAttribute('aria-label', '快捷面板');
@@ -204,8 +205,8 @@ test.describe('快捷面板：开合', () => {
       return document.getElementById('sgx-qp').contains(a) || a === document.querySelector('.sgx-tb-quick');
     });
     let sawIcon = false;
-    /* 2026-10-23 PR-G：一圈 = 图标 + 齿轮 + 4 磁贴 + 恢复默认 + 七色调色板 22 + 布局可用 2（412 宽 DeX 置灰）= 31 下 */
-    const LOOP = 31;
+    /* 2026-10-23 PR-G：一圈 = 图标 + 4 磁贴 + 恢复默认 + 七色调色板 22 + 布局可用 2（412 宽 DeX 置灰）= 30 下（2026-10-24 PR4 删了齿轮，少一下） */
+    const LOOP = 30;
     expect(await page.evaluate(() => [document.querySelector('.sgx-tb-quick')].concat(Array.from(document.querySelectorAll('#sgx-qp a[href], #sgx-qp button:not([disabled])')))
       .filter((el) => el.offsetParent !== null).length)).toBe(LOOP);
     for (let i = 0; i < LOOP + 10; i++) {
@@ -252,7 +253,9 @@ test.describe('快捷面板：开合', () => {
   test('点面板里的空白处不关闭', async ({ page }) => {
     await go(page, '/settings/');
     await openQp(page);
-    await page.locator('.sgx-qp-head').click();
+    /* 面板顶部内边距（PR4 起没有标题行，磁贴上方的空白）和磁贴之间的缝 */
+    const sh = await page.locator('.sgx-qp-sheet').boundingBox();
+    await page.mouse.click(sh.x + sh.width / 2, sh.y + 5);
     await expect(qp(page)).toHaveAttribute('data-state', 'open');
   });
 
@@ -341,26 +344,12 @@ test.describe('快捷面板：内容', () => {
     await expect(page.locator('#sgx-qp .swatch-clash')).toHaveCount(0);
     await expect(page.locator('#sgx-qp [data-qp-reset]')).toHaveText('恢复默认');
     await expect(page.locator('#sgx-qp [data-qp-seg="layout"] button')).toHaveText(['Mobile', 'Auto', 'DeX']);
-    /* 顶部一行：标题 + 齿轮圆钮（全部设置）；底部没有「全部设置」行 */
-    await expect(page.locator('#sgx-qp .sgx-qp-head .sgx-qp-title')).toHaveText('快捷面板');
+    /* 2026-10-24 PR4：没有「快捷面板」标题和齿轮（全部设置），面板第一项就是磁贴网格；读屏名字仍是「快捷面板」（aria-label） */
+    await expect(page.locator('#sgx-qp .sgx-qp-head, #sgx-qp .sgx-qp-title, #sgx-qp .sgx-qp-set, #sgx-qp .sgx-qp-all')).toHaveCount(0);
+    await expect(page.locator('#sgx-qp a[href$="/settings/"]')).toHaveCount(0);
     await expect(qp(page)).toHaveAccessibleName('快捷面板');
-    const gear = page.locator('#sgx-qp .sgx-qp-head a.sgx-qp-set');
-    await expect(gear).toHaveAttribute('href', '/settings/');
-    await expect(gear).toHaveAttribute('aria-label', '全部设置');
-    await expect(gear.locator('svg')).toHaveCount(1);
-    await expect(page.locator('#sgx-qp .sgx-qp-all')).toHaveCount(0);
-    expect(await page.locator('.sgx-qp-sheet').evaluate((el) => el.firstElementChild.className)).toContain('sgx-qp-head');
-    /* 齿轮是 40–48px 的圆，在标题右边、贴面板右内缘；与标题竖直居中 */
-    const gb = await gear.boundingBox();
-    const tl = await page.locator('#sgx-qp .sgx-qp-title').boundingBox();
-    const sh = await page.locator('.sgx-qp-sheet').boundingBox();
-    expect(gb.width).toBeGreaterThanOrEqual(40);
-    expect(gb.width).toBeLessThanOrEqual(48);
-    expect(Math.abs(gb.width - gb.height)).toBeLessThanOrEqual(0.5);
-    expect(await gear.evaluate((el) => getComputedStyle(el).borderTopLeftRadius)).toBe('999px');
-    expect(gb.x).toBeGreaterThan(tl.x + tl.width);
-    expect(Math.abs(sh.x + sh.width - 1 - 16 - (gb.x + gb.width))).toBeLessThanOrEqual(1);
-    expect(Math.abs(gb.y + gb.height / 2 - (tl.y + tl.height / 2))).toBeLessThanOrEqual(1);
+    expect(await page.locator('.sgx-qp-sheet').evaluate((el) => el.firstElementChild.className)).toContain('sgx-qp-grid');
+    await expect(page.locator('#sgx-qp')).not.toContainText('快捷面板');
     /* 默认：浅色、跟随系统开、默认色板（恢复默认置灰，默认 dustyblue 色块选中）、自动布局 */
     await expect(tile(page, 'dark')).toHaveAttribute('aria-pressed', 'false');
     await expect(tile(page, 'dark').locator('[data-qp-state]')).toHaveText('关');
@@ -436,10 +425,8 @@ test.describe('快捷面板：内容', () => {
     const glass = await role('--sgx-qp-glass', 'backgroundColor');
     expect(await cs('#sgx-qp [data-qp="dark"]')).toBe(glass);
     expect(await cs('#sgx-qp .sgx-qp-row')).toBe(glass);
-    expect(await cs('#sgx-qp a.sgx-qp-set')).toBe(glass);
     const sec = await role('--m-secondary-container');
-    for (const sel of ['#sgx-qp [data-qp="dark"]', '#sgx-qp .sgx-qp-row', '#sgx-qp a.sgx-qp-set']) expect(await cs(sel)).not.toBe(sec);
-    expect(await cs('#sgx-qp a.sgx-qp-set', 'color')).toBe(await role('--m-primary'));
+    for (const sel of ['#sgx-qp [data-qp="dark"]', '#sgx-qp .sgx-qp-row']) expect(await cs(sel)).not.toBe(sec);
     await tile(page, 'dark').click();
     await expect(tile(page, 'dark')).toHaveAttribute('aria-pressed', 'true');
     await expect.poll(() => cs('#sgx-qp [data-qp="dark"]')).toBe(await role('--m-primary-container'));
@@ -490,9 +477,8 @@ test.describe('快捷面板：内容', () => {
     await expect(page.locator('#sgx-qp .sgx-qp-row-label')).toHaveText(['Color palette', 'Layout']);
     await expect(page.locator('#sgx-qp [data-qp-reset]')).toHaveText('Reset');
     await expect(tile(page, 'system').locator('[data-qp-state]')).toHaveText('On');
-    await expect(page.locator('#sgx-qp .sgx-qp-title')).toHaveText('Quick panel');
-    await expect(page.locator('#sgx-qp a.sgx-qp-set')).toHaveAttribute('aria-label', 'All settings');
-    await expect(page.locator('#sgx-qp a.sgx-qp-set')).toHaveAttribute('href', '/en/settings/');
+    await expect(qp(page)).toHaveAccessibleName('Quick panel');
+    await expect(page.locator('#sgx-qp .sgx-qp-title, #sgx-qp .sgx-qp-set')).toHaveCount(0);
   });
 });
 
@@ -639,7 +625,8 @@ test.describe('快捷面板：与设置页同一个设置', () => {
     await tile(page, 'lang').click();
     await expect(page).toHaveURL(/\/en\/settings\/$/);
     expect(await ls(page, 'sgx-lang')).toBe('en');
-    await expect(page.locator('.sgx-tb-title')).toHaveText('Settings');
+    await expect(page.locator('.sgx-tb-tab[data-tab="settings"]')).toHaveText('Settings');
+    await expect(page.locator('.sgx-tb-tab[data-tab="settings"]')).toHaveAttribute('aria-current', 'page');
     await page.goBack();
     /* 回到进设置页之前的主页（语言偏好已是英文，主页 replace 到 /en/） */
     await expect(page).toHaveURL(/localhost:\d+\/(en\/)?$/);
@@ -671,15 +658,15 @@ test.describe('快捷面板：与设置页同一个设置', () => {
     expect(called).toBe(true);
   });
 
-  test('齿轮（全部设置）：进设置页，返回回到原页（不多一步）', async ({ page }) => {
+  test('PR4：设置入口 = 顶栏三栏的「设置」（面板里不再有齿轮）；从主页点它进设置首页', async ({ page }) => {
     await go(page, '/');
-    await page.goto('/settings/display/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('.sgx-topbar')).toBeVisible();
     await openQp(page);
-    await page.locator('#sgx-qp a.sgx-qp-set').click();
+    await expect(page.locator('#sgx-qp a')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expectClosed(page);
+    await page.locator('.sgx-tb-tab[data-tab="settings"]').click();
     await expect(page).toHaveURL(/\/settings\/$/);
     await page.goBack();
-    await expect(page).toHaveURL(/\/settings\/display\/$/);
-    await expect(qp(page)).toBeHidden();
+    await expect(page).toHaveURL(/localhost:\d+\/$/);
   });
 });

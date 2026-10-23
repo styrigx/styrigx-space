@@ -1,5 +1,5 @@
 /**
- * 状态页（/status/）渲染 / 格式函数（web/assets/js/lib/status-view.js）：北京时间、时长、可用率、每日色块、
+ * 服务状态（/account/status/，2026-10-24 PR4 前是 /status/）渲染 / 格式函数（web/assets/js/lib/status-view.js）：北京时间、时长、可用率、每日色块、
  * 当前状态、横幅、站点卡和故障列表的 HTML。假数据：tests/fixtures/status-summary.cjs（Playwright 同一份）。
  * 运行：node --test tests/web/ui/status-view.test.mjs
  */

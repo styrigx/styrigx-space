@@ -6,27 +6,28 @@
  *   最下面小字「无法登录？」→ 重置登录页（/account/reset/，apps/account-reset.js）。根凭证不再是登录入口。
  *   密码 → 与锁屏同一个密码弹层；通行密钥 → 同一弹层里的「正在验证」态，失败给 重试 / 使用密码。
  *   成功即得到账号会话（sgx-account，400 天，不点退出一直登录；与锁屏会话无关，但进账号页的前提是锁屏已解锁）。
- * - 已登录：账号总览（三星账号式）—— 账号卡（名字 + 头像，换头像见 avatar-edit.js；点卡片其余地方进
- *   下一页「已登录」/account/profile/，在那里退出账号）、
- *   「安全与隐私」一行（副标题：账号密码或通行密钥任一已设置 → 已保护）→ 子页
- *   /account/security/（apps/account-security.js，每次进都要验签，3 分钟门票）。
- * - ?return=/account/(security|profile)/：子页没有账号会话时跳来，登录后回子页。
+ * - 已登录：账号总览（三星账号式）—— 账号卡（名字 + 「已登录」+ 头像；卡片本身只是展示，不能点、没有详情页；
+ *   点头像直接换头像，见 avatar-edit.js。2026-10-24 PR4 删掉「账号信息」子页，登录方式 / 退出账号挪进设备页「此设备」卡）、
+ *   一组：设备 / 临时钥匙 /「安全与隐私」（副标题：账号密码或通行密钥任一已设置 → 已保护）→ 子页
+ *   /account/security/（apps/account-security.js，每次进都要验签，3 分钟门票）；
+ *   另一组：云同步（副标题 = 开关状态 / 上次同步，进 /account/sync/ 看同步了哪些项、开关）/ 服务状态（/account/status/）。
+ * - ?return=/account/(security|devices|sync|status)/：子页没有账号会话时跳来，登录后回子页。
  * - 访客：读不到状态，两个按钮都显示，服务端一律拒绝（统一显示「不正确 / 验证失败」）。
  * - 首帧（2026-10-21）：页面默认两块都隐藏；网关在 <html data-sgx-account="in|out"> 注入服务端验过的账号会话，
  *   这里同步按它显示总览或登录区。没有这个属性（中性态）就等 /api/account。
  *   「欢迎回来」只在服务端说未登录时出现：属性 out、或 /api/account 明确 session=null。
  *   属性 in 而 /api/account 读不到（访客 401 / 网络）→ 保持总览，不退回登录区。
  */
-import { initCloudSync, syncEnabled, SWITCH_KEY, LAST_KEY, AUTH_KEY } from '../lib/cloud-sync.js';
-import { get as sget, set as sset } from '../lib/storage.js';
+import { initCloudSync, syncEnabled, AUTH_KEY } from '../lib/cloud-sync.js';
+import { set as sset } from '../lib/storage.js';
 import { on } from '../lib/events.js';
-import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
+import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { tapFeedback, bindSubmitButton } from '../lib/dialog-behavior.js';
 import { bindPwEye, onEnter, focusNoScroll, pwFieldHtml } from '../lib/auth-flow.js';
 import { createMethodSheet, createVerifyDialog, METHOD_ICONS, keepInputFocus } from '../lib/auth-sheet.js';
 import { KEY_ACCOUNT } from '../lib/key-names.js';
 import { followKeyboard } from '../shell/vk.js';
-import { ACCOUNT_RETURN_RE, createT, profileUrl, signalAccountName } from './account-common.js';
+import { ACCOUNT_RETURN_RE, createT, signalAccountName, syncSubText } from './account-common.js';
 import { ACCOUNT_API, postJSON } from '../lib/account-api.js';
 import { accountSubmitters, visibleKinds } from '../lib/account-methods.js';
 
@@ -39,21 +40,10 @@ import { accountSubmitters, visibleKinds } from '../lib/account-methods.js';
     if (el) el.textContent = (j && j.session && j.session.device) || t('devThis');
   }
 
-  /* ===== 云同步一行（开关；lib/cloud-sync.js 做实际同步） ===== */
+  /* ===== 云同步一行（2026-10-24 PR4：进 /account/sync/ 看同步项和总开关；这里只显示状态，lib/cloud-sync.js 做实际同步） ===== */
   function fillSync() {
-    const sw = document.getElementById('acct-sync-sw');
     const sub = document.getElementById('acct-sync-sub');
-    const on = syncEnabled();
-    if (sw) sw.setAttribute('aria-checked', on ? 'true' : 'false');
-    if (!sub) return;
-    if (!on) { sub.textContent = t('syncOff'); return; }
-    const last = parseInt(sget(LAST_KEY) || '0', 10) || 0;
-    if (!last) { sub.textContent = t('syncOn'); return; }
-    const d = new Date(last);
-    const pad = function (n) { return (n < 10 ? '0' : '') + n; };
-    const today = new Date().toDateString() === d.toDateString();
-    const when = (today ? '' : (d.getMonth() + 1) + (en ? '/' : '月') + d.getDate() + (en ? ' ' : '日 ')) + pad(d.getHours()) + ':' + pad(d.getMinutes());
-    sub.textContent = t('syncLast') + when;
+    if (sub) sub.textContent = syncSubText(t, en);
   }
   /** 登录了账号的总览：清掉「没登录账号」标记，立刻同步一次 */
   function startSync() {
@@ -61,20 +51,8 @@ import { accountSubmitters, visibleKinds } from '../lib/account-methods.js';
     fillSync();
     if (syncEnabled()) initCloudSync({ force: true }).then(fillSync, fillSync);
   }
-  (function bindSync() {
-    const row = document.getElementById('acct-sync-row');
-    if (!row) return;
-    const toggle = function () {
-      const on = !syncEnabled();
-      sset(SWITCH_KEY, on ? null : '0');
-      fillSync();
-      if (on) initCloudSync({ force: true }).then(fillSync, fillSync);
-    };
-    row.addEventListener('click', toggle);
-    row.addEventListener('keydown', function (/** @type {KeyboardEvent} */ e) {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
-    });
-  })();
+  /* 副标题只读本机（开关 + 上次同步时间），首帧就填上，不等 /api/account */
+  fillSync();
   /** @param {string} id */
   function $(id) {
     return document.getElementById(id);
@@ -86,33 +64,7 @@ import { accountSubmitters, visibleKinds } from '../lib/account-methods.js';
   const avBtn = $('acct-login-avatar');
   const noneEl = $('acct-login-none');
   const hint0 = document.documentElement.dataset.sgxAccount || '';
-  /* 2026-10-23 修：服务端已登录、没下发登录区的分支（下面 hint0 === 'in'）提前 return，原来走不到这里，线上账号卡点了没反应。
-     抽成函数，两个分支都绑。
-     点账号卡（头像以外的地方）→ 下一页「已登录」（账号信息、退出账号）。头像按钮自己管换照片。 */
-  function bindAccountCard() {
-    const card = mainEl ? mainEl.querySelector('[data-acct-card]') : null;
-    if (card) {
-      card.setAttribute('role', 'link');
-      card.setAttribute('tabindex', '0');
-      const go = function () { sgxNavigate(profileUrl(en)); };
-      on(card, 'click', function (e) {
-        const target = /** @type {HTMLElement} */ (e.target);
-        if (target && target.closest && target.closest('[data-avatar-edit]')) return;
-        tapFeedback();
-        go();
-      });
-      on(card, 'keydown', function (e) {
-        const ev = /** @type {KeyboardEvent} */ (e);
-        if (ev.key === 'Enter' || ev.key === ' ') {
-          ev.preventDefault();
-          go();
-        }
-      });
-    }
-  }
-
   if (!loginEl && mainEl && hint0 === 'in') {
-    bindAccountCard();
     /* 服务端说已登录，登录区没下发：只填总览；/api/account 明确说没有账号会话（刚过期 / 别处退出）
        → 重新取页面，由服务端画登录区。读不到（访客 401 / 网络）→ 保持总览。 */
     mainEl.hidden = false;
@@ -340,8 +292,6 @@ import { accountSubmitters, visibleKinds } from '../lib/account-methods.js';
   }
 
   /* ================= 账号总览 ================= */
-
-  bindAccountCard();
 
   /**
    * 密码管理器改名（OwnerKey → AccountKey）：支持 signalCurrentUserDetails 时才拉一次 list 拿账号 handle。

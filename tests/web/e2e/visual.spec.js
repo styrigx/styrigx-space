@@ -22,8 +22,9 @@ const VIEWPORTS = {
 /* 安全与隐私：新页面加入视觉回归（先只报告，基线未生成前不阻塞） */
 /* 账号页（独立页 /account/，2026-10-22 从 /settings/account/ 挪出）三星式总览：/account/ 拍登录后的总览（登录区由下方 account-login-* 覆盖），
    新增安全与隐私子页 /account/security/（已过门；倒计时数字在截图里遮罩），
-   账号信息子页 /account/profile/（已登录卡 + 退出账号） */
-const PAGES = ['/', '/settings/', '/settings/security/', '/settings/security/lock/', '/account/', '/account/profile/', '/account/security/', '/account/reset/'];
+   账号信息子页 /account/profile/ 2026-10-24 PR4 删除（登录方式 / 退出账号挪进设备页「此设备」卡），截图一并删除；
+   PR4 新增的账号子页（服务状态 / 云同步 / 设备）只拍手机，见文件末尾 account-sub-* */
+const PAGES = ['/', '/settings/', '/settings/security/', '/settings/security/lock/', '/account/', '/account/security/', '/account/reset/'];
 const LANGS = [
   { prefix: '', name: 'zh' },
   { prefix: '/en', name: 'en' },
@@ -66,7 +67,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
             });
           }
           /* 账号总览 / 账号信息 / 安全与隐私子页：已登录账号（密码登录），已过门（倒计时数字遮罩），通行密钥列表固定一把 */
-          if (page === '/account/' || page === '/account/profile/' || page === '/account/security/') {
+          if (page === '/account/' || page === '/account/security/') {
             await pg.route('**/api/account', async (route) => {
               if (route.request().method() === 'GET') {
                 await route.fulfill({
@@ -132,7 +133,6 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           await waitPageReady(pg);
           /* 账号两页：等异步内容（总览 / 子页列表）落定再截图 */
           if (page === '/account/') await expect(pg.locator('#acct-main')).toBeVisible({ timeout: 10000 });
-          if (page === '/account/profile/') await expect(pg.locator('#acct-profile')).toBeVisible({ timeout: 10000 });
           if (page === '/account/reset/') await expect(pg.locator('#sgx-reset-root')).toBeVisible({ timeout: 10000 });
           if (page === '/account/security/') {
             await expect(pg.locator('#lockmgr-pklist .lockmgr-pkitem')).toHaveCount(1, { timeout: 10000 });
@@ -321,6 +321,55 @@ for (const lang of DOOR_LANGS) {
         });
         if (overflow > 1) throw new Error(`横向溢出 ${overflow}px on ${name}`);
         await expect(pg).toHaveScreenshot(`account-login-${state}-${lang.name}-${theme.name}.png`, { animations: 'disabled', caret: 'hide' });
+      });
+    }
+  }
+}
+
+/* ===== 账号子页（2026-10-24 PR4）：服务状态（原顶栏「状态」页挪进来）/ 云同步（总开关 + 同步项）/ 设备（此设备卡：登录方式 + 退出账号）=====
+ * 手机 412×915 × 中英 × 深浅色。/api/status 用 tests/fixtures/status-summary.cjs（含用量），/api/account 固定已登录、设备列表固定两台。 */
+const fxStatus = require('../../fixtures/status-summary.cjs');
+const SUB_PAGES = [
+  ['status', '/account/status/', async (pg) => { await expect(pg.locator('#st-root')).toHaveAttribute('data-state', 'ready', { timeout: 10000 }); }],
+  ['sync', '/account/sync/', async (pg) => { await expect(pg.locator('[data-sync-key="sgx-theme-mode"] [data-sync-val]')).not.toHaveText('', { timeout: 10000 }); }],
+  ['devices', '/account/devices/', async (pg) => { await expect(pg.locator('#acct-devices')).toBeVisible({ timeout: 10000 }); await expect(pg.locator('#acct-by')).not.toHaveText(''); }],
+];
+for (const lang of LANGS) {
+  for (const theme of THEMES) {
+    for (const [id, path, ready] of SUB_PAGES) {
+      const name = `mobile-account-sub-${id}-${lang.name}-${theme.name}`;
+      test(name, async ({ page: pg }) => {
+        await pg.setViewportSize(VIEWPORTS.mobile);
+        await blockExternalRequests(pg);
+        await pg.emulateMedia({ reducedMotion: 'reduce' });
+        await pg.route('**/api/account', async (route) => {
+          if (route.request().method() === 'GET') {
+            await route.fulfill({ status: 200, contentType: 'application/json',
+              body: JSON.stringify({ ok: true, password: true, passkey: true, ready: true, session: { by: 'passkey', authAt: 1760000000000, expiresAt: 4102444800000, recent: true } }) });
+            return;
+          }
+          await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, keys: [], devices: [
+            { sid: 'aaaaaaaaaaaaaaaa', current: true, name: 'Galaxy S25 Ultra', model: 'SM-S938B', platform: 'Android', browser: 'Samsung Internet', country: 'CN', by: 'passkey', lastSeen: 1760000000000 },
+            { sid: 'bbbbbbbbbbbbbbbb', current: false, name: 'iPad', platform: 'iOS', browser: 'Safari', country: 'CN', lastSeen: fxStatus.NOW - 3 * 3600 * 1000 },
+          ] }) });
+        });
+        await pg.route('**/api/status', (route) => route.fulfill({ status: 200, contentType: 'application/json',
+          body: JSON.stringify(fxStatus.withUsage(fxStatus.normal(), fxStatus.usage())) }));
+        await pg.addInitScript(([t, ln]) => {
+          try {
+            if (t === 'dark') localStorage.setItem('sgx-theme-mode', 'dark');
+            localStorage.setItem('sgx-lang', ln);
+          } catch (e) {}
+        }, [theme.setup, lang.name]);
+        await pg.addStyleTag({
+          content: 'html{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans CJK SC","Noto Sans CJK",sans-serif !important}',
+        });
+        await freezeTime(pg);
+        await pg.goto(lang.prefix + path, { waitUntil: 'domcontentloaded' });
+        await waitPageReady(pg);
+        await ready(pg);
+        await pg.addStyleTag({ content: '.sgx-build-tag,.sgx-build-tag-wrap{display:none !important}' });
+        await expect(pg).toHaveScreenshot(`${name}.png`, { fullPage: false, animations: 'disabled' });
       });
     }
   }

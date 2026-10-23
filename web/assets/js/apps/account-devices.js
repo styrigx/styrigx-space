@@ -2,13 +2,14 @@
  * @fileoverview 账号 → 设备（/account/devices/）：此设备 + 其他登录的设备，可单独退出。
  *
  * - 进页 POST /api/account { action:'devices' }：没有账号会话（401）→ 回账号页登录，登录后回本页
- * - 此设备一张卡在最上面（服务端标 current 并排第一）；不能在这里退出
+ * - 此设备一张卡在最上面（服务端标 current 并排第一）：设备行 +「登录方式」（这台设备记录的 by；旧记录没有就看 GET /api/account 的 session.by）
+ *   + 「退出账号」（POST logout，清账号会话和门票 → 回账号页登录区）。2026-10-24 PR4 从删掉的「账号信息」子页挪来。
  * - 其他设备：名字（型号 / 平台）+ 浏览器 · 地点 · 上次活动；「退出」两步确认 → device-revoke
  */
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';
-import { accountUrl, createT } from './account-common.js';
+import { accountUrl, createT, goAccountLogin } from './account-common.js';
 import { ACCOUNT_API, postJSON, errText } from '../lib/account-api.js';
 
 const ICONS = {
@@ -76,8 +77,36 @@ export function deviceSub(t, d, en) {
   const list = document.getElementById('acct-dev-list');
   const empty = document.getElementById('acct-dev-empty');
 
+  const byEl = document.getElementById('acct-by');
+  const logout = document.getElementById('acct-logout');
+
   function goLogin() {
-    sgxReplace(accountUrl(en) + '?return=' + encodeURIComponent(location.pathname));
+    goAccountLogin(en);
+  }
+
+  /** 登录方式的文字 @param {string} by */
+  function byText(by) {
+    return by === 'root' ? t('byRoot') : by === 'passkey' ? t('byPasskey') : t('byPassword');
+  }
+  /** @param {string} by 空 = 设备记录里没有（旧记录）→ 读一次 GET /api/account */
+  function fillBy(by) {
+    if (!byEl) return;
+    if (by) { byEl.textContent = byText(by); return; }
+    fetch(ACCOUNT_API, { method: 'GET', credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { if (j && j.ok && j.session) byEl.textContent = byText(j.session.by || ''); })
+      .catch(function () {});
+  }
+
+  if (logout) {
+    on(logout, 'click', function () {
+      postJSON(ACCOUNT_API, { action: 'logout' }).then(function () {
+        toast(t('loggedOut'));
+        sgxReplace(accountUrl(en));
+      }, function () {
+        toast(t('errNetwork'));
+      });
+    });
   }
 
   /** @param {any} d */
@@ -176,6 +205,7 @@ export function deviceSub(t, d, en) {
       const cur = all.filter(function (d) { return d.current; })[0] || null;
       const others = all.filter(function (d) { return !d.current; });
       fillThis(cur);
+      fillBy((cur && cur.by) || '');
       if (list) {
         list.textContent = '';
         others.forEach(function (d) { list.appendChild(otherItem(d)); });

@@ -3,12 +3,16 @@
    → 底部弹层选 通行密钥 / 密码 / 「无法登录？」。
    成功签发账号会话（sgx-account，400 天，不点退出一直登录；进账号页前提是锁屏已解锁）。
    「无法登录？」→ /account/reset/（重置登录：根凭证 → 直接进 安全与隐私 重设账号凭证）。
-   已登录 → 账号总览（三星账号式）：账号卡（名字 + 头像，主人可换头像；点卡片其余地方进
-   「已登录」子页 /account/profile/，在那里退出账号）、
-   「设备」一行 → 子页 /account/devices/（account-devices.html）：此设备 + 其他登录的设备，可单独退出；
-   「安全与隐私」一行 → 子页 /account/security/（account-security.html）管理账号密码和账号通行密钥，
+   已登录 → 账号总览（三星账号式）：账号卡（名字 + 「已登录」+ 头像；卡片只是展示，不能点、没有详情页；
+   主人点头像直接换头像，见 avatar-edit.js。2026-10-24 PR4 删掉「账号信息」子页 /account/profile/，
+   登录方式、「退出账号」和保持登录的说明挪进设备页「此设备」卡），
+   第一组：「设备」→ 子页 /account/devices/（account-devices.html）：此设备（登录方式 + 退出账号）+ 其他登录的设备，可单独退出；
+   「临时钥匙」→ /account/temp-keys/；
+   「安全与隐私」→ 子页 /account/security/（account-security.html）管理账号密码和账号通行密钥，
    每次进都要再验一次账号凭证（3 分钟门票，离开即作废）。
-   ?return=/account/(security|profile)/：子页没有账号会话时跳来，登录后回子页。
+   第二组（2026-10-24 PR4）：「云同步」→ 子页 /account/sync/（account-sync.html）：总开关 + 实际同步的每一项；
+   「服务状态」→ 子页 /account/status/（account-status.html，原顶栏「状态」页挪进来）：站点健康、可用率、响应延迟。
+   ?return=/account/(security|devices|sync|status)/：子页没有账号会话时跳来，登录后回子页。
    访客看到的界面与站长一致（服务端一律拒绝）。noindex、不进 sitemap（见 baseof/sitemap）。
    脚本走 ES Module 入口 entry-account.js。 */}}
 {{ define "main" }}
@@ -41,8 +45,9 @@
   </div>
 {{ "<!-- SGX-ACCT-LOGIN-END -->" | safeHTML }}
 
-  <!-- 账号总览（登录后，三星账号式）：账号卡（名字 + 头像，主人可换头像；点卡片其余地方进「已登录」子页）
-       → 一组：设备（登录过的设备，可单独退出）/ 临时钥匙（给访客的临时 LockKey）/ 安全与隐私 / 云同步（开关，设置项跨设备同步，lib/cloud-sync.js） -->
+  <!-- 账号总览（登录后，三星账号式）：账号卡（名字 + 已登录 + 头像，只展示；点头像换头像）
+       → 一组：设备（此设备的登录方式 / 退出账号 + 其他登录的设备）/ 临时钥匙（给访客的临时 LockKey）/ 安全与隐私
+       → 一组：云同步（进子页：总开关 + 同步项，lib/cloud-sync.js）/ 服务状态（站点健康、可用率、响应延迟） -->
   <div id="acct-main" hidden>
     {{ partial "sgx-account-card.html" . }}
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.12s" aria-label="{{ if $isEn }}Account settings{{ else }}账号设置{{ end }}">
@@ -70,14 +75,24 @@
         </span>
         {{ partial "icon.html" "chev-r" }}
       </a>
-      <div class="acct-row" id="acct-sync-row" role="button" tabindex="0">
+    </section>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.16s" aria-label="{{ if $isEn }}Sync and service{{ else }}同步与服务{{ end }}">
+      <a class="acct-row" id="acct-sync-row" href="{{ cond $isEn "/en/account/sync/" "/account/sync/" }}">
         <span class="acct-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "cloud" }}</span>
         <span class="flex-1 min-w-0">
           <span class="block font-medium">{{ if $isEn }}Cloud sync{{ else }}云同步{{ end }}</span>
           <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="acct-sync-sub"></span>
         </span>
-        <span class="switch" id="acct-sync-sw" role="switch" aria-checked="false" aria-label="{{ if $isEn }}Cloud sync{{ else }}云同步{{ end }}"><span class="knob"></span></span>
-      </div>
+        {{ partial "icon.html" "chev-r" }}
+      </a>
+      <a class="acct-row" id="acct-st-row" href="{{ cond $isEn "/en/account/status/" "/account/status/" }}">
+        <span class="acct-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "pulse" }}</span>
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}Service status{{ else }}服务状态{{ end }}</span>
+          <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate">{{ if $isEn }}Site health, uptime, response latency{{ else }}站点健康、可用率、响应延迟{{ end }}</span>
+        </span>
+        {{ partial "icon.html" "chev-r" }}
+      </a>
     </section>
     <p class="acct-note mt-6 sgx-build-tag-wrap">{{ partial "build-tag.html" (dict "isEn" $isEn) }}</p>
   </div>

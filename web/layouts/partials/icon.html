@@ -49,6 +49,9 @@
 <svg width="20" height="20" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path stroke-linecap="round" d="M10.5 18.5h3"/></svg>
 {{ else if eq $name "cloud" }}
 <svg width="20" height="20" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 18.5h10.5a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.6 9.1 4.75 4.75 0 0 0 7 18.5z"/></svg>
+{{/* 账号 › 服务状态（2026-10-24 PR4）：心电折线，同一套 2px 线性图标 */}}
+{{ else if eq $name "pulse" }}
+<svg width="20" height="20" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12h4l2.5-6 5 12 2.5-6h4"/></svg>
 {{ else if eq $name "key" }}
 <svg width="20" height="20" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M10.8 12.2 20 3m-4 4 3 3m-1-5 2 2"/></svg>
 {{ else if eq $name "lock" }}

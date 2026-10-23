@@ -1,6 +1,7 @@
 # 主站顶栏三栏（2026-10-22，只在主站；子站顶栏不变，共享外壳 web/shared/shell/* 不动）。
-# 主页 / 聊天 / 状态这三页的长条里不放页名，换成这三个标签（当前页 aria-current="page"，药丸高亮）；
-# 其他页（设置、账号……）长条照旧只有页名。模板：partials/topbar-tabs.html；样式：input.css「主站顶栏三栏」。
+# 主页 / 聊天 / 设置这三页的长条里不放页名，换成这三个标签（当前页 aria-current="page"，药丸高亮）；左右滑按这个顺序切换。
+# 2026-10-24 PR4：第三栏「状态」换成「设置」（设置首页 /settings/）；服务状态挪进账号页「服务状态」一行（/account/status/），旧 /status/ 页删除、不留跳转。
+# 其他页（设置子页、账号……）长条照旧只有页名。模板：partials/topbar-tabs.html；样式：input.css「主站顶栏三栏」。
 # layout：哪个 Hugo 布局算这一栏（home = 首页 .IsHome）。
 tabs:
   - id: home
@@ -13,8 +14,8 @@ tabs:
     en: Chat
     path: /chat/
     layout: chat
-  - id: status
-    zh: 状态
-    en: Status
-    path: /status/
-    layout: status
+  - id: settings
+    zh: 设置
+    en: Settings
+    path: /settings/
+    layout: settings

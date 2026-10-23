@@ -49,7 +49,7 @@ async function openFromDrawer(page) {
 }
 
 test('点抽屉搜索框：原地打开（不跳页）、输入框同步聚焦、抽屉关上；顶栏原样、没有搜索图标', async ({ page }) => {
-  await go(page, '/settings/');
+  await go(page, '/settings/display/');
   await page.evaluate(() => { window.__noReload = 1; });
   await expect(page.locator('#sgx-tb-search, .sgx-tb-search')).toHaveCount(0);
   const title0 = await page.locator('.sgx-tb-title').textContent();
@@ -64,7 +64,7 @@ test('点抽屉搜索框：原地打开（不跳页）、输入框同步聚焦�
   });
   expect(sync).toEqual({ id: 'sgx-srch-input', dlgOpen: false });
   expect(await page.evaluate(() => window.__noReload)).toBe(1);
-  expect(new URL(page.url()).pathname).toBe('/settings/');
+  expect(new URL(page.url()).pathname).toBe('/settings/display/');
   await expect(layer(page)).toBeVisible();
   await expect(page.locator('.sgx-tb-title')).toHaveText(title0 || '');
   await expect(input(page)).toHaveAttribute('placeholder', '搜索');

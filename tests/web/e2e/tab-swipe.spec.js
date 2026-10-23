@@ -1,5 +1,6 @@
 /**
  * 主站顶栏三栏左右滑切换（2026-10-24，shell/tab-swipe.js；手感同子站 daymark / curio / blog）。
+ * 2026-10-24 PR4：三栏是 主页 / 聊天 / 设置（设置占了原来「状态」的位置），滑动顺序跟着变。
  * 手机模拟（412×915、hasTouch），用 CDP Input.dispatchTouchEvent 发真实的触摸序列。
  * 运行：npx playwright test --config=tests/config/playwright.config.js tab-swipe.spec.js（测试构建，锁屏禁用）
  */
@@ -29,19 +30,24 @@ async function swipe(page, x0, y0, x1, y1, ms = 200, steps = 8) {
 
 const cur = (page) => page.locator('.sgx-tb-tab[aria-current="page"]');
 
-test('主页左滑 → 聊天，药丸跟过去；聊天右滑 → 回主页；状态再左滑（最后一栏）不动', async ({ page }) => {
+test('主页左滑 → 聊天，药丸跟过去；聊天左滑 → 设置；设置右滑 → 回聊天；设置再左滑（最后一栏）不动；聊天右滑 → 回主页', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await expect(cur(page)).toHaveAttribute('data-tab', 'home');
   await swipe(page, 300, 500, 120, 510);
   await page.waitForURL('**/chat/');
   await expect(cur(page)).toHaveAttribute('data-tab', 'chat');
-  await swipe(page, 120, 300, 320, 290);
-  await page.waitForURL((u) => u.pathname === '/');
-  await page.goto('/status/', { waitUntil: 'domcontentloaded' });
-  await expect(cur(page)).toHaveAttribute('data-tab', 'status');
+  expect(await page.locator('.sgx-tb-tab').evaluateAll((els) => els.map((e) => e.getAttribute('data-tab')))).toEqual(['home', 'chat', 'settings']);
+  await swipe(page, 300, 300, 100, 300);
+  await page.waitForURL('**/settings/');
+  await expect(cur(page)).toHaveAttribute('data-tab', 'settings');
   await swipe(page, 300, 500, 100, 500);
   await page.waitForTimeout(600);
-  expect(new URL(page.url()).pathname).toBe('/status/');
+  expect(new URL(page.url()).pathname, '最后一栏左滑不动').toBe('/settings/');
+  await swipe(page, 120, 400, 320, 390);
+  await page.waitForURL('**/chat/');
+  await expect(cur(page)).toHaveAttribute('data-tab', 'chat');
+  await swipe(page, 120, 300, 320, 290);
+  await page.waitForURL((u) => u.pathname === '/');
 });
 
 test('不抢的手势：边缘起手、竖着滑、太短、聊天输入框里、可横向滚动的容器里、弹层打开时', async ({ page }) => {

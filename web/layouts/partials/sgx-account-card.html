@@ -1,12 +1,14 @@
-{{/* 账号卡：左 Sloan Gray / Styrigx，右圆形头像。
-   只在账号页 /account/ 登录后总览顶部使用。
-   头像读主站 /avatar/192.webp；主人会话下头像右下角出现铅笔，点头像可换照片 / 移除照片
-   （assets/js/apps/avatar-edit.js，入口 entry-account.js），访客只看不能点。 */}}
+{{/* 账号卡：左 Sloan Gray / Styrigx / 已登录，右圆形头像。
+   只在账号页 /account/ 登录后总览顶部使用（总览只在有账号会话时出现，所以「已登录」是静态文字）。
+   2026-10-24 PR4：卡片只是展示（兼作个人资料卡），不能点、没有详情页（原「账号信息」子页删除）；
+   头像读主站 /avatar/192.webp；主人会话下头像右下角出现铅笔，点头像直接换照片 / 移除照片
+   （assets/js/apps/avatar-edit.js，入口 entry-account.js，接口 /api/avatar），访客只看不能点。 */}}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 <div class="sgx-account-card" data-acct-card>
   <div class="sgx-ac-tx">
     <p class="sgx-ac-name">Sloan Gray</p>
     <p class="sgx-ac-sub">Styrigx</p>
+    <p class="sgx-ac-state" data-acct-state><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>{{ if $isEn }}Signed in{{ else }}已登录{{ end }}</span></p>
   </div>
   <button type="button" class="sgx-ac-av" data-avatar-edit disabled aria-label="{{ if $isEn }}Change photo{{ else }}更换头像{{ end }}">
     <img src="/avatar/192.webp" alt="Sloan Gray" width="48" height="48" class="sgx-ac-img" data-sgx-avatar="192">

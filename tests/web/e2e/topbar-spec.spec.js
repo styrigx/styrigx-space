@@ -10,8 +10,8 @@
  * 顶栏 v5（2026-10-20）：两个圆 + 一个长条：九宫格圆 | 长条（左端搜索图标 · 页名 · 右端快捷面板图标）| 头像圆；
  * 两个图标各 40px 圆形点击区、对称内缩（图标中心距长条外缘 26 = 圆半径），页名在长条正中，长条在屏幕正中。
  * 顶栏 v8（2026-10-22，三个站同一套）：九宫格圆 | 长条（只有页名）| 右圆（每站自定义；主站 = 快捷面板）；头像挪进导航抽屉头（字标右边）。
- * 主站顶栏三栏（2026-10-22 PR2，只在主站）：主页 / 聊天 / 状态这三页长条里是三个标签（.sgx-tb-tabs），不放页名；其他页照旧只有页名。
- * 三栏本身的验收见 status-page.spec.js。
+ * 主站顶栏三栏（2026-10-22 PR2，只在主站）：主页 / 聊天 / 设置（2026-10-24 PR4 第三栏由「状态」换成「设置」）这三页长条里是三个标签（.sgx-tb-tabs），
+ * 不放页名；其他页照旧只有页名。三栏本身的验收见 account-status.spec.js。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, expect } = require('./helpers');
@@ -60,8 +60,8 @@ for (const dark of [false, true]) {
         }
         expect(near(end.width, 52)).toBe(true);
         await expect(page.locator('.sgx-tb-back, [data-go-back], .sgx-tb-more, .sgx-tb-search, #sgx-tb-search, .sgx-tb-me, .sgx-topbar .sgx-tb-avatar')).toHaveCount(0);
-        /* 顶栏 = 两个圆 + 一个长条；右圆就是快捷面板按钮；长条里只有页名（主页 = 主页 / 聊天 / 状态三栏，见 status-page.spec.js） */
-        const home = path === '/';
+        /* 顶栏 = 两个圆 + 一个长条；右圆就是快捷面板按钮；长条里只有页名（主页 / 设置首页 = 主页 / 聊天 / 设置三栏，见 account-status.spec.js） */
+        const home = path === '/' || path === '/settings/';
         expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className))).toEqual(['sgx-tb-nav', home ? 'sgx-tb-pill sgx-tb-pill-tabs' : 'sgx-tb-pill', 'sgx-tb-end sgx-tb-quick']);
         expect(await page.locator('.sgx-tb-pill > *').evaluateAll((els) => els.map((e) => e.className))).toEqual([home ? 'sgx-tb-tabs' : 'sgx-tb-title']);
         await expect(page.locator('.sgx-tb-pill svg, .sgx-tb-pill button')).toHaveCount(0);
@@ -93,16 +93,17 @@ test.describe('390×844 行为', () => {
     await expect(page.locator('[data-tb-more]')).toHaveCount(0);
   });
 
-  /* 主页（/、/en/）长条里是三栏标签、没有页名（status-page.spec.js） */
+  /* 主页（/、/en/）、设置首页（/settings/、/en/settings/）长条里是三栏标签、没有页名（account-status.spec.js） */
   const NAMES = [
-    ['/settings/', '设置'],
+    ['/account/status/', '服务状态'],
+    ['/account/sync/', '云同步'],
     /* PR3：账号页没登录（这里没有账号会话）时页名是「登录账号」，登录后才是「账号」 */
     ['/account/', '登录账号'],
     ['/account/reset/', '重置登录'],
     ['/settings/security/', '安全与隐私'],
     ['/settings/security/lock/', '锁屏凭证'],
     ['/settings/display/', '显示'],
-    ['/en/settings/', 'Settings'],
+    ['/en/account/status/', 'Service status'],
     ['/en/account/', 'Sign in'],
     ['/en/account/reset/', 'Reset sign-in'],
   ];
@@ -118,18 +119,19 @@ test.describe('390×844 行为', () => {
     });
   }
 
-  test('主页长条里没有设置按钮、没有搜索图标；长条只有 主页 / 聊天 / 状态 三栏（2026-10-22 起不放页名），长条本身不可点', async ({ page }) => {
+  test('主页长条里没有设置按钮、没有搜索图标；长条只有 主页 / 聊天 / 设置 三栏（2026-10-22 起不放页名），长条本身不可点', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/');
     await expect(page.locator('.sgx-tb-set')).toHaveCount(0);
     await expect(page.locator('.sgx-tb-psearch')).toHaveCount(0);
     expect(await page.locator('.sgx-tb-pill > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]))).toEqual(['sgx-tb-tabs']);
-    await expect(page.locator('.sgx-tb-pill .sgx-tb-tab')).toHaveText(['主页', '聊天', '状态']);
+    await expect(page.locator('.sgx-tb-pill .sgx-tb-tab')).toHaveText(['主页', '聊天', '设置']);
     await expect(page.locator('.sgx-tb-title')).toHaveCount(0);
     await expect(page.locator('#sgx-tb-cap')).toHaveCount(0);
     await expect(page.locator('.sgx-topbar .sgx-tb-search, #sgx-tb-search')).toHaveCount(0);
     expect(await page.locator('.sgx-tb-pill').evaluate((el) => getComputedStyle(el).cursor)).toBe('default');
-    await expect(page.locator('.sgx-topbar a[href$="/settings/"]')).toHaveCount(0);
+    /* 设置入口只有三栏里的「设置」标签（PR4），没有别的设置按钮 */
+    await expect(page.locator('.sgx-topbar a[href$="/settings/"]:not(.sgx-tb-tab)')).toHaveCount(0);
   });
 
   for (const path of ['/settings/', '/account/', '/settings/display/']) {
