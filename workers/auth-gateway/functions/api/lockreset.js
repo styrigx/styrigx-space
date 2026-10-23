@@ -19,7 +19,7 @@
  *
  * POST /api/lockreset
  * - { action: 'status' } → { ok:true, available }（无需会话；不读开关）
- * - { action: 'challenge' } → 下发 accountkey 断言 challenge（purpose=lockreset）
+ * - { action: 'challenge' } → 下发 AccountKey 断言 challenge（purpose=lockreset）
  * - { action: 'verify', rootKey, ownerProof? } →
  *     根凭证错 → 401 auth；
  *     根凭证对 + 开关有效 → lockreset（by=root, via=switch）；
@@ -32,7 +32,7 @@
 import { checkRootCredential } from '../_kernel/root-check.js';
 import { issueDoorCookie, DOOR_LOCKRESET, DOOR_BY_ACCOUNT_ROOT } from '../_kernel/door.js';
 import { randB64, verifyAssertion, rpIdHashOf, consumeChallenge, findStoredKey } from '../_kernel/passkey-verify.js';
-import { getPasskeys, PK_CLASS_OWNER } from './owner-passkey.js';
+import { getPasskeys, PK_CLASS_ACCOUNT } from './owner-passkey.js';
 import { verifyAccountPassword, getPepper } from './owner-password.js';
 import { recordRootFail, getClientIp } from '../_kernel/rootlimit.js';
 import { writeRootAudit } from '../_kernel/rootlog.js';
@@ -87,8 +87,8 @@ async function handlePost(context) {
     return Response.json({ ok: false, error: 'body' }, { status: 400 });
   }
   const action = (body && body.action) || '';
-  let ownerCfg = true;
-  try { ownerCfg = await isLayerConfigured(kv, LAYER_OWNER); } catch (e) { ownerCfg = true; }
+  let accountCfg = true;
+  try { accountCfg = await isLayerConfigured(kv, LAYER_OWNER); } catch (e) { accountCfg = true; }
 
   /* ============ status：始终允许进入第一步（不暴露账号凭证是否配置；
      不读开关；开关只在 verify 根凭证正确后读） ============ */
@@ -109,14 +109,14 @@ async function handlePost(context) {
     return Response.json({ ok: false, error: 'config' }, { status: 500 });
   }
 
-  /* ============ challenge：下发 accountkey 断言 challenge ============ */
+  /* ============ challenge：下发 AccountKey 断言 challenge ============ */
   if (action === 'challenge') {
-    if (!ownerCfg) {
+    if (!accountCfg) {
       return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
     }
     const keys = await getPasskeys(kv);
-    const ownerKeys = keys.filter(function (k) { return (k.class || 'lock') === PK_CLASS_OWNER; });
-    if (ownerKeys.length === 0) {
+    const accountPks = keys.filter(function (k) { return (k.class || 'lock') === PK_CLASS_ACCOUNT; });
+    if (accountPks.length === 0) {
       return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
     }
     const challenge = randB64(32);
@@ -135,7 +135,7 @@ async function handlePost(context) {
       cid: cid,
       challenge: challenge,
       rpId: RP_ID,
-      allowCredentials: ownerKeys.map(function (k) { return { id: k.credId, type: 'public-key' }; }),
+      allowCredentials: accountPks.map(function (k) { return { id: k.credId, type: 'public-key' }; }),
     });
   }
 
@@ -179,7 +179,7 @@ async function handlePost(context) {
 
     /* --- 步骤 3：开关无效 → 需要账号凭证 ---
        账号凭证未配置时返回通用 401 auth（不泄露 not-set，避免暴露配置状态）。 */
-    if (!ownerCfg) {
+    if (!accountCfg) {
       const failResp = await fail();
       if (failResp) return failResp;
       return Response.json({ ok: false, error: 'auth' }, { status: 401 });
@@ -189,17 +189,17 @@ async function handlePost(context) {
       /* 响应形态与开关有效时一致（都是 200 ok），由服务端决定下一步；
          前端据此展示账号凭证步骤，不提示开关存在。
          needOwner 带 passkey/password 布尔，前端按配置显示按钮，不总显示两个。 */
-      let hasOwnerPw = false;
-      let hasOwnerPk = false;
+      let hasAccountPw = false;
+      let hasAccountPk = false;
       try {
         const r = await kv.get(REALM_ACCOUNT.kv.password, 'json');
-        hasOwnerPw = !!(r && r.hash);
+        hasAccountPw = !!(r && r.hash);
       } catch (e) {}
       try {
         const keys = await getPasskeys(kv);
-        hasOwnerPk = keys.some(function (k) { return (k.class || 'lock') === PK_CLASS_OWNER; });
+        hasAccountPk = keys.some(function (k) { return (k.class || 'lock') === PK_CLASS_ACCOUNT; });
       } catch (e) {}
-      return Response.json({ ok: true, needOwner: true, passkey: hasOwnerPk, password: hasOwnerPw });
+      return Response.json({ ok: true, needOwner: true, passkey: hasAccountPk, password: hasAccountPw });
     }
     let ownerOk = false;
     if (proof.type === 'password') {
@@ -218,7 +218,7 @@ async function handlePost(context) {
         return Response.json({ ok: false, error: 'server' }, { status: 503 });
       }
     } else if (proof.type === 'passkey') {
-      ownerOk = await verifyOwnerPasskeyProof(kv, proof, RP_ID, EXPECT_ORIGIN);
+      ownerOk = await verifyAccountPasskeyProof(kv, proof, RP_ID, EXPECT_ORIGIN);
     }
     if (!ownerOk) {
       const failResp = await fail();
@@ -246,15 +246,15 @@ async function handlePost(context) {
     }
 
     /* 验证账号通行密钥 断言（内部函数） */
-    async function verifyOwnerPasskeyProof(kvStore, proofObj, rpId, expectOrigin) {
+    async function verifyAccountPasskeyProof(kvStore, proofObj, rpId, expectOrigin) {
       const cid = proofObj.cid || '';
       const cred = proofObj.credential || {};
       const chRec = await consumeChallenge(kvStore, CHALLENGE_PREFIX + cid);
       if (!chRec || chRec.purpose !== 'lockreset' || chRec.exp < Date.now()) return false;
       const keys = await getPasskeys(kvStore);
-      const ownerKeys = keys.filter(function (k) { return (k.class || 'lock') === PK_CLASS_OWNER; });
-      const stored = findStoredKey(ownerKeys, cred.rawId || '');
-      if (!stored || !stored.publicKey || stored.class !== PK_CLASS_OWNER) return false;
+      const accountPks = keys.filter(function (k) { return (k.class || 'lock') === PK_CLASS_ACCOUNT; });
+      const stored = findStoredKey(accountPks, cred.rawId || '');
+      if (!stored || !stored.publicKey || stored.class !== PK_CLASS_ACCOUNT) return false;
       try {
         const rpIdHash = await rpIdHashOf(rpId);
         const checked = await verifyAssertion({

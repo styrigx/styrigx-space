@@ -17,6 +17,7 @@
 import { onEnter, focusNoScroll } from './auth-flow.js';
 import { bindSubmitButton } from './dialog-behavior.js';
 import { renderCredRows, createRootField, CRED_ICONS } from './cred-rows.js';
+import { KEY_ACCOUNT } from './key-names.js';
 
 const TXT = {
   title: { zh: '重置登录', en: 'Reset sign-in' },
@@ -154,7 +155,7 @@ export function mountResetFlow(o) {
     };
     const defs = [];
     if (sub && need.passkey) defs.push({ kind: 'passkey', field: 'webauthn', icon: CRED_ICONS.passkey, title: t('mPasskey'), sub: t('mPasskeySub'), submit: guard(sub.passkey) });
-    if (sub && need.password) defs.push({ kind: 'password', field: 'password', icon: CRED_ICONS.password, title: t('mPassword'), sub: t('mPasswordSub'), submit: guard(sub.password) });
+    if (sub && need.password) defs.push({ kind: 'password', field: 'password', icon: CRED_ICONS.password, title: t('mPassword'), sub: t('mPasswordSub'), submit: guard(sub.password), pmUser: KEY_ACCOUNT });
     if (!defs.length) {
       const none = document.createElement('p');
       none.className = 'sgx-reset-none';

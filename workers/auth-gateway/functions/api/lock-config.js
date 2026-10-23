@@ -15,7 +15,7 @@
  *   锁屏只显示访客 + 重置锁屏，不显示根凭证入口）。
  *   layer:lock-emptied 是 B #10 的键，A-2 不读不写（生产残留被忽略）。
  */
-import { isLockEffectivelyConfigured, isOwnerEffectivelyConfigured } from '../_kernel/layers.js';
+import { isLockEffectivelyConfigured, isAccountEffectivelyConfigured } from '../_kernel/layers.js';
 import { STORE_CLASS_LOCKKEY as PK_CLASS_LOCK, ownerPasskeyKey, OWNER_PASSKEY_PREFIX } from '../_kernel/key-names.js';
 import { REALM_LOCK } from '../_kernel/realms.js';
 
@@ -39,7 +39,7 @@ export async function onRequestGet(context) {
     let ownerConfigured = true;
     if (kv) {
       try {
-        ownerConfigured = await isOwnerEffectivelyConfigured(kv);
+        ownerConfigured = await isAccountEffectivelyConfigured(kv);
       } catch (e) {
         ownerConfigured = true;
       }

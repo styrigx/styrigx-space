@@ -286,7 +286,7 @@ import { accountSubmitters, visibleKinds } from '../lib/account-methods.js';
   bindAccountCard();
 
   /**
-   * 密码管理器改名（ownerkey → accountkey）：支持 signalCurrentUserDetails 时才拉一次 list 拿账号 handle。
+   * 密码管理器改名（OwnerKey → AccountKey）：支持 signalCurrentUserDetails 时才拉一次 list 拿账号 handle。
    * 用通行密钥登录后、或进总览时都会走到这里；每页只发一次（account-common.js）。
    */
   function maybeSignalName() {

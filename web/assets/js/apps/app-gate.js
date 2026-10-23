@@ -56,7 +56,7 @@ let countdownExpiresAt = 0;
 function verifyMessage(t, reason, detail) {
   /* 批次 A 验收修复 P0：代管中途站长层被配置 → 明确提示，不无提示踢回安全页 */
   if (reason === 'owner-configured' || detail === 'owner-configured') {
-    return tx(t, 'errOwnerConfigured', '账号凭证已设置，请先登录账号再进入', 'Account credentials are set; please sign in to your account first');
+    return tx(t, 'errAccountConfigured', '账号凭证已设置，请先登录账号再进入', 'Account credentials are set; please sign in to your account first');
   }
   let msg;
   switch (reason) {
@@ -118,13 +118,13 @@ function showExpiredDialog(t, kind, detail) {
   /* v1.1 §二.2：弹框出现时隐藏倒计时胶囊（避免胶囊「验证剩余 2:55」与弹框「验证已过期」矛盾） */
   hideDoorCountdown();
   const isSession = kind === 'session';
-  const isOwnerConfigured = detail === 'owner-configured';
+  const isAccountConfigured = detail === 'owner-configured';
   const title = isSession
     ? tx(t, 'expiredSessionTitle', '会话已失效', 'Session expired')
     : tx(t, 'expiredStepupTitle', '验证已过期', 'Verification expired');
   let desc;
-  if (isOwnerConfigured) {
-    desc = tx(t, 'errOwnerConfigured', '账号凭证已设置，请先登录账号再进入', 'Account credentials are set; please sign in to your account first');
+  if (isAccountConfigured) {
+    desc = tx(t, 'errAccountConfigured', '账号凭证已设置，请先登录账号再进入', 'Account credentials are set; please sign in to your account first');
   } else if (isSession) {
     desc = tx(t, 'expiredSessionDesc', '请回到锁屏重新解锁', 'Please go back to the lock screen to unlock again.');
   } else {
@@ -542,7 +542,7 @@ var ERR_KEY = {
   'role': 'errServer',
   /* 批次 A 验收修复 P1：双向相同密码（owner-password.js 双向检查），不再落 errUnknown + 小字 */
   'same-as-lock': 'errSameAsLock',
-  'same-as-owner': 'errSameAsOwner',
+  'same-as-owner': 'errSameAsAccount',
   /* 空密码 400（前端已拦长度，兜底映射，避免未知错误） */
   'password': 'errParams',
   'return': 'errParams',

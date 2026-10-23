@@ -12,7 +12,7 @@
  * - 同类再次 challenge → user.id 复用
  * - 拿 lock 的 handle 验 owner 凭据会失败（verify 用同一 getUserHandle 查期望值）
  *
- * 运行：node --test tests/kernel/batchc-rootkey-userhandle.test.mjs
+ * 运行：node --test tests/kernel/batchc-RootKey-userhandle.test.mjs
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

@@ -6,9 +6,9 @@
  * - i18n：各页模板都输出同一份 #sgx-i18n-account（partials/account-i18n.html）
  * - /api/account 调用与错误码 → 文案在 lib/account-api.js（锁屏凭证页也用）
  * - signalAccountName：PublicKeyCredential.signalCurrentUserDetails 让密码管理器
- *   （Samsung Pass / Google 密码管理器）把已有账号通行密钥条目的名字更新为 accountkey。
+ *   （Samsung Pass / Google 密码管理器）把已有账号通行密钥条目的名字更新为 AccountKey。
  *   只对「当前账号 handle」（owner-user-id:owner）发；旧 handle（owner-user-id）与锁屏
- *   lockkey 共用，绝不能对它发，否则会把 lockkey 条目改名。
+ *   LockKey 共用，绝不能对它发，否则会把 LockKey 条目改名。
  */
 import { KEY_ACCOUNT } from '../lib/key-names.js';
 
