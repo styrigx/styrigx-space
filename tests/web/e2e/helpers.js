@@ -1,7 +1,7 @@
 /**
  * Hark：CI 测试共用 helper（tests/helpers.js）。
  * - blockExternalRequests(page)：拦截所有非 localhost 的外部请求
- *   （天气 API、Turnstile、Google favicon、外部字体/CDN），避免
+ *   （天气 API、Google favicon、外部字体/CDN），避免
  *   networkidle 永远等不到，也避免外部波动影响测试和截图。
  *   favicon 返回本地占位图，保证截图稳定。
  * - freezeTime(page)：冻结时间到 2026-10-09 12:00:00+08:00。

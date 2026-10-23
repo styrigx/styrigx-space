@@ -5,6 +5,7 @@
  * 运行：node --test tests/workers/auth-gateway/status-page-gate.test.mjs
  * Ed25519 测试密钥在测试内临时生成，不用生产密钥。
  */
+import { signRole } from './_tk.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { signSessionCookie } from '../../../workers/auth-gateway/functions/_kernel/session.js';
@@ -52,7 +53,7 @@ test('没会话：/status/、/chat/（中英）302 到首页锁屏，return = �
 
 test('owner / visitor 会话：/status/、/chat/（中英）都放行 200', async () => {
   for (const role of ['owner', 'visitor']) {
-    const cookie = role === 'owner' ? await signSessionCookie(PRIV, 0, 'owner') : await signSessionCookie(PRIV, 0, 'visitor', 'owner');
+    const cookie = role === 'owner' ? await signSessionCookie(PRIV, 0, 'owner') : await signRole(signSessionCookie, PRIV, 0, 'visitor', 'owner');
     for (const p of PAGES) {
       const r = await mw(ctx('https://styrigx.com' + p, cookie));
       assert.equal(r.status, 200, role + ' 访问 ' + p + ' 应 200');

@@ -122,7 +122,7 @@ database_id = "6931d1da-3502-480d-b0bd-de1bc4829d1d"
 
 # ---- 密钥：Secrets Store ----
 # 聊天钥匙 SGX_CHAT_API_KEY 不在这里（2026-10-22 起只绑在 styrigx-chat，见 workers/chat/wrangler.toml）。
-# 5 个私密值 + 2 把公钥全放 Secrets Store（签名钥匙只剩账号 SGX_ACCOUNT_*、锁屏 SGX_LOCK_* 两套）：换钥只在 Cloudflare 后台改，不用改代码、不用重新部署（最多 60 秒生效）。
+# 4 个私密值 + 2 把公钥全放 Secrets Store（2026-10-23 访客改临时 LockKey，TURNSTILE_SECRET 不再绑定）（签名钥匙只剩账号 SGX_ACCOUNT_*、锁屏 SGX_LOCK_* 两套）：换钥只在 Cloudflare 后台改，不用改代码、不用重新部署（最多 60 秒生效）。
 # store_id 是存储的编号，不是密值。
 [[secrets_store_secrets]]
 binding = "SGX_LOCK_PRIVATE"
@@ -143,11 +143,6 @@ secret_name = "SGX_ROOT_KEY"
 binding = "SGX_PW_PEPPER"
 store_id = "a5a984f365424401bad5ad6ddcd44479"
 secret_name = "SGX_PW_PEPPER"
-
-[[secrets_store_secrets]]
-binding = "TURNSTILE_SECRET"
-store_id = "a5a984f365424401bad5ad6ddcd44479"
-secret_name = "TURNSTILE_SECRET"
 
 [[secrets_store_secrets]]
 binding = "SGX_LOCK_PUBLIC"

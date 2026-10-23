@@ -7,7 +7,8 @@
  * - cookie 值格式：by.role.epoch.exp.sig，Ed25519(SGX_LOCK_PRIVATE) 签名，
  *   与 functions/_middleware.js 的验签逻辑对应。
  *   by: 'root'（根密钥代开）或 'owner'（owner 凭证）
- *   role: 'owner'（密码/通行密钥，12 小时）或 'visitor'（Turnstile，1 小时）。
+ *   role: 'owner'（密码/通行密钥，12 小时）或 'visitor'（临时 LockKey，最长 12 小时且不超过钥匙剩余时间，
+ *   另配钥匙票 sgx-tk，见 temp-lock.js）。
  *   旧格式（无 by，四段式）一律视为无效，不留兼容层。
  * - session-epoch 读写：KV 读取出错一律抛错（调用方返回 503，绝不继续写入）；
  *   只有 key 确实不存在时才当作 0。
@@ -20,7 +21,7 @@ export const SESSION_COOKIE = REALM_LOCK.cookie; /* 'sgx-verified' */
 /* cookie 属性：只定义一处（diag 接口从这里解析，不许另起炉灶） */
 export const COOKIE_ATTRS = REALM_LOCK.cookieAttrs; /* 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax' */
 export const SESSION_MAX_AGE = REALM_LOCK.maxAge; /* 12 小时（owner） */
-const VISITOR_MAX_AGE = 3600; /* 1 小时（visitor），短于 owner */
+const VISITOR_MAX_AGE = 3600; /* visitor 默认 1 小时；临时 LockKey 进门时按钥匙剩余时间显式传 maxAge */
 const EPOCH_KEY = SESSION_EPOCH_KEY; /* 'session-epoch' */
 export const ROLE_OWNER = 'owner';
 export const ROLE_VISITOR = 'visitor';

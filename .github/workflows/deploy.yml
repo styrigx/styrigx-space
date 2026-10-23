@@ -158,9 +158,7 @@ jobs:
 
       - name: Rebuild for visual/Lighthouse (Hark：测试构建，锁屏禁用)
         # 视觉回归和 Lighthouse 用锁屏禁用的构建，避免锁屏干扰；
-        # Turnstile 用 Cloudflare 官方测试 Key（sed 替换，不污染正式密钥）
         run: |
-          sed -i "s/0x4AAAAAAFSBhpWkAwZr1SMA/1x00000000000000000000AA/g" web/hugo.yaml
           hugo --minify -s web
         env:
           SGX_TEST_NO_LOCK: "1"

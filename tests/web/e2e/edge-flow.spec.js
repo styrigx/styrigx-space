@@ -24,9 +24,6 @@ const MAIN = 'https://styrigx.com';
 const BLOG = 'https://blog.styrigx.com';
 const DAYMARK = 'https://daymark.styrigx.com';
 
-/** 假 Turnstile：渲染后立刻回调一个 token（网关那边的 siteverify 已打桩） */
-const FAKE_TURNSTILE = 'window.turnstile={render:function(el,o){setTimeout(function(){o.callback("edge-token")},50);return "w1"},remove:function(){},reset:function(){}};';
-
 /** @type {Awaited<ReturnType<typeof startEdge>>} */
 let edge;
 
@@ -43,12 +40,7 @@ test.beforeEach(async ({ context }) => {
     context.on('console', (m) => console.log('[console]', m.text()));
     edge.log.length = 0;
   }
-  await context.route((url) => !/^https:\/\/([a-z]+\.)?styrigx\.com\//.test(url.href), (route) => {
-    if (route.request().url().startsWith('https://challenges.cloudflare.com/turnstile/')) {
-      return route.fulfill({ contentType: 'text/javascript', body: FAKE_TURNSTILE });
-    }
-    return route.abort();
-  });
+  await context.route((url) => !/^https:\/\/([a-z]+\.)?styrigx\.com\//.test(url.href), (route) => route.abort());
   /* 记下锁屏有没有出现过（哪怕只闪一下）：R4 要求一次都不能出现 */
   await context.addInitScript(() => {
     window.__sawLock = false;
@@ -77,7 +69,10 @@ async function addAuthenticator(page) {
 
 async function setSession(context, role) {
   const value = await edge.mintCookie(role);
-  await context.addCookies([{ name: 'sgx-verified', value, domain: '.styrigx.com', path: '/', secure: true, httpOnly: true, sameSite: 'Lax' }]);
+  const c = [{ name: 'sgx-verified', value, domain: '.styrigx.com', path: '/', secure: true, httpOnly: true, sameSite: 'Lax' }];
+  /* 访客会话要配临时 LockKey 的钥匙票 */
+  if (role === 'visitor') c.push({ name: 'sgx-tk', value: await edge.mintTk(), domain: '.styrigx.com', path: '/', secure: true, httpOnly: true, sameSite: 'Lax' });
+  await context.addCookies(c);
 }
 
 async function openMethods(page) {
@@ -108,11 +103,14 @@ test('R1 blog 直接打开 → 主站锁屏 → 通行密钥 → 回到 blog 原
   await expect(page.locator('#sub-content')).toContainText('SUBSITE-CONTENT blog');
 });
 
-test('R1 daymark 直接打开 → 主站锁屏 → 访客（Turnstile）→ 回到 daymark', async ({ page }) => {
+test('R1 daymark 直接打开 → 主站锁屏 → 访客（临时钥匙）→ 回到 daymark', async ({ page }) => {
+  const code = await edge.seedTempKey();
   await page.goto(DAYMARK + '/');
   expect(page.url()).toContain(MAIN + '/?lock=1');
   await openMethods(page);
   await page.click('#sgx-mopt-visitor');
+  await page.fill('#sgx-temp-input', code.toLowerCase());
+  await page.click('#sgx-temp-go');
   await page.waitForURL(DAYMARK + '/', { timeout: 20000 });
   await expect(page.locator('#sub-content')).toContainText('SUBSITE-CONTENT daymark');
   expect(await page.evaluate(() => fetch('/api/session-check').then((r) => r.status))).toBe(200);
@@ -224,7 +222,16 @@ test('R4 访客直接打开锁屏凭证页地址 → 不出锁屏，出站长验
   expect(await sessionRole(page)).toBe('visitor');
 });
 
-for (const role of ['owner', 'visitor']) {
+test('R5 访客（临时钥匙会话）打开账号页：302 回首页，账号页一帧都不出现', async ({ page, context }) => {
+  await setSession(context, 'visitor');
+  await context.addCookies([{ name: 'sgx-account', value: await edge.mintAccount(), domain: 'styrigx.com', path: '/', secure: true, httpOnly: true, sameSite: 'Strict' }]);
+  await page.goto(MAIN + '/account/');
+  expect(new URL(page.url()).pathname).toBe('/');
+  expect(await page.evaluate(() => window.__sawLogin || window.__sawMain)).toBe(false);
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-role', 'visitor');
+});
+
+for (const role of ['owner']) {
   test(`R5 已登录账号（锁屏会话 ${role}）进账号页：登录区一帧都不出现（不下发节点），总览首帧可见`, async ({ page, context }) => {
     await setSession(context, role);
     await context.addCookies([{ name: 'sgx-account', value: await edge.mintAccount(), domain: 'styrigx.com', path: '/', secure: true, httpOnly: true, sameSite: 'Strict' }]);

@@ -16,6 +16,7 @@ import { verifyDoorCookie, DOOR_LOCKRESET } from './_kernel/door.js';
 import { withNoStore } from './_kernel/http.js';
 import { REALM_LOCK, realmPublicKey, SESSION_EPOCH_KEY } from './_kernel/realms.js';
 import { verifyAccountCookie } from './_kernel/account-session.js';
+import { readTkCookie, parseTk, tempRevoked } from './_kernel/temp-lock.js';
 
 /* 定稿 #13/#14/R3：访客可进安全与隐私总览页（/settings/security/），结构与站长一致；
    锁屏凭证页（门内）需 owner 会话，visitor 访问 → 302 到锁屏（只一次，首页不再二次 302）。 */
@@ -36,6 +37,7 @@ const OWNER_ONLY_APIS = [
   '/api/lock-all-devices',
   '/api/lock-door',
   '/api/prefs', /* 账号云同步：还要账号会话（接口里验） */
+  '/api/lock-temp', /* 临时 LockKey 管理：还要账号会话（接口里验） */
 ];
 /* 认证类 action（visitor 可调用，用于升级为 owner） */
 const AUTH_ACTIONS = new Set(['verify', 'challenge', 'register', 'auth']);
@@ -70,7 +72,7 @@ const API_WHITELIST = [
   '/api/lock-door',
   '/api/session-check',
   '/api/session-epoch',
-  '/api/verify',
+  '/api/lock-temp-unlock', /* 临时 LockKey 进门（取代 Turnstile 的 /api/verify） */
   '/api/geo',
 ];
 const PAGE_WHITELIST = [];
@@ -246,6 +248,23 @@ async function injectUpgradeState(res, role, returnPath) {
 }
 
 /**
+ * 访客会话的钥匙票检查（临时 LockKey）。
+ * @returns {Promise<string>} 'ok' 或失败原因：no-tk / bad-tk / tk-revoked / kv-error
+ */
+async function visitorKeyStatus(request, env) {
+  const raw = readTkCookie(request);
+  if (!raw) return 'no-tk';
+  const t = await parseTk(env, raw);
+  if (!t) return 'bad-tk';
+  if (!env || !env.KV_LOCK_DOOR) return 'kv-error';
+  try {
+    return (await tempRevoked(env.KV_LOCK_DOOR, t.id)) ? 'tk-revoked' : 'ok';
+  } catch (e) {
+    return 'kv-error';
+  }
+}
+
+/**
  * 验证 sgx-verified cookie（2.11：五段式 by.role.epoch.exp.sig）。
  * 返回 {ok, role, by, reason}。
  * 2.4.1 dedup：遍历 Cookie 头里所有同名值，任一验签通过即有效。
@@ -259,6 +278,14 @@ export async function verifySessionDetailed(request, env) {
   let by = null;
   for (const val of vals) {
     const r = await verifyOneCookie(val, env);
+    if (r.status === 'ok' && r.role === ROLE_VISITOR) {
+      /* 2026-10-23 临时 LockKey：访客会话必须带有效钥匙票（sgx-tk），且那把钥匙还在（没到期、没被作废）。
+         没有钥匙票的访客会话（以前 Turnstile 签的）一律无效。KV 读不到 → 无效（fail closed）。 */
+      const tk = await visitorKeyStatus(request, env);
+      if (tk === 'ok') return { ok: true, role: r.role, by: r.by, reason: 'ok' };
+      reason = tk;
+      continue;
+    }
     if (r.status === 'ok') return { ok: true, role: r.role, by: r.by, reason: 'ok' };
     /* 记录最有信息量的失败原因：优先 bad-sig/expired，其次 bad-format */
     if (reason === 'bad-format' || r.status !== 'bad-format') {
@@ -346,6 +373,12 @@ export function resolveReturn(ret, role) {
   }
   const isOwnerReturn = locPath ? isOwnerOnlyPath(locPath) : false;
   return { location: safeLoc, upgrade: isVisitor && isOwnerReturn };
+}
+
+/** 账号区（账号页及其子页，中英）：访客一律不给看 */
+function isAccountArea(pathname) {
+  return pathname === '/account' || pathname.startsWith('/account/') ||
+    pathname === '/en/account' || pathname.startsWith('/en/account/');
 }
 
 /** 账号页（顶栏右圆头像进入）：注入账号会话提示，首帧不闪登录区 */
@@ -492,6 +525,14 @@ async function handleRequest(context) {
       });
     }
 
+    /* 临时 LockKey：访客眼里没有账号——账号页（/account/ 及子页，中英）直接 302 回首页，不出页面。 */
+    if (isVisitor && isAccountArea(pathname)) {
+      return new Response(null, {
+        status: 302,
+        headers: { 'Location': 'https://styrigx.com' + homeOf(pathname), 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' },
+      });
+    }
+
     /* 重置锁屏门票可打开锁屏凭证页（重置锁屏流程），但仍进不了主页。
        仅放行 /settings/security/lock/ 及其英文版（安全总览不放行）；
        主页仍需有效会话。
@@ -538,7 +579,7 @@ async function handleRequest(context) {
       });
     }
     /* 未验证：302 到首页锁屏，return 带站内路径（设计文档 §2.3）。
-       首页有完整锁屏 UI（密码/通行密钥/Turnstile），解锁后跳回原内页。
+       首页有完整锁屏 UI（密码/通行密钥/临时钥匙），解锁后跳回原内页。
        no-store：绝不缓存这个跳转。X-Robots-Tag: noindex：不被搜索引擎收录。 */
     const dest = 'https://styrigx.com/?lock=1&return=' + encodeURIComponent(url.pathname + url.search);
     return new Response(null, {

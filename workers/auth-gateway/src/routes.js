@@ -14,6 +14,8 @@ import * as lockAllDevices from '../functions/api/lock-all-devices.js';
 import * as lockConfig from '../functions/api/lock-config.js';
 import * as lockDoor from '../functions/api/lock-door.js';
 import * as lockStatus from '../functions/api/lock-status.js';
+import * as lockTemp from '../functions/api/lock-temp.js';
+import * as lockTempUnlock from '../functions/api/lock-temp-unlock.js';
 import * as lockreset from '../functions/api/lockreset.js';
 import * as ownerPasskey from '../functions/api/owner-passkey.js';
 import * as ownerPassword from '../functions/api/owner-password.js';
@@ -25,7 +27,6 @@ import * as search from '../functions/api/search.js';
 import * as sessionCheck from '../functions/api/session-check.js';
 import * as sessionEpoch from '../functions/api/session-epoch.js';
 import * as status from '../functions/api/status.js';
-import * as verify from '../functions/api/verify.js';
 import * as wellbeing from '../functions/api/wellbeing.js';
 
 /** @type {Map<string, Record<string, Function>>} */
@@ -40,6 +41,8 @@ export const API_ROUTES = new Map([
   ['/api/lock-config', lockConfig],
   ['/api/lock-door', lockDoor],
   ['/api/lock-status', lockStatus],
+  ['/api/lock-temp', lockTemp],
+  ['/api/lock-temp-unlock', lockTempUnlock],
   ['/api/lockreset', lockreset],
   ['/api/owner-passkey', ownerPasskey],
   ['/api/owner-password', ownerPassword],
@@ -51,6 +54,5 @@ export const API_ROUTES = new Map([
   ['/api/session-check', sessionCheck],
   ['/api/session-epoch', sessionEpoch],
   ['/api/status', status],
-  ['/api/verify', verify],
-  ['/api/wellbeing', wellbeing],
+    ['/api/wellbeing', wellbeing],
 ]);

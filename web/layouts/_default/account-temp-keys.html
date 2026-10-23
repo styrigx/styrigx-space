@@ -1,0 +1,68 @@
+{{/* 账号 → 临时钥匙（/account/temp-keys/）：账号总览「临时钥匙」一行进入。2026-10-23 取代 Turnstile「访客进入」。
+   临时钥匙 = 一把临时 LockKey：站长在这里签发，访客在锁屏「访客进入」输入，拿到访客会话（看不到账号）。
+   - 「新建临时钥匙」：名字（可空，只有站长看得到）+ 有效期（1–24 小时 / 3 / 7 / 15 / 30 天）→ 弹层显示 XXXX-XXXX-XXXX，只显示这一次，可复制
+   - 列表：名字 + 剩余时间；「作废」两步确认 → 拿这把钥匙进来的访客立刻进不来
+   没有账号会话 → 跳 /account/?return=<本页>，登录后回来。
+   数据：POST /api/lock-temp { action:'list' | 'create' | 'revoke' }（只要账号会话，不进门）。
+   noindex（见 baseof）。脚本走 ES Module 入口 entry-account-temp-keys.js。 */}}
+{{ define "main" }}
+{{ .Scratch.Set "sgx-entry" "entry-account-temp-keys.js" }}
+{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+
+<div class="acct-layout pb-28">
+  <div id="acct-tk" hidden>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-6 overflow-hidden animate-fade-up" style="animation-delay:.08s">
+      <div class="acct-row" id="acct-tk-new" role="button" tabindex="0">
+        <span class="acct-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "key" }}</span>
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}New temporary key{{ else }}新建临时钥匙{{ end }}</span>
+          <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate">{{ if $isEn }}For a visitor to get past the lock screen{{ else }}给访客进锁屏用{{ end }}</span>
+        </span>
+        {{ partial "icon.html" "chev-r" }}
+      </div>
+    </section>
+
+    <h3 class="acct-dev-h">{{ if $isEn }}Active keys{{ else }}有效的临时钥匙{{ end }}</h3>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.14s">
+      <div id="acct-tk-list" hidden></div>
+      <div class="p-4" id="acct-tk-empty" hidden>
+        <p class="text-sm text-m-on-surface-variant m-0">{{ if $isEn }}No temporary keys yet.{{ else }}还没有临时钥匙。{{ end }}</p>
+      </div>
+    </section>
+    <p class="acct-note">{{ if $isEn }}Visitors enter the key at “Visitor” on the lock screen. They can browse the site but never see your account. Revoking a key locks its visitors out right away.{{ else }}访客在锁屏点「访客进入」输入临时钥匙，能看网站，看不到账号。作废后，用这把钥匙进来的访客会立刻被锁在外面。{{ end }}</p>
+    <p class="acct-note mt-6 sgx-build-tag-wrap">{{ partial "build-tag.html" (dict "isEn" $isEn) }}</p>
+  </div>
+</div>
+
+<dialog id="tk-dlg" class="sgx-verify-dlg" aria-labelledby="tk-title">
+  <div class="sgx-verify-card">
+    <button type="button" class="sgx-dlg-close" data-dlg-close aria-label="{{ if $isEn }}Close{{ else }}关闭{{ end }}">×</button>
+    <div class="sheet-handle" data-pclose></div>
+    <h2 id="tk-title" class="sgx-verify-title">{{ if $isEn }}New temporary key{{ else }}新建临时钥匙{{ end }}</h2>
+    <div id="tk-form" class="tk-form">
+      <input type="text" id="tk-name" class="sgx-pw-input" maxlength="24" autocomplete="off"
+             aria-label="{{ if $isEn }}Name (only you can see it){{ else }}名字（只有你看得到）{{ end }}"
+             placeholder="{{ if $isEn }}Name (optional, only you see it){{ else }}名字（可不填，只有你看得到）{{ end }}">
+      <label class="tk-label" for="tk-dur">{{ if $isEn }}Valid for{{ else }}有效期{{ end }}</label>
+      <select id="tk-dur" class="sgx-pw-input tk-select">
+        <optgroup label="{{ if $isEn }}Hours{{ else }}小时{{ end }}">
+          {{ range seq 24 }}<option value="h{{ . }}"{{ if eq . 24 }} selected{{ end }}>{{ . }} {{ if $isEn }}{{ if eq . 1 }}hour{{ else }}hours{{ end }}{{ else }}小时{{ end }}</option>{{ end }}
+        </optgroup>
+        <optgroup label="{{ if $isEn }}Days{{ else }}天{{ end }}">
+          {{ range slice 3 7 15 30 }}<option value="d{{ . }}">{{ . }} {{ if $isEn }}days{{ else }}天{{ end }}</option>{{ end }}
+        </optgroup>
+      </select>
+      <p id="tk-err" class="sgx-verify-err" hidden></p>
+      <button type="button" class="sgx-verify-skip" id="tk-go">{{ if $isEn }}Create{{ else }}生成{{ end }}</button>
+    </div>
+    <div id="tk-done" class="tk-done" hidden>
+      <p class="tk-code" id="tk-code" aria-live="polite"></p>
+      <p class="tk-done-sub" id="tk-done-sub"></p>
+      <p class="tk-done-warn">{{ if $isEn }}This key is shown only once. Copy it and send it to your visitor.{{ else }}临时钥匙只显示这一次，复制后发给访客。{{ end }}</p>
+      <button type="button" class="sgx-verify-skip" id="tk-copy">{{ if $isEn }}Copy{{ else }}复制{{ end }}</button>
+    </div>
+  </div>
+</dialog>
+
+{{ partial "account-i18n.html" . }}
+{{ end }}

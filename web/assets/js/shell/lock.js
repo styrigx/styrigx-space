@@ -1,20 +1,19 @@
 /**
- * @fileoverview 全站锁屏 + Turnstile 入站验证（2.4.0 H）。
+ * @fileoverview 全站锁屏（2.4.0 H；2026-10-23 访客进入改临时 LockKey，去掉 Turnstile）。
  * 分层规范 L4：lock.js 只负责两件事——
  * 1. 按 L1（middleware 注入的 <html data-sgx-session>）画锁屏，不自己判断会话；
  * 2. 把密码或通行密钥提交给 L2（functions/api/*）。
  * 唯一状态源是服务端签发的 sgx-verified 会话；禁止用 sessionStorage、
  * localStorage、前端内存或标签页状态另做判断。
- * - 点头像（电脑回车/空格）→ 底部 dialog 验证卡（One UI 密码界面式）+ Turnstile；
- *   通过 → 开锁动画 → 现有解锁流程；失败 → 红色提示 + 重试。
+ * - 点头像（电脑回车/空格）→ 解锁方式弹层：访客进入（输入临时钥匙）/ 通行密钥 / 密码；
+ *   通过 → 开锁动画 → 现有解锁流程；失败 → 红色提示。
  * - 本地开发（localhost）跳过验证。
- * - 安全与隐私：验证/密码/通行密钥三态共用同一个底部弹层组件（圆角、材质、
+ * - 安全与隐私：临时钥匙/密码/通行密钥三态共用同一个底部弹层组件（圆角、材质、
  *   拖动条、标题字号位置、按钮样式一致）；弹层背景完全不透明；打开时底层
  *   名字与入口设 visibility:hidden + inert；容器无 outline，:focus-visible 只在
  *   内部可交互元素上用本站焦点色。
- * - Turnstile：appearance 'interaction-only' + size 'flexible'，theme/language 跟随；
- *   默认只显示本站加载态，确需交互时才在同一位置出现小组件；成功变勾 0.3s 后解锁；
- *   失败/超时显示普通提示 + 重试，不出现错误码。
+ * - 临时钥匙：主人在账号页签发（12 位，XXXX-XXXX-XXXX），访客在这里输入 → POST /api/lock-temp-unlock
+ *   → 访客会话（没有账号、设置里的锁屏凭证等主人权限）。
  */
 import { on } from '../lib/events.js';
 import { reducedMotion } from '../lib/util.js';
@@ -30,8 +29,6 @@ import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
 
 const UNLOCK =
   '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.9-1"/></svg>';
-const CHECK =
-  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12.5l5 5 10-11"/></svg>';
 
 /**
  * 是否本地开发（无 Functions 后端）。
@@ -332,8 +329,6 @@ function showLockScreen() {
   document.documentElement.style.overflow = 'hidden';
   document.body.style.overflow = 'hidden';
 
-  /* 2.8.0：锁屏显示时预加载 Turnstile（用户点验证时已就绪） */
-  preloadTurnstile();
 
   /* 版面一次画完，直接显示（以前要等日刻） */
   const stage = document.getElementById('sgx-lock-stage');
@@ -443,8 +438,6 @@ function showLockScreen() {
      ============================================================ */
   /** @type {HTMLDialogElement|null} */ let dlg = null;
   /** @type {string|null} */ let dlgState = null;
-  /** @type {any} */ let widgetId = null;
-  let verifyDone = false;
   let pwLockedUntil = 0;
   /* 键盘避让：各态 setBody 后对新生成输入框调 followKeyboard(dlg, input)，
      与其他弹层同一套逻辑（shell/vk.js）。作用到 dlg 而非 card，
@@ -570,7 +563,6 @@ function showLockScreen() {
 
   function closeDialog(reason) {
     recordDialogClose('lock-verify', reason || 'unknown');
-    removeWidget();
     disarmDlgKb();
     resetAvatar();
     setBgHidden(false);
@@ -580,193 +572,6 @@ function showLockScreen() {
       } catch (e) {}
     }
     dlgState = null;
-  }
-
-  /* ---------- Turnstile ---------- */
-  function siteKey() {
-    try {
-      const meta = document.querySelector('meta[name="sgx-turnstile"]');
-      if (meta) return meta.getAttribute('content') || '';
-    } catch (e) {}
-    return '';
-  }
-
-  function loadTurnstile() {
-    return new Promise(function (resolve, reject) {
-      if (/** @type {any} */ (window).turnstile) {
-        resolve(true);
-        return;
-      }
-      const s = document.createElement('script');
-      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-      s.async = true;
-      s.defer = true;
-      s.setAttribute('data-sgx-ts', '1');
-      /* PR3：加载失败（onerror / 8 秒超时 / 加载了但没有 window.turnstile）时把这个 <script> 摘掉，
-         下次「重试」重新插入；以前失败的标签一直留着，之后每次都走轮询分支、失败到刷新页面为止。 */
-      const fail = function (why) {
-        window.clearTimeout(to);
-        try { s.remove(); } catch (e) {}
-        reject(new Error(why));
-      };
-      const to = window.setTimeout(function () { fail('timeout'); }, 8000);
-      s.onload = function () {
-        if (/** @type {any} */ (window).turnstile) {
-          window.clearTimeout(to);
-          resolve(true);
-        } else {
-          fail('no-global');
-        }
-      };
-      s.onerror = function () { fail('load'); };
-      /* 2.8.0：避免重复插入（预加载和验证时各调一次） */
-      const pending = document.querySelector('script[data-sgx-ts]');
-      if (!pending) {
-        document.head.appendChild(s);
-      } else {
-        /* 脚本正在加载：轮询等待就绪；那次加载失败（标签被摘掉）或等满 10 秒 → reject，重试会重新插入 */
-        window.clearTimeout(to);
-        let n = 0;
-        const iv = window.setInterval(function () {
-          if (/** @type {any} */ (window).turnstile) {
-            window.clearInterval(iv);
-            resolve(true);
-          } else if (!pending.isConnected || ++n > 100) {
-            window.clearInterval(iv);
-            try { pending.remove(); } catch (e) {}
-            reject(new Error('load'));
-          }
-        }, 100);
-      }
-    });
-  }
-
-  /**
-   * 2.8.0 Turnstile 速度优化：锁屏显示时就预加载脚本（不阻塞），
-   * 用户点验证时 window.turnstile 已就绪，省去点击后的加载等待。
-   * Chrome/三星浏览器曾超过 10 秒，主因是点击后才开始加载。
-   */
-  function preloadTurnstile() {
-    try {
-      if (/** @type {any} */ (window).turnstile) return;
-      if (!siteKey()) return;
-      const run = function () {
-        loadTurnstile().catch(function () { /* 预加载失败不影响，验证时重试 */ });
-      };
-      if (typeof window.requestIdleCallback === 'function') {
-        window.requestIdleCallback(run, { timeout: 2000 });
-      } else {
-        window.setTimeout(run, 500);
-      }
-    } catch (e) {}
-  }
-
-  /* 验证态：标题 + Cloudflare 官方 Turnstile 小组件，原样显示（appearance always、托管模式、size flexible，
-     主题 / 语言跟随本站）。「正在验证… / 请验证您是真人」都是 Cloudflare 自己的界面，本站不加转圈、不设计时器。
-     PR3：以前渲染进带 hidden（display:none）的容器、appearance interaction-only，挑战既不弹勾选框也不回调，
-     三星浏览器上一直卡在「正在验证…」。容器现在一直可见。 */
-  function verifyLoading() {
-    dlgState = 'verify';
-    setTitle(en ? "Checking you're human" : '正在确认你不是机器人');
-    setBody('<div id="sgx-ts-wrap" class="sgx-ts-wrap"></div>');
-    clearErr();
-  }
-
-  /* 验证态：成功 → 变勾，0.3s 后解锁 */
-  function verifySuccess() {
-    removeWidget();
-    setBody('<div class="sgx-verify-loading"><div class="sgx-check">' + CHECK + '</div></div>');
-    clearErr();
-    window.setTimeout(function () {
-      verifyDone = true;
-      closeDialog('success');
-      unlock();
-    }, 300);
-  }
-
-  /* 失败 / 超时 → 提示 + 重试，不出现错误码。
-     PR3：不设本站计时器，挑战中的重试只认 Cloudflare 自己的 timeout-callback / error-callback / expired-callback
-     （以前 15 秒计时会冲掉还在跑的托管挑战）；脚本没加载上、/api/verify 不通过也走这里（原有行为）。 */
-  /** @param {boolean} [isTimeout] */
-  function showTurnstileRetry(isTimeout) {
-    removeWidget();
-    setBody(
-      '<div class="sgx-verify-loading"><p class="sgx-verify-failtx">' +
-        (isTimeout ? (en ? 'Verification timed out' : '验证时间过长') : (en ? 'Verification failed' : '验证失败')) +
-        '</p><button type="button" class="sgx-verify-skip" id="sgx-verify-retry">' +
-        (en ? 'Retry' : '重试') +
-        '</button></div>'
-    );
-    const retry = document.getElementById('sgx-verify-retry');
-    if (retry) {
-      on(retry, 'click', function () {
-        startVerify();
-      });
-      try {
-        retry.focus({ preventScroll: true });
-      } catch (e) {}
-    }
-    liftAvatar();
-  }
-  function verifyFailed() {
-    showTurnstileRetry(false);
-  }
-
-  /* PR3：每次渲染一个新小组件 attempt +1；旧小组件迟到的回调一律丢弃（不会 submitToken、不会改写新状态）。 */
-  let tsAttempt = 0;
-  /* PR3：重渲染 / 换内容 / 关弹层前先 turnstile.remove（以前 setBody 冲掉容器后再对脱离 DOM 的小组件 reset） */
-  function removeWidget() {
-    tsAttempt++;
-    try {
-      const ts = /** @type {any} */ (window).turnstile;
-      if (widgetId !== null && ts) {
-        if (typeof ts.remove === 'function') ts.remove(widgetId);
-        else ts.reset(widgetId);
-      }
-    } catch (e) {}
-    widgetId = null;
-  }
-
-  function startVerify() {
-    removeWidget();
-    const attempt = tsAttempt;
-    /** 只认本次小组件的回调 */
-    const live = function () { return attempt === tsAttempt && dlgState === 'verify'; };
-    verifyLoading();
-    loadTurnstile().then(
-      function () {
-        if (!live()) return;
-        const wrap = document.getElementById('sgx-ts-wrap');
-        if (!wrap || !(/** @type {any} */ (window).turnstile)) {
-          verifyFailed();
-          return;
-        }
-        const theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
-        widgetId = /** @type {any} */ (window).turnstile.render(wrap, {
-          sitekey: siteKey(),
-          action: 'sgx-entry',
-          appearance: 'always',
-          size: 'flexible',
-          theme: theme,
-          language: en ? 'en' : 'zh-CN',
-          callback: function (/** @type {string} */ token) {
-            if (live()) submitToken(token);
-          },
-          'error-callback': function () {
-            if (live()) showTurnstileRetry(false);
-          },
-          'expired-callback': function () {
-            if (live()) verifyFailed();
-          },
-          'timeout-callback': function () {
-            if (live()) showTurnstileRetry(true);
-          },
-        });
-      },
-      function () {
-        if (live()) verifyFailed();
-      }
-    );
   }
 
   /**
@@ -826,13 +631,13 @@ function showLockScreen() {
       '<div class="sgx-sheet-card" role="document">' +
       '<div class="sheet-handle" aria-hidden="true"></div>' +
       '<h2 class="sgx-sheet-title">' + (en ? 'Unlock' : '解锁') + '</h2>' +
-      /* 1. 访客进入（Turnstile） */
+      /* 1. 访客进入（临时钥匙，2026-10-23 取代 Turnstile） */
       '<button type="button" class="sgx-method-opt" id="sgx-mopt-visitor" aria-label="' +
-        (en ? 'Enter as visitor, verify you are human' : '访客进入，验证你不是机器人') + '">' +
+        (en ? 'Enter as visitor with a temporary key' : '访客进入，输入临时钥匙') + '">' +
       '<span class="sgx-method-ic" aria-hidden="true">' +
-      '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2.5"/></svg></span>' +
+      '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3"/><path d="m16 7 3 3"/><path d="m18 5 2 2"/></svg></span>' +
       '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Visitor' : '访客进入') + '</span>' +
-      '<span class="sgx-method-desc">' + (en ? 'Verify you are human via Cloudflare' : '通过 Cloudflare 验证你不是机器人') + '</span></span>' +
+      '<span class="sgx-method-desc">' + (en ? 'Enter the temporary key you received' : '输入收到的临时钥匙') + '</span></span>' +
       '</button>' +
       /* 2. 通行密钥（已配置且设备支持） */
       (showPk
@@ -873,7 +678,7 @@ function showLockScreen() {
     const pwBtn = sheet.querySelector('#sgx-mopt-pw');
     const cantBtn = sheet.querySelector('#sgx-mopt-cant');
     const cardEl = /** @type {HTMLElement|null} */ (sheet.querySelector('.sgx-sheet-card'));
-    if (visitorBtn) on(visitorBtn, 'click', function () { tapFeedback(); close(); openVerify(); });
+    if (visitorBtn) on(visitorBtn, 'click', function () { tapFeedback(); close(); openTemp(); });
     if (pkBtn) on(pkBtn, 'click', function () { tapFeedback(); close(); openPk(); });
     if (pwBtn) on(pwBtn, 'click', function () { tapFeedback(); close(); openPw(); });
     if (cantBtn && cardEl) on(cantBtn, 'click', function () { tapFeedback(); openResetInSheet(cardEl, cfg); });
@@ -932,62 +737,104 @@ function showLockScreen() {
     }, 250);
   }
 
-  function openVerify() {
-    if (verifyDone) {
+  /* ---------- 临时钥匙态（访客进入；与密码态同一弹层） ---------- */
+  let tempLockedUntil = 0;
+  function openTemp() {
+    if (isLocal || !SGX_FEAT_OWNER_GATE) {
       unlock();
       return;
     }
-    if (isLocal) {
-      unlock();
-      return;
+    dlgState = 'temp';
+    setTitle(en ? 'Enter temporary key' : '输入临时钥匙');
+    setBody(
+      '<div class="sgx-pw-field"><input type="text" id="sgx-temp-input" class="sgx-pw-input sgx-temp-input" inputmode="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="20" ' +
+        'aria-label="' + (en ? 'Temporary key' : '临时钥匙') + '" placeholder="XXXX-XXXX-XXXX"></div>' +
+        '<p class="sgx-temp-hint">' + (en ? 'Format XXXX-XXXX-XXXX, case doesn’t matter' : '格式 XXXX-XXXX-XXXX，不区分大小写') + '</p>' +
+        '<p id="sgx-temp-count" class="sgx-pw-count" hidden></p>' +
+        '<button type="button" class="sgx-verify-skip" id="sgx-temp-go">' + (en ? 'Enter' : '确定') + '</button>'
+    );
+    clearErr();
+    if (!openDialog()) return;
+    const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-temp-input'));
+    const go = document.getElementById('sgx-temp-go');
+    armDlgKbFor(input);
+    if (input) {
+      onEnter(input, submitTemp);
+      focusNoScroll(input);
     }
-    if (!SGX_FEAT_OWNER_GATE) {
-      unlock();
-      return;
-    }
-    if (!siteKey()) {
-      unlock();
-      return;
-    }
-    if (!openDialog()) {
-      unlock();
-      return;
-    }
-    try {
-      const l = document.createElement('link');
-      l.rel = 'preconnect';
-      l.href = 'https://challenges.cloudflare.com';
-      document.head.appendChild(l);
-    } catch (e) {}
-    startVerify();
+    if (go) on(go, 'click', submitTemp);
+    if (Date.now() < tempLockedUntil) tempCountdown();
   }
 
-  /** @param {string} token */
-  function submitToken(token) {
-    const ctrl = new AbortController();
-    const to = window.setTimeout(function () {
-      ctrl.abort();
-    }, 8000);
-    fetch('/api/verify', {
+  function tempCountdown() {
+    const el = document.getElementById('sgx-temp-count');
+    const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-temp-input'));
+    const go = /** @type {HTMLButtonElement|null} */ (document.getElementById('sgx-temp-go'));
+    function tick() {
+      if (dlgState !== 'temp') return;
+      const left = Math.max(0, Math.ceil((tempLockedUntil - Date.now()) / 60000));
+      if (Date.now() >= tempLockedUntil) {
+        if (el) el.hidden = true;
+        if (input) input.disabled = false;
+        if (go) go.disabled = false;
+        return;
+      }
+      if (el) {
+        el.textContent = en ? 'Try again in ' + left + ' min' : left + ' 分钟后可再试';
+        el.hidden = false;
+      }
+      if (input) input.disabled = true;
+      if (go) go.disabled = true;
+      window.setTimeout(tick, 5000);
+    }
+    tick();
+  }
+
+  function submitTemp() {
+    if (dlgState !== 'temp') return;
+    if (Date.now() < tempLockedUntil) return;
+    const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-temp-input'));
+    const code = input ? input.value.trim() : '';
+    if (!code) {
+      showError(en ? 'Enter the temporary key' : '请输入临时钥匙');
+      return;
+    }
+    fetch('/api/lock-temp-unlock', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: token }),
-      signal: ctrl.signal,
+      body: JSON.stringify({ code: code }),
     })
       .then(function (r) {
-        return r.json();
+        return r.text().then(function (t) {
+          let j = null;
+          try { j = JSON.parse(t); } catch (e) {}
+          return { s: r.status, j: j };
+        });
       })
-      .then(function (j) {
-        window.clearTimeout(to);
-        if (j && j.ok) {
-          verifySuccess();
+      .then(function (res) {
+        if (dlgState !== 'temp') return;
+        const j = res.j;
+        if (!j) {
+          showError(en ? 'Server error' : '服务器错误');
+          return;
+        }
+        if (j.ok) {
+          closeDialog('success');
+          unlock();
+        } else if (j.error === 'locked') {
+          tempLockedUntil = Date.now() + 15 * 60000;
+          showError(en ? 'Too many attempts' : '尝试次数过多');
+          tempCountdown();
+        } else if (j.error === 'wrong' || j.error === 'code') {
+          showError(en ? 'Invalid or expired key' : '临时钥匙无效或已过期');
+          if (input) input.value = '';
         } else {
-          verifyFailed();
+          showError(en ? 'Server error' : '服务器错误');
         }
       })
       .catch(function () {
-        window.clearTimeout(to);
-        verifyFailed();
+        if (dlgState !== 'temp') return;
+        showError(en ? 'Network error' : '网络错误');
       });
   }
 
@@ -1345,7 +1192,7 @@ function showLockScreen() {
   }
 
   /* ---------- 入口接线（2.8.0 锁屏重设计） ---------- */
-  /* 头像点击 → 解锁方式选择底部弹层（不再直进 Turnstile） */
+  /* 头像点击 → 解锁方式选择底部弹层 */
   const av = document.getElementById('sgx-lock-avatar');
   if (av) {
     on(av, 'click', function (e) {

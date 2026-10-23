@@ -85,7 +85,7 @@ test('security.js：读锁屏凭证状态，不再走 stepup；无角色条件�
   assert.ok(!js.includes("role === 'visitor'"), '不应有访客角色条件分支');
 });
 
-test('/api/lock：POST 下发 Set-Cookie 清除头（会话两条 + 门票 sgx-door）', async () => {
+test('/api/lock：POST 下发 Set-Cookie 清除头（会话两条 + 门票 sgx-door + 钥匙票 sgx-tk）', async () => {
   const res = await lockPost({ request: new Request('https://styrigx.com/api/lock', { method: 'POST' }), env: {} });
   assert.equal(res.status, 200);
   const j = await res.json();
@@ -93,12 +93,13 @@ test('/api/lock：POST 下发 Set-Cookie 清除头（会话两条 + 门票 sgx-d
   const cookies = typeof res.headers.getSetCookie === 'function'
     ? res.headers.getSetCookie()
     : [res.headers.get('set-cookie')];
-  assert.equal(cookies.length, 3, '应下发三条 Set-Cookie（verified x2 + door）');
+  assert.equal(cookies.length, 4, '应下发四条 Set-Cookie（verified x2 + door + tk）');
   const verified = cookies.filter((c) => c.startsWith('sgx-verified=;'));
   assert.equal(verified.length, 2, '应有两条 sgx-verified 清除');
   assert.ok(verified.some((c) => c.includes('Domain=.styrigx.com')), '应有一条带 Domain=.styrigx.com');
   assert.ok(verified.some((c) => !c.includes('Domain=')), '应有一条不带 Domain（清 host-only）');
   assert.ok(cookies.some((c) => c.startsWith('sgx-door=;') && c.includes('Max-Age=0')), '应清除门票 sgx-door');
+  assert.ok(cookies.some((c) => c.startsWith('sgx-tk=;') && c.includes('Max-Age=0') && c.includes('Domain=.styrigx.com')), '应清除临时 LockKey 钥匙票 sgx-tk');
   assert.ok(!cookies.some((c) => c.startsWith('sgx-stepup=') || c.startsWith('sgx-app=')), '不再有 stepup / app cookie');
 });
 

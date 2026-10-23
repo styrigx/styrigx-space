@@ -319,10 +319,8 @@ test.describe('B1-8 路径B：会话无效、访客解锁后被踢回', () => {
     await blockJsNavigation(page);
     trackJumps(page);
     await mockSessionCheck(page);
-    /* 访客入口：假 Turnstile（立刻回调）+ /api/verify 成功 → 会话生效 */
-    await page.route('https://challenges.cloudflare.com/**', (r) => r.fulfill({ contentType: 'text/javascript',
-      body: 'window.turnstile={render:function(el,o){setTimeout(function(){o.callback("t")},30);return "w"},remove:function(){},reset:function(){}};' }));
-    await page.route('**/api/verify', async (route) => {
+    /* 访客入口：临时钥匙，/api/lock-temp-unlock 成功 → 会话生效 */
+    await page.route('**/api/lock-temp-unlock', async (route) => {
       page.__locked = false;
       await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
     });
@@ -338,6 +336,8 @@ test.describe('B1-8 路径B：会话无效、访客解锁后被踢回', () => {
     await page.click('#sgx-lock-avatar');
     await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible({ timeout: 5000 });
     await page.click('#sgx-mopt-visitor');
+    await page.fill('#sgx-temp-input', 'AAAA-BBBB-CCCC');
+    await page.click('#sgx-temp-go');
     /* 等 handleSessionOk 跑完 */
     await waitDecision(page, 8000);
   }

@@ -8,6 +8,7 @@
  *
  * 运行：node --test tests/kernel/b1-9-guest-401.test.mjs
  */
+import { signRole } from './_tk.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -44,7 +45,7 @@ async function genTestKeys() {
 
 async function signVisitorCookie() {
   const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
-  return signSessionCookie(TEST_PRIV_PEM, 0, 'visitor', 'owner');
+  return signRole(signSessionCookie, TEST_PRIV_PEM, 0, 'visitor', 'owner');
 }
 
 /* 带计数的 KV */

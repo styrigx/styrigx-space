@@ -18,6 +18,7 @@
  *
  * 运行：node --test tests/workers/auth-gateway/lock-door.test.mjs
  */
+import { signRole } from './_tk.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -98,7 +99,7 @@ function pick(res, name) {
   return null;
 }
 const ownerSess = (epoch = 0, by = 'owner') => signSessionCookie(LOCK.priv, epoch, 'owner', by);
-const visitorSess = (epoch = 0) => signSessionCookie(LOCK.priv, epoch, 'visitor', 'owner');
+const visitorSess = (epoch = 0) => signRole(signSessionCookie, LOCK.priv, epoch, 'visitor', 'owner');
 const lockTicket = (by = 'password', epoch = 0, now) => door.signDoorTicket(LOCK.priv, 'lock', by, epoch, now);
 const resetTicket = (by = 'root', epoch = 0) => door.signDoorTicket(LOCK.priv, 'lockreset', by, epoch);
 const cookies = (o) => Object.entries(o).map(([k, v]) => k + '=' + v).join('; ');
