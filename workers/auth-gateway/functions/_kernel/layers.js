@@ -1,7 +1,7 @@
 /**
  * 2.11：分层接管（layer takeover）。
  *
- * 两层：owner（accountkey：账号密码/账号通行密钥；KV 标记沿用 layer:owner）、lock（lockkey：解锁密码/
+ * 两层：owner（AccountKey：账号密码/账号通行密钥；KV 标记沿用 layer:owner）、lock（LockKey：解锁密码/
  * 锁屏通行密钥）。钥匙命名见 key-names.js。
  *
  * 规则：
@@ -14,7 +14,7 @@
  * - layer:lock = "1"（已配置 lock 凭证）
  */
 
-import { ownerPasskeyKey, OWNER_PASSKEY_PREFIX, STORE_CLASS_OWNERKEY, STORE_CLASS_LOCKKEY } from './key-names.js';
+import { ownerPasskeyKey, OWNER_PASSKEY_PREFIX, STORE_CLASS_ACCOUNTKEY, STORE_CLASS_LOCKKEY } from './key-names.js';
 import { REALM_LOCK, REALM_ACCOUNT } from './realms.js';
 
 /* 层标识 */
@@ -81,13 +81,13 @@ export async function checkRootTakeover(kv, layer) {
  * 只读真实凭证（密码 hash、通行密钥 class），不读 layer:* 标记。
  * 任何一步读取失败 → failed=true（调用方按已配置处理，fail closed）。
  * @param {any} kv
- * @returns {Promise<{ownerPw:boolean, lockPw:boolean, ownerPk:boolean, lockPk:boolean, failed:boolean}>}
+ * @returns {Promise<{accountPw:boolean, lockPw:boolean, accountPk:boolean, lockPk:boolean, failed:boolean}>}
  */
 async function realCredentialPresence(kv) {
-  const out = { ownerPw: false, lockPw: false, ownerPk: false, lockPk: false, failed: false };
+  const out = { accountPw: false, lockPw: false, accountPk: false, lockPk: false, failed: false };
   try {
-    const ownerPw = await kv.get(REALM_ACCOUNT.kv.password, 'json');
-    if (ownerPw && ownerPw.hash) out.ownerPw = true;
+    const accountPw = await kv.get(REALM_ACCOUNT.kv.password, 'json');
+    if (accountPw && accountPw.hash) out.accountPw = true;
   } catch (e) {
     out.failed = true;
     return out;
@@ -116,7 +116,7 @@ async function realCredentialPresence(kv) {
           out.failed = true;
           return out;
         }
-        if (v && v.credId && (v.class || STORE_CLASS_LOCKKEY) === STORE_CLASS_OWNERKEY) out.ownerPk = true;
+        if (v && v.credId && (v.class || STORE_CLASS_LOCKKEY) === STORE_CLASS_ACCOUNTKEY) out.accountPk = true;
         if (v && v.credId && (v.class || STORE_CLASS_LOCKKEY) === STORE_CLASS_LOCKKEY) out.lockPk = true;
       }
     } else {
@@ -136,7 +136,7 @@ async function realCredentialPresence(kv) {
           out.failed = true;
           return out;
         }
-        if (v && v.credId && (v.class || STORE_CLASS_LOCKKEY) === STORE_CLASS_OWNERKEY) out.ownerPk = true;
+        if (v && v.credId && (v.class || STORE_CLASS_LOCKKEY) === STORE_CLASS_ACCOUNTKEY) out.accountPk = true;
         if (v && v.credId && (v.class || STORE_CLASS_LOCKKEY) === STORE_CLASS_LOCKKEY) out.lockPk = true;
       }
     }
@@ -184,7 +184,7 @@ export async function isLockEffectivelyConfigured(kv) {
  * @param {any} kv
  * @returns {Promise<boolean>}
  */
-export async function isOwnerEffectivelyConfigured(kv) {
+export async function isAccountEffectivelyConfigured(kv) {
   if (!kv) return true;
   try {
     try {
@@ -195,7 +195,7 @@ export async function isOwnerEffectivelyConfigured(kv) {
     }
     const real = await realCredentialPresence(kv);
     if (real.failed) return true;
-    if (real.ownerPw || real.ownerPk) return true;
+    if (real.accountPw || real.accountPk) return true;
     return false;
   } catch (e) {
     return true;

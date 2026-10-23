@@ -41,6 +41,17 @@ export function bindPwEye(eye, input, en) {
   return bindEyeButton(eye, input, eyeLabels(en));
 }
 
+/** 隐藏用户名框的样式（只给密码管理器读，不可见、不可聚焦） */
+export const PM_USER_STYLE = 'position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;';
+
+/**
+ * 隐藏用户名框 HTML：让 Samsung Pass / Google 密码管理器把密码存成这个名字（AccountKey / LockKey / RootKey）。
+ * @param {string} name key-names.js 里的 KEY_*
+ */
+export function pmUserHtml(name) {
+  return '<input type="text" autocomplete="username" value="' + name + '" aria-hidden="true" tabindex="-1" style="' + PM_USER_STYLE + '">';
+}
+
 /**
  * 锁屏弹层里的密码框 HTML（.sgx-pw-field > input.sgx-pw-input + button.sgx-pw-eye）。
  * 输出与原手拼字符串逐字相同。
@@ -51,9 +62,10 @@ export function bindPwEye(eye, input, en) {
  * @param {string} o.placeholder 占位文字
  * @param {string} [o.ariaLabel] 输入框 aria-label（不传则不输出该属性）
  * @param {boolean} o.en 是否英文（眼睛按钮初始文案）
+ * @param {string} [o.pmUser] 密码管理器里的名字（隐藏用户名框，如 LockKey）
  */
 export function pwFieldHtml(o) {
-  return '<div class="sgx-pw-field"><input type="password" id="' + o.id + '" class="sgx-pw-input" autocomplete="' + o.autocomplete + '" ' +
+  return '<div class="sgx-pw-field">' + (o.pmUser ? pmUserHtml(o.pmUser) : '') + '<input type="password" id="' + o.id + '" class="sgx-pw-input" autocomplete="' + o.autocomplete + '" ' +
     (o.ariaLabel !== undefined ? 'aria-label="' + o.ariaLabel + '" ' : '') +
     'placeholder="' + o.placeholder + '">' +
     '<button type="button" class="sgx-pw-eye" id="' + o.eyeId + '" aria-label="' + (o.en ? 'Show password' : '显示密码') + '"></button></div>';

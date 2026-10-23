@@ -24,6 +24,7 @@ import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, tapFeedback } from '../lib/dialog-behavior.js';
 import { getPasskeyAssertion, passkeyErrorText } from '../lib/passkey-assert.js';
 import { pwFieldHtml, bindPwEye, onEnter, focusNoScroll } from '../lib/auth-flow.js';
+import { KEY_LOCK } from '../lib/key-names.js';
 import { mountResetFlow, resetT } from '../lib/reset-flow.js';
 import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
 
@@ -995,7 +996,7 @@ function showLockScreen() {
     dlgState = 'password';
     setTitle(en ? 'Enter password' : '输入密码');
     setBody(
-      pwFieldHtml({ id: 'sgx-pw-input', eyeId: 'sgx-pw-eye', autocomplete: 'current-password', ariaLabel: en ? 'Password' : '密码', placeholder: en ? 'Password' : '密码', en: en }) +
+      pwFieldHtml({ id: 'sgx-pw-input', eyeId: 'sgx-pw-eye', autocomplete: 'current-password', pmUser: KEY_LOCK, ariaLabel: en ? 'Password' : '密码', placeholder: en ? 'Password' : '密码', en: en }) +
         '<p id="sgx-pw-count" class="sgx-pw-count" hidden></p>' +
         '<button type="button" class="sgx-verify-skip" id="sgx-pw-go">' + (en ? 'Unlock' : '确定') + '</button>'
     );

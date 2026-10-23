@@ -7,7 +7,7 @@
  * 3. 访客会话提交正确根凭证 → 401 密码错误，且不调用 D1/KV、不增加 rootlimit 计数
  * 4. 管理凭证弹层四种配置下按钮正确（未设置/仅通行密钥/仅密码/两者都有）
  * 5. 三类通行密钥注册 options 的 name/displayName 正确
- *    （owner→accountkey，lock→lockkey，app→<aud小写>key；displayName 一律 Sloan Gray）
+ *    （owner→AccountKey，lock→LockKey，app→<aud小写>key；displayName 一律 Sloan Gray）
  *
  * 运行：node --test tests/kernel/auth-entry.test.mjs
  */

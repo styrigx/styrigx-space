@@ -1,7 +1,7 @@
 /**
- * A-2 最后一把锁屏钥匙与 accountkey 联动（v1.5 #10）。
+ * A-2 最后一把锁屏钥匙与 AccountKey 联动（v1.5 #10）。
  *
- * - 删到 0 时 accountkey 存在（站长密码或站长通行密钥任一）→ 允许，保留 layer:lock
+ * - 删到 0 时 AccountKey 存在（站长密码或站长通行密钥任一）→ 允许，保留 layer:lock
  *   （根凭证代开继续被拒）；不存在 → 服务端 403 last-key。
  * - A-2 对 layer:lock-emptied 不读不写（该键是 B #10 的，本 PR 不引入）：
  *   删最后一把后 KV 里不出现该键；生产残留不动、不清除、不依赖。

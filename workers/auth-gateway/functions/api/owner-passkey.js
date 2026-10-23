@@ -32,7 +32,7 @@
  * P0-3 安全审计：
  * - 注册和解锁都要求 UV=1（userVerification: required）
  * - RP_ID/ORIGIN 必须配环境变量 SGX_RP_ID/SGX_ORIGIN，不回落
- * - 用户信息由服务端下发：displayName=Sloan Gray, name=lockkey, rp.name=Styrigx
+ * - 用户信息由服务端下发：displayName=Sloan Gray, name=LockKey, rp.name=Styrigx
  * - 固定 user handle（KV owner-user-id），auth 时校验 userHandle
  * - register 带 excludeCredentials 防重复注册
  * - KV 结构：每把一个 key（owner-passkey:<credId前12位>），字段顺序固定
@@ -56,14 +56,14 @@ import {
 } from '../_kernel/session.js';
 import { checkLockDoor, looksVisitor } from './lock-door.js';
 import { issueDoorCookie, reissueDoorWithEpoch, DOOR_LOCK } from '../_kernel/door.js';
-import { LAYER_LOCK, setLayerConfigured, clearLayerConfigured, isLayerConfigured, isOwnerEffectivelyConfigured } from '../_kernel/layers.js';
+import { LAYER_LOCK, setLayerConfigured, clearLayerConfigured, isLayerConfigured, isAccountEffectivelyConfigured } from '../_kernel/layers.js';
 import { verifySessionDetailed } from '../_middleware.js';
 import { REALM_LOCK, SESSION_EPOCH_KEY, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
 
 /* 通行密钥注册/登录 challenge 的 KV 前缀（'pk-challenge:'；与 account-challenge: 隔离） */
 const PK_CHALLENGE_PREFIX = REALM_LOCK.kv.passkeyChallengePrefix;
 import {
-  STORE_CLASS_OWNERKEY,
+  STORE_CLASS_ACCOUNTKEY,
   STORE_CLASS_LOCKKEY,
   KEY_LOCK,
   ownerPasskeyKey,
@@ -72,8 +72,8 @@ import {
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
 
 /* 通行密钥分类：钥匙命名规范（key-names.js）：存储层 class 字段值保留 'owner'/'lock'
-   不迁移；概念名用 accountkey/lockkey。应用凭证已删除（旧 class=app 记录不再被任何接口读取）。 */
-export const PK_CLASS_OWNER = STORE_CLASS_OWNERKEY;
+   不迁移；概念名用 AccountKey/LockKey。应用凭证已删除（旧 class=app 记录不再被任何接口读取）。 */
+export const PK_CLASS_ACCOUNT = STORE_CLASS_ACCOUNTKEY;
 export const PK_CLASS_LOCK = STORE_CLASS_LOCKKEY;
 /* 所有者显示名（注册参数写死，用户不填） */
 export const OWNER_DISPLAY_NAME = 'Sloan Gray';
@@ -199,7 +199,7 @@ export async function savePasskey(kv, item) {
   const keyName = ownerPasskeyKey(item.credId);
   /* P0-15：class 必须原样保存，owner 绝不能被改成 lock */
   const cls = item.class;
-  if (cls !== PK_CLASS_OWNER && cls !== PK_CLASS_LOCK) {
+  if (cls !== PK_CLASS_ACCOUNT && cls !== PK_CLASS_LOCK) {
     throw new Error('invalid-class');
   }
   /* 字段顺序固定：name 第一位，方便后台预览 */
@@ -256,12 +256,12 @@ export async function deletePasskey(kv, credId) {
  * 获取或创建固定用户 ID（32 字节随机，存 KV）。
  * 锁屏类用 'owner-user-id'。
  * 批次 A 收尾 C1：owner 类改用 'owner-user-id:owner'，不再与 lock 类共用，
- * 防止 Samsung Pass 把 accountkey（原 ownerkey）覆盖到 lockkey 上。
+ * 防止 Samsung Pass 把 AccountKey（原 OwnerKey）覆盖到 LockKey 上。
  * @param {any} kv
  * @param {string} pkClass 凭据类别：'owner' | 'lock'
  */
 export async function getUserHandle(kv, pkClass) {
-  const key = pkClass === PK_CLASS_OWNER ? 'owner-user-id:owner' : 'owner-user-id';
+  const key = pkClass === PK_CLASS_ACCOUNT ? 'owner-user-id:owner' : 'owner-user-id';
   try {
     let uh = await kv.get(key);
     if (!uh) {
@@ -334,7 +334,7 @@ async function handlePost(context) {
       return Response.json({ ok: false, error: 'params' }, { status: 400 });
     }
     const pkClass = (body && body.pkClass) || PK_CLASS_LOCK;
-    if (pkClass !== PK_CLASS_OWNER && pkClass !== PK_CLASS_LOCK) {
+    if (pkClass !== PK_CLASS_ACCOUNT && pkClass !== PK_CLASS_LOCK) {
       return Response.json({ ok: false, error: 'params' }, { status: 400 });
     }
     const keys = await getPasskeys(kv);
@@ -359,7 +359,7 @@ async function handlePost(context) {
     } catch (e) {}
     const resp = { ok: true, cid: cid, challenge: challenge, rpId: RP_ID };
     if (type === 'register') {
-      /* 下发用户信息：全部写死，用户不填。displayName=Sloan Gray（常量）；name=lockkey。
+      /* 下发用户信息：全部写死，用户不填。displayName=Sloan Gray（常量）；name=LockKey。
          user.id 存 KV 复用（生成方式不变）。 */
       const userHandle = await getUserHandle(kv, pkClass);
       const userName = KEY_LOCK;
@@ -395,7 +395,7 @@ async function handlePost(context) {
     if (!chRec || chRec.type !== 'register' || chRec.exp < Date.now()) {
       return Response.json({ ok: false, error: 'challenge' }, { status: 403 });
     }
-    const pkClass = chRec.pkClass === PK_CLASS_OWNER ? PK_CLASS_OWNER : PK_CLASS_LOCK;
+    const pkClass = chRec.pkClass === PK_CLASS_ACCOUNT ? PK_CLASS_ACCOUNT : PK_CLASS_LOCK;
     /* 纵深防御：按 challenge 的 pkClass 再验一次统一门禁 */
     const mgReg = await checkPasskeyMgmt(request, env, pkClass, 'register');
     if (!mgReg.ok) {
@@ -577,7 +577,7 @@ async function handlePost(context) {
      调用方必须显式传 pkClass（'lock'；'owner' 一律 403，只在账号页管理）。 */
   if (action === 'list') {
     const pkClass = body && body.pkClass;
-    if (pkClass !== PK_CLASS_OWNER && pkClass !== PK_CLASS_LOCK) {
+    if (pkClass !== PK_CLASS_ACCOUNT && pkClass !== PK_CLASS_LOCK) {
       return Response.json({ ok: false, error: 'params' }, { status: 400 });
     }
     const mg = await checkPasskeyMgmt(request, env, pkClass, 'list');
@@ -661,13 +661,13 @@ async function handlePost(context) {
       const lockKeys = keys.filter(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK; });
       /* 删后锁屏凭证归零：无锁屏密码且只剩这一把 lock 钥匙 */
       if (!hasLockPw && lockKeys.length <= 1) {
-        let ownerCfg = true;
+        let accountCfg = true;
         try {
-          ownerCfg = await isOwnerEffectivelyConfigured(kv);
+          accountCfg = await isAccountEffectivelyConfigured(kv);
         } catch (e) {
-          ownerCfg = true;
+          accountCfg = true;
         }
-        if (!ownerCfg) {
+        if (!accountCfg) {
           return Response.json({ ok: false, error: 'last-key' }, { status: 403 });
         }
       }
@@ -691,9 +691,9 @@ async function handlePost(context) {
       let hasLockPw = false;
       try { const r = await kv.get(REALM_LOCK.kv.password, 'json'); hasLockPw = !!(r && r.hash); } catch (e) {}
       if (!hasLockKey && !hasLockPw) {
-        let ownerCfg = true;
-        try { ownerCfg = await isOwnerEffectivelyConfigured(kv); } catch (e) { ownerCfg = true; }
-        if (!ownerCfg) {
+        let accountCfg = true;
+        try { accountCfg = await isAccountEffectivelyConfigured(kv); } catch (e) { accountCfg = true; }
+        if (!accountCfg) {
           try {
             await clearLayerConfigured(kv, LAYER_LOCK);
           } catch (e) {

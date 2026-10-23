@@ -13,6 +13,7 @@
  */
 import { b64urlToBuf, bufToB64url } from './b64.js';
 import { renderCredRows, CRED_ICONS } from './cred-rows.js';
+import { KEY_ACCOUNT } from './key-names.js';
 import { ACCOUNT_API, postJSON, errText as errTextT } from './account-api.js';
 import { deviceHints } from './device-hints.js';
 
@@ -133,13 +134,14 @@ export function accountSubmitters(t, opts) {
  * @param {string[]} o.kinds visibleKinds() 的结果
  * @param {{passkey:Function, password:Function, root?:Function}} o.submit accountSubmitters() 的结果（锁屏凭证的门另给 root）
  * @param {Function} o.onSuccess
+ * @param {string} [o.pmUser] 密码行的隐藏用户名（默认 AccountKey；锁屏凭证的门传 LockKey）
  * @returns {{collapse: Function}}
  */
 export function renderAccountMethods(o) {
   const t = o.t;
   const defs = {
     passkey: { kind: 'passkey', field: 'webauthn', icon: CRED_ICONS.passkey, title: t('mPasskey'), sub: t('mPasskeySub'), submit: o.submit.passkey },
-    password: { kind: 'password', field: 'password', icon: CRED_ICONS.password, title: t('mPassword'), sub: t('mPasswordSub'), submit: o.submit.password },
+    password: { kind: 'password', field: 'password', icon: CRED_ICONS.password, title: t('mPassword'), sub: t('mPasswordSub'), submit: o.submit.password, pmUser: o.pmUser || KEY_ACCOUNT },
     /* 只给锁屏凭证的门用（security-lock.js 的 kinds 带 root、submit 带 root）；账号页不再有根凭证行 */
     root: o.submit.root ? { kind: 'root', field: 'root', icon: CRED_ICONS.root, title: t('mRoot'), sub: t('mRootSub'), submit: o.submit.root } : null,
   };

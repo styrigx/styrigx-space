@@ -18,6 +18,7 @@ import { api, apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown
 import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
 import { bindDataEyes, createSetPwDialog, newPwError, pwSetRequest, lockDoorFetch } from '../lib/auth-flow.js';
 import { renderAccountMethods } from '../lib/account-methods.js';
+import { KEY_LOCK } from '../lib/key-names.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -665,7 +666,7 @@ import { renderAccountMethods } from '../lib/account-methods.js';
                 rp: { name: rp.name || 'Styrigx', id: rpId },
                 user: {
                   id: b64urlToBuf(user.id),
-                  name: user.name || 'lockkey',
+                  name: user.name || KEY_LOCK,
                   displayName: user.displayName || 'Sloan Gray',
                 },
                 pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
@@ -880,6 +881,7 @@ import { renderAccountMethods } from '../lib/account-methods.js';
       en: en,
       kinds: kinds,
       submit: doorSubmit,
+      pmUser: KEY_LOCK,
       onSuccess: function () { probe(); },
     });
     if (doorNotice) {

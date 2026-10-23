@@ -42,12 +42,12 @@ async function handleGet(context) {
   } catch (e) {}
 
   try {
-    const ownerCfg = await isLayerConfigured(kv, LAYER_OWNER);
+    const accountCfg = await isLayerConfigured(kv, LAYER_OWNER);
     const lockCfg = await isLayerConfigured(kv, LAYER_LOCK);
     return Response.json({
       ok: true,
       layers: {
-        owner: ownerCfg ? 'configured' : 'takeover',
+        owner: accountCfg ? 'configured' : 'takeover',
         lock: lockCfg ? 'configured' : 'takeover',
       },
     });

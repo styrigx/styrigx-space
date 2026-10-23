@@ -42,7 +42,7 @@ import {
   isLayerConfigured,
   setLayerConfigured,
   clearLayerConfigured,
-  isOwnerEffectivelyConfigured,
+  isAccountEffectivelyConfigured,
   LAYER_LOCK,
 } from '../_kernel/layers.js';
 import { getPasskeys, PK_CLASS_LOCK } from './owner-passkey.js';
@@ -271,13 +271,13 @@ async function handlePost(context) {
           lockKeys = keys.filter(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK; });
         } catch (e) {}
         if (lockKeys.length === 0) {
-          let ownerCfg = true;
+          let accountCfg = true;
           try {
-            ownerCfg = await isOwnerEffectivelyConfigured(kv);
+            accountCfg = await isAccountEffectivelyConfigured(kv);
           } catch (e) {
-            ownerCfg = true;
+            accountCfg = true;
           }
-          if (!ownerCfg) {
+          if (!accountCfg) {
             return Response.json({ ok: false, error: 'last-key' }, { status: 403 });
           }
         }
@@ -306,9 +306,9 @@ async function handlePost(context) {
             /* A-2：删光 lock 凭证且 owner 已配置 → 保留 layer:lock 不清；
                owner 未配置时（竞态）按旧逻辑清 layer:lock。
                layer:lock-emptied 是 B #10 的键，A-2 不读不写。 */
-            let ownerCfg = true;
-            try { ownerCfg = await isOwnerEffectivelyConfigured(kv); } catch (e) { ownerCfg = true; }
-            if (!ownerCfg) {
+            let accountCfg = true;
+            try { accountCfg = await isAccountEffectivelyConfigured(kv); } catch (e) { accountCfg = true; }
+            if (!accountCfg) {
               try {
                 await clearLayerConfigured(kv, LAYER_LOCK);
               } catch (e) {

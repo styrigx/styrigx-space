@@ -576,7 +576,7 @@ test.describe('PR3 锁屏：无法登录？→ 弹层原地切到重置登录', 
     await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible();
     await expect(page.locator('#sgx-reset-title')).toHaveText('重置登录');
     await expect(page.locator('#sgx-mopt-visitor')).toHaveCount(0);
-    await expect(page.locator('.sgx-reset input[autocomplete="username"]')).toHaveValue('root');
+    await expect(page.locator('.sgx-reset input[autocomplete="username"]')).toHaveValue('RootKey');
     await page.fill('#sgx-reset-root', 'root-key');
     await page.click('#sgx-reset-go');
     await expect(page.locator('.sgx-reset[data-step="owner"]')).toBeVisible();
