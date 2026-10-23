@@ -257,3 +257,24 @@ test('R5 对照：站长没有账号会话 → 只出登录区（欢迎回来）
   await page.waitForTimeout(800);
   expect(await page.evaluate(() => window.__sawMain)).toBe(false);
 });
+
+test('R7 账号 Worker（2026-10-24 拆出来）：头像 / 数字健康 / 云同步走 styrigx-account，页面和其他接口仍走网关', async ({ page, context }) => {
+  edge.log.length = 0;
+  /* 锁着：锁屏头像照常出来（公开），由账号 Worker 回 */
+  await page.goto(MAIN + '/');
+  await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
+  const av = await page.evaluate(() => fetch('/avatar/96.webp', { cache: 'no-store' }).then((r) => [r.status, r.headers.get('x-sgx-runtime'), r.headers.get('etag')]));
+  expect(av).toEqual([200, 'account', '"d-96"']);
+  const anon = await page.evaluate(() => fetch('/api/wellbeing', { cache: 'no-store' }).then((r) => r.status));
+  expect(anon).toBe(401);
+  /* 站长：数字健康可读，云同步没登账号 → 401 account；接口地址不变 */
+  await setSession(context, 'owner');
+  await page.goto(MAIN + '/settings/wellbeing/');
+  const wb = await page.evaluate(() => fetch('/api/wellbeing?d=2026-10-24', { cache: 'no-store' }).then((r) => r.json().then((j) => [r.status, j.ok])));
+  expect(wb).toEqual([200, true]);
+  const pr = await page.evaluate(() => fetch('/api/prefs', { cache: 'no-store' }).then((r) => r.json().then((j) => [r.status, j.error])));
+  expect(pr).toEqual([401, 'account']);
+  const by = (re) => edge.log.filter((l) => re.test(new URL(l[2]).pathname)).map((l) => l[0]);
+  expect(new Set(by(/^\/(avatar\/|api\/(wellbeing|prefs|avatar))/))).toEqual(new Set(['account']));
+  expect(new Set(by(/^\/(settings\/wellbeing\/|api\/session-check)$/))).toEqual(new Set(['worker']));
+});

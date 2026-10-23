@@ -46,7 +46,7 @@ function makeKv() {
 const store = (v) => ({ get: async () => v });
 function baseEnv() {
   const kv = makeKv();
-  return { SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, KV_PROFILE: makeKv() };
+  return { SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv };
 }
 const CTX = { waitUntil() {} };
 
@@ -289,12 +289,18 @@ test('一致性：GET /api/session-check 无会话 / 访客 / 主人', async () 
 
 test('一致性：访客调主人接口 / 无会话调非白名单接口', async () => {
   await same((h) => new Request('https://styrigx.com/api/lock-all-devices', { method: 'POST', headers: { ...h, 'Content-Type': 'application/json' }, body: '{}' }), 'visitor');
-  await same((h) => new Request('https://styrigx.com/api/wellbeing', { headers: h }));
+  await same((h) => new Request('https://styrigx.com/api/geo-nope', { headers: h }));
 });
 
-test('一致性：PUT /api/avatar 访客 → 403', async () => {
-  const res = await same((h) => new Request('https://styrigx.com/api/avatar', { method: 'PUT', headers: { ...h, Origin: 'https://styrigx.com' }, body: new FormData() }), 'visitor');
-  assert.equal(res.status, 403);
+test('头像 / 云同步 / 数字健康已搬到账号 Worker：网关路由表里没有，有会话打过来 → 404', async () => {
+  for (const p of ['/api/avatar', '/api/prefs', '/api/wellbeing']) assert.equal(API_ROUTES.has(p), false, p);
+  _resetSecretCache();
+  const env = baseEnv();
+  const ck = 'sgx-verified=' + (await signRole(signSessionCookie, PRIV, 0, 'owner', 'owner'));
+  for (const p of ['/api/avatar', '/api/prefs', '/api/wellbeing']) {
+    const res = await worker.fetch(new Request('https://styrigx.com' + p, { headers: { Cookie: ck } }), env, CTX);
+    assert.equal(res.status, 404, p);
+  }
 });
 
 /* ---- Pages 只放静态文件：后端代码全在网关 ---- */
@@ -332,32 +338,17 @@ test('Pages 静态 _worker.js：pages.dev 地址 301 到 styrigx.com，styrigx.c
   assert.deepEqual(seen, ['https://styrigx.com/css/main.css']);
 });
 
-test('头像：未登录也能拿；没上传过 → 回源取静态默认图，ETag 是 d-<尺寸>', async () => {
+test('头像 /avatar/<尺寸>.webp 进了网关（只有预览会这样，线上归账号 Worker）：未登录放行、原样回源静态默认图', async () => {
   _resetSecretCache();
   await withOrigin('IMG', async (calls) => {
     const res = await worker.fetch(new Request('https://styrigx.com/avatar/96.webp'), baseEnv(), CTX);
     assert.equal(res.status, 200);
-    assert.equal(res.headers.get('ETag'), '"d-96"');
     assert.equal(res.headers.get('X-SGX-Runtime'), 'worker');
     assert.equal(await res.text(), 'IMG');
     assert.equal(calls.length, 1);
     assert.equal(new URL(calls[0].url).pathname, '/avatar/96.webp');
-  });
-});
-
-test('头像：上传过 → 读 KV，不回源；不认识的尺寸未登录 → 锁屏（与 Pages 时一致）', async () => {
-  _resetSecretCache();
-  const env = baseEnv();
-  env.KV_PROFILE.m.set('avatar:ver', 'v7');
-  env.KV_PROFILE.m.set('avatar:192', new Uint8Array([1, 2, 3]).buffer);
-  await withOrigin('IMG', async (calls) => {
-    const res = await worker.fetch(new Request('https://styrigx.com/avatar/192.webp'), env, CTX);
-    assert.equal(res.status, 200);
-    assert.equal(res.headers.get('ETag'), '"v7-192"');
-    assert.equal((await res.arrayBuffer()).byteLength, 3);
-    const bad = await worker.fetch(new Request('https://styrigx.com/avatar/100.webp'), env, CTX);
+    const bad = await worker.fetch(new Request('https://styrigx.com/avatar/100.webp'), baseEnv(), CTX);
     assert.equal(bad.status, 302);
-    assert.equal(calls.length, 0);
   });
 });
 
@@ -373,8 +364,7 @@ test('预览（作为 Pages 的 _worker.js 运行，有 env.ASSETS）：页面�
     const page = await worker.fetch(new Request('https://passkey-e2e.styrigx-space.pages.dev/settings/'), env, CTX);
     assert.equal(page.status, 200);
     const av = await worker.fetch(new Request('https://passkey-e2e.styrigx-space.pages.dev/avatar/32.webp'), env, CTX);
-    assert.equal(av.status, 200);
-    assert.equal(av.headers.get('ETag'), '"d-32"');
+    assert.equal(av.status, 200); /* 预览没有账号 Worker：头像就是静态默认图 */
     assert.deepEqual(seen, ['/settings/', '/avatar/32.webp']);
     assert.equal(calls.length, 0);
   });

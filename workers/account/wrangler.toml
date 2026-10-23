@@ -1,0 +1,95 @@
+# styrigx-account：账号数据 Worker（CI 部署；2026-10-24 从鉴权网关 styrigx-auth-gateway 拆出来）
+#
+# 管站长账号名下的三样数据：头像（KV_PROFILE）、设置云同步（KV_SETTINGS_SYNC，含主题等外观设置）、数字健康（D1_WELLBEING）。
+# 代码：src/（入口 index.js、门 gate.js、会话 auth.js、接口 api/、公共 lib/）+ migrations/（D1 styrigx-account）。
+#
+# 安全：
+# - 不持任何钥匙、不绑认证库（styrigx-auth-gateway 的 KV/D1）。会话全部问网关：服务绑定 AUTH → SessionVerifier（RPC），
+#   和这些接口还在网关里时是同一套验签代码（verifySessionDetailed / verifyAccountCookie）。
+# - workers_dev = false、preview_urls = false：不开 *.workers.dev 和预览地址（它连的是正式 KV/D1，只许经 styrigx.com 的路由进来）。
+# - SGX_ENV = "production"：门（src/gate.js）按生产规则执行，同网关 middleware。
+
+name = "styrigx-account"
+main = "src/index.js"
+compatibility_date = "2026-10-09"
+workers_dev = false
+preview_urls = false
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+# 路由：本 Worker 只接这几条路径，比网关的 styrigx.com/* 更具体，所以先命中这里（前端地址不变）。
+# 都用结尾 *：Cloudflare 不带 * 的规则遇到查询串不命中（/api/wellbeing?d=…、/avatar/192.webp?v=… 都带查询串），见 scripts/lib/cf-routes.mjs。
+# scripts/check-worker-routes.mjs 在 CI 里核对：这几条路径归本 Worker，网关的接口一条都没被抢走，页面仍归网关。
+# 注意：删掉这里的路由 = 请求回到网关，网关已经没有这几个接口（/api/* 404、头像落到静态默认图），不能靠删路由回滚。
+[[routes]]
+pattern = "styrigx.com/api/avatar*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "styrigx.com/api/prefs*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "styrigx.com/api/wellbeing*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "styrigx.com/avatar/*"
+zone_name = "styrigx.com"
+
+[vars]
+SGX_ENV = "production"
+
+# ---- 服务绑定：会话问网关 ----
+# styrigx-auth-gateway 的 SessionVerifier（src/rpc.js：session() 锁屏会话、account() 账号会话）。
+# 部署顺序：deploy.yml 里 deploy-account-worker 在 deploy-auth-worker 之后（要先有带 account() 的网关）。
+[[services]]
+binding = "AUTH"
+service = "styrigx-auth-gateway"
+entrypoint = "SessionVerifier"
+
+# ---- 数据绑定（正式）----
+# 账号资料库 KV styrigx-account：KV_PROFILE = 头像（avatar:*）；KV_SETTINGS_SYNC = 云同步（account-prefs）。一个库两套数据，id 相同。
+[[kv_namespaces]]
+binding = "KV_PROFILE"
+id = "b20701f5f48e498e897bc6f0bd81643f"
+
+[[kv_namespaces]]
+binding = "KV_SETTINGS_SYNC"
+id = "b20701f5f48e498e897bc6f0bd81643f"
+
+# D1 styrigx-account：D1_WELLBEING = wb_daily（migrations/0001_wellbeing.sql）。
+[[d1_databases]]
+binding = "D1_WELLBEING"
+database_name = "styrigx-account"
+database_id = "03f60d23-9c2f-4f3d-a692-764ccaac6f5d"
+migrations_dir = "migrations"
+
+# ---- preview 环境（还没有部署它的 CI job；先把预览库登记好，以后给预览测试用）----
+# 绝不指向正式库。routes = [] 必须写：routes 会从顶层继承，不写的话预览 Worker 会去抢正式路由。
+[env.preview]
+name = "styrigx-account-preview"
+workers_dev = false
+preview_urls = false
+routes = []
+
+[env.preview.vars]
+SGX_ENV = "preview"
+
+[[env.preview.kv_namespaces]]
+binding = "KV_PROFILE"
+id = "a5ee2a75f00d4308959b2bea55247ff6"
+
+[[env.preview.kv_namespaces]]
+binding = "KV_SETTINGS_SYNC"
+id = "a5ee2a75f00d4308959b2bea55247ff6"
+
+# TODO(Cloudflare)：预览 D1 styrigx-account-preview 还没建。建好后把下面四行取消注释，把 database_id 换成真实 id。
+# 在那之前不登记（不编 id）；预览 Worker 没有 D1_WELLBEING 时数字健康 POST 204、GET 返回空（src/api/wellbeing.js）。
+# [[env.preview.d1_databases]]
+# binding = "D1_WELLBEING"
+# database_name = "styrigx-account-preview"
+# database_id = "<PLACEHOLDER: styrigx-account-preview 的 database_id>"
+# migrations_dir = "migrations"

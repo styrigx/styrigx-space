@@ -1,5 +1,5 @@
 /**
- * 全站搜索 /api/search（网关这一侧，2026-10-22）+ 头像只存 KV_PROFILE（不读锁屏库）。
+ * 全站搜索 /api/search（网关这一侧，2026-10-22）。头像只存 KV_PROFILE 的测试随头像搬到 tests/workers/account/。
  * 运行：node --test tests/workers/auth-gateway/search-api.test.mjs
  */
 import { signRole } from './_tk.mjs';
@@ -179,29 +179,6 @@ test('子站 /api/search 也走网关：blog 上没会话 401、有会话转发'
   assert.equal(log[0].role, 'visitor');
   r = await handleSubsite(new Request('https://blog.styrigx.com/api/search?q=a', { method: 'POST', headers: { Cookie: 'sgx-verified=' + await visitorSess() } }), env, origin);
   assert.equal(r.status, 405);
-});
-
-test('头像：只读 KV_PROFILE；锁屏库（KV_LOCK_DOOR）里有 avatar:* 也不读，没绑 KV_PROFILE → 默认图', async () => {
-  const mod = await import(KERNEL + 'avatar.js');
-  const { avatarKv, KEY_VER, keyOf } = mod;
-  assert.equal('legacyAvatarKv' in mod, false);
-  const lockKv = makeKV({ [KEY_VER]: 'v0' });
-  const profileKv = makeKV({ [KEY_VER]: 'v1' });
-  const env = { KV_LOCK_DOOR: lockKv, KV_ACCOUNT_LOGIN: lockKv, KV_PROFILE: profileKv };
-  assert.equal(avatarKv(env), profileKv);
-  assert.equal(avatarKv({ KV_LOCK_DOOR: lockKv, KV_ACCOUNT_LOGIN: lockKv }), null);
-  const m = await import(API + '../avatar/[file].js');
-  const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
-  profileKv.getWithMetadata = async (k) => (k === keyOf(96) ? { value: png.buffer, metadata: { type: 'image/png' } } : { value: null, metadata: null });
-  lockKv.getWithMetadata = async () => { throw new Error('不该读锁屏库'); };
-  const r = await m.onRequestGet({ request: new Request('https://styrigx.com/avatar/96.webp'), env, params: { file: '96.webp' } });
-  assert.equal(r.status, 200);
-  assert.equal(r.headers.get('ETag'), '"v1-96"');
-  assert.equal(r.headers.get('Content-Type'), 'image/png');
-  const assets = { fetch: async () => new Response('D', { status: 200 }) };
-  const d = await m.onRequestGet({ request: new Request('https://styrigx.com/avatar/96.webp'), env: { KV_LOCK_DOOR: lockKv, ASSETS: assets }, params: { file: '96.webp' } });
-  assert.equal(d.status, 200);
-  assert.equal(d.headers.get('ETag'), '"d-96"');
 });
 
 /* ---- 站点监测 /api/status（2026-10-22）：同样是网关只做门，转给 styrigx-status ---- */

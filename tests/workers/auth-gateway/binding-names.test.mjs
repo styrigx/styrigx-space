@@ -18,21 +18,36 @@ function bindings(toml) {
   return out;
 }
 
-const AUTH = ['KV_LOCK_DOOR', 'KV_ACCOUNT_LOGIN', 'KV_PROFILE', 'KV_SETTINGS_SYNC', 'D1_LOCK_RESET', 'D1_WELLBEING'];
+const AUTH = ['KV_LOCK_DOOR', 'KV_ACCOUNT_LOGIN', 'D1_LOCK_RESET'];
+/* 2026-10-24 起在账号 Worker styrigx-account（workers/account），网关和 Pages 预览都不再绑定 */
+const ACCOUNT = ['KV_PROFILE', 'KV_SETTINGS_SYNC', 'D1_WELLBEING'];
 const OLD = /\b(OWNER_KV|ACCOUNT_KV|SGX_D1|SEARCH_KV|STATUS_DB)\b|"CF_USAGE_TOKEN"/;
 
-test('鉴权网关正式 / 预览：六个绑定名齐全、同一资源的两个名字 id 相同', () => {
+test('鉴权网关正式 / 预览：三个绑定名齐全、同一资源的两个名字 id 相同；不再绑账号库', () => {
   for (const p of ['workers/auth-gateway/wrangler.toml', 'web/wrangler.toml']) {
     const toml = read(p);
     assert.doesNotMatch(toml, OLD, p);
     const m = bindings(toml);
     for (const n of AUTH) assert.ok(m[n], p + ' 缺 ' + n);
+    for (const n of ACCOUNT) assert.equal(m[n], undefined, p + ' 不该再绑 ' + n);
     assert.equal(m.KV_LOCK_DOOR, m.KV_ACCOUNT_LOGIN, p);
-    assert.equal(m.KV_PROFILE, m.KV_SETTINGS_SYNC, p);
-    assert.notEqual(m.KV_LOCK_DOOR, m.KV_PROFILE, p);
-    assert.equal(m.D1_LOCK_RESET, m.D1_WELLBEING, p);
     assert.equal((toml.match(/^migrations_dir = /gm) || []).length, 1, p + '：migrations_dir 只配一次');
   }
+});
+
+test('账号 Worker 正式 / 预览：KV_PROFILE = KV_SETTINGS_SYNC（同一个库），不碰认证库', () => {
+  const toml = read('workers/account/wrangler.toml');
+  assert.doesNotMatch(toml, OLD);
+  const [prod, preview] = toml.split(/^\[env\.preview\]$/m);
+  const m = bindings(prod);
+  for (const n of ACCOUNT) assert.ok(m[n], '缺 ' + n);
+  assert.equal(m.KV_PROFILE, m.KV_SETTINGS_SYNC);
+  assert.equal(m.KV_PROFILE, 'b20701f5f48e498e897bc6f0bd81643f');
+  assert.equal(m.D1_WELLBEING, '03f60d23-9c2f-4f3d-a692-764ccaac6f5d');
+  for (const n of AUTH) assert.equal(m[n], undefined, '账号 Worker 不该绑 ' + n);
+  const pm = bindings(preview);
+  assert.equal(pm.KV_PROFILE, 'a5ee2a75f00d4308959b2bea55247ff6');
+  assert.equal(pm.KV_PROFILE, pm.KV_SETTINGS_SYNC);
 });
 
 test('搜索 / 监测：KV_SEARCH_INDEX、D1_UPTIME_MONITOR + D1_CLOUDFLARE_USAGE、SGX_CF_USAGE_TOKEN', () => {

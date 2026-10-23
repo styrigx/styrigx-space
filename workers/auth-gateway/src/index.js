@@ -1,7 +1,9 @@
 /**
  * @fileoverview styrigx-auth-gateway：主站鉴权 Worker 入口。
  *
- * 承接 styrigx.com 整站（路由 styrigx.com/*，见 wrangler.toml）：/api/*、/avatar/*、全部页面；
+ * 承接 styrigx.com 整站（路由 styrigx.com/*，见 wrangler.toml）：/api/*、全部页面；
+ * 头像 / 云同步 / 数字健康（/api/avatar*、/avatar/*、/api/prefs*、/api/wellbeing*）2026-10-24 起由账号 Worker styrigx-account
+ * 的更具体路由承接（workers/account），不进这里；passkey-e2e 预览里 /avatar/<尺寸>.webp 落到静态默认图。
  * 静态资源目录（MAIN_STATIC_PREFIXES）第一行就原样回源，不验会话、不改响应。
  * 子站（blog.styrigx.com、daymark.styrigx.com、curio.styrigx.com）的页面会话检查也在这里（src/subsites.js），子站 Pages 不持钥匙。
  * 主站的后端代码只在这里（workers/auth-gateway/functions/），Pages 只放静态文件：
@@ -9,7 +11,6 @@
  *   2. 先跑 functions/_middleware.js（会话、角色、白名单、no-store、锁屏瘦身）
  *   3. middleware 放行后：
  *      - /api/*：按路由表交给 functions/api/<名字>.js
- *      - /avatar/<尺寸>.webp：functions/avatar/[file].js（主人上传的头像在 KV，没有就用静态默认图）
  *      - 其他（页面）：回源取静态文件
  *
  * 回源：生产上发子请求到同一地址（Worker 发往自己路由的子请求不会再进 Worker，直接到 Pages）；
@@ -18,7 +19,6 @@
  * 静态资源（/css/ /js/ /fonts/ /fav/）不挂路由，不过 Worker。
  */
 import { onRequest as middleware } from '../functions/_middleware.js';
-import * as avatarFile from '../functions/avatar/[file].js';
 import { API_ROUTES } from './routes.js';
 import { resolveSecrets } from './secrets.js';
 import { subsiteFor, handleSubsite, isStaticAsset as isSubsiteStaticAsset } from './subsites.js';
@@ -82,9 +82,6 @@ async function dispatch(request, env, ctx) {
   return handler(makeContext(request, env, ctx, key, () => json(404, { ok: false, error: 'not-found' })));
 }
 
-/** /avatar/<文件名>（不认识的尺寸由处理函数回 404） */
-export const AVATAR_PATH_RE = /^\/avatar\/([^/]+)$/;
-
 /**
  * 回源取静态文件。有 env.ASSETS（预览里作为 Pages 的 _worker.js 运行）就直接读；
  * 否则（生产）发子请求到同一地址，由 Pages 回静态文件。
@@ -97,26 +94,10 @@ export function fromOrigin(req, env) {
   return fetch(new Request(req, { redirect: 'manual' }));
 }
 
-/** 头像的默认图要读静态文件（Pages 上的写法是 env.ASSETS.fetch）；生产没有 ASSETS，换成回源 */
-function withAssets(env) {
-  if (env.ASSETS && typeof env.ASSETS.fetch === 'function') return env;
-  return Object.assign({}, env, {
-    ASSETS: { fetch: (input, init) => fromOrigin(new Request(input, init)) },
-  });
-}
-
 /** middleware 放行后的去向 */
 export async function route(request, env, ctx) {
   const url = new URL(request.url);
   if (url.pathname.startsWith('/api/')) return dispatch(request, env, ctx);
-  const m = AVATAR_PATH_RE.exec(url.pathname);
-  if (m) {
-    const handler = pickHandler(avatarFile, request.method);
-    if (!handler) return fromOrigin(request, env); /* 只有 GET 有处理函数，其他方法照 Pages 的规则落到静态文件 */
-    const c = makeContext(request, withAssets(env), ctx, '/avatar/[file]', () => fromOrigin(request, env));
-    c.params = { file: m[1] };
-    return handler(c);
-  }
   return fromOrigin(request, env);
 }
 

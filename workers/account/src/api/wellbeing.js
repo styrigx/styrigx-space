@@ -15,9 +15,10 @@
  *   - 书名 / 文章名只返回给 owner；visitor 只拿到区域合计
  *   - 返回 {ok, d, total, sections:[{k,sec}], items:[{k,t,sec}]}
  *
- * 不涉及任何密钥 / 会话签发；未绑定 D1_WELLBEING（本地 / preview）时 POST 204、GET 返回空。
+ * 不涉及任何密钥 / 会话签发；未绑定 D1_WELLBEING（本地）时 POST 204、GET 返回空。
+ * 2026-10-24 起在账号 Worker styrigx-account（D1 styrigx-account，迁移在 workers/account/migrations/）。
  */
-import { verifySessionDetailed } from '../_middleware.js';
+import { ROLE_OWNER } from '../auth.js';
 
 const KEY_RE = /^(home|files|browser|settings|book|blog)$|^(book|post):[A-Za-z0-9_\-./%]{1,80}$/;
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -108,9 +109,9 @@ const NO_STORE = { 'Cache-Control': 'private, no-store' };
 /** @param {any} context */
 export async function onRequestPost(context) {
   const { request, env } = context;
-  const sess = await verifySessionDetailed(request, env);
+  const sess = await context.auth.session(); /* 网关 SessionVerifier 验（src/auth.js） */
   if (!sess.ok) return new Response(null, { status: 401, headers: NO_STORE });
-  if (sess.role !== 'owner') return new Response(null, { status: 204, headers: NO_STORE });
+  if (sess.role !== ROLE_OWNER) return new Response(null, { status: 204, headers: NO_STORE });
   const db = env && env.D1_WELLBEING;
   if (!db) return new Response(null, { status: 204, headers: NO_STORE });
   const raw = await request.text();
@@ -146,7 +147,7 @@ export async function onRequestPost(context) {
 /** @param {any} context */
 export async function onRequestGet(context) {
   const { request, env } = context;
-  const sess = await verifySessionDetailed(request, env);
+  const sess = await context.auth.session(); /* 网关 SessionVerifier 验（src/auth.js） */
   if (!sess.ok) return Response.json({ ok: false }, { status: 401, headers: NO_STORE });
   const url = new URL(request.url);
   const qd = url.searchParams.get('d') || '';
@@ -157,7 +158,7 @@ export async function onRequestGet(context) {
   try {
     await db.prepare(SCHEMA).run();
     const { results } = await db.prepare('SELECT k, t, sec FROM wb_daily WHERE day = ?1').bind(d).all();
-    const sum = summarize(/** @type {any[]} */ (results || []), sess.role === 'owner');
+    const sum = summarize(/** @type {any[]} */ (results || []), sess.role === ROLE_OWNER);
     return Response.json({ ok: true, d, ...sum }, { headers: NO_STORE });
   } catch (e) {
     console.error('[api/wellbeing] d1 error', e && /** @type {any} */ (e).message);

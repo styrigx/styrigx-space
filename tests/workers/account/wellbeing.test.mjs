@@ -1,9 +1,14 @@
 /**
  * B2-7 网站数字健康：接口校验 / 汇总、计时器拆包、区域映射、时长格式。
+ * 接口 2026-10-24 搬到账号 Worker styrigx-account（workers/account/src/api/wellbeing.js）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseReport, summarize, dayOk, sectionOf, onRequestPost, onRequestGet } from '../../../workers/auth-gateway/functions/api/wellbeing.js';
+import { parseReport, summarize, dayOk, sectionOf, onRequestPost as rawPost, onRequestGet as rawGet } from '../../../workers/account/src/api/wellbeing.js';
+import { wrap } from './_auth.mjs';
+
+const onRequestPost = wrap(rawPost);
+const onRequestGet = wrap(rawGet);
 import { buildBody, localDay } from '../../../web/assets/js/lib/wb-track.js';
 import { wbAreaOf } from '../../../web/assets/js/lib/wb-area.js';
 import { fmtDur } from '../../../web/assets/js/lib/wb-view.js';

@@ -4,11 +4,12 @@
  * - 浏览器经本地 HTTP 代理（CONNECT）访问真实域名 https://styrigx.com、https://blog.styrigx.com、
  *   https://daymark.styrigx.com；代理把 TLS 接到本机 HTTPS 服务（临时自签证书，
  *   Chromium 用 --ignore-certificate-errors-spki-list 信任它，页面是正常安全上下文，WebAuthn 可用）。
- * - 路由按 workers/auth-gateway/wrangler.toml 的 [[routes]]，用 scripts/lib/cf-routes.mjs
- *   （线上实测的匹配规则：不带 * 的规则遇到查询串不命中）决定这次请求走网关还是直达 Pages。
+ * - 路由按 workers/auth-gateway/wrangler.toml 和 workers/account/wrangler.toml 的 [[routes]]，用 scripts/lib/cf-routes.mjs
+ *   （线上实测的匹配规则：不带 * 的规则遇到查询串不命中；多条命中取最具体的）决定这次请求走网关、账号 Worker 还是直达 Pages。
  *   这样「路由表漏了某种 URL」在本地也能复现，不再被 http-server + page.route 的 mock 掩盖。
  * - 网关 = 仓库里真实的 workers/auth-gateway/src/index.js（真实验签、epoch、Set-Cookie 属性），
- *   env 用临时 Ed25519 钥匙 + 内存 KV；Pages = web/public（主站，Cache-Control 照 _headers 的 /*）
+ *   env 用临时 Ed25519 钥匙 + 内存 KV；账号 Worker = workers/account/src/index.js（头像 / 云同步 / 数字健康），
+ *   服务绑定 AUTH 接到网关真实的 verifier.js（SessionVerifier RPC 里跑的同一份代码）；Pages = web/public（主站，Cache-Control 照 _headers 的 /*）
  *   和两个子站的固定页面。
  * - 访客进入用临时 LockKey：seedTempKey() 在 KV 里签发一把，返回临时码（2026-10-23 取代 Turnstile）。
  * - seedPasskey()：在 KV 里登记一把锁屏通行密钥，返回 CDP WebAuthn.addCredential 用的参数。
@@ -127,7 +128,11 @@ function pagesFor(req) {
 async function startEdge() {
   const { readRoutes, pickRoute } = await dynImport(pathToFileURL(path.join(__dirname, '..', '..', '..', 'scripts/lib/cf-routes.mjs')).href);
   const routes = readRoutes(fs.readFileSync(path.join(REPO, 'workers/auth-gateway/wrangler.toml'), 'utf8'));
+  const accountRoutes = readRoutes(fs.readFileSync(path.join(REPO, 'workers/account/wrangler.toml'), 'utf8'));
+  const allRoutes = routes.concat(accountRoutes);
   const gateway = (await mod('workers/auth-gateway/src/index.js')).default;
+  const account = (await mod('workers/account/src/index.js')).default;
+  const verifier = await mod('workers/auth-gateway/src/verifier.js');
   const sessMod = await mod('workers/auth-gateway/functions/_kernel/session.js');
   const tempMod = await mod('workers/auth-gateway/functions/_kernel/temp-lock.js');
 
@@ -138,11 +143,22 @@ async function startEdge() {
   const env = {
     SGX_ENV: 'production', SGX_SITE: 'space', SGX_ORIGIN: 'https://styrigx.com', SGX_RP_ID: 'styrigx.com',
     KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
-    KV_PROFILE: kv, KV_SETTINGS_SYNC: kv, /* 正式是另一个库（styrigx-account）；键不重叠，测试里共用一个 */
     SGX_LOCK_PRIVATE: privPem, SGX_LOCK_PUBLIC: pubPem,
     SGX_ACCOUNT_PRIVATE: privPem, SGX_ACCOUNT_PUBLIC: pubPem,
     SGX_ROOT_KEY: 'edge-test-root-key-not-a-secret', SGX_PW_PEPPER: 'edge-test-pepper',
     ASSETS: { fetch: (input, init) => pagesFor(input instanceof Request ? input : new Request(input, init)) },
+  };
+
+  /* 账号 Worker：自己的库（styrigx-account），会话问网关（同 SessionVerifier） */
+  const accountKv = makeKV();
+  const accountEnv = {
+    SGX_ENV: 'production',
+    KV_PROFILE: accountKv, KV_SETTINGS_SYNC: accountKv,
+    AUTH: {
+      session: (c) => verifier.checkSession(c, env),
+      account: (c, m) => verifier.checkAccount(c, env, m),
+    },
+    ASSETS: env.ASSETS,
   };
 
   const realFetch = globalThis.fetch;
@@ -153,10 +169,15 @@ async function startEdge() {
     const u = new URL(request.url);
     const pq = u.pathname + u.search;
     const other = pickRoute(OTHER_WORKER_ROUTES, u.hostname, pq);
-    const mine = pickRoute(routes, u.hostname, pq);
+    const mine = pickRoute(allRoutes, u.hostname, pq);
     if (other && (!mine || other.length > mine.length)) {
       log.push(['other', request.method, request.url, 404]);
       return Response.json({ ok: false, error: 'not-found' }, { status: 404 });
+    }
+    if (mine && accountRoutes.includes(mine)) {
+      const res = await account.fetch(request, accountEnv, { waitUntil() {} });
+      log.push(['account', request.method, request.url, res.status]);
+      return res;
     }
     if (mine) {
       const res = await gateway.fetch(request, env, { waitUntil() {} });
@@ -271,7 +292,7 @@ async function startEdge() {
     await new Promise((r) => proxy.close(() => r()));
   }
 
-  return { kv, env, log, close, seedPasskey, seedTempKey, mintCookie, mintTk, mintAccount };
+  return { kv, env, accountKv, accountEnv, log, close, seedPasskey, seedTempKey, mintCookie, mintTk, mintAccount };
 }
 
 module.exports = { startEdge, LAUNCH, PROXY_PORT, REPO };
