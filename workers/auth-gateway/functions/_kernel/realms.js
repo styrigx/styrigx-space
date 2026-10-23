@@ -12,10 +12,10 @@
  * - lock   会话（sgx-verified）：锁屏解锁后签发的站长/访客会话，SGX_LOCK_* 签名；
  *          锁屏凭证的门票、重置锁屏门票（sgx-door，door=lock / lockreset）也用这把钥匙签（_kernel/door.js）
  * - account 账号会话（sgx-account）：账号登录（账号通行密钥 / 账号密码 / 根凭证三选一）
- *          成功后签发，SGX_ACCOUNT_* 签名；账号凭证（accountkey：账号密码 owner-pw +
+ *          成功后签发，SGX_ACCOUNT_* 签名；账号凭证（AccountKey：账号密码 owner-pw +
  *          class=owner 通行密钥，原「站长凭证」升级而来，存储不迁移）只在账号页管理；
  *          账号 → 安全与隐私的门票（sgx-door，door=account）也用这把钥匙签
- * - root   根凭证（rootkey：SGX_ROOT_KEY）：本身不签票，验过后签发
+ * - root   根凭证（RootKey：SGX_ROOT_KEY）：本身不签票，验过后签发
  *          锁屏门票(by=root)、account 会话(by=root) 或账号门票(by=root)
  * （原二次验证票据、应用通行证两套钥匙已删除。）
  *
@@ -26,7 +26,7 @@ import {
   KEY_ROOT,
   KEY_ACCOUNT,
   KEY_LOCK,
-  STORE_CLASS_OWNERKEY,
+  STORE_CLASS_ACCOUNTKEY,
   STORE_CLASS_LOCKKEY,
   OWNER_PASSKEY_PREFIX,
 } from './key-names.js';
@@ -85,7 +85,7 @@ export const REALM_ACCOUNT = Object.freeze({
      进账号页仍要先解锁锁屏（owner lock 会话是前置条件） */
   maxAge: 34560000,
   pepper: 'SGX_PW_PEPPER',
-  storeClass: STORE_CLASS_OWNERKEY,
+  storeClass: STORE_CLASS_ACCOUNTKEY,
   bys: Object.freeze(['passkey', 'password', 'root']),
   kv: Object.freeze({
     password: 'owner-pw', /* 沿用原站长密码键（迁移：不搬数据） */
@@ -98,7 +98,7 @@ export const REALM_ACCOUNT = Object.freeze({
   }),
 });
 
-/** 根凭证（rootkey）：验过后签发门票（锁屏 / 账号，by=root）或 account 会话(by=root) */
+/** 根凭证（RootKey）：验过后签发门票（锁屏 / 账号，by=root）或 account 会话(by=root) */
 export const REALM_ROOT = Object.freeze({
   id: 'root',
   keyName: KEY_ROOT,

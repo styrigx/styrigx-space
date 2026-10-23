@@ -1,7 +1,7 @@
 /**
  * 账号体系：账号登录 + 账号页（原「站长凭证」升级为账号）。
  *
- * 账号凭证（accountkey）= 账号密码（KV owner-pw，SGX_PW_PEPPER）+ 账号通行密钥
+ * 账号凭证（AccountKey）= 账号密码（KV owner-pw，SGX_PW_PEPPER）+ 账号通行密钥
  * （KV owner-passkey:<credId12>，class='owner'）。存储沿用原站长凭证，不迁移数据，
  * 旧的站长密码/通行密钥直接就是账号密码/通行密钥（同 RP styrigx.com，不重新注册）。
  *
@@ -86,7 +86,7 @@ import {
   deletePasskey,
   getUserHandle,
   providerOf,
-  PK_CLASS_OWNER,
+  PK_CLASS_ACCOUNT,
   OWNER_DISPLAY_NAME,
 } from './owner-passkey.js';
 
@@ -96,7 +96,7 @@ const CHALLENGE_TTL = REALM_ACCOUNT.kv.challengeTtl; /* 5 分钟 */
 /** @param {any} kv */
 async function accountKeys(kv) {
   const keys = await getPasskeys(kv);
-  return keys.filter(function (k) { return k.class === PK_CLASS_OWNER; });
+  return keys.filter(function (k) { return k.class === PK_CLASS_ACCOUNT; });
 }
 
 /** @param {any} kv */
@@ -282,7 +282,7 @@ async function handlePost(context) {
     if (keys.length === 0) return json({ ok: false, error: 'not-set' }, 403);
     const stored = findStoredKey(keys, cred.rawId || '');
     if (!stored || !stored.publicKey) return json({ ok: false, error: 'unknown-key' }, 403);
-    if (stored.class !== PK_CLASS_OWNER) return json({ ok: false, error: 'class-mismatch' }, 403);
+    if (stored.class !== PK_CLASS_ACCOUNT) return json({ ok: false, error: 'class-mismatch' }, 403);
     try {
       const checked = await verifyAssertion({
         credential: cred,
@@ -297,7 +297,7 @@ async function handlePost(context) {
          早期注册的站长通行密钥），与原站长凭证规则一致 */
       const gotUh = cred.response && cred.response.userHandle;
       if (gotUh) {
-        const expectUh = await getUserHandle(kv, PK_CLASS_OWNER, '');
+        const expectUh = await getUserHandle(kv, PK_CLASS_ACCOUNT, '');
         if (expectUh && gotUh !== expectUh) {
           let legacyUh = null;
           try { legacyUh = await kv.get('owner-user-id'); } catch (e) {}
@@ -471,7 +471,7 @@ async function handlePost(context) {
 
     if (action === 'register-challenge') {
       const keys = await accountKeys(kv);
-      const userHandle = await getUserHandle(kv, PK_CLASS_OWNER, '');
+      const userHandle = await getUserHandle(kv, PK_CLASS_ACCOUNT, '');
       if (!userHandle) return json({ ok: false, error: 'server' }, 503);
       const challenge = randB64(32);
       const cid = randB64(16);
@@ -490,7 +490,7 @@ async function handlePost(context) {
         challenge: challenge,
         rpId: rp.rpId,
         rp: { id: rp.rpId, name: 'Styrigx' },
-        /* 同 handle（owner-user-id:owner），user.name=accountkey：密码管理器里显示 accountkey；
+        /* 同 handle（owner-user-id:owner），user.name=AccountKey：密码管理器里显示 AccountKey；
            已有条目由前端 signalCurrentUserDetails 改名 */
         user: { id: userHandle, name: KEY_ACCOUNT, displayName: OWNER_DISPLAY_NAME },
         excludeCredentials: keys.map(function (k) { return { id: k.credId, type: 'public-key' }; }),
@@ -537,12 +537,12 @@ async function handlePost(context) {
         publicKey: jwk,
         signCount: parsed.signCount,
         uv: 1,
-        class: PK_CLASS_OWNER,
+        class: PK_CLASS_ACCOUNT,
       };
       /* 同 credId 已存在且不是账号类 → 拒绝（不改别的类别的钥匙） */
       const all = await getPasskeys(kv);
       const dup = findStoredKey(all, credIdB64);
-      if (dup && dup.class !== PK_CLASS_OWNER) throw new Error('class');
+      if (dup && dup.class !== PK_CLASS_ACCOUNT) throw new Error('class');
       if (dup) item.createdAt = dup.createdAt || item.createdAt;
       await savePasskey(kv, item);
     } catch (e) {

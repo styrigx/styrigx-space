@@ -38,6 +38,8 @@
       <button type="button" class="sgx-door-btn sgx-door-btn-secondary acct-login-btn" id="acct-pw-btn" aria-expanded="false" aria-controls="acct-pw-form">{{ if $isEn }}Sign in with password{{ else }}密码登录{{ end }}</button>
       <div class="acct-pw-form" id="acct-pw-form" hidden>
         <div class="sgx-pw-field">
+          {{/* 隐藏用户名框：密码管理器按 AccountKey 保存 / 填充（lib/key-names.js KEY_ACCOUNT） */}}
+          <input type="text" autocomplete="username" value="AccountKey" aria-hidden="true" tabindex="-1" style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;">
           <input type="password" id="acct-pw-input" class="sgx-pw-input" autocomplete="current-password" aria-label="{{ if $isEn }}Account password{{ else }}账号密码{{ end }}" placeholder="{{ if $isEn }}Account password{{ else }}账号密码{{ end }}">
           <button type="button" class="sgx-pw-eye" id="acct-pw-eye"></button>
         </div>

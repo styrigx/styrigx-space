@@ -7,7 +7,8 @@
  * 本文件在 lib/ 层：不 import shell/ 或 apps/。
  */
 import { on } from './events.js';
-import { bindPwEye, onEnter, focusNoScroll } from './auth-flow.js';
+import { bindPwEye, onEnter, focusNoScroll, PM_USER_STYLE } from './auth-flow.js';
+import { KEY_ROOT } from './key-names.js';
 import { bindSubmitButton, tapFeedback, setRowBusy, setRowSelected } from './dialog-behavior.js';
 
 const CHEV = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>';
@@ -19,7 +20,7 @@ export const CRED_ICONS = {
 };
 
 /**
- * 根凭证输入框（全站只有这一个组件：重置登录第一步用）。隐藏用户名字段（值 root）让 Samsung Pass 能填充。
+ * 根凭证输入框（全站只有这一个组件：重置登录第一步用）。隐藏用户名字段（值 RootKey）让 Samsung Pass 能填充、按这个名字保存。
  * @param {object} o
  * @param {string} o.id 输入框 id
  * @param {string} o.placeholder
@@ -32,10 +33,10 @@ export function createRootField(o) {
   const userField = document.createElement('input');
   userField.type = 'text';
   userField.autocomplete = 'username';
-  userField.value = 'root';
+  userField.value = KEY_ROOT;
   userField.setAttribute('aria-hidden', 'true');
   userField.tabIndex = -1;
-  userField.style.cssText = 'position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;';
+  userField.style.cssText = PM_USER_STYLE;
   field.appendChild(userField);
   const input = document.createElement('input');
   input.type = 'password';
@@ -59,7 +60,7 @@ export function createRootField(o) {
  * @param {HTMLElement} o.el 容器（.sgx-door-methods）
  * @param {function(string): string} o.t
  * @param {boolean} o.en
- * @param {Array<{kind:string, field:string, icon:string, title:string, sub:string, submit:Function}>} o.defs 要画的行（按顺序）
+ * @param {Array<{kind:string, field:string, icon:string, title:string, sub:string, submit:Function, pmUser?:string}>} o.defs 要画的行（按顺序）
  *   field：webauthn（点行直接调起系统验证）| password | root（点行在行下展开输入框；root 带隐藏用户名 root）
  * @param {Function} o.onSuccess 任一入口验证通过
  * @returns {{collapse: Function}}
@@ -84,7 +85,7 @@ export function renderCredRows(o) {
   }
 
   /**
-   * @param {{kind:string, field:string, icon:string, title:string, sub:string, submit:Function}} m
+   * @param {{kind:string, field:string, icon:string, title:string, sub:string, submit:Function, pmUser?:string}} m
    */
   function renderMethod(m) {
     const wrap = document.createElement('div');
@@ -147,6 +148,17 @@ export function renderCredRows(o) {
       } else {
         field = document.createElement('div');
         field.className = 'sgx-pw-field';
+        if (m.pmUser) {
+          /* 隐藏用户名框：密码管理器按这个名字保存 / 填充（AccountKey / LockKey） */
+          const u = document.createElement('input');
+          u.type = 'text';
+          u.autocomplete = 'username';
+          u.value = m.pmUser;
+          u.setAttribute('aria-hidden', 'true');
+          u.tabIndex = -1;
+          u.style.cssText = PM_USER_STYLE;
+          field.appendChild(u);
+        }
         input = document.createElement('input');
         input.type = 'password';
         input.className = 'sgx-pw-input';

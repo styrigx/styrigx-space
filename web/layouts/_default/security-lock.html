@@ -101,6 +101,8 @@
     <div class="sheet-handle" data-pclose></div>
     <h2 id="lockpw-title" class="sgx-verify-title">{{ if $isEn }}Set unlock password{{ else }}设置解锁密码{{ end }}</h2>
     <div class="sgx-pw-field">
+      {{/* 隐藏用户名框：密码管理器按 LockKey 保存（lib/key-names.js） */}}
+      <input type="text" autocomplete="username" value="LockKey" aria-hidden="true" tabindex="-1" style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;">
       <input type="password" id="lockpw-1" class="sgx-pw-input" autocomplete="new-password"
              aria-label="{{ if $isEn }}New password{{ else }}新密码{{ end }}"
              placeholder="{{ if $isEn }}New password (min 8){{ else }}新密码（最少 8 位）{{ end }}">
@@ -188,7 +190,7 @@
   "errCancelled" (dict "zh" "已取消" "en" "Cancelled")
   "errUnknown" (dict "zh" "未知错误，请稍后重试" "en" "Unknown error, please try again later")
   "errSameAsLock" (dict "zh" "不能与解锁密码相同" "en" "Can't be the same as the unlock password")
-  "errSameAsOwner" (dict "zh" "不能与账号密码相同" "en" "Can't be the same as the account password")
+  "errSameAsAccount" (dict "zh" "不能与账号密码相同" "en" "Can't be the same as the account password")
   "doorCountdown" (dict "zh" "验证剩余 {m}" "en" "Verification remaining {m}")
   "doorCountdownExpired" (dict "zh" "已过期" "en" "Expired")
   "expiredStepupTitle" (dict "zh" "验证已过期" "en" "Verification expired")

@@ -1,5 +1,5 @@
 {{/* 账号 → 安全与隐私（/account/security/）：账号总览「安全与隐私」一行进入。
-   管理账号凭证（accountkey）：账号密码（设置/修改；根凭证登录时为「重置」）和账号通行密钥
+   管理账号凭证（AccountKey）：账号密码（设置/修改；根凭证登录时为「重置」）和账号通行密钥
    （添加 → 命名弹层、列表内点名字重命名、删除）。与锁屏页同一套弹层行为（A1 遮罩不关 / A2 返回先收键盘 / A3 × 关闭，弹层随键盘上移）。
    这是安全操作：每次进页都要先过门 —— 账号通行密钥 / 账号密码（设了哪个显示哪个）；根凭证不再是验证入口，
    丢了账号凭证点「无法登录？」走重置登录（根凭证直接签门票回到本页）。通过后签 3 分钟账号门票，页内显示倒计时；离开本页门票立即作废，再进重新验证。
@@ -74,6 +74,8 @@
     <div class="sheet-handle" data-pclose></div>
     <h2 id="lockpw-title" class="sgx-verify-title">{{ if $isEn }}Set account password{{ else }}设置账号密码{{ end }}</h2>
     <div class="sgx-pw-field">
+      {{/* 隐藏用户名框：密码管理器按 AccountKey 保存（lib/key-names.js） */}}
+      <input type="text" autocomplete="username" value="AccountKey" aria-hidden="true" tabindex="-1" style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;">
       <input type="password" id="lockpw-1" class="sgx-pw-input" autocomplete="new-password"
              aria-label="{{ if $isEn }}New password{{ else }}新密码{{ end }}"
              placeholder="{{ if $isEn }}New password (min 8){{ else }}新密码（最少 8 位）{{ end }}">

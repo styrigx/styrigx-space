@@ -2,7 +2,7 @@
  * 2.11 定稿：root 代开锁屏会话。
  *
  * 未配置 lock 层凭证时，root 可用根凭证换来的锁屏门票（sgx-door，door=lock，by=root）代开锁屏会话。
- * - 会话与正常 lockkey 解锁相同：12 小时（定稿 #10）
+ * - 会话与正常 LockKey 解锁相同：12 小时（定稿 #10）
  * - 会话 by=root，标记为代开
  * - lock 层一旦配置自己的凭证，root 代开失效（403）
  * - KV 读取失败按已配置处理（拒绝，fail closed）

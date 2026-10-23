@@ -422,28 +422,28 @@ test('账号页不能删锁屏类钥匙（404 not-found）', async () => {
   assert.ok(await kv.get('owner-passkey:' + lk.credId.slice(0, 12)));
 });
 
-test('注册 challenge：沿用 owner-user-id:owner，名字 accountkey（原 ownerkey），排除已有账号通行密钥', async () => {
+test('注册 challenge：沿用 owner-user-id:owner，名字 AccountKey（原 OwnerKey），排除已有账号通行密钥', async () => {
   const kv = makeKV({ 'owner-user-id:owner': 'acct-handle-1' });
   const a = await seedPasskey(kv, 'owner');
   const r = await accountPost(kv, { action: 'register-challenge' }, { 'sgx-verified': await ownerSess(), 'sgx-account': await accTicket('passkey') });
   assert.equal(r.status, 200);
   const j = await r.json();
   assert.equal(j.user.id, 'acct-handle-1');
-  assert.equal(j.user.name, 'accountkey');
+  assert.equal(j.user.name, 'AccountKey');
   assert.equal(j.user.displayName, 'Sloan Gray');
   assert.equal(j.rp.id, 'styrigx.com');
   assert.deepEqual(j.excludeCredentials, [{ id: a.credId, type: 'public-key' }]);
 });
 
-test('list：带账号 handle（owner-user-id:owner，供 signalCurrentUserDetails）+ userName accountkey；没有 handle 时为空且不新建', async () => {
+test('list：带账号 handle（owner-user-id:owner，供 signalCurrentUserDetails）+ userName AccountKey；没有 handle 时为空且不新建', async () => {
   const c = async () => ({ 'sgx-verified': await ownerSess(), 'sgx-account': await accTicket('passkey', Date.now() - 20 * 60 * 1000) });
   const kv = makeKV({ 'owner-user-id:owner': 'acct-handle-9', 'owner-user-id': 'legacy-lock-handle' });
   await seedPasskey(kv, 'owner');
   const r = await accountPost(kv, { action: 'list' }, await c());
   assert.equal(r.status, 200, 'list 只读，不要求近期');
   const j = await r.json();
-  assert.equal(j.userHandle, 'acct-handle-9', '只给当前账号 handle，不给与 lockkey 共用的旧 handle');
-  assert.equal(j.userName, 'accountkey');
+  assert.equal(j.userHandle, 'acct-handle-9', '只给当前账号 handle，不给与 LockKey 共用的旧 handle');
+  assert.equal(j.userName, 'AccountKey');
   assert.equal(j.displayName, 'Sloan Gray');
   const kv2 = makeKV();
   const j2 = await (await accountPost(kv2, { action: 'list' }, await c())).json();

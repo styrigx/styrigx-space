@@ -249,7 +249,7 @@ test.describe('重置登录（/account/reset/）', () => {
     await expect(page.locator('.sgx-tb-title')).toHaveText('重置登录');
     await expect(page.locator('.sgx-reset-lead')).toHaveText('先用根凭证验证身份');
     /* 全站同一个根凭证框：隐藏用户名 root（Samsung Pass 能填） */
-    await expect(page.locator('.sgx-reset input[autocomplete="username"]')).toHaveValue('root');
+    await expect(page.locator('.sgx-reset input[autocomplete="username"]')).toHaveValue('RootKey');
     await page.fill('#sgx-reset-root', 'root-key-xyz');
     await page.click('#sgx-reset-go');
     await expect(page).toHaveURL(/\/account\/security\/$/);
@@ -500,8 +500,8 @@ test.describe('安全与隐私子页：账号通行密钥命名', () => {
     const calls = await mockAccount(page, {
       status: { ok: true, password: true, passkey: false, ready: true, session: RECENT(), door: DOOR() },
       handlers: {
-        list: () => [200, { ok: true, keys: keys, userHandle: 'acct-h', userName: 'accountkey', displayName: 'Sloan Gray' }],
-        'register-challenge': [200, { ok: true, cid: 'c1', challenge: 'dGVzdC1jaGFsbGVuZ2U', rpId: 'localhost', rp: { name: 'Styrigx' }, user: { id: 'YWNjdC1o', name: 'accountkey', displayName: 'Sloan Gray' }, excludeCredentials: [] }],
+        list: () => [200, { ok: true, keys: keys, userHandle: 'acct-h', userName: 'AccountKey', displayName: 'Sloan Gray' }],
+        'register-challenge': [200, { ok: true, cid: 'c1', challenge: 'dGVzdC1jaGFsbGVuZ2U', rpId: 'localhost', rp: { name: 'Styrigx' }, user: { id: 'YWNjdC1o', name: 'AccountKey', displayName: 'Sloan Gray' }, excludeCredentials: [] }],
         register: (b) => { keys = [{ credId: 'new-cred-id', name: b.name, provider: 'Samsung Pass', createdAt: 1760000000000, lastUsedAt: 0 }]; return [200, { ok: true, credId: 'new-cred-id' }]; },
         rename: (b) => { keys = keys.map((k) => (k.credId === b.credId ? Object.assign({}, k, { name: b.name }) : k)); return [200, { ok: true, name: b.name }]; },
       },
@@ -509,7 +509,7 @@ test.describe('安全与隐私子页：账号通行密钥命名', () => {
     return { calls, keys: () => keys };
   }
 
-  test('注册成功弹命名弹层（预填设备名）；改名保存 → rename；user.name 为 accountkey', async ({ page }) => {
+  test('注册成功弹命名弹层（预填设备名）；改名保存 → rename；user.name 为 AccountKey', async ({ page }) => {
     const { calls } = await setup(page);
     await page.goto(SEC, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#acct-sec')).toBeVisible();
@@ -520,7 +520,7 @@ test.describe('安全与隐私子页：账号通行密钥命名', () => {
     const reg = calls.find((c) => c.action === 'register');
     expect(reg.name.length).toBeGreaterThan(0);
     await expect(page.locator('#lockpkname-input')).toHaveValue(reg.name);
-    expect(await page.evaluate(() => /** @type {any} */ (window).__createArgs)).toEqual({ name: 'accountkey', displayName: 'Sloan Gray' });
+    expect(await page.evaluate(() => /** @type {any} */ (window).__createArgs)).toEqual({ name: 'AccountKey', displayName: 'Sloan Gray' });
     await page.locator('#lockpkname-input').fill('我的 S26 Ultra');
     await page.locator('#lockpkname-save').click();
     await expect(dlg).toBeHidden();
@@ -603,7 +603,7 @@ test.describe('安全与隐私子页：账号通行密钥命名', () => {
     await expect(page.locator('#acct-door-notice')).toHaveText('验证已过期，请重新验证');
   });
 
-  test('signalCurrentUserDetails：list 带账号 handle 时发一次（name=accountkey）', async ({ page }) => {
+  test('signalCurrentUserDetails：list 带账号 handle 时发一次（name=AccountKey）', async ({ page }) => {
     await setup(page);
     await page.addInitScript(() => {
       // @ts-ignore
@@ -616,7 +616,7 @@ test.describe('安全与隐私子页：账号通行密钥命名', () => {
     await page.goto(SEC, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#acct-sec')).toBeVisible();
     await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__sig.length)).toBe(1);
-    expect(await page.evaluate(() => /** @type {any} */ (window).__sig[0])).toEqual({ rpId: 'localhost', userId: 'acct-h', name: 'accountkey', displayName: 'Sloan Gray' });
+    expect(await page.evaluate(() => /** @type {any} */ (window).__sig[0])).toEqual({ rpId: 'localhost', userId: 'acct-h', name: 'AccountKey', displayName: 'Sloan Gray' });
   });
 });
 
@@ -626,7 +626,7 @@ test.describe('账号总览：signalCurrentUserDetails', () => {
   test('支持时进总览拉一次 list 发改名（通行密钥登录后同样走这里）', async ({ page }) => {
     const calls = await mockAccount(page, {
       status: { ok: true, password: true, passkey: true, ready: true, session: Object.assign(RECENT(), { by: 'passkey' }) },
-      handlers: { list: [200, { ok: true, keys: [], userHandle: 'acct-h', userName: 'accountkey', displayName: 'Sloan Gray' }] },
+      handlers: { list: [200, { ok: true, keys: [], userHandle: 'acct-h', userName: 'AccountKey', displayName: 'Sloan Gray' }] },
     });
     await page.addInitScript(() => {
       // @ts-ignore
@@ -639,7 +639,7 @@ test.describe('账号总览：signalCurrentUserDetails', () => {
     await page.goto('/account/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#acct-main')).toBeVisible();
     await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__sig.length)).toBe(1);
-    expect(await page.evaluate(() => /** @type {any} */ (window).__sig[0])).toEqual({ rpId: 'localhost', userId: 'acct-h', name: 'accountkey', displayName: 'Sloan Gray' });
+    expect(await page.evaluate(() => /** @type {any} */ (window).__sig[0])).toEqual({ rpId: 'localhost', userId: 'acct-h', name: 'AccountKey', displayName: 'Sloan Gray' });
     expect(calls.filter((c) => c.action === 'list').length).toBe(1);
   });
 

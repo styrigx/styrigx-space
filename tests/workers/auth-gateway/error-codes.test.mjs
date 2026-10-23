@@ -106,7 +106,7 @@ test('服务端每个 error 码都有前端映射或固定文案处理', () => {
 test('same-as-lock / same-as-owner 必须在 ERR_KEY 里（双向相同密码文案）', () => {
   const { errKey } = extractFrontendMaps();
   assert.equal(errKey.get('same-as-lock'), 'errSameAsLock');
-  assert.equal(errKey.get('same-as-owner'), 'errSameAsOwner');
+  assert.equal(errKey.get('same-as-owner'), 'errSameAsAccount');
 });
 
 test('每个 ERR_KEY 的 i18n key 都在门内模板里定义', () => {
