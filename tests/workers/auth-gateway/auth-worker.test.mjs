@@ -310,7 +310,7 @@ test('web/wrangler.toml：Pages 生产没有变量和绑定，预览不连正式
   assert.match(top, /^pages_build_output_dir = "public"$/m);
   assert.doesNotMatch(toml, /^\[vars\]$/m);
   assert.doesNotMatch(toml, /^\[\[(kv_namespaces|d1_databases)\]\]$/m);
-  assert.doesNotMatch(toml, /b796097c90104000992b7713f61e16ea|2804d280-1cab-422a-834d-3390cea38976|569d8caf-e315-471b-a080-4b9f055de5fa/);
+  assert.doesNotMatch(toml, /b796097c90104000992b7713f61e16ea|2804d280-1cab-422a-834d-3390cea38976|6931d1da-3502-480d-b0bd-de1bc4829d1d|569d8caf-e315-471b-a080-4b9f055de5fa/);
   assert.doesNotMatch(toml, /PRIVATE KEY/);
 });
 

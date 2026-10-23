@@ -306,13 +306,13 @@ jobs:
           PYEOF
 
       - name: Apply D1 migrations to preview
-        # 2.11 恢复开关建表：部署 preview 前对 styrigx-sgx-preview 跑迁移。
+        # 2.11 恢复开关建表：部署 preview 前对 styrigx-auth-gateway-preview 跑迁移。
         # 只写 preview 库（--env preview），绝不碰 production。
         # 代码里也有 CREATE TABLE IF NOT EXISTS 兜底，此处是标准迁移流程。
         # continue-on-error：CI token 无 D1 权限时会 7403，失败不阻塞（兜底会建表）。
         continue-on-error: true
         working-directory: web
-        run: npx --yes wrangler@4 d1 migrations apply styrigx-sgx-preview --remote --env preview
+        run: npx --yes wrangler@4 d1 migrations apply styrigx-auth-gateway-preview --remote --env preview
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
