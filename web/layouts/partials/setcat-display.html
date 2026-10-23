@@ -37,9 +37,7 @@
         <span class="switch" id="sw-system" role="switch" aria-checked="false" aria-label="{{ if $isEn }}Follow system{{ else }}跟随系统{{ end }}"><span class="knob"></span></span>
       </div>
       {{ end }}{{/* /theme-mode */}}
-      {{/* 2.4.0-G：布局由 features.yaml 生成（外观与手写版一致）。2026-10-23 PR-E：字体大小删除（浏览器缩放就够了） */}}
-      {{ if partial "feature.html" "layout" }}{{ partial "settings-row.html" (dict "f" (index $featMap "layout") "isEn" $isEn) }}{{ end }}
-      {{/* 2026-10-23 PR-E：语言自「常规管理」移入（常规管理已删除） */}}
+      {{/* 2026-10-23 PR-E：语言自「常规管理」移入（常规管理已删除）；2026-10-24 挪到「布局」上面：跟随系统 → 语言 → 布局 */}}
       {{ if partial "feature.html" "lang" }}
       <div class="set-row" id="row-lang" role="button" tabindex="0">
         <span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "globe" }}</span>
@@ -48,5 +46,7 @@
         {{ partial "icon.html" "chev-r" }}
       </div>
       {{ end }}
+      {{/* 2.4.0-G：布局由 features.yaml 生成（外观与手写版一致）。2026-10-23 PR-E：字体大小删除（浏览器缩放就够了） */}}
+      {{ if partial "feature.html" "layout" }}{{ partial "settings-row.html" (dict "f" (index $featMap "layout") "isEn" $isEn) }}{{ end }}
     </section>
 </div>

@@ -202,6 +202,7 @@ test.describe('B1-12 守护：密码自动填充', () => {
       await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'wrong' }) });
     });
     await page.goto('/account/', { waitUntil: 'domcontentloaded' });
+    await page.click('#acct-login-go');
     await page.click('#acct-pw-btn');
 
     const input = page.locator('#acct-pw-input');

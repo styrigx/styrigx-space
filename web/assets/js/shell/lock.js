@@ -20,7 +20,8 @@ import { reducedMotion } from '../lib/util.js';
 import { followKeyboard } from './vk.js';
 import { exchangeRootSession } from '../lib/root-session.js';
 import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose, tapFeedback } from '../lib/dialog-behavior.js';
+import { tapFeedback } from '../lib/dialog-behavior.js';
+import { createMethodSheet, createVerifyDialog, METHOD_ICONS, keepInputFocus } from '../lib/auth-sheet.js';
 import { getPasskeyAssertion, passkeyErrorText } from '../lib/passkey-assert.js';
 import { pwFieldHtml, bindPwEye, onEnter, focusNoScroll } from '../lib/auth-flow.js';
 import { KEY_LOCK } from '../lib/key-names.js';
@@ -306,7 +307,8 @@ function showLockScreen() {
     '<div class="sgx-glass-bg" aria-hidden="true"></div>' +
     '<div class="sgx-lock-tb">' +
     '<span class="sgx-tb-nav" aria-hidden="true">' + tbNavIc + '</span>' +
-    '<div class="sgx-tb-pill"><span class="sgx-tb-title" id="sgx-lock-title">' + (en ? 'Unlock screen' : '解锁屏幕') + '</span></div>' +
+    /* 顶栏标题（2026-10-24）：静止时「锁定屏幕」，打开解锁方式 / 验证弹层时「解锁屏幕」（syncTitle） */
+    '<div class="sgx-tb-pill"><span class="sgx-tb-title" id="sgx-lock-title" aria-live="polite">' + (en ? 'Lock screen' : '锁定屏幕') + '</span></div>' +
     '<span class="sgx-tb-end" aria-hidden="true">' + tbEndIc + '</span>' +
     '</div>' +
     '<div class="sgx-lock-stage is-pending" id="sgx-lock-stage">' +
@@ -347,7 +349,7 @@ function showLockScreen() {
   function onServerOk(ans) {
     done = true;
     try { closeMethodSheet(true); } catch (e) {}
-    if (dlg && dlg.open) closeDialog('session-ok');
+    if (vd.isOpen()) closeDialog('session-ok');
     proceed(ans, doUnlockAnimation);
   }
 
@@ -394,7 +396,6 @@ function showLockScreen() {
   function sessionCheckFailed() {
     done = false;
     try {
-      ensureDialog();
       setTitle(en ? 'Session not active' : '会话未生效');
       setBody(
         '<p class="sgx-verify-failtx">' +
@@ -404,11 +405,7 @@ function showLockScreen() {
           '</p>'
       );
       clearErr();
-      if (dlg && !dlg.open) {
-        try {
-          dlg.showModal();
-        } catch (e) {}
-      }
+      if (!vd.isOpen()) openDialog();
       dlgState = 'session-failed';
     } catch (e) {}
   }
@@ -431,89 +428,40 @@ function showLockScreen() {
   }
 
   /* ============================================================
-     统一底部弹层：验证 / 密码 / 通行密钥三态共用同一个 dialog。
+     统一底部弹层：临时钥匙 / 密码 / 通行密钥三态共用同一个 dialog（lib/auth-sheet.js，账号登录页同一个组件）。
      - 同样的圆角、材质、拖动条、标题字号/位置、按钮样式；
      - 卡片背景完全不透明；打开时底层名字与入口 visibility:hidden + inert；
      - 容器无 outline；:focus-visible 只在内部可交互元素上用本站焦点色。
+     键盘避让：各态 setBody 后对新生成输入框调 vd.armKb(input)（followKeyboard 作用到 dlg 而非 card，避免与 card 入场动画冲突）。
      ============================================================ */
-  /** @type {HTMLDialogElement|null} */ let dlg = null;
   /** @type {string|null} */ let dlgState = null;
   let pwLockedUntil = 0;
-  /* 键盘避让：各态 setBody 后对新生成输入框调 followKeyboard(dlg, input)，
-     与其他弹层同一套逻辑（shell/vk.js）。作用到 dlg 而非 card，
-     避免与 card 入场动画冲突；旧 verify-kb.js（只动 card）已删除。 */
-  let dlgKbCleanup = null;
-  function armDlgKbFor(input) {
-    if (dlgKbCleanup) {
-      try { dlgKbCleanup(); } catch (e) {}
-      dlgKbCleanup = null;
-    }
-    if (dlg && input) dlgKbCleanup = followKeyboard(dlg, input);
-  }
-  function disarmDlgKb() {
-    if (dlgKbCleanup) { try { dlgKbCleanup(); } catch (e) {} dlgKbCleanup = null; }
-  }
+  const vd = createVerifyDialog({
+    en: en,
+    reasonTag: 'lock-verify',
+    followKeyboard: followKeyboard,
+    onClose: function () {
+      resetAvatar();
+      setBgHidden(false);
+      dlgState = null;
+      syncTitle();
+    },
+  });
+  const setTitle = vd.setTitle;
+  const setBody = vd.setBody;
+  const clearErr = vd.clearErr;
+  const showError = vd.showError;
+  /** @param {any} input */
+  function armDlgKbFor(input) { vd.armKb(input); }
+  /** @param {string} reason */
+  function closeDialog(reason) { vd.close(reason); }
 
-  function ensureDialog() {
-    if (dlg) return dlg;
-    const d = document.createElement('dialog');
-    d.className = 'sgx-verify-dlg';
-    d.setAttribute('aria-labelledby', 'sgx-verify-title');
-    d.innerHTML =
-      '<div class="sgx-verify-card">' +
-      /* 批次 A 收尾 A3：右上角 × 关闭按钮 */
-      '<button type="button" class="sgx-dlg-close" data-dlg-close aria-label="' + (en ? 'Close' : '关闭') + '">×</button>' +
-      '<div class="sheet-handle" data-dclose aria-hidden="true"></div>' +
-      '<h2 id="sgx-verify-title" class="sgx-verify-title"></h2>' +
-      '<div id="sgx-verify-body" class="sgx-verify-body"></div>' +
-      '<p id="sgx-verify-err" class="sgx-verify-err" hidden></p>' +
-      '</div>';
-    document.body.appendChild(d);
-    dlg = /** @type {HTMLDialogElement} */ (d);
-    /* 批次 A 收尾 A1/A2：点遮罩只失焦不关闭；返回手势键盘开着先收键盘 */
-    on(d, 'click', function (/** @type {MouseEvent} */ e) {
-      if (onDialogBackdrop(e, d)) return;
-      const t = /** @type {Element|null} */ (e.target);
-      if (t && t.closest && t.closest('[data-dlg-close]')) closeDialog('close-btn');
-    });
-    on(d, 'cancel', function (/** @type {Event} */ e) {
-      onDialogCancel(e, d, function (reason) { closeDialog(reason); });
-    });
-    return dlg;
-  }
-
-  /** @param {string} txt */
-  function setTitle(txt) {
-    ensureDialog();
-    const el = document.getElementById('sgx-verify-title');
-    if (el) el.textContent = txt;
-  }
-  /** @param {string} html */
-  function setBody(html) {
-    ensureDialog();
-    const el = document.getElementById('sgx-verify-body');
-    if (el) el.innerHTML = html;
-  }
-  function clearErr() {
-    ensureDialog();
-    const err = document.getElementById('sgx-verify-err');
-    if (err) err.hidden = true;
-  }
-  /** @param {string} msg */
-  function showError(msg) {
-    const err = document.getElementById('sgx-verify-err');
-    if (err) {
-      err.textContent = msg;
-      err.hidden = false;
-      if (!reducedMotion()) {
-        const card = dlg && dlg.querySelector('.sgx-verify-card');
-        if (card) {
-          card.classList.remove('sgx-shake');
-          void /** @type {HTMLElement} */ (card).offsetWidth;
-          card.classList.add('sgx-shake');
-        }
-      }
-    }
+  /* 顶栏标题：锁屏静止时「锁定屏幕」，打开解锁方式 / 验证弹层（正在解锁）时「解锁屏幕」 */
+  function syncTitle() {
+    const el = document.getElementById('sgx-lock-title');
+    if (!el) return;
+    const unlocking = !!methodSheet || vd.isOpen();
+    el.textContent = unlocking ? (en ? 'Unlock screen' : '解锁屏幕') : (en ? 'Lock screen' : '锁定屏幕');
   }
 
   /* 底层元素：弹层打开时隐藏并 inert，关闭时恢复 */
@@ -544,38 +492,20 @@ function showLockScreen() {
   }
 
   function openDialog() {
-    const d = ensureDialog();
-    clearErr();
     setBgHidden(true);
-    try {
-      d.showModal();
-    } catch (e) {
+    if (!vd.open()) {
       setBgHidden(false);
       return false;
     }
-    /* 键盘避让由各态 setBody 后 armDlgKbFor(input) 接入（输入框那时才存在） */
-    /* 卡片高度稳定后（body 有 min-height）再量，避免跳动 */
+    syncTitle();
     requestAnimationFrame(function () {
       liftAvatar();
     });
     return true;
   }
 
-  function closeDialog(reason) {
-    recordDialogClose('lock-verify', reason || 'unknown');
-    disarmDlgKb();
-    resetAvatar();
-    setBgHidden(false);
-    if (dlg && dlg.open) {
-      try {
-        dlg.close();
-      } catch (e) {}
-    }
-    dlgState = null;
-  }
-
   /**
-   * 2.8.0 锁屏重设计：点击头像后弹出的解锁方式选择底部弹层。
+   * 2.8.0 锁屏重设计：点击头像后弹出的解锁方式选择底部弹层（lib/auth-sheet.js createMethodSheet，账号登录页同一个组件）。
    * One UI 风格：底部弹层（宽屏居中卡片），各带图标和一行说明。
    *
    * 补充定稿七.1：入口按锁屏凭证配置显示（配置以服务端 /api/lock-config 为准，
@@ -586,6 +516,7 @@ function showLockScreen() {
    * 「无法登录？」→ 弹层原地切到重置登录（openResetInSheet）。
    * 点外部、Esc 或下滑关闭；键盘可操作。
    */
+  /** @type {{el: HTMLElement, card: HTMLElement, close: (navigating?: boolean) => void}|null} */
   let methodSheet = null;
   let methodSheetLoading = false;
   function openMethodSheet() {
@@ -621,121 +552,62 @@ function showLockScreen() {
     const resetOnly = !!cfg.resetOnly;
     const showPk = !resetOnly && cfg.passkey && hasPk;
     const showPw = !resetOnly && cfg.password;
-    const sheet = document.createElement('div');
-    sheet.id = 'sgx-method-sheet';
-    sheet.setAttribute('role', 'dialog');
-    sheet.setAttribute('aria-modal', 'true');
-    sheet.setAttribute('aria-label', en ? 'Choose unlock method' : '选择解锁方式');
-    sheet.innerHTML =
-      '<div class="sgx-sheet-backdrop" data-close></div>' +
-      '<div class="sgx-sheet-card" role="document">' +
-      '<div class="sheet-handle" aria-hidden="true"></div>' +
-      '<h2 class="sgx-sheet-title">' + (en ? 'Unlock' : '解锁') + '</h2>' +
-      /* 1. 访客进入（临时钥匙，2026-10-23 取代 Turnstile） */
-      '<button type="button" class="sgx-method-opt" id="sgx-mopt-visitor" aria-label="' +
-        (en ? 'Enter as visitor with a temporary key' : '访客进入，输入临时钥匙') + '">' +
-      '<span class="sgx-method-ic" aria-hidden="true">' +
-      '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3"/><path d="m16 7 3 3"/><path d="m18 5 2 2"/></svg></span>' +
-      '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Visitor' : '访客进入') + '</span>' +
-      '<span class="sgx-method-desc">' + (en ? 'Enter the temporary key you received' : '输入收到的临时钥匙') + '</span></span>' +
-      '</button>' +
-      /* 2. 通行密钥（已配置且设备支持） */
-      (showPk
-        ? '<button type="button" class="sgx-method-opt" id="sgx-mopt-pk" aria-label="' +
-          (en ? 'Use passkey' : '使用通行密钥') + '">' +
-          '<span class="sgx-method-ic" aria-hidden="true">' +
-          '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.9-.8"/></svg></span>' +
-          '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Passkey' : '通行密钥') + '</span>' +
-          '<span class="sgx-method-desc">' + (en ? 'Unlock with fingerprint or device PIN' : '用指纹或设备 PIN 解锁') + '</span></span>' +
-          '</button>'
-        : '') +
-      /* 3. 密码（已配置） */
-      (showPw
-        ? '<button type="button" class="sgx-method-opt" id="sgx-mopt-pw" aria-label="' +
-          (en ? 'Use password' : '使用密码') + '">' +
-          '<span class="sgx-method-ic" aria-hidden="true">' +
-          '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>' +
-          '<span class="sgx-method-tx"><span class="sgx-method-name">' + (en ? 'Password' : '密码') + '</span>' +
-          '<span class="sgx-method-desc">' + (en ? 'Enter your unlock password' : '输入解锁密码') + '</span></span>' +
-          '</button>'
-        : '') +
-      /* 4. PR3：「无法登录？」小字（原「重置锁屏」「根凭证」两行合并到这里）：点了弹层原地切到重置登录 */
-      '<button type="button" class="sgx-sheet-cant" id="sgx-mopt-cant">' + (en ? 'Can’t sign in?' : '无法登录？') + '</button>' +
-      '</div>';
-    document.body.appendChild(sheet);
-    methodSheet = sheet;
-    /* 动画：下一帧加 visible 触发过渡 */
-    requestAnimationFrame(function () {
-      requestAnimationFrame(function () {
-        sheet.classList.add('visible');
-      });
-    });
-    const close = function () { closeMethodSheet(); };
     /* 批次 A 验收修复 P2：方法行点击轻触觉反馈。(b) 行 busy 不适用：
        点击即关弹层并在同一 tick 打开下一态；通行密钥行 → openPk() 已有带转圈的加载态。 */
-    const visitorBtn = sheet.querySelector('#sgx-mopt-visitor');
-    const pkBtn = sheet.querySelector('#sgx-mopt-pk');
-    const pwBtn = sheet.querySelector('#sgx-mopt-pw');
-    const cantBtn = sheet.querySelector('#sgx-mopt-cant');
-    const cardEl = /** @type {HTMLElement|null} */ (sheet.querySelector('.sgx-sheet-card'));
-    if (visitorBtn) on(visitorBtn, 'click', function () { tapFeedback(); close(); openTemp(); });
-    if (pkBtn) on(pkBtn, 'click', function () { tapFeedback(); close(); openPk(); });
-    if (pwBtn) on(pwBtn, 'click', function () { tapFeedback(); close(); openPw(); });
-    if (cantBtn && cardEl) on(cantBtn, 'click', function () { tapFeedback(); openResetInSheet(cardEl, cfg); });
-    const backdrop = sheet.querySelector('[data-close]');
-    if (backdrop) on(backdrop, 'click', close);
-    /* Esc 关闭 */
-    const onKey = function (/** @type {KeyboardEvent} */ e) {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        close();
-      }
-    };
-    on(document, 'keydown', onKey);
-    sheet._onKey = onKey;
-    /* 下滑关闭（touch） */
-    let startY = 0;
-    const card = sheet.querySelector('.sgx-sheet-card');
-    if (card) {
-      on(card, 'touchstart', function (/** @type {TouchEvent} */ e) {
-        if (e.touches.length === 1) startY = e.touches[0].clientY;
-      }, { passive: true });
-      on(card, 'touchend', function (/** @type {TouchEvent} */ e) {
-        if (e.changedTouches.length === 1) {
-          const dy = e.changedTouches[0].clientY - startY;
-          if (dy > 80) close();
+    /** @type {import('../lib/auth-sheet.js').MethodOpt[]} */
+    const opts = [
+      /* 1. 访客进入（临时钥匙，2026-10-23 取代 Turnstile） */
+      { id: 'sgx-mopt-visitor', icon: METHOD_ICONS.visitor, name: en ? 'Visitor' : '访客进入',
+        desc: en ? 'Enter the temporary key you received' : '输入收到的临时钥匙',
+        ariaLabel: en ? 'Enter as visitor with a temporary key' : '访客进入，输入临时钥匙',
+        onPick: function () { tapFeedback(); openTemp(); } },
+    ];
+    /* 2. 通行密钥（已配置且设备支持） */
+    if (showPk) opts.push({ id: 'sgx-mopt-pk', icon: METHOD_ICONS.passkey, name: en ? 'Passkey' : '通行密钥',
+      desc: en ? 'Unlock with fingerprint or device PIN' : '用指纹或设备 PIN 解锁',
+      ariaLabel: en ? 'Use passkey' : '使用通行密钥',
+      onPick: function () { tapFeedback(); openPk(); } });
+    /* 3. 密码（已配置） */
+    if (showPw) opts.push({ id: 'sgx-mopt-pw', icon: METHOD_ICONS.password, name: en ? 'Password' : '密码',
+      desc: en ? 'Enter your unlock password' : '输入解锁密码',
+      ariaLabel: en ? 'Use password' : '使用密码',
+      onPick: function () { tapFeedback(); openPw(); } });
+    const ms = createMethodSheet({
+      ariaLabel: en ? 'Choose unlock method' : '选择解锁方式',
+      title: en ? 'Unlock' : '解锁',
+      options: opts,
+      /* 4. PR3：「无法登录？」小字（原「重置锁屏」「根凭证」两行合并到这里）：点了弹层原地切到重置登录 */
+      cant: { id: 'sgx-mopt-cant', text: en ? 'Can’t sign in?' : '无法登录？',
+        onClick: function (card) { tapFeedback(); openResetInSheet(card, cfg); } },
+      /* 关闭一开始（Esc / 遮罩 / 下滑 / 选了方式 / closeMethodSheet）：清本地状态 */
+      onClose: function () {
+        if (methodSheet === ms) methodSheet = null;
+        if (flow) {
+          try { flow.destroy(); } catch (e) {}
+          flow = null;
         }
-      });
-    }
-    /* 焦点移到第一个选项（访客进入），键盘可操作 */
-    try {
-      if (visitorBtn) visitorBtn.focus({ preventScroll: true });
-    } catch (e) {}
+        syncTitle();
+      },
+      onClosed: function (navigating) {
+        /* 焦点回到头像：只在没有别的弹层接手焦点时（选了某个方式会马上打开验证弹层，
+           这时把焦点抢回头像会让刚聚焦的密码框失焦，2026-10-24 修） */
+        if (navigating || vd.isOpen()) return;
+        try {
+          const av = document.getElementById('sgx-lock-avatar');
+          if (av) av.focus({ preventScroll: true });
+        } catch (e) {}
+      },
+    });
+    methodSheet = ms;
+    syncTitle();
   }
 
   /** @param {boolean} [navigating] 重置完成要跳页：不把焦点还给头像 */
   function closeMethodSheet(navigating) {
     if (!methodSheet) return;
-    const sheet = methodSheet;
-    methodSheet = null;
-    if (flow) {
-      try { flow.destroy(); } catch (e) {}
-      flow = null;
-    }
-    sheet.classList.remove('visible');
-    if (sheet._onKey) {
-      document.removeEventListener('keydown', sheet._onKey);
-    }
-    window.setTimeout(function () {
-      if (sheet.parentNode) sheet.parentNode.removeChild(sheet);
-      /* 焦点回到头像 */
-      if (navigating) return;
-      try {
-        const av = document.getElementById('sgx-lock-avatar');
-        if (av) av.focus({ preventScroll: true });
-      } catch (e) {}
-    }, 250);
+    methodSheet.close(navigating);
   }
+
 
   /* ---------- 临时钥匙态（访客进入；与密码态同一弹层） ---------- */
   let tempLockedUntil = 0;
@@ -762,7 +634,7 @@ function showLockScreen() {
       onEnter(input, submitTemp);
       focusNoScroll(input);
     }
-    if (go) on(go, 'click', submitTemp);
+    if (go) { on(go, 'click', submitTemp); keepInputFocus(go); }
     if (Date.now() < tempLockedUntil) tempCountdown();
   }
 
@@ -796,7 +668,7 @@ function showLockScreen() {
     const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-temp-input'));
     const code = input ? input.value.trim() : '';
     if (!code) {
-      showError(en ? 'Enter the temporary key' : '请输入临时钥匙');
+      showError(en ? 'Enter the temporary key' : '请输入临时钥匙', input);
       return;
     }
     fetch('/api/lock-temp-unlock', {
@@ -826,8 +698,8 @@ function showLockScreen() {
           showError(en ? 'Too many attempts' : '尝试次数过多');
           tempCountdown();
         } else if (j.error === 'wrong' || j.error === 'code') {
-          showError(en ? 'Invalid or expired key' : '临时钥匙无效或已过期');
           if (input) input.value = '';
+          showError(en ? 'Invalid or expired key' : '临时钥匙无效或已过期', input);
         } else {
           showError(en ? 'Server error' : '服务器错误');
         }
@@ -859,7 +731,7 @@ function showLockScreen() {
       onEnter(input, submitPw);
       focusNoScroll(input);
     }
-    if (go) on(go, 'click', submitPw);
+    if (go) { on(go, 'click', submitPw); keepInputFocus(go); }
     if (Date.now() < pwLockedUntil) pwCountdown();
   }
 
@@ -893,7 +765,7 @@ function showLockScreen() {
     const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-pw-input'));
     const pw = input ? input.value : '';
     if (!pw) {
-      showError(en ? 'Enter password' : '请输入密码');
+      showError(en ? 'Enter password' : '请输入密码', input);
       return;
     }
     fetch('/api/owner-password', {
@@ -930,8 +802,8 @@ function showLockScreen() {
         } else if (j.error === 'server') {
           showError(en ? 'Server error' : '服务器错误');
         } else {
-          showError(en ? 'Wrong password' : '密码错误');
           if (input) input.value = '';
+          showError(en ? 'Wrong password' : '密码错误', input);
         }
       })
       .catch(function () {
@@ -1113,6 +985,9 @@ function showLockScreen() {
   }
 
   function pkAuth() {
+    /* 服务端回 unknown-key 时要告诉密码管理器删哪一把：这里记下 id（以前在下一个 then 里直接用 cred，
+       那里没有这个变量，ReferenceError 被吞掉，signalUnknownCredential 从来没发出去） */
+    let credId = '';
     fetch('/api/owner-passkey', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1142,6 +1017,7 @@ function showLockScreen() {
       .then(function (res) {
         if (dlgState !== 'passkey') throw { done: true };
         const cred = res.cred;
+        credId = cred.id;
         return fetch('/api/owner-passkey', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1177,7 +1053,7 @@ function showLockScreen() {
                 typeof PublicKeyCredential.signalUnknownCredential === 'function') {
               PublicKeyCredential.signalUnknownCredential({
                 rpId: location.hostname,
-                credentialId: cred.id,
+                credentialId: credId,
               }).catch(function () {});
             }
           } catch (e) {}
@@ -1219,7 +1095,7 @@ function showLockScreen() {
     if (e.key === 'Enter' || e.key === ' ') {
       const t = /** @type {HTMLElement|null} */ (e.target);
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-      if (dlg && dlg.open) return;
+      if (vd.isOpen()) return;
       if (methodSheet) return;
       e.preventDefault();
       /* 2.8.0：键盘也走方式选择弹层 */

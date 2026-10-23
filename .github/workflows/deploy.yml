@@ -307,10 +307,12 @@ jobs:
         # 2.11 恢复开关建表：部署 preview 前对 styrigx-auth-gateway-preview 跑迁移。
         # 只写 preview 库（--env preview），绝不碰 production。
         # 代码里也有 CREATE TABLE IF NOT EXISTS 兜底，此处是标准迁移流程。
-        # continue-on-error：CI token 无 D1 权限时会 7403，失败不阻塞（兜底会建表）。
-        continue-on-error: true
+        # 2026-10-24：STYRIGX_SPACE_PAGES_DEPLOY 已加 D1 Edit 权限，迁移失败要让 CI 红（不再 continue-on-error 掩盖 7403）；
+        # 跑完列一次已应用的迁移（d1_migrations 表；日志里应看到 0001–0004）。
         working-directory: web
-        run: npx --yes wrangler@4 d1 migrations apply styrigx-auth-gateway-preview --remote --env preview
+        run: |
+          npx --yes wrangler@4 d1 migrations apply styrigx-auth-gateway-preview --remote --env preview
+          npx --yes wrangler@4 d1 execute styrigx-auth-gateway-preview --remote --env preview --command "SELECT id, name, applied_at FROM d1_migrations ORDER BY id"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

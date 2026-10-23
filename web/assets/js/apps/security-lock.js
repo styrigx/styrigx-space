@@ -2,8 +2,8 @@
  * @fileoverview 安全与隐私 → 锁屏凭证（/settings/security/lock/）。
  * - 门（安全操作）：进页 POST /api/lock-door status —— 没有有效门票 → 显示验证行：
  *   锁屏通行密钥 / 解锁密码（设了哪个显示哪个）+ 根凭证（一直在，防止忘了凭证网站就死了）；
- *   通过后签 3 分钟锁屏门票（SGX_LOCK_* 签），页内倒计时；离开本页（pagehide）→ clear 立即作废，
- *   从历史返回（bfcache）重新进门。
+ *   通过后签 3 分钟锁屏门票（SGX_LOCK_* 签，HttpOnly cookie），页内倒计时按服务端 expiresAt；
+ *   剩余时间内刷新 / 离开再回来都不用重新验证（2026-10-24，以前 pagehide 就作废），到期回门口。
  * - 门内：解锁密码（弹层设置/修改，最少 8 位）；锁屏通行密钥列表（设备名可编辑、注册日期、可删除），
  *   「添加通行密钥」；会话：退出所有设备（/api/lock-all-devices，所有设备回锁屏）。
  * - 重置锁屏（data-sgx-session=lockreset，重置门票 door=lockreset）：直接进门内，只能设置密码 / 增删通行密钥。
@@ -491,7 +491,12 @@ import { KEY_LOCK } from '../lib/key-names.js';
           needReauth(j && j.error, j && j.reason);
           return;
         }
-        const keys = ((j.ok && j.keys) || []).filter(function (k) {
+        if (!j.ok) {
+          /* 读失败：不要显示成「还没有通行密钥」（2026-10-24） */
+          pkListState(t('pkListFail'));
+          return;
+        }
+        const keys = (j.keys || []).filter(function (k) {
           return (k.class || 'lock') === pageClass;
         });
         if (!ul) return;
@@ -630,10 +635,25 @@ import { KEY_LOCK } from '../lib/key-names.js';
           ul.appendChild(li);
         });
         ul.hidden = keys.length === 0;
+        ul.removeAttribute('aria-busy');
         if (empty) empty.hidden = keys.length !== 0;
+        if (pkAddBtn) pkAddBtn.hidden = false;
       })
-      .catch(function () {});
+      .catch(function () { pkListState(t('pkListFail')); });
   }
+  /** 列表占位行（加载失败）：替换「正在加载」，「添加通行密钥」照常可用 @param {string} msg */
+  function pkListState(msg) {
+    const ul = $('lockmgr-pklist');
+    if (ul && ul.querySelector('#lockmgr-pkloading')) {
+      ul.innerHTML = '<li class="lockmgr-pkloading" id="lockmgr-pkloading" role="status"></li>';
+      const li = ul.querySelector('li');
+      if (li) li.textContent = msg;
+      ul.hidden = false;
+      ul.removeAttribute('aria-busy');
+    }
+    if (pkAddBtn) pkAddBtn.hidden = false;
+  }
+  const pkAddBtn = $('lockmgr-pkadd');
 
   /* 添加通行密钥 */
   const pkAdd = $('lockmgr-pkadd');
@@ -921,10 +941,11 @@ import { KEY_LOCK } from '../lib/key-names.js';
       });
   }
 
-  /* 离开本页：门票立即作废（再进要重新验证）；从历史返回（bfcache）重新进门 */
-  on(window, 'pagehide', function () {
-    try { lockDoorFetch('clear', { keepalive: true }).catch(function () {}); } catch (e) {}
-  });
+  /* 2026-10-24（用户录屏：验证完一刷新就「验证已过期」）：以前 pagehide 就 clear 门票，刷新也会触发 pagehide，
+     等于每次刷新都把刚签的票作废。现在门票只看服务端：sgx-door（HttpOnly、Secure、SameSite=Strict、Max-Age=180，
+     签名里带 exp = 验证时刻 + 3 分钟）在剩余时间内刷新 / 离开再回来都还有效，倒计时按服务端 status 的 expiresAt 接着走；
+     到期由服务端判定，回到门口重新验证。「重新验证」按钮仍会主动 clear（app-gate.js clearStepupThen）。
+     从历史返回（bfcache）重新读一次状态。 */
   on(window, 'pageshow', function (/** @type {PageTransitionEvent} */ e) {
     if (e && e.persisted) {
       try { location.reload(); } catch (e2) {}

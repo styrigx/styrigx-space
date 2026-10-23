@@ -35,11 +35,12 @@
 
     <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Passkeys{{ else }}通行密钥{{ end }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.14s">
-      <ul class="lockmgr-pklist" id="lockmgr-pklist" hidden></ul>
+      {{/* 2026-10-24：列表回来之前显示「正在加载」，不出现只有「添加通行密钥」的空列表 */}}
+      <ul class="lockmgr-pklist" id="lockmgr-pklist" aria-busy="true"><li class="lockmgr-pkloading" id="lockmgr-pkloading"><span class="sgx-spinner" aria-hidden="true"></span><span>{{ if $isEn }}Loading passkeys…{{ else }}正在加载通行密钥…{{ end }}</span></li></ul>
       <div class="p-4" id="lockmgr-pkempty" hidden>
         <p class="text-sm text-m-on-surface-variant m-0">{{ if $isEn }}No passkeys yet.{{ else }}还没有通行密钥。{{ end }}</p>
       </div>
-      <button type="button" class="lockmgr-add" id="lockmgr-pkadd">
+      <button type="button" class="lockmgr-add" id="lockmgr-pkadd" hidden>
         <span aria-hidden="true">＋</span> {{ if $isEn }}Add passkey{{ else }}添加通行密钥{{ end }}
       </button>
     </section>
@@ -171,6 +172,7 @@
   "errNetwork" (dict "zh" "网络连接失败，请重试" "en" "Network connection failed, please retry")
   "errParse" (dict "zh" "服务响应异常，请重试" "en" "Bad server response, please retry")
   "gateNetErr" (dict "zh" "网络错误" "en" "Network error")
+  "pkListFail" (dict "zh" "通行密钥列表读取失败，请稍后刷新" "en" "Couldn’t load passkeys. Refresh to try again")
   "errParams" (dict "zh" "参数错误" "en" "Bad request")
   "errNotFound" (dict "zh" "找不到这把钥匙" "en" "Key not found")
   "errLastKey" (dict "zh" "这是最后一把解锁钥匙，请先设置解锁密码" "en" "This is the last unlock key; set an unlock password first")

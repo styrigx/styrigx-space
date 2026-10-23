@@ -265,11 +265,12 @@ const DOOR_THEMES = [
 ];
 /* keyboard 态在 headless 下无法触发真实键盘（与 expanded 基线完全相同），已删除；
    键盘避让逻辑由 followKeyboard 实现，真机行为不变。 */
-const DOOR_STATES = ['default', 'expanded', 'error'];
+/* 2026-10-24：账号登录与锁屏同一套界面 —— default（页面）/ sheet（点「登录」后的方式弹层）/ expanded（密码弹层，密码框聚焦）/ error（密码错误） */
+const DOOR_STATES = ['default', 'sheet', 'expanded', 'error'];
 
 for (const lang of DOOR_LANGS) {
   for (const theme of DOOR_THEMES) {
-    /* PR3：账号登录页（头像 + 欢迎回来 + 通行密钥登录 / 密码登录 + 无法登录？）的默认 / 密码展开 / 报错态 */
+    /* 账号登录页（与锁屏同一套：头像 + 欢迎回来 + 登录 → 方式弹层 → 密码弹层）的默认 / 方式弹层 / 密码弹层 / 报错态 */
     for (const state of DOOR_STATES) {
       const name = `mobile-account-login-${state}-${lang.name}-${theme.name}`;
       test(name, async ({ page: pg }) => {
@@ -298,13 +299,16 @@ for (const lang of DOOR_LANGS) {
         await freezeTime(pg);
         await pg.goto(lang.prefix + '/account/', { waitUntil: 'domcontentloaded' });
         await waitPageReady(pg);
-        await expect(pg.locator('#acct-pk-btn')).toBeVisible({ timeout: 10000 });
-        await expect(pg.locator('#acct-pw-btn')).toBeVisible();
+        await expect(pg.locator('#acct-login-go')).toBeVisible({ timeout: 10000 });
         if (state !== 'default') {
-          /* PR3：「密码登录」原地展开密码框 */
+          await pg.click('#acct-login-go');
+          await expect(pg.locator('#sgx-method-sheet.visible #acct-pw-btn')).toBeVisible({ timeout: 5000 });
+        }
+        if (state === 'expanded' || state === 'error') {
           await pg.click('#acct-pw-btn');
           const field = pg.locator('#acct-pw-input');
           await expect(field).toBeVisible({ timeout: 5000 });
+          await expect(field).toBeFocused();
           if (state === 'error') {
             await field.fill('wrong-value');
             await pg.click('#acct-pw-go');

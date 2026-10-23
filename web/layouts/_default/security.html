@@ -66,13 +66,6 @@
       </span>
       <a class="text-sm text-m-primary font-medium whitespace-nowrap" href="{{ $setUrl }}#about" id="sec-reset-link">{{ if $isEn }}Reset all settings{{ else }}重置所有设置{{ end }}</a>
     </div>
-    <div class="set-row no-ic" aria-disabled="true">
-      <span class="flex-1 min-w-0">
-        <span class="block font-medium">{{ if $isEn }}Weather location{{ else }}天气位置{{ end }}</span>
-        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Coming in 2.7.0{{ else }}2.7.0 实现{{ end }}</span>
-      </span>
-      <span class="text-sm text-m-on-surface-variant">--</span>
-    </div>
   </section>
   <p class="sec-note">{{ if $isEn }}Security status is read from this device only.{{ else }}安全状态仅从本设备读取。{{ end }} {{ partial "build-tag.html" (dict "isEn" $isEn) }}</p>
 </div>

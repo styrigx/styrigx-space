@@ -4,13 +4,14 @@
  * stepup / 管理凭证 / 应用凭证已删除：安全与隐私只留「锁屏凭证」一个入口，门在锁屏凭证页本身——
  * 每次进页验一次锁屏凭证（锁屏通行密钥 / 解锁密码，设了哪个显示哪个）或根凭证（一直在），
  * 换 3 分钟锁屏门票（POST /api/lock-door status 读状态；owner-password verify / owner-passkey auth 带 door:true、
- * root-auth 签票），页内倒计时；离开本页 → POST /api/lock-door clear。
+ * root-auth 签票），页内倒计时；剩余时间内刷新 / 离开再回来不用重新验证（2026-10-24）。
  *
  * 覆盖：
  * - 安全与隐私：锁屏凭证行链到锁屏凭证页，没有「管理凭证」
  * - 门口按已设置的锁屏凭证显示入口；都没设只显示根凭证
  * - 解锁密码 / 根凭证进门 → 门内 + 倒计时；密码错误留在门口
- * - 离开本页发 clear；门内操作返回 403 door → 到期框「重新验证」→ 回到门口
+ * - 验证后刷新门票仍在（倒计时按服务端剩余时间），到期回门口；门内操作返回 403 door → 到期框「重新验证」→ 回到门口
+ * - 通行密钥列表加载中显示占位，不出现空列表
  * - A-1：连续 10 次进门都成功、无 JS 错误
  * - A-3：验证行样式（圆角 16px 等）保持（账号登录与锁屏凭证的门共用同一套）
  *
@@ -162,21 +163,60 @@ test.describe('锁屏凭证的门', () => {
     expect(st.roots).toBe(1);
   });
 
-  test('离开本页 → POST /api/lock-door clear；再进要重新验证', async ({ page }) => {
-    const st = await mockLockDoor(page, { valid: true });
-    /* keepalive 请求在页面卸载时发出，route 拦不稳；在 context 上听请求体 */
-    const sent = [];
-    page.context().on('request', (r) => {
-      if (r.url().endsWith('/api/lock-door') && r.method() === 'POST') sent.push(r.postData() || '');
+  test('2026-10-24 验证后刷新：门票还在（不再 pagehide 就 clear），仍在门内，倒计时按服务端剩余时间接着走；到期后刷新 → 门口', async ({ page }) => {
+    const st = await mockLockDoor(page);
+    /* mock 的门票记住签发时刻：status 返回真实剩余时间（验证时刻 + 3 分钟） */
+    let issuedAt = 0;
+    await page.unroute('**/api/lock-door');
+    await page.route('**/api/lock-door', async (route) => {
+      let body = {};
+      try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
+      if (body.action === 'clear') { st.clears++; st.valid = false; await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }); return; }
+      if (st.valid && !issuedAt) issuedAt = Date.now();
+      const exp = issuedAt + 180000 - (st.skew || 0);
+      const valid = st.valid && Date.now() < exp;
+      const j = { ok: true, valid, password: true, passkey: false };
+      if (valid) { j.door = 'lock'; j.expiresAt = exp; }
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(j) });
+    });
+    await page.goto(LOCK_URL, { waitUntil: 'domcontentloaded' });
+    await page.locator('#lock-door-methods .sgx-door-row').filter({ hasText: '解锁密码' }).click();
+    await page.locator('#lock-door-methods .sgx-door-expand input[type="password"]').fill('lock-pw-1');
+    await page.locator('#lock-door-methods .sgx-door-btn-primary').click();
+    await expect(page.locator('#sgx-door-countdown')).toBeVisible({ timeout: 15000 });
+    /* 模拟已经过去 60 秒，再刷新 */
+    st.skew = 60000;
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#lock-door')).toBeHidden();
+    await expect(page.locator('#sgx-door-countdown')).toContainText(/2:0\d|1:5\d/);
+    expect(st.clears).toBe(0);
+    /* 门票到期（服务端说 invalid）→ 刷新回门口重新验证 */
+    st.skew = 181000;
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#lock-door')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#lockmgr')).toBeHidden();
+  });
+
+  test('2026-10-24 进门后通行密钥列表回来之前显示「正在加载」，不出现只有「添加通行密钥」的空列表', async ({ page }) => {
+    await mockLockDoor(page, { valid: true });
+    let release;
+    const gate = new Promise((r) => { release = r; });
+    await page.unroute('**/api/owner-passkey');
+    await page.route('**/api/owner-passkey', async (route) => {
+      await gate;
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, keys: [{ credId: 'c1', name: 'Galaxy S26', provider: 'Samsung Pass', class: 'lock', createdAt: 1760000000000, lastUsedAt: 0 }] }) });
     });
     await page.goto(LOCK_URL, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
-    /* 真实导航时的 keepalive 请求 Playwright 不一定看得到；直接派发 pagehide 验证监听器发出了 clear */
-    await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: false })));
-    await expect.poll(() => sent.filter((b) => b.includes('"clear"')).length, { timeout: 5000 }).toBeGreaterThan(0);
-    await expect.poll(() => st.clears, { timeout: 5000 }).toBeGreaterThan(0);
-    await page.goto(LOCK_URL, { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#lock-door')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#lockmgr-pkloading')).toBeVisible();
+    await expect(page.locator('#lockmgr-pkadd')).toBeHidden();
+    await expect(page.locator('#lockmgr-pkempty')).toBeHidden();
+    release();
+    await expect(page.locator('.lockmgr-pkitem')).toHaveCount(1);
+    await expect(page.locator('.lockmgr-pkitem')).toContainText('Samsung Pass');
+    await expect(page.locator('#lockmgr-pkloading')).toHaveCount(0);
+    await expect(page.locator('#lockmgr-pkadd')).toBeVisible();
   });
 
   test('门内操作返回 403 door → 到期框「重新验证」→ 回到门口', async ({ page }) => {

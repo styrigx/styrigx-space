@@ -513,3 +513,21 @@ test('No top-bar menu; search engine row lives in Security and privacy', async (
   await sheet.getByText('Bing', { exact: true }).click();
   expect(await pg.evaluate(() => localStorage.getItem('sgx-search-engine'))).toBe('bing');
 });
+
+/* 2026-10-24：显示页的行顺序 跟随系统 → 语言 → 布局；分隔线照旧（第一行没有，后面每行上方一条） */
+test('display subpage: row order 跟随系统 → 语言 → 布局, dividers intact', async ({ page: pg }) => {
+  await pinLang(pg, 'zh');
+  await gotoSettings(pg, '/settings/display/');
+  const order = await pg.evaluate(() => {
+    const ids = ['row-system', 'row-lang', 'seg-layout'];
+    const els = ids.map((id) => document.getElementById(id));
+    const rows = els.map((el) => el && el.closest('.set-row'));
+    const all = Array.from(document.querySelectorAll('#sg-display .set-row'));
+    return {
+      idx: rows.map((r) => all.indexOf(r)),
+      dividers: all.map((r) => getComputedStyle(r, '::before').content !== 'none' && getComputedStyle(r, '::before').content !== 'normal'),
+    };
+  });
+  expect(order.idx).toEqual([0, 1, 2]);
+  expect(order.dividers).toEqual([false, true, true]);
+});

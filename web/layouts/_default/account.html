@@ -1,5 +1,6 @@
 {{/* 账号（/account/，独立页，不挂在设置下）：抽屉头的头像圆进入。
-   未登录 → 账号登录（顶栏页名「登录账号」，全页光晕背景，2026-10-23 起没有左上站名和底部站点清单）：头像 + 欢迎回来 + 记录 · 收藏 · 探索 · 享受 + 通行密钥登录 / 密码登录 + 「无法登录？」。
+   未登录 → 账号登录（顶栏页名「登录账号」，全页光晕背景，与锁屏同一套版面和弹层，2026-10-24）：头像 + 欢迎回来 + 记录 · 收藏 · 探索 · 享受 + 「登录」
+   → 底部弹层选 通行密钥 / 密码 / 「无法登录？」。
    成功签发账号会话（sgx-account，400 天，不点退出一直登录；进账号页前提是锁屏已解锁）。
    「无法登录？」→ /account/reset/（重置登录：根凭证 → 直接进 安全与隐私 重设账号凭证）。
    已登录 → 账号总览（三星账号式）：账号卡（名字 + 头像，主人可换头像；点卡片其余地方进
@@ -16,39 +17,27 @@
 
 <div class="acct-layout pb-28">
 
-  <!-- 账号登录（PR3）：页名「登录账号」只在顶栏长条里（JS 按状态改），正文不再重复大标题、不放盾牌图标和构建号。
-       头像 + 「欢迎回来」→ 主按钮「通行密钥登录」（强调色）→ 次按钮「密码登录」（原地展开密码框）→ 小字「无法登录？」进重置登录。
-       设了哪个显示哪个；读不到状态（访客）两个都显示，服务端一律拒绝。根凭证不再是登录入口。 -->
   <!-- 2026-10-21：登录区和总览默认都隐藏（中性态）。服务端（网关）在 <html data-sgx-account="in|out"> 给出账号会话，
        网关按它改首帧：in → 登录区整段不下发（SGX-ACCT-LOGIN 标记之间）、总览去掉 hidden；out → 登录区去掉 hidden。
        account.js 再按同一个属性接手；只有服务端说「未登录」才出现「欢迎回来」，不再先画登录区再换成总览。 -->
+  {{/* 2026-10-24：账号登录与锁屏同一套界面 —— 头像（点它也能登录）→ 欢迎回来 / 记录 · 收藏 · 探索 · 享受 → 「登录」按钮，整组上下居中；
+     点「登录」弹出与锁屏同一个底部弹层（lib/auth-sheet.js）选 通行密钥 / 密码，最下面「无法登录？」；
+     选密码 → 与锁屏同一个密码弹层（#acct-pw-input）。设了哪个显示哪个；读不到状态（访客）两个都显示，服务端一律拒绝。 */}}
 {{ "<!-- SGX-ACCT-LOGIN-START -->" | safeHTML }}
   <div id="acct-login" class="acct-login" hidden>
-    <div class="acct-login-hero animate-fade-up">
-      <img class="acct-login-avatar" src="/avatar/192.webp" data-sgx-avatar="192" width="96" height="96" alt="">
-      <p class="acct-login-welcome">{{ if $isEn }}Welcome back{{ else }}欢迎回来{{ end }}</p>
-      <p class="acct-login-sub">{{ if $isEn }}Record · Collect · Explore · Enjoy{{ else }}记录 · 收藏 · 探索 · 享受{{ end }}</p>
-    </div>
-    <p class="sgx-door-err acct-login-notice" id="acct-login-notice" hidden></p>
-    <div class="acct-login-actions animate-fade-up" style="animation-delay:.08s">
-      <button type="button" class="sgx-door-btn sgx-door-btn-primary acct-login-btn" id="acct-pk-btn">
-        <span class="acct-login-btn-ic" aria-hidden="true">{{ partial "icon.html" "fingerprint" }}</span><span class="acct-login-btn-tx">{{ if $isEn }}Sign in with passkey{{ else }}通行密钥登录{{ end }}</span>
+    <div class="sgx-lock-user acct-login-user animate-fade-up">
+      <button type="button" class="acct-login-av" id="acct-login-avatar" aria-label="{{ if $isEn }}Sign in, choose method{{ else }}登录，选择方式{{ end }}" aria-haspopup="dialog">
+        <span class="sgx-lock-halo" aria-hidden="true"></span>
+        <img class="acct-login-avatar" src="/avatar/192.webp" data-sgx-avatar="192" width="120" height="120" alt="">
       </button>
-      <p class="sgx-door-err" id="acct-pk-err" hidden></p>
-      <button type="button" class="sgx-door-btn sgx-door-btn-secondary acct-login-btn" id="acct-pw-btn" aria-expanded="false" aria-controls="acct-pw-form">{{ if $isEn }}Sign in with password{{ else }}密码登录{{ end }}</button>
-      <div class="acct-pw-form" id="acct-pw-form" hidden>
-        <div class="sgx-pw-field">
-          {{/* 隐藏用户名框：密码管理器按 AccountKey 保存 / 填充（lib/key-names.js KEY_ACCOUNT） */}}
-          <input type="text" autocomplete="username" value="AccountKey" aria-hidden="true" tabindex="-1" style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;">
-          <input type="password" id="acct-pw-input" class="sgx-pw-input" autocomplete="current-password" aria-label="{{ if $isEn }}Account password{{ else }}账号密码{{ end }}" placeholder="{{ if $isEn }}Account password{{ else }}账号密码{{ end }}">
-          <button type="button" class="sgx-pw-eye" id="acct-pw-eye"></button>
-        </div>
-        <p class="sgx-door-err" id="acct-pw-err" hidden></p>
-        <button type="button" class="sgx-door-btn sgx-door-btn-primary acct-login-btn" id="acct-pw-go">{{ if $isEn }}Sign in{{ else }}登录{{ end }}</button>
-      </div>
-      <p class="acct-login-none" id="acct-login-none" hidden>{{ if $isEn }}No sign-in method is set for this account yet. Use “Can’t sign in?” to set one with your root credential.{{ else }}账号还没有设置登录方式。可以点「无法登录？」用根凭证设置。{{ end }}</p>
+      <p class="sgx-lock-welcome acct-login-welcome">{{ if $isEn }}Welcome back{{ else }}欢迎回来{{ end }}</p>
+      <p class="sgx-lock-sub acct-login-sub">{{ if $isEn }}Record · Collect · Explore · Enjoy{{ else }}记录 · 收藏 · 探索 · 享受{{ end }}</p>
+      <p class="sgx-door-err acct-login-notice" id="acct-login-notice" hidden></p>
+      <button type="button" class="sgx-door-btn sgx-door-btn-primary sgx-lock-go acct-login-go" id="acct-login-go" aria-haspopup="dialog">
+        <span class="acct-login-btn-ic" aria-hidden="true">{{ partial "icon.html" "fingerprint" }}</span><span class="acct-login-btn-tx">{{ if $isEn }}Sign in{{ else }}登录{{ end }}</span>
+      </button>
+      <p class="acct-login-none" id="acct-login-none" hidden>{{ if $isEn }}No sign-in method is set for this account yet. Tap Sign in → “Can’t sign in?” to set one with your root credential.{{ else }}账号还没有设置登录方式。可以点「登录」→「无法登录？」用根凭证设置。{{ end }}</p>
     </div>
-    <a class="acct-cant" id="acct-cant" href="{{ cond $isEn "/en/account/reset/" "/account/reset/" }}">{{ if $isEn }}Can’t sign in?{{ else }}无法登录？{{ end }}</a>
   </div>
 {{ "<!-- SGX-ACCT-LOGIN-END -->" | safeHTML }}
 
