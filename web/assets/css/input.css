@@ -6736,32 +6736,37 @@
     position: fixed; inset: -30px; z-index: -1; pointer-events: none; transform: translateZ(0);
     background: var(--m-wallpaper);
   }
-  /* 2026-10-23 背景方案 B「环境光晕」（用户：内容页不要玻璃形状，靠光晕撞色撞出一点玻璃质感，和锁屏 / 登录页的玻璃背景自然过渡）。
-     ::before = 主色、第二色两团光晕在右上、左下撞色（和玻璃背景同一对颜色、同一方位）；
-     ::after  = 同一张玻璃明度图，强模糊后 soft-light 叠上去：只留下高光 / 暗部的走向，看不出形状。
-     两层都从顶栏下沿开始淡入，顶栏区域保持干净。 */
-  #sgx-wallpaper::before, #sgx-wallpaper::after {
-    content: ''; position: absolute; inset: 0;
-    -webkit-mask: linear-gradient(to bottom, transparent 0, rgb(0 0 0) calc(var(--nav-h) + 160px));
-    mask: linear-gradient(to bottom, transparent 0, rgb(0 0 0) calc(var(--nav-h) + 160px));
+  /* 2026-10-23 底板定稿：全页纯光晕（用户：全页柔和光晕；不要玻璃圆、壁纸形状、图片）。
+     七团大光晕，颜色只取当前调色板自己的 主色 / 第二色 / 第三色（主色 3 团、第二色 2 团、第三色 2 团），只分深浅，不转色相：
+     单色预设 = 同一种颜色的深浅；撞色预设 = 调色板那两三种颜色各自的深浅，不会冒出调色板里没有的颜色。
+     下一轮调色板改七色时，只换 --sgx-halo 里每团的取色，位置不用动。
+     内容页 #sgx-wallpaper、账号登录页 / 锁屏 .sgx-glass-bg 共用同一个 --sgx-halo；顶栏区域保持干净（--sgx-halo-mask 从顶栏下沿淡入）。 */
+  :root {
+    --sgx-halo:
+      radial-gradient(64% 38% at 104% 22%, oklch(from var(--sgx-primary) .74 min(c, .2) h / .9) 0%, transparent 72%),
+      radial-gradient(68% 40% at -8% 50%, oklch(from var(--sgx-tertiary) .76 min(c, .2) h / .82) 0%, transparent 72%),
+      radial-gradient(60% 32% at 96% 100%, oklch(from var(--sgx-secondary) .76 min(c, .18) h / .78) 0%, transparent 70%),
+      radial-gradient(56% 30% at 6% 104%, oklch(from var(--sgx-primary) .86 min(c, .12) h / .75) 0%, transparent 70%),
+      radial-gradient(46% 26% at 62% 54%, oklch(from var(--sgx-tertiary) .88 min(c, .1) h / .5) 0%, transparent 70%),
+      radial-gradient(52% 26% at 28% -6%, oklch(from var(--sgx-primary) .82 min(c, .15) h / .6) 0%, transparent 70%),
+      radial-gradient(42% 24% at 104% 66%, oklch(from var(--sgx-secondary) .88 min(c, .1) h / .55) 0%, transparent 70%);
+    --sgx-halo-mask: linear-gradient(to bottom, transparent 0, rgb(0 0 0) calc(var(--nav-h, 84px) + 140px));
+  }
+  :root.dark {
+    --sgx-halo:
+      radial-gradient(64% 38% at 104% 22%, oklch(from var(--sgx-primary) .44 min(c, .16) h / .8) 0%, transparent 72%),
+      radial-gradient(68% 40% at -8% 50%, oklch(from var(--sgx-tertiary) .42 min(c, .15) h / .75) 0%, transparent 72%),
+      radial-gradient(60% 32% at 96% 100%, oklch(from var(--sgx-secondary) .4 min(c, .14) h / .7) 0%, transparent 70%),
+      radial-gradient(56% 30% at 6% 104%, oklch(from var(--sgx-primary) .32 min(c, .1) h / .65) 0%, transparent 70%),
+      radial-gradient(46% 26% at 62% 54%, oklch(from var(--sgx-tertiary) .32 min(c, .08) h / .45) 0%, transparent 70%),
+      radial-gradient(52% 26% at 28% -6%, oklch(from var(--sgx-primary) .36 min(c, .12) h / .55) 0%, transparent 70%),
+      radial-gradient(42% 24% at 104% 66%, oklch(from var(--sgx-secondary) .32 min(c, .08) h / .5) 0%, transparent 70%);
   }
   #sgx-wallpaper::before {
-    background:
-      radial-gradient(55% 38% at 96% 34%, oklch(from var(--sgx-primary) .86 min(calc(c * .6), .08) h / .7) 0%, transparent 70%),
-      radial-gradient(60% 40% at 0% 82%, oklch(from var(--sgx-secondary) .88 min(calc(c * .7), .08) h / .7) 0%, transparent 72%),
-      radial-gradient(45% 30% at 70% 100%, oklch(from var(--sgx-primary) .9 min(calc(c * .5), .06) h / .4) 0%, transparent 70%);
+    content: ''; position: absolute; inset: 0;
+    background: var(--sgx-halo);
+    -webkit-mask: var(--sgx-halo-mask); mask: var(--sgx-halo-mask);
   }
-  #sgx-wallpaper::after {
-    background: url(/images/bg/glass-light.webp) center / cover no-repeat;
-    filter: blur(26px); opacity: .5; mix-blend-mode: soft-light;
-  }
-  :root.dark #sgx-wallpaper::before {
-    background:
-      radial-gradient(55% 38% at 96% 34%, oklch(from var(--sgx-primary) .38 min(c, .07) h / .5) 0%, transparent 70%),
-      radial-gradient(60% 40% at 0% 82%, oklch(from var(--sgx-secondary) .34 min(c, .06) h / .5) 0%, transparent 72%),
-      radial-gradient(45% 30% at 70% 100%, oklch(from var(--sgx-primary) .3 min(c, .05) h / .4) 0%, transparent 70%);
-  }
-  :root.dark #sgx-wallpaper::after { background-image: url(/images/bg/glass-dark.webp); opacity: .35; mix-blend-mode: screen; }
   /* 暗色切换平滑过渡 */
   body, nav, .widget, .app-tile {
     transition: background-color .4s ease, border-color .4s ease, color .4s ease;
@@ -7678,35 +7683,19 @@
   .acct-login-none { margin: 0; font-size: 14px; color: var(--sgx-text-secondary); text-align: center; line-height: 1.6; }
   .acct-login .acct-cant { margin-top: 18px; }
   #acct-door .acct-cant { display: inline-block; margin-top: 12px; }
-  /* 2026-10-23 背景方案 C（用户定稿：图 3 玻璃复刻 + 主题色）。
-     .sgx-glass-bg：fixed 全屏装饰层，盖在 #sgx-wallpaper 之上、内容之下。
-     底 = 主色 → 页面底色 → 第二色的柔和渐变（只取色相，明度 / 彩度压低）；
-     上 = 灰度玻璃明度图（/images/bg/glass-*.webp），mix-blend-mode: luminosity 只给明暗，颜色跟调色板走。
-     顶栏区域干净：遮罩从顶栏下沿开始淡入，玻璃不穿过顶栏。账号登录页与锁屏共用。 */
+  /* .sgx-glass-bg：账号登录页与锁屏共用的 fixed 全屏背景层，盖在 #sgx-wallpaper 之上、内容之下。
+     2026-10-23 定稿：和内容页同一套纯光晕（--sgx-halo，见 base 层），没有图片和形状；
+     锁屏要盖住整页，所以底下多一层不透明的 --m-surface。顶栏区域干净。 */
   .sgx-glass-bg {
-    --g-a1: oklch(from var(--sgx-primary) .92 min(calc(c * .45), .05) h);
-    --g-a2: oklch(from var(--sgx-secondary) .93 min(calc(c * .5), .05) h);
-    --g-a0: oklch(from var(--sgx-primary) .97 .012 h);
-    --g-top: calc(env(safe-area-inset-top, 0px) + var(--sgx-tb-inset) + var(--sgx-tb-btn));
     position: fixed; inset: 0; z-index: 0; pointer-events: none; isolation: isolate;
-    background: linear-gradient(160deg, var(--g-a1) 0%, var(--g-a0) 45%, var(--g-a2) 100%);
-    -webkit-mask: linear-gradient(to bottom, transparent 0, transparent var(--g-top), rgb(0 0 0) calc(var(--g-top) + 96px));
-    mask: linear-gradient(to bottom, transparent 0, transparent var(--g-top), rgb(0 0 0) calc(var(--g-top) + 96px));
+    background: var(--m-surface);
   }
   .sgx-glass-bg::before {
     content: ''; position: absolute; inset: 0;
-    background: url(/images/bg/glass-light.webp) center / cover no-repeat;
-    mix-blend-mode: luminosity;
+    background: var(--sgx-halo);
+    -webkit-mask: var(--sgx-halo-mask); mask: var(--sgx-halo-mask);
   }
-  :root.dark .sgx-glass-bg {
-    --g-a1: oklch(from var(--sgx-primary) .34 min(c, .06) h);
-    --g-a2: oklch(from var(--sgx-secondary) .30 min(c, .05) h);
-    --g-a0: oklch(from var(--sgx-primary) .22 .02 h);
-  }
-  :root.dark .sgx-glass-bg::before {
-    background-image: url(/images/bg/glass-dark.webp); mix-blend-mode: screen; opacity: .75;
-  }
-  /* 账号页：只有登录区显示时才铺玻璃（总览、子页不铺）；内容在玻璃层之上 */
+  /* 账号页：只有登录区显示时才铺光晕背景层（总览、子页用内容页壁纸）；内容在背景层之上 */
   .acct-glass { display: none; }
   body:has(#acct-login:not([hidden])) .acct-glass { display: block; }
   body:has(#acct-login:not([hidden])) .acct-layout { position: relative; z-index: 1; }
@@ -7815,7 +7804,7 @@
   @media (min-width:1024px) {
     @media (hover: hover) and (pointer: fine) { #sgx-lock-avatar:hover .sgx-lock-halo { opacity: 1; border-color: rgba(255,255,255,.95); box-shadow: 0 0 28px rgba(255,255,255,.65); } }
   }
-  /* 2026-10-23 锁屏视觉统一：和账号登录页同一套玻璃背景（.sgx-glass-bg）与版面。
+  /* 2026-10-23 锁屏视觉统一：和账号登录页同一套光晕背景（.sgx-glass-bg）与版面。
      顶栏和全站一样是三件套（两侧圆在锁屏上只是外观，点不了）；头像 → 欢迎回来 / 很高兴再次见到你 → 解锁按钮（左上字标、底部站点清单 2026-10-23 删除）。 */
   #sgx-lock { background: var(--m-surface); flex-direction: column; }
   #sgx-lock .sgx-glass-bg { position: fixed; }
