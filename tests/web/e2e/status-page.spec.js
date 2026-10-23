@@ -371,6 +371,67 @@ test.describe('自动刷新', () => {
   });
 });
 
+/* 首帧缓存（2026-10-24 PR3）：本机有 24 小时内上次成功的数据（localStorage sgx-status-cache）→ 不等网络先画出来，
+   请求回来再换新；太旧 / 坏的缓存不用（照常骨架）；401 清掉缓存出错误卡；成功后写回缓存。 */
+test.describe('首帧缓存', () => {
+  test.use({ viewport: { width: 412, height: 915 } });
+  const KEY = 'sgx-status-cache';
+  /** @param {import('@playwright/test').Page} page @param {any} value */
+  const seed = (page, value) => page.addInitScript(([k, v]) => { try { localStorage.setItem(k, v); } catch (e) {} }, [KEY, JSON.stringify(value)]);
+  const readKey = (page) => page.evaluate((k) => localStorage.getItem(k), KEY);
+
+  test('有 24 小时内的缓存：请求没回来就先画缓存（不出骨架），回来后换成新数据并写回缓存', async ({ page }) => {
+    await seed(page, { at: fx.NOW - 10 * 60 * 1000, data: fx.normal() });
+    let release;
+    const hold = new Promise((r) => { release = r; });
+    const calls = await go(page, '/status/', { api: () => ({ __hold: hold, data: fx.oneDown() }) });
+    const root = page.locator('#st-root');
+    await expect(root).toHaveAttribute('data-state', 'ready');
+    await expect(page.locator('.st-skel')).toHaveCount(0);
+    await expect(page.locator('#st-banner')).toHaveAttribute('data-state', 'up');
+    await expect(page.locator('#st-sites .st-card')).toHaveCount(5);
+    await expect(page.locator('#st-foot')).toHaveText('更新于 11:50（北京时间），每分钟自动刷新');
+    /* 请求照常发出去了，只是还没回来 */
+    await expect.poll(() => calls.length).toBe(1);
+    await expect(root).toHaveAttribute('data-state', 'ready');
+    release();
+    await expect(page.locator('#st-banner')).toHaveAttribute('data-state', 'down');
+    await expect(page.locator('#st-foot')).toHaveText('更新于 12:00（北京时间），每分钟自动刷新');
+    const saved = JSON.parse(await readKey(page));
+    expect(saved.at).toBe(fx.NOW);
+    expect(saved.data.all_up).toBe(false);
+  });
+
+  test('缓存超过 24 小时 / 内容坏了：不用，照常骨架', async ({ browser }) => {
+    for (const bad of [{ at: fx.NOW - 25 * 3600 * 1000, data: fx.normal() }, { at: fx.NOW, data: { ok: false } }]) {
+      const ctx = await browser.newContext({ viewport: { width: 412, height: 915 } });
+      const pg = await ctx.newPage();
+      await seed(pg, bad);
+      let release;
+      const hold = new Promise((r) => { release = r; });
+      await go(pg, '/status/', { api: () => ({ __hold: hold, data: fx.normal() }) });
+      await expect(pg.locator('#st-root')).toHaveAttribute('data-state', 'loading');
+      await expect(pg.locator('.st-skel')).toHaveCount(5);
+      release();
+      await expect(pg.locator('#st-root')).toHaveAttribute('data-state', 'ready');
+      await ctx.close();
+    }
+  });
+
+  test('没有缓存：成功后写入缓存；401 会话过期：清掉缓存、出错误卡（不显示缓存的旧数据）', async ({ page }) => {
+    await go(page, '/status/', { api: fx.normal() });
+    await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'ready');
+    expect(JSON.parse(await readKey(page)).at).toBe(fx.NOW);
+
+    await page.unroute('**/api/status');
+    await page.route('**/api/status', (r) => r.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false,"error":"unauthorized"}' }));
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'error');
+    await expect(page.locator('#st-error .st-msg-title')).toHaveText('会话已过期');
+    expect(await readKey(page)).toBeNull();
+  });
+});
+
 test.describe('聊天页空状态', () => {
   test.use({ viewport: { width: 412, height: 915 } });
 
