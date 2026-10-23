@@ -17,18 +17,14 @@
  *   失败/超时显示普通提示 + 重试，不出现错误码。
  */
 import { on } from '../lib/events.js';
-import { visibleInterval } from '../lib/scheduler.js';
 import { reducedMotion } from '../lib/util.js';
-import { get as featGet } from '../lib/features.js';
 import { followKeyboard } from './vk.js';
-import { get, getJSON } from '../lib/storage.js';
 import { exchangeRootSession } from '../lib/root-session.js';
 import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, tapFeedback } from '../lib/dialog-behavior.js';
 import { getPasskeyAssertion, passkeyErrorText } from '../lib/passkey-assert.js';
 import { pwFieldHtml, bindPwEye, onEnter, focusNoScroll } from '../lib/auth-flow.js';
 import { mountResetFlow, resetT } from '../lib/reset-flow.js';
-import { mountDaymarkToday, daymarkCardHtml } from '../lib/daymark-today.js';
 import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
 
 const LOCK =
@@ -284,37 +280,14 @@ function showLockScreen() {
   const en = document.documentElement.lang === 'en';
   const isLocal = isLocalDev();
 
-  /* 天气：和顶栏同一数据来源，取不到就不显示 */
-  /** @returns {{icon: string, temp: string}|null} */
-  function wxData() {
-    try {
-      if (!featGet('weather-show')) return null;
-    } catch (e) {}
-    if (get('sgx-weather-show') === '0') return null;
-    const c = getJSON('sgx-weather', null);
-    try {
-      const d = c && c.data;
-      if (!d || !d.current) return null;
-      const WXI = {
-        0: '☀️', 1: '🌤️', 2: '⛅', 3: '☁️', 45: '🌫️', 48: '🌫️', 51: '🌦️', 53: '🌦️',
-        55: '🌧️', 61: '🌧️', 63: '🌧️', 65: '🌧️', 71: '🌨️', 73: '🌨️', 75: '❄️',
-        80: '🌦️', 81: '🌧️', 82: '⛈️', 95: '⛈️', 96: '⛈️',
-      };
-      const unit = get('sgx-temp-unit') === 'f' ? 'f' : 'c';
-      let t = d.current.temperature_2m;
-      t = unit === 'f' ? Math.round((t * 9) / 5 + 32) : Math.round(t);
-      return { icon: WXI[d.current.weather_code] || '☁️', temp: t + '°' };
-    } catch (e) {
-      return null;
-    }
-  }
-
   /* 头像：复用导航抽屉头的头像图片（2026-10-22 从顶栏挪进抽屉） */
   const navImg = /** @type {HTMLImageElement|null} */ (document.querySelector('.sgx-tb-avatar'));
   /* 锁屏头像 72px：用 192 那张（顶栏是 96） */
   const avatarSrc = navImg ? navImg.src.replace(/\/avatar\/96\.webp/, '/avatar/192.webp') : '';
 
-  const wx = wxData();
+  /* 站名字标：复用抽屉头的同一份 SVG（ı 圆点跟主题色）；没有就退回文字 */
+  const wmEl = document.querySelector('.sgx-drawer-brand .sgx-wordmark');
+  const wordmark = wmEl ? wmEl.outerHTML : '<span class="sgx-lock-brand-tx">Styrigx</span>';
   const ov = document.createElement('div');
   ov.id = 'sgx-lock';
   ov.setAttribute('role', 'dialog');
@@ -325,37 +298,34 @@ function showLockScreen() {
      日刻卡只展示（div，不是链接，点了不跳转）；拉不到就不显示。
      为了不跳版面：整组先透明，日刻有结论（缓存画上 / 拉到 / 失败）或等满 1.2 秒再一起显示；
      之后才拉到的句子这次不再插进来（下次锁屏从缓存直接画）。 */
+  /* 2026-10-23 锁屏视觉统一（用户定稿）：和账号登录页同一套玻璃背景与版面 ——
+     顶栏位置只放标题「解锁屏幕」（锁屏盖住整页，抽屉 / 快捷面板按钮不在锁屏上，不能绕过）；
+     左上字标 + A Personal Digital Space → 头像（点它解锁）→ 欢迎回来 / 很高兴再次见到你 → 解锁按钮 → 底部站点清单。
+     时钟、日期天气、日刻不再放在锁屏上。解锁、凭证、会话逻辑不变：按钮只是转点头像。 */
   ov.innerHTML =
+    '<div class="sgx-glass-bg" aria-hidden="true"></div>' +
+    '<div class="sgx-lock-tb"><span class="sgx-lock-tb-title" id="sgx-lock-title">' + (en ? 'Unlock screen' : '解锁屏幕') + '</span></div>' +
     '<div class="sgx-lock-stage is-pending" id="sgx-lock-stage">' +
     '<div class="sgx-lock-head">' +
-    '<div class="sgx-lock-top" id="sgx-lock-ic">' +
-    LOCK +
-    '</div>' +
-    '<div class="sgx-lock-clockwrap"><div class="sgx-lock-clock" id="sgx-lock-clock">--:--</div>' +
-    '<div class="sgx-lock-date"><span id="sgx-lock-date"></span>' +
-    (wx
-      ? '<span class="sgx-lock-wx"><span aria-hidden="true">' +
-        wx.icon +
-        '</span><span>' +
-        wx.temp +
-        '</span></span>'
-      : '') +
-    '</div></div>' +
-    '<div class="widget dm-w sgx-lock-dm bg-m-container-lowest text-m-on-surface border border-m-outline overflow-hidden relative hidden" id="sgx-lock-dm" role="group" aria-label="' +
-    (en ? 'Daymark · Line of the day' : '日刻 · 今日一句') + '">' +
-    daymarkCardHtml(en, { emptyHint: false }) +
-    '</div>' +
+    '<div class="sgx-lock-brand" aria-hidden="true"><span class="sgx-lock-brand-name">' + wordmark + '</span>' +
+    '<span class="sgx-lock-brand-tag">A Personal<br>Digital Space</span></div>' +
+    '<div class="sgx-lock-top" id="sgx-lock-ic" aria-hidden="true">' + LOCK + '</div>' +
     '</div>' +
     '<div class="sgx-lock-user"><button type="button" id="sgx-lock-avatar" aria-label="' +
     (en ? 'Unlock, choose method' : '解锁，选择方式') +
     '" aria-haspopup="dialog">' +
     '<span class="sgx-lock-halo" aria-hidden="true"></span>' +
     (avatarSrc
-      ? '<img src="' + avatarSrc + '" alt="Styrigx" width="72" height="72">'
+      ? '<img src="' + avatarSrc + '" alt="Styrigx" width="120" height="120">'
       : '<span class="sgx-lock-fb" aria-hidden="true">S</span>') +
     '</button>' +
-    '<p class="sgx-lock-hint" aria-hidden="true">' + (en ? 'Tap to unlock' : '点头像解锁') + '</p>' +
+    '<p class="sgx-lock-welcome">' + (en ? 'Welcome back' : '欢迎回来') + '</p>' +
+    '<p class="sgx-lock-sub">' + (en ? 'Good to see you again' : '很高兴再次见到你') + '</p>' +
+    '<button type="button" class="sgx-door-btn sgx-door-btn-primary sgx-lock-go" id="sgx-lock-go" aria-haspopup="dialog">' +
+    UNLOCK + '<span>' + (en ? 'Unlock' : '解锁') + '</span></button>' +
     '</div>' +
+    '<div class="sgx-lock-foot" aria-hidden="true"><span class="sgx-lock-foot-name">Styrigx</span>' +
+    '<span class="sgx-lock-foot-list">MOBILE · DEX · SPACE · CURIO · BLOG · DAYMARK</span></div>' +
     '</div>';
   document.body.appendChild(ov);
   document.body.classList.add('sgx-locked');
@@ -365,40 +335,12 @@ function showLockScreen() {
   /* 2.8.0：锁屏显示时预加载 Turnstile（用户点验证时已就绪） */
   preloadTurnstile();
 
-  /* 日刻 · 今日一句（与主页同一个组件 lib/daymark-today.js，只读公开字段） */
+  /* 版面一次画完，直接显示（以前要等日刻） */
   const stage = document.getElementById('sgx-lock-stage');
-  let staged = false;
-  const reveal = function () {
-    if (staged) return;
-    staged = true;
-    if (stage) stage.classList.remove('is-pending');
-  };
-  const dmEl = document.getElementById('sgx-lock-dm');
-  if (dmEl) {
-    mountDaymarkToday(dmEl, { en: en, onSettled: reveal, canPaintLate: function () { return !staged; } });
-    window.setTimeout(reveal, 1200);
-  } else {
-    reveal();
-  }
-
-  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const WDZH = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-  function tick() {
-    const d = new Date();
-    const c = document.getElementById('sgx-lock-clock');
-    if (c) c.textContent = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-    const de = document.getElementById('sgx-lock-date');
-    if (de)
-      de.textContent = en
-        ? MON[d.getMonth()] + ' ' + d.getDate() + ', ' + WD[d.getDay()]
-        : d.getMonth() + 1 + '月' + d.getDate() + '日 ' + WDZH[d.getDay()];
-  }
-  const stopTick = visibleInterval(tick, 60000);
+  if (stage) stage.classList.remove('is-pending');
 
   let done = false;
   function cleanup() {
-    stopTick();
     if (ov.parentNode) ov.parentNode.removeChild(ov);
     document.body.classList.remove('sgx-locked');
     document.documentElement.style.overflow = '';
@@ -1416,6 +1358,9 @@ function showLockScreen() {
       }
       openMethodSheet();
     });
+    /* 「解锁」按钮 = 点头像（同一个入口，不另走流程） */
+    const go = document.getElementById('sgx-lock-go');
+    if (go) on(go, 'click', function (e) { e.stopPropagation(); av.click(); });
     try {
       av.focus(/** @type {any} */ ({ preventScroll: true }));
     } catch (e) {

@@ -72,12 +72,8 @@ test.describe('lock screen', () => {
     await page.setViewportSize({ width: 412, height: 915 });
     await gotoLock(page);
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    /* Hark：遮罩时钟、日期（实时内容）；天气元素不存在则跳过 */
-    const masks = [page.locator('#sgx-lock-clock'), page.locator('#sgx-lock-date')];
-    await expect(page).toHaveScreenshot('lock-screen.png', {
-      animations: 'disabled',
-      mask: masks,
-    });
+    /* 2026-10-23：锁屏不再有时钟 / 日期，不用遮罩 */
+    await expect(page).toHaveScreenshot('lock-screen.png', { animations: 'disabled' });
   });
 
   test('avatar → method sheet → visitor unlocks (local fallback)', async ({ page }) => {
@@ -105,13 +101,14 @@ test.describe('lock screen', () => {
     await expect(page.locator('#sgx-pw-input')).toBeVisible();
   });
 
-  test('dialog open: avatar does not overlap clock', async ({ page }) => {
+  test('dialog open: avatar does not overlap the wordmark', async ({ page }) => {
     /* 弹层打开时头像淡出，不得与时钟/日期/天气重叠（boundingBox 不相交）。
        三种弹层（验证/密码/通行密钥）共用同一 dialog 组件和淡出机制，测密码弹层即可。 */
     await freezeTime(page);
     await gotoLock(page);
     const avatar = page.locator('.sgx-lock-user');
-    const clock = page.locator('#sgx-lock-clock');
+    /* 2026-10-23：锁屏没有时钟了，改测头像块和左上字标不重叠 */
+    const clock = page.locator('#sgx-lock .sgx-lock-brand');
     await expect(avatar).toBeVisible();
     await expect(clock).toBeVisible();
 
@@ -617,99 +614,80 @@ test.describe('PR3 锁屏：无法登录？→ 弹层原地切到重置登录', 
   });
 });
 
-test.describe('PR3 锁屏版面 + 日刻今日一句', () => {
-  const QUOTE = (day) => ({ ok: true, day: day, quote: { text: '那些杀不死我的，必使我更强大。', trans: '', author: '尼采', source: '偶像的黄昏' }, note: 'PRIVATE-NOTE' });
-  async function mockDaymark(page, body, status) {
-    await page.route('https://daymark.styrigx.com/api/today', (route) => route.fulfill({
-      status: status || 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(body),
-    }));
-  }
-  function todaySh() {
-    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-  }
+test.describe('锁屏视觉统一（2026-10-23：与账号登录页同一套玻璃背景与版面）', () => {
   test.beforeEach(async ({ page }) => {
     await blockExternalRequests(page);
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
   });
 
-  test('日刻卡显示今日一句（只展示公开字段），点了不跳转；整组垂直居中、头像在日刻下方', async ({ page }) => {
+  test('版面：顶栏标题「解锁屏幕」；左上字标 + A Personal Digital Space；头像 → 欢迎回来 / 很高兴再次见到你 → 解锁按钮 → 底部站点清单；不再有时钟和日刻', async ({ page }) => {
     await page.setViewportSize({ width: 412, height: 915 });
-    await mockDaymark(page, QUOTE(todaySh()));
     await gotoLock(page);
-    const dm = page.locator('#sgx-lock-dm');
-    await expect(dm).toBeVisible({ timeout: 5000 });
-    await expect(dm.locator('[data-dm="text"]')).toHaveText('那些杀不死我的，必使我更强大。');
-    await expect(dm.locator('[data-dm="by"]')).toHaveText('— 尼采《偶像的黄昏》');
-    await expect(dm).not.toContainText('PRIVATE');
-    expect(await dm.evaluate((el) => el.tagName)).toBe('DIV');
-    await expect(dm.locator('a')).toHaveCount(0);
-    const url = page.url();
-    await dm.click();
-    expect(page.url()).toBe(url);
-    await expect(page.locator('#sgx-lock')).toBeVisible();
-    /* 版面：时钟在日刻上面，头像在日刻下面；上下留白差不多（不再「时钟顶上、头像压底」） */
-    const c = await page.locator('#sgx-lock-clock').boundingBox();
-    const d = await dm.boundingBox();
+    const lock = page.locator('#sgx-lock');
+    await expect(lock.locator('.sgx-glass-bg')).toHaveCount(1);
+    await expect(page.locator('#sgx-lock-title')).toHaveText('解锁屏幕');
+    await expect(lock.locator('.sgx-lock-brand .sgx-wordmark')).toHaveAttribute('aria-label', 'Styrigx');
+    await expect(lock.locator('.sgx-lock-brand-tag')).toHaveText('A PersonalDigital Space');
+    await expect(lock.locator('.sgx-lock-welcome')).toHaveText('欢迎回来');
+    await expect(lock.locator('.sgx-lock-sub')).toHaveText('很高兴再次见到你');
+    await expect(page.locator('#sgx-lock-go')).toBeVisible();
+    await expect(lock.locator('.sgx-lock-foot-list')).toHaveText('MOBILE · DEX · SPACE · CURIO · BLOG · DAYMARK');
+    await expect(page.locator('#sgx-lock-clock')).toHaveCount(0);
+    await expect(page.locator('#sgx-lock-dm')).toHaveCount(0);
+    await expect(page.locator('#sgx-lock-stage')).not.toHaveClass(/is-pending/);
+    /* 顺序：字标在头像上面，头像在按钮上面，清单在最下面 */
+    const w = await lock.locator('.sgx-lock-brand').boundingBox();
     const u = await page.locator('#sgx-lock-avatar').boundingBox();
-    expect(c.y + c.height).toBeLessThan(d.y);
-    expect(d.y + d.height).toBeLessThan(u.y);
-    const top = (await page.locator('#sgx-lock-ic').boundingBox()).y;
-    const bottom = 915 - (u.y + u.height);
-    expect(Math.abs(top - bottom)).toBeLessThan(160);
-    expect(d.y + d.height + 120).toBeGreaterThan(u.y); /* 日刻和头像之间没有大空白 */
+    const g = await page.locator('#sgx-lock-go').boundingBox();
+    const f = await lock.locator('.sgx-lock-foot').boundingBox();
+    expect(w.y + w.height).toBeLessThan(u.y);
+    expect(u.y + u.height).toBeLessThan(g.y);
+    expect(g.y + g.height).toBeLessThan(f.y);
   });
 
-  test('拉取失败 / 被拦：日刻卡不显示，其余照常；舞台不会一直透明', async ({ page }) => {
-    await mockDaymark(page, { ok: false }, 500);
-    await gotoLock(page);
-    await expect(page.locator('#sgx-lock-stage')).not.toHaveClass(/is-pending/, { timeout: 3000 });
-    await expect(page.locator('#sgx-lock-dm')).toBeHidden();
-    await expect(page.locator('#sgx-lock-avatar')).toBeVisible();
-  });
-
-  test('舞台显示后才到的句子不插进来（不跳版面），下次从缓存直接画', async ({ page }) => {
-    await page.route('https://daymark.styrigx.com/api/today', async (route) => {
-      await new Promise((r) => setTimeout(r, 2000));
-      await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(QUOTE(todaySh())) });
-    });
-    await gotoLock(page);
-    await expect(page.locator('#sgx-lock-stage')).not.toHaveClass(/is-pending/, { timeout: 3000 });
-    const before = await page.locator('#sgx-lock-avatar').boundingBox();
-    await page.waitForTimeout(2500);
-    await expect(page.locator('#sgx-lock-dm')).toBeHidden();
-    const after = await page.locator('#sgx-lock-avatar').boundingBox();
-    expect(after.y).toBe(before.y);
-    await page.reload({ waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#sgx-lock-dm')).toBeVisible({ timeout: 3000 });
-    const cached = await page.evaluate(() => localStorage.getItem('sgx-daymark-today'));
-    expect(cached).not.toContain('PRIVATE');
-  });
-
-  test('英文：日刻卡标签 DAYMARK、出处格式 Author, Source', async ({ page }) => {
+  test('英文：Unlock screen / Good to see you again / Unlock', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
-    await mockDaymark(page, { ok: true, day: todaySh(), quote: { text: 'What does not kill me makes me stronger.', author: 'Nietzsche', source: 'Twilight of the Idols' } });
     await page.goto('/en/?lock=1', { waitUntil: 'domcontentloaded' });
-    const dm = page.locator('#sgx-lock-dm');
-    await expect(dm).toBeVisible({ timeout: 5000 });
-    await expect(dm).toContainText('DAYMARK');
-    await expect(dm.locator('[data-dm="by"]')).toHaveText('— Nietzsche, Twilight of the Idols');
+    await expect(page.locator('#sgx-lock-title')).toHaveText('Unlock screen');
+    await expect(page.locator('#sgx-lock .sgx-lock-sub')).toHaveText('Good to see you again');
+    await expect(page.locator('#sgx-lock-go')).toHaveText('Unlock');
+  });
+
+  test('「解锁」按钮 = 点头像：打开同一个解锁方式弹层', async ({ page }) => {
+    await gotoLock(page);
+    await page.click('#sgx-lock-go');
+    await expect(page.locator('#sgx-method-sheet')).toBeVisible();
+    await expect(page.locator('#sgx-mopt-pw')).toBeVisible();
+  });
+
+  test('锁定时抽屉 / 快捷面板按钮点不到（锁屏盖住整页，顶栏位置只有标题）', async ({ page }) => {
+    await page.setViewportSize({ width: 412, height: 915 });
+    await gotoLock(page);
+    await expect(page.locator('#sgx-lock .sgx-lock-tb button, #sgx-lock .sgx-lock-tb a')).toHaveCount(0);
+    for (const sel of ['.sgx-tb-nav', '[aria-controls="sgx-qp"]']) {
+      const btn = page.locator(sel).first();
+      expect(await btn.count()).toBeGreaterThan(0);
+      const box = await btn.boundingBox();
+      if (!box) continue;
+      const hit = await page.evaluate(([x, y]) => {
+        const el = document.elementFromPoint(x, y);
+        return !!(el && el.closest('#sgx-lock'));
+      }, [box.x + box.width / 2, box.y + box.height / 2]);
+      expect(hit).toBe(true);
+    }
   });
 
   for (const theme of ['light', 'dark']) {
-    test(`lock screen with daymark baseline screenshot (${theme})`, async ({ page }) => {
+    test(`lock screen glass baseline screenshot (${theme})`, async ({ page }) => {
       await freezeTime(page);
       await page.setViewportSize({ width: 412, height: 915 });
       await page.addInitScript((t) => {
         try { localStorage.setItem('sgx-lang', 'zh'); localStorage.setItem('sgx-theme-mode', t); } catch (e) {}
       }, theme);
-      await mockDaymark(page, QUOTE(todaySh()));
       await gotoLock(page);
       await page.emulateMedia({ reducedMotion: 'reduce' });
-      await expect(page.locator('#sgx-lock-dm')).toBeVisible({ timeout: 5000 });
-      await expect(page).toHaveScreenshot(`lock-screen-daymark-${theme}.png`, {
-        animations: 'disabled',
-        mask: [page.locator('#sgx-lock-clock'), page.locator('#sgx-lock-date'), page.locator('#sgx-lock-dm [data-dm="day"]')],
-      });
+      await expect(page.locator('#sgx-lock-stage')).not.toHaveClass(/is-pending/);
+      await expect(page).toHaveScreenshot(`lock-screen-glass-${theme}.png`, { animations: 'disabled' });
     });
   }
 });

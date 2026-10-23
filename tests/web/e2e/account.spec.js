@@ -100,6 +100,14 @@ test.describe('账号登录', () => {
     });
     expect(bg).toBe(accent);
     await expect(page.locator('#acct-login-notice')).toBeHidden();
+    /* 2026-10-23 背景方案 C：玻璃背景铺满视口；左上站名 + 副标题；底部站点清单 */
+    await expect(page.locator('.acct-glass')).toBeVisible();
+    const gb = await page.locator('.acct-glass').boundingBox();
+    const vp = page.viewportSize();
+    expect(gb && vp && Math.round(gb.width) === vp.width && Math.round(gb.height) === vp.height).toBe(true);
+    await expect(page.locator('.acct-brand-name .sgx-wordmark')).toHaveAttribute('aria-label', 'Styrigx');
+    await expect(page.locator('.acct-login-sub')).toHaveText('记录 · 收藏 · 探索 · 享受');
+    await expect(page.locator('.acct-login-foot-list')).toHaveText('MOBILE · DEX · SPACE · CURIO · BLOG · DAYMARK');
   });
 
   test('设了哪个显示哪个：只设密码 → 只有密码登录；都没设 → 提示 + 无法登录？', async ({ page }) => {
