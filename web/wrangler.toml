@@ -31,10 +31,10 @@ id = "5084ea8ef2444156ba48203220b93df6"
 binding = "ACCOUNT_KV"
 id = "a5ee2a75f00d4308959b2bea55247ff6"
 
-# preview D1 绑定（styrigx-sgx-preview：只给预览用的空库；绝不指向正式库 styrigx-sgx）
+# preview D1 绑定（styrigx-auth-gateway-preview：只给预览用的空库；绝不指向正式库 styrigx-auth-gateway）
 # 迁移文件和网关放在一起：workers/auth-gateway/migrations/
 [[env.preview.d1_databases]]
 binding = "SGX_D1"
-database_name = "styrigx-sgx-preview"
-database_id = "ea34e0a4-f543-4b58-93f8-561ad5bf3ee1"
+database_name = "styrigx-auth-gateway-preview"
+database_id = "d417e421-75bb-4425-bdc8-54856b88578f"
 migrations_dir = "../workers/auth-gateway/migrations"

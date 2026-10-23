@@ -98,8 +98,8 @@ id = "b20701f5f48e498e897bc6f0bd81643f"
 
 [[d1_databases]]
 binding = "SGX_D1"
-database_name = "styrigx-sgx"
-database_id = "2804d280-1cab-422a-834d-3390cea38976"
+database_name = "styrigx-auth-gateway"
+database_id = "6931d1da-3502-480d-b0bd-de1bc4829d1d"
 migrations_dir = "migrations"
 
 # ---- 密钥：Secrets Store ----
