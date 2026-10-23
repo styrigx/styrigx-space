@@ -24,7 +24,6 @@
        account.js 再按同一个属性接手；只有服务端说「未登录」才出现「欢迎回来」，不再先画登录区再换成总览。 -->
 {{ "<!-- SGX-ACCT-LOGIN-START -->" | safeHTML }}
   <div id="acct-login" class="acct-login" hidden>
-    <div class="acct-brand" aria-hidden="true"><span class="acct-brand-name">{{ partial "shell-wordmark.html" . }}</span><span class="acct-brand-tag">A Personal<br>Digital Space</span></div>
     <div class="acct-login-hero animate-fade-up">
       <img class="acct-login-avatar" src="/avatar/192.webp" data-sgx-avatar="192" width="96" height="96" alt="">
       <p class="acct-login-welcome">{{ if $isEn }}Welcome back{{ else }}欢迎回来{{ end }}</p>
@@ -48,7 +47,6 @@
       <p class="acct-login-none" id="acct-login-none" hidden>{{ if $isEn }}No sign-in method is set for this account yet. Use “Can’t sign in?” to set one with your root credential.{{ else }}账号还没有设置登录方式。可以点「无法登录？」用根凭证设置。{{ end }}</p>
     </div>
     <a class="acct-cant" id="acct-cant" href="{{ cond $isEn "/en/account/reset/" "/account/reset/" }}">{{ if $isEn }}Can’t sign in?{{ else }}无法登录？{{ end }}</a>
-    <div class="acct-login-foot" aria-hidden="true"><span class="acct-login-foot-name">Styrigx</span><span class="acct-login-foot-list">MOBILE · DEX · SPACE · CURIO · BLOG · DAYMARK</span></div>
   </div>
 {{ "<!-- SGX-ACCT-LOGIN-END -->" | safeHTML }}
 

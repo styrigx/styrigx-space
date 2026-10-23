@@ -107,8 +107,8 @@ test.describe('lock screen', () => {
     await freezeTime(page);
     await gotoLock(page);
     const avatar = page.locator('.sgx-lock-user');
-    /* 2026-10-23：锁屏没有时钟了，改测头像块和左上字标不重叠 */
-    const clock = page.locator('#sgx-lock .sgx-lock-brand');
+    /* 2026-10-23：锁屏没有时钟和左上字标了，改测头像块和顶栏标题不重叠 */
+    const clock = page.locator('#sgx-lock .sgx-lock-tb');
     await expect(avatar).toBeVisible();
     await expect(clock).toBeVisible();
 
@@ -620,29 +620,27 @@ test.describe('锁屏视觉统一（2026-10-23：与账号登录页同一套玻�
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
   });
 
-  test('版面：顶栏标题「解锁屏幕」；左上字标 + A Personal Digital Space；头像 → 欢迎回来 / 很高兴再次见到你 → 解锁按钮 → 底部站点清单；不再有时钟和日刻', async ({ page }) => {
+  test('版面：顶栏标题「解锁屏幕」；没有左上字标和标语；头像 → 欢迎回来 / 很高兴再次见到你 → 解锁按钮；没有底部站点清单、时钟和日刻', async ({ page }) => {
     await page.setViewportSize({ width: 412, height: 915 });
     await gotoLock(page);
     const lock = page.locator('#sgx-lock');
     await expect(lock.locator('.sgx-glass-bg')).toHaveCount(1);
     await expect(page.locator('#sgx-lock-title')).toHaveText('解锁屏幕');
-    await expect(lock.locator('.sgx-lock-brand .sgx-wordmark')).toHaveAttribute('aria-label', 'Styrigx');
-    await expect(lock.locator('.sgx-lock-brand-tag')).toHaveText('A PersonalDigital Space');
+    await expect(lock.locator('.sgx-lock-brand, .sgx-wordmark')).toHaveCount(0);
+    await expect(lock).not.toContainText('Personal');
     await expect(lock.locator('.sgx-lock-welcome')).toHaveText('欢迎回来');
     await expect(lock.locator('.sgx-lock-sub')).toHaveText('很高兴再次见到你');
     await expect(page.locator('#sgx-lock-go')).toBeVisible();
-    await expect(lock.locator('.sgx-lock-foot-list')).toHaveText('MOBILE · DEX · SPACE · CURIO · BLOG · DAYMARK');
+    await expect(lock.locator('.sgx-lock-foot')).toHaveCount(0);
     await expect(page.locator('#sgx-lock-clock')).toHaveCount(0);
     await expect(page.locator('#sgx-lock-dm')).toHaveCount(0);
     await expect(page.locator('#sgx-lock-stage')).not.toHaveClass(/is-pending/);
-    /* 顺序：字标在头像上面，头像在按钮上面，清单在最下面 */
-    const w = await lock.locator('.sgx-lock-brand').boundingBox();
+    /* 顺序：顶栏在头像上面，头像在按钮上面 */
+    const w = await lock.locator('.sgx-lock-tb').boundingBox();
     const u = await page.locator('#sgx-lock-avatar').boundingBox();
     const g = await page.locator('#sgx-lock-go').boundingBox();
-    const f = await lock.locator('.sgx-lock-foot').boundingBox();
     expect(w.y + w.height).toBeLessThan(u.y);
     expect(u.y + u.height).toBeLessThan(g.y);
-    expect(g.y + g.height).toBeLessThan(f.y);
   });
 
   test('英文：Unlock screen / Good to see you again / Unlock', async ({ page }) => {

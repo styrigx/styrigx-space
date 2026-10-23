@@ -285,9 +285,12 @@ function showLockScreen() {
   /* 锁屏头像 72px：用 192 那张（顶栏是 96） */
   const avatarSrc = navImg ? navImg.src.replace(/\/avatar\/96\.webp/, '/avatar/192.webp') : '';
 
-  /* 站名字标：复用抽屉头的同一份 SVG（ı 圆点跟主题色）；没有就退回文字 */
-  const wmEl = document.querySelector('.sgx-drawer-brand .sgx-wordmark');
-  const wordmark = wmEl ? wmEl.outerHTML : '<span class="sgx-lock-brand-tx">Styrigx</span>';
+  /* 顶栏保持全站三件套（用户 2026-10-23：顶栏保留设计）：左九宫格圆 + 页名长条 + 右快捷面板圆，图标取页面顶栏同一份。
+     锁屏上两侧圆只是外观（span、不可点、不进读屏），抽屉 / 快捷面板在锁定时打不开，不能绕过锁屏。 */
+  const tbNavEl = document.querySelector('#site-nav .sgx-tb-nav');
+  const tbEndEl = document.querySelector('#site-nav .sgx-tb-end');
+  const tbNavIc = tbNavEl ? tbNavEl.innerHTML : '';
+  const tbEndIc = tbEndEl ? tbEndEl.innerHTML : '';
   const ov = document.createElement('div');
   ov.id = 'sgx-lock';
   ov.setAttribute('role', 'dialog');
@@ -300,15 +303,17 @@ function showLockScreen() {
      之后才拉到的句子这次不再插进来（下次锁屏从缓存直接画）。 */
   /* 2026-10-23 锁屏视觉统一（用户定稿）：和账号登录页同一套玻璃背景与版面 ——
      顶栏位置只放标题「解锁屏幕」（锁屏盖住整页，抽屉 / 快捷面板按钮不在锁屏上，不能绕过）；
-     左上字标 + A Personal Digital Space → 头像（点它解锁）→ 欢迎回来 / 很高兴再次见到你 → 解锁按钮 → 底部站点清单。
+     （2026-10-23：左上字标和 A Personal Digital Space 删掉，标语挪到抽屉头）头像（点它解锁）→ 欢迎回来 / 很高兴再次见到你 → 解锁按钮 → 底部站点清单。
      时钟、日期天气、日刻不再放在锁屏上。解锁、凭证、会话逻辑不变：按钮只是转点头像。 */
   ov.innerHTML =
     '<div class="sgx-glass-bg" aria-hidden="true"></div>' +
-    '<div class="sgx-lock-tb"><span class="sgx-lock-tb-title" id="sgx-lock-title">' + (en ? 'Unlock screen' : '解锁屏幕') + '</span></div>' +
+    '<div class="sgx-lock-tb">' +
+    '<span class="sgx-tb-nav" aria-hidden="true">' + tbNavIc + '</span>' +
+    '<div class="sgx-tb-pill"><span class="sgx-tb-title" id="sgx-lock-title">' + (en ? 'Unlock screen' : '解锁屏幕') + '</span></div>' +
+    '<span class="sgx-tb-end" aria-hidden="true">' + tbEndIc + '</span>' +
+    '</div>' +
     '<div class="sgx-lock-stage is-pending" id="sgx-lock-stage">' +
     '<div class="sgx-lock-head">' +
-    '<div class="sgx-lock-brand" aria-hidden="true"><span class="sgx-lock-brand-name">' + wordmark + '</span>' +
-    '<span class="sgx-lock-brand-tag">A Personal<br>Digital Space</span></div>' +
     '<div class="sgx-lock-top" id="sgx-lock-ic" aria-hidden="true">' + LOCK + '</div>' +
     '</div>' +
     '<div class="sgx-lock-user"><button type="button" id="sgx-lock-avatar" aria-label="' +
@@ -324,8 +329,6 @@ function showLockScreen() {
     '<button type="button" class="sgx-door-btn sgx-door-btn-primary sgx-lock-go" id="sgx-lock-go" aria-haspopup="dialog">' +
     UNLOCK + '<span>' + (en ? 'Unlock' : '解锁') + '</span></button>' +
     '</div>' +
-    '<div class="sgx-lock-foot" aria-hidden="true"><span class="sgx-lock-foot-name">Styrigx</span>' +
-    '<span class="sgx-lock-foot-list">MOBILE · DEX · SPACE · CURIO · BLOG · DAYMARK</span></div>' +
     '</div>';
   document.body.appendChild(ov);
   document.body.classList.add('sgx-locked');
