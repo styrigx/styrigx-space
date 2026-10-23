@@ -62,7 +62,9 @@ test('settings home (mobile): 6 category links, each in its own card, no account
     ['/settings/wellbeing/'],
     ['/settings/about/'],
   ]);
-  await expect(catList.locator('a[href="/settings/security/"]')).toContainText('锁屏、隐私');
+  // 2026-10-23：卡片只有名称，没有灰色副标题
+  await expect(catList.locator('a[href="/settings/security/"]')).not.toContainText('锁屏、隐私');
+  await expect(catList.locator('.set-row .text-xs')).toHaveCount(0);
   // 删掉的分类不再出现
   for (const gone of ['manage', 'accessibility', 'goodlock']) await expect(pg.locator(`a[href="/settings/${gone}/"]`), gone).toHaveCount(0);
   // 选项组与双栏导航在移动端不显示（DOM 存在但隐藏）
@@ -108,7 +110,9 @@ test('settings home (en): 6 category links', async ({ page: pg }) => {
     await expect(link, `${c.id} link`).toHaveCount(1);
     await expect(link, `${c.id} title`).toContainText(c.en);
   }
-  await expect(pg.locator('.set-row[href="/en/settings/security/"]')).toContainText('Lock screen, privacy');
+  // 2026-10-23：卡片只有名称，没有灰色副标题
+  await expect(pg.locator('.set-row[href="/en/settings/security/"]')).toHaveText(/^\s*Security and privacy\s*$/);
+  await expect(pg.locator('.set-main [aria-label="Categories"] .set-row .text-xs')).toHaveCount(0);
 });
 
 const SUBCHECKS = {

@@ -29,10 +29,7 @@
         {{ $href := cond $isEn (printf "/en/settings/%s/" .id) (printf "/settings/%s/" .id) }}
         <a class="set-row" href="{{ $href }}">
           <span class="set-ic {{ .bg }} {{ .fg }}">{{ partial "icon.html" .icon }}</span>
-          <span class="flex-1 min-w-0">
-            <span class="block font-medium">{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}</span>
-            <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate">{{ if $isEn }}{{ .suben }}{{ else }}{{ .subzh }}{{ end }}</span>
-          </span>
+          <span class="flex-1 min-w-0 block font-medium">{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}</span>
           {{ partial "icon.html" "chev-r" }}
         </a>
         {{ end }}
