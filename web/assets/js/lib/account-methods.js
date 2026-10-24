@@ -79,6 +79,12 @@ export function accountSubmitters(t, opts) {
       const allow = (j.allowCredentials || []).map(function (c) {
         return { type: 'public-key', id: b64urlToBuf(c.id) };
       });
+      /* 系统通行密钥窗口（Samsung Pass 等）弹出时，背后的验证弹层先藏起来，结束后恢复——和锁屏一样（2026-10-24） */
+      const hideEl = /** @type {HTMLElement|null} */ (document.querySelector('dialog.sgx-verify-dlg[open]'));
+      if (hideEl) hideEl.style.visibility = 'hidden';
+      const restore = function () {
+        if (hideEl) hideEl.style.visibility = '';
+      };
       return navigator.credentials.get({
         publicKey: {
           challenge: b64urlToBuf(j.challenge),
@@ -87,8 +93,10 @@ export function accountSubmitters(t, opts) {
           userVerification: 'required',
         },
       }).then(function (cred) {
+        restore();
         return { cred: /** @type {any} */ (cred), cid: j.cid };
       }, function (e) {
+        restore();
         if (e && e.name === 'NotAllowedError') throw { cancelled: true };
         throw { message: t('errVerify') };
       });
