@@ -1,4 +1,4 @@
-{{- /* #1 诊断：构建短 SHA。CI 经 SGX_BUILD_SHA 环境变量注入（github.sha）；
-   本地/测试构建默认 "dev"。站长截图确认线上版本用。 */ -}}
+{{- /* 构建短 SHA，写在 <html data-sgx-build>（页内切换判断取回来的页面是不是同一次构建）。CI 经 SGX_BUILD_SHA 环境变量注入（github.sha）；
+   本地/测试构建默认 "dev"。页面上显示构建号只剩 设置 → 关于本站 一处（2026-10-24 删掉各页底部的「构建 xxxxxxx」小字）。 */ -}}
 {{- $s := getenv "SGX_BUILD_SHA" | default "dev" -}}
 {{- if gt (len $s) 7 }}{{ slicestr $s 0 7 }}{{ else }}{{ $s }}{{ end -}}

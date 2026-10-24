@@ -1,3 +1,0 @@
-{{- /* #1 诊断：小字构建标记。安全与隐私页底部 + 各门内页底部显示。
-   调用：{{ partial "build-tag.html" (dict "isEn" $isEn) }} */ -}}
-<span class="sgx-build-tag text-xs text-m-on-surface-variant" data-testid="sgx-build-tag">{{ if .isEn }}build {{ else }}构建 {{ end }}{{ partial "sgx-build-sha.html" . }}</span>

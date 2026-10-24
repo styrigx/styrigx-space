@@ -4,7 +4,7 @@
    Mobile：分类列表，点击进子页。
    旧 hash（#display 等）由内联脚本跳转到对应子页。 */}}
 {{ define "main" }}
-{{ .Scratch.Set "sgx-entry" "entry-tabs.js" }}
+{{ .Scratch.Set "sgx-entry" "entry-tab-settings.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 {{ $cats := (index site.Data "settings-cats").cats }}
 {{ $featMap := dict }}

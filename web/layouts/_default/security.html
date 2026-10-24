@@ -67,7 +67,7 @@
       <a class="text-sm text-m-primary font-medium whitespace-nowrap" href="{{ $setUrl }}#about" id="sec-reset-link">{{ if $isEn }}Reset all settings{{ else }}重置所有设置{{ end }}</a>
     </div>
   </section>
-  <p class="sec-note">{{ if $isEn }}Security status is read from this device only.{{ else }}安全状态仅从本设备读取。{{ end }} {{ partial "build-tag.html" (dict "isEn" $isEn) }}</p>
+  <p class="sec-note">{{ if $isEn }}Security status is read from this device only.{{ else }}安全状态仅从本设备读取。{{ end }}</p>
 </div>
 
 {{ $secI18n := dict

@@ -30,7 +30,6 @@
       </div>
     </section>
     <p class="acct-note">{{ if $isEn }}Visitors enter the key at “Visitor” on the lock screen. They can browse the site but never see your account. Revoking a key locks its visitors out right away.{{ else }}访客在锁屏点「访客进入」输入临时钥匙，能看网站，看不到账号。作废后，用这把钥匙进来的访客会立刻被锁在外面。{{ end }}</p>
-    <p class="acct-note mt-6 sgx-build-tag-wrap">{{ partial "build-tag.html" (dict "isEn" $isEn) }}</p>
   </div>
 </div>
 

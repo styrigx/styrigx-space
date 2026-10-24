@@ -10,7 +10,9 @@
  *   药丸、内容、标题、地址在同一次更新里一起换（document.startViewTransition 包着，效果同跨页过渡；不支持就直接换）。
  * - 取回来的页面必须和当前文档是同一次构建、同一个入口脚本、同一个会话状态 / 角色，否则不用它，退回整页导航
  *   （锁屏态、升级验证态、取回来是跳转 / 锁屏页、构建换了……一律整页导航，交给网关决定）。
- * - 各栏自己的脚本由入口 entry-tabs.js 用 registerTab() 登记：
+ * - 各栏自己的脚本由入口（entries/tabs-boot.js）用 registerTab() 登记；2026-10-24 JS 拆分起，当前栏的模块随入口静态加载（mount），
+ *   另外两栏的模块按需 import()（load）：空闲时和 HTML 一起预取，按下标签时还没取到就当场取；
+ *   取不到（部署后旧 chunk 404、断网）就整页导航到目标地址（同一地址只自动重试一次，见 baseof 的 sgx-js-retry）。
  *   keep:true（主页、聊天）= 这块 DOM 只挂一次，切走时连 DOM 带状态一起留着，activate / deactivate 只开关全局的东西；
  *   keep:false（设置）= 每次切进来都是服务器那份 HTML 的新拷贝 + 重新挂，切走时 destroy() 拆掉这次挂的全部监听。
  * - 滚动位置按栏记（同一文档里来回切）；整页回来（如从设置子页返回、刷新）按历史条目里记的位置恢复。
@@ -20,13 +22,16 @@ import { loadWb } from '../lib/wb-view.js';
 
 /**
  * @typedef {{activate?: () => void, deactivate?: () => void}} TabCtl
- * @typedef {{keep: boolean, top?: boolean, mount: (o: {direct: boolean}) => (TabCtl|(() => void)|null)}} TabDef
+ * @typedef {(o: {direct: boolean}) => (TabCtl|(() => void)|null)} MountFn
+ * @typedef {{keep: boolean, top?: boolean, mount?: MountFn, load?: () => Promise<MountFn>}} TabDef
+ *   mount：已经在手的挂载函数（当前栏）；load：按需取这一栏的模块，返回挂载函数
  *   top：整页加载（刷新 / 退回来）总是从顶部开始（主页，同以前），不恢复记下的位置
  * @typedef {{title: string, desc: string|null, ogTitle: string|null, ogDesc: string|null, ogUrl: string|null, robots: string|null, subpage: boolean, dataPage: string}} PageMeta
  * @typedef {{
  *   id: string, href: string, path: string, def: TabDef, meta: PageMeta|null,
  *   frag: DocumentFragment|null, tpl: DocumentFragment|null, ctl: TabCtl|null, destroy: (() => void)|null,
- *   y: number, seen: boolean, fetchedAt: number, loading: Promise<boolean>|null
+ *   y: number, seen: boolean, fetchedAt: number, loading: Promise<boolean>|null,
+ *   run: MountFn|null, mod: Promise<boolean>|null, modFailed: boolean
  * }} Pane
  */
 
@@ -41,7 +46,7 @@ const defs = new Map();
 let api = null;
 
 /**
- * 登记一栏的脚本（入口 entry-tabs.js 调）。
+ * 登记一栏的脚本（入口 entry-tab-*.js 调）。
  * @param {string} id data/topbar-tabs.yaml 里的 id（home / chat / settings）
  * @param {TabDef} def
  */
@@ -83,10 +88,30 @@ function metaOf(doc) {
   };
 }
 
-/** @param {Document} doc */
-function entrySrc(doc) {
-  const s = doc.querySelector('script[type="module"][src*="/js/entries/"]');
-  return s ? s.getAttribute('src') : null;
+/** 这次构建的前端脚本签名（baseof 写在入口 <script data-sgx-js>，同一次构建所有页面一样）；取回来的页面必须一致 @param {Document} doc */
+function jsSig(doc) {
+  const s = doc.querySelector('script[type="module"][data-sgx-js]');
+  return s ? s.getAttribute('data-sgx-js') : null;
+}
+
+/** 自动重试标记（baseof 内联脚本读同一个键：入口脚本加载失败时同一地址只自动刷新一次） */
+const RETRY_KEY = 'sgx-js-retry';
+
+/**
+ * 按需模块取不到：整页导航到目标地址，交给新页面（新构建）。同一地址已经自动重试过一次就不再自动跳，免得循环。
+ * @param {string} href @param {boolean} push
+ * @returns {boolean} 是否已发起整页导航
+ */
+function hardNav(href, push) {
+  let path = href;
+  try {
+    path = new URL(href, location.href).pathname;
+    if (sessionStorage.getItem(RETRY_KEY) === path) return false;
+    sessionStorage.setItem(RETRY_KEY, path);
+  } catch (e) {}
+  if (push) location.assign(href);
+  else location.reload();
+  return true;
 }
 
 /** 会话标记（网关注入在 <html> 上）；取回来的页面必须和当前一致 @param {Document} doc */
@@ -117,7 +142,7 @@ export function initInpageTabs() {
     const def = defs.get(id);
     if (!def) continue;
     const href = a.getAttribute('href') || '/';
-    panes.set(id, { id, href, path: normPath(new URL(href, location.href).pathname), def, meta: null, frag: null, tpl: null, ctl: null, destroy: null, y: 0, seen: false, fetchedAt: 0, loading: null });
+    panes.set(id, { id, href, path: normPath(new URL(href, location.href).pathname), def, meta: null, frag: null, tpl: null, ctl: null, destroy: null, y: 0, seen: false, fetchedAt: 0, loading: null, run: def.mount || null, mod: null, modFailed: false });
   }
   const curId = curLink.getAttribute('data-tab') || '';
   const cur = panes.get(curId);
@@ -131,7 +156,13 @@ export function initInpageTabs() {
     stripScripts(tpl);
     cur.tpl = tpl;
   }
-  mountPane(cur, true);
+  if (cur.run) mountPane(cur, true);
+  else {
+    /* 入口没带当前这一栏的模块（入口和页面对不上，正常不会发生）：取来再挂 */
+    loadMod(cur).then((ok) => {
+      if (ok) mountPane(cur, true);
+    });
+  }
 
   const html = document.documentElement;
   const st = html.getAttribute('data-sgx-session');
@@ -147,7 +178,7 @@ export function initInpageTabs() {
   if (!enabled) return;
 
   const mySig = sessionSig(document);
-  const mySrc = entrySrc(document);
+  const mySrc = jsSig(document);
   /** 屏幕上现在是哪一栏 */
   let shown = curId;
   /** 正在去 / 已经在的那一栏（连点、取页面时以它为准） */
@@ -206,7 +237,8 @@ export function initInpageTabs() {
         const m = doc.getElementById('sgx-main');
         const curTab = doc.querySelector('.sgx-tb-tabs a.sgx-tb-tab[aria-current="page"]');
         if (!m || !curTab || curTab.getAttribute('data-tab') !== p.id) return false;
-        if (sessionSig(doc) !== mySig || entrySrc(doc) !== mySrc) return false;
+        if (sessionSig(doc) !== mySig || jsSig(doc) !== mySrc) return false;
+        warmEntry(doc);
         const frag = document.createDocumentFragment();
         while (m.firstChild) frag.appendChild(document.adoptNode(m.firstChild));
         stripScripts(frag);
@@ -227,6 +259,7 @@ export function initInpageTabs() {
 
   /** @param {Pane} p */
   function ready(p) {
+    if (!p.run) return false;
     if (p.def.keep ? !(p.frag || p.ctl) : !p.tpl) return false;
     /* 取回来很久都没打开过：重新取（会话可能已经过期 / 锁了，交给网关重新判断） */
     if (!p.seen && p.fetchedAt && Date.now() - p.fetchedAt > STALE_MS) {
@@ -323,6 +356,8 @@ export function initInpageTabs() {
     /* 会话状态在页面里变了（自动锁屏把 <html> 改成 locked、升级验证……）：不再页内切换，整页导航交给网关 */
     if (sessionSig(document) !== mySig) return false;
     if (id === want) return true;
+    /* 预取这一栏的模块失败过（部署后旧 chunk 没了 / 断网）：不再在旧文档里重试，直接整页导航（新构建自己会带上） */
+    if (p.modFailed) return hardNav(p.href, push);
     const my = ++seq;
     want = id;
     if (ready(p)) {
@@ -334,14 +369,15 @@ export function initInpageTabs() {
       if (done || my !== seq) return;
       done = true;
       want = shown;
-      /* 取不到能用的页面（跳转到锁屏、构建换了、断网……）：整页导航，交给网关 */
-      if (push) location.assign(p.href);
+      /* 模块取不到：整页导航（同一地址只自动一次）；取不到能用的页面（跳转到锁屏、构建换了、断网……）：整页导航，交给网关 */
+      if (p.modFailed) hardNav(p.href, push);
+      else if (push) location.assign(p.href);
       else location.reload();
     };
     const timer = window.setTimeout(giveUp, WAIT_MS);
-    load(p).then((ok) => {
+    Promise.all([load(p), loadMod(p)]).then(([ok, okMod]) => {
       if (done || my !== seq) return;
-      if (!ok || !ready(p)) {
+      if (!ok || !okMod || !ready(p)) {
         window.clearTimeout(timer);
         giveUp();
         return;
@@ -366,7 +402,10 @@ export function initInpageTabs() {
   const warm = (/** @type {Event} */ e) => {
     const a = /** @type {Element|null} */ (e.target) && /** @type {Element} */ (e.target).closest ? /** @type {Element} */ (e.target).closest('a.sgx-tb-tab') : null;
     const p = a && panes.get(a.getAttribute('data-tab') || '');
-    if (p && !ready(p)) load(p);
+    if (p && !ready(p)) {
+      load(p);
+      loadMod(p);
+    }
   };
   nav.addEventListener('pointerdown', warm, { passive: true });
   nav.addEventListener('touchstart', warm, { passive: true });
@@ -391,7 +430,10 @@ export function initInpageTabs() {
       if (cn && cn.saveData) return;
     } catch (e) {}
     panes.forEach((p) => {
-      if (p.id !== shown && !ready(p)) load(p);
+      if (p.id !== shown && !ready(p)) {
+        load(p);
+        loadMod(p);
+      }
     });
   };
   const idle = () => {
@@ -422,6 +464,57 @@ export function initInpageTabs() {
     document.body.classList.toggle('subpage', m.subpage);
     document.body.setAttribute('data-page', m.dataPage);
   }
+}
+
+/**
+ * 预热那一栏自己的入口脚本（几百字节）：以后整页打开它（刷新、从子页返回、页内切换用不了时）不用再等一个来回。
+ * 只 modulepreload（下载 + 解析进缓存），不执行，没有副作用；失败也无所谓（error 落在 <link> 上，baseof 的重试只管入口 <script>）。
+ * @param {Document} doc 取回来的那一栏的页面
+ */
+function warmEntry(doc) {
+  try {
+    const s = doc.querySelector('script[type="module"][data-sgx-js]');
+    const src = s && s.getAttribute('src');
+    if (!src) return;
+    const own = document.querySelector('script[type="module"][data-sgx-js]');
+    if (own && own.getAttribute('src') === src) return;
+    const links = document.querySelectorAll('link[rel="modulepreload"]');
+    for (let i = 0; i < links.length; i++) if (links[i].getAttribute('href') === src) return;
+    const l = document.createElement('link');
+    l.rel = 'modulepreload';
+    l.href = src;
+    document.head.appendChild(l);
+  } catch (e) {}
+}
+
+/**
+ * 取一栏的模块（load()，只取一次；失败记下 modFailed，之后点这一栏直接整页导航）。
+ * @param {Pane} p
+ * @returns {Promise<boolean>}
+ */
+function loadMod(p) {
+  if (p.run) return Promise.resolve(true);
+  if (p.modFailed || !p.def.load) return Promise.resolve(false);
+  if (p.mod) return p.mod;
+  const run = p.def
+    .load()
+    .then((fn) => {
+      p.run = fn;
+      return true;
+    })
+    .catch((e) => {
+      p.modFailed = true;
+      try {
+        console.warn('[sgx-tabs] module', e);
+      } catch (e2) {}
+      return false;
+    })
+    .then((ok) => {
+      p.mod = null;
+      return ok;
+    });
+  p.mod = run;
+  return run;
 }
 
 /** @param {string} sel @param {string|null} v */
@@ -458,7 +551,7 @@ function mountPane(p, direct) {
   if (p.def.keep) {
     if (!p.ctl) {
       try {
-        p.ctl = /** @type {TabCtl|null} */ (p.def.mount({ direct })) || {};
+        p.ctl = /** @type {TabCtl|null} */ (/** @type {MountFn} */ (p.run)({ direct })) || {};
       } catch (e) {
         p.ctl = {};
         safe(() => { throw e; });
@@ -468,7 +561,7 @@ function mountPane(p, direct) {
     if (c && c.activate) safe(c.activate);
   } else {
     try {
-      const d = p.def.mount({ direct });
+      const d = /** @type {MountFn} */ (p.run)({ direct });
       p.destroy = typeof d === 'function' ? d : null;
     } catch (e) {
       safe(() => { throw e; });
