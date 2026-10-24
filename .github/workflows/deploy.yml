@@ -31,11 +31,11 @@ jobs:
         run: |
           # 禁止旧变量名：SGX_ED25519_*（已改名为 SGX_LOCK_*），SGX_STEPUP_KEY（已改名为 SGX_STEPUP_PRIVATE）
           # 注意：不扫描 .github/，避免匹配到本文件自身的注释
-          if grep -rn "SGX_ED25519_" --include="*.js" --include="*.mjs" workers/auth-gateway/ workers/account/ tests/ scripts/ 2>/dev/null; then
+          if grep -rn "SGX_ED25519_" --include="*.js" --include="*.mjs" workers/auth-gateway/ workers/account/ workers/share/ tests/ scripts/ 2>/dev/null; then
             echo "ERROR: Found SGX_ED25519_* (use SGX_LOCK_* per key spec v1.0)."
             exit 1
           fi
-          if grep -rn "SGX_STEPUP_KEY" --include="*.js" --include="*.mjs" workers/auth-gateway/ workers/account/ tests/ scripts/ 2>/dev/null; then
+          if grep -rn "SGX_STEPUP_KEY" --include="*.js" --include="*.mjs" workers/auth-gateway/ workers/account/ workers/share/ tests/ scripts/ 2>/dev/null; then
             echo "ERROR: Found SGX_STEPUP_KEY (use SGX_STEPUP_PRIVATE per key spec v1.0)."
             exit 1
           fi
@@ -70,7 +70,7 @@ jobs:
         # 全部 tests/workers/auth-gateway、tests/web/ui 单元测试；新加的测试文件自动纳入，不用再改这里。
         # 覆盖：会话 / cookie / epoch、锁屏门（door）、认证入口、
         # 访客 401、根凭证 userHandle、最后一把钥匙、sitemap、i18n、页内导航、数字健康等
-        run: node --test tests/workers/auth-gateway/*.test.mjs tests/workers/account/*.test.mjs tests/workers/chat/*.test.mjs tests/workers/search-index/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs tests/web/ui/*.test.mjs
+        run: node --test tests/workers/auth-gateway/*.test.mjs tests/workers/account/*.test.mjs tests/workers/share/*.test.mjs tests/workers/chat/*.test.mjs tests/workers/search-index/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs tests/web/ui/*.test.mjs
 
       - name: Auth Worker bundle check (styrigx-auth-gateway, dry-run)
         # 主站后端代码全在 workers/auth-gateway（src/ + functions/）；这里只打包不部署，import 断了 CI 就红。
@@ -81,6 +81,11 @@ jobs:
         # 头像 / 云同步 / 数字健康（2026-10-24 从网关拆出来）；只打包不部署
         working-directory: workers/account
         run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/styrigx-account-dist
+
+      - name: Share Worker bundle check (styrigx-share, dry-run)
+        # 分享短链（2026-10-24，/s/<码> + /api/share）；只打包不部署
+        working-directory: workers/share
+        run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/styrigx-share-dist
 
       - name: Chat Worker bundle check (styrigx-chat, dry-run)
         working-directory: workers/chat
@@ -785,4 +790,96 @@ jobs:
           check /api/session-check 401 worker || ok=1
           check /api/account 401 worker || ok=1
           check /settings/wellbeing/ 302 worker || ok=1
+          exit $ok
+
+  deploy-share-worker:
+    # 分享短链 Worker styrigx-share（workers/share，2026-10-24）：https://styrigx.com/s/<码> + 站长管理接口 /api/share，数据在 D1 styrigx-share（D1_SHARE_LINK）。
+    # 路由见 workers/share/wrangler.toml（styrigx.com/s/*、styrigx.com/api/share*，比网关的 styrigx.com/* 更具体）；workers_dev=false、preview_urls=false。
+    # 不持任何钥匙：会话问网关 SessionVerifier（服务绑定 AUTH），签 / 作废短链钥匙、给访客换会话问网关 ShareIssuer（服务绑定 ISSUER），
+    # 所以排在网关之后（要先有带 ShareIssuer 的网关）。CI 不传任何密值。
+    # 步骤：确认 D1 id 不是占位 → 迁移 D1 styrigx-share（migrations/；失败要让 job 红，不 continue-on-error）
+    # → 查 d1_migrations 和表，确认 0001_share_links.sql 真的在库里（只看到 No migrations to apply 不算数）→ 部署 → 冒烟。
+    # token：Cloudflare 上 styrigx-share-deploy = GitHub 环境 STYRIGX_SHARE_DEPLOY 里的同名环境密钥 STYRIGX_SHARE_DEPLOY，
+    # 权限 Workers Scripts 编辑 + D1 编辑 + Account Settings 读取 + styrigx.com 的 Workers Routes 编辑；环境只允许 main。
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: [quality, deploy-auth-worker]
+    runs-on: ubuntu-latest
+    environment: STYRIGX_SHARE_DEPLOY
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Assert production D1 id is set (not the placeholder)
+        run: |
+          prod=$(awk '/^\[env\./{exit} {print}' workers/share/wrangler.toml)
+          if printf '%s\n' "$prod" | grep -q '^database_id = "00000000-0000-0000-0000-000000000000"$'; then
+            echo "::error::workers/share/wrangler.toml：D1 styrigx-share 的 database_id 还是占位，先在 Cloudflare 建库、把真实 id 填进来"
+            exit 1
+          fi
+          echo "OK: production D1 id is set"
+
+      - name: Apply D1 migrations (styrigx-share)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.STYRIGX_SHARE_DEPLOY }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/share
+          wranglerVersion: '4'
+          command: d1 migrations apply styrigx-share --remote
+
+      - name: Confirm migrations are really in the database (styrigx-share)
+        working-directory: workers/share
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SHARE_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -u
+          out=$(npx --yes wrangler@4 d1 execute styrigx-share --remote --json --command "SELECT name FROM d1_migrations UNION ALL SELECT 'table:' || name FROM sqlite_master WHERE type = 'table'")
+          echo "$out"
+          ok=0
+          for need in '"0001_share_links.sql"' '"table:share_link"' '"table:share_fail"'; do
+            if ! printf '%s' "$out" | grep -q "$need"; then echo "::error::D1 styrigx-share 里没有 $need"; ok=1; fi
+          done
+          exit $ok
+
+      - name: Deploy share Worker (styrigx-share)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.STYRIGX_SHARE_DEPLOY }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/share
+          wranglerVersion: '4'
+          command: deploy
+
+      - name: Smoke test production (/s/* and /api/share must be served by styrigx-share)
+        # 只发不带 cookie 的只读请求，不登录、不写数据（随机码打不开，只算 1 次失败计数）。路由生效可能要几秒，最多重试 6 次。
+        run: |
+          set -u
+          check() { # 路径 期望状态码 期望 X-SGX-Runtime [期望 Location]
+            for i in 1 2 3 4 5 6; do
+              hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' "https://styrigx.com$1" || true)
+              code=$(printf '%s' "$hdr" | sed -n 's/^HTTP_CODE://p')
+              rt=$(printf '%s' "$hdr" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
+              loc=$(printf '%s' "$hdr" | tr -d '\r' | awk -F': ' 'tolower($1)=="location"{print $2}')
+              echo "$1 -> $code runtime=${rt:-none} location=${loc:-none} (try $i)"
+              if [ "$code" = "$2" ] && [ "$rt" = "$3" ] && { [ -z "${4:-}" ] || [ "$loc" = "$4" ]; }; then return 0; fi
+              sleep 5
+            done
+            echo "::error::$1 expected $2 from $3"; return 1
+          }
+          ok=0
+          # 打不开的短链：统一 302 到锁屏
+          check "/s/smoke$(date +%s)xxxxxxxxxxx" 302 share 'https://styrigx.com/?lock=1' || ok=1
+          # 管理接口：没会话 401（门）
+          check /api/share 401 share || ok=1
+          # 网关的接口和页面没被抢走；账号 Worker 的也没有
+          check /api/session-check 401 worker || ok=1
+          check /settings/ 302 worker || ok=1
+          check /account/temp-keys/ 302 worker || ok=1
+          check /api/wellbeing 401 account || ok=1
           exit $ok

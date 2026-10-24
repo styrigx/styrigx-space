@@ -55,7 +55,9 @@ async function handle(context) {
 
   if (action === 'list') {
     try {
-      return json({ ok: true, keys: await listTemp(kv) });
+      /* 分享短链自动签的钥匙（link，styrigx-share 经 ShareIssuer 签发）不出现在这里，只在短链列表里管 */
+      const keys = (await listTemp(kv)).filter(function (k) { return !k.link; });
+      return json({ ok: true, keys: keys });
     } catch (e) {
       return json({ ok: false, error: 'server' }, 503);
     }
