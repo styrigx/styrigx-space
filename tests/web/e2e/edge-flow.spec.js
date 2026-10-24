@@ -278,3 +278,46 @@ test('R7 账号 Worker（2026-10-24 拆出来）：头像 / 数字健康 / 云�
   expect(new Set(by(/^\/(avatar\/|api\/(wellbeing|prefs|avatar))/))).toEqual(new Set(['account']));
   expect(new Set(by(/^\/(settings\/wellbeing\/|api\/session-check)$/))).toEqual(new Set(['worker']));
 });
+
+/* R8 顶栏三栏页内切换（2026-10-24，shell/inpage-tabs.js）：真实网关下，有效会话时另外两栏在同一文档里切换；
+   取回来的不是这一栏（会话过期 → 302 锁屏）就不用它，整页导航交给网关；锁屏态根本不接管（照旧整页导航）。 */
+test('R8 有效会话：主页 → 聊天 → 设置 同一文档切换，网关照常验会话；取页时会话没了 → 整页导航到锁屏', async ({ page, context }) => {
+  await setSession(context, 'owner');
+  await page.goto(MAIN + '/');
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-session', 'valid');
+  await page.evaluate(() => { window.__sameDoc = 1; });
+  await page.click('.sgx-tb-tab[data-tab="chat"]');
+  await expect(page.locator('.sgx-tb-tab[data-tab="chat"]')).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('#chat-root')).toBeVisible();
+  expect(new URL(page.url()).pathname).toBe('/chat/');
+  await page.click('.sgx-tb-tab[data-tab="settings"]');
+  await expect(page.locator('.sgx-tb-tab[data-tab="settings"]')).toHaveAttribute('aria-current', 'page');
+  expect(await page.evaluate(() => [window.__sameDoc, location.pathname, document.title])).toEqual([1, '/settings/', '设置 | Styrigx']);
+  /* 预取的 HTML 也是经网关拿的（带会话、验过的） */
+  expect(edge.log.some((l) => l[0] === 'worker' && new URL(l[2]).pathname === '/chat/')).toBe(true);
+
+  /* 新开一页（省流量模式：不预取，点了才取）：会话在点之前没了 → 取 /chat/ 时网关 302 锁屏 → 不用它 → 整页导航 → 锁屏（带 return） */
+  const p2 = await context.newPage();
+  await p2.addInitScript(() => {
+    Object.defineProperty(Navigator.prototype, 'connection', { configurable: true, get: () => ({ saveData: true }) });
+  });
+  await p2.goto(MAIN + '/');
+  await expect(p2.locator('html')).toHaveAttribute('data-sgx-session', 'valid');
+  await p2.evaluate(() => { window.__sameDoc = 1; });
+  await p2.waitForTimeout(1200);
+  await context.clearCookies();
+  await p2.click('.sgx-tb-tab[data-tab="chat"]');
+  await p2.waitForURL((u) => u.pathname === '/' && u.searchParams.get('return') === '/chat/', { timeout: 15000 });
+  await expect(p2.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
+  expect(await p2.evaluate(() => window.__sameDoc)).toBeUndefined();
+  await p2.close();
+});
+
+test('R8 锁屏态不接管顶栏三栏：点标签照旧整页导航（网关 302 锁屏，带 return）', async ({ page }) => {
+  await page.goto(MAIN + '/');
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-session', 'locked');
+  await page.evaluate(() => { window.__sameDoc = 1; });
+  await page.evaluate(() => /** @type {HTMLAnchorElement} */ (document.querySelector('.sgx-tb-tab[data-tab="chat"]')).click());
+  await page.waitForURL((u) => u.searchParams.get('return') === '/chat/', { timeout: 15000 });
+  expect(await page.evaluate(() => window.__sameDoc)).toBeUndefined();
+});

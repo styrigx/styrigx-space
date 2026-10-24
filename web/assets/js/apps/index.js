@@ -1,5 +1,8 @@
 /**
- * @fileoverview 首页：双时钟、天气小组件、日刻今日一句、数字花园筛选。
+ * @fileoverview 首页：双时钟、天气小组件、日刻今日一句。
+ * 2026-10-24 页内切换（shell/inpage-tabs.js）：不再在 import 时直接跑，改成 mountHome()——
+ * 首页这块 DOM 只挂一次（切走时连 DOM 一起留着，回来不重画），activate / deactivate 管全局的东西：
+ * 时钟定时器、sgx-settings-changed 监听；切走即停，切回来先按当前设置重画一次再继续。
  */
 import { on } from '../lib/events.js';
 import { get as featGet } from '../lib/features.js';
@@ -7,10 +10,10 @@ import { visibleInterval } from '../lib/scheduler.js';
 import { get, getJSON, setJSON } from '../lib/storage.js';
 import { mountDaymarkToday } from '../lib/daymark-today.js';
 
-/* 双时钟 */
-(function () {
+/* 双时钟：返回 { start, stop } */
+function clockPart() {
   const root = document.getElementById('dual-clock');
-  if (!root) return;
+  if (!root) return null;
   const en = document.documentElement.lang === 'en';
   const w = /** @type {any} */ (window);
   const CITY = {
@@ -164,15 +167,25 @@ import { mountDaymarkToday } from '../lib/daymark-today.js';
     else if (diffH > 0) el.textContent = en ? diffH + ' hrs ahead' : '+' + diffH + ' 小时';
     else el.textContent = en ? -diffH + ' hrs behind' : diffH + ' 小时';
   }
-  visibleInterval(tick, 60000);
-  on(window, 'sgx-settings-changed', tick);
-})();
+  /** @type {Array<() => void>} */
+  let offs = [];
+  return {
+    start() {
+      if (offs.length) return;
+      offs = [visibleInterval(tick, 60000), on(window, 'sgx-settings-changed', tick)];
+    },
+    stop() {
+      offs.forEach((f) => f());
+      offs = [];
+    },
+  };
+}
 
-/* 天气（2.4.0-G：SGX_FEAT_WEATHER_SHOW 编译期可移除） */
-if (SGX_FEAT_WEATHER_SHOW)
-(function () {
+/* 天气（2.4.0-G：SGX_FEAT_WEATHER_SHOW 编译期可移除）：返回 { start, stop }（start = 按缓存重画 + 听设置变化） */
+function weatherPart() {
+  if (!SGX_FEAT_WEATHER_SHOW) return null;
   const root = document.getElementById('weather');
-  if (!root) return;
+  if (!root) return null;
   const en = document.documentElement.lang === 'en';
   const CACHE = 'sgx-weather';
   const WMO = [
@@ -258,7 +271,20 @@ if (SGX_FEAT_WEATHER_SHOW)
       } catch (e) {}
     }
   }
-  on(window, 'sgx-settings-changed', renderWeather);
+  /** @type {(() => void)|null} */
+  let off = null;
+  const ctl = {
+    start() {
+      if (off) return;
+      off = on(window, 'sgx-settings-changed', renderWeather);
+    },
+    stop() {
+      if (off) off();
+      off = null;
+    },
+    /** 切回首页：设置可能在别的栏改过（温度单位、显示开关），按缓存重画 */
+    repaint: renderWeather,
+  };
   function cached() {
     const c = getJSON(CACHE, null);
     if (c && Date.now() - c.ts < 30 * 60 * 1000) return c.data;
@@ -291,7 +317,7 @@ if (SGX_FEAT_WEATHER_SHOW)
   const c = cached();
   if (c) {
     render(c, true);
-    return;
+    return ctl;
   }
   const LA = { lat: 34.05, lon: -118.24, city: null };
   /* 2.7.0 定位顺序：手动城市 > 精确定位 > IP 兜底 > LA */
@@ -348,20 +374,42 @@ if (SGX_FEAT_WEATHER_SHOW)
           else noData();
         });
     });
-})();
+  return ctl;
+}
 
-/* 首页刷新回到顶部 */
-(function () {
-  if ('scrollRestoration' in history) {
-    history.scrollRestoration = 'manual';
+/**
+ * 挂首页（每块首页 DOM 只调一次）。返回 activate / deactivate（页内切换进出时调）；不在首页（没有 #home-widgets）返回 null。
+ * @param {{direct?: boolean}} [o] direct：这一栏就是直接打开 / 刷新的那页（照旧回到顶部）
+ * @returns {{activate: () => void, deactivate: () => void}|null}
+ */
+export function mountHome(o) {
+  if (!document.getElementById('home-widgets')) return null;
+  /* 首页刷新回到顶部（只管直接打开 / 刷新；页内切回来按记住的位置） */
+  if (o && o.direct) {
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+    window.scrollTo(0, 0);
   }
-  window.scrollTo(0, 0);
-})();
-
-/* 日刻 · 今日一句：daymark.styrigx.com/api/today（公开只读）。与锁屏共用 lib/daymark-today.js：
-   先画本地缓存（同一天才用），再静默拉新；拉失败且没缓存 → 卡片保持隐藏。 */
-(function () {
-  const root = document.getElementById('w-daymark');
-  if (!root) return;
-  mountDaymarkToday(root, { en: document.documentElement.lang === 'en' });
-})();
+  const clock = clockPart();
+  const wx = weatherPart();
+  /* 日刻 · 今日一句：daymark.styrigx.com/api/today（公开只读）。与锁屏共用 lib/daymark-today.js：
+     先画本地缓存（同一天才用），再静默拉新；拉失败且没缓存 → 卡片保持隐藏。只在挂上时拉一次。 */
+  const dm = document.getElementById('w-daymark');
+  if (dm) mountDaymarkToday(dm, { en: document.documentElement.lang === 'en' });
+  let first = true;
+  return {
+    activate() {
+      if (clock) clock.start();
+      if (wx) {
+        if (!first) wx.repaint();
+        wx.start();
+      }
+      first = false;
+    },
+    deactivate() {
+      if (clock) clock.stop();
+      if (wx) wx.stop();
+    },
+  };
+}

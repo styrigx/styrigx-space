@@ -72,16 +72,18 @@ export function buildBody(p) {
 
 /**
  * 启动计时（每页调用一次）。
- * @param {{key: string|null, title?: string|(() => string), endpoint?: string, idleMs?: number}} opt
- *   key：区域键（home/files/browser/settings/book/book:<id>/blog/post:<slug>），null 不计时
+ * @param {{key: string|null|(() => string|null), title?: string|(() => string), endpoint?: string, idleMs?: number}} opt
+ *   key：区域键（home/files/browser/settings/book/book:<id>/blog/post:<slug>），null 不计时；
+ *     也可传函数（每次记时现取，主站页内切换顶栏三栏时区域跟着变；返回 null 的那段不计）
  *   title：书名 / 文章名，可传函数（阅读器加载完才知道书名时用 () => document.title）
  *   idleMs：多久没操作停表；阅读页建议 300000（看一页书可能几分钟不碰屏幕）
  *   endpoint：主站用相对地址 /api/wellbeing，子站用 https://styrigx.com/api/wellbeing
- * @returns {{stop: () => void, flush: () => void}|null}
+ * @returns {{stop: () => void, flush: () => void, tick: () => void}|null}
  */
 export function initWbTrack(opt) {
   if (!opt || !opt.key || typeof window === 'undefined') return null;
-  const key = opt.key;
+  const keyOpt = opt.key;
+  const keyOf = typeof keyOpt === 'function' ? keyOpt : () => keyOpt;
   const titleOf = () => String((typeof opt.title === 'function' ? opt.title() : opt.title) || '').slice(0, 60);
   const endpoint = opt.endpoint || '/api/wellbeing';
   const idleMs = opt.idleMs && opt.idleMs > 0 ? opt.idleMs : IDLE_MS;
@@ -95,6 +97,8 @@ export function initWbTrack(opt) {
 
   function add(sec) {
     if (sec <= 0) return;
+    const key = keyOf();
+    if (!key) return;
     const today = localDay();
     let p = load();
     if (p && p.d !== today) {
@@ -174,6 +178,8 @@ export function initWbTrack(opt) {
 
   return {
     flush,
+    /** 把到现在为止的时长记到当前区域（换区域之前调，免得上一段算到新区域） */
+    tick,
     stop() {
       stopTimer();
       inputs.forEach((t) => window.removeEventListener(t, onInput, opts));
