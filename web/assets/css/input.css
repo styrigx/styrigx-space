@@ -58,6 +58,9 @@
   @supports (overflow-x: clip) {
     html, body { overflow-x: clip; }
   }
+  /* 2026-10-24：Samsung Internet 连点按钮会触发双击放大。touch-action 取元素与所有祖先的交集，
+     根上设 manipulation（只留平移 + 双指缩放）就关掉了全站的双击放大，双指缩放照常可用。 */
+  html { touch-action: manipulation; }
 }
 
 /* ===== tokens 层：Material You 色板 + 材质 token =====
@@ -7517,6 +7520,10 @@
      只影响锁定屏幕页（.lock-page），其他页面不动。 */
   .layout-mobile .lock-page { min-height: calc(100svh + 220px); }
   .lockmgr-pklist { list-style: none; margin: 0; padding: 8px; display: flex; flex-direction: column; gap: 8px; &[hidden] { display: none; } }
+  /* 2026-10-24：列表加载中 / 读取失败的占位行 */
+  .lockmgr-pkloading { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 8px 12px; font-size: 14px; color: var(--sgx-text-secondary);
+    .sgx-spinner { width: 18px; height: 18px; border-width: 2px; flex: none; } }
+  .lockmgr-add[hidden] { display: none; }
   .lockmgr-pkitem {
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
     padding: 10px 12px; border: 1px solid var(--m-outline-variant); border-radius: 12px;
@@ -7807,9 +7814,11 @@
     transition: transform .32s cubic-bezier(.22,1,.36,1), opacity .32s cubic-bezier(.22,1,.36,1);
     .reduced-motion & { transition: none; }
   }
+  /* 2026-10-24：账号登录那组带 .animate-fade-up，首次访问时 fade-up（fill: both）会把 opacity 钉在 1，淡出失效；弹层打开时停掉入场动画 */
   body.sgx-dlg-open .sgx-lock-user {
     opacity: 0;
     pointer-events: none;
+    animation: none;
   }
   @media (orientation:landscape) and (max-width:1023.5px) {
     body.sgx-dlg-open .sgx-lock-user {
@@ -7878,24 +7887,30 @@
   .acct-reset .sgx-reset-recover-hint, .acct-reset .sgx-reset-none { text-align: center; }
 
   /* PR3 账号登录：头像 + 欢迎回来 + 通行密钥登录（强调色主按钮）+ 密码登录（次按钮，原地展开）+ 无法登录？ */
-  .acct-login { display: flex; flex-direction: column; align-items: center; padding-top: clamp(16px, 6vh, 56px); }
+  /* 2026-10-24：.acct-layout > * 的左右 auto 外边距会让登录区缩成内容宽（「登录」只有 157px），这里撑满，按钮与锁屏「解锁」同宽（100%，上限 360px） */
+  .acct-login { width: 100%; display: flex; flex-direction: column; align-items: center; padding-top: clamp(16px, 6vh, 56px); }
   .acct-login[hidden] { display: none; }
   .acct-login-hero { display: flex; flex-direction: column; align-items: center; gap: 14px; margin-bottom: 28px; }
   .acct-login-avatar { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 3px var(--sgx-surface), 0 0 0 5px var(--sgx-outline-variant); }
   .acct-login-welcome { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.01em; color: var(--sgx-text-primary); }
   .acct-login-notice { width: 100%; max-width: 360px; text-align: center; }
-  .acct-login-actions { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 12px; }
-  .acct-login-btn { width: 100%; flex: none; gap: 10px; }
-  .acct-login-btn[hidden] { display: none; }
-
-  .acct-login-btn:disabled { opacity: .7; cursor: default; }
   .acct-login-btn-ic { display: inline-flex; width: 22px; height: 22px; }
   .acct-login-btn-ic svg { width: 22px; height: 22px; }
-  .acct-login-actions .sgx-door-err { margin: -4px 0 0; }
-  .acct-pw-form { display: flex; flex-direction: column; gap: 12px; padding-top: 2px; }
-  .acct-pw-form[hidden] { display: none; }
-  .acct-pw-form .sgx-pw-field, .acct-pw-form .sgx-pw-input { max-width: none; }
-  .acct-login-none { margin: 0; font-size: 14px; color: var(--sgx-text-secondary); text-align: center; line-height: 1.6; }
+  .acct-login-none { margin: 16px 0 0; max-width: 360px; font-size: 14px; color: var(--sgx-text-secondary); text-align: center; line-height: 1.6; }
+  .acct-login-none[hidden], .acct-login-go[hidden] { display: none; }
+  /* 2026-10-24 账号登录与锁屏同一套版面（.sgx-lock-user / -welcome / -sub / -go / -halo 直接复用）：
+     头像按钮与 #sgx-lock-avatar 同尺寸、同光环、同按压缩放 */
+  .acct-login-user { width: 100%; max-width: 480px; }
+  .acct-login-user .acct-login-notice { margin: 16px 0 0; }
+  .acct-login-av {
+    position: relative; width: 130px; height: 130px; border-radius: 50%; border: 0; padding: 0;
+    background: none; cursor: pointer; transition: transform .15s ease;
+    &:focus { outline: none; }
+    &:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 4px; }
+    &:active { transform: scale(.93); }
+    .acct-login-avatar { display: block; position: relative; z-index: 1; margin: 5px; }
+  }
+  .acct-login-go:disabled { opacity: .7; cursor: default; }
   .acct-login .acct-cant { margin-top: 18px; }
   #acct-door .acct-cant { display: inline-block; margin-top: 12px; }
   /* .sgx-glass-bg：账号登录页与锁屏共用的 fixed 全屏背景层，盖在 #sgx-wallpaper 之上、内容之下。
@@ -8339,6 +8354,11 @@
   .sgx-lock-dm.widget.bg-m-container-lowest { background-color: color-mix(in srgb, var(--sgx-daymark-card) 88%, transparent); }
 
   /* DeX 下隐藏手机 Dock（兜底，布局类已控制；原 !important 已摘） */
+
+  /* 2026-10-24：触屏上输入框字号不小于 16px（小于 16px 时手机浏览器聚焦会自动放大页面）。只在粗指针设备上生效，电脑上不变 */
+  @media (pointer: coarse) {
+    :is(input, textarea, select):is(.text-xs, .text-sm) { font-size: 16px; }
+  }
 
   /* ===== 减少动态偏好：全局开关（必须保留 !important 才能盖过 animation 简写） ===== */
   @media (prefers-reduced-motion: reduce) {

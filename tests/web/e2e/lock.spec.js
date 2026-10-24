@@ -674,12 +674,12 @@ test.describe('锁屏视觉统一（2026-10-23：与账号登录页同一套玻�
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
   });
 
-  test('版面：顶栏标题「解锁屏幕」；没有左上字标和标语；头像 → 欢迎回来 / 很高兴再次见到你 → 解锁按钮；没有底部站点清单、时钟和日刻', async ({ page }) => {
+  test('版面：顶栏标题静止时「锁定屏幕」（打开解锁弹层时变「解锁屏幕」，见 lock-mobile.spec.js）；没有左上字标和标语；头像 → 欢迎回来 / 很高兴再次见到你 → 解锁按钮；没有底部站点清单、时钟和日刻', async ({ page }) => {
     await page.setViewportSize({ width: 412, height: 915 });
     await gotoLock(page);
     const lock = page.locator('#sgx-lock');
     await expect(lock.locator('.sgx-glass-bg')).toHaveCount(1);
-    await expect(page.locator('#sgx-lock-title')).toHaveText('解锁屏幕');
+    await expect(page.locator('#sgx-lock-title')).toHaveText('锁定屏幕');
     await expect(lock.locator('.sgx-lock-brand, .sgx-wordmark')).toHaveCount(0);
     await expect(lock).not.toContainText('Personal');
     await expect(lock.locator('.sgx-lock-welcome')).toHaveText('欢迎回来');
@@ -697,10 +697,10 @@ test.describe('锁屏视觉统一（2026-10-23：与账号登录页同一套玻�
     expect(u.y + u.height).toBeLessThan(g.y);
   });
 
-  test('英文：Unlock screen / Good to see you again / Unlock', async ({ page }) => {
+  test('英文：Lock screen / Good to see you again / Unlock', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
     await page.goto('/en/?lock=1', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#sgx-lock-title')).toHaveText('Unlock screen');
+    await expect(page.locator('#sgx-lock-title')).toHaveText('Lock screen');
     await expect(page.locator('#sgx-lock .sgx-lock-sub')).toHaveText('Good to see you again');
     await expect(page.locator('#sgx-lock-go')).toHaveText('Unlock');
   });

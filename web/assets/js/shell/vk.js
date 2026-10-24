@@ -68,7 +68,8 @@ export function onKeyboardHeight(cb, syncEl) {
     let raf = 0;
     const upd = function () {
       raf = 0;
-      const h = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      /* 双指放大时 visualViewport 也会变小：那不是键盘，不挪弹层（以前会把弹层顶出手指下面，2026-10-24） */
+      const h = vv.scale > 1.01 ? 0 : Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
       cb(h);
     };
     const sched = function () {

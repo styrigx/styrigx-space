@@ -32,11 +32,40 @@ function blurFocusedInput(dlg) {
  * @returns {boolean} 是否处理了遮罩点击（true = 点的是遮罩，已处理）
  */
 export function onDialogBackdrop(e, dlg) {
-  if (e.target === dlg) {
-    blurFocusedInput(dlg);
-    return true;
+  if (e.target !== dlg) return false;
+  /* 2026-10-24（手机上密码框点不进去 / 选不中字）：click 的 target 是按下点和松开点的最近公共祖先。
+     按在输入框里、松开时手指已经不在卡片上（拖选文字，或软键盘弹起把弹层顶走了），target 也是 dialog 本身，
+     以前会被当成「点遮罩」立刻让输入框失焦、键盘收起。现在要求按下也在遮罩上，且落点不在卡片里，才算点遮罩。 */
+  if (downTarget && downTarget !== dlg && dlg.contains(downTarget) && Date.now() - downAt < 5000) return true;
+  if (pointInCard(e, dlg)) return true;
+  blurFocusedInput(dlg);
+  return true;
+}
+
+/** 最近一次按下（pointerdown，捕获阶段）落在哪个元素上 */
+/** @type {EventTarget|null} */ let downTarget = null;
+let downAt = 0;
+try {
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('pointerdown', function (ev) {
+      downTarget = ev.target;
+      downAt = Date.now();
+    }, { capture: true, passive: true });
   }
-  return false;
+} catch (e) {}
+
+/** 落点是否在弹层卡片（dialog 的第一个子元素）矩形里 @param {MouseEvent} e @param {HTMLElement} dlg */
+function pointInCard(e, dlg) {
+  try {
+    const card = dlg.firstElementChild;
+    if (!card || typeof e.clientX !== 'number') return false;
+    /* 键盘 Enter 触发的 click 坐标是 0,0，不算 */
+    if (e.clientX === 0 && e.clientY === 0) return false;
+    const r = card.getBoundingClientRect();
+    return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+  } catch (err) {
+    return false;
+  }
 }
 
 /**

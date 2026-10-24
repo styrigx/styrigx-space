@@ -61,35 +61,40 @@ async function zh(page) {
 test.describe('账号登录', () => {
   test.beforeEach(async ({ page }) => { await zh(page); });
 
-  test('PR3 版面：顶栏页名「登录账号」；头像 + 欢迎回来；通行密钥登录（主）/ 密码登录（次）/ 无法登录？；没有大标题、盾牌、构建号、根凭证入口', async ({ page }) => {
+  /** 「登录」→ 方式弹层（与锁屏同一个组件） */
+  async function openSheet(page) {
+    await page.click('#acct-login-go');
+    await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible();
+  }
+  async function openPw(page) {
+    await openSheet(page);
+    await page.click('#acct-pw-btn');
+    await expect(page.locator('#acct-pw-input')).toBeVisible();
+  }
+
+  test('与锁屏同一套版面：顶栏页名「登录账号」；头像 + 欢迎回来 + 记录 · 收藏 · 探索 · 享受 + 「登录」（与锁屏「解锁」同款）；没有大标题、盾牌、构建号、根凭证入口', async ({ page }) => {
     await mockAccount(page, { status: { ok: true, password: true, passkey: true, ready: true, session: null } });
     await page.goto('/account/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#acct-login')).toBeVisible();
     await expect(page.locator('#acct-main')).toBeHidden();
     await expect(page.locator('.sgx-tb-title')).toHaveText('登录账号');
     await expect(page.locator('.acct-login-welcome')).toHaveText('欢迎回来');
+    await expect(page.locator('.acct-login-sub')).toHaveText('记录 · 收藏 · 探索 · 享受');
     await expect(page.locator('.acct-login-avatar')).toBeVisible();
-    await expect(page.locator('#acct-pk-btn')).toBeVisible();
-    await expect(page.locator('#acct-pk-btn')).toContainText('通行密钥登录');
-    await expect(page.locator('#acct-pw-btn')).toHaveText('密码登录');
-    await expect(page.locator('#acct-pw-form')).toBeHidden();
-    await expect(page.locator('#acct-cant')).toHaveText('无法登录？');
-    await expect(page.locator('#acct-cant')).toHaveAttribute('href', '/account/reset/');
-    /* 正文里没有大标题 / 盾牌 / 构建号 / 根凭证 */
+    const go = page.locator('#acct-login-go');
+    await expect(go).toHaveText('登录');
+    await expect(go).toHaveClass(/sgx-lock-go/);
+    await expect(page.locator('#acct-login .sgx-lock-halo')).toHaveCount(1);
+    /* 2026-10-24：按钮与锁屏「解锁」同宽（100%，上限 360px），不再缩成内容宽 */
+    const gw = await go.evaluate((el) => el.getBoundingClientRect().width);
+    const vw = await page.evaluate(() => window.innerWidth);
+    expect(gw).toBeGreaterThanOrEqual(Math.min(360, vw - 48) - 1);
+    /* 页面上不再有两个按钮 / 原地展开的密码框 */
+    await expect(page.locator('#acct-pk-btn, #acct-pw-btn, #acct-pw-form, #acct-pw-input')).toHaveCount(0);
     await expect(page.locator('#acct-login .acct-gh, #acct-login .sgx-build-tag-wrap, #acct-login .acct-ic')).toHaveCount(0);
     await expect(page.locator('#acct-login')).not.toContainText('根凭证', { useInnerText: true });
-    /* 主按钮 = 主题色主色角色（--sgx-btn-primary-bg），次按钮 = 主色容器角色 */
-    const bg = await page.locator('#acct-pk-btn').evaluate((el) => getComputedStyle(el).backgroundColor);
-    const bg2 = await page.locator('#acct-pw-btn').evaluate((el) => getComputedStyle(el).backgroundColor);
-    const role = (v) => page.evaluate((vv) => {
-      const d = document.createElement('div');
-      d.style.color = 'var(' + vv + ')';
-      document.body.appendChild(d);
-      const c = getComputedStyle(d).color;
-      d.remove();
-      return c;
-    }, v);
-    expect(bg2).toBe(await role('--sgx-btn-secondary-bg'));
+    /* 主按钮 = 主题色主色角色 */
+    const bg = await go.evaluate((el) => getComputedStyle(el).backgroundColor);
     const accent = await page.evaluate(() => {
       const d = document.createElement('div');
       d.style.color = 'var(--sgx-btn-primary-bg)';
@@ -100,44 +105,57 @@ test.describe('账号登录', () => {
     });
     expect(bg).toBe(accent);
     await expect(page.locator('#acct-login-notice')).toBeHidden();
-    /* 2026-10-23：光晕背景铺满视口；左上站名删掉（标语在抽屉头）；底部不再有站点清单 */
+    /* 光晕背景铺满视口；整组上下居中（组中心离 main 可用区中心不超过 40px） */
     await expect(page.locator('.acct-glass')).toBeVisible();
     const gb = await page.locator('.acct-glass').boundingBox();
     const vp = page.viewportSize();
     expect(gb && vp && Math.round(gb.width) === vp.width && Math.round(gb.height) === vp.height).toBe(true);
     await expect(page.locator('.acct-brand')).toHaveCount(0);
-    await expect(page.locator('.acct-login-sub')).toHaveText('记录 · 收藏 · 探索 · 享受');
     await expect(page.locator('.acct-login-foot')).toHaveCount(0);
+    /* 点「登录」→ 方式弹层：标题「登录」，通行密钥 / 密码 / 无法登录？（链接到重置登录） */
+    await openSheet(page);
+    await expect(page.locator('#sgx-method-sheet .sgx-sheet-title')).toHaveText('登录');
+    await expect(page.locator('#acct-pk-btn .sgx-method-name')).toHaveText('通行密钥');
+    await expect(page.locator('#acct-pw-btn .sgx-method-name')).toHaveText('密码');
+    await expect(page.locator('#acct-cant')).toHaveText('无法登录？');
+    await expect(page.locator('#acct-cant')).toHaveAttribute('href', '/account/reset/');
+    /* 点头像也是同一个入口 */
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#sgx-method-sheet')).toHaveCount(0);
+    await page.click('#acct-login-avatar');
+    await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible();
   });
 
-  test('设了哪个显示哪个：只设密码 → 只有密码登录；都没设 → 提示 + 无法登录？', async ({ page }) => {
+  test('设了哪个显示哪个：只设密码 → 弹层只有密码；都没设 → 提示 + 弹层只剩「无法登录？」', async ({ page }) => {
     let st = { ok: true, password: true, passkey: false, ready: true, session: null };
     await mockAccount(page, { status: () => st });
     await page.goto('/account/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#acct-pw-btn')).toBeVisible();
-    await expect(page.locator('#acct-pk-btn')).toBeHidden();
     await expect(page.locator('#acct-login-none')).toBeHidden();
+    await openSheet(page);
+    await expect(page.locator('#acct-pw-btn')).toBeVisible();
+    await expect(page.locator('#acct-pk-btn')).toHaveCount(0);
     st = { ok: true, password: false, passkey: false, ready: true, session: null };
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(page.locator('#acct-login-none')).toBeVisible();
-    await expect(page.locator('#acct-pk-btn')).toBeHidden();
-    await expect(page.locator('#acct-pw-btn')).toBeHidden();
+    await openSheet(page);
+    await expect(page.locator('#sgx-method-sheet .sgx-method-opt')).toHaveCount(0);
     await expect(page.locator('#acct-cant')).toBeVisible();
   });
 
-  test('英文页：Sign in / Welcome back / 两个按钮 / Can’t sign in?（访客读不到状态也显示两个）', async ({ page }) => {
-    /* beforeEach 写了 sgx-lang=zh，会被语言跟随带回中文页；这里改成 en（后注册的 init script 后执行） */
+  test('英文页：Sign in / Welcome back / Passkey · Password / Can’t sign in?（访客读不到状态也显示两个）', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
     await mockAccount(page, { status: { ok: false, error: 'session' } });
     await page.goto('/en/account/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-tb-title')).toHaveText('Sign in');
     await expect(page.locator('.acct-login-welcome')).toHaveText('Welcome back');
-    await expect(page.locator('#acct-pk-btn')).toContainText('Sign in with passkey');
-    await expect(page.locator('#acct-pw-btn')).toHaveText('Sign in with password');
+    await expect(page.locator('#acct-login-go')).toHaveText('Sign in');
+    await openSheet(page);
+    await expect(page.locator('#acct-pk-btn .sgx-method-name')).toHaveText('Passkey');
+    await expect(page.locator('#acct-pw-btn .sgx-method-name')).toHaveText('Password');
     await expect(page.locator('#acct-cant')).toHaveAttribute('href', '/en/account/reset/');
   });
 
-  test('密码登录：原地展开；错误行内提示并清空；改对后进账号页，顶栏页名回到「账号」', async ({ page }) => {
+  test('密码登录：与锁屏同一个密码弹层；空密码行内提示；错误行内提示并清空；改对后进账号页，顶栏页名回到「账号」', async ({ page }) => {
     let loggedIn = false;
     const calls = await mockAccount(page, {
       status: () => ({ ok: true, password: true, passkey: false, ready: true, session: loggedIn ? RECENT() : null }),
@@ -150,10 +168,17 @@ test.describe('账号登录', () => {
       },
     });
     await page.goto('/account/', { waitUntil: 'domcontentloaded' });
-    await page.click('#acct-pw-btn');
-    await expect(page.locator('#acct-pw-form')).toBeVisible();
-    await expect(page.locator('#acct-pw-btn')).toHaveAttribute('aria-expanded', 'true');
+    await openPw(page);
+    await expect(page.locator('dialog.sgx-verify-dlg[open]')).toBeVisible();
+    await expect(page.locator('#sgx-verify-title')).toHaveText('输入密码');
     const input = page.locator('#acct-pw-input');
+    await expect(input).toBeFocused();
+    /* 2026-10-24：弹层打开时头像那组淡出避让（与锁屏同一个 body.sgx-dlg-open；首次访问的入场动画不能把它钉住） */
+    await expect(page.locator('body')).toHaveClass(/sgx-dlg-open/);
+    await expect.poll(() => page.locator('.acct-login-user').evaluate((el) => getComputedStyle(el).opacity)).toBe('0');
+    await page.click('#acct-pw-go');
+    await expect(page.locator('#acct-pw-err')).toHaveText('请输入账号密码');
+    await expect(input).toHaveAttribute('aria-invalid', 'true');
     await expect(input).toBeFocused();
     await input.fill('wrong-password');
     await page.click('#acct-pw-go');
@@ -163,52 +188,25 @@ test.describe('账号登录', () => {
     await input.press('Enter');
     await expect(page.locator('#acct-main')).toBeVisible();
     await expect(page.locator('#acct-login')).toBeHidden();
+    await expect(page.locator('dialog.sgx-verify-dlg[open]')).toHaveCount(0);
     await expect(page.locator('.sgx-tb-title')).toHaveText('账号');
-    await expect(page.locator('#acct-logout, #acct-by')).toHaveCount(0);
     await expect(page.locator('#acct-main .sgx-account-card')).toBeVisible();
-    await expect(page.locator('#acct-sec-row')).toContainText('安全与隐私');
     await expect(page.locator('#acct-sec-sub')).toHaveText('已保护');
-    await expect(page.locator('#acct-sec-row')).toHaveAttribute('href', '/account/security/');
     expect(calls.filter((c) => c.action === 'login-password').length).toBe(2);
   });
 
-  test('再点「密码登录」收起密码框', async ({ page }) => {
-    await mockAccount(page, { status: { ok: true, password: true, passkey: true, ready: true, session: null } });
-    await page.goto('/account/', { waitUntil: 'domcontentloaded' });
-    await page.click('#acct-pw-btn');
-    await expect(page.locator('#acct-pw-form')).toBeVisible();
-    await page.click('#acct-pw-btn');
-    await expect(page.locator('#acct-pw-form')).toBeHidden();
-    await expect(page.locator('#acct-pw-btn')).toHaveAttribute('aria-expanded', 'false');
-  });
-
-  test('通行密钥登录：点了立即 busy、只发一次 challenge；取消系统验证不报错', async ({ page }) => {
-    const calls = await mockAccount(page, {
-      status: { ok: true, password: false, passkey: true, ready: true, session: null },
-      handlers: { challenge: [200, { ok: true, challenge: 'dGVzdC1jaGFsbGVuZ2U', cid: 'c1', rpId: 'localhost', allowCredentials: [] }] },
+  test('通行密钥失败（非取消）：同一弹层里给错误 + 重试 / 使用密码', async ({ page }) => {
+    await mockAccount(page, {
+      status: { ok: true, password: true, passkey: true, ready: true, session: null },
+      handlers: { challenge: [500, { ok: false, error: 'server' }] },
     });
     await page.goto('/account/', { waitUntil: 'domcontentloaded' });
-    await page.evaluate(() => {
-      // @ts-ignore
-      window.__release = null;
-      navigator.credentials.get = function () {
-        return new Promise(function (_, reject) {
-          // @ts-ignore
-          window.__release = function () { reject(Object.assign(new Error('cancel'), { name: 'NotAllowedError' })); };
-        });
-      };
-    });
-    const btn = page.locator('#acct-pk-btn');
-    await btn.click();
-    await expect(btn).toBeDisabled();
-    await expect(btn).toContainText('正在唤起通行密钥…');
-    await btn.click({ force: true });
-    await page.waitForFunction(() => typeof (/** @type {any} */ (window)).__release === 'function');
-    await page.evaluate(() => (/** @type {any} */ (window)).__release());
-    await expect(btn).toBeEnabled();
-    await expect(btn).toContainText('通行密钥登录');
-    await expect(page.locator('#acct-pk-err')).toBeHidden();
-    expect(calls.filter((c) => c.action === 'challenge').length).toBe(1);
+    await openSheet(page);
+    await page.click('#acct-pk-btn');
+    await expect(page.locator('#acct-pk-err')).toBeVisible();
+    await expect(page.locator('#acct-pk-retry')).toBeVisible();
+    await page.click('#acct-pk-topw');
+    await expect(page.locator('#acct-pw-input')).toBeFocused();
   });
 
   test('缺账号钥匙（ready=false）→ 登录区显示配置提示', async ({ page }) => {
@@ -217,14 +215,13 @@ test.describe('账号登录', () => {
     await expect(page.locator('#acct-login-notice')).toContainText('缺少账号密钥配置');
   });
 
-  test('密码自动填充后直接点登录，不报「请输入凭证」', async ({ page }) => {
+  test('密码自动填充后直接点登录，不报「请输入账号密码」', async ({ page }) => {
     const calls = await mockAccount(page, {
       status: { ok: true, password: true, passkey: false, ready: true, session: null },
       handlers: { 'login-password': [403, { ok: false, error: 'wrong' }] },
     });
     await page.goto('/account/', { waitUntil: 'domcontentloaded' });
-    await page.click('#acct-pw-btn');
-    /* 模拟自动填充：直接写 value（不触发 input 事件） */
+    await openPw(page);
     await page.locator('#acct-pw-input').evaluate((el) => { /** @type {HTMLInputElement} */ (el).value = 'autofilled-pw'; });
     await page.click('#acct-pw-go');
     await expect(page.locator('#acct-pw-err')).toHaveText('密码不正确');
@@ -466,6 +463,7 @@ test.describe('安全与隐私子页：进入与回跳', () => {
     await page.waitForURL(/\/account\/\?return=%2Faccount%2Fsecurity%2F$/);
     await expect(page.locator('#acct-login')).toBeVisible();
     await expect(page.locator('#acct-login-notice')).toBeHidden();
+    await page.click('#acct-login-go');
     await page.click('#acct-pw-btn');
     await page.fill('#acct-pw-input', 'pw-123456');
     await page.click('#acct-pw-go');
@@ -696,11 +694,11 @@ test.describe('主题色角色（PR3）', () => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-palette', 'terra'); localStorage.setItem('sgx-theme-mode', 'light'); } catch (e) {} });
     await mockAccount(page, { status: { ok: true, password: true, passkey: true, ready: true, session: null } });
     await page.goto('/account/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#acct-pk-btn')).toBeVisible();
+    await expect(page.locator('#acct-login-go')).toBeVisible();
     expect(await roleOf(page, '--sgx-primary')).toBe('#566a44');
     expect(await roleOf(page, '--sgx-primary-fill')).toBe('#94a982');
-    expect(await page.locator('#acct-pk-btn').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(148, 169, 130)');
-    expect(await page.locator('#acct-pk-btn').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(28, 33, 23)');
+    expect(await page.locator('#acct-login-go').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(148, 169, 130)');
+    expect(await page.locator('#acct-login-go').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(28, 33, 23)');
     expect(await roleOf(page, '--sgx-btn-secondary-bg')).toBe(await roleOf(page, '--sgx-secondary-container'));
   });
 
@@ -720,7 +718,7 @@ test.describe('主题色角色（PR3）', () => {
     await expect(page.locator('style#sgx-accent-roles')).toHaveCount(1);
     expect(await roleOf(page, '--sgx-primary')).toBe('#ba2863');
     /* 主按钮 = 填充档：种子本色 #ff6b9d + 自动挑的深墨字（2026-10-23 PR-G 修订） */
-    expect(await page.locator('#acct-pk-btn').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 107, 157)');
+    expect(await page.locator('#acct-login-go').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 107, 157)');
     /* 深色：同一种子的深色角色 */
     await page.evaluate(() => document.documentElement.classList.add('dark'));
     expect(await roleOf(page, '--sgx-primary')).not.toBe('#ba2863');

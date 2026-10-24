@@ -27,6 +27,7 @@ import { openSheet, closeSheet } from './sheet.js';
 import { engines } from './engines.js';
 import { initFavicon } from './favicon.js';
 import { initSearchHost } from './search-host.js';
+import { initTabSwipe } from './tab-swipe.js';
 
 let inited = false;
 
@@ -73,6 +74,8 @@ export function initCore() {
   initFavicon();
   /* 带 ?q= 进来（旧 /search/?q=、opensearch）：打开原地搜索层并预填 */
   initSearchHost();
+  /* 主页 / 聊天 / 状态：内容里左右滑切上一栏 / 下一栏（同子站手感） */
+  initTabSwipe();
 
   /* 5.2：写共享 UI cookie sgx-ui（老用户补写；设置变更时再写一次） */
   syncUiCookie();

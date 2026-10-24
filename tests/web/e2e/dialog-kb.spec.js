@@ -32,12 +32,18 @@ async function gotoAccount(pg) {
   await blockExternalRequests(pg);
   await mockJson(pg, '**/api/account', 200, { ok: true, password: true, passkey: true, ready: true, session: null });
   await pg.goto('/account/', { waitUntil: 'domcontentloaded' });
-  await expect(pg.locator('#acct-pk-btn')).toBeVisible({ timeout: 15000 });
+  await expect(pg.locator('#acct-login-go')).toBeVisible({ timeout: 15000 });
+}
+/* 2026-10-24：账号登录与锁屏同一套 —— 「登录」→ 方式弹层（#acct-pk-btn / #acct-pw-btn）→ 验证弹层 */
+async function openSheet(pg) {
+  await pg.click('#acct-login-go');
+  await expect(pg.locator('#sgx-method-sheet.visible')).toBeVisible();
 }
 
 test.describe('account login eye button (批次 A 验收修复 P2)', () => {
-  test('password login expand: eye starts eye-off, toggles icon/label/pressed, keeps focus', async ({ page: pg }) => {
+  test('password sheet: eye starts eye-off, toggles icon/label/pressed, keeps focus', async ({ page: pg }) => {
     await gotoAccount(pg);
+    await openSheet(pg);
     await pg.click('#acct-pw-btn');
     /* locator 不带 type：切换明/密文后仍是同一元素 */
     const input = pg.locator('#acct-pw-input');
@@ -70,7 +76,7 @@ test.describe('account login eye button (批次 A 验收修复 P2)', () => {
 });
 
 test.describe('account login button feedback (批次 A 验收修复 P2)', () => {
-  test('passkey login: immediate busy (busy text + disabled), cancel restores, challenge only once', async ({ page: pg }) => {
+  test('passkey: immediate busy state in the sheet, cancel closes quietly, challenge only once', async ({ page: pg }) => {
     await gotoAccount(pg);
     let challengeCalls = 0;
     await pg.route('**/api/account', async (route) => {
@@ -82,44 +88,41 @@ test.describe('account login button feedback (批次 A 验收修复 P2)', () => 
       if (body.includes('"challenge"')) challengeCalls++;
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, challenge: 'AA', cid: 'c1', rpId: 'localhost' }) });
     });
-    const btn = pg.locator('#acct-pk-btn');
     /* credentials.get 挂起（等测试手动取消） */
     await pg.evaluate(() => {
       window.__sgxRejectGet = null;
       navigator.credentials.get = () => new Promise((_, reject) => { window.__sgxRejectGet = reject; });
     });
-    await btn.click();
-    await expect(btn).toBeDisabled();
-    await expect(btn).toHaveAttribute('aria-busy', 'true');
-    await expect(btn).toContainText('正在唤起通行密钥…');
+    await openSheet(pg);
+    await pg.click('#acct-pk-btn');
+    await expect(pg.locator('#acct-pk-busy')).toHaveText('正在唤起通行密钥…');
     await expect.poll(() => challengeCalls).toBe(1);
-    /* busy 中合成二次点击：challenge 不再发 */
-    await btn.evaluate((el) => el.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    /* busy 中再点「登录」→ 方式弹层 → 通行密钥：challenge 不再发 */
+    await pg.locator('#acct-login-go').evaluate((el) => el.dispatchEvent(new MouseEvent('click', { bubbles: true })));
     expect(challengeCalls).toBe(1);
     await pg.evaluate(() => {
       const err = new DOMException('User cancelled', 'NotAllowedError');
       window.__sgxRejectGet(err);
     });
-    await expect(btn).toBeEnabled({ timeout: 3000 });
-    await expect(btn).toContainText('通行密钥登录');
+    await expect(pg.locator('.sgx-verify-dlg')).toBeHidden({ timeout: 3000 });
     await expect(pg.locator('#acct-login')).toBeVisible();
-    await expect(pg.locator('.sgx-door-err:visible')).toHaveCount(0);
+    await expect(pg.locator('#acct-pk-err')).toHaveCount(0);
   });
 
-  test('password login: expand / collapse toggles aria-expanded; click vibrates 10ms', async ({ page: pg }) => {
+  test('sign-in button opens the method sheet; option tap vibrates 10ms; Esc closes', async ({ page: pg }) => {
     await pg.addInitScript(() => {
       window.__vibCalls = [];
       navigator.vibrate = (ms) => { window.__vibCalls.push(ms); return true; };
     });
     await gotoAccount(pg);
-    const btn = pg.locator('#acct-pw-btn');
-    await btn.click();
-    await expect(btn).toHaveAttribute('aria-expanded', 'true');
-    await expect(btn).toHaveClass(/is-open/);
+    await openSheet(pg);
     expect(await pg.evaluate(() => window.__vibCalls)).toEqual([10]);
-    await btn.click();
-    await expect(btn).toHaveAttribute('aria-expanded', 'false');
-    await expect(btn).not.toHaveClass(/is-open/);
+    await pg.keyboard.press('Escape');
+    await expect(pg.locator('#sgx-method-sheet')).toHaveCount(0);
+    await openSheet(pg);
+    await pg.click('#acct-pw-btn');
+    expect(await pg.evaluate(() => window.__vibCalls)).toEqual([10, 10, 10]);
+    await expect(pg.locator('#acct-pw-input')).toBeFocused();
   });
 });
 
