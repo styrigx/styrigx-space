@@ -3,6 +3,7 @@
  *
  * - GET / HEAD /s/<码>（谁都能开）：open.js —— 普通短链只 302；带临时会话的请网关签访客会话后 302（去掉码）
  * - POST /api/share（只许站长 + 账号会话）：api/share.js —— 列表 / 生成 / 作废
+ *   三个子站顶栏的分享按钮跨源调它：OPTIONS 预检在门之前回（预检不带 cookie），每个 /api/* 响应补 CORS 头（lib/cors.js）
  * 数据：D1 styrigx-share（绑定 D1_SHARE_LINK，migrations/）。不持任何钥匙、不绑认证库：
  * - 会话判断问网关 SessionVerifier（服务绑定 AUTH，和账号 Worker 同一份 auth.js）
  * - 签 / 作废短链钥匙、换访客会话问网关 ShareIssuer（服务绑定 ISSUER）；临时钥匙和会话的逻辑只在网关里一份
@@ -14,6 +15,7 @@ import { gate } from './gate.js';
 import { withNoStore } from './lib/http.js';
 import { SHARE_PATH_RE } from './lib/links.js';
 import { openShare, failResponse } from './open.js';
+import { preflight, withCors } from './lib/cors.js';
 import * as share from './api/share.js';
 
 export const RUNTIME = 'share';
@@ -87,15 +89,18 @@ export default {
     let isOpen = false;
     try {
       isOpen = SHARE_PATH_RE.test(new URL(request.url).pathname);
-      isApi = new URL(request.url).pathname.startsWith('/api/');
+      const pathname = new URL(request.url).pathname;
+      isApi = pathname.startsWith('/api/');
+      if (isApi && request.method === 'OPTIONS' && routeKey(pathname) === '/api/share') return tagRuntime(preflight(request));
       const auth = authFor(request, env);
       const denied = await gate(request, env, auth);
       const res = denied || (await route(request, env, ctx, auth));
-      return tagRuntime(isApi ? withNoStore(res) : res);
+      return tagRuntime(isApi ? withCors(withNoStore(res), request) : res);
     } catch (e) {
       console.error('[sgx-share] unhandled: ' + (e && /** @type {any} */ (e).name ? /** @type {any} */ (e).name : 'error'));
       /* /s/<码> 出错也只回统一的失败响应，不露 500 */
-      return tagRuntime(isOpen ? failResponse() : json(500, { ok: false, error: 'internal' }));
+      if (isOpen) return tagRuntime(failResponse());
+      return tagRuntime(isApi ? withCors(json(500, { ok: false, error: 'internal' }), request) : json(500, { ok: false, error: 'internal' }));
     }
   },
 };

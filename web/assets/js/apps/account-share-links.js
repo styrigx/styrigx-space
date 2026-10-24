@@ -4,7 +4,7 @@
  * 接口：POST /api/share（分享短链 Worker styrigx-share，workers/share）{ action:'list' | 'create' | 'revoke' }。
  * - 进页 list → 列表：名字 + 类型（带会话 / 普通）+ 状态（有效 / 已过期 / 已作废）、打开的页面、到期时间和剩余、
  *   带会话的：点开后能看多久、最近一次发出的访客会话还剩多久；有效的才有「复制」「作废」（两步确认）
- * - 「新建分享短链」→ 弹层：名字（可空）+ 链接有效期（1–24 小时 / 3 / 7 / 15 / 30 天）+ 打开的页面（站内路径，默认首页）
+ * - 「新建分享短链」→ 弹层：名字（可空）+ 链接有效期（1–24 小时 / 3 / 7 / 15 / 30 天）+ 打开的页面（站内路径或 styrigx.com / 子站链接，默认首页）
  *   +「带临时会话」开关（默认开）+ 点开后能看多久（30 分钟–7 天，比链接有效期长的档位禁用）
  *   → create → 弹层原地换成链接 + 复制；关掉开关 = 普通短链（session 0），服务端不签钥匙、不发会话
  * - 码不在页面地址里出现；复制的是 location.origin + /s/<码>
@@ -33,15 +33,21 @@ export function durMs(d) {
   return d.hours ? d.hours * 3600e3 : (d.days || 0) * 86400e3;
 }
 
+/** 目标能指向的站（同服务端 workers/share/src/lib/links.js TARGET_HOSTS） */
+export const TARGET_HOSTS = ['styrigx.com', 'blog.styrigx.com', 'daymark.styrigx.com', 'curio.styrigx.com'];
+
 /**
- * 目标输入 → 提交值：空 = '/'；必须 / 开头、不能 // 或 /\、不含空白和反斜杠（服务端再严格校验一次）。不合法返回 null。
+ * 目标输入 → 提交值：空 = '/'；站内路径（/ 开头，不能 // 或 /\）或 https://（styrigx.com / 三个子站）地址，
+ * 不带端口 / 用户名；不含空白和反斜杠。服务端再严格校验并规范化一次。不合法返回 null。
  * @param {string} v
  */
 export function targetParam(v) {
   const s = String(v || '').trim();
   if (!s) return '/';
-  if (s.length > 200 || s.charAt(0) !== '/' || s.charAt(1) === '/' || s.charAt(1) === '\\') return null;
-  if (/[\s\\]/.test(s)) return null;
+  if (s.length > 512 || /[\s\\]/.test(s)) return null;
+  if (s.charAt(0) === '/') return s.charAt(1) === '/' ? null : s;
+  const m = /^https:\/\/([a-z0-9.-]+)(?=[/?#]|$)/i.exec(s);
+  if (!m || TARGET_HOSTS.indexOf(m[1].toLowerCase()) < 0) return null;
   return s;
 }
 
