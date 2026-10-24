@@ -8,6 +8,7 @@
  *   shell.css          顶栏（九宫格圆 / 只有页名的长条 / 右圆）、导航抽屉（含抽屉头头像）、原地搜索层：input.css 里 /* @shell:begin <名> *\/ … /* @shell:end <名> *\/ 之间的原文
  *   palette-scheme.js  自定义 #rrggbb 种子 → 整套角色的引擎（web/assets/js/lib/palette-scheme.js 原样复制）
  *   search.js          原地搜索层（web/assets/js/shell/search-layer.js 原样复制；不 import 任何东西，样式在 shell.css 的 search 段）
+ *   share.js           子站顶栏分享按钮（web/assets/js/shell/share-button.js 原样复制；不 import 任何东西，样式在 shell.css 的 topbar-frame 段）
  *   nav.json           导航抽屉的项（web/data/shell-nav.json）+ 用到的图标 SVG（web/layouts/partials/icon.html）
  *                      + 抽屉头字标 SVG wordmark（web/layouts/partials/shell-wordmark.html；brand 文字照旧保留）
  *   palettes.json      预设 id / 名字 / 分组 / 种子 / 背景色 / 6 前景 + 每套亮暗的 Shell + Semantic token 值（含 bg-1..7、chart-1..6）
@@ -39,6 +40,7 @@ const SRC = {
   icons: path.join(REPO, 'web/layouts/partials/icon.html'),
   wordmark: path.join(REPO, 'web/layouts/partials/shell-wordmark.html'),
   search: path.join(REPO, 'web/assets/js/shell/search-layer.js'),
+  share: path.join(REPO, 'web/assets/js/shell/share-button.js'),
   reader: path.join(REPO, 'web/assets/js/lib/ui-cookie-read.js'),
   contract: path.join(REPO, 'tests/fixtures/ui-cookie-contract.json'),
   favicon: path.join(REPO, 'web/assets/js/shell/favicon.js'),
@@ -47,8 +49,8 @@ const SRC = {
 export const READER_SRC = SRC.reader;
 /** shell.css 里按这个顺序拼 input.css 的标记段 */
 export const SHELL_REGIONS = ['topbar-frame', 'drawer', 'search'];
-/* 抽屉项以外外壳要用的图标：九宫格（顶栏左圆）、AI 搜索（抽屉底栏钉住的搜索框长条） */
-const EXTRA_ICONS = ['apps-grid', 'ai-search'];
+/* 抽屉项以外外壳要用的图标：九宫格（顶栏左圆）、AI 搜索（抽屉底栏钉住的搜索框长条）、分享（子站顶栏右胶囊，2026-10-24） */
+const EXTRA_ICONS = ['apps-grid', 'ai-search', 'share'];
 const HEAD = (src) =>
   `/* 由 styrigx-space scripts/gen-shell.mjs 从 ${src} 生成，勿手改；子站用 scripts/sync-shell.mjs 同步。 */\n`;
 
@@ -154,6 +156,14 @@ export function renderSearch() {
   const src = readFileSync(SRC.search, 'utf8');
   if (/^\s*import\s/m.test(src) || /\bimport\s*\(/.test(src.replace(/\/\*[\s\S]*?\*\//g, ''))) throw new Error('search-layer.js 不能 import 任何东西（子站原样复制）');
   if (!/^export function mountSearch\(/m.test(src)) throw new Error('search-layer.js 必须导出 mountSearch');
+  return src;
+}
+
+/** 子站顶栏分享按钮：原样复制（同 search.js：不能 import，必须导出 mountShare） */
+export function renderShare() {
+  const src = readFileSync(SRC.share, 'utf8');
+  if (/^\s*import\s/m.test(src) || /\bimport\s*\(/.test(src.replace(/\/\*[\s\S]*?\*\//g, ''))) throw new Error('share-button.js 不能 import 任何东西（子站原样复制）');
+  if (!/^export function mountShare\(/m.test(src)) throw new Error('share-button.js 必须导出 mountShare');
   return src;
 }
 
@@ -277,6 +287,25 @@ const README = `# web/shared/shell（生成物，勿手改）
   \`--sgx-shell-w\` = min(100% − 2 × 页边距, 最宽)。顶栏 = 这个框（left / right 0 + margin auto + width，不用 transform），两侧圆外缘 = 框边；
   子站自己的页面外框用 \`width: var(--sgx-shell-w); margin: 0 auto\` 就和顶栏对齐。< 840 宽的底部搜索栏也对齐这个框。
 
+## 子站顶栏分享按钮（share.js + shell.css topbar-frame 段，2026-10-24；主站不用）
+
+右边的圆换成一个胶囊，装两个按钮（站长和访客一样）：
+
+\`\`\`html
+<div class="sgx-tb-end-group">
+  <button type="button" class="sgx-tb-gbtn sgx-tb-share" data-sgx-share aria-label="分享">{nav.icons.share}</button>
+  <a class="sgx-tb-gbtn sgx-tb-guestbook" href="/guestbook/" aria-label="留言板">留言板图标</a>
+</div>
+\`\`\`
+- 胶囊 \`.sgx-tb-end-group\`：材质 / 高度 / 圆角同两侧圆，宽 = 2 × \`--sgx-tb-gbtn\`（40px）+ 2 × 2px + 边线 = 86px；里面的 \`.sgx-tb-gbtn\` 透明，悬停 / 按下 / 焦点框各管各的。
+- JS：\`import { mountShare } from './share.js'; mountShare();\`（每页一次，自己找 \`[data-sgx-share]\`）。
+  站长（\`<html data-sgx-role="owner">\`）：POST https://styrigx.com/api/share（credentials: include）
+  \`{action:'create', reuse:true, name:页面标题(24 字), to:当前页(去 lock/why/return/share), hours:24, session:43200}\`
+  → 带临时会话的短链（服务端同页同档位还剩 ≥ 12 小时就复用）→ \`navigator.share\`；没有 / 被拒（不是取消）→ 复制 + toast「已复制分享链接」。
+  生成中按钮 \`aria-busy\` + \`.is-busy\`，再点不理；失败只 toast，不会把原地址当短链分享。
+  访客：直接分享当前页地址（不调接口），同样的复制兜底。toast 是 \`.sgx-share-toast\`（share.js 自己建）。
+- 子站 sync-shell 的 SITE.targets 加 \`share.js\`（kind \`file\`），和 search.js 一样打包。
+
 ## 搜索层（search.js + shell.css 的 search 段）
 
 点导航抽屉底栏的搜索框 → 抽屉原地淡掉，搜索框变形成屏幕底部的搜索栏（药丸 + ✕ 圆，贴键盘），上面是盖住当前页的磨砂结果层
@@ -316,6 +345,7 @@ export function renderAll() {
     'shell.css': renderShell(),
     'palette-scheme.js': schemeSrc,
     'search.js': renderSearch(),
+    'share.js': renderShare(),
     'nav.json': renderNav(),
     'palettes.json': renderPalettes(data, schemeSrc),
     'ui-cookie-read.js': reader,

@@ -1001,16 +1001,28 @@ test.describe('账号 → 临时钥匙页 › 分享短链（2026-10-24，/api/s
     await expect(row).toContainText('打开 首页 /');
   });
 
-  test('目标不是站内路径：弹层报错，不发请求', async ({ page }) => {
+  test('目标不是站内路径或 styrigx.com 子站链接：弹层报错，不发请求', async ({ page }) => {
     const st = await mockShare(page);
     await page.goto('/account/temp-keys/', { waitUntil: 'domcontentloaded' });
     await page.locator('#acct-sl-new').click();
-    for (const bad of ['https://evil.example/', '//evil.example', 'evil.example', '/a b']) {
+    for (const bad of ['https://evil.example/', '//evil.example', 'evil.example', '/a b', 'http://blog.styrigx.com/', 'https://styrigx.com.evil.com/',
+      'https://blog.styrigx.com:8443/', 'https://u@blog.styrigx.com/', 'javascript:alert(1)']) {
       await page.fill('#sl-to', bad);
       await page.click('#sl-go');
-      await expect(page.locator('#sl-err')).toHaveText('只能填站内路径，以 / 开头（如 /blog/）');
+      await expect(page.locator('#sl-err')).toHaveText('只能填 styrigx.com 及子站的链接');
     }
     expect(st.calls.some((c) => c.action === 'create')).toBe(false);
+  });
+
+  test('目标填子站完整链接（https://blog.styrigx.com/post/…）：不报错，原样提交给服务端规范化', async ({ page }) => {
+    const st = await mockShare(page);
+    await page.goto('/account/temp-keys/', { waitUntil: 'domcontentloaded' });
+    await page.locator('#acct-sl-new').click();
+    await page.fill('#sl-to', 'https://blog.styrigx.com/post/hello-world/');
+    await page.click('#sl-go');
+    await expect(page.locator('#sl-done')).toBeVisible();
+    await expect(page.locator('#sl-err')).toBeHidden();
+    expect(st.calls.find((c) => c.action === 'create').to).toBe('https://blog.styrigx.com/post/hello-world/');
   });
 
   test('列表：已作废 / 已过期标状态、没有复制和作废；有效的作废两步确认 → 变成「已作废」', async ({ page }) => {

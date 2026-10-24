@@ -55,6 +55,25 @@
   `--sgx-shell-w` = min(100% − 2 × 页边距, 最宽)。顶栏 = 这个框（left / right 0 + margin auto + width，不用 transform），两侧圆外缘 = 框边；
   子站自己的页面外框用 `width: var(--sgx-shell-w); margin: 0 auto` 就和顶栏对齐。< 840 宽的底部搜索栏也对齐这个框。
 
+## 子站顶栏分享按钮（share.js + shell.css topbar-frame 段，2026-10-24；主站不用）
+
+右边的圆换成一个胶囊，装两个按钮（站长和访客一样）：
+
+```html
+<div class="sgx-tb-end-group">
+  <button type="button" class="sgx-tb-gbtn sgx-tb-share" data-sgx-share aria-label="分享">{nav.icons.share}</button>
+  <a class="sgx-tb-gbtn sgx-tb-guestbook" href="/guestbook/" aria-label="留言板">留言板图标</a>
+</div>
+```
+- 胶囊 `.sgx-tb-end-group`：材质 / 高度 / 圆角同两侧圆，宽 = 2 × `--sgx-tb-gbtn`（40px）+ 2 × 2px + 边线 = 86px；里面的 `.sgx-tb-gbtn` 透明，悬停 / 按下 / 焦点框各管各的。
+- JS：`import { mountShare } from './share.js'; mountShare();`（每页一次，自己找 `[data-sgx-share]`）。
+  站长（`<html data-sgx-role="owner">`）：POST https://styrigx.com/api/share（credentials: include）
+  `{action:'create', reuse:true, name:页面标题(24 字), to:当前页(去 lock/why/return/share), hours:24, session:43200}`
+  → 带临时会话的短链（服务端同页同档位还剩 ≥ 12 小时就复用）→ `navigator.share`；没有 / 被拒（不是取消）→ 复制 + toast「已复制分享链接」。
+  生成中按钮 `aria-busy` + `.is-busy`，再点不理；失败只 toast，不会把原地址当短链分享。
+  访客：直接分享当前页地址（不调接口），同样的复制兜底。toast 是 `.sgx-share-toast`（share.js 自己建）。
+- 子站 sync-shell 的 SITE.targets 加 `share.js`（kind `file`），和 search.js 一样打包。
+
 ## 搜索层（search.js + shell.css 的 search 段）
 
 点导航抽屉底栏的搜索框 → 抽屉原地淡掉，搜索框变形成屏幕底部的搜索栏（药丸 + ✕ 圆，贴键盘），上面是盖住当前页的磨砂结果层
