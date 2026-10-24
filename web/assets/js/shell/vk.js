@@ -143,6 +143,11 @@ export function followKeyboard(sheetEl, inputEl) {
    * @param {FocusEvent} e
    */
   const onBlur = function (e) {
+    /* 整个页面失焦（Samsung Pass 等系统自动填充 / 指纹窗口盖上来）不算离开输入框：
+       不立刻把弹层摔回原位，交给键盘高度回调跟着键盘收起；填完焦点回来继续跟随（2026-10-24 修「窗口会跳」） */
+    try {
+      if (!document.hasFocus()) return;
+    } catch (e3) {}
     /* 焦点在同弹层的输入框之间切换（双密码框）时不恢复 */
     try {
       const rt = e && e.relatedTarget;
