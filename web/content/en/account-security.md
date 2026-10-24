@@ -1,5 +1,5 @@
 ---
-title: 'Security & privacy'
+title: 'Account security'
 layout: account-security
 url: /en/account/security/
 ---

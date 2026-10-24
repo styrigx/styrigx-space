@@ -466,7 +466,7 @@ test.describe('账号 → 服务状态（入口 / 账号会话 / 旧页面删除
     await page.goto('/account/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#acct-main')).toBeVisible();
     const groups = await page.locator('#acct-main section').evaluateAll((els) => els.map((s) => Array.from(s.querySelectorAll('.acct-row')).map((r) => r.id)));
-    expect(groups).toEqual([['acct-dev-row', 'acct-tk-row', 'acct-sec-row'], ['acct-sync-row', 'acct-st-row']]);
+    expect(groups).toEqual([['acct-dev-row', 'acct-sec-row', 'acct-tk-row'], ['acct-sync-row', 'acct-st-row']]);
     const row = page.locator('#acct-st-row');
     await expect(row).toHaveAttribute('href', '/account/status/');
     await expect(row).toContainText('服务状态');
