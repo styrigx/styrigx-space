@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
 const worker = (await import(REPO + '/workers/auth-gateway/src/index.js')).default;
-const { isStaticAsset, subsiteFor } = await import(REPO + '/workers/auth-gateway/src/subsites.js');
+const { isStaticAsset, subsiteFor, markSubsiteRole } = await import(REPO + '/workers/auth-gateway/src/subsites.js');
 const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
 
 function derToPem(der, label) {
@@ -90,12 +90,12 @@ for (const host of ['blog.styrigx.com', 'daymark.styrigx.com', 'curio.styrigx.co
     assert.deepEqual(e.seen, []);
   });
 
-  test(host + '：访客、主人会话都回源，HTML 加 private, no-store', async () => {
+  test(host + '：访客、主人会话都回源，HTML 加 private, no-store，<html> 标上角色', async () => {
     for (const role of ['visitor', 'owner']) {
       const e = env();
       const res = await worker.fetch(req('https://' + host + '/', await cookie(role)), e, CTX);
       assert.equal(res.status, 200);
-      assert.equal(await res.text(), '<html><body>page</body></html>');
+      assert.equal(await res.text(), '<html data-sgx-role="' + role + '"><body>page</body></html>');
       assert.equal(res.headers.get('Cache-Control'), 'private, no-store');
       assert.deepEqual(e.seen, [host + '/']);
     }
@@ -155,3 +155,37 @@ test('主站照旧；未登记的子域名照旧 301 回主站', async () => {
   assert.equal(res.status, 301);
   assert.equal(res.headers.get('Location'), 'https://styrigx.com/');
 });
+
+/* 用户 2026-10-24：三个子站访客模式点边栏头像还能跳主站账号页，主站访客点不了。网关在子站 HTML 里替访客去掉这个链接。 */
+const DRAWER = '<html lang="zh-CN" data-sgx-role="owner"><body><div class="sgx-drawer-head"><span class="sgx-drawer-brand">S</span>'
+  + '<a class="sgx-drawer-me" href="https://styrigx.com/account/" aria-label="账号">'
+  + '<img src="https://styrigx.com/avatar/192.webp" alt="" width="52" height="52" class="sgx-tb-avatar"></a></div>'
+  + '<a class="sgx-drawer-item" href="https://styrigx.com/">主站</a></body></html>';
+
+test('子站访客：抽屉头像换成不可点的 span（不带 href / aria-label，读屏跳过），其他链接不动', () => {
+  const out = markSubsiteRole(DRAWER, 'visitor');
+  assert.doesNotMatch(out, /<a class="sgx-drawer-me"/);
+  assert.doesNotMatch(out, /account\//);
+  assert.match(out, /<span class="sgx-drawer-me" aria-hidden="true" style="pointer-events:none;cursor:default"><img src="https:\/\/styrigx.com\/avatar\/192.webp"[^>]*><\/span>/);
+  assert.match(out, /<a class="sgx-drawer-item" href="https:\/\/styrigx.com\/">主站<\/a>/);
+  assert.match(out, /^<html data-sgx-role="visitor" lang="zh-CN">/, '页面里伪造的角色标记先去掉，再按会话标');
+});
+
+test('子站主人：抽屉头像照旧链到主站账号页', () => {
+  const out = markSubsiteRole(DRAWER, 'owner');
+  assert.match(out, /<a class="sgx-drawer-me" href="https:\/\/styrigx.com\/account\/" aria-label="账号">/);
+  assert.match(out, /^<html data-sgx-role="owner" lang="zh-CN">/);
+});
+
+for (const host of ['blog.styrigx.com', 'daymark.styrigx.com', 'curio.styrigx.com']) {
+  test(host + '：访客经网关拿到的页面里头像不可点，主人可点', async () => {
+    const page = (e) => { e.ASSETS.fetch = async () => new Response(DRAWER, { headers: { 'Content-Type': 'text/html; charset=utf-8' } }); return e; };
+    let res = await worker.fetch(req('https://' + host + '/', await cookie('visitor')), page(env()), CTX);
+    let html = await res.text();
+    assert.match(html, /<span class="sgx-drawer-me"/);
+    assert.doesNotMatch(html, /href="https:\/\/styrigx.com\/account\/"/);
+    res = await worker.fetch(req('https://' + host + '/', await cookie('owner')), page(env()), CTX);
+    html = await res.text();
+    assert.match(html, /<a class="sgx-drawer-me" href="https:\/\/styrigx.com\/account\/"/);
+  });
+}

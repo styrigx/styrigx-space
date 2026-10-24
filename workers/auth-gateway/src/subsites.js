@@ -12,7 +12,7 @@
  * 子站不做角色区分：owner、visitor 都能看页面（与原子站 middleware 一致）；
  * 主人专属的操作（daymark 记句子、curio 改收藏 / 导入）由子站自己的接口 Worker 再问网关（服务绑定 SessionVerifier）。
  */
-import { verifySessionDetailed } from '../functions/_middleware.js';
+import { verifySessionDetailed, stripSessionAttrs } from '../functions/_middleware.js';
 import * as searchApi from '../functions/api/search.js';
 
 const MAIN_ORIGIN = 'https://styrigx.com';
@@ -75,13 +75,38 @@ export function lockRedirect(url, why) {
   });
 }
 
-/** HTML 响应加 private, no-store；其他原样返回 */
-function noStoreHtml(res) {
+/* 抽屉头的头像（三个子站模板都是 <a class="sgx-drawer-me" href="…主站账号页"><img …></a>） */
+const DRAWER_ME_RE = /<a\b([^>]*\bclass="sgx-drawer-me"[^>]*)>([\s\S]*?)<\/a>/gi;
+
+/**
+ * 访客打开子站：和主站一样，抽屉头的头像只是装饰，点了不跳主站账号页（用户 2026-10-24）。
+ * 主站靠 data-sgx-role + head-buttons.js 去链接；子站不读角色，所以网关直接在 HTML 里把它换成不可点的 <span>：
+ * 去掉 href / aria-label，读屏跳过，键盘聚焦不到，子站抽屉的点击代理（只认 a.sgx-drawer-me）也不再命中。
+ * 同时和主站一样给 <html> 标上 data-sgx-role（只是展示提示，UI 不做鉴权）。
+ * @param {string} html
+ * @param {string|null} role
+ */
+export function markSubsiteRole(html, role) {
+  let out = stripSessionAttrs(html);
+  if (role === 'owner' || role === 'visitor') {
+    out = out.replace(/<html(\s|>)/i, '<html data-sgx-role="' + role + '"$1');
+  }
+  if (role === 'visitor') {
+    out = out.replace(DRAWER_ME_RE, (_m, _attrs, inner) =>
+      '<span class="sgx-drawer-me" aria-hidden="true" style="pointer-events:none;cursor:default">' + inner + '</span>');
+  }
+  return out;
+}
+
+/** 会话有效的子站页面：HTML 按角色处理 + no-store；其他原样返回 */
+async function subsitePage(res, role) {
   const ct = res.headers.get('Content-Type') || '';
   if (!ct.includes('text/html')) return res;
-  const out = new Response(res.body, res);
-  out.headers.set('Cache-Control', NO_STORE);
-  return out;
+  const html = markSubsiteRole(await res.text(), role);
+  const headers = new Headers(res.headers);
+  headers.set('Cache-Control', NO_STORE);
+  headers.delete('Content-Length');
+  return new Response(html, { status: res.status, statusText: res.statusText, headers });
 }
 
 /**
@@ -117,7 +142,7 @@ export async function handleSubsite(request, env, origin) {
   if (isStaticAsset(path)) return origin(request);
 
   const sess = await verifySessionDetailed(request, env);
-  if (sess.ok) return noStoreHtml(await origin(request));
+  if (sess.ok) return subsitePage(await origin(request), sess.role);
 
   const why = sess.reason === 'no-cookie' ? 'no-cookie' : 'invalid-session';
   console.log('[sgx-subsite] deny site=' + conf.site + ' reason=' + sess.reason);
