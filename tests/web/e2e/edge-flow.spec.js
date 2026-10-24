@@ -321,3 +321,146 @@ test('R8 锁屏态不接管顶栏三栏：点标签照旧整页导航（网关 3
   await page.waitForURL((u) => u.searchParams.get('return') === '/chat/', { timeout: 15000 });
   expect(await page.evaluate(() => window.__sameDoc)).toBeUndefined();
 });
+
+/* ---------------- R9 分享短链（2026-10-24，styrigx-share）：/s/* 经线上路由规则进短链 Worker，钥匙和会话由网关签 ---------------- */
+
+async function setOwnerAccount(context) {
+  await setSession(context, 'owner');
+  await context.addCookies([{ name: 'sgx-account', value: await edge.mintAccount(), domain: 'styrigx.com', path: '/', secure: true, httpOnly: true, sameSite: 'Strict' }]);
+}
+
+/** 站长在页面里调 /api/share（同源 fetch，带真实 cookie） */
+async function shareApi(page, body) {
+  return page.evaluate((b) => fetch('/api/share', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) })
+    .then(async (r) => ({ s: r.status, j: await r.json().catch(() => null) })), body);
+}
+
+/** 站长建一条短链，然后清掉所有 cookie（变成没登录的陌生人） */
+async function makeLink(page, context, body) {
+  await setOwnerAccount(context);
+  await page.goto(MAIN + '/account/temp-keys/');
+  const r = await shareApi(page, Object.assign({ action: 'create' }, body));
+  expect(r.s, JSON.stringify(r.j)).toBe(200);
+  await context.clearCookies();
+  return r.j.link;
+}
+
+test.describe('R9 分享短链', () => {
+  test.beforeEach(async () => { await edge.resetShareLimit(); });
+
+  test('R9 站长在账号页生成带会话短链 → 陌生人点开：直接以访客进到目标页，不出锁屏；地址栏 / Referer 里没有码', async ({ page, context }) => {
+    await setOwnerAccount(context);
+    await page.goto(MAIN + '/account/temp-keys/');
+    await page.click('#acct-sl-new');
+    await expect(page.locator('#sl-dlg')).toBeVisible();
+    await page.fill('#sl-name', '小明');
+    await page.selectOption('#sl-dur', 'h6');
+    await page.fill('#sl-to', '/settings/');
+    await page.selectOption('#sl-sess', '3600');
+    await page.click('#sl-go');
+    await expect(page.locator('#sl-done')).toBeVisible();
+    const url = (await page.locator('#sl-url').textContent()).trim();
+    expect(url).toMatch(/^https:\/\/styrigx\.com\/s\/[A-Za-z0-9_-]{22}$/);
+    const code = url.split('/s/')[1];
+    await expect(page.locator('#acct-sl-list .sl-item')).toHaveCount(1);
+
+    await context.clearCookies();
+    edge.log.length = 0;
+    const refs = [];
+    page.on('request', (r) => { if (r.isNavigationRequest()) refs.push([r.url(), r.headers()['referer'] || '']); });
+    await page.goto(url);
+    await page.waitForLoadState('networkidle').catch(() => {});
+    expect(page.url()).toBe(MAIN + '/settings/');
+    expect(await lockShownWithin(page, 600)).toBe(false);
+    expect(await sessionRole(page)).toBe('visitor');
+    expect(edge.log.find((l) => l[2].includes('/s/'))[0]).toBe('share');
+    for (const [u, ref] of refs) {
+      if (u.includes('/s/')) continue;
+      expect(u).not.toContain(code);
+      expect(ref).not.toContain(code);
+    }
+    expect(await page.evaluate(() => location.href + document.referrer)).not.toContain(code);
+    /* 访客和临时钥匙访客一样：进不了账号页、管不了短链 */
+    await page.goto(MAIN + '/account/temp-keys/');
+    expect(new URL(page.url()).pathname).toBe('/');
+    const api = await shareApi(page, { action: 'list' });
+    expect(api.s).toBe(403);
+  });
+
+  test('R9 普通短链 → 没解锁的人到目标页照常出锁屏（return 是目标页）', async ({ page, context }) => {
+    const link = await makeLink(page, context, { hours: 2, to: '/settings/' });
+    await page.goto(MAIN + link.path);
+    await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
+    const u = new URL(page.url());
+    expect(u.pathname).toBe('/');
+    expect(u.searchParams.get('return')).toBe('/settings/');
+    expect(page.url()).not.toContain(link.path.slice(3));
+    expect(await sessionRole(page)).toBe(null);
+  });
+
+  test('R9 作废 / 过期 / 不存在：同一个结果（锁屏 /?lock=1）；作废带会话的短链后，已进来的访客下一页就被锁在外面', async ({ page, context }) => {
+    const live = await makeLink(page, context, { hours: 3, session: 1800 });
+    await page.goto(MAIN + live.path);
+    expect(await sessionRole(page)).toBe('visitor');
+    /* 站长作废（另开一个页面登录站长，访客那一页的 cookie 不动） */
+    const owner = await context.browser().newContext({ proxy: LAUNCH.proxy, ignoreHTTPSErrors: false });
+    const op = await owner.newPage();
+    await setOwnerAccount(owner);
+    await op.goto(MAIN + '/account/temp-keys/');
+    expect((await shareApi(op, { action: 'revoke', id: live.id })).s).toBe(200);
+    const expired = (await shareApi(op, { action: 'create', hours: 1 })).j.link;
+    if (edge.shareDb.raw) edge.shareDb.raw.prepare('UPDATE share_link SET expires_at = ? WHERE id = ?').run(Date.now() - 1, expired.id);
+    else edge.shareDb._links.get(expired.id).expires_at = Date.now() - 1;
+    await owner.close();
+
+    await page.goto(MAIN + '/settings/');
+    await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
+    expect(await sessionRole(page)).toBe(null);
+
+    const finals = [];
+    for (const p of [live.path, expired.path, '/s/AAAAAAAAAAAAAAAAAAAAAA', '/s/nope']) {
+      await context.clearCookies();
+      const resp = [];
+      const h = (r) => { if (r.url().includes('/s/')) resp.push(r.status() + ' ' + (r.headers()['location'] || '') + ' ' + (r.headers()['cache-control'] || '')); };
+      page.on('response', h);
+      await page.goto(MAIN + p);
+      page.off('response', h);
+      await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
+      finals.push([page.url(), resp.join('|')]);
+    }
+    for (const f of finals) expect(f).toEqual([MAIN + '/?lock=1', '302 https://styrigx.com/?lock=1 private, no-store']);
+  });
+
+  test('R9 开放重定向被拒：目标只能是站内相对路径', async ({ page, context }) => {
+    await setOwnerAccount(context);
+    await page.goto(MAIN + '/account/temp-keys/');
+    for (const to of ['//evil.example', 'https://evil.example/', '/\\evil.example', 'evil.example', 'javascript:alert(1)']) {
+      const r = await shareApi(page, { action: 'create', hours: 1, to });
+      expect(r.s, to).toBe(400);
+      expect(r.j.error, to).toBe('target');
+    }
+    /* 页面上填了也一样：弹层报错，不生成 */
+    await page.click('#acct-sl-new');
+    await page.fill('#sl-to', 'https://evil.example/');
+    await page.click('#sl-go');
+    await expect(page.locator('#sl-err')).toBeVisible();
+    await expect(page.locator('#sl-done')).toBeHidden();
+  });
+
+  test('R9 限速：同一来源连续 10 次打不开 → 15 分钟内真短链也打不开（同一个失败结果）', async ({ page, context }) => {
+    const link = await makeLink(page, context, { hours: 2, session: 1800 });
+    for (let i = 0; i < 10; i++) {
+      const r = await page.request.get(MAIN + '/s/' + 'B'.repeat(21) + String.fromCharCode(65 + i), { maxRedirects: 0, ignoreHTTPSErrors: true });
+      expect(r.status()).toBe(302);
+      expect(r.headers()['location']).toBe('https://styrigx.com/?lock=1');
+    }
+    const r = await page.request.get(MAIN + link.path, { maxRedirects: 0, ignoreHTTPSErrors: true });
+    expect(r.status()).toBe(302);
+    expect(r.headers()['location']).toBe('https://styrigx.com/?lock=1');
+    expect(r.headers()['set-cookie'] || '').toBe('');
+    await edge.resetShareLimit();
+    const ok = await page.request.get(MAIN + link.path, { maxRedirects: 0, ignoreHTTPSErrors: true });
+    expect(ok.headers()['location']).toBe('https://styrigx.com/');
+    expect(ok.headers()['set-cookie'] || '').toContain('sgx-tk=');
+  });
+});

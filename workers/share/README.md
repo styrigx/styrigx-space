@@ -1,0 +1,22 @@
+# styrigx-share
+
+主站「分享短链」的后端（2026-10-24 新建，照账号 Worker `styrigx-account` 的拆法）：`https://styrigx.com/s/<码>`（中英文同一条）和站长管理接口 `/api/share`。
+
+```
+src/index.js        入口：/s/<码> → open.js；/api/share → api/share.js；X-SGX-Runtime: share
+src/gate.js         门：只认 styrigx.com；/s/* 谁都能开；/api/share* 只许站长（访客 403、没会话 401）
+src/auth.js         会话：直接用账号 Worker 的 auth.js（问网关 SessionVerifier，服务绑定 AUTH）
+src/open.js         打开短链：普通 → 302；带会话 → 请网关 ShareIssuer 签访客会话 → 302（去掉码）；失败统一 302 /?lock=1；限速
+src/api/share.js    POST /api/share { list | create | revoke }（站长 + 账号会话、同源）
+src/lib/links.js    规则（码、有效期、会话档位、目标路径）和 D1 语句
+migrations/         D1 styrigx-share 的表结构（0001_share_links.sql：share_link、share_fail）
+```
+
+- 钥匙和会话：本 Worker 不持任何钥匙、不绑认证库。带会话的短链由网关签一把「短链钥匙」（临时 LockKey，link=true，没有临时码），
+  点开时由网关签 visitor 会话 + 钥匙票（和锁屏输临时码进门同一套代码，`workers/auth-gateway/src/share-issuer.js`），
+  经服务绑定 `ISSUER`（entrypoint `ShareIssuer`，只有本 Worker 绑定）调用。
+- 作废：带会话的短链先请网关作废钥匙（写作废标记），拿它进来的访客下一个请求就进不来；再在 D1 记 revoked_at。
+- 数据：D1 `styrigx-share`（绑定 `D1_SHARE_LINK`）；预览库 `styrigx-share-preview` 登记在 `[env.preview]`（还没有部署它的 CI job）。
+- 部署：`.github/workflows/deploy.yml` 的 `deploy-share-worker`，在网关之后；先迁移 D1 并查 `d1_migrations` 确认，再部署，再冒烟。
+  token `styrigx-share-deploy`（GitHub 环境 `STYRIGX_SHARE_DEPLOY`，只允许 main）。
+- 测试：`tests/workers/share/`；边缘测试台 `tests/web/e2e/edge-flow.spec.js` 的 R9。

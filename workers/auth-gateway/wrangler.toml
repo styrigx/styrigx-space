@@ -2,6 +2,7 @@
 #
 # 主站后端代码在本目录：src/（入口、路由表、密钥）+ functions/（middleware、接口、内核）+ migrations/（D1）。
 # 头像 / 云同步 / 数字健康在账号 Worker styrigx-account（workers/account，2026-10-24 拆出来，自己挂更具体的路由，会话经本 Worker 的 SessionVerifier RPC 验）。
+# 分享短链（/s/*、/api/share*）在短链 Worker styrigx-share（workers/share，2026-10-24），同样挂更具体的路由；短链钥匙和访客会话由本 Worker 的 ShareIssuer RPC 签。
 # Pages 只放静态文件（配置见 web/wrangler.toml），网关验完会话回源取页面。
 #
 # 安全：

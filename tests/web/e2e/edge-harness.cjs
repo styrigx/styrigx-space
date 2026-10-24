@@ -13,6 +13,8 @@
  *   和两个子站的固定页面。
  * - 访客进入用临时 LockKey：seedTempKey() 在 KV 里签发一把，返回临时码（2026-10-23 取代 Turnstile）。
  * - seedPasskey()：在 KV 里登记一把锁屏通行密钥，返回 CDP WebAuthn.addCredential 用的参数。
+ * - 分享短链 Worker = workers/share/src/index.js（路由 workers/share/wrangler.toml：/s/*、/api/share*），D1 用 tests/fixtures/share-d1.mjs，
+ *   服务绑定 AUTH 接网关 verifier.js、ISSUER 接网关 src/share-issuer.js（ShareIssuer RPC 里跑的同一份代码）。
  */
 const https = require('node:https');
 const http = require('node:http');
@@ -129,10 +131,14 @@ async function startEdge() {
   const { readRoutes, pickRoute } = await dynImport(pathToFileURL(path.join(__dirname, '..', '..', '..', 'scripts/lib/cf-routes.mjs')).href);
   const routes = readRoutes(fs.readFileSync(path.join(REPO, 'workers/auth-gateway/wrangler.toml'), 'utf8'));
   const accountRoutes = readRoutes(fs.readFileSync(path.join(REPO, 'workers/account/wrangler.toml'), 'utf8'));
-  const allRoutes = routes.concat(accountRoutes);
+  const shareRoutes = readRoutes(fs.readFileSync(path.join(REPO, 'workers/share/wrangler.toml'), 'utf8'));
+  const allRoutes = routes.concat(accountRoutes, shareRoutes);
   const gateway = (await mod('workers/auth-gateway/src/index.js')).default;
   const account = (await mod('workers/account/src/index.js')).default;
   const verifier = await mod('workers/auth-gateway/src/verifier.js');
+  const share = (await mod('workers/share/src/index.js')).default;
+  const issuer = await mod('workers/auth-gateway/src/share-issuer.js');
+  const { shareD1 } = await mod('tests/fixtures/share-d1.mjs');
   const sessMod = await mod('workers/auth-gateway/functions/_kernel/session.js');
   const tempMod = await mod('workers/auth-gateway/functions/_kernel/temp-lock.js');
 
@@ -161,6 +167,23 @@ async function startEdge() {
     ASSETS: env.ASSETS,
   };
 
+  /* 分享短链 Worker：自己的 D1，会话和钥匙都问网关 */
+  const shareDb = shareD1();
+  const shareEnv = {
+    SGX_ENV: 'production',
+    D1_SHARE_LINK: shareDb,
+    AUTH: {
+      session: (c) => verifier.checkSession(c, env),
+      account: (c, m) => verifier.checkAccount(c, env, m),
+    },
+    ISSUER: {
+      createLinkKey: (c, p) => issuer.createLinkKey(c, p, env),
+      revokeLinkKey: (c, id, m) => issuer.revokeLinkKey(c, id, env, m),
+      openLinkSession: (id, s) => issuer.openLinkSession(id, s, env),
+    },
+    ASSETS: env.ASSETS,
+  };
+
   const realFetch = globalThis.fetch;
 
   /** 每个请求：[走哪条路, 方法, URL, 状态] */
@@ -173,6 +196,11 @@ async function startEdge() {
     if (other && (!mine || other.length > mine.length)) {
       log.push(['other', request.method, request.url, 404]);
       return Response.json({ ok: false, error: 'not-found' }, { status: 404 });
+    }
+    if (mine && shareRoutes.includes(mine)) {
+      const res = await share.fetch(request, shareEnv, { waitUntil() {} });
+      log.push(['share', request.method, request.url, res.status]);
+      return res;
     }
     if (mine && accountRoutes.includes(mine)) {
       const res = await account.fetch(request, accountEnv, { waitUntil() {} });
@@ -285,6 +313,14 @@ async function startEdge() {
     return acc.signAccountTicket(privPem, 'passkey', ep, Date.now());
   }
 
+  /** 清掉 /s/* 的失败计数（D1 share_fail + isolate 内存），限速测试之间不互相影响 */
+  async function resetShareLimit() {
+    const open = await mod('workers/share/src/open.js');
+    open._resetMem();
+    if (shareDb.raw) shareDb.raw.exec('DELETE FROM share_fail');
+    else await shareDb.prepare('DELETE FROM share_fail WHERE window_start < ?1 AND locked_until < ?1').bind(Number.MAX_SAFE_INTEGER).run();
+  }
+
   async function close() {
     globalThis.fetch = realFetch;
     for (const s of socks) s.destroy();
@@ -292,7 +328,7 @@ async function startEdge() {
     await new Promise((r) => proxy.close(() => r()));
   }
 
-  return { kv, env, accountKv, accountEnv, log, close, seedPasskey, seedTempKey, mintCookie, mintTk, mintAccount };
+  return { kv, env, accountKv, accountEnv, shareDb, shareEnv, log, close, resetShareLimit, seedPasskey, seedTempKey, mintCookie, mintTk, mintAccount };
 }
 
 module.exports = { startEdge, LAUNCH, PROXY_PORT, REPO };

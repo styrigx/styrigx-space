@@ -326,7 +326,10 @@ const SUB_PAGES = [
   ['status', '/account/status/', async (pg) => { await expect(pg.locator('#st-root')).toHaveAttribute('data-state', 'ready', { timeout: 10000 }); }],
   ['sync', '/account/sync/', async (pg) => { await expect(pg.locator('[data-sync-key="sgx-theme-mode"] [data-sync-val]')).not.toHaveText('', { timeout: 10000 }); }],
   ['devices', '/account/devices/', async (pg) => { await expect(pg.locator('#acct-devices')).toBeVisible({ timeout: 10000 }); await expect(pg.locator('#acct-by')).not.toHaveText(''); }],
+  /* 2026-10-24 分享短链：临时钥匙页（临时钥匙 + 分享短链两张列表），数据见 tests/fixtures/share-links.cjs */
+  ['temp-keys', '/account/temp-keys/', async (pg) => { await expect(pg.locator('#acct-sl-list .sl-item')).toHaveCount(3, { timeout: 10000 }); await expect(pg.locator('#acct-tk-list .acct-dev-item')).toHaveCount(1); }],
 ];
+const fxShare = require('../../fixtures/share-links.cjs');
 for (const lang of LANGS) {
   for (const theme of THEMES) {
     for (const [id, path, ready] of SUB_PAGES) {
@@ -348,6 +351,8 @@ for (const lang of LANGS) {
         });
         await pg.route('**/api/status', (route) => route.fulfill({ status: 200, contentType: 'application/json',
           body: JSON.stringify(fxStatus.withUsage(fxStatus.normal(), fxStatus.usage())) }));
+        await pg.route('**/api/lock-temp', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, keys: fxShare.KEYS }) }));
+        await pg.route('**/api/share', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, links: fxShare.LINKS }) }));
         await pg.addInitScript(([t, ln]) => {
           try {
             if (t === 'dark') localStorage.setItem('sgx-theme-mode', 'dark');

@@ -7506,6 +7506,23 @@
     color: var(--sgx-text-primary); user-select: all; -webkit-user-select: all; word-break: break-all; }
   .tk-done-sub { margin: 0; text-align: center; font-size: 14px; color: var(--sgx-text-secondary); }
   .tk-done-warn { margin: 0; text-align: center; font-size: 13px; color: var(--sgx-text-secondary); }
+  /* 2026-10-24 分享短链：弹层里「带临时会话」开关行、会话时长、生成后的链接；列表里的带会话 / 普通标记和复制按钮 */
+  .sl-sw-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin-top: 4px; border-radius: 16px; cursor: pointer; text-align: left;
+    background: var(--m-container-low); border: 1px solid var(--m-outline);
+    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: -2px; } }
+  .sl-sess-box { display: flex; flex-direction: column; gap: 12px; &[hidden] { display: none; } }
+  .sl-url { margin: 4px 0 0; text-align: center; font-size: 15px; font-weight: 600; line-height: 1.45; font-variant-numeric: tabular-nums;
+    color: var(--sgx-text-primary); user-select: all; -webkit-user-select: all; word-break: break-all; overflow-wrap: anywhere; }
+  .sl-badge { display: inline-block; vertical-align: 1px; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 600; line-height: 16px;
+    background: var(--m-container-high); color: var(--m-on-surface-variant);
+    &.is-sess { background: var(--m-primary-container); color: var(--m-on-primary-container); }
+    &.is-dead { background: var(--m-rose-container); color: var(--m-on-rose-container); } }
+  .sl-item.is-dead .acct-ic, .sl-item.is-dead .sl-name-t { opacity: .55; }
+  .sl-name { display: flex; align-items: center; min-width: 0; .sl-name-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; } .sl-badge { flex-shrink: 0; } }
+  .sl-copy { background: none; border: 0; color: var(--m-primary); font-size: 14px; font-weight: 600; cursor: pointer; padding: 8px 10px; border-radius: 8px; white-space: nowrap; flex-shrink: 0;
+    &:active { background: var(--m-container-high); }
+    &:focus-visible { outline: 2px solid var(--m-primary); outline-offset: -2px; } }
+  .acct-row .sl-copy + .lockmgr-pkdel { margin-left: -10px; }
   .sec-note { font-size: 12px; color: var(--sgx-text-secondary); padding: 0 4px; margin: 0; }
   .sgx-verify-desc { font-size: 13px; color: var(--sgx-text-secondary); margin: 0; text-align: center; max-width: 300px; }
   .sgx-pw-field { position: relative; width: 100%; max-width: 280px; }

@@ -918,6 +918,141 @@ test.describe('账号 → 临时钥匙（2026-10-23，取代 Turnstile 访客进
   });
 });
 
+test.describe('账号 → 临时钥匙页 › 分享短链（2026-10-24，/api/share = styrigx-share）', () => {
+  test.beforeEach(async ({ page }) => {
+    await zh(page);
+    await page.route('**/api/lock-temp', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"keys":[]}' }));
+  });
+
+  /** mock /api/share：links 是服务端列表；create 按请求生成一条 */
+  async function mockShare(page, init) {
+    const st = { links: init || [], calls: [] };
+    await page.route('**/api/share', async (route) => {
+      const b = JSON.parse(route.request().postData() || '{}');
+      st.calls.push(b);
+      let res = [400, { ok: false, error: 'action' }];
+      if (b.action === 'list') res = [200, { ok: true, links: st.links }];
+      if (b.action === 'create') {
+        const now = Date.now();
+        const exp = now + (b.hours ? b.hours * 3600e3 : b.days * 86400e3);
+        const link = { id: 's' + String(st.links.length + 1).padStart(15, '0'), name: b.name || '', to: b.to, session: b.session, createdAt: now, expiresAt: exp,
+          revokedAt: 0, status: 'active', opens: 0, lastOpenAt: 0, openFor: b.session ? Math.min(b.session, (exp - now) / 1000) : 0, sessionLeft: 0,
+          path: '/s/AbCdEfGhIjKlMnOpQrStUv' };
+        st.links = [link, ...st.links];
+        res = [200, { ok: true, link }];
+      }
+      if (b.action === 'revoke') {
+        st.links = st.links.map((l) => (l.id === b.id ? Object.assign({}, l, { status: 'revoked', revokedAt: Date.now(), path: undefined }) : l));
+        res = [200, { ok: true }];
+      }
+      await route.fulfill({ status: res[0], contentType: 'application/json', body: JSON.stringify(res[1]) });
+    });
+    return st;
+  }
+
+  test('入口在临时钥匙页第二行；生成带会话短链（名字 + 6 小时 + /blog/ + 1 小时会话）→ 弹层显示 https://…/s/<码>，可复制；列表写清类型 / 目标 / 到期 / 会话', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    const st = await mockShare(page);
+    await page.goto('/account/temp-keys/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#acct-sl-empty')).toBeVisible();
+    await expect(page.locator('#acct-sl-new')).toContainText('新建分享短链');
+    await page.locator('#acct-sl-new').click();
+    await expect(page.locator('#sl-dlg')).toBeVisible();
+    await expect(page.locator('#sl-sess-sw')).toHaveAttribute('aria-checked', 'true');
+    await page.fill('#sl-name', '小明');
+    await page.selectOption('#sl-dur', 'h6');
+    /* 会话档位比有效期长的禁用（6 小时 → 12 小时及以上不能选） */
+    await expect(page.locator('#sl-sess option[value="43200"]')).toBeDisabled();
+    await expect(page.locator('#sl-sess option[value="10800"]')).toBeEnabled();
+    await page.fill('#sl-to', '/blog/');
+    await page.selectOption('#sl-sess', '3600');
+    await page.click('#sl-go');
+    await expect(page.locator('#sl-done')).toBeVisible();
+    expect(st.calls.find((c) => c.action === 'create')).toEqual({ action: 'create', name: '小明', to: '/blog/', session: 3600, hours: 6 });
+    const origin = new URL(page.url()).origin;
+    await expect(page.locator('#sl-url')).toHaveText(origin + '/s/AbCdEfGhIjKlMnOpQrStUv');
+    await expect(page.locator('#sl-done-sub')).toContainText('带临时会话');
+    await page.click('#sl-copy');
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(origin + '/s/AbCdEfGhIjKlMnOpQrStUv');
+    await page.click('#sl-dlg [data-dlg-close]');
+    const row = page.locator('#acct-sl-list .sl-item').first();
+    await expect(row).toContainText('小明');
+    await expect(row.locator('.sl-badge.is-sess')).toHaveText('带会话');
+    await expect(row).toContainText('打开 /blog/');
+    await expect(row).toContainText(/到期 · 剩余 [56] 小时/);
+    await expect(row).toContainText('点开后可看 1 小时 · 还没人点开');
+    await expect(row.locator('.sl-copy')).toBeVisible();
+  });
+
+  test('关掉「带临时会话」= 普通短链（session 0）；列表标「普通」，没有会话那一行', async ({ page }) => {
+    const st = await mockShare(page);
+    await page.goto('/account/temp-keys/', { waitUntil: 'domcontentloaded' });
+    await page.locator('#acct-sl-new').click();
+    await page.click('#sl-sess-row');
+    await expect(page.locator('#sl-sess-sw')).toHaveAttribute('aria-checked', 'false');
+    await expect(page.locator('#sl-sess-box')).toBeHidden();
+    await page.click('#sl-go');
+    await expect(page.locator('#sl-done')).toBeVisible();
+    expect(st.calls.find((c) => c.action === 'create')).toEqual({ action: 'create', name: '', to: '/', session: 0, hours: 24 });
+    await page.click('#sl-dlg [data-dlg-close]');
+    const row = page.locator('#acct-sl-list .sl-item').first();
+    await expect(row.locator('.sl-badge').first()).toHaveText('普通');
+    await expect(row.locator('.sl-meta')).toHaveCount(2);
+    await expect(row).toContainText('打开 首页 /');
+  });
+
+  test('目标不是站内路径：弹层报错，不发请求', async ({ page }) => {
+    const st = await mockShare(page);
+    await page.goto('/account/temp-keys/', { waitUntil: 'domcontentloaded' });
+    await page.locator('#acct-sl-new').click();
+    for (const bad of ['https://evil.example/', '//evil.example', 'evil.example', '/a b']) {
+      await page.fill('#sl-to', bad);
+      await page.click('#sl-go');
+      await expect(page.locator('#sl-err')).toHaveText('只能填站内路径，以 / 开头（如 /blog/）');
+    }
+    expect(st.calls.some((c) => c.action === 'create')).toBe(false);
+  });
+
+  test('列表：已作废 / 已过期标状态、没有复制和作废；有效的作废两步确认 → 变成「已作废」', async ({ page }) => {
+    const now = Date.now();
+    const st = await mockShare(page, [
+      { id: 's000000000000001', name: 'A', to: '/x/', session: 1800, createdAt: now, expiresAt: now + 3600e3, revokedAt: 0, status: 'active',
+        opens: 1, lastOpenAt: now - 10 * 60e3, openFor: 1800, sessionLeft: 1200, path: '/s/AAAAAAAAAAAAAAAAAAAAAA' },
+      { id: 's000000000000002', name: 'B', to: '/', session: 0, createdAt: now - 1, expiresAt: now - 1000, revokedAt: 0, status: 'expired', opens: 0, lastOpenAt: 0, openFor: 0, sessionLeft: 0 },
+      { id: 's000000000000003', name: 'C', to: '/', session: 3600, createdAt: now - 2, expiresAt: now + 3600e3, revokedAt: now - 60e3, status: 'revoked', opens: 0, lastOpenAt: 0, openFor: 0, sessionLeft: 0 },
+    ]);
+    await page.goto('/account/temp-keys/', { waitUntil: 'domcontentloaded' });
+    const rows = page.locator('#acct-sl-list .sl-item');
+    await expect(rows).toHaveCount(3);
+    await expect(rows.nth(0)).toContainText('最近一次发出的会话剩余 20 分钟');
+    await expect(rows.nth(1).locator('.sl-badge.is-dead')).toHaveText('已过期');
+    await expect(rows.nth(1).locator('button')).toHaveCount(0);
+    await expect(rows.nth(1)).toContainText('已于');
+    await expect(rows.nth(2).locator('.sl-badge.is-dead')).toHaveText('已作废');
+    await expect(rows.nth(2).locator('button')).toHaveCount(0);
+    const del = rows.nth(0).locator('.lockmgr-pkdel');
+    await del.click();
+    await expect(del).toHaveText('再点一次作废');
+    expect(st.calls.some((c) => c.action === 'revoke')).toBe(false);
+    await del.click();
+    await expect(rows.nth(0).locator('.sl-badge.is-dead')).toHaveText('已作废');
+    expect(st.calls.find((c) => c.action === 'revoke').id).toBe('s000000000000001');
+  });
+
+  test('已满 20 条：弹层里提示，不关弹层', async ({ page }) => {
+    await page.route('**/api/share', async (route) => {
+      const b = JSON.parse(route.request().postData() || '{}');
+      if (b.action === 'list') return route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"links":[]}' });
+      return route.fulfill({ status: 409, contentType: 'application/json', body: '{"ok":false,"error":"full"}' });
+    });
+    await page.goto('/account/temp-keys/', { waitUntil: 'domcontentloaded' });
+    await page.locator('#acct-sl-new').click();
+    await page.click('#sl-go');
+    await expect(page.locator('#sl-err')).toHaveText('最多同时 20 条，先作废几条');
+    await expect(page.locator('#sl-dlg')).toBeVisible();
+  });
+});
+
 test.describe('云同步（2026-10-24 PR4：总览一行 → 子页 /account/sync/）', () => {
   test.beforeEach(async ({ page }) => { await zh(page); });
   const SYNCED = ['sgx-theme-mode', 'sgx-palette', 'sgx-accent', 'sgx-tz1-auto', 'sgx-tz1', 'sgx-tz2', 'sgx-hour12', 'sgx-gl-clockstyle',
