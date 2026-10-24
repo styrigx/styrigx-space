@@ -107,19 +107,32 @@ export function renderWb(root, data, en) {
   }
 }
 
+/** 本文档里最近一次拿到的数据（页内切换回到首页 / 设置时先用它画，不再等一次请求） @type {{d: string, ts: number, data: any}|null} */
+let last = null;
+/** 多久内的数据直接用、不再请求（页内来回切换不重复拉） */
+const FRESH_MS = 60000;
+
 /**
  * 拉取今天数据并渲染所有 [data-wb-root] 容器。失败时保持骨架（显示 --）。
+ * 2026-10-24 页内切换：同一文档里拿到过今天的数据就先同步画上；超过 1 分钟再静默拉新覆盖。
  * @returns {Promise<void>}
  */
 export async function loadWb() {
   const roots = /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('[data-wb-root]'));
   if (!roots.length) return;
   const en = (document.documentElement.lang || '').toLowerCase().startsWith('en');
+  const day = localDay();
+  if (last && last.d === day) {
+    const data = last.data;
+    roots.forEach((root) => renderWb(root, data, en));
+    if (Date.now() - last.ts < FRESH_MS) return;
+  }
   try {
-    const r = await fetch('/api/wellbeing?d=' + localDay(), { credentials: 'same-origin', cache: 'no-store' });
+    const r = await fetch('/api/wellbeing?d=' + day, { credentials: 'same-origin', cache: 'no-store' });
     if (!r.ok) return;
     const data = await r.json();
     if (!data || !data.ok) return;
-    roots.forEach((root) => renderWb(root, data, en));
+    last = { d: day, ts: Date.now(), data };
+    roots.forEach((root) => { if (root.isConnected) renderWb(root, data, en); });
   } catch (e) {}
 }

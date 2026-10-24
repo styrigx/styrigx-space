@@ -2,11 +2,14 @@
  * @fileoverview 设置页：显示（主题、布局、语言）、风格（调色板）、高级功能（日期和时间 / 时钟样式、天气）、
  * 数字健康、桌面双栏。（2026-10-23 PR-E：字体大小、减弱动效、重置所有设置删除）
  * 文案来自页面内 sgx-i18n-settings JSON（中英双语），JS 与语言无关。
+ * 2026-10-24 页内切换（shell/inpage-tabs.js）：不再在 import 时直接跑，改成 mountSettings()，返回 destroy()；
+ * 设置首页每次切进来都是服务器那份 HTML 的新拷贝 + 重新挂（同整页打开一样），切走时 destroy 拆掉本次挂的全部监听 / 定时器 / 撤销条。
+ * 设置子页（/settings/<cat>/）由 entry-settings.js 照旧在加载时挂一次。
  */
-import { on } from '../lib/events.js';
+import { on as evOn } from '../lib/events.js';
 import { esc } from '../lib/util.js';
 import { get, set, remove, getJSON, setJSON } from '../lib/storage.js';
-import { get as featGet, set as featSet, on as featOn } from '../lib/features.js';
+import { get as featGet, set as featSet, on as featOnRaw } from '../lib/features.js';
 import { loadI18n } from '../lib/i18n.js';
 import { openSheet } from '../shell/sheet.js';
 import { setTheme, toggleFollowSystem, setPalette, palette, DEFAULT_PALETTE, setLayout, setLang, normLayout, layoutNarrow } from '../lib/prefs.js';
@@ -16,7 +19,25 @@ import { wellLoad, wellFlush } from '../shell/goodlock.js';
 import { fmtDur } from '../lib/wb-view.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';
 
-(function () {
+/**
+ * 挂设置页（设置首页 / 设置子页）。返回 destroy()：移除这次挂上的所有监听（含 features 订阅）、定时器、布局撤销条。
+ * @returns {() => void}
+ */
+export function mountSettings() {
+  /** @type {Array<() => void>} */
+  const offs = [];
+  /** 同 lib/events.js on()，但记下清理函数，destroy 时统一拆 @type {typeof evOn} */
+  const on = function (t, type, fn, o) {
+    const off = evOn(t, type, fn, o);
+    offs.push(off);
+    return off;
+  };
+  /** @param {string} id @param {(v: any) => void} fn */
+  const featOn = function (id, fn) {
+    const off = featOnRaw(id, fn);
+    offs.push(off);
+    return off;
+  };
   const en = document.documentElement.lang === 'en';
   const T = loadI18n('sgx-i18n-settings');
 
@@ -219,7 +240,7 @@ import { sgxReplace } from '../lib/diag-jumptrace.js';
       bar.remove();
       layoutUndoTimer = null;
     }, 10000);
-    document.getElementById('sgx-layout-undo').addEventListener('click', function () {
+    on(/** @type {HTMLElement} */ (document.getElementById('sgx-layout-undo')), 'click', function () {
       setLayout(oldV);
       paintLayout();
       bar.remove();
@@ -605,7 +626,7 @@ import { sgxReplace } from '../lib/diag-jumptrace.js';
       if (rt && title) rt.textContent = title;
       layout.classList.add('single-cat');
     }
-    nav.addEventListener('click', function (e) {
+    on(nav, 'click', function (/** @type {any} */ e) {
       var b = e.target && e.target.closest ? e.target.closest('.set-cat') : null;
       if (!b) return;
       var id = b.getAttribute('data-cat') || '';
@@ -616,4 +637,18 @@ import { sgxReplace } from '../lib/diag-jumptrace.js';
     });
     if (isWide) showPane('display', (nav.querySelector('[data-cat="display"]') || {}).getAttribute ? nav.querySelector('[data-cat="display"]').getAttribute('data-title') : '');
   })();
-})();
+
+  return function destroy() {
+    offs.splice(0).forEach(function (f) {
+      try {
+        f();
+      } catch (e) {}
+    });
+    if (layoutUndoTimer) {
+      clearTimeout(layoutUndoTimer);
+      layoutUndoTimer = null;
+    }
+    const bar = document.getElementById('sgx-layout-snackbar');
+    if (bar) bar.remove();
+  };
+}

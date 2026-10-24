@@ -72,6 +72,16 @@ export function wellFlush() {
 }
 
 /**
+ * 页内切换顶栏三栏后（地址已经换了）：把上一段时长结算到旧区域，之后算到新区域。
+ */
+export function wellRetarget() {
+  try {
+    wellFlush();
+  } catch (e) {}
+  sessArea = areaOf();
+}
+
+/**
  * 初始化全站模块（快捷键、本机到访计时 / 15 分钟提醒）。
  */
 export function initGoodLock() {

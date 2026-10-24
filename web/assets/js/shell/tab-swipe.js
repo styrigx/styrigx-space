@@ -1,13 +1,15 @@
 /**
- * @fileoverview 主站顶栏三栏（主页 / 聊天 / 状态）左右滑切换（2026-10-24，手感照子站 daymark / curio / blog：
+ * @fileoverview 主站顶栏三栏（主页 / 聊天 / 设置）左右滑切换（2026-10-24，手感照子站 daymark / curio / blog：
  * 内容里横着滑 ≥ 70px、横向位移 ≥ 竖向 1.6 倍、700ms 内 → 上一栏 / 下一栏，不循环）。
  *
- * - 切换走顶栏标签链接本身（link.click()），所以跨页 view transition 照旧；松手瞬间先把药丸高亮挪到目标栏。
+ * - 2026-10-24 页内切换：有页内切换（shell/inpage-tabs.js goTab）时由它换内容，药丸和内容同一次更新里一起换；
+ *   用不了页内切换（锁屏态等）才走顶栏标签链接本身（link.click()，跨页 view transition 照旧），这时松手瞬间先把药丸高亮挪到目标栏。
  * - 不抢这些手势：屏幕左右边缘 24px 内起手（系统返回 / 抽屉的边缘手势）、多指、竖滑（角度门槛）、
  *   输入框 / 文本域 / 可编辑区（聊天输入框）、能横向滚动的容器（代码块、表格、横排卡片）、有选中文字、
  *   打开着的弹层（<dialog open>、锁屏、方式弹层）、[data-no-swipe] 里面。
  * - 只在有顶栏三栏的页面、粗指针（触屏）上生效；鼠标不管。
  */
+import { goTab } from './inpage-tabs.js';
 
 const EDGE = 24;
 const MIN_DX = 70;
@@ -78,7 +80,9 @@ export function initTabSwipe() {
     if (cur < 0) return;
     const next = cur + (dx < 0 ? 1 : -1);
     if (next < 0 || next >= tabs.length) return;
-    /* 药丸高亮先跟过去（导航开始前的一帧就能看到），再走链接本身（跨页 view transition 不变） */
+    /* 页内切换接手：药丸和内容一起换 */
+    if (goTab(tabs[next].getAttribute('data-tab') || '')) return;
+    /* 整页导航：药丸高亮先跟过去（导航开始前的一帧就能看到），再走链接本身（跨页 view transition 不变） */
     tabs[cur].removeAttribute('aria-current');
     tabs[next].setAttribute('aria-current', 'page');
     tabs[next].click();

@@ -12,6 +12,8 @@
  *   每条回答下面一行小字写用的模型；上游拒了搜索工具、不带工具重试的（SSE meta web:false）→「· 未联网」。
  *   这个模型额度用完（429）/ 用不了（model_unavailable）→ 错误行带「换个模型」按钮（打开面板）；bad_model（白名单改了）→ 换回默认 + 重试。
  * 渲染（Markdown、来源、SSE 解析、裁剪对话、模型列表）全在 lib/chat-view.js（纯函数，单测覆盖）；这里只管 DOM 和请求。
+ * - 页内切换（2026-10-24，shell/inpage-tabs.js）：mountChat() 每块聊天 DOM 只挂一次；切到别的栏时 DOM 连同状态一起留着
+ *   （回答还在流就接着流，回来时内容都在），deactivate 只停全局的东西（键盘跟随），切走时不再滚动页面、不抢焦点。
  */
 import { on } from '../lib/events.js';
 import { loadI18n } from '../lib/i18n.js';
@@ -48,9 +50,13 @@ function saveConvo(msgs) {
   } catch (e) {}
 }
 
-function init() {
+/**
+ * 挂聊天页（每块聊天 DOM 只调一次）。不在聊天页返回 null。
+ * @returns {{activate: () => void, deactivate: () => void}|null}
+ */
+export function mountChat() {
   const root = document.getElementById('chat-root');
-  if (!root) return;
+  if (!root) return null;
   const { t } = loadI18n('sgx-i18n-chat');
   const $ = (/** @type {string} */ id) => /** @type {HTMLElement} */ (document.getElementById(id));
   const list = $('chat-list');
@@ -99,6 +105,8 @@ function init() {
   }
   /** 把最后一条滚到输入栏正上方（内容不够一屏时不动，开头不会被顶栏盖住） */
   function toBottom() {
+    /* 切到别的栏时（聊天 DOM 不在文档里）不动别人的滚动位置 */
+    if (!root.isConnected) return;
     const d = overshoot();
     if (d > 0) window.scrollBy(0, d);
   }
@@ -276,7 +284,7 @@ function init() {
     const stick = nearBottom();
     renderAll(errCode || undefined);
     if (stick || errCode) toBottom();
-    if (finePointer) input.focus();
+    if (finePointer && root.isConnected) input.focus();
   }
 
   /** @param {string} text */
@@ -427,9 +435,6 @@ function init() {
     } catch (e) {}
   }
 
-  /* 手机：键盘弹起时输入栏跟着上移（同站内其他底部输入，shell/vk.js） */
-  followKeyboard(form, /** @type {any} */ (input));
-
   renderAll();
   /* 访客：网关在 <html> 注入 data-sgx-role="visitor"，不用等一次请求失败 */
   if (document.documentElement.getAttribute('data-sgx-role') === 'visitor') showGate('owner');
@@ -438,7 +443,21 @@ function init() {
   if (msgs.length) toBottom();
   if (!gated) loadModels();
   root.removeAttribute('aria-busy');
-}
 
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
-else init();
+  /** @type {(() => void)|null} */
+  let stopKb = null;
+  return {
+    activate() {
+      /* 手机：键盘弹起时输入栏跟着上移（同站内其他底部输入，shell/vk.js） */
+      if (!stopKb) stopKb = followKeyboard(form, /** @type {any} */ (input));
+    },
+    deactivate() {
+      if (stopKb) stopKb();
+      stopKb = null;
+      form.style.transform = '';
+      /* 模型面板是模态的，开着时点不到顶栏；万一开着（比如系统返回直接切栏），同步收掉、不动历史 */
+      if (ms.isOpen()) ms.handoff();
+      try { if (document.activeElement === input) input.blur(); } catch (e) {}
+    },
+  };
+}

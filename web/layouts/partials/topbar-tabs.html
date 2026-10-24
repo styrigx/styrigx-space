@@ -1,4 +1,5 @@
-{{/* 主站顶栏三栏（2026-10-22）：主页 / 聊天 / 状态（en：Home / Chat / Status），数据 data/topbar-tabs.yaml。
+{{/* 主站顶栏三栏（2026-10-22）：主页 / 聊天 / 设置（en：Home / Chat / Settings），数据 data/topbar-tabs.yaml。
+   2026-10-24：有 JS 时点标签在同一文档里切换（shell/inpage-tabs.js 接管点击，href 仍是真地址）。
    放在长条 .sgx-tb-pill 里、代替页名；当前页 aria-current="page"（药丸高亮，--sgx-nav-selected，同导航抽屉当前项）。
    只有这三页用（baseof 按 $tabCur 判断），其他页长条照旧是页名。英文加 /en 前缀。参数：isEn、cur（当前栏 id）。 */}}
 <nav class="sgx-tb-tabs" aria-label="{{ if .isEn }}Main{{ else }}主站{{ end }}">

@@ -2,6 +2,9 @@
 # 主页 / 聊天 / 设置这三页的长条里不放页名，换成这三个标签（当前页 aria-current="page"，药丸高亮）；左右滑按这个顺序切换。
 # 2026-10-24 PR4：第三栏「状态」换成「设置」（设置首页 /settings/）；服务状态挪进账号页「服务状态」一行（/account/status/），旧 /status/ 页删除、不留跳转。
 # 其他页（设置子页、账号……）长条照旧只有页名。模板：partials/topbar-tabs.html；样式：input.css「主站顶栏三栏」。
+# 2026-10-24 页内切换：三个地址照旧各自直出完整 HTML（直接打开 / 刷新 / 分享 / 没 JS 都照常）；进来以后另外两栏在同一个文档里切换
+# （shell/inpage-tabs.js：后台取另外两页的 HTML、只抽 <main> 内容区，pushState / popstate；三页共用入口 entries/entry-tabs.js）。
+# 加一栏：这里加一项 + 那个布局的入口改成 entry-tabs.js + 在 entry-tabs.js 里 registerTab()。
 # layout：哪个 Hugo 布局算这一栏（home = 首页 .IsHome）。
 tabs:
   - id: home

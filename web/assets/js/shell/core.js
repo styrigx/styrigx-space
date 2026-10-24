@@ -11,7 +11,7 @@ import { initHeadButtons } from './head-buttons.js';
 import { initThemeListener } from '../lib/theme.js';
 import { applyTheme, setThemeMode } from '../lib/theme.js';
 import { initNav } from './nav.js';
-import { initGoodLock } from './goodlock.js';
+import { initGoodLock, wellRetarget } from './goodlock.js';
 import { initScrollFx } from './scrollfx.js';
 import { initLock } from './lock.js';
 import { initUpgrade } from './upgrade.js';
@@ -74,7 +74,7 @@ export function initCore() {
   initFavicon();
   /* 带 ?q= 进来（旧 /search/?q=、opensearch）：打开原地搜索层并预填 */
   initSearchHost();
-  /* 主页 / 聊天 / 状态：内容里左右滑切上一栏 / 下一栏（同子站手感） */
+  /* 主页 / 聊天 / 设置：内容里左右滑切上一栏 / 下一栏（同子站手感；有页内切换时走 shell/inpage-tabs.js） */
   initTabSwipe();
 
   /* 5.2：写共享 UI cookie sgx-ui（老用户补写；设置变更时再写一次） */
@@ -84,9 +84,17 @@ export function initCore() {
      普通拉取最多 5 分钟一次，回到前台也按这个节流，账号页 / 云同步页 / 登录 / 打开开关时强制） */
   initCloudSync().catch(function () {});
 
-  /* B2-7：网站数字健康——本页计时上报；页面上有数字健康卡片就拉今天的数据 */
-  if (!SGX_TEST_NO_WB) initWbTrack({ key: wbAreaOf(location.pathname) });
+  /* B2-7：网站数字健康——本页计时上报；页面上有数字健康卡片就拉今天的数据。
+     2026-10-24：区域键每次现取（顶栏三栏页内切换后地址变了，区域跟着变）；切栏前先把这一段记到旧区域（shell/inpage-tabs.js 发 sgx-tab-leave / sgx-tab-enter） */
+  const wbArea0 = wbAreaOf(location.pathname);
+  const wbt = !SGX_TEST_NO_WB && wbArea0 ? initWbTrack({ key: function () { return wbAreaOf(location.pathname); } }) : null;
   if (!SGX_TEST_NO_WB) loadWb();
+  window.addEventListener('sgx-tab-leave', function () {
+    if (wbt) wbt.tick();
+  });
+  window.addEventListener('sgx-tab-enter', function () {
+    wellRetarget();
+  });
 
   /* 跨脚本/模板桥接的最小公共 API */
   Object.assign(SGX, {
