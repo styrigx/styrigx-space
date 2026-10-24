@@ -1,6 +1,7 @@
 /**
  * @fileoverview 打开短链：GET / HEAD https://styrigx.com/s/<码>。
  *
+ * - 目标可以是主站路径或三个子站的地址（lib/links.js cleanTarget；点开时再验一次，存坏了也只走失败响应）。
  * - 普通短链：302 到目标，不签钥匙、不发会话；没解锁的人到了目标页由网关照常送去锁屏。
  * - 带临时会话：已是站长 → 只 302（不降级）；否则请网关（服务绑定 ISSUER → ShareIssuer.openLinkSession）用这条短链的钥匙
  *   签 visitor 会话 + 钥匙票，Set-Cookie 原样放进这次 302。访客不用在锁屏输入任何东西。
@@ -13,7 +14,7 @@
  *   计数在 D1 share_fail，外面再套一层本 isolate 内存计数（锁住期间不再查 / 写 D1）。格式不对的码不写 D1（不可能对得上），只记内存。
  */
 import { ROLE_OWNER } from './auth.js';
-import { ORIGIN, SQL, isCode, cleanTarget, statusOf, first, run } from './lib/links.js';
+import { ORIGIN, SQL, isCode, cleanTarget, targetUrl, statusOf, first, run } from './lib/links.js';
 
 const MAX_FAIL = 10;
 const WINDOW_MS = 15 * 60 * 1000;
@@ -116,7 +117,7 @@ export async function openShare(request, env, ctx, auth, code) {
     return failResponse();
   }
 
-  const dest = ORIGIN + cleanTarget(row.target);
+  const dest = targetUrl(/** @type {string} */ (cleanTarget(row.target)));
   const mark = () => {
     try { ctx.waitUntil(run(db, SQL.opened, row.id, Date.now()).catch(() => {})); } catch (e) {}
   };

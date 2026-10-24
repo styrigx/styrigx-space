@@ -48,6 +48,12 @@ function memoryD1() {
     [SQL.byCode]: { first: ([c]) => [...links.values()].find((r) => r.code === c) || null },
     [SQL.byId]: { first: ([id]) => links.get(id) || null },
     [SQL.list]: { all: () => [...links.values()].sort((a, b) => b.created_at - a.created_at) },
+    [SQL.reusable]: {
+      first: ([to, sess, minExp, lo, hi]) => [...links.values()]
+        .filter((r) => r.target === to && r.session_sec === sess && r.revoked_at == null && r.expires_at >= minExp &&
+          r.expires_at - r.created_at >= lo && r.expires_at - r.created_at <= hi)
+        .sort((a, b) => b.expires_at - a.expires_at)[0] || null,
+    },
     [SQL.countActive]: { first: ([now]) => ({ n: [...links.values()].filter((r) => r.revoked_at == null && r.expires_at > now).length }) },
     [SQL.insert]: {
       run: ([id, code, name, target, session, key, created, expires]) => {

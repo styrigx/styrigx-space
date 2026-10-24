@@ -97,6 +97,8 @@ test.describe('account login button feedback (批次 A 验收修复 P2)', () => 
     await pg.click('#acct-pk-btn');
     await expect(pg.locator('#acct-pk-busy')).toHaveText('正在唤起通行密钥…');
     await expect.poll(() => challengeCalls).toBe(1);
+    /* 系统通行密钥窗口弹出期间，背后的验证弹层藏起来（和锁屏一样，2026-10-24） */
+    await expect(pg.locator('.sgx-verify-dlg')).toHaveCSS('visibility', 'hidden');
     /* busy 中再点「登录」→ 方式弹层 → 通行密钥：challenge 不再发 */
     await pg.locator('#acct-login-go').evaluate((el) => el.dispatchEvent(new MouseEvent('click', { bubbles: true })));
     expect(challengeCalls).toBe(1);
@@ -107,6 +109,7 @@ test.describe('account login button feedback (批次 A 验收修复 P2)', () => 
     await expect(pg.locator('.sgx-verify-dlg')).toBeHidden({ timeout: 3000 });
     await expect(pg.locator('#acct-login')).toBeVisible();
     await expect(pg.locator('#acct-pk-err')).toHaveCount(0);
+    expect(await pg.locator('.sgx-verify-dlg').evaluate((el) => el.style.visibility)).toBe('');
   });
 
   test('sign-in button opens the method sheet; option tap vibrates 10ms; Esc closes', async ({ page: pg }) => {

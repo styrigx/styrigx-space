@@ -103,8 +103,8 @@
         </optgroup>
       </select>
       <label class="tk-label" for="sl-to">{{ if $isEn }}Opens{{ else }}打开的页面{{ end }}</label>
-      <input type="text" id="sl-to" class="sgx-pw-input" maxlength="200" autocomplete="off" spellcheck="false" inputmode="url"
-             placeholder="{{ if $isEn }}Home page (or a path like /blog/){{ else }}首页（也可填站内路径，如 /blog/）{{ end }}">
+      <input type="text" id="sl-to" class="sgx-pw-input" maxlength="512" autocomplete="off" spellcheck="false" inputmode="url"
+             placeholder="{{ if $isEn }}Home page (or /blog/, or a subsite link){{ else }}首页（也可填 /blog/ 或子站链接）{{ end }}">
       <div class="sl-sw-row" id="sl-sess-row" role="button" tabindex="0">
         <span class="flex-1 min-w-0">
           <span class="block font-medium">{{ if $isEn }}With visitor session{{ else }}带临时会话{{ end }}</span>
