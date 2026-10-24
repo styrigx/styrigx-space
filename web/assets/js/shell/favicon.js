@@ -29,6 +29,23 @@ export function recolor(svg, bg, fg) {
 
 let svgText = null;
 let last = '';
+/* 2026-10-24 PR3：换过色的图标（data: 地址）按颜色记在 sessionStorage，站内每次切页（整页加载）不用再取一遍
+   /favicon.svg、再换一遍色；同一个标签页里颜色不变就直接用。 */
+const MEMO_KEY = 'sgx-favicon-memo';
+
+/** @param {string} key @returns {string} */
+function memoGet(key) {
+  try {
+    const m = JSON.parse(sessionStorage.getItem(MEMO_KEY) || 'null');
+    return m && m.k === key && typeof m.u === 'string' && m.u.indexOf('data:image/svg+xml,') === 0 ? m.u : '';
+  } catch (e) {
+    return '';
+  }
+}
+/** @param {string} key @param {string} url */
+function memoSet(key, url) {
+  try { sessionStorage.setItem(MEMO_KEY, JSON.stringify({ k: key, u: url })); } catch (e) {}
+}
 
 function current() {
   const cs = getComputedStyle(document.documentElement);
@@ -46,13 +63,21 @@ async function apply() {
     if (link.getAttribute('href') !== SRC) link.setAttribute('href', SRC);
     return;
   }
+  const memo = memoGet(key);
+  if (memo) {
+    link.setAttribute('href', memo);
+    return;
+  }
   try {
     if (svgText === null) {
       const res = await fetch(SRC, { credentials: 'same-origin' });
       svgText = res.ok ? await res.text() : '';
     }
     const url = svgText && recolor(svgText, bg, fg);
-    if (url && last === key) link.setAttribute('href', url);
+    if (url && last === key) {
+      link.setAttribute('href', url);
+      memoSet(key, url);
+    }
   } catch (e) {
     svgText = '';
   }

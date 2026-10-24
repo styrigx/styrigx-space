@@ -2,6 +2,8 @@
  * @fileoverview 状态页（/status/）：取 GET /api/status、渲染横幅 / 站点卡 / 近期故障，页面可见时每 60 秒刷新。
  *
  * - 同源 cookie（credentials: 'same-origin'），no-store；网关验锁屏会话（owner / visitor 都行），没会话 401。
+ * - 首帧（2026-10-24 PR3）：本机存着上次成功拿到的数据（localStorage sgx-status-cache，24 小时内）就先直接画出来，
+ *   页脚是那份数据的「更新于 hh:mm」，同时照常请求，回来再换成新数据；没有缓存才出骨架。401 时清掉缓存。
  * - 第一次就失败 → 错误卡（401 = 会话过期，按钮重新载入页面走锁屏；其他 = 重试）；
  *   已经有数据后刷新失败 → 保留旧数据，页脚说「刷新失败，显示的是 hh:mm 的数据」。
  * - 接口通了但所有站都还没检查过 → 空状态卡。
@@ -17,6 +19,36 @@ import { bannerInfo, bjDay, buildSlots, fmtBjTime, isEmptySummary, renderInciden
 
 export const STATUS_API = '/api/status';
 export const REFRESH_MS = 60 * 1000;
+export const CACHE_KEY = 'sgx-status-cache';
+export const CACHE_MAX_MS = 24 * 3600 * 1000;
+
+/**
+ * 读本机缓存的上次数据；没有 / 坏了 / 太旧 / 是空汇总 → null。
+ * @param {number} now
+ * @returns {{at:number, data:any}|null}
+ */
+export function readCache(now) {
+  try {
+    const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+    if (!c || typeof c.at !== 'number' || !c.data || c.data.ok !== true || !Array.isArray(c.data.sites)) return null;
+    if (c.at > now + 60 * 1000 || now - c.at > CACHE_MAX_MS || isEmptySummary(c.data)) return null;
+    return c;
+  } catch (e) {
+    return null;
+  }
+}
+
+/** @param {any} data @param {number} at */
+function writeCache(data, at) {
+  try {
+    if (isEmptySummary(data)) localStorage.removeItem(CACHE_KEY);
+    else localStorage.setItem(CACHE_KEY, JSON.stringify({ at, data }));
+  } catch (e) {}
+}
+
+function dropCache() {
+  try { localStorage.removeItem(CACHE_KEY); } catch (e) {}
+}
 
 const ICON_OK = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 const ICON_DOWN = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 7v6"/><path d="M12 17h.01"/></svg>';
@@ -98,12 +130,14 @@ function init() {
       if (!j || j.ok !== true || !Array.isArray(j.sites)) throw new Error('bad');
       data = j;
       gotAt = Date.now();
+      writeCache(j, gotAt);
       if (isEmptySummary(j)) setState('empty');
       else {
         setState('ready');
         render();
       }
     } catch (e) {
+      if (status === 401) dropCache();
       if (data && !isEmptySummary(data) && status !== 401) {
         /* 已经有数据：保留，页脚提示 */
         foot.textContent = fmt('stale', { time: fmtBjTime(gotAt, en, bjDay(Date.now())) });
@@ -149,6 +183,15 @@ function init() {
     detail.textContent = slotText(slot, { t, fmt, en });
     detail.hidden = false;
   });
+
+  /* 首帧：有上次的数据就先画（不等网络），下面的第一次请求回来再换新 */
+  const cached = readCache(Date.now());
+  if (cached) {
+    data = cached.data;
+    gotAt = cached.at;
+    setState('ready');
+    render();
+  }
 
   /* 可见时每 60 秒刷新（切到后台停，回到前台立即刷一次）；第一次失败后的错误卡也照样每分钟自动再试，只有会话过期不试 */
   visibleInterval(() => {

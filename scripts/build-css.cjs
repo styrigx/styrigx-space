@@ -18,8 +18,11 @@ execSync(
 );
 
 const tw = fs.readFileSync(tmpTw, 'utf8');
-const custom = fs.readFileSync(path.join(root, 'assets/css/input.css'), 'utf8');
+const src = fs.readFileSync(path.join(root, 'assets/css/input.css'), 'utf8');
 fs.unlinkSync(tmpTw);
+/* 2026-10-24 PR3：--minify 时自定义分层 CSS 也压缩（以前只压了 Tailwind 那段，input.css 的注释和缩进原样进 main.css）。
+   只去注释、收空白（scripts/lib/css-min.cjs），不改任何选择器 / 属性 / 值 / 顺序；单测核对压缩前后逐条声明一致。 */
+const custom = minify ? require('./lib/css-min.cjs').minifyCss(src) : src;
 
 const out =
   '@layer tw, reset, tokens, sgx-base, sgx-components, sgx-utilities, overrides;\n' +

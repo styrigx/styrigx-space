@@ -42,14 +42,19 @@ export function initTabSwipe() {
   const tabs = /** @type {HTMLAnchorElement[]} */ (Array.from(nav.querySelectorAll('a.sgx-tb-tab')));
   if (tabs.length < 2) return;
   let x0 = 0, y0 = 0, t0 = 0, armed = false;
+  /** @type {Element|null} */
+  let target0 = null;
+  /* 2026-10-24 PR3：「起手点在能横向滚动的容器里」改到松手、确认是一次横滑之后再查（inHScroller 读 scrollWidth / getComputedStyle，
+     放在 touchstart 里每次触摸——包括每次竖着滚页面——都会强制同步排版）。查的是同一个起手元素，结论不变。 */
   document.addEventListener('touchstart', function (e) {
     armed = false;
+    target0 = null;
     if (e.touches.length !== 1) return;
     const t = e.touches[0];
     if (t.clientX < EDGE || t.clientX > window.innerWidth - EDGE) return;
     const target = /** @type {Element|null} */ (e.target);
-    if (blockedTarget(target) || overlayOpen() || inHScroller(target)) return;
-    x0 = t.clientX; y0 = t.clientY; t0 = Date.now(); armed = true;
+    if (blockedTarget(target) || overlayOpen()) return;
+    x0 = t.clientX; y0 = t.clientY; t0 = Date.now(); armed = true; target0 = target;
   }, { passive: true });
   document.addEventListener('touchmove', function (e) {
     /* 多指（双指缩放）中途加进来：取消 */
@@ -63,6 +68,7 @@ export function initTabSwipe() {
     if (!t) return;
     const dx = t.clientX - x0, dy = t.clientY - y0;
     if (Math.abs(dx) < MIN_DX || Math.abs(dx) < Math.abs(dy) * RATIO || Date.now() - t0 > MAX_MS) return;
+    if (inHScroller(target0)) return;
     try {
       const sel = window.getSelection && window.getSelection();
       if (sel && !sel.isCollapsed && String(sel).trim()) return;
