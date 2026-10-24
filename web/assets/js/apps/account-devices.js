@@ -11,6 +11,7 @@ import { toast } from '../lib/toast.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { accountUrl, createT, goAccountLogin } from './account-common.js';
 import { ACCOUNT_API, postJSON, errText } from '../lib/account-api.js';
+import { clearPullStamp } from '../lib/cloud-sync.js';
 
 const ICONS = {
   phone: '<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path stroke-linecap="round" d="M10.5 18.5h3"/></svg>',
@@ -101,6 +102,8 @@ export function deviceSub(t, d, en) {
   if (logout) {
     on(logout, 'click', function () {
       postJSON(ACCOUNT_API, { action: 'logout' }).then(function () {
+        /* 云同步节流时刻跟着账号走：退出就清掉，重新登录后第一次一定拉 */
+        clearPullStamp();
         toast(t('loggedOut'));
         sgxReplace(accountUrl(en));
       }, function () {
