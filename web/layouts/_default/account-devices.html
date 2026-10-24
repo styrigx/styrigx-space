@@ -1,9 +1,11 @@
 {{/* 账号 → 设备（/account/devices/）：账号总览「设备」一行进入（三星账号「设备」页式）。
-   「此设备」一张卡在最上面；下面「其他设备」列出这个账号在别的浏览器 / 设备上的登录，
+   「此设备」一张卡在最上面：设备名 + 上次活动 / 浏览器 / 地点，「登录方式」一行（用什么凭证登录的），红字「退出账号」；
+   卡下面一行说明「不点退出，这个浏览器会一直保持登录」（2026-10-24 PR4 从删掉的「账号信息」子页挪来）。
+   下面「其他设备」列出这个账号在别的浏览器 / 设备上的登录，
    每台显示型号（三星型号映射成 Galaxy 名字）、浏览器、地点和上次活动时间，点「退出」两步确认后单独退出它。
-   此设备不能在这里退出（用账号信息页的「退出账号」）。
+   此设备在「此设备」卡里用「退出账号」退出（退出后回账号页登录区）。
    没有账号会话 → 跳 /account/?return=<本页>，登录后回来。
-   数据：POST /api/account { action:'devices' } / { action:'device-revoke', sid }（只要账号会话，不进门）。
+   数据：POST /api/account { action:'devices' } / { action:'device-revoke', sid } / { action:'logout' }（只要账号会话，不进门）。
    noindex（见 baseof）。脚本走 ES Module 入口 entry-account-devices.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-account-devices.js" }}
@@ -12,9 +14,18 @@
 <div class="acct-layout pb-28">
   <div id="acct-devices" hidden>
     <h3 class="acct-dev-h">{{ if $isEn }}This device{{ else }}此设备{{ end }}</h3>
-    <section class="widget bg-m-container-lowest border border-m-outline mb-6 overflow-hidden animate-fade-up" style="animation-delay:.08s">
+    <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.08s" id="acct-dev-this-card">
       <div class="acct-row" id="acct-dev-this"></div>
+      <div class="acct-row" id="acct-dev-by-row">
+        <span class="acct-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "shield" }}</span>
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}Sign-in method{{ else }}登录方式{{ end }}</span>
+          <span class="block text-xs mt-0.5 text-m-primary truncate" id="acct-by"></span>
+        </span>
+      </div>
+      <button type="button" class="lockmgr-delrow" id="acct-logout">{{ if $isEn }}Sign out{{ else }}退出账号{{ end }}</button>
     </section>
+    <p class="acct-note acct-note-gap" id="acct-keep-note">{{ if $isEn }}You stay signed in on this browser until you sign out.{{ else }}不点退出，这个浏览器会一直保持登录。{{ end }}</p>
 
     <h3 class="acct-dev-h">{{ if $isEn }}Other devices{{ else }}其他设备{{ end }}</h3>
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.14s">

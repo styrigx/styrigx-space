@@ -1,4 +1,4 @@
-{{/* 状态页（/status/）文案：输出 #sgx-i18n-status，JS 见 apps/status.js（lib/i18n.js loadI18n，fmt 替换 {占位}）。
+{{/* 服务状态（账号 → 服务状态 /account/status/，2026-10-24 PR4 前是顶栏「状态」页 /status/）文案：输出 #sgx-i18n-status，JS 见 apps/account-status.js（lib/i18n.js loadI18n，fmt 替换 {占位}）。
    用法：{{ partial "status-i18n.html" . }} */}}
 {{ $stI18n := dict
   "loading" (dict "zh" "正在加载…" "en" "Loading…")

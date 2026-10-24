@@ -7422,12 +7422,13 @@
         0 1px 2px rgba(0,0,0,.45),
         0 12px 32px -12px rgba(0,0,0,.55);
     }
-    /* 账号页：点卡片（头像以外）进「已登录」子页 */
-    &[role="link"] { cursor: pointer; -webkit-tap-highlight-color: transparent; }
-    &[role="link"]:active { filter: brightness(.96); }
+    /* 2026-10-24 PR4：卡片只是展示（不能点，「账号信息」子页删除）；可点的只有头像 */
     .sgx-ac-tx { flex: 1; min-width: 0; text-align: left; }
     .sgx-ac-name { font-weight: 700; color: var(--m-on-surface); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .sgx-ac-sub { font-size: 12px; color: var(--m-on-surface-variant); margin-top: 2px; }
+    /* 「已登录」：主色小字 + 对勾（Samsung 账号卡的登录状态行） */
+    .sgx-ac-state { display: inline-flex; align-items: center; gap: 4px; margin: 6px 0 0; font-size: 12px; font-weight: 600; line-height: 1.2; color: var(--m-primary); }
+    .sgx-ac-state svg { flex-shrink: 0; }
     .sgx-ac-img { width: 48px; height: 48px; border-radius: 999px; object-fit: cover; flex-shrink: 0; }
     /* 头像按钮：访客 disabled 只看；主人可点，右下角铅笔 */
     .sgx-ac-av { position: relative; flex-shrink: 0; padding: 0; border: 0; background: none; border-radius: 999px; cursor: default; }
@@ -7479,9 +7480,18 @@
       border-top: 1px solid color-mix(in srgb, var(--m-outline) 55%, transparent);
     }
   }
+  /* 没有圆形图标的行（云同步页的同步项）：分隔线从文字左缘开始 */
+  .acct-row-plain + .acct-row-plain::before { left: 20px; }
+  /* 账号 → 云同步（2026-10-24 PR4）：同步项列表；总开关关着时整组变淡（仍可看）。自定义主题色那一行右端一个色点 */
+  .acct-sync-items { transition: opacity .2s ease; }
+  .acct-sync-items.is-off { opacity: .5; }
+  .acct-sync-swatch { width: 24px; height: 24px; border-radius: 999px; flex-shrink: 0; box-shadow: inset 0 0 0 1px var(--m-outline); }
+  .acct-sync-swatch[hidden] { display: none; }
   .acct-ic { width: 40px; height: 40px; border-radius: 999px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .acct-gh { display: flex; align-items: center; gap: 12px; padding: 0 4px; margin: 0 0 10px; font-size: 17px; font-weight: 700; color: var(--m-on-surface); letter-spacing: -0.01em; }
   .acct-note { font-size: 12px; color: var(--sgx-text-secondary); padding: 0 4px; margin: 0; }
+  /* 卡片下面紧跟的说明、后面还有下一组（2026-10-24 PR4：设备页「此设备」卡下的保持登录说明、云同步页总开关下的说明）：上 8 下 24，和组间距一致 */
+  .acct-note.acct-note-gap { margin: 8px 0 24px; }
   /* 2026-10-23 账号 → 临时钥匙：新建弹层（名字 + 有效期下拉）和签发后的临时码 */
   .tk-form, .tk-done { display: flex; flex-direction: column; align-items: stretch; gap: 12px; width: 100%; max-width: 320px; &[hidden] { display: none; } }
   .tk-form .sgx-pw-input { max-width: none; }
@@ -8043,7 +8053,8 @@
 
 /* ===== utilities 层 ===== */
 @layer sgx-components {
-  /* ===== 状态页（/status/，2026-10-22 PR2；layouts/_default/status.html + apps/status.js）=====
+  /* ===== 服务状态（账号 → 服务状态 /account/status/；2026-10-22 PR2 起是顶栏「状态」页，2026-10-24 PR4 挪进账号页；
+     layouts/_default/account-status.html + apps/account-status.js）。外框是账号页的 .acct-layout（内容列 720），.st-wrap 只是里面的竖排列 =====
      横幅（全部正常 = 第三色容器 / 有故障 = danger 容器）→ 每站一张卡（站名 + 域名、状态 chip、最近一次检查、90 格可用率条）→ 近期故障。
      色块：ok = --sgx-success（固定成功绿，不随主题变；卡片上 ≥4.5:1）、minor 部分故障 = --m-warm、down = --sgx-danger、没数据 = 最高层容器。手机格间距 1px。 */
   .st-wrap { display: flex; flex-direction: column; gap: 12px; }
@@ -8512,15 +8523,15 @@ footer.sgx-about-foot > div { padding-top: 20px; padding-bottom: 16px; }
   outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
 /* @shell:end topbar-frame */
 /* 主站 layout 层（2026-10-23 PR-D，只在主站，不进共享外壳）：外壳框最宽按布局模式定 —— Mobile 640（宽竖屏内容栏）、DeX 1440。
-   顶栏在各页都跟随这个框（不按页面内容收缩，切页时两侧圆不跳）；页面外框（首页 / 设置 / 账号 / 聊天 / 状态 / 404）宽 = --sgx-shell-w、
-   不加横向内边距，左右边线和顶栏两侧圆外缘对齐；页面里的内容列在框里居中：设置子页 / 账号 720，聊天 / 状态 760，设置首页 DeX 两栏 1024（见 settings 段）。
+   顶栏在各页都跟随这个框（不按页面内容收缩，切页时两侧圆不跳）；页面外框（首页 / 设置 / 账号 / 聊天 / 404）宽 = --sgx-shell-w、
+   不加横向内边距，左右边线和顶栏两侧圆外缘对齐；页面里的内容列在框里居中：设置子页 / 账号（含服务状态）720，聊天 760，设置首页 DeX 两栏 1024（见 settings 段）。
    放在分层外、用 html.layout-* 选择器：压过共享外壳 :root 的默认 1068。 */
 html.layout-mobile { --sgx-content-max: 640px; }
 html.layout-dex { --sgx-content-max: 1440px; }
-.home-wrap, .set-layout, .acct-layout, .chat-wrap, .st-wrap, .sgx-404 { box-sizing: border-box; width: var(--sgx-shell-w); max-width: none; margin-left: auto; margin-right: auto; }
+.home-wrap, .set-layout, .acct-layout, .chat-wrap, .sgx-404 { box-sizing: border-box; width: var(--sgx-shell-w); max-width: none; margin-left: auto; margin-right: auto; }
 .set-layout:not(:has(.set-dex-cols)) > *, .acct-layout > * { max-width: 720px; margin-left: auto; margin-right: auto; }
-/* 聊天 / 状态的外框是竖排 flex：子项横向 auto 外边距会让它缩成内容宽，所以同时给 width:100%（sr-only 标题除外） */
-.chat-wrap > :not(.sr-only), .st-wrap > :not(.sr-only) { width: 100%; max-width: 760px; margin-left: auto; margin-right: auto; }
+/* 聊天的外框是竖排 flex：子项横向 auto 外边距会让它缩成内容宽，所以同时给 width:100%（sr-only 标题除外） */
+.chat-wrap > :not(.sr-only) { width: 100%; max-width: 760px; margin-left: auto; margin-right: auto; }
 /* 底部搜索栏高度（原地搜索层 --sgx-srch-h 同值；main 底部留白也用） */
 :root { --sgx-bottom-dock-h: 56px; }
 /* 访客：抽屉头的头像只是装饰，点了没反应（JS 另把链接去掉，见 head-buttons.js initVisitorAvatar） */
@@ -8717,7 +8728,7 @@ html[data-sgx-role="visitor"] .sgx-drawer-me { pointer-events: none; cursor: def
    1px 实线发丝线（--sgx-text-primary 12% 透明度：浅色 / 深色都是低对比细线；--sgx-outline-variant 在浅色毛玻璃上几乎看不见），左右缘 = 导航项药丸左右缘，上下各留 18px；纯装饰（aria-hidden）。
    要虚线只改 border-top-style 为 dashed。 */
 .sgx-drawer-sep { border: 0; border-top: 1px solid color-mix(in srgb, var(--sgx-text-primary) 12%, transparent); margin: 18px 0; height: 0; }
-/* 主站顶栏三栏（2026-10-22，只在主站，不进共享外壳；子站长条照旧只有页名）：主页 / 聊天 / 状态这三页的长条里是三个标签 .sgx-tb-tab
+/* 主站顶栏三栏（2026-10-22，只在主站，不进共享外壳；子站长条照旧只有页名）：主页 / 聊天 / 设置这三页（2026-10-24 PR4 第三栏由「状态」换成「设置」）的长条里是三个标签 .sgx-tb-tab
    （partials/topbar-tabs.html，data/topbar-tabs.yaml），代替页名。标签高 = --sgx-tb-ic（40px），正好填满长条内边距里的高度；
    三等分、宽屏最宽 400px 居中。当前页 aria-current="page" = 导航抽屉当前项同一套 tonal 药丸（--sgx-nav-selected / --sgx-on-nav-selected），
    其他两个是次要文字色，悬停 / 按下走状态层。只用 --sgx-* 角色，不写死颜色。 */
@@ -8747,7 +8758,7 @@ html[data-sgx-role="visitor"] .sgx-drawer-me { pointer-events: none; cursor: def
    .sgx-qp-sheet 离顶栏下沿 8px；收起时整块移到 dialog 上沿之外，dialog overflow:hidden 把它裁掉，
    所以滑下时看上去是从顶栏底下钻出来的（减弱动效直接到位）。
    手机：左右对齐外壳框（--sgx-shell-w，和顶栏同宽；手机 = 16px 页边距），最宽 480px 居中；宽屏（≥ 980px）宽 400px，右缘对齐外壳框右缘（= 顶栏右圆外缘）。
-   面板底 = 悬浮层磨砂（--sgx-mat 毛玻璃，同导航抽屉）。顶部一行：左「快捷面板」标题，右齿轮圆钮（全部设置）。磁贴圆角块，开着的磁贴是主色容器底色（aria-pressed="true"）。 */
+   面板底 = 悬浮层磨砂（--sgx-mat 毛玻璃，同导航抽屉）。2026-10-24 PR4：顶部标题和齿轮删除，面板直接从磁贴开始。磁贴圆角块，开着的磁贴是主色容器底色（aria-pressed="true"）。 */
 :root { --sgx-qp-top: calc(var(--sgx-tb-inset) + var(--sgx-tb-btn) + env(safe-area-inset-top, 0px)); --sgx-qp-gap: 8px; }
 .sgx-qp { position: fixed; top: var(--sgx-qp-top); left: 0; right: 0; bottom: 0; z-index: 45; width: auto; height: auto; max-width: none; max-height: none;
   margin: 0; padding: 0; border: 0; background-color: transparent; overflow: hidden; overscroll-behavior: contain; color: var(--sgx-text-primary);
@@ -8775,20 +8786,10 @@ html[data-sgx-role="visitor"] .sgx-drawer-me { pointer-events: none; cursor: def
 }
 .reduced-motion .sgx-qp-sheet, .reduced-motion .sgx-qp { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-qp-sheet, .sgx-qp { transition: none; } }
-.sgx-qp-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 0 0 10px 6px; }
-.sgx-qp-title { margin: 0; font-size: 18px; font-weight: 700; line-height: 1.3; color: var(--sgx-text-primary); }
-.sgx-qp-set { width: 44px; height: 44px; border-radius: 999px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
-  background-color: var(--sgx-qp-glass); border: 1px solid var(--sgx-qp-edge); box-sizing: border-box; color: var(--m-primary); text-decoration: none; transition: box-shadow .15s ease; }
-.sgx-qp-set svg { width: 22px; height: 22px; display: block; }
-@media (hover: hover) and (pointer: fine) {
-  .sgx-qp-set:hover { box-shadow: inset 0 0 0 22px var(--sgx-state-hover-bg); }
-}
-.sgx-qp-set:active { box-shadow: inset 0 0 0 22px var(--sgx-state-pressed-bg); }
-.sgx-qp-set:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
-/* 2026-10-23 PR-G 修订：磁贴 / 行 / 齿轮 / 恢复默认 = 中性玻璃（和普通卡片同一种材质：最浅表面色半透明 + 材质描边），
+/* 2026-10-23 PR-G 修订：磁贴 / 行 / 恢复默认 = 中性玻璃（和普通卡片同一种材质：最浅表面色半透明 + 材质描边），
    不再铺大面积 secondary-container（七色调色板的前景 2 是撞色，整面铺开发色）；只留小面积强调：
    开着的磁贴 = primary-container 选中底 + on-primary-container 字，图标圆 = 填充档（primary-fill + on-primary-fill）；
-   关着的图标圆 = 中性容器 + primary ink 图标；齿轮 = 中性玻璃圆钮 + primary ink。 */
+   关着的图标圆 = 中性容器 + primary ink 图标。 */
 :root { --sgx-qp-glass: color-mix(in srgb, var(--sgx-surface-container-lowest) 62%, transparent); --sgx-qp-edge: var(--sgx-outline-variant); }
 .dark { --sgx-qp-glass: color-mix(in srgb, var(--sgx-surface-container-high) 70%, transparent); }
 /* 2026-10-21 旧注释：磁贴 / 行底色跟色板走（--m-secondary-container）——已由上面的中性玻璃取代。
@@ -8871,8 +8872,8 @@ html[data-sgx-role="visitor"] .sgx-drawer-me { pointer-events: none; cursor: def
 /* 输入方式（2026-10-23 PR-D；放在文件最后，压过前面同特异性的顶栏标签 / 搜索层 / 快捷面板规则）：悬停样式都放在 @media (hover: hover) and (pointer: fine)（鼠标 / 触控板），触屏不会点完留着悬停色；
    粗指针（pointer: coarse，触屏）下小于 48px 的控件把点击区扩到 ≥ 48px —— 只扩命中区（透明伪元素 / 透明边框），不改布局尺寸和外观。 */
 @media (pointer: coarse) {
-  .sgx-srch-clear, .sgx-qp-set, .chat-ib, .chat-ms-x, .chat-model-btn, .chat-err-btn, .chat-ex { position: relative; }
-  .sgx-srch-clear::before, .sgx-qp-set::before, .chat-ib::before, .chat-ms-x::before, .chat-model-btn::before, .chat-err-btn::before, .chat-ex::before {
+  .sgx-srch-clear, .chat-ib, .chat-ms-x, .chat-model-btn, .chat-err-btn, .chat-ex { position: relative; }
+  .sgx-srch-clear::before, .chat-ib::before, .chat-ms-x::before, .chat-model-btn::before, .chat-err-btn::before, .chat-ex::before {
     content: ""; position: absolute; top: min(0px, (100% - 48px) / 2); bottom: min(0px, (100% - 48px) / 2);
     left: min(0px, (100% - 48px) / 2); right: min(0px, (100% - 48px) / 2); }
   /* 顶栏标签：看上去仍是 40px 高的药丸（上下 4px 透明边框 + 底色只铺内边距盒），点击区 48px */

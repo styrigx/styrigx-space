@@ -1,4 +1,4 @@
-{{/* 账号页三页（账号总览 account.html、已登录子页 account-profile.html、安全与隐私子页 account-security.html）共用的文案：
+{{/* 账号页各页（账号总览 account.html、设备 account-devices.html、安全与隐私 account-security.html、云同步 account-sync.html 等）共用的文案：
    输出 #sgx-i18n-account，JS 见 apps/account-common.js createT。用法：{{ partial "account-i18n.html" . }} */}}
 {{ $acI18n := dict
   "eyeShow" (dict "zh" "显示密码" "en" "Show password")
@@ -56,6 +56,11 @@
   "syncOn" (dict "zh" "已开启，设置在登录的设备间同步" "en" "On. Settings sync across signed-in devices")
   "syncOff" (dict "zh" "已关闭，设置只存在此设备" "en" "Off. Settings stay on this device")
   "syncLast" (dict "zh" "上次同步 " "en" "Last synced ")
+  "syncValOn" (dict "zh" "开" "en" "On")
+  "syncValOff" (dict "zh" "关" "en" "Off")
+  "syncValDefault" (dict "zh" "默认" "en" "Default")
+  "syncValCustom" (dict "zh" "已自定义" "en" "Customized")
+  "syncValUnset" (dict "zh" "未设置" "en" "Not set")
   "devUnknown" (dict "zh" "未知设备" "en" "Unknown device")
   "devCurrent" (dict "zh" "不能在这里退出此设备，请用「退出账号」" "en" "Use “Sign out” to sign out of this device")
   "devSignOut" (dict "zh" "退出" "en" "Sign out")

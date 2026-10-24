@@ -13,7 +13,7 @@ const VIEWPORTS = [
   { width: 412, height: 915 },
 ];
 
-const NO_FOOTER = ['/', '/settings/', '/settings/display/', '/chat/', '/status/', '/en/settings/'];
+const NO_FOOTER = ['/', '/settings/', '/settings/display/', '/chat/', '/account/status/', '/en/settings/'];
 const ABOUT = ['/settings/about/', '/en/settings/about/'];
 
 for (const vp of VIEWPORTS) {

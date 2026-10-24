@@ -1,0 +1,71 @@
+{{/* 账号 → 云同步（/account/sync/，2026-10-24 PR4）：账号总览「云同步」一行进入（三星账号「同步」页式分组卡片）。
+   最上面一张卡：云同步总开关（localStorage sgx-cloud-sync，'0' = 关，默认开；lib/cloud-sync.js 做实际同步，经 /api/prefs 存在 KV_SETTINGS_SYNC），
+   副标题 = 已开启 / 已关闭 / 上次同步 hh:mm（与总览那一行同一句，account-common.js syncSubText）。
+   下面按组列出实际同步的每一项（data/sync-items.yaml，与 lib/cloud-sync.js syncKeys() 一一对应，单测核对）：名字 + 本机当前值（lib/sync-items.js valueText）。
+   总开关关着时列表变淡（仍可看）。语言、布局跟随每台设备，不在同步范围里，页底一行说明。
+   没有账号会话 → 跳 /account/?return=<本页>，登录后回来（apps/account-sync.js）。
+   noindex（见 baseof）。脚本走 ES Module 入口 entry-account-sync.js。 */}}
+{{ define "main" }}
+{{ .Scratch.Set "sgx-entry" "entry-account-sync.js" }}
+{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+{{ $feats := dict }}
+{{ range site.Data.features.features }}{{ if .key }}{{ $feats = merge $feats (dict .key .) }}{{ end }}{{ end }}
+{{ $si := index site.Data "sync-items" }}
+
+<div class="acct-layout pb-28">
+  <div id="acct-sync">
+    <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.06s">
+      <div class="acct-row" id="acct-sync-row" role="button" tabindex="0">
+        <span class="acct-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "cloud" }}</span>
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}Cloud sync{{ else }}云同步{{ end }}</span>
+          <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="acct-sync-sub"></span>
+        </span>
+        <span class="switch" id="acct-sync-sw" role="switch" aria-checked="false" aria-label="{{ if $isEn }}Cloud sync{{ else }}云同步{{ end }}"><span class="knob"></span></span>
+      </div>
+    </section>
+    <p class="acct-note acct-note-gap">{{ if $isEn }}When on, the settings below sync across devices signed in to this account. The latest change to each one wins.{{ else }}开启后，下面这些设置在登录这个账号的设备之间同步，每一项以最后一次修改为准。{{ end }}</p>
+
+    <div class="acct-sync-items" id="acct-sync-items">
+    {{ range $gi, $g := $si.groups }}
+      <h3 class="acct-dev-h" id="acct-sync-h-{{ $g.id }}">{{ cond $isEn $g.en $g.zh }}</h3>
+      <section class="widget bg-m-container-lowest border border-m-outline mb-6 overflow-hidden animate-fade-up" style="animation-delay:{{ add 0.1 (mul $gi 0.04) }}s" aria-labelledby="acct-sync-h-{{ $g.id }}" data-sync-group="{{ $g.id }}">
+        {{- range $g.keys -}}
+        {{- $k := . -}}
+        {{- $f := index $feats $k -}}
+        {{- $x := index $si.extra $k -}}
+        {{- $name := "" -}}{{- $type := "string" -}}{{- $def := "" -}}{{- $hasDef := false -}}{{- $on := "" -}}{{- $off := "" -}}{{- $opts := dict -}}
+        {{- if $f -}}
+          {{- $name = cond $isEn $f.name.en $f.name.zh -}}
+          {{- $type = $f.type -}}
+          {{- if ne $f.type "json" -}}{{- $def = printf "%v" $f.default -}}{{- $hasDef = true -}}{{- end -}}
+          {{- if eq $f.type "bool" -}}
+            {{- if $f.storage -}}{{- with $f.storage.on -}}{{- $on = . -}}{{- end -}}{{- with $f.storage.off -}}{{- $off = . -}}{{- end -}}{{- else -}}{{- $on = "1" -}}{{- end -}}
+          {{- end -}}
+          {{- range $f.options -}}{{- $opts = merge $opts (dict (printf "%v" .id) (cond $isEn .en .zh)) -}}{{- end -}}
+        {{- else if $x -}}
+          {{- $name = cond $isEn $x.name.en $x.name.zh -}}
+          {{- $type = $x.type -}}
+          {{- with $x.default -}}{{- $def = . -}}{{- $hasDef = true -}}{{- end -}}
+          {{- range $x.options -}}{{- $opts = merge $opts (dict (printf "%v" .id) (cond $isEn .en .zh)) -}}{{- end -}}
+        {{- else -}}
+          {{- errorf "sync-items.yaml: %s 既不在 features.yaml 也不在 extra 里" $k -}}
+        {{- end -}}
+        <div class="acct-row acct-row-plain acct-sync-item" data-sync-key="{{ $k }}" data-sync-type="{{ $type }}"{{ if $hasDef }} data-sync-default="{{ $def }}"{{ end }}{{ if $on }} data-sync-on="{{ $on }}"{{ end }}{{ if $off }} data-sync-off="{{ $off }}"{{ end }}{{ if $opts }} data-sync-opts="{{ $opts | jsonify }}"{{ end }}>
+          <span class="flex-1 min-w-0">
+            <span class="block font-medium">{{ $name }}</span>
+            <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" data-sync-val></span>
+          </span>
+          {{ if eq $type "accent" }}<span class="acct-sync-swatch" data-sync-swatch hidden aria-hidden="true"></span>{{ end }}
+        </div>
+        {{ end }}
+      </section>
+    {{ end }}
+    </div>
+    <p class="acct-note">{{ if $isEn }}Language and layout follow each device and are not synced.{{ else }}语言和布局跟随每台设备各自的设置，不同步。{{ end }}</p>
+    <p class="acct-note mt-6 sgx-build-tag-wrap">{{ partial "build-tag.html" (dict "isEn" $isEn) }}</p>
+  </div>
+</div>
+
+{{ partial "account-i18n.html" . }}
+{{ end }}

@@ -1,5 +1,5 @@
 /**
- * 状态页「用量」区块（PR3，web/assets/js/lib/status-view.js）：数字 / 字节格式、百分比、进度条等级（> 70% 琥珀、> 90% 红）、
+ * 服务状态「用量」区块（PR3，web/assets/js/lib/status-view.js）：数字 / 字节格式、百分比、进度条等级（> 70% 琥珀、> 90% 红）、
  * 条目顺序、某项拿不到、usage = null 的提示、「更新于 N 分钟前（北京时间）」、转义。假数据：tests/fixtures/status-summary.cjs usage()。
  * 运行：node --test tests/web/ui/status-usage-view.test.mjs
  */

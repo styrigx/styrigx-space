@@ -117,3 +117,40 @@ test('设置页不再有账号卡（已移到账号页）', async ({ page }) => 
   await expect(page.locator('.sgx-account-card')).toHaveCount(0);
   await expect(page.locator('[data-avatar-edit]')).toHaveCount(0);
 });
+
+/* 2026-10-24 PR4：账号卡只是展示（兼作个人资料卡）——显示「已登录」，卡片不能点、没有详情页；点头像直接换头像 */
+test('账号卡：显示「已登录」；卡片本身不能点（不跳页、没有 link 角色）；点头像直接出换头像弹层', async ({ page }) => {
+  await asRole(page, 'owner');
+  await page.goto('/account/');
+  const card = page.locator('#acct-main [data-acct-card]');
+  await expect(card).toBeVisible();
+  await expect(card.locator('.sgx-ac-state')).toHaveText('已登录');
+  expect(await card.getAttribute('role')).toBeNull();
+  expect(await card.getAttribute('tabindex')).toBeNull();
+  expect(await card.evaluate((el) => getComputedStyle(el).cursor)).not.toBe('pointer');
+  /* 点名字 / 已登录 / 卡片空白：都留在账号页，不出弹层 */
+  await card.locator('.sgx-ac-name').click();
+  await card.locator('.sgx-ac-state').click();
+  await page.waitForTimeout(400);
+  expect(new URL(page.url()).pathname).toBe('/account/');
+  await expect(page.locator('#sheet-wrap[open]')).toHaveCount(0);
+  /* 点头像：直接是换头像的弹层（选择照片…），页面不动 */
+  await card.locator('[data-avatar-edit]').click();
+  await expect(page.locator('#sheet-title')).toHaveText('头像');
+  await expect(page.locator('#sheet-body .sheet-opt').first()).toHaveText('选择照片…');
+  expect(new URL(page.url()).pathname).toBe('/account/');
+});
+
+test('英文账号卡：Signed in', async ({ page }) => {
+  await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
+  await asRole(page, 'owner');
+  await page.goto('/en/account/');
+  await expect(page.locator('#acct-main [data-acct-card] .sgx-ac-state')).toHaveText('Signed in');
+});
+
+test('「账号信息」子页删除：/account/profile/、/en/account/profile/ 404，不跳转', async ({ page }) => {
+  for (const p of ['/account/profile/', '/en/account/profile/']) {
+    const res = await page.request.get(p, { maxRedirects: 0 });
+    expect(res.status(), p).toBe(404);
+  }
+});

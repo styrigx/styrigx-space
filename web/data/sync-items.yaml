@@ -1,0 +1,36 @@
+# 账号 → 云同步（/account/sync/，2026-10-24 PR4）里列出的「同步了哪些项」，按组显示（三星账号分组卡片式）。
+# 必须与 lib/cloud-sync.js syncKeys() 实际同步的 key 一一对应：data/features.yaml 里带 sgx- key 的设置，去掉 sgx-lang / sgx-layout（跟随设备，不同步），
+# 再加 EXTRA（sgx-accent、sgx-weather-loc、sgx-weather-city）。tests/web/ui/sync-items.test.mjs 核对两边完全一致，改了同步范围要同时改这里。
+# 名字：features.yaml 里有的用它的 name；不在 features.yaml 的（EXTRA）用下面 extra 的 name。值的显示见 lib/sync-items.js valueText。
+groups:
+  - id: look
+    zh: 外观
+    en: Appearance
+    keys: [sgx-theme-mode, sgx-palette, sgx-accent]
+  - id: time
+    zh: 日期和时间
+    en: Date & time
+    keys: [sgx-tz1-auto, sgx-tz1, sgx-tz2, sgx-hour12, sgx-gl-clockstyle]
+  - id: weather
+    zh: 天气
+    en: Weather
+    keys: [sgx-weather-show, sgx-temp-unit, sgx-weather-loc, sgx-weather-city]
+  - id: more
+    zh: 其他
+    en: More
+    keys: [sgx-search-engine, sgx-gl-keys, sgx-well-tip, sgx-files-view, sgx-files-home]
+extra:
+  sgx-accent:
+    type: accent
+    name: {zh: 自定义主题色, en: Custom theme color}
+  sgx-weather-loc:
+    type: enum
+    default: auto
+    name: {zh: 天气位置, en: Weather location}
+    options:
+      - {id: auto, zh: 自动（IP 定位）, en: Automatic (IP-based)}
+      - {id: manual, zh: 手动设置城市, en: Set city manually}
+      - {id: precise, zh: 精确定位, en: Precise location}
+  sgx-weather-city:
+    type: city
+    name: {zh: 天气城市, en: Weather city}

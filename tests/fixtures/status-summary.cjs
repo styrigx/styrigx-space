@@ -1,6 +1,6 @@
 /**
- * 状态页测试用的 /api/status 假数据（形状 = workers/status/src/monitor.js summary）。
- * tests/web/e2e/status-page.spec.js（Playwright mock）和 tests/web/ui/status-view.test.mjs（单测）共用。
+ * 服务状态（/account/status/）测试用的 /api/status 假数据（形状 = workers/status/src/monitor.js summary）。
+ * tests/web/e2e/account-status.spec.js（Playwright mock）和 tests/web/ui/status-view.test.mjs（单测）共用。
  *
  * 时间对齐 tests/web/e2e/helpers.js freezeTime：2026-10-09 12:00 北京时间（04:00Z）。
  * 每站有 40 天数据（条的左边 50 格是「无数据」），今天是半天（720 次检查）。

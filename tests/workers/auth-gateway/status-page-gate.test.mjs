@@ -1,6 +1,7 @@
 /**
- * 主站顶栏三栏的两页（2026-10-22 PR2）：状态 /status/、聊天 /chat/（含 /en/）和其他主站内页一样过网关 _middleware：
- *   没会话 / 坏 cookie → 302 到首页锁屏（?lock=1&return=<原路径>，no-store）；owner、visitor 会话都放行（200）。
+ * 聊天 /chat/ 与服务状态 /account/status/（含 /en/）和其他主站内页一样过网关 _middleware：
+ *   没会话 / 坏 cookie → 302 到首页锁屏（?lock=1&return=<原路径>，no-store）；owner 会话放行（200）；
+ *   visitor：聊天放行，服务状态 2026-10-24 PR4 起在账号区里（原顶栏「状态」页 /status/ 删除）→ 和其他账号子页一样 302 回首页。
  *   /api/status 本身的会话校验见 tests/workers/auth-gateway/search-api.test.mjs。
  * 运行：node --test tests/workers/auth-gateway/status-page-gate.test.mjs
  * Ed25519 测试密钥在测试内临时生成，不用生产密钥。
@@ -36,9 +37,10 @@ function ctx(url, cookie) {
   };
 }
 
-const PAGES = ['/status/', '/en/status/', '/chat/', '/en/chat/'];
+const PAGES = ['/account/status/', '/en/account/status/', '/chat/', '/en/chat/'];
+const ACCOUNT = (p) => p.includes('/account/');
 
-test('没会话：/status/、/chat/（中英）302 到首页锁屏，return = 原路径，no-store', async () => {
+test('没会话：/account/status/、/chat/（中英）302 到首页锁屏，return = 原路径，no-store', async () => {
   for (const p of PAGES) {
     for (const cookie of ['', 'garbage.1.2']) {
       const r = await mw(ctx('https://styrigx.com' + p + '?x=1', cookie));
@@ -51,13 +53,24 @@ test('没会话：/status/、/chat/（中英）302 到首页锁屏，return = �
   }
 });
 
-test('owner / visitor 会话：/status/、/chat/（中英）都放行 200', async () => {
+test('owner 会话：/account/status/、/chat/（中英）都放行 200；visitor：聊天 200，服务状态（账号区）302 回首页', async () => {
   for (const role of ['owner', 'visitor']) {
     const cookie = role === 'owner' ? await signSessionCookie(PRIV, 0, 'owner') : await signRole(signSessionCookie, PRIV, 0, 'visitor', 'owner');
     for (const p of PAGES) {
       const r = await mw(ctx('https://styrigx.com' + p, cookie));
+      if (role === 'visitor' && ACCOUNT(p)) {
+        assert.equal(r.status, 302, 'visitor 访问 ' + p + ' 应 302');
+        assert.equal(r.headers.get('Location'), 'https://styrigx.com' + (p.startsWith('/en/') ? '/en/' : '/'));
+        continue;
+      }
       assert.equal(r.status, 200, role + ' 访问 ' + p + ' 应 200');
       assert.match(await r.text(), /PAGE/);
     }
   }
+});
+
+test('旧的顶栏「状态」页 /status/ 已删除：网关不认这个路径，也没有跳转规则', async () => {
+  const { readFileSync } = await import('node:fs');
+  const red = readFileSync(new URL('../../../web/static/_redirects', import.meta.url), 'utf8');
+  assert.doesNotMatch(red, /^\/(en\/)?status/m);
 });

@@ -100,7 +100,7 @@ test('顶栏长条 412×915：手机照旧拉满（左右圆之间只隔 8px）'
 });
 
 /* ----- 宽竖屏 Mobile：外框最宽 640 居中，左右边线 = 顶栏两侧圆外缘（2026-10-23 PR-D） ----- */
-const WRAPS = [['/', '.home-wrap'], ['/settings/', '.set-layout'], ['/settings/display/', '.set-layout'], ['/status/', '.st-wrap'], ['/chat/', '.chat-wrap'], ['/account/', '.acct-layout'], ['/404.html', '.sgx-404']];
+const WRAPS = [['/', '.home-wrap'], ['/settings/', '.set-layout'], ['/settings/display/', '.set-layout'], ['/chat/', '.chat-wrap'], ['/account/', '.acct-layout'], ['/account/status/', '.acct-layout'], ['/404.html', '.sgx-404']];
 async function frame(page, sel) {
   return page.evaluate((s) => {
     const r = (e) => { const b = e.getBoundingClientRect(); return { l: b.left, r: b.right, w: b.width }; };
@@ -130,7 +130,7 @@ for (const [w, h] of [[1024, 700], [1366, 650], [1920, 950]]) {
       expect(Math.abs(f.wrap.l - f.bar.l) + Math.abs(f.wrap.r - f.bar.r), `${sel} ${f.wrap.l}–${f.wrap.r} / 顶栏 ${f.bar.l}–${f.bar.r}`).toBeLessThanOrEqual(1);
     });
   }
-  test(`DeX ${w}×${h}：内部列 —— 设置两栏 280 + 24 + ≤720 整体居中，子页 720，聊天 / 状态 760`, async ({ page }) => {
+  test(`DeX ${w}×${h}：内部列 —— 设置两栏 280 + 24 + ≤720 整体居中，子页 / 服务状态 720，聊天 760`, async ({ page }) => {
     const col = async (path, s) => {
       await go(page, { width: w, height: h }, path);
       await expect(page.locator(s).first()).toBeAttached();
@@ -143,7 +143,7 @@ for (const [w, h] of [[1024, 700], [1366, 650], [1920, 950]]) {
     expect(Math.abs(cols.w - Math.min(1024, bar)), `两栏宽 ${cols.w}`).toBeLessThanOrEqual(1);
     expect(Math.abs(cols.c), '两栏居中').toBeLessThanOrEqual(1);
     expect(Math.abs(left - 280), `左栏 ${left}`).toBeLessThanOrEqual(1);
-    for (const [path, s, want] of [['/settings/display/', '.set-layout > .set-main', 720], ['/status/', '#st-foot', 760], ['/chat/', '#chat-empty', 760]]) {
+    for (const [path, s, want] of [['/settings/display/', '.set-layout > .set-main', 720], ['/account/status/', '#st-foot', 720], ['/chat/', '#chat-empty', 760]]) {
       const [c] = await col(path, s);
       expect(Math.abs(c.w - Math.min(want, bar)), `${path} ${s} 宽 ${c.w}`).toBeLessThanOrEqual(1);
       expect(Math.abs(c.c), `${path} 居中`).toBeLessThanOrEqual(1);

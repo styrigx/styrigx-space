@@ -1,6 +1,9 @@
 /**
- * @fileoverview 状态页（/status/）：取 GET /api/status、渲染横幅 / 站点卡 / 近期故障，页面可见时每 60 秒刷新。
+ * @fileoverview 账号 → 服务状态（/account/status/）：取 GET /api/status、渲染横幅 / 站点卡 / 近期故障，页面可见时每 60 秒刷新。
+ * 2026-10-24 PR4：原来是顶栏三栏的「状态」页（/status/，apps/status.js），整页挪进账号页成为子页，旧页面删除；数据和行为不变。
  *
+ * - 账号区子页：GET /api/account 明确说没有账号会话 → 回账号页登录，登录后回本页（account-common.js requireAccountSession）。
+ *   读不到（网络 / 访客）不跳；访客本来就进不了账号区（网关 302 回首页）。数据本身仍只要锁屏会话（/api/status 不变）。
  * - 同源 cookie（credentials: 'same-origin'），no-store；网关验锁屏会话（owner / visitor 都行），没会话 401。
  * - 首帧（2026-10-24 PR3）：本机存着上次成功拿到的数据（localStorage sgx-status-cache，24 小时内）就先直接画出来，
  *   页脚是那份数据的「更新于 hh:mm」，同时照常请求，回来再换成新数据；没有缓存才出骨架。401 时清掉缓存。
@@ -15,6 +18,7 @@ import { on } from '../lib/events.js';
 import { loadI18n } from '../lib/i18n.js';
 import { isEn } from '../lib/util.js';
 import { visibleInterval } from '../lib/scheduler.js';
+import { requireAccountSession } from './account-common.js';
 import { bannerInfo, bjDay, buildSlots, fmtBjTime, isEmptySummary, renderIncidents, renderSite, renderUsage, slotText } from '../lib/status-view.js';
 
 export const STATUS_API = '/api/status';
@@ -183,6 +187,9 @@ function init() {
     detail.textContent = slotText(slot, { t, fmt, en });
     detail.hidden = false;
   });
+
+  /* 账号区：没有账号会话 → 回账号页登录（不挡首帧，和下面的状态请求同时发） */
+  requireAccountSession(en);
 
   /* 首帧：有上次的数据就先画（不等网络），下面的第一次请求回来再换新 */
   const cached = readCache(Date.now());

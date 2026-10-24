@@ -234,7 +234,8 @@ test.describe('B1-12 守护：页面切换唯一性', () => {
   });
 
   test('顶栏、大标题同一时刻都只有 1 个，没有 ←', async ({ page }) => {
-    const pages = ['/settings/', '/settings/security/', '/settings/display/'];
+    /* /settings/ 起长条里是主页 / 聊天 / 设置三栏（2026-10-24 PR4），没有页名；换成其他子页 */
+    const pages = ['/settings/about/', '/settings/security/', '/settings/display/'];
     for (const url of pages) {
       await page.goto(url, { waitUntil: 'domcontentloaded' });
       /* 等页面稳定：顶栏可见 */

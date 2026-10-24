@@ -7,7 +7,7 @@
  * - 点遮罩（面板以外）关闭；点顶栏上别的按钮 / 链接（九宫格、搜索、头像、长条空白）：先关面板（哨兵出栈）再执行那一下。
  * - 焦点：打开时进面板（.sgx-qp-sheet autofocus）；关上时如果焦点还在面板里（或掉到 body），还给快捷面板图标。
  *   Tab / Shift+Tab 在「快捷面板图标 + 面板里的控件」之间循环（非模态不会 inert 页面，自己圈住），图标仍可用键盘关面板。
- * - 顶部一行：标题 + 齿轮圆钮（全部设置，普通链接；关面板、哨兵出栈后再跳转，已在设置首页时只关闭）。
+ * - 2026-10-24 PR4：顶部标题和齿轮（全部设置）删除，面板直接从磁贴开始；设置入口在顶栏三栏的「设置」。
  * - 只放设置里已有的项，写法与设置页完全相同（lib/prefs.js、lib/lock-now.js 是两边共用的 setter），
  *   所以面板和设置页写同一个 localStorage key、互相即时同步（features.on 订阅重绘）。
  * - 语言：切到另一种语言（显式 zh / en），关面板后 replace 到对应语言的同一页（与设置页选语言一致，不留历史）。
@@ -18,7 +18,7 @@
  */
 import { on as featOn } from '../lib/features.js';
 import { loadI18n } from '../lib/i18n.js';
-import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
+import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { confirmLockNow } from '../lib/lock-now.js';
 import {
   themeMode,
@@ -189,17 +189,6 @@ export function initQuickPanel() {
       if (id === 'layout') setLayout(v);
       paint();
       return;
-    }
-    const all = /** @type {HTMLAnchorElement|null} */ (t.closest('a.sgx-qp-set'));
-    if (all) {
-      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-      e.preventDefault();
-      const href = all.href;
-      /* 已经在设置首页：只关闭 */
-      if (all.pathname === location.pathname) ms.close();
-      else ms.close(function () {
-        sgxNavigate(href);
-      });
     }
   });
 
