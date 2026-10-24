@@ -1033,3 +1033,52 @@ test.describe('账号页是独立页 /account/（2026-10-22 从 /settings/accoun
     }
   });
 });
+
+test.describe('云同步拉取节流（2026-10-24）', () => {
+  /** 像线上 L1 那样给 HTML 页面注入站长角色；/api/prefs 计数 */
+  async function ownerWithPrefs(page) {
+    await zh(page);
+    await page.route(/^http:\/\/localhost:\d+\/[^?]*\/?$/, async (route) => {
+      const req = route.request();
+      if (req.resourceType() !== 'document') return route.fallback();
+      const res = await route.fetch();
+      const ct = res.headers()['content-type'] || '';
+      if (!ct.includes('text/html')) return route.fulfill({ response: res });
+      const body = (await res.text()).replace(/<html([^>]*)>/i, '<html$1 data-sgx-session="valid" data-sgx-role="owner" data-sgx-account="in">');
+      await route.fulfill({ response: res, body: body });
+    });
+    const prefs = { get: 0, post: 0 };
+    await page.route('**/api/prefs', async (route) => {
+      if (route.request().method() === 'GET') prefs.get++;
+      else prefs.post++;
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, items: {}, updatedAt: 0 }) });
+    });
+    await mockAccount(page, { status: { ok: true, session: { by: 'password', device: 'Test' }, ready: true } });
+    return prefs;
+  }
+
+  test('普通页面 5 分钟内只拉一次；进云同步页强制再拉', async ({ page }) => {
+    const prefs = await ownerWithPrefs(page);
+    await page.goto('/', { waitUntil: 'load' });
+    await expect.poll(() => prefs.get).toBe(1);
+    /* 拉取成功写下时刻后再换页（还没处理完响应就离开，这次不算成功，下一页会再拉） */
+    await page.waitForFunction(() => !!localStorage.getItem('sgx-sync-pull'));
+    await page.goto('/settings/', { waitUntil: 'load' });
+    await page.goto('/', { waitUntil: 'load' });
+    await page.waitForTimeout(400);
+    expect(prefs.get).toBe(1);
+    const stamp = await page.evaluate(() => JSON.parse(localStorage.getItem('sgx-sync-pull') || '{}'));
+    expect(typeof stamp.owner).toBe('number');
+    await page.goto('/account/sync/', { waitUntil: 'load' });
+    await expect.poll(() => prefs.get).toBe(2);
+  });
+
+  test('时刻超过 5 分钟 → 普通页面再拉', async ({ page }) => {
+    const prefs = await ownerWithPrefs(page);
+    await page.addInitScript(() => {
+      try { localStorage.setItem('sgx-sync-pull', JSON.stringify({ owner: Date.now() - 6 * 60 * 1000 })); } catch (e) {}
+    });
+    await page.goto('/', { waitUntil: 'load' });
+    await expect.poll(() => prefs.get).toBe(1);
+  });
+});

@@ -80,7 +80,8 @@ export function initCore() {
   /* 5.2：写共享 UI cookie sgx-ui（老用户补写；设置变更时再写一次） */
   syncUiCookie();
   window.addEventListener('sgx-settings-changed', syncUiCookie);
-  /* 账号云同步：登录了账号的站长，设置项跨设备同步（lib/cloud-sync.js；访客 / 没登录账号不请求） */
+  /* 账号云同步：登录了账号的站长，设置项跨设备同步（lib/cloud-sync.js；访客 / 没登录账号不请求；
+     普通拉取最多 5 分钟一次，回到前台也按这个节流，账号页 / 云同步页 / 登录 / 打开开关时强制） */
   initCloudSync().catch(function () {});
 
   /* B2-7：网站数字健康——本页计时上报；页面上有数字健康卡片就拉今天的数据 */
