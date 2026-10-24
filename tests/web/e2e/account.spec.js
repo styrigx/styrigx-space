@@ -405,7 +405,7 @@ test.describe('安全与隐私子页', () => {
 test.describe('账号总览', () => {
   test.beforeEach(async ({ page }) => { await zh(page); });
 
-  test('PR4：账号卡点了不跳页（没有「账号信息」子页）；两组：设备 / 临时钥匙 / 安全与隐私，云同步 / 服务状态', async ({ page }) => {
+  test('PR4：账号卡点了不跳页（没有「账号信息」子页）；两组：设备 / 账号安全 / 临时钥匙，云同步 / 服务状态', async ({ page }) => {
     await mockAccount(page, {
       status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }),
       handlers: { list: [200, { ok: true, keys: [] }] },
@@ -418,7 +418,7 @@ test.describe('账号总览', () => {
     expect(new URL(page.url()).pathname).toBe('/account/');
     await expect(page.locator('a[href*="/account/profile/"]')).toHaveCount(0);
     const groups = await page.locator('#acct-main section').evaluateAll((els) => els.map((x) => Array.from(x.querySelectorAll('.acct-row')).map((r) => r.id)));
-    expect(groups).toEqual([['acct-dev-row', 'acct-tk-row', 'acct-sec-row'], ['acct-sync-row', 'acct-st-row']]);
+    expect(groups).toEqual([['acct-dev-row', 'acct-sec-row', 'acct-tk-row'], ['acct-sync-row', 'acct-st-row']]);
   });
 });
 
@@ -466,7 +466,7 @@ test.describe('安全与隐私子页：进入与回跳', () => {
     await expect(page.locator('#acct-sec')).toBeHidden();
   });
 
-  test('英文子页：标题 Security & privacy，总览行链接到英文子页', async ({ page }) => {
+  test('英文子页：标题 Account security，总览行链接到英文子页', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
     await mockAccount(page, {
       status: { ok: true, password: false, passkey: true, ready: true, session: RECENT(), door: DOOR() },
@@ -477,7 +477,7 @@ test.describe('安全与隐私子页：进入与回跳', () => {
     await expect(page.locator('#acct-sec-sub')).toHaveText('Protected');
     await page.locator('#acct-sec-row').click();
     await page.waitForURL(/\/en\/account\/security\/$/);
-    await expect(page.locator('.sgx-tb-title')).toHaveText('Security & privacy');
+    await expect(page.locator('.sgx-tb-title')).toHaveText('Account security');
     await expect(page.locator('#lockmgr-pwsub')).toHaveText('Not set');
   });
 });

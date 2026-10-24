@@ -8,7 +8,7 @@
    登录方式、「退出账号」和保持登录的说明挪进设备页「此设备」卡），
    第一组：「设备」→ 子页 /account/devices/（account-devices.html）：此设备（登录方式 + 退出账号）+ 其他登录的设备，可单独退出；
    「临时钥匙」→ /account/temp-keys/；
-   「安全与隐私」→ 子页 /account/security/（account-security.html）管理账号密码和账号通行密钥，
+   「账号安全」→ 子页 /account/security/（account-security.html）管理账号密码和账号通行密钥，
    每次进都要再验一次账号凭证（3 分钟门票，离开即作废）。
    第二组（2026-10-24 PR4）：「云同步」→ 子页 /account/sync/（account-sync.html）：总开关 + 实际同步的每一项；
    「服务状态」→ 子页 /account/status/（account-status.html，原顶栏「状态」页挪进来）：站点健康、可用率、响应延迟。
@@ -46,7 +46,7 @@
 {{ "<!-- SGX-ACCT-LOGIN-END -->" | safeHTML }}
 
   <!-- 账号总览（登录后，三星账号式）：账号卡（名字 + 已登录 + 头像，只展示；点头像换头像）
-       → 一组：设备（此设备的登录方式 / 退出账号 + 其他登录的设备）/ 临时钥匙（给访客的临时 LockKey）/ 安全与隐私
+       → 一组：设备（此设备的登录方式 / 退出账号 + 其他登录的设备）/ 账号安全 / 临时钥匙（给访客的临时 LockKey）
        → 一组：云同步（进子页：总开关 + 同步项，lib/cloud-sync.js）/ 服务状态（站点健康、可用率、响应延迟） -->
   <div id="acct-main" hidden>
     {{ partial "sgx-account-card.html" . }}
@@ -59,19 +59,19 @@
         </span>
         {{ partial "icon.html" "chev-r" }}
       </a>
+      <a class="acct-row" id="acct-sec-row" href="{{ cond $isEn "/en/account/security/" "/account/security/" }}">
+        <span class="acct-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield-user" }}</span>
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}Account security{{ else }}账号安全{{ end }}</span>
+          <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="acct-sec-sub"></span>
+        </span>
+        {{ partial "icon.html" "chev-r" }}
+      </a>
       <a class="acct-row" id="acct-tk-row" href="{{ cond $isEn "/en/account/temp-keys/" "/account/temp-keys/" }}">
         <span class="acct-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "key" }}</span>
         <span class="flex-1 min-w-0">
           <span class="block font-medium">{{ if $isEn }}Temporary keys{{ else }}临时钥匙{{ end }}</span>
           <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate">{{ if $isEn }}Let visitors past the lock screen{{ else }}给访客的进门钥匙{{ end }}</span>
-        </span>
-        {{ partial "icon.html" "chev-r" }}
-      </a>
-      <a class="acct-row" id="acct-sec-row" href="{{ cond $isEn "/en/account/security/" "/account/security/" }}">
-        <span class="acct-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span>
-        <span class="flex-1 min-w-0">
-          <span class="block font-medium">{{ if $isEn }}Security &amp; privacy{{ else }}安全与隐私{{ end }}</span>
-          <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="acct-sec-sub"></span>
         </span>
         {{ partial "icon.html" "chev-r" }}
       </a>
