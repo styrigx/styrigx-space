@@ -1,10 +1,12 @@
 /**
- * 主站顶栏三栏页内切换（2026-10-24，shell/inpage-tabs.js + entries/entry-tabs.js）验收。测试构建（锁屏禁用），手机 412×915。
+ * 主站顶栏三栏页内切换（2026-10-24，shell/inpage-tabs.js + entries/entry-tab-*.js）验收。测试构建（锁屏禁用），手机 412×915。
  * - 进来以后切栏不整页导航：同一个 document（window 上的标记还在、没有新的文档请求），地址 / 标题 / aria-current / <meta> / body 标记正确；
  * - 前进后退（popstate）换栏；直接打开每个地址（中英）、刷新都直出那一栏；左右滑也是同一文档；
  * - 切过去以后各栏功能可用（聊天发一条、设置换调色板、主页时钟走）；设置首页 → 设置子页照旧整页导航，返回正常；
  * - 反复切换：window / document 上的监听数不增长；云同步 GET 只发一次；滚动位置按栏记；
  * - 取不到能用的页面（服务器出错）→ 整页导航；连点只落在最后一栏；
+ * - JS 拆分（js.Batch）：首屏只取当前栏的模块，另两栏空闲预取；部署竞态（旧 chunk 404）→ 整页导航到目标地址，
+ *   入口模块图加载失败 → 自动刷新一次（同一地址只一次，不循环）；
  * - 视觉：页内切过去的那一栏和直接打开的同一栏逐像素一致。
  * 运行：npx playwright test --config=tests/config/playwright.config.js inpage-tabs.spec.js
  */
@@ -407,6 +409,108 @@ test('取不到能用的页面（服务器出错）→ 整页导航；连点只�
   await expect(page.locator('#chat-root')).toBeVisible();
   expect(docs).toEqual(['/chat/']);
   expect(await sameDoc(page)).toBe(false);
+});
+
+/** 记 /js/sgx/ 下的脚本请求（文件名去掉哈希：entry-tab-home / chunk / lazy-chat …） */
+function trackJs(page) {
+  const js = [];
+  page.on('request', (r) => {
+    const u = new URL(r.url());
+    if (u.pathname.startsWith('/js/sgx/')) js.push(u.pathname.slice(8));
+  });
+  return js;
+}
+
+test('JS 拆分：首屏只取当前栏的模块（含 modulepreload），另两栏空闲预取，切过去不再取', async ({ page }) => {
+  await setup(page);
+  const js = trackJs(page);
+  await page.goto('/');
+  /* 首屏：入口 + modulepreload 的 chunk，没有 lazy-* */
+  const pre = await page.evaluate(() => Array.from(document.querySelectorAll('link[rel="modulepreload"]')).map((l) => new URL(/** @type {HTMLLinkElement} */ (l).href).pathname.slice(8)));
+  expect(pre.length).toBeGreaterThan(0);
+  const entry = await page.evaluate(() => new URL(/** @type {HTMLScriptElement} */ (document.querySelector('script[type="module"][data-sgx-js]')).src).pathname.slice(8));
+  expect(entry).toMatch(/^entry-tab-home\.[0-9a-f]+\.js$/);
+  await page.waitForLoadState('load');
+  /* load 事件之前发出的脚本请求 = 入口 + modulepreload；lazy-* 只在 load 之后（空闲预取） */
+  const timing = await page.evaluate(() => {
+    const le = /** @type {PerformanceNavigationTiming} */ (performance.getEntriesByType('navigation')[0]).loadEventStart;
+    return performance.getEntriesByType('resource').filter((e) => new URL(e.name).pathname.startsWith('/js/sgx/')).map((e) => ({ f: new URL(e.name).pathname.slice(8), before: e.startTime < le }));
+  });
+  const first = timing.filter((t) => t.before).map((t) => t.f);
+  expect(first.filter((f) => f.startsWith('lazy-'))).toEqual([]);
+  expect(new Set(first)).toEqual(new Set([entry, ...pre]));
+  /* 空闲预取：另两栏的 lazy 模块 */
+  await settle(page);
+  await expect.poll(() => js.filter((f) => f.startsWith('lazy-')).map((f) => f.split('-')[1]).sort()).toEqual(['chat', 'settings']);
+  /* 另两栏自己的入口也预热（modulepreload，不执行）：整页打开它们时不用再等一个来回 */
+  await expect.poll(() => page.evaluate(() => Array.from(document.querySelectorAll('link[rel="modulepreload"]')).map((l) => (l.getAttribute('href') || '').replace(/^.*\/(entry-tab-[a-z]+)\..*$/, '$1')).filter((h) => h.startsWith('entry-tab-')).sort())).toEqual(['entry-tab-chat', 'entry-tab-settings']);
+  const n = js.length;
+  await mark(page);
+  await page.click('.sgx-tb-tab[data-tab="chat"]');
+  await expectTab(page, 'chat', '聊天 | Styrigx', '/chat/');
+  await page.click('.sgx-tb-tab[data-tab="settings"]');
+  await expectTab(page, 'settings', '设置 | Styrigx', '/settings/');
+  expect(js.length).toBe(n);
+  expect(await sameDoc(page)).toBe(true);
+});
+
+for (const when of ['预取', '按下时']) {
+  test(`部署竞态：另一栏的模块 404（${when}取）→ 整页导航到目标地址，那页正常、标记清掉`, async ({ page }) => {
+    await setup(page);
+    /* 旧文档里取聊天栏的模块一律 404（模拟新部署后旧哈希的 chunk 没了）；整页打开 /chat/ 用的是它自己的入口，不经 lazy-chat */
+    await page.route(/\/js\/sgx\/lazy-chat-[^/]+\.js$/, (r) => r.fulfill({ status: 404, contentType: 'text/html', body: 'not found' }));
+    const docs = trackDocs(page);
+    await page.goto('/');
+    if (when === '预取') await settle(page);
+    else await page.waitForLoadState('domcontentloaded');
+    await mark(page);
+    docs.length = 0;
+    await page.click('.sgx-tb-tab[data-tab="chat"]');
+    await page.waitForURL('**/chat/');
+    await expect(page.locator('#chat-root')).toBeVisible();
+    await expect(page.locator('.sgx-tb-tab[data-tab="chat"]')).toHaveAttribute('aria-current', 'page');
+    expect(docs).toEqual(['/chat/']);
+    expect(await sameDoc(page)).toBe(false);
+    /* 新页面 core 初始化成功：同一地址只一次的标记清掉，之后照样页内切换 */
+    await expect.poll(() => page.evaluate(() => sessionStorage.getItem('sgx-js-retry'))).toBe(null);
+    await settle(page);
+    await mark(page);
+    await page.click('.sgx-tb-tab[data-tab="settings"]');
+    await expectTab(page, 'settings', '设置 | Styrigx', '/settings/');
+    expect(await sameDoc(page)).toBe(true);
+  });
+}
+
+test('部署竞态：入口的共享 chunk 404（旧 HTML）→ 自动刷新一次拿到新页面；一直 404 也只刷新一次，不循环', async ({ page }) => {
+  await setup(page);
+  const docs = trackDocs(page);
+  /* 第一次加载 /settings/theme/ 的文档里，最大的共享 chunk（modulepreload 和 import 都）404；刷新后的文档正常 */
+  let failDocs = 1;
+  let core = '';
+  await page.route(/\/js\/sgx\/chunk-[^/]+\.js$/, async (r) => {
+    const res = await r.fetch();
+    const body = await res.body();
+    if (!core && body.length > 50000) core = r.request().url();
+    if (docs.length <= failDocs && r.request().url() === core) return r.fulfill({ status: 404, contentType: 'text/html', body: 'not found' });
+    return r.fulfill({ response: res, body });
+  });
+  await page.goto('/settings/theme/');
+  await page.waitForLoadState('networkidle');
+  expect(core).not.toBe('');
+  expect(docs).toEqual(['/settings/theme/', '/settings/theme/']);
+  /* 刷新后的页面脚本正常：core 跑过（清掉标记）、页面模块挂上 */
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('sgx-js-retry'))).toBe(null);
+  await expect(page.locator('html')).not.toHaveClass(/no-module/);
+
+  /* 一直 404：只自动刷新一次，然后停在服务器直出的页面上 */
+  failDocs = 1e9;
+  docs.length = 0;
+  await page.goto('/settings/about/');
+  await page.waitForTimeout(1500);
+  await page.waitForLoadState('networkidle');
+  expect(docs).toEqual(['/settings/about/', '/settings/about/']);
+  expect(await page.evaluate(() => sessionStorage.getItem('sgx-js-retry'))).toBe('/settings/about/');
+  await expect(page.locator('#sgx-main')).toBeVisible();
 });
 
 test('视觉：页内切过去的栏和直接打开的同一栏逐像素一致（412×915）', async ({ page }) => {

@@ -107,4 +107,9 @@ export function initCore() {
     scheduler: S,
     visibleInterval,
   });
+
+  /* 入口脚本这次加载成功：清掉「同一地址只自动重试一次」的标记（baseof 内联脚本 / shell/inpage-tabs.js 写的 sgx-js-retry） */
+  try {
+    if (sessionStorage.getItem('sgx-js-retry') === location.pathname) sessionStorage.removeItem('sgx-js-retry');
+  } catch (e) {}
 }

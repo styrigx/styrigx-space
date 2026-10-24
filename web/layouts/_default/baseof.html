@@ -383,8 +383,18 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{/* B2-7：同一测试构建（静态 http-server，没有 /api）里不拉 / 不报数字健康，
    否则 GET /api/wellbeing 404 会触发 Lighthouse errors-in-console；生产构建为 false */}}
 {{ $featDefines = merge $featDefines (dict "SGX_TEST_NO_WB" (cond (eq (getenv "SGX_TEST_NO_WEATHER") "1") "true" "false")) }}
-{{ $entry := resources.Get (print "js/entries/" $entryName) | js.Build (dict "minify" true "target" "es2020" "defines" $featDefines) | fingerprint }}
-<script type="module" src="{{ $entry.RelPermalink }}"></script>
+{{/* 2026-10-24 JS 拆分：所有入口一次 js.Batch 构建，共享代码拆成可缓存的 chunk（见 partials/sgx-js-batch.html）。
+   顶栏三栏各自一个入口（entry-tab-*.js）：当前栏的模块随入口静态加载，另两栏按需 import()。
+   modulepreload 让入口静态依赖的 chunk 和入口并行下载（不等入口解析完再发现）；放在入口 <script> 前，预加载扫描器同时看到。
+   主题 / 锁屏判定 / 防闪的首帧脚本仍在 <head> 内联同步执行，跟这里无关。 */}}
+{{ $sgxJs := partialCached "sgx-js-batch.html" (dict "defines" $featDefines "entries" (slice "entry-core" "entry-tab-home" "entry-tab-chat" "entry-tab-settings" "entry-settings" "entry-account" "entry-account-devices" "entry-account-reset" "entry-account-security" "entry-account-status" "entry-account-sync" "entry-account-temp-keys" "entry-security" "entry-security-lock")) "sgx-js" }}
+{{ $js := index $sgxJs (strings.TrimSuffix ".js" $entryName) }}
+{{ range $js.preload }}<link rel="modulepreload" href="{{ . }}">
+{{ end }}
+{{/* 部署竞态：页面开着时上线了新版本，旧哈希的入口 / chunk 已经不在（404）→ 模块图加载失败，script 上触发 error。
+   这时自动刷新一次拿新页面（同一地址只一次，sgx-js-retry 记在 sessionStorage；core 初始化成功后清掉）。 */}}
+<script>addEventListener('error',function(e){var t=e.target;if(!t||t.tagName!=='SCRIPT'||!t.hasAttribute('data-sgx-js'))return;try{var k='sgx-js-retry',p=location.pathname;if(sessionStorage.getItem(k)===p)return;sessionStorage.setItem(k,p)}catch(x){return}location.reload()},true);</script>
+<script type="module" src="{{ $js.src }}" data-sgx-js="{{ index $sgxJs "_sig" }}"></script>
 {{/* 极端降级：不支持 type="module" 的浏览器只打标记，不报错、不白屏（内容为服务端渲染） */}}
 <script nomodule>document.documentElement.classList.add('no-module');</script>
 </body>

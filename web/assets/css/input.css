@@ -7425,10 +7425,13 @@
     /* 2026-10-24 PR4：卡片只是展示（不能点，「账号信息」子页删除）；可点的只有头像 */
     .sgx-ac-tx { flex: 1; min-width: 0; text-align: left; }
     .sgx-ac-name { font-weight: 700; color: var(--m-on-surface); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .sgx-ac-sub { font-size: 12px; color: var(--m-on-surface-variant); margin-top: 2px; }
-    /* 「已登录」：主色小字 + 对勾（Samsung 账号卡的登录状态行） */
-    .sgx-ac-state { display: inline-flex; align-items: center; gap: 4px; margin: 6px 0 0; font-size: 12px; font-weight: 600; line-height: 1.2; color: var(--m-primary); }
-    .sgx-ac-state svg { flex-shrink: 0; }
+    /* 2026-10-24：「Styrigx」和「✓ 已登录」同一行（以前已登录单独一行）：基线对齐、不换行；
+       放不下时只截 Styrigx（省略号），已登录始终完整 */
+    .sgx-ac-line { display: flex; align-items: baseline; gap: 8px; margin-top: 2px; min-width: 0; white-space: nowrap; }
+    .sgx-ac-sub { font-size: 12px; color: var(--m-on-surface-variant); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    /* 「已登录」：主色小字 + 对勾（Samsung 账号卡的登录状态）；对勾行内放、文字基线参与对齐 */
+    .sgx-ac-state { flex-shrink: 0; margin: 0; font-size: 12px; font-weight: 600; color: var(--m-primary); }
+    .sgx-ac-state svg { display: inline-block; vertical-align: -2px; margin-right: 3px; }
     .sgx-ac-img { width: 48px; height: 48px; border-radius: 999px; object-fit: cover; flex-shrink: 0; }
     /* 头像按钮：访客 disabled 只看；主人可点，右下角铅笔 */
     .sgx-ac-av { position: relative; flex-shrink: 0; padding: 0; border: 0; background: none; border-radius: 999px; cursor: default; }

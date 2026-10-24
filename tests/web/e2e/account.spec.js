@@ -92,7 +92,7 @@ test.describe('账号登录', () => {
     expect(gw).toBeGreaterThanOrEqual(Math.min(360, vw - 48) - 1);
     /* 页面上不再有两个按钮 / 原地展开的密码框 */
     await expect(page.locator('#acct-pk-btn, #acct-pw-btn, #acct-pw-form, #acct-pw-input')).toHaveCount(0);
-    await expect(page.locator('#acct-login .acct-gh, #acct-login .sgx-build-tag-wrap, #acct-login .acct-ic')).toHaveCount(0);
+    await expect(page.locator('#acct-login .acct-gh, #acct-login .acct-ic')).toHaveCount(0);
     await expect(page.locator('#acct-login')).not.toContainText('根凭证', { useInnerText: true });
     /* 主按钮 = 主题色主色角色 */
     const bg = await go.evaluate((el) => getComputedStyle(el).backgroundColor);

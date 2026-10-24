@@ -50,6 +50,11 @@ space（styrigx.com）相当于 One UI，blog/book 等分站相当于其中的 A
 
 ### L5 应用：`page-*.js` + `entries/entry-*.js`
 - 一个页面一个入口，不碰鉴权。
+- 打包（2026-10-24）：所有入口在 `layouts/partials/sgx-js-batch.html` 里一次 `js.Batch`（esbuild ESM + 代码分割），
+  共享代码（core 及其依赖）拆成一个内容哈希命名的 chunk，各页共用、换页走缓存；入口 fingerprint，静态依赖的 chunk 由 baseof 输出 `modulepreload`。
+  新加入口要登记进 baseof 的入口列表（`tests/web/ui/js-split.test.mjs` 检查）。
+  顶栏三栏各一个入口 `entry-tab-<id>.js`：当前栏静态带上，另两栏 `import('./lazy-<id>.js')` 按需取。
+  首帧前必须跑的（主题、语言、布局、防闪）仍是 `<head>` 里的同步内联脚本，不进模块。
 
 ### L6 外部 App：blog、book
 - 只用公钥验签同一份会话。

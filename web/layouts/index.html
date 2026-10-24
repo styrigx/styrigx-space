@@ -1,5 +1,5 @@
 {{ define "main" }}
-{{ .Scratch.Set "sgx-entry" "entry-tabs.js" }}
+{{ .Scratch.Set "sgx-entry" "entry-tab-home.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 {{ $profile := site.Data.profile }}
 {{ $motto := $profile.motto_zh }}{{ if $isEn }}{{ $motto = $profile.motto_en }}{{ end }}
@@ -121,5 +121,5 @@
 <!-- 手机悬浮 Dock 已移入 baseof（全站） -->
 
 {{ "<!-- SGX-DESKTOP-END -->" | safeHTML }}
-{{/* 2.4.0-C：首页脚本走 ES Module 入口 entry-tabs.js（顶栏三栏共用，含锁屏）；旧 sgx-page-index.js / sgx-lock.html 已移除 */}}
+{{/* 2.4.0-C：首页脚本走 ES Module 入口 entry-tab-home.js（顶栏三栏各一个入口，含锁屏）；旧 sgx-page-index.js / sgx-lock.html 已移除 */}}
 {{ end }}

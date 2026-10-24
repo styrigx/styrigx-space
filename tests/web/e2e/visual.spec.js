@@ -138,13 +138,6 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
             await expect(pg.locator('#lockmgr-pklist .lockmgr-pkitem')).toHaveCount(1, { timeout: 10000 });
             await expect(pg.locator('#sgx-door-countdown')).toBeVisible();
           }
-          /* #1 诊断：构建标记小字只给真机看，视觉回归里隐藏，
-             现有基线继续通过；诊断结束后删小字也不用再动基线。
-             必须在 goto 之后注入（导航会丢掉之前 addStyleTag/addInitScript 加的样式，
-             且 addInitScript 运行时 documentElement 还不存在）。 */
-          await pg.addStyleTag({
-            content: '.sgx-build-tag,.sgx-build-tag-wrap{display:none !important}',
-          });
           await expect(pg).toHaveScreenshot(`${name}.png`, {
             fullPage: false,
             animations: 'disabled',
@@ -368,7 +361,6 @@ for (const lang of LANGS) {
         await pg.goto(lang.prefix + path, { waitUntil: 'domcontentloaded' });
         await waitPageReady(pg);
         await ready(pg);
-        await pg.addStyleTag({ content: '.sgx-build-tag,.sgx-build-tag-wrap{display:none !important}' });
         await expect(pg).toHaveScreenshot(`${name}.png`, { fullPage: false, animations: 'disabled' });
       });
     }

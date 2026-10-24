@@ -1,0 +1,34 @@
+{{/* 前端脚本打包（2026-10-24 JS 拆分）：js.Batch 一次 esbuild 构建（ESM + splitting）出所有页面入口，
+   共享代码拆成内容哈希命名的 chunk（/js/sgx/chunk-<hash>.js），各页共用、换页走缓存。
+   入参：defines（编译期开关）、entries（入口名，不带 .js）。只在 baseof 里经 partialCached 调一次（整站一次构建）。
+   返回：每个入口 → dict "src"（入口 fingerprint 地址）"preload"（入口静态 import 的 chunk 地址，baseof 输出 modulepreload）；
+   以及 "_sig"：这次构建的脚本签名（所有入口地址的哈希），页内切换用它判断取回来的页面是不是同一次构建。 */}}
+{{ $out := dict }}
+{{ $all := slice }}
+{{ with js.Batch "js/sgx" }}
+  {{ with .Config }}{{ .SetOptions (dict "minify" true "target" "es2020" "defines" $.defines) }}{{ end }}
+  {{ $bt := . }}
+  {{ range $f := $.entries }}
+    {{ with $bt.Group $f }}{{ with .Script "main" }}{{ .SetOptions (dict "resource" (resources.Get (print "js/entries/" $f ".js"))) }}{{ end }}{{ end }}
+  {{ end }}
+  {{ with .Build }}
+    {{ range $g, $rs := .Groups }}
+      {{ range $rs }}
+        {{ if eq .MediaType.SubType "javascript" }}
+          {{/* 入口文件名不带哈希，/js/* 又是一年 immutable 缓存：必须 fingerprint（chunk 文件名本身带内容哈希，相对路径 import 不受影响） */}}
+          {{ $e := . | fingerprint }}
+          {{ $dir := path.Dir $e.RelPermalink }}
+          {{ $pre := slice }}
+          {{/* esbuild 会把入口用到的所有 chunk 都直接 import 到入口里（不经 chunk 再跳一层），只看入口的静态 import 就够；import("…") 是按需的，不预载 */}}
+          {{ range findRE `(?:from|import)"\./chunk-[A-Za-z0-9_-]+\.js"` $e.Content }}
+            {{ $pre = $pre | append (path.Join $dir (replaceRE `^(?:from|import)"\./(.+)"$` "$1" .)) }}
+          {{ end }}
+          {{ $out = merge $out (dict $g (dict "src" $e.RelPermalink "preload" ($pre | uniq))) }}
+          {{ $all = $all | append $e.RelPermalink }}
+        {{ end }}
+      {{ end }}
+    {{ end }}
+  {{ end }}
+{{ end }}
+{{ $out = merge $out (dict "_sig" (substr (delimit (sort $all) "," | sha256) 0 16)) }}
+{{ return $out }}

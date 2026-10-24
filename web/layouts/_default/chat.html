@@ -5,9 +5,9 @@
    会话过期 / 访客 → #chat-gate 一张卡（访客由网关注入的 data-sgx-role="visitor" 直接判断）。
    模型切换（2026-10-22）：输入栏上方的小药丸 #chat-model + 模型面板 #chat-ms（GET /api/chat 列表；选择存 localStorage sgx-chat-model）。
    和其他主站页面一样过网关（没会话 302 锁屏），noindex（见 baseof）。
-   渲染：lib/chat-view.js（纯函数，tests/web/ui/chat-view.test.mjs）；DOM / 请求：apps/chat.js；入口 entry-tabs.js（三栏共用，页内切换见 shell/inpage-tabs.js）。 */}}
+   渲染：lib/chat-view.js（纯函数，tests/web/ui/chat-view.test.mjs）；DOM / 请求：apps/chat.js；入口 entry-tab-chat.js（另两栏按需加载，页内切换见 shell/inpage-tabs.js）。 */}}
 {{ define "main" }}
-{{ .Scratch.Set "sgx-entry" "entry-tabs.js" }}
+{{ .Scratch.Set "sgx-entry" "entry-tab-chat.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 <div class="chat-wrap" id="chat-root" aria-busy="true">
   <h1 class="sr-only">{{ if $isEn }}Chat{{ else }}聊天{{ end }}</h1>
