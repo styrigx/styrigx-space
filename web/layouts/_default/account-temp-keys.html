@@ -4,6 +4,10 @@
    - 列表：名字 + 剩余时间；「作废」两步确认 → 拿这把钥匙进来的访客立刻进不来
    没有账号会话 → 跳 /account/?return=<本页>，登录后回来。
    数据：POST /api/lock-temp { action:'list' | 'create' | 'revoke' }（只要账号会话，不进门）。
+   2026-10-24 分享短链（https://styrigx.com/s/<码>）：同页第二行「新建分享短链」→ 弹层：名字 + 链接有效期（同上）+ 目标站内路径（默认首页）
+   +「带临时会话」开关（开 = 自动签一把新临时钥匙，点开即访客会话，会话时长主人选、不超过有效期；关 = 普通短链，没解锁的照常进锁屏）
+   → 弹层显示短链 + 复制。列表「分享短链」：名字、类型（带会话 / 普通）、状态、打开的页面、到期时间和剩余、会话时长和最近一次会话还剩多久；
+   有效的可复制、作废（两步）。数据：POST /api/share（分享短链 Worker styrigx-share，workers/share）。JS 见 apps/account-share-links.js。
    noindex（见 baseof）。脚本走 ES Module 入口 entry-account-temp-keys.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-account-temp-keys.js" }}
@@ -20,6 +24,14 @@
         </span>
         {{ partial "icon.html" "chev-r" }}
       </div>
+      <div class="acct-row" id="acct-sl-new" role="button" tabindex="0">
+        <span class="acct-ic bg-m-tertiary-container text-m-on-tertiary-container"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></svg></span>
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}New share link{{ else }}新建分享短链{{ end }}</span>
+          <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate">{{ if $isEn }}A link to send, session optional{{ else }}发给别人的链接，可带临时会话{{ end }}</span>
+        </span>
+        {{ partial "icon.html" "chev-r" }}
+      </div>
     </section>
 
     <h3 class="acct-dev-h">{{ if $isEn }}Active keys{{ else }}有效的临时钥匙{{ end }}</h3>
@@ -29,7 +41,16 @@
         <p class="text-sm text-m-on-surface-variant m-0">{{ if $isEn }}No temporary keys yet.{{ else }}还没有临时钥匙。{{ end }}</p>
       </div>
     </section>
-    <p class="acct-note">{{ if $isEn }}Visitors enter the key at “Visitor” on the lock screen. They can browse the site but never see your account. Revoking a key locks its visitors out right away.{{ else }}访客在锁屏点「访客进入」输入临时钥匙，能看网站，看不到账号。作废后，用这把钥匙进来的访客会立刻被锁在外面。{{ end }}</p>
+    <p class="acct-note acct-note-gap">{{ if $isEn }}Visitors enter the key at “Visitor” on the lock screen. They can browse the site but never see your account. Revoking a key locks its visitors out right away.{{ else }}访客在锁屏点「访客进入」输入临时钥匙，能看网站，看不到账号。作废后，用这把钥匙进来的访客会立刻被锁在外面。{{ end }}</p>
+
+    <h3 class="acct-dev-h">{{ if $isEn }}Share links{{ else }}分享短链{{ end }}</h3>
+    <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.2s">
+      <div id="acct-sl-list" hidden></div>
+      <div class="p-4" id="acct-sl-empty" hidden>
+        <p class="text-sm text-m-on-surface-variant m-0">{{ if $isEn }}No share links yet.{{ else }}还没有分享短链。{{ end }}</p>
+      </div>
+    </section>
+    <p class="acct-note">{{ if $isEn }}A link with a visitor session lets whoever opens it in as a visitor for the session length you chose, no key needed. A plain link just opens the page, so anyone not unlocked still sees the lock screen. Revoking a link ends its visitor sessions right away.{{ else }}带临时会话的短链，点开就以访客身份进入，能看多久由你定，不用输临时钥匙；普通短链只是打开页面，没解锁的人仍会看到锁屏。作废后，用这条短链进来的访客会立刻被锁在外面。{{ end }}</p>
   </div>
 </div>
 
@@ -59,6 +80,58 @@
       <p class="tk-done-sub" id="tk-done-sub"></p>
       <p class="tk-done-warn">{{ if $isEn }}This key is shown only once. Copy it and send it to your visitor.{{ else }}临时钥匙只显示这一次，复制后发给访客。{{ end }}</p>
       <button type="button" class="sgx-verify-skip" id="tk-copy">{{ if $isEn }}Copy{{ else }}复制{{ end }}</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="sl-dlg" class="sgx-verify-dlg" aria-labelledby="sl-title">
+  <div class="sgx-verify-card">
+    <button type="button" class="sgx-dlg-close" data-dlg-close aria-label="{{ if $isEn }}Close{{ else }}关闭{{ end }}">×</button>
+    <div class="sheet-handle" data-pclose></div>
+    <h2 id="sl-title" class="sgx-verify-title">{{ if $isEn }}New share link{{ else }}新建分享短链{{ end }}</h2>
+    <div id="sl-form" class="tk-form">
+      <input type="text" id="sl-name" class="sgx-pw-input" maxlength="24" autocomplete="off"
+             aria-label="{{ if $isEn }}Name (only you can see it){{ else }}名字（只有你看得到）{{ end }}"
+             placeholder="{{ if $isEn }}Name (optional, only you see it){{ else }}名字（可不填，只有你看得到）{{ end }}">
+      <label class="tk-label" for="sl-dur">{{ if $isEn }}Link valid for{{ else }}链接有效期{{ end }}</label>
+      <select id="sl-dur" class="sgx-pw-input tk-select">
+        <optgroup label="{{ if $isEn }}Hours{{ else }}小时{{ end }}">
+          {{ range seq 24 }}<option value="h{{ . }}"{{ if eq . 24 }} selected{{ end }}>{{ . }} {{ if $isEn }}{{ if eq . 1 }}hour{{ else }}hours{{ end }}{{ else }}小时{{ end }}</option>{{ end }}
+        </optgroup>
+        <optgroup label="{{ if $isEn }}Days{{ else }}天{{ end }}">
+          {{ range slice 3 7 15 30 }}<option value="d{{ . }}">{{ . }} {{ if $isEn }}days{{ else }}天{{ end }}</option>{{ end }}
+        </optgroup>
+      </select>
+      <label class="tk-label" for="sl-to">{{ if $isEn }}Opens{{ else }}打开的页面{{ end }}</label>
+      <input type="text" id="sl-to" class="sgx-pw-input" maxlength="200" autocomplete="off" spellcheck="false" inputmode="url"
+             placeholder="{{ if $isEn }}Home page (or a path like /blog/){{ else }}首页（也可填站内路径，如 /blog/）{{ end }}">
+      <div class="sl-sw-row" id="sl-sess-row" role="button" tabindex="0">
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}With visitor session{{ else }}带临时会话{{ end }}</span>
+          <span class="block text-xs text-m-on-surface-variant mt-0.5" id="sl-sess-sub"></span>
+        </span>
+        <span class="switch" id="sl-sess-sw" role="switch" aria-checked="true" aria-label="{{ if $isEn }}With visitor session{{ else }}带临时会话{{ end }}"><span class="knob"></span></span>
+      </div>
+      <div id="sl-sess-box" class="sl-sess-box">
+        <label class="tk-label" for="sl-sess">{{ if $isEn }}Visitor can browse for{{ else }}点开后能看多久{{ end }}</label>
+        <select id="sl-sess" class="sgx-pw-input tk-select">
+          <option value="1800">{{ if $isEn }}30 minutes{{ else }}30 分钟{{ end }}</option>
+          <option value="3600">{{ if $isEn }}1 hour{{ else }}1 小时{{ end }}</option>
+          <option value="10800">{{ if $isEn }}3 hours{{ else }}3 小时{{ end }}</option>
+          <option value="43200" selected>{{ if $isEn }}12 hours{{ else }}12 小时{{ end }}</option>
+          <option value="86400">{{ if $isEn }}1 day{{ else }}1 天{{ end }}</option>
+          <option value="259200">{{ if $isEn }}3 days{{ else }}3 天{{ end }}</option>
+          <option value="604800">{{ if $isEn }}7 days{{ else }}7 天{{ end }}</option>
+        </select>
+      </div>
+      <p id="sl-err" class="sgx-verify-err" hidden></p>
+      <button type="button" class="sgx-verify-skip" id="sl-go">{{ if $isEn }}Create{{ else }}生成{{ end }}</button>
+    </div>
+    <div id="sl-done" class="tk-done" hidden>
+      <p class="sl-url" id="sl-url" aria-live="polite"></p>
+      <p class="tk-done-sub" id="sl-done-sub"></p>
+      <p class="tk-done-warn" id="sl-done-warn"></p>
+      <button type="button" class="sgx-verify-skip" id="sl-copy">{{ if $isEn }}Copy link{{ else }}复制链接{{ end }}</button>
     </div>
   </div>
 </dialog>

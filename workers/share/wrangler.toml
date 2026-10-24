@@ -1,0 +1,84 @@
+# styrigx-share：分享短链 Worker（CI 部署；2026-10-24 新建，照账号 Worker styrigx-account 的拆法）
+#
+# https://styrigx.com/s/<码>（中英文同一条）+ 站长管理接口 /api/share。
+# 代码：src/（入口 index.js、门 gate.js、会话 auth.js、打开 open.js、接口 api/、规则和存储 lib/）+ migrations/（D1 styrigx-share）。
+#
+# 安全：
+# - 不持任何钥匙、不绑认证库（styrigx-auth-gateway 的 KV/D1）。会话问网关 SessionVerifier（服务绑定 AUTH）；
+#   签 / 作废短链钥匙、给访客换会话问网关 ShareIssuer（服务绑定 ISSUER）。临时钥匙和会话的签发逻辑只在网关里一份。
+# - workers_dev = false、preview_urls = false：不开 *.workers.dev 和预览地址（它连的是正式 D1，只许经 styrigx.com 的路由进来）。
+# - SGX_ENV = "production"：门（src/gate.js）按生产规则执行。
+
+name = "styrigx-share"
+main = "src/index.js"
+compatibility_date = "2026-10-09"
+workers_dev = false
+preview_urls = false
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+# 路由：比网关的 styrigx.com/* 更具体，所以先命中这里。都用结尾 *（Cloudflare 不带 * 的规则遇到查询串不命中，见 scripts/lib/cf-routes.mjs）。
+# scripts/check-worker-routes.mjs 在 CI 里核对：这两条路径归本 Worker，网关的接口一条都没被抢走，页面仍归网关。
+# 注意：删掉这里的路由 = /s/* 回到网关（网关没有短链：页面 404 / 锁屏），不能靠删路由回滚。
+[[routes]]
+pattern = "styrigx.com/s/*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "styrigx.com/api/share*"
+zone_name = "styrigx.com"
+
+[vars]
+SGX_ENV = "production"
+
+# ---- 服务绑定：都指向网关 ----
+# AUTH：SessionVerifier（session() 锁屏会话、account() 账号会话），和账号 Worker 同一个入口。
+# ISSUER：ShareIssuer（createLinkKey / revokeLinkKey / openLinkSession，网关 src/share-issuer.js），只有本 Worker 绑定。
+# 部署顺序：deploy.yml 里 deploy-share-worker 在 deploy-auth-worker 之后（要先有带 ShareIssuer 的网关）。
+[[services]]
+binding = "AUTH"
+service = "styrigx-auth-gateway"
+entrypoint = "SessionVerifier"
+
+[[services]]
+binding = "ISSUER"
+service = "styrigx-auth-gateway"
+entrypoint = "ShareIssuer"
+
+# ---- 数据绑定（正式）----
+# D1 styrigx-share：D1_SHARE_LINK = share_link + share_fail（migrations/0001_share_links.sql）。
+# database_id 由站长在 Cloudflare 建库后填（清单见 PR 说明）；占位没换掉时 deploy-share-worker 第一步就红，不会部署。
+[[d1_databases]]
+binding = "D1_SHARE_LINK"
+database_name = "styrigx-share"
+database_id = "59bddcea-17cb-466a-90c9-16606d5b4b7e"
+migrations_dir = "migrations"
+
+# ---- preview 环境（还没有部署它的 CI job；先把预览库登记好，以后给预览测试用）----
+# 绝不指向正式库。routes = [] 必须写：routes 会从顶层继承，不写的话预览 Worker 会去抢正式路由。
+[env.preview]
+name = "styrigx-share-preview"
+workers_dev = false
+preview_urls = false
+routes = []
+
+[env.preview.vars]
+SGX_ENV = "preview"
+
+[[env.preview.services]]
+binding = "AUTH"
+service = "styrigx-auth-gateway"
+entrypoint = "SessionVerifier"
+
+[[env.preview.services]]
+binding = "ISSUER"
+service = "styrigx-auth-gateway"
+entrypoint = "ShareIssuer"
+
+[[env.preview.d1_databases]]
+binding = "D1_SHARE_LINK"
+database_name = "styrigx-share-preview"
+database_id = "03e1f9f4-dd7e-47cc-abe7-79dc5afe3e81"
+migrations_dir = "migrations"

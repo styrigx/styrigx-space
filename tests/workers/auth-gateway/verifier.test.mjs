@@ -59,13 +59,17 @@ test('checkSession：访客/主人有效，回角色；没有 cookie、伪造都
 
 
 
-test('部署入口导出 SessionVerifier，wrangler main 指向它', () => {
+test('部署入口导出 SessionVerifier、ShareIssuer（短链 Worker 专用），wrangler main 指向它', () => {
   const toml = readFileSync(REPO + '/workers/auth-gateway/wrangler.toml', 'utf8');
   assert.match(toml, /^main = "src\/worker\.js"$/m);
   const src = readFileSync(REPO + '/workers/auth-gateway/src/worker.js', 'utf8');
   assert.match(src, /export \{ default \} from '\.\/index\.js'/);
-  assert.match(src, /export \{ SessionVerifier \} from '\.\/rpc\.js'/);
+  assert.match(src, /export \{ SessionVerifier, ShareIssuer \} from '\.\/rpc\.js'/);
   const rpc = readFileSync(REPO + '/workers/auth-gateway/src/rpc.js', 'utf8');
   assert.match(rpc, /class SessionVerifier extends WorkerEntrypoint/);
+  assert.match(rpc, /class ShareIssuer extends WorkerEntrypoint/);
+  /* SessionVerifier 只有验票，签钥匙 / 发会话只在 ShareIssuer（只有 styrigx-share 绑定它） */
+  const sv = rpc.slice(rpc.indexOf('class SessionVerifier'), rpc.indexOf('class ShareIssuer'));
+  assert.doesNotMatch(sv, /createLinkKey|revokeLinkKey|openLinkSession/);
 });
 

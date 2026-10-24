@@ -15,7 +15,9 @@
  * 临时码只在签发那一刻返回一次。
  *
  * KV（KV_LOCK_DOOR，都带过期时间，到期自动消失）：
- * - lock-temp:<id>          → { id, name, createdAt, expiresAt, h }（h = 临时码哈希，作废时删索引用）
+ * - lock-temp:<id>          → { id, name, createdAt, expiresAt, h, link? }（h = 临时码哈希，作废时删索引用；
+ *                             link = 分享短链自动签的钥匙（styrigx-share 经服务绑定 ShareIssuer 签，src/share-issuer.js）：
+ *                             没有临时码、不占 TEMP_MAX、不在钥匙列表里，只能经短链换会话）
  * - lock-temp-code:<hash>   → id
  * - lock-temp-revoked:<id>  → '1'（作废标记，留到钥匙原本的到期时间；middleware 每个访客请求只查这一个键）
  * - lock-temp-fail:<ip>     → { count, lockedUntil }（连错 5 次锁 15 分钟）
@@ -143,7 +145,9 @@ export async function listTemp(kv) {
     for (const k of page.keys || []) {
       const v = await kv.get(k.name, 'json');
       if (v && v.id && v.expiresAt > now) {
-        out.push({ id: v.id, name: v.name || '', createdAt: v.createdAt || 0, expiresAt: v.expiresAt });
+        const k = { id: v.id, name: v.name || '', createdAt: v.createdAt || 0, expiresAt: v.expiresAt };
+        if (v.link) k.link = true;
+        out.push(k);
       }
     }
     cursor = page.list_complete ? undefined : page.cursor;
@@ -154,13 +158,20 @@ export async function listTemp(kv) {
 
 /**
  * 签发一把临时钥匙。返回 { key, code }（code 已格式化，只此一次）。
- * 已满 TEMP_MAX → 抛 Error('full')；KV 出错原样抛。
+ * 已满 TEMP_MAX（只数普通钥匙）→ 抛 Error('full')；KV 出错原样抛。
+ * p.link：分享短链用的钥匙——不生成临时码（锁屏上输不进来），不占 TEMP_MAX（短链 Worker 自己有上限），返回 code ''。
  * @param {any} kv
  * @param {string} pepper
- * @param {{name:string, ms:number}} p
+ * @param {{name:string, ms:number, link?:boolean}} p
  */
 export async function createTemp(kv, pepper, p) {
-  const live = await listTemp(kv);
+  if (p.link) {
+    const now0 = Date.now();
+    const lk = { id: newId(), name: p.name || '', createdAt: now0, expiresAt: now0 + p.ms };
+    await kv.put(TEMP_PREFIX + lk.id, JSON.stringify(Object.assign({ link: true }, lk)), { expiration: kvExp(lk.expiresAt) });
+    return { key: lk, code: '' };
+  }
+  const live = (await listTemp(kv)).filter(function (k) { return !k.link; });
   if (live.length >= TEMP_MAX) throw new Error('full');
   const code = newCode();
   const h = await hashCode(pepper, code);
