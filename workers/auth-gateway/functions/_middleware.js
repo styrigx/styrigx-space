@@ -29,14 +29,14 @@ const LOCKRESET_PATHS = [
   '/settings/security/lock/',
   '/en/settings/security/lock/',
 ];
-/* 2.8.0：主人专属 API（visitor 调用 → 403） */
+/* 2.8.0：主人专属 API（visitor 调用 → 403）。
+   云同步 /api/prefs 2026-10-24 搬到账号 Worker styrigx-account，同样的访客 403 在 workers/account/src/gate.js。 */
 const OWNER_ONLY_APIS = [
   '/api/account',
   '/api/owner-password',
   '/api/owner-passkey',
   '/api/lock-all-devices',
   '/api/lock-door',
-  '/api/prefs', /* 账号云同步：还要账号会话（接口里验） */
   '/api/lock-temp', /* 临时 LockKey 管理：还要账号会话（接口里验） */
 ];
 /* 认证类 action（visitor 可调用，用于升级为 owner） */
@@ -77,7 +77,9 @@ const API_WHITELIST = [
 ];
 const PAGE_WHITELIST = [];
 const STATIC_RE = /\.(css|js|woff2|woff|ttf|png|svg|ico|json|xml|webmanifest)$/i;
-/* 主站头像 /avatar/<尺寸>.webp（锁屏、首页、子站都用），公开放行；其他图片仍要先解锁。 */
+/* 主站头像 /avatar/<尺寸>.webp（锁屏、首页、子站都用），公开放行；其他图片仍要先解锁。
+   线上 /avatar/* 由账号 Worker styrigx-account 承接（同样的放行规则在 workers/account/src/gate.js）；
+   这里留着给 passkey-e2e 预览（网关打包成 Pages 的 _worker.js，头像落到静态默认图）。 */
 const AVATAR_FILE_RE = /^\/avatar\/(32|96|192|512)\.webp$/;
 /* 首页由 L1 特殊处理（见下）：始终返回页面并注入 data-sgx-session，不再走白名单 */
 

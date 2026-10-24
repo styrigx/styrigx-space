@@ -202,7 +202,7 @@ function makeD1() {
 }
 
 function switchEnv(kv, db, switchVal) {
-  const env = baseEnv(kv, { D1_LOCK_RESET: db, D1_WELLBEING: db });
+  const env = baseEnv(kv, { D1_LOCK_RESET: db });
   if (switchVal !== undefined) {
     kv._store.set(SWITCH_KV_KEY, switchVal);
   }
@@ -314,7 +314,7 @@ test('2.11 开关：根凭证错误时不读开关 KV', async () => {
   };
   kv._store.set(SWITCH_KV_KEY, 'secret');
   const db = makeD1();
-  const env = baseEnv(kv, { D1_LOCK_RESET: db, D1_WELLBEING: db });
+  const env = baseEnv(kv, { D1_LOCK_RESET: db });
   const req = postReq('https://test.example.com/api/lockreset', {
     action: 'verify', rootKey: 'wrong-key',
   });
@@ -489,7 +489,7 @@ test('2.11 补充二：管理页（layer-status，有效会话）触发开关计
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1', 'session-epoch': '0' });
   const db = makeD1();
   kv._store.set(SWITCH_KV_KEY, 'timer-secret-1');
-  const env = baseEnv(kv, { D1_LOCK_RESET: db, D1_WELLBEING: db });
+  const env = baseEnv(kv, { D1_LOCK_RESET: db });
   const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
   const req = new Request('https://test.example.com/api/layer-status', {
     headers: { 'Cookie': 'sgx-verified=' + sessCv },
@@ -511,7 +511,7 @@ test('2.11 补充二：计时 24 小时后，开关在重置路径上已失效',
   kv._store.set(SWITCH_KV_KEY, 'timer-secret-1');
   /* 先触发计时 */
   const { touchRecoverySwitch } = await import(REPO + '/workers/auth-gateway/functions/_kernel/recswitch.js');
-  const env0 = baseEnv(kv, { D1_LOCK_RESET: db, D1_WELLBEING: db });
+  const env0 = baseEnv(kv, { D1_LOCK_RESET: db });
   await touchRecoverySwitch(kv, db);
   /* 把首次时间拨到 25 小时前（模拟过期） */
   const t = db._tables.get('recovery_switch');
@@ -539,7 +539,7 @@ test('2.11 补充二：访客请求 layer-status → 401，且不读开关 KV', 
   };
   kv._store.set(SWITCH_KV_KEY, 'timer-secret-1');
   const db = makeD1();
-  const env = baseEnv(kv, { D1_LOCK_RESET: db, D1_WELLBEING: db });
+  const env = baseEnv(kv, { D1_LOCK_RESET: db });
   /* 无会话 */
   const req = new Request('https://test.example.com/api/layer-status');
   const res = await onRequestGet({ request: req, env });
@@ -554,7 +554,7 @@ test('2.11 补充四：根凭证错误的 lockreset 响应不含 recovery-switch
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
   kv._store.set(SWITCH_KV_KEY, 'some-secret');
   const db = makeD1();
-  const env = baseEnv(kv, { D1_LOCK_RESET: db, D1_WELLBEING: db });
+  const env = baseEnv(kv, { D1_LOCK_RESET: db });
   const req = postReq('https://test.example.com/api/lockreset', {
     action: 'verify', rootKey: 'wrong-key',
   });
@@ -569,7 +569,7 @@ test('2.11 补充四：访客假入口（root-auth）响应不含 recovery-switc
   const kv = makeKv({ 'layer:lock': '1' });
   kv._store.set(SWITCH_KV_KEY, 'some-secret');
   const db = makeD1();
-  const env = baseEnv(kv, { D1_LOCK_RESET: db, D1_WELLBEING: db });
+  const env = baseEnv(kv, { D1_LOCK_RESET: db });
   /* 访客无会话，提交错误密钥 → 假入口 401 */
   const req = postReq('https://test.example.com/api/root-auth', { key: 'wrong-key' });
   const res = await onRequestPost({ request: req, env });

@@ -31,11 +31,11 @@ jobs:
         run: |
           # 禁止旧变量名：SGX_ED25519_*（已改名为 SGX_LOCK_*），SGX_STEPUP_KEY（已改名为 SGX_STEPUP_PRIVATE）
           # 注意：不扫描 .github/，避免匹配到本文件自身的注释
-          if grep -rn "SGX_ED25519_" --include="*.js" --include="*.mjs" workers/auth-gateway/ tests/ scripts/ 2>/dev/null; then
+          if grep -rn "SGX_ED25519_" --include="*.js" --include="*.mjs" workers/auth-gateway/ workers/account/ tests/ scripts/ 2>/dev/null; then
             echo "ERROR: Found SGX_ED25519_* (use SGX_LOCK_* per key spec v1.0)."
             exit 1
           fi
-          if grep -rn "SGX_STEPUP_KEY" --include="*.js" --include="*.mjs" workers/auth-gateway/ tests/ scripts/ 2>/dev/null; then
+          if grep -rn "SGX_STEPUP_KEY" --include="*.js" --include="*.mjs" workers/auth-gateway/ workers/account/ tests/ scripts/ 2>/dev/null; then
             echo "ERROR: Found SGX_STEPUP_KEY (use SGX_STEPUP_PRIVATE per key spec v1.0)."
             exit 1
           fi
@@ -70,12 +70,17 @@ jobs:
         # 全部 tests/workers/auth-gateway、tests/web/ui 单元测试；新加的测试文件自动纳入，不用再改这里。
         # 覆盖：会话 / cookie / epoch、锁屏门（door）、认证入口、
         # 访客 401、根凭证 userHandle、最后一把钥匙、sitemap、i18n、页内导航、数字健康等
-        run: node --test tests/workers/auth-gateway/*.test.mjs tests/workers/chat/*.test.mjs tests/workers/search-index/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs tests/web/ui/*.test.mjs
+        run: node --test tests/workers/auth-gateway/*.test.mjs tests/workers/account/*.test.mjs tests/workers/chat/*.test.mjs tests/workers/search-index/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs tests/web/ui/*.test.mjs
 
       - name: Auth Worker bundle check (styrigx-auth-gateway, dry-run)
         # 主站后端代码全在 workers/auth-gateway（src/ + functions/）；这里只打包不部署，import 断了 CI 就红。
         working-directory: workers/auth-gateway
         run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/styrigx-auth-gateway-dist
+
+      - name: Account Worker bundle check (styrigx-account, dry-run)
+        # 头像 / 云同步 / 数字健康（2026-10-24 从网关拆出来）；只打包不部署
+        working-directory: workers/account
+        run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/styrigx-account-dist
 
       - name: Chat Worker bundle check (styrigx-chat, dry-run)
         working-directory: workers/chat
@@ -112,7 +117,7 @@ jobs:
       - name: Build site (生产构建，用于锁屏测试)
         run: hugo --minify -s web
 
-      - name: Check auth gateway routes (每个页面都过网关，静态资源不过)
+      - name: Check worker routes (每个页面都过网关；头像 / 云同步 / 数字健康归账号 Worker，不抢网关的接口)
         run: node scripts/check-worker-routes.mjs
 
       - name: stylelint（禁止硬编码颜色）
@@ -637,7 +642,7 @@ jobs:
 
   deploy-auth-worker:
     # 鉴权网关 styrigx-auth-gateway：main 上真部署。先于 Pages 部署（Pages 只放静态文件，靠网关验会话）。
-    # 路由见 workers/auth-gateway/wrangler.toml（/api/*、/avatar/* 和全部页面目录）；workers_dev=false。部署后自动冒烟检查线上。
+    # 路由见 workers/auth-gateway/wrangler.toml（整站通配；/api/avatar*、/api/prefs*、/api/wellbeing*、/avatar/* 由账号 Worker 的更具体路由承接）；workers_dev=false。部署后自动冒烟检查线上。
     # Pages 部署（build-and-deploy）等这里成功后才开始。
     # 服务绑定指向的 Worker 要先在：needs 里的 deploy-search-worker / deploy-status-worker / deploy-chat-worker 先部署。
     # 密钥全在 Secrets Store，CI 不传任何密值。
@@ -703,8 +708,7 @@ jobs:
           check /en/ 200 || ok=1
           check /settings/ 302 || ok=1
           check /browser/search/ 302 || ok=1
-          # 头像：未登录也能拿（主人上传的在 KV，所以要过网关）
-          check /avatar/96.webp 200 || ok=1
+          # 头像 / 云同步 / 数字健康归账号 Worker styrigx-account（更具体的路由），冒烟在 deploy-account-worker 里
           # 子站：页面未登录 302 到主站锁屏、session-check 401，都由网关回答（子站 Pages 不持钥匙）
           check https://blog.styrigx.com/ 302 || ok=1
           check https://blog.styrigx.com/api/session-check 401 || ok=1
@@ -712,4 +716,73 @@ jobs:
           css=$(curl -sS -o /dev/null -D - https://styrigx.com/robots.txt | tr -d '\r' | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
           echo "/robots.txt runtime=${css:-none}"
           if [ -n "$css" ]; then echo "::error::static file went through the Worker"; ok=1; fi
+          exit $ok
+
+  deploy-account-worker:
+    # 账号 Worker styrigx-account（workers/account，2026-10-24 从网关拆出来）：头像（KV_PROFILE）、设置云同步（KV_SETTINGS_SYNC）、数字健康（D1_WELLBEING）。
+    # 路由见 workers/account/wrangler.toml（styrigx.com/api/avatar*、/api/prefs*、/api/wellbeing*、/avatar/*，比网关的 styrigx.com/* 更具体）；
+    # workers_dev=false、preview_urls=false。会话问网关：服务绑定 AUTH → styrigx-auth-gateway 的 SessionVerifier（session() / account()），
+    # 所以排在网关之后（要先有带 account() 的网关）。不持任何钥匙，CI 不传任何密值。
+    # 先把 D1 styrigx-account 的表结构迁到最新（migrations/，已迁过的跳过；失败要让 job 红，不 continue-on-error），再部署，再冒烟。
+    # token：Cloudflare 上 styrigx-account-deploy = GitHub 环境 STYRIGX_ACCOUNT_DEPLOY 里的同名环境密钥 STYRIGX_ACCOUNT_DEPLOY，
+    # 权限 Workers Scripts 编辑 + Workers KV Storage 编辑 + D1 编辑 + Account Settings 读取 + styrigx.com 的 Workers Routes 编辑；环境只允许 main。
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: [quality, deploy-auth-worker]
+    runs-on: ubuntu-latest
+    environment: STYRIGX_ACCOUNT_DEPLOY
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Apply D1 migrations (styrigx-account)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.STYRIGX_ACCOUNT_DEPLOY }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/account
+          wranglerVersion: '4'
+          command: d1 migrations apply styrigx-account --remote
+
+      - name: Deploy account Worker (styrigx-account)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.STYRIGX_ACCOUNT_DEPLOY }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/account
+          wranglerVersion: '4'
+          command: deploy
+
+      - name: Smoke test production (avatar / prefs / wellbeing must be served by styrigx-account)
+        # 只发不带 cookie 的只读请求，不登录、不写数据。路由生效可能要几秒，最多重试 6 次。
+        run: |
+          set -u
+          check() { # 路径 期望状态码 期望 X-SGX-Runtime
+            for i in 1 2 3 4 5 6; do
+              hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' "https://styrigx.com$1" || true)
+              code=$(printf '%s' "$hdr" | sed -n 's/^HTTP_CODE://p')
+              rt=$(printf '%s' "$hdr" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
+              echo "$1 -> $code runtime=${rt:-none} (try $i)"
+              if [ "$code" = "$2" ] && [ "$rt" = "$3" ]; then return 0; fi
+              sleep 5
+            done
+            echo "::error::$1 expected $2 from $3"; return 1
+          }
+          ok=0
+          # 头像：未登录也能拿（主人上传的在 KV_PROFILE）
+          check /avatar/96.webp 200 account || ok=1
+          check '/avatar/192.webp?v=smoke' 200 account || ok=1
+          # 接口：没会话 401（门照网关 middleware）
+          check /api/wellbeing 401 account || ok=1
+          check '/api/wellbeing?d=2026-01-01' 401 account || ok=1
+          check /api/prefs 401 account || ok=1
+          check /api/avatar 401 account || ok=1
+          # 网关的接口和页面没被抢走
+          check /api/session-check 401 worker || ok=1
+          check /api/account 401 worker || ok=1
+          check /settings/wellbeing/ 302 worker || ok=1
           exit $ok

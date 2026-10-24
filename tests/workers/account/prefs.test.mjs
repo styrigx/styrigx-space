@@ -1,13 +1,17 @@
 /**
  * 账号云同步 /api/prefs（2026-10-22）：owner lock 会话 + 账号会话；逐项新的赢。
  *
- * 运行：node --test tests/workers/auth-gateway/prefs.test.mjs
+ * 2026-10-24 搬到账号 Worker styrigx-account（workers/account）；会话经网关 verifier.js（_auth.mjs），登录流程仍用网关的 /api/account。
+ *
+ * 运行：node --test tests/workers/account/prefs.test.mjs
  */
-import { signRole } from './_tk.mjs';
+import { signRole } from '../auth-gateway/_tk.mjs';
+import { wrap } from './_auth.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 const API = '../../../workers/auth-gateway/functions/api/';
+const PREFS = '../../../workers/account/src/api/prefs.js';
 const KERNEL = '../../../workers/auth-gateway/functions/_kernel/';
 
 function makeKV(seed = {}) {
@@ -125,7 +129,8 @@ async function seedPassword(kv, pw) {
 
 
 async function prefsCall(kv, method, body, cookieObj, origin) {
-  const m = await import(API + 'prefs.js');
+  const mod = await import(PREFS);
+  const m = { onRequestGet: wrap(mod.onRequestGet), onRequestPost: wrap(mod.onRequestPost) };
   const headers = { Cookie: cookies(cookieObj) };
   if (method === 'GET') return await m.onRequestGet({ request: new Request('https://styrigx.com/api/prefs', { headers }), env: envFor(kv) });
   const req = new Request('https://styrigx.com/api/prefs', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', Origin: origin || 'https://styrigx.com' }, body: JSON.stringify(body) });

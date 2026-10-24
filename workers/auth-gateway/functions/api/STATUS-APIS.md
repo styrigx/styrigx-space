@@ -53,4 +53,4 @@ cookie 值、挑战原文）。调用方列表由 `grep assets/js/` 下的 fetch
 
 ## 账号云同步（不算状态接口）
 
-- `GET/POST /api/prefs`：owner lock 会话 + 账号会话（sgx-account）。存 KV `account-prefs`，逐项 `{ v, t }` 新的赢；只同步 `sgx-` 开头的设置项（白名单在 `assets/js/lib/cloud-sync.js`）。调用方：`assets/js/lib/cloud-sync.js`（主站每页加载拉一次、设置改动后防抖推）、`assets/js/apps/account.js`（账号页「云同步」行）。
+- `GET/POST /api/prefs`（2026-10-24 起在账号 Worker `styrigx-account`，代码 `workers/account/src/api/prefs.js`；会话经本网关的 `SessionVerifier` RPC 验）：owner lock 会话 + 账号会话（sgx-account）。存 KV `account-prefs`，逐项 `{ v, t }` 新的赢；只同步 `sgx-` 开头的设置项（白名单在 `assets/js/lib/cloud-sync.js`）。调用方：`assets/js/lib/cloud-sync.js`（主站每页加载拉一次、设置改动后防抖推）、`assets/js/apps/account.js`（账号页「云同步」行）。

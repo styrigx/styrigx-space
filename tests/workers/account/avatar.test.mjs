@@ -6,9 +6,12 @@
  *   主人 + 四张合法图 → 写四张 + 版本号。
  * - DELETE /api/avatar：主人 → 删版本号和四张；访客 403。
  *
- * 运行：node --test tests/kernel/avatar.test.mjs
+ * 账号 Worker styrigx-account（workers/account，2026-10-24 从网关搬来）；会话经网关 verifier.js（_auth.mjs）。
+ *
+ * 运行：node --test tests/workers/account/avatar.test.mjs
  */
-import { signRole } from './_tk.mjs';
+import { signRole } from '../auth-gateway/_tk.mjs';
+import { wrap } from './_auth.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -16,9 +19,11 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
-const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/avatar/[file].js');
-const { onRequestPut, onRequestDelete } = await import(REPO + '/workers/auth-gateway/functions/api/avatar.js');
-const { sniffImage, sizeOfFile } = await import(REPO + '/workers/auth-gateway/functions/_kernel/avatar.js');
+const { onRequestGet } = await import(REPO + '/workers/account/src/api/avatar-file.js');
+const avatarApi = await import(REPO + '/workers/account/src/api/avatar.js');
+const onRequestPut = wrap(avatarApi.onRequestPut);
+const onRequestDelete = wrap(avatarApi.onRequestDelete);
+const { sniffImage, sizeOfFile } = await import(REPO + '/workers/account/src/lib/avatar.js');
 const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
 
 function derToPem(der, label) {

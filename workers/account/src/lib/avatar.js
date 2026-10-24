@@ -1,7 +1,7 @@
 /**
  * @fileoverview 主站头像的公共定义：尺寸、上限、KV 键名、格式识别、读取。
- * GET /avatar/<尺寸>.webp（functions/avatar/[file].js）和
- * PUT/DELETE /api/avatar（functions/api/avatar.js）共用。
+ * GET /avatar/<尺寸>.webp（src/api/avatar-file.js）和
+ * PUT/DELETE /api/avatar（src/api/avatar.js）共用。
  */
 
 export const AVATAR_SIZES = [32, 96, 192, 512];

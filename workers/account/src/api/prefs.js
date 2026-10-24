@@ -12,10 +12,8 @@
  * GET  /api/prefs → { ok, items, updatedAt }
  * POST /api/prefs { changes: { key: { v, t } } } → 合并后 { ok, items, updatedAt }（只接受同源）
  */
-import { verifyAccountCookie } from '../_kernel/account-session.js';
-import { ROLE_OWNER } from '../_kernel/session.js';
-import { isSameOrigin, originDenied } from '../_kernel/http.js';
-import { verifySessionDetailed } from '../_middleware.js';
+import { ROLE_OWNER } from '../auth.js';
+import { isSameOrigin, originDenied } from '../lib/http.js';
 
 export const PREFS_KEY = 'account-prefs';
 const KEY_RE = /^sgx-[a-z0-9-]{1,48}$/;
@@ -37,11 +35,12 @@ function json(body, status) {
   return Response.json(body, { status: status || 200, headers: { 'Cache-Control': 'no-store' } });
 }
 
-/** owner lock 会话 + 账号会话；不满足返回错误响应 @param {any} request @param {any} env */
-async function gate(request, env) {
-  const sess = await verifySessionDetailed(request, env);
+/** owner lock 会话 + 账号会话（都由网关 SessionVerifier 验，见 src/auth.js）；不满足返回错误响应 @param {any} context */
+async function gate(context) {
+  const { env, auth } = context;
+  const sess = await auth.session();
   if (!sess.ok || sess.role !== ROLE_OWNER) return json({ ok: false, error: 'session' }, 401);
-  const acc = await verifyAccountCookie(request, env);
+  const acc = await auth.account();
   if (!acc.ok) return json({ ok: false, error: 'account', reason: acc.reason }, 401);
   if (!prefsKv(env)) return json({ ok: false, error: 'config' }, 500);
   return null;
@@ -103,7 +102,7 @@ export function mergeItems(items, changes) {
 export async function onRequestGet(context) {
   try {
     const { request, env } = context;
-    const g = await gate(request, env);
+    const g = await gate(context);
     if (g) return g;
     let p;
     try { p = await readPrefs(prefsKv(env)); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
@@ -119,7 +118,7 @@ export async function onRequestPost(context) {
     const { request, env } = context;
     if (request.method !== 'POST') return json({ ok: false, error: 'method' }, 405);
     if (!isSameOrigin(request)) return originDenied();
-    const g = await gate(request, env);
+    const g = await gate(context);
     if (g) return g;
     let body;
     try { body = await request.json(); } catch (e) { return json({ ok: false, error: 'body' }, 400); }

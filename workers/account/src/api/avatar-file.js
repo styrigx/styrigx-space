@@ -9,7 +9,7 @@
  *   设置页靠 ETag 是不是 "d-" 开头判断有没有自定义头像。
  * - 不认识的尺寸 → 404。
  */
-import { sizeOfFile, keyOf, KEY_VER, PUBLIC_CACHE, NO_STORE, avatarKv } from '../_kernel/avatar.js';
+import { sizeOfFile, keyOf, KEY_VER, PUBLIC_CACHE, NO_STORE, avatarKv } from '../lib/avatar.js';
 
 /** @param {any} context */
 export async function onRequestGet(context) {

@@ -163,7 +163,6 @@ async function startCredentialTestServer(port) {
   const pubPem = derToPem(await crypto.subtle.exportKey('spki', lkp.publicKey), 'PUBLIC KEY');
   const env = {
     KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
-    KV_PROFILE: kv, KV_SETTINGS_SYNC: kv, /* 正式是另一个库（styrigx-account）；键不重叠，测试里共用一个 */
     SGX_PW_PEPPER: 'e2e-test-pepper',
     SGX_LOCK_PRIVATE: privPem,
     SGX_LOCK_PUBLIC: pubPem,
