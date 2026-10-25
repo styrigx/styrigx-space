@@ -1,12 +1,13 @@
 /**
- * 第 5 层 KV 键名一次性迁移脚本（scripts/migrate-kv-names.mjs）的纯函数部分：planMigration / verifyPlan。
+ * 第 5 层 KV 键名一次性迁移脚本（scripts/migrate-kv-names.mjs）的纯函数部分：planMigration / verifyPlan / splitExisting / resolveBackupDir。
  * 不访问网络（REST 调用只在 main 里）。
  *
  * 运行：node --test tests/workers/auth-gateway/kv-migration.test.mjs
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { planMigration, verifyPlan } from '../../../scripts/migrate-kv-names.mjs';
+import path from 'node:path';
+import { planMigration, verifyPlan, splitExisting, resolveBackupDir } from '../../../scripts/migrate-kv-names.mjs';
 import { REALM_LOCK, REALM_ACCOUNT, REALM_ROOT } from '../../../workers/auth-gateway/functions/_kernel/realms.js';
 
 const NOW = 1_800_000_000;
@@ -136,4 +137,27 @@ test('verifyPlan：值一致才通过（JSON 按解析比较）；--delete-old �
   assert.equal(verifyPlan(plan.writes, cur, { presenceOnly: true }).ok, true);
   cur.delete('lock-password');
   assert.deepEqual(verifyPlan(plan.writes, cur, { presenceOnly: true }).mismatches, [{ key: 'lock-password', reason: 'missing' }]);
+});
+
+test('splitExisting：目标键已存在的不写（重跑 / 部署后误跑不回滚纪元）', () => {
+  const entries = sampleEntries().concat([{ name: 'lock-epoch', value: '9' }]);
+  const plan = planMigration(entries, NOW);
+  const { toWrite, existing } = splitExisting(plan.writes, new Set(entries.map((e) => e.name)));
+  assert.deepEqual(existing.map((w) => w.key), ['lock-epoch']);
+  assert.ok(!toWrite.some((w) => w.key === 'lock-epoch'));
+  assert.equal(toWrite.length + existing.length, plan.writes.length);
+  /* 全新 namespace：全部要写 */
+  assert.equal(splitExisting(plan.writes, new Set()).toWrite.length, plan.writes.length);
+});
+
+test('resolveBackupDir：默认在 home 下；仓库内（含仓库根）拒绝；--backup-dir 缺值拒绝', () => {
+  const repo = path.resolve('/tmp/sgx-repo');
+  assert.equal(resolveBackupDir([], repo, '/home/u'), path.join('/home/u', '.sgx-kv-backups'));
+  assert.equal(resolveBackupDir(['--backup-dir', '/tmp/bk'], repo, '/home/u'), path.resolve('/tmp/bk'));
+  assert.equal(resolveBackupDir(['--backup-dir', '/tmp/sgx-repo-bk'], repo, '/home/u'), path.resolve('/tmp/sgx-repo-bk'));
+  assert.throws(() => resolveBackupDir(['--backup-dir', repo], repo, '/home/u'), /仓库/);
+  assert.throws(() => resolveBackupDir(['--backup-dir', path.join(repo, 'scripts')], repo, '/home/u'), /仓库/);
+  assert.throws(() => resolveBackupDir([], repo, repo), /仓库/);
+  assert.throws(() => resolveBackupDir(['--backup-dir'], repo, '/home/u'), /目录/);
+  assert.throws(() => resolveBackupDir(['--backup-dir', '--apply'], repo, '/home/u'), /目录/);
 });

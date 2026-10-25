@@ -10,11 +10,14 @@
  *
  * 用法（按顺序；每一步都会先把整个 namespace 备份到本地 JSON）：
  *   node scripts/migrate-kv-names.mjs                 dry-run（默认）：备份 + 打印计划，不写
- *   node scripts/migrate-kv-names.mjs --apply         备份 + 写新键（带原过期时间）+ 逐键校验
+ *   node scripts/migrate-kv-names.mjs --apply         备份 + 写新键（带原过期时间）+ 逐键校验；已存在的新键一律不覆盖
  *   node scripts/migrate-kv-names.mjs --verify        只校验：新键的值是否与旧键一致
  *   node scripts/migrate-kv-names.mjs --delete-old    先确认新键都在，才删旧键（含 owner-passkeys、class=app 记录、
  *                                                     lock-temp:* / lock-temp-code:* / lock-temp-revoked:*）
- *   --backup-dir <目录>  备份放哪（默认当前目录）
+ *   --backup-dir <目录>  备份放哪（默认 ~/.sgx-kv-backups；不许放在仓库里）
+ *
+ * 备份是整个 namespace 的明文（密码哈希、通行密钥公钥、user handle），文件权限 0600、目录 0700，
+ * 目录落在仓库内直接拒绝（仓库是公开的）。迁移收尾后自己删掉。
  *
  * 规则：
  * - 新键写入时带旧键的绝对过期时间（剩余 TTL 不变）；已过期或 60 秒内过期的跳过（KV 要求过期时间至少 60 秒后）。
@@ -26,10 +29,12 @@
  *   PR 3 部署后重新签发全部临时钥匙；--delete-old 删掉它们。
  * - 密码哈希、WebAuthn user handle、credId 原样不变。账号设置 account-prefs、account-epoch 键名不变，不动。
  * - 不认识的键只报告，不改不删。
+ * - --apply 只写目标键还不存在的；已存在的跳过并报告（重跑、或部署后误跑都不会用旧值覆盖新代码写的纪元/计数）。
  *
  * 合并 PR 3、迁移完成后，本脚本可在后续 PR 删除。
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -161,6 +166,41 @@ export function planMigration(entries, nowSec) {
 }
 
 /**
+ * 纯函数：按目标键是否已存在把写入分两份。--apply 只写 toWrite，existing 一律不覆盖。
+ * @param {Write[]} writes
+ * @param {Set<string>} existingNames 当前 namespace 里已有的键名
+ * @returns {{toWrite: Write[], existing: Write[]}}
+ */
+export function splitExisting(writes, existingNames) {
+  const toWrite = [];
+  const existing = [];
+  for (const w of writes) (existingNames.has(w.key) ? existing : toWrite).push(w);
+  return { toWrite, existing };
+}
+
+/**
+ * 纯函数：备份目录。默认 ~/.sgx-kv-backups；落在仓库内（含仓库根）抛错。
+ * @param {string[]} argv
+ * @param {string} repo 仓库根（绝对路径）
+ * @param {string} home
+ * @returns {string} 绝对路径
+ */
+export function resolveBackupDir(argv, repo, home) {
+  const bi = argv.indexOf('--backup-dir');
+  let dir = path.join(home, '.sgx-kv-backups');
+  if (bi !== -1) {
+    const v = argv[bi + 1];
+    if (!v || v.startsWith('--')) throw new Error('--backup-dir 后面要跟目录');
+    dir = path.resolve(v);
+  }
+  const rel = path.relative(path.resolve(repo), dir);
+  if (rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))) {
+    throw new Error('备份目录在仓库里（' + dir + '）：备份是明文，仓库是公开的，换一个仓库外的目录');
+  }
+  return dir;
+}
+
+/**
  * 校验。
  * - 默认（--apply 之后、--verify）：每个计划写入的新键，现值必须与计划值一致（JSON 值按解析后比较）。
  * - presenceOnly（--delete-old，PR 3 已部署）：新代码已经在写新键（纪元推进、signCount、新注册的钥匙），
@@ -267,19 +307,21 @@ async function bulkDelete(c, keys) {
 async function main(argv) {
   const has = (f) => argv.includes(f);
   const mode = has('--delete-old') ? 'delete-old' : has('--verify') ? 'verify' : has('--apply') ? 'apply' : 'dry-run';
-  const bi = argv.indexOf('--backup-dir');
-  const backupDir = bi !== -1 ? argv[bi + 1] : process.cwd();
+  const backupDir = resolveBackupDir(argv, REPO, os.homedir());
   const c = cfg();
 
-  /* 1. 备份（每种模式都先备份） */
+  /* 1. 备份（每种模式都先备份；明文，只给自己读） */
   const entries = await dumpAll(c);
+  mkdirSync(backupDir, { recursive: true, mode: 0o700 });
   const file = path.join(backupDir, 'kv-backup-' + c.ns + '-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json');
-  writeFileSync(file, JSON.stringify({ namespace: c.ns, at: new Date().toISOString(), entries }, null, 1));
-  console.log('备份：' + entries.length + ' 个键 → ' + file);
+  writeFileSync(file, JSON.stringify({ namespace: c.ns, at: new Date().toISOString(), entries }, null, 1), { mode: 0o600, flag: 'wx' });
+  console.log('备份：' + entries.length + ' 个键 → ' + file + '（明文，迁移收尾后删掉）');
 
   const plan = planMigration(entries);
-  console.log('计划：写 ' + plan.writes.length + ' 个新键，旧键 ' + plan.deleteOld.length + ' 个（--delete-old 时删），跳过 ' + plan.skipped.length + ' 个，未知 ' + plan.unknown.length + ' 个');
-  for (const w of plan.writes) console.log('  ' + w.from + ' → ' + w.key + (w.expiration ? '（过期 ' + new Date(w.expiration * 1000).toISOString() + '）' : ''));
+  const { toWrite, existing } = splitExisting(plan.writes, new Set(entries.map((e) => e.name)));
+  console.log('计划：写 ' + toWrite.length + ' 个新键，已存在不覆盖 ' + existing.length + ' 个，旧键 ' + plan.deleteOld.length + ' 个（--delete-old 时删），跳过 ' + plan.skipped.length + ' 个，未知 ' + plan.unknown.length + ' 个');
+  for (const w of toWrite) console.log('  ' + w.from + ' → ' + w.key + (w.expiration ? '（过期 ' + new Date(w.expiration * 1000).toISOString() + '）' : ''));
+  for (const w of existing) console.log('  已存在，不覆盖 ' + w.key + '（来自 ' + w.from + '）');
   for (const s of plan.skipped) console.log('  跳过 ' + s.key + '：' + s.reason);
   for (const u of plan.unknown) console.log('  未知（不动）' + u);
   if (mode === 'dry-run') { console.log('dry-run：没有写任何东西。确认无误后加 --apply。'); return 0; }
@@ -293,9 +335,16 @@ async function main(argv) {
   };
 
   if (mode === 'apply') {
-    await bulkWrite(c, plan.writes);
-    console.log('已写入 ' + plan.writes.length + ' 个新键');
-    return (await verifyNow()) ? 0 : 1;
+    await bulkWrite(c, toWrite);
+    console.log('已写入 ' + toWrite.length + ' 个新键');
+    /* 本次写的逐值比对；之前就在的只查存在（可能已被新代码更新过） */
+    const after = new Map((await dumpAll(c)).map((e) => [e.name, e]));
+    const a = verifyPlan(toWrite, after);
+    const b = verifyPlan(existing, after, { presenceOnly: true });
+    const mm = a.mismatches.concat(b.mismatches);
+    for (const m of mm) console.log('  不一致 ' + m.key + '：' + m.reason);
+    console.log(mm.length === 0 ? '校验通过：写入 ' + toWrite.length + ' 个、已存在 ' + existing.length + ' 个' : '校验失败：' + mm.length + ' 个');
+    return mm.length === 0 ? 0 : 1;
   }
   if (mode === 'verify') return (await verifyNow()) ? 0 : 1;
   /* delete-old：先确认新键都在（PR 3 已部署，值可能已被新代码更新，不再比值），才删 */

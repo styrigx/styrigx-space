@@ -13,3 +13,6 @@ web/data/tailwind.json
 test-results/
 playwright-report/
 .wrangler/
+
+# KV 迁移备份（明文；脚本默认写到仓库外，这里兜底）
+kv-backup-*.json

@@ -25,15 +25,16 @@ migrations/  D1 建表
 
 执行顺序：
 
-1. `node scripts/migrate-kv-names.mjs`：dry-run，备份整个 namespace 到本地 JSON 并打印计划，核对一遍。
-2. `node scripts/migrate-kv-names.mjs --apply`：写新键（保留原过期时间）并逐键校验。
+1. `node scripts/migrate-kv-names.mjs`：dry-run，备份整个 namespace 到 `~/.sgx-kv-backups/`（明文，0600；`--backup-dir` 可改，但不许在仓库里）并打印计划，核对一遍。
+2. `node scripts/migrate-kv-names.mjs --apply`：写新键（保留原过期时间）并逐键校验；目标键已存在的不覆盖。
 3. 部署本版本。
 4. 实测：锁屏密码、锁屏通行密钥、账号密码、账号通行密钥、设备列表；重新签发全部临时钥匙（旧临时钥匙不迁移，码哈希的域串已改为 `lock-tempkey|`）。
 5. `node scripts/migrate-kv-names.mjs --delete-old`：确认新键都在后删除全部旧键，包括已作废的旧通行密钥索引、应用凭证旧记录和旧临时钥匙（完整清单见脚本开头注释）。
 
 注意：
 
-- **部署后不要再跑 `--apply`**：新代码会改新键的值（纪元、设备、通行密钥计数），再跑会用旧值覆盖。
+- `--apply` 不覆盖已存在的新键，重跑或部署后误跑不会用旧值盖掉新代码写的纪元、设备、通行密钥计数；但部署后本来也不需要再跑。
+- 备份是整个 namespace 的明文（密码哈希、通行密钥、user handle），迁移收尾（`--delete-old` 成功、实测无误）后自己删掉。
 - `--verify` 只在部署前有意义，部署后新旧值本来就可能不同。
 - 后台手写的重置开关由脚本复制为 `lock-reset-switch`；以后开关重置都写这个新名。
 - 密码哈希、WebAuthn user handle、credId 原样不变，不需要重新注册或重设密码。Secrets Store 密钥名（含 `SGX_PW_PEPPER`）不变。
