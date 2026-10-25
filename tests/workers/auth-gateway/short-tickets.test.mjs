@@ -12,28 +12,13 @@ import assert from 'node:assert/strict';
 import { verifyTicket, signTicket, SHORT_TICKETS } from '../../../workers/auth-gateway/functions/_kernel/tickets.js';
 import { ed25519Sign } from '../../../workers/auth-gateway/functions/_kernel/crypto.js';
 import { TICKETS } from '../../../workers/auth-gateway/functions/_kernel/realms.js';
+import { makeKV, genKeyPair } from '../_harness.mjs';
 
-function derToPem(der, label) {
-  const b64 = Buffer.from(der).toString('base64');
-  const lines = b64.match(/.{1,64}/g).join('\n');
-  return `-----BEGIN ${label}-----\n${lines}\n-----END ${label}-----\n`;
-}
-async function pair() {
-  const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-  return {
-    priv: derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY'),
-    pub: derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY'),
-  };
-}
-const LOCK = await pair();
-const ACCOUNT = await pair();
+const LOCK = await genKeyPair();
+const ACCOUNT = await genKeyPair();
 const EPOCH = 3;
 
-function makeKV() {
-  const m = new Map([['lock-epoch', String(EPOCH)], ['account-epoch', String(EPOCH)]]);
-  return { get: async (k) => (m.has(k) ? m.get(k) : null), put: async (k, v) => { m.set(k, v); }, delete: async (k) => { m.delete(k); } };
-}
-const kv = makeKV();
+const kv = makeKV({ 'lock-epoch': String(EPOCH), 'account-epoch': String(EPOCH) });
 const env = {
   SGX_LOCK_PRIVATE: LOCK.priv, SGX_LOCK_PUBLIC: LOCK.pub,
   SGX_ACCOUNT_PRIVATE: ACCOUNT.priv, SGX_ACCOUNT_PUBLIC: ACCOUNT.pub,

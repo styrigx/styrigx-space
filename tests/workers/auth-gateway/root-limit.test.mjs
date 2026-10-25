@@ -16,35 +16,9 @@ import {
   ROOT_GLOBAL_SLOW_AT,
   ROOT_GLOBAL_DELAY_MS,
 } from '../../../workers/auth-gateway/functions/_kernel/root-limit.js';
+import { makeKV, genKeyPair } from '../_harness.mjs';
 
-function makeKV(seed = {}) {
-  const m = new Map(Object.entries(seed));
-  const kv = {
-    get: async (k, fmt) => {
-      if (kv._fail) throw new Error('kv-fail');
-      if (!m.has(k)) return null;
-      const v = m.get(k);
-      return fmt === 'json' ? JSON.parse(v) : v;
-    },
-    put: async (k, v) => {
-      if (kv._fail) throw new Error('kv-fail');
-      m.set(k, String(v));
-    },
-    delete: async (k) => { m.delete(k); },
-    list: async () => ({ keys: [...m.keys()].map((name) => ({ name })) }),
-    _map: m,
-    _fail: false,
-  };
-  return kv;
-}
-
-function derToPem(der, label) {
-  const b64 = Buffer.from(der).toString('base64');
-  return `-----BEGIN ${label}-----\n${b64.match(/.{1,64}/g).join('\n')}\n-----END ${label}-----\n`;
-}
-const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-const PRIV = derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY');
-const PUB = derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY');
+const { priv: PRIV, pub: PUB } = await genKeyPair();
 const ROOT_KEY = 'test-root-key-abcdef-123456';
 
 const env = (kv) => ({ KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, SGX_ROOT_KEY: ROOT_KEY, SGX_LOCK_PRIVATE: PRIV, SGX_LOCK_PUBLIC: PUB });

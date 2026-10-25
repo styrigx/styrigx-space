@@ -20,6 +20,7 @@ import { onRequest as mw } from '../../../workers/auth-gateway/functions/_middle
 import { verifyLockSession } from '../../../workers/auth-gateway/functions/_kernel/lock-session.js';
 import { API_ROUTES } from '../../../workers/auth-gateway/src/routes.js';
 import { testLockSession, testAccountSession } from './_tickets.mjs';
+import { makeKV } from '../_harness.mjs';
 
 function pair() {
   const { privateKey, publicKey } = generateKeyPairSync('ed25519');
@@ -31,23 +32,6 @@ function pair() {
 const LOCK = pair();
 const ACCT = pair();
 const PEPPER = 'tk-pepper';
-
-function makeKV() {
-  const store = new Map();
-  return {
-    store,
-    async get(k, type) {
-      if (!store.has(k)) return null;
-      const v = store.get(k).v;
-      return type === 'json' ? JSON.parse(v) : v;
-    },
-    async put(k, v, opts) { store.set(k, { v: String(v), opts: opts || null }); },
-    async delete(k) { store.delete(k); },
-    async list({ prefix }) {
-      return { keys: [...store.keys()].filter((k) => k.startsWith(prefix)).map((name) => ({ name })), list_complete: true };
-    },
-  };
-}
 
 /* 账号登录的 epoch / 设备记录在另一个 KV（KV_ACCOUNT_LOGIN），临时钥匙不放这里 */
 const ACCT_LOGIN_KV = makeKV();
@@ -125,9 +109,9 @@ test('签发：KV 只存哈希不存临时码，带到期时间；找得到、�
   const kv = makeKV();
   const { key, code } = await TL.createTempkey(kv, PEPPER, { name: '小明', ms: 3600e3 });
   const raw = TL.normalizeCode(code);
-  const dump = JSON.stringify([...kv.store.entries()]);
+  const dump = JSON.stringify([...kv.store.entries(), ...kv._opts.entries()]);
   assert.ok(!dump.includes(raw), 'KV 里不能出现明文临时码');
-  for (const [, v] of kv.store) assert.ok(v.opts && v.opts.expiration > Date.now() / 1000, '每个键都带过期时间');
+  for (const [k] of kv.store) assert.ok(kv._opts.get(k) && kv._opts.get(k).expiration > Date.now() / 1000, '每个键都带过期时间');
   assert.equal((await TL.findByCode(kv, PEPPER, raw)).id, key.id);
   assert.equal(await TL.findByCode(kv, 'other-pepper', raw), null, '换 pepper 对不上');
   assert.deepEqual((await TL.listTempkeys(kv)).map((k) => k.name), ['小明']);
@@ -153,7 +137,7 @@ test('KV 键名（第 5 层）：lock-tempkey:<id> / lock-tempkey-code:<hash> / 
   const h = await TL.hashCode(PEPPER, raw);
   const { createHash } = await import('node:crypto');
   assert.equal(h, createHash('sha256').update('lock-tempkey|' + PEPPER + '|' + raw).digest('hex'));
-  assert.equal(kv.store.get('lock-tempkey-code:' + h).v, key.id);
+  assert.equal(kv.store.get('lock-tempkey-code:' + h), key.id);
   await TL.revokeTempkey(kv, key.id);
   assert.ok(kv.store.has('lock-tempkey-revoked:' + key.id));
   assert.equal([...kv.store.keys()].some((k) => /^lock-temp[-:](?!key)/.test(k) || k.startsWith('lock-temp:')), false, '不写任何旧键');

@@ -25,6 +25,8 @@ const path = require('node:path');
 const nodeCrypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 const { pathToFileURL } = require('node:url');
+/* 内存 KV、DER→PEM：和 Worker 单测同一份（tests/workers/_harness.cjs） */
+const { makeKV, derToPem } = require('../../workers/_harness.cjs');
 
 const REPO = process.env.SGX_EDGE_REPO || path.join(__dirname, '..', '..', '..');
 const PROXY_PORT = Number(process.env.SGX_EDGE_PROXY_PORT || 8941);
@@ -53,29 +55,6 @@ const LAUNCH = {
 
 const dynImport = new Function('u', 'return ' + 'im' + 'port(u)');
 const mod = (rel) => dynImport(pathToFileURL(path.join(REPO, rel)).href);
-
-function makeKV() {
-  const m = new Map();
-  return {
-    get: async (k, type) => {
-      const v = m.get(k);
-      if (v === undefined) return null;
-      return type === 'json' ? JSON.parse(v) : v;
-    },
-    put: async (k, v) => { m.set(k, typeof v === 'string' ? v : JSON.stringify(v)); },
-    delete: async (k) => { m.delete(k); },
-    list: async (opts) => {
-      const prefix = (opts && opts.prefix) || '';
-      return { keys: [...m.keys()].filter((n) => n.startsWith(prefix)).map((name) => ({ name })), list_complete: true };
-    },
-    _map: m,
-  };
-}
-
-function derToPem(der, label) {
-  const b64 = Buffer.from(der).toString('base64');
-  return `-----BEGIN ${label}-----\n${b64.match(/.{1,64}/g).join('\n')}\n-----END ${label}-----\n`;
-}
 
 const MIME = {
   html: 'text/html; charset=utf-8', css: 'text/css', js: 'text/javascript', json: 'application/json',

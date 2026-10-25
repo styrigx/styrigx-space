@@ -17,48 +17,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { testLockSession } from './_tickets.mjs';
+import { makeKV, genKeyPair, postReq } from '../_harness.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-function makeKv(init) {
-  const m = new Map(Object.entries(init || {}));
-  const calls = { get: 0, put: 0, delete: 0, list: 0 };
-  return {
-    get: async (k, t) => {
-      calls.get++;
-      const v = m.get(k);
-      if (v === undefined) return null;
-      return t === 'json' ? JSON.parse(v) : v;
-    },
-    put: async (k, v, o) => { calls.put++; m.set(k, typeof v === 'string' ? v : JSON.stringify(v)); },
-    delete: async (k) => { calls.delete++; m.delete(k); },
-    list: async (o) => { calls.list++; const p = (o && o.prefix) || ''; return { keys: Array.from(m.keys()).filter((name) => name.startsWith(p)).map((name) => ({ name })) }; },
-    _store: m,
-    _calls: calls,
-  };
-}
-
-function postReq(url, body, headers) {
-  const h = { 'Content-Type': 'application/json', 'Origin': new URL(url).origin };
-  Object.assign(h, headers || {});
-  return new Request(url, { method: 'POST', headers: h, body: JSON.stringify(body || {}) });
-}
-
 /* 测试用 Ed25519 密钥 */
 let TEST_PRIV_PEM = '';
 let TEST_PUB_PEM = '';
-function derToPem(der, label) {
-  const b64 = Buffer.from(der).toString('base64');
-  const lines = b64.match(/.{1,64}/g).join('\n');
-  return `-----BEGIN ${label}-----\n${lines}\n-----END ${label}-----\n`;
-}
 async function genTestKeys() {
-  const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-  const privDer = await crypto.subtle.exportKey('pkcs8', kp.privateKey);
-  const pubDer = await crypto.subtle.exportKey('spki', kp.publicKey);
-  TEST_PRIV_PEM = derToPem(privDer, 'PRIVATE KEY');
-  TEST_PUB_PEM = derToPem(pubDer, 'PUBLIC KEY');
+  ({ priv: TEST_PRIV_PEM, pub: TEST_PUB_PEM } = await genKeyPair());
 }
 await genTestKeys();
 
@@ -106,7 +74,7 @@ test('认证入口：访客会话提交正确根凭证 → 401 密码错误，�
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
 
-  const kv = makeKv({ 'lock-configured': '1' });
+  const kv = makeKV({ 'lock-configured': '1' });
   const env = baseEnv(kv);
 
   /* 构造有效访客会话 cookie */
@@ -139,8 +107,8 @@ test('认证入口：访客假入口与真失败响应逐字节相同', async ()
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
 
-  const kv1 = makeKv({ 'lock-configured': '1' });
-  const kv2 = makeKv({ 'lock-configured': '1' });
+  const kv1 = makeKV({ 'lock-configured': '1' });
+  const kv2 = makeKV({ 'lock-configured': '1' });
 
   /* B1-9：访客提交任何值都返回同一个 401 denied（不读存储） */
   const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'visitor');
@@ -188,7 +156,7 @@ test('行为：账号登录状态四种配置返回正确', async () => {
     }, true, true],
   ];
   for (const [seed, pw, pk] of cases) {
-    const kv = makeKv(seed);
+    const kv = makeKV(seed);
     const res = await onRequestGet({ request: getReq(), env: baseEnv(kv) });
     const body = await res.json();
     assert.equal(body.ok, true);
@@ -203,7 +171,7 @@ test('行为：账号登录状态四种配置返回正确', async () => {
 test('认证入口：重置锁屏 status 始终可用（不暴露管理员凭证是否配置）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
   /* owner 未配置 */
-  const kv = makeKv({ 'lock-configured': '1' });
+  const kv = makeKV({ 'lock-configured': '1' });
   const env = baseEnv(kv);
   const st = postReq('https://test.example.com/api/lock-reset', { action: 'status' });
   const stRes = await onRequestPost({ request: st, env });
@@ -231,7 +199,7 @@ test('补充七：/api/lock-entry 四种配置返回正确', async () => {
   const get = (url, env) => new Request(url, { method: 'GET' });
 
   /* 都没设置 */
-  let kv = makeKv({});
+  let kv = makeKV({});
   let res = await onRequestGet({ request: get('https://test.example.com/api/lock-entry'), env: baseEnv(kv) });
   let j = await res.json();
   assert.equal(j.ok, true);
@@ -239,14 +207,14 @@ test('补充七：/api/lock-entry 四种配置返回正确', async () => {
   assert.equal(j.password, false, '无凭据时 password 应为 false');
 
   /* 仅密码 */
-  kv = makeKv({ 'lock-password': JSON.stringify({ hash: 'h', salt: 's' }) });
+  kv = makeKV({ 'lock-password': JSON.stringify({ hash: 'h', salt: 's' }) });
   res = await onRequestGet({ request: get('https://test.example.com/api/lock-entry'), env: baseEnv(kv) });
   j = await res.json();
   assert.equal(j.passkey, false);
   assert.equal(j.password, true);
 
   /* 仅通行密钥 */
-  kv = makeKv({
+  kv = makeKV({
     'lock-passkey-index': JSON.stringify(['cid1']),
     'lock-passkey:cid1': JSON.stringify({ credId: 'cid1' }),
   });
@@ -256,7 +224,7 @@ test('补充七：/api/lock-entry 四种配置返回正确', async () => {
   assert.equal(j.password, false);
 
   /* 两者都有 */
-  kv = makeKv({
+  kv = makeKV({
     'lock-password': JSON.stringify({ hash: 'h', salt: 's' }),
     'lock-passkey-index': JSON.stringify(['cid1']),
     'lock-passkey:cid1': JSON.stringify({ credId: 'cid1' }),
@@ -267,7 +235,7 @@ test('补充七：/api/lock-entry 四种配置返回正确', async () => {
   assert.equal(j.password, true);
 
   /* 非 lock 类凭据不应算作锁屏通行密钥 */
-  kv = makeKv({
+  kv = makeKV({
     'account-passkey-index': JSON.stringify(['cid9']),
     'account-passkey:cid9': JSON.stringify({ credId: 'cid9' }),
   });
@@ -300,7 +268,7 @@ test('补充七：/api/lock-entry 读取失败按已配置处理（不暴露根�
 test('行为：/api/lock-entry 只剩标记时不暴露根凭证入口', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-entry.js');
   /* 只有标记，无 lock-password、无 passkey */
-  const kv = makeKv({ 'lock-configured': '1' });
+  const kv = makeKV({ 'lock-configured': '1' });
   const res = await onRequestGet({
     request: new Request('https://test.example.com/api/lock-entry', { method: 'GET' }),
     env: baseEnv(kv),
@@ -314,7 +282,7 @@ test('行为：/api/lock-entry 只剩标记时不暴露根凭证入口', async (
 test('补充七：已配置锁屏凭证时，锁屏根凭证路径被服务端拒绝（无会话 → 401）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   /* lock 层已配置，无会话提交正确的根凭证 */
-  const kv = makeKv({ 'lock-configured': '1' });
+  const kv = makeKV({ 'lock-configured': '1' });
   const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345', purpose: 'lock-reauth' });
   const res = await onRequestPost({ request: req, env: baseEnv(kv) });
   assert.equal(res.status, 401, '已配置时无会话根凭证路径应被拒绝');
@@ -328,7 +296,7 @@ test('补充七：访客管理凭证提交任何值都返回密码错误且不�
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
 
-  const kv = makeKv({ 'lock-configured': '1' });
+  const kv = makeKV({ 'lock-configured': '1' });
   const env = baseEnv(kv);
   const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'visitor');
 
@@ -352,7 +320,7 @@ test('补充七：访客管理凭证提交任何值都返回密码错误且不�
 test('行为：lockreset 管理员凭证未配置 → 通用 401 auth（不泄露 not-set）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
   /* owner 未配置（无标记、无密码、无 passkey），lock 也未配置 */
-  const kv = makeKv({});
+  const kv = makeKV({});
   const env = baseEnv(kv);
   const req = postReq('https://test.example.com/api/lock-reset', {
     action: 'verify', rootKey: 'test-root-key-12345',
@@ -367,7 +335,7 @@ test('行为：lockreset 管理员凭证未配置 → 通用 401 auth（不泄�
 test('行为：lockreset 记失败计数写 KV 出错 → 503', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
   /* KV 的 put 抛错 */
-  const kv = makeKv({});
+  const kv = makeKV({});
   kv.put = async () => { throw new Error('kv-down'); };
   const env = baseEnv(kv);
   const req = postReq('https://test.example.com/api/lock-reset', {
@@ -381,7 +349,7 @@ test('行为：lockreset 记失败计数写 KV 出错 → 503', async () => {
 test('行为：lockreset needAccount 带 passkey/password 布尔', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
   /* owner 只配置了密码（含 account-configured 标记） */
-  const kv = makeKv({
+  const kv = makeKV({
     'account-configured': '1',
     'account-password': JSON.stringify({ hash: 'x', algo: 'test' }),
   });
@@ -402,7 +370,7 @@ test('行为：lockreset needAccount 带 passkey/password 布尔', async () => {
 
 test('行为：/api/account 状态需 admin lock 会话，无会话 → 401', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/account.js');
-  const kv = makeKv({});
+  const kv = makeKV({});
   const env = baseEnv(kv);
   const req = new Request('https://test.example.com/api/account', { method: 'GET' });
   const res = await onRequestGet({ request: req, env });
@@ -413,7 +381,7 @@ test('行为：/api/account 状态只看 owner 类（账号）通行密钥', asy
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/account.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
   /* 只有 lock 类 passkey，无账号密码 */
-  const kv = makeKv({
+  const kv = makeKV({
     'lock-passkey-index': JSON.stringify(['abc123']),
     'lock-passkey:abc123': JSON.stringify({ credId: 'abc123', publicKey: 'x' }),
   });
@@ -437,7 +405,7 @@ test('行为：访客会话下 root-auth 不走真路径（即使 lock 未配置
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
   /* lock 已配置 */
-  const kv = makeKv({ 'lock-configured': '1' });
+  const kv = makeKV({ 'lock-configured': '1' });
   const env = baseEnv(kv);
   const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'visitor');
   /* 提交正确的根凭证 */
@@ -454,7 +422,7 @@ test('行为：锁屏未配置 + 访客 cookie 时 root-auth 走真路径（不�
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
   /* B1-9：访客一律 401 denied，不区分新站旧站（lockCfg 例外已删除） */
-  const kv = makeKv({});
+  const kv = makeKV({});
   const env = baseEnv(kv);
   const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'visitor');
   const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345', purpose: 'lock-reauth' }, {
@@ -503,7 +471,7 @@ function getReq(url, headers) {
 
 test('行为：/api/lock-credentials 无鉴权 → 401', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-credentials.js');
-  const kv = makeKv({});
+  const kv = makeKV({});
   const env = baseEnv(kv);
   const res = await onRequestGet({ request: getReq('https://test.example.com/api/lock-credentials'), env });
   assert.equal(res.status, 401, '无会话无票据应 401');
@@ -512,7 +480,7 @@ test('行为：/api/lock-credentials 无鉴权 → 401', async () => {
 test('行为：/api/lock-credentials 访客会话 → 401', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-credentials.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
-  const kv = makeKv({});
+  const kv = makeKV({});
   const env = baseEnv(kv);
   const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'visitor');
   const res = await onRequestGet({
@@ -526,7 +494,7 @@ test('行为：只有管理员密码时 /api/lock-credentials 返回 password:fa
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-credentials.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
   /* 只有 account-password，无 lock-password，无通行密钥 */
-  const kv = makeKv({
+  const kv = makeKV({
     'account-password': JSON.stringify({ hash: 'owner-hash' }),
   });
   const env = baseEnv(kv);
@@ -546,7 +514,7 @@ test('行为：只有锁屏密码时 /api/lock-credentials 返回 password:true�
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-credentials.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
   /* 只有 lock-password，无 account-password，无通行密钥 */
-  const kv = makeKv({
+  const kv = makeKV({
     'lock-password': JSON.stringify({ hash: 'lock-hash' }),
   });
   const env = baseEnv(kv);
@@ -566,7 +534,7 @@ test('行为：/api/lock-credentials 只看 class=lock 通行密钥', async () =
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-credentials.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
   /* 只有 owner 类通行密钥 */
-  const kv1 = makeKv({
+  const kv1 = makeKV({
     'account-passkey-index': JSON.stringify(['o1']),
     'account-passkey:o1': JSON.stringify({ credId: 'o1', publicKey: 'x' }),
   });
@@ -579,7 +547,7 @@ test('行为：/api/lock-credentials 只看 class=lock 通行密钥', async () =
   const body1 = JSON.parse(await res1.text());
   assert.equal(body1.passkey, false, '只有 owner 类时 passkey 应为 false');
   /* 加上 lock 类通行密钥 */
-  const kv2 = makeKv({
+  const kv2 = makeKV({
     'lock-passkey-index': JSON.stringify(['l1']),
     'account-passkey-index': JSON.stringify(['o1']),
     'account-passkey:o1': JSON.stringify({ credId: 'o1', publicKey: 'x' }),
@@ -600,7 +568,7 @@ test('行为：/api/lock-credentials 只看 class=lock 通行密钥', async () =
 test('行为：/api/lock-credentials KV 读取失败 → 503（fail closed，不按未设置退回）', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-credentials.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
-  const kv = makeKv({ 'lock-epoch': '0' });
+  const kv = makeKV({ 'lock-epoch': '0' });
   /* 会话校验的 lock-epoch 读取正常，只有 lock-password 读取失败 */
   const origGet = kv.get;
   kv.get = async (k, t) => {
@@ -619,7 +587,7 @@ test('行为：/api/lock-credentials KV 读取失败 → 503（fail closed，不
 test('行为：/api/lock-credentials 未绑 KV → 500', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-credentials.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
-  const env = baseEnv(makeKv({}));
+  const env = baseEnv(makeKV({}));
   delete env.KV_LOCK_DOOR;
   delete env.KV_ACCOUNT_LOGIN;
   const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');

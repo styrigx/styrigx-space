@@ -13,20 +13,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { testLockSession, testTicket } from './_tickets.mjs';
 import { makePasswordRecord } from '../../../workers/auth-gateway/functions/_kernel/password.js';
+import { genKeyPair } from '../_harness.mjs';
 
 const API = '../../../workers/auth-gateway/functions/api/';
-
-function derToPem(der, label) {
-  const b64 = Buffer.from(der).toString('base64');
-  return `-----BEGIN ${label}-----\n${b64.match(/.{1,64}/g).join('\n')}\n-----END ${label}-----\n`;
-}
-async function edPair() {
-  const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-  return {
-    priv: derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY'),
-    pub: derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY'),
-  };
-}
 
 /** 同一份存储上的两个视图；越界访问记进 violations */
 function splitKV() {
@@ -88,8 +77,8 @@ function cookieJar() {
 }
 
 test('KV 绑定按域分：锁屏 / 账号两域的入口跑一遍，没有一次越界访问', async () => {
-  LOCK = await edPair();
-  ACCOUNT = await edPair();
+  LOCK = await genKeyPair();
+  ACCOUNT = await genKeyPair();
   const kv = splitKV();
   const env = {
     KV_LOCK_DOOR: kv.lock, KV_ACCOUNT_LOGIN: kv.account,

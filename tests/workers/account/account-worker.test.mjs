@@ -13,6 +13,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { gatewayVerifier } from './_auth.mjs';
 import { testLockSession, testAccountSession } from '../auth-gateway/_tickets.mjs';
+import { genKeyPair } from '../_harness.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 const worker = (await import(REPO + 'workers/account/src/index.js')).default;
@@ -22,13 +23,7 @@ const { signAccountSessionTicket } = await import(REPO + 'workers/auth-gateway/f
 const { checkAccountSession } = await import(REPO + 'workers/auth-gateway/src/verifier.js');
 const { KEY_VER, keyOf, avatarKv } = await import(REPO + 'workers/account/src/lib/avatar.js');
 
-function derToPem(der, label) {
-  const b64 = Buffer.from(der).toString('base64');
-  return `-----BEGIN ${label}-----\n${b64.match(/.{1,64}/g).join('\n')}\n-----END ${label}-----\n`;
-}
-const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-const PRIV = derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY');
-const PUB = derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY');
+const { priv: PRIV, pub: PUB } = await genKeyPair();
 
 function makeKv(init = {}) {
   const m = new Map(Object.entries(init));
@@ -180,8 +175,7 @@ test('会话问网关：网关报错 / 没绑 AUTH / 回了看不懂的东西 �
 
 test('伪造 / 过期的 cookie：网关验签不过 → 401', async () => {
   const { env } = setup();
-  const other = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-  const otherPriv = derToPem(await crypto.subtle.exportKey('pkcs8', other.privateKey), 'PRIVATE KEY');
+  const { priv: otherPriv } = await genKeyPair();
   const forged = 'sgx-lock-session=' + (await testLockSession(otherPriv, 0, 'admin', 'password'));
   const r = await call(new Request('https://styrigx.com/api/wellbeing', { headers: { Cookie: forged } }), env);
   assert.equal(r.status, 401);

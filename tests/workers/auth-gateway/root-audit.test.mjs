@@ -10,15 +10,9 @@ import assert from 'node:assert/strict';
 import { onRequestGet, AUDIT_SHOW } from '../../../workers/auth-gateway/functions/api/root-audit.js';
 import { testLockSessionCookie, testTicketCookie } from './_tickets.mjs';
 import { LOCK_REAUTH_TICKET } from '../../../workers/auth-gateway/functions/_kernel/realms.js';
+import { genKeyPair } from '../_harness.mjs';
 
-function derToPem(der, label) {
-  const b64 = Buffer.from(der).toString('base64');
-  const lines = b64.match(/.{1,64}/g).join('\n');
-  return `-----BEGIN ${label}-----\n${lines}\n-----END ${label}-----\n`;
-}
-const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-const PRIV = derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY');
-const PUB = derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY');
+const { priv: PRIV, pub: PUB } = await genKeyPair();
 
 /** 分页 KV：list 按键名升序，每页 pageSize 个，带 cursor / list_complete（与 Workers KV 一致） */
 function pagedKV(seed, pageSize) {

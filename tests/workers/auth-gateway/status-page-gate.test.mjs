@@ -11,15 +11,9 @@ import assert from 'node:assert/strict';
 import { signLockSessionTicket } from '../../../workers/auth-gateway/functions/_kernel/lock-session.js';
 import { onRequest as mw } from '../../../workers/auth-gateway/functions/_middleware.js';
 import { testLockSession } from './_tickets.mjs';
+import { genKeyPair } from '../_harness.mjs';
 
-function derToPem(der, label) {
-  const lines = Buffer.from(der).toString('base64').match(/.{1,64}/g).join('\n');
-  return `-----BEGIN ${label}-----\n${lines}\n-----END ${label}-----\n`;
-}
-
-const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-const PRIV = derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY');
-const PUB = derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY');
+const { priv: PRIV, pub: PUB } = await genKeyPair();
 
 function kv() {
   const m = new Map();

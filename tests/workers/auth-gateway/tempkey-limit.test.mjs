@@ -15,21 +15,8 @@ import {
   TEMPKEY_GLOBAL_SLOW_AT, TEMPKEY_GLOBAL_DELAY_MS,
 } from '../../../workers/auth-gateway/functions/_kernel/lock-tempkey.js';
 import { onRequestPost as unlockPost } from '../../../workers/auth-gateway/functions/api/lock-tempkey-unlock.js';
+import { makeKV } from '../_harness.mjs';
 
-function makeKV(seed = {}) {
-  const m = new Map(Object.entries(seed));
-  return {
-    m,
-    get: async (k, fmt) => {
-      const v = m.has(k) ? m.get(k) : null;
-      if (v === null) return null;
-      return fmt === 'json' ? JSON.parse(v) : v;
-    },
-    put: async (k, v) => { m.set(k, String(v)); },
-    delete: async (k) => { m.delete(k); },
-    list: async ({ prefix = '' } = {}) => ({ keys: [...m.keys()].filter((n) => n.startsWith(prefix)).map((name) => ({ name })), list_complete: true }),
-  };
-}
 const GLOBAL = 'lock-tempkey-fail-global';
 const waits = [];
 const fakeSleep = async (ms) => { waits.push(ms); };

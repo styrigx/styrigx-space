@@ -16,16 +16,11 @@ import { API_ROUTES } from '../../../workers/auth-gateway/src/routes.js';
 import { SECRET_NAMES } from '../../../workers/auth-gateway/src/secrets.js';
 import chatWorker from '../../../workers/chat/src/index.js';
 import { testLockSession } from './_tickets.mjs';
+import { genKeyPair } from '../_harness.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 
-function derToPem(der, label) {
-  const lines = Buffer.from(der).toString('base64').match(/.{1,64}/g).join('\n');
-  return `-----BEGIN ${label}-----\n${lines}\n-----END ${label}-----\n`;
-}
-const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-const PRIV = derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY');
-const PUB = derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY');
+const { priv: PRIV, pub: PUB } = await genKeyPair();
 const OWNER = await testLockSession(PRIV, 0, 'admin');
 const VISITOR = await testLockSession(PRIV, 0, 'visitor');
 

@@ -19,6 +19,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { testLockSession, testAccountSession } from './_tickets.mjs';
+import { genKeyPair } from '../_harness.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
@@ -27,13 +28,7 @@ const { readRoutes, pickRoute, routeMatches } = await import(REPO + '/scripts/li
 const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
 const { signAccountSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/account-session.js');
 
-function derToPem(der, label) {
-  const b64 = Buffer.from(der).toString('base64');
-  return `-----BEGIN ${label}-----\n${b64.match(/.{1,64}/g).join('\n')}\n-----END ${label}-----\n`;
-}
-const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-const PRIV = derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY');
-const PUB = derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY');
+const { priv: PRIV, pub: PUB } = await genKeyPair();
 const CTX = { waitUntil() {} };
 
 const DESKTOP_HTML = '<!doctype html><html lang="zh"><body><!-- SGX-DESKTOP-START --><div id="desk">DESK</div><!-- SGX-DESKTOP-END --></body></html>';
@@ -143,6 +138,10 @@ test('B session-check?return：不合法 return → 首页；退役子站 → �
   assert.equal((await check('?return=' + encodeURIComponent('//evil.example/'), c)).j.next, '/');
   assert.equal((await check('?return=' + encodeURIComponent('https://book.styrigx.com/'), c)).j.next, '/');
   assert.equal((await check('', c)).j.next, null);
+  /* 无 return：整份正文（原 session-security「有效会话 → 200 {ok:true, role}」） */
+  const plain = await check('', c);
+  assert.equal(plain.status, 200);
+  assert.deepEqual(plain.j, { ok: true, role: 'admin', next: null, upgrade: false });
 });
 
 test('B session-check：访客 + 管理员专属 return → upgrade（就地管理员验证）；管理员 + 门内页 → 安全总览', async () => {
@@ -155,12 +154,22 @@ test('B session-check：访客 + 管理员专属 return → upgrade（就地管�
   /* 子站同名路径不是管理员专属页 */
   const s = await check('?return=' + encodeURIComponent('https://blog.styrigx.com/settings/security/lock/'), await lockCookie('visitor'));
   assert.equal(s.j.upgrade, false);
+  /* 访客、无 return：整份正文带 visitor 角色（原 session-security「2.8.0：session-check 返回 visitor 角色」） */
+  const vp = await check('', await lockCookie('visitor'));
+  assert.equal(vp.status, 200);
+  assert.deepEqual(vp.j, { ok: true, role: 'visitor', next: null, upgrade: false });
 });
 
-test('B session-check：没有会话 → 401 no-store', async () => {
+test('B session-check：没有会话 / 坏会话 → 401 no-store', async () => {
   const r = await check('?return=%2F', '');
   assert.equal(r.status, 401);
   assert.equal(r.cc, 'private, no-store');
+  /* 以下两条原在 session-security「无会话/坏会话 → 401」 */
+  const none = await check('', '');
+  assert.equal(none.status, 401);
+  assert.deepEqual(none.j, { ok: false });
+  /* 旧三段式（无 role）→ 无效 */
+  assert.equal((await check('', 'sgx-lock-session=0.9999999999999.badsig')).status, 401);
 });
 
 /* ---------------- C. 访客打开管理员专属页 ---------------- */

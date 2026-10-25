@@ -16,19 +16,12 @@ import { looksVisitor } from '../../../workers/auth-gateway/functions/_kernel/lo
 import { ed25519Sign } from '../../../workers/auth-gateway/functions/_kernel/crypto.js';
 import { onRequestPost as rootAuthPost } from '../../../workers/auth-gateway/functions/api/root-auth.js';
 import { onRequestPost as lockResetPost } from '../../../workers/auth-gateway/functions/api/lock-reset.js';
+import { genKeyPair } from '../_harness.mjs';
 
 const ROOT_KEY = 'test-root-key-12345';
 const EXPECTED_BODY = JSON.stringify({ ok: false, error: 'denied' });
 
-function derToPem(der, label) {
-  const b64 = Buffer.from(der).toString('base64');
-  const lines = b64.match(/.{1,64}/g).join('\n');
-  return `-----BEGIN ${label}-----\n${lines}\n-----END ${label}-----\n`;
-}
-
-const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-const PRIV = derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY');
-const PUB = derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY');
+const { priv: PRIV, pub: PUB } = await genKeyPair();
 const RP = { SGX_RP_ID: 'styrigx.com', SGX_ORIGIN: 'https://styrigx.com' };
 
 /* 带计数的 KV：get / put / delete / list 都记次数 */

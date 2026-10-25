@@ -10,14 +10,9 @@ import { onRequest as mw } from '../../../workers/auth-gateway/functions/_middle
 import { safeReturn, resolveReturn } from '../../../workers/auth-gateway/functions/_kernel/return.js';
 import { onRequestGet as sessionCheck } from '../../../workers/auth-gateway/functions/api/lock-session-check.js';
 import { testLockSession } from './_tickets.mjs';
+import { genKeyPair } from '../_harness.mjs';
 
-function derToPem(der, label) {
-  const b64 = Buffer.from(der).toString('base64');
-  return `-----BEGIN ${label}-----\n${b64.match(/.{1,64}/g).join('\n')}\n-----END ${label}-----\n`;
-}
-const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-const PRIV = derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY');
-const PUB = derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY');
+const { priv: PRIV, pub: PUB } = await genKeyPair();
 const KV = { async get() { return null; }, async put() {}, async delete() {} };
 const ENV = { SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, KV_LOCK_DOOR: KV };
 const cookie = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'admin'));

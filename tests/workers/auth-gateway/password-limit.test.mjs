@@ -19,33 +19,11 @@ import {
   PASSWORD_GLOBAL_SLOW_AT,
   PASSWORD_GLOBAL_DELAY_MS,
 } from '../../../workers/auth-gateway/functions/_kernel/password-limit.js';
+import { makeKV, genKeyPair } from '../_harness.mjs';
 
 const PEPPER = 'test-pepper';
 
-function derToPem(der, label) {
-  const b64 = Buffer.from(der).toString('base64');
-  return `-----BEGIN ${label}-----\n${b64.match(/.{1,64}/g).join('\n')}\n-----END ${label}-----\n`;
-}
-const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-const PRIV = derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY');
-const PUB = derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY');
-
-function makeKV(seed = {}) {
-  const m = new Map(Object.entries(seed));
-  const ttl = new Map();
-  return {
-    get: async (k, fmt) => {
-      if (!m.has(k)) return null;
-      const v = m.get(k);
-      return fmt === 'json' ? JSON.parse(v) : v;
-    },
-    put: async (k, v, o) => { m.set(k, String(v)); ttl.set(k, o && o.expirationTtl); },
-    delete: async (k) => { m.delete(k); },
-    list: async () => ({ keys: [] }),
-    _map: m,
-    _ttl: ttl,
-  };
-}
+const { priv: PRIV, pub: PUB } = await genKeyPair();
 
 const IP = '198.51.100.20';
 function verify(kv, password, ip = IP) {

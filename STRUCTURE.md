@@ -152,6 +152,7 @@ tests/
 | `config/` | `playwright.config.js`、`lighthouserc.json`、`stylelintrc.json` |
 | `web/e2e/` | Playwright 页面测试；`visual/` 下是截图基线 |
 | `web/ui/` | 前端单元测试（`node --test`） |
+| `workers/_harness.mjs`、`_harness.cjs` | 测试台公共件：内存 KV（`makeKV`）、`derToPem`、`genKeyPair`、`postReq`；e2e 的 `edge-harness.cjs` / `cred-e2e-helpers.cjs` 也用 `_harness.cjs`，不再各写一份 |
 | `workers/auth-gateway/` | 鉴权单元测试（`node --test`） |
 | `workers/account/` | 账号 Worker 单元测试（头像、云同步、数字健康、门、路由；会话经网关真实的 verifier.js） |
 | `workers/share/` | 短链 Worker 单元测试（规则、生成 / 打开 / 作废、权限、限速、路由；钥匙和会话经网关真实的 share-issuer.js / verifier.js） |

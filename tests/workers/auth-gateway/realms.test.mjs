@@ -32,22 +32,9 @@ import {
   rpConfigMissing,
 } from '../../../workers/auth-gateway/functions/_kernel/realms.js';
 import { SECRET_NAMES } from '../../../workers/auth-gateway/src/secrets.js';
+import { makeKV } from '../_harness.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
-
-function makeKV(seed = {}) {
-  const m = new Map(Object.entries(seed));
-  return {
-    get: async (k, fmt) => {
-      const v = m.has(k) ? m.get(k) : null;
-      if (v === null) return null;
-      return fmt === 'json' ? JSON.parse(v) : v;
-    },
-    put: async (k, v) => { m.set(k, v); },
-    delete: async (k) => { m.delete(k); },
-    _map: m,
-  };
-}
 
 test('realms：线上格式与重构前字面量逐字相同', () => {
   assert.equal(REALM_LOCK.cookie, 'sgx-lock-session');
