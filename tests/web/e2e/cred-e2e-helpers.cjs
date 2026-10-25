@@ -7,7 +7,8 @@
  * - makeAttestationCredential：Node 端合成 WebAuthn 注册 attestation
  *   （UV=1；CDP 虚拟认证器开 UV 会抛 NotAllowedError，故不用浏览器仪式）。
  * - mintAuth(by)：按当前 Lock 纪元重签 admin 锁屏会话 + LockReauthTicket（sgx-lock-reauth）
- * - mintAccount(by, authAt)：账号会话（sgx-account-session）；mintAccountReauth(by)：AccountReauthTicket（sgx-account-reauth）
+ * - mintAccount(by, authAt)：账号会话（sgx-account-session，by 只能 password|passkey）；mintAccountReauth(by)：AccountReauthTicket（sgx-account-reauth）；
+ *   mintAccountReset()：AccountResetTicket（sgx-account-reset，by=root）
  *   （set/change/remove/register 会推进 epoch，每次鉴权操作前重签）。
  */
 const http = require('node:http');
@@ -252,6 +253,12 @@ async function startCredentialTestServer(port) {
     return await ticketsMod.signTicket(privPem, 'AccountReauthTicket', by || 'password', epoch);
   }
 
+  /* AccountResetTicket（sgx-account-reset）：只有 by=root（RootKey 不签账号会话，第一次设账号凭证走重置票） */
+  async function mintAccountReset() {
+    const epoch = await acctSess.getAccountEpoch(kv);
+    return await ticketsMod.signTicket(privPem, 'AccountResetTicket', 'root', epoch);
+  }
+
   return {
     kv,
     env,
@@ -259,6 +266,7 @@ async function startCredentialTestServer(port) {
     mintAuth,
     mintAccount,
     mintAccountReauth,
+    mintAccountReset,
     makeAttestationCredential,
     close: () => new Promise((resolve) => server.close(resolve)),
   };

@@ -14,6 +14,7 @@
  */
 const { test, expect } = require('@playwright/test');
 const { startEdge, LAUNCH } = require('./edge-harness.cjs');
+const { addVirtualAuth } = require('./preview-helpers.cjs');
 
 test.use({ launchOptions: { args: LAUNCH.args }, proxy: LAUNCH.proxy, viewport: { width: 412, height: 915 },
   userAgent: 'Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/27.0 Chrome/125.0.0.0 Mobile Safari/537.36',
@@ -58,11 +59,7 @@ test.beforeEach(async ({ context }) => {
 });
 
 async function addAuthenticator(page) {
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send('WebAuthn.enable');
-  const { authenticatorId } = await cdp.send('WebAuthn.addVirtualAuthenticator', {
-    options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true },
-  });
+  const { cdp, authenticatorId } = await addVirtualAuth(page, { uv: true });
   /* 每个测试一把新钥匙（signCount 各自从 0 起，测试之间不互相影响） */
   await cdp.send('WebAuthn.addCredential', { authenticatorId, credential: await edge.seedPasskey() });
 }
