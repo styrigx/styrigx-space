@@ -4,9 +4,9 @@
  *
  * - 临时码：12 位 Crockford Base32，规范化（大小写 / 连字符 / 空格 / O→0、I L→1）
  * - 有效期：1–24 小时、3 / 7 / 15 / 30 天，别的一律 400
- * - /api/lock-tempkey：要 owner lock 会话 + 账号会话；list / create / revoke；名字只在主人侧
- * - /api/lock-tempkey-unlock：对 → visitor 会话 + 钥匙票；错 → 403，同 IP 连错 5 次 429
- * - middleware：visitor 会话没有钥匙票 / 钥匙被作废 → 当作没会话；访客打不开账号页
+ * - /api/lock-tempkey：要 admin lock 会话 + 账号会话；list / create / revoke；名字只在管理员侧
+ * - /api/lock-tempkey-unlock：对 → visitor 锁屏会话（by=tempkey，票里带 tempkeyId）；错 → 403，同 IP 连错 5 次 429
+ * - middleware：visitor 会话没有 tempkeyId / 钥匙被作废 → 当作没会话；访客打不开账号页
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,10 +15,11 @@ import { generateKeyPairSync } from 'node:crypto';
 import * as TL from '../../../workers/auth-gateway/functions/_kernel/lock-tempkey.js';
 import { onRequestPost as tempPost } from '../../../workers/auth-gateway/functions/api/lock-tempkey.js';
 import { onRequestPost as unlockPost } from '../../../workers/auth-gateway/functions/api/lock-tempkey-unlock.js';
-import { signSessionCookie } from '../../../workers/auth-gateway/functions/_kernel/lock-session.js';
-import { signAccountTicket } from '../../../workers/auth-gateway/functions/_kernel/account-session.js';
-import { onRequest as mw, verifySessionDetailed } from '../../../workers/auth-gateway/functions/_middleware.js';
+import { ed25519Sign } from '../../../workers/auth-gateway/functions/_kernel/crypto.js';
+import { onRequest as mw } from '../../../workers/auth-gateway/functions/_middleware.js';
+import { verifyLockSession } from '../../../workers/auth-gateway/functions/_kernel/lock-session.js';
 import { API_ROUTES } from '../../../workers/auth-gateway/src/routes.js';
+import { testLockSession, testAccountSession } from './_tickets.mjs';
 
 function pair() {
   const { privateKey, publicKey } = generateKeyPairSync('ed25519');
@@ -65,10 +66,10 @@ function env(kv) {
   };
 }
 
-async function ownerCookies() {
-  const lock = await signSessionCookie(LOCK.priv, 0, 'owner', 'owner');
-  const acct = await signAccountTicket(ACCT.priv, 'password', 0, Date.now(), Date.now());
-  return 'sgx-verified=' + lock + '; sgx-account=' + acct;
+async function adminCookies() {
+  const lock = await testLockSession(LOCK.priv, 0, 'admin', 'password');
+  const acct = await testAccountSession(ACCT.priv, 'password', 0, Date.now(), Date.now());
+  return 'sgx-lock-session=' + lock + '; sgx-account-session=' + acct;
 }
 
 function post(url, body, cookie, ip) {
@@ -81,10 +82,10 @@ function post(url, body, cookie, ip) {
 const T = (body, cookie, kv) => tempPost({ request: post('https://styrigx.com/api/lock-tempkey', body, cookie), env: env(kv) });
 const U = (code, kv, ip, cookie) => unlockPost({ request: post('https://styrigx.com/api/lock-tempkey-unlock', { code }, cookie, ip), env: env(kv) });
 
-/** 从响应里取出 Cookie 头（只要 sgx-verified 带 Domain 的那条 + sgx-tk） */
+/** 从响应里取出 Cookie 头（只要 sgx-lock-session 带 Domain 的那条） */
 function cookiesFrom(res) {
   return res.headers.getSetCookie()
-    .filter((c) => (c.startsWith('sgx-verified=') && c.includes('Domain=') && !c.startsWith('sgx-verified=;')) || c.startsWith('sgx-tk='))
+    .filter((c) => c.startsWith('sgx-lock-session=') && c.includes('Domain=') && !c.startsWith('sgx-lock-session=;'))
     .map((c) => c.split(';')[0])
     .join('; ');
 }
@@ -146,22 +147,22 @@ test('上限 20 把', async () => {
 
 /* ---------------- /api/lock-tempkey（管理） ---------------- */
 
-test('管理接口：要同源 + owner lock 会话 + 账号会话', async () => {
+test('管理接口：要同源 + admin lock 会话 + 账号会话', async () => {
   const kv = makeKV();
-  const noOrigin = new Request('https://styrigx.com/api/lock-tempkey', { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: await ownerCookies() }, body: '{"action":"list"}' });
+  const noOrigin = new Request('https://styrigx.com/api/lock-tempkey', { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: await adminCookies() }, body: '{"action":"list"}' });
   assert.equal((await tempPost({ request: noOrigin, env: env(kv) })).status, 403);
   assert.equal((await T({ action: 'list' }, '', kv)).status, 401);
-  const lockOnly = 'sgx-verified=' + (await signSessionCookie(LOCK.priv, 0, 'owner', 'owner'));
+  const lockOnly = 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, 'admin', 'password'));
   const r = await T({ action: 'list' }, lockOnly, kv);
   assert.equal(r.status, 401);
   assert.equal((await r.json()).error, 'account');
-  const visitor = 'sgx-verified=' + (await signSessionCookie(LOCK.priv, 0, 'visitor', 'owner')) + '; sgx-tk=' + (await TL.signTk(env(kv), 'tktesttesttest01', Date.now() + 3600e3));
-  assert.equal((await T({ action: 'list' }, visitor, kv)).status, 401, '访客不是主人');
+  const visitor = 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, 'visitor'));
+  assert.equal((await T({ action: 'list' }, visitor, kv)).status, 401, '访客不是管理员');
 });
 
 test('管理接口：create → 只这一次返回临时码；list 有名字和到期；revoke', async () => {
   const kv = makeKV();
-  const c = await ownerCookies();
+  const c = await adminCookies();
   let r = await T({ action: 'create', name: ' 小红 ', days: 7 }, c, kv);
   assert.equal(r.status, 200);
   const j = await r.json();
@@ -183,27 +184,28 @@ test('管理接口：create → 只这一次返回临时码；list 有名字和�
 
 /* ---------------- /api/lock-tempkey-unlock（进门） ---------------- */
 
-test('进门：码对 → visitor 会话 + 钥匙票，Max-Age 不超过钥匙剩余时间', async () => {
+test('进门：码对 → visitor 会话（by=tempkey、带 tempkeyId），Max-Age 不超过钥匙剩余时间', async () => {
   const kv = makeKV();
-  const { code } = await TL.createTempkey(kv, PEPPER, { name: '', ms: 2 * 3600e3 });
+  const { key, code } = await TL.createTempkey(kv, PEPPER, { name: '', ms: 2 * 3600e3 });
   const r = await U(code.toLowerCase().replace(/-/g, ' '), kv, '1.1.1.1');
   assert.equal(r.status, 200);
   assert.deepEqual(await r.json(), { ok: true, role: 'visitor' });
   const sc = r.headers.getSetCookie();
-  const v = sc.find((c) => c.startsWith('sgx-verified=') && c.includes('Domain='));
-  const tk = sc.find((c) => c.startsWith('sgx-tk='));
+  const v = sc.find((c) => c.startsWith('sgx-lock-session=') && c.includes('Domain='));
   const age = (s) => parseInt(/Max-Age=(\d+)/.exec(s)[1], 10);
   assert.ok(age(v) <= 7200 && age(v) > 7100);
-  assert.equal(age(tk), age(v));
-  const sess = await verifySessionDetailed(new Request('https://styrigx.com/', { headers: { Cookie: cookiesFrom(r) } }), env(kv));
-  assert.deepEqual([sess.ok, sess.role], [true, 'visitor']);
+  assert.equal(sc.find((c) => c.startsWith('sgx-tk=')), undefined, '不再有单独的钥匙票');
+  const val = v.split(';')[0].slice('sgx-lock-session='.length).split('.');
+  assert.deepEqual([val[0], val[1], val[4]], ['tempkey', 'visitor', key.id]);
+  const sess = await verifyLockSession(new Request('https://styrigx.com/', { headers: { Cookie: cookiesFrom(r) } }), env(kv));
+  assert.deepEqual([sess.ok, sess.role, sess.by, sess.tempkeyId], [true, 'visitor', 'tempkey', key.id]);
 });
 
 test('进门：30 天的钥匙，一次会话最长 12 小时', async () => {
   const kv = makeKV();
   const { code } = await TL.createTempkey(kv, PEPPER, { name: '', ms: 30 * 24 * 3600e3 });
   const r = await U(code, kv, '1.1.1.2');
-  assert.ok(r.headers.getSetCookie().find((c) => c.startsWith('sgx-tk=')).includes('Max-Age=43200'));
+  assert.ok(r.headers.getSetCookie().find((c) => c.startsWith('sgx-lock-session=') && c.includes('Domain=')).includes('Max-Age=43200'));
 });
 
 test('进门：码错 403 wrong；同 IP 连错 5 次 429 locked，锁定后码对也进不去', async () => {
@@ -221,11 +223,11 @@ test('进门：码错 403 wrong；同 IP 连错 5 次 429 locked，锁定后码�
   assert.equal((await U(code, kv, '8.8.8.8')).status, 200, '别的 IP 不受影响');
 });
 
-test('进门：已经是主人 → ok，不降级成访客、不下发 cookie', async () => {
+test('进门：已经是管理员 → ok，不降级成访客、不下发 cookie', async () => {
   const kv = makeKV();
-  const owner = 'sgx-verified=' + (await signSessionCookie(LOCK.priv, 0, 'owner', 'owner'));
-  const r = await U('AAAA-BBBB-CCCC', kv, '1.2.3.4', owner);
-  assert.deepEqual(await r.json(), { ok: true, role: 'owner' });
+  const admin = 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, 'admin', 'password'));
+  const r = await U('AAAA-BBBB-CCCC', kv, '1.2.3.4', admin);
+  assert.deepEqual(await r.json(), { ok: true, role: 'admin' });
   assert.equal(r.headers.get('Set-Cookie'), null);
 });
 
@@ -252,34 +254,39 @@ async function visitorFor(kv) {
 const page = (path, cookie) => new Request('https://styrigx.com' + path, { headers: cookie ? { Cookie: cookie } : {} });
 const next = async () => new Response('<html><body>PAGE</body></html>', { headers: { 'Content-Type': 'text/html' } });
 
-test('middleware：访客会话没有钥匙票 → 无效（以前 Turnstile 签的访客会话不再认）', async () => {
+test('middleware：visitor 会话没有 tempkeyId（以前 Turnstile 签的访客会话 / 旧格式）→ 无效', async () => {
   const kv = makeKV();
-  const bare = 'sgx-verified=' + (await signSessionCookie(LOCK.priv, 0, 'visitor', 'owner'));
-  const s = await verifySessionDetailed(page('/', bare), env(kv));
+  const payload = 'tempkey.visitor.0.' + (Date.now() + 3600e3) + '.';
+  const sig = await ed25519Sign(LOCK.priv, 'sgx-lock-session|' + payload);
+  const bare = 'sgx-lock-session=' + payload + '.' + sig;
+  const s = await verifyLockSession(page('/', bare), env(kv));
   assert.equal(s.ok, false);
-  assert.equal(s.reason, 'no-tk');
+  assert.equal(s.reason, 'bad-format');
   const res = await mw({ request: page('/blog/', bare), env: env(kv), next });
   assert.equal(res.status, 302);
 });
 
-test('middleware：钥匙票签名不对 / 和别的 lock 私钥签的 → 无效', async () => {
+test('middleware：visitor 会话签名不对 / 别的 lock 私钥签的 / 改了 tempkeyId → 无效', async () => {
   const kv = makeKV();
   const { cookie } = await visitorFor(kv);
   const other = pair();
-  const forged = cookie.replace(/sgx-tk=[^;]+/, 'sgx-tk=' + (await TL.signTk({ SGX_LOCK_PRIVATE: other.priv }, 'tktesttesttest01', Date.now() + 3600e3)));
-  assert.equal((await verifySessionDetailed(page('/', forged), env(kv))).reason, 'bad-tk');
+  const forged = 'sgx-lock-session=' + (await testLockSession(other.priv, 0, 'visitor'));
+  assert.equal((await verifyLockSession(page('/', forged), env(kv))).reason, 'bad-sig');
+  const p = cookie.slice('sgx-lock-session='.length).split('.');
+  p[4] = 'tktesttesttest99';
+  assert.equal((await verifyLockSession(page('/', 'sgx-lock-session=' + p.join('.')), env(kv))).reason, 'bad-sig');
 });
 
-test('middleware：作废钥匙 → 拿它进来的访客下一个请求就进不来；主人不受影响', async () => {
+test('middleware：作废钥匙 → 拿它进来的访客下一个请求就进不来；管理员不受影响', async () => {
   const kv = makeKV();
   const { key, cookie } = await visitorFor(kv);
   assert.equal((await mw({ request: page('/blog/', cookie), env: env(kv), next })).status, 200);
   await TL.revokeTempkey(kv, key.id);
-  const s = await verifySessionDetailed(page('/', cookie), env(kv));
-  assert.equal(s.reason, 'tk-revoked');
+  const s = await verifyLockSession(page('/', cookie), env(kv));
+  assert.equal(s.reason, 'tempkey-revoked');
   assert.equal((await mw({ request: page('/blog/', cookie), env: env(kv), next })).status, 302);
-  const owner = 'sgx-verified=' + (await signSessionCookie(LOCK.priv, 0, 'owner', 'owner'));
-  assert.equal((await mw({ request: page('/blog/', owner), env: env(kv), next })).status, 200);
+  const admin = 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, 'admin', 'password'));
+  assert.equal((await mw({ request: page('/blog/', admin), env: env(kv), next })).status, 200);
 });
 
 test('middleware：访客打不开账号页（302 回首页），也调不了临时钥匙管理接口', async () => {

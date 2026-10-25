@@ -10,7 +10,7 @@ space（styrigx.com）相当于 One UI，blog/book 等分站相当于其中的 A
 
 ## 唯一状态源
 
-是否已解锁，只由服务端签发的 `sgx-verified` 会话决定
+是否已解锁，只由服务端签发的 `sgx-lock-session` 会话决定
 （`Domain=.styrigx.com; Path=/`）。
 任何站点、任何页面都不得用 sessionStorage、localStorage、
 前端内存或标签页状态另做判断。
@@ -30,12 +30,13 @@ space（styrigx.com）相当于 One UI，blog/book 等分站相当于其中的 A
 - `/api/*` 不走锁屏跳转，未登录返回 401 JSON。
 
 ### L2 系统调用：`functions/api/*`
-- 解锁：`lock-password`、`lock-passkey`、`verify`（Turnstile）。
+- 解锁：`lock-password`、`lock-passkey`（admin 会话）、`lock-tempkey-unlock`（临时码 → visitor 会话，by=tempkey）。
 - 查询：`lock-session-check`、`lock-credentials`、`account`（账号凭证状态 + 当前账号会话；原 `owner-status` 已删除）。
-- 账号：`account`（账号密码/账号通行密钥登录与管理；账号 → 安全与隐私的门票 `door=account`）、`root-auth`（`target:'account'` 时作为账号登录第三入口）。
-- 锁屏凭证的门：`lock-reauth`（门票状态 / 清票）；进门由 `lock-passkey`/`lock-password`（`door:true`）或 `root-auth` 签 3 分钟门票 `sgx-door`（`door=lock`，SGX_LOCK_* 签）。
+- 账号：`account`（账号密码/账号通行密钥登录与管理；进「账号安全」前再验一次，签 3 分钟 AccountReauthTicket `sgx-account-reauth`）。
+- 锁屏凭证页的再验证：`lock-reauth`（LockReauthTicket 状态 / 清票）；由 `lock-passkey`/`lock-password`（`reauth:true`）或 `root-auth`（`purpose:'lock-reauth'`）签 3 分钟 LockReauthTicket `sgx-lock-reauth`（SGX_LOCK_* 签）。
+- 根凭证：`root-auth { key, purpose }`，purpose 只有 `lock-reauth` / `lock-reset` / `account-reauth` / `account-reset`，各签一张 3 分钟短票（by=root），不签任何会话。
 - 签名钥匙只剩两套：账号 `SGX_ACCOUNT_*`、锁屏 `SGX_LOCK_*`（stepup、应用凭证已删除）。
-- 锁定：`lock`（清除 `Domain=.styrigx.com` 的 `sgx-verified`，blog/book 一起上锁）。
+- 锁定：`lock-now`（清除 `Domain=.styrigx.com` 的 `sgx-lock-session`，blog/book 一起上锁）。
 - 前端改变会话只能通过这些接口。
 
 ### L3 共享库：`assets/js/lib/ + assets/js/shell/ + assets/js/apps/` 的 core、util、storage、events、scheduler、i18n、theme
@@ -71,19 +72,19 @@ space（styrigx.com）相当于 One UI，blog/book 等分站相当于其中的 A
 
 ## 账号会话（账号域）
 
-原「站长凭证」升级为账号体系，账号会话与锁屏会话**是两套独立的票据**：
+原「管理员凭证」升级为账号体系，账号会话与锁屏会话**是两套独立的票据**：
 
-- 锁屏会话 `sgx-verified`（`Domain=.styrigx.com`）只回答「是否已解锁」，
+- 锁屏会话 `sgx-lock-session`（`Domain=.styrigx.com`）只回答「是否已解锁」，
   是唯一的解锁状态源；它**从不**被当作账号认证。
-- 账号会话 `sgx-account`（无 Domain，只发给主站；`HttpOnly; Secure; SameSite=Strict`；12 小时）
+- 账号会话 `sgx-account-session`（无 Domain，只发给主站；`HttpOnly; Secure; SameSite=Strict`；12 小时）
   由 `_kernel/account-session.js` 签发与验证，格式 `by.epoch.authAt.exp.sig`，
   用 `SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC`（Ed25519，PKCS8 / SPKI PEM）签名。
   凭证域定义在 `_kernel/realms.js` 的 `REALM_ACCOUNT`。
-- 登录入口三者平级：账号通行密钥、账号密码、根凭证；前置条件是已解锁的 owner 锁屏会话。
+- 登录入口三者平级：账号通行密钥、账号密码、根凭证；前置条件是已解锁的 admin 锁屏会话。
 - 敏感操作（「管理凭证」进门、注册/删除账号通行密钥、修改账号密码）要求 `authAt` 在 10 分钟内，
   过旧返回 403 `account-stale`，前端回账号页重新登录。
 - 改账号密码 / 删账号通行密钥时 `account-epoch` +1，其他设备的账号会话失效，当前设备重签。
-- 存储沿用原站长凭证（`owner-pw`、`owner-passkey:*` class=owner、`owner-user-id:owner`），
+- 存储沿用原管理员凭证（`owner-pw`、`owner-passkey:*` class=owner、`owner-user-id:owner`），
   不搬数据、无需重新注册；新增 KV 键 `account-challenge:*`、`account-epoch`。
 - 缺账号钥匙 → 账号登录 503 `config`，只影响账号登录与进门，网站其余部分不受影响。
 - 敏感操作还包括重命名账号通行密钥（`rename`，同样要求近期登录，不推纪元）。
@@ -94,7 +95,7 @@ space（styrigx.com）相当于 One UI，blog/book 等分站相当于其中的 A
 - 前端：账号页 `/account/`（`apps/account.js`），顶栏头像链接到它；登录后是三星式总览
   （账号卡 + 头像编辑、已登录卡、「安全与隐私」一行）；账号密码和账号通行密钥在子页
   `/account/security/`（`apps/account-security.js`）。顶栏没有 ‹ 返回（2026-10-20 删除），
-  返回走浏览器 / 系统返回。原站长凭证页（`security-owner`）已删除。
+  返回走浏览器 / 系统返回。原管理员凭证页（`security-owner`）已删除。
 
 ## 锁定与过期
 
@@ -108,5 +109,5 @@ space（styrigx.com）相当于 One UI，blog/book 等分站相当于其中的 A
 - 2.4.0 H：`lock.js` 用 sessionStorage 按标签页判断，middleware 又把首页
   放进白名单，服务端和前端各有一套锁 → 新标签页重复弹锁屏（2026-10-10）。
   修复：L1 注入状态，L4 只负责显示（PR #27）。
-- 2.4.1：旧版残留的同名 host-only `sgx-verified` cookie 导致验签取到旧值。
+- 2.4.1：旧版残留的同名 host-only `sgx-lock-session` cookie 导致验签取到旧值。
   修复：读取时遍历所有同名 cookie 任一通过即有效；签发时下发清除头（PR #25）。

@@ -1,5 +1,5 @@
 /**
- * @fileoverview 账号页账号卡（/account/ 登录后总览顶部）：换头像 / 移除头像（只有主人会话可用）。
+ * @fileoverview 账号页账号卡（/account/ 登录后总览顶部）：换头像 / 移除头像（只有管理员会话可用）。
  *
  * 点头像 → 底部弹层「选择照片… / 移除照片」（没有自定义头像时只有第一项）。
  * 选照片 → 全屏裁剪：圆形取景框，单指拖动、双指缩放（电脑上滚轮缩放），照片始终盖满取景框。
@@ -317,9 +317,9 @@ async function removeAvatar() {
 
 /* ---------- 入口 ---------- */
 
-/** 绑定账户卡头像按钮（设置页可能有手机、宽屏两个账户卡）。只有主人会话启用。 */
+/** 绑定账户卡头像按钮（设置页可能有手机、宽屏两个账户卡）。只有管理员会话启用。 */
 export function initAvatarEdit() {
-  if (document.documentElement.getAttribute('data-sgx-role') !== 'owner') return;
+  if (document.documentElement.getAttribute('data-sgx-role') !== 'admin') return;
   const btns = document.querySelectorAll('[data-avatar-edit]');
   if (!btns.length) return;
   const input = document.createElement('input');

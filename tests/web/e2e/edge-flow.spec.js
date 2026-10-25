@@ -5,8 +5,8 @@
  *  R1 直接打开 blog / daymark → 主站锁屏（带 return）→ 通行密钥 / 访客都进不去、回不到子站
  *  R2 主站解锁后刷新又出现锁屏
  *  R3 切到别的标签页再切回，主站自己解锁（cookie 一直有效，锁屏是假的）
- *  R4 访客在 设置 › 安全与隐私 点「锁屏凭证」→ 整个锁屏闪一下又回到设置（应就地弹出站长验证）
- *  R5 已登录账号（站长或访客）点顶栏头像 → 账号页先画「欢迎回来」登录区约 0.5 秒再换成总览
+ *  R4 访客在 设置 › 安全与隐私 点「锁屏凭证」→ 整个锁屏闪一下又回到设置（应就地弹出管理员验证）
+ *  R5 已登录账号（管理员或访客）点顶栏头像 → 账号页先画「欢迎回来」登录区约 0.5 秒再换成总览
  *  另外：立即锁定之后刷新、去子站都必须仍是锁着的；锁定后已打开的已解锁页面切回来要上锁。
  *
  * 运行：SGX_TEST_SUITE=edge npx playwright test --config=tests/config/playwright.config.js
@@ -69,9 +69,8 @@ async function addAuthenticator(page) {
 
 async function setSession(context, role) {
   const value = await edge.mintCookie(role);
-  const c = [{ name: 'sgx-verified', value, domain: '.styrigx.com', path: '/', secure: true, httpOnly: true, sameSite: 'Lax' }];
-  /* 访客会话要配临时 LockKey 的钥匙票 */
-  if (role === 'visitor') c.push({ name: 'sgx-tk', value: await edge.mintTk(), domain: '.styrigx.com', path: '/', secure: true, httpOnly: true, sameSite: 'Lax' });
+  /* 访客会话（by=tempkey）票里自带临时钥匙 id，mintCookie('visitor') 会先登记那把钥匙 */
+  const c = [{ name: 'sgx-lock-session', value, domain: '.styrigx.com', path: '/', secure: true, httpOnly: true, sameSite: 'Lax' }];
   await context.addCookies(c);
 }
 
@@ -139,21 +138,21 @@ test('R2 主站解锁（通行密钥）→ 刷新仍是解锁的', async ({ page
 });
 
 test('R2/R3 有效会话打开 /?lock=1（立即锁定、子站踢回都会落到这里）→ 不出锁屏', async ({ page, context }) => {
-  await setSession(context, 'owner');
+  await setSession(context, 'admin');
   await page.goto(MAIN + '/?lock=1');
   await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'valid');
   expect(await lockShownWithin(page, 1500)).toBe(false);
 });
 
 test('R3 子站踢回（why=no-cookie）但主站会话有效 → 直接回子站，不出锁屏', async ({ page, context }) => {
-  await setSession(context, 'owner');
+  await setSession(context, 'admin');
   await page.goto(MAIN + '/?lock=1&why=no-cookie&return=' + encodeURIComponent(DAYMARK + '/'));
   await page.waitForURL(DAYMARK + '/', { timeout: 15000 });
   await expect(page.locator('#sub-content')).toContainText('SUBSITE-CONTENT daymark');
 });
 
 test('R3 已解锁页面：别的标签页立即锁定后，切回来要上锁（状态只听服务端）', async ({ page, context }) => {
-  await setSession(context, 'owner');
+  await setSession(context, 'admin');
   await page.goto(MAIN + '/');
   await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'valid');
   /* 切走再切回：会话有效 → 不出锁屏 */
@@ -171,7 +170,7 @@ test('R3 已解锁页面：别的标签页立即锁定后，切回来要上锁�
 });
 
 test('立即锁定 → 刷新仍锁定；子站也锁定', async ({ page, context }) => {
-  await setSession(context, 'owner');
+  await setSession(context, 'admin');
   await page.goto(MAIN + '/settings/security/');
   await page.click('#sec-locknow');
   await page.click('#sec-locknow-confirm [data-act="ok"]');
@@ -184,7 +183,7 @@ test('立即锁定 → 刷新仍锁定；子站也锁定', async ({ page, contex
   await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 10000 });
 });
 
-test('R4 访客点「锁屏凭证」→ 就地站长验证（不出锁屏、不跳页）；取消仍是访客；通行密钥通过 → 锁屏凭证页', async ({ page, context }) => {
+test('R4 访客点「锁屏凭证」→ 就地管理员验证（不出锁屏、不跳页）；取消仍是访客；通行密钥通过 → 锁屏凭证页', async ({ page, context }) => {
   await addAuthenticator(page);
   await setSession(context, 'visitor');
   await page.goto(MAIN + '/settings/security/');
@@ -194,7 +193,7 @@ test('R4 访客点「锁屏凭证」→ 就地站长验证（不出锁屏、不�
   await page.click('#sec-lock-cred');
   const sheet = page.locator('#sgx-upgrade-overlay');
   await expect(sheet).toBeVisible({ timeout: 5000 });
-  /* 只给站长方式：通行密钥、密码；没有访客入口 */
+  /* 只给管理员方式：通行密钥、密码；没有访客入口 */
   await expect(page.locator('#sgx-upgrade-pk')).toBeVisible();
   await expect(page.locator('#sgx-upgrade-pw')).toBeVisible();
   await expect(sheet.locator('text=访客')).toHaveCount(0);
@@ -205,16 +204,16 @@ test('R4 访客点「锁屏凭证」→ 就地站长验证（不出锁屏、不�
   await expect(sheet).toHaveCount(0);
   expect(page.url()).toBe(MAIN + '/settings/security/');
   expect(await sessionRole(page)).toBe('visitor');
-  /* 再点 → 通行密钥 → 站长会话 → 锁屏凭证页 */
+  /* 再点 → 通行密钥 → admin 会话 → 锁屏凭证页 */
   await page.click('#sec-lock-cred');
   await expect(sheet).toBeVisible({ timeout: 5000 });
   await page.click('#sgx-upgrade-pk');
   await page.waitForURL(MAIN + '/settings/security/lock/', { timeout: 20000 });
-  expect(await sessionRole(page)).toBe('owner');
+  expect(await sessionRole(page)).toBe('admin');
   expect(await page.evaluate(() => window.__sawLock === true)).toBe(false);
 });
 
-test('R4 访客直接打开锁屏凭证页地址 → 不出锁屏，出站长验证', async ({ page, context }) => {
+test('R4 访客直接打开锁屏凭证页地址 → 不出锁屏，出管理员验证', async ({ page, context }) => {
   await setSession(context, 'visitor');
   await page.goto(MAIN + '/settings/security/lock/');
   await expect(page.locator('#sgx-upgrade-overlay')).toBeVisible({ timeout: 10000 });
@@ -224,17 +223,17 @@ test('R4 访客直接打开锁屏凭证页地址 → 不出锁屏，出站长验
 
 test('R5 访客（临时钥匙会话）打开账号页：302 回首页，账号页一帧都不出现', async ({ page, context }) => {
   await setSession(context, 'visitor');
-  await context.addCookies([{ name: 'sgx-account', value: await edge.mintAccount(), domain: 'styrigx.com', path: '/', secure: true, httpOnly: true, sameSite: 'Strict' }]);
+  await context.addCookies([{ name: 'sgx-account-session', value: await edge.mintAccount(), domain: 'styrigx.com', path: '/', secure: true, httpOnly: true, sameSite: 'Strict' }]);
   await page.goto(MAIN + '/account/');
   expect(new URL(page.url()).pathname).toBe('/');
   expect(await page.evaluate(() => window.__sawLogin || window.__sawMain)).toBe(false);
   await expect(page.locator('html')).toHaveAttribute('data-sgx-role', 'visitor');
 });
 
-for (const role of ['owner']) {
+for (const role of ['admin']) {
   test(`R5 已登录账号（锁屏会话 ${role}）进账号页：登录区一帧都不出现（不下发节点），总览首帧可见`, async ({ page, context }) => {
     await setSession(context, role);
-    await context.addCookies([{ name: 'sgx-account', value: await edge.mintAccount(), domain: 'styrigx.com', path: '/', secure: true, httpOnly: true, sameSite: 'Strict' }]);
+    await context.addCookies([{ name: 'sgx-account-session', value: await edge.mintAccount(), domain: 'styrigx.com', path: '/', secure: true, httpOnly: true, sameSite: 'Strict' }]);
     await page.goto(MAIN + '/account/', { waitUntil: 'commit' });
     await page.waitForLoadState('domcontentloaded');
     /* 解析完那一刻：登录区节点不存在、总览不是 hidden（不靠脚本） */
@@ -249,8 +248,8 @@ for (const role of ['owner']) {
   });
 }
 
-test('R5 对照：站长没有账号会话 → 只出登录区（欢迎回来），总览不出现', async ({ page, context }) => {
-  await setSession(context, 'owner');
+test('R5 对照：管理员没有账号会话 → 只出登录区（欢迎回来），总览不出现', async ({ page, context }) => {
+  await setSession(context, 'admin');
   await page.goto(MAIN + '/account/');
   await expect(page.locator('html')).toHaveAttribute('data-sgx-account-session', 'out');
   await expect(page.locator('#acct-login')).toBeVisible();
@@ -267,8 +266,8 @@ test('R7 账号 Worker（2026-10-24 拆出来）：头像 / 数字健康 / 云�
   expect(av).toEqual([200, 'account', '"d-96"']);
   const anon = await page.evaluate(() => fetch('/api/wellbeing', { cache: 'no-store' }).then((r) => r.status));
   expect(anon).toBe(401);
-  /* 站长：数字健康可读，云同步没登账号 → 401 account；接口地址不变 */
-  await setSession(context, 'owner');
+  /* 管理员：数字健康可读，云同步没登账号 → 401 account；接口地址不变 */
+  await setSession(context, 'admin');
   await page.goto(MAIN + '/settings/wellbeing/');
   const wb = await page.evaluate(() => fetch('/api/wellbeing?d=2026-10-24', { cache: 'no-store' }).then((r) => r.json().then((j) => [r.status, j.ok])));
   expect(wb).toEqual([200, true]);
@@ -282,7 +281,7 @@ test('R7 账号 Worker（2026-10-24 拆出来）：头像 / 数字健康 / 云�
 /* R8 顶栏三栏页内切换（2026-10-24，shell/inpage-tabs.js）：真实网关下，有效会话时另外两栏在同一文档里切换；
    取回来的不是这一栏（会话过期 → 302 锁屏）就不用它，整页导航交给网关；锁屏态根本不接管（照旧整页导航）。 */
 test('R8 有效会话：主页 → 聊天 → 设置 同一文档切换，网关照常验会话；取页时会话没了 → 整页导航到锁屏', async ({ page, context }) => {
-  await setSession(context, 'owner');
+  await setSession(context, 'admin');
   await page.goto(MAIN + '/');
   await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'valid');
   await page.evaluate(() => { window.__sameDoc = 1; });
@@ -324,20 +323,20 @@ test('R8 锁屏态不接管顶栏三栏：点标签照旧整页导航（网关 3
 
 /* ---------------- R9 分享短链（2026-10-24，styrigx-share）：/s/* 经线上路由规则进短链 Worker，钥匙和会话由网关签 ---------------- */
 
-async function setOwnerAccount(context) {
-  await setSession(context, 'owner');
-  await context.addCookies([{ name: 'sgx-account', value: await edge.mintAccount(), domain: 'styrigx.com', path: '/', secure: true, httpOnly: true, sameSite: 'Strict' }]);
+async function setAdminAccount(context) {
+  await setSession(context, 'admin');
+  await context.addCookies([{ name: 'sgx-account-session', value: await edge.mintAccount(), domain: 'styrigx.com', path: '/', secure: true, httpOnly: true, sameSite: 'Strict' }]);
 }
 
-/** 站长在页面里调 /api/share（同源 fetch，带真实 cookie） */
+/** 管理员在页面里调 /api/share（同源 fetch，带真实 cookie） */
 async function shareApi(page, body) {
   return page.evaluate((b) => fetch('/api/share', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) })
     .then(async (r) => ({ s: r.status, j: await r.json().catch(() => null) })), body);
 }
 
-/** 站长建一条短链，然后清掉所有 cookie（变成没登录的陌生人） */
+/** 管理员建一条短链，然后清掉所有 cookie（变成没登录的陌生人） */
 async function makeLink(page, context, body) {
-  await setOwnerAccount(context);
+  await setAdminAccount(context);
   await page.goto(MAIN + '/account/tempkeys/');
   const r = await shareApi(page, Object.assign({ action: 'create' }, body));
   expect(r.s, JSON.stringify(r.j)).toBe(200);
@@ -348,8 +347,8 @@ async function makeLink(page, context, body) {
 test.describe('R9 分享短链', () => {
   test.beforeEach(async () => { await edge.resetShareLimit(); });
 
-  test('R9 站长在账号页生成带会话短链 → 陌生人点开：直接以访客进到目标页，不出锁屏；地址栏 / Referer 里没有码', async ({ page, context }) => {
-    await setOwnerAccount(context);
+  test('R9 管理员在账号页生成带会话短链 → 陌生人点开：直接以访客进到目标页，不出锁屏；地址栏 / Referer 里没有码', async ({ page, context }) => {
+    await setAdminAccount(context);
     await page.goto(MAIN + '/account/tempkeys/');
     await page.click('#acct-sl-new');
     await expect(page.locator('#sl-dlg')).toBeVisible();
@@ -402,16 +401,16 @@ test.describe('R9 分享短链', () => {
     const live = await makeLink(page, context, { hours: 3, session: 1800 });
     await page.goto(MAIN + live.path);
     expect(await sessionRole(page)).toBe('visitor');
-    /* 站长作废（另开一个页面登录站长，访客那一页的 cookie 不动） */
-    const owner = await context.browser().newContext({ proxy: LAUNCH.proxy, ignoreHTTPSErrors: false });
-    const op = await owner.newPage();
-    await setOwnerAccount(owner);
+    /* 管理员作废（另开一个页面登录管理员，访客那一页的 cookie 不动） */
+    const adminCtx = await context.browser().newContext({ proxy: LAUNCH.proxy, ignoreHTTPSErrors: false });
+    const op = await adminCtx.newPage();
+    await setAdminAccount(adminCtx);
     await op.goto(MAIN + '/account/tempkeys/');
     expect((await shareApi(op, { action: 'revoke', id: live.id })).s).toBe(200);
     const expired = (await shareApi(op, { action: 'create', hours: 1 })).j.link;
     if (edge.shareDb.raw) edge.shareDb.raw.prepare('UPDATE share_link SET expires_at = ? WHERE id = ?').run(Date.now() - 1, expired.id);
     else edge.shareDb._links.get(expired.id).expires_at = Date.now() - 1;
-    await owner.close();
+    await adminCtx.close();
 
     await page.goto(MAIN + '/settings/');
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
@@ -432,7 +431,7 @@ test.describe('R9 分享短链', () => {
   });
 
   test('R9 开放重定向被拒：目标只能是站内相对路径', async ({ page, context }) => {
-    await setOwnerAccount(context);
+    await setAdminAccount(context);
     await page.goto(MAIN + '/account/tempkeys/');
     for (const to of ['//evil.example', 'https://evil.example/', '/\\evil.example', 'evil.example', 'javascript:alert(1)']) {
       const r = await shareApi(page, { action: 'create', hours: 1, to });
@@ -461,6 +460,6 @@ test.describe('R9 分享短链', () => {
     await edge.resetShareLimit();
     const ok = await page.request.get(MAIN + link.path, { maxRedirects: 0, ignoreHTTPSErrors: true });
     expect(ok.headers()['location']).toBe('https://styrigx.com/');
-    expect(ok.headers()['set-cookie'] || '').toContain('sgx-tk=');
+    expect(ok.headers()['set-cookie'] || '').toMatch(/sgx-lock-session=tempkey\.visitor\./);
   });
 });

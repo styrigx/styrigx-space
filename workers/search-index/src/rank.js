@@ -5,7 +5,7 @@
  *   { id, type, lang: 'zh'|'en', title, subtitle?, text?, url, private?: boolean }
  *   - type：post 文章 / setting 设置页 / app 应用 / site 站点 / quote 句子 / item 收藏 …（各站自己定，前端按 type 分组）
  *   - text：正文摘要（可选，最多约 2000 字，只参与匹配，不回给前端）
- *   - private：只给站长（owner）搜到；访客永远看不到
+ *   - private：只给管理员（admin）搜到；访客永远看不到
  *
  * 匹配：查询拆成词——拉丁字母 / 数字按空格和标点切成词，中日韩按单字 + 相邻两字（二元组）。
  *   每个词都要命中（AND），在标题里命中分最高，副标题其次，正文最低；整句出现在标题里额外加分，标题以它开头再加。
@@ -67,7 +67,7 @@ export function score(it, toks, phrase) {
 /**
  * 在若干站的索引里搜。
  * @param {Array<{site: string, items: any[]}>} indexes
- * @param {{q: string, lang?: string, owner?: boolean, site?: string, limit?: number}} opt
+ * @param {{q: string, lang?: string, admin?: boolean, site?: string, limit?: number}} opt
  * @returns {Array<{site: string, type: string, title: string, subtitle: string, url: string, score: number}>}
  */
 export function search(indexes, opt) {
@@ -81,7 +81,7 @@ export function search(indexes, opt) {
     if (opt.site && ix.site !== opt.site) continue;
     for (const it of ix.items) {
       if (!it || typeof it.url !== 'string' || typeof it.title !== 'string') continue;
-      if (it.private && !opt.owner) continue;
+      if (it.private && !opt.admin) continue;
       if (opt.lang && (it.lang || 'zh') !== opt.lang) continue;
       const s = score(it, toks, phrase);
       if (s > 0) hits.push({ site: ix.site, type: String(it.type || ''), title: it.title, subtitle: String(it.subtitle || ''), url: it.url, score: s });

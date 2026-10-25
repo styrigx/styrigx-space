@@ -1,7 +1,7 @@
 /**
  * 账号云同步：设置项（外观 / 时区天气 / 搜索引擎 / Good Lock 等）跨设备同步。
  *
- * 只有登录了账号（sgx-account）的站长能用：先要 owner lock 会话（前置条件），再要账号会话；
+ * 只有登录了账号（sgx-account-session）的管理员能用：先要 admin lock 会话（前置条件），再要账号会话；
  * 访客 / 没登录账号一律 401，前端停在「只存本机」。
  *
  * 存储：KV account-prefs = { items: { <localStorage key>: { v: string|null, t: 毫秒 } }, updatedAt }
@@ -12,7 +12,7 @@
  * GET  /api/prefs → { ok, items, updatedAt }
  * POST /api/prefs { changes: { key: { v, t } } } → 合并后 { ok, items, updatedAt }（只接受同源）
  */
-import { ROLE_OWNER } from '../auth.js';
+import { ROLE_ADMIN } from '../auth.js';
 import { isSameOrigin, originDenied } from '../lib/http.js';
 
 export const PREFS_KEY = 'account-prefs';
@@ -35,11 +35,11 @@ function json(body, status) {
   return Response.json(body, { status: status || 200, headers: { 'Cache-Control': 'no-store' } });
 }
 
-/** owner lock 会话 + 账号会话（都由网关 AuthVerifier 验，见 src/auth.js）；不满足返回错误响应 @param {any} context */
+/** admin lock 会话 + 账号会话（都由网关 AuthVerifier 验，见 src/auth.js）；不满足返回错误响应 @param {any} context */
 async function gate(context) {
   const { env, auth } = context;
   const sess = await auth.lockSession();
-  if (!sess.ok || sess.role !== ROLE_OWNER) return json({ ok: false, error: 'session' }, 401);
+  if (!sess.ok || sess.role !== ROLE_ADMIN) return json({ ok: false, error: 'session' }, 401);
   const acc = await auth.accountSession();
   if (!acc.ok) return json({ ok: false, error: 'account', reason: acc.reason }, 401);
   if (!prefsKv(env)) return json({ ok: false, error: 'config' }, 500);

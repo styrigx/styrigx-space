@@ -1,6 +1,6 @@
 /**
  * 子站顶栏分享按钮（web/assets/js/shell/share-button.js → 共享外壳 share.js，2026-10-24）。
- * 站长：POST https://styrigx.com/api/share（credentials include、reuse、24 小时 / 12 小时会话、页面标题当名字）→ 系统分享 / 复制兜底；
+ * 管理员：POST https://styrigx.com/api/share（credentials include、reuse、24 小时 / 12 小时会话、页面标题当名字）→ 系统分享 / 复制兜底；
  * 访客：直接分享当前页地址；生成中再点不理；失败只 toast，不拿原地址冒充短链。
  */
 import { test } from 'node:test';
@@ -36,10 +36,10 @@ test('linkName：去控制字符、合并空白、最多 24 字（按字符不�
   assert.equal(S.linkName(''), '');
 });
 
-test('roleOf：owner / admin = 站长；visitor / 没有 = 访客', () => {
+test('roleOf：admin = 管理员；owner（旧值）/ visitor / 没有 = 访客', () => {
   const doc = (r) => ({ documentElement: { getAttribute: () => r } });
-  assert.equal(S.roleOf(doc('owner')), 'owner');
-  assert.equal(S.roleOf(doc('admin')), 'owner');
+  assert.equal(S.roleOf(doc('owner')), 'visitor');
+  assert.equal(S.roleOf(doc('admin')), 'admin');
   assert.equal(S.roleOf(doc('visitor')), 'visitor');
   assert.equal(S.roleOf(doc(null)), 'visitor');
 });
@@ -122,8 +122,8 @@ function fakeDom(role) {
   return { btn, doc, attrs, cls, click: () => onClick({ preventDefault() {} }) };
 }
 
-test('mountShare 站长：生成中 aria-busy + is-busy，再点不理（只发一次请求）；完了恢复；分享的是短链', async () => {
-  const d = fakeDom('owner');
+test('mountShare 管理员：生成中 aria-busy + is-busy，再点不理（只发一次请求）；完了恢复；分享的是短链', async () => {
+  const d = fakeDom('admin');
   let release;
   const calls = [];
   const f = (url, init) => {
@@ -148,8 +148,8 @@ test('mountShare 站长：生成中 aria-busy + is-busy，再点不理（只发�
   assert.equal(calls[0].name, '文章 · 博客');
 });
 
-test('mountShare 站长：接口失败 → 只 toast 原因，不分享也不复制原地址；访客：不调接口，直接分享当前页', async () => {
-  const d = fakeDom('owner');
+test('mountShare 管理员：接口失败 → 只 toast 原因，不分享也不复制原地址；访客：不调接口，直接分享当前页', async () => {
+  const d = fakeDom('admin');
   const { nav, log } = fakeNav({ share: 'ok' });
   const toasts = [];
   const { f } = fakeFetch(401, { ok: false });

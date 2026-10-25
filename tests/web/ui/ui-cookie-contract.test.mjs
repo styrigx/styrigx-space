@@ -100,7 +100,7 @@ test('夹具覆盖：默认 dustyblue 亮 / 暗、跟随系统、lake、旧撞�
 for (const c of fx.cases) {
   test(`契约：${c.name}`, () => {
     for (const sys of ['light', 'dark']) {
-      const s = sandbox({ cookie: 'sgx-verified=x; sgx-ui=' + c.cookie + '; other=1', dark: sys === 'dark' });
+      const s = sandbox({ cookie: 'sgx-lock-session=x; sgx-ui=' + c.cookie + '; other=1', dark: sys === 'dark' });
       assert.deepEqual(plain(s.U.read()), c.read, 'read');
       assert.deepEqual(plain(s.U.read('sgx-ui=' + c.cookie)), c.read, 'read(串)');
       assert.deepEqual(plain(s.U.resolve(s.U.read(), sys === 'dark')), c[sys].resolve, sys + ' resolve');

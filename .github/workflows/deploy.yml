@@ -110,7 +110,7 @@ jobs:
       - name: Layer boundary check (SGX 3.0 分层规范)
         # L0-L6 依赖方向：lib 不得 import shell/apps；shell 不得 import apps；
         # 前端不得 import functions/；api/ 只能 import _kernel/；
-        # 前端禁止 sgx-verified/sgx-lock-shown；禁止用 storage 存解锁状态
+        # 前端禁止 sgx-lock-session（cookie 名）/sgx-lock-shown；禁止用 storage 存解锁状态
         run: node scripts/check-layers.mjs
 
       - name: Frontend guard (无原生弹窗 / 无废弃 token 变量)
@@ -545,7 +545,7 @@ jobs:
 
   deploy-chat-worker:
     # 聊天 styrigx-chat（workers/chat，2026-10-22 从网关拆出来）：先于网关部署（网关的服务绑定 CHAT 指向它，它不在就部署不了）。
-    # 没有公开地址（workers_dev=false、preview_urls=false、没有路由），只能从网关 /api/chat 进（网关先验同源 + 会话 + 只许站长）。
+    # 没有公开地址（workers_dev=false、preview_urls=false、没有路由），只能从网关 /api/chat 进（网关先验同源 + 会话 + 只许管理员）。
     # 钥匙：Secrets Store 的 SGX_CHAT_API_KEY 只绑在这里（网关不绑）。Cloudflare 部署时会核对 Secrets Store 绑定，
     # 密钥还没建 → 第一步部署失败；这时退一步部署不带钥匙绑定的同一份代码（从第一个 [[secrets_store_secrets]] 删到文件末尾），
     # 聊天回 503 no_key，job 仍然成功，网关和 Pages 照常部署。建好密钥后下一次部署自动带上绑定。
@@ -793,7 +793,7 @@ jobs:
           exit $ok
 
   deploy-share-worker:
-    # 分享短链 Worker styrigx-share（workers/share，2026-10-24）：https://styrigx.com/s/<码> + 站长管理接口 /api/share，数据在 D1 styrigx-share（D1_SHARE_LINK）。
+    # 分享短链 Worker styrigx-share（workers/share，2026-10-24）：https://styrigx.com/s/<码> + 管理员管理接口 /api/share，数据在 D1 styrigx-share（D1_SHARE_LINK）。
     # 路由见 workers/share/wrangler.toml（styrigx.com/s/*、styrigx.com/api/share*，比网关的 styrigx.com/* 更具体）；workers_dev=false、preview_urls=false。
     # 不持任何钥匙：会话问网关 AuthVerifier（服务绑定 AUTH），签 / 作废短链钥匙、给访客换会话问网关 ShareIssuer（服务绑定 ISSUER），
     # 所以排在网关之后（要先有带 ShareIssuer 的网关）。CI 不传任何密值。

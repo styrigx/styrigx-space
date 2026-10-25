@@ -145,7 +145,7 @@ async function realCredentialPresence(kv) {
 }
 
 /**
- * 锁屏层是否"有效已配置"（三处共用：root-auth / root-session / lock-entry）。
+ * 锁屏层是否"有效已配置"（root-auth / lock-entry 共用）。
  *
  * 口径统一：锁屏层已配置标记为 '1'，或真实锁屏凭证存在
  * （锁屏通行密钥，或锁屏密码有 hash），或任何读取失败，

@@ -4,9 +4,9 @@
  * 两个入口：账号通行密钥 / 账号密码，设了哪个显示哪个（visibleKinds）。
  * - 通行密钥：POST /api/account challenge + login-passkey
  * - 账号密码：login-password
- * door:true 时服务端在账号会话之外另签 3 分钟账号门票（安全与隐私子页用）。
+ * reauth:true 时服务端在账号会话之外另签 3 分钟 AccountReauthTicket（账号安全子页用）。
  * 三个提交都带 device（lib/device-hints.js：型号 / 平台），服务端记进设置 › 账号 › 设备。
- * root(value)：重置登录（账号）第一步，POST /api/root-auth { purpose:'account' }（不是登录入口）。
+ * root(value)：重置登录（账号）第一步，POST /api/root-auth { purpose:'account-reset' }（不是登录入口）→ AccountResetTicket。
  *
  * 行的渲染在 lib/cred-rows.js（锁屏弹层的重置登录也用它）。
  * 放在 lib/：账号页（apps/account*.js）和锁屏凭证页（apps/security-lock.js）都 import 它。
@@ -19,7 +19,7 @@ import { deviceHints } from './device-hints.js';
 
 /**
  * 要显示的入口（固定顺序：通行密钥、密码）。PR3：根凭证不再是登录入口（改走「无法登录？」→ 重置登录）。
- * 设了哪个显示哪个；读不到状态（访客 / 网络失败）时两个都显示，界面与站长一致，服务端一律拒绝。
+ * 设了哪个显示哪个；读不到状态（访客 / 网络失败）时两个都显示，界面与管理员一致，服务端一律拒绝。
  * 都没设 → 空数组（页面只留「无法登录？」）。
  * @param {{password?:boolean, passkey?:boolean}|null} status GET /api/account 的结果；null = 读不到
  * @returns {string[]}
@@ -35,10 +35,10 @@ export function visibleKinds(status) {
 /**
  * 三个入口的提交函数。成功 resolve；失败 reject { message, clear?, cancelled? }。
  * @param {function(string): string} t
- * @param {{door?: boolean}} [opts]
+ * @param {{reauth?: boolean}} [opts]
  */
 export function accountSubmitters(t, opts) {
-  const door = !!(opts && opts.door);
+  const reauth = !!(opts && opts.reauth);
   /** @param {string} [code] @param {number} [status] */
   function errText(code, status) {
     return errTextT(t, code, status);
@@ -46,7 +46,7 @@ export function accountSubmitters(t, opts) {
   /** @param {string} value */
   function password(value) {
     const body = { action: 'login-password', password: value };
-    if (door) body.door = true;
+    if (reauth) body.reauth = true;
     const dev = deviceHints();
     if (dev) body.device = dev;
     return postJSON(ACCOUNT_API, body).then(function (res) {
@@ -56,11 +56,9 @@ export function accountSubmitters(t, opts) {
       throw { message: t('errNetwork') };
     });
   }
-  /** 重置登录（账号）第一步：根凭证 → 账号会话 + 账号门票（服务端总是两张一起签） @param {string} value */
+  /** 重置登录（账号）第一步：根凭证 → AccountResetTicket（3 分钟；不签账号会话，设好新凭证后正常登录） @param {string} value */
   function root(value) {
-    const body = { key: value, purpose: 'account' };
-    const dev = deviceHints();
-    if (dev) body.device = dev;
+    const body = { key: value, purpose: 'account-reset' };
     return postJSON('/api/root-auth', body).then(function (res) {
       if (res.j && res.j.ok) return;
       if (res.s === 429) throw { message: t('errLocked') };
@@ -119,7 +117,7 @@ export function accountSubmitters(t, opts) {
           },
         },
       };
-      if (door) body.door = true;
+      if (reauth) body.reauth = true;
       const dev = deviceHints();
       if (dev) body.device = dev;
       return postJSON(ACCOUNT_API, body).then(function (res) {

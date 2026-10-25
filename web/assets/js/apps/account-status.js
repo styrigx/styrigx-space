@@ -4,7 +4,7 @@
  *
  * - 账号区子页：GET /api/account 明确说没有账号会话 → 回账号页登录，登录后回本页（account-common.js requireAccountSession）。
  *   读不到（网络 / 访客）不跳；访客本来就进不了账号区（网关 302 回首页）。数据本身仍只要锁屏会话（/api/status 不变）。
- * - 同源 cookie（credentials: 'same-origin'），no-store；网关验锁屏会话（owner / visitor 都行），没会话 401。
+ * - 同源 cookie（credentials: 'same-origin'），no-store；网关验锁屏会话（admin / visitor 都行），没会话 401。
  * - 首帧（2026-10-24 PR3）：本机存着上次成功拿到的数据（localStorage sgx-status-cache，24 小时内）就先直接画出来，
  *   页脚是那份数据的「更新于 hh:mm」，同时照常请求，回来再换成新数据；没有缓存才出骨架。401 时清掉缓存。
  * - 第一次就失败 → 错误卡（401 = 会话过期，按钮重新载入页面走锁屏；其他 = 重试）；

@@ -3,7 +3,7 @@
  *
  *   GET  https://styrigx-chat/models → 模型列表（网关 GET /api/chat）
  *   POST https://styrigx-chat/chat   → SSE 回答（网关 POST /api/chat）
- *   头 X-Sgx-Role: owner（网关验完会话、确认是站长后写的）；没有 / 别的值 → 403 owner_only（双保险：本来也只有网关进得来）。
+ *   头 X-Sgx-Role: admin（网关验完会话、确认是管理员后写的）；没有 / 别的值 → 403 admin_only（双保险：本来也只有网关进得来）。
  *   其他路径 → 404 not-found；方法不对 → 405 method。
  * 具体逻辑见 src/chat.js。
  */
@@ -14,7 +14,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname !== '/models' && url.pathname !== '/chat') return json(404, { ok: false, error: 'not-found' });
-    if (request.headers.get('X-Sgx-Role') !== 'owner') return json(403, { ok: false, error: 'owner_only' });
+    if (request.headers.get('X-Sgx-Role') !== 'admin') return json(403, { ok: false, error: 'admin_only' });
     if (url.pathname === '/models') {
       if (request.method !== 'GET') return json(405, { ok: false, error: 'method' });
       return handleModels(env);

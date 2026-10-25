@@ -7406,7 +7406,7 @@
     .set-layout.single-cat .set-group.active { display: block; }
     .set-layout.single-cat .set-group.active > .set-gh { display: none; }
   }
-  /* ===== 账号卡：左 Sloan Gray / Styrigx，右圆形头像（主人可换头像） =====
+  /* ===== 账号卡：左 Sloan Gray / Styrigx，右圆形头像（管理员可换头像） =====
      只在账号页 /account/（登录后总览）顶部显示。 */
   .sgx-account-card {
     display: flex; width: 100%; align-items: center; gap: 12px; margin: 0 0 12px;
@@ -7433,7 +7433,7 @@
     .sgx-ac-state { flex-shrink: 0; margin: 0; font-size: 12px; font-weight: 600; color: var(--m-primary); }
     .sgx-ac-state svg { display: inline-block; vertical-align: -2px; margin-right: 3px; }
     .sgx-ac-img { width: 48px; height: 48px; border-radius: 999px; object-fit: cover; flex-shrink: 0; }
-    /* 头像按钮：访客 disabled 只看；主人可点，右下角铅笔 */
+    /* 头像按钮：访客 disabled 只看；管理员可点，右下角铅笔 */
     .sgx-ac-av { position: relative; flex-shrink: 0; padding: 0; border: 0; background: none; border-radius: 999px; cursor: default; }
     .sgx-ac-av:not(:disabled) { cursor: pointer; }
     .sgx-ac-av:not(:disabled):active .sgx-ac-img { filter: brightness(.88); }
@@ -7909,7 +7909,7 @@
   }
   .acct-login-go:disabled { opacity: .7; cursor: default; }
   .acct-login .acct-cant { margin-top: 18px; }
-  #acct-door .acct-cant { display: inline-block; margin-top: 12px; }
+  #acct-reauth .acct-cant { display: inline-block; margin-top: 12px; }
   /* .sgx-glass-bg：账号登录页与锁屏共用的 fixed 全屏背景层，盖在 #sgx-wallpaper 之上、内容之下。
      2026-10-23 定稿：和内容页同一套纯光晕（--sgx-halo，见 base 层），没有图片和形状；
      锁屏要盖住整页，所以底下多一层不透明的页面底（--sgx-bg-1）。顶栏区域干净。 */
@@ -7941,7 +7941,7 @@
   /* 底部：站名 + 站点清单 */
   /* PR3：本 PR 动到的界面（账号登录 / 密码框 / 重置登录 / 锁屏 / 锁屏解锁弹层）
      颜色只用主题色 token（--sgx-*，见 tokens 层「主题色 → 整套配色」），不写死蓝 / 紫。 */
-  .acct-login .sgx-credential-btn-primary, .sgx-reset .sgx-credential-btn-primary, #acct-door .sgx-credential-btn-primary,
+  .acct-login .sgx-credential-btn-primary, .sgx-reset .sgx-credential-btn-primary, #acct-reauth .sgx-credential-btn-primary,
   .sgx-verify-dlg .sgx-credential-btn-primary, .sgx-verify-dlg .sgx-verify-skip, #sgx-method-sheet .sgx-credential-btn-primary, #sgx-lock .sgx-credential-btn-primary {
     background: var(--sgx-btn-primary-bg); color: var(--sgx-btn-primary-fg);
   }
@@ -7958,10 +7958,10 @@
   #sgx-method-sheet .sgx-credential-row, .sgx-reset .sgx-credential-row { background: var(--sgx-surface-container); }
   /* 锁屏日刻卡：日刻角色（底 daymark-card、正文 daymark-text、译文 daymark-trans、标签 / 图标 daymark-label、大引号 daymark-mark） */
   .acct-login .sgx-pw-input:focus, .sgx-reset .sgx-pw-input:focus, .sgx-verify-dlg .sgx-pw-input:focus,
-  #acct-door .sgx-pw-input:focus, #sgx-method-sheet .sgx-pw-input:focus {
+  #acct-reauth .sgx-pw-input:focus, #sgx-method-sheet .sgx-pw-input:focus {
     outline-color: var(--sgx-focus-ring);
   }
-  .sgx-reset .sgx-credential-ic, #acct-door .sgx-credential-ic, #sgx-method-sheet .sgx-method-ic {
+  .sgx-reset .sgx-credential-ic, #acct-reauth .sgx-credential-ic, #sgx-method-sheet .sgx-method-ic {
     background: var(--sgx-primary-container); color: var(--sgx-on-primary-container);
   }
   .sgx-method-opt:focus-visible, #sgx-lock-avatar:focus-visible { outline-color: var(--sgx-focus-ring); }
@@ -8788,7 +8788,7 @@ html[data-sgx-role="visitor"] .sgx-drawer-me { pointer-events: none; cursor: def
    1px 实线发丝线（--sgx-text-primary 12% 透明度：浅色 / 深色都是低对比细线；--sgx-outline-variant 在浅色毛玻璃上几乎看不见），左右缘 = 导航项药丸左右缘，上下各留 18px；纯装饰（aria-hidden）。
    要虚线只改 border-top-style 为 dashed。 */
 .sgx-drawer-sep { border: 0; border-top: 1px solid color-mix(in srgb, var(--sgx-text-primary) 12%, transparent); margin: 18px 0; height: 0; }
-/* 主站顶栏三栏（2026-10-22，只在主站，不进共享外壳；子站长条照旧只有页名）：主页 / 聊天 / 设置这三页（2026-10-24 PR4 第三栏由「状态」换成「设置」）的长条里是三个标签 .sgx-tb-tab
+/* 主站顶栏三栏（2026-10-22，只在主站，不进共享外壳；子管理员条照旧只有页名）：主页 / 聊天 / 设置这三页（2026-10-24 PR4 第三栏由「状态」换成「设置」）的长条里是三个标签 .sgx-tb-tab
    （partials/topbar-tabs.html，data/topbar-tabs.yaml），代替页名。标签高 = --sgx-tb-ic（40px），正好填满长条内边距里的高度；
    三等分、宽屏最宽 400px 居中。当前页 aria-current="page" = 导航抽屉当前项同一套 tonal 药丸（--sgx-nav-selected / --sgx-on-nav-selected），
    其他两个是次要文字色，悬停 / 按下走状态层。只用 --sgx-* 角色，不写死颜色。 */

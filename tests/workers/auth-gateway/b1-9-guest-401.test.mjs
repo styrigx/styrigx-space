@@ -8,11 +8,11 @@
  *
  * 运行：node --test tests/kernel/b1-9-guest-401.test.mjs
  */
-import { signRole } from './_tk.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { testLockSession } from './_tickets.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
@@ -44,8 +44,8 @@ async function genTestKeys() {
 }
 
 async function signVisitorCookie() {
-  const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
-  return signRole(signSessionCookie, TEST_PRIV_PEM, 0, 'visitor', 'owner');
+  const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
+  return testLockSession(TEST_PRIV_PEM, 0, 'visitor');
 }
 
 /* 带计数的 KV */
@@ -89,7 +89,7 @@ test('B1-9 验收（真实 Miniflare）：访客 401 统一', async (t) => {
         headers: {
           'Content-Type': 'application/json',
           'Origin': 'https://test.example.com',
-          'Cookie': 'sgx-verified=' + visitorCookie,
+          'Cookie': 'sgx-lock-session=' + visitorCookie,
         },
         body: JSON.stringify({ key: 'any-value-' + Math.random() }),
       });
@@ -126,7 +126,7 @@ test('B1-9 验收（真实 Miniflare）：访客 401 统一', async (t) => {
         headers: {
           'Content-Type': 'application/json',
           'Origin': 'https://test.example.com',
-          'Cookie': 'sgx-verified=' + visitorCookie,
+          'Cookie': 'sgx-lock-session=' + visitorCookie,
         },
         body: JSON.stringify({ key: 'any-value' }),
       });

@@ -1,7 +1,7 @@
 # styrigx-search-index：全站搜索（CI 部署；只干一件事——在合并好的全站索引里搜）
 #
 # 没有公开地址：不开 workers.dev、不挂路由、不挂域名。唯一入口是鉴权网关 styrigx-auth-gateway 的服务绑定 SEARCH：
-#   四个站的 /api/search 先由网关验会话（owner / visitor），再带上角色转进来（src/index.js）。
+#   四个站的 /api/search 先由网关验会话（admin / visitor），再带上角色转进来（src/index.js）。
 # 所以这里不验 cookie、不持任何钥匙；角色头只可能是网关写的。
 #
 # 索引：KV styrigx-search-index，每个站一条 site:<站名>（space / blog / daymark / curio），各站 CI 构建后写入

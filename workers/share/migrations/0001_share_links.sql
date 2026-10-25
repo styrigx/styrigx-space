@@ -1,5 +1,5 @@
 -- 分享短链（2026-10-24）：D1 styrigx-share（分享短链 Worker styrigx-share，workers/share）。
--- share_link：一条短链一行。code = /s/<码> 里的 22 位码（只有站长能经 /api/share 读到）；
+-- share_link：一条短链一行。code = /s/<码> 里的 22 位码（只有管理员能经 /api/share 读到）；
 --   session_sec = 0 普通短链，> 0 带临时会话（key_id = 网关签的短链钥匙 id，钥匙和会话只在网关）；
 --   revoked_at 非空 = 已作废；opens / last_open_at = 被打开的次数和最近一次（算访客会话还剩多久）。
 --   过期 / 作废 7 天后在列表接口里顺手删掉。

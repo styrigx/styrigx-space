@@ -4,7 +4,7 @@
  *
  * 生产（SGX_ENV=production）：
  * - 只认 styrigx.com：别的域名的 /api/* → 403，页面路径 → 301 到 styrigx.com（路由只登记了 styrigx.com，正常进不来）
- * - 访客调主人接口（/api/prefs）→ 403 role；认证类 action（verify/challenge/register/auth）照网关放过去，由接口自己再验
+ * - 访客调管理员接口（/api/prefs）→ 403 role；认证类 action（verify/challenge/register/auth）照网关放过去，由接口自己再验
  * - 有会话 → 放行（接口里再按角色 / 账号会话细分）
  * - 没会话：头像文件 /avatar/<32|96|192|512>.webp 和静态后缀公开放行；/api/* → 401 {ok:false}；其他 → 302 到首页锁屏
  * 非生产（本地 / 单测不设 SGX_ENV）：和网关一样不拦，接口自己验。
@@ -12,7 +12,7 @@
 import { ROLE_VISITOR } from './auth.js';
 
 const HOST = 'styrigx.com';
-/* 主人专属 API（visitor 调用 → 403）：网关 ADMIN_ONLY_APIS 里属于本 Worker 的那条 */
+/* 管理员专属 API（visitor 调用 → 403）：网关 ADMIN_ONLY_APIS 里属于本 Worker 的那条 */
 const ADMIN_ONLY_APIS = ['/api/prefs'];
 /* 认证类 action（网关 AUTH_ACTIONS） */
 const AUTH_ACTIONS = new Set(['verify', 'challenge', 'register', 'auth']);

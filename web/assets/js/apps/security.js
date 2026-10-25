@@ -1,12 +1,12 @@
 /**
  * @fileoverview 安全与隐私页。
- * - 两个入口（访客与站长看到完全一样）：锁屏凭证、立即锁定。
- * - 锁屏凭证 → /settings/security/lock/（门在那一页：锁屏凭证或根凭证验一次，3 分钟门票）。
- *   访客（服务端注入 data-sgx-role="visitor"）点它：不跳页，就地弹站长验证层（shell/upgrade.js
+ * - 两个入口（访客与管理员看到完全一样）：锁屏凭证、立即锁定。
+ * - 锁屏凭证 → /settings/security/lock/（门在那一页：锁屏凭证或根凭证验一次，3 分钟reauth 票）。
+ *   访客（服务端注入 data-sgx-role="visitor"）点它：不跳页，就地弹管理员验证层（shell/upgrade.js
  *   openAdminVerify：只有通行密钥 / 密码，没有访客入口）；通过 → 进锁屏凭证页；取消 → 原页，访客会话不动。
  *   以前是跳过去由中间件 302 到 /?lock=1&return=…，那一页不过网关 → 整个锁屏闪一下（2026-10-21）。
  * - 立即锁定：调服务端 /api/lock-now 清除会话 cookie 后重载，回到锁屏。
- * - 从 GET /api/lock-credentials（需 owner 会话）读取锁屏凭证是否已设置，渲染状态卡片与锁屏凭证行副标题（访客不调用）。
+ * - 从 GET /api/lock-credentials（需 admin 会话）读取锁屏凭证是否已设置，渲染状态卡片与锁屏凭证行副标题（访客不调用）。
  * - localStorage 统一走 storage.js。
  * - 隐私分组（2026-10-20 从浏览器页 ⋮ 搬来）：搜索引擎（engines.js，sgx-search-engine，点行打开同一个选择弹层）、
  *   （清除浏览记录 2026-10-22 随最近搜索一起删掉）。原顶栏 ⋮（#sec-more = 刷新状态）已删除：进页即读取。
@@ -67,7 +67,7 @@ import { openAdminVerify } from '../shell/upgrade.js';
   }
 
   function refresh() {
-    /* 访客不调用 /api/lock-credentials（需 owner 会话，访客 401）；状态卡片保持隐藏。 */
+    /* 访客不调用 /api/lock-credentials（需 admin 会话，访客 401）；状态卡片保持隐藏。 */
     try {
       if (document.documentElement.dataset.sgxRole === 'visitor') return;
     } catch (e) {}
@@ -87,7 +87,7 @@ import { openAdminVerify } from '../shell/upgrade.js';
       });
   }
 
-  /* 访客点「锁屏凭证」：就地站长验证（见文件头） */
+  /* 访客点「锁屏凭证」：就地管理员验证（见文件头） */
   const lockCred = /** @type {HTMLAnchorElement|null} */ (document.getElementById('sec-lock-cred'));
   if (lockCred) {
     on(lockCred, 'click', function (/** @type {MouseEvent} */ e) {

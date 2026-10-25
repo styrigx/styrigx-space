@@ -269,7 +269,7 @@ test.describe('lock screen', () => {
     await page.route('**/api/lock-session-check*', async (route) => {
       checks.push(route.request().url());
       if (!unlocked) return route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false}' });
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, role: 'owner', next: '/settings/', upgrade: false }) });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, role: 'admin', next: '/settings/', upgrade: false }) });
     });
     await page.goto('/?lock=1&return=' + encodeURIComponent('/settings/') + '&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
@@ -572,7 +572,7 @@ test.describe('A-2 锁屏凭证清空态（resetOnly）/ 启动站（PR3：只�
     await expect(page.locator('#sgx-mopt-reset, #sgx-mopt-mk')).toHaveCount(0);
   });
 
-  test('启动站（lock-entry 全 false）：根凭证在「无法登录？」里，走 /api/root-auth（不带 purpose）→ root-session', async ({ page }) => {
+  test('启动站（lock-entry 全 false）：根凭证在「无法登录？」里，走 /api/root-auth { purpose:lock-reset } → 锁屏凭证页设第一把', async ({ page }) => {
     await blockExternalRequests(page);
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
 
@@ -589,8 +589,7 @@ test.describe('A-2 锁屏凭证清空态（resetOnly）/ 启动站（PR3：只�
       calls.push(JSON.parse(route.request().postData() || '{}'));
       await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
     });
-    await page.route('**/api/root-session', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"by":"root"}' }));
-    await page.route('**/settings/security/', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p id="landed">ok</p>' }));
+    await page.route('**/settings/security/lock/', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p id="landed">ok</p>' }));
     await gotoLock(page);
     await openMethodSheet(page);
     await expect(page.locator('#sgx-mopt-mk')).toHaveCount(0);
@@ -599,7 +598,7 @@ test.describe('A-2 锁屏凭证清空态（resetOnly）/ 启动站（PR3：只�
     await page.fill('#sgx-reset-root', 'root-key');
     await page.click('#sgx-reset-go');
     await expect(page.locator('#landed')).toBeVisible({ timeout: 8000 });
-    expect(calls).toEqual([{ key: 'root-key' }]);
+    expect(calls).toEqual([{ key: 'root-key', purpose: 'lock-reset' }]);
   });
 });
 
@@ -611,7 +610,7 @@ test.describe('PR3 锁屏：无法登录？→ 弹层原地切到重置登录', 
     await freezeTime(page);
   });
 
-  test('根凭证 → needAccount → 账号凭证行（账号通行密钥 / 账号密码，没有「站长」字样）→ 账号密码通过 → /settings/security/lock/', async ({ page }) => {
+  test('根凭证 → needAccount → 账号凭证行（账号通行密钥 / 账号密码，没有「管理员」字样）→ 账号密码通过 → /settings/security/lock/', async ({ page }) => {
     const bodies = [];
     await page.route('**/api/lock-reset', async (route) => {
       const b = JSON.parse(route.request().postData() || '{}');
@@ -635,7 +634,7 @@ test.describe('PR3 锁屏：无法登录？→ 弹层原地切到重置登录', 
     await page.click('#sgx-reset-go');
     await expect(page.locator('.sgx-reset[data-step="account"]')).toBeVisible();
     await expect(page.locator('.sgx-reset-opts .sgx-credential-rowtitle')).toHaveText(['账号通行密钥', '账号密码']);
-    await expect(page.locator('#sgx-method-sheet')).not.toContainText('站长');
+    await expect(page.locator('#sgx-method-sheet')).not.toContainText('管理员');
     await page.locator('.sgx-credential-row').filter({ hasText: '账号密码' }).click();
     await page.locator('.sgx-credential-expand input[type="password"]').fill('acct-pw');
     await page.locator('.sgx-credential-expand .sgx-credential-btn-primary').click();

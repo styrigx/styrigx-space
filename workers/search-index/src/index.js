@@ -2,9 +2,9 @@
  * @fileoverview styrigx-search-index 入口。只接网关服务绑定转来的 GET /search（没有公开地址，见 wrangler.toml）。
  *
  * 请求：GET https://search/search?q=…&lang=zh|en&site=&limit=
- *   头 X-Sgx-Role: owner | visitor（网关验完会话写的；没有 / 别的值一律当访客）
+ *   头 X-Sgx-Role: admin | visitor（网关验完会话写的；没有 / 别的值一律当访客）
  * 回答：{ ok: true, q, hits: [{ site, type, title, subtitle, url }] }
- *   私密条目（private）只在 owner 时出现；正文 text 永远不回。
+ *   私密条目（private）只在 admin 时出现；正文 text 永远不回。
  */
 import { search } from './rank.js';
 
@@ -46,7 +46,7 @@ export default {
     const lang = url.searchParams.get('lang');
     const site = url.searchParams.get('site') || '';
     const limit = parseInt(url.searchParams.get('limit') || '20', 10) || 20;
-    const owner = request.headers.get('X-Sgx-Role') === 'owner';
+    const admin = request.headers.get('X-Sgx-Role') === 'admin';
     let indexes;
     try {
       indexes = await loadIndexes(env);
@@ -58,7 +58,7 @@ export default {
       q,
       lang: lang === 'en' || lang === 'zh' ? lang : undefined,
       site: SITES.indexOf(site) !== -1 ? site : undefined,
-      owner,
+      admin,
       limit,
     }).map((h) => ({ site: h.site, type: h.type, title: h.title, subtitle: h.subtitle, url: h.url }));
     return json(200, { ok: true, q, hits });

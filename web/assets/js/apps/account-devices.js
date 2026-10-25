@@ -3,7 +3,7 @@
  *
  * - 进页 POST /api/account { action:'device-list' }：没有账号会话（401）→ 回账号页登录，登录后回本页
  * - 此设备一张卡在最上面（服务端标 current 并排第一）：设备行 +「登录方式」（这台设备记录的 by；旧记录没有就看 GET /api/account 的 session.by）
- *   + 「退出账号」（POST logout，清账号会话和门票 → 回账号页登录区）。2026-10-24 PR4 从删掉的「账号信息」子页挪来。
+ *   + 「退出账号」（POST logout，清账号会话和reauth 票 → 回账号页登录区）。2026-10-24 PR4 从删掉的「账号信息」子页挪来。
  * - 其他设备：名字（型号 / 平台）+ 浏览器 · 地点 · 上次活动；「退出」两步确认 → device-revoke
  */
 import { on } from '../lib/events.js';

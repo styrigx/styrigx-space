@@ -51,7 +51,7 @@ test('parseReport：非法上报全部拒绝', () => {
   for (const b of bad) assert.equal(parseReport(b, NOW), null, JSON.stringify(b));
 });
 
-test('summarize：按区域合计；书名只给 owner', () => {
+test('summarize：按区域合计；书名只给 admin', () => {
   const rows = [
     { k: 'home', t: '', sec: 120 },
     { k: 'book:a', t: '三体', sec: 600 },

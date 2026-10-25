@@ -1,19 +1,19 @@
 {{/* 账号（/account/，独立页，不挂在设置下）：抽屉头的头像圆进入。
    未登录 → 账号登录（顶栏页名「登录账号」，全页光晕背景，与锁屏同一套版面和弹层，2026-10-24）：头像 + 欢迎回来 + 记录 · 收藏 · 探索 · 享受 + 「登录」
    → 底部弹层选 通行密钥 / 密码 / 「无法登录？」。
-   成功签发账号会话（sgx-account，400 天，不点退出一直登录；进账号页前提是锁屏已解锁）。
+   成功签发账号会话（sgx-account-session，400 天，不点退出一直登录；进账号页前提是锁屏已解锁）。
    「无法登录？」→ /account/reset/（重置登录：根凭证 → 直接进 安全与隐私 重设账号凭证）。
    已登录 → 账号总览（三星账号式）：账号卡（名字 + 「已登录」+ 头像；卡片只是展示，不能点、没有详情页；
-   主人点头像直接换头像，见 avatar-edit.js。2026-10-24 PR4 删掉「账号信息」子页 /account/profile/，
+   管理员点头像直接换头像，见 avatar-edit.js。2026-10-24 PR4 删掉「账号信息」子页 /account/profile/，
    登录方式、「退出账号」和保持登录的说明挪进设备页「此设备」卡），
    第一组：「设备」→ 子页 /account/devices/（account-devices.html）：此设备（登录方式 + 退出账号）+ 其他登录的设备，可单独退出；
    「临时钥匙」→ /account/tempkeys/；
    「账号安全」→ 子页 /account/security/（account-security.html）管理账号密码和账号通行密钥，
-   每次进都要再验一次账号凭证（3 分钟门票，离开即作废）。
+   每次进都要再验一次账号凭证（3 分钟reauth 票，离开即作废）。
    第二组（2026-10-24 PR4）：「云同步」→ 子页 /account/sync/（account-sync.html）：总开关 + 实际同步的每一项；
    「服务状态」→ 子页 /account/status/（account-status.html，原顶栏「状态」页挪进来）：站点健康、可用率、响应延迟。
    ?return=/account/(security|devices|sync|status)/：子页没有账号会话时跳来，登录后回子页。
-   访客看到的界面与站长一致（服务端一律拒绝）。noindex、不进 sitemap（见 baseof/sitemap）。
+   访客看到的界面与管理员一致（服务端一律拒绝）。noindex、不进 sitemap（见 baseof/sitemap）。
    脚本走 ES Module 入口 entry-account.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-account.js" }}

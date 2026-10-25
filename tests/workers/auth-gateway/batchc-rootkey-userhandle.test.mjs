@@ -5,7 +5,7 @@
  * - normalizeRootKey 去掉所有空白字符（空格、制表符、换行 \r \n）
  * - root-auth：带换行、不带换行、首尾空格三种写法都通过；改一个字符失败；空串失败
  * - lockreset verify：带换行通过
- * - 只有根凭证这样处理；站长密码、解锁密码不做任何规范化
+ * - 只有根凭证这样处理；管理员密码、解锁密码不做任何规范化
  *
  * C4：
  * - owner、lock、应用三类 user.id 互不相同
@@ -16,6 +16,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { testLockSession, testAccountSession } from './_tickets.mjs';
 
 function makeKV(seed = {}) {
   const m = new Map(Object.entries(seed));
@@ -102,7 +103,7 @@ test('B2：root-auth 带换行通过', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
   /* 引导模式：lock 未配置时无会话也能校验根凭证 */
-  const req = postReq('https://styrigx.com/api/root-auth', { key: 'test-root-key-\nabc123' });
+  const req = postReq('https://styrigx.com/api/root-auth', { key: 'test-root-key-\nabc123', purpose: 'lock-reset' });
   const res = await onRequestPost({ request: req, env: authEnv(kv) });
   assert.equal(res.status, 200);
   const j = await res.json();
@@ -112,7 +113,7 @@ test('B2：root-auth 带换行通过', async () => {
 test('B2：root-auth 首尾空格通过', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
-  const req = postReq('https://styrigx.com/api/root-auth', { key: '  test-root-key-abc123  ' });
+  const req = postReq('https://styrigx.com/api/root-auth', { key: '  test-root-key-abc123  ', purpose: 'lock-reset' });
   const res = await onRequestPost({ request: req, env: authEnv(kv) });
   const j = await res.json();
   assert.ok(j.ok, '首尾空格的根凭证应通过');
@@ -121,7 +122,7 @@ test('B2：root-auth 首尾空格通过', async () => {
 test('B2：root-auth 不带换行通过（回归）', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
-  const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY });
+  const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY, purpose: 'lock-reset' });
   const res = await onRequestPost({ request: req, env: authEnv(kv) });
   const j = await res.json();
   assert.ok(j.ok, '原样根凭证应通过');
@@ -130,7 +131,7 @@ test('B2：root-auth 不带换行通过（回归）', async () => {
 test('B2：root-auth 改一个字符失败', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
-  const req = postReq('https://styrigx.com/api/root-auth', { key: 'test-root-key-abc124' }, { 'CF-Connecting-IP': '10.0.0.1' });
+  const req = postReq('https://styrigx.com/api/root-auth', { key: 'test-root-key-abc124', purpose: 'lock-reset' }, { 'CF-Connecting-IP': '10.0.0.1' });
   const res = await onRequestPost({ request: req, env: authEnv(kv) });
   assert.equal(res.status, 401);
   const j = await res.json();
@@ -140,7 +141,7 @@ test('B2：root-auth 改一个字符失败', async () => {
 test('B2：root-auth 空串失败（去空白后为空一律拒绝）', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
-  const req = postReq('https://styrigx.com/api/root-auth', { key: '   \n\t  ' }, { 'CF-Connecting-IP': '10.0.0.2' });
+  const req = postReq('https://styrigx.com/api/root-auth', { key: '   \n\t  ', purpose: 'lock-reset' }, { 'CF-Connecting-IP': '10.0.0.2' });
   const res = await onRequestPost({ request: req, env: authEnv(kv) });
   assert.equal(res.status, 401);
   const j = await res.json();
@@ -154,25 +155,11 @@ test('B2：lockreset verify 带换行通过', async () => {
   await kv.put('layer:owner', '1');
   const req = postReq('https://styrigx.com/api/lock-reset', { action: 'verify', rootKey: 'test-root-key-\nabc123' }, { 'CF-Connecting-IP': '10.0.0.3' });
   const res = await onRequestPost({ request: req, env: authEnv(kv) });
-  /* 根凭证正确 → 进入开关/站长凭证流程（needAccount），不是 401 auth */
+  /* 根凭证正确 → 进入开关/管理员凭证流程（needAccount），不是 401 auth */
   const j = await res.json();
   assert.notEqual(j.error, 'auth', '带换行的根凭证不应报 auth 失败');
-  assert.equal(j.needAccount, true, '应进入站长凭证步骤');
+  assert.equal(j.needAccount, true, '应进入管理员凭证步骤');
 });
-
-/* 账号体系：账号通行密钥（class=owner）的注册 challenge 改走 /api/account（需账号会话 + 账号门票） */
-async function accountRegisterChallenge(kv, env) {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/account.js');
-  const { signAccountTicket } = await import('../../../workers/auth-gateway/functions/_kernel/account-session.js');
-  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
-  const sess = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
-  const acc = await signAccountTicket(ACCT_PRIV, 'root', 0, Date.now());
-  const { signDoorTicket } = await import('../../../workers/auth-gateway/functions/_kernel/tickets.js');
-  const door = await signDoorTicket(ACCT_PRIV, 'account', 'root', 0); /* 注册账号通行密钥要账号门票 */
-  const req = postReq('https://styrigx.com/api/account', { action: 'passkey-register-challenge' }, { 'Cookie': 'sgx-verified=' + sess + '; sgx-account=' + acc + '; sgx-door=' + door });
-  const res = await onRequestPost({ request: req, env });
-  return await res.json();
-}
 
 /* ============ C4：user handle 按类别区分 ============ */
 

@@ -1,7 +1,7 @@
 /**
  * 锁屏凭证页（门内）行为 E2E（静态构建 + API mock，无需真实后端）。
  *
- * 门在锁屏凭证页本身：进页 POST /api/lock-reauth status，valid → 门内；这里的用例默认门票有效，
+ * 门在锁屏凭证页本身：进页 POST /api/lock-reauth status，valid → 门内；这里的用例默认reauth 票有效，
  * 测门内组件（密码弹层、删除、到期框、倒计时胶囊、最后一把钥匙）。门口本身见 reauth-verify.spec.js。
  * （管理凭证索引页、stepup 已删除，原 C2b「索引页 ↔ 锁屏子页」用例随之删除。）
  *
@@ -27,7 +27,7 @@ test.describe('bindSubmitButton 去重修复：锁屏页设置密码弹层', () 
     await page.addInitScript(() => {
       try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
     });
-    /* 门内页探针通过：门票状态（/api/lock-reauth） */
+    /* 门内页探针通过：reauth 票状态（/api/lock-reauth） */
     await mockJson(page, '**/api/lock-credentials', 200, { ok: true, password: true, passkey: true });
     await mockJson(page, '**/api/lock-reauth', 200, { ok: true, valid: true });
     await mockJson(page, '**/api/lock-passkey', 200, { ok: true, keys: [], scope: 'root' });
@@ -115,7 +115,7 @@ test.describe('批次 A 验收修复 P1：删除密码按钮', () => {
     await expect(page.locator('#lockmgr-pwdel')).toBeHidden();
   });
 
-  /* 站长页删除密码：账号体系后账号密码只能设置/修改/重置（账号页），无删除入口。 */
+  /* 管理员页删除密码：账号体系后账号密码只能设置/修改/重置（账号页），无删除入口。 */
 });
 
 test.describe('批次 A 验收修复 P1：双向相同密码错误文案', () => {
@@ -214,9 +214,9 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
       try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
     });
     await mockJson(page, '**/api/lock-passkey', 200, { ok: true, keys: [], scope: 'keys' });
-    /* 账号体系：原站长凭证门已升级为账号页，门内页用锁屏页（同一套门内组件 app-gate.js）测 */
+    /* 账号体系：原管理员凭证门已升级为账号页，门内页用锁屏页（同一套门内组件 app-gate.js）测 */
     await mockJson(page, '**/api/lock-credentials', 200, { ok: true, password: true, passkey: true });
-    await mockJson(page, '**/api/lock-reauth', 200, { ok: true, valid: true, door: 'lock', expiresAt: Date.now() + 175000, password: true, passkey: true });
+    await mockJson(page, '**/api/lock-reauth', 200, { ok: true, valid: true, ticket: 'lock-reauth', expiresAt: Date.now() + 175000, password: true, passkey: true });
   });
 
   /** 相对亮度（WCAG） */
@@ -332,7 +332,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
     expect(pageErrors).toEqual([]);
   });
 
-  test('门内 403 door → 弹框，不点不跳；点「重新验证」清票回到本页门口；无 challenge 请求', async ({ page }) => {
+  test('管理区 403 reauth → 弹框，不点不跳；点「重新验证」清票回到本页门口；无 challenge 请求', async ({ page }) => {
     let clears = 0;
     let valid = true;
     await page.route('**/api/lock-reauth', async (route) => {
@@ -352,7 +352,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
       await route.fulfill({
         status: 403,
         contentType: 'application/json',
-        body: JSON.stringify({ ok: false, error: 'door', reason: 'expired' }),
+        body: JSON.stringify({ ok: false, error: 'reauth', reason: 'expired' }),
       });
     });
     await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
@@ -368,13 +368,13 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
     await expect(page.locator('#sgx-credential-countdown')).toHaveCount(0);
     /* 不点不跳 */
     await expect(page).toHaveURL(/\/settings\/security\/lock\//);
-    /* 门票失效后不发起任何 WebAuthn challenge */
+    /* reauth 票失效后不发起任何 WebAuthn challenge */
     expect(challengeCalls).toBe(0);
     /* 「重新验证」→ 清票 → 回到本页，门口出现（锁屏通行密钥 / 解锁密码 / 根凭证） */
     await dlg.locator('button.sgx-verify-skip').click();
-    await expect(page.locator('#lock-door')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#lock-reauth')).toBeVisible({ timeout: 10000 });
     await expect(page).toHaveURL(/\/settings\/security\/lock\/$/);
-    await expect(page.locator('#lock-door-methods .sgx-credential-row')).toHaveCount(3);
+    await expect(page.locator('#lock-reauth-methods .sgx-credential-row')).toHaveCount(3);
     expect(clears).toBeGreaterThan(0);
     expect(pageErrors).toEqual([]);
   });
@@ -415,7 +415,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
       await route.fulfill({
         status: 403,
         contentType: 'application/json',
-        body: JSON.stringify({ ok: false, error: 'door', reason: 'expired' }),
+        body: JSON.stringify({ ok: false, error: 'reauth', reason: 'expired' }),
       });
     });
     await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
@@ -470,7 +470,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
       await route.fulfill({
         status: 403,
         contentType: 'application/json',
-        body: JSON.stringify({ ok: false, error: 'door', reason: 'expired' }),
+        body: JSON.stringify({ ok: false, error: 'reauth', reason: 'expired' }),
       });
     });
     await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
@@ -487,7 +487,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
   });
 
   test('v1.1 §二.1：胶囊在首次数据加载完成后再显示（状态接口延迟时胶囊不先出现）', async ({ page }) => {
-    /* 探针通过（门票有效），门才能开 */
+    /* 探针通过（reauth 票有效），门才能开 */
     await mockJson(page, '**/api/lock-reauth', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
     /* 探针是 /api/lock-reauth；lock-credentials 只有门内 refreshStatus 读，延迟 1500ms 模拟慢网络 */
     await page.route('**/api/lock-credentials', async (route) => {

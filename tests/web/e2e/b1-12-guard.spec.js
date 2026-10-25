@@ -2,7 +2,7 @@
  * B1-12 守护测试（只加测试，不改功能）。
  *
  * 覆盖（任务书 B1-12）：
- * - 站长凭证页「添加通行密钥」：虚拟认证器下，点击后 1 秒内调用 credentials.create；
+ * - 管理员凭证页「添加通行密钥」：虚拟认证器下，点击后 1 秒内调用 credentials.create；
  *   成功弹命名弹层，失败给中文提示。
  * - 密码被浏览器自动填充后直接点验证：不报「请输入凭证」
  *   （直接设 value、不触发 input 事件来模拟）。
@@ -49,9 +49,9 @@ test.describe('B1-12 守护：添加通行密钥', () => {
     await page.addInitScript(() => {
       try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
     });
-    /* 门内页探针通过（账号体系：原站长凭证门已移除，添加通行密钥在锁屏门内页测） */
+    /* 门内页探针通过（账号体系：原管理员凭证门已移除，添加通行密钥在锁屏门内页测） */
     await mockJson(page, '**/api/lock-credentials', 200, { ok: true, password: true, passkey: true });
-    await mockJson(page, '**/api/lock-reauth', 200, { ok: true, valid: true, door: 'lock', password: true, passkey: true });
+    await mockJson(page, '**/api/lock-reauth', 200, { ok: true, valid: true, ticket: 'lock-reauth', password: true, passkey: true });
     await mockJson(page, '**/api/lock-passkey', 200, { ok: true, keys: [], scope: 'root' });
   });
 

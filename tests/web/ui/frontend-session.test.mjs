@@ -66,7 +66,7 @@ test('sgx-account-card.html：只保留名字和头像（解锁入口已移走�
 
 test('security.html：安全分组两个入口（锁屏凭证/立即锁定）；没有管理凭证、应用凭证；账号在顶栏头像', () => {
   const secHtml = readFileSync('web/layouts/_default/security.html', 'utf8');
-  assert.ok(!secHtml.includes('id="sec-owner-cred"'), '站长凭证入口已移到顶栏头像（账号页）');
+  assert.ok(!secHtml.includes('id="sec-owner-cred"'), '管理员凭证入口已移到顶栏头像（账号页）');
   assert.ok(!secHtml.includes('id="sec-mgmt-cred"'), '管理凭证已删除');
   assert.ok(!secHtml.includes('管理凭证'), '不应再出现「管理凭证」');
   assert.ok(secHtml.includes('id="sec-lock-cred"'), '应有锁屏凭证入口');
@@ -85,7 +85,7 @@ test('security.js：读锁屏凭证状态，不再走 stepup；无角色条件�
   assert.ok(!js.includes("role === 'visitor'"), '不应有访客角色条件分支');
 });
 
-test('/api/lock-now：POST 下发 Set-Cookie 清除头（会话两条 + 门票 sgx-door + 钥匙票 sgx-tk）', async () => {
+test('/api/lock-now：POST 下发 Set-Cookie 清除头（锁屏会话 + LockReauthTicket）', async () => {
   const res = await lockPost({ request: new Request('https://styrigx.com/api/lock-now', { method: 'POST' }), env: {} });
   assert.equal(res.status, 200);
   const j = await res.json();
@@ -93,13 +93,12 @@ test('/api/lock-now：POST 下发 Set-Cookie 清除头（会话两条 + 门票 s
   const cookies = typeof res.headers.getSetCookie === 'function'
     ? res.headers.getSetCookie()
     : [res.headers.get('set-cookie')];
-  assert.equal(cookies.length, 4, '应下发四条 Set-Cookie（verified x2 + door + tk）');
-  const verified = cookies.filter((c) => c.startsWith('sgx-verified=;'));
-  assert.equal(verified.length, 2, '应有两条 sgx-verified 清除');
-  assert.ok(verified.some((c) => c.includes('Domain=.styrigx.com')), '应有一条带 Domain=.styrigx.com');
-  assert.ok(verified.some((c) => !c.includes('Domain=')), '应有一条不带 Domain（清 host-only）');
-  assert.ok(cookies.some((c) => c.startsWith('sgx-door=;') && c.includes('Max-Age=0')), '应清除门票 sgx-door');
-  assert.ok(cookies.some((c) => c.startsWith('sgx-tk=;') && c.includes('Max-Age=0') && c.includes('Domain=.styrigx.com')), '应清除临时 LockKey 钥匙票 sgx-tk');
+  assert.equal(cookies.length, 2, '应下发两条 Set-Cookie（锁屏会话 + LockReauthTicket）');
+  const sess = cookies.filter((c) => c.startsWith('sgx-lock-session=;'));
+  assert.equal(sess.length, 1, '应有一条 sgx-lock-session 清除');
+  assert.ok(sess[0].includes('Domain=.styrigx.com') && sess[0].includes('Max-Age=0'), '锁屏会话清除带 Domain=.styrigx.com');
+  assert.ok(cookies.some((c) => c.startsWith('sgx-lock-reauth=;') && c.includes('Max-Age=0')), '应清除 LockReauthTicket');
+  assert.ok(!cookies.some((c) => c.startsWith('sgx-door=') || c.startsWith('sgx-tk=') || c.startsWith('sgx-verified=')), '不再有旧 cookie');
   assert.ok(!cookies.some((c) => c.startsWith('sgx-stepup=') || c.startsWith('sgx-app=')), '不再有 stepup / app cookie');
 });
 

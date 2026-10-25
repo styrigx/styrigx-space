@@ -41,9 +41,9 @@ test('搜索：主题 → 主题模式排在壁纸和主题前；按语言过滤
   assert.deepEqual(search(IX, { q: '深色', lang: 'zh' }).map((h) => h.title), ['主题模式']);
 });
 
-test('私密：访客搜不到，站长能搜到', () => {
+test('私密：访客搜不到，管理员能搜到', () => {
   assert.equal(search(IX, { q: '账号', lang: 'zh' }).length, 0);
-  assert.equal(search(IX, { q: '账号', lang: 'zh', owner: true }).length, 1);
+  assert.equal(search(IX, { q: '账号', lang: 'zh', admin: true }).length, 1);
 });
 
 test('跨站：博客文章也在结果里；site 只搜一个站', () => {
@@ -55,7 +55,7 @@ function kvOf(map) {
   return { async get(k, t) { const v = map[k]; return v === undefined ? null : t === 'json' ? JSON.parse(v) : v; } };
 }
 
-test('入口：GET /search 回结果、不回正文；角色头只认 owner；没 KV 503', async () => {
+test('入口：GET /search 回结果、不回正文；角色头只认 admin；没 KV 503', async () => {
   _resetCache();
   const env = { KV_SEARCH_INDEX: kvOf({ 'site:space': JSON.stringify(IX[0]), 'site:blog': JSON.stringify(IX[1]) }) };
   let r = await worker.fetch(new Request('https://x/search?q=' + encodeURIComponent('主题模式') + '&lang=zh'), env);
@@ -65,7 +65,7 @@ test('入口：GET /search 回结果、不回正文；角色头只认 owner；�
   assert.equal(j.hits[0].text, undefined);
   r = await worker.fetch(new Request('https://x/search?q=' + encodeURIComponent('账号')), env);
   assert.equal((await r.json()).hits.length, 0);
-  r = await worker.fetch(new Request('https://x/search?q=' + encodeURIComponent('账号'), { headers: { 'X-Sgx-Role': 'owner' } }), env);
+  r = await worker.fetch(new Request('https://x/search?q=' + encodeURIComponent('账号'), { headers: { 'X-Sgx-Role': 'admin' } }), env);
   assert.equal((await r.json()).hits.length, 1);
   assert.equal((await worker.fetch(new Request('https://x/other'), env)).status, 404);
   assert.equal((await worker.fetch(new Request('https://x/search?q=a', { method: 'POST' }), env)).status, 405);

@@ -1,7 +1,7 @@
 /**
  * 账号已登录设备（设置 › 账号 › 设备）。
  *
- * 每次账号登录（通行密钥 / 密码 / 根凭证重置）在 sgx-account 票据里带一个随机 sid，
+ * 每次账号登录（通行密钥 / 密码 / 根凭证重置）在 sgx-account-session 票据里带一个随机 sid，
  * 并在 KV 记一条 account-dev:<sid>：
  *   { sid, by, createdAt, authAt, lastSeen, model, platform, platformVersion, browser, country, city }
  * - 同一浏览器重新登录（含进安全与隐私的门）沿用原 sid，只更新 by/authAt，不会多出一台

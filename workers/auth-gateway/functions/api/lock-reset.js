@@ -6,13 +6,13 @@
  * 流程（根凭证优先）：
  * 1. 先输入根凭证，与环境变量比对（不读 KV）。错误按现有认证失败处理。
  * 2. 根凭证正确后才读重置开关（_kernel/lock-reset-switch.js：KV 开关 + D1 计时/单次）。
- *    开关有效 → 签发重置锁屏门票 by=root（审计 via=switch），并原子标记已用。
- * 3. 开关无效 → 继续要求账号凭证（AccountKey），通过后签发重置锁屏门票（by=account+root）。
+ *    开关有效 → 签发 LockResetTicket（by=root）（审计 via=switch），并原子标记已用。
+ * 3. 开关无效 → 继续要求账号凭证（AccountKey），通过后签发 LockResetTicket（by=account：RootKey + AccountKey 双验，by 只记 account）。
  *
  * 前端不提示开关存在；两种情况响应形态一致，由服务端决定下一步。
  * 只在重置锁屏路径、且根凭证正确后读开关，其他请求一律不读。
  *
- * 重置锁屏门票（door=lockreset，SGX_LOCK_* 签，3 分钟）只能增删锁屏凭证、设置锁屏密码；
+ * LockResetTicket（sgx-lock-reset，SGX_LOCK_* 签，3 分钟）只能增删锁屏凭证、设置锁屏密码；
  * 不签锁屏会话、不进主页面、不管会话。完成后推进 session-epoch，用新锁屏凭证正常解锁。
  *
  * 账号未配置时锁屏重置不可用（重置开关除外）。
@@ -22,15 +22,16 @@
  * - { action: 'challenge' } → 下发 AccountKey 断言 challenge（purpose=lock-reset）
  * - { action: 'verify', rootKey, accountProof? } →
  *     根凭证错 → 401 auth；
- *     根凭证对 + 开关有效 → 重置锁屏门票（by=root, via=switch）；
+ *     根凭证对 + 开关有效 → LockResetTicket（by=root, via=switch）；
  *     根凭证对 + 开关无效 + 无 accountProof → { ok:true, needAccount:true, passkey, password }；
- *     根凭证对 + 开关无效 + accountProof 有效 → 重置锁屏门票（by=account+root）
+ *     根凭证对 + 开关无效 + accountProof 有效 → LockResetTicket（by=account）
  *
  * 根凭证失败、账号凭证失败都计入根凭证共用限速；审计标记 via=switch（不对前端暴露）。
  * 只接受 POST；校验 Origin。
  */
 import { checkRootCredential } from '../_kernel/root-check.js';
-import { issueDoorCookie, DOOR_LOCKRESET, DOOR_BY_ACCOUNT_ROOT } from '../_kernel/tickets.js';
+import { issueTicket } from '../_kernel/tickets.js';
+import { LOCK_RESET_TICKET, BY_ACCOUNT } from '../_kernel/realms.js';
 import { randB64, verifyAssertion, rpIdHashOf, consumeChallenge, findStoredKey } from '../_kernel/passkey-verify.js';
 import { getPasskeys, PK_CLASS_ACCOUNT, PK_CLASS_LOCK } from '../_kernel/passkey-store.js';
 import { getPepper, verifyRealmPassword } from '../_kernel/password.js';
@@ -227,12 +228,12 @@ async function handlePost(context) {
       if (failResp) return failResp;
       return Response.json({ ok: false, error: 'auth' }, { status: 401 });
     }
-    return await issueLockResetTicket(ip, DOOR_BY_ACCOUNT_ROOT, null);
+    return await issueLockResetTicket(ip, BY_ACCOUNT, null);
 
-    /* 签发重置锁屏门票（door=lockreset，SGX_LOCK_* 签，3 分钟；内部函数） */
+    /* 签发 LockResetTicket（sgx-lock-reset，SGX_LOCK_* 签，3 分钟；内部函数） */
     async function issueLockResetTicket(ipAddr, by, auditExtra) {
       const headers = new Headers({ 'Content-Type': 'application/json' });
-      const dErr = await issueDoorCookie(env, headers, DOOR_LOCKRESET, by);
+      const dErr = await issueTicket(env, headers, LOCK_RESET_TICKET, by);
       if (dErr) {
         await writeRootAudit(kv, ipAddr, false, { path: PURPOSE });
         return Response.json(dErr.body, { status: dErr.status });

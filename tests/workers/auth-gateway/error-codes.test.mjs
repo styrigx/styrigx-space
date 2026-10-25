@@ -15,12 +15,12 @@
  *
  * KNOWN_FIXED 说明：
  * - auth：lockreset 401，lock.js 按 HTTP 状态 + 固定文案处理
- * - configured：root-session 403，exchangeRootSession 只返回 ok/status
+ * - purpose：/api/root-auth 缺 purpose / purpose 不认识（前端总是带四个固定值之一，只在请求被篡改时出现）
  * - code / no-session-key：/api/lock-tempkey-unlock，lock.js submitTemp 按码显示固定文案（无效或已过期 / 服务器错误）
  * - duration / name / full：/api/lock-tempkey create，account-tempkeys.js 显示固定文案（名字太长 / 已满 20 把；duration 只在下拉被篡改时出现）
  * - bad-form / missing / bad-type / too-large：/api/avatar 换头像，avatar-edit.js 只看 ok，失败一律固定文案
  * - account：账号会话缺失（/api/account 管理），账号页按码跳回账号登录，不进 apiErrorText
- * - door：门票缺失/过期（/api/account 管理、锁屏凭证管理），门内页按码回到门口重新验证，不进 apiErrorText
+ * - reauth：reauth 票缺失/过期（/api/account 管理、锁屏凭证管理），页面按码回到验证入口重新验证，不进 apiErrorText
  *
  * 另断言：每个 ERR_KEY 的 i18n key 都在门内模板
  * （security-lock；原 security-owner 已升级为账号页，应用凭证页已删除）里定义，
@@ -38,14 +38,14 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
 const KNOWN_FIXED = new Set([
   'auth',
-  'configured',
+  'purpose', /* /api/root-auth：前端总是带固定 purpose */
   'denied',
   'code', /* /api/lock-tempkey-unlock：lock.js 显示「临时钥匙无效或已过期」 */
   'no-session-key', /* /api/lock-tempkey-unlock：lock.js 显示「服务器错误」 */
   'duration', /* /api/lock-tempkey create：只在下拉值被篡改时出现，落到通用文案 */
   'name', /* /api/lock-tempkey create：account-tempkeys.js → tkNameLong */
   'full', /* /api/lock-tempkey create：account-tempkeys.js → tkFull */
-  'door',
+  'reauth',
   'bad-form',
   'missing',
   'bad-type',

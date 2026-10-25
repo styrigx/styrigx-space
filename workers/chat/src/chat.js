@@ -1,13 +1,13 @@
 /**
  * @fileoverview styrigx-chat 的聊天内核（2026-10-22 从网关 functions/api/chat.js 搬过来）：只做「联网检索 + 回答」。
  *
- * 用途（站长定）：聊天只用来检索网站，不放私密信息、没有长期记忆。这里不存任何对话：
+ * 用途（管理员定）：聊天只用来检索网站，不放私密信息、没有长期记忆。这里不存任何对话：
  * 浏览器每次把整段对话（只在 sessionStorage）发给网关 /api/chat，网关验完门转进来，这里转给模型、把回答以 SSE 流回去，什么都不留。
  *
  * 门在网关（workers/auth-gateway/functions/api/chat.js），这里不验 cookie：
- * - 同源 POST（否则 403 origin）、锁屏会话（没有 / 无效 → 401）、只许站长（访客 → 403 owner_only），都由网关先做。
+ * - 同源 POST（否则 403 origin）、锁屏会话（没有 / 无效 → 401）、只许管理员（访客 → 403 admin_only），都由网关先做。
  * - 本 Worker 没有公开地址（workers_dev / preview_urls 关、没有路由），唯一入口是网关的服务绑定 CHAT；
- *   入口（src/index.js）再要求网关写的 X-Sgx-Role: owner，没有就 403 owner_only（双保险）。
+ *   入口（src/index.js）再要求网关写的 X-Sgx-Role: admin，没有就 403 admin_only（双保险）。
  *
  *   GET  /models → 200 { ok:true, default:'<id>', models:[{ id, label, search }] }（网关 GET /api/chat 原样转回）
  *     search = 这个模型实际会不会带联网工具（CHAT_SEARCH=off 或 openai 模式时一律 false）。
@@ -24,7 +24,7 @@
  *       400 bad_request / bad_model · 405 method
  *       503 no_key（没配钥匙 / 读不到）· 429 rate_limited（上游 429，这个模型的免费额度用完）·
  *       502 model_unavailable（上游 404，或 403 / 400 说模型 not found / not supported / permission）· 502 upstream（上游其他错误 / 超时）
- *   （401 unauthorized · 403 origin / owner_only 由网关回。）
+ *   （401 unauthorized · 403 origin / admin_only 由网关回。）
  *   上游 400 说的是工具 / 搜索接地（google_search 等不支持）→ 不带工具自动重试一次（只一次），回答开头带 meta web:false。
  *
  * 配置（workers/chat/wrangler.toml [vars]）：
@@ -322,7 +322,7 @@ function hasKeyBinding(env) {
 }
 
 /**
- * POST /chat：回答（SSE）。门（同源 / 会话 / 只许站长）已经在网关做过。
+ * POST /chat：回答（SSE）。门（同源 / 会话 / 只许管理员）已经在网关做过。
  * @param {Request} request @param {any} env
  */
 export async function handleChat(request, env) {

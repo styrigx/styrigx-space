@@ -4,11 +4,11 @@
  * 生产（SGX_ENV=production）：
  * - 只认 styrigx.com：别的域名的 /api/* → 403，其他 → 301 到 styrigx.com（路由只登记了 styrigx.com，正常进不来）
  * - /s/<码>：谁都能打开（码就是凭证），不在这里拦，由 open.js 处理
- * - /api/share*：只许站长。访客 → 403 role（同网关 ADMIN_ONLY_APIS；这里没有认证类 action）；没会话 → 401 {ok:false}
+ * - /api/share*：只许管理员。访客 → 403 role（同网关 ADMIN_ONLY_APIS；这里没有认证类 action）；没会话 → 401 {ok:false}
  *   接口里还要账号会话（api/share.js）
  * 非生产（本地 / 单测不设 SGX_ENV）：不拦，接口自己验（同账号 Worker）。
  */
-import { ROLE_OWNER } from './auth.js';
+import { ROLE_ADMIN } from './auth.js';
 import { SHARE_PATH_RE } from './lib/links.js';
 
 const HOST = 'styrigx.com';
@@ -39,7 +39,7 @@ export async function gate(request, env, auth) {
   if (pathname.startsWith('/api/')) {
     const sess = await auth.lockSession();
     if (!sess.ok) return jsonRes(401, { ok: false });
-    if (sess.role !== ROLE_OWNER) return jsonRes(403, { ok: false, error: 'role' });
+    if (sess.role !== ROLE_ADMIN) return jsonRes(403, { ok: false, error: 'role' });
     return null;
   }
   return null;

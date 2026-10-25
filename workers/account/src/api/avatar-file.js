@@ -2,7 +2,7 @@
  * GET /avatar/<尺寸>.webp（尺寸 32 / 96 / 192 / 512）—— 主站头像，公开。
  * 主站顶栏、首页名片、锁屏、设置账户卡、标签页图标，以及博客的头像和图标都读这里。
  *
- * - 主人上传过（KV_PROFILE 有 avatar:ver）→ 读 `avatar:<尺寸>`；
+ * - 管理员上传过（KV_PROFILE 有 avatar:ver）→ 读 `avatar:<尺寸>`；
  *   否则交给静态资源 static/avatar/<尺寸>.webp（默认头像；本地静态服务器测试时也直接命中它）。
  * - Cache-Control: public, max-age=300, stale-while-revalidate=30 天（换头像后最多旧一次）；
  *   ETag = "<版本>-<尺寸>"，默认图是 "d-<尺寸>"；If-None-Match 命中回 304。

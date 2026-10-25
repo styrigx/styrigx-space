@@ -3,7 +3,7 @@
  *
  * - 目标可以是主站路径或三个子站的地址（lib/links.js cleanTarget；点开时再验一次，存坏了也只走失败响应）。
  * - 普通短链：302 到目标，不签钥匙、不发会话；没解锁的人到了目标页由网关照常送去锁屏。
- * - 带临时会话：已是站长 → 只 302（不降级）；否则请网关（服务绑定 ISSUER → ShareIssuer.openLinkSession）用这条短链的钥匙
+ * - 带临时会话：已是管理员 → 只 302（不降级）；否则请网关（服务绑定 ISSUER → ShareIssuer.openLinkSession）用这条短链的钥匙
  *   签 visitor 会话 + 钥匙票，Set-Cookie 原样放进这次 302。访客不用在锁屏输入任何东西。
  *   会话只发给发起这次 GET 的浏览器：响应 private, no-store（任何缓存都不能存、不能转给别人）；HEAD 和浏览器预取
  *   （Sec-Purpose / Purpose: prefetch）不发会话——预取直接 503（浏览器丢掉预取、真点开时再走一遍），HEAD 只 302。
@@ -13,7 +13,7 @@
  * - 限速：同一 IP 15 分钟内 10 次打不开 → 锁 15 分钟（期间这个 IP 的 /s/* 一律走失败响应，真码也一样）。
  *   计数在 D1 share_fail，外面再套一层本 isolate 内存计数（锁住期间不再查 / 写 D1）。格式不对的码不写 D1（不可能对得上），只记内存。
  */
-import { ROLE_OWNER } from './auth.js';
+import { ROLE_ADMIN } from './auth.js';
 import { ORIGIN, SQL, isCode, cleanTarget, targetUrl, statusOf, first, run } from './lib/links.js';
 
 const MAX_FAIL = 10;
@@ -127,7 +127,7 @@ export async function openShare(request, env, ctx, auth, code) {
   }
   if (request.method === 'HEAD') return redirect(dest);
   const sess = await auth.lockSession();
-  if (sess.ok && sess.role === ROLE_OWNER) return redirect(dest);
+  if (sess.ok && sess.role === ROLE_ADMIN) return redirect(dest);
 
   const issuer = env && env.ISSUER;
   if (!issuer || typeof issuer.openLinkSession !== 'function') return failResponse();

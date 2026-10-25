@@ -1,34 +1,31 @@
 /**
- * 账号会话（sgx-account）：签发、解析、验证、吊销纪元。
+ * 账号会话（AccountSessionTicket，cookie sgx-account-session）：签发、解析、验证、Account 纪元。
  *
- * 账号登录三个入口平级（账号通行密钥 / 账号密码 / 根凭证），任一成功即签发本票据。
- * 与 lock 会话（sgx-verified）完全独立：lock 会话从不被当作账号认证，
- * 本票据也从不被当作 lock 会话。
+ * 账号登录两个入口平级（账号通行密钥 / 账号密码），任一成功即签发本票。RootKey 不签账号会话
+ * （丢了账号凭证走 AccountResetTicket 重设，再正常登录）。
+ * 与锁屏会话（sgx-lock-session）完全独立：锁屏会话从不被当作账号认证，本票也从不被当作锁屏会话。
  *
- * 票据格式（六段）：by.epoch.authAt.exp.sid.sig
- * - sid：本次登录的设备会话 id（_kernel/account-devices.js；设备页列出、可单独退出，黑名单命中 reason=revoked）
- *   旧的五段票据（by.epoch.authAt.exp.sig，没有 sid）仍然认：/api/account GET 时自动换成带 sid 的新票，不用重新登录
- * - by：passkey | password | root（REALM_ACCOUNT.bys）
- * - epoch：KV account-epoch（改账号密码 / 删账号通行密钥时 +1）
- * - authAt：本次登录验证时刻（毫秒）；重签（epoch 推进后保持当前设备）时保留原值
+ * 票内容：by.epoch.authAt.exp.deviceId，最后一段是签名：
+ *   sig = Ed25519(SGX_ACCOUNT_PRIVATE, "sgx-account-session|by.epoch.authAt.exp.deviceId")，base64url
+ * - by：passkey | password
+ * - epoch：Account 纪元（KV account-epoch；改账号密码 / 删账号通行密钥时 +1）
+ * - authAt：本次登录验证时刻（毫秒）；重签（纪元推进后保持当前设备）时保留原值
  * - exp：过期时刻（毫秒）
- * - sig：Ed25519(SGX_ACCOUNT_PRIVATE, "by.epoch.authAt.exp.sid")（旧票不含 .sid），base64url
+ * - deviceId：本次登录的设备 id（_kernel/account-devices.js；设备页列出、可单独退出，黑名单命中 reason=revoked）
+ * 其它格式一律无效。
  *
  * 缺 SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC：签发返回 503 config，验证一律失败
- * （reason=no-pubkey）；只影响账号登录与进门，网站其余部分不受影响。
+ * （reason=no-pubkey）；只影响账号登录，网站其余部分不受影响。
  *
- * 叶子模块：只 import _kernel（crypto / realms），不 import 接口或 _middleware.js。
+ * 叶子模块：只 import _kernel（crypto / realms / account-devices），不 import 接口或 _middleware.js。
  */
 import { ed25519Sign, ed25519Verify } from './crypto.js';
-import { REALM_ACCOUNT, realmPrivateKey, realmPublicKey, realmCookie, realmClearCookie } from './realms.js';
+import { REALM_ACCOUNT, ACCOUNT_SESSION_COOKIE, ACCOUNT_EPOCH_KEY, COOKIE_EXPIRED, realmPrivateKey, realmPublicKey } from './realms.js';
 import { newDeviceId, isDeviceId, isRevoked, getDevice, putDevice, recordLogin, deviceInfo, TOUCH_INTERVAL_MS } from './account-devices.js';
 
-export const ACCOUNT_COOKIE = REALM_ACCOUNT.cookie; /* 'sgx-account' */
-export const ACCOUNT_MAX_AGE = REALM_ACCOUNT.maxAge; /* 400 天：不点退出就一直登录 */
-export const ACCOUNT_BY_PASSKEY = 'passkey';
-export const ACCOUNT_BY_PASSWORD = 'password';
-export const ACCOUNT_BY_ROOT = 'root';
-const ACCOUNT_EPOCH_KEY = REALM_ACCOUNT.kv.epoch; /* 'account-epoch' */
+export { ACCOUNT_SESSION_COOKIE };
+export const ACCOUNT_SESSION_MAX_AGE = REALM_ACCOUNT.maxAge; /* 400 天：不点退出就一直登录 */
+const SIG_PREFIX = ACCOUNT_SESSION_COOKIE + '|';
 
 /** @param {string} by */
 function isAccountBy(by) {
@@ -70,46 +67,35 @@ export async function bumpAccountEpoch(kv) {
 }
 
 /**
- * 签账号票据值。
+ * 签账号会话票值。
  * @param {string} privatePem
- * @param {string} by
- * @param {number} epoch
- * @param {number} authAt 毫秒
- * @param {number} [now] 毫秒（测试用）
- * @param {string} [sid] 设备会话 id；不给 = 旧五段格式（只有测试这样签）
+ * @param {{by:string, epoch:number, authAt:number, deviceId:string, now?:number}} t now：毫秒（测试用）
  */
-export async function signAccountTicket(privatePem, by, epoch, authAt, now, sid) {
-  if (!isAccountBy(by)) throw new Error('signAccountTicket: bad by ' + JSON.stringify(by));
-  if (sid !== undefined && sid !== '' && !isDeviceId(sid)) throw new Error('signAccountTicket: bad sid');
-  const t = now || Date.now();
-  const exp = t + ACCOUNT_MAX_AGE * 1000;
-  const payload = by + '.' + epoch + '.' + authAt + '.' + exp + (sid ? '.' + sid : '');
-  const sig = await ed25519Sign(privatePem, payload);
+export async function signAccountSessionTicket(privatePem, t) {
+  if (!t || !isAccountBy(t.by)) throw new Error('signAccountSessionTicket: bad by ' + JSON.stringify(t && t.by));
+  if (!isDeviceId(t.deviceId || '')) throw new Error('signAccountSessionTicket: bad deviceId');
+  const exp = (t.now || Date.now()) + ACCOUNT_SESSION_MAX_AGE * 1000;
+  const payload = t.by + '.' + t.epoch + '.' + t.authAt + '.' + exp + '.' + t.deviceId;
+  const sig = await ed25519Sign(privatePem, SIG_PREFIX + payload);
   return payload + '.' + sig;
 }
 
 /**
- * 解析账号票据值（不验签）。
+ * 解析账号会话票值（不验签）。六段：by.epoch.authAt.exp.deviceId.sig。
  * @param {string} val
- * @returns {{by:string, epoch:number, authAt:number, exp:number, sid:string, sig:string}|null}
+ * @returns {{by:string, epoch:number, authAt:number, exp:number, deviceId:string, sig:string}|null}
  */
-export function parseAccountTicket(val) {
+export function parseAccountSessionTicket(val) {
   if (!val || typeof val !== 'string') return null;
   const parts = val.split('.');
-  if (parts.length !== 5 && parts.length !== 6) return null;
-  let sid = '';
-  if (parts.length === 6) {
-    sid = parts.splice(4, 1)[0];
-    if (!isDeviceId(sid)) return null;
-  }
-  const by = parts[0];
-  if (!isAccountBy(by)) return null;
-  const epoch = parseInt(parts[1], 10);
-  const authAt = parseInt(parts[2], 10);
-  const exp = parseInt(parts[3], 10);
+  if (parts.length !== 6) return null;
+  const [by, epochStr, authAtStr, expStr, deviceId, sig] = parts;
+  if (!isAccountBy(by) || !isDeviceId(deviceId) || !sig) return null;
+  const epoch = parseInt(epochStr, 10);
+  const authAt = parseInt(authAtStr, 10);
+  const exp = parseInt(expStr, 10);
   if (!Number.isFinite(epoch) || !Number.isFinite(authAt) || !Number.isFinite(exp)) return null;
-  if (!parts[4]) return null;
-  return { by, epoch, authAt, exp, sid, sig: parts[4] };
+  return { by, epoch, authAt, exp, deviceId, sig };
 }
 
 /** @param {any} request @param {string} name */
@@ -123,17 +109,16 @@ function readCookie(request, name) {
 }
 
 /**
- * 验证请求里的 sgx-account。只认本 cookie，绝不读 sgx-verified。
+ * 验证请求里的账号会话。只认 sgx-account-session，绝不读锁屏会话。
  * @param {any} request
  * @param {any} env
- * @returns {Promise<{ok:boolean, reason:string, by?:string, epoch?:number, authAt?:number, exp?:number, sid?:string}>}
+ * @returns {Promise<{ok:boolean, reason:string, by?:string, epoch?:number, authAt?:number, exp?:number, deviceId?:string}>}
  *   reason: ok / no-cookie / bad-format / expired / not-yet / no-pubkey / epoch-changed / kv-error / bad-sig / revoked
- *   sid：'' = 旧五段票（没有设备记录）
  */
-export async function verifyAccountCookie(request, env) {
-  const val = readCookie(request, ACCOUNT_COOKIE);
+export async function verifyAccountSession(request, env) {
+  const val = readCookie(request, ACCOUNT_SESSION_COOKIE);
   if (!val) return { ok: false, reason: 'no-cookie' };
-  const p = parseAccountTicket(val);
+  const p = parseAccountSessionTicket(val);
   if (!p) return { ok: false, reason: 'bad-format' };
   const now = Date.now();
   if (p.exp <= now) return { ok: false, reason: 'expired' };
@@ -147,17 +132,15 @@ export async function verifyAccountCookie(request, env) {
     return { ok: false, reason: 'kv-error' };
   }
   if (p.epoch !== cur) return { ok: false, reason: 'epoch-changed' };
-  const ok = await ed25519Verify(pub, p.by + '.' + p.epoch + '.' + p.authAt + '.' + p.exp + (p.sid ? '.' + p.sid : ''), p.sig);
+  const ok = await ed25519Verify(pub, SIG_PREFIX + p.by + '.' + p.epoch + '.' + p.authAt + '.' + p.exp + '.' + p.deviceId, p.sig);
   if (!ok) return { ok: false, reason: 'bad-sig' };
-  if (p.sid) {
-    const kv = env && env.KV_ACCOUNT_LOGIN;
-    try {
-      if (await isRevoked(kv, p.sid)) return { ok: false, reason: 'revoked' };
-    } catch (e) {
-      return { ok: false, reason: 'kv-error' };
-    }
-    await touchDevice(kv, request, p);
+  const kv = env && env.KV_ACCOUNT_LOGIN;
+  try {
+    if (await isRevoked(kv, p.deviceId)) return { ok: false, reason: 'revoked' };
+  } catch (e) {
+    return { ok: false, reason: 'kv-error' };
   }
+  await touchDevice(kv, request, p);
   return {
     ok: true,
     reason: 'ok',
@@ -165,21 +148,21 @@ export async function verifyAccountCookie(request, env) {
     epoch: p.epoch,
     authAt: p.authAt,
     exp: p.exp,
-    sid: p.sid,
+    deviceId: p.deviceId,
   };
 }
 
 /**
  * 刷新设备的 lastSeen（至多 30 分钟一次）；记录不见了（比如 KV 丢了）就按本次请求补一条。尽力而为。
- * @param {any} kv @param {any} request @param {{sid:string, by:string, authAt:number}} p
+ * @param {any} kv @param {any} request @param {{deviceId:string, by:string, authAt:number}} p
  */
 async function touchDevice(kv, request, p) {
   if (!kv) return;
   try {
     const now = Date.now();
-    const rec = await getDevice(kv, p.sid);
+    const rec = await getDevice(kv, p.deviceId);
     if (!rec) {
-      await putDevice(kv, Object.assign({ sid: p.sid, by: p.by, createdAt: p.authAt, authAt: p.authAt, lastSeen: now }, deviceInfo(request, null)));
+      await putDevice(kv, Object.assign({ sid: p.deviceId, by: p.by, createdAt: p.authAt, authAt: p.authAt, lastSeen: now }, deviceInfo(request, null)));
       return;
     }
     if (now - (rec.lastSeen || 0) < TOUCH_INTERVAL_MS) return;
@@ -199,17 +182,17 @@ async function touchDevice(kv, request, p) {
  * - 签名出错 → 500 sign-failed
  * @param {any} env
  * @param {Headers} headers
- * @param {string} by passkey | password | root
+ * @param {string} by passkey | password
  * @param {object} [opts]
  * @param {number} [opts.authAt] 默认当前时刻（新登录）；重签时传原值
  * @param {number} [opts.epoch] 默认读 KV
- * @param {string} [opts.sid] 沿用的设备会话 id（同一浏览器重新登录 / 纪元推进后重签）；不给就新建
+ * @param {string} [opts.deviceId] 沿用的设备 id（同一浏览器重新登录 / 纪元推进后重签）；不给就新建
  * @param {boolean} [opts.record] 是否写设备记录（默认 true；纪元推进后重签传 false）
  * @param {any} [opts.request] 写设备记录用（User-Agent、cf 国家城市）
  * @param {any} [opts.device] 前端 hints { model, platform, platformVersion }
  * @returns {Promise<{status:number, body:object}|null>}
  */
-export async function issueAccountCookie(env, headers, by, opts) {
+export async function issueAccountSession(env, headers, by, opts) {
   const o = opts || {};
   if (!accountKeysReady(env)) {
     return { status: 503, body: { ok: false, error: 'config' } };
@@ -224,12 +207,12 @@ export async function issueAccountCookie(env, headers, by, opts) {
   }
   try {
     const authAt = typeof o.authAt === 'number' ? o.authAt : Date.now();
-    const sid = isDeviceId(o.sid || '') ? o.sid : newDeviceId();
-    const cv = await signAccountTicket(realmPrivateKey(env, REALM_ACCOUNT), by, epoch, authAt, undefined, sid);
-    headers.append('Set-Cookie', realmCookie(REALM_ACCOUNT, cv));
+    const deviceId = isDeviceId(o.deviceId || '') ? o.deviceId : newDeviceId();
+    const cv = await signAccountSessionTicket(realmPrivateKey(env, REALM_ACCOUNT), { by: by, epoch: epoch, authAt: authAt, deviceId: deviceId });
+    headers.append('Set-Cookie', ACCOUNT_SESSION_COOKIE + '=' + cv + '; ' + REALM_ACCOUNT.cookieAttrs + '; Max-Age=' + ACCOUNT_SESSION_MAX_AGE);
     if (o.record !== false && env && env.KV_ACCOUNT_LOGIN) {
       try {
-        await recordLogin(env.KV_ACCOUNT_LOGIN, sid, by, authAt, deviceInfo(o.request, o.device));
+        await recordLogin(env.KV_ACCOUNT_LOGIN, deviceId, by, authAt, deviceInfo(o.request, o.device));
       } catch (e) { /* 设备记录写不进去不挡登录：验证时 touchDevice 会补 */ }
     }
   } catch (e) {
@@ -242,20 +225,20 @@ export async function issueAccountCookie(env, headers, by, opts) {
  * 清除账号会话 cookie。
  * @param {Headers} headers
  */
-export function clearAccountCookie(headers) {
-  headers.append('Set-Cookie', realmClearCookie(REALM_ACCOUNT));
+export function clearAccountSession(headers) {
+  headers.append('Set-Cookie', ACCOUNT_SESSION_COOKIE + '=; ' + REALM_ACCOUNT.cookieAttrs + '; ' + COOKIE_EXPIRED);
 }
 
 /**
- * 登录签票的选项：同一浏览器已有有效账号会话（比如进账号安全的门）就沿用它的 sid，不多记一台设备。
+ * 登录签票的选项：同一浏览器已有有效账号会话（比如进账号安全前再验一次）就沿用它的 deviceId，不多记一台设备。
  * device：前端 navigator.userAgentData 给的型号 / 平台（account-devices.js 清洗）。
  * @param {any} request @param {any} env @param {any} body
  */
 export async function accountSessionOpts(request, env, body) {
-  let sid = '';
+  let deviceId = '';
   try {
-    const cur = await verifyAccountCookie(request, env);
-    if (cur.ok && cur.sid) sid = cur.sid;
+    const cur = await verifyAccountSession(request, env);
+    if (cur.ok && cur.deviceId) deviceId = cur.deviceId;
   } catch (e) {}
-  return { sid: sid || undefined, request: request, device: body && body.device };
+  return { deviceId: deviceId || undefined, request: request, device: body && body.device };
 }

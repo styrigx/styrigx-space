@@ -19,23 +19,23 @@ const PORT = 8937;
 
 let t; // { kv, env, origin, mintAuth, makeAttestationCredential, close }
 
-/* 按当前 KV session-epoch 重签会话 + 锁屏门票，写入浏览器 context。
+/* 按当前 Lock 纪元重签 admin 锁屏会话 + LockReauthTicket，写入浏览器 context。
    set/change/remove/register 会推进 epoch，每次鉴权操作前都重签。 */
-async function mintBrowserAuth(context, doorBy) {
-  const { sessionCookie, doorCookie } = await t.mintAuth(doorBy);
+async function mintBrowserAuth(context, reauthBy) {
+  const { sessionCookie, reauthCookie } = await t.mintAuth(reauthBy);
   await context.addCookies([
-    { name: 'sgx-verified', value: sessionCookie, domain: 'localhost', path: '/' },
-    { name: 'sgx-door', value: doorCookie, domain: 'localhost', path: '/' },
+    { name: 'sgx-lock-session', value: sessionCookie, domain: 'localhost', path: '/' },
+    { name: 'sgx-lock-reauth', value: reauthCookie, domain: 'localhost', path: '/' },
   ]);
 }
 
-/* 账号会话 + 账号门票写入浏览器 context（按当前 account-epoch 签；门票会覆盖锁屏门票，同一时刻只有一张） */
+/* 账号会话 + AccountReauthTicket 写入浏览器 context（按当前 Account 纪元签；和 LockReauthTicket 是两个 cookie，互不覆盖） */
 async function mintBrowserAccount(context, by, authAt) {
   const acc = await t.mintAccount(by, authAt);
-  const d = await t.mintAccountDoor(by);
+  const d = await t.mintAccountReauth(by);
   await context.addCookies([
-    { name: 'sgx-account', value: acc, domain: 'localhost', path: '/' },
-    { name: 'sgx-door', value: d, domain: 'localhost', path: '/' },
+    { name: 'sgx-account-session', value: acc, domain: 'localhost', path: '/' },
+    { name: 'sgx-account-reauth', value: d, domain: 'localhost', path: '/' },
   ]);
 }
 
@@ -105,25 +105,25 @@ test.describe('credential APIs 真请求 e2e', () => {
     await mintBrowserAuth(context, 'root');
     // 根凭证登录的账号会话：设置账号密码
     await mintBrowserAccount(context, 'root');
-    let r = await apiFetch(page, '/api/account', { action: 'password-change', password: 'OwnerPass-222' });
+    let r = await apiFetch(page, '/api/account', { action: 'password-change', password: 'AccountPass-222' });
     expect(r.json.ok).toBe(true);
     expect(r.json.changed).toBe(false);
     const rec1 = await kv.get('owner-pw', 'json');
     expect(rec1 && rec1.hash).toBeTruthy();
     expect(await kv.get('layer:owner')).toBe('1');
-    // 首次配置推进了 session-epoch：重签 lock 会话；门票只有一张，重签锁屏门票后再签回账号门票
+    // 首次配置推进了 session-epoch：重签 lock 会话；reauth 票只有一张，重签LockReauthTicket后再签回AccountReauthTicket
     await mintBrowserAuth(context, 'root');
     await mintBrowserAccount(context, 'root');
-    r = await apiFetch(page, '/api/account', { action: 'password-change', password: 'OwnerPass-333' });
+    r = await apiFetch(page, '/api/account', { action: 'password-change', password: 'AccountPass-333' });
     expect(r.json.ok).toBe(true);
     expect(r.json.changed).toBe(true);
     const rec2 = await kv.get('owner-pw', 'json');
     expect(rec2.hash).not.toBe(rec1.hash);
     expect(await kv.get('account-epoch')).toBe('1');
     // 新密码能登录账号
-    r = await apiFetch(page, '/api/account', { action: 'login-password', password: 'OwnerPass-333' });
+    r = await apiFetch(page, '/api/account', { action: 'login-password', password: 'AccountPass-333' });
     expect(r.json.ok).toBe(true);
-    // 锁屏凭证的门：账号门票不能开锁屏的门（status valid=false）
+    // 锁屏凭证的门：AccountReauthTicket不能开锁屏的门（status valid=false）
     r = await apiFetch(page, '/api/lock-reauth', { action: 'status' });
     expect(r.json.ok).toBe(true);
     expect(r.json.valid).toBe(false);
@@ -131,12 +131,12 @@ test.describe('credential APIs 真请求 e2e', () => {
 
   test('通行密钥 register，KV 中 class 正确（lock：门内 lock-passkey / owner：账号页 /api/account）', async ({ page, context }) => {
     const kv = t.kv;
-    for (const pkClass of ['lock', 'owner']) {
+    for (const pkClass of ['lock', 'account']) {
       await mintBrowserAuth(context, 'password');
-      if (pkClass === 'owner') await mintBrowserAccount(context, 'password');
-      const api = pkClass === 'owner' ? '/api/account' : '/api/lock-passkey';
+      if (pkClass === 'account') await mintBrowserAccount(context, 'password');
+      const api = pkClass === 'account' ? '/api/account' : '/api/lock-passkey';
       // 1）真请求拿 challenge
-      const ch = await apiFetch(page, api, pkClass === 'owner'
+      const ch = await apiFetch(page, api, pkClass === 'account'
         ? { action: 'passkey-register-challenge' }
         : { action: 'challenge', type: 'register' });
       expect(ch.json.ok).toBe(true);
@@ -146,7 +146,7 @@ test.describe('credential APIs 真请求 e2e', () => {
       // 2）Node 端合成 attestation（UV=1），真请求提交 register
       const credential = await t.makeAttestationCredential(ch.json.challenge, 'localhost', t.origin);
       const reg = await apiFetch(page, api,
-        { action: pkClass === 'owner' ? 'passkey-register' : 'register', cid: ch.json.cid, credential, name: 'e2e-' + pkClass });
+        { action: pkClass === 'account' ? 'passkey-register' : 'register', cid: ch.json.cid, credential, name: 'e2e-' + pkClass });
       expect(reg.json.ok).toBe(true);
       expect(reg.json.credId).toBeTruthy();
 

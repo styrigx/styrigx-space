@@ -7,17 +7,18 @@
  * D1：有 node:sqlite 时真 SQL（migrations + lib/links.js 的语句）和内存替身各跑一遍；Node 20 只跑内存替身。
  *
  * - 规则：码 128 位、目标只收站内相对路径（防开放重定向）、有效期 / 会话档位和网关一致、会话不超过有效期
- * - 生成：带会话 → 网关签一把 link 钥匙（不在临时钥匙列表、不占 20 把）；普通 → 不签；网关再验一次站长 + 账号会话
- * - 点开：带会话 → visitor 会话 + 钥匙票（Max-Age = min(会话, 剩余)），302 到干净目标；普通 → 只 302；站长不降级；
+ * - 生成：带会话 → 网关签一把 link 钥匙（不在临时钥匙列表、不占 20 把）；普通 → 不签；网关再验一次管理员 + 账号会话
+ * - 点开：带会话 → visitor 会话（by=tempkey，票里带 tempkeyId）（Max-Age = min(会话, 剩余)），302 到干净目标；普通 → 只 302；管理员不降级；
  *   预取 / HEAD 不发会话；不存在 / 过期 / 作废 / 格式不对 → 同一个响应；限速
  * - 作废：带会话的连钥匙一起作废，已发出的访客会话下一个请求就进不来
- * - 权限：只有站长 + 账号会话能管；访客 403、没会话 401、跨源 403
+ * - 权限：只有管理员 + 账号会话能管；访客 403、没会话 401、跨源 403
  * - 路由：/s/*、/api/share* 归短链 Worker，网关的接口和页面一条没被抢
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { shareD1, HAS_SQLITE } from '../../fixtures/share-d1.mjs';
+import { testLockSession, testAccountSession } from '../auth-gateway/_tickets.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 const worker = (await import(REPO + 'workers/share/src/index.js')).default;
@@ -25,11 +26,11 @@ const links = await import(REPO + 'workers/share/src/lib/links.js');
 const { _resetMem } = await import(REPO + 'workers/share/src/open.js');
 const issuerMod = await import(REPO + 'workers/auth-gateway/src/share-issuer.js');
 const { checkLockSession, checkAccountSession } = await import(REPO + 'workers/auth-gateway/src/verifier.js');
-const { signSessionCookie } = await import(REPO + 'workers/auth-gateway/functions/_kernel/lock-session.js');
-const { signAccountTicket } = await import(REPO + 'workers/auth-gateway/functions/_kernel/account-session.js');
+const { signLockSessionTicket } = await import(REPO + 'workers/auth-gateway/functions/_kernel/lock-session.js');
+const { signAccountSessionTicket } = await import(REPO + 'workers/auth-gateway/functions/_kernel/account-session.js');
 const TL = await import(REPO + 'workers/auth-gateway/functions/_kernel/lock-tempkey.js');
 const { onRequestPost: tempPost } = await import(REPO + 'workers/auth-gateway/functions/api/lock-tempkey.js');
-const { verifySessionDetailed } = await import(REPO + 'workers/auth-gateway/functions/_middleware.js');
+const { verifyLockSession } = await import(REPO + 'workers/auth-gateway/functions/_kernel/lock-session.js');
 
 function derToPem(der, label) {
   const b64 = Buffer.from(der).toString('base64');
@@ -85,17 +86,17 @@ function setup(d1opts) {
   return { kv, gwEnv, db, env, calls };
 }
 
-async function ownerCookie() {
-  const lock = await signSessionCookie(LOCK.priv, 0, 'owner', 'owner');
-  const acct = await signAccountTicket(ACCT.priv, 'password', 0, Date.now(), Date.now());
-  return 'sgx-verified=' + lock + '; sgx-account=' + acct;
+async function adminCookie() {
+  const lock = await testLockSession(LOCK.priv, 0, 'admin', 'password');
+  const acct = await testAccountSession(ACCT.priv, 'password', 0, Date.now(), Date.now());
+  return 'sgx-lock-session=' + lock + '; sgx-account-session=' + acct;
 }
 
 const ctx = { waitUntil() {} };
 async function api(env, body, cookie, origin) {
   const res = await worker.fetch(new Request('https://styrigx.com/api/share', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Origin: origin || 'https://styrigx.com', Cookie: cookie === undefined ? await ownerCookie() : cookie },
+    headers: { 'Content-Type': 'application/json', Origin: origin || 'https://styrigx.com', Cookie: cookie === undefined ? await adminCookie() : cookie },
     body: JSON.stringify(body),
   }), env, ctx);
   return { s: res.status, j: await res.json(), res };
@@ -104,10 +105,10 @@ function open(env, path, opts = {}) {
   const headers = Object.assign({ 'CF-Connecting-IP': opts.ip || '7.7.7.7' }, opts.cookie ? { Cookie: opts.cookie } : {}, opts.headers || {});
   return worker.fetch(new Request('https://styrigx.com' + path, { method: opts.method || 'GET', headers }), env, ctx);
 }
-/** Set-Cookie → Cookie 头（sgx-verified 带 Domain 的那条 + sgx-tk） */
+/** Set-Cookie → Cookie 头（sgx-lock-session 带 Domain 的那条） */
 function cookiesFrom(res) {
   return res.headers.getSetCookie()
-    .filter((c) => (c.startsWith('sgx-verified=') && !c.startsWith('sgx-verified=;')) || c.startsWith('sgx-tk='))
+    .filter((c) => c.startsWith('sgx-lock-session=') && !c.startsWith('sgx-lock-session=;'))
     .map((c) => c.split(';')[0])
     .join('; ');
 }
@@ -200,7 +201,7 @@ test('wrangler.toml：名字、不开 workers.dev / 预览地址、两条路由�
 test('短链 Worker 不带签名逻辑：src 里不出现私钥 / pepper / 签名函数，也不 import 网关的 lock-tempkey / lock-session', () => {
   for (const f of ['index.js', 'gate.js', 'auth.js', 'open.js', 'api/share.js', 'lib/links.js', 'lib/http.js']) {
     const src = readFileSync(REPO + 'workers/share/src/' + f, 'utf8');
-    assert.doesNotMatch(src, /_PRIVATE|PEPPER|ed25519|signTk|issueSessionCookie|lock-tempkey|_kernel\/lock-session|crypto\.subtle/i, f);
+    assert.doesNotMatch(src, /_PRIVATE|PEPPER|ed25519|signTk|issueLockSession|lock-tempkey|_kernel\/lock-session|crypto\.subtle/i, f);
   }
 });
 
@@ -243,7 +244,7 @@ for (const K of KINDS) {
     assert.equal(key.h, undefined, 'link 钥匙没有临时码');
     assert.equal(row.expires_at, key.expiresAt, '短链到期 = 钥匙到期');
     /* 临时钥匙页看不到这把钥匙 */
-    const lt = await tempPost({ request: new Request('https://styrigx.com/api/lock-tempkey', { method: 'POST', headers: { Origin: 'https://styrigx.com', Cookie: await ownerCookie() }, body: JSON.stringify({ action: 'list' }) }), env: gwEnv });
+    const lt = await tempPost({ request: new Request('https://styrigx.com/api/lock-tempkey', { method: 'POST', headers: { Origin: 'https://styrigx.com', Cookie: await adminCookie() }, body: JSON.stringify({ action: 'list' }) }), env: gwEnv });
     assert.deepEqual((await lt.json()).keys, []);
 
     const res = await open(env, link.path);
@@ -254,12 +255,11 @@ for (const K of KINDS) {
     assert.equal(res.headers.get('Referrer-Policy'), 'no-referrer');
     assert.equal(res.headers.get('X-SGX-Runtime'), 'share');
     const ck = cookiesFrom(res);
-    assert.match(ck, /sgx-verified=owner\.visitor\./);
-    assert.match(ck, /sgx-tk=/);
-    const ma = age(res, 'sgx-verified');
+    assert.match(ck, new RegExp('sgx-lock-session=tempkey\\.visitor\\.\\d+\\.\\d+\\.' + row.key_id + '\\.'));
+    assert.doesNotMatch(ck, /sgx-tk=/);
+    const ma = age(res, 'sgx-lock-session');
     assert.ok(ma <= 3 * 3600 && ma > 3 * 3600 - 5, 'Max-Age = 会话时长');
-    assert.equal(age(res, 'sgx-tk'), ma);
-    const v = await verifySessionDetailed(new Request('https://styrigx.com/', { headers: { Cookie: ck } }), gwEnv);
+    const v = await verifyLockSession(new Request('https://styrigx.com/', { headers: { Cookie: ck } }), gwEnv);
     assert.equal(v.ok, true);
     assert.equal(v.role, 'visitor', '和临时钥匙访客完全一样');
     /* 被打开的记录 */
@@ -276,7 +276,7 @@ for (const K of KINDS) {
     k.expiresAt = Date.now() + 600e3;
     kv.m.set(TL.TEMPKEY_PREFIX + row.key_id, JSON.stringify(k));
     const res = await open(env, r.j.link.path);
-    const ma = age(res, 'sgx-verified');
+    const ma = age(res, 'sgx-lock-session');
     assert.ok(ma <= 600 && ma > 590, 'min(会话, 钥匙剩余) = ' + ma);
     /* 普通临时钥匙（有临时码）不能经短链换会话 */
     const plainKey = await TL.createTempkey(kv, 'share-test-pepper', { name: '', ms: H });
@@ -299,10 +299,10 @@ for (const K of KINDS) {
     assert.equal(res.headers.get('Cache-Control'), 'private, no-store');
   });
 
-  T('站长自己点开带会话的短链：只 302，不降级成访客', async () => {
+  T('管理员自己点开带会话的短链：只 302，不降级成访客', async () => {
     const { env, calls } = mk();
     const r = await api(env, { action: 'create', hours: 2, session: 1800 });
-    const res = await open(env, r.j.link.path, { cookie: await ownerCookie() });
+    const res = await open(env, r.j.link.path, { cookie: await adminCookie() });
     assert.equal(res.status, 302);
     assert.equal(res.headers.get('Location'), 'https://styrigx.com/');
     assert.equal(res.headers.getSetCookie().length, 0);
@@ -350,13 +350,13 @@ for (const K of KINDS) {
     const l = (await api(env, { action: 'create', days: 7, session: 86400 })).j.link;
     const ck = cookiesFrom(await open(env, l.path));
     const req = () => new Request('https://styrigx.com/blog/', { headers: { Cookie: ck } });
-    assert.equal((await verifySessionDetailed(req(), gwEnv)).ok, true);
+    assert.equal((await verifyLockSession(req(), gwEnv)).ok, true);
     const rv = await api(env, { action: 'revoke', id: l.id });
     assert.equal(rv.s, 200);
     assert.deepEqual(calls, ['create', 'open', 'revoke']);
-    const v = await verifySessionDetailed(req(), gwEnv);
+    const v = await verifyLockSession(req(), gwEnv);
     assert.equal(v.ok, false);
-    assert.equal(v.reason, 'tk-revoked');
+    assert.equal(v.reason, 'tempkey-revoked');
     assert.ok(kv.m.has('lock-temp-revoked:' + db.rows()[0].key_id));
     assert.deepEqual(await failShape(await open(env, l.path, { ip: '9.9.9.9' })), FAIL);
     const list = (await api(env, { action: 'list' })).j.links;
@@ -404,7 +404,7 @@ for (const K of KINDS) {
     assert.equal(r.s, 200, JSON.stringify(r.j));
   });
 
-  T('权限：访客 403、没会话 401、跨源 403、站长缺账号会话 401；网关 ShareIssuer 自己也要站长 + 账号会话', async () => {
+  T('权限：访客 403、没会话 401、跨源 403、管理员缺账号会话 401；网关 ShareIssuer 自己也要管理员 + 账号会话', async () => {
     const { env, gwEnv } = mk();
     const l = (await api(env, { action: 'create', hours: 2, session: 1800 })).j.link;
     const visitor = cookiesFrom(await open(env, l.path));
@@ -415,24 +415,24 @@ for (const K of KINDS) {
     assert.equal(r.s, 403);
     assert.equal((await api(env, { action: 'list' }, '')).s, 401);
     assert.equal((await api(env, { action: 'list' }, undefined, 'https://evil.com')).s, 403);
-    const lockOnly = 'sgx-verified=' + (await signSessionCookie(LOCK.priv, 0, 'owner', 'owner'));
+    const lockOnly = 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, 'admin', 'password'));
     r = await api(env, { action: 'list' }, lockOnly);
     assert.equal(r.s, 401);
     assert.equal(r.j.error, 'account');
-    /* 直接调网关内部接口：没有站长 + 账号会话就不签、不作废 */
+    /* 直接调网关内部接口：没有管理员 + 账号会话就不签、不作废 */
     assert.deepEqual(await issuerMod.createLinkKey(visitor, { hours: 1 }, gwEnv), { ok: false, error: 'session' });
     assert.deepEqual(await issuerMod.createLinkKey(lockOnly, { hours: 1 }, gwEnv), { ok: false, error: 'account' });
     assert.deepEqual(await issuerMod.createLinkKey('', { hours: 1 }, gwEnv), { ok: false, error: 'session' });
     assert.deepEqual(await issuerMod.revokeLinkKey(visitor, 'A'.repeat(16), gwEnv), { ok: false, error: 'session' });
-    const owner = await ownerCookie();
-    assert.deepEqual(await issuerMod.createLinkKey(owner, { hours: 25 }, gwEnv), { ok: false, error: 'duration' });
+    const admin = await adminCookie();
+    assert.deepEqual(await issuerMod.createLinkKey(admin, { hours: 25 }, gwEnv), { ok: false, error: 'duration' });
     /* 普通临时钥匙不能经短链接口作废 */
     const plain = await TL.createTempkey(gwEnv.KV_LOCK_DOOR, 'share-test-pepper', { name: '', ms: H });
-    assert.deepEqual(await issuerMod.revokeLinkKey(owner, plain.key.id, gwEnv), { ok: false, error: 'params' });
+    assert.deepEqual(await issuerMod.revokeLinkKey(admin, plain.key.id, gwEnv), { ok: false, error: 'params' });
     /* GET / 别的接口路径 */
-    const g = await worker.fetch(new Request('https://styrigx.com/api/share', { headers: { Cookie: owner } }), env, ctx);
+    const g = await worker.fetch(new Request('https://styrigx.com/api/share', { headers: { Cookie: admin } }), env, ctx);
     assert.equal(g.status, 405);
-    const other = await worker.fetch(new Request('https://styrigx.com/api/shared', { method: 'POST', headers: { Cookie: owner, Origin: 'https://styrigx.com' } }), env, ctx);
+    const other = await worker.fetch(new Request('https://styrigx.com/api/shared', { method: 'POST', headers: { Cookie: admin, Origin: 'https://styrigx.com' } }), env, ctx);
     assert.equal(other.status, 404);
   });
 
@@ -506,7 +506,7 @@ for (const K of KINDS) {
     const res = await open(env, r.j.link.path);
     assert.equal(res.status, 302);
     assert.equal(res.headers.get('Location'), 'https://blog.styrigx.com/post/x/?q=1');
-    const sc = res.headers.getSetCookie().find((c) => c.startsWith('sgx-verified=') && !c.startsWith('sgx-verified=;'));
+    const sc = res.headers.getSetCookie().find((c) => c.startsWith('sgx-lock-session=') && !c.startsWith('sgx-lock-session=;'));
     assert.match(sc, /Domain=\.?styrigx\.com/i);
     /* 存坏成别的主机：点开只走失败响应 */
     const { db } = mk();

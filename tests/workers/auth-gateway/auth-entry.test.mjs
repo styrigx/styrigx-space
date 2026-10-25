@@ -3,7 +3,7 @@
  *
  * 覆盖：
  * 1. 锁屏恰好四个选项（访客进入/通行密钥/密码/重置锁屏），不含根凭证
- * 2. 访客和站长的安全页 DOM 结构一致（三个入口，无角色条件渲染）
+ * 2. 访客和管理员的安全页 DOM 结构一致（三个入口，无角色条件渲染）
  * 3. 访客会话提交正确根凭证 → 401 密码错误，且不调用 D1/KV、不增加 root-limit 计数
  * 4. 管理凭证弹层四种配置下按钮正确（未设置/仅通行密钥/仅密码/两者都有）
  * 5. 三类通行密钥注册 options 的 name/displayName 正确
@@ -11,12 +11,12 @@
  *
  * 运行：node --test tests/kernel/auth-entry.test.mjs
  */
-import { signRole } from './_tk.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { testLockSession } from './_tickets.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -89,11 +89,12 @@ test('认证入口：锁屏方法弹层按锁屏凭证配置显示入口（PR3�
   assert.ok(src.includes('sgx-mopt-cant'), '应有「无法登录？」');
   assert.ok(src.includes('无法登录？') && src.includes('Can’t sign in?'), '中英文案');
   assert.ok(!src.includes('sgx-mopt-reset') && !src.includes('function openMk'), '旧的两行已删除');
-  /* 启动站（锁屏凭证都没设）：根凭证 → /api/root-auth → /api/root-session（原 openMk 的路径） */
-  assert.ok(/bootstrap[\s\S]*?'\/api\/root-auth'[\s\S]*?exchangeRootSession/.test(src), '启动站根凭证路径保留');
+  /* 启动站（锁屏凭证都没设）：视为从零重置——根凭证 → /api/root-auth purpose=lock-reset（不再换 root-session） */
+  assert.ok(/bootstrap[\s\S]*?'\/api\/root-auth', \{ key: key, purpose: 'lock-reset' \}/.test(src), '启动站根凭证走 lock-reset');
+  assert.ok(!src.includes('root-session') && !src.includes('exchangeRootSession'), 'root-session 已删除');
   /* 读取失败按已配置处理 */
   assert.ok(src.includes('读取失败按已配置处理'), '应有读取失败 fail closed 注释');
-  assert.ok(!src.includes('先验证根凭证，再验证站长凭证'), '描述不应出现旧说法');
+  assert.ok(!src.includes('先验证根凭证，再验证管理员凭证'), '描述不应出现旧说法');
 });
 
 /* ============ 2. 安全页 DOM 一致 ============ */
@@ -103,17 +104,17 @@ test('认证入口：锁屏方法弹层按锁屏凭证配置显示入口（PR3�
 
 test('认证入口：访客会话提交正确根凭证 → 401 密码错误，不读凭证、不写 KV、不计 root-limit', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
-  const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
 
   const kv = makeKv({ 'layer:lock': '1' });
   const env = baseEnv(kv);
 
   /* 构造有效访客会话 cookie */
-  const sessCv = await signRole(signSessionCookie, TEST_PRIV_PEM, 0, 'visitor', 'owner');
+  const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'visitor');
 
   /* 提交正确的根凭证 */
-  const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345' }, {
-    'Cookie': 'sgx-verified=' + sessCv,
+  const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345', purpose: 'lock-reauth' }, {
+    'Cookie': 'sgx-lock-session=' + sessCv,
   });
   const t0 = Date.now();
   const res = await onRequestPost({ request: req, env });
@@ -136,21 +137,21 @@ test('认证入口：访客会话提交正确根凭证 → 401 密码错误，�
 
 test('认证入口：访客假入口与真失败响应逐字节相同', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
-  const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
 
   const kv1 = makeKv({ 'layer:lock': '1' });
   const kv2 = makeKv({ 'layer:lock': '1' });
 
   /* B1-9：访客提交任何值都返回同一个 401 denied（不读存储） */
-  const sessCv = await signRole(signSessionCookie, TEST_PRIV_PEM, 0, 'visitor', 'owner');
-  const req1 = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345' }, {
-    'Cookie': 'sgx-verified=' + sessCv,
+  const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'visitor');
+  const req1 = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345', purpose: 'lock-reauth' }, {
+    'Cookie': 'sgx-lock-session=' + sessCv,
   });
   const res1 = await onRequestPost({ request: req1, env: baseEnv(kv1) });
 
   /* 访客提交另一个值 → 同一个 401 denied */
-  const req2 = postReq('https://test.example.com/api/root-auth', { key: 'wrong-key' }, {
-    'Cookie': 'sgx-verified=' + sessCv,
+  const req2 = postReq('https://test.example.com/api/root-auth', { key: 'wrong-key', purpose: 'lock-reauth' }, {
+    'Cookie': 'sgx-lock-session=' + sessCv,
   });
   const res2 = await onRequestPost({ request: req2, env: baseEnv(kv2) });
 
@@ -167,11 +168,11 @@ test('认证入口：访客假入口与真失败响应逐字节相同', async ()
 /* 账号体系：/api/account（GET）四种配置返回正确（取代 /api/owner-status + mgmtButtons） */
 test('行为：账号登录状态四种配置返回正确', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/account.js');
-  const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
-  const ownerCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
+  const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
+  const ownerCv = await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
   const getReq = () => new Request('https://test.example.com/api/account', {
     method: 'GET',
-    headers: { 'Cookie': 'sgx-verified=' + ownerCv },
+    headers: { 'Cookie': 'sgx-lock-session=' + ownerCv },
   });
   const cases = [
     [{}, false, false],
@@ -199,7 +200,7 @@ test('行为：账号登录状态四种配置返回正确', async () => {
 }
 );
 
-test('认证入口：重置锁屏 status 始终可用（不暴露站长凭证是否配置）', async () => {
+test('认证入口：重置锁屏 status 始终可用（不暴露管理员凭证是否配置）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
   /* owner 未配置 */
   const kv = makeKv({ 'layer:lock': '1' });
@@ -314,7 +315,7 @@ test('补充七：已配置锁屏凭证时，锁屏根凭证路径被服务端�
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   /* lock 层已配置，无会话提交正确的根凭证 */
   const kv = makeKv({ 'layer:lock': '1' });
-  const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345' });
+  const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345', purpose: 'lock-reauth' });
   const res = await onRequestPost({ request: req, env: baseEnv(kv) });
   assert.equal(res.status, 401, '已配置时无会话根凭证路径应被拒绝');
   const body = await res.text();
@@ -325,16 +326,16 @@ test('补充七：已配置锁屏凭证时，锁屏根凭证路径被服务端�
 test('补充七：访客管理凭证提交任何值都返回密码错误且不写存储', async () => {
   /* 管理凭证弹层的「根凭证」按钮提交到 /api/root-auth；访客会话下为假入口 */
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
-  const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
 
   const kv = makeKv({ 'layer:lock': '1' });
   const env = baseEnv(kv);
-  const sessCv = await signRole(signSessionCookie, TEST_PRIV_PEM, 0, 'visitor', 'owner');
+  const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'visitor');
 
   /* 提交任意值（包括错误值） */
   for (const key of ['whatever', '', 'test-root-key-12345']) {
     const req = postReq('https://test.example.com/api/root-auth', { key }, {
-      'Cookie': 'sgx-verified=' + sessCv,
+      'Cookie': 'sgx-lock-session=' + sessCv,
     });
     const res = await onRequestPost({ request: req, env });
     assert.equal(res.status, 401, '访客提交 ' + JSON.stringify(key) + ' 应 401');
@@ -348,7 +349,7 @@ test('补充七：访客管理凭证提交任何值都返回密码错误且不�
 
 /* ============ 审查意见 9 项：行为测试 ============ */
 
-test('行为：lockreset 站长凭证未配置 → 通用 401 auth（不泄露 not-set）', async () => {
+test('行为：lockreset 管理员凭证未配置 → 通用 401 auth（不泄露 not-set）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
   /* owner 未配置（无标记、无密码、无 passkey），lock 也未配置 */
   const kv = makeKv({});
@@ -399,7 +400,7 @@ test('行为：lockreset needAccount 带 passkey/password 布尔', async () => {
 
 
 
-test('行为：/api/account 状态需 owner lock 会话，无会话 → 401', async () => {
+test('行为：/api/account 状态需 admin lock 会话，无会话 → 401', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/account.js');
   const kv = makeKv({});
   const env = baseEnv(kv);
@@ -410,17 +411,17 @@ test('行为：/api/account 状态需 owner lock 会话，无会话 → 401', as
 
 test('行为：/api/account 状态只看 owner 类（账号）通行密钥', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/account.js');
-  const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
   /* 只有 lock 类 passkey，无账号密码 */
   const kv = makeKv({
     'owner-passkey-index': JSON.stringify(['abc123']),
     'owner-passkey:abc123': JSON.stringify({ credId: 'abc123', class: 'lock', publicKey: 'x' }),
   });
   const env = baseEnv(kv);
-  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
+  const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
   const req = new Request('https://test.example.com/api/account', {
     method: 'GET',
-    headers: { 'Cookie': 'sgx-verified=' + sessCv },
+    headers: { 'Cookie': 'sgx-lock-session=' + sessCv },
   });
   const res = await onRequestGet({ request: req, env });
   assert.equal(res.status, 200);
@@ -434,14 +435,14 @@ test('行为：访客会话下 root-auth 不走真路径（即使 lock 未配置
   /* 补充：锁屏未配置的引导场景下，有访客 cookie 时不走假入口（走真路径）；
      但设置页的访客假入口（lock 已配置）仍写死 401。 */
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
-  const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
   /* lock 已配置 */
   const kv = makeKv({ 'layer:lock': '1' });
   const env = baseEnv(kv);
-  const sessCv = await signRole(signSessionCookie, TEST_PRIV_PEM, 0, 'visitor', 'owner');
+  const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'visitor');
   /* 提交正确的根凭证 */
-  const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345' }, {
-    'Cookie': 'sgx-verified=' + sessCv,
+  const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345', purpose: 'lock-reauth' }, {
+    'Cookie': 'sgx-lock-session=' + sessCv,
   });
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 401, '访客即使提交正确根凭证也 401');
@@ -451,13 +452,13 @@ test('行为：访客会话下 root-auth 不走真路径（即使 lock 未配置
 
 test('行为：锁屏未配置 + 访客 cookie 时 root-auth 走真路径（不走假入口）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
-  const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
   /* B1-9：访客一律 401 denied，不区分新站旧站（lockCfg 例外已删除） */
   const kv = makeKv({});
   const env = baseEnv(kv);
-  const sessCv = await signRole(signSessionCookie, TEST_PRIV_PEM, 0, 'visitor', 'owner');
-  const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345' }, {
-    'Cookie': 'sgx-verified=' + sessCv,
+  const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'visitor');
+  const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345', purpose: 'lock-reauth' }, {
+    'Cookie': 'sgx-lock-session=' + sessCv,
   });
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 401, 'B1-9：访客一律 401，不走真路径');
@@ -490,11 +491,11 @@ test('行为：injectSessionState locked 状态保持不变', async () => {
 /* ============ /api/lock-credentials：只读锁屏凭证状态 ============
    背景：security-lock.js refreshStatus 曾用 /api/owner-status 显示锁屏密码
    「已设置/未设置」和删除按钮，但 owner-status 读的是 owner-pw +
-   class=owner 通行密钥（且要求 owner 会话），导致：
-   - 只设了站长密码 → 锁屏页误显示「已设置」
+   class=owner 通行密钥（且要求 admin 会话），导致：
+   - 只设了管理员密码 → 锁屏页误显示「已设置」
    - 只设了锁屏密码 → 误显示「未设置」且没有删除按钮
    - lockreset 页无会话 → owner-status 返回 401
-   本接口读 lock-pw + class=lock，owner 会话或 keys/lockreset 票据可读。 */
+   本接口读 lock-pw + class=lock，admin 会话或 keys/lockreset 票据可读。 */
 
 function getReq(url, headers) {
   return new Request(url, { method: 'GET', headers: headers || {} });
@@ -510,48 +511,48 @@ test('行为：/api/lock-credentials 无鉴权 → 401', async () => {
 
 test('行为：/api/lock-credentials 访客会话 → 401', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-credentials.js');
-  const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
   const kv = makeKv({});
   const env = baseEnv(kv);
-  const sessCv = await signRole(signSessionCookie, TEST_PRIV_PEM, 0, 'visitor', 'owner');
+  const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'visitor');
   const res = await onRequestGet({
-    request: getReq('https://test.example.com/api/lock-credentials', { 'Cookie': 'sgx-verified=' + sessCv }),
+    request: getReq('https://test.example.com/api/lock-credentials', { 'Cookie': 'sgx-lock-session=' + sessCv }),
     env,
   });
   assert.equal(res.status, 401, '访客会话应 401');
 });
 
-test('行为：只有站长密码时 /api/lock-credentials 返回 password:false（锁屏页显示「未设置」正确）', async () => {
+test('行为：只有管理员密码时 /api/lock-credentials 返回 password:false（锁屏页显示「未设置」正确）', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-credentials.js');
-  const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
   /* 只有 owner-pw，无 lock-pw，无通行密钥 */
   const kv = makeKv({
     'owner-pw': JSON.stringify({ hash: 'owner-hash' }),
   });
   const env = baseEnv(kv);
-  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
+  const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
   const res = await onRequestGet({
-    request: getReq('https://test.example.com/api/lock-credentials', { 'Cookie': 'sgx-verified=' + sessCv }),
+    request: getReq('https://test.example.com/api/lock-credentials', { 'Cookie': 'sgx-lock-session=' + sessCv }),
     env,
   });
   assert.equal(res.status, 200);
   const body = JSON.parse(await res.text());
   assert.equal(body.ok, true);
-  assert.equal(body.password, false, '只有站长密码时锁屏密码应为 false（旧接口误报 true）');
+  assert.equal(body.password, false, '只有管理员密码时锁屏密码应为 false（旧接口误报 true）');
   assert.equal(body.passkey, false);
 });
 
 test('行为：只有锁屏密码时 /api/lock-credentials 返回 password:true（锁屏页显示「已设置」正确）', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-credentials.js');
-  const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
   /* 只有 lock-pw，无 owner-pw，无通行密钥 */
   const kv = makeKv({
     'lock-pw': JSON.stringify({ hash: 'lock-hash' }),
   });
   const env = baseEnv(kv);
-  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
+  const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
   const res = await onRequestGet({
-    request: getReq('https://test.example.com/api/lock-credentials', { 'Cookie': 'sgx-verified=' + sessCv }),
+    request: getReq('https://test.example.com/api/lock-credentials', { 'Cookie': 'sgx-lock-session=' + sessCv }),
     env,
   });
   assert.equal(res.status, 200);
@@ -563,16 +564,16 @@ test('行为：只有锁屏密码时 /api/lock-credentials 返回 password:true�
 
 test('行为：/api/lock-credentials 只看 class=lock 通行密钥', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-credentials.js');
-  const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
   /* 只有 owner 类通行密钥 */
   const kv1 = makeKv({
     'owner-passkey-index': JSON.stringify(['o1']),
     'owner-passkey:o1': JSON.stringify({ credId: 'o1', class: 'owner', publicKey: 'x' }),
   });
   const env1 = baseEnv(kv1);
-  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
+  const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
   const res1 = await onRequestGet({
-    request: getReq('https://test.example.com/api/lock-credentials', { 'Cookie': 'sgx-verified=' + sessCv }),
+    request: getReq('https://test.example.com/api/lock-credentials', { 'Cookie': 'sgx-lock-session=' + sessCv }),
     env: env1,
   });
   const body1 = JSON.parse(await res1.text());
@@ -585,7 +586,7 @@ test('行为：/api/lock-credentials 只看 class=lock 通行密钥', async () =
   });
   const env2 = baseEnv(kv2);
   const res2 = await onRequestGet({
-    request: getReq('https://test.example.com/api/lock-credentials', { 'Cookie': 'sgx-verified=' + sessCv }),
+    request: getReq('https://test.example.com/api/lock-credentials', { 'Cookie': 'sgx-lock-session=' + sessCv }),
     env: env2,
   });
   const body2 = JSON.parse(await res2.text());
@@ -597,7 +598,7 @@ test('行为：/api/lock-credentials 只看 class=lock 通行密钥', async () =
 
 test('行为：/api/lock-credentials KV 读取失败 → 503（fail closed，不按未设置退回）', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-credentials.js');
-  const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
   const kv = makeKv({ 'session-epoch': '0' });
   /* 会话校验的 session-epoch 读取正常，只有 lock-pw 读取失败 */
   const origGet = kv.get;
@@ -606,9 +607,9 @@ test('行为：/api/lock-credentials KV 读取失败 → 503（fail closed，不
     return origGet(k, t);
   };
   const env = baseEnv(kv);
-  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
+  const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
   const res = await onRequestGet({
-    request: getReq('https://test.example.com/api/lock-credentials', { 'Cookie': 'sgx-verified=' + sessCv }),
+    request: getReq('https://test.example.com/api/lock-credentials', { 'Cookie': 'sgx-lock-session=' + sessCv }),
     env,
   });
   assert.equal(res.status, 503, 'KV 失败应 503');
@@ -616,13 +617,13 @@ test('行为：/api/lock-credentials KV 读取失败 → 503（fail closed，不
 
 test('行为：/api/lock-credentials 未绑 KV → 500', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-credentials.js');
-  const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
   const env = baseEnv(makeKv({}));
   delete env.KV_LOCK_DOOR;
   delete env.KV_ACCOUNT_LOGIN;
-  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
+  const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
   const res = await onRequestGet({
-    request: getReq('https://test.example.com/api/lock-credentials', { 'Cookie': 'sgx-verified=' + sessCv }),
+    request: getReq('https://test.example.com/api/lock-credentials', { 'Cookie': 'sgx-lock-session=' + sessCv }),
     env,
   });
   assert.equal(res.status, 500, '未绑 KV 应 500 config');

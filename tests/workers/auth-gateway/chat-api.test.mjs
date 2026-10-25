@@ -1,21 +1,21 @@
 /**
  * 聊天 /api/chat（网关，functions/api/chat.js）：2026-10-22 起网关只做门 + 转发，聊天本身在 styrigx-chat（workers/chat）。
- * 这里测：门（同源 / 会话 / 只许站长，GET 和 POST）、转发（服务绑定 CHAT、路径、X-Sgx-Role、请求体原样、不转 cookie）、
+ * 这里测：门（同源 / 会话 / 只许管理员，GET 和 POST）、转发（服务绑定 CHAT、路径、X-Sgx-Role、请求体原样、不转 cookie）、
  * 响应原样流回（状态码 / 头 / SSE 不缓冲）、没绑定 503 no_key、绑定抛错 502 upstream、wrangler.toml（CHAT 绑定，
  * 没有 CHAT_* 变量和聊天钥匙绑定）、中间件；再接上真的 styrigx-chat 跑一遍端到端（上游 fetch mock）。
  * 聊天内核（校验、模型、SSE 转换、错误映射）见 tests/workers/chat/chat.test.mjs。
  * Ed25519 测试钥匙在测试内临时生成。
  * 运行：node --test tests/workers/auth-gateway/chat-api.test.mjs
  */
-import { signRole } from './_tk.mjs';
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { signSessionCookie } from '../../../workers/auth-gateway/functions/_kernel/lock-session.js';
+import { signLockSessionTicket } from '../../../workers/auth-gateway/functions/_kernel/lock-session.js';
 import * as chat from '../../../workers/auth-gateway/functions/api/chat.js';
 import { API_ROUTES } from '../../../workers/auth-gateway/src/routes.js';
 import { SECRET_NAMES } from '../../../workers/auth-gateway/src/secrets.js';
 import chatWorker from '../../../workers/chat/src/index.js';
+import { testLockSession } from './_tickets.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 
@@ -26,8 +26,8 @@ function derToPem(der, label) {
 const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
 const PRIV = derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY');
 const PUB = derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY');
-const OWNER = await signSessionCookie(PRIV, 0, 'owner');
-const VISITOR = await signRole(signSessionCookie, PRIV, 0, 'visitor', 'owner');
+const OWNER = await testLockSession(PRIV, 0, 'admin');
+const VISITOR = await testLockSession(PRIV, 0, 'visitor');
 
 function kv() {
   const m = new Map();
@@ -55,13 +55,13 @@ function env(over = {}) {
 const MSGS = [{ role: 'user', text: 'Hugo 最新版本？' }];
 function req(body, { cookie = OWNER, origin = 'https://styrigx.com', raw } = {}) {
   const headers = { 'Content-Type': 'application/json' };
-  if (cookie) headers.Cookie = 'sgx-verified=' + cookie;
+  if (cookie) headers.Cookie = 'sgx-lock-session=' + cookie;
   if (origin) headers.Origin = origin;
   return new Request('https://styrigx.com/api/chat', { method: 'POST', headers, body: raw !== undefined ? raw : JSON.stringify(body) });
 }
 function getReq({ cookie = OWNER, origin } = {}) {
   const headers = {};
-  if (cookie) headers.Cookie = 'sgx-verified=' + cookie;
+  if (cookie) headers.Cookie = 'sgx-lock-session=' + cookie;
   if (origin) headers.Origin = origin;
   return new Request('https://styrigx.com/api/chat', { method: 'GET', headers });
 }
@@ -105,7 +105,7 @@ test('路由表登记了 /api/chat；网关 wrangler.toml：服务绑定 CHAT �
   assert.deepEqual(bound, [...SECRET_NAMES].sort());
 });
 
-test('POST 门：不同源 / 没 Origin 403 origin；没会话 / 坏会话 401；访客 403 owner_only；都不转给 styrigx-chat', async () => {
+test('POST 门：不同源 / 没 Origin 403 origin；没会话 / 坏会话 401；访客 403 admin_only；都不转给 styrigx-chat', async () => {
   const e = env();
   let r = await call(req({ messages: MSGS }, { origin: 'https://evil.example' }), e);
   assert.equal(r.status, 403);
@@ -119,7 +119,7 @@ test('POST 门：不同源 / 没 Origin 403 origin；没会话 / 坏会话 401�
   assert.equal(r.status, 401);
   r = await call(req({ messages: MSGS }, { cookie: VISITOR }), e);
   assert.equal(r.status, 403);
-  assert.deepEqual(await r.json(), { ok: false, error: 'owner_only' });
+  assert.deepEqual(await r.json(), { ok: false, error: 'admin_only' });
   assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
   /* 门在没绑定 CHAT 时也照样先拦 */
   r = await call(req({ messages: MSGS }, { cookie: VISITOR }), env({ CHAT: undefined }));
@@ -127,7 +127,7 @@ test('POST 门：不同源 / 没 Origin 403 origin；没会话 / 坏会话 401�
   assert.equal(svcLog.length, 0);
 });
 
-test('GET 门：没会话 / 坏会话 401、访客 403 owner_only；站长 → GET /models 原样转回，不看 Origin；路由按方法分到 onRequestGet / onRequestPost', async () => {
+test('GET 门：没会话 / 坏会话 401、访客 403 admin_only；管理员 → GET /models 原样转回，不看 Origin；路由按方法分到 onRequestGet / onRequestPost', async () => {
   const e = env();
   let r = await getCall(getReq({ cookie: null }), e);
   assert.equal(r.status, 401);
@@ -136,7 +136,7 @@ test('GET 门：没会话 / 坏会话 401、访客 403 owner_only；站长 → G
   assert.equal(r.status, 401);
   r = await getCall(getReq({ cookie: VISITOR }), e);
   assert.equal(r.status, 403);
-  assert.deepEqual(await r.json(), { ok: false, error: 'owner_only' });
+  assert.deepEqual(await r.json(), { ok: false, error: 'admin_only' });
   assert.equal(svcLog.length, 0);
   const list = { ok: true, default: 'm1', models: [{ id: 'm1', label: 'M1', search: true }] };
   const e2 = env({ CHAT: svc(() => jsonRes(200, list)) });
@@ -149,14 +149,14 @@ test('GET 门：没会话 / 坏会话 401、访客 403 owner_only；站长 → G
   assert.equal(svcLog.length, 3);
   assert.equal(svcLog[0].url, 'https://styrigx-chat/models');
   assert.equal(svcLog[0].method, 'GET');
-  assert.equal(svcLog[0].headers['x-sgx-role'], 'owner');
+  assert.equal(svcLog[0].headers['x-sgx-role'], 'admin');
   assert.ok(!('cookie' in svcLog[0].headers), '不转 cookie');
   const { pickHandler } = await import('../../../workers/auth-gateway/src/index.js');
   assert.equal(pickHandler(API_ROUTES.get('/api/chat'), 'GET'), chat.onRequestGet);
   assert.equal(pickHandler(API_ROUTES.get('/api/chat'), 'POST'), chat.onRequestPost);
 });
 
-test('POST 转发：POST https://styrigx-chat/chat、X-Sgx-Role: owner、Content-Type 原样、请求体一字不改（坏 JSON 也原样，由 styrigx-chat 回 400）、不转 cookie / Origin、带 signal', async () => {
+test('POST 转发：POST https://styrigx-chat/chat、X-Sgx-Role: admin、Content-Type 原样、请求体一字不改（坏 JSON 也原样，由 styrigx-chat 回 400）、不转 cookie / Origin、带 signal', async () => {
   const e = env({ CHAT: svc(() => jsonRes(400, { ok: false, error: 'bad_request' })) });
   const raw = JSON.stringify({ messages: MSGS, model: 'gemini-2.5-flash-lite' });
   let r = await call(req(null, { raw }), e);
@@ -165,7 +165,7 @@ test('POST 转发：POST https://styrigx-chat/chat、X-Sgx-Role: owner、Content
   const f = svcLog[0];
   assert.equal(f.url, 'https://styrigx-chat/chat');
   assert.equal(f.method, 'POST');
-  assert.equal(f.headers['x-sgx-role'], 'owner');
+  assert.equal(f.headers['x-sgx-role'], 'admin');
   assert.equal(f.headers['content-type'], 'application/json');
   assert.equal(f.body, raw);
   assert.ok(!('cookie' in f.headers) && !('origin' in f.headers));
@@ -228,10 +228,10 @@ test('没绑定 CHAT → 503 no_key（GET / POST）；调 styrigx-chat 抛错 �
   assert.equal(r.status, 502);
 });
 
-test('gateway 中间件：/api/chat 没会话 401（不进接口）；访客能到接口（由接口回 owner_only）', async () => {
+test('gateway 中间件：/api/chat 没会话 401（不进接口）；访客能到接口（由接口回 admin_only）', async () => {
   const { onRequest: mw } = await import('../../../workers/auth-gateway/functions/_middleware.js');
   const mk = (cookie) => ({
-    request: new Request('https://styrigx.com/api/chat', { method: 'POST', headers: Object.assign({ Origin: 'https://styrigx.com', 'Content-Type': 'application/json' }, cookie ? { Cookie: 'sgx-verified=' + cookie } : {}), body: JSON.stringify({ messages: MSGS }) }),
+    request: new Request('https://styrigx.com/api/chat', { method: 'POST', headers: Object.assign({ Origin: 'https://styrigx.com', 'Content-Type': 'application/json' }, cookie ? { Cookie: 'sgx-lock-session=' + cookie } : {}), body: JSON.stringify({ messages: MSGS }) }),
     env: env(),
     next: async () => call(req({ messages: MSGS }, { cookie }), env()),
   });
@@ -239,7 +239,7 @@ test('gateway 中间件：/api/chat 没会话 401（不进接口）；访客能�
   assert.equal(r.status, 401);
   r = await mw(mk(VISITOR));
   assert.equal(r.status, 403);
-  assert.equal((await r.json()).error, 'owner_only');
+  assert.equal((await r.json()).error, 'admin_only');
 });
 
 /* ---------- 端到端：网关 → 真的 styrigx-chat（workers/chat/src/index.js）→ mock 的 Gemini ---------- */

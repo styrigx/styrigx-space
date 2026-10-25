@@ -16,7 +16,7 @@ async function gotoUpgrade(pg) {
     try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
   });
   await blockExternalRequests(pg);
-  /* 访客访问站长专属路径：middleware 返回 data-sgx-upgrade="1"。
+  /* 访客访问管理员专属路径：middleware 返回 data-sgx-upgrade="1"。
      addInitScript 时 documentElement 还不存在，改用路由直接改 HTML。 */
   await pg.route('http://localhost:8931/', async (route) => {
     const resp = await route.fetch();

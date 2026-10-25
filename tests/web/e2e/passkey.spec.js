@@ -1,7 +1,7 @@
 /**
  * 通行密钥 E2E（Hark 方案）：Playwright CDP WebAuthn 虚拟认证器。
  * 在预览站跑完整流程：注册 → 列表出现 → 锁屏通行密钥解锁 → 删除。
- * 另含服务端测试：伪造 sgx-verified=1 访问首页，必须仍然是锁屏。
+ * 另含服务端测试：伪造 sgx-lock-session=1 访问首页，必须仍然是锁屏。
  *
  * 运行：SGX_TEST_OWNER_KEY=<预览测试 OWNER_KEY> SGX_TEST_BASE=https://<preview> \
  *   npx playwright test --config=playwright.config.js passkey.spec.js
@@ -105,10 +105,10 @@ test.describe('passkey e2e (virtual authenticator)', () => {
     }
   });
 
-  test('伪造 sgx-verified=1 仍是锁屏', async ({ page, context }) => {
+  test('伪造 sgx-lock-session=1 仍是锁屏', async ({ page, context }) => {
     /* Hark：未签名的 cookie 不得绕过锁屏 */
     await context.addCookies([
-      { name: 'sgx-verified', value: '1', domain: new URL(BASE).hostname, path: '/', httpOnly: true, secure: true, sameSite: 'Lax' },
+      { name: 'sgx-lock-session', value: '1', domain: new URL(BASE).hostname, path: '/', httpOnly: true, secure: true, sameSite: 'Lax' },
     ]);
     await page.goto(BASE + '/?lock=1');
     const lock = page.locator('#sgx-lock');
@@ -130,7 +130,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       // 取两把的 credId（从列表 data 属性或通过 API）
       const token = await page.evaluate(() => sessionStorage.getItem('sgx-lockmgr-token'));
       const list1 = await (await request.post(BASE + '/api/lock-passkey', {
-        data: { action: 'list', pkClass: 'lock', token },
+        data: { action: 'list', token },
       })).json();
       expect(list1.ok).toBe(true);
       expect(list1.keys.length).toBe(2);
@@ -156,7 +156,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
 
       // KV 里不应再有 owner-passkeys（通过 list 返回空数组验证）
       const list2 = await (await request.post(BASE + '/api/lock-passkey', {
-        data: { action: 'list', pkClass: 'lock', token },
+        data: { action: 'list', token },
       })).json();
       expect(list2.ok).toBe(true);
       expect(list2.keys.length).toBe(0);
@@ -234,9 +234,9 @@ test.describe('passkey e2e (virtual authenticator)', () => {
     expect(got429).toBe(true);
   });
 
-  test('恢复开关：计时内有效且单次作废（lockreset via switch）', async ({ request }) => {
+  test('恢复开关：计时内有效且单次作废（LockResetTicket via switch）', async ({ request }) => {
     /* 2.11 恢复开关 e2e：通过 Cloudflare API 向 preview KV 写入唯一开关值，
-       验证「首次见到开始 24h 计时 → 计时内有效签发 lockreset → 单次使用后作废」。
+       验证「首次见到开始 24h 计时 → 计时内有效签发 LockResetTicket → 单次使用后作废」。
        需要 SGX_TEST_CF_TOKEN / SGX_TEST_CF_ACCOUNT / SGX_TEST_PREVIEW_KV_ID，
        没有则跳过（CI 的 deploy.yml 会注入）。 */
     const CF_TOKEN = process.env.SGX_TEST_CF_TOKEN || '';
@@ -262,7 +262,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
     }
 
     const ORIGIN = new URL(BASE).origin;
-    async function lockresetVerify(rootKey) {
+    async function lockResetVerify(rootKey) {
       return request.post(BASE + '/api/lock-reset', {
         headers: { Origin: ORIGIN },
         data: { action: 'verify', rootKey },
@@ -273,21 +273,21 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       /* 1. 写入开关值 → 服务端首次见到，在 D1 记录 hash + 首次时间，开始 24h 计时 */
       await kvPut('recovery-switch', switchValue);
 
-      /* 2. 根凭证正确 + 开关在计时窗口内有效 → 签发 lockreset（via=switch），带 sgx-door cookie */
-      let r = await lockresetVerify(OWNER_KEY);
+      /* 2. 根凭证正确 + 开关在计时窗口内有效 → 签发 LockResetTicket（via=switch），带 sgx-lock-reset cookie */
+      let r = await lockResetVerify(OWNER_KEY);
       expect(r.status()).toBe(200);
       const body1 = await r.json();
       expect(body1.ok).toBe(true);
       expect(body1.needAccount).toBeFalsy();
-      expect(r.headers()['set-cookie'] || '').toContain('sgx-door=');
+      expect(r.headers()['set-cookie'] || '').toContain('sgx-lock-reset=');
 
-      /* 3. 同一开关值再次使用 → 已标记已用，单次作废，走站长凭证路径 */
-      r = await lockresetVerify(OWNER_KEY);
+      /* 3. 同一开关值再次使用 → 已标记已用，单次作废，走管理员凭证路径 */
+      r = await lockResetVerify(OWNER_KEY);
       expect(r.status()).toBe(200);
       const body2 = await r.json();
       expect(body2.ok).toBe(true);
       expect(body2.needAccount).toBe(true);
-      expect(r.headers()['set-cookie'] || '').not.toContain('sgx-door=');
+      expect(r.headers()['set-cookie'] || '').not.toContain('sgx-lock-reset=');
     } finally {
       /* 清理：删掉测试写入的开关值（D1 记录按 hash 隔离，无影响） */
       await kvDel('recovery-switch');
@@ -295,7 +295,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
   });
 
 
-  test('lockreset 落地页：票据可操作锁屏管理页，主页仍被锁', async ({ page, request }) => {
+  test('LockResetTicket 落地页：票据可操作锁屏管理页，主页仍被锁', async ({ page, request }) => {
     /* 复审 §1 e2e：完整走一遍重置 → 落地页可操作 → 访问主页仍被锁。
        需要 SGX_TEST_CF_TOKEN/CF_ACCOUNT/PREVIEW_KV_ID（同恢复开关测试）。 */
     const CF_TOKEN = process.env.SGX_TEST_CF_TOKEN || '';
@@ -305,7 +305,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
 
     const kvBase = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/storage/kv/namespaces/${KV_ID}/values/`;
     const cfHeaders = { Authorization: `Bearer ${CF_TOKEN}` };
-    const switchValue = 'e2e-lockreset-page-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+    const switchValue = 'e2e-lock-reset-page-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
     const ORIGIN = new URL(BASE).origin;
 
     async function kvPut(key, value) {
@@ -321,7 +321,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
     }
 
     try {
-      /* 1. 写入开关 → 根凭证 verify → 拿到 lockreset 票据（sgx-door cookie） */
+      /* 1. 写入开关 → 根凭证 verify → 拿到 LockResetTicket（sgx-lock-reset cookie） */
       await kvPut('recovery-switch', switchValue);
       const vr = await request.post(BASE + '/api/lock-reset', {
         headers: { Origin: ORIGIN },
@@ -330,14 +330,14 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       expect(vr.status()).toBe(200);
       expect((await vr.json()).ok).toBe(true);
       const setCookie = vr.headers()['set-cookie'] || '';
-      expect(setCookie).toContain('sgx-door=');
-      const doorVal = setCookie.split('sgx-door=')[1].split(';')[0];
+      expect(setCookie).toContain('sgx-lock-reset=');
+      const resetVal = setCookie.split('sgx-lock-reset=')[1].split(';')[0];
 
       /* 2. 带票据访问锁屏管理页 → data-sgx-lock-session="lock-reset"，无锁屏覆盖 */
       const ctx = page.context();
       await ctx.addCookies([{
-        name: 'sgx-door',
-        value: doorVal,
+        name: 'sgx-lock-reset',
+        value: resetVal,
         domain: new URL(BASE).hostname,
         path: '/',
         httpOnly: true,
@@ -365,31 +365,27 @@ test.describe('passkey e2e (virtual authenticator)', () => {
     }
   });
 
-  test('root-auth → root-session：锁屏未配置时换站长会话', async ({ request }) => {
-    /* 复审 §3 e2e：kernel 已有覆盖，这里走 HTTP 全链路。
-       前提：preview 的 lock 未配置（无 layer:lock 标记、无 lock-pw、无 lock passkey）。
+  test('root-auth purpose:lock-reset：锁屏未配置时签 LockResetTicket（不签会话）；/api/root-session 已删除', async ({ request }) => {
+    /* 前提：preview 的 lock 未配置（无 layer:lock 标记、无 lock-pw、无 lock passkey）。
        若 preview 已配置 lock，本用例跳过（由 kernel 行为测试覆盖已配置拒绝路径）。 */
     const ORIGIN = new URL(BASE).origin;
-    /* 1. root-auth（引导模式，无会话） */
+    /* 不带 purpose → 400 */
+    const r0 = await request.post(BASE + '/api/root-auth', { headers: { Origin: ORIGIN }, data: { key: OWNER_KEY } });
+    expect(r0.status()).toBe(400);
+    /* 1. root-auth purpose:lock-reset（从零设置，无会话） */
     const r1 = await request.post(BASE + '/api/root-auth', {
       headers: { Origin: ORIGIN },
-      data: { key: OWNER_KEY },
+      data: { key: OWNER_KEY, purpose: 'lock-reset' },
     });
     /* 若 401 说明 lock 已配置 → 跳过（非本用例目标场景） */
-    test.skip(r1.status() === 401, 'preview 已配置 lock，跳过引导模式 e2e');
+    test.skip(r1.status() === 401, 'preview 已配置 lock，跳过从零设置 e2e');
     expect(r1.status()).toBe(200);
     const sc1 = r1.headers()['set-cookie'] || '';
-    expect(sc1).toContain('sgx-door=');
-    const doorVal = sc1.split('sgx-door=')[1].split(';')[0];
-    /* 2. root-session 换会话 */
-    const r2 = await request.post(BASE + '/api/root-session', {
-      headers: { Origin: ORIGIN, Cookie: 'sgx-door=' + doorVal },
-    });
-    expect(r2.status()).toBe(200);
-    const b2 = await r2.json();
-    expect(b2.ok).toBe(true);
-    expect(b2.by).toBe('root');
-    expect(r2.headers()['set-cookie'] || '').toContain('sgx-verified=');
+    expect(sc1).toContain('sgx-lock-reset=');
+    expect(sc1).not.toContain('sgx-lock-session=');
+    /* 2. 原 root-session 接口已删除 */
+    const r2 = await request.post(BASE + '/api/root-session', { headers: { Origin: ORIGIN } });
+    expect(r2.status()).not.toBe(200);
   });
 
   test('改密码后旧会话 cookie 失效', async ({ page, request }) => {
@@ -412,7 +408,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       });
       expect((await r.json()).ok).toBe(true);
       const cookies = await page.context().cookies();
-      const verified = cookies.find(c => c.name === 'sgx-verified');
+      const verified = cookies.find(c => c.name === 'sgx-lock-session');
       expect(verified).toBeTruthy();
 
       // 改密码
@@ -447,7 +443,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
 
       const token = await page.evaluate(() => sessionStorage.getItem('sgx-lockmgr-token'));
       const list1 = await (await request.post(BASE + '/api/lock-passkey', {
-        data: { action: 'list', pkClass: 'lock', token },
+        data: { action: 'list', token },
       })).json();
       expect(list1.keys.length).toBeGreaterThan(0);
       const credId = list1.keys[0].credId;
@@ -463,7 +459,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
 
       // list 里名字已更新
       const list2 = await (await request.post(BASE + '/api/lock-passkey', {
-        data: { action: 'list', pkClass: 'lock', token },
+        data: { action: 'list', token },
       })).json();
       const item = list2.keys.find(k => k.credId === credId);
       expect(item).toBeTruthy();
@@ -493,7 +489,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       // 删光
       const token = await page.evaluate(() => sessionStorage.getItem('sgx-lockmgr-token'));
       const list = await (await request.post(BASE + '/api/lock-passkey', {
-        data: { action: 'list', pkClass: 'lock', token },
+        data: { action: 'list', token },
       })).json();
       for (const k of list.keys) {
         await request.post(BASE + '/api/lock-passkey', {
@@ -521,7 +517,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       await page.click('#lockmgr-pkadd');
       await expect(page.locator('.lockmgr-pkitem').first()).toBeVisible({ timeout: 20000 });
       const list1 = await (await request.post(BASE + '/api/lock-passkey', {
-        data: { action: 'list', pkClass: 'lock', token },
+        data: { action: 'list', token },
       })).json();
       const credId = list1.keys[0].credId;
 
@@ -579,7 +575,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
           publicKey: {
             challenge: b64urlToBuf(challenge),
             rp: { name: 'Styrigx', id: rpId },
-            user: { id: b64urlToBuf(userId), name: 'owner', displayName: 'Sloan Gray' },
+            user: { id: b64urlToBuf(userId), name: 'LockKey', displayName: 'Sloan Gray' },
             pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
             attestation: 'none',
             timeout: 15000,
@@ -632,7 +628,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
 
       // 确认 KV 没写
       const list = await (await request.post(BASE + '/api/lock-passkey', {
-        data: { action: 'list', pkClass: 'lock', token },
+        data: { action: 'list', token },
       })).json();
       expect(list.keys.length).toBe(0);
     } finally {
@@ -704,15 +700,15 @@ test.describe('session security e2e (2.4.1)', () => {
       expect((await r.json()).ok).toBe(true);
       const sc = r.headers()['set-cookie'] || '';
       /* Hark：密码与 passkey 的 Set-Cookie 必须走同一属性定义 */
-      expect(sc).toContain('sgx-verified=');
+      expect(sc).toContain('sgx-lock-session=');
       expect(sc).toContain('Domain=.styrigx.com');
       expect(sc).toContain('Path=/');
       expect(sc).toContain('HttpOnly');
       expect(sc).toContain('Secure');
       expect(sc).toContain('SameSite=Lax');
       expect(sc).toContain('Max-Age=43200');
-      /* cookie 值是 epoch.exp.sig 三段式 */
-      expect(sc.split(';')[0].split('=')[1].split('.').length).toBe(3);
+      /* LockSessionTicket 六段：by.role.epoch.exp.tempkeyId.sig（admin 的 tempkeyId 为空） */
+      expect(sc.split(';')[0].split('=')[1].split('.').length).toBe(6);
     } finally {
       await request.post(BASE + '/api/lock-password', {
         data: { action: 'remove', token },
@@ -748,7 +744,7 @@ test.describe('session security e2e (2.4.1)', () => {
       await pkbtn.click();
       const authResp = await authRespPromise;
       const sc = authResp.headers()['set-cookie'] || '';
-      expect(sc).toContain('sgx-verified=');
+      expect(sc).toContain('sgx-lock-session=');
       expect(sc).toContain('Domain=.styrigx.com');
       expect(sc).toContain('Path=/');
       expect(sc).toContain('HttpOnly');
@@ -783,12 +779,12 @@ test.describe('session security e2e (2.4.1)', () => {
       const epoch1 = cookieEpoch(r.headers()['set-cookie']);
       const e0 = epoch1;
 
-      /* 立即锁定并退出所有设备（2.8.0：独立 L2 API，只认 owner 会话） */
+      /* 立即锁定并退出所有设备（2.8.0：独立 L2 API，只认 admin 会话） */
       r = await request.post(BASE + '/api/lock-all-devices', { data: {} });
       expect((await r.json()).ok).toBe(true);
       /* 清 cookie 同样带 Domain，且正确过期 */
       const clearSc = r.headers()['set-cookie'] || '';
-      expect(clearSc).toContain('sgx-verified=;');
+      expect(clearSc).toContain('sgx-lock-session=;');
       expect(clearSc).toContain('Domain=.styrigx.com');
       expect(clearSc).toContain('Max-Age=0');
 

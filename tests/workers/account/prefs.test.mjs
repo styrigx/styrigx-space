@@ -1,14 +1,14 @@
 /**
- * 账号云同步 /api/prefs（2026-10-22）：owner lock 会话 + 账号会话；逐项新的赢。
+ * 账号云同步 /api/prefs（2026-10-22）：admin lock 会话 + 账号会话；逐项新的赢。
  *
  * 2026-10-24 搬到账号 Worker styrigx-account（workers/account）；会话经网关 verifier.js（_auth.mjs），登录流程仍用网关的 /api/account。
  *
  * 运行：node --test tests/workers/account/prefs.test.mjs
  */
-import { signRole } from '../auth-gateway/_tk.mjs';
 import { wrap } from './_auth.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { testLockSession, testAccountSession } from '../auth-gateway/_tickets.mjs';
 
 const API = '../../../workers/auth-gateway/functions/api/';
 const PREFS = '../../../workers/account/src/api/prefs.js';
@@ -73,17 +73,17 @@ function getReq(url, headers = {}) {
   return new Request(url, { method: 'GET', headers });
 }
 
-async function ownerSess(epoch = 0) {
-  const { signSessionCookie } = await import(KERNEL + 'lock-session.js');
-  return await signSessionCookie(LOCK.priv, epoch, 'owner', 'owner');
+async function adminSess(epoch = 0) {
+  const { signLockSessionTicket } = await import(KERNEL + 'lock-session.js');
+  return await testLockSession(LOCK.priv, epoch, 'admin', 'password');
 }
 async function visitorSess() {
-  const { signSessionCookie } = await import(KERNEL + 'lock-session.js');
-  return await signRole(signSessionCookie, LOCK.priv, 0, 'visitor', 'owner');
+  const { signLockSessionTicket } = await import(KERNEL + 'lock-session.js');
+  return await testLockSession(LOCK.priv, 0, 'visitor');
 }
 async function accTicket(by = 'password', authAt = Date.now(), epoch = 0, priv) {
-  const { signAccountTicket } = await import(KERNEL + 'account-session.js');
-  return await signAccountTicket(priv || ACCOUNT.priv, by, epoch, authAt);
+  const { signAccountSessionTicket } = await import(KERNEL + 'account-session.js');
+  return await testAccountSession(priv || ACCOUNT.priv, by, epoch, authAt);
 }
 function cookies(o) {
   return Object.entries(o).filter(([, v]) => v).map(([k, v]) => k + '=' + v).join('; ');
@@ -98,26 +98,6 @@ function pickCookie(res, name) {
   return null;
 }
 
-async function doorTicket(by = 'password', epoch = 0, priv, now) {
-  const { signDoorTicket } = await import(KERNEL + 'tickets.js');
-  return await signDoorTicket(priv || ACCOUNT.priv, 'account', by, epoch, now);
-}
-/* 管理操作要账号门票：测试里带了账号会话又没显式给 sgx-door（键不存在）时，自动补一张同纪元的门票；
-   要测「没有门票」就显式传 'sgx-door': '' */
-async function withDoor(cookieObj) {
-  const o = { ...(cookieObj || {}) };
-  if (o['sgx-account'] && !('sgx-door' in o)) {
-    const by = String(o['sgx-account']).split('.')[0];
-    const ep = parseInt(String(o['sgx-account']).split('.')[1], 10) || 0;
-    o['sgx-door'] = await doorTicket(by, ep);
-  }
-  return o;
-}
-async function accountPost(kv, body, cookieObj, envOverrides) {
-  const { onRequestPost } = await import(API + 'account.js');
-  const co = await withDoor(cookieObj);
-  return await onRequestPost({ request: postReq('https://styrigx.com/api/account', body, { Cookie: cookies(co) }), env: envFor(kv, envOverrides) });
-}
 async function accountGet(kv, cookieObj, envOverrides) {
   const { onRequestGet } = await import(API + 'account.js');
   return await onRequestGet({ request: getReq('https://styrigx.com/api/account', { Cookie: cookies(cookieObj) }), env: envFor(kv, envOverrides) });
@@ -141,23 +121,23 @@ test('setup: 生成测试钥匙', async () => {
   LOCK = await edPair(); ACCOUNT = await edPair(); OTHER = await edPair();
 });
 
-test('要 owner lock 会话 + 账号会话：缺一个都 401', async () => {
+test('要 admin lock 会话 + 账号会话：缺一个都 401', async () => {
   const kv = makeKV();
   assert.equal((await prefsCall(kv, 'GET', null, {})).status, 401);
-  const sess = await ownerSess();
-  const r = await prefsCall(kv, 'GET', null, { 'sgx-verified': sess });
+  const sess = await adminSess();
+  const r = await prefsCall(kv, 'GET', null, { 'sgx-lock-session': sess });
   assert.equal(r.status, 401);
   assert.equal((await r.json()).error, 'account');
   const vis = await visitorSess();
-  assert.equal((await prefsCall(kv, 'GET', null, { 'sgx-verified': vis, 'sgx-account': await accTicket() })).status, 401);
-  const ok = await prefsCall(kv, 'GET', null, { 'sgx-verified': sess, 'sgx-account': await accTicket() });
+  assert.equal((await prefsCall(kv, 'GET', null, { 'sgx-lock-session': vis, 'sgx-account-session': await accTicket() })).status, 401);
+  const ok = await prefsCall(kv, 'GET', null, { 'sgx-lock-session': sess, 'sgx-account-session': await accTicket() });
   assert.equal(ok.status, 200);
   assert.deepEqual((await ok.json()).items, {});
 });
 
 test('POST 合并：逐项新的赢；旧的不覆盖；非 sgx- key / 未来时间 / 超长值丢掉', async () => {
   const kv = makeKV();
-  const co = { 'sgx-verified': await ownerSess(), 'sgx-account': await accTicket() };
+  const co = { 'sgx-lock-session': await adminSess(), 'sgx-account-session': await accTicket() };
   const now = Date.now();
   let r = await prefsCall(kv, 'POST', { changes: {
     'sgx-theme-mode': { v: 'dark', t: now - 1000 },
@@ -180,16 +160,16 @@ test('POST 合并：逐项新的赢；旧的不覆盖；非 sgx- key / 未来时
 
 test('POST 跨源 → 拒绝', async () => {
   const kv = makeKV();
-  const co = { 'sgx-verified': await ownerSess(), 'sgx-account': await accTicket() };
+  const co = { 'sgx-lock-session': await adminSess(), 'sgx-account-session': await accTicket() };
   const r = await prefsCall(kv, 'POST', { changes: {} }, co, 'https://evil.example');
   assert.equal(r.status, 403);
 });
 
 test('被单独退出的设备（revoked）不能同步', async () => {
   const kv = makeKV();
-  const { signAccountTicket } = await import(KERNEL + 'account-session.js');
-  const t = await signAccountTicket(ACCOUNT.priv, 'password', 0, Date.now(), undefined, 'AAAAAAAAAAAAAAAA');
+  const { signAccountSessionTicket } = await import(KERNEL + 'account-session.js');
+  const t = await testAccountSession(ACCOUNT.priv, 'password', 0, Date.now(), undefined, 'AAAAAAAAAAAAAAAA');
   await kv.put('account-revoked:AAAAAAAAAAAAAAAA', '1');
-  const r = await prefsCall(kv, 'GET', null, { 'sgx-verified': await ownerSess(), 'sgx-account': t });
+  const r = await prefsCall(kv, 'GET', null, { 'sgx-lock-session': await adminSess(), 'sgx-account-session': t });
   assert.equal(r.status, 401);
 });

@@ -1,7 +1,7 @@
 {{/* 安全与隐私 → 锁屏凭证（/settings/security/lock/）。
    这是安全操作页：每次进页都要先过门 —— 锁屏通行密钥 / 解锁密码（设了哪个显示哪个）+ 根凭证（一直在），
-   通过后签 3 分钟锁屏门票（SGX_LOCK_* 签），页内倒计时；离开本页门票立即作废，再进重新验证。
-   门内：解锁密码、锁屏通行密钥、会话（退出所有设备）。重置锁屏（重置门票）直接进门内。
+   通过后签 3 分钟LockReauthTicket（SGX_LOCK_* 签），页内倒计时；离开本页reauth 票立即作废，再进重新验证。
+   门内：解锁密码、锁屏通行密钥、会话（退出所有设备）。重置锁屏（reset 票）直接进门内。
    noindex、不进 sitemap（见 baseof/sitemap）。
    脚本走 ES Module 入口 entry-security-lock.js；localStorage 经 storage.js。 */}}
 {{ define "main" }}
@@ -11,11 +11,11 @@
 <div class="set-layout lock-page pb-28">
 
   <!-- 门：每次进页验一次锁屏凭证或根凭证（JS 渲染验证行） -->
-  <div id="lock-door" hidden>
+  <div id="lock-reauth" hidden>
     <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Verify it's you{{ else }}验证身份{{ end }}</span></h2>
     <p class="sec-note mb-3">{{ if $isEn }}Changing lock screen credentials is a security action. Verify to continue; it lasts 3 minutes and ends as soon as you leave this page.{{ else }}修改锁屏凭证属于安全操作，请先验证。验证有效 3 分钟，离开本页立即失效。{{ end }}</p>
-    <p class="sgx-credential-err mb-3" id="lock-door-notice" hidden></p>
-    <div class="sgx-credential-methods animate-fade-up" id="lock-door-methods" style="animation-delay:.1s"></div>
+    <p class="sgx-credential-err mb-3" id="lock-reauth-notice" hidden></p>
+    <div class="sgx-credential-methods animate-fade-up" id="lock-reauth-methods" style="animation-delay:.1s"></div>
   </div>
 
   <!-- 门内（验证通过后才渲染；顶部倒计时胶囊由 JS 插入） -->
@@ -191,8 +191,8 @@
   "errUnknown" (dict "zh" "未知错误，请稍后重试" "en" "Unknown error, please try again later")
   "errSameAsLock" (dict "zh" "不能与解锁密码相同" "en" "Can't be the same as the unlock password")
   "errSameAsAccount" (dict "zh" "不能与账号密码相同" "en" "Can't be the same as the account password")
-  "doorCountdown" (dict "zh" "验证剩余 {m}" "en" "Verification remaining {m}")
-  "doorCountdownExpired" (dict "zh" "已过期" "en" "Expired")
+  "reauthCountdown" (dict "zh" "验证剩余 {m}" "en" "Verification remaining {m}")
+  "reauthCountdownExpired" (dict "zh" "已过期" "en" "Expired")
   "expiredStepupTitle" (dict "zh" "验证已过期" "en" "Verification expired")
   "expiredStepupDesc" (dict "zh" "验证后回到这一页继续" "en" "Verify again to continue on this page.")
   "expiredStepupBtn" (dict "zh" "重新验证" "en" "Verify again")
