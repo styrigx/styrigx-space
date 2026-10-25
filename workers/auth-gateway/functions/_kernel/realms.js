@@ -14,6 +14,8 @@
  * KV 键名：<域>-<对象>[-<附加>][:<编号>]。KV_LOCK_DOOR 与 KV_ACCOUNT_LOGIN 是同一个 namespace，
  * 所以每个键都带域前缀（lock- / account- / root-）。各域的键都列在下面各 REALM_* 的 kv 表里，
  * 代码只引用这里的常量，不手拼键名；不读写任何旧键。
+ * 绑定按域分：lock-* 和 root-* 只经 KV_LOCK_DOOR 读写，account-* 只经 KV_ACCOUNT_LOGIN 读写
+ * （tests/workers/auth-gateway/kv-binding-split.test.mjs 把两个绑定拆成两个只认自己前缀的 KV 来跑核对）。
  *
  * 现有凭证域（签名钥匙只有两套：SGX_LOCK_*、SGX_ACCOUNT_*），每域三张票（见下方 TICKETS 总表）：
  * - lock    LockSessionTicket（锁屏解锁后的 admin / visitor 会话）、LockResetTicket（重置锁屏）、

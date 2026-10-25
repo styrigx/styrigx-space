@@ -27,7 +27,8 @@ export async function onRequestGet(context) {
 async function handleGet(context) {
   const { request, env } = context;
   const kv = env && env.KV_LOCK_DOOR;
-  if (!kv) {
+  const akv = env && env.KV_ACCOUNT_LOGIN; /* account-* 键 */
+  if (!kv || !akv) {
     return apiError(500, 'config');
   }
 
@@ -43,7 +44,7 @@ async function handleGet(context) {
   } catch (e) {}
 
   try {
-    const accountCfg = await isLayerConfigured(kv, LAYER_ACCOUNT);
+    const accountCfg = await isLayerConfigured(akv, LAYER_ACCOUNT);
     const lockCfg = await isLayerConfigured(kv, LAYER_LOCK);
     return json(200, {
       ok: true,

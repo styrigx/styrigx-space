@@ -118,15 +118,15 @@ async function adminLockSession(request, env) {
 export async function onRequestGet(context) {
   try {
     const { request, env } = context;
-    const kv = env && env.KV_LOCK_DOOR;
-    const akv = env && env.KV_ACCOUNT_LOGIN; /* account-* 键（设备记录、challenge、account-epoch） */
+    const lkv = env && env.KV_LOCK_DOOR; /* lock-* 键（锁屏密码 / 通行密钥 / 纪元，判断「两套凭证不能相同」等） */
+    const akv = env && env.KV_ACCOUNT_LOGIN; /* 全部 account-* 键 */
     if (!(await adminLockSession(request, env))) return apiError(401, 'session');
-    if (!kv || !akv) return apiError(500, 'config');
+    if (!lkv || !akv) return apiError(500, 'config');
     let password = false;
     let passkey = false;
     try {
-      password = await hasAccountPassword(kv);
-      passkey = (await accountKeys(kv)).length > 0;
+      password = await hasAccountPassword(akv);
+      passkey = (await accountKeys(akv)).length > 0;
     } catch (e) {
       return apiError(503, 'server');
     }
@@ -168,8 +168,8 @@ export async function onRequestPost(context) {
 /** @param {any} context */
 async function handlePost(context) {
   const { request, env } = context;
-  const kv = env && env.KV_LOCK_DOOR;
-  const akv = env && env.KV_ACCOUNT_LOGIN; /* account-* 键（设备记录、challenge、account-epoch） */
+  const lkv = env && env.KV_LOCK_DOOR; /* lock-* 键（锁屏密码 / 通行密钥 / 纪元，判断「两套凭证不能相同」等） */
+  const akv = env && env.KV_ACCOUNT_LOGIN; /* 全部 account-* 键 */
   if (request.method !== 'POST') return apiError(405, 'method');
   if (!isSameOrigin(request)) return originDenied();
 
@@ -206,7 +206,7 @@ async function handlePost(context) {
   /* 其余 action：先要 admin 锁屏会话（前置条件；visitor 已被 middleware 403） */
   const sess = await adminLockSession(request, env);
   if (!sess) return apiError(401, 'session');
-  if (!kv || !akv) return apiError(500, 'config');
+  if (!lkv || !akv) return apiError(500, 'config');
 
   /* ============ login-password ============ */
   if (action === 'login-password') {
@@ -216,7 +216,7 @@ async function handlePost(context) {
     const pepper = getPepper(env);
     if (!pepper) return apiError(503, 'config');
     /* 账号密码输错限速：规则同锁屏密码（_kernel/password-limit.js），按 IP 各域各自计数 */
-    const limiter = passwordLimiter(kv, REALM_ACCOUNT, clientIp(request));
+    const limiter = passwordLimiter(akv, REALM_ACCOUNT, clientIp(request));
     try {
       if (await limiter.inCooldown()) return apiError(429, 'cooldown');
     } catch (e) {
@@ -224,7 +224,7 @@ async function handlePost(context) {
     }
     let vr;
     try {
-      vr = await verifyRealmPassword(kv, REALM_ACCOUNT, pepper, password);
+      vr = await verifyRealmPassword(akv, REALM_ACCOUNT, pepper, password);
     } catch (e) {
       return apiError(503, 'server');
     }
@@ -240,7 +240,7 @@ async function handlePost(context) {
     }
     await limiter.clearFail();
     if (vr.needsRehash) {
-      try { await kv.put(REALM_ACCOUNT.kv.password, JSON.stringify(await makePasswordRecord(password, pepper))); } catch (e) {}
+      try { await akv.put(REALM_ACCOUNT.kv.password, JSON.stringify(await makePasswordRecord(password, pepper))); } catch (e) {}
     }
     const headers = new Headers();
     const err = await issueAccountSession(env, headers, BY_PASSWORD, await accountSessionOpts(request, env, body));
@@ -260,7 +260,7 @@ async function handlePost(context) {
     if (!accountKeysReady(env)) return accountConfigMissing();
     const rp = rpConfig(env);
     if (!rp) return rpConfigMissing();
-    const keys = await accountKeys(kv);
+    const keys = await accountKeys(akv);
     if (keys.length === 0) return apiError(403, 'not-set');
     const challenge = randB64(32);
     const cid = randB64(16);
@@ -293,7 +293,7 @@ async function handlePost(context) {
     if (!chRec || chRec.purpose !== 'login' || chRec.exp < Date.now()) {
       return apiError(403, 'challenge');
     }
-    const keys = await accountKeys(kv);
+    const keys = await accountKeys(akv);
     if (keys.length === 0) return apiError(403, 'not-set');
     const stored = findStoredKey(keys, cred.rawId || '');
     if (!stored || !stored.publicKey) return apiError(403, 'unknown-key');
@@ -311,16 +311,16 @@ async function handlePost(context) {
          凭据里写死了，换不掉） */
       const gotUh = cred.response && cred.response.userHandle;
       if (gotUh) {
-        const expectUh = await getUserHandle(kv, PASSKEY_ACCOUNT);
+        const expectUh = await getUserHandle(akv, PASSKEY_ACCOUNT);
         if (expectUh && gotUh !== expectUh) {
           let legacyUh = null;
-          try { legacyUh = await kv.get(REALM_LOCK.kv.userHandle); } catch (e) {}
+          try { legacyUh = await lkv.get(REALM_LOCK.kv.userHandle); } catch (e) {}
           if (!legacyUh || gotUh !== legacyUh) throw new Error('userHandle');
         }
       }
       stored.signCount = checked.signCount;
       stored.lastUsedAt = Date.now();
-      try { await savePasskey(kv, PASSKEY_ACCOUNT, stored); } catch (e) {}
+      try { await savePasskey(akv, PASSKEY_ACCOUNT, stored); } catch (e) {}
     } catch (e) {
       console.error('[account-login]', e && e.message ? e.message : e);
       const code = (e && e.message === 'uv-required') ? 'uv-required' : 'verify';
@@ -392,10 +392,10 @@ async function handlePost(context) {
 
   /* 首次配置账号层：标记 + Lock 纪元 +1 + 重签当前锁屏会话（失败 503） */
   async function markConfigured(headers) {
-    if (await isLayerConfigured(kv, LAYER_ACCOUNT)) return null;
+    if (await isLayerConfigured(akv, LAYER_ACCOUNT)) return null;
     try {
-      await setLayerConfigured(kv, LAYER_ACCOUNT);
-      const ne = await bumpLockEpoch(kv);
+      await setLayerConfigured(akv, LAYER_ACCOUNT);
+      const ne = await bumpLockEpoch(lkv);
       await reissueLockSessionWithEpoch(env, headers, sess, ne);
     } catch (e) {
       return apiError(503, 'epoch');
@@ -415,10 +415,10 @@ async function handlePost(context) {
   }
 
   if (action === 'passkey-list') {
-    const keys = await accountKeys(kv);
+    const keys = await accountKeys(akv);
     /* 账号 handle（注册用的那个）；读不到就不给，前端不 signal。不新建（list 只读）。 */
     let userHandle = '';
-    try { userHandle = (await kv.get(REALM_ACCOUNT.kv.userHandle)) || ''; } catch (e) {}
+    try { userHandle = (await akv.get(REALM_ACCOUNT.kv.userHandle)) || ''; } catch (e) {}
     return json(200, {
       ok: true,
       by: by,
@@ -445,14 +445,14 @@ async function handlePost(context) {
     if (!pepper) return apiError(503, 'config');
     let existed = false;
     try {
-      existed = await hasAccountPassword(kv);
+      existed = await hasAccountPassword(akv);
       /* 账号密码不得与锁屏密码相同（双向检查；锁屏侧见 lock-password.js 的 same-as-account） */
-      const lockRec = await kv.get(REALM_LOCK.kv.password, 'json');
+      const lockRec = await lkv.get(REALM_LOCK.kv.password, 'json');
       if (lockRec && lockRec.hash) {
         const cr = await checkPasswordRecord(lockRec, password, pepper);
         if (cr.ok) return apiError(403, 'same-as-lock');
       }
-      await kv.put(REALM_ACCOUNT.kv.password, JSON.stringify(await makePasswordRecord(password, pepper)));
+      await akv.put(REALM_ACCOUNT.kv.password, JSON.stringify(await makePasswordRecord(password, pepper)));
     } catch (e) {
       return apiError(503, 'server');
     }
@@ -468,18 +468,18 @@ async function handlePost(context) {
   if (action === 'passkey-delete') {
     const credId = (body && body.credId) || '';
     if (!credId || typeof credId !== 'string') return apiError(400, 'params');
-    const keys = await accountKeys(kv);
+    const keys = await accountKeys(akv);
     const found = findStoredKey(keys, credId);
     if (!found) return apiError(404, 'not-found');
     const headers = new Headers();
     /* 先推纪元再删（fail closed：纪元推进失败则钥匙仍在） */
     try { await rotateAccount(headers); } catch (e) { return apiError(503, 'epoch'); }
-    try { await deletePasskey(kv, PASSKEY_ACCOUNT, credId); } catch (e) { return apiError(503, 'server'); }
+    try { await deletePasskey(akv, PASSKEY_ACCOUNT, credId); } catch (e) { return apiError(503, 'server'); }
     /* 删光账号凭证 → 清账号层标记（回到根凭证代管；清失败 503，避免标记残留锁死代管） */
     try {
-      const left = (await accountKeys(kv)).length;
-      if (left === 0 && !(await hasAccountPassword(kv))) {
-        await clearLayerConfigured(kv, LAYER_ACCOUNT);
+      const left = (await accountKeys(akv)).length;
+      if (left === 0 && !(await hasAccountPassword(akv))) {
+        await clearLayerConfigured(akv, LAYER_ACCOUNT);
       }
     } catch (e) {
       return apiError(503, 'server');
@@ -493,11 +493,11 @@ async function handlePost(context) {
     /* 名字规则与 lock-passkey.js rename 一致：去控制字符、去首尾空格、限 40 字，空 → params */
     const name = String((body && body.name) || '').replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, 40);
     if (!name) return apiError(400, 'params');
-    const keys = await accountKeys(kv);
+    const keys = await accountKeys(akv);
     const found = findStoredKey(keys, credId);
     if (!found) return apiError(404, 'not-found');
     found.name = name;
-    try { await savePasskey(kv, PASSKEY_ACCOUNT, found); } catch (e) { return apiError(503, 'server'); }
+    try { await savePasskey(akv, PASSKEY_ACCOUNT, found); } catch (e) { return apiError(503, 'server'); }
     return json(200, { ok: true, name: name });
   }
 
@@ -507,8 +507,8 @@ async function handlePost(context) {
     if (!rp) return rpConfigMissing();
 
     if (action === 'passkey-register-challenge') {
-      const keys = await accountKeys(kv);
-      const userHandle = await getUserHandle(kv, PASSKEY_ACCOUNT);
+      const keys = await accountKeys(akv);
+      const userHandle = await getUserHandle(akv, PASSKEY_ACCOUNT);
       if (!userHandle) return apiError(503, 'server');
       const challenge = randB64(32);
       const cid = randB64(16);
@@ -576,10 +576,10 @@ async function handlePost(context) {
         uv: 1,
       };
       /* 同一把凭据已登记为锁屏通行密钥 → 拒绝（一把凭据只属于一个域） */
-      if (await getPasskey(kv, PASSKEY_LOCK, credIdB64)) throw new Error('class');
-      const dup = await getPasskey(kv, PASSKEY_ACCOUNT, credIdB64);
+      if (await getPasskey(lkv, PASSKEY_LOCK, credIdB64)) throw new Error('class');
+      const dup = await getPasskey(akv, PASSKEY_ACCOUNT, credIdB64);
       if (dup) item.createdAt = dup.createdAt || item.createdAt;
-      await savePasskey(kv, PASSKEY_ACCOUNT, item);
+      await savePasskey(akv, PASSKEY_ACCOUNT, item);
     } catch (e) {
       console.error('[account-register]', e && e.message ? e.message : e);
       const code = (e && e.message === 'uv-required') ? 'uv-required' : (e && e.message === 'class') ? 'class' : 'verify';

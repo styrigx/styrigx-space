@@ -98,13 +98,14 @@ export async function onRequestPost(context) {
 async function handlePost(context) {
   const { request, env } = context;
   const kv = env && env.KV_LOCK_DOOR;
+  const akv = env && env.KV_ACCOUNT_LOGIN; /* account-* 键：账号是否已设置、通行密钥不能两域共用 */
 
   if (request.method !== 'POST') {
     return apiError(405, 'method');
   }
   /* Origin 必须与本站同 host（CSRF 防护），缺失或解析失败一律 403 */
   if (!isSameOrigin(request)) return originDenied();
-  if (!kv) return apiError(500, 'config');
+  if (!kv || !akv) return apiError(500, 'config');
 
   let body;
   try { body = await request.json(); } catch (e) {
@@ -212,7 +213,7 @@ async function handlePost(context) {
       /* 存储（同 credId 去重；每把一个 key）。同一把凭据已登记为账号通行密钥 → 拒绝（一把凭据只属于一个域） */
       const now = Date.now();
       const deviceName = String((body && body.name) || '').slice(0, 40);
-      if (await getPasskey(kv, PASSKEY_ACCOUNT, credIdB64)) throw new Error('invalid-class');
+      if (await getPasskey(akv, PASSKEY_ACCOUNT, credIdB64)) throw new Error('invalid-class');
       const existing = await getPasskey(kv, PASSKEY_LOCK, credIdB64);
       /* AAGUID 映射 provider，作为默认名 */
       const mappedProvider = providerOf(aaguid);
@@ -403,7 +404,7 @@ async function handlePost(context) {
     if (!hasLockPassword && lockKeys.length <= 1) {
       let accountCfg = true;
       try {
-        accountCfg = await isAccountEffectivelyConfigured(kv);
+        accountCfg = await isAccountEffectivelyConfigured(akv, kv);
       } catch (e) {
         accountCfg = true;
       }
@@ -428,7 +429,7 @@ async function handlePost(context) {
       try { const r = await kv.get(REALM_LOCK.kv.password, 'json'); hasLockPassword2 = !!(r && r.hash); } catch (e) {}
       if (!hasLockKey && !hasLockPassword2) {
         let accountCfg = true;
-        try { accountCfg = await isAccountEffectivelyConfigured(kv); } catch (e) { accountCfg = true; }
+        try { accountCfg = await isAccountEffectivelyConfigured(akv, kv); } catch (e) { accountCfg = true; }
         if (!accountCfg) {
           try {
             await clearLayerConfigured(kv, LAYER_LOCK);

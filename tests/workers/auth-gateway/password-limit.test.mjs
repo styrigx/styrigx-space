@@ -55,7 +55,7 @@ function verify(kv, password, ip = IP) {
       headers: { 'Content-Type': 'application/json', Origin: 'https://styrigx.com', 'CF-Connecting-IP': ip },
       body: JSON.stringify({ action: 'verify', password }),
     }),
-    env: { KV_LOCK_DOOR: kv, SGX_PW_PEPPER: PEPPER, SGX_LOCK_PRIVATE: PRIV, SGX_LOCK_PUBLIC: PUB },
+    env: { KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, SGX_PW_PEPPER: PEPPER, SGX_LOCK_PRIVATE: PRIV, SGX_LOCK_PUBLIC: PUB },
   });
 }
 const failRec = (kv, ip = IP) => JSON.parse(kv._map.get(REALM_LOCK.kv.passwordFailPrefix + ip));

@@ -68,13 +68,14 @@ async function handlePost(context) {
     return apiError(401, 'denied');
   }
   const kv = env && env.KV_LOCK_DOOR;
+  const akv = env && env.KV_ACCOUNT_LOGIN; /* account-* 键：账号是否已设置、账号凭证证明 */
   if (request.method !== 'POST') {
     return json(405, { ok: false });
   }
   if (!isSameOrigin(request)) {
     return apiError(403, 'origin');
   }
-  if (!kv) {
+  if (!kv || !akv) {
     return apiError(500, 'config');
   }
 
@@ -84,7 +85,7 @@ async function handlePost(context) {
   }
   const action = (body && body.action) || '';
   let accountCfg = true;
-  try { accountCfg = await isLayerConfigured(kv, LAYER_ACCOUNT); } catch (e) { accountCfg = true; }
+  try { accountCfg = await isLayerConfigured(akv, LAYER_ACCOUNT); } catch (e) { accountCfg = true; }
 
   /* ============ status：始终允许进入第一步（不暴露账号凭证是否配置；
      不读开关；开关只在 verify 根凭证正确后读） ============ */
@@ -110,7 +111,7 @@ async function handlePost(context) {
     if (!accountCfg) {
       return apiError(403, 'not-set');
     }
-    const accountPks = await getPasskeys(kv, PASSKEY_ACCOUNT);
+    const accountPks = await getPasskeys(akv, PASSKEY_ACCOUNT);
     if (accountPks.length === 0) {
       return apiError(403, 'not-set');
     }
@@ -187,11 +188,11 @@ async function handlePost(context) {
       let hasAccountPw = false;
       let hasAccountPk = false;
       try {
-        const r = await kv.get(REALM_ACCOUNT.kv.password, 'json');
+        const r = await akv.get(REALM_ACCOUNT.kv.password, 'json');
         hasAccountPw = !!(r && r.hash);
       } catch (e) {}
       try {
-        hasAccountPk = (await getPasskeys(kv, PASSKEY_ACCOUNT)).length > 0;
+        hasAccountPk = (await getPasskeys(akv, PASSKEY_ACCOUNT)).length > 0;
       } catch (e) {}
       return json(200, { ok: true, needAccount: true, passkey: hasAccountPk, password: hasAccountPw });
     }
@@ -204,7 +205,7 @@ async function handlePost(context) {
         return apiError(503, 'config');
       }
       try {
-        const vr = await verifyRealmPassword(kv, REALM_ACCOUNT, pepper, String(proof.password || ''));
+        const vr = await verifyRealmPassword(akv, REALM_ACCOUNT, pepper, String(proof.password || ''));
         accountOk = vr.set && vr.ok;
       } catch (e) {
         const failResp = await fail();
@@ -212,7 +213,7 @@ async function handlePost(context) {
         return apiError(503, 'server');
       }
     } else if (proof.type === 'passkey') {
-      accountOk = await verifyAccountPasskeyProof(kv, proof, RP_ID, EXPECT_ORIGIN);
+      accountOk = await verifyAccountPasskeyProof(kv, akv, proof, RP_ID, EXPECT_ORIGIN);
     }
     if (!accountOk) {
       const failResp = await fail();
@@ -240,12 +241,12 @@ async function handlePost(context) {
     }
 
     /* 验证账号通行密钥 断言（内部函数） */
-    async function verifyAccountPasskeyProof(kvStore, proofObj, rpId, expectOrigin) {
+    async function verifyAccountPasskeyProof(lkv, akvStore, proofObj, rpId, expectOrigin) {
       const cid = proofObj.cid || '';
       const cred = proofObj.credential || {};
-      const chRec = await consumeChallenge(kvStore, CHALLENGE_PREFIX + cid);
+      const chRec = await consumeChallenge(lkv, CHALLENGE_PREFIX + cid); /* lock-reset-challenge:* */
       if (!chRec || chRec.purpose !== PURPOSE || chRec.exp < Date.now()) return false;
-      const accountPks = await getPasskeys(kvStore, PASSKEY_ACCOUNT);
+      const accountPks = await getPasskeys(akvStore, PASSKEY_ACCOUNT);
       const stored = findStoredKey(accountPks, cred.rawId || '');
       if (!stored || !stored.publicKey) return false;
       try {

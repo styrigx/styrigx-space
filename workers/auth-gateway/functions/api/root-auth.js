@@ -131,6 +131,7 @@ async function handlePost(context) {
   }
 
   const kv = env && env.KV_LOCK_DOOR;
+  const akv = env && env.KV_ACCOUNT_LOGIN; /* account-* 键：盘点真实凭证时读 */
   const ip = clientIp(request);
 
   /* body 只读一次（purpose 决定签哪张票；key 在限流检查之后才比对） */
@@ -147,7 +148,7 @@ async function handlePost(context) {
   /* 锁屏是否已设置（KV 读失败按已设置处理）：只决定 lock-reset 能不能走 */
   let lockCfg = true;
   try {
-    lockCfg = await isLockEffectivelyConfigured(kv);
+    lockCfg = await isLockEffectivelyConfigured(kv, akv);
   } catch (e) {
     lockCfg = true;
   }

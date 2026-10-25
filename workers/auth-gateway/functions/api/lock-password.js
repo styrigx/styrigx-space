@@ -57,13 +57,14 @@ export async function onRequestPost(context) {
 async function handlePost(context) {
   const { request, env } = context;
   const kv = env && env.KV_LOCK_DOOR;
+  const akv = env && env.KV_ACCOUNT_LOGIN; /* account-* 键：账号是否已设置、「两套密码不能相同」 */
 
   if (request.method !== 'POST') {
     return apiError(405, 'method');
   }
   /* Origin 必须与本站同 host（CSRF 防护），缺失或解析失败一律 403 */
   if (!isSameOrigin(request)) return originDenied();
-  if (!kv) {
+  if (!kv || !akv) {
     return apiError(500, 'config');
   }
 
@@ -188,7 +189,7 @@ async function handlePost(context) {
         if (lockKeys.length === 0) {
           let accountCfg = true;
           try {
-            accountCfg = await isAccountEffectivelyConfigured(kv);
+            accountCfg = await isAccountEffectivelyConfigured(akv, kv);
           } catch (e) {
             accountCfg = true;
           }
@@ -218,7 +219,7 @@ async function handlePost(context) {
             /* A-2：删光锁屏凭证且账号已配置 → 保留锁屏层标记不清；
                账号未配置时（竞态）清锁屏层标记。 */
             let accountCfg = true;
-            try { accountCfg = await isAccountEffectivelyConfigured(kv); } catch (e) { accountCfg = true; }
+            try { accountCfg = await isAccountEffectivelyConfigured(akv, kv); } catch (e) { accountCfg = true; }
             if (!accountCfg) {
               try {
                 await clearLayerConfigured(kv, LAYER_LOCK);
@@ -264,7 +265,7 @@ async function handlePost(context) {
 
     /* 锁屏密码不得与账号密码相同（双向检查；账号侧见 /api/account 的 same-as-lock）。 */
     try {
-      const other = await kv.get(REALM_ACCOUNT.kv.password, 'json');
+      const other = await akv.get(REALM_ACCOUNT.kv.password, 'json');
       if (other && other.hash) {
         const cr = await checkPasswordRecord(other, newPassword, pepper);
         if (cr.ok) {

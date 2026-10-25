@@ -25,20 +25,21 @@ export async function onRequestGet(context) {
   const headers = { 'Cache-Control': 'no-store' };
   try {
     const kv = context.env && context.env.KV_LOCK_DOOR;
+    const akv = context.env && context.env.KV_ACCOUNT_LOGIN; /* account-* 键 */
     /* 口径统一：标记或真实凭证任一存在、或读取失败，都算已配置 */
     let effective = true;
     if (kv) {
       try {
-        effective = await isLockEffectivelyConfigured(kv);
+        effective = await isLockEffectivelyConfigured(kv, akv);
       } catch (e) {
         effective = true;
       }
     }
     /* A-2：账号层是否有效配置（fail closed：读取失败按已配置） */
     let accountConfigured = true;
-    if (kv) {
+    if (akv) {
       try {
-        accountConfigured = await isAccountEffectivelyConfigured(kv);
+        accountConfigured = await isAccountEffectivelyConfigured(akv, kv);
       } catch (e) {
         accountConfigured = true;
       }
