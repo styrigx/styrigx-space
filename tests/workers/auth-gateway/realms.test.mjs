@@ -50,19 +50,19 @@ function makeKV(seed = {}) {
 }
 
 test('realms：线上格式与重构前字面量逐字相同', () => {
-  assert.equal(REALM_LOCK.cookie, 'sgx-verified');
+  assert.equal(REALM_LOCK.cookie, 'sgx-lock-session');
   assert.equal(REALM_LOCK.cookieAttrs, 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax');
   assert.equal(REALM_LOCK.maxAge, 43200);
   assert.equal(REALM_LOCK.kv.password, 'lock-pw');
   assert.equal(REALM_LOCK.privateKey, 'SGX_LOCK_PRIVATE');
   assert.equal(REALM_LOCK.publicKey, 'SGX_LOCK_PUBLIC');
 
-  /* 账号体系：原站长凭证升级为账号；存储键沿用原值（迁移不搬数据） */
+  /* 账号体系：原管理员凭证升级为账号；存储键沿用原值（迁移不搬数据） */
   assert.equal(REALM_ACCOUNT.kv.password, 'owner-pw');
   assert.equal(REALM_ACCOUNT.kv.passkeyPrefix, 'owner-passkey:');
   assert.equal(REALM_ACCOUNT.storeClass, 'owner');
   assert.equal(REALM_ACCOUNT.pepper, 'SGX_PW_PEPPER');
-  assert.equal(REALM_ACCOUNT.cookie, 'sgx-account');
+  assert.equal(REALM_ACCOUNT.cookie, 'sgx-account-session');
   assert.equal(REALM_ACCOUNT.cookieAttrs, 'Path=/; HttpOnly; Secure; SameSite=Strict');
   assert.equal(REALM_ACCOUNT.maxAge, 34560000); /* 400 天：不点退出一直登录 */
   assert.equal(REALM_ACCOUNT.recent, undefined); /* 「管理凭证」近期登录窗口已随 stepup 删除 */
@@ -79,11 +79,38 @@ test('realms：线上格式与重构前字面量逐字相同', () => {
   assert.equal(SESSION_EPOCH_KEY, 'session-epoch');
 });
 
-test('realms：旧导出名仍等于原值（调用方不变）', async () => {
+test('realms：六张票总表（cookie / 钥匙 / 时长 / 属性 / by / 纪元），session 文件导出同一份值', async () => {
+  const R = await import('../../../workers/auth-gateway/functions/_kernel/realms.js');
   const session = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
-  assert.equal(session.SESSION_COOKIE, 'sgx-verified');
-  assert.equal(session.COOKIE_ATTRS, 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax');
-  assert.equal(session.SESSION_MAX_AGE, 43200);
+  assert.equal(session.LOCK_SESSION_COOKIE, 'sgx-lock-session');
+  assert.equal(session.LOCK_SESSION_COOKIE_ATTRS, 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax');
+  assert.equal(session.LOCK_SESSION_MAX_AGE, 43200);
+  const T = R.TICKETS;
+  const want = {
+    LockSessionTicket: ['sgx-lock-session', 'SGX_LOCK_PRIVATE', 43200, ['password', 'passkey', 'tempkey'], 'session-epoch'],
+    LockResetTicket: ['sgx-lock-reset', 'SGX_LOCK_PRIVATE', 180, ['root', 'account'], 'session-epoch'],
+    LockReauthTicket: ['sgx-lock-reauth', 'SGX_LOCK_PRIVATE', 180, ['password', 'passkey', 'root'], 'session-epoch'],
+    AccountSessionTicket: ['sgx-account-session', 'SGX_ACCOUNT_PRIVATE', 34560000, ['password', 'passkey'], 'account-epoch'],
+    AccountResetTicket: ['sgx-account-reset', 'SGX_ACCOUNT_PRIVATE', 180, ['root'], 'account-epoch'],
+    AccountReauthTicket: ['sgx-account-reauth', 'SGX_ACCOUNT_PRIVATE', 180, ['password', 'passkey', 'root'], 'account-epoch'],
+  };
+  assert.deepEqual(Object.keys(T).sort(), Object.keys(want).sort());
+  for (const [name, [cookie, priv, maxAge, bys, epochKey]] of Object.entries(want)) {
+    assert.equal(T[name].cookie, cookie, name);
+    assert.equal(T[name].privateKey, priv, name);
+    assert.equal(T[name].publicKey, priv.replace('PRIVATE', 'PUBLIC'), name);
+    assert.equal(T[name].maxAge, maxAge, name);
+    assert.deepEqual([...T[name].bys], bys, name);
+    assert.equal(T[name].epochKey, epochKey, name);
+  }
+  assert.ok(T.LockSessionTicket.cookieAttrs.includes('Domain=.styrigx.com') && T.LockSessionTicket.cookieAttrs.includes('SameSite=Lax'));
+  assert.ok(!T.AccountSessionTicket.cookieAttrs.includes('Domain=') && T.AccountSessionTicket.cookieAttrs.includes('SameSite=Strict'));
+  for (const n of ['LockResetTicket', 'LockReauthTicket', 'AccountResetTicket', 'AccountReauthTicket']) {
+    assert.equal(T[n].cookieAttrs, 'Path=/; HttpOnly; Secure; SameSite=Strict', n);
+  }
+  assert.equal(R.ROLE_ADMIN, 'admin');
+  assert.equal(R.ROLE_VISITOR, 'visitor');
+  assert.deepEqual([...R.REALM_ROOT.issues].sort(), ['AccountReauthTicket', 'AccountResetTicket', 'LockReauthTicket', 'LockResetTicket']);
 });
 
 test('realms：签名钥匙只剩账号、锁屏两套（stepup / app 全删）', () => {
@@ -117,15 +144,15 @@ test('realms：钥匙名符合 SGX_<PURPOSE>_PRIVATE/PUBLIC，且都在 SECRET_N
 test('realms：realmCookie / realmClearCookie 与原手拼字符串相同', () => {
   assert.equal(
     realmCookie(REALM_LOCK, 'v2', 3600),
-    'sgx-verified=v2; Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=3600'
+    'sgx-lock-session=v2; Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=3600'
   );
   assert.equal(
     realmCookie(REALM_ACCOUNT, 'v3'),
-    'sgx-account=v3; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=34560000'
+    'sgx-account-session=v3; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=34560000'
   );
   assert.equal(
     realmClearCookie(REALM_LOCK),
-    'sgx-verified=; Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    'sgx-lock-session=; Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
   );
 });
 

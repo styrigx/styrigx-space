@@ -49,7 +49,7 @@ globalThis.window = {
   clearTimeout(id) { timers = timers.filter((x) => x.id !== id); },
   location: { reload() { reloads++; } },
 };
-let role = 'owner';
+let role = 'admin';
 globalThis.document = {
   getElementById() { return null; },
   documentElement: { getAttribute: (n) => (n === 'data-sgx-role' ? role : null) },
@@ -102,7 +102,7 @@ beforeEach(() => {
   SS.clear();
   newPage();
   calls = [];
-  role = 'owner';
+  role = 'admin';
   document.visibilityState = 'visible';
   getReply = { s: 200, j: { ok: true, items: {} } };
   postReply = { s: 200, j: { ok: true, items: {} } };
@@ -121,7 +121,7 @@ test('第一次拉取成功 → 记下按账号的时刻；5 分钟内换页不�
   assert.equal(await initCloudSync(), 'ok');
   assert.equal(gets(), 1);
   assert.equal(lastPullAt(), clock);
-  assert.deepEqual(JSON.parse(LS.get(PULL_KEY)), { owner: clock });
+  assert.deepEqual(JSON.parse(LS.get(PULL_KEY)), { account: clock });
   for (let i = 0; i < 5; i++) {
     clock += 50_000;
     newPage();
@@ -285,7 +285,7 @@ test('拉下来的值不同 → 应用并刷新一次页面（行为不变）', 
 test('访客 / 开关关：不请求', async () => {
   role = 'visitor';
   assert.equal(await initCloudSync({ force: true }), 'skip');
-  role = 'owner';
+  role = 'admin';
   LS.set('sgx-cloud-sync', '0');
   assert.equal(await initCloudSync({ force: true }), 'off');
   assert.equal(calls.length, 0);

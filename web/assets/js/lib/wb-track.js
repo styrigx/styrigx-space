@@ -4,7 +4,7 @@
  * 只在「页面可见」且「最近有操作」时计时（默认 60 秒，阅读页可放宽到几分钟）；挂着不动、切到后台都不算。
  * 时长先攒在 localStorage（sgx-wb-pending），最多 5 分钟、或页面隐藏/离开时，
  * 用 sendBeacon 以 text/plain 发到主站 /api/wellbeing（同站子域自动带 cookie，免 CORS 预检）。
- * 服务器只记站长（owner），访客上报会被丢弃。
+ * 服务器只记 admin，访客上报会被丢弃。
  *
  * 上报格式：{"d":"YYYY-MM-DD(本机日期)","s":[{"k":"home","sec":42},{"k":"book:id","t":"书名","sec":300}]}
  */

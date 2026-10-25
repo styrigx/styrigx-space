@@ -5,11 +5,13 @@
  * - 账号通行密钥：添加（注册成功弹命名弹层，预填设备名；改了名才调 rename）、
  *   列表内点名字直接改名（失焦 / 回车保存）、两步确认删除
  * - 命名弹层与锁屏页同一套行为：A1 遮罩不关、A2 返回先收键盘、A3 × 关闭，弹层随键盘上移
- * - 门（安全操作）：进页 GET /api/account —— 没有账号会话 → 跳账号页 ?return=<本页> 登录后回来；
- *   有账号会话但没有有效门票 → 显示验证行（账号通行密钥 / 账号密码 / 根凭证，设了哪个显示哪个，
- *   都没设只显示根凭证；door:true 换 3 分钟账号门票），通过后显示管理区 + 倒计时胶囊；
- *   到点 / 改动返回 403 door → 回到验证行（提示「验证已过期」）。
- *   离开本页（pagehide）→ door-clear 立即作废门票；从历史返回（bfcache）重新读状态，需要再验证。
+ * - 再验证（安全操作）：进页 GET /api/account ——
+ *   有效的 AccountResetTicket（重置登录：根凭证验过）→ 直接显示管理区（没有账号会话也行，标题显示「重置」）；
+ *   否则没有账号会话 → 跳账号页 ?return=<本页> 登录后回来；
+ *   有账号会话但没有有效 AccountReauthTicket → 显示验证行（账号通行密钥 / 账号密码，设了哪个显示哪个；
+ *   reauth:true 换 3 分钟票），通过后显示管理区 + 倒计时胶囊；
+ *   到点 / 改动返回 403 reauth → 回到验证行（提示「验证已过期」）。
+ *   离开本页（pagehide）→ reauth-clear 立即作废 reauth / reset 票；从历史返回（bfcache）重新读状态，需要再验证。
  * - list 返回账号 handle → signalCurrentUserDetails（account-common.js）让密码管理器把旧条目改名 AccountKey
  */
 import { on } from '../lib/events.js';
@@ -43,13 +45,13 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../lib/ac
   }
 
   /* ================= 门：验证行 + 倒计时 ================= */
-  const doorEl = $('acct-door');
-  const doorMethodsEl = $('acct-door-methods');
-  const doorNotice = $('acct-door-notice');
-  const doorSubmit = accountSubmitters(t, { door: true });
+  const reauthEl = $('acct-reauth');
+  const reauthMethodsEl = $('acct-reauth-methods');
+  const reauthNotice = $('acct-reauth-notice');
+  const reauthSubmit = accountSubmitters(t, { reauth: true });
   /** GET /api/account 最近一次结果 */
   let status = null;
-  let doorMethods = null;
+  let reauthMethods = null;
   let cdEl = null;
   let cdTimer = 0;
   let cdExp = 0;
@@ -72,12 +74,12 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../lib/ac
     const left = cdExp - Date.now();
     if (left <= 0) {
       /* 到点：回到门口重新验证 */
-      showDoor(t('doorExpired'));
+      showReauth(t('reauthExpired'));
       return;
     }
     cdEl.classList.toggle('sgx-countdown-warn', left <= 30000);
     const tx = cdEl.querySelector('.sgx-credential-countdown-text');
-    if (tx) tx.textContent = t('doorCountdown').replace('{m}', fmtLeft(left));
+    if (tx) tx.textContent = t('reauthCountdown').replace('{m}', fmtLeft(left));
   }
   /** 门内倒计时胶囊（与锁屏凭证门同一套样式），以服务端 expiresAt 为准 @param {number} expiresAt */
   function startCountdown(expiresAt) {
@@ -96,39 +98,39 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../lib/ac
   }
 
   /** 显示门口（验证行）。@param {string} [notice] */
-  function showDoor(notice) {
+  function showReauth(notice) {
     stopCountdown();
     root.hidden = true;
-    if (!doorEl || !doorMethodsEl) return;
-    if (doorMethods) doorMethods.collapse();
-    doorMethods = renderAccountMethods({
-      el: doorMethodsEl,
-      t: function (k) { return k === 'verifyBtn' ? t('doorVerifyBtn') : t(k); },
+    if (!reauthEl || !reauthMethodsEl) return;
+    if (reauthMethods) reauthMethods.collapse();
+    reauthMethods = renderAccountMethods({
+      el: reauthMethodsEl,
+      t: function (k) { return k === 'verifyBtn' ? t('reauthVerifyBtn') : t(k); },
       en: en,
       kinds: visibleKinds(status),
-      submit: doorSubmit,
+      submit: reauthSubmit,
       onSuccess: function () { loadStatus(); },
     });
-    if (doorNotice) {
-      doorNotice.textContent = notice || '';
-      doorNotice.hidden = !notice;
+    if (reauthNotice) {
+      reauthNotice.textContent = notice || '';
+      reauthNotice.hidden = !notice;
     }
-    doorEl.hidden = false;
+    reauthEl.hidden = false;
   }
 
-  /** 进门：显示管理区 + 倒计时 @param {any} j */
-  function enterRoom(j) {
-    if (doorEl) doorEl.hidden = true;
-    sessBy = j.session.by || '';
+  /** 验过：显示管理区 + 倒计时 @param {any} j @param {{by:string, expiresAt:number}} ticket reauth 或 reset 票 */
+  function enterRoom(j, ticket) {
+    if (reauthEl) reauthEl.hidden = true;
+    sessBy = ticket.by || '';
     hasPw = !!j.password;
     renderPwRow();
     root.hidden = false;
-    startCountdown(j.door.expiresAt);
+    startCountdown(ticket.expiresAt);
     refreshKeys();
   }
 
   /**
-   * 管理接口统一错误处理：账号会话失效 → 回账号页登录；门票没了/过期 → 回门口；lock 会话失效 → 去锁屏。
+   * 管理接口统一错误处理：账号会话失效 → 回账号页登录；reauth 票没了/过期 → 回门口；lock 会话失效 → 去锁屏。
    * @returns {boolean} 已处理
    */
   function handleAuthError(res) {
@@ -137,8 +139,8 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../lib/ac
       goLogin();
       return true;
     }
-    if (code === 'door') {
-      showDoor(t('doorExpired'));
+    if (code === 'reauth') {
+      showReauth(t('reauthExpired'));
       return true;
     }
     if (code === 'session') {
@@ -536,23 +538,29 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../lib/ac
     });
   }
 
-  /* 进页：读状态。没有账号会话（访客 / 只有锁屏会话 / 读失败）→ 回账号页登录；没有门票 → 门口 */
+  /* 进页：读状态。没有账号会话（访客 / 只有锁屏会话 / 读失败）→ 回账号页登录；没有reauth 票 → 门口 */
   function loadStatus() {
     return fetch(ACCOUNT_API, { method: 'GET', credentials: 'same-origin' })
       .then(function (r) { return r.json(); })
       .then(function (j) {
+        const live = function (tk) { return !!(tk && typeof tk.expiresAt === 'number' && tk.expiresAt > Date.now()); };
+        if (j && j.ok && j.ready !== false && live(j.reset)) {
+          status = j;
+          enterRoom(j, j.reset);
+          return;
+        }
         if (!(j && j.ok && j.session && j.ready !== false)) {
           goLogin();
           return;
         }
         status = j;
-        if (j.door && typeof j.door.expiresAt === 'number' && j.door.expiresAt > Date.now()) enterRoom(j);
-        else showDoor();
+        if (live(j.reauth)) enterRoom(j, j.reauth);
+        else showReauth();
       })
       .catch(function () { goLogin(); });
   }
 
-  /* 离开本页：门票立即作废（keepalive，页面卸载也能发出）。从历史返回（bfcache 恢复）重新读状态 → 门口。 */
+  /* 离开本页：reauth 票立即作废（keepalive，页面卸载也能发出）。从历史返回（bfcache 恢复）重新读状态 → 门口。 */
   window.addEventListener('pagehide', function () {
     stopCountdown();
     try {

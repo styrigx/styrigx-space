@@ -1,12 +1,12 @@
 /**
  * @fileoverview 安全与隐私 → 锁屏凭证（/settings/security/lock/）。
- * - 门（安全操作）：进页 POST /api/lock-reauth status —— 没有有效门票 → 显示验证行：
+ * - 门（安全操作）：进页 POST /api/lock-reauth status —— 没有有效reauth 票 → 显示验证行：
  *   锁屏通行密钥 / 解锁密码（设了哪个显示哪个）+ 根凭证（一直在，防止忘了凭证网站就死了）；
- *   通过后签 3 分钟锁屏门票（SGX_LOCK_* 签，HttpOnly cookie），页内倒计时按服务端 expiresAt；
+ *   通过后签 3 分钟LockReauthTicket（SGX_LOCK_* 签，HttpOnly cookie），页内倒计时按服务端 expiresAt；
  *   剩余时间内刷新 / 离开再回来都不用重新验证（2026-10-24，以前 pagehide 就作废），到期回门口。
  * - 门内：解锁密码（弹层设置/修改，最少 8 位）；锁屏通行密钥列表（设备名可编辑、注册日期、可删除），
  *   「添加通行密钥」；会话：退出所有设备（/api/lock-all-devices，所有设备回锁屏）。
- * - 重置锁屏（data-sgx-lock-session=lock-reset，重置门票 door=lockreset）：直接进门内，只能设置密码 / 增删通行密钥。
+ * - 重置锁屏（data-sgx-lock-session=lock-reset，LockResetTicket）：直接进门内，只能设置密码 / 增删通行密钥。
  * - 反馈一律 One UI 轻提示（toast）；localStorage 经 storage.js。
  */
 import { on } from '../lib/events.js';
@@ -14,16 +14,16 @@ import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindSubmitButton, showCenterDialog } from '../lib/dialog-behavior.js';
-import { api, apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown, guardDoorExpired } from './app-gate.js';
+import { api, apiErrorText, needVerify, startReauthCountdown, refreshReauthCountdown, guardReauthExpired } from './app-gate.js';
 import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
-import { bindDataEyes, createSetPwDialog, newPwError, passwordSetRequest, lockDoorFetch } from '../lib/auth-flow.js';
+import { bindDataEyes, createSetPwDialog, newPwError, passwordSetRequest, lockReauthFetch } from '../lib/auth-flow.js';
 import { renderAccountMethods } from '../lib/account-methods.js';
 import { KEY_LOCK } from '../lib/key-names.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
   /* 本页只管锁屏凭证（锁屏密码 + 锁屏通行密钥；接口按路径分域，/api/lock-*）。 */
-  /** C6：重置会话模式（重置锁屏门票）。重置会话里不使用门内到期框。 */
+  /** C6：重置会话模式（LockResetTicket）。重置会话里不使用门内到期框。 */
   var isLockReset = false;
   try {
     isLockReset = document.documentElement.dataset.sgxLockSession === 'lock-reset';
@@ -66,7 +66,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
     if (e) e.hidden = true;
   }
   /* 门内直调接口（POST JSON，credentials: include，返回 { status, json }）：用 app-gate.js 的 api()，
-     定稿 #19：不自动发起验证，door（门票没了/过期）直接返回给调用方。 */
+     定稿 #19：不自动发起验证，reauth（reauth 票没了/过期）直接返回给调用方。 */
 
   /** @param {number} ts */
   function fmtDate(ts) {
@@ -82,9 +82,9 @@ import { KEY_LOCK } from '../lib/key-names.js';
       return '';
     }
   }
-  /* session/door/scope/by-root → needReauth，不显示通用错误（走重新验证流程，不向用户展示开发用语）。 */
+  /* session/reauth/scope → needReauth，不显示通用错误（走重新验证流程，不向用户展示开发用语）。 */
   function isReauthError(code) {
-    return code === 'session' || code === 'door' || code === 'scope' || code === 'by-root';
+    return code === 'session' || code === 'reauth' || code === 'scope';
   }
   /* 批次 A 收尾 E1：config 错误码映射成「服务器配置有误」，不再显示 gateSrvErr 原文。
      srvErr 改为 apiErrorText（config → errConfig →「服务器配置有误」）。 */
@@ -93,9 +93,9 @@ import { KEY_LOCK } from '../lib/key-names.js';
   }
 
   /** 会话/票据失效 → 重新验证（批次 A 验收修复 #7：改走 app-gate.js 的 needVerify，
-      和 tickets.js 一致；detail='owner-configured' 时 needVerify 显示明确文案）。
+      和 tickets.js 一致；detail='account-configured' 时 needVerify 显示明确文案）。
       A-1：按真实 code 传参（v1.0 §三 1c）——'session' 走会话弹框，
-      'door'/'scope'/'by-root' 走验证弹框；单参调用（仅 reason，如 'owner-configured'）
+      'reauth'/'scope' 走验证弹框；单参调用（仅 reason，如 'account-configured'）
       视为验证弹框。锁屏页无验证门可开：lockgate-* 元素在任何模板里都不存在，
       旧 openGate() 在 gateOpts 为 null 时会抛 TypeError。 */
   function needReauth(code, detail) {
@@ -107,7 +107,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
       return;
     }
     if (code === 'session') needVerify(t, 'session', detail);
-    else needVerify(t, 'door', detail || code);
+    else needVerify(t, 'reauth', detail || code);
   }
 
   /**
@@ -151,7 +151,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
     });
   }
 
-  /** @param {number} [expiresAt] 服务端门票过期时刻（毫秒） */
+  /** @param {number} [expiresAt] 服务端reauth 票过期时刻（毫秒） */
   function enterMgr(expiresAt) {
     /* 本页有独立验证门；进管理区时去掉全局锁屏遮罩，避免盖住按钮 */
     try {
@@ -164,7 +164,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
     if (sessSec) sessSec.hidden = isLockReset;
     /* v1.1 §二.1：胶囊在首次数据加载完成后再显示，避免「胶囊已显示、卡片还空着」；
        任一请求失败也照常显示胶囊（两函数内部已吞错，Promise 恒 resolve）。 */
-    const startCapsule = function () { startDoorCountdown(t, expiresAt); };
+    const startCapsule = function () { startReauthCountdown(t, expiresAt); };
     Promise.all([refreshStatus(), refreshPkList()]).then(startCapsule, startCapsule);
   }
 
@@ -214,7 +214,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
     const origText = pwDel.textContent;
     on(pwDel, 'click', function () {
       /* C5：已过期时第一下就弹到期框，不进入「再点一次」 */
-      if (guardDoorExpired(t)) return;
+      if (guardReauthExpired(t)) return;
       /* v1.1 §二.4：删最后一把锁屏密码 → 跳过「再点一次」，点「删除」直接弹确认框 */
       if (!hasPk) {
         var resetArmed = function () { armed = false; pwDel.textContent = origText; pwDel.classList.remove('armed'); };
@@ -257,7 +257,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
             /* 服务端删除成功后重新读状态刷新（KV 最终一致，边缘节点最多约 60 秒） */
             refreshStatus();
             refreshPkList();
-            refreshDoorCountdown(t);
+            refreshReauthCountdown(t);
           } else if (j && isReauthError(j.error)) {
             needReauth(j && j.error, j && j.reason);
           } else {
@@ -298,7 +298,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
           closePwDlg('success');
           hasPw = true;
           refreshStatus();
-          refreshDoorCountdown(t);
+          refreshReauthCountdown(t);
           toast(hasPw && action === 'change' ? t('pwChanged') : t('pwSaved'));
         } else if (isReauthError(j.error)) {
           closePwDlg('success');
@@ -404,7 +404,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
             toast(t('pkRegistered'));
             closePkNameDlg('success');
             refreshPkList();
-            refreshDoorCountdown(t);
+            refreshReauthCountdown(t);
           } else if (j && isReauthError(j.error)) {
             /* C6：重置会话里 rename 被拒（scope）不是过期，行内提示，不弹框 */
             if (isLockReset && j.error === 'scope') {
@@ -560,7 +560,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
           on(del, 'click', function (e) {
             e.stopPropagation();
             /* C5：已过期时第一下就弹到期框，不进入「再点一次」 */
-            if (guardDoorExpired(t)) return;
+            if (guardReauthExpired(t)) return;
             /* v1.1 §二.4：删最后一把锁屏钥匙 → 跳过「再点一次」，点「删除」直接弹确认框 */
             if (keys.length <= 1 && !hasPw) {
               var resetPkArmed = function () { armed = false; del.textContent = t('pkDel'); del.classList.remove('armed'); };
@@ -606,7 +606,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
                   /* 服务端删除成功后重新读列表刷新（KV 最终一致，边缘节点最多约 60 秒） */
                   refreshPkList();
                   refreshStatus();
-                  refreshDoorCountdown(t);
+                  refreshReauthCountdown(t);
                 } else if (jj && isReauthError(jj.error)) {
                   needReauth(jj.error, jj.reason);
                 } else if (jj && jj.error === 'not-found') {
@@ -655,7 +655,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
         toast(t('pkNoSupport'));
         return;
       }
-      /* 本页只注册锁屏通行密钥；服务端按门票再校验。 */
+      /* 本页只注册锁屏通行密钥；服务端按reauth 票再校验。 */
       api('/api/lock-passkey', { action: 'challenge', type: 'register' })
         .then(function (res) {
           const ch = res.json;
@@ -724,7 +724,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
             /* 注册成功 → 弹出命名弹层（预填名已提交，用户改名才调 rename） */
             openPkNameDlg(j.credId, r3.prefill);
             refreshPkList();
-            refreshDoorCountdown(t);
+            refreshReauthCountdown(t);
           } else if (j && isReauthError(j.error)) {
             needReauth(j && j.error, j && j.reason);
           } else {
@@ -754,7 +754,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
       }
     });
     on(outAll, 'click', function () {
-      if (guardDoorExpired(t)) return;
+      if (guardReauthExpired(t)) return;
       closeOpenSheets();
       showCenterDialog({
         title: t('outAllTitle'),
@@ -787,16 +787,16 @@ import { KEY_LOCK } from '../lib/key-names.js';
   }
 
   /* ================= 门：验证行 ================= */
-  const doorEl = $('lock-door');
-  const doorMethodsEl = $('lock-door-methods');
-  const doorNotice = $('lock-door-notice');
-  let doorMethods = null;
+  const reauthEl = $('lock-reauth');
+  const reauthMethodsEl = $('lock-reauth-methods');
+  const reauthNotice = $('lock-reauth-notice');
+  let reauthMethods = null;
 
   /** 门口三个入口的提交函数（成功 resolve；失败 reject { message, clear?, cancelled? }） */
-  const doorSubmit = {
+  const reauthSubmit = {
     /** @param {string} value */
     password: function (value) {
-      return api('/api/lock-password', { action: 'verify', password: value, door: true }).then(function (res) {
+      return api('/api/lock-password', { action: 'verify', password: value, reauth: true }).then(function (res) {
         const j = res.json;
         if (j && j.ok) return;
         if (res.status === 429 || (j && j.error === 'cooldown')) throw { message: t('errLocked') };
@@ -808,7 +808,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
     },
     /** @param {string} value */
     root: function (value) {
-      return api('/api/root-auth', { key: value }).then(function (res) {
+      return api('/api/root-auth', { key: value, purpose: 'lock-reauth' }).then(function (res) {
         const j = res.json;
         if (j && j.ok) return;
         if (res.status === 429) throw { message: t('errLocked') };
@@ -845,7 +845,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
         const cred = r.cred;
         return api('/api/lock-passkey', {
           action: 'auth',
-          door: true,
+          reauth: true,
           cid: r.cid,
           credential: {
             id: cred.id,
@@ -874,55 +874,55 @@ import { KEY_LOCK } from '../lib/key-names.js';
    * @param {{password?:boolean, passkey?:boolean}} st
    * @param {string} [notice]
    */
-  function showDoor(st, notice) {
+  function showReauth(st, notice) {
     try {
       const gl = document.getElementById('sgx-lock');
       if (gl) gl.remove();
       document.body.classList.remove('sgx-locked');
     } catch (e) {}
     $('lockmgr').hidden = true;
-    if (!doorEl || !doorMethodsEl) return;
-    if (doorMethods) doorMethods.collapse();
+    if (!reauthEl || !reauthMethodsEl) return;
+    if (reauthMethods) reauthMethods.collapse();
     const kinds = [];
     if (st && st.passkey) kinds.push('passkey');
     if (st && st.password) kinds.push('password');
     kinds.push('root');
-    doorMethods = renderAccountMethods({
-      el: doorMethodsEl,
+    reauthMethods = renderAccountMethods({
+      el: reauthMethodsEl,
       t: t,
       en: en,
       kinds: kinds,
-      submit: doorSubmit,
+      submit: reauthSubmit,
       pmUser: KEY_LOCK,
       onSuccess: function () { probe(); },
     });
-    if (doorNotice) {
-      doorNotice.textContent = notice || '';
-      doorNotice.hidden = !notice;
+    if (reauthNotice) {
+      reauthNotice.textContent = notice || '';
+      reauthNotice.hidden = !notice;
     }
-    doorEl.hidden = false;
+    reauthEl.hidden = false;
   }
 
-  /** 进页 / 验证通过后：读门票状态 → 门内或门口 */
+  /** 进页 / 验证通过后：读reauth 票状态 → 门内或门口 */
   function probe() {
-    lockDoorFetch('status', { credentials: 'same-origin' })
+    lockReauthFetch('status', { credentials: 'same-origin' })
       .then(function (r) {
         return r.json().then(function (j) { return { s: r.status, j: j }; }, function () { return { s: r.status, j: null }; });
       })
       .then(function (res) {
         const j = res.j;
         if (j && j.ok && j.valid) {
-          if (doorEl) doorEl.hidden = true;
+          if (reauthEl) reauthEl.hidden = true;
           enterMgr(j.expiresAt);
           return;
         }
         if (isLockReset) {
-          /* 重置会话：门票没了（到期 / 已用完）→ 结束弹框，回锁屏 */
-          needReauth('door');
+          /* 重置会话：reauth 票没了（到期 / 已用完）→ 结束弹框，回锁屏 */
+          needReauth('reauth');
           return;
         }
         if (j && j.ok) {
-          showDoor(j);
+          showReauth(j);
           return;
         }
         needReauth((j && j.error) || 'session', j && j.reason);
@@ -933,8 +933,8 @@ import { KEY_LOCK } from '../lib/key-names.js';
       });
   }
 
-  /* 2026-10-24（用户录屏：验证完一刷新就「验证已过期」）：以前 pagehide 就 clear 门票，刷新也会触发 pagehide，
-     等于每次刷新都把刚签的票作废。现在门票只看服务端：sgx-door（HttpOnly、Secure、SameSite=Strict、Max-Age=180，
+  /* 2026-10-24（用户录屏：验证完一刷新就「验证已过期」）：以前 pagehide 就 clear reauth 票，刷新也会触发 pagehide，
+     等于每次刷新都把刚签的票作废。现在reauth 票只看服务端：sgx-lock-reauth / sgx-lock-reset（HttpOnly、Secure、SameSite=Strict、Max-Age=180，
      签名里带 exp = 验证时刻 + 3 分钟）在剩余时间内刷新 / 离开再回来都还有效，倒计时按服务端 status 的 expiresAt 接着走；
      到期由服务端判定，回到门口重新验证。「重新验证」按钮仍会主动 clear（app-gate.js clearStepupThen）。
      从历史返回（bfcache）重新读一次状态。 */

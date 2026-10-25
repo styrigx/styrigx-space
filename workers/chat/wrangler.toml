@@ -1,8 +1,8 @@
 # styrigx-chat：聊天后端（CI 部署；只干一件事——把主站聊天页的对话转给模型、把回答流回去，2026-10-22 从网关拆出来）
 #
 # 没有公开地址：不开 workers.dev、不开预览地址、不挂路由、不挂域名。唯一入口是鉴权网关 styrigx-auth-gateway 的服务绑定 CHAT：
-#   主站 /api/chat 先由网关验门（同源 + 锁屏会话 + 只许站长），再转进来（GET → /models，POST → /chat），回答原样流回浏览器。
-# 所以这里不验 cookie；入口只认网关写的 X-Sgx-Role: owner（src/index.js）。不存任何对话。
+#   主站 /api/chat 先由网关验门（同源 + 锁屏会话 + 只许管理员），再转进来（GET → /models，POST → /chat），回答原样流回浏览器。
+# 所以这里不验 cookie；入口只认网关写的 X-Sgx-Role: admin（src/index.js）。不存任何对话。
 #
 # 钥匙只有一把：Gemini API key，放在 Secrets Store 的 SGX_CHAT_API_KEY（见文件末尾），仓库里不写值。
 #   部署前要先在 Secrets Store 建好这个密钥（作用域含 workers）：部署时 Cloudflare 会核对每个 Secrets Store 绑定，

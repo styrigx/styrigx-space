@@ -1,9 +1,9 @@
 /**
  * @fileoverview styrigx-account：账号数据 Worker 入口（2026-10-24 从鉴权网关拆出来）。
  *
- * 管三样东西，都是「站长账号名下的数据」：
- * - 头像：GET /avatar/<尺寸>.webp（公开）、PUT / DELETE /api/avatar（只许站长）→ KV_PROFILE（styrigx-account 里的 avatar:*）
- * - 设置云同步（外观 / 主题 / 时区天气 / 搜索引擎等）：GET / POST /api/prefs（站长 + 账号会话）→ KV_SETTINGS_SYNC（account-prefs）
+ * 管三样东西，都是「管理员账号名下的数据」：
+ * - 头像：GET /avatar/<尺寸>.webp（公开）、PUT / DELETE /api/avatar（只许管理员）→ KV_PROFILE（styrigx-account 里的 avatar:*）
+ * - 设置云同步（外观 / 主题 / 时区天气 / 搜索引擎等）：GET / POST /api/prefs（管理员 + 账号会话）→ KV_SETTINGS_SYNC（account-prefs）
  * - 数字健康：POST / GET /api/wellbeing → D1_WELLBEING（D1 styrigx-account 的 wb_daily）
  *
  * 前端地址不变：本 Worker 在 styrigx.com 上挂了比网关 styrigx.com/* 更具体的路由（wrangler.toml），这几条路径直接进这里。

@@ -7,7 +7,8 @@
  *  2. assets/js/shell/ 不得 import apps/ 的模块
  *  3. assets/js/ 下不得 import functions/ 的模块（前后端隔离）
  *  4. functions/api/ 只能 import functions/_kernel/ 的模块
- *  5. 前端代码（assets/）禁止出现 `sgx-verified` 字符串
+ *  5. 前端代码（assets/）禁止出现 cookie 名 `sgx-lock-session`（HttpOnly，前端读不到；
+ *     `data-sgx-lock-session` 属性名不算）
  *  6. 前端代码（assets/）禁止出现 `sgx-lock-shown` 字符串
  *  7. 前端代码不得用 sessionStorage/localStorage 保存解锁状态
  *     （key 匹配：unlock、sgx-lock、session；storage.js 的偏好设置除外——
@@ -123,9 +124,9 @@ function checkFile(p) {
   }
 
   if (isFrontend) {
-    // 规则 5：前端禁止 sgx-verified（只查代码，注释除外）
-    if (code.includes('sgx-verified')) {
-      errors.push(`${r}: 前端禁止出现 sgx-verified 字符串`);
+    // 规则 5：前端禁止 cookie 名 sgx-lock-session（只查代码，注释除外；data-sgx-lock-session 属性除外）
+    if (/(?<!data-)sgx-lock-session/.test(code)) {
+      errors.push(`${r}: 前端禁止出现 sgx-lock-session 字符串`);
     }
     // 规则 6：前端禁止 sgx-lock-shown（只查代码，注释除外）
     if (code.includes('sgx-lock-shown')) {

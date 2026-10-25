@@ -3,13 +3,13 @@
  *
  * 本 Worker 不持任何钥匙、不绑认证库：浏览器带来的 Cookie 头原样交给网关，网关用自己 Secrets Store 里的公钥验签、
  * 用认证库里的 epoch / 吊销记录核对，只回结论。和这些接口还在网关里时用的是同一套函数：
- * - lockSession()     → 网关 verifySessionDetailed（锁屏会话 sgx-verified；访客还要有效的临时钥匙票 sgx-tk）
- * - accountSession()  → 网关 verifyAccountCookie（账号会话 sgx-account；刷新设备 lastSeen 用的 User-Agent / 国家城市一并带过去）
+ * - lockSession()     → 网关 verifyLockSession（锁屏会话 sgx-lock-session；访客会话带 tempkeyId，钥匙作废即失效）
+ * - accountSession()  → 网关 verifyAccountSession（账号会话 sgx-account-session；刷新设备 lastSeen 用的 User-Agent / 国家城市一并带过去）
  * 同一个请求里各只问一次（缓存 Promise）。
  * 网关不可达 / 绑定没配 / 回了看不懂的东西 → 当作无会话（fail closed）。
  */
 
-export const ROLE_OWNER = 'owner';
+export const ROLE_ADMIN = 'admin';
 export const ROLE_VISITOR = 'visitor';
 const MAX_COOKIE_HEADER = 8192;
 
@@ -56,7 +56,7 @@ async function askLockSession(verifier, cookie) {
   if (!cookie) return { ok: false, role: null, reason: 'no-cookie' };
   try {
     const r = await verifier.lockSession(cookie);
-    if (r && r.ok === true && (r.role === ROLE_OWNER || r.role === ROLE_VISITOR)) return { ok: true, role: r.role, reason: 'ok' };
+    if (r && r.ok === true && (r.role === ROLE_ADMIN || r.role === ROLE_VISITOR)) return { ok: true, role: r.role, reason: 'ok' };
     return { ok: false, role: null, reason: (r && typeof r.reason === 'string' && r.reason) || 'denied' };
   } catch (e) {
     console.error('[sgx-account] session rpc failed: ' + (e && /** @type {any} */ (e).name ? /** @type {any} */ (e).name : 'error'));

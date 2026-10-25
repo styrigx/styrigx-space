@@ -73,7 +73,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
                 await route.fulfill({
                   status: 200,
                   contentType: 'application/json',
-                  body: JSON.stringify({ ok: true, password: true, passkey: true, ready: true, session: { by: 'password', authAt: 1760000000000, expiresAt: 4102444800000, recent: true }, door: { by: 'password', expiresAt: 4102444800000 } }),
+                  body: JSON.stringify({ ok: true, password: true, passkey: true, ready: true, session: { by: 'password', authAt: 1760000000000, expiresAt: 4102444800000, recent: true }, reauth: { by: 'password', expiresAt: 4102444800000 } }),
                 });
                 return;
               }

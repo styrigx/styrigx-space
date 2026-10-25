@@ -1,8 +1,8 @@
 /**
- * 账号页换头像（账号卡已从设置页移到账号总览 /account/）：主人会话下点账号卡头像 → 选择照片 → 裁剪（拖动、滚轮缩放）→ 完成，
+ * 账号页换头像（账号卡已从设置页移到账号总览 /account/）：管理员会话下点账号卡头像 → 选择照片 → 裁剪（拖动、滚轮缩放）→ 完成，
  * PUT /api/avatar 带 512 / 192 / 96 / 32 四张 WebP，成功后页面头像换成带 ?v= 的新地址。
  * 访客：头像按钮 disabled，没有铅笔。
- * 测试构建是静态服务器：主人身份靠改写 HTML 注入 data-sgx-role，/api/avatar 用 mock。
+ * 测试构建是静态服务器：管理员身份靠改写 HTML 注入 data-sgx-role，/api/avatar 用 mock。
  */
 const { test, expect } = require('@playwright/test');
 const path = require('path');
@@ -45,8 +45,8 @@ async function asRole(page, role) {
   });
 }
 
-test('主人：选择照片 → 裁剪 → 完成，上传四个尺寸并刷新页面头像', async ({ page }) => {
-  await asRole(page, 'owner');
+test('管理员：选择照片 → 裁剪 → 完成，上传四个尺寸并刷新页面头像', async ({ page }) => {
+  await asRole(page, 'admin');
   /** @type {{method:string, body:Buffer}|null} */
   let put = null;
   await page.route('**/api/avatar', async (route) => {
@@ -84,8 +84,8 @@ test('主人：选择照片 → 裁剪 → 完成，上传四个尺寸并刷新�
   await expect(page.locator('.sgx-tb-avatar')).toHaveAttribute('src', '/avatar/192.webp?v=abc');
 });
 
-test('主人：裁剪时点取消，不上传', async ({ page }) => {
-  await asRole(page, 'owner');
+test('管理员：裁剪时点取消，不上传', async ({ page }) => {
+  await asRole(page, 'admin');
   let called = false;
   await page.route('**/api/avatar', async (route) => {
     called = true;
@@ -111,7 +111,7 @@ test('访客：头像按钮不可点，没有铅笔', async ({ page }) => {
 });
 
 test('设置页不再有账号卡（已移到账号页）', async ({ page }) => {
-  await asRole(page, 'owner');
+  await asRole(page, 'admin');
   await page.goto('/settings/');
   await expect(page.locator('main')).toBeVisible();
   await expect(page.locator('.sgx-account-card')).toHaveCount(0);
@@ -120,7 +120,7 @@ test('设置页不再有账号卡（已移到账号页）', async ({ page }) => 
 
 /* 2026-10-24 PR4：账号卡只是展示（兼作个人资料卡）——显示「已登录」，卡片不能点、没有详情页；点头像直接换头像 */
 test('账号卡：显示「已登录」；卡片本身不能点（不跳页、没有 link 角色）；点头像直接出换头像弹层', async ({ page }) => {
-  await asRole(page, 'owner');
+  await asRole(page, 'admin');
   await page.goto('/account/');
   const card = page.locator('#acct-main [data-acct-card]');
   await expect(card).toBeVisible();
@@ -143,7 +143,7 @@ test('账号卡：显示「已登录」；卡片本身不能点（不跳页、�
 
 test('英文账号卡：Signed in', async ({ page }) => {
   await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
-  await asRole(page, 'owner');
+  await asRole(page, 'admin');
   await page.goto('/en/account/');
   await expect(page.locator('#acct-main [data-acct-card] .sgx-ac-state')).toHaveText('Signed in');
 });

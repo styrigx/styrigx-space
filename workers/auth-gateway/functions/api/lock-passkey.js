@@ -1,19 +1,19 @@
 /**
  * 锁屏通行密钥（LockKey 的通行密钥）：注册、解锁、进锁屏凭证的门、列表、重命名、删除。
  *
- * 原「站长通行密钥」接口按域拆分：它只管锁屏通行密钥（账号通行密钥早已只在 /api/account 管理），
+ * 原「管理员通行密钥」接口按域拆分：它只管锁屏通行密钥（账号通行密钥早已只在 /api/account 管理），
  * 所以只拆出本接口，没有另造 /api/account-passkey。请求体不再带 pkClass（路径就是域）。
  *
  * POST /api/lock-passkey
  * - { action: 'challenge', type: 'register'|'auth' } → 返回 challenge
- *   - register 需要锁屏门票（door=lock + 站长会话，或重置锁屏门票 door=lockreset）
+ *   - register 需要 LockReauthTicket + admin 锁屏会话，或 LockResetTicket
  *   - auth 不需要（用于锁屏解锁 / 锁屏凭证的门）
- * - { action: 'register', cid, credential } → 验证并追加存储（再验门票）
- * - { action: 'auth', cid, credential, door? } → 验证断言；签发会话 cookie；
- *   door:true（安全与隐私 → 锁屏凭证的门，需站长会话）改签 3 分钟锁屏门票，会话不动
- * - { action: 'list' } → 列出锁屏通行密钥（需锁屏门票）
- * - { action: 'rename', credId, name } → 重命名设备名（需锁屏门票；重置锁屏不可）
- * - { action: 'delete', credId } → 删除指定通行密钥（需锁屏门票；先推纪元再删，失败 503 且密钥仍在）
+ * - { action: 'register', cid, credential } → 验证并追加存储（再验票）
+ * - { action: 'auth', cid, credential, reauth? } → 验证断言；签发会话 cookie；
+ *   reauth:true（安全与隐私 → 锁屏凭证，需 admin 锁屏会话）改签 3 分钟 LockReauthTicket，会话不动
+ * - { action: 'list' } → 列出锁屏通行密钥（需 LockReauthTicket 或 LockResetTicket）
+ * - { action: 'rename', credId, name } → 重命名设备名（需 LockReauthTicket；重置锁屏不可）
+ * - { action: 'delete', credId } → 删除指定通行密钥（需 LockReauthTicket 或 LockResetTicket；先推纪元再删，失败 503 且密钥仍在）
  *
  * 只接受 POST；Origin 缺失/解析失败/跨站一律 403。
  *
@@ -39,15 +39,16 @@ import {
   consumeChallenge,
 } from '../_kernel/passkey-verify.js';
 import {
-  issueSessionCookie,
-  bumpSessionEpoch,
-  reissueSessionWithEpoch,
-  ROLE_OWNER,
+  issueLockSession,
+  bumpLockEpoch,
+  reissueLockSessionWithEpoch,
+  ROLE_ADMIN,
 } from '../_kernel/lock-session.js';
-import { checkLockManage, looksVisitor } from './lock-reauth.js';
-import { issueDoorCookie, reissueDoorWithEpoch, DOOR_LOCK } from '../_kernel/tickets.js';
+import { checkLockManage, looksVisitor, TICKET_IDS } from './lock-reauth.js';
+import { issueTicket, reissueTicketWithEpoch } from '../_kernel/tickets.js';
+import { LOCK_REAUTH_TICKET, BY_PASSKEY } from '../_kernel/realms.js';
 import { LAYER_LOCK, setLayerConfigured, clearLayerConfigured, isLayerConfigured, isAccountEffectivelyConfigured } from '../_kernel/layers.js';
-import { verifySessionDetailed } from '../_middleware.js';
+import { verifyLockSession } from '../_kernel/lock-session.js';
 import { REALM_LOCK, SESSION_EPOCH_KEY, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
 import { KEY_LOCK, passkeyKey } from '../_kernel/key-names.js';
 import {
@@ -70,7 +71,7 @@ function isLockKey(k) {
 }
 
 /**
- * 锁屏通行密钥管理门禁：锁屏门票（door=lock + 站长会话），或重置锁屏门票（door=lockreset，
+ * 锁屏通行密钥管理门禁：LockReauthTicket + admin 锁屏会话，或 LockResetTicket（
  * 可 list/register/delete，不可 rename）。见 lock-reauth.js checkLockManage。
  * @param {any} request
  * @param {any} env
@@ -126,7 +127,7 @@ async function handlePost(context) {
   const rpIdHash = await rpIdHashOf(RP_ID);
 
   /* ============ challenge ============
-     - type=register：需锁屏门票（checkPasskeyManage）
+     - type=register：需 LockReauthTicket / LockResetTicket（checkPasskeyManage）
      - type=auth：challenge 只列锁屏通行密钥（锁屏解锁 / 锁屏凭证的门） */
   if (action === 'challenge') {
     const type = (body && body.type) || '';
@@ -240,21 +241,21 @@ async function handlePost(context) {
       };
       await savePasskey(kv, item);
       /* 首次配置锁屏层时标记 + 推进纪元（废止根凭证代开的解锁会话，必修安全项 2；
-         纪元推进失败则返回 503）。纪元推进后用新纪元重签门票 + 当前设备会话，保持当前设备不掉线。 */
+         纪元推进失败则返回 503）。纪元推进后用新纪元重签 reauth / reset 票 + 当前设备会话，保持当前设备不掉线。 */
       let regNewEpoch = null;
       try {
         const was = await isLayerConfigured(kv, LAYER_LOCK);
         if (!was) {
           await setLayerConfigured(kv, LAYER_LOCK);
-          regNewEpoch = await bumpSessionEpoch(kv);
+          regNewEpoch = await bumpLockEpoch(kv);
         }
       } catch (e) {
         return Response.json({ ok: false, error: 'epoch' }, { status: 503 });
       }
       if (regNewEpoch !== null) {
         const headers = new Headers({ 'Content-Type': 'application/json' });
-        await reissueDoorWithEpoch(env, headers, mgReg.door, mgReg.dv, regNewEpoch);
-        await reissueSessionWithEpoch(env, headers, mgReg.sess, regNewEpoch);
+        await reissueTicketWithEpoch(env, headers, mgReg.ticket, mgReg.tv, regNewEpoch);
+        await reissueLockSessionWithEpoch(env, headers, mgReg.sess, regNewEpoch);
         return new Response(JSON.stringify({ ok: true, credId: credIdB64 }), { headers });
       }
       return Response.json({ ok: true, credId: credIdB64 });
@@ -269,16 +270,16 @@ async function handlePost(context) {
 
   /* ============ auth ============
      只认锁屏通行密钥；verify 时服务端再次校验分类（浏览器凭据选择器不是安全边界）。
-     door:true：安全与隐私 → 锁屏凭证的门，要求站长会话，成功只签 3 分钟锁屏门票（会话不动）；
+     reauth:true：安全与隐私 → 锁屏凭证，要求 admin 锁屏会话，成功只签 3 分钟 LockReauthTicket（会话不动）；
      访客写死失败，不读存储。 */
   if (action === 'auth') {
-    const toDoor = !!(body && body.door === true);
-    if (toDoor) {
+    const toReauth = !!(body && body.reauth === true);
+    if (toReauth) {
       if (looksVisitor(request)) {
         return Response.json({ ok: false, error: 'verify' }, { status: 403 });
       }
-      const ds = await verifySessionDetailed(request, env);
-      if (!ds.ok || ds.role !== ROLE_OWNER) {
+      const ds = await verifyLockSession(request, env);
+      if (!ds.ok || ds.role !== ROLE_ADMIN) {
         return Response.json({ ok: false, error: 'session' }, { status: 401 });
       }
     }
@@ -325,15 +326,15 @@ async function handlePost(context) {
       stored.signCount = checked.signCount;
       stored.lastUsedAt = Date.now();
       try { await savePasskey(kv, stored); } catch (e2) {}
-      /* 通过：签发 Ed25519 会话 cookie（fail closed；issueSessionCookie 永不抛错）。
-         通行密钥验证签站长会话（12 小时）。door:true：只签锁屏门票（by=passkey）。 */
+      /* 通过：签发 Ed25519 会话 cookie（fail closed；issueLockSession 永不抛错）。
+         通行密钥验证签admin 会话（12 小时）。reauth:true：只签 LockReauthTicket（by=passkey）。 */
       const headers = new Headers({ 'Content-Type': 'application/json' });
-      if (toDoor) {
-        const dErr = await issueDoorCookie(env, headers, DOOR_LOCK, 'passkey');
+      if (toReauth) {
+        const dErr = await issueTicket(env, headers, LOCK_REAUTH_TICKET, BY_PASSKEY);
         if (dErr) return Response.json(dErr.body, { status: dErr.status });
         return new Response(JSON.stringify({ ok: true }), { headers });
       }
-      const signErr = await issueSessionCookie(env, headers, ROLE_OWNER);
+      const signErr = await issueLockSession(env, headers, { by: BY_PASSKEY, role: ROLE_ADMIN });
       if (signErr) {
         return new Response(JSON.stringify(signErr.body), {
           status: signErr.status,
@@ -348,7 +349,7 @@ async function handlePost(context) {
     }
   }
 
-  /* ============ list：列出锁屏通行密钥（需锁屏门票） ============ */
+  /* ============ list：列出锁屏通行密钥（需 LockReauthTicket 或 LockResetTicket） ============ */
   if (action === 'list') {
     const mg = await checkPasskeyManage(request, env, 'list');
     if (!mg.ok) {
@@ -357,7 +358,7 @@ async function handlePost(context) {
     const keys = (await getPasskeys(kv)).filter(isLockKey);
     return Response.json({
       ok: true,
-      door: mg.door,
+      ticket: TICKET_IDS[mg.ticket],
       keys: keys.map(function (k) {
         return {
           credId: k.credId,
@@ -392,8 +393,8 @@ async function handlePost(context) {
     return Response.json({ ok: true });
   }
 
-  /* ============ delete：删除（需锁屏门票；重置锁屏也可删） ============
-     - 先 session-epoch +1（成功才删；失败 503，fail closed），门票与当前设备会话随即重签
+  /* ============ delete：删除（需 LockReauthTicket；重置锁屏也可删） ============
+     - 先 session-epoch +1（成功才删；失败 503，fail closed），reauth / reset 票与当前设备会话随即重签
      - 账号未配置时，禁止删掉最后一种锁屏凭证 */
   if (action === 'delete') {
     const credId = (body && body.credId) || '';
@@ -452,12 +453,12 @@ async function handlePost(context) {
         }
       }
     } catch (e) {}
-    /* 纪元推进后重签门票 + 当前设备会话，保持门内连续操作不中断、当前设备不掉线。 */
+    /* 纪元推进后重签 reauth / reset 票 + 当前设备会话，保持门内连续操作不中断、当前设备不掉线。 */
     const headers = new Headers({ 'Content-Type': 'application/json' });
     if (newEpoch !== null) {
-      await reissueDoorWithEpoch(env, headers, mg.door, mg.dv, newEpoch);
+      await reissueTicketWithEpoch(env, headers, mg.ticket, mg.tv, newEpoch);
       /* 当前设备会话重签（重置锁屏无会话时 mg.sess 为 null，helper 内部跳过） */
-      await reissueSessionWithEpoch(env, headers, mg.sess, newEpoch);
+      await reissueLockSessionWithEpoch(env, headers, mg.sess, newEpoch);
     }
     return new Response(JSON.stringify({ ok: true }), { headers });
   }

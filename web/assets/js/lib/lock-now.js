@@ -1,7 +1,7 @@
 /**
  * @fileoverview B1-1 立即锁定（设置 › 安全与隐私 的「立即锁定」行和顶栏快捷面板的磁贴共用）。
  * 先弹确认层（#sec-locknow-confirm），确认后 POST /api/lock-now 清除服务端会话 cookie，
- * 然后 location.replace('/?lock=1') → 锁屏出现（中间不渲染主页）。访客和站长都能用，不设限。
+ * 然后 location.replace('/?lock=1') → 锁屏出现（中间不渲染主页）。访客和管理员都能用，不设限。
  * 弹层关闭后 400ms 内的点击忽略（防误触，见 dialog-behavior.js）。
  */
 import { sgxReplace } from './diag-jumptrace.js';

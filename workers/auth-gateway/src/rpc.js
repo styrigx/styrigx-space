@@ -23,7 +23,7 @@ export class AuthVerifier extends WorkerEntrypoint {
   }
 
   /**
-   * 账号会话（sgx-account）。账号 Worker styrigx-account 的 /api/prefs 用。
+   * 账号会话（sgx-account-session）。账号 Worker styrigx-account 的 /api/prefs 用。
    * @param {string} cookieHeader
    * @param {{ua?:string, country?:string, city?:string}} [meta]
    */
@@ -34,7 +34,7 @@ export class AuthVerifier extends WorkerEntrypoint {
 
 export class ShareIssuer extends WorkerEntrypoint {
   /**
-   * 签一把短链钥匙（要站长 + 账号会话）。
+   * 签一把短链钥匙（要管理员 + 账号会话）。
    * @param {string} cookieHeader
    * @param {{hours?:number, days?:number, name?:string, meta?:any}} p
    */
@@ -43,7 +43,7 @@ export class ShareIssuer extends WorkerEntrypoint {
   }
 
   /**
-   * 作废短链钥匙（要站长 + 账号会话）。
+   * 作废短链钥匙（要管理员 + 账号会话）。
    * @param {string} cookieHeader
    * @param {string} id
    * @param {any} [meta]

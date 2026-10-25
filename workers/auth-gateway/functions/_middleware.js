@@ -5,31 +5,28 @@
  * 2. 会话检查：锁屏会话 cookie（Ed25519 签名，见 _kernel/lock-session.js）
  *    - 有效 → next()
  *    - 无效 → 白名单放行，否则 302 到首页锁屏（?lock=1&return=原地址）
- * 3. verifySessionDetailed 每次拒绝都打 [sgx-verify] fail: <原因> 日志（只记原因，
+ * 3. verifyLockSession 每次拒绝都打 [sgx-verify] fail: <原因> 日志（只记原因，
  *    不记密钥和 cookie 值），用于线上排查会话未被识别的问题。
  */
 
-import { ed25519Verify } from './_kernel/crypto.js';
-import { SESSION_COOKIE, ROLE_OWNER, ROLE_VISITOR } from './_kernel/lock-session.js';
+import { verifyLockSession, ROLE_ADMIN, ROLE_VISITOR } from './_kernel/lock-session.js';
 import { isPublicPage } from './_kernel/public-pages.js';
-import { verifyDoorCookie, DOOR_LOCKRESET } from './_kernel/tickets.js';
+import { verifyLockResetTicket } from './_kernel/tickets.js';
 import { withNoStore } from './_kernel/http.js';
-import { REALM_LOCK, realmPublicKey, SESSION_EPOCH_KEY } from './_kernel/realms.js';
-import { verifyAccountCookie } from './_kernel/account-session.js';
-import { readTkCookie, parseTk, isTempkeyRevoked } from './_kernel/lock-tempkey.js';
+import { verifyAccountSession } from './_kernel/account-session.js';
 
-/* 定稿 #13/#14/R3：访客可进安全与隐私总览页（/settings/security/），结构与站长一致；
-   锁屏凭证页（门内）需站长会话，visitor 访问 → 302 到锁屏（只一次，首页不再二次 302）。 */
+/* 定稿 #13/#14/R3：访客可进安全与隐私总览页（/settings/security/），结构与管理员一致；
+   锁屏凭证页（门内）需admin 会话，visitor 访问 → 302 到锁屏（只一次，首页不再二次 302）。 */
 const ADMIN_ONLY_PATHS = [
   '/settings/security/lock/',
   '/en/settings/security/lock/',
 ];
-/* 重置锁屏门票（door=lockreset）只开锁屏凭证页（重置锁屏流程），不开安全总览。 */
+/* 重置锁屏票（LockResetTicket，sgx-lock-reset）只开锁屏凭证页（重置锁屏流程），不开安全总览。 */
 const LOCK_RESET_PATHS = [
   '/settings/security/lock/',
   '/en/settings/security/lock/',
 ];
-/* 2.8.0：站长专属 API（visitor 调用 → 403）。
+/* 2.8.0：管理员专属 API（visitor 调用 → 403）。
    云同步 /api/prefs 2026-10-24 搬到账号 Worker styrigx-account，同样的访客 403 在 workers/account/src/gate.js。 */
 const ADMIN_ONLY_APIS = [
   '/api/account',
@@ -39,14 +36,14 @@ const ADMIN_ONLY_APIS = [
   '/api/lock-reauth',
   '/api/lock-tempkey', /* 临时钥匙管理：还要账号会话（接口里验） */
 ];
-/* 认证类 action（visitor 可调用，用于就地升级为站长：锁屏密码 verify、锁屏通行密钥 challenge / auth） */
+/* 认证类 action（visitor 可调用，用于就地升级为管理员：锁屏密码 verify、锁屏通行密钥 challenge / auth） */
 const AUTH_ACTIONS = new Set(['verify', 'challenge', 'register', 'auth']);
 
 function isAdminOnlyPath(pathname) {
   return ADMIN_ONLY_PATHS.some(p => pathname === p || pathname.startsWith(p));
 }
 
-/* 重置锁屏门票可开的路径（仅锁屏凭证管理页） */
+/* 重置锁屏票可开的路径（仅锁屏凭证管理页） */
 function isLockResetPath(pathname) {
   return LOCK_RESET_PATHS.some(p => pathname === p || pathname.startsWith(p));
 }
@@ -55,13 +52,9 @@ function isAdminOnlyApi(pathname) {
   return ADMIN_ONLY_APIS.some(p => pathname === p || pathname.startsWith(p + '/'));
 }
 
-/* 读取方 cookie 名（diag 接口用它与写入方对账；必须与 SESSION_COOKIE 一致） */
-const READER_COOKIE_NAME = SESSION_COOKIE;
-
 /* 白名单路径（验证必需 + 锁屏自身 + 静态资源） */
 const API_WHITELIST = [
   '/api/root-auth',
-  '/api/root-session',
   '/api/lock-reset',
   '/api/layer-status',
   '/api/root-audit',
@@ -99,21 +92,6 @@ function isWhitelisted(pathname) {
   if (AVATAR_FILE_RE.test(pathname)) return true;
   if (STATIC_RE.test(pathname)) return true;
   return false;
-}
-
-/**
- * 取出 Cookie 头里**所有**同名 cookie 的值（2.4.1 dedup：旧版无 Domain 的
- * 主机绑定 sgx-verified 可能和新版带 Domain 的并存，浏览器会把两个都发过来）。
- * @returns {string[]}
- */
-function getAllCookies(request, name) {
-  const out = [];
-  const h = request.headers.get('Cookie') || '';
-  for (const part of h.split(';')) {
-    const [k, ...v] = part.trim().split('=');
-    if (k === name) out.push(v.join('='));
-  }
-  return out;
 }
 
 /**
@@ -176,13 +154,13 @@ export function stripSessionAttrs(html) {
 
 /**
  * L1 向 HTML 注入会话状态（2.4.1 分层规范）。
- * 把 <html> 变成 <html data-sgx-lock-session="valid|locked|lock-reset" data-sgx-role="owner|visitor">，
+ * 把 <html> 变成 <html data-sgx-lock-session="valid|locked|lock-reset" data-sgx-role="admin|visitor">，
  * 前端只读这个，不自己猜。
  * 同时设置 Cache-Control: private, no-store（防浏览器缓存绕过锁屏）。
  * 非 HTML 响应原样返回。
  * @param {Response} res
  * @param {'valid'|'locked'|'lock-reset'} state
- * @param {string|null} role 'owner'|'visitor'|null
+ * @param {string|null} role 'admin'|'visitor'|null
  */
 export async function injectSessionState(res, state, role, account) {
   const ct = res.headers.get('Content-Type') || '';
@@ -190,7 +168,7 @@ export async function injectSessionState(res, state, role, account) {
   let html = stripSessionAttrs(await res.text());
   /* 2.8.0 锁屏瘦身：锁屏态不下发桌面内容（书单、歌单、小组件等），
      只保留锁屏需要的部分（导航、头像、脚本）。
-     重置锁屏门票页同样受限（只能管理锁屏凭证），同样瘦身。 */
+     重置锁屏票页同样受限（只能管理锁屏凭证），同样瘦身。 */
   if (state === 'locked' || state === 'lock-reset') {
     html = html.replace(/<!-- SGX-DESKTOP-START -->[\s\S]*?<!-- SGX-DESKTOP-END -->/g, '');
   }
@@ -208,12 +186,12 @@ export async function injectSessionState(res, state, role, account) {
     }
   }
   /* 2.8.0：注入角色供 UI 展示（UI 不做鉴权） */
-  if (role === ROLE_OWNER || role === ROLE_VISITOR) {
+  if (role === ROLE_ADMIN || role === ROLE_VISITOR) {
     injected = injected.replace(/<html(\s|>)/i, '<html data-sgx-role="' + role + '"$1');
   }
   const headers = new Headers(res.headers);
   headers.set('Cache-Control', 'private, no-store');
-  /* 2.8.0 搜索收录：锁屏态页面不被搜索引擎收录。重置锁屏门票页同样不收录。 */
+  /* 2.8.0 搜索收录：锁屏态页面不被搜索引擎收录。重置锁屏票页同样不收录。 */
   if (state === 'locked' || state === 'lock-reset') {
     headers.set('X-Robots-Tag', 'noindex');
   }
@@ -224,16 +202,16 @@ export async function injectSessionState(res, state, role, account) {
   });
 }
 
-/* 2.9.3：访客 + 站长专属 return 时，首页返回 200 并标记升级验证。
+/* 2.9.3：访客 + 管理员专属 return 时，首页返回 200 并标记升级验证。
    前端读 data-sgx-upgrade="1" 和 data-sgx-upgrade-return 打开验证层
-   （只显示通行密钥+密码，不显示访客入口，带「需要主人验证」提示）。
+   （只显示通行密钥+密码，不显示访客入口，带「需要管理员验证」提示）。
    验证通过后前端跳回 return。绝不 302。 */
 async function injectUpgradeState(res, role, returnPath) {
   const ct = res.headers.get('Content-Type') || '';
   if (!ct.includes('text/html')) return res;
   const html = stripSessionAttrs(await res.text());
   let injected = html.replace(/<html(\s|>)/i, '<html data-sgx-lock-session="valid"$1');
-  if (role === ROLE_OWNER || role === ROLE_VISITOR) {
+  if (role === ROLE_ADMIN || role === ROLE_VISITOR) {
     injected = injected.replace(/<html(\s|>)/i, '<html data-sgx-role="' + role + '"$1');
   }
   /* 升级标记：前端据此打开验证层 */
@@ -248,102 +226,6 @@ async function injectUpgradeState(res, role, returnPath) {
   });
 }
 
-/**
- * 访客会话的钥匙票检查（临时 LockKey）。
- * @returns {Promise<string>} 'ok' 或失败原因：no-tk / bad-tk / tk-revoked / kv-error
- */
-async function visitorKeyStatus(request, env) {
-  const raw = readTkCookie(request);
-  if (!raw) return 'no-tk';
-  const t = await parseTk(env, raw);
-  if (!t) return 'bad-tk';
-  if (!env || !env.KV_LOCK_DOOR) return 'kv-error';
-  try {
-    return (await isTempkeyRevoked(env.KV_LOCK_DOOR, t.id)) ? 'tk-revoked' : 'ok';
-  } catch (e) {
-    return 'kv-error';
-  }
-}
-
-/**
- * 验证 sgx-verified cookie（2.11：五段式 by.role.epoch.exp.sig）。
- * 返回 {ok, role, by, reason}。
- * 2.4.1 dedup：遍历 Cookie 头里所有同名值，任一验签通过即有效。
- * @returns {Promise<{ok:boolean, role:string|null, by:string|null, reason:string}>}
- */
-export async function verifySessionDetailed(request, env) {
-  const vals = getAllCookies(request, READER_COOKIE_NAME);
-  if (!vals.length) return { ok: false, role: null, by: null, reason: 'no-cookie' };
-  let reason = 'bad-format';
-  let role = null;
-  let by = null;
-  for (const val of vals) {
-    const r = await verifyOneCookie(val, env);
-    if (r.status === 'ok' && r.role === ROLE_VISITOR) {
-      /* 2026-10-23 临时 LockKey：访客会话必须带有效钥匙票（sgx-tk），且那把钥匙还在（没到期、没被作废）。
-         没有钥匙票的访客会话（以前 Turnstile 签的）一律无效。KV 读不到 → 无效（fail closed）。 */
-      const tk = await visitorKeyStatus(request, env);
-      if (tk === 'ok') return { ok: true, role: r.role, by: r.by, reason: 'ok' };
-      reason = tk;
-      continue;
-    }
-    if (r.status === 'ok') return { ok: true, role: r.role, by: r.by, reason: 'ok' };
-    /* 记录最有信息量的失败原因：优先 bad-sig/expired，其次 bad-format */
-    if (reason === 'bad-format' || r.status !== 'bad-format') {
-      reason = r.status;
-      role = r.role;
-      by = r.by;
-    }
-  }
-  const pubKey = realmPublicKey(env, REALM_LOCK); /* SGX_LOCK_PUBLIC */
-  if (reason === 'no-pubkey') {
-    console.log('[sgx-verify] fail: no-pubkey pubkey_len=0');
-  } else if (reason === 'bad-sig') {
-    console.log('[sgx-verify] fail: bad-sig pubkey_len=' + pubKey.length +
-      ' pubkey_prefix=' + JSON.stringify(pubKey.slice(0, 27)));
-  } else {
-    console.log('[sgx-verify] fail: ' + reason);
-  }
-  return { ok: false, role: null, by: null, reason };
-}
-
-/**
- * 验签单个 cookie 值（2.11：五段式 by.role.epoch.exp.sig）。
- * @returns {Promise<{status:string, role:string|null, by:string|null}>}
- *   status: 'ok' 或失败原因（no-cookie/bad-format/expired/no-pubkey/bad-sig/
- *   kv-error/epoch-low/bad-role/bad-by）；role: 'owner'|'visitor'|null；
- *   by: 'root'|'owner'|null（2.11）
- */
-async function verifyOneCookie(val, env) {
-  const parts = val.split('.');
-  /* 2.11：旧四段式（无 by）一律视为无效，不留兼容层 */
-  if (parts.length !== 5) return { status: 'bad-format', role: null, by: null };
-  const [by, role, epochStr, expStr, sig] = parts;
-  if (by !== 'root' && by !== 'owner') return { status: 'bad-by', role: null, by: null };
-  if (role !== ROLE_OWNER && role !== ROLE_VISITOR) return { status: 'bad-role', role: null, by: null };
-  const exp = parseInt(expStr, 10);
-  if (!exp || exp < Date.now()) return { status: 'expired', role: null, by: null };
-
-  const pubKey = realmPublicKey(env, REALM_LOCK); /* SGX_LOCK_PUBLIC */
-  if (!pubKey) return { status: 'no-pubkey', role: null, by: null }; /* 未配公钥：fail closed */
-  const payload = by + '.' + role + '.' + epochStr + '.' + expStr;
-  if (!(await ed25519Verify(pubKey, payload, sig))) return { status: 'bad-sig', role: null, by: null };
-
-  /* epoch 检查：cookie 的 epoch 必须 >= KV 中的 session-epoch。
-     2.10.2：无 KV_LOCK_DOOR 时 fail closed（不再跳过检查）。 */
-  try {
-    if (!env || !env.KV_LOCK_DOOR) {
-      return { status: 'kv-error', role: null, by: null };
-    }
-    const cur = parseInt(await env.KV_LOCK_DOOR.get(SESSION_EPOCH_KEY) || '0', 10) || 0;
-    const ep = parseInt(epochStr, 10) || 0;
-    if (ep < cur) return { status: 'epoch-low', role: null, by: null };
-  } catch (e) {
-    return { status: 'kv-error', role: null, by: null };
-  }
-  return { status: 'ok', role, by };
-}
-
 /** 首页前缀（/ 或 /en/） */
 function homeOf(pathname) {
   return pathname === '/en' || pathname.startsWith('/en/') ? '/en/' : '/';
@@ -353,9 +235,9 @@ function homeOf(pathname) {
  * 解锁后去哪（唯一实现；首页 302 和 /api/lock-session-check?return= 共用，前端不做白名单）。
  * - return 不合法 → 首页
  * - 已登录用户 return 指向门内页（锁屏凭证页）→ 安全与隐私总览（定稿 #1）
- * - 访客 + 站长专属 return → upgrade（不跳；就地站长验证）
+ * - 访客 + 管理员专属 return → upgrade（不跳；就地管理员验证）
  * @param {string} ret 原始 return 参数
- * @param {string|null} role 'owner'|'visitor'
+ * @param {string|null} role 'admin'|'visitor'
  * @returns {{location:string, upgrade:boolean}}
  */
 export function resolveReturn(ret, role) {
@@ -437,7 +319,7 @@ async function handleRequest(context) {
   }
 
   /* 2.4.1：会话检查（生产环境 space 站点一律执行；缺 SGX_LOCK_PUBLIC 时
-     verifySessionDetailed 返回 ok:false → fail closed，只放白名单路径。
+     verifyLockSession 返回 ok:false → fail closed，只放白名单路径。
      没有「未配置就放行」开关。）
      2.8.0 会话角色分离：L1 是唯一按角色放行的地方。
      分层规范 L1：middleware 是唯一决定是否已解锁的地方。
@@ -456,15 +338,14 @@ async function handleRequest(context) {
   }
   if (isProd && site === 'space') {
     const isHomepage = pathname === '/' || pathname === '/en' || pathname === '/en/';
-    const sess = await verifySessionDetailed(request, env);
+    const sess = await verifyLockSession(request, env);
     const sessionValid = sess.ok;
-    const role = sess.role; /* 'owner'|'visitor'|null */
-    const isOwner = role === ROLE_OWNER;
+    const role = sess.role; /* 'admin'|'visitor'|null */
     const isVisitor = role === ROLE_VISITOR;
 
-    /* 2.8.0：访客调用站长专属 API → 403（改密码、通行密钥管理等）。
+    /* 2.8.0：访客调用管理员专属 API → 403（改密码、通行密钥管理等）。
        2.10.1：访客就地升级——认证类 action（AUTH_ACTIONS：verify/challenge/auth/register）
-       放行，由端点自身的会话/门票机制保护（纵深防御），middleware 不再一律拒绝。 */
+       放行，由端点自身的会话/reauth 票机制保护（纵深防御），middleware 不再一律拒绝。 */
     if (isVisitor && isAdminOnlyApi(pathname)) {
       let isAuthAction = false;
       if (request.method === 'POST') {
@@ -482,11 +363,11 @@ async function handleRequest(context) {
     }
 
     /* L1：首页不再无条件白名单。照常返回页面，但把会话状态注入 HTML
-       （<html data-sgx-lock-session="valid|locked" data-sgx-role="owner|visitor">），
+       （<html data-sgx-lock-session="valid|locked" data-sgx-role="admin|visitor">），
        前端只读这个，不自己猜。 */
     if (isHomepage) {
       /* ?return= 回跳：会话有效时 302 到目标（站内路径或 *.styrigx.com 白名单）。
-         2.9.3 防死循环：如果 return 指向站长专属路径而当前只是访客，不 302，
+         2.9.3 防死循环：如果 return 指向管理员专属路径而当前只是访客，不 302，
          直接返回 200 首页，前端打开升级验证层（只显示通行密钥+密码）。
          防死循环失效修复：子站踢回时带 ?why=（子站验签失败），此时也不 302，
          返回 200 首页让 lock.js 显示失败原因；否则 JS 没机会跑，
@@ -501,8 +382,8 @@ async function handleRequest(context) {
             headers: { 'Location': dest.location, 'Cache-Control': 'private, no-store' },
           });
         }
-        /* 访客 + 站长专属 return：不跳转，200 返回首页并标记升级验证。
-           前端读 data-sgx-upgrade="1" 打开站长验证层（不出锁屏）。 */
+        /* 访客 + 管理员专属 return：不跳转，200 返回首页并标记升级验证。
+           前端读 data-sgx-upgrade="1" 打开管理员验证层（不出锁屏）。 */
         const res = await next();
         return injectUpgradeState(res, role, dest.location);
       }
@@ -510,8 +391,8 @@ async function handleRequest(context) {
       return injectSessionState(res, sessionValid ? 'valid' : 'locked', role);
     }
 
-    /* 访客直接打开站长专属路径（锁屏凭证页）→ 302 到首页的「站长验证」（?return=，不带 lock=1）：
-       首页按 访客 + 站长专属 return 返回 upgrade 态，前端只弹站长验证层，不出锁屏、不动访客会话。
+    /* 访客直接打开管理员专属路径（锁屏凭证页）→ 302 到首页的「管理员验证」（?return=，不带 lock=1）：
+       首页按 访客 + 管理员专属 return 返回 upgrade 态，前端只弹管理员验证层，不出锁屏、不动访客会话。
        （站内点「锁屏凭证」不走这里：security.js 对访客就地弹同一个验证层，不跳页。）
        以前带 lock=1，并且 styrigx.com/ 路由不认查询串 → 锁屏页从 Pages 直出、没有会话标记 → 整个锁屏闪一下。 */
     if (isVisitor && isAdminOnlyPath(pathname)) {
@@ -534,13 +415,13 @@ async function handleRequest(context) {
       });
     }
 
-    /* 重置锁屏门票可打开锁屏凭证页（重置锁屏流程），但仍进不了主页。
+    /* 重置锁屏票可打开锁屏凭证页（重置锁屏流程），但仍进不了主页。
        仅放行 /settings/security/lock/ 及其英文版（安全总览不放行）；
        主页仍需有效会话。
        注入专用状态 lock-reset（而非 locked），前端 initLock 跳过锁屏覆盖，
        落地页可操作；票据仍只能管理锁屏凭证。 */
     if (!sessionValid && isLockResetPath(pathname)) {
-      const st = await verifyDoorCookie(request, env, DOOR_LOCKRESET);
+      const st = await verifyLockResetTicket(request, env);
       if (st.ok) {
         const res = await next();
         const ct = res.headers.get('Content-Type') || '';
@@ -560,7 +441,7 @@ async function handleRequest(context) {
         let account = null;
         if (isAccountPage(pathname)) {
           try {
-            account = (await verifyAccountCookie(request, env)).ok ? 'in' : 'out';
+            account = (await verifyAccountSession(request, env)).ok ? 'in' : 'out';
           } catch (e) {
             account = null; /* 读不到：不给提示，前端停在中性态等 /api/account */
           }

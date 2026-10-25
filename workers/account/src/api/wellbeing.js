@@ -1,5 +1,5 @@
 /**
- * B2-7 网站数字健康：统计站长在主站、书站、博客各区域的停留时长（只算页面可见且有操作的时间）。
+ * B2-7 网站数字健康：统计管理员在主站、书站、博客各区域的停留时长（只算页面可见且有操作的时间）。
  *
  * POST /api/wellbeing   上报（主站 / book / blog 都打到主站这一个接口）
  *   body（text/plain 或 application/json，sendBeacon 发 text/plain 免预检）：
@@ -8,17 +8,17 @@
  *   - k：区域键。主站 home/files/browser/settings；书站 book 或 book:<id>；博客 blog 或 post:<slug>
  *   - t：可选标题（书名 / 文章名），最长 60 字
  *   - sec：本次累计秒数，1–900（客户端最多 5 分钟一报，留余量）
- *   - 只记 owner：visitor 会话直接 204 丢弃，访客的时长不进站长的数字健康
+ *   - 只记 admin：visitor 会话直接 204 丢弃，访客的时长不进管理员的数字健康
  *   - 写入 D1（D1_WELLBEING）wb_daily，同一天同一键原子累加，跨设备天然合并
  * GET /api/wellbeing?d=YYYY-MM-DD  读取某天汇总（默认服务器 UTC 今天）
- *   - 任何有效会话可读（首页小组件访客也能看到站长的数字健康，和原来的静态数据一致）
- *   - 书名 / 文章名只返回给 owner；visitor 只拿到区域合计
+ *   - 任何有效会话可读（首页小组件访客也能看到管理员的数字健康，和原来的静态数据一致）
+ *   - 书名 / 文章名只返回给 admin；visitor 只拿到区域合计
  *   - 返回 {ok, d, total, sections:[{k,sec}], items:[{k,t,sec}]}
  *
  * 不涉及任何密钥 / 会话签发；未绑定 D1_WELLBEING（本地）时 POST 204、GET 返回空。
  * 2026-10-24 起在账号 Worker styrigx-account（D1 styrigx-account，迁移在 workers/account/migrations/）。
  */
-import { ROLE_OWNER } from '../auth.js';
+import { ROLE_ADMIN } from '../auth.js';
 
 const KEY_RE = /^(home|files|browser|settings|book|blog)$|^(book|post):[A-Za-z0-9_\-./%]{1,80}$/;
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -84,9 +84,9 @@ export function parseReport(body, now) {
 /**
  * 把一天的行汇总成返回结构。
  * @param {{k:string,t:string,sec:number}[]} rows
- * @param {boolean} owner
+ * @param {boolean} admin
  */
-export function summarize(rows, owner) {
+export function summarize(rows, admin) {
   /** @type {Record<string, number>} */
   const sec = {};
   let total = 0;
@@ -95,7 +95,7 @@ export function summarize(rows, owner) {
     const s = sectionOf(r.k);
     sec[s] = (sec[s] || 0) + r.sec;
     total += r.sec;
-    if (owner && r.k.includes(':')) items.push({ k: r.k, t: r.t || '', sec: r.sec });
+    if (admin && r.k.includes(':')) items.push({ k: r.k, t: r.t || '', sec: r.sec });
   }
   const sections = Object.keys(sec)
     .map((k) => ({ k, sec: sec[k] }))
@@ -111,7 +111,7 @@ export async function onRequestPost(context) {
   const { request, env } = context;
   const sess = await context.auth.lockSession(); /* 网关 AuthVerifier 验（src/auth.js） */
   if (!sess.ok) return new Response(null, { status: 401, headers: NO_STORE });
-  if (sess.role !== ROLE_OWNER) return new Response(null, { status: 204, headers: NO_STORE });
+  if (sess.role !== ROLE_ADMIN) return new Response(null, { status: 204, headers: NO_STORE });
   const db = env && env.D1_WELLBEING;
   if (!db) return new Response(null, { status: 204, headers: NO_STORE });
   const raw = await request.text();
@@ -158,7 +158,7 @@ export async function onRequestGet(context) {
   try {
     await db.prepare(SCHEMA).run();
     const { results } = await db.prepare('SELECT k, t, sec FROM wb_daily WHERE day = ?1').bind(d).all();
-    const sum = summarize(/** @type {any[]} */ (results || []), sess.role === ROLE_OWNER);
+    const sum = summarize(/** @type {any[]} */ (results || []), sess.role === ROLE_ADMIN);
     return Response.json({ ok: true, d, ...sum }, { headers: NO_STORE });
   } catch (e) {
     console.error('[api/wellbeing] d1 error', e && /** @type {any} */ (e).message);

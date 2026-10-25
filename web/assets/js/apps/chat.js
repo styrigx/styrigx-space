@@ -1,10 +1,10 @@
 /**
- * @fileoverview 聊天页（/chat/）：联网检索问答。POST /api/chat（网关验锁屏会话 + 只许站长），回答按 SSE 流式显示。
+ * @fileoverview 聊天页（/chat/）：联网检索问答。POST /api/chat（网关验锁屏会话 + 只许管理员），回答按 SSE 流式显示。
  *
  * - 对话只存 sessionStorage（sgx-chat-convo，关掉标签页就没了），「新对话」清空；服务器不存。
  * - 发送：按钮；桌面（精确指针）Enter 发送、Shift+Enter 换行；手机 Enter 换行。流式中输入框禁用，按钮变「停止」（中断请求，已收到的部分保留）。
  * - 来源：回答下面一排小 chip（域名 + 标题），新标签页打开。
- * - 错误：401 → 「会话已过期」卡 + 重新解锁（同状态页：重新载入走锁屏）；403 owner_only → 「聊天仅主人可用」卡（访客：页面一开就是这张卡）；
+ * - 错误：401 → 「会话已过期」卡 + 重新解锁（同状态页：重新载入走锁屏）；403 admin_only → 「聊天仅管理员可用」卡（访客：页面一开就是这张卡）；
  *   rate_limited → 「今天的免费额度用完了」；no_key → 「聊天还没配置」；400 → 对话太长；其他（upstream / 断网）→ 出错 + 重试。
  * - 模型切换（2026-10-22）：GET /api/chat 拿白名单（{ default, models:[{id,label,search}] }），≥ 2 个才在输入栏上方显示小药丸；
  *   点了打开模型面板（模态 <dialog> #chat-ms，shell/modal-sheet.js 开合：点遮罩 / ✕ / Esc / 系统返回关闭；手机底部面板、宽屏贴着药丸）。
@@ -86,7 +86,7 @@ export function mountChat() {
   /** @type {AbortController|null} */
   let ctl = null;
   /** 页面级的拦截（会话过期 / 访客 / 没配置）：只显示那张卡，输入框关掉 */
-  /** @type {''|'auth'|'owner'} */
+  /** @type {''|'auth'|'admin'} */
   let gated = '';
 
   const finePointer = (() => {
@@ -154,15 +154,15 @@ export function mountChat() {
     modelBtn.disabled = busy;
   }
 
-  /** @param {'auth'|'owner'} kind */
+  /** @param {'auth'|'admin'} kind */
   function showGate(kind) {
     gated = kind;
     const title = /** @type {HTMLElement} */ (gate.querySelector('[data-c="title"]'));
     const sub = /** @type {HTMLElement} */ (gate.querySelector('[data-c="sub"]'));
     const btn = /** @type {HTMLElement} */ (gate.querySelector('[data-c="btn"]'));
     gate.setAttribute('data-kind', kind);
-    title.textContent = t(kind === 'auth' ? 'errAuth' : 'ownerOnly');
-    sub.textContent = t(kind === 'auth' ? 'errAuthSub' : 'ownerOnlySub');
+    title.textContent = t(kind === 'auth' ? 'errAuth' : 'adminOnly');
+    sub.textContent = t(kind === 'auth' ? 'errAuthSub' : 'adminOnlySub');
     btn.hidden = kind !== 'auth';
     btn.textContent = t('unlock');
     gate.hidden = false;
@@ -219,7 +219,7 @@ export function mountChat() {
         try { j = await r.json(); } catch (e) {}
         const code = (j && j.error) || '';
         if (r.status === 401) errCode = 'unauthorized';
-        else if (r.status === 403 && (code === 'owner_only' || code === 'role')) errCode = 'owner_only';
+        else if (r.status === 403 && (code === 'admin_only' || code === 'role')) errCode = 'admin_only';
         else if (r.status === 429 || code === 'rate_limited') errCode = 'rate_limited';
         else if (code === 'no_key') errCode = 'no_key';
         else if (code === 'model_unavailable') errCode = 'model_unavailable';
@@ -266,10 +266,10 @@ export function mountChat() {
     /* 白名单改了（选的模型下线）：换回默认，重试就用默认 */
     if (errCode === 'bad_model' && models) setModel(models.def);
     if (c.signal.aborted && !ans.text) errCode = '';
-    if (errCode === 'unauthorized' || errCode === 'owner_only') {
+    if (errCode === 'unauthorized' || errCode === 'admin_only') {
       /* 回答作废；对话保留（重新解锁后还在） */
       renderAll();
-      showGate(errCode === 'unauthorized' ? 'auth' : 'owner');
+      showGate(errCode === 'unauthorized' ? 'auth' : 'admin');
       return;
     }
     if (ans.text && (!errCode || c.signal.aborted)) {
@@ -437,7 +437,7 @@ export function mountChat() {
 
   renderAll();
   /* 访客：网关在 <html> 注入 data-sgx-role="visitor"，不用等一次请求失败 */
-  if (document.documentElement.getAttribute('data-sgx-role') === 'visitor') showGate('owner');
+  if (document.documentElement.getAttribute('data-sgx-role') === 'visitor') showGate('admin');
   /* 上次停在一个没有回答的问题上（刷新 / 断网）：给一个重试 */
   else if (msgs.length && msgs[msgs.length - 1].role === 'user') renderAll('upstream');
   if (msgs.length) toBottom();

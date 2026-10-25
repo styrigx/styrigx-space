@@ -7,26 +7,28 @@
  * 账号登录入口平级，任一成功即签发账号会话（_kernel/account-session.js）：
  * - 账号通行密钥：本接口 login-challenge + login-passkey
  * - 账号密码：本接口 login-password
- * - 根凭证：/api/root-auth { key, purpose:'account' }（「重置登录」：根凭证不是普通登录入口；
- *   沿用根凭证的限速 / 审计 / 假入口，另签账号门票）
- * 账号会话独立验证：锁屏会话只是前置条件（必须是已解锁的站长），从不被当作账号认证。
+ * 根凭证不签账号会话：丢了账号凭证走「重置登录」/api/root-auth { key, purpose:'account-reset' }，
+ * 拿 AccountResetTicket（sgx-account-reset，3 分钟）重设账号凭证，再正常登录。
+ * 账号会话独立验证：锁屏会话只是前置条件（必须是已解锁的管理员），从不被当作账号认证。
  *
- * GET /api/account → { ok, password, passkey, ready, session, door }
- *   - 需站长锁屏会话（访客 / 无会话 401）；只返回「是否已设置」，无敏感数据
+ * GET /api/account → { ok, password, passkey, ready, session, reauth, reset }
+ *   - 需管理员锁屏会话（访客 / 无会话 401）；只返回「是否已设置」，无敏感数据
  *   - ready：账号签名钥匙是否已配置（false → 登录会 503 config）
  *   - session：当前账号会话 { by, authAt, expiresAt, device } 或 null（device = 此设备的名字）
- *   - door：账号门票（账号安全子页）{ by, expiresAt } 或 null；前端 3 分钟倒计时以 expiresAt 为准
+ *   - reauth：AccountReauthTicket（账号安全子页，要配账号会话）{ by, expiresAt } 或 null；前端 3 分钟倒计时以 expiresAt 为准
+ *   - reset：AccountResetTicket（重置登录，不要账号会话）{ by, expiresAt } 或 null
  *
- * POST /api/account { action, ... }（只接受同源；需站长锁屏会话，logout / reauth-clear 除外）
+ * POST /api/account { action, ... }（只接受同源；需 admin 锁屏会话，logout / reauth-clear 除外）
  * 登录：
  * - login-challenge → 账号通行密钥登录 challenge（purpose=login）
- * - login-passkey { cid, credential, door? } → 验断言（UV=1、userHandle）→ 账号会话(by=passkey)
- * - login-password { password, door? } → 验账号密码 → 账号会话(by=password)
- *   door:true（账号安全子页的门）→ 另签账号门票(door=account)，3 分钟
- *   （丢了账号凭证走「重置登录」：/api/root-auth { key, purpose:'account' }）
- * - logout → 清账号会话和门票（幂等，不需会话）
- * - reauth-clear → 只清门票（离开账号安全子页时调；幂等，不需会话）
- * 账号页管理（需有效账号会话；除只读的 passkey-list 外还要求有效的账号门票，没有/过期 403 door，前端重新进门）：
+ * - login-passkey { cid, credential, reauth? } → 验断言（UV=1、userHandle）→ 账号会话(by=passkey)
+ * - login-password { password, reauth? } → 验账号密码 → 账号会话(by=password)
+ *   reauth:true（进账号安全子页前再验一次）→ 另签 AccountReauthTicket，3 分钟
+ * - logout → 清账号会话和 reauth / reset 票（幂等，不需会话）
+ * - reauth-clear → 只清 reauth / reset 票（离开账号安全子页时调；幂等，不需会话）
+ * 账号页管理：有效账号会话 + AccountReauthTicket（只读的 passkey-list 只要账号会话），
+ * 或有效的 AccountResetTicket（重置登录：没有账号会话也行，只能管账号凭证，不能管设备）；
+ * 都没有：无账号会话 401 account，有会话没票 403 reauth（前端重新验证）：
  * - passkey-list → 账号通行密钥列表 + userHandle（账号 handle，非机密；前端拿来调
  *   PublicKeyCredential.signalCurrentUserDetails 更新密码管理器里的名字）
  * - passkey-register-challenge → 注册 challenge（账号 user handle）
@@ -35,7 +37,7 @@
  * - passkey-rename { credId, name } → 重命名账号通行密钥（名字规则同锁屏 rename：去控制字符、去首尾空格、
  *   1–40 字；只改账号通行密钥，别的域 not-found；不推纪元）
  * - password-change { password } → 设置/修改账号密码（已有时 account-epoch +1 并重签当前会话）。
- *   根凭证重置登录（by=root）同样可用 → 恢复路径。
+ *   AccountResetTicket 同样可用 → 恢复路径。
  * 设备（只要账号会话，不进门；记录见 _kernel/account-devices.js）：
  * - device-list → { devices: [{ deviceId, current, name, model, platform, browser, country, city, by, createdAt, lastSeen }] }，此设备排第一
  * - device-revoke { deviceId } → 单独退出那台设备（删记录 + 拉黑）；不能退出此设备（400 current，用退出账号）
@@ -58,25 +60,24 @@ import {
   findStoredKey,
 } from '../_kernel/passkey-verify.js';
 import { getPepper, makePasswordRecord, checkPasswordRecord, verifyRealmPassword } from '../_kernel/password.js';
-import { bumpSessionEpoch, reissueSessionWithEpoch, ROLE_OWNER } from '../_kernel/lock-session.js';
+import { bumpLockEpoch, reissueLockSessionWithEpoch, ROLE_ADMIN } from '../_kernel/lock-session.js';
+import { BY_PASSKEY, BY_PASSWORD, ACCOUNT_REAUTH_TICKET, ACCOUNT_RESET_TICKET } from '../_kernel/realms.js';
 import {
-  verifyAccountCookie,
-  issueAccountCookie,
-  clearAccountCookie,
+  verifyAccountSession,
+  issueAccountSession,
+  clearAccountSession,
   bumpAccountEpoch,
   accountKeysReady,
   accountConfigMissing,
   accountSessionOpts,
-  ACCOUNT_BY_PASSKEY,
-  ACCOUNT_BY_PASSWORD,
 } from '../_kernel/account-session.js';
 import { listDevices, revokeDevice, pruneOtherDevices, deviceView, getDevice, isDeviceId, DEVICE_PREFIX } from '../_kernel/account-devices.js';
-import { verifyDoorCookie, issueDoorCookie, reissueDoorWithEpoch, clearDoorCookie, DOOR_ACCOUNT } from '../_kernel/tickets.js';
+import { verifyTicket, issueTicket, reissueTicketWithEpoch, clearTicket } from '../_kernel/tickets.js';
 import { isLayerConfigured, setLayerConfigured, clearLayerConfigured, LAYER_ACCOUNT } from '../_kernel/layers.js';
 import { REALM_ACCOUNT, REALM_LOCK, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
 import { KEY_ACCOUNT, LOCK_USER_HANDLE_KEY, ACCOUNT_USER_HANDLE_KEY } from '../_kernel/key-names.js';
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
-import { verifySessionDetailed } from '../_middleware.js';
+import { verifyLockSession } from '../_kernel/lock-session.js';
 import {
   getPasskeys,
   savePasskey,
@@ -107,10 +108,10 @@ function json(body, status) {
   return Response.json(body, { status: status || 200 });
 }
 
-/** 站长锁屏会话（前置条件，不是账号认证）。返回会话对象或 null */
+/** admin 锁屏会话（前置条件，不是账号认证）。返回会话对象或 null */
 async function adminLockSession(request, env) {
-  const sess = await verifySessionDetailed(request, env);
-  if (!sess.ok || sess.role !== ROLE_OWNER) return null;
+  const sess = await verifyLockSession(request, env);
+  if (!sess.ok || sess.role !== ROLE_ADMIN) return null;
   return sess;
 }
 
@@ -130,27 +131,26 @@ export async function onRequestGet(context) {
     } catch (e) {
       return json({ ok: false, error: 'server' }, 503);
     }
-    const acc = await verifyAccountCookie(request, env);
-    const dv = acc.ok ? await verifyDoorCookie(request, env, DOOR_ACCOUNT) : { ok: false };
+    const acc = await verifyAccountSession(request, env);
+    const rv = acc.ok ? await verifyTicket(request, env, ACCOUNT_REAUTH_TICKET) : { ok: false };
+    const xv = await verifyTicket(request, env, ACCOUNT_RESET_TICKET);
     /* 账号总览「设备」一行的副标题：此设备的名字 */
     let devName = '';
-    if (acc.ok && acc.sid) {
+    if (acc.ok && acc.deviceId) {
       try {
-        const d = await getDevice(akv, acc.sid);
-        if (d) devName = deviceView(d, acc.sid).name;
+        const d = await getDevice(akv, acc.deviceId);
+        if (d) devName = deviceView(d, acc.deviceId).name;
       } catch (e) {}
     }
     const headers = new Headers({ 'Content-Type': 'application/json' });
-    if (acc.ok && !acc.sid) {
-      await issueAccountCookie(env, headers, acc.by, { authAt: acc.authAt, epoch: acc.epoch, request: request });
-    }
     return new Response(JSON.stringify({
       ok: true,
       password: password,
       passkey: passkey,
       ready: accountKeysReady(env),
       session: acc.ok ? { by: acc.by, authAt: acc.authAt, expiresAt: acc.exp, device: devName } : null,
-      door: dv.ok ? { by: dv.by, expiresAt: dv.exp } : null,
+      reauth: rv.ok ? { by: rv.by, expiresAt: rv.exp } : null,
+      reset: xv.ok ? { by: xv.by, expiresAt: xv.exp } : null,
     }), { headers });
   } catch (e) {
     return json({ ok: false, error: 'server' }, 500);
@@ -179,30 +179,32 @@ async function handlePost(context) {
     return json({ ok: false, error: 'body' }, 400);
   }
   const action = (body && body.action) || '';
-  /* 登录时顺带进门（账号安全子页的门）：只认布尔 true */
-  const wantDoor = !!(body && body.door === true);
+  /* 登录时顺带签 AccountReauthTicket（进账号安全子页前再验一次）：只认布尔 true */
+  const wantReauth = !!(body && body.reauth === true);
 
   /* ============ logout（幂等，不需会话） ============ */
   if (action === 'logout') {
     const headers = new Headers({ 'Content-Type': 'application/json' });
-    /* 本机的设备记录也删掉（并拉黑 sid，防 cookie 被拷走后继续用）；验不过就只清 cookie */
+    /* 本机的设备记录也删掉（并拉黑 deviceId，防 cookie 被拷走后继续用）；验不过就只清 cookie */
     try {
-      const cur = await verifyAccountCookie(request, env);
-      if (cur.ok && cur.sid && akv) await revokeDevice(akv, cur.sid);
+      const cur = await verifyAccountSession(request, env);
+      if (cur.ok && cur.deviceId && akv) await revokeDevice(akv, cur.deviceId);
     } catch (e) {}
-    clearAccountCookie(headers);
-    clearDoorCookie(headers);
+    clearAccountSession(headers);
+    clearTicket(headers, ACCOUNT_REAUTH_TICKET);
+    clearTicket(headers, ACCOUNT_RESET_TICKET);
     return new Response(JSON.stringify({ ok: true }), { headers });
   }
 
-  /* ============ reauth-clear（离开账号安全子页：门票立即作废；幂等，不需会话） ============ */
+  /* ============ reauth-clear（离开账号安全子页：reauth / reset 票立即作废；幂等，不需会话） ============ */
   if (action === 'reauth-clear') {
     const headers = new Headers({ 'Content-Type': 'application/json' });
-    clearDoorCookie(headers);
+    clearTicket(headers, ACCOUNT_REAUTH_TICKET);
+    clearTicket(headers, ACCOUNT_RESET_TICKET);
     return new Response(JSON.stringify({ ok: true }), { headers });
   }
 
-  /* 其余 action：先要站长锁屏会话（前置条件；visitor 已被 middleware 403） */
+  /* 其余 action：先要 admin 锁屏会话（前置条件；visitor 已被 middleware 403） */
   const sess = await adminLockSession(request, env);
   if (!sess) return json({ ok: false, error: 'session' }, 401);
   if (!kv || !akv) return json({ ok: false, error: 'config' }, 500);
@@ -226,10 +228,10 @@ async function handlePost(context) {
       try { await kv.put(REALM_ACCOUNT.kv.password, JSON.stringify(await makePasswordRecord(password, pepper))); } catch (e) {}
     }
     const headers = new Headers({ 'Content-Type': 'application/json' });
-    const err = await issueAccountCookie(env, headers, ACCOUNT_BY_PASSWORD, await accountSessionOpts(request, env, body));
+    const err = await issueAccountSession(env, headers, BY_PASSWORD, await accountSessionOpts(request, env, body));
     if (err) return json(err.body, err.status);
-    if (wantDoor) {
-      const dErr = await issueDoorCookie(env, headers, DOOR_ACCOUNT, ACCOUNT_BY_PASSWORD);
+    if (wantReauth) {
+      const dErr = await issueTicket(env, headers, ACCOUNT_REAUTH_TICKET, BY_PASSWORD);
       if (dErr) return json(dErr.body, dErr.status);
     }
     return new Response(JSON.stringify({ ok: true }), { headers });
@@ -311,29 +313,38 @@ async function handlePost(context) {
       return json({ ok: false, error: code }, 403);
     }
     const headers = new Headers({ 'Content-Type': 'application/json' });
-    const err = await issueAccountCookie(env, headers, ACCOUNT_BY_PASSKEY, await accountSessionOpts(request, env, body));
+    const err = await issueAccountSession(env, headers, BY_PASSKEY, await accountSessionOpts(request, env, body));
     if (err) return json(err.body, err.status);
-    if (wantDoor) {
-      const dErr = await issueDoorCookie(env, headers, DOOR_ACCOUNT, ACCOUNT_BY_PASSKEY);
+    if (wantReauth) {
+      const dErr = await issueTicket(env, headers, ACCOUNT_REAUTH_TICKET, BY_PASSKEY);
       if (dErr) return json(dErr.body, dErr.status);
     }
     return new Response(JSON.stringify({ ok: true }), { headers });
   }
 
-  /* ============ 账号页管理：需账号会话；改动还要账号门票 ============ */
+  /* ============ 账号页管理 ============
+     - 有效账号会话 + AccountReauthTicket（只读的 passkey-list 只要账号会话；设备页只要账号会话）
+     - 或有效 AccountResetTicket（重置登录：没有账号会话，只能管账号凭证，不能管设备） */
   const MGMT = ['passkey-list', 'passkey-register-challenge', 'passkey-register', 'passkey-delete', 'passkey-rename', 'password-change', 'device-list', 'device-revoke'];
   if (MGMT.indexOf(action) === -1) return json({ ok: false, error: 'action' }, 400);
+  const isDeviceAction = action === 'device-list' || action === 'device-revoke';
 
-  const acc = await verifyAccountCookie(request, env);
-  if (!acc.ok) return json({ ok: false, error: 'account', reason: acc.reason }, 401);
-  /* 只读的 passkey-list 只要账号会话；改动（注册/删除/重命名/改密码）是安全操作，必须有有效的账号门票
-     （进账号安全子页时验过账号凭证，3 分钟，离开即作废） */
-  let door = null;
-  /* 设备页（列出 / 单独退出别的设备）只要账号会话，不进门 */
+  /** 这次管理操作凭哪张票：AccountReauthTicket（配账号会话）或 AccountResetTicket */
+  let ticketName = '';
+  /** @type {{ok:boolean, by?:string, exp?:number}|null} */
+  let tv = null;
+  const acc = await verifyAccountSession(request, env);
+  if (!acc.ok) {
+    const xv = isDeviceAction ? null : await verifyTicket(request, env, ACCOUNT_RESET_TICKET);
+    if (!xv || !xv.ok) return json({ ok: false, error: 'account', reason: acc.reason }, 401);
+    ticketName = ACCOUNT_RESET_TICKET;
+    tv = xv;
+  }
+  /* 设备页（列出 / 单独退出别的设备）只要账号会话 */
   if (action === 'device-list') {
     let all;
     try { all = await listDevices(akv); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
-    const cur = acc.sid || '';
+    const cur = acc.deviceId || '';
     const views = all.map(function (d) { return deviceView(d, cur); });
     views.sort(function (a, b) { return (b.current ? 1 : 0) - (a.current ? 1 : 0); });
     return json({ ok: true, devices: views });
@@ -341,38 +352,52 @@ async function handlePost(context) {
   if (action === 'device-revoke') {
     const deviceId = (body && body.deviceId) || '';
     if (!isDeviceId(deviceId)) return json({ ok: false, error: 'params' }, 400);
-    if (deviceId === acc.sid) return json({ ok: false, error: 'current' }, 400);
+    if (deviceId === acc.deviceId) return json({ ok: false, error: 'current' }, 400);
     let rec = null;
     try { rec = await akv.get(DEVICE_PREFIX + deviceId, 'json'); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
     if (!rec) return json({ ok: false, error: 'not-found' }, 404);
     try { await revokeDevice(akv, deviceId); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
     return json({ ok: true });
   }
-  if (action !== 'passkey-list') {
-    door = await verifyDoorCookie(request, env, DOOR_ACCOUNT);
-    if (!door.ok) return json({ ok: false, error: 'door', reason: door.reason }, 403);
+  /* 有账号会话：改动（注册/删除/重命名/改密码）是安全操作，必须有有效的 AccountReauthTicket
+     （进账号安全子页时再验过账号凭证，3 分钟，离开即作废）；会话还在时也认 AccountResetTicket */
+  if (acc.ok && action !== 'passkey-list') {
+    const rv = await verifyTicket(request, env, ACCOUNT_REAUTH_TICKET);
+    if (rv.ok) {
+      ticketName = ACCOUNT_REAUTH_TICKET;
+      tv = rv;
+    } else {
+      const xv = await verifyTicket(request, env, ACCOUNT_RESET_TICKET);
+      if (!xv.ok) return json({ ok: false, error: 'reauth', reason: rv.reason }, 403);
+      ticketName = ACCOUNT_RESET_TICKET;
+      tv = xv;
+    }
   }
+  /* 前端标题用：用什么验的（重置登录 = root） */
+  const by = tv ? tv.by : acc.by;
 
-  /* 首次配置账号层：标记 + session-epoch +1 + 重签当前锁屏会话（失败 503） */
+  /* 首次配置账号层：标记 + Lock 纪元 +1 + 重签当前锁屏会话（失败 503） */
   async function markConfigured(headers) {
     if (await isLayerConfigured(kv, LAYER_ACCOUNT)) return null;
     try {
       await setLayerConfigured(kv, LAYER_ACCOUNT);
-      const ne = await bumpSessionEpoch(kv);
-      await reissueSessionWithEpoch(env, headers, sess, ne);
+      const ne = await bumpLockEpoch(kv);
+      await reissueLockSessionWithEpoch(env, headers, sess, ne);
     } catch (e) {
       return json({ ok: false, error: 'epoch' }, 503);
     }
     return null;
   }
-  /* 账号凭证变更（改密码/删通行密钥）：account-epoch +1，当前设备账号会话保留原 by/authAt 重签 */
+  /* 账号凭证变更（改密码/删通行密钥）：Account 纪元 +1；有账号会话时当前设备保留原 by/authAt 重签 */
   async function rotateAccount(headers) {
     const ne = await bumpAccountEpoch(akv); /* 出错抛 → 外层 500/调用方 503 */
-    await issueAccountCookie(env, headers, acc.by, { authAt: acc.authAt, epoch: ne, sid: acc.sid, record: false });
-    /* 其他设备的票据随纪元失效：设备页上也不再列它们 */
-    await pruneOtherDevices(akv, acc.sid || '');
-    /* 门票也绑 account-epoch：当前设备的门票按原到期时间重签，门内可以接着操作 */
-    await reissueDoorWithEpoch(env, headers, DOOR_ACCOUNT, door, ne);
+    if (acc.ok) {
+      await issueAccountSession(env, headers, acc.by, { authAt: acc.authAt, epoch: ne, deviceId: acc.deviceId, record: false });
+    }
+    /* 其他设备的票据随纪元失效：设备页上也不再列它们（重置登录时一台不留） */
+    await pruneOtherDevices(akv, acc.deviceId || '');
+    /* reauth / reset 票也绑 Account 纪元：按原到期时间重签，可以接着操作 */
+    if (ticketName) await reissueTicketWithEpoch(env, headers, ticketName, tv, ne);
   }
 
   if (action === 'passkey-list') {
@@ -382,7 +407,7 @@ async function handlePost(context) {
     try { userHandle = (await kv.get(ACCOUNT_USER_HANDLE_KEY)) || ''; } catch (e) {}
     return json({
       ok: true,
-      by: acc.by,
+      by: by,
       userHandle: userHandle,
       userName: KEY_ACCOUNT,
       displayName: PASSKEY_DISPLAY_NAME,

@@ -290,7 +290,7 @@ export function buildPayload(msgs) {
 
 /**
  * 错误码 → 文案 key + 是否给「重试」/「换模型」（pick：按钮打开模型面板；只有模型切换能用时 canPick = true 才给）。
- * @param {string} code rate_limited | model_unavailable | bad_model | no_key | owner_only | unauthorized | bad_request | upstream | network
+ * @param {string} code rate_limited | model_unavailable | bad_model | no_key | admin_only | unauthorized | bad_request | upstream | network
  * @param {boolean} [canPick] 模型切换在不在（模型列表拿到了、≥ 2 个）
  * @returns {{key:string, retry:boolean, pick?:boolean}}
  */

@@ -139,7 +139,7 @@ test.describe('reset (2/2) passkey busy', () => {
     /* 箭头换成转圈（B1-2：get 期间弹层隐藏，转圈存在但不可见） */
     await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row .sgx-credential-spin')).toHaveCount(1, { timeout: 8000 });
     await expect(page.locator('#sgx-method-sheet')).toHaveCSS('visibility', 'hidden');
-    /* 两行都 disabled（通行密钥行 + 站长密码行） */
+    /* 两行都 disabled（通行密钥行 + 管理员密码行） */
     await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row')).toBeDisabled();
     await expect(page.locator('.sgx-reset-opts [data-kind="password"] .sgx-credential-row')).toBeDisabled();
     /* 连点第二次（合成事件）：handler 判 disabled 直接 return，不发 challenge */

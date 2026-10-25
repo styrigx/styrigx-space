@@ -7,7 +7,7 @@
  * - 密码框：pwFieldHtml（锁屏弹层用的 HTML 片段）、bindPwEye（眼睛按钮中英文案）、
  *   onEnter（回车提交）、focusNoScroll（聚焦不滚动，失败退回普通 focus）
  * - 门内「设置/修改密码」弹层：bindDataEyes、createSetPwDialog、newPwError、passwordSetRequest
- * - 锁屏凭证的门客户端：lockDoorFetch（POST /api/lock-reauth）
+ * - 锁屏凭证的门客户端：lockReauthFetch（POST /api/lock-reauth）
  *
  * 将来加新的凭证域（例如独立的「账户」登录）时，直接复用这些积木即可。
  * 本文件在 lib/ 层：不得 import shell/ 或 apps/（followKeyboard 由调用方传入）。
@@ -224,10 +224,10 @@ export function createSetPwDialog(o) {
 }
 
 /* ---------------------------------------------------------------------------
- * 锁屏凭证的门（门票状态 / 清票）客户端
+ * 锁屏凭证的门（reauth 票状态 / 清票）客户端
  * ------------------------------------------------------------------------- */
 
-export const LOCK_DOOR_API = '/api/lock-reauth';
+export const LOCK_REAUTH_API = '/api/lock-reauth';
 
 /**
  * POST /api/lock-reauth（JSON）。请求体 = { action, ...extra }。
@@ -239,7 +239,7 @@ export const LOCK_DOOR_API = '/api/lock-reauth';
  * @param {boolean} [opts.keepalive] 离页时尽力送达
  * @returns {Promise<Response>}
  */
-export function lockDoorFetch(action, opts) {
+export function lockReauthFetch(action, opts) {
   const o = opts || {};
   /** @type {RequestInit} */
   const init = {
@@ -249,5 +249,5 @@ export function lockDoorFetch(action, opts) {
     credentials: o.credentials || 'include',
   };
   if (o.keepalive) init.keepalive = true;
-  return fetch(LOCK_DOOR_API, init);
+  return fetch(LOCK_REAUTH_API, init);
 }

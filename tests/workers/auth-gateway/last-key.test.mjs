@@ -1,7 +1,7 @@
 /**
  * A-2 最后一把锁屏钥匙与 AccountKey 联动（v1.5 #10）。
  *
- * - 删到 0 时 AccountKey 存在（站长密码或站长通行密钥任一）→ 允许，保留 layer:lock
+ * - 删到 0 时 AccountKey 存在（管理员密码或管理员通行密钥任一）→ 允许，保留 layer:lock
  *   （根凭证代开继续被拒）；不存在 → 服务端 403 last-key。
  * - A-2 对 layer:lock-emptied 不读不写（该键是 B #10 的，本 PR 不引入）：
  *   删最后一把后 KV 里不出现该键；生产残留不动、不清除、不依赖。
@@ -13,6 +13,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { testLockSession, testAccountSession } from './_tickets.mjs';
 
 function makeKV(seed = {}) {
   const m = new Map(Object.entries(seed));
@@ -53,8 +54,8 @@ async function genKeys() {
   LOCK_PUB = derToPem(await crypto.subtle.exportKey('spki', kp2.publicKey), 'PUBLIC KEY');
 }
 async function mintSession(epoch = 0) {
-  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
-  return await signSessionCookie(LOCK_PRIV, epoch, 'owner', 'owner');
+  const { signLockSessionTicket } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
+  return await testLockSession(LOCK_PRIV, epoch, 'admin', 'password');
 }
 const envFor = (kv, extra = {}) => ({
   KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
@@ -137,18 +138,17 @@ test('A-2：lock-entry 空站 → resetOnly=false（A 启动流程保留，根�
 
 test('A-2：删光账号凭证时不动 lock-emptied 残留（留给 B 处理；账号体系走 /api/account）', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/account.js');
-  const { signAccountTicket } = await import('../../../workers/auth-gateway/functions/_kernel/account-session.js');
   const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1', 'layer:lock-emptied': '1' });
   await kv.put('owner-passkey-index', JSON.stringify(['acct-key-0001']));
   await kv.put('owner-passkey:acct-key-000', JSON.stringify({ credId: 'acct-key-0001', class: 'owner', publicKey: {}, signCount: 0 }));
   const sess = await mintSession();
-  const acc = await signAccountTicket(ACCT_PRIV, 'root', 0, Date.now());
-  const { signDoorTicket } = await import('../../../workers/auth-gateway/functions/_kernel/tickets.js');
-  const door = await signDoorTicket(ACCT_PRIV, 'account', 'root', 0); /* 删账号通行密钥要账号门票 */
+  const acc = await testAccountSession(ACCT_PRIV, 'password', 0, Date.now());
+  const { signAccountReauthTicket } = await import('../../../workers/auth-gateway/functions/_kernel/tickets.js');
+  const reauth = await signAccountReauthTicket(ACCT_PRIV, 'root', 0); /* 删账号通行密钥要 AccountReauthTicket */
   const env = Object.assign({}, envFor(kv), { SGX_ACCOUNT_PRIVATE: ACCT_PRIV, SGX_ACCOUNT_PUBLIC: ACCT_PUB });
   const res = await onRequestPost({
     request: postReq('https://styrigx.com/api/account', { action: 'passkey-delete', credId: 'acct-key-0001' },
-      { Cookie: 'sgx-verified=' + sess + '; sgx-account=' + acc + '; sgx-door=' + door }),
+      { Cookie: 'sgx-lock-session=' + sess + '; sgx-account-session=' + acc + '; sgx-account-reauth=' + reauth }),
     env,
   });
   assert.equal(res.status, 200, await res.text());

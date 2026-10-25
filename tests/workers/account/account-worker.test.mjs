@@ -4,21 +4,21 @@
  * - 门（gate.js）：和网关 middleware 对这几条路径的结论一致（没会话 401 / 302、访客调 /api/prefs 403、头像文件公开、别的域名 403）
  * - 会话问网关（真实 verifier.js）；网关不可达 / 没绑 → 当作无会话
  * - 头像：默认图回源、KV 里的图、只读 KV_PROFILE；X-SGX-Runtime: account；/api/* no-store
- * - 网关 AuthVerifier.accountSession()：和 verifyAccountCookie 同结论，设备记录带上 User-Agent
+ * - 网关 AuthVerifier.accountSession()：和 verifyAccountSession 同结论，设备记录带上 User-Agent
  *
  * 运行：node --test tests/workers/account/*.test.mjs
  */
-import { signRole } from '../auth-gateway/_tk.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { gatewayVerifier } from './_auth.mjs';
+import { testLockSession, testAccountSession } from '../auth-gateway/_tickets.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 const worker = (await import(REPO + 'workers/account/src/index.js')).default;
 const { API_ROUTES } = await import(REPO + 'workers/account/src/index.js');
-const { signSessionCookie } = await import(REPO + 'workers/auth-gateway/functions/_kernel/lock-session.js');
-const { signAccountTicket } = await import(REPO + 'workers/auth-gateway/functions/_kernel/account-session.js');
+const { signLockSessionTicket } = await import(REPO + 'workers/auth-gateway/functions/_kernel/lock-session.js');
+const { signAccountSessionTicket } = await import(REPO + 'workers/auth-gateway/functions/_kernel/account-session.js');
 const { checkAccountSession } = await import(REPO + 'workers/auth-gateway/src/verifier.js');
 const { KEY_VER, keyOf, avatarKv } = await import(REPO + 'workers/account/src/lib/avatar.js');
 
@@ -64,7 +64,7 @@ function setup(over = {}) {
 }
 const CTX = { waitUntil() {} };
 const call = (req, env) => worker.fetch(req, env, CTX);
-async function sess(role) { return 'sgx-verified=' + (await signRole(signSessionCookie, PRIV, 0, role, 'owner')); }
+async function sess(role) { return 'sgx-lock-session=' + (await testLockSession(PRIV, 0, role)); }
 
 test('wrangler.toml：styrigx-account、不开公开地址、四条路由、AUTH → AuthVerifier、不绑钥匙和认证库', () => {
   const toml = readFileSync(REPO + 'workers/account/wrangler.toml', 'utf8');
@@ -149,9 +149,9 @@ test('访客：PUT /api/avatar 403、数字健康上报 204 丢弃（不写库�
   assert.equal((await get.json()).ok, true);
 });
 
-test('主人：未知子路径 404、不支持的方法 405；/api/prefs/ 尾斜杠同 /api/prefs', async () => {
+test('管理员：未知子路径 404、不支持的方法 405；/api/prefs/ 尾斜杠同 /api/prefs', async () => {
   const { env, authKv } = setup();
-  const ck = await sess('owner');
+  const ck = await sess('admin');
   assert.equal((await call(new Request('https://styrigx.com/api/avatarx', { headers: { Cookie: ck } }), env)).status, 404);
   assert.equal((await call(new Request('https://styrigx.com/api/avatar', { headers: { Cookie: ck } }), env)).status, 405);
   /* 没登账号 → 401 account（尾斜杠也进 prefs） */
@@ -159,15 +159,15 @@ test('主人：未知子路径 404、不支持的方法 405；/api/prefs/ 尾斜
   assert.equal(r.status, 401);
   assert.equal((await r.json()).error, 'account');
   /* 登了账号 → 200 */
-  const acc = await signAccountTicket(PRIV, 'passkey', 0, Date.now());
-  const ok = await call(new Request('https://styrigx.com/api/prefs', { headers: { Cookie: ck + '; sgx-account=' + acc } }), env);
+  const acc = await testAccountSession(PRIV, 'passkey', 0, Date.now());
+  const ok = await call(new Request('https://styrigx.com/api/prefs', { headers: { Cookie: ck + '; sgx-account-session=' + acc } }), env);
   assert.equal(ok.status, 200);
   assert.equal(ok.headers.get('Cache-Control'), 'no-store');
   assert.ok(authKv);
 });
 
 test('会话问网关：网关报错 / 没绑 AUTH / 回了看不懂的东西 → 当作无会话（fail closed）', async () => {
-  const ck = await sess('owner');
+  const ck = await sess('admin');
   const boom = { lockSession: async () => { throw new Error('down'); }, accountSession: async () => { throw new Error('down'); } };
   for (const AUTH of [boom, undefined, { lockSession: async () => ({ ok: true, role: 'root' }), accountSession: async () => ({ ok: 1 }) }]) {
     const { env } = setup({ AUTH });
@@ -182,7 +182,7 @@ test('伪造 / 过期的 cookie：网关验签不过 → 401', async () => {
   const { env } = setup();
   const other = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
   const otherPriv = derToPem(await crypto.subtle.exportKey('pkcs8', other.privateKey), 'PRIVATE KEY');
-  const forged = 'sgx-verified=' + (await signSessionCookie(otherPriv, 0, 'owner', 'owner'));
+  const forged = 'sgx-lock-session=' + (await testLockSession(otherPriv, 0, 'admin', 'password'));
   const r = await call(new Request('https://styrigx.com/api/wellbeing', { headers: { Cookie: forged } }), env);
   assert.equal(r.status, 401);
 });
@@ -237,20 +237,20 @@ test('头像只读 KV_PROFILE：认证库里有 avatar:* 也不读', () => {
   assert.equal(avatarKv({ KV_LOCK_DOOR: lockKv, KV_ACCOUNT_LOGIN: lockKv }), null);
 });
 
-test('网关 AuthVerifier.accountSession()：同 verifyAccountCookie；吊销 → revoked；设备记录带浏览器 User-Agent', async () => {
+test('网关 AuthVerifier.accountSession()：同 verifyAccountSession；吊销 → revoked；设备记录带浏览器 User-Agent', async () => {
   const kv = makeKv();
   const gwEnv = { SGX_ACCOUNT_PUBLIC: PUB, KV_ACCOUNT_LOGIN: kv };
   const sid = 'BBBBBBBBBBBBBBBB';
-  const t = await signAccountTicket(PRIV, 'passkey', 0, Date.now(), undefined, sid);
+  const t = await testAccountSession(PRIV, 'passkey', 0, Date.now(), undefined, sid);
   const ua = 'Mozilla/5.0 (Linux; Android 16; SM-S9380) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/29.0 Chrome/136.0.0.0 Mobile Safari/537.36';
-  assert.deepEqual(await checkAccountSession('sgx-account=' + t, gwEnv, { ua, country: 'CN' }), { ok: true });
+  assert.deepEqual(await checkAccountSession('sgx-account-session=' + t, gwEnv, { ua, country: 'CN' }), { ok: true });
   const rec = [...kv.m.entries()].find(([k]) => k.includes(sid));
   assert.ok(rec, '设备记录补写了');
   const dev = JSON.parse(rec[1].value ?? rec[1]);
   assert.equal(dev.country, 'CN');
   assert.ok(dev.browser || dev.platform, '从 User-Agent 解析出了浏览器 / 系统');
   await kv.put('account-revoked:' + sid, '1');
-  assert.deepEqual(await checkAccountSession('sgx-account=' + t, gwEnv, {}), { ok: false, reason: 'revoked' });
+  assert.deepEqual(await checkAccountSession('sgx-account-session=' + t, gwEnv, {}), { ok: false, reason: 'revoked' });
   assert.deepEqual(await checkAccountSession('', gwEnv), { ok: false, reason: 'no-cookie' });
 });
 

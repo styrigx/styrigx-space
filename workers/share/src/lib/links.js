@@ -1,7 +1,7 @@
 /**
  * @fileoverview 分享短链的规则和存储（D1 styrigx-share，绑定 D1_SHARE_LINK；表结构见 migrations/0001_share_links.sql）。
  *
- * - 码：16 字节随机数 → 22 位 base64url（128 位），不可枚举。存 D1（站长在列表里复制要用），只经 /api/share 给站长看。
+ * - 码：16 字节随机数 → 22 位 base64url（128 位），不可枚举。存 D1（管理员在列表里复制要用），只经 /api/share 给管理员看。
  * - 有效期：1–24 小时任选，或 3 / 7 / 15 / 30 天（和网关临时钥匙同一张表；带会话的短链以网关签回的钥匙到期时间为准）。
  * - 会话时长：30 分钟、1 / 3 / 12 小时、1 / 3 / 7 天，且不超过有效期（网关 src/share-issuer.js 再验一次）。
  * - 目标（2026-10-24 起也收子站）：站内相对路径（/ 开头），或 https 绝对地址且主机正好是 styrigx.com / blog / daymark / curio 子站
@@ -181,7 +181,7 @@ export function statusOf(row, now) {
 }
 
 /**
- * 给站长看的一条（不含钥匙 id）。
+ * 给管理员看的一条（不含钥匙 id）。
  * sessionLeft：带会话的短链，最近一次点开发出去的访客会话最多还剩几秒（没人点开过 / 已过期 / 已作废 = 0）。
  * openFor：现在点开能看多久（秒）= min(会话时长, 短链剩余)；普通短链 0。
  * @param {any} row @param {number} now

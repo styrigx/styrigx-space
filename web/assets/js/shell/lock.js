@@ -3,7 +3,7 @@
  * 分层规范 L4：lock.js 只负责两件事——
  * 1. 按 L1（middleware 注入的 <html data-sgx-lock-session>）画锁屏，不自己判断会话；
  * 2. 把密码或通行密钥提交给 L2（functions/api/*）。
- * 唯一状态源是服务端签发的 sgx-verified 会话；禁止用 sessionStorage、
+ * 唯一状态源是服务端签发的 sgx-lock-session 会话；禁止用 sessionStorage、
  * localStorage、前端内存或标签页状态另做判断。
  * - 点头像（电脑回车/空格）→ 解锁方式弹层：访客进入（输入临时钥匙）/ 通行密钥 / 密码；
  *   通过 → 开锁动画 → 现有解锁流程；失败 → 红色提示。
@@ -12,13 +12,12 @@
  *   拖动条、标题字号位置、按钮样式一致）；弹层背景完全不透明；打开时底层
  *   名字与入口设 visibility:hidden + inert；容器无 outline，:focus-visible 只在
  *   内部可交互元素上用本站焦点色。
- * - 临时钥匙：主人在账号页签发（12 位，XXXX-XXXX-XXXX），访客在这里输入 → POST /api/lock-tempkey-unlock
- *   → 访客会话（没有账号、设置里的锁屏凭证等主人权限）。
+ * - 临时钥匙：admin 在账号页签发（12 位，XXXX-XXXX-XXXX），访客在这里输入 → POST /api/lock-tempkey-unlock
+ *   → 访客会话（没有账号、设置里的锁屏凭证等 admin 权限）。
  */
 import { on } from '../lib/events.js';
 import { reducedMotion } from '../lib/util.js';
 import { followKeyboard } from './vk.js';
-import { exchangeRootSession } from '../lib/root-session.js';
 import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
 import { tapFeedback } from '../lib/dialog-behavior.js';
 import { createMethodSheet, createVerifyDialog, METHOD_ICONS, keepInputFocus } from '../lib/auth-sheet.js';
@@ -50,7 +49,7 @@ function isLocalDev() {
    - 服务端回答 askServer()：GET /api/lock-session-check[?return=]：{ok, role, next, upgrade}。
      next 是服务端校验过的去处（与首页 302 同一个 resolveReturn）；前端不做白名单，只照着跳。
    - 解锁成功 / 切回标签页 / bfcache 恢复 / 首帧对账，都走同一个 proceed(answer)：
-       upgrade      → 去首页 ?return=（服务端给主人验证层，不出锁屏）
+       upgrade      → 去首页 ?return=（服务端给 admin 验证层，不出锁屏）
        next 是别处  → location.replace(next)（子站或站内原页面）
        没有 next    → 页面是 locked（锁屏态被瘦身过）就换到干净地址重新取一次（服务端画 valid），
                       valid / unknown 就原地开锁并把地址里的 lock/why/return 去掉
@@ -177,7 +176,7 @@ function reloadGuardOk(url) {
 function proceed(ans, unlockInPlace) {
   const why = qp('why');
   if (ans.upgrade && ans.next) {
-    /* 访客 + 主人专属去处：首页 ?return= 由服务端给主人验证层（不出锁屏） */
+    /* 访客 + admin 专属去处：首页 ?return= 由服务端给 admin 验证层（不出锁屏） */
     const home = document.documentElement.lang === 'en' ? '/en/' : '/';
     sgxReplace(home + '?return=' + encodeURIComponent(ans.next));
     return 'navigate';
@@ -254,11 +253,11 @@ export function initLock() {
   try {
     window.dispatchEvent(new CustomEvent('sgx:session', { detail: { ok: state === 'valid' } }));
   } catch (e) {}
-  if (state === 'lock-reset') return; /* 重置锁屏门票页：落地页需可操作 */
+  if (state === 'lock-reset') return; /* LockResetTicket页：落地页需可操作 */
   if (state === 'valid') {
     bindAutoLock();
     /* 子站踢回（带 why）但主站会话有效：问服务端 next，回子站（20 秒窗口防死循环）。
-       主人验证页（data-sgx-upgrade）带 return 但不能跳走。 */
+       admin 验证页（data-sgx-upgrade）带 return 但不能跳走。 */
     if (qp('why') && qp('return') && document.documentElement.getAttribute('data-sgx-upgrade') !== '1') {
       askServer().then(function (ans) {
         if (ans.ok) proceed(ans, function () {});
@@ -815,10 +814,11 @@ function showLockScreen() {
   /* ---------- 重置登录（PR3：方法弹层里的「无法登录？」原地切到 lib/reset-flow.js） ----------
      与账号页 /account/reset/ 同一个界面，提交不同：
      - 锁屏凭证已设置（或读不到配置，按已设置处理）：根凭证 → POST /api/lock-reset verify；
-       恢复开关有效直接拿到重置锁屏门票；否则服务端回 needAccount → 再验账号凭证（账号通行密钥 / 账号密码，
-       与账号登录同一套验证行）→ 门票 → 去 /settings/security/lock/ 重设解锁方式。
-     - 锁屏凭证都没设置（启动站）：根凭证 → POST /api/root-auth（锁屏门票 by=root）→ /api/root-session 换会话
-       （原「根凭证」那一行；根凭证不再是单独的解锁入口）。
+       恢复开关有效直接拿到重置锁屏票（sgx-lock-reset）；否则服务端回 needAccount → 再验账号凭证（账号通行密钥 / 账号密码，
+       与账号登录同一套验证行）→ 重置锁屏票 → 去 /settings/security/lock/ 重设解锁方式。
+     - 锁屏凭证都没设置（启动站）：视为从零重置——根凭证 → POST /api/root-auth { purpose:'lock-reset' }
+       （重置锁屏票 by=root）→ 同样去 /settings/security/lock/ 设第一把锁屏凭证，再正常解锁进站。
+       根凭证不拥有会话，也不是单独的解锁入口。
      根凭证只存在 reset-flow 的闭包里。 */
   /**
    * @param {HTMLElement} cardEl 方法弹层卡片
@@ -863,12 +863,8 @@ function showLockScreen() {
       en: en,
       submitRoot: function (key) {
         if (bootstrap) {
-          return post('/api/root-auth', { key: key }).then(function (res) {
-            if (res.j && res.j.ok) {
-              return exchangeRootSession().then(function (r2) {
-                if (!r2.ok) throw { message: en ? 'Server error' : '服务器错误' };
-              });
-            }
+          return post('/api/root-auth', { key: key, purpose: 'lock-reset' }).then(function (res) {
+            if (res.j && res.j.ok) return {};
             if (res.s === 429) throw tooMany;
             if (res.s === 503 || res.s === 500) throw { message: en ? 'Server error' : '服务器错误' };
             throw { message: en ? 'Wrong root credential' : '根凭证错误', clear: true };
@@ -934,15 +930,7 @@ function showLockScreen() {
       onDone: function () {
         if (kbStop) { try { kbStop(); } catch (e) {} kbStop = null; }
         closeMethodSheet(true);
-        if (bootstrap) {
-          /* 带 return：同样问服务端去哪（与其他解锁方式同一条路）；否则去安全与隐私 */
-          if (qp('return')) {
-            done = false;
-            unlock();
-          } else sgxNavigate(en ? '/en/settings/security/' : '/settings/security/');
-          return;
-        }
-        /* 跳转到锁屏凭证管理页（重置锁屏门票可开此页，仍进不了主页） */
+        /* 跳转到锁屏凭证管理页（重置锁屏票可开此页，仍进不了主页；启动站同样在这里设第一把锁屏凭证） */
         sgxNavigate(en ? '/en/settings/security/lock/' : '/settings/security/lock/');
       },
     });

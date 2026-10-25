@@ -4,10 +4,10 @@
  * 短链本身（码、目标地址、列表、限速、D1 存储）在分享短链 Worker styrigx-share（workers/share）。
  * 它不持任何钥匙、不碰认证库；临时钥匙和访客会话只在这里、只用网关原来那一份代码：
  * - createLinkKey(cookie, p)：签一把「短链钥匙」（_kernel/lock-tempkey.js createTempkey，link=true：没有临时码、锁屏上输不进来、
- *   不占 20 把上限、不出现在临时钥匙列表里）。网关自己再验一次：必须是站长锁屏会话 + 账号会话（cookie 是浏览器带来的原样 Cookie 头）。
+ *   不占 20 把上限、不出现在临时钥匙列表里）。网关自己再验一次：必须是 admin 锁屏会话 + 账号会话（cookie 是浏览器带来的原样 Cookie 头）。
  * - revokeLinkKey(cookie, id)：作废这把钥匙（revokeTempkey：写作废标记）→ 拿它进来的访客下一个请求就进不来
- *   （middleware「visitor 必须带有效钥匙票且钥匙没被作废」原样生效）。同样要站长 + 账号会话；只认 link 钥匙。
- * - openLinkSession(id, sessionSec)：访客点开带会话的短链 → 签 visitor 会话（sgx-verified，by=owner，lock 私钥）+ 钥匙票 sgx-tk，
+ *   （验访客会话时查 tempkeyId 是否被作废，原样生效）。同样要 admin + 账号会话；只认 link 钥匙。
+ * - openLinkSession(id, sessionSec)：访客点开带会话的短链 → 签 visitor 锁屏会话（sgx-lock-session：by=tempkey，tempkeyId=钥匙 id，lock 私钥），
  *   和锁屏输临时码进门（api/lock-tempkey-unlock.js）完全同一套；Max-Age = min(会话时长, 钥匙剩余时间)。
  *   只回 Set-Cookie 头的值（由 styrigx-share 原样放进这次 302），不回任何钥匙或签名材料。
  *   钥匙不存在 / 不是 link 钥匙 / 已作废 / 已过期 / 时长不在档位里 → { ok:false }，绝不签发。
@@ -15,9 +15,10 @@
  * 公网进不来：RPC 入口没有路由，wrangler 只把 default 挂到 styrigx.com/*。
  */
 import { checkLockSession, checkAccountSession } from './verifier.js';
-import { ROLE_OWNER, ROLE_VISITOR, issueSessionCookie } from '../functions/_kernel/lock-session.js';
+import { ROLE_ADMIN, ROLE_VISITOR, issueLockSession } from '../functions/_kernel/lock-session.js';
+import { BY_TEMPKEY } from '../functions/_kernel/realms.js';
 import {
-  createTempkey, revokeTempkey, isTempkeyRevoked, signTk, setTkCookie, durationMs, cleanName, isTempkeyId, TEMPKEY_PREFIX,
+  createTempkey, revokeTempkey, isTempkeyRevoked, durationMs, cleanName, isTempkeyId, TEMPKEY_PREFIX,
 } from '../functions/_kernel/lock-tempkey.js';
 import { getPepper } from '../functions/_kernel/password.js';
 
@@ -25,14 +26,14 @@ import { getPepper } from '../functions/_kernel/password.js';
 export const LINK_SESSION_OPTS = Object.freeze([1800, 3600, 3 * 3600, 12 * 3600, 86400, 3 * 86400, 7 * 86400]);
 
 /**
- * 站长 + 账号会话，否则返回错误码。
+ * admin 锁屏会话 + 账号会话，否则返回错误码。
  * @param {string} cookie
  * @param {Record<string, any>} env
  * @param {any} [meta]
  */
 async function adminError(cookie, env, meta) {
   const s = await checkLockSession(cookie, env);
-  if (!s.ok || s.role !== ROLE_OWNER) return 'session';
+  if (!s.ok || s.role !== ROLE_ADMIN) return 'session';
   const a = await checkAccountSession(cookie, env, meta);
   if (!a.ok) return 'account';
   return '';
@@ -104,11 +105,9 @@ export async function openLinkSession(id, sessionSec, env) {
     const left = Math.floor((v.expiresAt - Date.now()) / 1000);
     if (left < 1) return { ok: false };
     const maxAge = Math.max(1, Math.min(sessionSec, left));
-    const tk = await signTk(env, id, Date.now() + maxAge * 1000);
     const headers = new Headers();
-    const e = await issueSessionCookie(env, headers, ROLE_VISITOR, 'owner', maxAge);
+    const e = await issueLockSession(env, headers, { by: BY_TEMPKEY, role: ROLE_VISITOR, maxAge: maxAge, tempkeyId: id });
     if (e) return { ok: false };
-    setTkCookie(headers, tk, maxAge);
     return { ok: true, cookies: headers.getSetCookie(), maxAge: maxAge };
   } catch (e) {
     return { ok: false };

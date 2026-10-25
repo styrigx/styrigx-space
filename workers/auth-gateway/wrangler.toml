@@ -80,7 +80,7 @@ service = "styrigx-search-index"
 binding = "STATUS"
 service = "styrigx-status"
 
-# 聊天 styrigx-chat（workers/chat，2026-10-22 从网关拆出来；没有公开地址，只能从这里进）。/api/chat 验完门（同源 + 会话 + 只许站长）转给它，
+# 聊天 styrigx-chat（workers/chat，2026-10-22 从网关拆出来；没有公开地址，只能从这里进）。/api/chat 验完门（同源 + 会话 + 只许管理员）转给它，
 # 回答原样流回去。聊天钥匙 SGX_CHAT_API_KEY 只绑在它那边，网关不绑：钥匙没建好不影响网关部署。
 # 部署顺序：deploy.yml 里 deploy-chat-worker 先于本 Worker。
 [[services]]

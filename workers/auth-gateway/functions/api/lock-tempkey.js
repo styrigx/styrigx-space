@@ -1,21 +1,21 @@
 /**
  * 临时 LockKey 管理（账号页「临时钥匙」）。说明见 _kernel/lock-tempkey.js。
  *
- * POST /api/lock-tempkey { action, ... }（只接受同源；需站长锁屏会话 + 有效账号会话，和账号页设备管理同一道门槛）
+ * POST /api/lock-tempkey { action, ... }（只接受同源；需管理员锁屏会话 + 有效账号会话，和账号页设备管理同一道门槛）
  * - list → { keys: [{ id, name, createdAt, expiresAt }] }（只列还有效的，新到旧）
  * - create { name?, hours? | days? } → { key, code }
  *     有效期：hours 1–24 的整数，或 days 3 / 7 / 15 / 30（二选一）；名字可空，最多 24 字
  *     code 是 XXXX-XXXX-XXXX，只在这次返回，服务端只存哈希
  *     同时有效的钥匙最多 20 把（409 full）
  * - revoke { id } → 作废（拿这把钥匙进来的访客下一个请求就进不来）
- * 访客调用：middleware 已按站长专属接口 403；这里再验一次站长会话。
+ * 访客调用：middleware 已按管理员专属接口 403；这里再验一次admin 会话。
  */
-import { ROLE_OWNER } from '../_kernel/lock-session.js';
-import { verifyAccountCookie } from '../_kernel/account-session.js';
+import { ROLE_ADMIN } from '../_kernel/lock-session.js';
+import { verifyAccountSession } from '../_kernel/account-session.js';
 import { getPepper } from '../_kernel/password.js';
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
 import { listTempkeys, createTempkey, revokeTempkey, durationMs, cleanName, isTempkeyId } from '../_kernel/lock-tempkey.js';
-import { verifySessionDetailed } from '../_middleware.js';
+import { verifyLockSession } from '../_kernel/lock-session.js';
 
 /** @param {object} body @param {number} [status] */
 function json(body, status) {
@@ -41,9 +41,9 @@ async function handle(context) {
   const { request, env } = context;
   const kv = env && env.KV_LOCK_DOOR;
   if (!isSameOrigin(request)) return originDenied();
-  const sess = await verifySessionDetailed(request, env);
-  if (!sess.ok || sess.role !== ROLE_OWNER) return json({ ok: false, error: 'session' }, 401);
-  const acc = await verifyAccountCookie(request, env);
+  const sess = await verifyLockSession(request, env);
+  if (!sess.ok || sess.role !== ROLE_ADMIN) return json({ ok: false, error: 'session' }, 401);
+  const acc = await verifyAccountSession(request, env);
   if (!acc.ok) return json({ ok: false, error: 'account', reason: acc.reason }, 401);
   if (!kv) return json({ ok: false, error: 'config' }, 500);
 

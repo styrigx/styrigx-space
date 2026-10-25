@@ -4,7 +4,7 @@
  * - 发送（示例 / 输入框 + 按钮 / 桌面 Enter）→ 请求体 { messages:[{role,text}] }、同源带 cookie；回答流式渲染（安全 Markdown）、来源 chip（域名 + 标题，新标签页）。
  * - 流式中：输入框禁用、发送键变「停止」；点停止 → 保留已收到的部分 +「已停止」。
  * - 对话只在 sessionStorage：刷新还在；「新对话」清空。
- * - 错误：403 owner_only（及访客 data-sgx-role="visitor"）→「聊天仅主人可用」卡；429 / SSE rate_limited →「今天的免费额度用完了，明天再来」；
+ * - 错误：403 admin_only（及访客 data-sgx-role="visitor"）→「聊天仅管理员可用」卡；429 / SSE rate_limited →「今天的免费额度用完了，明天再来」；
  *   503 no_key →「聊天还没配置」；502 upstream → 重试按钮（点了重新问）；401 →「会话已过期」+ 重新解锁。
  * - XSS：模型输出里的 <img onerror>、<script>、javascript: 链接都不会变成元素 / 链接。
  * - 手机 412×915：输入栏在底部、不压顶栏、不横向溢出；滚到底最后一条不被输入栏挡住。
@@ -210,21 +210,21 @@ test.describe('聊天页（手机 412×915）', () => {
     await expect(page.locator('.chat-err')).toHaveCount(0);
   });
 
-  test('403 owner_only →「聊天仅主人可用」卡，输入关掉', async ({ page }) => {
-    await go(page, '/chat/', { api: () => ({ status: 403, json: { ok: false, error: 'owner_only' } }) });
+  test('403 admin_only →「聊天仅管理员可用」卡，输入关掉', async ({ page }) => {
+    await go(page, '/chat/', { api: () => ({ status: 403, json: { ok: false, error: 'admin_only' } }) });
     await page.locator('#chat-input').fill('hi');
     await page.locator('#chat-send').click();
     await expect(page.locator('#chat-gate')).toBeVisible();
-    await expect(page.locator('#chat-gate .st-msg-title')).toHaveText('聊天仅主人可用');
+    await expect(page.locator('#chat-gate .st-msg-title')).toHaveText('聊天仅管理员可用');
     await expect(page.locator('#chat-gate [data-c="btn"]')).toBeHidden();
     await expect(page.locator('#chat-input')).toBeDisabled();
     await expect(page.locator('#chat-send')).toBeDisabled();
     await expect(page.locator('#chat-list')).toBeHidden();
   });
 
-  test('访客（data-sgx-role="visitor"）：一进来就是「聊天仅主人可用」，不发请求', async ({ page }) => {
+  test('访客（data-sgx-role="visitor"）：一进来就是「聊天仅管理员可用」，不发请求', async ({ page }) => {
     const calls = await go(page, '/chat/', { visitor: true });
-    await expect(page.locator('#chat-gate .st-msg-title')).toHaveText('聊天仅主人可用');
+    await expect(page.locator('#chat-gate .st-msg-title')).toHaveText('聊天仅管理员可用');
     await expect(page.locator('#chat-empty')).toBeHidden();
     await expect(page.locator('#chat-input')).toBeDisabled();
     expect(calls.length).toBe(0);

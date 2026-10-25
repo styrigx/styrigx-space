@@ -1,14 +1,14 @@
 /**
- * 2.11 定稿测试：根凭证 / 站长凭证鉴权拆分。
+ * 2.11 定稿测试：根凭证 / 管理员凭证鉴权拆分。
  *
  * 九组（定稿第十节）：
  * 1. 越权：scope 不匹配 403；lock passkey 开 stepup 被拒；已配置层拒 by=root
- * 2. 无 lock 会话：单用站长凭证进入口 2、单用根凭证进入口 1 均被拒
- * 3. 重置锁屏：只站长或只根（开关关闭）被拒；两者都过拿到 lockreset；
+ * 2. 无 lock 会话：单用管理员凭证进入口 2、单用根凭证进入口 1 均被拒
+ * 3. 重置锁屏：只管理员或只根（开关关闭）被拒；两者都过拿到 lockreset；
  *    lockreset 访问主页面/APP/会话/入口1/2 均 403 且不产生 sgx-verified；
  *    完成后旧会话失效；owner 未配置时被拒
  * 4. 开关：缺失/过期/超 24 小时/格式错误时单根被拒；有效时单根拿到 lockreset；
- *    有效时单站长仍被拒
+ *    有效时单管理员仍被拒
  * 5. 假入口：访客提交正确 SGX_ROOT_KEY 返回 401 auth，与错误密钥响应逐字节相同
  * 6. 接管：未配时根可代管；配置后失效；接管后旧 root 票/会话被拒；
  *    KV 读失败时根代管被拒
@@ -18,6 +18,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { testLockSession, testAccountSession } from './_tickets.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 
@@ -91,7 +92,7 @@ test('2.11 无 lock 会话：单用根凭证进入口 1 被拒（无会话且 lo
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKv({ 'layer:lock': '1' });
   const env = baseEnv(kv);
-  const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345' });
+  const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345', purpose: 'lock-reauth' });
   const res = await onRequestPost({ request: req, env });
   /* 无会话 + lock 已配置 → 假入口，即使密钥正确也 401 auth */
   assert.equal(res.status, 401);
@@ -100,7 +101,7 @@ test('2.11 无 lock 会话：单用根凭证进入口 1 被拒（无会话且 lo
 
 /* ============ 3. 重置锁屏 ============ */
 
-test('2.11 重置锁屏：开关关闭时只根凭证 → 返回 needAccount（需站长凭证）', async () => {
+test('2.11 重置锁屏：开关关闭时只根凭证 → 返回 needAccount（需管理员凭证）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
   const env = baseEnv(kv); /* 无开关 → 关闭 */
@@ -113,7 +114,7 @@ test('2.11 重置锁屏：开关关闭时只根凭证 → 返回 needAccount（�
   assert.equal((await res.json()).needAccount, true);
 });
 
-test('2.11 重置锁屏：开关关闭时只站长凭证被拒（缺根凭证 → 401）', async () => {
+test('2.11 重置锁屏：开关关闭时只管理员凭证被拒（缺根凭证 → 401）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
   const { makePasswordRecord } = await import(REPO + '/workers/auth-gateway/functions/_kernel/password.js');
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
@@ -136,14 +137,14 @@ test('2.11 重置锁屏：owner 未配置且开关关闭 → status 始终可用
   const st = postReq('https://test.example.com/api/lock-reset', { action: 'status' });
   const stRes = await onRequestPost({ request: st, env });
   const stBody = await stRes.json();
-  /* status 不再按站长凭证配置返回 available，始终允许进入第一步 */
+  /* status 不再按管理员凭证配置返回 available，始终允许进入第一步 */
   assert.equal(stBody.available, true);
   assert.ok(!('skippable' in stBody), 'status 不再返回 skippable');
   const req = postReq('https://test.example.com/api/lock-reset', {
     action: 'verify', rootKey: 'test-root-key-12345',
   });
   const res = await onRequestPost({ request: req, env });
-  /* 审查意见：站长凭证未配置不再返回 403 not-set，改为通用 401 auth */
+  /* 审查意见：管理员凭证未配置不再返回 403 not-set，改为通用 401 auth */
   assert.equal(res.status, 401);
   const body = await res.json();
   assert.equal(body.error, 'auth');
@@ -323,7 +324,7 @@ test('2.11 开关：根凭证错误时不读开关 KV', async () => {
   assert.equal(switchRead, false, '根凭证错误时不应读开关 KV');
 });
 
-test('2.11 开关：有效时单站长凭证仍被拒（根凭证优先，不可跳过）', async () => {
+test('2.11 开关：有效时单管理员凭证仍被拒（根凭证优先，不可跳过）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
   const { makePasswordRecord } = await import(REPO + '/workers/auth-gateway/functions/_kernel/password.js');
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
@@ -349,10 +350,10 @@ test('2.11 假入口：访客提交正确根凭证 → 401 auth，与错误密�
   const env1 = baseEnv(kv1);
   const env2 = baseEnv(kv2);
   /* 正确密钥 */
-  const req1 = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345' });
+  const req1 = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345', purpose: 'lock-reauth' });
   const res1 = await onRequestPost({ request: req1, env: env1 });
   /* 错误密钥 */
-  const req2 = postReq('https://test.example.com/api/root-auth', { key: 'wrong-key' });
+  const req2 = postReq('https://test.example.com/api/root-auth', { key: 'wrong-key', purpose: 'lock-reauth' });
   const res2 = await onRequestPost({ request: req2, env: env2 });
   assert.equal(res1.status, 401);
   assert.equal(res2.status, 401);
@@ -410,30 +411,28 @@ test('2.11 接管：KV 读取失败按已配置处理（root 被拒）', async (
 test('2.11 pepper：账号密码 = 锁屏密码被拒（双向；账号侧走 /api/account）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/account.js');
   const { makePasswordRecord } = await import(REPO + '/workers/auth-gateway/functions/_kernel/password.js');
-  const { signAccountTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/account-session.js');
-  const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1', 'session-epoch': '0' });
   /* 先设锁屏密码 */
   const lockRec = await makePasswordRecord('same-pass-12345', 'test-pepper');
   await kv.put('lock-pw', JSON.stringify(lockRec));
   const env = baseEnv(kv);
-  const acc = await signAccountTicket(TEST_PRIV_PEM, 'root', 0, Date.now());
-  const { signDoorTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/tickets.js');
-  const door = await signDoorTicket(TEST_PRIV_PEM, 'account', 'root', 0); /* 改账号密码要账号门票 */
-  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
-  const headers = { 'Cookie': 'sgx-verified=' + sessCv + '; sgx-account=' + acc + '; sgx-door=' + door };
+  const acc = await testAccountSession(TEST_PRIV_PEM, 'password', 0, Date.now());
+  const { signAccountReauthTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/tickets.js');
+  const reauth = await signAccountReauthTicket(TEST_PRIV_PEM, 'password', 0); /* 改账号密码要 AccountReauthTicket */
+  const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
+  const headers = { 'Cookie': 'sgx-lock-session=' + sessCv + '; sgx-account-session=' + acc + '; sgx-account-reauth=' + reauth };
   /* 设账号密码 = 锁屏密码 → 403 same-as-lock */
   const req = postReq('https://test.example.com/api/account',
     { action: 'password-change', password: 'same-pass-12345' }, headers);
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 403);
   assert.equal((await res.json()).error, 'same-as-lock');
-  /* 锁屏密码接口只管锁屏：拿账号门票去设密码 → 403 door（账号门票不是锁屏门票，账号密码不经这里） */
+  /* 锁屏密码接口只管锁屏：拿 AccountReauthTicket 去设密码 → 403 reauth（它不是 LockReauthTicket，账号密码不经这里） */
   const { onRequestPost: pwPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-password.js');
   const res2 = await pwPost({ request: postReq('https://test.example.com/api/lock-password',
     { action: 'set', password: 'another-pass-123' }, headers), env });
   assert.equal(res2.status, 403);
-  assert.equal((await res2.json()).error, 'door');
+  assert.equal((await res2.json()).error, 'reauth');
 });
 
 /* ============ 8. root-auth ============ */
@@ -442,7 +441,7 @@ test('2.11 root-auth：错误密钥 401 auth（引导模式）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKv(); /* lock 未配置 → 引导模式 */
   const env = baseEnv(kv);
-  const req = postReq('https://test.example.com/api/root-auth', { key: 'wrong-key' });
+  const req = postReq('https://test.example.com/api/root-auth', { key: 'wrong-key', purpose: 'lock-reauth' });
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 401);
   assert.deepEqual(await res.json(), { ok: false, error: 'auth' });
@@ -485,14 +484,14 @@ test('2.11 限速：根凭证各路径共用计数（root-auth 失败计入 lock
 
 test('2.11 补充二：管理页（layer-status，有效会话）触发开关计时', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/layer-status.js');
-  const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
   const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1', 'session-epoch': '0' });
   const db = makeD1();
   kv._store.set(LOCK_RESET_SWITCH_KEY, 'timer-secret-1');
   const env = baseEnv(kv, { D1_LOCK_RESET: db });
-  const sessCv = await signSessionCookie(TEST_PRIV_PEM, 0, 'owner', 'owner');
+  const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
   const req = new Request('https://test.example.com/api/layer-status', {
-    headers: { 'Cookie': 'sgx-verified=' + sessCv },
+    headers: { 'Cookie': 'sgx-lock-session=' + sessCv },
   });
   const res = await onRequestGet({ request: req, env });
   assert.equal(res.status, 200);
@@ -571,7 +570,7 @@ test('2.11 补充四：访客假入口（root-auth）响应不含 recovery-switc
   const db = makeD1();
   const env = baseEnv(kv, { D1_LOCK_RESET: db });
   /* 访客无会话，提交错误密钥 → 假入口 401 */
-  const req = postReq('https://test.example.com/api/root-auth', { key: 'wrong-key' });
+  const req = postReq('https://test.example.com/api/root-auth', { key: 'wrong-key', purpose: 'lock-reauth' });
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 401);
   const text = await res.text();
@@ -584,9 +583,9 @@ test('2.11 补充四：C2 重置第二步恢复提示（lock.js，无键名）',
   /* C2：底部恢复提示改成新文案，不出现 recovery-switch 键名 */
   assert.ok(!src.includes('recovery-switch'), 'lock.js 不应再出现 recovery-switch 键名');
   assert.ok(!src.includes('sgx-reset-switch-hint'), '旧提示元素已删除');
-  /* PR3：重置界面在 lib/reset-flow.js（锁屏与账号页共用），「站长」统一改「账号」；恢复提示只在第二步 */
+  /* PR3：重置界面在 lib/reset-flow.js（锁屏与账号页共用），「管理员」统一改「账号」；恢复提示只在第二步 */
   const rf = fs.readFileSync(REPO + 'web/assets/js/lib/reset-flow.js', 'utf8');
-  assert.ok(!src.includes('站长') && !rf.includes('站长'), '不再出现「站长」字样');
+  assert.ok(!src.includes('管理员') && !rf.includes('管理员'), '不再出现「管理员」字样');
   assert.ok(!rf.includes('recovery-switch'), 'reset-flow.js 不应出现开关键名');
   assert.ok(rf.includes('账号凭证也无法使用？'), '恢复提示用「账号」');
   const step2Idx = rf.indexOf('function step2');

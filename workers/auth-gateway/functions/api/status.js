@@ -1,14 +1,14 @@
 /**
  * @fileoverview /api/status：站点监测数据（2026-10-22），给主站监测页和首页长条模块用。
  *
- * 网关只做门：验锁屏会话（owner / visitor 都能看；没会话 401），再通过服务绑定 STATUS 转给 styrigx-status Worker。
+ * 网关只做门：验锁屏会话（admin / visitor 都能看；没会话 401），再通过服务绑定 STATUS 转给 styrigx-status Worker。
  * styrigx-status 没有公开地址，只能从这里进。
  *
  *   GET /api/status
  *   → 200 { ok, now, today, all_up, sites: [...], incidents: [...] }（字段见 workers/status/src/monitor.js summary）
  *   401 没会话 · 503 监测服务不可用（没绑定 / 出错）
  */
-import { verifySessionDetailed } from '../_middleware.js';
+import { verifyLockSession } from '../_kernel/lock-session.js';
 
 const NO_STORE = 'private, no-store';
 
@@ -22,7 +22,7 @@ function json(status, body) {
 
 /** @param {{request: Request, env: any}} ctx */
 export async function onRequestGet({ request, env }) {
-  const sess = await verifySessionDetailed(request, env);
+  const sess = await verifyLockSession(request, env);
   if (!sess.ok) return json(401, { ok: false, error: 'unauthorized' });
   const svc = env && env.STATUS;
   if (!svc || typeof svc.fetch !== 'function') return json(503, { ok: false, error: 'upstream' });

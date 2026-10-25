@@ -39,7 +39,7 @@ const ERR_KEYS = {
   'same-as-lock': 'errSameAsLock',
   'not-found': 'errNotFound',
   session: 'sessExp',
-  door: 'doorExpired',
+  reauth: 'reauthExpired',
   current: 'devCurrent',
 };
 

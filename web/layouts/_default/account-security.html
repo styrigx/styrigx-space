@@ -2,7 +2,7 @@
    管理账号凭证（AccountKey）：账号密码（设置/修改；根凭证登录时为「重置」）和账号通行密钥
    （添加 → 命名弹层、列表内点名字重命名、删除）。与锁屏页同一套弹层行为（A1 遮罩不关 / A2 返回先收键盘 / A3 × 关闭，弹层随键盘上移）。
    这是安全操作：每次进页都要先过门 —— 账号通行密钥 / 账号密码（设了哪个显示哪个）；根凭证不再是验证入口，
-   丢了账号凭证点「无法登录？」走重置登录（根凭证直接签门票回到本页）。通过后签 3 分钟账号门票，页内显示倒计时；离开本页门票立即作废，再进重新验证。
+   丢了账号凭证点「无法登录？」走重置登录（根凭证直接签reauth 票回到本页）。通过后签 3 分钟AccountReauthTicket，页内显示倒计时；离开本页reauth 票立即作废，再进重新验证。
    未登录账号 → 跳 /account/?return=<本页>。
    返回上一级 = 账号总览（shell/navhistory.js parentOf）。noindex（见 baseof）。
    脚本走 ES Module 入口 entry-account-security.js。 */}}
@@ -13,12 +13,12 @@
 <div class="acct-layout pb-28">
 
   <!-- 门：每次进页验一次账号凭证（JS 渲染验证行，设了哪个显示哪个；下面「无法登录？」进重置登录） -->
-  <div id="acct-door" hidden>
+  <div id="acct-reauth" hidden>
     <h2 class="acct-gh"><span class="acct-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Verify it's you{{ else }}验证身份{{ end }}</span></h2>
     <p class="acct-note mb-3">{{ if $isEn }}Changing account keys is a security action. Verify again to continue; it lasts 3 minutes and ends as soon as you leave this page.{{ else }}修改账号凭证属于安全操作，请再验证一次。验证有效 3 分钟，离开本页立即失效。{{ end }}</p>
-    <p class="sgx-credential-err mb-3" id="acct-door-notice" hidden></p>
-    <div class="sgx-credential-methods animate-fade-up" id="acct-door-methods" style="animation-delay:.1s"></div>
-    <a class="acct-cant" id="acct-door-cant" href="{{ cond $isEn "/en/account/reset/" "/account/reset/" }}">{{ if $isEn }}Can’t sign in?{{ else }}无法登录？{{ end }}</a>
+    <p class="sgx-credential-err mb-3" id="acct-reauth-notice" hidden></p>
+    <div class="sgx-credential-methods animate-fade-up" id="acct-reauth-methods" style="animation-delay:.1s"></div>
+    <a class="acct-cant" id="acct-reauth-cant" href="{{ cond $isEn "/en/account/reset/" "/account/reset/" }}">{{ if $isEn }}Can’t sign in?{{ else }}无法登录？{{ end }}</a>
   </div>
 
   <!-- 门内：验证通过后才渲染（顶部倒计时胶囊由 JS 插入） -->

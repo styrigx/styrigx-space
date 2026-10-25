@@ -5,7 +5,7 @@
  *   加自定义主题色 sgx-accent 和天气城市；不同步语言（跟随各设备系统）、布局（每台屏幕不同）、
  *   精确定位、锁屏 / 凭证类（本来就不在 localStorage）。
  * - 每项记一个本机修改时间（localStorage sgx-sync-meta），和云端（/api/prefs）逐项比，新的赢。
- * - 时机（2026-10-24 拉取节流）：只限站长；没登录账号 401 → 记下来，之后不再请求，直到账号页重新登录。
+ * - 时机（2026-10-24 拉取节流）：只限管理员；没登录账号 401 → 记下来，之后不再请求，直到账号页重新登录。
  *   - 普通拉取（每页加载 shell/core.js、页面回到前台）最多每 5 分钟一次：上次成功拉取 / 推送的时刻按账号记在
  *     localStorage sgx-sync-pull（{ <账号>: 毫秒 }），没过 5 分钟就不发 GET /api/prefs。
  *   - 强制拉取不受节流（force）：刚登录、打开总开关、进账号页 /account/ 和云同步页 /account/sync/。
@@ -112,12 +112,12 @@ function call(method, body) {
 }
 
 /**
- * 节流按哪个账号记。站点只有一个账号（站长账号，handle owner-user-id:owner），页面上也拿不到账号 id，
- * 所以目前就是 'owner'；登出 / 401 / 换账号登录都会清掉或强制刷新这个时刻。
+ * 节流按哪个账号记。站点只有一个账号（管理员账号，handle owner-user-id:owner），页面上也拿不到账号 id，
+ * 所以目前就是 'account'；登出 / 401 / 换账号登录都会清掉或强制刷新这个时刻。
  * @returns {string}
  */
 function accountScope() {
-  return 'owner';
+  return 'account';
 }
 
 /** @returns {number} 当前账号上次成功拉取 / 推送的时刻（没有 = 0） */
@@ -253,13 +253,13 @@ function pull() {
 
 /**
  * 主站每页调用一次（shell/core.js），页面回到前台再调；账号页 / 云同步页 / 登录 / 打开开关时 force。
- * 站长 + 开关开 + 没被标「没登录账号」才动；普通调用 5 分钟内拉过就不拉（'fresh'）。
+ * 管理员 + 开关开 + 没被标「没登录账号」才动；普通调用 5 分钟内拉过就不拉（'fresh'）。
  * @param {{force?: boolean}} [opts] force：忽略节流和 'out' 标记（刚登录 / 打开开关 / 进账号页、云同步页）
  * @returns {Promise<string>} 'off' | 'skip' | 'out' | 'fresh' | 'ok' | 'error'
  */
 export function initCloudSync(opts) {
   const force = !!(opts && opts.force);
-  if (document.documentElement.getAttribute('data-sgx-role') !== 'owner') return Promise.resolve('skip');
+  if (document.documentElement.getAttribute('data-sgx-role') !== 'admin') return Promise.resolve('skip');
   if (!syncEnabled()) return Promise.resolve('off');
   if (!force && sget(AUTH_KEY) === 'out') return Promise.resolve('out');
 

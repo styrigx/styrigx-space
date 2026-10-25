@@ -1,5 +1,5 @@
 {{/* 2.6.0：设置子页「wellbeing」分类组。
-   2026-10-23 PR-E：两张时间卡并成一张 —— 登录（站长会话）时显示所有设备（/api/wellbeing，wb-view.js 渲染，[data-wb-root]），
+   2026-10-23 PR-E：两张时间卡并成一张 —— 登录（admin 会话）时显示所有设备（/api/wellbeing，wb-view.js 渲染，[data-wb-root]），
    没登录时只显示本机记录（settings.js 从 sgx-well-v 画，同一组 data-wb 槽位）；15 分钟提醒只在这里。 */}}
 {{ $isEn := .isEn }}{{ $featMap := .featMap }}{{ $palettes := .palettes }}
 <div class="set-group scroll-mt-24" id="sg-wellbeing">

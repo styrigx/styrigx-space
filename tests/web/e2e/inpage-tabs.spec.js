@@ -26,18 +26,18 @@ function trackDocs(page) {
 
 /**
  * @param {import('@playwright/test').Page} page
- * @param {{lang?: string, owner?: boolean, prefs?: () => any}} [o]
+ * @param {{lang?: string, admin?: boolean, prefs?: () => any}} [o]
  */
 async function setup(page, o = {}) {
   await blockExternalRequests(page);
   await freezeTime(page);
   await page.addInitScript((l) => { try { localStorage.setItem('sgx-lang', l); } catch (e) {} }, o.lang || 'zh');
   await page.route('**/api/**', (r) => r.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false}' }));
-  if (o.owner) {
-    /* 网关给站长的页面在 <html> 上注入 data-sgx-lock-session="valid" data-sgx-role="owner"：三栏的 HTML（整页和后台取的）都改 */
+  if (o.admin) {
+    /* 网关给管理员的页面在 <html> 上注入 data-sgx-lock-session="valid" data-sgx-role="admin"：三栏的 HTML（整页和后台取的）都改 */
     await page.route((u) => /^\/(en\/)?(chat\/|settings\/)?$/.test(u.pathname), async (route) => {
       const res = await route.fetch();
-      const html = (await res.text()).replace(/<html(\s|>)/i, '<html data-sgx-lock-session="valid" data-sgx-role="owner"$1');
+      const html = (await res.text()).replace(/<html(\s|>)/i, '<html data-sgx-lock-session="valid" data-sgx-role="admin"$1');
       await route.fulfill({ response: res, body: html });
     });
   }
@@ -338,8 +338,8 @@ test('反复切换不泄漏：window / document 监听数不涨，计时器不�
   expect(b).toEqual(a);
 });
 
-test('云同步：站长页内切换不重复 GET /api/prefs（core 只初始化一次）', async ({ page }) => {
-  await setup(page, { owner: true });
+test('云同步：管理员页内切换不重复 GET /api/prefs（core 只初始化一次）', async ({ page }) => {
+  await setup(page, { admin: true });
   let gets = 0;
   await page.route('**/api/prefs', (r) => {
     if (r.request().method() === 'GET') gets++;
@@ -347,7 +347,7 @@ test('云同步：站长页内切换不重复 GET /api/prefs（core 只初始化
   });
   const docs = trackDocs(page);
   await page.goto('/');
-  await expect(page.locator('html')).toHaveAttribute('data-sgx-role', 'owner');
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-role', 'admin');
   await settle(page);
   await mark(page);
   docs.length = 0;
@@ -358,7 +358,7 @@ test('云同步：站长页内切换不重复 GET /api/prefs（core 只初始化
     }
   }
   await page.waitForTimeout(500);
-  expect(await sameDoc(page), '站长会话下也是页内切换').toBe(true);
+  expect(await sameDoc(page), 'admin 会话下也是页内切换').toBe(true);
   expect(docs).toEqual([]);
   expect(gets).toBe(1);
 });

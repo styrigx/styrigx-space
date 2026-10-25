@@ -1,7 +1,7 @@
 /**
  * 锁屏凭证的门 / 账号登录 E2E（预览站真实后端）。
  *
- * stepup 已删除：锁屏凭证页的门票由 /api/lock-reauth（状态 / 清票）+ 各凭证接口 door:true 签发；
+ * stepup 已删除：锁屏凭证页的reauth 票由 /api/lock-reauth（状态 / 清票）+ 各凭证接口 reauth:true 签发；
  * 账号通行密钥登录走 /api/account challenge + login-passkey。
  * 完整逻辑由 tests/workers/auth-gateway/lock-reauth.test.mjs、account.test.mjs 覆盖。
  *
@@ -20,7 +20,7 @@ const BASE = process.env.SGX_TEST_BASE || '';
 const OWNER_KEY = process.env.SGX_TEST_OWNER_KEY || '';
 const HAS_KEY = !!OWNER_KEY;
 
-test.describe('lock door / account challenge e2e', () => {
+test.describe('lock reauth / account challenge e2e', () => {
   test.skip(!HAS_KEY || !BASE, '需要 SGX_TEST_BASE 与 SGX_TEST_OWNER_KEY');
 
   /** @param {import('@playwright/test').Page} page */
@@ -43,13 +43,13 @@ test.describe('lock door / account challenge e2e', () => {
   }
 
   /**
-   * 拿 owner 会话 cookie：设测试密码 → verify → 从 Set-Cookie 提取。
+   * 拿 admin 锁屏会话 cookie：设测试密码 → verify → 从 Set-Cookie 提取。
    * @param {import('@playwright/test').Page} page
    * @param {any} request
    */
-  async function ownerSessionCookie(page, request) {
+  async function adminSessionCookie(page, request) {
     const token = await page.evaluate(() => sessionStorage.getItem('sgx-lockmgr-token'));
-    const pw = 'e2e-door-' + Date.now();
+    const pw = 'e2e-reauth-' + Date.now();
     let r = await request.post(BASE + '/api/lock-password', {
       data: { action: 'set', token, password: pw },
     });
@@ -64,13 +64,13 @@ test.describe('lock door / account challenge e2e', () => {
     });
     expect((await r.json()).ok).toBe(true);
     const sc = r.headers()['set-cookie'] || '';
-    const m = sc.match(/sgx-verified=([^;]+)/);
+    const m = sc.match(/sgx-lock-session=([^;]+)/);
     expect(m).toBeTruthy();
     /* 清理测试密码 */
     await request.post(BASE + '/api/lock-password', {
       data: { action: 'remove', token },
     });
-    return 'sgx-verified=' + m[1];
+    return 'sgx-lock-session=' + m[1];
   }
 
   test('无会话 lock-reauth status → 401', async ({ request }) => {
@@ -81,7 +81,7 @@ test.describe('lock door / account challenge e2e', () => {
   });
 
   test('锁屏 pk-challenge 不能用于账号登录 login-passkey', async ({ page, request }) => {
-    const cookie = await ownerSessionCookie(page, request);
+    const cookie = await adminSessionCookie(page, request);
     const headers = { Cookie: cookie };
     const chal = await (await request.post(BASE + '/api/lock-passkey', {
       data: { action: 'challenge', type: 'auth' },
@@ -99,7 +99,7 @@ test.describe('lock door / account challenge e2e', () => {
   });
 
   test('账号登录 challenge 单次使用，重放被拒', async ({ page, request }) => {
-    const cookie = await ownerSessionCookie(page, request);
+    const cookie = await adminSessionCookie(page, request);
     const headers = { Cookie: cookie };
     const chal = await (await request.post(BASE + '/api/account', {
       data: { action: 'login-challenge' },

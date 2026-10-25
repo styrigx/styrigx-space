@@ -6,7 +6,7 @@
  * - 认的：Access-Control-Allow-Origin = 这个 Origin、Allow-Credentials: true（要带 Domain=styrigx.com 的会话 cookie）；
  *   预检（OPTIONS）只放行 POST + Content-Type，204 + Max-Age 600。不认的 Origin：预检 403、正式请求不带任何 Allow 头（浏览器读不到响应）。
  * - 每个 /api/* 响应都带 Vary: Origin（同一地址按 Origin 回不同的头，缓存不能混用；接口本身也是 no-store）。
- * - CORS 只决定浏览器能不能读响应；会话 / 站长 / 账号 / CSRF 校验照旧（门 401 / 403，接口里跨源只许 create + reuse）。
+ * - CORS 只决定浏览器能不能读响应；会话 / 管理员 / 账号 / CSRF 校验照旧（门 401 / 403，接口里跨源只许 create + reuse）。
  */
 
 export const MAIN_ORIGIN = 'https://styrigx.com';

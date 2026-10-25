@@ -1,6 +1,6 @@
 # styrigx-share：分享短链 Worker（CI 部署；2026-10-24 新建，照账号 Worker styrigx-account 的拆法）
 #
-# https://styrigx.com/s/<码>（中英文同一条）+ 站长管理接口 /api/share。
+# https://styrigx.com/s/<码>（中英文同一条）+ 管理员管理接口 /api/share。
 # 代码：src/（入口 index.js、门 gate.js、会话 auth.js、打开 open.js、接口 api/、规则和存储 lib/）+ migrations/（D1 styrigx-share）。
 #
 # 安全：
@@ -49,7 +49,7 @@ entrypoint = "ShareIssuer"
 
 # ---- 数据绑定（正式）----
 # D1 styrigx-share：D1_SHARE_LINK = share_link + share_fail（migrations/0001_share_links.sql）。
-# database_id 由站长在 Cloudflare 建库后填（清单见 PR 说明）；占位没换掉时 deploy-share-worker 第一步就红，不会部署。
+# database_id 由管理员在 Cloudflare 建库后填（清单见 PR 说明）；占位没换掉时 deploy-share-worker 第一步就红，不会部署。
 [[d1_databases]]
 binding = "D1_SHARE_LINK"
 database_name = "styrigx-share"

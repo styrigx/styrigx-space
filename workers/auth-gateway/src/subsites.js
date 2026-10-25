@@ -2,17 +2,18 @@
  * @fileoverview 子站门禁：blog.styrigx.com、daymark.styrigx.com、curio.styrigx.com 的会话检查由网关统一做。
  *
  * 子站 Pages 不再持有任何公钥、不再带验票代码。网关在子站的页面路径上（路由见 wrangler.toml）：
- *   - 会话有效（owner 或 visitor，与主站同一套 verifySessionDetailed：验签 + exp + epoch）→ 回源取页面，
+ *   - 会话有效（admin 或 visitor，与主站同一套 verifyLockSession：验签 + exp + epoch）→ 回源取页面，
  *     HTML 加 private, no-store（防锁定后切回标签页看到缓存的旧页面）
  *   - 会话无效：页面 302 到主站锁屏（?lock=1&why=…&return=原地址），/api/* 回 401 JSON（fetch 不跟跳转）
  *   - /api/search：全站搜索，和主站同一个处理（functions/api/search.js）
  *   - /api/lock-session-check：子站前端切回标签页时问的，网关直接回答（blog 认 204，daymark、curio 认 200 {ok:true}）
  *   - 静态资源后缀（被页面路由顺带覆盖到的 js/css/字体/图片）直接回源，不验会话，与原子站白名单一致
  *
- * 子站不做角色区分：owner、visitor 都能看页面（与原子站 middleware 一致）；
- * 主人专属的操作（daymark 记句子、curio 改收藏 / 导入）由子站自己的接口 Worker 再问网关（服务绑定 AuthVerifier）。
+ * 子站不做角色区分：admin、visitor 都能看页面（与原子站 middleware 一致）；
+ * 管理员专属的操作（daymark 记句子、curio 改收藏 / 导入）由子站自己的接口 Worker 再问网关（服务绑定 AuthVerifier）。
  */
-import { verifySessionDetailed, stripSessionAttrs } from '../functions/_middleware.js';
+import { verifyLockSession } from '../functions/_kernel/lock-session.js';
+import { stripSessionAttrs } from '../functions/_middleware.js';
 import * as searchApi from '../functions/api/search.js';
 
 const MAIN_ORIGIN = 'https://styrigx.com';
@@ -88,7 +89,7 @@ const DRAWER_ME_RE = /<a\b([^>]*\bclass="sgx-drawer-me"[^>]*)>([\s\S]*?)<\/a>/gi
  */
 export function markSubsiteRole(html, role) {
   let out = stripSessionAttrs(html);
-  if (role === 'owner' || role === 'visitor') {
+  if (role === 'admin' || role === 'visitor') {
     out = out.replace(/<html(\s|>)/i, '<html data-sgx-role="' + role + '"$1');
   }
   if (role === 'visitor') {
@@ -123,7 +124,7 @@ export async function handleSubsite(request, env, origin) {
 
   if (path === '/api/lock-session-check') {
     if (request.method !== 'GET' && request.method !== 'HEAD') return json(405, { ok: false, error: 'method' });
-    const sess = await verifySessionDetailed(request, env);
+    const sess = await verifyLockSession(request, env);
     if (sess.ok) {
       if (conf.sessionCheckOk === 'no-content') {
         return new Response(null, { status: 204, headers: { 'Cache-Control': NO_STORE } });
@@ -141,7 +142,7 @@ export async function handleSubsite(request, env, origin) {
 
   if (isStaticAsset(path)) return origin(request);
 
-  const sess = await verifySessionDetailed(request, env);
+  const sess = await verifyLockSession(request, env);
   if (sess.ok) return subsitePage(await origin(request), sess.role);
 
   const why = sess.reason === 'no-cookie' ? 'no-cookie' : 'invalid-session';

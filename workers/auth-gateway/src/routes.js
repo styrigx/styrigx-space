@@ -23,7 +23,6 @@ import * as lockTempkey from '../functions/api/lock-tempkey.js';
 import * as lockTempkeyUnlock from '../functions/api/lock-tempkey-unlock.js';
 import * as rootAudit from '../functions/api/root-audit.js';
 import * as rootAuth from '../functions/api/root-auth.js';
-import * as rootSession from '../functions/api/root-session.js';
 import * as search from '../functions/api/search.js';
 import * as status from '../functions/api/status.js';
 
@@ -46,7 +45,6 @@ export const API_ROUTES = new Map([
   ['/api/lock-tempkey-unlock', lockTempkeyUnlock],
   ['/api/root-audit', rootAudit],
   ['/api/root-auth', rootAuth],
-  ['/api/root-session', rootSession],
   ['/api/search', search],
   ['/api/status', status],
 ]);

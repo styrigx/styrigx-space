@@ -125,7 +125,7 @@ function pagesFor(req) {
 
 /**
  * 启动测试台。
- * @returns {Promise<{kv:any, env:any, log:string[], close:()=>Promise<void>, seedPasskey:()=>Promise<any>, seedTempkey:()=>Promise<string>, mintCookie:(role:string)=>Promise<string>, mintTk:()=>Promise<string>}>}
+ * @returns {Promise<{kv:any, env:any, log:string[], close:()=>Promise<void>, seedPasskey:()=>Promise<any>, seedTempkey:()=>Promise<string>, mintCookie:(role:string)=>Promise<string>}>}
  */
 async function startEdge() {
   const { readRoutes, pickRoute } = await dynImport(pathToFileURL(path.join(__dirname, '..', '..', '..', 'scripts/lib/cf-routes.mjs')).href);
@@ -288,10 +288,14 @@ async function startEdge() {
     };
   }
 
-  /** 按当前 epoch 签一个会话 cookie 值（owner / visitor；visitor 还要配 mintTk() 的钥匙票） */
+  /** 按当前 Lock 纪元签一个锁屏会话 cookie 值（admin：by=password；visitor：先登记一把 1 小时临时钥匙，by=tempkey、带它的 tempkeyId） */
   async function mintCookie(role) {
-    const ep = await sessMod.getSessionEpoch(kv);
-    return sessMod.signSessionCookie(privPem, ep, role, 'owner');
+    const ep = await sessMod.getLockEpoch(kv);
+    if (role === 'visitor') {
+      const r = await tempMod.createTempkey(kv, env.SGX_PW_PEPPER, { name: 'edge', ms: 3600 * 1000 });
+      return sessMod.signLockSessionTicket(privPem, { by: 'tempkey', role: 'visitor', epoch: ep, exp: Date.now() + 3600 * 1000, tempkeyId: r.key.id });
+    }
+    return sessMod.signLockSessionTicket(privPem, { by: 'password', role: 'admin', epoch: ep, exp: Date.now() + 12 * 3600 * 1000, tempkeyId: '' });
   }
 
   /** 签发一把 1 小时的临时 LockKey，返回临时码（XXXX-XXXX-XXXX） */
@@ -300,17 +304,11 @@ async function startEdge() {
     return r.code;
   }
 
-  /** 钥匙票 sgx-tk 的值（配 mintCookie('visitor') 用；钥匙本身登记在 KV） */
-  async function mintTk() {
-    const r = await tempMod.createTempkey(kv, env.SGX_PW_PEPPER, { name: 'edge', ms: 3600 * 1000 });
-    return tempMod.signTk(env, r.key.id, Date.now() + 3600 * 1000);
-  }
-
-  /** 账号会话 cookie 值（sgx-account，by=passkey，当前 account-epoch） */
+  /** 账号会话 cookie 值（sgx-account-session，by=passkey，当前 Account 纪元） */
   async function mintAccount() {
     const acc = await mod('workers/auth-gateway/functions/_kernel/account-session.js');
     const ep = await acc.getAccountEpoch(kv);
-    return acc.signAccountTicket(privPem, 'passkey', ep, Date.now());
+    return acc.signAccountSessionTicket(privPem, { by: 'passkey', epoch: ep, authAt: Date.now(), deviceId: 'edgedeviceedgede' });
   }
 
   /** 清掉 /s/* 的失败计数（D1 share_fail + isolate 内存），限速测试之间不互相影响 */
@@ -328,7 +326,7 @@ async function startEdge() {
     await new Promise((r) => proxy.close(() => r()));
   }
 
-  return { kv, env, accountKv, accountEnv, shareDb, shareEnv, log, close, resetShareLimit, seedPasskey, seedTempkey, mintCookie, mintTk, mintAccount };
+  return { kv, env, accountKv, accountEnv, shareDb, shareEnv, log, close, resetShareLimit, seedPasskey, seedTempkey, mintCookie, mintAccount };
 }
 
 module.exports = { startEdge, LAUNCH, PROXY_PORT, REPO };

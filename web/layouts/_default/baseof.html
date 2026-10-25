@@ -173,7 +173,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 </script>
 {{/* 2026-10-21：删掉 2.4.0 D 的 Speculation Rules（站内链接按下 / 悬停就 prerender）。
    预渲染是拿「按下那一刻」的 cookie 取页面并先跑脚本，点下去时直接启用这份快照：
-   访客点「锁屏凭证」时预渲染的是网关送回的锁屏/升级页，启用后整个锁屏闪一下；解锁、立即锁定、站长验证之后
+   访客点「锁屏凭证」时预渲染的是网关送回的锁屏/升级页，启用后整个锁屏闪一下；解锁、立即锁定、管理员验证之后
    启用的也是旧状态的页面。所有页面都要按会话出不同内容，不能预渲染。 */}}
 </head>
 {{ $setUrl0 := "/settings/" }}{{ if $isEn }}{{ $setUrl0 = "/en/settings/" }}{{ end }}

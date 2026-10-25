@@ -1,5 +1,5 @@
 {{/* 聊天（/chat/，2026-10-22）：主站顶栏三栏的「聊天」（主页 / 聊天 / 状态）。只做联网检索问答，不存对话、没有长期记忆。
-   请求 POST /api/chat（网关：同源 + 锁屏会话 + 只许站长；Gemini 2.5 Flash + Google 搜索接地，见 workers/auth-gateway/functions/api/chat.js），
+   请求 POST /api/chat（网关：同源 + 锁屏会话 + 只许管理员；Gemini 2.5 Flash + Google 搜索接地，见 workers/auth-gateway/functions/api/chat.js），
    回答以 SSE 流式显示，来源是回答下面的小 chip。对话只在 sessionStorage（关标签页就清），「新对话」清空。
    结构：空状态（提示 + 3 个示例）→ 消息列表（用户右、回答左）→ 底部悬浮输入栏（新对话 | 输入框 | 发送 / 停止）；
    会话过期 / 访客 → #chat-gate 一张卡（访客由网关注入的 data-sgx-role="visitor" 直接判断）。

@@ -2,7 +2,7 @@
  * 2.10.2 鉴权修复测试（space）。
  *
  * 覆盖：
- * - 2：管理操作需 owner 会话 + stepup；/api/lock-now 清除 stepup 和 app cookie；
+ * - 2：管理操作需 admin 会话 + stepup；/api/lock-now 清除 stepup 和 app cookie；
  *     锁定后调用管理接口必须拒绝
  * - 3：删应用密钥先推 app-epoch 再删；推失败 503 且密钥仍在
  * - 4：删锁屏密钥先推 session-epoch 再删；失败 503（fail closed）
@@ -20,6 +20,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { testLockSession } from './_tickets.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
@@ -90,11 +91,11 @@ function baseEnv(kv, overrides = {}) {
   };
 }
 
-/* 签一个有效的 owner 会话 cookie（role.epoch.exp.sig） */
-async function makeSessionCookie(env, role = 'owner') {
-  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
+/* 签一个有效的 admin 会话 cookie（role.epoch.exp.sig） */
+async function makeSessionCookie(env, role = 'admin') {
+  const { signLockSessionTicket } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
   const epoch = 0;
-  return await signSessionCookie(env.SGX_LOCK_PRIVATE, epoch, role);
+  return await testLockSession(env.SGX_LOCK_PRIVATE, epoch, role);
 }
 
 function reqWithCookies(url, body, cookies, headers = {}) {
@@ -108,7 +109,7 @@ test('setup: 生成测试密钥', async () => {
   assert.ok(LOCK_PRIV && LOCK_PUB);
 });
 
-/* ============ 2：管理操作需 owner 会话 + stepup ============ */
+/* ============ 2：管理操作需 admin 会话 + stepup ============ */
 
 
 
@@ -147,15 +148,15 @@ test('5b：SGX_SITE 缺失时主站 middleware 拒绝（500）', async () => {
 
 /* ============ 6：无 KV_LOCK_DOOR 时 epoch 检查 fail closed ============ */
 
-test('6：verifySessionDetailed 无 KV → kv-error（不跳过）', async () => {
-  const { verifySessionDetailed } = await import('../../../workers/auth-gateway/functions/_middleware.js');
+test('6：verifyLockSession 无 KV → kv-error（不跳过）', async () => {
+  const { verifyLockSession } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
   /* 造一个格式正确但无法验 epoch 的 cookie：用真密钥签名 */
-  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
-  const val = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
+  const { signLockSessionTicket } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
+  const val = await testLockSession(LOCK_PRIV, 0, 'admin', 'password');
   const req = new Request('https://styrigx.com/', {
-    headers: { 'Cookie': 'sgx-verified=' + val },
+    headers: { 'Cookie': 'sgx-lock-session=' + val },
   });
-  const r = await verifySessionDetailed(req, { SGX_LOCK_PUBLIC: LOCK_PUB });
+  const r = await verifyLockSession(req, { SGX_LOCK_PUBLIC: LOCK_PUB });
   assert.equal(r.ok, false);
   assert.equal(r.reason, 'kv-error', '2.10.2：无 KV 不得跳过 epoch 检查');
 });
@@ -185,12 +186,12 @@ test('8：root-auth 审计写入失败 → 503 且无 cookie', async () => {
     if (String(k).startsWith('root-auth-audit:')) throw new Error('audit-fail');
     return origPut(k, v, o);
   };
-  const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY });
+  const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY, purpose: 'lock-reset' });
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 503, '审计失败应 503');
   const cookies = res.headers.getSetCookie ? res.headers.getSetCookie() : [];
   const all = (cookies || []).join(';');
-  assert.ok(!all.includes('sgx-verified='), '审计失败不得签发会话');
+  assert.ok(!all.includes('sgx-lock-session='), '审计失败不得签发会话');
 });
 
 /* ============ 9：Origin 缺失/解析失败 → 403 ============ */
@@ -198,7 +199,7 @@ test('8：root-auth 审计写入失败 → 503 且无 cookie', async () => {
 test('9a：root-auth 缺 Origin → 403', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
-  const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY }, { Origin: null });
+  const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY, purpose: 'lock-reset' }, { Origin: null });
   const res = await onRequestPost({ request: req, env: baseEnv(kv) });
   assert.equal(res.status, 403);
   assert.equal((await res.json()).error, 'origin');
@@ -207,7 +208,7 @@ test('9a：root-auth 缺 Origin → 403', async () => {
 test('9b：root-auth Origin 解析失败 → 403', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
-  const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY }, { Origin: '::not-a-url::' });
+  const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY, purpose: 'lock-reset' }, { Origin: '::not-a-url::' });
   const res = await onRequestPost({ request: req, env: baseEnv(kv) });
   assert.equal(res.status, 403);
 });
@@ -239,8 +240,9 @@ test('1a：锁屏方法弹层按配置显示入口（PR3：根凭证 / 重置锁
   assert.ok(!src.includes('sgx-mopt-reset'), '「重置锁屏」一行已并入「无法登录？」');
 });
 
-test('1b：升级弹层含根密钥入口', () => {
+test('1b：升级弹层没有根凭证入口（RootKey 不拥有会话，不能把访客升级成 admin）', () => {
   const src = fs.readFileSync(path.join(REPO, 'web/assets/js/shell/upgrade.js'), 'utf8');
-  assert.ok(src.includes('sgx-upgrade-mk'), '升级弹层应有根密钥按钮');
-  assert.ok(src.includes('/api/root-auth'), '应调用 /api/root-auth');
+  assert.ok(!src.includes('sgx-upgrade-mk'), '升级弹层不应有根凭证按钮');
+  assert.ok(!src.includes('/api/root-auth') && !src.includes('/api/root-session'), '不调 root-auth / root-session');
+  assert.ok(src.includes("'Admin verification'"), '文案是 admin 验证');
 });

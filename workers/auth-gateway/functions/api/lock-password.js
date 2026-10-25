@@ -1,20 +1,20 @@
 /**
  * 锁屏密码（LockKey 的密码）：解锁验证、进锁屏凭证的门、设置 / 修改 / 删除。
  *
- * 原「站长密码」接口按域拆分：它只管锁屏密码（账号密码早已只在 /api/account 管理，
+ * 原「管理员密码」接口按域拆分：它只管锁屏密码（账号密码早已只在 /api/account 管理，
  * 见 action password-change），所以只拆出本接口，没有另造 /api/account-password。
  * 请求体不再带 kind（路径就是域）。
  *
  * POST /api/lock-password
  * Body: { action: "verify"|"set"|"change"|"remove", ... }
- * - verify { password, door? }：锁屏密码解锁（IP 限速：连错 5 次冷却 30 秒，429 cooldown）；
- *   door:true（有站长会话）不签会话，改签 3 分钟锁屏门票（安全与隐私 → 锁屏凭证的门）
- * - set / change { password }：需锁屏门票（door=lock + 站长会话），或重置锁屏门票（door=lockreset）
- * - remove：只认锁屏门票（重置锁屏不能删）
+ * - verify { password, reauth? }：锁屏密码解锁（IP 限速：连错 5 次冷却 30 秒，429 cooldown）；
+ *   reauth:true（有 admin 锁屏会话）不签会话，改签 3 分钟 LockReauthTicket（安全与隐私 → 锁屏凭证）
+ * - set / change { password }：需 LockReauthTicket + admin 锁屏会话，或 LockResetTicket
+ * - remove：只认 LockReauthTicket（重置锁屏不能删）
  * - 锁屏密码不得与账号密码相同（双向检查；账号侧在 /api/account，错误码 same-as-account / same-as-lock）
  * - 哈希：PBKDF2-SHA256 + 随机 salt + SGX_PW_PEPPER（_kernel/password.js）；旧 hash 下次成功登录时重哈希；缺 pepper fail closed
  *
- * 会话可吊销：改密码 / 删密码时 session-epoch +1，旧 cookie 失效；纪元推进后重签门票 + 当前设备会话。
+ * 会话可吊销：改密码 / 删密码时 session-epoch +1，旧 cookie 失效；纪元推进后重签 reauth / reset 票 + 当前设备会话。
  * 锁定所有设备走 /api/lock-all-devices。KV 读取出错时抛错 → 503，绝不继续写入。
  * 只接受 POST；校验 Origin；未设置密码时 verify 一律拒绝。
  * 外层 try/catch：任何未捕获异常都返回 JSON { ok:false, error:'server' }，不返回 500 HTML。
@@ -22,14 +22,15 @@
 import { getPepper, makePasswordRecord, checkPasswordRecord, verifyRealmPassword } from '../_kernel/password.js';
 import { REALM_LOCK, REALM_ACCOUNT } from '../_kernel/realms.js';
 import {
-  issueSessionCookie,
-  bumpSessionEpoch,
-  reissueSessionWithEpoch,
-  ROLE_OWNER,
+  issueLockSession,
+  bumpLockEpoch,
+  reissueLockSessionWithEpoch,
+  ROLE_ADMIN,
 } from '../_kernel/lock-session.js';
 import { checkLockManage, looksVisitor } from './lock-reauth.js';
-import { issueDoorCookie, reissueDoorWithEpoch, DOOR_LOCK } from '../_kernel/tickets.js';
-import { verifySessionDetailed } from '../_middleware.js';
+import { issueTicket, reissueTicketWithEpoch } from '../_kernel/tickets.js';
+import { LOCK_REAUTH_TICKET, BY_PASSWORD } from '../_kernel/realms.js';
+import { verifyLockSession } from '../_kernel/lock-session.js';
 import {
   isLayerConfigured,
   setLayerConfigured,
@@ -121,15 +122,15 @@ async function handlePost(context) {
   /* ============ verify：解锁验证（锁屏密码） ============ */
   /* 只认锁屏密码；账号密码不能解锁（各层凭证不互相替代）。 */
   if (action === 'verify') {
-    const toDoor = !!(body && body.door === true);
-    /* 门口验证：访客写死「密码错误」，不读任何存储；不是站长会话 → 401 session */
-    let doorSess = null;
-    if (toDoor) {
+    const toReauth = !!(body && body.reauth === true);
+    /* 再验证：访客写死「密码错误」，不读任何存储；不是admin 会话 → 401 session */
+    let reauthSess = null;
+    if (toReauth) {
       if (looksVisitor(request)) {
         return Response.json({ ok: false, error: 'wrong' }, { status: 403 });
       }
-      doorSess = await verifySessionDetailed(request, env);
-      if (!doorSess.ok || doorSess.role !== ROLE_OWNER) {
+      reauthSess = await verifyLockSession(request, env);
+      if (!reauthSess.ok || reauthSess.role !== ROLE_ADMIN) {
         return Response.json({ ok: false, error: 'session' }, { status: 401 });
       }
     }
@@ -180,15 +181,15 @@ async function handlePost(context) {
       } catch (e) {}
     }
     /* 通过：签发 Ed25519 会话 cookie（fail closed：无密钥/签发失败 → 5xx，
-       绝不静默跳过然后返回 ok:true）。密码验证签站长会话（12 小时） */
+       绝不静默跳过然后返回 ok:true）。密码验证签admin 会话（12 小时） */
     const headers = new Headers({ 'Content-Type': 'application/json' });
-    if (toDoor) {
-      /* 门口：只签锁屏门票（3 分钟），会话不动 */
-      const dErr = await issueDoorCookie(env, headers, DOOR_LOCK, 'password');
+    if (toReauth) {
+      /* 再验证：只签 LockReauthTicket（3 分钟），会话不动 */
+      const dErr = await issueTicket(env, headers, LOCK_REAUTH_TICKET, BY_PASSWORD);
       if (dErr) return Response.json(dErr.body, { status: dErr.status });
       return new Response(JSON.stringify({ ok: true }), { headers });
     }
-    const signErr = await issueSessionCookie(env, headers, ROLE_OWNER);
+    const signErr = await issueLockSession(env, headers, { by: BY_PASSWORD, role: ROLE_ADMIN });
     if (signErr) {
       return new Response(JSON.stringify(signErr.body), {
         status: signErr.status,
@@ -199,8 +200,8 @@ async function handlePost(context) {
   }
 
   /* ============ set/change/remove ============
-     需锁屏门票（door=lock，进门可用锁屏凭证或根凭证）+ 站长会话；
-     重置锁屏门票（door=lockreset）可 set/change（重置流程，无会话），不可 remove。 */
+     需 LockReauthTicket（锁屏凭证或根凭证再验证）+ admin 锁屏会话；
+     LockResetTicket 可 set/change（重置流程，无会话），不可 remove。 */
   if (action === 'set' || action === 'change' || action === 'remove') {
     const passwordKey = REALM_LOCK.kv.password;
 
@@ -274,17 +275,17 @@ async function handlePost(context) {
         } catch (e) {}
       }
       /* 会话吊销：session-epoch +1（KV 出错→503，绝不继续）
-         纪元推进后重签门票 + 当前设备会话，保持门内连续操作、当前设备不掉线。 */
+         纪元推进后重签 reauth / reset 票 + 当前设备会话，保持门内连续操作、当前设备不掉线。 */
       let newEpoch = null;
       try {
-        newEpoch = await bumpSessionEpoch(kv);
+        newEpoch = await bumpLockEpoch(kv);
       } catch (e) {
         return Response.json({ ok: false, error: 'server' }, { status: 503 });
       }
       const headers = new Headers({ 'Content-Type': 'application/json' });
       if (newEpoch !== null) {
-        await reissueDoorWithEpoch(env, headers, gate.door, gate.dv, newEpoch);
-        await reissueSessionWithEpoch(env, headers, sessP, newEpoch);
+        await reissueTicketWithEpoch(env, headers, gate.ticket, gate.tv, newEpoch);
+        await reissueLockSessionWithEpoch(env, headers, sessP, newEpoch);
       }
       return new Response(JSON.stringify({ ok: true }), { headers });
     }
@@ -338,17 +339,17 @@ async function handlePost(context) {
     }
 
     /* 改密码后：session-epoch +1，旧会话 cookie 失效（KV 出错→503）
-       纪元推进后重签门票 + 当前设备会话，保持门内连续操作、当前设备不掉线。 */
+       纪元推进后重签 reauth / reset 票 + 当前设备会话，保持门内连续操作、当前设备不掉线。 */
     let newEpoch2 = null;
     try {
-      newEpoch2 = await bumpSessionEpoch(kv);
+      newEpoch2 = await bumpLockEpoch(kv);
     } catch (e) {
       return Response.json({ ok: false, error: 'server' }, { status: 503 });
     }
     const headers2 = new Headers({ 'Content-Type': 'application/json' });
     if (newEpoch2 !== null) {
-      await reissueDoorWithEpoch(env, headers2, gate.door, gate.dv, newEpoch2);
-      await reissueSessionWithEpoch(env, headers2, sessP, newEpoch2);
+      await reissueTicketWithEpoch(env, headers2, gate.ticket, gate.tv, newEpoch2);
+      await reissueLockSessionWithEpoch(env, headers2, sessP, newEpoch2);
     }
     return new Response(JSON.stringify({ ok: true }), { headers: headers2 });
   }

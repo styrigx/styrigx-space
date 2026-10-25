@@ -1,11 +1,11 @@
 /**
- * 账号 › 设备（2026-10-22）：每次登录一台设备记录（sid 进票据），设备页列出、可单独退出。
+ * 账号 › 设备（2026-10-22）：每次登录一台设备记录（deviceId 进票据），设备页列出、可单独退出。
  *
  * 运行：node --test tests/workers/auth-gateway/account-devices.test.mjs
  */
-import { signRole } from './_tk.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { testLockSession, testAccountSession, testTicket } from './_tickets.mjs';
 
 const API = '../../../workers/auth-gateway/functions/api/';
 const KERNEL = '../../../workers/auth-gateway/functions/_kernel/';
@@ -69,17 +69,14 @@ function getReq(url, headers = {}) {
   return new Request(url, { method: 'GET', headers });
 }
 
-async function ownerSess(epoch = 0) {
-  const { signSessionCookie } = await import(KERNEL + 'lock-session.js');
-  return await signSessionCookie(LOCK.priv, epoch, 'owner', 'owner');
+async function adminSess(epoch = 0) {
+  return await testLockSession(LOCK.priv, epoch, 'admin', 'password');
 }
 async function visitorSess() {
-  const { signSessionCookie } = await import(KERNEL + 'lock-session.js');
-  return await signRole(signSessionCookie, LOCK.priv, 0, 'visitor', 'owner');
+  return await testLockSession(LOCK.priv, 0, 'visitor');
 }
 async function accTicket(by = 'password', authAt = Date.now(), epoch = 0, priv) {
-  const { signAccountTicket } = await import(KERNEL + 'account-session.js');
-  return await signAccountTicket(priv || ACCOUNT.priv, by, epoch, authAt);
+  return await testAccountSession(priv || ACCOUNT.priv, by, epoch, authAt);
 }
 function cookies(o) {
   return Object.entries(o).filter(([, v]) => v).map(([k, v]) => k + '=' + v).join('; ');
@@ -94,24 +91,23 @@ function pickCookie(res, name) {
   return null;
 }
 
-async function doorTicket(by = 'password', epoch = 0, priv, now) {
-  const { signDoorTicket } = await import(KERNEL + 'tickets.js');
-  return await signDoorTicket(priv || ACCOUNT.priv, 'account', by, epoch, now);
+async function reauthTicket(by = 'password', epoch = 0, priv, now) {
+  return await testTicket(priv || ACCOUNT.priv, 'AccountReauthTicket', by, epoch, now);
 }
-/* 管理操作要账号门票：测试里带了账号会话又没显式给 sgx-door（键不存在）时，自动补一张同纪元的门票；
-   要测「没有门票」就显式传 'sgx-door': '' */
-async function withDoor(cookieObj) {
+/* 管理操作要 AccountReauthTicket：测试里带了账号会话又没显式给 sgx-account-reauth（键不存在）时，自动补一张同纪元的票；
+   要测「没有票」就显式传 'sgx-account-reauth': '' */
+async function withReauth(cookieObj) {
   const o = { ...(cookieObj || {}) };
-  if (o['sgx-account'] && !('sgx-door' in o)) {
-    const by = String(o['sgx-account']).split('.')[0];
-    const ep = parseInt(String(o['sgx-account']).split('.')[1], 10) || 0;
-    o['sgx-door'] = await doorTicket(by, ep);
+  if (o['sgx-account-session'] && !('sgx-account-reauth' in o)) {
+    const by = String(o['sgx-account-session']).split('.')[0];
+    const ep = parseInt(String(o['sgx-account-session']).split('.')[1], 10) || 0;
+    o['sgx-account-reauth'] = await reauthTicket(by, ep);
   }
   return o;
 }
 async function accountPost(kv, body, cookieObj, envOverrides) {
   const { onRequestPost } = await import(API + 'account.js');
-  const co = await withDoor(cookieObj);
+  const co = await withReauth(cookieObj);
   return await onRequestPost({ request: postReq('https://styrigx.com/api/account', body, { Cookie: cookies(co) }), env: envFor(kv, envOverrides) });
 }
 async function accountGet(kv, cookieObj, envOverrides) {
@@ -159,35 +155,35 @@ test('型号映射与 UA 解析', async () => {
   assert.equal(d.newDeviceId().length, 16);
 });
 
-test('登录记一台设备（型号来自 hints）；同一浏览器再登录（进门）沿用 sid，不多一台', async () => {
+test('登录记一台设备（型号来自 hints）；同一浏览器再登录（再验一次）沿用 deviceId，不多一台', async () => {
   const kv = makeKV();
   await seedPassword(kv, 'acct-pass-1234');
-  const sess = await ownerSess();
-  const r1 = await login(kv, { 'sgx-verified': sess }, SM_UA, { model: 'SM-S918B', platform: 'Android', platformVersion: '15.0.0' });
+  const sess = await adminSess();
+  const r1 = await login(kv, { 'sgx-lock-session': sess }, SM_UA, { model: 'SM-S918B', platform: 'Android', platformVersion: '15.0.0' });
   assert.equal(r1.status, 200);
-  const acc1 = pickCookie(r1, 'sgx-account');
-  assert.equal(acc1.split('.').length, 6, '新票六段（带 sid）');
-  const sid = acc1.split('.')[4];
-  const rec = JSON.parse(kv.store.get('account-dev:' + sid));
+  const acc1 = pickCookie(r1, 'sgx-account-session');
+  assert.equal(acc1.split('.').length, 6, '票六段（带 deviceId）');
+  const deviceId = acc1.split('.')[4];
+  const rec = JSON.parse(kv.store.get('account-dev:' + deviceId));
   assert.equal(rec.model, 'SM-S918B');
   assert.equal(rec.browser, 'Samsung Internet');
   assert.equal(rec.by, 'password');
-  /* 进门登录（door:true），带着现有账号会话 → 同一个 sid */
-  const r2 = await login(kv, { 'sgx-verified': sess, 'sgx-account': acc1 }, SM_UA, null, { door: true });
+  /* 再验一次（reauth:true），带着现有账号会话 → 同一个 deviceId */
+  const r2 = await login(kv, { 'sgx-lock-session': sess, 'sgx-account-session': acc1 }, SM_UA, null, { reauth: true });
   assert.equal(r2.status, 200);
-  assert.equal(pickCookie(r2, 'sgx-account').split('.')[4], sid);
+  assert.equal(pickCookie(r2, 'sgx-account-session').split('.')[4], deviceId);
   const devKeys = [...kv.store.keys()].filter((k) => k.startsWith('account-dev:'));
   assert.equal(devKeys.length, 1);
-  assert.equal(JSON.parse(kv.store.get('account-dev:' + sid)).model, 'SM-S918B', '这次没带 hints，型号保留');
+  assert.equal(JSON.parse(kv.store.get('account-dev:' + deviceId)).model, 'SM-S918B', '这次没带 hints，型号保留');
 });
 
 test('devices 列出：此设备排第一并标 current；GET session.device 是此设备名字', async () => {
   const kv = makeKV();
   await seedPassword(kv, 'acct-pass-1234');
-  const sess = await ownerSess();
-  const pc = pickCookie(await login(kv, { 'sgx-verified': sess }, WIN_UA, null), 'sgx-account');
-  const phone = pickCookie(await login(kv, { 'sgx-verified': sess }, SM_UA, { model: 'SM-S918B', platform: 'Android' }), 'sgx-account');
-  const r = await post(kv, { action: 'device-list' }, { 'sgx-verified': sess, 'sgx-account': phone });
+  const sess = await adminSess();
+  const pc = pickCookie(await login(kv, { 'sgx-lock-session': sess }, WIN_UA, null), 'sgx-account-session');
+  const phone = pickCookie(await login(kv, { 'sgx-lock-session': sess }, SM_UA, { model: 'SM-S918B', platform: 'Android' }), 'sgx-account-session');
+  const r = await post(kv, { action: 'device-list' }, { 'sgx-lock-session': sess, 'sgx-account-session': phone });
   assert.equal(r.status, 200);
   const j = await r.json();
   assert.equal(j.devices.length, 2);
@@ -196,10 +192,10 @@ test('devices 列出：此设备排第一并标 current；GET session.device 是
   assert.equal(j.devices[1].current, false);
   assert.equal(j.devices[1].name, 'Windows');
   assert.equal(j.devices[1].browser, 'Chrome');
-  const g = await (await get(kv, { 'sgx-verified': sess, 'sgx-account': phone })).json();
+  const g = await (await get(kv, { 'sgx-lock-session': sess, 'sgx-account-session': phone })).json();
   assert.equal(g.session.device, 'Galaxy S23 Ultra');
-  /* 不需要门票，但要账号会话 */
-  const r401 = await post(kv, { action: 'device-list' }, { 'sgx-verified': sess });
+  /* 不需要 reauth 票，但要账号会话 */
+  const r401 = await post(kv, { action: 'device-list' }, { 'sgx-lock-session': sess });
   assert.equal(r401.status, 401);
   assert.ok(pc);
 });
@@ -207,83 +203,79 @@ test('devices 列出：此设备排第一并标 current；GET session.device 是
 test('device-revoke：别的设备立即失效（revoked）；不能退出此设备；不存在 404', async () => {
   const kv = makeKV();
   await seedPassword(kv, 'acct-pass-1234');
-  const sess = await ownerSess();
-  const pc = pickCookie(await login(kv, { 'sgx-verified': sess }, WIN_UA, null), 'sgx-account');
-  const phone = pickCookie(await login(kv, { 'sgx-verified': sess }, SM_UA, null), 'sgx-account');
-  const pcSid = pc.split('.')[4];
-  const phoneSid = phone.split('.')[4];
-  const self = await post(kv, { action: 'device-revoke', deviceId: phoneSid }, { 'sgx-verified': sess, 'sgx-account': phone });
+  const sess = await adminSess();
+  const pc = pickCookie(await login(kv, { 'sgx-lock-session': sess }, WIN_UA, null), 'sgx-account-session');
+  const phone = pickCookie(await login(kv, { 'sgx-lock-session': sess }, SM_UA, null), 'sgx-account-session');
+  const pcDeviceId = pc.split('.')[4];
+  const phoneDeviceId = phone.split('.')[4];
+  const self = await post(kv, { action: 'device-revoke', deviceId: phoneDeviceId }, { 'sgx-lock-session': sess, 'sgx-account-session': phone });
   assert.equal(self.status, 400);
   assert.equal((await self.json()).error, 'current');
-  const ok = await post(kv, { action: 'device-revoke', deviceId: pcSid }, { 'sgx-verified': sess, 'sgx-account': phone });
+  const ok = await post(kv, { action: 'device-revoke', deviceId: pcDeviceId }, { 'sgx-lock-session': sess, 'sgx-account-session': phone });
   assert.equal(ok.status, 200);
-  assert.equal(kv.store.has('account-dev:' + pcSid), false);
-  assert.equal(kv.store.has('account-revoked:' + pcSid), true);
-  const { verifyAccountCookie } = await import(KERNEL + 'account-session.js');
-  const v = await verifyAccountCookie(new Request('https://styrigx.com/', { headers: { Cookie: 'sgx-account=' + pc } }), envFor(kv));
+  assert.equal(kv.store.has('account-dev:' + pcDeviceId), false);
+  assert.equal(kv.store.has('account-revoked:' + pcDeviceId), true);
+  const { verifyAccountSession } = await import(KERNEL + 'account-session.js');
+  const v = await verifyAccountSession(new Request('https://styrigx.com/', { headers: { Cookie: 'sgx-account-session=' + pc } }), envFor(kv));
   assert.equal(v.ok, false);
   assert.equal(v.reason, 'revoked');
-  const again = await post(kv, { action: 'device-revoke', deviceId: pcSid }, { 'sgx-verified': sess, 'sgx-account': phone });
+  const again = await post(kv, { action: 'device-revoke', deviceId: pcDeviceId }, { 'sgx-lock-session': sess, 'sgx-account-session': phone });
   assert.equal(again.status, 404);
-  const bad = await post(kv, { action: 'device-revoke', deviceId: 'x.y' }, { 'sgx-verified': sess, 'sgx-account': phone });
+  const bad = await post(kv, { action: 'device-revoke', deviceId: 'x.y' }, { 'sgx-lock-session': sess, 'sgx-account-session': phone });
   assert.equal(bad.status, 400);
 });
 
-test('退出账号：删本机记录并拉黑 sid', async () => {
+test('退出账号：删本机记录并拉黑 deviceId', async () => {
   const kv = makeKV();
   await seedPassword(kv, 'acct-pass-1234');
-  const sess = await ownerSess();
-  const phone = pickCookie(await login(kv, { 'sgx-verified': sess }, SM_UA, null), 'sgx-account');
-  const sid = phone.split('.')[4];
-  const r = await post(kv, { action: 'logout' }, { 'sgx-account': phone });
+  const sess = await adminSess();
+  const phone = pickCookie(await login(kv, { 'sgx-lock-session': sess }, SM_UA, null), 'sgx-account-session');
+  const deviceId = phone.split('.')[4];
+  const r = await post(kv, { action: 'logout' }, { 'sgx-account-session': phone });
   assert.equal(r.status, 200);
-  assert.equal(kv.store.has('account-dev:' + sid), false);
-  assert.equal(kv.store.has('account-revoked:' + sid), true);
+  assert.equal(kv.store.has('account-dev:' + deviceId), false);
+  assert.equal(kv.store.has('account-revoked:' + deviceId), true);
 });
 
-test('旧五段票：仍然有效；GET 时换成带 sid 的新票（by/authAt 不变）并记一台设备', async () => {
+test('五段票（没有 deviceId 的旧格式）：不认，GET 当没登录、不下发新票、不记设备', async () => {
   const kv = makeKV();
-  const sess = await ownerSess();
-  const authAt = Date.now() - 86400e3;
-  const old = await accTicket('passkey', authAt, 0);
-  assert.equal(old.split('.').length, 5);
-  const r = await get(kv, { 'sgx-verified': sess, 'sgx-account': old });
+  const sess = await adminSess();
+  const six = await accTicket('passkey', Date.now() - 86400e3, 0);
+  const p = six.split('.');
+  assert.equal(p.length, 6);
+  const five = [p[0], p[1], p[2], p[3], p[5]].join('.');
+  const r = await get(kv, { 'sgx-lock-session': sess, 'sgx-account-session': five });
   assert.equal(r.status, 200);
   const j = await r.json();
-  assert.equal(j.session.by, 'passkey');
-  const nv = pickCookie(r, 'sgx-account');
-  assert.ok(nv, '下发新票');
-  const p = nv.split('.');
-  assert.equal(p.length, 6);
-  assert.equal(p[0], 'passkey');
-  assert.equal(p[2], String(authAt));
-  assert.ok(kv.store.has('account-dev:' + p[4]));
+  assert.equal(j.session, null);
+  assert.equal(pickCookie(r, 'sgx-account-session') || '', '');
+  assert.equal([...kv.store.keys()].filter((k) => k.startsWith('account-dev:')).length, 0);
 });
 
-test('改账号密码（纪元 +1）：当前设备沿用 sid，其他设备记录删掉', async () => {
+test('改账号密码（纪元 +1）：当前设备沿用 deviceId，其他设备记录删掉', async () => {
   const kv = makeKV();
   await seedPassword(kv, 'acct-pass-1234');
-  const sess = await ownerSess();
-  const pc = pickCookie(await login(kv, { 'sgx-verified': sess }, WIN_UA, null), 'sgx-account');
-  const phone = pickCookie(await login(kv, { 'sgx-verified': sess }, SM_UA, null), 'sgx-account');
-  const door = await doorTicket('password', 0);
-  const r = await post(kv, { action: 'password-change', password: 'acct-pass-5678' }, { 'sgx-verified': sess, 'sgx-account': phone, 'sgx-door': door });
+  const sess = await adminSess();
+  const pc = pickCookie(await login(kv, { 'sgx-lock-session': sess }, WIN_UA, null), 'sgx-account-session');
+  const phone = pickCookie(await login(kv, { 'sgx-lock-session': sess }, SM_UA, null), 'sgx-account-session');
+  const reauth = await reauthTicket('password', 0);
+  const r = await post(kv, { action: 'password-change', password: 'acct-pass-5678' }, { 'sgx-lock-session': sess, 'sgx-account-session': phone, 'sgx-account-reauth': reauth });
   assert.equal(r.status, 200, await r.clone().text());
-  const nv = pickCookie(r, 'sgx-account');
+  const nv = pickCookie(r, 'sgx-account-session');
   assert.equal(nv.split('.')[4], phone.split('.')[4]);
   assert.equal(nv.split('.')[1], '1');
   assert.equal(kv.store.has('account-dev:' + pc.split('.')[4]), false);
   assert.equal(kv.store.has('account-dev:' + phone.split('.')[4]), true);
 });
 
-test('票据篡改 sid → bad-sig', async () => {
+test('票据篡改 deviceId → bad-sig', async () => {
   const kv = makeKV();
   await seedPassword(kv, 'acct-pass-1234');
-  const sess = await ownerSess();
-  const phone = pickCookie(await login(kv, { 'sgx-verified': sess }, SM_UA, null), 'sgx-account');
+  const sess = await adminSess();
+  const phone = pickCookie(await login(kv, { 'sgx-lock-session': sess }, SM_UA, null), 'sgx-account-session');
   const p = phone.split('.');
   p[4] = 'AAAAAAAAAAAAAAAA';
-  const { verifyAccountCookie } = await import(KERNEL + 'account-session.js');
-  const v = await verifyAccountCookie(new Request('https://styrigx.com/', { headers: { Cookie: 'sgx-account=' + p.join('.') } }), envFor(kv));
+  const { verifyAccountSession } = await import(KERNEL + 'account-session.js');
+  const v = await verifyAccountSession(new Request('https://styrigx.com/', { headers: { Cookie: 'sgx-account-session=' + p.join('.') } }), envFor(kv));
   assert.equal(v.reason, 'bad-sig');
 });

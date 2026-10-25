@@ -6,8 +6,8 @@
  *  （onRequestPost），env 配测试密钥；返回 { kv, env, close, mintAuth }。
  * - makeAttestationCredential：Node 端合成 WebAuthn 注册 attestation
  *   （UV=1；CDP 虚拟认证器开 UV 会抛 NotAllowedError，故不用浏览器仪式）。
- * - mintAuth(by)：按当前 KV session-epoch 重签会话 + 锁屏门票（sgx-door，door=lock）
- * - mintAccount(by, authAt, withDoor)：账号会话；withDoor 时另签账号门票（door=account）
+ * - mintAuth(by)：按当前 Lock 纪元重签 admin 锁屏会话 + LockReauthTicket（sgx-lock-reauth）
+ * - mintAccount(by, authAt)：账号会话（sgx-account-session）；mintAccountReauth(by)：AccountReauthTicket（sgx-account-reauth）
  *   （set/change/remove/register 会推进 epoch，每次鉴权操作前重签）。
  */
 const http = require('node:http');
@@ -153,7 +153,7 @@ async function makeAttestationCredential(challengeB64url, rpId, origin) {
  * 启动凭证测试服务器。
  * @param {number} port 监听端口
  * @returns {Promise<{kv, env, origin, close, mintAuth}>}
- *   mintAuth(doorBy) → { sessionCookie, doorCookie }
+ *   mintAuth(reauthBy) → { sessionCookie, reauthCookie }
  */
 async function startCredentialTestServer(port) {
   const origin = `http://localhost:${port}`;
@@ -177,7 +177,7 @@ async function startCredentialTestServer(port) {
   const pkMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/api/lock-passkey.js')).href);
   const sessMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/_kernel/lock-session.js')).href);
   const doorApi = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/api/lock-reauth.js')).href);
-  const doorMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/_kernel/tickets.js')).href);
+  const ticketsMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/_kernel/tickets.js')).href);
   const acctMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/api/account.js')).href);
   const acctSess = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/_kernel/account-session.js')).href);
 
@@ -233,23 +233,23 @@ async function startCredentialTestServer(port) {
   });
   await new Promise((resolve) => server.listen(port, '127.0.0.1', resolve));
 
-  async function mintAuth(doorBy) {
-    const epoch = parseInt((await kv.get('session-epoch')) || '0', 10) || 0;
-    const sessionCookie = await sessMod.signSessionCookie(privPem, epoch, 'owner', 'owner');
-    const doorCookie = await doorMod.signDoorTicket(privPem, 'lock', doorBy || 'password', epoch);
-    return { sessionCookie, doorCookie };
+  async function mintAuth(reauthBy) {
+    const epoch = await sessMod.getLockEpoch(kv);
+    const sessionCookie = await sessMod.signLockSessionTicket(privPem, { by: 'password', role: 'admin', epoch, exp: Date.now() + 12 * 3600 * 1000, tempkeyId: '' });
+    const reauthCookie = await ticketsMod.signTicket(privPem, 'LockReauthTicket', reauthBy || 'password', epoch);
+    return { sessionCookie, reauthCookie };
   }
 
-  /* 账号会话（sgx-account）：by=passkey|password|root，authAt 默认现在；epoch 读 KV account-epoch */
+  /* 账号会话（sgx-account-session）：by=passkey|password，authAt 默认现在；epoch 读当前 Account 纪元 */
   async function mintAccount(by, authAt) {
-    const epoch = parseInt((await kv.get('account-epoch')) || '0', 10) || 0;
-    return await acctSess.signAccountTicket(privPem, by, epoch, authAt || Date.now());
+    const epoch = await acctSess.getAccountEpoch(kv);
+    return await acctSess.signAccountSessionTicket(privPem, { by, epoch, authAt: authAt || Date.now(), deviceId: 'e2edevicee2edev1' });
   }
 
-  /* 账号门票（door=account），按当前 account-epoch 签 */
-  async function mintAccountDoor(by) {
-    const epoch = parseInt((await kv.get('account-epoch')) || '0', 10) || 0;
-    return await doorMod.signDoorTicket(privPem, 'account', by || 'password', epoch);
+  /* AccountReauthTicket（sgx-account-reauth），按当前 Account 纪元签 */
+  async function mintAccountReauth(by) {
+    const epoch = await acctSess.getAccountEpoch(kv);
+    return await ticketsMod.signTicket(privPem, 'AccountReauthTicket', by || 'password', epoch);
   }
 
   return {
@@ -258,7 +258,7 @@ async function startCredentialTestServer(port) {
     origin,
     mintAuth,
     mintAccount,
-    mintAccountDoor,
+    mintAccountReauth,
     makeAttestationCredential,
     close: () => new Promise((resolve) => server.close(resolve)),
   };

@@ -289,7 +289,7 @@ const README = `# web/shared/shell（生成物，勿手改）
 
 ## 子站顶栏分享按钮（share.js + shell.css topbar-frame 段，2026-10-24；主站不用）
 
-右边的圆换成一个胶囊，装两个按钮（站长和访客一样）：
+右边的圆换成一个胶囊，装两个按钮（管理员和访客一样）：
 
 \`\`\`html
 <div class="sgx-tb-end-group">
@@ -299,7 +299,7 @@ const README = `# web/shared/shell（生成物，勿手改）
 \`\`\`
 - 胶囊 \`.sgx-tb-end-group\`：材质 / 高度 / 圆角同两侧圆，宽 = 2 × \`--sgx-tb-gbtn\`（40px）+ 2 × 2px + 边线 = 86px；里面的 \`.sgx-tb-gbtn\` 透明，悬停 / 按下 / 焦点框各管各的。
 - JS：\`import { mountShare } from './share.js'; mountShare();\`（每页一次，自己找 \`[data-sgx-share]\`）。
-  站长（\`<html data-sgx-role="owner">\`）：POST https://styrigx.com/api/share（credentials: include）
+  管理员（\`<html data-sgx-role="admin">\`）：POST https://styrigx.com/api/share（credentials: include）
   \`{action:'create', reuse:true, name:页面标题(24 字), to:当前页(去 lock/why/return/share), hours:24, session:43200}\`
   → 带临时会话的短链（服务端同页同档位还剩 ≥ 12 小时就复用）→ \`navigator.share\`；没有 / 被拒（不是取消）→ 复制 + toast「已复制分享链接」。
   生成中按钮 \`aria-busy\` + \`.is-busy\`，再点不理；失败只 toast，不会把原地址当短链分享。

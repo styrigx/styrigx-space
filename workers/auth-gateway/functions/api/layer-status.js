@@ -2,14 +2,14 @@
  * 2.11：层配置状态查询（供 UI 显示「由根凭证代管 / 已接管」）。
  *
  * GET /api/layer-status
- * - 需要站长会话（任何 by）
+ * - 需要admin 会话（任何 by）
  * - 返回 { ok:true, layers: { account: 'takeover'|'configured', lock: ... } }
  * - KV 读取失败 → 503（fail closed）
  * - 补充二：会话有效时顺带触发重置开关计时（只计时，不签票不标记已用；
  *   失败不影响返回；访客无会话到不了这里，不读开关）
  */
-import { verifySessionDetailed } from '../_middleware.js';
-import { ROLE_OWNER } from '../_kernel/lock-session.js';
+import { verifyLockSession } from '../_kernel/lock-session.js';
+import { ROLE_ADMIN } from '../_kernel/lock-session.js';
 import { isLayerConfigured, LAYER_ACCOUNT, LAYER_LOCK } from '../_kernel/layers.js';
 import { touchLockResetSwitch } from '../_kernel/lock-reset-switch.js';
 
@@ -30,8 +30,8 @@ async function handleGet(context) {
     return Response.json({ ok: false, error: 'config' }, { status: 500 });
   }
 
-  const sess = await verifySessionDetailed(request, env);
-  if (!sess.ok || sess.role !== ROLE_OWNER) {
+  const sess = await verifyLockSession(request, env);
+  if (!sess.ok || sess.role !== ROLE_ADMIN) {
     return Response.json({ ok: false, error: 'session' }, { status: 401 });
   }
 

@@ -1,51 +1,63 @@
 /**
- * 认证入口修正：SGX_ROOT_KEY = 根凭证。
+ * 根凭证（RootKey，SGX_ROOT_KEY）入口：比对通过后按用途签一张 reset / reauth 票（by=root）。
  *
- * 默认（锁屏凭证的门）：有效 lock 会话 + 根凭证 → 锁屏门票 sgx-door(door=lock, by=root)，
- * 3 分钟，SGX_LOCK_* 签名（_kernel/tickets.js）。锁屏未配置的引导模式（无会话）同样签这张票，
- * 前端随后调 /api/root-session 换 by=root 的会话。
+ * RootKey 不拥有会话：只用于比对（_kernel/root-check.js），不签名；本接口从不签锁屏会话或账号会话。
  *
- * 访客假入口：访客会话（sgx-verified role=visitor）直接写死返回 401 auth：
+ * POST /api/root-auth { key, purpose }，purpose 只有四个值（缺失 / 其它值 → 400 purpose，不比对、不计数）：
+ * - 'lock-reauth'    → LockReauthTicket（sgx-lock-reauth）：安全与隐私 → 锁屏凭证；要 admin 锁屏会话
+ * - 'lock-reset'     → LockResetTicket（sgx-lock-reset）：只在锁屏未设置时可用（从零设置第一把 LockKey，
+ *                      无需会话）；锁屏已设置时走 /api/lock-reset（RootKey + 重置开关 / AccountKey），这里按假入口处理
+ * - 'account-reauth' → AccountReauthTicket（sgx-account-reauth）：账号 → 账号安全；要 admin 锁屏会话 + 有效账号会话
+ * - 'account-reset'  → AccountResetTicket（sgx-account-reset）：重置账号登录方式；要 admin 锁屏会话，不要账号会话。
+ *                      重置页只认这张票，设好新 AccountKey 后正常登录（不顺带签账号会话）
+ * 三张票都是 3 分钟、各自独立 cookie（见 realms.js TICKETS）。
+ *
+ * 访客假入口：访客会话（sgx-lock-session role=visitor）直接写死返回 401：
  * 不读 D1、KV、环境变量里的任何凭证，不做任何比对；不计入根凭证限速；
  * 不写审计。状态码、响应体、响应头、固定最小延迟与真失败一致。
  * 缺 Origin 仍先 403。
+ * 无会话假入口：不满足上面各用途的前置条件（无 admin 会话，且不是锁屏未设置时的 lock-reset）→ 写死 401 auth，
+ * 与真失败逐字节相同；计入限速，不写审计。
  *
- * 引导：lock 层未配置时（KV 读失败按已配置处理），允许无会话直接校验根凭证。
- *
- * 本接口不直接签 lock 会话。
- *
- * 按用途签票（PR3：根凭证统一，比对只在 _kernel/root-check.js 一处）：
- * - purpose 'lock'（默认）：锁屏门票 sgx-door(door=lock, by=root)
- * - purpose 'account'：「重置登录」—— 根凭证不再是普通的账号登录入口，只用来重置账号登录方式：
- *   签账号会话 sgx-account(by=root) + 账号门票 sgx-door(door=account, by=root)，3 分钟，
- *   前端随即进 账号 → 安全与隐私 重设账号密码 / 通行密钥。不签锁屏门票。
- *   限速、审计（path=account）、访客假入口、真/假路径判断与 lock 完全相同，唯一区别：
- *   purpose=account 不走引导模式（无有效站长锁屏会话一律走假入口）。缺 SGX_ACCOUNT_PRIVATE/PUBLIC → 503 config。
- *
- * POST /api/root-auth { key, purpose? }
  * - 恒定时间比较 env.SGX_ROOT_KEY（防长度泄露）
  * - 限速：所有 root 路径共用一套（_kernel/root-limit.js），仅真路径计数
  *   （单 IP 连错 5 次锁 15 分钟；全局每小时失败 20 次暂停 1 小时）
- * - 通过：签发锁屏门票 sgx-door(door=lock, by=root)
  * - 失败：401 auth（并计数）；超限：429
- * - 缺 SGX_ROOT_KEY → 500 config；缺 SGX_LOCK_PRIVATE/PUBLIC → 503 config
+ * - 缺 SGX_ROOT_KEY → 500 config；缺该票的签名钥匙 → 503 config
  *
- * 审计：真路径每次使用（成功/失败）在 KV 留一条记录（_kernel/root-audit.js）；
+ * 审计：真路径每次使用（成功/失败）在 KV 留一条记录（_kernel/root-audit.js，path = purpose）；
  * 假入口不写审计。写入失败则不签发（fail closed）。
  *
  * 只接受 POST；校验 Origin（缺失/解析失败 403）。
  */
 import { ed25519Verify } from '../_kernel/crypto.js';
 import { checkRootCredential } from '../_kernel/root-check.js';
-import { ROLE_OWNER, ROLE_VISITOR } from '../_kernel/lock-session.js';
+import { ROLE_ADMIN, ROLE_VISITOR, verifyLockSession } from '../_kernel/lock-session.js';
 import { checkRootLimit, recordRootFail, getClientIp } from '../_kernel/root-limit.js';
 import { writeRootAudit } from '../_kernel/root-audit.js';
 import { isLockEffectivelyConfigured } from '../_kernel/layers.js';
-import { verifySessionDetailed } from '../_middleware.js';
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
-import { REALM_LOCK, REALM_ROOT, realmPrivateKey, realmPublicKey } from '../_kernel/realms.js';
-import { issueDoorCookie, DOOR_ACCOUNT, DOOR_LOCK } from '../_kernel/tickets.js';
-import { issueAccountCookie, accountKeysReady, accountSessionOpts, ACCOUNT_BY_ROOT } from '../_kernel/account-session.js';
+import {
+  REALM_LOCK,
+  REALM_ROOT,
+  TICKETS,
+  BY_ROOT,
+  LOCK_REAUTH_TICKET,
+  LOCK_RESET_TICKET,
+  ACCOUNT_REAUTH_TICKET,
+  ACCOUNT_RESET_TICKET,
+  realmPublicKey,
+} from '../_kernel/realms.js';
+import { issueTicket } from '../_kernel/tickets.js';
+import { verifyAccountSession } from '../_kernel/account-session.js';
+
+/** purpose → 签哪张票 */
+export const ROOT_PURPOSES = Object.freeze({
+  'lock-reauth': LOCK_REAUTH_TICKET,
+  'lock-reset': LOCK_RESET_TICKET,
+  'account-reauth': ACCOUNT_REAUTH_TICKET,
+  'account-reset': ACCOUNT_RESET_TICKET,
+});
 
 /* 假入口与真失败的统一固定最小延迟（毫秒）：防时序区分。
    真失败路径的审计写入放在 padTo 之前，padTo 把总耗时对齐到此时长，
@@ -66,14 +78,13 @@ function decoyAuth() {
 }
 
 /**
- * 轻量会话检查（不读 KV）：解析 sgx-verified cookie、验 Ed25519 签名、检查 exp 与 role。
+ * 轻量会话检查（不读 KV）：解析 sgx-lock-session、验 Ed25519 签名、检查 exp 与 role。
  * 只读 SGX_LOCK_PUBLIC（公钥，非凭证）。
  * - role=visitor：仅用于识别访客假入口
- * - 站长角色：仅用于决定走真路径还是假入口（另要求 by 合法）；
- *   真路径内再做完整校验（含 KV epoch）
+ * - role=admin：仅用于决定走真路径还是假入口；真路径内再做完整校验（含 KV 纪元）
  * @param {any} request
  * @param {any} env
- * @param {string} wantRole ROLE_VISITOR 或 ROLE_OWNER
+ * @param {string} wantRole ROLE_VISITOR 或 ROLE_ADMIN
  * @returns {Promise<boolean>} 是否看起来像该角色的有效会话
  */
 async function lightSession(request, env, wantRole) {
@@ -83,17 +94,13 @@ async function lightSession(request, env, wantRole) {
     if (!pubKey) return false;
     for (const part of h.split(';')) {
       const [k, ...v] = part.trim().split('=');
-      if (k !== REALM_LOCK.cookie) continue; /* sgx-verified */
-      const val = v.join('=');
-      const parts = val.split('.');
-      if (parts.length !== 5) continue;
-      const [by, role, epochStr, expStr, sig] = parts;
-      if (role !== wantRole) continue;
-      if (wantRole === ROLE_OWNER && by !== 'root' && by !== 'owner') continue;
-      const exp = parseInt(expStr, 10);
+      if (k !== REALM_LOCK.cookie) continue; /* sgx-lock-session */
+      const parts = v.join('=').split('.');
+      if (parts.length !== 6) continue;
+      if (parts[1] !== wantRole) continue;
+      const exp = parseInt(parts[3], 10);
       if (!Number.isFinite(exp) || exp <= Date.now()) continue;
-      const payload = by + '.' + role + '.' + epochStr + '.' + expStr;
-      if (await ed25519Verify(pubKey, payload, sig)) return true;
+      if (await ed25519Verify(pubKey, REALM_LOCK.cookie + '|' + parts.slice(0, 5).join('.'), parts[5])) return true;
     }
   } catch (e) {}
   return false;
@@ -128,14 +135,18 @@ async function handlePost(context) {
   const kv = env && env.KV_LOCK_DOOR;
   const ip = getClientIp(request);
 
-  /* body 只读一次（target 决定签发什么；key 在限流检查之后才比对） */
+  /* body 只读一次（purpose 决定签哪张票；key 在限流检查之后才比对） */
   let body = null;
   try { body = await request.json(); } catch (e) {}
-  /* 用途：purpose='account'（重置登录：账号）；其余一律按锁屏（purpose='lock' 或不传） */
-  const toAccount = !!(body && body.purpose === 'account');
-  const auditPath = toAccount ? 'account' : 'root-auth';
+  const purpose = body && typeof body.purpose === 'string' ? body.purpose : '';
+  if (!Object.prototype.hasOwnProperty.call(ROOT_PURPOSES, purpose)) {
+    await padTo(t0);
+    return Response.json({ ok: false, error: 'purpose' }, { status: 400 });
+  }
+  const ticket = ROOT_PURPOSES[purpose];
+  const auditPath = purpose;
 
-  /* 非访客路径：计算 lockCfg（供真/假路径判断用） */
+  /* 锁屏是否已设置（KV 读失败按已设置处理）：只决定 lock-reset 能不能走 */
   let lockCfg = true;
   try {
     lockCfg = await isLockEffectivelyConfigured(kv);
@@ -144,12 +155,10 @@ async function handlePost(context) {
   }
 
   /* 真路径还是无会话假入口：
-     - 有疑似有效站长会话 → 真路径
-     - 无会话但 lock 层未配置 → 真路径（引导）
-     - 无会话且 lock 已配置（或读取失败按已配置）→ 假入口 */
-  const looksAdmin = await lightSession(request, env, ROLE_OWNER);
-  /* 重置登录（purpose=account）不走引导：必须先有站长锁屏会话 */
-  const realPath = looksAdmin || (!lockCfg && !toAccount);
+     - lock-reset：只在锁屏未设置时走真路径（从零设置，无需会话）
+     - 其余三个：有疑似有效的 admin 锁屏会话才走真路径 */
+  const looksAdmin = await lightSession(request, env, ROLE_ADMIN);
+  const realPath = ticket === LOCK_RESET_TICKET ? !lockCfg : looksAdmin;
 
   if (!realPath) {
     /* ===== 无会话假入口：写死 401，与真失败逐字节相同 =====
@@ -176,36 +185,29 @@ async function handlePost(context) {
   }
 
   /* ===== 真路径 =====
-     缺关键配置 → 直接拒绝（fail closed）。注意：假入口路径在上面已返回，
-     这里只处理真路径，避免无会话时因缺环境变量泄露 500 config。 */
+     缺关键配置 → 直接拒绝（fail closed）。假入口在上面已返回，这里只处理真路径，
+     避免无会话时因缺环境变量泄露 500 config。该票的签名钥匙缺失 → 503 config（先于比对，不浪费限流次数）。 */
   const rootKey = (env && env[REALM_ROOT.secret]) || ''; /* SGX_ROOT_KEY */
-  if (toAccount) {
-    /* 账号钥匙缺失 → 503 config（只影响账号登录）；先于根凭证比对，不浪费限流次数 */
-    if (!accountKeysReady(env)) {
-      return Response.json({ ok: false, error: 'config' }, { status: 503 });
-    }
-    if (!rootKey || !kv) {
-      return Response.json({ ok: false, error: 'config' }, { status: 500 });
-    }
-  } else {
-    /* 锁屏钥匙缺失 → 503 config；先于根凭证比对，不浪费限流次数 */
-    if (!realmPrivateKey(env, REALM_LOCK) || !realmPublicKey(env, REALM_LOCK)) {
-      return Response.json({ ok: false, error: 'config' }, { status: 503 });
-    }
-    if (!rootKey || !kv) {
-      return Response.json({ ok: false, error: 'config' }, { status: 500 });
-    }
+  const conf = TICKETS[ticket];
+  if (!(env && env[conf.privateKey]) || !(env && env[conf.publicKey])) {
+    return Response.json({ ok: false, error: 'config' }, { status: 503 });
+  }
+  if (!rootKey || !kv) {
+    return Response.json({ ok: false, error: 'config' }, { status: 500 });
   }
 
-  if (lockCfg || toAccount) {
-    /* 正常运行：入口 1 要求有效 lock 会话。
-       完整会话校验（含 KV epoch）；轻量检查通过但完整校验失败（如 epoch 已推进）→ 401 */
-    const sess = await verifySessionDetailed(request, env);
-    if (!sess.ok || sess.role !== ROLE_OWNER) {
+  if (ticket !== LOCK_RESET_TICKET) {
+    /* 完整会话校验（含 KV 纪元）；轻量检查通过但完整校验失败（如纪元已推进）→ 401 session */
+    const sess = await verifyLockSession(request, env);
+    if (!sess.ok || sess.role !== ROLE_ADMIN) {
       return Response.json({ ok: false, error: 'session' }, { status: 401 });
     }
+    /* 账号再验证：本来就要已登录账号 */
+    if (ticket === ACCOUNT_REAUTH_TICKET) {
+      const acc = await verifyAccountSession(request, env);
+      if (!acc.ok) return Response.json({ ok: false, error: 'account', reason: acc.reason }, { status: 401 });
+    }
   }
-  /* 引导模式（lock 未配置）：无需会话，直接校验根凭证 */
 
   /* 根凭证比对（限速 / 恒定时间比较 / 失败计数 / 审计）：全站共用一份实现（_kernel/root-check.js） */
   const rc = await checkRootCredential({
@@ -219,33 +221,11 @@ async function handlePost(context) {
   if (!rc.ok) return rc.response;
 
   const headers = new Headers({ 'Content-Type': 'application/json' });
-
-  /* 账号登录：签发 sgx-account(by=root)，不签锁屏门票、不签 lock 会话 */
-  if (toAccount) {
-    const accErr = await issueAccountCookie(env, headers, ACCOUNT_BY_ROOT, await accountSessionOpts(request, env, body));
-    if (accErr) {
-      await writeRootAudit(kv, ip, false, { path: auditPath });
-      return Response.json(accErr.body, { status: accErr.status });
-    }
-    /* 重置登录：总是另签账号门票（3 分钟），前端直接进账号 → 安全与隐私重设账号密码 / 通行密钥 */
-    const dErr = await issueDoorCookie(env, headers, DOOR_ACCOUNT, ACCOUNT_BY_ROOT);
-    if (dErr) {
-      await writeRootAudit(kv, ip, false, { path: auditPath });
-      return Response.json(dErr.body, { status: dErr.status });
-    }
-    if (!(await writeRootAudit(kv, ip, true, { path: auditPath }))) {
-      return Response.json({ ok: false, error: 'server' }, { status: 503 });
-    }
-    return new Response(JSON.stringify({ ok: true }), { headers });
-  }
-
-  /* 只签发锁屏门票（door=lock, by=root），不签发会话 */
-  const dErr = await issueDoorCookie(env, headers, DOOR_LOCK, 'root');
-  if (dErr) {
+  const tErr = await issueTicket(env, headers, ticket, BY_ROOT);
+  if (tErr) {
     await writeRootAudit(kv, ip, false, { path: auditPath });
-    return Response.json(dErr.body, { status: dErr.status });
+    return Response.json(tErr.body, { status: tErr.status });
   }
-
   /* 审计写入失败则不签发（fail closed） */
   if (!(await writeRootAudit(kv, ip, true, { path: auditPath }))) {
     return Response.json({ ok: false, error: 'server' }, { status: 503 });

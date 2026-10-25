@@ -2,8 +2,8 @@
  * 聊天 Worker styrigx-chat（workers/chat，2026-10-22 从网关拆出来）：请求校验、没钥匙、
  * 模型切换（CHAT_MODELS 白名单、GET /models、bad_model、每个模型的工具开关、model_unavailable、工具被拒不带工具重试一次）、
  * Gemini SSE → 我们自己的事件（delta / sources / done / error，来源去重 ≤ 8）、上游 429 → rate_limited、OpenAI 兼容模式、
- * 入口只认网关写的 X-Sgx-Role: owner、wrangler.toml（变量、钥匙绑定、没有公开地址）。
- * 门（同源 / 会话 / 只许站长）和转发在网关，见 tests/workers/auth-gateway/chat-api.test.mjs。
+ * 入口只认网关写的 X-Sgx-Role: admin、wrangler.toml（变量、钥匙绑定、没有公开地址）。
+ * 门（同源 / 会话 / 只许管理员）和转发在网关，见 tests/workers/auth-gateway/chat-api.test.mjs。
  * 上游 fetch 一律 mock（globalThis.fetch），不发真实请求。
  * 运行：node --test tests/workers/chat/*.test.mjs
  */
@@ -27,8 +27,8 @@ function env(over = {}) {
 }
 
 const MSGS = [{ role: 'user', text: 'Hugo 最新版本？' }];
-/** 网关转进来的样子：POST https://styrigx-chat/chat + X-Sgx-Role: owner（不带 cookie / Origin） */
-function req(body, { role = 'owner', raw, path = '/chat', method = 'POST' } = {}) {
+/** 网关转进来的样子：POST https://styrigx-chat/chat + X-Sgx-Role: admin（不带 cookie / Origin） */
+function req(body, { role = 'admin', raw, path = '/chat', method = 'POST' } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (role) headers['X-Sgx-Role'] = role;
   return new Request('https://styrigx-chat' + path, { method, headers, body: method === 'GET' ? undefined : raw !== undefined ? raw : JSON.stringify(body) });
@@ -87,12 +87,12 @@ test('wrangler.toml：没有公开地址（workers_dev / preview_urls 关、没�
   assert.doesNotMatch(toml.slice(toml.search(/^\[\[secrets_store_secrets\]\]/m)), /^\[(?!\[secrets_store_secrets\]\])/m, '钥匙段后面不能再有别的表');
 });
 
-test('入口：只认网关写的 X-Sgx-Role: owner（没有 / visitor / 别的 → 403 owner_only）；未知路径 404；方法不对 405；都不调上游', async () => {
+test('入口：只认网关写的 X-Sgx-Role: admin（没有 / visitor / 别的 → 403 admin_only）；未知路径 404；方法不对 405；都不调上游', async () => {
   mockFetch(() => { throw new Error('不应调用上游'); });
-  for (const role of [null, 'visitor', 'Owner', 'admin']) {
+  for (const role of [null, 'visitor', 'Admin', 'owner']) {
     let r = await call(req({ messages: MSGS }, { role }));
     assert.equal(r.status, 403, String(role));
-    assert.deepEqual(await r.json(), { ok: false, error: 'owner_only' });
+    assert.deepEqual(await r.json(), { ok: false, error: 'admin_only' });
     r = await call(req(null, { role, path: '/models', method: 'GET' }));
     assert.equal(r.status, 403);
   }

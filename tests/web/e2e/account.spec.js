@@ -1,19 +1,19 @@
 /**
- * 账号页 E2E（站长凭证升级为账号；静态构建 + API mock，无需真实后端）。
+ * 账号页 E2E（管理员凭证升级为账号；静态构建 + API mock，无需真实后端）。
  *
  * 覆盖：
  * - 账号登录（PR3）：顶栏页名「登录账号」；头像 + 欢迎回来；通行密钥登录（强调色主按钮）/ 密码登录（原地展开）/
  *   无法登录？；设了哪个显示哪个（读不到状态两个都显示），中英文；根凭证不再是登录入口
  * - 密码登录：错误行内提示；成功后进账号总览（账号卡、「安全与隐私」一行）
- * - 重置登录页：根凭证走 /api/root-auth { key, purpose:'account' }，成功直接进安全与隐私
+ * - 重置登录页：根凭证走 /api/root-auth { key, purpose:'account-reset' }，拿 AccountResetTicket 直接进账号安全（不签账号会话）
  * - 通行密钥：取消系统验证不报错；点了立即 busy，只发一次 challenge
  * - 安全与隐私子页（/account/security/）：修改密码（根凭证登录时标题为「重置账号密码」）、
  *   删除通行密钥（两步确认）、注册后命名弹层（A1/A2/A3）、列表内重命名、signalCurrentUserDetails；
  *   未登录 → 跳账号页 ?return= 登录后回来
  * - 账号总览（2026-10-24 PR4）：账号卡只展示（已登录，点头像换头像，见 avatar-edit.spec.js），「账号信息」子页删除；
  *   登录方式 / 退出账号 / 保持登录说明在设备页「此设备」卡；云同步一行进 /account/sync/（总开关 + 同步项）
- * - 安全与隐私子页的门：没有门票 → 验证行（设了哪个显示哪个），door:true 验证后进门 + 倒计时；
- *   管理操作返回 403 door → 回门口并提示「验证已过期」
+ * - 账号安全子页：没有 AccountReauthTicket → 验证行（设了哪个显示哪个），reauth:true 验证后进管理区 + 倒计时；
+ *   管理操作返回 403 reauth → 回验证区并提示「验证已过期」
  * - 只有锁屏会话（GET /api/account session=null）→ 显示登录区，不当作已登录
  * - 服务器缺账号钥匙（ready=false）→ 登录区显示配置提示
  *
@@ -24,8 +24,8 @@ const { blockExternalRequests } = require('./helpers');
 
 const SEC = '/account/security/';
 const RECENT = () => ({ by: 'password', authAt: Date.now() - 1000, expiresAt: Date.now() + 3600000, recent: true });
-/* 安全与隐私子页的门票（3 分钟） */
-const DOOR = () => ({ by: 'password', expiresAt: Date.now() + 170000 });
+/* 安全与隐私子页的reauth 票（3 分钟） */
+const REAUTH = () => ({ by: 'password', expiresAt: Date.now() + 170000 });
 
 /**
  * /api/account mock：GET 返回 status；POST 按 action 返回 handlers[action]。
@@ -233,10 +233,10 @@ test.describe('账号登录', () => {
 test.describe('重置登录（/account/reset/）', () => {
   test.beforeEach(async ({ page }) => { await zh(page); });
 
-  test('顶栏页名「重置登录」；根凭证 → /api/root-auth { key, purpose:account } → 直接进安全与隐私', async ({ page }) => {
+  test('顶栏页名「重置登录」；根凭证 → /api/root-auth { key, purpose:account-reset } → 直接进账号安全', async ({ page }) => {
     let rootBody = null;
     await mockAccount(page, {
-      status: { ok: true, password: false, passkey: false, ready: true, session: Object.assign(RECENT(), { by: 'root' }), door: { by: 'root', expiresAt: Date.now() + 170000 } },
+      status: { ok: true, password: false, passkey: false, ready: true, session: null, reset: { by: 'root', expiresAt: Date.now() + 170000 } },
       handlers: { 'passkey-list': [200, { ok: true, by: 'root', keys: [] }] },
     });
     await page.route('**/api/root-auth', async (route) => {
@@ -251,7 +251,7 @@ test.describe('重置登录（/account/reset/）', () => {
     await page.fill('#sgx-reset-root', 'root-key-xyz');
     await page.click('#sgx-reset-go');
     await expect(page).toHaveURL(/\/account\/security\/$/);
-    expect(rootBody).toMatchObject({ key: 'root-key-xyz', purpose: 'account' }); /* 另带 device（型号 / 平台，设备页用） */
+    expect(rootBody).toMatchObject({ key: 'root-key-xyz', purpose: 'account-reset' }); /* 另带 device（型号 / 平台，设备页用） */
   });
 
   test('根凭证错误 → 行内「根凭证不正确」并清空；空值提示', async ({ page }) => {
@@ -279,9 +279,9 @@ test.describe('重置登录（/account/reset/）', () => {
 test.describe('安全与隐私子页', () => {
   test.beforeEach(async ({ page }) => { await zh(page); });
 
-  test('根凭证登录：密码标题为「重置账号密码」，重置成功提示已修改', async ({ page }) => {
+  test('根凭证重置（AccountResetTicket by=root）：密码标题为「重置账号密码」，重置成功提示已修改', async ({ page }) => {
     const calls = await mockAccount(page, {
-      status: { ok: true, password: true, passkey: false, ready: true, session: Object.assign(RECENT(), { by: 'root' }), door: DOOR() },
+      status: { ok: true, password: true, passkey: false, ready: true, session: null, reset: { by: 'root', expiresAt: Date.now() + 170000 } },
       handlers: { 'passkey-list': [200, { ok: true, keys: [] }], 'password-change': [200, { ok: true, changed: true }] },
     });
     await page.goto(SEC, { waitUntil: 'domcontentloaded' });
@@ -297,7 +297,7 @@ test.describe('安全与隐私子页', () => {
 
   test('密码与解锁密码相同 → 弹层内「不能与解锁密码相同」', async ({ page }) => {
     await mockAccount(page, {
-      status: { ok: true, password: false, passkey: false, ready: true, session: RECENT(), door: DOOR() },
+      status: { ok: true, password: false, passkey: false, ready: true, session: RECENT(), reauth: REAUTH() },
       handlers: { 'passkey-list': [200, { ok: true, keys: [] }], 'password-change': [403, { ok: false, error: 'same-as-lock' }] },
     });
     await page.goto(SEC, { waitUntil: 'domcontentloaded' });
@@ -312,7 +312,7 @@ test.describe('安全与隐私子页', () => {
   test('删除通行密钥：两步确认后调 delete 并刷新列表', async ({ page }) => {
     let keys = [{ credId: 'k1', name: 'Galaxy S26', provider: '', createdAt: 1760000000000, lastUsedAt: 1760000000000 }];
     const calls = await mockAccount(page, {
-      status: { ok: true, password: true, passkey: true, ready: true, session: RECENT(), door: DOOR() },
+      status: { ok: true, password: true, passkey: true, ready: true, session: RECENT(), reauth: REAUTH() },
       handlers: {
         'passkey-list': () => [200, { ok: true, keys: keys }],
         'passkey-delete': () => { keys = []; return [200, { ok: true }]; },
@@ -329,47 +329,47 @@ test.describe('安全与隐私子页', () => {
     expect(calls.find((c) => c.action === 'passkey-delete')).toEqual({ action: 'passkey-delete', credId: 'k1' });
   });
 
-  test('门：没有门票 → 验证行（设了哪个显示哪个）；密码验证带 door:true → 进门 + 倒计时胶囊', async ({ page }) => {
-    let door = null;
+  test('没有 reauth 票 → 验证行（设了哪个显示哪个）；密码验证带 reauth:true → 进管理区 + 倒计时胶囊', async ({ page }) => {
+    let reauth = null;
     const calls = await mockAccount(page, {
-      status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT(), door: door }),
+      status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT(), reauth: reauth }),
       handlers: {
-        'login-password': (b) => { if (b.door === true) door = DOOR(); return [200, { ok: true }]; },
+        'login-password': (b) => { if (b.reauth === true) reauth = REAUTH(); return [200, { ok: true }]; },
         'passkey-list': [200, { ok: true, keys: [] }],
       },
     });
     await page.goto(SEC, { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#acct-door')).toBeVisible();
+    await expect(page.locator('#acct-reauth')).toBeVisible();
     await expect(page.locator('#acct-sec')).toBeHidden();
-    await expect(page.locator('#acct-door-methods .sgx-credential-row .sgx-credential-rowtitle')).toHaveText(['账号密码']);
-    await expect(page.locator('#acct-door-cant')).toHaveAttribute('href', '/account/reset/');
-    await page.locator('#acct-door-methods .sgx-credential-row').filter({ hasText: '账号密码' }).click();
-    await page.locator('#acct-door-methods .sgx-credential-expand input[type="password"]').fill('pw-123456');
-    await expect(page.locator('#acct-door-methods .sgx-credential-btn-primary')).toHaveText('验证');
-    await page.locator('#acct-door-methods .sgx-credential-btn-primary').click();
+    await expect(page.locator('#acct-reauth-methods .sgx-credential-row .sgx-credential-rowtitle')).toHaveText(['账号密码']);
+    await expect(page.locator('#acct-reauth-cant')).toHaveAttribute('href', '/account/reset/');
+    await page.locator('#acct-reauth-methods .sgx-credential-row').filter({ hasText: '账号密码' }).click();
+    await page.locator('#acct-reauth-methods .sgx-credential-expand input[type="password"]').fill('pw-123456');
+    await expect(page.locator('#acct-reauth-methods .sgx-credential-btn-primary')).toHaveText('验证');
+    await page.locator('#acct-reauth-methods .sgx-credential-btn-primary').click();
     await expect(page.locator('#acct-sec')).toBeVisible();
-    await expect(page.locator('#acct-door')).toBeHidden();
-    expect(calls.find((c) => c.action === 'login-password')).toMatchObject({ action: 'login-password', password: 'pw-123456', door: true });
+    await expect(page.locator('#acct-reauth')).toBeHidden();
+    expect(calls.find((c) => c.action === 'login-password')).toMatchObject({ action: 'login-password', password: 'pw-123456', reauth: true });
     await expect(page.locator('#sgx-credential-countdown')).toContainText(/验证剩余 [23]:\d\d/);
   });
 
   test('门：根凭证不再是验证入口；都没设 → 没有验证行，只有「无法登录？」进重置登录', async ({ page }) => {
     await mockAccount(page, {
-      status: () => ({ ok: true, password: false, passkey: false, ready: true, session: RECENT(), door: null }),
+      status: () => ({ ok: true, password: false, passkey: false, ready: true, session: RECENT(), reauth: null }),
       handlers: { 'passkey-list': [200, { ok: true, keys: [] }] },
     });
     await page.goto(SEC, { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#acct-door')).toBeVisible();
-    await expect(page.locator('#acct-door-methods .sgx-credential-row')).toHaveCount(0);
-    await expect(page.locator('#acct-door')).not.toContainText('根凭证', { useInnerText: true });
-    await page.click('#acct-door-cant');
+    await expect(page.locator('#acct-reauth')).toBeVisible();
+    await expect(page.locator('#acct-reauth-methods .sgx-credential-row')).toHaveCount(0);
+    await expect(page.locator('#acct-reauth')).not.toContainText('根凭证', { useInnerText: true });
+    await page.click('#acct-reauth-cant');
     await expect(page).toHaveURL(/\/account\/reset\/$/);
   });
 
-  test('管理操作返回 403 door（门票过期）→ 回门口并提示「验证已过期」', async ({ page }) => {
+  test('管理操作返回 403 reauth（reauth 票过期）→ 回验证区并提示「验证已过期」', async ({ page }) => {
     await mockAccount(page, {
-      status: { ok: true, password: true, passkey: false, ready: true, session: RECENT(), door: DOOR() },
-      handlers: { 'passkey-list': [200, { ok: true, keys: [] }], 'password-change': [403, { ok: false, error: 'door' }] },
+      status: { ok: true, password: true, passkey: false, ready: true, session: RECENT(), reauth: REAUTH() },
+      handlers: { 'passkey-list': [200, { ok: true, keys: [] }], 'password-change': [403, { ok: false, error: 'reauth' }] },
     });
     await page.goto(SEC, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#acct-sec')).toBeVisible();
@@ -377,15 +377,15 @@ test.describe('安全与隐私子页', () => {
     await page.locator('#lockpw-1').fill('another-pass-1');
     await page.locator('#lockpw-2').fill('another-pass-1');
     await page.locator('#lockpw-go').click();
-    await expect(page.locator('#acct-door')).toBeVisible();
+    await expect(page.locator('#acct-reauth')).toBeVisible();
     await expect(page.locator('#acct-sec')).toBeHidden();
-    await expect(page.locator('#acct-door-notice')).toHaveText('验证已过期，请重新验证');
+    await expect(page.locator('#acct-reauth-notice')).toHaveText('验证已过期，请重新验证');
     await expect(page.locator('#sgx-credential-countdown')).toHaveCount(0);
   });
 
-  test('离开本页（pagehide）：发 reauth-clear 作废门票', async ({ page }) => {
+  test('离开本页（pagehide）：发 reauth-clear 作废 reauth 票', async ({ page }) => {
     const calls = await mockAccount(page, {
-      status: { ok: true, password: true, passkey: false, ready: true, session: RECENT(), door: DOOR() },
+      status: { ok: true, password: true, passkey: false, ready: true, session: RECENT(), reauth: REAUTH() },
       handlers: { 'passkey-list': [200, { ok: true, keys: [] }], 'reauth-clear': [200, { ok: true }] },
     });
     /* keepalive 请求在页面卸载时发出，route 拦不稳；在 context 上听请求体 */
@@ -462,14 +462,14 @@ test.describe('安全与隐私子页：进入与回跳', () => {
     await page.click('#acct-pw-go');
     await page.waitForURL(/\/account\/security\/$/);
     /* 登录只是进账号；安全与隐私还要过门 */
-    await expect(page.locator('#acct-door')).toBeVisible();
+    await expect(page.locator('#acct-reauth')).toBeVisible();
     await expect(page.locator('#acct-sec')).toBeHidden();
   });
 
   test('英文子页：标题 Account security，总览行链接到英文子页', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
     await mockAccount(page, {
-      status: { ok: true, password: false, passkey: true, ready: true, session: RECENT(), door: DOOR() },
+      status: { ok: true, password: false, passkey: true, ready: true, session: RECENT(), reauth: REAUTH() },
       handlers: { 'passkey-list': [200, { ok: true, keys: [] }] },
     });
     await page.goto('/en/account/', { waitUntil: 'domcontentloaded' });
@@ -489,7 +489,7 @@ test.describe('安全与隐私子页：账号通行密钥命名', () => {
   async function setup(page) {
     let keys = [];
     const calls = await mockAccount(page, {
-      status: { ok: true, password: true, passkey: false, ready: true, session: RECENT(), door: DOOR() },
+      status: { ok: true, password: true, passkey: false, ready: true, session: RECENT(), reauth: REAUTH() },
       handlers: {
         'passkey-list': () => [200, { ok: true, keys: keys, userHandle: 'acct-h', userName: 'AccountKey', displayName: 'Sloan Gray' }],
         'passkey-register-challenge': [200, { ok: true, cid: 'c1', challenge: 'dGVzdC1jaGFsbGVuZ2U', rpId: 'localhost', rp: { name: 'Styrigx' }, user: { id: 'YWNjdC1o', name: 'AccountKey', displayName: 'Sloan Gray' }, excludeCredentials: [] }],
@@ -557,7 +557,7 @@ test.describe('安全与隐私子页：账号通行密钥命名', () => {
     const keys0 = [{ credId: 'k1', name: 'Galaxy S26', provider: 'Samsung Pass', createdAt: 1760000000000, lastUsedAt: 0 }];
     let keys = keys0;
     const calls = await mockAccount(page, {
-      status: { ok: true, password: true, passkey: true, ready: true, session: RECENT(), door: DOOR() },
+      status: { ok: true, password: true, passkey: true, ready: true, session: RECENT(), reauth: REAUTH() },
       handlers: {
         'passkey-list': () => [200, { ok: true, keys: keys }],
         'passkey-rename': (b) => { keys = [Object.assign({}, keys0[0], { name: b.name })]; return [200, { ok: true, name: b.name }]; },
@@ -578,20 +578,20 @@ test.describe('安全与隐私子页：账号通行密钥命名', () => {
     await expect(input).toHaveValue('平板');
   });
 
-  test('rename 返回 403 door → 回门口重新验证', async ({ page }) => {
+  test('rename 返回 403 reauth → 回验证区重新验证', async ({ page }) => {
     await mockAccount(page, {
-      status: { ok: true, password: true, passkey: true, ready: true, session: RECENT(), door: DOOR() },
+      status: { ok: true, password: true, passkey: true, ready: true, session: RECENT(), reauth: REAUTH() },
       handlers: {
         'passkey-list': [200, { ok: true, keys: [{ credId: 'k1', name: 'Galaxy S26', provider: '', createdAt: 1760000000000, lastUsedAt: 0 }] }],
-        'passkey-rename': [403, { ok: false, error: 'door' }],
+        'passkey-rename': [403, { ok: false, error: 'reauth' }],
       },
     });
     await page.goto(SEC, { waitUntil: 'domcontentloaded' });
     const input = page.locator('#lockmgr-pklist .lockmgr-pkname input');
     await input.fill('新名字');
     await input.press('Enter');
-    await expect(page.locator('#acct-door')).toBeVisible();
-    await expect(page.locator('#acct-door-notice')).toHaveText('验证已过期，请重新验证');
+    await expect(page.locator('#acct-reauth')).toBeVisible();
+    await expect(page.locator('#acct-reauth-notice')).toHaveText('验证已过期，请重新验证');
   });
 
   test('signalCurrentUserDetails：list 带账号 handle 时发一次（name=AccountKey）', async ({ page }) => {
@@ -671,7 +671,7 @@ test.describe('访客头像', () => {
     expect(new URL(page.url()).pathname).toBe('/');
   });
 
-  test('站长：头像照常链到账号页', async ({ page }) => {
+  test('管理员：头像照常链到账号页', async ({ page }) => {
     await zh(page);
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-drawer-me')).toHaveAttribute('href', '/account/');
@@ -1182,8 +1182,8 @@ test.describe('账号页是独立页 /account/（2026-10-22 从 /settings/accoun
 });
 
 test.describe('云同步拉取节流（2026-10-24）', () => {
-  /** 像线上 L1 那样给 HTML 页面注入站长角色；/api/prefs 计数 */
-  async function ownerWithPrefs(page) {
+  /** 像线上 L1 那样给 HTML 页面注入管理员角色；/api/prefs 计数 */
+  async function adminWithPrefs(page) {
     await zh(page);
     await page.route(/^http:\/\/localhost:\d+\/[^?]*\/?$/, async (route) => {
       const req = route.request();
@@ -1191,7 +1191,7 @@ test.describe('云同步拉取节流（2026-10-24）', () => {
       const res = await route.fetch();
       const ct = res.headers()['content-type'] || '';
       if (!ct.includes('text/html')) return route.fulfill({ response: res });
-      const body = (await res.text()).replace(/<html([^>]*)>/i, '<html$1 data-sgx-lock-session="valid" data-sgx-role="owner" data-sgx-account-session="in">');
+      const body = (await res.text()).replace(/<html([^>]*)>/i, '<html$1 data-sgx-lock-session="valid" data-sgx-role="admin" data-sgx-account-session="in">');
       await route.fulfill({ response: res, body: body });
     });
     const prefs = { get: 0, post: 0 };
@@ -1205,7 +1205,7 @@ test.describe('云同步拉取节流（2026-10-24）', () => {
   }
 
   test('普通页面 5 分钟内只拉一次；进云同步页强制再拉', async ({ page }) => {
-    const prefs = await ownerWithPrefs(page);
+    const prefs = await adminWithPrefs(page);
     await page.goto('/', { waitUntil: 'load' });
     await expect.poll(() => prefs.get).toBe(1);
     /* 拉取成功写下时刻后再换页（还没处理完响应就离开，这次不算成功，下一页会再拉） */
@@ -1215,15 +1215,15 @@ test.describe('云同步拉取节流（2026-10-24）', () => {
     await page.waitForTimeout(400);
     expect(prefs.get).toBe(1);
     const stamp = await page.evaluate(() => JSON.parse(localStorage.getItem('sgx-sync-pull') || '{}'));
-    expect(typeof stamp.owner).toBe('number');
+    expect(typeof stamp.account).toBe('number');
     await page.goto('/account/sync/', { waitUntil: 'load' });
     await expect.poll(() => prefs.get).toBe(2);
   });
 
   test('时刻超过 5 分钟 → 普通页面再拉', async ({ page }) => {
-    const prefs = await ownerWithPrefs(page);
+    const prefs = await adminWithPrefs(page);
     await page.addInitScript(() => {
-      try { localStorage.setItem('sgx-sync-pull', JSON.stringify({ owner: Date.now() - 6 * 60 * 1000 })); } catch (e) {}
+      try { localStorage.setItem('sgx-sync-pull', JSON.stringify({ account: Date.now() - 6 * 60 * 1000 })); } catch (e) {}
     });
     await page.goto('/', { waitUntil: 'load' });
     await expect.poll(() => prefs.get).toBe(1);
