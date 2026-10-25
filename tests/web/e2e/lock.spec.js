@@ -633,7 +633,7 @@ test.describe('PR3 锁屏：无法登录？→ 弹层原地切到重置登录', 
     await expect(page.locator('.sgx-reset input[autocomplete="username"]')).toHaveValue('RootKey');
     await page.fill('#sgx-reset-root', 'root-key');
     await page.click('#sgx-reset-go');
-    await expect(page.locator('.sgx-reset[data-step="owner"]')).toBeVisible();
+    await expect(page.locator('.sgx-reset[data-step="account"]')).toBeVisible();
     await expect(page.locator('.sgx-reset-opts .sgx-credential-rowtitle')).toHaveText(['账号通行密钥', '账号密码']);
     await expect(page.locator('#sgx-method-sheet')).not.toContainText('站长');
     await page.locator('.sgx-credential-row').filter({ hasText: '账号密码' }).click();
