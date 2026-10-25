@@ -17,11 +17,11 @@
  * 不写审计。状态码、响应体、响应头、固定最小延迟与真失败一致。
  * 缺 Origin 仍先 403。
  * 无会话假入口：不满足上面各用途的前置条件（无 admin 会话，且不是锁屏未设置时的 lock-reset）→ 写死 401 auth，
- * 与真失败逐字节相同；计入限速，不写审计。
+ * 与真失败逐字节相同；只计单 IP 限速（不比对，不计全局），全局减速时同样先等，不写审计。
  *
  * - 恒定时间比较 env.SGX_ROOT_KEY（防长度泄露）
- * - 限速：所有 root 路径共用一套（_kernel/root-limit.js），仅真路径计数
- *   （单 IP 连错 5 次锁 15 分钟；全局每小时失败 20 次暂停 1 小时）
+ * - 限速：所有 root 路径共用一套（_kernel/root-limit.js）：单 IP 连错 5 次锁 15 分钟；
+ *   全局只减速不封锁（每小时真比对失败满 20 次后每次先等几秒），任何人都刷不出全站暂停
  * - 失败：401 auth（并计数）；超限：429
  * - 缺 SGX_ROOT_KEY → 500 config；缺该票的签名钥匙 → 503 config
  *
@@ -31,7 +31,7 @@
  * 只接受 POST；校验 Origin（缺失/解析失败 403）。
  */
 import { ed25519Verify } from '../_kernel/crypto.js';
-import { checkRootCredential } from '../_kernel/root-check.js';
+import { checkRootCredential, sleep } from '../_kernel/root-check.js';
 import { ROLE_ADMIN, ROLE_VISITOR, verifyLockSession } from '../_kernel/lock-session.js';
 import { checkRootLimit, recordRootFail, getClientIp } from '../_kernel/root-limit.js';
 import { writeRootAudit } from '../_kernel/root-audit.js';
@@ -163,7 +163,8 @@ async function handlePost(context) {
   if (!realPath) {
     /* ===== 无会话假入口：写死 401，与真失败逐字节相同 =====
        不检查环境变量（缺 SGX_ROOT_KEY 等时也返回 401，不泄露 500 config）。
-       保留限速检查（KV 出错时 fail closed）；不写审计（防刷接口触发全局暂停）。
+       限速检查与真路径相同（KV 出错时 fail closed，全局减速时同样先等）；
+       失败只计单 IP、不计全局（没有比对，不算猜测，刷这里推不动全局计数）；不写审计（不让刷接口灌满审计）。
        KV 缺失时无法限速，直接返回 401（不泄露配置状态）。 */
     if (kv) {
       try {
@@ -171,11 +172,12 @@ async function handlePost(context) {
         if (lim.limited) {
           return Response.json({ ok: false, error: 'cooldown' }, { status: 429 });
         }
+        if (lim.delayMs) await sleep(lim.delayMs);
       } catch (e) {
         return Response.json({ ok: false, error: 'server' }, { status: 503 });
       }
       try {
-        await recordRootFail(kv, ip);
+        await recordRootFail(kv, ip, { global: false });
       } catch (e) {
         return Response.json({ ok: false, error: 'server' }, { status: 503 });
       }

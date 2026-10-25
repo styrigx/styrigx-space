@@ -222,7 +222,7 @@ test('账号密码限速：同 IP 连错 5 次 → 429 cooldown（冷却中密�
     assert.equal(r.status, 403);
     assert.equal((await r.json()).error, 'wrong');
   }
-  assert.equal(await kv.get('account-password-fail:10.9.9.9'), '4');
+  assert.deepEqual(JSON.parse(await kv.get('account-password-fail:10.9.9.9')), { count: 4, strikes: 0 });
   assert.equal(await kv.get('lock-password-fail:10.9.9.9'), null, '不计入锁屏密码的计数');
   const fifth = await accountPost(kv, { action: 'login-password', password: 'wrong-password-1' }, c);
   assert.equal(fifth.status, 429);

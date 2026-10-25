@@ -1,5 +1,5 @@
 /**
- * @fileoverview API 公共小工具：同源校验、no-store。
+ * @fileoverview API 公共小工具：同源校验、no-store、限速分桶。
  */
 
 /**
@@ -39,4 +39,31 @@ export function withNoStore(res) {
     copy.headers.set('Cache-Control', 'private, no-store');
     return copy;
   }
+}
+
+/**
+ * 限速用的客户端分桶：IPv4 按单个地址；IPv6 按 /64（一台机器通常能随意换同一 /64 里的地址）。
+ * IPv4 映射地址（::ffff:a.b.c.d）按其中的 IPv4。解析不了的原样返回。
+ * @param {string} ip
+ * @returns {string}
+ */
+export function ipBucket(ip) {
+  const s = String(ip || '').trim().toLowerCase();
+  if (s.indexOf(':') < 0) return s;
+  const v4 = s.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/);
+  if (v4) return v4[1];
+  const halves = s.split('::');
+  if (halves.length > 2) return s;
+  const head = halves[0] ? halves[0].split(':') : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+  if (tail.length && tail[tail.length - 1].indexOf('.') >= 0) tail.splice(-1, 1, '0', '0'); /* 末尾内嵌 IPv4：只占位，/64 用不到 */
+  const fill = 8 - head.length - tail.length;
+  if (fill < 0 || (halves.length === 1 && fill !== 0)) return s;
+  const parts = head.concat(new Array(halves.length === 2 ? fill : 0).fill('0'), tail);
+  const out = [];
+  for (let i = 0; i < 4; i++) {
+    if (!/^[0-9a-f]{1,4}$/.test(parts[i])) return s;
+    out.push(parseInt(parts[i], 16).toString(16));
+  }
+  return out.join(':') + '::/64';
 }

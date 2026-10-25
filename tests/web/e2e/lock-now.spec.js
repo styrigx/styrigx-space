@@ -6,6 +6,7 @@
  * 3. 确认后才发 /api/lock-now
  * 4. 锁定过程中主页 DOM 不出现（无 --:-- 时钟节点）
  * 5. Space 键不触发（只认 Enter）
+ * 6. 锁定前清掉本标签页的管理内容（sessionStorage sgx-chat-convo）；接口失败不跳锁屏、toast 提示
  */
 import { test, expect } from '@playwright/test';
 
@@ -96,6 +97,17 @@ test.describe('B1-1 立即锁定', () => {
     /* Enter 应该弹确认层 */
     await page.keyboard.press('Enter');
     await expect(page.locator('#sec-locknow-confirm')).toBeVisible();
+  });
+
+  test('接口失败：不跳锁屏、提示锁定失败；管理内容已清掉', async ({ page }) => {
+    await page.route('**/api/lock-now', (route) => route.fulfill({ status: 500, body: '{}' }));
+    await gotoSecurity(page);
+    await page.evaluate(() => sessionStorage.setItem('sgx-chat-convo', '{"v":1,"msgs":[{"role":"user","content":"x"}]}'));
+    await page.locator('#sec-locknow').click();
+    await page.locator('#sec-locknow-confirm [data-act="ok"]').click();
+    await expect(page.locator('.sgx-toast')).toContainText('锁定失败');
+    expect(new URL(page.url()).search).not.toContain('lock=1');
+    expect(await page.evaluate(() => sessionStorage.getItem('sgx-chat-convo'))).toBeNull();
   });
 
   test('锁定过程中不出现 --:-- 时钟（用 location.replace）', async ({ page }) => {

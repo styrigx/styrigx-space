@@ -7,7 +7,7 @@
  *
  * POST /api/lock-password
  * Body: { action: "verify"|"set"|"change"|"remove", ... }
- * - verify { password, reauth? }：锁屏密码解锁（IP 限速：连错 5 次冷却 30 秒，429 cooldown）；
+ * - verify { password, reauth? }：锁屏密码解锁（IP 限速：每连错 5 次冷却一轮，30 秒起逐轮翻倍、封顶 1 小时，429 cooldown；全局只减速）；
  *   reauth:true（有 admin 锁屏会话）不签会话，改签 3 分钟 LockReauthTicket（安全与隐私 → 锁屏凭证）
  * - set / change { password }：需 LockReauthTicket + admin 锁屏会话，或 LockResetTicket
  * - remove：只认 LockReauthTicket（重置锁屏不能删）

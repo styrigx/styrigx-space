@@ -32,11 +32,10 @@ export async function getPasskeyAssertion(options, opts) {
   }, 30000);
 
   try {
+    /* signal 只能放在 CredentialRequestOptions 顶层，放进 publicKey 里不生效 */
     const cred = await navigator.credentials.get({
-      publicKey: Object.assign({}, options, {
-        timeout: 30000,
-        signal: ctrl.signal,
-      }),
+      publicKey: Object.assign({}, options, { timeout: 30000 }),
+      signal: ctrl.signal,
     });
     return cred;
   } catch (e) {

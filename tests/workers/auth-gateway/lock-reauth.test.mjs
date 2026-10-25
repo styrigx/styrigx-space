@@ -163,7 +163,7 @@ test('再验证（解锁密码）：verify reauth:true 只签 3 分钟 LockReaut
   res = await onRequestPost({ request: post('/api/lock-password', { action: 'verify', password: 'wrong-pass', reauth: true }, 'sgx-lock-session=' + sess), env: envFor(kv) });
   assert.equal(res.status, 403);
   assert.equal((await res.json()).error, 'wrong');
-  assert.equal(kv._map.get('lock-password-fail:203.0.113.9'), '1');
+  assert.equal(JSON.parse(kv._map.get('lock-password-fail:203.0.113.9')).count, 1);
 });
 
 test('再验证（解锁密码）：访客写死「密码错误」不读存储；没有会话 → 401 session', async () => {

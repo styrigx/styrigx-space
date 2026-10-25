@@ -12,7 +12,7 @@
  *   未验证的非白名单路径 302 到 https://styrigx.com/?lock=1&return=<站内路径>
  *   （Cache-Control: no-store，不再返回 200 锁屏 HTML）；
  *   ?return= 只接受站内路径（/ 开头，非 //、/\），非法一律回首页 /；
- *   isSafeReturnPath 导出供复用
+ *   控制字符 / 反斜杠 / 编码绕过（/%09/evil.com 等）一律回首页；safeReturn 导出供复用
  * - /api/lock-session-check：有效会话 200 {ok:true}，否则 401
  * - 三个解锁接口（password/verify/passkey）成功时 Set-Cookie 属性齐全：
  *   Path=/、Secure、HttpOnly、SameSite=Lax、Domain=.styrigx.com
@@ -407,9 +407,25 @@ test('middleware：lockout 后旧 epoch cookie 失效', async () => {
   assert.equal(await r3.text(), 'NEXT-BY-APP');
 });
 
-test('middleware：非生产环境不锁', async () => {
-  const r = await mw(mwCtx('http://localhost:8931/settings/', { env: {} }));
-  assert.equal(await r.text(), 'NEXT-BY-APP');
+test('middleware：SGX_ENV 显式写成非生产值才不锁', async () => {
+  for (const name of ['development', 'test', 'preview']) {
+    const r = await mw(mwCtx('http://localhost:8931/settings/', { env: { SGX_ENV: name } }));
+    assert.equal(await r.text(), 'NEXT-BY-APP', name);
+  }
+});
+
+test('middleware：缺 SGX_ENV 或写错 → 按生产处理（fail closed），任何 host 都不放行', async () => {
+  for (const env of [{}, { SGX_ENV: '' }, { SGX_ENV: 'prod' }, { SGX_ENV: 'Preview' }]) {
+    const local = await mw(mwCtx('http://localhost:8931/settings/', { env }));
+    assert.equal(local.status, 301, JSON.stringify(env));
+    assert.equal(local.headers.get('Location'), 'https://styrigx.com/settings/');
+    const api = await mw(mwCtx('https://passkey-e2e.styrigx-space.pages.dev/api/lock-credentials', { env }));
+    assert.equal(api.status, 403, JSON.stringify(env));
+  }
+  /* 正式域名缺 SGX_ENV：照常走会话检查（缺公钥 → 302 锁屏） */
+  const r = await mw(mwCtx(PROD_URL, { env: { SGX_SITE: 'space', KV_LOCK_DOOR: makeKV() } }));
+  assert.equal(r.status, 302);
+  assert.ok(r.headers.get('Location').startsWith('https://styrigx.com/?lock=1&return='));
 });
 
 test('middleware：styrigx-space.pages.dev → 301 到 https://styrigx.com（保留 path+query，no-store）', async () => {
@@ -426,8 +442,8 @@ test('middleware：pages.dev 根路径 → 301 到 https://styrigx.com/', async 
   assert.equal(r.headers.get('Cache-Control'), 'no-store');
 });
 
-test('middleware：分支预览别名 xxx.styrigx-space.pages.dev → 不跳转（放行）', async () => {
-  const r = await mw(mwCtx('https://feat-xyz.styrigx-space.pages.dev/store/', { env: {} }));
+test('middleware：分支预览别名 xxx.styrigx-space.pages.dev + SGX_ENV=preview → 不跳转（放行）', async () => {
+  const r = await mw(mwCtx('https://feat-xyz.styrigx-space.pages.dev/store/', { env: { SGX_ENV: 'preview' } }));
   /* 非生产环境：放行到 next()，不做 pages.dev 跳转 */
   assert.equal(await r.text(), 'NEXT-BY-APP');
 });

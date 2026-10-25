@@ -1,19 +1,42 @@
 /**
  * @fileoverview B1-1 立即锁定（设置 › 安全与隐私 的「立即锁定」行和顶栏快捷面板的磁贴共用）。
- * 先弹确认层（#sec-locknow-confirm），确认后 POST /api/lock-now 清除服务端会话 cookie，
- * 然后 location.replace('/?lock=1') → 锁屏出现（中间不渲染主页）。访客和管理员都能用，不设限。
+ * 先弹确认层（#sec-locknow-confirm），确认后清掉本标签页里的管理内容缓存（ADMIN_SESSION_KEYS），
+ * POST /api/lock-now 清除服务端会话 cookie，成功后 location.replace('/?lock=1') → 锁屏出现（中间不渲染主页）。
+ * 请求失败（网络错误或非 2xx）：会话 cookie 可能还在，不跳锁屏、不假装已锁，toast 提示锁定失败。
+ * 访客和管理员都能用，不设限。
  * 弹层关闭后 400ms 内的点击忽略（防误触，见 dialog-behavior.js）。
  */
 import { sgxReplace } from './diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, shouldIgnorePostDialogClick } from './dialog-behavior.js';
+import { toast } from './toast.js';
 
-function doLock() {
+/* 本标签页 sessionStorage 里的管理内容：锁定时清掉，免得同一标签页换访客解锁后还能读到 */
+const ADMIN_SESSION_KEYS = ['sgx-chat-convo'];
+
+function clearAdminSessionData() {
+  for (const k of ADMIN_SESSION_KEYS) {
+    try { sessionStorage.removeItem(k); } catch (e) {}
+  }
+}
+
+function lockFailed() {
+  const en = document.documentElement.lang === 'en';
+  toast(en ? 'Couldn’t lock this device. Check your connection and try again.' : '锁定失败，请检查网络后重试。');
+}
+
+/** 确认后执行锁定（确认层调用；单测直接调）。 */
+export function doLock() {
+  clearAdminSessionData();
   fetch('/api/lock-now', { method: 'POST', credentials: 'include' })
-    .then(function () {
+    .then(function (r) {
+      if (!r.ok) {
+        lockFailed();
+        return;
+      }
       sgxReplace('/?lock=1');
     })
     .catch(function () {
-      sgxReplace('/?lock=1');
+      lockFailed();
     });
 }
 

@@ -785,7 +785,8 @@ test.describe('B1-2 普通解锁路径 pkAuth()（mock WebAuthn）', () => {
           const pk = (opts && opts.publicKey) || {};
           window.__pkArgs = {
             timeout: pk.timeout,
-            hasSignal: !!(pk.signal instanceof AbortSignal),
+            hasSignal: !!(opts && opts.signal instanceof AbortSignal),
+            signalInPublicKey: 'signal' in pk,
           };
           return new Promise(function (resolve, reject) {
             window.__pkReject = reject;
@@ -813,10 +814,11 @@ test.describe('B1-2 普通解锁路径 pkAuth()（mock WebAuthn）', () => {
         return d ? window.getComputedStyle(d).visibility : 'missing';
       });
       expect(visDuring, 'get 进行中弹层应隐藏').toBe('hidden');
-      /* ② 传给 get 的 timeout 是 30000，并且带了 signal */
+      /* ② 传给 get 的 timeout 是 30000，并且顶层带了 signal（不在 publicKey 里） */
       const args = await page.evaluate(() => window.__pkArgs);
       expect(args.timeout, 'timeout 应为 30000').toBe(30000);
-      expect(args.hasSignal, '应带 AbortSignal').toBe(true);
+      expect(args.hasSignal, '顶层应带 AbortSignal').toBe(true);
+      expect(args.signalInPublicKey, 'publicKey 里不应有 signal').toBe(false);
       /* ③ 2.5s 后抛 NotAllowedError（elapsed≥2s → kind cancelled） */
       await page.evaluate(() => {
         setTimeout(() => {

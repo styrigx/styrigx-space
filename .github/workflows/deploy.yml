@@ -293,6 +293,8 @@ jobs:
                           "SGX_LOCK_PRIVATE": {"type": "secret_text", "value": ED_PRIV},
                           "SGX_LOCK_PUBLIC": {"type": "plain_text", "value": ED_PUB},
                           "SGX_SITE": {"type": "plain_text", "value": "space"},
+                          # 网关缺 SGX_ENV 按生产处理（fail closed）；预览显式写 preview，与 web/wrangler.toml 一致
+                          "SGX_ENV": {"type": "plain_text", "value": "preview"},
                           # P0-3：预览的 RP_ID/ORIGIN（明文，CI 每次部署前写入）
                           "SGX_RP_ID": {"type": "plain_text", "value": "passkey-e2e.styrigx-space.pages.dev"},
                           "SGX_ORIGIN": {"type": "plain_text", "value": "https://passkey-e2e.styrigx-space.pages.dev"},

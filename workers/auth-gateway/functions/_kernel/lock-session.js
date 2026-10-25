@@ -203,7 +203,7 @@ export async function verifyLockSessionTicket(val, env) {
   const kv = env && env.KV_LOCK_DOOR;
   if (!kv) return { status: 'kv-error', role: null, by: null };
   try {
-    if (p.epoch < (await getLockEpoch(kv))) return { status: 'epoch-low', role: null, by: null };
+    if (p.epoch !== (await getLockEpoch(kv))) return { status: 'epoch-low', role: null, by: null };
     /* visitor：钥匙到期由票自己的 exp 管（不晚于钥匙到期）；作废要查 KV，一次读 */
     if (p.role === ROLE_VISITOR && (await isTempkeyRevoked(kv, p.tempkeyId))) {
       return { status: 'tempkey-revoked', role: null, by: null };

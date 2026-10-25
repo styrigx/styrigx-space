@@ -23,7 +23,7 @@
  * - login-challenge → 账号通行密钥登录 challenge（purpose=login）
  * - login-passkey { cid, credential, reauth? } → 验断言（UV=1、userHandle）→ 账号会话(by=passkey)
  * - login-password { password, reauth? } → 验账号密码 → 账号会话(by=password)；
- *   同 IP 连错 5 次冷却 30 秒（429 cooldown，规则同锁屏密码，计数键 account-password-fail / -cooldown）
+ *   规则同锁屏密码：同 IP 每连错 5 次冷却一轮，30 秒起逐轮翻倍、封顶 1 小时（429 cooldown）；全局只减速（_kernel/password-limit.js）
  *   reauth:true（进账号安全子页前再验一次）→ 另签 AccountReauthTicket，3 分钟
  * - logout → 清账号会话和 reauth / reset 票（幂等，不需会话）
  * - reauth-clear → 只清 reauth / reset 票（离开账号安全子页时调；幂等，不需会话）

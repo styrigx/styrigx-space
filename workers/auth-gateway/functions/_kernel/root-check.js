@@ -8,7 +8,7 @@
  * - /api/lock-reset  verify          → 重置开关有效：LockResetTicket(by=root)；
  *                                      否则 needAccount，再验账号凭证 → LockResetTicket(by=account)
  *
- * 本函数只做：共用限速检查 → 恒定时间比对（两边去空白）→ 失败计数 + 审计 / 成功清计数。
+ * 本函数只做：共用限速检查（全局减速时先等）→ 恒定时间比对（两边去空白）→ 失败计数 + 审计 / 成功清计数。
  * 不签任何票，不读重置开关。fail closed：限速或计数 KV 出错一律 503。
  *
  * 失败响应与假入口逐字节相同（401 { ok:false, error:'auth' }）；传 padTo 时在返回前对齐耗时。
@@ -41,6 +41,7 @@ export async function checkRootCredential(o) {
       await writeRootAudit(kv, ip, false, { path: auditPath });
       return { ok: false, response: Response.json({ ok: false, error: 'cooldown' }, { status: 429 }) };
     }
+    if (lim.delayMs) await sleep(lim.delayMs);
   } catch (e) {
     return { ok: false, response: Response.json({ ok: false, error: 'server' }, { status: 503 }) };
   }
@@ -62,4 +63,9 @@ export async function checkRootCredential(o) {
   /* 成功：清掉该 IP 的失败计数（失败不影响主流程） */
   await clearRootFail(kv, ip);
   return { ok: true };
+}
+
+/** @param {number} ms */
+export function sleep(ms) {
+  return new Promise(function (r) { setTimeout(r, ms); });
 }

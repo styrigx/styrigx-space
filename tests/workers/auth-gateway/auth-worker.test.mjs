@@ -356,6 +356,7 @@ test('预览（作为 Pages 的 _worker.js 运行，有 env.ASSETS）：页面�
   _resetSecretCache();
   const seen = [];
   const env = {
+    SGX_ENV: 'preview', /* web/wrangler.toml [env.preview.vars] 与 deploy.yml 预览变量同值 */
     SGX_SITE: 'space',
     KV_LOCK_DOOR: makeKv(),
     ASSETS: { fetch: async (req) => { seen.push(new URL(req.url || req).pathname); return new Response(PAGE, { headers: { 'Content-Type': 'text/html' } }); } },
@@ -368,6 +369,14 @@ test('预览（作为 Pages 的 _worker.js 运行，有 env.ASSETS）：页面�
     assert.deepEqual(seen, ['/settings/', '/avatar/32.webp']);
     assert.equal(calls.length, 0);
   });
+});
+
+test('预览显式设 SGX_ENV=preview（网关缺 SGX_ENV 按生产处理，不设预览地址就只剩 301/403）', () => {
+  const pagesToml = readFileSync(REPO + '/web/wrangler.toml', 'utf8');
+  const vars = pagesToml.slice(pagesToml.indexOf('[env.preview.vars]'));
+  assert.match(vars.slice(0, vars.indexOf('\n[', 1)), /^SGX_ENV = "preview"$/m);
+  const wf = readFileSync(REPO + '/.github/workflows/deploy.yml', 'utf8');
+  assert.match(wf, /"SGX_ENV": \{"type": "plain_text", "value": "preview"\}/);
 });
 
 test('路由：账号 → 安全与隐私子页（/account/security/ 与 /en/）过网关', async () => {
