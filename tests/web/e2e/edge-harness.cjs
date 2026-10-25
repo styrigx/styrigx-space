@@ -266,7 +266,7 @@ async function startEdge() {
   await new Promise((r) => proxy.listen(PROXY_PORT, '127.0.0.1', r));
 
   async function seedPasskey() {
-    const pk = await mod('workers/auth-gateway/functions/api/lock-passkey.js');
+    const pk = await mod('workers/auth-gateway/functions/_kernel/passkey-store.js');
     const layers = await mod('workers/auth-gateway/functions/_kernel/layers.js');
     const kp = nodeCrypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
     const jwk = kp.publicKey.export({ format: 'jwk' });
