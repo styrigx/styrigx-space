@@ -81,11 +81,11 @@ function getReq(url, headers = {}) {
 }
 
 async function ownerSess(epoch = 0) {
-  const { signSessionCookie } = await import(KERNEL + 'session.js');
+  const { signSessionCookie } = await import(KERNEL + 'lock-session.js');
   return await signSessionCookie(LOCK.priv, epoch, 'owner', 'owner');
 }
 async function visitorSess() {
-  const { signSessionCookie } = await import(KERNEL + 'session.js');
+  const { signSessionCookie } = await import(KERNEL + 'lock-session.js');
   return await signRole(signSessionCookie, LOCK.priv, 0, 'visitor', 'owner');
 }
 async function accTicket(by = 'password', authAt = Date.now(), epoch = 0, priv) {
@@ -106,7 +106,7 @@ function pickCookie(res, name) {
 }
 
 async function doorTicket(by = 'password', epoch = 0, priv, now) {
-  const { signDoorTicket } = await import(KERNEL + 'door.js');
+  const { signDoorTicket } = await import(KERNEL + 'tickets.js');
   return await signDoorTicket(priv || ACCOUNT.priv, 'account', by, epoch, now);
 }
 /* 管理操作要账号门票：测试里带了账号会话又没显式给 sgx-door（键不存在）时，自动补一张同纪元的门票；
@@ -216,11 +216,11 @@ test('账号密码登录：错误 → 403 wrong；未设置 → 403 not-set；�
 
 /* ============ 登录入口二：账号通行密钥 ============ */
 
-test('账号通行密钥登录（迁移：原 owner-passkey class=owner 不重新注册）→ sgx-account(by=passkey)；legacy userHandle 也接受', async () => {
+test('账号通行密钥登录（迁移：原 lock-passkey class=owner 不重新注册）→ sgx-account(by=passkey)；legacy userHandle 也接受', async () => {
   const kv = makeKV({ 'layer:owner': '1', 'owner-user-id': 'legacy-handle-xyz' });
   const { kp, credId } = await seedPasskey(kv, 'owner');
   const sess = await ownerSess();
-  const ch = await accountPost(kv, { action: 'challenge' }, { 'sgx-verified': sess });
+  const ch = await accountPost(kv, { action: 'login-challenge' }, { 'sgx-verified': sess });
   assert.equal(ch.status, 200);
   const cj = await ch.json();
   assert.deepEqual(cj.allowCredentials, [{ id: credId, type: 'public-key' }]);
@@ -240,7 +240,7 @@ test('账号通行密钥登录（迁移：原 owner-passkey class=owner 不重�
 test('账号通行密钥登录：锁屏类（class=lock）钥匙不能登录账号', async () => {
   const kv = makeKV();
   const { kp, credId } = await seedPasskey(kv, 'lock');
-  const ch = await accountPost(kv, { action: 'challenge' }, { 'sgx-verified': await ownerSess() });
+  const ch = await accountPost(kv, { action: 'login-challenge' }, { 'sgx-verified': await ownerSess() });
   assert.equal(ch.status, 403);
   assert.equal((await ch.json()).error, 'not-set');
   await kv.put('account-challenge:c1', JSON.stringify({ challenge: 'abc', purpose: 'login', exp: Date.now() + 60000 }));
@@ -308,7 +308,7 @@ test('账号会话 400 天：登录很久以前（远超 10 分钟）也还是�
 test('安全与隐私的门：改动必须有账号门票 —— 没有门票 403 door；门票过期 / 别的钥匙签 / 纪元不对都 403 door；只读 list 不要门票', async () => {
   const kv = makeKV();
   const base = { 'sgx-verified': await ownerSess(), 'sgx-account': await accTicket('password') };
-  const body = { action: 'password', password: 'new-password-123' };
+  const body = { action: 'password-change', password: 'new-password-123' };
   const r1 = await accountPost(kv, body, { ...base, 'sgx-door': '' });
   assert.equal(r1.status, 403);
   assert.equal((await r1.json()).error, 'door');
@@ -325,14 +325,14 @@ test('安全与隐私的门：改动必须有账号门票 —— 没有门票 40
   const r5 = await accountPost(kv, body, { ...base, 'sgx-door': base['sgx-account'] });
   assert.equal((await r5.json()).error, 'door');
   assert.equal(await kv.get('owner-pw'), null, '一次都没改成');
-  const r6 = await accountPost(kv, { action: 'list' }, { ...base, 'sgx-door': '' });
+  const r6 = await accountPost(kv, { action: 'passkey-list' }, { ...base, 'sgx-door': '' });
   assert.equal(r6.status, 200);
 });
 
 test('进门：login-password 带 door:true / root-auth purpose=account → 账号会话 + 3 分钟门票（sgx-door，只给主站、Strict）；GET 返回 door.expiresAt；door-clear 立即作废', async () => {
   const kv = makeKV({ 'layer:owner': '1' });
-  await seedPassword(kv, 'old-owner-password-1');
-  const res = await accountPost(kv, { action: 'login-password', password: 'old-owner-password-1', door: true }, { 'sgx-verified': await ownerSess() });
+  await seedPassword(kv, 'old-account-password-1');
+  const res = await accountPost(kv, { action: 'login-password', password: 'old-account-password-1', door: true }, { 'sgx-verified': await ownerSess() });
   assert.equal(res.status, 200);
   const dc = setCookies(res).find((c) => c.startsWith('sgx-door='));
   assert.match(dc, /^sgx-door=door\.account\.password\.0\.\d+\.\d+\.[A-Za-z0-9_-]+; Path=\/; HttpOnly; Secure; SameSite=Strict; Max-Age=180$/);
@@ -342,7 +342,7 @@ test('进门：login-password 带 door:true / root-auth purpose=account → 账�
   assert.equal(g.door.by, 'password');
   assert.ok(g.door.expiresAt > Date.now() && g.door.expiresAt <= Date.now() + 180 * 1000);
   /* 没带 door:true 的普通登录不签门票 */
-  const res2 = await accountPost(kv, { action: 'login-password', password: 'old-owner-password-1' }, { 'sgx-verified': await ownerSess() });
+  const res2 = await accountPost(kv, { action: 'login-password', password: 'old-account-password-1' }, { 'sgx-verified': await ownerSess() });
   assert.equal(pickCookie(res2, 'sgx-door'), null);
   /* 根凭证（重置登录 purpose=account）也签账号门票 */
   const { onRequestPost } = await import(API + 'root-auth.js');
@@ -350,7 +350,7 @@ test('进门：login-password 带 door:true / root-auth purpose=account → 账�
   assert.equal(rr.status, 200);
   assert.ok(pickCookie(rr, 'sgx-door').startsWith('door.account.root.'));
   /* door-clear：不需会话、只清门票 */
-  const c = await accountPost(kv, { action: 'door-clear' }, {});
+  const c = await accountPost(kv, { action: 'reauth-clear' }, {});
   const sc = setCookies(c);
   assert.equal(sc.length, 1);
   assert.ok(sc[0].startsWith('sgx-door=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0'));
@@ -358,9 +358,9 @@ test('进门：login-password 带 door:true / root-auth purpose=account → 账�
 
 test('门内改账号密码（account-epoch +1）：当前设备门票按原到期时间重签，门内可以接着操作', async () => {
   const kv = makeKV({ 'layer:owner': '1' });
-  await seedPassword(kv, 'old-owner-password-1');
+  await seedPassword(kv, 'old-account-password-1');
   const door = await doorTicket('password', 0);
-  const r = await accountPost(kv, { action: 'password', password: 'brand-new-pass-1' }, { 'sgx-verified': await ownerSess(), 'sgx-account': await accTicket('password'), 'sgx-door': door });
+  const r = await accountPost(kv, { action: 'password-change', password: 'brand-new-pass-1' }, { 'sgx-verified': await ownerSess(), 'sgx-account': await accTicket('password'), 'sgx-door': door });
   assert.equal(r.status, 200);
   const nd = pickCookie(r, 'sgx-door');
   assert.ok(nd && nd.startsWith('door.account.password.1.'), '门票换成新纪元');
@@ -372,7 +372,7 @@ test('门内改账号密码（account-epoch +1）：当前设备门票按原到�
 
 test('首次设置账号密码：layer:owner 标记 + session-epoch +1，并重签当前 lock 会话（与原站长凭证一致）', async () => {
   const kv = makeKV({ 'session-epoch': '3' });
-  const r = await accountPost(kv, { action: 'password', password: 'first-pass-123' }, {
+  const r = await accountPost(kv, { action: 'password-change', password: 'first-pass-123' }, {
     'sgx-verified': await ownerSess(3),
     'sgx-account': await accTicket('root'),
   });
@@ -389,10 +389,10 @@ test('账号密码：短于 8 位 400 short；与锁屏密码相同 403 same-as-
   const { makePasswordRecord } = await import(KERNEL + 'password.js');
   await kv.put('lock-pw', JSON.stringify(await makePasswordRecord('lock-pass-123', PEPPER)));
   const c = { 'sgx-verified': await ownerSess(), 'sgx-account': await accTicket('password') };
-  let r = await accountPost(kv, { action: 'password', password: 'short' }, c);
+  let r = await accountPost(kv, { action: 'password-change', password: 'short' }, c);
   assert.equal(r.status, 400);
   assert.equal((await r.json()).error, 'short');
-  r = await accountPost(kv, { action: 'password', password: 'lock-pass-123' }, c);
+  r = await accountPost(kv, { action: 'password-change', password: 'lock-pass-123' }, c);
   assert.equal(r.status, 403);
   assert.equal((await r.json()).error, 'same-as-lock');
 });
@@ -402,12 +402,12 @@ test('账号通行密钥：list 只列 class=owner；根凭证会话可删除（
   const a = await seedPasskey(kv, 'owner');
   await seedPasskey(kv, 'lock');
   const c = { 'sgx-verified': await ownerSess(), 'sgx-account': await accTicket('root') };
-  const l = await accountPost(kv, { action: 'list' }, c);
+  const l = await accountPost(kv, { action: 'passkey-list' }, c);
   assert.equal(l.status, 200);
   const lj = await l.json();
   assert.deepEqual(lj.keys.map((k) => k.credId), [a.credId]);
   assert.equal(lj.keys[0].name, '站长通行密钥', '迁移：原名字保留');
-  const d = await accountPost(kv, { action: 'delete', credId: a.credId }, c);
+  const d = await accountPost(kv, { action: 'passkey-delete', credId: a.credId }, c);
   assert.equal(d.status, 200);
   assert.equal(await kv.get('owner-passkey:' + a.credId.slice(0, 12)), null);
   assert.equal(await kv.get('layer:owner'), null);
@@ -418,7 +418,7 @@ test('账号通行密钥：list 只列 class=owner；根凭证会话可删除（
 test('账号页不能删锁屏类钥匙（404 not-found）', async () => {
   const kv = makeKV();
   const lk = await seedPasskey(kv, 'lock');
-  const r = await accountPost(kv, { action: 'delete', credId: lk.credId }, { 'sgx-verified': await ownerSess(), 'sgx-account': await accTicket('password') });
+  const r = await accountPost(kv, { action: 'passkey-delete', credId: lk.credId }, { 'sgx-verified': await ownerSess(), 'sgx-account': await accTicket('password') });
   assert.equal(r.status, 404);
   assert.ok(await kv.get('owner-passkey:' + lk.credId.slice(0, 12)));
 });
@@ -426,7 +426,7 @@ test('账号页不能删锁屏类钥匙（404 not-found）', async () => {
 test('注册 challenge：沿用 owner-user-id:owner，名字 AccountKey（原 OwnerKey），排除已有账号通行密钥', async () => {
   const kv = makeKV({ 'owner-user-id:owner': 'acct-handle-1' });
   const a = await seedPasskey(kv, 'owner');
-  const r = await accountPost(kv, { action: 'register-challenge' }, { 'sgx-verified': await ownerSess(), 'sgx-account': await accTicket('passkey') });
+  const r = await accountPost(kv, { action: 'passkey-register-challenge' }, { 'sgx-verified': await ownerSess(), 'sgx-account': await accTicket('passkey') });
   assert.equal(r.status, 200);
   const j = await r.json();
   assert.equal(j.user.id, 'acct-handle-1');
@@ -440,14 +440,14 @@ test('list：带账号 handle（owner-user-id:owner，供 signalCurrentUserDetai
   const c = async () => ({ 'sgx-verified': await ownerSess(), 'sgx-account': await accTicket('passkey', Date.now() - 20 * 60 * 1000) });
   const kv = makeKV({ 'owner-user-id:owner': 'acct-handle-9', 'owner-user-id': 'legacy-lock-handle' });
   await seedPasskey(kv, 'owner');
-  const r = await accountPost(kv, { action: 'list' }, await c());
+  const r = await accountPost(kv, { action: 'passkey-list' }, await c());
   assert.equal(r.status, 200, 'list 只读，不要求近期');
   const j = await r.json();
   assert.equal(j.userHandle, 'acct-handle-9', '只给当前账号 handle，不给与 LockKey 共用的旧 handle');
   assert.equal(j.userName, 'AccountKey');
   assert.equal(j.displayName, 'Sloan Gray');
   const kv2 = makeKV();
-  const j2 = await (await accountPost(kv2, { action: 'list' }, await c())).json();
+  const j2 = await (await accountPost(kv2, { action: 'passkey-list' }, await c())).json();
   assert.equal(j2.userHandle, '');
   assert.equal(await kv2.get('owner-user-id:owner'), null, 'list 不创建 handle');
 });
@@ -458,7 +458,7 @@ test('rename：改账号通行密钥名字（清理控制字符/空格、限 40 
   const lk = await seedPasskey(kv, 'lock');
   const c = { 'sgx-verified': await ownerSess(), 'sgx-account': await accTicket('password') };
   const long = '  Galaxy\u0007 S26 ' + 'x'.repeat(60);
-  const r = await accountPost(kv, { action: 'rename', credId: a.credId, name: long }, c);
+  const r = await accountPost(kv, { action: 'passkey-rename', credId: a.credId, name: long }, c);
   assert.equal(r.status, 200);
   const want = ('Galaxy S26 ' + 'x'.repeat(60)).slice(0, 40);
   assert.equal((await r.json()).name, want);
@@ -466,12 +466,12 @@ test('rename：改账号通行密钥名字（清理控制字符/空格、限 40 
   assert.equal(rec.name, want);
   assert.equal(rec.class, 'owner', '存储层 class 仍是 owner');
   assert.equal(await kv.get('account-epoch'), null, '重命名不推纪元');
-  const e = await accountPost(kv, { action: 'rename', credId: a.credId, name: ' \u0001 ' }, c);
+  const e = await accountPost(kv, { action: 'passkey-rename', credId: a.credId, name: ' \u0001 ' }, c);
   assert.equal(e.status, 400);
   assert.equal((await e.json()).error, 'params');
-  const m = await accountPost(kv, { action: 'rename', credId: 'nope' }, c);
+  const m = await accountPost(kv, { action: 'passkey-rename', credId: 'nope' }, c);
   assert.equal(m.status, 400);
-  const l = await accountPost(kv, { action: 'rename', credId: lk.credId, name: 'hack' }, c);
+  const l = await accountPost(kv, { action: 'passkey-rename', credId: lk.credId, name: 'hack' }, c);
   assert.equal(l.status, 404);
   assert.equal(JSON.parse(await kv.get('owner-passkey:' + lk.credId.slice(0, 12))).name, '站长通行密钥');
 });
@@ -479,7 +479,7 @@ test('rename：改账号通行密钥名字（清理控制字符/空格、限 40 
 test('rename：与 delete 同门槛 —— 没有账号会话 401 account；没有门票 403 door；访客 401', async () => {
   const kv = makeKV();
   const a = await seedPasskey(kv, 'owner');
-  const body = { action: 'rename', credId: a.credId, name: 'New' };
+  const body = { action: 'passkey-rename', credId: a.credId, name: 'New' };
   const r1 = await accountPost(kv, body, { 'sgx-verified': await ownerSess() });
   assert.equal(r1.status, 401);
   assert.equal((await r1.json()).error, 'account');

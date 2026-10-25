@@ -7,8 +7,8 @@
  * - 只读；KV 失败 → 503
  */
 import { verifySessionDetailed } from '../_middleware.js';
-import { verifyDoorCookie, DOOR_LOCK } from '../_kernel/door.js';
-import { ROLE_OWNER } from '../_kernel/session.js';
+import { verifyDoorCookie, DOOR_LOCK } from '../_kernel/tickets.js';
+import { ROLE_OWNER } from '../_kernel/lock-session.js';
 
 /** @param {any} context */
 export async function onRequestGet(context) {

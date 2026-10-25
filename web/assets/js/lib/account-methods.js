@@ -73,7 +73,7 @@ export function accountSubmitters(t, opts) {
   }
   function passkey() {
     if (!window.PublicKeyCredential) return Promise.reject({ message: t('pkNoSupport') });
-    return postJSON(ACCOUNT_API, { action: 'challenge' }).then(function (res) {
+    return postJSON(ACCOUNT_API, { action: 'login-challenge' }).then(function (res) {
       const j = res.j;
       if (!j || !j.ok || !j.challenge) throw { message: errText(j && j.error, res.s) };
       const allow = (j.allowCredentials || []).map(function (c) {

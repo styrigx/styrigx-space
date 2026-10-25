@@ -42,7 +42,7 @@ export function upgradePasskeyErrorText(e, isEn) {
 export function initUpgrade() {
   const html = document.documentElement;
   if (html.getAttribute('data-sgx-upgrade') !== '1') return;
-  openOwnerVerify(html.getAttribute('data-sgx-upgrade-return') || '/');
+  openAdminVerify(html.getAttribute('data-sgx-upgrade-return') || '/');
 }
 
 /**
@@ -54,7 +54,7 @@ export function initUpgrade() {
  *   security.js 给锁屏凭证页地址；initUpgrade 给服务端校验过的 data-sgx-upgrade-return）。
  * @param {string} returnPath
  */
-export function openOwnerVerify(returnPath) {
+export function openAdminVerify(returnPath) {
   if (document.getElementById('sgx-upgrade-overlay')) return;
   const html = document.documentElement;
   const isEn = html.lang === 'en';
@@ -182,7 +182,7 @@ export function openOwnerVerify(returnPath) {
   // 密码验证：直接调用 verify，成功后服务端签发 owner 会话
   async function verifyPw(pw) {
     try {
-      const res = await fetch('/api/owner-password', {
+      const res = await fetch('/api/lock-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'verify', password: pw }),
@@ -233,10 +233,10 @@ export function openOwnerVerify(returnPath) {
         showErr(isEn ? 'Not supported on this device' : '设备不支持');
         return;
       }
-      const chRes = await fetch('/api/owner-passkey', {
+      const chRes = await fetch('/api/lock-passkey', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'challenge', type: 'auth', pkClass: 'lock' }),
+        body: JSON.stringify({ action: 'challenge', type: 'auth' }),
         credentials: 'include',
       });
       const ch = await chRes.json();
@@ -262,7 +262,7 @@ export function openOwnerVerify(returnPath) {
         if (msg) showErr(msg);
         return;
       }
-      const authRes = await fetch('/api/owner-passkey', {
+      const authRes = await fetch('/api/lock-passkey', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

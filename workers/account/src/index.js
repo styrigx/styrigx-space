@@ -7,7 +7,7 @@
  * - 数字健康：POST / GET /api/wellbeing → D1_WELLBEING（D1 styrigx-account 的 wb_daily）
  *
  * 前端地址不变：本 Worker 在 styrigx.com 上挂了比网关 styrigx.com/* 更具体的路由（wrangler.toml），这几条路径直接进这里。
- * 会话不在这里验：门（gate.js，照搬网关 middleware）和接口都问网关的 SessionVerifier（auth.js，服务绑定 AUTH）。
+ * 会话不在这里验：门（gate.js，照搬网关 middleware）和接口都问网关的 AuthVerifier（auth.js，服务绑定 AUTH）。
  *
  * 默认头像（没上传过）：读 Pages 上的静态文件 static/avatar/<尺寸>.webp。生产没有 env.ASSETS，发子请求到同一地址
  * （Worker 发往同一 zone 的子请求不再进任何 Worker，直接到 Pages，和网关以前回源一样）。

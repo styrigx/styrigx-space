@@ -1,7 +1,7 @@
 /**
  * @fileoverview 账号 → 设备（/account/devices/）：此设备 + 其他登录的设备，可单独退出。
  *
- * - 进页 POST /api/account { action:'devices' }：没有账号会话（401）→ 回账号页登录，登录后回本页
+ * - 进页 POST /api/account { action:'device-list' }：没有账号会话（401）→ 回账号页登录，登录后回本页
  * - 此设备一张卡在最上面（服务端标 current 并排第一）：设备行 +「登录方式」（这台设备记录的 by；旧记录没有就看 GET /api/account 的 session.by）
  *   + 「退出账号」（POST logout，清账号会话和门票 → 回账号页登录区）。2026-10-24 PR4 从删掉的「账号信息」子页挪来。
  * - 其他设备：名字（型号 / 平台）+ 浏览器 · 地点 · 上次活动；「退出」两步确认 → device-revoke
@@ -172,7 +172,7 @@ export function deviceSub(t, d, en) {
       window.clearTimeout(timer);
       armed = false;
       btn.disabled = true;
-      postJSON(ACCOUNT_API, { action: 'device-revoke', sid: d.sid }).then(function (res) {
+      postJSON(ACCOUNT_API, { action: 'device-revoke', deviceId: d.deviceId }).then(function (res) {
         if (res.s === 401) { goLogin(); return; }
         /* not-found：那台设备已经不在了（别处退出过），照样刷新 */
         if ((res.j && res.j.ok) || (res.j && res.j.error === 'not-found')) {
@@ -198,7 +198,7 @@ export function deviceSub(t, d, en) {
   }
 
   function load() {
-    postJSON(ACCOUNT_API, { action: 'devices' }).then(function (res) {
+    postJSON(ACCOUNT_API, { action: 'device-list' }).then(function (res) {
       if (res.s === 401 || !(res.j && res.j.ok)) {
         if (res.s === 401) { goLogin(); return; }
         toast(errText(t, res.j && res.j.error, res.s));

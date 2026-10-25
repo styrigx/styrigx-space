@@ -4,7 +4,7 @@
  * 根因（每条都有一个测试，改前会红）：
  * A. 路由：Cloudflare 不带 * 的规则遇到查询串不命中 → styrigx.com/?lock=1&return=…（锁屏入口）、
  *    blog / daymark 首页带查询串都绕过网关直达 Pages。
- * B. /api/session-check 只回 ok/role，前端解锁后只能「重载同一地址等首页 302」，锁屏入口不过网关时永远等不到。
+ * B. /api/lock-session-check 只回 ok/role，前端解锁后只能「重载同一地址等首页 302」，锁屏入口不过网关时永远等不到。
  * C. 访客打开锁屏凭证页 → 302 到 /?lock=1（锁屏），应是站长验证（不带 lock=1）。
  * D. 锁屏瘦身标记被 Go 模板删掉，锁屏态整份下发桌面。
  * E. 账号页没有服务端账号状态，首帧总是先画「欢迎回来」登录区。
@@ -24,7 +24,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
 const worker = (await import(REPO + '/workers/auth-gateway/src/index.js')).default;
 const { readRoutes, pickRoute, routeMatches } = await import(REPO + '/scripts/lib/cf-routes.mjs');
-const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
+const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
 const { signAccountTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/account-session.js');
 
 function derToPem(der, label) {
@@ -83,8 +83,8 @@ test('A 锁屏入口、带查询串的首页、所有页面都过网关（改前
     ['styrigx.com', '/settings/security/lock/'], ['styrigx.com', '/files-index.json'], ['styrigx.com', '/brand-new-page/'],
     ['blog.styrigx.com', '/'], ['blog.styrigx.com', '/?utm=1'], ['blog.styrigx.com', '/rss.xml?a'], ['blog.styrigx.com', '/post/x/?a'],
     ['daymark.styrigx.com', '/'], ['daymark.styrigx.com', '/?x=1'], ['daymark.styrigx.com', '/sitemap.xml?a'],
-    ['daymark.styrigx.com', '/api/session-check'],
-    ['curio.styrigx.com', '/'], ['curio.styrigx.com', '/?x=1'], ['curio.styrigx.com', '/en/?a'], ['curio.styrigx.com', '/api/session-check'],
+    ['daymark.styrigx.com', '/api/lock-session-check'],
+    ['curio.styrigx.com', '/'], ['curio.styrigx.com', '/?x=1'], ['curio.styrigx.com', '/en/?a'], ['curio.styrigx.com', '/api/lock-session-check'],
   ];
   for (const [h, p] of mustGateway) {
     const mine = pickRoute(ROUTES, h, p);
@@ -117,16 +117,16 @@ test('A 静态资源进 Worker 后原样回源：不验会话、不 302', async 
   assert.equal(pg.headers.get('X-SGX-Runtime'), 'worker');
 });
 
-test('A 无会话打开 /?lock=1：网关给锁屏态页面（no-store、带 data-sgx-session），不是 Pages 原样', async () => {
+test('A 无会话打开 /?lock=1：网关给锁屏态页面（no-store、带 data-sgx-lock-session），不是 Pages 原样', async () => {
   const res = await get('https://styrigx.com/?lock=1&why=no-cookie&return=https%3A%2F%2Fblog.styrigx.com%2F');
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('Cache-Control'), 'private, no-store');
-  assert.match(await res.text(), /<html data-sgx-session="locked"/);
+  assert.match(await res.text(), /<html data-sgx-lock-session="locked"/);
 });
 
 /* ---------------- B. session-check 给去处 ---------------- */
 async function check(qs, cookie) {
-  const res = await get('https://styrigx.com/api/session-check' + qs, cookie);
+  const res = await get('https://styrigx.com/api/lock-session-check' + qs, cookie);
   return { status: res.status, cc: res.headers.get('Cache-Control'), j: await res.json() };
 }
 
@@ -175,7 +175,7 @@ test('C 访客直接打开锁屏凭证页 → 302 到首页站长验证（?retur
   const home = await get('https://styrigx.com' + new URL(loc).pathname + new URL(loc).search, await lockCookie('visitor'));
   const html = await home.text();
   assert.match(html, /data-sgx-upgrade="1"/);
-  assert.match(html, /data-sgx-session="valid"/);
+  assert.match(html, /data-sgx-lock-session="valid"/);
 });
 
 /* ---------------- D. 锁屏瘦身 ---------------- */
@@ -189,23 +189,23 @@ test('D 首页模板用 safeHTML 输出瘦身标记（Go 模板会删 HTML 注�
 
 /* ---------------- E. 账号页首帧 ---------------- */
 test('E 账号页（访客）：访客眼里没有账号——/account/ 及子页（中英）一律 302 回首页，不出页面', async () => {
-  for (const p of ['/account/', '/account/devices/', '/account/temp-keys/', '/account/security/', '/en/account/', '/en/account/profile/']) {
+  for (const p of ['/account/', '/account/devices/', '/account/tempkeys/', '/account/security/', '/en/account/', '/en/account/profile/']) {
     const res = await get('https://styrigx.com' + p, (await lockCookie('visitor')) + '; ' + (await accountCookie()));
     assert.equal(res.status, 302, p);
     assert.equal(res.headers.get('Location'), 'https://styrigx.com' + (p.startsWith('/en/') ? '/en/' : '/'), p);
   }
 });
 for (const role of ['owner']) {
-  test(`E 账号页（锁屏 ${role} + 账号会话）：data-sgx-account=in，登录区不下发，总览不 hidden`, async () => {
+  test(`E 账号页（锁屏 ${role} + 账号会话）：data-sgx-account-session=in，登录区不下发，总览不 hidden`, async () => {
     const html = await (await get('https://styrigx.com/account/', (await lockCookie(role)) + '; ' + (await accountCookie()))).text();
-    assert.match(html, /data-sgx-account="in"/);
+    assert.match(html, /data-sgx-account-session="in"/);
     assert.doesNotMatch(html, /acct-login|欢迎回来/);
     assert.match(html, /<div id="acct-main">/);
   });
 }
-test('E 账号页（站长，无账号会话）：data-sgx-account=out，登录区去掉 hidden', async () => {
+test('E 账号页（站长，无账号会话）：data-sgx-account-session=out，登录区去掉 hidden', async () => {
   const html = await (await get('https://styrigx.com/account/', await lockCookie('owner'))).text();
-  assert.match(html, /data-sgx-account="out"/);
+  assert.match(html, /data-sgx-account-session="out"/);
   assert.match(html, /<div id="acct-login" class="acct-login">/);
   assert.match(html, /<div id="acct-main" hidden>/);
 });

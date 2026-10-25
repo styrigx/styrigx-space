@@ -1,5 +1,5 @@
 {{/* 安全与隐私（2.4.0 安全与隐私）：只读状态卡片 + 安全/隐私分组。
-   状态来自 GET /api/lock-status（需鉴权，只返回锁屏凭证是否已设置）；noindex、不进 sitemap（见 baseof/sitemap）。
+   状态来自 GET /api/lock-credentials（需鉴权，只返回锁屏凭证是否已设置）；noindex、不进 sitemap（见 baseof/sitemap）。
    安全分组两个入口：锁屏凭证（门在那一页，3 分钟门票）/ 立即锁定；账号凭证在顶栏右圆头像（账号 → 安全与隐私）。
    脚本走 ES Module 入口 entry-security.js；localStorage 经 storage.js。 */}}
 {{ define "main" }}
@@ -10,7 +10,7 @@
 
 <div class="set-layout pb-28">
 
-  <!-- 状态卡片（JS 按 GET /api/lock-status 填充：解锁密码 / 锁屏通行密钥是否已设置） -->
+  <!-- 状态卡片（JS 按 GET /api/lock-credentials 填充：解锁密码 / 锁屏通行密钥是否已设置） -->
   <a id="sec-status" class="sec-status" href="{{ $lockUrl }}" hidden>
     <span class="sec-status-ic" id="sec-status-ic">{{ partial "icon.html" "shield" }}</span>
     <span class="flex-1 min-w-0">

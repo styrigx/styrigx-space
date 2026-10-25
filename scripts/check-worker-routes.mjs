@@ -35,7 +35,7 @@ const PUBLIC_DIR = path.join(REPO, 'web/public');
 /* 不需要过网关的 HTML：Pages 对不存在的路径直接回 404.html，本来就没人拦 */
 const EXEMPT = new Set(['/404.html']);
 /* 必须过网关的非页面路径（含锁屏入口本身，带查询串） */
-const MUST_ROUTE = ['/api/geo', '/api/session-check',
+const MUST_ROUTE = ['/api/geo', '/api/lock-session-check',
   '/?lock=1', '/?lock=1&why=no-cookie&return=https%3A%2F%2Fblog.styrigx.com%2F', '/?return=%2Fsettings%2Fsecurity%2Flock%2F',
   '/en/?lock=1', '/files-index.json'];
 /* 必须归账号 Worker（styrigx-account）的路径 */
@@ -46,15 +46,15 @@ const SHARE_MUST = ['/s/AAAAAAAAAAAAAAAAAAAAAA', '/s/AAAAAAAAAAAAAAAAAAAAAA/', '
 /* 子站：域名 → 必须登记的路径 */
 const SUBSITE_HOSTS = {
   'blog.styrigx.com': {
-    mustRoute: ['/', '/?utm=1', '/about/', '/archives/', '/post/x/', '/post/x/?a', '/tags/x/', '/en/', '/en/?a', '/rss.xml', '/rss.xml?a', '/api/session-check'],
+    mustRoute: ['/', '/?utm=1', '/about/', '/archives/', '/post/x/', '/post/x/?a', '/tags/x/', '/en/', '/en/?a', '/rss.xml', '/rss.xml?a', '/api/lock-session-check'],
   },
   'daymark.styrigx.com': {
-    mustRoute: ['/', '/?x=1', '/en/', '/zh/', '/sitemap.xml', '/sitemap.xml?a', '/api/session-check'],
+    mustRoute: ['/', '/?x=1', '/en/', '/zh/', '/sitemap.xml', '/sitemap.xml?a', '/api/lock-session-check'],
     /* 归 styrigx-daymark-core 的接口：网关不得有比 daymark.styrigx.com/api/* 更具体的规则 */
     otherWorker: { pattern: 'daymark.styrigx.com/api/*', samples: ['/api/quotes', '/api/today'] },
   },
   'curio.styrigx.com': {
-    mustRoute: ['/', '/?x=1', '/en/', '/zh/', '/sitemap.xml', '/sitemap.xml?a', '/#c/1', '/api/session-check'],
+    mustRoute: ['/', '/?x=1', '/en/', '/zh/', '/sitemap.xml', '/sitemap.xml?a', '/#c/1', '/api/lock-session-check'],
     /* 归 styrigx-curio-core 的接口：网关不得有比 curio.styrigx.com/api/* 更具体的规则 */
     otherWorker: { pattern: 'curio.styrigx.com/api/*', samples: ['/api/links', '/api/icon?id=1', '/api/import', '/api/export', '/api/preview?url=x'] },
   },

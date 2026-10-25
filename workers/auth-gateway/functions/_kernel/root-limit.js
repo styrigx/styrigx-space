@@ -1,7 +1,7 @@
 /**
  * 2.11：根凭证限速（所有 root 路径共用一套）。
  *
- * 从 root-auth.js 抽出，供 /api/root-auth、/api/lockreset 共用。
+ * 从 root-auth.js 抽出，供 /api/root-auth、/api/lock-reset 共用。
  * - IP 连错 5 次锁 15 分钟；全局每小时失败 20 次暂停验证 1 小时
  * - KV 读写出错一律抛错（调用方 fail closed，返回 503）
  *

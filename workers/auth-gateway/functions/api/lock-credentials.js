@@ -1,21 +1,17 @@
 /**
- * 锁屏凭证状态只读接口（2.11）。
+ * 锁屏凭证状态只读接口。
  *
- * GET /api/lock-status → { ok:true, password:bool, passkey:bool }
- * - 只读：返回锁屏密码是否有 hash、是否有 class=lock 的通行密钥。
- * - 鉴权：有效 owner 会话（任何 by），或有效的重置锁屏门票（sgx-door，door=lockreset）。
- *   修复 security-lock.js refreshStatus 读 /api/owner-status 的显示错误：
- *   owner-status 读的是 owner-pw + class=owner 通行密钥（且要求 owner 会话），
- *   只设了站长密码时锁屏页误显示「已设置」，只设了锁屏密码时误显示「未设置」
- *   且没有删除按钮，lockreset 页（无会话）直接 401。
+ * GET /api/lock-credentials → { ok:true, password:bool, passkey:bool }
+ * - 只读：锁屏密码是否有 hash、是否有锁屏通行密钥。
+ * - 鉴权：有效站长会话（任何 by），或有效的重置锁屏门票（door=lockreset）——重置锁屏页没有会话也要能显示。
  * - 只返回「是否已设置」，不返回任何敏感数据。
  * - KV 读取失败 → 503（fail closed），不按未设置退回。
  * 外层 try/catch：异常一律返回 { ok:false }，不暴露细节。
  */
 import { verifySessionDetailed } from '../_middleware.js';
-import { ROLE_OWNER } from '../_kernel/session.js';
-import { verifyDoorCookie, DOOR_LOCKRESET } from '../_kernel/door.js';
-import { getPasskeys, PK_CLASS_LOCK } from './owner-passkey.js';
+import { ROLE_OWNER } from '../_kernel/lock-session.js';
+import { verifyDoorCookie, DOOR_LOCKRESET } from '../_kernel/tickets.js';
+import { getPasskeys, PK_CLASS_LOCK } from '../_kernel/passkey-store.js';
 import { REALM_LOCK } from '../_kernel/realms.js';
 
 /** @param {any} context */
@@ -38,7 +34,7 @@ async function handleGet(context) {
     return Response.json({ ok: false, error: 'config' }, { status: 500 });
   }
 
-  /* 鉴权：有效 owner 会话，或重置锁屏门票 */
+  /* 鉴权：有效站长会话，或重置锁屏门票 */
   let authed = false;
   try {
     const sess = await verifySessionDetailed(request, env);
@@ -60,7 +56,7 @@ async function handleGet(context) {
     const password = !!(pw && pw.hash);
     const keys = await getPasskeys(kv);
     const passkey = keys.some(function (k) {
-      return (k.class || 'lock') === PK_CLASS_LOCK;
+      return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK;
     });
     return Response.json(
       { ok: true, password: password, passkey: passkey },

@@ -3,10 +3,10 @@
  *
  * 覆盖：
  * - lock.js 不再读写 sessionStorage 的 'sgx-lock-shown'（grep 断言）
- * - lock.js 页面加载先 fetch('/api/session-check', { credentials: 'include' })
- * - page-security.js 的「立即锁定」调 POST /api/lock，不再清 sessionStorage
+ * - lock.js 页面加载先 fetch('/api/lock-session-check', { credentials: 'include' })
+ * - page-security.js 的「立即锁定」调 POST /api/lock-now，不再清 sessionStorage
  * - sgx-account-card.html 不再读 sessionStorage，改听 sgx:session 事件
- * - /api/lock：POST 下发两条 Set-Cookie 清除头（带 Domain + 不带 Domain）
+ * - /api/lock-now：POST 下发两条 Set-Cookie 清除头（带 Domain + 不带 Domain）
  *
  * 运行：node --test tests/ui/frontend-session.test.mjs
  */
@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-import { onRequestPost as lockPost, onRequestGet as lockGet } from '../../../workers/auth-gateway/functions/api/lock.js';
+import { onRequestPost as lockPost, onRequestGet as lockGet } from '../../../workers/auth-gateway/functions/api/lock-now.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 const lockJs = readFileSync(join(root, 'web/assets/js/shell/lock.js'), 'utf8');
@@ -29,23 +29,23 @@ test('lock.js：不再读写 sgx-lock-shown', () => {
   assert.ok(!lockJs.includes("sessionStorage.setItem('sgx-lock-shown'"), '不应再写 sessionStorage');
 });
 
-test('lock.js：initLock 读 data-sgx-session（L1 注入，不自己 fetch 做初始判断）', () => {
-  assert.ok(lockJs.includes('dataset.sgxSession'), '应读 document.documentElement.dataset.sgxSession');
+test('lock.js：initLock 读 data-sgx-lock-session（L1 注入，不自己 fetch 做初始判断）', () => {
+  assert.ok(lockJs.includes('dataset.sgxLockSession'), '应读 document.documentElement.dataset.sgxLockSession');
   /* initLock 不应 fetch session-check（unlock 后的防循环确认保留，那是另一处） */
   const initLockSrc = lockJs.slice(lockJs.indexOf('export function initLock()'), lockJs.indexOf('function showLockScreen()'));
-  assert.ok(!initLockSrc.includes("fetch('/api/session-check'"), 'initLock 不应 fetch session-check');
+  assert.ok(!initLockSrc.includes("fetch('/api/lock-session-check'"), 'initLock 不应 fetch session-check');
 });
 
 test('lock.js：会话有效时分发 sgx:session 事件', () => {
   assert.ok(lockJs.includes("CustomEvent('sgx:session'"), '应分发 sgx:session 事件');
 });
 
-test('page-security.js：立即锁定调 POST /api/lock（确认层与请求在 lib/lock-now.js，安全页和快捷面板共用）', () => {
+test('page-security.js：立即锁定调 POST /api/lock-now（确认层与请求在 lib/lock-now.js，安全页和快捷面板共用）', () => {
   const lockNowJs = readFileSync(join(root, 'web/assets/js/lib/lock-now.js'), 'utf8');
   assert.ok(!secJs.includes('sgx-lock-shown'), '不应再出现 sgx-lock-shown');
   assert.ok(secJs.includes("from '../lib/lock-now.js'") && secJs.includes('confirmLockNow()'), '安全页应调用共用的 confirmLockNow');
   assert.ok(!lockNowJs.includes('sgx-lock-shown'), '不应再出现 sgx-lock-shown');
-  assert.ok(lockNowJs.includes("fetch('/api/lock'"), '应 fetch /api/lock');
+  assert.ok(lockNowJs.includes("fetch('/api/lock-now'"), '应 fetch /api/lock-now');
   assert.ok(lockNowJs.includes("method: 'POST'"), '应用 POST');
 });
 
@@ -80,13 +80,13 @@ test('security.html：安全分组两个入口（锁屏凭证/立即锁定）；
 test('security.js：读锁屏凭证状态，不再走 stepup；无角色条件渲染', () => {
   const js = readFileSync('web/assets/js/apps/security.js', 'utf8');
   assert.ok(!/stepup/i.test(js), '不应再有 stepup');
-  assert.ok(js.includes("'/api/lock-status'"), '状态卡片读 /api/lock-status');
+  assert.ok(js.includes("'/api/lock-credentials'"), '状态卡片读 /api/lock-credentials');
   assert.ok(js.includes("getElementById('sec-locknow')"), '应操作立即锁定入口');
   assert.ok(!js.includes("role === 'visitor'"), '不应有访客角色条件分支');
 });
 
-test('/api/lock：POST 下发 Set-Cookie 清除头（会话两条 + 门票 sgx-door + 钥匙票 sgx-tk）', async () => {
-  const res = await lockPost({ request: new Request('https://styrigx.com/api/lock', { method: 'POST' }), env: {} });
+test('/api/lock-now：POST 下发 Set-Cookie 清除头（会话两条 + 门票 sgx-door + 钥匙票 sgx-tk）', async () => {
+  const res = await lockPost({ request: new Request('https://styrigx.com/api/lock-now', { method: 'POST' }), env: {} });
   assert.equal(res.status, 200);
   const j = await res.json();
   assert.equal(j.ok, true);
@@ -103,8 +103,8 @@ test('/api/lock：POST 下发 Set-Cookie 清除头（会话两条 + 门票 sgx-d
   assert.ok(!cookies.some((c) => c.startsWith('sgx-stepup=') || c.startsWith('sgx-app=')), '不再有 stepup / app cookie');
 });
 
-test('/api/lock：GET 返回 405', async () => {
-  const res = await lockGet({ request: new Request('https://styrigx.com/api/lock'), env: {} });
+test('/api/lock-now：GET 返回 405', async () => {
+  const res = await lockGet({ request: new Request('https://styrigx.com/api/lock-now'), env: {} });
   assert.equal(res.status, 405);
 });
 

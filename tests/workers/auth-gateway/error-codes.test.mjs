@@ -9,15 +9,15 @@
  *
  * 提取方式（纯文本静态扫描，不跑服务端）：
  * - error: 'code' 字面量
- * - 三元 ? 'a' : 'b'（same-as-lock/same-as-owner、uv-required 等动态码）
+ * - 三元 ? 'a' : 'b'（same-as-lock/same-as-account、uv-required 等动态码）
  * 注意：不扫 throw new Error('…')——那是内部异常名（如 kv-error、invalid-class），
  * catch 里会转译成返回码（server / class），从不直接作为 error 返回。
  *
  * KNOWN_FIXED 说明：
  * - auth：lockreset 401，lock.js 按 HTTP 状态 + 固定文案处理
  * - configured：root-session 403，exchangeRootSession 只返回 ok/status
- * - code / no-session-key：/api/lock-temp-unlock，lock.js submitTemp 按码显示固定文案（无效或已过期 / 服务器错误）
- * - duration / name / full：/api/lock-temp create，account-temp-keys.js 显示固定文案（名字太长 / 已满 20 把；duration 只在下拉被篡改时出现）
+ * - code / no-session-key：/api/lock-tempkey-unlock，lock.js submitTemp 按码显示固定文案（无效或已过期 / 服务器错误）
+ * - duration / name / full：/api/lock-tempkey create，account-tempkeys.js 显示固定文案（名字太长 / 已满 20 把；duration 只在下拉被篡改时出现）
  * - bad-form / missing / bad-type / too-large：/api/avatar 换头像，avatar-edit.js 只看 ok，失败一律固定文案
  * - account：账号会话缺失（/api/account 管理），账号页按码跳回账号登录，不进 apiErrorText
  * - door：门票缺失/过期（/api/account 管理、锁屏凭证管理），门内页按码回到门口重新验证，不进 apiErrorText
@@ -40,11 +40,11 @@ const KNOWN_FIXED = new Set([
   'auth',
   'configured',
   'denied',
-  'code', /* /api/lock-temp-unlock：lock.js 显示「临时钥匙无效或已过期」 */
-  'no-session-key', /* /api/lock-temp-unlock：lock.js 显示「服务器错误」 */
-  'duration', /* /api/lock-temp create：只在下拉值被篡改时出现，落到通用文案 */
-  'name', /* /api/lock-temp create：account-temp-keys.js → tkNameLong */
-  'full', /* /api/lock-temp create：account-temp-keys.js → tkFull */
+  'code', /* /api/lock-tempkey-unlock：lock.js 显示「临时钥匙无效或已过期」 */
+  'no-session-key', /* /api/lock-tempkey-unlock：lock.js 显示「服务器错误」 */
+  'duration', /* /api/lock-tempkey create：只在下拉值被篡改时出现，落到通用文案 */
+  'name', /* /api/lock-tempkey create：account-tempkeys.js → tkNameLong */
+  'full', /* /api/lock-tempkey create：account-tempkeys.js → tkFull */
   'door',
   'bad-form',
   'missing',
@@ -106,10 +106,10 @@ test('服务端每个 error 码都有前端映射或固定文案处理', () => {
   assert.deepEqual(unmapped, [], '未映射的服务端 error 码会落到「未知错误（code/status）」');
 });
 
-test('same-as-lock / same-as-owner 必须在 ERR_KEY 里（双向相同密码文案）', () => {
+test('same-as-lock / same-as-account 必须在 ERR_KEY 里（双向相同密码文案）', () => {
   const { errKey } = extractFrontendMaps();
   assert.equal(errKey.get('same-as-lock'), 'errSameAsLock');
-  assert.equal(errKey.get('same-as-owner'), 'errSameAsAccount');
+  assert.equal(errKey.get('same-as-account'), 'errSameAsAccount');
 });
 
 test('每个 ERR_KEY 的 i18n key 都在门内模板里定义', () => {

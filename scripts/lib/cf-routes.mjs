@@ -3,7 +3,7 @@
  *
  * 2026-10-21 线上实测（curl，无凭证）：
  *   styrigx.com/            → 走网关（x-sgx-runtime: worker）
- *   styrigx.com/?x=1        → 不走网关，Pages 直出（public, max-age=300，没有 data-sgx-session）
+ *   styrigx.com/?x=1        → 不走网关，Pages 直出（public, max-age=300，没有 data-sgx-lock-session）
  *   styrigx.com/en/?lock=1  → 走网关（styrigx.com/en/* 是前缀规则）
  *   blog.styrigx.com/about?a → 走网关（blog.styrigx.com/about* 前缀规则连查询串一起比）
  * 所以：

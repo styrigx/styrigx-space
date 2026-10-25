@@ -6,11 +6,11 @@
  *     HTML 加 private, no-store（防锁定后切回标签页看到缓存的旧页面）
  *   - 会话无效：页面 302 到主站锁屏（?lock=1&why=…&return=原地址），/api/* 回 401 JSON（fetch 不跟跳转）
  *   - /api/search：全站搜索，和主站同一个处理（functions/api/search.js）
- *   - /api/session-check：子站前端切回标签页时问的，网关直接回答（blog 认 204，daymark、curio 认 200 {ok:true}）
+ *   - /api/lock-session-check：子站前端切回标签页时问的，网关直接回答（blog 认 204，daymark、curio 认 200 {ok:true}）
  *   - 静态资源后缀（被页面路由顺带覆盖到的 js/css/字体/图片）直接回源，不验会话，与原子站白名单一致
  *
  * 子站不做角色区分：owner、visitor 都能看页面（与原子站 middleware 一致）；
- * 主人专属的操作（daymark 记句子、curio 改收藏 / 导入）由子站自己的接口 Worker 再问网关（服务绑定 SessionVerifier）。
+ * 主人专属的操作（daymark 记句子、curio 改收藏 / 导入）由子站自己的接口 Worker 再问网关（服务绑定 AuthVerifier）。
  */
 import { verifySessionDetailed, stripSessionAttrs } from '../functions/_middleware.js';
 import * as searchApi from '../functions/api/search.js';
@@ -19,7 +19,7 @@ const MAIN_ORIGIN = 'https://styrigx.com';
 
 /**
  * 子站登记表：hostname → 配置。新增子站在这里加一项，并在 wrangler.toml 登记它要验的路径。
- * sessionCheckOk：会话有效时 /api/session-check 的回答格式（沿用各子站前端已有的约定）。
+ * sessionCheckOk：会话有效时 /api/lock-session-check 的回答格式（沿用各子站前端已有的约定）。
  */
 export const SUBSITES = Object.freeze({
   'blog.styrigx.com': { site: 'blog', sessionCheckOk: 'no-content' },
@@ -121,7 +121,7 @@ export async function handleSubsite(request, env, origin) {
   if (!conf) return json(404, { ok: false, error: 'not-found' });
   const path = url.pathname;
 
-  if (path === '/api/session-check') {
+  if (path === '/api/lock-session-check') {
     if (request.method !== 'GET' && request.method !== 'HEAD') return json(405, { ok: false, error: 'method' });
     const sess = await verifySessionDetailed(request, env);
     if (sess.ok) {

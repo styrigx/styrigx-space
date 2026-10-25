@@ -57,7 +57,7 @@ export function createRootField(o) {
 /**
  * 在容器里渲染验证行。
  * @param {object} o
- * @param {HTMLElement} o.el 容器（.sgx-door-methods）
+ * @param {HTMLElement} o.el 容器（.sgx-credential-methods）
  * @param {function(string): string} o.t
  * @param {boolean} o.en
  * @param {Array<{kind:string, field:string, icon:string, title:string, sub:string, submit:Function, pmUser?:string}>} o.defs 要画的行（按顺序）
@@ -79,8 +79,8 @@ export function renderCredRows(o) {
       const ex = expanded;
       expanded = null;
       try { ex.remove(); } catch (e) {}
-      methodsEl.querySelectorAll('.sgx-door-row').forEach(function (row) { setRowSelected(/** @type {HTMLElement} */ (row), false); });
-      methodsEl.querySelectorAll('.sgx-door-chev.expanded').forEach(function (c) { c.classList.remove('expanded'); });
+      methodsEl.querySelectorAll('.sgx-credential-row').forEach(function (row) { setRowSelected(/** @type {HTMLElement} */ (row), false); });
+      methodsEl.querySelectorAll('.sgx-credential-chev.expanded').forEach(function (c) { c.classList.remove('expanded'); });
     }
   }
 
@@ -89,20 +89,20 @@ export function renderCredRows(o) {
    */
   function renderMethod(m) {
     const wrap = document.createElement('div');
-    wrap.className = 'sgx-door-method';
+    wrap.className = 'sgx-credential-method';
     wrap.dataset.kind = m.kind;
     const row = document.createElement('button');
     row.type = 'button';
-    row.className = 'sgx-door-row';
-    row.innerHTML = '<span class="sgx-door-ic" aria-hidden="true">' + m.icon + '</span>' +
-      '<span class="sgx-door-mid"><span class="sgx-door-rowtitle"></span><span class="sgx-door-rowsub"></span></span>' +
-      '<span class="sgx-door-chev" aria-hidden="true">' + CHEV + '</span>';
-    row.querySelector('.sgx-door-rowtitle').textContent = m.title;
-    const subEl = row.querySelector('.sgx-door-rowsub');
+    row.className = 'sgx-credential-row';
+    row.innerHTML = '<span class="sgx-credential-ic" aria-hidden="true">' + m.icon + '</span>' +
+      '<span class="sgx-credential-mid"><span class="sgx-credential-rowtitle"></span><span class="sgx-credential-rowsub"></span></span>' +
+      '<span class="sgx-credential-chev" aria-hidden="true">' + CHEV + '</span>';
+    row.querySelector('.sgx-credential-rowtitle').textContent = m.title;
+    const subEl = row.querySelector('.sgx-credential-rowsub');
     subEl.textContent = m.sub;
-    const chev = /** @type {HTMLElement} */ (row.querySelector('.sgx-door-chev'));
+    const chev = /** @type {HTMLElement} */ (row.querySelector('.sgx-credential-chev'));
     const rowErr = document.createElement('p');
-    rowErr.className = 'sgx-door-err';
+    rowErr.className = 'sgx-credential-err';
     rowErr.hidden = true;
     wrap.appendChild(row);
     wrap.appendChild(rowErr);
@@ -113,9 +113,9 @@ export function renderCredRows(o) {
       collapse();
       rowErr.hidden = true;
       subEl.textContent = t('passkeyBusy');
-      chev.innerHTML = '<span class="sgx-door-spin" aria-hidden="true"></span>';
+      chev.innerHTML = '<span class="sgx-credential-spin" aria-hidden="true"></span>';
       /* 验证中所有行都不可点（防止同时开两个验证） */
-      const allRows = Array.prototype.slice.call(methodsEl.querySelectorAll('.sgx-door-row'));
+      const allRows = Array.prototype.slice.call(methodsEl.querySelectorAll('.sgx-credential-row'));
       allRows.forEach(function (r) { setRowBusy(/** @type {HTMLElement} */ (r), true); });
       m.submit().then(function () {
         o.onSuccess();
@@ -138,7 +138,7 @@ export function renderCredRows(o) {
       rowErr.hidden = true;
       if (wasOpen) return;
       const form = document.createElement('div');
-      form.className = 'sgx-door-expand';
+      form.className = 'sgx-credential-expand';
       let field, input;
       if (m.field === 'root') {
         const rf = createRootField({ id: 'sgx-cred-root-' + m.kind, placeholder: m.sub, en: en });
@@ -173,13 +173,13 @@ export function renderCredRows(o) {
         field.appendChild(eye);
       }
       const errEl = document.createElement('p');
-      errEl.className = 'sgx-door-err';
+      errEl.className = 'sgx-credential-err';
       errEl.hidden = true;
       const actions = document.createElement('div');
-      actions.className = 'sgx-door-actions mt-3';
+      actions.className = 'sgx-credential-actions mt-3';
       const go = document.createElement('button');
       go.type = 'button';
-      go.className = 'sgx-door-btn sgx-door-btn-primary';
+      go.className = 'sgx-credential-btn sgx-credential-btn-primary';
       go.textContent = t('verifyBtn');
       actions.appendChild(go);
       form.appendChild(field);

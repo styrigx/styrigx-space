@@ -1,8 +1,8 @@
 /**
  * 凭证类 API 真请求 e2e 的共享 helper（Item 25）。
  * - makeKV：内存 KV（实现 handler 用到的 get/put/delete/list 子集）。
- * - startCredentialTestServer(port)：启动本地测试服务器，/api/owner-password、
- *   /api/owner-passkey、/api/account、/api/lock-door 路由到 functions/api/ 下的真实 handler
+ * - startCredentialTestServer(port)：启动本地测试服务器，/api/lock-password、
+ *   /api/lock-passkey、/api/account、/api/lock-reauth 路由到 functions/api/ 下的真实 handler
  *  （onRequestPost），env 配测试密钥；返回 { kv, env, close, mintAuth }。
  * - makeAttestationCredential：Node 端合成 WebAuthn 注册 attestation
  *   （UV=1；CDP 虚拟认证器开 UV 会抛 NotAllowedError，故不用浏览器仪式）。
@@ -173,11 +173,11 @@ async function startCredentialTestServer(port) {
   };
   // 动态 import 用字符串拼接避开静态分析（Playwright 会误判 'import' 关键字）
   const dynImport = new Function('u', 'return ' + 'im' + 'port(u)');
-  const pwMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/api/owner-password.js')).href);
-  const pkMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/api/owner-passkey.js')).href);
-  const sessMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/_kernel/session.js')).href);
-  const doorApi = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/api/lock-door.js')).href);
-  const doorMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/_kernel/door.js')).href);
+  const pwMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/api/lock-password.js')).href);
+  const pkMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/api/lock-passkey.js')).href);
+  const sessMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/_kernel/lock-session.js')).href);
+  const doorApi = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/api/lock-reauth.js')).href);
+  const doorMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/_kernel/tickets.js')).href);
   const acctMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/api/account.js')).href);
   const acctSess = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/_kernel/account-session.js')).href);
 
@@ -189,10 +189,10 @@ async function startCredentialTestServer(port) {
         return;
       }
       let handler = null;
-      if (req.url.startsWith('/api/owner-password')) handler = pwMod.onRequestPost;
-      else if (req.url.startsWith('/api/owner-passkey')) handler = pkMod.onRequestPost;
+      if (req.url.startsWith('/api/lock-password')) handler = pwMod.onRequestPost;
+      else if (req.url.startsWith('/api/lock-passkey')) handler = pkMod.onRequestPost;
       else if (req.url.startsWith('/api/account')) handler = req.method === 'GET' ? acctMod.onRequestGet : acctMod.onRequestPost;
-      else if (req.url.startsWith('/api/lock-door')) handler = doorApi.onRequestPost;
+      else if (req.url.startsWith('/api/lock-reauth')) handler = doorApi.onRequestPost;
       if (!handler) {
         res.writeHead(404, { 'Content-Type': 'text/plain' });
         res.end('not found');

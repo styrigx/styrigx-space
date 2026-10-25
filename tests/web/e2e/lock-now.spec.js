@@ -3,7 +3,7 @@
  * 验收标准（任务书）：
  * 1. 取消后同一位置再点不触发
  * 2. 上下滑动（touchmove）后抬手不触发
- * 3. 确认后才发 /api/lock
+ * 3. 确认后才发 /api/lock-now
  * 4. 锁定过程中主页 DOM 不出现（无 --:-- 时钟节点）
  * 5. Space 键不触发（只认 Enter）
  */
@@ -11,10 +11,10 @@ import { test, expect } from '@playwright/test';
 
 const SECURITY_URL = '/settings/security/';
 
-/* 拦截 /api/lock，记录是否被调用 */
+/* 拦截 /api/lock-now，记录是否被调用 */
 async function trackLockApi(page) {
   let called = false;
-  await page.route('**/api/lock', async (route) => {
+  await page.route('**/api/lock-now', async (route) => {
     called = true;
     await route.fulfill({ status: 200, body: '{}' });
   });
@@ -71,7 +71,7 @@ test.describe('B1-1 立即锁定', () => {
     await expect(dlg).toBeHidden();
   });
 
-  test('确认后才发 /api/lock', async ({ page }) => {
+  test('确认后才发 /api/lock-now', async ({ page }) => {
     const wasCalled = await trackLockApi(page);
     await gotoSecurity(page);
     /* 只点开确认层，不点锁定 */

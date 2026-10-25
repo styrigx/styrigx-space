@@ -32,7 +32,7 @@ const ERR_KEYS = {
   'unknown-key': 'errVerify',
   'class-mismatch': 'errVerify',
   'uv-required': 'errUvRequired',
-  locked: 'errLocked',
+  cooldown: 'errLocked',
   config: 'errConfig',
   server: 'errServer',
   short: 'errShort',

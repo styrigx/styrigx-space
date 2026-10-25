@@ -3,7 +3,7 @@
   "source": "styrigx/styrigx-space",
   "dir": "web/shared/shell",
   "files": {
-    "tokens.css": "5fe294b92a0fd42079e966ec7d23aba951762447df220783a74f4ec7814b7b43",
+    "tokens.css": "f56a0696035458455a1c210634bd9c3abdb3d6acb332e00f5e327f90e528fba8",
     "shell.css": "703a1fff24775fb2470bee53fcb1f9d4ab8c0e963dc17c32f1735a1efaa42de5",
     "palette-scheme.js": "c51e4304e54ee888768144ca29bc52898479e79dd7ba4dfdda37e8664e7c2f63",
     "search.js": "d9b091a8cbcf675054e4fcb8ca52dfa7630f9e0bfbdb8a417ab8aafe03973ee8",
@@ -16,6 +16,6 @@
     "favicon.svg": "d0140f4bb1f7fe856fc499f996b347bbbcab55c1f15e2c4a6d94b118c3aa569b",
     "README.md": "a15e3f0625b8676dcb9149520b851d80e9834b9962a13a64b43dd66396ba08e7"
   },
-  "version": "1fba3fc24d1f",
+  "version": "32f44aa9fc84",
   "rulesVersion": "palette-rules-1"
 }

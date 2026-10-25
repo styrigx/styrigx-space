@@ -1,12 +1,11 @@
 /**
- * 密码哈希与校验（纯重构：从 api/owner-password.js 原样搬到内核，供各凭证域共用）。
+ * 密码哈希与校验（锁屏、账号两个凭证域共用）。
  *
  * - PBKDF2-SHA256 + 随机 salt + pepper（SGX_PW_PEPPER），恒定时间比较
- * - fix/hi-owner：迭代次数 100000（Cloudflare Workers PBKDF2 上限，超过抛 NotSupportedError）；
+ * - 迭代次数 100000（Cloudflare Workers PBKDF2 上限，超过抛 NotSupportedError）；
  *   校验按记录里的 iterations
  * - 旧记录（无 peppered 标记）按无 pepper 校验，成功则 needsRehash=true
  * - 每个凭证域的密码存在哪个 KV 键，见 realms.js 的 realm.kv.password
- *   （lock → 'lock-pw'，owner → 'owner-pw'）
  */
 import { b64enc, b64dec, timingSafeEqual } from './crypto.js';
 import { REALM_ACCOUNT } from './realms.js';
@@ -37,7 +36,7 @@ async function hashPassword(password, salt, iterations, pepper) {
 }
 
 /**
- * 获取 pepper（SGX_PW_PEPPER，锁屏密码与站长密码共用）；缺失时返回空（调用方 fail closed）。
+ * 获取 pepper（SGX_PW_PEPPER，锁屏密码与账号密码共用）；缺失时返回空（调用方 fail closed）。
  * @param {any} env
  */
 export function getPepper(env) {
@@ -45,7 +44,7 @@ export function getPepper(env) {
 }
 
 /**
- * 校验一把密码（2.11 定稿抽出，供解锁、账号登录和 /api/lockreset 复用）。
+ * 校验一把密码（供解锁、账号登录和 /api/lock-reset 复用）。
  * - stored 为空 → { ok:false, set:false }
  * - peppered 记录：带 pepper 校验
  * - 旧记录（无 peppered 标记）：按无 pepper 校验，成功则 needsRehash=true

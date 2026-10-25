@@ -1,16 +1,16 @@
-{{/* 账号 → 临时钥匙（/account/temp-keys/）：账号总览「临时钥匙」一行进入。2026-10-23 取代 Turnstile「访客进入」。
+{{/* 账号 → 临时钥匙（/account/tempkeys/）：账号总览「临时钥匙」一行进入。2026-10-23 取代 Turnstile「访客进入」。
    临时钥匙 = 一把临时 LockKey：站长在这里签发，访客在锁屏「访客进入」输入，拿到访客会话（看不到账号）。
    - 「新建临时钥匙」：名字（可空，只有站长看得到）+ 有效期（1–24 小时 / 3 / 7 / 15 / 30 天）→ 弹层显示 XXXX-XXXX-XXXX，只显示这一次，可复制
    - 列表：名字 + 剩余时间；「作废」两步确认 → 拿这把钥匙进来的访客立刻进不来
    没有账号会话 → 跳 /account/?return=<本页>，登录后回来。
-   数据：POST /api/lock-temp { action:'list' | 'create' | 'revoke' }（只要账号会话，不进门）。
+   数据：POST /api/lock-tempkey { action:'list' | 'create' | 'revoke' }（只要账号会话，不进门）。
    2026-10-24 分享短链（https://styrigx.com/s/<码>）：同页第二行「新建分享短链」→ 弹层：名字 + 链接有效期（同上）+ 目标站内路径（默认首页）
    +「带临时会话」开关（开 = 自动签一把新临时钥匙，点开即访客会话，会话时长主人选、不超过有效期；关 = 普通短链，没解锁的照常进锁屏）
    → 弹层显示短链 + 复制。列表「分享短链」：名字、类型（带会话 / 普通）、状态、打开的页面、到期时间和剩余、会话时长和最近一次会话还剩多久；
    有效的可复制、作废（两步）。数据：POST /api/share（分享短链 Worker styrigx-share，workers/share）。JS 见 apps/account-share-links.js。
-   noindex（见 baseof）。脚本走 ES Module 入口 entry-account-temp-keys.js。 */}}
+   noindex（见 baseof）。脚本走 ES Module 入口 entry-account-tempkeys.js。 */}}
 {{ define "main" }}
-{{ .Scratch.Set "sgx-entry" "entry-account-temp-keys.js" }}
+{{ .Scratch.Set "sgx-entry" "entry-account-tempkeys.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 
 <div class="acct-layout pb-28">

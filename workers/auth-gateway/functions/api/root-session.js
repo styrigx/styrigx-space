@@ -13,8 +13,8 @@
  *
  * 只接受 POST；校验 Origin。
  */
-import { issueSessionCookie, ROLE_OWNER, BY_ROOT, SESSION_MAX_AGE } from '../_kernel/session.js';
-import { verifyDoorCookie, DOOR_LOCK } from '../_kernel/door.js';
+import { issueSessionCookie, ROLE_OWNER, BY_ROOT, SESSION_MAX_AGE } from '../_kernel/lock-session.js';
+import { verifyDoorCookie, DOOR_LOCK } from '../_kernel/tickets.js';
 import { isLockEffectivelyConfigured } from '../_kernel/layers.js';
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
 

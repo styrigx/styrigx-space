@@ -1,6 +1,6 @@
 /**
  * 2.4.1：立即锁定接口。
- * POST /api/lock
+ * POST /api/lock-now
  * - 清除 sgx-verified 会话 cookie（两条 Set-Cookie：Domain=.styrigx.com 和
  *   不带 Domain 的 host-only，旧版残留的一起清掉；子站共用该 cookie，
  *   清掉后一起上锁）。
@@ -9,9 +9,9 @@
  * - 幂等：无会话时调用也是 {ok:true}。
  * - 只接受 POST。
  */
-import { clearVerifiedCookie } from '../_kernel/session.js';
-import { clearDoorCookie } from '../_kernel/door.js';
-import { clearTkCookie } from '../_kernel/temp-lock.js';
+import { clearVerifiedCookie } from '../_kernel/lock-session.js';
+import { clearDoorCookie } from '../_kernel/tickets.js';
+import { clearTkCookie } from '../_kernel/lock-tempkey.js';
 
 /**
  * @param {any} context

@@ -24,7 +24,7 @@ const avatarApi = await import(REPO + '/workers/account/src/api/avatar.js');
 const onRequestPut = wrap(avatarApi.onRequestPut);
 const onRequestDelete = wrap(avatarApi.onRequestDelete);
 const { sniffImage, sizeOfFile } = await import(REPO + '/workers/account/src/lib/avatar.js');
-const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
+const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
 
 function derToPem(der, label) {
   const b64 = Buffer.from(der).toString('base64');

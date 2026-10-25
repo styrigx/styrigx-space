@@ -1,6 +1,6 @@
 /**
  * @fileoverview 分享短链 Worker 的会话判断：直接用账号 Worker 那一份（workers/account/src/auth.js，不复制）。
- * 浏览器带来的 Cookie 头原样交给网关的 SessionVerifier（服务绑定 AUTH，RPC），网关只回结论；同一请求各只问一次；
+ * 浏览器带来的 Cookie 头原样交给网关的 AuthVerifier（服务绑定 AUTH，RPC），网关只回结论；同一请求各只问一次；
  * 网关不可达 / 绑定没配 → 当作无会话（fail closed）。本 Worker 不持任何钥匙、不绑认证库。
  */
 export { authFor, ROLE_OWNER, ROLE_VISITOR } from '../../account/src/auth.js';

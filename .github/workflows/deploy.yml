@@ -144,16 +144,16 @@ jobs:
         run: |
           SGX_TEST_SUITE=lock npx playwright test --config=tests/config/playwright.config.js --grep "baseline screenshot"
 
-      - name: Lock flags test (owner-gate on, default build)
-        # 2.8.0：legacy-lock-screen 已删除，只剩 owner-gate 开关；默认构建下锁屏正常出现
+      - name: Lock flags test (lock-gate on, default build)
+        # 2.8.0：legacy-lock-screen 已删除，只剩 lock-gate 开关；默认构建下锁屏正常出现
         run: |
           hugo --minify -s web
           SGX_TEST_SUITE=lock npx playwright test --config=tests/config/playwright.config.js lock-flags.spec.js
 
-      - name: Lock flags test (owner-gate off)
-        # owner-gate 关：锁屏完全不出现
+      - name: Lock flags test (lock-gate off)
+        # lock-gate 关：锁屏完全不出现
         run: |
-          SGX_TEST_OWNER_GATE=0 hugo --minify -s web
+          SGX_TEST_LOCK_GATE=0 hugo --minify -s web
           SGX_TEST_SUITE=lock SGX_TEST_FLAGS=gate-off npx playwright test --config=tests/config/playwright.config.js lock-flags.spec.js
 
       - name: Upload lock test artifacts on failure
@@ -698,7 +698,7 @@ jobs:
           }
           ok=0
           check /api/geo 200 || ok=1
-          check /api/session-check 401 || ok=1
+          check /api/lock-session-check 401 || ok=1
           # 全站搜索：没会话 401（网关先拦），子站同样
           check '/api/search?q=a' 401 || ok=1
           check 'https://blog.styrigx.com/api/search?q=a' 401 || ok=1
@@ -716,7 +716,7 @@ jobs:
           # 头像 / 云同步 / 数字健康归账号 Worker styrigx-account（更具体的路由），冒烟在 deploy-account-worker 里
           # 子站：页面未登录 302 到主站锁屏、session-check 401，都由网关回答（子站 Pages 不持钥匙）
           check https://blog.styrigx.com/ 302 || ok=1
-          check https://blog.styrigx.com/api/session-check 401 || ok=1
+          check https://blog.styrigx.com/api/lock-session-check 401 || ok=1
           # 静态资源不过网关：不能带 worker 标记
           css=$(curl -sS -o /dev/null -D - https://styrigx.com/robots.txt | tr -d '\r' | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
           echo "/robots.txt runtime=${css:-none}"
@@ -726,8 +726,8 @@ jobs:
   deploy-account-worker:
     # 账号 Worker styrigx-account（workers/account，2026-10-24 从网关拆出来）：头像（KV_PROFILE）、设置云同步（KV_SETTINGS_SYNC）、数字健康（D1_WELLBEING）。
     # 路由见 workers/account/wrangler.toml（styrigx.com/api/avatar*、/api/prefs*、/api/wellbeing*、/avatar/*，比网关的 styrigx.com/* 更具体）；
-    # workers_dev=false、preview_urls=false。会话问网关：服务绑定 AUTH → styrigx-auth-gateway 的 SessionVerifier（session() / account()），
-    # 所以排在网关之后（要先有带 account() 的网关）。不持任何钥匙，CI 不传任何密值。
+    # workers_dev=false、preview_urls=false。会话问网关：服务绑定 AUTH → styrigx-auth-gateway 的 AuthVerifier（lockSession() / accountSession()），
+    # 所以排在网关之后（要先有带 accountSession() 的网关）。不持任何钥匙，CI 不传任何密值。
     # 先把 D1 styrigx-account 的表结构迁到最新（migrations/，已迁过的跳过；失败要让 job 红，不 continue-on-error），再部署，再冒烟。
     # token：Cloudflare 上 styrigx-account-deploy = GitHub 环境 STYRIGX_ACCOUNT_DEPLOY 里的同名环境密钥 STYRIGX_ACCOUNT_DEPLOY，
     # 权限 Workers Scripts 编辑 + Workers KV Storage 编辑 + D1 编辑 + Account Settings 读取 + styrigx.com 的 Workers Routes 编辑；环境只允许 main。
@@ -787,7 +787,7 @@ jobs:
           check /api/prefs 401 account || ok=1
           check /api/avatar 401 account || ok=1
           # 网关的接口和页面没被抢走
-          check /api/session-check 401 worker || ok=1
+          check /api/lock-session-check 401 worker || ok=1
           check /api/account 401 worker || ok=1
           check /settings/wellbeing/ 302 worker || ok=1
           exit $ok
@@ -795,7 +795,7 @@ jobs:
   deploy-share-worker:
     # 分享短链 Worker styrigx-share（workers/share，2026-10-24）：https://styrigx.com/s/<码> + 站长管理接口 /api/share，数据在 D1 styrigx-share（D1_SHARE_LINK）。
     # 路由见 workers/share/wrangler.toml（styrigx.com/s/*、styrigx.com/api/share*，比网关的 styrigx.com/* 更具体）；workers_dev=false、preview_urls=false。
-    # 不持任何钥匙：会话问网关 SessionVerifier（服务绑定 AUTH），签 / 作废短链钥匙、给访客换会话问网关 ShareIssuer（服务绑定 ISSUER），
+    # 不持任何钥匙：会话问网关 AuthVerifier（服务绑定 AUTH），签 / 作废短链钥匙、给访客换会话问网关 ShareIssuer（服务绑定 ISSUER），
     # 所以排在网关之后（要先有带 ShareIssuer 的网关）。CI 不传任何密值。
     # 步骤：确认 D1 id 不是占位 → 迁移 D1 styrigx-share（migrations/；失败要让 job 红，不 continue-on-error）
     # → 查 d1_migrations 和表，确认 0001_share_links.sql 真的在库里（只看到 No migrations to apply 不算数）→ 部署 → 冒烟。
@@ -878,8 +878,8 @@ jobs:
           # 管理接口：没会话 401（门）
           check /api/share 401 share || ok=1
           # 网关的接口和页面没被抢走；账号 Worker 的也没有
-          check /api/session-check 401 worker || ok=1
+          check /api/lock-session-check 401 worker || ok=1
           check /settings/ 302 worker || ok=1
-          check /account/temp-keys/ 302 worker || ok=1
+          check /account/tempkeys/ 302 worker || ok=1
           check /api/wellbeing 401 account || ok=1
           exit $ok

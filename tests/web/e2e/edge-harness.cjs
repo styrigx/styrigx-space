@@ -9,9 +9,9 @@
  *   这样「路由表漏了某种 URL」在本地也能复现，不再被 http-server + page.route 的 mock 掩盖。
  * - 网关 = 仓库里真实的 workers/auth-gateway/src/index.js（真实验签、epoch、Set-Cookie 属性），
  *   env 用临时 Ed25519 钥匙 + 内存 KV；账号 Worker = workers/account/src/index.js（头像 / 云同步 / 数字健康），
- *   服务绑定 AUTH 接到网关真实的 verifier.js（SessionVerifier RPC 里跑的同一份代码）；Pages = web/public（主站，Cache-Control 照 _headers 的 /*）
+ *   服务绑定 AUTH 接到网关真实的 verifier.js（AuthVerifier RPC 里跑的同一份代码）；Pages = web/public（主站，Cache-Control 照 _headers 的 /*）
  *   和两个子站的固定页面。
- * - 访客进入用临时 LockKey：seedTempKey() 在 KV 里签发一把，返回临时码（2026-10-23 取代 Turnstile）。
+ * - 访客进入用临时 LockKey：seedTempkey() 在 KV 里签发一把，返回临时码（2026-10-23 取代 Turnstile）。
  * - seedPasskey()：在 KV 里登记一把锁屏通行密钥，返回 CDP WebAuthn.addCredential 用的参数。
  * - 分享短链 Worker = workers/share/src/index.js（路由 workers/share/wrangler.toml：/s/*、/api/share*），D1 用 tests/fixtures/share-d1.mjs，
  *   服务绑定 AUTH 接网关 verifier.js、ISSUER 接网关 src/share-issuer.js（ShareIssuer RPC 里跑的同一份代码）。
@@ -125,7 +125,7 @@ function pagesFor(req) {
 
 /**
  * 启动测试台。
- * @returns {Promise<{kv:any, env:any, log:string[], close:()=>Promise<void>, seedPasskey:()=>Promise<any>, seedTempKey:()=>Promise<string>, mintCookie:(role:string)=>Promise<string>, mintTk:()=>Promise<string>}>}
+ * @returns {Promise<{kv:any, env:any, log:string[], close:()=>Promise<void>, seedPasskey:()=>Promise<any>, seedTempkey:()=>Promise<string>, mintCookie:(role:string)=>Promise<string>, mintTk:()=>Promise<string>}>}
  */
 async function startEdge() {
   const { readRoutes, pickRoute } = await dynImport(pathToFileURL(path.join(__dirname, '..', '..', '..', 'scripts/lib/cf-routes.mjs')).href);
@@ -139,8 +139,8 @@ async function startEdge() {
   const share = (await mod('workers/share/src/index.js')).default;
   const issuer = await mod('workers/auth-gateway/src/share-issuer.js');
   const { shareD1 } = await mod('tests/fixtures/share-d1.mjs');
-  const sessMod = await mod('workers/auth-gateway/functions/_kernel/session.js');
-  const tempMod = await mod('workers/auth-gateway/functions/_kernel/temp-lock.js');
+  const sessMod = await mod('workers/auth-gateway/functions/_kernel/lock-session.js');
+  const tempMod = await mod('workers/auth-gateway/functions/_kernel/lock-tempkey.js');
 
   const kv = makeKV();
   const lkp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
@@ -155,14 +155,14 @@ async function startEdge() {
     ASSETS: { fetch: (input, init) => pagesFor(input instanceof Request ? input : new Request(input, init)) },
   };
 
-  /* 账号 Worker：自己的库（styrigx-account），会话问网关（同 SessionVerifier） */
+  /* 账号 Worker：自己的库（styrigx-account），会话问网关（同 AuthVerifier） */
   const accountKv = makeKV();
   const accountEnv = {
     SGX_ENV: 'production',
     KV_PROFILE: accountKv, KV_SETTINGS_SYNC: accountKv,
     AUTH: {
-      session: (c) => verifier.checkSession(c, env),
-      account: (c, m) => verifier.checkAccount(c, env, m),
+      lockSession: (c) => verifier.checkLockSession(c, env),
+      accountSession: (c, m) => verifier.checkAccountSession(c, env, m),
     },
     ASSETS: env.ASSETS,
   };
@@ -173,8 +173,8 @@ async function startEdge() {
     SGX_ENV: 'production',
     D1_SHARE_LINK: shareDb,
     AUTH: {
-      session: (c) => verifier.checkSession(c, env),
-      account: (c, m) => verifier.checkAccount(c, env, m),
+      lockSession: (c) => verifier.checkLockSession(c, env),
+      accountSession: (c, m) => verifier.checkAccountSession(c, env, m),
     },
     ISSUER: {
       createLinkKey: (c, p) => issuer.createLinkKey(c, p, env),
@@ -266,7 +266,7 @@ async function startEdge() {
   await new Promise((r) => proxy.listen(PROXY_PORT, '127.0.0.1', r));
 
   async function seedPasskey() {
-    const pk = await mod('workers/auth-gateway/functions/api/owner-passkey.js');
+    const pk = await mod('workers/auth-gateway/functions/_kernel/passkey-store.js');
     const layers = await mod('workers/auth-gateway/functions/_kernel/layers.js');
     const kp = nodeCrypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
     const jwk = kp.publicKey.export({ format: 'jwk' });
@@ -295,14 +295,14 @@ async function startEdge() {
   }
 
   /** 签发一把 1 小时的临时 LockKey，返回临时码（XXXX-XXXX-XXXX） */
-  async function seedTempKey() {
-    const r = await tempMod.createTemp(kv, env.SGX_PW_PEPPER, { name: 'edge', ms: 3600 * 1000 });
+  async function seedTempkey() {
+    const r = await tempMod.createTempkey(kv, env.SGX_PW_PEPPER, { name: 'edge', ms: 3600 * 1000 });
     return r.code;
   }
 
   /** 钥匙票 sgx-tk 的值（配 mintCookie('visitor') 用；钥匙本身登记在 KV） */
   async function mintTk() {
-    const r = await tempMod.createTemp(kv, env.SGX_PW_PEPPER, { name: 'edge', ms: 3600 * 1000 });
+    const r = await tempMod.createTempkey(kv, env.SGX_PW_PEPPER, { name: 'edge', ms: 3600 * 1000 });
     return tempMod.signTk(env, r.key.id, Date.now() + 3600 * 1000);
   }
 
@@ -328,7 +328,7 @@ async function startEdge() {
     await new Promise((r) => proxy.close(() => r()));
   }
 
-  return { kv, env, accountKv, accountEnv, shareDb, shareEnv, log, close, resetShareLimit, seedPasskey, seedTempKey, mintCookie, mintTk, mintAccount };
+  return { kv, env, accountKv, accountEnv, shareDb, shareEnv, log, close, resetShareLimit, seedPasskey, seedTempkey, mintCookie, mintTk, mintAccount };
 }
 
 module.exports = { startEdge, LAUNCH, PROXY_PORT, REPO };

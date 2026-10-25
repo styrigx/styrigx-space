@@ -2,16 +2,16 @@
  * 2.11：层配置状态查询（供 UI 显示「由根凭证代管 / 已接管」）。
  *
  * GET /api/layer-status
- * - 需要 owner 会话（任何 by）
- * - 返回 { ok:true, layers: { owner: 'takeover'|'configured', lock: ... } }
+ * - 需要站长会话（任何 by）
+ * - 返回 { ok:true, layers: { account: 'takeover'|'configured', lock: ... } }
  * - KV 读取失败 → 503（fail closed）
- * - 补充二：会话有效时顺带触发恢复开关计时（只计时，不签票不标记已用；
+ * - 补充二：会话有效时顺带触发重置开关计时（只计时，不签票不标记已用；
  *   失败不影响返回；访客无会话到不了这里，不读开关）
  */
 import { verifySessionDetailed } from '../_middleware.js';
-import { ROLE_OWNER } from '../_kernel/session.js';
-import { isLayerConfigured, LAYER_OWNER, LAYER_LOCK } from '../_kernel/layers.js';
-import { touchRecoverySwitch } from '../_kernel/recswitch.js';
+import { ROLE_OWNER } from '../_kernel/lock-session.js';
+import { isLayerConfigured, LAYER_ACCOUNT, LAYER_LOCK } from '../_kernel/layers.js';
+import { touchLockResetSwitch } from '../_kernel/lock-reset-switch.js';
 
 /** @param {any} context */
 export async function onRequestGet(context) {
@@ -38,16 +38,16 @@ async function handleGet(context) {
   /* 补充二：管理页加载时触发开关计时（只计时，不签票不标记已用；
      失败不影响页面加载；访客到不了这里） */
   try {
-    await touchRecoverySwitch(kv, env && env.D1_LOCK_RESET);
+    await touchLockResetSwitch(kv, env && env.D1_LOCK_RESET);
   } catch (e) {}
 
   try {
-    const accountCfg = await isLayerConfigured(kv, LAYER_OWNER);
+    const accountCfg = await isLayerConfigured(kv, LAYER_ACCOUNT);
     const lockCfg = await isLayerConfigured(kv, LAYER_LOCK);
     return Response.json({
       ok: true,
       layers: {
-        owner: accountCfg ? 'configured' : 'takeover',
+        account: accountCfg ? 'configured' : 'takeover',
         lock: lockCfg ? 'configured' : 'takeover',
       },
     });

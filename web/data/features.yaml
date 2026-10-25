@@ -234,8 +234,8 @@ features:
     section: wellbeing
     requires: []
 
-  - id: owner-gate
-    name: {zh: 本人验证门禁, en: Owner gate}
+  - id: lock-gate
+    name: {zh: 锁屏门禁, en: Lock gate}
     build: true
     user: false
     type: bool

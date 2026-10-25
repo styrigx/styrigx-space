@@ -18,7 +18,7 @@ declare const SGX_FEAT_FILES_VIEW: boolean;
 declare const SGX_FEAT_FILES_HOME: boolean;
 declare const SGX_FEAT_WELL_TIP: boolean;
 /* 2.8.0：SGX_FEAT_LEGACY_LOCK_SCREEN 已彻底删除 */
-declare const SGX_FEAT_OWNER_GATE: boolean;
+declare const SGX_FEAT_LOCK_GATE: boolean;
 /* Hark：CI 测试构建期禁用锁屏（SGX_TEST_NO_LOCK=1 时）；生产构建为 false */
 declare const SGX_TEST_NO_LOCK: boolean;
 /* B2-7：CI 静态测试构建（SGX_TEST_NO_WEATHER=1）不调 /api/wellbeing；生产构建为 false */

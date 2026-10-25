@@ -72,7 +72,7 @@ test('真的点遮罩：只让密码框失焦（收键盘），弹层保留', as
 
 test('空密码提交：输入框正下方提示「请输入密码」，输入框标 aria-invalid 并保持聚焦；输入后清除标记', async ({ page }) => {
   let posted = 0;
-  await page.route('**/api/owner-password', (r) => { posted++; return r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":false,"error":"wrong"}' }); });
+  await page.route('**/api/lock-password', (r) => { posted++; return r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":false,"error":"wrong"}' }); });
   await openPwByTouch(page);
   const input = page.locator('#sgx-pw-input');
   await page.tap('#sgx-pw-go');

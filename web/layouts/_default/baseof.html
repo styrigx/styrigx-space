@@ -27,7 +27,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://styrigx.com/og.png">
 {{/* fix/hi-owner：/owner/ 不被搜索引擎收录 */}}
-{{ if or (eq .Layout "security") (eq .Layout "security-lock") (eq .Layout "account") (eq .Layout "account-security") (eq .Layout "account-devices") (eq .Layout "account-temp-keys") (eq .Layout "account-reset") (eq .Layout "settings-sub") (eq .Layout "account-status") (eq .Layout "account-sync") (eq .Layout "chat") }}<meta name="robots" content="noindex,nofollow">{{ end }}
+{{ if or (eq .Layout "security") (eq .Layout "security-lock") (eq .Layout "account") (eq .Layout "account-security") (eq .Layout "account-devices") (eq .Layout "account-tempkeys") (eq .Layout "account-reset") (eq .Layout "settings-sub") (eq .Layout "account-status") (eq .Layout "account-sync") (eq .Layout "chat") }}<meta name="robots" content="noindex,nofollow">{{ end }}
 <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
 <style>
 @font-face{font-family:'Inter';font-style:normal;font-weight:400 800;font-display:optional;src:url('/fonts/inter-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
@@ -374,8 +374,8 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{ $testNoLock := eq (getenv "SGX_TEST_NO_LOCK") "1" }}
 {{ $featDefines = merge $featDefines (dict "SGX_TEST_NO_LOCK" (cond $testNoLock "true" "false")) }}
 {{/* Hark：CI 锁屏开关测试专用（CI 专用，生产构建绝不设置）。
-   2.8.0：legacy-lock-screen 已彻底删除，只剩 owner-gate 开关 */}}
-{{ if eq (getenv "SGX_TEST_OWNER_GATE") "0" }}{{ $featDefines = merge $featDefines (dict "SGX_FEAT_OWNER_GATE" "false") }}{{ end }}
+   2.8.0：legacy-lock-screen 已彻底删除，只剩 lock-gate 开关 */}}
+{{ if eq (getenv "SGX_TEST_LOCK_GATE") "0" }}{{ $featDefines = merge $featDefines (dict "SGX_FEAT_LOCK_GATE" "false") }}{{ end }}
 {{/* Hark：CI 测试构建禁用天气组件（CI 专用，生产构建绝不设置）；
    天气依赖外网（/api/geo + Open-Meteo），CI 里不稳定会导致
    Lighthouse errors-in-console 误报 */}}
@@ -387,7 +387,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
    顶栏三栏各自一个入口（entry-tab-*.js）：当前栏的模块随入口静态加载，另两栏按需 import()。
    modulepreload 让入口静态依赖的 chunk 和入口并行下载（不等入口解析完再发现）；放在入口 <script> 前，预加载扫描器同时看到。
    主题 / 锁屏判定 / 防闪的首帧脚本仍在 <head> 内联同步执行，跟这里无关。 */}}
-{{ $sgxJs := partialCached "sgx-js-batch.html" (dict "defines" $featDefines "entries" (slice "entry-core" "entry-tab-home" "entry-tab-chat" "entry-tab-settings" "entry-settings" "entry-account" "entry-account-devices" "entry-account-reset" "entry-account-security" "entry-account-status" "entry-account-sync" "entry-account-temp-keys" "entry-security" "entry-security-lock")) "sgx-js" }}
+{{ $sgxJs := partialCached "sgx-js-batch.html" (dict "defines" $featDefines "entries" (slice "entry-core" "entry-tab-home" "entry-tab-chat" "entry-tab-settings" "entry-settings" "entry-account" "entry-account-devices" "entry-account-reset" "entry-account-security" "entry-account-status" "entry-account-sync" "entry-account-tempkeys" "entry-security" "entry-security-lock")) "sgx-js" }}
 {{ $js := index $sgxJs (strings.TrimSuffix ".js" $entryName) }}
 {{ range $js.preload }}<link rel="modulepreload" href="{{ . }}">
 {{ end }}

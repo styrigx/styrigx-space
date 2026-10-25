@@ -1,6 +1,6 @@
 # styrigx-auth-gateway
 
-主站鉴权网关，也是主站会话和锁屏的全部后端代码所在。承接 `styrigx.com/api/*` 和主站全部页面目录：先验会话，页面验完回源 Pages 取静态文件。头像、设置云同步、数字健康（`/api/avatar*`、`/avatar/*`、`/api/prefs*`、`/api/wellbeing*`）2026-10-24 起在账号 Worker `styrigx-account`（`workers/account/`，挂更具体的路由，会话经本网关的 `SessionVerifier` 验）。Pages 本身只放静态文件（配置见 `web/wrangler.toml`）。
+主站鉴权网关，也是主站会话和锁屏的全部后端代码所在。承接 `styrigx.com/api/*` 和主站全部页面目录：先验会话，页面验完回源 Pages 取静态文件。头像、设置云同步、数字健康（`/api/avatar*`、`/avatar/*`、`/api/prefs*`、`/api/wellbeing*`）2026-10-24 起在账号 Worker `styrigx-account`（`workers/account/`，挂更具体的路由，会话经本网关的 `AuthVerifier` 验）。Pages 本身只放静态文件（配置见 `web/wrangler.toml`）。
 
 ```
 src/         部署入口（worker.js）、公网请求（index.js）、接口路由表（routes.js）、Secrets Store 取值（secrets.js）、子站门禁（subsites.js）、给其他 Worker 的验票 RPC（rpc.js + verifier.js）
@@ -8,8 +8,8 @@ functions/   middleware（会话、角色、锁屏）、接口（api/）、内�
 migrations/  D1 建表
 ```
 
-- 子站：`blog.styrigx.com`、`daymark.styrigx.com` 的页面路径也登记在 `wrangler.toml`，网关验会话（owner、visitor 都放行）后回源子站 Pages；未登录 302 到主站锁屏，`/api/session-check` 由网关直接回答。子站登记表在 `src/subsites.js`，新增子站要在那里加一项并登记路由。子站 Pages 不持任何钥匙。
-- 给其他 Worker 验票：服务绑定 RPC `SessionVerifier`（`session(cookieHeader)` → `{ok, role}`；`account(cookieHeader, meta)` → `{ok}` / `{ok:false, reason}`，账号会话，账号 Worker 的云同步用）。调用方：`styrigx-daymark-core`、`styrigx-account`。调用方 wrangler.toml 写 `[[services]] binding = "AUTH"`、`service = "styrigx-auth-gateway"`、`entrypoint = "SessionVerifier"`，自己不持任何钥匙。只能经服务绑定调用，公网进不来。
+- 子站：`blog.styrigx.com`、`daymark.styrigx.com` 的页面路径也登记在 `wrangler.toml`，网关验会话（owner、visitor 都放行）后回源子站 Pages；未登录 302 到主站锁屏，`/api/lock-session-check` 由网关直接回答。子站登记表在 `src/subsites.js`，新增子站要在那里加一项并登记路由。子站 Pages 不持任何钥匙。
+- 给其他 Worker 验票：服务绑定 RPC `AuthVerifier`（`session(cookieHeader)` → `{ok, role}`；`account(cookieHeader, meta)` → `{ok}` / `{ok:false, reason}`，账号会话，账号 Worker 的云同步用）。调用方：`styrigx-daymark-core`、`styrigx-account`。调用方 wrangler.toml 写 `[[services]] binding = "AUTH"`、`service = "styrigx-auth-gateway"`、`entrypoint = "AuthVerifier"`，自己不持任何钥匙。只能经服务绑定调用，公网进不来。
 - 后端拆出去的 Worker（都没有公开地址，只经本网关的服务绑定进来，网关先验会话）：全站搜索 `SEARCH` → `styrigx-search-index`、站点监测 `STATUS` → `styrigx-status`、聊天 `CHAT` → `styrigx-chat`（`/api/chat` 验同源 + 会话 + 只许站长后转过去，回答原样流回；聊天钥匙 `SGX_CHAT_API_KEY` 和 `CHAT_*` 变量只在 `workers/chat/`，网关不绑）。部署顺序：这些 Worker 先于网关。
 - 6 个私密值 + 3 把公钥都在 Cloudflare Secrets Store；换钥只在后台改，不用改代码或重新部署（最多 60 秒生效）。
 - 不开 `*.workers.dev`；只通过 `styrigx.com` 的路由访问。

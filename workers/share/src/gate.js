@@ -4,7 +4,7 @@
  * 生产（SGX_ENV=production）：
  * - 只认 styrigx.com：别的域名的 /api/* → 403，其他 → 301 到 styrigx.com（路由只登记了 styrigx.com，正常进不来）
  * - /s/<码>：谁都能打开（码就是凭证），不在这里拦，由 open.js 处理
- * - /api/share*：只许站长。访客 → 403 role（同网关 OWNER_ONLY_APIS；这里没有认证类 action）；没会话 → 401 {ok:false}
+ * - /api/share*：只许站长。访客 → 403 role（同网关 ADMIN_ONLY_APIS；这里没有认证类 action）；没会话 → 401 {ok:false}
  *   接口里还要账号会话（api/share.js）
  * 非生产（本地 / 单测不设 SGX_ENV）：不拦，接口自己验（同账号 Worker）。
  */
@@ -20,7 +20,7 @@ function jsonRes(status, body) {
 /**
  * @param {Request} request
  * @param {Record<string, any>} env
- * @param {{ session: () => Promise<{ok:boolean, role:string|null}> }} auth
+ * @param {{ lockSession: () => Promise<{ok:boolean, role:string|null}> }} auth
  * @returns {Promise<Response|null>} 拒绝时的响应；null = 放行
  */
 export async function gate(request, env, auth) {
@@ -37,7 +37,7 @@ export async function gate(request, env, auth) {
   }
   if (SHARE_PATH_RE.test(pathname)) return null;
   if (pathname.startsWith('/api/')) {
-    const sess = await auth.session();
+    const sess = await auth.lockSession();
     if (!sess.ok) return jsonRes(401, { ok: false });
     if (sess.role !== ROLE_OWNER) return jsonRes(403, { ok: false, error: 'role' });
     return null;

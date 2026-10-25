@@ -16,8 +16,8 @@
   <div id="acct-door" hidden>
     <h2 class="acct-gh"><span class="acct-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Verify it's you{{ else }}验证身份{{ end }}</span></h2>
     <p class="acct-note mb-3">{{ if $isEn }}Changing account keys is a security action. Verify again to continue; it lasts 3 minutes and ends as soon as you leave this page.{{ else }}修改账号凭证属于安全操作，请再验证一次。验证有效 3 分钟，离开本页立即失效。{{ end }}</p>
-    <p class="sgx-door-err mb-3" id="acct-door-notice" hidden></p>
-    <div class="sgx-door-methods animate-fade-up" id="acct-door-methods" style="animation-delay:.1s"></div>
+    <p class="sgx-credential-err mb-3" id="acct-door-notice" hidden></p>
+    <div class="sgx-credential-methods animate-fade-up" id="acct-door-methods" style="animation-delay:.1s"></div>
     <a class="acct-cant" id="acct-door-cant" href="{{ cond $isEn "/en/account/reset/" "/account/reset/" }}">{{ if $isEn }}Can’t sign in?{{ else }}无法登录？{{ end }}</a>
   </div>
 

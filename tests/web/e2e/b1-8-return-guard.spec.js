@@ -13,9 +13,9 @@
  * 时钟：不 mock，直接把 sessionStorage 记录的时间改到 10 / 25 秒前。
  * sessionStorage 只在每个测试开始时清一次。
  *
- * 跳转断言（2026-10-21 起）：回跳 = 前端问 /api/session-check?return=，服务端给校验过的 next，
+ * 跳转断言（2026-10-21 起）：回跳 = 前端问 /api/lock-session-check?return=，服务端给校验过的 next，
  * location.replace(next) 直接去子站（不再「重载锁屏地址等 L1 302」）。
- * 这里 /api/session-check* 由测试 mock（照服务端契约：next = 请求里的 return）；
+ * 这里 /api/lock-session-check* 由测试 mock（照服务端契约：next = 请求里的 return）；
  * 测试侧监听主框架导航请求（trackJumps）：去子站域名的导航就是一次回跳（被 blockExternalRequests 拦掉，页面不动）。
  * subsite-jump 记录保留在 sessionStorage，可断言。
  */
@@ -92,11 +92,11 @@ async function settle(page) {
   }
 }
 
-/* /api/session-check 的服务端契约 mock：已解锁 → {ok, role, next=return}；未解锁 → 401 */
+/* /api/lock-session-check 的服务端契约 mock：已解锁 → {ok, role, next=return}；未解锁 → 401 */
 async function mockSessionCheck(page) {
   /* 去子站的导航回 204：浏览器留在当前页（不进 chrome-error 页），sessionStorage 记录可读 */
   await page.route(/^https:\/\/(blog|daymark)\.styrigx\.com\//, (r) => r.fulfill({ status: 204, body: '' }));
-  await page.route('**/api/session-check*', async (route) => {
+  await page.route('**/api/lock-session-check*', async (route) => {
     if (page.__locked) return route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false}' });
     const ret = new URL(route.request().url()).searchParams.get('return');
     await route.fulfill({ status: 200, contentType: 'application/json',
@@ -150,8 +150,8 @@ test.describe('B1-8 路径A：会话有效时被踢回', () => {
       }
       const lang = page.__forceLang || 'zh';
       const body = (await res.text()).replace(/<html([^>]*)>/i, (m, attrs) =>
-        '<html' + attrs.replace(/\s(lang|data-sgx-session)="[^"]*"/gi, '') +
-        ' lang="' + lang + '" data-sgx-session="valid">');
+        '<html' + attrs.replace(/\s(lang|data-sgx-lock-session)="[^"]*"/gi, '') +
+        ' lang="' + lang + '" data-sgx-lock-session="valid">');
       await route.fulfill({ response: res, body: body });
     });
     await page.addInitScript(() => {
@@ -319,8 +319,8 @@ test.describe('B1-8 路径B：会话无效、访客解锁后被踢回', () => {
     await blockJsNavigation(page);
     trackJumps(page);
     await mockSessionCheck(page);
-    /* 访客入口：临时钥匙，/api/lock-temp-unlock 成功 → 会话生效 */
-    await page.route('**/api/lock-temp-unlock', async (route) => {
+    /* 访客入口：临时钥匙，/api/lock-tempkey-unlock 成功 → 会话生效 */
+    await page.route('**/api/lock-tempkey-unlock', async (route) => {
       page.__locked = false;
       await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
     });

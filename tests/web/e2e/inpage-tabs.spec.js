@@ -34,10 +34,10 @@ async function setup(page, o = {}) {
   await page.addInitScript((l) => { try { localStorage.setItem('sgx-lang', l); } catch (e) {} }, o.lang || 'zh');
   await page.route('**/api/**', (r) => r.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false}' }));
   if (o.owner) {
-    /* 网关给站长的页面在 <html> 上注入 data-sgx-session="valid" data-sgx-role="owner"：三栏的 HTML（整页和后台取的）都改 */
+    /* 网关给站长的页面在 <html> 上注入 data-sgx-lock-session="valid" data-sgx-role="owner"：三栏的 HTML（整页和后台取的）都改 */
     await page.route((u) => /^\/(en\/)?(chat\/|settings\/)?$/.test(u.pathname), async (route) => {
       const res = await route.fetch();
-      const html = (await res.text()).replace(/<html(\s|>)/i, '<html data-sgx-session="valid" data-sgx-role="owner"$1');
+      const html = (await res.text()).replace(/<html(\s|>)/i, '<html data-sgx-lock-session="valid" data-sgx-role="owner"$1');
       await route.fulfill({ response: res, body: html });
     });
   }

@@ -117,7 +117,7 @@ function hardNav(href, push) {
 /** 会话标记（网关注入在 <html> 上）；取回来的页面必须和当前一致 @param {Document} doc */
 function sessionSig(doc) {
   const h = doc.documentElement;
-  return ['data-sgx-build', 'data-sgx-session', 'data-sgx-role', 'data-sgx-upgrade', 'lang'].map((a) => a + '=' + (h.getAttribute(a) || '')).join('&');
+  return ['data-sgx-build', 'data-sgx-lock-session', 'data-sgx-role', 'data-sgx-upgrade', 'lang'].map((a) => a + '=' + (h.getAttribute(a) || '')).join('&');
 }
 
 function reduced() {
@@ -165,12 +165,12 @@ export function initInpageTabs() {
   }
 
   const html = document.documentElement;
-  const st = html.getAttribute('data-sgx-session');
+  const st = html.getAttribute('data-sgx-lock-session');
   const enabled =
     panes.size === links.length &&
     links.length > 1 &&
     st !== 'locked' &&
-    st !== 'lockreset' &&
+    st !== 'lock-reset' &&
     !html.hasAttribute('data-sgx-upgrade') &&
     typeof fetch === 'function' &&
     typeof DOMParser === 'function' &&

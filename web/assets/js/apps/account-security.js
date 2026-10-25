@@ -76,7 +76,7 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../lib/ac
       return;
     }
     cdEl.classList.toggle('sgx-countdown-warn', left <= 30000);
-    const tx = cdEl.querySelector('.sgx-door-countdown-text');
+    const tx = cdEl.querySelector('.sgx-credential-countdown-text');
     if (tx) tx.textContent = t('doorCountdown').replace('{m}', fmtLeft(left));
   }
   /** 门内倒计时胶囊（与锁屏凭证门同一套样式），以服务端 expiresAt 为准 @param {number} expiresAt */
@@ -84,10 +84,10 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../lib/ac
     stopCountdown();
     cdExp = expiresAt;
     const el = document.createElement('div');
-    el.id = 'sgx-door-countdown';
-    el.className = 'sgx-door-countdown';
+    el.id = 'sgx-credential-countdown';
+    el.className = 'sgx-credential-countdown';
     el.setAttribute('role', 'timer');
-    el.innerHTML = '<span aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span><span class="sgx-door-countdown-text"></span>';
+    el.innerHTML = '<span aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span><span class="sgx-credential-countdown-text"></span>';
     const layout = document.querySelector('.acct-layout');
     if (layout) layout.insertBefore(el, layout.firstChild);
     cdEl = el;
@@ -207,7 +207,7 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../lib/ac
       showErr(t(pe));
       return;
     }
-    postJSON(ACCOUNT_API, { action: 'password', password: va }).then(function (res) {
+    postJSON(ACCOUNT_API, { action: 'password-change', password: va }).then(function (res) {
       if (res.j && res.j.ok) {
         pwDialog.close('success');
         toast(res.j.changed ? t('pwChanged') : t('pwSaved'));
@@ -229,7 +229,7 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../lib/ac
 
   /* ================= 账号通行密钥 ================= */
   function refreshKeys() {
-    return postJSON(ACCOUNT_API, { action: 'list' }).then(function (res) {
+    return postJSON(ACCOUNT_API, { action: 'passkey-list' }).then(function (res) {
       if (handleAuthError(res)) return;
       if (!(res.j && res.j.ok)) return;
       signalAccountName(res.j);
@@ -269,7 +269,7 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../lib/ac
         toast(t('pkNameEmpty'));
         return;
       }
-      postJSON(ACCOUNT_API, { action: 'rename', credId: k.credId, name: v }).then(function (res) {
+      postJSON(ACCOUNT_API, { action: 'passkey-rename', credId: k.credId, name: v }).then(function (res) {
         if (res.j && res.j.ok) {
           lastSaved = v;
           nameInput.value = v;
@@ -324,7 +324,7 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../lib/ac
       }
       window.clearTimeout(armTimer);
       armed = false;
-      postJSON(ACCOUNT_API, { action: 'delete', credId: k.credId }).then(function (res) {
+      postJSON(ACCOUNT_API, { action: 'passkey-delete', credId: k.credId }).then(function (res) {
         if (handleAuthError(res)) return;
         if (res.j && res.j.ok) {
           toast(t('pkDeleted'));
@@ -432,7 +432,7 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../lib/ac
         refreshKeys();
         return;
       }
-      postJSON(ACCOUNT_API, { action: 'rename', credId: pkNameCredId, name: name }).then(function (res) {
+      postJSON(ACCOUNT_API, { action: 'passkey-rename', credId: pkNameCredId, name: name }).then(function (res) {
         if (res.j && res.j.ok) {
           toast(t('pkRegistered'));
           closePkNameDlg('success');
@@ -471,7 +471,7 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../lib/ac
         toast(t('pkNoSupport'));
         return;
       }
-      postJSON(ACCOUNT_API, { action: 'register-challenge' }).then(function (res) {
+      postJSON(ACCOUNT_API, { action: 'passkey-register-challenge' }).then(function (res) {
         if (handleAuthError(res)) throw { kind: 'handled' };
         const ch = res.j;
         if (!ch || !ch.ok) throw { kind: 'server', code: ch && ch.error, status: res.s };
@@ -499,7 +499,7 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../lib/ac
       }).then(function (r) {
         const prefill = genPkPrefillName();
         return postJSON(ACCOUNT_API, {
-          action: 'register',
+          action: 'passkey-register',
           cid: r.cid,
           name: prefill,
           credential: {
@@ -559,7 +559,7 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../lib/ac
       fetch(ACCOUNT_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'door-clear' }),
+        body: JSON.stringify({ action: 'reauth-clear' }),
         credentials: 'same-origin',
         keepalive: true,
       }).catch(function () {});

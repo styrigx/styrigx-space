@@ -150,10 +150,10 @@ test('A2：KV 出错 fail closed', async () => {
 /* ============ B6：register 要求 owner 会话 ============ */
 
 test('B6：无会话时 register challenge → 401', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/lock-passkey.js');
   const kv = makeKV();
   const env = authEnv(kv);
-  const req = postReq('https://styrigx.com/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: 'lock' });
+  const req = postReq('https://styrigx.com/api/lock-passkey', { action: 'challenge', type: 'register' });
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 401, '无 owner 会话时 register 应被拒');
 });

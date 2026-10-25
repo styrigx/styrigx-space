@@ -1,10 +1,10 @@
 /**
- * 2.8.0：锁定所有设备 —— 独立 L2 API（从 owner-password 的 lockout action 拆出）。
+ * 2.8.0：锁定所有设备 —— 独立 L2 API（从锁屏密码接口的 lockout action 拆出）。
  *
- * 锁屏凭证门内操作：需有效 owner 会话 + 锁屏门票（sgx-door，door=lock）。
+ * 锁屏凭证门内操作：需有效站长会话 + 锁屏门票（door=lock）。
  *
  * POST /api/lock-all-devices
- * - 只允许 owner 会话调用（L1 middleware 已按 OWNER_ONLY_APIS 拒绝 visitor → 403；
+ * - 只允许站长会话调用（L1 middleware 已按 ADMIN_ONLY_APIS 拒绝 visitor → 403；
  *   本接口再做一次角色校验，纵深防御）。
  * - 无会话 → 401；visitor 会话 → 403 {ok:false, error:'role'}。
  * - 无锁屏门票 → 403 door（前端回到门口重新验证）。
@@ -19,9 +19,9 @@ import {
   clearVerifiedCookie,
   bumpSessionEpoch,
   ROLE_OWNER,
-} from '../_kernel/session.js';
-import { checkLockDoor } from './lock-door.js';
-import { clearDoorCookie } from '../_kernel/door.js';
+} from '../_kernel/lock-session.js';
+import { checkLockManage } from './lock-reauth.js';
+import { clearDoorCookie } from '../_kernel/tickets.js';
 
 /** @param {any} context */
 export async function onRequestPost(context) {
@@ -40,7 +40,7 @@ async function handlePost(context) {
     return Response.json({ ok: false, error: 'config' }, { status: 500 });
   }
 
-  /* 会话校验：必须是 owner。L1 已拒绝 visitor（403），这里再验一次。 */
+  /* 会话校验：必须是站长。L1 已拒绝 visitor（403），这里再验一次。 */
   const sess = await verifySessionDetailed(request, env);
   if (!sess.ok) {
     return Response.json({ ok: false }, { status: 401 });
@@ -48,8 +48,8 @@ async function handlePost(context) {
   if (sess.role !== ROLE_OWNER) {
     return Response.json({ ok: false, error: 'role' }, { status: 403 });
   }
-  /* 锁屏门票（by=root 的代开会话在 lock 已配置时拒绝，见 checkLockDoor） */
-  const gate = await checkLockDoor(request, env);
+  /* 锁屏门票（by=root 的代开会话在锁屏已配置时拒绝，见 checkLockManage） */
+  const gate = await checkLockManage(request, env);
   if (!gate.ok) {
     return Response.json(gate.body, { status: gate.status });
   }

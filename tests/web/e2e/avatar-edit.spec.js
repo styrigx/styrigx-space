@@ -40,7 +40,7 @@ async function asRole(page, role) {
   });
   await page.route('**/account/', async (route) => {
     const r = await route.fetch();
-    const html = (await r.text()).replace(/<html/, '<html data-sgx-role="' + role + '" data-sgx-session="valid"');
+    const html = (await r.text()).replace(/<html/, '<html data-sgx-role="' + role + '" data-sgx-lock-session="valid"');
     await route.fulfill({ response: r, body: html });
   });
 }

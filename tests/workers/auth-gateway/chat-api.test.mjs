@@ -11,7 +11,7 @@ import { signRole } from './_tk.mjs';
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { signSessionCookie } from '../../../workers/auth-gateway/functions/_kernel/session.js';
+import { signSessionCookie } from '../../../workers/auth-gateway/functions/_kernel/lock-session.js';
 import * as chat from '../../../workers/auth-gateway/functions/api/chat.js';
 import { API_ROUTES } from '../../../workers/auth-gateway/src/routes.js';
 import { SECRET_NAMES } from '../../../workers/auth-gateway/src/secrets.js';

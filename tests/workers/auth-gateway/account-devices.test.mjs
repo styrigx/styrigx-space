@@ -70,11 +70,11 @@ function getReq(url, headers = {}) {
 }
 
 async function ownerSess(epoch = 0) {
-  const { signSessionCookie } = await import(KERNEL + 'session.js');
+  const { signSessionCookie } = await import(KERNEL + 'lock-session.js');
   return await signSessionCookie(LOCK.priv, epoch, 'owner', 'owner');
 }
 async function visitorSess() {
-  const { signSessionCookie } = await import(KERNEL + 'session.js');
+  const { signSessionCookie } = await import(KERNEL + 'lock-session.js');
   return await signRole(signSessionCookie, LOCK.priv, 0, 'visitor', 'owner');
 }
 async function accTicket(by = 'password', authAt = Date.now(), epoch = 0, priv) {
@@ -95,7 +95,7 @@ function pickCookie(res, name) {
 }
 
 async function doorTicket(by = 'password', epoch = 0, priv, now) {
-  const { signDoorTicket } = await import(KERNEL + 'door.js');
+  const { signDoorTicket } = await import(KERNEL + 'tickets.js');
   return await signDoorTicket(priv || ACCOUNT.priv, 'account', by, epoch, now);
 }
 /* 管理操作要账号门票：测试里带了账号会话又没显式给 sgx-door（键不存在）时，自动补一张同纪元的门票；
@@ -155,8 +155,8 @@ test('型号映射与 UA 解析', async () => {
   assert.deepEqual(d.parseUserAgent(SM_UA), { browser: 'Samsung Internet', platform: 'Android', model: '' });
   assert.deepEqual(d.parseUserAgent(WIN_UA), { browser: 'Chrome', platform: 'Windows', model: '' });
   assert.equal(d.parseUserAgent('Mozilla/5.0 (Linux; Android 14; SM-S918B Build/UP1A) Chrome/120').model, 'SM-S918B');
-  assert.ok(d.isSid(d.newSid()));
-  assert.equal(d.newSid().length, 16);
+  assert.ok(d.isDeviceId(d.newDeviceId()));
+  assert.equal(d.newDeviceId().length, 16);
 });
 
 test('登录记一台设备（型号来自 hints）；同一浏览器再登录（进门）沿用 sid，不多一台', async () => {
@@ -187,7 +187,7 @@ test('devices 列出：此设备排第一并标 current；GET session.device 是
   const sess = await ownerSess();
   const pc = pickCookie(await login(kv, { 'sgx-verified': sess }, WIN_UA, null), 'sgx-account');
   const phone = pickCookie(await login(kv, { 'sgx-verified': sess }, SM_UA, { model: 'SM-S918B', platform: 'Android' }), 'sgx-account');
-  const r = await post(kv, { action: 'devices' }, { 'sgx-verified': sess, 'sgx-account': phone });
+  const r = await post(kv, { action: 'device-list' }, { 'sgx-verified': sess, 'sgx-account': phone });
   assert.equal(r.status, 200);
   const j = await r.json();
   assert.equal(j.devices.length, 2);
@@ -199,7 +199,7 @@ test('devices 列出：此设备排第一并标 current；GET session.device 是
   const g = await (await get(kv, { 'sgx-verified': sess, 'sgx-account': phone })).json();
   assert.equal(g.session.device, 'Galaxy S23 Ultra');
   /* 不需要门票，但要账号会话 */
-  const r401 = await post(kv, { action: 'devices' }, { 'sgx-verified': sess });
+  const r401 = await post(kv, { action: 'device-list' }, { 'sgx-verified': sess });
   assert.equal(r401.status, 401);
   assert.ok(pc);
 });
@@ -212,10 +212,10 @@ test('device-revoke：别的设备立即失效（revoked）；不能退出此设
   const phone = pickCookie(await login(kv, { 'sgx-verified': sess }, SM_UA, null), 'sgx-account');
   const pcSid = pc.split('.')[4];
   const phoneSid = phone.split('.')[4];
-  const self = await post(kv, { action: 'device-revoke', sid: phoneSid }, { 'sgx-verified': sess, 'sgx-account': phone });
+  const self = await post(kv, { action: 'device-revoke', deviceId: phoneSid }, { 'sgx-verified': sess, 'sgx-account': phone });
   assert.equal(self.status, 400);
   assert.equal((await self.json()).error, 'current');
-  const ok = await post(kv, { action: 'device-revoke', sid: pcSid }, { 'sgx-verified': sess, 'sgx-account': phone });
+  const ok = await post(kv, { action: 'device-revoke', deviceId: pcSid }, { 'sgx-verified': sess, 'sgx-account': phone });
   assert.equal(ok.status, 200);
   assert.equal(kv.store.has('account-dev:' + pcSid), false);
   assert.equal(kv.store.has('account-revoked:' + pcSid), true);
@@ -223,9 +223,9 @@ test('device-revoke：别的设备立即失效（revoked）；不能退出此设
   const v = await verifyAccountCookie(new Request('https://styrigx.com/', { headers: { Cookie: 'sgx-account=' + pc } }), envFor(kv));
   assert.equal(v.ok, false);
   assert.equal(v.reason, 'revoked');
-  const again = await post(kv, { action: 'device-revoke', sid: pcSid }, { 'sgx-verified': sess, 'sgx-account': phone });
+  const again = await post(kv, { action: 'device-revoke', deviceId: pcSid }, { 'sgx-verified': sess, 'sgx-account': phone });
   assert.equal(again.status, 404);
-  const bad = await post(kv, { action: 'device-revoke', sid: 'x.y' }, { 'sgx-verified': sess, 'sgx-account': phone });
+  const bad = await post(kv, { action: 'device-revoke', deviceId: 'x.y' }, { 'sgx-verified': sess, 'sgx-account': phone });
   assert.equal(bad.status, 400);
 });
 
@@ -267,7 +267,7 @@ test('改账号密码（纪元 +1）：当前设备沿用 sid，其他设备记�
   const pc = pickCookie(await login(kv, { 'sgx-verified': sess }, WIN_UA, null), 'sgx-account');
   const phone = pickCookie(await login(kv, { 'sgx-verified': sess }, SM_UA, null), 'sgx-account');
   const door = await doorTicket('password', 0);
-  const r = await post(kv, { action: 'password', password: 'acct-pass-5678' }, { 'sgx-verified': sess, 'sgx-account': phone, 'sgx-door': door });
+  const r = await post(kv, { action: 'password-change', password: 'acct-pass-5678' }, { 'sgx-verified': sess, 'sgx-account': phone, 'sgx-door': door });
   assert.equal(r.status, 200, await r.clone().text());
   const nv = pickCookie(r, 'sgx-account');
   assert.equal(nv.split('.')[4], phone.split('.')[4]);

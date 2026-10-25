@@ -1,12 +1,12 @@
 /**
  * 锁屏凭证的门 / 账号登录 E2E（预览站真实后端）。
  *
- * stepup 已删除：锁屏凭证页的门票由 /api/lock-door（状态 / 清票）+ 各凭证接口 door:true 签发；
+ * stepup 已删除：锁屏凭证页的门票由 /api/lock-reauth（状态 / 清票）+ 各凭证接口 door:true 签发；
  * 账号通行密钥登录走 /api/account challenge + login-passkey。
- * 完整逻辑由 tests/workers/auth-gateway/lock-door.test.mjs、account.test.mjs 覆盖。
+ * 完整逻辑由 tests/workers/auth-gateway/lock-reauth.test.mjs、account.test.mjs 覆盖。
  *
  * 覆盖：
- * - 无会话 lock-door status 被拒（401）；/api/stepup 已不存在
+ * - 无会话 lock-reauth status 被拒（401）；/api/stepup 已不存在
  * - 锁屏通行密钥的 pk-challenge 不能用于账号登录（403 challenge，用途隔离）
  * - 账号登录 challenge 单次使用，重放被拒（403 challenge）
  *
@@ -50,16 +50,16 @@ test.describe('lock door / account challenge e2e', () => {
   async function ownerSessionCookie(page, request) {
     const token = await page.evaluate(() => sessionStorage.getItem('sgx-lockmgr-token'));
     const pw = 'e2e-door-' + Date.now();
-    let r = await request.post(BASE + '/api/owner-password', {
+    let r = await request.post(BASE + '/api/lock-password', {
       data: { action: 'set', token, password: pw },
     });
     if ((await r.json()).error === 'exists') {
-      r = await request.post(BASE + '/api/owner-password', {
+      r = await request.post(BASE + '/api/lock-password', {
         data: { action: 'change', token, password: pw },
       });
     }
     expect((await r.json()).ok).toBe(true);
-    r = await request.post(BASE + '/api/owner-password', {
+    r = await request.post(BASE + '/api/lock-password', {
       data: { action: 'verify', password: pw },
     });
     expect((await r.json()).ok).toBe(true);
@@ -67,14 +67,14 @@ test.describe('lock door / account challenge e2e', () => {
     const m = sc.match(/sgx-verified=([^;]+)/);
     expect(m).toBeTruthy();
     /* 清理测试密码 */
-    await request.post(BASE + '/api/owner-password', {
+    await request.post(BASE + '/api/lock-password', {
       data: { action: 'remove', token },
     });
     return 'sgx-verified=' + m[1];
   }
 
-  test('无会话 lock-door status → 401', async ({ request }) => {
-    const r = await request.post(BASE + '/api/lock-door', {
+  test('无会话 lock-reauth status → 401', async ({ request }) => {
+    const r = await request.post(BASE + '/api/lock-reauth', {
       data: { action: 'status' },
     });
     expect(r.status()).toBe(401);
@@ -83,7 +83,7 @@ test.describe('lock door / account challenge e2e', () => {
   test('锁屏 pk-challenge 不能用于账号登录 login-passkey', async ({ page, request }) => {
     const cookie = await ownerSessionCookie(page, request);
     const headers = { Cookie: cookie };
-    const chal = await (await request.post(BASE + '/api/owner-passkey', {
+    const chal = await (await request.post(BASE + '/api/lock-passkey', {
       data: { action: 'challenge', type: 'auth' },
       headers,
     })).json();
@@ -102,7 +102,7 @@ test.describe('lock door / account challenge e2e', () => {
     const cookie = await ownerSessionCookie(page, request);
     const headers = { Cookie: cookie };
     const chal = await (await request.post(BASE + '/api/account', {
-      data: { action: 'challenge' },
+      data: { action: 'login-challenge' },
       headers,
     })).json();
     if (!chal.ok) test.skip(true, '无账号通行密钥或未配 SGX_ACCOUNT_*，跳过');

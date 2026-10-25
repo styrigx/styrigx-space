@@ -53,9 +53,9 @@ async function handle(context) {
   const { request, env, auth } = context;
   const cross = !isSameOrigin(request);
   if (cross && !isSubsiteOrigin(request)) return originDenied();
-  const sess = await auth.session();
+  const sess = await auth.lockSession();
   if (!sess.ok || sess.role !== ROLE_OWNER) return json({ ok: false, error: 'session' }, 401);
-  const acc = await auth.account();
+  const acc = await auth.accountSession();
   if (!acc.ok) return json({ ok: false, error: 'account', reason: acc.reason }, 401);
   const db = env && env.D1_SHARE_LINK;
   const issuer = env && env.ISSUER;

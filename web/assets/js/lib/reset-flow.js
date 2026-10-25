@@ -5,10 +5,10 @@
  * 流程（服务端决定下一步）：
  * 1. 根凭证（全站唯一的根凭证输入框 createRootField）→ submitRoot(key)
  *    - resolve {}（或 { done:true }）→ 完成 → onDone()
- *    - resolve { needOwner: { passkey, password } } → 第 2 步
+ *    - resolve { needAccount: { passkey, password } } → 第 2 步
  *    - reject { message, clear? } → 行内报错
  * 2. 账号凭证（与账号登录同一套验证行 lib/cred-rows.js：账号通行密钥 / 账号密码，按服务端给的配置显示）
- *    → owner.passkey() / owner.password(value)（调用方把第 1 步的根凭证一起提交）→ onDone()
+ *    → account.passkey() / account.password(value)（调用方把第 1 步的根凭证一起提交）→ onDone()
  *
  * 根凭证只存在闭包里，完成 / 卸载即清空，不挂 window、不留在 DOM。
  * 文案自带中英（锁屏在每个页面都可能出现，不依赖账号页的 i18n 表）。
@@ -26,7 +26,7 @@ const TXT = {
   next: { zh: '下一步', en: 'Continue' },
   enterRoot: { zh: '请输入根凭证', en: 'Enter root credential' },
   step2: { zh: '再验证一次账号凭证', en: 'Now verify your account credential' },
-  noOwner: { zh: '账号还没有设置登录方式，无法用账号凭证验证。', en: 'No account credential is set, so it can’t be used to verify.' },
+  noAccount: { zh: '账号还没有设置登录方式，无法用账号凭证验证。', en: 'No account credential is set, so it can’t be used to verify.' },
   recover: { zh: '账号凭证也无法使用？可在站点后台开启一次性恢复，24 小时内有效', en: 'Account credential unavailable too? Enable one-time recovery in the site admin, valid for 24 hours.' },
   mPasskey: { zh: '账号通行密钥', en: 'Account passkey' },
   mPasskeySub: { zh: '使用指纹或设备锁屏', en: 'Use fingerprint or device screen lock' },
@@ -52,10 +52,10 @@ export function resetT(en) {
  * @param {object} o
  * @param {HTMLElement} o.el 容器
  * @param {boolean} o.en
- * @param {(key: string) => Promise<{needOwner?: {passkey?: boolean, password?: boolean}}|void>} o.submitRoot
- * @param {(rootKey: string) => {passkey: () => Promise<any>, password: (v: string) => Promise<any>}} [o.owner] 第 2 步提交
+ * @param {(key: string) => Promise<{needAccount?: {passkey?: boolean, password?: boolean}}|void>} o.submitRoot
+ * @param {(rootKey: string) => {passkey: () => Promise<any>, password: (v: string) => Promise<any>}} [o.account] 第 2 步提交
  * @param {() => void} o.onDone
- * @param {(step: 'root'|'owner') => void} [o.onStep]
+ * @param {(step: 'root'|'account') => void} [o.onStep]
  * @param {boolean} [o.autofocus] 默认 true
  * @returns {{destroy: () => void}}
  */
@@ -76,13 +76,13 @@ export function mountResetFlow(o) {
     lead.textContent = t('step1');
     const rf = createRootField({ id: 'sgx-reset-root', placeholder: t('rootPh'), en: o.en });
     const err = document.createElement('p');
-    err.className = 'sgx-door-err';
+    err.className = 'sgx-credential-err';
     err.id = 'sgx-reset-err';
     err.hidden = true;
     const go = document.createElement('button');
     go.type = 'button';
     go.id = 'sgx-reset-go';
-    go.className = 'sgx-door-btn sgx-door-btn-primary sgx-reset-next';
+    go.className = 'sgx-credential-btn sgx-credential-btn-primary sgx-reset-next';
     go.textContent = t('next');
     wrap.appendChild(lead);
     wrap.appendChild(rf.field);
@@ -103,10 +103,10 @@ export function mountResetFlow(o) {
       go.disabled = true;
       o.submitRoot(v).then(function (r) {
         if (!alive) return;
-        if (r && r.needOwner) {
+        if (r && r.needAccount) {
           rootKey = v;
           rf.input.value = '';
-          step2(r.needOwner);
+          step2(r.needAccount);
           return;
         }
         rootKey = '';
@@ -131,22 +131,22 @@ export function mountResetFlow(o) {
   /** @param {{passkey?: boolean, password?: boolean}} need */
   function step2(need) {
     el.textContent = '';
-    if (o.onStep) o.onStep('owner');
+    if (o.onStep) o.onStep('account');
     const wrap = document.createElement('div');
     wrap.className = 'sgx-reset';
-    wrap.dataset.step = 'owner';
+    wrap.dataset.step = 'account';
     const lead = document.createElement('p');
     lead.className = 'sgx-reset-lead';
     lead.textContent = t('step2');
     wrap.appendChild(lead);
     const rows = document.createElement('div');
-    rows.className = 'sgx-door-methods sgx-reset-opts';
+    rows.className = 'sgx-credential-methods sgx-reset-opts';
     wrap.appendChild(rows);
     const hint = document.createElement('p');
     hint.className = 'sgx-reset-recover-hint';
     hint.textContent = t('recover');
     el.appendChild(wrap);
-    const sub = o.owner ? o.owner(rootKey) : null;
+    const sub = o.account ? o.account(rootKey) : null;
     const guard = function (fn) {
       return function (/** @type {any} */ v) {
         if (!rootKey) return Promise.reject({ message: t('sessionLost') });
@@ -159,7 +159,7 @@ export function mountResetFlow(o) {
     if (!defs.length) {
       const none = document.createElement('p');
       none.className = 'sgx-reset-none';
-      none.textContent = t('noOwner');
+      none.textContent = t('noAccount');
       rows.appendChild(none);
     } else {
       renderCredRows({

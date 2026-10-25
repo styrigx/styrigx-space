@@ -1,6 +1,6 @@
 /**
  * 会话自检接口：前端唯一的「现在是什么状态、接下来去哪」的来源。
- * GET /api/session-check[?return=<url>]
+ * GET /api/lock-session-check[?return=<url>]
  * - 有有效 sgx-verified 会话 → 200 {ok:true, role:'owner'|'visitor', next, upgrade}
  *   - 带 return：next = 服务端校验后的去处（与首页 302 同一个 resolveReturn：站内路径或 *.styrigx.com 白名单，
  *     不合法回首页）；upgrade=true 表示访客要去主人专属页 → 前端就地弹站长验证，不跳、不出锁屏

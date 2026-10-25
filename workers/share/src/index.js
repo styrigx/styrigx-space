@@ -5,7 +5,7 @@
  * - POST /api/share（只许站长 + 账号会话）：api/share.js —— 列表 / 生成 / 作废
  *   三个子站顶栏的分享按钮跨源调它：OPTIONS 预检在门之前回（预检不带 cookie），每个 /api/* 响应补 CORS 头（lib/cors.js）
  * 数据：D1 styrigx-share（绑定 D1_SHARE_LINK，migrations/）。不持任何钥匙、不绑认证库：
- * - 会话判断问网关 SessionVerifier（服务绑定 AUTH，和账号 Worker 同一份 auth.js）
+ * - 会话判断问网关 AuthVerifier（服务绑定 AUTH，和账号 Worker 同一份 auth.js）
  * - 签 / 作废短链钥匙、换访客会话问网关 ShareIssuer（服务绑定 ISSUER）；临时钥匙和会话的逻辑只在网关里一份
  * 路由（wrangler.toml）：styrigx.com/s/*、styrigx.com/api/share*，比网关的 styrigx.com/* 更具体。
  * 每个响应打 X-SGX-Runtime: share（不含敏感信息），部署后冒烟据此确认路径真的进了本 Worker。

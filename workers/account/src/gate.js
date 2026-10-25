@@ -1,6 +1,6 @@
 /**
  * @fileoverview 账号 Worker 的门：照搬网关 middleware（workers/auth-gateway/functions/_middleware.js）对这几条路径的判断，
- * 一条不少、一条不松。会话本身由网关验（auth.js → SessionVerifier RPC），这里只按结论放行或拒绝。
+ * 一条不少、一条不松。会话本身由网关验（auth.js → AuthVerifier RPC），这里只按结论放行或拒绝。
  *
  * 生产（SGX_ENV=production）：
  * - 只认 styrigx.com：别的域名的 /api/* → 403，页面路径 → 301 到 styrigx.com（路由只登记了 styrigx.com，正常进不来）
@@ -12,8 +12,8 @@
 import { ROLE_VISITOR } from './auth.js';
 
 const HOST = 'styrigx.com';
-/* 主人专属 API（visitor 调用 → 403）：网关 OWNER_ONLY_APIS 里属于本 Worker 的那条 */
-const OWNER_ONLY_APIS = ['/api/prefs'];
+/* 主人专属 API（visitor 调用 → 403）：网关 ADMIN_ONLY_APIS 里属于本 Worker 的那条 */
+const ADMIN_ONLY_APIS = ['/api/prefs'];
 /* 认证类 action（网关 AUTH_ACTIONS） */
 const AUTH_ACTIONS = new Set(['verify', 'challenge', 'register', 'auth']);
 /* 网关 isWhitelisted 里对 /avatar/* 起作用的两条 */
@@ -21,8 +21,8 @@ const AVATAR_FILE_RE = /^\/avatar\/(32|96|192|512)\.webp$/;
 const STATIC_RE = /\.(css|js|woff2|woff|ttf|png|svg|ico|json|xml|webmanifest)$/i;
 
 /** @param {string} pathname */
-export function isOwnerOnlyApi(pathname) {
-  return OWNER_ONLY_APIS.some((p) => pathname === p || pathname.startsWith(p + '/'));
+export function isAdminOnlyApi(pathname) {
+  return ADMIN_ONLY_APIS.some((p) => pathname === p || pathname.startsWith(p + '/'));
 }
 
 /** 没会话也放行的路径（只有头像文件；/api/* 在本 Worker 里没有白名单） @param {string} pathname */
@@ -38,7 +38,7 @@ function jsonRes(status, body) {
 /**
  * @param {Request} request
  * @param {Record<string, any>} env
- * @param {{ session: () => Promise<{ok:boolean, role:string|null}> }} auth
+ * @param {{ lockSession: () => Promise<{ok:boolean, role:string|null}> }} auth
  * @returns {Promise<Response|null>} 拒绝时的响应；null = 放行
  */
 export async function gate(request, env, auth) {
@@ -53,8 +53,8 @@ export async function gate(request, env, auth) {
     url.port = '';
     return Response.redirect(url.toString(), 301);
   }
-  const sess = await auth.session();
-  if (sess.role === ROLE_VISITOR && isOwnerOnlyApi(pathname)) {
+  const sess = await auth.lockSession();
+  if (sess.role === ROLE_VISITOR && isAdminOnlyApi(pathname)) {
     let isAuthAction = false;
     if (request.method === 'POST') {
       try {
