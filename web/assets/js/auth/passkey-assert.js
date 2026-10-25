@@ -3,9 +3,56 @@
  * 调 credentials.get() 前临时隐藏验证弹层（不关闭、不重置状态），
  * 拿到结果或失败后再恢复。30 秒总超时（AbortController + WebAuthn timeout 双保险）。
  * 抛出带 kind 的错误：cancelled（已取消）/ timeout（超时）/ nokey（无匹配钥匙）/ failed（其他）。
+ *
+ * frontend-js #9（2026-10-26）：全站五处通行密钥断言（锁屏解锁、锁屏里的重置、访客升级、锁屏凭证页再验证、
+ * 账号登录 / 再验证）都走 getPasskeyAssertion，选项用 assertionOptions(ch)、提交体用 assertionToJSON(cred)，
+ * 不再各自手写 allowCredentials 映射和序列化。
  */
 import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
 import { loadI18n } from '../lib/i18n.js';
+
+/**
+ * 服务端下发的断言 challenge → credentials.get 的 publicKey 选项。
+ * rpId 服务端给了才带（没给 = 当前站点）；allowCredentials 为空就不带（= 可发现凭证）；一律要求 UV。
+ * @param {{challenge: string, rpId?: string, allowCredentials?: Array<{id: string, type?: string}>}} ch
+ */
+export function assertionOptions(ch) {
+  const allow = (ch.allowCredentials || []).map(function (c) {
+    return { id: b64urlToBuf(c.id), type: c.type || 'public-key' };
+  });
+  /** @type {any} */
+  const o = { challenge: b64urlToBuf(ch.challenge), userVerification: 'required' };
+  if (ch.rpId) o.rpId = ch.rpId;
+  if (allow.length) o.allowCredentials = allow;
+  return o;
+}
+
+/**
+ * 断言结果（PublicKeyCredential + AssertionResponse）→ 提交给服务端的 JSON（各接口只读 rawId 和 response）。
+ * @param {any} cred
+ */
+export function assertionToJSON(cred) {
+  return {
+    id: cred.id,
+    rawId: bufToB64url(cred.rawId),
+    type: cred.type,
+    response: {
+      authenticatorData: bufToB64url(cred.response.authenticatorData),
+      clientDataJSON: bufToB64url(cred.response.clientDataJSON),
+      signature: bufToB64url(cred.response.signature),
+      userHandle: cred.response.userHandle ? bufToB64url(cred.response.userHandle) : null,
+    },
+  };
+}
+
+/**
+ * 「已取消」：用户主动取消（cancelled），或 NotAllowedError 快速返回（nokey 里由 NotAllowedError 引起的那种，
+ * 浏览器对「没有匹配钥匙」和「取消」不区分）。调用方据此决定只给轻提示还是报错。
+ * @param {any} e getPasskeyAssertion 抛出的错误
+ */
+export function isPasskeyCancel(e) {
+  return !!e && (e.kind === 'cancelled' || (e.kind === 'nokey' && !!e.cause && e.cause.name === 'NotAllowedError'));
+}
 
 /**
  * @param {object} options WebAuthn get options（publicKey 部分）

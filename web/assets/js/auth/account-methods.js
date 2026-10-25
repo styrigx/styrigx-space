@@ -11,7 +11,7 @@
  * 行的渲染在 auth/cred-rows.js（锁屏弹层的重置登录也用它）。
  * 放在 lib/：账号页（apps/account*.js）和锁屏凭证页（apps/security-lock.js）都 import 它。
  */
-import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
+import { getPasskeyAssertion, assertionOptions, assertionToJSON, isPasskeyCancel } from './passkey-assert.js';
 import { renderCredRows, CRED_ICONS } from './cred-rows.js';
 import { KEY_ACCOUNT } from '../lib/key-names.js';
 import { ACCOUNT_API, postJSON, errText as errTextT } from './account-api.js';
@@ -74,28 +74,13 @@ export function accountSubmitters(t, opts) {
     return postJSON(ACCOUNT_API, { action: 'login-challenge' }).then(function (res) {
       const j = res.j;
       if (!j || !j.ok || !j.challenge) throw { message: errText(j && j.error, res.s) };
-      const allow = (j.allowCredentials || []).map(function (c) {
-        return { type: 'public-key', id: b64urlToBuf(c.id) };
-      });
-      /* 系统通行密钥窗口（Samsung Pass 等）弹出时，背后的验证弹层先藏起来，结束后恢复——和锁屏一样（2026-10-24） */
+      /* 系统通行密钥窗口（Samsung Pass 等）弹出时，背后的验证弹层先藏起来，结束后恢复——和锁屏一样（2026-10-24）；
+         隐藏 / 恢复、30 秒超时都在 getPasskeyAssertion 里 */
       const hideEl = /** @type {HTMLElement|null} */ (document.querySelector('dialog.sgx-verify-dlg[open]'));
-      if (hideEl) hideEl.style.visibility = 'hidden';
-      const restore = function () {
-        if (hideEl) hideEl.style.visibility = '';
-      };
-      return navigator.credentials.get({
-        publicKey: {
-          challenge: b64urlToBuf(j.challenge),
-          rpId: j.rpId,
-          allowCredentials: allow.length ? allow : undefined,
-          userVerification: 'required',
-        },
-      }).then(function (cred) {
-        restore();
+      return getPasskeyAssertion(assertionOptions(j), { hideEl: hideEl || undefined }).then(function (cred) {
         return { cred: /** @type {any} */ (cred), cid: j.cid };
       }, function (e) {
-        restore();
-        if (e && e.name === 'NotAllowedError') throw { cancelled: true };
+        if (isPasskeyCancel(e)) throw { cancelled: true };
         throw { message: t('errVerify') };
       });
     }, function () {
@@ -105,17 +90,7 @@ export function accountSubmitters(t, opts) {
       const body = {
         action: 'login-passkey',
         cid: r.cid,
-        credential: {
-          id: cred.id,
-          rawId: bufToB64url(cred.rawId),
-          type: cred.type,
-          response: {
-            authenticatorData: bufToB64url(cred.response.authenticatorData),
-            clientDataJSON: bufToB64url(cred.response.clientDataJSON),
-            signature: bufToB64url(cred.response.signature),
-            userHandle: cred.response.userHandle ? bufToB64url(cred.response.userHandle) : null,
-          },
-        },
+        credential: assertionToJSON(cred),
       };
       if (reauth) body.reauth = true;
       const dev = deviceHints();

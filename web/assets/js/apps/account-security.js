@@ -17,10 +17,10 @@
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
-import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
+import { registerPasskey, createPkNameDialog, genPkPrefillName, cleanPasskeyName } from '../auth/passkey-register.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { bindDataEyes, createSetPwDialog, newPwError } from '../auth/auth-flow.js';
-import { bindSubmitButton, onDialogBackdrop, onDialogCancel, recordDialogClose } from '../lib/dialog-behavior.js';
+import { bindSubmitButton } from '../lib/dialog-behavior.js';
 import { accountUrl, createT, signalAccountName } from './account-common.js';
 import { ACCOUNT_API, postJSON, errText as errTextT } from '../auth/account-api.js';
 import { accountSubmitters, renderAccountMethods, visibleKinds } from '../auth/account-methods.js';
@@ -164,11 +164,6 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../auth/a
     }
   }
 
-  /** 名字规则与服务端一致：去控制字符、去首尾空格、限 40 字 */
-  function cleanName(v) {
-    return String(v || '').replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, 40);
-  }
-
   /* ================= 账号密码 ================= */
   let hasPw = false;
   let sessBy = '';
@@ -261,7 +256,7 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../auth/a
     nameInput.setAttribute('aria-label', t('pkNameAria'));
     let lastSaved = k.name || '';
     const saveName = function () {
-      const v = cleanName(nameInput.value);
+      const v = cleanPasskeyName(nameInput.value);
       if (v === lastSaved) {
         nameInput.value = lastSaved;
         return;
@@ -353,115 +348,29 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../auth/a
     return li;
   }
 
-  /* ---------- 命名弹层（注册成功后弹出；与锁屏页 security-lock.js 同一套） ---------- */
-  let pkNameCredId = null;
-  let pkNamePrefill = '';
-  /** 预填名：设备平台（provider 要等服务端识别 AAGUID，注册前未知） */
-  function genPkPrefillName() {
-    let device = '';
-    try {
-      const uad = /** @type {any} */ (navigator).userAgentData;
-      if (uad && uad.platform) device = uad.platform;
-    } catch (e) {}
-    return device || t('pkUnnamed');
-  }
-  function openPkNameDlg(credId, prefill) {
-    pkNameCredId = credId;
-    pkNamePrefill = prefill || '';
-    const dlg = /** @type {HTMLDialogElement|null} */ ($('lockpkname-dlg'));
-    const input = /** @type {HTMLInputElement|null} */ ($('lockpkname-input'));
-    if (!dlg || !input) return;
-    input.value = pkNamePrefill;
-    /* 异步补设备型号（userAgentData 高熵值） */
-    try {
-      const uad = /** @type {any} */ (navigator).userAgentData;
-      if (uad && uad.getHighEntropyValues) {
-        uad.getHighEntropyValues(['model']).then(function (ua) {
-          if (ua && ua.model && input && input.value === pkNamePrefill) {
-            input.value = ua.model;
-          }
-        }).catch(function () {});
-      }
-    } catch (e) {}
-    const err = $('lockpkname-err');
-    if (err) err.hidden = true;
-    try { dlg.showModal(); } catch (e) {}
-    try { input.focus({ preventScroll: true }); } catch (e2) {}
-  }
-  function closePkNameDlg(reason) {
-    recordDialogClose('lockpkname', reason || 'unknown');
-    const dlg = /** @type {HTMLDialogElement|null} */ ($('lockpkname-dlg'));
-    try { if (dlg && dlg.open) dlg.close(); } catch (e) {}
-    pkNameCredId = null;
-    pkNamePrefill = '';
-  }
-  function showNameErr(msg) {
-    const err = $('lockpkname-err');
-    if (err) {
-      err.textContent = msg;
-      err.hidden = false;
-    }
-  }
-  /* A1/A2/A3：遮罩不关、返回先收键盘、× 关闭（关闭 = 保留注册时的预填名） */
-  const pkNameDlg = $('lockpkname-dlg');
-  if (pkNameDlg) {
-    on(pkNameDlg, 'click', function (/** @type {MouseEvent} */ e) {
-      onDialogBackdrop(e, pkNameDlg);
-    });
-    on(pkNameDlg, 'cancel', function (/** @type {Event} */ e) {
-      onDialogCancel(e, pkNameDlg, function (reason) { closePkNameDlg(reason); refreshKeys(); });
-    });
-    const pkNameClose = pkNameDlg.querySelector('[data-dlg-close]');
-    if (pkNameClose) on(pkNameClose, 'click', function () { closePkNameDlg('close-btn'); refreshKeys(); });
-  }
-  const pkNameSave = $('lockpkname-save');
-  if (pkNameSave) {
-    bindSubmitButton(pkNameSave, function () {
-      const input = /** @type {HTMLInputElement|null} */ ($('lockpkname-input'));
-      const name = cleanName(input ? input.value : '');
-      if (!name) {
-        showNameErr(t('pkNameEmpty'));
-        return;
-      }
-      if (!pkNameCredId) {
-        closePkNameDlg('success');
-        return;
-      }
-      /* 没改名就不调 rename（注册时已带预填名） */
-      if (name === pkNamePrefill) {
-        toast(t('pkRegistered'));
-        closePkNameDlg('success');
-        refreshKeys();
-        return;
-      }
-      postJSON(ACCOUNT_API, { action: 'passkey-rename', credId: pkNameCredId, name: name }).then(function (res) {
-        if (res.j && res.j.ok) {
-          toast(t('pkRegistered'));
-          closePkNameDlg('success');
-          refreshKeys();
-          return;
-        }
-        if (handleAuthError(res)) {
-          closePkNameDlg('reverify');
-          return;
-        }
+  /* ---------- 通行密钥注册 + 命名弹层（auth/passkey-register.js，锁屏凭证页同一份） ---------- */
+  /** postJSON 的 {s, j} ↔ 共用流程的 {status, json} */
+  const toRes = function (/** @type {any} */ r) { return { status: r.s, json: r.j }; };
+  const fromRes = function (/** @type {any} */ r) { return { s: r.status, j: r.json }; };
+  const pkName = createPkNameDialog({
+    rename: function (credId, name) {
+      return postJSON(ACCOUNT_API, { action: 'passkey-rename', credId: credId, name: name }).then(function (res) {
+        if (res.j && res.j.ok) return 'ok';
+        if (handleAuthError(res)) return 'close';
         /* KV 最终一致：刚注册的 key 可能暂时读不到 */
-        if (res.j && res.j.error === 'not-found') showNameErr(t('pkRetryLater'));
-        else if (res.j && res.j.error === 'params') showNameErr(t('pkNameEmpty'));
-        else showNameErr(errText(res.j && res.j.error, res.s));
-      }, function () {
-        showNameErr(t('errNetwork'));
+        if (res.j && res.j.error === 'not-found') return t('pkRetryLater');
+        if (res.j && res.j.error === 'params') return t('pkNameEmpty');
+        return errText(res.j && res.j.error, res.s);
       });
-    });
-  }
-  const pkNameSkip = $('lockpkname-skip');
-  if (pkNameSkip) {
-    on(pkNameSkip, 'click', function () {
-      closePkNameDlg('success');
-      toast(t('pkRegistered'));
-      refreshKeys();
-    });
-  }
+    },
+    onDone: function () { refreshKeys(); },
+    /* 关闭 = 保留注册时的预填名 */
+    onDismiss: function () { refreshKeys(); },
+    toast: toast,
+    registeredText: t('pkRegistered'),
+    emptyText: t('pkNameEmpty'),
+    networkText: t('errNetwork'),
+  });
   /* 命名输入框聚焦时，弹层随键盘上移 */
   followKeyboard($('lockpkname-dlg'), $('lockpkname-input'));
 
@@ -469,71 +378,19 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../auth/a
   const pkAdd = $('lockmgr-pkadd');
   if (pkAdd) {
     on(pkAdd, 'click', function () {
-      if (!window.PublicKeyCredential) {
-        toast(t('pkNoSupport'));
-        return;
-      }
-      postJSON(ACCOUNT_API, { action: 'passkey-register-challenge' }).then(function (res) {
-        if (handleAuthError(res)) throw { kind: 'handled' };
-        const ch = res.j;
-        if (!ch || !ch.ok) throw { kind: 'server', code: ch && ch.error, status: res.s };
-        return navigator.credentials.create({
-          publicKey: {
-            challenge: b64urlToBuf(ch.challenge),
-            rp: { name: (ch.rp && ch.rp.name) || 'Styrigx', id: ch.rpId },
-            user: { id: b64urlToBuf(ch.user.id), name: ch.user.name, displayName: ch.user.displayName },
-            pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
-            authenticatorSelection: { userVerification: 'required', residentKey: 'required' },
-            excludeCredentials: (ch.excludeCredentials || []).map(function (c) {
-              return { id: b64urlToBuf(c.id), type: c.type };
-            }),
-            attestation: 'none',
-            timeout: 60000,
-          },
-        }).then(function (cred) {
-          return { cred: /** @type {any} */ (cred), cid: ch.cid };
-        }, function (e) {
-          if (e && e.name === 'NotAllowedError') throw { kind: 'cancelled' };
-          if (e && e.name === 'InvalidStateError') throw { kind: 'already' };
-          if (e && e.name === 'NotSupportedError') throw { kind: 'nosupport' };
-          throw { kind: 'failed' };
-        });
-      }).then(function (r) {
-        const prefill = genPkPrefillName();
-        return postJSON(ACCOUNT_API, {
-          action: 'passkey-register',
-          cid: r.cid,
-          name: prefill,
-          credential: {
-            id: r.cred.id,
-            rawId: bufToB64url(r.cred.rawId),
-            type: r.cred.type,
-            response: {
-              clientDataJSON: bufToB64url(r.cred.response.clientDataJSON),
-              attestationObject: bufToB64url(r.cred.response.attestationObject),
-            },
-          },
-        }).then(function (res) {
-          return { res: res, prefill: prefill };
-        });
-      }).then(function (r2) {
-        const res = r2.res;
-        if (handleAuthError(res)) return;
-        if (res.j && res.j.ok) {
+      registerPasskey({
+        challenge: function () { return postJSON(ACCOUNT_API, { action: 'passkey-register-challenge' }).then(toRes); },
+        register: function (body) { return postJSON(ACCOUNT_API, Object.assign({ action: 'passkey-register' }, body)).then(toRes); },
+        onAuthError: function (res) { return handleAuthError(fromRes(res)); },
+        onRegistered: function (credId, prefill) {
           /* 注册成功 → 命名弹层（预填名已随 register 提交，用户改了名才调 rename） */
-          openPkNameDlg(res.j.credId, r2.prefill);
+          pkName.open(credId, prefill);
           refreshKeys();
-        } else {
-          toast(errText(res.j && res.j.error, res.s));
-        }
-      }).catch(function (e) {
-        if (!e || e.kind === 'handled') return;
-        if (e.kind === 'cancelled') toast(t('errCancelled'));
-        else if (e.kind === 'already') toast(t('pkAlready'));
-        else if (e.kind === 'nosupport') toast(t('pkNoSupport'));
-        else if (e.kind === 'failed') toast(t('pkFailed'));
-        else if (e.kind === 'server') toast(errText(e.code, e.status));
-        else toast(t('errNetwork'));
+        },
+        prefill: function () { return genPkPrefillName(t('pkUnnamed')); },
+        errText: errText,
+        toast: toast,
+        msg: { cancelled: t('errCancelled'), already: t('pkAlready'), noSupport: t('pkNoSupport'), failed: t('pkFailed'), network: t('errNetwork') },
       });
     });
   }

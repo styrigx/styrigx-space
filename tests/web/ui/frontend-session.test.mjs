@@ -19,7 +19,8 @@ import { dirname, join } from 'node:path';
 import { onRequestPost as lockPost, onRequestGet as lockGet } from '../../../workers/auth-gateway/functions/api/lock-now.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../../..');
-const lockJs = readFileSync(join(root, 'web/assets/js/shell/lock.js'), 'utf8');
+/* 2026-10-26（frontend-js #6）：锁屏拆成守卫 shell/lock-guard.js（core 里）+ 界面 shell/lock.js（按需加载），两份合起来查 */
+const lockJs = readFileSync(join(root, 'web/assets/js/shell/lock-guard.js'), 'utf8') + '\n' + readFileSync(join(root, 'web/assets/js/shell/lock.js'), 'utf8');
 const secJs = readFileSync(join(root, 'web/assets/js/apps/security.js'), 'utf8');
 const cardHtml = readFileSync(join(root, 'web/layouts/partials/sgx-account-card.html'), 'utf8');
 

@@ -52,7 +52,7 @@ Cloudflare 路由规则：不带 `*` 的规则要求整条 URL（含查询串）
 `resolveReturn(return, role)`（唯一实现，首页 302 和 session-check 共用）：站内路径（不许 `//`、`/\`、`/lock/`）或 `https://*.styrigx.com`
 （无用户名密码、无反斜杠、不含已下线子站），否则回首页；已登录 + 门内页 → 安全与隐私总览；访客 + 管理员专属页 → upgrade。
 
-## 4. 前端状态机（`web/assets/js/shell/lock.js`）
+## 4. 前端状态机（`web/assets/js/shell/lock-guard.js` 判定 + `shell/lock.js` 锁屏界面，按需加载）
 
 页面状态 `pageState()` = `data-sgx-lock-session`：`valid` / `locked` / `lock-reset` / `unknown`（没有属性 = 页面没经过网关）。
 

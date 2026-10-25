@@ -12,10 +12,12 @@
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
+import { releaseLockScreen } from '../shell/lock-guard.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindSubmitButton, showCenterDialog } from '../lib/dialog-behavior.js';
 import { api, apiErrorText, needVerify, startReauthCountdown, refreshReauthCountdown, guardReauthExpired } from './app-gate.js';
-import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
+import { registerPasskey, createPkNameDialog, genPkPrefillName } from '../auth/passkey-register.js';
+import { getPasskeyAssertion, assertionOptions, assertionToJSON, isPasskeyCancel } from '../auth/passkey-assert.js';
 import { bindDataEyes, createSetPwDialog, newPwError, passwordSetRequest, lockReauthFetch } from '../auth/auth-flow.js';
 import { renderAccountMethods } from '../auth/account-methods.js';
 import { KEY_LOCK } from '../lib/key-names.js';
@@ -153,12 +155,8 @@ import { KEY_LOCK } from '../lib/key-names.js';
 
   /** @param {number} [expiresAt] 服务端reauth 票过期时刻（毫秒） */
   function enterMgr(expiresAt) {
-    /* 本页有独立验证门；进管理区时去掉全局锁屏遮罩，避免盖住按钮 */
-    try {
-      const gl = document.getElementById('sgx-lock');
-      if (gl) gl.remove();
-      document.body.classList.remove('sgx-locked');
-    } catch (e) {}
+    /* 本页有独立验证门；进管理区时去掉全局锁屏（含还在按需加载的），避免盖住按钮 */
+    releaseLockScreen();
     $('lockmgr').hidden = false;
     const sessSec = $('lockmgr-sessions');
     if (sessSec) sessSec.hidden = isLockReset;
@@ -320,121 +318,33 @@ import { KEY_LOCK } from '../lib/key-names.js';
   /* 批次 A 收尾：pointerup（要求 pointerdown 也在按钮）+ click 兜底，去重只提交一次 */
   if (pwGo) bindSubmitButton(pwGo, submitPw);
 
-  /* 通行密钥命名弹层 */
-  let pkNameCredId = null;
-  let pkNamePrefill = '';
-  /* 生成预填名：<密码管理器> · <设备>（注册前调用，随 register 一起提交） */
-  function genPkPrefillName() {
-    let device = '';
-    try {
-      if (navigator.userAgentData && navigator.userAgentData.platform) {
-        device = navigator.userAgentData.platform;
-      }
-    } catch (e) {}
-    /* provider 此时未知（服务端识别 AAGUID 后才知道），先只用设备名 */
-    return device || '通行密钥';
-  }
-  function openPkNameDlg(credId, prefill) {
-    pkNameCredId = credId;
-    pkNamePrefill = prefill || '';
-    const dlg = $('lockpkname-dlg');
-    const input = $('lockpkname-input');
-    if (!dlg || !input) return;
-    input.value = pkNamePrefill;
-    /* 异步补设备型号（userAgentData 高熵值） */
-    try {
-      if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
-        navigator.userAgentData.getHighEntropyValues(['model']).then(function (ua) {
-          if (ua && ua.model && input && !input.value) {
-            input.value = ua.model;
-            pkNamePrefill = ua.model;
-          }
-        }).catch(function () {});
-      }
-    } catch (e) {}
-    hideErr('lockpkname-err');
-    try { dlg.showModal(); } catch (e) {}
-    try { input.focus({ preventScroll: true }); } catch (e2) {}
-  }
-  function closePkNameDlg(reason) {
-    recordDialogClose('lockpkname', reason || 'unknown');
-    const dlg = $('lockpkname-dlg');
-    try { if (dlg && dlg.open) dlg.close(); } catch (e) {}
-    pkNameCredId = null;
-    pkNamePrefill = '';
-  }
-  /* 批次 A 收尾 A1/A2/A3：命名弹层遮罩不关、返回先收键盘、× 关闭 */
-  const pkNameDlg = $('lockpkname-dlg');
-  if (pkNameDlg) {
-    on(pkNameDlg, 'click', function (/** @type {MouseEvent} */ e) {
-      onDialogBackdrop(e, pkNameDlg);
-    });
-    on(pkNameDlg, 'cancel', function (/** @type {Event} */ e) {
-      onDialogCancel(e, pkNameDlg, function (reason) { closePkNameDlg(reason); });
-    });
-    const pkNameClose = pkNameDlg.querySelector('[data-dlg-close]');
-    if (pkNameClose) on(pkNameClose, 'click', function () { closePkNameDlg('close-btn'); });
-  }
-  const pkNameSave = $('lockpkname-save');
-  if (pkNameSave) {
-    on(pkNameSave, 'click', function () {
-      const input = $('lockpkname-input');
-      let name = input ? input.value : '';
-      /* 清理：去首尾空格和控制字符 */
-      name = String(name).replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, 40);
-      if (!name) {
-        showErr('lockpkname-err', t('pkNameEmpty'));
-        return;
-      }
-      if (!pkNameCredId) {
-        closePkNameDlg('success');
-        return;
-      }
-      /* 没改名就不调 rename（注册时已带预填名） */
-      if (name === pkNamePrefill) {
-        toast(t('pkRegistered'));
-        closePkNameDlg('success');
-        refreshPkList();
-        return;
-      }
-      api('/api/lock-passkey', { action: 'rename', credId: pkNameCredId, name: name })
-        .then(function (r) {
-          const j = r.json;
-          if (j && j.ok) {
-            toast(t('pkRegistered'));
-            closePkNameDlg('success');
-            refreshPkList();
-            refreshReauthCountdown(t);
-          } else if (j && isReauthError(j.error)) {
-            /* C6：重置会话里 rename 被拒（scope）不是过期，行内提示，不弹框 */
-            if (isLockReset && j.error === 'scope') {
-              showErr('lockpkname-err', t('pkRenameResetNo'));
-            } else {
-              needReauth(j && j.error, j && j.reason);
-            }
-          } else if (j && j.error === 'not-found') {
-            /* KV 最终一致：刚注册的 key 可能暂时读不到 */
-            showErr('lockpkname-err', t('pkRetryLater'));
-          } else if (!j) {
-            showErr('lockpkname-err', t('gateNetErr'));
-          } else {
-            showErr('lockpkname-err', srvErr(j.error, r.status));
-          }
-        })
-        .catch(function () {
-          showErr('lockpkname-err', t('gateNetErr'));
-        });
-    });
-  }
-  const pkNameSkip = $('lockpkname-skip');
-  if (pkNameSkip) {
-    on(pkNameSkip, 'click', function () {
-      /* 跳过：用预填名（已在注册时设为默认值） */
-      closePkNameDlg('success');
-      toast(t('pkRegistered'));
-      refreshPkList();
-    });
-  }
+  /* 通行密钥命名弹层（auth/passkey-register.js，账号安全页同一份） */
+  const pkName = createPkNameDialog({
+    rename: function (credId, name) {
+      return api('/api/lock-passkey', { action: 'rename', credId: credId, name: name }).then(function (r) {
+        const j = r.json;
+        if (j && j.ok) {
+          refreshReauthCountdown(t);
+          return 'ok';
+        }
+        if (j && isReauthError(j.error)) {
+          /* C6：重置会话里 rename 被拒（scope）不是过期，行内提示，不弹框 */
+          if (isLockReset && j.error === 'scope') return t('pkRenameResetNo');
+          needReauth(j && j.error, j && j.reason);
+          return null;
+        }
+        /* KV 最终一致：刚注册的 key 可能暂时读不到 */
+        if (j && j.error === 'not-found') return t('pkRetryLater');
+        if (!j) return t('gateNetErr');
+        return srvErr(j.error, r.status);
+      });
+    },
+    onDone: function () { refreshPkList(); },
+    toast: toast,
+    registeredText: t('pkRegistered'),
+    emptyText: t('pkNameEmpty'),
+    networkText: t('gateNetErr'),
+  });
   /* P2-13：命名输入框聚焦时，命名弹层随键盘上移 */
   followKeyboard($('lockpkname-dlg'), $('lockpkname-input'));
 
@@ -651,96 +561,30 @@ import { KEY_LOCK } from '../lib/key-names.js';
   const pkAdd = $('lockmgr-pkadd');
   if (pkAdd) {
     on(pkAdd, 'click', function () {
-      if (!window.PublicKeyCredential) {
-        toast(t('pkNoSupport'));
-        return;
-      }
-      /* 本页只注册锁屏通行密钥；服务端按reauth 票再校验。 */
-      api('/api/lock-passkey', { action: 'challenge', type: 'register' })
-        .then(function (res) {
-          const ch = res.json;
-          if (!ch) throw { kind: 'server' };
-          if (!ch.ok) {
-            if (isReauthError(ch.error)) throw { kind: 'reauth', code: ch.error, reason: ch.reason };
-            throw { kind: 'server' };
+      /* 本页只注册锁屏通行密钥；服务端按reauth 票再校验。流程在 auth/passkey-register.js（账号安全页同一份） */
+      registerPasskey({
+        challenge: function () { return api('/api/lock-passkey', { action: 'challenge', type: 'register' }); },
+        register: function (body) { return api('/api/lock-passkey', Object.assign({ action: 'register' }, body)); },
+        onAuthError: function (res) {
+          const j = res.json;
+          if (j && !j.ok && isReauthError(j.error)) {
+            needReauth(j.error, j.reason);
+            return true;
           }
-          /* 服务端下发 rp.id、用户信息、excludeCredentials；前端不硬编码、不回落 */
-          const rpId = ch.rpId;
-          const user = ch.user || {};
-          const rp = ch.rp || {};
-          const exclude = (ch.excludeCredentials || []).map(function (c) {
-            return { id: b64urlToBuf(c.id), type: c.type };
-          });
-          return navigator.credentials
-            .create({
-              publicKey: {
-                challenge: b64urlToBuf(ch.challenge),
-                rp: { name: rp.name || 'Styrigx', id: rpId },
-                user: {
-                  id: b64urlToBuf(user.id),
-                  name: user.name || KEY_LOCK,
-                  displayName: user.displayName || 'Sloan Gray',
-                },
-                pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
-                authenticatorSelection: { userVerification: 'required', residentKey: 'required' },
-                excludeCredentials: exclude,
-                attestation: 'none',
-                timeout: 60000,
-              },
-            })
-            .then(function (cred) {
-              return { cred: cred, cid: ch.cid };
-            }, function (e) {
-              if (e && e.name === 'NotAllowedError') throw { kind: 'cancelled' };
-              if (e && e.name === 'InvalidStateError') throw { kind: 'already' };
-              if (e && e.name === 'NotSupportedError') throw { kind: 'nosupport' };
-              throw { kind: 'failed' };
-            });
-        })
-        .then(function (r2) {
-          const cred = r2.cred;
-          /* 注册时直接带预填名（服务端已支持 body.name） */
-          const prefill = genPkPrefillName();
-          return api('/api/lock-passkey', {
-            action: 'register',
-            cid: r2.cid,
-            name: prefill,
-            credential: {
-              id: cred.id,
-              rawId: bufToB64url(cred.rawId),
-              response: {
-                clientDataJSON: bufToB64url(cred.response.clientDataJSON),
-                attestationObject: bufToB64url(cred.response.attestationObject),
-              },
-              type: cred.type,
-            },
-          }).then(function (res) {
-            return { res: res, prefill: prefill };
-          });
-        })
-        .then(function (r3) {
-          const j = r3.res.json;
-          if (j && j.ok) {
-            /* 注册成功 → 弹出命名弹层（预填名已提交，用户改名才调 rename） */
-            openPkNameDlg(j.credId, r3.prefill);
-            refreshPkList();
-            refreshReauthCountdown(t);
-          } else if (j && isReauthError(j.error)) {
-            needReauth(j && j.error, j && j.reason);
-          } else {
-            toast(srvErr(j && j.error, r.status));
-          }
-        })
-        .catch(function (e) {
-          if (!e) return;
-          if (e.kind === 'cancelled') toast(t('gateCancelled'));
-          else if (e.kind === 'already') toast(t('pkAlready'));
-          else if (e.kind === 'nosupport') toast(t('pkNoSupport'));
-          else if (e.kind === 'reauth') needReauth(e.code, e.reason);
-          else if (e.kind === 'server') toast(srvErr(e.code));
-          else if (e.kind === 'failed') toast(t('pkFailed'));
-          else toast(t('gateNetErr'));
-        });
+          return false;
+        },
+        onRegistered: function (credId, prefill) {
+          /* 注册成功 → 弹出命名弹层（预填名已提交，用户改名才调 rename） */
+          pkName.open(credId, prefill);
+          refreshPkList();
+          refreshReauthCountdown(t);
+        },
+        prefill: function () { return genPkPrefillName(t('pkUnnamed')); },
+        errText: srvErr,
+        toast: toast,
+        msg: { cancelled: t('gateCancelled'), already: t('pkAlready'), noSupport: t('pkNoSupport'), failed: t('pkFailed'), network: t('gateNetErr') },
+        userFallback: { name: KEY_LOCK, displayName: 'Sloan Gray' },
+      });
     });
   }
 
@@ -823,20 +667,10 @@ import { KEY_LOCK } from '../lib/key-names.js';
       return api('/api/lock-passkey', { action: 'challenge', type: 'auth' }).then(function (res) {
         const j = res.json;
         if (!j || !j.ok || !j.challenge) throw { message: srvErr(j && j.error, res.status) };
-        const allow = (j.allowCredentials || []).map(function (c) {
-          return { type: 'public-key', id: b64urlToBuf(c.id) };
-        });
-        return navigator.credentials.get({
-          publicKey: {
-            challenge: b64urlToBuf(j.challenge),
-            rpId: j.rpId,
-            allowCredentials: allow.length ? allow : undefined,
-            userVerification: 'required',
-          },
-        }).then(function (cred) {
+        return getPasskeyAssertion(assertionOptions(j)).then(function (cred) {
           return { cred: /** @type {any} */ (cred), cid: j.cid };
         }, function (e) {
-          if (e && e.name === 'NotAllowedError') throw { cancelled: true };
+          if (isPasskeyCancel(e)) throw { cancelled: true };
           throw { message: t('errVerify') };
         });
       }, function () {
@@ -847,17 +681,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
           action: 'auth',
           reauth: true,
           cid: r.cid,
-          credential: {
-            id: cred.id,
-            rawId: bufToB64url(cred.rawId),
-            type: cred.type,
-            response: {
-              authenticatorData: bufToB64url(cred.response.authenticatorData),
-              clientDataJSON: bufToB64url(cred.response.clientDataJSON),
-              signature: bufToB64url(cred.response.signature),
-              userHandle: cred.response.userHandle ? bufToB64url(cred.response.userHandle) : null,
-            },
-          },
+          credential: assertionToJSON(cred),
         }).then(function (res) {
           const j = res.json;
           if (j && j.ok) return;
@@ -875,11 +699,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
    * @param {string} [notice]
    */
   function showReauth(st, notice) {
-    try {
-      const gl = document.getElementById('sgx-lock');
-      if (gl) gl.remove();
-      document.body.classList.remove('sgx-locked');
-    } catch (e) {}
+    releaseLockScreen();
     $('lockmgr').hidden = true;
     if (!reauthEl || !reauthMethodsEl) return;
     if (reauthMethods) reauthMethods.collapse();
