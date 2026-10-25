@@ -21,7 +21,7 @@
  * 只接受 POST；校验 Origin；外层 try/catch 异常一律 { ok:false, error:'server' }。
  */
 import { verifyLockSession, ROLE_ADMIN } from '../_kernel/lock-session.js';
-import { isSameOrigin, originDenied } from '../_kernel/http.js';
+import { isSameOrigin, originDenied, json, apiError } from '../_kernel/http.js';
 import { REALM_LOCK, LOCK_REAUTH_TICKET, LOCK_RESET_TICKET } from '../_kernel/realms.js';
 import { verifyTicket, clearTicket } from '../_kernel/tickets.js';
 import { getPasskeys, PASSKEY_LOCK } from '../_kernel/passkey-store.js';
@@ -32,7 +32,7 @@ export async function onRequestPost(context) {
   try {
     return await handlePost(context);
   } catch (e) {
-    return Response.json({ ok: false, error: 'server' }, { status: 500 });
+    return apiError(500, 'server');
   }
 }
 
@@ -41,24 +41,24 @@ async function handlePost(context) {
   const { request, env } = context;
   const kv = env && env.KV_LOCK_DOOR;
   if (request.method !== 'POST') {
-    return Response.json({ ok: false, error: 'method' }, { status: 405 });
+    return apiError(405, 'method');
   }
   if (!isSameOrigin(request)) return originDenied();
 
   let body;
   try { body = await request.json(); } catch (e) {
-    return Response.json({ ok: false, error: 'body' }, { status: 400 });
+    return apiError(400, 'body');
   }
   const action = (body && body.action) || '';
 
   if (action === 'clear') {
-    const headers = new Headers({ 'Content-Type': 'application/json' });
+    const headers = new Headers();
     clearTicket(headers, LOCK_REAUTH_TICKET);
-    return new Response(JSON.stringify({ ok: true }), { headers });
+    return json(200, { ok: true }, headers);
   }
 
   if (action === 'status') {
-    if (!kv) return Response.json({ ok: false, error: 'config' }, { status: 500 });
+    if (!kv) return apiError(500, 'config');
     let ticket = '';
     let tv = await verifyTicket(request, env, LOCK_REAUTH_TICKET);
     const sess = await verifyLockSession(request, env);
@@ -73,7 +73,7 @@ async function handlePost(context) {
       }
     }
     if (!isAdmin && ticket !== LOCK_RESET_TICKET) {
-      return Response.json({ ok: false, error: 'session' }, { status: 401 });
+      return apiError(401, 'session');
     }
     let password = false;
     let passkey = false;
@@ -82,10 +82,10 @@ async function handlePost(context) {
       password = !!(pw && pw.hash);
       passkey = (await getPasskeys(kv, PASSKEY_LOCK)).length > 0;
     } catch (e) {
-      return Response.json({ ok: false, error: 'server' }, { status: 503 });
+      return apiError(503, 'server');
     }
     const valid = !!ticket;
-    return Response.json({
+    return json(200, {
       ok: true,
       valid: valid,
       ticket: valid ? TICKET_IDS[ticket] : undefined,
@@ -97,5 +97,5 @@ async function handlePost(context) {
     });
   }
 
-  return Response.json({ ok: false, error: 'params' }, { status: 400 });
+  return apiError(400, 'params');
 }

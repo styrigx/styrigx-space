@@ -23,13 +23,14 @@ import {
 import { checkLockManage } from '../_kernel/lock-manage.js';
 import { clearTicket } from '../_kernel/tickets.js';
 import { LOCK_REAUTH_TICKET } from '../_kernel/realms.js';
+import { json, apiError } from '../_kernel/http.js';
 
 /** @param {any} context */
 export async function onRequestPost(context) {
   try {
     return await handlePost(context);
   } catch (e) {
-    return Response.json({ ok: false, error: 'server' }, { status: 500 });
+    return apiError(500, 'server');
   }
 }
 
@@ -38,33 +39,33 @@ async function handlePost(context) {
   const { request, env } = context;
   const kv = env && env.KV_LOCK_DOOR;
   if (!kv) {
-    return Response.json({ ok: false, error: 'config' }, { status: 500 });
+    return apiError(500, 'config');
   }
 
   /* 会话校验：必须是管理员。L1 已拒绝 visitor（403），这里再验一次。 */
   const sess = await verifyLockSession(request, env);
   if (!sess.ok) {
-    return Response.json({ ok: false }, { status: 401 });
+    return json(401, { ok: false });
   }
   if (sess.role !== ROLE_ADMIN) {
-    return Response.json({ ok: false, error: 'role' }, { status: 403 });
+    return apiError(403, 'role');
   }
   /* LockReauthTicket（见 checkLockManage） */
   const gate = await checkLockManage(request, env);
   if (!gate.ok) {
-    return Response.json(gate.body, { status: gate.status });
+    return json(gate.status, gate.body);
   }
 
   /* lock-epoch +1：KV 出错 → 503，绝不继续 */
   try {
     await bumpLockEpoch(kv);
   } catch (e) {
-    return Response.json({ ok: false, error: 'server' }, { status: 503 });
+    return apiError(503, 'server');
   }
 
   /* 清当前 cookie（带 Domain=.styrigx.com，三站一起锁） */
-  const headers = new Headers({ 'Content-Type': 'application/json' });
+  const headers = new Headers();
   clearLockSessionCookie(headers);
   clearTicket(headers, LOCK_REAUTH_TICKET);
-  return new Response(JSON.stringify({ ok: true }), { headers });
+  return json(200, { ok: true }, headers);
 }

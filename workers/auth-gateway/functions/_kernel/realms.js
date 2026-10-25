@@ -23,8 +23,9 @@
  * - root    根凭证（RootKey：SGX_ROOT_KEY）：只用来比对，不签名、不拥有会话；
  *           验过后只签四张 reset / reauth 票（by=root）
  *
- * 本文件是叶子模块：不 import 任何模块，避免循环依赖。
+ * 本文件几乎是叶子模块：只 import 同为叶子的 http.js（错误响应），避免循环依赖。
  */
+import { apiError } from './http.js';
 
 /* 钥匙概念名 */
 export const KEY_ROOT = 'RootKey';
@@ -294,8 +295,5 @@ export function rpConfig(env) {
 
 /** SGX_RP_ID / SGX_ORIGIN 缺失时的统一响应（503，前端据此禁用通行密钥入口） */
 export function rpConfigMissing() {
-  return Response.json(
-    { ok: false, error: 'config', message: 'SGX_RP_ID / SGX_ORIGIN 未配置' },
-    { status: 503 }
-  );
+  return apiError(503, 'config', { message: 'SGX_RP_ID / SGX_ORIGIN 未配置' });
 }

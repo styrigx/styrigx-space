@@ -12,8 +12,7 @@
  */
 import { verifyLockSession } from '../_kernel/lock-session.js';
 import { resolveReturn } from '../_kernel/return.js';
-
-const NO_STORE = { 'Cache-Control': 'private, no-store' };
+import { json } from '../_kernel/http.js';
 
 /**
  * @param {any} context
@@ -21,7 +20,7 @@ const NO_STORE = { 'Cache-Control': 'private, no-store' };
 export async function onRequestGet(context) {
   const { request, env } = context;
   const sess = await verifyLockSession(request, env);
-  if (!sess.ok) return Response.json({ ok: false }, { status: 401, headers: NO_STORE });
+  if (!sess.ok) return json(401, { ok: false });
   let next = null;
   let upgrade = false;
   let ret = '';
@@ -33,5 +32,5 @@ export async function onRequestGet(context) {
     next = dest.location;
     upgrade = dest.upgrade;
   }
-  return Response.json({ ok: true, role: sess.role, next, upgrade }, { headers: NO_STORE });
+  return json(200, { ok: true, role: sess.role, next, upgrade });
 }

@@ -23,6 +23,7 @@ import { ed25519Sign, ed25519Verify } from './crypto.js';
 import { readCookie } from './cookies.js';
 import { REALM_ACCOUNT, ACCOUNT_SESSION_COOKIE, ACCOUNT_EPOCH_KEY, COOKIE_EXPIRED, realmPrivateKey, realmPublicKey } from './realms.js';
 import { newDeviceId, isDeviceId, isRevoked, getDevice, putDevice, recordLogin, deviceInfo, TOUCH_INTERVAL_MS } from './account-devices.js';
+import { apiError } from './http.js';
 
 export { ACCOUNT_SESSION_COOKIE };
 export const ACCOUNT_SESSION_MAX_AGE = REALM_ACCOUNT.maxAge; /* 400 天：不点退出就一直登录 */
@@ -43,7 +44,7 @@ export function accountKeysReady(env) {
 
 /** 缺账号钥匙时的统一响应（503；前端显示「服务器配置有误」，其余页面不受影响） */
 export function accountConfigMissing() {
-  return Response.json({ ok: false, error: 'config', message: 'SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC 未配置' }, { status: 503 });
+  return apiError(503, 'config', { message: 'SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC 未配置' });
 }
 
 /**

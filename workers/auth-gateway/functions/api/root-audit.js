@@ -14,6 +14,7 @@ import { verifyLockSession } from '../_kernel/lock-session.js';
 import { AUDIT_PREFIX } from '../_kernel/root-audit.js';
 import { verifyLockReauthTicket } from '../_kernel/tickets.js';
 import { ROLE_ADMIN } from '../_kernel/lock-session.js';
+import { json, apiError } from '../_kernel/http.js';
 
 /** 显示条数 */
 export const AUDIT_SHOW = 50;
@@ -25,7 +26,7 @@ export async function onRequestGet(context) {
   try {
     return await handleGet(context);
   } catch (e) {
-    return Response.json({ ok: false, error: 'server' }, { status: 500 });
+    return apiError(500, 'server');
   }
 }
 
@@ -34,16 +35,16 @@ async function handleGet(context) {
   const { request, env } = context;
   const kv = env && env.KV_LOCK_DOOR;
   if (!kv) {
-    return Response.json({ ok: false, error: 'config' }, { status: 500 });
+    return apiError(500, 'config');
   }
 
   const sess = await verifyLockSession(request, env);
   if (!sess.ok || sess.role !== ROLE_ADMIN) {
-    return Response.json({ ok: false, error: 'session' }, { status: 401 });
+    return apiError(401, 'session');
   }
   const st = await verifyLockReauthTicket(request, env);
   if (!st.ok) {
-    return Response.json({ ok: false, error: 'reauth', reason: st.reason }, { status: 403 });
+    return apiError(403, 'reauth', { reason: st.reason });
   }
 
   try {
@@ -65,8 +66,8 @@ async function handleGet(context) {
       if (v) items.push({ ts: v.ts, ipPrefix: v.ipPrefix, ok: !!v.ok });
     }
     items.sort((a, b) => b.ts - a.ts);
-    return Response.json({ ok: true, items: items.slice(0, AUDIT_SHOW) });
+    return json(200, { ok: true, items: items.slice(0, AUDIT_SHOW) });
   } catch (e) {
-    return Response.json({ ok: false, error: 'server' }, { status: 503 });
+    return apiError(503, 'server');
   }
 }

@@ -15,25 +15,17 @@
  */
 import { verifyLockSession } from '../_kernel/lock-session.js';
 import { ROLE_ADMIN } from '../_kernel/lock-session.js';
-import { isSameOrigin, originDenied } from '../_kernel/http.js';
+import { isSameOrigin, originDenied, json, apiError } from '../_kernel/http.js';
 
-const NO_STORE = 'private, no-store';
 /** 服务绑定的地址：主机名随便写（只用来拼 URL），路径是 styrigx-chat 认的 */
 const CHAT_BASE = 'https://styrigx-chat';
 
 /** @param {number} status @param {any} body */
-function json(status, body) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': NO_STORE },
-  });
-}
-
 /** 门：会话 + 只许管理员。通过 → null；否则错误响应 @param {Request} request @param {any} env */
 async function adminGate(request, env) {
   const sess = await verifyLockSession(request, env);
-  if (!sess.ok) return json(401, { ok: false, error: 'unauthorized' });
-  if (sess.role !== ROLE_ADMIN) return json(403, { ok: false, error: 'admin_only' });
+  if (!sess.ok) return apiError(401, 'unauthorized');
+  if (sess.role !== ROLE_ADMIN) return apiError(403, 'admin_only');
   return null;
 }
 
@@ -43,13 +35,13 @@ async function adminGate(request, env) {
  */
 async function forward(env, fwd, tag) {
   const svc = env && env.CHAT;
-  if (!svc || typeof svc.fetch !== 'function') return json(503, { ok: false, error: 'no_key' });
+  if (!svc || typeof svc.fetch !== 'function') return apiError(503, 'no_key');
   let res;
   try {
     res = await svc.fetch(fwd);
   } catch (e) {
     console.error('[chat] ' + tag + ' service failed', e && /** @type {any} */ (e).name);
-    return json(502, { ok: false, error: 'upstream' });
+    return apiError(502, 'upstream');
   }
   return new Response(res.body, { status: res.status, headers: res.headers });
 }
@@ -66,7 +58,7 @@ export async function onRequestGet({ request, env }) {
 
 /** @param {{request: Request, env: any}} ctx */
 export async function onRequestPost({ request, env }) {
-  if (request.method !== 'POST') return json(405, { ok: false, error: 'method' });
+  if (request.method !== 'POST') return apiError(405, 'method');
   if (!isSameOrigin(request)) return originDenied();
   const denied = await adminGate(request, env);
   if (denied) return denied;
@@ -77,7 +69,7 @@ export async function onRequestPost({ request, env }) {
   /* 请求体原样转（校验在 styrigx-chat；读不出来 = 坏请求，同以前 request.json() 失败）；
      带上浏览器这条请求的 signal，断开时一起取消 */
   let body;
-  try { body = await request.arrayBuffer(); } catch (e) { return json(400, { ok: false, error: 'bad_request' }); }
+  try { body = await request.arrayBuffer(); } catch (e) { return apiError(400, 'bad_request'); }
   const init = { method: 'POST', headers, body, signal: request.signal };
   return forward(env, new Request(CHAT_BASE + '/chat', init), 'chat');
 }

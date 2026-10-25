@@ -15,6 +15,7 @@
 import { verifyLockSession } from '../functions/_kernel/lock-session.js';
 import { stripSessionAttrs } from '../functions/_kernel/html.js';
 import { API_ROUTES } from './routes.js';
+import { json, apiError, NO_STORE } from '../functions/_kernel/http.js';
 
 const MAIN_ORIGIN = 'https://styrigx.com';
 
@@ -53,14 +54,6 @@ export function subsiteFor(hostname) {
   return Object.prototype.hasOwnProperty.call(SUBSITES, hostname) ? SUBSITES[hostname] : null;
 }
 
-const NO_STORE = 'private, no-store';
-
-function json(status, body) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json', 'Cache-Control': NO_STORE },
-  });
-}
 
 /**
  * 302 到主站锁屏。why 让主站知道是子站踢回来的（主站见到 why 不再自动回跳，防两站之间死循环）。
@@ -119,11 +112,11 @@ async function subsitePage(res, role) {
 export async function handleSubsite(request, env, origin) {
   const url = new URL(request.url);
   const conf = subsiteFor(url.hostname);
-  if (!conf) return json(404, { ok: false, error: 'not-found' });
+  if (!conf) return apiError(404, 'not-found');
   const path = url.pathname;
 
   if (path === '/api/lock-session-check') {
-    if (request.method !== 'GET' && request.method !== 'HEAD') return json(405, { ok: false, error: 'method' });
+    if (request.method !== 'GET' && request.method !== 'HEAD') return apiError(405, 'method');
     const sess = await verifyLockSession(request, env);
     if (sess.ok) {
       if (conf.sessionCheckOk === 'no-content') {
@@ -136,7 +129,7 @@ export async function handleSubsite(request, env, origin) {
 
   /* 全站搜索：子站也问网关（functions/api/search.js 自己验会话，再转 styrigx-search-index） */
   if (path === '/api/search') {
-    if (request.method !== 'GET') return json(405, { ok: false, error: 'method' });
+    if (request.method !== 'GET') return apiError(405, 'method');
     return API_ROUTES.get('/api/search').onRequestGet({ request, env });
   }
 
@@ -147,6 +140,6 @@ export async function handleSubsite(request, env, origin) {
 
   const why = sess.reason === 'no-cookie' ? 'no-cookie' : 'invalid-session';
   console.log('[sgx-subsite] deny site=' + conf.site + ' reason=' + sess.reason);
-  if (path.startsWith('/api/')) return json(401, { ok: false, error: 'unauthorized' });
+  if (path.startsWith('/api/')) return apiError(401, 'unauthorized');
   return lockRedirect(url, why);
 }

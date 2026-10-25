@@ -9,6 +9,7 @@
  *
  * 提取方式（纯文本静态扫描，不跑服务端）：
  * - error: 'code' 字面量
+ * - apiError(<状态>, 'code'…)（_kernel/http.js 的错误响应）
  * - 三元 ? 'a' : 'b'（same-as-lock/same-as-account、uv-required 等动态码）
  * 注意：不扫 throw new Error('…')——那是内部异常名（如 kv-error、invalid-class），
  * catch 里会转译成返回码（server / class），从不直接作为 error 返回。
@@ -70,6 +71,7 @@ function extractServerCodes() {
   for (const f of readdirSync(join(ROOT, 'workers/auth-gateway/functions/api')).filter((x) => x.endsWith('.js'))) {
     const src = read(join('workers/auth-gateway/functions/api', f));
     for (const m of src.matchAll(/error:\s*'([a-z][a-z0-9-]*)'/g)) codes.add(m[1]);
+    for (const m of src.matchAll(/apiError\(\s*\d+\s*,\s*'([a-z][a-z0-9-]*)'/g)) codes.add(m[1]);
     for (const line of src.split('\n')) {
       if (!/error|code/i.test(line)) continue;
       for (const m of line.matchAll(/\?\s*'([a-z][a-z0-9-]*)'\s*:\s*'([a-z][a-z0-9-]*)'/g)) {
@@ -122,4 +124,67 @@ test('每个 ERR_KEY 的 i18n key 都在门内模板里定义', () => {
     const missing = [...errKey.values()].filter((k) => !src.includes('"' + k + '"'));
     assert.deepEqual(missing, [], t + ' 缺少 i18n key');
   }
+});
+
+/* ---------- 错误码登记表（_kernel/http.js ERROR_CODES） ---------- */
+
+/** 网关 functions/ + src/、账号 / 分享 Worker 里每个带 HTTP 状态的错误码：apiError(S,'c')、{status:S, body:{ok:false,error:'c'}}、json(S,{ok:false,error:'c'}) */
+function extractCodeStatusPairs() {
+  const dirs = ['workers/auth-gateway/functions', 'workers/auth-gateway/src', 'workers/account/src', 'workers/share/src'];
+  const files = [];
+  const walk = (d) => {
+    for (const e of readdirSync(join(ROOT, d), { withFileTypes: true })) {
+      const p = d + '/' + e.name;
+      if (e.isDirectory()) walk(p);
+      else if (p.endsWith('.js') && !p.endsWith('/_kernel/http.js')) files.push(p);
+    }
+  };
+  dirs.forEach(walk);
+  const pairs = [];
+  for (const f of files) {
+    const src = read(f);
+    const res = [
+      /apiError\(\s*(\d+)\s*,\s*'([a-z][a-z0-9_-]*)'/g,
+      /status:\s*(\d+),\s*body:\s*\{\s*ok:\s*false,\s*error:\s*'([a-z][a-z0-9_-]*)'/g,
+      /json\(\s*(\d+)\s*,\s*\{\s*ok:\s*false,\s*error:\s*'([a-z][a-z0-9_-]*)'/g,
+    ];
+    for (const re of res) for (const m of src.matchAll(re)) pairs.push({ file: f, status: Number(m[1]), code: m[2] });
+  }
+  return pairs;
+}
+
+test('错误码登记表：每个返回的错误码都登记在 ERROR_CODES，HTTP 状态也在登记范围内', async () => {
+  const { ERROR_CODES } = await import(join(ROOT, 'workers/auth-gateway/functions/_kernel/http.js'));
+  const pairs = extractCodeStatusPairs();
+  assert.ok(pairs.length > 150, '应提取到一批错误响应，实际 ' + pairs.length);
+  const bad = pairs.filter((p) => !Object.prototype.hasOwnProperty.call(ERROR_CODES, p.code) || !ERROR_CODES[p.code].includes(p.status));
+  assert.deepEqual(bad, [], '新错误码或新状态要先登记到 _kernel/http.js ERROR_CODES');
+  /* 登记表里没有用不到的码 */
+  const used = new Set(pairs.map((p) => p.code));
+  assert.deepEqual(Object.keys(ERROR_CODES).filter((c) => !used.has(c)), []);
+});
+
+test('json() / apiError()：默认头、Set-Cookie 原样保留、错误体字段顺序', async () => {
+  const { json, apiError, NO_STORE } = await import(join(ROOT, 'workers/auth-gateway/functions/_kernel/http.js'));
+  const r = json(200, { ok: true });
+  assert.equal(r.status, 200);
+  assert.equal(r.headers.get('Content-Type'), 'application/json');
+  assert.equal(r.headers.get('Cache-Control'), NO_STORE);
+  assert.equal(await r.text(), '{"ok":true}');
+  const h = new Headers();
+  h.append('Set-Cookie', 'a=1; Path=/');
+  h.append('Set-Cookie', 'b=2; Path=/');
+  const r2 = json(200, { ok: true }, h);
+  assert.deepEqual(r2.headers.getSetCookie(), ['a=1; Path=/', 'b=2; Path=/']);
+  const r3 = apiError(403, 'reauth', { reason: 'expired' }, { 'Cache-Control': 'no-store' });
+  assert.equal(r3.status, 403);
+  assert.equal(r3.headers.get('Cache-Control'), 'no-store');
+  assert.equal(await r3.text(), '{"ok":false,"error":"reauth","reason":"expired"}');
+});
+
+test('clientIp()：只认 CF-Connecting-IP，不认 X-Forwarded-For', async () => {
+  const { clientIp } = await import(join(ROOT, 'workers/auth-gateway/functions/_kernel/http.js'));
+  assert.equal(clientIp(new Request('https://x/', { headers: { 'CF-Connecting-IP': '203.0.113.9', 'X-Forwarded-For': '1.2.3.4' } })), '203.0.113.9');
+  assert.equal(clientIp(new Request('https://x/', { headers: { 'X-Forwarded-For': '1.2.3.4' } })), 'unknown');
+  assert.equal(clientIp(new Request('https://x/')), 'unknown');
 });

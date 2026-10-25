@@ -13,7 +13,7 @@
  * POST /api/prefs { changes: { key: { v, t } } } → 合并后 { ok, items, updatedAt }（只接受同源）
  */
 import { ROLE_ADMIN } from '../auth.js';
-import { isSameOrigin, originDenied } from '../lib/http.js';
+import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
 
 export const PREFS_KEY = 'account-prefs';
 const KEY_RE = /^sgx-[a-z0-9-]{1,48}$/;
@@ -31,18 +31,14 @@ function prefsKv(env) {
 }
 
 /** @param {object} body @param {number} [status] */
-function json(body, status) {
-  return Response.json(body, { status: status || 200, headers: { 'Cache-Control': 'no-store' } });
-}
-
 /** admin lock 会话 + 账号会话（都由网关 AuthVerifier 验，见 src/auth.js）；不满足返回错误响应 @param {any} context */
 async function gate(context) {
   const { env, auth } = context;
   const sess = await auth.lockSession();
-  if (!sess.ok || sess.role !== ROLE_ADMIN) return json({ ok: false, error: 'session' }, 401);
+  if (!sess.ok || sess.role !== ROLE_ADMIN) return apiError(401, 'session');
   const acc = await auth.accountSession();
-  if (!acc.ok) return json({ ok: false, error: 'account', reason: acc.reason }, 401);
-  if (!prefsKv(env)) return json({ ok: false, error: 'config' }, 500);
+  if (!acc.ok) return apiError(401, 'account', { reason: acc.reason });
+  if (!prefsKv(env)) return apiError(500, 'config');
   return null;
 }
 
@@ -105,10 +101,10 @@ export async function onRequestGet(context) {
     const g = await gate(context);
     if (g) return g;
     let p;
-    try { p = await readPrefs(prefsKv(env)); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
-    return json({ ok: true, items: p.items, updatedAt: p.updatedAt });
+    try { p = await readPrefs(prefsKv(env)); } catch (e) { return apiError(503, 'server'); }
+    return json(200, { ok: true, items: p.items, updatedAt: p.updatedAt });
   } catch (e) {
-    return json({ ok: false, error: 'server' }, 500);
+    return apiError(500, 'server');
   }
 }
 
@@ -116,28 +112,28 @@ export async function onRequestGet(context) {
 export async function onRequestPost(context) {
   try {
     const { request, env } = context;
-    if (request.method !== 'POST') return json({ ok: false, error: 'method' }, 405);
+    if (request.method !== 'POST') return apiError(405, 'method');
     if (!isSameOrigin(request)) return originDenied();
     const g = await gate(context);
     if (g) return g;
     let body;
-    try { body = await request.json(); } catch (e) { return json({ ok: false, error: 'body' }, 400); }
+    try { body = await request.json(); } catch (e) { return apiError(400, 'body'); }
     const now = Date.now();
     const changes = cleanChanges(body && body.changes, now);
     const kv = prefsKv(env);
     let p;
-    try { p = await readPrefs(kv); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
+    try { p = await readPrefs(kv); } catch (e) { return apiError(503, 'server'); }
     const items = Object.assign({}, p.items);
     let updatedAt = p.updatedAt;
     if (mergeItems(items, changes)) {
-      if (Object.keys(items).length > MAX_ITEMS * 2) return json({ ok: false, error: 'too-large' }, 413);
+      if (Object.keys(items).length > MAX_ITEMS * 2) return apiError(413, 'too-large');
       updatedAt = now;
       try { await kv.put(PREFS_KEY, JSON.stringify({ items: items, updatedAt: updatedAt })); } catch (e) {
-        return json({ ok: false, error: 'server' }, 503);
+        return apiError(503, 'server');
       }
     }
-    return json({ ok: true, items: items, updatedAt: updatedAt });
+    return json(200, { ok: true, items: items, updatedAt: updatedAt });
   } catch (e) {
-    return json({ ok: false, error: 'server' }, 500);
+    return apiError(500, 'server');
   }
 }

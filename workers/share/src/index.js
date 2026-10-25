@@ -12,7 +12,7 @@
  */
 import { authFor } from './auth.js';
 import { gate } from './gate.js';
-import { withNoStore } from './lib/http.js';
+import { withNoStore, apiError } from './lib/http.js';
 import { applyMainSiteHeaders } from './lib/security-headers.js';
 import { SHARE_PATH_RE } from './lib/links.js';
 import { openShare, failResponse } from './open.js';
@@ -42,13 +42,6 @@ export function pickHandler(mod, method) {
   return null;
 }
 
-function json(status, body) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-  });
-}
-
 /** 路由只登记了 /s/* 和 /api/share*；万一进来别的路径，按网关的规矩回源，不在这里出页面 @param {Request} req @param {any} env */
 export function fromOrigin(req, env) {
   if (env && env.ASSETS && typeof env.ASSETS.fetch === 'function') return env.ASSETS.fetch(req);
@@ -71,9 +64,9 @@ export async function route(request, env, ctx, auth) {
   if (url.pathname.startsWith('/api/')) {
     const key = routeKey(url.pathname);
     const mod = API_ROUTES.get(key);
-    if (!mod) return json(404, { ok: false, error: 'not-found' });
+    if (!mod) return apiError(404, 'not-found');
     const handler = pickHandler(mod, request.method);
-    if (!handler) return json(405, { ok: false, error: 'method' });
+    if (!handler) return apiError(405, 'method');
     return handler({ request, env, auth, params: {}, data: {}, functionPath: key,
       waitUntil: (p) => { if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(p); } });
   }
@@ -102,7 +95,7 @@ export default {
       console.error('[sgx-share] unhandled: ' + (e && /** @type {any} */ (e).name ? /** @type {any} */ (e).name : 'error'));
       /* /s/<码> 出错也只回统一的失败响应，不露 500 */
       if (isOpen) return tagRuntime(failResponse());
-      return tagRuntime(isApi ? withCors(json(500, { ok: false, error: 'internal' }), request) : json(500, { ok: false, error: 'internal' }));
+      return tagRuntime(isApi ? withCors(apiError(500, 'internal'), request) : apiError(500, 'internal'));
     }
   },
 };

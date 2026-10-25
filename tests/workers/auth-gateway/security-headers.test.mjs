@@ -212,7 +212,7 @@ test('网关·Pages 自己的跳转（补尾斜杠 308）经网关交回时也�
   }, { status: 308, headers: { Location: '/settings/' } });
 });
 
-test('网关·/api/*：401、404、访客调管理员接口 403 都带安全头，Cache-Control 不变', async () => {
+test('网关·/api/*：401、404、访客调管理员接口 403 都带安全头，Cache-Control 不被安全头改掉', async () => {
   _resetSecretCache();
   const visitor = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'visitor'));
   const r1 = await worker.fetch(new Request('https://styrigx.com/api/lock-session-check'), baseEnv(), CTX);
@@ -220,7 +220,8 @@ test('网关·/api/*：401、404、访客调管理员接口 403 都带安全头�
   assertMainHeaders(r1, '401');
   const r2 = await worker.fetch(new Request('https://styrigx.com/api/account', { headers: { Cookie: visitor } }), baseEnv(), CTX);
   assert.equal(r2.status, 403);
-  assert.equal(r2.headers.get('Cache-Control'), 'no-store');
+  /* JSON 响应统一由 _kernel/http.js json() 发，默认 private, no-store（以前这一处手写 no-store） */
+  assert.equal(r2.headers.get('Cache-Control'), 'private, no-store');
   assertMainHeaders(r2, '403');
   const admin = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'admin', 'password'));
   const r3 = await worker.fetch(new Request('https://styrigx.com/api/nope', { headers: { Cookie: admin } }), baseEnv(), CTX);

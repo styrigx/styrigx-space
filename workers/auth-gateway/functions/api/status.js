@@ -9,23 +9,16 @@
  *   401 没会话 · 503 监测服务不可用（没绑定 / 出错）
  */
 import { verifyLockSession } from '../_kernel/lock-session.js';
+import { apiError, NO_STORE } from '../_kernel/http.js';
 
-const NO_STORE = 'private, no-store';
 
 /** @param {number} status @param {any} body */
-function json(status, body) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': NO_STORE },
-  });
-}
-
 /** @param {{request: Request, env: any}} ctx */
 export async function onRequestGet({ request, env }) {
   const sess = await verifyLockSession(request, env);
-  if (!sess.ok) return json(401, { ok: false, error: 'unauthorized' });
+  if (!sess.ok) return apiError(401, 'unauthorized');
   const svc = env && env.STATUS;
-  if (!svc || typeof svc.fetch !== 'function') return json(503, { ok: false, error: 'upstream' });
+  if (!svc || typeof svc.fetch !== 'function') return apiError(503, 'upstream');
   try {
     const res = await svc.fetch(new Request('https://styrigx-status/summary', { method: 'GET' }));
     const body = await res.text();
@@ -35,6 +28,6 @@ export async function onRequestGet({ request, env }) {
     });
   } catch (e) {
     console.error('[status] upstream failed', e && /** @type {any} */ (e).name);
-    return json(503, { ok: false, error: 'upstream' });
+    return apiError(503, 'upstream');
   }
 }

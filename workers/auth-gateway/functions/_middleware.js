@@ -12,7 +12,7 @@
 import { verifyLockSession, ROLE_VISITOR } from './_kernel/lock-session.js';
 import { isPublicPage } from './_kernel/public-pages.js';
 import { verifyLockResetTicket } from './_kernel/tickets.js';
-import { withNoStore } from './_kernel/http.js';
+import { withNoStore, json, apiError } from './_kernel/http.js';
 import { verifyAccountSession } from './_kernel/account-session.js';
 import { isAdminOnlyPath, resolveReturn } from './_kernel/return.js';
 import { injectSessionState, injectUpgradeState } from './_kernel/html.js';
@@ -172,10 +172,7 @@ async function handleRequest(context) {
   if (isProd && site !== 'space') {
     console.error('[sgx-mw] SGX_SITE misconfigured: ' + JSON.stringify(site));
     if (pathname.startsWith('/api/')) {
-      return new Response(JSON.stringify({ ok: false, error: 'config' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-      });
+      return apiError(500, 'config');
     }
     return new Response('Server misconfigured', { status: 500 });
   }
@@ -198,10 +195,7 @@ async function handleRequest(context) {
         } catch (e) {}
       }
       if (!isAuthAction) {
-        return new Response(JSON.stringify({ ok: false, error: 'role' }), {
-          status: 403,
-          headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-        });
+        return apiError(403, 'role');
       }
     }
 
@@ -298,10 +292,7 @@ async function handleRequest(context) {
     }
     /* 未验证的 /api/* 请求：返回 401 JSON，不 302（前端按 API 约定处理） */
     if (pathname.startsWith('/api/')) {
-      return new Response(JSON.stringify({ ok: false }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-      });
+      return json(401, { ok: false });
     }
     /* 未验证：302 到首页锁屏，return 带站内路径（设计文档 §2.3）。
        首页有完整锁屏 UI（密码/通行密钥/临时钥匙），解锁后跳回原内页。

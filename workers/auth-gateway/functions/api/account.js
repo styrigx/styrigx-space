@@ -78,7 +78,7 @@ import { isLayerConfigured, setLayerConfigured, clearLayerConfigured, LAYER_ACCO
 import { REALM_ACCOUNT, REALM_LOCK, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
 import { KEY_ACCOUNT } from '../_kernel/realms.js';
 import { passwordLimiter } from '../_kernel/password-limit.js';
-import { isSameOrigin, originDenied } from '../_kernel/http.js';
+import { isSameOrigin, originDenied, json, apiError, clientIp } from '../_kernel/http.js';
 import { verifyLockSession } from '../_kernel/lock-session.js';
 import {
   getPasskeys,
@@ -107,10 +107,6 @@ async function hasAccountPassword(kv) {
 }
 
 /** @param {object} body @param {number} [status] */
-function json(body, status) {
-  return Response.json(body, { status: status || 200 });
-}
-
 /** admin 锁屏会话（前置条件，不是账号认证）。返回会话对象或 null */
 async function adminLockSession(request, env) {
   const sess = await verifyLockSession(request, env);
@@ -124,15 +120,15 @@ export async function onRequestGet(context) {
     const { request, env } = context;
     const kv = env && env.KV_LOCK_DOOR;
     const akv = env && env.KV_ACCOUNT_LOGIN; /* account-* 键（设备记录、challenge、account-epoch） */
-    if (!(await adminLockSession(request, env))) return json({ ok: false, error: 'session' }, 401);
-    if (!kv || !akv) return json({ ok: false, error: 'config' }, 500);
+    if (!(await adminLockSession(request, env))) return apiError(401, 'session');
+    if (!kv || !akv) return apiError(500, 'config');
     let password = false;
     let passkey = false;
     try {
       password = await hasAccountPassword(kv);
       passkey = (await accountKeys(kv)).length > 0;
     } catch (e) {
-      return json({ ok: false, error: 'server' }, 503);
+      return apiError(503, 'server');
     }
     const acc = await verifyAccountSession(request, env);
     const rv = acc.ok ? await verifyTicket(request, env, ACCOUNT_REAUTH_TICKET) : { ok: false };
@@ -145,8 +141,8 @@ export async function onRequestGet(context) {
         if (d) devName = deviceView(d, acc.deviceId).name;
       } catch (e) {}
     }
-    const headers = new Headers({ 'Content-Type': 'application/json' });
-    return new Response(JSON.stringify({
+    const headers = new Headers();
+    return json(200, {
       ok: true,
       password: password,
       passkey: passkey,
@@ -154,9 +150,9 @@ export async function onRequestGet(context) {
       session: acc.ok ? { by: acc.by, authAt: acc.authAt, expiresAt: acc.exp, device: devName } : null,
       reauth: rv.ok ? { by: rv.by, expiresAt: rv.exp } : null,
       reset: xv.ok ? { by: xv.by, expiresAt: xv.exp } : null,
-    }), { headers });
+    }, headers);
   } catch (e) {
-    return json({ ok: false, error: 'server' }, 500);
+    return apiError(500, 'server');
   }
 }
 
@@ -165,7 +161,7 @@ export async function onRequestPost(context) {
   try {
     return await handlePost(context);
   } catch (e) {
-    return json({ ok: false, error: 'server' }, 500);
+    return apiError(500, 'server');
   }
 }
 
@@ -174,12 +170,12 @@ async function handlePost(context) {
   const { request, env } = context;
   const kv = env && env.KV_LOCK_DOOR;
   const akv = env && env.KV_ACCOUNT_LOGIN; /* account-* 键（设备记录、challenge、account-epoch） */
-  if (request.method !== 'POST') return json({ ok: false, error: 'method' }, 405);
+  if (request.method !== 'POST') return apiError(405, 'method');
   if (!isSameOrigin(request)) return originDenied();
 
   let body;
   try { body = await request.json(); } catch (e) {
-    return json({ ok: false, error: 'body' }, 400);
+    return apiError(400, 'body');
   }
   const action = (body && body.action) || '';
   /* 登录时顺带签 AccountReauthTicket（进账号安全子页前再验一次）：只认布尔 true */
@@ -187,7 +183,7 @@ async function handlePost(context) {
 
   /* ============ logout（幂等，不需会话） ============ */
   if (action === 'logout') {
-    const headers = new Headers({ 'Content-Type': 'application/json' });
+    const headers = new Headers();
     /* 本机的设备记录也删掉（并拉黑 deviceId，防 cookie 被拷走后继续用）；验不过就只清 cookie */
     try {
       const cur = await verifyAccountSession(request, env);
@@ -196,64 +192,64 @@ async function handlePost(context) {
     clearAccountSession(headers);
     clearTicket(headers, ACCOUNT_REAUTH_TICKET);
     clearTicket(headers, ACCOUNT_RESET_TICKET);
-    return new Response(JSON.stringify({ ok: true }), { headers });
+    return json(200, { ok: true }, headers);
   }
 
   /* ============ reauth-clear（离开账号安全子页：reauth / reset 票立即作废；幂等，不需会话） ============ */
   if (action === 'reauth-clear') {
-    const headers = new Headers({ 'Content-Type': 'application/json' });
+    const headers = new Headers();
     clearTicket(headers, ACCOUNT_REAUTH_TICKET);
     clearTicket(headers, ACCOUNT_RESET_TICKET);
-    return new Response(JSON.stringify({ ok: true }), { headers });
+    return json(200, { ok: true }, headers);
   }
 
   /* 其余 action：先要 admin 锁屏会话（前置条件；visitor 已被 middleware 403） */
   const sess = await adminLockSession(request, env);
-  if (!sess) return json({ ok: false, error: 'session' }, 401);
-  if (!kv || !akv) return json({ ok: false, error: 'config' }, 500);
+  if (!sess) return apiError(401, 'session');
+  if (!kv || !akv) return apiError(500, 'config');
 
   /* ============ login-password ============ */
   if (action === 'login-password') {
     if (!accountKeysReady(env)) return accountConfigMissing();
     const password = (body && body.password) || '';
-    if (!password || typeof password !== 'string') return json({ ok: false, error: 'params' }, 400);
+    if (!password || typeof password !== 'string') return apiError(400, 'params');
     const pepper = getPepper(env);
-    if (!pepper) return json({ ok: false, error: 'config' }, 503);
+    if (!pepper) return apiError(503, 'config');
     /* 账号密码输错限速：规则同锁屏密码（_kernel/password-limit.js），按 IP 各域各自计数 */
-    const limiter = passwordLimiter(kv, REALM_ACCOUNT, request.headers.get('CF-Connecting-IP') || 'unknown');
+    const limiter = passwordLimiter(kv, REALM_ACCOUNT, clientIp(request));
     try {
-      if (await limiter.inCooldown()) return json({ ok: false, error: 'cooldown' }, 429);
+      if (await limiter.inCooldown()) return apiError(429, 'cooldown');
     } catch (e) {
-      return json({ ok: false, error: 'server' }, 503);
+      return apiError(503, 'server');
     }
     let vr;
     try {
       vr = await verifyRealmPassword(kv, REALM_ACCOUNT, pepper, password);
     } catch (e) {
-      return json({ ok: false, error: 'server' }, 503);
+      return apiError(503, 'server');
     }
-    if (!vr.set) return json({ ok: false, error: 'not-set' }, 403);
+    if (!vr.set) return apiError(403, 'not-set');
     if (!vr.ok) {
       let justCooled = false;
       try {
         justCooled = await limiter.recordFail();
       } catch (e) {
-        return json({ ok: false, error: 'server' }, 503);
+        return apiError(503, 'server');
       }
-      return justCooled ? json({ ok: false, error: 'cooldown' }, 429) : json({ ok: false, error: 'wrong' }, 403);
+      return justCooled ? apiError(429, 'cooldown') : apiError(403, 'wrong');
     }
     await limiter.clearFail();
     if (vr.needsRehash) {
       try { await kv.put(REALM_ACCOUNT.kv.password, JSON.stringify(await makePasswordRecord(password, pepper))); } catch (e) {}
     }
-    const headers = new Headers({ 'Content-Type': 'application/json' });
+    const headers = new Headers();
     const err = await issueAccountSession(env, headers, BY_PASSWORD, await accountSessionOpts(request, env, body));
-    if (err) return json(err.body, err.status);
+    if (err) return json(err.status, err.body);
     if (wantReauth) {
       const dErr = await issueTicket(env, headers, ACCOUNT_REAUTH_TICKET, BY_PASSWORD);
-      if (dErr) return json(dErr.body, dErr.status);
+      if (dErr) return json(dErr.status, dErr.body);
     }
-    return new Response(JSON.stringify({ ok: true }), { headers });
+    return json(200, { ok: true }, headers);
   }
 
   /* 通行密钥相关 action 需要 RP 配置 */
@@ -265,7 +261,7 @@ async function handlePost(context) {
     const rp = rpConfig(env);
     if (!rp) return rpConfigMissing();
     const keys = await accountKeys(kv);
-    if (keys.length === 0) return json({ ok: false, error: 'not-set' }, 403);
+    if (keys.length === 0) return apiError(403, 'not-set');
     const challenge = randB64(32);
     const cid = randB64(16);
     try {
@@ -275,9 +271,9 @@ async function handlePost(context) {
         { expirationTtl: CHALLENGE_TTL }
       );
     } catch (e) {
-      return json({ ok: false, error: 'server' }, 500);
+      return apiError(500, 'server');
     }
-    return json({
+    return json(200, {
       ok: true,
       cid: cid,
       challenge: challenge,
@@ -295,12 +291,12 @@ async function handlePost(context) {
     const cid = (body && body.cid) || '';
     const chRec = await consumeChallenge(akv, CHALLENGE_PREFIX + cid);
     if (!chRec || chRec.purpose !== 'login' || chRec.exp < Date.now()) {
-      return json({ ok: false, error: 'challenge' }, 403);
+      return apiError(403, 'challenge');
     }
     const keys = await accountKeys(kv);
-    if (keys.length === 0) return json({ ok: false, error: 'not-set' }, 403);
+    if (keys.length === 0) return apiError(403, 'not-set');
     const stored = findStoredKey(keys, cred.rawId || '');
-    if (!stored || !stored.publicKey) return json({ ok: false, error: 'unknown-key' }, 403);
+    if (!stored || !stored.publicKey) return apiError(403, 'unknown-key');
     try {
       const checked = await verifyAssertion({
         credential: cred,
@@ -328,23 +324,23 @@ async function handlePost(context) {
     } catch (e) {
       console.error('[account-login]', e && e.message ? e.message : e);
       const code = (e && e.message === 'uv-required') ? 'uv-required' : 'verify';
-      return json({ ok: false, error: code }, 403);
+      return json(403, { ok: false, error: code });
     }
-    const headers = new Headers({ 'Content-Type': 'application/json' });
+    const headers = new Headers();
     const err = await issueAccountSession(env, headers, BY_PASSKEY, await accountSessionOpts(request, env, body));
-    if (err) return json(err.body, err.status);
+    if (err) return json(err.status, err.body);
     if (wantReauth) {
       const dErr = await issueTicket(env, headers, ACCOUNT_REAUTH_TICKET, BY_PASSKEY);
-      if (dErr) return json(dErr.body, dErr.status);
+      if (dErr) return json(dErr.status, dErr.body);
     }
-    return new Response(JSON.stringify({ ok: true }), { headers });
+    return json(200, { ok: true }, headers);
   }
 
   /* ============ 账号页管理 ============
      - 有效账号会话 + AccountReauthTicket（只读的 passkey-list 只要账号会话；设备页只要账号会话）
      - 或有效 AccountResetTicket（重置登录：没有账号会话，只能管账号凭证，不能管设备） */
   const MGMT = ['passkey-list', 'passkey-register-challenge', 'passkey-register', 'passkey-delete', 'passkey-rename', 'password-change', 'device-list', 'device-revoke'];
-  if (MGMT.indexOf(action) === -1) return json({ ok: false, error: 'action' }, 400);
+  if (MGMT.indexOf(action) === -1) return apiError(400, 'action');
   const isDeviceAction = action === 'device-list' || action === 'device-revoke';
 
   /** 这次管理操作凭哪张票：AccountReauthTicket（配账号会话）或 AccountResetTicket */
@@ -354,28 +350,28 @@ async function handlePost(context) {
   const acc = await verifyAccountSession(request, env);
   if (!acc.ok) {
     const xv = isDeviceAction ? null : await verifyTicket(request, env, ACCOUNT_RESET_TICKET);
-    if (!xv || !xv.ok) return json({ ok: false, error: 'account', reason: acc.reason }, 401);
+    if (!xv || !xv.ok) return apiError(401, 'account', { reason: acc.reason });
     ticketName = ACCOUNT_RESET_TICKET;
     tv = xv;
   }
   /* 设备页（列出 / 单独退出别的设备）只要账号会话 */
   if (action === 'device-list') {
     let all;
-    try { all = await listDevices(akv); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
+    try { all = await listDevices(akv); } catch (e) { return apiError(503, 'server'); }
     const cur = acc.deviceId || '';
     const views = all.map(function (d) { return deviceView(d, cur); });
     views.sort(function (a, b) { return (b.current ? 1 : 0) - (a.current ? 1 : 0); });
-    return json({ ok: true, devices: views });
+    return json(200, { ok: true, devices: views });
   }
   if (action === 'device-revoke') {
     const deviceId = (body && body.deviceId) || '';
-    if (!isDeviceId(deviceId)) return json({ ok: false, error: 'params' }, 400);
-    if (deviceId === acc.deviceId) return json({ ok: false, error: 'current' }, 400);
+    if (!isDeviceId(deviceId)) return apiError(400, 'params');
+    if (deviceId === acc.deviceId) return apiError(400, 'current');
     let rec = null;
-    try { rec = await akv.get(DEVICE_PREFIX + deviceId, 'json'); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
-    if (!rec) return json({ ok: false, error: 'not-found' }, 404);
-    try { await revokeDevice(akv, deviceId); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
-    return json({ ok: true });
+    try { rec = await akv.get(DEVICE_PREFIX + deviceId, 'json'); } catch (e) { return apiError(503, 'server'); }
+    if (!rec) return apiError(404, 'not-found');
+    try { await revokeDevice(akv, deviceId); } catch (e) { return apiError(503, 'server'); }
+    return json(200, { ok: true });
   }
   /* 有账号会话：改动（注册/删除/重命名/改密码）是安全操作，必须有有效的 AccountReauthTicket
      （进账号安全子页时再验过账号凭证，3 分钟，离开即作废）；会话还在时也认 AccountResetTicket */
@@ -386,7 +382,7 @@ async function handlePost(context) {
       tv = rv;
     } else {
       const xv = await verifyTicket(request, env, ACCOUNT_RESET_TICKET);
-      if (!xv.ok) return json({ ok: false, error: 'reauth', reason: rv.reason }, 403);
+      if (!xv.ok) return apiError(403, 'reauth', { reason: rv.reason });
       ticketName = ACCOUNT_RESET_TICKET;
       tv = xv;
     }
@@ -402,7 +398,7 @@ async function handlePost(context) {
       const ne = await bumpLockEpoch(kv);
       await reissueLockSessionWithEpoch(env, headers, sess, ne);
     } catch (e) {
-      return json({ ok: false, error: 'epoch' }, 503);
+      return apiError(503, 'epoch');
     }
     return null;
   }
@@ -423,7 +419,7 @@ async function handlePost(context) {
     /* 账号 handle（注册用的那个）；读不到就不给，前端不 signal。不新建（list 只读）。 */
     let userHandle = '';
     try { userHandle = (await kv.get(REALM_ACCOUNT.kv.userHandle)) || ''; } catch (e) {}
-    return json({
+    return json(200, {
       ok: true,
       by: by,
       userHandle: userHandle,
@@ -443,10 +439,10 @@ async function handlePost(context) {
 
   if (action === 'password-change') {
     const password = (body && body.password) || '';
-    if (!password || typeof password !== 'string') return json({ ok: false, error: 'params' }, 400);
-    if (password.length < 8) return json({ ok: false, error: 'short' }, 400);
+    if (!password || typeof password !== 'string') return apiError(400, 'params');
+    if (password.length < 8) return apiError(400, 'short');
     const pepper = getPepper(env);
-    if (!pepper) return json({ ok: false, error: 'config' }, 503);
+    if (!pepper) return apiError(503, 'config');
     let existed = false;
     try {
       existed = await hasAccountPassword(kv);
@@ -454,31 +450,31 @@ async function handlePost(context) {
       const lockRec = await kv.get(REALM_LOCK.kv.password, 'json');
       if (lockRec && lockRec.hash) {
         const cr = await checkPasswordRecord(lockRec, password, pepper);
-        if (cr.ok) return json({ ok: false, error: 'same-as-lock' }, 403);
+        if (cr.ok) return apiError(403, 'same-as-lock');
       }
       await kv.put(REALM_ACCOUNT.kv.password, JSON.stringify(await makePasswordRecord(password, pepper)));
     } catch (e) {
-      return json({ ok: false, error: 'server' }, 503);
+      return apiError(503, 'server');
     }
-    const headers = new Headers({ 'Content-Type': 'application/json' });
+    const headers = new Headers();
     const mErr = await markConfigured(headers);
     if (mErr) return mErr;
     if (existed) {
-      try { await rotateAccount(headers); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
+      try { await rotateAccount(headers); } catch (e) { return apiError(503, 'server'); }
     }
-    return new Response(JSON.stringify({ ok: true, changed: existed }), { headers });
+    return json(200, { ok: true, changed: existed }, headers);
   }
 
   if (action === 'passkey-delete') {
     const credId = (body && body.credId) || '';
-    if (!credId || typeof credId !== 'string') return json({ ok: false, error: 'params' }, 400);
+    if (!credId || typeof credId !== 'string') return apiError(400, 'params');
     const keys = await accountKeys(kv);
     const found = findStoredKey(keys, credId);
-    if (!found) return json({ ok: false, error: 'not-found' }, 404);
-    const headers = new Headers({ 'Content-Type': 'application/json' });
+    if (!found) return apiError(404, 'not-found');
+    const headers = new Headers();
     /* 先推纪元再删（fail closed：纪元推进失败则钥匙仍在） */
-    try { await rotateAccount(headers); } catch (e) { return json({ ok: false, error: 'epoch' }, 503); }
-    try { await deletePasskey(kv, PASSKEY_ACCOUNT, credId); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
+    try { await rotateAccount(headers); } catch (e) { return apiError(503, 'epoch'); }
+    try { await deletePasskey(kv, PASSKEY_ACCOUNT, credId); } catch (e) { return apiError(503, 'server'); }
     /* 删光账号凭证 → 清账号层标记（回到根凭证代管；清失败 503，避免标记残留锁死代管） */
     try {
       const left = (await accountKeys(kv)).length;
@@ -486,23 +482,23 @@ async function handlePost(context) {
         await clearLayerConfigured(kv, LAYER_ACCOUNT);
       }
     } catch (e) {
-      return json({ ok: false, error: 'server' }, 503);
+      return apiError(503, 'server');
     }
-    return new Response(JSON.stringify({ ok: true }), { headers });
+    return json(200, { ok: true }, headers);
   }
 
   if (action === 'passkey-rename') {
     const credId = (body && body.credId) || '';
-    if (!credId || typeof credId !== 'string') return json({ ok: false, error: 'params' }, 400);
+    if (!credId || typeof credId !== 'string') return apiError(400, 'params');
     /* 名字规则与 lock-passkey.js rename 一致：去控制字符、去首尾空格、限 40 字，空 → params */
     const name = String((body && body.name) || '').replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, 40);
-    if (!name) return json({ ok: false, error: 'params' }, 400);
+    if (!name) return apiError(400, 'params');
     const keys = await accountKeys(kv);
     const found = findStoredKey(keys, credId);
-    if (!found) return json({ ok: false, error: 'not-found' }, 404);
+    if (!found) return apiError(404, 'not-found');
     found.name = name;
-    try { await savePasskey(kv, PASSKEY_ACCOUNT, found); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
-    return json({ ok: true, name: name });
+    try { await savePasskey(kv, PASSKEY_ACCOUNT, found); } catch (e) { return apiError(503, 'server'); }
+    return json(200, { ok: true, name: name });
   }
 
   /* passkey-register-challenge / passkey-register：账号通行密钥注册 */
@@ -513,7 +509,7 @@ async function handlePost(context) {
     if (action === 'passkey-register-challenge') {
       const keys = await accountKeys(kv);
       const userHandle = await getUserHandle(kv, PASSKEY_ACCOUNT);
-      if (!userHandle) return json({ ok: false, error: 'server' }, 503);
+      if (!userHandle) return apiError(503, 'server');
       const challenge = randB64(32);
       const cid = randB64(16);
       try {
@@ -523,9 +519,9 @@ async function handlePost(context) {
           { expirationTtl: CHALLENGE_TTL }
         );
       } catch (e) {
-        return json({ ok: false, error: 'server' }, 500);
+        return apiError(500, 'server');
       }
-      return json({
+      return json(200, {
         ok: true,
         cid: cid,
         challenge: challenge,
@@ -543,7 +539,7 @@ async function handlePost(context) {
     const cid = (body && body.cid) || '';
     const chRec = await consumeChallenge(akv, CHALLENGE_PREFIX + cid);
     if (!chRec || chRec.purpose !== 'register' || chRec.exp < Date.now()) {
-      return json({ ok: false, error: 'challenge' }, 403);
+      return apiError(403, 'challenge');
     }
     let item;
     try {
@@ -587,13 +583,13 @@ async function handlePost(context) {
     } catch (e) {
       console.error('[account-register]', e && e.message ? e.message : e);
       const code = (e && e.message === 'uv-required') ? 'uv-required' : (e && e.message === 'class') ? 'class' : 'verify';
-      return json({ ok: false, error: code }, 403);
+      return json(403, { ok: false, error: code });
     }
-    const headers = new Headers({ 'Content-Type': 'application/json' });
+    const headers = new Headers();
     const mErr = await markConfigured(headers);
     if (mErr) return mErr;
-    return new Response(JSON.stringify({ ok: true, credId: item.credId }), { headers });
+    return json(200, { ok: true, credId: item.credId }, headers);
   }
 
-  return json({ ok: false, error: 'action' }, 400);
+  return apiError(400, 'action');
 }

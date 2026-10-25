@@ -77,13 +77,3 @@ export async function clearRootFail(kv, ip) {
   if (!kv) return;
   try { await kv.delete(failKey(ip)); } catch (e) {}
 }
-
-/**
- * 获取客户端 IP（CF-Connecting-IP 优先）。
- * @param {any} request
- */
-export function getClientIp(request) {
-  return request.headers.get('CF-Connecting-IP') ||
-         request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() ||
-         'unknown';
-}

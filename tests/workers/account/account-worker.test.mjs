@@ -100,12 +100,12 @@ test('路由表：只有这三个接口', () => {
   assert.deepEqual([...API_ROUTES.keys()].sort(), ['/api/avatar', '/api/prefs', '/api/wellbeing']);
 });
 
-test('门：没会话 → /api/* 401 {ok:false} no-store；头像文件公开；不认识的头像路径 → 302 锁屏', async () => {
+test('门：没会话 → /api/* 401 {ok:false} private, no-store（_kernel/http.js json()）；头像文件公开；不认识的头像路径 → 302 锁屏', async () => {
   const { env } = setup();
   for (const [m, p] of [['GET', '/api/wellbeing'], ['POST', '/api/wellbeing'], ['GET', '/api/prefs'], ['PUT', '/api/avatar'], ['DELETE', '/api/avatar'], ['GET', '/api/prefs/x']]) {
     const r = await call(new Request('https://styrigx.com' + p, { method: m, headers: { Origin: 'https://styrigx.com' }, body: m === 'GET' ? undefined : '{}' }), env);
     assert.equal(r.status, 401, m + ' ' + p);
-    assert.equal(r.headers.get('Cache-Control'), 'no-store');
+    assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
     assert.equal(r.headers.get('X-SGX-Runtime'), 'account');
     assert.deepEqual(await r.json(), { ok: false });
   }
@@ -162,7 +162,7 @@ test('管理员：未知子路径 404、不支持的方法 405；/api/prefs/ 尾
   const acc = await testAccountSession(PRIV, 'passkey', 0, Date.now());
   const ok = await call(new Request('https://styrigx.com/api/prefs', { headers: { Cookie: ck + '; sgx-account-session=' + acc } }), env);
   assert.equal(ok.status, 200);
-  assert.equal(ok.headers.get('Cache-Control'), 'no-store');
+  assert.equal(ok.headers.get('Cache-Control'), 'private, no-store');
   assert.ok(authKv);
 });
 

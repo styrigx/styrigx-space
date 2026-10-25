@@ -9,7 +9,7 @@
  * DELETE
  * - 只有 admin 会话；必须同源。先删版本号（立刻回到默认图），再删四张图。
  */
-import { isSameOrigin, originDenied } from '../lib/http.js';
+import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
 import { AVATAR_SIZES, AVATAR_MAX, KEY_VER, keyOf, sniffImage, NO_STORE, avatarKv } from '../lib/avatar.js';
 import { ROLE_ADMIN } from '../auth.js';
 
@@ -23,36 +23,36 @@ async function isAdmin(context) {
 export async function onRequestPut(context) {
   const { request, env } = context;
   if (!isSameOrigin(request)) return originDenied();
-  if (!(await isAdmin(context))) return Response.json({ ok: false, error: 'role' }, { status: 403, headers: NO_STORE });
+  if (!(await isAdmin(context))) return apiError(403, 'role', undefined, NO_STORE);
   const kv = avatarKv(env);
-  if (!kv) return Response.json({ ok: false, error: 'server' }, { status: 500, headers: NO_STORE });
+  if (!kv) return apiError(500, 'server', undefined, NO_STORE);
   /** @type {FormData} */
   let form;
   try {
     form = await request.formData();
   } catch (e) {
-    return Response.json({ ok: false, error: 'bad-form' }, { status: 400, headers: NO_STORE });
+    return apiError(400, 'bad-form', undefined, NO_STORE);
   }
   /** @type {{s:number, buf:ArrayBuffer, type:string}[]} */
   const imgs = [];
   for (const s of AVATAR_SIZES) {
     const f = form.get(String(s));
-    if (!f || typeof f === 'string') return Response.json({ ok: false, error: 'missing' }, { status: 400, headers: NO_STORE });
+    if (!f || typeof f === 'string') return apiError(400, 'missing', undefined, NO_STORE);
     const buf = await f.arrayBuffer();
     if (buf.byteLength > AVATAR_MAX[/** @type {32|96|192|512} */ (s)]) {
-      return Response.json({ ok: false, error: 'too-large' }, { status: 413, headers: NO_STORE });
+      return apiError(413, 'too-large', undefined, NO_STORE);
     }
     const type = sniffImage(new Uint8Array(buf));
-    if (!type) return Response.json({ ok: false, error: 'bad-type' }, { status: 415, headers: NO_STORE });
+    if (!type) return apiError(415, 'bad-type', undefined, NO_STORE);
     imgs.push({ s, buf, type });
   }
   try {
     for (const it of imgs) await kv.put(keyOf(it.s), it.buf, { metadata: { type: it.type } });
     const ver = Date.now().toString(36);
     await kv.put(KEY_VER, ver);
-    return Response.json({ ok: true, ver }, { headers: NO_STORE });
+    return json(200, { ok: true, ver }, NO_STORE);
   } catch (e) {
-    return Response.json({ ok: false, error: 'server' }, { status: 500, headers: NO_STORE });
+    return apiError(500, 'server', undefined, NO_STORE);
   }
 }
 
@@ -60,14 +60,14 @@ export async function onRequestPut(context) {
 export async function onRequestDelete(context) {
   const { request, env } = context;
   if (!isSameOrigin(request)) return originDenied();
-  if (!(await isAdmin(context))) return Response.json({ ok: false, error: 'role' }, { status: 403, headers: NO_STORE });
+  if (!(await isAdmin(context))) return apiError(403, 'role', undefined, NO_STORE);
   const kv = avatarKv(env);
-  if (!kv) return Response.json({ ok: false, error: 'server' }, { status: 500, headers: NO_STORE });
+  if (!kv) return apiError(500, 'server', undefined, NO_STORE);
   try {
     await kv.delete(KEY_VER);
     for (const s of AVATAR_SIZES) await kv.delete(keyOf(s));
-    return Response.json({ ok: true }, { headers: NO_STORE });
+    return json(200, { ok: true }, NO_STORE);
   } catch (e) {
-    return Response.json({ ok: false, error: 'server' }, { status: 500, headers: NO_STORE });
+    return apiError(500, 'server', undefined, NO_STORE);
   }
 }

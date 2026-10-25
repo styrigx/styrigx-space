@@ -10,27 +10,20 @@
  */
 import { ROLE_ADMIN } from '../_kernel/lock-session.js';
 import { verifyLockSession } from '../_kernel/lock-session.js';
+import { json, apiError, NO_STORE } from '../_kernel/http.js';
 
-const NO_STORE = 'private, no-store';
 
 /** @param {number} status @param {any} body */
-function json(status, body) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': NO_STORE },
-  });
-}
-
 /** @param {{request: Request, env: any}} ctx */
 export async function onRequestGet({ request, env }) {
   const sess = await verifyLockSession(request, env);
-  if (!sess.ok) return json(401, { ok: false, error: 'unauthorized' });
+  if (!sess.ok) return apiError(401, 'unauthorized');
   const url = new URL(request.url);
   const q = (url.searchParams.get('q') || '').trim();
-  if (q.length > 100) return json(400, { ok: false, error: 'too-long' });
+  if (q.length > 100) return apiError(400, 'too-long');
   if (!q) return json(200, { ok: true, q: '', hits: [] });
   const svc = env && env.SEARCH;
-  if (!svc || typeof svc.fetch !== 'function') return json(503, { ok: false, error: 'upstream' });
+  if (!svc || typeof svc.fetch !== 'function') return apiError(503, 'upstream');
   const fwd = new URL('https://styrigx-search-index/search');
   fwd.searchParams.set('q', q);
   for (const k of ['lang', 'site', 'limit']) {
@@ -49,6 +42,6 @@ export async function onRequestGet({ request, env }) {
     });
   } catch (e) {
     console.error('[search] upstream failed', e && /** @type {any} */ (e).name);
-    return json(503, { ok: false, error: 'upstream' });
+    return apiError(503, 'upstream');
   }
 }
