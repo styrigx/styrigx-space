@@ -383,7 +383,7 @@ test.describe('安全与隐私子页', () => {
     await expect(page.locator('#sgx-credential-countdown')).toHaveCount(0);
   });
 
-  test('离开本页（pagehide）：发 door-clear 作废门票', async ({ page }) => {
+  test('离开本页（pagehide）：发 reauth-clear 作废门票', async ({ page }) => {
     const calls = await mockAccount(page, {
       status: { ok: true, password: true, passkey: false, ready: true, session: RECENT(), door: DOOR() },
       handlers: { 'passkey-list': [200, { ok: true, keys: [] }], 'reauth-clear': [200, { ok: true }] },
@@ -395,9 +395,9 @@ test.describe('安全与隐私子页', () => {
     });
     await page.goto(SEC, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#acct-sec')).toBeVisible();
-    /* 真实导航时的 keepalive 请求 Playwright 不一定看得到；直接派发 pagehide 验证监听器发出了 door-clear */
+    /* 真实导航时的 keepalive 请求 Playwright 不一定看得到；直接派发 pagehide 验证监听器发出了 reauth-clear */
     await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: false })));
-    await expect.poll(() => sent.concat(calls.map((c) => JSON.stringify(c))).filter((b) => b.includes('door-clear')).length).toBeGreaterThan(0);
+    await expect.poll(() => sent.concat(calls.map((c) => JSON.stringify(c))).filter((b) => b.includes('reauth-clear')).length).toBeGreaterThan(0);
   });
 
 });
@@ -731,8 +731,8 @@ test.describe('设备子页（2026-10-22）', () => {
   test.beforeEach(async ({ page }) => { await zh(page); });
 
   const DEVS = () => [
-    { sid: 'aaaaaaaaaaaaaaaa', current: true, name: 'Galaxy S23 Ultra', model: 'SM-S918B', platform: 'Android', browser: 'Samsung Internet', country: 'CN', by: 'password', lastSeen: Date.now() },
-    { sid: 'bbbbbbbbbbbbbbbb', current: false, name: 'Windows', platform: 'Windows', browser: 'Chrome', country: 'CN', lastSeen: Date.now() - 3 * 3600e3 },
+    { deviceId: 'aaaaaaaaaaaaaaaa', current: true, name: 'Galaxy S23 Ultra', model: 'SM-S918B', platform: 'Android', browser: 'Samsung Internet', country: 'CN', by: 'password', lastSeen: Date.now() },
+    { deviceId: 'bbbbbbbbbbbbbbbb', current: false, name: 'Windows', platform: 'Windows', browser: 'Chrome', country: 'CN', lastSeen: Date.now() - 3 * 3600e3 },
   ];
 
   test('总览「设备」一行显示此设备名字 → 进设备页；此设备在最上面，其他设备两步确认退出', async ({ page }) => {
@@ -742,7 +742,7 @@ test.describe('设备子页（2026-10-22）', () => {
       handlers: {
         'passkey-list': [200, { ok: true, keys: [] }],
         'device-list': () => [200, { ok: true, devices: devs }],
-        'device-revoke': (b) => { devs = devs.filter((d) => d.sid !== b.sid); return [200, { ok: true }]; },
+        'device-revoke': (b) => { devs = devs.filter((d) => d.deviceId !== b.deviceId); return [200, { ok: true }]; },
       },
     });
     await page.goto('/account/', { waitUntil: 'domcontentloaded' });
@@ -768,7 +768,7 @@ test.describe('设备子页（2026-10-22）', () => {
     expect(calls.some((c) => c.action === 'device-revoke')).toBe(false);
     await btn.click();
     await expect(page.locator('#acct-dev-empty')).toBeVisible();
-    expect(calls.find((c) => c.action === 'device-revoke').sid).toBe('bbbbbbbbbbbbbbbb');
+    expect(calls.find((c) => c.action === 'device-revoke').deviceId).toBe('bbbbbbbbbbbbbbbb');
   });
 
   test('PR4 此设备卡：登录方式（设备记录没有 by 时读 GET /api/account）；退出账号 → POST logout → 回账号页登录区', async ({ page }) => {
@@ -777,7 +777,7 @@ test.describe('设备子页（2026-10-22）', () => {
       status: () => ({ ok: true, password: true, passkey: true, ready: true, session: loggedIn ? { ...RECENT(), by: 'passkey' } : null }),
       handlers: {
         'passkey-list': [200, { ok: true, keys: [] }],
-        'device-list': [200, { ok: true, devices: [{ sid: 'aaaaaaaaaaaaaaaa', current: true, name: 'iPhone', platform: 'iOS', browser: 'Safari', lastSeen: Date.now() }] }],
+        'device-list': [200, { ok: true, devices: [{ deviceId: 'aaaaaaaaaaaaaaaa', current: true, name: 'iPhone', platform: 'iOS', browser: 'Safari', lastSeen: Date.now() }] }],
         logout: () => { loggedIn = false; return [200, { ok: true }]; },
       },
     });
@@ -794,7 +794,7 @@ test.describe('设备子页（2026-10-22）', () => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
     await mockAccount(page, {
       status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }),
-      handlers: { 'device-list': [200, { ok: true, devices: [{ sid: 'aaaaaaaaaaaaaaaa', current: true, name: 'Windows', platform: 'Windows', browser: 'Chrome', by: 'root', lastSeen: Date.now() }] }] },
+      handlers: { 'device-list': [200, { ok: true, devices: [{ deviceId: 'aaaaaaaaaaaaaaaa', current: true, name: 'Windows', platform: 'Windows', browser: 'Chrome', by: 'root', lastSeen: Date.now() }] }] },
     });
     await page.goto('/en/account/devices/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#acct-dev-by-row')).toContainText('Sign-in method');

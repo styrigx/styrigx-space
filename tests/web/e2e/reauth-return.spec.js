@@ -89,7 +89,7 @@ test.describe('批次 A 验收修复 P1：删除密码按钮', () => {
     await page.route('**/api/lock-password', async (route) => {
       let body = {};
       try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
-      if (body.action === 'remove' && body.kind === 'lock') {
+      if (body.action === 'remove') {
         removeCalls++;
         pwSet = false;
       }
@@ -545,7 +545,7 @@ test.describe('A-2 最后一把锁屏钥匙与 AccountKey 联动', () => {
     await page.route('**/api/lock-password', async (route) => {
       let body = {};
       try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
-      if (body.action === 'remove' && body.kind === 'lock') removeCalls++;
+      if (body.action === 'remove') removeCalls++;
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
     });
     await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });

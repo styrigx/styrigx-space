@@ -345,8 +345,8 @@ for (const lang of LANGS) {
             return;
           }
           await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, keys: [], devices: [
-            { sid: 'aaaaaaaaaaaaaaaa', current: true, name: 'Galaxy S25 Ultra', model: 'SM-S938B', platform: 'Android', browser: 'Samsung Internet', country: 'CN', by: 'passkey', lastSeen: 1760000000000 },
-            { sid: 'bbbbbbbbbbbbbbbb', current: false, name: 'iPad', platform: 'iOS', browser: 'Safari', country: 'CN', lastSeen: fxStatus.NOW - 3 * 3600 * 1000 },
+            { deviceId: 'aaaaaaaaaaaaaaaa', current: true, name: 'Galaxy S25 Ultra', model: 'SM-S938B', platform: 'Android', browser: 'Samsung Internet', country: 'CN', by: 'passkey', lastSeen: 1760000000000 },
+            { deviceId: 'bbbbbbbbbbbbbbbb', current: false, name: 'iPad', platform: 'iOS', browser: 'Safari', country: 'CN', lastSeen: fxStatus.NOW - 3 * 3600 * 1000 },
           ] }) });
         });
         await pg.route('**/api/status', (route) => route.fulfill({ status: 200, contentType: 'application/json',
