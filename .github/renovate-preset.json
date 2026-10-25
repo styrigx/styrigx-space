@@ -1,0 +1,81 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "styrigx 共用 Renovate 预设：工具保持最新但少跑重复 CI。构建工具与依赖一组（minor/patch CI 全绿后自动合并），Playwright 单独一组（不自动合并，升级要重拍视觉基线），GitHub Actions 单独一组（不自动合并），major 一律在依赖面板里批准。排期按仓库错峰（Asia/Shanghai）：这里的默认值是周一（主站 styrigx-space），子站在自己的 renovate.json 里覆盖 schedule 和 automergeSchedule（curio 周二、daymark 周三、blog 周四）。github-actions manager 这里默认关，免得和 Dependabot 重复开 PR；没有 Dependabot 管 actions 的仓库在自己的 renovate.json 里打开。",
+  "extends": ["config:recommended"],
+  "timezone": "Asia/Shanghai",
+  "schedule": ["* 0-23 * * 1"],
+  "automergeSchedule": ["* 0-23 * * 1"],
+  "rebaseWhen": "conflicted",
+  "prConcurrentLimit": 2,
+  "prHourlyLimit": 1,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "schedule": ["at any time"],
+    "automergeSchedule": ["at any time"]
+  },
+  "github-actions": {
+    "enabled": false
+  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Hugo 版本写在 workflow 里（env HUGO_VERSION 或 hugo-version 输入）",
+      "managerFilePatterns": ["/(^|/)\\.github/workflows/[^/]+\\.ya?ml$/"],
+      "matchStrings": [
+        "HUGO_VERSION:\\s*'?(?<currentValue>\\d+\\.\\d+\\.\\d+)'?",
+        "hugo-version:\\s*'(?<currentValue>\\d+\\.\\d+\\.\\d+)'"
+      ],
+      "depNameTemplate": "gohugoio/hugo",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "① 构建工具与依赖（Hugo、tailwindcss、@tailwindcss/*、postcss 等及其余 npm）：合成一个 PR",
+      "matchManagers": ["npm", "custom.regex"],
+      "groupName": "构建工具与依赖",
+      "groupSlug": "build-tools-and-deps"
+    },
+    {
+      "description": "① 的 minor / patch：CI 全绿后自动合并",
+      "matchManagers": ["npm", "custom.regex"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": "② Playwright：单独 PR、不自动合并（升级必然要重拍视觉基线，放在大组里会把整组卡红）",
+      "matchPackageNames": ["@playwright/test", "playwright", "playwright-core"],
+      "groupName": "Playwright",
+      "groupSlug": "playwright",
+      "automerge": false
+    },
+    {
+      "description": "③ GitHub Actions（只在仓库自己打开 github-actions manager 时生效）：合成一个 PR，不自动合并。部署 job（wrangler-action、download-artifact 等）只在 main 的 push 上跑，PR 的 CI 测不到；action 还能拿到部署密钥，所以要人看过再合",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions",
+      "groupSlug": "github-actions",
+      "automerge": false
+    },
+    {
+      "description": "③a Hugo 版本只归 ① 的 regex manager 管：github-actions manager 也会从 peaceiris/actions-hugo 的 hugo-version 输入里认出 Hugo，不关会对同一行开两个 PR",
+      "matchManagers": ["github-actions"],
+      "matchDepTypes": ["uses-with"],
+      "matchPackageNames": ["gohugoio/hugo"],
+      "enabled": false
+    },
+    {
+      "description": "③b runs-on 的 runner 版本（如 ubuntu-24.04）不自动升级：换 Ubuntu 大版本会改变字体渲染，视觉基线跟着漂，要手动升级并重拍基线",
+      "matchManagers": ["github-actions"],
+      "matchDepTypes": ["github-runner"],
+      "enabled": false
+    },
+    {
+      "description": "major 一律先在依赖面板里批准，不自动合并",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true,
+      "automerge": false
+    }
+  ]
+}

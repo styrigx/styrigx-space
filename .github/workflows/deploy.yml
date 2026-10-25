@@ -62,12 +62,65 @@ jobs:
         # 测试工具（Playwright、stylelint、Lighthouse CI、http-server）都在 devDependencies 里，按 lockfile 装
         run: npm ci
 
-      - name: Install Playwright browser
+      - name: Playwright version (package-lock)
+        id: pw
+        # 浏览器缓存的 key：runner 系统 + 镜像（$ImageOS，如 ubuntu24；ubuntu-latest 换大版本时不复用旧镜像下的缓存）+ lockfile 里 @playwright/test 的确切版本（它锁定同版本的 playwright-core，浏览器版本由它决定；升级 Playwright 就换 key）
+        run: |
+          echo "version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
+          echo "image=${ImageOS:-unknown}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.image }}-${{ steps.pw.outputs.version }}
+
+      - name: Install Playwright browser (cache miss)
+        if: steps.pw-cache.outputs.cache-hit != 'true'
         run: npx playwright install chromium --with-deps
 
-      - name: Install CJK fonts
-        # 视觉回归对比中文截图；默认中文字体与基线生成环境（Noto Sans CJK）不一致会有 1-2% 像素漂移
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk
+      - name: Install Playwright system deps (cache hit)
+        # 浏览器本体来自缓存，系统库每次照装（apt，不在缓存里）
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: CJK font package version
+        id: cjk
+        # 视觉回归对比中文截图；默认中文字体与基线生成环境（Noto Sans CJK）不一致会有 1-2% 像素漂移。
+        # 渲染与以前逐字节一致：版本取 apt 的候选版本（上一步 Playwright 装系统库时已 apt-get update，和以前
+        # 「apt-get update && apt-get install fonts-noto-cjk」装的是同一个版本），缓存的是该版本的 .deb 本身；
+        # 版本一变 key 就变，重新下载。
+        run: |
+          v=$(apt-cache policy fonts-noto-cjk | awk '/Candidate:/{print $2}')
+          if [ -z "$v" ] || [ "$v" = "(none)" ]; then echo "::error::fonts-noto-cjk has no apt candidate"; exit 1; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Cache CJK font package (.deb)
+        id: cjk-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/fonts-noto-cjk-deb
+          key: fonts-noto-cjk-${{ runner.os }}-${{ steps.cjk.outputs.version }}
+
+      - name: Download CJK font package (cache miss)
+        if: steps.cjk-cache.outputs.cache-hit != 'true'
+        env:
+          CJK_VERSION: ${{ steps.cjk.outputs.version }}
+        run: |
+          mkdir -p ~/.cache/fonts-noto-cjk-deb
+          cd ~/.cache/fonts-noto-cjk-deb
+          apt-get download "fonts-noto-cjk=$CJK_VERSION"
+
+      - name: Install CJK fonts (from the cached .deb)
+        # apt-get install 本地 .deb：依赖解析与以前 apt-get install fonts-noto-cjk 相同（该包没有 Depends / Recommends），
+        # 包文件不再从网上下；装完核对版本，fontconfig 触发器照常重建字体缓存
+        env:
+          CJK_VERSION: ${{ steps.cjk.outputs.version }}
+        run: |
+          sudo apt-get install -y -qq ~/.cache/fonts-noto-cjk-deb/fonts-noto-cjk_*.deb
+          test "$(dpkg-query -W -f='${Version}' fonts-noto-cjk)" = "$CJK_VERSION"
+          fc-list | grep -q "Noto Sans CJK"
 
       - name: Build CSS
         run: node scripts/build-css.cjs --minify
@@ -129,7 +182,11 @@ jobs:
         run: node scripts/check-frontend.mjs
 
       - name: Build site (生产构建，锁屏启用)
+        # 这一份就是要上线的 Pages 产物（main 上传 artifact 给 build-and-deploy / deploy-search-worker 复用，不再各自重建），
+        # 所以和以前 Pages job 一样带构建 SHA
         run: hugo --minify -s web
+        env:
+          SGX_BUILD_SHA: ${{ github.sha }}
 
       - name: CSP hashes in sync (内联脚本 sha256 ← 生产构建；web/static/_headers 安全头 ← security-headers.js)
         # 改了模板里的内联脚本就要重新生成：hugo --minify -s web && node scripts/gen-csp.mjs
@@ -144,6 +201,37 @@ jobs:
             exit 1
           fi
           echo "OK: HTML 产物无技术变量名"
+
+      - name: Check production build artifacts (Pages 需要的产物都在)
+        # 下面上传的就是这份；_worker.js（pages.dev → styrigx.com 跳转，不能带网关代码）、_headers（含 CSP）、_redirects
+        run: |
+          for f in _worker.js _headers _redirects index.html; do test -s "web/public/$f" || { echo "::error::web/public/$f missing"; exit 1; }; done
+          grep -q "styrigx.com" web/public/_worker.js
+          if grep -q "X-SGX-Runtime" web/public/_worker.js; then echo "::error::gateway bundle in production Pages build"; exit 1; fi
+          grep -q "Content-Security-Policy" web/public/_headers
+
+      - name: Build search index (site:space, from the production build)
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        run: node scripts/build-search-index.mjs --out "$RUNNER_TEMP/search-index/search-space.json"
+
+      - name: Upload production site (for build-and-deploy)
+        # 只在会部署的 main 运行上传；后面的锁测 / 预览 / 视觉步骤会重建 web/public，所以紧跟生产构建和检查之后上传
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: site-production
+          path: web/public/
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload search index (for deploy-search-worker)
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: search-index-space
+          path: ${{ runner.temp }}/search-index/search-space.json
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Check worker routes (每个页面都过网关；头像 / 云同步 / 数字健康归账号 Worker，不抢网关的接口)
         run: node scripts/check-worker-routes.mjs
@@ -230,14 +318,95 @@ jobs:
       cancel-in-progress: false
     # KV 配额（2026-10-26 PR E 合并的 KV 部分）：免费计划的 KV 写 / 删 / 列各 1000 次、按整个账号每个 UTC 日算，预览 KV 和生产网关共用。
     # 每次运行约写 ~90、删 ~50、列 ~9（tests/web/e2e/preview-emulator.cjs 实测，见 scripts/kv-budget.mjs）。所以：
+    # - 本次改动全部是文档 / 内容文字 / CSS / 视觉基线 / 图片，就不部署预览、不跑用例，job 以成功结束（steps.scope）；
     # - main 的 push 如果合进来的树和某次已通过 passkey-e2e 的 PR 运行测的树完全相同，就不再跑一遍（steps.reuse）；
     # - 跑之前查今天全账号已用量，加上本次估算超过 60% 就直接失败，不碰预览（steps 「KV budget guard」），生产至少留 40%。
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
+      - name: Change scope (docs / content text / CSS / baselines only → skip the E2E)
+        id: scope
+        # 路径过滤做在步骤层，不用 workflow 级 paths：这个 job 照样启动、以成功结束，分支保护的必需检查不会一直挂着。
+        # 反着写（denylist）：只有本次改动的文件「全部」属于下面几类才跳过，其余任何改动都照跑——
+        #   *.md（文档、README；web/content 另算，见下）、*.css（web/assets/css/ 样式源等）、
+        #   tests/**/*-snapshots/*.png（视觉基线）、图片（png / jpg / jpeg / webp / gif / avif / svg / ico）、
+        #   web/content/*.md 只改 title / linkTitle / description / summary / keywords（这里的页面只有 front matter，
+        #   url / layout 决定路由，E2E 正好走这些页面，改了就照跑；新增页面也照跑）。
+        # 照跑名单优先于上面的跳过规则：.github/**（workflow 本身）、package.json、package-lock.json、web/shared/**、
+        #   web/assets/js/**（含 shell/）、任何 _kernel/**。删除、类型变化也一律照跑。
+        # PR 比 base...head（合并基点起 PR 自己的改动）；push 直接比 before 和 after 两棵树（快进时等同 before...after，
+        # 强推时把被覆盖掉的改动也算进来）；before 全零（新分支）、workflow_dispatch、拿不到 SHA、fetch / diff 出错、空 diff 都照跑。
+        # 本步意外报错也不拦：continue-on-error，拿不到 docs_only=true 就照跑。
+        continue-on-error: true
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.event.after }}
+        run: |
+          set -uo pipefail
+          # 结论写 docs_only=true|false；任何拿不准（事件不对、SHA 缺失 / 全零、fetch / diff 出错、空 diff）都按 false 照跑
+          verdict() { echo "docs_only=$1" >> "$GITHUB_OUTPUT"; echo "docs_only=$1: $2"; exit 0; }
+          zero='^0+$'
+          case "$EVENT" in
+            pull_request) a="$PR_BASE"; b="$PR_HEAD" ;;
+            push) a="$PUSH_BEFORE"; b="$PUSH_AFTER" ;;
+            *) verdict false "event $EVENT: always run" ;;
+          esac
+          if [ -z "$a" ] || [ -z "$b" ] || [[ "$a" =~ $zero ]] || [[ "$b" =~ $zero ]]; then
+            verdict false "no usable base ($a...$b, e.g. a new branch): run"
+          fi
+          # 只要提交和目录树（blob:none），不下文件内容；web/content 要比对 front matter 时 git 按需补那几个文件
+          # checkout 是 depth 1 的浅克隆：先补全历史（否则 base 或 head 正好是浅边界时找不到合并基点）
+          deepen=(); [ "$(git rev-parse --is-shallow-repository)" = true ] && deepen=(--unshallow)
+          git fetch --no-tags --quiet --filter=blob:none "${deepen[@]}" origin "$a" "$b" || verdict false "fetch $a / $b failed: run"
+          if [ "$EVENT" = pull_request ]; then
+            # PR：base...head，只看 PR 自己的改动（从合并基点起）
+            from="$(git merge-base "$a" "$b")" || verdict false "no merge base: run"
+          else
+            # push：before 和 after 两棵树直接比（快进时等于 before...after；强推时把被覆盖掉的改动也算进来）
+            from="$a"
+          fi
+          changes="$(git diff --name-status --no-renames "$from" "$b")" || verdict false "git diff failed: run"
+          [ -n "$changes" ] || verdict false "empty diff: run"
+          # front matter 去掉只影响显示文字的键（title / linkTitle / description / summary / keywords），剩下的（url、layout、aliases、type…）有变就照跑
+          fm() {
+            git show "$1:$2" | awk '
+              NR == 1 { if ($0 != "---") { print "NO-YAML-FRONT-MATTER"; exit } next }
+              $0 == "---" { exit }
+              /^(title|linkTitle|description|summary|keywords):/ { next }
+              { print }'
+          }
+          n=0
+          while IFS=$'\t' read -r st f; do
+            n=$((n + 1))
+            case "$f" in
+              # 照跑名单优先于下面的跳过规则（workflow 自身、依赖、共享外壳、前端 JS、网关内核）
+              .github/* | package.json | package-lock.json | web/shared/* | web/assets/js/* | */_kernel/*)
+                verdict false "$f: always run" ;;
+            esac
+            [ "$st" = M ] || [ "$st" = A ] || verdict false "$st $f (deleted / type change): run"
+            case "$f" in
+              web/content/*.md)
+                [ "$st" = M ] || verdict false "A $f (new page / route): run"
+                if ! old="$(fm "$from" "$f")" || ! new="$(fm "$b" "$f")"; then verdict false "$f: cannot read front matter: run"; fi
+                if [ "$old" != "$new" ] || [ "$new" = NO-YAML-FRONT-MATTER ]; then
+                  verdict false "$f: front matter beyond title / description changed: run"
+                fi ;;
+              tests/*-snapshots/*.png) ;;
+              *.md | *.css) ;;
+              *.png | *.jpg | *.jpeg | *.webp | *.gif | *.avif | *.svg | *.ico) ;;
+              *) verdict false "$f: run" ;;
+            esac
+          done <<< "$changes"
+          verdict true "all $n changed file(s) are docs / content text / CSS / baselines / images: skip passkey E2E"
+
       - name: Reuse a passing PR run of the same tree (main push only)
         id: reuse
+        # 只改文档 / 样式那类提交已经由上一步跳过，不用再查
+        if: steps.scope.outputs.docs_only != 'true'
         # PR 的 pull_request 运行测的是「PR 合进当时 main」的合并提交；它通过后上传一个名为 passkey-e2e-ok-<树 SHA> 的 artifact（最后一步）。
         # main 的 push 先算自己的树 SHA，找同名 artifact，并逐条核对：
         #   1. 那次运行是本仓库自己的分支发起的（head_repository_id == repository_id；fork 的 PR 能改工作流、能传同名 artifact，一律不认）
@@ -288,6 +457,17 @@ jobs:
           open(env["GITHUB_OUTPUT"], "a").write("hit=false\n")
           PYEOF
 
+      - name: Decide whether to run the E2E
+        id: gate
+        # 跑 = 不是「只改文档 / 样式」且没有命中「同一棵树的 PR 运行已通过」。下面的步骤都只认这一个输出。
+        env:
+          DOCS_ONLY: ${{ steps.scope.outputs.docs_only }}
+          REUSE_HIT: ${{ steps.reuse.outputs.hit }}
+        run: |
+          if [ "$DOCS_ONLY" = true ]; then echo "run=false" >> "$GITHUB_OUTPUT"; echo "skip: docs / content text / CSS / baselines only"
+          elif [ "$REUSE_HIT" = true ]; then echo "run=false" >> "$GITHUB_OUTPUT"; echo "skip: same tree already passed in a PR run"
+          else echo "run=true" >> "$GITHUB_OUTPUT"; echo "run passkey-e2e"; fi
+
       - name: Require Cloudflare secrets
         # 只检查仓库级的 Cloudflare 账号 id 和 Pages 部署 token；缺了直接红，不许 e2e 整组静默跳过还算通过。
         # 预览测试凭证不是 secret，下面「Generate preview test credentials」每次现生成。
@@ -303,7 +483,7 @@ jobs:
 
       - name: Setup Node
         # 提前到这里：下面的预算闸和清预览 KV 用 node 跑 scripts/kv-budget.mjs（ESM，引用网关 realms.js 的键名）
-        if: steps.reuse.outputs.hit != 'true'
+        if: steps.gate.outputs.run == 'true'
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -314,7 +494,7 @@ jobs:
         # 后面的步骤（清预览 KV、部署预览、跑用例）都不执行，生产网关的 KV 配额不受影响。
         # STYRIGX_SPACE_PAGES_DEPLOY 需要额外的「Account → Account Analytics → Read」权限；缺了查询失败 → 本步失败（不盲跑）。
         # 临时绕过查询失败：仓库变量 KV_BUDGET_GUARD_MODE=warn（超预算仍然拦）。
-        if: steps.reuse.outputs.hit != 'true'
+        if: steps.gate.outputs.run == 'true'
         env:
           CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CF_API_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
@@ -322,7 +502,7 @@ jobs:
         run: node scripts/kv-budget.mjs guard
 
       - name: Generate preview test credentials (CI only)
-        if: steps.reuse.outputs.hit != 'true'
+        if: steps.gate.outputs.run == 'true'
         # 预览站的测试 RootKey（SGX_ROOT_KEY）和密码 pepper（SGX_PW_PEPPER）：每次运行新生成，只给这次的预览用，
         # 和下面的 Ed25519 测试钥匙对一样不进仓库、不存 GitHub Secrets。网关对 RootKey 只要求去空白后非空
         # （_kernel/crypto.js normalizeRootKey），这里用 32 字节随机数的 hex（64 个字符，无空白、无特殊字符）。
@@ -348,7 +528,7 @@ jobs:
         # 放在部署之前，给边缘缓存留出时间；测试 helper 本来就不假设起始状态（读到旧值时走重置开关）。
         # 只认 web/wrangler.toml [env.preview] 的 KV id，且断言它不是网关正式 KV（workers/auth-gateway/wrangler.toml）。
         # D1（styrigx-auth-gateway-preview）只存重置开关值的 hash，测试每次用新的随机开关值，不用清。
-        if: steps.reuse.outputs.hit != 'true'
+        if: steps.gate.outputs.run == 'true'
         env:
           CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CF_API_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
@@ -367,30 +547,51 @@ jobs:
           node scripts/kv-budget.mjs reset-preview "$kv"
 
       - name: Setup Hugo
-        if: steps.reuse.outputs.hit != 'true'
+        if: steps.gate.outputs.run == 'true'
         uses: peaceiris/actions-hugo@2752ce1d29631191ea3f27c23495fa06139a5b78 # v3.2.1
         with:
           hugo-version: ${{ env.HUGO_VERSION }}
           extended: true
 
       - name: Install dependencies (lockfile)
-        if: steps.reuse.outputs.hit != 'true'
+        if: steps.gate.outputs.run == 'true'
         run: npm ci
 
-      - name: Install Playwright browser
-        if: steps.reuse.outputs.hit != 'true'
+      - name: Playwright version (package-lock)
+        if: steps.gate.outputs.run == 'true'
+        id: pw
+        # 浏览器缓存的 key：runner 系统 + 镜像（$ImageOS，如 ubuntu24；ubuntu-latest 换大版本时不复用旧镜像下的缓存）+ lockfile 里 @playwright/test 的确切版本（它锁定同版本的 playwright-core，浏览器版本由它决定；升级 Playwright 就换 key）
+        run: |
+          echo "version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
+          echo "image=${ImageOS:-unknown}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        if: steps.gate.outputs.run == 'true'
+        id: pw-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.image }}-${{ steps.pw.outputs.version }}
+
+      - name: Install Playwright browser (cache miss)
+        if: steps.gate.outputs.run == 'true' && steps.pw-cache.outputs.cache-hit != 'true'
         run: npx playwright install chromium --with-deps
 
+      - name: Install Playwright system deps (cache hit)
+        # 浏览器本体来自缓存，系统库每次照装（apt，不在缓存里）
+        if: steps.gate.outputs.run == 'true' && steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
       - name: Build CSS
-        if: steps.reuse.outputs.hit != 'true'
+        if: steps.gate.outputs.run == 'true'
         run: node scripts/build-css.cjs --minify
 
       - name: Build site
-        if: steps.reuse.outputs.hit != 'true'
+        if: steps.gate.outputs.run == 'true'
         run: hugo --minify -s web
 
       - name: Bundle auth gateway as the preview _worker.js
-        if: steps.reuse.outputs.hit != 'true'
+        if: steps.gate.outputs.run == 'true'
         # Pages 上已经没有后端代码。预览把网关的同一份代码打包成 Pages 的 _worker.js（覆盖静态的那个），
         # 在 passkey-e2e.styrigx-space.pages.dev 上跑：页面和默认头像读 env.ASSETS，接口连预览的 KV/D1。
         # 只打包不部署 Worker，不需要 Worker 权限。
@@ -400,7 +601,7 @@ jobs:
           grep -q "X-SGX-Runtime" web/public/_worker.js
 
       - name: Generate Ed25519 test key pairs (CI only)
-        if: steps.reuse.outputs.hit != 'true'
+        if: steps.gate.outputs.run == 'true'
         # 锁屏域和账号域各一对，每次运行新生成，只给预览用；绝不用生产密钥，密钥不进仓库
         run: |
           for d in lock account; do
@@ -411,7 +612,7 @@ jobs:
           echo "Ed25519 test key pairs generated (preview only)"
 
       - name: Put this run's public keys into web/wrangler.toml (runner copy only)
-        if: steps.reuse.outputs.hit != 'true'
+        if: steps.gate.outputs.run == 'true'
         # web/wrangler.toml 是 Pages 的配置源：部署时它的 [env.preview.vars] 覆盖后台的明文变量。
         # 仓库里那份 SGX_LOCK_PUBLIC 是固定值，和本次生成的私钥对不上，所以部署前在 runner 里换成本次的公钥，
         # 并补上账号域公钥。不提交，只影响这次部署。
@@ -434,7 +635,7 @@ jobs:
           PYEOF
 
       - name: Set preview test secrets (preview only)
-        if: steps.reuse.outputs.hit != 'true'
+        if: steps.gate.outputs.run == 'true'
         # 只写 preview 环境（PATCH deployment_configs.preview），绝不碰 production。
         # 必须在部署之前写，否则新值要到下一次部署才生效。secret 都经 env 传进来，不拼进脚本；
         # SGX_ROOT_KEY / SGX_PW_PEPPER 用上面本次生成的 PREVIEW_TEST_ROOT_KEY / PREVIEW_TEST_PW_PEPPER（已打码）。
@@ -482,7 +683,7 @@ jobs:
           PYEOF
 
       - name: Apply D1 migrations to preview
-        if: steps.reuse.outputs.hit != 'true'
+        if: steps.gate.outputs.run == 'true'
         # 部署 preview 前对 styrigx-auth-gateway-preview 跑迁移（--env preview），绝不碰 production；失败要让 CI 红。
         # 跑完列一次已应用的迁移（d1_migrations 表）。
         working-directory: web
@@ -494,7 +695,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Deploy to preview
-        if: steps.reuse.outputs.hit != 'true'
+        if: steps.gate.outputs.run == 'true'
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
@@ -504,7 +705,7 @@ jobs:
           command: pages deploy public --project-name=styrigx-space --branch=passkey-e2e --commit-dirty=true
 
       - name: Run WebAuthn E2E (SGX_TEST_SUITE=passkey)
-        if: steps.reuse.outputs.hit != 'true'
+        if: steps.gate.outputs.run == 'true'
         # 跑 passkey 组的全部 describe（testMatch 已限定文件，不再 --grep）。
         # 预览地址和 KV id 从 web/wrangler.toml 读，不在这里重复写。
         # SGX_TEST_ROOT_KEY 是本次生成、已写进预览 SGX_ROOT_KEY 的同一个值。
@@ -554,7 +755,7 @@ jobs:
       - name: Record the tree that passed (pull_request only)
         # 给 main 的 push 用（见上面 steps.reuse）：这次 PR 运行测的合并提交的树 SHA 写进 artifact 名字。只有前面全部成功才会到这里。
         id: tree
-        if: success() && github.event_name == 'pull_request'
+        if: success() && github.event_name == 'pull_request' && steps.gate.outputs.run == 'true'
         run: |
           tree="$(git rev-parse 'HEAD^{tree}')"
           mkdir -p "$RUNNER_TEMP/passkey-ok"
@@ -562,7 +763,7 @@ jobs:
           echo "tree=$tree" >> "$GITHUB_OUTPUT"
 
       - name: Upload passing-tree marker (pull_request only)
-        if: success() && github.event_name == 'pull_request'
+        if: success() && github.event_name == 'pull_request' && steps.gate.outputs.run == 'true'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: passkey-e2e-ok-${{ steps.tree.outputs.tree }}
@@ -584,7 +785,8 @@ jobs:
     # 手动触发同样要先过 quality 和 passkey-e2e（不跳过）。
     # 不加任何传密钥值的 input，密钥只在 Cloudflare 后台改。
     # Pages 只放静态文件，会话检查全靠网关，所以等网关部署好、线上冒烟通过后再部署 Pages；网关失败就不部署 Pages。
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
+    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     needs: [quality, passkey-e2e, deploy-auth-worker]
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -592,33 +794,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - name: Setup Hugo
-        uses: peaceiris/actions-hugo@2752ce1d29631191ea3f27c23495fa06139a5b78 # v3.2.1
-        with:
-          hugo-version: ${{ env.HUGO_VERSION }}
-          extended: true
-
       - name: Setup Node
+        # 只给 wrangler-action 用（不再 npm ci / 构建）
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
 
-      - name: Install dependencies (lockfile)
-        run: npm ci
-
-      - name: Build CSS
-        run: node scripts/build-css.cjs --minify
-
-      - name: Build site
-        run: hugo --minify -s web
-        env:
-          # #1 诊断：把短 commit SHA 写进 <html data-sgx-build> 及页面小字构建标记
-          SGX_BUILD_SHA: ${{ github.sha }}
+      - name: Download production site (built and checked in quality)
+        # quality 的生产构建（带 SGX_BUILD_SHA）原样部署，不再重建：测过的就是上线的
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: site-production
+          path: web/public
 
       - name: Assert static-only Pages build
         # 生产部署只能带静态的 _worker.js（只做 pages.dev → styrigx.com 跳转），不能带网关代码
         run: |
+          for f in _headers _redirects index.html; do test -s "web/public/$f" || { echo "::error::web/public/$f missing"; exit 1; }; done
+          grep -q "Content-Security-Policy" web/public/_headers
           test -f web/public/_worker.js
           grep -q "styrigx.com" web/public/_worker.js
           if grep -q "X-SGX-Runtime" web/public/_worker.js; then echo "::error::gateway bundle in production Pages build"; exit 1; fi
@@ -655,7 +848,7 @@ jobs:
           code=$(printf '%s' "$hdr" | sed -n 's/^HTTP_CODE://p')
           rt=$(printf '%s' "$hdr" | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
           echo "styrigx.com /settings/ -> $code runtime=${rt:-none}"
-          [ "$code" = "302" ] && [ "$rt" = "worker" ] || { echo "::error::/settings/ not locked by the gateway"; exit 1; }
+          if [ "$code" != "302" ] || [ "$rt" != "worker" ]; then echo "::error::/settings/ not locked by the gateway"; exit 1; fi
 
   deploy-search-worker:
     # 全站搜索 styrigx-search-index（workers/search-index）：先于网关部署（网关的服务绑定 SEARCH 指向它，它不在就部署不了）。
@@ -663,7 +856,8 @@ jobs:
     # 部署后把主站索引写进 KV styrigx-search-index 的 site:space（scripts/build-search-index.mjs，要先构建网站）。
     # token：Cloudflare 上 styrigx-search-index-deploy = GitHub 环境 STYRIGX_SEARCH_INDEX_DEPLOY 里的同名密钥，
     # 权限 Workers Scripts 编辑 + Workers KV Storage 编辑 + Account Settings 读取；环境只允许 main。
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
+    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     needs: [quality, passkey-e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -672,26 +866,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - name: Setup Hugo
-        uses: peaceiris/actions-hugo@2752ce1d29631191ea3f27c23495fa06139a5b78 # v3.2.1
-        with:
-          hugo-version: ${{ env.HUGO_VERSION }}
-          extended: true
-
       - name: Setup Node
+        # 只给 wrangler-action 用（索引在 quality 里由生产构建生成，这里不再构建 / npm ci）
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
 
-      - name: Install dependencies (lockfile)
-        run: npm ci
+      - name: Download search index (site:space, built in quality)
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: search-index-space
+          path: ${{ runner.temp }}
 
-      - name: Build site (for the search index)
-        run: node scripts/build-css.cjs --minify && hugo --minify -s web
-
-      - name: Build search index (site:space)
-        run: node scripts/build-search-index.mjs --out "$RUNNER_TEMP/search-space.json"
+      - name: Check search index
+        run: test -s "$RUNNER_TEMP/search-space.json"
 
       - name: Deploy search Worker (styrigx-search-index)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
@@ -719,7 +907,8 @@ jobs:
     # 权限 Workers Scripts 编辑 + D1 编辑 + Account Settings 读取 + Secrets Store 编辑（PR3 起有 Secrets Store 绑定
     # SGX_CF_USAGE_TOKEN，部署必须 Edit，Read 报 10021，同鉴权网关）；环境只允许 main。
     # 迁移 migrations/0002_usage.sql（用量快照表）由下面的 d1 migrations apply 自动跑。
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
+    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     needs: [quality, passkey-e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -761,7 +950,8 @@ jobs:
     # token：Cloudflare 上 styrigx-chat-deploy = GitHub 环境 STYRIGX_CHAT_DEPLOY 里的同名环境密钥 STYRIGX_CHAT_DEPLOY，
     # 权限 Workers Scripts 编辑 + Secrets Store 编辑（带 Secrets Store 绑定部署必须 Edit，Read 报 10021，同鉴权网关）
     # + Account Settings 读取；没有路由，不需要 Workers Routes 权限。环境只允许 main。
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
+    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     needs: [quality, passkey-e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -810,7 +1000,8 @@ jobs:
     # 公开地址只有自定义域名 proxy-rules.styrigx.com（wrangler.toml 的 routes，custom_domain）。
     # token：Cloudflare 上 styrigx-proxy-rules-deploy = GitHub 环境 STYRIGX_PROXY_RULES_DEPLOY 里的同名密钥，
     # 权限 Workers Scripts 编辑 + Account Settings 读取 + styrigx.com 的 Workers Routes 编辑；环境只允许 main。
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
+    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     needs: [quality, passkey-e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -866,7 +1057,8 @@ jobs:
     # + Account Settings 读取 + styrigx.com 的 Workers Routes 编辑。Pages 的部署 token 不给 Worker 权限，互不影响。
     # 这把 token 放在 GitHub 环境 STYRIGX_AUTH_GATEWAY_DEPLOY（与密钥同名）的环境密钥里，该环境只允许 main 分支部署：
     # 其他分支即使改了工作流也拿不到它。
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
+    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     needs: [quality, passkey-e2e, deploy-search-worker, deploy-status-worker, deploy-chat-worker]
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -942,7 +1134,8 @@ jobs:
     # 先把 D1 styrigx-account 的表结构迁到最新（migrations/，已迁过的跳过；失败要让 job 红，不 continue-on-error），再部署，再冒烟。
     # token：Cloudflare 上 styrigx-account-deploy = GitHub 环境 STYRIGX_ACCOUNT_DEPLOY 里的同名环境密钥 STYRIGX_ACCOUNT_DEPLOY，
     # 权限 Workers Scripts 编辑 + Workers KV Storage 编辑 + D1 编辑 + Account Settings 读取 + styrigx.com 的 Workers Routes 编辑；环境只允许 main。
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
+    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     needs: [quality, passkey-e2e, deploy-auth-worker]
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -1013,7 +1206,8 @@ jobs:
     # → 查 d1_migrations 和表，确认 0001_share_links.sql 真的在库里（只看到 No migrations to apply 不算数）→ 部署 → 冒烟。
     # token：Cloudflare 上 styrigx-share-deploy = GitHub 环境 STYRIGX_SHARE_DEPLOY 里的同名环境密钥 STYRIGX_SHARE_DEPLOY，
     # 权限 Workers Scripts 编辑 + D1 编辑 + Account Settings 读取 + styrigx.com 的 Workers Routes 编辑；环境只允许 main。
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
+    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     needs: [quality, passkey-e2e, deploy-auth-worker]
     runs-on: ubuntu-latest
     timeout-minutes: 30
