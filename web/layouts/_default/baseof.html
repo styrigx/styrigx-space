@@ -64,14 +64,16 @@ addEventListener('pagereveal',function(e){window.__sgxRevealVT=e.viewTransition|
     /* 2026-10-23 PR-E：字体大小 / 减弱动效 / 点击音效 / 边缘光效 / 视差壁纸 / Good Lock 数字健康总开关已删除，旧值一次性清掉（不再有任何效果） */
     try{['sgx-font-size','sgx-reduced-motion','sgx-gl-sound','sgx-gl-edgeglow','sgx-gl-parallax','sgx-gl-wellbeing'].forEach(function(k){localStorage.removeItem(k)})}catch(e){}
     /* 调色板（2026-10-23 PR-G 七色调色板）：旧撞色 x<id> 迁到 <id>；不认识的 id、等于默认（dustyblue）的值清掉（默认不写 key，同 features.set） */
-    var p=localStorage.getItem('sgx-palette'),PK={{ $palIds := slice }}{{ range site.Data.palettes.palettes }}{{ $palIds = $palIds | append .id }}{{ end }}{{ $palIds | jsonify | safeJS }},PD='dustyblue';
+    /* 存储读写各自 try：站点数据被禁用时 localStorage 会抛错，不能让它跳过后面的减弱动效 / 布局 / 语言 */
+    var p=null,PK={{ $palIds := slice }}{{ range site.Data.palettes.palettes }}{{ $palIds = $palIds | append .id }}{{ end }}{{ $palIds | jsonify | safeJS }},PD='dustyblue';
+    try{p=localStorage.getItem('sgx-palette');
     if(p&&PK.indexOf(p)<0&&/^x[a-z]+$/.test(p)&&PK.indexOf(p.slice(1))>=0){p=p.slice(1);localStorage.setItem('sgx-palette',p)}
-    if(p&&(PK.indexOf(p)<0||p===PD)){localStorage.removeItem('sgx-palette');p=null}
+    if(p&&(PK.indexOf(p)<0||p===PD)){localStorage.removeItem('sgx-palette');p=null}}catch(e){}
     if(p){d.setAttribute('data-palette',p)}
     /* 自定义主题色（PR3 色彩角色 token，见 input.css「主题色 → 整套配色」）：sgx-accent=#rrggbb 时优先于预设。
        整套角色由 lib/accent.js 算好缓存在 sgx-accent-css（首行「v2|#种子」），这里首屏直接插 <style>；
        缓存对不上就先用预设的角色（设置页加载时 syncAccent 会重算）。 */
-    var ac=localStorage.getItem('sgx-accent');
+    var ac=null;try{ac=localStorage.getItem('sgx-accent')}catch(e){}
     if(ac&&/^#[0-9a-fA-F]{6}$/.test(ac)){
       ac=ac.toLowerCase();d.style.setProperty('--sgx-seed',ac);
       try{var acc=localStorage.getItem('sgx-accent-css')||'',ach='v7|'+ac+'\n';

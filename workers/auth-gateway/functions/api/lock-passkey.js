@@ -44,11 +44,11 @@ import {
   reissueLockSessionWithEpoch,
   ROLE_ADMIN,
 } from '../_kernel/lock-session.js';
-import { checkLockManage, looksVisitor, TICKET_IDS } from './lock-reauth.js';
+import { checkLockManage, TICKET_IDS } from './lock-reauth.js';
 import { issueTicket, reissueTicketWithEpoch } from '../_kernel/tickets.js';
 import { LOCK_REAUTH_TICKET, BY_PASSKEY } from '../_kernel/realms.js';
 import { LAYER_LOCK, setLayerConfigured, clearLayerConfigured, isLayerConfigured, isAccountEffectivelyConfigured } from '../_kernel/layers.js';
-import { verifyLockSession } from '../_kernel/lock-session.js';
+import { verifyLockSession, looksVisitor } from '../_kernel/lock-session.js';
 import { REALM_LOCK, LOCK_EPOCH_KEY, KEY_LOCK, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
 import {
   getPasskeys,

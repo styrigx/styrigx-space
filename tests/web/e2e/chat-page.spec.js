@@ -233,6 +233,22 @@ test.describe('聊天页（手机 412×915）', () => {
     await expect(page.locator('#chat-model')).toBeHidden();
   });
 
+  test('访客进同一个标签页：本标签页里管理员留下的对话不画进 DOM，并从 sessionStorage 清掉', async ({ page }) => {
+    await page.addInitScript(() => {
+      try {
+        if (!sessionStorage.getItem('sgx-test-seeded')) {
+          sessionStorage.setItem('sgx-test-seeded', '1');
+          sessionStorage.setItem('sgx-chat-convo', JSON.stringify({ v: 1, msgs: [{ role: 'user', text: 'ADMIN-SECRET-Q' }, { role: 'model', text: 'ADMIN-SECRET-A' }] }));
+        }
+      } catch (e) {}
+    });
+    await go(page, '/chat/', { visitor: true });
+    await expect(page.locator('#chat-gate .st-msg-title')).toHaveText('聊天仅管理员可用');
+    expect(await page.locator('#chat-list').evaluate((el) => el.innerHTML)).not.toContain('ADMIN-SECRET');
+    expect(await page.content()).not.toContain('ADMIN-SECRET');
+    expect(await page.evaluate(() => sessionStorage.getItem('sgx-chat-convo'))).toBeNull();
+  });
+
   test('429 / SSE rate_limited →「今天的免费额度用完了，明天再来」，没有重试', async ({ page }) => {
     await go(page, '/chat/', { api: (n) => (n === 1 ? { status: 429, json: { ok: false, error: 'rate_limited' } } : { body: sse([{ t: 'error', code: 'rate_limited' }]) }) });
     await page.locator('#chat-input').fill('a');

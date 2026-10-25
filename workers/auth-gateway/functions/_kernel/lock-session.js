@@ -230,6 +230,23 @@ function allLockSessionCookies(request) {
 }
 
 /**
+ * 请求是不是带着访客会话（只看格式和 role 段，不验签、不读存储）。
+ * 访客假入口（root-auth / lock-reset / lock-password / lock-passkey）用它在读任何 KV 之前直接返回写死的失败，
+ * 走真路径前再完整验票。格式按 parseLockSessionTicket（六段，visitor 必须带合法 tempkeyId）。
+ * @param {any} request
+ * @returns {boolean}
+ */
+export function looksVisitor(request) {
+  try {
+    for (const val of allLockSessionCookies(request)) {
+      const p = parseLockSessionTicket(val);
+      if (p && p.role === ROLE_VISITOR) return true;
+    }
+  } catch (e) {}
+  return false;
+}
+
+/**
  * 验请求里的锁屏会话（网关页面、接口、子站 RPC 共用这一个实现）。任一同名值验过即有效。
  * 每次失败打 [sgx-verify] fail: <原因> 日志（只记原因，不记密钥和 cookie 值）。
  * @param {any} request

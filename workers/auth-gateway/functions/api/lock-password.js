@@ -27,10 +27,10 @@ import {
   reissueLockSessionWithEpoch,
   ROLE_ADMIN,
 } from '../_kernel/lock-session.js';
-import { checkLockManage, looksVisitor } from './lock-reauth.js';
+import { checkLockManage } from './lock-reauth.js';
 import { issueTicket, reissueTicketWithEpoch } from '../_kernel/tickets.js';
 import { LOCK_REAUTH_TICKET, BY_PASSWORD } from '../_kernel/realms.js';
-import { verifyLockSession } from '../_kernel/lock-session.js';
+import { verifyLockSession, looksVisitor } from '../_kernel/lock-session.js';
 import {
   isLayerConfigured,
   setLayerConfigured,

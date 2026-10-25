@@ -4,7 +4,8 @@
  * POST /api/lock-tempkey-unlock { code }（只接受同源；无需会话，在白名单里）
  * - 规范化后按哈希找钥匙；对得上 → 签 visitor 锁屏会话（LockSessionTicket：role=visitor，by=tempkey，
  *   tempkeyId=钥匙 id，lock 私钥签名），Max-Age = min(钥匙剩余时间, 12 小时)
- * - 输错：403 wrong；同一 IP 连错 5 次锁 15 分钟、全站每小时错 30 次暂停 1 小时 → 429 cooldown
+ * - 输错：403 wrong；同一 IP（IPv6 按 /64）连错 5 次锁 15 分钟 → 429 cooldown；
+ *   全站每小时错满 30 次后只减速（每次先等 2 秒），不封锁
  * - 格式不对（不是 12 位）也算一次输错，不提示格式
  * - 已有 admin 会话：直接 ok，不降级成访客
  * - KV / 密钥出错一律 5xx，绝不签发会话

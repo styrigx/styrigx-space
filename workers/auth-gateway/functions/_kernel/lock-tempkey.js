@@ -18,12 +18,15 @@
  *                             没有临时码、不占 TEMPKEY_MAX、不在钥匙列表里，只能经短链换会话）
  * - lock-tempkey-code:<hash>   → id（hash = SHA-256('lock-tempkey|' + pepper + '|' + 临时码)）
  * - lock-tempkey-revoked:<id>  → '1'（作废标记，留到钥匙原本的到期时间；middleware 每个访客请求只查这一个键）
- * - lock-tempkey-fail:<ip>     → { count, lockedUntil }（连错 5 次冷却 15 分钟）
- * - lock-tempkey-fail-global   → { count, windowStart, pausedUntil }（全站每小时错 30 次暂停 1 小时）
+ * - lock-tempkey-fail:<ip 分桶> → { count, lockedUntil }（连错 5 次冷却 15 分钟；IPv6 按 /64，见 http.js ipBucket）
+ * - lock-tempkey-fail-global   → { count, windowStart }（全站只减速、不封锁：每小时错满 30 次后，每次校验先等 2 秒）
+ *   不设全站暂停：以前错满 30 次暂停 1 小时，任何人换几个 IP 就能让所有访客都进不来。
+ *   临时码 60 位随机、同时最多 20 把，穷举靠单 IP 冷却 + 减速就够；KV 里残留的旧 pausedUntil 不再生效。
  * 名字只在管理员侧保存和显示，访客那边永远拿不到。
  */
 import { b64urlEnc } from './crypto.js';
 import { REALM_LOCK } from './realms.js';
+import { ipBucket } from './http.js';
 
 export const TEMPKEY_PREFIX = REALM_LOCK.kv.tempkeyPrefix;
 const CODE_PREFIX = REALM_LOCK.kv.tempkeyCodePrefix;
@@ -47,9 +50,11 @@ export const TEMPKEY_DAYS = Object.freeze([3, 7, 15, 30]);
 
 const IP_MAX_FAIL = 5;
 const IP_LOCK_MS = 15 * 60 * 1000;
-const GLOBAL_MAX_FAIL = 30;
+/** 全站每小时输错满这么多次后开始减速 */
+export const TEMPKEY_GLOBAL_SLOW_AT = 30;
+/** 全站减速时每次校验先等的毫秒数 */
+export const TEMPKEY_GLOBAL_DELAY_MS = 2000;
 const GLOBAL_WINDOW_MS = HOUR;
-const GLOBAL_PAUSE_MS = HOUR;
 
 const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'; /* Crockford Base32 */
 
@@ -221,43 +226,50 @@ export async function isTempkeyRevoked(kv, id) {
 
 /* ---------- 输错限速 ---------- */
 
-/** 是否在冷却中（本 IP 或全站暂停）。KV 出错抛错。 @param {any} kv @param {string} ip */
-export async function isTempkeyLimited(kv, ip) {
-  const now = Date.now();
-  const g = await kv.get(GLOBAL_KEY, 'json');
-  if (g && g.pausedUntil > now) return true;
-  const r = await kv.get(FAIL_PREFIX + ip, 'json');
-  return !!(r && r.lockedUntil > now);
+/** @param {number} ms */
+function sleep(ms) {
+  return new Promise(function (r) { setTimeout(r, ms); });
 }
 
-/** 记一次输错；返回这次是否刚进入冷却。KV 出错抛错。 @param {any} kv @param {string} ip */
+/**
+ * 本 IP 是否在冷却中；不在冷却、但全站正在减速时，先等 TEMPKEY_GLOBAL_DELAY_MS 再返回 false。KV 出错抛错。
+ * @param {any} kv @param {string} ip
+ * @param {{sleep?:(ms:number)=>Promise<void>}} [opts] 测试可替换 sleep
+ */
+export async function isTempkeyLimited(kv, ip, opts) {
+  const now = Date.now();
+  const r = await kv.get(FAIL_PREFIX + ipBucket(ip), 'json');
+  if (r && r.lockedUntil > now) return true;
+  const g = await kv.get(GLOBAL_KEY, 'json');
+  if (g && g.windowStart + GLOBAL_WINDOW_MS >= now && (g.count || 0) >= TEMPKEY_GLOBAL_SLOW_AT) {
+    await ((opts && opts.sleep) || sleep)(TEMPKEY_GLOBAL_DELAY_MS);
+  }
+  return false;
+}
+
+/** 记一次输错；返回本 IP 这次是否刚进入冷却。KV 出错抛错。 @param {any} kv @param {string} ip */
 export async function recordTempkeyFail(kv, ip) {
   const now = Date.now();
   let locked = false;
-  const r = (await kv.get(FAIL_PREFIX + ip, 'json')) || { count: 0 };
+  const key = FAIL_PREFIX + ipBucket(ip);
+  const r = (await kv.get(key, 'json')) || { count: 0 };
   r.count = (r.count || 0) + 1;
   if (r.count >= IP_MAX_FAIL) {
     r.lockedUntil = now + IP_LOCK_MS;
     r.count = 0;
     locked = true;
   }
-  await kv.put(FAIL_PREFIX + ip, JSON.stringify(r), { expirationTtl: 3600 });
+  await kv.put(key, JSON.stringify(r), { expirationTtl: 3600 });
   const g = (await kv.get(GLOBAL_KEY, 'json')) || { count: 0, windowStart: now };
   if (!g.windowStart || g.windowStart + GLOBAL_WINDOW_MS < now) {
     g.count = 0;
     g.windowStart = now;
   }
-  g.count = (g.count || 0) + 1;
-  if (g.count >= GLOBAL_MAX_FAIL) {
-    g.pausedUntil = now + GLOBAL_PAUSE_MS;
-    g.count = 0;
-    locked = true;
-  }
-  await kv.put(GLOBAL_KEY, JSON.stringify(g), { expirationTtl: 7200 });
+  await kv.put(GLOBAL_KEY, JSON.stringify({ count: (g.count || 0) + 1, windowStart: g.windowStart }), { expirationTtl: 7200 });
   return locked;
 }
 
 /** 输对后清掉这个 IP 的计数（失败不影响） @param {any} kv @param {string} ip */
 export async function clearTempkeyFail(kv, ip) {
-  try { await kv.delete(FAIL_PREFIX + ip); } catch (e) {}
+  try { await kv.delete(FAIL_PREFIX + ipBucket(ip)); } catch (e) {}
 }

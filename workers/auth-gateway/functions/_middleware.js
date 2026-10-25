@@ -78,9 +78,13 @@ const AVATAR_FILE_RE = /^\/avatar\/(32|96|192|512)\.webp$/;
 /* 2026-10-21：全站内容索引（博客标题、地址）不是静态资源，要先解锁。
    以前根目录文件不过网关（路由只登记了页面目录），后缀白名单里的 .json 也会把它放出去。 */
 const GATED_DATA = new Set(['/files-index.json', '/en/files-index.json']);
+/* Hugo 给首页、分类、标签各生成一份 RSS（/index.xml、/en/index.xml、/tags/index.xml ……），
+   里面是全站页面的标题和地址，和 files-index.json 一样要先解锁；后缀白名单里的 .xml 不能把它放出去。 */
+const RSS_FEED_RE = /(^|\/)index\.xml$/i;
 
 function isWhitelisted(pathname) {
   if (GATED_DATA.has(pathname)) return false;
+  if (RSS_FEED_RE.test(pathname)) return false;
   if (PAGE_WHITELIST.includes(pathname)) return true;
   if (pathname.startsWith('/?lock=1') || pathname.startsWith('/en/?lock=1')) return true;
   if (pathname.startsWith('/api/')) {

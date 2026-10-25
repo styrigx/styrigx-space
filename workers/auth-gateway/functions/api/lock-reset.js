@@ -40,6 +40,7 @@ import { writeRootAudit } from '../_kernel/root-audit.js';
 import { isLayerConfigured, LAYER_ACCOUNT } from '../_kernel/layers.js';
 import { checkLockResetSwitch, claimLockResetSwitch } from '../_kernel/lock-reset-switch.js';
 import { isSameOrigin } from '../_kernel/http.js';
+import { looksVisitor } from '../_kernel/lock-session.js';
 import { REALM_LOCK, REALM_ACCOUNT, REALM_ROOT, realmPrivateKey, realmPublicKey, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
 
 /* 重置锁屏（本接口）的账号通行密钥 challenge（与锁屏、账号登录的 challenge 隔离） */
@@ -61,19 +62,11 @@ export async function onRequestPost(context) {
 /** @param {any} context */
 async function handlePost(context) {
   const { request, env } = context;
-  /* B1-9 访客假入口统一 401：访客会话直接返回，不读任何存储。 */
-  try {
-    const h = request.headers.get('Cookie') || '';
-    for (const part of h.split(';')) {
-      const kv2 = part.trim().split('=');
-      if (kv2[0] === REALM_LOCK.cookie && kv2[1]) {
-        const parts = kv2.slice(1).join('=').split('.');
-        if (parts.length === 5 && parts[1] === 'visitor') {
-          return Response.json({ ok: false, error: 'denied' }, { status: 401 });
-        }
-      }
-    }
-  } catch (e) {}
+  /* B1-9 访客假入口统一 401：访客会话直接返回，不读任何存储，也到不了根凭证比对。
+     判断与 lock-password / lock-passkey 共用 _kernel/lock-session.js looksVisitor（六段票）。 */
+  if (looksVisitor(request)) {
+    return Response.json({ ok: false, error: 'denied' }, { status: 401 });
+  }
   const kv = env && env.KV_LOCK_DOOR;
   if (request.method !== 'POST') {
     return Response.json({ ok: false }, { status: 405 });

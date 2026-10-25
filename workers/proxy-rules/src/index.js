@@ -4,7 +4,8 @@
  * 公开地址：https://proxy-rules.styrigx.com
  * 路径和上游仓库一致：/MetaCubeX/meta-rules-dat/meta/geo/<geosite|geoip>/<名字>.<mrs|yaml|list>
  *   例：/MetaCubeX/meta-rules-dat/meta/geo/geosite/cn.mrs
- * 上游：jsDelivr（主）→ raw.githubusercontent（备），依次尝试。
+ * 上游：jsDelivr（主）→ raw.githubusercontent（备），依次尝试。每个上游等响应头最多 UPSTREAM_TIMEOUT_MS，
+ *   超时就换下一个（只限等响应头；拿到响应后正文照常流式转发，不受这个超时影响）。
  * 严格白名单：只放行规则集文件，其他路径一律 404，防止被当成开放代理。
  * 边缘缓存 24 小时：meta-rules-dat 每天更新一次，规则集本身 interval 也是 24h。
  * 不验会话、不持任何钥匙、没有绑定。
@@ -16,6 +17,8 @@
 export const REPO = 'MetaCubeX/meta-rules-dat';
 export const BRANCH = 'meta';
 export const CACHE_TTL = 86400;
+/** 单个上游等响应头的上限（毫秒）：主上游挂住时换备用，而不是整个请求一直等 */
+export const UPSTREAM_TIMEOUT_MS = 8000;
 const PREFIX = `/${REPO}/${BRANCH}/`;
 
 // 文件名形如 cn.mrs / geolocation-!cn.mrs / category-ai-!cn.yaml
@@ -69,12 +72,15 @@ export default {
     let upstream = null;
     let lastStatus = 502;
     for (const u of upstreamUrls(url.pathname)) {
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), UPSTREAM_TIMEOUT_MS);
       try {
         const r = await fetch(
           new Request(u, {
             method: request.method,
             headers: { 'User-Agent': 'styrigx-proxy-rules/1.0', Accept: '*/*' },
             redirect: 'follow',
+            signal: ac.signal,
           }),
           { cf: { cacheTtl: CACHE_TTL, cacheEverything: true } },
         );
@@ -82,6 +88,8 @@ export default {
         lastStatus = r.status;
       } catch {
         lastStatus = 502;
+      } finally {
+        clearTimeout(timer);
       }
     }
 

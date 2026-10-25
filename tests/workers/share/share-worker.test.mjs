@@ -23,7 +23,7 @@ import { testLockSession, testAccountSession } from '../auth-gateway/_tickets.mj
 const REPO = new URL('../../../', import.meta.url).pathname;
 const worker = (await import(REPO + 'workers/share/src/index.js')).default;
 const links = await import(REPO + 'workers/share/src/lib/links.js');
-const { _resetMem } = await import(REPO + 'workers/share/src/open.js');
+const { _resetMem, _setRandom } = await import(REPO + 'workers/share/src/open.js');
 const issuerMod = await import(REPO + 'workers/auth-gateway/src/share-issuer.js');
 const { checkLockSession, checkAccountSession } = await import(REPO + 'workers/auth-gateway/src/verifier.js');
 const { signLockSessionTicket } = await import(REPO + 'workers/auth-gateway/functions/_kernel/lock-session.js');
@@ -453,6 +453,31 @@ for (const K of KINDS) {
     const n = db.fails().length;
     await open(env, '/s/bad', { ip: '4.4.4.4' });
     assert.equal(db.fails().length, n);
+  });
+
+  T('share_fail 不无限增长：写失败计数时按概率清掉窗口和锁定都已过期的行，新鲜的行和还锁着的行不动', async () => {
+    const { env, db } = mk();
+    const now = Date.now();
+    const old = now - 3 * H;
+    await links.run(db, links.SQL.failPut, '9.9.9.1', 3, old, 0); /* 窗口早过了 */
+    await links.run(db, links.SQL.failPut, '9.9.9.2', 0, old, old + 15 * 60e3); /* 锁早过了 */
+    await links.run(db, links.SQL.failPut, '9.9.9.3', 0, old, now + 10 * 60e3); /* 还锁着 */
+    await links.run(db, links.SQL.failPut, '9.9.9.4', 2, now - 60e3, 0); /* 窗口内 */
+    try {
+      _setRandom(() => 0.99); /* 不抽中：不清 */
+      await open(env, '/s/' + links.newCode(), { ip: '8.8.8.1' });
+      assert.deepEqual(db.fails().map((f) => f.ip).sort(), ['8.8.8.1', '9.9.9.1', '9.9.9.2', '9.9.9.3', '9.9.9.4']);
+      _setRandom(() => 0); /* 抽中：清 */
+      await open(env, '/s/' + links.newCode(), { ip: '8.8.8.2' });
+      assert.deepEqual(db.fails().map((f) => f.ip).sort(), ['8.8.8.1', '8.8.8.2', '9.9.9.3', '9.9.9.4']);
+      /* 清理出错不影响这次的失败响应 */
+      const prep = db.prepare.bind(db);
+      db.prepare = (sql) => { if (sql === links.SQL.failPurge) throw new Error('d1 down'); return prep(sql); };
+      assert.deepEqual(await failShape(await open(env, '/s/' + links.newCode(), { ip: '8.8.8.3' })), FAIL);
+      db.prepare = prep;
+    } finally {
+      _setRandom();
+    }
   });
 
   T('门：别的域名 /api/* 403、页面 301；/s/* 谁都能开；X-SGX-Runtime: share；/api/* no-store', async () => {

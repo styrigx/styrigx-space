@@ -12,6 +12,8 @@
  * - 不存在 / 过期 / 作废 / 格式不对 / 目标不合法 / 网关拒签 / 被限速 / 出错：一律同一个响应（302 到 /?lock=1），不说是哪种。
  * - 限速：同一 IP 15 分钟内 10 次打不开 → 锁 15 分钟（期间这个 IP 的 /s/* 一律走失败响应，真码也一样）。
  *   计数在 D1 share_fail，外面再套一层本 isolate 内存计数（锁住期间不再查 / 写 D1）。格式不对的码不写 D1（不可能对得上），只记内存。
+ *   share_fail 每个打不开过的 IP 一行：每次写失败计数时约 FAIL_PURGE_RATE 的概率顺手删掉窗口和锁定都已过期的行
+ *   （SQL.failPurge），不然换 IP 刷就能让表一直长。
  */
 import { ROLE_ADMIN } from './auth.js';
 import { ORIGIN, SQL, isCode, cleanTarget, targetUrl, statusOf, first, run } from './lib/links.js';
@@ -19,6 +21,12 @@ import { ORIGIN, SQL, isCode, cleanTarget, targetUrl, statusOf, first, run } fro
 const MAX_FAIL = 10;
 const WINDOW_MS = 15 * 60 * 1000;
 const LOCK_MS = 15 * 60 * 1000;
+/** 写失败计数时顺手清过期行的概率 */
+export const FAIL_PURGE_RATE = 0.05;
+/** 测试用：替换随机数 */
+let rand = Math.random;
+/** @param {() => number} [fn] */
+export function _setRandom(fn) { rand = fn || Math.random; }
 
 /** isolate 内的计数（ip → {count, start, until}），上限 5000 条，满了清空 */
 const mem = new Map();
@@ -78,6 +86,10 @@ async function dbFail(db, ip, now) {
   count++;
   if (count >= MAX_FAIL) { until = now + LOCK_MS; count = 0; start = now; }
   await run(db, SQL.failPut, ip, count, start, until);
+  /* 窗口开始和锁定结束都早于「现在 − 一个窗口」的行已经没用了；清理失败不影响本次响应 */
+  if (rand() < FAIL_PURGE_RATE) {
+    try { await run(db, SQL.failPurge, now - WINDOW_MS); } catch (e) {}
+  }
 }
 
 /**
