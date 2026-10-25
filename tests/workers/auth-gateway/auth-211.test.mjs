@@ -583,8 +583,8 @@ test('2.11 补充四：C2 重置第二步恢复提示（lock.js，无键名）',
   /* C2：底部恢复提示改成新文案，不出现 lock-reset-switch 键名 */
   assert.ok(!src.includes('lock-reset-switch'), 'lock.js 不应再出现 lock-reset-switch 键名');
   assert.ok(!src.includes('sgx-reset-switch-hint'), '旧提示元素已删除');
-  /* PR3：重置界面在 lib/reset-flow.js（锁屏与账号页共用），「管理员」统一改「账号」；恢复提示只在第二步 */
-  const rf = fs.readFileSync(REPO + 'web/assets/js/lib/reset-flow.js', 'utf8');
+  /* PR3：重置界面在 auth/reset-flow.js（锁屏与账号页共用），「管理员」统一改「账号」；恢复提示只在第二步 */
+  const rf = fs.readFileSync(REPO + 'web/assets/js/auth/reset-flow.js', 'utf8');
   assert.ok(!src.includes('管理员') && !rf.includes('管理员'), '不再出现「管理员」字样');
   assert.ok(!rf.includes('lock-reset-switch'), 'reset-flow.js 不应出现开关键名');
   assert.ok(rf.includes('账号凭证也无法使用？'), '恢复提示用「账号」');

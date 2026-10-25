@@ -16,7 +16,7 @@
  */
 import { sgxNavigate, sgxReload } from '../lib/diag-jumptrace.js';
 import { showCenterDialog } from '../lib/dialog-behavior.js';
-import { lockReauthFetch } from '../lib/auth-flow.js';
+import { lockReauthFetch } from '../auth/auth-flow.js';
 
 /**
  * 统一解析 API 响应：{ status, json }，区分网络错误/业务错误。

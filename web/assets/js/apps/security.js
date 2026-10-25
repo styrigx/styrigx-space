@@ -15,7 +15,7 @@ import { on } from '../lib/events.js';
 import { get as storeGet } from '../lib/storage.js';
 import { openSheet } from '../shell/sheet.js';
 import { engines as SE } from '../shell/engines.js';
-import { confirmLockNow } from '../lib/lock-now.js';
+import { confirmLockNow } from '../auth/lock-now.js';
 import { openAdminVerify } from '../shell/upgrade.js';
 
 (function () {
@@ -97,7 +97,7 @@ import { openAdminVerify } from '../shell/upgrade.js';
     });
   }
 
-  /* B1-1 立即锁定：确认层 + /api/lock-now 在 lib/lock-now.js（顶栏快捷面板的「立即锁定」磁贴共用同一份） */
+  /* B1-1 立即锁定：确认层 + /api/lock-now 在 auth/lock-now.js（顶栏快捷面板的「立即锁定」磁贴共用同一份） */
   const lockNow = document.getElementById('sec-locknow');
   if (lockNow) {
     const showConfirm = function () {

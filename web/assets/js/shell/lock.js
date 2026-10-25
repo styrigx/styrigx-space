@@ -20,11 +20,11 @@ import { reducedMotion } from '../lib/util.js';
 import { followKeyboard } from './vk.js';
 import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
 import { tapFeedback } from '../lib/dialog-behavior.js';
-import { createMethodSheet, createVerifyDialog, METHOD_ICONS, keepInputFocus } from '../lib/auth-sheet.js';
-import { getPasskeyAssertion, passkeyErrorText } from '../lib/passkey-assert.js';
-import { pwFieldHtml, bindPwEye, onEnter, focusNoScroll } from '../lib/auth-flow.js';
+import { createMethodSheet, createVerifyDialog, METHOD_ICONS, keepInputFocus } from '../auth/auth-sheet.js';
+import { getPasskeyAssertion, passkeyErrorText } from '../auth/passkey-assert.js';
+import { pwFieldHtml, bindPwEye, onEnter, focusNoScroll } from '../auth/auth-flow.js';
 import { KEY_LOCK } from '../lib/key-names.js';
-import { mountResetFlow, resetT } from '../lib/reset-flow.js';
+import { mountResetFlow, resetT } from '../auth/reset-flow.js';
 import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
 
 const UNLOCK =
@@ -427,7 +427,7 @@ function showLockScreen() {
   }
 
   /* ============================================================
-     统一底部弹层：临时钥匙 / 密码 / 通行密钥三态共用同一个 dialog（lib/auth-sheet.js，账号登录页同一个组件）。
+     统一底部弹层：临时钥匙 / 密码 / 通行密钥三态共用同一个 dialog（auth/auth-sheet.js，账号登录页同一个组件）。
      - 同样的圆角、材质、拖动条、标题字号/位置、按钮样式；
      - 卡片背景完全不透明；打开时底层名字与入口 visibility:hidden + inert；
      - 容器无 outline；:focus-visible 只在内部可交互元素上用本站焦点色。
@@ -504,7 +504,7 @@ function showLockScreen() {
   }
 
   /**
-   * 2.8.0 锁屏重设计：点击头像后弹出的解锁方式选择底部弹层（lib/auth-sheet.js createMethodSheet，账号登录页同一个组件）。
+   * 2.8.0 锁屏重设计：点击头像后弹出的解锁方式选择底部弹层（auth/auth-sheet.js createMethodSheet，账号登录页同一个组件）。
    * One UI 风格：底部弹层（宽屏居中卡片），各带图标和一行说明。
    *
    * 补充定稿七.1：入口按锁屏凭证配置显示（配置以服务端 /api/lock-entry 为准，
@@ -553,7 +553,7 @@ function showLockScreen() {
     const showPw = !resetOnly && cfg.password;
     /* 批次 A 验收修复 P2：方法行点击轻触觉反馈。(b) 行 busy 不适用：
        点击即关弹层并在同一 tick 打开下一态；通行密钥行 → openPk() 已有带转圈的加载态。 */
-    /** @type {import('../lib/auth-sheet.js').MethodOpt[]} */
+    /** @type {import('../auth/auth-sheet.js').MethodOpt[]} */
     const opts = [
       /* 1. 访客进入（临时钥匙，2026-10-23 取代 Turnstile） */
       { id: 'sgx-mopt-visitor', icon: METHOD_ICONS.visitor, name: en ? 'Visitor' : '访客进入',
@@ -811,7 +811,7 @@ function showLockScreen() {
       });
   }
 
-  /* ---------- 重置登录（PR3：方法弹层里的「无法登录？」原地切到 lib/reset-flow.js） ----------
+  /* ---------- 重置登录（PR3：方法弹层里的「无法登录？」原地切到 auth/reset-flow.js） ----------
      与账号页 /account/reset/ 同一个界面，提交不同：
      - 锁屏凭证已设置（或读不到配置，按已设置处理）：根凭证 → POST /api/lock-reset verify；
        恢复开关有效直接拿到重置锁屏票（sgx-lock-reset）；否则服务端回 needAccount → 再验账号凭证（账号通行密钥 / 账号密码，

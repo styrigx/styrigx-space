@@ -1043,7 +1043,7 @@ test('middleware：首页有会话 → 200 + data-sgx-lock-session="valid"', asy
 /* ============ 2.8.0：搜索收录 + 锁屏瘦身 ============ */
 
 test('2.8.0：锁屏态首页剥离桌面内容（SGX-DESKTOP markers）', async () => {
-  const { injectSessionState } = await import('../../../workers/auth-gateway/functions/_middleware.js');
+  const { injectSessionState } = await import('../../../workers/auth-gateway/functions/_kernel/html.js');
   const html = '<html lang="zh"><head></head><body>' +
     '<!-- SGX-DESKTOP-START --><div>书单歌单小组件</div><!-- SGX-DESKTOP-END -->' +
     '<div id="nav">导航</div></body></html>';
@@ -1055,7 +1055,7 @@ test('2.8.0：锁屏态首页剥离桌面内容（SGX-DESKTOP markers）', async
 });
 
 test('2.8.0：锁屏态首页带 X-Robots-Tag: noindex', async () => {
-  const { injectSessionState } = await import('../../../workers/auth-gateway/functions/_middleware.js');
+  const { injectSessionState } = await import('../../../workers/auth-gateway/functions/_kernel/html.js');
   const res = new Response('<html><body></body></html>', {
     headers: { 'Content-Type': 'text/html' },
   });

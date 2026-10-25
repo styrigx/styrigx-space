@@ -12,8 +12,8 @@
  * 将来加新的凭证域（例如独立的「账户」登录）时，直接复用这些积木即可。
  * 本文件在 lib/ 层：不得 import shell/ 或 apps/（followKeyboard 由调用方传入）。
  */
-import { on } from './events.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton } from './dialog-behavior.js';
+import { on } from '../lib/events.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton } from '../lib/dialog-behavior.js';
 
 /* ---------------------------------------------------------------------------
  * 密码框

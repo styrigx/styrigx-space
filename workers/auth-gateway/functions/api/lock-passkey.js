@@ -44,7 +44,7 @@ import {
   reissueLockSessionWithEpoch,
   ROLE_ADMIN,
 } from '../_kernel/lock-session.js';
-import { checkLockManage, TICKET_IDS } from './lock-reauth.js';
+import { checkLockManage, TICKET_IDS } from '../_kernel/lock-manage.js';
 import { issueTicket, reissueTicketWithEpoch } from '../_kernel/tickets.js';
 import { LOCK_REAUTH_TICKET, BY_PASSKEY } from '../_kernel/realms.js';
 import { LAYER_LOCK, setLayerConfigured, clearLayerConfigured, isLayerConfigured, isAccountEffectivelyConfigured } from '../_kernel/layers.js';
@@ -68,7 +68,7 @@ const CHALLENGE_PREFIX = REALM_LOCK.kv.passkeyChallengePrefix;
 
 /**
  * 锁屏通行密钥管理门禁：LockReauthTicket + admin 锁屏会话，或 LockResetTicket（
- * 可 list/register/delete，不可 rename）。见 lock-reauth.js checkLockManage。
+ * 可 list/register/delete，不可 rename）。见 _kernel/lock-manage.js checkLockManage。
  * @param {any} request
  * @param {any} env
  * @param {string} op 'list' | 'register' | 'rename' | 'delete'

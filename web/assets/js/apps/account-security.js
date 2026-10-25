@@ -19,11 +19,11 @@ import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
 import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';
-import { bindDataEyes, createSetPwDialog, newPwError } from '../lib/auth-flow.js';
+import { bindDataEyes, createSetPwDialog, newPwError } from '../auth/auth-flow.js';
 import { bindSubmitButton, onDialogBackdrop, onDialogCancel, recordDialogClose } from '../lib/dialog-behavior.js';
 import { accountUrl, createT, signalAccountName } from './account-common.js';
-import { ACCOUNT_API, postJSON, errText as errTextT } from '../lib/account-api.js';
-import { accountSubmitters, renderAccountMethods, visibleKinds } from '../lib/account-methods.js';
+import { ACCOUNT_API, postJSON, errText as errTextT } from '../auth/account-api.js';
+import { accountSubmitters, renderAccountMethods, visibleKinds } from '../auth/account-methods.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';

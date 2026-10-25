@@ -1,5 +1,5 @@
 /**
- * 通行密钥断言（lib/passkey-assert.js getPasskeyAssertion）：
+ * 通行密钥断言（auth/passkey-assert.js getPasskeyAssertion）：
  * AbortSignal 必须放在 navigator.credentials.get 选项的顶层（WebAuthn 只认这里），publicKey 里只带 timeout。
  * 运行：node --test tests/web/ui/passkey-assert.test.mjs
  */
@@ -12,7 +12,7 @@ Object.defineProperty(globalThis, 'navigator', {
   value: { credentials: { get: async (opts) => { seen = opts; return { id: 'cred' }; } } },
 });
 
-const { getPasskeyAssertion } = await import('../../../web/assets/js/lib/passkey-assert.js');
+const { getPasskeyAssertion } = await import('../../../web/assets/js/auth/passkey-assert.js');
 
 test('signal 在顶层、publicKey 里没有 signal；timeout 30000；原选项不被改', async () => {
   const options = { challenge: new Uint8Array([1, 2, 3]), rpId: 'styrigx.com' };

@@ -40,10 +40,10 @@ test('lock.js：会话有效时分发 sgx:session 事件', () => {
   assert.ok(lockJs.includes("CustomEvent('sgx:session'"), '应分发 sgx:session 事件');
 });
 
-test('page-security.js：立即锁定调 POST /api/lock-now（确认层与请求在 lib/lock-now.js，安全页和快捷面板共用）', () => {
-  const lockNowJs = readFileSync(join(root, 'web/assets/js/lib/lock-now.js'), 'utf8');
+test('page-security.js：立即锁定调 POST /api/lock-now（确认层与请求在 auth/lock-now.js，安全页和快捷面板共用）', () => {
+  const lockNowJs = readFileSync(join(root, 'web/assets/js/auth/lock-now.js'), 'utf8');
   assert.ok(!secJs.includes('sgx-lock-shown'), '不应再出现 sgx-lock-shown');
-  assert.ok(secJs.includes("from '../lib/lock-now.js'") && secJs.includes('confirmLockNow()'), '安全页应调用共用的 confirmLockNow');
+  assert.ok(secJs.includes("from '../auth/lock-now.js'") && secJs.includes('confirmLockNow()'), '安全页应调用共用的 confirmLockNow');
   assert.ok(!lockNowJs.includes('sgx-lock-shown'), '不应再出现 sgx-lock-shown');
   assert.ok(lockNowJs.includes("fetch('/api/lock-now'"), '应 fetch /api/lock-now');
   assert.ok(lockNowJs.includes("method: 'POST'"), '应用 POST');

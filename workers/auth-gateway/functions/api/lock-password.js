@@ -27,7 +27,7 @@ import {
   reissueLockSessionWithEpoch,
   ROLE_ADMIN,
 } from '../_kernel/lock-session.js';
-import { checkLockManage } from './lock-reauth.js';
+import { checkLockManage } from '../_kernel/lock-manage.js';
 import { issueTicket, reissueTicketWithEpoch } from '../_kernel/tickets.js';
 import { LOCK_REAUTH_TICKET, BY_PASSWORD } from '../_kernel/realms.js';
 import { verifyLockSession, looksVisitor } from '../_kernel/lock-session.js';

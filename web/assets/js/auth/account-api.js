@@ -1,6 +1,6 @@
 /**
- * @fileoverview /api/account 调用与错误码 → 文案（账号页各页 + lib/account-methods.js 共用）。
- * 原在 apps/account-common.js；账号凭证验证行（lib/account-methods.js）也被锁屏凭证页用到，lib 不能 import apps，所以放在 lib。
+ * @fileoverview /api/account 调用与错误码 → 文案（账号页各页 + auth/account-methods.js 共用）。
+ * 原在 apps/account-common.js；账号凭证验证行（auth/account-methods.js）也被锁屏凭证页用到，lib 不能 import apps，所以放在 lib。
  */
 
 export const ACCOUNT_API = '/api/account';

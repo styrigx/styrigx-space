@@ -45,7 +45,7 @@ cookie 值、挑战原文）。调用方列表由 `grep assets/js/` 下的 fetch
 - 账号登录两个入口：账号通行密钥（`POST /api/account` challenge + login-passkey）、
   账号密码（login-password）。根凭证不再是登录入口：「无法登录？」→「重置登录」
   （`POST /api/root-auth { key, purpose:'account-reset' }`）只签 AccountResetTicket（`sgx-account-reset`，by=root），重置页设好新 AccountKey 后正常登录（不顺带签账号会话）。
-- 锁屏弹层的「无法登录？」走同一个重置登录界面（lib/reset-flow.js）：根凭证 → `POST /api/lock-reset verify`，
+- 锁屏弹层的「无法登录？」走同一个重置登录界面（auth/reset-flow.js）：根凭证 → `POST /api/lock-reset verify`，
   服务端返回 needAccount 时再验账号凭证（账号通行密钥 / 账号密码）。根凭证比对全站只有 `_kernel/root-check.js` 一份。
 - 前置条件是已解锁的 admin lock 会话，但 lock 会话**从不**被当作账号认证。
 - 锁屏凭证页的 LockReauthTicket（`sgx-lock-reauth`）由锁屏凭证（`lock-passkey auth` / `lock-password verify`

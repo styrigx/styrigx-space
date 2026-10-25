@@ -54,7 +54,7 @@ web/
 | `content/` | 页面入口，中英双语（`content/en/` 是英文） |
 | `layouts/` | 模板；`_default/` 下是各 App 页面，`partials/` 是公共片段 |
 | `assets/css/` | `input.css`、`tw-input.css` 是源文件；`main.css` 由 `scripts/build-css.cjs` 生成 |
-| `assets/js/` | 前端脚本：`lib/` 公共库、`shell/` 系统外壳、`apps/` 各 App、`entries/` 页面入口 |
+| `assets/js/` | 前端脚本：`lib/` 公共库、`auth/` 鉴权与凭证流程、`shell/` 系统外壳、`apps/` 各 App、`entries/` 页面入口（依赖方向见 `docs/architecture.md`，`scripts/check-layers.mjs` 检查） |
 | `static/` | 原样复制：字体、默认头像、`_redirects`、`_headers`、`robots.txt`、`_worker.js`（只把 `*.pages.dev` 跳回 `styrigx.com`） |
 | `data/` | 站点数据 yaml/json（`data/en/` 是英文版） |
 | `public/` | 构建产物，不进仓库 |

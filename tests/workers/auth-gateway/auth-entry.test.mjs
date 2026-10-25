@@ -469,7 +469,7 @@ test('行为：锁屏未配置 + 访客 cookie 时 root-auth 走真路径（不�
 /* ============ 复审 §1：lockreset 票据页注入 lockreset 状态 ============ */
 
 test('行为：injectSessionState 注入 lockreset 状态（瘦身 + noindex，与 locked 一致）', async () => {
-  const { injectSessionState } = await import(REPO + '/workers/auth-gateway/functions/_middleware.js');
+  const { injectSessionState } = await import(REPO + '/workers/auth-gateway/functions/_kernel/html.js');
   const html = '<html><head></head><body><!-- SGX-DESKTOP-START --><div>desktop</div><!-- SGX-DESKTOP-END --><p>lock page</p></body></html>';
   const res = new Response(html, { headers: { 'Content-Type': 'text/html' } });
   const out = await injectSessionState(res, 'lock-reset', null);
@@ -480,7 +480,7 @@ test('行为：injectSessionState 注入 lockreset 状态（瘦身 + noindex，�
 });
 
 test('行为：injectSessionState locked 状态保持不变', async () => {
-  const { injectSessionState } = await import(REPO + '/workers/auth-gateway/functions/_middleware.js');
+  const { injectSessionState } = await import(REPO + '/workers/auth-gateway/functions/_kernel/html.js');
   const html = '<html><head></head><body><p>home</p></body></html>';
   const res = new Response(html, { headers: { 'Content-Type': 'text/html' } });
   const out = await injectSessionState(res, 'locked', null);

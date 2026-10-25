@@ -22,6 +22,7 @@ const { routeKey, pickHandler } = await import(REPO + '/workers/auth-gateway/src
 const { API_ROUTES } = await import(REPO + '/workers/auth-gateway/src/routes.js');
 const { resolveSecrets, SECRET_NAMES, _resetSecretCache } = await import(REPO + '/workers/auth-gateway/src/secrets.js');
 const pagesMw = await import(REPO + '/workers/auth-gateway/functions/_middleware.js');
+const htmlKernel = await import(REPO + '/workers/auth-gateway/functions/_kernel/html.js');
 const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
 
 function derToPem(der, label) {
@@ -198,12 +199,12 @@ test('页面：Pages 的跳转（补尾斜杠）原样交回', async () => {
 
 test('stripSessionAttrs：只清 <html> 上的会话标记（body 等别的标签不动）', () => {
   const html = '<html data-sgx-lock-session="valid" lang="en" data-sgx-role="admin"><body data-sgx-x="1"></body></html>';
-  assert.equal(pagesMw.stripSessionAttrs(html), '<html lang="en"><body data-sgx-x="1"></body></html>');
+  assert.equal(htmlKernel.stripSessionAttrs(html), '<html lang="en"><body data-sgx-x="1"></body></html>');
 });
 
 test('stripSessionAttrs：只清网关会写的会话标记，保留构建标记 data-sgx-build（2026-10-21）', () => {
   const html = '<html data-sgx-build="abc1234" data-sgx-lock-session="valid" lang="zh" data-sgx-role="admin" data-sgx-account-session="in" data-sgx-upgrade="1" data-sgx-upgrade-return="/x/"><head></head></html>';
-  assert.equal(pagesMw.stripSessionAttrs(html), '<html data-sgx-build="abc1234" lang="zh"><head></head></html>');
+  assert.equal(htmlKernel.stripSessionAttrs(html), '<html data-sgx-build="abc1234" lang="zh"><head></head></html>');
 });
 
 test('页面：锁屏首页保留 <head> 里的分享卡片 meta 和 <html> 上的构建标记', async () => {

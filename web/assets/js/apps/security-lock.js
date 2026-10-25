@@ -16,8 +16,8 @@ import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindSubmitButton, showCenterDialog } from '../lib/dialog-behavior.js';
 import { api, apiErrorText, needVerify, startReauthCountdown, refreshReauthCountdown, guardReauthExpired } from './app-gate.js';
 import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
-import { bindDataEyes, createSetPwDialog, newPwError, passwordSetRequest, lockReauthFetch } from '../lib/auth-flow.js';
-import { renderAccountMethods } from '../lib/account-methods.js';
+import { bindDataEyes, createSetPwDialog, newPwError, passwordSetRequest, lockReauthFetch } from '../auth/auth-flow.js';
+import { renderAccountMethods } from '../auth/account-methods.js';
 import { KEY_LOCK } from '../lib/key-names.js';
 
 (function () {
@@ -196,7 +196,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
   }
 
   /* 密码弹层 */
-  /* 设置/修改密码弹层（打开/关闭/遮罩/× 按钮/密码行，见 lib/auth-flow.js） */
+  /* 设置/修改密码弹层（打开/关闭/遮罩/× 按钮/密码行，见 auth/auth-flow.js） */
   const pwDialog = createSetPwDialog({
     $: $,
     t: t,

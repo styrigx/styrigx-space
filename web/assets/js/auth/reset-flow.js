@@ -7,7 +7,7 @@
  *    - resolve {}（或 { done:true }）→ 完成 → onDone()
  *    - resolve { needAccount: { passkey, password } } → 第 2 步
  *    - reject { message, clear? } → 行内报错
- * 2. 账号凭证（与账号登录同一套验证行 lib/cred-rows.js：账号通行密钥 / 账号密码，按服务端给的配置显示）
+ * 2. 账号凭证（与账号登录同一套验证行 auth/cred-rows.js：账号通行密钥 / 账号密码，按服务端给的配置显示）
  *    → account.passkey() / account.password(value)（调用方把第 1 步的根凭证一起提交）→ onDone()
  *
  * 根凭证只存在闭包里，完成 / 卸载即清空，不挂 window、不留在 DOM。
@@ -15,9 +15,9 @@
  * 本文件在 lib/ 层：不 import shell/ 或 apps/。
  */
 import { onEnter, focusNoScroll } from './auth-flow.js';
-import { bindSubmitButton } from './dialog-behavior.js';
+import { bindSubmitButton } from '../lib/dialog-behavior.js';
 import { renderCredRows, createRootField, CRED_ICONS } from './cred-rows.js';
-import { KEY_ACCOUNT } from './key-names.js';
+import { KEY_ACCOUNT } from '../lib/key-names.js';
 
 const TXT = {
   title: { zh: '重置登录', en: 'Reset sign-in' },

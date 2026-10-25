@@ -9,18 +9,14 @@
  *    不记密钥和 cookie 值），用于线上排查会话未被识别的问题。
  */
 
-import { verifyLockSession, ROLE_ADMIN, ROLE_VISITOR } from './_kernel/lock-session.js';
+import { verifyLockSession, ROLE_VISITOR } from './_kernel/lock-session.js';
 import { isPublicPage } from './_kernel/public-pages.js';
 import { verifyLockResetTicket } from './_kernel/tickets.js';
 import { withNoStore } from './_kernel/http.js';
 import { verifyAccountSession } from './_kernel/account-session.js';
+import { isAdminOnlyPath, resolveReturn } from './_kernel/return.js';
+import { injectSessionState, injectUpgradeState } from './_kernel/html.js';
 
-/* 定稿 #13/#14/R3：访客可进安全与隐私总览页（/settings/security/），结构与管理员一致；
-   锁屏凭证页（门内）需admin 会话，visitor 访问 → 302 到锁屏（只一次，首页不再二次 302）。 */
-const ADMIN_ONLY_PATHS = [
-  '/settings/security/lock/',
-  '/en/settings/security/lock/',
-];
 /* 重置锁屏票（LockResetTicket，sgx-lock-reset）只开锁屏凭证页（重置锁屏流程），不开安全总览。 */
 const LOCK_RESET_PATHS = [
   '/settings/security/lock/',
@@ -38,10 +34,6 @@ const ADMIN_ONLY_APIS = [
 ];
 /* 认证类 action（visitor 可调用，用于就地升级为管理员：锁屏密码 verify、锁屏通行密钥 challenge / auth） */
 const AUTH_ACTIONS = new Set(['verify', 'challenge', 'register', 'auth']);
-
-function isAdminOnlyPath(pathname) {
-  return ADMIN_ONLY_PATHS.some(p => pathname === p || pathname.startsWith(p));
-}
 
 /* 重置锁屏票可开的路径（仅锁屏凭证管理页） */
 function isLockResetPath(pathname) {
@@ -98,174 +90,9 @@ function isWhitelisted(pathname) {
   return false;
 }
 
-const MAIN_ORIGIN = 'https://styrigx.com';
-/* 已下线的子站：不再作为回跳目标 */
-const RETIRED_RETURN_HOSTS = new Set(['book.styrigx.com', 'book-preview.styrigx.com']);
-const UNSAFE_RETURN_RE = /[\u0000-\u001f\u007f\\]/;
-
-/**
- * ?return= 回跳目标的唯一校验（首页 302 和 /api/lock-session-check 共用，经 resolveReturn）：
- * 先再解码一层，原值与解码值里有控制字符（含 Tab/CR/LF）或反斜杠一律不认（浏览器会丢掉
- * Tab/换行、把 \ 当 /，/%09/evil.com 这类会变成协议相对地址跳出本站）。
- * - 站内路径：必须以单个 / 开头（不是 //，解码后也不是），按 https://styrigx.com 解析后仍同源，
- *   返回规范化的 pathname+search+hash；/lock/ 登录后无页面，不认（回首页）
- * - 跨站：只认 https://*.styrigx.com（含 apex），不带用户名密码，已下线的子站不认；返回规范化的 href
- * 不合法返回 null（调用方回首页）。
- * @param {unknown} ret 已经过一次 URL 解码的 return 参数
- * @returns {string|null}
- */
-export function safeReturn(ret) {
-  if (typeof ret !== 'string' || ret.length === 0) return null;
-  let dec;
-  try {
-    dec = decodeURIComponent(ret);
-  } catch (e) {
-    return null;
-  }
-  if (UNSAFE_RETURN_RE.test(ret) || UNSAFE_RETURN_RE.test(dec)) return null;
-  let u;
-  if (ret.startsWith('https://')) {
-    try {
-      u = new URL(ret);
-    } catch (e) {
-      return null;
-    }
-    if (u.protocol !== 'https:' || u.username || u.password || u.port) return null;
-    const host = u.hostname.toLowerCase();
-    if (host !== 'styrigx.com' && !host.endsWith('.styrigx.com')) return null;
-    if (RETIRED_RETURN_HOSTS.has(host)) return null;
-    return u.href;
-  }
-  if (ret.charAt(0) !== '/' || ret.charAt(1) === '/' || dec.charAt(1) === '/') return null;
-  try {
-    u = new URL(ret, MAIN_ORIGIN);
-  } catch (e) {
-    return null;
-  }
-  if (u.origin !== MAIN_ORIGIN) return null;
-  if (u.pathname === '/lock/') return null;
-  return u.pathname + u.search + u.hash;
-}
-
-/* 网关自己注入的会话标记（只有这些会被先清掉再重新写）。
-   2026-10-21：以前清的是 <html> 上所有 data-sgx-*，把 baseof.html 写的构建标记 data-sgx-build 也一起删了；
-   现在只清网关会写的这几种：lock-session / role / account-session / upgrade / upgrade-return。 */
-const SESSION_ATTR_RE = /\s+data-sgx-(?:lock-session|role|account-session|upgrade|upgrade-return)="[^"]*"/gi;
-
-/**
- * 去掉 <html> 标签上已有的会话标记（SESSION_ATTR_RE），再由下面重新注入。
- * 页面经网关回源时，Pages 也会注入一次；不去掉就会出现重复属性。
- * 也防止页面源码里混进伪造的会话标记。其他 data-sgx-*（如构建标记 data-sgx-build）原样保留。
- * @param {string} html
- */
-export function stripSessionAttrs(html) {
-  return html.replace(/<html\b[^>]*>/i, (tag) => tag.replace(SESSION_ATTR_RE, ''));
-}
-
-/**
- * L1 向 HTML 注入会话状态（2.4.1 分层规范）。
- * 把 <html> 变成 <html data-sgx-lock-session="valid|locked|lock-reset" data-sgx-role="admin|visitor">，
- * 前端只读这个，不自己猜。
- * 同时设置 Cache-Control: private, no-store（防浏览器缓存绕过锁屏）。
- * 非 HTML 响应原样返回。
- * @param {Response} res
- * @param {'valid'|'locked'|'lock-reset'} state
- * @param {string|null} role 'admin'|'visitor'|null
- */
-export async function injectSessionState(res, state, role, account) {
-  const ct = res.headers.get('Content-Type') || '';
-  if (!ct.includes('text/html')) return res;
-  let html = stripSessionAttrs(await res.text());
-  /* 2.8.0 锁屏瘦身：锁屏态不下发桌面内容（书单、歌单、小组件等），
-     只保留锁屏需要的部分（导航、头像、脚本）。
-     重置锁屏票页同样受限（只能管理锁屏凭证），同样瘦身。 */
-  if (state === 'locked' || state === 'lock-reset') {
-    html = html.replace(/<!-- SGX-DESKTOP-START -->[\s\S]*?<!-- SGX-DESKTOP-END -->/g, '');
-  }
-  let injected = html.replace(/<html(\s|>)/i, '<html data-sgx-lock-session="' + state + '"$1');
-  /* 2026-10-21：账号页首帧就按服务端的账号会话画（in / out），不先画「欢迎回来」再换。
-     只是展示提示：账号页的数据和所有操作仍由 /api/account 验签。 */
-  if (account === 'in' || account === 'out') {
-    injected = injected.replace(/<html(\s|>)/i, '<html data-sgx-account-session="' + account + '"$1');
-    if (account === 'in') {
-      /* 已登录：登录区（欢迎回来 / 通行密钥登录 / 密码登录）整段不下发，总览首帧就可见 */
-      injected = injected.replace(/<!-- SGX-ACCT-LOGIN-START -->[\s\S]*?<!-- SGX-ACCT-LOGIN-END -->/g, '');
-      injected = injected.replace(/<div id="acct-main" hidden>/, '<div id="acct-main">');
-    } else {
-      injected = injected.replace(/<div id="acct-login" class="acct-login" hidden>/, '<div id="acct-login" class="acct-login">');
-    }
-  }
-  /* 2.8.0：注入角色供 UI 展示（UI 不做鉴权） */
-  if (role === ROLE_ADMIN || role === ROLE_VISITOR) {
-    injected = injected.replace(/<html(\s|>)/i, '<html data-sgx-role="' + role + '"$1');
-  }
-  const headers = new Headers(res.headers);
-  headers.set('Cache-Control', 'private, no-store');
-  /* 2.8.0 搜索收录：锁屏态页面不被搜索引擎收录。重置锁屏票页同样不收录。 */
-  if (state === 'locked' || state === 'lock-reset') {
-    headers.set('X-Robots-Tag', 'noindex');
-  }
-  return new Response(injected, {
-    status: res.status,
-    statusText: res.statusText,
-    headers,
-  });
-}
-
-/* 2.9.3：访客 + 管理员专属 return 时，首页返回 200 并标记升级验证。
-   前端读 data-sgx-upgrade="1" 和 data-sgx-upgrade-return 打开验证层
-   （只显示通行密钥+密码，不显示访客入口，带「需要管理员验证」提示）。
-   验证通过后前端跳回 return。绝不 302。 */
-async function injectUpgradeState(res, role, returnPath) {
-  const ct = res.headers.get('Content-Type') || '';
-  if (!ct.includes('text/html')) return res;
-  const html = stripSessionAttrs(await res.text());
-  let injected = html.replace(/<html(\s|>)/i, '<html data-sgx-lock-session="valid"$1');
-  if (role === ROLE_ADMIN || role === ROLE_VISITOR) {
-    injected = injected.replace(/<html(\s|>)/i, '<html data-sgx-role="' + role + '"$1');
-  }
-  /* 升级标记：前端据此打开验证层 */
-  injected = injected.replace(/<html(\s|>)/i,
-    '<html data-sgx-upgrade="1" data-sgx-upgrade-return="' + returnPath.replace(/"/g, '&quot;') + '"$1');
-  const headers = new Headers(res.headers);
-  headers.set('Cache-Control', 'private, no-store');
-  return new Response(injected, {
-    status: res.status,
-    statusText: res.statusText,
-    headers,
-  });
-}
-
 /** 首页前缀（/ 或 /en/） */
 function homeOf(pathname) {
   return pathname === '/en' || pathname.startsWith('/en/') ? '/en/' : '/';
-}
-
-/**
- * 解锁后去哪（唯一实现；首页 302 和 /api/lock-session-check?return= 共用，前端不做白名单）。
- * - return 不合法 → 首页
- * - 已登录用户 return 指向门内页（锁屏凭证页）→ 安全与隐私总览（定稿 #1）
- * - 访客 + 管理员专属 return → upgrade（不跳；就地管理员验证）
- * @param {string} ret 原始 return 参数
- * @param {string|null} role 'admin'|'visitor'
- * @returns {{location:string, upgrade:boolean}}
- */
-export function resolveReturn(ret, role) {
-  const isVisitor = role === ROLE_VISITOR;
-  let safeLoc = safeReturn(ret) || '/';
-  let locPath = '';
-  try {
-    const u = new URL(safeLoc, 'https://styrigx.com');
-    locPath = u.hostname === 'styrigx.com' ? u.pathname : '';
-  } catch (e) {
-    locPath = '';
-  }
-  if (locPath && isAdminOnlyPath(locPath) && !isVisitor) {
-    safeLoc = locPath.startsWith('/en/') ? '/en/settings/security/' : '/settings/security/';
-    locPath = safeLoc;
-  }
-  const isAdminReturn = locPath ? isAdminOnlyPath(locPath) : false;
-  return { location: safeLoc, upgrade: isVisitor && isAdminReturn };
 }
 
 /** 账号区（账号页及其子页，中英）：访客一律不给看 */

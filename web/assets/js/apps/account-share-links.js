@@ -14,7 +14,7 @@ import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose } from '../lib/dialog-behavior.js';
-import { postJSON, errText } from '../lib/account-api.js';
+import { postJSON, errText } from '../auth/account-api.js';
 import { accountUrl, createT } from './account-common.js';
 import { leftText, durationParam } from './account-tempkeys.js';
 

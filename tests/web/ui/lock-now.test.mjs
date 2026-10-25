@@ -1,5 +1,5 @@
 /**
- * 立即锁定（lib/lock-now.js doLock）：
+ * 立即锁定（auth/lock-now.js doLock）：
  * - 锁定前清掉本标签页 sessionStorage 里的管理内容（sgx-chat-convo），其它键不动
  * - /api/lock-now 成功才 location.replace('/?lock=1')
  * - 请求失败（非 2xx / 网络错误）：不跳锁屏、不假装已锁，toast 提示锁定失败
@@ -31,7 +31,7 @@ let fetchImpl = null;
 const fetchCalls = [];
 globalThis.fetch = (url, opts) => { fetchCalls.push({ url, opts }); return fetchImpl(); };
 
-const { doLock } = await import('../../../web/assets/js/lib/lock-now.js');
+const { doLock } = await import('../../../web/assets/js/auth/lock-now.js');
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
 beforeEach(() => {

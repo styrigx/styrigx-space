@@ -13,17 +13,23 @@
  *     csrfToken、__token 等合法命名（词边界匹配）。
  *     （2026-10-23 Turnstile 已删，原 TOKEN_ALLOWLIST 的三条例外随之清空。）
  *
- * 用法：node scripts/check-frontend.mjs
+ * 扫描范围：web/assets/js/ 和 web/shared/shell/（同步给子站的外壳脚本）。
+ * 去注释按词法走（字符串里的 // 不当注释），以前用正则去注释，'https://…' 之后同一行的代码会被当注释吞掉，
+ * 那一行的 alert( 就查不到。
+ * 原生弹窗除了裸调用和 window.，也查 globalThis. / self. / top. 和 window['alert'] 这种写法。
+ *
+ * 用法：node scripts/check-frontend.mjs [--root <仓库根>]
+ * 规则函数导出给 tests/web/ui/check-layers.test.mjs 用。
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
+import { join, relative, resolve, sep } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname } from 'node:path';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const errors = [];
+const DEFAULT_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 function walk(dir, out = []) {
+  if (!existsSync(dir)) return out;
   for (const e of readdirSync(dir)) {
     const p = join(dir, e);
     if (statSync(p).isDirectory()) {
@@ -36,15 +42,47 @@ function walk(dir, out = []) {
   return out;
 }
 
-/* 网站源码在 web/；路径规则仍按 assets/js/... 书写，rel() 去掉 web/ 前缀 */
-function rel(p) { return relative(ROOT, p).replace(/^web\//, ''); }
-
-function stripComments(src) {
-  // 去掉块注释和行注释，但保留换行（行号与原文对齐，白名单按行放行才准）。
-  // 注意：与 check-layers.mjs 的实现不同，那里不需要行号对齐。
-  return src
-    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
-    .replace(/\/\/[^\n]*/g, (m) => ' '.repeat(m.length));
+/**
+ * 去掉块注释和行注释，保留换行（行号与原文对齐，白名单按行放行才准）。
+ * 按词法走：引号 / 模板字符串里的 // 和 /* 不算注释。
+ * @param {string} src
+ */
+export function stripComments(src) {
+  let out = '';
+  let i = 0;
+  const n = src.length;
+  while (i < n) {
+    const c = src[i];
+    const d = src[i + 1];
+    if (c === '/' && d === '*') {
+      const end = src.indexOf('*/', i + 2);
+      const stop = end < 0 ? n : end + 2;
+      out += src.slice(i, stop).replace(/[^\n]/g, ' ');
+      i = stop;
+      continue;
+    }
+    if (c === '/' && d === '/') {
+      const end = src.indexOf('\n', i);
+      const stop = end < 0 ? n : end;
+      out += ' '.repeat(stop - i);
+      i = stop;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === '`') {
+      let j = i + 1;
+      while (j < n && src[j] !== c) {
+        if (src[j] === '\\') j++;
+        else if (c !== '`' && src[j] === '\n') break;
+        j++;
+      }
+      out += src.slice(i, j + 1);
+      i = j + 1;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
 }
 
 /* 例外白名单（contains 匹配原始行）。2026-10-23 Turnstile 删掉后为空。 */
@@ -68,14 +106,18 @@ const TOKEN_PATTERNS = [
   { re: /[{,]\s*token\s*[,}]/, desc: '对象简写属性 token' },
 ];
 
-function checkFile(p) {
-  const src = readFileSync(p, 'utf8');
+/**
+ * 查一个文件，返回违规列表。
+ * @param {string} r 显示用的相对路径
+ * @param {string} src 源码
+ * @returns {string[]}
+ */
+export function checkSource(r, src) {
+  const errors = [];
   const code = stripComments(src);
-  const r = rel(p);
-  if (!r.startsWith('assets/js/')) return;
 
-  // 规则 1：原生弹窗（prompt/confirm/alert，含 window. 前缀与裸调用）
-  const dialogRe = /\b(window\.)?(alert|confirm|prompt)\s*\(/g;
+  // 规则 1：原生弹窗（prompt/confirm/alert：裸调用、window./globalThis./self./top. 前缀、window['alert'] 写法）
+  const dialogRe = /(?:\b(?:window|globalThis|self|top)\s*\[\s*['"](?:alert|confirm|prompt)['"]\s*\]|\b(?:(?:window|globalThis|self|top)\.)?(?:alert|confirm|prompt))\s*\(/g;
   let m;
   while ((m = dialogRe.exec(code))) {
     const lineNo = code.slice(0, m.index).split('\n').length;
@@ -95,14 +137,32 @@ function checkFile(p) {
       }
     }
   }
+  return errors;
 }
 
-const files = walk(join(ROOT, 'web/assets/js'));
-for (const f of files) checkFile(f);
-
-if (errors.length) {
-  console.error('check-frontend.mjs: 发现前端规范违规：');
-  for (const e of errors) console.error('  ✗ ' + e);
-  process.exit(1);
+/**
+ * 查整个仓库。
+ * @param {string} root
+ * @returns {{files:number, errors:string[]}}
+ */
+export function checkRepo(root) {
+  const files = walk(join(root, 'web/assets/js')).concat(walk(join(root, 'web/shared/shell')));
+  const errors = [];
+  for (const f of files) {
+    const r = relative(root, f).split(sep).join('/');
+    errors.push(...checkSource(r, readFileSync(f, 'utf8')));
+  }
+  return { files: files.length, errors };
 }
-console.log(`check-frontend.mjs: 通过（检查了 ${files.length} 个文件）`);
+
+if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
+  const i = process.argv.indexOf('--root');
+  const root = i > 0 ? resolve(process.argv[i + 1]) : DEFAULT_ROOT;
+  const { files, errors } = checkRepo(root);
+  if (errors.length) {
+    console.error('check-frontend.mjs: 发现前端规范违规：');
+    for (const e of errors) console.error('  ✗ ' + e);
+    process.exit(1);
+  }
+  console.log(`check-frontend.mjs: 通过（检查了 ${files} 个文件）`);
+}

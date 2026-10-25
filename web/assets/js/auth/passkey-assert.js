@@ -4,8 +4,8 @@
  * 拿到结果或失败后再恢复。30 秒总超时（AbortController + WebAuthn timeout 双保险）。
  * 抛出带 kind 的错误：cancelled（已取消）/ timeout（超时）/ nokey（无匹配钥匙）/ failed（其他）。
  */
-import { b64urlToBuf, bufToB64url } from './b64.js';
-import { loadI18n } from './i18n.js';
+import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
+import { loadI18n } from '../lib/i18n.js';
 
 /**
  * @param {object} options WebAuthn get options（publicKey 部分）

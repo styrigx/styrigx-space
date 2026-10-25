@@ -14,7 +14,7 @@
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
 import { bindEyeButton } from '../lib/dialog-behavior.js';
 import { followKeyboard } from './vk.js';
-import { getPasskeyAssertion, passkeyErrorText } from '../lib/passkey-assert.js';
+import { getPasskeyAssertion, passkeyErrorText } from '../auth/passkey-assert.js';
 import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
 
 /**

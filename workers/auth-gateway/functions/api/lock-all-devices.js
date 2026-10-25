@@ -20,7 +20,7 @@ import {
   bumpLockEpoch,
   ROLE_ADMIN,
 } from '../_kernel/lock-session.js';
-import { checkLockManage } from './lock-reauth.js';
+import { checkLockManage } from '../_kernel/lock-manage.js';
 import { clearTicket } from '../_kernel/tickets.js';
 import { LOCK_REAUTH_TICKET } from '../_kernel/realms.js';
 

@@ -119,13 +119,13 @@ jobs:
         run: node scripts/gen-ui-cookie-contract.mjs --check
 
       - name: Layer boundary check (SGX 3.0 分层规范)
-        # L0-L6 依赖方向：lib 不得 import shell/apps；shell 不得 import apps；
-        # 前端不得 import functions/；api/ 只能 import _kernel/；
-        # 前端禁止 sgx-lock-session（cookie 名）/sgx-lock-shown；禁止用 storage 存解锁状态
+        # 依赖方向（docs/architecture.md）：前端 lib ← auth ← shell ← apps ← entries；lib 不含鉴权接口；
+        # 网关 _kernel / api / _middleware 只 import _kernel，src 只 import src 和 _kernel（routes.js、index.js 例外）；
+        # 相对 import 解析不到文件也算失败；前端禁止 sgx-lock-session（cookie 名）/sgx-lock-shown；禁止用 storage 存解锁状态
         run: node scripts/check-layers.mjs
 
       - name: Frontend guard (无原生弹窗 / 无废弃 token 变量)
-        # assets/js/ 禁止 window.prompt/confirm/alert（含裸调用），禁止独立 token 变量（已废弃的内存鉴权 token 机制）
+        # assets/js/ 和 shared/shell/ 禁止 prompt/confirm/alert（裸调用、window./globalThis./self./top.、window['alert']），禁止独立 token 变量（已废弃的内存鉴权 token 机制）
         run: node scripts/check-frontend.mjs
 
       - name: Build site (生产构建，锁屏启用)

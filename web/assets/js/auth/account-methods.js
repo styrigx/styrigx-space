@@ -8,14 +8,14 @@
  * 三个提交都带 device（lib/device-hints.js：型号 / 平台），服务端记进设置 › 账号 › 设备。
  * root(value)：重置登录（账号）第一步，POST /api/root-auth { purpose:'account-reset' }（不是登录入口）→ AccountResetTicket。
  *
- * 行的渲染在 lib/cred-rows.js（锁屏弹层的重置登录也用它）。
+ * 行的渲染在 auth/cred-rows.js（锁屏弹层的重置登录也用它）。
  * 放在 lib/：账号页（apps/account*.js）和锁屏凭证页（apps/security-lock.js）都 import 它。
  */
-import { b64urlToBuf, bufToB64url } from './b64.js';
+import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
 import { renderCredRows, CRED_ICONS } from './cred-rows.js';
-import { KEY_ACCOUNT } from './key-names.js';
+import { KEY_ACCOUNT } from '../lib/key-names.js';
 import { ACCOUNT_API, postJSON, errText as errTextT } from './account-api.js';
-import { deviceHints } from './device-hints.js';
+import { deviceHints } from '../lib/device-hints.js';
 
 /**
  * 要显示的入口（固定顺序：通行密钥、密码）。PR3：根凭证不再是登录入口（改走「无法登录？」→ 重置登录）。
@@ -132,7 +132,7 @@ export function accountSubmitters(t, opts) {
 }
 
 /**
- * 在容器里渲染账号凭证验证行（lib/cred-rows.js renderCredRows 的账号版）。
+ * 在容器里渲染账号凭证验证行（auth/cred-rows.js renderCredRows 的账号版）。
  * @param {object} o
  * @param {HTMLElement} o.el
  * @param {function(string): string} o.t

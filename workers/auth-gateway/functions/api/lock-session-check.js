@@ -8,10 +8,10 @@
  * - 否则 → 401 {ok:false}
  * 锁屏前端解锁成功后、页面状态与 cookie 可能不一致时（切回标签页、bfcache 恢复）都只问这里，
  * 拿到 next 直接跳过去；不再「重载同一地址等 L1 302」（那依赖锁屏页本身过网关，2026-10-21 线上不成立）。
- * 只接受 GET；复用 _middleware.js 的 verifyLockSession（同一套验签逻辑）。
+ * 只接受 GET；验签用 _kernel/lock-session.js 的 verifyLockSession，回跳用 _kernel/return.js 的 resolveReturn（都与 middleware 同一份）。
  */
 import { verifyLockSession } from '../_kernel/lock-session.js';
-import { resolveReturn } from '../_middleware.js';
+import { resolveReturn } from '../_kernel/return.js';
 
 const NO_STORE = { 'Cache-Control': 'private, no-store' };
 

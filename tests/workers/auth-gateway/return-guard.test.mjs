@@ -1,12 +1,13 @@
 /**
- * ?return= 回跳校验（_middleware.js safeReturn，首页 302 与 /api/lock-session-check 共用）：
+ * ?return= 回跳校验（_kernel/return.js safeReturn，首页 302 与 /api/lock-session-check 共用）：
  * 控制字符（Tab/CR/LF…）、反斜杠、协议相对、编码绕过（%09 / %0a / %0d / %5c / %2F / 双重编码）一律回首页，
  * 绝不离开本站；合法站内路径和 *.styrigx.com 白名单照常。
  * 运行：node --test tests/workers/auth-gateway/return-guard.test.mjs
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { safeReturn, resolveReturn, onRequest as mw } from '../../../workers/auth-gateway/functions/_middleware.js';
+import { onRequest as mw } from '../../../workers/auth-gateway/functions/_middleware.js';
+import { safeReturn, resolveReturn } from '../../../workers/auth-gateway/functions/_kernel/return.js';
 import { onRequestGet as sessionCheck } from '../../../workers/auth-gateway/functions/api/lock-session-check.js';
 import { testLockSession } from './_tickets.mjs';
 
