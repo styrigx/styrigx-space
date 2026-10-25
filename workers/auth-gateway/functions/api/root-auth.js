@@ -31,6 +31,7 @@
  * 只接受 POST；校验 Origin（缺失/解析失败 403）。
  */
 import { ed25519Verify } from '../_kernel/crypto.js';
+import { readAllCookies } from '../_kernel/cookies.js';
 import { checkRootCredential, sleep } from '../_kernel/root-check.js';
 import { ROLE_ADMIN, ROLE_VISITOR, verifyLockSession } from '../_kernel/lock-session.js';
 import { checkRootLimit, recordRootFail, getClientIp } from '../_kernel/root-limit.js';
@@ -89,13 +90,10 @@ function decoyAuth() {
  */
 async function lightSession(request, env, wantRole) {
   try {
-    const h = request.headers.get('Cookie') || '';
     const pubKey = realmPublicKey(env, REALM_LOCK); /* SGX_LOCK_PUBLIC */
     if (!pubKey) return false;
-    for (const part of h.split(';')) {
-      const [k, ...v] = part.trim().split('=');
-      if (k !== REALM_LOCK.cookie) continue; /* sgx-lock-session */
-      const parts = v.join('=').split('.');
+    for (const val of readAllCookies(request, REALM_LOCK.cookie)) { /* sgx-lock-session */
+      const parts = val.split('.');
       if (parts.length !== 6) continue;
       if (parts[1] !== wantRole) continue;
       const exp = parseInt(parts[3], 10);

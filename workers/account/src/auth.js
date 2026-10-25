@@ -19,7 +19,7 @@ const MAX_COOKIE_HEADER = 8192;
  * @returns {{ lockSession: () => Promise<{ok:boolean, role:string|null, reason:string}>, accountSession: () => Promise<{ok:boolean, reason:string}> }}
  */
 export function authFor(request, env) {
-  const cookie = (request.headers.get('Cookie') || '').slice(0, MAX_COOKIE_HEADER);
+  const cookie = cookieOf(request);
   const verifier = env && env.AUTH;
   /** @type {Promise<any>|null} */
   let sessP = null;
@@ -35,6 +35,11 @@ export function authFor(request, env) {
       return accP;
     },
   };
+}
+
+/** 浏览器 Cookie 头，原样（截到 8192 字节）交给网关；分享 Worker 也用这一个 @param {Request} request */
+export function cookieOf(request) {
+  return (request.headers.get('Cookie') || '').slice(0, MAX_COOKIE_HEADER);
 }
 
 /** @param {Request} request */

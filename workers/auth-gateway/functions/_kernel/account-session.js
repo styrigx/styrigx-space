@@ -20,6 +20,7 @@
  * 叶子模块：只 import _kernel（crypto / realms / account-devices），不 import 接口或 _middleware.js。
  */
 import { ed25519Sign, ed25519Verify } from './crypto.js';
+import { readCookie } from './cookies.js';
 import { REALM_ACCOUNT, ACCOUNT_SESSION_COOKIE, ACCOUNT_EPOCH_KEY, COOKIE_EXPIRED, realmPrivateKey, realmPublicKey } from './realms.js';
 import { newDeviceId, isDeviceId, isRevoked, getDevice, putDevice, recordLogin, deviceInfo, TOUCH_INTERVAL_MS } from './account-devices.js';
 
@@ -96,16 +97,6 @@ export function parseAccountSessionTicket(val) {
   const exp = parseInt(expStr, 10);
   if (!Number.isFinite(epoch) || !Number.isFinite(authAt) || !Number.isFinite(exp)) return null;
   return { by, epoch, authAt, exp, deviceId, sig };
-}
-
-/** @param {any} request @param {string} name */
-function readCookie(request, name) {
-  const h = (request && request.headers && request.headers.get('Cookie')) || '';
-  for (const part of h.split(';')) {
-    const [k, ...v] = part.trim().split('=');
-    if (k === name) return v.join('=');
-  }
-  return '';
 }
 
 /**
