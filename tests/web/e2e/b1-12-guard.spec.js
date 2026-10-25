@@ -27,22 +27,6 @@ async function mockJson(page, pattern, status, body) {
   });
 }
 
-/** @param {import('@playwright/test').Page} page */
-async function addVirtualAuth(page) {
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send('WebAuthn.enable');
-  const { authenticatorId } = await cdp.send('WebAuthn.addVirtualAuthenticator', {
-    options: {
-      protocol: 'ctap2',
-      transport: 'internal',
-      hasResidentKey: true,
-      hasUserVerification: false,
-      automaticPresenceSimulation: true,
-    },
-  });
-  return { cdp, authenticatorId };
-}
-
 test.describe('B1-12 守护：添加通行密钥', () => {
   test.beforeEach(async ({ page }) => {
     await blockExternalRequests(page);

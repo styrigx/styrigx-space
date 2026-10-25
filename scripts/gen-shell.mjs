@@ -340,6 +340,10 @@ export function renderAll() {
   const data = JSON.parse(readFileSync(SRC.roles, 'utf8'));
   const schemeSrc = readFileSync(SRC.scheme, 'utf8');
   const reader = renderReader(data, schemeSrc);
+  /* 契约文件缺了不能静默写成空串：--check 会拿空串和空串比，假通过 */
+  if (!existsSync(SRC.contract)) {
+    throw new Error('gen-shell: missing ' + path.relative(REPO, SRC.contract) + ' (run scripts/gen-ui-cookie-contract.mjs first)');
+  }
   const files = {
     'tokens.css': renderTokens(data),
     'shell.css': renderShell(),
@@ -349,7 +353,7 @@ export function renderAll() {
     'nav.json': renderNav(),
     'palettes.json': renderPalettes(data, schemeSrc),
     'ui-cookie-read.js': reader,
-    'ui-cookie-contract.json': existsSync(SRC.contract) ? readFileSync(SRC.contract, 'utf8') : '',
+    'ui-cookie-contract.json': readFileSync(SRC.contract, 'utf8'),
     'favicon.js': readFileSync(SRC.favicon, 'utf8'),
     'favicon.svg': readFileSync(SRC.faviconSvg, 'utf8'),
     'README.md': README,

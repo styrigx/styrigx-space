@@ -14,98 +14,109 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# GITHUB_TOKEN 默认只读；本工作流不推代码、不发评论、不建 release
+permissions:
+  contents: read
+
 env:
   HUGO_VERSION: '0.168.0'
+  NODE_VERSION: '22'
+  # 所有 wrangler（npx 和 wrangler-action）用同一个固定版本；升级时只改这里
+  WRANGLER_VERSION: '4.152.0'
 
 jobs:
-  # 2.4.0 E：质量闸门 —— 视觉回归 + Lighthouse CI + stylelint，不达标不部署
-  # Hark：PR 也跑 quality，变绿再合入 main；只有 main 的 push 才部署
+  # 质量闸门：单元测试、打包检查、生成物同步、分层 / 前端守卫、锁屏 / 边缘 / 凭证接口 / 视觉 e2e、Lighthouse、stylelint。
+  # PR 也跑，变绿再合入 main；只有 main 的 push（或 main 上手动触发）才部署。
   quality:
-    # 2026-10-11：固定 ubuntu-24.04，ubuntu-latest 10-19 起切 Ubuntu 26，字体渲染可能变化
+    # 固定 ubuntu-24.04：ubuntu-latest 换大版本时字体渲染会变，视觉基线跟着漂
     runs-on: ubuntu-24.04
+    timeout-minutes: 60
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - name: Assert no legacy key names
+      - name: Assert no legacy secret / variable names
+        # 旧名字（SGX_ED25519_* → SGX_LOCK_*，SGX_STEPUP_KEY 已删，OWNER_KEY → SGX_ROOT_KEY）不许回到代码里。
+        # 不扫 tests/：改名守卫测试里会故意写旧名字。
         run: |
-          # 禁止旧变量名：SGX_ED25519_*（已改名为 SGX_LOCK_*），SGX_STEPUP_KEY（已改名为 SGX_STEPUP_PRIVATE）
-          # 注意：不扫描 .github/，避免匹配到本文件自身的注释
-          if grep -rn "SGX_ED25519_" --include="*.js" --include="*.mjs" workers/auth-gateway/ workers/account/ workers/share/ tests/ scripts/ 2>/dev/null; then
-            echo "ERROR: Found SGX_ED25519_* (use SGX_LOCK_* per key spec v1.0)."
+          if grep -rnE "SGX_ED25519_|SGX_STEPUP_KEY|OWNER_KEY" --include="*.js" --include="*.mjs" --include="*.cjs" --include="*.html" workers/ scripts/ web/assets/ web/layouts/; then
+            echo "::error::legacy secret / variable name found (see above)"
             exit 1
           fi
-          if grep -rn "SGX_STEPUP_KEY" --include="*.js" --include="*.mjs" workers/auth-gateway/ workers/account/ workers/share/ tests/ scripts/ 2>/dev/null; then
-            echo "ERROR: Found SGX_STEPUP_KEY (use SGX_STEPUP_PRIVATE per key spec v1.0)."
-            exit 1
-          fi
-          echo "OK: no legacy key names."
+          echo "OK: no legacy names."
 
       - name: Setup Hugo
-        uses: peaceiris/actions-hugo@v3
+        uses: peaceiris/actions-hugo@2752ce1d29631191ea3f27c23495fa06139a5b78 # v3.2.1
         with:
           hugo-version: ${{ env.HUGO_VERSION }}
           extended: true
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: '20'
+          # Node 22：D1 的真 SQL 测试要 node:sqlite（Node 20 上会整段跳过）
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install dependencies (lockfile)
+        # 测试工具（Playwright、stylelint、Lighthouse CI、http-server）都在 devDependencies 里，按 lockfile 装
+        run: npm ci
 
-      - name: Install test deps
-        run: npm install --no-save @playwright/test stylelint postcss-scss @lhci/cli http-server && npx playwright install chromium --with-deps
+      - name: Install Playwright browser
+        run: npx playwright install chromium --with-deps
 
       - name: Install CJK fonts
-        # 2.8.0：视觉回归对比中文截图；ubuntu-latest 默认中文字体与基线生成环境
-        # （Noto Sans CJK）不一致会导致 1-2% 像素漂移。装 Noto Sans CJK 对齐。
+        # 视觉回归对比中文截图；默认中文字体与基线生成环境（Noto Sans CJK）不一致会有 1-2% 像素漂移
         run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk
 
       - name: Build CSS
         run: node scripts/build-css.cjs --minify
 
-      - name: Unit tests (kernel + ui)
-        # 全部 tests/workers/auth-gateway、tests/web/ui 单元测试；新加的测试文件自动纳入，不用再改这里。
-        # 覆盖：会话 / cookie / epoch、锁屏门（door）、认证入口、
-        # 访客 401、根凭证 userHandle、最后一把钥匙、sitemap、i18n、页内导航、数字健康等
-        run: node --test tests/workers/auth-gateway/*.test.mjs tests/workers/account/*.test.mjs tests/workers/share/*.test.mjs tests/workers/chat/*.test.mjs tests/workers/search-index/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs tests/web/ui/*.test.mjs
+      - name: Unit tests (workers + ui)
+        # tests/workers/** 与 tests/web/ui 的全部单元测试；新加的测试文件自动纳入，不用再改这里。
+        # 先确认 node:sqlite 可用：没有它 D1 的真 SQL 测试会静默跳过
+        run: |
+          node -e "require('node:sqlite')" || { echo "::error::node:sqlite unavailable, D1 SQL tests would be skipped"; exit 1; }
+          node --test tests/workers/auth-gateway/*.test.mjs tests/workers/account/*.test.mjs tests/workers/share/*.test.mjs tests/workers/chat/*.test.mjs tests/workers/search-index/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs tests/web/ui/*.test.mjs
 
       - name: Auth Worker bundle check (styrigx-auth-gateway, dry-run)
-        # 主站后端代码全在 workers/auth-gateway（src/ + functions/）；这里只打包不部署，import 断了 CI 就红。
+        # 主站后端代码全在 workers/auth-gateway（src/ + functions/）；只打包不部署，import 断了 CI 就红
         working-directory: workers/auth-gateway
-        run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/styrigx-auth-gateway-dist
+        run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-auth-gateway-dist
 
       - name: Account Worker bundle check (styrigx-account, dry-run)
-        # 头像 / 云同步 / 数字健康（2026-10-24 从网关拆出来）；只打包不部署
         working-directory: workers/account
-        run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/styrigx-account-dist
+        run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-account-dist
 
       - name: Share Worker bundle check (styrigx-share, dry-run)
-        # 分享短链（2026-10-24，/s/<码> + /api/share）；只打包不部署
         working-directory: workers/share
-        run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/styrigx-share-dist
+        run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-share-dist
 
       - name: Chat Worker bundle check (styrigx-chat, dry-run)
         working-directory: workers/chat
-        run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/styrigx-chat-dist
+        run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-chat-dist
 
       - name: Search Worker bundle check (styrigx-search-index, dry-run)
         working-directory: workers/search-index
-        run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/styrigx-search-dist
+        run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-search-dist
 
       - name: Status Worker bundle check (styrigx-status, dry-run)
         working-directory: workers/status
-        run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/styrigx-status-dist
+        run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-status-dist
 
       - name: Proxy rules Worker bundle check (styrigx-proxy-rules, dry-run)
         working-directory: workers/proxy-rules
-        run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/styrigx-proxy-rules-dist
+        run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-proxy-rules-dist
 
       - name: Shared shell in sync (web/shared/shell ← palette-roles / input.css @shell / shell-nav)
         # 子站（blog / daymark）用 scripts/sync-shell.mjs 从这里同步外壳；改了源头忘了重新生成 → 红
         run: node scripts/gen-shell.mjs --check
+
+      - name: Palettes in sync (input.css @gen-palettes ← palette 定义)
+        run: node scripts/gen-palettes.mjs --check
+
+      - name: UI cookie contract in sync (tests/fixtures/ui-cookie-contract.json)
+        run: node scripts/gen-ui-cookie-contract.mjs --check
 
       - name: Layer boundary check (SGX 3.0 分层规范)
         # L0-L6 依赖方向：lib 不得 import shell/apps；shell 不得 import apps；
@@ -114,100 +125,15 @@ jobs:
         run: node scripts/check-layers.mjs
 
       - name: Frontend guard (无原生弹窗 / 无废弃 token 变量)
-        # Item 25：assets/js/ 禁止 window.prompt/confirm/alert（含裸调用），
-        # 禁止独立 token 变量（已废弃的内存鉴权 token 机制；Turnstile token
-        # 在脚本内白名单放行）
+        # assets/js/ 禁止 window.prompt/confirm/alert（含裸调用），禁止独立 token 变量（已废弃的内存鉴权 token 机制）
         run: node scripts/check-frontend.mjs
 
-      - name: Build site (生产构建，用于锁屏测试)
+      - name: Build site (生产构建，锁屏启用)
         run: hugo --minify -s web
 
-      - name: Check worker routes (每个页面都过网关；头像 / 云同步 / 数字健康归账号 Worker，不抢网关的接口)
-        run: node scripts/check-worker-routes.mjs
-
-      - name: stylelint（禁止硬编码颜色）
-        run: npx stylelint --config tests/config/stylelintrc.json "web/assets/css/input.css"
-
-      - name: Lock screen tests (Hark：生产构建，锁屏启用)
-        # 锁屏行为测试（阻塞部署）；截图基线单独跑、仅报告
-        run: |
-          hugo --minify -s web
-          SGX_TEST_SUITE=lock npx playwright test --config=tests/config/playwright.config.js --grep-invert "baseline screenshot"
-
-      - name: Edge flow e2e（真实网关 + 线上路由规则 + 真实域名 + 虚拟认证器；2026-10-21 三站锁屏回归）
-        # 生产构建；本地 HTTPS 代理把 styrigx.com / blog / daymark 接到真实网关代码，路由按 wrangler.toml + 线上匹配规则。
-        run: |
-          SGX_TEST_SUITE=edge npx playwright test --config=tests/config/playwright.config.js
-
-      - name: Lock screen baseline screenshot
-        # 2.8.0：基线已重新生成，改成阻塞（失败即 CI 红）
-        run: |
-          SGX_TEST_SUITE=lock npx playwright test --config=tests/config/playwright.config.js --grep "baseline screenshot"
-
-      - name: Lock flags test (lock-gate on, default build)
-        # 2.8.0：legacy-lock-screen 已删除，只剩 lock-gate 开关；默认构建下锁屏正常出现
-        run: |
-          hugo --minify -s web
-          SGX_TEST_SUITE=lock npx playwright test --config=tests/config/playwright.config.js lock-flags.spec.js
-
-      - name: Lock flags test (lock-gate off)
-        # lock-gate 关：锁屏完全不出现
-        run: |
-          SGX_TEST_LOCK_GATE=0 hugo --minify -s web
-          SGX_TEST_SUITE=lock SGX_TEST_FLAGS=gate-off npx playwright test --config=tests/config/playwright.config.js lock-flags.spec.js
-
-      - name: Upload lock test artifacts on failure
-        # Hark：失败时上传，便于拿真实报错
-        if: failure()
-        uses: actions/upload-artifact@v6
-        with:
-          name: lock-test-results
-          path: |
-            test-results/
-            playwright-report/
-
-      - name: Rebuild for visual/Lighthouse (Hark：测试构建，锁屏禁用)
-        # 视觉回归和 Lighthouse 用锁屏禁用的构建，避免锁屏干扰；
-        run: |
-          hugo --minify -s web
-        env:
-          SGX_TEST_NO_LOCK: "1"
-          # Hark：测试构建禁用天气组件（天气依赖外网，CI 不稳定会导致
-          # Lighthouse errors-in-console 误报）；生产构建绝不设置
-          SGX_TEST_NO_WEATHER: "1"
-
-      - name: Visual regression
-        # 2.8.0：基线已重新生成（140 张页面截图），改成阻塞（失败即 CI 红）。
-        # 注意：不要再被别的提交加回 continue-on-error（a8f4dffa 曾误删本行）。
-        run: npx playwright test --config=tests/config/playwright.config.js
-
-      - name: Upload visual diffs on failure
-        if: failure()
-        uses: actions/upload-artifact@v6
-        with:
-          name: visual-diffs
-          path: |
-            test-results/
-            playwright-report/
-          retention-days: 30
-
-      - name: PC layout assertions（2.5.0 栅格/Dock/顶栏对齐，阻塞）
-        run: npx playwright test --config=tests/config/playwright.config.js pc-layout.spec.js
-
-      - name: 2.9.2 layout assertions（阻塞）
-        run: npx playwright test --config=tests/config/playwright.config.js layout-292.spec.js
-
-      - name: Lighthouse CI
-        # Hark：lhci 自己起服务（见 tests/config/lighthouserc.json 的 startServerCommand）。
-        # gzip 模拟线上 Cloudflare 压缩。天气组件已在测试构建里禁用
-        # （SGX_TEST_NO_WEATHER=1），无外网请求，errors-in-console 不会误报。
-        run: |
-          find web/public -type f \( -name '*.html' -o -name '*.css' -o -name '*.js' \) -exec gzip -k -9 {} \;
-          npx lhci autorun --config=tests/config/lighthouserc.json
-
-      - name: 前端技术名词检查（安全与隐私）
+      - name: 前端技术名词检查（生产构建的 HTML 里不许出现后端变量名）
         # 用户可见文案不得出现 OWNER_KEY / SESSION_SECRET / SGX_ROOT_KEY / SGX_PW_PEPPER / TURNSTILE_SECRET；
-        # 后端变量名只许出现在 workers/auth-gateway/ 与注释里，不许进 web/public/ HTML。
+        # 后端变量名只许出现在 workers/ 与注释里，不许进 web/public/ HTML。
         run: |
           if grep -rl "OWNER_KEY\|SESSION_SECRET\|SGX_ROOT_KEY\|SGX_PW_PEPPER\|TURNSTILE_SECRET" web/public/ --include="*.html"; then
             echo "FAIL: 技术变量名出现在 HTML 产物中"
@@ -215,32 +141,186 @@ jobs:
           fi
           echo "OK: HTML 产物无技术变量名"
 
+      - name: Check worker routes (每个页面都过网关；头像 / 云同步 / 数字健康归账号 Worker，不抢网关的接口)
+        run: node scripts/check-worker-routes.mjs
+
+      - name: stylelint（禁止硬编码颜色）
+        run: npx stylelint --config tests/config/stylelintrc.json "web/assets/css/input.css"
+
+      - name: Lock screen tests (生产构建，锁屏启用；含 lock-flags 的 lock-gate 开)
+        # 截图基线在下一步单独跑
+        run: SGX_TEST_SUITE=lock npx playwright test --config=tests/config/playwright.config.js --grep-invert "baseline screenshot"
+
+      - name: Edge flow e2e（真实网关 + 线上路由规则 + 真实域名 + 虚拟认证器）
+        # 生产构建；本地 HTTPS 代理把 styrigx.com / blog / daymark 接到真实网关代码，路由按 wrangler.toml + 线上匹配规则
+        run: SGX_TEST_SUITE=edge npx playwright test --config=tests/config/playwright.config.js
+
+      - name: Lock screen baseline screenshot
+        run: SGX_TEST_SUITE=lock npx playwright test --config=tests/config/playwright.config.js --grep "baseline screenshot"
+
+      - name: Credential API e2e（真实 handler + 内存 KV，自带测试服务器）
+        # 锁屏密码 / 锁屏通行密钥 / 账号密码 / 账号通行密钥的真请求；不需要 Hugo 构建
+        run: SGX_TEST_SUITE=credential npx playwright test --config=tests/config/playwright.config.js
+
+      - name: Lock flags test (lock-gate off)
+        # lock-gate 关：锁屏完全不出现（要单独构建）
+        run: |
+          SGX_TEST_LOCK_GATE=0 hugo --minify -s web
+          SGX_TEST_SUITE=lock SGX_TEST_FLAGS=gate-off npx playwright test --config=tests/config/playwright.config.js lock-flags.spec.js
+
+      - name: Upload lock test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: lock-test-results
+          path: |
+            test-results/
+            playwright-report/
+
+      - name: Rebuild for visual / Lighthouse (测试构建，锁屏禁用)
+        # 视觉回归和 Lighthouse 用锁屏禁用的构建，避免锁屏干扰
+        run: hugo --minify -s web
+        env:
+          SGX_TEST_NO_LOCK: "1"
+          # 测试构建禁用天气组件（依赖外网，CI 不稳定会让 Lighthouse errors-in-console 误报）；生产构建绝不设置
+          SGX_TEST_NO_WEATHER: "1"
+
+      - name: Visual regression + layout assertions (默认组，阻塞)
+        # 默认 testMatch 已含 visual / pc-layout / layout-292 等全部默认 spec，失败即 CI 红。
+        # 不要再给这一步加 continue-on-error。
+        run: npx playwright test --config=tests/config/playwright.config.js
+
+      - name: Upload visual diffs on failure
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: visual-diffs
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 30
+
+      - name: Lighthouse CI
+        # lhci 自己起服务（见 tests/config/lighthouserc.json 的 startServerCommand）；gzip 模拟线上 Cloudflare 压缩
+        run: |
+          find web/public -type f \( -name '*.html' -o -name '*.css' -o -name '*.js' \) -exec gzip -k -9 {} \;
+          npx lhci autorun --config=tests/config/lighthouserc.json
+
   passkey-e2e:
-    # Hark P0：WebAuthn 虚拟认证器 E2E（注册→列表→解锁→删除→伪造 cookie）。
-    # 在预览部署上跑真实 Workers；只能用测试 secret，绝不用生产 secret。
-    # 需要 GitHub Secrets：PREVIEW_OWNER_KEY、PREVIEW_SGX_PW_PEPPER（测试值）。
+    # WebAuthn 虚拟认证器 + 真实网关的 E2E：在预览部署 passkey-e2e.styrigx-space.pages.dev 上跑（tests/web/e2e/passkey.spec.js、account-challenge.spec.js）。
+    # 只用预览测试值，绝不用生产 secret；生产部署的所有 job 都等它通过。
+    # 预览的测试凭证（RootKey、pepper、Ed25519 钥匙对）每次运行在 runner 上现生成，不存 GitHub Secrets；
+    # 只用仓库级的 CLOUDFLARE_ACCOUNT_ID 与 STYRIGX_SPACE_PAGES_DEPLOY（部署预览、写预览 KV / D1）。
+    # 外部 fork 的 PR 拿不到 secrets，不跑（同仓库分支的 PR 照跑）。
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     needs: quality
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # 所有运行共用一个预览别名、一个预览 KV / D1：全仓库同时只跑一个，排队不取消
+    concurrency:
+      group: passkey-e2e-preview
+      cancel-in-progress: false
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Require Cloudflare secrets
+        # 只检查仓库级的 Cloudflare 账号 id 和 Pages 部署 token；缺了直接红，不许 e2e 整组静默跳过还算通过。
+        # 预览测试凭证不是 secret，下面「Generate preview test credentials」每次现生成。
+        env:
+          HAS_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
+          HAS_PAGES_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY != '' }}
+        run: |
+          ok=0
+          for v in HAS_ACCOUNT HAS_PAGES_TOKEN; do
+            if [ "${!v}" != "true" ]; then echo "::error::missing secret for $v"; ok=1; fi
+          done
+          exit $ok
+
+      - name: Generate preview test credentials (CI only)
+        # 预览站的测试 RootKey（SGX_ROOT_KEY）和密码 pepper（SGX_PW_PEPPER）：每次运行新生成，只给这次的预览用，
+        # 和下面的 Ed25519 测试钥匙对一样不进仓库、不存 GitHub Secrets。网关对 RootKey 只要求去空白后非空
+        # （_kernel/crypto.js normalizeRootKey），这里用 32 字节随机数的 hex（64 个字符，无空白、无特殊字符）。
+        # 先 ::add-mask:: 再写进 $GITHUB_ENV，后面各步骤的日志里都打码。
+        run: |
+          root_key="$(openssl rand -hex 32)"
+          pepper="$(openssl rand -hex 32)"
+          test "${#root_key}" -eq 64 && test "${#pepper}" -eq 64
+          echo "::add-mask::$root_key"
+          echo "::add-mask::$pepper"
+          {
+            echo "PREVIEW_TEST_ROOT_KEY=$root_key"
+            echo "PREVIEW_TEST_PW_PEPPER=$pepper"
+          } >> "$GITHUB_ENV"
+          echo "preview test RootKey / pepper generated (preview only)"
+
+      - name: Reset preview KV (credentials from earlier runs)
+        # 每次运行换了 RootKey 和 pepper：上一次留在预览 KV 里的锁屏 / 账号密码哈希（按旧 pepper 算的）验不过，
+        # 限速计数、冷却、通行密钥、纪元也会干扰本次。预览 KV（styrigx-auth-gateway-preview）只给 passkey-e2e 用，
+        # job 串行（concurrency 组），所以开跑前把整个命名空间清空，从「锁屏 / 账号都未设置」开始。
+        # 放在部署之前，给边缘缓存留出时间；测试 helper 本来就不假设起始状态（读到旧值时走重置开关）。
+        # 只认 web/wrangler.toml [env.preview] 的 KV id，且断言它不是网关正式 KV（workers/auth-gateway/wrangler.toml）。
+        # D1（styrigx-auth-gateway-preview）只存重置开关值的 hash，测试每次用新的随机开关值，不用清。
+        env:
+          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_PAGES_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, sys, tomllib, urllib.parse, urllib.request, urllib.error
+          env = os.environ
+          pv = tomllib.load(open("web/wrangler.toml", "rb"))["env"]["preview"]
+          ids = {k["id"] for k in pv["kv_namespaces"]}
+          assert len(ids) == 1, f"expected one preview KV namespace, got {len(ids)}"
+          kv = ids.pop()
+          prod = {k["id"] for k in tomllib.load(open("workers/auth-gateway/wrangler.toml", "rb")).get("kv_namespaces", [])}
+          assert prod and kv not in prod, "preview KV id must not be the production gateway KV"
+          base = f"https://api.cloudflare.com/client/v4/accounts/{env['CF_ACCOUNT_ID']}/storage/kv/namespaces/{kv}"
+          hdr = {"Authorization": f"Bearer {env['CF_PAGES_TOKEN']}"}
+          def call(url, data=None, method="GET"):
+              h = dict(hdr)
+              if data is not None:
+                  h["Content-Type"] = "application/json"
+              req = urllib.request.Request(url, data=data, method=method, headers=h)
+              try:
+                  r = json.load(urllib.request.urlopen(req, timeout=30))
+              except urllib.error.HTTPError as e:
+                  print(f"FAIL: {method} HTTP {e.code} (STYRIGX_SPACE_PAGES_DEPLOY needs Workers KV Storage:Edit)", file=sys.stderr)
+                  sys.exit(1)
+              if not r.get("success"):
+                  print(f"FAIL: {method} success=false", file=sys.stderr); sys.exit(1)
+              return r
+          names, cursor = [], ""
+          while True:
+              q = {"limit": "1000"}
+              if cursor:
+                  q["cursor"] = cursor
+              r = call(base + "/keys?" + urllib.parse.urlencode(q))
+              names += [k["name"] for k in r.get("result") or []]
+              cursor = (r.get("result_info") or {}).get("cursor") or ""
+              if not cursor:
+                  break
+          for i in range(0, len(names), 1000):
+              call(base + "/bulk/delete", data=json.dumps(names[i:i + 1000]).encode(), method="POST")
+          print(f"preview KV reset: deleted {len(names)} keys")
+          PYEOF
 
       - name: Setup Hugo
-        uses: peaceiris/actions-hugo@v3
+        uses: peaceiris/actions-hugo@2752ce1d29631191ea3f27c23495fa06139a5b78 # v3.2.1
         with:
           hugo-version: ${{ env.HUGO_VERSION }}
           extended: true
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install dependencies (lockfile)
+        run: npm ci
 
-      - name: Install Playwright
-        run: npm install --no-save @playwright/test && npx playwright install chromium --with-deps
+      - name: Install Playwright browser
+        run: npx playwright install chromium --with-deps
 
       - name: Build CSS
         run: node scripts/build-css.cjs --minify
@@ -250,62 +330,83 @@ jobs:
 
       - name: Bundle auth gateway as the preview _worker.js
         # Pages 上已经没有后端代码。预览把网关的同一份代码打包成 Pages 的 _worker.js（覆盖静态的那个），
-        # 在 passkey-e2e.styrigx-space.pages.dev 上跑：页面和默认头像读 env.ASSETS，接口连预览的空 KV/D1。
+        # 在 passkey-e2e.styrigx-space.pages.dev 上跑：页面和默认头像读 env.ASSETS，接口连预览的 KV/D1。
         # 只打包不部署 Worker，不需要 Worker 权限。
         run: |
-          (cd workers/auth-gateway && npx --yes wrangler@4 deploy --dry-run --outdir "$RUNNER_TEMP/gateway-dist")
+          (cd workers/auth-gateway && npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir "$RUNNER_TEMP/gateway-dist")
           cp "$RUNNER_TEMP/gateway-dist/worker.js" web/public/_worker.js
           grep -q "X-SGX-Runtime" web/public/_worker.js
 
-      - name: Generate Ed25519 test key pair (CI only)
-        # 2.4.1：middleware 缺 SGX_LOCK_PUBLIC 时 fail closed，解锁接口需要
-        # SGX_LOCK_PRIVATE 才能签发会话 cookie。CI 在每次运行中临时生成一对
-        # 测试密钥注入 preview 环境；绝不用生产密钥，密钥不进仓库、不留文件。
+      - name: Generate Ed25519 test key pairs (CI only)
+        # 锁屏域和账号域各一对，每次运行新生成，只给预览用；绝不用生产密钥，密钥不进仓库
         run: |
-          openssl genpkey -algorithm ed25519 -out "$RUNNER_TEMP/ed25519-priv.pem"
-          openssl pkey -in "$RUNNER_TEMP/ed25519-priv.pem" -pubout -out "$RUNNER_TEMP/ed25519-pub.pem"
-          test -s "$RUNNER_TEMP/ed25519-priv.pem" && test -s "$RUNNER_TEMP/ed25519-pub.pem"
-          echo "Ed25519 test key pair generated (preview only)"
+          for d in lock account; do
+            openssl genpkey -algorithm ed25519 -out "$RUNNER_TEMP/$d-priv.pem"
+            openssl pkey -in "$RUNNER_TEMP/$d-priv.pem" -pubout -out "$RUNNER_TEMP/$d-pub.pem"
+            test -s "$RUNNER_TEMP/$d-priv.pem" && test -s "$RUNNER_TEMP/$d-pub.pem"
+          done
+          echo "Ed25519 test key pairs generated (preview only)"
 
-      - name: Set preview test secrets (preview only)
-        # 只写 preview 环境，绝不碰 production。
-        # 用 PATCH deployment_configs.preview，只带 preview 字段。
-        # 必须在部署之前写，否则新值要到下一次部署才生效。
+      - name: Put this run's public keys into web/wrangler.toml (runner copy only)
+        # web/wrangler.toml 是 Pages 的配置源：部署时它的 [env.preview.vars] 覆盖后台的明文变量。
+        # 仓库里那份 SGX_LOCK_PUBLIC 是固定值，和本次生成的私钥对不上，所以部署前在 runner 里换成本次的公钥，
+        # 并补上账号域公钥。不提交，只影响这次部署。
         run: |
           python3 - <<'PYEOF'
-          import json, sys, urllib.request, urllib.error
-          ACCT = "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
-          TOKEN = "${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}"
-          with open("${{ runner.temp }}/ed25519-priv.pem") as f:
-              ED_PRIV = f.read()
-          with open("${{ runner.temp }}/ed25519-pub.pem") as f:
-              ED_PUB = f.read()
-          assert "PRIVATE KEY" in ED_PRIV and "PUBLIC KEY" in ED_PUB
-          body = json.dumps({
-              "deployment_configs": {
-                  "preview": {
-                      "env_vars": {
-                          # 批次 A 收尾 G2：代码已不读 OWNER_KEY，预览部署不再注入
-                          # 2.11 定稿：代码改读 SGX_ROOT_KEY；预览用同一测试值映射（未新增 secret）
-                          "SGX_ROOT_KEY": {"type": "secret_text", "value": "${{ secrets.PREVIEW_OWNER_KEY }}"},
-                          "SGX_PW_PEPPER": {"type": "secret_text", "value": "${{ secrets.PREVIEW_SGX_PW_PEPPER }}"},
-                          # 2.4.1：CI 临时生成的测试密钥对（每次运行新生成，非生产密钥）
-                          "SGX_LOCK_PRIVATE": {"type": "secret_text", "value": ED_PRIV},
-                          "SGX_LOCK_PUBLIC": {"type": "plain_text", "value": ED_PUB},
-                          "SGX_SITE": {"type": "plain_text", "value": "space"},
-                          # 网关缺 SGX_ENV 按生产处理（fail closed）；预览显式写 preview，与 web/wrangler.toml 一致
-                          "SGX_ENV": {"type": "plain_text", "value": "preview"},
-                          # P0-3：预览的 RP_ID/ORIGIN（明文，CI 每次部署前写入）
-                          "SGX_RP_ID": {"type": "plain_text", "value": "passkey-e2e.styrigx-space.pages.dev"},
-                          "SGX_ORIGIN": {"type": "plain_text", "value": "https://passkey-e2e.styrigx-space.pages.dev"},
-                      }
-                  }
-              }
-          }).encode()
+          import json, os, re, tomllib
+          tmp = os.environ["RUNNER_TEMP"]
+          lock_pub = open(f"{tmp}/lock-pub.pem").read()
+          acct_pub = open(f"{tmp}/account-pub.pem").read()
+          path = "web/wrangler.toml"
+          s = open(path).read()
+          pat = re.compile(r'^SGX_LOCK_PUBLIC = .*$', re.M)
+          assert len(pat.findall(s)) == 1, "expected exactly one SGX_LOCK_PUBLIC line"
+          assert "SGX_ACCOUNT_PUBLIC" not in s
+          s = pat.sub(lambda m: "SGX_LOCK_PUBLIC = " + json.dumps(lock_pub) + "\nSGX_ACCOUNT_PUBLIC = " + json.dumps(acct_pub), s)
+          open(path, "w").write(s)
+          v = tomllib.loads(s)["env"]["preview"]["vars"]
+          assert v["SGX_LOCK_PUBLIC"] == lock_pub and v["SGX_ACCOUNT_PUBLIC"] == acct_pub and v["SGX_ENV"] == "preview"
+          print("preview public keys written to the runner copy of web/wrangler.toml")
+          PYEOF
+
+      - name: Set preview test secrets (preview only)
+        # 只写 preview 环境（PATCH deployment_configs.preview），绝不碰 production。
+        # 必须在部署之前写，否则新值要到下一次部署才生效。secret 都经 env 传进来，不拼进脚本；
+        # SGX_ROOT_KEY / SGX_PW_PEPPER 用上面本次生成的 PREVIEW_TEST_ROOT_KEY / PREVIEW_TEST_PW_PEPPER（已打码）。
+        env:
+          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_PAGES_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, sys, tomllib, urllib.request, urllib.error
+          env = os.environ
+          tmp = env["RUNNER_TEMP"]
+          rd = lambda f: open(f"{tmp}/{f}").read()
+          lock_priv, lock_pub = rd("lock-priv.pem"), rd("lock-pub.pem")
+          acct_priv, acct_pub = rd("account-priv.pem"), rd("account-pub.pem")
+          assert "PRIVATE KEY" in lock_priv and "PRIVATE KEY" in acct_priv
+          root_key, pepper = env["PREVIEW_TEST_ROOT_KEY"], env["PREVIEW_TEST_PW_PEPPER"]
+          assert len(root_key) == 64 and len(pepper) == 64
+          pv = tomllib.load(open("web/wrangler.toml", "rb"))["env"]["preview"]["vars"]
+          secret = lambda v: {"type": "secret_text", "value": v}
+          plain = lambda v: {"type": "plain_text", "value": v}
+          body = json.dumps({"deployment_configs": {"preview": {"env_vars": {
+              "SGX_ROOT_KEY": secret(root_key),
+              "SGX_PW_PEPPER": secret(pepper),
+              "SGX_LOCK_PRIVATE": secret(lock_priv),
+              "SGX_ACCOUNT_PRIVATE": secret(acct_priv),
+              # 下面这些也在 web/wrangler.toml 里（部署时以它为准）；这里写同样的值，两边不会不一致
+              "SGX_LOCK_PUBLIC": plain(lock_pub),
+              "SGX_ACCOUNT_PUBLIC": plain(acct_pub),
+              "SGX_SITE": plain(pv["SGX_SITE"]),
+              "SGX_ENV": plain(pv["SGX_ENV"]),
+              "SGX_RP_ID": plain(pv["SGX_RP_ID"]),
+              "SGX_ORIGIN": plain(pv["SGX_ORIGIN"]),
+          }}}}).encode()
           req = urllib.request.Request(
-              f"https://api.cloudflare.com/client/v4/accounts/{ACCT}/pages/projects/styrigx-space",
+              f"https://api.cloudflare.com/client/v4/accounts/{env['CF_ACCOUNT_ID']}/pages/projects/styrigx-space",
               data=body, method="PATCH",
-              headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"})
+              headers={"Authorization": f"Bearer {env['CF_PAGES_TOKEN']}", "Content-Type": "application/json"})
           try:
               r = json.load(urllib.request.urlopen(req, timeout=30))
           except urllib.error.HTTPError as e:
@@ -316,55 +417,66 @@ jobs:
           PYEOF
 
       - name: Apply D1 migrations to preview
-        # 2.11 恢复开关建表：部署 preview 前对 styrigx-auth-gateway-preview 跑迁移。
-        # 只写 preview 库（--env preview），绝不碰 production。
-        # 代码里也有 CREATE TABLE IF NOT EXISTS 兜底，此处是标准迁移流程。
-        # 2026-10-24：STYRIGX_SPACE_PAGES_DEPLOY 已加 D1 Edit 权限，迁移失败要让 CI 红（不再 continue-on-error 掩盖 7403）；
-        # 跑完列一次已应用的迁移（d1_migrations 表；日志里应看到 0001–0004）。
+        # 部署 preview 前对 styrigx-auth-gateway-preview 跑迁移（--env preview），绝不碰 production；失败要让 CI 红。
+        # 跑完列一次已应用的迁移（d1_migrations 表）。
         working-directory: web
         run: |
-          npx --yes wrangler@4 d1 migrations apply styrigx-auth-gateway-preview --remote --env preview
-          npx --yes wrangler@4 d1 execute styrigx-auth-gateway-preview --remote --env preview --command "SELECT id, name, applied_at FROM d1_migrations ORDER BY id"
+          npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply styrigx-auth-gateway-preview --remote --env preview
+          npx --yes "wrangler@$WRANGLER_VERSION" d1 execute styrigx-auth-gateway-preview --remote --env preview --command "SELECT id, name, applied_at FROM d1_migrations ORDER BY id"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Deploy to preview
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
           workingDirectory: web
           command: pages deploy public --project-name=styrigx-space --branch=passkey-e2e --commit-dirty=true
 
-      - name: Run WebAuthn E2E
-        run: |
-          SGX_TEST_BASE="https://passkey-e2e.styrigx-space.pages.dev" \
-          SGX_TEST_OWNER_KEY="${{ secrets.PREVIEW_OWNER_KEY }}" \
-          SGX_TEST_CF_TOKEN="${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}" \
-          SGX_TEST_CF_ACCOUNT="${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" \
-          SGX_TEST_PREVIEW_KV_ID="5084ea8ef2444156ba48203220b93df6" \
-          npx playwright test --config=tests/config/playwright.config.js --grep "passkey e2e"
+      - name: Run WebAuthn E2E (SGX_TEST_SUITE=passkey)
+        # 跑 passkey 组的全部 describe（testMatch 已限定文件，不再 --grep）。
+        # 预览地址和 KV id 从 web/wrangler.toml 读，不在这里重复写。
+        # SGX_TEST_ROOT_KEY 是本次生成、已写进预览 SGX_ROOT_KEY 的同一个值。
+        # 测试进程写预览 KV（重置开关、清限速计数）用 Pages 部署 token（和上面清 KV 同一个）。
         env:
           SGX_TEST_SUITE: passkey
+          SGX_TEST_ROOT_KEY: ${{ env.PREVIEW_TEST_ROOT_KEY }}
+          SGX_TEST_CF_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
+          SGX_TEST_CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          eval "$(python3 - <<'PYEOF'
+          import shlex, tomllib
+          p = tomllib.load(open("web/wrangler.toml", "rb"))["env"]["preview"]
+          kv = [k["id"] for k in p["kv_namespaces"] if k["binding"] == "KV_LOCK_DOOR"][0]
+          print("export SGX_TEST_BASE=" + shlex.quote(p["vars"]["SGX_ORIGIN"]))
+          print("export SGX_TEST_PREVIEW_KV_ID=" + shlex.quote(kv))
+          PYEOF
+          )"
+          echo "preview: $SGX_TEST_BASE"
+          npx playwright test --config=tests/config/playwright.config.js
 
       - name: Guard - no private vars on Pages production
-        # 守卫：私密值只在鉴权网关的 Secrets Store，Pages 上不许再有（防止有人加回去）
+        # 私密值只在鉴权网关的 Secrets Store，Pages 生产环境上不许再有（防止有人加回去）
+        env:
+          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_PAGES_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
         run: |
           python3 - <<'PYEOF'
-          import json, sys, urllib.request
-          ACCT = "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
-          TOKEN = "${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}"
+          import json, os, urllib.request
+          env = os.environ
           req = urllib.request.Request(
-              f"https://api.cloudflare.com/client/v4/accounts/{ACCT}/pages/projects/styrigx-space",
-              headers={"Authorization": f"Bearer {TOKEN}"})
+              f"https://api.cloudflare.com/client/v4/accounts/{env['CF_ACCOUNT_ID']}/pages/projects/styrigx-space",
+              headers={"Authorization": f"Bearer {env['CF_PAGES_TOKEN']}"})
           r = json.load(urllib.request.urlopen(req, timeout=30))
-          # 生产不带任何变量时 API 返回 env_vars: null，按空处理。
+          # 生产不带任何变量时 API 返回 env_vars: null，按空处理
           prod = r["result"]["deployment_configs"]["production"].get("env_vars") or {}
           names = sorted(prod.keys())
           print("production vars:", names)
-          # Pages 只放静态文件，会话检查全在网关；生产部署按 web/wrangler.toml 不带任何变量。
-          forbidden = ["SGX_LOCK_PRIVATE", "SGX_STEPUP_PRIVATE", "SGX_APP_PRIVATE", "SGX_ROOT_KEY", "SGX_PW_PEPPER", "TURNSTILE_SECRET", "OWNER_KEY"]
+          # Pages 只放静态文件，会话检查全在网关；生产部署按 web/wrangler.toml 不带任何变量
+          forbidden = ["SGX_LOCK_PRIVATE", "SGX_ACCOUNT_PRIVATE", "SGX_STEPUP_PRIVATE", "SGX_APP_PRIVATE", "SGX_ROOT_KEY", "SGX_PW_PEPPER", "TURNSTILE_SECRET", "OWNER_KEY"]
           present = [v for v in forbidden if v in names]
           assert not present, f"private vars must not be on Pages production: {present}"
           print("guard OK: no private vars on Pages production")
@@ -372,7 +484,7 @@ jobs:
 
       - name: Upload test artifacts on failure
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: passkey-test-results
           path: |
@@ -381,29 +493,31 @@ jobs:
 
   build-and-deploy:
     # 部署条件：(push 或 workflow_dispatch) 且 ref 是 main；其他分支手动触发不部署。
-    # 手动触发同样 needs: quality（先过 quality 和 guard，不跳过）。
+    # 手动触发同样要先过 quality 和 passkey-e2e（不跳过）。
     # 不加任何传密钥值的 input，密钥只在 Cloudflare 后台改。
     # Pages 只放静态文件，会话检查全靠网关，所以等网关部署好、线上冒烟通过后再部署 Pages；网关失败就不部署 Pages。
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    needs: [quality, deploy-auth-worker]
+    needs: [quality, passkey-e2e, deploy-auth-worker]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Setup Hugo
-        uses: peaceiris/actions-hugo@v3
+        uses: peaceiris/actions-hugo@2752ce1d29631191ea3f27c23495fa06139a5b78 # v3.2.1
         with:
           hugo-version: ${{ env.HUGO_VERSION }}
           extended: true
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install dependencies (lockfile)
+        run: npm ci
 
       - name: Build CSS
         run: node scripts/build-css.cjs --minify
@@ -422,10 +536,11 @@ jobs:
           if grep -q "X-SGX-Runtime" web/public/_worker.js; then echo "::error::gateway bundle in production Pages build"; exit 1; fi
 
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
           workingDirectory: web
           command: pages deploy public --project-name=styrigx-space --commit-dirty=true
 
@@ -461,26 +576,28 @@ jobs:
     # token：Cloudflare 上 styrigx-search-index-deploy = GitHub 环境 STYRIGX_SEARCH_INDEX_DEPLOY 里的同名密钥，
     # 权限 Workers Scripts 编辑 + Workers KV Storage 编辑 + Account Settings 读取；环境只允许 main。
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    needs: quality
+    needs: [quality, passkey-e2e]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment: STYRIGX_SEARCH_INDEX_DEPLOY
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Setup Hugo
-        uses: peaceiris/actions-hugo@v3
+        uses: peaceiris/actions-hugo@2752ce1d29631191ea3f27c23495fa06139a5b78 # v3.2.1
         with:
           hugo-version: ${{ env.HUGO_VERSION }}
           extended: true
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install dependencies (lockfile)
+        run: npm ci
 
       - name: Build site (for the search index)
         run: node scripts/build-css.cjs --minify && hugo --minify -s web
@@ -489,21 +606,21 @@ jobs:
         run: node scripts/build-search-index.mjs --out "$RUNNER_TEMP/search-space.json"
 
       - name: Deploy search Worker (styrigx-search-index)
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_SEARCH_INDEX_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: workers/search-index
-          wranglerVersion: '4'
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: deploy
 
       - name: Upload search index to KV
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_SEARCH_INDEX_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: workers/search-index
-          wranglerVersion: '4'
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: kv key put site:space --path=${{ runner.temp }}/search-space.json --binding=KV_SEARCH_INDEX --remote
 
   deploy-status-worker:
@@ -515,34 +632,35 @@ jobs:
     # SGX_CF_USAGE_TOKEN，部署必须 Edit，Read 报 10021，同鉴权网关）；环境只允许 main。
     # 迁移 migrations/0002_usage.sql（用量快照表）由下面的 d1 migrations apply 自动跑。
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    needs: quality
+    needs: [quality, passkey-e2e]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment: STYRIGX_STATUS_DEPLOY
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Apply D1 migrations (styrigx-status)
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: workers/status
-          wranglerVersion: '4'
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: d1 migrations apply styrigx-status --remote
 
       - name: Deploy status Worker (styrigx-status)
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: workers/status
-          wranglerVersion: '4'
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: deploy
 
   deploy-chat-worker:
@@ -556,27 +674,28 @@ jobs:
     # 权限 Workers Scripts 编辑 + Secrets Store 编辑（带 Secrets Store 绑定部署必须 Edit，Read 报 10021，同鉴权网关）
     # + Account Settings 读取；没有路由，不需要 Workers Routes 权限。环境只允许 main。
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    needs: quality
+    needs: [quality, passkey-e2e]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment: STYRIGX_CHAT_DEPLOY
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Deploy chat Worker (styrigx-chat)
         id: deploy_chat
         continue-on-error: true
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_CHAT_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: workers/chat
-          wranglerVersion: '4'
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: deploy
 
       - name: Prepare keyless config (fallback)
@@ -590,12 +709,12 @@ jobs:
 
       - name: Deploy chat Worker without key binding (fallback)
         if: steps.deploy_chat.outcome == 'failure'
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_CHAT_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: workers/chat
-          wranglerVersion: '4'
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: deploy --config wrangler.nokey.toml
 
   deploy-proxy-rules-worker:
@@ -604,25 +723,26 @@ jobs:
     # token：Cloudflare 上 styrigx-proxy-rules-deploy = GitHub 环境 STYRIGX_PROXY_RULES_DEPLOY 里的同名密钥，
     # 权限 Workers Scripts 编辑 + Account Settings 读取 + styrigx.com 的 Workers Routes 编辑；环境只允许 main。
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    needs: quality
+    needs: [quality, passkey-e2e]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment: STYRIGX_PROXY_RULES_DEPLOY
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Deploy proxy rules Worker (styrigx-proxy-rules)
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_PROXY_RULES_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: workers/proxy-rules
-          wranglerVersion: '4'
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: deploy
 
       - name: Smoke test proxy-rules.styrigx.com
@@ -659,25 +779,26 @@ jobs:
     # 这把 token 放在 GitHub 环境 STYRIGX_AUTH_GATEWAY_DEPLOY（与密钥同名）的环境密钥里，该环境只允许 main 分支部署：
     # 其他分支即使改了工作流也拿不到它。
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    needs: [quality, deploy-search-worker, deploy-status-worker, deploy-chat-worker]
+    needs: [quality, passkey-e2e, deploy-search-worker, deploy-status-worker, deploy-chat-worker]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment: STYRIGX_AUTH_GATEWAY_DEPLOY
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Deploy auth Worker (styrigx-auth-gateway)
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_AUTH_GATEWAY_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: workers/auth-gateway
-          wranglerVersion: '4'
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: deploy
 
       - name: Smoke test production /api/* and pages (must be served by the Worker)
@@ -734,34 +855,35 @@ jobs:
     # token：Cloudflare 上 styrigx-account-deploy = GitHub 环境 STYRIGX_ACCOUNT_DEPLOY 里的同名环境密钥 STYRIGX_ACCOUNT_DEPLOY，
     # 权限 Workers Scripts 编辑 + Workers KV Storage 编辑 + D1 编辑 + Account Settings 读取 + styrigx.com 的 Workers Routes 编辑；环境只允许 main。
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    needs: [quality, deploy-auth-worker]
+    needs: [quality, passkey-e2e, deploy-auth-worker]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment: STYRIGX_ACCOUNT_DEPLOY
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Apply D1 migrations (styrigx-account)
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_ACCOUNT_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: workers/account
-          wranglerVersion: '4'
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: d1 migrations apply styrigx-account --remote
 
       - name: Deploy account Worker (styrigx-account)
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_ACCOUNT_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: workers/account
-          wranglerVersion: '4'
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: deploy
 
       - name: Smoke test production (avatar / prefs / wellbeing must be served by styrigx-account)
@@ -799,39 +921,31 @@ jobs:
     # 路由见 workers/share/wrangler.toml（styrigx.com/s/*、styrigx.com/api/share*，比网关的 styrigx.com/* 更具体）；workers_dev=false、preview_urls=false。
     # 不持任何钥匙：会话问网关 AuthVerifier（服务绑定 AUTH），签 / 作废短链钥匙、给访客换会话问网关 ShareIssuer（服务绑定 ISSUER），
     # 所以排在网关之后（要先有带 ShareIssuer 的网关）。CI 不传任何密值。
-    # 步骤：确认 D1 id 不是占位 → 迁移 D1 styrigx-share（migrations/；失败要让 job 红，不 continue-on-error）
+    # 步骤：迁移 D1 styrigx-share（migrations/；失败要让 job 红，不 continue-on-error）
     # → 查 d1_migrations 和表，确认 0001_share_links.sql 真的在库里（只看到 No migrations to apply 不算数）→ 部署 → 冒烟。
     # token：Cloudflare 上 styrigx-share-deploy = GitHub 环境 STYRIGX_SHARE_DEPLOY 里的同名环境密钥 STYRIGX_SHARE_DEPLOY，
     # 权限 Workers Scripts 编辑 + D1 编辑 + Account Settings 读取 + styrigx.com 的 Workers Routes 编辑；环境只允许 main。
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    needs: [quality, deploy-auth-worker]
+    needs: [quality, passkey-e2e, deploy-auth-worker]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment: STYRIGX_SHARE_DEPLOY
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: '20'
-
-      - name: Assert production D1 id is set (not the placeholder)
-        run: |
-          prod=$(awk '/^\[env\./{exit} {print}' workers/share/wrangler.toml)
-          if printf '%s\n' "$prod" | grep -q '^database_id = "00000000-0000-0000-0000-000000000000"$'; then
-            echo "::error::workers/share/wrangler.toml：D1 styrigx-share 的 database_id 还是占位，先在 Cloudflare 建库、把真实 id 填进来"
-            exit 1
-          fi
-          echo "OK: production D1 id is set"
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Apply D1 migrations (styrigx-share)
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_SHARE_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: workers/share
-          wranglerVersion: '4'
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: d1 migrations apply styrigx-share --remote
 
       - name: Confirm migrations are really in the database (styrigx-share)
@@ -841,7 +955,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -u
-          out=$(npx --yes wrangler@4 d1 execute styrigx-share --remote --json --command "SELECT name FROM d1_migrations UNION ALL SELECT 'table:' || name FROM sqlite_master WHERE type = 'table'")
+          out=$(npx --yes "wrangler@$WRANGLER_VERSION" d1 execute styrigx-share --remote --json --command "SELECT name FROM d1_migrations UNION ALL SELECT 'table:' || name FROM sqlite_master WHERE type = 'table'")
           echo "$out"
           ok=0
           for need in '"0001_share_links.sql"' '"table:share_link"' '"table:share_fail"'; do
@@ -850,12 +964,12 @@ jobs:
           exit $ok
 
       - name: Deploy share Worker (styrigx-share)
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_SHARE_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: workers/share
-          wranglerVersion: '4'
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: deploy
 
       - name: Smoke test production (/s/* and /api/share must be served by styrigx-share)

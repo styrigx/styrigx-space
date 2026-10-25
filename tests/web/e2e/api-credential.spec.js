@@ -9,8 +9,8 @@
  *   配内存 KV；断言 KV 中对应键更新、通行密钥 class 正确。
  * - register 的 WebAuthn 仪式由 Node 端合成 attestation（见 helper 注释）。
  *
- * 运行：npx playwright test --config=playwright.config.js api-credential.spec.js
- * （默认 testMatch 已包含本文件；不需要 hugo 构建，自带测试服务器）
+ * 运行：SGX_TEST_SUITE=credential npx playwright test --config=tests/config/playwright.config.js
+ * （CI 的 quality job 单独跑这一组；不需要 hugo 构建，自带测试服务器）
  */
 const { test, expect } = require('@playwright/test');
 const { startCredentialTestServer } = require('./cred-e2e-helpers.cjs');
@@ -37,6 +37,12 @@ async function mintBrowserAccount(context, by, authAt) {
     { name: 'sgx-account-session', value: acc, domain: 'localhost', path: '/' },
     { name: 'sgx-account-reauth', value: d, domain: 'localhost', path: '/' },
   ]);
+}
+
+/* AccountResetTicket 写入浏览器 context（RootKey 只签重置票，不签账号会话） */
+async function mintBrowserAccountReset(context) {
+  const x = await t.mintAccountReset();
+  await context.addCookies([{ name: 'sgx-account-reset', value: x, domain: 'localhost', path: '/' }]);
 }
 
 /* 浏览器真实 fetch（不经 page.route mock） */
@@ -103,17 +109,18 @@ test.describe('credential APIs 真请求 e2e', () => {
   test('账号密码 set/change（/api/account；KV 仍存 account-password）', async ({ page, context }) => {
     const kv = t.kv;
     await mintBrowserAuth(context, 'root');
-    // 根凭证登录的账号会话：设置账号密码
-    await mintBrowserAccount(context, 'root');
+    // 第一次设账号密码：没有账号会话，凭根凭证签的 AccountResetTicket
+    await mintBrowserAccountReset(context);
     let r = await apiFetch(page, '/api/account', { action: 'password-change', password: 'AccountPass-222' });
     expect(r.json.ok).toBe(true);
     expect(r.json.changed).toBe(false);
     const rec1 = await kv.get('account-password', 'json');
     expect(rec1 && rec1.hash).toBeTruthy();
     expect(await kv.get('account-configured')).toBe('1');
-    // 首次配置推进了 lock-epoch：重签 lock 会话；reauth 票只有一张，重签LockReauthTicket后再签回AccountReauthTicket
+    // 首次配置推进了 lock-epoch：重签 lock 会话；之后用账号会话 + AccountReauthTicket 改密码
     await mintBrowserAuth(context, 'root');
-    await mintBrowserAccount(context, 'root');
+    await context.clearCookies({ name: 'sgx-account-reset' });
+    await mintBrowserAccount(context, 'password');
     r = await apiFetch(page, '/api/account', { action: 'password-change', password: 'AccountPass-333' });
     expect(r.json.ok).toBe(true);
     expect(r.json.changed).toBe(true);
@@ -123,7 +130,8 @@ test.describe('credential APIs 真请求 e2e', () => {
     // 新密码能登录账号
     r = await apiFetch(page, '/api/account', { action: 'login-password', password: 'AccountPass-333' });
     expect(r.json.ok).toBe(true);
-    // 锁屏凭证的门：AccountReauthTicket不能开锁屏的门（status valid=false）
+    // 锁屏凭证的门：AccountReauthTicket不能开锁屏的门（去掉上面签的 LockReauthTicket 后 status valid=false）
+    await context.clearCookies({ name: 'sgx-lock-reauth' });
     r = await apiFetch(page, '/api/lock-reauth', { action: 'status' });
     expect(r.json.ok).toBe(true);
     expect(r.json.valid).toBe(false);
@@ -158,7 +166,10 @@ test.describe('credential APIs 真请求 e2e', () => {
       expect(stored).toBeTruthy();
       expect(stored.class).toBeUndefined();
     }
-    // 账号页只列账号类；锁屏接口只列锁屏类（账号类只在账号页管理）
+    // 账号页只列账号类；锁屏接口只列锁屏类（账号类只在账号页管理）。
+    // 第一次注册账号通行密钥推进了 lock-epoch：先按新纪元重签锁屏会话和账号会话
+    await mintBrowserAuth(context, 'password');
+    await mintBrowserAccount(context, 'password');
     const listAcc = await apiFetch(page, '/api/account', { action: 'passkey-list' });
     expect(listAcc.json.ok, JSON.stringify(listAcc.json)).toBe(true);
     expect(listAcc.json.keys.map((k) => k.name)).toEqual(['e2e-account']);

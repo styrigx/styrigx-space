@@ -6,30 +6,40 @@ on:
         description: "要更新基线的分支（不要填 main）"
         required: true
 permissions:
-  contents: write
-  actions: write   # B1-11：推完基线后用 GITHUB_TOKEN 触发 deploy.yml
+  contents: write   # 把新基线推回该分支
+  actions: write    # 推完后用 GITHUB_TOKEN 触发 deploy.yml
 env:
   HUGO_VERSION: '0.168.0'   # 与 deploy.yml 保持一致
+  NODE_VERSION: '22'        # 与 deploy.yml 保持一致
 jobs:
   update:
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - name: Refuse main
-        if: inputs.branch == 'main'
-        run: echo "不要在 main 上更新基线" && exit 1
-      - uses: actions/checkout@v6
+        # 分支名只经 env 传入 shell，不拼进脚本；main / refs/heads/main 都拒绝
+        env:
+          BRANCH: ${{ inputs.branch }}
+        run: |
+          b="${BRANCH#refs/heads/}"
+          if [ -z "$b" ] || [ "$b" = "main" ]; then
+            echo "::error::不要在 main 上更新基线"
+            exit 1
+          fi
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ inputs.branch }}
       - name: Setup Hugo
-        uses: peaceiris/actions-hugo@v3
+        uses: peaceiris/actions-hugo@2752ce1d29631191ea3f27c23495fa06139a5b78 # v3.2.1
         with:
           hugo-version: ${{ env.HUGO_VERSION }}
           extended: true
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: '20'
-      - run: npm install
-      - run: npm install --no-save @playwright/test stylelint postcss-scss @lhci/cli http-server && npx playwright install chromium --with-deps
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium --with-deps
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk
       - name: Build CSS
         run: node scripts/build-css.cjs --minify
@@ -57,11 +67,12 @@ jobs:
           git commit -m "[UI] CI 更新视觉基线 (ubuntu-24.04)"
           git push
           echo "pushed=true" >> "$GITHUB_OUTPUT"
-      # B1-11：GITHUB_TOKEN 的 push 不会触发 deploy.yml，这里显式 dispatch 一次。
-      # deploy.yml 的 build-and-deploy 只在 main 上跑，非 main 分支只跑测试，不会部署生产。
+      # GITHUB_TOKEN 的 push 不会触发 deploy.yml，这里显式 dispatch 一次。
+      # deploy.yml 的部署 job 只在 main 上跑，非 main 分支只跑测试，不会部署生产。
       - name: Trigger CI on the updated branch
         if: steps.commit.outputs.pushed == 'true'
-        run: gh workflow run deploy.yml --ref "${{ inputs.branch }}"
+        run: gh workflow run deploy.yml --ref "$BRANCH"
         env:
+          BRANCH: ${{ inputs.branch }}
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}

@@ -375,8 +375,10 @@ test('预览显式设 SGX_ENV=preview（网关缺 SGX_ENV 按生产处理，不�
   const pagesToml = readFileSync(REPO + '/web/wrangler.toml', 'utf8');
   const vars = pagesToml.slice(pagesToml.indexOf('[env.preview.vars]'));
   assert.match(vars.slice(0, vars.indexOf('\n[', 1)), /^SGX_ENV = "preview"$/m);
+  /* deploy.yml 写预览变量时 SGX_ENV 取自同一份 toml（不在工作流里另写一个值） */
   const wf = readFileSync(REPO + '/.github/workflows/deploy.yml', 'utf8');
-  assert.match(wf, /"SGX_ENV": \{"type": "plain_text", "value": "preview"\}/);
+  assert.match(wf, /"SGX_ENV": plain\(pv\["SGX_ENV"\]\)/);
+  assert.match(wf, /pv = tomllib\.load\(open\("web\/wrangler\.toml", "rb"\)\)\["env"\]\["preview"\]\["vars"\]/);
 });
 
 test('路由：账号 → 安全与隐私子页（/account/security/ 与 /en/）过网关', async () => {
