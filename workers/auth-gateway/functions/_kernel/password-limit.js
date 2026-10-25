@@ -11,9 +11,10 @@
  * - lock-password-cooldown:<ip> / account-password-cooldown:<ip>：冷却到期时刻（毫秒）
  * - lock-password-fail-global / account-password-fail-global：{ count, windowStart }（本域每小时输错次数）
  *
- * KV 出错：inCooldown / recordFail 抛错（调用方返回 503，fail closed，不静默放行）；clearFail 尽力而为。
+ * KV 出错：inCooldown / recordFail 抛错（调用方返回 503，fail closed，不静默放行）；clearFail 尽力而为（先读、有才删）。
  */
 import { ipBucket } from './http.js';
+import { deleteIfPresent } from './kv-clear.js';
 
 /** 每轮连错几次进入冷却 */
 export const PASSWORD_MAX_FAIL = 5;
@@ -107,11 +108,11 @@ export function passwordLimiter(kv, realm, ip, opts) {
       }
       return cooled;
     },
-    /** 验对后清计数（含冷却轮数） */
+    /** 验对后清计数（含冷却轮数）。先读、有才删（kv-clear.js）：成功前没输错过就不花删除额度 */
     async clearFail() {
       try {
-        await kv.delete(failKey);
-        await kv.delete(cooldownKey);
+        await deleteIfPresent(kv, failKey);
+        await deleteIfPresent(kv, cooldownKey);
       } catch (e) {}
     },
   };
