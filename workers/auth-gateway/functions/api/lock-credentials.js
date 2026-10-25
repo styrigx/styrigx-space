@@ -11,7 +11,7 @@
 import { verifyLockSession } from '../_kernel/lock-session.js';
 import { ROLE_ADMIN } from '../_kernel/lock-session.js';
 import { verifyLockResetTicket } from '../_kernel/tickets.js';
-import { getPasskeys, PK_CLASS_LOCK } from '../_kernel/passkey-store.js';
+import { getPasskeys, PASSKEY_LOCK } from '../_kernel/passkey-store.js';
 import { REALM_LOCK } from '../_kernel/realms.js';
 
 /** @param {any} context */
@@ -54,10 +54,7 @@ async function handleGet(context) {
   try {
     const pw = await kv.get(REALM_LOCK.kv.password, 'json');
     const password = !!(pw && pw.hash);
-    const keys = await getPasskeys(kv);
-    const passkey = keys.some(function (k) {
-      return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK;
-    });
+    const passkey = (await getPasskeys(kv, PASSKEY_LOCK)).length > 0;
     return Response.json(
       { ok: true, password: password, passkey: passkey },
       { headers: { 'Cache-Control': 'no-store' } }

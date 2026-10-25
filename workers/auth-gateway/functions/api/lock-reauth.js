@@ -24,7 +24,7 @@ import { verifyLockSession, ROLE_ADMIN } from '../_kernel/lock-session.js';
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
 import { REALM_LOCK, LOCK_REAUTH_TICKET, LOCK_RESET_TICKET } from '../_kernel/realms.js';
 import { verifyTicket, clearTicket } from '../_kernel/tickets.js';
-import { getPasskeys, PK_CLASS_LOCK } from '../_kernel/passkey-store.js';
+import { getPasskeys, PASSKEY_LOCK } from '../_kernel/passkey-store.js';
 
 /** 接口 / 前端用的票标识（status 的 ticket 字段） */
 export const TICKET_IDS = Object.freeze({ [LOCK_REAUTH_TICKET]: 'lock-reauth', [LOCK_RESET_TICKET]: 'lock-reset' });
@@ -129,8 +129,7 @@ async function handlePost(context) {
     try {
       const pw = await kv.get(REALM_LOCK.kv.password, 'json');
       password = !!(pw && pw.hash);
-      const keys = await getPasskeys(kv);
-      passkey = keys.some(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK; });
+      passkey = (await getPasskeys(kv, PASSKEY_LOCK)).length > 0;
     } catch (e) {
       return Response.json({ ok: false, error: 'server' }, { status: 503 });
     }

@@ -8,7 +8,7 @@
  *   或用别的钥匙签 → 拒绝；账号接口仍要求 admin lock 会话作为前置条件
  * - 进门：近期（≤10 分钟）账号登录 → stepup(by=account, scope=keys)；过旧 → 403 account-stale
  * - 账号会话 400 天；账号页管理操作要 AccountReauthTicket sgx-account-reauth（reauth:true 登录 / 根凭证 purpose:account-reauth 签发，3 分钟，离开即清）
- * - 迁移：原管理员密码 owner-pw（同 pepper）与原 owner-passkey:*（class=owner）直接可用，不重新注册
+ * - 存储：账号密码 account-password、账号通行密钥 account-passkey:*（第 5 层键名；数据由迁移脚本搬过来，值不变）
  * - 恢复：根凭证登录可重置账号密码、删除账号通行密钥；account-epoch +1，旧账号会话失效
  * - 缺 SGX_ACCOUNT_*：账号登录 503 config，其余接口不受影响
  *
@@ -130,22 +130,22 @@ async function accountGet(kv, cookieObj, envOverrides) {
 }
 async function seedPassword(kv, pw) {
   const { makePasswordRecord } = await import(KERNEL + 'password.js');
-  await kv.put('owner-pw', JSON.stringify(await makePasswordRecord(pw, PEPPER)));
+  await kv.put('account-password', JSON.stringify(await makePasswordRecord(pw, PEPPER)));
 }
 
 /* ---- WebAuthn 断言（测试用 P-256 钥匙，结构同 session-security.test.mjs） ---- */
 const b64url = (buf) => Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-async function seedPasskey(kv, cls = 'owner') {
+/** 按存储格式直接写一把通行密钥；domain = 'account'（账号通行密钥）| 'lock'（锁屏通行密钥） */
+async function seedPasskey(kv, domain = 'account') {
   const kp = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
   const jwk = await crypto.subtle.exportKey('jwk', kp.publicKey);
   const credId = b64url(crypto.getRandomValues(new Uint8Array(16)));
-  const idx = JSON.parse((await kv.get('owner-passkey-index')) || '[]');
+  const idx = JSON.parse((await kv.get(domain + '-passkey-index')) || '[]');
   idx.push(credId);
-  await kv.put('owner-passkey-index', JSON.stringify(idx));
-  /* 原管理员通行密钥的存储格式（迁移：不重新注册） */
-  await kv.put('owner-passkey:' + credId.slice(0, 12), JSON.stringify({
+  await kv.put(domain + '-passkey-index', JSON.stringify(idx));
+  await kv.put(domain + '-passkey:' + credId.slice(0, 12), JSON.stringify({
     name: '管理员通行密钥', provider: 'Samsung Pass', aaguid: '', createdAt: 1, lastUsedAt: 0,
-    credId, publicKey: jwk, signCount: 0, uv: 1, class: cls,
+    credId, publicKey: jwk, signCount: 0, uv: 1,
   }));
   return { kp, credId };
 }
@@ -213,17 +213,43 @@ test('账号密码登录：错误 → 403 wrong；未设置 → 403 not-set；�
   assert.equal(res.headers.get('Set-Cookie'), null);
 });
 
+test('账号密码限速：同 IP 连错 5 次 → 429 cooldown（冷却中密码对也进不去）；计数键 account-password-fail / -cooldown，和锁屏密码分开', async () => {
+  const kv = makeKV();
+  await seedPassword(kv, 'right-password-1');
+  const c = { 'sgx-lock-session': await adminSess() };
+  for (let i = 0; i < 4; i++) {
+    const r = await accountPost(kv, { action: 'login-password', password: 'wrong-password-1' }, c);
+    assert.equal(r.status, 403);
+    assert.equal((await r.json()).error, 'wrong');
+  }
+  assert.equal(await kv.get('account-password-fail:10.9.9.9'), '4');
+  assert.equal(await kv.get('lock-password-fail:10.9.9.9'), null, '不计入锁屏密码的计数');
+  const fifth = await accountPost(kv, { action: 'login-password', password: 'wrong-password-1' }, c);
+  assert.equal(fifth.status, 429);
+  assert.equal((await fifth.json()).error, 'cooldown');
+  assert.ok(Number(await kv.get('account-password-cooldown:10.9.9.9')) > Date.now());
+  const ok = await accountPost(kv, { action: 'login-password', password: 'right-password-1' }, c);
+  assert.equal(ok.status, 429, '冷却中密码对也不验');
+  assert.equal(ok.headers.get('Set-Cookie'), null);
+  /* 冷却过了：对的密码登录成功并清计数 */
+  await kv.put('account-password-cooldown:10.9.9.9', String(Date.now() - 1));
+  const after = await accountPost(kv, { action: 'login-password', password: 'right-password-1' }, c);
+  assert.equal(after.status, 200);
+  assert.equal(await kv.get('account-password-fail:10.9.9.9'), null);
+  assert.equal(await kv.get('account-password-cooldown:10.9.9.9'), null);
+});
+
 /* ============ 登录入口二：账号通行密钥 ============ */
 
-test('账号通行密钥登录（迁移：原 lock-passkey class=owner 不重新注册）→ sgx-account(by=passkey)；legacy userHandle 也接受', async () => {
-  const kv = makeKV({ 'layer:owner': '1', 'owner-user-id': 'legacy-handle-xyz' });
-  const { kp, credId } = await seedPasskey(kv, 'owner');
+test('账号通行密钥登录→ sgx-account(by=passkey)；legacy userHandle 也接受', async () => {
+  const kv = makeKV({ 'account-configured': '1', 'lock-user-id': 'legacy-handle-xyz' });
+  const { kp, credId } = await seedPasskey(kv, 'account');
   const sess = await adminSess();
   const ch = await accountPost(kv, { action: 'login-challenge' }, { 'sgx-lock-session': sess });
   assert.equal(ch.status, 200);
   const cj = await ch.json();
   assert.deepEqual(cj.allowCredentials, [{ id: credId, type: 'public-key' }]);
-  assert.ok(await kv.get('account-challenge:' + cj.cid), 'challenge 存在 account-challenge: 前缀下');
+  assert.ok(await kv.get('account-passkey-challenge:' + cj.cid), 'challenge 存在 account-passkey-challenge: 前缀下');
   const cred = await assertion(kp, credId, cj.challenge, 'legacy-handle-xyz');
   const res = await accountPost(kv, { action: 'login-passkey', cid: cj.cid, credential: cred }, { 'sgx-lock-session': sess });
   assert.equal(res.status, 200, JSON.stringify(await res.clone().json()));
@@ -236,13 +262,13 @@ test('账号通行密钥登录（迁移：原 lock-passkey class=owner 不重新
   assert.equal((await replay.json()).error, 'challenge');
 });
 
-test('账号通行密钥登录：锁屏类（class=lock）钥匙不能登录账号', async () => {
+test('账号通行密钥登录：锁屏通行密钥（lock-passkey:*）不能登录账号', async () => {
   const kv = makeKV();
   const { kp, credId } = await seedPasskey(kv, 'lock');
   const ch = await accountPost(kv, { action: 'login-challenge' }, { 'sgx-lock-session': await adminSess() });
   assert.equal(ch.status, 403);
   assert.equal((await ch.json()).error, 'not-set');
-  await kv.put('account-challenge:c1', JSON.stringify({ challenge: 'abc', purpose: 'login', exp: Date.now() + 60000 }));
+  await kv.put('account-passkey-challenge:c1', JSON.stringify({ challenge: 'abc', purpose: 'login', exp: Date.now() + 60000 }));
   const res = await accountPost(kv, { action: 'login-passkey', cid: 'c1', credential: await assertion(kp, credId, 'abc') }, { 'sgx-lock-session': await adminSess() });
   assert.equal(res.status, 403);
   assert.equal(res.headers.get('Set-Cookie'), null);
@@ -252,7 +278,7 @@ test('账号通行密钥登录：锁屏类（class=lock）钥匙不能登录账�
 
 test('重置登录（/api/root-auth purpose=account-reset）→ 只签 AccountResetTicket(by=root)，不签账号会话；审计 path=account-reset', async () => {
   const { onRequestPost } = await import(API + 'root-auth.js');
-  const kv = makeKV({ 'layer:lock': '1' });
+  const kv = makeKV({ 'lock-configured': '1' });
   const res = await onRequestPost({
     request: postReq('https://styrigx.com/api/root-auth', { key: ROOT_KEY, purpose: 'account-reset' }, { Cookie: 'sgx-lock-session=' + (await adminSess()) }),
     env: envFor(kv),
@@ -262,7 +288,7 @@ test('重置登录（/api/root-auth purpose=account-reset）→ 只签 AccountRe
   const t = pickCookie(res, 'sgx-account-reset');
   assert.ok(t && t.startsWith('root.0.'), '签 AccountResetTicket(by=root)');
   assert.ok(setCookies(res).some((c) => c.startsWith('sgx-account-reset=') && c.includes('Max-Age=180') && c.includes('SameSite=Strict') && !c.includes('Domain=')));
-  const audits = [...kv.store.entries()].filter(([k]) => k.startsWith('root-auth-audit:')).map(([, v]) => JSON.parse(v));
+  const audits = [...kv.store.entries()].filter(([k]) => k.startsWith('root-audit:')).map(([, v]) => JSON.parse(v));
   assert.equal(audits.length, 1);
   assert.equal(audits[0].ok, true);
   assert.equal(audits[0].path, 'account-reset');
@@ -278,7 +304,7 @@ test('重置登录 purpose=account-reset：无 lock 会话（即使 lock 未配�
   res = await onRequestPost({ request: postReq('https://styrigx.com/api/root-auth', { key: ROOT_KEY, purpose: 'account-reset' }, { Cookie: 'sgx-lock-session=' + (await visitorSess()) }), env: envFor(kv) });
   assert.equal(res.status, 401);
   assert.equal((await res.json()).error, 'denied');
-  const kv2 = makeKV({ 'layer:lock': '1' });
+  const kv2 = makeKV({ 'lock-configured': '1' });
   res = await onRequestPost({ request: postReq('https://styrigx.com/api/root-auth', { key: 'wrong', purpose: 'account-reset' }, { Cookie: 'sgx-lock-session=' + (await adminSess()) }), env: envFor(kv2) });
   assert.equal(res.status, 401);
   assert.equal((await res.json()).error, 'auth');
@@ -286,7 +312,7 @@ test('重置登录 purpose=account-reset：无 lock 会话（即使 lock 未配�
 
 test('账号再验证（/api/root-auth purpose=account-reauth）：要账号会话（没有 → 401 account），签 AccountReauthTicket(by=root)', async () => {
   const { onRequestPost } = await import(API + 'root-auth.js');
-  const kv = makeKV({ 'layer:lock': '1' });
+  const kv = makeKV({ 'lock-configured': '1' });
   let res = await onRequestPost({ request: postReq('https://styrigx.com/api/root-auth', { key: ROOT_KEY, purpose: 'account-reauth' }, { Cookie: 'sgx-lock-session=' + (await adminSess()) }), env: envFor(kv) });
   assert.equal(res.status, 401);
   assert.equal((await res.json()).error, 'account');
@@ -296,7 +322,7 @@ test('账号再验证（/api/root-auth purpose=account-reauth）：要账号会�
 });
 
 test('AccountResetTicket：没有账号会话也能改账号密码 / 列出 / 删除账号通行密钥（推 Account 纪元、票重签）；不能管设备', async () => {
-  const kv = makeKV({ 'layer:owner': '1' });
+  const kv = makeKV({ 'account-configured': '1' });
   await seedPassword(kv, 'old-account-password-1');
   const base = { 'sgx-lock-session': await adminSess(), 'sgx-account-reset': await resetTicket(0) };
   let r = await accountPost(kv, { action: 'passkey-list' }, base);
@@ -354,13 +380,13 @@ test('账号安全：改动必须有 AccountReauthTicket —— 没有票 403 re
   /* 拿账号会话票冒充 reauth 票（同一把钥匙签）→ 格式 / 签名串不符，拒绝 */
   const r5 = await accountPost(kv, body, { ...base, 'sgx-account-reauth': base['sgx-account-session'] });
   assert.equal((await r5.json()).error, 'reauth');
-  assert.equal(await kv.get('owner-pw'), null, '一次都没改成');
+  assert.equal(await kv.get('account-password'), null, '一次都没改成');
   const r6 = await accountPost(kv, { action: 'passkey-list' }, { ...base, 'sgx-account-reauth': '' });
   assert.equal(r6.status, 200);
 });
 
 test('再验证：login-password 带 reauth:true → 账号会话 + 3 分钟 AccountReauthTicket（只给主站、Strict）；GET 返回 reauth.expiresAt；reauth-clear 立即作废 reauth / reset 票', async () => {
-  const kv = makeKV({ 'layer:owner': '1' });
+  const kv = makeKV({ 'account-configured': '1' });
   await seedPassword(kv, 'old-account-password-1');
   const res = await accountPost(kv, { action: 'login-password', password: 'old-account-password-1', reauth: true }, { 'sgx-lock-session': await adminSess() });
   assert.equal(res.status, 200);
@@ -383,7 +409,7 @@ test('再验证：login-password 带 reauth:true → 账号会话 + 3 分钟 Acc
 });
 
 test('账号安全里改账号密码（account-epoch +1）：AccountReauthTicket 按原到期时间重签，可以接着操作', async () => {
-  const kv = makeKV({ 'layer:owner': '1' });
+  const kv = makeKV({ 'account-configured': '1' });
   await seedPassword(kv, 'old-account-password-1');
   const rt = await reauthTicket('password', 0);
   const r = await accountPost(kv, { action: 'password-change', password: 'brand-new-pass-1' }, { 'sgx-lock-session': await adminSess(), 'sgx-account-session': await accTicket('password'), 'sgx-account-reauth': rt });
@@ -396,16 +422,16 @@ test('账号安全里改账号密码（account-epoch +1）：AccountReauthTicket
 /* ============ 账号页：管理 + 根凭证恢复 ============ */
 
 
-test('首次设置账号密码：layer:owner 标记 + session-epoch +1，并重签当前 lock 会话（与原管理员凭证一致）', async () => {
-  const kv = makeKV({ 'session-epoch': '3' });
+test('首次设置账号密码：account-configured 标记 + lock-epoch +1，并重签当前 lock 会话（与原管理员凭证一致）', async () => {
+  const kv = makeKV({ 'lock-epoch': '3' });
   const r = await accountPost(kv, { action: 'password-change', password: 'first-pass-123' }, {
     'sgx-lock-session': await adminSess(3),
     'sgx-account-reset': await resetTicket(0),
   });
   assert.equal(r.status, 200);
   assert.deepEqual(await r.json(), { ok: true, changed: false });
-  assert.equal(await kv.get('layer:owner'), '1');
-  assert.equal(await kv.get('session-epoch'), '4');
+  assert.equal(await kv.get('account-configured'), '1');
+  assert.equal(await kv.get('lock-epoch'), '4');
   assert.ok((pickCookie(r, 'sgx-lock-session') || '').startsWith('password.admin.4.'), '当前设备 lock 会话用新 epoch 重签');
   assert.equal(await kv.get('account-epoch'), null, '首次设置不推进 account-epoch');
 });
@@ -413,7 +439,7 @@ test('首次设置账号密码：layer:owner 标记 + session-epoch +1，并重�
 test('账号密码：短于 8 位 400 short；与锁屏密码相同 403 same-as-lock', async () => {
   const kv = makeKV();
   const { makePasswordRecord } = await import(KERNEL + 'password.js');
-  await kv.put('lock-pw', JSON.stringify(await makePasswordRecord('lock-pass-123', PEPPER)));
+  await kv.put('lock-password', JSON.stringify(await makePasswordRecord('lock-pass-123', PEPPER)));
   const c = { 'sgx-lock-session': await adminSess(), 'sgx-account-session': await accTicket('password') };
   let r = await accountPost(kv, { action: 'password-change', password: 'short' }, c);
   assert.equal(r.status, 400);
@@ -423,9 +449,9 @@ test('账号密码：短于 8 位 400 short；与锁屏密码相同 403 same-as-
   assert.equal((await r.json()).error, 'same-as-lock');
 });
 
-test('账号通行密钥：list 只列 class=owner；AccountResetTicket 可删除（恢复路径）；删光且无密码 → 清 layer:owner', async () => {
-  const kv = makeKV({ 'layer:owner': '1' });
-  const a = await seedPasskey(kv, 'owner');
+test('账号通行密钥：list 只列账号通行密钥（account-passkey:*）；AccountResetTicket 可删除（恢复路径）；删光且无密码 → 清 account-configured', async () => {
+  const kv = makeKV({ 'account-configured': '1' });
+  const a = await seedPasskey(kv, 'account');
   await seedPasskey(kv, 'lock');
   const c = { 'sgx-lock-session': await adminSess(), 'sgx-account-reset': await resetTicket(0) };
   const l = await accountPost(kv, { action: 'passkey-list' }, c);
@@ -435,8 +461,8 @@ test('账号通行密钥：list 只列 class=owner；AccountResetTicket 可删�
   assert.equal(lj.keys[0].name, '管理员通行密钥', '迁移：原名字保留');
   const d = await accountPost(kv, { action: 'passkey-delete', credId: a.credId }, c);
   assert.equal(d.status, 200);
-  assert.equal(await kv.get('owner-passkey:' + a.credId.slice(0, 12)), null);
-  assert.equal(await kv.get('layer:owner'), null);
+  assert.equal(await kv.get('account-passkey:' + a.credId.slice(0, 12)), null);
+  assert.equal(await kv.get('account-configured'), null);
   assert.equal(await kv.get('account-epoch'), '1');
   assert.ok(pickCookie(d, 'sgx-account-reset').startsWith('root.1.'));
 });
@@ -446,12 +472,12 @@ test('账号页不能删锁屏类钥匙（404 not-found）', async () => {
   const lk = await seedPasskey(kv, 'lock');
   const r = await accountPost(kv, { action: 'passkey-delete', credId: lk.credId }, { 'sgx-lock-session': await adminSess(), 'sgx-account-session': await accTicket('password') });
   assert.equal(r.status, 404);
-  assert.ok(await kv.get('owner-passkey:' + lk.credId.slice(0, 12)));
+  assert.ok(await kv.get('lock-passkey:' + lk.credId.slice(0, 12)));
 });
 
-test('注册 challenge：沿用 owner-user-id:owner，名字 AccountKey（原 OwnerKey），排除已有账号通行密钥', async () => {
-  const kv = makeKV({ 'owner-user-id:owner': 'acct-handle-1' });
-  const a = await seedPasskey(kv, 'owner');
+test('注册 challenge：沿用 account-user-id，名字 AccountKey（原 OwnerKey），排除已有账号通行密钥', async () => {
+  const kv = makeKV({ 'account-user-id': 'acct-handle-1' });
+  const a = await seedPasskey(kv, 'account');
   const r = await accountPost(kv, { action: 'passkey-register-challenge' }, { 'sgx-lock-session': await adminSess(), 'sgx-account-session': await accTicket('passkey') });
   assert.equal(r.status, 200);
   const j = await r.json();
@@ -462,10 +488,10 @@ test('注册 challenge：沿用 owner-user-id:owner，名字 AccountKey（原 Ow
   assert.deepEqual(j.excludeCredentials, [{ id: a.credId, type: 'public-key' }]);
 });
 
-test('list：带账号 handle（owner-user-id:owner，供 signalCurrentUserDetails）+ userName AccountKey；没有 handle 时为空且不新建', async () => {
+test('list：带账号 handle（account-user-id，供 signalCurrentUserDetails）+ userName AccountKey；没有 handle 时为空且不新建', async () => {
   const c = async () => ({ 'sgx-lock-session': await adminSess(), 'sgx-account-session': await accTicket('passkey', Date.now() - 20 * 60 * 1000) });
-  const kv = makeKV({ 'owner-user-id:owner': 'acct-handle-9', 'owner-user-id': 'legacy-lock-handle' });
-  await seedPasskey(kv, 'owner');
+  const kv = makeKV({ 'account-user-id': 'acct-handle-9', 'lock-user-id': 'legacy-lock-handle' });
+  await seedPasskey(kv, 'account');
   const r = await accountPost(kv, { action: 'passkey-list' }, await c());
   assert.equal(r.status, 200, 'list 只读，不要求近期');
   const j = await r.json();
@@ -475,12 +501,12 @@ test('list：带账号 handle（owner-user-id:owner，供 signalCurrentUserDetai
   const kv2 = makeKV();
   const j2 = await (await accountPost(kv2, { action: 'passkey-list' }, await c())).json();
   assert.equal(j2.userHandle, '');
-  assert.equal(await kv2.get('owner-user-id:owner'), null, 'list 不创建 handle');
+  assert.equal(await kv2.get('account-user-id'), null, 'list 不创建 handle');
 });
 
 test('rename：改账号通行密钥名字（清理控制字符/空格、限 40 字）；空名 400 params；锁屏类 404；不推纪元', async () => {
   const kv = makeKV();
-  const a = await seedPasskey(kv, 'owner');
+  const a = await seedPasskey(kv, 'account');
   const lk = await seedPasskey(kv, 'lock');
   const c = { 'sgx-lock-session': await adminSess(), 'sgx-account-session': await accTicket('password') };
   const long = '  Galaxy\u0007 S26 ' + 'x'.repeat(60);
@@ -488,9 +514,9 @@ test('rename：改账号通行密钥名字（清理控制字符/空格、限 40 
   assert.equal(r.status, 200);
   const want = ('Galaxy S26 ' + 'x'.repeat(60)).slice(0, 40);
   assert.equal((await r.json()).name, want);
-  const rec = JSON.parse(await kv.get('owner-passkey:' + a.credId.slice(0, 12)));
+  const rec = JSON.parse(await kv.get('account-passkey:' + a.credId.slice(0, 12)));
   assert.equal(rec.name, want);
-  assert.equal(rec.class, 'owner', '存储层 class 仍是 owner');
+  assert.equal('class' in rec, false, '记录不再写 class（键名已表明域）');
   assert.equal(await kv.get('account-epoch'), null, '重命名不推纪元');
   const e = await accountPost(kv, { action: 'passkey-rename', credId: a.credId, name: ' \u0001 ' }, c);
   assert.equal(e.status, 400);
@@ -499,12 +525,12 @@ test('rename：改账号通行密钥名字（清理控制字符/空格、限 40 
   assert.equal(m.status, 400);
   const l = await accountPost(kv, { action: 'passkey-rename', credId: lk.credId, name: 'hack' }, c);
   assert.equal(l.status, 404);
-  assert.equal(JSON.parse(await kv.get('owner-passkey:' + lk.credId.slice(0, 12))).name, '管理员通行密钥');
+  assert.equal(JSON.parse(await kv.get('lock-passkey:' + lk.credId.slice(0, 12))).name, '管理员通行密钥');
 });
 
 test('rename：与 delete 同门槛 —— 没有账号会话 401 account；没有 reauth 票 403 reauth；访客 401', async () => {
   const kv = makeKV();
-  const a = await seedPasskey(kv, 'owner');
+  const a = await seedPasskey(kv, 'account');
   const body = { action: 'passkey-rename', credId: a.credId, name: 'New' };
   const r1 = await accountPost(kv, body, { 'sgx-lock-session': await adminSess() });
   assert.equal(r1.status, 401);
@@ -514,7 +540,7 @@ test('rename：与 delete 同门槛 —— 没有账号会话 401 account；没�
   assert.equal((await r2.json()).error, 'reauth');
   const r3 = await accountPost(kv, body, { 'sgx-lock-session': await visitorSess(), 'sgx-account-session': await accTicket('password') });
   assert.equal(r3.status, 401);
-  assert.equal(JSON.parse(await kv.get('owner-passkey:' + a.credId.slice(0, 12))).name, '管理员通行密钥');
+  assert.equal(JSON.parse(await kv.get('account-passkey:' + a.credId.slice(0, 12))).name, '管理员通行密钥');
 });
 
 test('logout：清账号会话和 reauth / reset 票（幂等，不需会话），不动锁屏会话', async () => {

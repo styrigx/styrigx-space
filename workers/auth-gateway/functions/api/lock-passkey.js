@@ -49,26 +49,22 @@ import { issueTicket, reissueTicketWithEpoch } from '../_kernel/tickets.js';
 import { LOCK_REAUTH_TICKET, BY_PASSKEY } from '../_kernel/realms.js';
 import { LAYER_LOCK, setLayerConfigured, clearLayerConfigured, isLayerConfigured, isAccountEffectivelyConfigured } from '../_kernel/layers.js';
 import { verifyLockSession } from '../_kernel/lock-session.js';
-import { REALM_LOCK, SESSION_EPOCH_KEY, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
-import { KEY_LOCK, passkeyKey } from '../_kernel/key-names.js';
+import { REALM_LOCK, LOCK_EPOCH_KEY, KEY_LOCK, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
 import {
   getPasskeys,
+  getPasskey,
   savePasskey,
   deletePasskey,
   getUserHandle,
   providerOf,
-  PK_CLASS_LOCK,
+  PASSKEY_LOCK,
+  PASSKEY_ACCOUNT,
   PASSKEY_DISPLAY_NAME,
 } from '../_kernel/passkey-store.js';
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
 
 /* 锁屏通行密钥注册/登录 challenge 的 KV 前缀（与账号 challenge 隔离） */
 const CHALLENGE_PREFIX = REALM_LOCK.kv.passkeyChallengePrefix;
-
-/** @param {any} k 通行密钥记录 @returns {boolean} 是否锁屏通行密钥（无 class 的早期记录按锁屏） */
-function isLockKey(k) {
-  return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK;
-}
 
 /**
  * 锁屏通行密钥管理门禁：LockReauthTicket + admin 锁屏会话，或 LockResetTicket（
@@ -82,14 +78,11 @@ async function checkPasskeyManage(request, env, op) {
 }
 
 /**
- * 按 credId 直接读一把锁屏通行密钥（不走索引列表，避开最终一致）；不存在或不是锁屏通行密钥 → null。
+ * 按 credId 直接读一把锁屏通行密钥（不走索引列表，避开最终一致）；不存在 → null（账号通行密钥在另一组键里，读不到）。
  * @param {any} kv @param {string} credId
  */
 async function getLockKey(kv, credId) {
-  let found = null;
-  try { found = await kv.get(passkeyKey(credId), 'json'); } catch (e) {}
-  if (!found || found.credId !== credId || !isLockKey(found)) return null;
-  return found;
+  return await getPasskey(kv, PASSKEY_LOCK, credId);
 }
 
 /** @param {any} context */
@@ -134,7 +127,7 @@ async function handlePost(context) {
     if (type !== 'register' && type !== 'auth') {
       return Response.json({ ok: false, error: 'params' }, { status: 400 });
     }
-    const lockKeys = (await getPasskeys(kv)).filter(isLockKey);
+    const lockKeys = (await getPasskeys(kv, PASSKEY_LOCK));
     if (type === 'register') {
       const mg = await checkPasskeyManage(request, env, 'register');
       if (!mg.ok) {
@@ -153,7 +146,7 @@ async function handlePost(context) {
     const resp = { ok: true, cid: cid, challenge: challenge, rpId: RP_ID };
     if (type === 'register') {
       /* 下发用户信息：全部写死，用户不填。displayName=Sloan Gray；name=LockKey。user.id 存 KV 复用。 */
-      const userHandle = await getUserHandle(kv, PK_CLASS_LOCK);
+      const userHandle = await getUserHandle(kv, PASSKEY_LOCK);
       resp.user = {
         id: userHandle,
         name: KEY_LOCK,
@@ -216,15 +209,11 @@ async function handlePost(context) {
           aaguid = h.slice(0,8) + '-' + h.slice(8,12) + '-' + h.slice(12,16) + '-' + h.slice(16,20) + '-' + h.slice(20);
         }
       } catch (e) {}
-      /* 存储（同 credId 去重；每把一个 key）。同 credId 已是账号通行密钥 → 拒绝（不改别的域的钥匙） */
+      /* 存储（同 credId 去重；每把一个 key）。同一把凭据已登记为账号通行密钥 → 拒绝（一把凭据只属于一个域） */
       const now = Date.now();
       const deviceName = String((body && body.name) || '').slice(0, 40);
-      const keys = await getPasskeys(kv);
-      let existing = null;
-      for (const k of keys) {
-        if (k.credId === credIdB64) { existing = k; break; }
-      }
-      if (existing && !isLockKey(existing)) throw new Error('invalid-class');
+      if (await getPasskey(kv, PASSKEY_ACCOUNT, credIdB64)) throw new Error('invalid-class');
+      const existing = await getPasskey(kv, PASSKEY_LOCK, credIdB64);
       /* AAGUID 映射 provider，作为默认名 */
       const mappedProvider = providerOf(aaguid);
       const item = {
@@ -237,9 +226,8 @@ async function handlePost(context) {
         publicKey: jwk,
         signCount: parsed.signCount,
         uv: 1,
-        class: PK_CLASS_LOCK,
       };
-      await savePasskey(kv, item);
+      await savePasskey(kv, PASSKEY_LOCK, item);
       /* 首次配置锁屏层时标记 + 推进纪元（废止根凭证代开的解锁会话，必修安全项 2；
          纪元推进失败则返回 503）。纪元推进后用新纪元重签 reauth / reset 票 + 当前设备会话，保持当前设备不掉线。 */
       let regNewEpoch = null;
@@ -289,7 +277,7 @@ async function handlePost(context) {
     if (!chRec || chRec.type !== 'auth' || chRec.exp < Date.now()) {
       return Response.json({ ok: false, error: 'challenge' }, { status: 403 });
     }
-    const lockKeys = (await getPasskeys(kv)).filter(isLockKey);
+    const lockKeys = (await getPasskeys(kv, PASSKEY_LOCK));
     if (lockKeys.length === 0) {
       return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
     }
@@ -316,7 +304,7 @@ async function handlePost(context) {
       });
       /* 校验 userHandle（如果有）；验证本身仍以凭据公钥签名为准。 */
       try {
-        const expectUh = await getUserHandle(kv, PK_CLASS_LOCK);
+        const expectUh = await getUserHandle(kv, PASSKEY_LOCK);
         const gotUh = cred.response.userHandle;
         if (expectUh && gotUh && gotUh !== expectUh) throw new Error('userHandle');
       } catch (e) {
@@ -325,7 +313,7 @@ async function handlePost(context) {
       /* 更新 signCount 和 lastUsedAt */
       stored.signCount = checked.signCount;
       stored.lastUsedAt = Date.now();
-      try { await savePasskey(kv, stored); } catch (e2) {}
+      try { await savePasskey(kv, PASSKEY_LOCK, stored); } catch (e2) {}
       /* 通过：签发 Ed25519 会话 cookie（fail closed；issueLockSession 永不抛错）。
          通行密钥验证签admin 会话（12 小时）。reauth:true：只签 LockReauthTicket（by=passkey）。 */
       const headers = new Headers({ 'Content-Type': 'application/json' });
@@ -355,7 +343,7 @@ async function handlePost(context) {
     if (!mg.ok) {
       return Response.json(mg.body, { status: mg.status });
     }
-    const keys = (await getPasskeys(kv)).filter(isLockKey);
+    const keys = (await getPasskeys(kv, PASSKEY_LOCK));
     return Response.json({
       ok: true,
       ticket: TICKET_IDS[mg.ticket],
@@ -389,12 +377,12 @@ async function handlePost(context) {
     name = String(name).replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, 40);
     if (!name) return Response.json({ ok: false, error: 'params' }, { status: 400 });
     found0.name = name;
-    await savePasskey(kv, found0);
+    await savePasskey(kv, PASSKEY_LOCK, found0);
     return Response.json({ ok: true });
   }
 
   /* ============ delete：删除（需 LockReauthTicket；重置锁屏也可删） ============
-     - 先 session-epoch +1（成功才删；失败 503，fail closed），reauth / reset 票与当前设备会话随即重签
+     - 先 lock-epoch +1（成功才删；失败 503，fail closed），reauth / reset 票与当前设备会话随即重签
      - 账号未配置时，禁止删掉最后一种锁屏凭证 */
   if (action === 'delete') {
     const credId = (body && body.credId) || '';
@@ -414,7 +402,7 @@ async function handlePost(context) {
       const passwordRec = await kv.get(REALM_LOCK.kv.password, 'json');
       hasLockPassword = !!(passwordRec && passwordRec.hash);
     } catch (e) {}
-    const lockKeys = (await getPasskeys(kv)).filter(isLockKey);
+    const lockKeys = (await getPasskeys(kv, PASSKEY_LOCK));
     if (!hasLockPassword && lockKeys.length <= 1) {
       let accountCfg = true;
       try {
@@ -429,16 +417,16 @@ async function handlePost(context) {
     /* 先推进纪元，成功才删（fail closed；纪元推进失败则密钥仍在）。 */
     let newEpoch = null;
     try {
-      const v = parseInt(await kv.get(SESSION_EPOCH_KEY) || '0', 10) || 0;
+      const v = parseInt(await kv.get(LOCK_EPOCH_KEY) || '0', 10) || 0;
       newEpoch = v + 1;
-      await kv.put(SESSION_EPOCH_KEY, String(newEpoch));
+      await kv.put(LOCK_EPOCH_KEY, String(newEpoch));
     } catch (e) {
       return Response.json({ ok: false, error: 'epoch' }, { status: 503 });
     }
-    await deletePasskey(kv, credId);
+    await deletePasskey(kv, PASSKEY_LOCK, credId);
     /* 删完后若锁屏层已无凭证：账号已配置 → 保留锁屏层标记；账号未配置（竞态）→ 清标记。 */
     try {
-      const hasLockKey = (await getPasskeys(kv)).some(isLockKey);
+      const hasLockKey = (await getPasskeys(kv, PASSKEY_LOCK)).length > 0;
       let hasLockPassword2 = false;
       try { const r = await kv.get(REALM_LOCK.kv.password, 'json'); hasLockPassword2 = !!(r && r.hash); } catch (e) {}
       if (!hasLockKey && !hasLockPassword2) {

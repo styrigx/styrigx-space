@@ -162,7 +162,7 @@ async function touchDevice(kv, request, p) {
     const now = Date.now();
     const rec = await getDevice(kv, p.deviceId);
     if (!rec) {
-      await putDevice(kv, Object.assign({ sid: p.deviceId, by: p.by, createdAt: p.authAt, authAt: p.authAt, lastSeen: now }, deviceInfo(request, null)));
+      await putDevice(kv, Object.assign({ deviceId: p.deviceId, by: p.by, createdAt: p.authAt, authAt: p.authAt, lastSeen: now }, deviceInfo(request, null)));
       return;
     }
     if (now - (rec.lastSeen || 0) < TOUCH_INTERVAL_MS) return;

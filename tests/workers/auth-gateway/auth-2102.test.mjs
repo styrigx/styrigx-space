@@ -5,7 +5,7 @@
  * - 2：管理操作需 admin 会话 + stepup；/api/lock-now 清除 stepup 和 app cookie；
  *     锁定后调用管理接口必须拒绝
  * - 3：删应用密钥先推 app-epoch 再删；推失败 503 且密钥仍在
- * - 4：删锁屏密钥先推 session-epoch 再删；失败 503（fail closed）
+ * - 4：删锁屏密钥先推 lock-epoch 再删；失败 503（fail closed）
  * - 5：主站 SGX_SITE 配错 → 500（fail closed）
  * - 6：无 KV_LOCK_DOOR 时 epoch 检查 fail closed（kv-error）
  * - 7：密码限速 KV 出错 → 503（fail closed）
@@ -118,7 +118,7 @@ test('setup: 生成测试密钥', async () => {
 /* ============ 3：删应用密钥先推 epoch 再删 ============ */
 
 
-/* ============ 4：删锁屏密钥先推 session-epoch ============ */
+/* ============ 4：删锁屏密钥先推 lock-epoch ============ */
 
 
 /* ============ 5：SGX_SITE 配错 fail closed ============ */
@@ -180,10 +180,10 @@ test('8：root-auth 审计写入失败 → 503 且无 cookie', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
   const env = baseEnv(kv);
-  /* 让审计 put 失败：root-auth-audit: 前缀抛错，其他放行 */
+  /* 让审计 put 失败：root-audit: 前缀抛错，其他放行 */
   const origPut = kv.put.bind(kv);
   kv.put = async (k, v, o) => {
-    if (String(k).startsWith('root-auth-audit:')) throw new Error('audit-fail');
+    if (String(k).startsWith('root-audit:')) throw new Error('audit-fail');
     return origPut(k, v, o);
   };
   const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY, purpose: 'lock-reset' });

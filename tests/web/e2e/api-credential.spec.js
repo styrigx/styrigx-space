@@ -73,17 +73,17 @@ test.describe('credential APIs 真请求 e2e', () => {
       { action: 'set', password: 'LockPass-111' });
     expect(r.status).toBe(200);
     expect(r.json.ok).toBe(true);
-    const rec1 = await kv.get('lock-pw', 'json');
+    const rec1 = await kv.get('lock-password', 'json');
     expect(rec1 && rec1.hash).toBeTruthy();
     expect(rec1.peppered).toBe(true);
-    expect(await kv.get('layer:lock')).toBe('1');
+    expect(await kv.get('lock-configured')).toBe('1');
 
     // change（epoch 已推进，重签票据）
     await mintBrowserAuth(context, 'password');
     r = await apiFetch(page, '/api/lock-password',
       { action: 'change', password: 'LockPass-222' });
     expect(r.json.ok).toBe(true);
-    const rec2 = await kv.get('lock-pw', 'json');
+    const rec2 = await kv.get('lock-password', 'json');
     expect(rec2.hash).not.toBe(rec1.hash);
 
     // 新密码能 verify 通过（证明存的是可用 hash）
@@ -97,10 +97,10 @@ test.describe('credential APIs 真请求 e2e', () => {
       { action: 'remove' });
     expect(r.status).toBe(403);
     expect(r.json.error).toBe('last-key');
-    expect((await kv.get('lock-pw', 'json')).hash).toBe(rec2.hash);
+    expect((await kv.get('lock-password', 'json')).hash).toBe(rec2.hash);
   });
 
-  test('账号密码 set/change（/api/account；KV 仍存 owner-pw）', async ({ page, context }) => {
+  test('账号密码 set/change（/api/account；KV 仍存 account-password）', async ({ page, context }) => {
     const kv = t.kv;
     await mintBrowserAuth(context, 'root');
     // 根凭证登录的账号会话：设置账号密码
@@ -108,16 +108,16 @@ test.describe('credential APIs 真请求 e2e', () => {
     let r = await apiFetch(page, '/api/account', { action: 'password-change', password: 'AccountPass-222' });
     expect(r.json.ok).toBe(true);
     expect(r.json.changed).toBe(false);
-    const rec1 = await kv.get('owner-pw', 'json');
+    const rec1 = await kv.get('account-password', 'json');
     expect(rec1 && rec1.hash).toBeTruthy();
-    expect(await kv.get('layer:owner')).toBe('1');
-    // 首次配置推进了 session-epoch：重签 lock 会话；reauth 票只有一张，重签LockReauthTicket后再签回AccountReauthTicket
+    expect(await kv.get('account-configured')).toBe('1');
+    // 首次配置推进了 lock-epoch：重签 lock 会话；reauth 票只有一张，重签LockReauthTicket后再签回AccountReauthTicket
     await mintBrowserAuth(context, 'root');
     await mintBrowserAccount(context, 'root');
     r = await apiFetch(page, '/api/account', { action: 'password-change', password: 'AccountPass-333' });
     expect(r.json.ok).toBe(true);
     expect(r.json.changed).toBe(true);
-    const rec2 = await kv.get('owner-pw', 'json');
+    const rec2 = await kv.get('account-password', 'json');
     expect(rec2.hash).not.toBe(rec1.hash);
     expect(await kv.get('account-epoch')).toBe('1');
     // 新密码能登录账号
@@ -150,16 +150,18 @@ test.describe('credential APIs 真请求 e2e', () => {
       expect(reg.json.ok).toBe(true);
       expect(reg.json.credId).toBeTruthy();
 
-      // 3）断言 KV：索引含该 credId，且记录的 class 与请求一致
-      const idx = await kv.get('owner-passkey-index', 'json');
+      // 3）断言 KV：记录和索引落在对应域的键下（lock-passkey:* / account-passkey:*），不再写 class 字段
+      const prefix = pkClass === 'account' ? 'account-passkey' : 'lock-passkey';
+      const idx = await kv.get(prefix + '-index', 'json');
       expect(idx).toContain(reg.json.credId);
-      const stored = await kv.get('owner-passkey:' + String(reg.json.credId).slice(0, 12), 'json');
-      expect(stored.class).toBe(pkClass);
+      const stored = await kv.get(prefix + ':' + String(reg.json.credId).slice(0, 12), 'json');
+      expect(stored).toBeTruthy();
+      expect(stored.class).toBeUndefined();
     }
     // 账号页只列账号类；锁屏接口只列锁屏类（账号类只在账号页管理）
     const listAcc = await apiFetch(page, '/api/account', { action: 'passkey-list' });
     expect(listAcc.json.ok, JSON.stringify(listAcc.json)).toBe(true);
-    expect(listAcc.json.keys.map((k) => k.name)).toEqual(['e2e-owner']);
+    expect(listAcc.json.keys.map((k) => k.name)).toEqual(['e2e-account']);
     await mintBrowserAuth(context, 'password');
     const listDoor = await apiFetch(page, '/api/lock-passkey', { action: 'list' });
     expect(listDoor.json.ok, JSON.stringify(listDoor.json)).toBe(true);

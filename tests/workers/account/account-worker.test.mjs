@@ -249,7 +249,7 @@ test('网关 AuthVerifier.accountSession()：同 verifyAccountSession；吊销 �
   const dev = JSON.parse(rec[1].value ?? rec[1]);
   assert.equal(dev.country, 'CN');
   assert.ok(dev.browser || dev.platform, '从 User-Agent 解析出了浏览器 / 系统');
-  await kv.put('account-revoked:' + sid, '1');
+  await kv.put('account-device-revoked:' + sid, '1');
   assert.deepEqual(await checkAccountSession('sgx-account-session=' + t, gwEnv, {}), { ok: false, reason: 'revoked' });
   assert.deepEqual(await checkAccountSession('', gwEnv), { ok: false, reason: 'no-cookie' });
 });

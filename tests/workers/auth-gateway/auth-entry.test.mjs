@@ -33,7 +33,7 @@ function makeKv(init) {
     },
     put: async (k, v, o) => { calls.put++; m.set(k, typeof v === 'string' ? v : JSON.stringify(v)); },
     delete: async (k) => { calls.delete++; m.delete(k); },
-    list: async (o) => { calls.list++; return { keys: Array.from(m.keys()).map((name) => ({ name })) }; },
+    list: async (o) => { calls.list++; const p = (o && o.prefix) || ''; return { keys: Array.from(m.keys()).filter((name) => name.startsWith(p)).map((name) => ({ name })) }; },
     _store: m,
     _calls: calls,
   };
@@ -106,7 +106,7 @@ test('认证入口：访客会话提交正确根凭证 → 401 密码错误，�
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
 
-  const kv = makeKv({ 'layer:lock': '1' });
+  const kv = makeKv({ 'lock-configured': '1' });
   const env = baseEnv(kv);
 
   /* 构造有效访客会话 cookie */
@@ -128,7 +128,7 @@ test('认证入口：访客会话提交正确根凭证 → 401 密码错误，�
   assert.equal(kv._calls.put, 0, '访客假入口不应写 KV');
 
   /* 不增加 root-limit 计数 */
-  assert.ok(!kv._store.has('root-auth-fail:unknown'), '不应有 IP 失败计数');
+  assert.ok(!kv._store.has('root-fail:unknown'), '不应有 IP 失败计数');
   assert.ok(![...kv._store.keys()].some((k) => k.startsWith('root-auth-')), '不应有任何 root-limit 键');
 
   /* 固定最小延迟（防时序区分） */
@@ -139,8 +139,8 @@ test('认证入口：访客假入口与真失败响应逐字节相同', async ()
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
 
-  const kv1 = makeKv({ 'layer:lock': '1' });
-  const kv2 = makeKv({ 'layer:lock': '1' });
+  const kv1 = makeKv({ 'lock-configured': '1' });
+  const kv2 = makeKv({ 'lock-configured': '1' });
 
   /* B1-9：访客提交任何值都返回同一个 401 denied（不读存储） */
   const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'visitor');
@@ -176,15 +176,15 @@ test('行为：账号登录状态四种配置返回正确', async () => {
   });
   const cases = [
     [{}, false, false],
-    [{ 'owner-pw': JSON.stringify({ hash: 'x', algo: 'test' }) }, true, false],
+    [{ 'account-password': JSON.stringify({ hash: 'x', algo: 'test' }) }, true, false],
     [{
-      'owner-passkey-index': JSON.stringify(['testcred123456']),
-      'owner-passkey:testcred1234': JSON.stringify({ credId: 'testcred123456', class: 'owner' }),
+      'account-passkey-index': JSON.stringify(['testcred123456']),
+      'account-passkey:testcred1234': JSON.stringify({ credId: 'testcred123456' }),
     }, false, true],
     [{
-      'owner-pw': JSON.stringify({ hash: 'x', algo: 'test' }),
-      'owner-passkey-index': JSON.stringify(['testcred123456']),
-      'owner-passkey:testcred1234': JSON.stringify({ credId: 'testcred123456', class: 'owner' }),
+      'account-password': JSON.stringify({ hash: 'x', algo: 'test' }),
+      'account-passkey-index': JSON.stringify(['testcred123456']),
+      'account-passkey:testcred1234': JSON.stringify({ credId: 'testcred123456' }),
     }, true, true],
   ];
   for (const [seed, pw, pk] of cases) {
@@ -203,7 +203,7 @@ test('行为：账号登录状态四种配置返回正确', async () => {
 test('认证入口：重置锁屏 status 始终可用（不暴露管理员凭证是否配置）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
   /* owner 未配置 */
-  const kv = makeKv({ 'layer:lock': '1' });
+  const kv = makeKv({ 'lock-configured': '1' });
   const env = baseEnv(kv);
   const st = postReq('https://test.example.com/api/lock-reset', { action: 'status' });
   const stRes = await onRequestPost({ request: st, env });
@@ -239,7 +239,7 @@ test('补充七：/api/lock-entry 四种配置返回正确', async () => {
   assert.equal(j.password, false, '无凭据时 password 应为 false');
 
   /* 仅密码 */
-  kv = makeKv({ 'lock-pw': JSON.stringify({ hash: 'h', salt: 's' }) });
+  kv = makeKv({ 'lock-password': JSON.stringify({ hash: 'h', salt: 's' }) });
   res = await onRequestGet({ request: get('https://test.example.com/api/lock-entry'), env: baseEnv(kv) });
   j = await res.json();
   assert.equal(j.passkey, false);
@@ -247,8 +247,8 @@ test('补充七：/api/lock-entry 四种配置返回正确', async () => {
 
   /* 仅通行密钥 */
   kv = makeKv({
-    'owner-passkey-index': JSON.stringify(['cid1']),
-    'owner-passkey:cid1': JSON.stringify({ credId: 'cid1', class: 'lock' }),
+    'lock-passkey-index': JSON.stringify(['cid1']),
+    'lock-passkey:cid1': JSON.stringify({ credId: 'cid1' }),
   });
   res = await onRequestGet({ request: get('https://test.example.com/api/lock-entry'), env: baseEnv(kv) });
   j = await res.json();
@@ -257,9 +257,9 @@ test('补充七：/api/lock-entry 四种配置返回正确', async () => {
 
   /* 两者都有 */
   kv = makeKv({
-    'lock-pw': JSON.stringify({ hash: 'h', salt: 's' }),
-    'owner-passkey-index': JSON.stringify(['cid1']),
-    'owner-passkey:cid1': JSON.stringify({ credId: 'cid1', class: 'lock' }),
+    'lock-password': JSON.stringify({ hash: 'h', salt: 's' }),
+    'lock-passkey-index': JSON.stringify(['cid1']),
+    'lock-passkey:cid1': JSON.stringify({ credId: 'cid1' }),
   });
   res = await onRequestGet({ request: get('https://test.example.com/api/lock-entry'), env: baseEnv(kv) });
   j = await res.json();
@@ -268,12 +268,12 @@ test('补充七：/api/lock-entry 四种配置返回正确', async () => {
 
   /* 非 lock 类凭据不应算作锁屏通行密钥 */
   kv = makeKv({
-    'owner-passkey-index': JSON.stringify(['cid9']),
-    'owner-passkey:cid9': JSON.stringify({ credId: 'cid9', class: 'owner' }),
+    'account-passkey-index': JSON.stringify(['cid9']),
+    'account-passkey:cid9': JSON.stringify({ credId: 'cid9' }),
   });
   res = await onRequestGet({ request: get('https://test.example.com/api/lock-entry'), env: baseEnv(kv) });
   j = await res.json();
-  assert.equal(j.passkey, false, 'owner 类凭据不应算锁屏通行密钥');
+  assert.equal(j.passkey, false, '账号通行密钥不应算锁屏通行密钥');
   assert.equal(j.password, false);
 });
 
@@ -295,12 +295,12 @@ test('补充七：/api/lock-entry 读取失败按已配置处理（不暴露根�
   assert.equal(j.password, true, '读取失败 password 应按已配置处理');
 });
 
-/* 复审 §2：只剩 layer:lock 标记（无真实凭证）时，lock-entry 不应显示根凭证入口，
+/* 复审 §2：只剩 lock-configured 标记（无真实凭证）时，lock-entry 不应显示根凭证入口，
    否则 root-auth 走 isLockEffectivelyConfigured 判定已配置 → 假入口 401，直接锁死。 */
 test('行为：/api/lock-entry 只剩标记时不暴露根凭证入口', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-entry.js');
-  /* 只有标记，无 lock-pw、无 passkey */
-  const kv = makeKv({ 'layer:lock': '1' });
+  /* 只有标记，无 lock-password、无 passkey */
+  const kv = makeKv({ 'lock-configured': '1' });
   const res = await onRequestGet({
     request: new Request('https://test.example.com/api/lock-entry', { method: 'GET' }),
     env: baseEnv(kv),
@@ -314,7 +314,7 @@ test('行为：/api/lock-entry 只剩标记时不暴露根凭证入口', async (
 test('补充七：已配置锁屏凭证时，锁屏根凭证路径被服务端拒绝（无会话 → 401）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   /* lock 层已配置，无会话提交正确的根凭证 */
-  const kv = makeKv({ 'layer:lock': '1' });
+  const kv = makeKv({ 'lock-configured': '1' });
   const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345', purpose: 'lock-reauth' });
   const res = await onRequestPost({ request: req, env: baseEnv(kv) });
   assert.equal(res.status, 401, '已配置时无会话根凭证路径应被拒绝');
@@ -328,7 +328,7 @@ test('补充七：访客管理凭证提交任何值都返回密码错误且不�
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
 
-  const kv = makeKv({ 'layer:lock': '1' });
+  const kv = makeKv({ 'lock-configured': '1' });
   const env = baseEnv(kv);
   const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'visitor');
 
@@ -380,10 +380,10 @@ test('行为：lockreset 记失败计数写 KV 出错 → 503', async () => {
 
 test('行为：lockreset needAccount 带 passkey/password 布尔', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
-  /* owner 只配置了密码（含 layer:owner 标记） */
+  /* owner 只配置了密码（含 account-configured 标记） */
   const kv = makeKv({
-    'layer:owner': '1',
-    'owner-pw': JSON.stringify({ hash: 'x', algo: 'test' }),
+    'account-configured': '1',
+    'account-password': JSON.stringify({ hash: 'x', algo: 'test' }),
   });
   const env = baseEnv(kv);
   const req = postReq('https://test.example.com/api/lock-reset', {
@@ -414,8 +414,8 @@ test('行为：/api/account 状态只看 owner 类（账号）通行密钥', asy
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
   /* 只有 lock 类 passkey，无账号密码 */
   const kv = makeKv({
-    'owner-passkey-index': JSON.stringify(['abc123']),
-    'owner-passkey:abc123': JSON.stringify({ credId: 'abc123', class: 'lock', publicKey: 'x' }),
+    'lock-passkey-index': JSON.stringify(['abc123']),
+    'lock-passkey:abc123': JSON.stringify({ credId: 'abc123', publicKey: 'x' }),
   });
   const env = baseEnv(kv);
   const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
@@ -437,7 +437,7 @@ test('行为：访客会话下 root-auth 不走真路径（即使 lock 未配置
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
   /* lock 已配置 */
-  const kv = makeKv({ 'layer:lock': '1' });
+  const kv = makeKv({ 'lock-configured': '1' });
   const env = baseEnv(kv);
   const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'visitor');
   /* 提交正确的根凭证 */
@@ -490,12 +490,12 @@ test('行为：injectSessionState locked 状态保持不变', async () => {
 
 /* ============ /api/lock-credentials：只读锁屏凭证状态 ============
    背景：security-lock.js refreshStatus 曾用 /api/owner-status 显示锁屏密码
-   「已设置/未设置」和删除按钮，但 owner-status 读的是 owner-pw +
+   「已设置/未设置」和删除按钮，但 owner-status 读的是 account-password +
    class=owner 通行密钥（且要求 admin 会话），导致：
    - 只设了管理员密码 → 锁屏页误显示「已设置」
    - 只设了锁屏密码 → 误显示「未设置」且没有删除按钮
    - lockreset 页无会话 → owner-status 返回 401
-   本接口读 lock-pw + class=lock，admin 会话或 keys/lockreset 票据可读。 */
+   本接口读 lock-password + class=lock，admin 会话或 keys/lockreset 票据可读。 */
 
 function getReq(url, headers) {
   return new Request(url, { method: 'GET', headers: headers || {} });
@@ -525,9 +525,9 @@ test('行为：/api/lock-credentials 访客会话 → 401', async () => {
 test('行为：只有管理员密码时 /api/lock-credentials 返回 password:false（锁屏页显示「未设置」正确）', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-credentials.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
-  /* 只有 owner-pw，无 lock-pw，无通行密钥 */
+  /* 只有 account-password，无 lock-password，无通行密钥 */
   const kv = makeKv({
-    'owner-pw': JSON.stringify({ hash: 'owner-hash' }),
+    'account-password': JSON.stringify({ hash: 'owner-hash' }),
   });
   const env = baseEnv(kv);
   const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
@@ -545,9 +545,9 @@ test('行为：只有管理员密码时 /api/lock-credentials 返回 password:fa
 test('行为：只有锁屏密码时 /api/lock-credentials 返回 password:true（锁屏页显示「已设置」正确）', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-credentials.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
-  /* 只有 lock-pw，无 owner-pw，无通行密钥 */
+  /* 只有 lock-password，无 account-password，无通行密钥 */
   const kv = makeKv({
-    'lock-pw': JSON.stringify({ hash: 'lock-hash' }),
+    'lock-password': JSON.stringify({ hash: 'lock-hash' }),
   });
   const env = baseEnv(kv);
   const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
@@ -567,8 +567,8 @@ test('行为：/api/lock-credentials 只看 class=lock 通行密钥', async () =
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
   /* 只有 owner 类通行密钥 */
   const kv1 = makeKv({
-    'owner-passkey-index': JSON.stringify(['o1']),
-    'owner-passkey:o1': JSON.stringify({ credId: 'o1', class: 'owner', publicKey: 'x' }),
+    'account-passkey-index': JSON.stringify(['o1']),
+    'account-passkey:o1': JSON.stringify({ credId: 'o1', publicKey: 'x' }),
   });
   const env1 = baseEnv(kv1);
   const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
@@ -580,9 +580,10 @@ test('行为：/api/lock-credentials 只看 class=lock 通行密钥', async () =
   assert.equal(body1.passkey, false, '只有 owner 类时 passkey 应为 false');
   /* 加上 lock 类通行密钥 */
   const kv2 = makeKv({
-    'owner-passkey-index': JSON.stringify(['o1', 'l1']),
-    'owner-passkey:o1': JSON.stringify({ credId: 'o1', class: 'owner', publicKey: 'x' }),
-    'owner-passkey:l1': JSON.stringify({ credId: 'l1', class: 'lock', publicKey: 'y' }),
+    'lock-passkey-index': JSON.stringify(['l1']),
+    'account-passkey-index': JSON.stringify(['o1']),
+    'account-passkey:o1': JSON.stringify({ credId: 'o1', publicKey: 'x' }),
+    'lock-passkey:l1': JSON.stringify({ credId: 'l1', publicKey: 'y' }),
   });
   const env2 = baseEnv(kv2);
   const res2 = await onRequestGet({
@@ -599,11 +600,11 @@ test('行为：/api/lock-credentials 只看 class=lock 通行密钥', async () =
 test('行为：/api/lock-credentials KV 读取失败 → 503（fail closed，不按未设置退回）', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-credentials.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
-  const kv = makeKv({ 'session-epoch': '0' });
-  /* 会话校验的 session-epoch 读取正常，只有 lock-pw 读取失败 */
+  const kv = makeKv({ 'lock-epoch': '0' });
+  /* 会话校验的 lock-epoch 读取正常，只有 lock-password 读取失败 */
   const origGet = kv.get;
   kv.get = async (k, t) => {
-    if (k === 'lock-pw') throw new Error('kv-down');
+    if (k === 'lock-password') throw new Error('kv-down');
     return origGet(k, t);
   };
   const env = baseEnv(kv);

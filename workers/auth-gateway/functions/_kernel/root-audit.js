@@ -3,13 +3,15 @@
  *
  * 从 root-auth.js 抽出，供 /api/root-auth、/api/lock-reset 共用。
  * 每次使用（成功/失败/被限流/假入口）都在 KV 留一条记录：
- *   root-auth-audit:<ts>:<rand> = { ts, ipPrefix, ok, decoy?, via?, path? }
+ *   root-audit:<ts>:<rand> = { ts, ipPrefix, ok, decoy?, via?, path? }
  * 只记时间、IP 前缀和结果，保留 7 天。不对前端暴露 decoy/via 标记。
  * 写入失败返回 false（调用方 fail closed）；无 KV 时也返回 false。
  */
 
+import { REALM_ROOT } from './realms.js';
+
 const AUDIT_TTL = 7 * 24 * 3600; /* 7 天 */
-const AUDIT_PREFIX = 'root-auth-audit:';
+export const AUDIT_PREFIX = REALM_ROOT.kv.auditPrefix;
 
 /**
  * IP 前缀（审计用，不存完整 IP）。

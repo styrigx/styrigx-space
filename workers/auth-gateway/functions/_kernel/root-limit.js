@@ -5,10 +5,11 @@
  * - IP 连错 5 次锁 15 分钟；全局每小时失败 20 次暂停验证 1 小时
  * - KV 读写出错一律抛错（调用方 fail closed，返回 503）
  *
- * KV 键（与 2.10.x 兼容，沿用 root-auth- 前缀）：
- * - root-auth-fail:<ip>：{ count, lockedUntil }
- * - root-auth-global：{ count, windowStart, pausedUntil }
+ * KV 键（realms.js REALM_ROOT.kv）：
+ * - root-fail:<ip>：{ count, lockedUntil }
+ * - root-fail-global：{ count, windowStart, pausedUntil }
  */
+import { REALM_ROOT } from './realms.js';
 
 const ROOT_IP_MAX_FAIL = 5;
 const ROOT_IP_LOCK_MS = 15 * 60 * 1000;
@@ -16,8 +17,8 @@ const ROOT_GLOBAL_MAX_FAIL = 20;
 const ROOT_GLOBAL_WINDOW_MS = 60 * 60 * 1000;
 const ROOT_GLOBAL_PAUSE_MS = 60 * 60 * 1000;
 
-function failKey(ip) { return 'root-auth-fail:' + ip; }
-const GLOBAL_KEY = 'root-auth-global';
+function failKey(ip) { return REALM_ROOT.kv.failPrefix + ip; }
+const GLOBAL_KEY = REALM_ROOT.kv.failGlobal;
 
 /**
  * 检查是否被限速。KV 出错时抛错（调用方返回 503）。

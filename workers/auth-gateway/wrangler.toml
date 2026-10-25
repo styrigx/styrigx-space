@@ -89,10 +89,11 @@ service = "styrigx-chat"
 
 # ---- 数据绑定（正式 KV/D1）----
 # 绑定名 = <类型>_<存放的内容>（2026-10-24）：一个资源里有几套数据就绑几个名字，id 相同。
-# 认证库 styrigx-auth-gateway（原 styrigx-owner，2026-10-22 改名，id 不变）：
-# - KV_LOCK_DOOR：锁屏 / 门 / 根凭证（lock-pw、owner-pw、owner-passkey:*、owner-user-id*、pk-challenge:*、pw-fail:/pw-lock:*、
-#   lockreset-challenge:*、recovery-switch、session-epoch、layer:*、root-auth-*），以及其余非 account- 键
-# - KV_ACCOUNT_LOGIN：账号登录（account-epoch、account-challenge:*、account-dev:*、account-revoked:*）
+# 认证库 styrigx-auth-gateway：
+# 同一个 namespace，键一律带域前缀（<域>-<对象>[-<附加>][:<编号>]，表见 functions/_kernel/realms.js）：
+# - KV_LOCK_DOOR：lock-*（锁屏密码 / 通行密钥 / 临时钥匙 / 纪元 / 重置）、root-*（根凭证限速与审计），
+#   以及账号凭证本身（account-password、account-passkey:*、account-passkey-index、account-user-id、account-configured）
+# - KV_ACCOUNT_LOGIN：账号登录（account-epoch、account-passkey-challenge:*、account-device:*、account-device-revoked:*）
 [[kv_namespaces]]
 binding = "KV_LOCK_DOOR"
 id = "b796097c90104000992b7713f61e16ea"

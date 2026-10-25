@@ -14,7 +14,7 @@
  * - 锁屏密码不得与账号密码相同（双向检查；账号侧在 /api/account，错误码 same-as-account / same-as-lock）
  * - 哈希：PBKDF2-SHA256 + 随机 salt + SGX_PW_PEPPER（_kernel/password.js）；旧 hash 下次成功登录时重哈希；缺 pepper fail closed
  *
- * 会话可吊销：改密码 / 删密码时 session-epoch +1，旧 cookie 失效；纪元推进后重签 reauth / reset 票 + 当前设备会话。
+ * 会话可吊销：改密码 / 删密码时 lock-epoch +1，旧 cookie 失效；纪元推进后重签 reauth / reset 票 + 当前设备会话。
  * 锁定所有设备走 /api/lock-all-devices。KV 读取出错时抛错 → 503，绝不继续写入。
  * 只接受 POST；校验 Origin；未设置密码时 verify 一律拒绝。
  * 外层 try/catch：任何未捕获异常都返回 JSON { ok:false, error:'server' }，不返回 500 HTML。
@@ -38,12 +38,10 @@ import {
   isAccountEffectivelyConfigured,
   LAYER_LOCK,
 } from '../_kernel/layers.js';
-import { getPasskeys, PK_CLASS_LOCK } from '../_kernel/passkey-store.js';
+import { getPasskeys, PASSKEY_LOCK } from '../_kernel/passkey-store.js';
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
+import { passwordLimiter } from '../_kernel/password-limit.js';
 
-/* 锁屏密码输错限速：连错 MAX_FAIL 次冷却 COOLDOWN_MS */
-const MAX_FAIL = 5;
-const COOLDOWN_MS = 30000;
 
 /** @param {any} context */
 export async function onRequestPost(context) {
@@ -79,45 +77,10 @@ async function handlePost(context) {
 
   /* 客户端 IP（限流用） */
   const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
-  const failKey = REALM_LOCK.kv.passwordFailPrefix + ip;
-  const cooldownKey = REALM_LOCK.kv.passwordCooldownPrefix + ip;
-
-  /* 是否在冷却中。KV 出错时抛错（调用方返回 503，fail closed），不静默放行。 */
-  async function inCooldown() {
-    try {
-      const v = await kv.get(cooldownKey);
-      if (v && Number(v) > Date.now()) return true;
-      if (v) await kv.delete(cooldownKey);
-    } catch (e) {
-      throw new Error('kv-error');
-    }
-    return false;
-  }
-
-  async function recordFail() {
-    try {
-      let n = 0;
-      const v = await kv.get(failKey);
-      if (v) n = Number(v) || 0;
-      n++;
-      await kv.put(failKey, String(n), { expirationTtl: 3600 });
-      if (n >= MAX_FAIL) {
-        await kv.put(cooldownKey, String(Date.now() + COOLDOWN_MS), { expirationTtl: 60 });
-        await kv.delete(failKey);
-        return true; // 刚进入冷却
-      }
-    } catch (e) {
-      throw new Error('kv-error');
-    }
-    return false;
-  }
-
-  async function clearFail() {
-    try {
-      await kv.delete(failKey);
-      await kv.delete(cooldownKey);
-    } catch (e) {}
-  }
+  const limiter = passwordLimiter(kv, REALM_LOCK, ip);
+  const inCooldown = limiter.inCooldown;
+  const recordFail = limiter.recordFail;
+  const clearFail = limiter.clearFail;
 
   /* ============ verify：解锁验证（锁屏密码） ============ */
   /* 只认锁屏密码；账号密码不能解锁（各层凭证不互相替代）。 */
@@ -226,8 +189,7 @@ async function handlePost(context) {
       {
         let lockKeys = [];
         try {
-          const keys = await getPasskeys(kv);
-          lockKeys = keys.filter(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK; });
+          lockKeys = await getPasskeys(kv, PASSKEY_LOCK);
         } catch (e) {}
         if (lockKeys.length === 0) {
           let accountCfg = true;
@@ -255,8 +217,7 @@ async function handlePost(context) {
       }
       {
         try {
-          const keys = await getPasskeys(kv);
-          const hasLockKey = keys.some(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_LOCK; });
+          const hasLockKey = (await getPasskeys(kv, PASSKEY_LOCK)).length > 0;
           let hasLockPw = false;
           try { const r = await kv.get(REALM_LOCK.kv.password, 'json'); hasLockPw = !!(r && r.hash); } catch (e) {}
           if (!hasLockKey && !hasLockPw) {
@@ -274,7 +235,7 @@ async function handlePost(context) {
           }
         } catch (e) {}
       }
-      /* 会话吊销：session-epoch +1（KV 出错→503，绝不继续）
+      /* 会话吊销：lock-epoch +1（KV 出错→503，绝不继续）
          纪元推进后重签 reauth / reset 票 + 当前设备会话，保持门内连续操作、当前设备不掉线。 */
       let newEpoch = null;
       try {
@@ -338,7 +299,7 @@ async function handlePost(context) {
       } catch (e) {}
     }
 
-    /* 改密码后：session-epoch +1，旧会话 cookie 失效（KV 出错→503）
+    /* 改密码后：lock-epoch +1，旧会话 cookie 失效（KV 出错→503）
        纪元推进后重签 reauth / reset 票 + 当前设备会话，保持门内连续操作、当前设备不掉线。 */
     let newEpoch2 = null;
     try {

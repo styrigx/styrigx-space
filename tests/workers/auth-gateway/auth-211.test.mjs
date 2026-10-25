@@ -22,9 +22,9 @@ import { testLockSession, testAccountSession } from './_tickets.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 
-/* 恢复开关 KV 键名（固定为 recovery-switch，见 functions/_kernel/lock-reset-switch.js） */
+/* 恢复开关 KV 键名（固定为 lock-reset-switch，见 functions/_kernel/lock-reset-switch.js） */
 const { LOCK_RESET_SWITCH_KEY } = await import('../../../workers/auth-gateway/functions/_kernel/lock-reset-switch.js');
-assert.equal(LOCK_RESET_SWITCH_KEY, 'recovery-switch');
+assert.equal(LOCK_RESET_SWITCH_KEY, 'lock-reset-switch');
 
 /* 简易 KV mock */
 function makeKv(init) {
@@ -90,7 +90,7 @@ function baseEnv(kv, overrides) {
 
 test('2.11 无 lock 会话：单用根凭证进入口 1 被拒（无会话且 lock 已配置 → 假入口 401 auth）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
-  const kv = makeKv({ 'layer:lock': '1' });
+  const kv = makeKv({ 'lock-configured': '1' });
   const env = baseEnv(kv);
   const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345', purpose: 'lock-reauth' });
   const res = await onRequestPost({ request: req, env });
@@ -103,7 +103,7 @@ test('2.11 无 lock 会话：单用根凭证进入口 1 被拒（无会话且 lo
 
 test('2.11 重置锁屏：开关关闭时只根凭证 → 返回 needAccount（需管理员凭证）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
-  const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
+  const kv = makeKv({ 'account-configured': '1', 'lock-configured': '1' });
   const env = baseEnv(kv); /* 无开关 → 关闭 */
   const req = postReq('https://test.example.com/api/lock-reset', {
     action: 'verify', rootKey: 'test-root-key-12345',
@@ -117,9 +117,9 @@ test('2.11 重置锁屏：开关关闭时只根凭证 → 返回 needAccount（�
 test('2.11 重置锁屏：开关关闭时只管理员凭证被拒（缺根凭证 → 401）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
   const { makePasswordRecord } = await import(REPO + '/workers/auth-gateway/functions/_kernel/password.js');
-  const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
+  const kv = makeKv({ 'account-configured': '1', 'lock-configured': '1' });
   const rec = await makePasswordRecord('owner-pass-1', 'test-pepper');
-  await kv.put('owner-pw', JSON.stringify(rec));
+  await kv.put('account-password', JSON.stringify(rec));
   const env = baseEnv(kv);
   const req = postReq('https://test.example.com/api/lock-reset', {
     action: 'verify',
@@ -132,7 +132,7 @@ test('2.11 重置锁屏：开关关闭时只管理员凭证被拒（缺根凭证
 
 test('2.11 重置锁屏：owner 未配置且开关关闭 → status 始终可用，verify 通用 401 auth（不泄露 not-set）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
-  const kv = makeKv({ 'layer:lock': '1' }); /* owner 未配置 */
+  const kv = makeKv({ 'lock-configured': '1' }); /* owner 未配置 */
   const env = baseEnv(kv);
   const st = postReq('https://test.example.com/api/lock-reset', { action: 'status' });
   const stRes = await onRequestPost({ request: st, env });
@@ -212,9 +212,9 @@ function switchEnv(kv, db, switchVal) {
 
 test('2.11 开关：不存在 → 关闭（根凭证正确后返回 needAccount）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
-  const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
+  const kv = makeKv({ 'account-configured': '1', 'lock-configured': '1' });
   const db = makeD1();
-  const env = switchEnv(kv, db); /* 无 recovery-switch 键 */
+  const env = switchEnv(kv, db); /* 无 lock-reset-switch 键 */
   const req = postReq('https://test.example.com/api/lock-reset', {
     action: 'verify', rootKey: 'test-root-key-12345',
   });
@@ -228,7 +228,7 @@ test('2.11 开关：不存在 → 关闭（根凭证正确后返回 needAccount�
 
 test('2.11 开关：已用后再用 → 关闭（返回 needAccount）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
-  const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
+  const kv = makeKv({ 'account-configured': '1', 'lock-configured': '1' });
   const db = makeD1();
   const env = switchEnv(kv, db, 'switch-secret-1');
   /* 第一次：成功 */
@@ -264,7 +264,7 @@ test('2.11 开关：过期（24h+）→ 关闭', async () => {
 
 test('2.11 开关：换新值重新开启', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
-  const kv = makeKv({ 'layer:lock': '1' });
+  const kv = makeKv({ 'lock-configured': '1' });
   const db = makeD1();
   /* 旧值已用 */
   const env1 = switchEnv(kv, db, 'old-secret');
@@ -307,7 +307,7 @@ test('2.11 开关：D1 缺失/失败 → fail closed', async () => {
 test('2.11 开关：根凭证错误时不读开关 KV', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
   let switchRead = false;
-  const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
+  const kv = makeKv({ 'account-configured': '1', 'lock-configured': '1' });
   const origGet = kv.get;
   kv.get = async function (k, t) {
     if (k === LOCK_RESET_SWITCH_KEY) switchRead = true;
@@ -327,9 +327,9 @@ test('2.11 开关：根凭证错误时不读开关 KV', async () => {
 test('2.11 开关：有效时单管理员凭证仍被拒（根凭证优先，不可跳过）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
   const { makePasswordRecord } = await import(REPO + '/workers/auth-gateway/functions/_kernel/password.js');
-  const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
+  const kv = makeKv({ 'account-configured': '1', 'lock-configured': '1' });
   const rec = await makePasswordRecord('owner-pass-1', 'test-pepper');
-  await kv.put('owner-pw', JSON.stringify(rec));
+  await kv.put('account-password', JSON.stringify(rec));
   const db = makeD1();
   const env = switchEnv(kv, db, 'switch-secret-1');
   /* 有 accountProof 但无 rootKey → 401（根凭证不可跳过） */
@@ -345,8 +345,8 @@ test('2.11 开关：有效时单管理员凭证仍被拒（根凭证优先，不
 
 test('2.11 假入口：访客提交正确根凭证 → 401 auth，与错误密钥响应逐字节相同', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
-  const kv1 = makeKv({ 'layer:lock': '1' });
-  const kv2 = makeKv({ 'layer:lock': '1' });
+  const kv1 = makeKv({ 'lock-configured': '1' });
+  const kv2 = makeKv({ 'lock-configured': '1' });
   const env1 = baseEnv(kv1);
   const env2 = baseEnv(kv2);
   /* 正确密钥 */
@@ -365,7 +365,7 @@ test('2.11 假入口：访客提交正确根凭证 → 401 auth，与错误密�
 
 test('2.11 假入口：缺 Origin → 403（先于假入口）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
-  const kv = makeKv({ 'layer:lock': '1' });
+  const kv = makeKv({ 'lock-configured': '1' });
   const env = baseEnv(kv);
   const req = new Request('https://test.example.com/api/root-auth', {
     method: 'POST',
@@ -388,7 +388,7 @@ test('2.11 接管：未配 owner 时 root 可代管（scope=keys, by=root）', a
 
 test('2.11 接管：配置后 root 对该层失效', async () => {
   const { checkRootTakeover, LAYER_ACCOUNT } = await import(REPO + '/workers/auth-gateway/functions/_kernel/layers.js');
-  const kv = makeKv({ 'layer:owner': '1' });
+  const kv = makeKv({ 'account-configured': '1' });
   const r = await checkRootTakeover(kv, LAYER_ACCOUNT);
   assert.equal(r.allowed, false);
   assert.equal(r.reason, 'configured');
@@ -411,10 +411,10 @@ test('2.11 接管：KV 读取失败按已配置处理（root 被拒）', async (
 test('2.11 pepper：账号密码 = 锁屏密码被拒（双向；账号侧走 /api/account）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/account.js');
   const { makePasswordRecord } = await import(REPO + '/workers/auth-gateway/functions/_kernel/password.js');
-  const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1', 'session-epoch': '0' });
+  const kv = makeKv({ 'account-configured': '1', 'lock-configured': '1', 'lock-epoch': '0' });
   /* 先设锁屏密码 */
   const lockRec = await makePasswordRecord('same-pass-12345', 'test-pepper');
-  await kv.put('lock-pw', JSON.stringify(lockRec));
+  await kv.put('lock-password', JSON.stringify(lockRec));
   const env = baseEnv(kv);
   const acc = await testAccountSession(TEST_PRIV_PEM, 'password', 0, Date.now());
   const { signAccountReauthTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/tickets.js');
@@ -485,7 +485,7 @@ test('2.11 限速：根凭证各路径共用计数（root-auth 失败计入 lock
 test('2.11 补充二：管理页（layer-status，有效会话）触发开关计时', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/layer-status.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
-  const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1', 'session-epoch': '0' });
+  const kv = makeKv({ 'account-configured': '1', 'lock-configured': '1', 'lock-epoch': '0' });
   const db = makeD1();
   kv._store.set(LOCK_RESET_SWITCH_KEY, 'timer-secret-1');
   const env = baseEnv(kv, { D1_LOCK_RESET: db });
@@ -505,7 +505,7 @@ test('2.11 补充二：管理页（layer-status，有效会话）触发开关计
 
 test('2.11 补充二：计时 24 小时后，开关在重置路径上已失效', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
-  const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
+  const kv = makeKv({ 'account-configured': '1', 'lock-configured': '1' });
   const db = makeD1();
   kv._store.set(LOCK_RESET_SWITCH_KEY, 'timer-secret-1');
   /* 先触发计时 */
@@ -530,7 +530,7 @@ test('2.11 补充二：计时 24 小时后，开关在重置路径上已失效',
 test('2.11 补充二：访客请求 layer-status → 401，且不读开关 KV', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/layer-status.js');
   let switchRead = false;
-  const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
+  const kv = makeKv({ 'account-configured': '1', 'lock-configured': '1' });
   const origGet = kv.get;
   kv.get = async function (k, t) {
     if (k === LOCK_RESET_SWITCH_KEY) switchRead = true;
@@ -548,9 +548,9 @@ test('2.11 补充二：访客请求 layer-status → 401，且不读开关 KV', 
 
 /* ============ 11. 补充四：恢复开关提示仅出现在重置第二步 ============ */
 
-test('2.11 补充四：根凭证错误的 lockreset 响应不含 recovery-switch', async () => {
+test('2.11 补充四：根凭证错误的 lockreset 响应不含 lock-reset-switch', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
-  const kv = makeKv({ 'layer:owner': '1', 'layer:lock': '1' });
+  const kv = makeKv({ 'account-configured': '1', 'lock-configured': '1' });
   kv._store.set(LOCK_RESET_SWITCH_KEY, 'some-secret');
   const db = makeD1();
   const env = baseEnv(kv, { D1_LOCK_RESET: db });
@@ -560,12 +560,12 @@ test('2.11 补充四：根凭证错误的 lockreset 响应不含 recovery-switch
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 401);
   const text = await res.text();
-  assert.ok(!text.includes('recovery-switch'), '错误响应不应泄露开关 KV 键名');
+  assert.ok(!text.includes('lock-reset-switch'), '错误响应不应泄露开关 KV 键名');
 });
 
-test('2.11 补充四：访客假入口（root-auth）响应不含 recovery-switch', async () => {
+test('2.11 补充四：访客假入口（root-auth）响应不含 lock-reset-switch', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
-  const kv = makeKv({ 'layer:lock': '1' });
+  const kv = makeKv({ 'lock-configured': '1' });
   kv._store.set(LOCK_RESET_SWITCH_KEY, 'some-secret');
   const db = makeD1();
   const env = baseEnv(kv, { D1_LOCK_RESET: db });
@@ -574,19 +574,19 @@ test('2.11 补充四：访客假入口（root-auth）响应不含 recovery-switc
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 401);
   const text = await res.text();
-  assert.ok(!text.includes('recovery-switch'), '假入口响应不应泄露开关 KV 键名');
+  assert.ok(!text.includes('lock-reset-switch'), '假入口响应不应泄露开关 KV 键名');
 });
 
 test('2.11 补充四：C2 重置第二步恢复提示（lock.js，无键名）', async () => {
   const fs = await import('node:fs');
   const src = fs.readFileSync(REPO + 'web/assets/js/shell/lock.js', 'utf8');
-  /* C2：底部恢复提示改成新文案，不出现 recovery-switch 键名 */
-  assert.ok(!src.includes('recovery-switch'), 'lock.js 不应再出现 recovery-switch 键名');
+  /* C2：底部恢复提示改成新文案，不出现 lock-reset-switch 键名 */
+  assert.ok(!src.includes('lock-reset-switch'), 'lock.js 不应再出现 lock-reset-switch 键名');
   assert.ok(!src.includes('sgx-reset-switch-hint'), '旧提示元素已删除');
   /* PR3：重置界面在 lib/reset-flow.js（锁屏与账号页共用），「管理员」统一改「账号」；恢复提示只在第二步 */
   const rf = fs.readFileSync(REPO + 'web/assets/js/lib/reset-flow.js', 'utf8');
   assert.ok(!src.includes('管理员') && !rf.includes('管理员'), '不再出现「管理员」字样');
-  assert.ok(!rf.includes('recovery-switch'), 'reset-flow.js 不应出现开关键名');
+  assert.ok(!rf.includes('lock-reset-switch'), 'reset-flow.js 不应出现开关键名');
   assert.ok(rf.includes('账号凭证也无法使用？'), '恢复提示用「账号」');
   const step2Idx = rf.indexOf('function step2');
   const step1Idx = rf.indexOf('function step1');

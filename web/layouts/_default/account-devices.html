@@ -5,7 +5,7 @@
    每台显示型号（三星型号映射成 Galaxy 名字）、浏览器、地点和上次活动时间，点「退出」两步确认后单独退出它。
    此设备在「此设备」卡里用「退出账号」退出（退出后回账号页登录区）。
    没有账号会话 → 跳 /account/?return=<本页>，登录后回来。
-   数据：POST /api/account { action:'device-list' } / { action:'device-revoke', sid } / { action:'logout' }（只要账号会话，不进门）。
+   数据：POST /api/account { action:'device-list' } / { action:'device-revoke', deviceId } / { action:'logout' }（只要账号会话，不用再验证）。
    noindex（见 baseof）。脚本走 ES Module 入口 entry-account-devices.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-account-devices.js" }}

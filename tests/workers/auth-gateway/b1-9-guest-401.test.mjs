@@ -78,7 +78,7 @@ test('B1-9 验收（真实 Miniflare）：访客 401 统一', async (t) => {
     const visitorCookie = await signVisitorCookie();
     const bodies = [];
 
-    for (const kvInit of [{}, { 'layer:lock': '1', 'cred:root': 'hash123' }]) {
+    for (const kvInit of [{}, { 'lock-configured': '1', 'cred:root': 'hash123' }]) {
       const kv = makeCountingKv();
       for (const [k, v] of Object.entries(kvInit)) await kv.put(k, v);
       kv._calls.get = 0; kv._calls.put = 0;
@@ -115,7 +115,7 @@ test('B1-9 验收（真实 Miniflare）：访客 401 统一', async (t) => {
     const visitorCookie = await signVisitorCookie();
     const bodies = [];
 
-    for (const kvInit of [{}, { 'layer:lock': '1' }]) {
+    for (const kvInit of [{}, { 'lock-configured': '1' }]) {
       const kv = makeCountingKv();
       for (const [k, v] of Object.entries(kvInit)) await kv.put(k, v);
       kv._calls.get = 0; kv._calls.put = 0;

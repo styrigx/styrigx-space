@@ -35,7 +35,7 @@ function env({ epoch = '0', kvThrows = false } = {}) {
     KV_LOCK_DOOR: {
       async get(k) {
         if (kvThrows) throw new Error('kv down');
-        if (k === 'session-epoch') return epoch;
+        if (k === 'lock-epoch') return epoch;
         return null;
       },
     },

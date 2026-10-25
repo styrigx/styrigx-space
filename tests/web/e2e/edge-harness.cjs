@@ -272,9 +272,9 @@ async function startEdge() {
     const jwk = kp.publicKey.export({ format: 'jwk' });
     const credId = nodeCrypto.randomBytes(32);
     const credIdB64url = credId.toString('base64url');
-    await pk.savePasskey(kv, {
+    await pk.savePasskey(kv, 'lock', {
       name: 'edge-test', credId: credIdB64url, publicKey: { kty: 'EC', crv: 'P-256', x: jwk.x, y: jwk.y, alg: 'ES256', ext: true },
-      signCount: 0, uv: 1, class: 'lock',
+      signCount: 0, uv: 1,
     });
     await layers.setLayerConfigured(kv, 'lock');
     const uh = await pk.getUserHandle(kv, 'lock');

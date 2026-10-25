@@ -22,7 +22,8 @@
  * 登录：
  * - login-challenge → 账号通行密钥登录 challenge（purpose=login）
  * - login-passkey { cid, credential, reauth? } → 验断言（UV=1、userHandle）→ 账号会话(by=passkey)
- * - login-password { password, reauth? } → 验账号密码 → 账号会话(by=password)
+ * - login-password { password, reauth? } → 验账号密码 → 账号会话(by=password)；
+ *   同 IP 连错 5 次冷却 30 秒（429 cooldown，规则同锁屏密码，计数键 account-password-fail / -cooldown）
  *   reauth:true（进账号安全子页前再验一次）→ 另签 AccountReauthTicket，3 分钟
  * - logout → 清账号会话和 reauth / reset 票（幂等，不需会话）
  * - reauth-clear → 只清 reauth / reset 票（离开账号安全子页时调；幂等，不需会话）
@@ -42,7 +43,7 @@
  * - device-list → { devices: [{ deviceId, current, name, model, platform, browser, country, city, by, createdAt, lastSeen }] }，此设备排第一
  * - device-revoke { deviceId } → 单独退出那台设备（删记录 + 拉黑）；不能退出此设备（400 current，用退出账号）
  *
- * 首次配置账号凭证（账号层未标记）：标记 + session-epoch +1，并重签当前设备锁屏会话。
+ * 首次配置账号凭证（账号层未标记）：标记 + Lock 纪元（lock-epoch）+1，并重签当前设备锁屏会话。
  * 删光账号凭证：清账号层标记（回到根凭证代管）。
  *
  * 缺 SGX_ACCOUNT_PRIVATE/PUBLIC：登录 503 config；管理操作因无法验账号会话返回 401 account。
@@ -75,26 +76,28 @@ import { listDevices, revokeDevice, pruneOtherDevices, deviceView, getDevice, is
 import { verifyTicket, issueTicket, reissueTicketWithEpoch, clearTicket } from '../_kernel/tickets.js';
 import { isLayerConfigured, setLayerConfigured, clearLayerConfigured, LAYER_ACCOUNT } from '../_kernel/layers.js';
 import { REALM_ACCOUNT, REALM_LOCK, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
-import { KEY_ACCOUNT, LOCK_USER_HANDLE_KEY, ACCOUNT_USER_HANDLE_KEY } from '../_kernel/key-names.js';
+import { KEY_ACCOUNT } from '../_kernel/realms.js';
+import { passwordLimiter } from '../_kernel/password-limit.js';
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
 import { verifyLockSession } from '../_kernel/lock-session.js';
 import {
   getPasskeys,
+  getPasskey,
   savePasskey,
   deletePasskey,
   getUserHandle,
   providerOf,
-  PK_CLASS_ACCOUNT,
+  PASSKEY_ACCOUNT,
+  PASSKEY_LOCK,
   PASSKEY_DISPLAY_NAME,
 } from '../_kernel/passkey-store.js';
 
-const CHALLENGE_PREFIX = REALM_ACCOUNT.kv.challengePrefix;
+const CHALLENGE_PREFIX = REALM_ACCOUNT.kv.passkeyChallengePrefix;
 const CHALLENGE_TTL = REALM_ACCOUNT.kv.challengeTtl; /* 5 分钟 */
 
 /** @param {any} kv */
 async function accountKeys(kv) {
-  const keys = await getPasskeys(kv);
-  return keys.filter(function (k) { return k.class === PK_CLASS_ACCOUNT; });
+  return await getPasskeys(kv, PASSKEY_ACCOUNT);
 }
 
 /** @param {any} kv */
@@ -216,6 +219,13 @@ async function handlePost(context) {
     if (!password || typeof password !== 'string') return json({ ok: false, error: 'params' }, 400);
     const pepper = getPepper(env);
     if (!pepper) return json({ ok: false, error: 'config' }, 503);
+    /* 账号密码输错限速：规则同锁屏密码（_kernel/password-limit.js），按 IP 各域各自计数 */
+    const limiter = passwordLimiter(kv, REALM_ACCOUNT, request.headers.get('CF-Connecting-IP') || 'unknown');
+    try {
+      if (await limiter.inCooldown()) return json({ ok: false, error: 'cooldown' }, 429);
+    } catch (e) {
+      return json({ ok: false, error: 'server' }, 503);
+    }
     let vr;
     try {
       vr = await verifyRealmPassword(kv, REALM_ACCOUNT, pepper, password);
@@ -223,7 +233,16 @@ async function handlePost(context) {
       return json({ ok: false, error: 'server' }, 503);
     }
     if (!vr.set) return json({ ok: false, error: 'not-set' }, 403);
-    if (!vr.ok) return json({ ok: false, error: 'wrong' }, 403);
+    if (!vr.ok) {
+      let justCooled = false;
+      try {
+        justCooled = await limiter.recordFail();
+      } catch (e) {
+        return json({ ok: false, error: 'server' }, 503);
+      }
+      return justCooled ? json({ ok: false, error: 'cooldown' }, 429) : json({ ok: false, error: 'wrong' }, 403);
+    }
+    await limiter.clearFail();
     if (vr.needsRehash) {
       try { await kv.put(REALM_ACCOUNT.kv.password, JSON.stringify(await makePasswordRecord(password, pepper))); } catch (e) {}
     }
@@ -282,7 +301,6 @@ async function handlePost(context) {
     if (keys.length === 0) return json({ ok: false, error: 'not-set' }, 403);
     const stored = findStoredKey(keys, cred.rawId || '');
     if (!stored || !stored.publicKey) return json({ ok: false, error: 'unknown-key' }, 403);
-    if (stored.class !== PK_CLASS_ACCOUNT) return json({ ok: false, error: 'class-mismatch' }, 403);
     try {
       const checked = await verifyAssertion({
         credential: cred,
@@ -297,16 +315,16 @@ async function handlePost(context) {
          凭据里写死了，换不掉） */
       const gotUh = cred.response && cred.response.userHandle;
       if (gotUh) {
-        const expectUh = await getUserHandle(kv, PK_CLASS_ACCOUNT, '');
+        const expectUh = await getUserHandle(kv, PASSKEY_ACCOUNT);
         if (expectUh && gotUh !== expectUh) {
           let legacyUh = null;
-          try { legacyUh = await kv.get(LOCK_USER_HANDLE_KEY); } catch (e) {}
+          try { legacyUh = await kv.get(REALM_LOCK.kv.userHandle); } catch (e) {}
           if (!legacyUh || gotUh !== legacyUh) throw new Error('userHandle');
         }
       }
       stored.signCount = checked.signCount;
       stored.lastUsedAt = Date.now();
-      try { await savePasskey(kv, stored); } catch (e) {}
+      try { await savePasskey(kv, PASSKEY_ACCOUNT, stored); } catch (e) {}
     } catch (e) {
       console.error('[account-login]', e && e.message ? e.message : e);
       const code = (e && e.message === 'uv-required') ? 'uv-required' : 'verify';
@@ -404,7 +422,7 @@ async function handlePost(context) {
     const keys = await accountKeys(kv);
     /* 账号 handle（注册用的那个）；读不到就不给，前端不 signal。不新建（list 只读）。 */
     let userHandle = '';
-    try { userHandle = (await kv.get(ACCOUNT_USER_HANDLE_KEY)) || ''; } catch (e) {}
+    try { userHandle = (await kv.get(REALM_ACCOUNT.kv.userHandle)) || ''; } catch (e) {}
     return json({
       ok: true,
       by: by,
@@ -460,7 +478,7 @@ async function handlePost(context) {
     const headers = new Headers({ 'Content-Type': 'application/json' });
     /* 先推纪元再删（fail closed：纪元推进失败则钥匙仍在） */
     try { await rotateAccount(headers); } catch (e) { return json({ ok: false, error: 'epoch' }, 503); }
-    try { await deletePasskey(kv, credId); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
+    try { await deletePasskey(kv, PASSKEY_ACCOUNT, credId); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
     /* 删光账号凭证 → 清账号层标记（回到根凭证代管；清失败 503，避免标记残留锁死代管） */
     try {
       const left = (await accountKeys(kv)).length;
@@ -483,7 +501,7 @@ async function handlePost(context) {
     const found = findStoredKey(keys, credId);
     if (!found) return json({ ok: false, error: 'not-found' }, 404);
     found.name = name;
-    try { await savePasskey(kv, found); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
+    try { await savePasskey(kv, PASSKEY_ACCOUNT, found); } catch (e) { return json({ ok: false, error: 'server' }, 503); }
     return json({ ok: true, name: name });
   }
 
@@ -494,7 +512,7 @@ async function handlePost(context) {
 
     if (action === 'passkey-register-challenge') {
       const keys = await accountKeys(kv);
-      const userHandle = await getUserHandle(kv, PK_CLASS_ACCOUNT, '');
+      const userHandle = await getUserHandle(kv, PASSKEY_ACCOUNT);
       if (!userHandle) return json({ ok: false, error: 'server' }, 503);
       const challenge = randB64(32);
       const cid = randB64(16);
@@ -560,14 +578,12 @@ async function handlePost(context) {
         publicKey: jwk,
         signCount: parsed.signCount,
         uv: 1,
-        class: PK_CLASS_ACCOUNT,
       };
-      /* 同 credId 已存在且不是账号类 → 拒绝（不改别的类别的钥匙） */
-      const all = await getPasskeys(kv);
-      const dup = findStoredKey(all, credIdB64);
-      if (dup && dup.class !== PK_CLASS_ACCOUNT) throw new Error('class');
+      /* 同一把凭据已登记为锁屏通行密钥 → 拒绝（一把凭据只属于一个域） */
+      if (await getPasskey(kv, PASSKEY_LOCK, credIdB64)) throw new Error('class');
+      const dup = await getPasskey(kv, PASSKEY_ACCOUNT, credIdB64);
       if (dup) item.createdAt = dup.createdAt || item.createdAt;
-      await savePasskey(kv, item);
+      await savePasskey(kv, PASSKEY_ACCOUNT, item);
     } catch (e) {
       console.error('[account-register]', e && e.message ? e.message : e);
       const code = (e && e.message === 'uv-required') ? 'uv-required' : (e && e.message === 'class') ? 'class' : 'verify';

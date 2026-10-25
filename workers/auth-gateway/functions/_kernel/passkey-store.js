@@ -4,28 +4,35 @@
  * 从原锁屏通行密钥接口里抽出（纯搬家，行为不变）：锁屏通行密钥接口（api/lock-passkey.js）、
  * 账号接口（api/account.js）、重置锁屏（api/lock-reset.js）、锁屏凭证状态等都从这里读写。
  *
- * KV 结构（KV_LOCK_DOOR，存储键名见 key-names.js）：每把一个键 PASSKEY_KEY_PREFIX + credId 前 12 位，
- * 字段顺序固定；索引 PASSKEY_INDEX_KEY 存 credId 数组（避开 kv.list 的最终一致）。
- * 记录的 class 字段区分域：PK_CLASS_LOCK（LockKey）/ PK_CLASS_ACCOUNT（AccountKey）。
+ * KV 结构（KV_LOCK_DOOR，键名见 realms.js 各域的 kv 表）：两域分开存——
+ * 每把一个键 <域>-passkey:<credId 前 12 位>，字段顺序固定；索引 <域>-passkey-index 存 credId 数组
+ * （避开 kv.list 的最终一致）。键名已表明域，记录里不写也不读 class 字段。
+ * 每个函数第一个业务参数是域：PASSKEY_LOCK（LockKey）/ PASSKEY_ACCOUNT（AccountKey）。
  *
- * 叶子模块：只 import _kernel（crypto / key-names）。
+ * 叶子模块：只 import _kernel（crypto / realms）。
  */
 import { b64urlEnc } from './crypto.js';
-import {
-  STORE_CLASS_ACCOUNTKEY,
-  STORE_CLASS_LOCKKEY,
-  passkeyKey,
-  PASSKEY_KEY_PREFIX,
-  PASSKEY_INDEX_KEY,
-  LEGACY_PASSKEY_ARRAY_KEY,
-  LOCK_USER_HANDLE_KEY,
-  ACCOUNT_USER_HANDLE_KEY,
-} from './key-names.js';
+import { REALM_LOCK, REALM_ACCOUNT } from './realms.js';
 
-/* 通行密钥分类：钥匙命名规范（key-names.js）：存储层 class 字段值保留 'owner'/'lock'
-   不迁移；概念名用 AccountKey/LockKey。应用凭证已删除（旧 class=app 记录不再被任何接口读取）。 */
-export const PK_CLASS_ACCOUNT = STORE_CLASS_ACCOUNTKEY;
-export const PK_CLASS_LOCK = STORE_CLASS_LOCKKEY;
+/* 通行密钥所属的域（= 凭证域 id）：锁屏通行密钥（LockKey）/ 账号通行密钥（AccountKey） */
+export const PASSKEY_LOCK = REALM_LOCK.id;
+export const PASSKEY_ACCOUNT = REALM_ACCOUNT.id;
+
+/** @param {string} domain @returns {{passkeyPrefix:string, passkeyIndex:string, userHandle:string}} */
+function domainKv(domain) {
+  if (domain === PASSKEY_LOCK) return REALM_LOCK.kv;
+  if (domain === PASSKEY_ACCOUNT) return REALM_ACCOUNT.kv;
+  throw new Error('passkey-store: bad domain ' + JSON.stringify(domain));
+}
+
+/**
+ * 通行密钥记录的键：<域>-passkey:<credId 前 12 位>。
+ * @param {string} domain PASSKEY_LOCK | PASSKEY_ACCOUNT
+ * @param {string} credId 完整 credId
+ */
+export function passkeyKey(domain, credId) {
+  return domainKv(domain).passkeyPrefix + String(credId).slice(0, 12);
+}
 /* 通行密钥注册时 WebAuthn user.displayName（写死，用户不填；锁屏、账号两域相同） */
 export const PASSKEY_DISPLAY_NAME = 'Sloan Gray';
 
@@ -56,81 +63,41 @@ export function providerOf(aaguid) {
    checkAssertAuthData / verifyAssertion 已抽到 ../_kernel/passkey-verify.js（解锁、账号登录、重置锁屏共用） */
 
 /**
- * 获取所有通行密钥（新结构：每把一个 key）。
- * 索引补建逻辑见 ensureIndex。
- * 2.10.0：幂等迁移——没有 class 字段的旧凭据视为 lock 并写回（重复执行无副作用）。
+ * 读某域的索引；索引不存在时按前缀扫一遍补建（只扫本域的键）。
+ * @param {any} kv @param {string} domain
  */
-async function ensureIndex(kv) {
+async function ensureIndex(kv, domain) {
+  const c = domainKv(domain);
   try {
-    let idx = await kv.get(PASSKEY_INDEX_KEY, 'json');
+    const idx = await kv.get(c.passkeyIndex, 'json');
     if (Array.isArray(idx)) return idx;
   } catch (e) {}
-  /* 索引不存在：一次性补建 */
   const idx = [];
   try {
-    const list = await kv.list({ prefix: PASSKEY_KEY_PREFIX });
+    const list = await kv.list({ prefix: c.passkeyPrefix });
     for (const k of list.keys || []) {
       try {
         const v = await kv.get(k.name, 'json');
         if (v && v.credId && !idx.includes(v.credId)) idx.push(v.credId);
       } catch (e2) {}
     }
-    await kv.put(PASSKEY_INDEX_KEY, JSON.stringify(idx));
+    await kv.put(c.passkeyIndex, JSON.stringify(idx));
   } catch (e3) {}
   return idx;
 }
 
-/** 按索引读取已注册 passkey（不走 kv.list，避开最终一致延迟） */
-export async function getPasskeys(kv) {
+/**
+ * 按索引读取某域已注册的通行密钥（不走 kv.list，避开最终一致延迟）。
+ * @param {any} kv @param {string} domain PASSKEY_LOCK | PASSKEY_ACCOUNT
+ */
+export async function getPasskeys(kv, domain) {
   try {
-    /* 按索引读，不走 kv.list（避开最终一致延迟） */
-    const idx = await ensureIndex(kv);
+    const idx = await ensureIndex(kv, domain);
     const keys = [];
     for (const credId of idx) {
       try {
-        const keyName = passkeyKey(credId);
-        const v = await kv.get(keyName, 'json');
-        if (v && v.credId === credId) {
-          /* 2.10.0 幂等迁移：无 class 的旧凭据 → lock，写回（重复执行无副作用） */
-          if (!v.class) {
-            v.class = PK_CLASS_LOCK;
-            try { await kv.put(keyName, JSON.stringify(v)); } catch (e2) {}
-          }
-          keys.push(v);
-        }
-      } catch (e) {}
-    }
-    /* 一次性迁移：旧数组结构 → 新结构（含索引补建） */
-    if (keys.length === 0) {
-      try {
-        const old = await kv.get(LEGACY_PASSKEY_ARRAY_KEY, 'json');
-        if (Array.isArray(old) && old.length > 0) {
-          const newIdx = [];
-          for (const item of old) {
-            if (item && item.credId) {
-              const migrated = {
-                name: item.name || '通行密钥',
-                provider: item.provider || '',
-                aaguid: item.aaguid || '',
-                createdAt: item.createdAt || Date.now(),
-                lastUsedAt: item.lastUsedAt || 0,
-                credId: item.credId,
-                publicKey: item.publicKey,
-                signCount: item.signCount || 0,
-                uv: item.uv ? 1 : 0,
-                class: PK_CLASS_LOCK,
-              };
-              const keyName = passkeyKey(item.credId);
-              await kv.put(keyName, JSON.stringify(migrated), {
-                metadata: { name: migrated.name, provider: migrated.provider, createdAt: migrated.createdAt },
-              });
-              keys.push(migrated);
-              newIdx.push(item.credId);
-            }
-          }
-          await kv.put(PASSKEY_INDEX_KEY, JSON.stringify(newIdx));
-          await kv.delete(LEGACY_PASSKEY_ARRAY_KEY);
-        }
+        const v = await kv.get(passkeyKey(domain, credId), 'json');
+        if (v && v.credId === credId) keys.push(v);
       } catch (e) {}
     }
     return keys;
@@ -140,18 +107,24 @@ export async function getPasskeys(kv) {
 }
 
 /**
- * 保存单把通行密钥。
- * 账号 / 锁屏两种 class 原样保存；其他值拒绝（抛错），绝不默认归锁屏。
- * @param {any} kv
- * @param {any} item
+ * 读某域的单把通行密钥（不存在 / 读失败 → null）。
+ * @param {any} kv @param {string} domain @param {string} credId
  */
-export async function savePasskey(kv, item) {
-  const keyName = passkeyKey(item.credId);
-  /* P0-15：class 必须原样保存，账号通行密钥绝不能被改成锁屏通行密钥 */
-  const cls = item.class;
-  if (cls !== PK_CLASS_ACCOUNT && cls !== PK_CLASS_LOCK) {
-    throw new Error('invalid-class');
+export async function getPasskey(kv, domain, credId) {
+  try {
+    const v = await kv.get(passkeyKey(domain, credId), 'json');
+    return v && v.credId === credId ? v : null;
+  } catch (e) {
+    return null;
   }
+}
+
+/**
+ * 保存某域的单把通行密钥（字段顺序固定，不写 class）。
+ * @param {any} kv @param {string} domain @param {any} item
+ */
+export async function savePasskey(kv, domain, item) {
+  const c = domainKv(domain);
   /* 字段顺序固定：name 第一位，方便后台预览 */
   const ordered = {
     name: item.name || '通行密钥',
@@ -163,40 +136,38 @@ export async function savePasskey(kv, item) {
     publicKey: item.publicKey,
     signCount: item.signCount || 0,
     uv: item.uv ? 1 : 0,
-    class: cls,
   };
-  await kv.put(keyName, JSON.stringify(ordered), {
+  await kv.put(passkeyKey(domain, item.credId), JSON.stringify(ordered), {
     metadata: { name: ordered.name, provider: ordered.provider, createdAt: ordered.createdAt },
   });
   /* 同步更新索引（避开 kv.list 的最终一致延迟） */
   try {
-    let idx = await kv.get(PASSKEY_INDEX_KEY, 'json');
+    let idx = await kv.get(c.passkeyIndex, 'json');
     if (!Array.isArray(idx)) idx = [];
     if (!idx.includes(item.credId)) {
       idx.push(item.credId);
-      await kv.put(PASSKEY_INDEX_KEY, JSON.stringify(idx));
+      await kv.put(c.passkeyIndex, JSON.stringify(idx));
     }
   } catch (e) {}
   return ordered;
 }
 
 /**
- * 删除单把通行密钥。
- * @param {any} kv
- * @param {string} credId
+ * 删除某域的单把通行密钥。
+ * @param {any} kv @param {string} domain @param {string} credId
  * @returns {Promise<any|null>} 被删除的记录
  */
-export async function deletePasskey(kv, credId) {
-  const keyName = passkeyKey(credId);
+export async function deletePasskey(kv, domain, credId) {
+  const c = domainKv(domain);
+  const keyName = passkeyKey(domain, credId);
   let rec = null;
   try { rec = await kv.get(keyName, 'json'); } catch (e) {}
   await kv.delete(keyName);
-  /* 同步更新索引 */
   try {
-    let idx = await kv.get(PASSKEY_INDEX_KEY, 'json');
+    let idx = await kv.get(c.passkeyIndex, 'json');
     if (Array.isArray(idx)) {
       idx = idx.filter(id => id !== credId);
-      await kv.put(PASSKEY_INDEX_KEY, JSON.stringify(idx));
+      await kv.put(c.passkeyIndex, JSON.stringify(idx));
     }
   } catch (e) {}
   return rec;
@@ -204,13 +175,13 @@ export async function deletePasskey(kv, credId) {
 
 /**
  * 获取或创建固定用户 ID（32 字节随机，存 KV）。
- * 锁屏、账号两域各用一个 handle（LOCK_USER_HANDLE_KEY / ACCOUNT_USER_HANDLE_KEY，存储键名见 key-names.js），
+ * 锁屏、账号两域各用一个 handle（lock-user-id / account-user-id，见 realms.js），
  * 不共用，防止 Samsung Pass 把 AccountKey 覆盖到 LockKey 上。
  * @param {any} kv
- * @param {string} pkClass 凭据类别：PK_CLASS_ACCOUNT | PK_CLASS_LOCK
+ * @param {string} domain PASSKEY_ACCOUNT | PASSKEY_LOCK
  */
-export async function getUserHandle(kv, pkClass) {
-  const key = pkClass === PK_CLASS_ACCOUNT ? ACCOUNT_USER_HANDLE_KEY : LOCK_USER_HANDLE_KEY;
+export async function getUserHandle(kv, domain) {
+  const key = domainKv(domain).userHandle;
   try {
     let uh = await kv.get(key);
     if (!uh) {

@@ -116,7 +116,7 @@ async function accountGet(kv, cookieObj, envOverrides) {
 }
 async function seedPassword(kv, pw) {
   const { makePasswordRecord } = await import(KERNEL + 'password.js');
-  await kv.put('owner-pw', JSON.stringify(await makePasswordRecord(pw, PEPPER)));
+  await kv.put('account-password', JSON.stringify(await makePasswordRecord(pw, PEPPER)));
 }
 
 
@@ -164,7 +164,9 @@ test('登录记一台设备（型号来自 hints）；同一浏览器再登录�
   const acc1 = pickCookie(r1, 'sgx-account-session');
   assert.equal(acc1.split('.').length, 6, '票六段（带 deviceId）');
   const deviceId = acc1.split('.')[4];
-  const rec = JSON.parse(kv.store.get('account-dev:' + deviceId));
+  const rec = JSON.parse(kv.store.get('account-device:' + deviceId));
+  assert.equal(rec.deviceId, deviceId, '记录字段叫 deviceId');
+  assert.equal('sid' in rec, false);
   assert.equal(rec.model, 'SM-S918B');
   assert.equal(rec.browser, 'Samsung Internet');
   assert.equal(rec.by, 'password');
@@ -172,9 +174,9 @@ test('登录记一台设备（型号来自 hints）；同一浏览器再登录�
   const r2 = await login(kv, { 'sgx-lock-session': sess, 'sgx-account-session': acc1 }, SM_UA, null, { reauth: true });
   assert.equal(r2.status, 200);
   assert.equal(pickCookie(r2, 'sgx-account-session').split('.')[4], deviceId);
-  const devKeys = [...kv.store.keys()].filter((k) => k.startsWith('account-dev:'));
+  const devKeys = [...kv.store.keys()].filter((k) => k.startsWith('account-device:'));
   assert.equal(devKeys.length, 1);
-  assert.equal(JSON.parse(kv.store.get('account-dev:' + deviceId)).model, 'SM-S918B', '这次没带 hints，型号保留');
+  assert.equal(JSON.parse(kv.store.get('account-device:' + deviceId)).model, 'SM-S918B', '这次没带 hints，型号保留');
 });
 
 test('devices 列出：此设备排第一并标 current；GET session.device 是此设备名字', async () => {
@@ -213,8 +215,8 @@ test('device-revoke：别的设备立即失效（revoked）；不能退出此设
   assert.equal((await self.json()).error, 'current');
   const ok = await post(kv, { action: 'device-revoke', deviceId: pcDeviceId }, { 'sgx-lock-session': sess, 'sgx-account-session': phone });
   assert.equal(ok.status, 200);
-  assert.equal(kv.store.has('account-dev:' + pcDeviceId), false);
-  assert.equal(kv.store.has('account-revoked:' + pcDeviceId), true);
+  assert.equal(kv.store.has('account-device:' + pcDeviceId), false);
+  assert.equal(kv.store.has('account-device-revoked:' + pcDeviceId), true);
   const { verifyAccountSession } = await import(KERNEL + 'account-session.js');
   const v = await verifyAccountSession(new Request('https://styrigx.com/', { headers: { Cookie: 'sgx-account-session=' + pc } }), envFor(kv));
   assert.equal(v.ok, false);
@@ -233,8 +235,8 @@ test('退出账号：删本机记录并拉黑 deviceId', async () => {
   const deviceId = phone.split('.')[4];
   const r = await post(kv, { action: 'logout' }, { 'sgx-account-session': phone });
   assert.equal(r.status, 200);
-  assert.equal(kv.store.has('account-dev:' + deviceId), false);
-  assert.equal(kv.store.has('account-revoked:' + deviceId), true);
+  assert.equal(kv.store.has('account-device:' + deviceId), false);
+  assert.equal(kv.store.has('account-device-revoked:' + deviceId), true);
 });
 
 test('五段票（没有 deviceId 的旧格式）：不认，GET 当没登录、不下发新票、不记设备', async () => {
@@ -249,7 +251,7 @@ test('五段票（没有 deviceId 的旧格式）：不认，GET 当没登录、
   const j = await r.json();
   assert.equal(j.session, null);
   assert.equal(pickCookie(r, 'sgx-account-session') || '', '');
-  assert.equal([...kv.store.keys()].filter((k) => k.startsWith('account-dev:')).length, 0);
+  assert.equal([...kv.store.keys()].filter((k) => k.startsWith('account-device:')).length, 0);
 });
 
 test('改账号密码（纪元 +1）：当前设备沿用 deviceId，其他设备记录删掉', async () => {
@@ -264,8 +266,8 @@ test('改账号密码（纪元 +1）：当前设备沿用 deviceId，其他设�
   const nv = pickCookie(r, 'sgx-account-session');
   assert.equal(nv.split('.')[4], phone.split('.')[4]);
   assert.equal(nv.split('.')[1], '1');
-  assert.equal(kv.store.has('account-dev:' + pc.split('.')[4]), false);
-  assert.equal(kv.store.has('account-dev:' + phone.split('.')[4]), true);
+  assert.equal(kv.store.has('account-device:' + pc.split('.')[4]), false);
+  assert.equal(kv.store.has('account-device:' + phone.split('.')[4]), true);
 });
 
 test('票据篡改 deviceId → bad-sig', async () => {

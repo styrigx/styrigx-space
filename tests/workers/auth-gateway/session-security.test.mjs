@@ -109,12 +109,12 @@ function postReq(url, body, headers = {}) {
   });
 }
 
-/* 在 owner-pw 记录里预置密码 test-pass-12345（100000 次迭代与服务端一致） */
-/* 2.11 定稿：seed lock-pw（含 pepper），供 verify 测试用 */
+/* 在 account-password 记录里预置密码 test-pass-12345（100000 次迭代与服务端一致） */
+/* 2.11 定稿：seed lock-password（含 pepper），供 verify 测试用 */
 async function seedPassword(kv, password = 'test-pass-12345') {
   const { makePasswordRecord } = await import('../../../workers/auth-gateway/functions/_kernel/password.js');
   const rec = await makePasswordRecord(password, 'test-pepper');
-  await kv.put('lock-pw', JSON.stringify(rec));
+  await kv.put('lock-password', JSON.stringify(rec));
 }
 
 /* ================================================================
@@ -156,7 +156,7 @@ test('clearLockSessionCookie 用相同 Domain/Path 并正确过期', () => {
 
 test('getLockEpoch：key 不存在才当 0；有值返回值', async () => {
   assert.equal(await getLockEpoch(makeKV()), 0);
-  assert.equal(await getLockEpoch(makeKV({ 'session-epoch': '7' })), 7);
+  assert.equal(await getLockEpoch(makeKV({ 'lock-epoch': '7' })), 7);
 });
 
 test('getLockEpoch：KV 读取出错抛错', async () => {
@@ -165,14 +165,14 @@ test('getLockEpoch：KV 读取出错抛错', async () => {
 
 test('bumpLockEpoch：0→1，N→N+1；出错绝不写入', async () => {
   assert.equal(await bumpLockEpoch(makeKV()), 1);
-  const kv = makeKV({ 'session-epoch': '4' });
+  const kv = makeKV({ 'lock-epoch': '4' });
   assert.equal(await bumpLockEpoch(kv), 5);
-  assert.equal(kv.store.get('session-epoch'), '5');
+  assert.equal(kv.store.get('lock-epoch'), '5');
 
-  const broken = makePutBrokenKV({ 'session-epoch': '9' });
+  const broken = makePutBrokenKV({ 'lock-epoch': '9' });
   await assert.rejects(() => bumpLockEpoch(broken), /KV put failure/);
   /* 写入失败：原值不动（杜绝 epoch 变小） */
-  assert.equal(broken.store.get('session-epoch'), '9');
+  assert.equal(broken.store.get('lock-epoch'), '9');
   assert.equal(broken.putCalls, 1);
 });
 
@@ -190,9 +190,9 @@ test('bumpLockEpoch：读取出错时不写入（旧 cookie 不复活）', async
 
 test('纪元接口已删除：路由表里没有，文件也不在', async () => {
   const { API_ROUTES } = await import('../../../workers/auth-gateway/src/routes.js');
-  assert.equal(API_ROUTES.has('/api/session-epoch'), false);
+  assert.equal(API_ROUTES.has('/api/lock-epoch'), false);
   const fs = await import('node:fs');
-  assert.equal(fs.existsSync(new URL('../../../workers/auth-gateway/functions/api/session-epoch.js', import.meta.url)), false);
+  assert.equal(fs.existsSync(new URL('../../../workers/auth-gateway/functions/api/lock-epoch.js', import.meta.url)), false);
 });
 
 /* ================================================================
@@ -216,13 +216,13 @@ test('password verify 通过：Set-Cookie 带 Domain=.styrigx.com（Ed25519 格�
   assert.equal(parsed.sig.length > 10, true);
 });
 
-test('password verify：KV 读取 session-epoch 出错 → 503（不签发会话）', async () => {
+test('password verify：KV 读取 lock-epoch 出错 → 503（不签发会话）', async () => {
   const kv = makeKV();
   await seedPassword(kv);
-  /* 只让 session-epoch 的 get 抛错 */
+  /* 只让 lock-epoch 的 get 抛错 */
   const origGet = kv.get.bind(kv);
   kv.get = async (k, t) => {
-    if (k === 'session-epoch') throw new Error('KV boom');
+    if (k === 'lock-epoch') throw new Error('KV boom');
     return origGet(k, t);
   };
   const env = { KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, SGX_LOCK_PRIVATE: TEST_PRIV_PEM, SGX_PW_PEPPER: 'test-pepper' };
@@ -246,7 +246,7 @@ test('password verify：密码错误 → 403（不签发）', async () => {
 
 
 test('lock-all-devices：visitor 会话 → 403 {ok:false, error:role}（epoch 不变）', async () => {
-  const kv = makeKV({ 'session-epoch': '2' });
+  const kv = makeKV({ 'lock-epoch': '2' });
   const cookie = await testLockSession(TEST_PRIV_PEM, 2, 'visitor');
   const env = { KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, SGX_LOCK_PUBLIC: TEST_PUB_PEM };
   const r = await lockAllPost({
@@ -255,29 +255,29 @@ test('lock-all-devices：visitor 会话 → 403 {ok:false, error:role}（epoch �
   });
   assert.equal(r.status, 403);
   assert.deepEqual(await r.json(), { ok: false, error: 'role' });
-  assert.equal(kv.store.get('session-epoch'), '2');
+  assert.equal(kv.store.get('lock-epoch'), '2');
 });
 
 test('lock-all-devices：无会话 → 401', async () => {
-  const kv = makeKV({ 'session-epoch': '2' });
+  const kv = makeKV({ 'lock-epoch': '2' });
   const env = { KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, SGX_LOCK_PUBLIC: TEST_PUB_PEM };
   const r = await lockAllPost({
     request: postReq('https://styrigx.com/api/lock-all-devices', {}),
     env,
   });
   assert.equal(r.status, 401);
-  assert.equal(kv.store.get('session-epoch'), '2');
+  assert.equal(kv.store.get('lock-epoch'), '2');
 });
 
 test('lock-all-devices：旧三段式（无 role）cookie → 401 无效', async () => {
-  const kv = makeKV({ 'session-epoch': '2' });
+  const kv = makeKV({ 'lock-epoch': '2' });
   const env = { KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, SGX_LOCK_PUBLIC: TEST_PUB_PEM };
   const r = await lockAllPost({
     request: postReq('https://styrigx.com/api/lock-all-devices', {}, { 'Cookie': 'sgx-lock-session=2.9999999999999.fakesig' }),
     env,
   });
   assert.equal(r.status, 401);
-  assert.equal(kv.store.get('session-epoch'), '2');
+  assert.equal(kv.store.get('lock-epoch'), '2');
 });
 
 
@@ -389,7 +389,7 @@ test('middleware：伪造签名被拒（302 到首页锁屏）', async () => {
 });
 
 test('middleware：lockout 后旧 epoch cookie 失效', async () => {
-  const kv = makeKV({ 'session-epoch': '0' });
+  const kv = makeKV({ 'lock-epoch': '0' });
   const env = { SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: TEST_PUB_PEM, KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv };
   const oldCookie = await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
   /* 旧 cookie 有效 */
@@ -639,15 +639,15 @@ test('passkey auth 通过：Set-Cookie 属性齐全', async () => {
   const jwk = await crypto.subtle.exportKey('jwk', kp.publicKey);
   const credId = b64url(crypto.getRandomValues(new Uint8Array(16)));
   const kv = makeKV();
-  await kv.put('owner-passkey-index', JSON.stringify([credId]));
-  await kv.put('owner-passkey:' + credId.slice(0, 12), JSON.stringify({
+  await kv.put('lock-passkey-index', JSON.stringify([credId]));
+  await kv.put('lock-passkey:' + credId.slice(0, 12), JSON.stringify({
     name: 'test-key', credId, publicKey: jwk, signCount: 0, uv: 1,
     createdAt: Date.now(), lastUsedAt: 0,
   }));
   /* 预置 auth challenge */
   const cid = 'test-cid-' + Date.now();
   const challenge = b64url(crypto.getRandomValues(new Uint8Array(32)));
-  await kv.put('pk-challenge:' + cid, JSON.stringify({ type: 'auth', challenge, exp: Date.now() + 60000 }));
+  await kv.put('lock-passkey-challenge:' + cid, JSON.stringify({ type: 'auth', challenge, exp: Date.now() + 60000 }));
 
   const env = {
     KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
@@ -787,14 +787,14 @@ async function buildPasskeyAuthFixture() {
   const jwk = await crypto.subtle.exportKey('jwk', kp.publicKey);
   const credId = b64url(crypto.getRandomValues(new Uint8Array(16)));
   const kv = makeKV();
-  await kv.put('owner-passkey-index', JSON.stringify([credId]));
-  await kv.put('owner-passkey:' + credId.slice(0, 12), JSON.stringify({
+  await kv.put('lock-passkey-index', JSON.stringify([credId]));
+  await kv.put('lock-passkey:' + credId.slice(0, 12), JSON.stringify({
     name: 'test-key', credId, publicKey: jwk, signCount: 0, uv: 1,
     createdAt: Date.now(), lastUsedAt: 0,
   }));
   const cid = 'test-cid-' + Date.now() + Math.random();
   const challenge = b64url(crypto.getRandomValues(new Uint8Array(32)));
-  await kv.put('pk-challenge:' + cid, JSON.stringify({ type: 'auth', challenge, exp: Date.now() + 60000 }));
+  await kv.put('lock-passkey-challenge:' + cid, JSON.stringify({ type: 'auth', challenge, exp: Date.now() + 60000 }));
 
   const rpIdHash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('styrigx.com')));
   const authData = new Uint8Array(37);

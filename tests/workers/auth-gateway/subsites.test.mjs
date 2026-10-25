@@ -34,7 +34,7 @@ function env(epoch = '0') {
   return {
     seen,
     SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB,
-    KV_LOCK_DOOR: { async get(k) { return k === 'session-epoch' ? epoch : null; } },
+    KV_LOCK_DOOR: { async get(k) { return k === 'lock-epoch' ? epoch : null; } },
     ASSETS: {
       async fetch(req) {
         seen.push(new URL(req.url).hostname + new URL(req.url).pathname);

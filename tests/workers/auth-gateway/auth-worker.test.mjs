@@ -36,7 +36,7 @@ function makeKv() {
   const m = new Map();
   return {
     m,
-    async get(k) { if (k === 'session-epoch') return '0'; const v = m.get(k); return v === undefined ? null : v; },
+    async get(k) { if (k === 'lock-epoch') return '0'; const v = m.get(k); return v === undefined ? null : v; },
     async getWithMetadata(k) { const v = m.get(k); return { value: v ?? null, metadata: null }; },
     async put(k, v) { m.set(k, v); },
     async delete(k) { m.delete(k); },

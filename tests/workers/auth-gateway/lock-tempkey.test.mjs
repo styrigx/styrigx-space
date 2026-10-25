@@ -145,6 +145,20 @@ test('上限 20 把', async () => {
   await assert.rejects(TL.createTempkey(kv, PEPPER, { name: '', ms: 3600e3 }), /full/);
 });
 
+test('KV 键名（第 5 层）：lock-tempkey:<id> / lock-tempkey-code:<hash> / lock-tempkey-revoked:<id>；码哈希域串 lock-tempkey|', async () => {
+  const kv = makeKV();
+  const { key, code } = await TL.createTempkey(kv, PEPPER, { name: '', ms: 3600e3 });
+  const raw = TL.normalizeCode(code);
+  assert.ok(kv.store.has('lock-tempkey:' + key.id));
+  const h = await TL.hashCode(PEPPER, raw);
+  const { createHash } = await import('node:crypto');
+  assert.equal(h, createHash('sha256').update('lock-tempkey|' + PEPPER + '|' + raw).digest('hex'));
+  assert.equal(kv.store.get('lock-tempkey-code:' + h).v, key.id);
+  await TL.revokeTempkey(kv, key.id);
+  assert.ok(kv.store.has('lock-tempkey-revoked:' + key.id));
+  assert.equal([...kv.store.keys()].some((k) => /^lock-temp[-:](?!key)/.test(k) || k.startsWith('lock-temp:')), false, '不写任何旧键');
+});
+
 /* ---------------- /api/lock-tempkey（管理） ---------------- */
 
 test('管理接口：要同源 + admin lock 会话 + 账号会话', async () => {

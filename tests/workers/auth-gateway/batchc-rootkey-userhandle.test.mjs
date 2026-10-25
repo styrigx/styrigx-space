@@ -152,7 +152,7 @@ test('B2：lockreset verify 带换行通过', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/lock-reset.js');
   const kv = makeKV();
   /* 标记 owner 层已配置：根凭证正确后走 needAccount 分支（不是 401 auth） */
-  await kv.put('layer:owner', '1');
+  await kv.put('account-configured', '1');
   const req = postReq('https://styrigx.com/api/lock-reset', { action: 'verify', rootKey: 'test-root-key-\nabc123' }, { 'CF-Connecting-IP': '10.0.0.3' });
   const res = await onRequestPost({ request: req, env: authEnv(kv) });
   /* 根凭证正确 → 进入开关/管理员凭证流程（needAccount），不是 401 auth */

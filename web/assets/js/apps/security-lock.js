@@ -175,7 +175,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
   var hasPk = false;
   /* v1.1 §二.1：返回请求 Promise，供进门回调等首次数据加载完成后再显示胶囊 */
   function refreshStatus() {
-    /* 状态接口：/api/lock-credentials（lock-pw + class=lock） */
+    /* 状态接口：/api/lock-credentials（lock-password + lock-passkey:*） */
     return fetch(statusApi, { method: 'GET', credentials: 'same-origin' })
       .then(function (r) {
         return r.json();
