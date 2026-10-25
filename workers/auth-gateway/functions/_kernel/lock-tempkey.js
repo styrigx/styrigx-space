@@ -5,30 +5,33 @@
  * 不是另一套认证体系：
  * - 访客在锁屏输入临时码 → 签发的仍是锁屏会话 LockSessionTicket（role=visitor，by=tempkey，tempkeyId=<钥匙 id>），
  *   用 lock 私钥（SGX_LOCK_PRIVATE）签名、lock 公钥验签（lock-session.js）。
- * - 会话的到期时间不晚于钥匙本身；验会话时再查「这把钥匙有没有被作废」（lock-temp-revoked:<id>），一次 KV 读：
+ * - 会话的到期时间不晚于钥匙本身；验会话时再查「这把钥匙有没有被作废」（lock-tempkey-revoked:<id>），一次 KV 读：
  *   钥匙到期或被作废，访客下一个请求就进不来。
  *
  * 临时码：12 位 Crockford Base32（60 位随机，不含 I L O U），显示成 XXXX-XXXX-XXXX；
  * 输入时忽略大小写、空格和连字符，O→0、I/L→1。服务端只存 SHA-256(pepper|code)，
  * 临时码只在签发那一刻返回一次。
  *
- * KV（KV_LOCK_DOOR，都带过期时间，到期自动消失）：
- * - lock-temp:<id>          → { id, name, createdAt, expiresAt, h, link? }（h = 临时码哈希，作废时删索引用；
+ * KV（KV_LOCK_DOOR，都带过期时间，到期自动消失；键名见 realms.js REALM_LOCK.kv）：
+ * - lock-tempkey:<id>          → { id, name, createdAt, expiresAt, h, link? }（h = 临时码哈希，作废时删索引用；
  *                             link = 分享短链自动签的钥匙（styrigx-share 经服务绑定 ShareIssuer 签，src/share-issuer.js）：
  *                             没有临时码、不占 TEMPKEY_MAX、不在钥匙列表里，只能经短链换会话）
- * - lock-temp-code:<hash>   → id
- * - lock-temp-revoked:<id>  → '1'（作废标记，留到钥匙原本的到期时间；middleware 每个访客请求只查这一个键）
- * - lock-temp-fail:<ip>     → { count, lockedUntil }（连错 5 次冷却 15 分钟）
- * - lock-temp-global        → { count, windowStart, pausedUntil }（全站每小时错 30 次暂停 1 小时）
+ * - lock-tempkey-code:<hash>   → id（hash = SHA-256('lock-tempkey|' + pepper + '|' + 临时码)）
+ * - lock-tempkey-revoked:<id>  → '1'（作废标记，留到钥匙原本的到期时间；middleware 每个访客请求只查这一个键）
+ * - lock-tempkey-fail:<ip>     → { count, lockedUntil }（连错 5 次冷却 15 分钟）
+ * - lock-tempkey-fail-global   → { count, windowStart, pausedUntil }（全站每小时错 30 次暂停 1 小时）
  * 名字只在管理员侧保存和显示，访客那边永远拿不到。
  */
 import { b64urlEnc } from './crypto.js';
+import { REALM_LOCK } from './realms.js';
 
-export const TEMPKEY_PREFIX = 'lock-temp:';
-const CODE_PREFIX = 'lock-temp-code:';
-const REVOKED_PREFIX = 'lock-temp-revoked:';
-const FAIL_PREFIX = 'lock-temp-fail:';
-const GLOBAL_KEY = 'lock-temp-global';
+export const TEMPKEY_PREFIX = REALM_LOCK.kv.tempkeyPrefix;
+const CODE_PREFIX = REALM_LOCK.kv.tempkeyCodePrefix;
+const REVOKED_PREFIX = REALM_LOCK.kv.tempkeyRevokedPrefix;
+const FAIL_PREFIX = REALM_LOCK.kv.tempkeyFailPrefix;
+const GLOBAL_KEY = REALM_LOCK.kv.tempkeyFailGlobal;
+/* 临时码哈希的域分隔串（第 5 层改名后旧临时码全部失效，PR 3 部署后重发全部临时钥匙） */
+const CODE_HASH_DOMAIN = 'lock-tempkey|';
 
 /** 同时有效的临时钥匙上限 */
 export const TEMPKEY_MAX = 20;
@@ -105,7 +108,7 @@ export function normalizeCode(s) {
 
 /** @param {string} pepper @param {string} code 规范化后的临时码 */
 export async function hashCode(pepper, code) {
-  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('lock-temp|' + pepper + '|' + code));
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(CODE_HASH_DOMAIN + pepper + '|' + code));
   return Array.from(new Uint8Array(d), function (x) { return x.toString(16).padStart(2, '0'); }).join('');
 }
 

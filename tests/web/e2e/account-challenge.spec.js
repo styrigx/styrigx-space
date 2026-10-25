@@ -7,7 +7,7 @@
  *
  * 覆盖：
  * - 无会话 lock-reauth status 被拒（401）；/api/stepup 已不存在
- * - 锁屏通行密钥的 pk-challenge 不能用于账号登录（403 challenge，用途隔离）
+ * - 锁屏通行密钥的 lock-passkey-challenge 不能用于账号登录（403 challenge，用途隔离）
  * - 账号登录 challenge 单次使用，重放被拒（403 challenge）
  *
  * 运行：SGX_TEST_OWNER_KEY=<预览测试 OWNER_KEY> SGX_TEST_BASE=https://<preview> \
@@ -80,7 +80,7 @@ test.describe('lock reauth / account challenge e2e', () => {
     expect(r.status()).toBe(401);
   });
 
-  test('锁屏 pk-challenge 不能用于账号登录 login-passkey', async ({ page, request }) => {
+  test('锁屏 lock-passkey-challenge 不能用于账号登录 login-passkey', async ({ page, request }) => {
     const cookie = await adminSessionCookie(page, request);
     const headers = { Cookie: cookie };
     const chal = await (await request.post(BASE + '/api/lock-passkey', {

@@ -357,7 +357,7 @@ for (const K of KINDS) {
     const v = await verifyLockSession(req(), gwEnv);
     assert.equal(v.ok, false);
     assert.equal(v.reason, 'tempkey-revoked');
-    assert.ok(kv.m.has('lock-temp-revoked:' + db.rows()[0].key_id));
+    assert.ok(kv.m.has('lock-tempkey-revoked:' + db.rows()[0].key_id));
     assert.deepEqual(await failShape(await open(env, l.path, { ip: '9.9.9.9' })), FAIL);
     const list = (await api(env, { action: 'list' })).j.links;
     assert.equal(list[0].status, 'revoked');

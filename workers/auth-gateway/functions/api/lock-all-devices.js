@@ -8,7 +8,7 @@
  *   本接口再做一次角色校验，纵深防御）。
  * - 无会话 → 401；visitor 会话 → 403 {ok:false, error:'role'}。
  * - 无 LockReauthTicket → 403 reauth（前端重新验证）。
- * - 逻辑：KV session-epoch +1（所有设备旧 cookie 失效），用 Set-Cookie 清当前锁屏会话和 LockReauthTicket。
+ * - 逻辑：KV lock-epoch +1（所有设备旧 cookie 失效），用 Set-Cookie 清当前锁屏会话和 LockReauthTicket。
  * - 返回 {ok:true}。
  *
  * 注意：子站 缓存 epoch 约 60 秒，锁定后最多 60 秒内在 子站 生效。
@@ -55,7 +55,7 @@ async function handlePost(context) {
     return Response.json(gate.body, { status: gate.status });
   }
 
-  /* session-epoch +1：KV 出错 → 503，绝不继续 */
+  /* lock-epoch +1：KV 出错 → 503，绝不继续 */
   try {
     await bumpLockEpoch(kv);
   } catch (e) {

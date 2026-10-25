@@ -13,7 +13,7 @@
  * 只在重置锁屏路径、且根凭证正确后读开关，其他请求一律不读。
  *
  * LockResetTicket（sgx-lock-reset，SGX_LOCK_* 签，3 分钟）只能增删锁屏凭证、设置锁屏密码；
- * 不签锁屏会话、不进主页面、不管会话。完成后推进 session-epoch，用新锁屏凭证正常解锁。
+ * 不签锁屏会话、不进主页面、不管会话。完成后推进 lock-epoch，用新锁屏凭证正常解锁。
  *
  * 账号未配置时锁屏重置不可用（重置开关除外）。
  *
@@ -33,7 +33,7 @@ import { checkRootCredential } from '../_kernel/root-check.js';
 import { issueTicket } from '../_kernel/tickets.js';
 import { LOCK_RESET_TICKET, BY_ACCOUNT } from '../_kernel/realms.js';
 import { randB64, verifyAssertion, rpIdHashOf, consumeChallenge, findStoredKey } from '../_kernel/passkey-verify.js';
-import { getPasskeys, PK_CLASS_ACCOUNT, PK_CLASS_LOCK } from '../_kernel/passkey-store.js';
+import { getPasskeys, PASSKEY_ACCOUNT } from '../_kernel/passkey-store.js';
 import { getPepper, verifyRealmPassword } from '../_kernel/password.js';
 import { recordRootFail, getClientIp } from '../_kernel/root-limit.js';
 import { writeRootAudit } from '../_kernel/root-audit.js';
@@ -117,8 +117,7 @@ async function handlePost(context) {
     if (!accountCfg) {
       return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
     }
-    const keys = await getPasskeys(kv);
-    const accountPks = keys.filter(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_ACCOUNT; });
+    const accountPks = await getPasskeys(kv, PASSKEY_ACCOUNT);
     if (accountPks.length === 0) {
       return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
     }
@@ -199,8 +198,7 @@ async function handlePost(context) {
         hasAccountPw = !!(r && r.hash);
       } catch (e) {}
       try {
-        const keys = await getPasskeys(kv);
-        hasAccountPk = keys.some(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_ACCOUNT; });
+        hasAccountPk = (await getPasskeys(kv, PASSKEY_ACCOUNT)).length > 0;
       } catch (e) {}
       return Response.json({ ok: true, needAccount: true, passkey: hasAccountPk, password: hasAccountPw });
     }
@@ -254,10 +252,9 @@ async function handlePost(context) {
       const cred = proofObj.credential || {};
       const chRec = await consumeChallenge(kvStore, CHALLENGE_PREFIX + cid);
       if (!chRec || chRec.purpose !== PURPOSE || chRec.exp < Date.now()) return false;
-      const keys = await getPasskeys(kvStore);
-      const accountPks = keys.filter(function (k) { return (k.class || PK_CLASS_LOCK) === PK_CLASS_ACCOUNT; });
+      const accountPks = await getPasskeys(kvStore, PASSKEY_ACCOUNT);
       const stored = findStoredKey(accountPks, cred.rawId || '');
-      if (!stored || !stored.publicKey || stored.class !== PK_CLASS_ACCOUNT) return false;
+      if (!stored || !stored.publicKey) return false;
       try {
         const rpIdHash = await rpIdHashOf(rpId);
         const checked = await verifyAssertion({

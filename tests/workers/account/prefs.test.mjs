@@ -104,7 +104,7 @@ async function accountGet(kv, cookieObj, envOverrides) {
 }
 async function seedPassword(kv, pw) {
   const { makePasswordRecord } = await import(KERNEL + 'password.js');
-  await kv.put('owner-pw', JSON.stringify(await makePasswordRecord(pw, PEPPER)));
+  await kv.put('account-password', JSON.stringify(await makePasswordRecord(pw, PEPPER)));
 }
 
 
@@ -169,7 +169,7 @@ test('被单独退出的设备（revoked）不能同步', async () => {
   const kv = makeKV();
   const { signAccountSessionTicket } = await import(KERNEL + 'account-session.js');
   const t = await testAccountSession(ACCOUNT.priv, 'password', 0, Date.now(), undefined, 'AAAAAAAAAAAAAAAA');
-  await kv.put('account-revoked:AAAAAAAAAAAAAAAA', '1');
+  await kv.put('account-device-revoked:AAAAAAAAAAAAAAAA', '1');
   const r = await prefsCall(kv, 'GET', null, { 'sgx-lock-session': await adminSess(), 'sgx-account-session': t });
   assert.equal(r.status, 401);
 });

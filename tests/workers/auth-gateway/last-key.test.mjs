@@ -1,7 +1,7 @@
 /**
  * A-2 最后一把锁屏钥匙与 AccountKey 联动（v1.5 #10）。
  *
- * - 删到 0 时 AccountKey 存在（管理员密码或管理员通行密钥任一）→ 允许，保留 layer:lock
+ * - 删到 0 时 AccountKey 存在（管理员密码或管理员通行密钥任一）→ 允许，保留 lock-configured
  *   （根凭证代开继续被拒）；不存在 → 服务端 403 last-key。
  * - A-2 对 layer:lock-emptied 不读不写（该键是 B #10 的，本 PR 不引入）：
  *   删最后一把后 KV 里不出现该键；生产残留不动、不清除、不依赖。
@@ -70,18 +70,19 @@ const envFor = (kv, extra = {}) => ({
 async function seedKey(kv, credId, cls) {
   const rec = {
     name: 'test', provider: '', aaguid: '', createdAt: 1, lastUsedAt: 0,
-    credId, publicKey: {}, signCount: 0, uv: 1, class: cls,
+    credId, publicKey: {}, signCount: 0, uv: 1,
   };
-  await kv.put('owner-passkey:' + credId.slice(0, 12), JSON.stringify(rec));
-  const idxRaw = await kv.get('owner-passkey-index', 'json');
+  const domain = cls === 'owner' || cls === 'account' ? 'account' : 'lock';
+  await kv.put(domain + '-passkey:' + credId.slice(0, 12), JSON.stringify(rec));
+  const idxRaw = await kv.get(domain + '-passkey-index', 'json');
   const idx = Array.isArray(idxRaw) ? idxRaw : [];
   idx.push(credId);
-  await kv.put('owner-passkey-index', JSON.stringify(idx));
+  await kv.put(domain + '-passkey-index', JSON.stringify(idx));
 }
 async function seedPw(kv, kind, password) {
   const { makePasswordRecord } = await import('../../../workers/auth-gateway/functions/_kernel/password.js');
   const rec = await makePasswordRecord(password, 'test-pepper');
-  await kv.put(kind === 'owner' ? 'owner-pw' : 'lock-pw', JSON.stringify(rec));
+  await kv.put(kind === 'owner' ? 'account-password' : 'lock-password', JSON.stringify(rec));
 }
 
 test('setup: 生成测试密钥', async () => {
@@ -96,8 +97,8 @@ test('setup: 生成测试密钥', async () => {
 
 test('A-2：lock-entry (b) 无真实 lock 凭证 + owner 已配置 + 无 lock-emptied → resetOnly=true', async () => {
   const { onRequestGet } = await import('../../../workers/auth-gateway/functions/api/lock-entry.js');
-  const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1' });
-  await seedPw(kv, 'owner', 'owner-pw-123');
+  const kv = makeKV({ 'account-configured': '1', 'lock-configured': '1' });
+  await seedPw(kv, 'owner', 'account-password-123');
   const res = await onRequestGet({ env: { KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv } });
   assert.equal(res.status, 200);
   const j = await res.json();
@@ -111,9 +112,9 @@ test('A-2：lock-entry (b) 无真实 lock 凭证 + owner 已配置 + 无 lock-em
 
 test('A-2：lock-entry (a) lock-emptied=1 残留 + 有真实 lock 凭证 → resetOnly=false（忽略该键）', async () => {
   const { onRequestGet } = await import('../../../workers/auth-gateway/functions/api/lock-entry.js');
-  const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1', 'layer:lock-emptied': '1' });
-  await seedPw(kv, 'owner', 'owner-pw-123');
-  await seedPw(kv, 'lock', 'lock-pw-1234');
+  const kv = makeKV({ 'account-configured': '1', 'lock-configured': '1', 'layer:lock-emptied': '1' });
+  await seedPw(kv, 'owner', 'account-password-123');
+  await seedPw(kv, 'lock', 'lock-password-1234');
   const res = await onRequestGet({ env: { KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv } });
   assert.equal(res.status, 200);
   const j = await res.json();
@@ -138,9 +139,9 @@ test('A-2：lock-entry 空站 → resetOnly=false（A 启动流程保留，根�
 
 test('A-2：删光账号凭证时不动 lock-emptied 残留（留给 B 处理；账号体系走 /api/account）', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/account.js');
-  const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1', 'layer:lock-emptied': '1' });
-  await kv.put('owner-passkey-index', JSON.stringify(['acct-key-0001']));
-  await kv.put('owner-passkey:acct-key-000', JSON.stringify({ credId: 'acct-key-0001', class: 'owner', publicKey: {}, signCount: 0 }));
+  const kv = makeKV({ 'account-configured': '1', 'lock-configured': '1', 'layer:lock-emptied': '1' });
+  await kv.put('account-passkey-index', JSON.stringify(['acct-key-0001']));
+  await kv.put('account-passkey:acct-key-000', JSON.stringify({ credId: 'acct-key-0001', publicKey: {}, signCount: 0 }));
   const sess = await mintSession();
   const acc = await testAccountSession(ACCT_PRIV, 'password', 0, Date.now());
   const { signAccountReauthTicket } = await import('../../../workers/auth-gateway/functions/_kernel/tickets.js');
@@ -152,7 +153,7 @@ test('A-2：删光账号凭证时不动 lock-emptied 残留（留给 B 处理；
     env,
   });
   assert.equal(res.status, 200, await res.text());
-  assert.equal(await kv.get('owner-passkey:acct-key-000'), null);
-  assert.equal(await kv.get('layer:owner'), null, '删光账号凭证 → 清 layer:owner');
+  assert.equal(await kv.get('account-passkey:acct-key-000'), null);
+  assert.equal(await kv.get('account-configured'), null, '删光账号凭证 → 清 account-configured');
   assert.equal(await kv.get('layer:lock-emptied'), '1', 'A-2 不动 lock-emptied 残留');
 });

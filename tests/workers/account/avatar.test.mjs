@@ -42,7 +42,7 @@ function makeKv(init = {}) {
   return {
     m,
     async get(k) {
-      if (k === 'session-epoch') return '0';
+      if (k === 'lock-epoch') return '0';
       const v = m.get(k);
       return v === undefined ? null : v.value ?? v;
     },

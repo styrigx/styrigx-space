@@ -84,14 +84,15 @@ space（styrigx.com）相当于 One UI，blog/book 等分站相当于其中的 A
 - 敏感操作（「管理凭证」进门、注册/删除账号通行密钥、修改账号密码）要求 `authAt` 在 10 分钟内，
   过旧返回 403 `account-stale`，前端回账号页重新登录。
 - 改账号密码 / 删账号通行密钥时 `account-epoch` +1，其他设备的账号会话失效，当前设备重签。
-- 存储沿用原管理员凭证（`owner-pw`、`owner-passkey:*` class=owner、`owner-user-id:owner`），
-  不搬数据、无需重新注册；新增 KV 键 `account-challenge:*`、`account-epoch`。
+- 存储（第 5 层键名，带域前缀）：`account-password`、`account-passkey:*` + `account-passkey-index`、`account-user-id`、
+  `account-passkey-challenge:*`、`account-epoch`、`account-configured`、`account-device:*`、`account-device-revoked:*`；
+  账号密码登录限速 `account-password-fail:<ip>` / `account-password-cooldown:<ip>`（规则同锁屏密码）。
 - 缺账号钥匙 → 账号登录 503 `config`，只影响账号登录与进门，网站其余部分不受影响。
 - 敏感操作还包括重命名账号通行密钥（`rename`，同样要求近期登录，不推纪元）。
 - 概念名 `AccountKey`（原 `OwnerKey`）：账号通行密钥注册时 WebAuthn `user.name = AccountKey`；
-  存储层不变（class 仍是 `owner`，KV 仍是 `owner-pw` / `owner-passkey:*`）。`list` 返回账号 handle，
+  通行密钥记录不再有 class 字段（键名已表明域）。`list` 返回账号 handle，
   前端支持时调 `PublicKeyCredential.signalCurrentUserDetails` 让密码管理器把旧条目改名
-  （只对当前 handle `owner-user-id:owner`；旧 handle 与 LockKey 共用，不发）。
+  （只对当前 handle `account-user-id`；旧 handle 与 LockKey 共用，不发）。
 - 前端：账号页 `/account/`（`apps/account.js`），顶栏头像链接到它；登录后是三星式总览
   （账号卡 + 头像编辑、已登录卡、「安全与隐私」一行）；账号密码和账号通行密钥在子页
   `/account/security/`（`apps/account-security.js`）。顶栏没有 ‹ 返回（2026-10-20 删除），

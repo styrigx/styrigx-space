@@ -271,7 +271,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
 
     try {
       /* 1. 写入开关值 → 服务端首次见到，在 D1 记录 hash + 首次时间，开始 24h 计时 */
-      await kvPut('recovery-switch', switchValue);
+      await kvPut('lock-reset-switch', switchValue);
 
       /* 2. 根凭证正确 + 开关在计时窗口内有效 → 签发 LockResetTicket（via=switch），带 sgx-lock-reset cookie */
       let r = await lockResetVerify(OWNER_KEY);
@@ -290,7 +290,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       expect(r.headers()['set-cookie'] || '').not.toContain('sgx-lock-reset=');
     } finally {
       /* 清理：删掉测试写入的开关值（D1 记录按 hash 隔离，无影响） */
-      await kvDel('recovery-switch');
+      await kvDel('lock-reset-switch');
     }
   });
 
@@ -322,7 +322,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
 
     try {
       /* 1. 写入开关 → 根凭证 verify → 拿到 LockResetTicket（sgx-lock-reset cookie） */
-      await kvPut('recovery-switch', switchValue);
+      await kvPut('lock-reset-switch', switchValue);
       const vr = await request.post(BASE + '/api/lock-reset', {
         headers: { Origin: ORIGIN },
         data: { action: 'verify', rootKey: OWNER_KEY },
@@ -361,12 +361,12 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       const homeState = await page.evaluate(() => document.documentElement.dataset.sgxLockSession);
       expect(homeState).toBe('locked');
     } finally {
-      await kvDel('recovery-switch');
+      await kvDel('lock-reset-switch');
     }
   });
 
   test('root-auth purpose:lock-reset：锁屏未配置时签 LockResetTicket（不签会话）；/api/root-session 已删除', async ({ request }) => {
-    /* 前提：preview 的 lock 未配置（无 layer:lock 标记、无 lock-pw、无 lock passkey）。
+    /* 前提：preview 的 lock 未配置（无 lock-configured 标记、无 lock-password、无 lock passkey）。
        若 preview 已配置 lock，本用例跳过（由 kernel 行为测试覆盖已配置拒绝路径）。 */
     const ORIGIN = new URL(BASE).origin;
     /* 不带 purpose → 400 */

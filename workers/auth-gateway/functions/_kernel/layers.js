@@ -2,23 +2,51 @@
  * 分层接管（layer takeover）。
  *
  * 两层：account（AccountKey：账号密码 / 账号通行密钥）、lock（LockKey：锁屏密码 / 锁屏通行密钥）。
- * 钥匙命名见 key-names.js。
+ * 钥匙命名、KV 键名见 realms.js。
  *
  * 规则：
  * - 某层没有自己的凭证时，root 可代开该层。
  * - 该层一旦配置自己的凭证，root 对该层失效（403）。
  * - "是否已配置"从 KV 读；KV 读取失败按已配置处理（root 被拒，fail closed）。
  *
- * KV 键：'layer:' + 层的存储名（LAYER_ACCOUNT / LAYER_LOCK 的值）= "1"
+ * KV 键：lock-configured / account-configured = "1"（REALM_*.kv.configured）
  */
 
-import { passkeyKey, PASSKEY_KEY_PREFIX, PASSKEY_INDEX_KEY, STORE_CLASS_ACCOUNTKEY, STORE_CLASS_LOCKKEY } from './key-names.js';
 import { REALM_LOCK, REALM_ACCOUNT } from './realms.js';
 
-/* 层标识（值是 KV 存储名：账号层沿用早期的 'owner'，键名改造时随 KV 一起改） */
-export const LAYER_ACCOUNT = 'owner';
-export const LAYER_LOCK = 'lock';
+/* 层标识（= 凭证域 id） */
+export const LAYER_ACCOUNT = REALM_ACCOUNT.id;
+export const LAYER_LOCK = REALM_LOCK.id;
 
+/** @param {string} layer @returns {string} 该层「已配置」标记的 KV 键 */
+function configuredKey(layer) {
+  if (layer === LAYER_LOCK) return REALM_LOCK.kv.configured;
+  if (layer === LAYER_ACCOUNT) return REALM_ACCOUNT.kv.configured;
+  throw new Error('layers: bad layer ' + JSON.stringify(layer));
+}
+
+
+/**
+ * 某域是否至少有一把通行密钥：先按索引读，索引不存在再按前缀 kv.list 补查。任何读取失败抛错（调用方按已配置处理）。
+ * @param {any} kv @param {{passkeyIndex:string, passkeyPrefix:string}} c 域的 kv 表
+ * @returns {Promise<boolean>}
+ */
+export async function hasPasskey(kv, c) {
+  const idx = await kv.get(c.passkeyIndex, 'json');
+  if (Array.isArray(idx)) {
+    for (const credId of idx) {
+      const v = await kv.get(c.passkeyPrefix + String(credId).slice(0, 12), 'json');
+      if (v && v.credId) return true;
+    }
+    return false;
+  }
+  const list = await kv.list({ prefix: c.passkeyPrefix });
+  for (const k of (list && list.keys) || []) {
+    const v = await kv.get(k.name, 'json');
+    if (v && v.credId) return true;
+  }
+  return false;
+}
 
 /**
  * 检查某层是否已配置自己的凭证。
@@ -30,7 +58,7 @@ export const LAYER_LOCK = 'lock';
 export async function isLayerConfigured(kv, layer) {
   if (!kv) return true;
   try {
-    const v = await kv.get('layer:' + layer);
+    const v = await kv.get(configuredKey(layer));
     return v === '1';
   } catch (e) {
     return true; /* 读失败按已配置处理 */
@@ -44,7 +72,7 @@ export async function isLayerConfigured(kv, layer) {
  */
 export async function setLayerConfigured(kv, layer) {
   if (!kv) throw new Error('kv-missing');
-  await kv.put('layer:' + layer, '1');
+  await kv.put(configuredKey(layer), '1');
 }
 
 /**
@@ -54,7 +82,7 @@ export async function setLayerConfigured(kv, layer) {
  */
 export async function clearLayerConfigured(kv, layer) {
   if (!kv) throw new Error('kv-missing');
-  await kv.delete('layer:' + layer);
+  await kv.delete(configuredKey(layer));
 }
 
 /**
@@ -75,8 +103,8 @@ export async function checkRootTakeover(kv, layer) {
 }
 
 /**
- * 真实凭证盘点（单次遍历，供 isLockEffectivelyConfigured / isAccountEffectivelyConfigured 共用）。
- * 只读真实凭证（密码 hash、通行密钥 class），不读 layer:* 标记。
+ * 真实凭证盘点（，供 isLockEffectivelyConfigured / isAccountEffectivelyConfigured 共用）。
+ * 只读真实凭证（密码 hash、两域的通行密钥），不读 *-configured 标记。
  * 任何一步读取失败 → failed=true（调用方按已配置处理，fail closed）。
  * @param {any} kv
  * @returns {Promise<{accountPw:boolean, lockPw:boolean, accountPk:boolean, lockPk:boolean, failed:boolean}>}
@@ -98,46 +126,8 @@ async function realCredentialPresence(kv) {
     return out;
   }
   try {
-    let idx = null;
-    try {
-      idx = await kv.get(PASSKEY_INDEX_KEY, 'json');
-    } catch (e) {
-      out.failed = true;
-      return out;
-    }
-    if (Array.isArray(idx)) {
-      for (const credId of idx) {
-        let v = null;
-        try {
-          v = await kv.get(passkeyKey(credId), 'json');
-        } catch (e) {
-          out.failed = true;
-          return out;
-        }
-        if (v && v.credId && (v.class || STORE_CLASS_LOCKKEY) === STORE_CLASS_ACCOUNTKEY) out.accountPk = true;
-        if (v && v.credId && (v.class || STORE_CLASS_LOCKKEY) === STORE_CLASS_LOCKKEY) out.lockPk = true;
-      }
-    } else {
-      /* 索引不存在：用 kv.list 补查 */
-      let list = null;
-      try {
-        list = await kv.list({ prefix: PASSKEY_KEY_PREFIX });
-      } catch (e) {
-        out.failed = true;
-        return out;
-      }
-      for (const k of (list && list.keys) || []) {
-        let v = null;
-        try {
-          v = await kv.get(k.name, 'json');
-        } catch (e) {
-          out.failed = true;
-          return out;
-        }
-        if (v && v.credId && (v.class || STORE_CLASS_LOCKKEY) === STORE_CLASS_ACCOUNTKEY) out.accountPk = true;
-        if (v && v.credId && (v.class || STORE_CLASS_LOCKKEY) === STORE_CLASS_LOCKKEY) out.lockPk = true;
-      }
-    }
+    out.lockPk = await hasPasskey(kv, REALM_LOCK.kv);
+    out.accountPk = await hasPasskey(kv, REALM_ACCOUNT.kv);
   } catch (e) {
     out.failed = true;
   }
@@ -159,7 +149,7 @@ export async function isLockEffectivelyConfigured(kv) {
   try {
     /* 1. KV 标记 */
     try {
-      const marker = await kv.get('layer:' + LAYER_LOCK);
+      const marker = await kv.get(REALM_LOCK.kv.configured);
       if (marker === '1') return true;
     } catch (e) {
       return true;
@@ -185,7 +175,7 @@ export async function isAccountEffectivelyConfigured(kv) {
   if (!kv) return true;
   try {
     try {
-      const marker = await kv.get('layer:' + LAYER_ACCOUNT);
+      const marker = await kv.get(REALM_ACCOUNT.kv.configured);
       if (marker === '1') return true;
     } catch (e) {
       return true;

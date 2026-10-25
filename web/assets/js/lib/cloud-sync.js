@@ -112,7 +112,7 @@ function call(method, body) {
 }
 
 /**
- * 节流按哪个账号记。站点只有一个账号（管理员账号，handle owner-user-id:owner），页面上也拿不到账号 id，
+ * 节流按哪个账号记。站点只有一个账号（管理员账号，handle account-user-id），页面上也拿不到账号 id，
  * 所以目前就是 'account'；登出 / 401 / 换账号登录都会清掉或强制刷新这个时刻。
  * @returns {string}
  */

@@ -1,11 +1,11 @@
 /**
  * 2.11 补充：恢复开关（KV 键 + D1 计时/单次）。
  *
- * - 开关：KV 固定键 `recovery-switch`，值为任意字符串，由用户在 Cloudflare
+ * - 开关：KV 固定键 `lock-reset-switch`（REALM_LOCK.kv.resetSwitch），值为任意字符串，由用户在 Cloudflare
  *   后台手动添加/修改。代码永不写这个键。
  * - 首次见到计时：服务端第一次读到某个值时，在 D1 记录 hash(值) 与首次时间；
  *   从首次时间起 24 小时内有效。
- * - 单次：成功签发一次 lockreset 后在 D1 原子标记该 hash 已用（D1 强一致，
+ * - 单次：成功签发一次 LockResetTicket 后在 D1 原子标记该 hash 已用（D1 强一致，
  *   防止 KV 同步延迟导致重复使用）。过期或已用的值永不重新生效，
  *   换新值才能再次开启。
  * - fail closed：KV 或 D1 读写失败、D1 未绑定、键不存在、值为空，一律视为关闭。
@@ -13,7 +13,9 @@
  * 只在重置锁屏路径、且根凭证正确后调用（其他请求一律不读开关）。
  */
 
-export const LOCK_RESET_SWITCH_KEY = 'recovery-switch';
+import { REALM_LOCK } from './realms.js';
+
+export const LOCK_RESET_SWITCH_KEY = REALM_LOCK.kv.resetSwitch;
 const SWITCH_WINDOW_MS = 24 * 3600 * 1000;
 
 /** @param {string} s */
@@ -115,7 +117,7 @@ export async function touchLockResetSwitch(kv, db) {
 }
 
 /**
- * 原子标记已用（成功签发 lockreset 前调用）。
+ * 原子标记已用（成功签发 LockResetTicket 前调用）。
  * 仅当 used=0 时更新；返回 true 表示本次抢到（可签发），false 表示已被用过。
  * @param {any} db D1 binding
  * @param {string} hash

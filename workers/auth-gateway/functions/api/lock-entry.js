@@ -14,8 +14,7 @@
  *   resetOnly（锁屏真实凭证为 0 且账号已配置 →
  *   锁屏只显示访客 + 重置锁屏，不显示根凭证入口）。
  */
-import { isLockEffectivelyConfigured, isAccountEffectivelyConfigured } from '../_kernel/layers.js';
-import { STORE_CLASS_LOCKKEY as PK_CLASS_LOCK, passkeyKey, PASSKEY_KEY_PREFIX, PASSKEY_INDEX_KEY } from '../_kernel/key-names.js';
+import { isLockEffectivelyConfigured, isAccountEffectivelyConfigured, hasPasskey } from '../_kernel/layers.js';
 import { REALM_LOCK } from '../_kernel/realms.js';
 
 /**
@@ -64,49 +63,7 @@ export async function onRequestGet(context) {
         failed = true;
       }
       try {
-        let hasLock = false;
-        let idx = null;
-        try {
-          idx = await kv.get(PASSKEY_INDEX_KEY, 'json');
-        } catch (e) {
-          failed = true;
-        }
-        if (!failed) {
-          if (Array.isArray(idx)) {
-            for (const credId of idx) {
-              try {
-                const v = await kv.get(passkeyKey(credId), 'json');
-                if (v && v.credId && (v.class || PK_CLASS_LOCK) === PK_CLASS_LOCK) {
-                  hasLock = true;
-                  break;
-                }
-              } catch (e) {
-                failed = true;
-                break;
-              }
-            }
-          } else {
-            /* 索引不存在：用 kv.list 补查一次 */
-            try {
-              const list = await kv.list({ prefix: PASSKEY_KEY_PREFIX });
-              for (const k of (list && list.keys) || []) {
-                try {
-                  const v = await kv.get(k.name, 'json');
-                  if (v && v.credId && (v.class || PK_CLASS_LOCK) === PK_CLASS_LOCK) {
-                    hasLock = true;
-                    break;
-                  }
-                } catch (e) {
-                  failed = true;
-                  break;
-                }
-              }
-            } catch (e) {
-              failed = true;
-            }
-          }
-          if (!failed) passkey = hasLock;
-        }
+        passkey = await hasPasskey(kv, REALM_LOCK.kv);
       } catch (e) {
         failed = true;
       }

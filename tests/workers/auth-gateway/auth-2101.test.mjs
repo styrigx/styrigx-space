@@ -98,7 +98,7 @@ test('A2：错误根密钥 → 401 并计数', async () => {
     const res = await onRequestPost({ request: req, env });
     assert.equal(res.status, 401);
   }
-  const rec = await kv.get('root-auth-fail:1.2.3.4', 'json');
+  const rec = await kv.get('root-fail:1.2.3.4', 'json');
   assert.ok(rec && rec.count === 3, '失败应计数');
 });
 
@@ -131,7 +131,7 @@ test('A2：每次使用写审计记录', async () => {
   const env = authEnv(kv);
   await onRequestPost({ request: postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY, purpose: 'lock-reset' }, { 'CF-Connecting-IP': '9.9.9.9' }), env });
   await onRequestPost({ request: postReq('https://styrigx.com/api/root-auth', { key: 'bad', purpose: 'lock-reset' }, { 'CF-Connecting-IP': '9.9.9.9' }), env });
-  const keys = [...kv._map.keys()].filter((k) => k.startsWith('root-auth-audit:'));
+  const keys = [...kv._map.keys()].filter((k) => k.startsWith('root-audit:'));
   assert.ok(keys.length >= 2, '成功和失败都应写审计记录');
   const rec = JSON.parse(kv._map.get(keys[0]));
   assert.ok(rec.ts && rec.ipPrefix && ('ok' in rec), '审计记录应含时间、IP 前缀、结果');

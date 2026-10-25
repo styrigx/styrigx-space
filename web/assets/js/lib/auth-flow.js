@@ -46,7 +46,7 @@ export const PM_USER_STYLE = 'position:absolute;opacity:0;pointer-events:none;wi
 
 /**
  * 隐藏用户名框 HTML：让 Samsung Pass / Google 密码管理器把密码存成这个名字（AccountKey / LockKey / RootKey）。
- * @param {string} name key-names.js 里的 KEY_*
+ * @param {string} name lib/key-names.js 里的 KEY_*
  */
 export function pmUserHtml(name) {
   return '<input type="text" autocomplete="username" value="' + name + '" aria-hidden="true" tabindex="-1" style="' + PM_USER_STYLE + '">';

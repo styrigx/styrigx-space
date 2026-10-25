@@ -21,7 +21,7 @@ SGX_ORIGIN = "https://passkey-e2e.styrigx-space.pages.dev"
 SGX_RP_ID = "passkey-e2e.styrigx-space.pages.dev"
 SGX_SITE = "space"
 
-# preview KV 绑定（styrigx-auth-gateway-preview，原 styrigx-owner-test_preview）。
+# preview KV 绑定（styrigx-auth-gateway-preview）。
 # 头像 / 云同步 / 数字健康 2026-10-24 搬到账号 Worker styrigx-account（workers/account），预览网关不再绑 styrigx-account-preview；
 # 预览里 /api/avatar、/api/prefs、/api/wellbeing 回 404（passkey-e2e 不测它们），/avatar/<尺寸>.webp 是静态默认图。
 [env.preview]

@@ -33,7 +33,7 @@ async function mockJson(page, pattern, status, body) {
  * @param {{password?:boolean, passkey?:boolean, valid?:boolean, lockPw?:string}} [opts]
  */
 async function mockLockDoor(page, opts) {
-  const o = Object.assign({ password: true, passkey: false, valid: false, lockPw: 'lock-pw-1' }, opts || {});
+  const o = Object.assign({ password: true, passkey: false, valid: false, lockPw: 'lock-password-1' }, opts || {});
   const st = { valid: !!o.valid, clears: 0, statuses: 0, verifies: [], roots: 0 };
   await page.route('**/api/lock-reauth', async (route) => {
     let body = {};
@@ -144,7 +144,7 @@ test.describe('锁屏凭证的门', () => {
     await page.locator('#lock-reauth-methods .sgx-credential-btn-primary').click();
     await expect(page.locator('#lock-reauth-methods .sgx-credential-expand .sgx-credential-err')).toHaveText('密码错误');
     await expect(page.locator('#lockmgr')).toBeHidden();
-    await input.fill('lock-pw-1');
+    await input.fill('lock-password-1');
     await page.locator('#lock-reauth-methods .sgx-credential-btn-primary').click();
     await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('#lock-reauth')).toBeHidden();
@@ -181,7 +181,7 @@ test.describe('锁屏凭证的门', () => {
     });
     await page.goto(LOCK_URL, { waitUntil: 'domcontentloaded' });
     await page.locator('#lock-reauth-methods .sgx-credential-row').filter({ hasText: '解锁密码' }).click();
-    await page.locator('#lock-reauth-methods .sgx-credential-expand input[type="password"]').fill('lock-pw-1');
+    await page.locator('#lock-reauth-methods .sgx-credential-expand input[type="password"]').fill('lock-password-1');
     await page.locator('#lock-reauth-methods .sgx-credential-btn-primary').click();
     await expect(page.locator('#sgx-credential-countdown')).toBeVisible({ timeout: 15000 });
     /* 模拟已经过去 60 秒，再刷新 */
@@ -243,7 +243,7 @@ test.describe('A-1 进门不能马上被判过期（10 次连续进门）', () =
       st.valid = false;
       await page.goto(LOCK_URL, { waitUntil: 'domcontentloaded' });
       await page.locator('#lock-reauth-methods .sgx-credential-row').filter({ hasText: '解锁密码' }).click();
-      await page.locator('#lock-reauth-methods .sgx-credential-expand input[type="password"]').fill('lock-pw-1');
+      await page.locator('#lock-reauth-methods .sgx-credential-expand input[type="password"]').fill('lock-password-1');
       await page.locator('#lock-reauth-methods .sgx-credential-btn-primary').click();
       await expect(page.locator('#sgx-credential-countdown')).toBeVisible({ timeout: 15000 });
     }

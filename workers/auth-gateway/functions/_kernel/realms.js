@@ -2,8 +2,18 @@
  * 凭证域（realm）与六张票的配置：每个凭证域用哪把签名钥匙、发什么 cookie、存在 KV 的哪些键。
  *
  * 各接口从这里取值，不在接口里手写 cookie 名、KV 键名、环境变量名。
- * 钥匙命名规范 v1.0：SGX_<PURPOSE>_PRIVATE / SGX_<PURPOSE>_PUBLIC（见 key-names.js、
- * src/secrets.js 的 SECRET_NAMES、wrangler.toml 的 secrets_store_secrets）。
+ * 签名钥匙命名：SGX_<PURPOSE>_PRIVATE / SGX_<PURPOSE>_PUBLIC（见 src/secrets.js 的 SECRET_NAMES、
+ * wrangler.toml 的 secrets_store_secrets；Secrets Store 密钥名不改）。
+ *
+ * 钥匙概念名（全仓统一，不分密码、通行密钥或将来的新方式）：
+ * - RootKey：根凭证（只用来比对，验过后签重置 / 再验证票；不拥有会话）
+ * - AccountKey：账号凭证（账号密码、账号通行密钥），只在「账号 → 账号安全」管理；
+ *   账号通行密钥注册时 WebAuthn user.name = AccountKey，密码管理器里显示这个名字
+ * - LockKey：「安全与隐私 → 锁屏凭证」里存放的钥匙（解锁密码、锁屏通行密钥）
+ *
+ * KV 键名：<域>-<对象>[-<附加>][:<编号>]。KV_LOCK_DOOR 与 KV_ACCOUNT_LOGIN 是同一个 namespace，
+ * 所以每个键都带域前缀（lock- / account- / root-）。各域的键都列在下面各 REALM_* 的 kv 表里，
+ * 代码只引用这里的常量，不手拼键名；不读写任何旧键。
  *
  * 现有凭证域（签名钥匙只有两套：SGX_LOCK_*、SGX_ACCOUNT_*），每域三张票（见下方 TICKETS 总表）：
  * - lock    LockSessionTicket（锁屏解锁后的 admin / visitor 会话）、LockResetTicket（重置锁屏）、
@@ -13,17 +23,13 @@
  * - root    根凭证（RootKey：SGX_ROOT_KEY）：只用来比对，不签名、不拥有会话；
  *           验过后只签四张 reset / reauth 票（by=root）
  *
- * 本文件是叶子模块：只 import key-names.js（同为叶子），不 import 任何接口或 lock-session.js，
- * 避免循环依赖。
+ * 本文件是叶子模块：不 import 任何模块，避免循环依赖。
  */
-import {
-  KEY_ROOT,
-  KEY_ACCOUNT,
-  KEY_LOCK,
-  STORE_CLASS_ACCOUNTKEY,
-  STORE_CLASS_LOCKKEY,
-  PASSKEY_KEY_PREFIX,
-} from './key-names.js';
+
+/* 钥匙概念名 */
+export const KEY_ROOT = 'RootKey';
+export const KEY_ACCOUNT = 'AccountKey';
+export const KEY_LOCK = 'LockKey';
 
 /* 锁屏会话 cookie 的作用域：主站与子站（blog/daymark/curio）共享（子站要读） */
 const SHARED_SESSION_ATTRS = 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax';
@@ -34,8 +40,8 @@ const SHORT_TICKET_ATTRS = 'Path=/; HttpOnly; Secure; SameSite=Strict';
 /* 清除 cookie 时追加的过期时间 */
 export const COOKIE_EXPIRED = 'Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT';
 
-/* session-epoch：Lock 纪元（锁屏会话、LockReset、LockReauth 三张票共用）。KV 键名第 5 层才改。 */
-export const SESSION_EPOCH_KEY = 'session-epoch';
+/* lock-epoch：Lock 纪元（锁屏会话、LockReset、LockReauth 三张票共用） */
+export const LOCK_EPOCH_KEY = 'lock-epoch';
 /* account-epoch：Account 纪元（账号会话、AccountReset、AccountReauth 三张票共用） */
 export const ACCOUNT_EPOCH_KEY = 'account-epoch';
 
@@ -88,7 +94,7 @@ export const TICKETS = Object.freeze({
     maxAge: 43200, /* admin 12 小时；visitor 按临时钥匙剩余时间，上限同为 12 小时（lock-tempkey.js TEMPKEY_SESSION_MAX） */
     cookieAttrs: SHARED_SESSION_ATTRS,
     bys: Object.freeze([BY_PASSWORD, BY_PASSKEY, BY_TEMPKEY]),
-    epochKey: SESSION_EPOCH_KEY,
+    epochKey: LOCK_EPOCH_KEY,
     kvBinding: 'KV_LOCK_DOOR',
   }),
   [LOCK_RESET_TICKET]: Object.freeze({
@@ -98,7 +104,7 @@ export const TICKETS = Object.freeze({
     maxAge: SHORT_TICKET_MAX_AGE,
     cookieAttrs: SHORT_TICKET_ATTRS,
     bys: Object.freeze([BY_ROOT, BY_ACCOUNT]),
-    epochKey: SESSION_EPOCH_KEY,
+    epochKey: LOCK_EPOCH_KEY,
     kvBinding: 'KV_LOCK_DOOR',
   }),
   [LOCK_REAUTH_TICKET]: Object.freeze({
@@ -108,7 +114,7 @@ export const TICKETS = Object.freeze({
     maxAge: SHORT_TICKET_MAX_AGE,
     cookieAttrs: SHORT_TICKET_ATTRS,
     bys: Object.freeze([BY_PASSWORD, BY_PASSKEY, BY_ROOT]),
-    epochKey: SESSION_EPOCH_KEY,
+    epochKey: LOCK_EPOCH_KEY,
     kvBinding: 'KV_LOCK_DOOR',
   }),
   [ACCOUNT_SESSION_TICKET]: Object.freeze({
@@ -154,15 +160,24 @@ export const REALM_LOCK = Object.freeze({
   cookie: LOCK_SESSION_COOKIE,
   cookieAttrs: SHARED_SESSION_ATTRS,
   maxAge: TICKETS[LOCK_SESSION_TICKET].maxAge, /* admin 12 小时；visitor 会话时长见 lock-session.js */
-  pepper: 'SGX_PW_PEPPER', /* 锁屏密码与账号密码共用一个 pepper */
-  storeClass: STORE_CLASS_LOCKKEY,
+  pepper: 'SGX_PW_PEPPER', /* 锁屏密码与账号密码共用一个 pepper（Secrets Store 密钥名，不改） */
   kv: Object.freeze({
-    password: 'lock-pw',
-    passwordFailPrefix: 'pw-fail:', /* 锁屏密码输错计数（按 IP） */
-    passwordCooldownPrefix: 'pw-lock:', /* 锁屏密码冷却到期时刻（按 IP） */
-    passkeyChallengePrefix: 'pk-challenge:', /* 锁屏通行密钥注册与登录 challenge（/api/lock-passkey） */
-    resetChallengePrefix: 'lockreset-challenge:', /* 重置锁屏时验账号通行密钥的 challenge（/api/lock-reset） */
-    epoch: SESSION_EPOCH_KEY,
+    password: 'lock-password',
+    passwordFailPrefix: 'lock-password-fail:', /* 锁屏密码输错计数（按 IP） */
+    passwordCooldownPrefix: 'lock-password-cooldown:', /* 锁屏密码冷却到期时刻（按 IP） */
+    passkeyPrefix: 'lock-passkey:', /* 锁屏通行密钥记录 <前缀><credId 前 12 位> */
+    passkeyIndex: 'lock-passkey-index', /* 锁屏通行密钥索引（credId 数组，避开 kv.list 的最终一致） */
+    userHandle: 'lock-user-id', /* 锁屏通行密钥的 WebAuthn user handle */
+    passkeyChallengePrefix: 'lock-passkey-challenge:', /* 锁屏通行密钥注册与登录 challenge（/api/lock-passkey） */
+    resetChallengePrefix: 'lock-reset-challenge:', /* 重置锁屏时验账号通行密钥的 challenge（/api/lock-reset） */
+    epoch: LOCK_EPOCH_KEY,
+    configured: 'lock-configured', /* 锁屏层已接管（不再由根凭证代管）的标记 */
+    resetSwitch: 'lock-reset-switch', /* 恢复开关（lock-reset-switch.js） */
+    tempkeyPrefix: 'lock-tempkey:', /* 临时钥匙记录 <前缀><id>（lock-tempkey.js） */
+    tempkeyCodePrefix: 'lock-tempkey-code:', /* 临时码哈希 → 钥匙 id */
+    tempkeyRevokedPrefix: 'lock-tempkey-revoked:', /* 已作废的临时钥匙 id */
+    tempkeyFailPrefix: 'lock-tempkey-fail:', /* 临时码输错计数（按 IP） */
+    tempkeyFailGlobal: 'lock-tempkey-fail-global', /* 临时码全局失败计数 */
   }),
 });
 
@@ -187,16 +202,20 @@ export const REALM_ACCOUNT = Object.freeze({
   cookieAttrs: ACCOUNT_SESSION_ATTRS,
   maxAge: TICKETS[ACCOUNT_SESSION_TICKET].maxAge,
   pepper: 'SGX_PW_PEPPER',
-  storeClass: STORE_CLASS_ACCOUNTKEY,
   bys: TICKETS[ACCOUNT_SESSION_TICKET].bys,
   kv: Object.freeze({
-    password: 'owner-pw',
-    passkeyPrefix: PASSKEY_KEY_PREFIX, /* 与锁屏通行密钥混存，class 区分 */
-    challengePrefix: 'account-challenge:', /* 账号登录/注册 challenge（与锁屏 challenge 隔离） */
+    password: 'account-password',
+    passwordFailPrefix: 'account-password-fail:', /* 账号密码输错计数（按 IP；规则同锁屏密码） */
+    passwordCooldownPrefix: 'account-password-cooldown:', /* 账号密码冷却到期时刻（按 IP） */
+    passkeyPrefix: 'account-passkey:', /* 账号通行密钥记录 <前缀><credId 前 12 位> */
+    passkeyIndex: 'account-passkey-index', /* 账号通行密钥索引（credId 数组） */
+    userHandle: 'account-user-id', /* 账号通行密钥的 WebAuthn user handle */
+    passkeyChallengePrefix: 'account-passkey-challenge:', /* 账号登录/注册 challenge（与锁屏 challenge 隔离） */
     challengeTtl: 300, /* 5 分钟 */
     epoch: ACCOUNT_EPOCH_KEY,
-    devicePrefix: 'account-dev:', /* 已登录设备记录（每次登录一条，sid 为键；设备页列出、可单独退出） */
-    revokedPrefix: 'account-revoked:', /* 被单独退出的会话 sid（黑名单，TTL 同账号会话） */
+    configured: 'account-configured', /* 账号层已接管的标记 */
+    devicePrefix: 'account-device:', /* 已登录设备记录 <前缀><deviceId>（每次登录一条；设备页列出、可单独退出） */
+    deviceRevokedPrefix: 'account-device-revoked:', /* 被单独退出的设备 deviceId（黑名单，TTL 同账号会话） */
   }),
 });
 
@@ -205,6 +224,11 @@ export const REALM_ROOT = Object.freeze({
   id: 'root',
   keyName: KEY_ROOT,
   secret: 'SGX_ROOT_KEY',
+  kv: Object.freeze({
+    failPrefix: 'root-fail:', /* 根凭证输错计数（按 IP；用 AccountKey 重置锁屏的失败也计入） */
+    failGlobal: 'root-fail-global', /* 根凭证全局失败计数 */
+    auditPrefix: 'root-audit:', /* 根凭证使用审计 */
+  }),
   issues: Object.freeze([LOCK_REAUTH_TICKET, LOCK_RESET_TICKET, ACCOUNT_REAUTH_TICKET, ACCOUNT_RESET_TICKET]),
 });
 

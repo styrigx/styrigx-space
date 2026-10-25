@@ -3,10 +3,11 @@
  *
  * GET /api/root-audit
  * - 需要 admin 锁屏会话 + LockReauthTicket（sgx-lock-reauth）
- * - 返回最近 50 条 root-auth-audit 记录（时间、IP 前缀、结果）
+ * - 返回最近 50 条 root-audit 记录（时间、IP 前缀、结果）
  * - 只读；KV 失败 → 503
  */
 import { verifyLockSession } from '../_kernel/lock-session.js';
+import { AUDIT_PREFIX } from '../_kernel/root-audit.js';
 import { verifyLockReauthTicket } from '../_kernel/tickets.js';
 import { ROLE_ADMIN } from '../_kernel/lock-session.js';
 
@@ -37,7 +38,7 @@ async function handleGet(context) {
   }
 
   try {
-    const list = await kv.list({ prefix: 'root-auth-audit:', limit: 50 });
+    const list = await kv.list({ prefix: AUDIT_PREFIX, limit: 50 });
     const items = [];
     for (const k of list.keys || []) {
       try {

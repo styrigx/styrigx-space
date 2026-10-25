@@ -9,7 +9,7 @@
  * - tempkeyId：visitor 会话是哪把临时钥匙换来的（lock-tempkey.js）；验票时查这把钥匙有没有被作废，
  *   作废后访客下一个请求就进不来。admin 会话这一段固定为空串（票里就是连着的两个点 "<exp>..<sig>"），
  *   空串只对 admin 合法、非空只对 visitor 合法，解析时两边都卡死。
- * - epoch：Lock 纪元（KV session-epoch；改锁屏凭证 / 退出所有设备 +1，旧票随即失效）
+ * - epoch：Lock 纪元（KV lock-epoch；改锁屏凭证 / 退出所有设备 +1，旧票随即失效）
  * 验票只认 role=admin / visitor，其它格式一律无效。
  *
  * cookie 属性见 realms.js TICKETS.LockSessionTicket：Domain=.styrigx.com; SameSite=Lax（子站要读）。
@@ -21,7 +21,7 @@ import {
   TICKETS,
   LOCK_SESSION_TICKET,
   LOCK_SESSION_COOKIE,
-  SESSION_EPOCH_KEY,
+  LOCK_EPOCH_KEY,
   COOKIE_EXPIRED,
   ROLE_ADMIN,
   ROLE_VISITOR,
@@ -108,7 +108,7 @@ export function parseLockSessionTicket(val) {
  * @param {any} kv
  */
 export async function getLockEpoch(kv) {
-  const v = await kv.get(SESSION_EPOCH_KEY); /* 出错直接抛，不吞 */
+  const v = await kv.get(LOCK_EPOCH_KEY); /* 出错直接抛，不吞 */
   if (v === null || v === undefined) return 0;
   return parseInt(v, 10) || 0;
 }
@@ -121,7 +121,7 @@ export async function getLockEpoch(kv) {
  */
 export async function bumpLockEpoch(kv) {
   const v = await getLockEpoch(kv);
-  await kv.put(SESSION_EPOCH_KEY, String(v + 1));
+  await kv.put(LOCK_EPOCH_KEY, String(v + 1));
   return v + 1;
 }
 

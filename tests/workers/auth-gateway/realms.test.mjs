@@ -23,7 +23,7 @@ import {
   REALM_LOCK,
   REALM_ACCOUNT,
   REALM_ROOT,
-  SESSION_EPOCH_KEY,
+  LOCK_EPOCH_KEY,
   realmPrivateKey,
   realmPublicKey,
   realmCookie,
@@ -53,14 +53,11 @@ test('realms：线上格式与重构前字面量逐字相同', () => {
   assert.equal(REALM_LOCK.cookie, 'sgx-lock-session');
   assert.equal(REALM_LOCK.cookieAttrs, 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax');
   assert.equal(REALM_LOCK.maxAge, 43200);
-  assert.equal(REALM_LOCK.kv.password, 'lock-pw');
+  assert.equal(REALM_LOCK.kv.password, 'lock-password');
   assert.equal(REALM_LOCK.privateKey, 'SGX_LOCK_PRIVATE');
   assert.equal(REALM_LOCK.publicKey, 'SGX_LOCK_PUBLIC');
 
-  /* 账号体系：原管理员凭证升级为账号；存储键沿用原值（迁移不搬数据） */
-  assert.equal(REALM_ACCOUNT.kv.password, 'owner-pw');
-  assert.equal(REALM_ACCOUNT.kv.passkeyPrefix, 'owner-passkey:');
-  assert.equal(REALM_ACCOUNT.storeClass, 'owner');
+  assert.equal(REALM_ACCOUNT.storeClass, undefined, '通行密钥记录不再有 class');
   assert.equal(REALM_ACCOUNT.pepper, 'SGX_PW_PEPPER');
   assert.equal(REALM_ACCOUNT.cookie, 'sgx-account-session');
   assert.equal(REALM_ACCOUNT.cookieAttrs, 'Path=/; HttpOnly; Secure; SameSite=Strict');
@@ -68,15 +65,50 @@ test('realms：线上格式与重构前字面量逐字相同', () => {
   assert.equal(REALM_ACCOUNT.recent, undefined); /* 「管理凭证」近期登录窗口已随 stepup 删除 */
   assert.equal(REALM_ACCOUNT.privateKey, 'SGX_ACCOUNT_PRIVATE');
   assert.equal(REALM_ACCOUNT.publicKey, 'SGX_ACCOUNT_PUBLIC');
-  assert.equal(REALM_ACCOUNT.kv.challengePrefix, 'account-challenge:');
-  assert.equal(REALM_ACCOUNT.kv.epoch, 'account-epoch');
-  /* 锁屏通行密钥的 challenge 前缀不变 */
-  assert.equal(REALM_LOCK.kv.passkeyChallengePrefix, 'pk-challenge:');
   assert.notEqual(REALM_ACCOUNT.cookie, REALM_LOCK.cookie);
   assert.equal(REALM_LOCK.pepper, 'SGX_PW_PEPPER');
-
   assert.equal(REALM_ROOT.secret, 'SGX_ROOT_KEY');
-  assert.equal(SESSION_EPOCH_KEY, 'session-epoch');
+  assert.equal(LOCK_EPOCH_KEY, 'lock-epoch');
+});
+
+test('realms：第 5 层 KV 键名（<域>-<对象>[-<附加>][:<编号>]，同一 namespace 靠域前缀区分）', () => {
+  assert.deepEqual({ ...REALM_LOCK.kv }, {
+    password: 'lock-password',
+    passwordFailPrefix: 'lock-password-fail:',
+    passwordCooldownPrefix: 'lock-password-cooldown:',
+    passkeyPrefix: 'lock-passkey:',
+    passkeyIndex: 'lock-passkey-index',
+    userHandle: 'lock-user-id',
+    passkeyChallengePrefix: 'lock-passkey-challenge:',
+    resetChallengePrefix: 'lock-reset-challenge:',
+    epoch: 'lock-epoch',
+    configured: 'lock-configured',
+    resetSwitch: 'lock-reset-switch',
+    tempkeyPrefix: 'lock-tempkey:',
+    tempkeyCodePrefix: 'lock-tempkey-code:',
+    tempkeyRevokedPrefix: 'lock-tempkey-revoked:',
+    tempkeyFailPrefix: 'lock-tempkey-fail:',
+    tempkeyFailGlobal: 'lock-tempkey-fail-global',
+  });
+  assert.deepEqual({ ...REALM_ACCOUNT.kv }, {
+    password: 'account-password',
+    passwordFailPrefix: 'account-password-fail:',
+    passwordCooldownPrefix: 'account-password-cooldown:',
+    passkeyPrefix: 'account-passkey:',
+    passkeyIndex: 'account-passkey-index',
+    userHandle: 'account-user-id',
+    passkeyChallengePrefix: 'account-passkey-challenge:',
+    challengeTtl: 300,
+    epoch: 'account-epoch',
+    configured: 'account-configured',
+    devicePrefix: 'account-device:',
+    deviceRevokedPrefix: 'account-device-revoked:',
+  });
+  assert.deepEqual({ ...REALM_ROOT.kv }, { failPrefix: 'root-fail:', failGlobal: 'root-fail-global', auditPrefix: 'root-audit:' });
+  /* 每个键都带域前缀 */
+  for (const [dom, r] of [['lock-', REALM_LOCK], ['account-', REALM_ACCOUNT], ['root-', REALM_ROOT]]) {
+    for (const [k, v] of Object.entries(r.kv)) if (typeof v === 'string') assert.ok(v.startsWith(dom), k + ' = ' + v);
+  }
 });
 
 test('realms：六张票总表（cookie / 钥匙 / 时长 / 属性 / by / 纪元），session 文件导出同一份值', async () => {
@@ -87,9 +119,9 @@ test('realms：六张票总表（cookie / 钥匙 / 时长 / 属性 / by / 纪元
   assert.equal(session.LOCK_SESSION_MAX_AGE, 43200);
   const T = R.TICKETS;
   const want = {
-    LockSessionTicket: ['sgx-lock-session', 'SGX_LOCK_PRIVATE', 43200, ['password', 'passkey', 'tempkey'], 'session-epoch'],
-    LockResetTicket: ['sgx-lock-reset', 'SGX_LOCK_PRIVATE', 180, ['root', 'account'], 'session-epoch'],
-    LockReauthTicket: ['sgx-lock-reauth', 'SGX_LOCK_PRIVATE', 180, ['password', 'passkey', 'root'], 'session-epoch'],
+    LockSessionTicket: ['sgx-lock-session', 'SGX_LOCK_PRIVATE', 43200, ['password', 'passkey', 'tempkey'], 'lock-epoch'],
+    LockResetTicket: ['sgx-lock-reset', 'SGX_LOCK_PRIVATE', 180, ['root', 'account'], 'lock-epoch'],
+    LockReauthTicket: ['sgx-lock-reauth', 'SGX_LOCK_PRIVATE', 180, ['password', 'passkey', 'root'], 'lock-epoch'],
     AccountSessionTicket: ['sgx-account-session', 'SGX_ACCOUNT_PRIVATE', 34560000, ['password', 'passkey'], 'account-epoch'],
     AccountResetTicket: ['sgx-account-reset', 'SGX_ACCOUNT_PRIVATE', 180, ['root'], 'account-epoch'],
     AccountReauthTicket: ['sgx-account-reauth', 'SGX_ACCOUNT_PRIVATE', 180, ['password', 'passkey', 'root'], 'account-epoch'],
@@ -179,9 +211,9 @@ test('password：lock / account 各读自己的 KV 键', async () => {
   const rec = await pw.makePasswordRecord('owner-secret-1', 'pep');
   assert.equal(rec.peppered, true);
   assert.equal(rec.iterations, 100000);
-  const kv = makeKV({ 'owner-pw': JSON.stringify(rec) });
+  const kv = makeKV({ 'account-password': JSON.stringify(rec) });
   assert.deepEqual(await pw.verifyRealmPassword(kv, REALM_ACCOUNT, 'pep', 'owner-secret-1'), { ok: true, set: true, needsRehash: false });
   assert.deepEqual(await pw.verifyRealmPassword(kv, REALM_ACCOUNT, 'pep', 'wrong-pass'), { ok: false, set: true, needsRehash: false });
-  /* lock 读 lock-pw：未设置 */
+  /* lock 读 lock-password：未设置 */
   assert.deepEqual(await pw.verifyRealmPassword(kv, REALM_LOCK, 'pep', 'owner-secret-1'), { ok: false, set: false, needsRehash: false });
 });

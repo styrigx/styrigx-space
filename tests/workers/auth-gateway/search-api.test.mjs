@@ -99,7 +99,7 @@ async function accountGet(kv, cookieObj, envOverrides) {
 }
 async function seedPassword(kv, pw) {
   const { makePasswordRecord } = await import(KERNEL + 'password.js');
-  await kv.put('owner-pw', JSON.stringify(await makePasswordRecord(pw, PEPPER)));
+  await kv.put('account-password', JSON.stringify(await makePasswordRecord(pw, PEPPER)));
 }
 
 

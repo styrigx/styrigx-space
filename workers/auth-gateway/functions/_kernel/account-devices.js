@@ -1,12 +1,12 @@
 /**
  * 账号已登录设备（设置 › 账号 › 设备）。
  *
- * 每次账号登录（通行密钥 / 密码 / 根凭证重置）在 sgx-account-session 票据里带一个随机 sid，
- * 并在 KV 记一条 account-dev:<sid>：
- *   { sid, by, createdAt, authAt, lastSeen, model, platform, platformVersion, browser, country, city }
- * - 同一浏览器重新登录（含进安全与隐私的门）沿用原 sid，只更新 by/authAt，不会多出一台
- * - 设备页 GET 列出全部记录，当前请求的 sid 标为「此设备」排最上面
- * - 单独退出别的设备：删记录 + 写黑名单 account-revoked:<sid>（TTL 同账号会话 400 天），
+ * 每次账号登录（通行密钥 / 密码）在 sgx-account-session 票据里带一个随机 deviceId，
+ * 并在 KV 记一条 account-device:<deviceId>：
+ *   { deviceId, by, createdAt, authAt, lastSeen, model, platform, platformVersion, browser, country, city }
+ * - 同一浏览器重新登录（含进账号安全前再验一次）沿用原 deviceId，只更新 by/authAt，不会多出一台
+ * - 设备页列出全部记录，当前请求的 deviceId 标为「此设备」排最上面
+ * - 单独退出别的设备：删记录 + 写黑名单 account-device-revoked:<deviceId>（TTL 同账号会话 400 天），
  *   之后那台设备的票据验签通过也会被拒（reason=revoked）
  * - 改账号密码 / 删账号通行密钥（account-epoch +1）：其他设备的票据本来就失效，顺手删掉它们的记录
  * - 不存 IP，只存 Cloudflare 给的国家 / 城市（显示「上次活动地点」）
@@ -19,22 +19,22 @@
 import { b64urlEnc } from './crypto.js';
 import { REALM_ACCOUNT } from './realms.js';
 
-export const DEVICE_PREFIX = REALM_ACCOUNT.kv.devicePrefix; /* 'account-dev:' */
-export const REVOKED_PREFIX = REALM_ACCOUNT.kv.revokedPrefix; /* 'account-revoked:' */
+export const DEVICE_PREFIX = REALM_ACCOUNT.kv.devicePrefix; /* 'account-device:' */
+export const REVOKED_PREFIX = REALM_ACCOUNT.kv.deviceRevokedPrefix; /* 'account-device-revoked:' */
 const TTL = REALM_ACCOUNT.maxAge;
 /** lastSeen 至多每 30 分钟写一次（省 KV 写次数） */
 export const TOUCH_INTERVAL_MS = 30 * 60 * 1000;
 
-/** sid：12 字节随机，base64url（16 字符，不含 '.'） */
+/** deviceId：12 字节随机，base64url（16 字符，不含 '.'） */
 export function newDeviceId() {
   const b = new Uint8Array(12);
   crypto.getRandomValues(b);
   return b64urlEnc(b);
 }
 
-/** @param {string} sid */
-export function isDeviceId(sid) {
-  return typeof sid === 'string' && /^[A-Za-z0-9_-]{8,32}$/.test(sid);
+/** @param {string} deviceId */
+export function isDeviceId(deviceId) {
+  return typeof deviceId === 'string' && /^[A-Za-z0-9_-]{8,32}$/.test(deviceId);
 }
 
 /** 字符串清洗：去控制字符、去首尾空格、截断 @param {any} v @param {number} n */
@@ -121,46 +121,46 @@ export function deviceInfo(request, hints) {
   };
 }
 
-/** @param {any} kv @param {string} sid */
-export async function getDevice(kv, sid) {
-  if (!kv || !isDeviceId(sid)) return null;
-  return await kv.get(DEVICE_PREFIX + sid, 'json');
+/** @param {any} kv @param {string} deviceId */
+export async function getDevice(kv, deviceId) {
+  if (!kv || !isDeviceId(deviceId)) return null;
+  return await kv.get(DEVICE_PREFIX + deviceId, 'json');
 }
 
 /** @param {any} kv @param {object} rec */
 export async function putDevice(kv, rec) {
-  await kv.put(DEVICE_PREFIX + rec.sid, JSON.stringify(rec), { expirationTtl: TTL });
+  await kv.put(DEVICE_PREFIX + rec.deviceId, JSON.stringify(rec), { expirationTtl: TTL });
 }
 
 /**
  * 登录时写设备记录：已有（同一浏览器重新登录）就更新 by/authAt/lastSeen 和设备信息，否则新建。
- * @param {any} kv @param {string} sid @param {string} by @param {number} authAt @param {object} info deviceInfo()
+ * @param {any} kv @param {string} deviceId @param {string} by @param {number} authAt @param {object} info deviceInfo()
  */
-export async function recordLogin(kv, sid, by, authAt, info) {
+export async function recordLogin(kv, deviceId, by, authAt, info) {
   const now = Date.now();
   let rec = null;
-  try { rec = await getDevice(kv, sid); } catch (e) { rec = null; }
-  const base = rec && typeof rec === 'object' ? rec : { sid: sid, createdAt: now };
-  const next = Object.assign({}, base, info || {}, { sid: sid, by: by, authAt: authAt, lastSeen: now });
+  try { rec = await getDevice(kv, deviceId); } catch (e) { rec = null; }
+  const base = rec && typeof rec === 'object' ? rec : { deviceId: deviceId, createdAt: now };
+  const next = Object.assign({}, base, info || {}, { deviceId: deviceId, by: by, authAt: authAt, lastSeen: now });
   /* 新信息缺型号时保留旧的（比如这次请求没带 hints） */
   if (rec && !(info && info.model) && rec.model) next.model = rec.model;
   await putDevice(kv, next);
   return next;
 }
 
-/** @param {any} kv @param {string} sid */
-export async function isRevoked(kv, sid) {
-  if (!kv || !sid) return false;
-  return (await kv.get(REVOKED_PREFIX + sid)) !== null;
+/** @param {any} kv @param {string} deviceId */
+export async function isRevoked(kv, deviceId) {
+  if (!kv || !deviceId) return false;
+  return (await kv.get(REVOKED_PREFIX + deviceId)) !== null;
 }
 
 /**
  * 单独退出一台设备：写黑名单 + 删记录。
- * @param {any} kv @param {string} sid
+ * @param {any} kv @param {string} deviceId
  */
-export async function revokeDevice(kv, sid) {
-  await kv.put(REVOKED_PREFIX + sid, '1', { expirationTtl: TTL });
-  await kv.delete(DEVICE_PREFIX + sid);
+export async function revokeDevice(kv, deviceId) {
+  await kv.put(REVOKED_PREFIX + deviceId, '1', { expirationTtl: TTL });
+  await kv.delete(DEVICE_PREFIX + deviceId);
 }
 
 /**
@@ -175,7 +175,7 @@ export async function listDevices(kv) {
     const page = await kv.list({ prefix: DEVICE_PREFIX, cursor: cursor });
     for (const k of (page && page.keys) || []) {
       const rec = await kv.get(k.name, 'json');
-      if (rec && rec.sid) out.push(rec);
+      if (rec && rec.deviceId) out.push(rec);
     }
     if (!page || page.list_complete || !page.cursor) break;
     cursor = page.cursor;
@@ -186,25 +186,25 @@ export async function listDevices(kv) {
 
 /**
  * account-epoch +1 后：删掉除当前设备外的所有记录（它们的票据已经失效）。尽力而为，不抛错。
- * @param {any} kv @param {string} keepSid
+ * @param {any} kv @param {string} keepDeviceId
  */
-export async function pruneOtherDevices(kv, keepSid) {
+export async function pruneOtherDevices(kv, keepDeviceId) {
   try {
     const all = await listDevices(kv);
     for (const d of all) {
-      if (d.sid !== keepSid) await kv.delete(DEVICE_PREFIX + d.sid);
+      if (d.deviceId !== keepDeviceId) await kv.delete(DEVICE_PREFIX + d.deviceId);
     }
   } catch (e) { /* 列不出来就算了：记录 400 天后自己过期，设备页也只多显示几台 */ }
 }
 
 /**
- * 给前端的设备视图（记录里的 sid 对外叫 deviceId）。
- * @param {object} d @param {string} curSid
+ * 给前端的设备视图。
+ * @param {object} d @param {string} currentDeviceId
  */
-export function deviceView(d, curSid) {
+export function deviceView(d, currentDeviceId) {
   return {
-    deviceId: d.sid,
-    current: d.sid === curSid,
+    deviceId: d.deviceId,
+    current: d.deviceId === currentDeviceId,
     name: modelName(d.model) || d.platform || '',
     model: d.model || '',
     platform: d.platform || '',
