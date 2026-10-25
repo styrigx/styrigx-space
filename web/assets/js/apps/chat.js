@@ -81,8 +81,12 @@ export function mountChat() {
   const canPick = () => !!models && models.models.length >= 2;
   const curModel = () => (models ? models.models.find((m) => m.id === cur) || null : null);
 
+  /* 访客（网关在 <html> 注入 data-sgx-role="visitor"）：聊天记录是管理员的内容，不读、不画，
+     顺手清掉本标签页里残留的（管理员锁定后访客在同一个标签页用临时钥匙进门的情况） */
+  const visitor = document.documentElement.getAttribute('data-sgx-role') === 'visitor';
+  if (visitor) saveConvo([]);
   /** @type {Msg[]} */
-  let msgs = loadConvo();
+  let msgs = visitor ? [] : loadConvo();
   /** @type {AbortController|null} */
   let ctl = null;
   /** 页面级的拦截（会话过期 / 访客 / 没配置）：只显示那张卡，输入框关掉 */
@@ -437,7 +441,7 @@ export function mountChat() {
 
   renderAll();
   /* 访客：网关在 <html> 注入 data-sgx-role="visitor"，不用等一次请求失败 */
-  if (document.documentElement.getAttribute('data-sgx-role') === 'visitor') showGate('admin');
+  if (visitor) showGate('admin');
   /* 上次停在一个没有回答的问题上（刷新 / 断网）：给一个重试 */
   else if (msgs.length && msgs[msgs.length - 1].role === 'user') renderAll('upstream');
   if (msgs.length) toBottom();

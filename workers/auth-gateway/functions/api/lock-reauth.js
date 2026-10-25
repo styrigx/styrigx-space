@@ -58,24 +58,6 @@ export async function checkLockManage(request, env, opts) {
   return { ok: true, tv: tv, ticket: LOCK_REAUTH_TICKET, isLockReset: false, sess: sess };
 }
 
-/**
- * 访客会话（只看 role 段，不验签、不读存储）：验证入口对访客一律写死「密码错误」。
- * @param {any} request
- */
-export function looksVisitor(request) {
-  try {
-    const h = request.headers.get('Cookie') || '';
-    for (const part of h.split(';')) {
-      const kv2 = part.trim().split('=');
-      if (kv2[0] === REALM_LOCK.cookie && kv2[1]) {
-        const parts = kv2.slice(1).join('=').split('.');
-        if (parts.length === 6 && parts[1] === 'visitor') return true;
-      }
-    }
-  } catch (e) {}
-  return false;
-}
-
 /** @param {any} context */
 export async function onRequestPost(context) {
   try {

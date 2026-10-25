@@ -4,7 +4,7 @@
  */
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import worker, { ALLOW, upstreamUrls, contentType } from '../../../workers/proxy-rules/src/index.js';
+import worker, { ALLOW, upstreamUrls, contentType, UPSTREAM_TIMEOUT_MS } from '../../../workers/proxy-rules/src/index.js';
 
 const BASE = 'https://proxy-rules.styrigx.com';
 const P = '/MetaCubeX/meta-rules-dat/meta/geo/';
@@ -105,4 +105,47 @@ test('HEAD 不读也不写缓存', async () => {
   const r = await get(P + 'geosite/cn.mrs', { method: 'HEAD' });
   assert.equal(r.status, 200);
   assert.equal(waits.length, 0);
+});
+
+test('主上游挂住（不回响应头）：等 UPSTREAM_TIMEOUT_MS 就中止，换备用', async () => {
+  const realST = globalThis.setTimeout;
+  const delays = [];
+  /* 只把上游超时缩短到 5ms，其余 setTimeout 照常 */
+  globalThis.setTimeout = (fn, ms, ...a) => { if (ms === UPSTREAM_TIMEOUT_MS) { delays.push(ms); return realST(fn, 5, ...a); } return realST(fn, ms, ...a); };
+  const signals = [];
+  globalThis.fetch = (req) => {
+    calls.push(req.url);
+    signals.push(req.signal);
+    if (req.url.includes('jsdelivr')) {
+      /* 永远不回，直到被中止 */
+      return new Promise((_, reject) => req.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))));
+    }
+    const r = new Response('BACKUP', { status: 200 });
+    Object.defineProperty(r, 'url', { value: req.url });
+    return Promise.resolve(r);
+  };
+  try {
+    const r = await get(P + 'geosite/cn.mrs');
+    assert.equal(r.status, 200);
+    assert.equal(await r.text(), 'BACKUP');
+    assert.equal(r.headers.get('x-proxy-rules-upstream'), 'raw.githubusercontent.com');
+    assert.equal(calls.length, 2);
+    assert.equal(delays.length, 2, '每个上游各一个计时器');
+    assert.equal(signals[0].aborted, true, '主上游被中止');
+    assert.equal(signals[1].aborted, false, '备用拿到响应后计时器清掉，正文转发不会被中止');
+  } finally {
+    globalThis.setTimeout = realST;
+  }
+});
+
+test('两个上游都挂住：都超时后回 502', async () => {
+  const realST = globalThis.setTimeout;
+  globalThis.setTimeout = (fn, ms, ...a) => realST(fn, ms === UPSTREAM_TIMEOUT_MS ? 5 : ms, ...a);
+  globalThis.fetch = (req) => { calls.push(req.url); return new Promise((_, reject) => req.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))); };
+  try {
+    assert.equal((await get(P + 'geosite/cn.mrs')).status, 502);
+    assert.equal(calls.length, 2);
+  } finally {
+    globalThis.setTimeout = realST;
+  }
 });

@@ -1,146 +1,169 @@
 /**
- * B1-9 验收测试：访客假入口统一 401（真实 Miniflare）。
+ * B1-9 验收测试：访客假入口统一 401（直接调用 Pages Functions 的 onRequestPost，不需要 Miniflare）。
  *
- * 验收标准（任务书）：
+ * 验收标准：
  * 1. KV 全空、KV 有凭证两种情况下，访客提交任意值都返回同一个 401 和同一 body
- * 2. 用 KV 代理计数断言该请求 KV 访问次数为 0
- * 3. root-auth 和 lockreset 都测
+ * 2. 用 KV 代理计数断言该请求 KV 访问次数为 0（不读存储，也到不了根凭证比对）
+ * 3. root-auth 和 lock-reset 都测；lock-reset 再测「带对的 RootKey 也一样」和对照组（无访客会话 → 真比对）
+ * 4. looksVisitor 只认六段的 LockSessionTicket（by.role.epoch.exp.tempkeyId.sig）
  *
- * 运行：node --test tests/kernel/b1-9-guest-401.test.mjs
+ * 运行：node --test tests/workers/auth-gateway/b1-9-guest-401.test.mjs
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { testLockSession } from './_tickets.mjs';
+import { testLockSession, TEST_TEMPKEY_ID } from './_tickets.mjs';
+import { looksVisitor } from '../../../workers/auth-gateway/functions/_kernel/lock-session.js';
+import { ed25519Sign } from '../../../workers/auth-gateway/functions/_kernel/crypto.js';
+import { onRequestPost as rootAuthPost } from '../../../workers/auth-gateway/functions/api/root-auth.js';
+import { onRequestPost as lockResetPost } from '../../../workers/auth-gateway/functions/api/lock-reset.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO = path.resolve(__dirname, '../../..');
+const ROOT_KEY = 'test-root-key-12345';
+const EXPECTED_BODY = JSON.stringify({ ok: false, error: 'denied' });
 
-/* 动态导入 miniflare（未安装时跳过） */
-let Miniflare = null;
-try {
-  const mfMod = await import('miniflare');
-  Miniflare = mfMod.Miniflare;
-} catch (e) {
-  console.log('SKIP: miniflare not installed, B1-9 Miniflare tests skipped');
-}
-
-/* 测试用 Ed25519 密钥 */
 function derToPem(der, label) {
   const b64 = Buffer.from(der).toString('base64');
   const lines = b64.match(/.{1,64}/g).join('\n');
   return `-----BEGIN ${label}-----\n${lines}\n-----END ${label}-----\n`;
 }
 
-let TEST_PRIV_PEM = '';
-let TEST_PUB_PEM = '';
-async function genTestKeys() {
-  const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-  const privDer = await crypto.subtle.exportKey('pkcs8', kp.privateKey);
-  const pubDer = await crypto.subtle.exportKey('spki', kp.publicKey);
-  TEST_PRIV_PEM = derToPem(privDer, 'PRIVATE KEY');
-  TEST_PUB_PEM = derToPem(pubDer, 'PUBLIC KEY');
-}
+const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+const PRIV = derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY');
+const PUB = derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY');
+const RP = { SGX_RP_ID: 'styrigx.com', SGX_ORIGIN: 'https://styrigx.com' };
 
-async function signVisitorCookie() {
-  const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
-  return testLockSession(TEST_PRIV_PEM, 0, 'visitor');
-}
-
-/* 带计数的 KV */
-function makeCountingKv() {
-  const store = new Map();
+/* 带计数的 KV：get / put / delete / list 都记次数 */
+function makeCountingKv(seed = {}) {
+  const store = new Map(Object.entries(seed));
   const calls = { get: 0, put: 0, delete: 0, list: 0 };
   return {
-    get: async (k) => { calls.get++; const v = store.get(k); return v === undefined ? null : v; },
+    get: async (k, fmt) => {
+      calls.get++;
+      const v = store.has(k) ? store.get(k) : null;
+      if (v === null) return null;
+      return fmt === 'json' ? JSON.parse(v) : v;
+    },
     put: async (k, v) => { calls.put++; store.set(k, v); },
     delete: async (k) => { calls.delete++; store.delete(k); },
-    list: async () => { calls.list++; return { keys: [...store.keys()].map(name => ({ name })) }; },
-    _calls: calls,
-    _store: store,
+    list: async ({ prefix = '' } = {}) => { calls.list++; return { keys: [...store.keys()].filter((n) => n.startsWith(prefix)).map((name) => ({ name })), list_complete: true }; },
+    calls,
+    store,
   };
 }
+const totalCalls = (kv) => kv.calls.get + kv.calls.put + kv.calls.delete + kv.calls.list;
 
-test('B1-9 验收（真实 Miniflare）：访客 401 统一', async (t) => {
-  if (!Miniflare) {
-    t.skip('miniflare not installed');
-    return;
+function post(path, body, cookie, ip = '203.0.113.9') {
+  const headers = { 'Content-Type': 'application/json', Origin: 'https://styrigx.com', 'CF-Connecting-IP': ip };
+  if (cookie) headers.Cookie = cookie;
+  return new Request('https://styrigx.com' + path, { method: 'POST', headers, body: JSON.stringify(body) });
+}
+const env = (kv) => ({ SGX_LOCK_PUBLIC: PUB, SGX_LOCK_PRIVATE: PRIV, SGX_ROOT_KEY: ROOT_KEY, KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, ...RP });
+const visitorCookie = async () => 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'visitor'));
+
+/* KV 里有凭证：锁屏密码 + 账号层标记（lock-reset 的真路径会读到它们） */
+const CONFIGURED = { 'lock-password': JSON.stringify({ h: 'x' }), 'account-configured': '1', 'lock-configured': '1' };
+
+/* ============ looksVisitor ============ */
+
+test('looksVisitor：六段访客票 → true；admin、五段旧格式、乱值、没 cookie → false', async () => {
+  const req = (cookie) => new Request('https://styrigx.com/', { headers: cookie ? { Cookie: cookie } : {} });
+  const visitor = await testLockSession(PRIV, 0, 'visitor');
+  const admin = await testLockSession(PRIV, 0, 'admin');
+  assert.equal(visitor.split('.').length, 6, '访客票六段');
+  assert.equal(looksVisitor(req('sgx-lock-session=' + visitor)), true);
+  assert.equal(looksVisitor(req('a=1; sgx-lock-session=' + visitor + '; b=2')), true, '夹在别的 cookie 中间');
+  assert.equal(looksVisitor(req('sgx-lock-session=bad; sgx-lock-session=' + visitor)), true, '同名多值里任一是访客');
+  assert.equal(looksVisitor(req('sgx-lock-session=' + admin)), false);
+  /* 以前 lock-reset 认的五段格式（没有 tempkeyId 段）已经不是合法票 */
+  const p5 = 'tempkey.visitor.0.' + (Date.now() + 3600e3);
+  const five = p5 + '.' + (await ed25519Sign(PRIV, 'sgx-lock-session|' + p5));
+  assert.equal(five.split('.').length, 5);
+  assert.equal(looksVisitor(req('sgx-lock-session=' + five)), false);
+  assert.equal(looksVisitor(req('sgx-lock-session=x.visitor.0.1.' + TEST_TEMPKEY_ID + '.sig')), false, 'by 不是 tempkey');
+  assert.equal(looksVisitor(req('sgx-lock-session=garbage')), false);
+  assert.equal(looksVisitor(req('')), false);
+  assert.equal(looksVisitor(req('sgx-lock-reset=' + visitor)), false, '别的 cookie 名不算');
+});
+
+/* ============ root-auth ============ */
+
+test('root-auth：访客会话，KV 空 vs 有凭证 → 同一 401/body，KV 一次都不碰', async () => {
+  const cookie = await visitorCookie();
+  const bodies = [];
+  for (const seed of [{}, CONFIGURED]) {
+    const kv = makeCountingKv(seed);
+    const res = await rootAuthPost({ request: post('/api/root-auth', { key: 'any-value-' + Math.random(), purpose: 'lock-reset' }, cookie), env: env(kv) });
+    assert.equal(res.status, 401);
+    const body = await res.text();
+    assert.equal(body, EXPECTED_BODY);
+    bodies.push(body);
+    assert.equal(totalCalls(kv), 0, 'KV 访问次数应为 0：' + JSON.stringify(kv.calls));
   }
-  await genTestKeys();
-  const EXPECTED_BODY = JSON.stringify({ ok: false, error: 'denied' });
+  assert.equal(bodies[0], bodies[1]);
+});
 
-  await t.test('root-auth：KV 空 vs 有凭证 → 同一 401/body，KV get=0', async () => {
-    const mf = new Miniflare({
-      modules: true,
-      script: `export default { async fetch() { return new Response('mf-ok'); } }`,
-    });
-    const visitorCookie = await signVisitorCookie();
-    const bodies = [];
+/* ============ lock-reset ============ */
 
-    for (const kvInit of [{}, { 'lock-configured': '1', 'cred:root': 'hash123' }]) {
-      const kv = makeCountingKv();
-      for (const [k, v] of Object.entries(kvInit)) await kv.put(k, v);
-      kv._calls.get = 0; kv._calls.put = 0;
+test('lock-reset：访客会话，KV 空 vs 有凭证 → 同一 401/body，KV 一次都不碰', async () => {
+  const cookie = await visitorCookie();
+  const bodies = [];
+  for (const seed of [{}, CONFIGURED]) {
+    const kv = makeCountingKv(seed);
+    const res = await lockResetPost({ request: post('/api/lock-reset', { action: 'verify', rootKey: 'wrong-' + Math.random() }, cookie), env: env(kv) });
+    assert.equal(res.status, 401);
+    const body = await res.text();
+    assert.equal(body, EXPECTED_BODY);
+    bodies.push(body);
+    assert.equal(totalCalls(kv), 0, 'KV 访问次数应为 0：' + JSON.stringify(kv.calls));
+  }
+  assert.equal(bodies[0], bodies[1]);
+});
 
-      const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
-      const req = new Request('https://test.example.com/api/root-auth', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Origin': 'https://test.example.com',
-          'Cookie': 'sgx-lock-session=' + visitorCookie,
-        },
-        body: JSON.stringify({ key: 'any-value-' + Math.random() }),
-      });
-      const env = { SGX_LOCK_PUBLIC: TEST_PUB_PEM, SGX_ROOT_KEY: 'test-root-key-12345', KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv };
-      const res = await onRequestPost({ request: req, env });
-
-      assert.equal(res.status, 401, 'KV=' + JSON.stringify(kvInit) + ' 应返回 401');
-      const body = await res.text();
-      assert.equal(body, EXPECTED_BODY, 'KV=' + JSON.stringify(kvInit) + ' body 应为 denied');
-      bodies.push(body);
-      assert.equal(kv._calls.get, 0, 'KV=' + JSON.stringify(kvInit) + ' 访客请求不应读 KV (get=' + kv._calls.get + ')');
+test('lock-reset：访客带对的 RootKey 也是假 401，不比对、不计数、不写审计、不签票', async () => {
+  const cookie = await visitorCookie();
+  for (const seed of [{}, CONFIGURED]) {
+    const kv = makeCountingKv(seed);
+    const before = [...kv.store.keys()].sort();
+    for (const action of ['verify', 'status', 'challenge']) {
+      const res = await lockResetPost({ request: post('/api/lock-reset', { action, rootKey: ROOT_KEY }, cookie), env: env(kv) });
+      assert.equal(res.status, 401, action);
+      assert.equal(await res.text(), EXPECTED_BODY, action);
+      assert.equal(res.headers.get('Set-Cookie'), null, action + '：不签任何票');
     }
+    assert.equal(totalCalls(kv), 0, JSON.stringify(kv.calls));
+    assert.deepEqual([...kv.store.keys()].sort(), before, '没有 root-fail / root-audit / 开关记录');
+  }
+});
 
-    assert.equal(bodies[0], bodies[1], 'KV 空与有凭证的响应 body 应逐字节相同');
-    await mf.dispose();
+test('lock-reset：访客假入口先于 Origin / 方法检查（与以前一致），没有 Origin 也是同一个 401', async () => {
+  const kv = makeCountingKv();
+  const req = new Request('https://styrigx.com/api/lock-reset', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: await visitorCookie() },
+    body: JSON.stringify({ action: 'verify', rootKey: 'x' }),
   });
+  const res = await lockResetPost({ request: req, env: env(kv) });
+  assert.equal(res.status, 401);
+  assert.equal(await res.text(), EXPECTED_BODY);
+  assert.equal(totalCalls(kv), 0);
+});
 
-  await t.test('lockreset：KV 空 vs 有凭证 → 同一 401/body，KV get=0', async () => {
-    const mf = new Miniflare({
-      modules: true,
-      script: `export default { async fetch() { return new Response('mf-ok'); } }`,
-    });
-    const visitorCookie = await signVisitorCookie();
-    const bodies = [];
+test('lock-reset 对照组：没有访客会话 / admin 会话 → 真比对 RootKey（错了 401 auth，计数、写审计）', async () => {
+  for (const cookie of ['', 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'admin'))]) {
+    const kv = makeCountingKv();
+    const res = await lockResetPost({ request: post('/api/lock-reset', { action: 'verify', rootKey: 'wrong' }, cookie, '198.51.100.7'), env: env(kv) });
+    assert.equal(res.status, 401);
+    assert.deepEqual(await res.json(), { ok: false, error: 'auth' }, '真比对失败是 auth，不是访客的 denied');
+    assert.ok(kv.calls.get > 0, '真路径要读限速');
+    assert.ok(kv.store.has('root-fail:198.51.100.7'), '真比对失败计入单 IP');
+    assert.ok([...kv.store.keys()].some((k) => k.startsWith('root-audit:')), '写审计');
+  }
+});
 
-    for (const kvInit of [{}, { 'lock-configured': '1' }]) {
-      const kv = makeCountingKv();
-      for (const [k, v] of Object.entries(kvInit)) await kv.put(k, v);
-      kv._calls.get = 0; kv._calls.put = 0;
-
-      const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
-      const req = new Request('https://test.example.com/api/lock-reset', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Origin': 'https://test.example.com',
-          'Cookie': 'sgx-lock-session=' + visitorCookie,
-        },
-        body: JSON.stringify({ key: 'any-value' }),
-      });
-      const env = { SGX_LOCK_PUBLIC: TEST_PUB_PEM, KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv };
-      const res = await onRequestPost({ request: req, env });
-
-      assert.equal(res.status, 401, 'lockreset KV=' + JSON.stringify(kvInit) + ' 应返回 401');
-      const body = await res.text();
-      assert.equal(body, EXPECTED_BODY, 'lockreset body 应为 denied');
-      bodies.push(body);
-      assert.equal(kv._calls.get, 0, 'lockreset 访客请求不应读 KV (get=' + kv._calls.get + ')');
-    }
-
-    assert.equal(bodies[0], bodies[1], 'lockreset 两种 KV 状态的 body 应相同');
-    await mf.dispose();
-  });
+test('lock-reset：五段旧格式的「访客」cookie 不再被当成访客（不是合法票，按无会话走真路径）', async () => {
+  const p5 = 'tempkey.visitor.0.' + (Date.now() + 3600e3);
+  const five = 'sgx-lock-session=' + p5 + '.' + (await ed25519Sign(PRIV, 'sgx-lock-session|' + p5));
+  const kv = makeCountingKv();
+  const res = await lockResetPost({ request: post('/api/lock-reset', { action: 'verify', rootKey: 'wrong' }, five, '198.51.100.8'), env: env(kv) });
+  assert.equal(res.status, 401);
+  assert.deepEqual(await res.json(), { ok: false, error: 'auth' });
 });

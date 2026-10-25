@@ -63,27 +63,25 @@ export function providerOf(aaguid) {
    checkAssertAuthData / verifyAssertion 已抽到 ../_kernel/passkey-verify.js（解锁、账号登录、重置锁屏共用） */
 
 /**
- * 读某域的索引；索引不存在时按前缀扫一遍补建（只扫本域的键）。
+ * 读某域的索引；索引确实不存在（get 返回 null）时按前缀扫一遍补建并写回。
+ * 读索引出错（KV 临时故障）时直接抛错，绝不拿最终一致的 kv.list 结果覆盖现有索引——
+ * 那样刚注册的通行密钥可能从索引里掉出去（unknown-key，甚至把人锁在外面）。
+ * 补建时任何一把读失败也抛错、不写回（不写残缺的索引）。
  * @param {any} kv @param {string} domain
+ * @returns {Promise<string[]>}
  */
 async function ensureIndex(kv, domain) {
   const c = domainKv(domain);
-  try {
-    const idx = await kv.get(c.passkeyIndex, 'json');
-    if (Array.isArray(idx)) return idx;
-  } catch (e) {}
-  const idx = [];
-  try {
-    const list = await kv.list({ prefix: c.passkeyPrefix });
-    for (const k of list.keys || []) {
-      try {
-        const v = await kv.get(k.name, 'json');
-        if (v && v.credId && !idx.includes(v.credId)) idx.push(v.credId);
-      } catch (e2) {}
-    }
-    await kv.put(c.passkeyIndex, JSON.stringify(idx));
-  } catch (e3) {}
-  return idx;
+  const idx = await kv.get(c.passkeyIndex, 'json'); /* 出错直接抛 */
+  if (Array.isArray(idx)) return idx;
+  const built = [];
+  const list = await kv.list({ prefix: c.passkeyPrefix });
+  for (const k of (list && list.keys) || []) {
+    const v = await kv.get(k.name, 'json'); /* 出错直接抛，不写残缺索引 */
+    if (v && v.credId && !built.includes(v.credId)) built.push(v.credId);
+  }
+  await kv.put(c.passkeyIndex, JSON.stringify(built));
+  return built;
 }
 
 /**
@@ -140,10 +138,10 @@ export async function savePasskey(kv, domain, item) {
   await kv.put(passkeyKey(domain, item.credId), JSON.stringify(ordered), {
     metadata: { name: ordered.name, provider: ordered.provider, createdAt: ordered.createdAt },
   });
-  /* 同步更新索引（避开 kv.list 的最终一致延迟） */
+  /* 同步更新索引（避开 kv.list 的最终一致延迟）。索引不存在时先按前缀补建再加，
+     不能只写这一把（会把还没进索引的旧通行密钥挤掉）；读索引出错就不动索引。 */
   try {
-    let idx = await kv.get(c.passkeyIndex, 'json');
-    if (!Array.isArray(idx)) idx = [];
+    const idx = (await ensureIndex(kv, domain)).slice();
     if (!idx.includes(item.credId)) {
       idx.push(item.credId);
       await kv.put(c.passkeyIndex, JSON.stringify(idx));

@@ -221,6 +221,15 @@ test('F /files-index.json 要先解锁（无会话 302，有会话 200）', asyn
   assert.equal((await get('https://styrigx.com/files-index.json')).status, 302);
   assert.equal((await get('https://styrigx.com/files-index.json', await lockCookie('visitor'))).status, 200);
 });
+test('F RSS（Hugo 生成的 */index.xml，列着全站页面标题和地址）要先解锁；sitemap.xml / opensearch.xml 照旧公开', async () => {
+  for (const p of ['/index.xml', '/en/index.xml', '/tags/index.xml', '/en/categories/index.xml', '/INDEX.XML']) {
+    assert.equal((await get('https://styrigx.com' + p)).status, 302, p + ' 无会话');
+    assert.equal((await get('https://styrigx.com' + p, await lockCookie('visitor'))).status, 200, p + ' 有会话');
+  }
+  for (const p of ['/sitemap.xml', '/opensearch.xml', '/en/sitemap.xml']) {
+    assert.equal((await get('https://styrigx.com' + p)).status, 200, p + ' 公开');
+  }
+});
 
 /* ---------------- G. 不预渲染 ---------------- */
 test('G 页面不带 Speculation Rules（预渲染会启用旧会话状态的页面）', () => {

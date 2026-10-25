@@ -138,13 +138,33 @@ test('A2：每次使用写审计记录', async () => {
   assert.ok(!rec.ipPrefix.includes('9.9.9.9') || rec.ipPrefix.includes('9.9.9.x'), 'IP 应只存前缀');
 });
 
-test('A2：KV 出错 fail closed', async () => {
+test('A2：KV 出错 fail closed（无会话假入口：限速读不到 → 503 server，不是 500 config）', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
   kv._fail = true;
+  /* KV 全挂：锁屏是否已设置读不到 → 按已设置处理 → lock-reset 走假入口 → 限速检查抛错 → 503 */
   const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY, purpose: 'lock-reset' });
   const res = await onRequestPost({ request: req, env: authEnv(kv) });
-  assert.ok(res.status === 503 || res.status === 500, 'KV 出错应拒绝');
+  assert.equal(res.status, 503);
+  assert.deepEqual(await res.json(), { ok: false, error: 'server' });
+  assert.equal(res.headers.get('Set-Cookie'), null, '不签票');
+});
+
+test('A2：KV 出错 fail closed（真路径：锁屏未设置、限速 KV 读出错 → 503 server，对的 RootKey 也不签票）', async () => {
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
+  const kv = makeKV();
+  const get = kv.get;
+  kv.get = async (k, fmt) => {
+    if (String(k).startsWith('root-fail')) throw new Error('kv-fail');
+    return get(k, fmt);
+  };
+  const { isLockEffectivelyConfigured } = await import('../../../workers/auth-gateway/functions/_kernel/layers.js');
+  assert.equal(await isLockEffectivelyConfigured(kv), false, '前提：锁屏未设置，lock-reset 走真路径');
+  const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY, purpose: 'lock-reset' });
+  const res = await onRequestPost({ request: req, env: authEnv(kv) });
+  assert.equal(res.status, 503);
+  assert.deepEqual(await res.json(), { ok: false, error: 'server' });
+  assert.equal(res.headers.get('Set-Cookie'), null, '不签票');
 });
 
 /* ============ B6：register 要求 admin 会话 ============ */
