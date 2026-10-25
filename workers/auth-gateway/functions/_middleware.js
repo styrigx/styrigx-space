@@ -94,47 +94,53 @@ function isWhitelisted(pathname) {
   return false;
 }
 
-/**
- * 站内路径校验（?return= 只收这个）：
- * 必须以 / 开头，且不能是 // 或 /\（防协议相对 URL 和反斜杠 trick）。
- */
-export function isSafeReturnPath(ret) {
-  if (typeof ret !== 'string' || ret.length === 0) return false;
-  if (ret.charAt(0) !== '/' || ret.charAt(1) === '/' || ret.charAt(1) === '\\') return false;
-  /* 2.8.0：/lock/ 登录后无页面，解锁后回跳一律回首页（防 404） */
-  if (ret === '/lock/' || ret.startsWith('/lock/?') || ret.startsWith('/lock/#')) return false;
-  return true;
-}
-
-/**
- * 跨站回跳白名单（?return= 允许的完整 URL）：
- * 只认 https://*.styrigx.com/*（含 apex）。用于 blog/daymark（含预览子域）
- * 解锁后跳回原站。非 https、一级域名不符、带 @ 或 \\ 的一律不认。
- * 已下线的子站（RETIRED_RETURN_HOSTS）也不认，回首页。
- */
+const MAIN_ORIGIN = 'https://styrigx.com';
+/* 已下线的子站：不再作为回跳目标 */
 const RETIRED_RETURN_HOSTS = new Set(['book.styrigx.com', 'book-preview.styrigx.com']);
-
-function isSafeReturnUrl(ret) {
-  if (typeof ret !== 'string' || !ret.startsWith('https://')) return false;
-  let u;
-  try {
-    u = new URL(ret);
-  } catch (e) {
-    return false;
-  }
-  if (u.protocol !== 'https:' || u.username || u.password) return false;
-  const host = u.hostname.toLowerCase();
-  if (host !== 'styrigx.com' && !host.endsWith('.styrigx.com')) return false;
-  if (RETIRED_RETURN_HOSTS.has(host)) return false;
-  if (ret.includes('\\')) return false;
-  return true;
-}
+const UNSAFE_RETURN_RE = /[\u0000-\u001f\u007f\\]/;
 
 /**
- * ?return= 综合校验：站内路径或白名单跨站 URL。
+ * ?return= 回跳目标的唯一校验（首页 302 和 /api/lock-session-check 共用，经 resolveReturn）：
+ * 先再解码一层，原值与解码值里有控制字符（含 Tab/CR/LF）或反斜杠一律不认（浏览器会丢掉
+ * Tab/换行、把 \ 当 /，/%09/evil.com 这类会变成协议相对地址跳出本站）。
+ * - 站内路径：必须以单个 / 开头（不是 //，解码后也不是），按 https://styrigx.com 解析后仍同源，
+ *   返回规范化的 pathname+search+hash；/lock/ 登录后无页面，不认（回首页）
+ * - 跨站：只认 https://*.styrigx.com（含 apex），不带用户名密码，已下线的子站不认；返回规范化的 href
+ * 不合法返回 null（调用方回首页）。
+ * @param {unknown} ret 已经过一次 URL 解码的 return 参数
+ * @returns {string|null}
  */
-function isSafeReturn(ret) {
-  return isSafeReturnPath(ret) || isSafeReturnUrl(ret);
+export function safeReturn(ret) {
+  if (typeof ret !== 'string' || ret.length === 0) return null;
+  let dec;
+  try {
+    dec = decodeURIComponent(ret);
+  } catch (e) {
+    return null;
+  }
+  if (UNSAFE_RETURN_RE.test(ret) || UNSAFE_RETURN_RE.test(dec)) return null;
+  let u;
+  if (ret.startsWith('https://')) {
+    try {
+      u = new URL(ret);
+    } catch (e) {
+      return null;
+    }
+    if (u.protocol !== 'https:' || u.username || u.password || u.port) return null;
+    const host = u.hostname.toLowerCase();
+    if (host !== 'styrigx.com' && !host.endsWith('.styrigx.com')) return null;
+    if (RETIRED_RETURN_HOSTS.has(host)) return null;
+    return u.href;
+  }
+  if (ret.charAt(0) !== '/' || ret.charAt(1) === '/' || dec.charAt(1) === '/') return null;
+  try {
+    u = new URL(ret, MAIN_ORIGIN);
+  } catch (e) {
+    return null;
+  }
+  if (u.origin !== MAIN_ORIGIN) return null;
+  if (u.pathname === '/lock/') return null;
+  return u.pathname + u.search + u.hash;
 }
 
 /* 网关自己注入的会话标记（只有这些会被先清掉再重新写）。
@@ -242,7 +248,7 @@ function homeOf(pathname) {
  */
 export function resolveReturn(ret, role) {
   const isVisitor = role === ROLE_VISITOR;
-  let safeLoc = isSafeReturn(ret) ? ret : '/';
+  let safeLoc = safeReturn(ret) || '/';
   let locPath = '';
   try {
     const u = new URL(safeLoc, 'https://styrigx.com');
@@ -268,6 +274,9 @@ function isAccountArea(pathname) {
 function isAccountPage(pathname) {
   return pathname === '/account/' || pathname === '/en/account/';
 }
+
+/* 跳过会话检查的环境名（本地开发 / 单测 / passkey-e2e 预览）。其余值和缺失都按生产 */
+const NON_PROD_ENVS = new Set(['preview', 'development', 'test']);
 
 /** @param {any} context */
 export async function onRequest(context) {
@@ -300,8 +309,10 @@ async function handleRequest(context) {
     });
   }
 
-  /* 只在生产环境启用 */
-  const isProd = (env && env.SGX_ENV === 'production') || host === 'styrigx.com' || host === 'www.styrigx.com';
+  /* 会话检查默认启用（fail closed）：只有 SGX_ENV 显式写成非生产值（NON_PROD_ENVS）且不是正式域名时才跳过；
+     缺 SGX_ENV 或写错一律按生产处理 */
+  const nonProd = !!(env && NON_PROD_ENVS.has(env.SGX_ENV));
+  const isProd = !nonProd || host === 'styrigx.com' || host === 'www.styrigx.com';
 
   if (isProd) {
     if (host === 'www.styrigx.com') {
@@ -314,6 +325,7 @@ async function handleRequest(context) {
       }
       url.protocol = 'https:';
       url.hostname = 'styrigx.com';
+      url.port = '';
       return Response.redirect(url.toString(), 301);
     }
   }

@@ -163,8 +163,9 @@ export const REALM_LOCK = Object.freeze({
   pepper: 'SGX_PW_PEPPER', /* 锁屏密码与账号密码共用一个 pepper（Secrets Store 密钥名，不改） */
   kv: Object.freeze({
     password: 'lock-password',
-    passwordFailPrefix: 'lock-password-fail:', /* 锁屏密码输错计数（按 IP） */
+    passwordFailPrefix: 'lock-password-fail:', /* 锁屏密码输错记录（按 IP：本轮次数 + 冷却轮数） */
     passwordCooldownPrefix: 'lock-password-cooldown:', /* 锁屏密码冷却到期时刻（按 IP） */
+    passwordFailGlobal: 'lock-password-fail-global', /* 锁屏密码全局每小时输错次数（只减速） */
     passkeyPrefix: 'lock-passkey:', /* 锁屏通行密钥记录 <前缀><credId 前 12 位> */
     passkeyIndex: 'lock-passkey-index', /* 锁屏通行密钥索引（credId 数组，避开 kv.list 的最终一致） */
     userHandle: 'lock-user-id', /* 锁屏通行密钥的 WebAuthn user handle */
@@ -207,6 +208,7 @@ export const REALM_ACCOUNT = Object.freeze({
     password: 'account-password',
     passwordFailPrefix: 'account-password-fail:', /* 账号密码输错计数（按 IP；规则同锁屏密码） */
     passwordCooldownPrefix: 'account-password-cooldown:', /* 账号密码冷却到期时刻（按 IP） */
+    passwordFailGlobal: 'account-password-fail-global', /* 账号密码全局每小时输错次数（只减速） */
     passkeyPrefix: 'account-passkey:', /* 账号通行密钥记录 <前缀><credId 前 12 位> */
     passkeyIndex: 'account-passkey-index', /* 账号通行密钥索引（credId 数组） */
     userHandle: 'account-user-id', /* 账号通行密钥的 WebAuthn user handle */

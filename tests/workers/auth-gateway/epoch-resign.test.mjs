@@ -121,3 +121,16 @@ test('必修安全项 2：by=root 会话不重签（首次配 lock 的 epoch bum
 });
 
 
+
+test('锁屏会话纪元必须等于当前 lock-epoch：比当前大的旧票（KV 重建后纪元回到小值）也作废', async () => {
+  const { verifyLockSessionTicket } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
+  if (!LOCK_PRIV) await genKeys();
+  const kv = makeKV({ 'lock-epoch': '1' });
+  const env = testEnv(kv);
+  const ok = await testLockSession(LOCK_PRIV, 1, 'admin', 'password');
+  assert.equal((await verifyLockSessionTicket(ok, env)).status, 'ok');
+  const old = await testLockSession(LOCK_PRIV, 7, 'admin', 'password');
+  assert.equal((await verifyLockSessionTicket(old, env)).status, 'epoch-low');
+  const low = await testLockSession(LOCK_PRIV, 0, 'admin', 'password');
+  assert.equal((await verifyLockSessionTicket(low, env)).status, 'epoch-low');
+});
