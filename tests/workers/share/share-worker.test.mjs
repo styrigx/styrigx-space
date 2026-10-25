@@ -667,3 +667,25 @@ test('cors.js：只认三个子站 + 主站，逐字比较；Vary 追加不重�
   assert.equal(r.headers.get('Vary'), 'Accept-Encoding, Origin');
   assert.equal(c.withCors(r, req('https://blog.styrigx.com')).headers.get('Vary'), 'Accept-Encoding, Origin');
 });
+
+/* ---------------- 安全响应头（PR D，workers #3）：和网关主站同一套；/s/<码> 的 no-referrer 不被覆盖 ---------------- */
+const SECH = await import(REPO + 'workers/auth-gateway/functions/_kernel/security-headers.js');
+
+test('安全头：/s/<码> 失败跳转保留 Referrer-Policy: no-referrer，其余安全头齐全；/api/share 401 和预检带安全头且 CORS 不变', async () => {
+  const { env } = setup({ memory: true });
+  const f = await open(env, '/s/' + links.newCode(), { ip: '5.5.5.5' });
+  assert.deepEqual(await failShape(f), FAIL);
+  for (const [k, v] of SECH.mainSiteHeaderList()) {
+    assert.equal(f.headers.get(k), k === 'Referrer-Policy' ? 'no-referrer' : v, '/s/ ' + k);
+  }
+  const a = await api(env, { action: 'list' }, '', 'https://blog.styrigx.com');
+  assert.equal(a.s, 401);
+  assert.equal(a.res.headers.get('Access-Control-Allow-Origin'), 'https://blog.styrigx.com');
+  for (const [k, v] of SECH.mainSiteHeaderList()) assert.equal(a.res.headers.get(k), v, 'api ' + k);
+  const pre = await worker.fetch(new Request('https://styrigx.com/api/share', {
+    method: 'OPTIONS', headers: { Origin: 'https://curio.styrigx.com', 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'content-type' },
+  }), env, ctx);
+  assert.equal(pre.status, 204);
+  assert.equal(pre.headers.get('Access-Control-Allow-Origin'), 'https://curio.styrigx.com');
+  assert.equal(pre.headers.get('Strict-Transport-Security'), SECH.HSTS);
+});

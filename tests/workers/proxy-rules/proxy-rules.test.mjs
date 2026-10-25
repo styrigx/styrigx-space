@@ -149,3 +149,45 @@ test('两个上游都挂住：都超时后回 502', async () => {
     globalThis.setTimeout = realST;
   }
 });
+
+test('响应头白名单（workers #33）：上游的 CSP / HSTS / x-github-* / Set-Cookie 不透传，只留 ETag / Last-Modified + 自己的头；缓存命中（含部署前的旧条目）也洗一遍', async () => {
+  const UP = {
+    'content-security-policy': "default-src 'none'; sandbox",
+    'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+    'x-github-request-id': 'AAAA:BBBB',
+    'x-frame-options': 'deny',
+    'x-jsd-version': '1.2.3',
+    'set-cookie': 'tracker=1',
+    'access-control-allow-origin': 'https://evil.example',
+    etag: 'W/"abc"',
+    'last-modified': 'Sat, 24 Oct 2026 00:00:00 GMT',
+    'content-type': 'text/html',
+  };
+  upstream = () => new Response('RULES', { status: 200, headers: UP });
+  const r = await get(P + 'geosite/cn.list');
+  assert.equal(r.status, 200);
+  const names = [...r.headers.keys()].sort();
+  assert.deepEqual(names, ['access-control-allow-origin', 'cache-control', 'content-type', 'etag', 'last-modified', 'x-content-type-options', 'x-proxy-rules-cache', 'x-proxy-rules-upstream']);
+  assert.equal(r.headers.get('etag'), 'W/"abc"');
+  assert.equal(r.headers.get('last-modified'), 'Sat, 24 Oct 2026 00:00:00 GMT');
+  assert.equal(r.headers.get('content-type'), 'text/plain; charset=utf-8');
+  assert.equal(r.headers.get('access-control-allow-origin'), '*');
+  assert.equal(r.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(await r.text(), 'RULES');
+  await Promise.all(waits);
+  const hit = await get(P + 'geosite/cn.list');
+  assert.equal(hit.headers.get('x-proxy-rules-cache'), 'HIT');
+  assert.equal(hit.headers.get('x-proxy-rules-upstream'), 'cdn.jsdelivr.net');
+  assert.equal(hit.headers.get('etag'), 'W/"abc"');
+  assert.equal(hit.headers.get('content-security-policy'), null);
+  /* 部署前写进 Cache API 的旧条目：头是上游原样的，命中时也只留白名单 */
+  store.set(BASE + P + 'geoip/cn.mrs', new Response('OLD', { status: 200, headers: { ...UP, 'x-proxy-rules-upstream': 'raw.githubusercontent.com' } }));
+  const old = await get(P + 'geoip/cn.mrs');
+  assert.equal(await old.text(), 'OLD');
+  assert.equal(old.headers.get('strict-transport-security'), null);
+  assert.equal(old.headers.get('x-github-request-id'), null);
+  assert.equal(old.headers.get('set-cookie'), null);
+  assert.equal(old.headers.get('content-type'), 'application/octet-stream');
+  assert.equal(old.headers.get('x-proxy-rules-upstream'), 'raw.githubusercontent.com');
+  assert.equal(old.headers.get('x-proxy-rules-cache'), 'HIT');
+});

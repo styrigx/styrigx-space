@@ -65,6 +65,43 @@ export function mountSettings() {
     });
   }
 
+  /* 旧分类 hash（/settings/#display、#sg-theme、#goodlock 等）→ 对应子页。只在设置首页（中英）生效。
+     2026-10-25 从 settings.html 的内联脚本搬进来（CSP：少一段要算 sha256 的内联脚本），逻辑不变。 */
+  legacyHashRedirect();
+
+  /* 「高级功能」里的开关行（.gl-row / .gl-switch，data-key + data-def）：点一下翻转，等于默认值时删 key。
+     2026-10-25 从 setcat-advanced.html 的内联脚本搬进来（CSP），逻辑不变；
+     以前页内切换（inpage-tabs 会去掉取回页面里的 <script>）进来的设置栏这些开关不响应，现在随 mountSettings 绑定、destroy 拆掉。 */
+  document.querySelectorAll('.gl-row').forEach(function (row) {
+    const sw = row.querySelector('.gl-switch');
+    if (!sw) return;
+    /** @param {string|null} key @param {boolean} def */
+    const isOn = function (key, def) {
+      const v = get(String(key));
+      return def ? v !== '0' : v === '1';
+    };
+    const paint = function () {
+      sw.setAttribute('aria-checked', isOn(sw.getAttribute('data-key'), sw.getAttribute('data-def') === '1') ? 'true' : 'false');
+    };
+    paint();
+    const toggle = function () {
+      const key = String(sw.getAttribute('data-key'));
+      const def = sw.getAttribute('data-def') === '1';
+      const on_ = !isOn(key, def);
+      set(key, on_ === def ? null : on_ ? '1' : '0');
+      paint();
+      window.dispatchEvent(new Event('sgx-settings-changed'));
+    };
+    on(row, 'click', toggle);
+    on(row, 'keydown', function (/** @type {KeyboardEvent} */ e) {
+      if (e.target !== row) return;
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggle();
+      }
+    });
+  });
+
   /* ---- 时区列表（两边共用） ---- */
   const TZS = [
     { id: 'Asia/Shanghai', zh: '北京', en: 'Beijing' },
@@ -651,4 +688,24 @@ export function mountSettings() {
     const bar = document.getElementById('sgx-layout-snackbar');
     if (bar) bar.remove();
   };
+}
+
+/* 旧分类 hash → 设置子页（2.6.0 起设置是真实二级页）。manage / accessibility 已删除（回设置首页，不跳）；goodlock → advanced。 */
+const LEGACY_HASH = /** @type {Record<string, 1|string>} */ ({
+  display: 1, theme: 1, advanced: 1, wellbeing: 1, about: 1, security: 1, goodlock: 'advanced',
+  'sg-display': 'display', 'sg-theme': 'theme', 'sg-advanced': 'advanced', 'sg-goodlock': 'advanced',
+  'sg-wellbeing': 'wellbeing', 'sg-about': 'about', 'sg-security': 'security',
+});
+
+/** 设置首页（/settings/、/en/settings/）带旧分类 hash 时 replace 到子页（不留历史） */
+export function legacyHashRedirect() {
+  try {
+    const p = location.pathname;
+    if (p !== '/settings/' && p !== '/en/settings/') return;
+    const h = (location.hash || '').replace(/^#/, '');
+    const cat = Object.prototype.hasOwnProperty.call(LEGACY_HASH, h) ? LEGACY_HASH[h] : null;
+    if (!cat) return;
+    const base = p.indexOf('/en/') === 0 ? '/en/settings/' : '/settings/';
+    sgxReplace(base + (cat === 1 ? h : cat) + '/');
+  } catch (e) {}
 }
