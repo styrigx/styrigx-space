@@ -1,20 +1,20 @@
 /**
- * 临时 LockKey 管理（账号页「临时钥匙」）。说明见 _kernel/temp-lock.js。
+ * 临时 LockKey 管理（账号页「临时钥匙」）。说明见 _kernel/lock-tempkey.js。
  *
- * POST /api/lock-temp { action, ... }（只接受同源；需 owner lock 会话 + 有效账号会话，和账号页设备管理同一道门槛）
+ * POST /api/lock-tempkey { action, ... }（只接受同源；需站长锁屏会话 + 有效账号会话，和账号页设备管理同一道门槛）
  * - list → { keys: [{ id, name, createdAt, expiresAt }] }（只列还有效的，新到旧）
  * - create { name?, hours? | days? } → { key, code }
  *     有效期：hours 1–24 的整数，或 days 3 / 7 / 15 / 30（二选一）；名字可空，最多 24 字
  *     code 是 XXXX-XXXX-XXXX，只在这次返回，服务端只存哈希
  *     同时有效的钥匙最多 20 把（409 full）
  * - revoke { id } → 作废（拿这把钥匙进来的访客下一个请求就进不来）
- * 访客调用：middleware 已按主人专属接口 403；这里再验一次 owner 会话。
+ * 访客调用：middleware 已按站长专属接口 403；这里再验一次站长会话。
  */
-import { ROLE_OWNER } from '../_kernel/session.js';
+import { ROLE_OWNER } from '../_kernel/lock-session.js';
 import { verifyAccountCookie } from '../_kernel/account-session.js';
 import { getPepper } from '../_kernel/password.js';
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
-import { listTemp, createTemp, revokeTemp, durationMs, cleanName, isTempId } from '../_kernel/temp-lock.js';
+import { listTempkeys, createTempkey, revokeTempkey, durationMs, cleanName, isTempkeyId } from '../_kernel/lock-tempkey.js';
 import { verifySessionDetailed } from '../_middleware.js';
 
 /** @param {object} body @param {number} [status] */
@@ -56,7 +56,7 @@ async function handle(context) {
   if (action === 'list') {
     try {
       /* 分享短链自动签的钥匙（link，styrigx-share 经 ShareIssuer 签发）不出现在这里，只在短链列表里管 */
-      const keys = (await listTemp(kv)).filter(function (k) { return !k.link; });
+      const keys = (await listTempkeys(kv)).filter(function (k) { return !k.link; });
       return json({ ok: true, keys: keys });
     } catch (e) {
       return json({ ok: false, error: 'server' }, 503);
@@ -71,7 +71,7 @@ async function handle(context) {
     const pepper = getPepper(env);
     if (!pepper) return json({ ok: false, error: 'config' }, 503);
     try {
-      const r = await createTemp(kv, pepper, { name: name, ms: ms });
+      const r = await createTempkey(kv, pepper, { name: name, ms: ms });
       return json({ ok: true, key: r.key, code: r.code });
     } catch (e) {
       if (e && e.message === 'full') return json({ ok: false, error: 'full' }, 409);
@@ -81,9 +81,9 @@ async function handle(context) {
 
   if (action === 'revoke') {
     const id = body.id;
-    if (!isTempId(id)) return json({ ok: false, error: 'params' }, 400);
+    if (!isTempkeyId(id)) return json({ ok: false, error: 'params' }, 400);
     try {
-      const ok = await revokeTemp(kv, id);
+      const ok = await revokeTempkey(kv, id);
       if (!ok) return json({ ok: false, error: 'not-found' }, 404);
       return json({ ok: true });
     } catch (e) {

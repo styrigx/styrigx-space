@@ -26,14 +26,14 @@ const TTL = REALM_ACCOUNT.maxAge;
 export const TOUCH_INTERVAL_MS = 30 * 60 * 1000;
 
 /** sid：12 字节随机，base64url（16 字符，不含 '.'） */
-export function newSid() {
+export function newDeviceId() {
   const b = new Uint8Array(12);
   crypto.getRandomValues(b);
   return b64urlEnc(b);
 }
 
 /** @param {string} sid */
-export function isSid(sid) {
+export function isDeviceId(sid) {
   return typeof sid === 'string' && /^[A-Za-z0-9_-]{8,32}$/.test(sid);
 }
 
@@ -123,7 +123,7 @@ export function deviceInfo(request, hints) {
 
 /** @param {any} kv @param {string} sid */
 export async function getDevice(kv, sid) {
-  if (!kv || !isSid(sid)) return null;
+  if (!kv || !isDeviceId(sid)) return null;
   return await kv.get(DEVICE_PREFIX + sid, 'json');
 }
 
@@ -198,12 +198,12 @@ export async function pruneOtherDevices(kv, keepSid) {
 }
 
 /**
- * 给前端的设备视图（不含 sid 以外的内部字段名变化）。
+ * 给前端的设备视图（记录里的 sid 对外叫 deviceId）。
  * @param {object} d @param {string} curSid
  */
 export function deviceView(d, curSid) {
   return {
-    sid: d.sid,
+    deviceId: d.sid,
     current: d.sid === curSid,
     name: modelName(d.model) || d.platform || '',
     model: d.model || '',

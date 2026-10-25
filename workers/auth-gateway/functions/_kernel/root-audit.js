@@ -1,7 +1,7 @@
 /**
  * 2.11：根凭证审计（所有 root 路径共用一套）。
  *
- * 从 root-auth.js 抽出，供 /api/root-auth、/api/lockreset 共用。
+ * 从 root-auth.js 抽出，供 /api/root-auth、/api/lock-reset 共用。
  * 每次使用（成功/失败/被限流/假入口）都在 KV 留一条记录：
  *   root-auth-audit:<ts>:<rand> = { ts, ipPrefix, ok, decoy?, via?, path? }
  * 只记时间、IP 前缀和结果，保留 7 天。不对前端暴露 decoy/via 标记。

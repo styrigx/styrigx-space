@@ -14,8 +14,8 @@
   <div id="lock-door" hidden>
     <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Verify it's you{{ else }}验证身份{{ end }}</span></h2>
     <p class="sec-note mb-3">{{ if $isEn }}Changing lock screen credentials is a security action. Verify to continue; it lasts 3 minutes and ends as soon as you leave this page.{{ else }}修改锁屏凭证属于安全操作，请先验证。验证有效 3 分钟，离开本页立即失效。{{ end }}</p>
-    <p class="sgx-door-err mb-3" id="lock-door-notice" hidden></p>
-    <div class="sgx-door-methods animate-fade-up" id="lock-door-methods" style="animation-delay:.1s"></div>
+    <p class="sgx-credential-err mb-3" id="lock-door-notice" hidden></p>
+    <div class="sgx-credential-methods animate-fade-up" id="lock-door-methods" style="animation-delay:.1s"></div>
   </div>
 
   <!-- 门内（验证通过后才渲染；顶部倒计时胶囊由 JS 插入） -->
@@ -130,7 +130,6 @@
   "pwChanged" (dict "zh" "已修改" "en" "Changed")
   "pwDeleted" (dict "zh" "密码已删除" "en" "Password deleted")
   "pwDelAsk" (dict "zh" "再点一次删除密码" "en" "Tap again to delete password")
-  "pwDelWarn" (dict "zh" "删除后只能用根凭证进入，再点一次确认" "en" "After deletion only the root credential can enter. Tap again to confirm")
   "pwDelWarnLock" (dict "zh" "删除后锁屏只能通过重置锁屏重新设置，再点一次确认" "en" "After deletion the lock screen can only be set up again via Reset lock screen. Tap again to confirm")
   "lastKeyConfirmTitle" (dict "zh" "删除最后一把解锁钥匙" "en" "Delete the last unlock key")
   "lastKeyConfirmDesc" (dict "zh" "删除后锁屏只能通过重置锁屏重新设置" "en" "After deletion, the lock screen can only be set up again via Reset lock screen.")

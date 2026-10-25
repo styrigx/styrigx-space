@@ -8,7 +8,7 @@
  *   +「带临时会话」开关（默认开）+ 点开后能看多久（30 分钟–7 天，比链接有效期长的档位禁用）
  *   → create → 弹层原地换成链接 + 复制；关掉开关 = 普通短链（session 0），服务端不签钥匙、不发会话
  * - 码不在页面地址里出现；复制的是 location.origin + /s/<码>
- * 账号会话 / lock 会话失效的处理与临时钥匙列表一致（apps/account-temp-keys.js）。
+ * 账号会话 / lock 会话失效的处理与临时钥匙列表一致（apps/account-tempkeys.js）。
  */
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
@@ -16,7 +16,7 @@ import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose } from '../lib/dialog-behavior.js';
 import { postJSON, errText } from '../lib/account-api.js';
 import { accountUrl, createT } from './account-common.js';
-import { leftText, durationParam } from './account-temp-keys.js';
+import { leftText, durationParam } from './account-tempkeys.js';
 
 /** 分享短链管理接口（styrigx-share） */
 export const SHARE_API = '/api/share';

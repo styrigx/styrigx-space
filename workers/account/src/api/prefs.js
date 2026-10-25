@@ -35,12 +35,12 @@ function json(body, status) {
   return Response.json(body, { status: status || 200, headers: { 'Cache-Control': 'no-store' } });
 }
 
-/** owner lock 会话 + 账号会话（都由网关 SessionVerifier 验，见 src/auth.js）；不满足返回错误响应 @param {any} context */
+/** owner lock 会话 + 账号会话（都由网关 AuthVerifier 验，见 src/auth.js）；不满足返回错误响应 @param {any} context */
 async function gate(context) {
   const { env, auth } = context;
-  const sess = await auth.session();
+  const sess = await auth.lockSession();
   if (!sess.ok || sess.role !== ROLE_OWNER) return json({ ok: false, error: 'session' }, 401);
-  const acc = await auth.account();
+  const acc = await auth.accountSession();
   if (!acc.ok) return json({ ok: false, error: 'account', reason: acc.reason }, 401);
   if (!prefsKv(env)) return json({ ok: false, error: 'config' }, 500);
   return null;

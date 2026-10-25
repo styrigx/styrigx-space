@@ -8,7 +8,7 @@
  *   → 200 { ok, q, hits: [{ site, type, title, subtitle, url }] }
  *   401 没会话 · 400 参数 · 503 搜索服务不可用（没绑定 / 出错）
  */
-import { ROLE_OWNER } from '../_kernel/session.js';
+import { ROLE_OWNER } from '../_kernel/lock-session.js';
 import { verifySessionDetailed } from '../_middleware.js';
 
 const NO_STORE = 'private, no-store';

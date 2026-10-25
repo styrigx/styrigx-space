@@ -6,8 +6,8 @@
  *
  * - 密码框：pwFieldHtml（锁屏弹层用的 HTML 片段）、bindPwEye（眼睛按钮中英文案）、
  *   onEnter（回车提交）、focusNoScroll（聚焦不滚动，失败退回普通 focus）
- * - 门内「设置/修改密码」弹层：bindDataEyes、createSetPwDialog、newPwError、pwSetRequest
- * - 锁屏凭证的门客户端：lockDoorFetch（POST /api/lock-door）
+ * - 门内「设置/修改密码」弹层：bindDataEyes、createSetPwDialog、newPwError、passwordSetRequest
+ * - 锁屏凭证的门客户端：lockDoorFetch（POST /api/lock-reauth）
  *
  * 将来加新的凭证域（例如独立的「账户」登录）时，直接复用这些积木即可。
  * 本文件在 lib/ 层：不得 import shell/ 或 apps/（followKeyboard 由调用方传入）。
@@ -94,7 +94,7 @@ export function focusNoScroll(input) {
 }
 
 /* ---------------------------------------------------------------------------
- * 门内「设置/修改密码」弹层（door.js 与 security-lock.js 共用）
+ * 门内「设置/修改密码」弹层（门组件与 security-lock.js 共用）
  * DOM：#lockpw-dlg、#lockpw-1、#lockpw-2、#lockpw-title、#lockpw-err、#lockmgr-pwrow、
  *      [data-eye] 眼睛按钮、[data-dlg-close] 关闭按钮
  * ------------------------------------------------------------------------- */
@@ -131,17 +131,16 @@ export function newPwError(va, vb) {
 }
 
 /**
- * /api/owner-password 设置/修改请求体。
- * @param {boolean} hasPw 当前是否已设置
- * @param {string} kind 'owner' | 'lock'
+ * /api/lock-password 设置/修改请求体。
+ * @param {boolean} hasPassword 当前是否已设置
  * @param {string} password 新密码
  * @returns {{action:'set'|'change', body:object}}
  */
-export function pwSetRequest(hasPw, kind, password) {
-  const action = hasPw ? 'change' : 'set';
+export function passwordSetRequest(hasPassword, password) {
+  const action = hasPassword ? 'change' : 'set';
   const body = action === 'set'
-    ? { action: 'set', kind: kind, password: password }
-    : { action: 'change', kind: kind, newPassword: password };
+    ? { action: 'set', password: password }
+    : { action: 'change', newPassword: password };
   return { action: action, body: body };
 }
 
@@ -228,10 +227,10 @@ export function createSetPwDialog(o) {
  * 锁屏凭证的门（门票状态 / 清票）客户端
  * ------------------------------------------------------------------------- */
 
-export const LOCK_DOOR_API = '/api/lock-door';
+export const LOCK_DOOR_API = '/api/lock-reauth';
 
 /**
- * POST /api/lock-door（JSON）。请求体 = { action, ...extra }。
+ * POST /api/lock-reauth（JSON）。请求体 = { action, ...extra }。
  * 返回原始 fetch Promise，响应由调用方各自解析。
  * @param {string} action 'status' | 'clear'
  * @param {object} [opts]

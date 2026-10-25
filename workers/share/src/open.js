@@ -84,7 +84,7 @@ async function dbFail(db, ip, now) {
  * @param {Request} request
  * @param {Record<string, any>} env
  * @param {{ waitUntil(p: Promise<any>): void }} ctx
- * @param {{ session: () => Promise<{ok:boolean, role:string|null}> }} auth
+ * @param {{ lockSession: () => Promise<{ok:boolean, role:string|null}> }} auth
  * @param {string} code
  */
 export async function openShare(request, env, ctx, auth, code) {
@@ -126,7 +126,7 @@ export async function openShare(request, env, ctx, auth, code) {
     return redirect(dest);
   }
   if (request.method === 'HEAD') return redirect(dest);
-  const sess = await auth.session();
+  const sess = await auth.lockSession();
   if (sess.ok && sess.role === ROLE_OWNER) return redirect(dest);
 
   const issuer = env && env.ISSUER;

@@ -1,7 +1,7 @@
 /**
- * 前端真请求 e2e（Item 25）：owner-password 的 set/change/remove（kind=lock）、
- * owner-passkey 的 register（lock），以及账号体系的 /api/account（账号密码、账号通行密钥）
- * 和 /api/lock-door（锁屏凭证的门：状态 / 清票）。
+ * 前端真请求 e2e（Item 25）：lock-password 的 set/change/remove、
+ * lock-passkey 的 register（lock），以及账号体系的 /api/account（账号密码、账号通行密钥）
+ * 和 /api/lock-reauth（锁屏凭证的门：状态 / 清票）。
  *
  * - 不 mock fetch：浏览器用真实 fetch 发请求到 cred-e2e-helpers.cjs 启动的
  *   本地测试服务器；
@@ -65,12 +65,12 @@ test.describe('credential APIs 真请求 e2e', () => {
     await page.goto(t.origin + '/');
   });
 
-  test('owner-password set/change/remove（kind=lock），KV 对应键更新', async ({ page, context }) => {
+  test('lock-password set/change/remove，KV 对应键更新', async ({ page, context }) => {
     const kv = t.kv;
     // set
     await mintBrowserAuth(context, 'password');
-    let r = await apiFetch(page, '/api/owner-password',
-      { action: 'set', kind: 'lock', password: 'LockPass-111' });
+    let r = await apiFetch(page, '/api/lock-password',
+      { action: 'set', password: 'LockPass-111' });
     expect(r.status).toBe(200);
     expect(r.json.ok).toBe(true);
     const rec1 = await kv.get('lock-pw', 'json');
@@ -80,34 +80,32 @@ test.describe('credential APIs 真请求 e2e', () => {
 
     // change（epoch 已推进，重签票据）
     await mintBrowserAuth(context, 'password');
-    r = await apiFetch(page, '/api/owner-password',
-      { action: 'change', kind: 'lock', password: 'LockPass-222' });
+    r = await apiFetch(page, '/api/lock-password',
+      { action: 'change', password: 'LockPass-222' });
     expect(r.json.ok).toBe(true);
     const rec2 = await kv.get('lock-pw', 'json');
     expect(rec2.hash).not.toBe(rec1.hash);
 
     // 新密码能 verify 通过（证明存的是可用 hash）
-    r = await apiFetch(page, '/api/owner-password',
+    r = await apiFetch(page, '/api/lock-password',
       { action: 'verify', password: 'LockPass-222' });
     expect(r.json.ok).toBe(true);
 
     // remove：账号未配置时不能删最后一把锁屏凭证（A-2：403 last-key，密码还在）
     await mintBrowserAuth(context, 'password');
-    r = await apiFetch(page, '/api/owner-password',
-      { action: 'remove', kind: 'lock' });
+    r = await apiFetch(page, '/api/lock-password',
+      { action: 'remove' });
     expect(r.status).toBe(403);
     expect(r.json.error).toBe('last-key');
     expect((await kv.get('lock-pw', 'json')).hash).toBe(rec2.hash);
   });
 
-  test('账号密码 set/change（/api/account；迁移：仍存 owner-pw），kind=owner 已不可用', async ({ page, context }) => {
+  test('账号密码 set/change（/api/account；KV 仍存 owner-pw）', async ({ page, context }) => {
     const kv = t.kv;
     await mintBrowserAuth(context, 'root');
-    let r = await apiFetch(page, '/api/owner-password', { action: 'set', kind: 'owner', password: 'OwnerPass-222' });
-    expect(r.status).toBe(400);
     // 根凭证登录的账号会话：设置账号密码
     await mintBrowserAccount(context, 'root');
-    r = await apiFetch(page, '/api/account', { action: 'password', password: 'OwnerPass-222' });
+    let r = await apiFetch(page, '/api/account', { action: 'password-change', password: 'OwnerPass-222' });
     expect(r.json.ok).toBe(true);
     expect(r.json.changed).toBe(false);
     const rec1 = await kv.get('owner-pw', 'json');
@@ -116,7 +114,7 @@ test.describe('credential APIs 真请求 e2e', () => {
     // 首次配置推进了 session-epoch：重签 lock 会话；门票只有一张，重签锁屏门票后再签回账号门票
     await mintBrowserAuth(context, 'root');
     await mintBrowserAccount(context, 'root');
-    r = await apiFetch(page, '/api/account', { action: 'password', password: 'OwnerPass-333' });
+    r = await apiFetch(page, '/api/account', { action: 'password-change', password: 'OwnerPass-333' });
     expect(r.json.ok).toBe(true);
     expect(r.json.changed).toBe(true);
     const rec2 = await kv.get('owner-pw', 'json');
@@ -126,21 +124,21 @@ test.describe('credential APIs 真请求 e2e', () => {
     r = await apiFetch(page, '/api/account', { action: 'login-password', password: 'OwnerPass-333' });
     expect(r.json.ok).toBe(true);
     // 锁屏凭证的门：账号门票不能开锁屏的门（status valid=false）
-    r = await apiFetch(page, '/api/lock-door', { action: 'status' });
+    r = await apiFetch(page, '/api/lock-reauth', { action: 'status' });
     expect(r.json.ok).toBe(true);
     expect(r.json.valid).toBe(false);
   });
 
-  test('通行密钥 register，KV 中 class 正确（lock：门内 owner-passkey / owner：账号页 /api/account）', async ({ page, context }) => {
+  test('通行密钥 register，KV 中 class 正确（lock：门内 lock-passkey / owner：账号页 /api/account）', async ({ page, context }) => {
     const kv = t.kv;
     for (const pkClass of ['lock', 'owner']) {
       await mintBrowserAuth(context, 'password');
       if (pkClass === 'owner') await mintBrowserAccount(context, 'password');
-      const api = pkClass === 'owner' ? '/api/account' : '/api/owner-passkey';
+      const api = pkClass === 'owner' ? '/api/account' : '/api/lock-passkey';
       // 1）真请求拿 challenge
       const ch = await apiFetch(page, api, pkClass === 'owner'
-        ? { action: 'register-challenge' }
-        : { action: 'challenge', type: 'register', pkClass });
+        ? { action: 'passkey-register-challenge' }
+        : { action: 'challenge', type: 'register' });
       expect(ch.json.ok).toBe(true);
       expect(ch.json.cid).toBeTruthy();
       expect(ch.json.challenge).toBeTruthy();
@@ -148,7 +146,7 @@ test.describe('credential APIs 真请求 e2e', () => {
       // 2）Node 端合成 attestation（UV=1），真请求提交 register
       const credential = await t.makeAttestationCredential(ch.json.challenge, 'localhost', t.origin);
       const reg = await apiFetch(page, api,
-        { action: 'register', cid: ch.json.cid, credential, name: 'e2e-' + pkClass });
+        { action: pkClass === 'owner' ? 'passkey-register' : 'register', cid: ch.json.cid, credential, name: 'e2e-' + pkClass });
       expect(reg.json.ok).toBe(true);
       expect(reg.json.credId).toBeTruthy();
 
@@ -158,12 +156,13 @@ test.describe('credential APIs 真请求 e2e', () => {
       const stored = await kv.get('owner-passkey:' + String(reg.json.credId).slice(0, 12), 'json');
       expect(stored.class).toBe(pkClass);
     }
-    // 账号页只列账号类；锁屏门票不能列账号类（只在账号页管理）
-    const listAcc = await apiFetch(page, '/api/account', { action: 'list' });
+    // 账号页只列账号类；锁屏接口只列锁屏类（账号类只在账号页管理）
+    const listAcc = await apiFetch(page, '/api/account', { action: 'passkey-list' });
     expect(listAcc.json.ok, JSON.stringify(listAcc.json)).toBe(true);
     expect(listAcc.json.keys.map((k) => k.name)).toEqual(['e2e-owner']);
     await mintBrowserAuth(context, 'password');
-    const listDoor = await apiFetch(page, '/api/owner-passkey', { action: 'list', pkClass: 'owner' });
-    expect(listDoor.status).toBe(403);
+    const listDoor = await apiFetch(page, '/api/lock-passkey', { action: 'list' });
+    expect(listDoor.json.ok, JSON.stringify(listDoor.json)).toBe(true);
+    expect(listDoor.json.keys.map((k) => k.name)).toEqual(['e2e-lock']);
   });
 });

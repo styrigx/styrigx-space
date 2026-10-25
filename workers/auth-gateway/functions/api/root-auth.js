@@ -2,11 +2,11 @@
  * 认证入口修正：SGX_ROOT_KEY = 根凭证。
  *
  * 默认（锁屏凭证的门）：有效 lock 会话 + 根凭证 → 锁屏门票 sgx-door(door=lock, by=root)，
- * 3 分钟，SGX_LOCK_* 签名（_kernel/door.js）。锁屏未配置的引导模式（无会话）同样签这张票，
+ * 3 分钟，SGX_LOCK_* 签名（_kernel/tickets.js）。锁屏未配置的引导模式（无会话）同样签这张票，
  * 前端随后调 /api/root-session 换 by=root 的会话。
  *
  * 访客假入口：访客会话（sgx-verified role=visitor）直接写死返回 401 auth：
- * 不读 D1、KV、环境变量里的任何凭证，不做任何比对；不计入 rootlimit；
+ * 不读 D1、KV、环境变量里的任何凭证，不做任何比对；不计入根凭证限速；
  * 不写审计。状态码、响应体、响应头、固定最小延迟与真失败一致。
  * 缺 Origin 仍先 403。
  *
@@ -20,33 +20,32 @@
  *   签账号会话 sgx-account(by=root) + 账号门票 sgx-door(door=account, by=root)，3 分钟，
  *   前端随即进 账号 → 安全与隐私 重设账号密码 / 通行密钥。不签锁屏门票。
  *   限速、审计（path=account）、访客假入口、真/假路径判断与 lock 完全相同，唯一区别：
- *   purpose=account 不走引导模式（无有效 owner lock 会话一律走假入口）。缺 SGX_ACCOUNT_PRIVATE/PUBLIC → 503 config。
+ *   purpose=account 不走引导模式（无有效站长锁屏会话一律走假入口）。缺 SGX_ACCOUNT_PRIVATE/PUBLIC → 503 config。
  *
  * POST /api/root-auth { key, purpose? }
  * - 恒定时间比较 env.SGX_ROOT_KEY（防长度泄露）
- * - 限速：所有 root 路径共用一套（_kernel/rootlimit.js），仅真路径计数
+ * - 限速：所有 root 路径共用一套（_kernel/root-limit.js），仅真路径计数
  *   （单 IP 连错 5 次锁 15 分钟；全局每小时失败 20 次暂停 1 小时）
  * - 通过：签发锁屏门票 sgx-door(door=lock, by=root)
  * - 失败：401 auth（并计数）；超限：429
  * - 缺 SGX_ROOT_KEY → 500 config；缺 SGX_LOCK_PRIVATE/PUBLIC → 503 config
  *
- * 审计：真路径每次使用（成功/失败）在 KV 留一条记录（_kernel/rootlog.js）；
+ * 审计：真路径每次使用（成功/失败）在 KV 留一条记录（_kernel/root-audit.js）；
  * 假入口不写审计。写入失败则不签发（fail closed）。
  *
  * 只接受 POST；校验 Origin（缺失/解析失败 403）。
- * 旧 /api/owner-auth 不再可用。
  */
 import { ed25519Verify } from '../_kernel/crypto.js';
 import { checkRootCredential } from '../_kernel/root-check.js';
-import { ROLE_OWNER, ROLE_VISITOR } from '../_kernel/session.js';
-import { checkRootLimit, recordRootFail, getClientIp } from '../_kernel/rootlimit.js';
-import { writeRootAudit } from '../_kernel/rootlog.js';
+import { ROLE_OWNER, ROLE_VISITOR } from '../_kernel/lock-session.js';
+import { checkRootLimit, recordRootFail, getClientIp } from '../_kernel/root-limit.js';
+import { writeRootAudit } from '../_kernel/root-audit.js';
 import { isLockEffectivelyConfigured } from '../_kernel/layers.js';
 import { verifySessionDetailed } from '../_middleware.js';
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
 import { REALM_LOCK, REALM_ROOT, realmPrivateKey, realmPublicKey } from '../_kernel/realms.js';
-import { issueDoorCookie, DOOR_ACCOUNT, DOOR_LOCK } from '../_kernel/door.js';
-import { issueAccountCookie, accountKeysReady, loginOpts, ACCOUNT_BY_ROOT } from '../_kernel/account-session.js';
+import { issueDoorCookie, DOOR_ACCOUNT, DOOR_LOCK } from '../_kernel/tickets.js';
+import { issueAccountCookie, accountKeysReady, accountSessionOpts, ACCOUNT_BY_ROOT } from '../_kernel/account-session.js';
 
 /* 假入口与真失败的统一固定最小延迟（毫秒）：防时序区分。
    真失败路径的审计写入放在 padTo 之前，padTo 把总耗时对齐到此时长，
@@ -70,9 +69,8 @@ function decoyAuth() {
  * 轻量会话检查（不读 KV）：解析 sgx-verified cookie、验 Ed25519 签名、检查 exp 与 role。
  * 只读 SGX_LOCK_PUBLIC（公钥，非凭证）。
  * - role=visitor：仅用于识别访客假入口
- * - role=owner：仅用于决定走真路径还是假入口（另要求 by=root|owner）；
+ * - 站长角色：仅用于决定走真路径还是假入口（另要求 by 合法）；
  *   真路径内再做完整校验（含 KV epoch）
- * 原 lightVisitorSession / lightOwnerSession 两份逐行相同的代码合并（行为不变）。
  * @param {any} request
  * @param {any} env
  * @param {string} wantRole ROLE_VISITOR 或 ROLE_OWNER
@@ -146,12 +144,12 @@ async function handlePost(context) {
   }
 
   /* 真路径还是无会话假入口：
-     - 有疑似有效 owner 会话 → 真路径
+     - 有疑似有效站长会话 → 真路径
      - 无会话但 lock 层未配置 → 真路径（引导）
      - 无会话且 lock 已配置（或读取失败按已配置）→ 假入口 */
-  const looksOwner = await lightSession(request, env, ROLE_OWNER);
-  /* 重置登录（purpose=account）不走引导：必须先有 owner lock 会话 */
-  const realPath = looksOwner || (!lockCfg && !toAccount);
+  const looksAdmin = await lightSession(request, env, ROLE_OWNER);
+  /* 重置登录（purpose=account）不走引导：必须先有站长锁屏会话 */
+  const realPath = looksAdmin || (!lockCfg && !toAccount);
 
   if (!realPath) {
     /* ===== 无会话假入口：写死 401，与真失败逐字节相同 =====
@@ -162,7 +160,7 @@ async function handlePost(context) {
       try {
         const lim = await checkRootLimit(kv, ip);
         if (lim.limited) {
-          return Response.json({ ok: false, error: 'locked' }, { status: 429 });
+          return Response.json({ ok: false, error: 'cooldown' }, { status: 429 });
         }
       } catch (e) {
         return Response.json({ ok: false, error: 'server' }, { status: 503 });
@@ -224,7 +222,7 @@ async function handlePost(context) {
 
   /* 账号登录：签发 sgx-account(by=root)，不签锁屏门票、不签 lock 会话 */
   if (toAccount) {
-    const accErr = await issueAccountCookie(env, headers, ACCOUNT_BY_ROOT, await loginOpts(request, env, body));
+    const accErr = await issueAccountCookie(env, headers, ACCOUNT_BY_ROOT, await accountSessionOpts(request, env, body));
     if (accErr) {
       await writeRootAudit(kv, ip, false, { path: auditPath });
       return Response.json(accErr.body, { status: accErr.status });

@@ -17,17 +17,17 @@
  * KV（KV_LOCK_DOOR，都带过期时间，到期自动消失）：
  * - lock-temp:<id>          → { id, name, createdAt, expiresAt, h, link? }（h = 临时码哈希，作废时删索引用；
  *                             link = 分享短链自动签的钥匙（styrigx-share 经服务绑定 ShareIssuer 签，src/share-issuer.js）：
- *                             没有临时码、不占 TEMP_MAX、不在钥匙列表里，只能经短链换会话）
+ *                             没有临时码、不占 TEMPKEY_MAX、不在钥匙列表里，只能经短链换会话）
  * - lock-temp-code:<hash>   → id
  * - lock-temp-revoked:<id>  → '1'（作废标记，留到钥匙原本的到期时间；middleware 每个访客请求只查这一个键）
- * - lock-temp-fail:<ip>     → { count, lockedUntil }（连错 5 次锁 15 分钟）
+ * - lock-temp-fail:<ip>     → { count, lockedUntil }（连错 5 次冷却 15 分钟）
  * - lock-temp-global        → { count, windowStart, pausedUntil }（全站每小时错 30 次暂停 1 小时）
  * 名字只在站长侧保存和显示，访客那边永远拿不到。
  */
 import { ed25519Sign, ed25519Verify, b64urlEnc } from './crypto.js';
 import { REALM_LOCK, realmPrivateKey, realmPublicKey } from './realms.js';
 
-export const TEMP_PREFIX = 'lock-temp:';
+export const TEMPKEY_PREFIX = 'lock-temp:';
 const CODE_PREFIX = 'lock-temp-code:';
 const REVOKED_PREFIX = 'lock-temp-revoked:';
 const FAIL_PREFIX = 'lock-temp-fail:';
@@ -37,16 +37,16 @@ const GLOBAL_KEY = 'lock-temp-global';
 export const TK_COOKIE = 'sgx-tk';
 
 /** 同时有效的临时钥匙上限 */
-export const TEMP_MAX = 20;
+export const TEMPKEY_MAX = 20;
 /** 名字最长（字符） */
-export const TEMP_NAME_MAX = 24;
+export const TEMPKEY_NAME_MAX = 24;
 /** 一次访客会话最长 12 小时（钥匙剩余时间更短时取剩余时间），到点重新输入临时码 */
-export const TEMP_SESSION_MAX = 12 * 3600;
+export const TEMPKEY_SESSION_MAX = 12 * 3600;
 
 const HOUR = 3600 * 1000;
 const DAY = 24 * HOUR;
 /** 允许的有效期：1–24 小时任选，或 3 / 7 / 15 / 30 天 */
-export const TEMP_DAYS = Object.freeze([3, 7, 15, 30]);
+export const TEMPKEY_DAYS = Object.freeze([3, 7, 15, 30]);
 
 const IP_MAX_FAIL = 5;
 const IP_LOCK_MS = 15 * 60 * 1000;
@@ -65,18 +65,18 @@ export function durationMs(p) {
   const d = p && p.days;
   if (h !== undefined && h !== null && d !== undefined && d !== null) return 0;
   if (Number.isInteger(h) && h >= 1 && h <= 24) return h * HOUR;
-  if (Number.isInteger(d) && TEMP_DAYS.includes(d)) return d * DAY;
+  if (Number.isInteger(d) && TEMPKEY_DAYS.includes(d)) return d * DAY;
   return 0;
 }
 
 /**
- * 名字规则：去控制字符、去首尾空格、最多 TEMP_NAME_MAX 字；可以为空。
+ * 名字规则：去控制字符、去首尾空格、最多 TEMPKEY_NAME_MAX 字；可以为空。
  * @param {any} s
  * @returns {string|null} 超长返回 null
  */
 export function cleanName(s) {
   const v = String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f]/g, '').trim();
-  if ([...v].length > TEMP_NAME_MAX) return null;
+  if ([...v].length > TEMPKEY_NAME_MAX) return null;
   return v;
 }
 
@@ -122,7 +122,7 @@ function newId() {
 }
 
 /** @param {string} id */
-export function isTempId(id) {
+export function isTempkeyId(id) {
   return typeof id === 'string' && /^[A-Za-z0-9_-]{16}$/.test(id);
 }
 
@@ -136,12 +136,12 @@ function kvExp(expiresAt) {
  * @param {any} kv
  * @returns {Promise<Array<{id:string, name:string, createdAt:number, expiresAt:number}>>}
  */
-export async function listTemp(kv) {
+export async function listTempkeys(kv) {
   const out = [];
   let cursor;
   const now = Date.now();
   do {
-    const page = await kv.list({ prefix: TEMP_PREFIX, cursor: cursor });
+    const page = await kv.list({ prefix: TEMPKEY_PREFIX, cursor: cursor });
     for (const k of page.keys || []) {
       const v = await kv.get(k.name, 'json');
       if (v && v.id && v.expiresAt > now) {
@@ -158,28 +158,28 @@ export async function listTemp(kv) {
 
 /**
  * 签发一把临时钥匙。返回 { key, code }（code 已格式化，只此一次）。
- * 已满 TEMP_MAX（只数普通钥匙）→ 抛 Error('full')；KV 出错原样抛。
- * p.link：分享短链用的钥匙——不生成临时码（锁屏上输不进来），不占 TEMP_MAX（短链 Worker 自己有上限），返回 code ''。
+ * 已满 TEMPKEY_MAX（只数普通钥匙）→ 抛 Error('full')；KV 出错原样抛。
+ * p.link：分享短链用的钥匙——不生成临时码（锁屏上输不进来），不占 TEMPKEY_MAX（短链 Worker 自己有上限），返回 code ''。
  * @param {any} kv
  * @param {string} pepper
  * @param {{name:string, ms:number, link?:boolean}} p
  */
-export async function createTemp(kv, pepper, p) {
+export async function createTempkey(kv, pepper, p) {
   if (p.link) {
     const now0 = Date.now();
     const lk = { id: newId(), name: p.name || '', createdAt: now0, expiresAt: now0 + p.ms };
-    await kv.put(TEMP_PREFIX + lk.id, JSON.stringify(Object.assign({ link: true }, lk)), { expiration: kvExp(lk.expiresAt) });
+    await kv.put(TEMPKEY_PREFIX + lk.id, JSON.stringify(Object.assign({ link: true }, lk)), { expiration: kvExp(lk.expiresAt) });
     return { key: lk, code: '' };
   }
-  const live = (await listTemp(kv)).filter(function (k) { return !k.link; });
-  if (live.length >= TEMP_MAX) throw new Error('full');
+  const live = (await listTempkeys(kv)).filter(function (k) { return !k.link; });
+  if (live.length >= TEMPKEY_MAX) throw new Error('full');
   const code = newCode();
   const h = await hashCode(pepper, code);
   const now = Date.now();
   const key = { id: newId(), name: p.name || '', createdAt: now, expiresAt: now + p.ms };
   const exp = kvExp(key.expiresAt);
   await kv.put(CODE_PREFIX + h, key.id, { expiration: exp });
-  await kv.put(TEMP_PREFIX + key.id, JSON.stringify(Object.assign({ h: h }, key)), { expiration: exp });
+  await kv.put(TEMPKEY_PREFIX + key.id, JSON.stringify(Object.assign({ h: h }, key)), { expiration: exp });
   return { key: key, code: formatCode(code) };
 }
 
@@ -188,12 +188,12 @@ export async function createTemp(kv, pepper, p) {
  * @param {any} kv
  * @param {string} id
  */
-export async function revokeTemp(kv, id) {
-  const v = await kv.get(TEMP_PREFIX + id, 'json');
+export async function revokeTempkey(kv, id) {
+  const v = await kv.get(TEMPKEY_PREFIX + id, 'json');
   if (!v) return false;
   await kv.put(REVOKED_PREFIX + id, '1', { expiration: kvExp(v.expiresAt || Date.now()) });
   if (v.h) await kv.delete(CODE_PREFIX + v.h);
-  await kv.delete(TEMP_PREFIX + id);
+  await kv.delete(TEMPKEY_PREFIX + id);
   return true;
 }
 
@@ -207,7 +207,7 @@ export async function findByCode(kv, pepper, code) {
   const h = await hashCode(pepper, code);
   const id = await kv.get(CODE_PREFIX + h);
   if (!id) return null;
-  const v = await kv.get(TEMP_PREFIX + id, 'json');
+  const v = await kv.get(TEMPKEY_PREFIX + id, 'json');
   if (!v || v.h !== h || !(v.expiresAt > Date.now())) return null;
   return v;
 }
@@ -217,8 +217,8 @@ export async function findByCode(kv, pepper, code) {
  * @param {any} kv
  * @param {string} id
  */
-export async function tempRevoked(kv, id) {
-  if (!isTempId(id)) return true;
+export async function isTempkeyRevoked(kv, id) {
+  if (!isTempkeyId(id)) return true;
   return (await kv.get(REVOKED_PREFIX + id)) !== null;
 }
 
@@ -243,7 +243,7 @@ export async function parseTk(env, val) {
   const parts = val.split('.');
   if (parts.length !== 3) return null;
   const [id, expStr, sig] = parts;
-  if (!isTempId(id)) return null;
+  if (!isTempkeyId(id)) return null;
   const exp = parseInt(expStr, 10);
   if (!exp || exp < Date.now()) return null;
   const pub = realmPublicKey(env, REALM_LOCK);
@@ -279,8 +279,8 @@ export function readTkCookie(request) {
 
 /* ---------- 输错限速 ---------- */
 
-/** 是否被限速。KV 出错抛错。 @param {any} kv @param {string} ip */
-export async function tempLimited(kv, ip) {
+/** 是否在冷却中（本 IP 或全站暂停）。KV 出错抛错。 @param {any} kv @param {string} ip */
+export async function isTempkeyLimited(kv, ip) {
   const now = Date.now();
   const g = await kv.get(GLOBAL_KEY, 'json');
   if (g && g.pausedUntil > now) return true;
@@ -288,8 +288,8 @@ export async function tempLimited(kv, ip) {
   return !!(r && r.lockedUntil > now);
 }
 
-/** 记一次输错；返回这次是否刚被锁。KV 出错抛错。 @param {any} kv @param {string} ip */
-export async function recordTempFail(kv, ip) {
+/** 记一次输错；返回这次是否刚进入冷却。KV 出错抛错。 @param {any} kv @param {string} ip */
+export async function recordTempkeyFail(kv, ip) {
   const now = Date.now();
   let locked = false;
   const r = (await kv.get(FAIL_PREFIX + ip, 'json')) || { count: 0 };
@@ -316,6 +316,6 @@ export async function recordTempFail(kv, ip) {
 }
 
 /** 输对后清掉这个 IP 的计数（失败不影响） @param {any} kv @param {string} ip */
-export async function clearTempFail(kv, ip) {
+export async function clearTempkeyFail(kv, ip) {
   try { await kv.delete(FAIL_PREFIX + ip); } catch (e) {}
 }

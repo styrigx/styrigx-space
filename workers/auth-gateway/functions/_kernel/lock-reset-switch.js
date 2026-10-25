@@ -13,7 +13,7 @@
  * 只在重置锁屏路径、且根凭证正确后调用（其他请求一律不读开关）。
  */
 
-export const SWITCH_KV_KEY = 'recovery-switch';
+export const LOCK_RESET_SWITCH_KEY = 'recovery-switch';
 const SWITCH_WINDOW_MS = 24 * 3600 * 1000;
 
 /** @param {string} s */
@@ -30,12 +30,12 @@ async function sha256Hex(s) {
  *   reason: 'first-seen' | 'within-window' | 'not-set' | 'empty' |
  *           'used' | 'expired' | 'kv-error' | 'd1-error' | 'unavailable'
  */
-export async function checkRecoverySwitch(kv, db) {
+export async function checkLockResetSwitch(kv, db) {
   try {
     if (!kv || !db) return { valid: false, hash: null, reason: 'unavailable' };
     let val = null;
     try {
-      val = await kv.get(SWITCH_KV_KEY);
+      val = await kv.get(LOCK_RESET_SWITCH_KEY);
     } catch (e) {
       return { valid: false, hash: null, reason: 'kv-error' };
     }
@@ -89,12 +89,12 @@ export async function checkRecoverySwitch(kv, db) {
  * @param {any} db D1 binding
  * @returns {Promise<void>}
  */
-export async function touchRecoverySwitch(kv, db) {
+export async function touchLockResetSwitch(kv, db) {
   try {
     if (!kv || !db) return;
     let val = null;
     try {
-      val = await kv.get(SWITCH_KV_KEY);
+      val = await kv.get(LOCK_RESET_SWITCH_KEY);
     } catch (e) {
       return;
     }
@@ -121,7 +121,7 @@ export async function touchRecoverySwitch(kv, db) {
  * @param {string} hash
  * @returns {Promise<boolean>}
  */
-export async function claimSwitchUsed(db, hash) {
+export async function claimLockResetSwitch(db, hash) {
   try {
     if (!db || !hash) return false;
     const r = await db.prepare('UPDATE recovery_switch SET used = 1 WHERE hash = ? AND used = 0').bind(hash).run();

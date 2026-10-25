@@ -14,7 +14,7 @@
  * 钥匙 SGX_CHAT_API_KEY 和 CHAT_* 变量都只在 styrigx-chat（workers/chat/wrangler.toml），网关不碰。
  */
 import { verifySessionDetailed } from '../_middleware.js';
-import { ROLE_OWNER } from '../_kernel/session.js';
+import { ROLE_OWNER } from '../_kernel/lock-session.js';
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
 
 const NO_STORE = 'private, no-store';

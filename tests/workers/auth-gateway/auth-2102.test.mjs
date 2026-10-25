@@ -2,7 +2,7 @@
  * 2.10.2 鉴权修复测试（space）。
  *
  * 覆盖：
- * - 2：管理操作需 owner 会话 + stepup；/api/lock 清除 stepup 和 app cookie；
+ * - 2：管理操作需 owner 会话 + stepup；/api/lock-now 清除 stepup 和 app cookie；
  *     锁定后调用管理接口必须拒绝
  * - 3：删应用密钥先推 app-epoch 再删；推失败 503 且密钥仍在
  * - 4：删锁屏密钥先推 session-epoch 再删；失败 503（fail closed）
@@ -92,7 +92,7 @@ function baseEnv(kv, overrides = {}) {
 
 /* 签一个有效的 owner 会话 cookie（role.epoch.exp.sig） */
 async function makeSessionCookie(env, role = 'owner') {
-  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
   const epoch = 0;
   return await signSessionCookie(env.SGX_LOCK_PRIVATE, epoch, role);
 }
@@ -135,7 +135,7 @@ test('5：SGX_SITE=blog 时主站 middleware 拒绝（500）', async () => {
 
 test('5b：SGX_SITE 缺失时主站 middleware 拒绝（500）', async () => {
   const { onRequest } = await import('../../../workers/auth-gateway/functions/_middleware.js');
-  const req = new Request('https://styrigx.com/api/session-check', { method: 'GET' });
+  const req = new Request('https://styrigx.com/api/lock-session-check', { method: 'GET' });
   const res = await onRequest({
     request: req,
     env: { SGX_ENV: 'production' },
@@ -150,7 +150,7 @@ test('5b：SGX_SITE 缺失时主站 middleware 拒绝（500）', async () => {
 test('6：verifySessionDetailed 无 KV → kv-error（不跳过）', async () => {
   const { verifySessionDetailed } = await import('../../../workers/auth-gateway/functions/_middleware.js');
   /* 造一个格式正确但无法验 epoch 的 cookie：用真密钥签名 */
-  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
   const val = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
   const req = new Request('https://styrigx.com/', {
     headers: { 'Cookie': 'sgx-verified=' + val },
@@ -163,11 +163,11 @@ test('6：verifySessionDetailed 无 KV → kv-error（不跳过）', async () =>
 /* ============ 7：密码限速 KV 出错 → 503 ============ */
 
 test('7：verify 时限速 KV 出错 → 503', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-password.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/lock-password.js');
   const kv = makeKV();
   kv._fail = true; /* 所有 KV 操作抛错 */
   const env = baseEnv(kv);
-  const req = postReq('https://styrigx.com/api/owner-password', { action: 'verify', password: 'x' });
+  const req = postReq('https://styrigx.com/api/lock-password', { action: 'verify', password: 'x' });
   const res = await onRequestPost({ request: req, env });
   /* isLocked 的 KV 出错 → 503（不再静默放行） */
   assert.equal(res.status, 503);
@@ -212,10 +212,10 @@ test('9b：root-auth Origin 解析失败 → 403', async () => {
   assert.equal(res.status, 403);
 });
 
-test('9c：owner-passkey 缺 Origin → 403', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/owner-passkey.js');
+test('9c：lock-passkey 缺 Origin → 403', async () => {
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/lock-passkey.js');
   const kv = makeKV();
-  const req = postReq('https://styrigx.com/api/owner-passkey', { action: 'list', pkClass: 'lock' }, { Origin: null });
+  const req = postReq('https://styrigx.com/api/lock-passkey', { action: 'list' }, { Origin: null });
   const res = await onRequestPost({ request: req, env: baseEnv(kv) });
   assert.equal(res.status, 403);
 });
@@ -231,7 +231,7 @@ test('1a：锁屏方法弹层按配置显示入口（PR3：根凭证 / 重置锁
   assert.ok(src.includes('function openResetInSheet'), '弹层原地切到重置登录');
   assert.ok(/bootstrap[\s\S]*?'\/api\/root-auth'/.test(src), '启动站：根凭证走 /api/root-auth');
   /* 配置以服务端为准 */
-  assert.ok(src.includes('/api/lock-config'), '应从 /api/lock-config 读取配置');
+  assert.ok(src.includes('/api/lock-entry'), '应从 /api/lock-entry 读取配置');
   /* 其他选项必须存在 */
   assert.ok(src.includes('sgx-mopt-visitor'), '应有访客进入');
   assert.ok(src.includes('sgx-mopt-pk'), '应有通行密钥');

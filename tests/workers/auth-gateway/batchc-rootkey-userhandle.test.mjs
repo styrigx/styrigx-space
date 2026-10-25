@@ -148,28 +148,28 @@ test('B2：root-auth 空串失败（去空白后为空一律拒绝）', async ()
 });
 
 test('B2：lockreset verify 带换行通过', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/lockreset.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/lock-reset.js');
   const kv = makeKV();
-  /* 标记 owner 层已配置：根凭证正确后走 needOwner 分支（不是 401 auth） */
+  /* 标记 owner 层已配置：根凭证正确后走 needAccount 分支（不是 401 auth） */
   await kv.put('layer:owner', '1');
-  const req = postReq('https://styrigx.com/api/lockreset', { action: 'verify', rootKey: 'test-root-key-\nabc123' }, { 'CF-Connecting-IP': '10.0.0.3' });
+  const req = postReq('https://styrigx.com/api/lock-reset', { action: 'verify', rootKey: 'test-root-key-\nabc123' }, { 'CF-Connecting-IP': '10.0.0.3' });
   const res = await onRequestPost({ request: req, env: authEnv(kv) });
-  /* 根凭证正确 → 进入开关/站长凭证流程（needOwner），不是 401 auth */
+  /* 根凭证正确 → 进入开关/站长凭证流程（needAccount），不是 401 auth */
   const j = await res.json();
   assert.notEqual(j.error, 'auth', '带换行的根凭证不应报 auth 失败');
-  assert.equal(j.needOwner, true, '应进入站长凭证步骤');
+  assert.equal(j.needAccount, true, '应进入站长凭证步骤');
 });
 
 /* 账号体系：账号通行密钥（class=owner）的注册 challenge 改走 /api/account（需账号会话 + 账号门票） */
 async function accountRegisterChallenge(kv, env) {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/account.js');
   const { signAccountTicket } = await import('../../../workers/auth-gateway/functions/_kernel/account-session.js');
-  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
   const sess = await signSessionCookie(LOCK_PRIV, 0, 'owner', 'owner');
   const acc = await signAccountTicket(ACCT_PRIV, 'root', 0, Date.now());
-  const { signDoorTicket } = await import('../../../workers/auth-gateway/functions/_kernel/door.js');
+  const { signDoorTicket } = await import('../../../workers/auth-gateway/functions/_kernel/tickets.js');
   const door = await signDoorTicket(ACCT_PRIV, 'account', 'root', 0); /* 注册账号通行密钥要账号门票 */
-  const req = postReq('https://styrigx.com/api/account', { action: 'register-challenge' }, { 'Cookie': 'sgx-verified=' + sess + '; sgx-account=' + acc + '; sgx-door=' + door });
+  const req = postReq('https://styrigx.com/api/account', { action: 'passkey-register-challenge' }, { 'Cookie': 'sgx-verified=' + sess + '; sgx-account=' + acc + '; sgx-door=' + door });
   const res = await onRequestPost({ request: req, env });
   return await res.json();
 }

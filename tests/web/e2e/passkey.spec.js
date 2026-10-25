@@ -129,7 +129,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
 
       // 取两把的 credId（从列表 data 属性或通过 API）
       const token = await page.evaluate(() => sessionStorage.getItem('sgx-lockmgr-token'));
-      const list1 = await (await request.post(BASE + '/api/owner-passkey', {
+      const list1 = await (await request.post(BASE + '/api/lock-passkey', {
         data: { action: 'list', pkClass: 'lock', token },
       })).json();
       expect(list1.ok).toBe(true);
@@ -137,32 +137,32 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       const [id1, id2] = list1.keys.map(k => k.credId);
 
       // 删掉第一把
-      let r = await request.post(BASE + '/api/owner-passkey', {
+      let r = await request.post(BASE + '/api/lock-passkey', {
         data: { action: 'delete', token, credId: id1 },
       });
       expect(r.status()).toBe(200);
 
       // 用删掉的 key 解锁应 403（unknown-key）
-      const chal = await (await request.post(BASE + '/api/owner-passkey', {
+      const chal = await (await request.post(BASE + '/api/lock-passkey', {
         data: { action: 'challenge', type: 'auth' },
       })).json();
       expect(chal.ok).toBe(true);
 
       // 删光最后一把
-      r = await request.post(BASE + '/api/owner-passkey', {
+      r = await request.post(BASE + '/api/lock-passkey', {
         data: { action: 'delete', token, credId: id2 },
       });
       expect(r.status()).toBe(200);
 
       // KV 里不应再有 owner-passkeys（通过 list 返回空数组验证）
-      const list2 = await (await request.post(BASE + '/api/owner-passkey', {
+      const list2 = await (await request.post(BASE + '/api/lock-passkey', {
         data: { action: 'list', pkClass: 'lock', token },
       })).json();
       expect(list2.ok).toBe(true);
       expect(list2.keys.length).toBe(0);
 
       // 不带 token 的 delete 返回 403
-      r = await request.post(BASE + '/api/owner-passkey', {
+      r = await request.post(BASE + '/api/lock-passkey', {
         data: { action: 'delete', credId: id1 },
       });
       expect(r.status()).toBe(403);
@@ -178,38 +178,38 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       const token = await page.evaluate(() => sessionStorage.getItem('sgx-lockmgr-token'));
 
       // 设置密码
-      let r = await request.post(BASE + '/api/owner-password', {
+      let r = await request.post(BASE + '/api/lock-password', {
         data: { action: 'set', token, password: 'test-pass-12345' },
       });
       // 可能已设置过，尝试 change
       if ((await r.json()).error === 'exists') {
-        r = await request.post(BASE + '/api/owner-password', {
+        r = await request.post(BASE + '/api/lock-password', {
           data: { action: 'change', token, password: 'test-pass-12345' },
         });
       }
       expect((await r.json()).ok).toBe(true);
 
       // 用密码解锁应成功
-      r = await request.post(BASE + '/api/owner-password', {
+      r = await request.post(BASE + '/api/lock-password', {
         data: { action: 'verify', password: 'test-pass-12345' },
       });
       expect((await r.json()).ok).toBe(true);
 
       // 删除密码
-      r = await request.post(BASE + '/api/owner-password', {
+      r = await request.post(BASE + '/api/lock-password', {
         data: { action: 'remove', token },
       });
       expect((await r.json()).ok).toBe(true);
 
       // 旧密码解锁应失败
-      r = await request.post(BASE + '/api/owner-password', {
+      r = await request.post(BASE + '/api/lock-password', {
         data: { action: 'verify', password: 'test-pass-12345' },
       });
       const j = await r.json();
       expect(j.ok).toBe(false);
 
       // 不带 token 的 remove 返回 403
-      r = await request.post(BASE + '/api/owner-password', {
+      r = await request.post(BASE + '/api/lock-password', {
         data: { action: 'remove' },
       });
       expect(r.status()).toBe(403);
@@ -263,7 +263,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
 
     const ORIGIN = new URL(BASE).origin;
     async function lockresetVerify(rootKey) {
-      return request.post(BASE + '/api/lockreset', {
+      return request.post(BASE + '/api/lock-reset', {
         headers: { Origin: ORIGIN },
         data: { action: 'verify', rootKey },
       });
@@ -278,7 +278,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       expect(r.status()).toBe(200);
       const body1 = await r.json();
       expect(body1.ok).toBe(true);
-      expect(body1.needOwner).toBeFalsy();
+      expect(body1.needAccount).toBeFalsy();
       expect(r.headers()['set-cookie'] || '').toContain('sgx-door=');
 
       /* 3. 同一开关值再次使用 → 已标记已用，单次作废，走站长凭证路径 */
@@ -286,7 +286,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       expect(r.status()).toBe(200);
       const body2 = await r.json();
       expect(body2.ok).toBe(true);
-      expect(body2.needOwner).toBe(true);
+      expect(body2.needAccount).toBe(true);
       expect(r.headers()['set-cookie'] || '').not.toContain('sgx-door=');
     } finally {
       /* 清理：删掉测试写入的开关值（D1 记录按 hash 隔离，无影响） */
@@ -323,7 +323,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
     try {
       /* 1. 写入开关 → 根凭证 verify → 拿到 lockreset 票据（sgx-door cookie） */
       await kvPut('recovery-switch', switchValue);
-      const vr = await request.post(BASE + '/api/lockreset', {
+      const vr = await request.post(BASE + '/api/lock-reset', {
         headers: { Origin: ORIGIN },
         data: { action: 'verify', rootKey: OWNER_KEY },
       });
@@ -333,7 +333,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       expect(setCookie).toContain('sgx-door=');
       const doorVal = setCookie.split('sgx-door=')[1].split(';')[0];
 
-      /* 2. 带票据访问锁屏管理页 → data-sgx-session="lockreset"，无锁屏覆盖 */
+      /* 2. 带票据访问锁屏管理页 → data-sgx-lock-session="lock-reset"，无锁屏覆盖 */
       const ctx = page.context();
       await ctx.addCookies([{
         name: 'sgx-door',
@@ -345,8 +345,8 @@ test.describe('passkey e2e (virtual authenticator)', () => {
         sameSite: 'Strict',
       }]);
       await page.goto(BASE + '/settings/security/lock/');
-      const state = await page.evaluate(() => document.documentElement.dataset.sgxSession);
-      expect(state).toBe('lockreset');
+      const state = await page.evaluate(() => document.documentElement.dataset.sgxLockSession);
+      expect(state).toBe('lock-reset');
       /* 锁屏不应盖住页面：锁屏容器不可见 */
       const lockVisible = await page.evaluate(() => {
         const el = document.getElementById('sgx-lock');
@@ -356,9 +356,9 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       });
       expect(lockVisible).toBe(false);
 
-      /* 3. 带票据访问主页 → 仍被锁（data-sgx-session="locked"） */
+      /* 3. 带票据访问主页 → 仍被锁（data-sgx-lock-session="locked"） */
       await page.goto(BASE + '/');
-      const homeState = await page.evaluate(() => document.documentElement.dataset.sgxSession);
+      const homeState = await page.evaluate(() => document.documentElement.dataset.sgxLockSession);
       expect(homeState).toBe('locked');
     } finally {
       await kvDel('recovery-switch');
@@ -399,15 +399,15 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       const token = await page.evaluate(() => sessionStorage.getItem('sgx-lockmgr-token'));
 
       // 设置密码并验证，拿到 cookie
-      let r = await request.post(BASE + '/api/owner-password', {
+      let r = await request.post(BASE + '/api/lock-password', {
         data: { action: 'set', token, password: 'test-pass-12345' },
       });
       if ((await r.json()).error === 'exists') {
-        r = await request.post(BASE + '/api/owner-password', {
+        r = await request.post(BASE + '/api/lock-password', {
           data: { action: 'change', token, password: 'test-pass-12345' },
         });
       }
-      r = await request.post(BASE + '/api/owner-password', {
+      r = await request.post(BASE + '/api/lock-password', {
         data: { action: 'verify', password: 'test-pass-12345' },
       });
       expect((await r.json()).ok).toBe(true);
@@ -416,20 +416,20 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       expect(verified).toBeTruthy();
 
       // 改密码
-      r = await request.post(BASE + '/api/owner-password', {
+      r = await request.post(BASE + '/api/lock-password', {
         data: { action: 'change', token, password: 'new-pass-67890' },
       });
       expect((await r.json()).ok).toBe(true);
 
-      // 旧 cookie 应失效（通过 lock-status 或再次 verify 验证）
+      // 旧 cookie 应失效（通过 lock-credentials 或再次 verify 验证）
       // 这里验证：用旧密码 verify 应失败
-      r = await request.post(BASE + '/api/owner-password', {
+      r = await request.post(BASE + '/api/lock-password', {
         data: { action: 'verify', password: 'test-pass-12345' },
       });
       expect((await r.json()).ok).toBe(false);
 
       // 清理：删掉测试密码
-      await request.post(BASE + '/api/owner-password', {
+      await request.post(BASE + '/api/lock-password', {
         data: { action: 'remove', token },
       });
     } finally {
@@ -446,7 +446,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       await expect(page.locator('.lockmgr-pkitem').first()).toBeVisible({ timeout: 20000 });
 
       const token = await page.evaluate(() => sessionStorage.getItem('sgx-lockmgr-token'));
-      const list1 = await (await request.post(BASE + '/api/owner-passkey', {
+      const list1 = await (await request.post(BASE + '/api/lock-passkey', {
         data: { action: 'list', pkClass: 'lock', token },
       })).json();
       expect(list1.keys.length).toBeGreaterThan(0);
@@ -454,7 +454,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
 
       // 立刻 rename（不等待 KV list 同步）
       const newName = 'E2E 立刻改名 ' + Date.now();
-      const r = await request.post(BASE + '/api/owner-passkey', {
+      const r = await request.post(BASE + '/api/lock-passkey', {
         data: { action: 'rename', token, credId, name: newName },
       });
       const j = await r.json();
@@ -462,7 +462,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       expect(j.ok).toBe(true);
 
       // list 里名字已更新
-      const list2 = await (await request.post(BASE + '/api/owner-passkey', {
+      const list2 = await (await request.post(BASE + '/api/lock-passkey', {
         data: { action: 'list', pkClass: 'lock', token },
       })).json();
       const item = list2.keys.find(k => k.credId === credId);
@@ -473,13 +473,13 @@ test.describe('passkey e2e (virtual authenticator)', () => {
     }
   });
 
-  test('注册后 lock-status.passkey 立即为 true，删光后为 false', async ({ page, request }) => {
-    /* 回归（原 owner-status，账号体系后改读 lock-status）：读旧数组，注册后仍为 false；现读索引 key */
+  test('注册后 lock-credentials.passkey 立即为 true，删光后为 false', async ({ page, request }) => {
+    /* 回归（原 owner-status，账号体系后改读 lock-credentials）：读旧数组，注册后仍为 false；现读索引 key */
     const { cdp, authenticatorId } = await addVirtualAuth(page);
     try {
       await gateWithKey(page);
       // 注册前：应为 false
-      let st = await (await request.get(BASE + '/api/lock-status')).json();
+      let st = await (await request.get(BASE + '/api/lock-credentials')).json();
       expect(st.ok).toBe(true);
       const before = st.passkey;
 
@@ -487,22 +487,22 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       await expect(page.locator('.lockmgr-pkitem').first()).toBeVisible({ timeout: 20000 });
 
       // 注册后：立即为 true（不等待 KV list 同步）
-      st = await (await request.get(BASE + '/api/lock-status')).json();
+      st = await (await request.get(BASE + '/api/lock-credentials')).json();
       expect(st.passkey).toBe(true);
 
       // 删光
       const token = await page.evaluate(() => sessionStorage.getItem('sgx-lockmgr-token'));
-      const list = await (await request.post(BASE + '/api/owner-passkey', {
+      const list = await (await request.post(BASE + '/api/lock-passkey', {
         data: { action: 'list', pkClass: 'lock', token },
       })).json();
       for (const k of list.keys) {
-        await request.post(BASE + '/api/owner-passkey', {
+        await request.post(BASE + '/api/lock-passkey', {
           data: { action: 'delete', token, credId: k.credId },
         });
       }
 
       // 删光后：为 false
-      st = await (await request.get(BASE + '/api/lock-status')).json();
+      st = await (await request.get(BASE + '/api/lock-credentials')).json();
       expect(st.passkey).toBe(false);
     } finally {
       await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
@@ -520,7 +520,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       // 先注册一把（会写索引）
       await page.click('#lockmgr-pkadd');
       await expect(page.locator('.lockmgr-pkitem').first()).toBeVisible({ timeout: 20000 });
-      const list1 = await (await request.post(BASE + '/api/owner-passkey', {
+      const list1 = await (await request.post(BASE + '/api/lock-passkey', {
         data: { action: 'list', pkClass: 'lock', token },
       })).json();
       const credId = list1.keys[0].credId;
@@ -530,7 +530,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       //  改为验证补建逻辑：删索引后调 challenge，应自动补建）
       // 注：此测试依赖服务端 ensureIndex，删索引需直接操作 KV，E2E 层用 API 间接验证：
       // 调 challenge 取 excludeCredentials，应包含 credId
-      const ch = await (await request.post(BASE + '/api/owner-passkey', {
+      const ch = await (await request.post(BASE + '/api/lock-passkey', {
         data: { action: 'challenge', type: 'register', token },
       })).json();
       expect(ch.ok).toBe(true);
@@ -538,7 +538,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       expect(excl).toContain(credId);
 
       // status 应为 true
-      const st = await (await request.get(BASE + '/api/lock-status')).json();
+      const st = await (await request.get(BASE + '/api/lock-credentials')).json();
       expect(st.passkey).toBe(true);
     } finally {
       await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
@@ -555,7 +555,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       await gateWithKey(page);
       const token = await page.evaluate(() => sessionStorage.getItem('sgx-lockmgr-token'));
 
-      const ch = await (await request.post(BASE + '/api/owner-passkey', {
+      const ch = await (await request.post(BASE + '/api/lock-passkey', {
         data: { action: 'challenge', type: 'register', token },
       })).json();
       expect(ch.ok).toBe(true);
@@ -615,7 +615,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       // 实际用启发式：authData 以 rpIdHash(32) + flags(1) + signCount(4) + aaguid(16) 开头
       // 在 attestationObject 里搜索：fmt="none" 时结构较固定，authData 通常在较前位置
       // 简化断言：直接发给服务端，看是否返回 uv-required
-      const r1 = await request.post(BASE + '/api/owner-passkey', {
+      const r1 = await request.post(BASE + '/api/lock-passkey', {
         data: {
           action: 'register', token, cid: ch.cid,
           credential: {
@@ -631,7 +631,7 @@ test.describe('passkey e2e (virtual authenticator)', () => {
       expect(j1.error).toBe('uv-required');
 
       // 确认 KV 没写
-      const list = await (await request.post(BASE + '/api/owner-passkey', {
+      const list = await (await request.post(BASE + '/api/lock-passkey', {
         data: { action: 'list', pkClass: 'lock', token },
       })).json();
       expect(list.keys.length).toBe(0);
@@ -676,11 +676,11 @@ test.describe('session security e2e (2.4.1)', () => {
 
   async function ensurePassword(request, page, password) {
     const token = await page.evaluate(() => sessionStorage.getItem('sgx-lockmgr-token'));
-    let r = await request.post(BASE + '/api/owner-password', {
+    let r = await request.post(BASE + '/api/lock-password', {
       data: { action: 'set', token, password },
     });
     if ((await r.json()).error === 'exists') {
-      r = await request.post(BASE + '/api/owner-password', {
+      r = await request.post(BASE + '/api/lock-password', {
         data: { action: 'change', token, password },
       });
     }
@@ -691,14 +691,14 @@ test.describe('session security e2e (2.4.1)', () => {
   function cookieEpoch(setCookie) {
     const pair = (setCookie || '').split(';')[0];
     const val = pair.split('=').slice(1).join('=');
-    return parseInt(val.split('.')[0], 10);
+    return parseInt(val.split('.')[2], 10); /* by.role.epoch.… */
   }
 
   test('密码解锁 Set-Cookie 带 Domain=.styrigx.com', async ({ page, request }) => {
     await gateWithKey(page);
     const token = await ensurePassword(request, page, 'e2e-domain-pw-1');
     try {
-      const r = await request.post(BASE + '/api/owner-password', {
+      const r = await request.post(BASE + '/api/lock-password', {
         data: { action: 'verify', password: 'e2e-domain-pw-1' },
       });
       expect((await r.json()).ok).toBe(true);
@@ -714,7 +714,7 @@ test.describe('session security e2e (2.4.1)', () => {
       /* cookie 值是 epoch.exp.sig 三段式 */
       expect(sc.split(';')[0].split('=')[1].split('.').length).toBe(3);
     } finally {
-      await request.post(BASE + '/api/owner-password', {
+      await request.post(BASE + '/api/lock-password', {
         data: { action: 'remove', token },
       });
     }
@@ -738,7 +738,7 @@ test.describe('session security e2e (2.4.1)', () => {
       /* 拦截 auth 接口的原始响应头读 Set-Cookie（浏览器不会存储
          Domain=.styrigx.com 的 cookie：preview 域名不匹配，读原始头才可靠） */
       const authRespPromise = page.waitForResponse((r) => {
-        if (!r.url().includes('/api/owner-passkey') || r.request().method() !== 'POST') return false;
+        if (!r.url().includes('/api/lock-passkey') || r.request().method() !== 'POST') return false;
         try {
           return JSON.parse(r.request().postData() || '{}').action === 'auth';
         } catch (e) {
@@ -775,14 +775,13 @@ test.describe('session security e2e (2.4.1)', () => {
     await gateWithKey(page);
     const token = await ensurePassword(request, page, 'e2e-lockout-pw-1');
     try {
-      const e0 = (await (await request.get(BASE + '/api/session-epoch')).json()).epoch;
-
-      let r = await request.post(BASE + '/api/owner-password', {
+      /* 纪元接口已删除：当前纪元从刚签的会话 cookie 里读 */
+      let r = await request.post(BASE + '/api/lock-password', {
         data: { action: 'verify', password: 'e2e-lockout-pw-1' },
       });
       expect((await r.json()).ok).toBe(true);
       const epoch1 = cookieEpoch(r.headers()['set-cookie']);
-      expect(epoch1).toBe(e0);
+      const e0 = epoch1;
 
       /* 立即锁定并退出所有设备（2.8.0：独立 L2 API，只认 owner 会话） */
       r = await request.post(BASE + '/api/lock-all-devices', { data: {} });
@@ -793,12 +792,9 @@ test.describe('session security e2e (2.4.1)', () => {
       expect(clearSc).toContain('Domain=.styrigx.com');
       expect(clearSc).toContain('Max-Age=0');
 
-      const e1 = (await (await request.get(BASE + '/api/session-epoch')).json()).epoch;
-      expect(e1).toBe(e0 + 1);
-
       /* 再次解锁拿到新 cookie：epoch 已是 e0+1，旧 cookie 的 epoch 不再有效
          （middleware 侧 ep < cur 拒绝，已由 tests/kernel/session-security.test.mjs 覆盖） */
-      r = await request.post(BASE + '/api/owner-password', {
+      r = await request.post(BASE + '/api/lock-password', {
         data: { action: 'verify', password: 'e2e-lockout-pw-1' },
       });
       expect((await r.json()).ok).toBe(true);
@@ -806,7 +802,7 @@ test.describe('session security e2e (2.4.1)', () => {
       expect(epoch2).toBe(e0 + 1);
       expect(epoch2).not.toBe(epoch1);
     } finally {
-      await request.post(BASE + '/api/owner-password', {
+      await request.post(BASE + '/api/lock-password', {
         data: { action: 'remove', token },
       });
     }

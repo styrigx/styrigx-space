@@ -1,7 +1,7 @@
 /**
  * @fileoverview 全站锁屏（2.4.0 H；2026-10-23 访客进入改临时 LockKey，去掉 Turnstile）。
  * 分层规范 L4：lock.js 只负责两件事——
- * 1. 按 L1（middleware 注入的 <html data-sgx-session>）画锁屏，不自己判断会话；
+ * 1. 按 L1（middleware 注入的 <html data-sgx-lock-session>）画锁屏，不自己判断会话；
  * 2. 把密码或通行密钥提交给 L2（functions/api/*）。
  * 唯一状态源是服务端签发的 sgx-verified 会话；禁止用 sessionStorage、
  * localStorage、前端内存或标签页状态另做判断。
@@ -12,7 +12,7 @@
  *   拖动条、标题字号位置、按钮样式一致）；弹层背景完全不透明；打开时底层
  *   名字与入口设 visibility:hidden + inert；容器无 outline，:focus-visible 只在
  *   内部可交互元素上用本站焦点色。
- * - 临时钥匙：主人在账号页签发（12 位，XXXX-XXXX-XXXX），访客在这里输入 → POST /api/lock-temp-unlock
+ * - 临时钥匙：主人在账号页签发（12 位，XXXX-XXXX-XXXX），访客在这里输入 → POST /api/lock-tempkey-unlock
  *   → 访客会话（没有账号、设置里的锁屏凭证等主人权限）。
  */
 import { on } from '../lib/events.js';
@@ -33,7 +33,7 @@ const UNLOCK =
 
 /**
  * 是否本地开发（无 Functions 后端）。
- * 测试可用 ?test-no-local-bypass=1 强制走线上逻辑（调 session-check）。
+ * 测试可用 ?test-no-local-bypass=1 强制走线上逻辑（调 lock-session-check）。
  */
 function isLocalDev() {
   try {
@@ -44,10 +44,10 @@ function isLocalDev() {
 
 /* ============================================================
    锁屏状态机（2026-10-21 重写判定部分；界面不变）。唯一状态源：服务端。
-   - 页面状态 pageState()：网关注入的 <html data-sgx-session>：
-       valid / locked / lockreset；没有这个属性 = unknown（页面没经过网关，例如路由漏了这种 URL，
+   - 页面状态 pageState()：网关注入的 <html data-sgx-lock-session>：
+       valid / locked / lock-reset；没有这个属性 = unknown（页面没经过网关，例如路由漏了这种 URL，
        或缓存/测试环境）。unknown 一律先画锁屏（fail closed），并立刻问服务端。
-   - 服务端回答 askServer()：GET /api/session-check[?return=]：{ok, role, next, upgrade}。
+   - 服务端回答 askServer()：GET /api/lock-session-check[?return=]：{ok, role, next, upgrade}。
      next 是服务端校验过的去处（与首页 302 同一个 resolveReturn）；前端不做白名单，只照着跳。
    - 解锁成功 / 切回标签页 / bfcache 恢复 / 首帧对账，都走同一个 proceed(answer)：
        upgrade      → 去首页 ?return=（服务端给主人验证层，不出锁屏）
@@ -60,10 +60,10 @@ function isLocalDev() {
    - 本地 sessionStorage 只记「刚跳过哪里」防死循环，从不记解锁状态。
    ============================================================ */
 
-/** @returns {'valid'|'locked'|'lockreset'|'unknown'} */
+/** @returns {'valid'|'locked'|'lock-reset'|'unknown'} */
 function pageState() {
-  const s = document.documentElement.dataset.sgxSession;
-  return s === 'valid' || s === 'locked' || s === 'lockreset' ? s : 'unknown';
+  const s = document.documentElement.dataset.sgxLockSession;
+  return s === 'valid' || s === 'locked' || s === 'lock-reset' ? s : 'unknown';
 }
 
 /** @param {string} k */
@@ -81,7 +81,7 @@ function qp(k) {
  */
 function askServer() {
   const ret = qp('return');
-  const url = '/api/session-check' + (ret ? '?return=' + encodeURIComponent(ret) : '');
+  const url = '/api/lock-session-check' + (ret ? '?return=' + encodeURIComponent(ret) : '');
   return fetch(url, { credentials: 'same-origin', cache: 'no-store' })
     .then(function (r) {
       if (!r.ok) return { ok: false };
@@ -120,7 +120,7 @@ function showSubsiteFailure() {
     el.style.cssText = 'position:fixed;bottom:24px;left:16px;right:16px;z-index:10001;padding:16px;text-align:center;';
     el.innerHTML =
       '<p style="margin:0 0 12px;font-size:15px;">' + msg + '</p>' +
-      '<button type="button" class="sgx-door-btn-primary" id="sgx-subsite-home">' + homeText + '</button>';
+      '<button type="button" class="sgx-credential-btn-primary" id="sgx-subsite-home">' + homeText + '</button>';
     document.body.appendChild(el);
     const btn = document.getElementById('sgx-subsite-home');
     if (btn) {
@@ -212,7 +212,7 @@ function checkSessionForAutoLock() {
   if (now - lastLockCheck < 5000) return;
   lastLockCheck = now;
   if (document.getElementById('sgx-lock')) return;
-  fetch('/api/session-check', { credentials: 'same-origin', cache: 'no-store' })
+  fetch('/api/lock-session-check', { credentials: 'same-origin', cache: 'no-store' })
     .then(function (r) {
       if (r.status === 401) sgxReload();
     })
@@ -244,7 +244,7 @@ function bindAutoLock() {
 export function initLock() {
   /* Hark：CI 测试构建禁用锁屏（构建期 define，线上无绕过） */
   if (SGX_TEST_NO_LOCK) return;
-  if (!SGX_FEAT_OWNER_GATE) return;
+  if (!SGX_FEAT_LOCK_GATE) return;
   if (isLocalDev()) {
     /* 本地开发没有后端，直接显示锁屏 */
     showLockScreen();
@@ -254,7 +254,7 @@ export function initLock() {
   try {
     window.dispatchEvent(new CustomEvent('sgx:session', { detail: { ok: state === 'valid' } }));
   } catch (e) {}
-  if (state === 'lockreset') return; /* 重置锁屏门票页：落地页需可操作 */
+  if (state === 'lock-reset') return; /* 重置锁屏门票页：落地页需可操作 */
   if (state === 'valid') {
     bindAutoLock();
     /* 子站踢回（带 why）但主站会话有效：问服务端 next，回子站（20 秒窗口防死循环）。
@@ -322,7 +322,7 @@ function showLockScreen() {
     '</button>' +
     '<p class="sgx-lock-welcome">' + (en ? 'Welcome back' : '欢迎回来') + '</p>' +
     '<p class="sgx-lock-sub">' + (en ? 'Good to see you again' : '很高兴再次见到你') + '</p>' +
-    '<button type="button" class="sgx-door-btn sgx-door-btn-primary sgx-lock-go" id="sgx-lock-go" aria-haspopup="dialog">' +
+    '<button type="button" class="sgx-credential-btn sgx-credential-btn-primary sgx-lock-go" id="sgx-lock-go" aria-haspopup="dialog">' +
     UNLOCK + '<span>' + (en ? 'Unlock' : '解锁') + '</span></button>' +
     '</div>' +
     '</div>';
@@ -508,7 +508,7 @@ function showLockScreen() {
    * 2.8.0 锁屏重设计：点击头像后弹出的解锁方式选择底部弹层（lib/auth-sheet.js createMethodSheet，账号登录页同一个组件）。
    * One UI 风格：底部弹层（宽屏居中卡片），各带图标和一行说明。
    *
-   * 补充定稿七.1：入口按锁屏凭证配置显示（配置以服务端 /api/lock-config 为准，
+   * 补充定稿七.1：入口按锁屏凭证配置显示（配置以服务端 /api/lock-entry 为准，
    * 读取失败按「已配置」处理）。「访客进入」始终在第一位，最下面一行小字「无法登录？」（PR3）：
    * - 两者都有 → 访客进入 / 通行密钥 / 密码 / 无法登录？
    * - 仅通行密钥 / 仅密码 → 访客进入 / 该项 / 无法登录？
@@ -522,15 +522,15 @@ function showLockScreen() {
   function openMethodSheet() {
     if (methodSheet || methodSheetLoading) return;
     methodSheetLoading = true;
-    fetch('/api/lock-config', { method: 'GET', credentials: 'same-origin' })
+    fetch('/api/lock-entry', { method: 'GET', credentials: 'same-origin' })
       .then(function (r) { return r.json(); })
       .then(function (j) {
         methodSheetLoading = false;
         if (methodSheet) return;
-        var cfg = { passkey: true, password: true, ownerConfigured: true };
+        var cfg = { passkey: true, password: true, accountConfigured: true };
         if (j && j.ok) {
-          /* A-2：透传 resetOnly / ownerConfigured（不透传则 resetOnly 恒 false，锁屏清空态仍显示通行密钥/密码入口） */
-          cfg = { passkey: !!j.passkey, password: !!j.password, resetOnly: !!j.resetOnly, ownerConfigured: j.ownerConfigured !== false };
+          /* A-2：透传 resetOnly / accountConfigured（不透传则 resetOnly 恒 false，锁屏清空态仍显示通行密钥/密码入口） */
+          cfg = { passkey: !!j.passkey, password: !!j.password, resetOnly: !!j.resetOnly, accountConfigured: j.accountConfigured !== false };
         }
         buildMethodSheet(cfg);
       })
@@ -538,12 +538,12 @@ function showLockScreen() {
         methodSheetLoading = false;
         if (methodSheet) return;
         /* 读取失败按已配置处理：不暴露根凭证入口 */
-        buildMethodSheet({ passkey: true, password: true, ownerConfigured: true });
+        buildMethodSheet({ passkey: true, password: true, accountConfigured: true });
       });
   }
   /**
    * 按锁屏凭证配置构建方法弹层。
-   * @param {{passkey:boolean, password:boolean, resetOnly?:boolean, ownerConfigured?:boolean}} cfg
+   * @param {{passkey:boolean, password:boolean, resetOnly?:boolean, accountConfigured?:boolean}} cfg
    */
   function buildMethodSheet(cfg) {
     const hasPk = !!(window.PublicKeyCredential);
@@ -612,7 +612,7 @@ function showLockScreen() {
   /* ---------- 临时钥匙态（访客进入；与密码态同一弹层） ---------- */
   let tempLockedUntil = 0;
   function openTemp() {
-    if (isLocal || !SGX_FEAT_OWNER_GATE) {
+    if (isLocal || !SGX_FEAT_LOCK_GATE) {
       unlock();
       return;
     }
@@ -671,7 +671,7 @@ function showLockScreen() {
       showError(en ? 'Enter the temporary key' : '请输入临时钥匙', input);
       return;
     }
-    fetch('/api/lock-temp-unlock', {
+    fetch('/api/lock-tempkey-unlock', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code: code }),
@@ -693,7 +693,7 @@ function showLockScreen() {
         if (j.ok) {
           closeDialog('success');
           unlock();
-        } else if (j.error === 'locked') {
+        } else if (j.error === 'cooldown') {
           tempLockedUntil = Date.now() + 15 * 60000;
           showError(en ? 'Too many attempts' : '尝试次数过多');
           tempCountdown();
@@ -768,7 +768,7 @@ function showLockScreen() {
       showError(en ? 'Enter password' : '请输入密码', input);
       return;
     }
-    fetch('/api/owner-password', {
+    fetch('/api/lock-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'verify', password: pw }),
@@ -793,7 +793,7 @@ function showLockScreen() {
         if (j.ok) {
           closeDialog('success');
           unlock();
-        } else if (j.error === 'locked') {
+        } else if (j.error === 'cooldown') {
           pwLockedUntil = Date.now() + 30000;
           showError(en ? 'Too many attempts' : '尝试次数过多');
           pwCountdown();
@@ -814,8 +814,8 @@ function showLockScreen() {
 
   /* ---------- 重置登录（PR3：方法弹层里的「无法登录？」原地切到 lib/reset-flow.js） ----------
      与账号页 /account/reset/ 同一个界面，提交不同：
-     - 锁屏凭证已设置（或读不到配置，按已设置处理）：根凭证 → POST /api/lockreset verify；
-       恢复开关有效直接拿到重置锁屏门票；否则服务端回 needOwner → 再验账号凭证（账号通行密钥 / 账号密码，
+     - 锁屏凭证已设置（或读不到配置，按已设置处理）：根凭证 → POST /api/lock-reset verify；
+       恢复开关有效直接拿到重置锁屏门票；否则服务端回 needAccount → 再验账号凭证（账号通行密钥 / 账号密码，
        与账号登录同一套验证行）→ 门票 → 去 /settings/security/lock/ 重设解锁方式。
      - 锁屏凭证都没设置（启动站）：根凭证 → POST /api/root-auth（锁屏门票 by=root）→ /api/root-session 换会话
        （原「根凭证」那一行；根凭证不再是单独的解锁入口）。
@@ -874,18 +874,18 @@ function showLockScreen() {
             throw { message: en ? 'Wrong root credential' : '根凭证错误', clear: true };
           }, netErr);
         }
-        return post('/api/lockreset', { action: 'verify', rootKey: key }).then(function (res) {
+        return post('/api/lock-reset', { action: 'verify', rootKey: key }).then(function (res) {
           if (res.s === 200 && res.j && res.j.ok) {
-            return res.j.needOwner ? { needOwner: { passkey: !!res.j.passkey, password: !!res.j.password } } : {};
+            return res.j.needAccount ? { needAccount: { passkey: !!res.j.passkey, password: !!res.j.password } } : {};
           }
           if (res.s === 429) throw tooMany;
           throw failed;
         }, netErr);
       },
-      owner: function (rootKey) {
+      account: function (rootKey) {
         const verify = function (proof) {
-          return post('/api/lockreset', { action: 'verify', rootKey: rootKey, ownerProof: proof }).then(function (res) {
-            if (res.s === 200 && res.j && res.j.ok && !res.j.needOwner) return;
+          return post('/api/lock-reset', { action: 'verify', rootKey: rootKey, accountProof: proof }).then(function (res) {
+            if (res.s === 200 && res.j && res.j.ok && !res.j.needAccount) return;
             if (res.s === 429) throw tooMany;
             throw failed;
           }, netErr);
@@ -893,7 +893,7 @@ function showLockScreen() {
         return {
           password: function (v) { return verify({ type: 'password', password: v }); },
           passkey: function () {
-            return post('/api/lockreset', { action: 'challenge' }).then(function (res) {
+            return post('/api/lock-reset', { action: 'challenge' }).then(function (res) {
               const j = res.j;
               if (!j || !j.ok) throw { message: en ? 'Failed to start' : '启动失败' };
               const allow = (j.allowCredentials || []).map(function (c) {
@@ -988,7 +988,7 @@ function showLockScreen() {
     /* 服务端回 unknown-key 时要告诉密码管理器删哪一把：这里记下 id（以前在下一个 then 里直接用 cred，
        那里没有这个变量，ReferenceError 被吞掉，signalUnknownCredential 从来没发出去） */
     let credId = '';
-    fetch('/api/owner-passkey', {
+    fetch('/api/lock-passkey', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'challenge', type: 'auth' }),
@@ -1018,7 +1018,7 @@ function showLockScreen() {
         if (dlgState !== 'passkey') throw { done: true };
         const cred = res.cred;
         credId = cred.id;
-        return fetch('/api/owner-passkey', {
+        return fetch('/api/lock-passkey', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1073,7 +1073,7 @@ function showLockScreen() {
   if (av) {
     on(av, 'click', function (e) {
       e.stopPropagation();
-      if (!SGX_FEAT_OWNER_GATE) {
+      if (!SGX_FEAT_LOCK_GATE) {
         unlock();
         return;
       }
@@ -1099,7 +1099,7 @@ function showLockScreen() {
       if (methodSheet) return;
       e.preventDefault();
       /* 2.8.0：键盘也走方式选择弹层 */
-      if (!SGX_FEAT_OWNER_GATE) {
+      if (!SGX_FEAT_LOCK_GATE) {
         unlock();
         return;
       }
@@ -1116,7 +1116,7 @@ function showLockScreen() {
   if (!isLocal) {
     askServer().then(function (ans) {
       if (!done && ans.ok) {
-        try { console.warn('[sgx-lock] page said ' + pageState() + ' but session-check ok'); } catch (e) {}
+        try { console.warn('[sgx-lock] page said ' + pageState() + ' but lock-session-check ok'); } catch (e) {}
         onServerOk(ans);
       }
     });

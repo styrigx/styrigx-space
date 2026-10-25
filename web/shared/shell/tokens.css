@@ -6625,8 +6625,8 @@
   --sgx-btn-secondary-bg: var(--sgx-secondary-container);
   --sgx-btn-secondary-fg: var(--sgx-on-secondary-container);
   /* C3 进入凭证按钮（锁屏 / 账号门口 / 弹层共用）：原来固定深蓝，现在跟主题色角色走 */
-  --sgx-door-btn-bg: var(--sgx-btn-primary-bg);
-  --sgx-door-btn-fg: var(--sgx-btn-primary-fg);
-  --sgx-door-btn2-bg: var(--sgx-btn-secondary-bg);
-  --sgx-door-btn2-fg: var(--sgx-btn-secondary-fg);
+  --sgx-credential-btn-bg: var(--sgx-btn-primary-bg);
+  --sgx-credential-btn-fg: var(--sgx-btn-primary-fg);
+  --sgx-credential-btn-secondary-bg: var(--sgx-btn-secondary-bg);
+  --sgx-credential-btn-secondary-fg: var(--sgx-btn-secondary-fg);
 }

@@ -7,7 +7,7 @@
    主人点头像直接换头像，见 avatar-edit.js。2026-10-24 PR4 删掉「账号信息」子页 /account/profile/，
    登录方式、「退出账号」和保持登录的说明挪进设备页「此设备」卡），
    第一组：「设备」→ 子页 /account/devices/（account-devices.html）：此设备（登录方式 + 退出账号）+ 其他登录的设备，可单独退出；
-   「临时钥匙」→ /account/temp-keys/；
+   「临时钥匙」→ /account/tempkeys/；
    「账号安全」→ 子页 /account/security/（account-security.html）管理账号密码和账号通行密钥，
    每次进都要再验一次账号凭证（3 分钟门票，离开即作废）。
    第二组（2026-10-24 PR4）：「云同步」→ 子页 /account/sync/（account-sync.html）：总开关 + 实际同步的每一项；
@@ -21,7 +21,7 @@
 
 <div class="acct-layout pb-28">
 
-  <!-- 2026-10-21：登录区和总览默认都隐藏（中性态）。服务端（网关）在 <html data-sgx-account="in|out"> 给出账号会话，
+  <!-- 2026-10-21：登录区和总览默认都隐藏（中性态）。服务端（网关）在 <html data-sgx-account-session="in|out"> 给出账号会话，
        网关按它改首帧：in → 登录区整段不下发（SGX-ACCT-LOGIN 标记之间）、总览去掉 hidden；out → 登录区去掉 hidden。
        account.js 再按同一个属性接手；只有服务端说「未登录」才出现「欢迎回来」，不再先画登录区再换成总览。 -->
   {{/* 2026-10-24：账号登录与锁屏同一套界面 —— 头像（点它也能登录）→ 欢迎回来 / 记录 · 收藏 · 探索 · 享受 → 「登录」按钮，整组上下居中；
@@ -36,8 +36,8 @@
       </button>
       <p class="sgx-lock-welcome acct-login-welcome">{{ if $isEn }}Welcome back{{ else }}欢迎回来{{ end }}</p>
       <p class="sgx-lock-sub acct-login-sub">{{ if $isEn }}Record · Collect · Explore · Enjoy{{ else }}记录 · 收藏 · 探索 · 享受{{ end }}</p>
-      <p class="sgx-door-err acct-login-notice" id="acct-login-notice" hidden></p>
-      <button type="button" class="sgx-door-btn sgx-door-btn-primary sgx-lock-go acct-login-go" id="acct-login-go" aria-haspopup="dialog">
+      <p class="sgx-credential-err acct-login-notice" id="acct-login-notice" hidden></p>
+      <button type="button" class="sgx-credential-btn sgx-credential-btn-primary sgx-lock-go acct-login-go" id="acct-login-go" aria-haspopup="dialog">
         <span class="acct-login-btn-ic" aria-hidden="true">{{ partial "icon.html" "fingerprint" }}</span><span class="acct-login-btn-tx">{{ if $isEn }}Sign in{{ else }}登录{{ end }}</span>
       </button>
       <p class="acct-login-none" id="acct-login-none" hidden>{{ if $isEn }}No sign-in method is set for this account yet. Tap Sign in → “Can’t sign in?” to set one with your root credential.{{ else }}账号还没有设置登录方式。可以点「登录」→「无法登录？」用根凭证设置。{{ end }}</p>
@@ -67,7 +67,7 @@
         </span>
         {{ partial "icon.html" "chev-r" }}
       </a>
-      <a class="acct-row" id="acct-tk-row" href="{{ cond $isEn "/en/account/temp-keys/" "/account/temp-keys/" }}">
+      <a class="acct-row" id="acct-tk-row" href="{{ cond $isEn "/en/account/tempkeys/" "/account/tempkeys/" }}">
         <span class="acct-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "key" }}</span>
         <span class="flex-1 min-w-0">
           <span class="block font-medium">{{ if $isEn }}Temporary keys{{ else }}临时钥匙{{ end }}</span>

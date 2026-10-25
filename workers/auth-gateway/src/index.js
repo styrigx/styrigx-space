@@ -41,7 +41,7 @@ export function isMainStaticPassthrough(url) {
 
 const METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
 
-/** /api/lock/ 与 /api/lock 等价（Pages 也这样匹配） */
+/** /api/lock-now/ 与 /api/lock-now 等价（Pages 也这样匹配） */
 export function routeKey(pathname) {
   return pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
 }
@@ -127,7 +127,7 @@ export default {
     const url0 = new URL(request.url);
     /* 静态资源：原样回源，不验会话、不打 X-SGX-Runtime（与以前不登记路由时一致；子站 CI 冒烟据此确认静态资源不验会话） */
     if (isMainStaticPassthrough(url0)) return fromOrigin(request, rawEnv);
-    if (subsiteFor(url0.hostname) && isSubsiteStaticAsset(url0.pathname) && url0.pathname !== '/api/session-check') {
+    if (subsiteFor(url0.hostname) && isSubsiteStaticAsset(url0.pathname) && url0.pathname !== '/api/lock-session-check') {
       return fromOrigin(request, rawEnv);
     }
     const env = await resolveSecrets(rawEnv);

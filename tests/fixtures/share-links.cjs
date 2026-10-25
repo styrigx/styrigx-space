@@ -1,6 +1,6 @@
 /**
  * 账号 › 临时钥匙页的固定数据（visual 截图、share-link 截图用），时间都以 freezeTime 的 2026-10-09 12:00 +08:00 为准。
- * - KEYS：/api/lock-temp list 的临时钥匙
+ * - KEYS：/api/lock-tempkey list 的临时钥匙
  * - LINKS：/api/share list 的分享短链（带会话·有人点开过 / 普通 / 已作废）
  */
 const NOW = Date.parse('2026-10-09T12:00:00+08:00'); /* 和浏览器里 freezeTime 冻结的时刻一致 */

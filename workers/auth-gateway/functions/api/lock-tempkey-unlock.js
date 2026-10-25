@@ -1,15 +1,15 @@
 /**
- * 用临时 LockKey 进门（锁屏「临时钥匙」）。说明见 _kernel/temp-lock.js。
+ * 用临时 LockKey 进门（锁屏「临时钥匙」）。说明见 _kernel/lock-tempkey.js。
  *
- * POST /api/lock-temp-unlock { code }（只接受同源；无需会话，在白名单里）
+ * POST /api/lock-tempkey-unlock { code }（只接受同源；无需会话，在白名单里）
  * - 规范化后按哈希找钥匙；对得上 → 签 visitor 会话（sgx-verified，by=owner，lock 私钥签名）
  *   + 钥匙票 sgx-tk，两者 Max-Age 都是 min(钥匙剩余时间, 12 小时)
- * - 输错：403 wrong；同一 IP 连错 5 次锁 15 分钟、全站每小时错 30 次暂停 1 小时 → 429 locked
+ * - 输错：403 wrong；同一 IP 连错 5 次锁 15 分钟、全站每小时错 30 次暂停 1 小时 → 429 cooldown
  * - 格式不对（不是 12 位）也算一次输错，不提示格式
- * - 已有 owner 会话：直接 ok，不降级成访客
+ * - 已有站长会话：直接 ok，不降级成访客
  * - KV / 密钥出错一律 5xx，绝不签发会话
  */
-import { issueSessionCookie, ROLE_OWNER, ROLE_VISITOR } from '../_kernel/session.js';
+import { issueSessionCookie, ROLE_OWNER, ROLE_VISITOR } from '../_kernel/lock-session.js';
 import { getPepper } from '../_kernel/password.js';
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
 import {
@@ -17,11 +17,11 @@ import {
   findByCode,
   signTk,
   setTkCookie,
-  tempLimited,
-  recordTempFail,
-  clearTempFail,
-  TEMP_SESSION_MAX,
-} from '../_kernel/temp-lock.js';
+  isTempkeyLimited,
+  recordTempkeyFail,
+  clearTempkeyFail,
+  TEMPKEY_SESSION_MAX,
+} from '../_kernel/lock-tempkey.js';
 import { verifySessionDetailed } from '../_middleware.js';
 
 /** @param {object} body @param {number} [status] */
@@ -63,7 +63,7 @@ async function handle(context) {
 
   const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
   try {
-    if (await tempLimited(kv, ip)) return json({ ok: false, error: 'locked' }, 429);
+    if (await isTempkeyLimited(kv, ip)) return json({ ok: false, error: 'cooldown' }, 429);
   } catch (e) {
     return json({ ok: false, error: 'server' }, 503);
   }
@@ -80,16 +80,16 @@ async function handle(context) {
     }
   }
   if (!key) {
-    let locked = false;
-    try { locked = await recordTempFail(kv, ip); } catch (e) {
+    let cooling = false;
+    try { cooling = await recordTempkeyFail(kv, ip); } catch (e) {
       return json({ ok: false, error: 'server' }, 503);
     }
-    return json({ ok: false, error: locked ? 'locked' : 'wrong' }, locked ? 429 : 403);
+    return json({ ok: false, error: cooling ? 'cooldown' : 'wrong' }, cooling ? 429 : 403);
   }
-  await clearTempFail(kv, ip);
+  await clearTempkeyFail(kv, ip);
 
   const left = Math.floor((key.expiresAt - Date.now()) / 1000);
-  const maxAge = Math.max(60, Math.min(TEMP_SESSION_MAX, left));
+  const maxAge = Math.max(60, Math.min(TEMPKEY_SESSION_MAX, left));
   const headers = new Headers({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   let tk;
   try {

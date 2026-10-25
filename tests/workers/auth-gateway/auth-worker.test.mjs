@@ -22,7 +22,7 @@ const { routeKey, pickHandler } = await import(REPO + '/workers/auth-gateway/src
 const { API_ROUTES } = await import(REPO + '/workers/auth-gateway/src/routes.js');
 const { resolveSecrets, SECRET_NAMES, _resetSecretCache } = await import(REPO + '/workers/auth-gateway/src/secrets.js');
 const pagesMw = await import(REPO + '/workers/auth-gateway/functions/_middleware.js');
-const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
+const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
 
 function derToPem(der, label) {
   const b64 = Buffer.from(der).toString('base64');
@@ -70,7 +70,7 @@ test('wrangler.toml：不开 workers.dev、生产模式、6 个密钥全走 Secr
   const routes = [...toml.matchAll(/^pattern = "([^"]+)"$/gm)].map(m => m[1]);
   for (const h of ['styrigx.com', 'blog.styrigx.com', 'daymark.styrigx.com', 'curio.styrigx.com']) assert.ok(routes.includes(h + '/*'), h + '/*');
   for (const r of routes) assert.match(r, /^(styrigx|blog\.styrigx|daymark\.styrigx|curio\.styrigx)\.com\//);
-  for (const r of routes) assert.ok(r.endsWith('*') || r === 'daymark.styrigx.com/api/session-check' || r === 'curio.styrigx.com/api/session-check', '精确规则遇到查询串不命中：' + r);
+  for (const r of routes) assert.ok(r.endsWith('*') || r === 'daymark.styrigx.com/api/lock-session-check' || r === 'curio.styrigx.com/api/lock-session-check', '精确规则遇到查询串不命中：' + r);
   assert.ok(!routes.some(r => r.startsWith('*')), '不能通配子域名');
   /* 书库已下线：不再路由 book / book-preview，也不再绑定 styrigx-books D1 */
   assert.ok(!routes.some(r => /^book(-preview)?\.styrigx\.com\//.test(r)), '书库已下线，不能再有 book 路由');
@@ -82,8 +82,8 @@ test('wrangler.toml：不开 workers.dev、生产模式、6 个密钥全走 Secr
 });
 
 test('routeKey / pickHandler 与 Pages 一致', () => {
-  assert.equal(routeKey('/api/lock/'), '/api/lock');
-  assert.equal(routeKey('/api/lock'), '/api/lock');
+  assert.equal(routeKey('/api/lock-now/'), '/api/lock-now');
+  assert.equal(routeKey('/api/lock-now'), '/api/lock-now');
   const mod = { onRequestGet: () => 'g', onRequest: () => 'any' };
   assert.equal(pickHandler(mod, 'GET')(), 'g');
   assert.equal(pickHandler(mod, 'post')(), 'any');
@@ -146,15 +146,15 @@ test('页面：未登录访问内页 → 302 到锁屏，不回源', async () =>
 test('页面：未登录首页 → 回源、锁屏态、去掉桌面内容，会话标记只出现一次', async () => {
   _resetSecretCache();
   /* 回源拿到的页面 Pages 已注入过一次 */
-  const fromPages = PAGE.replace('<html lang="zh">', '<html data-sgx-session="locked" lang="zh">');
+  const fromPages = PAGE.replace('<html lang="zh">', '<html data-sgx-lock-session="locked" lang="zh">');
   await withOrigin(fromPages, async (calls) => {
     const res = await worker.fetch(new Request('https://styrigx.com/'), baseEnv(), CTX);
     assert.equal(res.status, 200);
     assert.equal(calls.length, 1);
     assert.equal(calls[0].redirect, 'manual');
     const html = await res.text();
-    assert.equal((html.match(/data-sgx-session=/g) || []).length, 1);
-    assert.match(html, /<html data-sgx-session="locked" lang="zh">/);
+    assert.equal((html.match(/data-sgx-lock-session=/g) || []).length, 1);
+    assert.match(html, /<html data-sgx-lock-session="locked" lang="zh">/);
     assert.doesNotMatch(html, /desk/);
     assert.equal(res.headers.get('Cache-Control'), 'private, no-store');
     assert.equal(res.headers.get('X-SGX-Runtime'), 'worker');
@@ -171,7 +171,7 @@ test('页面：主人访问门内页 → 回源、valid + owner，带 cookie 回
     assert.equal(calls[0].headers.get('Cookie'), cookie);
     const html = await res.text();
     assert.match(html, /data-sgx-role="owner"/);
-    assert.match(html, /data-sgx-session="valid"/);
+    assert.match(html, /data-sgx-lock-session="valid"/);
     assert.match(html, /desk/);
   });
 });
@@ -197,25 +197,25 @@ test('页面：Pages 的跳转（补尾斜杠）原样交回', async () => {
 });
 
 test('stripSessionAttrs：只清 <html> 上的会话标记（body 等别的标签不动）', () => {
-  const html = '<html data-sgx-session="valid" lang="en" data-sgx-role="owner"><body data-sgx-x="1"></body></html>';
+  const html = '<html data-sgx-lock-session="valid" lang="en" data-sgx-role="owner"><body data-sgx-x="1"></body></html>';
   assert.equal(pagesMw.stripSessionAttrs(html), '<html lang="en"><body data-sgx-x="1"></body></html>');
 });
 
 test('stripSessionAttrs：只清网关会写的会话标记，保留构建标记 data-sgx-build（2026-10-21）', () => {
-  const html = '<html data-sgx-build="abc1234" data-sgx-session="valid" lang="zh" data-sgx-role="owner" data-sgx-account="in" data-sgx-upgrade="1" data-sgx-upgrade-return="/x/"><head></head></html>';
+  const html = '<html data-sgx-build="abc1234" data-sgx-lock-session="valid" lang="zh" data-sgx-role="owner" data-sgx-account-session="in" data-sgx-upgrade="1" data-sgx-upgrade-return="/x/"><head></head></html>';
   assert.equal(pagesMw.stripSessionAttrs(html), '<html data-sgx-build="abc1234" lang="zh"><head></head></html>');
 });
 
 test('页面：锁屏首页保留 <head> 里的分享卡片 meta 和 <html> 上的构建标记', async () => {
   _resetSecretCache();
   const head = '<head><meta property="og:image" content="https://styrigx.com/og.png"><meta name="twitter:card" content="summary_large_image"><link rel="icon" type="image/svg+xml" href="/favicon.svg"></head>';
-  const page = '<!DOCTYPE html><html lang="zh" data-sgx-build="abc1234" data-sgx-session="locked">' + head + '<body><!-- SGX-DESKTOP-START -->desk<!-- SGX-DESKTOP-END -->x</body></html>';
+  const page = '<!DOCTYPE html><html lang="zh" data-sgx-build="abc1234" data-sgx-lock-session="locked">' + head + '<body><!-- SGX-DESKTOP-START -->desk<!-- SGX-DESKTOP-END -->x</body></html>';
   await withOrigin(page, async () => {
     const res = await worker.fetch(new Request('https://styrigx.com/'), baseEnv(), CTX);
     assert.equal(res.status, 200);
     const html = await res.text();
-    assert.match(html, /<html data-sgx-session="locked" lang="zh" data-sgx-build="abc1234">/);
-    assert.equal((html.match(/data-sgx-session=/g) || []).length, 1);
+    assert.match(html, /<html data-sgx-lock-session="locked" lang="zh" data-sgx-build="abc1234">/);
+    assert.equal((html.match(/data-sgx-lock-session=/g) || []).length, 1);
     assert.ok(html.includes(head), '<head> 原样保留');
     assert.doesNotMatch(html, /desk/);
   });
@@ -243,14 +243,14 @@ test('锁着也公开：标签页图标 / 分享卡片图（Pages 中间件放�
 
 test('所有响应带 X-SGX-Runtime: worker，且不改动原有头和正文', async () => {
   _resetSecretCache();
-  const res = await worker.fetch(new Request('https://styrigx.com/api/session-check'), baseEnv(), CTX);
+  const res = await worker.fetch(new Request('https://styrigx.com/api/lock-session-check'), baseEnv(), CTX);
   assert.equal(res.status, 401);
   assert.equal(res.headers.get('X-SGX-Runtime'), 'worker');
   assert.deepEqual(await res.json(), { ok: false });
 });
 
 test('非 styrigx.com 的 /api 请求 → 403（与 Pages 生产规则一致）', async () => {
-  const res = await worker.fetch(new Request('https://styrigx-auth-gateway.example.workers.dev/api/session-check'), baseEnv(), CTX);
+  const res = await worker.fetch(new Request('https://styrigx-auth-gateway.example.workers.dev/api/lock-session-check'), baseEnv(), CTX);
   assert.equal(res.status, 403);
 });
 
@@ -280,8 +280,8 @@ async function same(makeReq, role) {
   return a;
 }
 
-test('一致性：GET /api/session-check 无会话 / 访客 / 主人', async () => {
-  const mk = (h) => new Request('https://styrigx.com/api/session-check', { headers: h });
+test('一致性：GET /api/lock-session-check 无会话 / 访客 / 主人', async () => {
+  const mk = (h) => new Request('https://styrigx.com/api/lock-session-check', { headers: h });
   assert.equal((await same(mk)).status, 401);
   assert.equal((await same(mk, 'visitor')).status, 200);
   assert.equal((await same(mk, 'owner')).status, 200);

@@ -1,49 +1,49 @@
 /**
- * 锁屏凭证的门（取代原二次验证接口）。
+ * 锁屏凭证的门：再验证一次锁屏凭证，换 3 分钟门票（取代原二次验证接口）。
  *
- * 安全与隐私 → 锁屏凭证是安全操作页：每次进页都要验一次锁屏凭证（锁屏通行密钥 / 解锁密码，
- * 设了哪个显示哪个）或根凭证，通过后签 3 分钟锁屏门票 sgx-door(door=lock)，SGX_LOCK_* 签名
- * （_kernel/door.js）。离开页面前端立即 clear，再进重新验证。
+ * 安全与隐私 → 锁屏凭证是安全操作页：每次进页都要验一次锁屏凭证（锁屏通行密钥 / 锁屏密码，
+ * 设了哪个显示哪个）或根凭证，通过后签 3 分钟锁屏门票（door=lock），SGX_LOCK_* 签名
+ * （_kernel/tickets.js）。离开页面前端立即 clear，再进重新验证。
  *
  * 进门的三个入口（各自签票，本接口只管状态与清票）：
- * - 锁屏通行密钥：/api/owner-passkey { action:'auth', door:true }（challenge 同解锁，pkClass=lock）
- * - 解锁密码：/api/owner-password { action:'verify', door:true }（与解锁共用限速）
+ * - 锁屏通行密钥：/api/lock-passkey { action:'auth', door:true }（challenge 同解锁）
+ * - 锁屏密码：/api/lock-password { action:'verify', door:true }（与解锁共用限速）
  * - 根凭证：/api/root-auth { key }（有会话时签 door=lock，by=root）
- * 重置锁屏（/api/lockreset）签 door=lockreset：没有会话，只能设置解锁密码 / 增删锁屏通行密钥。
+ * 重置锁屏（/api/lock-reset）签 door=lockreset：没有会话，只能设置锁屏密码 / 增删锁屏通行密钥。
  *
- * POST /api/lock-door
+ * POST /api/lock-reauth
  * - { action:'status' } → { ok:true, valid, door?, by?, expiresAt?, password, passkey }
- *   需要 owner 会话或有效的 lockreset 门票；password/passkey = 锁屏凭证是否已设置（门口按它显示入口）
- * - { action:'clear' } → 清门票（幂等，不要求会话；只清 sgx-door，不动 sgx-verified）
+ *   需要站长会话或有效的重置锁屏门票；password/passkey = 锁屏凭证是否已设置（门口按它显示入口）
+ * - { action:'clear' } → 清门票（幂等，不要求会话；只清门票，不动锁屏会话）
  *
  * 只接受 POST；校验 Origin；外层 try/catch 异常一律 { ok:false, error:'server' }。
  */
 import { verifySessionDetailed } from '../_middleware.js';
-import { ROLE_OWNER, ROLE_VISITOR } from '../_kernel/session.js';
+import { ROLE_OWNER, ROLE_VISITOR } from '../_kernel/lock-session.js';
 import { isSameOrigin, originDenied } from '../_kernel/http.js';
 import { REALM_LOCK } from '../_kernel/realms.js';
 import { isLayerConfigured, LAYER_LOCK } from '../_kernel/layers.js';
-import { verifyDoorCookie, clearDoorCookie, DOOR_LOCK, DOOR_LOCKRESET } from '../_kernel/door.js';
-import { getPasskeys, PK_CLASS_LOCK } from './owner-passkey.js';
+import { verifyDoorCookie, clearDoorCookie, DOOR_LOCK, DOOR_LOCKRESET } from '../_kernel/tickets.js';
+import { getPasskeys, PK_CLASS_LOCK } from '../_kernel/passkey-store.js';
 
 /**
- * 锁屏凭证管理的统一门禁（owner-password / owner-passkey / lock-all-devices / root-audit 共用）。
+ * 锁屏凭证管理的统一门禁（lock-password / lock-passkey / lock-all-devices 共用）。
  *
- * - 锁屏门票（door=lock）有效 + owner 会话有效 → 通过；by=root 的代开会话在锁屏已配置时拒绝（纵深防御）
+ * - 锁屏门票（door=lock）有效 + 站长会话有效 → 通过；by=root 的代开会话在锁屏已配置时拒绝（纵深防御）
  * - allowReset 时，重置锁屏门票（door=lockreset）有效 → 通过（无会话，sess=null）
- * - 都没有：无 owner 会话 → 401 session；有会话 → 403 door（前端回到门口重新验证）
+ * - 都没有：无站长会话 → 401 session；有会话 → 403 door（前端回到门口重新验证）
  *
  * @param {any} request
  * @param {any} env
  * @param {{allowReset?: boolean}} [opts]
- * @returns {Promise<{ok:true, dv:{ok:boolean, by?:string, exp?:number}, door:string, isLockreset:boolean, sess:any}|{ok:false, status:number, body:object}>}
+ * @returns {Promise<{ok:true, dv:{ok:boolean, by?:string, exp?:number}, door:string, isLockReset:boolean, sess:any}|{ok:false, status:number, body:object}>}
  */
-export async function checkLockDoor(request, env, opts) {
+export async function checkLockManage(request, env, opts) {
   const allowReset = !!(opts && opts.allowReset);
   const dv = await verifyDoorCookie(request, env, DOOR_LOCK);
   if (!dv.ok && allowReset) {
     const rv = await verifyDoorCookie(request, env, DOOR_LOCKRESET);
-    if (rv.ok) return { ok: true, dv: rv, door: DOOR_LOCKRESET, isLockreset: true, sess: null };
+    if (rv.ok) return { ok: true, dv: rv, door: DOOR_LOCKRESET, isLockReset: true, sess: null };
   }
   const sess = await verifySessionDetailed(request, env);
   if (!sess.ok || sess.role !== ROLE_OWNER) {
@@ -58,7 +58,7 @@ export async function checkLockDoor(request, env, opts) {
       return { ok: false, status: 403, body: { ok: false, error: 'by-root' } };
     }
   }
-  return { ok: true, dv: dv, door: DOOR_LOCK, isLockreset: false, sess: sess };
+  return { ok: true, dv: dv, door: DOOR_LOCK, isLockReset: false, sess: sess };
 }
 
 /**
@@ -123,7 +123,7 @@ async function handlePost(context) {
         door = DOOR_LOCKRESET;
       }
     }
-    /* 锁屏门票必须配 owner 会话；重置门票本来就没有会话 */
+    /* 锁屏门票必须配站长会话；重置门票本来就没有会话 */
     if (door === DOOR_LOCK && !isOwner) door = '';
     if (!isOwner && door !== DOOR_LOCKRESET) {
       return Response.json({ ok: false, error: 'session' }, { status: 401 });

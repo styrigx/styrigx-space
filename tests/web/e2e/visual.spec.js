@@ -85,14 +85,14 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
             });
           }
           if (page === '/settings/security/lock/') {
-            await pg.route('**/api/lock-status', async (route) => {
+            await pg.route('**/api/lock-credentials', async (route) => {
               await route.fulfill({
                 status: 200,
                 contentType: 'application/json',
                 body: JSON.stringify({ ok: true, password: false, passkey: false }),
               });
             });
-            await pg.route('**/api/lock-door', async (route) => {
+            await pg.route('**/api/lock-reauth', async (route) => {
               await route.fulfill({
                 status: 200,
                 contentType: 'application/json',
@@ -100,7 +100,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
               });
             });
             /* 门内列表 API：返回空列表，保证截图稳定 */
-            await pg.route('**/api/owner-passkey', async (route) => {
+            await pg.route('**/api/lock-passkey', async (route) => {
               await route.fulfill({
                 status: 200,
                 contentType: 'application/json',
@@ -136,13 +136,13 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           if (page === '/account/reset/') await expect(pg.locator('#sgx-reset-root')).toBeVisible({ timeout: 10000 });
           if (page === '/account/security/') {
             await expect(pg.locator('#lockmgr-pklist .lockmgr-pkitem')).toHaveCount(1, { timeout: 10000 });
-            await expect(pg.locator('#sgx-door-countdown')).toBeVisible();
+            await expect(pg.locator('#sgx-credential-countdown')).toBeVisible();
           }
           await expect(pg).toHaveScreenshot(`${name}.png`, {
             fullPage: false,
             animations: 'disabled',
             /* 遮罩动态区域：时钟、天气、门内倒计时数字 */
-            mask: [pg.locator('#dual-clock'), pg.locator('#weather'), pg.locator('#sgx-door-countdown .sgx-door-countdown-text')],
+            mask: [pg.locator('#dual-clock'), pg.locator('#weather'), pg.locator('#sgx-credential-countdown .sgx-credential-countdown-text')],
           });
         });
       }
@@ -327,7 +327,7 @@ const SUB_PAGES = [
   ['sync', '/account/sync/', async (pg) => { await expect(pg.locator('[data-sync-key="sgx-theme-mode"] [data-sync-val]')).not.toHaveText('', { timeout: 10000 }); }],
   ['devices', '/account/devices/', async (pg) => { await expect(pg.locator('#acct-devices')).toBeVisible({ timeout: 10000 }); await expect(pg.locator('#acct-by')).not.toHaveText(''); }],
   /* 2026-10-24 分享短链：临时钥匙页（临时钥匙 + 分享短链两张列表），数据见 tests/fixtures/share-links.cjs */
-  ['temp-keys', '/account/temp-keys/', async (pg) => { await expect(pg.locator('#acct-sl-list .sl-item')).toHaveCount(3, { timeout: 10000 }); await expect(pg.locator('#acct-tk-list .acct-dev-item')).toHaveCount(1); }],
+  ['tempkeys', '/account/tempkeys/', async (pg) => { await expect(pg.locator('#acct-sl-list .sl-item')).toHaveCount(3, { timeout: 10000 }); await expect(pg.locator('#acct-tk-list .acct-dev-item')).toHaveCount(1); }],
 ];
 const fxShare = require('../../fixtures/share-links.cjs');
 for (const lang of LANGS) {
@@ -351,7 +351,7 @@ for (const lang of LANGS) {
         });
         await pg.route('**/api/status', (route) => route.fulfill({ status: 200, contentType: 'application/json',
           body: JSON.stringify(fxStatus.withUsage(fxStatus.normal(), fxStatus.usage())) }));
-        await pg.route('**/api/lock-temp', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, keys: fxShare.KEYS }) }));
+        await pg.route('**/api/lock-tempkey', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, keys: fxShare.KEYS }) }));
         await pg.route('**/api/share', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, links: fxShare.LINKS }) }));
         await pg.addInitScript(([t, ln]) => {
           try {

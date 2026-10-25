@@ -1,7 +1,7 @@
 /**
  * 网关子站门禁（workers/auth-gateway/src/subsites.js）：
  * - blog/book 页面：会话有效回源（HTML 加 no-store），无效 302 主站锁屏（带 why 和 return）
- * - /api/session-check：blog 认 204、book 认 200 {ok:true}，无效 401
+ * - /api/lock-session-check：blog 认 204、book 认 200 {ok:true}，无效 401
  * - 静态资源后缀不验会话
  * - 子站 /api/*（未登录）回 401 JSON，不 302
  * - 主站请求不受影响；未登记的域名照旧 301 回主站
@@ -18,7 +18,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
 const worker = (await import(REPO + '/workers/auth-gateway/src/index.js')).default;
 const { isStaticAsset, subsiteFor, markSubsiteRole } = await import(REPO + '/workers/auth-gateway/src/subsites.js');
-const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
+const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
 
 function derToPem(der, label) {
   const b64 = Buffer.from(der).toString('base64');
@@ -128,15 +128,15 @@ for (const host of ['blog.styrigx.com', 'daymark.styrigx.com', 'curio.styrigx.co
 
 test('session-check：blog 有效 204、daymark / curio 有效 200 {ok:true}、无效 401', async () => {
   const c = await cookie('visitor');
-  let res = await worker.fetch(req('https://blog.styrigx.com/api/session-check', c), env(), CTX);
+  let res = await worker.fetch(req('https://blog.styrigx.com/api/lock-session-check', c), env(), CTX);
   assert.equal(res.status, 204);
   for (const host of ['daymark.styrigx.com', 'curio.styrigx.com']) {
-    res = await worker.fetch(req('https://' + host + '/api/session-check', c), env(), CTX);
+    res = await worker.fetch(req('https://' + host + '/api/lock-session-check', c), env(), CTX);
     assert.equal(res.status, 200);
     assert.deepEqual(await res.json(), { ok: true });
   }
   for (const host of ['blog.styrigx.com', 'daymark.styrigx.com', 'curio.styrigx.com']) {
-    res = await worker.fetch(req('https://' + host + '/api/session-check'), env(), CTX);
+    res = await worker.fetch(req('https://' + host + '/api/lock-session-check'), env(), CTX);
     assert.equal(res.status, 401);
     assert.equal((await res.json()).why, 'no-cookie');
     assert.match(res.headers.get('Cache-Control'), /no-store/);

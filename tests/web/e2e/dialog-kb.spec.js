@@ -85,7 +85,7 @@ test.describe('account login button feedback (批次 A 验收修复 P2)', () => 
         return;
       }
       const body = (route.request().postData() || '').toString();
-      if (body.includes('"challenge"')) challengeCalls++;
+      if (body.includes('"login-challenge"')) challengeCalls++;
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, challenge: 'AA', cid: 'c1', rpId: 'localhost' }) });
     });
     /* credentials.get 挂起（等测试手动取消） */
@@ -133,8 +133,8 @@ test.describe('security status card wording (批次 A 验收修复 #8)', () => {
   test('missing unlock password shows 解锁密码 wording (PR2 锁屏凭证门)', async ({ page: pg }) => {
     await pinLang(pg, 'zh');
     await blockExternalRequests(pg);
-    /* PR2：安全页卡片数据源是 GET /api/lock-status（锁屏凭证）；账号凭证在账号页 */
-    await mockJson(pg, '**/api/lock-status', 200, { ok: true, password: false, passkey: true });
+    /* PR2：安全页卡片数据源是 GET /api/lock-credentials（锁屏凭证）；账号凭证在账号页 */
+    await mockJson(pg, '**/api/lock-credentials', 200, { ok: true, password: false, passkey: true });
     await pg.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
     await expect(pg.locator('#sec-status-title')).toContainText('建议操作', { timeout: 15000 });
     await expect(pg.locator('#sec-status-sub')).toHaveText('未设置解锁密码');
@@ -143,7 +143,7 @@ test.describe('security status card wording (批次 A 验收修复 #8)', () => {
   test('missing passkey copy names lock passkeys（未注册锁屏通行密钥）', async ({ page: pg }) => {
     await pinLang(pg, 'zh');
     await blockExternalRequests(pg);
-    await mockJson(pg, '**/api/lock-status', 200, { ok: true, password: true, passkey: false });
+    await mockJson(pg, '**/api/lock-credentials', 200, { ok: true, password: true, passkey: false });
     await pg.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
     await expect(pg.locator('#sec-status-title')).toContainText('建议操作', { timeout: 15000 });
     await expect(pg.locator('#sec-status-sub')).toHaveText('未注册锁屏通行密钥');

@@ -6,8 +6,8 @@
  * - A-2 对 layer:lock-emptied 不读不写（该键是 B #10 的，本 PR 不引入）：
  *   删最后一把后 KV 里不出现该键；生产残留不动、不清除、不依赖。
  * - 「锁屏凭证已删光」按真实凭证数判断：无 lock 密码且无 lock 通行密钥。
- * - 删光后 lock-config 返回 resetOnly=true（锁屏只显示访客 + 重置锁屏）。
- * - 空站（无任何凭证/标记）→ lock-config resetOnly=false（A 启动流程保留，根凭证入口仍显示）。
+ * - 删光后 lock-entry 返回 resetOnly=true（锁屏只显示访客 + 重置锁屏）。
+ * - 空站（无任何凭证/标记）→ lock-entry resetOnly=false（A 启动流程保留，根凭证入口仍显示）。
  *
  * 运行：node --test tests/kernel/last-key.test.mjs
  */
@@ -53,7 +53,7 @@ async function genKeys() {
   LOCK_PUB = derToPem(await crypto.subtle.exportKey('spki', kp2.publicKey), 'PUBLIC KEY');
 }
 async function mintSession(epoch = 0) {
-  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
   return await signSessionCookie(LOCK_PRIV, epoch, 'owner', 'owner');
 }
 const envFor = (kv, extra = {}) => ({
@@ -78,7 +78,7 @@ async function seedKey(kv, credId, cls) {
   await kv.put('owner-passkey-index', JSON.stringify(idx));
 }
 async function seedPw(kv, kind, password) {
-  const { makePasswordRecord } = await import('../../../workers/auth-gateway/functions/api/owner-password.js');
+  const { makePasswordRecord } = await import('../../../workers/auth-gateway/functions/_kernel/password.js');
   const rec = await makePasswordRecord(password, 'test-pepper');
   await kv.put(kind === 'owner' ? 'owner-pw' : 'lock-pw', JSON.stringify(rec));
 }
@@ -93,8 +93,8 @@ test('setup: 生成测试密钥', async () => {
 
 
 
-test('A-2：lock-config (b) 无真实 lock 凭证 + owner 已配置 + 无 lock-emptied → resetOnly=true', async () => {
-  const { onRequestGet } = await import('../../../workers/auth-gateway/functions/api/lock-config.js');
+test('A-2：lock-entry (b) 无真实 lock 凭证 + owner 已配置 + 无 lock-emptied → resetOnly=true', async () => {
+  const { onRequestGet } = await import('../../../workers/auth-gateway/functions/api/lock-entry.js');
   const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1' });
   await seedPw(kv, 'owner', 'owner-pw-123');
   const res = await onRequestGet({ env: { KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv } });
@@ -102,14 +102,14 @@ test('A-2：lock-config (b) 无真实 lock 凭证 + owner 已配置 + 无 lock-e
   const j = await res.json();
   assert.equal(j.ok, true);
   assert.equal(j.resetOnly, true);
-  assert.equal(j.ownerConfigured, true);
+  assert.equal(j.accountConfigured, true);
   /* 标记独有兜底：passkey/password 仍为 true（不暴露根凭证入口） */
   assert.equal(j.passkey, true);
   assert.equal(j.password, true);
 });
 
-test('A-2：lock-config (a) lock-emptied=1 残留 + 有真实 lock 凭证 → resetOnly=false（忽略该键）', async () => {
-  const { onRequestGet } = await import('../../../workers/auth-gateway/functions/api/lock-config.js');
+test('A-2：lock-entry (a) lock-emptied=1 残留 + 有真实 lock 凭证 → resetOnly=false（忽略该键）', async () => {
+  const { onRequestGet } = await import('../../../workers/auth-gateway/functions/api/lock-entry.js');
   const kv = makeKV({ 'layer:owner': '1', 'layer:lock': '1', 'layer:lock-emptied': '1' });
   await seedPw(kv, 'owner', 'owner-pw-123');
   await seedPw(kv, 'lock', 'lock-pw-1234');
@@ -118,11 +118,11 @@ test('A-2：lock-config (a) lock-emptied=1 残留 + 有真实 lock 凭证 → re
   const j = await res.json();
   assert.equal(j.ok, true);
   assert.equal(j.resetOnly, false, '有真实 lock 凭证时 resetOnly 应为 false，残留 lock-emptied=1 被忽略');
-  assert.equal(j.ownerConfigured, true);
+  assert.equal(j.accountConfigured, true);
 });
 
-test('A-2：lock-config 空站 → resetOnly=false（A 启动流程保留，根凭证入口仍显示）', async () => {
-  const { onRequestGet } = await import('../../../workers/auth-gateway/functions/api/lock-config.js');
+test('A-2：lock-entry 空站 → resetOnly=false（A 启动流程保留，根凭证入口仍显示）', async () => {
+  const { onRequestGet } = await import('../../../workers/auth-gateway/functions/api/lock-entry.js');
   const kv = makeKV({});
   const res = await onRequestGet({ env: { KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv } });
   assert.equal(res.status, 200);
@@ -130,7 +130,7 @@ test('A-2：lock-config 空站 → resetOnly=false（A 启动流程保留，根�
   assert.equal(j.ok, true);
   assert.equal(j.passkey, false);
   assert.equal(j.password, false);
-  assert.equal(j.ownerConfigured, false);
+  assert.equal(j.accountConfigured, false);
   assert.equal(j.resetOnly, false);
 });
 
@@ -143,11 +143,11 @@ test('A-2：删光账号凭证时不动 lock-emptied 残留（留给 B 处理；
   await kv.put('owner-passkey:acct-key-000', JSON.stringify({ credId: 'acct-key-0001', class: 'owner', publicKey: {}, signCount: 0 }));
   const sess = await mintSession();
   const acc = await signAccountTicket(ACCT_PRIV, 'root', 0, Date.now());
-  const { signDoorTicket } = await import('../../../workers/auth-gateway/functions/_kernel/door.js');
+  const { signDoorTicket } = await import('../../../workers/auth-gateway/functions/_kernel/tickets.js');
   const door = await signDoorTicket(ACCT_PRIV, 'account', 'root', 0); /* 删账号通行密钥要账号门票 */
   const env = Object.assign({}, envFor(kv), { SGX_ACCOUNT_PRIVATE: ACCT_PRIV, SGX_ACCOUNT_PUBLIC: ACCT_PUB });
   const res = await onRequestPost({
-    request: postReq('https://styrigx.com/api/account', { action: 'delete', credId: 'acct-key-0001' },
+    request: postReq('https://styrigx.com/api/account', { action: 'passkey-delete', credId: 'acct-key-0001' },
       { Cookie: 'sgx-verified=' + sess + '; sgx-account=' + acc + '; sgx-door=' + door }),
     env,
   });

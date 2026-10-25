@@ -2,20 +2,20 @@
  * 根凭证（SGX_ROOT_KEY）校验：全站只有这一份实现（PR3「根凭证统一」）。
  *
  * 用到根凭证的两条路径都走这里，再各自按用途签票：
- * - /api/root-auth   purpose=lock    → 锁屏门票 sgx-door(door=lock, by=root)（含锁屏未配置的引导）
- *                    purpose=account → 账号会话 sgx-account(by=root) + 账号门票 sgx-door(door=account, by=root)
- *                                      （「重置登录」：根凭证不再是普通登录入口，只用来重置账号登录方式）
- * - /api/lockreset   verify          → 恢复开关有效：重置锁屏门票(by=root)；
- *                                      否则 needOwner，再验账号凭证 → 重置锁屏门票(by=account+root)
+ * - /api/root-auth   purpose=lock    → 锁屏门票(door=lock, by=root)（含锁屏未配置的引导）
+ *                    purpose=account → 账号会话(by=root) + 账号门票(door=account, by=root)
+ *                                      （「重置登录」：根凭证不是普通登录入口，只用来重置账号登录方式）
+ * - /api/lock-reset  verify          → 重置开关有效：重置锁屏门票(by=root)；
+ *                                      否则 needAccount，再验账号凭证 → 重置锁屏门票(by=account+root)
  *
  * 本函数只做：共用限速检查 → 恒定时间比对（两边去空白）→ 失败计数 + 审计 / 成功清计数。
- * 不签任何票，不读恢复开关。fail closed：限速或计数 KV 出错一律 503。
+ * 不签任何票，不读重置开关。fail closed：限速或计数 KV 出错一律 503。
  *
  * 失败响应与假入口逐字节相同（401 { ok:false, error:'auth' }）；传 padTo 时在返回前对齐耗时。
  */
 import { timingSafeEqual, normalizeRootKey } from './crypto.js';
-import { checkRootLimit, recordRootFail, clearRootFail } from './rootlimit.js';
-import { writeRootAudit } from './rootlog.js';
+import { checkRootLimit, recordRootFail, clearRootFail } from './root-limit.js';
+import { writeRootAudit } from './root-audit.js';
 import { REALM_ROOT } from './realms.js';
 
 /**
@@ -24,7 +24,7 @@ import { REALM_ROOT } from './realms.js';
  * @param {any} o.kv KV_LOCK_DOOR
  * @param {string} o.ip
  * @param {string} o.key 用户输入的根凭证
- * @param {string} o.auditPath 审计 path（root-auth / account / lockreset）
+ * @param {string} o.auditPath 审计 path（root-auth / account / lock-reset）
  * @param {() => Promise<void>} [o.padTo] 失败返回前对齐耗时（root-auth 用）
  * @returns {Promise<{ok:true}|{ok:false, response:Response}>}
  */
@@ -39,7 +39,7 @@ export async function checkRootCredential(o) {
     const lim = await checkRootLimit(kv, ip);
     if (lim.limited) {
       await writeRootAudit(kv, ip, false, { path: auditPath });
-      return { ok: false, response: Response.json({ ok: false, error: 'locked' }, { status: 429 }) };
+      return { ok: false, response: Response.json({ ok: false, error: 'cooldown' }, { status: 429 }) };
     }
   } catch (e) {
     return { ok: false, response: Response.json({ ok: false, error: 'server' }, { status: 503 }) };

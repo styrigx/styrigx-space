@@ -1,7 +1,7 @@
 /**
- * 服务绑定验票（workers/auth-gateway/src/verifier.js，RPC 入口 SessionVerifier 只是薄包装）：
- * - checkSession：与网关验页面同一套逻辑；只回结论
- * - wrangler 入口导出 SessionVerifier
+ * 服务绑定验票（workers/auth-gateway/src/verifier.js，RPC 入口 AuthVerifier 只是薄包装）：
+ * - checkLockSession：与网关验页面同一套逻辑；只回结论
+ * - wrangler 入口导出 AuthVerifier
  *
  * 运行：node --test tests/workers/auth-gateway/verifier.test.mjs
  */
@@ -13,8 +13,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const { checkSession } = await import(REPO + '/workers/auth-gateway/src/verifier.js');
-const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
+const { checkLockSession } = await import(REPO + '/workers/auth-gateway/src/verifier.js');
+const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
 
 function derToPem(der, label) {
   const b64 = Buffer.from(der).toString('base64');
@@ -42,34 +42,34 @@ function env({ epoch = '0', kvThrows = false } = {}) {
   };
 }
 
-test('checkSession：访客/主人有效，回角色；没有 cookie、伪造都无效', async () => {
+test('checkLockSession：访客/主人有效，回角色；没有 cookie、伪造都无效', async () => {
   for (const role of ['owner', 'visitor']) {
     const c = await signRole(signSessionCookie, LOCK.priv, 0, role, 'owner');
-    assert.deepEqual(await checkSession('a=1; sgx-verified=' + c, env()), { ok: true, role });
+    assert.deepEqual(await checkLockSession('a=1; sgx-verified=' + c, env()), { ok: true, role });
   }
-  assert.deepEqual(await checkSession('', env()), { ok: false, reason: 'no-cookie' });
-  assert.deepEqual(await checkSession(undefined, env()), { ok: false, reason: 'no-cookie' });
+  assert.deepEqual(await checkLockSession('', env()), { ok: false, reason: 'no-cookie' });
+  assert.deepEqual(await checkLockSession(undefined, env()), { ok: false, reason: 'no-cookie' });
   const other = await pair();
   const forged = await signSessionCookie(other.priv, 0, 'owner', 'owner');
-  assert.equal((await checkSession('sgx-verified=' + forged, env())).ok, false);
+  assert.equal((await checkLockSession('sgx-verified=' + forged, env())).ok, false);
   const low = await signSessionCookie(LOCK.priv, 1, 'owner', 'owner');
-  assert.equal((await checkSession('sgx-verified=' + low, env({ epoch: '2' }))).ok, false);
+  assert.equal((await checkLockSession('sgx-verified=' + low, env({ epoch: '2' }))).ok, false);
 });
 
 
 
 
-test('部署入口导出 SessionVerifier、ShareIssuer（短链 Worker 专用），wrangler main 指向它', () => {
+test('部署入口导出 AuthVerifier、ShareIssuer（短链 Worker 专用），wrangler main 指向它', () => {
   const toml = readFileSync(REPO + '/workers/auth-gateway/wrangler.toml', 'utf8');
   assert.match(toml, /^main = "src\/worker\.js"$/m);
   const src = readFileSync(REPO + '/workers/auth-gateway/src/worker.js', 'utf8');
   assert.match(src, /export \{ default \} from '\.\/index\.js'/);
-  assert.match(src, /export \{ SessionVerifier, ShareIssuer \} from '\.\/rpc\.js'/);
+  assert.match(src, /export \{ AuthVerifier, ShareIssuer \} from '\.\/rpc\.js'/);
   const rpc = readFileSync(REPO + '/workers/auth-gateway/src/rpc.js', 'utf8');
-  assert.match(rpc, /class SessionVerifier extends WorkerEntrypoint/);
+  assert.match(rpc, /class AuthVerifier extends WorkerEntrypoint/);
   assert.match(rpc, /class ShareIssuer extends WorkerEntrypoint/);
-  /* SessionVerifier 只有验票，签钥匙 / 发会话只在 ShareIssuer（只有 styrigx-share 绑定它） */
-  const sv = rpc.slice(rpc.indexOf('class SessionVerifier'), rpc.indexOf('class ShareIssuer'));
+  /* AuthVerifier 只有验票，签钥匙 / 发会话只在 ShareIssuer（只有 styrigx-share 绑定它） */
+  const sv = rpc.slice(rpc.indexOf('class AuthVerifier'), rpc.indexOf('class ShareIssuer'));
   assert.doesNotMatch(sv, /createLinkKey|revokeLinkKey|openLinkSession/);
 });
 

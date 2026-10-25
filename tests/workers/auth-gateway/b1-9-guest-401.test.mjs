@@ -44,7 +44,7 @@ async function genTestKeys() {
 }
 
 async function signVisitorCookie() {
-  const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/session.js');
+  const { signSessionCookie } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
   return signRole(signSessionCookie, TEST_PRIV_PEM, 0, 'visitor', 'owner');
 }
 
@@ -120,8 +120,8 @@ test('B1-9 验收（真实 Miniflare）：访客 401 统一', async (t) => {
       for (const [k, v] of Object.entries(kvInit)) await kv.put(k, v);
       kv._calls.get = 0; kv._calls.put = 0;
 
-      const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lockreset.js');
-      const req = new Request('https://test.example.com/api/lockreset', {
+      const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
+      const req = new Request('https://test.example.com/api/lock-reset', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

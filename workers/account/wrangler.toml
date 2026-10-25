@@ -4,7 +4,7 @@
 # 代码：src/（入口 index.js、门 gate.js、会话 auth.js、接口 api/、公共 lib/）+ migrations/（D1 styrigx-account）。
 #
 # 安全：
-# - 不持任何钥匙、不绑认证库（styrigx-auth-gateway 的 KV/D1）。会话全部问网关：服务绑定 AUTH → SessionVerifier（RPC），
+# - 不持任何钥匙、不绑认证库（styrigx-auth-gateway 的 KV/D1）。会话全部问网关：服务绑定 AUTH → AuthVerifier（RPC），
 #   和这些接口还在网关里时是同一套验签代码（verifySessionDetailed / verifyAccountCookie）。
 # - workers_dev = false、preview_urls = false：不开 *.workers.dev 和预览地址（它连的是正式 KV/D1，只许经 styrigx.com 的路由进来）。
 # - SGX_ENV = "production"：门（src/gate.js）按生产规则执行，同网关 middleware。
@@ -43,12 +43,12 @@ zone_name = "styrigx.com"
 SGX_ENV = "production"
 
 # ---- 服务绑定：会话问网关 ----
-# styrigx-auth-gateway 的 SessionVerifier（src/rpc.js：session() 锁屏会话、account() 账号会话）。
-# 部署顺序：deploy.yml 里 deploy-account-worker 在 deploy-auth-worker 之后（要先有带 account() 的网关）。
+# styrigx-auth-gateway 的 AuthVerifier（src/rpc.js：lockSession() 锁屏会话、accountSession() 账号会话）。
+# 部署顺序：deploy.yml 里 deploy-account-worker 在 deploy-auth-worker 之后（要先有带 accountSession() 的网关）。
 [[services]]
 binding = "AUTH"
 service = "styrigx-auth-gateway"
-entrypoint = "SessionVerifier"
+entrypoint = "AuthVerifier"
 
 # ---- 数据绑定（正式）----
 # 账号资料库 KV styrigx-account：KV_PROFILE = 头像（avatar:*）；KV_SETTINGS_SYNC = 云同步（account-prefs）。一个库两套数据，id 相同。

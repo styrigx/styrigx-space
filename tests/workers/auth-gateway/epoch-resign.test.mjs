@@ -5,7 +5,7 @@
  * - D1：删 owner 类钥匙不推进 session-epoch；之后设置站长密码成功（不 401 session）
  * - D2：删 lock 类钥匙推进 session-epoch +1，但同响应重签当前设备会话；
  *      新会话 cookie 用新 epoch 验签通过（session-check 200）
- * - D2：owner-password remove/set/change 推进 epoch 后同样重签当前设备会话
+ * - D2：lock-password remove/set/change 推进 epoch 后同样重签当前设备会话
  * - 退出所有设备（lock-all-devices）仍清当前 cookie（保持不变）
  *
  * 运行：node --test tests/kernel/epoch-resign.test.mjs
@@ -96,8 +96,8 @@ test('setup: 生成测试密钥', async () => {
 /* ============ 审查返工：必修安全项 1/2，helper 层跳过 by=root ============ */
 
 test('必修安全项 2：by=root 会话不重签（首次配 lock 的 epoch bump 不被抵消）', async () => {
-  const { reissueSessionWithEpoch } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
-  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
+  const { reissueSessionWithEpoch } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { signSessionCookie } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
   const { verifySessionDetailed } = await import('../../../workers/auth-gateway/functions/_middleware.js');
   const kv = makeKV({ 'session-epoch': '5' });
   /* by=root 代开会话（epoch 5） */

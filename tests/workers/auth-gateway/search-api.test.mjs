@@ -69,11 +69,11 @@ function getReq(url, headers = {}) {
 }
 
 async function ownerSess(epoch = 0) {
-  const { signSessionCookie } = await import(KERNEL + 'session.js');
+  const { signSessionCookie } = await import(KERNEL + 'lock-session.js');
   return await signSessionCookie(LOCK.priv, epoch, 'owner', 'owner');
 }
 async function visitorSess() {
-  const { signSessionCookie } = await import(KERNEL + 'session.js');
+  const { signSessionCookie } = await import(KERNEL + 'lock-session.js');
   return await signRole(signSessionCookie, LOCK.priv, 0, 'visitor', 'owner');
 }
 async function accTicket(by = 'password', authAt = Date.now(), epoch = 0, priv) {
@@ -94,7 +94,7 @@ function pickCookie(res, name) {
 }
 
 async function doorTicket(by = 'password', epoch = 0, priv, now) {
-  const { signDoorTicket } = await import(KERNEL + 'door.js');
+  const { signDoorTicket } = await import(KERNEL + 'tickets.js');
   return await signDoorTicket(priv || ACCOUNT.priv, 'account', by, epoch, now);
 }
 /* 管理操作要账号门票：测试里带了账号会话又没显式给 sgx-door（键不存在）时，自动补一张同纪元的门票；

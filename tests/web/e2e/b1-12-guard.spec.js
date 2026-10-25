@@ -50,14 +50,14 @@ test.describe('B1-12 守护：添加通行密钥', () => {
       try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
     });
     /* 门内页探针通过（账号体系：原站长凭证门已移除，添加通行密钥在锁屏门内页测） */
-    await mockJson(page, '**/api/lock-status', 200, { ok: true, password: true, passkey: true });
-    await mockJson(page, '**/api/lock-door', 200, { ok: true, valid: true, door: 'lock', password: true, passkey: true });
-    await mockJson(page, '**/api/owner-passkey', 200, { ok: true, keys: [], scope: 'root' });
+    await mockJson(page, '**/api/lock-credentials', 200, { ok: true, password: true, passkey: true });
+    await mockJson(page, '**/api/lock-reauth', 200, { ok: true, valid: true, door: 'lock', password: true, passkey: true });
+    await mockJson(page, '**/api/lock-passkey', 200, { ok: true, keys: [], scope: 'root' });
   });
 
   test('点击后 1 秒内调 credentials.create，成功弹命名弹层', async ({ page }) => {
     /* challenge 接口返回注册用 challenge */
-    await page.route('**/api/owner-passkey', async (route) => {
+    await page.route('**/api/lock-passkey', async (route) => {
       const req = route.request();
       let action = '';
       try { action = JSON.parse(req.postData() || '{}').action || ''; } catch (e) {}
@@ -95,7 +95,7 @@ test.describe('B1-12 守护：添加通行密钥', () => {
     await expect(page.locator('#lockmgr-pkadd')).toBeVisible();
 
     /* 桩掉 credentials.create：记录调用时间，返回假 credential
-      （不用虚拟认证器：door.js 要求 userVerification='required'，
+      （不用虚拟认证器：tickets.js 要求 userVerification='required'，
        虚拟认证器开 UV 会失败） */
     await page.evaluate(() => {
       window.__createCalledAt = 0;
@@ -135,7 +135,7 @@ test.describe('B1-12 守护：添加通行密钥', () => {
   });
 
   test('create 失败给中文提示，不弹命名弹层', async ({ page }) => {
-    await page.route('**/api/owner-passkey', async (route) => {
+    await page.route('**/api/lock-passkey', async (route) => {
       const req = route.request();
       let action = '';
       try { action = JSON.parse(req.postData() || '{}').action || ''; } catch (e) {}
@@ -220,7 +220,7 @@ test.describe('B1-12 守护：密码自动填充', () => {
     await page.click('#acct-pw-go');
     await expect.poll(() => posted && posted.password).toBe('autofilled-password-123');
     await expect(
-      page.locator('.sgx-door-err:not([hidden])').filter({ hasText: '请输入凭证' })
+      page.locator('.sgx-credential-err:not([hidden])').filter({ hasText: '请输入凭证' })
     ).toHaveCount(0, { timeout: 5000 });
   });
 });

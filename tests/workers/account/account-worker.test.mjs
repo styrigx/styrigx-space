@@ -1,10 +1,10 @@
 /**
  * 账号 Worker styrigx-account（workers/account，2026-10-24 从网关拆出来）：
- * - wrangler.toml：名字、不开 workers.dev / 预览地址、四条路由、服务绑定 AUTH → SessionVerifier、正式 / 预览库 id、不绑认证库和钥匙
+ * - wrangler.toml：名字、不开 workers.dev / 预览地址、四条路由、服务绑定 AUTH → AuthVerifier、正式 / 预览库 id、不绑认证库和钥匙
  * - 门（gate.js）：和网关 middleware 对这几条路径的结论一致（没会话 401 / 302、访客调 /api/prefs 403、头像文件公开、别的域名 403）
  * - 会话问网关（真实 verifier.js）；网关不可达 / 没绑 → 当作无会话
  * - 头像：默认图回源、KV 里的图、只读 KV_PROFILE；X-SGX-Runtime: account；/api/* no-store
- * - 网关 SessionVerifier.account()：和 verifyAccountCookie 同结论，设备记录带上 User-Agent
+ * - 网关 AuthVerifier.accountSession()：和 verifyAccountCookie 同结论，设备记录带上 User-Agent
  *
  * 运行：node --test tests/workers/account/*.test.mjs
  */
@@ -17,9 +17,9 @@ import { gatewayVerifier } from './_auth.mjs';
 const REPO = new URL('../../../', import.meta.url).pathname;
 const worker = (await import(REPO + 'workers/account/src/index.js')).default;
 const { API_ROUTES } = await import(REPO + 'workers/account/src/index.js');
-const { signSessionCookie } = await import(REPO + 'workers/auth-gateway/functions/_kernel/session.js');
+const { signSessionCookie } = await import(REPO + 'workers/auth-gateway/functions/_kernel/lock-session.js');
 const { signAccountTicket } = await import(REPO + 'workers/auth-gateway/functions/_kernel/account-session.js');
-const { checkAccount } = await import(REPO + 'workers/auth-gateway/src/verifier.js');
+const { checkAccountSession } = await import(REPO + 'workers/auth-gateway/src/verifier.js');
 const { KEY_VER, keyOf, avatarKv } = await import(REPO + 'workers/account/src/lib/avatar.js');
 
 function derToPem(der, label) {
@@ -66,7 +66,7 @@ const CTX = { waitUntil() {} };
 const call = (req, env) => worker.fetch(req, env, CTX);
 async function sess(role) { return 'sgx-verified=' + (await signRole(signSessionCookie, PRIV, 0, role, 'owner')); }
 
-test('wrangler.toml：styrigx-account、不开公开地址、四条路由、AUTH → SessionVerifier、不绑钥匙和认证库', () => {
+test('wrangler.toml：styrigx-account、不开公开地址、四条路由、AUTH → AuthVerifier、不绑钥匙和认证库', () => {
   const toml = readFileSync(REPO + 'workers/account/wrangler.toml', 'utf8');
   const [prod, preview] = toml.split(/^\[env\.preview\]$/m);
   assert.match(prod, /^name = "styrigx-account"$/m);
@@ -76,7 +76,7 @@ test('wrangler.toml：styrigx-account、不开公开地址、四条路由、AUTH
   assert.match(prod, /^SGX_ENV = "production"$/m);
   const routes = [...prod.matchAll(/^pattern = "([^"]+)"\nzone_name = "styrigx\.com"$/gm)].map((m) => m[1]);
   assert.deepEqual(routes, ['styrigx.com/api/avatar*', 'styrigx.com/api/prefs*', 'styrigx.com/api/wellbeing*', 'styrigx.com/avatar/*']);
-  assert.match(prod, /\[\[services\]\]\nbinding = "AUTH"\nservice = "styrigx-auth-gateway"\nentrypoint = "SessionVerifier"/);
+  assert.match(prod, /\[\[services\]\]\nbinding = "AUTH"\nservice = "styrigx-auth-gateway"\nentrypoint = "AuthVerifier"/);
   assert.match(prod, /binding = "D1_WELLBEING"\ndatabase_name = "styrigx-account"\ndatabase_id = "03f60d23-9c2f-4f3d-a692-764ccaac6f5d"\nmigrations_dir = "migrations"/);
   assert.doesNotMatch(toml, /secrets_store_secrets|PRIVATE KEY|b796097c90104000992b7713f61e16ea|6931d1da-3502-480d-b0bd-de1bc4829d1d|5084ea8ef2444156ba48203220b93df6|d417e421-75bb-4425-bdc8-54856b88578f/);
   /* 预览：不抢正式路由、不连正式库；预览 D1 还没建 → 只有注释掉的占位，不编 id */
@@ -168,8 +168,8 @@ test('主人：未知子路径 404、不支持的方法 405；/api/prefs/ 尾斜
 
 test('会话问网关：网关报错 / 没绑 AUTH / 回了看不懂的东西 → 当作无会话（fail closed）', async () => {
   const ck = await sess('owner');
-  const boom = { session: async () => { throw new Error('down'); }, account: async () => { throw new Error('down'); } };
-  for (const AUTH of [boom, undefined, { session: async () => ({ ok: true, role: 'root' }), account: async () => ({ ok: 1 }) }]) {
+  const boom = { lockSession: async () => { throw new Error('down'); }, accountSession: async () => { throw new Error('down'); } };
+  for (const AUTH of [boom, undefined, { lockSession: async () => ({ ok: true, role: 'root' }), accountSession: async () => ({ ok: 1 }) }]) {
     const { env } = setup({ AUTH });
     const r = await call(new Request('https://styrigx.com/api/wellbeing', { headers: { Cookie: ck } }), env);
     assert.equal(r.status, 401);
@@ -237,21 +237,21 @@ test('头像只读 KV_PROFILE：认证库里有 avatar:* 也不读', () => {
   assert.equal(avatarKv({ KV_LOCK_DOOR: lockKv, KV_ACCOUNT_LOGIN: lockKv }), null);
 });
 
-test('网关 SessionVerifier.account()：同 verifyAccountCookie；吊销 → revoked；设备记录带浏览器 User-Agent', async () => {
+test('网关 AuthVerifier.accountSession()：同 verifyAccountCookie；吊销 → revoked；设备记录带浏览器 User-Agent', async () => {
   const kv = makeKv();
   const gwEnv = { SGX_ACCOUNT_PUBLIC: PUB, KV_ACCOUNT_LOGIN: kv };
   const sid = 'BBBBBBBBBBBBBBBB';
   const t = await signAccountTicket(PRIV, 'passkey', 0, Date.now(), undefined, sid);
   const ua = 'Mozilla/5.0 (Linux; Android 16; SM-S9380) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/29.0 Chrome/136.0.0.0 Mobile Safari/537.36';
-  assert.deepEqual(await checkAccount('sgx-account=' + t, gwEnv, { ua, country: 'CN' }), { ok: true });
+  assert.deepEqual(await checkAccountSession('sgx-account=' + t, gwEnv, { ua, country: 'CN' }), { ok: true });
   const rec = [...kv.m.entries()].find(([k]) => k.includes(sid));
   assert.ok(rec, '设备记录补写了');
   const dev = JSON.parse(rec[1].value ?? rec[1]);
   assert.equal(dev.country, 'CN');
   assert.ok(dev.browser || dev.platform, '从 User-Agent 解析出了浏览器 / 系统');
   await kv.put('account-revoked:' + sid, '1');
-  assert.deepEqual(await checkAccount('sgx-account=' + t, gwEnv, {}), { ok: false, reason: 'revoked' });
-  assert.deepEqual(await checkAccount('', gwEnv), { ok: false, reason: 'no-cookie' });
+  assert.deepEqual(await checkAccountSession('sgx-account=' + t, gwEnv, {}), { ok: false, reason: 'revoked' });
+  assert.deepEqual(await checkAccountSession('', gwEnv), { ok: false, reason: 'no-cookie' });
 });
 
 test('check-worker-routes：现在的两份路由通过；账号 Worker 规则写宽了（抢网关接口 / 页面）就报错', async () => {

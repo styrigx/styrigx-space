@@ -1,12 +1,12 @@
 /**
  * @fileoverview 安全与隐私 → 锁屏凭证（/settings/security/lock/）。
- * - 门（安全操作）：进页 POST /api/lock-door status —— 没有有效门票 → 显示验证行：
+ * - 门（安全操作）：进页 POST /api/lock-reauth status —— 没有有效门票 → 显示验证行：
  *   锁屏通行密钥 / 解锁密码（设了哪个显示哪个）+ 根凭证（一直在，防止忘了凭证网站就死了）；
  *   通过后签 3 分钟锁屏门票（SGX_LOCK_* 签，HttpOnly cookie），页内倒计时按服务端 expiresAt；
  *   剩余时间内刷新 / 离开再回来都不用重新验证（2026-10-24，以前 pagehide 就作废），到期回门口。
  * - 门内：解锁密码（弹层设置/修改，最少 8 位）；锁屏通行密钥列表（设备名可编辑、注册日期、可删除），
  *   「添加通行密钥」；会话：退出所有设备（/api/lock-all-devices，所有设备回锁屏）。
- * - 重置锁屏（data-sgx-session=lockreset，重置门票 door=lockreset）：直接进门内，只能设置密码 / 增删通行密钥。
+ * - 重置锁屏（data-sgx-lock-session=lock-reset，重置门票 door=lockreset）：直接进门内，只能设置密码 / 增删通行密钥。
  * - 反馈一律 One UI 轻提示（toast）；localStorage 经 storage.js。
  */
 import { on } from '../lib/events.js';
@@ -16,21 +16,20 @@ import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindSubmitButton, showCenterDialog } from '../lib/dialog-behavior.js';
 import { api, apiErrorText, needVerify, startDoorCountdown, refreshDoorCountdown, guardDoorExpired } from './app-gate.js';
 import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
-import { bindDataEyes, createSetPwDialog, newPwError, pwSetRequest, lockDoorFetch } from '../lib/auth-flow.js';
+import { bindDataEyes, createSetPwDialog, newPwError, passwordSetRequest, lockDoorFetch } from '../lib/auth-flow.js';
 import { renderAccountMethods } from '../lib/account-methods.js';
 import { KEY_LOCK } from '../lib/key-names.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
-  /* 本页只管锁屏凭证（lock-pw + class=lock 通行密钥）。 */
-  const pwKind = 'lock';
-  /** C6：重置会话模式（lockreset 票据）。重置会话里不使用门内到期框。 */
-  var isLockreset = false;
+  /* 本页只管锁屏凭证（锁屏密码 + 锁屏通行密钥；接口按路径分域，/api/lock-*）。 */
+  /** C6：重置会话模式（重置锁屏门票）。重置会话里不使用门内到期框。 */
+  var isLockReset = false;
   try {
-    isLockreset = document.documentElement.dataset.sgxSession === 'lockreset';
+    isLockReset = document.documentElement.dataset.sgxLockSession === 'lock-reset';
   } catch (e) {}
   /** 状态接口：锁屏层 */
-  const statusApi = '/api/lock-status';
+  const statusApi = '/api/lock-credentials';
   /** @type {any} */
   let T = {};
   try {
@@ -51,10 +50,6 @@ import { KEY_LOCK } from '../lib/key-names.js';
   }
 
   let hasPw = false;
-  /** 批次 A 验收修复 P0：本页通行密钥类别由页面决定（锁屏 → 'lock'），
-      不按票据 scope 推断；服务端按 pkClass + 票据双重校验。 */
-  const pageClass = 'lock';
-  const pkAddClass = pageClass;
 
   /* ---------- 通用 ---------- */
   /** @param {string} id @param {string} msg */
@@ -98,7 +93,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
   }
 
   /** 会话/票据失效 → 重新验证（批次 A 验收修复 #7：改走 app-gate.js 的 needVerify，
-      和 door.js 一致；detail='owner-configured' 时 needVerify 显示明确文案）。
+      和 tickets.js 一致；detail='owner-configured' 时 needVerify 显示明确文案）。
       A-1：按真实 code 传参（v1.0 §三 1c）——'session' 走会话弹框，
       'door'/'scope'/'by-root' 走验证弹框；单参调用（仅 reason，如 'owner-configured'）
       视为验证弹框。锁屏页无验证门可开：lockgate-* 元素在任何模板里都不存在，
@@ -107,8 +102,8 @@ import { KEY_LOCK } from '../lib/key-names.js';
     /* P2-14：先收起当前所有 sheet 再弹框，禁止弹层叠弹层 */
     closeOpenSheets();
     /* C6：重置会话里不使用门内到期框 */
-    if (isLockreset) {
-      showLockresetDoneDialog();
+    if (isLockReset) {
+      showLockResetDoneDialog();
       return;
     }
     if (code === 'session') needVerify(t, 'session', detail);
@@ -121,7 +116,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
    * - 真到期（未设置好）：「验证已过期，请回锁屏重新开始」
    * 按钮都是「去锁屏」，一律 location.replace('/?lock=1')，不经主页。
    */
-  function showLockresetDoneDialog() {
+  function showLockResetDoneDialog() {
     var done = hasPw || hasPk;
     showCenterDialog({
       title: done
@@ -166,7 +161,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
     } catch (e) {}
     $('lockmgr').hidden = false;
     const sessSec = $('lockmgr-sessions');
-    if (sessSec) sessSec.hidden = isLockreset;
+    if (sessSec) sessSec.hidden = isLockReset;
     /* v1.1 §二.1：胶囊在首次数据加载完成后再显示，避免「胶囊已显示、卡片还空着」；
        任一请求失败也照常显示胶囊（两函数内部已吞错，Promise 恒 resolve）。 */
     const startCapsule = function () { startDoorCountdown(t, expiresAt); };
@@ -180,7 +175,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
   var hasPk = false;
   /* v1.1 §二.1：返回请求 Promise，供进门回调等首次数据加载完成后再显示胶囊 */
   function refreshStatus() {
-    /* 状态接口：/api/lock-status（lock-pw + class=lock） */
+    /* 状态接口：/api/lock-credentials（lock-pw + class=lock） */
     return fetch(statusApi, { method: 'GET', credentials: 'same-origin' })
       .then(function (r) {
         return r.json();
@@ -221,7 +216,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
       /* C5：已过期时第一下就弹到期框，不进入「再点一次」 */
       if (guardDoorExpired(t)) return;
       /* v1.1 §二.4：删最后一把锁屏密码 → 跳过「再点一次」，点「删除」直接弹确认框 */
-      if (pwKind === 'lock' && !hasPk) {
+      if (!hasPk) {
         var resetArmed = function () { armed = false; pwDel.textContent = origText; pwDel.classList.remove('armed'); };
         showCenterDialog({
           title: t('lastKeyConfirmTitle'),
@@ -237,10 +232,9 @@ import { KEY_LOCK } from '../lib/key-names.js';
       }
       if (!armed) {
         armed = true;
-        /* 如果删完后密码和通行密钥都没了：lock 模式 → 锁屏只能通过重置锁屏重新设置；
-           owner 模式 → 只能用根凭证进入。 */
+        /* 如果删完后密码和通行密钥都没了：锁屏只能通过重置锁屏重新设置。 */
         if (!hasPk) {
-          pwDel.textContent = pwKind === 'lock' ? t('pwDelWarnLock') : t('pwDelWarn');
+          pwDel.textContent = t('pwDelWarnLock');
         } else {
           pwDel.textContent = t('pwDelAsk');
         }
@@ -255,7 +249,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
       window.clearTimeout(armTimer);
       doRemovePw();
       function doRemovePw() {
-      api('/api/owner-password', { action: 'remove', kind: pwKind })
+      api('/api/lock-password', { action: 'remove' })
         .then(function (r) {
           const j = r.json;
           if (j && j.ok) {
@@ -290,10 +284,10 @@ import { KEY_LOCK } from '../lib/key-names.js';
       showErr('lockpw-err', t(pwErr));
       return;
     }
-    const req = pwSetRequest(hasPw, pwKind, va);
+    const req = passwordSetRequest(hasPw, va);
     const action = req.action;
     const body = req.body;
-    api('/api/owner-password', body)
+    api('/api/lock-password', body)
       .then(function (res) {
         const j = res.json;
         if (!j) {
@@ -403,7 +397,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
         refreshPkList();
         return;
       }
-      api('/api/owner-passkey', { action: 'rename', credId: pkNameCredId, name: name })
+      api('/api/lock-passkey', { action: 'rename', credId: pkNameCredId, name: name })
         .then(function (r) {
           const j = r.json;
           if (j && j.ok) {
@@ -413,7 +407,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
             refreshDoorCountdown(t);
           } else if (j && isReauthError(j.error)) {
             /* C6：重置会话里 rename 被拒（scope）不是过期，行内提示，不弹框 */
-            if (isLockreset && j.error === 'scope') {
+            if (isLockReset && j.error === 'scope') {
               showErr('lockpkname-err', t('pkRenameResetNo'));
             } else {
               needReauth(j && j.error, j && j.reason);
@@ -483,7 +477,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
   function refreshPkList() {
     const ul = $('lockmgr-pklist');
     const empty = $('lockmgr-pkempty');
-    return api('/api/owner-passkey', { action: 'list', pkClass: pageClass })
+    return api('/api/lock-passkey', { action: 'list' })
       .then(function (res) {
         const j = res.json;
         if (!j) return;
@@ -496,9 +490,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
           pkListState(t('pkListFail'));
           return;
         }
-        const keys = (j.keys || []).filter(function (k) {
-          return (k.class || 'lock') === pageClass;
-        });
+        const keys = j.keys || [];
         if (!ul) return;
         ul.innerHTML = '';
         keys.forEach(function (k) {
@@ -516,7 +508,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
           const saveName = function () {
             const v = nameInput.value.trim();
             if (v === lastSaved) return;
-            api('/api/owner-passkey', { action: 'rename', credId: k.credId, name: v })
+            api('/api/lock-passkey', { action: 'rename', credId: k.credId, name: v })
               .then(function (r2) {
                 const jj = r2.json;
                 if (jj && jj.ok) {
@@ -570,7 +562,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
             /* C5：已过期时第一下就弹到期框，不进入「再点一次」 */
             if (guardDoorExpired(t)) return;
             /* v1.1 §二.4：删最后一把锁屏钥匙 → 跳过「再点一次」，点「删除」直接弹确认框 */
-            if (pageClass === 'lock' && keys.length <= 1 && !hasPw) {
+            if (keys.length <= 1 && !hasPw) {
               var resetPkArmed = function () { armed = false; del.textContent = t('pkDel'); del.classList.remove('armed'); };
               showCenterDialog({
                 title: t('lastKeyConfirmTitle'),
@@ -598,7 +590,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
             window.clearTimeout(armTimer);
             doDeleteKey();
             function doDeleteKey() {
-            api('/api/owner-passkey', { action: 'delete', credId: k.credId })
+            api('/api/lock-passkey', { action: 'delete', credId: k.credId })
               .then(function (r2) {
                 const jj = r2.json;
                 if (jj && jj.ok) {
@@ -663,8 +655,8 @@ import { KEY_LOCK } from '../lib/key-names.js';
         toast(t('pkNoSupport'));
         return;
       }
-      /* 本页只注册锁屏通行密钥（pkClass=lock）；服务端按门票再校验。 */
-      api('/api/owner-passkey', { action: 'challenge', type: 'register', pkClass: pkAddClass })
+      /* 本页只注册锁屏通行密钥；服务端按门票再校验。 */
+      api('/api/lock-passkey', { action: 'challenge', type: 'register' })
         .then(function (res) {
           const ch = res.json;
           if (!ch) throw { kind: 'server' };
@@ -709,7 +701,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
           const cred = r2.cred;
           /* 注册时直接带预填名（服务端已支持 body.name） */
           const prefill = genPkPrefillName();
-          return api('/api/owner-passkey', {
+          return api('/api/lock-passkey', {
             action: 'register',
             cid: r2.cid,
             name: prefill,
@@ -804,10 +796,10 @@ import { KEY_LOCK } from '../lib/key-names.js';
   const doorSubmit = {
     /** @param {string} value */
     password: function (value) {
-      return api('/api/owner-password', { action: 'verify', password: value, door: true }).then(function (res) {
+      return api('/api/lock-password', { action: 'verify', password: value, door: true }).then(function (res) {
         const j = res.json;
         if (j && j.ok) return;
-        if (res.status === 429 || (j && j.error === 'locked')) throw { message: t('errLocked') };
+        if (res.status === 429 || (j && j.error === 'cooldown')) throw { message: t('errLocked') };
         if (j && j.error === 'wrong') throw { message: t('errWrongPw'), clear: true };
         throw { message: srvErr(j && j.error, res.status) };
       }, function () {
@@ -828,7 +820,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
     },
     passkey: function () {
       if (!window.PublicKeyCredential) return Promise.reject({ message: t('pkNoSupport') });
-      return api('/api/owner-passkey', { action: 'challenge', type: 'auth', pkClass: 'lock' }).then(function (res) {
+      return api('/api/lock-passkey', { action: 'challenge', type: 'auth' }).then(function (res) {
         const j = res.json;
         if (!j || !j.ok || !j.challenge) throw { message: srvErr(j && j.error, res.status) };
         const allow = (j.allowCredentials || []).map(function (c) {
@@ -851,7 +843,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
         throw { message: t('errNetwork') };
       }).then(function (r) {
         const cred = r.cred;
-        return api('/api/owner-passkey', {
+        return api('/api/lock-passkey', {
           action: 'auth',
           door: true,
           cid: r.cid,
@@ -924,7 +916,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
           enterMgr(j.expiresAt);
           return;
         }
-        if (isLockreset) {
+        if (isLockReset) {
           /* 重置会话：门票没了（到期 / 已用完）→ 结束弹框，回锁屏 */
           needReauth('door');
           return;

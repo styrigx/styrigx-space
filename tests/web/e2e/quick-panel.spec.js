@@ -632,10 +632,10 @@ test.describe('快捷面板：与设置页同一个设置', () => {
     await expect(page).toHaveURL(/localhost:\d+\/(en\/)?$/);
   });
 
-  test('立即锁定：关面板后弹出与安全页相同的确认层，确认后调 /api/lock', async ({ page }) => {
+  test('立即锁定：关面板后弹出与安全页相同的确认层，确认后调 /api/lock-now', async ({ page }) => {
     let called = false;
     await go(page, '/', 'zh', false);
-    await page.route('**/api/lock', async (route) => {
+    await page.route('**/api/lock-now', async (route) => {
       called = true;
       await route.fulfill({ status: 200, body: '{}' });
     });

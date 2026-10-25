@@ -4,7 +4,7 @@
 # 代码：src/（入口 index.js、门 gate.js、会话 auth.js、打开 open.js、接口 api/、规则和存储 lib/）+ migrations/（D1 styrigx-share）。
 #
 # 安全：
-# - 不持任何钥匙、不绑认证库（styrigx-auth-gateway 的 KV/D1）。会话问网关 SessionVerifier（服务绑定 AUTH）；
+# - 不持任何钥匙、不绑认证库（styrigx-auth-gateway 的 KV/D1）。会话问网关 AuthVerifier（服务绑定 AUTH）；
 #   签 / 作废短链钥匙、给访客换会话问网关 ShareIssuer（服务绑定 ISSUER）。临时钥匙和会话的签发逻辑只在网关里一份。
 # - workers_dev = false、preview_urls = false：不开 *.workers.dev 和预览地址（它连的是正式 D1，只许经 styrigx.com 的路由进来）。
 # - SGX_ENV = "production"：门（src/gate.js）按生产规则执行。
@@ -34,13 +34,13 @@ zone_name = "styrigx.com"
 SGX_ENV = "production"
 
 # ---- 服务绑定：都指向网关 ----
-# AUTH：SessionVerifier（session() 锁屏会话、account() 账号会话），和账号 Worker 同一个入口。
+# AUTH：AuthVerifier（lockSession() 锁屏会话、accountSession() 账号会话），和账号 Worker 同一个入口。
 # ISSUER：ShareIssuer（createLinkKey / revokeLinkKey / openLinkSession，网关 src/share-issuer.js），只有本 Worker 绑定。
 # 部署顺序：deploy.yml 里 deploy-share-worker 在 deploy-auth-worker 之后（要先有带 ShareIssuer 的网关）。
 [[services]]
 binding = "AUTH"
 service = "styrigx-auth-gateway"
-entrypoint = "SessionVerifier"
+entrypoint = "AuthVerifier"
 
 [[services]]
 binding = "ISSUER"
@@ -70,7 +70,7 @@ SGX_ENV = "preview"
 [[env.preview.services]]
 binding = "AUTH"
 service = "styrigx-auth-gateway"
-entrypoint = "SessionVerifier"
+entrypoint = "AuthVerifier"
 
 [[env.preview.services]]
 binding = "ISSUER"

@@ -21,7 +21,7 @@
  */
 import { ed25519Sign, ed25519Verify } from './crypto.js';
 import { REALM_ACCOUNT, realmPrivateKey, realmPublicKey, realmCookie, realmClearCookie } from './realms.js';
-import { newSid, isSid, isRevoked, getDevice, putDevice, recordLogin, deviceInfo, TOUCH_INTERVAL_MS } from './account-devices.js';
+import { newDeviceId, isDeviceId, isRevoked, getDevice, putDevice, recordLogin, deviceInfo, TOUCH_INTERVAL_MS } from './account-devices.js';
 
 export const ACCOUNT_COOKIE = REALM_ACCOUNT.cookie; /* 'sgx-account' */
 export const ACCOUNT_MAX_AGE = REALM_ACCOUNT.maxAge; /* 400 天：不点退出就一直登录 */
@@ -80,7 +80,7 @@ export async function bumpAccountEpoch(kv) {
  */
 export async function signAccountTicket(privatePem, by, epoch, authAt, now, sid) {
   if (!isAccountBy(by)) throw new Error('signAccountTicket: bad by ' + JSON.stringify(by));
-  if (sid !== undefined && sid !== '' && !isSid(sid)) throw new Error('signAccountTicket: bad sid');
+  if (sid !== undefined && sid !== '' && !isDeviceId(sid)) throw new Error('signAccountTicket: bad sid');
   const t = now || Date.now();
   const exp = t + ACCOUNT_MAX_AGE * 1000;
   const payload = by + '.' + epoch + '.' + authAt + '.' + exp + (sid ? '.' + sid : '');
@@ -100,7 +100,7 @@ export function parseAccountTicket(val) {
   let sid = '';
   if (parts.length === 6) {
     sid = parts.splice(4, 1)[0];
-    if (!isSid(sid)) return null;
+    if (!isDeviceId(sid)) return null;
   }
   const by = parts[0];
   if (!isAccountBy(by)) return null;
@@ -224,7 +224,7 @@ export async function issueAccountCookie(env, headers, by, opts) {
   }
   try {
     const authAt = typeof o.authAt === 'number' ? o.authAt : Date.now();
-    const sid = isSid(o.sid || '') ? o.sid : newSid();
+    const sid = isDeviceId(o.sid || '') ? o.sid : newDeviceId();
     const cv = await signAccountTicket(realmPrivateKey(env, REALM_ACCOUNT), by, epoch, authAt, undefined, sid);
     headers.append('Set-Cookie', realmCookie(REALM_ACCOUNT, cv));
     if (o.record !== false && env && env.KV_ACCOUNT_LOGIN) {
@@ -247,11 +247,11 @@ export function clearAccountCookie(headers) {
 }
 
 /**
- * 登录签票的选项：同一浏览器已有有效账号会话（比如进安全与隐私的门）就沿用它的 sid，不多记一台设备。
+ * 登录签票的选项：同一浏览器已有有效账号会话（比如进账号安全的门）就沿用它的 sid，不多记一台设备。
  * device：前端 navigator.userAgentData 给的型号 / 平台（account-devices.js 清洗）。
  * @param {any} request @param {any} env @param {any} body
  */
-export async function loginOpts(request, env, body) {
+export async function accountSessionOpts(request, env, body) {
   let sid = '';
   try {
     const cur = await verifyAccountCookie(request, env);

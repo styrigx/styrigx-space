@@ -14,7 +14,7 @@ const MAX_META = 512;
 
 /**
  * @param {string} cookieHeader
- * @param {{ua?:string, country?:string, city?:string}} [meta] 账号设备记录用（User-Agent、cf 国家城市），只在 account() 里用
+ * @param {{ua?:string, country?:string, city?:string}} [meta] 账号设备记录用（User-Agent、cf 国家城市），只在 accountSession() 里用
  */
 function cookieRequest(cookieHeader, meta) {
   const h = typeof cookieHeader === 'string' ? cookieHeader.slice(0, MAX_COOKIE_HEADER) : '';
@@ -35,7 +35,7 @@ function cookieRequest(cookieHeader, meta) {
  * @param {string} cookieHeader 浏览器发来的 Cookie 头
  * @param {Record<string, any>} env 已换好密钥字符串的 env
  */
-export async function checkSession(cookieHeader, env) {
+export async function checkLockSession(cookieHeader, env) {
   const s = await verifySessionDetailed(cookieRequest(cookieHeader), env);
   return s.ok ? { ok: true, role: s.role } : { ok: false, reason: s.reason };
 }
@@ -48,7 +48,7 @@ export async function checkSession(cookieHeader, env) {
  * @param {Record<string, any>} env 已换好密钥字符串的 env
  * @param {{ua?:string, country?:string, city?:string}} [meta]
  */
-export async function checkAccount(cookieHeader, env, meta) {
+export async function checkAccountSession(cookieHeader, env, meta) {
   const a = await verifyAccountCookie(cookieRequest(cookieHeader, meta), env);
   return a.ok ? { ok: true } : { ok: false, reason: a.reason };
 }

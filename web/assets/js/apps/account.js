@@ -13,7 +13,7 @@
  *   另一组：云同步（副标题 = 开关状态 / 上次同步，进 /account/sync/ 看同步了哪些项、开关）/ 服务状态（/account/status/）。
  * - ?return=/account/(security|devices|sync|status)/：子页没有账号会话时跳来，登录后回子页。
  * - 访客：读不到状态，两个按钮都显示，服务端一律拒绝（统一显示「不正确 / 验证失败」）。
- * - 首帧（2026-10-21）：页面默认两块都隐藏；网关在 <html data-sgx-account="in|out"> 注入服务端验过的账号会话，
+ * - 首帧（2026-10-21）：页面默认两块都隐藏；网关在 <html data-sgx-account-session="in|out"> 注入服务端验过的账号会话，
  *   这里同步按它显示总览或登录区。没有这个属性（中性态）就等 /api/account。
  *   「欢迎回来」只在服务端说未登录时出现：属性 out、或 /api/account 明确 session=null。
  *   属性 in 而 /api/account 读不到（访客 401 / 网络）→ 保持总览，不退回登录区。
@@ -63,7 +63,7 @@ import { accountSubmitters, visibleKinds } from '../lib/account-methods.js';
   const goBtn = /** @type {HTMLButtonElement|null} */ ($('acct-login-go'));
   const avBtn = $('acct-login-avatar');
   const noneEl = $('acct-login-none');
-  const hint0 = document.documentElement.dataset.sgxAccount || '';
+  const hint0 = document.documentElement.dataset.sgxAccountSession || '';
   if (!loginEl && mainEl && hint0 === 'in') {
     /* 服务端说已登录，登录区没下发：只填总览；/api/account 明确说没有账号会话（刚过期 / 别处退出）
        → 重新取页面，由服务端画登录区。读不到（访客 401 / 网络）→ 保持总览。 */
@@ -91,7 +91,7 @@ import { accountSubmitters, visibleKinds } from '../lib/account-methods.js';
         startSync();
         const PKC = /** @type {any} */ (window).PublicKeyCredential;
         if (PKC && typeof PKC.signalCurrentUserDetails === 'function') {
-          postJSON(ACCOUNT_API, { action: 'list' }).then(function (res) {
+          postJSON(ACCOUNT_API, { action: 'passkey-list' }).then(function (res) {
             if (res.j && res.j.ok) signalAccountName(res.j);
           }, function () {});
         }
@@ -131,7 +131,7 @@ import { accountSubmitters, visibleKinds } from '../lib/account-methods.js';
   /** GET /api/account 的最近一次结果（访客 / 读失败为 null） */
   let lastStatus = null;
   /** 网关注入的账号会话提示：'in' | 'out' | ''（中性） */
-  const hint = document.documentElement.dataset.sgxAccount || '';
+  const hint = document.documentElement.dataset.sgxAccountSession || '';
 
   /** 当前可用的登录方式（showLogin 时按状态算） @type {string[]} */
   let kinds = visibleKinds(null);
@@ -300,7 +300,7 @@ import { accountSubmitters, visibleKinds } from '../lib/account-methods.js';
   function maybeSignalName() {
     const PKC = /** @type {any} */ (window.PublicKeyCredential);
     if (!PKC || typeof PKC.signalCurrentUserDetails !== 'function') return;
-    postJSON(ACCOUNT_API, { action: 'list' }).then(function (res) {
+    postJSON(ACCOUNT_API, { action: 'passkey-list' }).then(function (res) {
       if (res.j && res.j.ok) signalAccountName(res.j);
     }, function () {});
   }

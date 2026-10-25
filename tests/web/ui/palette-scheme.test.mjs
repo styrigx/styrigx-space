@@ -149,8 +149,8 @@ test('baseof 首屏内联脚本认的缓存前缀 = lib/accent.js 的版本', ()
   assert.ok(html.includes(`ach='${ACCENT_CACHE_VER}|'+ac`), 'baseof 的 sgx-accent-css 前缀与 ACCENT_CACHE_VER 不一致');
 });
 
-test('C3 进入凭证按钮不再固定深蓝：--sgx-door-btn-* 只在别名层，引用角色', () => {
-  const defs = [...CSS.matchAll(/--sgx-door-btn2?-(?:bg|fg):\s*([^;]+);/g)].map((m) => m[1].trim());
+test('C3 进入凭证按钮不再固定深蓝：--sgx-credential-btn-* 只在别名层，引用角色', () => {
+  const defs = [...CSS.matchAll(/--sgx-credential-btn(?:-secondary)?-(?:bg|fg):\s*([^;]+);/g)].map((m) => m[1].trim());
   assert.equal(defs.length, 4);
   for (const v of defs) assert.match(v, /^var\(--sgx-btn-(primary|secondary)-(bg|fg)\)$/);
 });

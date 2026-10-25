@@ -17,23 +17,23 @@ space（styrigx.com）相当于 One UI，blog/book 等分站相当于其中的 A
 
 ## 分层
 
-### L0 内核·凭证：`functions/_kernel/crypto.js`、`functions/_kernel/session.js`
+### L0 内核·凭证：`functions/_kernel/crypto.js`、`functions/_kernel/lock-session.js`
 - 负责 Ed25519 签名/验签、会话格式（`epoch.exp.sig`）和 cookie 名。
 - 不碰任何页面逻辑。
 
 ### L1 内核·权限：`functions/_middleware.js`
 - **唯一决定是否已解锁的地方**。每个页面请求都在这里判断会话。
 - 首页 `/` 和 `/en/` **不再无条件白名单**：照常返回页面，但把
-  已锁/已解锁状态注入 HTML（`<html data-sgx-session="valid|locked">`），
+  已锁/已解锁状态注入 HTML（`<html data-sgx-lock-session="valid|locked">`），
   前端不用猜。
 - 受保护页面返回 `Cache-Control: private, no-store`（防浏览器缓存绕过锁屏）。
 - `/api/*` 不走锁屏跳转，未登录返回 401 JSON。
 
 ### L2 系统调用：`functions/api/*`
-- 解锁：`owner-password`、`owner-passkey`、`verify`（Turnstile）。
-- 查询：`session-check`、`lock-status`、`account`（账号凭证状态 + 当前账号会话；原 `owner-status` 已删除）。
+- 解锁：`lock-password`、`lock-passkey`、`verify`（Turnstile）。
+- 查询：`lock-session-check`、`lock-credentials`、`account`（账号凭证状态 + 当前账号会话；原 `owner-status` 已删除）。
 - 账号：`account`（账号密码/账号通行密钥登录与管理；账号 → 安全与隐私的门票 `door=account`）、`root-auth`（`target:'account'` 时作为账号登录第三入口）。
-- 锁屏凭证的门：`lock-door`（门票状态 / 清票）；进门由 `owner-passkey`/`owner-password`（`door:true`）或 `root-auth` 签 3 分钟门票 `sgx-door`（`door=lock`，SGX_LOCK_* 签）。
+- 锁屏凭证的门：`lock-reauth`（门票状态 / 清票）；进门由 `lock-passkey`/`lock-password`（`door:true`）或 `root-auth` 签 3 分钟门票 `sgx-door`（`door=lock`，SGX_LOCK_* 签）。
 - 签名钥匙只剩两套：账号 `SGX_ACCOUNT_*`、锁屏 `SGX_LOCK_*`（stepup、应用凭证已删除）。
 - 锁定：`lock`（清除 `Domain=.styrigx.com` 的 `sgx-verified`，blog/book 一起上锁）。
 - 前端改变会话只能通过这些接口。
@@ -44,7 +44,7 @@ space（styrigx.com）相当于 One UI，blog/book 等分站相当于其中的 A
 
 ### L4 桌面环境·One UI：nav、goodlock、lock.js、sheet、capsule
 - `lock.js` 只负责两件事：
-  1. 按 L1 给出的状态（`data-sgx-session`）画锁屏；
+  1. 按 L1 给出的状态（`data-sgx-lock-session`）画锁屏；
   2. 把密码或通行密钥提交给 L2。
 - 删除 `sessionStorage['sgx-lock-shown']` 及所有按标签页判断的逻辑。
 

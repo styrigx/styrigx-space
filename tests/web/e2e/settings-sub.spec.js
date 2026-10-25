@@ -365,7 +365,7 @@ test('B2-1 security page: no jump-trace diagnostics', async ({ page: pg }) => {
   await gotoSettings(pg, '/settings/');
   await pg.evaluate(() => {
     sessionStorage.setItem('sgx-last-jump', JSON.stringify([{ who: 'navhistory.js:59', reason: 'goback-primary;to=/', at: Date.now(), desktop: false, visibility: 'visible' }]));
-    sessionStorage.setItem('sgx-door-beacon', JSON.stringify({ path: '/settings/security/owner/', at: Date.now() }));
+    sessionStorage.setItem('sgx-credential-beacon', JSON.stringify({ path: '/settings/security/owner/', at: Date.now() }));
   });
   await pg.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
   await expect(pg.locator('main').first()).toBeVisible({ timeout: 15000 });

@@ -109,7 +109,7 @@ const NO_STORE = { 'Cache-Control': 'private, no-store' };
 /** @param {any} context */
 export async function onRequestPost(context) {
   const { request, env } = context;
-  const sess = await context.auth.session(); /* 网关 SessionVerifier 验（src/auth.js） */
+  const sess = await context.auth.lockSession(); /* 网关 AuthVerifier 验（src/auth.js） */
   if (!sess.ok) return new Response(null, { status: 401, headers: NO_STORE });
   if (sess.role !== ROLE_OWNER) return new Response(null, { status: 204, headers: NO_STORE });
   const db = env && env.D1_WELLBEING;
@@ -147,7 +147,7 @@ export async function onRequestPost(context) {
 /** @param {any} context */
 export async function onRequestGet(context) {
   const { request, env } = context;
-  const sess = await context.auth.session(); /* 网关 SessionVerifier 验（src/auth.js） */
+  const sess = await context.auth.lockSession(); /* 网关 AuthVerifier 验（src/auth.js） */
   if (!sess.ok) return Response.json({ ok: false }, { status: 401, headers: NO_STORE });
   const url = new URL(request.url);
   const qd = url.searchParams.get('d') || '';

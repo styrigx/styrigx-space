@@ -1,7 +1,7 @@
 /**
- * @fileoverview 账号 → 临时钥匙（/account/temp-keys/）：给访客的临时 LockKey。
+ * @fileoverview 账号 → 临时钥匙（/account/tempkeys/）：给访客的临时 LockKey。
  *
- * - 进页 POST /api/lock-temp { action:'list' }：没有账号会话（401 account）→ 回账号页登录，登录后回本页；
+ * - 进页 POST /api/lock-tempkey { action:'list' }：没有账号会话（401 account）→ 回账号页登录，登录后回本页；
  *   lock 会话失效（401 session）→ 提示回锁屏
  * - 「新建临时钥匙」→ 弹层：名字（可空，最多 24 字，只有站长看得到）+ 有效期（1–24 小时 / 3 / 7 / 15 / 30 天）
  *   → create → 弹层原地换成临时码（只显示这一次）+ 复制
@@ -14,7 +14,7 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose } from '../lib/dial
 import { postJSON, errText } from '../lib/account-api.js';
 import { accountUrl, createT } from './account-common.js';
 
-export const TEMP_API = '/api/lock-temp';
+export const TEMPKEY_API = '/api/lock-tempkey';
 
 /**
  * 剩余时间文案。
@@ -116,7 +116,7 @@ export function durationParam(v) {
       }
       window.clearTimeout(timer);
       btn.disabled = true;
-      postJSON(TEMP_API, { action: 'revoke', id: k.id }).then(function (res) {
+      postJSON(TEMPKEY_API, { action: 'revoke', id: k.id }).then(function (res) {
         if (authFail(res)) return;
         if ((res.j && res.j.ok) || (res.j && res.j.error === 'not-found')) {
           toast(t('tkRevoked'));
@@ -162,7 +162,7 @@ export function durationParam(v) {
   }, 60000);
 
   function load() {
-    postJSON(TEMP_API, { action: 'list' }).then(function (res) {
+    postJSON(TEMPKEY_API, { action: 'list' }).then(function (res) {
       if (authFail(res)) return;
       if (!(res.j && res.j.ok)) {
         toast(errText(t, res.j && res.j.error, res.s));
@@ -212,7 +212,7 @@ export function durationParam(v) {
     const dur = durationParam(durIn ? durIn.value : '');
     if (!dur) return;
     go.disabled = true;
-    postJSON(TEMP_API, Object.assign({ action: 'create', name: name }, dur)).then(function (res) {
+    postJSON(TEMPKEY_API, Object.assign({ action: 'create', name: name }, dur)).then(function (res) {
       go.disabled = false;
       if (authFail(res)) { closeDlg('auth'); return; }
       if (!(res.j && res.j.ok)) {

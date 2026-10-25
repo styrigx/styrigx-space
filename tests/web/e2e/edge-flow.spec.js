@@ -87,7 +87,7 @@ async function lockShownWithin(page, ms) {
 }
 
 async function sessionRole(page) {
-  return page.evaluate(() => fetch('/api/session-check', { cache: 'no-store' }).then((r) => r.ok ? r.json() : { ok: false }).then((j) => j.ok ? j.role : null));
+  return page.evaluate(() => fetch('/api/lock-session-check', { cache: 'no-store' }).then((r) => r.ok ? r.json() : { ok: false }).then((j) => j.ok ? j.role : null));
 }
 
 test('R1 blog 直接打开 → 主站锁屏 → 通行密钥 → 回到 blog 原地址', async ({ page }) => {
@@ -95,8 +95,8 @@ test('R1 blog 直接打开 → 主站锁屏 → 通行密钥 → 回到 blog 原
   await page.goto(BLOG + '/post/hello/');
   expect(page.url()).toContain(MAIN + '/?lock=1');
   expect(page.url()).toContain('return=' + encodeURIComponent(BLOG + '/post/hello/'));
-  /* 锁屏页本身必须是网关给的（带 data-sgx-session），不能是 Pages 直出 */
-  await expect(page.locator('html')).toHaveAttribute('data-sgx-session', 'locked');
+  /* 锁屏页本身必须是网关给的（带 data-sgx-lock-session），不能是 Pages 直出 */
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
   await openMethods(page);
   await page.click('#sgx-mopt-pk');
   await page.waitForURL(BLOG + '/post/hello/', { timeout: 20000 });
@@ -104,7 +104,7 @@ test('R1 blog 直接打开 → 主站锁屏 → 通行密钥 → 回到 blog 原
 });
 
 test('R1 daymark 直接打开 → 主站锁屏 → 访客（临时钥匙）→ 回到 daymark', async ({ page }) => {
-  const code = await edge.seedTempKey();
+  const code = await edge.seedTempkey();
   await page.goto(DAYMARK + '/');
   expect(page.url()).toContain(MAIN + '/?lock=1');
   await openMethods(page);
@@ -113,7 +113,7 @@ test('R1 daymark 直接打开 → 主站锁屏 → 访客（临时钥匙）→ �
   await page.click('#sgx-temp-go');
   await page.waitForURL(DAYMARK + '/', { timeout: 20000 });
   await expect(page.locator('#sub-content')).toContainText('SUBSITE-CONTENT daymark');
-  expect(await page.evaluate(() => fetch('/api/session-check').then((r) => r.status))).toBe(200);
+  expect(await page.evaluate(() => fetch('/api/lock-session-check').then((r) => r.status))).toBe(200);
 });
 
 test('R1 子站首页带任意查询串也必须过网关（未登录 → 302 锁屏，不能直出正文）', async ({ page }) => {
@@ -121,7 +121,7 @@ test('R1 子站首页带任意查询串也必须过网关（未登录 → 302 �
     await page.goto(u);
     expect(page.url(), u).toContain(MAIN + '/');
     await expect(page.locator('#sub-content')).toHaveCount(0);
-    await expect(page.locator('html')).toHaveAttribute('data-sgx-session', 'locked');
+    await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
   }
 });
 
@@ -130,10 +130,10 @@ test('R2 主站解锁（通行密钥）→ 刷新仍是解锁的', async ({ page
   await page.goto(MAIN + '/?lock=1');
   await openMethods(page);
   await page.click('#sgx-mopt-pk');
-  await expect(page.locator('html')).toHaveAttribute('data-sgx-session', 'valid', { timeout: 20000 });
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'valid', { timeout: 20000 });
   await expect(page.locator('#sgx-lock')).toHaveCount(0);
   await page.reload();
-  await expect(page.locator('html')).toHaveAttribute('data-sgx-session', 'valid');
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'valid');
   await page.evaluate(() => { window.__sawLock = false; });
   expect(await lockShownWithin(page, 1500)).toBe(false);
 });
@@ -141,7 +141,7 @@ test('R2 主站解锁（通行密钥）→ 刷新仍是解锁的', async ({ page
 test('R2/R3 有效会话打开 /?lock=1（立即锁定、子站踢回都会落到这里）→ 不出锁屏', async ({ page, context }) => {
   await setSession(context, 'owner');
   await page.goto(MAIN + '/?lock=1');
-  await expect(page.locator('html')).toHaveAttribute('data-sgx-session', 'valid');
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'valid');
   expect(await lockShownWithin(page, 1500)).toBe(false);
 });
 
@@ -155,19 +155,19 @@ test('R3 子站踢回（why=no-cookie）但主站会话有效 → 直接回子�
 test('R3 已解锁页面：别的标签页立即锁定后，切回来要上锁（状态只听服务端）', async ({ page, context }) => {
   await setSession(context, 'owner');
   await page.goto(MAIN + '/');
-  await expect(page.locator('html')).toHaveAttribute('data-sgx-session', 'valid');
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'valid');
   /* 切走再切回：会话有效 → 不出锁屏 */
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   expect(await lockShownWithin(page, 800)).toBe(false);
   /* 另一个标签页立即锁定 */
   const other = await context.newPage();
   await other.goto(MAIN + '/settings/security/');
-  await other.evaluate(() => fetch('/api/lock', { method: 'POST' }));
+  await other.evaluate(() => fetch('/api/lock-now', { method: 'POST' }));
   await other.close();
   await page.waitForTimeout(5200); /* 自动锁检查节流 5 秒 */
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 10000 });
-  await expect(page.locator('html')).toHaveAttribute('data-sgx-session', 'locked');
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
 });
 
 test('立即锁定 → 刷新仍锁定；子站也锁定', async ({ page, context }) => {
@@ -177,7 +177,7 @@ test('立即锁定 → 刷新仍锁定；子站也锁定', async ({ page, contex
   await page.click('#sec-locknow-confirm [data-act="ok"]');
   await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 10000 });
   await page.reload();
-  await expect(page.locator('html')).toHaveAttribute('data-sgx-session', 'locked');
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
   await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 10000 });
   await page.goto(BLOG + '/');
   expect(page.url()).toContain(MAIN + '/?lock=1');
@@ -243,7 +243,7 @@ for (const role of ['owner']) {
     await page.waitForLoadState('networkidle').catch(() => {});
     await page.waitForTimeout(800);
     expect(await page.evaluate(() => window.__sawLogin)).toBe(false);
-    await expect(page.locator('html')).toHaveAttribute('data-sgx-account', 'in');
+    await expect(page.locator('html')).toHaveAttribute('data-sgx-account-session', 'in');
     await expect(page.locator('#acct-main')).toBeVisible();
     await expect(page.locator('#acct-login')).toHaveCount(0);
   });
@@ -252,7 +252,7 @@ for (const role of ['owner']) {
 test('R5 对照：站长没有账号会话 → 只出登录区（欢迎回来），总览不出现', async ({ page, context }) => {
   await setSession(context, 'owner');
   await page.goto(MAIN + '/account/');
-  await expect(page.locator('html')).toHaveAttribute('data-sgx-account', 'out');
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-account-session', 'out');
   await expect(page.locator('#acct-login')).toBeVisible();
   await page.waitForTimeout(800);
   expect(await page.evaluate(() => window.__sawMain)).toBe(false);
@@ -284,7 +284,7 @@ test('R7 账号 Worker（2026-10-24 拆出来）：头像 / 数字健康 / 云�
 test('R8 有效会话：主页 → 聊天 → 设置 同一文档切换，网关照常验会话；取页时会话没了 → 整页导航到锁屏', async ({ page, context }) => {
   await setSession(context, 'owner');
   await page.goto(MAIN + '/');
-  await expect(page.locator('html')).toHaveAttribute('data-sgx-session', 'valid');
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'valid');
   await page.evaluate(() => { window.__sameDoc = 1; });
   await page.click('.sgx-tb-tab[data-tab="chat"]');
   await expect(page.locator('.sgx-tb-tab[data-tab="chat"]')).toHaveAttribute('aria-current', 'page');
@@ -302,7 +302,7 @@ test('R8 有效会话：主页 → 聊天 → 设置 同一文档切换，网关
     Object.defineProperty(Navigator.prototype, 'connection', { configurable: true, get: () => ({ saveData: true }) });
   });
   await p2.goto(MAIN + '/');
-  await expect(p2.locator('html')).toHaveAttribute('data-sgx-session', 'valid');
+  await expect(p2.locator('html')).toHaveAttribute('data-sgx-lock-session', 'valid');
   await p2.evaluate(() => { window.__sameDoc = 1; });
   await p2.waitForTimeout(1200);
   await context.clearCookies();
@@ -315,7 +315,7 @@ test('R8 有效会话：主页 → 聊天 → 设置 同一文档切换，网关
 
 test('R8 锁屏态不接管顶栏三栏：点标签照旧整页导航（网关 302 锁屏，带 return）', async ({ page }) => {
   await page.goto(MAIN + '/');
-  await expect(page.locator('html')).toHaveAttribute('data-sgx-session', 'locked');
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
   await page.evaluate(() => { window.__sameDoc = 1; });
   await page.evaluate(() => /** @type {HTMLAnchorElement} */ (document.querySelector('.sgx-tb-tab[data-tab="chat"]')).click());
   await page.waitForURL((u) => u.searchParams.get('return') === '/chat/', { timeout: 15000 });
@@ -338,7 +338,7 @@ async function shareApi(page, body) {
 /** 站长建一条短链，然后清掉所有 cookie（变成没登录的陌生人） */
 async function makeLink(page, context, body) {
   await setOwnerAccount(context);
-  await page.goto(MAIN + '/account/temp-keys/');
+  await page.goto(MAIN + '/account/tempkeys/');
   const r = await shareApi(page, Object.assign({ action: 'create' }, body));
   expect(r.s, JSON.stringify(r.j)).toBe(200);
   await context.clearCookies();
@@ -350,7 +350,7 @@ test.describe('R9 分享短链', () => {
 
   test('R9 站长在账号页生成带会话短链 → 陌生人点开：直接以访客进到目标页，不出锁屏；地址栏 / Referer 里没有码', async ({ page, context }) => {
     await setOwnerAccount(context);
-    await page.goto(MAIN + '/account/temp-keys/');
+    await page.goto(MAIN + '/account/tempkeys/');
     await page.click('#acct-sl-new');
     await expect(page.locator('#sl-dlg')).toBeVisible();
     await page.fill('#sl-name', '小明');
@@ -381,7 +381,7 @@ test.describe('R9 分享短链', () => {
     }
     expect(await page.evaluate(() => location.href + document.referrer)).not.toContain(code);
     /* 访客和临时钥匙访客一样：进不了账号页、管不了短链 */
-    await page.goto(MAIN + '/account/temp-keys/');
+    await page.goto(MAIN + '/account/tempkeys/');
     expect(new URL(page.url()).pathname).toBe('/');
     const api = await shareApi(page, { action: 'list' });
     expect(api.s).toBe(403);
@@ -406,7 +406,7 @@ test.describe('R9 分享短链', () => {
     const owner = await context.browser().newContext({ proxy: LAUNCH.proxy, ignoreHTTPSErrors: false });
     const op = await owner.newPage();
     await setOwnerAccount(owner);
-    await op.goto(MAIN + '/account/temp-keys/');
+    await op.goto(MAIN + '/account/tempkeys/');
     expect((await shareApi(op, { action: 'revoke', id: live.id })).s).toBe(200);
     const expired = (await shareApi(op, { action: 'create', hours: 1 })).j.link;
     if (edge.shareDb.raw) edge.shareDb.raw.prepare('UPDATE share_link SET expires_at = ? WHERE id = ?').run(Date.now() - 1, expired.id);
@@ -433,7 +433,7 @@ test.describe('R9 分享短链', () => {
 
   test('R9 开放重定向被拒：目标只能是站内相对路径', async ({ page, context }) => {
     await setOwnerAccount(context);
-    await page.goto(MAIN + '/account/temp-keys/');
+    await page.goto(MAIN + '/account/tempkeys/');
     for (const to of ['//evil.example', 'https://evil.example/', '/\\evil.example', 'evil.example', 'javascript:alert(1)']) {
       const r = await shareApi(page, { action: 'create', hours: 1, to });
       expect(r.s, to).toBe(400);

@@ -8,7 +8,7 @@
  *   票据/会话失效 → showExpiredDialog 弹框，点了按钮才动作，不自动跳转；
  *   探针网络/解析失败 → showProbeFailure 面板，不算过期。
  * - api()：普通 POST，不自动验证；服务端报 door（门票没了/过期）时调用方走 handleDoorError → 弹框。
- * - clearStepupThen()：离开门时调 POST /api/lock-door {action:'clear'} 清门票，
+ * - clearStepupThen()：离开门时调 POST /api/lock-reauth {action:'clear'} 清门票，
  *   再跳转（幂等；失败也不卡住用户）。
  * - startDoorCountdown()：门内页大标题下方胶囊「验证剩余 m:ss」，以服务端 status 的
  *   expiresAt 为准；≤30 秒只变警示色；到 0 停在「已过期」，不自动跳转、不弹框。
@@ -195,7 +195,7 @@ export function guardDoorExpired(t) {
 /** 渲染一帧倒计时：文案 + ≤30 秒警示色；到 0 停在「已过期」，停表不跳转 */
 function renderDoorCountdown(t) {
   if (!countdownEl) return;
-  const text = countdownEl.querySelector('.sgx-door-countdown-text');
+  const text = countdownEl.querySelector('.sgx-credential-countdown-text');
   const left = countdownExpiresAt - Date.now();
   if (left <= 0) {
     stopDoorCountdown();
@@ -258,15 +258,15 @@ export function startDoorCountdown(t, expiresAt) {
         if (expiredDialogOpen) return;
         if (!countdownEl) {
         const el = document.createElement('div');
-        el.id = 'sgx-door-countdown';
-        el.className = 'sgx-door-countdown';
+        el.id = 'sgx-credential-countdown';
+        el.className = 'sgx-credential-countdown';
         el.setAttribute('role', 'timer');
         const icon = document.createElement('span');
         icon.setAttribute('aria-hidden', 'true');
         /* 时钟图标（与 icon.html 的 clock 同款路径） */
         icon.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
         const text = document.createElement('span');
-        text.className = 'sgx-door-countdown-text';
+        text.className = 'sgx-credential-countdown-text';
         el.appendChild(icon);
         el.appendChild(text);
         /* 2026-10-20 通版顶栏：子页面没有大标题区了，倒计时胶囊放在正文最前面（顶栏正下方） */
@@ -491,7 +491,7 @@ export function enterDoor(probe, onEnter, t) {
 }
 
 /**
- * 离开门时清门票：POST /api/lock-door {action:'clear'}（幂等），
+ * 离开门时清门票：POST /api/lock-reauth {action:'clear'}（幂等），
  * 完成后（或失败/超时）再跳转，不卡住用户。
  * @param {string} targetUrl 跳转目标
  */
@@ -535,14 +535,14 @@ var ERR_KEY = {
   'short': 'errShort',
   'exists': 'errExists',
   'not-set': 'errNotSet',
-  'locked': 'errLocked',
+  'cooldown': 'errLocked',
   'config': 'errConfig',
   'cancelled': 'errCancelled',
   'forbidden': 'errServer',
   'role': 'errServer',
-  /* 批次 A 验收修复 P1：双向相同密码（owner-password.js 双向检查），不再落 errUnknown + 小字 */
+  /* 批次 A 验收修复 P1：双向相同密码（lock-password.js 双向检查），不再落 errUnknown + 小字 */
   'same-as-lock': 'errSameAsLock',
-  'same-as-owner': 'errSameAsAccount',
+  'same-as-account': 'errSameAsAccount',
   /* 空密码 400（前端已拦长度，兜底映射，避免未知错误） */
   'password': 'errParams',
   'return': 'errParams',

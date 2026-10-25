@@ -80,7 +80,7 @@ test('realms：线上格式与重构前字面量逐字相同', () => {
 });
 
 test('realms：旧导出名仍等于原值（调用方不变）', async () => {
-  const session = await import('../../../workers/auth-gateway/functions/_kernel/session.js');
+  const session = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
   assert.equal(session.SESSION_COOKIE, 'sgx-verified');
   assert.equal(session.COOKIE_ATTRS, 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax');
   assert.equal(session.SESSION_MAX_AGE, 43200);
@@ -145,11 +145,8 @@ test('realms：rpConfig 缺变量 → null；rpConfigMissing 仍是 503 config',
   assert.deepEqual(await r.json(), { ok: false, error: 'config', message: 'SGX_RP_ID / SGX_ORIGIN 未配置' });
 });
 
-test('password：lock / account 各读自己的 KV 键；owner-password.js 导出仍可用', async () => {
+test('password：lock / account 各读自己的 KV 键', async () => {
   const pw = await import('../../../workers/auth-gateway/functions/_kernel/password.js');
-  const legacy = await import('../../../workers/auth-gateway/functions/api/owner-password.js');
-  assert.equal(legacy.getPepper, pw.getPepper);
-  assert.equal(legacy.makePasswordRecord, pw.makePasswordRecord);
   assert.equal(pw.getPepper({ SGX_PW_PEPPER: 'pep' }), 'pep');
   assert.equal(pw.getPepper(undefined), '');
   const rec = await pw.makePasswordRecord('owner-secret-1', 'pep');
@@ -160,5 +157,4 @@ test('password：lock / account 各读自己的 KV 键；owner-password.js 导�
   assert.deepEqual(await pw.verifyRealmPassword(kv, REALM_ACCOUNT, 'pep', 'wrong-pass'), { ok: false, set: true, needsRehash: false });
   /* lock 读 lock-pw：未设置 */
   assert.deepEqual(await pw.verifyRealmPassword(kv, REALM_LOCK, 'pep', 'owner-secret-1'), { ok: false, set: false, needsRehash: false });
-  assert.deepEqual(await legacy.verifyAccountPassword(kv, 'pep', 'owner-secret-1'), { ok: true, set: true, needsRehash: false });
 });

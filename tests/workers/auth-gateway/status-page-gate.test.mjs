@@ -9,7 +9,7 @@
 import { signRole } from './_tk.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { signSessionCookie } from '../../../workers/auth-gateway/functions/_kernel/session.js';
+import { signSessionCookie } from '../../../workers/auth-gateway/functions/_kernel/lock-session.js';
 import { onRequest as mw } from '../../../workers/auth-gateway/functions/_middleware.js';
 
 function derToPem(der, label) {

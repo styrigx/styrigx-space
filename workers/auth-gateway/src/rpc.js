@@ -1,22 +1,25 @@
 /**
- * @fileoverview 服务绑定 RPC 入口：SessionVerifier。
+ * @fileoverview 服务绑定 RPC 入口：AuthVerifier（lockSession() / accountSession()）、ShareIssuer。
  *
  * 只能通过服务绑定调用（其他 Worker 的 wrangler.toml 写 service = "styrigx-auth-gateway"、
- * entrypoint = "SessionVerifier"），公网路由进不来。逻辑在 verifier.js（node 单测直接测它）。
+ * entrypoint = "AuthVerifier"），公网路由进不来。逻辑在 verifier.js（node 单测直接测它）。
  * 调用方：styrigx-daymark-core（daymark 仓库）、styrigx-account（workers/account：头像 / 云同步 / 数字健康）。
  * ShareIssuer（2026-10-24）：分享短链 Worker styrigx-share（workers/share）专用的单独入口——签 / 作废短链钥匙、点开时换访客会话。
- *   逻辑在 share-issuer.js；只有 styrigx-share 的 wrangler.toml 绑定它（entrypoint = "ShareIssuer"），拿 SessionVerifier 的 Worker 调不到。
+ *   逻辑在 share-issuer.js；只有 styrigx-share 的 wrangler.toml 绑定它（entrypoint = "ShareIssuer"），拿 AuthVerifier 的 Worker 调不到。
  * 应用通行证（appPass / appEpoch）已随应用凭证删除；后台上传等服务操作以后由账号体系管控。
  */
 import { WorkerEntrypoint } from 'cloudflare:workers';
 import { resolveSecrets } from './secrets.js';
-import { checkSession, checkAccount } from './verifier.js';
+import { checkLockSession, checkAccountSession } from './verifier.js';
 import { createLinkKey, revokeLinkKey, openLinkSession } from './share-issuer.js';
 
-export class SessionVerifier extends WorkerEntrypoint {
-  /** @param {string} cookieHeader */
-  async session(cookieHeader) {
-    return checkSession(cookieHeader, await resolveSecrets(this.env));
+export class AuthVerifier extends WorkerEntrypoint {
+  /**
+   * 锁屏会话：{ ok, role } / { ok:false, reason }。子站接口 Worker、账号 Worker、短链 Worker 用。
+   * @param {string} cookieHeader
+   */
+  async lockSession(cookieHeader) {
+    return checkLockSession(cookieHeader, await resolveSecrets(this.env));
   }
 
   /**
@@ -24,8 +27,8 @@ export class SessionVerifier extends WorkerEntrypoint {
    * @param {string} cookieHeader
    * @param {{ua?:string, country?:string, city?:string}} [meta]
    */
-  async account(cookieHeader, meta) {
-    return checkAccount(cookieHeader, await resolveSecrets(this.env), meta);
+  async accountSession(cookieHeader, meta) {
+    return checkAccountSession(cookieHeader, await resolveSecrets(this.env), meta);
   }
 }
 

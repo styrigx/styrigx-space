@@ -1,8 +1,8 @@
 /**
- * 共享加密工具（owner-auth / owner-password / owner-passkey 共用）。
+ * 共享加密工具（各凭证接口共用）。
  *
  * timingSafeEqual：先对两边各做一次 SHA-256 再比较，避免长度不等时提前返回泄露长度信息。
- * HMAC 统一加用途前缀（"sess|"、"owner-auth|"、"pk-ch|"），一把密钥只签一种东西。
+ * Ed25519 签名 / 验签：会话票、门票都用它；签名串由调用方带用途前缀做域隔离。
  */
 
 /** @param {ArrayBuffer|Uint8Array} s */
@@ -53,21 +53,6 @@ export async function timingSafeEqual(a, b) {
  */
 export function normalizeRootKey(s) {
   return String(s || '').replace(/\s+/g, '');
-}
-
-/**
- * HMAC-SHA256 签名，带用途前缀。
- * @param {string} secret
- * @param {string} purpose 用途前缀，如 "sess|", "owner-auth|", "pk-ch|"
- * @param {string} payload
- */
-export async function hmacSign(secret, purpose, payload) {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    'raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
-  );
-  const bits = await crypto.subtle.sign('HMAC', key, enc.encode(purpose + payload));
-  return b64urlEnc(bits);
 }
 
 /**
