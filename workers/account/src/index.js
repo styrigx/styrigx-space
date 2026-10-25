@@ -17,6 +17,7 @@
 import { authFor } from './auth.js';
 import { gate } from './gate.js';
 import { withNoStore } from './lib/http.js';
+import { applyMainSiteHeaders } from './lib/security-headers.js';
 import * as avatar from './api/avatar.js';
 import * as avatarFile from './api/avatar-file.js';
 import * as prefs from './api/prefs.js';
@@ -78,7 +79,8 @@ function withAssets(env) {
 
 /** @param {Response} res */
 export function tagRuntime(res) {
-  const out = new Response(res.body, res);
+  /* 安全响应头和网关主站同一套（_kernel/security-headers.js，2026-10-25 PR D）；Referrer-Policy 已设过的（/s/<码> 的 no-referrer）不覆盖 */
+  const out = applyMainSiteHeaders(res);
   out.headers.set('X-SGX-Runtime', RUNTIME);
   return out;
 }

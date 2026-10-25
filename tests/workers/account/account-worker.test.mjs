@@ -267,3 +267,23 @@ test('check-worker-routes：现在的两份路由通过；账号 Worker 规则�
   assert.ok(checkAccount(gw, acct.filter((r) => !r.includes('wellbeing')), apis, pages).some((e) => e.includes('/api/wellbeing')));
   assert.ok(checkAccount(gw, acct.concat('blog.styrigx.com/avatar/*'), apis, pages).some((e) => e.includes('不在 styrigx.com')));
 });
+
+/* ---------------- 安全响应头（PR D，workers #3）：和网关主站同一套 ---------------- */
+const SECH = await import(REPO + 'workers/auth-gateway/functions/_kernel/security-headers.js');
+
+test('安全头：头像文件、/api/* 401、www 301、不认识的头像路径 302 都带全套安全头（和网关同一份）', async () => {
+  const { env } = setup();
+  const reqs = [
+    [new Request('https://styrigx.com/avatar/96.webp'), 200],
+    [new Request('https://styrigx.com/api/prefs'), 401],
+    [new Request('http://www.styrigx.com/avatar/96.webp'), 301],
+    [new Request('https://styrigx.com/avatar/100.webp'), 302],
+  ];
+  for (const [req, st] of reqs) {
+    const r = await call(req, env);
+    assert.equal(r.status, st, req.url);
+    for (const [k, v] of SECH.mainSiteHeaderList()) assert.equal(r.headers.get(k), v, req.url + ' ' + k);
+    assert.equal(r.headers.get('X-SGX-Runtime'), 'account');
+  }
+  assert.doesNotMatch(SECH.CSP_ENFORCED, /script-src|style-src|default-src/);
+});

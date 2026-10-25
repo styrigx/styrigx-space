@@ -17,11 +17,18 @@
  * passkey-e2e 预览把本文件打包成 Pages 的 _worker.js，这时有 env.ASSETS，直接读静态文件。
  * 不在路由表里的 /api 路径 → 404；方法不支持 → 405。
  * 静态资源（/css/ /js/ /fonts/ /fav/）不挂路由，不过 Worker。
+ *
+ * 安全响应头（functions/_kernel/security-headers.js，2026-10-25 PR D）：
+ *   - 主站经过网关的每个响应（页面、锁屏首页、所有 302/301、/api/*、500）→ applyMainSiteHeaders
+ *     （HSTS、nosniff、X-Frame-Options、Referrer-Policy、Permissions-Policy、只含非脚本指令的强制 CSP、完整的 Report-Only CSP）
+ *   - 子站经过网关的响应（页面、302 到锁屏、401）→ applySubsiteHeaders（只有 HSTS；子站内容的 CSP 等各自审计后再加）
+ *   - 原样回源的静态资源不改（不打 X-SGX-Runtime 也不加头），由 Pages 的 _headers 加同一套
  */
 import { onRequest as middleware } from '../functions/_middleware.js';
 import { API_ROUTES } from './routes.js';
 import { resolveSecrets } from './secrets.js';
 import { subsiteFor, handleSubsite, isStaticAsset as isSubsiteStaticAsset } from './subsites.js';
+import { applyMainSiteHeaders, applySubsiteHeaders } from '../functions/_kernel/security-headers.js';
 
 /* 主站静态资源目录：内容带指纹或公开（css/js/字体/收藏图标），不含任何正文。
    2026-10-21 路由改成整站通配前这些路径不过 Worker；现在进来也原样回源，行为不变。 */
@@ -131,15 +138,17 @@ export default {
       return fromOrigin(request, rawEnv);
     }
     const env = await resolveSecrets(rawEnv);
+    const isSub = !!subsiteFor(url0.hostname);
+    const secure = isSub ? applySubsiteHeaders : applyMainSiteHeaders;
     try {
-      if (subsiteFor(url0.hostname)) {
-        return tagRuntime(await handleSubsite(request, env, (req) => fromOrigin(req, env)));
+      if (isSub) {
+        return secure(tagRuntime(await handleSubsite(request, env, (req) => fromOrigin(req, env))));
       }
       const next = (req) => route(req, env, ctx);
-      return tagRuntime(await middleware(makeContext(request, env, ctx, '/', next)));
+      return secure(tagRuntime(await middleware(makeContext(request, env, ctx, '/', next))));
     } catch (e) {
       console.error('[sgx-auth] unhandled: ' + (e && e.name ? e.name : 'error'));
-      return tagRuntime(json(500, { ok: false, error: 'internal' }));
+      return secure(tagRuntime(json(500, { ok: false, error: 'internal' })));
     }
   },
 };

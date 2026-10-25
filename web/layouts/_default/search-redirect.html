@@ -2,15 +2,16 @@
 {{/* 2026-10-22：独立的全网搜索页删掉了，搜索改成原地搜索层（shell/search-layer.js）。
    /search/（及别名 /browser/、/browser/search/，中英）只剩这个小跳转页：把 ?q= 带到首页 /?q=（/en/?q=），
    首页的 search-host.js 去掉 q、打开搜索层并预填（没有 q 也打开，空的）。location.replace 不留历史；没脚本时 meta refresh 到首页。
-   opensearch.xml 直接用 /?q={searchTerms}。旧的 #focus 等 # 一律丢掉。 */}}
+   opensearch.xml 直接用 /?q={searchTerms}。旧的 #focus 等 # 一律丢掉。
+   首页地址写在 <html data-sgx-home>，内联脚本中英一字不差（CSP 只需要一个 sha256，见 scripts/gen-csp.mjs）。 */}}
 {{ $home := cond (hasPrefix .RelPermalink "/en/") "/en/" "/" }}
-<html lang="{{ if hasPrefix .RelPermalink "/en/" }}en{{ else }}zh{{ end }}">
+<html lang="{{ if hasPrefix .RelPermalink "/en/" }}en{{ else }}zh{{ end }}" data-sgx-home="{{ $home }}">
 <head>
 <meta charset="utf-8">
 <title>{{ .Title }} | Styrigx</title>
 <meta name="robots" content="noindex">
 <link rel="canonical" href="{{ $home | absURL }}">
 <meta http-equiv="refresh" content="0; url={{ $home }}?q=">
-<script>(function(){var q='';try{q=new URLSearchParams(location.search).get('q')||''}catch(e){}location.replace({{ $home }}+'?q='+encodeURIComponent(q))})()</script>
+<script>(function(){var q='';try{q=new URLSearchParams(location.search).get('q')||''}catch(e){}location.replace(document.documentElement.getAttribute('data-sgx-home')+'?q='+encodeURIComponent(q))})()</script>
 </head>
 </html>

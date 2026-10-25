@@ -1,7 +1,7 @@
 {{/* 设置子页「高级功能」（2026-10-23 PR-E，原 Good Lock /settings/goodlock/，旧地址 alias + _redirects 跳到 /settings/advanced/）。
    日期和时间（含时钟样式）、天气自原「常规管理」移入；快捷键是原 Good Lock 里留下的唯一模块。
    点击音效、边缘光效、视差壁纸、数字健康总开关已删除；15 分钟提醒只在「数字健康」。
-   设置首页 DeX 双栏也会渲染本 partial，快捷键开关脚本按 data-gl-bound 防重复绑定。 */}}
+   设置首页 DeX 双栏也会渲染本 partial；快捷键开关由 apps/settings.js 绑定（mountSettings 挂一次、destroy 拆掉）。 */}}
 {{ $isEn := .isEn }}{{ $featMap := .featMap }}
 <div class="set-group scroll-mt-24" id="sg-advanced">
 <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.18s">
@@ -36,25 +36,4 @@
       {{ end }}
     </section>
 </div>
-<script>
-(function(){
-  function get(k){try{return localStorage.getItem(k)}catch(e){return null}}
-  function set(k,v){try{if(v===null||v===undefined){localStorage.removeItem(k)}else{localStorage.setItem(k,v)}}catch(e){}}
-  function isOn(key,def){var v=get(key);return def?(v!=='0'):(v==='1')}
-  function paint(sw){sw.setAttribute('aria-checked',isOn(sw.getAttribute('data-key'),sw.getAttribute('data-def')==='1')?'true':'false')}
-  document.querySelectorAll('.gl-row:not([data-gl-bound])').forEach(function(row){
-    var sw=row.querySelector('.gl-switch');if(!sw)return;
-    row.setAttribute('data-gl-bound','1');
-    paint(sw);
-    function toggle(){
-      var key=sw.getAttribute('data-key'),def=sw.getAttribute('data-def')==='1';
-      var on=!isOn(key,def);
-      set(key,on===def?null:(on?'1':'0'));
-      paint(sw);
-      window.dispatchEvent(new Event('sgx-settings-changed'));
-    }
-    row.addEventListener('click',toggle);
-    row.addEventListener('keydown',function(e){if(e.target!==row)return;if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle()}});
-  });
-})();
-</script>
+{{/* .gl-switch 开关：apps/settings.js bindGlSwitches()（2026-10-25 从内联脚本搬进模块，CSP；页内切换进来的设置栏也能用） */}}

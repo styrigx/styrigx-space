@@ -117,6 +117,19 @@ workers/
 `scripts/check-worker-routes.mjs`（CI 跑，匹配规则在 `scripts/lib/cf-routes.mjs`，照线上实测）核对：每个 HTML 页面（含带查询串）、锁屏入口、`/api/` 都过网关，头像 / 云同步 / 数字健康归账号 Worker 且没抢走网关路由表里的任何接口，路由不重复，只登记三站域名，daymark 的句子接口仍归 `styrigx-daymark-core`。锁屏 / 解锁 / 回跳的完整状态机见 `docs/auth-state-machine.md`。
 两个 Worker 的规则由 `check-worker-routes.mjs` 一起核对，不重复、不互抢。
 
+安全响应头（2026-10-25）：值只在 `workers/auth-gateway/functions/_kernel/security-headers.js` 定义一次。
+
+| 出口 | 加什么 |
+|---|---|
+| 网关：主站 `styrigx.com` 的页面、锁屏首页、所有跳转、`/api/*` | 全套：HSTS（一年，不带 includeSubDomains）、nosniff、`X-Frame-Options: DENY`、Referrer-Policy、Permissions-Policy、强制 CSP（只有 `frame-ancestors` / `object-src` / `base-uri` / `form-action`）、完整的 `Content-Security-Policy-Report-Only` |
+| 账号 Worker、分享短链 Worker | 同上（`/s/<码>` 自己的 `Referrer-Policy: no-referrer` 不被覆盖） |
+| Pages 静态文件 | `web/static/_headers` 的 `/*` 段，同一套，由 `scripts/gen-csp.mjs` 生成 |
+| Pages `_worker.js` 的 `*.pages.dev` → 301 | 不依赖内容的那几个（HSTS、nosniff、X-Frame-Options、Referrer-Policy、强制 CSP） |
+| 网关代理的子站（blog / daymark / curio）页面和跳转 | 只有 HSTS；子站内容的 CSP 等各自审计后再加 |
+| `proxy-rules.styrigx.com` | 上游头一律不透传，只留 ETag / Last-Modified，加 nosniff |
+
+Report-Only 里的内联脚本 sha256 由 `scripts/gen-csp.mjs` 从生产构建算出（`workers/auth-gateway/functions/_kernel/csp-hashes.js`），CI 在构建后跑 `--check`。改了模板里的内联脚本：`hugo --minify -s web && node scripts/gen-csp.mjs`。
+
 ## tests/ 测试
 
 ```

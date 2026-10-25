@@ -13,6 +13,7 @@
 import { authFor } from './auth.js';
 import { gate } from './gate.js';
 import { withNoStore } from './lib/http.js';
+import { applyMainSiteHeaders } from './lib/security-headers.js';
 import { SHARE_PATH_RE } from './lib/links.js';
 import { openShare, failResponse } from './open.js';
 import { preflight, withCors } from './lib/cors.js';
@@ -56,7 +57,8 @@ export function fromOrigin(req, env) {
 
 /** @param {Response} res */
 export function tagRuntime(res) {
-  const out = new Response(res.body, res);
+  /* 安全响应头和网关主站同一套（_kernel/security-headers.js，2026-10-25 PR D）；Referrer-Policy 已设过的（/s/<码> 的 no-referrer）不覆盖 */
+  const out = applyMainSiteHeaders(res);
   out.headers.set('X-SGX-Runtime', RUNTIME);
   return out;
 }

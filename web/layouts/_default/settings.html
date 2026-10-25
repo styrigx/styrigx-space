@@ -72,25 +72,7 @@
   </div>{{/* /.set-dex-cols */}}
 </div>
 
-<script>
-/* 2.6.0：旧分类 hash（/settings/#display 等）跳转到对应子页 */
-(function () {
-  try {
-    var h = (location.hash || '').replace(/^#/, '');
-    /* 2026-10-23 PR-E：manage / accessibility 删除（回设置首页，不跳）；goodlock → advanced */
-    var map = { display: 1, theme: 1, advanced: 1, wellbeing: 1, about: 1, security: 1, goodlock: 'advanced',
-      'sg-display': 'display', 'sg-theme': 'theme', 'sg-advanced': 'advanced', 'sg-goodlock': 'advanced',
-      'sg-wellbeing': 'wellbeing', 'sg-about': 'about', 'sg-security': 'security' };
-    var cat = map[h];
-    if (cat) {
-      var isEn = location.pathname.indexOf('/en/') === 0;
-      var base = isEn ? '/en/settings/' : '/settings/';
-      location.replace(base + (cat === 1 ? h : cat) + '/');
-    }
-  } catch (e) {}
-})();
-</script>
-
+{{/* 旧分类 hash（/settings/#display 等）跳子页：apps/settings.js legacyHashRedirect()（2026-10-25 从内联脚本搬进模块，CSP） */}}
 {{ partial "settings-i18n.html" (dict "isEn" $isEn) }}
 
 {{ end }}

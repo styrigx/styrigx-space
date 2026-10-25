@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 {{/* 搬走的页面（content 里的 aliases，如 /browser/ → /search/）：带上查询串和 # 跳到新地址（location.replace，不留历史）；
-   不支持脚本时 meta refresh 兜底。线上 web/static/_redirects 里同样有 301。 */}}
-<html lang="{{ if hasPrefix .Page.RelPermalink "/en/" }}en{{ else }}zh{{ end }}">
+   不支持脚本时 meta refresh 兜底。线上 web/static/_redirects 里同样有 301。
+   目标地址写在 <html data-sgx-to>，内联脚本本身每页一字不差（CSP 只需要一个 sha256，见 scripts/gen-csp.mjs）。 */}}
+<html lang="{{ if hasPrefix .Page.RelPermalink "/en/" }}en{{ else }}zh{{ end }}" data-sgx-to="{{ .Page.RelPermalink }}">
 <head>
 <title>{{ .Permalink }}</title>
 <link rel="canonical" href="{{ .Permalink }}">
 <meta name="robots" content="noindex">
 <meta charset="utf-8">
 <meta http-equiv="refresh" content="0; url={{ .Page.RelPermalink }}">
-<script>location.replace({{ .Page.RelPermalink }}+location.search+location.hash)</script>
+<script>location.replace(document.documentElement.getAttribute('data-sgx-to')+location.search+location.hash)</script>
 </head>
 </html>

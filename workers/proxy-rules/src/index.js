@@ -8,6 +8,8 @@
  *   超时就换下一个（只限等响应头；拿到响应后正文照常流式转发，不受这个超时影响）。
  * 严格白名单：只放行规则集文件，其他路径一律 404，防止被当成开放代理。
  * 边缘缓存 24 小时：meta-rules-dat 每天更新一次，规则集本身 interval 也是 24h。
+ * 响应头全部重建（freshHeaders）：只带 Content-Type、Cache-Control、ETag、Last-Modified、CORS 和本 Worker 的诊断头，
+ *   上游（jsDelivr / GitHub）的 CSP、HSTS、Set-Cookie、x-github-*、x-jsd-* 等一律不透传。
  * 不验会话、不持任何钥匙、没有绑定。
  *
  * 来历：2026-10-22 从 Cloudflare 后台手写的 mihomo-mrs Worker（版本 a4b2fe55）搬进本仓库，
@@ -42,6 +44,33 @@ export function upstreamUrls(pathname) {
   ];
 }
 
+/** 从上游响应里只留下这几个（小写） */
+export const PASS_HEADERS = ['etag', 'last-modified'];
+
+/**
+ * 给规则文件响应造一份全新的头：上游只取 ETag / Last-Modified，其余自己定。
+ * 缓存命中时也走这里：部署前写进 Cache API 的旧条目还带着上游原样的头，读出来照样洗一遍。
+ * @param {Headers} upstream
+ * @param {string} pathname
+ * @param {'HIT'|'MISS'} cacheState
+ * @param {string|null} upstreamHost
+ */
+export function freshHeaders(upstream, pathname, cacheState, upstreamHost) {
+  const h = new Headers();
+  for (const k of PASS_HEADERS) {
+    const v = upstream.get(k);
+    if (v) h.set(k, v);
+  }
+  h.set('Content-Type', contentType(pathname));
+  h.set('Cache-Control', `public, max-age=${CACHE_TTL}, stale-while-revalidate=604800`);
+  h.set('Access-Control-Allow-Origin', '*');
+  h.set('X-Content-Type-Options', 'nosniff');
+  h.set('X-Proxy-Rules-Cache', cacheState);
+  const up = upstreamHost || upstream.get('X-Proxy-Rules-Upstream');
+  if (up) h.set('X-Proxy-Rules-Upstream', up);
+  return h;
+}
+
 const text = (body, status = 200, extra = {}) =>
   new Response(body, { status, headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store', ...extra } });
 
@@ -62,9 +91,7 @@ export default {
     if (request.method === 'GET') {
       const hit = await cache.match(cacheKey);
       if (hit) {
-        const res = new Response(hit.body, hit);
-        res.headers.set('X-Proxy-Rules-Cache', 'HIT');
-        return res;
+        return new Response(hit.body, { status: hit.status, headers: freshHeaders(hit.headers, url.pathname, 'HIT', null) });
       }
     }
 
@@ -95,13 +122,9 @@ export default {
 
     if (!upstream) return text('Upstream Error', lastStatus === 404 ? 404 : 502);
 
-    const res = new Response(upstream.body, upstream);
-    res.headers.set('Content-Type', contentType(url.pathname));
-    res.headers.set('Cache-Control', `public, max-age=${CACHE_TTL}, stale-while-revalidate=604800`);
-    res.headers.set('Access-Control-Allow-Origin', '*');
-    res.headers.delete('Set-Cookie');
-    res.headers.set('X-Proxy-Rules-Cache', 'MISS');
-    try { res.headers.set('X-Proxy-Rules-Upstream', new URL(upstream.url).host); } catch { /* 没有 url 就不写 */ }
+    let upHost = null;
+    try { upHost = new URL(upstream.url).host; } catch { /* 没有 url 就不写 */ }
+    const res = new Response(upstream.body, { status: upstream.status, headers: freshHeaders(upstream.headers, url.pathname, 'MISS', upHost) });
 
     if (request.method === 'GET') ctx.waitUntil(cache.put(cacheKey, res.clone()));
     return res;

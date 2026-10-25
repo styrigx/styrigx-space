@@ -1,3 +1,25 @@
+# Cloudflare Pages 静态响应头（Pages 的 _worker.js 用 env.ASSETS 回静态文件时也照这里加）。
+#
+# 合并规则（CF 文档）：一个路径命中几条规则就继承几条的头，同名头用逗号拼起来。
+# 所以 Cache-Control 只写在互不重叠的具体路径上，/* 里不写（以前 /* 也写了 max-age=300，
+# /css/* 等会拼成「public, max-age=31536000, immutable, public, max-age=300」，自相矛盾）。
+# 没列出的路径（页面 HTML、files-index.json、RSS 等）用 Pages 默认的 max-age=0, must-revalidate；
+# 页面经网关回源后网关一律改成 private, no-store（防浏览器缓存绕过锁屏）。
+#
+# 安全头（/* 那一段）由 scripts/gen-csp.mjs 生成，值的唯一来源是
+# workers/auth-gateway/functions/_kernel/security-headers.js；网关、账号 Worker、分享 Worker 发的是同一套。
+
+# @gen-security-headers start（scripts/gen-csp.mjs 按 workers/auth-gateway/functions/_kernel/security-headers.js 生成，别手改）
+/*
+  Strict-Transport-Security: max-age=31536000
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), payment=(), usb=(), serial=(), hid=(), midi=(), display-capture=()
+  Content-Security-Policy: frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'
+  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'sha256-3cnYCRXIA6PvNuskoomZSRzThARfCNNwL5rAwESJLec=' 'sha256-EXXy0XPvXTtUhwj3HaX4YeIspqPULX4vksSB4X+ltm4=' 'sha256-OJmjzPv5GPxJWCxz5XsqT+kxRohb5rwl7RHxVEolbkA=' 'sha256-PqLid09UEBhmVE3WbTirHupNoTeYEaC4aYZz2p3vqHY=' 'sha256-TipVAKejOiCJJ5RZBpuk5yhfgL1UyEskgUhRND+AeBc=' 'sha256-V/LGcc4qITn2ja4TEGyDXcJZVqRUsrWM0bGDmvawhhE=' 'sha256-ceQADYjzlfHYvHa13AslWa2JU4BSHyzNtKWnFp0Vws0='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://api.open-meteo.com https://geocoding-api.open-meteo.com https://daymark.styrigx.com; frame-src 'none'; worker-src 'none'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+# @gen-security-headers end
+
 /css/*
   Cache-Control: public, max-age=31536000, immutable
 /js/*
@@ -6,5 +28,19 @@
   Cache-Control: public, max-age=31536000, immutable
 /images/*
   Cache-Control: public, max-age=86400
-/*
+/fonts/*
+  Cache-Control: public, max-age=300
+/avatar/*
+  Cache-Control: public, max-age=300
+/favicon.ico
+  Cache-Control: public, max-age=300
+/favicon.svg
+  Cache-Control: public, max-age=300
+/og.png
+  Cache-Control: public, max-age=300
+/robots.txt
+  Cache-Control: public, max-age=300
+/opensearch.xml
+  Cache-Control: public, max-age=300
+/sitemap.xml
   Cache-Control: public, max-age=300
