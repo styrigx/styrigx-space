@@ -12,7 +12,7 @@
  *
  * 用法：node scripts/build-search-index.mjs [--out <文件>]（默认 web/public/search-index.json）
  */
-import { readFileSync, writeFileSync, readdirSync, statSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, statSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
@@ -106,6 +106,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const i = process.argv.indexOf('--out');
   const out = i > 0 ? process.argv[i + 1] : path.join(PUB, 'search-index.json');
   const ix = build();
+  mkdirSync(path.dirname(out), { recursive: true }); // --out 可指向尚不存在的目录（CI 写 $RUNNER_TEMP/search-index/）
   writeFileSync(out, JSON.stringify(ix));
   console.log('build-search-index: ' + ix.items.length + ' 条 → ' + path.relative(REPO, out));
 }
