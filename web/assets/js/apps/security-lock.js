@@ -145,7 +145,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
    * 切换弹层前调用，保证同一时刻只有一个弹层。
    */
   function closeOpenSheets() {
-    ['lockpw-dlg', 'lockpkname-dlg', 'lockpkdel-dlg'].forEach(function (id) {
+    ['lockpw-dlg', 'lockpkname-dlg'].forEach(function (id) {
       const d = $(id);
       try {
         if (d && d.open) d.close();
@@ -347,41 +347,6 @@ import { KEY_LOCK } from '../lib/key-names.js';
   });
   /* P2-13：命名输入框聚焦时，命名弹层随键盘上移 */
   followKeyboard($('lockpkname-dlg'), $('lockpkname-input'));
-
-  /* 应用钥匙删除确认弹层（站内确认，替代原生 confirm；返回 Promise<boolean>） */
-  let pkDelResolve = null;
-  function openPkDelDlg() {
-    return new Promise(function (resolve) {
-      pkDelResolve = resolve;
-      const desc = $('lockpkdel-desc');
-      if (desc) desc.textContent = t('pkDelConfirm');
-      const dlg = $('lockpkdel-dlg');
-      if (!dlg) { resolve(false); return; }
-      try { dlg.showModal(); } catch (e) {}
-    });
-  }
-  function closePkDelDlg(ok, reason) {
-    recordDialogClose('lockpkdel', reason || 'unknown');
-    const dlg = $('lockpkdel-dlg');
-    try { if (dlg && dlg.open) dlg.close(); } catch (e) {}
-    if (pkDelResolve) { pkDelResolve(!!ok); pkDelResolve = null; }
-  }
-  const pkDelCancel = $('lockpkdel-cancel');
-  if (pkDelCancel) on(pkDelCancel, 'click', function () { closePkDelDlg(false, 'cancel-btn'); });
-  const pkDelOk = $('lockpkdel-ok');
-  if (pkDelOk) on(pkDelOk, 'click', function () { closePkDelDlg(true, 'success'); });
-  const pkDelDlg = $('lockpkdel-dlg');
-  if (pkDelDlg) {
-    /* 批次 A 收尾 A1/A2/A3：删除确认遮罩不关、返回先收键盘、× 关闭 */
-    on(pkDelDlg, 'click', function (/** @type {MouseEvent} */ e) {
-      onDialogBackdrop(e, pkDelDlg);
-    });
-    on(pkDelDlg, 'cancel', function (/** @type {Event} */ e) {
-      onDialogCancel(e, pkDelDlg, function (reason) { closePkDelDlg(false, reason); });
-    });
-    const pkDelClose = pkDelDlg.querySelector('[data-dlg-close]');
-    if (pkDelClose) on(pkDelClose, 'click', function () { closePkDelDlg(false, 'close-btn'); });
-  }
 
   /* 通行密钥列表（批次 A 验收修复 P0：list 带页面类别，只显示本页类） */
   function refreshPkList() {

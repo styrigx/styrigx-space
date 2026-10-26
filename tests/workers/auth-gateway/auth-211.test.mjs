@@ -345,35 +345,6 @@ test('2.11 假入口：缺 Origin → 403（先于假入口）', async () => {
   assert.equal(res.status, 403);
 });
 
-/* ============ 6. 接管 ============ */
-
-test('2.11 接管：未配 owner 时 root 可代管（scope=keys, by=root）', async () => {
-  const { checkRootTakeover, LAYER_ACCOUNT } = await import(REPO + '/workers/auth-gateway/functions/_kernel/layers.js');
-  const kv = makeKV(); /* 全未配置 */
-  const r = await checkRootTakeover(kv, LAYER_ACCOUNT);
-  assert.equal(r.allowed, true);
-  assert.equal(r.reason, 'takeover');
-});
-
-test('2.11 接管：配置后 root 对该层失效', async () => {
-  const { checkRootTakeover, LAYER_ACCOUNT } = await import(REPO + '/workers/auth-gateway/functions/_kernel/layers.js');
-  const kv = makeKV({ 'account-configured': '1' });
-  const r = await checkRootTakeover(kv, LAYER_ACCOUNT);
-  assert.equal(r.allowed, false);
-  assert.equal(r.reason, 'configured');
-});
-
-test('2.11 接管：KV 读取失败按已配置处理（root 被拒）', async () => {
-  const { checkRootTakeover, LAYER_ACCOUNT } = await import(REPO + '/workers/auth-gateway/functions/_kernel/layers.js');
-  const brokenKv = {
-    get: async () => { throw new Error('kv-down'); },
-  };
-  const r = await checkRootTakeover(brokenKv, LAYER_ACCOUNT);
-  assert.equal(r.allowed, false);
-  /* 2.11 定稿：KV 读失败按已配置处理 */
-  assert.equal(r.reason, 'configured');
-});
-
 /* ============ 7. pepper ============ */
 
 

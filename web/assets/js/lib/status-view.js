@@ -12,6 +12,9 @@
  *
  * 文案：t(key) / fmt(key, vars) 来自页面里的 #sgx-i18n-status（partials/status-i18n.html，lib/i18n.js loadI18n）。
  */
+import { esc } from './util.js';
+
+export { esc };
 
 export const DAY_MS = 24 * 3600 * 1000;
 const BJ_OFFSET_MS = 8 * 3600 * 1000; /* 北京时间，没有夏令时（同 workers/status/src/monitor.js dayOf） */
@@ -32,11 +35,6 @@ export const SITE_NAMES = {
 };
 
 const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-/** HTML 转义 @param {any} s */
-export function esc(s) {
-  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] || c);
-}
 
 /** @param {number} n */
 const p2 = (n) => (n < 10 ? '0' : '') + n;

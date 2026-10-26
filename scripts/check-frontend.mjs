@@ -11,7 +11,6 @@
  *     如 `let token`、`token = null`、`token:` 传参等；后端改用 cookie 鉴权后
  *     该机制已删除，残留即 bug）。只匹配独立的 token 标识符，不误伤
  *     csrfToken、__token 等合法命名（词边界匹配）。
- *     （2026-10-23 Turnstile 已删，原 TOKEN_ALLOWLIST 的三条例外随之清空。）
  *
  * 扫描范围：web/assets/js/ 和 web/shared/shell/（同步给子站的外壳脚本）。
  * 去注释按词法走（字符串里的 // 不当注释），以前用正则去注释，'https://…' 之后同一行的代码会被当注释吞掉，
@@ -85,16 +84,7 @@ export function stripComments(src) {
   return out;
 }
 
-/* 例外白名单（contains 匹配原始行）。2026-10-23 Turnstile 删掉后为空。 */
-const TOKEN_ALLOWLIST = [];
-
-function isTokenAllowlisted(r, line) {
-  return TOKEN_ALLOWLIST.some(function (e) {
-    return r === e.file && line.includes(e.contains);
-  });
-}
-
-/* 规则 2 的匹配模式（作用于去注释后的代码，逐行检查以便白名单按行放行） */
+/* 规则 2 的匹配模式（作用于去注释后的代码，逐行检查，报错带行号） */
 const TOKEN_PATTERNS = [
   { re: /\b(?:let|var|const)\s+token\b/, desc: '声明了独立的 token 变量' },
   { re: /(?<![\w$.])token\s*=(?![=>])/, desc: '对 token 变量赋值' },
@@ -124,14 +114,13 @@ export function checkSource(r, src) {
     errors.push(`${r}:${lineNo}: 禁止原生弹窗 ${m[0].trim()}（用站内弹层/两步确认替代）`);
   }
 
-  // 规则 2：独立 token 变量（逐行，便于白名单）
+  // 规则 2：独立 token 变量（逐行）
   const lines = code.split('\n');
   const origLines = src.split('\n');
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     for (const pat of TOKEN_PATTERNS) {
       if (pat.re.test(line)) {
-        if (isTokenAllowlisted(r, origLines[i] || '')) continue;
         errors.push(`${r}:${i + 1}: ${pat.desc}（废弃的内存鉴权 token 机制已删除）: ${(origLines[i] || '').trim().slice(0, 100)}`);
         break;
       }

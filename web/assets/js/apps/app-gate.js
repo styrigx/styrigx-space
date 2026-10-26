@@ -323,18 +323,14 @@ function hideReauthCountdown() {
  * reauth → 返回给调用方显示错误，不自动跳验证流程（定稿 #19）。
  * @param {string} url
  * @param {any} body
- * @param {(k:string)=>string} [t] 文案函数（未使用，保留签名；security-lock.js 调用时不传）
  */
-export function api(url, body, t) {
+export function api(url, body) {
   return fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
     credentials: 'include',
-  }).then(parseApi).then(function (res) {
-    /* 定稿 #19：不自动跳验证流程，调用方显示错误即可 */
-    return res;
-  });
+  }).then(parseApi);
 }
 
 /**

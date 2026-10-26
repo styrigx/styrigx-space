@@ -31,6 +31,7 @@ const GW = REPO + '/workers/auth-gateway/';
 const API = GW + 'functions/api/';
 
 const tickets = await import(GW + 'functions/_kernel/tickets.js');
+const { SHORT_TICKET_MAX_AGE } = await import(GW + 'functions/_kernel/realms.js');
 const { makePasswordRecord } = await import(GW + 'functions/_kernel/password.js');
 
 const LOCK = await genKeyPair();
@@ -116,7 +117,7 @@ test('短票：by 按票限制（LockReset 只认 root / account；LockReauth �
   await assert.rejects(testTicket(LOCK.priv, 'LockSessionTicket', 'root', 0));
   const r = await resetTicket('account');
   assert.equal(tickets.parseTicket('LockResetTicket', r).by, 'account');
-  assert.equal(tickets.SHORT_TICKET_MAX_AGE, 180);
+  assert.equal(SHORT_TICKET_MAX_AGE, 180);
 });
 
 /* ================= 再验证 ================= */
