@@ -62,6 +62,15 @@ function assertNoMainOnlyHeaders(res, label) {
     assert.equal(res.headers.get(k), null, label + ' 不该有 ' + k);
   }
 }
+const SUB = SH.subsiteHeaderList();
+/** 子站：低风险的一组都在，主站独有的 Permissions-Policy / Report-Only 不在，强制 CSP 不含 form-action */
+function assertSubsiteHeaders(res, label) {
+  for (const [k, v] of SUB) assert.equal(res.headers.get(k), v, label + ' ' + k);
+  for (const k of ['Content-Security-Policy-Report-Only', 'Permissions-Policy']) {
+    assert.equal(res.headers.get(k), null, label + ' 不该有 ' + k);
+  }
+  assert.doesNotMatch(res.headers.get('Content-Security-Policy'), /form-action|script-src|style-src|default-src/, label);
+}
 
 /** 解析 CSP：指令名 → 值列表 */
 function cspDirectives(csp) {
@@ -129,8 +138,34 @@ test('applyMainSiteHeaders：只读头的响应（Response.redirect）也能加�
   assert.equal(nr.headers.get('Referrer-Policy'), 'no-referrer');
   assert.equal(nr.headers.get('X-Frame-Options'), 'DENY');
   const sub = SH.applySubsiteHeaders(new Response('x'));
-  assert.equal(sub.headers.get('Strict-Transport-Security'), SH.HSTS);
-  assertNoMainOnlyHeaders(sub, 'subsite');
+  assertSubsiteHeaders(sub, 'subsite');
+});
+
+test('子站安全头：强制 CSP 只有三条非脚本指令；子站已有的头不覆盖（HSTS 除外）', () => {
+  const d = cspDirectives(SH.CSP_SUBSITE_ENFORCED);
+  assert.deepEqual([...d.keys()].sort(), ['base-uri', 'frame-ancestors', 'object-src']);
+  const own = SH.applySubsiteHeaders(new Response('x', { headers: {
+    'Strict-Transport-Security': 'max-age=60',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'SAMEORIGIN',
+    'Referrer-Policy': 'no-referrer',
+    'Content-Security-Policy': "default-src 'self'",
+  } }));
+  assert.equal(own.headers.get('Strict-Transport-Security'), SH.HSTS);
+  assert.equal(own.headers.get('X-Frame-Options'), 'SAMEORIGIN');
+  assert.equal(own.headers.get('Referrer-Policy'), 'no-referrer');
+  assert.equal(own.headers.get('Content-Security-Policy'), "default-src 'self'");
+  const red = SH.applySubsiteHeaders(Response.redirect('https://styrigx.com/', 302));
+  assert.equal(red.status, 302);
+  assertSubsiteHeaders(red, 'redirect');
+  const st = SH.applySubsiteStaticHeaders(new Response('x', { headers: { 'Referrer-Policy': 'strict-origin-when-cross-origin', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'public, max-age=60' } }));
+  assert.equal(st.headers.get('Strict-Transport-Security'), SH.HSTS);
+  assert.equal(st.headers.get('X-Content-Type-Options'), 'nosniff');
+  assert.equal(st.headers.get('Cache-Control'), 'public, max-age=60');
+  assertNoMainOnlyHeaders(st, 'static');
+  const keep = SH.applySubsiteStaticHeaders(new Response('x', { headers: { 'Strict-Transport-Security': 'max-age=60' } }));
+  assert.equal(keep.headers.get('Strict-Transport-Security'), 'max-age=60');
+  assert.equal(keep.headers.get('X-Content-Type-Options'), 'nosniff');
 });
 
 /* ---------------- 网关：主站 ---------------- */
@@ -263,7 +298,7 @@ test('网关·预览（Pages 的 _worker.js，env.ASSETS）：锁屏首页同样
 
 /* ---------------- 网关：子站 ---------------- */
 
-test('网关·子站：302 到锁屏、401、会话有效的页面都只加 HSTS，不套主站 CSP / X-Frame-Options', async () => {
+test('网关·子站：302 到锁屏、401、会话有效的页面都带子站那组安全头，不套主站完整 CSP / Permissions-Policy', async () => {
   _resetSecretCache();
   const admin = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'admin', 'password'));
   await withOrigin('<html><head></head><body>blog</body></html>', async () => {
@@ -271,22 +306,29 @@ test('网关·子站：302 到锁屏、401、会话有效的页面都只加 HSTS
       const lock = await worker.fetch(new Request('https://' + host + '/posts/x/'), baseEnv(), CTX);
       assert.equal(lock.status, 302, host);
       assert.equal(lock.headers.get('Strict-Transport-Security'), SH.HSTS);
-      assertNoMainOnlyHeaders(lock, host + ' 302');
+      assertSubsiteHeaders(lock, host + ' 302');
       const api = await worker.fetch(new Request('https://' + host + '/api/whatever'), baseEnv(), CTX);
       assert.equal(api.status, 401);
       assert.equal(api.headers.get('Strict-Transport-Security'), SH.HSTS);
-      assertNoMainOnlyHeaders(api, host + ' 401');
+      assertSubsiteHeaders(api, host + ' 401');
       const page = await worker.fetch(new Request('https://' + host + '/posts/x/', { headers: { Cookie: admin } }), baseEnv(), CTX);
       assert.equal(page.status, 200);
       assert.equal(page.headers.get('Strict-Transport-Security'), SH.HSTS);
-      assertNoMainOnlyHeaders(page, host + ' page');
+      assertSubsiteHeaders(page, host + ' page');
       assert.equal(page.headers.get('Cache-Control'), 'private, no-store');
     }
   });
-  /* 子站静态资源原样回源，不加任何头 */
+  /* 子站静态资源原样回源，只补 HSTS、nosniff，不加 CSP / X-Frame-Options 等 */
   await withOrigin('x', async () => {
-    const st = await worker.fetch(new Request('https://blog.styrigx.com/js/app.js'), baseEnv(), CTX);
-    assert.equal(st.headers.get('Strict-Transport-Security'), null);
+    for (const host of ['blog.styrigx.com', 'daymark.styrigx.com', 'curio.styrigx.com']) {
+      const st = await worker.fetch(new Request('https://' + host + '/js/app.js'), baseEnv(), CTX);
+      assert.equal(st.status, 200, host);
+      assert.equal(st.headers.get('Strict-Transport-Security'), SH.HSTS, host);
+      assert.equal(st.headers.get('X-Content-Type-Options'), 'nosniff', host);
+      assert.equal(st.headers.get('Content-Type'), 'text/javascript', host);
+      assertNoMainOnlyHeaders(st, host + ' static');
+      assert.equal(st.headers.get('Referrer-Policy'), null, host);
+    }
   }, { status: 200, headers: { 'Content-Type': 'text/javascript' } });
 });
 
