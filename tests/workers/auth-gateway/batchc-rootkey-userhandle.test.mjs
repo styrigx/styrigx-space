@@ -14,7 +14,7 @@
  *
  * 运行：node --test tests/kernel/batchc-RootKey-userhandle.test.mjs
  */
-import { test } from 'node:test';
+import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { testLockSession, testAccountSession } from './_tickets.mjs';
 import { makeKV, genKeyPair, postReq } from '../_harness.mjs';
@@ -41,7 +41,8 @@ function authEnv(kv, overrides = {}) {
   };
 }
 
-test('setup: 生成测试密钥', async () => {
+/* 测试钥匙：before 里生成（不算一条用例，单独跑某条用例时也会先执行） */
+before(async () => {
   await genKeys();
   assert.ok(LOCK_PRIV && ACCT_PRIV);
 });

@@ -101,7 +101,7 @@ export function initGoodLock() {
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const home = en ? '/en/' : '/',
-        links = en ? 'https://curio.styrigx.com/en/' : 'https://curio.styrigx.com/', /* g l：珍格 Curio（主站书签已迁走） */
+        links = en ? 'https://curio.styrigx.com/en/' : 'https://curio.styrigx.com/', /* g l：奇趣 Curio（主站书签已迁走） */
         setUrl = en ? '/en/settings/' : '/settings/';
       if (pending) {
         pending = false;

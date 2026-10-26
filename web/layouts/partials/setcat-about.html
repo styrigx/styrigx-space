@@ -1,5 +1,5 @@
-{{/* 2.6.0：设置子页「about」分类组。左右对齐，一行放不下才换行。
-   B2-4：顺序 版本/内核/Hugo/Tailwind/构建/构建时间；GitHub 仓库行删除；重置所有设置移到常规管理。
+{{/* 设置子页「about」分类组。左右对齐，一行放不下才换行。
+   顺序：版本 / 内核 / Hugo / Tailwind / 构建 / 构建时间。
    版本号唯一来源：data/version.yaml（ui + sgx）；Tailwind 版本读 data/tailwind.json（build-css 从 package-lock.json 生成）。 */}}
 {{ $isEn := .isEn }}{{ $featMap := .featMap }}{{ $palettes := .palettes }}
 {{ $ver := site.Data.version }}

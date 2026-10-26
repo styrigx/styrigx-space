@@ -10,7 +10,7 @@
  * - 'account-reauth' → AccountReauthTicket（sgx-account-reauth）：账号 → 账号安全；要 admin 锁屏会话 + 有效账号会话
  * - 'account-reset'  → AccountResetTicket（sgx-account-reset）：重置账号登录方式；要 admin 锁屏会话，不要账号会话。
  *                      重置页只认这张票，设好新 AccountKey 后正常登录（不顺带签账号会话）
- * 三张票都是 3 分钟、各自独立 cookie（见 realms.js TICKETS）。
+ * 四张票都是 3 分钟、各自独立 cookie（见 realms.js TICKETS）。
  *
  * 访客假入口：访客会话（sgx-lock-session role=visitor）直接写死返回 401：
  * 不读 D1、KV、环境变量里的任何凭证，不做任何比对；不计入根凭证限速；

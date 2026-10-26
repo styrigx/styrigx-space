@@ -1,13 +1,14 @@
-/* ===== 2.4.0 B：级联分层（@layer）
-   顺序：tw < reset < tokens < sgx-base < sgx-components < sgx-utilities < overrides。
-   - Tailwind 3 产物由 scripts/build-css.cjs 单独构建后包进 @layer tw { }（构建时包裹
-     @tailwind 指令会导致 @media 响应式变体被提升到顶层、优先级高于所有层，故后包裹）；
-   - 自定义层全部排在 tw 之后，保持现状“自定义 CSS 写在 @tailwind 之后、同优先级
-     后来者胜”的行为；
-   - 自定义层不用 base/components/utilities 原名：Tailwind v3 会把 @layer base/components/utilities
-     当作自家保留层合并（实测 @layer base 内容被并入导致优先级翻转），故用 sgx- 前缀避让；
-   - overrides 承接原来靠 !important 硬压的规则（!important 已摘掉，靠层顺序获胜）；
-   - 同一层内保持原文件相对顺序，层分配沿文件自上而下只升不降，避免优先级翻转。 ===== */
+/* ===== 级联分层（@layer）
+   顺序：tw < reset < tokens < sgx-base < sgx-components < sgx-utilities < overrides < 不分层。
+   - Tailwind（tw-input.css）由 scripts/build-css.cjs 单独构建，整份产物包进 @layer tw { }，排在所有自定义层之前；
+     Tailwind 4 产物自带的 theme / base / components / utilities 层因此成为 tw 的子层。
+     （两步构建最初是为了 Tailwind 3 会把 @media 变体提升到层外；升到 4 以后是否还必须两步没有重新验证，构建暂不改。）
+   - 自定义层用 sgx- 前缀，不和 Tailwind 的 base / components / utilities 同名；
+   - overrides 承接原来靠 !important 硬压的规则（!important 只留在减弱动效里）；
+   - 同一层内保持原文件相对顺序，层分配沿文件自上而下只升不降，避免优先级翻转。
+   - 不分层的部分（有意为之，优先于所有层）：文件开头的 View Transitions；文件末尾从 #sgx-upgrade-overlay 起的一段——
+     共享外壳的 @shell 区块（scripts/gen-shell.mjs 原样抽给子站，子站里同样不分层），以及必须压过外壳规则的主站规则
+     （主站 layout 层、顶栏三栏、快捷面板、头像裁剪、输入方式）。往这一段加规则前先确认确实要压过所有层。 ===== */
 @layer tw, reset, tokens, sgx-base, sgx-components, sgx-utilities, overrides;
 
 /* ===== 2.4.0 D：跨页 View Transitions =====
@@ -16,7 +17,7 @@
 @view-transition {
   navigation: auto;
 }
-/* 2.8.0 切页流畅度：顶栏在切页时保持不动（共享元素过渡）。2026-10-19 Dock 已删除 */
+/* 切页流畅度：顶栏在切页时保持不动（共享元素过渡） */
 /* 名字挂在真正有尺寸的 .sgx-topbar 上：#site-nav 自身高度是 0（子元素都是 fixed），
    老一些的 Chromium（如三星浏览器 31 / Chromium 148）截不到它的快照，切页时顶栏会消失一帧 */
 .sgx-topbar {
@@ -67,7 +68,7 @@
    2.4.0 B 收口：支持 light-dark() 的浏览器只定义一套 token，
    用 color-scheme 切换明暗（.dark 类只负责把 color-scheme 锁成 dark，
    手动切换行为不变）；不支持的走 @supports not 回退（:root/.dark 两套）。
-   这里只剩固定的图标色（accent / warm / rose / note）和材质；色板相关的 --m-* 在下面指向 --sgx-* 角色。
+   这里只剩固定的图标色（accent / warm / rose）和材质；色板相关的 --m-* 在下面指向 --sgx-* 角色。
    注意：light-dark() 只能包颜色；--card-noise（url）仍保留 :root/.dark 各一定义。
    2.4.0 E：本层是 Material You 色板 token 定义，hex 在此合法（stylelint 豁免）。 */
 /* stylelint-disable color-no-hex, color-named */
@@ -87,8 +88,6 @@
       --m-on-rose: #ffffff;
       --m-rose-container: #f6d7de;
       --m-on-rose-container: #421322;
-      --m-note: #fdf0c8;
-      --m-on-note: #4a3413;
     }
     .dark {
       --m-accent: #c9b6ec;
@@ -103,8 +102,6 @@
       --m-on-rose: #53182a;
       --m-rose-container: #6b2c40;
       --m-on-rose-container: #f6d7de;
-      --m-note: #4a3a1c;
-      --m-on-note: #f5e3ae;
     }
     /* 材质 token（2.4.0 A）：统一磨砂玻璃，浅色/深色各一套 */
     :root {
@@ -112,14 +109,12 @@
       --glass-sat: 180%;
       --glass-tint: rgba(255,255,255,0.72);
       --glass-edge: rgba(0,0,0,0.05);
-      --glass-shadow: 0 8px 24px rgba(0,0,0,0.14);
       /* 极轻噪点：内联 SVG feTurbulence 生成一次，各卡片当背景图复用 */
       --card-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.04 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
     }
     .dark {
       --glass-tint: rgba(28,28,30,0.72);
       --glass-edge: rgba(255,255,255,0.08);
-      --glass-shadow: 0 8px 24px rgba(0,0,0,0.35);
       --card-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
     }
   }
@@ -140,14 +135,11 @@
       --m-on-rose: light-dark(#ffffff, #53182a);
       --m-rose-container: light-dark(#f6d7de, #6b2c40);
       --m-on-rose-container: light-dark(#421322, #f6d7de);
-      --m-note: light-dark(#fdf0c8, #4a3a1c);
-      --m-on-note: light-dark(#4a3413, #f5e3ae);
       /* 材质 token（2.4.0 A 数值不变，只收口明暗） */
       --glass-blur: 24px;
       --glass-sat: 180%;
       --glass-tint: light-dark(rgba(255,255,255,0.72), rgba(28,28,30,0.72));
       --glass-edge: light-dark(rgba(0,0,0,0.05), rgba(255,255,255,0.08));
-      --glass-shadow: light-dark(0 8px 24px rgba(0,0,0,0.14), 0 8px 24px rgba(0,0,0,0.35));
       --card-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.04 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
     }
     .dark {
@@ -157,7 +149,7 @@
   }
   /* 旧 --m-* 色板名 → 色彩角色（2026-10-21 撞色）：原来每套色板在这里手写一份 --m-primary / secondary / tertiary / 表面 / 壁纸
      （单一色相的深浅，回退块 + light-dark 块各一份，共 48 段），全站大部分组件读的是它们，所以 palette-roles.json 的撞色只在少数界面看得到。
-     现在统一指向 --sgx-* 角色（预设、亮暗、自定义种子都跟着切）；只有图标色 accent / warm / rose / note 不在色板里，仍是上面的固定值。 */
+     现在统一指向 --sgx-* 角色（预设、亮暗、自定义种子都跟着切）；只有图标色 accent / warm / rose 不在色板里，仍是上面的固定值。 */
   :root {
     --m-primary: var(--sgx-primary);
     --m-on-primary: var(--sgx-on-primary);
@@ -223,7 +215,7 @@
      - 另有色调 token（不算在 94 个角色里）：--sgx-bg-1..7（背景色 7 档，1 = 页面底）、--sgx-fg-1..6（前景本色）+ -tint（浅底）/ -ink（文字档）。
      - 旧 --m-* → 新角色（迁移时对照，不改名）：--m-on-surface = text-primary；--m-on-surface-variant = text-secondary；
        --m-container-* = surface-container-*；--m-outline = outline-variant；--m-wallpaper = background-css；--glass-tint = glass-tint。
-       --m-accent / --m-warm / --m-rose / --m-note（图标色）不在色板里，保持不变。
+       --m-accent / --m-warm / --m-rose（图标色）不在色板里，保持不变。
      场景 → 角色：抽屉当前项 / 快捷面板开着的磁贴 = 主色族选中底（前景 1 tint + ink）；开关 / 进度 / 按钮 = 填充档 primary-fill；
        首页名片 / 快捷面板磁贴与行 = 中性玻璃（2026-10-23 PR-G 修订）；最近搜索 chip = 辅色容器（前景 2）；夜间时钟 = night-card（前景 3 浅底）；
        状态正常 = success（固定绿）；
@@ -6881,9 +6873,6 @@
        不要按页面单独调。 */
     --sgx-content-gap: 16px;
     --sgx-content-top: calc(var(--nav-h) + var(--sgx-content-gap) + env(safe-area-inset-top, 0px));
-    --sgx-kb: 0px;
-    /* D4：标题区按钮底边 → 第一块正文顶边（实测我的文件 = 8px）；所有子页共用 */
-    --sgx-head-btn-gap: 8px;
   }
 }
 /* stylelint-enable color-no-hex, color-named */
@@ -6955,7 +6944,7 @@
 /* ===== components 层 ===== */
 @layer sgx-components {
   /* 浮动层统一磨砂（替代各处复制粘贴的 blur 写法）：
-     滚动后的顶栏、搜索胶囊、Dock、底部弹层、浮动菜单。
+     滚动后的顶栏、搜索胶囊、底部弹层、浮动菜单。
      isolation 限定混合范围；contain: layout style 把重排/重绘关在元素内（fixed 元素安全）。 */
   #sheet-panel {
     backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
@@ -7003,7 +6992,7 @@
     position: fixed; left: 0; right: 0; bottom: 0; height: 96px; z-index: 30; pointer-events: none;
     background: linear-gradient(to top, var(--m-surface), transparent);
   }
-  /* DeX：底部 Dock 胶囊自带背景/毛玻璃/阴影，不需要全宽的底部渐隐带 */
+  /* DeX：不要全宽的底部渐隐带 */
   .layout-dex #edge-bottom { display: none; }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     #edge-top { background: linear-gradient(to bottom, var(--m-surface), transparent); }
@@ -7056,12 +7045,7 @@
   .clock-night .clock-div { border-color: color-mix(in srgb, var(--sgx-on-night-card) 14%, transparent); }
   .clock-night [id$="-icon"] { color: var(--sgx-tertiary); }
 
-  /* ===== Mobile 悬浮 Dock（竖屏，全站）：居中胶囊，我的文件 / 浏览器 / 设置 ===== */
-
-  /* ===== main 底部留白：避开手机悬浮 Dock（DeX 无底部栏） ===== */
-  /* 2.3.14.10：Dock 只在主页；应用页（body.subpage）底部留白按新胶囊位置重算。
-     胶囊下沉后底部 12px＋安全区、顶部 68px＋安全区：页脚版权行在胶囊顶部上方 21px（与改前一致），
-     主内容在胶囊顶部上方 36px（与改前一致），无 Dock 页面只留 24px/21px 呼吸。 */
+  /* ===== 应用页（body.subpage）main / footer 底部留白：24px / 21px + 安全区（DeX 另见 .layout-dex main） ===== */
   body.subpage main { padding-bottom: calc(24px + env(safe-area-inset-bottom,0px)); }
   body.subpage footer { padding-bottom: calc(21px + env(safe-area-inset-bottom,0px)); }
 
@@ -7325,7 +7309,7 @@
      可在设置页 / 快捷面板手动覆盖（Mobile / Auto / DeX）。
      ============================================================ */
 
-  /* DeX 底部不再有 Dock；页面底部留 16px */
+  /* DeX：页面底部留 16px */
   .layout-dex main { padding-bottom: calc(16px + env(safe-area-inset-bottom,0px)); }
   .layout-dex footer { padding-bottom: calc(16px + env(safe-area-inset-bottom,0px)); }
 
@@ -7357,9 +7341,9 @@
   /* ===== 设置页：DeX 双栏（2.3.14.8，参考 One UI 8.5 平板设置）=====
      左栏 280px：分类菜单（2026-10-20 起没有大标题，页名在顶栏长条里）；
      右栏最宽 720px：顶部选中项名称 ＋ 详情卡片（2026-10-23 PR-D 起两栏整体 1024 居中，见下）。
-     两栏各自独立滚动，底部留出胶囊＋Dock 高度。在 .layout-dex（横屏宽屏）生效。 */
+     两栏各自独立滚动。在 .layout-dex（横屏宽屏）生效。 */
   /* 2.6.0：双栏结构只在 DeX 显示；移动端只显示分类列表。
-     Gray 2026-10-15：DeX 标题区移到两栏上方（.set-dex-head，与我的文件一致），
+     DeX 标题区在两栏上方（.set-dex-head），
      两栏（.set-dex-cols）在按钮行下方，G=8。 */
   .set-dex-cols { display: none; }
   .set-col-l, .set-col-r { display: none; }
@@ -7538,7 +7522,7 @@
   /* B14 fix (Gray 2026-10-15)：锁定屏幕 360 折叠态大标题与顶栏重叠。
      根因：页面内容太短（~878px），最大滚动仅 ~78px，不足以让标题区退出 70%
      （折叠动画需要标题区高度 274px × 70% ≈ 192px 滚动），导致大标题不能完全
-     淡出、小标题不能淡入。给最小高度确保折叠能完成，与我的文件行为一致。
+     淡出、小标题不能淡入。给最小高度确保折叠能完成。
      只影响锁定屏幕页（.lock-page），其他页面不动。 */
   .layout-mobile .lock-page { min-height: calc(100svh + 220px); }
   .lockmgr-pklist { list-style: none; margin: 0; padding: 8px; display: flex; flex-direction: column; gap: 8px; &[hidden] { display: none; } }
@@ -8071,7 +8055,7 @@
   @keyframes sgx85-slidein { from { transform: translateX(48px); opacity: .4; } to { transform: none; opacity: 1; } }
 }
 
-/* ===== utilities 层 ===== */
+/* ===== components 层（续）：服务状态 ===== */
 @layer sgx-components {
   /* ===== 服务状态（账号 → 服务状态 /account/status/；2026-10-22 PR2 起是顶栏「状态」页，2026-10-24 PR4 挪进账号页；
      layouts/_default/account-status.html + apps/account-status.js）。外框是账号页的 .acct-layout（内容列 720），.st-wrap 只是里面的竖排列 =====
@@ -8295,6 +8279,26 @@
   .st-inc-site { font-size: 15px; font-weight: 700; }
   .st-inc-cause { margin: 4px 0 0; font-size: 13px; }
   .st-inc-time { display: flex; flex-wrap: wrap; gap: 0 6px; margin: 2px 0 0; font-size: 12px; line-height: 1.5; color: var(--sgx-text-secondary); font-variant-numeric: tabular-nums; }
+  /* 根凭证使用记录（账号 → 服务状态页底）：<details> 折叠卡，展开才加载（apps/account-status.js） */
+  .st-audit-wrap { margin-top: 12px; }
+  .st-audit-card { overflow: hidden; border: 1px solid var(--m-outline); color: var(--sgx-text-primary); }
+  .st-audit-sum { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 12px 18px;
+    list-style: none; cursor: pointer; font-size: 14px; line-height: 1.4; color: var(--sgx-text-secondary); }
+  .st-audit-sum::-webkit-details-marker { display: none; }
+  .st-audit-sum:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
+  .st-audit-chev { flex: none; width: 8px; height: 8px; margin-right: 4px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+    transform: translateY(-2px) rotate(45deg); transition: transform .2s; }
+  .st-audit-card[open] .st-audit-chev { transform: translateY(2px) rotate(-135deg); }
+  .st-audit-body { border-top: 1px solid var(--sgx-divider); }
+  .st-audit-msg, .st-audit-none, .st-audit-meta { margin: 0; padding: 14px 18px; font-size: 13px; line-height: 1.5; color: var(--sgx-text-secondary); }
+  .st-audit-meta { padding-bottom: 6px; }
+  .st-audit-retry { margin: 0 18px 14px; }
+  .st-audit-list { list-style: none; margin: 0; padding: 0 0 6px; }
+  .st-audit-item { display: flex; align-items: center; gap: 10px; padding: 8px 18px; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .st-audit-item + .st-audit-item { border-top: 1px solid var(--sgx-divider); }
+  .st-audit-item .st-chip { height: 24px; font-size: 12px; }
+  .st-audit-time { flex: 1; min-width: 0; }
+  .st-audit-ip { min-width: 0; text-align: right; overflow-wrap: anywhere; color: var(--sgx-text-secondary); }
   .st-inc-none { margin: 0; padding: 16px 18px; font-size: 13px; color: var(--sgx-text-secondary); }
   .st-foot { margin-top: 4px; text-align: center; }
   /* 用量（PR3，2026-10-22）：站点卡下面一张卡，一行一项（名字 · 值 / 上限 · 百分比 · 进度条 · 说明），D1 每个库缩进在合计下面。
@@ -8343,8 +8347,6 @@
     background-color: var(--sgx-mat); background-image: none;
   }
 
-  /* DeX 下隐藏手机 Dock（兜底，布局类已控制；原 !important 已摘） */
-
   /* 2026-10-24：触屏上输入框字号不小于 16px（小于 16px 时手机浏览器聚焦会自动放大页面）。只在粗指针设备上生效，电脑上不变 */
   @media (pointer: coarse) {
     :is(input, textarea, select):is(.text-xs, .text-sm) { font-size: 16px; }
@@ -8362,104 +8364,108 @@
   }
 }
 
-/* 2.9.3：访客升级验证层 */
-#sgx-upgrade-overlay {
-  position: fixed; inset: 0; z-index: 9999;
-  background: rgba(0,0,0,.5);
-  display: flex; align-items: flex-end; justify-content: center;
-}
-.sgx-upgrade-sheet {
-  background: var(--m-surface, var(--m-container-lowest));
-  border-radius: 24px 24px 0 0;
-  padding: 24px 20px calc(20px + env(safe-area-inset-bottom, 0px));
-  width: 100%; max-width: 480px;
-}
-.sgx-upgrade-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
-.sgx-upgrade-desc { font-size: 14px; color: var(--m-on-surface-variant); margin-bottom: 20px; }
-.sgx-upgrade-btn {
-  display: block; width: 100%; padding: 14px; margin-bottom: 12px;
-  border-radius: 12px; border: none; font-size: 16px; font-weight: 600;
-  background: var(--m-primary-fill); color: var(--m-on-primary-fill); cursor: pointer;
-}
-.sgx-upgrade-cancel {
-  display: block; width: 100%; padding: 12px; border: none;
-  background: none; font-size: 15px; color: var(--m-on-surface-variant); cursor: pointer;
-}
-/* 批次 A 验收修复 P2：升级弹层密码框包 .sgx-pw-field（眼睛按钮绝对定位），
-   不用 280px 上限；输入框留出右侧眼睛位 */
-#sgx-upgrade-form .sgx-pw-field { max-width: none; margin-bottom: 12px; }
-#sgx-upgrade-form .sgx-upgrade-input { padding-right: 48px; }
-/* 弹层内联输入（根凭证/密码验证）：整宽输入框，配整宽实心验证按钮 */
-.sgx-upgrade-input {
-  display: block; width: 100%; box-sizing: border-box;
-  padding: 14px; margin-bottom: 12px;
-  border-radius: 12px; border: 1px solid var(--m-outline-variant);
-  background: var(--m-surface-container-highest, var(--m-surface));
-  color: var(--m-on-surface); font-size: 16px; outline: none;
-}
-.sgx-upgrade-input::placeholder { color: var(--m-on-surface-variant); opacity: .7; }
-.sgx-upgrade-input:focus { border-color: var(--m-primary); box-shadow: 0 0 0 1px var(--m-primary); }
-.sgx-upgrade-err {
-  margin: 4px 0 0; font-size: 14px; text-align: center;
-  color: var(--m-error);
-}
-.sgx-upgrade-err[hidden] { display: none; }
-@media (min-width: 840px) {
-  #sgx-upgrade-overlay { align-items: center; }
-  .sgx-upgrade-sheet { border-radius: 24px; }
-}
-/* 2.9.2 布局切换 snackbar：正常大小，底部居中 */
-#sgx-layout-snackbar {
-  position: fixed;
-  left: 50%;
-  bottom: 96px;
-  transform: translateX(-50%);
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 12px 20px;
-  border-radius: 12px;
-  background: var(--m-inverse-surface);
-  color: var(--m-inverse-on-surface);
-  font-size: 14px;
-  line-height: 1.4;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-  white-space: nowrap;
-  animation: sgx-snackbar-in 0.25s ease-out;
-}
-#sgx-layout-snackbar button {
-  background: none;
-  border: none;
-  color: var(--m-inverse-primary);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 4px 8px;
-}
-@keyframes sgx-snackbar-in {
-  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
-  to { opacity: 1; transform: translateX(-50%) translateY(0); }
-}
+/* ===== overrides 层（续）：升级验证层、布局切换 snackbar、设置 / 账号页底部留白、关于页页脚 =====
+   以前放在所有层之外；这一段不和后面不分层的共享外壳规则抢同一属性，放进 overrides 后结果不变。 */
+@layer overrides {
+  /* 访客升级验证层 */
+  #sgx-upgrade-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: rgba(0,0,0,.5);
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  .sgx-upgrade-sheet {
+    background: var(--m-surface, var(--m-container-lowest));
+    border-radius: 24px 24px 0 0;
+    padding: 24px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+    width: 100%; max-width: 480px;
+  }
+  .sgx-upgrade-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+  .sgx-upgrade-desc { font-size: 14px; color: var(--m-on-surface-variant); margin-bottom: 20px; }
+  .sgx-upgrade-btn {
+    display: block; width: 100%; padding: 14px; margin-bottom: 12px;
+    border-radius: 12px; border: none; font-size: 16px; font-weight: 600;
+    background: var(--m-primary-fill); color: var(--m-on-primary-fill); cursor: pointer;
+  }
+  .sgx-upgrade-cancel {
+    display: block; width: 100%; padding: 12px; border: none;
+    background: none; font-size: 15px; color: var(--m-on-surface-variant); cursor: pointer;
+  }
+  /* 升级弹层密码框包 .sgx-pw-field（眼睛按钮绝对定位），
+     不用 280px 上限；输入框留出右侧眼睛位 */
+  #sgx-upgrade-form .sgx-pw-field { max-width: none; margin-bottom: 12px; }
+  #sgx-upgrade-form .sgx-upgrade-input { padding-right: 48px; }
+  /* 弹层内联输入（根凭证/密码验证）：整宽输入框，配整宽实心验证按钮 */
+  .sgx-upgrade-input {
+    display: block; width: 100%; box-sizing: border-box;
+    padding: 14px; margin-bottom: 12px;
+    border-radius: 12px; border: 1px solid var(--m-outline-variant);
+    background: var(--m-surface-container-highest, var(--m-surface));
+    color: var(--m-on-surface); font-size: 16px; outline: none;
+  }
+  .sgx-upgrade-input::placeholder { color: var(--m-on-surface-variant); opacity: .7; }
+  .sgx-upgrade-input:focus { border-color: var(--m-primary); box-shadow: 0 0 0 1px var(--m-primary); }
+  .sgx-upgrade-err {
+    margin: 4px 0 0; font-size: 14px; text-align: center;
+    color: var(--m-error);
+  }
+  .sgx-upgrade-err[hidden] { display: none; }
+  @media (min-width: 840px) {
+    #sgx-upgrade-overlay { align-items: center; }
+    .sgx-upgrade-sheet { border-radius: 24px; }
+  }
+  /* 布局切换 snackbar：正常大小，底部居中 */
+  #sgx-layout-snackbar {
+    position: fixed;
+    left: 50%;
+    bottom: 96px;
+    transform: translateX(-50%);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 20px;
+    border-radius: 12px;
+    background: var(--m-inverse-surface);
+    color: var(--m-inverse-on-surface);
+    font-size: 14px;
+    line-height: 1.4;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    white-space: nowrap;
+    animation: sgx-snackbar-in 0.25s ease-out;
+  }
+  #sgx-layout-snackbar button {
+    background: none;
+    border: none;
+    color: var(--m-inverse-primary);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 4px 8px;
+  }
+  @keyframes sgx-snackbar-in {
+    from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
 
-/* 布局切换时内容不卸载：只换 class 做重排 */
-.layout-mobile .set-layout,
-.layout-dex .set-layout,
-.layout-mobile .acct-layout,
-.layout-dex .acct-layout {
-  contain: layout style;
+  /* 布局切换时内容不卸载：只换 class 做重排 */
+  .layout-mobile .set-layout,
+  .layout-dex .set-layout,
+  .layout-mobile .acct-layout,
+  .layout-dex .acct-layout {
+    contain: layout style;
+  }
+  /* 手机布局：main 底部留白 = 底栏高 + 安全区 + 16px */
+  .layout-mobile .set-layout,
+  .layout-mobile .acct-layout {
+    padding-bottom: calc(var(--sgx-bottom-dock-h) + env(safe-area-inset-bottom, 0px) + 16px);
+  }
+  /* 版权页脚只在「设置 › 关于本站」，紧跟卡片下方，不沉到视口底（overrides 层，压过 pb-28 / 底栏留白） */
+  body:has(footer.sgx-about-foot) main { flex: 0 0 auto; padding-bottom: 0; }
+  body:has(footer.sgx-about-foot) .set-layout { padding-bottom: 0; }
+  body:has(footer.sgx-about-foot) .set-layout .widget { margin-bottom: 0; }
+  body footer.sgx-about-foot { margin-top: 0; padding-bottom: env(safe-area-inset-bottom, 0px); }
+  footer.sgx-about-foot > div { padding-top: 20px; padding-bottom: 16px; }
 }
-/* 手机布局：main 底部留白 = 底栏高 + 安全区 + 16px */
-.layout-mobile .set-layout,
-.layout-mobile .acct-layout {
-  padding-bottom: calc(var(--sgx-bottom-dock-h) + env(safe-area-inset-bottom, 0px) + 16px);
-}
-/* 2026-10-22：版权页脚只在「设置 › 关于本站」，紧跟卡片下方，不沉到视口底（放在分层外，压过 pb-28 / 底栏留白） */
-body:has(footer.sgx-about-foot) main { flex: 0 0 auto; padding-bottom: 0; }
-body:has(footer.sgx-about-foot) .set-layout { padding-bottom: 0; }
-body:has(footer.sgx-about-foot) .set-layout .widget { margin-bottom: 0; }
-body footer.sgx-about-foot { margin-top: 0; padding-bottom: env(safe-area-inset-bottom, 0px); }
-footer.sgx-about-foot > div { padding-top: 20px; padding-bottom: 16px; }
 
 /* topbar v2.0 start — 与 Book 同一套（返回圆 + 长条 + 导航圆）。旧顶栏（时间/日期/天气/音乐、
    标题区 ←/⋮、吸顶浮钮）已整体删除。放在所有 @layer 之外，优先于分层样式。 */

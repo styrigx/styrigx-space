@@ -1,5 +1,4 @@
-# 个人资料：以后换头像只改 avatar 字段即可（填 /images/xxx.jpg）
-# avatar 留空则显示字母占位
+# 个人资料（首页名片读 name、motto_*）。头像不在这里：由账号 Worker 的 /avatar/* 提供（账号页上传）；avatar 字段目前没有读者
 name: Styrigx
 avatar: ""
 motto_zh: 拆开世界是为了了解它，再把它装回去是为了相信它。

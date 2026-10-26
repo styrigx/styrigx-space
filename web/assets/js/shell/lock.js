@@ -377,7 +377,7 @@ export function showLockScreen() {
   /* ---------- 临时钥匙态（访客进入；与密码态同一弹层） ---------- */
   let tempLockedUntil = 0;
   function openTemp() {
-    if (isLocal || !SGX_FEAT_LOCK_GATE) {
+    if (isLocal) {
       unlock();
       return;
     }
@@ -787,10 +787,6 @@ export function showLockScreen() {
   if (av) {
     on(av, 'click', function (e) {
       e.stopPropagation();
-      if (!SGX_FEAT_LOCK_GATE) {
-        unlock();
-        return;
-      }
       openMethodSheet();
     });
     /* 「解锁」按钮 = 点头像（同一个入口，不另走流程） */
@@ -812,11 +808,7 @@ export function showLockScreen() {
       if (vd.isOpen()) return;
       if (methodSheet) return;
       e.preventDefault();
-      /* 2.8.0：键盘也走方式选择弹层 */
-      if (!SGX_FEAT_LOCK_GATE) {
-        unlock();
-        return;
-      }
+      /* 键盘也走方式选择弹层 */
       openMethodSheet();
     }
   });

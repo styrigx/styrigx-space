@@ -1,4 +1,4 @@
-# 2.4.1 三站登记（用于 return 白名单、文档、设置页展示）
+# 站点登记：全站内容索引 /files-index.json（index.filesindex.json → scripts/build-search-index.mjs）读 id / title / subtitle / url；icon / host / lock 目前没有读者
 - id: space
   title: 主站
   subtitle: 个人主页

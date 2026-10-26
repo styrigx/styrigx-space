@@ -4,7 +4,7 @@
  * 前端「重置登录」（auth/reset-flow.js，锁屏弹层里的「无法登录？」）先交根凭证，服务端决定下一步。
  *
  * 流程（根凭证优先）：
- * 1. 先输入根凭证，与环境变量比对（不读 KV）。错误按现有认证失败处理。
+ * 1. 先输入根凭证，与环境变量 SGX_ROOT_KEY 比对（比对前读 KV 里的根凭证限速计数，_kernel/root-check.js）。错误按现有认证失败处理。
  * 2. 根凭证正确后才读重置开关（_kernel/lock-reset-switch.js：KV 开关 + D1 计时/单次）。
  *    开关有效 → 签发 LockResetTicket（by=root）（审计 via=switch），并原子标记已用。
  * 3. 开关无效 → 继续要求账号凭证（AccountKey），通过后签发 LockResetTicket（by=account：RootKey + AccountKey 双验，by 只记 account）。

@@ -1,9 +1,10 @@
 /**
- * 2.11：root 使用审计列表（供 UI 显示）。
+ * 根凭证（RootKey）使用审计列表：账号 → 服务状态页底部的「根凭证使用记录」折叠区展开时才请求（apps/account-status.js）。
  *
  * GET /api/root-audit
- * - 需要 admin 锁屏会话 + LockReauthTicket（sgx-lock-reauth）
- * - 返回最近 50 条 root-audit 记录（时间、IP 前缀、结果），新的在前
+ * - 只要 admin 锁屏会话（访客 / 无会话 / 坏会话 → 401 session）。不要 LockReauthTicket：
+ *   只读、不含凭证；页面在账号区里，访客被网关 302 出 /account/*，管理员已解锁；这里仍在服务端校验 admin，防直接调接口。
+ * - 返回最近 50 条 root-audit 记录（时间、IP 前缀、结果），新的在前；不返回 decoy / via / path 标记
  * - 只读；KV 失败 → 503
  *
  * 键是 root-audit:<毫秒时间戳>:<随机>，kv.list 按键名升序返回（= 时间从旧到新），一页最多 1000 个。
@@ -12,7 +13,6 @@
  */
 import { verifyLockSession } from '../_kernel/lock-session.js';
 import { AUDIT_PREFIX } from '../_kernel/root-audit.js';
-import { verifyLockReauthTicket } from '../_kernel/tickets.js';
 import { ROLE_ADMIN } from '../_kernel/lock-session.js';
 import { json, apiError } from '../_kernel/http.js';
 
@@ -42,11 +42,6 @@ async function handleGet(context) {
   if (!sess.ok || sess.role !== ROLE_ADMIN) {
     return apiError(401, 'session');
   }
-  const st = await verifyLockReauthTicket(request, env);
-  if (!st.ok) {
-    return apiError(403, 'reauth', { reason: st.reason });
-  }
-
   try {
     /* 翻页取键名，只留最后（最新）AUDIT_SHOW 个 */
     let names = [];

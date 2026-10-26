@@ -104,12 +104,12 @@ test('全局只减速：本域每小时输错满阈值后校验前先等，不�
   const waits = [];
   const sleep = async (ms) => { waits.push(ms); };
   for (let i = 0; i < PASSWORD_GLOBAL_SLOW_AT - 1; i++) await passwordLimiter(kv, REALM_LOCK, '192.0.2.' + (i % 250)).recordFail();
-  const owner = passwordLimiter(kv, REALM_LOCK, '203.0.113.50', { sleep });
-  assert.equal(await owner.inCooldown(), false);
+  const lock = passwordLimiter(kv, REALM_LOCK, '203.0.113.50', { sleep });
+  assert.equal(await lock.inCooldown(), false);
   assert.deepEqual(waits, []);
   await passwordLimiter(kv, REALM_LOCK, '192.0.2.251').recordFail();
   assert.equal(JSON.parse(kv._map.get(REALM_LOCK.kv.passwordFailGlobal)).count, PASSWORD_GLOBAL_SLOW_AT);
-  assert.equal(await owner.inCooldown(), false, '不封锁');
+  assert.equal(await lock.inCooldown(), false, '不封锁');
   assert.deepEqual(waits, [PASSWORD_GLOBAL_DELAY_MS], '先等再验');
   /* 账号域各自计数 */
   waits.length = 0;
@@ -119,7 +119,7 @@ test('全局只减速：本域每小时输错满阈值后校验前先等，不�
   const g = JSON.parse(kv._map.get(REALM_LOCK.kv.passwordFailGlobal));
   g.windowStart = Date.now() - 61 * 60 * 1000;
   kv._map.set(REALM_LOCK.kv.passwordFailGlobal, JSON.stringify(g));
-  assert.equal(await owner.inCooldown(), false);
+  assert.equal(await lock.inCooldown(), false);
   assert.deepEqual(waits, []);
 });
 

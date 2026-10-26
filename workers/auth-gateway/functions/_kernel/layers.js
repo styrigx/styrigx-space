@@ -86,23 +86,6 @@ export async function clearLayerConfigured(kv, layer) {
 }
 
 /**
- * 检查 root 是否可以代开某层。
- * - 层未配置 → 允许（takeover）
- * - 层已配置（含 KV 读取失败按已配置处理）→ 拒绝（该层有自己的凭证，root 失效）
- * @param {any} kv
- * @param {string} layer
- * @returns {Promise<{allowed:boolean, reason:string}>}
- *   reason: 'takeover' | 'configured'
- */
-export async function checkRootTakeover(kv, layer) {
-  const configured = await isLayerConfigured(kv, layer);
-  if (configured) {
-    return { allowed: false, reason: 'configured' };
-  }
-  return { allowed: true, reason: 'takeover' };
-}
-
-/**
  * 真实凭证盘点（，供 isLockEffectivelyConfigured / isAccountEffectivelyConfigured 共用）。
  * 只读真实凭证（密码 hash、两域的通行密钥），不读 *-configured 标记。
  * 任何一步读取失败 → failed=true（调用方按已配置处理，fail closed）。

@@ -197,12 +197,12 @@ test('password：lock / account 各读自己的 KV 键', async () => {
   const pw = await import('../../../workers/auth-gateway/functions/_kernel/password.js');
   assert.equal(pw.getPepper({ SGX_PW_PEPPER: 'pep' }), 'pep');
   assert.equal(pw.getPepper(undefined), '');
-  const rec = await pw.makePasswordRecord('owner-secret-1', 'pep');
+  const rec = await pw.makePasswordRecord('account-secret-1', 'pep');
   assert.equal(rec.peppered, true);
   assert.equal(rec.iterations, 100000);
   const kv = makeKV({ 'account-password': JSON.stringify(rec) });
-  assert.deepEqual(await pw.verifyRealmPassword(kv, REALM_ACCOUNT, 'pep', 'owner-secret-1'), { ok: true, set: true, needsRehash: false });
+  assert.deepEqual(await pw.verifyRealmPassword(kv, REALM_ACCOUNT, 'pep', 'account-secret-1'), { ok: true, set: true, needsRehash: false });
   assert.deepEqual(await pw.verifyRealmPassword(kv, REALM_ACCOUNT, 'pep', 'wrong-pass'), { ok: false, set: true, needsRehash: false });
   /* lock 读 lock-password：未设置 */
-  assert.deepEqual(await pw.verifyRealmPassword(kv, REALM_LOCK, 'pep', 'owner-secret-1'), { ok: false, set: false, needsRehash: false });
+  assert.deepEqual(await pw.verifyRealmPassword(kv, REALM_LOCK, 'pep', 'account-secret-1'), { ok: false, set: false, needsRehash: false });
 });

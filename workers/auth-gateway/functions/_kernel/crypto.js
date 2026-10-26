@@ -19,7 +19,7 @@ export function b64dec(b64) {
   return u8.buffer;
 }
 
-/** @param {string} b64 */
+/** @param {string} s */
 export function b64urlEnc(s) {
   return b64enc(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
@@ -44,7 +44,7 @@ export async function timingSafeEqual(a, b) {
 }
 
 /**
- * 根凭证规范化（批次 A 收尾 B2）：去掉所有空白字符（空格、制表符、换行 \r \n）。
+ * 根凭证规范化：去掉所有空白字符（空格、制表符、换行 \r \n）。
  * 根凭证是单行密码框输入，粘贴多行时浏览器会去掉换行；服务端两边（提交值与
  * SGX_ROOT_KEY）都用同一函数规范化后再比对。去空白后为空一律拒绝。
  * 只有根凭证这样处理；管理员密码、解锁密码不做任何规范化。
@@ -72,7 +72,7 @@ export async function ed25519Sign(privatePem, payload) {
 }
 
 /**
- * Ed25519 验签（子站 验证会话 cookie 用，主站自验也用）。
+ * Ed25519 验签（网关验会话 cookie 与各张票用；子站不自己验签，经网关）。
  * @param {string} publicPem SPKI PEM 格式公钥
  * @param {string} payload 原文
  * @param {string} sigB64url base64url 签名

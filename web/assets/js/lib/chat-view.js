@@ -9,10 +9,9 @@
  * 链接只放行 http:// / https://（javascript:、data: 等一律只留文字），新标签页打开，rel="noopener noreferrer"。
  */
 
-/** HTML 转义（文字和属性都用它） @param {any} s */
-export function esc(s) {
-  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] || c);
-}
+import { esc } from './util.js';
+
+export { esc };
 
 /** 只放行 http(s) 绝对地址（不含空白 / 控制字符）；否则 '' @param {any} u */
 export function safeUrl(u) {

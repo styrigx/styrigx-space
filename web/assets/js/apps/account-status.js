@@ -12,6 +12,9 @@
  * - 接口通了但所有站都还没检查过 → 空状态卡。
  * - 点可用率条上的某一天 → 卡片底部显示那天的可用率 / 检查次数 / 平均延迟。
  * - 站点卡下面是「用量」（PR3）：data.usage 有 → 每项值 / 上限 / 进度条 + 「更新于 N 分钟前」；null → 「用量未配置」等一行提示。
+ * - 页底「根凭证使用记录」折叠区（<details id="st-audit">）：默认收起，第一次展开才请求 GET /api/root-audit（KV list + 最多 50 次 get，
+ *   所以不随页面加载、也不随 60 秒刷新）；成功后本页不再重复取，失败可点「重试」，401 只提示重新解锁。
+ *   页面不做角色判断（访客进不了账号区，网关 302），接口服务端照样只认 admin 锁屏会话。
  * 渲染全在 lib/status-view.js（纯函数，单测覆盖）；这里只管 DOM 和请求。
  */
 import { on } from '../lib/events.js';
@@ -19,9 +22,10 @@ import { loadI18n } from '../lib/i18n.js';
 import { isEn } from '../lib/util.js';
 import { visibleInterval } from '../lib/scheduler.js';
 import { requireAccountSession } from './account-common.js';
-import { bannerInfo, bjDay, buildSlots, fmtBjTime, isEmptySummary, renderIncidents, renderSite, renderUsage, slotText } from '../lib/status-view.js';
+import { bannerInfo, bjDay, buildSlots, esc, fmtBjTime, isEmptySummary, renderAudit, renderIncidents, renderSite, renderUsage, slotText } from '../lib/status-view.js';
 
 export const STATUS_API = '/api/status';
+export const AUDIT_API = '/api/root-audit';
 export const REFRESH_MS = 60 * 1000;
 export const CACHE_KEY = 'sgx-status-cache';
 export const CACHE_MAX_MS = 24 * 3600 * 1000;
@@ -187,6 +191,46 @@ function init() {
     detail.textContent = slotText(slot, { t, fmt, en });
     detail.hidden = false;
   });
+
+  /* 根凭证使用记录：展开才取（见文件头） */
+  const auditEl = /** @type {HTMLDetailsElement|null} */ (document.getElementById('st-audit'));
+  const auditBody = document.getElementById('st-audit-body');
+  /** @type {'idle'|'loading'|'done'|'error'} */
+  let auditState = 'idle';
+
+  async function loadAudit() {
+    if (!auditBody || auditState === 'loading' || auditState === 'done') return;
+    auditState = 'loading';
+    auditBody.setAttribute('aria-busy', 'true');
+    auditBody.innerHTML = '<p class="st-audit-msg">' + esc(t('auditLoading')) + '</p>';
+    let status = 0;
+    try {
+      const r = await fetch(AUDIT_API, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
+      status = r.status;
+      const j = r.ok ? await r.json() : null;
+      if (!j || j.ok !== true || !Array.isArray(j.items)) throw new Error('bad');
+      auditBody.innerHTML = renderAudit(j.items, { t, fmt, en, now: Date.now() });
+      auditState = 'done';
+    } catch (e) {
+      auditState = 'error';
+      const auth = status === 401;
+      auditBody.innerHTML = '<p class="st-audit-msg">' + esc(t(auth ? 'auditErrAuth' : 'auditErr')) + '</p>' +
+        (auth ? '' : '<button type="button" class="st-btn st-audit-retry" data-audit-retry>' + esc(t('retry')) + '</button>');
+    } finally {
+      auditBody.setAttribute('aria-busy', 'false');
+    }
+  }
+
+  if (auditEl && auditBody) {
+    on(auditEl, 'toggle', () => {
+      if (auditEl.open) loadAudit();
+    });
+    on(auditBody, 'click', (e) => {
+      if (!(/** @type {HTMLElement} */ (e.target).closest('[data-audit-retry]'))) return;
+      auditState = 'idle';
+      loadAudit();
+    });
+  }
 
   /* 账号区：没有账号会话 → 回账号页登录（不挡首帧，和下面的状态请求同时发） */
   requireAccountSession(en);

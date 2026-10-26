@@ -1,5 +1,5 @@
 /**
- * B2-7 网站数字健康：统计管理员在主站、书站、博客各区域的停留时长（只算页面可见且有操作的时间）。
+ * 网站数字健康：统计管理员在主站和子站各区域的停留时长（只算页面可见且有操作的时间）。
  *
  * POST /api/wellbeing   上报（主站 / book / blog 都打到主站这一个接口）
  *   body（text/plain 或 application/json，sendBeacon 发 text/plain 免预检）：

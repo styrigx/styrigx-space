@@ -6,6 +6,7 @@
    结构：横幅（全部正常 / 有 N 个故障）→ 每站一张卡（站名、当前状态、最近一次检查的延迟、90 天可用率条 + 百分比）→ 用量 → 近期故障（北京时间）。
    四种状态（#st-root data-state）：loading 骨架 · ready 有数据 · empty 还没有任何检查结果 · error 第一次就失败（之后刷新失败只在页脚提示，保留旧数据）。
    账号区：访客进不来（网关 302 回首页）；没有账号会话 → 跳 /account/?return=<本页>，登录后回来（apps/account-status.js）。
+   页底「根凭证使用记录」折叠区：展开才请求 GET /api/root-audit（见下方模板注释）。
    noindex（见 baseof）。渲染：lib/status-view.js（纯函数，tests/web/ui/status-view.test.mjs）；DOM / 请求：apps/account-status.js；入口 entry-account-status.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-account-status.js" }}
@@ -51,6 +52,20 @@
   <section id="st-inc-wrap" class="st-inc-wrap" hidden>
     <h3 class="acct-dev-h">{{ if $isEn }}Recent incidents{{ else }}近期故障{{ end }}</h3>
     <div id="st-inc" class="widget bg-m-container-lowest st-inc-card"></div>
+  </section>
+
+  {{/* 根凭证使用记录：默认收起，展开时 apps/account-status.js 才请求 GET /api/root-audit（省 KV 读）。
+     账号区只有管理员进得来（访客被网关 302 回首页），页面不做角色判断；接口服务端仍只认 admin 锁屏会话。
+     记录保留 7 天、最多显示最近 50 条（workers/auth-gateway/functions/api/root-audit.js）。 */}}
+  <section class="st-audit-wrap" aria-labelledby="st-audit-h">
+    <h3 class="acct-dev-h" id="st-audit-h">{{ if $isEn }}RootKey activity{{ else }}根凭证使用记录{{ end }}</h3>
+    <details id="st-audit" class="widget bg-m-container-lowest st-audit-card">
+      <summary class="st-audit-sum">
+        <span class="st-audit-sum-txt">{{ if $isEn }}Last 7 days: time, IP prefix and result{{ else }}最近 7 天：时间、IP 前缀和结果{{ end }}</span>
+        <span class="st-audit-chev" aria-hidden="true"></span>
+      </summary>
+      <div id="st-audit-body" class="st-audit-body" aria-live="polite" aria-busy="false"></div>
+    </details>
   </section>
 
   <p class="acct-note st-foot" id="st-foot" aria-live="polite"></p>

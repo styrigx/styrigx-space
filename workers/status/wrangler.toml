@@ -42,7 +42,7 @@ binding = "D1_CLOUDFLARE_USAGE"
 database_name = "styrigx-status"
 database_id = "31970da7-4b8f-4180-ad93-c170649188dc"
 
-# 用量 token（PR3）：Secrets Store 绑定，代码里 await env.SGX_CF_USAGE_TOKEN.get()。store_id 同 workers/auth-gateway/wrangler.toml（是存储编号，不是密值）。
+# 用量 token：Secrets Store 绑定，代码里 await env.SGX_CF_USAGE_TOKEN.get()。store_id 同 workers/auth-gateway/wrangler.toml（是存储编号，不是密值）。
 # 部署这个 Worker 的 token（styrigx-status-deploy）因此要多一项 Secrets Store 编辑（带 Secrets Store 绑定部署必须 Edit，Read 报 10021）。
 [[secrets_store_secrets]]
 binding = "SGX_CF_USAGE_TOKEN"

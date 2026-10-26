@@ -2,7 +2,7 @@
  * 全站搜索 /api/search（网关这一侧，2026-10-22）。头像只存 KV_PROFILE 的测试随头像搬到 tests/workers/account/。
  * 运行：node --test tests/workers/auth-gateway/search-api.test.mjs
  */
-import { test } from 'node:test';
+import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { testLockSession, testAccountSession } from './_tickets.mjs';
 import { makeKV, genKeyPair } from '../_harness.mjs';
@@ -78,7 +78,8 @@ function fakeSearch(log) {
   return { async fetch(req) { log.push({ url: req.url, role: req.headers.get('X-Sgx-Role') }); return new Response(JSON.stringify({ ok: true, q: 'x', hits: [] }), { status: 200 }); } };
 }
 
-test('setup: 生成测试钥匙', async () => {
+/* 测试钥匙：before 里生成（不算一条用例，单独跑某条用例时也会先执行） */
+before(async () => {
   LOCK = await genKeyPair(); ACCOUNT = await genKeyPair(); OTHER = await genKeyPair();
 });
 

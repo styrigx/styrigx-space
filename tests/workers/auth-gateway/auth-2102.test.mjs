@@ -15,7 +15,7 @@
  *
  * 运行：node --test tests/kernel/auth-2102.test.mjs
  */
-import { test } from 'node:test';
+import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -31,7 +31,7 @@ async function genKeys() {
   ({ priv: LOCK_PRIV, pub: LOCK_PUB } = await genKeyPair());
 }
 
-const SGX_ROOT_KEY = 'test-owner-key-2102';
+const SGX_ROOT_KEY = 'test-root-key-2102';
 
 function baseEnv(kv, overrides = {}) {
   return {
@@ -59,7 +59,8 @@ function reqWithCookies(url, body, cookies, headers = {}) {
   return postReq(url, body, h);
 }
 
-test('setup: 生成测试密钥', async () => {
+/* 测试钥匙：before 里生成（不算一条用例，单独跑某条用例时也会先执行） */
+before(async () => {
   await genKeys();
   assert.ok(LOCK_PRIV && LOCK_PUB);
 });

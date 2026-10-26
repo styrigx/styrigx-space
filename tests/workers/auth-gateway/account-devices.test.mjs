@@ -3,7 +3,7 @@
  *
  * 运行：node --test tests/workers/auth-gateway/account-devices.test.mjs
  */
-import { test } from 'node:test';
+import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { testLockSession, testAccountSession, testTicket } from './_tickets.mjs';
 import { makeKV, genKeyPair, postReq as jsonPost } from '../_harness.mjs';
@@ -105,7 +105,8 @@ async function get(kv, cookieObj) {
   return await onRequestGet({ request: new Request('https://styrigx.com/api/account', { headers: { Cookie: cookies(cookieObj), 'User-Agent': SM_UA } }), env: envFor(kv) });
 }
 
-test('setup: 生成测试钥匙', async () => {
+/* 测试钥匙：before 里生成（不算一条用例，单独跑某条用例时也会先执行） */
+before(async () => {
   LOCK = await genKeyPair(); ACCOUNT = await genKeyPair(); OTHER = await genKeyPair();
 });
 

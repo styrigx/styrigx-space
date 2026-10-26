@@ -1,7 +1,7 @@
 /**
- * 2.4.1 三站真实锁屏 - 主站 middleware（SGX_SITE=space）
+ * 主站 middleware（SGX_SITE=space）：主站页面与 /api/* 的锁屏会话关口
  *
- * 1. 域名隔离：生产环境只允许 styrigx.com 访问（保留 P0-3 逻辑）
+ * 1. 域名隔离：生产环境只允许 styrigx.com 访问
  * 2. 会话检查：锁屏会话 cookie（Ed25519 签名，见 _kernel/lock-session.js）
  *    - 有效 → next()
  *    - 无效 → 白名单放行，否则 302 到首页锁屏（?lock=1&return=原地址）
@@ -10,7 +10,6 @@
  */
 
 import { verifyLockSession, ROLE_VISITOR } from './_kernel/lock-session.js';
-import { isPublicPage } from './_kernel/public-pages.js';
 import { verifyLockResetTicket } from './_kernel/tickets.js';
 import { withNoStore, json, apiError } from './_kernel/http.js';
 import { verifyAccountSession } from './_kernel/account-session.js';
@@ -59,7 +58,6 @@ const API_WHITELIST = [
   '/api/lock-tempkey-unlock', /* 临时钥匙进门 */
   '/api/geo',
 ];
-const PAGE_WHITELIST = [];
 const STATIC_RE = /\.(css|js|woff2|woff|ttf|png|svg|ico|json|xml|webmanifest)$/i;
 /* 主站头像 /avatar/<尺寸>.webp（锁屏、首页、子站都用），公开放行；其他图片仍要先解锁。
    线上 /avatar/* 由账号 Worker styrigx-account 承接（同样的放行规则在 workers/account/src/gate.js）；
@@ -77,10 +75,8 @@ const RSS_FEED_RE = /(^|\/)index\.xml$/i;
 function isWhitelisted(pathname) {
   if (GATED_DATA.has(pathname)) return false;
   if (RSS_FEED_RE.test(pathname)) return false;
-  if (PAGE_WHITELIST.includes(pathname)) return true;
-  if (pathname.startsWith('/?lock=1') || pathname.startsWith('/en/?lock=1')) return true;
   if (pathname.startsWith('/api/')) {
-    return API_WHITELIST.some(p => pathname === p || pathname.startsWith(p + '/') || pathname.startsWith(p + '?'));
+    return API_WHITELIST.some(p => pathname === p || pathname.startsWith(p + '/'));
   }
   if (pathname.startsWith('/assets/')) return true;
   /* 标签页图标、分享卡片图（社交爬虫没有会话）：锁着也公开 */

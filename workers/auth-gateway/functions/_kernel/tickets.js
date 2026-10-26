@@ -22,7 +22,6 @@ import { readCookie } from './cookies.js';
 import {
   TICKETS,
   COOKIE_EXPIRED,
-  SHORT_TICKET_MAX_AGE,
   LOCK_RESET_TICKET,
   LOCK_REAUTH_TICKET,
   ACCOUNT_RESET_TICKET,
@@ -216,5 +215,3 @@ export function verifyLockReauthTicket(request, env) { return verifyTicket(reque
 export function verifyAccountResetTicket(request, env) { return verifyTicket(request, env, ACCOUNT_RESET_TICKET); }
 /** @param {any} request @param {any} env */
 export function verifyAccountReauthTicket(request, env) { return verifyTicket(request, env, ACCOUNT_REAUTH_TICKET); }
-
-export { SHORT_TICKET_MAX_AGE };
