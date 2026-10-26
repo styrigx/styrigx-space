@@ -21,14 +21,15 @@
  * 安全响应头（functions/_kernel/security-headers.js，2026-10-25 PR D）：
  *   - 主站经过网关的每个响应（页面、锁屏首页、所有 302/301、/api/*、500）→ applyMainSiteHeaders
  *     （HSTS、nosniff、X-Frame-Options、Referrer-Policy、Permissions-Policy、只含非脚本指令的强制 CSP、完整的 Report-Only CSP）
- *   - 子站经过网关的响应（页面、302 到锁屏、401）→ applySubsiteHeaders（只有 HSTS；子站内容的 CSP 等各自审计后再加）
+ *   - 子站经过网关的响应（页面、302 到锁屏、401）→ applySubsiteHeaders（HSTS + 低风险的几项，没有才补；完整 CSP 各自审计后再加）
+ *   - 子站静态资源直通 → applySubsiteStaticHeaders（只补 HSTS、nosniff）
  *   - 原样回源的静态资源不改（不打 X-SGX-Runtime 也不加头），由 Pages 的 _headers 加同一套
  */
 import { onRequest as middleware } from '../functions/_middleware.js';
 import { API_ROUTES } from './routes.js';
 import { resolveSecrets } from './secrets.js';
 import { subsiteFor, handleSubsite, isStaticAsset as isSubsiteStaticAsset } from './subsites.js';
-import { applyMainSiteHeaders, applySubsiteHeaders } from '../functions/_kernel/security-headers.js';
+import { applyMainSiteHeaders, applySubsiteHeaders, applySubsiteStaticHeaders } from '../functions/_kernel/security-headers.js';
 import { apiError } from '../functions/_kernel/http.js';
 
 /* 主站静态资源目录：内容带指纹或公开（css/js/字体/收藏图标），不含任何正文。
@@ -129,7 +130,7 @@ export default {
     /* 静态资源：原样回源，不验会话、不打 X-SGX-Runtime（与以前不登记路由时一致；子站 CI 冒烟据此确认静态资源不验会话） */
     if (isMainStaticPassthrough(url0)) return fromOrigin(request, rawEnv);
     if (subsiteFor(url0.hostname) && isSubsiteStaticAsset(url0.pathname) && url0.pathname !== '/api/lock-session-check') {
-      return fromOrigin(request, rawEnv);
+      return applySubsiteStaticHeaders(await fromOrigin(request, rawEnv));
     }
     const env = await resolveSecrets(rawEnv);
     const isSub = !!subsiteFor(url0.hostname);

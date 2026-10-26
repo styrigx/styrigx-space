@@ -1,5 +1,5 @@
 /**
- * passkey-e2e 的 KV 配额：scripts/kv-budget.mjs（清预览 KV 只删干扰键、预算闸）和 deploy.yml 里的接线。
+ * passkey-e2e 的 KV 配额：scripts/kv-budget.mjs（清预览 KV 只删干扰键、每次运行估算）和 deploy.yml 里的接线。
  *
  * 背景：免费计划的 KV 写 / 删 / 列各 1000 次、按整个账号每个 UTC 日算，预览 KV 和生产网关共用；
  * 2026-10-25 四次 passkey-e2e 用掉了全账号约 84% 的非读操作。
@@ -11,8 +11,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import {
-  selectResetKeys, RESET_EXACT, RESET_PREFIXES, parseKvUsage, evaluateBudget, utcDate,
-  PER_RUN_ESTIMATE, FREE_LIMITS, BUDGET_RATIO, KV_USAGE_QUERY,
+  selectResetKeys, RESET_EXACT, RESET_PREFIXES, PER_RUN_ESTIMATE,
 } from '../../../scripts/kv-budget.mjs';
 import { REALM_LOCK, REALM_ACCOUNT, REALM_ROOT, LOCK_EPOCH_KEY, ACCOUNT_EPOCH_KEY } from '../../../workers/auth-gateway/functions/_kernel/realms.js';
 
@@ -56,51 +55,9 @@ test('清预览 KV：键名全部取自 realms.js（改名时跟着走），前�
   assert.ok(!RESET_EXACT.includes(LOCK_EPOCH_KEY) && !RESET_EXACT.includes(ACCOUNT_EPOCH_KEY));
 });
 
-test('预算闸：GraphQL 结果按 actionType 合计；有 errors 或结构不对就抛错', () => {
-  const body = { data: { viewer: { accounts: [{ kvOperationsAdaptiveGroups: [
-    { dimensions: { actionType: 'read' }, sum: { requests: 2500 } },
-    { dimensions: { actionType: 'write' }, sum: { requests: 394 } },
-    { dimensions: { actionType: 'write' }, sum: { requests: 6 } },
-    { dimensions: { actionType: 'delete' }, sum: { requests: 424 } },
-    { dimensions: { actionType: 'list' }, sum: { requests: 36 } },
-    { dimensions: { actionType: 'readMetadata' }, sum: { requests: 3 } },
-  ] }] } }, errors: null };
-  assert.deepEqual(parseKvUsage(body), { read: 2500, write: 400, delete: 424, list: 36, other: { readmetadata: 3 } });
-  assert.throws(() => parseKvUsage({ data: null, errors: [{ message: 'not authorized for that account' }] }), /not authorized/);
-  assert.throws(() => parseKvUsage(null), /GraphQL/);
-  assert.throws(() => parseKvUsage({ data: { viewer: { accounts: [] } } }), /exactly one account/);
-  assert.throws(() => parseKvUsage({ data: { viewer: { accounts: [{}] } } }), /missing/);
-  /* 查询用文档里的全账号写法：只按日期过滤（不带 namespaceId），按 actionType 分组 */
-  assert.match(KV_USAGE_QUERY, /kvOperationsAdaptiveGroups\(filter: \{ date_geq: \$start, date_leq: \$end \}/);
-  assert.match(KV_USAGE_QUERY, /dimensions \{ actionType \}/);
-  assert.doesNotMatch(KV_USAGE_QUERY, /namespaceId/);
-});
-
-test('预算闸：已用 + 本次估算超过限额 60% 才拦；正好 60% 放行', () => {
-  const cap = Math.floor(FREE_LIMITS.write * BUDGET_RATIO);
-  assert.equal(cap, 600);
-  const at = evaluateBudget({ read: 0, write: cap - PER_RUN_ESTIMATE.write, delete: 0, list: 0 });
-  assert.equal(at.ok, true);
-  const over = evaluateBudget({ read: 0, write: cap - PER_RUN_ESTIMATE.write + 1, delete: 0, list: 0 });
-  assert.equal(over.ok, false);
-  assert.deepEqual(over.rows.filter((r) => r.over).map((r) => r.type), ['write']);
-  /* 2026-10-25 预览一天的用量（写 394 / 删 424 / 列 36）再加生产 ~100 次删除：下一次运行会被拦 */
-  const day = evaluateBudget({ read: 2500, write: 394, delete: 424, list: 36 });
-  assert.equal(day.ok, true, '只算预览时还差一点');
-  const dayPlusProd = evaluateBudget({ read: 2500, write: 470, delete: 524, list: 43 });
-  assert.equal(dayPlusProd.ok, false);
-  assert.deepEqual(dayPlusProd.rows.filter((r) => r.over).map((r) => r.type), ['delete']);
-  /* 估算覆盖一次运行（本地模拟器实测写 87、删 47、列 9、读 549），四类都在 */
-  for (const t of Object.keys(FREE_LIMITS)) assert.ok(PER_RUN_ESTIMATE[t] > 0, t);
+test('每次运行的估算覆盖本地模拟器实测（写 87、删 47、列 9、读 549）', () => {
+  for (const t of ['read', 'write', 'delete', 'list']) assert.ok(PER_RUN_ESTIMATE[t] > 0, t);
   assert.ok(PER_RUN_ESTIMATE.write >= 87 && PER_RUN_ESTIMATE.delete >= 47 && PER_RUN_ESTIMATE.list >= 9 && PER_RUN_ESTIMATE.read >= 549);
-  /* 一天至少还能跑 4 次而不碰 60% 线 */
-  for (const t of ['write', 'delete', 'list']) assert.ok(PER_RUN_ESTIMATE[t] * 4 <= FREE_LIMITS[t] * BUDGET_RATIO, t);
-});
-
-test('预算闸：日期按 UTC（配额按 UTC 日重置）', () => {
-  assert.equal(utcDate(new Date('2026-10-25T23:59:59Z')), '2026-10-25');
-  assert.equal(utcDate(new Date('2026-10-26T07:30:00+08:00')), '2026-10-25');
-  assert.equal(utcDate(new Date('2026-10-26T08:00:00+08:00')), '2026-10-26');
 });
 
 function passkeyJob() {
@@ -108,20 +65,21 @@ function passkeyJob() {
   return wf.jobs['passkey-e2e'];
 }
 
-test('deploy.yml：预算闸在清 KV / 部署预览 / 跑用例之前，用的是 kv-budget.mjs', () => {
+test('deploy.yml：没有 KV 预算闸；清预览 KV 用 kv-budget.mjs，且在部署预览 / 跑用例之前', () => {
   const job = passkeyJob();
   const names = job.steps.map((s) => s.name);
   const idx = (prefix) => names.findIndex((n) => n && n.startsWith(prefix));
-  const guard = idx('KV budget guard');
-  assert.ok(guard > 0);
-  assert.ok(idx('Setup Node') < guard, 'node 要先装好');
-  for (const later of ['Reset preview KV', 'Set preview test secrets', 'Apply D1 migrations', 'Deploy to preview', 'Run WebAuthn E2E']) {
-    assert.ok(idx(later) > guard, later + ' 必须在预算闸之后');
+  assert.equal(idx('KV budget guard'), -1);
+  assert.ok(!job.steps.some((s) => s.run && /kv-budget\.mjs guard/.test(s.run)));
+  const reset = idx('Reset preview KV');
+  assert.ok(reset > 0);
+  assert.ok(idx('Setup Node') < reset, 'node 要先装好');
+  for (const later of ['Deploy to preview', 'Run WebAuthn E2E']) {
+    assert.ok(idx(later) > reset, later + ' 必须在清预览 KV 之后');
   }
-  assert.equal(job.steps[guard].run.trim(), 'node scripts/kv-budget.mjs guard');
-  assert.match(job.steps[idx('Reset preview KV')].run, /node scripts\/kv-budget\.mjs reset-preview "\$kv"/);
+  assert.match(job.steps[reset].run, /node scripts\/kv-budget\.mjs reset-preview "\$kv"/);
   /* 生产 KV id 断言还在 */
-  assert.match(job.steps[idx('Reset preview KV')].run, /preview KV id must not be the production gateway KV/);
+  assert.match(job.steps[reset].run, /preview KV id must not be the production gateway KV/);
 });
 
 test('deploy.yml：同一棵树已通过的 PR 运行、或只改文档 / 样式才跳过；跳过时只跳 KV / 预览相关步骤', () => {

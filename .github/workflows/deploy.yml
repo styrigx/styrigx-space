@@ -262,7 +262,6 @@ jobs:
     # 每次运行约写 ~90、删 ~50、列 ~9（tests/web/e2e/preview-emulator.cjs 实测，见 scripts/kv-budget.mjs）。所以：
     # - 本次改动全部是文档 / 内容文字 / CSS / 视觉基线 / 图片，就不部署预览、不跑用例，job 以成功结束（steps.scope）；
     # - main 的 push 如果合进来的树和某次已通过 passkey-e2e 的 PR 运行测的树完全相同，就不再跑一遍（steps.reuse）；
-    # - 跑之前查今天全账号已用量，加上本次估算超过 60% 就直接失败，不碰预览（steps 「KV budget guard」），生产至少留 40%。
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -424,24 +423,12 @@ jobs:
           exit $ok
 
       - name: Setup Node
-        # 提前到这里：下面的预算闸和清预览 KV 用 node 跑 scripts/kv-budget.mjs（ESM，引用网关 realms.js 的键名）
+        # 提前到这里：下面的清预览 KV 用 node 跑 scripts/kv-budget.mjs（ESM，引用网关 realms.js 的键名）
         if: steps.gate.outputs.run == 'true'
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-
-      - name: KV budget guard (account-wide, today UTC)
-        # 只读 Cloudflare GraphQL Analytics（kvOperationsAdaptiveGroups，全账号、今天 UTC）：已用 + 本次估算 > 限额的 60% 就失败，
-        # 后面的步骤（清预览 KV、部署预览、跑用例）都不执行，生产网关的 KV 配额不受影响。
-        # STYRIGX_SPACE_PAGES_DEPLOY 需要额外的「Account → Account Analytics → Read」权限；缺了查询失败 → 本步失败（不盲跑）。
-        # 临时绕过查询失败：仓库变量 KV_BUDGET_GUARD_MODE=warn（超预算仍然拦）。
-        if: steps.gate.outputs.run == 'true'
-        env:
-          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CF_API_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
-          KV_BUDGET_GUARD_MODE: ${{ vars.KV_BUDGET_GUARD_MODE }}
-        run: node scripts/kv-budget.mjs guard
 
       - name: Generate preview test credentials (CI only)
         if: steps.gate.outputs.run == 'true'

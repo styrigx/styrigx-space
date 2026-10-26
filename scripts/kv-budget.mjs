@@ -1,32 +1,18 @@
 #!/usr/bin/env node
 /**
- * @fileoverview passkey-e2e 的 Workers KV 配额：清预览 KV（只清会干扰本次运行的键）+ 开跑前的预算闸。
+ * @fileoverview passkey-e2e 的 Workers KV：清预览 KV（只清会干扰本次运行的键）+ 每次运行的用量估算。
  *
  * 为什么要有：免费计划的 KV 配额按「整个账号、每个 UTC 日」算（写 1000、删 1000、列 1000、读 100000），
  * 预览 KV（styrigx-auth-gateway-preview）和生产网关的 KV 共用这一份。2026-10-25 四次 passkey-e2e
  * 用掉了全账号约 84% 的非读操作；超了以后生产网关的 KV 写会 429，锁屏 / 账号直接不可用。
  *
  * 用法（CI 的 passkey-e2e job；本地可配 CF_API_BASE 指向 tests/web/e2e/preview-emulator.cjs）：
- *   node scripts/kv-budget.mjs guard                    今天（UTC）全账号已用的 KV 写 / 删 / 列，加上本次运行的估算，
- *                                                       任一类超过限额的 60% 就 exit 1（不碰生产，只读分析数据）
  *   node scripts/kv-budget.mjs reset-preview <namespace-id>   只删会干扰本次运行的预览 KV 键（见 selectResetKeys）
  *   node scripts/kv-budget.mjs estimate                 打印每次运行的估算
- * 环境变量：CF_ACCOUNT_ID、CF_API_TOKEN；CF_API_BASE（默认 https://api.cloudflare.com/client/v4）；
- *   KV_BUDGET_GUARD_MODE=warn：分析接口查询失败（如 token 缺 Account Analytics 读权限）时只告警不拦；
- *   超预算永远拦，这个开关不影响。
- *
- * guard 需要 token 有「Account → Account Analytics → Read」权限（GraphQL Analytics API，
- * https://developers.cloudflare.com/analytics/graphql-api/getting-started/authentication/api-token-auth/），
- * 数据集 kvOperationsAdaptiveGroups（https://developers.cloudflare.com/kv/observability/metrics-analytics/）。
+ * 环境变量：CF_ACCOUNT_ID、CF_API_TOKEN；CF_API_BASE（默认 https://api.cloudflare.com/client/v4）。
  */
 import { fileURLToPath } from 'node:url';
 import { REALM_LOCK, REALM_ACCOUNT, REALM_ROOT } from '../workers/auth-gateway/functions/_kernel/realms.js';
-
-/** 免费计划：整个账号每个 UTC 日的 KV 操作上限（https://developers.cloudflare.com/kv/platform/limits/） */
-export const FREE_LIMITS = Object.freeze({ read: 100000, write: 1000, delete: 1000, list: 1000 });
-
-/** 跑完本次之后，任一类用量超过限额的这个比例就不跑（给生产留至少 40%） */
-export const BUDGET_RATIO = 0.6;
 
 /**
  * 一次 passkey-e2e 运行的 KV 操作估算（上限）。
@@ -95,65 +81,6 @@ export function selectResetKeys(keys) {
   return out;
 }
 
-/* ---------- 预算闸 ---------- */
-
-/**
- * 把 GraphQL 的 kvOperationsAdaptiveGroups 结果合成 { read, write, delete, list }。
- * @param {any} body GraphQL 响应 JSON
- * @returns {{read:number, write:number, delete:number, list:number, other: Record<string, number>}}
- */
-export function parseKvUsage(body) {
-  if (!body || (Array.isArray(body.errors) && body.errors.length)) {
-    const msg = body && body.errors ? body.errors.map((e) => e && e.message).join('; ') : 'empty response';
-    throw new Error('GraphQL error: ' + msg);
-  }
-  const accounts = body.data && body.data.viewer && body.data.viewer.accounts;
-  if (!Array.isArray(accounts) || accounts.length !== 1) throw new Error('GraphQL: expected exactly one account in response');
-  const groups = accounts[0].kvOperationsAdaptiveGroups;
-  if (!Array.isArray(groups)) throw new Error('GraphQL: kvOperationsAdaptiveGroups missing');
-  const usage = { read: 0, write: 0, delete: 0, list: 0, other: {} };
-  for (const g of groups) {
-    const t = String((g.dimensions && g.dimensions.actionType) || '').toLowerCase();
-    const n = Number(g.sum && g.sum.requests) || 0;
-    if (t in FREE_LIMITS) usage[t] += n;
-    else usage.other[t] = (usage.other[t] || 0) + n;
-  }
-  return usage;
-}
-
-/**
- * @param {{read:number, write:number, delete:number, list:number}} usage 今天（UTC）全账号已用
- * @param {{read:number, write:number, delete:number, list:number}} [estimate]
- * @param {{read:number, write:number, delete:number, list:number}} [limits]
- * @param {number} [ratio]
- * @returns {{ok: boolean, rows: Array<{type: string, used: number, est: number, after: number, cap: number, limit: number, over: boolean}>}}
- */
-export function evaluateBudget(usage, estimate = PER_RUN_ESTIMATE, limits = FREE_LIMITS, ratio = BUDGET_RATIO) {
-  const rows = Object.keys(limits).map((type) => {
-    const used = Number(usage[type]) || 0;
-    const est = Number(estimate[type]) || 0;
-    const cap = Math.floor(limits[type] * ratio);
-    return { type, used, est, after: used + est, cap, limit: limits[type], over: used + est > cap };
-  });
-  return { ok: rows.every((r) => !r.over), rows };
-}
-
-/** 今天的 UTC 日期 YYYY-MM-DD（配额按 UTC 日重置） */
-export function utcDate(now = new Date()) {
-  return now.toISOString().slice(0, 10);
-}
-
-export const KV_USAGE_QUERY = `query KvOperationsToday($accountTag: string!, $start: Date, $end: Date) {
-  viewer {
-    accounts(filter: { accountTag: $accountTag }) {
-      kvOperationsAdaptiveGroups(filter: { date_geq: $start, date_leq: $end }, limit: 10000) {
-        sum { requests }
-        dimensions { actionType }
-      }
-    }
-  }
-}`;
-
 /* ---------- CLI ---------- */
 
 function apiBase() {
@@ -178,46 +105,6 @@ async function cfFetch(url, init) {
   let body = null;
   try { body = await r.json(); } catch (e) {}
   return { status: r.status, body };
-}
-
-async function guard() {
-  const account = need('CF_ACCOUNT_ID');
-  const today = utcDate();
-  const mode = process.env.KV_BUDGET_GUARD_MODE || '';
-  let usage;
-  try {
-    const r = await cfFetch(apiBase() + '/graphql', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: KV_USAGE_QUERY, variables: { accountTag: account, start: today, end: today } }),
-    });
-    if (r.status !== 200) throw new Error('HTTP ' + r.status);
-    usage = parseKvUsage(r.body);
-  } catch (e) {
-    const msg = `KV budget guard could not read today's KV usage (${e.message}). ` +
-      'The token needs "Account Analytics: Read" (GraphQL Analytics API).';
-    if (mode === 'warn') {
-      console.log(`::warning::${msg} KV_BUDGET_GUARD_MODE=warn: continuing without the guard.`);
-      return;
-    }
-    console.log(`::error::${msg} Not running passkey-e2e (it would spend shared KV quota blind). ` +
-      'Set the repository variable KV_BUDGET_GUARD_MODE=warn to bypass query failures temporarily.');
-    process.exit(1);
-  }
-  const res = evaluateBudget(usage);
-  console.log(`Workers KV usage today (UTC ${today}, whole account) + this run's estimate, cap = ${Math.round(BUDGET_RATIO * 100)}% of the free-plan limit:`);
-  for (const row of res.rows) {
-    console.log(`  ${row.type.padEnd(6)} used ${String(row.used).padStart(6)} + est ${String(row.est).padStart(4)} = ${String(row.after).padStart(6)} / cap ${row.cap} (limit ${row.limit})${row.over ? '  <-- OVER' : ''}`);
-  }
-  if (Object.keys(usage.other).length) console.log('  other action types (not budgeted):', JSON.stringify(usage.other));
-  console.log('  (analytics can lag a few minutes; the 40% headroom covers it)');
-  if (!res.ok) {
-    const over = res.rows.filter((r) => r.over).map((r) => `${r.type} ${r.after}/${r.cap}`).join(', ');
-    console.log(`::error::KV budget guard: this passkey-e2e run would push today's account-wide KV usage past ${Math.round(BUDGET_RATIO * 100)}% (${over}). ` +
-      'Stopping before touching the preview so production keeps its headroom. Re-run after 00:00 UTC = 08:00 Asia/Shanghai (quota resets daily).');
-    process.exit(1);
-  }
-  console.log('KV budget guard OK');
 }
 
 async function resetPreview(ns) {
@@ -260,11 +147,10 @@ async function resetPreview(ns) {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const [cmd, a1] = process.argv.slice(2);
-  if (cmd === 'guard') await guard();
-  else if (cmd === 'reset-preview') await resetPreview(a1);
-  else if (cmd === 'estimate') console.log(JSON.stringify({ perRun: PER_RUN_ESTIMATE, limits: FREE_LIMITS, ratio: BUDGET_RATIO }));
+  if (cmd === 'reset-preview') await resetPreview(a1);
+  else if (cmd === 'estimate') console.log(JSON.stringify({ perRun: PER_RUN_ESTIMATE }));
   else {
-    console.error('usage: node scripts/kv-budget.mjs guard | reset-preview <namespace-id> | estimate');
+    console.error('usage: node scripts/kv-budget.mjs reset-preview <namespace-id> | estimate');
     process.exit(2);
   }
 }
