@@ -1,6 +1,6 @@
 # 状态接口分工表
 
-六个只读状态接口（账号状态由 `account` 报；锁屏凭证页的再验证由 `lock-reauth` 报 LockReauthTicket 状态）的分工：谁调用、鉴权要求、返回口径、用途。
+七个只读状态接口（账号状态由 `account` 报；锁屏凭证页的再验证由 `lock-reauth` 报 LockReauthTicket 状态）的分工：谁调用、鉴权要求、返回口径、用途。
 
 共同约束：只返回「是否已设置」，绝不返回敏感数据（密码 hash、公钥、私钥、
 cookie 值、挑战原文）。调用方列表由 `grep assets/js/` 下的 fetch 调用整理，
@@ -12,6 +12,7 @@ cookie 值、挑战原文）。调用方列表由 `grep assets/js/` 下的 fetch
 | `GET /api/lock-credentials` | 有效 admin 会话（任何 by），或有效的 LockResetTicket（sgx-lock-reset） | `{ ok, password, passkey }` —— `lock-password` 是否设置、是否有锁屏通行密钥（`lock-passkey:*`） | `assets/js/apps/security-lock.js`（验证后 `refreshStatus()`：解锁密码「已设置/未设置」、设置/修改标题、删除按钮显隐）、`assets/js/apps/security.js`（安全与隐私页：锁屏凭证状态卡片 + 锁屏凭证行副标题；访客不调用） | 锁屏凭证页、安全与隐私页。KV 读取失败 → 503（fail closed），不按未设置退回。账号凭证状态读 `GET /api/account`，不要读本接口 |
 | `POST /api/lock-reauth { action:'status' }` | 有效 admin 会话，或有效的 LockResetTicket | `{ ok, valid, ticket?, by?, expiresAt?, password, passkey }` —— 当前有效的票（`ticket`＝`lock-reauth` 需配 admin 会话；`lock-reset` 无会话）、票的绝对过期时刻（毫秒），以及锁屏凭证是否已设置（验证区按它显示入口） | `assets/js/apps/security-lock.js`（进页探针：有效 → 管理区，否则验证区）、`assets/js/apps/app-gate.js`（倒计时取 expiresAt） | 锁屏凭证页的再验证。`{ action:'clear' }` 清 LockReauthTicket（幂等，不要求会话，离开页面时调） |
 | `GET /api/layer-status` | 有效 admin 会话（任何 by） | `{ ok, layers: { account, lock } }` —— 每层 `'configured'`（已接管）或 `'takeover'`（仍由根凭证代管） | **无生产前端调用**（只有 `tests/workers/auth-gateway/auth-211.test.mjs`、`kv-binding-split.test.mjs`；`functions/_middleware.js` 白名单放行） | 预留：UI 显示「由根凭证代管 / 已接管」。会话有效时顺带触发恢复开关计时 |
+| `GET /api/root-audit` | 有效 **admin** lock 会话（访客 / 无会话 → 401 session）；不要 LockReauthTicket（只读，不含凭证） | `{ ok, items: [{ ts, ipPrefix, ok }] }` —— 最近 7 天根凭证使用记录，新的在前，最多 50 条；不返回 decoy / via / path | `assets/js/apps/account-status.js`（账号 → 服务状态页底「根凭证使用记录」折叠区，**展开时才请求**，不随页面加载和 60 秒刷新） | 让管理员看到根凭证有没有被人试过。KV 失败 → 503 |
 | `GET /api/lock-entry` | **无需鉴权**（公开） | `{ ok, passkey, password, accountConfigured, resetOnly }` —— 锁屏有效配置；fail closed：KV 标记 `lock-configured` 为 `'1'`、或真实锁屏凭证存在、或任何读取失败，都按已配置返回；`accountConfigured`＝账号凭证是否已设置，`resetOnly`＝锁屏没有真实凭证、只能走重置 | `assets/js/shell/lock.js`（锁屏页入口按配置显示） | 锁屏页无会话时决定显示哪些入口；失败时按「已配置」处理，避免暴露根凭证入口 |
 | `GET /api/lock-session-check` | **无需鉴权**（自检会话） | 有有效会话 → 200 `{ ok: true, role, next, upgrade }`（带 `?return=` 时 `next`＝服务端校验后的去处，`upgrade=true`＝访客要去管理员专属页、前端就地弹管理员验证；不带时 `next=null`）；否则 → 401 `{ ok: false }` | `assets/js/shell/lock-guard.js`（解锁成功后先确认会话真的生效再跳 `?return=`；`visibilitychange`/`focus`/`pageshow` 时复查会话） | 防解锁后跳转循环；页面可见性变化时确认会话仍有效 |
 

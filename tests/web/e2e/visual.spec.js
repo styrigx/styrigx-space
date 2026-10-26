@@ -371,3 +371,47 @@ for (const lang of LANGS) {
     }
   }
 }
+
+/* ===== 服务状态页底「根凭证使用记录」展开态（2026-10-26）：手机 412×915 × 中英 × 深浅色 =====
+ * 默认收起态已在 mobile-account-sub-status-*（首屏，不含页底折叠区）；这里点开摘要、等两条记录渲染完，把折叠区滚到视口里拍首屏。
+ * 数据：/api/status 同 account-sub-status；/api/root-audit 固定两条（一条成功、一条失败），时间相对 fxStatus.NOW。 */
+const AUDIT_ITEMS = [
+  { ts: fxStatus.NOW - 30 * 60 * 1000, ipPrefix: '203.0.113.x', ok: true },
+  { ts: fxStatus.NOW - 26 * 3600 * 1000, ipPrefix: '2001:db8:1:2::x', ok: false },
+];
+for (const lang of LANGS) {
+  for (const theme of THEMES) {
+    const name = `mobile-account-sub-status-audit-open-${lang.name}-${theme.name}`;
+    test(name, async ({ page: pg }) => {
+      await pg.setViewportSize(VIEWPORTS.mobile);
+      await blockExternalRequests(pg);
+      await pg.emulateMedia({ reducedMotion: 'reduce' });
+      await pg.route('**/api/account', (route) => route.fulfill({ status: 200, contentType: 'application/json',
+        body: JSON.stringify({ ok: true, password: true, passkey: true, ready: true, session: { by: 'passkey', authAt: 1760000000000, expiresAt: 4102444800000, recent: true } }) }));
+      await pg.route('**/api/status', (route) => route.fulfill({ status: 200, contentType: 'application/json',
+        body: JSON.stringify(fxStatus.withUsage(fxStatus.normal(), fxStatus.usage())) }));
+      await pg.route('**/api/root-audit', (route) => route.fulfill({ status: 200, contentType: 'application/json',
+        body: JSON.stringify({ ok: true, items: AUDIT_ITEMS }) }));
+      await pg.addInitScript(([t, ln]) => {
+        try {
+          if (t === 'dark') localStorage.setItem('sgx-theme-mode', 'dark');
+          localStorage.setItem('sgx-lang', ln);
+        } catch (e) {}
+      }, [theme.setup, lang.name]);
+      await pg.addStyleTag({
+        content: 'html{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans CJK SC","Noto Sans CJK",sans-serif !important}',
+      });
+      await freezeTime(pg);
+      await pg.goto(lang.prefix + '/account/status/', { waitUntil: 'domcontentloaded' });
+      await waitPageReady(pg);
+      await expect(pg.locator('#st-root')).toHaveAttribute('data-state', 'ready', { timeout: 10000 });
+      await pg.locator('#st-audit summary').click();
+      await expect(pg.locator('.st-audit-item')).toHaveCount(2, { timeout: 10000 });
+      await expect(pg.locator('#st-audit-body')).toHaveAttribute('aria-busy', 'false');
+      await pg.locator('#st-foot').scrollIntoViewIfNeeded();
+      const overflow = await pg.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      if (overflow > 1) throw new Error(`横向溢出 ${overflow}px on ${name}`);
+      await expect(pg).toHaveScreenshot(`${name}.png`, { fullPage: false, animations: 'disabled' });
+    });
+  }
+}

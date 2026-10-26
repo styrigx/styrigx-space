@@ -8279,6 +8279,26 @@
   .st-inc-site { font-size: 15px; font-weight: 700; }
   .st-inc-cause { margin: 4px 0 0; font-size: 13px; }
   .st-inc-time { display: flex; flex-wrap: wrap; gap: 0 6px; margin: 2px 0 0; font-size: 12px; line-height: 1.5; color: var(--sgx-text-secondary); font-variant-numeric: tabular-nums; }
+  /* 根凭证使用记录（账号 → 服务状态页底）：<details> 折叠卡，展开才加载（apps/account-status.js） */
+  .st-audit-wrap { margin-top: 12px; }
+  .st-audit-card { overflow: hidden; border: 1px solid var(--m-outline); color: var(--sgx-text-primary); }
+  .st-audit-sum { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 12px 18px;
+    list-style: none; cursor: pointer; font-size: 14px; line-height: 1.4; color: var(--sgx-text-secondary); }
+  .st-audit-sum::-webkit-details-marker { display: none; }
+  .st-audit-sum:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
+  .st-audit-chev { flex: none; width: 8px; height: 8px; margin-right: 4px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+    transform: translateY(-2px) rotate(45deg); transition: transform .2s; }
+  .st-audit-card[open] .st-audit-chev { transform: translateY(2px) rotate(-135deg); }
+  .st-audit-body { border-top: 1px solid var(--sgx-divider); }
+  .st-audit-msg, .st-audit-none, .st-audit-meta { margin: 0; padding: 14px 18px; font-size: 13px; line-height: 1.5; color: var(--sgx-text-secondary); }
+  .st-audit-meta { padding-bottom: 6px; }
+  .st-audit-retry { margin: 0 18px 14px; }
+  .st-audit-list { list-style: none; margin: 0; padding: 0 0 6px; }
+  .st-audit-item { display: flex; align-items: center; gap: 10px; padding: 8px 18px; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .st-audit-item + .st-audit-item { border-top: 1px solid var(--sgx-divider); }
+  .st-audit-item .st-chip { height: 24px; font-size: 12px; }
+  .st-audit-time { flex: 1; min-width: 0; }
+  .st-audit-ip { min-width: 0; text-align: right; overflow-wrap: anywhere; color: var(--sgx-text-secondary); }
   .st-inc-none { margin: 0; padding: 16px 18px; font-size: 13px; color: var(--sgx-text-secondary); }
   .st-foot { margin-top: 4px; text-align: center; }
   /* 用量（PR3，2026-10-22）：站点卡下面一张卡，一行一项（名字 · 值 / 上限 · 百分比 · 进度条 · 说明），D1 每个库缩进在合计下面。

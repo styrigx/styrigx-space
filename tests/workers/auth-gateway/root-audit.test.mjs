@@ -80,3 +80,49 @@ test('root-audit：kv.list 出错 → 503 server', async () => {
   assert.equal(res.status, 503);
   assert.deepEqual(await res.json(), { ok: false, error: 'server' });
 });
+
+/* ===== 账号 → 服务状态页的折叠区：只要 admin 锁屏会话，不要 LockReauthTicket ===== */
+
+/** @param {string} cookie */
+function reqWith(cookie) {
+  return new Request('https://styrigx.com/api/root-audit', cookie ? { headers: { Cookie: cookie } } : {});
+}
+function seeded() {
+  return pagedKV({
+    'lock-epoch': '0',
+    'root-audit:1700000000000:a': JSON.stringify({ ts: 1700000000000, ipPrefix: '203.0.113.x', ok: false, decoy: true, via: 'switch', path: 'lock-reset' }),
+    'root-audit:1700000060000:b': JSON.stringify({ ts: 1700000060000, ipPrefix: '2001:db8:1:2::x', ok: true, path: 'lock-reauth' }),
+  }, 40);
+}
+
+test('root-audit：只有 admin 锁屏会话（没有 sgx-lock-reauth）→ 200 列表', async () => {
+  const kv = seeded();
+  const res = await onRequestGet({ request: reqWith(await testLockSessionCookie(PRIV, 0, 'admin')), env: { SGX_LOCK_PUBLIC: PUB, KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv } });
+  assert.equal(res.status, 200);
+  const j = await res.json();
+  assert.deepEqual(j.items.map((x) => x.ts), [1700000060000, 1700000000000]);
+});
+
+test('root-audit：访客会话 / 没有会话 / 坏会话 → 401 session，不读 KV', async () => {
+  for (const cookie of [await testLockSessionCookie(PRIV, 0, 'visitor', 'tempkey'), '', 'sgx-lock-session=1.2.3']) {
+    const kv = seeded();
+    kv.list = async () => { throw new Error('不该读 KV'); };
+    const res = await onRequestGet({ request: reqWith(cookie), env: { SGX_LOCK_PUBLIC: PUB, KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv } });
+    assert.equal(res.status, 401, cookie || '(无 cookie)');
+    assert.deepEqual(await res.json(), { ok: false, error: 'session' });
+  }
+});
+
+test('root-audit：只给时间、IP 前缀、结果三项，decoy / via / path 不出接口', async () => {
+  const kv = seeded();
+  const res = await onRequestGet({ request: reqWith(await testLockSessionCookie(PRIV, 0, 'admin')), env: { SGX_LOCK_PUBLIC: PUB, KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv } });
+  const { items } = await res.json();
+  for (const it of items) assert.deepEqual(Object.keys(it).sort(), ['ipPrefix', 'ok', 'ts']);
+  assert.deepEqual(items[1], { ts: 1700000000000, ipPrefix: '203.0.113.x', ok: false });
+});
+
+test('root-audit：响应不缓存（Cache-Control no-store）', async () => {
+  const kv = seeded();
+  const res = await onRequestGet({ request: reqWith(await testLockSessionCookie(PRIV, 0, 'admin')), env: { SGX_LOCK_PUBLIC: PUB, KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv } });
+  assert.match(res.headers.get('Cache-Control') || '', /no-store/);
+});

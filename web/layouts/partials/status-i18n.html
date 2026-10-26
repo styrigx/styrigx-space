@@ -68,6 +68,15 @@
   "uNotCollected" (dict "zh" "还没有用量数据" "en" "No usage data yet")
   "uNotCollectedSub" (dict "zh" "每小时 41 分收集一次，下一次之后会显示在这里。" "en" "Collected at :41 every hour; it shows up after the next run.")
   "uError" (dict "zh" "用量暂时拿不到" "en" "Usage unavailable")
+  "auditLoading" (dict "zh" "正在加载…" "en" "Loading…")
+  "auditNone" (dict "zh" "最近 7 天没有使用记录" "en" "No activity in the last 7 days")
+  "auditCount" (dict "zh" "共 {n} 条，失败 {fail} 条（北京时间）" "en" "{n} records, {fail} failed (Beijing time)")
+  "auditCap" (dict "zh" "，只显示最近 50 条" "en" "; showing the latest 50")
+  "auditOk" (dict "zh" "成功" "en" "Succeeded")
+  "auditFail" (dict "zh" "失败" "en" "Failed")
+  "auditIpUnknown" (dict "zh" "未知 IP" "en" "Unknown IP")
+  "auditErr" (dict "zh" "暂时拿不到记录，稍后再试。" "en" "Couldn't load the records. Try again shortly.")
+  "auditErrAuth" (dict "zh" "会话已过期，重新解锁后再看。" "en" "Session expired. Unlock again to see the records.")
   "uErrorSub" (dict "zh" "读取 Cloudflare 用量失败，下一个整点 41 分会再试。" "en" "Couldn't read Cloudflare usage; it retries at :41 next hour.")
 }}
 <script id="sgx-i18n-status" type="application/json">{{ $stI18n | jsonify | safeJS }}</script>

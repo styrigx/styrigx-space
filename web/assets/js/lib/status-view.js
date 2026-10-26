@@ -337,6 +337,38 @@ export function renderIncidents(incidents, ctx) {
   return '<ul class="st-inc-list">' + items.join('') + '</ul>';
 }
 
+/* ===== 根凭证使用记录（GET /api/root-audit；账号 → 服务状态页底部的折叠区，展开才请求）=====
+ * 接口给 { ok, items: [{ ts, ipPrefix, ok }] }，已按新到旧排好、最多 AUDIT_MAX 条，记录保留 7 天。 */
+
+/** 接口一次最多给几条（同 workers/auth-gateway/functions/api/root-audit.js AUDIT_SHOW） */
+export const AUDIT_MAX = 50;
+
+/**
+ * 根凭证使用记录：一行合计（共 N 条、失败 M 条；满 50 条时注明只显示最近 50 条）+ 每条一行（结果、北京时间、IP 前缀）；
+ * 没有记录 → 一行「最近 7 天没有使用记录」。坏数据（没有时间戳）跳过。
+ * @param {any} items
+ * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, en:boolean, now:number}} ctx
+ */
+export function renderAudit(items, ctx) {
+  const list = (Array.isArray(items) ? items : []).filter((x) => x && Number.isFinite(Number(x.ts)));
+  if (!list.length) return '<p class="st-audit-none">' + esc(ctx.t('auditNone')) + '</p>';
+  const today = bjDay(ctx.now);
+  const fail = list.filter((x) => x.ok !== true).length;
+  let meta = ctx.fmt('auditCount', { n: list.length, fail });
+  if (list.length >= AUDIT_MAX) meta += ctx.t('auditCap');
+  const rows = list.map((x) => {
+    const ok = x.ok === true;
+    return (
+      '<li class="st-audit-item" data-ok="' + (ok ? '1' : '0') + '">' +
+        '<span class="st-chip" data-state="' + (ok ? 'up' : 'down') + '"><span class="st-dot" aria-hidden="true"></span>' + esc(ctx.t(ok ? 'auditOk' : 'auditFail')) + '</span>' +
+        '<span class="st-audit-time">' + esc(fmtBjTime(Number(x.ts), ctx.en, today)) + '</span>' +
+        '<span class="st-audit-ip">' + esc(x.ipPrefix || ctx.t('auditIpUnknown')) + '</span>' +
+      '</li>'
+    );
+  });
+  return '<p class="st-audit-meta">' + esc(meta) + '</p><ul class="st-audit-list">' + rows.join('') + '</ul>';
+}
+
 /* ===== 用量（2026-10-22 PR3）=====
  * 数据 = /api/status 的 usage / usage_reason（workers/status/src/usage.js readUsage）：
  *   usage: { fetched_at, stale?, last_error?,

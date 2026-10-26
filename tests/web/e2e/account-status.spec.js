@@ -530,3 +530,94 @@ test.describe('账号 → 服务状态（入口 / 账号会话 / 旧页面删除
     await expect(page.locator('a[href="/status/"], a[href="/en/status/"]')).toHaveCount(0);
   });
 });
+
+/* 根凭证使用记录（2026-10-26）：服务状态页底的折叠区，默认收起；展开才请求 GET /api/root-audit（省 KV 读），
+   页面加载和 60 秒刷新都不碰它；取到以后本页不再重复取；503 可重试，401 只提示重新解锁。账号区只有管理员进得来，页面不做角色判断。 */
+test.describe('根凭证使用记录', () => {
+  test.use({ viewport: { width: 412, height: 915 } });
+  const ITEMS = [
+    { ts: fx.NOW - 30 * 60 * 1000, ipPrefix: '203.0.113.x', ok: true },
+    { ts: fx.NOW - 26 * 3600 * 1000, ipPrefix: '2001:db8:1:2::x', ok: false },
+  ];
+  /* 要在 go() 之后注册：go() 里的 blockExternalRequests 拦全部请求，Playwright 按注册倒序匹配，后注册的优先（折叠区展开才请求，页面加载时用不到它） */
+  /** @param {import('@playwright/test').Page} page @param {(n:number)=>{status?:number, body:any}} reply */
+  async function mockAudit(page, reply) {
+    const calls = [];
+    await page.route('**/api/root-audit', async (route) => {
+      calls.push(route.request());
+      const r = reply(calls.length);
+      await route.fulfill({ status: r.status || 200, contentType: 'application/json; charset=utf-8', body: JSON.stringify(r.body) });
+    });
+    return calls;
+  }
+
+  test('默认收起：加载和 60 秒刷新都不请求；展开才请求一次（同源、不缓存），收起再展开不重复取', async ({ page }) => {
+    const status = await go(page, '/account/status/', { clock: true });
+    const audit = await mockAudit(page, () => ({ body: { ok: true, items: ITEMS } }));
+    await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'ready');
+    const det = page.locator('#st-audit');
+    await expect(det).toBeVisible();
+    expect(await det.evaluate((el) => /** @type {HTMLDetailsElement} */ (el).open)).toBe(false);
+    await expect(page.locator('#st-audit-h')).toHaveText('根凭证使用记录');
+    await expect(det.locator('summary')).toContainText('最近 7 天：时间、IP 前缀和结果');
+    await page.clock.fastForward(61 * 1000);
+    await expect.poll(() => status.length).toBe(2);
+    expect(audit.length).toBe(0);
+
+    await det.locator('summary').click();
+    await expect(page.locator('.st-audit-item')).toHaveCount(2);
+    expect(audit.length).toBe(1);
+    expect(audit[0].method()).toBe('GET');
+    await expect(page.locator('.st-audit-meta')).toHaveText('共 2 条，失败 1 条（北京时间）');
+    await expect(page.locator('.st-audit-item').nth(0)).toContainText('成功');
+    await expect(page.locator('.st-audit-item').nth(0)).toContainText('203.0.113.x');
+    await expect(page.locator('.st-audit-item').nth(1)).toContainText('失败');
+    await expect(page.locator('.st-audit-item').nth(1).locator('.st-chip')).toHaveAttribute('data-state', 'down');
+    await expect(page.locator('#st-audit-body')).toHaveAttribute('aria-busy', 'false');
+
+    await det.locator('summary').click();
+    await det.locator('summary').click();
+    await expect(page.locator('.st-audit-item')).toHaveCount(2);
+    await page.clock.fastForward(61 * 1000);
+    expect(audit.length).toBe(1);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+
+  test('键盘：Tab 到摘要，Enter 展开并加载', async ({ page }) => {
+    await go(page, '/account/status/');
+    const audit = await mockAudit(page, () => ({ body: { ok: true, items: [] } }));
+    await page.locator('#st-audit summary').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.st-audit-none')).toHaveText('最近 7 天没有使用记录');
+    expect(audit.length).toBe(1);
+  });
+
+  test('503：提示 + 重试，重试成功后显示列表；401：只提示重新解锁，没有重试按钮', async ({ page }) => {
+    await go(page, '/account/status/');
+    const audit = await mockAudit(page, (n) => (n === 1 ? { status: 503, body: { ok: false, error: 'server' } } : { body: { ok: true, items: ITEMS } }));
+    await page.locator('#st-audit summary').click();
+    await expect(page.locator('#st-audit-body .st-audit-msg')).toHaveText('暂时拿不到记录，稍后再试。');
+    await page.locator('[data-audit-retry]').click();
+    await expect(page.locator('.st-audit-item')).toHaveCount(2);
+    expect(audit.length).toBe(2);
+
+    await page.unroute('**/api/root-audit');
+    await mockAudit(page, () => ({ status: 401, body: { ok: false, error: 'session' } }));
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.locator('#st-audit summary').click();
+    await expect(page.locator('#st-audit-body .st-audit-msg')).toHaveText('会话已过期，重新解锁后再看。');
+    await expect(page.locator('[data-audit-retry]')).toHaveCount(0);
+  });
+
+  test('英文页：RootKey activity / Succeeded / Failed / 合计行', async ({ page }) => {
+    await go(page, '/en/account/status/');
+    await mockAudit(page, () => ({ body: { ok: true, items: ITEMS } }));
+    await expect(page.locator('#st-audit-h')).toHaveText('RootKey activity');
+    await expect(page.locator('#st-audit summary')).toContainText('Last 7 days: time, IP prefix and result');
+    await page.locator('#st-audit summary').click();
+    await expect(page.locator('.st-audit-meta')).toHaveText('2 records, 1 failed (Beijing time)');
+    await expect(page.locator('.st-audit-item').nth(0)).toContainText('Succeeded');
+    await expect(page.locator('.st-audit-item').nth(1)).toContainText('Failed');
+  });
+});

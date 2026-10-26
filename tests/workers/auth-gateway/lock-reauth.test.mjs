@@ -8,7 +8,7 @@
  *   锁屏通行密钥 auth reauth:true 同样要 admin 会话、访客写死失败；
  *   根凭证 /api/root-auth purpose=lock-reauth 签 LockReauthTicket(by=root)
  * - /api/lock-reauth：status（凭证是否已设置 + 票有效期）、clear；LockResetTicket 无会话也能读状态
- * - 管理：lock-passkey / lock-password / lock-all-devices / root-audit 没票 403 reauth、没会话 401；
+ * - 管理：lock-passkey / lock-password / lock-all-devices 没票 403 reauth、没会话 401（root-audit 只读，只要 admin 会话）；
  *   AccountReauthTicket 不能开锁屏凭证；LockResetTicket 只能 list/register/delete、set/change，不能 rename/remove
  * - 纪元推进（改解锁密码 / 删锁屏通行密钥）：票与当前设备会话随即重签，票剩余时间不延长
  * - 删最后一把锁屏凭证（A-2）：账号未配置 → 403 last-key；账号已配置 → 200，lock-configured 保留
@@ -276,13 +276,13 @@ test('管理：lock-all-devices 要 LockReauthTicket；通过后 epoch+1、清�
   assert.ok(sc.some((c) => c.startsWith('sgx-lock-reauth=;')));
 });
 
-test('管理：root-audit 要 LockReauthTicket', async () => {
+test('root-audit：只读列表不要 LockReauthTicket（admin 会话即可；有票也照样 200）', async () => {
   const kv = makeKV();
   const { onRequestGet } = await import(API + 'root-audit.js');
   const sess = await adminSess();
   let res = await onRequestGet({ request: get('/api/root-audit', 'sgx-lock-session=' + sess), env: envFor(kv) });
-  assert.equal(res.status, 403);
-  assert.equal((await res.json()).error, 'reauth');
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { ok: true, items: [] });
   res = await onRequestGet({ request: get('/api/root-audit', cookies({ 'sgx-lock-session': sess, 'sgx-lock-reauth': await reauthTicket('root') })), env: envFor(kv) });
   assert.equal(res.status, 200);
 });
