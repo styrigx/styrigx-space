@@ -241,27 +241,32 @@ jobs:
           npx lhci autorun --config=tests/config/lighthouserc.json
 
   passkey-e2e:
-    # WebAuthn 虚拟认证器 + 真实网关的 E2E：在预览部署 passkey-e2e.styrigx-space.pages.dev 上跑（tests/web/e2e/passkey.spec.js、account-challenge.spec.js）。
-    # 只用预览测试值，绝不用生产 secret；生产部署的所有 job 都等它通过。
-    # 预览的测试凭证（RootKey、pepper、Ed25519 钥匙对）每次运行在 runner 上现生成，不存 GitHub Secrets；
-    # 只用仓库级的 CLOUDFLARE_ACCOUNT_ID 与 STYRIGX_SPACE_PAGES_DEPLOY（部署预览、写预览 KV / D1）。
-    # 外部 fork 的 PR 拿不到 secrets，不跑（同仓库分支的 PR 照跑）。
+    # WebAuthn 虚拟认证器 + 真实网关代码的 E2E（tests/web/e2e/passkey.spec.js、account-challenge.spec.js）。生产部署的所有 job 都等它通过。
+    # 按事件分两条路（job 名不变：passkey-e2e 是分支保护的必需检查，结论就是这个 job 的结论）：
+    # - pull_request：本地模拟器 tests/web/e2e/preview-emulator.cjs——同一份 workers/auth-gateway/src/index.js（SGX_ENV=preview），
+    #   KV 是内存 KV、D1 是 node:sqlite 内存库、Cloudflare KV REST 也由它在本机模拟；env.ASSETS 读本步骤构建的 web/public。
+    #   不用任何 Cloudflare secret、不部署预览、不清预览 KV / 不跑 D1 迁移：PR 运行不花 Cloudflare KV 配额。
+    # - push 到 main、workflow_dispatch：真实预览部署 passkey-e2e.styrigx-space.pages.dev + 预览 KV / D1（下面带
+    #   github.event_name != 'pull_request' 的步骤，和改动前一样）。模拟器测不到边缘最终一致、Pages 打包和真实绑定，
+    #   所以 PR 的通过不顶替真实预览：main 的每次 push（只改文档 / 样式的除外）照跑真实预览，不再复用 PR 运行的结果。
+    # 两条路都只用每次运行在 runner 上现生成的测试凭证（RootKey、pepper；真实预览另加 Ed25519 钥匙对），绝不用生产 secret，也不存 GitHub Secrets。
+    # 真实预览只用仓库级的 CLOUDFLARE_ACCOUNT_ID 与 STYRIGX_SPACE_PAGES_DEPLOY（部署预览、写预览 KV / D1）。
+    # 外部 fork 的 PR 不跑（同仓库分支的 PR 照跑）。
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     needs: quality
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # actions: read 只给「同一棵树的 PR 运行已经通过」的查询用（列 artifact、读那次运行的 job 结果），不写任何东西
     permissions:
       contents: read
-      actions: read
-    # 所有运行共用一个预览别名、一个预览 KV / D1：全仓库同时只跑一个，排队不取消
+    # 真实预览共用一个预览别名、一个预览 KV / D1：main / 手动运行全仓库同时只跑一个，排队不取消。
+    # PR 走本地模拟器，不碰共享预览，不用排进这个队（按 PR 的 ref 分组；同一 PR 的新提交由 workflow 级 concurrency 取消旧运行）。
     concurrency:
-      group: passkey-e2e-preview
+      group: ${{ github.event_name == 'pull_request' && format('passkey-e2e-emulator-{0}', github.ref) || 'passkey-e2e-preview' }}
       cancel-in-progress: false
     # KV 配额（2026-10-26 PR E 合并的 KV 部分）：免费计划的 KV 写 / 删 / 列各 1000 次、按整个账号每个 UTC 日算，预览 KV 和生产网关共用。
-    # 每次运行约写 ~90、删 ~50、列 ~9（tests/web/e2e/preview-emulator.cjs 实测，见 scripts/kv-budget.mjs）。所以：
-    # - 本次改动全部是文档 / 内容文字 / CSS / 视觉基线 / 图片，就不部署预览、不跑用例，job 以成功结束（steps.scope）；
-    # - main 的 push 如果合进来的树和某次已通过 passkey-e2e 的 PR 运行测的树完全相同，就不再跑一遍（steps.reuse）；
+    # 真实预览每次运行约写 ~90、删 ~50、列 ~9（tests/web/e2e/preview-emulator.cjs 实测，见 scripts/kv-budget.mjs）。所以：
+    # - PR 运行全部走本地模拟器，KV 操作为 0；
+    # - 本次改动全部是文档 / 内容文字 / CSS / 视觉基线 / 图片，就不跑用例（也不部署预览），job 以成功结束（steps.scope）。
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -344,74 +349,23 @@ jobs:
           done <<< "$changes"
           verdict true "all $n changed file(s) are docs / content text / CSS / baselines / images: skip passkey E2E"
 
-      - name: Reuse a passing PR run of the same tree (main push only)
-        id: reuse
-        # 只改文档 / 样式那类提交已经由上一步跳过，不用再查
-        if: steps.scope.outputs.docs_only != 'true'
-        # PR 的 pull_request 运行测的是「PR 合进当时 main」的合并提交；它通过后上传一个名为 passkey-e2e-ok-<树 SHA> 的 artifact（最后一步）。
-        # main 的 push 先算自己的树 SHA，找同名 artifact，并逐条核对：
-        #   1. 那次运行是本仓库自己的分支发起的（head_repository_id == repository_id；fork 的 PR 能改工作流、能传同名 artifact，一律不认）
-        #   2. 是 pull_request 事件、跑的是 .github/workflows/deploy.yml
-        #   3. 那次运行最新一次尝试里 passkey-e2e job 和「Run WebAuthn E2E」步骤都是 success
-        # 树相同 = 代码、测试、工作流本身逐字节相同，那次运行就是在测这份内容。任何一条对不上、API 出错，都照常跑（宁可多花配额，不跳过测试）。
-        # workflow_dispatch 和 PR 运行永远照常跑。
-        env:
-          GH_TOKEN: ${{ github.token }}
-          EVENT: ${{ github.event_name }}
-          REPO: ${{ github.repository }}
-        run: |
-          if [ "$EVENT" != "push" ]; then echo "hit=false" >> "$GITHUB_OUTPUT"; echo "not a push: run passkey-e2e"; exit 0; fi
-          tree="$(git rev-parse 'HEAD^{tree}')"
-          TREE="$tree" python3 - <<'PYEOF' || echo "hit=false" >> "$GITHUB_OUTPUT"
-          import json, os, sys, urllib.request
-          env = os.environ
-          repo, tree = env["REPO"], env["TREE"]
-          def gh(path):
-              req = urllib.request.Request("https://api.github.com/repos/" + repo + path, headers={
-                  "Authorization": "Bearer " + env["GH_TOKEN"], "Accept": "application/vnd.github+json",
-                  "X-GitHub-Api-Version": "2022-11-28"})
-              return json.load(urllib.request.urlopen(req, timeout=30))
-          name = "passkey-e2e-ok-" + tree
-          arts = gh("/actions/artifacts?per_page=20&name=" + name).get("artifacts") or []
-          print(f"tree {tree}: {len(arts)} candidate artifact(s)")
-          for a in arts:
-              wr = a.get("workflow_run") or {}
-              if a.get("name") != name or a.get("expired") or not wr.get("id"):
-                  continue
-              if wr.get("head_repository_id") != wr.get("repository_id"):
-                  print(f"  run {wr.get('id')}: from a fork, ignored"); continue
-              run = gh(f"/actions/runs/{wr['id']}")
-              if run.get("event") != "pull_request" or run.get("path") != ".github/workflows/deploy.yml" \
-                      or (run.get("head_repository") or {}).get("full_name") != repo:
-                  print(f"  run {wr['id']}: event={run.get('event')} path={run.get('path')}, ignored"); continue
-              jobs = gh(f"/actions/runs/{wr['id']}/jobs?filter=latest&per_page=100").get("jobs") or []
-              job = [j for j in jobs if j.get("name") == "passkey-e2e"]
-              if len(job) != 1 or job[0].get("conclusion") != "success":
-                  print(f"  run {wr['id']}: passkey-e2e not success, ignored"); continue
-              steps = [x for x in job[0].get("steps") or [] if x.get("name") == "Run WebAuthn E2E (SGX_TEST_SUITE=passkey)"]
-              if len(steps) != 1 or steps[0].get("conclusion") != "success":
-                  print(f"  run {wr['id']}: E2E step not success, ignored"); continue
-              print(f"hit: PR run {run.get('html_url')} passed passkey-e2e on the same tree {tree}")
-              open(env["GITHUB_OUTPUT"], "a").write("hit=true\n")
-              sys.exit(0)
-          print("no passing PR run of this tree: run passkey-e2e")
-          open(env["GITHUB_OUTPUT"], "a").write("hit=false\n")
-          PYEOF
-
       - name: Decide whether to run the E2E
         id: gate
-        # 跑 = 不是「只改文档 / 样式」且没有命中「同一棵树的 PR 运行已通过」。下面的步骤都只认这一个输出。
+        # 跑 = 不是「只改文档 / 样式」。下面的步骤都只认这一个输出（再按事件分模拟器 / 真实预览）。
+        # 不再有「同一棵树的 PR 运行已通过就跳过 main」：PR 现在测的是本地模拟器，不能顶替 main 上的真实预览。
         env:
           DOCS_ONLY: ${{ steps.scope.outputs.docs_only }}
-          REUSE_HIT: ${{ steps.reuse.outputs.hit }}
+          EVENT: ${{ github.event_name }}
         run: |
           if [ "$DOCS_ONLY" = true ]; then echo "run=false" >> "$GITHUB_OUTPUT"; echo "skip: docs / content text / CSS / baselines only"
-          elif [ "$REUSE_HIT" = true ]; then echo "run=false" >> "$GITHUB_OUTPUT"; echo "skip: same tree already passed in a PR run"
-          else echo "run=true" >> "$GITHUB_OUTPUT"; echo "run passkey-e2e"; fi
+          elif [ "$EVENT" = pull_request ]; then echo "run=true" >> "$GITHUB_OUTPUT"; echo "run passkey-e2e on the local emulator (pull_request)"
+          else echo "run=true" >> "$GITHUB_OUTPUT"; echo "run passkey-e2e on the real preview ($EVENT)"; fi
 
       - name: Require Cloudflare secrets
         # 只检查仓库级的 Cloudflare 账号 id 和 Pages 部署 token；缺了直接红，不许 e2e 整组静默跳过还算通过。
         # 预览测试凭证不是 secret，下面「Generate preview test credentials」每次现生成。
+        # PR 走本地模拟器，不用 Cloudflare secret，不检查。
+        if: github.event_name != 'pull_request'
         env:
           HAS_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
           HAS_PAGES_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY != '' }}
@@ -423,7 +377,8 @@ jobs:
           exit $ok
 
       - name: Setup Node
-        # 提前到这里：下面的清预览 KV 用 node 跑 scripts/kv-budget.mjs（ESM，引用网关 realms.js 的键名）
+        # 提前到这里：下面的清预览 KV 用 node 跑 scripts/kv-budget.mjs（ESM，引用网关 realms.js 的键名）。
+        # 模拟器的 D1 要 node:sqlite（Node 22 起有）
         if: steps.gate.outputs.run == 'true'
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
@@ -432,7 +387,7 @@ jobs:
 
       - name: Generate preview test credentials (CI only)
         if: steps.gate.outputs.run == 'true'
-        # 预览站的测试 RootKey（SGX_ROOT_KEY）和密码 pepper（SGX_PW_PEPPER）：每次运行新生成，只给这次的预览用，
+        # 预览站的测试 RootKey（SGX_ROOT_KEY）和密码 pepper（SGX_PW_PEPPER）：每次运行新生成，只给这次的预览（PR：本地模拟器）用，
         # 和下面的 Ed25519 测试钥匙对一样不进仓库、不存 GitHub Secrets。网关对 RootKey 只要求去空白后非空
         # （_kernel/crypto.js normalizeRootKey），这里用 32 字节随机数的 hex（64 个字符，无空白、无特殊字符）。
         # 先 ::add-mask:: 再写进 $GITHUB_ENV，后面各步骤的日志里都打码。
@@ -457,7 +412,7 @@ jobs:
         # 放在部署之前，给边缘缓存留出时间；测试 helper 本来就不假设起始状态（读到旧值时走重置开关）。
         # 只认 web/wrangler.toml [env.preview] 的 KV id，且断言它不是网关正式 KV（workers/auth-gateway/wrangler.toml）。
         # D1（styrigx-auth-gateway-preview）只存重置开关值的 hash，测试每次用新的随机开关值，不用清。
-        if: steps.gate.outputs.run == 'true'
+        if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         env:
           CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CF_API_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
@@ -495,8 +450,47 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         run: hugo --minify -s web
 
+      - name: Start local preview emulator (pull_request only)
+        if: steps.gate.outputs.run == 'true' && github.event_name == 'pull_request'
+        # tests/web/e2e/preview-emulator.cjs：仓库里的网关代码（不打包，直接 import workers/auth-gateway/src/index.js）+ 内存 KV +
+        # node:sqlite 的 D1 + 本机的 Cloudflare KV REST；env.ASSETS 读上面构建的 web/public。Ed25519 钥匙对由它自己现生成。
+        # RootKey / pepper 用本次生成的 PREVIEW_TEST_ROOT_KEY / PREVIEW_TEST_PW_PEPPER（已打码）。固定端口 8788，和下一步的 SGX_TEST_BASE 一致。
+        # 后台跑到 job 结束（runner 收尾时回收）；日志写 emulator-log/，失败时随测试结果一起上传。
+        run: |
+          node -e "require('node:sqlite')" || { echo "::error::node:sqlite unavailable, the emulator's D1 needs it"; exit 1; }
+          mkdir -p emulator-log
+          log=emulator-log/preview-emulator.log
+          nohup node tests/web/e2e/preview-emulator.cjs --port 8788 --root-key "$PREVIEW_TEST_ROOT_KEY" --pepper "$PREVIEW_TEST_PW_PEPPER" > "$log" 2>&1 &
+          pid=$!
+          for _ in $(seq 60); do
+            if curl -fsS -o /dev/null http://127.0.0.1:8788/__kv/stats; then echo "preview emulator ready on http://localhost:8788 (pid $pid)"; exit 0; fi
+            if ! kill -0 "$pid" 2>/dev/null; then cat "$log"; echo "::error::preview emulator exited before it was ready"; exit 1; fi
+            sleep 1
+          done
+          cat "$log"
+          echo "::error::preview emulator not ready after 60s"
+          exit 1
+
+      - name: Run WebAuthn E2E on local emulator (SGX_TEST_SUITE=passkey, pull_request only)
+        if: steps.gate.outputs.run == 'true' && github.event_name == 'pull_request'
+        # 和真实预览同一组用例、同一个 playwright 配置；变量按 preview-emulator.cjs 文件头。
+        # SGX_TEST_CF_API 把测试进程的 Cloudflare KV REST 指到模拟器；CF token / account / KV id 是占位值，不是 secret。
+        env:
+          SGX_TEST_SUITE: passkey
+          SGX_TEST_BASE: http://localhost:8788
+          SGX_TEST_ROOT_KEY: ${{ env.PREVIEW_TEST_ROOT_KEY }}
+          SGX_TEST_CF_API: http://127.0.0.1:8788/client/v4
+          SGX_TEST_CF_TOKEN: x
+          SGX_TEST_CF_ACCOUNT: x
+          SGX_TEST_PREVIEW_KV_ID: local
+          CI: '1'
+        run: |
+          npx playwright test --config=tests/config/playwright.config.js
+          echo "emulator KV operations this run (not billed):"
+          curl -fsS http://127.0.0.1:8788/__kv/stats | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s);for(const k of ['app','rest'])console.log(k,JSON.stringify(Object.fromEntries(Object.entries(j[k]).filter(([n])=>n!=='byPrefix'))))})" || true
+
       - name: Bundle auth gateway as the preview _worker.js
-        if: steps.gate.outputs.run == 'true'
+        if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # Pages 上已经没有后端代码。预览把网关的同一份代码打包成 Pages 的 _worker.js（覆盖静态的那个），
         # 在 passkey-e2e.styrigx-space.pages.dev 上跑：页面和默认头像读 env.ASSETS，接口连预览的 KV/D1。
         # 只打包不部署 Worker，不需要 Worker 权限。
@@ -506,7 +500,7 @@ jobs:
           grep -q "X-SGX-Runtime" web/public/_worker.js
 
       - name: Generate Ed25519 test key pairs (CI only)
-        if: steps.gate.outputs.run == 'true'
+        if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # 锁屏域和账号域各一对，每次运行新生成，只给预览用；绝不用生产密钥，密钥不进仓库
         run: |
           for d in lock account; do
@@ -517,7 +511,7 @@ jobs:
           echo "Ed25519 test key pairs generated (preview only)"
 
       - name: Put this run's public keys into web/wrangler.toml (runner copy only)
-        if: steps.gate.outputs.run == 'true'
+        if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # web/wrangler.toml 是 Pages 的配置源：部署时它的 [env.preview.vars] 覆盖后台的明文变量。
         # 仓库里那份 SGX_LOCK_PUBLIC 是固定值，和本次生成的私钥对不上，所以部署前在 runner 里换成本次的公钥，
         # 并补上账号域公钥。不提交，只影响这次部署。
@@ -540,7 +534,7 @@ jobs:
           PYEOF
 
       - name: Set preview test secrets (preview only)
-        if: steps.gate.outputs.run == 'true'
+        if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # 只写 preview 环境（PATCH deployment_configs.preview），绝不碰 production。
         # 必须在部署之前写，否则新值要到下一次部署才生效。secret 都经 env 传进来，不拼进脚本；
         # SGX_ROOT_KEY / SGX_PW_PEPPER 用上面本次生成的 PREVIEW_TEST_ROOT_KEY / PREVIEW_TEST_PW_PEPPER（已打码）。
@@ -588,7 +582,7 @@ jobs:
           PYEOF
 
       - name: Apply D1 migrations to preview
-        if: steps.gate.outputs.run == 'true'
+        if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # 部署 preview 前对 styrigx-auth-gateway-preview 跑迁移（--env preview），绝不碰 production；失败要让 CI 红。
         # 跑完列一次已应用的迁移（d1_migrations 表）。
         working-directory: web
@@ -600,7 +594,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Deploy to preview
-        if: steps.gate.outputs.run == 'true'
+        if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
@@ -610,7 +604,7 @@ jobs:
           command: pages deploy public --project-name=styrigx-space --branch=passkey-e2e --commit-dirty=true
 
       - name: Run WebAuthn E2E (SGX_TEST_SUITE=passkey)
-        if: steps.gate.outputs.run == 'true'
+        if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # 跑 passkey 组的全部 describe（testMatch 已限定文件，不再 --grep）。
         # 预览地址和 KV id 从 web/wrangler.toml 读，不在这里重复写。
         # SGX_TEST_ROOT_KEY 是本次生成、已写进预览 SGX_ROOT_KEY 的同一个值。
@@ -634,7 +628,9 @@ jobs:
           npx playwright test --config=tests/config/playwright.config.js
 
       - name: Guard - no private vars on Pages production
-        # 私密值只在鉴权网关的 Secrets Store，Pages 生产环境上不许再有（防止有人加回去）
+        # 私密值只在鉴权网关的 Secrets Store，Pages 生产环境上不许再有（防止有人加回去）。
+        # 要用 Cloudflare secret 读 Pages 项目：PR 运行不碰 Cloudflare，只在 main / 手动运行查（只改文档 / 样式时也查）
+        if: github.event_name != 'pull_request'
         env:
           CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CF_PAGES_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
@@ -657,25 +653,6 @@ jobs:
           print("guard OK: no private vars on Pages production")
           PYEOF
 
-      - name: Record the tree that passed (pull_request only)
-        # 给 main 的 push 用（见上面 steps.reuse）：这次 PR 运行测的合并提交的树 SHA 写进 artifact 名字。只有前面全部成功才会到这里。
-        id: tree
-        if: success() && github.event_name == 'pull_request' && steps.gate.outputs.run == 'true'
-        run: |
-          tree="$(git rev-parse 'HEAD^{tree}')"
-          mkdir -p "$RUNNER_TEMP/passkey-ok"
-          printf 'tree=%s\ncommit=%s\nrun=%s\n' "$tree" "$GITHUB_SHA" "$GITHUB_RUN_ID" > "$RUNNER_TEMP/passkey-ok/passkey-e2e-ok.txt"
-          echo "tree=$tree" >> "$GITHUB_OUTPUT"
-
-      - name: Upload passing-tree marker (pull_request only)
-        if: success() && github.event_name == 'pull_request' && steps.gate.outputs.run == 'true'
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: passkey-e2e-ok-${{ steps.tree.outputs.tree }}
-          path: ${{ runner.temp }}/passkey-ok/passkey-e2e-ok.txt
-          retention-days: 7
-          if-no-files-found: error
-
       - name: Upload test artifacts on failure
         if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -684,6 +661,7 @@ jobs:
           path: |
             test-results/
             playwright-report/
+            emulator-log/
 
   build-and-deploy:
     # 部署条件：(push 或 workflow_dispatch) 且 ref 是 main；其他分支手动触发不部署。
