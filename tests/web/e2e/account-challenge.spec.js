@@ -17,6 +17,8 @@ const { BASE, ORIGIN, ROOT_KEY } = h;
 
 test.describe('锁屏门 / 账号 challenge e2e（预览站）', () => {
   h.requirePreview(test);
+  /* 注册 / 删除推进纪元，写后读的等待最长 75 秒（preview-helpers.cjs 文件头「写后读」） */
+  test.describe.configure({ timeout: h.KV_TEST_TIMEOUT });
 
   test('无会话 lock-reauth status → 401', async ({ request }) => {
     const r = await request.post(BASE + '/api/lock-reauth', { headers: { Origin: ORIGIN }, data: { action: 'status' } });
@@ -90,8 +92,12 @@ test.describe('锁屏门 / 账号 challenge e2e（预览站）', () => {
         const reg = await h.api(page, '/api/account', { action: 'passkey-register', cid: ch.json.cid, credential, name: 'E2E-account' });
         expect(reg.json && reg.json.ok, JSON.stringify(reg.json)).toBe(true);
         tempCredId = reg.json.credId;
-        /* 第一次配置账号层会推进锁屏纪元：会话已按新纪元写回 context */
-        chal = await h.api(page, '/api/account', { action: 'login-challenge' });
+        /* 第一次配置账号层会推进锁屏纪元：会话已按新纪元写回 context（h.api 已等它可见）。
+           login-challenge 经 account-passkey-index 判断有没有账号通行密钥：写后读，not-set 时轮询（not-set 不写 KV） */
+        await expect.poll(async () => {
+          chal = await h.api(page, '/api/account', { action: 'login-challenge' });
+          return chal.json && chal.json.ok ? 'ok' : JSON.stringify(chal.json);
+        }, h.KV_SETTLE).toBe('ok');
       }
       expect(chal.json && chal.json.ok, JSON.stringify(chal.json)).toBe(true);
       let r = await h.api(page, '/api/account', { action: 'login-passkey', cid: chal.json.cid, credential: { rawId: 'nope' } });

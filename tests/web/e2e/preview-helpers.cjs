@@ -26,6 +26,16 @@
  * - adminSession：先用本次运行设过的锁屏密码解锁；不行就拿 LockResetTicket（锁屏未设置时 root-auth
  *   purpose:lock-reset；已设置时写一个新的重置开关值，轮询 /api/lock-reset），设一个新密码再解锁。
  * - 根凭证正确时服务端会清掉本 IP 的失败计数，所以轮询重置开关不会把自己锁住。
+ *
+ * 写后读（真实预览独有，模拟器默认读写立刻可见）：Cloudflare KV 是最终一致的，边缘缓存的读最长约 60 秒才看到新值。
+ * 网关的 lock-epoch（改凭证 / 删通行密钥 / 退出所有设备 +1）、lock-passkey-index、lock-password 刚写完，
+ * 下一个请求可能还读到旧值：新纪元重签的会话被当成 epoch-low（401），锁屏入口还说没有通行密钥，等等。
+ * 所以写之后要马上读的地方先用只读接口轮询到服务端「看见」新值（KV_SETTLE，最多 75 秒），再做原来的断言：
+ * - api() 收到服务端重签的 sgx-lock-session 时自动 settleSession（轮询 lock-session-check 到 200，只有 KV 读）；
+ * - adminSession 的重置路径设完密码后，轮询 lock-reauth status 到「重置票有效且密码已设」再解锁；
+ * - 其余在用例里就地 expect.poll（waitLockEntryPasskey、列表 / 凭证状态）。
+ * 断言本身一条不放宽：轮询的是「最终必须成立」的同一个条件；只多花 KV 读，不多花写。
+ * 本地可以用 preview-emulator.cjs --stale-ms 复现（见该文件头）。
  */
 const { expect } = require('@playwright/test');
 
@@ -60,6 +70,13 @@ const TRACKED = [SESSION, REAUTH, RESET, ACCOUNT_SESSION, ACCOUNT_REAUTH, ACCOUN
  *   不认（纪元推进、过期）才走原来的路。是不是有效由服务端判断，测试断言一条不少。
  */
 const state = { password: '', session: '', reauth: '' };
+
+/**
+ * 写后读的等待上限与轮询间隔（见文件头「写后读」）：边缘缓存最长约 60 秒，留 15 秒余量。
+ * 用了它的用例把单条超时提到 KV_TEST_TIMEOUT（默认 30 秒装不下一次 75 秒的等待）。
+ */
+const KV_SETTLE = { timeout: 75000, intervals: [500, 1000, 2000, 5000, 10000] };
+const KV_TEST_TIMEOUT = 240000;
 
 function rand() {
   return Date.now() + '-' + Math.random().toString(36).slice(2, 10);
@@ -175,10 +192,36 @@ async function absorbCookies(context, resp) {
  */
 async function api(page, path, data) {
   const resp = await page.request.post(BASE + path, { headers: { Origin: ORIGIN }, data: data || {} });
+  const before = state.session;
   await absorbCookies(page.context(), resp);
+  /* 服务端发了新的锁屏会话（解锁，或纪元推进后重签）：等它在 KV 里可见再往下走（见文件头「写后读」） */
+  if (state.session && state.session !== before) await settleSession(page);
   let json = null;
   try { json = await resp.json(); } catch (e) {}
   return { status: resp.status(), json, resp };
+}
+
+/**
+ * 轮询 lock-session-check 直到 context 里的锁屏会话被服务端接受（200）。只读：每次 1 个 KV 读（lock-epoch）。
+ * 纪元刚推进时边缘可能还读到旧纪元，新会话会暂时 401（epoch-low）。
+ * @param {import('@playwright/test').Page} page
+ */
+async function settleSession(page) {
+  await expect.poll(async () => (await apiGet(page, '/api/lock-session-check')).status,
+    Object.assign({ message: '新锁屏会话在 KV 里可见（lock-epoch 写后读）' }, KV_SETTLE)).toBe(200);
+}
+
+/**
+ * 轮询 GET /api/lock-entry 直到 passkey 字段等于 want（锁屏方式面板据此决定显不显示通行密钥）。只读，无需会话。
+ * @param {import('@playwright/test').Page} page
+ * @param {boolean} [want] 默认 true
+ */
+async function waitLockEntryPasskey(page, want) {
+  const w = want !== false;
+  await expect.poll(async () => {
+    const r = await apiGet(page, '/api/lock-entry');
+    return !!(r.json && r.json.passkey);
+  }, Object.assign({ message: 'lock-entry.passkey === ' + w + '（lock-passkey-index 写后读）' }, KV_SETTLE)).toBe(w);
 }
 
 /**
@@ -297,6 +340,12 @@ async function adminSession(page, test) {
   }
   expect(r.json && r.json.ok, 'LockResetTicket 设锁屏密码: ' + JSON.stringify(r.json)).toBe(true);
   state.password = pw;
+  /* 设密码推进了纪元、重签了重置票：等新纪元和新密码在 KV 里都可见再解锁，
+     否则解锁可能比对旧哈希（白记一次失败计数），或按旧纪元签出一张稍后就失效的会话（只读：lock-reauth status） */
+  await expect.poll(async () => {
+    const st = await api(page, '/api/lock-reauth', { action: 'status' });
+    return !!(st.json && st.json.valid && st.json.ticket === 'lock-reset' && st.json.password);
+  }, Object.assign({ message: '重置票（新纪元）有效且锁屏密码已设（写后读）' }, KV_SETTLE)).toBe(true);
   await page.context().clearCookies({ name: RESET });
   r = await unlockWithPassword(page, pw);
   expect(r.json && r.json.ok, '锁屏密码解锁: ' + JSON.stringify(r.json)).toBe(true);
@@ -488,6 +537,8 @@ module.exports = {
   SESSION,
   REAUTH,
   RESET,
+  KV_SETTLE,
+  KV_TEST_TIMEOUT,
   rand,
   requirePreview,
   requireCf,
@@ -497,6 +548,8 @@ module.exports = {
   cookieEpoch,
   api,
   apiGet,
+  settleSession,
+  waitLockEntryPasskey,
   kvPut,
   kvDel,
   kvDelPrefix,
