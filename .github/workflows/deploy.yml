@@ -211,8 +211,10 @@ jobs:
           grep -q "Content-Security-Policy" web/public/_headers
 
       - name: Build search index (site:space, from the production build)
-        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-        run: node scripts/build-search-index.mjs --out "$RUNNER_TEMP/search-index/search-space.json"
+        # PR 上也跑（不需密钥、几秒）：#217 只在 main 跑这步，输出目录不存在的问题合并后才暴露
+        run: |
+          node scripts/build-search-index.mjs --out "$RUNNER_TEMP/search-index/search-space.json"
+          test -s "$RUNNER_TEMP/search-index/search-space.json"
 
       - name: Upload production site (for build-and-deploy)
         # 只在会部署的 main 运行上传；后面的锁测 / 预览 / 视觉步骤会重建 web/public，所以紧跟生产构建和检查之后上传
