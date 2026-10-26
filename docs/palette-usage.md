@@ -155,7 +155,7 @@
 ## 七、子站怎么接（以后）
 
 子站不自己定义主题色：从共享外壳同步 `tokens.css` / `shell.css` / `palettes.json`（`scripts/sync-shell.mjs`），
-当前色板 / 深浅色由主站写在 `.styrigx.com` 域的 `sgx-ui` cookie（`pal` / `accent` / 模式）里、子站用 `ui-cookie-read.js` 读——**不依赖跨域 localStorage**。
+当前色板 / 深浅色由主站写在 `.styrigx.com` 域的 `sgx-ui` cookie（`pal` / `accent` / 模式）里、子站用 `ui-cookie-read.js` 读——**不依赖跨域 localStorage**。cookie 的字段、版本、旧数据迁移和改格式的步骤见 `docs/ui-cookie-contract.md`。
 按上面的角色表挑 token，按 `rulesVersion` 判断规则是否更新。
 
 ## 八、改调色板
