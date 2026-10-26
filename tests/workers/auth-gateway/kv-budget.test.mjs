@@ -124,35 +124,68 @@ test('deploy.yml：预算闸在清 KV / 部署预览 / 跑用例之前，用的�
   assert.match(job.steps[idx('Reset preview KV')].run, /preview KV id must not be the production gateway KV/);
 });
 
-test('deploy.yml：同一棵树已通过的 PR 运行才跳过；跳过时只跳 KV / 预览相关步骤', () => {
+test('deploy.yml：同一棵树已通过的 PR 运行、或只改文档 / 样式才跳过；跳过时只跳 KV / 预览相关步骤', () => {
   const job = passkeyJob();
   assert.deepEqual(job.permissions, { contents: 'read', actions: 'read' });
+  const scope = job.steps.find((s) => s.id === 'scope');
   const reuse = job.steps.find((s) => s.id === 'reuse');
-  assert.ok(reuse);
+  const gate = job.steps.find((s) => s.id === 'gate');
+  assert.ok(scope && reuse && gate);
+  assert.ok(job.steps.indexOf(scope) < job.steps.indexOf(reuse) && job.steps.indexOf(reuse) < job.steps.indexOf(gate));
   assert.match(reuse.run, /"\$EVENT" != "push"/, '只有 push 才可能跳过');
   assert.match(reuse.run, /head_repository_id.*repository_id/, 'fork 的运行不认');
   assert.match(reuse.run, /"pull_request"/);
   assert.match(reuse.run, /\.github\/workflows\/deploy\.yml/);
   assert.match(reuse.run, /Run WebAuthn E2E \(SGX_TEST_SUITE=passkey\)/);
   assert.match(reuse.run, /\|\| echo "hit=false"/, 'API 出错照常跑');
+  assert.equal(reuse.if, "steps.scope.outputs.docs_only != 'true'");
+  assert.equal(gate.env.DOCS_ONLY, '${{ steps.scope.outputs.docs_only }}');
+  assert.equal(gate.env.REUSE_HIT, '${{ steps.reuse.outputs.hit }}');
   const names = job.steps.map((s) => s.name);
   const run = names.indexOf('Run WebAuthn E2E (SGX_TEST_SUITE=passkey)');
   assert.ok(run > 0);
   /* E2E 步骤名被 reuse 用来核对，改名要两边一起改 */
-  const reuseIdx = job.steps.indexOf(reuse);
-  for (let i = reuseIdx + 1; i <= run; i++) {
+  for (let i = job.steps.indexOf(gate) + 1; i <= run; i++) {
     const s = job.steps[i];
     if (s.name === 'Require Cloudflare secrets') continue;
-    assert.equal(s.if, "steps.reuse.outputs.hit != 'true'", s.name);
+    assert.ok(typeof s.if === 'string' && /^steps\.gate\.outputs\.run == 'true'( && .+)?$/.test(s.if), s.name + ': ' + s.if);
   }
   /* 生产私密变量守卫不跳 */
   const prodGuard = job.steps.find((s) => s.name && s.name.startsWith('Guard - no private vars'));
   assert.equal(prodGuard.if, undefined);
-  /* 通过的 PR 运行记下自己测的树 */
+  /* 真跑过并通过的 PR 运行才记下自己测的树（只改文档 / 样式而跳过的不记） */
   const up = job.steps.find((s) => s.name && s.name.startsWith('Upload passing-tree marker'));
-  assert.equal(up.if, "success() && github.event_name == 'pull_request'");
+  assert.equal(up.if, "success() && github.event_name == 'pull_request' && steps.gate.outputs.run == 'true'");
   assert.equal(up.with.name, 'passkey-e2e-ok-${{ steps.tree.outputs.tree }}');
   assert.ok(job.steps.indexOf(up) > job.steps.indexOf(prodGuard));
+});
+
+test('deploy.yml：passkey-e2e 的路径过滤是 denylist，做在步骤层，拿不准一律照跑', () => {
+  const wf = yaml.load(readFileSync(path.join(REPO, '.github/workflows/deploy.yml'), 'utf8'));
+  /* 不用 workflow 级 paths（会让必需检查一直挂着） */
+  for (const ev of ['push', 'pull_request']) assert.equal((wf.on[ev] || {}).paths, undefined, ev);
+  for (const ev of ['push', 'pull_request']) assert.equal((wf.on[ev] || {})['paths-ignore'], undefined, ev);
+  const scope = wf.jobs['passkey-e2e'].steps.find((s) => s.id === 'scope');
+  assert.equal(scope['continue-on-error'], true, '本步意外出错也照跑');
+  const sh = scope.run;
+  assert.match(sh, /pull_request\) a="\$PR_BASE"; b="\$PR_HEAD"/);
+  assert.match(sh, /push\) a="\$PUSH_BEFORE"; b="\$PUSH_AFTER"/);
+  assert.match(sh, /\*\) verdict false "event/, '其他事件照跑');
+  assert.match(sh, /zero='\^0\+\$'/, 'before 全零照跑');
+  assert.match(sh, /git merge-base "\$a" "\$b"/, 'PR 比 base...head');
+  assert.match(sh, /\[ -n "\$changes" \] \|\| verdict false/, '空 diff 照跑');
+  /* 照跑名单在跳过规则之前 */
+  const always = sh.indexOf('.github/* | package.json | package-lock.json | web/shared/* | web/assets/js/* | */_kernel/*)');
+  assert.ok(always > 0 && always < sh.indexOf('*.md | *.css)'));
+  assert.match(sh, /\[ "\$st" = M \] \|\| \[ "\$st" = A \] \|\| verdict false/, '删除照跑');
+  assert.match(sh, /\*\) verdict false "\$f: run"/, '其余任何文件照跑');
+  assert.match(sh, /verdict true/);
+  /* 依赖 passkey-e2e 的部署 job：跳过用例时照常部署，上游失败 / 取消不部署 */
+  for (const [name, j] of Object.entries(wf.jobs)) {
+    const needs = [].concat(j.needs || []);
+    if (!needs.includes('passkey-e2e')) continue;
+    assert.match(String(j.if), /^\$\{\{ !failure\(\) && !cancelled\(\) && github\.ref == 'refs\/heads\/main'/, name);
+  }
 });
 
 test('测试 helper：不再删重置开关键；会话 / 进门票先用只读接口复用', () => {
