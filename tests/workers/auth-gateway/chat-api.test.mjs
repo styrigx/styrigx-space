@@ -21,7 +21,7 @@ import { genKeyPair } from '../_harness.mjs';
 const REPO = new URL('../../../', import.meta.url).pathname;
 
 const { priv: PRIV, pub: PUB } = await genKeyPair();
-const OWNER = await testLockSession(PRIV, 0, 'admin');
+const ADMIN = await testLockSession(PRIV, 0, 'admin');
 const VISITOR = await testLockSession(PRIV, 0, 'visitor');
 
 function kv() {
@@ -48,13 +48,13 @@ function env(over = {}) {
 }
 
 const MSGS = [{ role: 'user', text: 'Hugo 最新版本？' }];
-function req(body, { cookie = OWNER, origin = 'https://styrigx.com', raw } = {}) {
+function req(body, { cookie = ADMIN, origin = 'https://styrigx.com', raw } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (cookie) headers.Cookie = 'sgx-lock-session=' + cookie;
   if (origin) headers.Origin = origin;
   return new Request('https://styrigx.com/api/chat', { method: 'POST', headers, body: raw !== undefined ? raw : JSON.stringify(body) });
 }
-function getReq({ cookie = OWNER, origin } = {}) {
+function getReq({ cookie = ADMIN, origin } = {}) {
   const headers = {};
   if (cookie) headers.Cookie = 'sgx-lock-session=' + cookie;
   if (origin) headers.Origin = origin;

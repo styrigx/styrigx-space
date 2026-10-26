@@ -13,7 +13,7 @@
  *
  * 运行：node --test tests/kernel/auth-2101.test.mjs
  */
-import { test } from 'node:test';
+import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeKV, genKeyPair, postReq } from '../_harness.mjs';
 
@@ -22,7 +22,7 @@ async function genKeys() {
   ({ priv: LOCK_PRIV, pub: LOCK_PUB } = await genKeyPair());
 }
 
-const SGX_ROOT_KEY = 'test-owner-key-12345';
+const SGX_ROOT_KEY = 'test-root-key-2101';
 
 function authEnv(kv, overrides = {}) {
   return {
@@ -36,12 +36,13 @@ function authEnv(kv, overrides = {}) {
   };
 }
 
-test('setup: 生成测试密钥', async () => {
+/* 测试钥匙：before 里生成（不算一条用例，单独跑某条用例时也会先执行） */
+before(async () => {
   await genKeys();
   assert.ok(LOCK_PRIV && LOCK_PUB);
 });
 
-/* ============ A2：owner-auth ============ */
+/* ============ A2：root-auth ============ */
 
 
 test('A2：错误根密钥 → 401 并计数', async () => {

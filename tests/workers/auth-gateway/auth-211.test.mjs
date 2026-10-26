@@ -6,13 +6,13 @@
  * 2. 无 lock 会话：单用管理员凭证进入口 2、单用根凭证进入口 1 均被拒
  * 3. 重置锁屏：只管理员或只根（开关关闭）被拒；两者都过拿到 lockreset；
  *    lockreset 访问主页面/APP/会话/入口1/2 均 403 且不产生 sgx-verified；
- *    完成后旧会话失效；owner 未配置时被拒
+ *    完成后旧会话失效；账号未配置时被拒
  * 4. 开关：缺失/过期/超 24 小时/格式错误时单根被拒；有效时单根拿到 lockreset；
  *    有效时单管理员仍被拒
  * 5. 假入口：访客提交正确 SGX_ROOT_KEY 返回 401 auth，与错误密钥响应逐字节相同
  * 6. 接管：未配时根可代管；配置后失效；接管后旧 root 票/会话被拒；
  *    KV 读失败时根代管被拒
- * 7. pepper：旧 hash 重哈希；缺 pepper fail closed；owner 密码 = 锁屏密码被拒
+ * 7. pepper：旧 hash 重哈希；缺 pepper fail closed；账号密码 = 锁屏密码被拒
  * 8. /api/root-auth：错误 401 auth，缺 Origin 403；/api/owner-auth 不可用
  * 9. 限速：根凭证各路径共用计数
  */
@@ -87,21 +87,21 @@ test('2.11 重置锁屏：开关关闭时只管理员凭证被拒（缺根凭证
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
   const { makePasswordRecord } = await import(REPO + '/workers/auth-gateway/functions/_kernel/password.js');
   const kv = makeKV({ 'account-configured': '1', 'lock-configured': '1' });
-  const rec = await makePasswordRecord('owner-pass-1', 'test-pepper');
+  const rec = await makePasswordRecord('account-pass-1', 'test-pepper');
   await kv.put('account-password', JSON.stringify(rec));
   const env = baseEnv(kv);
   const req = postReq('https://test.example.com/api/lock-reset', {
     action: 'verify',
-    accountProof: { type: 'password', password: 'owner-pass-1' },
+    accountProof: { type: 'password', password: 'account-pass-1' },
     /* 无 rootKey */
   });
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 401);
 });
 
-test('2.11 重置锁屏：owner 未配置且开关关闭 → status 始终可用，verify 通用 401 auth（不泄露 not-set）', async () => {
+test('2.11 重置锁屏：账号未配置且开关关闭 → status 始终可用，verify 通用 401 auth（不泄露 not-set）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
-  const kv = makeKV({ 'lock-configured': '1' }); /* owner 未配置 */
+  const kv = makeKV({ 'lock-configured': '1' }); /* 账号未配置 */
   const env = baseEnv(kv);
   const st = postReq('https://test.example.com/api/lock-reset', { action: 'status' });
   const stRes = await onRequestPost({ request: st, env });
@@ -297,14 +297,14 @@ test('2.11 开关：有效时单管理员凭证仍被拒（根凭证优先，不
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
   const { makePasswordRecord } = await import(REPO + '/workers/auth-gateway/functions/_kernel/password.js');
   const kv = makeKV({ 'account-configured': '1', 'lock-configured': '1' });
-  const rec = await makePasswordRecord('owner-pass-1', 'test-pepper');
+  const rec = await makePasswordRecord('account-pass-1', 'test-pepper');
   await kv.put('account-password', JSON.stringify(rec));
   const db = makeD1();
   const env = switchEnv(kv, db, 'switch-secret-1');
   /* 有 accountProof 但无 rootKey → 401（根凭证不可跳过） */
   const req = postReq('https://test.example.com/api/lock-reset', {
     action: 'verify',
-    accountProof: { type: 'password', password: 'owner-pass-1' },
+    accountProof: { type: 'password', password: 'account-pass-1' },
   });
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 401);

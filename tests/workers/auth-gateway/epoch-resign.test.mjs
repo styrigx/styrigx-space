@@ -10,7 +10,7 @@
  *
  * 运行：node --test tests/kernel/epoch-resign.test.mjs
  */
-import { test } from 'node:test';
+import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { testLockSession } from './_tickets.mjs';
 import { makeKV, genKeyPair } from '../_harness.mjs';
@@ -35,14 +35,14 @@ async function seedKey(kv, { credId, cls = 'lock', aud = '' }) {
     credId, publicKey: {}, signCount: 0, uv: 1,
   };
   if (aud) rec.aud = aud;
-  const domain = cls === 'owner' || cls === 'account' ? 'account' : 'lock';
+  const domain = cls === 'account' ? 'account' : 'lock';
   await kv.put(domain + '-passkey:' + credId.slice(0, 12), JSON.stringify(rec));
   const idx = JSON.parse((await kv.get(domain + '-passkey-index')) || '[]');
   if (!idx.includes(credId)) idx.push(credId);
   await kv.put(domain + '-passkey-index', JSON.stringify(idx));
 }
 
-/** 从 Set-Cookie 头中取 sgx-verified 值 */
+/** 从 Set-Cookie 头中取 sgx-lock-session 值 */
 function extractSessionCookie(res) {
   const setCookies = res.headers.getSetCookie ? res.headers.getSetCookie() : [];
   for (const c of setCookies) {
@@ -53,7 +53,8 @@ function extractSessionCookie(res) {
   return null;
 }
 
-test('setup: 生成测试密钥', async () => {
+/* 测试钥匙：before 里生成（不算一条用例，单独跑某条用例时也会先执行） */
+before(async () => {
   await genKeys();
   assert.ok(LOCK_PRIV.includes('PRIVATE KEY'));
 });

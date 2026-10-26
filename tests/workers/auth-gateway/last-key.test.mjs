@@ -11,7 +11,7 @@
  *
  * 运行：node --test tests/kernel/last-key.test.mjs
  */
-import { test } from 'node:test';
+import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { testLockSession, testAccountSession } from './_tickets.mjs';
 import { makeKV, genKeyPair, postReq } from '../_harness.mjs';
@@ -40,7 +40,7 @@ async function seedKey(kv, credId, cls) {
     name: 'test', provider: '', aaguid: '', createdAt: 1, lastUsedAt: 0,
     credId, publicKey: {}, signCount: 0, uv: 1,
   };
-  const domain = cls === 'owner' || cls === 'account' ? 'account' : 'lock';
+  const domain = cls === 'account' ? 'account' : 'lock';
   await kv.put(domain + '-passkey:' + credId.slice(0, 12), JSON.stringify(rec));
   const idxRaw = await kv.get(domain + '-passkey-index', 'json');
   const idx = Array.isArray(idxRaw) ? idxRaw : [];
@@ -50,10 +50,11 @@ async function seedKey(kv, credId, cls) {
 async function seedPw(kv, kind, password) {
   const { makePasswordRecord } = await import('../../../workers/auth-gateway/functions/_kernel/password.js');
   const rec = await makePasswordRecord(password, 'test-pepper');
-  await kv.put(kind === 'owner' ? 'account-password' : 'lock-password', JSON.stringify(rec));
+  await kv.put(kind === 'account' ? 'account-password' : 'lock-password', JSON.stringify(rec));
 }
 
-test('setup: 生成测试密钥', async () => {
+/* 测试钥匙：before 里生成（不算一条用例，单独跑某条用例时也会先执行） */
+before(async () => {
   await genKeys();
   assert.ok(ACCT_PRIV.includes('PRIVATE KEY'));
 });
@@ -66,7 +67,7 @@ test('setup: 生成测试密钥', async () => {
 test('A-2：lock-entry (b) 无真实 lock 凭证 + owner 已配置 + 无 lock-emptied → resetOnly=true', async () => {
   const { onRequestGet } = await import('../../../workers/auth-gateway/functions/api/lock-entry.js');
   const kv = makeKV({ 'account-configured': '1', 'lock-configured': '1' });
-  await seedPw(kv, 'owner', 'account-password-123');
+  await seedPw(kv, 'account', 'account-password-123');
   const res = await onRequestGet({ env: { KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv } });
   assert.equal(res.status, 200);
   const j = await res.json();
@@ -81,7 +82,7 @@ test('A-2：lock-entry (b) 无真实 lock 凭证 + owner 已配置 + 无 lock-em
 test('A-2：lock-entry (a) lock-emptied=1 残留 + 有真实 lock 凭证 → resetOnly=false（忽略该键）', async () => {
   const { onRequestGet } = await import('../../../workers/auth-gateway/functions/api/lock-entry.js');
   const kv = makeKV({ 'account-configured': '1', 'lock-configured': '1', 'layer:lock-emptied': '1' });
-  await seedPw(kv, 'owner', 'account-password-123');
+  await seedPw(kv, 'account', 'account-password-123');
   await seedPw(kv, 'lock', 'lock-password-1234');
   const res = await onRequestGet({ env: { KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv } });
   assert.equal(res.status, 200);
