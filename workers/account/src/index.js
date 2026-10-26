@@ -16,7 +16,7 @@
  */
 import { authFor } from './auth.js';
 import { gate } from './gate.js';
-import { withNoStore } from './lib/http.js';
+import { withNoStore, apiError } from './lib/http.js';
 import { applyMainSiteHeaders } from './lib/security-headers.js';
 import * as avatar from './api/avatar.js';
 import * as avatarFile from './api/avatar-file.js';
@@ -51,13 +51,6 @@ export function pickHandler(mod, method) {
   if (typeof mod[name] === 'function') return mod[name];
   if (typeof mod.onRequest === 'function') return mod.onRequest;
   return null;
-}
-
-function json(status, body) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-  });
 }
 
 /**
@@ -103,9 +96,9 @@ export async function route(request, env, ctx, auth) {
   if (url.pathname.startsWith('/api/')) {
     const key = routeKey(url.pathname);
     const mod = API_ROUTES.get(key);
-    if (!mod) return json(404, { ok: false, error: 'not-found' });
+    if (!mod) return apiError(404, 'not-found');
     const handler = pickHandler(mod, request.method);
-    if (!handler) return json(405, { ok: false, error: 'method' });
+    if (!handler) return apiError(405, 'method');
     return handler(makeContext(request, env, ctx, auth, key));
   }
   const m = AVATAR_PATH_RE.exec(url.pathname);
@@ -134,7 +127,7 @@ export default {
       return tagRuntime(isApi ? withNoStore(res) : res);
     } catch (e) {
       console.error('[sgx-account] unhandled: ' + (e && /** @type {any} */ (e).name ? /** @type {any} */ (e).name : 'error'));
-      return tagRuntime(json(500, { ok: false, error: 'internal' }));
+      return tagRuntime(apiError(500, 'internal'));
     }
   },
 };

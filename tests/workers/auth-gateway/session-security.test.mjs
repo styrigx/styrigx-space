@@ -38,23 +38,9 @@ import { onRequestPost as pwPost } from '../../../workers/auth-gateway/functions
 import { onRequestPost as lockAllPost } from '../../../workers/auth-gateway/functions/api/lock-all-devices.js';
 import { onRequest as mw } from '../../../workers/auth-gateway/functions/_middleware.js';
 import { testLockSession } from './_tickets.mjs';
+import { makeKV, genKeyPair, postReq } from '../_harness.mjs';
 
 /* ---------- mock KV ---------- */
-
-function makeKV(initial = {}) {
-  const store = new Map(Object.entries(initial));
-  return {
-    store,
-    async get(k, type) {
-      if (!store.has(k)) return null;
-      const v = store.get(k);
-      return type === 'json' ? JSON.parse(v) : v;
-    },
-    async put(k, v) { store.set(k, String(v)); },
-    async delete(k) { store.delete(k); },
-    async list() { return { keys: [] }; },
-  };
-}
 
 /* 读取抛错的 KV（模拟 KV 故障） */
 function makeBrokenKV(method = 'get') {
@@ -74,21 +60,11 @@ function makePutBrokenKV(initial = {}) {
 
 /* ---------- Ed25519 测试密钥（临时生成） ---------- */
 
-function derToPem(der, label) {
-  const b64 = Buffer.from(der).toString('base64');
-  const lines = b64.match(/.{1,64}/g).join('\n');
-  return `-----BEGIN ${label}-----\n${lines}\n-----END ${label}-----\n`;
-}
-
 let TEST_PRIV_PEM = '';
 let TEST_PUB_PEM = '';
 
 async function genTestKeys() {
-  const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-  const privDer = await crypto.subtle.exportKey('pkcs8', kp.privateKey);
-  const pubDer = await crypto.subtle.exportKey('spki', kp.publicKey);
-  TEST_PRIV_PEM = derToPem(privDer, 'PRIVATE KEY');
-  TEST_PUB_PEM = derToPem(pubDer, 'PUBLIC KEY');
+  ({ priv: TEST_PRIV_PEM, pub: TEST_PUB_PEM } = await genKeyPair());
 }
 
 
@@ -96,17 +72,6 @@ async function genTestKeys() {
 async function mintSessionCookie() {
   const { signLockSessionTicket } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
   return await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
-}
-
-function postReq(url, body, headers = {}) {
-  /* 2.10.2：真实浏览器 POST 必带 Origin；测试默认带上 */
-  const h = { 'Content-Type': 'application/json', 'Origin': 'https://styrigx.com', ...headers };
-  if (headers.Origin === null) delete h['Origin'];
-  return new Request(url, {
-    method: 'POST',
-    headers: h,
-    body: JSON.stringify(body),
-  });
 }
 
 /* 在 account-password 记录里预置密码 test-pass-12345（100000 次迭代与服务端一致） */
@@ -574,29 +539,8 @@ test('middleware：无有效会话访问内页 → 302 到首页锁屏（return 
  * /api/lock-session-check（2.4.1 防循环）
  * ================================================================ */
 
-test('session-check：有效会话 → 200 {ok:true, role}；无会话/坏会话 → 401', async () => {
-  const { onRequestGet: checkGet } = await import('../../../workers/auth-gateway/functions/api/lock-session-check.js');
-  const env = PROD_ENV();
-
-  const mkReq = (cookie) => {
-    const headers = {};
-    if (cookie) headers['Cookie'] = 'sgx-lock-session=' + cookie;
-    return new Request('https://styrigx.com/api/lock-session-check', { headers });
-  };
-
-  /* 2.8.0：返回角色 */
-  let r = await checkGet({ request: mkReq(await validCookie(0)), env });
-  assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { ok: true, role: 'admin', next: null, upgrade: false });
-
-  r = await checkGet({ request: mkReq(''), env });
-  assert.equal(r.status, 401);
-  assert.deepEqual(await r.json(), { ok: false });
-
-  /* 旧三段式无 role → 无效 */
-  r = await checkGet({ request: mkReq('0.9999999999999.badsig'), env });
-  assert.equal(r.status, 401);
-});
+/* lock-session-check 的 200 / 401 契约（管理员、访客、无会话、旧三段式坏票）2026-10-26 并进
+ * auth-flow-2026-10-21.test.mjs 的 B 段（经真实网关入口，断言逐条保留），这里不再重复。 */
 
 /* ================================================================
  * 三个解锁接口：成功时 Set-Cookie 属性（2.4.1 会话诊断）
@@ -1043,7 +987,7 @@ test('middleware：首页有会话 → 200 + data-sgx-lock-session="valid"', asy
 /* ============ 2.8.0：搜索收录 + 锁屏瘦身 ============ */
 
 test('2.8.0：锁屏态首页剥离桌面内容（SGX-DESKTOP markers）', async () => {
-  const { injectSessionState } = await import('../../../workers/auth-gateway/functions/_middleware.js');
+  const { injectSessionState } = await import('../../../workers/auth-gateway/functions/_kernel/html.js');
   const html = '<html lang="zh"><head></head><body>' +
     '<!-- SGX-DESKTOP-START --><div>书单歌单小组件</div><!-- SGX-DESKTOP-END -->' +
     '<div id="nav">导航</div></body></html>';
@@ -1055,7 +999,7 @@ test('2.8.0：锁屏态首页剥离桌面内容（SGX-DESKTOP markers）', async
 });
 
 test('2.8.0：锁屏态首页带 X-Robots-Tag: noindex', async () => {
-  const { injectSessionState } = await import('../../../workers/auth-gateway/functions/_middleware.js');
+  const { injectSessionState } = await import('../../../workers/auth-gateway/functions/_kernel/html.js');
   const res = new Response('<html><body></body></html>', {
     headers: { 'Content-Type': 'text/html' },
   });
@@ -1309,17 +1253,6 @@ test('2.8.0：旧三段式 cookie（无 role）一律无效', async () => {
   /* 无有效会话 → 首页返回 locked 状态 */
   const html = await r.text();
   assert.ok(html.includes('data-sgx-lock-session="locked"'), '旧 cookie 应被视为无效');
-});
-
-test('2.8.0：session-check 返回 visitor 角色', async () => {
-  const { onRequestGet: checkGet } = await import('../../../workers/auth-gateway/functions/api/lock-session-check.js');
-  const env = PROD_ENV();
-  const req = new Request('https://styrigx.com/api/lock-session-check', {
-    headers: { 'Cookie': 'sgx-lock-session=' + await visitorCookie(0) },
-  });
-  const r = await checkGet({ request: req, env });
-  assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { ok: true, role: 'visitor', next: null, upgrade: false });
 });
 
 test('定稿 #1：owner 解锁后 return 指向门内页 → 回总览页（门内页不能当返回目标）', async () => {

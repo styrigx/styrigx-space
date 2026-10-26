@@ -17,6 +17,7 @@
  */
 import { ROLE_ADMIN } from './auth.js';
 import { ORIGIN, SQL, isCode, cleanTarget, targetUrl, statusOf, first, run } from './lib/links.js';
+import { clientIp } from './lib/http.js';
 
 const MAX_FAIL = 10;
 const WINDOW_MS = 15 * 60 * 1000;
@@ -107,7 +108,7 @@ export async function openShare(request, env, ctx, auth, code) {
     return new Response(null, { status: 503, headers: { 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex' } });
   }
   const db = env && env.D1_SHARE_LINK;
-  const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+  const ip = clientIp(request);
   const now = Date.now();
   if (!db || memLocked(ip, now)) return failResponse();
 

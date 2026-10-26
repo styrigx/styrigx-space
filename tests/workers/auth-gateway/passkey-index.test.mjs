@@ -10,30 +10,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { getPasskeys, savePasskey, passkeyKey, PASSKEY_LOCK, PASSKEY_ACCOUNT } from '../../../workers/auth-gateway/functions/_kernel/passkey-store.js';
+import { makeKV } from '../_harness.mjs';
 
 const IDX = { [PASSKEY_LOCK]: 'lock-passkey-index', [PASSKEY_ACCOUNT]: 'account-passkey-index' };
 const rec = (credId) => JSON.stringify({ name: 'k', credId, publicKey: 'pk', signCount: 0 });
-
-/** listHides：kv.list 看不到的键（模拟最终一致）；failGet(k)：这次读这个键抛错 */
-function makeKV(seed = {}) {
-  const m = new Map(Object.entries(seed));
-  const kv = {
-    failGet: (/** @type {string} */ k) => false,
-    listHides: new Set(),
-    puts: [],
-    get: async (k, fmt) => {
-      if (kv.failGet(k)) throw new Error('kv-get ' + k);
-      const v = m.has(k) ? m.get(k) : null;
-      if (v === null) return null;
-      return fmt === 'json' ? JSON.parse(v) : v;
-    },
-    put: async (k, v) => { kv.puts.push(k); m.set(k, v); },
-    delete: async (k) => { m.delete(k); },
-    list: async ({ prefix = '' } = {}) => ({ keys: [...m.keys()].filter((n) => n.startsWith(prefix) && !kv.listHides.has(n)).map((name) => ({ name })) }),
-    m,
-  };
-  return kv;
-}
 
 for (const domain of [PASSKEY_LOCK, PASSKEY_ACCOUNT]) {
   const A = domain + 'credAAAAAAAAAAAAAAAA';

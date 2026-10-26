@@ -31,12 +31,13 @@
  * 只接受 POST；校验 Origin（缺失/解析失败 403）。
  */
 import { ed25519Verify } from '../_kernel/crypto.js';
+import { readAllCookies } from '../_kernel/cookies.js';
 import { checkRootCredential, sleep } from '../_kernel/root-check.js';
 import { ROLE_ADMIN, ROLE_VISITOR, verifyLockSession } from '../_kernel/lock-session.js';
-import { checkRootLimit, recordRootFail, getClientIp } from '../_kernel/root-limit.js';
+import { checkRootLimit, recordRootFail } from '../_kernel/root-limit.js';
 import { writeRootAudit } from '../_kernel/root-audit.js';
 import { isLockEffectivelyConfigured } from '../_kernel/layers.js';
-import { isSameOrigin, originDenied } from '../_kernel/http.js';
+import { isSameOrigin, originDenied, json, apiError, clientIp } from '../_kernel/http.js';
 import {
   REALM_LOCK,
   REALM_ROOT,
@@ -74,7 +75,7 @@ async function padTo(t0) {
 
 /** 与真失败逐字节相同的 401 响应 */
 function decoyAuth() {
-  return Response.json({ ok: false, error: 'auth' }, { status: 401 });
+  return apiError(401, 'auth');
 }
 
 /**
@@ -89,13 +90,10 @@ function decoyAuth() {
  */
 async function lightSession(request, env, wantRole) {
   try {
-    const h = request.headers.get('Cookie') || '';
     const pubKey = realmPublicKey(env, REALM_LOCK); /* SGX_LOCK_PUBLIC */
     if (!pubKey) return false;
-    for (const part of h.split(';')) {
-      const [k, ...v] = part.trim().split('=');
-      if (k !== REALM_LOCK.cookie) continue; /* sgx-lock-session */
-      const parts = v.join('=').split('.');
+    for (const val of readAllCookies(request, REALM_LOCK.cookie)) { /* sgx-lock-session */
+      const parts = val.split('.');
       if (parts.length !== 6) continue;
       if (parts[1] !== wantRole) continue;
       const exp = parseInt(parts[3], 10);
@@ -111,7 +109,7 @@ export async function onRequestPost(context) {
   try {
     return await handlePost(context);
   } catch (e) {
-    return Response.json({ ok: false, error: 'server' }, { status: 500 });
+    return apiError(500, 'server');
   }
 }
 
@@ -120,7 +118,7 @@ async function handlePost(context) {
   const { request, env } = context;
   const t0 = Date.now();
   if (request.method !== 'POST') {
-    return Response.json({ ok: false }, { status: 405 });
+    return json(405, { ok: false });
   }
   /* Origin 必须与本站同 host（CSRF 防护），缺失或解析失败一律 403 */
   if (!isSameOrigin(request)) return originDenied();
@@ -129,11 +127,12 @@ async function handlePost(context) {
      不读任何存储（KV/D1），不区分新站旧站。放在所有 KV 读取之前。 */
   if (await lightSession(request, env, ROLE_VISITOR)) {
     await padTo(t0);
-    return Response.json({ ok: false, error: 'denied' }, { status: 401 });
+    return apiError(401, 'denied');
   }
 
   const kv = env && env.KV_LOCK_DOOR;
-  const ip = getClientIp(request);
+  const akv = env && env.KV_ACCOUNT_LOGIN; /* account-* 键：盘点真实凭证时读 */
+  const ip = clientIp(request);
 
   /* body 只读一次（purpose 决定签哪张票；key 在限流检查之后才比对） */
   let body = null;
@@ -141,7 +140,7 @@ async function handlePost(context) {
   const purpose = body && typeof body.purpose === 'string' ? body.purpose : '';
   if (!Object.prototype.hasOwnProperty.call(ROOT_PURPOSES, purpose)) {
     await padTo(t0);
-    return Response.json({ ok: false, error: 'purpose' }, { status: 400 });
+    return apiError(400, 'purpose');
   }
   const ticket = ROOT_PURPOSES[purpose];
   const auditPath = purpose;
@@ -149,7 +148,7 @@ async function handlePost(context) {
   /* 锁屏是否已设置（KV 读失败按已设置处理）：只决定 lock-reset 能不能走 */
   let lockCfg = true;
   try {
-    lockCfg = await isLockEffectivelyConfigured(kv);
+    lockCfg = await isLockEffectivelyConfigured(kv, akv);
   } catch (e) {
     lockCfg = true;
   }
@@ -170,16 +169,16 @@ async function handlePost(context) {
       try {
         const lim = await checkRootLimit(kv, ip);
         if (lim.limited) {
-          return Response.json({ ok: false, error: 'cooldown' }, { status: 429 });
+          return apiError(429, 'cooldown');
         }
         if (lim.delayMs) await sleep(lim.delayMs);
       } catch (e) {
-        return Response.json({ ok: false, error: 'server' }, { status: 503 });
+        return apiError(503, 'server');
       }
       try {
         await recordRootFail(kv, ip, { global: false });
       } catch (e) {
-        return Response.json({ ok: false, error: 'server' }, { status: 503 });
+        return apiError(503, 'server');
       }
     }
     await padTo(t0);
@@ -192,22 +191,22 @@ async function handlePost(context) {
   const rootKey = (env && env[REALM_ROOT.secret]) || ''; /* SGX_ROOT_KEY */
   const conf = TICKETS[ticket];
   if (!(env && env[conf.privateKey]) || !(env && env[conf.publicKey])) {
-    return Response.json({ ok: false, error: 'config' }, { status: 503 });
+    return apiError(503, 'config');
   }
   if (!rootKey || !kv) {
-    return Response.json({ ok: false, error: 'config' }, { status: 500 });
+    return apiError(500, 'config');
   }
 
   if (ticket !== LOCK_RESET_TICKET) {
     /* 完整会话校验（含 KV 纪元）；轻量检查通过但完整校验失败（如纪元已推进）→ 401 session */
     const sess = await verifyLockSession(request, env);
     if (!sess.ok || sess.role !== ROLE_ADMIN) {
-      return Response.json({ ok: false, error: 'session' }, { status: 401 });
+      return apiError(401, 'session');
     }
     /* 账号再验证：本来就要已登录账号 */
     if (ticket === ACCOUNT_REAUTH_TICKET) {
       const acc = await verifyAccountSession(request, env);
-      if (!acc.ok) return Response.json({ ok: false, error: 'account', reason: acc.reason }, { status: 401 });
+      if (!acc.ok) return apiError(401, 'account', { reason: acc.reason });
     }
   }
 
@@ -222,15 +221,15 @@ async function handlePost(context) {
   });
   if (!rc.ok) return rc.response;
 
-  const headers = new Headers({ 'Content-Type': 'application/json' });
+  const headers = new Headers();
   const tErr = await issueTicket(env, headers, ticket, BY_ROOT);
   if (tErr) {
     await writeRootAudit(kv, ip, false, { path: auditPath });
-    return Response.json(tErr.body, { status: tErr.status });
+    return json(tErr.status, tErr.body);
   }
   /* 审计写入失败则不签发（fail closed） */
   if (!(await writeRootAudit(kv, ip, true, { path: auditPath }))) {
-    return Response.json({ ok: false, error: 'server' }, { status: 503 });
+    return apiError(503, 'server');
   }
-  return new Response(JSON.stringify({ ok: true }), { headers });
+  return json(200, { ok: true }, headers);
 }

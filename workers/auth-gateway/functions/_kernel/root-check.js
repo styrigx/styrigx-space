@@ -17,6 +17,7 @@ import { timingSafeEqual, normalizeRootKey } from './crypto.js';
 import { checkRootLimit, recordRootFail, clearRootFail } from './root-limit.js';
 import { writeRootAudit } from './root-audit.js';
 import { REALM_ROOT } from './realms.js';
+import { apiError } from './http.js';
 
 /**
  * @param {object} o
@@ -32,18 +33,18 @@ export async function checkRootCredential(o) {
   const { env, kv, ip, auditPath } = o;
   const rootKey = (env && env[REALM_ROOT.secret]) || ''; /* SGX_ROOT_KEY */
   if (!rootKey || !kv) {
-    return { ok: false, response: Response.json({ ok: false, error: 'config' }, { status: 500 }) };
+    return { ok: false, response: apiError(500, 'config') };
   }
   /* 限流检查：KV 出错一律拒绝（fail closed） */
   try {
     const lim = await checkRootLimit(kv, ip);
     if (lim.limited) {
       await writeRootAudit(kv, ip, false, { path: auditPath });
-      return { ok: false, response: Response.json({ ok: false, error: 'cooldown' }, { status: 429 }) };
+      return { ok: false, response: apiError(429, 'cooldown') };
     }
     if (lim.delayMs) await sleep(lim.delayMs);
   } catch (e) {
-    return { ok: false, response: Response.json({ ok: false, error: 'server' }, { status: 503 }) };
+    return { ok: false, response: apiError(503, 'server') };
   }
   const key = typeof o.key === 'string' ? o.key : '';
   /* 两边都去掉空白字符后再比对；去空白后为空一律拒绝 */
@@ -53,12 +54,12 @@ export async function checkRootCredential(o) {
       await recordRootFail(kv, ip);
     } catch (e) {
       await writeRootAudit(kv, ip, false, { path: auditPath });
-      return { ok: false, response: Response.json({ ok: false, error: 'server' }, { status: 503 }) };
+      return { ok: false, response: apiError(503, 'server') };
     }
     /* 审计写入放在 padTo 之前：真失败与假入口耗时一致 */
     await writeRootAudit(kv, ip, false, { path: auditPath });
     if (o.padTo) await o.padTo();
-    return { ok: false, response: Response.json({ ok: false, error: 'auth' }, { status: 401 }) };
+    return { ok: false, response: apiError(401, 'auth') };
   }
   /* 成功：清掉该 IP 的失败计数（失败不影响主流程） */
   await clearRootFail(kv, ip);

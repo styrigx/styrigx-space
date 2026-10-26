@@ -254,7 +254,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
    再点图标 / 点遮罩 / 系统返回 / Esc / 点顶栏其他按钮（先关面板再执行）关闭（与导航抽屉同一个状态机 modal-sheet.js，非模态 show()）。
    2026-10-24 PR4：顶部「快捷面板」标题和右边的齿轮（全部设置）删除，面板直接从磁贴开始；设置入口改成顶栏三栏的「设置」。
    读屏名字照旧是「快捷面板」（dialog 的 aria-label）。
-   每个磁贴调用的 setter 与设置页相同（lib/prefs.js、lib/lock-now.js），两边写同一个 localStorage key，即时生效。
+   每个磁贴调用的 setter 与设置页相同（lib/prefs.js、auth/lock-now.js），两边写同一个 localStorage key，即时生效。
    磁贴（两列）：深色模式 | 跟随系统，语言（切到另一种语言）| 立即锁定；
    行：调色板、布局。各项随 features.yaml 的 build 开关显示 / 隐藏。
    2026-10-21：减弱动效、字体大小只留在设置页（无障碍 / 显示），面板里不再放；

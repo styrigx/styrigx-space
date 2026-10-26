@@ -8,7 +8,7 @@
  * - 焦点：打开时进面板（.sgx-qp-sheet autofocus）；关上时如果焦点还在面板里（或掉到 body），还给快捷面板图标。
  *   Tab / Shift+Tab 在「快捷面板图标 + 面板里的控件」之间循环（非模态不会 inert 页面，自己圈住），图标仍可用键盘关面板。
  * - 2026-10-24 PR4：顶部标题和齿轮（全部设置）删除，面板直接从磁贴开始；设置入口在顶栏三栏的「设置」。
- * - 只放设置里已有的项，写法与设置页完全相同（lib/prefs.js、lib/lock-now.js 是两边共用的 setter），
+ * - 只放设置里已有的项，写法与设置页完全相同（lib/prefs.js、auth/lock-now.js 是两边共用的 setter），
  *   所以面板和设置页写同一个 localStorage key、互相即时同步（features.on 订阅重绘）。
  * - 语言：切到另一种语言（显式 zh / en），关面板后 replace 到对应语言的同一页（与设置页选语言一致，不留历史）。
  * - 立即锁定：关面板后弹出与安全页相同的「立即锁定？」确认层。
@@ -19,7 +19,7 @@
 import { on as featOn } from '../lib/features.js';
 import { loadI18n } from '../lib/i18n.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';
-import { confirmLockNow } from '../lib/lock-now.js';
+import { confirmLockNow } from '../auth/lock-now.js';
 import {
   themeMode,
   isDark,

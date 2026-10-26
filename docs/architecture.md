@@ -39,13 +39,29 @@ space（styrigx.com）相当于 One UI，blog/book 等分站相当于其中的 A
 - 锁定：`lock-now`（清除 `Domain=.styrigx.com` 的 `sgx-lock-session`，blog/book 一起上锁）。
 - 前端改变会话只能通过这些接口。
 
-### L3 共享库：`assets/js/lib/ + assets/js/shell/ + assets/js/apps/` 的 core、util、storage、events、scheduler、i18n、theme
-- 通用能力，不得包含鉴权逻辑。
+### L3 共享库：`assets/js/lib/`（core、util、storage、events、scheduler、i18n、theme 等）
+- 通用能力，不得包含鉴权逻辑：`lib/` 里不出现鉴权接口地址（`/api/lock-*`、`/api/root-*`、`/api/account`）和 `navigator.credentials`。
 - `storage` 只存偏好（主题、天气等），**禁止存解锁状态**。
 
+### L3½ 鉴权与凭证流程：`assets/js/auth/`
+- 锁屏 / 账号的凭证界面和请求：`auth-flow`（密码框、再验证请求）、`auth-sheet`（登录方式弹层 / 验证弹层）、
+  `cred-rows`（凭证验证行）、`reset-flow`（重置登录）、`account-methods`、`account-api`（`/api/account` 客户端）、
+  `passkey-assert`（WebAuthn 断言：全站五处断言都经 `getPasskeyAssertion` + `assertionOptions` / `assertionToJSON`）、
+  `passkey-register`（通行密钥注册 + 命名弹层，锁屏凭证页与账号安全页共用）、`lock-now`（立即锁定）。
+- 只能 import `lib/` 和 `auth/`；`shell/`（lock.js、upgrade.js、quick-panel.js）和 `apps/` 用它。
+
+### 依赖方向（`scripts/check-layers.mjs`，CI 必过）
+- 前端：`lib` ← `auth` ← `shell` ← `apps` ← `entries`，只能向左 import；前端不 import `web/assets/js/` 以外的文件。
+- 网关：`_kernel/` 只 import `_kernel/`；`api/*` 和 `_middleware.js` 只 import `_kernel/`（api 之间不互相 import）；
+  `src/` 只 import `src/` 和 `_kernel/`，例外是路由表 `src/routes.js` import `api/`、入口 `src/index.js` import `_middleware.js`。
+- 相对 import 解析不到文件也算失败。
+
 ### L4 桌面环境·One UI：nav、goodlock、lock.js、sheet、capsule
+- 锁屏拆两块（2026-10-26）：`lock-guard.js` 在每页的 core 里，只读 L1 给出的状态（`data-sgx-lock-session`）、
+  绑自动锁定、做去处判定；locked / unknown 时先同步盖不透明遮罩（fail closed），再 `import()` 锁屏界面 `lock.js`
+  （加载失败遮罩不撤，只给重新加载）。访客升级层 `upgrade.js` 同样按需加载。
 - `lock.js` 只负责两件事：
-  1. 按 L1 给出的状态（`data-sgx-lock-session`）画锁屏；
+  1. 画锁屏；
   2. 把密码或通行密钥提交给 L2。
 - 删除 `sessionStorage['sgx-lock-shown']` 及所有按标签页判断的逻辑。
 

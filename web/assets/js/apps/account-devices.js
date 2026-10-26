@@ -10,7 +10,7 @@ import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { accountUrl, createT, goAccountLogin } from './account-common.js';
-import { ACCOUNT_API, postJSON, errText } from '../lib/account-api.js';
+import { ACCOUNT_API, postJSON, errText } from '../auth/account-api.js';
 import { clearPullStamp } from '../lib/cloud-sync.js';
 
 const ICONS = {

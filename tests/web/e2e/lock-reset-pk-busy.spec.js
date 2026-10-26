@@ -1,6 +1,6 @@
 /**
  * D1：重置登录第 2 步（锁屏弹层「无法登录？」→ 根凭证 → needAccount → 账号凭证行）通行密钥行 busy 态与取消不误报（e2e，mock WebAuthn）。
- * PR3：行与账号登录同一套（lib/cred-rows.js），错误都在行内；验证时隐藏的是方法弹层 #sgx-method-sheet。
+ * PR3：行与账号登录同一套（auth/cred-rows.js），错误都在行内；验证时隐藏的是方法弹层 #sgx-method-sheet。
  *
  * 量化验收：
  * - 点通行密钥行：副标题=「正在唤起通行密钥…」、出现 .sgx-credential-spin、两行 disabled；

@@ -19,6 +19,7 @@
  * 2026-10-24 起在账号 Worker styrigx-account（D1 styrigx-account，迁移在 workers/account/migrations/）。
  */
 import { ROLE_ADMIN } from '../auth.js';
+import { json } from '../lib/http.js';
 
 const KEY_RE = /^(home|files|browser|settings|book|blog)$|^(book|post):[A-Za-z0-9_\-./%]{1,80}$/;
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -148,20 +149,20 @@ export async function onRequestPost(context) {
 export async function onRequestGet(context) {
   const { request, env } = context;
   const sess = await context.auth.lockSession(); /* 网关 AuthVerifier 验（src/auth.js） */
-  if (!sess.ok) return Response.json({ ok: false }, { status: 401, headers: NO_STORE });
+  if (!sess.ok) return json(401, { ok: false }, NO_STORE);
   const url = new URL(request.url);
   const qd = url.searchParams.get('d') || '';
   const d = dayOk(qd) ? qd : utcDay(new Date());
   const empty = { ok: true, d, total: 0, sections: [], items: [] };
   const db = env && env.D1_WELLBEING;
-  if (!db) return Response.json(empty, { headers: NO_STORE });
+  if (!db) return json(200, empty, NO_STORE);
   try {
     await db.prepare(SCHEMA).run();
     const { results } = await db.prepare('SELECT k, t, sec FROM wb_daily WHERE day = ?1').bind(d).all();
     const sum = summarize(/** @type {any[]} */ (results || []), sess.role === ROLE_ADMIN);
-    return Response.json({ ok: true, d, ...sum }, { headers: NO_STORE });
+    return json(200, { ok: true, d, ...sum }, NO_STORE);
   } catch (e) {
     console.error('[api/wellbeing] d1 error', e && /** @type {any} */ (e).message);
-    return Response.json({ ok: false, d, total: 0, sections: [], items: [] }, { status: 503, headers: NO_STORE });
+    return json(503, { ok: false, d, total: 0, sections: [], items: [] }, NO_STORE);
   }
 }

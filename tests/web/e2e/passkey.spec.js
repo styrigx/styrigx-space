@@ -256,24 +256,21 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
   test('重置开关：计时内签一次 LockResetTicket，同一个值第二次不再签', async ({ page }) => {
     h.requireCf(test);
     const value = 'e2e-switch-' + h.rand();
+    /* 不在 finally 里删开关键：这个值签过一次就在 D1 标了已用，永不再生效（下一次 kvPut 直接覆盖），见 preview-helpers.cjs resetTicketViaSwitch */
     await h.kvPut('lock-reset-switch', value);
-    try {
-      let first = null;
-      await expect.poll(async () => {
-        const r = await h.api(page, '/api/lock-reset', { action: 'verify', rootKey: ROOT_KEY });
-        if (r.status === 200 && r.json && r.json.ok && !r.json.needAccount) { first = r; return 'ticket'; }
-        return r.status + ' ' + JSON.stringify(r.json);
-      }, { timeout: 90000, intervals: [3000, 10000, 15000, 20000] }).toBe('ticket');
-      expect(h.setCookieLine(first.resp, 'sgx-lock-reset')).toContain('sgx-lock-reset=');
+    let first = null;
+    await expect.poll(async () => {
+      const r = await h.api(page, '/api/lock-reset', { action: 'verify', rootKey: ROOT_KEY });
+      if (r.status === 200 && r.json && r.json.ok && !r.json.needAccount) { first = r; return 'ticket'; }
+      return r.status + ' ' + JSON.stringify(r.json);
+    }, { timeout: 90000, intervals: [3000, 10000, 15000, 20000] }).toBe('ticket');
+    expect(h.setCookieLine(first.resp, 'sgx-lock-reset')).toContain('sgx-lock-reset=');
 
-      /* 已用过：账号已配置 → 200 needAccount；账号未配置 → 401 auth。两种都不签票 */
-      const again = await h.api(page, '/api/lock-reset', { action: 'verify', rootKey: ROOT_KEY });
-      expect(h.setCookieLine(again.resp, 'sgx-lock-reset')).toBe('');
-      if (again.status === 200) expect(again.json.needAccount).toBe(true);
-      else expect(again.status).toBe(401);
-    } finally {
-      await h.kvDel('lock-reset-switch');
-    }
+    /* 已用过：账号已配置 → 200 needAccount；账号未配置 → 401 auth。两种都不签票 */
+    const again = await h.api(page, '/api/lock-reset', { action: 'verify', rootKey: ROOT_KEY });
+    expect(h.setCookieLine(again.resp, 'sgx-lock-reset')).toBe('');
+    if (again.status === 200) expect(again.json.needAccount).toBe(true);
+    else expect(again.status).toBe(401);
   });
 
   test('LockResetTicket：能读锁屏凭证状态，但不是会话', async ({ page }) => {

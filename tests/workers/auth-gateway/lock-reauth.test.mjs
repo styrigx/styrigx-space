@@ -24,6 +24,7 @@ import path from 'node:path';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { testLockSession, testTicket } from './_tickets.mjs';
+import { makeKV, genKeyPair } from '../_harness.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const GW = REPO + '/workers/auth-gateway/';
@@ -32,40 +33,10 @@ const API = GW + 'functions/api/';
 const tickets = await import(GW + 'functions/_kernel/tickets.js');
 const { makePasswordRecord } = await import(GW + 'functions/_kernel/password.js');
 
-function derToPem(der, label) {
-  const b64 = Buffer.from(der).toString('base64');
-  return `-----BEGIN ${label}-----\n${b64.match(/.{1,64}/g).join('\n')}\n-----END ${label}-----\n`;
-}
-async function pair() {
-  const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-  return {
-    priv: derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY'),
-    pub: derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY'),
-  };
-}
-const LOCK = await pair();
-const ACCT = await pair();
+const LOCK = await genKeyPair();
+const ACCT = await genKeyPair();
 const PEPPER = 'test-pepper';
 const ROOT_KEY = 'root-secret-123';
-
-function makeKV(seed = {}, { throwOn = null } = {}) {
-  const m = new Map(Object.entries(seed));
-  const reads = [];
-  return {
-    get: async (k, fmt) => {
-      reads.push(k);
-      if (throwOn && throwOn(k)) throw new Error('kv down');
-      const v = m.has(k) ? m.get(k) : null;
-      if (v === null) return null;
-      return fmt === 'json' ? JSON.parse(v) : v;
-    },
-    put: async (k, v) => { m.set(k, v); },
-    delete: async (k) => { m.delete(k); },
-    list: async ({ prefix = '' } = {}) => ({ keys: [...m.keys()].filter((n) => n.startsWith(prefix)).map((name) => ({ name })) }),
-    _map: m,
-    _reads: reads,
-  };
-}
 
 const envFor = (kv, extra = {}) => ({
   KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,

@@ -10,12 +10,9 @@
  */
 import { ROLE_ADMIN } from './auth.js';
 import { SHARE_PATH_RE } from './lib/links.js';
+import { json, apiError } from './lib/http.js';
 
 const HOST = 'styrigx.com';
-
-function jsonRes(status, body) {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
-}
 
 /**
  * @param {Request} request
@@ -38,8 +35,8 @@ export async function gate(request, env, auth) {
   if (SHARE_PATH_RE.test(pathname)) return null;
   if (pathname.startsWith('/api/')) {
     const sess = await auth.lockSession();
-    if (!sess.ok) return jsonRes(401, { ok: false });
-    if (sess.role !== ROLE_ADMIN) return jsonRes(403, { ok: false, error: 'role' });
+    if (!sess.ok) return json(401, { ok: false });
+    if (sess.role !== ROLE_ADMIN) return apiError(403, 'role');
     return null;
   }
   return null;

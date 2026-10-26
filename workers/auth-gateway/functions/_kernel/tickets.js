@@ -18,6 +18,7 @@
  * 叶子模块：只 import _kernel（crypto / realms），不 import 接口或 _middleware.js。
  */
 import { ed25519Sign, ed25519Verify } from './crypto.js';
+import { readCookie } from './cookies.js';
 import {
   TICKETS,
   COOKIE_EXPIRED,
@@ -96,16 +97,6 @@ export function parseTicket(name, val) {
   if (!Number.isFinite(epoch) || !Number.isFinite(iat) || !Number.isFinite(exp)) return null;
   if (!parts[4]) return null;
   return { by, epoch, iat, exp, sig: parts[4] };
-}
-
-/** @param {any} request @param {string} name cookie 名 */
-function readCookie(request, name) {
-  const h = (request && request.headers && request.headers.get('Cookie')) || '';
-  for (const part of h.split(';')) {
-    const [k, ...v] = part.trim().split('=');
-    if (k === name) return v.join('=');
-  }
-  return '';
 }
 
 /**

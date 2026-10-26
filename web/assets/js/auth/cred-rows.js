@@ -2,14 +2,14 @@
  * @fileoverview 凭证验证行（一行一个凭证：通行密钥点行直接调起系统验证；密码点行在行下展开输入框）。
  *
  * 从 account-methods.js 抽出（PR3）：账号 → 安全与隐私的门、「重置登录」第二步
- * （账号页的 /account/reset/ 与锁屏弹层里的同一个重置界面，lib/reset-flow.js）共用同一套行。
+ * （账号页的 /account/reset/ 与锁屏弹层里的同一个重置界面，auth/reset-flow.js）共用同一套行。
  * 行的内容（图标、标题、提交函数）由调用方给；失败 reject { message, clear?, cancelled? }。
  * 本文件在 lib/ 层：不 import shell/ 或 apps/。
  */
-import { on } from './events.js';
+import { on } from '../lib/events.js';
 import { bindPwEye, onEnter, focusNoScroll, PM_USER_STYLE } from './auth-flow.js';
-import { KEY_ROOT } from './key-names.js';
-import { bindSubmitButton, tapFeedback, setRowBusy, setRowSelected } from './dialog-behavior.js';
+import { KEY_ROOT } from '../lib/key-names.js';
+import { bindSubmitButton, tapFeedback, setRowBusy, setRowSelected } from '../lib/dialog-behavior.js';
 
 const CHEV = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>';
 /** 行图标（通行密钥 / 密码 / 根凭证） */

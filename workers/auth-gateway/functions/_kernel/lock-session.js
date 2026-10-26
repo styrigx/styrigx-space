@@ -16,6 +16,7 @@
  * KV 读取出错一律 fail closed（签发返回 503、验证无效），只有 key 确实不存在时纪元才当作 0。
  */
 import { ed25519Sign, ed25519Verify } from './crypto.js';
+import { readAllCookies } from './cookies.js';
 import {
   REALM_LOCK,
   TICKETS,
@@ -220,13 +221,7 @@ export async function verifyLockSessionTicket(val, env) {
  * @returns {string[]}
  */
 function allLockSessionCookies(request) {
-  const out = [];
-  const h = (request && request.headers && request.headers.get('Cookie')) || '';
-  for (const part of h.split(';')) {
-    const [k, ...v] = part.trim().split('=');
-    if (k === LOCK_SESSION_COOKIE) out.push(v.join('='));
-  }
-  return out;
+  return readAllCookies(request, LOCK_SESSION_COOKIE);
 }
 
 /**

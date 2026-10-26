@@ -6,9 +6,9 @@
  * 访客和管理员都能用，不设限。
  * 弹层关闭后 400ms 内的点击忽略（防误触，见 dialog-behavior.js）。
  */
-import { sgxReplace } from './diag-jumptrace.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose, shouldIgnorePostDialogClick } from './dialog-behavior.js';
-import { toast } from './toast.js';
+import { sgxReplace } from '../lib/diag-jumptrace.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose, shouldIgnorePostDialogClick } from '../lib/dialog-behavior.js';
+import { toast } from '../lib/toast.js';
 
 /* 本标签页 sessionStorage 里的管理内容：锁定时清掉，免得同一标签页换访客解锁后还能读到 */
 const ADMIN_SESSION_KEYS = ['sgx-chat-convo'];

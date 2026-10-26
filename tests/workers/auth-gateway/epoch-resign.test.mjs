@@ -13,44 +13,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { testLockSession } from './_tickets.mjs';
-
-function makeKV(seed = {}) {
-  const m = new Map(Object.entries(seed));
-  return {
-    get: async (k, fmt) => {
-      const v = m.has(k) ? m.get(k) : null;
-      if (v === null) return null;
-      return fmt === 'json' ? JSON.parse(v) : v;
-    },
-    put: async (k, v) => { m.set(k, v); },
-    delete: async (k) => { m.delete(k); },
-    list: async (opts) => {
-      const prefix = (opts && opts.prefix) || '';
-      return { keys: [...m.keys()].filter((k) => k.startsWith(prefix)).map((name) => ({ name })) };
-    },
-    _map: m,
-  };
-}
-
-function postReq(url, body, headers = {}) {
-  const h = { 'Content-Type': 'application/json', 'Origin': 'https://styrigx.com', ...headers };
-  return new Request(url, {
-    method: 'POST',
-    headers: h,
-    body: JSON.stringify(body),
-  });
-}
+import { makeKV, genKeyPair } from '../_harness.mjs';
 
 let LOCK_PRIV = '', LOCK_PUB = '';
-function derToPem(der, label) {
-  const b64 = Buffer.from(der).toString('base64');
-  const lines = b64.match(/.{1,64}/g).join('\n');
-  return `-----BEGIN ${label}-----\n${lines}\n-----END ${label}-----`;
-}
 async function genKeys() {
-  const kp2 = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-  LOCK_PRIV = derToPem(await crypto.subtle.exportKey('pkcs8', kp2.privateKey), 'PRIVATE KEY');
-  LOCK_PUB = derToPem(await crypto.subtle.exportKey('spki', kp2.publicKey), 'PUBLIC KEY');
+  ({ priv: LOCK_PRIV, pub: LOCK_PUB } = await genKeyPair());
 }
 
 const testEnv = (kv) => ({

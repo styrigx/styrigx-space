@@ -14,9 +14,10 @@
  *   expiresAt 为准；≤30 秒只变警示色；到 0 停在「已过期」，不自动跳转、不弹框。
  * - apiErrorText()：按服务端 error 码给中文提示，不说笼统的"服务器错误"。
  */
+import { releaseLockScreen } from '../shell/lock-guard.js';
 import { sgxNavigate, sgxReload } from '../lib/diag-jumptrace.js';
 import { showCenterDialog } from '../lib/dialog-behavior.js';
-import { lockReauthFetch } from '../lib/auth-flow.js';
+import { lockReauthFetch } from '../auth/auth-flow.js';
 
 /**
  * 统一解析 API 响应：{ status, json }，区分网络错误/业务错误。
@@ -341,11 +342,8 @@ export function api(url, body, t) {
  * （定稿 #1：探针失败留页时也要先移除遮罩，否则原因文字被盖住）
  */
 function clearLockOverlay() {
-  try {
-    const gl = document.getElementById('sgx-lock');
-    if (gl) gl.remove();
-    document.body.classList.remove('sgx-locked');
-  } catch (e) {}
+  /* 锁屏界面是按需加载的（lock-guard.js）：要连「还在加载中的」一起撤，只删 #sgx-lock 会被随后画上的盖住 */
+  releaseLockScreen();
 }
 
 /**

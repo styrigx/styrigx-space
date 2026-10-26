@@ -10,6 +10,7 @@
  * 非生产（本地 / 单测不设 SGX_ENV）：和网关一样不拦，接口自己验。
  */
 import { ROLE_VISITOR } from './auth.js';
+import { json, apiError } from './lib/http.js';
 
 const HOST = 'styrigx.com';
 /* 管理员专属 API（visitor 调用 → 403）：网关 ADMIN_ONLY_APIS 里属于本 Worker 的那条 */
@@ -29,10 +30,6 @@ export function isAdminOnlyApi(pathname) {
 export function isPublic(pathname) {
   if (pathname.startsWith('/api/')) return false;
   return AVATAR_FILE_RE.test(pathname) || STATIC_RE.test(pathname);
-}
-
-function jsonRes(status, body) {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
 }
 
 /**
@@ -62,11 +59,11 @@ export async function gate(request, env, auth) {
         isAuthAction = !!(body && AUTH_ACTIONS.has(body.action));
       } catch (e) {}
     }
-    if (!isAuthAction) return jsonRes(403, { ok: false, error: 'role' });
+    if (!isAuthAction) return apiError(403, 'role');
   }
   if (sess.ok) return null;
   if (isPublic(pathname)) return null;
-  if (pathname.startsWith('/api/')) return jsonRes(401, { ok: false });
+  if (pathname.startsWith('/api/')) return json(401, { ok: false });
   const dest = 'https://styrigx.com/?lock=1&return=' + encodeURIComponent(url.pathname + url.search);
   return new Response(null, {
     status: 302,

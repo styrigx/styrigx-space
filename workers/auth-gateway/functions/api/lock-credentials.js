@@ -13,13 +13,14 @@ import { ROLE_ADMIN } from '../_kernel/lock-session.js';
 import { verifyLockResetTicket } from '../_kernel/tickets.js';
 import { getPasskeys, PASSKEY_LOCK } from '../_kernel/passkey-store.js';
 import { REALM_LOCK } from '../_kernel/realms.js';
+import { json, apiError } from '../_kernel/http.js';
 
 /** @param {any} context */
 export async function onRequestGet(context) {
   try {
     return await handleGet(context);
   } catch (e) {
-    return Response.json({ ok: false }, { status: 500 });
+    return json(500, { ok: false });
   }
 }
 
@@ -31,7 +32,7 @@ async function handleGet(context) {
     /* 未绑 KV：会话/票据校验本身也读 KV，直接按配置错误处理（fail closed）。
        注意：实际请求中 verifyLockSession/verifyLockResetTicket 无 KV 时均返回
        无效，正常走 401；此处为纵深防御。 */
-    return Response.json({ ok: false, error: 'config' }, { status: 500 });
+    return apiError(500, 'config');
   }
 
   /* 鉴权：有效 admin 锁屏会话，或 LockResetTicket */
@@ -47,7 +48,7 @@ async function handleGet(context) {
     } catch (e) {}
   }
   if (!authed) {
-    return Response.json({ ok: false, error: 'session' }, { status: 401 });
+    return apiError(401, 'session');
   }
 
   /* 只读锁屏凭证状态 */
@@ -55,12 +56,9 @@ async function handleGet(context) {
     const pw = await kv.get(REALM_LOCK.kv.password, 'json');
     const password = !!(pw && pw.hash);
     const passkey = (await getPasskeys(kv, PASSKEY_LOCK)).length > 0;
-    return Response.json(
-      { ok: true, password: password, passkey: passkey },
-      { headers: { 'Cache-Control': 'no-store' } }
-    );
+    return json(200, { ok: true, password: password, passkey: passkey }, { 'Cache-Control': 'no-store' });
   } catch (e) {
     /* KV 读取失败 → 503 fail closed */
-    return Response.json({ ok: false, error: 'server' }, { status: 503 });
+    return apiError(503, 'server');
   }
 }

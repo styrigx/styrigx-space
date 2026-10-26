@@ -7,8 +7,7 @@
  */
 import { verifyLockSession } from '../functions/_kernel/lock-session.js';
 import { verifyAccountSession } from '../functions/_kernel/account-session.js';
-
-const MAX_COOKIE_HEADER = 8192;
+import { MAX_COOKIE_HEADER } from '../functions/_kernel/cookies.js';
 
 const MAX_META = 512;
 

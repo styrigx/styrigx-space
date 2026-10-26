@@ -1,6 +1,6 @@
 /**
  * 凭证类 API 真请求 e2e 的共享 helper（Item 25）。
- * - makeKV：内存 KV（实现 handler 用到的 get/put/delete/list 子集）。
+ * - makeKV：内存 KV（tests/workers/_harness.cjs，和 Worker 单测同一份，这里转出）。
  * - startCredentialTestServer(port)：启动本地测试服务器，/api/lock-password、
  *   /api/lock-passkey、/api/account、/api/lock-reauth 路由到 functions/api/ 下的真实 handler
  *  （onRequestPost），env 配测试密钥；返回 { kv, env, close, mintAuth }。
@@ -14,40 +14,10 @@
 const http = require('node:http');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
+/* 内存 KV、DER→PEM：和 Worker 单测同一份（tests/workers/_harness.cjs） */
+const { makeKV, derToPem } = require('../../workers/_harness.cjs');
 
 const REPO = path.join(__dirname, '..', '..', '..');
-
-function makeKV() {
-  const m = new Map();
-  return {
-    get: async (k, type) => {
-      const v = m.get(k);
-      if (v === undefined) return null;
-      return type === 'json' ? JSON.parse(v) : v;
-    },
-    put: async (k, v) => {
-      m.set(k, typeof v === 'string' ? v : JSON.stringify(v));
-    },
-    delete: async (k) => {
-      m.delete(k);
-    },
-    list: async (opts) => {
-      const prefix = (opts && opts.prefix) || '';
-      const keys = [];
-      for (const name of m.keys()) {
-        if (name.startsWith(prefix)) keys.push({ name });
-      }
-      return { keys };
-    },
-    _map: m,
-  };
-}
-
-function derToPem(der, label) {
-  const b64 = Buffer.from(der).toString('base64');
-  const lines = b64.match(/.{1,64}/g).join('\n');
-  return `-----BEGIN ${label}-----\n${lines}\n-----END ${label}-----\n`;
-}
 
 /* ---------------- 最小 CBOR 编码器 ---------------- */
 function concatU8(...parts) {

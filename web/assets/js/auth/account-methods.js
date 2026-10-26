@@ -8,14 +8,14 @@
  * 三个提交都带 device（lib/device-hints.js：型号 / 平台），服务端记进设置 › 账号 › 设备。
  * root(value)：重置登录（账号）第一步，POST /api/root-auth { purpose:'account-reset' }（不是登录入口）→ AccountResetTicket。
  *
- * 行的渲染在 lib/cred-rows.js（锁屏弹层的重置登录也用它）。
+ * 行的渲染在 auth/cred-rows.js（锁屏弹层的重置登录也用它）。
  * 放在 lib/：账号页（apps/account*.js）和锁屏凭证页（apps/security-lock.js）都 import 它。
  */
-import { b64urlToBuf, bufToB64url } from './b64.js';
+import { getPasskeyAssertion, assertionOptions, assertionToJSON, isPasskeyCancel } from './passkey-assert.js';
 import { renderCredRows, CRED_ICONS } from './cred-rows.js';
-import { KEY_ACCOUNT } from './key-names.js';
+import { KEY_ACCOUNT } from '../lib/key-names.js';
 import { ACCOUNT_API, postJSON, errText as errTextT } from './account-api.js';
-import { deviceHints } from './device-hints.js';
+import { deviceHints } from '../lib/device-hints.js';
 
 /**
  * 要显示的入口（固定顺序：通行密钥、密码）。PR3：根凭证不再是登录入口（改走「无法登录？」→ 重置登录）。
@@ -74,28 +74,13 @@ export function accountSubmitters(t, opts) {
     return postJSON(ACCOUNT_API, { action: 'login-challenge' }).then(function (res) {
       const j = res.j;
       if (!j || !j.ok || !j.challenge) throw { message: errText(j && j.error, res.s) };
-      const allow = (j.allowCredentials || []).map(function (c) {
-        return { type: 'public-key', id: b64urlToBuf(c.id) };
-      });
-      /* 系统通行密钥窗口（Samsung Pass 等）弹出时，背后的验证弹层先藏起来，结束后恢复——和锁屏一样（2026-10-24） */
+      /* 系统通行密钥窗口（Samsung Pass 等）弹出时，背后的验证弹层先藏起来，结束后恢复——和锁屏一样（2026-10-24）；
+         隐藏 / 恢复、30 秒超时都在 getPasskeyAssertion 里 */
       const hideEl = /** @type {HTMLElement|null} */ (document.querySelector('dialog.sgx-verify-dlg[open]'));
-      if (hideEl) hideEl.style.visibility = 'hidden';
-      const restore = function () {
-        if (hideEl) hideEl.style.visibility = '';
-      };
-      return navigator.credentials.get({
-        publicKey: {
-          challenge: b64urlToBuf(j.challenge),
-          rpId: j.rpId,
-          allowCredentials: allow.length ? allow : undefined,
-          userVerification: 'required',
-        },
-      }).then(function (cred) {
-        restore();
+      return getPasskeyAssertion(assertionOptions(j), { hideEl: hideEl || undefined }).then(function (cred) {
         return { cred: /** @type {any} */ (cred), cid: j.cid };
       }, function (e) {
-        restore();
-        if (e && e.name === 'NotAllowedError') throw { cancelled: true };
+        if (isPasskeyCancel(e)) throw { cancelled: true };
         throw { message: t('errVerify') };
       });
     }, function () {
@@ -105,17 +90,7 @@ export function accountSubmitters(t, opts) {
       const body = {
         action: 'login-passkey',
         cid: r.cid,
-        credential: {
-          id: cred.id,
-          rawId: bufToB64url(cred.rawId),
-          type: cred.type,
-          response: {
-            authenticatorData: bufToB64url(cred.response.authenticatorData),
-            clientDataJSON: bufToB64url(cred.response.clientDataJSON),
-            signature: bufToB64url(cred.response.signature),
-            userHandle: cred.response.userHandle ? bufToB64url(cred.response.userHandle) : null,
-          },
-        },
+        credential: assertionToJSON(cred),
       };
       if (reauth) body.reauth = true;
       const dev = deviceHints();
@@ -132,7 +107,7 @@ export function accountSubmitters(t, opts) {
 }
 
 /**
- * 在容器里渲染账号凭证验证行（lib/cred-rows.js renderCredRows 的账号版）。
+ * 在容器里渲染账号凭证验证行（auth/cred-rows.js renderCredRows 的账号版）。
  * @param {object} o
  * @param {HTMLElement} o.el
  * @param {function(string): string} o.t

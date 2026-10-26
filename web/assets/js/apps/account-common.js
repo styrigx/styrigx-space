@@ -6,14 +6,14 @@
  * - i18n：各页模板都输出同一份 #sgx-i18n-account（partials/account-i18n.html）
  * - requireAccountSession：子页进页查一次账号会话，明确没有 → 回账号页登录，登录后回子页
  * - syncSubText：云同步一行 / 云同步页总开关的副标题（已开启 / 已关闭 / 上次同步 hh:mm）
- * - /api/account 调用与错误码 → 文案在 lib/account-api.js（锁屏凭证页也用）
+ * - /api/account 调用与错误码 → 文案在 auth/account-api.js（锁屏凭证页也用）
  * - signalAccountName：PublicKeyCredential.signalCurrentUserDetails 让密码管理器
  *   （Samsung Pass / Google 密码管理器）把已有账号通行密钥条目的名字更新为 AccountKey。
  *   只对「当前账号 handle」（account-user-id）发；旧 handle（lock-user-id）与锁屏
  *   LockKey 共用，绝不能对它发，否则会把 LockKey 条目改名。
  */
 import { KEY_ACCOUNT } from '../lib/key-names.js';
-import { ACCOUNT_API } from '../lib/account-api.js';
+import { ACCOUNT_API } from '../auth/account-api.js';
 import { syncEnabled, LAST_KEY } from '../lib/cloud-sync.js';
 import { get as sget } from '../lib/storage.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';

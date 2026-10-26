@@ -14,6 +14,7 @@
  */
 import { REALM_ROOT } from './realms.js';
 import { ipBucket } from './http.js';
+import { deleteIfPresent } from './kv-clear.js';
 
 const ROOT_IP_MAX_FAIL = 5;
 const ROOT_IP_LOCK_MS = 15 * 60 * 1000;
@@ -69,21 +70,12 @@ export async function recordRootFail(kv, ip, opts) {
 }
 
 /**
- * 清除某 IP 的失败计数（成功后调用；失败不影响主流程）。
+ * 清除某 IP 的失败计数（成功后调用；失败不影响主流程）。先读、有才删（kv-clear.js）：
+ * 成功前没输错过就不花删除额度。
  * @param {any} kv
  * @param {string} ip
  */
 export async function clearRootFail(kv, ip) {
   if (!kv) return;
-  try { await kv.delete(failKey(ip)); } catch (e) {}
-}
-
-/**
- * 获取客户端 IP（CF-Connecting-IP 优先）。
- * @param {any} request
- */
-export function getClientIp(request) {
-  return request.headers.get('CF-Connecting-IP') ||
-         request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() ||
-         'unknown';
+  try { await deleteIfPresent(kv, failKey(ip)); } catch (e) {}
 }

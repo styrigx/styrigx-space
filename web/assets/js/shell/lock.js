@@ -1,5 +1,6 @@
 /**
- * @fileoverview 全站锁屏（2.4.0 H；2026-10-23 访客进入改临时 LockKey，去掉 Turnstile）。
+ * @fileoverview 全站锁屏界面（按需加载：由 shell/lock-guard.js 在 locked / unknown 时 import()；守卫、去处判定在 lock-guard.js）。
+ * 原说明：全站锁屏（2.4.0 H；2026-10-23 访客进入改临时 LockKey，去掉 Turnstile）。
  * 分层规范 L4：lock.js 只负责两件事——
  * 1. 按 L1（middleware 注入的 <html data-sgx-lock-session>）画锁屏，不自己判断会话；
  * 2. 把密码或通行密钥提交给 L2（functions/api/*）。
@@ -18,261 +19,23 @@
 import { on } from '../lib/events.js';
 import { reducedMotion } from '../lib/util.js';
 import { followKeyboard } from './vk.js';
-import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
 import { tapFeedback } from '../lib/dialog-behavior.js';
-import { createMethodSheet, createVerifyDialog, METHOD_ICONS, keepInputFocus } from '../lib/auth-sheet.js';
-import { getPasskeyAssertion, passkeyErrorText } from '../lib/passkey-assert.js';
-import { pwFieldHtml, bindPwEye, onEnter, focusNoScroll } from '../lib/auth-flow.js';
+import { createMethodSheet, createVerifyDialog, METHOD_ICONS, keepInputFocus } from '../auth/auth-sheet.js';
+import { getPasskeyAssertion, passkeyErrorText, assertionOptions, assertionToJSON, isPasskeyCancel } from '../auth/passkey-assert.js';
+import { pwFieldHtml, bindPwEye, onEnter, focusNoScroll } from '../auth/auth-flow.js';
 import { KEY_LOCK } from '../lib/key-names.js';
-import { mountResetFlow, resetT } from '../lib/reset-flow.js';
-import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
+import { mountResetFlow, resetT } from '../auth/reset-flow.js';
+
+import { sgxNavigate } from '../lib/diag-jumptrace.js';
+import { isLocalDev, pageState, askServer, proceed, bindAutoLock } from './lock-guard.js';
 
 const UNLOCK =
   '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.9-1"/></svg>';
 
 /**
- * 是否本地开发（无 Functions 后端）。
- * 测试可用 ?test-no-local-bypass=1 强制走线上逻辑（调 lock-session-check）。
- */
-function isLocalDev() {
-  try {
-    if (new URLSearchParams(location.search).has('test-no-local-bypass')) return false;
-  } catch (e) {}
-  return /^(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
-}
-
-/* ============================================================
-   锁屏状态机（2026-10-21 重写判定部分；界面不变）。唯一状态源：服务端。
-   - 页面状态 pageState()：网关注入的 <html data-sgx-lock-session>：
-       valid / locked / lock-reset；没有这个属性 = unknown（页面没经过网关，例如路由漏了这种 URL，
-       或缓存/测试环境）。unknown 一律先画锁屏（fail closed），并立刻问服务端。
-   - 服务端回答 askServer()：GET /api/lock-session-check[?return=]：{ok, role, next, upgrade}。
-     next 是服务端校验过的去处（与首页 302 同一个 resolveReturn）；前端不做白名单，只照着跳。
-   - 解锁成功 / 切回标签页 / bfcache 恢复 / 首帧对账，都走同一个 proceed(answer)：
-       upgrade      → 去首页 ?return=（服务端给 admin 验证层，不出锁屏）
-       next 是别处  → location.replace(next)（子站或站内原页面）
-       没有 next    → 页面是 locked（锁屏态被瘦身过）就换到干净地址重新取一次（服务端画 valid），
-                      valid / unknown 就原地开锁并把地址里的 lock/why/return 去掉
-     每一条都不会「重载同一个地址再等服务端 302」——那依赖锁屏页本身过网关，线上曾经不成立，
-     结果就是解锁后又回到锁屏（2026-10-21 用户报告）。
-   - 已解锁页面切回前台：问服务端，401 → 重载（服务端画锁屏）。立即锁定 = 服务端清 cookie。
-   - 本地 sessionStorage 只记「刚跳过哪里」防死循环，从不记解锁状态。
-   ============================================================ */
-
-/** @returns {'valid'|'locked'|'lock-reset'|'unknown'} */
-function pageState() {
-  const s = document.documentElement.dataset.sgxLockSession;
-  return s === 'valid' || s === 'locked' || s === 'lock-reset' ? s : 'unknown';
-}
-
-/** @param {string} k */
-function qp(k) {
-  try {
-    return new URLSearchParams(window.location.search).get(k) || '';
-  } catch (e) {
-    return '';
-  }
-}
-
-/**
- * 问服务端：会话是否有效、带 return 时该去哪。失败（401/网络）→ {ok:false}。
- * @returns {Promise<{ok:boolean, role?:string, next?:string|null, upgrade?:boolean}>}
- */
-function askServer() {
-  const ret = qp('return');
-  const url = '/api/lock-session-check' + (ret ? '?return=' + encodeURIComponent(ret) : '');
-  return fetch(url, { credentials: 'same-origin', cache: 'no-store' })
-    .then(function (r) {
-      if (!r.ok) return { ok: false };
-      return r.json().catch(function () { return { ok: false }; });
-    })
-    .then(function (d) { return d && d.ok === true ? d : { ok: false }; })
-    .catch(function () { return { ok: false }; });
-}
-
-/* B1-8：子站回跳死循环判定（20 秒窗口）。只在子站踢回（带 ?why=）时用：
-   20 秒内同一 target 第二次被踢回 → 失败卡（One UI 样式，不显示原因码），不再跳。
-   记录 { target, at } 在真正跳之前写入。 */
-function checkSubsiteLoop(target) {
-  try {
-    const raw = sessionStorage.getItem('sgx-subsite-jump');
-    const now = Date.now();
-    if (raw) {
-      const rec = JSON.parse(raw);
-      if (rec.target === target && (now - rec.at) < 20000) {
-        return true; /* 死循环 */
-      }
-    }
-    sessionStorage.setItem('sgx-subsite-jump', JSON.stringify({ target: target, at: now }));
-  } catch (e) {}
-  return false;
-}
-function showSubsiteFailure() {
-  let el = document.getElementById('sgx-subsite-failure');
-  if (!el) {
-    const isEn = document.documentElement.lang === 'en';
-    const msg = isEn ? 'Cannot return to the subsite, please try again' : '无法回到子站，请重试';
-    const homeText = isEn ? 'Back to main site' : '回到主站';
-    el = document.createElement('div');
-    el.id = 'sgx-subsite-failure';
-    el.className = 'sgx-card';
-    el.style.cssText = 'position:fixed;bottom:24px;left:16px;right:16px;z-index:10001;padding:16px;text-align:center;';
-    el.innerHTML =
-      '<p style="margin:0 0 12px;font-size:15px;">' + msg + '</p>' +
-      '<button type="button" class="sgx-credential-btn-primary" id="sgx-subsite-home">' + homeText + '</button>';
-    document.body.appendChild(el);
-    const btn = document.getElementById('sgx-subsite-home');
-    if (btn) {
-      btn.addEventListener('click', function () {
-        sgxNavigate('/');
-      });
-    }
-  }
-  el.hidden = false;
-}
-
-/** 当前地址去掉 lock / why / return（其余参数、hash 原样） */
-function cleanUrl() {
-  try {
-    const u = new URL(window.location.href);
-    u.searchParams.delete('lock');
-    u.searchParams.delete('why');
-    u.searchParams.delete('return');
-    return u.pathname + (u.search && u.search !== '?' ? u.search : '') + u.hash;
-  } catch (e) {
-    return window.location.pathname;
-  }
-}
-
-/** 绝对地址比较（next 可能是站内路径） @param {string} a */
-function sameAsCurrent(a) {
-  try {
-    return new URL(a, window.location.href).href === window.location.href;
-  } catch (e) {
-    return false;
-  }
-}
-
-/* locked 页面解锁后换到干净地址：10 秒内同一地址只换一次（服务端页面状态和接口说法长期不一致时不来回刷） */
-function reloadGuardOk(url) {
-  try {
-    const k = 'sgx-unlock-reload';
-    const prev = JSON.parse(sessionStorage.getItem(k) || 'null');
-    const abs = new URL(url, window.location.href).href;
-    if (prev && prev.url === abs && Date.now() - prev.at < 10000) return false;
-    sessionStorage.setItem(k, JSON.stringify({ url: abs, at: Date.now() }));
-  } catch (e) {
-    return false;
-  }
-  return true;
-}
-
-/**
- * 服务端已确认会话有效后的唯一去处判定。
- * @param {{next?:string|null, upgrade?:boolean}} ans
- * @param {() => void} unlockInPlace 原地开锁（锁屏态时是开锁动画；valid 页面是空操作）
- * @returns {'navigate'|'in-place'|'failure'}
- */
-function proceed(ans, unlockInPlace) {
-  const why = qp('why');
-  if (ans.upgrade && ans.next) {
-    /* 访客 + admin 专属去处：首页 ?return= 由服务端给 admin 验证层（不出锁屏） */
-    const home = document.documentElement.lang === 'en' ? '/en/' : '/';
-    sgxReplace(home + '?return=' + encodeURIComponent(ans.next));
-    return 'navigate';
-  }
-  if (ans.next) {
-    if (why && checkSubsiteLoop(ans.next)) {
-      unlockInPlace();
-      showSubsiteFailure();
-      return 'failure';
-    }
-    if (!sameAsCurrent(ans.next)) {
-      sgxReplace(ans.next);
-      return 'navigate';
-    }
-  }
-  const clean = cleanUrl();
-  if (pageState() === 'locked' && reloadGuardOk(clean)) {
-    /* 锁屏态页面是瘦身过的（没有桌面内容）：重新取一次，服务端会画 valid */
-    sgxReplace(clean);
-    return 'navigate';
-  }
-  try { history.replaceState(history.state, '', clean); } catch (e) {}
-  unlockInPlace();
-  return 'in-place';
-}
-
-/* 已解锁页面：切回前台 / bfcache 恢复 / 转屏时向服务端确认，401 → 重载（服务端画锁屏）。
-   节流 5 秒；网络错误不跳转，下次再查。页面正显示锁屏时不查（锁屏有自己的对账）。 */
-let lastLockCheck = 0;
-function checkSessionForAutoLock() {
-  const now = Date.now();
-  if (now - lastLockCheck < 5000) return;
-  lastLockCheck = now;
-  if (document.getElementById('sgx-lock')) return;
-  fetch('/api/lock-session-check', { credentials: 'same-origin', cache: 'no-store' })
-    .then(function (r) {
-      if (r.status === 401) sgxReload();
-    })
-    .catch(function () {});
-}
-let autoLockBound = false;
-function bindAutoLock() {
-  if (autoLockBound) return;
-  autoLockBound = true;
-  document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible') checkSessionForAutoLock();
-  });
-  window.addEventListener('focus', function () { checkSessionForAutoLock(); });
-  window.addEventListener('pageshow', function (e) {
-    if (e && e.persisted) checkSessionForAutoLock();
-  });
-  /* 只在宽度变化（转屏 / DeX 改窗口）时查；键盘开合只改高度 */
-  let lastW = window.innerWidth;
-  window.addEventListener('resize', function () {
-    if (window.innerWidth === lastW) return;
-    lastW = window.innerWidth;
-    checkSessionForAutoLock();
-  });
-}
-
-/**
- * 初始化锁屏（全站）。
- */
-export function initLock() {
-  /* Hark：CI 测试构建禁用锁屏（构建期 define，线上无绕过） */
-  if (SGX_TEST_NO_LOCK) return;
-  if (!SGX_FEAT_LOCK_GATE) return;
-  if (isLocalDev()) {
-    /* 本地开发没有后端，直接显示锁屏 */
-    showLockScreen();
-    return;
-  }
-  const state = pageState();
-  try {
-    window.dispatchEvent(new CustomEvent('sgx:session', { detail: { ok: state === 'valid' } }));
-  } catch (e) {}
-  if (state === 'lock-reset') return; /* LockResetTicket页：落地页需可操作 */
-  if (state === 'valid') {
-    bindAutoLock();
-    /* 子站踢回（带 why）但主站会话有效：问服务端 next，回子站（20 秒窗口防死循环）。
-       admin 验证页（data-sgx-upgrade）带 return 但不能跳走。 */
-    if (qp('why') && qp('return') && document.documentElement.getAttribute('data-sgx-upgrade') !== '1') {
-      askServer().then(function (ans) {
-        if (ans.ok) proceed(ans, function () {});
-      });
-    }
-    return;
-  }
-  /* locked / unknown：先画锁屏（fail closed），锁屏里立刻对账 */
-  showLockScreen();
-}
-
-/**
  * 显示锁屏 UI（2.4.0 H）。
  */
-function showLockScreen() {
+export function showLockScreen() {
   const en = document.documentElement.lang === 'en';
   const isLocal = isLocalDev();
 
@@ -327,6 +90,9 @@ function showLockScreen() {
     '</div>';
   document.body.appendChild(ov);
   document.body.classList.add('sgx-locked');
+  /* 守卫先盖的遮罩（lock-guard.js showLockCover）：锁屏已经画上，撤掉 */
+  const cover = document.getElementById('sgx-lock-cover');
+  if (cover && cover.parentNode) cover.parentNode.removeChild(cover);
   document.documentElement.style.overflow = 'hidden';
   document.body.style.overflow = 'hidden';
 
@@ -427,7 +193,7 @@ function showLockScreen() {
   }
 
   /* ============================================================
-     统一底部弹层：临时钥匙 / 密码 / 通行密钥三态共用同一个 dialog（lib/auth-sheet.js，账号登录页同一个组件）。
+     统一底部弹层：临时钥匙 / 密码 / 通行密钥三态共用同一个 dialog（auth/auth-sheet.js，账号登录页同一个组件）。
      - 同样的圆角、材质、拖动条、标题字号/位置、按钮样式；
      - 卡片背景完全不透明；打开时底层名字与入口 visibility:hidden + inert；
      - 容器无 outline；:focus-visible 只在内部可交互元素上用本站焦点色。
@@ -504,7 +270,7 @@ function showLockScreen() {
   }
 
   /**
-   * 2.8.0 锁屏重设计：点击头像后弹出的解锁方式选择底部弹层（lib/auth-sheet.js createMethodSheet，账号登录页同一个组件）。
+   * 2.8.0 锁屏重设计：点击头像后弹出的解锁方式选择底部弹层（auth/auth-sheet.js createMethodSheet，账号登录页同一个组件）。
    * One UI 风格：底部弹层（宽屏居中卡片），各带图标和一行说明。
    *
    * 补充定稿七.1：入口按锁屏凭证配置显示（配置以服务端 /api/lock-entry 为准，
@@ -553,7 +319,7 @@ function showLockScreen() {
     const showPw = !resetOnly && cfg.password;
     /* 批次 A 验收修复 P2：方法行点击轻触觉反馈。(b) 行 busy 不适用：
        点击即关弹层并在同一 tick 打开下一态；通行密钥行 → openPk() 已有带转圈的加载态。 */
-    /** @type {import('../lib/auth-sheet.js').MethodOpt[]} */
+    /** @type {import('../auth/auth-sheet.js').MethodOpt[]} */
     const opts = [
       /* 1. 访客进入（临时钥匙，2026-10-23 取代 Turnstile） */
       { id: 'sgx-mopt-visitor', icon: METHOD_ICONS.visitor, name: en ? 'Visitor' : '访客进入',
@@ -811,7 +577,7 @@ function showLockScreen() {
       });
   }
 
-  /* ---------- 重置登录（PR3：方法弹层里的「无法登录？」原地切到 lib/reset-flow.js） ----------
+  /* ---------- 重置登录（PR3：方法弹层里的「无法登录？」原地切到 auth/reset-flow.js） ----------
      与账号页 /account/reset/ 同一个界面，提交不同：
      - 锁屏凭证已设置（或读不到配置，按已设置处理）：根凭证 → POST /api/lock-reset verify；
        恢复开关有效直接拿到重置锁屏票（sgx-lock-reset）；否则服务端回 needAccount → 再验账号凭证（账号通行密钥 / 账号密码，
@@ -892,32 +658,12 @@ function showLockScreen() {
             return post('/api/lock-reset', { action: 'challenge' }).then(function (res) {
               const j = res.j;
               if (!j || !j.ok) throw { message: en ? 'Failed to start' : '启动失败' };
-              const allow = (j.allowCredentials || []).map(function (c) {
-                return { id: b64urlToBuf(c.id), type: 'public-key' };
-              });
-              return getPasskeyAssertion({
-                challenge: b64urlToBuf(j.challenge),
-                rpId: j.rpId,
-                allowCredentials: allow,
-                userVerification: 'required',
-              }, { hideEl: sheetEl || undefined }).then(function (cred) {
-                return verify({
-                  type: 'passkey',
-                  cid: j.cid,
-                  credential: {
-                    rawId: bufToB64url(cred.rawId),
-                    response: {
-                      authenticatorData: bufToB64url(cred.response.authenticatorData),
-                      clientDataJSON: bufToB64url(cred.response.clientDataJSON),
-                      signature: bufToB64url(cred.response.signature),
-                      userHandle: cred.response.userHandle ? bufToB64url(cred.response.userHandle) : null,
-                    },
-                  },
-                });
+              return getPasskeyAssertion(assertionOptions(j), { hideEl: sheetEl || undefined }).then(function (cred) {
+                return verify({ type: 'passkey', cid: j.cid, credential: assertionToJSON(cred) });
               }, function (err) {
                 /* 取消 / 没有匹配钥匙（NotAllowedError）：行内提示，留在本页可重新选择 */
                 if (err && err.kind === 'cancelled') throw { cancelled: true, message: en ? 'Cancelled, you can select again' : '已取消验证，可重新选择' };
-                if (err && err.kind === 'nokey' && err.cause && err.cause.name === 'NotAllowedError') throw { cancelled: true, message: passkeyErrorText('nokey', en) };
+                if (isPasskeyCancel(err)) throw { cancelled: true, message: passkeyErrorText('nokey', en) };
                 throw { message: err && err.kind ? passkeyErrorText(err.kind, en) : (en ? 'Passkey failed' : '通行密钥验证失败') };
               });
             }, function (e) {
@@ -987,18 +733,8 @@ function showLockScreen() {
       .then(function (ch) {
         if (dlgState !== 'passkey') throw { done: true };
         if (!ch || !ch.ok) throw new Error('challenge');
-        const allow = (ch.allowCredentials || []).map(function (c) {
-          return { id: b64urlToBuf(c.id), type: c.type };
-        });
         /* B1-2：用公共函数（隐藏弹层 + 30s 超时 + 4 档错误） */
-        return getPasskeyAssertion(
-          {
-            challenge: b64urlToBuf(ch.challenge),
-            allowCredentials: allow,
-            userVerification: 'required',
-          },
-          { hideEl: document.querySelector('.sgx-verify-dlg') }
-        ).then(function (cred) {
+        return getPasskeyAssertion(assertionOptions(ch), { hideEl: document.querySelector('.sgx-verify-dlg') }).then(function (cred) {
           return { cred: cred, cid: ch.cid };
         });
       })
@@ -1012,17 +748,7 @@ function showLockScreen() {
           body: JSON.stringify({
             action: 'auth',
             cid: res.cid,
-            credential: {
-              id: cred.id,
-              rawId: bufToB64url(cred.rawId),
-              response: {
-                clientDataJSON: bufToB64url(cred.response.clientDataJSON),
-                authenticatorData: bufToB64url(cred.response.authenticatorData),
-                signature: bufToB64url(cred.response.signature),
-                userHandle: cred.response.userHandle ? bufToB64url(cred.response.userHandle) : null,
-              },
-              type: cred.type,
-            },
+            credential: assertionToJSON(cred),
           }),
         });
       })

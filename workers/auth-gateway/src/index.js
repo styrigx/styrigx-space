@@ -29,6 +29,7 @@ import { API_ROUTES } from './routes.js';
 import { resolveSecrets } from './secrets.js';
 import { subsiteFor, handleSubsite, isStaticAsset as isSubsiteStaticAsset } from './subsites.js';
 import { applyMainSiteHeaders, applySubsiteHeaders } from '../functions/_kernel/security-headers.js';
+import { apiError } from '../functions/_kernel/http.js';
 
 /* 主站静态资源目录：内容带指纹或公开（css/js/字体/收藏图标），不含任何正文。
    2026-10-21 路由改成整站通配前这些路径不过 Worker；现在进来也原样回源，行为不变。 */
@@ -71,22 +72,15 @@ export function tagRuntime(res) {
   return out;
 }
 
-function json(status, body) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-  });
-}
-
 /** 交给 functions/api 的处理函数（middleware 的 next） */
 async function dispatch(request, env, ctx) {
   const url = new URL(request.url);
   const key = routeKey(url.pathname);
   const mod = API_ROUTES.get(key);
-  if (!mod) return json(404, { ok: false, error: 'not-found' });
+  if (!mod) return apiError(404, 'not-found');
   const handler = pickHandler(mod, request.method);
-  if (!handler) return json(405, { ok: false, error: 'method' });
-  return handler(makeContext(request, env, ctx, key, () => json(404, { ok: false, error: 'not-found' })));
+  if (!handler) return apiError(405, 'method');
+  return handler(makeContext(request, env, ctx, key, () => apiError(404, 'not-found')));
 }
 
 /**
@@ -148,7 +142,7 @@ export default {
       return secure(tagRuntime(await middleware(makeContext(request, env, ctx, '/', next))));
     } catch (e) {
       console.error('[sgx-auth] unhandled: ' + (e && e.name ? e.name : 'error'));
-      return secure(tagRuntime(json(500, { ok: false, error: 'internal' })));
+      return secure(tagRuntime(apiError(500, 'internal')));
     }
   },
 };

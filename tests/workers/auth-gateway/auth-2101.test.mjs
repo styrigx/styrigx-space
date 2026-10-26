@@ -15,56 +15,11 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-
-/* ---- 简易 KV mock ---- */
-function makeKV(seed = {}) {
-  const m = new Map(Object.entries(seed));
-  const kv = {
-    get: async (k, fmt) => {
-      if (kv._fail) throw new Error('kv-fail');
-      const v = m.has(k) ? m.get(k) : null;
-      if (v === null || v === undefined) return null;
-      return fmt === 'json' ? JSON.parse(v) : v;
-    },
-    put: async (k, v, opts) => {
-      if (kv._fail) throw new Error('kv-fail');
-      m.set(k, v);
-    },
-    delete: async (k) => { m.delete(k); },
-    list: async () => ({ keys: [...m.keys()].map((name) => ({ name })) }),
-    _map: m,
-    _fail: false,
-  };
-  return kv;
-}
-
-function postReq(url, body, headers = {}) {
-  /* 2.10.2：真实浏览器 POST 必带 Origin；测试默认带上 */
-  const h = { 'Content-Type': 'application/json', 'Origin': 'https://styrigx.com', ...headers };
-  if (headers.Origin === null) delete h['Origin'];
-  return new Request(url, {
-    method: 'POST',
-    headers: h,
-    body: JSON.stringify(body),
-  });
-}
-
-function derToPem(der, label) {
-  const b64 = Buffer.from(der).toString('base64');
-  const lines = b64.match(/.{1,64}/g).join('\n');
-  return `-----BEGIN ${label}-----\n${lines}\n-----END ${label}-----`;
-}
+import { makeKV, genKeyPair, postReq } from '../_harness.mjs';
 
 let LOCK_PRIV = '', LOCK_PUB = '';
 async function genKeys() {
-  const mk = async () => {
-    const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-    return {
-      priv: derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY'),
-      pub: derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY'),
-    };
-  };
-  const l = await mk(); LOCK_PRIV = l.priv; LOCK_PUB = l.pub;
+  ({ priv: LOCK_PRIV, pub: LOCK_PUB } = await genKeyPair());
 }
 
 const SGX_ROOT_KEY = 'test-owner-key-12345';

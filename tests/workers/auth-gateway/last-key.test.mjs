@@ -14,44 +14,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { testLockSession, testAccountSession } from './_tickets.mjs';
-
-function makeKV(seed = {}) {
-  const m = new Map(Object.entries(seed));
-  return {
-    get: async (k, fmt) => {
-      const v = m.has(k) ? m.get(k) : null;
-      if (v === null) return null;
-      return fmt === 'json' ? JSON.parse(v) : v;
-    },
-    put: async (k, v) => { m.set(k, v); },
-    delete: async (k) => { m.delete(k); },
-    list: async (prefix) => {
-      const keys = [...m.keys()].filter((k) => !prefix || !prefix.prefix || k.startsWith(prefix.prefix));
-      return { keys: keys.map((name) => ({ name })) };
-    },
-    _map: m,
-  };
-}
-
-function postReq(url, body, headers = {}) {
-  const h = { 'Content-Type': 'application/json', 'Origin': 'https://styrigx.com', ...headers };
-  if (headers.Origin === null) delete h['Origin'];
-  return new Request(url, { method: 'POST', headers: h, body: JSON.stringify(body) });
-}
+import { makeKV, genKeyPair, postReq } from '../_harness.mjs';
 
 let ACCT_PRIV = '', ACCT_PUB = '', LOCK_PRIV = '', LOCK_PUB = '';
-function derToPem(der, label) {
-  const b64 = Buffer.from(der).toString('base64');
-  const lines = b64.match(/.{1,64}/g).join('\n');
-  return `-----BEGIN ${label}-----\n${lines}\n-----END ${label}-----`;
-}
 async function genKeys() {
-  const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-  ACCT_PRIV = derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY');
-  ACCT_PUB = derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY');
-  const kp2 = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-  LOCK_PRIV = derToPem(await crypto.subtle.exportKey('pkcs8', kp2.privateKey), 'PRIVATE KEY');
-  LOCK_PUB = derToPem(await crypto.subtle.exportKey('spki', kp2.publicKey), 'PUBLIC KEY');
+  ({ priv: ACCT_PRIV, pub: ACCT_PUB } = await genKeyPair());
+  ({ priv: LOCK_PRIV, pub: LOCK_PUB } = await genKeyPair());
 }
 async function mintSession(epoch = 0) {
   const { signLockSessionTicket } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');

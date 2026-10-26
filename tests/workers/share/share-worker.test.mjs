@@ -19,6 +19,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { shareD1, HAS_SQLITE } from '../../fixtures/share-d1.mjs';
 import { testLockSession, testAccountSession } from '../auth-gateway/_tickets.mjs';
+import { makeKV, genKeyPair } from '../_harness.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 const worker = (await import(REPO + 'workers/share/src/index.js')).default;
@@ -32,31 +33,9 @@ const TL = await import(REPO + 'workers/auth-gateway/functions/_kernel/lock-temp
 const { onRequestPost: tempPost } = await import(REPO + 'workers/auth-gateway/functions/api/lock-tempkey.js');
 const { verifyLockSession } = await import(REPO + 'workers/auth-gateway/functions/_kernel/lock-session.js');
 
-function derToPem(der, label) {
-  const b64 = Buffer.from(der).toString('base64');
-  return `-----BEGIN ${label}-----\n${b64.match(/.{1,64}/g).join('\n')}\n-----END ${label}-----\n`;
-}
-async function pair() {
-  const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-  return {
-    priv: derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY'),
-    pub: derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY'),
-  };
-}
-const LOCK = await pair();
-const ACCT = await pair();
+const LOCK = await genKeyPair();
+const ACCT = await genKeyPair();
 const H = 3600e3;
-
-function makeKV() {
-  const m = new Map();
-  return {
-    m,
-    async get(k, type) { const v = m.get(k); if (v === undefined) return null; return type === 'json' ? JSON.parse(v) : v; },
-    async put(k, v) { m.set(k, String(v)); },
-    async delete(k) { m.delete(k); },
-    async list({ prefix }) { return { keys: [...m.keys()].filter((k) => k.startsWith(prefix)).map((name) => ({ name })), list_complete: true }; },
-  };
-}
 
 /** 网关 env 和短链 Worker env 分开，和线上一样；绑定接到网关真代码 */
 function setup(d1opts) {

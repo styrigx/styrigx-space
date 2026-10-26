@@ -44,7 +44,7 @@ import {
   reissueLockSessionWithEpoch,
   ROLE_ADMIN,
 } from '../_kernel/lock-session.js';
-import { checkLockManage, TICKET_IDS } from './lock-reauth.js';
+import { checkLockManage, TICKET_IDS } from '../_kernel/lock-manage.js';
 import { issueTicket, reissueTicketWithEpoch } from '../_kernel/tickets.js';
 import { LOCK_REAUTH_TICKET, BY_PASSKEY } from '../_kernel/realms.js';
 import { LAYER_LOCK, setLayerConfigured, clearLayerConfigured, isLayerConfigured, isAccountEffectivelyConfigured } from '../_kernel/layers.js';
@@ -61,14 +61,14 @@ import {
   PASSKEY_ACCOUNT,
   PASSKEY_DISPLAY_NAME,
 } from '../_kernel/passkey-store.js';
-import { isSameOrigin, originDenied } from '../_kernel/http.js';
+import { isSameOrigin, originDenied, json, apiError } from '../_kernel/http.js';
 
 /* 锁屏通行密钥注册/登录 challenge 的 KV 前缀（与账号 challenge 隔离） */
 const CHALLENGE_PREFIX = REALM_LOCK.kv.passkeyChallengePrefix;
 
 /**
  * 锁屏通行密钥管理门禁：LockReauthTicket + admin 锁屏会话，或 LockResetTicket（
- * 可 list/register/delete，不可 rename）。见 lock-reauth.js checkLockManage。
+ * 可 list/register/delete，不可 rename）。见 _kernel/lock-manage.js checkLockManage。
  * @param {any} request
  * @param {any} env
  * @param {string} op 'list' | 'register' | 'rename' | 'delete'
@@ -90,7 +90,7 @@ export async function onRequestPost(context) {
   try {
     return await handlePost(context);
   } catch (e) {
-    return Response.json({ ok: false, error: 'server' }, { status: 500 });
+    return apiError(500, 'server');
   }
 }
 
@@ -98,17 +98,18 @@ export async function onRequestPost(context) {
 async function handlePost(context) {
   const { request, env } = context;
   const kv = env && env.KV_LOCK_DOOR;
+  const akv = env && env.KV_ACCOUNT_LOGIN; /* account-* 键：账号是否已设置、通行密钥不能两域共用 */
 
   if (request.method !== 'POST') {
-    return Response.json({ ok: false, error: 'method' }, { status: 405 });
+    return apiError(405, 'method');
   }
   /* Origin 必须与本站同 host（CSRF 防护），缺失或解析失败一律 403 */
   if (!isSameOrigin(request)) return originDenied();
-  if (!kv) return Response.json({ ok: false, error: 'config' }, { status: 500 });
+  if (!kv || !akv) return apiError(500, 'config');
 
   let body;
   try { body = await request.json(); } catch (e) {
-    return Response.json({ ok: false, error: 'body' }, { status: 400 });
+    return apiError(400, 'body');
   }
   const action = (body && body.action) || '';
 
@@ -125,18 +126,18 @@ async function handlePost(context) {
   if (action === 'challenge') {
     const type = (body && body.type) || '';
     if (type !== 'register' && type !== 'auth') {
-      return Response.json({ ok: false, error: 'params' }, { status: 400 });
+      return apiError(400, 'params');
     }
     const lockKeys = (await getPasskeys(kv, PASSKEY_LOCK));
     if (type === 'register') {
       const mg = await checkPasskeyManage(request, env, 'register');
       if (!mg.ok) {
-        return Response.json(mg.body, { status: mg.status });
+        return json(mg.status, mg.body);
       }
     }
     /* auth 需要已有锁屏通行密钥 */
     if (type === 'auth' && lockKeys.length === 0) {
-      return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
+      return apiError(403, 'not-set');
     }
     const challenge = randB64(32);
     const cid = randB64(16);
@@ -165,7 +166,7 @@ async function handlePost(context) {
       /* challenge 只列出锁屏通行密钥；服务端 verify 时再次校验分类 */
       resp.allowCredentials = lockKeys.map(function (k) { return { id: k.credId, type: 'public-key' }; });
     }
-    return Response.json(resp);
+    return json(200, resp);
   }
 
   /* ============ register ============
@@ -176,11 +177,11 @@ async function handlePost(context) {
     /* 取 challenge（单次使用） */
     const chRec = await consumeChallenge(kv, CHALLENGE_PREFIX + cid);
     if (!chRec || chRec.type !== 'register' || chRec.exp < Date.now()) {
-      return Response.json({ ok: false, error: 'challenge' }, { status: 403 });
+      return apiError(403, 'challenge');
     }
     const mgReg = await checkPasskeyManage(request, env, 'register');
     if (!mgReg.ok) {
-      return Response.json(mgReg.body, { status: mgReg.status });
+      return json(mgReg.status, mgReg.body);
     }
     try {
       /* 验证 clientData：type / challenge / origin 严格等于期望值 */
@@ -212,7 +213,7 @@ async function handlePost(context) {
       /* 存储（同 credId 去重；每把一个 key）。同一把凭据已登记为账号通行密钥 → 拒绝（一把凭据只属于一个域） */
       const now = Date.now();
       const deviceName = String((body && body.name) || '').slice(0, 40);
-      if (await getPasskey(kv, PASSKEY_ACCOUNT, credIdB64)) throw new Error('invalid-class');
+      if (await getPasskey(akv, PASSKEY_ACCOUNT, credIdB64)) throw new Error('invalid-class');
       const existing = await getPasskey(kv, PASSKEY_LOCK, credIdB64);
       /* AAGUID 映射 provider，作为默认名 */
       const mappedProvider = providerOf(aaguid);
@@ -238,21 +239,21 @@ async function handlePost(context) {
           regNewEpoch = await bumpLockEpoch(kv);
         }
       } catch (e) {
-        return Response.json({ ok: false, error: 'epoch' }, { status: 503 });
+        return apiError(503, 'epoch');
       }
       if (regNewEpoch !== null) {
-        const headers = new Headers({ 'Content-Type': 'application/json' });
+        const headers = new Headers();
         await reissueTicketWithEpoch(env, headers, mgReg.ticket, mgReg.tv, regNewEpoch);
         await reissueLockSessionWithEpoch(env, headers, mgReg.sess, regNewEpoch);
-        return new Response(JSON.stringify({ ok: true, credId: credIdB64 }), { headers });
+        return json(200, { ok: true, credId: credIdB64 }, headers);
       }
-      return Response.json({ ok: true, credId: credIdB64 });
+      return json(200, { ok: true, credId: credIdB64 });
     } catch (e) {
       /* 具体原因只写控制台；UV 失败返回专属错误码，其他仍返回普通错误 */
       console.error('[lock-passkey-register]', e && e.message ? e.message : e);
       const code = (e && e.message === 'uv-required') ? 'uv-required'
         : (e && e.message === 'invalid-class') ? 'class' : 'verify';
-      return Response.json({ ok: false, error: code }, { status: 403 });
+      return json(403, { ok: false, error: code });
     }
   }
 
@@ -264,22 +265,22 @@ async function handlePost(context) {
     const toReauth = !!(body && body.reauth === true);
     if (toReauth) {
       if (looksVisitor(request)) {
-        return Response.json({ ok: false, error: 'verify' }, { status: 403 });
+        return apiError(403, 'verify');
       }
       const ds = await verifyLockSession(request, env);
       if (!ds.ok || ds.role !== ROLE_ADMIN) {
-        return Response.json({ ok: false, error: 'session' }, { status: 401 });
+        return apiError(401, 'session');
       }
     }
     const cred = (body && body.credential) || {};
     const cid = (body && body.cid) || '';
     const chRec = await consumeChallenge(kv, CHALLENGE_PREFIX + cid);
     if (!chRec || chRec.type !== 'auth' || chRec.exp < Date.now()) {
-      return Response.json({ ok: false, error: 'challenge' }, { status: 403 });
+      return apiError(403, 'challenge');
     }
     const lockKeys = (await getPasskeys(kv, PASSKEY_LOCK));
     if (lockKeys.length === 0) {
-      return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
+      return apiError(403, 'not-set');
     }
     /* 按 credential id 找对应公钥 */
     const rawIdB64 = cred.rawId || '';
@@ -288,7 +289,7 @@ async function handlePost(context) {
       if (lockKeys[i].credId === rawIdB64) { stored = lockKeys[i]; break; }
     }
     if (!stored || !stored.publicKey) {
-      return Response.json({ ok: false, error: 'unknown-key' }, { status: 403 });
+      return apiError(403, 'unknown-key');
     }
     try {
       /* 共享断言验证（_kernel/passkey-verify.js）：clientData、authData、
@@ -316,24 +317,21 @@ async function handlePost(context) {
       try { await savePasskey(kv, PASSKEY_LOCK, stored); } catch (e2) {}
       /* 通过：签发 Ed25519 会话 cookie（fail closed；issueLockSession 永不抛错）。
          通行密钥验证签admin 会话（12 小时）。reauth:true：只签 LockReauthTicket（by=passkey）。 */
-      const headers = new Headers({ 'Content-Type': 'application/json' });
+      const headers = new Headers();
       if (toReauth) {
         const dErr = await issueTicket(env, headers, LOCK_REAUTH_TICKET, BY_PASSKEY);
-        if (dErr) return Response.json(dErr.body, { status: dErr.status });
-        return new Response(JSON.stringify({ ok: true }), { headers });
+        if (dErr) return json(dErr.status, dErr.body);
+        return json(200, { ok: true }, headers);
       }
       const signErr = await issueLockSession(env, headers, { by: BY_PASSKEY, role: ROLE_ADMIN });
       if (signErr) {
-        return new Response(JSON.stringify(signErr.body), {
-          status: signErr.status,
-          headers: { 'Content-Type': 'application/json' },
-        });
+        return json(signErr.status, signErr.body);
       }
-      return new Response(JSON.stringify({ ok: true }), { headers });
+      return json(200, { ok: true }, headers);
     } catch (e) {
       console.error('[lock-passkey-auth]', e && e.message ? e.message : e);
       const code = (e && e.message === 'uv-required') ? 'uv-required' : 'verify';
-      return Response.json({ ok: false, error: code }, { status: 403 });
+      return json(403, { ok: false, error: code });
     }
   }
 
@@ -341,10 +339,10 @@ async function handlePost(context) {
   if (action === 'list') {
     const mg = await checkPasskeyManage(request, env, 'list');
     if (!mg.ok) {
-      return Response.json(mg.body, { status: mg.status });
+      return json(mg.status, mg.body);
     }
     const keys = (await getPasskeys(kv, PASSKEY_LOCK));
-    return Response.json({
+    return json(200, {
       ok: true,
       ticket: TICKET_IDS[mg.ticket],
       keys: keys.map(function (k) {
@@ -364,21 +362,21 @@ async function handlePost(context) {
   if (action === 'rename') {
     const credId = (body && body.credId) || '';
     let name = (body && body.name) || '';
-    if (!credId) return Response.json({ ok: false, error: 'params' }, { status: 400 });
+    if (!credId) return apiError(400, 'params');
     const found0 = await getLockKey(kv, credId);
     if (!found0) {
-      return Response.json({ ok: false, error: 'not-found' }, { status: 404 });
+      return apiError(404, 'not-found');
     }
     const mg = await checkPasskeyManage(request, env, 'rename');
     if (!mg.ok) {
-      return Response.json(mg.body, { status: mg.status });
+      return json(mg.status, mg.body);
     }
     /* 清理：去首尾空格和控制字符，限 1-40 字 */
     name = String(name).replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, 40);
-    if (!name) return Response.json({ ok: false, error: 'params' }, { status: 400 });
+    if (!name) return apiError(400, 'params');
     found0.name = name;
     await savePasskey(kv, PASSKEY_LOCK, found0);
-    return Response.json({ ok: true });
+    return json(200, { ok: true });
   }
 
   /* ============ delete：删除（需 LockReauthTicket；重置锁屏也可删） ============
@@ -386,14 +384,14 @@ async function handlePost(context) {
      - 账号未配置时，禁止删掉最后一种锁屏凭证 */
   if (action === 'delete') {
     const credId = (body && body.credId) || '';
-    if (!credId) return Response.json({ ok: false, error: 'params' }, { status: 400 });
+    if (!credId) return apiError(400, 'params');
     const found = await getLockKey(kv, credId);
     if (!found) {
-      return Response.json({ ok: false, error: 'not-found' }, { status: 404 });
+      return apiError(404, 'not-found');
     }
     const mg = await checkPasskeyManage(request, env, 'delete');
     if (!mg.ok) {
-      return Response.json(mg.body, { status: mg.status });
+      return json(mg.status, mg.body);
     }
     /* A-2：锁屏凭证减到 0 的那次删除，只在账号已有效配置时允许；
        账号未配置时禁止（403 last-key）。判断在任何 mutation 之前。 */
@@ -406,12 +404,12 @@ async function handlePost(context) {
     if (!hasLockPassword && lockKeys.length <= 1) {
       let accountCfg = true;
       try {
-        accountCfg = await isAccountEffectivelyConfigured(kv);
+        accountCfg = await isAccountEffectivelyConfigured(akv, kv);
       } catch (e) {
         accountCfg = true;
       }
       if (!accountCfg) {
-        return Response.json({ ok: false, error: 'last-key' }, { status: 403 });
+        return apiError(403, 'last-key');
       }
     }
     /* 先推进纪元，成功才删（fail closed；纪元推进失败则密钥仍在）。 */
@@ -421,7 +419,7 @@ async function handlePost(context) {
       newEpoch = v + 1;
       await kv.put(LOCK_EPOCH_KEY, String(newEpoch));
     } catch (e) {
-      return Response.json({ ok: false, error: 'epoch' }, { status: 503 });
+      return apiError(503, 'epoch');
     }
     await deletePasskey(kv, PASSKEY_LOCK, credId);
     /* 删完后若锁屏层已无凭证：账号已配置 → 保留锁屏层标记；账号未配置（竞态）→ 清标记。 */
@@ -431,25 +429,25 @@ async function handlePost(context) {
       try { const r = await kv.get(REALM_LOCK.kv.password, 'json'); hasLockPassword2 = !!(r && r.hash); } catch (e) {}
       if (!hasLockKey && !hasLockPassword2) {
         let accountCfg = true;
-        try { accountCfg = await isAccountEffectivelyConfigured(kv); } catch (e) { accountCfg = true; }
+        try { accountCfg = await isAccountEffectivelyConfigured(akv, kv); } catch (e) { accountCfg = true; }
         if (!accountCfg) {
           try {
             await clearLayerConfigured(kv, LAYER_LOCK);
           } catch (e) {
-            return Response.json({ ok: false, error: 'server' }, { status: 503 });
+            return apiError(503, 'server');
           }
         }
       }
     } catch (e) {}
     /* 纪元推进后重签 reauth / reset 票 + 当前设备会话，保持门内连续操作不中断、当前设备不掉线。 */
-    const headers = new Headers({ 'Content-Type': 'application/json' });
+    const headers = new Headers();
     if (newEpoch !== null) {
       await reissueTicketWithEpoch(env, headers, mg.ticket, mg.tv, newEpoch);
       /* 当前设备会话重签（重置锁屏无会话时 mg.sess 为 null，helper 内部跳过） */
       await reissueLockSessionWithEpoch(env, headers, mg.sess, newEpoch);
     }
-    return new Response(JSON.stringify({ ok: true }), { headers });
+    return json(200, { ok: true }, headers);
   }
 
-  return Response.json({ ok: false, error: 'params' }, { status: 400 });
+  return apiError(400, 'params');
 }

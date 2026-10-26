@@ -486,12 +486,19 @@ test('部署竞态：入口的共享 chunk 404（旧 HTML）→ 自动刷新一�
   const docs = trackDocs(page);
   /* 第一次加载 /settings/theme/ 的文档里，最大的共享 chunk（modulepreload 和 import 都）404；刷新后的文档正常 */
   let failDocs = 1;
+  /* 「最大的共享 chunk」从页面的 modulepreload 清单里按实际大小挑（以前写死 > 50000 字节：frontend-js #6 把锁屏界面移出 core 后
+     这页最大的共享 chunk 不到 50 KB，就一个也挑不中） */
   let core = '';
+  let coreSize = 0;
+  const html = await (await page.request.get('/settings/theme/')).text();
+  for (const m of html.matchAll(/rel="?modulepreload"? href="?(\/js\/sgx\/chunk-[^"\s>]+\.js)/g)) {
+    const n = (await (await page.request.get(m[1])).body()).length;
+    if (n > coreSize) { coreSize = n; core = m[1]; }
+  }
   await page.route(/\/js\/sgx\/chunk-[^/]+\.js$/, async (r) => {
     const res = await r.fetch();
     const body = await res.body();
-    if (!core && body.length > 50000) core = r.request().url();
-    if (docs.length <= failDocs && r.request().url() === core) return r.fulfill({ status: 404, contentType: 'text/html', body: 'not found' });
+    if (docs.length <= failDocs && new URL(r.request().url()).pathname === core) return r.fulfill({ status: 404, contentType: 'text/html', body: 'not found' });
     return r.fulfill({ response: res, body });
   });
   await page.goto('/settings/theme/');

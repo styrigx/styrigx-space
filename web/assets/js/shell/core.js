@@ -13,8 +13,8 @@ import { applyTheme, setThemeMode } from '../lib/theme.js';
 import { initNav } from './nav.js';
 import { initGoodLock, wellRetarget } from './goodlock.js';
 import { initScrollFx } from './scrollfx.js';
-import { initLock } from './lock.js';
-import { initUpgrade } from './upgrade.js';
+/* 锁屏 / 升级只放守卫进 core；界面在 lock-guard.js 里按需 import()（frontend-js #6） */
+import { initLock, initUpgrade } from './lock-guard.js';
 import { on as featOn } from '../lib/features.js';
 import { normPalette, DEFAULT_PALETTE } from '../lib/prefs.js';
 import { toast } from '../lib/toast.js';

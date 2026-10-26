@@ -6,38 +6,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { testLockSession, testAccountSession, testTicket } from './_tickets.mjs';
+import { makeKV, genKeyPair, postReq as jsonPost } from '../_harness.mjs';
+
+/* 本文件的请求都带固定客户端 IP（按 IP 的失败计数键要用） */
+const postReq = (url, body, headers = {}) => jsonPost(url, body, { 'CF-Connecting-IP': '10.9.9.9', ...headers });
 
 const API = '../../../workers/auth-gateway/functions/api/';
 const KERNEL = '../../../workers/auth-gateway/functions/_kernel/';
-
-function makeKV(seed = {}) {
-  const store = new Map(Object.entries(seed));
-  return {
-    store,
-    async get(k, type) {
-      if (!store.has(k)) return null;
-      const v = store.get(k);
-      return type === 'json' ? JSON.parse(v) : v;
-    },
-    async put(k, v) { store.set(k, String(v)); },
-    async delete(k) { store.delete(k); },
-    async list({ prefix } = {}) {
-      return { keys: [...store.keys()].filter((k) => !prefix || k.startsWith(prefix)).map((name) => ({ name })) };
-    },
-  };
-}
-
-function derToPem(der, label) {
-  const b64 = Buffer.from(der).toString('base64');
-  return `-----BEGIN ${label}-----\n${b64.match(/.{1,64}/g).join('\n')}\n-----END ${label}-----\n`;
-}
-async function edPair() {
-  const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-  return {
-    priv: derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY'),
-    pub: derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY'),
-  };
-}
 
 let LOCK, ACCOUNT, OTHER;
 const ROOT_KEY = 'test-root-key-account-123';
@@ -58,13 +33,6 @@ function envFor(kv, overrides = {}) {
   };
 }
 
-function postReq(url, body, headers = {}) {
-  return new Request(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Origin: 'https://styrigx.com', 'CF-Connecting-IP': '10.9.9.9', ...headers },
-    body: JSON.stringify(body),
-  });
-}
 function getReq(url, headers = {}) {
   return new Request(url, { method: 'GET', headers });
 }
@@ -138,7 +106,7 @@ async function get(kv, cookieObj) {
 }
 
 test('setup: 生成测试钥匙', async () => {
-  LOCK = await edPair(); ACCOUNT = await edPair(); OTHER = await edPair();
+  LOCK = await genKeyPair(); ACCOUNT = await genKeyPair(); OTHER = await genKeyPair();
 });
 
 test('型号映射与 UA 解析', async () => {

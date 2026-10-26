@@ -14,8 +14,7 @@
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
 import { bindEyeButton } from '../lib/dialog-behavior.js';
 import { followKeyboard } from './vk.js';
-import { getPasskeyAssertion, passkeyErrorText } from '../lib/passkey-assert.js';
-import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
+import { getPasskeyAssertion, passkeyErrorText, assertionOptions, assertionToJSON, isPasskeyCancel } from '../auth/passkey-assert.js';
 
 /**
  * B1-2：upgrade 流程通行密钥错误的展示决策（纯函数，可单测）。
@@ -29,20 +28,11 @@ import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
  */
 export function upgradePasskeyErrorText(e, isEn) {
   const kind = e && e.kind;
-  const causeName = e && e.cause && e.cause.name;
-  if (kind === 'cancelled' || (kind === 'nokey' && causeName === 'NotAllowedError')) {
-    return null;
-  }
+  if (isPasskeyCancel(e)) return null;
   if (kind === 'nokey') { /* InvalidStateError */
     return isEn ? 'Verification failed' : '验证失败';
   }
   return passkeyErrorText(kind || 'failed', isEn);
-}
-
-export function initUpgrade() {
-  const html = document.documentElement;
-  if (html.getAttribute('data-sgx-upgrade') !== '1') return;
-  openAdminVerify(html.getAttribute('data-sgx-upgrade-return') || '/');
 }
 
 /**
@@ -51,7 +41,7 @@ export function initUpgrade() {
  * - 只给 admin 方式：通行密钥、密码（根凭证不拥有会话，不在这里）；没有访客入口。
  * - 取消 / 失败：关掉弹层留在原页；不调任何接口，访客会话原样保留。
  * - 通过：服务端签发 admin 会话（替换访客会话）→ 跳到 returnPath（站内路径，由调用方给：
- *   security.js 给锁屏凭证页地址；initUpgrade 给服务端校验过的 data-sgx-upgrade-return）。
+ *   security.js 给锁屏凭证页地址；lock-guard.js 的 initUpgrade 按需加载本模块后给服务端校验过的 data-sgx-upgrade-return）。
  * @param {string} returnPath
  */
 export function openAdminVerify(returnPath) {
@@ -200,17 +190,11 @@ export function openAdminVerify(returnPath) {
         showErr(isEn ? 'Server error' : '服务器错误');
         return;
       }
-      const allow = (ch.allowCredentials || []).map((c) => ({ id: b64urlToBuf(c.id), type: c.type }));
       /* B1-2：用公共函数（隐藏弹层 + 30s 超时 + 4 档错误） */
       let cred;
       try {
         const dlg = document.querySelector('.sgx-upgrade-sheet');
-        cred = await getPasskeyAssertion({
-          challenge: b64urlToBuf(ch.challenge),
-          rpId: ch.rpId,
-          allowCredentials: allow,
-          userVerification: 'required',
-        }, { hideEl: dlg });
+        cred = await getPasskeyAssertion(assertionOptions(ch), { hideEl: dlg });
       } catch (e) {
         /* B1-2：cancelled 和 NotAllowedError 的 nokey 以前不弹错，现在也不弹错；
            InvalidStateError 保持 46fe723 前的通用报错；timeout/failed 用 4 档文案(46fe723) */
@@ -224,17 +208,7 @@ export function openAdminVerify(returnPath) {
         body: JSON.stringify({
           action: 'auth',
           cid: ch.cid,
-          credential: {
-            id: cred.id,
-            rawId: bufToB64url(cred.rawId),
-            type: cred.type,
-            response: {
-              clientDataJSON: bufToB64url(cred.response.clientDataJSON),
-              authenticatorData: bufToB64url(cred.response.authenticatorData),
-              signature: bufToB64url(cred.response.signature),
-              userHandle: cred.response.userHandle ? bufToB64url(cred.response.userHandle) : null,
-            },
-          },
+          credential: assertionToJSON(cred),
         }),
         credentials: 'include',
       });

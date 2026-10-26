@@ -5,7 +5,7 @@
  *   - 会话有效（admin 或 visitor，与主站同一套 verifyLockSession：验签 + exp + epoch）→ 回源取页面，
  *     HTML 加 private, no-store（防锁定后切回标签页看到缓存的旧页面）
  *   - 会话无效：页面 302 到主站锁屏（?lock=1&why=…&return=原地址），/api/* 回 401 JSON（fetch 不跟跳转）
- *   - /api/search：全站搜索，和主站同一个处理（functions/api/search.js）
+ *   - /api/search：全站搜索，和主站同一个处理（路由表 routes.js 里的 /api/search）
  *   - /api/lock-session-check：子站前端切回标签页时问的，网关直接回答（blog 认 204，daymark、curio 认 200 {ok:true}）
  *   - 静态资源后缀（被页面路由顺带覆盖到的 js/css/字体/图片）直接回源，不验会话，与原子站白名单一致
  *
@@ -13,8 +13,9 @@
  * 管理员专属的操作（daymark 记句子、curio 改收藏 / 导入）由子站自己的接口 Worker 再问网关（服务绑定 AuthVerifier）。
  */
 import { verifyLockSession } from '../functions/_kernel/lock-session.js';
-import { stripSessionAttrs } from '../functions/_middleware.js';
-import * as searchApi from '../functions/api/search.js';
+import { stripSessionAttrs } from '../functions/_kernel/html.js';
+import { API_ROUTES } from './routes.js';
+import { json, apiError, NO_STORE } from '../functions/_kernel/http.js';
 
 const MAIN_ORIGIN = 'https://styrigx.com';
 
@@ -53,14 +54,6 @@ export function subsiteFor(hostname) {
   return Object.prototype.hasOwnProperty.call(SUBSITES, hostname) ? SUBSITES[hostname] : null;
 }
 
-const NO_STORE = 'private, no-store';
-
-function json(status, body) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json', 'Cache-Control': NO_STORE },
-  });
-}
 
 /**
  * 302 到主站锁屏。why 让主站知道是子站踢回来的（主站见到 why 不再自动回跳，防两站之间死循环）。
@@ -119,11 +112,11 @@ async function subsitePage(res, role) {
 export async function handleSubsite(request, env, origin) {
   const url = new URL(request.url);
   const conf = subsiteFor(url.hostname);
-  if (!conf) return json(404, { ok: false, error: 'not-found' });
+  if (!conf) return apiError(404, 'not-found');
   const path = url.pathname;
 
   if (path === '/api/lock-session-check') {
-    if (request.method !== 'GET' && request.method !== 'HEAD') return json(405, { ok: false, error: 'method' });
+    if (request.method !== 'GET' && request.method !== 'HEAD') return apiError(405, 'method');
     const sess = await verifyLockSession(request, env);
     if (sess.ok) {
       if (conf.sessionCheckOk === 'no-content') {
@@ -136,8 +129,8 @@ export async function handleSubsite(request, env, origin) {
 
   /* 全站搜索：子站也问网关（functions/api/search.js 自己验会话，再转 styrigx-search-index） */
   if (path === '/api/search') {
-    if (request.method !== 'GET') return json(405, { ok: false, error: 'method' });
-    return searchApi.onRequestGet({ request, env });
+    if (request.method !== 'GET') return apiError(405, 'method');
+    return API_ROUTES.get('/api/search').onRequestGet({ request, env });
   }
 
   if (isStaticAsset(path)) return origin(request);
@@ -147,6 +140,6 @@ export async function handleSubsite(request, env, origin) {
 
   const why = sess.reason === 'no-cookie' ? 'no-cookie' : 'invalid-session';
   console.log('[sgx-subsite] deny site=' + conf.site + ' reason=' + sess.reason);
-  if (path.startsWith('/api/')) return json(401, { ok: false, error: 'unauthorized' });
+  if (path.startsWith('/api/')) return apiError(401, 'unauthorized');
   return lockRedirect(url, why);
 }

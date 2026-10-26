@@ -54,7 +54,7 @@ web/
 | `content/` | 页面入口，中英双语（`content/en/` 是英文） |
 | `layouts/` | 模板；`_default/` 下是各 App 页面，`partials/` 是公共片段 |
 | `assets/css/` | `input.css`、`tw-input.css` 是源文件；`main.css` 由 `scripts/build-css.cjs` 生成 |
-| `assets/js/` | 前端脚本：`lib/` 公共库、`shell/` 系统外壳、`apps/` 各 App、`entries/` 页面入口 |
+| `assets/js/` | 前端脚本：`lib/` 公共库、`auth/` 鉴权与凭证流程、`shell/` 系统外壳、`apps/` 各 App、`entries/` 页面入口（依赖方向见 `docs/architecture.md`，`scripts/check-layers.mjs` 检查） |
 | `static/` | 原样复制：字体、默认头像、`_redirects`、`_headers`、`robots.txt`、`_worker.js`（只把 `*.pages.dev` 跳回 `styrigx.com`） |
 | `data/` | 站点数据 yaml/json（`data/en/` 是英文版） |
 | `public/` | 构建产物，不进仓库 |
@@ -152,6 +152,7 @@ tests/
 | `config/` | `playwright.config.js`、`lighthouserc.json`、`stylelintrc.json` |
 | `web/e2e/` | Playwright 页面测试；`visual/` 下是截图基线 |
 | `web/ui/` | 前端单元测试（`node --test`） |
+| `workers/_harness.mjs`、`_harness.cjs` | 测试台公共件：内存 KV（`makeKV`）、`derToPem`、`genKeyPair`、`postReq`；e2e 的 `edge-harness.cjs` / `cred-e2e-helpers.cjs` 也用 `_harness.cjs`，不再各写一份 |
 | `workers/auth-gateway/` | 鉴权单元测试（`node --test`） |
 | `workers/account/` | 账号 Worker 单元测试（头像、云同步、数字健康、门、路由；会话经网关真实的 verifier.js） |
 | `workers/share/` | 短链 Worker 单元测试（规则、生成 / 打开 / 作废、权限、限速、路由；钥匙和会话经网关真实的 share-issuer.js / verifier.js） |

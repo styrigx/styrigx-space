@@ -13,7 +13,7 @@
 import { issueLockSession, ROLE_ADMIN, ROLE_VISITOR } from '../_kernel/lock-session.js';
 import { BY_TEMPKEY } from '../_kernel/realms.js';
 import { getPepper } from '../_kernel/password.js';
-import { isSameOrigin, originDenied } from '../_kernel/http.js';
+import { isSameOrigin, originDenied, json, apiError, clientIp } from '../_kernel/http.js';
 import {
   normalizeCode,
   findByCode,
@@ -25,13 +25,9 @@ import {
 import { verifyLockSession } from '../_kernel/lock-session.js';
 
 /** @param {object} body @param {number} [status] */
-function json(body, status) {
-  return Response.json(body, { status: status || 200, headers: { 'Cache-Control': 'no-store' } });
-}
-
 /** @param {any} context */
 export async function onRequestGet(context) {
-  return json({ ok: false, error: 'method' }, 405);
+  return apiError(405, 'method');
 }
 
 /** @param {any} context */
@@ -39,7 +35,7 @@ export async function onRequestPost(context) {
   try {
     return await handle(context);
   } catch (e) {
-    return json({ ok: false, error: 'server' }, 500);
+    return apiError(500, 'server');
   }
 }
 
@@ -48,27 +44,27 @@ async function handle(context) {
   const { request, env } = context;
   const kv = env && env.KV_LOCK_DOOR;
   if (!isSameOrigin(request)) return originDenied();
-  if (!kv) return json({ ok: false, error: 'config' }, 500);
+  if (!kv) return apiError(500, 'config');
 
   let body;
   try { body = await request.json(); } catch (e) {
-    return json({ ok: false, error: 'body' }, 400);
+    return apiError(400, 'body');
   }
   const raw = body && body.code;
-  if (!raw || typeof raw !== 'string') return json({ ok: false, error: 'code' }, 400);
+  if (!raw || typeof raw !== 'string') return apiError(400, 'code');
 
   /* 已经是管理员：不降级 */
   const cur = await verifyLockSession(request, env);
-  if (cur.ok && cur.role === ROLE_ADMIN) return json({ ok: true, role: ROLE_ADMIN });
+  if (cur.ok && cur.role === ROLE_ADMIN) return json(200, { ok: true, role: ROLE_ADMIN });
 
-  const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+  const ip = clientIp(request);
   try {
-    if (await isTempkeyLimited(kv, ip)) return json({ ok: false, error: 'cooldown' }, 429);
+    if (await isTempkeyLimited(kv, ip)) return apiError(429, 'cooldown');
   } catch (e) {
-    return json({ ok: false, error: 'server' }, 503);
+    return apiError(503, 'server');
   }
   const pepper = getPepper(env);
-  if (!pepper) return json({ ok: false, error: 'config' }, 503);
+  if (!pepper) return apiError(503, 'config');
 
   const code = normalizeCode(raw);
   let key = null;
@@ -76,22 +72,22 @@ async function handle(context) {
     try {
       key = await findByCode(kv, pepper, code);
     } catch (e) {
-      return json({ ok: false, error: 'server' }, 503);
+      return apiError(503, 'server');
     }
   }
   if (!key) {
     let cooling = false;
     try { cooling = await recordTempkeyFail(kv, ip); } catch (e) {
-      return json({ ok: false, error: 'server' }, 503);
+      return apiError(503, 'server');
     }
-    return json({ ok: false, error: cooling ? 'cooldown' : 'wrong' }, cooling ? 429 : 403);
+    return json(cooling ? 429 : 403, { ok: false, error: cooling ? 'cooldown' : 'wrong' });
   }
   await clearTempkeyFail(kv, ip);
 
   const left = Math.floor((key.expiresAt - Date.now()) / 1000);
   const maxAge = Math.max(60, Math.min(TEMPKEY_SESSION_MAX, left));
-  const headers = new Headers({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+  const headers = new Headers();
   const err = await issueLockSession(env, headers, { by: BY_TEMPKEY, role: ROLE_VISITOR, maxAge: maxAge, tempkeyId: key.id });
-  if (err) return json(err.body, err.status);
-  return new Response(JSON.stringify({ ok: true, role: 'visitor' }), { headers });
+  if (err) return json(err.status, err.body);
+  return json(200, { ok: true, role: 'visitor' }, headers);
 }

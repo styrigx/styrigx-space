@@ -8,9 +8,9 @@
  *
  * 本文件在 lib/ 层：不得 import shell/ 或 apps/（键盘避让 followKeyboard 由调用方传入）。
  */
-import { on } from './events.js';
-import { reducedMotion } from './util.js';
-import { onDialogBackdrop, onDialogCancel, recordDialogClose } from './dialog-behavior.js';
+import { on } from '../lib/events.js';
+import { reducedMotion } from '../lib/util.js';
+import { onDialogBackdrop, onDialogCancel, recordDialogClose } from '../lib/dialog-behavior.js';
 
 /** 方式行图标（28px，与锁屏原来的内联 SVG 相同） */
 export const METHOD_ICONS = {

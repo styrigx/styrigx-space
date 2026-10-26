@@ -13,6 +13,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { gatewayVerifier } from './_auth.mjs';
 import { testLockSession, testAccountSession } from '../auth-gateway/_tickets.mjs';
+import { genKeyPair } from '../_harness.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 const worker = (await import(REPO + 'workers/account/src/index.js')).default;
@@ -22,13 +23,7 @@ const { signAccountSessionTicket } = await import(REPO + 'workers/auth-gateway/f
 const { checkAccountSession } = await import(REPO + 'workers/auth-gateway/src/verifier.js');
 const { KEY_VER, keyOf, avatarKv } = await import(REPO + 'workers/account/src/lib/avatar.js');
 
-function derToPem(der, label) {
-  const b64 = Buffer.from(der).toString('base64');
-  return `-----BEGIN ${label}-----\n${b64.match(/.{1,64}/g).join('\n')}\n-----END ${label}-----\n`;
-}
-const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-const PRIV = derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY');
-const PUB = derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY');
+const { priv: PRIV, pub: PUB } = await genKeyPair();
 
 function makeKv(init = {}) {
   const m = new Map(Object.entries(init));
@@ -100,12 +95,12 @@ test('路由表：只有这三个接口', () => {
   assert.deepEqual([...API_ROUTES.keys()].sort(), ['/api/avatar', '/api/prefs', '/api/wellbeing']);
 });
 
-test('门：没会话 → /api/* 401 {ok:false} no-store；头像文件公开；不认识的头像路径 → 302 锁屏', async () => {
+test('门：没会话 → /api/* 401 {ok:false} private, no-store（_kernel/http.js json()）；头像文件公开；不认识的头像路径 → 302 锁屏', async () => {
   const { env } = setup();
   for (const [m, p] of [['GET', '/api/wellbeing'], ['POST', '/api/wellbeing'], ['GET', '/api/prefs'], ['PUT', '/api/avatar'], ['DELETE', '/api/avatar'], ['GET', '/api/prefs/x']]) {
     const r = await call(new Request('https://styrigx.com' + p, { method: m, headers: { Origin: 'https://styrigx.com' }, body: m === 'GET' ? undefined : '{}' }), env);
     assert.equal(r.status, 401, m + ' ' + p);
-    assert.equal(r.headers.get('Cache-Control'), 'no-store');
+    assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
     assert.equal(r.headers.get('X-SGX-Runtime'), 'account');
     assert.deepEqual(await r.json(), { ok: false });
   }
@@ -162,7 +157,7 @@ test('管理员：未知子路径 404、不支持的方法 405；/api/prefs/ 尾
   const acc = await testAccountSession(PRIV, 'passkey', 0, Date.now());
   const ok = await call(new Request('https://styrigx.com/api/prefs', { headers: { Cookie: ck + '; sgx-account-session=' + acc } }), env);
   assert.equal(ok.status, 200);
-  assert.equal(ok.headers.get('Cache-Control'), 'no-store');
+  assert.equal(ok.headers.get('Cache-Control'), 'private, no-store');
   assert.ok(authKv);
 });
 
@@ -180,8 +175,7 @@ test('会话问网关：网关报错 / 没绑 AUTH / 回了看不懂的东西 �
 
 test('伪造 / 过期的 cookie：网关验签不过 → 401', async () => {
   const { env } = setup();
-  const other = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-  const otherPriv = derToPem(await crypto.subtle.exportKey('pkcs8', other.privateKey), 'PRIVATE KEY');
+  const { priv: otherPriv } = await genKeyPair();
   const forged = 'sgx-lock-session=' + (await testLockSession(otherPriv, 0, 'admin', 'password'));
   const r = await call(new Request('https://styrigx.com/api/wellbeing', { headers: { Cookie: forged } }), env);
   assert.equal(r.status, 401);

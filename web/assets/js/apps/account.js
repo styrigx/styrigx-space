@@ -2,7 +2,7 @@
  * @fileoverview 账号页（/account/，抽屉头的头像圆进入）。
  *
  * - 未登录：账号登录（顶栏页名「登录账号」，2026-10-24 与锁屏同一套界面）—— 头像 + 欢迎回来 + 「登录」；
- *   点「登录」（或头像）→ 与锁屏同一个底部弹层（lib/auth-sheet.js）选 通行密钥 / 密码，设了哪个显示哪个；
+ *   点「登录」（或头像）→ 与锁屏同一个底部弹层（auth/auth-sheet.js）选 通行密钥 / 密码，设了哪个显示哪个；
  *   最下面小字「无法登录？」→ 重置登录页（/account/reset/，apps/account-reset.js）。根凭证不再是登录入口。
  *   密码 → 与锁屏同一个密码弹层；通行密钥 → 同一弹层里的「正在验证」态，失败给 重试 / 使用密码。
  *   成功即得到账号会话（sgx-account-session，400 天，不点退出一直登录；与锁屏会话无关，但进账号页的前提是锁屏已解锁）。
@@ -23,13 +23,13 @@ import { set as sset } from '../lib/storage.js';
 import { on } from '../lib/events.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { tapFeedback, bindSubmitButton } from '../lib/dialog-behavior.js';
-import { bindPwEye, onEnter, focusNoScroll, pwFieldHtml } from '../lib/auth-flow.js';
-import { createMethodSheet, createVerifyDialog, METHOD_ICONS, keepInputFocus } from '../lib/auth-sheet.js';
+import { bindPwEye, onEnter, focusNoScroll, pwFieldHtml } from '../auth/auth-flow.js';
+import { createMethodSheet, createVerifyDialog, METHOD_ICONS, keepInputFocus } from '../auth/auth-sheet.js';
 import { KEY_ACCOUNT } from '../lib/key-names.js';
 import { followKeyboard } from '../shell/vk.js';
 import { ACCOUNT_RETURN_RE, createT, signalAccountName, syncSubText } from './account-common.js';
-import { ACCOUNT_API, postJSON } from '../lib/account-api.js';
-import { accountSubmitters, visibleKinds } from '../lib/account-methods.js';
+import { ACCOUNT_API, postJSON } from '../auth/account-api.js';
+import { accountSubmitters, visibleKinds } from '../auth/account-methods.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -136,7 +136,7 @@ import { accountSubmitters, visibleKinds } from '../lib/account-methods.js';
   /** 当前可用的登录方式（showLogin 时按状态算） @type {string[]} */
   let kinds = visibleKinds(null);
 
-  /* ---------- 登录方式弹层 + 验证弹层（与锁屏同一组件，lib/auth-sheet.js） ---------- */
+  /* ---------- 登录方式弹层 + 验证弹层（与锁屏同一组件，auth/auth-sheet.js） ---------- */
   /** @type {{el: HTMLElement, card: HTMLElement, close: (navigating?: boolean) => void}|null} */
   let sheet = null;
   /** @type {string|null} */ let vState = null;
@@ -162,7 +162,7 @@ import { accountSubmitters, visibleKinds } from '../lib/account-methods.js';
   function openSheet() {
     if (sheet) return;
     tapFeedback();
-    /** @type {import('../lib/auth-sheet.js').MethodOpt[]} */
+    /** @type {import('../auth/auth-sheet.js').MethodOpt[]} */
     const opts = [];
     if (kinds.indexOf('passkey') !== -1) {
       opts.push({ id: 'acct-pk-btn', icon: METHOD_ICONS.passkey, name: en ? 'Passkey' : '通行密钥',

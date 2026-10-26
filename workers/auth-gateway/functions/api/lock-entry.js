@@ -16,6 +16,7 @@
  */
 import { isLockEffectivelyConfigured, isAccountEffectivelyConfigured, hasPasskey } from '../_kernel/layers.js';
 import { REALM_LOCK } from '../_kernel/realms.js';
+import { json } from '../_kernel/http.js';
 
 /**
  * @param {any} context
@@ -24,20 +25,21 @@ export async function onRequestGet(context) {
   const headers = { 'Cache-Control': 'no-store' };
   try {
     const kv = context.env && context.env.KV_LOCK_DOOR;
+    const akv = context.env && context.env.KV_ACCOUNT_LOGIN; /* account-* 键 */
     /* 口径统一：标记或真实凭证任一存在、或读取失败，都算已配置 */
     let effective = true;
     if (kv) {
       try {
-        effective = await isLockEffectivelyConfigured(kv);
+        effective = await isLockEffectivelyConfigured(kv, akv);
       } catch (e) {
         effective = true;
       }
     }
     /* A-2：账号层是否有效配置（fail closed：读取失败按已配置） */
     let accountConfigured = true;
-    if (kv) {
+    if (akv) {
       try {
-        accountConfigured = await isAccountEffectivelyConfigured(kv);
+        accountConfigured = await isAccountEffectivelyConfigured(akv, kv);
       } catch (e) {
         accountConfigured = true;
       }
@@ -45,10 +47,7 @@ export async function onRequestGet(context) {
     if (!effective) {
       /* 确定未配置：显示根凭证入口（A 启动流程保留；resetOnly 不置，
          否则账号已配置、锁屏从未配置的站会丢根凭证代开入口） */
-      return Response.json(
-        { ok: true, passkey: false, password: false, accountConfigured: accountConfigured, resetOnly: false },
-        { headers }
-      );
+      return json(200, { ok: true, passkey: false, password: false, accountConfigured: accountConfigured, resetOnly: false }, headers);
     }
     /* 已配置：返回 granular 状态（默认 true，确认不存在才设 false）。
        标记独有（无真实凭证）时 granular 全否 → 仍按已配置处理，不暴露根凭证入口。 */
@@ -81,15 +80,9 @@ export async function onRequestGet(context) {
       password = true;
       passkey = true;
     }
-    return Response.json(
-      { ok: true, passkey: passkey, password: password, accountConfigured: accountConfigured, resetOnly: resetOnly },
-      { headers }
-    );
+    return json(200, { ok: true, passkey: passkey, password: password, accountConfigured: accountConfigured, resetOnly: resetOnly }, headers);
   } catch (e) {
     /* 外层兜底：同样按已配置处理 */
-    return Response.json(
-      { ok: true, passkey: true, password: true, accountConfigured: true, resetOnly: false },
-      { headers }
-    );
+    return json(200, { ok: true, passkey: true, password: true, accountConfigured: true, resetOnly: false }, headers);
   }
 }

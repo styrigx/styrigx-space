@@ -14,6 +14,8 @@
  * KV 键名：<域>-<对象>[-<附加>][:<编号>]。KV_LOCK_DOOR 与 KV_ACCOUNT_LOGIN 是同一个 namespace，
  * 所以每个键都带域前缀（lock- / account- / root-）。各域的键都列在下面各 REALM_* 的 kv 表里，
  * 代码只引用这里的常量，不手拼键名；不读写任何旧键。
+ * 绑定按域分：lock-* 和 root-* 只经 KV_LOCK_DOOR 读写，account-* 只经 KV_ACCOUNT_LOGIN 读写
+ * （tests/workers/auth-gateway/kv-binding-split.test.mjs 把两个绑定拆成两个只认自己前缀的 KV 来跑核对）。
  *
  * 现有凭证域（签名钥匙只有两套：SGX_LOCK_*、SGX_ACCOUNT_*），每域三张票（见下方 TICKETS 总表）：
  * - lock    LockSessionTicket（锁屏解锁后的 admin / visitor 会话）、LockResetTicket（重置锁屏）、
@@ -23,8 +25,9 @@
  * - root    根凭证（RootKey：SGX_ROOT_KEY）：只用来比对，不签名、不拥有会话；
  *           验过后只签四张 reset / reauth 票（by=root）
  *
- * 本文件是叶子模块：不 import 任何模块，避免循环依赖。
+ * 本文件几乎是叶子模块：只 import 同为叶子的 http.js（错误响应），避免循环依赖。
  */
+import { apiError } from './http.js';
 
 /* 钥匙概念名 */
 export const KEY_ROOT = 'RootKey';
@@ -294,8 +297,5 @@ export function rpConfig(env) {
 
 /** SGX_RP_ID / SGX_ORIGIN 缺失时的统一响应（503，前端据此禁用通行密钥入口） */
 export function rpConfigMissing() {
-  return Response.json(
-    { ok: false, error: 'config', message: 'SGX_RP_ID / SGX_ORIGIN 未配置' },
-    { status: 503 }
-  );
+  return apiError(503, 'config', { message: 'SGX_RP_ID / SGX_ORIGIN 未配置' });
 }

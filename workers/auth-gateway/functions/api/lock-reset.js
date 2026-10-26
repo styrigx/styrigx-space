@@ -1,7 +1,7 @@
 /**
  * 重置锁屏（丢了锁屏凭证时）。
  *
- * 前端「重置登录」（lib/reset-flow.js，锁屏弹层里的「无法登录？」）先交根凭证，服务端决定下一步。
+ * 前端「重置登录」（auth/reset-flow.js，锁屏弹层里的「无法登录？」）先交根凭证，服务端决定下一步。
  *
  * 流程（根凭证优先）：
  * 1. 先输入根凭证，与环境变量比对（不读 KV）。错误按现有认证失败处理。
@@ -35,11 +35,11 @@ import { LOCK_RESET_TICKET, BY_ACCOUNT } from '../_kernel/realms.js';
 import { randB64, verifyAssertion, rpIdHashOf, consumeChallenge, findStoredKey } from '../_kernel/passkey-verify.js';
 import { getPasskeys, PASSKEY_ACCOUNT } from '../_kernel/passkey-store.js';
 import { getPepper, verifyRealmPassword } from '../_kernel/password.js';
-import { recordRootFail, getClientIp } from '../_kernel/root-limit.js';
+import { recordRootFail } from '../_kernel/root-limit.js';
 import { writeRootAudit } from '../_kernel/root-audit.js';
 import { isLayerConfigured, LAYER_ACCOUNT } from '../_kernel/layers.js';
 import { checkLockResetSwitch, claimLockResetSwitch } from '../_kernel/lock-reset-switch.js';
-import { isSameOrigin } from '../_kernel/http.js';
+import { isSameOrigin, json, apiError, clientIp } from '../_kernel/http.js';
 import { looksVisitor } from '../_kernel/lock-session.js';
 import { REALM_LOCK, REALM_ACCOUNT, REALM_ROOT, realmPrivateKey, realmPublicKey, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
 
@@ -55,7 +55,7 @@ export async function onRequestPost(context) {
   try {
     return await handlePost(context);
   } catch (e) {
-    return Response.json({ ok: false, error: 'server' }, { status: 500 });
+    return apiError(500, 'server');
   }
 }
 
@@ -65,31 +65,32 @@ async function handlePost(context) {
   /* B1-9 访客假入口统一 401：访客会话直接返回，不读任何存储，也到不了根凭证比对。
      判断与 lock-password / lock-passkey 共用 _kernel/lock-session.js looksVisitor（六段票）。 */
   if (looksVisitor(request)) {
-    return Response.json({ ok: false, error: 'denied' }, { status: 401 });
+    return apiError(401, 'denied');
   }
   const kv = env && env.KV_LOCK_DOOR;
+  const akv = env && env.KV_ACCOUNT_LOGIN; /* account-* 键：账号是否已设置、账号凭证证明 */
   if (request.method !== 'POST') {
-    return Response.json({ ok: false }, { status: 405 });
+    return json(405, { ok: false });
   }
   if (!isSameOrigin(request)) {
-    return Response.json({ ok: false, error: 'origin' }, { status: 403 });
+    return apiError(403, 'origin');
   }
-  if (!kv) {
-    return Response.json({ ok: false, error: 'config' }, { status: 500 });
+  if (!kv || !akv) {
+    return apiError(500, 'config');
   }
 
   let body;
   try { body = await request.json(); } catch (e) {
-    return Response.json({ ok: false, error: 'body' }, { status: 400 });
+    return apiError(400, 'body');
   }
   const action = (body && body.action) || '';
   let accountCfg = true;
-  try { accountCfg = await isLayerConfigured(kv, LAYER_ACCOUNT); } catch (e) { accountCfg = true; }
+  try { accountCfg = await isLayerConfigured(akv, LAYER_ACCOUNT); } catch (e) { accountCfg = true; }
 
   /* ============ status：始终允许进入第一步（不暴露账号凭证是否配置；
      不读开关；开关只在 verify 根凭证正确后读） ============ */
   if (action === 'status') {
-    return Response.json({
+    return json(200, {
       ok: true,
       available: true,
     });
@@ -102,17 +103,17 @@ async function handlePost(context) {
   const RP_ID = rp.rpId;
   const EXPECT_ORIGIN = rp.origin;
   if (!lockKeysReady || !rootKey) {
-    return Response.json({ ok: false, error: 'config' }, { status: 500 });
+    return apiError(500, 'config');
   }
 
   /* ============ challenge：下发 AccountKey 断言 challenge ============ */
   if (action === 'challenge') {
     if (!accountCfg) {
-      return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
+      return apiError(403, 'not-set');
     }
-    const accountPks = await getPasskeys(kv, PASSKEY_ACCOUNT);
+    const accountPks = await getPasskeys(akv, PASSKEY_ACCOUNT);
     if (accountPks.length === 0) {
-      return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
+      return apiError(403, 'not-set');
     }
     const challenge = randB64(32);
     const cid = randB64(16);
@@ -123,9 +124,9 @@ async function handlePost(context) {
         { expirationTtl: CHALLENGE_TTL }
       );
     } catch (e) {
-      return Response.json({ ok: false, error: 'server' }, { status: 500 });
+      return apiError(500, 'server');
     }
-    return Response.json({
+    return json(200, {
       ok: true,
       cid: cid,
       challenge: challenge,
@@ -136,7 +137,7 @@ async function handlePost(context) {
 
   /* ============ verify：根凭证优先 → 开关 → 账号凭证 ============ */
   if (action === 'verify') {
-    const ip = getClientIp(request);
+    const ip = clientIp(request);
 
     /* fail()：账号凭证错误时记失败计数（与根凭证共用一套限速）；写 KV 出错时返回 503 响应对象 */
     const fail = async function () {
@@ -144,7 +145,7 @@ async function handlePost(context) {
         await recordRootFail(kv, ip);
       } catch (e) {
         await writeRootAudit(kv, ip, false, { path: PURPOSE });
-        return Response.json({ ok: false, error: 'server' }, { status: 503 });
+        return apiError(503, 'server');
       }
       await writeRootAudit(kv, ip, false, { path: PURPOSE });
       return null;
@@ -177,7 +178,7 @@ async function handlePost(context) {
     if (!accountCfg) {
       const failResp = await fail();
       if (failResp) return failResp;
-      return Response.json({ ok: false, error: 'auth' }, { status: 401 });
+      return apiError(401, 'auth');
     }
     const proof = (body && body.accountProof) || null;
     if (!proof) {
@@ -187,13 +188,13 @@ async function handlePost(context) {
       let hasAccountPw = false;
       let hasAccountPk = false;
       try {
-        const r = await kv.get(REALM_ACCOUNT.kv.password, 'json');
+        const r = await akv.get(REALM_ACCOUNT.kv.password, 'json');
         hasAccountPw = !!(r && r.hash);
       } catch (e) {}
       try {
-        hasAccountPk = (await getPasskeys(kv, PASSKEY_ACCOUNT)).length > 0;
+        hasAccountPk = (await getPasskeys(akv, PASSKEY_ACCOUNT)).length > 0;
       } catch (e) {}
-      return Response.json({ ok: true, needAccount: true, passkey: hasAccountPk, password: hasAccountPw });
+      return json(200, { ok: true, needAccount: true, passkey: hasAccountPk, password: hasAccountPw });
     }
     let accountOk = false;
     if (proof.type === 'password') {
@@ -201,51 +202,51 @@ async function handlePost(context) {
       if (!pepper) {
         const failResp = await fail();
         if (failResp) return failResp;
-        return Response.json({ ok: false, error: 'config' }, { status: 503 });
+        return apiError(503, 'config');
       }
       try {
-        const vr = await verifyRealmPassword(kv, REALM_ACCOUNT, pepper, String(proof.password || ''));
+        const vr = await verifyRealmPassword(akv, REALM_ACCOUNT, pepper, String(proof.password || ''));
         accountOk = vr.set && vr.ok;
       } catch (e) {
         const failResp = await fail();
         if (failResp) return failResp;
-        return Response.json({ ok: false, error: 'server' }, { status: 503 });
+        return apiError(503, 'server');
       }
     } else if (proof.type === 'passkey') {
-      accountOk = await verifyAccountPasskeyProof(kv, proof, RP_ID, EXPECT_ORIGIN);
+      accountOk = await verifyAccountPasskeyProof(kv, akv, proof, RP_ID, EXPECT_ORIGIN);
     }
     if (!accountOk) {
       const failResp = await fail();
       if (failResp) return failResp;
-      return Response.json({ ok: false, error: 'auth' }, { status: 401 });
+      return apiError(401, 'auth');
     }
     return await issueLockResetTicket(ip, BY_ACCOUNT, null);
 
     /* 签发 LockResetTicket（sgx-lock-reset，SGX_LOCK_* 签，3 分钟；内部函数） */
     async function issueLockResetTicket(ipAddr, by, auditExtra) {
-      const headers = new Headers({ 'Content-Type': 'application/json' });
+      const headers = new Headers();
       const dErr = await issueTicket(env, headers, LOCK_RESET_TICKET, by);
       if (dErr) {
         await writeRootAudit(kv, ipAddr, false, { path: PURPOSE });
-        return Response.json(dErr.body, { status: dErr.status });
+        return json(dErr.status, dErr.body);
       }
       const auditOk = await writeRootAudit(
         kv, ipAddr, true,
         auditExtra && auditExtra.via === 'switch' ? { path: PURPOSE, via: 'switch' } : { path: PURPOSE }
       );
       if (!auditOk) {
-        return Response.json({ ok: false, error: 'server' }, { status: 503 });
+        return apiError(503, 'server');
       }
-      return new Response(JSON.stringify({ ok: true }), { headers });
+      return json(200, { ok: true }, headers);
     }
 
     /* 验证账号通行密钥 断言（内部函数） */
-    async function verifyAccountPasskeyProof(kvStore, proofObj, rpId, expectOrigin) {
+    async function verifyAccountPasskeyProof(lkv, akvStore, proofObj, rpId, expectOrigin) {
       const cid = proofObj.cid || '';
       const cred = proofObj.credential || {};
-      const chRec = await consumeChallenge(kvStore, CHALLENGE_PREFIX + cid);
+      const chRec = await consumeChallenge(lkv, CHALLENGE_PREFIX + cid); /* lock-reset-challenge:* */
       if (!chRec || chRec.purpose !== PURPOSE || chRec.exp < Date.now()) return false;
-      const accountPks = await getPasskeys(kvStore, PASSKEY_ACCOUNT);
+      const accountPks = await getPasskeys(akvStore, PASSKEY_ACCOUNT);
       const stored = findStoredKey(accountPks, cred.rawId || '');
       if (!stored || !stored.publicKey) return false;
       try {
@@ -268,5 +269,5 @@ async function handlePost(context) {
     }
   }
 
-  return Response.json({ ok: false, error: 'action' }, { status: 400 });
+  return apiError(400, 'action');
 }

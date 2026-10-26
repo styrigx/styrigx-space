@@ -1,5 +1,5 @@
 {{/* 账号 → 重置登录（/account/reset/，PR3）：账号登录页小字「无法登录？」进入，页名「重置登录」只在顶栏。
-   丢了账号凭证时用根凭证验证（lib/reset-flow.js，锁屏弹层里的「无法登录？」是同一个界面）：
+   丢了账号凭证时用根凭证验证（auth/reset-flow.js，锁屏弹层里的「无法登录？」是同一个界面）：
    根凭证通过（/api/root-auth purpose:'account-reset'）→ AccountResetTicket（sgx-account-reset，by=root，3 分钟，不签账号会话）
    → 在重置页重设账号密码 / 通行密钥，设好后正常登录。
    服务端若要求再验账号凭证（needAccount）则显示账号凭证行（账号重置不会出现，锁屏重置才会）。

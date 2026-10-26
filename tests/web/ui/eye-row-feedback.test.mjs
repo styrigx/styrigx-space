@@ -144,11 +144,11 @@ test('眼睛：各处不再内联眼睛 SVG、不再 toggle .off；模板文案�
     assert.ok(src.includes('"eyeHide" (dict "zh" "隐藏密码" "en" "Hide password")'), t + ' eyeHide 应为隐藏密码');
   }
   /* 补眼睛按钮的三个位置都在 */
-  /* PR3：重置登录（锁屏弹层与账号页同一个界面 lib/reset-flow.js）的根凭证框与第二步密码框都走 cred-rows 的 bindPwEye */
-  const rows = read('web/assets/js/lib/cred-rows.js');
+  /* PR3：重置登录（锁屏弹层与账号页同一个界面 auth/reset-flow.js）的根凭证框与第二步密码框都走 cred-rows 的 bindPwEye */
+  const rows = read('web/assets/js/auth/cred-rows.js');
   assert.ok(/export function createRootField[\s\S]*?bindPwEye\(eye, input, o\.en\)/.test(rows), '根凭证框（重置第一步）应有眼睛按钮');
   assert.ok(/eye\.className = 'sgx-pw-eye';\s*bindPwEye\(eye, input, en\)/.test(rows), '第二步展开的账号密码框应有眼睛按钮');
-  assert.ok(read('web/assets/js/shell/lock.js').includes('mountResetFlow'), '锁屏弹层用 lib/reset-flow.js');
+  assert.ok(read('web/assets/js/shell/lock.js').includes('mountResetFlow'), '锁屏弹层用 auth/reset-flow.js');
   assert.ok(read('web/assets/js/shell/upgrade.js').includes('sgx-upgrade-eye'), '访客升级弹层应有眼睛按钮');
 });
 

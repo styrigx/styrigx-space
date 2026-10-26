@@ -14,6 +14,7 @@ import path from 'node:path';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { testLockSession } from './_tickets.mjs';
+import { genKeyPair } from '../_harness.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
@@ -24,13 +25,7 @@ const { _resetSecretCache } = await import(REPO + '/workers/auth-gateway/src/sec
 const { parseHeaders, headersFor, matchPattern } = await import(REPO + '/scripts/lib/pages-headers.mjs');
 const gen = await import(REPO + '/scripts/gen-csp.mjs');
 
-function derToPem(der, label) {
-  const b64 = Buffer.from(der).toString('base64');
-  return `-----BEGIN ${label}-----\n${b64.match(/.{1,64}/g).join('\n')}\n-----END ${label}-----\n`;
-}
-const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-const PRIV = derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY');
-const PUB = derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY');
+const { priv: PRIV, pub: PUB } = await genKeyPair();
 
 function makeKv() {
   const m = new Map();
@@ -212,7 +207,7 @@ test('网关·Pages 自己的跳转（补尾斜杠 308）经网关交回时也�
   }, { status: 308, headers: { Location: '/settings/' } });
 });
 
-test('网关·/api/*：401、404、访客调管理员接口 403 都带安全头，Cache-Control 不变', async () => {
+test('网关·/api/*：401、404、访客调管理员接口 403 都带安全头，Cache-Control 不被安全头改掉', async () => {
   _resetSecretCache();
   const visitor = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'visitor'));
   const r1 = await worker.fetch(new Request('https://styrigx.com/api/lock-session-check'), baseEnv(), CTX);
@@ -220,7 +215,8 @@ test('网关·/api/*：401、404、访客调管理员接口 403 都带安全头�
   assertMainHeaders(r1, '401');
   const r2 = await worker.fetch(new Request('https://styrigx.com/api/account', { headers: { Cookie: visitor } }), baseEnv(), CTX);
   assert.equal(r2.status, 403);
-  assert.equal(r2.headers.get('Cache-Control'), 'no-store');
+  /* JSON 响应统一由 _kernel/http.js json() 发，默认 private, no-store（以前这一处手写 no-store） */
+  assert.equal(r2.headers.get('Cache-Control'), 'private, no-store');
   assertMainHeaders(r2, '403');
   const admin = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'admin', 'password'));
   const r3 = await worker.fetch(new Request('https://styrigx.com/api/nope', { headers: { Cookie: admin } }), baseEnv(), CTX);

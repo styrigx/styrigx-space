@@ -13,27 +13,23 @@
 import { ROLE_ADMIN } from '../_kernel/lock-session.js';
 import { verifyAccountSession } from '../_kernel/account-session.js';
 import { getPepper } from '../_kernel/password.js';
-import { isSameOrigin, originDenied } from '../_kernel/http.js';
+import { isSameOrigin, originDenied, json, apiError } from '../_kernel/http.js';
 import { listTempkeys, createTempkey, revokeTempkey, durationMs, cleanName, isTempkeyId } from '../_kernel/lock-tempkey.js';
 import { verifyLockSession } from '../_kernel/lock-session.js';
 
 /** @param {object} body @param {number} [status] */
-function json(body, status) {
-  return Response.json(body, { status: status || 200, headers: { 'Cache-Control': 'no-store' } });
-}
-
 /** @param {any} context */
 export async function onRequestPost(context) {
   try {
     return await handle(context);
   } catch (e) {
-    return json({ ok: false, error: 'server' }, 500);
+    return apiError(500, 'server');
   }
 }
 
 /** @param {any} context */
 export async function onRequestGet(context) {
-  return json({ ok: false, error: 'method' }, 405);
+  return apiError(405, 'method');
 }
 
 /** @param {any} context */
@@ -42,14 +38,14 @@ async function handle(context) {
   const kv = env && env.KV_LOCK_DOOR;
   if (!isSameOrigin(request)) return originDenied();
   const sess = await verifyLockSession(request, env);
-  if (!sess.ok || sess.role !== ROLE_ADMIN) return json({ ok: false, error: 'session' }, 401);
+  if (!sess.ok || sess.role !== ROLE_ADMIN) return apiError(401, 'session');
   const acc = await verifyAccountSession(request, env);
-  if (!acc.ok) return json({ ok: false, error: 'account', reason: acc.reason }, 401);
-  if (!kv) return json({ ok: false, error: 'config' }, 500);
+  if (!acc.ok) return apiError(401, 'account', { reason: acc.reason });
+  if (!kv) return apiError(500, 'config');
 
   let body;
   try { body = await request.json(); } catch (e) {
-    return json({ ok: false, error: 'body' }, 400);
+    return apiError(400, 'body');
   }
   const action = (body && body.action) || '';
 
@@ -57,39 +53,39 @@ async function handle(context) {
     try {
       /* 分享短链自动签的钥匙（link，styrigx-share 经 ShareIssuer 签发）不出现在这里，只在短链列表里管 */
       const keys = (await listTempkeys(kv)).filter(function (k) { return !k.link; });
-      return json({ ok: true, keys: keys });
+      return json(200, { ok: true, keys: keys });
     } catch (e) {
-      return json({ ok: false, error: 'server' }, 503);
+      return apiError(503, 'server');
     }
   }
 
   if (action === 'create') {
     const ms = durationMs({ hours: body.hours, days: body.days });
-    if (!ms) return json({ ok: false, error: 'duration' }, 400);
+    if (!ms) return apiError(400, 'duration');
     const name = cleanName(body.name);
-    if (name === null) return json({ ok: false, error: 'name' }, 400);
+    if (name === null) return apiError(400, 'name');
     const pepper = getPepper(env);
-    if (!pepper) return json({ ok: false, error: 'config' }, 503);
+    if (!pepper) return apiError(503, 'config');
     try {
       const r = await createTempkey(kv, pepper, { name: name, ms: ms });
-      return json({ ok: true, key: r.key, code: r.code });
+      return json(200, { ok: true, key: r.key, code: r.code });
     } catch (e) {
-      if (e && e.message === 'full') return json({ ok: false, error: 'full' }, 409);
-      return json({ ok: false, error: 'server' }, 503);
+      if (e && e.message === 'full') return apiError(409, 'full');
+      return apiError(503, 'server');
     }
   }
 
   if (action === 'revoke') {
     const id = body.id;
-    if (!isTempkeyId(id)) return json({ ok: false, error: 'params' }, 400);
+    if (!isTempkeyId(id)) return apiError(400, 'params');
     try {
       const ok = await revokeTempkey(kv, id);
-      if (!ok) return json({ ok: false, error: 'not-found' }, 404);
-      return json({ ok: true });
+      if (!ok) return apiError(404, 'not-found');
+      return json(200, { ok: true });
     } catch (e) {
-      return json({ ok: false, error: 'server' }, 503);
+      return apiError(503, 'server');
     }
   }
 
-  return json({ ok: false, error: 'action' }, 400);
+  return apiError(400, 'action');
 }

@@ -11,23 +11,13 @@ import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { testLockSession } from './_tickets.mjs';
+import { genKeyPair } from '../_harness.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const { checkLockSession } = await import(REPO + '/workers/auth-gateway/src/verifier.js');
 const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
 
-function derToPem(der, label) {
-  const b64 = Buffer.from(der).toString('base64');
-  return `-----BEGIN ${label}-----\n${b64.match(/.{1,64}/g).join('\n')}\n-----END ${label}-----\n`;
-}
-async function pair() {
-  const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-  return {
-    priv: derToPem(await crypto.subtle.exportKey('pkcs8', kp.privateKey), 'PRIVATE KEY'),
-    pub: derToPem(await crypto.subtle.exportKey('spki', kp.publicKey), 'PUBLIC KEY'),
-  };
-}
-const LOCK = await pair();
+const LOCK = await genKeyPair();
 
 function env({ epoch = '0', kvThrows = false } = {}) {
   return {
@@ -49,7 +39,7 @@ test('checkLockSession：访客/管理员有效，回角色；没有 cookie、�
   }
   assert.deepEqual(await checkLockSession('', env()), { ok: false, reason: 'no-cookie' });
   assert.deepEqual(await checkLockSession(undefined, env()), { ok: false, reason: 'no-cookie' });
-  const other = await pair();
+  const other = await genKeyPair();
   const forged = await testLockSession(other.priv, 0, 'admin', 'password');
   assert.equal((await checkLockSession('sgx-lock-session=' + forged, env())).ok, false);
   const low = await testLockSession(LOCK.priv, 1, 'admin', 'password');

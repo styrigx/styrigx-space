@@ -27,7 +27,7 @@ import {
   reissueLockSessionWithEpoch,
   ROLE_ADMIN,
 } from '../_kernel/lock-session.js';
-import { checkLockManage } from './lock-reauth.js';
+import { checkLockManage } from '../_kernel/lock-manage.js';
 import { issueTicket, reissueTicketWithEpoch } from '../_kernel/tickets.js';
 import { LOCK_REAUTH_TICKET, BY_PASSWORD } from '../_kernel/realms.js';
 import { verifyLockSession, looksVisitor } from '../_kernel/lock-session.js';
@@ -39,7 +39,7 @@ import {
   LAYER_LOCK,
 } from '../_kernel/layers.js';
 import { getPasskeys, PASSKEY_LOCK } from '../_kernel/passkey-store.js';
-import { isSameOrigin, originDenied } from '../_kernel/http.js';
+import { isSameOrigin, originDenied, json, apiError, clientIp } from '../_kernel/http.js';
 import { passwordLimiter } from '../_kernel/password-limit.js';
 
 
@@ -49,7 +49,7 @@ export async function onRequestPost(context) {
     return await handlePost(context);
   } catch (e) {
     /* 任何未捕获异常 → JSON 500，前端可区分「服务器错误」与「网络错误」 */
-    return Response.json({ ok: false, error: 'server' }, { status: 500 });
+    return apiError(500, 'server');
   }
 }
 
@@ -57,26 +57,27 @@ export async function onRequestPost(context) {
 async function handlePost(context) {
   const { request, env } = context;
   const kv = env && env.KV_LOCK_DOOR;
+  const akv = env && env.KV_ACCOUNT_LOGIN; /* account-* 键：账号是否已设置、「两套密码不能相同」 */
 
   if (request.method !== 'POST') {
-    return Response.json({ ok: false, error: 'method' }, { status: 405 });
+    return apiError(405, 'method');
   }
   /* Origin 必须与本站同 host（CSRF 防护），缺失或解析失败一律 403 */
   if (!isSameOrigin(request)) return originDenied();
-  if (!kv) {
-    return Response.json({ ok: false, error: 'config' }, { status: 500 });
+  if (!kv || !akv) {
+    return apiError(500, 'config');
   }
 
   let body;
   try {
     body = await request.json();
   } catch (e) {
-    return Response.json({ ok: false, error: 'body' }, { status: 400 });
+    return apiError(400, 'body');
   }
   const action = (body && body.action) || '';
 
   /* 客户端 IP（限流用） */
-  const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+  const ip = clientIp(request);
   const limiter = passwordLimiter(kv, REALM_LOCK, ip);
   const inCooldown = limiter.inCooldown;
   const recordFail = limiter.recordFail;
@@ -90,51 +91,48 @@ async function handlePost(context) {
     let reauthSess = null;
     if (toReauth) {
       if (looksVisitor(request)) {
-        return Response.json({ ok: false, error: 'wrong' }, { status: 403 });
+        return apiError(403, 'wrong');
       }
       reauthSess = await verifyLockSession(request, env);
       if (!reauthSess.ok || reauthSess.role !== ROLE_ADMIN) {
-        return Response.json({ ok: false, error: 'session' }, { status: 401 });
+        return apiError(401, 'session');
       }
     }
     let cooling = false;
     try {
       cooling = await inCooldown();
     } catch (e) {
-      return Response.json({ ok: false, error: 'server' }, { status: 503 });
+      return apiError(503, 'server');
     }
     if (cooling) {
-      return Response.json({ ok: false, error: 'cooldown' }, { status: 429 });
+      return apiError(429, 'cooldown');
     }
     const password = (body && body.password) || '';
     if (!password || typeof password !== 'string') {
-      return Response.json({ ok: false, error: 'password' }, { status: 400 });
+      return apiError(400, 'password');
     }
     /* 缺 pepper 时 fail closed（拒绝校验，不降级） */
     const pepper = getPepper(env);
     if (!pepper) {
-      return Response.json({ ok: false, error: 'config' }, { status: 503 });
+      return apiError(503, 'config');
     }
     let vr;
     try {
       vr = await verifyRealmPassword(kv, REALM_LOCK, pepper, password);
     } catch (e) {
-      return Response.json({ ok: false, error: 'server' }, { status: 503 });
+      return apiError(503, 'server');
     }
     if (!vr.set) {
-      return Response.json({ ok: false, error: 'not-set' }, { status: 403 });
+      return apiError(403, 'not-set');
     }
     if (!vr.ok) {
       let justCooled = false;
       try {
         justCooled = await recordFail();
       } catch (e) {
-        return Response.json({ ok: false, error: 'server' }, { status: 503 });
+        return apiError(503, 'server');
       }
-      return Response.json(
-        { ok: false, error: justCooled ? 'cooldown' : 'wrong' },
-        { status: justCooled ? 429 : 403 }
-      );
+      return json(justCooled ? 429 : 403, { ok: false, error: justCooled ? 'cooldown' : 'wrong' });
     }
     await clearFail();
     /* 旧 hash 成功验证后重哈希（加 pepper），写回锁屏密码 */
@@ -145,21 +143,18 @@ async function handlePost(context) {
     }
     /* 通过：签发 Ed25519 会话 cookie（fail closed：无密钥/签发失败 → 5xx，
        绝不静默跳过然后返回 ok:true）。密码验证签admin 会话（12 小时） */
-    const headers = new Headers({ 'Content-Type': 'application/json' });
+    const headers = new Headers();
     if (toReauth) {
       /* 再验证：只签 LockReauthTicket（3 分钟），会话不动 */
       const dErr = await issueTicket(env, headers, LOCK_REAUTH_TICKET, BY_PASSWORD);
-      if (dErr) return Response.json(dErr.body, { status: dErr.status });
-      return new Response(JSON.stringify({ ok: true }), { headers });
+      if (dErr) return json(dErr.status, dErr.body);
+      return json(200, { ok: true }, headers);
     }
     const signErr = await issueLockSession(env, headers, { by: BY_PASSWORD, role: ROLE_ADMIN });
     if (signErr) {
-      return new Response(JSON.stringify(signErr.body), {
-        status: signErr.status,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return json(signErr.status, signErr.body);
     }
-    return new Response(JSON.stringify({ ok: true }), { headers });
+    return json(200, { ok: true }, headers);
   }
 
   /* ============ set/change/remove ============
@@ -171,14 +166,14 @@ async function handlePost(context) {
     /* 门禁。sess 保留到 remove/set/change，纪元推进后用它重签当前设备会话。 */
     const gate = await checkLockManage(request, env, { allowReset: action !== 'remove' });
     if (!gate.ok) {
-      return Response.json(gate.body, { status: gate.status });
+      return json(gate.status, gate.body);
     }
     const sessP = gate.sess;
 
     /* 缺 pepper 时 fail closed（set/change；remove 不需要） */
     const pepper = getPepper(env);
     if (action !== 'remove' && !pepper) {
-      return Response.json({ ok: false, error: 'config' }, { status: 503 });
+      return apiError(503, 'config');
     }
 
     /* remove：删除密码，同时清掉失败计数和锁定 */
@@ -194,19 +189,19 @@ async function handlePost(context) {
         if (lockKeys.length === 0) {
           let accountCfg = true;
           try {
-            accountCfg = await isAccountEffectivelyConfigured(kv);
+            accountCfg = await isAccountEffectivelyConfigured(akv, kv);
           } catch (e) {
             accountCfg = true;
           }
           if (!accountCfg) {
-            return Response.json({ ok: false, error: 'last-key' }, { status: 403 });
+            return apiError(403, 'last-key');
           }
         }
       }
       try {
         await kv.delete(passwordKey);
       } catch (e) {
-        return Response.json({ ok: false, error: 'server' }, { status: 503 });
+        return apiError(503, 'server');
       }
       /* 清掉所有输错计数和冷却记录（IP 限速残留） */
       for (const prefix of [REALM_LOCK.kv.passwordFailPrefix, REALM_LOCK.kv.passwordCooldownPrefix]) {
@@ -224,12 +219,12 @@ async function handlePost(context) {
             /* A-2：删光锁屏凭证且账号已配置 → 保留锁屏层标记不清；
                账号未配置时（竞态）清锁屏层标记。 */
             let accountCfg = true;
-            try { accountCfg = await isAccountEffectivelyConfigured(kv); } catch (e) { accountCfg = true; }
+            try { accountCfg = await isAccountEffectivelyConfigured(akv, kv); } catch (e) { accountCfg = true; }
             if (!accountCfg) {
               try {
                 await clearLayerConfigured(kv, LAYER_LOCK);
               } catch (e) {
-                return Response.json({ ok: false, error: 'server' }, { status: 503 });
+                return apiError(503, 'server');
               }
             }
           }
@@ -241,22 +236,22 @@ async function handlePost(context) {
       try {
         newEpoch = await bumpLockEpoch(kv);
       } catch (e) {
-        return Response.json({ ok: false, error: 'server' }, { status: 503 });
+        return apiError(503, 'server');
       }
-      const headers = new Headers({ 'Content-Type': 'application/json' });
+      const headers = new Headers();
       if (newEpoch !== null) {
         await reissueTicketWithEpoch(env, headers, gate.ticket, gate.tv, newEpoch);
         await reissueLockSessionWithEpoch(env, headers, sessP, newEpoch);
       }
-      return new Response(JSON.stringify({ ok: true }), { headers });
+      return json(200, { ok: true }, headers);
     }
 
     const newPassword = (body && (body.password || body.newPassword)) || '';
     if (!newPassword || typeof newPassword !== 'string') {
-      return Response.json({ ok: false, error: 'params' }, { status: 400 });
+      return apiError(400, 'params');
     }
     if (newPassword.length < 8) {
-      return Response.json({ ok: false, error: 'short' }, { status: 400 });
+      return apiError(400, 'short');
     }
 
     /* set：未设置过才能设 */
@@ -264,28 +259,28 @@ async function handlePost(context) {
       let existing = null;
       try { existing = await kv.get(passwordKey, 'json'); } catch (e) {}
       if (existing && existing.hash) {
-        return Response.json({ ok: false, error: 'exists' }, { status: 403 });
+        return apiError(403, 'exists');
       }
     }
 
     /* 锁屏密码不得与账号密码相同（双向检查；账号侧见 /api/account 的 same-as-lock）。 */
     try {
-      const other = await kv.get(REALM_ACCOUNT.kv.password, 'json');
+      const other = await akv.get(REALM_ACCOUNT.kv.password, 'json');
       if (other && other.hash) {
         const cr = await checkPasswordRecord(other, newPassword, pepper);
         if (cr.ok) {
-          return Response.json({ ok: false, error: 'same-as-account' }, { status: 403 });
+          return apiError(403, 'same-as-account');
         }
       }
     } catch (e) {
-      return Response.json({ ok: false, error: 'server' }, { status: 503 });
+      return apiError(503, 'server');
     }
 
     /* 哈希并存储（peppered 标记） */
     try {
       await kv.put(passwordKey, JSON.stringify(await makePasswordRecord(newPassword, pepper)));
     } catch (e) {
-      return Response.json({ ok: false, error: 'server' }, { status: 503 });
+      return apiError(503, 'server');
     }
 
     /* 首次配置锁屏层时标记（随后的纪元推进废止根凭证代开的解锁会话，必修安全项 2） */
@@ -305,15 +300,15 @@ async function handlePost(context) {
     try {
       newEpoch2 = await bumpLockEpoch(kv);
     } catch (e) {
-      return Response.json({ ok: false, error: 'server' }, { status: 503 });
+      return apiError(503, 'server');
     }
-    const headers2 = new Headers({ 'Content-Type': 'application/json' });
+    const headers2 = new Headers();
     if (newEpoch2 !== null) {
       await reissueTicketWithEpoch(env, headers2, gate.ticket, gate.tv, newEpoch2);
       await reissueLockSessionWithEpoch(env, headers2, sessP, newEpoch2);
     }
-    return new Response(JSON.stringify({ ok: true }), { headers: headers2 });
+    return json(200, { ok: true }, headers2);
   }
 
-  return Response.json({ ok: false, error: 'action' }, { status: 400 });
+  return apiError(400, 'action');
 }

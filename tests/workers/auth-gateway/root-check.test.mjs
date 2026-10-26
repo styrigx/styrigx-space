@@ -55,12 +55,19 @@ test('空串 / 只有空白的输入也是比对失败，同样 padTo', async ()
   }
 });
 
-test('比对成功：不调 padTo（清掉本 IP 计数）', async () => {
+test('比对成功：不调 padTo（清掉本 IP 计数：先读、有才删，E7）', async () => {
   const s = setup();
   const r = await run(s, '  ' + ROOT_KEY + '\n');
   assert.equal(r.ok, true);
   assert.equal(s.log.includes('padTo'), false);
-  assert.deepEqual(s.log, ['delete:root-fail']);
+  /* 之前没输错过：没有计数键，不发删除 */
+  assert.deepEqual(s.log, []);
+  /* 之前输错过：照旧删掉本 IP 计数 */
+  const s2 = setup({ 'root-fail:192.0.2.10': JSON.stringify({ count: 2 }) });
+  const r2 = await run(s2, ROOT_KEY);
+  assert.equal(r2.ok, true);
+  assert.deepEqual(s2.log, ['delete:root-fail']);
+  assert.equal(s2.m.has('root-fail:192.0.2.10'), false);
 });
 
 test('本 IP 被锁（429 cooldown）：写审计，不比对、不 padTo', async () => {
