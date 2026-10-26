@@ -1,6 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "styrigx 共用 Renovate 预设：工具保持最新但少跑重复 CI。构建工具与依赖一组（minor/patch CI 全绿后自动合并），Playwright 单独一组（不自动合并，升级要重拍视觉基线），GitHub Actions 单独一组（不自动合并），major 一律在依赖面板里批准。排期按仓库错峰（Asia/Shanghai）：这里的默认值是周一（主站 styrigx-space），子站在自己的 renovate.json 里覆盖 schedule 和 automergeSchedule（curio 周二、daymark 周三、blog 周四）。github-actions manager 这里默认关，免得和 Dependabot 重复开 PR；没有 Dependabot 管 actions 的仓库在自己的 renovate.json 里打开。",
+  "description": "styrigx 共用 Renovate 预设：工具保持最新但少跑重复 CI。构建工具与依赖一组（minor/patch CI 全绿后自动合并），Playwright 单独一组（不自动合并，升级要重拍视觉基线），GitHub Actions 单独一组（不自动合并），major 一律在依赖面板里批准。排期按仓库错峰（Asia/Shanghai）：这里的默认值是周一（主站 styrigx-space），子站在自己的 renovate.json 里覆盖 schedule 和 automergeSchedule（curio 周二、daymark 周三、blog 周四）。Hugo 版本只在 styrigx-space 的 .github/actions/setup-hugo/action.yml 定义（只有主站会出 Hugo PR）；子站引用 styrigx-space 共享 CI action 的固定 tag / 完整 SHA 由下面的 regex manager 单独一组更新（不论子站是否打开 github-actions manager），github-actions manager 和 blog 的 Dependabot 都不管这条引用，免得重复 PR。github-actions manager 这里默认关，免得和 Dependabot 重复开 PR；没有 Dependabot 管 actions 的仓库在自己的 renovate.json 里打开。",
   "extends": ["config:recommended"],
   "timezone": "Asia/Shanghai",
   "schedule": ["* 0-23 * * 1"],
@@ -19,15 +19,19 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Hugo 版本写在 workflow 里（env HUGO_VERSION 或 hugo-version 输入）",
-      "managerFilePatterns": ["/(^|/)\\.github/workflows/[^/]+\\.ya?ml$/"],
-      "matchStrings": [
-        "HUGO_VERSION:\\s*'?(?<currentValue>\\d+\\.\\d+\\.\\d+)'?",
-        "hugo-version:\\s*'(?<currentValue>\\d+\\.\\d+\\.\\d+)'"
-      ],
+      "description": "Hugo 版本：四个仓库只有这一处——styrigx-space 的 .github/actions/setup-hugo/action.yml 里的 HUGO_VERSION（子站通过固定 tag 引用这个 action，跟着 tag 升级）",
+      "managerFilePatterns": ["/(^|/)\\.github/actions/setup-hugo/action\\.ya?ml$/"],
+      "matchStrings": ["HUGO_VERSION:\\s*'(?<currentValue>\\d+\\.\\d+\\.\\d+)'"],
       "depNameTemplate": "gohugoio/hugo",
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "description": "子站引用 styrigx-space 共享 CI（composite action / reusable workflow）的版本：uses: styrigx/styrigx-space/<路径>@vX.Y.Z，或 @<40 位 SHA> # vX.Y.Z（两种写法都认，SHA 和行尾注释一起改）。数据源是 styrigx-space 的 git tag",
+      "managerFilePatterns": ["/(^|/)\\.github/workflows/[^/]+\\.ya?ml$/"],
+      "matchStrings": ["uses:\\s*['\"]?(?<depName>styrigx/styrigx-space)/[^@\\s'\"]+@(?:(?<currentDigest>[0-9a-f]{40})['\"]?\\s+#\\s*)?(?<currentValue>v\\d+\\.\\d+\\.\\d+)"],
+      "datasourceTemplate": "github-tags"
     }
   ],
   "packageRules": [
@@ -59,7 +63,7 @@
       "automerge": false
     },
     {
-      "description": "③a Hugo 版本只归 ① 的 regex manager 管：github-actions manager 也会从 peaceiris/actions-hugo 的 hugo-version 输入里认出 Hugo，不关会对同一行开两个 PR",
+      "description": "③a Hugo 版本只归 ① 的 regex manager 管（setup-hugo/action.yml 的 HUGO_VERSION）：github-actions manager 会从 peaceiris/actions-hugo 的字面 hugo-version 输入里认出 Hugo，留着这条防止哪天又写成字面值时对同一版本开两个 PR",
       "matchManagers": ["github-actions"],
       "matchDepTypes": ["uses-with"],
       "matchPackageNames": ["gohugoio/hugo"],
@@ -69,6 +73,19 @@
       "description": "③b runs-on 的 runner 版本（如 ubuntu-24.04）不自动升级：换 Ubuntu 大版本会改变字体渲染，视觉基线跟着漂，要手动升级并重拍基线",
       "matchManagers": ["github-actions"],
       "matchDepTypes": ["github-runner"],
+      "enabled": false
+    },
+    {
+      "description": "④ styrigx-space 共享 CI 的引用：单独一组（跟 Hugo / npm 分开，一次 PR 改完同一仓库里所有 styrigx-space 引用）。minor / patch 按 ① 的规则 CI 全绿后自动合并（子站 PR 的 CI 会用新 tag 里的 Hugo / Node / Playwright 真跑构建和测试）；major 走下面的面板批准",
+      "matchManagers": ["custom.regex"],
+      "matchDepNames": ["styrigx/styrigx-space"],
+      "groupName": "styrigx-space 共享 CI",
+      "groupSlug": "styrigx-space-ci"
+    },
+    {
+      "description": "④a 同一条 styrigx/styrigx-space 引用只归 ④ 的 regex manager：打开了 github-actions manager 的仓库（space / curio / daymark）里它也会认出这条 uses，不关会重复开 PR",
+      "matchManagers": ["github-actions"],
+      "matchDepNames": ["styrigx/styrigx-space"],
       "enabled": false
     },
     {
