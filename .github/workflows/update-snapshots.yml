@@ -9,8 +9,7 @@ permissions:
   contents: write   # 把新基线推回该分支
   actions: write    # 推完后用 GITHUB_TOKEN 触发 deploy.yml
 env:
-  HUGO_VERSION: '0.168.0'   # 与 deploy.yml 保持一致
-  NODE_VERSION: '22'        # 与 deploy.yml 保持一致
+  NODE_VERSION: '22'        # 与 deploy.yml 保持一致（Hugo 版本只在 .github/actions/setup-hugo 定义）
 jobs:
   update:
     runs-on: ubuntu-24.04
@@ -29,68 +28,17 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ inputs.branch }}
-      - name: Setup Hugo
-        uses: peaceiris/actions-hugo@2752ce1d29631191ea3f27c23495fa06139a5b78 # v3.2.1
-        with:
-          hugo-version: ${{ env.HUGO_VERSION }}
-          extended: true
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - name: Setup Hugo (shared action; same as deploy.yml)
+        uses: ./.github/actions/setup-hugo
+      - name: Setup Node + install dependencies (lockfile)
+        uses: ./.github/actions/setup-node-deps
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-      - run: npm ci
-      - name: Playwright version (package-lock)
-        id: pw
-        # 浏览器缓存的 key：runner 系统 + 镜像（$ImageOS，如 ubuntu24；ubuntu-latest 换大版本时不复用旧镜像下的缓存）+ lockfile 里 @playwright/test 的确切版本（它锁定同版本的 playwright-core，浏览器版本由它决定；升级 Playwright 就换 key）
-        run: |
-          echo "version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
-          echo "image=${ImageOS:-unknown}" >> "$GITHUB_OUTPUT"
-      - name: Cache Playwright browsers
-        id: pw-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - name: Playwright Chromium + CJK fonts (shared action; same as deploy.yml quality)
+        # 视觉回归对比中文截图；字体与浏览器的安装 / 缓存方式和 deploy.yml 同一个 action，基线渲染环境一致
+        uses: ./.github/actions/setup-playwright
         with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.image }}-${{ steps.pw.outputs.version }}
-      - name: Install Playwright browser (cache miss)
-        if: steps.pw-cache.outputs.cache-hit != 'true'
-        run: npx playwright install chromium --with-deps
-      - name: Install Playwright system deps (cache hit)
-        # 浏览器本体来自缓存，系统库每次照装（apt，不在缓存里）
-        if: steps.pw-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
-      - name: CJK font package version
-        id: cjk
-        # 视觉回归对比中文截图；默认中文字体与基线生成环境（Noto Sans CJK）不一致会有 1-2% 像素漂移。
-        # 渲染与以前逐字节一致：版本取 apt 的候选版本（上一步 Playwright 装系统库时已 apt-get update，和以前
-        # 「apt-get update && apt-get install fonts-noto-cjk」装的是同一个版本），缓存的是该版本的 .deb 本身；
-        # 版本一变 key 就变，重新下载。
-        run: |
-          v=$(apt-cache policy fonts-noto-cjk | awk '/Candidate:/{print $2}')
-          if [ -z "$v" ] || [ "$v" = "(none)" ]; then echo "::error::fonts-noto-cjk has no apt candidate"; exit 1; fi
-          echo "version=$v" >> "$GITHUB_OUTPUT"
-      - name: Cache CJK font package (.deb)
-        id: cjk-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/fonts-noto-cjk-deb
-          key: fonts-noto-cjk-${{ runner.os }}-${{ steps.cjk.outputs.version }}
-      - name: Download CJK font package (cache miss)
-        if: steps.cjk-cache.outputs.cache-hit != 'true'
-        env:
-          CJK_VERSION: ${{ steps.cjk.outputs.version }}
-        run: |
-          mkdir -p ~/.cache/fonts-noto-cjk-deb
-          cd ~/.cache/fonts-noto-cjk-deb
-          apt-get download "fonts-noto-cjk=$CJK_VERSION"
-      - name: Install CJK fonts (from the cached .deb)
-        # apt-get install 本地 .deb：依赖解析与以前 apt-get install fonts-noto-cjk 相同（该包没有 Depends / Recommends），
-        # 包文件不再从网上下；装完核对版本，fontconfig 触发器照常重建字体缓存
-        env:
-          CJK_VERSION: ${{ steps.cjk.outputs.version }}
-        run: |
-          sudo apt-get install -y -qq ~/.cache/fonts-noto-cjk-deb/fonts-noto-cjk_*.deb
-          test "$(dpkg-query -W -f='${Version}' fonts-noto-cjk)" = "$CJK_VERSION"
-          fc-list | grep -q "Noto Sans CJK"
+          cjk-fonts: 'true'
       - name: Build CSS
         run: node scripts/build-css.cjs --minify
       - name: Update lock screen baseline (生产构建，锁屏启用；同 deploy.yml 的锁屏截图步骤)

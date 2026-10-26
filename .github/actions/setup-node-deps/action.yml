@@ -1,0 +1,42 @@
+name: styrigx · Setup Node + npm ci
+description: >-
+  actions/setup-node（npm 缓存）+ 按 lockfile npm ci。Node 版本由调用方给（node-version 或 node-version-file，二选一），
+  本 action 不替各仓库决定 Node 版本。install=false 只装 Node 和 npm 缓存，不跑 npm ci。
+inputs:
+  node-version:
+    description: Node 版本（如 '22'）；和 node-version-file 二选一
+    required: false
+    default: ''
+  node-version-file:
+    description: 版本文件（如 .nvmrc）；和 node-version 二选一
+    required: false
+    default: ''
+  install:
+    description: "'true'（默认）跑 npm ci；'false' 只装 Node"
+    required: false
+    default: 'true'
+runs:
+  using: composite
+  steps:
+    - name: Check inputs
+      shell: bash
+      env:
+        NODE_VERSION_IN: ${{ inputs.node-version }}
+        NODE_VERSION_FILE_IN: ${{ inputs.node-version-file }}
+        INSTALL_IN: ${{ inputs.install }}
+      run: |
+        if [ -z "$NODE_VERSION_IN" ] && [ -z "$NODE_VERSION_FILE_IN" ]; then echo "::error::give node-version or node-version-file"; exit 1; fi
+        if [ -n "$NODE_VERSION_IN" ] && [ -n "$NODE_VERSION_FILE_IN" ]; then echo "::error::give only one of node-version / node-version-file"; exit 1; fi
+        case "$INSTALL_IN" in true | false) ;; *) echo "::error::install must be 'true' or 'false'"; exit 1 ;; esac
+
+    - name: Setup Node
+      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      with:
+        node-version: ${{ inputs.node-version }}
+        node-version-file: ${{ inputs.node-version-file }}
+        cache: npm
+
+    - name: Install dependencies (lockfile)
+      if: inputs.install == 'true'
+      shell: bash
+      run: npm ci

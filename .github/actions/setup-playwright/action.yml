@@ -1,0 +1,83 @@
+name: styrigx · Setup Playwright (+ CJK fonts)
+description: >-
+  装 Playwright Chromium：浏览器按 lockfile 里 @playwright/test 的确切版本缓存，系统库每次照装（apt，不进缓存）。
+  cjk-fonts=true 时再装 fonts-noto-cjk（视觉基线用），缓存的是 apt 候选版本的 .deb 本身，渲染与直接 apt-get install 相同。
+  前提：已 checkout、已 npm ci（npx playwright 用的是仓库自己锁定的版本）。
+inputs:
+  cjk-fonts:
+    description: "'true' 时安装 Noto CJK 字体（视觉回归需要）"
+    required: false
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - name: Playwright version (package-lock)
+      id: pw
+      # 缓存 key：runner 系统 + 镜像（$ImageOS，如 ubuntu24；换 Ubuntu 大版本不复用旧镜像下的缓存）+ lockfile 里 @playwright/test 的确切版本
+      #（它锁定同版本的 playwright-core，浏览器版本由它决定；升级 Playwright 就换 key）
+      shell: bash
+      run: |
+        v="$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")"
+        if [ -z "$v" ] || [ "$v" = undefined ]; then echo "::error::@playwright/test not found in package-lock.json"; exit 1; fi
+        echo "version=$v" >> "$GITHUB_OUTPUT"
+        echo "image=${ImageOS:-unknown}" >> "$GITHUB_OUTPUT"
+
+    - name: Cache Playwright browsers
+      id: pw-cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ steps.pw.outputs.image }}-${{ steps.pw.outputs.version }}
+
+    - name: Install Playwright browser (cache miss)
+      if: steps.pw-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: npx playwright install chromium --with-deps
+
+    - name: Install Playwright system deps (cache hit)
+      # 浏览器本体来自缓存，系统库每次照装
+      if: steps.pw-cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: npx playwright install-deps chromium
+
+    - name: CJK font package version
+      id: cjk
+      if: inputs.cjk-fonts == 'true'
+      # 版本取 apt 的候选版本（上一步 Playwright 装系统库时已 apt-get update，和「apt-get update && apt-get install fonts-noto-cjk」
+      # 装的是同一个版本）；版本一变 key 就变，重新下载
+      shell: bash
+      run: |
+        v="$(apt-cache policy fonts-noto-cjk | awk '/Candidate:/{print $2}')"
+        if [ -z "$v" ] || [ "$v" = "(none)" ]; then echo "::error::fonts-noto-cjk has no apt candidate"; exit 1; fi
+        echo "version=$v" >> "$GITHUB_OUTPUT"
+
+    - name: Cache CJK font package (.deb)
+      id: cjk-cache
+      if: inputs.cjk-fonts == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/fonts-noto-cjk-deb
+        key: fonts-noto-cjk-${{ runner.os }}-${{ steps.cjk.outputs.version }}
+
+    - name: Download CJK font package (cache miss)
+      if: inputs.cjk-fonts == 'true' && steps.cjk-cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        CJK_VERSION: ${{ steps.cjk.outputs.version }}
+      run: |
+        mkdir -p ~/.cache/fonts-noto-cjk-deb
+        cd ~/.cache/fonts-noto-cjk-deb
+        apt-get download "fonts-noto-cjk=$CJK_VERSION"
+
+    - name: Install CJK fonts (from the cached .deb)
+      # 本地 .deb：依赖解析与 apt-get install fonts-noto-cjk 相同（该包没有 Depends / Recommends）；装完核对版本，
+      # fontconfig 触发器照常重建字体缓存。fc-list 先落到变量再 grep：composite 的 bash 带 pipefail，管道里 grep -q 提前退出会让 fc-list 吃 SIGPIPE
+      if: inputs.cjk-fonts == 'true'
+      shell: bash
+      env:
+        CJK_VERSION: ${{ steps.cjk.outputs.version }}
+      run: |
+        sudo apt-get install -y -qq ~/.cache/fonts-noto-cjk-deb/fonts-noto-cjk_*.deb
+        test "$(dpkg-query -W -f='${Version}' fonts-noto-cjk)" = "$CJK_VERSION"
+        fonts="$(fc-list)"
+        grep -q "Noto Sans CJK" <<< "$fonts" || { echo "::error::Noto Sans CJK not visible to fontconfig"; exit 1; }

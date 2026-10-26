@@ -1,0 +1,50 @@
+name: styrigx · Setup Hugo
+description: >-
+  装 styrigx 四个仓库（space / curio / daymark / blog）共用的 Hugo。Hugo 版本与 extended 只在本文件定义一次：
+  主站用 ./.github/actions/setup-hugo，子站用 styrigx/styrigx-space/.github/actions/setup-hugo@<固定 tag 或完整 SHA>。
+  另把 HUGO_VERSION 写进 $GITHUB_ENV，后面的步骤（缓存 key、日志）可直接读；它覆盖调用方 workflow / job 级同名 env。
+outputs:
+  version:
+    description: 装好的 Hugo 版本（如 0.168.0）
+    value: ${{ steps.pick.outputs.version }}
+  extended:
+    description: 是否 extended（true / false）
+    value: ${{ steps.pick.outputs.extended }}
+runs:
+  using: composite
+  steps:
+    - name: Pick Hugo version (single source of truth)
+      id: pick
+      shell: bash
+      env:
+        # 唯一的 Hugo 版本定义。Renovate（.github/renovate-preset.json 的 regex manager）只改下面这一行；
+        # extended：四个仓库统一用 extended（2026-10-26 决定）。Hugo 将来取消 extended 包时在这里一起改。
+        HUGO_VERSION: '0.168.0'
+        HUGO_EXTENDED: 'true'
+      run: |
+        echo "version=$HUGO_VERSION" >> "$GITHUB_OUTPUT"
+        echo "extended=$HUGO_EXTENDED" >> "$GITHUB_OUTPUT"
+        echo "HUGO_VERSION=$HUGO_VERSION" >> "$GITHUB_ENV"
+        echo "Hugo $HUGO_VERSION (extended=$HUGO_EXTENDED)"
+
+    - name: Install Hugo
+      uses: peaceiris/actions-hugo@2752ce1d29631191ea3f27c23495fa06139a5b78 # v3.2.1
+      with:
+        hugo-version: ${{ steps.pick.outputs.version }}
+        extended: ${{ steps.pick.outputs.extended }}
+
+    - name: Verify hugo on PATH
+      shell: bash
+      env:
+        WANT_VERSION: ${{ steps.pick.outputs.version }}
+        WANT_EXTENDED: ${{ steps.pick.outputs.extended }}
+      run: |
+        out="$(hugo version)"
+        echo "$out"
+        case "$out" in
+          *"v$WANT_VERSION-"* | *"v$WANT_VERSION+"* | *"v$WANT_VERSION "*) ;;
+          *) echo "::error::hugo on PATH is not v$WANT_VERSION"; exit 1 ;;
+        esac
+        if [ "$WANT_EXTENDED" = true ]; then
+          case "$out" in *+extended*) ;; *) echo "::error::hugo on PATH is not the extended build"; exit 1 ;; esac
+        fi
