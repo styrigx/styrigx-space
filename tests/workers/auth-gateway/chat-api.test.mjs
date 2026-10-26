@@ -261,7 +261,7 @@ const e2e = (over = {}) => env({ CHAT: { fetch: (r) => chatWorker.fetch(r, chatE
 test('端到端：GET 模型列表、POST 流式回答（delta / sources / done）、模型切换、bad_request / bad_model / no_key / rate_limited，和拆分前同一套 API', async () => {
   let r = await getCall(getReq(), e2e());
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { ok: true, default: 'gemini-2.5-flash', models: JSON.parse(MODELS_JSON) });
+  assert.deepEqual(await r.json(), { ok: true, default: 'gemini-2.5-flash', models: JSON.parse(MODELS_JSON), configured: true });
 
   mockFetch(() => sseResponse([gem('Hugo '), gem('v0.168.0', { groundingMetadata: { groundingChunks: [{ web: { uri: 'https://gohugo.io/', title: 'gohugo.io' } }] } })]));
   r = await call(req({ messages: MSGS }), e2e());
