@@ -91,6 +91,8 @@ test.describe('子站读端 = 主站外观（真写端 cookie → 共享外壳 u
       await expect(page.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
       await expect.poll(() => page.evaluate(() => window.__sgxUi || '')).not.toBe('');
       const cookie = await page.evaluate(() => window.__sgxUi);
+      /* 语言：本页明确选了中文（sgx-lang=zh）→ 写端带 lang: 'zh'，子站据此跟随 */
+      expect(Buffer.from(cookie.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8')).toContain('"lang":"zh"');
       if (c.local['sgx-accent']) await expect.poll(() => page.evaluate(() => !!document.getElementById('sgx-accent-roles'))).toBe(true);
       await page.locator('.sgx-tb-nav').click();
       await expect(page.locator('#sgx-drawer')).toHaveAttribute('data-state', 'open');
