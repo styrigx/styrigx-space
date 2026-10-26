@@ -1,10 +1,9 @@
-{{/* 全站内容索引：/files-index.json —— 主站的站点 + 应用，scripts/build-search-index.mjs 读它写进搜索索引 site:space（2026-10-19「我的文件」已删除；2026-10-22 不再带博客文章，博客自己写 site:blog） */}}
+{{/* 全站内容索引：/files-index.json —— 主站的站点 + 应用，scripts/build-search-index.mjs 读它写进搜索索引 site:space（博客文章由博客自己写 site:blog） */}}
 {{ $items := slice }}
 {{ $langs := slice "zh" "en" }}
 {{ $homeOf := dict "zh" "/" "en" "/en/" }}
 
-{{/* ---------- 我的站点 ---------- */}}
-{{/* 2.3.9：只有我编写、只有我有权限的站点（博客等） */}}
+{{/* ---------- 站点（data/sites.yaml、data/en/sites.yaml） ---------- */}}
 {{ range $l := $langs }}
   {{ $sites := cond (eq $l "en") site.Data.en.sites site.Data.sites }}
   {{ range $s := $sites }}
@@ -15,7 +14,7 @@
 {{ end }}
 
 {{/* ---------- 应用 ---------- */}}
-{{/* 系统 App（设置）直接链接；B2-2 删除应用商店；2026-10-21 主站书签下线（迁到子站 珍格 curio.styrigx.com） */}}
+{{/* 系统 App（设置）直接链接；书签在子站 奇趣 curio.styrigx.com */}}
 {{ $apps := slice
   (dict "key" "settings" "zh" "设置"     "en" "Settings"  "zhsub" "主题、语言、壁纸" "ensub" "Theme, language, wallpaper" "path" "settings/")
 }}

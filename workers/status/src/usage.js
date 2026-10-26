@@ -1,5 +1,5 @@
 /**
- * @fileoverview Cloudflare 账号用量（2026-10-22 PR3）：每小时一次（Cron "41 * * * *"，见 wrangler.toml / src/index.js），
+ * @fileoverview Cloudflare 账号用量：每小时一次（Cron "41 * * * *"，见 wrangler.toml / src/index.js），
  * 用一把只读 API token 读 Cloudflare API，存一份最新快照进 D1（表 usage，migrations/0002_usage.sql），
  * /summary 带上它给状态页「用量」卡片。
  *

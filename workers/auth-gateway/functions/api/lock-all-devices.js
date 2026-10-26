@@ -1,5 +1,5 @@
 /**
- * 2.8.0：锁定所有设备 —— 独立 L2 API（从锁屏密码接口的 lockout action 拆出）。
+ * 锁定所有设备 —— 独立 L2 API（从锁屏密码接口的 lockout action 拆出）。
  *
  * 锁屏凭证门内操作：需有效 admin 锁屏会话 + LockReauthTicket。
  *
@@ -11,7 +11,7 @@
  * - 逻辑：KV lock-epoch +1（所有设备旧 cookie 失效），用 Set-Cookie 清当前锁屏会话和 LockReauthTicket。
  * - 返回 {ok:true}。
  *
- * 注意：子站 缓存 epoch 约 60 秒，锁定后最多 60 秒内在 子站 生效。
+ * 注意：lock-epoch 经 KV 边缘缓存（约 60 秒），其他边缘节点上的请求（主站与子站都一样）最多约 60 秒后才看到新纪元。
  * 只接受 POST；外层 try/catch：任何未捕获异常都返回 JSON { ok:false, error:'server' }。
  */
 import { verifyLockSession } from '../_kernel/lock-session.js';

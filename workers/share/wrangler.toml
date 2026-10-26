@@ -49,7 +49,6 @@ entrypoint = "ShareIssuer"
 
 # ---- 数据绑定（正式）----
 # D1 styrigx-share：D1_SHARE_LINK = share_link + share_fail（migrations/0001_share_links.sql）。
-# database_id 由管理员在 Cloudflare 建库后填（清单见 PR 说明）；占位没换掉时 deploy-share-worker 第一步就红，不会部署。
 [[d1_databases]]
 binding = "D1_SHARE_LINK"
 database_name = "styrigx-share"

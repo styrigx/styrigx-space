@@ -43,6 +43,7 @@ web/
 │  ├─ css/
 │  └─ js/
 ├─ static/
+├─ shared/
 ├─ data/
 └─ public/
 ```
@@ -56,6 +57,7 @@ web/
 | `assets/css/` | `input.css`、`tw-input.css` 是源文件；`main.css` 由 `scripts/build-css.cjs` 生成 |
 | `assets/js/` | 前端脚本：`lib/` 公共库、`auth/` 鉴权与凭证流程、`shell/` 系统外壳、`apps/` 各 App、`entries/` 页面入口（依赖方向见 `docs/architecture.md`，`scripts/check-layers.mjs` 检查） |
 | `static/` | 原样复制：字体、默认头像、`_redirects`、`_headers`、`robots.txt`、`_worker.js`（只把 `*.pages.dev` 跳回 `styrigx.com`） |
+| `shared/shell/` | 共享外壳（顶栏、抽屉、搜索层的 CSS / JS / 导航数据）：`scripts/gen-shell.mjs` 从主站源头生成，子站用各自的 `scripts/sync-shell.mjs` 同步过去；CI 跑 `gen-shell.mjs --check` |
 | `data/` | 站点数据 yaml/json（`data/en/` 是英文版） |
 | `public/` | 构建产物，不进仓库 |
 
@@ -64,7 +66,7 @@ web/
 本地预览：
 
 ```bash
-npm install
+npm ci
 npm run build:css
 hugo server -s web
 ```
@@ -86,10 +88,21 @@ workers/
 │  ├─ README.md
 │  ├─ src/
 │  └─ migrations/
+├─ share/
+│  ├─ wrangler.toml
+│  ├─ package.json
+│  ├─ README.md
+│  ├─ src/
+│  └─ migrations/
 ├─ search-index/
 │  ├─ wrangler.toml
 │  ├─ package.json
 │  └─ src/
+├─ status/
+│  ├─ wrangler.toml
+│  ├─ package.json
+│  ├─ src/
+│  └─ migrations/
 ├─ chat/
 │  ├─ wrangler.toml
 │  ├─ package.json
@@ -106,10 +119,11 @@ workers/
 
 | Worker | 目录 | 管什么 |
 |---|---|---|
-| `styrigx-auth-gateway` | `workers/auth-gateway/` | 主站会话和锁屏后端：签发和校验会话、二次验证、账号登录、其余接口；`/api/*` 和全部页面先过它，页面验完回源 Pages 取静态文件；blog、book 子站的页面也由它验会话（`src/subsites.js`）；所有公私钥只在这里（Secrets Store） |
+| `styrigx-auth-gateway` | `workers/auth-gateway/` | 主站会话和锁屏后端：签发和校验会话、二次验证、账号登录、其余接口；`/api/*` 和全部页面先过它，页面验完回源 Pages 取静态文件；blog、daymark、curio 子站的页面也由它验会话（`src/subsites.js`）；所有公私钥只在这里（Secrets Store） |
 | `styrigx-account` | `workers/account/` | 管理员账号名下的数据（2026-10-24 从网关拆出来）：头像（KV `KV_PROFILE`）、设置云同步含主题等外观（`KV_SETTINGS_SYNC`）、数字健康（D1 `styrigx-account` 的 `wb_daily`）。自己挂 `styrigx.com/api/avatar*`、`/api/prefs*`、`/api/wellbeing*`、`/avatar/*` 四条比网关更具体的路由（前端地址不变）；不持钥匙，会话经网关的服务绑定 RPC `AuthVerifier` 验 |
 | `styrigx-share` | `workers/share/` | 分享短链（2026-10-24）：`https://styrigx.com/s/<码>` 和管理员管理接口 `/api/share`，数据在 D1 `styrigx-share`（`D1_SHARE_LINK`）。自己挂 `styrigx.com/s/*`、`/api/share*` 两条比网关更具体的路由；不持钥匙，会话经网关 `AuthVerifier` 验，短链钥匙和访客会话由网关的服务绑定 RPC `ShareIssuer` 签 |
 | `styrigx-search-index` | `workers/search-index/` | 全站搜索：没有公开地址，只经网关的服务绑定 `SEARCH` 进来（`/api/search` 先验会话）；索引在 KV `styrigx-search-index` |
+| `styrigx-status` | `workers/status/` | 站点监测：cron 每分钟检查主站、博客、日刻、奇趣、规则集，每小时读一次 Cloudflare 用量，结果在 D1 `styrigx-status`；没有公开地址，只经网关的服务绑定 `STATUS` 进来（`/api/status` 先验会话，账号 → 服务状态页读它） |
 | `styrigx-chat` | `workers/chat/` | 聊天后端（2026-10-22 从网关拆出来）：没有公开地址，只经网关的服务绑定 `CHAT` 进来（`/api/chat` 先验同源 + 会话 + 只许管理员，回答原样流回）；转给 Gemini（或 OpenAI 兼容接口），不存对话；钥匙 `SGX_CHAT_API_KEY`（Secrets Store）和 `CHAT_*` 变量只在这里 |
 | `styrigx-proxy-rules` | `workers/proxy-rules/` | 规则集加速反代：`proxy-rules.styrigx.com`（自定义域名，不过网关），只放行 MetaCubeX/meta-rules-dat 的 geosite/geoip 规则集（`.mrs` `.yaml` `.list`），上游 jsDelivr → raw.githubusercontent，边缘缓存 24 小时 |
 
@@ -141,7 +155,9 @@ tests/
 ├─ workers/
 │  ├─ auth-gateway/
 │  ├─ account/
+│  ├─ share/
 │  ├─ search-index/
+│  ├─ status/
 │  ├─ chat/
 │  └─ proxy-rules/
 └─ fixtures/
@@ -149,7 +165,7 @@ tests/
 
 | 位置 | 是什么 |
 |---|---|
-| `config/` | `playwright.config.js`、`lighthouserc.json`、`stylelintrc.json` |
+| `config/` | `playwright.config.js`、`pw-local.config.js`（本地挑几个 spec 跑，换端口）、`lighthouserc.json`、`stylelintrc.json` |
 | `web/e2e/` | Playwright 页面测试；`visual/` 下是截图基线 |
 | `web/ui/` | 前端单元测试（`node --test`） |
 | `workers/_harness.mjs`、`_harness.cjs` | 测试台公共件：内存 KV（`makeKV`）、`derToPem`、`genKeyPair`、`postReq`；e2e 的 `edge-harness.cjs` / `cred-e2e-helpers.cjs` 也用 `_harness.cjs`，不再各写一份 |
@@ -157,6 +173,7 @@ tests/
 | `workers/account/` | 账号 Worker 单元测试（头像、云同步、数字健康、门、路由；会话经网关真实的 verifier.js） |
 | `workers/share/` | 短链 Worker 单元测试（规则、生成 / 打开 / 作废、权限、限速、路由；钥匙和会话经网关真实的 share-issuer.js / verifier.js） |
 | `workers/search-index/` | 全站搜索单元测试 |
+| `workers/status/` | 站点监测单元测试（检查、汇总、用量；有 `node:sqlite` 时跑真 SQL） |
 | `workers/chat/` | 聊天 Worker 单元测试（网关那边的门和转发在 `workers/auth-gateway/chat-api.test.mjs`） |
 | `workers/proxy-rules/` | 规则集反代单元测试 |
 | `fixtures/` | 测试用固定数据 |

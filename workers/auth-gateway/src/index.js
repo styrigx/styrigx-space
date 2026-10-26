@@ -16,7 +16,7 @@
  * 回源：生产上发子请求到同一地址（Worker 发往自己路由的子请求不会再进 Worker，直接到 Pages）；
  * passkey-e2e 预览把本文件打包成 Pages 的 _worker.js，这时有 env.ASSETS，直接读静态文件。
  * 不在路由表里的 /api 路径 → 404；方法不支持 → 405。
- * 静态资源（/css/ /js/ /fonts/ /fav/）不挂路由，不过 Worker。
+ * 静态资源（/css/ /js/ /fonts/ /fav/ /images/ 和根目录几张公开图）整站通配路由下也进 Worker，但第一行就原样回源（isMainStaticPassthrough），不验会话。
  *
  * 安全响应头（functions/_kernel/security-headers.js，2026-10-25 PR D）：
  *   - 主站经过网关的每个响应（页面、锁屏首页、所有 302/301、/api/*、500）→ applyMainSiteHeaders
@@ -35,12 +35,12 @@ import { apiError } from '../functions/_kernel/http.js';
    2026-10-21 路由改成整站通配前这些路径不过 Worker；现在进来也原样回源，行为不变。 */
 export const MAIN_STATIC_PREFIXES = ['/css/', '/js/', '/fonts/', '/fav/', '/images/'];
 
-/** @param {URL} url */
 /* 根目录公开文件：路由改成整站通配后它们也进了 Worker（#159），这里同样原样回源、不打标记。
    只放这些：内容公开且固定（robots、标签页图标 ico / svg、分享卡片图 og.png，2026-10-21）；
    sitemap.xml / files-index.json 列出页面地址，仍走网关。 */
 export const MAIN_PUBLIC_ROOT_FILES = new Set(['/robots.txt', '/favicon.ico', '/favicon.svg', '/og.png']);
 
+/** @param {URL} url */
 export function isMainStaticPassthrough(url) {
   if (url.hostname !== 'styrigx.com') return false;
   if (MAIN_PUBLIC_ROOT_FILES.has(url.pathname)) return true;

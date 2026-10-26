@@ -1,6 +1,6 @@
-{{/* 2.8.0 搜索收录整理：sitemap 只收录未登录返回 200 的公开页。
+{{/* sitemap 只收录未登录返回 200 的公开页。
    公开页清单来自 data/public-pages.yaml（与 L1 middleware 的
-   functions/_kernel/public-pages.js 共用数据源，测试保证同步）。
+   workers/auth-gateway/functions/_kernel/public-pages.js 共用数据源，tests/workers/auth-gateway/sitemap.test.mjs 保证同步）。
    锁住的页面（/settings/ 等）一律不进 sitemap。 */}}
 {{ printf "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>" | safeHTML }}
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">

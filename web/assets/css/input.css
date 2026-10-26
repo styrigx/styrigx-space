@@ -1,13 +1,14 @@
-/* ===== 2.4.0 B：级联分层（@layer）
-   顺序：tw < reset < tokens < sgx-base < sgx-components < sgx-utilities < overrides。
-   - Tailwind 3 产物由 scripts/build-css.cjs 单独构建后包进 @layer tw { }（构建时包裹
-     @tailwind 指令会导致 @media 响应式变体被提升到顶层、优先级高于所有层，故后包裹）；
-   - 自定义层全部排在 tw 之后，保持现状“自定义 CSS 写在 @tailwind 之后、同优先级
-     后来者胜”的行为；
-   - 自定义层不用 base/components/utilities 原名：Tailwind v3 会把 @layer base/components/utilities
-     当作自家保留层合并（实测 @layer base 内容被并入导致优先级翻转），故用 sgx- 前缀避让；
-   - overrides 承接原来靠 !important 硬压的规则（!important 已摘掉，靠层顺序获胜）；
-   - 同一层内保持原文件相对顺序，层分配沿文件自上而下只升不降，避免优先级翻转。 ===== */
+/* ===== 级联分层（@layer）
+   顺序：tw < reset < tokens < sgx-base < sgx-components < sgx-utilities < overrides < 不分层。
+   - Tailwind（tw-input.css）由 scripts/build-css.cjs 单独构建，整份产物包进 @layer tw { }，排在所有自定义层之前；
+     Tailwind 4 产物自带的 theme / base / components / utilities 层因此成为 tw 的子层。
+     （两步构建最初是为了 Tailwind 3 会把 @media 变体提升到层外；升到 4 以后是否还必须两步没有重新验证，构建暂不改。）
+   - 自定义层用 sgx- 前缀，不和 Tailwind 的 base / components / utilities 同名；
+   - overrides 承接原来靠 !important 硬压的规则（!important 只留在减弱动效里）；
+   - 同一层内保持原文件相对顺序，层分配沿文件自上而下只升不降，避免优先级翻转。
+   - 不分层的部分（有意为之，优先于所有层）：文件开头的 View Transitions；文件末尾从 #sgx-upgrade-overlay 起的一段——
+     共享外壳的 @shell 区块（scripts/gen-shell.mjs 原样抽给子站，子站里同样不分层），以及必须压过外壳规则的主站规则
+     （主站 layout 层、顶栏三栏、快捷面板、头像裁剪、输入方式）。往这一段加规则前先确认确实要压过所有层。 ===== */
 @layer tw, reset, tokens, sgx-base, sgx-components, sgx-utilities, overrides;
 
 /* ===== 2.4.0 D：跨页 View Transitions =====
@@ -16,7 +17,7 @@
 @view-transition {
   navigation: auto;
 }
-/* 2.8.0 切页流畅度：顶栏在切页时保持不动（共享元素过渡）。2026-10-19 Dock 已删除 */
+/* 切页流畅度：顶栏在切页时保持不动（共享元素过渡） */
 /* 名字挂在真正有尺寸的 .sgx-topbar 上：#site-nav 自身高度是 0（子元素都是 fixed），
    老一些的 Chromium（如三星浏览器 31 / Chromium 148）截不到它的快照，切页时顶栏会消失一帧 */
 .sgx-topbar {
@@ -6955,7 +6956,7 @@
 /* ===== components 层 ===== */
 @layer sgx-components {
   /* 浮动层统一磨砂（替代各处复制粘贴的 blur 写法）：
-     滚动后的顶栏、搜索胶囊、Dock、底部弹层、浮动菜单。
+     滚动后的顶栏、搜索胶囊、底部弹层、浮动菜单。
      isolation 限定混合范围；contain: layout style 把重排/重绘关在元素内（fixed 元素安全）。 */
   #sheet-panel {
     backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
@@ -7003,7 +7004,7 @@
     position: fixed; left: 0; right: 0; bottom: 0; height: 96px; z-index: 30; pointer-events: none;
     background: linear-gradient(to top, var(--m-surface), transparent);
   }
-  /* DeX：底部 Dock 胶囊自带背景/毛玻璃/阴影，不需要全宽的底部渐隐带 */
+  /* DeX：不要全宽的底部渐隐带 */
   .layout-dex #edge-bottom { display: none; }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     #edge-top { background: linear-gradient(to bottom, var(--m-surface), transparent); }
@@ -7056,12 +7057,7 @@
   .clock-night .clock-div { border-color: color-mix(in srgb, var(--sgx-on-night-card) 14%, transparent); }
   .clock-night [id$="-icon"] { color: var(--sgx-tertiary); }
 
-  /* ===== Mobile 悬浮 Dock（竖屏，全站）：居中胶囊，我的文件 / 浏览器 / 设置 ===== */
-
-  /* ===== main 底部留白：避开手机悬浮 Dock（DeX 无底部栏） ===== */
-  /* 2.3.14.10：Dock 只在主页；应用页（body.subpage）底部留白按新胶囊位置重算。
-     胶囊下沉后底部 12px＋安全区、顶部 68px＋安全区：页脚版权行在胶囊顶部上方 21px（与改前一致），
-     主内容在胶囊顶部上方 36px（与改前一致），无 Dock 页面只留 24px/21px 呼吸。 */
+  /* ===== 应用页（body.subpage）main / footer 底部留白：24px / 21px + 安全区（DeX 另见 .layout-dex main） ===== */
   body.subpage main { padding-bottom: calc(24px + env(safe-area-inset-bottom,0px)); }
   body.subpage footer { padding-bottom: calc(21px + env(safe-area-inset-bottom,0px)); }
 
@@ -7325,7 +7321,7 @@
      可在设置页 / 快捷面板手动覆盖（Mobile / Auto / DeX）。
      ============================================================ */
 
-  /* DeX 底部不再有 Dock；页面底部留 16px */
+  /* DeX：页面底部留 16px */
   .layout-dex main { padding-bottom: calc(16px + env(safe-area-inset-bottom,0px)); }
   .layout-dex footer { padding-bottom: calc(16px + env(safe-area-inset-bottom,0px)); }
 
@@ -7357,9 +7353,9 @@
   /* ===== 设置页：DeX 双栏（2.3.14.8，参考 One UI 8.5 平板设置）=====
      左栏 280px：分类菜单（2026-10-20 起没有大标题，页名在顶栏长条里）；
      右栏最宽 720px：顶部选中项名称 ＋ 详情卡片（2026-10-23 PR-D 起两栏整体 1024 居中，见下）。
-     两栏各自独立滚动，底部留出胶囊＋Dock 高度。在 .layout-dex（横屏宽屏）生效。 */
+     两栏各自独立滚动。在 .layout-dex（横屏宽屏）生效。 */
   /* 2.6.0：双栏结构只在 DeX 显示；移动端只显示分类列表。
-     Gray 2026-10-15：DeX 标题区移到两栏上方（.set-dex-head，与我的文件一致），
+     DeX 标题区在两栏上方（.set-dex-head），
      两栏（.set-dex-cols）在按钮行下方，G=8。 */
   .set-dex-cols { display: none; }
   .set-col-l, .set-col-r { display: none; }
@@ -7538,7 +7534,7 @@
   /* B14 fix (Gray 2026-10-15)：锁定屏幕 360 折叠态大标题与顶栏重叠。
      根因：页面内容太短（~878px），最大滚动仅 ~78px，不足以让标题区退出 70%
      （折叠动画需要标题区高度 274px × 70% ≈ 192px 滚动），导致大标题不能完全
-     淡出、小标题不能淡入。给最小高度确保折叠能完成，与我的文件行为一致。
+     淡出、小标题不能淡入。给最小高度确保折叠能完成。
      只影响锁定屏幕页（.lock-page），其他页面不动。 */
   .layout-mobile .lock-page { min-height: calc(100svh + 220px); }
   .lockmgr-pklist { list-style: none; margin: 0; padding: 8px; display: flex; flex-direction: column; gap: 8px; &[hidden] { display: none; } }
@@ -8071,7 +8067,7 @@
   @keyframes sgx85-slidein { from { transform: translateX(48px); opacity: .4; } to { transform: none; opacity: 1; } }
 }
 
-/* ===== utilities 层 ===== */
+/* ===== components 层（续）：服务状态 ===== */
 @layer sgx-components {
   /* ===== 服务状态（账号 → 服务状态 /account/status/；2026-10-22 PR2 起是顶栏「状态」页，2026-10-24 PR4 挪进账号页；
      layouts/_default/account-status.html + apps/account-status.js）。外框是账号页的 .acct-layout（内容列 720），.st-wrap 只是里面的竖排列 =====
@@ -8342,8 +8338,6 @@
   .widget.bg-m-container-lowest, .sgx-account-card {
     background-color: var(--sgx-mat); background-image: none;
   }
-
-  /* DeX 下隐藏手机 Dock（兜底，布局类已控制；原 !important 已摘） */
 
   /* 2026-10-24：触屏上输入框字号不小于 16px（小于 16px 时手机浏览器聚焦会自动放大页面）。只在粗指针设备上生效，电脑上不变 */
   @media (pointer: coarse) {

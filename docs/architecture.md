@@ -5,7 +5,7 @@
 
 ## 模型
 
-space（styrigx.com）相当于 One UI，blog/book 等分站相当于其中的 App。
+space（styrigx.com）相当于 One UI，blog、daymark、curio 等子站相当于其中的 App。
 锁屏属于系统层，管住所有站点。
 
 ## 唯一状态源
@@ -17,11 +17,11 @@ space（styrigx.com）相当于 One UI，blog/book 等分站相当于其中的 A
 
 ## 分层
 
-### L0 内核·凭证：`functions/_kernel/crypto.js`、`functions/_kernel/lock-session.js`
+### L0 内核·凭证：`workers/auth-gateway/functions/_kernel/crypto.js`、`workers/auth-gateway/functions/_kernel/lock-session.js`
 - 负责 Ed25519 签名/验签、会话格式（`epoch.exp.sig`）和 cookie 名。
 - 不碰任何页面逻辑。
 
-### L1 内核·权限：`functions/_middleware.js`
+### L1 内核·权限：`workers/auth-gateway/functions/_middleware.js`
 - **唯一决定是否已解锁的地方**。每个页面请求都在这里判断会话。
 - 首页 `/` 和 `/en/` **不再无条件白名单**：照常返回页面，但把
   已锁/已解锁状态注入 HTML（`<html data-sgx-lock-session="valid|locked">`），
@@ -29,14 +29,14 @@ space（styrigx.com）相当于 One UI，blog/book 等分站相当于其中的 A
 - 受保护页面返回 `Cache-Control: private, no-store`（防浏览器缓存绕过锁屏）。
 - `/api/*` 不走锁屏跳转，未登录返回 401 JSON。
 
-### L2 系统调用：`functions/api/*`
+### L2 系统调用：`workers/auth-gateway/functions/api/*`
 - 解锁：`lock-password`、`lock-passkey`（admin 会话）、`lock-tempkey-unlock`（临时码 → visitor 会话，by=tempkey）。
 - 查询：`lock-session-check`、`lock-credentials`、`account`（账号凭证状态 + 当前账号会话；原 `owner-status` 已删除）。
 - 账号：`account`（账号密码/账号通行密钥登录与管理；进「账号安全」前再验一次，签 3 分钟 AccountReauthTicket `sgx-account-reauth`）。
 - 锁屏凭证页的再验证：`lock-reauth`（LockReauthTicket 状态 / 清票）；由 `lock-passkey`/`lock-password`（`reauth:true`）或 `root-auth`（`purpose:'lock-reauth'`）签 3 分钟 LockReauthTicket `sgx-lock-reauth`（SGX_LOCK_* 签）。
 - 根凭证：`root-auth { key, purpose }`，purpose 只有 `lock-reauth` / `lock-reset` / `account-reauth` / `account-reset`，各签一张 3 分钟短票（by=root），不签任何会话。
 - 签名钥匙只剩两套：账号 `SGX_ACCOUNT_*`、锁屏 `SGX_LOCK_*`（stepup、应用凭证已删除）。
-- 锁定：`lock-now`（清除 `Domain=.styrigx.com` 的 `sgx-lock-session`，blog/book 一起上锁）。
+- 锁定：`lock-now`（清除 `Domain=.styrigx.com` 的 `sgx-lock-session`，子站一起上锁）。
 - 前端改变会话只能通过这些接口。
 
 ### L3 共享库：`assets/js/lib/`（core、util、storage、events、scheduler、i18n、theme 等）
@@ -73,10 +73,10 @@ space（styrigx.com）相当于 One UI，blog/book 等分站相当于其中的 A
   顶栏三栏各一个入口 `entry-tab-<id>.js`：当前栏静态带上，另两栏 `import('./lazy-<id>.js')` 按需取。
   首帧前必须跑的（主题、语言、布局、防闪）仍是 `<head>` 里的同步内联脚本，不进模块。
 
-### L6 外部 App：blog、book
-- 只用公钥验签同一份会话。
+### L6 外部 App：blog、daymark、curio
+- 子站页面由网关（`workers/auth-gateway/src/subsites.js`）验同一份锁屏会话，子站 Pages 不持任何钥匙。
 - 未解锁时 302 到 space 锁屏并带完整 return。
-- book 自己的 D1 绑定保持不动。
+- 子站自己的管理员专属接口（daymark 记句子、curio 改收藏）由子站接口 Worker 经服务绑定 `AuthVerifier` 再问网关。
 
 ## 一致性规则
 

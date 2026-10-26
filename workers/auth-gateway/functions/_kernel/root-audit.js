@@ -1,11 +1,12 @@
 /**
- * 2.11：根凭证审计（所有 root 路径共用一套）。
+ * 根凭证审计（所有 root 路径共用一套）。
  *
  * 从 root-auth.js 抽出，供 /api/root-auth、/api/lock-reset 共用。
  * 每次使用（成功/失败/被限流/假入口）都在 KV 留一条记录：
  *   root-audit:<ts>:<rand> = { ts, ipPrefix, ok, decoy?, via?, path? }
  * 只记时间、IP 前缀和结果，保留 7 天。不对前端暴露 decoy/via 标记。
- * 写入失败返回 false（调用方 fail closed）；无 KV 时也返回 false。
+ * 写入失败或无 KV 时返回 false。成功路径（root-auth、lock-reset 签票前）据此 fail closed：写不进审计就 503、不签票；
+ * 失败 / 限流路径只写不看返回值（本来就拒绝）。
  */
 
 import { REALM_ROOT } from './realms.js';

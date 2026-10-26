@@ -1,8 +1,9 @@
-/* 2.4.0 B：CSS 构建脚本
-   Tailwind v3 会把 @layer 包裹内的 @media 响应式变体提升到顶层（成为 unlayered，
-   优先级高于所有层），破坏分层顺序。因此分两步构建：
-   1. tailwindcss 单独构建 tw-input.css → 临时文件（含被提升的 @media 块）；
-   2. 把整份 Tailwind 产物包进 @layer tw { }（@media 在层内合法），再拼接自定义分层 CSS。
+/* CSS 构建脚本，分两步：
+   1. Tailwind CLI 单独构建 tw-input.css → 临时文件；
+   2. 把整份 Tailwind 产物包进 @layer tw { }，再拼接自定义分层 CSS（input.css）。
+   两步构建最初是因为 Tailwind 3 会把 @layer 里的 @media 变体提升到层外（优先级高于所有层）；
+   现在是 Tailwind 4（产物自带 theme / base / components / utilities 层，包进 tw 后成为其子层），
+   是否还必须两步没有重新验证，先保持不变。
    用法：node scripts/build-css.cjs [--minify] */
 const { execSync } = require('child_process');
 const fs = require('fs');

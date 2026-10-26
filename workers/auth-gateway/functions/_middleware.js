@@ -1,7 +1,7 @@
 /**
- * 2.4.1 三站真实锁屏 - 主站 middleware（SGX_SITE=space）
+ * 主站 middleware（SGX_SITE=space）：主站页面与 /api/* 的锁屏会话关口
  *
- * 1. 域名隔离：生产环境只允许 styrigx.com 访问（保留 P0-3 逻辑）
+ * 1. 域名隔离：生产环境只允许 styrigx.com 访问
  * 2. 会话检查：锁屏会话 cookie（Ed25519 签名，见 _kernel/lock-session.js）
  *    - 有效 → next()
  *    - 无效 → 白名单放行，否则 302 到首页锁屏（?lock=1&return=原地址）
