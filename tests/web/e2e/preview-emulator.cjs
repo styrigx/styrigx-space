@@ -4,7 +4,7 @@
  * 用途：
  * 1. 不碰 Cloudflare 就能在本地跑 SGX_TEST_SUITE=passkey 的 17 条用例；
  * 2. 统计一次运行到底花了多少 KV 操作（读 / 写 / 删 / 列），按「谁发的」（网关 = 预览站上的应用代码；
- *    rest = 测试进程和 CI 步骤经 Cloudflare REST 发的）和键前缀分开。预算闸（scripts/kv-budget.mjs）里的
+ *    rest = 测试进程和 CI 步骤经 Cloudflare REST 发的）和键前缀分开。scripts/kv-budget.mjs 里的
  *    每次运行估算就按这里量出来的数定。
  *
  * 模拟的东西：
@@ -17,8 +17,6 @@
  * - Cloudflare KV REST：/client/v4/accounts/<a>/storage/kv/namespaces/<id>/values/<key>（GET/PUT/DELETE）、/keys（列表，
  *   prefix / cursor / limit）、/bulk/delete（POST，按 Cloudflare 的计费口径每个键算一次删除）。测试进程用
  *   SGX_TEST_CF_API=http://127.0.0.1:<port>/client/v4 指过来。
- * - /client/v4/graphql（POST）：GraphQL Analytics 替身，只回 kvOperationsAdaptiveGroups（--usage-base '{"write":500}' 加在记账数上），
- *   给 scripts/kv-budget.mjs guard 做本地端到端验证。
  * - /__kv/stats（GET）：当前计数；/__kv/stats/reset（POST）清零计数（不清数据）；/__kv/dump（GET）：全部键和过期时间。
  *
  * 运行：
@@ -184,19 +182,8 @@ function assets(req) {
 function cfJson(result, extra) {
   return Response.json(Object.assign({ success: true, errors: [], messages: [], result }, extra || {}));
 }
-/** GraphQL Analytics 的最小替身：kvOperationsAdaptiveGroups 按 actionType 返回「--usage-base + 本进程记账」，给预算闸做端到端验证 */
-const USAGE_BASE = JSON.parse(arg('usage-base', '{}'));
-function cfGraphql() {
-  const groups = ['read', 'write', 'delete', 'list'].map((t) => ({
-    dimensions: { actionType: t },
-    sum: { requests: (USAGE_BASE[t] || 0) + (stats.app[t] || 0) + (stats.rest[t] || 0) },
-  }));
-  return Response.json({ data: { viewer: { accounts: [{ kvOperationsAdaptiveGroups: groups }] } }, errors: null });
-}
-
 async function cfRest(req) {
   const u = new URL(req.url);
-  if (u.pathname === '/client/v4/graphql' && req.method === 'POST') return cfGraphql();
   const m = u.pathname.match(/^\/client\/v4\/accounts\/[^/]+\/storage\/kv\/namespaces\/[^/]+(\/.*)$/);
   if (!m) return new Response('not found', { status: 404 });
   const rest = m[1];
