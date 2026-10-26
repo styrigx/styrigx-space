@@ -62,17 +62,17 @@ function resetJumpTrace(page) {
 
 /* 等决策：回跳（出现子站导航请求）或失败卡，以先出现者为准 */
 async function waitDecision(page, timeout) {
-  const end = Date.now() + (timeout || 8000);
-  while (Date.now() < end) {
-    if (page.__jumps && page.__jumps.length > 0) return 'jump';
+  /* C8：原来是 while + waitForTimeout(50) 的手写轮询；改成 expect.poll 轮询同一个条件（超时语义不变） */
+  let result = null;
+  await expect.poll(async () => {
+    if (page.__jumps && page.__jumps.length > 0) return (result = 'jump');
     const failed = await page.evaluate(() => {
       const el = document.getElementById('sgx-subsite-failure');
       return !!(el && !el.hidden);
     }).catch(() => false);
-    if (failed) return 'failure';
-    await page.waitForTimeout(50);
-  }
-  throw new Error('waitDecision timeout');
+    return (result = failed ? 'failure' : null);
+  }, { message: 'waitDecision timeout', timeout: timeout || 8000, intervals: [50] }).not.toBeNull();
+  return result;
 }
 
 /* 回跳 = location.replace 到同一地址，页面会重载、重载后的 initLock 还会再判一次。
@@ -85,6 +85,8 @@ async function settle(page) {
     /* load 也要限时：回跳若发生在 load 之前（锁屏脚本变轻后 initLock 更早跑完），
        去子站的 204 导航会让本页的 load 事件不再触发，不限时就一直等到用例 30 秒超时。 */
     await page.waitForLoadState('load', { timeout: 1000 }).catch(() => {});
+    // TODO(C8): 这里要的是「300ms 内没有新的主框架导航」（回跳 = location.replace 重载后 initLock 还会再判一次），
+    // 是静默窗口而不是一个可观察的完成状态；锁屏脚本没有「本页判定完、不会再跳」的标记，只有改生产代码（如加 data-ready）才能换成确定条件。
     await page.waitForTimeout(300);
     const m = page.__navCount || 0;
     if (m === n) return;

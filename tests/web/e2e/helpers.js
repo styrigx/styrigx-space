@@ -4,7 +4,16 @@
  *   （天气 API、Google favicon、外部字体/CDN），避免
  *   networkidle 永远等不到，也避免外部波动影响测试和截图。
  *   favicon 返回本地占位图，保证截图稳定。
- * - freezeTime(page)：冻结时间到 2026-10-09 12:00:00+08:00。
+ * - freezeTime(page)：冻结时间到 2026-10-09 12:00:00+08:00（Playwright page.clock.setFixedTime：Date.now / new Date() 恒为该时刻，
+ *   计时器照常走；时刻本身带 +08:00，与运行机时区无关；页面里的显示时区由 playwright.config.js 的 timezoneId 固定为 Asia/Shanghai）。
+ * - 确定性等待（C8：替代固定时长的 waitForTimeout / networkidle）：
+ *   nextFrames(page, n)       等页面再渲染 n 帧（同步事件处理之后的 rAF / 样式更新都已落地）；
+ *   animationsDone(page)      等文档里所有有限时长的动画 / 过渡（含 view transition 伪元素）结束；
+ *   scrolledTo(page, y)       等 scrollTo 落地（含 CSS smooth 滚动），y 省略 = 滚到底；
+ *   flushRequests(page)       请求冲刷屏障：页面再发一个探针请求并等 Playwright 收到它——之前页面发出的请求事件都已投递，
+ *                             用来断言「没有发某个请求」；
+ *   armNavProbe(page)         在当前文档上记 Navigation API 的 navigate 事件（链接 / location.* / pushState 都会同步触发），
+ *                             返回读取函数；用来断言「点了不跳转」。文档已被换掉时读取函数返回 null。
  *
  * - setHomeCards(page, { weather, daymark })：模拟首页天气 / 日刻有没有数据（true = 显示，false = .hidden）。
  *   测试构建（SGX_TEST_NO_WEATHER=1）两张卡都不输出，缺的就在时钟后面补一张同 id 的占位卡（和真卡一样是 .widget，
@@ -47,20 +56,91 @@ async function blockExternalRequests(page) {
   });
 }
 
-/** 冻结时间：2026-10-09 12:00:00+08:00 */
+/** 冻结的时刻（带时区偏移的 ISO 字符串：绝对时刻，不随运行机 TZ 变） */
+const FROZEN_AT = '2026-10-09T12:00:00+08:00';
+
+/**
+ * 冻结时间：2026-10-09 12:00:00+08:00。
+ * C8：原来用 addInitScript 换掉 window.Date；改用 Playwright 自带的 page.clock.setFixedTime——同一时刻、同样「只冻结日期、计时器照常走」，
+ * 另外 Intl.DateTimeFormat#format() 不传参数时也取这个时刻。要在 page.goto 之前调（和以前一样）。
+ * 同一页面不要再 page.clock.install()（需要推进时间的用例直接用 page.clock，见 account-status / lock-reset-pk-busy）。
+ */
 async function freezeTime(page) {
-  await page.addInitScript(() => {
-    const frozen = new Date('2026-10-09T12:00:00+08:00').getTime();
-    const RealDate = Date;
-    // @ts-ignore
-    window.Date = class extends RealDate {
-      constructor(...args) {
-        if (args.length === 0) super(frozen);
-        else super(...args);
-      }
-      static now() { return frozen; }
-    };
+  await page.clock.setFixedTime(new Date(FROZEN_AT));
+}
+
+/** 等页面再渲染 n 帧 @param {import('@playwright/test').Page} page @param {number} [n] */
+async function nextFrames(page, n = 2) {
+  await page.evaluate((k) => new Promise((resolve) => {
+    let i = 0;
+    const step = () => { if (++i >= k) resolve(undefined); else requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  }), n);
+}
+
+/**
+ * 等文档里正在跑的有限时长动画 / 过渡结束（无限循环的、暂停的不等）。结束时可能又起新的（过渡接过渡），最多复查几轮。
+ * @param {import('@playwright/test').Page} page
+ */
+async function animationsDone(page) {
+  await page.evaluate(async () => {
+    for (let round = 0; round < 6; round++) {
+      await new Promise((r) => requestAnimationFrame(() => r(undefined)));
+      const list = document.getAnimations().filter((a) => {
+        if (a.playState !== 'running' && a.playState !== 'pending') return false;
+        const end = a.effect && a.effect.getComputedTiming ? a.effect.getComputedTiming().endTime : 0;
+        return Number.isFinite(Number(end));
+      });
+      if (!list.length) return;
+      await Promise.all(list.map((a) => a.finished.catch(() => {})));
+    }
   });
+}
+
+/**
+ * 等 window 滚动落地：y 给了就等 scrollY 到 min(y, 最大可滚)，没给就等滚到底（±1px）。
+ * @param {import('@playwright/test').Page} page @param {number} [y]
+ */
+async function scrolledTo(page, y) {
+  await page.waitForFunction((target) => {
+    const se = document.scrollingElement || document.documentElement;
+    const max = Math.max(0, se.scrollHeight - window.innerHeight);
+    const want = target == null ? max : Math.min(target, max);
+    return Math.abs(window.scrollY - want) <= 1;
+  }, y == null ? null : y);
+  /* 滚动事件按帧派发：再等一帧，scroll 监听（顶栏等）跑完 */
+  await nextFrames(page, 1);
+}
+
+let barrierSeq = 0;
+/**
+ * 请求冲刷屏障：页面发一个同源探针请求（本函数自己 fulfill 204），等 Playwright 收到它的 request 事件。
+ * 页面里先发出的请求，request 事件按发出顺序先投递——之后再看 page.on('request') 记下的东西就不会漏掉「已经发了但还没投递」的。
+ * @param {import('@playwright/test').Page} page
+ */
+async function flushRequests(page) {
+  const url = new URL('/__c8-barrier__/' + (++barrierSeq), page.url()).href;
+  await page.route(url, (r) => r.fulfill({ status: 204, body: '' }), { times: 1 });
+  const seen = page.waitForRequest(url);
+  await page.evaluate((u) => { fetch(u, { cache: 'no-store' }).catch(() => {}); }, url);
+  await seen;
+}
+
+/**
+ * 在当前文档上记 navigate 事件（Navigation API；链接点击、location.assign/replace/href、history.pushState/replaceState 都会同步派发）。
+ * @param {import('@playwright/test').Page} page
+ * @returns {Promise<() => Promise<string[]|null>>} 读取函数：本文档上记到的导航（[] = 没有）；文档已换（整页导航过）返回 null
+ */
+async function armNavProbe(page) {
+  await page.evaluate(() => {
+    const w = /** @type {any} */ (window);
+    w.__c8navs = [];
+    if (w.navigation) w.navigation.addEventListener('navigate', (/** @type {any} */ e) => w.__c8navs.push(e.navigationType + ' ' + e.destination.url));
+  });
+  return () => page.evaluate(() => {
+    const w = /** @type {any} */ (window);
+    return Array.isArray(w.__c8navs) ? w.__c8navs.slice() : null;
+  }).catch(() => null);
 }
 
 /** 首页天气 / 日刻卡显隐（见文件头） */
@@ -85,4 +165,4 @@ async function setHomeCards(page, { weather, daymark }) {
   }, [!!weather, !!daymark]);
 }
 
-module.exports = { blockExternalRequests, freezeTime, setHomeCards, expect };
+module.exports = { blockExternalRequests, freezeTime, setHomeCards, nextFrames, animationsDone, scrolledTo, flushRequests, armNavProbe, expect };

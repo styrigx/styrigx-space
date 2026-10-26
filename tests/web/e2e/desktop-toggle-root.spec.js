@@ -33,6 +33,26 @@ function trackDocs(page) {
   return docs;
 }
 
+/**
+ * 落定：停在一份已经加载完的主页文档上，它的历史条目不带 sgxRoot。
+ * navhistory.js 的 healRoot() 在模块执行时同步判断（load 之前），条目不带 sgxRoot 就什么都不做；
+ * 所以这份文档 readyState=complete 且没有 sgxRoot 时，不会再有 location.replace（不会再多请求文档）。
+ * @param {any} s homeState() 的结果
+ * @param {string} [navType] 要求的导航类型（跨文档换成真正主页请求后是 'navigate'）
+ */
+function settledHome(s, navType) {
+  return !!s && s.complete && s.home && !(s.state && s.state.sgxRoot) && (!navType || s.navType === navType);
+}
+
+/** 记本文档上 history 被 replace / location.replace 的次数（Navigation API navigate 事件，同步派发） */
+async function armReplaceProbe(page) {
+  await page.evaluate(() => {
+    const w = /** @type {any} */ (window);
+    w.__c8replace = 0;
+    if (w.navigation) w.navigation.addEventListener('navigate', (/** @type {any} */ e) => { if (e.navigationType === 'replace') w.__c8replace++; });
+  });
+}
+
 /** 读当前页状态；切页中途（执行上下文被销毁）返回 null，交给 expect.poll 重试 */
 async function homeState(page) {
   try {
@@ -42,6 +62,7 @@ async function homeState(page) {
       navType: performance.getEntriesByType('navigation')[0].type,
       len: history.length,
       home: !!document.body && !document.body.classList.contains('subpage'),
+      complete: document.readyState === 'complete',
     }));
   } catch (e) {
     return null;
@@ -71,7 +92,8 @@ test.describe('桌面/移动版切换：主页历史的原始请求地址必须�
     /* 再系统返回：回到插入的主页历史（Chromium 可能按同文档 popstate 或跨文档加载处理，两条路都要治好） */
     await page.goBack();
     await expect.poll(() => homeState(page).then((s) => s && s.home && s.navType)).toBe('navigate');
-    await page.waitForTimeout(600);
+    /* C8：原来固定等 600ms 看会不会再重载；改成等「落定」（见 settledHome） */
+    await expect.poll(() => homeState(page).then((s) => settledHome(s, 'navigate'))).toBe(true);
 
     const s = await homeState(page);
     expect(s.path).toBe('/');
@@ -94,7 +116,7 @@ test.describe('桌面/移动版切换：主页历史的原始请求地址必须�
     await page.goBack();
     await page.waitForURL((u) => u.pathname === '/');
     await expect.poll(() => homeState(page).then((s) => s && s.home)).toBe(true);
-    await page.waitForTimeout(600);
+    await expect.poll(() => homeState(page).then((s) => settledHome(s, 'navigate'))).toBe(true);
 
     const s = await homeState(page);
     expect(s.path).toBe('/');
@@ -110,17 +132,20 @@ test.describe('桌面/移动版切换：主页历史的原始请求地址必须�
     await expect.poll(() => page.evaluate(() => history.state && history.state.sgxHere)).toBe(1);
     await page.goBack();
     await page.waitForURL((u) => u.pathname === '/');
-    await page.waitForTimeout(600);
+    await expect.poll(() => homeState(page).then((s) => settledHome(s, 'navigate'))).toBe(true);
 
     /* 站内从顶栏三栏的「设置」进设置（2026-10-24 起页内切换：同一个文档 pushState），再系统返回：回到主页（同一文档 popstate），一份文档都不请求 */
     await page.click('.sgx-tb-tab[data-tab="settings"]');
     await page.waitForURL((u) => u.pathname === '/settings/');
     await expect(page.locator('.sgx-tb-tab[data-tab="settings"]')).toHaveAttribute('aria-current', 'page');
     docs.length = 0;
+    await armReplaceProbe(page);
     await page.goBack();
     await page.waitForURL((u) => u.pathname === '/');
     await expect(page.locator('.sgx-tb-tab[data-tab="home"]')).toHaveAttribute('aria-current', 'page');
-    await page.waitForTimeout(800);
+    /* 同一文档 popstate：healRoot 和页内切换的 popstate 监听在同一次派发里同步跑完（aria-current 已换 = 派发已结束）。
+       要是 healRoot 发起了 location.replace，navigate(replace) 事件此时已记下；文档也还是同一份 */
+    expect(await page.evaluate(() => /** @type {any} */ (window).__c8replace), '同一文档退回不再 location.replace').toBe(0);
 
     const s = await homeState(page);
     expect(s.state && s.state.sgxRoot).toBeFalsy();

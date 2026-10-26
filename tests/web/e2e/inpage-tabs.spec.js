@@ -11,7 +11,7 @@
  * 运行：npx playwright test --config=tests/config/playwright.config.js inpage-tabs.spec.js
  */
 const { test } = require('@playwright/test');
-const { blockExternalRequests, freezeTime, expect } = require('./helpers');
+const { blockExternalRequests, freezeTime, animationsDone, flushRequests, expect } = require('./helpers');
 
 test.use({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true });
 
@@ -32,6 +32,8 @@ async function setup(page, o = {}) {
   await blockExternalRequests(page);
   await freezeTime(page);
   await page.addInitScript((l) => { try { localStorage.setItem('sgx-lang', l); } catch (e) {} }, o.lang || 'zh');
+  /* settle() 读 Resource Timing：调大缓冲，免得资源多的页面把预取那几条挤掉 */
+  await page.addInitScript(() => { try { performance.setResourceTimingBufferSize(1000); } catch (e) {} });
   await page.route('**/api/**', (r) => r.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false}' }));
   if (o.admin) {
     /* 网关给管理员的页面在 <html> 上注入 data-sgx-lock-session="valid" data-sgx-role="admin"：三栏的 HTML（整页和后台取的）都改 */
@@ -46,8 +48,24 @@ async function setup(page, o = {}) {
 /** 页面上打一个标记：整页导航后就没了 */
 const mark = (page) => page.evaluate(() => { /** @type {any} */ (window).__sameDoc = 1; });
 const sameDoc = (page) => page.evaluate(() => /** @type {any} */ (window).__sameDoc === 1);
-/** 等预取完（另外两栏都在缓存里）：没有直接的钩子，等网络空闲 */
-const settle = (page) => page.waitForLoadState('networkidle');
+/**
+ * 等预取完（另外两栏都取回来了）。C8：原来等 networkidle；改成等具体的东西——
+ * 本文档的 Resource Timing 里，另外两栏的 HTML（inpage-tabs.js load()：fetch 栏地址）和它们的按需模块（/js/sgx/lazy-<id>-<hash>.js）都已收完。
+ * 取失败（500 / 404）也算「取过了」，和原来 networkidle 的语义一致。
+ */
+const settle = async (page) => {
+  await page.waitForLoadState('load');
+  await page.waitForFunction(() => {
+    const others = Array.from(document.querySelectorAll('.sgx-tb-tabs a.sgx-tb-tab:not([aria-current="page"])'));
+    if (!others.length) return false;
+    const done = performance.getEntriesByType('resource').filter((e) => /** @type {PerformanceResourceTiming} */ (e).responseEnd > 0).map((e) => new URL(e.name).pathname);
+    return others.every((a) => {
+      const id = a.getAttribute('data-tab') || '';
+      const path = new URL(/** @type {HTMLAnchorElement} */ (a).href).pathname;
+      return done.includes(path) && done.some((p) => p.startsWith('/js/sgx/lazy-' + id + '-') && p.endsWith('.js'));
+    });
+  });
+};
 
 /** @param {import('@playwright/test').Page} page @param {string} id */
 async function expectTab(page, id, title, path) {
@@ -161,6 +179,8 @@ async function swipe(page, x0, y0, x1, y1, ms = 200, steps = 8) {
   const pt = (x, y) => [{ x, y, id: 1, radiusX: 4, radiusY: 4, force: 1 }];
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pt(x0, y0) });
   for (let i = 1; i <= steps; i++) {
+    // TODO(C8): 这是手势节奏（touchMove 之间的真实间隔，决定滑动时长 / 速度，tab-swipe.js 按 Date.now() 判 MAX_MS），不是等某个状态；
+    // 没有可替代的条件，保留。
     await page.waitForTimeout(ms / steps);
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pt(x0 + ((x1 - x0) * i) / steps, y0 + ((y1 - y0) * i) / steps) });
   }
@@ -322,7 +342,8 @@ test('反复切换不泄漏：window / document 监听数不涨，计时器不�
       await page.click(`.sgx-tb-tab[data-tab="${id}"]`);
       await expect(page.locator(`.sgx-tb-tab[data-tab="${id}"]`)).toHaveAttribute('aria-current', 'page');
     }
-    await page.waitForTimeout(250);
+    /* C8：原来固定等 250ms；改成等切栏的 view transition / 过渡动画都结束（deactivate / destroy 在这之前已跑完） */
+    await animationsDone(page);
   };
   const snap = () => page.evaluate(() => {
     const w = /** @type {any} */ (window);
@@ -357,7 +378,9 @@ test('云同步：管理员页内切换不重复 GET /api/prefs（core 只初始
       await expect(page.locator(`.sgx-tb-tab[data-tab="${id}"]`)).toHaveAttribute('aria-current', 'page');
     }
   }
-  await page.waitForTimeout(500);
+  /* C8：原来固定等 500ms；改成等过渡结束 + 冲刷请求事件（之后还没记到的文档 / prefs 请求就是没发） */
+  await animationsDone(page);
+  await flushRequests(page);
   expect(await sameDoc(page), 'admin 会话下也是页内切换').toBe(true);
   expect(docs).toEqual([]);
   expect(gets).toBe(1);
@@ -393,13 +416,17 @@ test('取不到能用的页面（服务器出错）→ 整页导航；连点只�
   await settle(page);
   await mark(page);
   docs.length = 0;
+  /* 点聊天时它还没取到（预取那次 500）→ 当场再取一次；等这次取的结果回来，就能看它会不会在已经落到设置之后把页面带走 */
+  const chatRefetch = page.waitForResponse((r) => new URL(r.url()).pathname === '/chat/' && r.request().resourceType() === 'fetch');
   /* 连点：聊天（取不到）→ 设置 → 主页 → 设置：最后落在设置，同一文档 */
   await page.evaluate(() => {
     const t = (id) => /** @type {HTMLElement} */ (document.querySelector(`.sgx-tb-tab[data-tab="${id}"]`)).click();
     t('chat'); t('settings'); t('home'); t('settings');
   });
   await expectTab(page, 'settings', '设置 | Styrigx', '/settings/');
-  await page.waitForTimeout(600);
+  /* C8：原来固定等 600ms；改成等聊天那次重取的响应收完，再等过渡结束 */
+  await (await chatRefetch).finished();
+  await animationsDone(page);
   await expectTab(page, 'settings', '设置 | Styrigx', '/settings/');
   expect(await sameDoc(page)).toBe(true);
   expect(docs).toEqual([]);
@@ -502,7 +529,8 @@ test('部署竞态：入口的共享 chunk 404（旧 HTML）→ 自动刷新一�
     return r.fulfill({ response: res, body });
   });
   await page.goto('/settings/theme/');
-  await page.waitForLoadState('networkidle');
+  /* C8：networkidle → 等自动刷新出来的那份文档加载完（baseof 的 error 处理调 location.reload → 导航类型 reload） */
+  await expect.poll(() => page.evaluate(() => document.readyState === 'complete' && performance.getEntriesByType('navigation')[0].type).catch(() => null)).toBe('reload');
   expect(core).not.toBe('');
   expect(docs).toEqual(['/settings/theme/', '/settings/theme/']);
   /* 刷新后的页面脚本正常：core 跑过（清掉标记）、页面模块挂上 */
@@ -513,8 +541,9 @@ test('部署竞态：入口的共享 chunk 404（旧 HTML）→ 自动刷新一�
   failDocs = 1e9;
   docs.length = 0;
   await page.goto('/settings/about/');
-  await page.waitForTimeout(1500);
-  await page.waitForLoadState('networkidle');
+  /* C8：原来固定等 1500ms + networkidle；改成等刷新后的那份文档加载完。
+     模块图加载失败的 error 事件在 load 之前派发，所以 load 完时「已经重试过一次、不再刷新」的判断已经做完 */
+  await expect.poll(() => page.evaluate(() => document.readyState === 'complete' && performance.getEntriesByType('navigation')[0].type).catch(() => null)).toBe('reload');
   expect(docs).toEqual(['/settings/about/', '/settings/about/']);
   expect(await page.evaluate(() => sessionStorage.getItem('sgx-js-retry'))).toBe('/settings/about/');
   await expect(page.locator('#sgx-main')).toBeVisible();
@@ -529,7 +558,9 @@ test('视觉：页内切过去的栏和直接打开的同一栏逐像素一致�
   for (const [id, path] of [['chat', '/chat/'], ['settings', '/settings/'], ['home', '/']]) {
     await page.goto(path);
     await settle(page);
-    await page.waitForTimeout(300);
+    /* C8：原来固定等 300ms；改成等字体就绪 + 动画结束 */
+    await page.evaluate(() => document.fonts.ready.then(() => undefined));
+    await animationsDone(page);
     direct[id] = await shot();
   }
   /* 从主页（刚直接打开的那份）切到聊天、设置，再切回主页 */
@@ -538,7 +569,8 @@ test('视觉：页内切过去的栏和直接打开的同一栏逐像素一致�
     await expect(page.locator(`.sgx-tb-tab[data-tab="${id}"]`)).toHaveAttribute('aria-current', 'page');
     await page.mouse.move(0, 0);
     await page.evaluate(() => /** @type {HTMLElement} */ (document.activeElement).blur());
-    await page.waitForTimeout(400);
+    /* C8：原来固定等 400ms；改成等切栏 view transition 和 hover / focus 过渡结束 */
+    await animationsDone(page);
     const got = await shot();
     expect(got.equals(direct[id]), id + '：页内切过去的和直接打开的应逐像素一致').toBe(true);
   }

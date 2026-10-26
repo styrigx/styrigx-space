@@ -14,7 +14,7 @@
  * 不放页名；其他页照旧只有页名。三栏本身的验收见 account-status.spec.js。
  */
 const { test } = require('@playwright/test');
-const { blockExternalRequests, freezeTime, expect } = require('./helpers');
+const { blockExternalRequests, freezeTime, nextFrames, animationsDone, scrolledTo, armNavProbe, expect } = require('./helpers');
 
 async function go(page, path, opts = {}) {
   await blockExternalRequests(page);
@@ -26,7 +26,9 @@ async function go(page, path, opts = {}) {
   }
   await page.goto(path, { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
-  await page.waitForTimeout(300);
+  /* C8：原来固定等 300ms；改成等字体就绪（量尺寸前文字排版要定）+ 入场动画 / 过渡结束 */
+  await page.evaluate(() => document.fonts.ready.then(() => undefined));
+  await animationsDone(page);
 }
 
 async function box(page, sel) {
@@ -153,7 +155,9 @@ test.describe('390×844 行为', () => {
     await go(page, '/settings/security/');
     const before = await Promise.all(['.sgx-tb-pill', '.sgx-tb-end', '.sgx-tb-nav'].map((s) => box(page, s)));
     await page.evaluate(() => window.scrollTo(0, 400));
-    await page.waitForTimeout(300);
+    /* C8：原来固定等 300ms；改成等滚动落地（scroll 监听跑完）+ 顶栏可能的过渡结束 */
+    await scrolledTo(page, 400);
+    await animationsDone(page);
     expect(await page.evaluate(() => document.body.classList.contains('sgx-stuck'))).toBe(false);
     await expect(page.locator('.sgx-tb-title')).toHaveText('安全与隐私');
     expect(await page.evaluate(() => getComputedStyle(document.querySelector('.sgx-tb-title')).opacity)).toBe('1');
@@ -166,8 +170,11 @@ test.describe('390×844 行为', () => {
   test('点长条（页名）不跳转', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/account/');
+    const navs = await armNavProbe(page);
     await page.locator('.sgx-tb-title').click();
-    await page.waitForTimeout(400);
+    /* C8：原来固定等 400ms；点击处理同步，要跳的话 navigate 事件此时已派发 */
+    await nextFrames(page);
+    expect(await navs(), '点页名不触发任何导航').toEqual([]);
     expect(new URL(page.url()).pathname).toBe('/account/');
   });
 

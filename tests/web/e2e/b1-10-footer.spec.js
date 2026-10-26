@@ -6,7 +6,7 @@
  * 覆盖：关于页（中 / 英）有页脚且紧跟卡片；主页、设置、设置子页、聊天、状态没有页脚。360 / 412 两种宽度。
  */
 const { test } = require('@playwright/test');
-const { blockExternalRequests, freezeTime, expect } = require('./helpers');
+const { blockExternalRequests, freezeTime, scrolledTo, expect } = require('./helpers');
 
 const VIEWPORTS = [
   { width: 360, height: 800 },
@@ -41,7 +41,8 @@ for (const vp of VIEWPORTS) {
       await expect(page.locator('.sgx-powered')).toHaveCount(0);
 
       await page.evaluate(() => window.scrollTo(0, document.scrollingElement.scrollHeight));
-      await page.waitForTimeout(200);
+      /* 等滚到底真正落地（含 CSS smooth 滚动） */
+      await scrolledTo(page);
       const m = await page.evaluate(() => {
         const main = document.querySelector('#sgx-main .widget').getBoundingClientRect();
         const first = document.querySelector('footer p').getBoundingClientRect();

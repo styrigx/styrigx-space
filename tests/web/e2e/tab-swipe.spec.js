@@ -21,6 +21,7 @@ async function swipe(page, x0, y0, x1, y1, ms = 200, steps = 8) {
   const pt = (x, y) => [{ x, y, id: 1, radiusX: 4, radiusY: 4, force: 1 }];
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pt(x0, y0) });
   for (let i = 1; i <= steps; i++) {
+    // TODO(C8): 手势节奏（touchMove 之间的真实间隔；shell/tab-swipe.js 用 Date.now() 判 MAX_MS），不是等某个状态，没有可替代的条件，保留。
     await page.waitForTimeout(ms / steps);
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pt(x0 + ((x1 - x0) * i) / steps, y0 + ((y1 - y0) * i) / steps) });
   }
@@ -41,6 +42,8 @@ test('主页左滑 → 聊天，药丸跟过去；聊天左滑 → 设置；设�
   await page.waitForURL('**/settings/');
   await expect(cur(page)).toHaveAttribute('data-tab', 'settings');
   await swipe(page, 300, 500, 100, 500);
+  // TODO(C8): 「滑了不动」是静默窗口：touchend 判定通过时 goTab() 可能先异步取栏 / 模块再切（inpage-tabs.js go()），
+  // 「手势被拒、不会切」在页面上不留可观察状态；要确定性需在生产代码加标记。保留原等待。
   await page.waitForTimeout(600);
   expect(new URL(page.url()).pathname, '最后一栏左滑不动').toBe('/settings/');
   await swipe(page, 120, 400, 320, 390);
@@ -53,6 +56,7 @@ test('主页左滑 → 聊天，药丸跟过去；聊天左滑 → 设置；设�
 test('不抢的手势：边缘起手、竖着滑、太短、聊天输入框里、可横向滚动的容器里、弹层打开时', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   const stay = async (label) => {
+    // TODO(C8): 同上，静默窗口（手势被拒没有可观察状态）。保留原等待。
     await page.waitForTimeout(500);
     expect(new URL(page.url()).pathname, label).toBe('/');
     await expect(cur(page), label).toHaveAttribute('data-tab', 'home');
@@ -80,6 +84,7 @@ test('不抢的手势：边缘起手、竖着滑、太短、聊天输入框里�
   await page.goto('/chat/', { waitUntil: 'domcontentloaded' });
   const box = await page.locator('#chat-input').boundingBox();
   await swipe(page, box.x + box.width - 10, box.y + box.height / 2, box.x + 10, box.y + box.height / 2);
+  // TODO(C8): 同上，静默窗口。保留原等待。
   await page.waitForTimeout(500);
   expect(new URL(page.url()).pathname, '聊天输入框').toBe('/chat/');
 });

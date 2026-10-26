@@ -9,7 +9,7 @@
  * - 搜索层代码懒加载：页面入口里没有它，按下九宫格才去取。
  */
 const { test } = require('@playwright/test');
-const { blockExternalRequests, freezeTime, expect } = require('./helpers');
+const { blockExternalRequests, freezeTime, animationsDone, flushRequests, expect } = require('./helpers');
 
 test.use({ viewport: { width: 412, height: 915 } });
 
@@ -75,7 +75,8 @@ test('点抽屉搜索框：原地打开（不跳页）、输入框同步聚焦�
 test('底栏：长条药丸 + 单独的 ✕ 圆（同高 56、同材质、间距 8、左右 16），贴底；结果层在顶栏下面', async ({ page }) => {
   await go(page, '/');
   await openFromDrawer(page);
-  await page.waitForTimeout(400);
+  /* C8：原来固定等 400ms；改成等搜索层 / 底栏的入场过渡结束再量 */
+  await animationsDone(page);
   const m = await page.evaluate(() => {
     const r = (q) => document.querySelector(q).getBoundingClientRect();
     const cs = (q) => getComputedStyle(document.querySelector(q));
@@ -214,7 +215,8 @@ test('历史：抽屉的哨兵交给搜索层，✕ 关闭回到原页；反复�
   await page.locator('[data-srch-close]').click();
   await expect(layer(page)).toBeHidden();
   await expect(bar(page)).toBeHidden();
-  await page.waitForTimeout(200);
+  /* C8：原来固定等 200ms；✕ 关闭会退掉哨兵（history.back，popstate 异步）——等当前条目不再是搜索哨兵 */
+  await page.waitForFunction(() => !(history.state && history.state.sgxSearch));
   expect(new URL(page.url()).pathname).toBe('/settings/');
   expect(await page.evaluate(() => !!(history.state && history.state.sgxSearch))).toBe(false);
   for (let i = 0; i < 3; i++) {
@@ -328,7 +330,9 @@ test('懒加载：页面入口里没有搜索层代码；按下九宫格才取',
   const reqs = [];
   page.on('request', (r) => { if (/search-layer\.[0-9a-f]+\.js/.test(r.url())) reqs.push(r.url()); });
   await go(page, '/');
-  await page.waitForTimeout(500);
+  /* C8：原来固定等 500ms；改成等 load（入口模块都执行过）+ 冲刷请求事件，之后还没记到的就是没取 */
+  await page.waitForLoadState('load');
+  await flushRequests(page);
   expect(reqs).toHaveLength(0);
   const entry = await page.evaluate(() => document.querySelector('script[type="module"]').src);
   const code = await (await page.request.get(entry)).text();

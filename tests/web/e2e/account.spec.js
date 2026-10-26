@@ -20,7 +20,7 @@
  * 运行：npx playwright test --config=tests/config/playwright.config.js account.spec.js
  */
 const { test, expect } = require('@playwright/test');
-const { blockExternalRequests } = require('./helpers');
+const { blockExternalRequests, nextFrames, flushRequests, armNavProbe } = require('./helpers');
 
 const SEC = '/account/security/';
 const RECENT = () => ({ by: 'password', authAt: Date.now() - 1000, expiresAt: Date.now() + 3600000, recent: true });
@@ -413,8 +413,11 @@ test.describe('账号总览', () => {
     await page.goto('/account/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#acct-main')).toBeVisible();
     await expect(page.locator('#acct-main [data-acct-card] .sgx-ac-state')).toHaveText('已登录');
+    const navs = await armNavProbe(page);
     await page.locator('#acct-main [data-acct-card] .sgx-ac-name').click();
-    await page.waitForTimeout(400);
+    /* 点击处理是同步的：要跳转的话 navigate 事件此时已派发；再等两帧让 rAF 里的反应也落地 */
+    await nextFrames(page);
+    expect(await navs(), '点账号卡不触发任何导航').toEqual([]);
     expect(new URL(page.url()).pathname).toBe('/account/');
     await expect(page.locator('a[href*="/account/profile/"]')).toHaveCount(0);
     const groups = await page.locator('#acct-main section').evaluateAll((els) => els.map((x) => Array.from(x.querySelectorAll('.acct-row')).map((r) => r.id)));
@@ -666,8 +669,10 @@ test.describe('访客头像', () => {
     await expect(me).not.toHaveAttribute('href', /.*/);
     await expect(me).toHaveAttribute('aria-disabled', 'true');
     expect(await me.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe('none');
+    const navs = await armNavProbe(page);
     await me.click({ force: true });
-    await page.waitForTimeout(300);
+    await nextFrames(page);
+    expect(await navs(), '访客点头像不触发任何导航').toEqual([]);
     expect(new URL(page.url()).pathname).toBe('/');
   });
 
@@ -1206,13 +1211,19 @@ test.describe('云同步拉取节流（2026-10-24）', () => {
 
   test('普通页面 5 分钟内只拉一次；进云同步页强制再拉', async ({ page }) => {
     const prefs = await adminWithPrefs(page);
+    /* request 事件按发出顺序投递，配合 flushRequests 判断「没有再发」 */
+    let gets = 0;
+    page.on('request', (r) => { if (new URL(r.url()).pathname === '/api/prefs' && r.method() === 'GET') gets++; });
     await page.goto('/', { waitUntil: 'load' });
     await expect.poll(() => prefs.get).toBe(1);
     /* 拉取成功写下时刻后再换页（还没处理完响应就离开，这次不算成功，下一页会再拉） */
     await page.waitForFunction(() => !!localStorage.getItem('sgx-sync-pull'));
     await page.goto('/settings/', { waitUntil: 'load' });
     await page.goto('/', { waitUntil: 'load' });
-    await page.waitForTimeout(400);
+    /* 拉不拉由 core 在模块执行时同步决定（shell/core.js → lib/cloud-sync.js initCloudSync，要拉就当场 fetch）：
+       load 时已经决定完；冲刷请求事件后，要是发了 GET 一定已经记到 */
+    await flushRequests(page);
+    expect(gets).toBe(1);
     expect(prefs.get).toBe(1);
     const stamp = await page.evaluate(() => JSON.parse(localStorage.getItem('sgx-sync-pull') || '{}'));
     expect(typeof stamp.account).toBe('number');

@@ -78,6 +78,8 @@ async function openMethods(page) {
 }
 
 async function lockShownWithin(page, ms) {
+  // TODO(C8): 「ms 内锁屏一次都没出现」是静默窗口：锁屏由 shell/lock-guard.js 异步向真实网关确认后才决定（自动锁检查还有 5 秒节流），
+  // 「确认完、不上锁」在页面上没有可观察的状态；要确定性就得在生产代码里加完成标记（如 <html data-sgx-lock-checked>）。保留原等待。
   await page.waitForTimeout(ms);
   return page.evaluate(() => window.__sawLock === true || !!document.getElementById('sgx-lock'));
 }
@@ -160,6 +162,8 @@ test('R3 已解锁页面：别的标签页立即锁定后，切回来要上锁�
   await other.goto(MAIN + '/settings/security/');
   await other.evaluate(() => fetch('/api/lock-now', { method: 'POST' }));
   await other.close();
+  // TODO(C8): 等的是 lock-guard.js checkSessionForAutoLock 的 5 秒节流（按页面 Date.now() 算）过去。这个用例连真实网关，
+  // 中途装 page.clock 会连锁屏 UI 的计时器一起换掉，风险大；生产代码没有可读的节流时刻。保留原等待。
   await page.waitForTimeout(5200); /* 自动锁检查节流 5 秒 */
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 10000 });
@@ -236,7 +240,11 @@ for (const role of ['admin']) {
     /* 解析完那一刻：登录区节点不存在、总览不是 hidden（不靠脚本） */
     expect(await page.evaluate(() => window.__sawLogin)).toBe(false);
     await expect(page.locator('#acct-main')).toBeVisible();
-    await page.waitForLoadState('networkidle').catch(() => {});
+    /* C8：networkidle → load（页面脚本都执行过）+ 等账号会话标记 */
+    await page.waitForLoadState('load');
+    await expect(page.locator('html')).toHaveAttribute('data-sgx-account-session', 'in');
+    // TODO(C8): 再看 800ms 内登录区有没有闪出来——account.js 读 GET /api/account 后才决定显示哪块，「已决定、不出登录区」没有可观察状态
+    // （showMain 之后不改任何属性）；要确定性需在生产代码加完成标记。保留原等待。
     await page.waitForTimeout(800);
     expect(await page.evaluate(() => window.__sawLogin)).toBe(false);
     await expect(page.locator('html')).toHaveAttribute('data-sgx-account-session', 'in');
@@ -250,6 +258,7 @@ test('R5 对照：管理员没有账号会话 → 只出登录区（欢迎回来
   await page.goto(MAIN + '/account/');
   await expect(page.locator('html')).toHaveAttribute('data-sgx-account-session', 'out');
   await expect(page.locator('#acct-login')).toBeVisible();
+  // TODO(C8): 同上，静默窗口（总览一次都不出现），没有「状态已读完」的可观察标记。保留原等待。
   await page.waitForTimeout(800);
   expect(await page.evaluate(() => window.__sawMain)).toBe(false);
 });
@@ -300,6 +309,8 @@ test('R8 有效会话：主页 → 聊天 → 设置 同一文档切换，网关
   await p2.goto(MAIN + '/');
   await expect(p2.locator('html')).toHaveAttribute('data-sgx-lock-session', 'valid');
   await p2.evaluate(() => { window.__sameDoc = 1; });
+  // TODO(C8): 等的是「省流量模式下空闲预取本该发生的时刻已过而确实没预取」（inpage-tabs.js：load 后 requestIdleCallback，超时 2.5s / 退化 800ms），
+  // 「决定不预取」不留任何可观察痕迹；要确定性需在生产代码加标记。保留原等待。
   await p2.waitForTimeout(1200);
   await context.clearCookies();
   await p2.click('.sgx-tb-tab[data-tab="chat"]');
@@ -365,7 +376,9 @@ test.describe('R9 分享短链', () => {
     const refs = [];
     page.on('request', (r) => { if (r.isNavigationRequest()) refs.push([r.url(), r.headers()['referer'] || '']); });
     await page.goto(url);
-    await page.waitForLoadState('networkidle').catch(() => {});
+    /* C8：networkidle → 等落到目标地址 + load */
+    await page.waitForURL(MAIN + '/settings/', { timeout: 15000 });
+    await page.waitForLoadState('load');
     expect(page.url()).toBe(MAIN + '/settings/');
     expect(await lockShownWithin(page, 600)).toBe(false);
     expect(await sessionRole(page)).toBe('visitor');

@@ -13,7 +13,7 @@
  *   429 / model_unavailable →「换个模型」按钮打开面板；meta web:false → 脚注「· 未联网」；宽屏 = 贴着药丸的浮层。
  */
 const { test } = require('@playwright/test');
-const { blockExternalRequests, freezeTime, expect } = require('./helpers');
+const { blockExternalRequests, freezeTime, scrolledTo, expect } = require('./helpers');
 
 const SOURCES = [
   { title: 'gohugo.io', uri: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc' },
@@ -315,7 +315,7 @@ test.describe('聊天页（手机 412×915）', () => {
     expect(bar.x + bar.width).toBeLessThanOrEqual(412 - 15);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(412);
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-    await page.waitForTimeout(100);
+    await scrolledTo(page);
     const last = await page.locator('.chat-msg[data-role="model"]').last().boundingBox();
     const bar2 = await page.locator('.chat-bar').boundingBox();
     expect(last.y + last.height).toBeLessThanOrEqual(bar2.y);
