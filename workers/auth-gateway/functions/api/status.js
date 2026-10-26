@@ -5,7 +5,8 @@
  * styrigx-status 没有公开地址，只能从这里进。
  *
  *   GET /api/status
- *   → 200 { ok, now, today, all_up, sites: [...], incidents: [...] }（字段见 workers/status/src/monitor.js summary）
+ *   → 200 { ok, now, today, all_up, sites: [...], incidents: [...], usage, usage_reason, quota, quota_reason }
+ *     （字段见 workers/status/src/monitor.js summary、src/usage.js、src/quota.js；原样转发，网关不缓存）
  *   401 没会话 · 503 监测服务不可用（没绑定 / 出错）
  */
 import { verifyLockSession } from '../_kernel/lock-session.js';

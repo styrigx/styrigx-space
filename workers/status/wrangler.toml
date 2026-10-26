@@ -5,10 +5,13 @@
 #     连续 3 次失败开一条故障，恢复后自动关。
 #   - 用量：Cron 每小时 41 分一次（src/usage.js），用只读 token 读 Cloudflare API（D1 / R2 / KV 存储、今天的 Workers 请求数），
 #     最新快照存 D1 表 usage（migrations/0002_usage.sql）。
+#   - 免费额度（今天的操作次数：Workers + Pages Functions 请求、KV 读写删列、D1 读写行；R2 A/B 类本月）：不走 Cron，
+#     /summary 被请求时按需查 GraphQL Analytics API，5 分钟缓存在 D1 表 quota（src/quota.js，migrations/0004_quota.sql）。
 #   - 读数据：唯一入口是鉴权网关 styrigx-auth-gateway 的服务绑定 STATUS（主站 /api/status 验完会话转进来）。
 # 这里不验 cookie。唯一的钥匙是用量那把只读 token，放在 Cloudflare Secrets Store（和鉴权网关同一个 store），仓库里不写值：
 #   Secrets Store 里建一条 secret_name = "SGX_CF_USAGE_TOKEN"，值 = 自定义 API token，Account 级只读：
 #     Account Analytics Read · D1 Read · Workers R2 Storage Read · Workers KV Storage Read
+#     （免费额度那部分只用到 Account Analytics Read；这把 token 只给运行时读，和任何部署 token 无关）
 #   账号 id 用普通 Worker secret：npx wrangler secret put CF_ACCOUNT_ID（不进仓库，部署不会冲掉）
 # 没配 → 用量 Cron 什么都不做，状态页「用量」显示「用量未配置」；/api/status 其余部分不受影响。
 

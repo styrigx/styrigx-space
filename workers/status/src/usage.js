@@ -116,8 +116,8 @@ async function rest(doFetch, token, url) {
   return j;
 }
 
-/** GraphQL：{ data, errors }；有 errors 就算失败（错误文本不外露，只记短码） */
-async function gql(doFetch, token, query, variables) {
+/** GraphQL：{ data, errors }；有 errors 就算失败（错误文本不外露，只记短码）。src/quota.js 也用它。 */
+export async function gql(doFetch, token, query, variables) {
   const j = await cfFetch(doFetch, token, CF_API + '/graphql', { method: 'POST', body: JSON.stringify({ query, variables }) });
   if (!j || (Array.isArray(j.errors) && j.errors.length)) throw new Error('graphql');
   const acc = j.data && j.data.viewer && Array.isArray(j.data.viewer.accounts) ? j.data.viewer.accounts[0] : null;
