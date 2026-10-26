@@ -1,8 +1,10 @@
 /**
- * 本地模拟 passkey-e2e 预览站，并给每一次 KV 操作记账（只在本地用，CI 不跑它）。
+ * 本地模拟 passkey-e2e 预览站，并给每一次 KV 操作记账。
  *
  * 用途：
- * 1. 不碰 Cloudflare 就能在本地跑 SGX_TEST_SUITE=passkey 的 17 条用例；
+ * 1. 不碰 Cloudflare 就能跑 SGX_TEST_SUITE=passkey 的 17 条用例：本地，以及 CI 里 pull_request 的 passkey-e2e
+ *    （.github/workflows/deploy.yml「Start local preview emulator」，固定 --port 8788、--root-key / --pepper 每次现生成；
+ *    main 的 push / 手动运行仍打真实预览站）；
  * 2. 统计一次运行到底花了多少 KV 操作（读 / 写 / 删 / 列），按「谁发的」（网关 = 预览站上的应用代码；
  *    rest = 测试进程和 CI 步骤经 Cloudflare REST 发的）和键前缀分开。scripts/kv-budget.mjs 里的
  *    每次运行估算就按这里量出来的数定。

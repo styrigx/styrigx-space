@@ -12,6 +12,7 @@ web/data/tailwind.json
 # 测试产物
 test-results/
 playwright-report/
+emulator-log/
 .wrangler/
 
 # KV 迁移备份（明文；脚本默认写到仓库外，这里兜底）

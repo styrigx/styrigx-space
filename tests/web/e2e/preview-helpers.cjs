@@ -7,7 +7,7 @@
  * - SGX_TEST_ROOT_KEY：预览站的测试 RootKey（与预览的 SGX_ROOT_KEY 相同，绝不是生产值；CI 每次运行现生成，
  *   连同 SGX_PW_PEPPER 一起写进预览，不存 GitHub Secrets）
  * - SGX_TEST_CF_TOKEN / SGX_TEST_CF_ACCOUNT / SGX_TEST_PREVIEW_KV_ID：写预览 KV（重置开关、清限速计数）
- * - SGX_TEST_CF_API：只在本地模拟预览站（preview-emulator.cjs）时设，把 Cloudflare REST 指到本机
+ * - SGX_TEST_CF_API：只在模拟预览站（preview-emulator.cjs：本地，或 CI 里 pull_request 的运行）时设，把 Cloudflare REST 指到本机
  *
  * KV 配额：预览 KV 和生产网关共用整个账号每天 1000 次写 / 删 / 列（免费计划）。这里每一次 KV 操作都算数：
  * - 会话 / LockReauthTicket 缓存后先用只读接口确认（见 state），不再每个用例重新密码解锁 / root-auth；
@@ -34,7 +34,7 @@ const ROOT_KEY = process.env.SGX_TEST_ROOT_KEY || '';
 const CF_TOKEN = process.env.SGX_TEST_CF_TOKEN || '';
 const CF_ACCOUNT = process.env.SGX_TEST_CF_ACCOUNT || '';
 const KV_ID = process.env.SGX_TEST_PREVIEW_KV_ID || '';
-/* Cloudflare API 根地址：只有本地模拟预览站（preview-emulator.cjs）时才改，CI 不设 */
+/* Cloudflare API 根地址：只有模拟预览站（preview-emulator.cjs；本地或 CI 的 PR 运行）时才改，真实预览不设 */
 const CF_API = (process.env.SGX_TEST_CF_API || 'https://api.cloudflare.com/client/v4').replace(/\/+$/, '');
 
 const READY = !!(BASE && ROOT_KEY);

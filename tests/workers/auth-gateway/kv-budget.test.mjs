@@ -3,6 +3,7 @@
  *
  * 背景：免费计划的 KV 写 / 删 / 列各 1000 次、按整个账号每个 UTC 日算，预览 KV 和生产网关共用；
  * 2026-10-25 四次 passkey-e2e 用掉了全账号约 84% 的非读操作。
+ * 现在 PR 运行走本地模拟器（tests/web/e2e/preview-emulator.cjs，KV 操作为 0），真实预览只在 main 的 push / 手动运行上跑。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -65,7 +66,14 @@ function passkeyJob() {
   return wf.jobs['passkey-e2e'];
 }
 
-test('deploy.yml：没有 KV 预算闸；清预览 KV 用 kv-budget.mjs，且在部署预览 / 跑用例之前', () => {
+const NOT_PR = "github.event_name != 'pull_request'";
+const ONLY_PR = "github.event_name == 'pull_request'";
+const GATE = "steps.gate.outputs.run == 'true'";
+const PREVIEW_RUN = 'Run WebAuthn E2E (SGX_TEST_SUITE=passkey)';
+const EMU_START = 'Start local preview emulator (pull_request only)';
+const EMU_RUN = 'Run WebAuthn E2E on local emulator (SGX_TEST_SUITE=passkey, pull_request only)';
+
+test('deploy.yml：没有 KV 预算闸；清预览 KV 用 kv-budget.mjs，只在真实预览路上、且在部署预览 / 跑用例之前', () => {
   const job = passkeyJob();
   const names = job.steps.map((s) => s.name);
   const idx = (prefix) => names.findIndex((n) => n && n.startsWith(prefix));
@@ -73,8 +81,9 @@ test('deploy.yml：没有 KV 预算闸；清预览 KV 用 kv-budget.mjs，且在
   assert.ok(!job.steps.some((s) => s.run && /kv-budget\.mjs guard/.test(s.run)));
   const reset = idx('Reset preview KV');
   assert.ok(reset > 0);
+  assert.equal(job.steps[reset].if, GATE + ' && ' + NOT_PR, 'PR 不清预览 KV');
   assert.ok(idx('Setup Node') < reset, 'node 要先装好');
-  for (const later of ['Deploy to preview', 'Run WebAuthn E2E']) {
+  for (const later of ['Deploy to preview', PREVIEW_RUN]) {
     assert.ok(idx(later) > reset, later + ' 必须在清预览 KV 之后');
   }
   assert.match(job.steps[reset].run, /node scripts\/kv-budget\.mjs reset-preview "\$kv"/);
@@ -82,40 +91,110 @@ test('deploy.yml：没有 KV 预算闸；清预览 KV 用 kv-budget.mjs，且在
   assert.match(job.steps[reset].run, /preview KV id must not be the production gateway KV/);
 });
 
-test('deploy.yml：同一棵树已通过的 PR 运行、或只改文档 / 样式才跳过；跳过时只跳 KV / 预览相关步骤', () => {
+test('deploy.yml：只改文档 / 样式才跳过；不再复用 PR 运行的结果（PR 测的是模拟器，不能顶替 main 上的真实预览）', () => {
   const job = passkeyJob();
-  assert.deepEqual(job.permissions, { contents: 'read', actions: 'read' });
+  assert.deepEqual(job.permissions, { contents: 'read' }, '不再查 artifact / 别的运行，不要 actions: read');
   const scope = job.steps.find((s) => s.id === 'scope');
-  const reuse = job.steps.find((s) => s.id === 'reuse');
   const gate = job.steps.find((s) => s.id === 'gate');
-  assert.ok(scope && reuse && gate);
-  assert.ok(job.steps.indexOf(scope) < job.steps.indexOf(reuse) && job.steps.indexOf(reuse) < job.steps.indexOf(gate));
-  assert.match(reuse.run, /"\$EVENT" != "push"/, '只有 push 才可能跳过');
-  assert.match(reuse.run, /head_repository_id.*repository_id/, 'fork 的运行不认');
-  assert.match(reuse.run, /"pull_request"/);
-  assert.match(reuse.run, /\.github\/workflows\/deploy\.yml/);
-  assert.match(reuse.run, /Run WebAuthn E2E \(SGX_TEST_SUITE=passkey\)/);
-  assert.match(reuse.run, /\|\| echo "hit=false"/, 'API 出错照常跑');
-  assert.equal(reuse.if, "steps.scope.outputs.docs_only != 'true'");
+  assert.ok(scope && gate);
+  assert.ok(job.steps.indexOf(scope) < job.steps.indexOf(gate));
+  assert.equal(job.steps.find((s) => s.id === 'reuse'), undefined);
+  assert.ok(!job.steps.some((s) => s.id === 'tree' || (s.name && /passing-tree|Record the tree/.test(s.name))));
+  assert.doesNotMatch(JSON.stringify(job), /passkey-e2e-ok-/);
+  assert.deepEqual(Object.keys(gate.env).sort(), ['DOCS_ONLY', 'EVENT']);
   assert.equal(gate.env.DOCS_ONLY, '${{ steps.scope.outputs.docs_only }}');
-  assert.equal(gate.env.REUSE_HIT, '${{ steps.reuse.outputs.hit }}');
+  assert.match(gate.run, /if \[ "\$DOCS_ONLY" = true \]; then echo "run=false"/);
+  assert.equal((gate.run.match(/run=false/g) || []).length, 1, '只有 docs_only 一种跳过');
+  /* gate 之后到最后一个用例步骤：都只在 run == 'true' 时跑（Require Cloudflare secrets 另算，见下一条） */
   const names = job.steps.map((s) => s.name);
-  const run = names.indexOf('Run WebAuthn E2E (SGX_TEST_SUITE=passkey)');
-  assert.ok(run > 0);
-  /* E2E 步骤名被 reuse 用来核对，改名要两边一起改 */
-  for (let i = job.steps.indexOf(gate) + 1; i <= run; i++) {
+  const last = Math.max(names.indexOf(PREVIEW_RUN), names.indexOf(EMU_RUN));
+  for (let i = job.steps.indexOf(gate) + 1; i <= last; i++) {
     const s = job.steps[i];
     if (s.name === 'Require Cloudflare secrets') continue;
     assert.ok(typeof s.if === 'string' && /^steps\.gate\.outputs\.run == 'true'( && .+)?$/.test(s.if), s.name + ': ' + s.if);
   }
-  /* 生产私密变量守卫不跳 */
+  /* 生产私密变量守卫：main / 手动运行不跳（只改文档也查），PR 不碰 Cloudflare */
   const prodGuard = job.steps.find((s) => s.name && s.name.startsWith('Guard - no private vars'));
-  assert.equal(prodGuard.if, undefined);
-  /* 真跑过并通过的 PR 运行才记下自己测的树（只改文档 / 样式而跳过的不记） */
-  const up = job.steps.find((s) => s.name && s.name.startsWith('Upload passing-tree marker'));
-  assert.equal(up.if, "success() && github.event_name == 'pull_request' && steps.gate.outputs.run == 'true'");
-  assert.equal(up.with.name, 'passkey-e2e-ok-${{ steps.tree.outputs.tree }}');
-  assert.ok(job.steps.indexOf(up) > job.steps.indexOf(prodGuard));
+  assert.equal(prodGuard.if, NOT_PR);
+  assert.ok(job.steps.indexOf(prodGuard) > last);
+});
+
+test('deploy.yml：PR → 本地模拟器（不用 Cloudflare secret、不部署预览、不清预览 KV）；main / 手动 → 真实预览', () => {
+  const wf = yaml.load(readFileSync(path.join(REPO, '.github/workflows/deploy.yml'), 'utf8'));
+  const job = wf.jobs['passkey-e2e'];
+  /* 必需检查：job 名、触发条件、上游不变 */
+  assert.ok(wf.on.push && wf.on.pull_request && 'workflow_dispatch' in wf.on);
+  assert.equal(job.if, "github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository");
+  assert.equal(job.needs, 'quality');
+  const step = (name) => {
+    const s = job.steps.find((x) => x.name === name || (x.name && x.name.startsWith(name)));
+    assert.ok(s, name);
+    return s;
+  };
+  const pos = (name) => job.steps.indexOf(step(name));
+
+  /* 任何用到 Cloudflare secret 的步骤都不在 PR 上跑 */
+  const usesSecrets = job.steps.filter((s) => /secrets\./.test(JSON.stringify(s)));
+  assert.ok(usesSecrets.length >= 6);
+  for (const s of usesSecrets) assert.ok(String(s.if).includes(NOT_PR), s.name + ': ' + s.if);
+  /* 真实预览那条路的步骤：只在 main / 手动运行 */
+  for (const n of ['Require Cloudflare secrets', 'Reset preview KV', 'Bundle auth gateway as the preview _worker.js',
+    'Generate Ed25519 test key pairs', "Put this run's public keys", 'Set preview test secrets', 'Apply D1 migrations to preview',
+    'Deploy to preview', PREVIEW_RUN, 'Guard - no private vars on Pages production']) {
+    assert.ok(String(step(n).if).includes(NOT_PR), n);
+  }
+  /* 真实预览的用例步骤原样：读 web/wrangler.toml 的预览地址和 KV id，用 Pages 部署 token */
+  const pv = step(PREVIEW_RUN);
+  assert.equal(pv.env.SGX_TEST_CF_TOKEN, '${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}');
+  assert.match(pv.run, /export SGX_TEST_BASE=/);
+  assert.match(pv.run, /npx playwright test --config=tests\/config\/playwright\.config\.js/);
+  assert.ok(pos('Deploy to preview') < pos(PREVIEW_RUN));
+
+  /* 两条路共用：凭证生成、Hugo / 依赖 / 浏览器、CSS、建站 */
+  for (const n of ['Setup Node', 'Generate preview test credentials', 'Setup Hugo', 'Install dependencies', 'Playwright Chromium', 'Build CSS', 'Build site']) {
+    assert.equal(step(n).if, GATE, n);
+  }
+  assert.equal(step('Build site').run, 'hugo --minify -s web');
+
+  /* PR：模拟器 */
+  const start = step(EMU_START);
+  const emu = step(EMU_RUN);
+  for (const s of [start, emu]) {
+    assert.equal(s.if, GATE + ' && ' + ONLY_PR, s.name);
+    const txt = JSON.stringify(s);
+    assert.doesNotMatch(txt, /secrets\./, s.name + ' 不许用 secret');
+    assert.doesNotMatch(txt, /api\.cloudflare\.com|wrangler|kv-budget/, s.name + ' 不许碰 Cloudflare');
+  }
+  assert.ok(pos('Build site') < pos(EMU_START) && pos(EMU_START) < pos(EMU_RUN), '先建站、再起模拟器、再跑用例');
+  assert.ok(pos('Generate preview test credentials') < pos(EMU_START));
+  assert.match(start.run, /node -e "require\('node:sqlite'\)"/);
+  assert.match(start.run, /node tests\/web\/e2e\/preview-emulator\.cjs --port 8788 --root-key "\$PREVIEW_TEST_ROOT_KEY" --pepper "\$PREVIEW_TEST_PW_PEPPER" > "\$log" 2>&1 &/);
+  assert.match(start.run, /curl -fsS -o \/dev\/null http:\/\/127\.0\.0\.1:8788\/__kv\/stats/, '等它就绪');
+  assert.match(start.run, /exit 1\s*$/, '超时就红');
+  /* 用例变量按 preview-emulator.cjs 文件头；端口和起模拟器的一致 */
+  assert.deepEqual(emu.env, {
+    SGX_TEST_SUITE: 'passkey',
+    SGX_TEST_BASE: 'http://localhost:8788',
+    SGX_TEST_ROOT_KEY: '${{ env.PREVIEW_TEST_ROOT_KEY }}',
+    SGX_TEST_CF_API: 'http://127.0.0.1:8788/client/v4',
+    SGX_TEST_CF_TOKEN: 'x',
+    SGX_TEST_CF_ACCOUNT: 'x',
+    SGX_TEST_PREVIEW_KV_ID: 'local',
+    CI: '1',
+  });
+  assert.match(emu.run, /^npx playwright test --config=tests\/config\/playwright\.config\.js$/m);
+  const header = readFileSync(path.join(REPO, 'tests/web/e2e/preview-emulator.cjs'), 'utf8').slice(0, 3000);
+  for (const v of ['SGX_TEST_BASE=http://localhost:8788', 'SGX_TEST_CF_API=http://127.0.0.1:8788/client/v4', 'SGX_TEST_PREVIEW_KV_ID=local']) {
+    assert.ok(header.includes(v), '模拟器文件头写的运行方式：' + v);
+  }
+
+  /* 真实预览排队用的共享并发组只给 main / 手动运行；PR 不排进去 */
+  assert.match(job.concurrency.group, /github\.event_name == 'pull_request' && format\('passkey-e2e-emulator-\{0\}', github\.ref\) \|\| 'passkey-e2e-preview'/);
+  assert.equal(job.concurrency['cancel-in-progress'], false);
+  /* 失败时上传的东西：原来的测试结果 + 模拟器日志 */
+  const up = step('Upload test artifacts on failure');
+  assert.equal(up.if, 'failure()');
+  for (const p of ['test-results/', 'playwright-report/', 'emulator-log/']) assert.ok(up.with.path.includes(p), p);
 });
 
 test('deploy.yml：passkey-e2e 的路径过滤是 denylist，做在步骤层，拿不准一律照跑', () => {
