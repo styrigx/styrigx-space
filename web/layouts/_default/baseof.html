@@ -26,7 +26,7 @@
 <meta property="og:image:alt" content="Styrigx">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://styrigx.com/og.png">
-{{/* fix/hi-owner：/owner/ 不被搜索引擎收录 */}}
+{{/* 私密页（安全、锁屏凭证、账号区、设置子页、聊天）不被搜索引擎收录 */}}
 {{ if or (eq .Layout "security") (eq .Layout "security-lock") (eq .Layout "account") (eq .Layout "account-security") (eq .Layout "account-devices") (eq .Layout "account-tempkeys") (eq .Layout "account-reset") (eq .Layout "settings-sub") (eq .Layout "account-status") (eq .Layout "account-sync") (eq .Layout "chat") }}<meta name="robots" content="noindex,nofollow">{{ end }}
 <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
 <style>

@@ -8,7 +8,7 @@
  *   票据/会话失效 → showExpiredDialog 弹框，点了按钮才动作，不自动跳转；
  *   探针网络/解析失败 → showProbeFailure 面板，不算过期。
  * - api()：普通 POST，不自动验证；服务端报 reauth（reauth 票没了/过期）时调用方走 handleReauthError → 弹框。
- * - clearStepupThen()：离开门时调 POST /api/lock-reauth {action:'clear'} 清reauth 票，
+ * - clearReauthThen()：离开门时调 POST /api/lock-reauth {action:'clear'} 清reauth 票，
  *   再跳转（幂等；失败也不卡住用户）。
  * - startReauthCountdown()：门内页大标题下方胶囊「验证剩余 m:ss」，以服务端 status 的
  *   expiresAt 为准；≤30 秒只变警示色；到 0 停在「已过期」，不自动跳转、不弹框。
@@ -68,7 +68,7 @@ function verifyMessage(t, reason, detail) {
       msg = t('errParse');
       break;
     case 'reauth':
-      msg = t('errStepupExpired');
+      msg = t('errReauthExpired');
       break;
     case 'session':
     default:
@@ -84,7 +84,7 @@ function verifyMessage(t, reason, detail) {
 
 /**
  * 验证失效 → 按真实原因弹 One UI 框，点了按钮才动作，不自动跳转（A-1，定稿 #22）。
- * kind='reauth'：按钮「重新验证」→ clearStepupThen(当前页)，清票后重进门口。
+ * kind='reauth'：按钮「重新验证」→ clearReauthThen(当前页)，清票后重进门口。
  * kind='session'：按钮「去锁屏」→ sgxReload()（中间件会把失效会话送去锁屏）。
  * @param {(k:string)=>string} t 文案函数
  * @param {string} [reason] 失败原因：'session' 走会话弹框，其余走验证弹框
@@ -122,18 +122,18 @@ function showExpiredDialog(t, kind, detail) {
   const isAccountConfigured = detail === 'account-configured';
   const title = isSession
     ? tx(t, 'expiredSessionTitle', '会话已失效', 'Session expired')
-    : tx(t, 'expiredStepupTitle', '验证已过期', 'Verification expired');
+    : tx(t, 'expiredReauthTitle', '验证已过期', 'Verification expired');
   let desc;
   if (isAccountConfigured) {
     desc = tx(t, 'errAccountConfigured', '账号凭证已设置，请先登录账号再进入', 'Account credentials are set; please sign in to your account first');
   } else if (isSession) {
     desc = tx(t, 'expiredSessionDesc', '请回到锁屏重新解锁', 'Please go back to the lock screen to unlock again.');
   } else {
-    desc = tx(t, 'expiredStepupDesc', '验证后回到这一页继续', 'Verify again to continue on this page.');
+    desc = tx(t, 'expiredReauthDesc', '验证后回到这一页继续', 'Verify again to continue on this page.');
   }
   const btnLabel = isSession
     ? tx(t, 'expiredSessionBtn', '去锁屏', 'Go to lock screen')
-    : tx(t, 'expiredStepupBtn', '重新验证', 'Verify again');
+    : tx(t, 'expiredReauthBtn', '重新验证', 'Verify again');
   /* C4：弹框打开时拦住返回手势。移动端返回手势走 history（非 dialog cancel 事件），
      仅 preventDefault(cancel) 拦不住。用 pushState 占一位，popstate 时等同于
      点按钮（不直接关框），避免退回已过期的门内页。 */
@@ -146,7 +146,7 @@ function showExpiredDialog(t, kind, detail) {
   function goFromDialog() {
     cleanupBackGuard();
     if (isSession) sgxReload();
-    else clearStepupThen(reverifyUrl());
+    else clearReauthThen(reverifyUrl());
   }
   function onBackPopstate() {
     if (!backGuardActive || !expiredDialogOpen) return;
@@ -489,7 +489,7 @@ export function enterReauth(probe, onEnter, t) {
  * 完成后（或失败/超时）再跳转，不卡住用户。
  * @param {string} targetUrl 跳转目标
  */
-export function clearStepupThen(targetUrl) {
+export function clearReauthThen(targetUrl) {
   let done = false;
   function go() {
     if (done) return;

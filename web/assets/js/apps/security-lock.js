@@ -721,7 +721,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
   /* 2026-10-24（用户录屏：验证完一刷新就「验证已过期」）：以前 pagehide 就 clear reauth 票，刷新也会触发 pagehide，
      等于每次刷新都把刚签的票作废。现在reauth 票只看服务端：sgx-lock-reauth / sgx-lock-reset（HttpOnly、Secure、SameSite=Strict、Max-Age=180，
      签名里带 exp = 验证时刻 + 3 分钟）在剩余时间内刷新 / 离开再回来都还有效，倒计时按服务端 status 的 expiresAt 接着走；
-     到期由服务端判定，回到门口重新验证。「重新验证」按钮仍会主动 clear（app-gate.js clearStepupThen）。
+     到期由服务端判定，回到门口重新验证。「重新验证」按钮仍会主动 clear（app-gate.js clearReauthThen）。
      从历史返回（bfcache）重新读一次状态。 */
   on(window, 'pageshow', function (/** @type {PageTransitionEvent} */ e) {
     if (e && e.persisted) {
