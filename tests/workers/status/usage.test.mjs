@@ -5,6 +5,7 @@
  * 真 SQL 用 node:sqlite（Node 22+；没有就跳过写库那几条）。
  */
 import { test } from 'node:test';
+import { TARGETS } from '../../../workers/status/src/targets.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
@@ -133,7 +134,7 @@ test('Secrets Store 绑定：await get() 取 token；get() 抛错 → secret-mis
   if (sqlite) {
     const s = await summary(d1(), NOW, missing);
     assert.equal(s.ok, true);
-    assert.equal(s.sites.length, 5);
+    assert.equal(s.sites.length, TARGETS.length);
     assert.deepEqual([s.usage, s.usage_reason], [null, 'secret-missing']);
     let wrote = 0;
     await persistUsage({ prepare: () => { wrote++; return { bind: () => ({ run: async () => {} }) }; } }, { ok: false, reason: 'secret-missing' }, NOW);
@@ -261,7 +262,7 @@ test('/summary：带 usage + usage_reason；用量读挂了不影响站点数据
   assert.equal(s.ok, true);
   assert.equal(s.usage, null);
   assert.equal(s.usage_reason, 'not-configured');
-  assert.equal(s.sites.length, 5);
+  assert.equal(s.sites.length, TARGETS.length);
   await runUsage({ ...ENV, D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db }, NOW, cfMock().doFetch);
   s = await summary(db, NOW + 60e3, { ...ENV, D1_CLOUDFLARE_USAGE: db });
   assert.equal(s.usage.fetched_at, NOW);
@@ -271,7 +272,7 @@ test('/summary：带 usage + usage_reason；用量读挂了不影响站点数据
     .map((f) => readFileSync(new URL('../../../workers/status/migrations/' + f, import.meta.url), 'utf8')).join('\n'));
   s = await summary(old, NOW, { ...ENV, D1_CLOUDFLARE_USAGE: old });
   assert.equal(s.ok, true);
-  assert.equal(s.sites.length, 5);
+  assert.equal(s.sites.length, TARGETS.length);
   assert.deepEqual([s.usage, s.usage_reason], [null, 'db']);
   /* 入口：GET /summary 200 带 usage */
   const res = await worker.fetch(new Request('https://styrigx-status/summary'), { D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db, ...ENV });

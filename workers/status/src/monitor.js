@@ -16,10 +16,11 @@ export function dayOf(ms) {
 /**
  * 检查一个地址。不跟随跳转（跳转本身就算结果），10 秒超时。
  * @param {{site:string,url:string,expect:number[]}} t
- * @param {typeof fetch} [doFetch]
+ * @param {typeof fetch|null} [doFetch]  null = 服务绑定没配，直接记 err = 'binding'
  * @returns {Promise<{site:string, ok:boolean, code:number, ms:number, err:string|null}>}
  */
 export async function checkOne(t, doFetch = fetch, now = () => Date.now()) {
+  if (doFetch === null) return { site: t.site, ok: false, code: 0, ms: 0, err: 'binding' };
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
   const t0 = now();
@@ -136,6 +137,18 @@ export async function persist(db, p, opt = {}) {
 }
 
 /**
+ * 这个地址用哪个 fetch：公开地址用 doFetch；带 binding 的走 env 里的服务绑定（没配 → null）。
+ * @param {{binding?:string}} t @param {any} env @param {typeof fetch} doFetch
+ * @returns {typeof fetch|null}
+ */
+export function fetcherFor(t, env, doFetch) {
+  if (!t.binding) return doFetch;
+  const svc = env && env[t.binding];
+  if (!svc || typeof svc.fetch !== 'function') return null;
+  return /** @type {typeof fetch} */ ((u, init) => svc.fetch(u, init));
+}
+
+/**
  * 跑一轮：检查全部地址 → 写库。整点顺带清掉 7 天前的原始记录。
  * @param {any} env
  * @param {number} at  这一轮的时间（Cron 的 scheduledTime）
@@ -143,7 +156,7 @@ export async function persist(db, p, opt = {}) {
  */
 export async function runOnce(env, at, doFetch = fetch) {
   const db = env.D1_UPTIME_MONITOR;
-  const [prev, results] = await Promise.all([loadPrev(db), Promise.all(TARGETS.map((t) => checkOne(t, doFetch)))]);
+  const [prev, results] = await Promise.all([loadPrev(db), Promise.all(TARGETS.map((t) => checkOne(t, fetcherFor(t, env, doFetch))))]);
   const p = plan(prev, results, at);
   const minute = Math.floor(at / 60000) % 60;
   await persist(db, p, minute === 0 ? { prune: at - KEEP_MS, pruneHourly: at - 2 * DAY_MS } : {});

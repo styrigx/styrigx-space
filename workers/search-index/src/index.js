@@ -5,6 +5,10 @@
  *   头 X-Sgx-Role: admin | visitor（网关验完会话写的；没有 / 别的值一律当访客）
  * 回答：{ ok: true, q, hits: [{ site, type, title, subtitle, url }] }
  *   私密条目（private）只在 admin 时出现；正文 text 永远不回。
+ *
+ * 健康检查（2026-10-28）：GET /healthz，只给 styrigx-status 的服务绑定 SEARCH 每分钟测一次（网关只转 /search，进不来）。
+ *   至少一个站的索引读得到 → 200 { ok: true, sites: n, missing: [...] }（某个子站还没写过索引只算缺项、不算故障，
+ *   免得状态页因为一个子站没部署过就一直红）；一个都没有 / KV 读不了 → 503 { ok: false, error: 'index' }。不回任何条目。读索引走同一个 60 秒缓存，不多吃 KV 读额度。
  */
 import { search } from './rank.js';
 
@@ -39,6 +43,7 @@ export default {
   /** @param {Request} request @param {any} env */
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname === '/healthz') return healthz(request, env);
     if (url.pathname !== '/search') return json(404, { ok: false, error: 'not-found' });
     if (request.method !== 'GET') return json(405, { ok: false, error: 'method' });
     const q = (url.searchParams.get('q') || '').trim().slice(0, 100);
@@ -64,6 +69,21 @@ export default {
     return json(200, { ok: true, q, hits });
   },
 };
+
+/** GET /healthz：索引齐不齐（见文件头） @param {Request} request @param {any} env */
+async function healthz(request, env) {
+  if (request.method !== 'GET') return json(405, { ok: false, error: 'method' });
+  let indexes;
+  try {
+    indexes = await loadIndexes(env);
+  } catch (e) {
+    return json(503, { ok: false, error: 'index' });
+  }
+  const have = new Set(indexes.map((x) => x.site));
+  const missing = SITES.filter((s) => !have.has(s));
+  if (!have.size) return json(503, { ok: false, error: 'index', missing });
+  return json(200, { ok: true, sites: have.size, missing });
+}
 
 /** 单测用：清缓存 */
 export function _resetCache() { cache = null; }

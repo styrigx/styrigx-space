@@ -6,6 +6,7 @@
  * 真 SQL 用 node:sqlite（Node 22+；没有就跳过用库的那几条）。
  */
 import { test } from 'node:test';
+import { TARGETS } from '../../../workers/status/src/targets.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
@@ -270,7 +271,7 @@ test('GET /summary：带 quota + quota_reason；额度挂了（全失败 / 没�
     assert.equal(res.status, 200);
     let j = await res.json();
     assert.equal(j.ok, true);
-    assert.equal(j.sites.length, 5);
+    assert.equal(j.sites.length, TARGETS.length);
     assert.equal(j.quota_reason, null);
     assert.equal(j.quota.kv.write, 850);
     /* 没配 → quota null + not-configured，不请求 */
@@ -285,7 +286,7 @@ test('GET /summary：带 quota + quota_reason；额度挂了（全失败 / 没�
     res = await worker.fetch(new Request('https://styrigx-status/summary'), { D1_UPTIME_MONITOR: fresh, D1_CLOUDFLARE_USAGE: fresh, ...ENV });
     assert.equal(res.status, 200);
     j = await res.json();
-    assert.equal(j.sites.length, 5);
+    assert.equal(j.sites.length, TARGETS.length);
     assert.deepEqual([j.quota, j.quota_reason], [null, 'api-error']);
   } finally {
     globalThis.fetch = realFetch;

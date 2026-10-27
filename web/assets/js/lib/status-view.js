@@ -25,13 +25,15 @@ export const DOWN_RATIO = 0.95;
 /** 可用率条的天数 */
 export const BAR_DAYS = 90;
 
-/** 页面上的站名（2026-10-22 定：主站 / 博客 / 日刻 / 奇趣 / 规则集）；接口里的 zh / en 兜底 */
+/** 页面上的站名（2026-10-22 定：主站 / 博客 / 日刻 / 奇趣 / 规则集；2026-10-28 加站内搜索 / 聊天）；接口里的 zh / en 兜底 */
 export const SITE_NAMES = {
   space: { zh: '主站', en: 'Space' },
   blog: { zh: '博客', en: 'Blog' },
   daymark: { zh: '日刻', en: 'Daymark' },
   curio: { zh: '奇趣', en: 'Curio' },
   'proxy-rules': { zh: '规则集', en: 'Proxy rules' },
+  search: { zh: '站内搜索', en: 'Search' },
+  chat: { zh: '聊天', en: 'Chat' },
 };
 
 const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -185,13 +187,14 @@ export function hostOf(url) {
 }
 
 /**
- * 故障原因：timeout → 超时，network → 连不上，HTTP 502 原样。
+ * 故障原因：timeout → 超时，network → 连不上，binding → 监测没绑上这个服务，HTTP 502 原样。
  * @param {string|null|undefined} cause
  * @param {(k:string)=>string} t
  */
 export function causeText(cause, t) {
   if (cause === 'timeout') return t('causeTimeout');
   if (cause === 'network') return t('causeNetwork');
+  if (cause === 'binding') return t('causeBinding');
   return cause ? String(cause) : t('causeUnknown');
 }
 

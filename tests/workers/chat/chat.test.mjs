@@ -530,3 +530,30 @@ test('工具被上游拒（400 说 google_search 不支持）→ 不带工具重
   const ev2 = await events(await call(req({ messages: MSGS }), menv()));
   assert.deepEqual(ev2.map((e) => e.t), ['delta', 'done']);
 });
+
+test('GET /healthz：钥匙读得到 → 200 { ok:true }；不要求 X-Sgx-Role、不调上游、不回钥匙', async () => {
+  mockFetch(() => { throw new Error('不应调用上游'); });
+  for (const role of [null, 'visitor', 'admin']) {
+    const r = await call(req(null, { role, path: '/healthz', method: 'GET' }));
+    assert.equal(r.status, 200, String(role));
+    const text = await r.text();
+    assert.deepEqual(JSON.parse(text), { ok: true });
+    assert.ok(!text.includes('test-chat-key'));
+  }
+  assert.equal(fetchLog.length, 0);
+});
+
+test('GET /healthz：没绑定 / 读出空 / 读抛错 / API 地址空 → 503 no_key；POST → 405', async () => {
+  mockFetch(() => { throw new Error('不应调用上游'); });
+  for (const k of [undefined, storeKey(''), storeKey(new Error('secret not found')), '']) {
+    const e = env();
+    if (k === undefined) delete e.SGX_CHAT_API_KEY; else e.SGX_CHAT_API_KEY = k;
+    const r = await call(req(null, { role: null, path: '/healthz', method: 'GET' }), e);
+    assert.equal(r.status, 503);
+    assert.deepEqual(await r.json(), { ok: false, error: 'no_key' });
+  }
+  const r = await call(req(null, { role: null, path: '/healthz', method: 'GET' }), env({ CHAT_PROVIDER: 'openai', CHAT_API_BASE: '' }));
+  assert.equal(r.status, 503);
+  assert.equal((await call(req({}, { role: null, path: '/healthz', method: 'POST' }))).status, 405);
+  assert.equal(fetchLog.length, 0);
+});
