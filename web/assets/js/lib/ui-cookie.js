@@ -81,6 +81,8 @@ function decodeCookie(v) {
  *   子站拿它派生同一套角色；读不到为 ''。
  *   fs / rm：固定 'standard' / 0（2026-10-23 PR-E 删了字体大小、减弱动效设置；子站减弱动效跟系统 prefers-reduced-motion）；
  *   mat：mode 最近一次变化的时间戳（毫秒）。子站自己也能切深浅色，两边谁后改听谁的。
+ *   lang←sgx-lang：用户在设置里明确选的 'zh' / 'en'；跟随系统（没存或别的值）写 ''——子站只在非空且和当前页不同时跳语言，
+ *   跟随系统时各站按自己的老规矩（浏览器语言）来，不拿主站当时的页面语言去带子站。
  * sgx-weather 是数据缓存，不进 cookie。
  */
 /** 当前主题色种子（#rrggbb）：自定义 sgx-accent 优先，否则读 <html> 上计算出的 --sgx-seed；都没有返回 '' */
@@ -92,6 +94,12 @@ function currentSeed() {
     if (/^#[0-9a-fA-F]{6}$/.test(v)) return v.toLowerCase();
   } catch (e) {}
   return '';
+}
+
+/** 明确的语言偏好：sgx-lang 是 'zh' / 'en' 原样返回；跟随系统（缺失 / 'system' / 别的值）返回 '' */
+function langPref() {
+  var l = ls('sgx-lang');
+  return l === 'zh' || l === 'en' ? l : '';
 }
 
 export function syncUiCookie() {
@@ -114,6 +122,7 @@ export function syncUiCookie() {
     /* fs / rm：字体大小、减弱动效两个设置 2026-10-23 删除，字段保留（子站读端认识它们）但固定写默认值，旧 localStorage 值不再带给子站 */
     fs: 'standard',
     rm: 0,
+    lang: langPref(),
   };
   /* mat：深浅色没变就沿用旧时间戳，变了（或第一次写）记当前时间 */
   var old = decodeCookie(readCookie());

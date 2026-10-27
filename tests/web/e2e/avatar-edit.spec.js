@@ -8,6 +8,7 @@ const { test, expect } = require('@playwright/test');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { nextFrames, armNavProbe } = require('./helpers');
 
 test.use({ locale: 'zh-CN', viewport: { width: 412, height: 915 } });
 
@@ -129,9 +130,12 @@ test('账号卡：显示「已登录」；卡片本身不能点（不跳页、�
   expect(await card.getAttribute('tabindex')).toBeNull();
   expect(await card.evaluate((el) => getComputedStyle(el).cursor)).not.toBe('pointer');
   /* 点名字 / 已登录 / 卡片空白：都留在账号页，不出弹层 */
+  const navs = await armNavProbe(page);
   await card.locator('.sgx-ac-name').click();
   await card.locator('.sgx-ac-state').click();
-  await page.waitForTimeout(400);
+  /* 点击处理同步：要跳转 / 开弹层的话此时已经发生；再等两帧让 rAF 里的反应落地 */
+  await nextFrames(page);
+  expect(await navs(), '点账号卡不触发任何导航').toEqual([]);
   expect(new URL(page.url()).pathname).toBe('/account/');
   await expect(page.locator('#sheet-wrap[open]')).toHaveCount(0);
   /* 点头像：直接是换头像的弹层（选择照片…），页面不动 */

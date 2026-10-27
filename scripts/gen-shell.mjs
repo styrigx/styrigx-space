@@ -254,7 +254,8 @@ const README = `# web/shared/shell（生成物，勿手改）
 <script>SgxUI.apply(document.documentElement, { onMiss: function (seed) { /* 异步加载 palette-scheme.js，算好 SgxUI.setRoles(seed, rolesCss(seed)) */ } });</script>
 \`\`\`
 
-- \`SgxUI.read()\` → 校验过的 \`{v, mode, pal, accent, fs, rm, mat, tz1, tz2, h12, clock, wx, unit, loc, city, precise}\`；没有 / 乱码 / 版本不认识 → \`null\`。
+- \`SgxUI.read()\` → 校验过的 \`{v, mode, pal, accent, fs, rm, mat, lang, tz1, tz2, h12, clock, wx, unit, loc, city, precise}\`；没有 / 乱码 / 版本不认识 → \`null\`。
+- 语言跟随：\`read().lang\` 是主站用户明确选的 \`'zh'\` / \`'en'\`（跟随系统 = \`''\`）；非空且和当前页语言不同时，子站自己跳到另一种语言的同一页（\`apply()\` 不管语言）。
 - \`SgxUI.apply(root, opts)\` → \`<html>\` 落成和主站一样：\`class="dark"\`、\`data-theme-mode\`、\`data-dark\`、\`font-size\` + \`data-font-size\`、
   \`data-palette\`（默认 dustyblue 不写）、自定义色时内联 \`--sgx-seed\` + \`<style id="sgx-accent-roles">\`（本站 localStorage \`sgx-shell-accent-css\` 缓存，首行「SCHEME_VER|#种子」）、
   \`class="reduced-motion"\` + \`data-reduced-motion\`。跟随系统时自动监听 \`prefers-color-scheme\`。cookie 坏了 = 默认 dustyblue + 跟随系统，不抛错、不跳转。

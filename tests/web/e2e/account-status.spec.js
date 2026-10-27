@@ -346,6 +346,65 @@ for (const [label, viewport] of VIEWPORTS) {
       await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'empty');
       await expect(page.locator('#st-usage-wrap')).toBeHidden();
     });
+
+    test('免费额度：站点卡下面、用量上面；9 行（Workers / KV 读写删列 / D1 读写行 / R2 A B），≥ 80% 琥珀、≥ 95% 红；用量卡不再重复 Workers 行', async ({ page }) => {
+      await go(page, '/account/status/', { api: fx.withQuota(fx.withUsage(fx.normal(), fx.usage()), fx.quota()) });
+      const wrap = page.locator('#st-quota-wrap');
+      await expect(wrap).toBeVisible();
+      await expect(wrap.locator('h3')).toHaveText('免费额度');
+      const rows = page.locator('#st-quota .st-u');
+      await expect(rows).toHaveCount(9);
+      await expect(rows.locator('.st-u-name')).toHaveText(['Workers 请求（今天）', 'KV 读取（今天）', 'KV 写入（今天）', 'KV 删除（今天）', 'KV 列出（今天）',
+        'D1 读取行数（今天）', 'D1 写入行数（今天）', 'R2 A 类操作（本月）', 'R2 B 类操作（本月）']);
+      await expect(rows.nth(0).locator('.st-u-val')).toHaveText('82,000 / 100,00082%');
+      await expect(rows.nth(0)).toHaveAttribute('data-level', 'warn');
+      await expect(rows.nth(0).locator('.st-u-sub')).toHaveText('Workers 2,000 · Pages Functions 80,000，合计算免费额度');
+      await expect(rows.nth(2).locator('.st-u-val')).toHaveText('960 / 1,00096%');
+      await expect(rows.nth(2)).toHaveAttribute('data-level', 'crit');
+      await expect(rows.nth(1)).toHaveAttribute('data-level', 'ok');
+      await expect(page.locator('#st-quota .st-usage-foot')).toHaveText('更新于 3 分钟前（北京时间 11:57），最多每 5 分钟刷新；每日额度按 UTC 零点（北京时间 08:00）重置');
+      /* 用量卡：Workers 行挪到额度卡，剩 6 行 */
+      await expect(page.locator('#st-usage .st-u')).toHaveCount(6);
+      await expect(page.locator('#st-usage .st-u[data-key="workers"]')).toHaveCount(0);
+      /* 位置：最后一张站点卡 < 额度 < 用量 */
+      const lastCard = await box(page, '#st-sites .st-card >> nth=4');
+      const q = await box(page, '#st-quota-wrap');
+      const u = await box(page, '#st-usage-wrap');
+      expect(q.y).toBeGreaterThan(lastCard.y + lastCard.height);
+      expect(u.y).toBeGreaterThan(q.y + q.height - 1);
+      const card = await box(page, '#st-quota');
+      for (const sel of ['.st-u-val', '.st-u-name']) {
+        const bs = await page.locator('#st-quota ' + sel).evaluateAll((els) => els.map((e) => e.getBoundingClientRect().right));
+        expect(Math.max(...bs)).toBeLessThanOrEqual(card.x + card.width + 0.5);
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      /* 英文 */
+      await go(page, '/en/account/status/', { api: fx.withQuota(fx.withUsage(fx.normal(), fx.usage()), fx.quota()) });
+      await expect(page.locator('#st-quota-wrap h3')).toHaveText('Free-tier quota');
+      await expect(page.locator('#st-quota .st-u-name').first()).toHaveText('Workers requests (today)');
+    });
+
+    test('免费额度：quota = null →「额度暂时拿不到 / 额度未配置」一行、页面其余照常；旧版接口（没有 quota 字段）整块不显示；出错 / 空状态不显示', async ({ page }) => {
+      /* 先测出错 / 空状态（本机首帧缓存 sgx-status-cache 还没写），再测有数据的几种 */
+      await go(page, '/account/status/', { api: { status: 503, body: { ok: false } } });
+      await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'error');
+      await expect(page.locator('#st-quota-wrap')).toBeHidden();
+      await go(page, '/account/status/', { api: fx.withQuota(fx.empty(), fx.quota()) });
+      await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'empty');
+      await expect(page.locator('#st-quota-wrap')).toBeHidden();
+      await go(page, '/account/status/', { api: fx.withQuota(fx.withUsage(fx.normal(), fx.usage()), null, 'api-error') });
+      await expect(page.locator('#st-quota-wrap')).toBeVisible();
+      await expect(page.locator('#st-quota .st-usage-none-title')).toHaveText('额度暂时拿不到');
+      await expect(page.locator('#st-quota .st-u-track')).toHaveCount(0);
+      await expect(page.locator('.st-card')).toHaveCount(5);
+      /* 额度拿不到时用量卡保留 Workers 行 */
+      await expect(page.locator('#st-usage .st-u')).toHaveCount(7);
+      await go(page, '/account/status/', { api: fx.withQuota(fx.normal(), null, 'not-configured') });
+      await expect(page.locator('#st-quota .st-usage-none-title')).toHaveText('额度未配置');
+      await go(page, '/account/status/', { api: fx.withUsage(fx.normal(), fx.usage()) });
+      await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'ready');
+      await expect(page.locator('#st-quota-wrap')).toBeHidden();
+    });
   });
 }
 

@@ -3,7 +3,7 @@
    读 GET /api/status（网关验锁屏会话；数据形状见 workers/status/src/monitor.js summary），
    同源 cookie（credentials: same-origin），页面可见时每 60 秒刷新（lib/scheduler.js visibleInterval，切到后台停、回来先刷一次）；
    首帧缓存（PR3，localStorage sgx-status-cache）照旧。
-   结构：横幅（全部正常 / 有 N 个故障）→ 每站一张卡（站名、当前状态、最近一次检查的延迟、90 天可用率条 + 百分比）→ 用量 → 近期故障（北京时间）。
+   结构：横幅（全部正常 / 有 N 个故障）→ 每站一张卡（站名、当前状态、最近一次检查的延迟、90 天可用率条 + 百分比）→ 免费额度 → 用量 → 近期故障（北京时间）。
    四种状态（#st-root data-state）：loading 骨架 · ready 有数据 · empty 还没有任何检查结果 · error 第一次就失败（之后刷新失败只在页脚提示，保留旧数据）。
    账号区：访客进不来（网关 302 回首页）；没有账号会话 → 跳 /account/?return=<本页>，登录后回来（apps/account-status.js）。
    页底「根凭证使用记录」折叠区：展开才请求 GET /api/root-audit（见下方模板注释）。
@@ -41,6 +41,14 @@
   <div id="st-sites" class="st-sites">
     {{ range seq 5 }}<div class="widget bg-m-container-lowest st-card st-skel" aria-hidden="true"><span class="st-skel-line st-skel-w40"></span><span class="st-skel-line st-skel-w60"></span><span class="st-skel-bar"></span></div>{{ end }}
   </div>
+
+  {{/* 免费额度（2026-10-27）：今天的操作次数 / 免费计划上限（Workers + Pages Functions 请求、KV 读写删列、D1 读写行；R2 A/B 类按月），
+     监测 Worker 在 /summary 被请求时按需查 Cloudflare GraphQL、缓存 5 分钟；数据在 /api/status 的 quota / quota_reason，
+     渲染 lib/status-view.js renderQuota。旧版 Worker（没有 quota 字段）整块不显示；拿不到 → 一行「额度暂时拿不到」。 */}}
+  <section id="st-quota-wrap" class="st-usage-wrap" aria-labelledby="st-quota-h" hidden>
+    <h3 class="acct-dev-h" id="st-quota-h">{{ if $isEn }}Free-tier quota{{ else }}免费额度{{ end }}</h3>
+    <div id="st-quota" class="widget bg-m-container-lowest st-usage-card"></div>
+  </section>
 
   {{/* 用量（PR3）：Cloudflare 免费额度用量（Workers 今天的请求数、D1 / R2 / KV 存储），监测 Worker 每小时 41 分收一次；
      数据在 /api/status 的 usage / usage_reason，渲染 lib/status-view.js renderUsage。没配 token → 一行「用量未配置」。 */}}

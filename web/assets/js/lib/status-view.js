@@ -433,11 +433,13 @@ export function usageLevel(p) {
 /**
  * 用量条目（渲染前的纯数据，单测直接看它）。顺序：Workers 请求 → D1 合计 → 每个 D1 库（缩进）→ R2 → KV。
  * 某一项拿不到（null）→ 一行「暂时拿不到」，没有进度条。
+ * opts.skipWorkers：额度卡（renderQuota）已经有今天的 Workers + Pages Functions 请求数时，用量卡不再重复这一行。
  * @param {any} usage
  * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, en:boolean}} ctx
+ * @param {{skipWorkers?:boolean}} [opts]
  * @returns {Array<{key:string, label:string, value:string, limit:string, pct:number|null, level:string, sub:string, child:boolean}>}
  */
-export function usageItems(usage, ctx) {
+export function usageItems(usage, ctx, opts = {}) {
   const out = [];
   const u = usage || {};
   /** @param {string} key @param {string} label @param {number|null} val @param {number} lim @param {(n:number)=>string} f @param {string} sub @param {boolean} [child] */
@@ -448,7 +450,7 @@ export function usageItems(usage, ctx) {
   const missing = (/** @type {string} */ key, /** @type {string} */ label) =>
     out.push({ key, label, value: '—', limit: '', pct: null, level: 'none', sub: ctx.t('uUnavailable'), child: false });
 
-  if (u.workers) add('workers', ctx.t('uWorkers'), Number(u.workers.requests) || 0, Number(u.workers.limit) || 100000, fmtCount, ctx.t('uWorkersSub'));
+  if (opts.skipWorkers) { /* 额度卡里有 */ } else if (u.workers) add('workers', ctx.t('uWorkers'), Number(u.workers.requests) || 0, Number(u.workers.limit) || 100000, fmtCount, ctx.t('uWorkersSub'));
   else missing('workers', ctx.t('uWorkers'));
 
   if (u.d1) {
@@ -482,8 +484,9 @@ export function usageItems(usage, ctx) {
  * @param {any} usage
  * @param {string|null|undefined} reason
  * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, en:boolean, now:number}} ctx
+ * @param {{skipWorkers?:boolean}} [opts]  见 usageItems
  */
-export function renderUsage(usage, reason, ctx) {
+export function renderUsage(usage, reason, ctx, opts = {}) {
   if (!usage) {
     const r = reason || 'not-configured';
     const k = r === 'not-configured' || r === 'secret-missing' ? 'uNotConfigured' : r === 'not-collected' ? 'uNotCollected' : 'uError';
@@ -494,28 +497,135 @@ export function renderUsage(usage, reason, ctx) {
       '</div>'
     );
   }
-  const rows = usageItems(usage, ctx).map((x) => {
-    const pctTxt = fmtUsagePct(x.pct);
-    const val = x.limit ? ctx.fmt('uOf', { value: x.value, limit: x.limit }) : x.value;
-    const bar = x.pct == null
-      ? ''
-      : '<div class="st-u-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.min(100, Math.round(x.pct)) +
-        '" aria-label="' + esc(ctx.fmt('uBarLabel', { name: x.label, pct: pctTxt })) + '">' +
-        '<span class="st-u-fill" data-level="' + x.level + '" style="width:' + (x.pct > 0 ? Math.min(100, Math.max(1, x.pct)).toFixed(1) : '0') + '%"></span></div>';
-    return (
-      '<li class="st-u" data-key="' + esc(x.key) + '" data-level="' + x.level + '"' + (x.child ? ' data-child="1"' : '') + '>' +
-        '<div class="st-u-head">' +
-          '<span class="st-u-name">' + esc(x.label) + '</span>' +
-          '<span class="st-u-val">' + esc(val) + (x.pct == null ? '' : '<span class="st-u-pct">' + esc(pctTxt) + '</span>') + '</span>' +
-        '</div>' +
-        bar +
-        (x.sub ? '<p class="st-u-sub">' + esc(x.sub) + '</p>' : '') +
-      '</li>'
-    );
-  });
+  const rows = usageItems(usage, ctx, opts).map((x) => usageRow(x, ctx));
   const at = Number(usage.fetched_at) || 0;
   const foot = at
     ? ctx.fmt('uUpdated', { ago: fmtAgo(at, ctx.now, ctx.fmt), time: fmtBjTime(at, ctx.en, bjDay(ctx.now)) }) + (usage.stale ? ctx.t('uStale') : '')
     : '';
   return '<ul class="st-usage">' + rows.join('') + '</ul>' + (foot ? '<p class="st-usage-foot"' + (usage.stale ? ' data-stale="1"' : '') + '>' + esc(foot) + '</p>' : '');
+}
+
+/**
+ * 一行用量 / 额度（用量卡和额度卡共用）：名字 · 值 / 上限 · 百分比 · 进度条 · 说明。
+ * @param {{key:string, label:string, value:string, limit:string, pct:number|null, level:string, sub:string, child?:boolean}} x
+ * @param {{fmt:(k:string, v?:Record<string,string|number>)=>string}} ctx
+ */
+export function usageRow(x, ctx) {
+  const pctTxt = fmtUsagePct(x.pct);
+  const val = x.limit ? ctx.fmt('uOf', { value: x.value, limit: x.limit }) : x.value;
+  const bar = x.pct == null
+    ? ''
+    : '<div class="st-u-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.min(100, Math.round(x.pct)) +
+      '" aria-label="' + esc(ctx.fmt('uBarLabel', { name: x.label, pct: pctTxt })) + '">' +
+      '<span class="st-u-fill" data-level="' + x.level + '" style="width:' + (x.pct > 0 ? Math.min(100, Math.max(1, x.pct)).toFixed(1) : '0') + '%"></span></div>';
+  return (
+    '<li class="st-u" data-key="' + esc(x.key) + '" data-level="' + x.level + '"' + (x.child ? ' data-child="1"' : '') + '>' +
+      '<div class="st-u-head">' +
+        '<span class="st-u-name">' + esc(x.label) + '</span>' +
+        '<span class="st-u-val">' + esc(val) + (x.pct == null ? '' : '<span class="st-u-pct">' + esc(pctTxt) + '</span>') + '</span>' +
+      '</div>' +
+      bar +
+      (x.sub ? '<p class="st-u-sub">' + esc(x.sub) + '</p>' : '') +
+    '</li>'
+  );
+}
+
+/* ===== 免费额度（今天的操作次数，2026-10-27）=====
+ * 数据 = /api/status 的 quota / quota_reason（workers/status/src/quota.js readQuota，按需查、5 分钟缓存）：
+ *   quota: { fetched_at, day, month, stale?, last_error?,
+ *            workers: { requests, workers, pages|null, limit } | null,
+ *            kv: { read, write, delete, list, other, limits: { read, write, delete, list } } | null,
+ *            d1: { rows_read, rows_written, limits: { rows_read, rows_written } } | null,
+ *            r2: { class_a, class_b, free, other, since, limits: { class_a, class_b } } | null,
+ *            errors: { [part]: code } } | null
+ *   quota_reason: null | 'not-configured' | 'secret-missing' | 'api-error' | 'db'
+ *   没有 quota 字段（旧版监测 Worker）→ 整块不显示（apps/account-status.js）。
+ * 额度用完服务直接报错（KV 写 429、D1 拒绝、Workers 1027），所以门槛比存储量严：≥ 80% 琥珀（warn），≥ 95% 红（crit）。 */
+
+export const QUOTA_WARN = 80;
+export const QUOTA_CRIT = 95;
+
+/** 额度进度条等级：ok · warn（≥ 80%）· crit（≥ 95%）· none（没数据） @param {number|null} p */
+export function quotaLevel(p) {
+  if (p == null) return 'none';
+  if (p >= QUOTA_CRIT) return 'crit';
+  if (p >= QUOTA_WARN) return 'warn';
+  return 'ok';
+}
+
+/**
+ * 额度条目（渲染前的纯数据）。顺序：Workers 请求 → KV 读 / 写 / 删 / 列 → D1 读 / 写行 → R2 A / B 类（本月）。
+ * 某一项拿不到（null）→ 一行「暂时拿不到」，没有进度条。
+ * @param {any} quota
+ * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, en:boolean}} ctx
+ * @returns {Array<{key:string, label:string, value:string, limit:string, pct:number|null, level:string, sub:string, child:boolean}>}
+ */
+export function quotaItems(quota, ctx) {
+  const out = [];
+  const q = quota || {};
+  /** @param {string} key @param {string} label @param {any} val @param {any} lim @param {string} [sub] */
+  const add = (key, label, val, lim, sub = '') => {
+    const v = Number(val) || 0;
+    const l = Number(lim) || 0;
+    const pct = usagePct(v, l);
+    out.push({ key, label, value: fmtCount(v), limit: l ? fmtCount(l) : '', pct, level: quotaLevel(pct), sub, child: false });
+  };
+  const missing = (/** @type {string} */ key, /** @type {string} */ label) =>
+    out.push({ key, label, value: '—', limit: '', pct: null, level: 'none', sub: ctx.t('uUnavailable'), child: false });
+
+  if (q.workers) {
+    const w = q.workers;
+    const sub = w.pages == null
+      ? ctx.fmt('qWorkersSubNoPages', { w: fmtCount(w.workers) })
+      : ctx.fmt('qWorkersSub', { w: fmtCount(w.workers), p: fmtCount(w.pages) });
+    add('q-workers', ctx.t('qWorkers'), w.requests, w.limit || 100000, sub);
+  } else missing('q-workers', ctx.t('qWorkers'));
+
+  if (q.kv) {
+    const l = q.kv.limits || {};
+    add('q-kv-read', ctx.t('qKvRead'), q.kv.read, l.read || 100000);
+    add('q-kv-write', ctx.t('qKvWrite'), q.kv.write, l.write || 1000);
+    add('q-kv-delete', ctx.t('qKvDelete'), q.kv.delete, l.delete || 1000);
+    add('q-kv-list', ctx.t('qKvList'), q.kv.list, l.list || 1000);
+  } else missing('q-kv', ctx.t('qKv'));
+
+  if (q.d1) {
+    const l = q.d1.limits || {};
+    add('q-d1-read', ctx.t('qD1Read'), q.d1.rows_read, l.rows_read || 5000000);
+    add('q-d1-write', ctx.t('qD1Write'), q.d1.rows_written, l.rows_written || 100000);
+  } else missing('q-d1', ctx.t('qD1'));
+
+  if (q.r2) {
+    const l = q.r2.limits || {};
+    add('q-r2-a', ctx.t('qR2A'), q.r2.class_a, l.class_a || 1000000, ctx.t('qR2ASub'));
+    add('q-r2-b', ctx.t('qR2B'), q.r2.class_b, l.class_b || 10000000, ctx.t('qR2BSub'));
+  } else missing('q-r2', ctx.t('qR2'));
+  return out;
+}
+
+/**
+ * 「免费额度」区块里卡片的 HTML（标题 h3 在模板里）：
+ *   有数据 → ul.st-usage（同用量卡的行）+ 页脚「更新于 N 分钟前（北京时间 hh:mm），按 UTC 零点重置（北京时间 08:00）」
+ *   quota = null → 一行提示（not-configured / secret-missing「额度未配置」；其他「额度暂时拿不到」）——永远不影响页面其余部分
+ * @param {any} quota
+ * @param {string|null|undefined} reason
+ * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, en:boolean, now:number}} ctx
+ */
+export function renderQuota(quota, reason, ctx) {
+  if (!quota) {
+    const r = reason || 'api-error';
+    const k = r === 'not-configured' || r === 'secret-missing' ? 'qNotConfigured' : 'qError';
+    return (
+      '<div class="st-usage-none" data-reason="' + esc(r) + '">' +
+        '<p class="st-usage-none-title">' + esc(ctx.t(k)) + '</p>' +
+        '<p class="st-usage-none-sub">' + esc(ctx.t(k + 'Sub')) + '</p>' +
+      '</div>'
+    );
+  }
+  const rows = quotaItems(quota, ctx).map((x) => usageRow(x, ctx));
+  const at = Number(quota.fetched_at) || 0;
+  const foot = at
+    ? ctx.fmt('qUpdated', { ago: fmtAgo(at, ctx.now, ctx.fmt), time: fmtBjTime(at, ctx.en, bjDay(ctx.now)) }) + (quota.stale ? ctx.t('uStale') : '')
+    : '';
+  return '<ul class="st-usage" data-kind="quota">' + rows.join('') + '</ul>' + (foot ? '<p class="st-usage-foot"' + (quota.stale ? ' data-stale="1"' : '') + '>' + esc(foot) + '</p>' : '');
 }

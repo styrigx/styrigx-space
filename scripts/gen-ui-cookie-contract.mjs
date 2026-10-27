@@ -25,7 +25,7 @@ export const NOW = 1761062400000;
 
 /** 读端期望的默认值（没有 cookie / 字段不合法） */
 const BASE = { tz1: 'auto', tz2: '', h12: 0, clock: 'digital', wx: 1, unit: 'c', loc: 'auto', city: null, precise: null };
-const V2 = (o) => ({ v: 2, mode: 'system', pal: 'dustyblue', accent: '', fs: 'standard', rm: 0, mat: NOW, ...BASE, ...o });
+const V2 = (o) => ({ v: 2, mode: 'system', pal: 'dustyblue', accent: '', fs: 'standard', rm: 0, mat: NOW, lang: '', ...BASE, ...o });
 /** 写端用例里的种子 = 当前 palette-roles.json 里该预设的种子（七色调色板 = 前景 1） */
 const SEEDS = Object.fromEntries(Object.entries(JSON.parse(readFileSync(ROLES, 'utf8')).presets).map(([id, p]) => [id, p.seed]));
 /** 2026-10-23 PR-G 之前的预设种子（读端 LEGACY_SEEDS，旧 cookie 的 accent 仍当预设） */
@@ -56,6 +56,10 @@ const WRITER_CASES = [
   },
   { name: '旧的小字号 key 不再生效', local: { 'sgx-font-size': 'small', 'sgx-theme-mode': 'light' }, expect: { mode: 'light', accent: SEEDS.dustyblue } },
   { name: '本地存了不认识的色板 id（写端写默认 dustyblue）', local: { 'sgx-palette': 'neon', 'sgx-theme-mode': 'dark' }, expect: { mode: 'dark', accent: SEEDS.dustyblue } },
+  /* 2026-10-27：lang = 主站用户明确选的语言（sgx-lang）；跟随系统写 ''（子站不跳，按各自老规矩） */
+  { name: '语言：明确选了 English → lang en', local: { 'sgx-lang': 'en', 'sgx-theme-mode': 'light' }, expect: { mode: 'light', accent: SEEDS.dustyblue, lang: 'en' } },
+  { name: '语言：明确选了中文 → lang zh', local: { 'sgx-lang': 'zh' }, expect: { accent: SEEDS.dustyblue, lang: 'zh' } },
+  { name: '语言：跟随系统 / 存了不认识的值 → lang 空', local: { 'sgx-lang': 'system', 'sgx-theme-mode': 'dark' }, expect: { mode: 'dark', accent: SEEDS.dustyblue } },
 ];
 
 const b64 = (o) => Buffer.from(typeof o === 'string' ? o : JSON.stringify(o), 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -80,7 +84,7 @@ const HANDMADE = [
   },
   {
     name: '字段不合法 → 各自按默认',
-    cookie: b64({ v: 2, mode: 'blue', pal: 'neon', accent: '#GGGGGG', fs: 'huge', rm: true, mat: -5, tz1: '../../etc', tz2: 5, h12: '1', clock: 'sundial', wx: 'no', unit: 'k', loc: 'SOME PLACE', city: [1, 2], precise: 'x' }),
+    cookie: b64({ v: 2, mode: 'blue', pal: 'neon', accent: '#GGGGGG', fs: 'huge', rm: true, mat: -5, lang: 'fr', tz1: '../../etc', tz2: 5, h12: '1', clock: 'sundial', wx: 'no', unit: 'k', loc: 'SOME PLACE', city: [1, 2], precise: 'x' }),
     read: { ...V2({ mat: 0 }), wx: 1 },
   },
   { name: 'accent 大写 → 严格校验不认（写端永远写小写）', cookie: b64({ v: 2, pal: 'lake', accent: '#2F5F86', mode: 'light' }), read: V2({ mode: 'light', pal: 'lake', mat: 0 }) },
@@ -91,7 +95,10 @@ const HANDMADE = [
   { name: '不认识的 x 开头 id（xneon）→ 默认', cookie: b64({ v: 2, pal: 'xneon' }), read: V2({ mat: 0 }) },
   { name: 'accent 简写 #abc → 不认', cookie: b64({ v: 2, accent: '#abc' }), read: V2({ mat: 0 }) },
   { name: 'theme 别名（旧博客契约）不认，只看 mode', cookie: b64({ v: 2, theme: 'dark' }), read: V2({ mat: 0 }) },
+  { name: 'lang 大写 EN → 不认（写端只写 zh / en）', cookie: b64({ v: 2, lang: 'EN', mode: 'light' }), read: V2({ mode: 'light', mat: 0 }) },
+  { name: '旧 v1 带 lang → 照样认（读端不按版本挑字段）', cookie: b64({ v: 1, tz1: 'auto', lang: 'en' }), read: { ...V2({ lang: 'en' }), v: 1, mat: 0 } },
   { name: '未知版本 v3', cookie: b64({ v: 3, mode: 'dark', pal: 'forest' }), read: null },
+  { name: '未知版本 v3 带 lang → 当没有 cookie（不跳语言）', cookie: b64({ v: 3, mode: 'dark', lang: 'en' }), read: null },
   { name: '版本是字符串 "2"', cookie: b64({ v: '2', mode: 'dark' }), read: null },
   { name: '没有 v', cookie: b64({ mode: 'dark', pal: 'forest' }), read: null },
   { name: 'JSON 是数组', cookie: b64([2, 'dark']), read: null },

@@ -310,6 +310,7 @@ async function unlockWithPassword(page, password) {
     r = await api(page, '/api/lock-password', { action: 'verify', password });
     if (r.json && r.json.ok) return r;
     if (r.status === 429) break;
+    // TODO(C8): 重试间隔，不是等页面状态——预览站 KV 是最终一致的，刚写入的密码多久能读到在本地没有可观察的信号；保留 2 秒退避。
     await page.waitForTimeout(2000);
   }
   return /** @type {any} */ (r);

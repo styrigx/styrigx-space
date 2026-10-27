@@ -369,7 +369,8 @@ test('B2-1 security page: no jump-trace diagnostics', async ({ page: pg }) => {
   });
   await pg.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
   await expect(pg.locator('main').first()).toBeVisible({ timeout: 15000 });
-  await pg.waitForTimeout(500);
+  /* C8：原来固定等 500ms；改成等 load（页面模块脚本都执行完，会渲染留痕卡的话此时已渲染） */
+  await pg.waitForLoadState('load');
   await expect(pg.locator('#sgx-jump-note')).toHaveCount(0);
   await expect(pg.locator('main')).not.toContainText(/门内跳转|门内页已加载|navhistory\.js|\.js:\d+/);
   /* 站内返回（系统返回）：不再写新的留痕 */

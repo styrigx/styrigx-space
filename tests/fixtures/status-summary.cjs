@@ -11,6 +11,10 @@
  *             Workers 73,456 / 100,000（73.5% 琥珀）、D1 合计 483.4 MB / 5 GB（styrigx-status 468 MB / 500 MB = 93.6% 红）、
  *             R2 2.01 GB / 10 GB、KV 5.3 MB / 1 GB
  *   withUsage(data, usage, reason)  给任意一份汇总加上 usage / usage_reason（usage = null 时 reason 默认 not-configured）
+ *   quota()   今天的免费额度（2026-10-27，形状 = workers/status/src/quota.js collectQuota）：3 分钟前查的；
+ *             Workers+Pages 82,000 / 100,000（82% 琥珀）、KV 写 960 / 1,000（96% 红）、其余低于 80%
+ *   withQuota(data, quota, reason)  加上 quota / quota_reason（quota = null 时 reason 默认 api-error）
+ *   视觉基线（visual.spec.js）不用 quota：没有 quota 字段 = 旧版 Worker，额度块不显示，基线不变。
  * normal() / oneDown() / empty() 本身不带 usage 字段（= 旧版 Worker，页面按「用量未配置」处理）。
  */
 const NOW = Date.parse('2026-10-09T04:00:00Z');
@@ -118,4 +122,21 @@ function withUsage(data, u, reason) {
   return Object.assign(data, { usage: u, usage_reason: u ? null : (reason || 'not-configured') });
 }
 
-module.exports = { NOW, TODAY, DAY, MIN, normal, oneDown, empty, usage, withUsage };
+function quota(over = {}) {
+  return Object.assign({
+    fetched_at: NOW - 3 * MIN,
+    day: '2026-10-09',
+    month: '2026-10',
+    workers: { requests: 82000, workers: 2000, pages: 80000, limit: 100000 },
+    kv: { read: 42000, write: 960, delete: 12, list: 3, other: 0, limits: { read: 100000, write: 1000, delete: 1000, list: 1000 } },
+    d1: { rows_read: 1200000, rows_written: 4200, limits: { rows_read: 5000000, rows_written: 100000 } },
+    r2: { class_a: 1000, class_b: 55000, free: 40, other: 0, since: '2026-10-01', limits: { class_a: 1000000, class_b: 10000000 } },
+    errors: {},
+  }, over);
+}
+
+function withQuota(data, q, reason) {
+  return Object.assign(data, { quota: q, quota_reason: q ? null : (reason || 'api-error') });
+}
+
+module.exports = { NOW, TODAY, DAY, MIN, normal, oneDown, empty, usage, withUsage, quota, withQuota };

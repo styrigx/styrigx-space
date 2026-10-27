@@ -9,6 +9,7 @@
  * 6. 锁定前清掉本标签页的管理内容（sessionStorage sgx-chat-convo）；接口失败不跳锁屏、toast 提示
  */
 import { test, expect } from '@playwright/test';
+import { nextFrames, flushRequests } from './helpers';
 
 const SECURITY_URL = '/settings/security/';
 
@@ -19,6 +20,8 @@ async function trackLockApi(page) {
     called = true;
     await route.fulfill({ status: 200, body: '{}' });
   });
+  /* request 事件按发出顺序投递：配合 flushRequests 判断「没发」 */
+  page.on('request', (r) => { if (new URL(r.url()).pathname === '/api/lock-now') called = true; });
   return () => called;
 }
 
@@ -57,7 +60,9 @@ test.describe('B1-1 立即锁定', () => {
     /* 400ms 内在同一位置再点，不应再弹确认层 */
     const box = await btn.boundingBox();
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-    await page.waitForTimeout(100);
+    /* C8：点击处理同步（要弹的话此时已 showModal）；等两帧 + 冲刷请求事件后再断言 */
+    await nextFrames(page);
+    await flushRequests(page);
     await expect(page.locator('#sec-locknow-confirm')).toBeHidden();
     expect(wasCalled()).toBe(false);
   });
@@ -78,12 +83,11 @@ test.describe('B1-1 立即锁定', () => {
     /* 只点开确认层，不点锁定 */
     await page.locator('#sec-locknow').click();
     await expect(page.locator('#sec-locknow-confirm')).toBeVisible();
-    await page.waitForTimeout(500);
+    await flushRequests(page);
     expect(wasCalled()).toBe(false);
     /* 点锁定后才发 */
     await page.locator('#sec-locknow-confirm [data-act="ok"]').click();
-    await page.waitForTimeout(500);
-    expect(wasCalled()).toBe(true);
+    await expect.poll(wasCalled).toBe(true);
   });
 
   test('Space 键不触发，只认 Enter', async ({ page }) => {
@@ -92,7 +96,8 @@ test.describe('B1-1 立即锁定', () => {
     await btn.focus();
     /* Space 不应弹确认层 */
     await page.keyboard.press('Space');
-    await page.waitForTimeout(300);
+    /* C8：键盘处理同步；等两帧后再断言没弹 */
+    await nextFrames(page);
     await expect(page.locator('#sec-locknow-confirm')).toBeHidden();
     /* Enter 应该弹确认层 */
     await page.keyboard.press('Enter');

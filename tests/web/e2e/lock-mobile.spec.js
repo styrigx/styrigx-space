@@ -39,7 +39,9 @@ test('点「密码」后焦点留在密码框：方式弹层关闭 250ms 后不�
   await openPwByTouch(page);
   const input = page.locator('#sgx-pw-input');
   await expect(input).toBeFocused();
-  await page.waitForTimeout(450);
+  /* C8：原来固定等 450ms。方式弹层关闭 250ms 后的回调（auth/auth-sheet.js close()）先把 #sgx-method-sheet 移出 DOM、再同步调 onClosed（会不会抢焦点就在这里）；
+     等节点没了 = 那个回调已经跑完 */
+  await expect(page.locator('#sgx-method-sheet')).toHaveCount(0);
   await expect(input).toBeFocused();
 });
 

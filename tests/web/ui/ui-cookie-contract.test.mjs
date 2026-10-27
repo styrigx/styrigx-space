@@ -97,6 +97,18 @@ test('夹具覆盖：默认 dustyblue 亮 / 暗、跟随系统、lake、旧撞�
   assert.ok(fx.cases.filter((c) => c.source === 'writer').length >= 8);
 });
 
+test('语言 lang：写端只写明确选的 zh / en，跟随系统写 \'\'；读端只认小写 zh / en，版本不认识整份不认', () => {
+  const s = sandbox();
+  const byLocal = (v) => fx.cases.find((c) => c.source === 'writer' && c.local['sgx-lang'] === v);
+  assert.equal(s.U.decode(byLocal('en').cookie).lang, 'en');
+  assert.equal(s.U.decode(byLocal('zh').cookie).lang, 'zh');
+  assert.equal(s.U.decode(byLocal('system').cookie).lang, '');
+  for (const c of fx.cases.filter((x) => x.source === 'writer' && !('sgx-lang' in x.local))) assert.equal(s.U.decode(c.cookie).lang, '', c.name);
+  assert.equal(s.U.read('sgx-ui=' + s.U.encode({ v: 2, lang: 'en-US' })).lang, '');
+  assert.equal(s.U.read('sgx-ui=' + s.U.encode({ v: 2, lang: 'EN' })).lang, '');
+  assert.equal(s.U.read('sgx-ui=' + s.U.encode({ v: 3, lang: 'en' })), null);
+});
+
 for (const c of fx.cases) {
   test(`契约：${c.name}`, () => {
     for (const sys of ['light', 'dark']) {

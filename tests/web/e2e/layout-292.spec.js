@@ -13,7 +13,7 @@
  * 不用字符串检查充当测试：全部用 DOM 断言。
  */
 const { test } = require('@playwright/test');
-const { blockExternalRequests, freezeTime, expect } = require('./helpers');
+const { blockExternalRequests, freezeTime, nextFrames, expect } = require('./helpers');
 
 const MOBILE_VP = { width: 390, height: 844 };
 
@@ -99,7 +99,9 @@ test('⑥①布局切换时主内容不空白', async ({ page }) => {
     try { localStorage.setItem('sgx-layout', 'dex'); } catch (e) {}
     window.dispatchEvent(new Event('sgx-layout-change'));
   });
-  await page.waitForTimeout(500);
+  /* C8：原来固定等 500ms。生产代码里没有 sgx-layout-change 的监听（布局走 localStorage + __applyLayout），派发是同步的；
+     等两帧让可能的样式 / 布局更新落地即可 */
+  await nextFrames(page);
   const mainAfter = await page.evaluate(() => {
     const m = document.querySelector('main, #app-content, [data-app-content]');
     return m ? { exists: true, visible: getComputedStyle(m).display !== 'none', html: m.innerHTML.length } : { exists: false };

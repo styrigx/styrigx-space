@@ -649,7 +649,9 @@ test.describe('快捷面板：与设置页同一个设置', () => {
     await dlg.locator('[data-act="cancel"]').click();
     await expect(dlg).toBeHidden();
     expect(called).toBe(false);
-    await page.waitForTimeout(450); /* 防误触窗口（400ms）过去 */
+    /* 防误触窗口（400ms）过去。C8：原来固定等 450ms；改成直接看页面自己的判据——
+       lib/dialog-behavior.js 关弹层时记 window.__sgxLastDialogClosedAt，Date.now() 与它相差 < 400 就忽略点击（这个用例不冻结时间） */
+    await page.waitForFunction(() => Date.now() - (/** @type {any} */ (window).__sgxLastDialogClosedAt || 0) >= 400);
     await openQp(page);
     await tile(page, 'lock').click();
     await expect(dlg).toBeVisible();
