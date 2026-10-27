@@ -126,12 +126,27 @@ function emit(id) {
   } catch (e) {}
 }
 
+/**
+ * 外部改了 localStorage（别的标签页 / 云同步拉下来的值）：按 key 找到功能，通知订阅者 + 派发 sgx-settings-changed，
+ * 让外观等就地生效，不用刷新页面。不认识的 key 跳过；一个都不认识时也派发一次 sgx-settings-changed（天气城市等非功能项靠它重画）。
+ * @param {string[]} keys
+ */
+export function notifyExternal(keys) {
+  let hit = false;
+  for (const k of keys || []) {
+    const def = k ? byKey.get(k) : null;
+    if (def) { emit(def.id); hit = true; }
+  }
+  if (!hit && keys && keys.length) {
+    try { window.dispatchEvent(new Event('sgx-settings-changed')); } catch (e) {}
+  }
+}
+
 /* 跨标签页同步：别的标签页改了同一个 key，本页订阅者即时收到 */
 try {
   window.addEventListener('storage', function (e) {
     if (!e.key) return;
-    const def = byKey.get(e.key);
-    if (def) emit(def.id);
+    notifyExternal([e.key]);
   });
 } catch (e) {}
 

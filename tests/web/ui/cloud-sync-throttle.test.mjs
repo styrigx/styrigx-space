@@ -275,11 +275,48 @@ test('离开页面（pagehide）立刻推掉未推的改动', async () => {
   assert.equal(posts().length, 1);
 });
 
-test('拉下来的值不同 → 应用并刷新一次页面（行为不变）', async () => {
+test('拉下来的值不同 → 就地应用，不刷新页面；派发 sgx-settings-changed；不回推；旧的刷新标记清掉', async () => {
+  SS.set('sgx-sync-reloaded', '123');
+  let changed = 0;
+  window.addEventListener('sgx-settings-changed', () => { changed++; });
+  getReply = { s: 200, j: { ok: true, items: { 'sgx-weather-city': { v: 'Shanghai', t: clock - 10 } } } };
+  assert.equal(await initCloudSync(), 'ok');
+  assert.equal(LS.get('sgx-weather-city'), 'Shanghai');
+  assert.equal(reloads, 0, '不再刷新页面');
+  assert.ok(changed >= 1, '派发了 sgx-settings-changed（页面就地重画）');
+  assert.equal(SS.has('sgx-sync-reloaded'), false);
+  /* 应用引起的 sgx-settings-changed 不能被当成本机改动推回去 */
+  await tick(PUSH_DEBOUNCE + 10);
+  assert.equal(posts().length, 0, '没有回声推送');
+});
+
+test('拉下来自定义主题色：设值 → 按需加载角色引擎；清空 → clearAccent 去掉角色样式；都不刷新', async () => {
   getReply = { s: 200, j: { ok: true, items: { 'sgx-accent': { v: '#abcdef', t: clock - 10 } } } };
   assert.equal(await initCloudSync(), 'ok');
   assert.equal(LS.get('sgx-accent'), '#abcdef');
-  assert.equal(reloads, 1);
+  assert.equal(reloads, 0);
+  await settle();
+  LS.set('sgx-accent-css', 'cached');
+  /* 页面上有自定义色的角色样式（baseof 首屏插进来的） */
+  let removed = 0;
+  let seedProp = '#abcdef';
+  const realGet = document.getElementById;
+  document.getElementById = (id) => (id === 'sgx-accent-roles' ? { remove() { removed++; } } : null);
+  document.documentElement.style = { removeProperty(n) { if (n === '--sgx-seed') seedProp = ''; }, setProperty() {} };
+  clock += PULL_INTERVAL + 1;
+  newPage();
+  getReply = { s: 200, j: { ok: true, items: { 'sgx-accent': { v: null, t: clock - 5 } } } };
+  /* 本机修改时间比云端旧，云端的 null 赢 */
+  assert.equal(await initCloudSync(), 'ok');
+  assert.equal(LS.has('sgx-accent'), false);
+  assert.equal(LS.has('sgx-accent-css'), false, 'clearAccent 清掉缓存');
+  assert.equal(removed, 1, '角色样式去掉');
+  assert.equal(seedProp, '', '--sgx-seed 去掉');
+  document.getElementById = realGet;
+  delete document.documentElement.style;
+  assert.equal(reloads, 0);
+  await tick(PUSH_DEBOUNCE + 10);
+  assert.equal(posts().length, 0);
 });
 
 test('访客 / 开关关：不请求', async () => {

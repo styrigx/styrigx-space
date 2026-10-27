@@ -4,7 +4,7 @@
  * - 总开关：localStorage sgx-cloud-sync（'0' = 关，默认开），与原来总览那一行的开关同一个 key；打开时立刻同步一次（initCloudSync force）。
  *   副标题与总览「云同步」一行同一句（account-common.js syncSubText）。
  * - 同步项：模板按 data/sync-items.yaml 渲染（与 lib/cloud-sync.js syncKeys() 一一对应，单测核对）；这里只填当前值（lib/sync-items.js valueText）。
- *   本页同步拉下新值时 cloud-sync.js 会刷新页面一次，值跟着更新；别的标签页改了设置（storage 事件）就地重填。
+ *   本页同步拉下新值时 cloud-sync.js 就地生效并派发 sgx-settings-changed，这里跟着重填；别的标签页改了设置（storage 事件）也就地重填。
  * - 进页查一次账号会话：明确没有 → 回账号页登录，登录后回本页；有 → 清掉「没登录账号」标记、开着就同步一次（同总览）。
  */
 import { on } from '../lib/events.js';
@@ -67,6 +67,7 @@ import { createT, requireAccountSession, syncSubText } from './account-common.js
 
   /* 别的标签页改了设置 / 开关：就地重填 */
   window.addEventListener('storage', function () { refreshAfterSync(); });
+  window.addEventListener('sgx-settings-changed', function () { refreshAfterSync(); });
 
   paintSwitch();
   paintValues();
