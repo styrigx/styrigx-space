@@ -8,7 +8,7 @@
  * - postReq(url, body, headers?)：JSON POST；默认带 Content-Type 和 Origin（= url 的 origin，真实浏览器 POST 必带）；
  *   headers 里 Origin: null 表示不带 Origin
  *
- * 带元数据的 KV 替身（getWithMetadata：头像、云同步、auth-worker / security-headers 里写死 lock-epoch 的那份）
+ * 带元数据的 KV 替身（getWithMetadata：头像、auth-worker / security-headers 里写死 lock-epoch 的那份）
  * 行为各不相同，留在各自的测试文件里。
  */
 import harness from './_harness.cjs';

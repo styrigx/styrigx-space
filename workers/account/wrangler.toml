@@ -1,6 +1,6 @@
 # styrigx-account：账号数据 Worker（CI 部署；2026-10-24 从鉴权网关 styrigx-auth-gateway 拆出来）
 #
-# 管管理员账号名下的三样数据：头像（KV_PROFILE）、设置云同步（KV_SETTINGS_SYNC，含主题等外观设置）、数字健康（D1_WELLBEING）。
+# 管管理员账号名下的三样数据：头像（KV_PROFILE）、设置云同步（D1_SETTINGS_SYNC，含主题等外观设置）、数字健康（D1_WELLBEING）。
 # 代码：src/（入口 index.js、门 gate.js、会话 auth.js、接口 api/、公共 lib/）+ migrations/（D1 styrigx-account）。
 #
 # 安全：
@@ -51,18 +51,25 @@ service = "styrigx-auth-gateway"
 entrypoint = "AuthVerifier"
 
 # ---- 数据绑定（正式）----
-# 账号资料库 KV styrigx-account：KV_PROFILE = 头像（avatar:*）；KV_SETTINGS_SYNC = 云同步（account-prefs）。一个库两套数据，id 相同。
+# 账号资料库 KV styrigx-account：KV_PROFILE 只放公开的头像 avatar:*。
+# 2026-10-28 起云同步不在 KV 了（KV_SETTINGS_SYNC 绑定已删，见下面 D1_SETTINGS_SYNC）；库里剩下的旧键 account-prefs
+# 只给 scripts/migrate-prefs-kv-to-d1.mjs 一次性导入用，运行时不读。
 [[kv_namespaces]]
 binding = "KV_PROFILE"
 id = "b20701f5f48e498e897bc6f0bd81643f"
 
-[[kv_namespaces]]
-binding = "KV_SETTINGS_SYNC"
-id = "b20701f5f48e498e897bc6f0bd81643f"
-
-# D1 styrigx-account：D1_WELLBEING = wb_daily（migrations/0001_wellbeing.sql）。
+# D1 styrigx-account：一个库两套数据，id 相同。
+# D1_WELLBEING = wb_daily（migrations/0001_wellbeing.sql）。
 [[d1_databases]]
 binding = "D1_WELLBEING"
+database_name = "styrigx-account"
+database_id = "03f60d23-9c2f-4f3d-a692-764ccaac6f5d"
+migrations_dir = "migrations"
+
+# D1_SETTINGS_SYNC = settings_sync 云同步（migrations/0002_settings_sync.sql；src/api/prefs.js，逐项新的赢在 SQL 里原子完成）。
+# 部署前先跑 scripts/migrate-prefs-kv-to-d1.mjs（--dry-run → 导入 → --verify），把 KV 里的 account-prefs 搬进来。
+[[d1_databases]]
+binding = "D1_SETTINGS_SYNC"
 database_name = "styrigx-account"
 database_id = "03f60d23-9c2f-4f3d-a692-764ccaac6f5d"
 migrations_dir = "migrations"
@@ -78,18 +85,23 @@ routes = []
 [env.preview.vars]
 SGX_ENV = "preview"
 
+# 预览 KV styrigx-account-preview：KV_PROFILE 只放公开的头像 avatar:*（云同步不在 KV，见下面的预览 D1）。
 [[env.preview.kv_namespaces]]
 binding = "KV_PROFILE"
 id = "a5ee2a75f00d4308959b2bea55247ff6"
 
-[[env.preview.kv_namespaces]]
-binding = "KV_SETTINGS_SYNC"
-id = "a5ee2a75f00d4308959b2bea55247ff6"
-
-# TODO(Cloudflare)：预览 D1 styrigx-account-preview 还没建。建好后把下面四行取消注释，把 database_id 换成真实 id。
-# 在那之前不登记（不编 id）；预览 Worker 没有 D1_WELLBEING 时数字健康 POST 204、GET 返回空（src/api/wellbeing.js）。
+# TODO(Cloudflare)：预览 D1 styrigx-account-preview 还没建。建好后把下面两段取消注释，把 database_id 换成真实 id（两段同一个 id）。
+# 在那之前不登记（不编 id）：
+# - 预览 Worker 没有 D1_WELLBEING 时数字健康 POST 204、GET 返回空（src/api/wellbeing.js）；
+# - 没有 D1_SETTINGS_SYNC 时设置云同步没有存储，/api/prefs 登录后返回 500 config（src/api/prefs.js），前端停在「只存本机」。
 # [[env.preview.d1_databases]]
 # binding = "D1_WELLBEING"
+# database_name = "styrigx-account-preview"
+# database_id = "<PLACEHOLDER: styrigx-account-preview 的 database_id>"
+# migrations_dir = "migrations"
+#
+# [[env.preview.d1_databases]]
+# binding = "D1_SETTINGS_SYNC"
 # database_name = "styrigx-account-preview"
 # database_id = "<PLACEHOLDER: styrigx-account-preview 的 database_id>"
 # migrations_dir = "migrations"

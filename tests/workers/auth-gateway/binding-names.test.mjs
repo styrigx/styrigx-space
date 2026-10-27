@@ -23,7 +23,7 @@ const AUTH = ['D1_LOCK_AUTH', 'D1_ACCOUNT_AUTH', 'D1_ROOT_AUTH'];
 /* 以前的认证 KV / 重置开关 D1 绑定名：网关和 Pages 预览都不能再出现 */
 const AUTH_GONE = ['KV_LOCK_DOOR', 'KV_ACCOUNT_LOGIN', 'D1_LOCK_RESET', 'D1_LOCK_DOOR', 'D1_ACCOUNT_LOGIN'];
 /* 2026-10-24 起在账号 Worker styrigx-account（workers/account），网关和 Pages 预览都不再绑定 */
-const ACCOUNT = ['KV_PROFILE', 'KV_SETTINGS_SYNC', 'D1_WELLBEING'];
+const ACCOUNT = ['KV_PROFILE', 'D1_SETTINGS_SYNC', 'D1_WELLBEING'];
 const OLD = /\b(OWNER_KV|ACCOUNT_KV|SGX_D1|SEARCH_KV|STATUS_DB)\b|"CF_USAGE_TOKEN"/;
 /** 去掉 # 注释（注释里可以提旧名字，绑定里不行） */
 const code = (toml) => toml.split('\n').map((l) => l.replace(/#.*$/, '')).join('\n');
@@ -53,19 +53,20 @@ test('鉴权网关正式 / 预览：恰好三个 D1 认证绑定（同一个库�
   }
 });
 
-test('账号 Worker 正式 / 预览：KV_PROFILE = KV_SETTINGS_SYNC（同一个库），不碰认证库', () => {
+test('账号 Worker 正式 / 预览：D1_SETTINGS_SYNC = D1_WELLBEING（styrigx-account），KV 只剩头像 KV_PROFILE，不碰认证库', () => {
   const toml = read('workers/account/wrangler.toml');
   assert.doesNotMatch(toml, OLD);
   const [prod, preview] = toml.split(/^\[env\.preview\]$/m);
   const m = bindings(prod);
   for (const n of ACCOUNT) assert.ok(m[n], '缺 ' + n);
-  assert.equal(m.KV_PROFILE, m.KV_SETTINGS_SYNC);
+  assert.equal(m.KV_SETTINGS_SYNC, undefined, 'KV_SETTINGS_SYNC 已删（2026-10-27 设置同步搬到 D1）');
   assert.equal(m.KV_PROFILE, 'b20701f5f48e498e897bc6f0bd81643f');
   assert.equal(m.D1_WELLBEING, '03f60d23-9c2f-4f3d-a692-764ccaac6f5d');
+  assert.equal(m.D1_SETTINGS_SYNC, m.D1_WELLBEING, '设置同步和数字健康是同一个库');
   for (const n of AUTH.concat(AUTH_GONE)) assert.equal(m[n], undefined, '账号 Worker 不该绑 ' + n);
-  const pm = bindings(preview);
+  const pm = bindings(code(preview));
   assert.equal(pm.KV_PROFILE, 'a5ee2a75f00d4308959b2bea55247ff6');
-  assert.equal(pm.KV_PROFILE, pm.KV_SETTINGS_SYNC);
+  assert.equal(pm.KV_SETTINGS_SYNC, undefined);
 });
 
 test('搜索 / 监测：KV_SEARCH_INDEX、D1_UPTIME_MONITOR + D1_CLOUDFLARE_USAGE、SGX_CF_USAGE_TOKEN', () => {

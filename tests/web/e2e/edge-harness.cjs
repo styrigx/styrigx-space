@@ -137,9 +137,11 @@ async function startEdge() {
 
   /* 账号 Worker：自己的库（styrigx-account），会话问网关（同 AuthVerifier） */
   const accountKv = makeKV();
+  const { makeAccountD1 } = await mod('tests/workers/account/_d1.mjs');
+  const accountD1 = makeAccountD1(); /* styrigx-account：设置同步 settings_sync（D1_SETTINGS_SYNC） */
   const accountEnv = {
     SGX_ENV: 'production',
-    KV_PROFILE: accountKv, KV_SETTINGS_SYNC: accountKv,
+    KV_PROFILE: accountKv, D1_SETTINGS_SYNC: accountD1,
     AUTH: {
       lockSession: (c) => verifier.checkLockSession(c, env),
       accountSession: (c, m) => verifier.checkAccountSession(c, env, m),

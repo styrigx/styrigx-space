@@ -120,7 +120,7 @@ workers/
 | Worker | 目录 | 管什么 |
 |---|---|---|
 | `styrigx-auth-gateway` | `workers/auth-gateway/` | 主站会话和锁屏后端：签发和校验会话、二次验证、账号登录、其余接口；`/api/*` 和全部页面先过它，页面验完回源 Pages 取静态文件；blog、daymark、curio 子站的页面也由它验会话（`src/subsites.js`）；所有公私钥只在这里（Secrets Store）；认证状态在 D1 `styrigx-auth-gateway`（`D1_LOCK_AUTH` / `D1_ACCOUNT_AUTH` / `D1_ROOT_AUTH`，2026-10-27 起不绑 KV，上线顺序见 `workers/auth-gateway/README.md`） |
-| `styrigx-account` | `workers/account/` | 管理员账号名下的数据（2026-10-24 从网关拆出来）：头像（KV `KV_PROFILE`）、设置云同步含主题等外观（`KV_SETTINGS_SYNC`）、数字健康（D1 `styrigx-account` 的 `wb_daily`）。自己挂 `styrigx.com/api/avatar*`、`/api/prefs*`、`/api/wellbeing*`、`/avatar/*` 四条比网关更具体的路由（前端地址不变）；不持钥匙，会话经网关的服务绑定 RPC `AuthVerifier` 验 |
+| `styrigx-account` | `workers/account/` | 管理员账号名下的数据（2026-10-24 从网关拆出来）：头像（KV `KV_PROFILE`，只放公开的 `avatar:*`）、设置云同步含主题等外观（D1 `styrigx-account` 的 `settings_sync`，绑定 `D1_SETTINGS_SYNC`）、数字健康（同库 `wb_daily`，绑定 `D1_WELLBEING`）。自己挂 `styrigx.com/api/avatar*`、`/api/prefs*`、`/api/wellbeing*`、`/avatar/*` 四条比网关更具体的路由（前端地址不变）；不持钥匙，会话经网关的服务绑定 RPC `AuthVerifier` 验 |
 | `styrigx-share` | `workers/share/` | 分享短链（2026-10-24）：`https://styrigx.com/s/<码>` 和管理员管理接口 `/api/share`，数据在 D1 `styrigx-share`（`D1_SHARE_LINK`）。自己挂 `styrigx.com/s/*`、`/api/share*` 两条比网关更具体的路由；不持钥匙，会话经网关 `AuthVerifier` 验，短链钥匙和访客会话由网关的服务绑定 RPC `ShareIssuer` 签 |
 | `styrigx-search-index` | `workers/search-index/` | 全站搜索：没有公开地址，只经网关的服务绑定 `SEARCH` 进来（`/api/search` 先验会话）；索引在 KV `styrigx-search-index` |
 | `styrigx-status` | `workers/status/` | 站点监测：cron 每分钟检查主站、博客、日刻、奇趣、规则集，每小时读一次 Cloudflare 用量，结果在 D1 `styrigx-status`；没有公开地址，只经网关的服务绑定 `STATUS` 进来（`/api/status` 先验会话，账号 → 服务状态页读它） |

@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs';
 import { gatewayVerifier } from './_auth.mjs';
 import { testLockSession, testAccountSession } from '../auth-gateway/_tickets.mjs';
 import { genKeyPair, withAuthD1 } from '../_harness.mjs';
+import { makeAccountD1 } from './_d1.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 const worker = (await import(REPO + 'workers/account/src/index.js')).default;
@@ -51,7 +52,7 @@ function setup(over = {}) {
     SGX_ENV: 'production',
     AUTH: gatewayVerifier(gwEnv),
     KV_PROFILE: profile,
-    KV_SETTINGS_SYNC: profile,
+    D1_SETTINGS_SYNC: makeAccountD1(),
     ASSETS: { fetch: async (req) => { origin.push(new URL(req.url || req).pathname); return new Response('DEFAULT', { status: 200 }); } },
     ...over,
   };
@@ -73,6 +74,13 @@ test('wrangler.toml：styrigx-account、不开公开地址、四条路由、AUTH
   assert.deepEqual(routes, ['styrigx.com/api/avatar*', 'styrigx.com/api/prefs*', 'styrigx.com/api/wellbeing*', 'styrigx.com/avatar/*']);
   assert.match(prod, /\[\[services\]\]\nbinding = "AUTH"\nservice = "styrigx-auth-gateway"\nentrypoint = "AuthVerifier"/);
   assert.match(prod, /binding = "D1_WELLBEING"\ndatabase_name = "styrigx-account"\ndatabase_id = "03f60d23-9c2f-4f3d-a692-764ccaac6f5d"\nmigrations_dir = "migrations"/);
+  /* 2026-10-28 云同步搬到 D1：D1_SETTINGS_SYNC 和 D1_WELLBEING 同一个库；KV 只剩 KV_PROFILE（公开头像），正式 / 预览都没有 KV_SETTINGS_SYNC */
+  assert.match(prod, /\[\[d1_databases\]\]\nbinding = "D1_SETTINGS_SYNC"\ndatabase_name = "styrigx-account"\ndatabase_id = "03f60d23-9c2f-4f3d-a692-764ccaac6f5d"\nmigrations_dir = "migrations"/);
+  const code = toml.split('\n').map((l) => l.replace(/#.*$/, '')).join('\n');
+  assert.doesNotMatch(code, /KV_SETTINGS_SYNC/);
+  assert.deepEqual([...code.matchAll(/^binding = "(KV_[A-Z0-9_]+)"/gm)].map((m) => m[1]), ['KV_PROFILE', 'KV_PROFILE']);
+  assert.match(prod, /KV_PROFILE 只放公开的头像 avatar:\*/);
+  assert.match(preview, /^# binding = "D1_SETTINGS_SYNC"$/m);
   assert.doesNotMatch(toml, /secrets_store_secrets|PRIVATE KEY|b796097c90104000992b7713f61e16ea|6931d1da-3502-480d-b0bd-de1bc4829d1d|5084ea8ef2444156ba48203220b93df6|d417e421-75bb-4425-bdc8-54856b88578f/);
   /* 预览：不抢正式路由、不连正式库；预览 D1 还没建 → 只有注释掉的占位，不编 id */
   assert.match(preview, /^routes = \[\]$/m);
