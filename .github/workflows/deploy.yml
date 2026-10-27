@@ -192,7 +192,7 @@ jobs:
       - name: Lock screen baseline screenshot
         run: SGX_TEST_SUITE=lock npx playwright test --config=tests/config/playwright.config.js --grep "baseline screenshot"
 
-      - name: Credential API e2e（真实 handler + 内存 KV，自带测试服务器）
+      - name: Credential API e2e（真实 handler + 内存 D1，自带测试服务器）
         # 锁屏密码 / 锁屏通行密钥 / 账号密码 / 账号通行密钥的真请求；不需要 Hugo 构建
         run: SGX_TEST_SUITE=credential npx playwright test --config=tests/config/playwright.config.js
 
@@ -244,13 +244,13 @@ jobs:
     # WebAuthn 虚拟认证器 + 真实网关代码的 E2E（tests/web/e2e/passkey.spec.js、account-challenge.spec.js）。生产部署的所有 job 都等它通过。
     # 按事件分两条路（job 名不变：passkey-e2e 是分支保护的必需检查，结论就是这个 job 的结论）：
     # - pull_request：本地模拟器 tests/web/e2e/preview-emulator.cjs——同一份 workers/auth-gateway/src/index.js（SGX_ENV=preview），
-    #   KV 是内存 KV、D1 是 node:sqlite 内存库、Cloudflare KV REST 也由它在本机模拟；env.ASSETS 读本步骤构建的 web/public。
-    #   不用任何 Cloudflare secret、不部署预览、不清预览 KV / 不跑 D1 迁移：PR 运行不花 Cloudflare KV 配额。
-    # - push 到 main、workflow_dispatch：真实预览部署 passkey-e2e.styrigx-space.pages.dev + 预览 KV / D1（下面带
-    #   github.event_name != 'pull_request' 的步骤，和改动前一样）。模拟器测不到边缘最终一致、Pages 打包和真实绑定，
+    #   D1 是 node:sqlite 内存库（网关 2026-10-27 起不绑 KV）、Cloudflare D1 / KV REST 也由它在本机模拟；env.ASSETS 读本步骤构建的 web/public。
+    #   不用任何 Cloudflare secret、不部署预览、不清预览 D1 / 不跑 D1 迁移。
+    # - push 到 main、workflow_dispatch：真实预览部署 passkey-e2e.styrigx-space.pages.dev + 预览 D1（下面带
+    #   github.event_name != 'pull_request' 的步骤，和改动前一样）。模拟器测不到真实 D1、Pages 打包和真实绑定，
     #   所以 PR 的通过不顶替真实预览：main 的每次 push（只改文档 / 样式的除外）照跑真实预览，不再复用 PR 运行的结果。
     # 两条路都只用每次运行在 runner 上现生成的测试凭证（RootKey、pepper；真实预览另加 Ed25519 钥匙对），绝不用生产 secret，也不存 GitHub Secrets。
-    # 真实预览只用仓库级的 CLOUDFLARE_ACCOUNT_ID 与 STYRIGX_SPACE_PAGES_DEPLOY（部署预览、写预览 KV / D1）。
+    # 真实预览只用仓库级的 CLOUDFLARE_ACCOUNT_ID 与 STYRIGX_SPACE_PAGES_DEPLOY（部署预览、写预览 D1）。
     # 外部 fork 的 PR 不跑（同仓库分支的 PR 照跑）。
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     needs: quality
@@ -258,14 +258,14 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
-    # 真实预览共用一个预览别名、一个预览 KV / D1：main / 手动运行全仓库同时只跑一个，排队不取消。
+    # 真实预览共用一个预览别名、一个预览 D1：main / 手动运行全仓库同时只跑一个，排队不取消。
     # PR 走本地模拟器，不碰共享预览，不用排进这个队（按 PR 的 ref 分组；同一 PR 的新提交由 workflow 级 concurrency 取消旧运行）。
     concurrency:
       group: ${{ github.event_name == 'pull_request' && format('passkey-e2e-emulator-{0}', github.ref) || 'passkey-e2e-preview' }}
       cancel-in-progress: false
-    # KV 配额（2026-10-26 PR E 合并的 KV 部分）：免费计划的 KV 写 / 删 / 列各 1000 次、按整个账号每个 UTC 日算，预览 KV 和生产网关共用。
-    # 真实预览每次运行约写 ~90、删 ~50、列 ~9（tests/web/e2e/preview-emulator.cjs 实测，见 scripts/kv-budget.mjs）。所以：
-    # - PR 运行全部走本地模拟器，KV 操作为 0；
+    # 配额：2026-10-27 起网关和这组用例都不再用 KV（免费计划 KV 写 / 删 / 列各 1000 次 / 天、全账号共用，以前一次运行要花 ~90 写 ~50 删）；
+    # D1 按行计、额度大得多（tests/web/e2e/preview-emulator.cjs 的 /__kv/stats d1 一栏可量）。仍然：
+    # - PR 运行全部走本地模拟器，不碰 Cloudflare；
     # - 本次改动全部是文档 / 内容文字 / CSS / 视觉基线 / 图片，就不跑用例（也不部署预览），job 以成功结束（steps.scope）。
     steps:
       - name: Checkout
@@ -377,7 +377,7 @@ jobs:
           exit $ok
 
       - name: Setup Node
-        # 提前到这里：下面的清预览 KV 用 node 跑 scripts/kv-budget.mjs（ESM，引用网关 realms.js 的键名）。
+        # 提前到这里：下面的清预览 D1 用 node 跑 scripts/kv-budget.mjs（ESM）。
         # 模拟器的 D1 要 node:sqlite（Node 22 起有）
         if: steps.gate.outputs.run == 'true'
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -403,32 +403,18 @@ jobs:
           } >> "$GITHUB_ENV"
           echo "preview test RootKey / pepper generated (preview only)"
 
-      - name: Reset preview KV (state that would change this run)
-        # 每次运行换了 RootKey、pepper 和 Ed25519 钥匙对。以前开跑前把整个预览命名空间清空（1 次列表 + 每个键 1 次删除，
-        # 一次 ~30 个删除，大半是 7 天 TTL 的审计日志）。现在只删会改变本次起始状态的键（scripts/kv-budget.mjs selectResetKeys）：
-        # 锁屏 / 账号的密码、已接管标记、通行密钥及索引（让本次从「锁屏 / 账号都未设置」开始），以及按 IP 的失败计数 / 冷却（会 429）。
-        # 纪元、user handle、审计、challenge、全局减速计数不删：旧会话 / 票都是旧钥匙签的、验签先失败，其余只是 TTL 到期的计数和日志，
-        # 不改变任何断言的前提（逐条理由见 scripts/kv-budget.mjs）。正常通过的上一次运行之后，这里只删 ~4 个键。
-        # 放在部署之前，给边缘缓存留出时间；测试 helper 本来就不假设起始状态（读到旧值时走重置开关）。
-        # 只认 web/wrangler.toml [env.preview] 的 KV id，且断言它不是网关正式 KV（workers/auth-gateway/wrangler.toml）。
-        # D1（styrigx-auth-gateway-preview）只存重置开关值的 hash，测试每次用新的随机开关值，不用清。
+      - name: Reset preview D1 (state that would change this run)
+        # 每次运行换了 RootKey、pepper 和 Ed25519 钥匙对。2026-10-27 起网关的认证状态全部在 D1（不再绑定 KV），
+        # 开跑前只清预览 D1（styrigx-auth-gateway-preview）里会改变本次起始状态的表（scripts/kv-budget.mjs RESET_D1_TABLES）：
+        # 密码、通行密钥（「锁屏 / 账号都未设置」）和输错计数（attempt_limit：会 429）。
+        # 纪元、user handle、审计、challenge、临时钥匙、设备、重置开关不清：旧会话 / 票都是旧钥匙签的、验签先失败，
+        # 其余只是过期就不认的行，不改变任何断言的前提（逐条理由见 scripts/kv-budget.mjs）。
+        # 库 id 只认 web/wrangler.toml [env.preview] 的 D1_LOCK_AUTH，且断言它不是正式网关的库。D1 REST 要这个 token 有 D1 编辑。
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         env:
           CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CF_API_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
-        run: |
-          kv="$(python3 - <<'PYEOF'
-          import tomllib
-          pv = tomllib.load(open("web/wrangler.toml", "rb"))["env"]["preview"]
-          ids = {k["id"] for k in pv["kv_namespaces"]}
-          assert len(ids) == 1, f"expected one preview KV namespace, got {len(ids)}"
-          kv = ids.pop()
-          prod = {k["id"] for k in tomllib.load(open("workers/auth-gateway/wrangler.toml", "rb")).get("kv_namespaces", [])}
-          assert prod and kv not in prod, "preview KV id must not be the production gateway KV"
-          print(kv)
-          PYEOF
-          )"
-          node scripts/kv-budget.mjs reset-preview "$kv"
+        run: node scripts/kv-budget.mjs reset-preview
 
       - name: Setup Hugo (shared action; version + extended defined only in .github/actions/setup-hugo)
         if: steps.gate.outputs.run == 'true'
@@ -452,8 +438,8 @@ jobs:
 
       - name: Start local preview emulator (pull_request only)
         if: steps.gate.outputs.run == 'true' && github.event_name == 'pull_request'
-        # tests/web/e2e/preview-emulator.cjs：仓库里的网关代码（不打包，直接 import workers/auth-gateway/src/index.js）+ 内存 KV +
-        # node:sqlite 的 D1 + 本机的 Cloudflare KV REST；env.ASSETS 读上面构建的 web/public。Ed25519 钥匙对由它自己现生成。
+        # tests/web/e2e/preview-emulator.cjs：仓库里的网关代码（不打包，直接 import workers/auth-gateway/src/index.js）+
+        # node:sqlite 的 D1 + 本机的 Cloudflare D1 / KV REST；env.ASSETS 读上面构建的 web/public。Ed25519 钥匙对由它自己现生成。
         # RootKey / pepper 用本次生成的 PREVIEW_TEST_ROOT_KEY / PREVIEW_TEST_PW_PEPPER（已打码）。固定端口 8788，和下一步的 SGX_TEST_BASE 一致。
         # 后台跑到 job 结束（runner 收尾时回收）；日志写 emulator-log/，失败时随测试结果一起上传。
         run: |
@@ -474,7 +460,7 @@ jobs:
       - name: Run WebAuthn E2E on local emulator (SGX_TEST_SUITE=passkey, pull_request only)
         if: steps.gate.outputs.run == 'true' && github.event_name == 'pull_request'
         # 和真实预览同一组用例、同一个 playwright 配置；变量按 preview-emulator.cjs 文件头。
-        # SGX_TEST_CF_API 把测试进程的 Cloudflare KV REST 指到模拟器；CF token / account / KV id 是占位值，不是 secret。
+        # SGX_TEST_CF_API 把测试进程的 Cloudflare D1 REST 指到模拟器；CF token / account / D1 id 是占位值，不是 secret。
         env:
           SGX_TEST_SUITE: passkey
           SGX_TEST_BASE: http://localhost:8788
@@ -482,17 +468,17 @@ jobs:
           SGX_TEST_CF_API: http://127.0.0.1:8788/client/v4
           SGX_TEST_CF_TOKEN: x
           SGX_TEST_CF_ACCOUNT: x
-          SGX_TEST_PREVIEW_KV_ID: local
+          SGX_TEST_PREVIEW_D1_ID: local
           CI: '1'
         run: |
           npx playwright test --config=tests/config/playwright.config.js
-          echo "emulator KV operations this run (not billed):"
-          curl -fsS http://127.0.0.1:8788/__kv/stats | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s);for(const k of ['app','rest'])console.log(k,JSON.stringify(Object.fromEntries(Object.entries(j[k]).filter(([n])=>n!=='byPrefix'))))})" || true
+          echo "emulator KV / D1 operations this run (not billed):"
+          curl -fsS http://127.0.0.1:8788/__kv/stats | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s);for(const k of ['app','rest','d1'])console.log(k,JSON.stringify(Object.fromEntries(Object.entries(j[k]).filter(([n])=>n!=='byPrefix'))))})" || true
 
       - name: Bundle auth gateway as the preview _worker.js
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # Pages 上已经没有后端代码。预览把网关的同一份代码打包成 Pages 的 _worker.js（覆盖静态的那个），
-        # 在 passkey-e2e.styrigx-space.pages.dev 上跑：页面和默认头像读 env.ASSETS，接口连预览的 KV/D1。
+        # 在 passkey-e2e.styrigx-space.pages.dev 上跑：页面和默认头像读 env.ASSETS，接口连预览的 D1。
         # 只打包不部署 Worker，不需要 Worker 权限。
         run: |
           (cd workers/auth-gateway && npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir "$RUNNER_TEMP/gateway-dist")
@@ -606,10 +592,10 @@ jobs:
       - name: Run WebAuthn E2E (SGX_TEST_SUITE=passkey)
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # 跑 passkey 组的全部 describe（testMatch 已限定文件，不再 --grep）。
-        # 预览地址和 KV id 从 web/wrangler.toml 读，不在这里重复写。
+        # 预览地址和预览 D1 id 从 web/wrangler.toml 读，不在这里重复写。
         # SGX_TEST_ROOT_KEY 是本次生成、已写进预览 SGX_ROOT_KEY 的同一个值。
-        # 测试进程写预览 KV（重置开关、清限速计数）用 Pages 部署 token（和上面清 KV 同一个）。
-        # 测试 helper 尽量少碰 KV：缓存会话 / 进门票并用只读接口确认（tests/web/e2e/preview-helpers.cjs 文件头）。
+        # 测试进程写预览 D1（打开重置开关、清根凭证限速计数）用 Pages 部署 token（和上面清 D1 同一个）。
+        # 测试 helper 尽量少写：缓存会话 / 进门票并用只读接口确认（tests/web/e2e/preview-helpers.cjs 文件头）。
         env:
           SGX_TEST_SUITE: passkey
           SGX_TEST_ROOT_KEY: ${{ env.PREVIEW_TEST_ROOT_KEY }}
@@ -619,9 +605,9 @@ jobs:
           eval "$(python3 - <<'PYEOF'
           import shlex, tomllib
           p = tomllib.load(open("web/wrangler.toml", "rb"))["env"]["preview"]
-          kv = [k["id"] for k in p["kv_namespaces"] if k["binding"] == "KV_LOCK_DOOR"][0]
+          d1 = [k["database_id"] for k in p["d1_databases"] if k["binding"] == "D1_LOCK_AUTH"][0]
           print("export SGX_TEST_BASE=" + shlex.quote(p["vars"]["SGX_ORIGIN"]))
-          print("export SGX_TEST_PREVIEW_KV_ID=" + shlex.quote(kv))
+          print("export SGX_TEST_PREVIEW_D1_ID=" + shlex.quote(d1))
           PYEOF
           )"
           echo "preview: $SGX_TEST_BASE"
@@ -1010,7 +996,8 @@ jobs:
           exit $ok
 
   deploy-account-worker:
-    # 账号 Worker styrigx-account（workers/account，2026-10-24 从网关拆出来）：头像（KV_PROFILE）、设置云同步（KV_SETTINGS_SYNC）、数字健康（D1_WELLBEING）。
+    # 账号 Worker styrigx-account（workers/account，2026-10-24 从网关拆出来）：头像（KV_PROFILE）、设置云同步（D1_SETTINGS_SYNC，表 settings_sync）、数字健康（D1_WELLBEING）。
+    # 上线前手动跑一次 scripts/migrate-prefs-kv-to-d1.mjs（--dry-run → apply → --verify），把旧 KV 里的 account-prefs 搬进 D1。
     # 路由见 workers/account/wrangler.toml（styrigx.com/api/avatar*、/api/prefs*、/api/wellbeing*、/avatar/*，比网关的 styrigx.com/* 更具体）；
     # workers_dev=false、preview_urls=false。会话问网关：服务绑定 AUTH → styrigx-auth-gateway 的 AuthVerifier（lockSession() / accountSession()），
     # 所以排在网关之后（要先有带 accountSession() 的网关）。不持任何钥匙，CI 不传任何密值。

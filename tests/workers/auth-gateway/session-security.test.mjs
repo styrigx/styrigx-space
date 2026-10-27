@@ -3,7 +3,7 @@
  *
  * 覆盖用例（对应 Gray 7 类修复的第 1/2/3/4/5/6 项中需要服务端断言的部分）：
  * - sgx-verified 设置/清除走同一函数、属性只定义一处（含 Domain=.styrigx.com）
- * - getLockEpoch：KV 出错抛错；key 不存在才当 0；bump 出错绝不写入
+ * - getLockEpoch：D1 出错 / 没绑抛错；新库当 0；每次读 D1 不缓存；bump 出错绝不写入；没有 KV 回落
  * - 纪元接口已删除（第 6 层）
  * - /api/lock-all-devices（2.8.0 独立 L2 API）：admin 会话 → epoch+1、清 cookie 带 Domain、
  *   KV 出错 → 503 且不写入；visitor 会话 → 403；无会话 → 401；旧三段式 cookie 无效
@@ -38,25 +38,24 @@ import { onRequestPost as pwPost } from '../../../workers/auth-gateway/functions
 import { onRequestPost as lockAllPost } from '../../../workers/auth-gateway/functions/api/lock-all-devices.js';
 import { onRequest as mw } from '../../../workers/auth-gateway/functions/_middleware.js';
 import { testLockSession } from './_tickets.mjs';
-import { makeKV, genKeyPair, postReq } from '../_harness.mjs';
+import { makeKV, genKeyPair, postReq, authD1For, forbiddenKV } from '../_harness.mjs';
 
 /* ---------- mock KV ---------- */
 
-/* 读取抛错的 KV（模拟 KV 故障） */
-function makeBrokenKV(method = 'get') {
-  const kv = makeKV();
-  kv[method] = async () => { throw new Error('KV simulated failure'); };
+/**
+ * 网关存储：kv 只当作「上线前的 KV」（authD1For(kv) 模拟部署前跑过 scripts/migrate-kv-to-d1.mjs），
+ * env 里只有三个 D1 绑定（同一个库），没有 KV。
+ */
+function stores(kv = makeKV()) {
+  return { D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv) , D1_ROOT_AUTH: authD1For(kv)};
+}
+/** 建一份 kv，并在它的 D1 替身里写好 lock-epoch */
+function kvWithEpoch(n, seed) {
+  const kv = makeKV(seed);
+  authD1For(kv).setEpoch('lock-epoch', n);
   return kv;
 }
-
-/* put 时抛错的 KV（模拟 bump 写入阶段故障） */
-function makePutBrokenKV(initial = {}) {
-  const kv = makeKV(initial);
-  const origPut = kv.put;
-  kv.putCalls = 0;
-  kv.put = async (k, v) => { kv.putCalls++; throw new Error('KV put failure'); };
-  return kv;
-}
+const lockEpochOf = (kv) => authD1For(kv).epoch('lock-epoch');
 
 /* ---------- Ed25519 测试密钥（临时生成） ---------- */
 
@@ -79,7 +78,7 @@ async function mintSessionCookie() {
 async function seedPassword(kv, password = 'test-pass-12345') {
   const { makePasswordRecord } = await import('../../../workers/auth-gateway/functions/_kernel/password.js');
   const rec = await makePasswordRecord(password, 'test-pepper');
-  await kv.put('lock-password', JSON.stringify(rec));
+  authD1For(kv).putPassword('lock', rec);
 }
 
 /* ================================================================
@@ -116,37 +115,55 @@ test('clearLockSessionCookie 用相同 Domain/Path 并正确过期', () => {
 });
 
 /* ================================================================
- * 2. getLockEpoch / bumpLockEpoch
+ * 2. getLockEpoch / bumpLockEpoch（2026-10-27 起在 D1：d1-state.js readEpoch / bumpEpoch）
  * ================================================================ */
 
-test('getLockEpoch：key 不存在才当 0；有值返回值', async () => {
-  assert.equal(await getLockEpoch(makeKV()), 0);
-  assert.equal(await getLockEpoch(makeKV({ 'lock-epoch': '7' })), 7);
+test('getLockEpoch：新库当 0；D1 有值返回值；上线前 KV 里的旧值由导入脚本 +1 写进 D1（不回退）', async () => {
+  assert.equal(await getLockEpoch(stores()), 0);
+  assert.equal(await getLockEpoch(stores(kvWithEpoch(7))), 7);
+  const legacy = makeKV({ 'lock-epoch': '7' });
+  assert.equal(await getLockEpoch(stores(legacy)), 8);
+  assert.equal(await getLockEpoch(stores(legacy)), 8, '只导一次');
+  assert.equal(legacy.store.get('lock-epoch'), '7', 'KV 旧值原样保留');
+  assert.equal(legacy._calls.get, 0, '网关代码不读 KV');
 });
 
-test('getLockEpoch：KV 读取出错抛错', async () => {
-  await assert.rejects(() => getLockEpoch(makeBrokenKV('get')), /KV simulated failure/);
+test('getLockEpoch：读取出错抛错（D1 出错 / D1 没绑）；每次都读 D1，不缓存', async () => {
+  const kv = makeKV();
+  authD1For(kv).failOn = () => true;
+  await assert.rejects(() => getLockEpoch(stores(kv)), /d1-fail/);
+  await assert.rejects(() => getLockEpoch({}), /d1-missing/);
+  /* env 里有 KV 也没用：没有回落 */
+  await assert.rejects(() => getLockEpoch({ KV_LOCK_DOOR: makeKV({ 'lock-epoch': '3' }) }), /d1-missing/);
+  const live = kvWithEpoch(2);
+  assert.equal(await getLockEpoch(stores(live)), 2);
+  authD1For(live).setEpoch('lock', 3);
+  assert.equal(await getLockEpoch(stores(live)), 3, 'D1 一变，下一次读就是新值');
 });
 
-test('bumpLockEpoch：0→1，N→N+1；出错绝不写入', async () => {
-  assert.equal(await bumpLockEpoch(makeKV()), 1);
-  const kv = makeKV({ 'lock-epoch': '4' });
-  assert.equal(await bumpLockEpoch(kv), 5);
-  assert.equal(kv.store.get('lock-epoch'), '5');
+test('bumpLockEpoch：0→1，N→N+1（原子自增，两次并发推进拿到两个不同的值）；出错绝不写入', async () => {
+  assert.equal(await bumpLockEpoch(stores()), 1);
+  const kv = kvWithEpoch(4);
+  assert.equal(await bumpLockEpoch(stores(kv)), 5);
+  assert.equal(lockEpochOf(kv), 5);
+  const got = await Promise.all([bumpLockEpoch(stores(kv)), bumpLockEpoch(stores(kv))]);
+  assert.deepEqual(got.sort(), [6, 7]);
+  assert.equal(lockEpochOf(kv), 7);
 
-  const broken = makePutBrokenKV({ 'lock-epoch': '9' });
-  await assert.rejects(() => bumpLockEpoch(broken), /KV put failure/);
+  const broken = kvWithEpoch(9);
+  authD1For(broken).failOn = (sql) => /^UPDATE epoch/.test(sql);
+  await assert.rejects(() => bumpLockEpoch(stores(broken)), /d1-fail/);
   /* 写入失败：原值不动（杜绝 epoch 变小） */
-  assert.equal(broken.store.get('lock-epoch'), '9');
-  assert.equal(broken.putCalls, 1);
+  assert.equal(lockEpochOf(broken), 9);
 });
 
-test('bumpLockEpoch：读取出错时不写入（旧 cookie 不复活）', async () => {
-  const kv = makeBrokenKV('get');
-  let putCalled = false;
-  kv.put = async () => { putCalled = true; };
-  await assert.rejects(() => bumpLockEpoch(kv), /KV simulated failure/);
-  assert.equal(putCalled, false);
+test('bumpLockEpoch：D1 没绑 → 抛错；env 里的 KV 碰一下就抛错也照常推进（不读不写 KV）', async () => {
+  await assert.rejects(() => bumpLockEpoch({ KV_LOCK_DOOR: makeKV() }), /d1-missing/);
+  const touched = [];
+  const kv = kvWithEpoch(1);
+  assert.equal(await bumpLockEpoch({ ...stores(kv), KV_LOCK_DOOR: forbiddenKV('KV_LOCK_DOOR', touched) }), 2);
+  assert.equal(lockEpochOf(kv), 2);
+  assert.deepEqual(touched, []);
 });
 
 /* ================================================================
@@ -167,7 +184,7 @@ test('纪元接口已删除：路由表里没有，文件也不在', async () =>
 test('password verify 通过：Set-Cookie 带 Domain=.styrigx.com（Ed25519 格式）', async () => {
   const kv = makeKV();
   await seedPassword(kv);
-  const env = { KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, SGX_LOCK_PRIVATE: TEST_PRIV_PEM, SGX_PW_PEPPER: 'test-pepper' };
+  const env = { D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), SGX_LOCK_PRIVATE: TEST_PRIV_PEM, SGX_PW_PEPPER: 'test-pepper' };
   const r = await pwPost({ request: postReq('https://styrigx.com/api/lock-password', { action: 'verify', password: 'test-pass-12345' }), env });
   assert.equal(r.status, 200);
   assert.deepEqual(await r.json(), { ok: true });
@@ -181,16 +198,12 @@ test('password verify 通过：Set-Cookie 带 Domain=.styrigx.com（Ed25519 格�
   assert.equal(parsed.sig.length > 10, true);
 });
 
-test('password verify：KV 读取 lock-epoch 出错 → 503（不签发会话）', async () => {
+test('password verify：读 lock-epoch（D1）出错 → 503（不签发会话）', async () => {
   const kv = makeKV();
   await seedPassword(kv);
-  /* 只让 lock-epoch 的 get 抛错 */
-  const origGet = kv.get.bind(kv);
-  kv.get = async (k, t) => {
-    if (k === 'lock-epoch') throw new Error('KV boom');
-    return origGet(k, t);
-  };
-  const env = { KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, SGX_LOCK_PRIVATE: TEST_PRIV_PEM, SGX_PW_PEPPER: 'test-pepper' };
+  /* 只让纪元的查询抛错 */
+  authD1For(kv).failOn = (sql) => /FROM epoch|INTO epoch/.test(sql);
+  const env = { D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), SGX_LOCK_PRIVATE: TEST_PRIV_PEM, SGX_PW_PEPPER: 'test-pepper' };
   const r = await pwPost({ request: postReq('https://styrigx.com/api/lock-password', { action: 'verify', password: 'test-pass-12345' }), env });
   assert.equal(r.status, 503);
   assert.equal(r.headers.get('Set-Cookie'), null);
@@ -199,7 +212,7 @@ test('password verify：KV 读取 lock-epoch 出错 → 503（不签发会话）
 test('password verify：密码错误 → 403（不签发）', async () => {
   const kv = makeKV();
   await seedPassword(kv);
-  const env = { KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, SGX_LOCK_PRIVATE: TEST_PRIV_PEM, SGX_PW_PEPPER: 'test-pepper' };
+  const env = { D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), SGX_LOCK_PRIVATE: TEST_PRIV_PEM, SGX_PW_PEPPER: 'test-pepper' };
   const r = await pwPost({ request: postReq('https://styrigx.com/api/lock-password', { action: 'verify', password: 'nope-nope-nope' }), env });
   assert.equal(r.status, 403);
   assert.equal(r.headers.get('Set-Cookie'), null);
@@ -211,38 +224,38 @@ test('password verify：密码错误 → 403（不签发）', async () => {
 
 
 test('lock-all-devices：visitor 会话 → 403 {ok:false, error:role}（epoch 不变）', async () => {
-  const kv = makeKV({ 'lock-epoch': '2' });
+  const kv = kvWithEpoch(2);
   const cookie = await testLockSession(TEST_PRIV_PEM, 2, 'visitor');
-  const env = { KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, SGX_LOCK_PUBLIC: TEST_PUB_PEM };
+  const env = { D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), SGX_LOCK_PUBLIC: TEST_PUB_PEM };
   const r = await lockAllPost({
     request: postReq('https://styrigx.com/api/lock-all-devices', {}, { 'Cookie': 'sgx-lock-session=' + cookie }),
     env,
   });
   assert.equal(r.status, 403);
   assert.deepEqual(await r.json(), { ok: false, error: 'role' });
-  assert.equal(kv.store.get('lock-epoch'), '2');
+  assert.equal(lockEpochOf(kv), 2);
 });
 
 test('lock-all-devices：无会话 → 401', async () => {
-  const kv = makeKV({ 'lock-epoch': '2' });
-  const env = { KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, SGX_LOCK_PUBLIC: TEST_PUB_PEM };
+  const kv = kvWithEpoch(2);
+  const env = { D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), SGX_LOCK_PUBLIC: TEST_PUB_PEM };
   const r = await lockAllPost({
     request: postReq('https://styrigx.com/api/lock-all-devices', {}),
     env,
   });
   assert.equal(r.status, 401);
-  assert.equal(kv.store.get('lock-epoch'), '2');
+  assert.equal(lockEpochOf(kv), 2);
 });
 
 test('lock-all-devices：旧三段式（无 role）cookie → 401 无效', async () => {
-  const kv = makeKV({ 'lock-epoch': '2' });
-  const env = { KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, SGX_LOCK_PUBLIC: TEST_PUB_PEM };
+  const kv = kvWithEpoch(2);
+  const env = { D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), SGX_LOCK_PUBLIC: TEST_PUB_PEM };
   const r = await lockAllPost({
     request: postReq('https://styrigx.com/api/lock-all-devices', {}, { 'Cookie': 'sgx-lock-session=2.9999999999999.fakesig' }),
     env,
   });
   assert.equal(r.status, 401);
-  assert.equal(kv.store.get('lock-epoch'), '2');
+  assert.equal(lockEpochOf(kv), 2);
 });
 
 
@@ -264,7 +277,7 @@ const PROD_ENV = () => ({
   SGX_ENV: 'production',
   SGX_SITE: 'space',
   SGX_LOCK_PUBLIC: TEST_PUB_PEM,
-  KV_LOCK_DOOR: makeKV(),
+  ...stores(),
 });
 const PROD_URL = 'https://styrigx.com/settings/';
 
@@ -273,7 +286,7 @@ async function validCookie(epoch = 0, role = 'admin') {
 }
 
 test('middleware：生产环境缺 SGX_LOCK_PUBLIC → fail closed（非白名单 302 到首页锁屏）', async () => {
-  const env = { SGX_ENV: 'production', SGX_SITE: 'space', KV_LOCK_DOOR: makeKV() };
+  const env = { SGX_ENV: 'production', SGX_SITE: 'space', ...stores() };
   const r = await mw(mwCtx(PROD_URL, { env }));
   assert.equal(r.status, 302);
   const loc = r.headers.get('Location');
@@ -354,14 +367,14 @@ test('middleware：伪造签名被拒（302 到首页锁屏）', async () => {
 });
 
 test('middleware：lockout 后旧 epoch cookie 失效', async () => {
-  const kv = makeKV({ 'lock-epoch': '0' });
-  const env = { SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: TEST_PUB_PEM, KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv };
+  const kv = kvWithEpoch(0);
+  const env = { SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: TEST_PUB_PEM, D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv) };
   const oldCookie = await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
   /* 旧 cookie 有效 */
   const r1 = await mw(mwCtx(PROD_URL, { cookie: oldCookie, env }));
   assert.equal(await r1.text(), 'NEXT-BY-APP');
   /* bump（模拟 lockout） */
-  await bumpLockEpoch(kv);
+  await bumpLockEpoch(env);
   /* 旧 cookie 失效 → 302 到首页锁屏 */
   const r2 = await mw(mwCtx(PROD_URL, { cookie: oldCookie, env }));
   assert.equal(r2.status, 302);
@@ -388,7 +401,7 @@ test('middleware：缺 SGX_ENV 或写错 → 按生产处理（fail closed），
     assert.equal(api.status, 403, JSON.stringify(env));
   }
   /* 正式域名缺 SGX_ENV：照常走会话检查（缺公钥 → 302 锁屏） */
-  const r = await mw(mwCtx(PROD_URL, { env: { SGX_SITE: 'space', KV_LOCK_DOOR: makeKV() } }));
+  const r = await mw(mwCtx(PROD_URL, { env: { SGX_SITE: 'space', ...stores() } }));
   assert.equal(r.status, 302);
   assert.ok(r.headers.get('Location').startsWith('https://styrigx.com/?lock=1&return='));
 });
@@ -562,7 +575,7 @@ function assertSessionCookieAttrs(sc, maxAge) {
 test('password verify 通过：Set-Cookie 属性齐全（Path/Secure/HttpOnly/SameSite=Lax）', async () => {
   const kv = makeKV();
   await seedPassword(kv);
-  const env = { KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, SGX_LOCK_PRIVATE: TEST_PRIV_PEM, SGX_PW_PEPPER: 'test-pepper' };
+  const env = { D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), SGX_LOCK_PRIVATE: TEST_PRIV_PEM, SGX_PW_PEPPER: 'test-pepper' };
   const r = await pwPost({ request: postReq('https://styrigx.com/api/lock-password', { action: 'verify', password: 'test-pass-12345' }), env });
   assert.equal(r.status, 200);
   assert.deepEqual(await r.json(), { ok: true });
@@ -573,8 +586,8 @@ test('临时 LockKey 进门通过：Set-Cookie 属性齐全（visitor 锁屏会�
   const { onRequestPost: tkPost } = await import('../../../workers/auth-gateway/functions/api/lock-tempkey-unlock.js');
   const { createTempkey } = await import('../../../workers/auth-gateway/functions/_kernel/lock-tempkey.js');
   const kv = makeKV();
-  const { code } = await createTempkey(kv, 'test-pepper', { name: '', ms: 30 * 24 * 3600 * 1000 });
-  const env = { KV_LOCK_DOOR: kv, SGX_LOCK_PRIVATE: TEST_PRIV_PEM, SGX_PW_PEPPER: 'test-pepper' };
+  const { code } = await createTempkey(stores(kv), 'test-pepper', { name: '', ms: 30 * 24 * 3600 * 1000 });
+  const env = { D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), SGX_LOCK_PRIVATE: TEST_PRIV_PEM, SGX_PW_PEPPER: 'test-pepper' };
   const r = await tkPost({ request: postReq('https://styrigx.com/api/lock-tempkey-unlock', { code }), env });
   assert.equal(r.status, 200);
   assert.deepEqual(await r.json(), { ok: true, role: 'visitor' });
@@ -599,18 +612,17 @@ test('passkey auth 通过：Set-Cookie 属性齐全', async () => {
   const jwk = await crypto.subtle.exportKey('jwk', kp.publicKey);
   const credId = b64url(crypto.getRandomValues(new Uint8Array(16)));
   const kv = makeKV();
-  await kv.put('lock-passkey-index', JSON.stringify([credId]));
-  await kv.put('lock-passkey:' + credId.slice(0, 12), JSON.stringify({
+  authD1For(kv).putPasskey('lock', {
     name: 'test-key', credId, publicKey: jwk, signCount: 0, uv: 1,
     createdAt: Date.now(), lastUsedAt: 0,
-  }));
+  });
   /* 预置 auth challenge */
   const cid = 'test-cid-' + Date.now();
   const challenge = b64url(crypto.getRandomValues(new Uint8Array(32)));
-  await kv.put('lock-passkey-challenge:' + cid, JSON.stringify({ type: 'auth', challenge, exp: Date.now() + 60000 }));
+  authD1For(kv).putChallenge('lock', cid, 'auth', challenge, Date.now() + 60000);
 
   const env = {
-    KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
+    D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv),
     SGX_LOCK_PRIVATE: TEST_PRIV_PEM,
     SGX_RP_ID: 'styrigx.com',
     SGX_ORIGIN: 'https://styrigx.com',
@@ -684,7 +696,7 @@ test('passkey auth 通过：Set-Cookie 属性齐全', async () => {
 test('diag: issueLockSession 无 SGX_LOCK_PRIVATE → 500 no-session-key（不签发）', async () => {
   const { issueLockSession } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
   const headers = new Headers();
-  const err = await issueLockSession({ KV_LOCK_DOOR: makeKV() }, headers, { by: 'password', role: 'admin' });
+  const err = await issueLockSession({ ...stores() }, headers, { by: 'password', role: 'admin' });
   assert.deepEqual(err, { status: 500, body: { ok: false, error: 'no-session-key' } });
   assert.equal(headers.get('Set-Cookie'), null);
 });
@@ -692,15 +704,17 @@ test('diag: issueLockSession 无 SGX_LOCK_PRIVATE → 500 no-session-key（不�
 test('diag: issueLockSession 私钥格式错误 → 500 session-sign-failed', async () => {
   const { issueLockSession } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
   const headers = new Headers();
-  const err = await issueLockSession({ KV_LOCK_DOOR: makeKV(), SGX_LOCK_PRIVATE: 'not-a-key' }, headers, { by: 'password', role: 'admin' });
+  const err = await issueLockSession({ ...stores(), SGX_LOCK_PRIVATE: 'not-a-key' }, headers, { by: 'password', role: 'admin' });
   assert.deepEqual(err, { status: 500, body: { ok: false, error: 'session-sign-failed' } });
   assert.equal(headers.get('Set-Cookie'), null);
 });
 
-test('diag: issueLockSession KV 出错 → 503（不签发）', async () => {
+test('diag: issueLockSession 读纪元出错（D1）→ 503（不签发）', async () => {
   const { issueLockSession } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
   const headers = new Headers();
-  const err = await issueLockSession({ KV_LOCK_DOOR: makeBrokenKV(), SGX_LOCK_PRIVATE: TEST_PRIV_PEM }, headers, { by: 'password', role: 'admin' });
+  const kv = makeKV();
+  authD1For(kv).failOn = () => true;
+  const err = await issueLockSession({ ...stores(kv), SGX_LOCK_PRIVATE: TEST_PRIV_PEM }, headers, { by: 'password', role: 'admin' });
   assert.equal(err.status, 503);
   assert.deepEqual(err.body, { ok: false, error: 'server' });
   assert.equal(headers.get('Set-Cookie'), null);
@@ -710,7 +724,7 @@ test('diag: issueLockSession 正常 → null 且 Set-Cookie 已设置', async ()
   const { issueLockSession, LOCK_SESSION_COOKIE } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
   assert.equal(LOCK_SESSION_COOKIE, 'sgx-lock-session');
   const headers = new Headers();
-  const err = await issueLockSession({ KV_LOCK_DOOR: makeKV(), SGX_LOCK_PRIVATE: TEST_PRIV_PEM }, headers, { by: 'password', role: 'admin' });
+  const err = await issueLockSession({ ...stores(), SGX_LOCK_PRIVATE: TEST_PRIV_PEM }, headers, { by: 'password', role: 'admin' });
   assert.equal(err, null);
   assert.match(headers.get('Set-Cookie'), /^sgx-lock-session=[^;]+; /);
 });
@@ -720,7 +734,7 @@ test('diag: issueLockSession 正常 → null 且 Set-Cookie 已设置', async ()
 test('diag: password verify 无 SGX_LOCK_PRIVATE → 500 no-session-key（不是 ok:true）', async () => {
   const kv = makeKV();
   await seedPassword(kv);
-  const env = { KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, SGX_PW_PEPPER: 'test-pepper' };
+  const env = { D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), SGX_PW_PEPPER: 'test-pepper' };
   const r = await pwPost({ request: postReq('https://styrigx.com/api/lock-password', { action: 'verify', password: 'test-pass-12345' }), env });
   assert.equal(r.status, 500);
   assert.deepEqual(await r.json(), { ok: false, error: 'no-session-key' });
@@ -731,8 +745,8 @@ test('diag: 临时 LockKey 进门 无 SGX_LOCK_PRIVATE → 500 no-session-key，
   const { onRequestPost: tkPost } = await import('../../../workers/auth-gateway/functions/api/lock-tempkey-unlock.js');
   const { createTempkey } = await import('../../../workers/auth-gateway/functions/_kernel/lock-tempkey.js');
   const kv = makeKV();
-  const { code } = await createTempkey(kv, 'test-pepper', { name: '', ms: 3600 * 1000 });
-  const env = { KV_LOCK_DOOR: kv, SGX_PW_PEPPER: 'test-pepper' };
+  const { code } = await createTempkey(stores(kv), 'test-pepper', { name: '', ms: 3600 * 1000 });
+  const env = { D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), SGX_PW_PEPPER: 'test-pepper' };
   const r = await tkPost({ request: postReq('https://styrigx.com/api/lock-tempkey-unlock', { code }), env });
   assert.equal(r.status, 500);
   assert.deepEqual(await r.json(), { ok: false, error: 'no-session-key' });
@@ -747,14 +761,13 @@ async function buildPasskeyAuthFixture() {
   const jwk = await crypto.subtle.exportKey('jwk', kp.publicKey);
   const credId = b64url(crypto.getRandomValues(new Uint8Array(16)));
   const kv = makeKV();
-  await kv.put('lock-passkey-index', JSON.stringify([credId]));
-  await kv.put('lock-passkey:' + credId.slice(0, 12), JSON.stringify({
+  authD1For(kv).putPasskey('lock', {
     name: 'test-key', credId, publicKey: jwk, signCount: 0, uv: 1,
     createdAt: Date.now(), lastUsedAt: 0,
-  }));
+  });
   const cid = 'test-cid-' + Date.now() + Math.random();
   const challenge = b64url(crypto.getRandomValues(new Uint8Array(32)));
-  await kv.put('lock-passkey-challenge:' + cid, JSON.stringify({ type: 'auth', challenge, exp: Date.now() + 60000 }));
+  authD1For(kv).putChallenge('lock', cid, 'auth', challenge, Date.now() + 60000);
 
   const rpIdHash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('styrigx.com')));
   const authData = new Uint8Array(37);
@@ -804,7 +817,7 @@ test('diag: passkey auth 无 SGX_LOCK_PRIVATE → 500 no-session-key（不被吞
   const { onRequestPost: pkPost } = await import('../../../workers/auth-gateway/functions/api/lock-passkey.js');
   const { kv, body } = await buildPasskeyAuthFixture();
   const env = {
-    KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
+    D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv),
     SGX_RP_ID: 'styrigx.com',
     SGX_ORIGIN: 'https://styrigx.com',
   };
@@ -818,7 +831,7 @@ test('diag: passkey auth 私钥格式错误 → 500 session-sign-failed（不被
   const { onRequestPost: pkPost } = await import('../../../workers/auth-gateway/functions/api/lock-passkey.js');
   const { kv, body } = await buildPasskeyAuthFixture();
   const env = {
-    KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
+    D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv),
     SGX_LOCK_PRIVATE: 'not-a-valid-key',
     SGX_RP_ID: 'styrigx.com',
     SGX_ORIGIN: 'https://styrigx.com',
@@ -1099,7 +1112,7 @@ test('LockResetTicket 只放行 /settings/security/lock/，不开总览；LockRe
     SGX_ENV: 'production',
     SGX_SITE: 'space',
     SGX_LOCK_PUBLIC: TEST_PUB_PEM,
-    KV_LOCK_DOOR: makeKV(),
+    ...stores(),
   };
   const ctx = (url, t) => ({
     request: new Request(url, { headers: { 'Cookie': t || ticket } }),

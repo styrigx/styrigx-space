@@ -25,6 +25,7 @@ import { isSameOrigin, originDenied, json, apiError } from '../_kernel/http.js';
 import { REALM_LOCK, LOCK_REAUTH_TICKET, LOCK_RESET_TICKET } from '../_kernel/realms.js';
 import { verifyTicket, clearTicket } from '../_kernel/tickets.js';
 import { getPasskeys, PASSKEY_LOCK } from '../_kernel/passkey-store.js';
+import { hasPassword } from '../_kernel/password.js';
 import { TICKET_IDS } from '../_kernel/lock-manage.js';
 
 /** @param {any} context */
@@ -39,7 +40,7 @@ export async function onRequestPost(context) {
 /** @param {any} context */
 async function handlePost(context) {
   const { request, env } = context;
-  const kv = env && env.KV_LOCK_DOOR;
+  const lockDb = env && env[REALM_LOCK.d1Binding]; /* D1_LOCK_AUTH（纪元、临时钥匙都在这里）：没绑 → 500 config */
   if (request.method !== 'POST') {
     return apiError(405, 'method');
   }
@@ -58,7 +59,7 @@ async function handlePost(context) {
   }
 
   if (action === 'status') {
-    if (!kv) return apiError(500, 'config');
+    if (!lockDb) return apiError(500, 'config');
     let ticket = '';
     let tv = await verifyTicket(request, env, LOCK_REAUTH_TICKET);
     const sess = await verifyLockSession(request, env);
@@ -78,9 +79,8 @@ async function handlePost(context) {
     let password = false;
     let passkey = false;
     try {
-      const pw = await kv.get(REALM_LOCK.kv.password, 'json');
-      password = !!(pw && pw.hash);
-      passkey = (await getPasskeys(kv, PASSKEY_LOCK)).length > 0;
+      password = await hasPassword(env, REALM_LOCK);
+      passkey = (await getPasskeys(env, PASSKEY_LOCK)).length > 0;
     } catch (e) {
       return apiError(503, 'server');
     }

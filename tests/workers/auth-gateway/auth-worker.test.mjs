@@ -14,7 +14,7 @@ import path from 'node:path';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { testLockSession } from './_tickets.mjs';
-import { genKeyPair } from '../_harness.mjs';
+import { genKeyPair, authD1For } from '../_harness.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
@@ -32,7 +32,7 @@ function makeKv() {
   const m = new Map();
   return {
     m,
-    async get(k) { if (k === 'lock-epoch') return '0'; const v = m.get(k); return v === undefined ? null : v; },
+    async get(k) { const v = m.get(k); return v === undefined ? null : v; }, /* 纪元在 D1（authD1For），KV 里没有 lock-epoch → 0 */
     async getWithMetadata(k) { const v = m.get(k); return { value: v ?? null, metadata: null }; },
     async put(k, v) { m.set(k, v); },
     async delete(k) { m.delete(k); },
@@ -42,7 +42,7 @@ function makeKv() {
 const store = (v) => ({ get: async () => v });
 function baseEnv() {
   const kv = makeKv();
-  return { SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv };
+  return { SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, KV_LOCK_DOOR: kv, D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), KV_ACCOUNT_LOGIN: kv };
 }
 const CTX = { waitUntil() {} };
 
@@ -90,7 +90,7 @@ test('routeKey / pickHandler 与 Pages 一致', () => {
 test('resolveSecrets：绑定 → 字符串；字符串原样；其他绑定不动', async () => {
   _resetSecretCache();
   const kv = makeKv();
-  const env = { SGX_LOCK_PRIVATE: store('L'), SGX_PW_PEPPER: 'P', KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, SGX_SITE: 'space' };
+  const env = { SGX_LOCK_PRIVATE: store('L'), SGX_PW_PEPPER: 'P', KV_LOCK_DOOR: kv, D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), KV_ACCOUNT_LOGIN: kv, SGX_SITE: 'space' };
   const out = await resolveSecrets(env, 1000);
   assert.equal(out.SGX_LOCK_PRIVATE, 'L');
   assert.equal(out.SGX_PW_PEPPER, 'P');

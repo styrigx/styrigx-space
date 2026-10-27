@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { signLockSessionTicket } from '../../../workers/auth-gateway/functions/_kernel/lock-session.js';
 import { onRequest as mw } from '../../../workers/auth-gateway/functions/_middleware.js';
 import { testLockSession } from './_tickets.mjs';
-import { genKeyPair } from '../_harness.mjs';
+import { genKeyPair, withAuthD1 } from '../_harness.mjs';
 
 const { priv: PRIV, pub: PUB } = await genKeyPair();
 
@@ -19,7 +19,7 @@ function kv() {
   const m = new Map();
   return { async get(k) { return m.has(k) ? m.get(k) : null; }, async put(k, v) { m.set(k, String(v)); }, async delete(k) { m.delete(k); }, async list() { return { keys: [] }; } };
 }
-const env = () => ({ SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, KV_LOCK_DOOR: kv() });
+const env = () => withAuthD1({ SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, KV_LOCK_DOOR: kv() });
 
 function ctx(url, cookie) {
   const headers = {};

@@ -6,7 +6,7 @@
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { testLockSession, testAccountSession, testTicket } from './_tickets.mjs';
-import { makeKV, genKeyPair, postReq as jsonPost } from '../_harness.mjs';
+import { makeKV, genKeyPair, postReq as jsonPost, authD1For } from '../_harness.mjs';
 
 /* 本文件的请求都带固定客户端 IP（按 IP 的失败计数键要用） */
 const postReq = (url, body, headers = {}) => jsonPost(url, body, { 'CF-Connecting-IP': '10.9.9.9', ...headers });
@@ -20,7 +20,8 @@ const PEPPER = 'test-pepper-acc';
 
 function envFor(kv, overrides = {}) {
   return {
-    KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
+    /* kv 只当作这份 D1 替身的钥匙（authD1For）；env 里没有 KV */
+    D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv),
     SGX_ROOT_KEY: ROOT_KEY,
     SGX_LOCK_PRIVATE: LOCK.priv,
     SGX_LOCK_PUBLIC: LOCK.pub,
@@ -84,8 +85,15 @@ async function accountGet(kv, cookieObj, envOverrides) {
 }
 async function seedPassword(kv, pw) {
   const { makePasswordRecord } = await import(KERNEL + 'password.js');
-  await kv.put('account-password', JSON.stringify(await makePasswordRecord(pw, PEPPER)));
+  authD1For(kv).putPassword('account', await makePasswordRecord(pw, PEPPER));
 }
+/** D1 device 表里这台的行（realm=account；没有 → null） */
+function devRow(kv, deviceId) {
+  const r = authD1For(kv).rows('device').find((x) => x.device_id === deviceId);
+  return r ? { ...r, rec: JSON.parse(r.record) } : null;
+}
+/** 未退出的设备行 */
+const liveDevices = (kv) => authD1For(kv).rows('device').filter((r) => r.revoked_at === 0);
 
 
 const SM_UA = 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/28.0 Chrome/130.0.0.0 Mobile Safari/537.36';
@@ -133,7 +141,10 @@ test('登录记一台设备（型号来自 hints）；同一浏览器再登录�
   const acc1 = pickCookie(r1, 'sgx-account-session');
   assert.equal(acc1.split('.').length, 6, '票六段（带 deviceId）');
   const deviceId = acc1.split('.')[4];
-  const rec = JSON.parse(kv.store.get('account-device:' + deviceId));
+  const row = devRow(kv, deviceId);
+  assert.equal(row.realm, 'account');
+  assert.equal(row.revoked_at, 0);
+  const rec = row.rec;
   assert.equal(rec.deviceId, deviceId, '记录字段叫 deviceId');
   assert.equal('sid' in rec, false);
   assert.equal(rec.model, 'SM-S918B');
@@ -143,9 +154,8 @@ test('登录记一台设备（型号来自 hints）；同一浏览器再登录�
   const r2 = await login(kv, { 'sgx-lock-session': sess, 'sgx-account-session': acc1 }, SM_UA, null, { reauth: true });
   assert.equal(r2.status, 200);
   assert.equal(pickCookie(r2, 'sgx-account-session').split('.')[4], deviceId);
-  const devKeys = [...kv.store.keys()].filter((k) => k.startsWith('account-device:'));
-  assert.equal(devKeys.length, 1);
-  assert.equal(JSON.parse(kv.store.get('account-device:' + deviceId)).model, 'SM-S918B', '这次没带 hints，型号保留');
+  assert.equal(authD1For(kv).rows('device').length, 1);
+  assert.equal(devRow(kv, deviceId).rec.model, 'SM-S918B', '这次没带 hints，型号保留');
 });
 
 test('devices 列出：此设备排第一并标 current；GET session.device 是此设备名字', async () => {
@@ -184,8 +194,8 @@ test('device-revoke：别的设备立即失效（revoked）；不能退出此设
   assert.equal((await self.json()).error, 'current');
   const ok = await post(kv, { action: 'device-revoke', deviceId: pcDeviceId }, { 'sgx-lock-session': sess, 'sgx-account-session': phone });
   assert.equal(ok.status, 200);
-  assert.equal(kv.store.has('account-device:' + pcDeviceId), false);
-  assert.equal(kv.store.has('account-device-revoked:' + pcDeviceId), true);
+  assert.ok(devRow(kv, pcDeviceId).revoked_at > 0, '行留着、标成已退出');
+  assert.ok(!liveDevices(kv).some((r) => r.device_id === pcDeviceId), '设备页不再列出');
   const { verifyAccountSession } = await import(KERNEL + 'account-session.js');
   const v = await verifyAccountSession(new Request('https://styrigx.com/', { headers: { Cookie: 'sgx-account-session=' + pc } }), envFor(kv));
   assert.equal(v.ok, false);
@@ -204,8 +214,11 @@ test('退出账号：删本机记录并拉黑 deviceId', async () => {
   const deviceId = phone.split('.')[4];
   const r = await post(kv, { action: 'logout' }, { 'sgx-account-session': phone });
   assert.equal(r.status, 200);
-  assert.equal(kv.store.has('account-device:' + deviceId), false);
-  assert.equal(kv.store.has('account-device-revoked:' + deviceId), true);
+  assert.ok(devRow(kv, deviceId).revoked_at > 0, '本机标成已退出');
+  assert.equal(liveDevices(kv).length, 0);
+  /* 下一个请求：同一张票不再算登录 */
+  const g = await (await get(kv, { 'sgx-lock-session': sess, 'sgx-account-session': phone })).json();
+  assert.equal(g.session, null);
 });
 
 test('五段票（没有 deviceId 的旧格式）：不认，GET 当没登录、不下发新票、不记设备', async () => {
@@ -220,7 +233,7 @@ test('五段票（没有 deviceId 的旧格式）：不认，GET 当没登录、
   const j = await r.json();
   assert.equal(j.session, null);
   assert.equal(pickCookie(r, 'sgx-account-session') || '', '');
-  assert.equal([...kv.store.keys()].filter((k) => k.startsWith('account-device:')).length, 0);
+  assert.equal(authD1For(kv).rows('device').length, 0);
 });
 
 test('改账号密码（纪元 +1）：当前设备沿用 deviceId，其他设备记录删掉', async () => {
@@ -235,8 +248,8 @@ test('改账号密码（纪元 +1）：当前设备沿用 deviceId，其他设�
   const nv = pickCookie(r, 'sgx-account-session');
   assert.equal(nv.split('.')[4], phone.split('.')[4]);
   assert.equal(nv.split('.')[1], '1');
-  assert.equal(kv.store.has('account-device:' + pc.split('.')[4]), false);
-  assert.equal(kv.store.has('account-device:' + phone.split('.')[4]), true);
+  assert.equal(devRow(kv, pc.split('.')[4]), null);
+  assert.ok(devRow(kv, phone.split('.')[4]) && devRow(kv, phone.split('.')[4]).revoked_at === 0);
 });
 
 test('票据篡改 deviceId → bad-sig', async () => {
@@ -249,4 +262,61 @@ test('票据篡改 deviceId → bad-sig', async () => {
   const { verifyAccountSession } = await import(KERNEL + 'account-session.js');
   const v = await verifyAccountSession(new Request('https://styrigx.com/', { headers: { Cookie: 'sgx-account-session=' + p.join('.') } }), envFor(kv));
   assert.equal(v.reason, 'bad-sig');
+});
+
+test('device-revoke 在下一个请求就生效：被退出的那台 GET 当没登录、管理操作 401；同一张票再登录（reauth）也不会把它复活', async () => {
+  const kv = makeKV();
+  await seedPassword(kv, 'acct-pass-1234');
+  const sess = await adminSess();
+  const pc = pickCookie(await login(kv, { 'sgx-lock-session': sess }, WIN_UA, null), 'sgx-account-session');
+  const phone = pickCookie(await login(kv, { 'sgx-lock-session': sess }, SM_UA, null), 'sgx-account-session');
+  const pcId = pc.split('.')[4];
+  /* 退出前 pc 好好的 */
+  let g = await (await get(kv, { 'sgx-lock-session': sess, 'sgx-account-session': pc })).json();
+  assert.ok(g.session, '退出前是登录状态');
+  const ok = await post(kv, { action: 'device-revoke', deviceId: pcId }, { 'sgx-lock-session': sess, 'sgx-account-session': phone });
+  assert.equal(ok.status, 200);
+  /* 紧接着的下一个请求：没有任何等待（KV 时代最长约 60 秒还认） */
+  g = await (await get(kv, { 'sgx-lock-session': sess, 'sgx-account-session': pc })).json();
+  assert.equal(g.session, null, '被退出的票立刻不认');
+  const list = await post(kv, { action: 'device-list' }, { 'sgx-lock-session': sess, 'sgx-account-session': pc });
+  assert.equal(list.status, 401);
+  /* 带着被退出的票再登录：发新 deviceId，旧行仍是已退出（upsert 不清 revoked_at） */
+  const again = await login(kv, { 'sgx-lock-session': sess, 'sgx-account-session': pc }, WIN_UA, null, { reauth: true });
+  assert.equal(again.status, 200);
+  const fresh = pickCookie(again, 'sgx-account-session');
+  assert.notEqual(fresh.split('.')[4], pcId, '被退出的 deviceId 不再沿用');
+  assert.ok(devRow(kv, pcId).revoked_at > 0, '还是已退出');
+  const { verifyAccountSession } = await import(KERNEL + 'account-session.js');
+  const v = await verifyAccountSession(new Request('https://styrigx.com/', { headers: { Cookie: 'sgx-account-session=' + pc } }), envFor(kv));
+  assert.equal(v.ok, false);
+  assert.equal(v.reason, 'revoked');
+  /* 另一台不受影响 */
+  g = await (await get(kv, { 'sgx-lock-session': sess, 'sgx-account-session': phone })).json();
+  assert.ok(g.session);
+});
+
+test('putDevice / recordLogin 对已退出的 deviceId：不改 revoked_at、不改记录（upsert 永不复活）；revokeDevice 对没有的 id 也插一行已退出的', async () => {
+  const d = await import(KERNEL + 'account-devices.js');
+  const kv = makeKV();
+  const env = envFor(kv);
+  const id = d.newDeviceId();
+  await d.recordLogin(env, id, 'password', Date.now(), { model: 'SM-S918B' });
+  assert.equal(await d.isRevoked(env, id), false);
+  await d.revokeDevice(env, id);
+  assert.equal(await d.isRevoked(env, id), true);
+  const revokedAt = devRow(kv, id).revoked_at;
+  await d.putDevice(env, { deviceId: id, model: 'X', lastSeen: Date.now() });
+  await d.recordLogin(env, id, 'passkey', Date.now(), { model: 'Y' });
+  assert.equal(devRow(kv, id).revoked_at, revokedAt, 'revoked_at 不变');
+  assert.equal(devRow(kv, id).rec.model, 'SM-S918B', '记录也不被覆盖');
+  assert.equal(await d.isRevoked(env, id), true);
+  assert.equal(await d.getDevice(env, id), null, '已退出的不当成设备');
+  assert.deepEqual(await d.listDevices(env), []);
+  const ghost = d.newDeviceId();
+  await d.revokeDevice(env, ghost);
+  assert.equal(await d.isRevoked(env, ghost), true);
+  /* D1 出错：isRevoked 抛错（调用方按无效处理，不当成没退出） */
+  authD1For(kv).failOn = (sql) => /FROM device/.test(sql);
+  await assert.rejects(d.isRevoked(env, id));
 });

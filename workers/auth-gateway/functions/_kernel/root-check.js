@@ -9,7 +9,7 @@
  *                                      否则 needAccount，再验账号凭证 → LockResetTicket(by=account)
  *
  * 本函数只做：共用限速检查（全局减速时先等）→ 恒定时间比对（两边去空白）→ 失败计数 + 审计 / 成功清计数。
- * 不签任何票，不读重置开关。fail closed：限速或计数 KV 出错一律 503。
+ * 不签任何票，不读重置开关。fail closed：限速或计数 D1 出错一律 503。
  *
  * 失败响应与假入口逐字节相同（401 { ok:false, error:'auth' }）；传 padTo 时在返回前对齐耗时。
  */
@@ -22,7 +22,6 @@ import { apiError } from './http.js';
 /**
  * @param {object} o
  * @param {any} o.env
- * @param {any} o.kv KV_LOCK_DOOR
  * @param {string} o.ip
  * @param {string} o.key 用户输入的根凭证
  * @param {string} o.auditPath 审计 path（root-auth / account / lock-reset）
@@ -30,16 +29,16 @@ import { apiError } from './http.js';
  * @returns {Promise<{ok:true}|{ok:false, response:Response}>}
  */
 export async function checkRootCredential(o) {
-  const { env, kv, ip, auditPath } = o;
+  const { env, ip, auditPath } = o;
   const rootKey = (env && env[REALM_ROOT.secret]) || ''; /* SGX_ROOT_KEY */
-  if (!rootKey || !kv) {
+  if (!rootKey || !(env && env[REALM_ROOT.d1Binding])) {
     return { ok: false, response: apiError(500, 'config') };
   }
-  /* 限流检查：KV 出错一律拒绝（fail closed） */
+  /* 限流检查：D1 出错一律拒绝（fail closed） */
   try {
-    const lim = await checkRootLimit(kv, ip);
+    const lim = await checkRootLimit(env, ip);
     if (lim.limited) {
-      await writeRootAudit(kv, ip, false, { path: auditPath });
+      await writeRootAudit(env, ip, false, { path: auditPath });
       return { ok: false, response: apiError(429, 'cooldown') };
     }
     if (lim.delayMs) await sleep(lim.delayMs);
@@ -51,18 +50,18 @@ export async function checkRootCredential(o) {
   const ok = key && normalizeRootKey(key) && (await timingSafeEqual(normalizeRootKey(key), normalizeRootKey(rootKey)));
   if (!ok) {
     try {
-      await recordRootFail(kv, ip);
+      await recordRootFail(env, ip);
     } catch (e) {
-      await writeRootAudit(kv, ip, false, { path: auditPath });
+      await writeRootAudit(env, ip, false, { path: auditPath });
       return { ok: false, response: apiError(503, 'server') };
     }
     /* 审计写入放在 padTo 之前：真失败与假入口耗时一致 */
-    await writeRootAudit(kv, ip, false, { path: auditPath });
+    await writeRootAudit(env, ip, false, { path: auditPath });
     if (o.padTo) await o.padTo();
     return { ok: false, response: apiError(401, 'auth') };
   }
   /* 成功：清掉该 IP 的失败计数（失败不影响主流程） */
-  await clearRootFail(kv, ip);
+  await clearRootFail(env, ip);
   return { ok: true };
 }
 

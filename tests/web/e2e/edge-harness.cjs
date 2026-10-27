@@ -26,7 +26,7 @@ const nodeCrypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 const { pathToFileURL } = require('node:url');
 /* 内存 KV、DER→PEM：和 Worker 单测同一份（tests/workers/_harness.cjs） */
-const { makeKV, derToPem } = require('../../workers/_harness.cjs');
+const { makeKV, makeAuthD1, derToPem } = require('../../workers/_harness.cjs');
 
 const REPO = process.env.SGX_EDGE_REPO || path.join(__dirname, '..', '..', '..');
 const PROXY_PORT = Number(process.env.SGX_EDGE_PROXY_PORT || 8941);
@@ -122,12 +122,13 @@ async function startEdge() {
   const tempMod = await mod('workers/auth-gateway/functions/_kernel/lock-tempkey.js');
 
   const kv = makeKV();
+  const d1 = makeAuthD1(); /* 网关 D1（全部认证状态） */
   const lkp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
   const privPem = derToPem(await crypto.subtle.exportKey('pkcs8', lkp.privateKey), 'PRIVATE KEY');
   const pubPem = derToPem(await crypto.subtle.exportKey('spki', lkp.publicKey), 'PUBLIC KEY');
   const env = {
     SGX_ENV: 'production', SGX_SITE: 'space', SGX_ORIGIN: 'https://styrigx.com', SGX_RP_ID: 'styrigx.com',
-    KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
+    D1_LOCK_AUTH: d1, D1_ACCOUNT_AUTH: d1, D1_ROOT_AUTH: d1, /* 网关只绑 D1（2026-10-27 起不绑 KV） */
     SGX_LOCK_PRIVATE: privPem, SGX_LOCK_PUBLIC: pubPem,
     SGX_ACCOUNT_PRIVATE: privPem, SGX_ACCOUNT_PUBLIC: pubPem,
     SGX_ROOT_KEY: 'edge-test-root-key-not-a-secret', SGX_PW_PEPPER: 'edge-test-pepper',
@@ -136,9 +137,11 @@ async function startEdge() {
 
   /* 账号 Worker：自己的库（styrigx-account），会话问网关（同 AuthVerifier） */
   const accountKv = makeKV();
+  const { makeAccountD1 } = await mod('tests/workers/account/_d1.mjs');
+  const accountD1 = makeAccountD1(); /* styrigx-account：设置同步 settings_sync（D1_SETTINGS_SYNC） */
   const accountEnv = {
     SGX_ENV: 'production',
-    KV_PROFILE: accountKv, KV_SETTINGS_SYNC: accountKv,
+    KV_PROFILE: accountKv, D1_SETTINGS_SYNC: accountD1,
     AUTH: {
       lockSession: (c) => verifier.checkLockSession(c, env),
       accountSession: (c, m) => verifier.checkAccountSession(c, env, m),
@@ -246,17 +249,15 @@ async function startEdge() {
 
   async function seedPasskey() {
     const pk = await mod('workers/auth-gateway/functions/_kernel/passkey-store.js');
-    const layers = await mod('workers/auth-gateway/functions/_kernel/layers.js');
     const kp = nodeCrypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
     const jwk = kp.publicKey.export({ format: 'jwk' });
     const credId = nodeCrypto.randomBytes(32);
     const credIdB64url = credId.toString('base64url');
-    await pk.savePasskey(kv, 'lock', {
+    await pk.savePasskey(env, 'lock', {
       name: 'edge-test', credId: credIdB64url, publicKey: { kty: 'EC', crv: 'P-256', x: jwk.x, y: jwk.y, alg: 'ES256', ext: true },
       signCount: 0, uv: 1,
     });
-    await layers.setLayerConfigured(kv, 'lock');
-    const uh = await pk.getUserHandle(kv, 'lock');
+    const uh = await pk.getUserHandle(env, 'lock'); /* 锁屏层「已配置」由这把钥匙本身推出（layers.js） */
     return {
       credentialId: credId.toString('base64'),
       isResidentCredential: true,
@@ -269,9 +270,9 @@ async function startEdge() {
 
   /** 按当前 Lock 纪元签一个锁屏会话 cookie 值（admin：by=password；visitor：先登记一把 1 小时临时钥匙，by=tempkey、带它的 tempkeyId） */
   async function mintCookie(role) {
-    const ep = await sessMod.getLockEpoch(kv);
+    const ep = await sessMod.getLockEpoch(env);
     if (role === 'visitor') {
-      const r = await tempMod.createTempkey(kv, env.SGX_PW_PEPPER, { name: 'edge', ms: 3600 * 1000 });
+      const r = await tempMod.createTempkey(env, env.SGX_PW_PEPPER, { name: 'edge', ms: 3600 * 1000 });
       return sessMod.signLockSessionTicket(privPem, { by: 'tempkey', role: 'visitor', epoch: ep, exp: Date.now() + 3600 * 1000, tempkeyId: r.key.id });
     }
     return sessMod.signLockSessionTicket(privPem, { by: 'password', role: 'admin', epoch: ep, exp: Date.now() + 12 * 3600 * 1000, tempkeyId: '' });
@@ -279,14 +280,14 @@ async function startEdge() {
 
   /** 签发一把 1 小时的临时 LockKey，返回临时码（XXXX-XXXX-XXXX） */
   async function seedTempkey() {
-    const r = await tempMod.createTempkey(kv, env.SGX_PW_PEPPER, { name: 'edge', ms: 3600 * 1000 });
+    const r = await tempMod.createTempkey(env, env.SGX_PW_PEPPER, { name: 'edge', ms: 3600 * 1000 });
     return r.code;
   }
 
   /** 账号会话 cookie 值（sgx-account-session，by=passkey，当前 Account 纪元） */
   async function mintAccount() {
     const acc = await mod('workers/auth-gateway/functions/_kernel/account-session.js');
-    const ep = await acc.getAccountEpoch(kv);
+    const ep = await acc.getAccountEpoch(env);
     return acc.signAccountSessionTicket(privPem, { by: 'passkey', epoch: ep, authAt: Date.now(), deviceId: 'edgedeviceedgede' });
   }
 

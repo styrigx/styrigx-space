@@ -13,7 +13,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { gatewayVerifier } from './_auth.mjs';
 import { testLockSession, testAccountSession } from '../auth-gateway/_tickets.mjs';
-import { genKeyPair } from '../_harness.mjs';
+import { genKeyPair, withAuthD1 } from '../_harness.mjs';
+import { makeAccountD1 } from './_d1.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 const worker = (await import(REPO + 'workers/account/src/index.js')).default;
@@ -44,14 +45,14 @@ function makeKv(init = {}) {
 /** 网关那边的 env（钥匙 + 认证库）和账号 Worker 的 env（账号库 + AUTH 绑定）分开放，和线上一样 */
 function setup(over = {}) {
   const authKv = makeKv();
-  const gwEnv = { SGX_LOCK_PUBLIC: PUB, SGX_ACCOUNT_PUBLIC: PUB, KV_LOCK_DOOR: authKv, KV_ACCOUNT_LOGIN: authKv };
+  const gwEnv = withAuthD1({ SGX_LOCK_PUBLIC: PUB, SGX_ACCOUNT_PUBLIC: PUB, KV_LOCK_DOOR: authKv, KV_ACCOUNT_LOGIN: authKv });
   const profile = makeKv();
   const origin = [];
   const env = {
     SGX_ENV: 'production',
     AUTH: gatewayVerifier(gwEnv),
     KV_PROFILE: profile,
-    KV_SETTINGS_SYNC: profile,
+    D1_SETTINGS_SYNC: makeAccountD1(),
     ASSETS: { fetch: async (req) => { origin.push(new URL(req.url || req).pathname); return new Response('DEFAULT', { status: 200 }); } },
     ...over,
   };
@@ -73,6 +74,13 @@ test('wrangler.toml：styrigx-account、不开公开地址、四条路由、AUTH
   assert.deepEqual(routes, ['styrigx.com/api/avatar*', 'styrigx.com/api/prefs*', 'styrigx.com/api/wellbeing*', 'styrigx.com/avatar/*']);
   assert.match(prod, /\[\[services\]\]\nbinding = "AUTH"\nservice = "styrigx-auth-gateway"\nentrypoint = "AuthVerifier"/);
   assert.match(prod, /binding = "D1_WELLBEING"\ndatabase_name = "styrigx-account"\ndatabase_id = "03f60d23-9c2f-4f3d-a692-764ccaac6f5d"\nmigrations_dir = "migrations"/);
+  /* 2026-10-28 云同步搬到 D1：D1_SETTINGS_SYNC 和 D1_WELLBEING 同一个库；KV 只剩 KV_PROFILE（公开头像），正式 / 预览都没有 KV_SETTINGS_SYNC */
+  assert.match(prod, /\[\[d1_databases\]\]\nbinding = "D1_SETTINGS_SYNC"\ndatabase_name = "styrigx-account"\ndatabase_id = "03f60d23-9c2f-4f3d-a692-764ccaac6f5d"\nmigrations_dir = "migrations"/);
+  const code = toml.split('\n').map((l) => l.replace(/#.*$/, '')).join('\n');
+  assert.doesNotMatch(code, /KV_SETTINGS_SYNC/);
+  assert.deepEqual([...code.matchAll(/^binding = "(KV_[A-Z0-9_]+)"/gm)].map((m) => m[1]), ['KV_PROFILE', 'KV_PROFILE']);
+  assert.match(prod, /KV_PROFILE 只放公开的头像 avatar:\*/);
+  assert.match(preview, /^# binding = "D1_SETTINGS_SYNC"$/m);
   assert.doesNotMatch(toml, /secrets_store_secrets|PRIVATE KEY|b796097c90104000992b7713f61e16ea|6931d1da-3502-480d-b0bd-de1bc4829d1d|5084ea8ef2444156ba48203220b93df6|d417e421-75bb-4425-bdc8-54856b88578f/);
   /* 预览：不抢正式路由、不连正式库；预览 D1 还没建 → 只有注释掉的占位，不编 id */
   assert.match(preview, /^routes = \[\]$/m);
@@ -233,17 +241,18 @@ test('头像只读 KV_PROFILE：认证库里有 avatar:* 也不读', () => {
 
 test('网关 AuthVerifier.accountSession()：同 verifyAccountSession；吊销 → revoked；设备记录带浏览器 User-Agent', async () => {
   const kv = makeKv();
-  const gwEnv = { SGX_ACCOUNT_PUBLIC: PUB, KV_ACCOUNT_LOGIN: kv };
+  const gwEnv = withAuthD1({ SGX_ACCOUNT_PUBLIC: PUB, KV_ACCOUNT_LOGIN: kv }); /* account-epoch 在 D1 */
   const sid = 'BBBBBBBBBBBBBBBB';
   const t = await testAccountSession(PRIV, 'passkey', 0, Date.now(), undefined, sid);
   const ua = 'Mozilla/5.0 (Linux; Android 16; SM-S9380) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/29.0 Chrome/136.0.0.0 Mobile Safari/537.36';
   assert.deepEqual(await checkAccountSession('sgx-account-session=' + t, gwEnv, { ua, country: 'CN' }), { ok: true });
-  const rec = [...kv.m.entries()].find(([k]) => k.includes(sid));
-  assert.ok(rec, '设备记录补写了');
-  const dev = JSON.parse(rec[1].value ?? rec[1]);
+  const rec = gwEnv.D1_ACCOUNT_AUTH.rows('device').find((r) => r.device_id === sid && r.realm === 'account');
+  assert.ok(rec, '设备记录补写了（D1 device 表）');
+  const dev = JSON.parse(rec.record);
   assert.equal(dev.country, 'CN');
   assert.ok(dev.browser || dev.platform, '从 User-Agent 解析出了浏览器 / 系统');
-  await kv.put('account-device-revoked:' + sid, '1');
+  /* 单独退出：D1 device.revoked_at（强一致，下一个请求就拒） */
+  gwEnv.D1_ACCOUNT_AUTH.raw.prepare("UPDATE device SET revoked_at = ? WHERE realm = 'account' AND device_id = ?").run(Date.now(), sid);
   assert.deepEqual(await checkAccountSession('sgx-account-session=' + t, gwEnv, {}), { ok: false, reason: 'revoked' });
   assert.deepEqual(await checkAccountSession('', gwEnv), { ok: false, reason: 'no-cookie' });
 });

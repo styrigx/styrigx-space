@@ -24,7 +24,7 @@ import path from 'node:path';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { testLockSession, testTicket } from './_tickets.mjs';
-import { makeKV, genKeyPair } from '../_harness.mjs';
+import { makeKV, genKeyPair, authD1For } from '../_harness.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const GW = REPO + '/workers/auth-gateway/';
@@ -40,7 +40,7 @@ const PEPPER = 'test-pepper';
 const ROOT_KEY = 'root-secret-123';
 
 const envFor = (kv, extra = {}) => ({
-  KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
+  KV_LOCK_DOOR: kv, D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), KV_ACCOUNT_LOGIN: kv,
   SGX_LOCK_PRIVATE: LOCK.priv,
   SGX_LOCK_PUBLIC: LOCK.pub,
   SGX_ACCOUNT_PRIVATE: ACCT.priv,
@@ -86,10 +86,19 @@ async function seedLockKey(kv, credId = 'LOCKKEY1234567890', domain = 'lock') {
   return credId;
 }
 
+/** 纪元在 D1：建一份 kv，并在它对应的 D1 替身里写好 lock-epoch */
+function withEpoch(n, seed) {
+  const kv = makeKV(seed);
+  authD1For(kv).setEpoch('lock-epoch', n);
+  return kv;
+}
+/** 当前 lock-epoch（字符串，和以前读 KV 的断言写法一致） */
+const lockEpoch = (kv) => String(authD1For(kv).epoch('lock-epoch'));
+
 /* ================= 短票 ================= */
 
 test('短票：LockReauth / LockReset 用 SGX_LOCK_* 签，纪元 = Lock 纪元；账号钥匙签的票验不过；互相冒充不了', async () => {
-  const kv = makeKV({ 'lock-epoch': '4' });
+  const kv = withEpoch(4);
   const t = await reauthTicket('root', 4);
   const ok = await tickets.verifyLockReauthTicket(get('/', 'sgx-lock-reauth=' + t), envFor(kv));
   assert.equal(ok.ok, true);
@@ -135,7 +144,9 @@ test('再验证（解锁密码）：verify reauth:true 只签 3 分钟 LockReaut
   res = await onRequestPost({ request: post('/api/lock-password', { action: 'verify', password: 'wrong-pass', reauth: true }, 'sgx-lock-session=' + sess), env: envFor(kv) });
   assert.equal(res.status, 403);
   assert.equal((await res.json()).error, 'wrong');
-  assert.equal(JSON.parse(kv._map.get('lock-password-fail:203.0.113.9')).count, 1);
+  const fail = authD1For(kv).rows('attempt_limit').find((r) => r.realm === 'lock' && r.kind === 'password' && r.bucket === '203.0.113.9');
+  assert.ok(fail, 'D1 attempt_limit 里记了这个 IP');
+  assert.equal(fail.count, 1);
 });
 
 test('再验证（解锁密码）：访客写死「密码错误」不读存储；没有会话 → 401 session', async () => {
@@ -145,6 +156,7 @@ test('再验证（解锁密码）：访客写死「密码错误」不读存储�
   assert.equal(res.status, 403);
   assert.equal((await res.json()).error, 'wrong');
   assert.deepEqual(kv._reads, [], '访客：不读任何存储');
+  assert.deepEqual(authD1For(kv).calls, [], '访客：也不查 D1');
   res = await onRequestPost({ request: post('/api/lock-password', { action: 'verify', password: 'lockpass99', reauth: true }), env: envFor(kv) });
   assert.equal(res.status, 401);
   assert.equal(pick(res, 'sgx-lock-reauth'), null);
@@ -157,6 +169,7 @@ test('再验证（锁屏通行密钥）：auth reauth:true 访客写死失败不
   assert.equal(res.status, 403);
   assert.equal((await res.json()).error, 'verify');
   assert.deepEqual(kv._reads, []);
+  assert.deepEqual(authD1For(kv).calls, [], '访客：也不查 D1');
   res = await onRequestPost({ request: post('/api/lock-passkey', { action: 'auth', reauth: true, cid: 'x', credential: {} }), env: envFor(kv) });
   assert.equal(res.status, 401);
 });
@@ -261,16 +274,16 @@ test('管理：LockResetTicket 可 list，不可 rename；可改解锁密码，�
 });
 
 test('管理：lock-all-devices 要 LockReauthTicket；通过后 epoch+1、清会话和票', async () => {
-  const kv = makeKV({ 'lock-epoch': '2' });
+  const kv = withEpoch(2);
   const { onRequestPost } = await import(API + 'lock-all-devices.js');
   const sess = await adminSess(2);
   let res = await onRequestPost({ request: post('/api/lock-all-devices', {}, 'sgx-lock-session=' + sess), env: envFor(kv) });
   assert.equal(res.status, 403);
   assert.equal((await res.json()).error, 'reauth');
-  assert.equal(kv._map.get('lock-epoch'), '2');
+  assert.equal(lockEpoch(kv), '2');
   res = await onRequestPost({ request: post('/api/lock-all-devices', {}, cookies({ 'sgx-lock-session': sess, 'sgx-lock-reauth': await reauthTicket('passkey', 2) })), env: envFor(kv) });
   assert.equal(res.status, 200);
-  assert.equal(kv._map.get('lock-epoch'), '3');
+  assert.equal(lockEpoch(kv), '3');
   const sc = setCookies(res);
   assert.ok(sc.some((c) => c.startsWith('sgx-lock-session=;')));
   assert.ok(sc.some((c) => c.startsWith('sgx-lock-reauth=;')));
@@ -290,13 +303,13 @@ test('root-audit：只读列表不要 LockReauthTicket（admin 会话即可；�
 /* ================= 纪元推进后重签 ================= */
 
 test('改解锁密码：epoch+1，LockReauthTicket 与当前设备会话重签到新纪元，票剩余时间不延长', async () => {
-  const kv = makeKV({ 'lock-epoch': '5', 'lock-configured': '1', 'lock-password': JSON.stringify(await makePasswordRecord('lockpass99', PEPPER)) });
+  const kv = withEpoch(5, { 'lock-configured': '1', 'lock-password': JSON.stringify(await makePasswordRecord('lockpass99', PEPPER)) });
   const { onRequestPost } = await import(API + 'lock-password.js');
   const iat = Date.now() - 60000; /* 已过 1 分钟 */
   const t = await reauthTicket('password', 5, iat);
   const res = await onRequestPost({ request: post('/api/lock-password', { action: 'change', password: 'newlock123' }, cookies({ 'sgx-lock-session': await adminSess(5), 'sgx-lock-reauth': t })), env: envFor(kv) });
   assert.equal(res.status, 200);
-  assert.equal(kv._map.get('lock-epoch'), '6');
+  assert.equal(lockEpoch(kv), '6');
   const nt = tickets.parseTicket('LockReauthTicket', pick(res, 'sgx-lock-reauth'));
   assert.equal(nt.epoch, 6);
   assert.equal(nt.by, 'password');
@@ -307,18 +320,18 @@ test('改解锁密码：epoch+1，LockReauthTicket 与当前设备会话重签�
 test('删锁屏通行密钥：epoch+1 后重签票；账号已配置时可删最后一把（lock-configured 保留），未配置 → 403 last-key', async () => {
   const { onRequestPost } = await import(API + 'lock-passkey.js');
   /* 账号未配置：最后一把不能删 */
-  let kv = makeKV({ 'lock-epoch': '1', 'lock-configured': '1' });
+  let kv = withEpoch(1, { 'lock-configured': '1' });
   let credId = await seedLockKey(kv);
   let res = await onRequestPost({ request: post('/api/lock-passkey', { action: 'delete', credId }, cookies({ 'sgx-lock-session': await adminSess(1), 'sgx-lock-reauth': await reauthTicket('passkey', 1) })), env: envFor(kv) });
   assert.equal(res.status, 403);
   assert.equal((await res.json()).error, 'last-key');
-  assert.equal(kv._map.get('lock-epoch'), '1');
+  assert.equal(lockEpoch(kv), '1');
   /* 账号已配置（有账号密码） */
-  kv = makeKV({ 'lock-epoch': '1', 'lock-configured': '1', 'account-configured': '1', 'account-password': JSON.stringify(await makePasswordRecord('acctpass99', PEPPER)) });
+  kv = withEpoch(1, { 'lock-configured': '1', 'account-configured': '1', 'account-password': JSON.stringify(await makePasswordRecord('acctpass99', PEPPER)) });
   credId = await seedLockKey(kv);
   res = await onRequestPost({ request: post('/api/lock-passkey', { action: 'delete', credId }, cookies({ 'sgx-lock-session': await adminSess(1), 'sgx-lock-reauth': await reauthTicket('passkey', 1) })), env: envFor(kv) });
   assert.equal(res.status, 200);
-  assert.equal(kv._map.get('lock-epoch'), '2');
+  assert.equal(lockEpoch(kv), '2');
   assert.equal(kv._map.get('lock-configured'), '1');
   assert.equal(tickets.parseTicket('LockReauthTicket', pick(res, 'sgx-lock-reauth')).epoch, 2);
 });

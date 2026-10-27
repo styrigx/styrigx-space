@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { testLockSession } from './_tickets.mjs';
-import { genKeyPair } from '../_harness.mjs';
+import { genKeyPair, makeAuthD1 } from '../_harness.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
@@ -26,10 +26,12 @@ const { priv: PRIV, pub: PUB } = await genKeyPair();
 const CTX = { waitUntil() {} };
 function env(epoch = '0') {
   const seen = [];
+  const d1 = makeAuthD1({ epochs: { 'lock-epoch': Number(epoch) } }); /* 纪元在 D1 */
   return {
     seen,
     SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB,
-    KV_LOCK_DOOR: { async get(k) { return k === 'lock-epoch' ? epoch : null; } },
+    KV_LOCK_DOOR: { async get() { return null; } },
+    D1_LOCK_AUTH: d1, D1_ACCOUNT_AUTH: d1, D1_ROOT_AUTH: d1,
     ASSETS: {
       async fetch(req) {
         seen.push(new URL(req.url).hostname + new URL(req.url).pathname);

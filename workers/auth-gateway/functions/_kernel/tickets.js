@@ -15,7 +15,7 @@
  * cookie：每张票各自一个 cookie（Lock / Account 的 reset、reauth 互不覆盖），只发主站（不带 Domain）、
  * HttpOnly、Secure、SameSite=Strict、Max-Age=180。不续期：3 分钟到点就失效，前端倒计时以服务端返回的 expiresAt 为准。
  *
- * 叶子模块：只 import _kernel（crypto / realms），不 import 接口或 _middleware.js。
+ * 叶子模块：只 import _kernel（crypto / realms / d1-state），不 import 接口或 _middleware.js。
  */
 import { ed25519Sign, ed25519Verify } from './crypto.js';
 import { readCookie } from './cookies.js';
@@ -26,7 +26,9 @@ import {
   LOCK_REAUTH_TICKET,
   ACCOUNT_RESET_TICKET,
   ACCOUNT_REAUTH_TICKET,
+  REALMS,
 } from './realms.js';
+import { readEpoch } from './d1-state.js';
 
 /** 本文件管的四张短票 */
 export const SHORT_TICKETS = Object.freeze([LOCK_RESET_TICKET, LOCK_REAUTH_TICKET, ACCOUNT_RESET_TICKET, ACCOUNT_REAUTH_TICKET]);
@@ -37,25 +39,14 @@ function ticketConf(name) {
 }
 
 /**
- * 票的纪元键在哪个 KV 绑定（总表 kvBinding）。没绑 → null（getTicketEpoch 抛错，调用方 fail closed）。
- * @param {any} env @param {string} name
+ * 读票所在域的纪元（D1，见 d1-state.js；出错抛错，调用方 fail closed）。
+ * @param {any} env @param {string} name 票名
+ * @returns {Promise<number>}
  */
-export function ticketKv(env, name) {
-  const c = TICKETS[name];
-  if (!env || !c) return null;
-  return env[c.kvBinding] || null;
-}
-
-/**
- * 读票所在域的纪元（键不存在当 0；KV 出错抛错，调用方 fail closed）。
- * @param {any} kv @param {string} name
- */
-export async function getTicketEpoch(kv, name) {
+export async function getTicketEpoch(env, name) {
   const c = TICKETS[name];
   if (!c) throw new Error('getTicketEpoch: bad ticket');
-  const v = await kv.get(c.epochKey);
-  if (v === null || v === undefined) return 0;
-  return parseInt(v, 10) || 0;
+  return readEpoch(env, REALMS[c.realm]);
 }
 
 /**
@@ -104,7 +95,7 @@ export function parseTicket(name, val) {
  * @param {any} env
  * @param {string} name 票名
  * @returns {Promise<{ok:boolean, reason:string, by?:string, exp?:number}>}
- *   reason: ok / no-cookie / bad-format / expired / not-yet / no-pubkey / kv-error / epoch-changed / bad-sig
+ *   reason: ok / no-cookie / bad-format / expired / not-yet / no-pubkey / d1-error / epoch-changed / bad-sig
  */
 export async function verifyTicket(request, env, name) {
   try {
@@ -122,9 +113,9 @@ export async function verifyTicket(request, env, name) {
     if (!pub) return { ok: false, reason: 'no-pubkey' };
     let cur;
     try {
-      cur = await getTicketEpoch(ticketKv(env, name), name);
+      cur = await getTicketEpoch(env, name);
     } catch (e) {
-      return { ok: false, reason: 'kv-error' };
+      return { ok: false, reason: 'd1-error' };
     }
     if (p.epoch !== cur) return { ok: false, reason: 'epoch-changed' };
     const payload = p.by + '.' + p.epoch + '.' + p.iat + '.' + p.exp;
@@ -143,7 +134,7 @@ export async function verifyTicket(request, env, name) {
  * @param {string} name 票名
  * @param {string} by
  * @param {object} [opts]
- * @param {number} [opts.epoch] 默认读 KV（纪元刚推进时传新值）
+ * @param {number} [opts.epoch] 默认读 D1 当前值（纪元刚推进时传新值）
  */
 export async function issueTicket(env, headers, name, by, opts) {
   const c = ticketConf(name);
@@ -153,7 +144,7 @@ export async function issueTicket(env, headers, name, by, opts) {
   let epoch = opts && typeof opts.epoch === 'number' ? opts.epoch : null;
   if (epoch === null) {
     try {
-      epoch = await getTicketEpoch(ticketKv(env, name), name);
+      epoch = await getTicketEpoch(env, name);
     } catch (e) {
       return { status: 503, body: { ok: false, error: 'server' } };
     }

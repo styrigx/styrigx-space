@@ -4,7 +4,8 @@
  * 出现就失败，并列出「文件:行号 命中的旧名」。
  *
  * 白名单（不算命中）：
- * - Cloudflare 平台绑定名：KV_LOCK_DOOR、KV_ACCOUNT_LOGIN、D1_LOCK_RESET（不改名）
+ * - 以前的 Cloudflare 绑定名：KV_LOCK_DOOR、KV_ACCOUNT_LOGIN、D1_LOCK_RESET（2026-10-27 起网关已不绑，binding-names.test.mjs 核对；
+ *   测试替身和导入脚本里仍会出现这些名字）
  * - Secrets Store 密钥名：SGX_*（如 SGX_PW_PEPPER、SGX_ROOT_KEY，不改名）
  * - 历史文档不在 workers/ web/ 下（docs/2.4.1-*、docs/styrigx-3.0-task.md），本测试不扫
  * 生成物与第三方目录不扫：web/public、web/resources、node_modules、visual 基线图。

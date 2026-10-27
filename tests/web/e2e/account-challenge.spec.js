@@ -93,7 +93,7 @@ test.describe('锁屏门 / 账号 challenge e2e（预览站）', () => {
         expect(reg.json && reg.json.ok, JSON.stringify(reg.json)).toBe(true);
         tempCredId = reg.json.credId;
         /* 第一次配置账号层会推进锁屏纪元：会话已按新纪元写回 context（h.api 已等它可见）。
-           login-challenge 经 account-passkey-index 判断有没有账号通行密钥：写后读，not-set 时轮询（not-set 不写 KV） */
+           login-challenge 要数账号通行密钥（D1；以前是 KV 索引）：写后读，not-set 时轮询（not-set 不写 KV） */
         await expect.poll(async () => {
           chal = await h.api(page, '/api/account', { action: 'login-challenge' });
           return chal.json && chal.json.ok ? 'ok' : JSON.stringify(chal.json);

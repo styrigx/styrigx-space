@@ -2,27 +2,29 @@
  * 账号已登录设备（设置 › 账号 › 设备）。
  *
  * 每次账号登录（通行密钥 / 密码）在 sgx-account-session 票据里带一个随机 deviceId，
- * 并在 KV 记一条 account-device:<deviceId>：
- *   { deviceId, by, createdAt, authAt, lastSeen, model, platform, platformVersion, browser, country, city }
+ * 并在 D1 device 表记一行（realm = 'account'，绑定 D1_ACCOUNT_AUTH；2026-10-27 从 KV account-device:* 搬来）：
+ *   record = { deviceId, by, createdAt, authAt, lastSeen, model, platform, platformVersion, browser, country, city }
  * - 同一浏览器重新登录（含进账号安全前再验一次）沿用原 deviceId，只更新 by/authAt，不会多出一台
- * - 设备页列出全部记录，当前请求的 deviceId 标为「此设备」排最上面
- * - 单独退出别的设备：删记录 + 写黑名单 account-device-revoked:<deviceId>（TTL 同账号会话 400 天），
- *   之后那台设备的票据验签通过也会被拒（reason=revoked）
- * - 改账号密码 / 删账号通行密钥（account-epoch +1）：其他设备的票据本来就失效，顺手删掉它们的记录
+ * - 设备页列出全部未退出、未过期的行（SQL ORDER BY last_seen DESC），当前请求的 deviceId 标为「此设备」排最上面
+ * - 单独退出别的设备：revoked_at = now（行留到 expires_at = 400 天，同账号会话；以前另写 account-device-revoked:* 黑名单），
+ *   之后那台设备的票据验签通过也会被拒（reason=revoked）。D1 强一致：退出后那台的下一个请求就被拒。
+ *   已退出的行不会被改回来（写记录的 UPSERT 带 WHERE revoked_at = 0）
+ * - 改账号密码 / 删账号通行密钥（account-epoch +1）：其他设备的票据本来就失效，顺手删掉它们的行
  * - 不存 IP，只存 Cloudflare 给的国家 / 城市（显示「上次活动地点」）
+ * - 过期行读时不认，登录写记录时顺手清掉
  *
  * 型号来自前端 navigator.userAgentData.getHighEntropyValues（登录请求体 device 字段），
  * 拿不到时只从 User-Agent 推平台和浏览器。三星常见型号映射成「Galaxy S23 Ultra」这样的名字。
  *
- * 叶子模块：只 import _kernel（crypto / realms）。
+ * 叶子模块：只 import _kernel（crypto / realms / d1-state）。
  */
 import { b64urlEnc } from './crypto.js';
 import { REALM_ACCOUNT } from './realms.js';
+import { onAuthDb, sweepExpired, parseRecord } from './d1-state.js';
 
-export const DEVICE_PREFIX = REALM_ACCOUNT.kv.devicePrefix; /* 'account-device:' */
-export const REVOKED_PREFIX = REALM_ACCOUNT.kv.deviceRevokedPrefix; /* 'account-device-revoked:' */
-const TTL = REALM_ACCOUNT.maxAge;
-/** lastSeen 至多每 30 分钟写一次（省 KV 写次数） */
+const REALM = REALM_ACCOUNT.id;
+const TTL_MS = REALM_ACCOUNT.maxAge * 1000;
+/** lastSeen 至多每 30 分钟写一次（省 D1 写次数） */
 export const TOUCH_INTERVAL_MS = 30 * 60 * 1000;
 
 /** deviceId：12 字节随机，base64url（16 字符，不含 '.'） */
@@ -121,80 +123,95 @@ export function deviceInfo(request, hints) {
   };
 }
 
-/** @param {any} kv @param {string} deviceId */
-export async function getDevice(kv, deviceId) {
-  if (!kv || !isDeviceId(deviceId)) return null;
-  return await kv.get(DEVICE_PREFIX + deviceId, 'json');
-}
-
-/** @param {any} kv @param {object} rec */
-export async function putDevice(kv, rec) {
-  await kv.put(DEVICE_PREFIX + rec.deviceId, JSON.stringify(rec), { expirationTtl: TTL });
+/**
+ * 读一台设备（未退出、未过期；没有 → null）。D1 出错抛错。
+ * @param {any} env @param {string} deviceId
+ */
+export async function getDevice(env, deviceId) {
+  if (!isDeviceId(deviceId)) return null;
+  const row = await onAuthDb(env, REALM, (db, r) => db.prepare(
+    'SELECT record FROM device WHERE realm = ? AND device_id = ? AND revoked_at = 0 AND expires_at > ?'
+  ).bind(r.id, deviceId, Date.now()).first());
+  return parseRecord(row);
 }
 
 /**
- * 登录时写设备记录：已有（同一浏览器重新登录）就更新 by/authAt/lastSeen 和设备信息，否则新建。
- * @param {any} kv @param {string} deviceId @param {string} by @param {number} authAt @param {object} info deviceInfo()
+ * 写设备记录（没有就插入；有就覆盖并续期）。已单独退出的行不改（WHERE revoked_at = 0）。D1 出错抛错。
+ * @param {any} env @param {any} rec
  */
-export async function recordLogin(kv, deviceId, by, authAt, info) {
+export async function putDevice(env, rec) {
+  const now = Date.now();
+  await onAuthDb(env, REALM, (db, r) => db.prepare(
+    'INSERT INTO device (realm, device_id, record, last_seen, revoked_at, expires_at) VALUES (?1, ?2, ?3, ?4, 0, ?5) ' +
+    'ON CONFLICT (realm, device_id) DO UPDATE SET record = excluded.record, last_seen = excluded.last_seen, expires_at = excluded.expires_at ' +
+    'WHERE device.revoked_at = 0'
+  ).bind(r.id, String(rec.deviceId), JSON.stringify(rec), Number(rec.lastSeen) || now, now + TTL_MS).run());
+}
+
+/**
+ * 登录时写设备记录：已有（同一浏览器重新登录）就更新 by/authAt/lastSeen 和设备信息，否则新建。顺手清掉过期行。
+ * @param {any} env @param {string} deviceId @param {string} by @param {number} authAt @param {object} info deviceInfo()
+ */
+export async function recordLogin(env, deviceId, by, authAt, info) {
   const now = Date.now();
   let rec = null;
-  try { rec = await getDevice(kv, deviceId); } catch (e) { rec = null; }
+  try { rec = await getDevice(env, deviceId); } catch (e) { rec = null; }
   const base = rec && typeof rec === 'object' ? rec : { deviceId: deviceId, createdAt: now };
   const next = Object.assign({}, base, info || {}, { deviceId: deviceId, by: by, authAt: authAt, lastSeen: now });
   /* 新信息缺型号时保留旧的（比如这次请求没带 hints） */
   if (rec && !(info && info.model) && rec.model) next.model = rec.model;
-  await putDevice(kv, next);
+  await putDevice(env, next);
+  try { await onAuthDb(env, REALM, (db, r) => sweepExpired(db, 'device', r.id, now)); } catch (e) {}
   return next;
 }
 
-/** @param {any} kv @param {string} deviceId */
-export async function isRevoked(kv, deviceId) {
-  if (!kv || !deviceId) return false;
-  return (await kv.get(REVOKED_PREFIX + deviceId)) !== null;
-}
-
 /**
- * 单独退出一台设备：写黑名单 + 删记录。
- * @param {any} kv @param {string} deviceId
+ * 这台设备是否已被单独退出（验账号会话时用：每个请求一次主键读，主库、不缓存）。D1 出错抛错。
+ * @param {any} env @param {string} deviceId
  */
-export async function revokeDevice(kv, deviceId) {
-  await kv.put(REVOKED_PREFIX + deviceId, '1', { expirationTtl: TTL });
-  await kv.delete(DEVICE_PREFIX + deviceId);
+export async function isRevoked(env, deviceId) {
+  if (!deviceId) return false;
+  const row = await onAuthDb(env, REALM, (db, r) => db.prepare(
+    'SELECT 1 AS x FROM device WHERE realm = ? AND device_id = ? AND revoked_at > 0 AND expires_at > ?'
+  ).bind(r.id, String(deviceId), Date.now()).first());
+  return !!row;
 }
 
 /**
- * 列出全部设备记录（按 lastSeen 倒序）。
- * @param {any} kv
+ * 单独退出一台设备：revoked_at = now，行续到 400 天后（期间这台的票一律拒）。没有这一行也插一行已退出的
+ * （退出账号时本机记录可能还没写进来）。D1 出错抛错。
+ * @param {any} env @param {string} deviceId
+ */
+export async function revokeDevice(env, deviceId) {
+  const now = Date.now();
+  await onAuthDb(env, REALM, (db, r) => db.prepare(
+    'INSERT INTO device (realm, device_id, record, last_seen, revoked_at, expires_at) VALUES (?1, ?2, ?3, ?4, ?4, ?5) ' +
+    'ON CONFLICT (realm, device_id) DO UPDATE SET revoked_at = ?4, expires_at = ?5'
+  ).bind(r.id, String(deviceId), JSON.stringify({ deviceId: String(deviceId) }), now, now + TTL_MS).run());
+}
+
+/**
+ * 列出全部设备记录（未退出、未过期；按 lastSeen 倒序）。D1 出错抛错。
+ * @param {any} env
  * @returns {Promise<object[]>}
  */
-export async function listDevices(kv) {
-  const out = [];
-  let cursor;
-  for (let i = 0; i < 10; i++) {
-    const page = await kv.list({ prefix: DEVICE_PREFIX, cursor: cursor });
-    for (const k of (page && page.keys) || []) {
-      const rec = await kv.get(k.name, 'json');
-      if (rec && rec.deviceId) out.push(rec);
-    }
-    if (!page || page.list_complete || !page.cursor) break;
-    cursor = page.cursor;
-  }
-  out.sort(function (a, b) { return (b.lastSeen || 0) - (a.lastSeen || 0); });
-  return out;
+export async function listDevices(env) {
+  const res = await onAuthDb(env, REALM, (db, r) => db.prepare(
+    'SELECT record FROM device WHERE realm = ? AND revoked_at = 0 AND expires_at > ? ORDER BY last_seen DESC'
+  ).bind(r.id, Date.now()).all());
+  return ((res && res.results) || []).map(parseRecord).filter((d) => d && d.deviceId);
 }
 
 /**
- * account-epoch +1 后：删掉除当前设备外的所有记录（它们的票据已经失效）。尽力而为，不抛错。
- * @param {any} kv @param {string} keepDeviceId
+ * account-epoch +1 后：删掉除当前设备外的所有未退出的行（它们的票据已经失效）。尽力而为，不抛错。
+ * 已退出的行留着（到期前那台的票继续拒，哪怕纪元以后被改回去也一样）。
+ * @param {any} env @param {string} keepDeviceId
  */
-export async function pruneOtherDevices(kv, keepDeviceId) {
+export async function pruneOtherDevices(env, keepDeviceId) {
   try {
-    const all = await listDevices(kv);
-    for (const d of all) {
-      if (d.deviceId !== keepDeviceId) await kv.delete(DEVICE_PREFIX + d.deviceId);
-    }
-  } catch (e) { /* 列不出来就算了：记录 400 天后自己过期，设备页也只多显示几台 */ }
+    await onAuthDb(env, REALM, (db, r) => db.prepare('DELETE FROM device WHERE realm = ? AND device_id <> ? AND revoked_at = 0')
+      .bind(r.id, String(keepDeviceId || '')).run());
+  } catch (e) { /* 删不掉就算了：设备页也只多显示几台，它们的票已随纪元失效 */ }
 }
 
 /**

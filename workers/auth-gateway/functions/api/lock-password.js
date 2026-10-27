@@ -15,11 +15,12 @@
  * - 哈希：PBKDF2-SHA256 + 随机 salt + SGX_PW_PEPPER（_kernel/password.js）；旧 hash 下次成功登录时重哈希；缺 pepper fail closed
  *
  * 会话可吊销：改密码 / 删密码时 lock-epoch +1，旧 cookie 失效；纪元推进后重签 reauth / reset 票 + 当前设备会话。
- * 锁定所有设备走 /api/lock-all-devices。KV 读取出错时抛错 → 503，绝不继续写入。
+ * 锁定所有设备走 /api/lock-all-devices。读存储出错时 → 503，绝不继续写入。
+ * 存储：密码记录、纪元、输错计数都在 D1（_kernel/d1-state.js / password-limit.js，强一致：改完下一个请求就认新密码、拒旧密码）。
  * 只接受 POST；校验 Origin；未设置密码时 verify 一律拒绝。
  * 外层 try/catch：任何未捕获异常都返回 JSON { ok:false, error:'server' }，不返回 500 HTML。
  */
-import { getPepper, makePasswordRecord, checkPasswordRecord, verifyRealmPassword } from '../_kernel/password.js';
+import { getPepper, makePasswordRecord, checkPasswordRecord, verifyRealmPassword, getPassword, hasPassword, savePassword, deletePassword } from '../_kernel/password.js';
 import { REALM_LOCK, REALM_ACCOUNT } from '../_kernel/realms.js';
 import {
   issueLockSession,
@@ -31,16 +32,11 @@ import { checkLockManage } from '../_kernel/lock-manage.js';
 import { issueTicket, reissueTicketWithEpoch } from '../_kernel/tickets.js';
 import { LOCK_REAUTH_TICKET, BY_PASSWORD } from '../_kernel/realms.js';
 import { verifyLockSession, looksVisitor } from '../_kernel/lock-session.js';
-import {
-  isLayerConfigured,
-  setLayerConfigured,
-  clearLayerConfigured,
-  isAccountEffectivelyConfigured,
-  LAYER_LOCK,
-} from '../_kernel/layers.js';
+import { isAccountEffectivelyConfigured } from '../_kernel/layers.js';
 import { getPasskeys, PASSKEY_LOCK } from '../_kernel/passkey-store.js';
 import { isSameOrigin, originDenied, json, apiError, clientIp } from '../_kernel/http.js';
 import { passwordLimiter } from '../_kernel/password-limit.js';
+import { clearAllAttempts } from '../_kernel/attempt-limit.js';
 
 
 /** @param {any} context */
@@ -56,15 +52,13 @@ export async function onRequestPost(context) {
 /** @param {any} context */
 async function handlePost(context) {
   const { request, env } = context;
-  const kv = env && env.KV_LOCK_DOOR;
-  const akv = env && env.KV_ACCOUNT_LOGIN; /* account-* 键：账号是否已设置、「两套密码不能相同」 */
 
   if (request.method !== 'POST') {
     return apiError(405, 'method');
   }
   /* Origin 必须与本站同 host（CSRF 防护），缺失或解析失败一律 403 */
   if (!isSameOrigin(request)) return originDenied();
-  if (!kv || !akv) {
+  if (!(env && env[REALM_LOCK.d1Binding] && env[REALM_ACCOUNT.d1Binding])) {
     return apiError(500, 'config');
   }
 
@@ -78,7 +72,7 @@ async function handlePost(context) {
 
   /* 客户端 IP（限流用） */
   const ip = clientIp(request);
-  const limiter = passwordLimiter(kv, REALM_LOCK, ip);
+  const limiter = passwordLimiter(env, REALM_LOCK, ip);
   const inCooldown = limiter.inCooldown;
   const recordFail = limiter.recordFail;
   const clearFail = limiter.clearFail;
@@ -118,7 +112,7 @@ async function handlePost(context) {
     }
     let vr;
     try {
-      vr = await verifyRealmPassword(kv, REALM_LOCK, pepper, password);
+      vr = await verifyRealmPassword(env, REALM_LOCK, pepper, password);
     } catch (e) {
       return apiError(503, 'server');
     }
@@ -138,7 +132,7 @@ async function handlePost(context) {
     /* 旧 hash 成功验证后重哈希（加 pepper），写回锁屏密码 */
     if (vr.needsRehash) {
       try {
-        await kv.put(REALM_LOCK.kv.password, JSON.stringify(await makePasswordRecord(password, pepper)));
+        await savePassword(env, REALM_LOCK, await makePasswordRecord(password, pepper));
       } catch (e) {}
     }
     /* 通过：签发 Ed25519 会话 cookie（fail closed：无密钥/签发失败 → 5xx，
@@ -161,8 +155,6 @@ async function handlePost(context) {
      需 LockReauthTicket（锁屏凭证或根凭证再验证）+ admin 锁屏会话；
      LockResetTicket 可 set/change（重置流程，无会话），不可 remove。 */
   if (action === 'set' || action === 'change' || action === 'remove') {
-    const passwordKey = REALM_LOCK.kv.password;
-
     /* 门禁。sess 保留到 remove/set/change，纪元推进后用它重签当前设备会话。 */
     const gate = await checkLockManage(request, env, { allowReset: action !== 'remove' });
     if (!gate.ok) {
@@ -184,12 +176,12 @@ async function handlePost(context) {
       {
         let lockKeys = [];
         try {
-          lockKeys = await getPasskeys(kv, PASSKEY_LOCK);
+          lockKeys = await getPasskeys(env, PASSKEY_LOCK);
         } catch (e) {}
         if (lockKeys.length === 0) {
           let accountCfg = true;
           try {
-            accountCfg = await isAccountEffectivelyConfigured(akv, kv);
+            accountCfg = await isAccountEffectivelyConfigured(env);
           } catch (e) {
             accountCfg = true;
           }
@@ -199,42 +191,17 @@ async function handlePost(context) {
         }
       }
       try {
-        await kv.delete(passwordKey);
+        await deletePassword(env, REALM_LOCK);
       } catch (e) {
         return apiError(503, 'server');
       }
-      /* 清掉所有输错计数和冷却记录（IP 限速残留） */
-      for (const prefix of [REALM_LOCK.kv.passwordFailPrefix, REALM_LOCK.kv.passwordCooldownPrefix]) {
-        try {
-          const list = await kv.list({ prefix: prefix });
-          for (const k of list.keys || []) { try { await kv.delete(k.name); } catch (e) {} }
-        } catch (e) {}
-      }
-      {
-        try {
-          const hasLockKey = (await getPasskeys(kv, PASSKEY_LOCK)).length > 0;
-          let hasLockPw = false;
-          try { const r = await kv.get(REALM_LOCK.kv.password, 'json'); hasLockPw = !!(r && r.hash); } catch (e) {}
-          if (!hasLockKey && !hasLockPw) {
-            /* A-2：删光锁屏凭证且账号已配置 → 保留锁屏层标记不清；
-               账号未配置时（竞态）清锁屏层标记。 */
-            let accountCfg = true;
-            try { accountCfg = await isAccountEffectivelyConfigured(akv, kv); } catch (e) { accountCfg = true; }
-            if (!accountCfg) {
-              try {
-                await clearLayerConfigured(kv, LAYER_LOCK);
-              } catch (e) {
-                return apiError(503, 'server');
-              }
-            }
-          }
-        } catch (e) {}
-      }
-      /* 会话吊销：lock-epoch +1（KV 出错→503，绝不继续）
+      /* 清掉所有输错计数和冷却记录（IP 限速残留；全局窗口不动）。锁屏层是否还算已配置由真实凭证推出，不另存标记 */
+      try { await clearAllAttempts(env, REALM_LOCK.id, 'password'); } catch (e) {}
+      /* 会话吊销：lock-epoch +1（D1 出错→503，绝不继续）
          纪元推进后重签 reauth / reset 票 + 当前设备会话，保持门内连续操作、当前设备不掉线。 */
       let newEpoch = null;
       try {
-        newEpoch = await bumpLockEpoch(kv);
+        newEpoch = await bumpLockEpoch(env);
       } catch (e) {
         return apiError(503, 'server');
       }
@@ -257,15 +224,16 @@ async function handlePost(context) {
     /* set：未设置过才能设 */
     if (action === 'set') {
       let existing = null;
-      try { existing = await kv.get(passwordKey, 'json'); } catch (e) {}
+      try { existing = await getPassword(env, REALM_LOCK); } catch (e) {}
       if (existing && existing.hash) {
         return apiError(403, 'exists');
       }
     }
 
+
     /* 锁屏密码不得与账号密码相同（双向检查；账号侧见 /api/account 的 same-as-lock）。 */
     try {
-      const other = await akv.get(REALM_ACCOUNT.kv.password, 'json');
+      const other = await getPassword(env, REALM_ACCOUNT);
       if (other && other.hash) {
         const cr = await checkPasswordRecord(other, newPassword, pepper);
         if (cr.ok) {
@@ -278,27 +246,16 @@ async function handlePost(context) {
 
     /* 哈希并存储（peppered 标记） */
     try {
-      await kv.put(passwordKey, JSON.stringify(await makePasswordRecord(newPassword, pepper)));
+      await savePassword(env, REALM_LOCK, await makePasswordRecord(newPassword, pepper));
     } catch (e) {
       return apiError(503, 'server');
     }
 
-    /* 首次配置锁屏层时标记（随后的纪元推进废止根凭证代开的解锁会话，必修安全项 2） */
-    if (action === 'set') {
-      try {
-        const layer = LAYER_LOCK;
-        const was = await isLayerConfigured(kv, layer);
-        if (!was) {
-          await setLayerConfigured(kv, layer);
-        }
-      } catch (e) {}
-    }
-
-    /* 改密码后：lock-epoch +1，旧会话 cookie 失效（KV 出错→503）
+    /* 改密码后：lock-epoch +1，旧会话 cookie 失效（D1 出错→503）
        纪元推进后重签 reauth / reset 票 + 当前设备会话，保持门内连续操作、当前设备不掉线。 */
     let newEpoch2 = null;
     try {
-      newEpoch2 = await bumpLockEpoch(kv);
+      newEpoch2 = await bumpLockEpoch(env);
     } catch (e) {
       return apiError(503, 'server');
     }

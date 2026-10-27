@@ -8,10 +8,10 @@
  *   全站每小时错满 30 次后只减速（每次先等 2 秒），不封锁
  * - 格式不对（不是 12 位）也算一次输错，不提示格式
  * - 已有 admin 会话：直接 ok，不降级成访客
- * - KV / 密钥出错一律 5xx，绝不签发会话
+ * - D1 / 密钥出错一律 5xx，绝不签发会话
  */
 import { issueLockSession, ROLE_ADMIN, ROLE_VISITOR } from '../_kernel/lock-session.js';
-import { BY_TEMPKEY } from '../_kernel/realms.js';
+import { BY_TEMPKEY, REALM_LOCK } from '../_kernel/realms.js';
 import { getPepper } from '../_kernel/password.js';
 import { isSameOrigin, originDenied, json, apiError, clientIp } from '../_kernel/http.js';
 import {
@@ -42,9 +42,9 @@ export async function onRequestPost(context) {
 /** @param {any} context */
 async function handle(context) {
   const { request, env } = context;
-  const kv = env && env.KV_LOCK_DOOR;
+  const lockDb = env && env[REALM_LOCK.d1Binding]; /* D1_LOCK_AUTH（纪元、临时钥匙都在这里）：没绑 → 500 config */
   if (!isSameOrigin(request)) return originDenied();
-  if (!kv) return apiError(500, 'config');
+  if (!lockDb) return apiError(500, 'config');
 
   let body;
   try { body = await request.json(); } catch (e) {
@@ -59,7 +59,7 @@ async function handle(context) {
 
   const ip = clientIp(request);
   try {
-    if (await isTempkeyLimited(kv, ip)) return apiError(429, 'cooldown');
+    if (await isTempkeyLimited(env, ip)) return apiError(429, 'cooldown');
   } catch (e) {
     return apiError(503, 'server');
   }
@@ -70,19 +70,19 @@ async function handle(context) {
   let key = null;
   if (code) {
     try {
-      key = await findByCode(kv, pepper, code);
+      key = await findByCode(env, pepper, code);
     } catch (e) {
       return apiError(503, 'server');
     }
   }
   if (!key) {
     let cooling = false;
-    try { cooling = await recordTempkeyFail(kv, ip); } catch (e) {
+    try { cooling = await recordTempkeyFail(env, ip); } catch (e) {
       return apiError(503, 'server');
     }
     return json(cooling ? 429 : 403, { ok: false, error: cooling ? 'cooldown' : 'wrong' });
   }
-  await clearTempkeyFail(kv, ip);
+  await clearTempkeyFail(env, ip);
 
   const left = Math.floor((key.expiresAt - Date.now()) / 1000);
   const maxAge = Math.max(60, Math.min(TEMPKEY_SESSION_MAX, left));

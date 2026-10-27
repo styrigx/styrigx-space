@@ -17,7 +17,7 @@
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { testLockSession, testAccountSession } from './_tickets.mjs';
-import { makeKV, genKeyPair, postReq } from '../_harness.mjs';
+import { makeKV, genKeyPair, postReq, authD1For } from '../_harness.mjs';
 
 let ACCT_PRIV = '', ACCT_PUB = '', LOCK_PRIV = '', LOCK_PUB = '';
 async function genKeys() {
@@ -29,7 +29,8 @@ const SGX_ROOT_KEY = 'test-root-key-abc123';
 
 function authEnv(kv, overrides = {}) {
   return {
-    KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
+    /* kv 只当作「上线前的 KV」（authD1For：部署前导入过）；env 里没有 KV */
+    D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv),
     SGX_ROOT_KEY,
     SGX_LOCK_PRIVATE: LOCK_PRIV,
     SGX_LOCK_PUBLIC: LOCK_PUB,
@@ -114,8 +115,8 @@ test('B2：root-auth 空串失败（去空白后为空一律拒绝）', async ()
 test('B2：lockreset verify 带换行通过', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/lock-reset.js');
   const kv = makeKV();
-  /* 标记 owner 层已配置：根凭证正确后走 needAccount 分支（不是 401 auth） */
-  await kv.put('account-configured', '1');
+  /* 账号层已配置（由 D1 里的账号密码推出）：根凭证正确后走 needAccount 分支（不是 401 auth） */
+  authD1For(kv).putPassword('account', { salt: 's', hash: 'h', iterations: 100000, peppered: true });
   const req = postReq('https://styrigx.com/api/lock-reset', { action: 'verify', rootKey: 'test-root-key-\nabc123' }, { 'CF-Connecting-IP': '10.0.0.3' });
   const res = await onRequestPost({ request: req, env: authEnv(kv) });
   /* 根凭证正确 → 进入开关/管理员凭证流程（needAccount），不是 401 auth */
@@ -124,12 +125,39 @@ test('B2：lockreset verify 带换行通过', async () => {
   assert.equal(j.needAccount, true, '应进入管理员凭证步骤');
 });
 
-/* ============ C4：user handle 按类别区分 ============ */
+/* ============ C4：user handle 按类别区分（D1 user_handle 表，每个 realm 一行） ============ */
 
+test('C4：lock / account 两个 user handle 互不相同；同域再取复用；只读取不新建；存在 D1 user_handle 的 realm 行', async () => {
+  const { getUserHandle, peekUserHandle, PASSKEY_LOCK, PASSKEY_ACCOUNT } = await import('../../../workers/auth-gateway/functions/_kernel/passkey-store.js');
+  const kv = makeKV();
+  const env = authEnv(kv);
+  assert.equal(await peekUserHandle(env, PASSKEY_LOCK), '', '没有就是空，不新建');
+  assert.deepEqual(authD1For(kv).rows('user_handle'), []);
+  const lock = await getUserHandle(env, PASSKEY_LOCK);
+  const acct = await getUserHandle(env, PASSKEY_ACCOUNT);
+  assert.match(lock, /^[A-Za-z0-9_-]{43}$/, '32 字节 base64url');
+  assert.match(acct, /^[A-Za-z0-9_-]{43}$/);
+  assert.notEqual(lock, acct);
+  assert.equal(await getUserHandle(env, PASSKEY_LOCK), lock, '同域复用');
+  assert.equal(await peekUserHandle(env, PASSKEY_ACCOUNT), acct);
+  const rows = Object.fromEntries(authD1For(kv).rows('user_handle').map((r) => [r.realm, r.handle]));
+  assert.deepEqual(rows, { lock, account: acct });
+  /* 并发第一次取：拿到同一个 */
+  const kv2 = makeKV();
+  const env2 = authEnv(kv2);
+  const both = await Promise.all([getUserHandle(env2, PASSKEY_LOCK), getUserHandle(env2, PASSKEY_LOCK)]);
+  assert.equal(both[0], both[1]);
+  await assert.rejects(getUserHandle(env, 'app'), /bad domain/);
+});
 
-
-
-/* ============ 批次 A 收尾返工：owner 验证接受旧 handle ============ */
-
-
-
+test('C4：上线前 KV 里的 user handle 由导入脚本搬进 D1，原样复用（已注册的通行密钥 userHandle 还对得上）；D1 出错 → null', async () => {
+  const { getUserHandle, PASSKEY_LOCK, PASSKEY_ACCOUNT } = await import('../../../workers/auth-gateway/functions/_kernel/passkey-store.js');
+  const kv = makeKV({ 'lock-user-id': 'legacy-lock-handle', 'account-user-id': 'legacy-acct-handle' });
+  const env = authEnv(kv);
+  assert.equal(await getUserHandle(env, PASSKEY_LOCK), 'legacy-lock-handle');
+  assert.equal(await getUserHandle(env, PASSKEY_ACCOUNT), 'legacy-acct-handle');
+  assert.equal(kv._calls.get + kv._calls.list, 0, '网关代码不读 KV');
+  const broken = makeKV();
+  authD1For(broken).failOn = (sql) => /user_handle/.test(sql);
+  assert.equal(await getUserHandle(authEnv(broken), PASSKEY_LOCK), null, '读写失败返回 null（调用方 503）');
+});

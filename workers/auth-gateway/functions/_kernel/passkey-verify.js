@@ -10,9 +10,12 @@
  * - checkAssertAuthData：断言时校验 authenticatorData
  * - verifyAssertion：完整断言验证（clientData + authData + signCount + 签名 + UV）
  * - randB64：challenge 随机数
- * - rpIdHashOf / consumeChallenge / findStoredKey：各断言入口共用的小步骤
+ * - rpIdHashOf / issueChallenge / consumeChallenge / findStoredKey：各断言入口共用的小步骤
+ *
+ * challenge 存 D1 challenge 表（realm + purpose + expires_at；d1-state.js 的 authDb，主库）。
  */
 import { b64urlEnc } from './crypto.js';
+import { onAuthDb, sweepExpired } from './d1-state.js';
 
 /** @param {string} b64url @returns {Uint8Array} */
 export function b64urlDec(b64url) {
@@ -264,19 +267,45 @@ export async function rpIdHashOf(rpId) {
 }
 
 /**
- * 取出一次性 challenge 记录并立即删除（单次使用）。
- * KV 读/删出错一律当作没有（返回 null；调用方按 challenge 无效处理）。
- * @param {any} kv
- * @param {string} key 完整 KV 键（前缀 + cid）
- * @returns {Promise<any>} 记录对象或 null
+ * 存一个一次性 challenge（D1 challenge 表），返回 cid（16 字节随机，base64url）。顺手清掉本域已过期的。出错抛错。
+ * @param {any} env
+ * @param {any} realm REALM_LOCK | REALM_ACCOUNT（或 id）
+ * @param {string} purpose realm.challenge 里的值（lock: register / auth / reset；account: login / register）
+ * @param {string} challenge 下发给浏览器的 challenge
+ * @param {number} ttlSec 有效秒数
+ * @returns {Promise<string>} cid
  */
-export async function consumeChallenge(kv, key) {
-  let chRec = null;
+export async function issueChallenge(env, realm, purpose, challenge, ttlSec) {
+  const cid = randB64(16);
+  const now = Date.now();
+  await onAuthDb(env, realm, async function (db, r) {
+    await db.prepare('INSERT INTO challenge (realm, id, purpose, challenge, expires_at) VALUES (?, ?, ?, ?, ?)')
+      .bind(r.id, cid, String(purpose), String(challenge), now + ttlSec * 1000).run();
+    await sweepExpired(db, 'challenge', r.id, now);
+  });
+  return cid;
+}
+
+/**
+ * 取出一次性 challenge 并同时删除：一条 DELETE ... WHERE realm AND id AND purpose AND expires_at > now RETURNING。
+ * - 并发两次消费同一个 cid：只有一次拿到（另一次 RETURNING 为空）
+ * - 过期的（还没被清掉）不认；purpose 对不上的不认（也不删）
+ * 读 / 删出错一律当作没有（返回 null；调用方按 challenge 无效处理）。只在拿到之后才验断言、签会话。
+ * @param {any} env @param {any} realm @param {string} purpose @param {string} cid
+ * @returns {Promise<{challenge:string, purpose:string, exp:number}|null>}
+ */
+export async function consumeChallenge(env, realm, purpose, cid) {
+  if (!cid || typeof cid !== 'string') return null;
   try {
-    chRec = await kv.get(key, 'json');
-    await kv.delete(key);
-  } catch (e) {}
-  return chRec;
+    const row = await onAuthDb(env, realm, function (db, r) {
+      return db.prepare('DELETE FROM challenge WHERE realm = ? AND id = ? AND purpose = ? AND expires_at > ? RETURNING challenge, purpose, expires_at')
+        .bind(r.id, cid, String(purpose), Date.now()).first();
+    });
+    if (!row) return null;
+    return { challenge: String(row.challenge), purpose: String(row.purpose), exp: Number(row.expires_at) };
+  } catch (e) {
+    return null;
+  }
 }
 
 /**

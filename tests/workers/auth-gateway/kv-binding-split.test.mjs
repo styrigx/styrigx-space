@@ -1,8 +1,10 @@
 /**
- * KV 绑定按域分（realms.js 头注释）：lock-* / root-* 只经 KV_LOCK_DOOR，account-* 只经 KV_ACCOUNT_LOGIN。
+ * D1 绑定按域分（realms.js 头注释，2026-10-27 起网关认证状态全部在 D1，不再绑定 KV）：
+ * realm='lock' 的行（和 recovery_switch）只经 D1_LOCK_AUTH，realm='account' 只经 D1_ACCOUNT_AUTH，realm='root' 只经 D1_ROOT_AUTH。
  *
- * 线上两个绑定是同一个 namespace，读错绑定也不会出错，所以单靠功能测试发现不了。这里把两个绑定换成
- * 同一份存储上的两个「只认自己前缀」的视图：越界的读写照常执行（流程不被打断），但记下来，最后断言一条都没有。
+ * 线上三个绑定是同一个库，读错绑定也不会出错，所以单靠功能测试发现不了。这里把三个绑定换成
+ * 同一个库上的三个「只认自己 realm」的视图：越界的语句照常执行（流程不被打断），但记下来，最后断言一条都没有。
+ * env 里同时放上以前的 KV_LOCK_DOOR / KV_ACCOUNT_LOGIN，换成碰一下就抛错的替身：运行时一次都不能碰（没有 KV 回落）。
  *
  * 跑的流程：锁屏 / 账号两域的真实入口——
  * root-auth（lock-reset / account-reset / lock-reauth / account-reauth）、lock-entry、lock-password set / verify / change、
@@ -13,34 +15,59 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { testLockSession, testTicket } from './_tickets.mjs';
 import { makePasswordRecord } from '../../../workers/auth-gateway/functions/_kernel/password.js';
-import { genKeyPair } from '../_harness.mjs';
+import { genKeyPair, makeAuthD1, forbiddenKV } from '../_harness.mjs';
 
 const API = '../../../workers/auth-gateway/functions/api/';
 
-/** 同一份存储上的两个视图；越界访问记进 violations */
-function splitKV() {
-  const store = new Map();
+/** 有 realm 列的表（0005 / 0006）；recovery_switch、kv_migration 没有 realm 列 */
+const REALM_TABLES = /\b(?:FROM|INTO|UPDATE|JOIN)\s+(epoch|passkey|password|user_handle|challenge|attempt_limit|tempkey|device|audit)\b/i;
+const REALM_IDS = ['lock', 'account', 'root'];
+
+/**
+ * 同一个 D1 替身上的三个视图（D1_LOCK_AUTH / D1_ACCOUNT_AUTH / D1_ROOT_AUTH），每个只认自己 realm 的行：
+ * - 碰有 realm 列的表的语句，绑定参数里必须有自己的 realm id；
+ * - 参数里出现别的 realm id（'lock' / 'account' / 'root' 原样）算越界；
+ * - recovery_switch 只许经 D1_LOCK_AUTH；kv_migration 运行时谁都不许碰（只有导入脚本写）。
+ * 越界的语句照常执行（流程不被打断），记进 violations，最后断言一条都没有。
+ */
+function splitD1() {
+  const db = makeAuthD1();
   const violations = [];
-  const view = (name, ok) => {
-    const check = (op, k) => { if (!ok(k)) violations.push(name + ' ' + op + ' ' + k); };
+  /** @type {Record<string, number>} 每个视图执行过的、碰 realm 表的语句数 */
+  const used = { lock: 0, account: 0, root: 0 };
+  const view = (name, mine) => {
+    const check = (sql, args) => {
+      if (/^\s*CREATE /i.test(sql)) return; /* 兜底建表 */
+      if (/\bkv_migration\b/i.test(sql)) violations.push(name + ' touches kv_migration: ' + sql);
+      if (/\brecovery_switch\b/i.test(sql) && mine !== 'lock') violations.push(name + ' touches recovery_switch: ' + sql);
+      for (const a of args) {
+        if (typeof a === 'string' && REALM_IDS.includes(a) && a !== mine) violations.push(name + ' binds ' + a + ': ' + sql);
+      }
+      if (REALM_TABLES.test(sql)) {
+        used[mine]++;
+        if (!args.includes(mine)) violations.push(name + ' realm table without realm=' + mine + ': ' + sql + ' ' + JSON.stringify(args));
+      }
+    };
     return {
-      async get(k, type) {
-        check('get', k);
-        if (!store.has(k)) return null;
-        const v = store.get(k);
-        return type === 'json' ? JSON.parse(v) : v;
+      prepare(sql) {
+        const st = db.prepare(sql);
+        let bound = [];
+        const exec = (k) => { check(sql, bound); return st._exec(k); };
+        const wrapped = {
+          bind(...args) { bound = args; st.bind(...args); return wrapped; },
+          first: async () => exec('first'),
+          all: async () => exec('all'),
+          run: async () => exec('run'),
+          _exec: exec,
+          _sql: sql,
+          _args: () => bound,
+        };
+        return wrapped;
       },
-      async put(k, v) { check('put', k); store.set(k, String(v)); },
-      async delete(k) { check('delete', k); store.delete(k); },
-      async list({ prefix } = {}) {
-        check('list', prefix || '');
-        return { keys: [...store.keys()].filter((k) => !prefix || k.startsWith(prefix)).map((n) => ({ name: n })), list_complete: true };
-      },
+      batch: (stmts) => db.batch(stmts),
     };
   };
-  const lock = view('KV_LOCK_DOOR', (k) => k.startsWith('lock-') || k.startsWith('root-'));
-  const account = view('KV_ACCOUNT_LOGIN', (k) => k.startsWith('account-'));
-  return { store, lock, account, violations };
+  return { db, violations, used, lock: view('D1_LOCK_AUTH', 'lock'), account: view('D1_ACCOUNT_AUTH', 'account'), root: view('D1_ROOT_AUTH', 'root') };
 }
 
 const ROOT_KEY = 'split-root-key-123456';
@@ -76,12 +103,15 @@ function cookieJar() {
   };
 }
 
-test('KV 绑定按域分：锁屏 / 账号两域的入口跑一遍，没有一次越界访问', async () => {
+test('D1 绑定按域分（三个只认自己 realm 的视图），env 里的 KV 一次都不碰：锁屏 / 账号 / 根凭证的入口跑一遍', async () => {
   LOCK = await genKeyPair();
   ACCOUNT = await genKeyPair();
-  const kv = splitKV();
+  const touched = [];
+  const d1 = splitD1();
   const env = {
-    KV_LOCK_DOOR: kv.lock, KV_ACCOUNT_LOGIN: kv.account,
+    /* 上线前的两个 KV 绑定名：给一个碰一下就抛错的替身，核对网关运行时不读也不写 KV */
+    KV_LOCK_DOOR: forbiddenKV('KV_LOCK_DOOR', touched), KV_ACCOUNT_LOGIN: forbiddenKV('KV_ACCOUNT_LOGIN', touched),
+    D1_LOCK_AUTH: d1.lock, D1_ACCOUNT_AUTH: d1.account, D1_ROOT_AUTH: d1.root,
     SGX_ROOT_KEY: ROOT_KEY, SGX_PW_PEPPER: PEPPER,
     SGX_LOCK_PRIVATE: LOCK.priv, SGX_LOCK_PUBLIC: LOCK.pub,
     SGX_ACCOUNT_PRIVATE: ACCOUNT.priv, SGX_ACCOUNT_PUBLIC: ACCOUNT.pub,
@@ -149,10 +179,21 @@ test('KV 绑定按域分：锁屏 / 账号两域的入口跑一遍，没有一�
   r = await call('lock-reset.js', 'onRequestPost', post('/api/lock-reset', { action: 'verify', rootKey: ROOT_KEY, accountProof: { type: 'password', password: 'account-pass-5678' } }, anon.header()));
   assert.ok(r.status === 200 || r.status === 403, String(r.status));
 
-  /* 锁屏 / 账号两域的键确实都写进去了 */
-  const keys = [...kv.store.keys()];
-  assert.ok(keys.includes('lock-password') && keys.includes('account-password'), keys.join(','));
-  assert.ok(keys.some((k) => k.startsWith('account-device:')), keys.join(','));
-  assert.ok(keys.some((k) => k.startsWith('account-password-fail:')), keys.join(','));
-  assert.deepEqual(kv.violations, []);
+  /* 锁屏 / 账号两域的密码确实都写进去了（D1），纪元两域各一行 */
+  assert.deepEqual(d1.db.rows('password').map((r) => r.realm).sort(), ['account', 'lock']);
+  assert.deepEqual(d1.db.rows('epoch').map((r) => r.realm).sort(), ['account', 'lock']);
+  /* 以前在 KV 的状态现在都在 D1 对应 realm 的行里 */
+  const devices = d1.db.rows('device');
+  assert.ok(devices.length >= 1 && devices.every((r) => r.realm === 'account'), JSON.stringify(devices));
+  const limits = d1.db.rows('attempt_limit');
+  assert.ok(limits.some((r) => r.realm === 'account' && r.kind === 'password'), JSON.stringify(limits));
+  const audits = d1.db.rows('audit');
+  assert.ok(audits.length >= 1 && audits.every((r) => r.realm === 'root'), '根凭证审计只在 realm=root');
+  const challenges = d1.db.rows('challenge');
+  assert.ok(challenges.length >= 1, '注册 challenge 写进 D1');
+  for (const r of challenges) assert.ok(r.realm === 'lock' || r.realm === 'account', JSON.stringify(r));
+  /* 三个视图都真的被用过（否则「没有越界」是空话） */
+  assert.ok(d1.used.lock > 0 && d1.used.account > 0 && d1.used.root > 0, JSON.stringify(d1.used));
+  assert.deepEqual(d1.violations, []);
+  assert.deepEqual(touched, [], '网关运行时碰了 KV');
 });

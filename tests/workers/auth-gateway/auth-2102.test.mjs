@@ -7,8 +7,8 @@
  * - 3：删应用密钥先推 app-epoch 再删；推失败 503 且密钥仍在
  * - 4：删锁屏密钥先推 lock-epoch 再删；失败 503（fail closed）
  * - 5：主站 SGX_SITE 配错 → 500（fail closed）
- * - 6：无 KV_LOCK_DOOR 时 epoch 检查 fail closed（kv-error）
- * - 7：密码限速 KV 出错 → 503（fail closed）
+ * - 6：无纪元存储（D1_LOCK_AUTH）时 epoch 检查 fail closed（d1-error）
+ * - 7：密码限速 D1 出错 → 503（fail closed）
  * - 8：管理密钥审计写入失败 → 不签发会话，503
  * - 9：Origin 缺失/解析失败 → 403
  * - 1：锁屏/升级弹层的管理密钥入口（静态检查：按钮和 handler 存在）
@@ -21,7 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { testLockSession } from './_tickets.mjs';
-import { makeKV, genKeyPair, postReq } from '../_harness.mjs';
+import { makeKV, genKeyPair, postReq, authD1For } from '../_harness.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
@@ -35,7 +35,7 @@ const SGX_ROOT_KEY = 'test-root-key-2102';
 
 function baseEnv(kv, overrides = {}) {
   return {
-    KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
+    KV_LOCK_DOOR: kv, D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), KV_ACCOUNT_LOGIN: kv,
     SGX_ROOT_KEY,
     SGX_LOCK_PRIVATE: LOCK_PRIV,
     SGX_LOCK_PUBLIC: LOCK_PUB,
@@ -102,9 +102,9 @@ test('5b：SGX_SITE 缺失时主站 middleware 拒绝（500）', async () => {
   assert.equal((await res.json()).error, 'config');
 });
 
-/* ============ 6：无 KV_LOCK_DOOR 时 epoch 检查 fail closed ============ */
+/* ============ 6：纪元存储（D1_LOCK_AUTH）没绑时 epoch 检查 fail closed ============ */
 
-test('6：verifyLockSession 无 KV → kv-error（不跳过）', async () => {
+test('6：verifyLockSession 无纪元存储（D1）→ d1-error（不跳过）', async () => {
   const { verifyLockSession } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
   /* 造一个格式正确但无法验 epoch 的 cookie：用真密钥签名 */
   const { signLockSessionTicket } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
@@ -114,20 +114,29 @@ test('6：verifyLockSession 无 KV → kv-error（不跳过）', async () => {
   });
   const r = await verifyLockSession(req, { SGX_LOCK_PUBLIC: LOCK_PUB });
   assert.equal(r.ok, false);
-  assert.equal(r.reason, 'kv-error', '2.10.2：无 KV 不得跳过 epoch 检查');
+  assert.equal(r.reason, 'd1-error', '2.10.2：读不到纪元不得跳过 epoch 检查');
 });
 
-/* ============ 7：密码限速 KV 出错 → 503 ============ */
+/* ============ 7：密码限速 D1 出错 → 503 ============ */
 
-test('7：verify 时限速 KV 出错 → 503', async () => {
+test('7：verify 时限速 D1 出错 → 503', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/lock-password.js');
+  const { makePasswordRecord } = await import('../../../workers/auth-gateway/functions/_kernel/password.js');
   const kv = makeKV();
-  kv._fail = true; /* 所有 KV 操作抛错 */
-  const env = baseEnv(kv);
-  const req = postReq('https://styrigx.com/api/lock-password', { action: 'verify', password: 'x' });
-  const res = await onRequestPost({ request: req, env });
-  /* isLocked 的 KV 出错 → 503（不再静默放行） */
-  assert.equal(res.status, 503);
+  const env = baseEnv(kv, { SGX_PW_PEPPER: 'test-pepper' });
+  /* 锁屏密码已设置（码对），只有 attempt_limit 读写抛错 */
+  env.D1_LOCK_AUTH.putPassword('lock', await makePasswordRecord('right-pass-1', 'test-pepper'));
+  /* 对照：D1 正常时码对 → 200（证明下面的 503 来自限速表） */
+  const ok = await onRequestPost({ request: postReq('https://styrigx.com/api/lock-password', { action: 'verify', password: 'right-pass-1' }), env });
+  assert.equal(ok.status, 200);
+  env.D1_LOCK_AUTH.failOn = (sql) => /attempt_limit/.test(sql);
+  for (const password of ['x', 'right-pass-1']) {
+    const req = postReq('https://styrigx.com/api/lock-password', { action: 'verify', password });
+    const res = await onRequestPost({ request: req, env });
+    /* 限速读不到 → 503（不再静默放行；码对也不签票） */
+    assert.equal(res.status, 503, password);
+    assert.equal(res.headers.get('Set-Cookie'), null);
+  }
 });
 
 /* ============ 8：审计写入失败 → 不签发会话 ============ */
@@ -136,18 +145,16 @@ test('8：root-auth 审计写入失败 → 503 且无 cookie', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
   const env = baseEnv(kv);
-  /* 让审计 put 失败：root-audit: 前缀抛错，其他放行 */
-  const origPut = kv.put.bind(kv);
-  kv.put = async (k, v, o) => {
-    if (String(k).startsWith('root-audit:')) throw new Error('audit-fail');
-    return origPut(k, v, o);
-  };
+  /* 让审计写入失败：D1 audit 表的 INSERT 抛错，其他放行 */
+  env.D1_ROOT_AUTH.failOn = (sql) => /^\s*INSERT INTO audit/i.test(sql);
   const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY, purpose: 'lock-reset' });
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 503, '审计失败应 503');
   const cookies = res.headers.getSetCookie ? res.headers.getSetCookie() : [];
   const all = (cookies || []).join(';');
   assert.ok(!all.includes('sgx-lock-session='), '审计失败不得签发会话');
+  assert.equal(res.headers.get('Set-Cookie'), null, '审计失败不签任何票');
+  assert.equal(env.D1_ROOT_AUTH.raw.prepare('SELECT COUNT(*) AS n FROM audit').get().n, 0);
 });
 
 /* ============ 9：Origin 缺失/解析失败 → 403 ============ */

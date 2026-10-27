@@ -5,10 +5,11 @@
  * - 迭代次数 100000（Cloudflare Workers PBKDF2 上限，超过抛 NotSupportedError）；
  *   校验按记录里的 iterations
  * - 旧记录（无 peppered 标记）按无 pepper 校验，成功则 needsRehash=true
- * - 每个凭证域的密码存在哪个 KV 键，见 realms.js 的 realm.kv.password
+ * - 记录存在 D1 password 表（每个凭证域一行，d1-state.js；2026-10-27 从 KV 搬来：改密码后下一个请求就认新密码、不再认旧密码）
  */
 import { b64enc, b64dec, timingSafeEqual } from './crypto.js';
 import { REALM_ACCOUNT } from './realms.js';
+import { getPasswordRecord, putPasswordRecord, deletePasswordRecord } from './d1-state.js';
 
 export const ITERATIONS = 100000; // Workers PBKDF2 上限（实测：超过抛 NotSupportedError）
 const SALT_LEN = 16;
@@ -48,7 +49,7 @@ export function getPepper(env) {
  * - stored 为空 → { ok:false, set:false }
  * - peppered 记录：带 pepper 校验
  * - 旧记录（无 peppered 标记）：按无 pepper 校验，成功则 needsRehash=true
- * @param {object|null} stored kv.get(key,'json') 的结果
+ * @param {object|null} stored getPassword 的结果（D1 password 表的记录）
  * @param {string} password
  * @param {string} pepper
  * @returns {Promise<{ok:boolean, set:boolean, needsRehash:boolean}>}
@@ -87,14 +88,49 @@ export async function makePasswordRecord(password, pepper) {
 }
 
 /**
- * 校验某个凭证域的密码（读 realm.kv.password）。KV 出错时抛错（调用方返回 503）。
- * @param {any} kv
- * @param {{kv:{password:string}}} realm REALM_LOCK / REALM_ACCOUNT
+ * 读某个凭证域的密码记录（没设置 → null）。出错抛错（调用方返回 503）。
+ * @param {any} env
+ * @param {{id:string}} realm REALM_LOCK / REALM_ACCOUNT
+ */
+export async function getPassword(env, realm) {
+  return getPasswordRecord(env, realm);
+}
+
+/**
+ * 某个凭证域是否设置了密码（记录里有 hash）。出错抛错。
+ * @param {any} env @param {{id:string}} realm
+ * @returns {Promise<boolean>}
+ */
+export async function hasPassword(env, realm) {
+  const r = await getPasswordRecord(env, realm);
+  return !!(r && r.hash);
+}
+
+/**
+ * 写某个凭证域的密码记录（makePasswordRecord 的结果）。出错抛错。
+ * @param {any} env @param {{id:string}} realm @param {any} rec
+ */
+export async function savePassword(env, realm, rec) {
+  await putPasswordRecord(env, realm, rec);
+}
+
+/**
+ * 删某个凭证域的密码。出错抛错。
+ * @param {any} env @param {{id:string}} realm
+ */
+export async function deletePassword(env, realm) {
+  await deletePasswordRecord(env, realm);
+}
+
+/**
+ * 校验某个凭证域的密码。读出错时抛错（调用方返回 503）。
+ * @param {any} env
+ * @param {{id:string}} realm REALM_LOCK / REALM_ACCOUNT
  * @param {string} pepper
  * @param {string} password
  * @returns {Promise<{ok:boolean, set:boolean, needsRehash:boolean}>}
  */
-export async function verifyRealmPassword(kv, realm, pepper, password) {
-  const stored = await kv.get(realm.kv.password, 'json'); /* 出错直接抛 */
+export async function verifyRealmPassword(env, realm, pepper, password) {
+  const stored = await getPasswordRecord(env, realm); /* 出错直接抛 */
   return checkPasswordRecord(stored, password, pepper);
 }

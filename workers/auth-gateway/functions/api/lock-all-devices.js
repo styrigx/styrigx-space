@@ -8,10 +8,10 @@
  *   本接口再做一次角色校验，纵深防御）。
  * - 无会话 → 401；visitor 会话 → 403 {ok:false, error:'role'}。
  * - 无 LockReauthTicket → 403 reauth（前端重新验证）。
- * - 逻辑：KV lock-epoch +1（所有设备旧 cookie 失效），用 Set-Cookie 清当前锁屏会话和 LockReauthTicket。
+ * - 逻辑：lock-epoch +1（D1，所有设备旧 cookie 失效），用 Set-Cookie 清当前锁屏会话和 LockReauthTicket。
  * - 返回 {ok:true}。
  *
- * 注意：lock-epoch 经 KV 边缘缓存（约 60 秒），其他边缘节点上的请求（主站与子站都一样）最多约 60 秒后才看到新纪元。
+ * lock-epoch 在 D1（强一致，2026-10-27 前在 KV、要等约 60 秒）：推进后主站与子站的下一个请求就看到新纪元，旧会话立刻失效。
  * 只接受 POST；外层 try/catch：任何未捕获异常都返回 JSON { ok:false, error:'server' }。
  */
 import { verifyLockSession } from '../_kernel/lock-session.js';
@@ -22,7 +22,7 @@ import {
 } from '../_kernel/lock-session.js';
 import { checkLockManage } from '../_kernel/lock-manage.js';
 import { clearTicket } from '../_kernel/tickets.js';
-import { LOCK_REAUTH_TICKET } from '../_kernel/realms.js';
+import { LOCK_REAUTH_TICKET, REALM_LOCK } from '../_kernel/realms.js';
 import { json, apiError } from '../_kernel/http.js';
 
 /** @param {any} context */
@@ -37,8 +37,8 @@ export async function onRequestPost(context) {
 /** @param {any} context */
 async function handlePost(context) {
   const { request, env } = context;
-  const kv = env && env.KV_LOCK_DOOR;
-  if (!kv) {
+  const lockDb = env && env[REALM_LOCK.d1Binding]; /* D1_LOCK_AUTH（纪元、临时钥匙都在这里）：没绑 → 500 config */
+  if (!lockDb) {
     return apiError(500, 'config');
   }
 
@@ -56,9 +56,9 @@ async function handlePost(context) {
     return json(gate.status, gate.body);
   }
 
-  /* lock-epoch +1：KV 出错 → 503，绝不继续 */
+  /* lock-epoch +1（D1 原子自增）：出错 → 503，绝不继续 */
   try {
-    await bumpLockEpoch(kv);
+    await bumpLockEpoch(env);
   } catch (e) {
     return apiError(503, 'server');
   }

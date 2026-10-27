@@ -13,7 +13,7 @@
  * 四张票都是 3 分钟、各自独立 cookie（见 realms.js TICKETS）。
  *
  * 访客假入口：访客会话（sgx-lock-session role=visitor）直接写死返回 401：
- * 不读 D1、KV、环境变量里的任何凭证，不做任何比对；不计入根凭证限速；
+ * 不读 D1、环境变量里的任何凭证，不做任何比对；不计入根凭证限速；
  * 不写审计。状态码、响应体、响应头、固定最小延迟与真失败一致。
  * 缺 Origin 仍先 403。
  * 无会话假入口：不满足上面各用途的前置条件（无 admin 会话，且不是锁屏未设置时的 lock-reset）→ 写死 401 auth，
@@ -25,7 +25,7 @@
  * - 失败：401 auth（并计数）；超限：429
  * - 缺 SGX_ROOT_KEY → 500 config；缺该票的签名钥匙 → 503 config
  *
- * 审计：真路径每次使用（成功/失败）在 KV 留一条记录（_kernel/root-audit.js，path = purpose）；
+ * 审计：真路径每次使用（成功/失败）在 D1 audit 表留一行（_kernel/root-audit.js，path = purpose）；
  * 假入口不写审计。写入失败则不签发（fail closed）。
  *
  * 只接受 POST；校验 Origin（缺失/解析失败 403）。
@@ -62,7 +62,7 @@ export const ROOT_PURPOSES = Object.freeze({
 
 /* 假入口与真失败的统一固定最小延迟（毫秒）：防时序区分。
    真失败路径的审计写入放在 padTo 之前，padTo 把总耗时对齐到此时长，
-   使真失败与假入口的响应耗时一致（审计为单次 KV 写，通常远小于此时长）。 */
+   使真失败与假入口的响应耗时一致（审计为单次 D1 写，通常远小于此时长）。 */
 const MIN_DELAY_MS = 200;
 
 /** @param {number} t0 起始时间戳 */
@@ -79,10 +79,10 @@ function decoyAuth() {
 }
 
 /**
- * 轻量会话检查（不读 KV）：解析 sgx-lock-session、验 Ed25519 签名、检查 exp 与 role。
+ * 轻量会话检查（不读存储）：解析 sgx-lock-session、验 Ed25519 签名、检查 exp 与 role。
  * 只读 SGX_LOCK_PUBLIC（公钥，非凭证）。
  * - role=visitor：仅用于识别访客假入口
- * - role=admin：仅用于决定走真路径还是假入口；真路径内再做完整校验（含 KV 纪元）
+ * - role=admin：仅用于决定走真路径还是假入口；真路径内再做完整校验（含 D1 纪元）
  * @param {any} request
  * @param {any} env
  * @param {string} wantRole ROLE_VISITOR 或 ROLE_ADMIN
@@ -124,14 +124,13 @@ async function handlePost(context) {
   if (!isSameOrigin(request)) return originDenied();
 
   /* B1-9 访客假入口统一 401（安全）：访客会话直接返回 401，
-     不读任何存储（KV/D1），不区分新站旧站。放在所有 KV 读取之前。 */
+     不读任何存储（D1），不区分新站旧站。放在所有存储读取之前。 */
   if (await lightSession(request, env, ROLE_VISITOR)) {
     await padTo(t0);
     return apiError(401, 'denied');
   }
 
-  const kv = env && env.KV_LOCK_DOOR;
-  const akv = env && env.KV_ACCOUNT_LOGIN; /* account-* 键：盘点真实凭证时读 */
+  const rootDb = env && env[REALM_ROOT.d1Binding]; /* 根凭证限速 / 审计：D1_ROOT_AUTH */
   const ip = clientIp(request);
 
   /* body 只读一次（purpose 决定签哪张票；key 在限流检查之后才比对） */
@@ -145,10 +144,10 @@ async function handlePost(context) {
   const ticket = ROOT_PURPOSES[purpose];
   const auditPath = purpose;
 
-  /* 锁屏是否已设置（KV 读失败按已设置处理）：只决定 lock-reset 能不能走 */
+  /* 锁屏是否已设置（D1 读失败按已设置处理）：只决定 lock-reset 能不能走 */
   let lockCfg = true;
   try {
-    lockCfg = await isLockEffectivelyConfigured(kv, akv);
+    lockCfg = await isLockEffectivelyConfigured(env);
   } catch (e) {
     lockCfg = true;
   }
@@ -162,12 +161,12 @@ async function handlePost(context) {
   if (!realPath) {
     /* ===== 无会话假入口：写死 401，与真失败逐字节相同 =====
        不检查环境变量（缺 SGX_ROOT_KEY 等时也返回 401，不泄露 500 config）。
-       限速检查与真路径相同（KV 出错时 fail closed，全局减速时同样先等）；
+       限速检查与真路径相同（D1 出错时 fail closed，全局减速时同样先等）；
        失败只计单 IP、不计全局（没有比对，不算猜测，刷这里推不动全局计数）；不写审计（不让刷接口灌满审计）。
-       KV 缺失时无法限速，直接返回 401（不泄露配置状态）。 */
-    if (kv) {
+       D1 缺失时无法限速，直接返回 401（不泄露配置状态）。 */
+    if (rootDb) {
       try {
-        const lim = await checkRootLimit(kv, ip);
+        const lim = await checkRootLimit(env, ip);
         if (lim.limited) {
           return apiError(429, 'cooldown');
         }
@@ -176,7 +175,7 @@ async function handlePost(context) {
         return apiError(503, 'server');
       }
       try {
-        await recordRootFail(kv, ip, { global: false });
+        await recordRootFail(env, ip, { global: false });
       } catch (e) {
         return apiError(503, 'server');
       }
@@ -193,12 +192,12 @@ async function handlePost(context) {
   if (!(env && env[conf.privateKey]) || !(env && env[conf.publicKey])) {
     return apiError(503, 'config');
   }
-  if (!rootKey || !kv) {
+  if (!rootKey || !rootDb) {
     return apiError(500, 'config');
   }
 
   if (ticket !== LOCK_RESET_TICKET) {
-    /* 完整会话校验（含 KV 纪元）；轻量检查通过但完整校验失败（如纪元已推进）→ 401 session */
+    /* 完整会话校验（含 D1 纪元）；轻量检查通过但完整校验失败（如纪元已推进）→ 401 session */
     const sess = await verifyLockSession(request, env);
     if (!sess.ok || sess.role !== ROLE_ADMIN) {
       return apiError(401, 'session');
@@ -213,7 +212,6 @@ async function handlePost(context) {
   /* 根凭证比对（限速 / 恒定时间比较 / 失败计数 / 审计）：全站共用一份实现（_kernel/root-check.js） */
   const rc = await checkRootCredential({
     env: env,
-    kv: kv,
     ip: ip,
     key: (body && typeof body.key === 'string' && body.key) || '',
     auditPath: auditPath,
@@ -224,11 +222,11 @@ async function handlePost(context) {
   const headers = new Headers();
   const tErr = await issueTicket(env, headers, ticket, BY_ROOT);
   if (tErr) {
-    await writeRootAudit(kv, ip, false, { path: auditPath });
+    await writeRootAudit(env, ip, false, { path: auditPath });
     return json(tErr.status, tErr.body);
   }
   /* 审计写入失败则不签发（fail closed） */
-  if (!(await writeRootAudit(kv, ip, true, { path: auditPath }))) {
+  if (!(await writeRootAudit(env, ip, true, { path: auditPath }))) {
     return apiError(503, 'server');
   }
   return json(200, { ok: true }, headers);

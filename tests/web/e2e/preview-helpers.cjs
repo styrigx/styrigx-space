@@ -6,13 +6,13 @@
  * - SGX_TEST_BASE：预览站地址（https://passkey-e2e.styrigx-space.pages.dev）
  * - SGX_TEST_ROOT_KEY：预览站的测试 RootKey（与预览的 SGX_ROOT_KEY 相同，绝不是生产值；CI 每次运行现生成，
  *   连同 SGX_PW_PEPPER 一起写进预览，不存 GitHub Secrets）
- * - SGX_TEST_CF_TOKEN / SGX_TEST_CF_ACCOUNT / SGX_TEST_PREVIEW_KV_ID：写预览 KV（重置开关、清限速计数）
+ * - SGX_TEST_CF_TOKEN / SGX_TEST_CF_ACCOUNT / SGX_TEST_PREVIEW_D1_ID：写预览 D1（打开重置开关、清根凭证限速计数；D1 REST query）
  * - SGX_TEST_CF_API：只在模拟预览站（preview-emulator.cjs：本地，或 CI 里 pull_request 的运行）时设，把 Cloudflare REST 指到本机
  *
- * KV 配额：预览 KV 和生产网关共用整个账号每天 1000 次写 / 删 / 列（免费计划）。这里每一次 KV 操作都算数：
- * - 会话 / LockReauthTicket 缓存后先用只读接口确认（见 state），不再每个用例重新密码解锁 / root-auth；
- * - 重置开关键不删（签过的值在 D1 标了已用，见 resetTicketViaSwitch）。
- * 一次运行花多少可以用 preview-emulator.cjs 在本地量（/__kv/stats）。
+ * 用量：2026-10-27 起网关不再用 KV（认证状态全在 D1），这里也不碰 KV。D1 免费计划按行读写计（额度远大于 KV 的写 / 删 / 列），
+ * 仍尽量少写：会话 / LockReauthTicket 缓存后先用只读接口确认（见 state），不再每个用例重新密码解锁 / root-auth；
+ * 重置开关行不删（签过的行在 D1 标了已用，见 resetTicketViaSwitch）。
+ * 一次运行花多少可以用 preview-emulator.cjs 在本地量（/__kv/stats 的 d1 一栏）。
  *
  * 预览站上的 cookie：
  * - 锁屏会话 sgx-lock-session 固定带 Domain=.styrigx.com，浏览器在 *.pages.dev 上不会存。
@@ -20,22 +20,21 @@
  *   这样纪元推进后服务端重签的会话 / 票也能接着用。
  * - reauth / reset 票本来就只发主机（不带 Domain），照样写一遍，无副作用。
  *
- * 预览站用同一个 KV / D1。CI 每次开跑前删掉预览 KV 里「锁屏 / 账号已设置」的状态和按 IP 的失败计数
+ * 预览站用同一个 D1。CI 每次开跑前清掉预览 D1 里的密码、通行密钥和输错计数
  * （scripts/kv-budget.mjs reset-preview；RootKey、pepper 每次都换，旧的密码哈希没用了），
- * 但 KV 删除传到边缘要时间、本地跑也不清，所以 helper 仍不假设起始状态：
+ * 本地跑也不一定清，所以 helper 仍不假设起始状态：
  * - adminSession：先用本次运行设过的锁屏密码解锁；不行就拿 LockResetTicket（锁屏未设置时 root-auth
- *   purpose:lock-reset；已设置时写一个新的重置开关值，轮询 /api/lock-reset），设一个新密码再解锁。
+ *   purpose:lock-reset；已设置时在 D1 插一行新的重置开关，轮询 /api/lock-reset），设一个新密码再解锁。
  * - 根凭证正确时服务端会清掉本 IP 的失败计数，所以轮询重置开关不会把自己锁住。
  *
- * 写后读（真实预览独有，模拟器默认读写立刻可见）：Cloudflare KV 是最终一致的，边缘缓存的读最长约 60 秒才看到新值。
- * 网关的 lock-epoch（改凭证 / 删通行密钥 / 退出所有设备 +1）、lock-passkey-index、lock-password 刚写完，
- * 下一个请求可能还读到旧值：新纪元重签的会话被当成 epoch-low（401），锁屏入口还说没有通行密钥，等等。
- * 所以写之后要马上读的地方先用只读接口轮询到服务端「看见」新值（KV_SETTLE，最多 75 秒），再做原来的断言：
- * - api() 收到服务端重签的 sgx-lock-session 时自动 settleSession（轮询 lock-session-check 到 200，只有 KV 读）；
+ * 写后读：以前状态在 KV（最终一致，边缘缓存的读最长约 60 秒才看到新值）；2026-10-27 起网关的认证状态全部在 D1
+ * （强一致），改凭证后下一个请求就能看到新值，下面这些轮询正常情况下第一次就满足；留着它们当兜底（只多花一次读）。
+ * 写之后要马上读的地方先用只读接口轮询到服务端「看见」新值（KV_SETTLE，最多 75 秒），再做原来的断言：
+ * - api() 收到服务端重签的 sgx-lock-session 时自动 settleSession（轮询 lock-session-check 到 200，只读）；
  * - adminSession 的重置路径设完密码后，轮询 lock-reauth status 到「重置票有效且密码已设」再解锁；
  * - 其余在用例里就地 expect.poll（waitLockEntryPasskey、列表 / 凭证状态）。
- * 断言本身一条不放宽：轮询的是「最终必须成立」的同一个条件；只多花 KV 读，不多花写。
- * 本地可以用 preview-emulator.cjs --stale-ms 复现（见该文件头）。
+ * 断言本身一条不放宽：轮询的是「最终必须成立」的同一个条件；只多花读，不多花写。
+ * preview-emulator.cjs 的 --stale-ms 以前模拟 KV 旧值；网关已不读 KV，D1 不模拟旧值（它是强一致的）。
  */
 const { expect } = require('@playwright/test');
 
@@ -43,12 +42,12 @@ const BASE = (process.env.SGX_TEST_BASE || '').replace(/\/+$/, '');
 const ROOT_KEY = process.env.SGX_TEST_ROOT_KEY || '';
 const CF_TOKEN = process.env.SGX_TEST_CF_TOKEN || '';
 const CF_ACCOUNT = process.env.SGX_TEST_CF_ACCOUNT || '';
-const KV_ID = process.env.SGX_TEST_PREVIEW_KV_ID || '';
+const D1_ID = process.env.SGX_TEST_PREVIEW_D1_ID || '';
 /* Cloudflare API 根地址：只有模拟预览站（preview-emulator.cjs；本地或 CI 的 PR 运行）时才改，真实预览不设 */
 const CF_API = (process.env.SGX_TEST_CF_API || 'https://api.cloudflare.com/client/v4').replace(/\/+$/, '');
 
 const READY = !!(BASE && ROOT_KEY);
-const HAS_CF = !!(CF_TOKEN && CF_ACCOUNT && KV_ID);
+const HAS_CF = !!(CF_TOKEN && CF_ACCOUNT && D1_ID);
 const ORIGIN = BASE ? new URL(BASE).origin : '';
 const SECURE = ORIGIN.startsWith('https:');
 
@@ -65,8 +64,8 @@ const TRACKED = [SESSION, REAUTH, RESET, ACCOUNT_SESSION, ACCOUNT_REAUTH, ACCOUN
  * - password：本次运行设过的锁屏密码
  * - session / reauth：服务端最近一次发下来的 admin 锁屏会话、LockReauthTicket 的值（absorbCookies 顺手记下）。
  *   每个用例是新的 context，以前每次都要重新密码解锁、重新 root-auth 进门；而网关每次密码解锁成功会删两个限速键、
- *   每次 root-auth 成功会写一条审计并删一个限速键（都算 KV 写 / 删配额）。所以 adminSession / lockReauth 先把缓存的值
- *   放回 context，用只读接口（lock-session-check / lock-reauth status，只有 KV 读）问服务端还认不认，认就直接用，
+ *   每次 root-auth 成功会写一条审计并删一个限速行。所以 adminSession / lockReauth 先把缓存的值
+ *   放回 context，用只读接口（lock-session-check / lock-reauth status，只有 D1 读）问服务端还认不认，认就直接用，
  *   不认（纪元推进、过期）才走原来的路。是不是有效由服务端判断，测试断言一条不少。
  */
 const state = { password: '', session: '', reauth: '' };
@@ -97,13 +96,13 @@ function requirePreview(test) {
 }
 
 /**
- * 单个用例要写预览 KV 时调用：本地没配 → 跳过；CI 里没配 → 失败。
+ * 单个用例要写预览 D1 时调用：本地没配 → 跳过；CI 里没配 → 失败。
  * @param {import('@playwright/test').TestType<any, any>} test
  */
 function requireCf(test) {
   if (HAS_CF) return;
-  if (process.env.CI) throw new Error('需要 SGX_TEST_CF_TOKEN / SGX_TEST_CF_ACCOUNT / SGX_TEST_PREVIEW_KV_ID');
-  test.skip(true, '需要 SGX_TEST_CF_TOKEN / SGX_TEST_CF_ACCOUNT / SGX_TEST_PREVIEW_KV_ID');
+  if (process.env.CI) throw new Error('需要 SGX_TEST_CF_TOKEN / SGX_TEST_CF_ACCOUNT / SGX_TEST_PREVIEW_D1_ID');
+  test.skip(true, '需要 SGX_TEST_CF_TOKEN / SGX_TEST_CF_ACCOUNT / SGX_TEST_PREVIEW_D1_ID');
 }
 
 /**
@@ -202,13 +201,13 @@ async function api(page, path, data) {
 }
 
 /**
- * 轮询 lock-session-check 直到 context 里的锁屏会话被服务端接受（200）。只读：每次 1 个 KV 读（lock-epoch）。
- * 纪元刚推进时边缘可能还读到旧纪元，新会话会暂时 401（epoch-low）。
+ * 轮询 lock-session-check 直到 context 里的锁屏会话被服务端接受（200）。只读：每次 1 个 D1 读（lock-epoch）。
+ * 纪元在 D1（强一致）后正常第一次就是 200；以前在 KV 时边缘可能还读到旧纪元，新会话会暂时 401（epoch-low）。
  * @param {import('@playwright/test').Page} page
  */
 async function settleSession(page) {
   await expect.poll(async () => (await apiGet(page, '/api/lock-session-check')).status,
-    Object.assign({ message: '新锁屏会话在 KV 里可见（lock-epoch 写后读）' }, KV_SETTLE)).toBe(200);
+    Object.assign({ message: '新锁屏会话被服务端接受（lock-epoch 写后读）' }, KV_SETTLE)).toBe(200);
 }
 
 /**
@@ -221,7 +220,7 @@ async function waitLockEntryPasskey(page, want) {
   await expect.poll(async () => {
     const r = await apiGet(page, '/api/lock-entry');
     return !!(r.json && r.json.passkey);
-  }, Object.assign({ message: 'lock-entry.passkey === ' + w + '（lock-passkey-index 写后读）' }, KV_SETTLE)).toBe(w);
+  }, Object.assign({ message: 'lock-entry.passkey === ' + w + '（通行密钥写后读）' }, KV_SETTLE)).toBe(w);
 }
 
 /**
@@ -236,39 +235,41 @@ async function apiGet(page, path) {
   return { status: resp.status(), json, resp };
 }
 
-/* ---------- 预览 KV（Cloudflare REST，只用预览命名空间） ---------- */
-function kvUrl(key) {
-  return `${CF_API}/accounts/${CF_ACCOUNT}/storage/kv/namespaces/${KV_ID}/values/${encodeURIComponent(key)}`;
-}
-async function kvPut(key, value) {
-  const r = await fetch(kvUrl(key), {
-    method: 'PUT',
-    headers: { Authorization: `Bearer ${CF_TOKEN}`, 'Content-Type': 'text/plain' },
-    body: value,
+/* ---------- 预览 D1（Cloudflare D1 REST query，只用预览库 styrigx-auth-gateway-preview） ---------- */
+/** @param {string} sql @param {any[]} [params] */
+async function d1Query(sql, params) {
+  const r = await fetch(`${CF_API}/accounts/${CF_ACCOUNT}/d1/database/${D1_ID}/query`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${CF_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sql: sql, params: params || [] }),
   });
-  if (!r.ok) throw new Error('KV put failed: ' + r.status);
-}
-async function kvDel(key) {
-  await fetch(kvUrl(key), { method: 'DELETE', headers: { Authorization: `Bearer ${CF_TOKEN}` } });
-}
-/** 删掉某前缀下的所有键（清根凭证限速计数用） */
-async function kvDelPrefix(prefix) {
-  const u = `${CF_API}/accounts/${CF_ACCOUNT}/storage/kv/namespaces/${KV_ID}/keys?prefix=${encodeURIComponent(prefix)}`;
-  const r = await fetch(u, { headers: { Authorization: `Bearer ${CF_TOKEN}` } });
-  if (!r.ok) return;
+  if (!r.ok) throw new Error('D1 query failed: ' + r.status + ' ' + (await r.text()).slice(0, 200));
   const j = await r.json();
-  for (const k of (j && j.result) || []) await kvDel(k.name);
+  return (j && j.result && j.result[0]) || {};
+}
+/** 打开重置开关：插一行还没见过的开关（first_seen = 0，同 Sloan 在后台控制台手动插的那条，见 _kernel/lock-reset-switch.js）。
+ *  先 CREATE ... IF NOT EXISTS（同代码兜底的那句）：库没跑过迁移（模拟器 --no-migrations）时网关还没读过开关、表还没建。 */
+async function armResetSwitch() {
+  await d1Query('CREATE TABLE IF NOT EXISTS recovery_switch (hash TEXT PRIMARY KEY, first_seen INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0)');
+  await d1Query('INSERT INTO recovery_switch (hash, first_seen, used) VALUES (?, 0, 0)', ['e2e-' + rand()]);
+}
+/** 清掉根凭证的单 IP 限速计数（D1 attempt_limit realm='root'；全局窗口不动）。表还没建（没跑迁移、网关还没记过数）= 没有可清的。 */
+async function clearRootLimits() {
+  try {
+    await d1Query("DELETE FROM attempt_limit WHERE realm = 'root' AND kind = 'rootkey' AND bucket <> '*'");
+  } catch (e) {
+    if (!/no such table/.test(String(e && e.message))) throw e;
+  }
 }
 
 /**
- * 用重置开关拿 LockResetTicket：写一个新开关值（1 个 KV 写），轮询 /api/lock-reset verify 直到签票
- * （KV 写入到边缘读到可能要几十秒）。每次轮询根凭证都正确，服务端先清本 IP 的失败计数，不会自锁。
+ * 用重置开关拿 LockResetTicket：在 D1 插一行新开关，轮询 /api/lock-reset verify 直到签票
+ * （D1 强一致，正常第一次就签）。每次轮询根凭证都正确，服务端先清本 IP 的失败计数，不会自锁。
  * @param {import('@playwright/test').Page} page
  * @returns {Promise<import('@playwright/test').APIResponse>} 签票的那次响应
  */
 async function resetTicketViaSwitch(page) {
-  const value = 'e2e-' + rand();
-  await kvPut('lock-reset-switch', value);
+  await armResetSwitch();
   let hit = null;
   await expect.poll(async () => {
     const r = await api(page, '/api/lock-reset', { action: 'verify', rootKey: ROOT_KEY });
@@ -278,9 +279,8 @@ async function resetTicketViaSwitch(page) {
     }
     return r.status + ' ' + JSON.stringify(r.json);
   }, { message: '重置开关签 LockResetTicket', timeout: 90000, intervals: [3000, 10000, 15000, 20000] }).toBe('ticket');
-  /* 不再删开关键（以前 finally 里 kvDel，每次 1 个 KV 删除）：签过票的值在 D1 里标了已用，永不再生效；
-     下次要用时 kvPut 直接覆盖成新值；万一没签成（轮询超时），这个值也只对本次运行现生成的预览 RootKey 有用，
-     24 小时后自动过期。lock-reset-switch.js：已用 / 过期的值永不重新生效。 */
+  /* 不删开关行：签过票的行在 D1 里标了已用，永不再生效；下次要用时再插一行。万一没签成（轮询超时），
+     这一行也只对本次运行现生成的预览 RootKey 有用，24 小时后过期。lock-reset-switch.js：已用 / 过期的行永不重新生效。 */
   return /** @type {any} */ (hit);
 }
 
@@ -550,9 +550,9 @@ module.exports = {
   apiGet,
   settleSession,
   waitLockEntryPasskey,
-  kvPut,
-  kvDel,
-  kvDelPrefix,
+  d1Query,
+  armResetSwitch,
+  clearRootLimits,
   resetTicketViaSwitch,
   lockResetTicket,
   unlockWithPassword,

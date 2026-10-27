@@ -11,7 +11,7 @@ import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { testLockSession } from './_tickets.mjs';
-import { genKeyPair } from '../_harness.mjs';
+import { genKeyPair, makeAuthD1 } from '../_harness.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const { checkLockSession } = await import(REPO + '/workers/auth-gateway/src/verifier.js');
@@ -20,15 +20,18 @@ const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/fun
 const LOCK = await genKeyPair();
 
 function env({ epoch = '0', kvThrows = false } = {}) {
+  const d1 = makeAuthD1({ epochs: { 'lock-epoch': Number(epoch) } }); /* 纪元在 D1 */
+  if (kvThrows) d1.failOn = () => true; /* 存储不可用（名字沿用：以前纪元在 KV） */
   return {
     SGX_LOCK_PUBLIC: LOCK.pub,
     KV_LOCK_DOOR: {
-      async get(k) {
+      async get() {
         if (kvThrows) throw new Error('kv down');
-        if (k === 'lock-epoch') return epoch;
         return null;
       },
     },
+    D1_LOCK_AUTH: d1,
+    D1_ACCOUNT_AUTH: d1,
   };
 }
 

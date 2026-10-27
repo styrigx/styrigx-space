@@ -16,7 +16,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { testLockSession } from '../auth-gateway/_tickets.mjs';
-import { genKeyPair } from '../_harness.mjs';
+import { genKeyPair, authD1For } from '../_harness.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
@@ -37,8 +37,7 @@ function makeKv(init = {}) {
   return {
     m,
     async get(k) {
-      if (k === 'lock-epoch') return '0';
-      const v = m.get(k);
+      const v = m.get(k); /* 纪元在 D1（authD1For），KV 里没有 lock-epoch → 0 */
       return v === undefined ? null : v.value ?? v;
     },
     async getWithMetadata(k) {
@@ -57,6 +56,7 @@ function env(kv) {
   return {
     SGX_LOCK_PUBLIC: PUB,
     KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, KV_PROFILE: kv,
+    D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv),
     ASSETS: { fetch: async (u) => new Response('DEFAULT:' + new URL(u).pathname, { status: 200 }) },
   };
 }

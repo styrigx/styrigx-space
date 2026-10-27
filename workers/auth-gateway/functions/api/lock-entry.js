@@ -5,17 +5,18 @@
  *   accountConfigured:bool, resetOnly:bool }
  * - 无需鉴权（锁屏页无会话时调用）。
  * - 只返回「是否已设置」，不返回任何敏感数据。
- * - 口径统一：用 _kernel/layers.js 的 isLockEffectivelyConfigured。
- *   锁屏层已配置标记、或真实锁屏凭证存在、或任何读取失败，
- *   都算已配置（passkey/password 均为 true），避免失败时暴露根凭证入口
- *   （fail closed）。只剩标记（无真实凭证）时同样不显示根凭证入口，
- *   避免 root-auth 走假入口 401 导致锁死。
+ * - 口径统一：用 _kernel/layers.js 的 isLockEffectivelyConfigured（由 D1 里的真实凭证推出）。
+ *   锁屏凭证存在、或账号已配置、或任何读取失败，都算已配置（passkey/password 均为 true），
+ *   避免失败时暴露根凭证入口（fail closed）。锁屏凭证删光但账号已配置时同样不显示根凭证入口（resetOnly）。
+ * - passkey / password 读 D1（强一致）：刚注册的通行密钥下一个请求就显示入口，删掉的就不显示。
  * - A-2：accountConfigured（账号层是否有效配置）、
  *   resetOnly（锁屏真实凭证为 0 且账号已配置 →
  *   锁屏只显示访客 + 重置锁屏，不显示根凭证入口）。
  */
-import { isLockEffectivelyConfigured, isAccountEffectivelyConfigured, hasPasskey } from '../_kernel/layers.js';
-import { REALM_LOCK } from '../_kernel/realms.js';
+import { isLockEffectivelyConfigured, isAccountEffectivelyConfigured } from '../_kernel/layers.js';
+import { hasPasskey, PASSKEY_LOCK } from '../_kernel/passkey-store.js';
+import { hasPassword } from '../_kernel/password.js';
+import { REALM_LOCK, REALM_ACCOUNT } from '../_kernel/realms.js';
 import { json } from '../_kernel/http.js';
 
 /**
@@ -24,22 +25,22 @@ import { json } from '../_kernel/http.js';
 export async function onRequestGet(context) {
   const headers = { 'Cache-Control': 'no-store' };
   try {
-    const kv = context.env && context.env.KV_LOCK_DOOR;
-    const akv = context.env && context.env.KV_ACCOUNT_LOGIN; /* account-* 键 */
-    /* 口径统一：标记或真实凭证任一存在、或读取失败，都算已配置 */
+    const env = context.env;
+    const stores = !!(env && env[REALM_LOCK.d1Binding] && env[REALM_ACCOUNT.d1Binding]); /* D1_LOCK_AUTH / D1_ACCOUNT_AUTH */
+    /* 口径统一：真实凭证存在、或读取失败，都算已配置 */
     let effective = true;
-    if (kv) {
+    if (stores) {
       try {
-        effective = await isLockEffectivelyConfigured(kv, akv);
+        effective = await isLockEffectivelyConfigured(env);
       } catch (e) {
         effective = true;
       }
     }
     /* A-2：账号层是否有效配置（fail closed：读取失败按已配置） */
     let accountConfigured = true;
-    if (akv) {
+    if (stores) {
       try {
-        accountConfigured = await isAccountEffectivelyConfigured(akv, kv);
+        accountConfigured = await isAccountEffectivelyConfigured(env);
       } catch (e) {
         accountConfigured = true;
       }
@@ -50,19 +51,18 @@ export async function onRequestGet(context) {
       return json(200, { ok: true, passkey: false, password: false, accountConfigured: accountConfigured, resetOnly: false }, headers);
     }
     /* 已配置：返回 granular 状态（默认 true，确认不存在才设 false）。
-       标记独有（无真实凭证）时 granular 全否 → 仍按已配置处理，不暴露根凭证入口。 */
+       锁屏凭证为 0 但账号已配置时 granular 全否 → 仍按已配置处理，不暴露根凭证入口。 */
     let password = true;
     let passkey = true;
     let failed = false;
-    if (kv) {
+    if (stores) {
       try {
-        const pw = await kv.get(REALM_LOCK.kv.password, 'json');
-        password = !!(pw && pw.hash);
+        password = await hasPassword(env, REALM_LOCK);
       } catch (e) {
         failed = true;
       }
       try {
-        passkey = await hasPasskey(kv, REALM_LOCK.kv);
+        passkey = await hasPasskey(env, PASSKEY_LOCK);
       } catch (e) {
         failed = true;
       }
@@ -71,7 +71,7 @@ export async function onRequestGet(context) {
         passkey = true;
       }
     }
-    /* 标记独有场景：effective 为真但 granular 全否 → 不暴露根凭证入口。
+    /* effective 为真但 granular 全否（锁屏凭证删光、账号已配置）→ 不暴露根凭证入口。
        「锁屏凭证已删光」按真实凭证数判断（无 lock 密码且无 lock 通行密钥）：
        账号已配置时 resetOnly（锁屏只显示访客 + 重置锁屏）。 */
     let resetOnly = false;

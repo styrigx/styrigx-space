@@ -17,7 +17,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { testLockSession } from './_tickets.mjs';
-import { makeKV, genKeyPair, postReq } from '../_harness.mjs';
+import { makeKV, genKeyPair, postReq, authD1For } from '../_harness.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -32,7 +32,7 @@ await genTestKeys();
 
 function baseEnv(kv, overrides) {
   return Object.assign({
-    KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
+    KV_LOCK_DOOR: kv, D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), KV_ACCOUNT_LOGIN: kv,
     SGX_ROOT_KEY: 'test-root-key-12345',
     SGX_LOCK_PRIVATE: TEST_PRIV_PEM,
     SGX_LOCK_PUBLIC: TEST_PUB_PEM,
@@ -43,6 +43,30 @@ function baseEnv(kv, overrides) {
     SGX_ORIGIN: 'https://test.example.com',
   }, overrides || {});
 }
+
+/*
+ * 「已配置」= D1 里真有凭证（layers.js realCredentialPresence）；旧 KV 标记 lock-configured / account-configured 不再算数。
+ * configuredKV({ lock, account })：一份 kv（只当 authD1For 的钥匙），对应 D1 里写好锁屏 / 账号密码。
+ */
+const { makePasswordRecord: mkPw } = await import(REPO + '/workers/auth-gateway/functions/_kernel/password.js');
+const LOCK_PW_REC = await mkPw('lock-pass-1', 'test-pepper');
+const ACCOUNT_PW_REC = await mkPw('account-pass-1', 'test-pepper');
+function configuredKV(o) {
+  const kv = makeKV();
+  const db = authD1For(kv);
+  if (o && o.lock) db.putPassword('lock', LOCK_PW_REC);
+  if (o && o.account) db.putPassword('account', ACCOUNT_PW_REC);
+  return kv;
+}
+/** 网关对 D1 发过的写（纪元起步行 INSERT OR IGNORE INTO epoch 不算：那是读纪元的一部分） */
+function d1Writes(db) {
+  return db.calls.filter((sql) => /^\s*(INSERT|UPDATE|DELETE|REPLACE)/i.test(sql) && !/INSERT OR IGNORE INTO epoch/i.test(sql));
+}
+/** 根凭证限速 / 审计行（realm = 'root'） */
+const rootRows = (db) => ({
+  attempts: db.raw.prepare("SELECT * FROM attempt_limit WHERE realm = 'root'").all(),
+  audits: db.raw.prepare("SELECT * FROM audit WHERE realm = 'root'").all(),
+});
 
 /* ============ 1. 锁屏入口按配置显示（补充定稿七.1） ============ */
 
@@ -74,7 +98,7 @@ test('认证入口：访客会话提交正确根凭证 → 401 密码错误，�
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
 
-  const kv = makeKV({ 'lock-configured': '1' });
+  const kv = configuredKV({ lock: true });
   const env = baseEnv(kv);
 
   /* 构造有效访客会话 cookie */
@@ -92,12 +116,14 @@ test('认证入口：访客会话提交正确根凭证 → 401 密码错误，�
   const body = await res.text();
   assert.equal(body, JSON.stringify({ ok: false, error: 'denied' }));
 
-  /* 不写 KV（put 计数为 0）；B1-9：不读任何存储（判断引导场景），但不读凭证 */
-  assert.equal(kv._calls.put, 0, '访客假入口不应写 KV');
+  /* 不写存储（D1 没有任何写）；B1-9：不读凭证 */
+  const db = authD1For(kv);
+  assert.deepEqual(d1Writes(db), [], '访客假入口不应写 D1');
+  assert.equal(db.calls.filter((sql) => /FROM (password|passkey)\b/.test(sql)).length, 0, '不读凭证');
 
-  /* 不增加 root-limit 计数 */
-  assert.ok(!kv._store.has('root-fail:unknown'), '不应有 IP 失败计数');
-  assert.ok(![...kv._store.keys()].some((k) => k.startsWith('root-auth-')), '不应有任何 root-limit 键');
+  /* 不增加 root-limit 计数、不写审计 */
+  assert.deepEqual(rootRows(db).attempts, [], '不应有根凭证失败计数');
+  assert.deepEqual(rootRows(db).audits, [], '不应有审计行');
 
   /* 固定最小延迟（防时序区分） */
   assert.ok(dt >= 180, '应有固定最小延迟，实际 ' + dt + 'ms');
@@ -107,8 +133,8 @@ test('认证入口：访客假入口与真失败响应逐字节相同', async ()
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
 
-  const kv1 = makeKV({ 'lock-configured': '1' });
-  const kv2 = makeKV({ 'lock-configured': '1' });
+  const kv1 = configuredKV({ lock: true });
+  const kv2 = configuredKV({ lock: true });
 
   /* B1-9：访客提交任何值都返回同一个 401 denied（不读存储） */
   const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'visitor');
@@ -171,7 +197,7 @@ test('行为：账号登录状态四种配置返回正确', async () => {
 test('认证入口：重置锁屏 status 始终可用（不暴露管理员凭证是否配置）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
   /* owner 未配置 */
-  const kv = makeKV({ 'lock-configured': '1' });
+  const kv = configuredKV({ lock: true });
   const env = baseEnv(kv);
   const st = postReq('https://test.example.com/api/lock-reset', { action: 'status' });
   const stRes = await onRequestPost({ request: st, env });
@@ -241,48 +267,70 @@ test('补充七：/api/lock-entry 四种配置返回正确', async () => {
   });
   res = await onRequestGet({ request: get('https://test.example.com/api/lock-entry'), env: baseEnv(kv) });
   j = await res.json();
-  assert.equal(j.passkey, false, '账号通行密钥不应算锁屏通行密钥');
-  assert.equal(j.password, false);
+  /* 账号通行密钥不算锁屏凭证：锁屏凭证为 0、账号已配置 → resetOnly（只显示访客 + 重置锁屏）；
+     passkey / password 仍按已配置返回 true，不暴露根凭证入口 */
+  assert.equal(j.resetOnly, true, '账号通行密钥不应算锁屏通行密钥（锁屏凭证为 0 → resetOnly）');
+  assert.equal(j.accountConfigured, true);
+  assert.equal(j.passkey, true, '账号已配置时不暴露根凭证入口');
+  assert.equal(j.password, true);
 });
 
 test('补充七：/api/lock-entry 读取失败按已配置处理（不暴露根凭证入口）', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-entry.js');
-  const badKv = {
-    get: async () => { throw new Error('kv-down'); },
-    put: async () => {},
-    delete: async () => {},
-    list: async () => { throw new Error('kv-down'); },
-  };
-  const res = await onRequestGet({
-    request: new Request('https://test.example.com/api/lock-entry', { method: 'GET' }),
-    env: baseEnv(badKv),
-  });
-  const j = await res.json();
-  assert.equal(j.ok, true);
-  assert.equal(j.passkey, true, '读取失败 passkey 应按已配置处理');
-  assert.equal(j.password, true, '读取失败 password 应按已配置处理');
-});
-
-/* 复审 §2：只剩 lock-configured 标记（无真实凭证）时，lock-entry 不应显示根凭证入口，
-   否则 root-auth 走 isLockEffectivelyConfigured 判定已配置 → 假入口 401，直接锁死。 */
-test('行为：/api/lock-entry 只剩标记时不暴露根凭证入口', async () => {
-  const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-entry.js');
-  /* 只有标记，无 lock-password、无 passkey */
-  const kv = makeKV({ 'lock-configured': '1' });
+  const kv = makeKV();
+  authD1For(kv).failOn = () => true; /* D1 全挂 */
   const res = await onRequestGet({
     request: new Request('https://test.example.com/api/lock-entry', { method: 'GET' }),
     env: baseEnv(kv),
   });
   const j = await res.json();
   assert.equal(j.ok, true);
-  assert.equal(j.passkey, true, '只剩标记时 passkey 应按已配置处理');
-  assert.equal(j.password, true, '只剩标记时 password 应按已配置处理');
+  assert.equal(j.passkey, true, '读取失败 passkey 应按已配置处理');
+  assert.equal(j.password, true, '读取失败 password 应按已配置处理');
+  assert.equal(j.resetOnly, false, '读取失败不进 resetOnly');
+  /* 只有凭证表读失败（纪元等正常）同样按已配置 */
+  const kv2 = makeKV();
+  authD1For(kv2).failOn = (sql) => /FROM (password|passkey)\b/.test(sql);
+  const j2 = await (await onRequestGet({ request: new Request('https://test.example.com/api/lock-entry', { method: 'GET' }), env: baseEnv(kv2) })).json();
+  assert.equal(j2.passkey, true);
+  assert.equal(j2.password, true);
+  /* 没绑 D1：同样按已配置 */
+  const env3 = baseEnv(makeKV());
+  delete env3.D1_LOCK_AUTH;
+  const j3 = await (await onRequestGet({ request: new Request('https://test.example.com/api/lock-entry', { method: 'GET' }), env: env3 })).json();
+  assert.equal(j3.passkey, true);
+  assert.equal(j3.password, true);
+});
+
+/* 复审 §2：lock-entry 和 root-auth 必须用同一个口径判断「锁屏已配置」，否则 lock-entry 显示根凭证入口、
+   root-auth 却判已配置 → 假入口 401，直接锁死。D1 之后口径只有一个：D1 里的真实凭证（KV 标记不再存在，
+   导入脚本也不导）。没有真实凭证时两边一致：lock-entry 显示根凭证入口，root-auth lock-reset 走真路径能签票；
+   有真实凭证时两边一致：不显示入口，root-auth 无会话 → 假入口 401。 */
+test('行为：/api/lock-entry 与 root-auth 对「锁屏已配置」口径一致（不会显示入口却被假入口锁死）', async () => {
+  const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-entry.js');
+  const { onRequestPost: rootAuth } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
+  const entry = async (kv) => (await onRequestGet({ request: new Request('https://test.example.com/api/lock-entry', { method: 'GET' }), env: baseEnv(kv) })).json();
+  /* 无真实凭证（旧 KV 标记只在 KV 里，不算）→ 显示根凭证入口，且 root-auth 真路径可用 */
+  const kv = makeKV({ 'lock-configured': '1' });
+  const j = await entry(kv);
+  assert.equal(j.ok, true);
+  assert.equal(j.passkey, false);
+  assert.equal(j.password, false);
+  const r = await rootAuth({ request: postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345', purpose: 'lock-reset' }), env: baseEnv(kv) });
+  assert.equal(r.status, 200, '显示了根凭证入口，root-auth 就必须走真路径');
+  /* 有真实锁屏凭证 → 不显示根凭证入口；root-auth 无会话走假入口 */
+  const kv2 = configuredKV({ lock: true });
+  const j2 = await entry(kv2);
+  assert.equal(j2.password, true);
+  const r2 = await rootAuth({ request: postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345', purpose: 'lock-reset' }), env: baseEnv(kv2) });
+  assert.equal(r2.status, 401);
+  assert.deepEqual(await r2.json(), { ok: false, error: 'auth' });
 });
 
 test('补充七：已配置锁屏凭证时，锁屏根凭证路径被服务端拒绝（无会话 → 401）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   /* lock 层已配置，无会话提交正确的根凭证 */
-  const kv = makeKV({ 'lock-configured': '1' });
+  const kv = configuredKV({ lock: true });
   const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345', purpose: 'lock-reauth' });
   const res = await onRequestPost({ request: req, env: baseEnv(kv) });
   assert.equal(res.status, 401, '已配置时无会话根凭证路径应被拒绝');
@@ -296,7 +344,7 @@ test('补充七：访客管理凭证提交任何值都返回密码错误且不�
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
 
-  const kv = makeKV({ 'lock-configured': '1' });
+  const kv = configuredKV({ lock: true });
   const env = baseEnv(kv);
   const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'visitor');
 
@@ -311,8 +359,9 @@ test('补充七：访客管理凭证提交任何值都返回密码错误且不�
     assert.equal(body, JSON.stringify({ ok: false, error: 'denied' }));
   }
   /* 不写存储 */
-  assert.equal(kv._calls.put, 0, '访客假入口不应写 KV');
-  assert.ok(![...kv._store.keys()].some((k) => k.startsWith('root-auth-')), '不应有 root-limit 计数');
+  const db = authD1For(kv);
+  assert.deepEqual(d1Writes(db), [], '访客假入口不应写 D1');
+  assert.deepEqual(rootRows(db).attempts, [], '不应有 root-limit 计数');
 });
 
 /* ============ 审查意见 9 项：行为测试 ============ */
@@ -332,18 +381,19 @@ test('行为：lockreset 管理员凭证未配置 → 通用 401 auth（不泄�
   assert.equal(body.error, 'auth', '应为通用 auth，不应泄露 not-set');
 });
 
-test('行为：lockreset 记失败计数写 KV 出错 → 503', async () => {
+test('行为：lockreset 记失败计数写 D1 出错 → 503', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
-  /* KV 的 put 抛错 */
+  /* attempt_limit 的 UPSERT 抛错 */
   const kv = makeKV({});
-  kv.put = async () => { throw new Error('kv-down'); };
+  authD1For(kv).failOn = (sql) => /^\s*INSERT INTO attempt_limit/i.test(sql);
   const env = baseEnv(kv);
   const req = postReq('https://test.example.com/api/lock-reset', {
     action: 'verify', rootKey: 'wrong-key',
   });
   const res = await onRequestPost({ request: req, env });
-  /* 根凭证错误 → fail() 记失败计数 → KV put 抛错 → 503 */
+  /* 根凭证错误 → 记失败计数 → D1 写抛错 → 503（fail closed） */
   assert.equal(res.status, 503);
+  assert.deepEqual(await res.json(), { ok: false, error: 'server' });
 });
 
 test('行为：lockreset needAccount 带 passkey/password 布尔', async () => {
@@ -405,7 +455,7 @@ test('行为：访客会话下 root-auth 不走真路径（即使 lock 未配置
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
   /* lock 已配置 */
-  const kv = makeKV({ 'lock-configured': '1' });
+  const kv = configuredKV({ lock: true });
   const env = baseEnv(kv);
   const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'visitor');
   /* 提交正确的根凭证 */
@@ -565,35 +615,30 @@ test('行为：/api/lock-credentials 只看 class=lock 通行密钥', async () =
 
 
 
-test('行为：/api/lock-credentials KV 读取失败 → 503（fail closed，不按未设置退回）', async () => {
+test('行为：/api/lock-credentials 读锁屏密码失败（D1）→ 503（fail closed，不按未设置退回）', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-credentials.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
-  const kv = makeKV({ 'lock-epoch': '0' });
-  /* 会话校验的 lock-epoch 读取正常，只有 lock-password 读取失败 */
-  const origGet = kv.get;
-  kv.get = async (k, t) => {
-    if (k === 'lock-password') throw new Error('kv-down');
-    return origGet(k, t);
-  };
+  const kv = makeKV();
+  /* 会话校验的纪元读取正常，只有密码表的读取失败 */
+  authD1For(kv).failOn = (sql) => /FROM password/.test(sql);
   const env = baseEnv(kv);
   const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
   const res = await onRequestGet({
     request: getReq('https://test.example.com/api/lock-credentials', { 'Cookie': 'sgx-lock-session=' + sessCv }),
     env,
   });
-  assert.equal(res.status, 503, 'KV 失败应 503');
+  assert.equal(res.status, 503, '读失败应 503');
 });
 
-test('行为：/api/lock-credentials 未绑 KV → 500', async () => {
+test('行为：/api/lock-credentials 未绑 D1_LOCK_AUTH → 500', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/lock-credentials.js');
   const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
   const env = baseEnv(makeKV({}));
-  delete env.KV_LOCK_DOOR;
-  delete env.KV_ACCOUNT_LOGIN;
+  delete env.D1_LOCK_AUTH;
   const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
   const res = await onRequestGet({
     request: getReq('https://test.example.com/api/lock-credentials', { 'Cookie': 'sgx-lock-session=' + sessCv }),
     env,
   });
-  assert.equal(res.status, 500, '未绑 KV 应 500 config');
+  assert.equal(res.status, 500, '未绑 D1 应 500 config');
 });

@@ -4,7 +4,7 @@
  * 覆盖：
  * - A2（2.11更新）：/api/root-auth 校验 SGX_ROOT_KEY 通过后签发 sgx-stepup(by=root, scope=root)；
  *       错误密钥 → 401 并计数；超限 → 429；缺 SGX_ROOT_KEY/SGX_STEPUP_PRIVATE → 拒绝；
- *       每次使用写审计记录；KV 出错 fail closed
+ *       每次使用写审计记录（D1 audit）；D1 出错 fail closed
  * - B6：register 必须要求 admin 会话；第一把 lock 也要求 stepup
  * - B9：bumpAppEpoch KV 失败时抛错（删除被拒绝，fail closed）
  * - B10：删应用类密钥只加 app-epoch:<aud>，不推进会话纪元
@@ -15,7 +15,7 @@
  */
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeKV, genKeyPair, postReq } from '../_harness.mjs';
+import { makeKV, genKeyPair, postReq, authD1For } from '../_harness.mjs';
 
 let LOCK_PRIV = '', LOCK_PUB = '';
 async function genKeys() {
@@ -26,7 +26,7 @@ const SGX_ROOT_KEY = 'test-root-key-2101';
 
 function authEnv(kv, overrides = {}) {
   return {
-    KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
+    KV_LOCK_DOOR: kv, D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), KV_ACCOUNT_LOGIN: kv,
     SGX_ROOT_KEY,
     SGX_LOCK_PRIVATE: LOCK_PRIV,
     SGX_LOCK_PUBLIC: LOCK_PUB,
@@ -54,8 +54,8 @@ test('A2：错误根密钥 → 401 并计数', async () => {
     const res = await onRequestPost({ request: req, env });
     assert.equal(res.status, 401);
   }
-  const rec = await kv.get('root-fail:1.2.3.4', 'json');
-  assert.ok(rec && rec.count === 3, '失败应计数');
+  const rec = env.D1_ROOT_AUTH.raw.prepare("SELECT count FROM attempt_limit WHERE realm = 'root' AND kind = 'rootkey' AND bucket = '1.2.3.4'").get();
+  assert.ok(rec && rec.count === 3, '失败应计数（D1 attempt_limit，realm=root）');
 });
 
 test('A2：超限 → 429', async () => {
@@ -87,37 +87,37 @@ test('A2：每次使用写审计记录', async () => {
   const env = authEnv(kv);
   await onRequestPost({ request: postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY, purpose: 'lock-reset' }, { 'CF-Connecting-IP': '9.9.9.9' }), env });
   await onRequestPost({ request: postReq('https://styrigx.com/api/root-auth', { key: 'bad', purpose: 'lock-reset' }, { 'CF-Connecting-IP': '9.9.9.9' }), env });
-  const keys = [...kv._map.keys()].filter((k) => k.startsWith('root-audit:'));
-  assert.ok(keys.length >= 2, '成功和失败都应写审计记录');
-  const rec = JSON.parse(kv._map.get(keys[0]));
-  assert.ok(rec.ts && rec.ipPrefix && ('ok' in rec), '审计记录应含时间、IP 前缀、结果');
-  assert.ok(!rec.ipPrefix.includes('9.9.9.9') || rec.ipPrefix.includes('9.9.9.x'), 'IP 应只存前缀');
+  const rows = env.D1_ROOT_AUTH.raw.prepare("SELECT * FROM audit WHERE realm = 'root' ORDER BY ts, id").all();
+  assert.ok(rows.length >= 2, '成功和失败都应写审计记录');
+  assert.ok(rows.some((r) => r.ok === 1) && rows.some((r) => r.ok === 0), '成功、失败各一行');
+  for (const rec of rows) {
+    assert.ok(rec.ts && rec.ip_prefix && (rec.ok === 0 || rec.ok === 1), '审计记录应含时间、IP 前缀、结果');
+    assert.equal(rec.ip_prefix, '9.9.9.x', 'IP 应只存前缀');
+  }
 });
 
-test('A2：KV 出错 fail closed（无会话假入口：限速读不到 → 503 server，不是 500 config）', async () => {
+test('A2：D1 出错 fail closed（无会话假入口：限速读不到 → 503 server，不是 500 config）', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
-  kv._fail = true;
-  /* KV 全挂：锁屏是否已设置读不到 → 按已设置处理 → lock-reset 走假入口 → 限速检查抛错 → 503 */
+  const env = authEnv(kv);
+  env.D1_ROOT_AUTH.failOn = () => true;
+  /* D1 全挂：锁屏是否已设置读不到 → 按已设置处理 → lock-reset 走假入口 → 限速检查抛错 → 503 */
   const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY, purpose: 'lock-reset' });
-  const res = await onRequestPost({ request: req, env: authEnv(kv) });
+  const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 503);
   assert.deepEqual(await res.json(), { ok: false, error: 'server' });
   assert.equal(res.headers.get('Set-Cookie'), null, '不签票');
 });
 
-test('A2：KV 出错 fail closed（真路径：锁屏未设置、限速 KV 读出错 → 503 server，对的 RootKey 也不签票）', async () => {
+test('A2：D1 出错 fail closed（真路径：锁屏未设置、限速表读出错 → 503 server，对的 RootKey 也不签票）', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
-  const get = kv.get;
-  kv.get = async (k, fmt) => {
-    if (String(k).startsWith('root-fail')) throw new Error('kv-fail');
-    return get(k, fmt);
-  };
+  const env = authEnv(kv);
+  env.D1_ROOT_AUTH.failOn = (sql) => /attempt_limit/.test(sql);
   const { isLockEffectivelyConfigured } = await import('../../../workers/auth-gateway/functions/_kernel/layers.js');
-  assert.equal(await isLockEffectivelyConfigured(kv), false, '前提：锁屏未设置，lock-reset 走真路径');
+  assert.equal(await isLockEffectivelyConfigured(env), false, '前提：锁屏未设置，lock-reset 走真路径');
   const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY, purpose: 'lock-reset' });
-  const res = await onRequestPost({ request: req, env: authEnv(kv) });
+  const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 503);
   assert.deepEqual(await res.json(), { ok: false, error: 'server' });
   assert.equal(res.headers.get('Set-Cookie'), null, '不签票');
