@@ -12,6 +12,7 @@ import { createRequire } from 'node:module';
 import {
   parseDeploymentStatus, pagesCanonicalId, isSafeId, parseArgs,
   workerSnapshot, workerVerify, workerRollback, pagesSnapshot, pagesRollback,
+  workerNameFromToml, floorFor, checkFloor, versionAboveFloor,
 } from '../../../scripts/deploy-rollback.mjs';
 
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
@@ -107,6 +108,83 @@ test('worker-rollback：rollback 失败 / 回滚后线上不是目标 → 退出
   const f = fakeWrangler([V2]);
   assert.equal(quiet(() => workerRollback({ to: '--force', run: f.run })).r, 1);
   assert.equal(f.calls.length, 0);
+});
+
+/** 版本详情（wrangler versions view --json） */
+const details = (/** @type {string[]} */ names, created = '2026-10-28T02:00:00Z') => JSON.stringify({
+  id: V1, metadata: { created_on: created }, resources: { bindings: names.map((name) => ({ type: 'd1', name })) },
+});
+const FLOORS = { 'gw': { requireBindings: ['D1_LOCK_AUTH', 'D1_ACCOUNT_AUTH'] }, 'dated': { notBefore: '2026-10-28T00:00:00Z' } };
+/** 假 wrangler，带 versions view：details 按版本 id 回 */
+function fakeWranglerWithView(/** @type {Array<string|null>} */ states, /** @type {Record<string, string|null>} */ views) {
+  const base = fakeWrangler(states);
+  const run = (/** @type {string[]} */ args) => {
+    if (args[0] === 'versions' && args[1] === 'view') {
+      base.calls.push(args);
+      const d = views[args[2]];
+      return d == null ? { status: 1, stdout: '', stderr: 'not found' } : { status: 0, stdout: 'banner\n' + d, stderr: '' };
+    }
+    return base.run(args);
+  };
+  return { run, calls: base.calls };
+}
+
+test('回滚下限：workerNameFromToml 只认顶层 name', () => {
+  assert.equal(workerNameFromToml('# c\nname = "styrigx-auth-gateway"\nmain = "x"\n[env.preview]\nname = "other"\n'), 'styrigx-auth-gateway');
+  assert.equal(workerNameFromToml('[vars]\nname = "x"\n'), '');
+  assert.equal(workerNameFromToml(''), '');
+});
+
+test('回滚下限：floor 文件里网关和账号 Worker 都要求 D1 绑定，且名字和 wrangler.toml 对得上', () => {
+  const gwToml = readFileSync(path.join(REPO, 'workers/auth-gateway/wrangler.toml'), 'utf8');
+  const acToml = readFileSync(path.join(REPO, 'workers/account/wrangler.toml'), 'utf8');
+  const gw = floorFor(workerNameFromToml(gwToml));
+  const ac = floorFor(workerNameFromToml(acToml));
+  assert.deepEqual(gw && gw.requireBindings, ['D1_LOCK_AUTH', 'D1_ACCOUNT_AUTH', 'D1_ROOT_AUTH']);
+  assert.deepEqual(ac && ac.requireBindings, ['D1_SETTINGS_SYNC']);
+  // 要求的绑定当前 wrangler.toml 里确实有（否则每次部署都记不到目标）
+  for (const [toml, f] of [[gwToml, gw], [acToml, ac]]) {
+    for (const n of /** @type {any} */ (f).requireBindings) assert.match(toml, new RegExp('^binding = "' + n + '"$', 'm'));
+  }
+  assert.equal(floorFor('styrigx-chat'), null);
+  assert.equal(floorFor('$comment'), null);
+});
+
+test('回滚下限：checkFloor 缺绑定 / 太早 / 坏 JSON → 不满足', () => {
+  assert.equal(checkFloor(details(['D1_LOCK_AUTH', 'D1_ACCOUNT_AUTH', 'X']), FLOORS.gw).ok, true);
+  assert.match(checkFloor(details(['D1_LOCK_AUTH']), FLOORS.gw).reason, /missing binding\(s\) D1_ACCOUNT_AUTH/);
+  assert.equal(checkFloor(details([], '2026-10-27T23:59:59Z'), FLOORS.dated).ok, false);
+  assert.equal(checkFloor(details([], '2026-10-28T00:00:00Z'), FLOORS.dated).ok, true);
+  assert.equal(checkFloor('{oops', FLOORS.gw).ok, false);
+  assert.equal(checkFloor('{}', FLOORS.gw).ok, false);
+});
+
+test('回滚下限：没有下限的 Worker 不查详情；查不到详情 → 不允许', () => {
+  const f = fakeWranglerWithView([V1], {});
+  assert.equal(versionAboveFloor(V1, { run: f.run, name: 'styrigx-chat', floors: FLOORS }).ok, true);
+  assert.equal(f.calls.length, 0);
+  assert.equal(versionAboveFloor(V1, { run: f.run, name: 'gw', floors: FLOORS }).ok, false);
+});
+
+test('worker-snapshot：线上版本低于下限（KV 时代）→ 记成空 + warning，这次失败不自动回滚', () => {
+  const old = fakeWranglerWithView([V1], { [V1]: details(['KV_LOCK_DOOR', 'KV_ACCOUNT_LOGIN', 'D1_LOCK_RESET']) });
+  const { r, out } = quiet(() => workerSnapshot({ run: old.run, name: 'gw', floors: FLOORS }));
+  assert.equal(r, '');
+  assert.match(out, /::warning::no rollback target recorded \(live version .* below rollback floor of gw: missing binding/);
+  assert.match(out, /^version=$/m);
+  const ok = fakeWranglerWithView([V1], { [V1]: details(['D1_LOCK_AUTH', 'D1_ACCOUNT_AUTH']) });
+  assert.equal(quiet(() => workerSnapshot({ run: ok.run, name: 'gw', floors: FLOORS })).r, V1);
+});
+
+test('worker-rollback：目标低于下限 → 退出码 1，不调 wrangler rollback', () => {
+  const f = fakeWranglerWithView([V2], { [V1]: details(['KV_LOCK_DOOR']) });
+  const { r, out } = quiet(() => workerRollback({ to: V1, run: f.run, name: 'gw', floors: FLOORS }));
+  assert.equal(r, 1);
+  assert.match(out, /::error::not rolling back to/);
+  assert.ok(!f.calls.some((c) => c[0] === 'rollback'));
+  const g = fakeWranglerWithView([V2, V1], { [V1]: details(['D1_LOCK_AUTH', 'D1_ACCOUNT_AUTH']) });
+  assert.equal(quiet(() => workerRollback({ to: V1, run: g.run, name: 'gw', floors: FLOORS })).r, 0);
+  assert.ok(g.calls.some((c) => c[0] === 'rollback'));
 });
 
 test('worker-verify：新版本 100% → 0；还是旧版本 / 拿不到 → 1；第一次部署（没有 previous）只要有版本就行', () => {

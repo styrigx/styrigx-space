@@ -28,6 +28,8 @@ env:
 # 就退回那个版本（scripts/deploy-rollback.mjs；Worker 用 wrangler rollback，Pages 用回滚 API），job 照样红。
 # 只用各 job 部署本来就用的那把 token，不加 secret、不加权限。第一次部署（没有旧版本）/ 记录失败 → 不回滚，同以前。
 # 不回滚：D1 迁移（只进不退，迁移要写成兼容旧代码）、KV 数据（搜索索引）、Secrets Store、路由 / 自定义域名、已部署的其他 job。
+# 回滚下限：scripts/deploy-rollback-floor.json。线上版本低于下限（网关 / 账号 Worker 是 #226 之前的 KV 版本）就不记、不自动回滚，
+# 免得退回读旧 KV 的代码；以后存储改成旧代码读不懂的格式时在那里加一行。
 
 jobs:
   # 质量闸门：单元测试、打包检查、生成物同步、分层 / 前端守卫、锁屏 / 边缘 / 凭证接口 / 视觉 e2e、Lighthouse、stylelint。

@@ -1,0 +1,11 @@
+{
+  "$comment": "自动回滚的下限（scripts/deploy-rollback.mjs 读）。键 = Worker 名（wrangler.toml 的 name）。部署前线上的版本不满足这里的条件，就不记成回滚目标，这次部署失败也不自动回滚（job 照样红，线上留在新版本，人工处理）。requireBindings：目标版本必须带这些绑定名；notBefore（可选，ISO 时间）：目标版本的创建时间不能早于它。存储改成旧代码读不懂的格式时在这里加一行；以后放宽只能删条件，不要改成更早的时间。",
+  "styrigx-auth-gateway": {
+    "why": "#226（4b03215）认证状态 KV → D1；更早的版本读旧 KV，迁移后旧 KV 不再更新",
+    "requireBindings": ["D1_LOCK_AUTH", "D1_ACCOUNT_AUTH", "D1_ROOT_AUTH"]
+  },
+  "styrigx-account": {
+    "why": "#226（4b03215）设置同步 KV_SETTINGS_SYNC → D1；更早的版本读旧 KV",
+    "requireBindings": ["D1_SETTINGS_SYNC"]
+  }
+}

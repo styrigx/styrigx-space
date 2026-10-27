@@ -16,6 +16,9 @@
  *   node scripts/deploy-rollback.mjs worker-rollback --to <id>      线上不是 <id> 就 wrangler rollback <id>，再核对
  *   node scripts/deploy-rollback.mjs pages-snapshot --project <名字>  → $GITHUB_OUTPUT deployment=<id|空>
  *   node scripts/deploy-rollback.mjs pages-rollback --project <名字> --to <id>
+ * 回滚下限（scripts/deploy-rollback-floor.json，按 Worker 名）：worker-snapshot 记下的版本必须满足下限（带齐要求的绑定、
+ *   创建时间不早于 notBefore），否则记成空 = 这次失败不自动回滚；worker-rollback 动手前再查一遍。用来挡住「退回存储迁移之前的代码」。
+ *   读版本详情用 `wrangler versions view <id> --json`（同一个 token，Workers Scripts 读）。
  * 环境变量：CLOUDFLARE_API_TOKEN、CLOUDFLARE_ACCOUNT_ID（同部署那一步的 token，不另加 secret）；
  *   WRANGLER_VERSION（workflow 顶层 env）；CF_API_BASE（默认 https://api.cloudflare.com/client/v4，测试用）。
  *
@@ -26,7 +29,7 @@
  * 本脚本不打印 token；日志里只有版本 id。
  */
 import { spawnSync } from 'node:child_process';
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const DEFAULT_API = 'https://api.cloudflare.com/client/v4';
@@ -108,13 +111,96 @@ export function liveWorkerVersion(run) {
   return parseDeploymentStatus(r.stdout);
 }
 
-/** @param {{run?: typeof runWrangler}} [deps] */
+const FLOOR_FILE = fileURLToPath(new URL('./deploy-rollback-floor.json', import.meta.url));
+
+/**
+ * 当前目录 wrangler.toml 的 Worker 名（顶层 name = "..."，第一个 [表] 之前）。拿不到 → ''。
+ * @param {string} toml
+ */
+export function workerNameFromToml(toml) {
+  for (const line of String(toml || '').split('\n')) {
+    const t = line.trim();
+    if (t.startsWith('[')) break;
+    const m = /^name\s*=\s*"([a-z0-9-]{1,63})"\s*(#.*)?$/.exec(t);
+    if (m) return m[1];
+  }
+  return '';
+}
+
+/**
+ * @param {string} name Worker 名
+ * @param {any} [floors] 测试注入；默认读 deploy-rollback-floor.json
+ * @returns {{requireBindings?: string[], notBefore?: string}|null}
+ */
+export function floorFor(name, floors) {
+  const all = floors || JSON.parse(readFileSync(FLOOR_FILE, 'utf8'));
+  const f = name && Object.prototype.hasOwnProperty.call(all, name) && !name.startsWith('$') ? all[name] : null;
+  return f && typeof f === 'object' ? f : null;
+}
+
+/**
+ * 版本详情（`wrangler versions view <id> --json` 的输出）是否满足下限。
+ * @param {string} text
+ * @param {{requireBindings?: string[], notBefore?: string}} floor
+ * @returns {{ok: boolean, reason: string}}
+ */
+export function checkFloor(text, floor) {
+  const s = String(text || '');
+  const i = s.indexOf('{');
+  let v;
+  try { v = i < 0 ? null : JSON.parse(s.slice(i)); } catch (e) { v = null; }
+  if (!v || typeof v !== 'object') return { ok: false, reason: 'version details are not valid JSON' };
+  const req = Array.isArray(floor.requireBindings) ? floor.requireBindings : [];
+  if (req.length) {
+    const b = v.resources && Array.isArray(v.resources.bindings) ? v.resources.bindings : null;
+    if (!b) return { ok: false, reason: 'version details have no bindings list' };
+    const have = new Set(b.map((x) => x && x.name));
+    const missing = req.filter((n) => !have.has(n));
+    if (missing.length) return { ok: false, reason: 'missing binding(s) ' + missing.join(', ') };
+  }
+  if (floor.notBefore) {
+    const lim = Date.parse(floor.notBefore);
+    const at = Date.parse(v.metadata && v.metadata.created_on);
+    if (!Number.isFinite(lim)) return { ok: false, reason: 'floor notBefore is not a date' };
+    if (!Number.isFinite(at)) return { ok: false, reason: 'version has no created_on' };
+    if (at < lim) return { ok: false, reason: 'created ' + new Date(at).toISOString() + ', before ' + new Date(lim).toISOString() };
+  }
+  return { ok: true, reason: 'ok' };
+}
+
+/**
+ * 目标版本是否允许回滚过去。没有下限的 Worker → 允许。查不到详情 → 不允许（宁可不自动回滚）。
+ * @param {string} versionId
+ * @param {{run?: typeof runWrangler, name?: string, floors?: any}} [deps]
+ */
+export function versionAboveFloor(versionId, deps = {}) {
+  const run = deps.run || runWrangler;
+  let name = deps.name;
+  if (name === undefined) {
+    try { name = workerNameFromToml(readFileSync('wrangler.toml', 'utf8')); } catch (e) { name = ''; }
+  }
+  let floor;
+  try { floor = floorFor(name || '', deps.floors); } catch (e) { return { ok: false, reason: 'cannot read rollback floor file' }; }
+  if (!floor) return { ok: true, reason: 'no floor for ' + (name || '(unknown worker)') };
+  const r = run(['versions', 'view', versionId, '--json']);
+  if (r.status !== 0) return { ok: false, reason: 'wrangler versions view failed' };
+  const c = checkFloor(r.stdout, floor);
+  return { ok: c.ok, reason: c.ok ? 'meets rollback floor of ' + name : 'below rollback floor of ' + name + ': ' + c.reason };
+}
+
+/** @param {{run?: typeof runWrangler, name?: string, floors?: any}} [deps] */
 export function workerSnapshot(deps = {}) {
   const live = liveWorkerVersion(deps.run || runWrangler);
-  if (!live.versionId) annotate('warning', 'no rollback target recorded (' + live.reason + '); if this deploy fails it will NOT be rolled back automatically');
-  else annotate('notice', 'live version before deploy: ' + live.versionId);
-  setOutput('version', live.versionId || '');
-  return live.versionId || '';
+  let id = live.versionId || '';
+  let reason = live.reason;
+  if (id) {
+    const f = versionAboveFloor(id, deps);
+    if (!f.ok) { reason = 'live version ' + id + ' is ' + f.reason; id = ''; }
+  }
+  if (!id) annotate('warning', 'no rollback target recorded (' + reason + '); if this deploy fails it will NOT be rolled back automatically');
+  else annotate('notice', 'live version before deploy: ' + id);
+  setOutput('version', id);
+  return id;
 }
 
 /**
@@ -134,7 +220,7 @@ export function workerVerify(opts) {
 }
 
 /**
- * @param {{to: string, run?: typeof runWrangler, message?: string}} opts
+ * @param {{to: string, run?: typeof runWrangler, message?: string, name?: string, floors?: any}} opts
  * @returns {number} exit code
  */
 export function workerRollback(opts) {
@@ -144,6 +230,11 @@ export function workerRollback(opts) {
   if (before.versionId === opts.to) {
     annotate('notice', 'live version is already ' + opts.to + ' (the deploy did not change production): nothing to roll back');
     return 0;
+  }
+  const f = versionAboveFloor(opts.to, { run, name: opts.name, floors: opts.floors });
+  if (!f.ok) {
+    annotate('error', 'not rolling back to ' + opts.to + ': ' + f.reason + '. Production stays on the new version; fix forward or revert and redeploy');
+    return 1;
   }
   annotate('warning', 'rolling back to ' + opts.to + ' (live: ' + (before.versionId || before.reason) + ')');
   const msg = (opts.message || 'auto-rollback').slice(0, 120);
