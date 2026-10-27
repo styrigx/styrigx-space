@@ -12,11 +12,14 @@
  *   - 登出 / 401 清掉这个时刻（clearPullStamp），重新登录后第一次一定拉。
  *   本页改了设置（sgx-settings-changed）→ 记时间、1.5 秒防抖后推上去（不受节流）；推送成功也刷新上面的时刻；
  *   离开页面前也比一次。
- * - 拉下来的值和本机不同 → 写进 localStorage、刷新 sgx-ui cookie 镜像，再刷新页面一次让外观生效
- *   （sessionStorage 防循环，一分钟内最多刷一次）。
+ * - 拉下来的值和本机不同 → 写进 localStorage、刷新 sgx-ui cookie 镜像，就地生效（2026-10-28 起不再刷新页面）：
+ *   features.js notifyExternal 通知订阅者（主题 / 色板 / 时钟 / 快捷面板等，和跨标签页同步同一条路），
+ *   自定义主题色 sgx-accent 另外重算角色（applyAccent，按需加载）或清掉（clearAccent）。
+ *   先更新本页快照再通知，所以随之而来的 sgx-settings-changed 不会被 diff() 当成本机改动又推回去。
  * - 开关：localStorage sgx-cloud-sync = '0' 关闭（默认开）；账号页「云同步」一行切换。
  */
-import { defs } from './features.js';
+import { defs, notifyExternal } from './features.js';
+import { ACCENT_KEY, clearAccent } from './accent.js';
 import { get as sget, set as sset, getJSON, setJSON } from './storage.js';
 import { syncUiCookie } from './ui-cookie.js';
 
@@ -27,7 +30,8 @@ export const META_KEY = 'sgx-sync-meta';
 export const LAST_KEY = 'sgx-sync-last';
 /** 账号会话状态：'out' = 服务端说没登录账号（停止请求）；其他 = 正常 */
 export const AUTH_KEY = 'sgx-sync-auth';
-const RELOAD_FLAG = 'sgx-sync-reloaded';
+/** 以前「同步后刷新一次」的防循环标记（2026-10-28 起不再刷新）；开机顺手清掉旧值 */
+const OLD_RELOAD_FLAG = 'sgx-sync-reloaded';
 /** 上次成功拉取（或推送）的时刻，按账号：{ <账号>: 毫秒 }。普通拉取的节流依据 */
 export const PULL_KEY = 'sgx-sync-pull';
 /** 普通拉取最短间隔 */
@@ -208,6 +212,23 @@ function onForeground() {
   initCloudSync().catch(function () {});
 }
 
+/**
+ * 拉下来的值就地生效（不刷新页面）。
+ * @param {string[]} keys 改了的 key
+ * @param {Record<string,string|null>} values
+ */
+function applyLive(keys, values) {
+  if (keys.indexOf(ACCENT_KEY) !== -1) {
+    const seed = values[ACCENT_KEY];
+    if (seed) {
+      import('./accent-roles.js').then(function (m) { m.applyAccent(seed); }).catch(function () {});
+    } else {
+      try { clearAccent(); } catch (e) {}
+    }
+  }
+  try { notifyExternal(keys); } catch (e) {}
+}
+
 function pull() {
   const s = /** @type {NonNullable<typeof st>} */ (st);
   /* 再拉一次前对齐本机：别的标签页可能改过设置 / 修改时间（这页自己的改动已在 pending 里） */
@@ -236,14 +257,10 @@ function pull() {
       sset(LAST_KEY, String(now));
     }
     if (applyKeys.length) {
+      /* 先对齐快照：下面的通知会派发 sgx-settings-changed，diff() 看到的就是已同步的值，不回推 */
       s.last = snapshot(s.keys);
       try { syncUiCookie(); } catch (e) {}
-      let recently = 0;
-      try { recently = parseInt(sessionStorage.getItem(RELOAD_FLAG) || '0', 10) || 0; } catch (e) {}
-      if (Date.now() - recently > 60000) {
-        try { sessionStorage.setItem(RELOAD_FLAG, String(Date.now())); } catch (e) {}
-        window.location.reload();
-      }
+      applyLive(applyKeys, p.apply);
     }
     return 'ok';
   }, function () {
@@ -264,6 +281,7 @@ export function initCloudSync(opts) {
   if (!force && sget(AUTH_KEY) === 'out') return Promise.resolve('out');
 
   if (!st) {
+    try { sessionStorage.removeItem(OLD_RELOAD_FLAG); } catch (e) {}
     const keys = syncKeys();
     st = { keys: keys, last: snapshot(keys), meta: getJSON(META_KEY, {}) || {}, pending: {}, timer: 0 };
     window.addEventListener('sgx-settings-changed', diff);
