@@ -11,11 +11,11 @@
     "nav.json": "1465967a1f517e1bf682874d359b41641368931689202d129db0876ee0f2e458",
     "palettes.json": "8acce76979dfeec50d305c8f84e59a83c56b7bbbfa4b45c2f85d631f90bc3c08",
     "ui-cookie-read.js": "972a3435d5dc8221733f53524e23412ae6a32f737ab1785c2a4df88e5279398d",
-    "ui-cookie-contract.json": "c26f8b15bb912824a0851e84e013fcd83dfb40f0c3725bce53724a8a6e010aec",
+    "ui-cookie-contract.json": "3a532a97fe211aae8b238ad05140d2f44e6f162be4302ab613aef5c0fe1750d0",
     "favicon.js": "4bb7f9fe412988861d682b8c2a88eb93f68fc39f9fb51bd5df38441755b5d433",
     "favicon.svg": "d0140f4bb1f7fe856fc499f996b347bbbcab55c1f15e2c4a6d94b118c3aa569b",
     "README.md": "8d6f839e906cec6ef55476cafdf802fb917b83d51405ad18bd23b2cd2624b0d0"
   },
-  "version": "45ef1e1aa867",
+  "version": "004e9054e471",
   "rulesVersion": "palette-rules-1"
 }

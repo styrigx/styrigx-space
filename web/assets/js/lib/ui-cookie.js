@@ -39,20 +39,6 @@ function boolOnNull(k) {
 }
 
 /**
- * 安全解析 JSON，失败返回 null。
- * @param {string|null} s
- * @returns {any}
- */
-function parseJson(s) {
-  if (!s) return null;
-  try {
-    return JSON.parse(s);
-  } catch (e) {
-    return null;
-  }
-}
-
-/**
  * 读当前 cookie 值（用于比较，避免无变化重写）。
  * @returns {string}
  */
@@ -75,7 +61,7 @@ function decodeCookie(v) {
  * 字段→key 对应（v1.1 勘误）：
  *   tz1←sgx-tz1（sgx-tz1-auto 为真写 "auto"）；tz2←sgx-tz2；h12←sgx-hour12；
  *   clock←sgx-gl-clockstyle；wx←sgx-weather-show；unit←sgx-temp-unit；
- *   loc←sgx-weather-loc；city←sgx-weather-city；precise←sgx-weather-precise。
+ *   loc←sgx-weather-loc；city / precise 恒为 null（2026-10-28 起坐标不进 cookie，见 syncUiCookie）。
  *   B2-7（v2）外观：mode←sgx-theme-mode（system/light/dark）；pal←sgx-palette（缺省 dustyblue）；
  *   accent：当前主题色种子 #rrggbb（PR3 色彩角色 token；sgx-accent 自定义优先，否则读 --sgx-seed 即预设色板的种子），
  *   子站拿它派生同一套角色；读不到为 ''。
@@ -113,8 +99,10 @@ export function syncUiCookie() {
     wx: boolOnNull('sgx-weather-show') ? 1 : 0,
     unit: ls('sgx-temp-unit') === 'f' ? 'f' : 'c',
     loc: ls('sgx-weather-loc') || 'auto',
-    city: parseJson(ls('sgx-weather-city')),
-    precise: parseJson(ls('sgx-weather-precise')),
+    /* city / precise：2026-10-28 起恒为 null。坐标（手动城市的经纬度、精确定位）不进跨子站共享的 cookie——
+       它随 *.styrigx.com 的每个请求发出去；子站读端只解析不使用，主站天气读 localStorage。字段保留，读端契约不变 */
+    city: null,
+    precise: null,
     mode: U.MODES.indexOf(ls('sgx-theme-mode') || '') >= 0 ? ls('sgx-theme-mode') : 'system',
     /* 只写读端认识的预设（旧撞色 x<id> → <id>；未知 id 主站本来也渲染成默认 dustyblue） */
     pal: U.normPal(ls('sgx-palette')),
