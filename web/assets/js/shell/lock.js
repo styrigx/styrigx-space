@@ -459,7 +459,8 @@ export function showLockScreen() {
           closeDialog('success');
           unlock();
         } else if (j.error === 'cooldown') {
-          tempLockedUntil = Date.now() + 15 * 60000;
+          /* retryAfter（秒）：网关无会话总限流（_kernel/anon-limit.js）给的；没有就是临时码自己的 15 分钟锁 */
+          tempLockedUntil = Date.now() + (j.retryAfter > 0 ? j.retryAfter * 1000 : 15 * 60000);
           showError(en ? 'Too many attempts' : '尝试次数过多');
           tempCountdown();
         } else if (j.error === 'wrong' || j.error === 'code') {
@@ -559,7 +560,8 @@ export function showLockScreen() {
           closeDialog('success');
           unlock();
         } else if (j.error === 'cooldown') {
-          pwLockedUntil = Date.now() + 30000;
+          /* retryAfter（秒）：网关无会话总限流给的；没有就是密码输错的 30 秒冷却 */
+          pwLockedUntil = Date.now() + (j.retryAfter > 0 ? j.retryAfter * 1000 : 30000);
           showError(en ? 'Too many attempts' : '尝试次数过多');
           pwCountdown();
         } else if (j.error === 'not-set') {

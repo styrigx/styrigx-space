@@ -359,6 +359,12 @@ async function handlePost(context) {
     let all;
     try { all = await listDevices(env); } catch (e) { return apiError(503, 'server'); }
     const cur = acc.deviceId || '';
+    /* 列表有上限（DEVICE_LIST_MAX，按最近活跃）：当前设备没排进去就单独取来补上，保证它一定在、排第一 */
+    if (cur && !all.some(function (d) { return d.deviceId === cur; })) {
+      let me = null;
+      try { me = await getDevice(env, cur); } catch (e) { return apiError(503, 'server'); }
+      if (me && me.deviceId) all = [me].concat(all);
+    }
     const views = all.map(function (d) { return deviceView(d, cur); });
     views.sort(function (a, b) { return (b.current ? 1 : 0) - (a.current ? 1 : 0); });
     return json(200, { ok: true, devices: views });

@@ -190,15 +190,19 @@ export async function revokeDevice(env, deviceId) {
   ).bind(r.id, String(deviceId), JSON.stringify({ deviceId: String(deviceId) }), now, now + TTL_MS).run());
 }
 
+/** 设备页一次最多列多少台（最近活跃的在前；当前设备不在其中时由 device-list 单独补上，见 api/account.js）。2026-10-28 PR2 */
+export const DEVICE_LIST_MAX = 50;
+
 /**
  * 列出全部设备记录（未退出、未过期；按 lastSeen 倒序）。D1 出错抛错。
  * @param {any} env
  * @returns {Promise<object[]>}
  */
-export async function listDevices(env) {
+export async function listDevices(env, limit = DEVICE_LIST_MAX) {
+  const n = Math.max(1, Math.min(DEVICE_LIST_MAX, Math.floor(Number(limit)) || DEVICE_LIST_MAX));
   const res = await onAuthDb(env, REALM, (db, r) => db.prepare(
-    'SELECT record FROM device WHERE realm = ? AND revoked_at = 0 AND expires_at > ? ORDER BY last_seen DESC'
-  ).bind(r.id, Date.now()).all());
+    'SELECT record FROM device WHERE realm = ? AND revoked_at = 0 AND expires_at > ? ORDER BY last_seen DESC LIMIT ?'
+  ).bind(r.id, Date.now(), n).all());
   return ((res && res.results) || []).map(parseRecord).filter((d) => d && d.deviceId);
 }
 

@@ -320,3 +320,32 @@ test('putDevice / recordLogin 对已退出的 deviceId：不改 revoked_at、不
   authD1For(kv).failOn = (sql) => /FROM device/.test(sql);
   await assert.rejects(d.isRevoked(env, id));
 });
+
+test('设备列表有上限（DEVICE_LIST_MAX，最近活跃在前）；当前设备没排进去时 device-list 单独补上、排第一', async () => {
+  const d = await import(KERNEL + 'account-devices.js');
+  assert.equal(d.DEVICE_LIST_MAX, 50);
+  const kv = makeKV();
+  await seedPassword(kv, 'acct-pass-1234');
+  const sess = await adminSess();
+  /* 先登录「当前设备」，再塞 DEVICE_LIST_MAX 台更近活跃的 */
+  const phone = pickCookie(await login(kv, { 'sgx-lock-session': sess }, SM_UA, { model: 'SM-S918B', platform: 'Android' }), 'sgx-account-session');
+  const phoneId = phone.split('.')[4];
+  const env = envFor(kv);
+  const base = Date.now() + 1000;
+  for (let i = 0; i < d.DEVICE_LIST_MAX; i++) {
+    await d.putDevice(env, { deviceId: d.newDeviceId(), model: 'X' + i, lastSeen: base + i, createdAt: base });
+  }
+  const top = await d.listDevices(env);
+  assert.equal(top.length, d.DEVICE_LIST_MAX);
+  assert.ok(!top.some((x) => x.deviceId === phoneId), '当前设备最久没活跃，被上限挤出');
+  assert.equal(top[0].model, 'X' + (d.DEVICE_LIST_MAX - 1), '最近活跃在前');
+  assert.equal((await d.listDevices(env, 3)).length, 3);
+  assert.equal((await d.listDevices(env, 1e9)).length, d.DEVICE_LIST_MAX, '传大数也封顶');
+  const r = await post(kv, { action: 'device-list' }, { 'sgx-lock-session': sess, 'sgx-account-session': phone });
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.equal(j.devices.length, d.DEVICE_LIST_MAX + 1);
+  assert.equal(j.devices[0].current, true);
+  assert.equal(j.devices[0].name, 'Galaxy S23 Ultra');
+  assert.equal(j.devices.filter((x) => x.current).length, 1);
+});
