@@ -6,6 +6,7 @@
  * - 来源：回答下面一排小 chip（域名 + 标题），新标签页打开。
  * - 错误：401 → 「会话已过期」卡 + 重新解锁（同状态页：重新载入走锁屏）；403 admin_only → 「聊天仅管理员可用」卡（访客：页面一开就是这张卡）；
  *   rate_limited → 「今天的免费额度用完了」；no_key → 「聊天还没配置」；400 → 对话太长；其他（upstream / 断网）→ 出错 + 重试。
+ *   没配钥匙（GET /api/chat 回 configured:false 或 503 no_key）→ 页面一开就是「聊天还没配置」卡，输入框关掉，不用等发了问题才报错。
  * - 模型切换（2026-10-22）：GET /api/chat 拿白名单（{ default, models:[{id,label,search}] }），≥ 2 个才在输入栏上方显示小药丸；
  *   点了打开模型面板（模态 <dialog> #chat-ms，shell/modal-sheet.js 开合：点遮罩 / ✕ / Esc / 系统返回关闭；手机底部面板、宽屏贴着药丸）。
  *   选择存 localStorage sgx-chat-model（不在列表里了 → 默认）；POST 带 model。拿不到列表 → 药丸藏着、不带 model（服务器默认）。
@@ -17,7 +18,7 @@
  */
 import { on } from '../lib/events.js';
 import { loadI18n } from '../lib/i18n.js';
-import { buildPayload, createSseParser, errorInfo, esc, modelFootText, modelOptionsHtml, parseModels, pickModel, renderMarkdown, renderSources } from '../lib/chat-view.js';
+import { buildPayload, createSseParser, errorInfo, esc, modelFootText, modelOptionsHtml, modelsSayNoKey, parseModels, pickModel, renderMarkdown, renderSources } from '../lib/chat-view.js';
 import { followKeyboard } from '../shell/vk.js';
 import { modalSheet } from '../shell/modal-sheet.js';
 
@@ -90,7 +91,7 @@ export function mountChat() {
   /** @type {AbortController|null} */
   let ctl = null;
   /** 页面级的拦截（会话过期 / 访客 / 没配置）：只显示那张卡，输入框关掉 */
-  /** @type {''|'auth'|'admin'} */
+  /** @type {''|'auth'|'admin'|'nokey'} */
   let gated = '';
 
   const finePointer = (() => {
@@ -158,15 +159,18 @@ export function mountChat() {
     modelBtn.disabled = busy;
   }
 
-  /** @param {'auth'|'admin'} kind */
+  /** 卡片文案：标题 key、副标题 key */
+  const GATE_TEXT = { auth: ['errAuth', 'errAuthSub'], admin: ['adminOnly', 'adminOnlySub'], nokey: ['errNoKey', 'errNoKeySub'] };
+
+  /** @param {'auth'|'admin'|'nokey'} kind */
   function showGate(kind) {
     gated = kind;
     const title = /** @type {HTMLElement} */ (gate.querySelector('[data-c="title"]'));
     const sub = /** @type {HTMLElement} */ (gate.querySelector('[data-c="sub"]'));
     const btn = /** @type {HTMLElement} */ (gate.querySelector('[data-c="btn"]'));
     gate.setAttribute('data-kind', kind);
-    title.textContent = t(kind === 'auth' ? 'errAuth' : 'adminOnly');
-    sub.textContent = t(kind === 'auth' ? 'errAuthSub' : 'adminOnlySub');
+    title.textContent = t(GATE_TEXT[kind][0]);
+    sub.textContent = t(GATE_TEXT[kind][1]);
     btn.hidden = kind !== 'auth';
     btn.textContent = t('unlock');
     gate.hidden = false;
@@ -421,12 +425,18 @@ export function mountChat() {
     if (opts[n]) opts[n].focus();
   });
 
-  /** 拿模型列表；失败 / 形状不对 → 不显示切换，用服务器默认 */
+  /** 拿模型列表；失败 / 形状不对 → 不显示切换，用服务器默认；说没配钥匙 → 「聊天还没配置」卡 */
   async function loadModels() {
     try {
       const r = await fetch(CHAT_API, { method: 'GET', credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
+      let j = null;
+      try { j = await r.json(); } catch (e) {}
+      if (modelsSayNoKey(r.status, j)) {
+        if (!gated && !ctl) showGate('nokey');
+        return;
+      }
       if (!r.ok) return;
-      const got = parseModels(await r.json());
+      const got = parseModels(j);
       if (!got) return;
       models = got;
       let stored = null;

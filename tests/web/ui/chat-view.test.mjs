@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   buildPayload, createSseParser, errorInfo, renderInline, renderMarkdown, renderSources, safeUrl, sourceLabel, MAX_MESSAGES, MAX_TOTAL,
-  parseModels, pickModel, modelOptionsHtml, modelFootText,
+  parseModels, pickModel, modelOptionsHtml, modelFootText, modelsSayNoKey,
 } from '../../../web/assets/js/lib/chat-view.js';
 
 /** 渲染结果里不允许出现的东西：任何真标签都只能是白名单里的 */
@@ -254,4 +254,15 @@ test('文案：apps/chat.js 用到的 key 在 chat-i18n.html 里都有中英', (
   assert.deepEqual(dict.noWebUsed, { zh: '未联网', en: 'No web' });
   assert.equal(dict.adminOnly.zh, '聊天仅管理员可用');
   assert.equal(dict.adminOnly.en, 'Chat is admin-only');
+});
+
+test('modelsSayNoKey：configured:false 或 503 no_key → 「聊天还没配置」卡；其他（没字段、404、500、坏 JSON）照常', () => {
+  assert.equal(modelsSayNoKey(200, { ok: true, default: 'm', models: [{ id: 'm' }], configured: false }), true);
+  assert.equal(modelsSayNoKey(503, { ok: false, error: 'no_key' }), true);
+  assert.equal(modelsSayNoKey(200, { ok: true, default: 'm', models: [{ id: 'm' }], configured: true }), false);
+  assert.equal(modelsSayNoKey(200, { ok: true, default: 'm', models: [{ id: 'm' }] }), false);
+  assert.equal(modelsSayNoKey(503, { ok: false, error: 'upstream' }), false);
+  assert.equal(modelsSayNoKey(404, { ok: false }), false);
+  assert.equal(modelsSayNoKey(500, null), false);
+  assert.equal(modelsSayNoKey(200, 'configured:false'), false);
 });

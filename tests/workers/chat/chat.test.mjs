@@ -329,8 +329,51 @@ test('GET /models：200 { ok, default, models }，不调上游、不读钥匙', 
       { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash', search: false },
       { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite', search: false },
     ],
+    configured: true,
   });
   assert.equal(fetchLog.length, 0);
+});
+
+test('GET /models：没钥匙绑定（deploy.yml 退一步部署的版本）/ API 地址空 → configured:false，模型列表照给；不读钥匙', async () => {
+  mockFetch(() => { throw new Error('不应调用上游'); });
+  const noBinding = menv();
+  delete noBinding.SGX_CHAT_API_KEY;
+  let r = await getCall(getReq(), noBinding);
+  assert.equal(r.status, 200);
+  let j = await r.json();
+  assert.equal(j.configured, false);
+  assert.equal(j.ok, true);
+  assert.equal(j.models.length, 4);
+  r = await getCall(getReq(), menv({ CHAT_PROVIDER: 'openai', CHAT_API_BASE: '' }));
+  assert.equal((await r.json()).configured, false);
+  /* 绑定在但值读不出来：GET 不读钥匙，照样 configured:true；POST 时才 503 no_key */
+  const e = menv();
+  e.SGX_CHAT_API_KEY = { async get() { throw new Error('不该读钥匙'); } };
+  assert.equal((await (await getCall(getReq(), e)).json()).configured, true);
+  assert.equal(chat.isConfigured(menv()), true);
+  assert.equal(chat.isConfigured(noBinding), false);
+  assert.equal(fetchLog.length, 0);
+});
+
+test('意外错误（开始回答之前抛出）→ 500 { ok:false, error:"internal" } JSON，不带堆栈、不回 Cloudflare 错误页', async () => {
+  const orig = console.error;
+  const logged = [];
+  console.error = (...a) => { logged.push(a.join(' ')); };
+  try {
+    /* env 的 getter 抛错：模拟绑定 / 配置读取时的意外异常 */
+    const boom = menv();
+    Object.defineProperty(boom, 'CHAT_PROVIDER', { get() { const e = new TypeError('secret detail /path/to/file.js:1'); throw e; } });
+    for (const r of [await call(req({ messages: MSGS }), boom), await getCall(getReq(), boom)]) {
+      assert.equal(r.status, 500);
+      assert.equal(r.headers.get('Content-Type'), 'application/json; charset=utf-8');
+      const text = await r.text();
+      assert.deepEqual(JSON.parse(text), { ok: false, error: 'internal' });
+      assert.ok(!/secret detail|\.js:|at /.test(text), text);
+    }
+    assert.ok(logged.every((l) => !l.includes('secret detail')), '日志只记错误类型');
+  } finally {
+    console.error = orig;
+  }
 });
 
 test('CHAT_MODELS 坏 / 没配 / 没一条合格 → 退回只有 CHAT_MODEL；坏条目跳过、去重、没 label 用 id；总开关 off / openai 模式 search 一律 false', async () => {
@@ -340,7 +383,7 @@ test('CHAT_MODELS 坏 / 没配 / 没一条合格 → 退回只有 CHAT_MODEL；�
   }
   assert.deepEqual(chat.chatModels(env({ CHAT_MODELS: '{nope', CHAT_SEARCH: 'off' })), fb(false));
   let r = await getCall(getReq(), env({ CHAT_MODELS: '{nope' }));
-  assert.deepEqual(await r.json(), { ok: true, default: 'gemini-2.5-flash', models: fb(true).models });
+  assert.deepEqual(await r.json(), { ok: true, default: 'gemini-2.5-flash', models: fb(true).models, configured: true });
   /* 坏条目跳过 + 去重 + label 兜底；search 只认 true */
   const mixed = JSON.stringify([{ id: 'x/../y z' }, { id: 'm1', search: 'yes' }, { id: 'm1', label: 'dup' }, { id: 'm2', label: '  M2  ', search: true }]);
   assert.deepEqual(chat.chatModels(env({ CHAT_MODELS: mixed })), {

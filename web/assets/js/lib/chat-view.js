@@ -329,6 +329,19 @@ export function parseModels(j) {
 }
 
 /**
+ * GET /api/chat 说「聊天还没配置」：styrigx-chat 回 configured:false（钥匙绑定没有，deploy.yml 退一步部署的版本），
+ * 或网关没绑定 CHAT 回 503 no_key。页面直接显示「聊天还没配置」卡，不用等发了问题才报错。
+ * 没有 configured 字段 / 别的错误（404、500、断网）→ false（照常，发问题时再按 POST 的错误码显示）。
+ * @param {number} status
+ * @param {any} j 响应 JSON（解析不了就是 null）
+ */
+export function modelsSayNoKey(status, j) {
+  if (!j || typeof j !== 'object') return false;
+  if (status === 503) return j.error === 'no_key';
+  return status === 200 && j.ok === true && j.configured === false;
+}
+
+/**
  * 当前模型：本地存的还在列表里就用它，否则默认。
  * @param {{def:string, models:ChatModel[]}} list
  * @param {string|null|undefined} stored localStorage sgx-chat-model

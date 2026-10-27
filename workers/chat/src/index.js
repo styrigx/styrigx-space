@@ -5,6 +5,7 @@
  *   POST https://styrigx-chat/chat   → SSE 回答（网关 POST /api/chat）
  *   头 X-Sgx-Role: admin（网关验完会话、确认是管理员后写的）；没有 / 别的值 → 403 admin_only（双保险：本来也只有网关进得来）。
  *   其他路径 → 404 not-found；方法不对 → 405 method。
+ *   开始回答之前抛出的意外错误 → 500 { ok:false, error:'internal' }（JSON，不带堆栈；日志只记错误类型），不让 Cloudflare 回它的错误页。
  * 具体逻辑见 src/chat.js。
  */
 import { handleChat, handleModels, json } from './chat.js';
@@ -12,14 +13,19 @@ import { handleChat, handleModels, json } from './chat.js';
 export default {
   /** @param {Request} request @param {any} env */
   async fetch(request, env) {
-    const url = new URL(request.url);
-    if (url.pathname !== '/models' && url.pathname !== '/chat') return json(404, { ok: false, error: 'not-found' });
-    if (request.headers.get('X-Sgx-Role') !== 'admin') return json(403, { ok: false, error: 'admin_only' });
-    if (url.pathname === '/models') {
-      if (request.method !== 'GET') return json(405, { ok: false, error: 'method' });
-      return handleModels(env);
+    try {
+      const url = new URL(request.url);
+      if (url.pathname !== '/models' && url.pathname !== '/chat') return json(404, { ok: false, error: 'not-found' });
+      if (request.headers.get('X-Sgx-Role') !== 'admin') return json(403, { ok: false, error: 'admin_only' });
+      if (url.pathname === '/models') {
+        if (request.method !== 'GET') return json(405, { ok: false, error: 'method' });
+        return handleModels(env);
+      }
+      if (request.method !== 'POST') return json(405, { ok: false, error: 'method' });
+      return await handleChat(request, env);
+    } catch (e) {
+      console.error('[chat] unexpected error', e && /** @type {any} */ (e).name);
+      return json(500, { ok: false, error: 'internal' });
     }
-    if (request.method !== 'POST') return json(405, { ok: false, error: 'method' });
-    return handleChat(request, env);
   },
 };

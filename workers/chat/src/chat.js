@@ -9,7 +9,8 @@
  * - 本 Worker 没有公开地址（workers_dev / preview_urls 关、没有路由），唯一入口是网关的服务绑定 CHAT；
  *   入口（src/index.js）再要求网关写的 X-Sgx-Role: admin，没有就 403 admin_only（双保险）。
  *
- *   GET  /models → 200 { ok:true, default:'<id>', models:[{ id, label, search }] }（网关 GET /api/chat 原样转回）
+ *   GET  /models → 200 { ok:true, default:'<id>', models:[{ id, label, search }], configured }（网关 GET /api/chat 原样转回）
+ *     configured = 钥匙绑定在不在（不读钥匙）；false → 页面直接显示「聊天还没配置」卡。
  *     search = 这个模型实际会不会带联网工具（CHAT_SEARCH=off 或 openai 模式时一律 false）。
  *   POST /chat  { messages: [{ role: 'user'|'model', text }], model?: '<id>' }（网关 POST /api/chat 原样转进来、原样流回去）
  *   model 可选：必须是 CHAT_MODELS 白名单里的 id → 否则 400 { error: 'bad_model' }（绝不接受任意模型名）；不给 = 默认模型。
@@ -199,7 +200,14 @@ function chatConfig(env, modelId) {
  */
 export function handleModels(env) {
   const { def, models } = chatModels(env);
-  return json(200, { ok: true, default: def, models });
+  /* configured：钥匙绑定在不在（不读钥匙，读要到 POST 才读）。deploy.yml 的退一步部署（Secrets Store 里还没建 SGX_CHAT_API_KEY）
+     去掉了绑定 → false，页面一打开就显示「聊天还没配置」卡，不用等发了问题才报错。绑定在但值空 / 读不出来仍由 POST 回 503 no_key。 */
+  return json(200, { ok: true, default: def, models, configured: isConfigured(env) });
+}
+
+/** 聊天配好了没有：有钥匙绑定（Secrets Store 绑定或本地字符串）且 API 地址可用。不读钥匙。 @param {any} env */
+export function isConfigured(env) {
+  return hasKeyBinding(env) && !!chatConfig(env).base;
 }
 
 /**

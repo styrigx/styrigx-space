@@ -24,6 +24,13 @@ env:
   # 所有 wrangler（npx 和 wrangler-action）用同一个固定版本；升级时只改这里
   WRANGLER_VERSION: '4.152.0'
 
+# 自动回滚（main 部署）：Pages 和 7 个 Worker 的 job 部署前记下线上版本（step id live），部署 / 冒烟 / 部署后核对失败
+# 就退回那个版本（scripts/deploy-rollback.mjs；Worker 用 wrangler rollback，Pages 用回滚 API），job 照样红。
+# 只用各 job 部署本来就用的那把 token，不加 secret、不加权限。第一次部署（没有旧版本）/ 记录失败 → 不回滚，同以前。
+# 不回滚：D1 迁移（只进不退，迁移要写成兼容旧代码）、KV 数据（搜索索引）、Secrets Store、路由 / 自定义域名、已部署的其他 job。
+# 回滚下限：scripts/deploy-rollback-floor.json。线上版本低于下限（网关 / 账号 Worker 是 #226 之前的 KV 版本）就不记、不自动回滚，
+# 免得退回读旧 KV 的代码；以后存储改成旧代码读不懂的格式时在那里加一行。
+
 jobs:
   # 质量闸门：单元测试、打包检查、生成物同步、分层 / 前端守卫、锁屏 / 边缘 / 凭证接口 / 视觉 e2e、Lighthouse、stylelint。
   # PR 也跑，变绿再合入 main；只有 main 的 push（或 main 上手动触发）才部署。
@@ -685,6 +692,16 @@ jobs:
           grep -q "styrigx.com" web/public/_worker.js
           if grep -q "X-SGX-Runtime" web/public/_worker.js; then echo "::error::gateway bundle in production Pages build"; exit 1; fi
 
+      - name: Record live Pages production deployment (rollback target)
+        # 部署前记下生产当前的 deployment（项目的 canonical_deployment；scripts/deploy-rollback.mjs）。还没有生产部署 / 记录失败 → 空，
+        # 只打 warning、不拦部署：空 = 这次失败不自动回滚。token 同部署那一步（Cloudflare Pages 编辑，已有）
+        id: live
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/deploy-rollback.mjs pages-snapshot --project styrigx-space
+
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
@@ -718,6 +735,24 @@ jobs:
           rt=$(printf '%s' "$hdr" | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
           echo "styrigx.com /settings/ -> $code runtime=${rt:-none}"
           if [ "$code" != "302" ] || [ "$rt" != "worker" ]; then echo "::error::/settings/ not locked by the gateway"; exit 1; fi
+          # 关键页：首页（未登录照常 200 锁屏，网关回源 Pages）带的是这次构建的短 SHA（<html data-sgx-build>，HTML 是 max-age=0）
+          short="${GITHUB_SHA:0:7}"
+          for i in $(seq 1 12); do
+            code=$(curl -sS -o "$RUNNER_TEMP/home.html" -w '%{http_code}' https://styrigx.com/ || true)
+            if [ "$code" = "200" ] && grep -Eq "data-sgx-build=\"?$short" "$RUNNER_TEMP/home.html"; then echo "/ -> 200, build $short (try $i)"; exit 0; fi
+            echo "/ -> $code, build $(grep -Eo 'data-sgx-build="?[0-9a-z]+' "$RUNNER_TEMP/home.html" | head -1) (try $i)"
+            sleep 5
+          done
+          echo "::error::styrigx.com/ does not serve build $short"; exit 1
+
+      - name: Roll back Pages production (deploy or smoke failed)
+        # 前面任何一步失败且记到了部署前的 deployment：生产已经不是它就调 Pages 回滚 API 退回去并核对；没变（上传就失败）什么都不做。job 照样红
+        if: failure() && steps.live.outputs.deployment != ''
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIOUS: ${{ steps.live.outputs.deployment }}
+        run: node scripts/deploy-rollback.mjs pages-rollback --project styrigx-space --to "$PREVIOUS"
 
   deploy-search-worker:
     # 全站搜索 styrigx-search-index（workers/search-index）：先于网关部署（网关的服务绑定 SEARCH 指向它，它不在就部署不了）。
@@ -750,6 +785,17 @@ jobs:
       - name: Check search index
         run: test -s "$RUNNER_TEMP/search-space.json"
 
+      - name: Record live Worker version (rollback target)
+        # 部署前记下线上 100% 流量的版本（scripts/deploy-rollback.mjs）。第一次部署（Worker 还不存在）/ 灰度中 / 记录失败 → 记成空，
+        # 只打 warning、不拦部署：空 = 这次失败不自动回滚。token 同部署那一步（读部署状态只要 Workers Scripts，已有）
+        id: live
+        continue-on-error: true
+        working-directory: workers/search-index
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SEARCH_INDEX_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-snapshot
+
       - name: Deploy search Worker (styrigx-search-index)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
@@ -759,6 +805,16 @@ jobs:
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: deploy
 
+      - name: Post-deploy check (no public address, so check the live version)
+        # 这个 Worker 没有公开地址、冒烟打不到（只能经网关 + 会话进）：核对线上确实换成了一个吃 100% 流量的新版本。
+        # 代码能不能起来由 Cloudflare 上传时校验（启动就抛错的脚本上传会被拒）
+        working-directory: workers/search-index
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SEARCH_INDEX_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIOUS: ${{ steps.live.outputs.version }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
+
       - name: Upload search index to KV
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
@@ -767,6 +823,17 @@ jobs:
           workingDirectory: workers/search-index
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: kv key put site:space --path=${{ runner.temp }}/search-space.json --binding=KV_SEARCH_INDEX --remote
+
+      - name: Roll back to the recorded version (deploy or post-deploy check failed)
+        # 前面任何一步失败且记到了部署前版本：线上已经不是那个版本就 wrangler rollback 回去并核对；线上没变（上传阶段就失败）什么都不做。
+        # 只换代码版本：D1 迁移、KV 数据、Secrets Store、路由不回滚。job 照样红，后面依赖它的 job 不部署
+        if: failure() && steps.live.outputs.version != ''
+        working-directory: workers/search-index
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SEARCH_INDEX_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIOUS: ${{ steps.live.outputs.version }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
   deploy-status-worker:
     # 站点监测 styrigx-status（workers/status）：先于网关部署（网关的服务绑定 STATUS 指向它，它不在就部署不了）。
@@ -800,6 +867,17 @@ jobs:
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: d1 migrations apply styrigx-status --remote
 
+      - name: Record live Worker version (rollback target)
+        # 部署前记下线上 100% 流量的版本（scripts/deploy-rollback.mjs）。第一次部署（Worker 还不存在）/ 灰度中 / 记录失败 → 记成空，
+        # 只打 warning、不拦部署：空 = 这次失败不自动回滚。token 同部署那一步（读部署状态只要 Workers Scripts，已有）
+        id: live
+        continue-on-error: true
+        working-directory: workers/status
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-snapshot
+
       - name: Deploy status Worker (styrigx-status)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
@@ -808,6 +886,27 @@ jobs:
           workingDirectory: workers/status
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: deploy
+
+      - name: Post-deploy check (no public address, so check the live version)
+        # 这个 Worker 没有公开地址、冒烟打不到（只能经网关 + 会话进）：核对线上确实换成了一个吃 100% 流量的新版本。
+        # 代码能不能起来由 Cloudflare 上传时校验（启动就抛错的脚本上传会被拒）
+        working-directory: workers/status
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIOUS: ${{ steps.live.outputs.version }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
+
+      - name: Roll back to the recorded version (deploy or post-deploy check failed)
+        # 前面任何一步失败且记到了部署前版本：线上已经不是那个版本就 wrangler rollback 回去并核对；线上没变（上传阶段就失败）什么都不做。
+        # 只换代码版本：D1 迁移、KV 数据、Secrets Store、路由不回滚。job 照样红，后面依赖它的 job 不部署
+        if: failure() && steps.live.outputs.version != ''
+        working-directory: workers/status
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIOUS: ${{ steps.live.outputs.version }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
   deploy-chat-worker:
     # 聊天 styrigx-chat（workers/chat，2026-10-22 从网关拆出来）：先于网关部署（网关的服务绑定 CHAT 指向它，它不在就部署不了）。
@@ -833,6 +932,17 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: ${{ env.NODE_VERSION }}
+
+      - name: Record live Worker version (rollback target)
+        # 部署前记下线上 100% 流量的版本（scripts/deploy-rollback.mjs）。第一次部署（Worker 还不存在）/ 灰度中 / 记录失败 → 记成空，
+        # 只打 warning、不拦部署：空 = 这次失败不自动回滚。token 同部署那一步（读部署状态只要 Workers Scripts，已有）
+        id: live
+        continue-on-error: true
+        working-directory: workers/chat
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_CHAT_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-snapshot
 
       - name: Deploy chat Worker (styrigx-chat)
         id: deploy_chat
@@ -864,6 +974,27 @@ jobs:
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: deploy --config wrangler.nokey.toml
 
+      - name: Post-deploy check (no public address, so check the live version)
+        # 这个 Worker 没有公开地址、冒烟打不到（只能经网关 + 会话进）：核对线上确实换成了一个吃 100% 流量的新版本。
+        # 代码能不能起来由 Cloudflare 上传时校验（启动就抛错的脚本上传会被拒）
+        working-directory: workers/chat
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_CHAT_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIOUS: ${{ steps.live.outputs.version }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
+
+      - name: Roll back to the recorded version (deploy or post-deploy check failed)
+        # 前面任何一步失败且记到了部署前版本：线上已经不是那个版本就 wrangler rollback 回去并核对；线上没变（上传阶段就失败）什么都不做。
+        # 只换代码版本：D1 迁移、KV 数据、Secrets Store、路由不回滚。job 照样红，后面依赖它的 job 不部署
+        if: failure() && steps.live.outputs.version != ''
+        working-directory: workers/chat
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_CHAT_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIOUS: ${{ steps.live.outputs.version }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
+
   deploy-proxy-rules-worker:
     # 规则集反代 styrigx-proxy-rules（workers/proxy-rules）：独立部署，不等也不挡网关和 Pages。
     # 公开地址只有自定义域名 proxy-rules.styrigx.com（wrangler.toml 的 routes，custom_domain）。
@@ -883,6 +1014,17 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: ${{ env.NODE_VERSION }}
+
+      - name: Record live Worker version (rollback target)
+        # 部署前记下线上 100% 流量的版本（scripts/deploy-rollback.mjs）。第一次部署（Worker 还不存在）/ 灰度中 / 记录失败 → 记成空，
+        # 只打 warning、不拦部署：空 = 这次失败不自动回滚。token 同部署那一步（读部署状态只要 Workers Scripts，已有）
+        id: live
+        continue-on-error: true
+        working-directory: workers/proxy-rules
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_PROXY_RULES_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-snapshot
 
       - name: Deploy proxy rules Worker (styrigx-proxy-rules)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
@@ -915,6 +1057,17 @@ jobs:
           check /MetaCubeX/meta-rules-dat/meta/README.md 404 || ok=1
           exit $ok
 
+      - name: Roll back to the recorded version (deploy or post-deploy check failed)
+        # 前面任何一步失败且记到了部署前版本：线上已经不是那个版本就 wrangler rollback 回去并核对；线上没变（上传阶段就失败）什么都不做。
+        # 只换代码版本：D1 迁移、KV 数据、Secrets Store、路由不回滚。job 照样红，后面依赖它的 job 不部署
+        if: failure() && steps.live.outputs.version != ''
+        working-directory: workers/proxy-rules
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_PROXY_RULES_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIOUS: ${{ steps.live.outputs.version }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
+
   deploy-auth-worker:
     # 鉴权网关 styrigx-auth-gateway：main 上真部署。先于 Pages 部署（Pages 只放静态文件，靠网关验会话）。
     # 路由见 workers/auth-gateway/wrangler.toml（整站通配；/api/avatar*、/api/prefs*、/api/wellbeing*、/avatar/* 由账号 Worker 的更具体路由承接）；workers_dev=false。部署后自动冒烟检查线上。
@@ -941,6 +1094,17 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Record live Worker version (rollback target)
+        # 部署前记下线上 100% 流量的版本（scripts/deploy-rollback.mjs）。第一次部署（Worker 还不存在）/ 灰度中 / 记录失败 → 记成空，
+        # 只打 warning、不拦部署：空 = 这次失败不自动回滚。token 同部署那一步（读部署状态只要 Workers Scripts，已有）
+        id: live
+        continue-on-error: true
+        working-directory: workers/auth-gateway
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_AUTH_GATEWAY_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-snapshot
+
       - name: Deploy auth Worker (styrigx-auth-gateway)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
@@ -953,7 +1117,7 @@ jobs:
       - name: Smoke test production /api/* and pages (must be served by the Worker)
         # passkey-e2e 只测预览，测不到生产这条路，所以部署后直接打线上。
         # 只发不带 cookie 的只读请求，不登录、不写数据。路由生效可能要几秒，最多重试 6 次。
-        # 失败时 Pages 不会部署（build-and-deploy 等这一步）；修好或 revert 后重新跑。
+        # 失败时网关自动退回部署前的版本（最后一步），Pages / 账号 / 分享不会部署（都等这个 job）；修好或 revert 后重新跑。
         run: |
           set -u
           check() { # 路径（可带子站域名） 期望状态码
@@ -995,6 +1159,17 @@ jobs:
           if [ -n "$css" ]; then echo "::error::static file went through the Worker"; ok=1; fi
           exit $ok
 
+      - name: Roll back to the recorded version (deploy or post-deploy check failed)
+        # 前面任何一步失败且记到了部署前版本：线上已经不是那个版本就 wrangler rollback 回去并核对；线上没变（上传阶段就失败）什么都不做。
+        # 只换代码版本：D1 迁移、KV 数据、Secrets Store、路由不回滚。job 照样红，后面依赖它的 job 不部署
+        if: failure() && steps.live.outputs.version != ''
+        working-directory: workers/auth-gateway
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_AUTH_GATEWAY_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIOUS: ${{ steps.live.outputs.version }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
+
   deploy-account-worker:
     # 账号 Worker styrigx-account（workers/account，2026-10-24 从网关拆出来）：头像（KV_PROFILE）、设置云同步（D1_SETTINGS_SYNC，表 settings_sync）、数字健康（D1_WELLBEING）。
     # 上线前手动跑一次 scripts/migrate-prefs-kv-to-d1.mjs（--dry-run → apply → --verify），把旧 KV 里的 account-prefs 搬进 D1。
@@ -1027,6 +1202,17 @@ jobs:
           workingDirectory: workers/account
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: d1 migrations apply styrigx-account --remote
+
+      - name: Record live Worker version (rollback target)
+        # 部署前记下线上 100% 流量的版本（scripts/deploy-rollback.mjs）。第一次部署（Worker 还不存在）/ 灰度中 / 记录失败 → 记成空，
+        # 只打 warning、不拦部署：空 = 这次失败不自动回滚。token 同部署那一步（读部署状态只要 Workers Scripts，已有）
+        id: live
+        continue-on-error: true
+        working-directory: workers/account
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_ACCOUNT_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-snapshot
 
       - name: Deploy account Worker (styrigx-account)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
@@ -1066,6 +1252,17 @@ jobs:
           check /api/account 401 worker || ok=1
           check /settings/wellbeing/ 302 worker || ok=1
           exit $ok
+
+      - name: Roll back to the recorded version (deploy or post-deploy check failed)
+        # 前面任何一步失败且记到了部署前版本：线上已经不是那个版本就 wrangler rollback 回去并核对；线上没变（上传阶段就失败）什么都不做。
+        # 只换代码版本：D1 迁移、KV 数据、Secrets Store、路由不回滚。job 照样红，后面依赖它的 job 不部署
+        if: failure() && steps.live.outputs.version != ''
+        working-directory: workers/account
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_ACCOUNT_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIOUS: ${{ steps.live.outputs.version }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
   deploy-share-worker:
     # 分享短链 Worker styrigx-share（workers/share，2026-10-24）：https://styrigx.com/s/<码> + 管理员管理接口 /api/share，数据在 D1 styrigx-share（D1_SHARE_LINK）。
@@ -1115,6 +1312,17 @@ jobs:
           done
           exit $ok
 
+      - name: Record live Worker version (rollback target)
+        # 部署前记下线上 100% 流量的版本（scripts/deploy-rollback.mjs）。第一次部署（Worker 还不存在）/ 灰度中 / 记录失败 → 记成空，
+        # 只打 warning、不拦部署：空 = 这次失败不自动回滚。token 同部署那一步（读部署状态只要 Workers Scripts，已有）
+        id: live
+        continue-on-error: true
+        working-directory: workers/share
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SHARE_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-snapshot
+
       - name: Deploy share Worker (styrigx-share)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
@@ -1151,3 +1359,14 @@ jobs:
           check /account/tempkeys/ 302 worker || ok=1
           check /api/wellbeing 401 account || ok=1
           exit $ok
+
+      - name: Roll back to the recorded version (deploy or post-deploy check failed)
+        # 前面任何一步失败且记到了部署前版本：线上已经不是那个版本就 wrangler rollback 回去并核对；线上没变（上传阶段就失败）什么都不做。
+        # 只换代码版本：D1 迁移、KV 数据、Secrets Store、路由不回滚。job 照样红，后面依赖它的 job 不部署
+        if: failure() && steps.live.outputs.version != ''
+        working-directory: workers/share
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SHARE_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIOUS: ${{ steps.live.outputs.version }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"

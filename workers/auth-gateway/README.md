@@ -16,7 +16,7 @@ migrations/  D1 建表
 - `functions/api/` 新增接口时，在 `src/routes.js` 登记一行（单测会检查）。
 - 路由按域名整站通配（`styrigx.com/*` 等），新增页面目录不用加路由；新增子站时加一条 `<子站域名>/*`（`scripts/check-worker-routes.mjs` 会检查）。
 - 部署顺序：main 上先部署网关并冒烟检查线上，通过后才部署 Pages。
-- 回滚：Pages 上已经没有后端代码，不能靠删路由回滚（删了页面就不验会话）；revert 对应提交重新部署。
+- 回滚：Pages 上已经没有后端代码，不能靠删路由回滚（删了页面就不验会话）。main 部署时冒烟失败，CI 自动 `wrangler rollback` 到部署前的版本（`scripts/deploy-rollback.mjs`，D1 / KV 数据不回滚）。部署前的版本低于回滚下限（`scripts/deploy-rollback-floor.json`：本 Worker 要求目标版本带 `D1_LOCK_AUTH` / `D1_ACCOUNT_AUTH` / `D1_ROOT_AUTH` 绑定，即 D1 之后的代码）就不记、不自动回滚。要回到更早的代码就 revert 对应提交重新部署；**不要**手动 `wrangler rollback` 到 KV 时代的版本，那些版本读的是已经不再更新的旧 KV。
 - 预览（passkey-e2e）：CI 把本目录打包成 Pages 的 `_worker.js`，部署到 `passkey-e2e.styrigx-space.pages.dev`，连预览用的空 D1；此时页面和默认头像读 `env.ASSETS`。预览没有账号 Worker：`/api/avatar`、`/api/prefs`、`/api/wellbeing` 回 404，头像是静态默认图。
 
 ## 存储（D1，2026-10-27 起不绑 KV）
