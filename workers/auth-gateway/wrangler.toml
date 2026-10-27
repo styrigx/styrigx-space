@@ -87,6 +87,14 @@ service = "styrigx-status"
 binding = "CHAT"
 service = "styrigx-chat"
 
+# ---- 限流（Workers Rate Limiting，2026-10-28）----
+# 无会话写接口（锁屏 / 重置 / 根凭证 / 临时钥匙进门的 POST）按 IP 每 60 秒 20 次，超了 429；计数在边缘，不占存储、不收费。
+# 代码见 functions/_kernel/anon-limit.js（绑定缺失时放行）。namespace_id 是本账号内自定的整数，别的 Worker 不要复用。
+[[ratelimits]]
+name = "ANON_LIMITER"
+namespace_id = "2801"
+simple = { limit = 20, period = 60 }
+
 # ---- 数据绑定（正式 D1）----
 # 绑定名 = <类型>_<域>_<内容>（2026-10-24）：一个资源里有几套数据就绑几个名字，id 相同。
 # 2026-10-27 起网关的认证状态全部在 D1 styrigx-auth-gateway（强一致），不再绑定任何 KV：

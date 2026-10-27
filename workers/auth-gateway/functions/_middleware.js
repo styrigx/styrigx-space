@@ -14,6 +14,7 @@ import { verifyLockResetTicket } from './_kernel/tickets.js';
 import { withNoStore, json, apiError } from './_kernel/http.js';
 import { verifyAccountSession } from './_kernel/account-session.js';
 import { isAdminOnlyPath, resolveReturn } from './_kernel/return.js';
+import { anonLimit } from './_kernel/anon-limit.js';
 import { injectSessionState, injectUpgradeState } from './_kernel/html.js';
 
 /* 重置锁屏票（LockResetTicket，sgx-lock-reset）只开锁屏凭证页（重置锁屏流程），不开安全总览。 */
@@ -178,6 +179,10 @@ async function handleRequest(context) {
     const sessionValid = sess.ok;
     const role = sess.role; /* 'admin'|'visitor'|null */
     const isVisitor = role === ROLE_VISITOR;
+
+    /* 无会话写接口的按 IP 总限流（防刷 D1 写入额度；超了 429 cooldown，不进端点）：见 _kernel/anon-limit.js */
+    const limited = await anonLimit(request, env, sessionValid);
+    if (limited) return limited;
 
     /* 2.8.0：访客调用管理员专属 API → 403（改密码、通行密钥管理等）。
        2.10.1：访客就地升级——认证类 action（AUTH_ACTIONS：verify/challenge/auth/register）
