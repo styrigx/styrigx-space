@@ -13,8 +13,11 @@
  * - 网关：仓库里真实的 workers/auth-gateway/src/index.js（和 CI 打成 _worker.js 的是同一份代码），SGX_ENV=preview，
  *   env.ASSETS 读 web/public（先 hugo 构建生产版）。
  * - KV：一个内存 KV（KV_LOCK_DOOR 与 KV_ACCOUNT_LOGIN 绑同一个，和预览 wrangler.toml 一样），支持 expirationTtl / expiration，
- *   列表结果带 expiration（和 Cloudflare REST 一样）。没有模拟边缘最终一致：读写立刻可见，所以重置开关的轮询只要一次，
+ *   列表结果带 expiration（和 Cloudflare REST 一样）。默认不模拟边缘最终一致：读写立刻可见，所以重置开关的轮询只要一次，
  *   真实 CI 里会多几次（README 里的估算按上限算）。
+ * - 可选的「读到旧值」（--stale-ms N [--stale-keys 前缀,前缀]）：网关对匹配前缀的键 get 时，在该键被写 / 删后的 N 毫秒内
+ *   仍返回写之前的值（窗口内再写不延长窗口、不换旧值，像边缘缓存到期前一直拿着旧值）。用来在本地复现真实 KV
+ *   写后读不到（边缘缓存最长约 60 秒）的用例；只影响网关读，REST 读和 list 不受影响。默认前缀 lock-epoch,lock-passkey-index。
  * - D1：node:sqlite 内存库，实现 prepare().bind().run() / first() / all() 这几个网关用到的方法。
  * - Cloudflare KV REST：/client/v4/accounts/<a>/storage/kv/namespaces/<id>/values/<key>（GET/PUT/DELETE）、/keys（列表，
  *   prefix / cursor / limit）、/bulk/delete（POST，按 Cloudflare 的计费口径每个键算一次删除）。测试进程用
@@ -22,7 +25,7 @@
  * - /__kv/stats（GET）：当前计数；/__kv/stats/reset（POST）清零计数（不清数据）；/__kv/dump（GET）：全部键和过期时间。
  *
  * 运行：
- *   node tests/web/e2e/preview-emulator.cjs [--port 8788] [--state /tmp/pv-kv.json] [--root-key K] [--pepper P]
+ *   node tests/web/e2e/preview-emulator.cjs [--port 8788] [--state /tmp/pv-kv.json] [--root-key K] [--pepper P] [--stale-ms N [--stale-keys …]]
  *   --state：启动时从该文件恢复 KV 和 D1（模拟「上一次运行留下的预览 KV」），退出（SIGINT/SIGTERM）时写回。
  *   然后：SGX_TEST_SUITE=passkey SGX_TEST_BASE=http://localhost:8788 SGX_TEST_ROOT_KEY=K \
  *         SGX_TEST_CF_API=http://127.0.0.1:8788/client/v4 SGX_TEST_CF_TOKEN=x SGX_TEST_CF_ACCOUNT=x SGX_TEST_PREVIEW_KV_ID=local CI=1 \
@@ -43,6 +46,8 @@ const PORT = Number(arg('port', 8788));
 const STATE = arg('state', '');
 const ROOT_KEY = arg('root-key', 'local-preview-root-key');
 const PEPPER = arg('pepper', 'local-preview-pepper');
+const STALE_MS = Number(arg('stale-ms', 0)) || 0;
+const STALE_KEYS = String(arg('stale-keys', 'lock-epoch,lock-passkey-index')).split(',').map((x) => x.trim()).filter(Boolean);
 const dynImport = new Function('u', 'return ' + 'im' + 'port(u)');
 const mod = (rel) => dynImport(pathToFileURL(path.join(REPO, rel)).href);
 
@@ -90,20 +95,40 @@ function listKeys(prefix, cursor, limit) {
     list_complete: !next,
   };
 }
+/* ---------- 可选：写后一段时间内网关读到旧值（--stale-ms） ---------- */
+/** @type {Map<string, {prev: {v: string, exp: number|null}|null, until: number}>} */
+const staleWin = new Map();
+const staleMatch = (k) => STALE_MS > 0 && STALE_KEYS.some((p) => String(k).startsWith(p));
+/** 写 / 删之前调用：窗口外记下当前值作为「边缘缓存里的旧值」；窗口内不动 */
+function noteWrite(k) {
+  if (!staleMatch(k)) return;
+  const w = staleWin.get(k);
+  if (w && w.until > Date.now()) return;
+  staleWin.set(k, { prev: live(k), until: Date.now() + STALE_MS });
+}
+function staleRead(k) {
+  const w = staleMatch(k) ? staleWin.get(k) : null;
+  if (!w || w.until <= Date.now()) return undefined;
+  stats.staleReads = (stats.staleReads || 0) + 1;
+  return w.prev;
+}
 const appKV = {
   get: async (k, type) => {
     count('app', 'read', k);
-    const e = live(k);
+    const old = staleRead(k);
+    const e = old === undefined ? live(k) : old;
     if (!e) return null;
     const t = typeof type === 'object' && type ? type.type : type;
     return t === 'json' ? JSON.parse(e.v) : e.v;
   },
   put: async (k, v, opts) => {
     count('app', 'write', k);
+    noteWrite(k);
     store.set(k, { v: typeof v === 'string' ? v : JSON.stringify(v), exp: expOf(opts) });
   },
   delete: async (k) => {
     count('app', 'delete', k);
+    noteWrite(k);
     store.delete(k);
   },
   list: async (opts) => {
@@ -194,12 +219,14 @@ async function cfRest(req) {
     const key = decodeURIComponent(vm[1]);
     if (req.method === 'PUT') {
       count('rest', 'write', key);
+      noteWrite(key);
       const exp = u.searchParams.get('expiration_ttl') ? nowSec() + Number(u.searchParams.get('expiration_ttl')) : null;
       store.set(key, { v: await req.text(), exp });
       return cfJson(null);
     }
     if (req.method === 'DELETE') {
       count('rest', 'delete', key);
+      noteWrite(key);
       store.delete(key);
       return cfJson(null);
     }
@@ -215,7 +242,7 @@ async function cfRest(req) {
   }
   if (rest === '/bulk/delete' && req.method === 'POST') {
     const names = await req.json();
-    for (const n of names) { count('rest', 'delete', n); store.delete(n); }
+    for (const n of names) { count('rest', 'delete', n); noteWrite(n); store.delete(n); }
     return cfJson({ successful_key_count: names.length, unsuccessful_keys: [] });
   }
   return new Response('not found', { status: 404 });
@@ -252,7 +279,7 @@ async function main() {
         method: req.method, headers, body: ['GET', 'HEAD'].includes(req.method) ? undefined : body, redirect: 'manual',
       });
       let r;
-      if (req.url.startsWith('/__kv/stats/reset')) { stats.app = {}; stats.rest = {}; r = Response.json({ ok: true }); }
+      if (req.url.startsWith('/__kv/stats/reset')) { stats.app = {}; stats.rest = {}; delete stats.staleReads; r = Response.json({ ok: true }); }
       else if (req.url.startsWith('/__kv/stats')) r = Response.json(stats);
       else if (req.url.startsWith('/__kv/dump')) {
         const out = {};
@@ -272,7 +299,7 @@ async function main() {
       res.end(String(e && e.stack || e));
     }
   });
-  server.listen(PORT, () => console.log('preview emulator on ' + origin));
+  server.listen(PORT, () => console.log('preview emulator on ' + origin + (STALE_MS ? ' (stale reads: ' + STALE_MS + ' ms on ' + STALE_KEYS.join(',') + ')' : '')));
   const stop = () => { saveState(); process.exit(0); };
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);

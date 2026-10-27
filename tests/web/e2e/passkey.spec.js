@@ -10,6 +10,8 @@
  *
  * 会话、票据、预览 KV 的处理都在 preview-helpers.cjs（为什么要手动写回 cookie 见那里的文件头）。
  * 预览站状态跨运行保留，用例互相依赖同一份 KV：这一组只用 1 个 worker 顺序跑（playwright.config.js）。
+ * 真实 KV 写后读最长约 60 秒才一致：写完马上要读的地方先轮询到服务端看见新值（h.KV_SETTLE，见 preview-helpers.cjs
+ * 文件头「写后读」），所以写 KV 的用例单条超时放到 h.KV_TEST_TIMEOUT。
  *
  * 运行：SGX_TEST_SUITE=passkey SGX_TEST_BASE=https://<preview> SGX_TEST_ROOT_KEY=<预览测试 RootKey> \
  *   [SGX_TEST_CF_TOKEN=… SGX_TEST_CF_ACCOUNT=… SGX_TEST_PREVIEW_KV_ID=…] \
@@ -23,6 +25,8 @@ const { BASE, ORIGIN, ROOT_KEY, SESSION, REAUTH } = h;
 
 test.describe('锁屏凭证 e2e（预览站）', () => {
   h.requirePreview(test);
+  /* 这一组几乎每条都写 KV（注册 / 删除推进纪元），写后读的等待最长 75 秒 */
+  test.describe.configure({ timeout: h.KV_TEST_TIMEOUT });
 
   test('锁屏凭证页：添加通行密钥 → 命名 → 列表里出现', async ({ page }) => {
     await h.adminSession(page, test);
@@ -39,9 +43,17 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
       await page.fill('#lockpkname-input', name);
       await page.click('#lockpkname-save');
       await expect(page.locator('#lockpkname-dlg')).toBeHidden({ timeout: 10000 });
-      await expect.poll(async () => page.locator('.lockmgr-pkitem input[type="text"]')
-        .evaluateAll((els) => els.map((e) => /** @type {HTMLInputElement} */ (e).value)), { timeout: 15000 })
-        .toContain(name);
+      /* 页面命名后就地刷新列表（原来就等 15 秒）；列表经 lock-passkey-index 读，真实 KV 写后读时就地刷新可能拿到旧列表：
+         15 秒内只看就地刷新的结果，之后每次重载页面再看（写后读，再多等最长 h.KV_SETTLE.timeout） */
+      const t0 = Date.now();
+      await expect.poll(async () => {
+        if (Date.now() - t0 > 15000) {
+          await page.reload();
+          await expect(page.locator('#lockmgr-pkadd')).toBeVisible({ timeout: 15000 });
+        }
+        return page.locator('.lockmgr-pkitem input[type="text"]')
+          .evaluateAll((els) => els.map((e) => /** @type {HTMLInputElement} */ (e).value));
+      }, { timeout: 15000 + h.KV_SETTLE.timeout, intervals: [500, 1000, 2000, 5000] }).toContain(name);
       const keys = await h.listPasskeys(page);
       expect(keys.map((k) => k.name)).toContain(name);
     } finally {
@@ -57,6 +69,9 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
     try {
       const reg = await h.registerPasskey(page, { name: 'E2E-unlock' });
       expect(reg.json && reg.json.ok, JSON.stringify(reg.json)).toBe(true);
+      /* 锁屏只在 GET /api/lock-entry 说 passkey:true 时才放「通行密钥」选项（lock.js）；
+         它读 lock-passkey-index，刚注册完边缘可能还是旧索引：等它看见再去锁屏 */
+      await h.waitLockEntryPasskey(page, true);
 
       /* 去掉会话，回到锁屏 */
       await page.context().clearCookies({ name: SESSION });
@@ -65,6 +80,7 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
       await expect(lock).toBeVisible({ timeout: 15000 });
       await page.click('#sgx-lock-avatar');
       await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible({ timeout: 5000 });
+      await expect(page.locator('#sgx-mopt-pk'), '锁屏方式面板里有通行密钥选项').toBeVisible({ timeout: 5000 });
 
       /* 读 auth 接口的原始响应头：预览域名存不下 Domain=.styrigx.com 的 cookie，只能看头 */
       const authResp = page.waitForResponse((r) => {
@@ -113,11 +129,15 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
       const b = await h.registerPasskey(page, { name: 'E2E-B' });
       expect(a.json && a.json.ok, JSON.stringify(a.json)).toBe(true);
       expect(b.json && b.json.ok, JSON.stringify(b.json)).toBe(true);
-      const ids = (await h.listPasskeys(page)).map((k) => k.credId);
-      expect(ids).toEqual(expect.arrayContaining([a.json.credId, b.json.credId]));
+      /* 列表按 lock-passkey-index 读：写后读，轮询到两把都在 */
+      await expect.poll(async () => (await h.listPasskeys(page)).map((k) => k.credId), h.KV_SETTLE)
+        .toEqual(expect.arrayContaining([a.json.credId, b.json.credId]));
 
       const del = await h.api(page, '/api/lock-passkey', { action: 'delete', credId: a.json.credId });
       expect(del.status, JSON.stringify(del.json)).toBe(200);
+      /* 删除推进纪元（会话已在 api() 里等到新纪元可见）并改索引：等列表里没有 A 再验 A 的断言（只读） */
+      await expect.poll(async () => (await h.listPasskeys(page)).map((k) => k.credId), h.KV_SETTLE)
+        .not.toContain(a.json.credId);
 
       const gone = await h.assertPasskey(page, a.json.credId);
       expect(gone.status).toBe(403);
@@ -148,6 +168,9 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
       /* 先有一把通行密钥，删密码就不是删最后一把钥匙 */
       const reg = await h.registerPasskey(page, { name: 'E2E-keep' });
       expect(reg.json && reg.json.ok, JSON.stringify(reg.json)).toBe(true);
+      /* remove 的「最后一把钥匙」检查经 lock-passkey-index 数通行密钥：写后读，等列表里有这把再删密码（只读） */
+      await expect.poll(async () => (await h.listPasskeys(page)).map((k) => k.credId), h.KV_SETTLE)
+        .toContain(reg.json.credId);
 
       await page.context().clearCookies({ name: REAUTH });
       let r = await h.api(page, '/api/lock-password', { action: 'remove' });
@@ -158,6 +181,12 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
       r = await h.api(page, '/api/lock-password', { action: 'remove' });
       expect(r.json && r.json.ok, JSON.stringify(r.json)).toBe(true);
       h.rememberPassword('');
+      /* 写后读：等 lock-password 的删除可见（只读的 lock-credentials）再验旧密码；
+         直接 verify 若读到旧哈希会成功，还会白写失败计数 */
+      await expect.poll(async () => {
+        const st = await h.apiGet(page, '/api/lock-credentials');
+        return st.json && st.json.ok ? st.json.password : 'status ' + st.status;
+      }, h.KV_SETTLE).toBe(false);
 
       r = await h.api(page, '/api/lock-password', { action: 'verify', password: pw });
       expect(r.json.ok).toBe(false);
@@ -184,10 +213,12 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
 
     /* request fixture 没有 context 的 cookie：只带指定的那一个 */
     const check = (v) => request.get(BASE + '/api/lock-session-check', { headers: { Cookie: SESSION + '=' + v } });
+    /* 新会话按新纪元重签；h.api 已轮询到它可见（settleSession），旧会话这时必须已失效：严格断言，不轮询 */
     expect((await check(oldSession)).status()).toBe(401);
     const newSession = await h.currentCookie(page, SESSION);
     expect(newSession).not.toBe(oldSession);
-    expect((await check(newSession)).status()).toBe(200);
+    /* 新会话：lock-epoch 写后读，最长约 60 秒才一致（不同边缘节点可能各自缓存），轮询到 200 */
+    await expect.poll(async () => (await check(newSession)).status(), h.KV_SETTLE).toBe(200);
 
     const v = await h.api(page, '/api/lock-password', { action: 'verify', password: oldPw });
     expect(v.json.ok).toBe(false);
@@ -205,8 +236,11 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
       const r = await h.api(page, '/api/lock-passkey', { action: 'rename', credId, name: newName });
       expect(r.status, JSON.stringify(r.json)).toBe(200);
       expect(r.json.ok).toBe(true);
-      const item = (await h.listPasskeys(page)).find((k) => k.credId === credId);
-      expect(item && item.name).toBe(newName);
+      /* rename 按 credId 直接读记录，所以「注册后立刻」改名不受索引影响；列表经索引 + 记录读，写后读轮询到新名字 */
+      await expect.poll(async () => {
+        const item = (await h.listPasskeys(page)).find((k) => k.credId === credId);
+        return item && item.name;
+      }, h.KV_SETTLE).toBe(newName);
     } finally {
       await h.deleteAllPasskeys(page);
       await va.remove();
@@ -218,20 +252,22 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
     await h.lockReauth(page);
     const va = await h.addVirtualAuth(page, { uv: true });
     try {
+      /* lock-credentials 经 lock-passkey-index 读：每次写完轮询到新状态（写后读，只读） */
+      const creds = async () => {
+        const st = await h.apiGet(page, '/api/lock-credentials');
+        expect(st.json && st.json.ok, JSON.stringify(st.json)).toBe(true);
+        return st.json;
+      };
       await h.deleteAllPasskeys(page);
-      let st = await h.apiGet(page, '/api/lock-credentials');
-      expect(st.json && st.json.ok, JSON.stringify(st.json)).toBe(true);
-      expect(st.json.passkey).toBe(false);
+      await expect.poll(async () => (await creds()).passkey, h.KV_SETTLE).toBe(false);
 
       const reg = await h.registerPasskey(page);
       expect(reg.json && reg.json.ok, JSON.stringify(reg.json)).toBe(true);
-      st = await h.apiGet(page, '/api/lock-credentials');
-      expect(st.json.passkey).toBe(true);
+      await expect.poll(async () => (await creds()).passkey, h.KV_SETTLE).toBe(true);
 
       await h.deleteAllPasskeys(page);
-      st = await h.apiGet(page, '/api/lock-credentials');
-      expect(st.json.passkey).toBe(false);
-      expect(st.json.password).toBe(true);
+      await expect.poll(async () => (await creds()).passkey, h.KV_SETTLE).toBe(false);
+      expect((await creds()).password).toBe(true);
     } finally {
       await h.deleteAllPasskeys(page);
       await va.remove();
@@ -309,6 +345,7 @@ test.describe('会话安全 e2e（预览站）', () => {
   });
 
   test('退出所有设备：纪元 +1，旧会话 cookie 失效', async ({ page, request }) => {
+    test.setTimeout(h.KV_TEST_TIMEOUT); /* lock-epoch 写后读最长 75 秒 */
     const pw = await h.adminSession(page, test);
     let r = await h.api(page, '/api/lock-password', { action: 'verify', password: pw });
     const sc1 = h.setCookieLine(r.resp, SESSION);
@@ -323,8 +360,10 @@ test.describe('会话安全 e2e（预览站）', () => {
     expect(clear).toContain('Domain=.styrigx.com');
     expect(clear).toContain('Max-Age=0');
 
-    const check = await request.get(BASE + '/api/lock-session-check', { headers: { Cookie: SESSION + '=' + old } });
-    expect(check.status()).toBe(401);
+    /* 退出所有设备清掉了当前会话，没有新纪元的票可以先等它可见：只能看旧会话本身。
+       lock-epoch 写后读，旧会话最长约 60 秒后必须失效（轮询同一个 401）；之后再解锁才保证按新纪元签票 */
+    await expect.poll(async () => (await request.get(BASE + '/api/lock-session-check', { headers: { Cookie: SESSION + '=' + old } })).status(),
+      h.KV_SETTLE).toBe(401);
 
     r = await h.api(page, '/api/lock-password', { action: 'verify', password: pw });
     expect(r.json.ok).toBe(true);
