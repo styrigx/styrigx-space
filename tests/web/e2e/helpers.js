@@ -4,8 +4,8 @@
  *   （天气 API、Google favicon、外部字体/CDN），避免
  *   networkidle 永远等不到，也避免外部波动影响测试和截图。
  *   favicon 返回本地占位图，保证截图稳定。
- * - freezeTime(page)：冻结时间到 2026-10-09 12:00:00+08:00（Playwright page.clock.setFixedTime：Date.now / new Date() 恒为该时刻，
- *   计时器照常走；时刻本身带 +08:00，与运行机时区无关；页面里的显示时区由 playwright.config.js 的 timezoneId 固定为 Asia/Shanghai）。
+ * - freezeTime(page)：冻结时间到 2026-10-09 12:00:00+08:00（init script 换掉 window.Date：Date.now / new Date() 恒为该时刻，
+ *   计时器照常走；不用 page.clock，它会把 performance 一起换掉；时刻本身带 +08:00，与运行机时区无关；页面里的显示时区由 playwright.config.js 的 timezoneId 固定为 Asia/Shanghai）。
  * - 确定性等待（C8：替代固定时长的 waitForTimeout / networkidle）：
  *   nextFrames(page, n)       等页面再渲染 n 帧（同步事件处理之后的 rAF / 样式更新都已落地）；
  *   animationsDone(page)      等文档里所有有限时长的动画 / 过渡（含 view transition 伪元素）结束；
@@ -60,13 +60,24 @@ async function blockExternalRequests(page) {
 const FROZEN_AT = '2026-10-09T12:00:00+08:00';
 
 /**
- * 冻结时间：2026-10-09 12:00:00+08:00。
- * C8：原来用 addInitScript 换掉 window.Date；改用 Playwright 自带的 page.clock.setFixedTime——同一时刻、同样「只冻结日期、计时器照常走」，
- * 另外 Intl.DateTimeFormat#format() 不传参数时也取这个时刻。要在 page.goto 之前调（和以前一样）。
- * 同一页面不要再 page.clock.install()（需要推进时间的用例直接用 page.clock，见 account-status / lock-reset-pk-busy）。
+ * 冻结时间：2026-10-09 12:00:00+08:00（只换 window.Date：Date.now / new Date() 恒为该时刻，计时器照常走）。
+ * 不用 page.clock.setFixedTime：Playwright 的假时钟连 performance 一起换掉，getEntriesByType() 恒为空——
+ * inpage-tabs 的 settle()（读 Resource Timing）、导航类型 / loadEventStart 断言全部拿不到东西（PR #228 CI，2026-10-28）。
+ * 需要推进时间的用例直接用 page.clock，且不要和本函数同用（见 account-status / lock-reset-pk-busy）。
  */
 async function freezeTime(page) {
-  await page.clock.setFixedTime(new Date(FROZEN_AT));
+  await page.addInitScript((at) => {
+    const frozen = new Date(at).getTime();
+    const RealDate = Date;
+    // @ts-ignore
+    window.Date = class extends RealDate {
+      constructor(...args) {
+        if (args.length === 0) super(frozen);
+        else super(...args);
+      }
+      static now() { return frozen; }
+    };
+  }, FROZEN_AT);
 }
 
 /** 等页面再渲染 n 帧 @param {import('@playwright/test').Page} page @param {number} [n] */
