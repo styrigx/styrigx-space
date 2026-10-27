@@ -37,6 +37,7 @@ import {
   verifyAssertion,
   rpIdHashOf,
   consumeChallenge,
+  issueChallenge,
 } from '../_kernel/passkey-verify.js';
 import {
   issueLockSession,
@@ -47,13 +48,15 @@ import {
 import { checkLockManage, TICKET_IDS } from '../_kernel/lock-manage.js';
 import { issueTicket, reissueTicketWithEpoch } from '../_kernel/tickets.js';
 import { LOCK_REAUTH_TICKET, BY_PASSKEY } from '../_kernel/realms.js';
-import { LAYER_LOCK, setLayerConfigured, clearLayerConfigured, isLayerConfigured, isAccountEffectivelyConfigured } from '../_kernel/layers.js';
+import { isLockEffectivelyConfigured, isAccountEffectivelyConfigured } from '../_kernel/layers.js';
 import { verifyLockSession, looksVisitor } from '../_kernel/lock-session.js';
-import { REALM_LOCK, LOCK_EPOCH_KEY, KEY_LOCK, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
+import { REALM_LOCK, REALM_ACCOUNT, KEY_LOCK, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
+import { hasPassword } from '../_kernel/password.js';
 import {
   getPasskeys,
   getPasskey,
   savePasskey,
+  updatePasskey,
   deletePasskey,
   getUserHandle,
   providerOf,
@@ -63,8 +66,8 @@ import {
 } from '../_kernel/passkey-store.js';
 import { isSameOrigin, originDenied, json, apiError } from '../_kernel/http.js';
 
-/* 锁屏通行密钥注册/登录 challenge 的 KV 前缀（与账号 challenge 隔离） */
-const CHALLENGE_PREFIX = REALM_LOCK.kv.passkeyChallengePrefix;
+/* 锁屏通行密钥注册 / 解锁 challenge：D1 challenge 表 realm='lock'，purpose = register / auth（与账号 challenge 按 realm 隔离） */
+const CH = REALM_LOCK.challenge;
 
 /**
  * 锁屏通行密钥管理门禁：LockReauthTicket + admin 锁屏会话，或 LockResetTicket（
@@ -78,11 +81,11 @@ async function checkPasskeyManage(request, env, op) {
 }
 
 /**
- * 按 credId 直接读一把锁屏通行密钥（不走索引列表，避开最终一致）；不存在 → null（账号通行密钥在另一组键里，读不到）。
- * @param {any} kv @param {string} credId
+ * 按 credId 读一把锁屏通行密钥；不存在 → null（账号通行密钥是另一个域，读不到）。
+ * @param {any} env @param {string} credId
  */
-async function getLockKey(kv, credId) {
-  return await getPasskey(kv, PASSKEY_LOCK, credId);
+async function getLockKey(env, credId) {
+  return await getPasskey(env, PASSKEY_LOCK, credId);
 }
 
 /** @param {any} context */
@@ -97,15 +100,13 @@ export async function onRequestPost(context) {
 /** @param {any} context */
 async function handlePost(context) {
   const { request, env } = context;
-  const kv = env && env.KV_LOCK_DOOR;
-  const akv = env && env.KV_ACCOUNT_LOGIN; /* account-* 键：账号是否已设置、通行密钥不能两域共用 */
 
   if (request.method !== 'POST') {
     return apiError(405, 'method');
   }
   /* Origin 必须与本站同 host（CSRF 防护），缺失或解析失败一律 403 */
   if (!isSameOrigin(request)) return originDenied();
-  if (!kv || !akv) return apiError(500, 'config');
+  if (!(env && env[REALM_LOCK.d1Binding] && env[REALM_ACCOUNT.d1Binding])) return apiError(500, 'config');
 
   let body;
   try { body = await request.json(); } catch (e) {
@@ -128,7 +129,7 @@ async function handlePost(context) {
     if (type !== 'register' && type !== 'auth') {
       return apiError(400, 'params');
     }
-    const lockKeys = (await getPasskeys(kv, PASSKEY_LOCK));
+    const lockKeys = (await getPasskeys(env, PASSKEY_LOCK));
     if (type === 'register') {
       const mg = await checkPasskeyManage(request, env, 'register');
       if (!mg.ok) {
@@ -140,14 +141,16 @@ async function handlePost(context) {
       return apiError(403, 'not-set');
     }
     const challenge = randB64(32);
-    const cid = randB64(16);
+    let cid;
     try {
-      await kv.put(CHALLENGE_PREFIX + cid, JSON.stringify({ challenge, type, exp: Date.now() + 300000 }), { expirationTtl: 300 });
-    } catch (e) {}
+      cid = await issueChallenge(env, REALM_LOCK, type === 'register' ? CH.register : CH.auth, challenge, CH.ttl);
+    } catch (e) {
+      return apiError(503, 'server');
+    }
     const resp = { ok: true, cid: cid, challenge: challenge, rpId: RP_ID };
     if (type === 'register') {
-      /* 下发用户信息：全部写死，用户不填。displayName=Sloan Gray；name=LockKey。user.id 存 KV 复用。 */
-      const userHandle = await getUserHandle(kv, PASSKEY_LOCK);
+      /* 下发用户信息：全部写死，用户不填。displayName=Sloan Gray；name=LockKey。user.id 存 D1 user_handle 复用。 */
+      const userHandle = await getUserHandle(env, PASSKEY_LOCK);
       resp.user = {
         id: userHandle,
         name: KEY_LOCK,
@@ -175,8 +178,8 @@ async function handlePost(context) {
     const cred = (body && body.credential) || {};
     const cid = (body && body.cid) || '';
     /* 取 challenge（单次使用） */
-    const chRec = await consumeChallenge(kv, CHALLENGE_PREFIX + cid);
-    if (!chRec || chRec.type !== 'register' || chRec.exp < Date.now()) {
+    const chRec = await consumeChallenge(env, REALM_LOCK, CH.register, cid);
+    if (!chRec) {
       return apiError(403, 'challenge');
     }
     const mgReg = await checkPasskeyManage(request, env, 'register');
@@ -213,8 +216,10 @@ async function handlePost(context) {
       /* 存储（同 credId 去重；每把一个 key）。同一把凭据已登记为账号通行密钥 → 拒绝（一把凭据只属于一个域） */
       const now = Date.now();
       const deviceName = String((body && body.name) || '').slice(0, 40);
-      if (await getPasskey(akv, PASSKEY_ACCOUNT, credIdB64)) throw new Error('invalid-class');
-      const existing = await getPasskey(kv, PASSKEY_LOCK, credIdB64);
+      if (await getPasskey(env, PASSKEY_ACCOUNT, credIdB64)) throw new Error('invalid-class');
+      const existing = await getPasskey(env, PASSKEY_LOCK, credIdB64);
+      /* 存之前看锁屏层是不是已经配置过（D1 里已有锁屏 / 账号凭证，_kernel/layers.js；读失败按已配置） */
+      const lockWasConfigured = await isLockEffectivelyConfigured(env);
       /* AAGUID 映射 provider，作为默认名 */
       const mappedProvider = providerOf(aaguid);
       const item = {
@@ -228,15 +233,13 @@ async function handlePost(context) {
         signCount: parsed.signCount,
         uv: 1,
       };
-      await savePasskey(kv, PASSKEY_LOCK, item);
-      /* 首次配置锁屏层时标记 + 推进纪元（废止根凭证代开的解锁会话，必修安全项 2；
+      await savePasskey(env, PASSKEY_LOCK, item);
+      /* 首次配置锁屏层时推进纪元（废止根凭证代开的解锁会话，必修安全项 2；
          纪元推进失败则返回 503）。纪元推进后用新纪元重签 reauth / reset 票 + 当前设备会话，保持当前设备不掉线。 */
       let regNewEpoch = null;
       try {
-        const was = await isLayerConfigured(kv, LAYER_LOCK);
-        if (!was) {
-          await setLayerConfigured(kv, LAYER_LOCK);
-          regNewEpoch = await bumpLockEpoch(kv);
+        if (!lockWasConfigured) {
+          regNewEpoch = await bumpLockEpoch(env);
         }
       } catch (e) {
         return apiError(503, 'epoch');
@@ -274,21 +277,19 @@ async function handlePost(context) {
     }
     const cred = (body && body.credential) || {};
     const cid = (body && body.cid) || '';
-    const chRec = await consumeChallenge(kv, CHALLENGE_PREFIX + cid);
-    if (!chRec || chRec.type !== 'auth' || chRec.exp < Date.now()) {
+    /* 单次使用：一条 DELETE ... RETURNING（purpose、过期都在 WHERE 里）；验过断言才签会话 */
+    const chRec = await consumeChallenge(env, REALM_LOCK, CH.auth, cid);
+    if (!chRec) {
       return apiError(403, 'challenge');
     }
-    const lockKeys = (await getPasskeys(kv, PASSKEY_LOCK));
-    if (lockKeys.length === 0) {
-      return apiError(403, 'not-set');
+    /* 按 credential id 直接读这一把（D1，强一致：刚注册的能找到，刚删掉的找不到） */
+    const rawIdB64 = typeof cred.rawId === 'string' ? cred.rawId : '';
+    const stored = rawIdB64 ? await getLockKey(env, rawIdB64) : null;
+    if (!stored) {
+      if ((await getPasskeys(env, PASSKEY_LOCK)).length === 0) return apiError(403, 'not-set');
+      return apiError(403, 'unknown-key');
     }
-    /* 按 credential id 找对应公钥 */
-    const rawIdB64 = cred.rawId || '';
-    let stored = null;
-    for (let i = 0; i < lockKeys.length; i++) {
-      if (lockKeys[i].credId === rawIdB64) { stored = lockKeys[i]; break; }
-    }
-    if (!stored || !stored.publicKey) {
+    if (!stored.publicKey) {
       return apiError(403, 'unknown-key');
     }
     try {
@@ -305,16 +306,16 @@ async function handlePost(context) {
       });
       /* 校验 userHandle（如果有）；验证本身仍以凭据公钥签名为准。 */
       try {
-        const expectUh = await getUserHandle(kv, PASSKEY_LOCK);
+        const expectUh = await getUserHandle(env, PASSKEY_LOCK);
         const gotUh = cred.response.userHandle;
         if (expectUh && gotUh && gotUh !== expectUh) throw new Error('userHandle');
       } catch (e) {
         if (e && e.message === 'userHandle') throw e;
       }
-      /* 更新 signCount 和 lastUsedAt */
+      /* 更新 signCount 和 lastUsedAt（只改还在的那条：并发删除时不会把它写回来） */
       stored.signCount = checked.signCount;
       stored.lastUsedAt = Date.now();
-      try { await savePasskey(kv, PASSKEY_LOCK, stored); } catch (e2) {}
+      try { await updatePasskey(env, PASSKEY_LOCK, stored); } catch (e2) {}
       /* 通过：签发 Ed25519 会话 cookie（fail closed；issueLockSession 永不抛错）。
          通行密钥验证签admin 会话（12 小时）。reauth:true：只签 LockReauthTicket（by=passkey）。 */
       const headers = new Headers();
@@ -341,7 +342,7 @@ async function handlePost(context) {
     if (!mg.ok) {
       return json(mg.status, mg.body);
     }
-    const keys = (await getPasskeys(kv, PASSKEY_LOCK));
+    const keys = (await getPasskeys(env, PASSKEY_LOCK));
     return json(200, {
       ok: true,
       ticket: TICKET_IDS[mg.ticket],
@@ -363,7 +364,7 @@ async function handlePost(context) {
     const credId = (body && body.credId) || '';
     let name = (body && body.name) || '';
     if (!credId) return apiError(400, 'params');
-    const found0 = await getLockKey(kv, credId);
+    const found0 = await getLockKey(env, credId);
     if (!found0) {
       return apiError(404, 'not-found');
     }
@@ -375,7 +376,7 @@ async function handlePost(context) {
     name = String(name).replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, 40);
     if (!name) return apiError(400, 'params');
     found0.name = name;
-    await savePasskey(kv, PASSKEY_LOCK, found0);
+    if (!(await updatePasskey(env, PASSKEY_LOCK, found0))) return apiError(404, 'not-found');
     return json(200, { ok: true });
   }
 
@@ -385,7 +386,7 @@ async function handlePost(context) {
   if (action === 'delete') {
     const credId = (body && body.credId) || '';
     if (!credId) return apiError(400, 'params');
-    const found = await getLockKey(kv, credId);
+    const found = await getLockKey(env, credId);
     if (!found) {
       return apiError(404, 'not-found');
     }
@@ -397,14 +398,13 @@ async function handlePost(context) {
        账号未配置时禁止（403 last-key）。判断在任何 mutation 之前。 */
     let hasLockPassword = false;
     try {
-      const passwordRec = await kv.get(REALM_LOCK.kv.password, 'json');
-      hasLockPassword = !!(passwordRec && passwordRec.hash);
+      hasLockPassword = await hasPassword(env, REALM_LOCK);
     } catch (e) {}
-    const lockKeys = (await getPasskeys(kv, PASSKEY_LOCK));
+    const lockKeys = (await getPasskeys(env, PASSKEY_LOCK));
     if (!hasLockPassword && lockKeys.length <= 1) {
       let accountCfg = true;
       try {
-        accountCfg = await isAccountEffectivelyConfigured(akv, kv);
+        accountCfg = await isAccountEffectivelyConfigured(env);
       } catch (e) {
         accountCfg = true;
       }
@@ -415,30 +415,16 @@ async function handlePost(context) {
     /* 先推进纪元，成功才删（fail closed；纪元推进失败则密钥仍在）。 */
     let newEpoch = null;
     try {
-      const v = parseInt(await kv.get(LOCK_EPOCH_KEY) || '0', 10) || 0;
-      newEpoch = v + 1;
-      await kv.put(LOCK_EPOCH_KEY, String(newEpoch));
+      newEpoch = await bumpLockEpoch(env);
     } catch (e) {
       return apiError(503, 'epoch');
     }
-    await deletePasskey(kv, PASSKEY_LOCK, credId);
-    /* 删完后若锁屏层已无凭证：账号已配置 → 保留锁屏层标记；账号未配置（竞态）→ 清标记。 */
     try {
-      const hasLockKey = (await getPasskeys(kv, PASSKEY_LOCK)).length > 0;
-      let hasLockPassword2 = false;
-      try { const r = await kv.get(REALM_LOCK.kv.password, 'json'); hasLockPassword2 = !!(r && r.hash); } catch (e) {}
-      if (!hasLockKey && !hasLockPassword2) {
-        let accountCfg = true;
-        try { accountCfg = await isAccountEffectivelyConfigured(akv, kv); } catch (e) { accountCfg = true; }
-        if (!accountCfg) {
-          try {
-            await clearLayerConfigured(kv, LAYER_LOCK);
-          } catch (e) {
-            return apiError(503, 'server');
-          }
-        }
-      }
-    } catch (e) {}
+      await deletePasskey(env, PASSKEY_LOCK, credId);
+    } catch (e) {
+      return apiError(503, 'server');
+    }
+    /* 删完后锁屏层是否还算已配置由真实凭证推出（_kernel/layers.js：账号已配置时锁屏层仍算已配置），不另存标记 */
     /* 纪元推进后重签 reauth / reset 票 + 当前设备会话，保持门内连续操作不中断、当前设备不掉线。 */
     const headers = new Headers();
     if (newEpoch !== null) {

@@ -6,15 +6,15 @@
  *   直到窗口过去。不设全局暂停：根凭证是锁屏和账号都丢了时的恢复入口，任何人（换 IP 很便宜）都不能
  *   靠刷错把主人锁在外面；防穷举靠单 IP 锁定 + 减速 + RootKey 本身足够长且随机
  * - 只有真比对失败计入全局（recordRootFail 默认）；无会话假入口只计单 IP（{ global:false }），不比对就不算猜测
- * - KV 读写出错一律抛错（调用方 fail closed，返回 503）
+ * - D1 读写出错一律抛错（调用方 fail closed，返回 503）
  *
- * KV 键（realms.js REALM_ROOT.kv）：
- * - root-fail:<ip 分桶>：{ count, lockedUntil }
- * - root-fail-global：{ count, windowStart }
+ * 存储：D1 attempt_limit 表（attempt-limit.js；2026-10-27 从 KV root-fail:* / root-fail-global 搬来），realm = 'root'、kind = 'rootkey'：
+ * - bucket = IP 分桶：count、locked_until（expires_at = 最后一次失败 + 1 小时）
+ * - bucket = '*'：每小时窗口的失败次数
+ * 每次记失败都是原子 UPSERT（并发的失败不会互相覆盖）。
  */
-import { REALM_ROOT } from './realms.js';
 import { ipBucket } from './http.js';
-import { deleteIfPresent } from './kv-clear.js';
+import { readAttempt, globalHot, recordAttempt, recordGlobal, clearAttempt } from './attempt-limit.js';
 
 const ROOT_IP_MAX_FAIL = 5;
 const ROOT_IP_LOCK_MS = 15 * 60 * 1000;
@@ -22,60 +22,42 @@ export const ROOT_GLOBAL_SLOW_AT = 20;
 const ROOT_GLOBAL_WINDOW_MS = 60 * 60 * 1000;
 export const ROOT_GLOBAL_DELAY_MS = 3000;
 
-function failKey(ip) { return REALM_ROOT.kv.failPrefix + ipBucket(ip); }
-const GLOBAL_KEY = REALM_ROOT.kv.failGlobal;
+const REALM = 'root';
+const KIND = 'rootkey';
+const IP_TTL_MS = 3600 * 1000;
 
 /**
- * 检查是否被限速。KV 出错时抛错（调用方返回 503）。
- * @param {any} kv
+ * 检查是否被限速。D1 出错时抛错（调用方返回 503）。
+ * @param {any} env 网关 env（D1_ROOT_AUTH）
  * @param {string} ip
  * @returns {Promise<{limited:boolean, delayMs:number}>} delayMs：全局减速时比对前要等的毫秒数
  */
-export async function checkRootLimit(kv, ip) {
-  if (!kv) throw new Error('kv-missing');
-  const now = Date.now();
-  const rec = await kv.get(failKey(ip), 'json'); /* 出错直接抛 */
-  if (rec && rec.lockedUntil > now) {
+export async function checkRootLimit(env, ip) {
+  const rec = await readAttempt(env, REALM, KIND, ipBucket(ip)); /* 出错直接抛（含 D1 未绑定） */
+  if (rec && rec.lockedUntil > Date.now()) {
     return { limited: true, delayMs: 0 };
   }
-  const g = await kv.get(GLOBAL_KEY, 'json'); /* 出错直接抛 */
-  const hot = !!(g && g.windowStart + ROOT_GLOBAL_WINDOW_MS >= now && (g.count || 0) >= ROOT_GLOBAL_SLOW_AT);
+  const hot = await globalHot(env, REALM, KIND, ROOT_GLOBAL_WINDOW_MS, ROOT_GLOBAL_SLOW_AT);
   return { limited: false, delayMs: hot ? ROOT_GLOBAL_DELAY_MS : 0 };
 }
 
 /**
- * 记录一次失败。KV 出错时抛错（调用方返回 503）。
- * @param {any} kv
+ * 记录一次失败（原子）。D1 出错时抛错（调用方返回 503）。
+ * @param {any} env
  * @param {string} ip
  * @param {{global?:boolean}} [opts] global=false：只计单 IP（无会话假入口用）
  */
-export async function recordRootFail(kv, ip, opts) {
-  if (!kv) throw new Error('kv-missing');
-  const now = Date.now();
-  const rec = (await kv.get(failKey(ip), 'json')) || { count: 0 };
-  rec.count = (rec.count || 0) + 1;
-  if (rec.count >= ROOT_IP_MAX_FAIL) {
-    rec.lockedUntil = now + ROOT_IP_LOCK_MS;
-    rec.count = 0;
-  }
-  await kv.put(failKey(ip), JSON.stringify(rec), { expirationTtl: 3600 });
+export async function recordRootFail(env, ip, opts) {
+  await recordAttempt(env, REALM, KIND, ipBucket(ip), { max: ROOT_IP_MAX_FAIL, ttlMs: IP_TTL_MS, lockMs: ROOT_IP_LOCK_MS });
   if (opts && opts.global === false) return;
-  const g = (await kv.get(GLOBAL_KEY, 'json')) || { count: 0, windowStart: now };
-  if (!(g.windowStart + ROOT_GLOBAL_WINDOW_MS >= now)) {
-    g.count = 0;
-    g.windowStart = now;
-  }
-  g.count = (g.count || 0) + 1;
-  await kv.put(GLOBAL_KEY, JSON.stringify({ count: g.count, windowStart: g.windowStart }), { expirationTtl: 7200 });
+  await recordGlobal(env, REALM, KIND, ROOT_GLOBAL_WINDOW_MS);
 }
 
 /**
- * 清除某 IP 的失败计数（成功后调用；失败不影响主流程）。先读、有才删（kv-clear.js）：
- * 成功前没输错过就不花删除额度。
- * @param {any} kv
+ * 清除某 IP 的失败计数（成功后调用；失败不影响主流程）。
+ * @param {any} env
  * @param {string} ip
  */
-export async function clearRootFail(kv, ip) {
-  if (!kv) return;
-  try { await deleteIfPresent(kv, failKey(ip)); } catch (e) {}
+export async function clearRootFail(env, ip) {
+  try { await clearAttempt(env, REALM, KIND, ipBucket(ip)); } catch (e) {}
 }

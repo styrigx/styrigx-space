@@ -71,25 +71,24 @@ test.describe('credential APIs 真请求 e2e', () => {
     await page.goto(t.origin + '/');
   });
 
-  test('lock-password set/change/remove，KV 对应键更新', async ({ page, context }) => {
-    const kv = t.kv;
+  test('lock-password set/change/remove，D1 password 表的 lock 行更新（网关不绑 KV，「已配置」由凭证推出）', async ({ page, context }) => {
+    const d1 = t.d1;
     // set
     await mintBrowserAuth(context, 'password');
     let r = await apiFetch(page, '/api/lock-password',
       { action: 'set', password: 'LockPass-111' });
     expect(r.status).toBe(200);
     expect(r.json.ok).toBe(true);
-    const rec1 = await kv.get('lock-password', 'json');
+    const rec1 = d1.password('lock');
     expect(rec1 && rec1.hash).toBeTruthy();
     expect(rec1.peppered).toBe(true);
-    expect(await kv.get('lock-configured')).toBe('1');
 
     // change（epoch 已推进，重签票据）
     await mintBrowserAuth(context, 'password');
     r = await apiFetch(page, '/api/lock-password',
       { action: 'change', password: 'LockPass-222' });
     expect(r.json.ok).toBe(true);
-    const rec2 = await kv.get('lock-password', 'json');
+    const rec2 = d1.password('lock');
     expect(rec2.hash).not.toBe(rec1.hash);
 
     // 新密码能 verify 通过（证明存的是可用 hash）
@@ -103,20 +102,19 @@ test.describe('credential APIs 真请求 e2e', () => {
       { action: 'remove' });
     expect(r.status).toBe(403);
     expect(r.json.error).toBe('last-key');
-    expect((await kv.get('lock-password', 'json')).hash).toBe(rec2.hash);
+    expect(d1.password('lock').hash).toBe(rec2.hash);
   });
 
-  test('账号密码 set/change（/api/account；KV 仍存 account-password）', async ({ page, context }) => {
-    const kv = t.kv;
+  test('账号密码 set/change（/api/account；D1 password 表的 account 行，account-epoch 在 D1）', async ({ page, context }) => {
+    const d1 = t.d1;
     await mintBrowserAuth(context, 'root');
     // 第一次设账号密码：没有账号会话，凭根凭证签的 AccountResetTicket
     await mintBrowserAccountReset(context);
     let r = await apiFetch(page, '/api/account', { action: 'password-change', password: 'AccountPass-222' });
     expect(r.json.ok).toBe(true);
     expect(r.json.changed).toBe(false);
-    const rec1 = await kv.get('account-password', 'json');
+    const rec1 = d1.password('account');
     expect(rec1 && rec1.hash).toBeTruthy();
-    expect(await kv.get('account-configured')).toBe('1');
     // 首次配置推进了 lock-epoch：重签 lock 会话；之后用账号会话 + AccountReauthTicket 改密码
     await mintBrowserAuth(context, 'root');
     await context.clearCookies({ name: 'sgx-account-reset' });
@@ -124,9 +122,9 @@ test.describe('credential APIs 真请求 e2e', () => {
     r = await apiFetch(page, '/api/account', { action: 'password-change', password: 'AccountPass-333' });
     expect(r.json.ok).toBe(true);
     expect(r.json.changed).toBe(true);
-    const rec2 = await kv.get('account-password', 'json');
+    const rec2 = d1.password('account');
     expect(rec2.hash).not.toBe(rec1.hash);
-    expect(await kv.get('account-epoch')).toBe('1');
+    expect(d1.epoch('account')).toBe(1);
     // 新密码能登录账号
     r = await apiFetch(page, '/api/account', { action: 'login-password', password: 'AccountPass-333' });
     expect(r.json.ok).toBe(true);
@@ -137,8 +135,8 @@ test.describe('credential APIs 真请求 e2e', () => {
     expect(r.json.valid).toBe(false);
   });
 
-  test('通行密钥 register，KV 中 class 正确（lock：门内 lock-passkey / owner：账号页 /api/account）', async ({ page, context }) => {
-    const kv = t.kv;
+  test('通行密钥 register，D1 里域正确（lock：门内 lock-passkey / account：账号页 /api/account）', async ({ page, context }) => {
+    const d1 = t.d1;
     for (const pkClass of ['lock', 'account']) {
       await mintBrowserAuth(context, 'password');
       if (pkClass === 'account') await mintBrowserAccount(context, 'password');
@@ -158,13 +156,11 @@ test.describe('credential APIs 真请求 e2e', () => {
       expect(reg.json.ok).toBe(true);
       expect(reg.json.credId).toBeTruthy();
 
-      // 3）断言 KV：记录和索引落在对应域的键下（lock-passkey:* / account-passkey:*），不再写 class 字段
-      const prefix = pkClass === 'account' ? 'account-passkey' : 'lock-passkey';
-      const idx = await kv.get(prefix + '-index', 'json');
-      expect(idx).toContain(reg.json.credId);
-      const stored = await kv.get(prefix + ':' + String(reg.json.credId).slice(0, 12), 'json');
+      // 3）断言 D1：记录落在对应域（passkey 表 realm 列），另一个域没有；不写 class 字段
+      const stored = d1.passkey(pkClass, reg.json.credId);
       expect(stored).toBeTruthy();
       expect(stored.class).toBeUndefined();
+      expect(d1.passkey(pkClass === 'account' ? 'lock' : 'account', reg.json.credId)).toBeNull();
     }
     // 账号页只列账号类；锁屏接口只列锁屏类（账号类只在账号页管理）。
     // 第一次注册账号通行密钥推进了 lock-epoch：先按新纪元重签锁屏会话和账号会话

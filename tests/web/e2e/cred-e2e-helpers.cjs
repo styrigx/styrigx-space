@@ -15,7 +15,7 @@ const http = require('node:http');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 /* 内存 KV、DER→PEM：和 Worker 单测同一份（tests/workers/_harness.cjs） */
-const { makeKV, derToPem } = require('../../workers/_harness.cjs');
+const { makeKV, makeAuthD1, derToPem } = require('../../workers/_harness.cjs');
 
 const REPO = path.join(__dirname, '..', '..', '..');
 
@@ -123,17 +123,19 @@ async function makeAttestationCredential(challengeB64url, rpId, origin) {
 /**
  * 启动凭证测试服务器。
  * @param {number} port 监听端口
- * @returns {Promise<{kv, env, origin, close, mintAuth}>}
+ * @returns {Promise<{kv, d1, env, origin, close, mintAuth}>}
+ *   d1：网关 D1 替身（全部认证状态在这里，2026-10-27 起；kv 只是旧接口兼容，网关不读）
  *   mintAuth(reauthBy) → { sessionCookie, reauthCookie }
  */
 async function startCredentialTestServer(port) {
   const origin = `http://localhost:${port}`;
   const kv = makeKV();
+  const d1 = makeAuthD1();
   const lkp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
   const privPem = derToPem(await crypto.subtle.exportKey('pkcs8', lkp.privateKey), 'PRIVATE KEY');
   const pubPem = derToPem(await crypto.subtle.exportKey('spki', lkp.publicKey), 'PUBLIC KEY');
   const env = {
-    KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
+    D1_LOCK_AUTH: d1, D1_ACCOUNT_AUTH: d1, D1_ROOT_AUTH: d1, /* 网关只绑 D1（2026-10-27 起不绑 KV） */
     SGX_PW_PEPPER: 'e2e-test-pepper',
     SGX_LOCK_PRIVATE: privPem,
     SGX_LOCK_PUBLIC: pubPem,
@@ -205,7 +207,7 @@ async function startCredentialTestServer(port) {
   await new Promise((resolve) => server.listen(port, '127.0.0.1', resolve));
 
   async function mintAuth(reauthBy) {
-    const epoch = await sessMod.getLockEpoch(kv);
+    const epoch = await sessMod.getLockEpoch(env);
     const sessionCookie = await sessMod.signLockSessionTicket(privPem, { by: 'password', role: 'admin', epoch, exp: Date.now() + 12 * 3600 * 1000, tempkeyId: '' });
     const reauthCookie = await ticketsMod.signTicket(privPem, 'LockReauthTicket', reauthBy || 'password', epoch);
     return { sessionCookie, reauthCookie };
@@ -213,24 +215,25 @@ async function startCredentialTestServer(port) {
 
   /* 账号会话（sgx-account-session）：by=passkey|password，authAt 默认现在；epoch 读当前 Account 纪元 */
   async function mintAccount(by, authAt) {
-    const epoch = await acctSess.getAccountEpoch(kv);
+    const epoch = await acctSess.getAccountEpoch(env);
     return await acctSess.signAccountSessionTicket(privPem, { by, epoch, authAt: authAt || Date.now(), deviceId: 'e2edevicee2edev1' });
   }
 
   /* AccountReauthTicket（sgx-account-reauth），按当前 Account 纪元签 */
   async function mintAccountReauth(by) {
-    const epoch = await acctSess.getAccountEpoch(kv);
+    const epoch = await acctSess.getAccountEpoch(env);
     return await ticketsMod.signTicket(privPem, 'AccountReauthTicket', by || 'password', epoch);
   }
 
   /* AccountResetTicket（sgx-account-reset）：只有 by=root（RootKey 不签账号会话，第一次设账号凭证走重置票） */
   async function mintAccountReset() {
-    const epoch = await acctSess.getAccountEpoch(kv);
+    const epoch = await acctSess.getAccountEpoch(env);
     return await ticketsMod.signTicket(privPem, 'AccountResetTicket', 'root', epoch);
   }
 
   return {
     kv,
+    d1,
     env,
     origin,
     mintAuth,

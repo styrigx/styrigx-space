@@ -8,7 +8,7 @@
  * 票内容：by.epoch.authAt.exp.deviceId，最后一段是签名：
  *   sig = Ed25519(SGX_ACCOUNT_PRIVATE, "sgx-account-session|by.epoch.authAt.exp.deviceId")，base64url
  * - by：passkey | password
- * - epoch：Account 纪元（KV account-epoch；改账号密码 / 删账号通行密钥时 +1）
+ * - epoch：Account 纪元（D1 epoch 表 realm='account' 那一行，见 d1-state.js；改账号密码 / 删账号通行密钥时 +1）
  * - authAt：本次登录验证时刻（毫秒）；重签（纪元推进后保持当前设备）时保留原值
  * - exp：过期时刻（毫秒）
  * - deviceId：本次登录的设备 id（_kernel/account-devices.js；设备页列出、可单独退出，黑名单命中 reason=revoked）
@@ -17,11 +17,12 @@
  * 缺 SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC：签发返回 503 config，验证一律失败
  * （reason=no-pubkey）；只影响账号登录，网站其余部分不受影响。
  *
- * 叶子模块：只 import _kernel（crypto / realms / account-devices），不 import 接口或 _middleware.js。
+ * 叶子模块：只 import _kernel（crypto / realms / account-devices / d1-state），不 import 接口或 _middleware.js。
  */
 import { ed25519Sign, ed25519Verify } from './crypto.js';
 import { readCookie } from './cookies.js';
-import { REALM_ACCOUNT, ACCOUNT_SESSION_COOKIE, ACCOUNT_EPOCH_KEY, COOKIE_EXPIRED, realmPrivateKey, realmPublicKey } from './realms.js';
+import { REALM_ACCOUNT, ACCOUNT_SESSION_COOKIE, COOKIE_EXPIRED, realmPrivateKey, realmPublicKey } from './realms.js';
+import { readEpoch, bumpEpoch } from './d1-state.js';
 import { newDeviceId, isDeviceId, isRevoked, getDevice, putDevice, recordLogin, deviceInfo, TOUCH_INTERVAL_MS } from './account-devices.js';
 import { apiError } from './http.js';
 
@@ -48,24 +49,21 @@ export function accountConfigMissing() {
 }
 
 /**
- * 读 account-epoch。KV 读取出错时抛错（调用方 503）；键不存在当 0。
- * @param {any} kv
+ * 读 account-epoch（D1，强一致）。出错时抛错（调用方 503）。
+ * @param {any} env
+ * @returns {Promise<number>}
  */
-export async function getAccountEpoch(kv) {
-  const v = await kv.get(ACCOUNT_EPOCH_KEY);
-  if (v === null || v === undefined) return 0;
-  return parseInt(v, 10) || 0;
+export async function getAccountEpoch(env) {
+  return readEpoch(env, REALM_ACCOUNT);
 }
 
 /**
- * account-epoch +1（读出错抛错，绝不写入）。
- * @param {any} kv
+ * account-epoch +1（D1 原子自增；出错抛错，绝不写入）。
+ * @param {any} env
  * @returns {Promise<number>} 新 epoch
  */
-export async function bumpAccountEpoch(kv) {
-  const v = await getAccountEpoch(kv);
-  await kv.put(ACCOUNT_EPOCH_KEY, String(v + 1));
-  return v + 1;
+export async function bumpAccountEpoch(env) {
+  return bumpEpoch(env, REALM_ACCOUNT);
 }
 
 /**
@@ -105,7 +103,7 @@ export function parseAccountSessionTicket(val) {
  * @param {any} request
  * @param {any} env
  * @returns {Promise<{ok:boolean, reason:string, by?:string, epoch?:number, authAt?:number, exp?:number, deviceId?:string}>}
- *   reason: ok / no-cookie / bad-format / expired / not-yet / no-pubkey / epoch-changed / kv-error / bad-sig / revoked
+ *   reason: ok / no-cookie / bad-format / expired / not-yet / no-pubkey / epoch-changed / d1-error / bad-sig / revoked
  */
 export async function verifyAccountSession(request, env) {
   const val = readCookie(request, ACCOUNT_SESSION_COOKIE);
@@ -119,20 +117,20 @@ export async function verifyAccountSession(request, env) {
   if (!pub) return { ok: false, reason: 'no-pubkey' };
   let cur;
   try {
-    cur = await getAccountEpoch(env && env.KV_ACCOUNT_LOGIN);
+    cur = await getAccountEpoch(env);
   } catch (e) {
-    return { ok: false, reason: 'kv-error' };
+    return { ok: false, reason: 'd1-error' };
   }
   if (p.epoch !== cur) return { ok: false, reason: 'epoch-changed' };
   const ok = await ed25519Verify(pub, SIG_PREFIX + p.by + '.' + p.epoch + '.' + p.authAt + '.' + p.exp + '.' + p.deviceId, p.sig);
   if (!ok) return { ok: false, reason: 'bad-sig' };
-  const kv = env && env.KV_ACCOUNT_LOGIN;
+  /* 单独退出的设备：每个请求读一次 D1 主库（不缓存），退出后那台的下一个请求就被拒 */
   try {
-    if (await isRevoked(kv, p.deviceId)) return { ok: false, reason: 'revoked' };
+    if (await isRevoked(env, p.deviceId)) return { ok: false, reason: 'revoked' };
   } catch (e) {
-    return { ok: false, reason: 'kv-error' };
+    return { ok: false, reason: 'd1-error' };
   }
-  await touchDevice(kv, request, p);
+  await touchDevice(env, request, p);
   return {
     ok: true,
     reason: 'ok',
@@ -145,16 +143,15 @@ export async function verifyAccountSession(request, env) {
 }
 
 /**
- * 刷新设备的 lastSeen（至多 30 分钟一次）；记录不见了（比如 KV 丢了）就按本次请求补一条。尽力而为。
- * @param {any} kv @param {any} request @param {{deviceId:string, by:string, authAt:number}} p
+ * 刷新设备的 lastSeen（至多 30 分钟一次）；记录不见了（比如登录时没写进去）就按本次请求补一条。尽力而为。
+ * @param {any} env @param {any} request @param {{deviceId:string, by:string, authAt:number}} p
  */
-async function touchDevice(kv, request, p) {
-  if (!kv) return;
+async function touchDevice(env, request, p) {
   try {
     const now = Date.now();
-    const rec = await getDevice(kv, p.deviceId);
+    const rec = await getDevice(env, p.deviceId);
     if (!rec) {
-      await putDevice(kv, Object.assign({ deviceId: p.deviceId, by: p.by, createdAt: p.authAt, authAt: p.authAt, lastSeen: now }, deviceInfo(request, null)));
+      await putDevice(env, Object.assign({ deviceId: p.deviceId, by: p.by, createdAt: p.authAt, authAt: p.authAt, lastSeen: now }, deviceInfo(request, null)));
       return;
     }
     if (now - (rec.lastSeen || 0) < TOUCH_INTERVAL_MS) return;
@@ -162,7 +159,7 @@ async function touchDevice(kv, request, p) {
     rec.lastSeen = now;
     if (cf.country) rec.country = String(cf.country).slice(0, 4);
     if (cf.city) rec.city = String(cf.city).slice(0, 40);
-    await putDevice(kv, rec);
+    await putDevice(env, rec);
   } catch (e) { /* 写不进去不影响验证 */ }
 }
 
@@ -170,14 +167,14 @@ async function touchDevice(kv, request, p) {
  * 签发账号会话 cookie（fail closed，永不抛错）。
  * 成功返回 null；失败返回 { status, body }：
  * - 缺 SGX_ACCOUNT_PRIVATE/PUBLIC → 503 config
- * - 读 account-epoch 出错 → 503 server
+ * - 读 account-epoch（D1）出错 → 503 server
  * - 签名出错 → 500 sign-failed
  * @param {any} env
  * @param {Headers} headers
  * @param {string} by passkey | password
  * @param {object} [opts]
  * @param {number} [opts.authAt] 默认当前时刻（新登录）；重签时传原值
- * @param {number} [opts.epoch] 默认读 KV
+ * @param {number} [opts.epoch] 默认读 D1 当前值
  * @param {string} [opts.deviceId] 沿用的设备 id（同一浏览器重新登录 / 纪元推进后重签）；不给就新建
  * @param {boolean} [opts.record] 是否写设备记录（默认 true；纪元推进后重签传 false）
  * @param {any} [opts.request] 写设备记录用（User-Agent、cf 国家城市）
@@ -192,7 +189,7 @@ export async function issueAccountSession(env, headers, by, opts) {
   let epoch = o.epoch;
   if (typeof epoch !== 'number') {
     try {
-      epoch = await getAccountEpoch(env && env.KV_ACCOUNT_LOGIN);
+      epoch = await getAccountEpoch(env);
     } catch (e) {
       return { status: 503, body: { ok: false, error: 'server' } };
     }
@@ -202,9 +199,9 @@ export async function issueAccountSession(env, headers, by, opts) {
     const deviceId = isDeviceId(o.deviceId || '') ? o.deviceId : newDeviceId();
     const cv = await signAccountSessionTicket(realmPrivateKey(env, REALM_ACCOUNT), { by: by, epoch: epoch, authAt: authAt, deviceId: deviceId });
     headers.append('Set-Cookie', ACCOUNT_SESSION_COOKIE + '=' + cv + '; ' + REALM_ACCOUNT.cookieAttrs + '; Max-Age=' + ACCOUNT_SESSION_MAX_AGE);
-    if (o.record !== false && env && env.KV_ACCOUNT_LOGIN) {
+    if (o.record !== false) {
       try {
-        await recordLogin(env.KV_ACCOUNT_LOGIN, deviceId, by, authAt, deviceInfo(o.request, o.device));
+        await recordLogin(env, deviceId, by, authAt, deviceInfo(o.request, o.device));
       } catch (e) { /* 设备记录写不进去不挡登录：验证时 touchDevice 会补 */ }
     }
   } catch (e) {

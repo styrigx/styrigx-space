@@ -1,9 +1,8 @@
 /**
- * passkey-e2e 的 KV 配额：scripts/kv-budget.mjs（清预览 KV 只删干扰键、每次运行估算）和 deploy.yml 里的接线。
+ * passkey-e2e 的预览状态：scripts/kv-budget.mjs（清预览 D1 只清干扰本次运行的表、每次运行估算）和 deploy.yml 里的接线。
  *
- * 背景：免费计划的 KV 写 / 删 / 列各 1000 次、按整个账号每个 UTC 日算，预览 KV 和生产网关共用；
- * 2026-10-25 四次 passkey-e2e 用掉了全账号约 84% 的非读操作。
- * 现在 PR 运行走本地模拟器（tests/web/e2e/preview-emulator.cjs，KV 操作为 0），真实预览只在 main 的 push / 手动运行上跑。
+ * 2026-10-27 起网关认证状态全部在 D1 styrigx-auth-gateway(-preview)，不再绑定 KV：清预览只碰 D1，估算里 KV 操作全为 0。
+ * PR 运行走本地模拟器（tests/web/e2e/preview-emulator.cjs），真实预览只在 main 的 push / 手动运行上跑。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,54 +10,47 @@ import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import {
-  selectResetKeys, RESET_EXACT, RESET_PREFIXES, PER_RUN_ESTIMATE,
-} from '../../../scripts/kv-budget.mjs';
-import { REALM_LOCK, REALM_ACCOUNT, REALM_ROOT, LOCK_EPOCH_KEY, ACCOUNT_EPOCH_KEY } from '../../../workers/auth-gateway/functions/_kernel/realms.js';
+import * as budget from '../../../scripts/kv-budget.mjs';
+import { REALM_LOCK } from '../../../workers/auth-gateway/functions/_kernel/realms.js';
 
+const { PER_RUN_ESTIMATE, RESET_D1_TABLES, d1DatabaseId, previewD1Id } = budget;
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const require = createRequire(import.meta.url);
 const yaml = require('js-yaml');
 
-test('清预览 KV：删「已设置」状态和按 IP 的失败计数 / 冷却', () => {
-  const del = [
-    'lock-password', 'lock-configured', 'lock-passkey-index', 'lock-passkey:AbCdEf123456',
-    'account-password', 'account-configured', 'account-passkey-index', 'account-passkey:ZyXw98765432',
-    'root-fail:203.0.113.7', 'lock-password-fail:2001:db8:0:0', 'lock-password-cooldown:203.0.113.7',
-    'account-password-fail:203.0.113.7', 'account-password-cooldown:203.0.113.7', 'lock-tempkey-fail:203.0.113.7',
-  ];
-  const keep = [
-    LOCK_EPOCH_KEY, ACCOUNT_EPOCH_KEY, 'lock-user-id', 'account-user-id',
-    'root-audit:1792948408903:sig6b6tj', 'root-fail-global', 'lock-password-fail-global', 'account-password-fail-global',
-    'lock-tempkey-fail-global', 'lock-passkey-challenge:vlCE79kMLp6zn6jAXWoZQg', 'account-passkey-challenge:x',
-    'lock-reset-challenge:x', 'lock-reset-switch', 'lock-tempkey:abc', 'lock-tempkey-code:h', 'lock-tempkey-revoked:abc',
-    'account-device:d1', 'account-device-revoked:d1',
-  ];
-  const got = selectResetKeys([...del, ...keep].map((name) => ({ name, expiration: 1 })));
-  assert.deepEqual(got.sort(), del.slice().sort());
-  assert.deepEqual(selectResetKeys([]), []);
-  assert.deepEqual(selectResetKeys([{}, null, { name: '' }]), []);
+test('kv-budget.mjs 只管 D1：不再导出 KV 清理（selectResetKeys / RESET_EXACT / RESET_PREFIXES），源码不调 KV REST', () => {
+  for (const n of ['selectResetKeys', 'RESET_EXACT', 'RESET_PREFIXES']) assert.equal(budget[n], undefined, n);
+  const src = readFileSync(path.join(REPO, 'scripts/kv-budget.mjs'), 'utf8').split('\n').filter((l) => !/^\s*(\*|\/\/|\/\*)/.test(l)).join('\n');
+  assert.doesNotMatch(src, /storage\/kv|kv\/namespaces/, '不调 KV REST');
+  assert.match(src, /\/d1\/database\//);
 });
 
-test('清预览 KV：键名全部取自 realms.js（改名时跟着走），前缀都以冒号结尾、不吞掉别的键', () => {
-  for (const k of [REALM_LOCK.kv.password, REALM_LOCK.kv.configured, REALM_LOCK.kv.passkeyIndex,
-    REALM_ACCOUNT.kv.password, REALM_ACCOUNT.kv.configured, REALM_ACCOUNT.kv.passkeyIndex]) {
-    assert.ok(RESET_EXACT.includes(k), k);
+test('清预览 D1：只清 passkey / password / attempt_limit（「是否已设置」和输错计数）；纪元、审计、重置开关等不清', () => {
+  assert.deepEqual([...RESET_D1_TABLES], ['passkey', 'password', 'attempt_limit']);
+  for (const t of ['epoch', 'kv_migration', 'recovery_switch', 'user_handle', 'audit', 'challenge', 'tempkey', 'device']) {
+    assert.ok(!RESET_D1_TABLES.includes(t), t + ' 不清');
   }
-  assert.ok(RESET_PREFIXES.includes(REALM_ROOT.kv.failPrefix));
-  for (const p of RESET_PREFIXES) {
-    assert.ok(typeof p === 'string' && p.endsWith(':'), p);
-  }
-  /* 通行密钥记录前缀不能顺带删掉 challenge（lock-passkey: vs lock-passkey-challenge:） */
-  assert.ok(!REALM_LOCK.kv.passkeyChallengePrefix.startsWith(REALM_LOCK.kv.passkeyPrefix));
-  assert.ok(!REALM_ACCOUNT.kv.passkeyChallengePrefix.startsWith(REALM_ACCOUNT.kv.passkeyPrefix));
-  /* 纪元不删（旧会话 / 票是旧钥匙签的，验签先失败） */
-  assert.ok(!RESET_EXACT.includes(LOCK_EPOCH_KEY) && !RESET_EXACT.includes(ACCOUNT_EPOCH_KEY));
+  /* 每张要清的表都真的在迁移里（不会清错表名） */
+  const mig = ['0005_lock_account_state.sql', '0006_auth_state.sql']
+    .map((f) => readFileSync(path.join(REPO, 'workers/auth-gateway/migrations', f), 'utf8')).join('\n');
+  for (const t of RESET_D1_TABLES) assert.match(mig, new RegExp('CREATE TABLE IF NOT EXISTS ' + t + ' \\('), t);
 });
 
-test('每次运行的估算覆盖本地模拟器实测（写 87、删 47、列 9、读 549）', () => {
-  for (const t of ['read', 'write', 'delete', 'list']) assert.ok(PER_RUN_ESTIMATE[t] > 0, t);
-  assert.ok(PER_RUN_ESTIMATE.write >= 87 && PER_RUN_ESTIMATE.delete >= 47 && PER_RUN_ESTIMATE.list >= 9 && PER_RUN_ESTIMATE.read >= 549);
+test('清预览 D1：库 id 取 web/wrangler.toml 预览的 D1_LOCK_AUTH，三个名字同一个库，且不是正式库', () => {
+  const pvToml = readFileSync(path.join(REPO, 'web/wrangler.toml'), 'utf8');
+  const prodToml = readFileSync(path.join(REPO, 'workers/auth-gateway/wrangler.toml'), 'utf8');
+  const pv = previewD1Id(REPO);
+  assert.equal(pv, d1DatabaseId(pvToml, REALM_LOCK.d1Binding));
+  assert.equal(pv, d1DatabaseId(pvToml, 'D1_ACCOUNT_AUTH'), '预览三个 D1 名字同一个库');
+  assert.equal(pv, d1DatabaseId(pvToml, 'D1_ROOT_AUTH'), '预览三个 D1 名字同一个库');
+  assert.notEqual(pv, d1DatabaseId(prodToml, 'D1_LOCK_AUTH'));
+  assert.equal(d1DatabaseId('[[d1_databases]]\nbinding = "X"\ndatabase_id = "ab-cd"\n', 'X'), 'ab-cd');
+  assert.equal(d1DatabaseId('[[kv_namespaces]]\nbinding = "X"\nid = "abcd"\n', 'X'), '', '只认 d1_databases 块');
+});
+
+test('每次运行的估算：KV 操作全为 0（网关和测试都不碰 KV），D1 语句数有上限', () => {
+  for (const t of ['read', 'write', 'delete', 'list']) assert.equal(PER_RUN_ESTIMATE[t], 0, t);
+  assert.ok(PER_RUN_ESTIMATE.d1Statements > 0);
 });
 
 function passkeyJob() {
@@ -73,22 +65,21 @@ const PREVIEW_RUN = 'Run WebAuthn E2E (SGX_TEST_SUITE=passkey)';
 const EMU_START = 'Start local preview emulator (pull_request only)';
 const EMU_RUN = 'Run WebAuthn E2E on local emulator (SGX_TEST_SUITE=passkey, pull_request only)';
 
-test('deploy.yml：没有 KV 预算闸；清预览 KV 用 kv-budget.mjs，只在真实预览路上、且在部署预览 / 跑用例之前', () => {
+test('deploy.yml：没有 KV 预算闸、不清 KV；清预览 D1 用 kv-budget.mjs，只在真实预览路上、且在部署预览 / 跑用例之前', () => {
   const job = passkeyJob();
   const names = job.steps.map((s) => s.name);
   const idx = (prefix) => names.findIndex((n) => n && n.startsWith(prefix));
   assert.equal(idx('KV budget guard'), -1);
+  assert.equal(idx('Reset preview KV'), -1, '网关不再绑 KV，不清预览 KV');
   assert.ok(!job.steps.some((s) => s.run && /kv-budget\.mjs guard/.test(s.run)));
-  const reset = idx('Reset preview KV');
+  const reset = idx('Reset preview D1');
   assert.ok(reset > 0);
-  assert.equal(job.steps[reset].if, GATE + ' && ' + NOT_PR, 'PR 不清预览 KV');
+  assert.equal(job.steps[reset].if, GATE + ' && ' + NOT_PR, 'PR 不清预览 D1');
   assert.ok(idx('Setup Node') < reset, 'node 要先装好');
   for (const later of ['Deploy to preview', PREVIEW_RUN]) {
-    assert.ok(idx(later) > reset, later + ' 必须在清预览 KV 之后');
+    assert.ok(idx(later) > reset, later + ' 必须在清预览 D1 之后');
   }
-  assert.match(job.steps[reset].run, /node scripts\/kv-budget\.mjs reset-preview "\$kv"/);
-  /* 生产 KV id 断言还在 */
-  assert.match(job.steps[reset].run, /preview KV id must not be the production gateway KV/);
+  assert.match(job.steps[reset].run, /^node scripts\/kv-budget\.mjs reset-preview\s*$/);
 });
 
 test('deploy.yml：只改文档 / 样式才跳过；不再复用 PR 运行的结果（PR 测的是模拟器，不能顶替 main 上的真实预览）', () => {
@@ -119,7 +110,7 @@ test('deploy.yml：只改文档 / 样式才跳过；不再复用 PR 运行的结
   assert.ok(job.steps.indexOf(prodGuard) > last);
 });
 
-test('deploy.yml：PR → 本地模拟器（不用 Cloudflare secret、不部署预览、不清预览 KV）；main / 手动 → 真实预览', () => {
+test('deploy.yml：PR → 本地模拟器（不用 Cloudflare secret、不部署预览、不清预览 D1）；main / 手动 → 真实预览', () => {
   const wf = yaml.load(readFileSync(path.join(REPO, '.github/workflows/deploy.yml'), 'utf8'));
   const job = wf.jobs['passkey-e2e'];
   /* 必需检查：job 名、触发条件、上游不变 */
@@ -138,12 +129,12 @@ test('deploy.yml：PR → 本地模拟器（不用 Cloudflare secret、不部署
   assert.ok(usesSecrets.length >= 6);
   for (const s of usesSecrets) assert.ok(String(s.if).includes(NOT_PR), s.name + ': ' + s.if);
   /* 真实预览那条路的步骤：只在 main / 手动运行 */
-  for (const n of ['Require Cloudflare secrets', 'Reset preview KV', 'Bundle auth gateway as the preview _worker.js',
+  for (const n of ['Require Cloudflare secrets', 'Reset preview D1', 'Bundle auth gateway as the preview _worker.js',
     'Generate Ed25519 test key pairs', "Put this run's public keys", 'Set preview test secrets', 'Apply D1 migrations to preview',
     'Deploy to preview', PREVIEW_RUN, 'Guard - no private vars on Pages production']) {
     assert.ok(String(step(n).if).includes(NOT_PR), n);
   }
-  /* 真实预览的用例步骤原样：读 web/wrangler.toml 的预览地址和 KV id，用 Pages 部署 token */
+  /* 真实预览的用例步骤原样：读 web/wrangler.toml 的预览地址，用 Pages 部署 token */
   const pv = step(PREVIEW_RUN);
   assert.equal(pv.env.SGX_TEST_CF_TOKEN, '${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}');
   assert.match(pv.run, /export SGX_TEST_BASE=/);
@@ -179,12 +170,12 @@ test('deploy.yml：PR → 本地模拟器（不用 Cloudflare secret、不部署
     SGX_TEST_CF_API: 'http://127.0.0.1:8788/client/v4',
     SGX_TEST_CF_TOKEN: 'x',
     SGX_TEST_CF_ACCOUNT: 'x',
-    SGX_TEST_PREVIEW_KV_ID: 'local',
+    SGX_TEST_PREVIEW_D1_ID: 'local',
     CI: '1',
   });
   assert.match(emu.run, /^npx playwright test --config=tests\/config\/playwright\.config\.js$/m);
   const header = readFileSync(path.join(REPO, 'tests/web/e2e/preview-emulator.cjs'), 'utf8').slice(0, 3000);
-  for (const v of ['SGX_TEST_BASE=http://localhost:8788', 'SGX_TEST_CF_API=http://127.0.0.1:8788/client/v4', 'SGX_TEST_PREVIEW_KV_ID=local']) {
+  for (const v of ['SGX_TEST_BASE=http://localhost:8788', 'SGX_TEST_CF_API=http://127.0.0.1:8788/client/v4', 'SGX_TEST_PREVIEW_D1_ID=local']) {
     assert.ok(header.includes(v), '模拟器文件头写的运行方式：' + v);
   }
 

@@ -19,7 +19,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { testLockSession, testAccountSession } from './_tickets.mjs';
-import { genKeyPair } from '../_harness.mjs';
+import { genKeyPair, makeAuthD1 } from '../_harness.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
@@ -38,7 +38,9 @@ const ACCOUNT_HTML = '<!doctype html><html lang="zh"><body>' +
 
 function env() {
   const seen = [];
+  const d1 = makeAuthD1(); /* 纪元在 D1，空库 → 0 */
   return {
+    D1_LOCK_AUTH: d1, D1_ACCOUNT_AUTH: d1, D1_ROOT_AUTH: d1,
     seen,
     SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, SGX_ACCOUNT_PUBLIC: PUB,
     KV_LOCK_DOOR: { async get() { return null; }, async put() {} },

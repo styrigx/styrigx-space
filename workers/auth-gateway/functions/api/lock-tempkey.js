@@ -10,6 +10,7 @@
  * - revoke { id } → 作废（拿这把钥匙进来的访客下一个请求就进不来）
  * 访客调用：middleware 已按管理员专属接口 403；这里再验一次admin 会话。
  */
+import { REALM_LOCK } from '../_kernel/realms.js';
 import { ROLE_ADMIN } from '../_kernel/lock-session.js';
 import { verifyAccountSession } from '../_kernel/account-session.js';
 import { getPepper } from '../_kernel/password.js';
@@ -35,13 +36,13 @@ export async function onRequestGet(context) {
 /** @param {any} context */
 async function handle(context) {
   const { request, env } = context;
-  const kv = env && env.KV_LOCK_DOOR;
+  const lockDb = env && env[REALM_LOCK.d1Binding]; /* D1_LOCK_AUTH（纪元、临时钥匙都在这里）：没绑 → 500 config */
   if (!isSameOrigin(request)) return originDenied();
   const sess = await verifyLockSession(request, env);
   if (!sess.ok || sess.role !== ROLE_ADMIN) return apiError(401, 'session');
   const acc = await verifyAccountSession(request, env);
   if (!acc.ok) return apiError(401, 'account', { reason: acc.reason });
-  if (!kv) return apiError(500, 'config');
+  if (!lockDb) return apiError(500, 'config');
 
   let body;
   try { body = await request.json(); } catch (e) {
@@ -52,7 +53,7 @@ async function handle(context) {
   if (action === 'list') {
     try {
       /* 分享短链自动签的钥匙（link，styrigx-share 经 ShareIssuer 签发）不出现在这里，只在短链列表里管 */
-      const keys = (await listTempkeys(kv)).filter(function (k) { return !k.link; });
+      const keys = (await listTempkeys(env)).filter(function (k) { return !k.link; });
       return json(200, { ok: true, keys: keys });
     } catch (e) {
       return apiError(503, 'server');
@@ -67,7 +68,7 @@ async function handle(context) {
     const pepper = getPepper(env);
     if (!pepper) return apiError(503, 'config');
     try {
-      const r = await createTempkey(kv, pepper, { name: name, ms: ms });
+      const r = await createTempkey(env, pepper, { name: name, ms: ms });
       return json(200, { ok: true, key: r.key, code: r.code });
     } catch (e) {
       if (e && e.message === 'full') return apiError(409, 'full');
@@ -79,7 +80,7 @@ async function handle(context) {
     const id = body.id;
     if (!isTempkeyId(id)) return apiError(400, 'params');
     try {
-      const ok = await revokeTempkey(kv, id);
+      const ok = await revokeTempkey(env, id);
       if (!ok) return apiError(404, 'not-found');
       return json(200, { ok: true });
     } catch (e) {

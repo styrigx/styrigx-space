@@ -1,5 +1,5 @@
 /**
- * 本地模拟 passkey-e2e 预览站，并给每一次 KV 操作记账。
+ * 本地模拟 passkey-e2e 预览站，并给每一次 KV / D1 操作记账。
  *
  * 用途：
  * 1. 不碰 Cloudflare 就能跑 SGX_TEST_SUITE=passkey 的 17 条用例：本地，以及 CI 里 pull_request 的 passkey-e2e
@@ -12,23 +12,27 @@
  * 模拟的东西：
  * - 网关：仓库里真实的 workers/auth-gateway/src/index.js（和 CI 打成 _worker.js 的是同一份代码），SGX_ENV=preview，
  *   env.ASSETS 读 web/public（先 hugo 构建生产版）。
- * - KV：一个内存 KV（KV_LOCK_DOOR 与 KV_ACCOUNT_LOGIN 绑同一个，和预览 wrangler.toml 一样），支持 expirationTtl / expiration，
- *   列表结果带 expiration（和 Cloudflare REST 一样）。默认不模拟边缘最终一致：读写立刻可见，所以重置开关的轮询只要一次，
- *   真实 CI 里会多几次（README 里的估算按上限算）。
- * - 可选的「读到旧值」（--stale-ms N [--stale-keys 前缀,前缀]）：网关对匹配前缀的键 get 时，在该键被写 / 删后的 N 毫秒内
- *   仍返回写之前的值（窗口内再写不延长窗口、不换旧值，像边缘缓存到期前一直拿着旧值）。用来在本地复现真实 KV
- *   写后读不到（边缘缓存最长约 60 秒）的用例；只影响网关读，REST 读和 list 不受影响。默认前缀 lock-epoch,lock-passkey-index。
- * - D1：node:sqlite 内存库，实现 prepare().bind().run() / first() / all() 这几个网关用到的方法。
+ * - KV：网关不再绑定 KV（2026-10-27 起认证状态全在 D1）。内存 KV 只留给 Cloudflare KV REST（scripts/migrate-kv-to-d1.mjs
+ *   本地对着它跑），支持 expirationTtl / expiration，列表结果带 expiration（和 Cloudflare REST 一样）。
+ * - 「读到旧值」（--stale-ms N [--stale-keys 前缀,前缀]）：以前用来复现 KV 写后读不到；网关已经不读 KV，这个选项只对
+ *   appKV（现在没人用）生效，保留是为了和以前的运行方式一致（staleReads 应为 0）。D1 强一致，不模拟旧值。
+ * - D1：node:sqlite 内存库（styrigx-auth-gateway-preview 的替身），实现网关用到的 prepare().bind().run() / first() / all()
+ *   和 batch()（一个事务，任何一条失败整批回滚，同 D1）。D1_LOCK_AUTH、D1_ACCOUNT_AUTH、D1_ROOT_AUTH 绑同一个库（同预览 wrangler.toml）。
+ *   启动时按文件名顺序跑 workers/auth-gateway/migrations/*.sql（同 CI 的「Apply D1 migrations to preview」）；
+ *   --no-migrations 不跑，模拟正式网关（部署 job 不跑迁移，表由 d1-state.js 遇到 no such table 时自建）。
+ *   /__kv/stats 的 d1 一栏按语句类型（select / insert / update / delete / other）记数。
  * - Cloudflare KV REST：/client/v4/accounts/<a>/storage/kv/namespaces/<id>/values/<key>（GET/PUT/DELETE）、/keys（列表，
- *   prefix / cursor / limit）、/bulk/delete（POST，按 Cloudflare 的计费口径每个键算一次删除）。测试进程用
+ *   prefix / cursor / limit）、/bulk/delete（POST，按 Cloudflare 的计费口径每个键算一次删除）；D1 REST 只有
+ *   /client/v4/accounts/<a>/d1/database/<id>/query（POST { sql, params }：scripts/kv-budget.mjs 清预览 D1、
+ *   scripts/migrate-kv-to-d1.mjs 导入、e2e helper 打开重置开关 / 清根凭证限速用）。测试进程用
  *   SGX_TEST_CF_API=http://127.0.0.1:<port>/client/v4 指过来。
  * - /__kv/stats（GET）：当前计数；/__kv/stats/reset（POST）清零计数（不清数据）；/__kv/dump（GET）：全部键和过期时间。
  *
  * 运行：
- *   node tests/web/e2e/preview-emulator.cjs [--port 8788] [--state /tmp/pv-kv.json] [--root-key K] [--pepper P] [--stale-ms N [--stale-keys …]]
- *   --state：启动时从该文件恢复 KV 和 D1（模拟「上一次运行留下的预览 KV」），退出（SIGINT/SIGTERM）时写回。
+ *   node tests/web/e2e/preview-emulator.cjs [--port 8788] [--state /tmp/pv-kv.json] [--root-key K] [--pepper P] [--stale-ms N [--stale-keys …]] [--no-migrations]
+ *   --state：启动时从该文件恢复 KV 和 D1 全部表（模拟「上一次运行留下的预览 KV / D1」），退出（SIGINT/SIGTERM）时写回。
  *   然后：SGX_TEST_SUITE=passkey SGX_TEST_BASE=http://localhost:8788 SGX_TEST_ROOT_KEY=K \
- *         SGX_TEST_CF_API=http://127.0.0.1:8788/client/v4 SGX_TEST_CF_TOKEN=x SGX_TEST_CF_ACCOUNT=x SGX_TEST_PREVIEW_KV_ID=local CI=1 \
+ *         SGX_TEST_CF_API=http://127.0.0.1:8788/client/v4 SGX_TEST_CF_TOKEN=x SGX_TEST_CF_ACCOUNT=x SGX_TEST_PREVIEW_D1_ID=local CI=1 \
  *         npx playwright test --config=tests/config/playwright.config.js
  */
 const http = require('node:http');
@@ -47,12 +51,14 @@ const STATE = arg('state', '');
 const ROOT_KEY = arg('root-key', 'local-preview-root-key');
 const PEPPER = arg('pepper', 'local-preview-pepper');
 const STALE_MS = Number(arg('stale-ms', 0)) || 0;
-const STALE_KEYS = String(arg('stale-keys', 'lock-epoch,lock-passkey-index')).split(',').map((x) => x.trim()).filter(Boolean);
+const STALE_KEYS = String(arg('stale-keys', 'lock-,account-,root-'))
+  .split(',').map((x) => x.trim()).filter(Boolean);
+const NO_MIGRATIONS = argv.includes('--no-migrations');
 const dynImport = new Function('u', 'return ' + 'im' + 'port(u)');
 const mod = (rel) => dynImport(pathToFileURL(path.join(REPO, rel)).href);
 
 /* ---------- 记账 ---------- */
-const stats = { app: {}, rest: {} };
+const stats = { app: {}, rest: {}, d1: {} };
 function prefixOf(key) {
   const m = String(key).match(/^[a-z-]+(:|$)/);
   return m ? m[0] : String(key);
@@ -141,44 +147,85 @@ const appKV = {
 /* ---------- D1（node:sqlite） ---------- */
 const { DatabaseSync } = require('node:sqlite');
 const db = new DatabaseSync(':memory:');
+const MIGRATIONS = path.join(REPO, 'workers/auth-gateway/migrations');
+function applyMigrations() {
+  for (const f of fs.readdirSync(MIGRATIONS).filter((x) => x.endsWith('.sql')).sort()) db.exec(fs.readFileSync(path.join(MIGRATIONS, f), 'utf8'));
+}
+function countD1(sql) {
+  const m = String(sql).trim().match(/^(select|insert|update|delete)\b/i);
+  const k = m ? m[1].toLowerCase() : 'other';
+  stats.d1[k] = (stats.d1[k] || 0) + 1;
+}
 const d1 = {
   prepare(sql) {
     let args = [];
     const stmt = {
       bind(...a) { args = a; return stmt; },
-      async run() {
+      /* 不计数的执行（batch 里逐条调） */
+      _run() {
         const r = db.prepare(sql).run(...args);
         return { success: true, meta: { changes: Number(r.changes || 0) } };
       },
+      async run() { countD1(sql); return stmt._run(); },
       async first() {
+        countD1(sql);
         const r = db.prepare(sql).get(...args);
         return r === undefined ? null : Object.assign({}, r);
       },
       async all() {
+        countD1(sql);
         return { success: true, results: db.prepare(sql).all(...args).map((r) => Object.assign({}, r)) };
       },
+      _sql: () => sql,
     };
     return stmt;
+  },
+  /* D1 batch：一个事务，任何一条失败整批回滚 */
+  async batch(stmts) {
+    db.exec('BEGIN');
+    try {
+      const out = stmts.map((st) => { countD1(st._sql()); return st._run(); });
+      db.exec('COMMIT');
+      return out;
+    } catch (e) {
+      db.exec('ROLLBACK');
+      throw e;
+    }
   },
 };
 
 /* ---------- 状态持久化（模拟跨运行保留的预览 KV / D1） ---------- */
+/** D1 里要持久化的表（迁移建的全部业务表，不含 sqlite 内部表） */
+function d1Tables() {
+  return db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all().map((r) => r.name);
+}
 function loadState() {
+  if (!NO_MIGRATIONS) applyMigrations();
   if (!STATE || !fs.existsSync(STATE)) return;
   const s = JSON.parse(fs.readFileSync(STATE, 'utf8'));
   for (const [k, e] of Object.entries(s.kv || {})) store.set(k, e);
-  db.exec('CREATE TABLE IF NOT EXISTS recovery_switch (hash TEXT PRIMARY KEY, first_seen INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0)');
-  for (const r of s.recovery_switch || []) {
-    db.prepare('INSERT OR REPLACE INTO recovery_switch (hash, first_seen, used) VALUES (?, ?, ?)').run(r.hash, r.first_seen, r.used);
+  /* 旧格式（只有 recovery_switch）也认 */
+  const tables = s.d1 || (s.recovery_switch ? { recovery_switch: s.recovery_switch } : {});
+  if (tables.recovery_switch) db.exec('CREATE TABLE IF NOT EXISTS recovery_switch (hash TEXT PRIMARY KEY, first_seen INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0)');
+  const have = new Set(d1Tables());
+  for (const [t, rows] of Object.entries(tables)) {
+    if (!have.has(t) || !/^[a-z_]+$/.test(t)) continue; /* --no-migrations 时表还没建：交给网关自建，不恢复 */
+    for (const r of rows) {
+      const cols = Object.keys(r);
+      db.prepare('INSERT OR REPLACE INTO ' + t + ' (' + cols.join(', ') + ') VALUES (' + cols.map(() => '?').join(', ') + ')').run(...cols.map((c) => r[c]));
+    }
   }
 }
 function saveState() {
   if (!STATE) return;
   const kv = {};
   for (const k of store.keys()) if (live(k)) kv[k] = store.get(k);
-  let rows = [];
-  try { rows = db.prepare('SELECT hash, first_seen, used FROM recovery_switch').all().map((r) => Object.assign({}, r)); } catch (e) {}
-  fs.writeFileSync(STATE, JSON.stringify({ kv, recovery_switch: rows }));
+  const tables = {};
+  for (const t of d1Tables()) {
+    if (!/^[a-z_]+$/.test(t)) continue;
+    tables[t] = db.prepare('SELECT * FROM ' + t).all().map((r) => Object.assign({}, r));
+  }
+  fs.writeFileSync(STATE, JSON.stringify({ kv, d1: tables }));
 }
 
 /* ---------- 静态文件（env.ASSETS） ---------- */
@@ -211,6 +258,20 @@ function cfJson(result, extra) {
 }
 async function cfRest(req) {
   const u = new URL(req.url);
+  /* D1 REST（scripts/kv-budget.mjs reset-preview 清 passkey / password 表）：POST .../d1/database/<id>/query { sql, params? } */
+  if (/^\/client\/v4\/accounts\/[^/]+\/d1\/database\/[^/]+\/query$/.test(u.pathname) && req.method === 'POST') {
+    const q = await req.json();
+    try {
+      countD1(q.sql);
+      const st = db.prepare(q.sql);
+      const isRead = /^\s*select\b/i.test(q.sql);
+      const out = isRead ? { results: st.all(...(q.params || [])).map((r) => Object.assign({}, r)), meta: { changes: 0 } }
+        : (() => { const r = st.run(...(q.params || [])); return { results: [], meta: { changes: Number(r.changes || 0) } }; })();
+      return cfJson([Object.assign({ success: true }, out)]);
+    } catch (e) {
+      return Response.json({ success: false, errors: [{ code: 7500, message: String(e && e.message) }], result: null }, { status: 400 });
+    }
+  }
   const m = u.pathname.match(/^\/client\/v4\/accounts\/[^/]+\/storage\/kv\/namespaces\/[^/]+(\/.*)$/);
   if (!m) return new Response('not found', { status: 404 });
   const rest = m[1];
@@ -260,7 +321,8 @@ async function main() {
   const origin = 'http://localhost:' + PORT;
   const env = {
     SGX_ENV: 'preview', SGX_SITE: 'space', SGX_ORIGIN: origin, SGX_RP_ID: 'localhost',
-    KV_LOCK_DOOR: appKV, KV_ACCOUNT_LOGIN: appKV, D1_LOCK_RESET: d1,
+    /* 网关 2026-10-27 起不绑 KV（同预览 wrangler.toml）；三个 D1 绑定接同一个库 */
+    D1_LOCK_AUTH: d1, D1_ACCOUNT_AUTH: d1, D1_ROOT_AUTH: d1,
     SGX_LOCK_PRIVATE: await pem(lkp.privateKey, 'pkcs8', 'PRIVATE KEY'), SGX_LOCK_PUBLIC: await pem(lkp.publicKey, 'spki', 'PUBLIC KEY'),
     SGX_ACCOUNT_PRIVATE: await pem(akp.privateKey, 'pkcs8', 'PRIVATE KEY'), SGX_ACCOUNT_PUBLIC: await pem(akp.publicKey, 'spki', 'PUBLIC KEY'),
     SGX_ROOT_KEY: ROOT_KEY, SGX_PW_PEPPER: PEPPER,
@@ -279,7 +341,7 @@ async function main() {
         method: req.method, headers, body: ['GET', 'HEAD'].includes(req.method) ? undefined : body, redirect: 'manual',
       });
       let r;
-      if (req.url.startsWith('/__kv/stats/reset')) { stats.app = {}; stats.rest = {}; delete stats.staleReads; r = Response.json({ ok: true }); }
+      if (req.url.startsWith('/__kv/stats/reset')) { stats.app = {}; stats.rest = {}; stats.d1 = {}; delete stats.staleReads; r = Response.json({ ok: true }); }
       else if (req.url.startsWith('/__kv/stats')) r = Response.json(stats);
       else if (req.url.startsWith('/__kv/dump')) {
         const out = {};
@@ -299,7 +361,7 @@ async function main() {
       res.end(String(e && e.stack || e));
     }
   });
-  server.listen(PORT, () => console.log('preview emulator on ' + origin + (STALE_MS ? ' (stale reads: ' + STALE_MS + ' ms on ' + STALE_KEYS.join(',') + ')' : '')));
+  server.listen(PORT, () => console.log('preview emulator on ' + origin + (STALE_MS ? ' (stale reads: ' + STALE_MS + ' ms on ' + STALE_KEYS.join(',') + ')' : '') + (NO_MIGRATIONS ? ' (D1 migrations not applied)' : '')));
   const stop = () => { saveState(); process.exit(0); };
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);

@@ -5,7 +5,7 @@
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { testLockSession, testAccountSession } from './_tickets.mjs';
-import { makeKV, genKeyPair } from '../_harness.mjs';
+import { makeKV, genKeyPair, authD1For } from '../_harness.mjs';
 
 const API = '../../../workers/auth-gateway/functions/api/';
 const KERNEL = '../../../workers/auth-gateway/functions/_kernel/';
@@ -16,7 +16,7 @@ const PEPPER = 'test-pepper-acc';
 
 function envFor(kv, overrides = {}) {
   return {
-    KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
+    KV_LOCK_DOOR: kv, D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), KV_ACCOUNT_LOGIN: kv,
     SGX_ROOT_KEY: ROOT_KEY,
     SGX_LOCK_PRIVATE: LOCK.priv,
     SGX_LOCK_PUBLIC: LOCK.pub,

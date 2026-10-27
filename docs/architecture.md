@@ -100,9 +100,9 @@ space（styrigx.com）相当于 One UI，blog、daymark、curio 等子站相当�
 - 敏感操作（「管理凭证」进门、注册/删除账号通行密钥、修改账号密码）要求 `authAt` 在 10 分钟内，
   过旧返回 403 `account-stale`，前端回账号页重新登录。
 - 改账号密码 / 删账号通行密钥时 `account-epoch` +1，其他设备的账号会话失效，当前设备重签。
-- 存储（第 5 层键名，带域前缀）：`account-password`、`account-passkey:*` + `account-passkey-index`、`account-user-id`、
-  `account-passkey-challenge:*`、`account-epoch`、`account-configured`、`account-device:*`、`account-device-revoked:*`；
-  账号密码登录限速 `account-password-fail:<ip>` / `account-password-cooldown:<ip>`（规则同锁屏密码）。
+- 存储（2026-10-27 起在 D1 `styrigx-auth-gateway`，绑定 `D1_ACCOUNT_AUTH`，各表 `realm = 'account'`）：
+  `password`、`passkey`、`user_handle`、`challenge`、`epoch`、`device`（已退出的 `revoked_at > 0`）；
+  「已配置」由凭证推出；账号密码登录限速在 `attempt_limit`（`kind = 'password'`，规则同锁屏密码）。网关不绑 KV。
 - 缺账号钥匙 → 账号登录 503 `config`，只影响账号登录与进门，网站其余部分不受影响。
 - 敏感操作还包括重命名账号通行密钥（`rename`，同样要求近期登录，不推纪元）。
 - 概念名 `AccountKey`（原 `OwnerKey`）：账号通行密钥注册时 WebAuthn `user.name = AccountKey`；

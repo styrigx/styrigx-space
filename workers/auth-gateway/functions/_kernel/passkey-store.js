@@ -1,37 +1,37 @@
 /**
  * 通行密钥存储（锁屏、账号两域共用的读写层）。
  *
- * 从原锁屏通行密钥接口里抽出（纯搬家，行为不变）：锁屏通行密钥接口（api/lock-passkey.js）、
- * 账号接口（api/account.js）、重置锁屏（api/lock-reset.js）、锁屏凭证状态等都从这里读写。
+ * 锁屏通行密钥接口（api/lock-passkey.js）、账号接口（api/account.js）、重置锁屏（api/lock-reset.js）、
+ * 锁屏凭证状态等都从这里读写。
  *
- * KV 结构（KV_LOCK_DOOR，键名见 realms.js 各域的 kv 表）：两域分开存——
- * 每把一个键 <域>-passkey:<credId 前 12 位>，字段顺序固定；索引 <域>-passkey-index 存 credId 数组
- * （避开 kv.list 的最终一致）。键名已表明域，记录里不写也不读 class 字段。
+ * 存储（2026-10-27 起）：D1 styrigx-auth-gateway 的 passkey 表（d1-state.js；lock 经 D1_LOCK_AUTH，account 经 D1_ACCOUNT_AUTH），
+ * 每把一行 (realm, credential_id, record)，record 字段顺序固定、不写 class。D1 强一致：注册 / 删除后下一个请求就能读到，
+ * 不再有 KV 索引的「读-改-写丢钥匙」和「刚注册锁屏找不到」。上线前 KV 里的记录由 scripts/migrate-kv-to-d1.mjs 导入。
+ * 用户 handle 在 D1 user_handle 表（每个 realm 一行，第一次注册时生成；以前的 KV lock-user-id / account-user-id 由导入脚本搬来）。
  * 每个函数第一个业务参数是域：PASSKEY_LOCK（LockKey）/ PASSKEY_ACCOUNT（AccountKey）。
  *
- * 叶子模块：只 import _kernel（crypto / realms）。
+ * 叶子模块：只 import _kernel（crypto / realms / d1-state）。
  */
 import { b64urlEnc } from './crypto.js';
 import { REALM_LOCK, REALM_ACCOUNT } from './realms.js';
+import {
+  listPasskeyRecords,
+  hasPasskeyRecord,
+  getPasskeyRecord,
+  putPasskeyRecord,
+  updatePasskeyRecord,
+  deletePasskeyRecord,
+  userHandleRecord,
+} from './d1-state.js';
 
 /* 通行密钥所属的域（= 凭证域 id）：锁屏通行密钥（LockKey）/ 账号通行密钥（AccountKey） */
 export const PASSKEY_LOCK = REALM_LOCK.id;
 export const PASSKEY_ACCOUNT = REALM_ACCOUNT.id;
 
-/** @param {string} domain @returns {{passkeyPrefix:string, passkeyIndex:string, userHandle:string}} */
-function domainKv(domain) {
-  if (domain === PASSKEY_LOCK) return REALM_LOCK.kv;
-  if (domain === PASSKEY_ACCOUNT) return REALM_ACCOUNT.kv;
+/** @param {string} domain 只认锁屏、账号两域 */
+function checkDomain(domain) {
+  if (domain === PASSKEY_LOCK || domain === PASSKEY_ACCOUNT) return domain;
   throw new Error('passkey-store: bad domain ' + JSON.stringify(domain));
-}
-
-/**
- * 通行密钥记录的键：<域>-passkey:<credId 前 12 位>。
- * @param {string} domain PASSKEY_LOCK | PASSKEY_ACCOUNT
- * @param {string} credId 完整 credId
- */
-export function passkeyKey(domain, credId) {
-  return domainKv(domain).passkeyPrefix + String(credId).slice(0, 12);
 }
 /* 通行密钥注册时 WebAuthn user.displayName（写死，用户不填；锁屏、账号两域相同） */
 export const PASSKEY_DISPLAY_NAME = 'Sloan Gray';
@@ -63,68 +63,45 @@ export function providerOf(aaguid) {
    checkAssertAuthData / verifyAssertion 已抽到 ../_kernel/passkey-verify.js（解锁、账号登录、重置锁屏共用） */
 
 /**
- * 读某域的索引；索引确实不存在（get 返回 null）时按前缀扫一遍补建并写回。
- * 读索引出错（KV 临时故障）时直接抛错，绝不拿最终一致的 kv.list 结果覆盖现有索引——
- * 那样刚注册的通行密钥可能从索引里掉出去（unknown-key，甚至把人锁在外面）。
- * 补建时任何一把读失败也抛错、不写回（不写残缺的索引）。
- * @param {any} kv @param {string} domain
- * @returns {Promise<string[]>}
+ * 读某域已注册的通行密钥（按注册顺序）。读失败返回 []（解锁 / 登录 / 列表这些调用方本来就按「没有」处理）。
+ * 要区分「没有」和「读不到」的（锁屏入口、真实凭证盘点）用 hasPasskey。
+ * @param {any} env @param {string} domain PASSKEY_LOCK | PASSKEY_ACCOUNT
  */
-async function ensureIndex(kv, domain) {
-  const c = domainKv(domain);
-  const idx = await kv.get(c.passkeyIndex, 'json'); /* 出错直接抛 */
-  if (Array.isArray(idx)) return idx;
-  const built = [];
-  const list = await kv.list({ prefix: c.passkeyPrefix });
-  for (const k of (list && list.keys) || []) {
-    const v = await kv.get(k.name, 'json'); /* 出错直接抛，不写残缺索引 */
-    if (v && v.credId && !built.includes(v.credId)) built.push(v.credId);
-  }
-  await kv.put(c.passkeyIndex, JSON.stringify(built));
-  return built;
-}
-
-/**
- * 按索引读取某域已注册的通行密钥（不走 kv.list，避开最终一致延迟）。
- * @param {any} kv @param {string} domain PASSKEY_LOCK | PASSKEY_ACCOUNT
- */
-export async function getPasskeys(kv, domain) {
+export async function getPasskeys(env, domain) {
+  checkDomain(domain);
   try {
-    const idx = await ensureIndex(kv, domain);
-    const keys = [];
-    for (const credId of idx) {
-      try {
-        const v = await kv.get(passkeyKey(domain, credId), 'json');
-        if (v && v.credId === credId) keys.push(v);
-      } catch (e) {}
-    }
-    return keys;
+    return await listPasskeyRecords(env, domain);
   } catch (e) {
     return [];
   }
 }
 
 /**
- * 读某域的单把通行密钥（不存在 / 读失败 → null）。
- * @param {any} kv @param {string} domain @param {string} credId
+ * 某域是否至少有一把通行密钥。读失败抛错（调用方按已配置处理，fail closed）。
+ * @param {any} env @param {string} domain
+ * @returns {Promise<boolean>}
  */
-export async function getPasskey(kv, domain, credId) {
+export async function hasPasskey(env, domain) {
+  checkDomain(domain);
+  return hasPasskeyRecord(env, domain);
+}
+
+/**
+ * 读某域的单把通行密钥（不存在 / 读失败 → null）。
+ * @param {any} env @param {string} domain @param {string} credId
+ */
+export async function getPasskey(env, domain, credId) {
+  checkDomain(domain);
   try {
-    const v = await kv.get(passkeyKey(domain, credId), 'json');
-    return v && v.credId === credId ? v : null;
+    return await getPasskeyRecord(env, domain, credId);
   } catch (e) {
     return null;
   }
 }
 
-/**
- * 保存某域的单把通行密钥（字段顺序固定，不写 class）。
- * @param {any} kv @param {string} domain @param {any} item
- */
-export async function savePasskey(kv, domain, item) {
-  const c = domainKv(domain);
-  /* 字段顺序固定：name 第一位，方便后台预览 */
-  const ordered = {
+/** 字段顺序固定（name 第一位，方便后台预览），不写 class @param {any} item */
+function orderedRecord(item) {
+  return {
     name: item.name || '通行密钥',
     provider: item.provider || '',
     aaguid: item.aaguid || '',
@@ -135,60 +112,64 @@ export async function savePasskey(kv, domain, item) {
     signCount: item.signCount || 0,
     uv: item.uv ? 1 : 0,
   };
-  await kv.put(passkeyKey(domain, item.credId), JSON.stringify(ordered), {
-    metadata: { name: ordered.name, provider: ordered.provider, createdAt: ordered.createdAt },
-  });
-  /* 同步更新索引（避开 kv.list 的最终一致延迟）。索引不存在时先按前缀补建再加，
-     不能只写这一把（会把还没进索引的旧通行密钥挤掉）；读索引出错就不动索引。 */
-  try {
-    const idx = (await ensureIndex(kv, domain)).slice();
-    if (!idx.includes(item.credId)) {
-      idx.push(item.credId);
-      await kv.put(c.passkeyIndex, JSON.stringify(idx));
-    }
-  } catch (e) {}
+}
+
+/**
+ * 保存某域的一把通行密钥（注册：没有就加，同 credId 已有就覆盖）。出错抛错。
+ * @param {any} env @param {string} domain @param {any} item
+ */
+export async function savePasskey(env, domain, item) {
+  checkDomain(domain);
+  const ordered = orderedRecord(item);
+  await putPasskeyRecord(env, domain, ordered);
   return ordered;
 }
 
 /**
- * 删除某域的单把通行密钥。
- * @param {any} kv @param {string} domain @param {string} credId
- * @returns {Promise<any|null>} 被删除的记录
+ * 更新某域已有的一把（解锁 / 登录后的 signCount、lastUsedAt，或改名）。这把已被删掉时什么都不写
+ * （不会把刚删的钥匙写回来）。出错抛错。
+ * @param {any} env @param {string} domain @param {any} item
+ * @returns {Promise<boolean>} 是否真的改到了
  */
-export async function deletePasskey(kv, domain, credId) {
-  const c = domainKv(domain);
-  const keyName = passkeyKey(domain, credId);
-  let rec = null;
-  try { rec = await kv.get(keyName, 'json'); } catch (e) {}
-  await kv.delete(keyName);
-  try {
-    let idx = await kv.get(c.passkeyIndex, 'json');
-    if (Array.isArray(idx)) {
-      idx = idx.filter(id => id !== credId);
-      await kv.put(c.passkeyIndex, JSON.stringify(idx));
-    }
-  } catch (e) {}
-  return rec;
+export async function updatePasskey(env, domain, item) {
+  checkDomain(domain);
+  return updatePasskeyRecord(env, domain, orderedRecord(item));
 }
 
 /**
- * 获取或创建固定用户 ID（32 字节随机，存 KV）。
- * 锁屏、账号两域各用一个 handle（lock-user-id / account-user-id，见 realms.js），
- * 不共用，防止 Samsung Pass 把 AccountKey 覆盖到 LockKey 上。
- * @param {any} kv
+ * 删除某域的单把通行密钥。出错抛错。
+ * @param {any} env @param {string} domain @param {string} credId
+ * @returns {Promise<any|null>} 被删除的记录
+ */
+export async function deletePasskey(env, domain, credId) {
+  checkDomain(domain);
+  return deletePasskeyRecord(env, domain, credId);
+}
+
+/**
+ * 获取或创建固定用户 ID（32 字节随机，D1 user_handle 表）。读写失败返回 null（调用方 503 / 跳过校验，同以前）。
+ * 锁屏、账号两域各用一个 handle，不共用，防止 Samsung Pass 把 AccountKey 覆盖到 LockKey 上。
+ * @param {any} env
  * @param {string} domain PASSKEY_ACCOUNT | PASSKEY_LOCK
  */
-export async function getUserHandle(kv, domain) {
-  const key = domainKv(domain).userHandle;
+export async function getUserHandle(env, domain) {
+  checkDomain(domain);
   try {
-    let uh = await kv.get(key);
-    if (!uh) {
-      const u8 = crypto.getRandomValues(new Uint8Array(32));
-      uh = b64urlEnc(u8);
-      await kv.put(key, uh);
-    }
-    return uh;
+    return (await userHandleRecord(env, domain, true, function () { return b64urlEnc(crypto.getRandomValues(new Uint8Array(32))); })) || null;
   } catch (e) {
     return null;
+  }
+}
+
+/**
+ * 只读某域的 user handle（不新建）：没有 / 读失败 → ''。
+ * @param {any} env @param {string} domain
+ */
+export async function peekUserHandle(env, domain) {
+  checkDomain(domain);
+  try {
+    return await userHandleRecord(env, domain, false, function () { return ''; });
+  } catch (e) {
+    return '';
   }
 }

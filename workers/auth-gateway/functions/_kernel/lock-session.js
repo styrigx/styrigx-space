@@ -9,11 +9,11 @@
  * - tempkeyId：visitor 会话是哪把临时钥匙换来的（lock-tempkey.js）；验票时查这把钥匙有没有被作废，
  *   作废后访客下一个请求就进不来。admin 会话这一段固定为空串（票里就是连着的两个点 "<exp>..<sig>"），
  *   空串只对 admin 合法、非空只对 visitor 合法，解析时两边都卡死。
- * - epoch：Lock 纪元（KV lock-epoch；改锁屏凭证 / 退出所有设备 +1，旧票随即失效）
+ * - epoch：Lock 纪元（D1 epoch 表 realm='lock' 那一行，见 d1-state.js；改锁屏凭证 / 退出所有设备 +1，旧票随即失效）
  * 验票只认 role=admin / visitor，其它格式一律无效。
  *
  * cookie 属性见 realms.js TICKETS.LockSessionTicket：Domain=.styrigx.com; SameSite=Lax（子站要读）。
- * KV 读取出错一律 fail closed（签发返回 503、验证无效），只有 key 确实不存在时纪元才当作 0。
+ * 纪元、临时钥匙是否还在都每次读 D1 主库（不缓存），读出错一律 fail closed（签发返回 503、验证无效 d1-error）。
  */
 import { ed25519Sign, ed25519Verify } from './crypto.js';
 import { readAllCookies } from './cookies.js';
@@ -22,7 +22,6 @@ import {
   TICKETS,
   LOCK_SESSION_TICKET,
   LOCK_SESSION_COOKIE,
-  LOCK_EPOCH_KEY,
   COOKIE_EXPIRED,
   ROLE_ADMIN,
   ROLE_VISITOR,
@@ -33,6 +32,7 @@ import {
   realmPublicKey,
 } from './realms.js';
 import { isTempkeyId, isTempkeyRevoked } from './lock-tempkey.js';
+import { readEpoch, bumpEpoch } from './d1-state.js';
 
 export { LOCK_SESSION_COOKIE, ROLE_ADMIN, ROLE_VISITOR };
 const CONF = TICKETS[LOCK_SESSION_TICKET];
@@ -105,25 +105,22 @@ export function parseLockSessionTicket(val) {
 }
 
 /**
- * 读 Lock 纪元。KV 读取出错时抛错（调用方必须返回 503，绝不继续写入）；只有 key 不存在时才当作 0。
- * @param {any} kv
+ * 读 Lock 纪元（D1，强一致）。出错时抛错（调用方必须返回 503，绝不继续写入）。
+ * @param {any} env
+ * @returns {Promise<number>}
  */
-export async function getLockEpoch(kv) {
-  const v = await kv.get(LOCK_EPOCH_KEY); /* 出错直接抛，不吞 */
-  if (v === null || v === undefined) return 0;
-  return parseInt(v, 10) || 0;
+export async function getLockEpoch(env) {
+  return readEpoch(env, REALM_LOCK);
 }
 
 /**
- * Lock 纪元 +1（改锁屏凭证 / 退出所有设备时调用）。
- * 读取出错时抛错，绝不写入（杜绝"出错→当 0→写入 1→纪元变小→旧 cookie 复活"）。
- * @param {any} kv
+ * Lock 纪元 +1（改锁屏凭证 / 退出所有设备时调用）。D1 原子自增：两次推进一定拿到两个不同的值；
+ * 出错抛错，绝不写入一个更小的值（杜绝「旧 cookie 复活」）。
+ * @param {any} env
  * @returns {Promise<number>} 新纪元
  */
-export async function bumpLockEpoch(kv) {
-  const v = await getLockEpoch(kv);
-  await kv.put(LOCK_EPOCH_KEY, String(v + 1));
-  return v + 1;
+export async function bumpLockEpoch(env) {
+  return bumpEpoch(env, REALM_LOCK);
 }
 
 /**
@@ -146,7 +143,7 @@ export async function issueLockSession(env, headers, o) {
   if (!priv) return { status: 500, body: { ok: false, error: 'no-session-key' } };
   let epoch;
   try {
-    epoch = await getLockEpoch(env && env.KV_LOCK_DOOR);
+    epoch = await getLockEpoch(env);
   } catch (e) {
     return { status: 503, body: { ok: false, error: 'server' } };
   }
@@ -190,7 +187,7 @@ export async function reissueLockSessionWithEpoch(env, headers, sess, newEpoch) 
  * @param {string} val
  * @param {any} env
  * @returns {Promise<{status:string, role:string|null, by:string|null, exp?:number, tempkeyId?:string}>}
- *   status: ok / bad-format / expired / no-pubkey / bad-sig / kv-error / epoch-low / tempkey-revoked
+ *   status: ok / bad-format / expired / no-pubkey / bad-sig / d1-error / epoch-low / tempkey-revoked
  */
 export async function verifyLockSessionTicket(val, env) {
   const p = parseLockSessionTicket(val);
@@ -201,16 +198,22 @@ export async function verifyLockSessionTicket(val, env) {
   let sigOk = false;
   try { sigOk = await ed25519Verify(pub, SIG_PREFIX + p.payload, p.sig); } catch (e) { sigOk = false; }
   if (!sigOk) return { status: 'bad-sig', role: null, by: null };
-  const kv = env && env.KV_LOCK_DOOR;
-  if (!kv) return { status: 'kv-error', role: null, by: null };
+  let cur;
   try {
-    if (p.epoch !== (await getLockEpoch(kv))) return { status: 'epoch-low', role: null, by: null };
-    /* visitor：钥匙到期由票自己的 exp 管（不晚于钥匙到期）；作废要查 KV，一次读 */
-    if (p.role === ROLE_VISITOR && (await isTempkeyRevoked(kv, p.tempkeyId))) {
+    cur = await getLockEpoch(env);
+  } catch (e) {
+    return { status: 'd1-error', role: null, by: null };
+  }
+  /* 纪元只认相等：比当前小是旧票；比当前大同样不认（纪元不会回退，除非存储出了事故，那时也不让票复活） */
+  if (p.epoch !== cur) return { status: 'epoch-low', role: null, by: null };
+  if (p.role !== ROLE_VISITOR) return { status: 'ok', role: p.role, by: p.by, exp: p.exp, tempkeyId: p.tempkeyId };
+  try {
+    /* visitor：钥匙到期由票自己的 exp 管（不晚于钥匙到期）；作废每个请求读一次 D1 主库，不缓存 */
+    if (await isTempkeyRevoked(env, p.tempkeyId)) {
       return { status: 'tempkey-revoked', role: null, by: null };
     }
   } catch (e) {
-    return { status: 'kv-error', role: null, by: null };
+    return { status: 'd1-error', role: null, by: null };
   }
   return { status: 'ok', role: p.role, by: p.by, exp: p.exp, tempkeyId: p.tempkeyId };
 }
@@ -226,7 +229,7 @@ function allLockSessionCookies(request) {
 
 /**
  * 请求是不是带着访客会话（只看格式和 role 段，不验签、不读存储）。
- * 访客假入口（root-auth / lock-reset / lock-password / lock-passkey）用它在读任何 KV 之前直接返回写死的失败，
+ * 访客假入口（root-auth / lock-reset / lock-password / lock-passkey）用它在读任何存储之前直接返回写死的失败，
  * 走真路径前再完整验票。格式按 parseLockSessionTicket（六段，visitor 必须带合法 tempkeyId）。
  * @param {any} request
  * @returns {boolean}

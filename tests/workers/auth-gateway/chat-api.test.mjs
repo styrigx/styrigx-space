@@ -16,7 +16,7 @@ import { API_ROUTES } from '../../../workers/auth-gateway/src/routes.js';
 import { SECRET_NAMES } from '../../../workers/auth-gateway/src/secrets.js';
 import chatWorker from '../../../workers/chat/src/index.js';
 import { testLockSession } from './_tickets.mjs';
-import { genKeyPair } from '../_harness.mjs';
+import { genKeyPair, withAuthD1 } from '../_harness.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 
@@ -44,7 +44,7 @@ const noCall = () => svc(() => { throw new Error('不应转给 styrigx-chat'); }
 
 function env(over = {}) {
   svcLog = [];
-  return { SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, KV_LOCK_DOOR: kv(), CHAT: noCall(), ...over };
+  return withAuthD1({ SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, KV_LOCK_DOOR: kv(), CHAT: noCall(), ...over });
 }
 
 const MSGS = [{ role: 'user', text: 'Hugo 最新版本？' }];

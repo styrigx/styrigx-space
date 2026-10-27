@@ -12,17 +12,19 @@ import assert from 'node:assert/strict';
 import { verifyTicket, signTicket, SHORT_TICKETS } from '../../../workers/auth-gateway/functions/_kernel/tickets.js';
 import { ed25519Sign } from '../../../workers/auth-gateway/functions/_kernel/crypto.js';
 import { TICKETS } from '../../../workers/auth-gateway/functions/_kernel/realms.js';
-import { makeKV, genKeyPair } from '../_harness.mjs';
+import { makeKV, genKeyPair, authD1For } from '../_harness.mjs';
 
 const LOCK = await genKeyPair();
 const ACCOUNT = await genKeyPair();
 const EPOCH = 3;
 
-const kv = makeKV({ 'lock-epoch': String(EPOCH), 'account-epoch': String(EPOCH) });
+const kv = makeKV();
+authD1For(kv).setEpoch('lock-epoch', EPOCH); /* 纪元在 D1 */
+authD1For(kv).setEpoch('account-epoch', EPOCH);
 const env = {
   SGX_LOCK_PRIVATE: LOCK.priv, SGX_LOCK_PUBLIC: LOCK.pub,
   SGX_ACCOUNT_PRIVATE: ACCOUNT.priv, SGX_ACCOUNT_PUBLIC: ACCOUNT.pub,
-  KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
+  KV_LOCK_DOOR: kv, D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), KV_ACCOUNT_LOGIN: kv,
 };
 const privOf = (name) => env[TICKETS[name].privateKey];
 const reqWith = (name, val) => new Request('https://styrigx.com/', { headers: { Cookie: TICKETS[name].cookie + '=' + val } });

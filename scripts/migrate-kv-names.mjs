@@ -6,7 +6,8 @@
  * 用 Cloudflare REST API（不依赖 wrangler 登录），凭据只从环境变量读，不写进仓库：
  *   CF_API_TOKEN     有该 namespace「Workers KV Storage: Edit」权限的 API Token
  *   CF_ACCOUNT_ID    Cloudflare 账户 id
- *   SGX_KV_NAMESPACE_ID  （可选）namespace id；不给就读 workers/auth-gateway/wrangler.toml 里 KV_LOCK_DOOR 的 id
+ *   SGX_KV_NAMESPACE_ID  （可选）namespace id；不给就用认证库 KV b796097c90104000992b7713f61e16ea
+ *                        （2026-10-27 起网关不再绑定 KV_LOCK_DOOR，id 不再从 wrangler.toml 读；之后的 KV → D1 导入见 scripts/migrate-kv-to-d1.mjs）
  *
  * 用法（按顺序；每一步都会先把整个 namespace 备份到本地 JSON）：
  *   node scripts/migrate-kv-names.mjs                 dry-run（默认）：备份 + 打印计划，不写
@@ -242,11 +243,7 @@ function cfg() {
   const token = process.env.CF_API_TOKEN || '';
   const account = process.env.CF_ACCOUNT_ID || '';
   let ns = process.env.SGX_KV_NAMESPACE_ID || '';
-  if (!ns) {
-    const toml = readFileSync(path.join(REPO, 'workers/auth-gateway/wrangler.toml'), 'utf8');
-    const m = /binding\s*=\s*"KV_LOCK_DOOR"\s*\n\s*id\s*=\s*"([0-9a-f]+)"/.exec(toml);
-    ns = m ? m[1] : '';
-  }
+  if (!ns) ns = 'b796097c90104000992b7713f61e16ea'; /* 认证库 KV（以前的 KV_LOCK_DOOR / KV_ACCOUNT_LOGIN） */
   if (!token || !account || !ns) {
     throw new Error('缺环境变量：CF_API_TOKEN、CF_ACCOUNT_ID（namespace id 可用 SGX_KV_NAMESPACE_ID 指定）');
   }

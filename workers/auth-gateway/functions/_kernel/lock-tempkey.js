@@ -5,34 +5,34 @@
  * 不是另一套认证体系：
  * - 访客在锁屏输入临时码 → 签发的仍是锁屏会话 LockSessionTicket（role=visitor，by=tempkey，tempkeyId=<钥匙 id>），
  *   用 lock 私钥（SGX_LOCK_PRIVATE）签名、lock 公钥验签（lock-session.js）。
- * - 会话的到期时间不晚于钥匙本身；验会话时再查「这把钥匙有没有被作废」（lock-tempkey-revoked:<id>），一次 KV 读：
- *   钥匙到期或被作废，访客下一个请求就进不来。
+ * - 会话的到期时间不晚于钥匙本身；验会话时再查「这把钥匙有没有被作废」（D1 tempkey 表一次主键读，主库、不缓存）：
+ *   钥匙到期（票自己的 exp）或被作废，访客下一个请求就进不来（以前 KV 作废标记在别的节点上最长约 60 秒才生效）。
  *
  * 临时码：12 位 Crockford Base32（60 位随机，不含 I L O U），显示成 XXXX-XXXX-XXXX；
  * 输入时忽略大小写、空格和连字符，O→0、I/L→1。服务端只存 SHA-256(pepper|code)，
  * 临时码只在签发那一刻返回一次。
  *
- * KV（KV_LOCK_DOOR，都带过期时间，到期自动消失；键名见 realms.js REALM_LOCK.kv）：
- * - lock-tempkey:<id>          → { id, name, createdAt, expiresAt, h, link? }（h = 临时码哈希，作废时删索引用；
- *                             link = 分享短链自动签的钥匙（styrigx-share 经服务绑定 ShareIssuer 签，src/share-issuer.js）：
- *                             没有临时码、不占 TEMPKEY_MAX、不在钥匙列表里，只能经短链换会话）
- * - lock-tempkey-code:<hash>   → id（hash = SHA-256('lock-tempkey|' + pepper + '|' + 临时码)）
- * - lock-tempkey-revoked:<id>  → '1'（作废标记，留到钥匙原本的到期时间；middleware 每个访客请求只查这一个键）
- * - lock-tempkey-fail:<ip 分桶> → { count, lockedUntil }（连错 5 次冷却 15 分钟；IPv6 按 /64，见 http.js ipBucket）
- * - lock-tempkey-fail-global   → { count, windowStart }（全站只减速、不封锁：每小时错满 30 次后，每次校验先等 2 秒）
+ * 存储（D1 styrigx-auth-gateway，绑定 D1_LOCK_AUTH；2026-10-27 从 KV 搬来，realm = 'lock'）：
+ * - tempkey (realm, id, name, code_hash, link, created_at, revoked_at, expires_at)：一把钥匙一行（以前 lock-tempkey:<id>）；
+ *   code_hash 有唯一索引 tempkey_code（以前 lock-tempkey-code:<hash> → id）；
+ *   link = 1：分享短链自动签的钥匙（styrigx-share 经服务绑定 ShareIssuer 签，src/share-issuer.js）：
+ *   没有临时码、不占 TEMPKEY_MAX、不在钥匙列表里，只能经短链换会话
+ * - 作废 = revoked_at = now，行留到原来的到期时间（以前另写 lock-tempkey-revoked:<id> 标记）；
+ *   已作废的不出现在列表里、临时码进不来、不占上限；过期行读时一律不认，签发新钥匙时顺手清掉
+ * - 输错限速：attempt_limit 表 realm = 'lock'、kind = 'tempkey'（attempt-limit.js，原子 UPSERT）：
+ *   单 IP 连错 5 次冷却 15 分钟（IPv6 按 /64，见 http.js ipBucket）；全站每小时错满 30 次后，每次校验先等 2 秒（只减速、不封锁）。
  *   不设全站暂停：以前错满 30 次暂停 1 小时，任何人换几个 IP 就能让所有访客都进不来。
- *   临时码 60 位随机、同时最多 20 把，穷举靠单 IP 冷却 + 减速就够；KV 里残留的旧 pausedUntil 不再生效。
+ *   临时码 60 位随机、同时最多 20 把，穷举靠单 IP 冷却 + 减速就够。
  * 名字只在管理员侧保存和显示，访客那边永远拿不到。
  */
 import { b64urlEnc } from './crypto.js';
 import { REALM_LOCK } from './realms.js';
 import { ipBucket } from './http.js';
+import { onAuthDb, sweepExpired } from './d1-state.js';
+import { readAttempt, globalHot, recordAttempt, recordGlobal, clearAttempt } from './attempt-limit.js';
 
-export const TEMPKEY_PREFIX = REALM_LOCK.kv.tempkeyPrefix;
-const CODE_PREFIX = REALM_LOCK.kv.tempkeyCodePrefix;
-const REVOKED_PREFIX = REALM_LOCK.kv.tempkeyRevokedPrefix;
-const FAIL_PREFIX = REALM_LOCK.kv.tempkeyFailPrefix;
-const GLOBAL_KEY = REALM_LOCK.kv.tempkeyFailGlobal;
+const REALM = REALM_LOCK.id;
+const LIMIT_KIND = 'tempkey';
 /* 临时码哈希的域分隔串（第 5 层改名后旧临时码全部失效，PR 3 部署后重发全部临时钥匙） */
 const CODE_HASH_DOMAIN = 'lock-tempkey|';
 
@@ -128,100 +128,112 @@ export function isTempkeyId(id) {
   return typeof id === 'string' && /^[A-Za-z0-9_-]{16}$/.test(id);
 }
 
-/** KV expiration（秒，绝对时间；KV 要求至少 60 秒后） */
-function kvExp(expiresAt) {
-  return Math.max(Math.ceil(expiresAt / 1000), Math.ceil(Date.now() / 1000) + 60);
+/** @param {any} row D1 tempkey 行 → 钥匙对象 */
+function rowKey(row) {
+  const k = { id: String(row.id), name: String(row.name || ''), createdAt: Number(row.created_at) || 0, expiresAt: Number(row.expires_at) || 0 };
+  if (row.link) k.link = true;
+  if (row.code_hash) k.h = String(row.code_hash);
+  return k;
 }
 
 /**
- * 列出还有效的临时钥匙（按签发时间新到旧）。KV 出错抛错。
- * @param {any} kv
- * @returns {Promise<Array<{id:string, name:string, createdAt:number, expiresAt:number}>>}
+ * 列出还有效的临时钥匙（按签发时间新到旧；含 link 钥匙，带 link:true）。D1 出错抛错。
+ * @param {any} env
+ * @returns {Promise<Array<{id:string, name:string, createdAt:number, expiresAt:number, link?:boolean}>>}
  */
-export async function listTempkeys(kv) {
-  const out = [];
-  let cursor;
-  const now = Date.now();
-  do {
-    const page = await kv.list({ prefix: TEMPKEY_PREFIX, cursor: cursor });
-    for (const k of page.keys || []) {
-      const v = await kv.get(k.name, 'json');
-      if (v && v.id && v.expiresAt > now) {
-        const k = { id: v.id, name: v.name || '', createdAt: v.createdAt || 0, expiresAt: v.expiresAt };
-        if (v.link) k.link = true;
-        out.push(k);
-      }
-    }
-    cursor = page.list_complete ? undefined : page.cursor;
-  } while (cursor);
-  out.sort(function (a, b) { return b.createdAt - a.createdAt; });
-  return out;
+export async function listTempkeys(env) {
+  const res = await onAuthDb(env, REALM, (db, r) => db.prepare(
+    'SELECT id, name, link, created_at, expires_at FROM tempkey WHERE realm = ? AND revoked_at = 0 AND expires_at > ? ORDER BY created_at DESC'
+  ).bind(r.id, Date.now()).all());
+  return ((res && res.results) || []).map(rowKey);
+}
+
+/**
+ * 读一把还有效的钥匙（不存在 / 已作废 / 已过期 → null）。D1 出错抛错。
+ * @param {any} env @param {string} id
+ */
+export async function getTempkey(env, id) {
+  if (!isTempkeyId(id)) return null;
+  const row = await onAuthDb(env, REALM, (db, r) => db.prepare(
+    'SELECT id, name, code_hash, link, created_at, expires_at FROM tempkey WHERE realm = ? AND id = ? AND revoked_at = 0 AND expires_at > ?'
+  ).bind(r.id, id, Date.now()).first());
+  return row ? rowKey(row) : null;
 }
 
 /**
  * 签发一把临时钥匙。返回 { key, code }（code 已格式化，只此一次）。
- * 已满 TEMPKEY_MAX（只数普通钥匙）→ 抛 Error('full')；KV 出错原样抛。
+ * 已满 TEMPKEY_MAX（只数普通钥匙）→ 抛 Error('full')；D1 出错原样抛。
  * p.link：分享短链用的钥匙——不生成临时码（锁屏上输不进来），不占 TEMPKEY_MAX（短链 Worker 自己有上限），返回 code ''。
- * @param {any} kv
+ * 上限判断与插入在同一条 INSERT ... SELECT ... WHERE (SELECT COUNT ...) < TEMPKEY_MAX 里（并发签发不会超）。
+ * @param {any} env
  * @param {string} pepper
  * @param {{name:string, ms:number, link?:boolean}} p
  */
-export async function createTempkey(kv, pepper, p) {
-  if (p.link) {
-    const now0 = Date.now();
-    const lk = { id: newId(), name: p.name || '', createdAt: now0, expiresAt: now0 + p.ms };
-    await kv.put(TEMPKEY_PREFIX + lk.id, JSON.stringify(Object.assign({ link: true }, lk)), { expiration: kvExp(lk.expiresAt) });
-    return { key: lk, code: '' };
-  }
-  const live = (await listTempkeys(kv)).filter(function (k) { return !k.link; });
-  if (live.length >= TEMPKEY_MAX) throw new Error('full');
-  const code = newCode();
-  const h = await hashCode(pepper, code);
+export async function createTempkey(env, pepper, p) {
   const now = Date.now();
   const key = { id: newId(), name: p.name || '', createdAt: now, expiresAt: now + p.ms };
-  const exp = kvExp(key.expiresAt);
-  await kv.put(CODE_PREFIX + h, key.id, { expiration: exp });
-  await kv.put(TEMPKEY_PREFIX + key.id, JSON.stringify(Object.assign({ h: h }, key)), { expiration: exp });
+  if (p.link) {
+    await onAuthDb(env, REALM, async (db, r) => {
+      await db.prepare('INSERT INTO tempkey (realm, id, name, code_hash, link, created_at, expires_at) VALUES (?, ?, ?, NULL, 1, ?, ?)')
+        .bind(r.id, key.id, key.name, key.createdAt, key.expiresAt).run();
+      await sweepExpired(db, 'tempkey', r.id, now);
+    });
+    return { key: key, code: '' };
+  }
+  const code = newCode();
+  const h = await hashCode(pepper, code);
+  const res = await onAuthDb(env, REALM, async (db, r) => {
+    await sweepExpired(db, 'tempkey', r.id, now);
+    return db.prepare(
+      'INSERT INTO tempkey (realm, id, name, code_hash, link, created_at, expires_at) SELECT ?1, ?2, ?3, ?4, 0, ?5, ?6 ' +
+      'WHERE (SELECT COUNT(*) FROM tempkey WHERE realm = ?1 AND link = 0 AND revoked_at = 0 AND expires_at > ?5) < ?7'
+    ).bind(r.id, key.id, key.name, h, key.createdAt, key.expiresAt, TEMPKEY_MAX).run();
+  });
+  if (!(res && res.meta && res.meta.changes > 0)) throw new Error('full');
   return { key: key, code: formatCode(code) };
 }
 
 /**
- * 作废：先写作废标记（留到钥匙原本的到期时间），再删钥匙和索引。不存在返回 false。
- * @param {any} kv
+ * 作废：一条 UPDATE ... SET revoked_at = now WHERE 还没作废 RETURNING（写完下一个请求 isTempkeyRevoked 就是 true）。
+ * 不存在 / 已作废 / 已过期返回 false。
+ * @param {any} env
  * @param {string} id
  */
-export async function revokeTempkey(kv, id) {
-  const v = await kv.get(TEMPKEY_PREFIX + id, 'json');
-  if (!v) return false;
-  await kv.put(REVOKED_PREFIX + id, '1', { expiration: kvExp(v.expiresAt || Date.now()) });
-  if (v.h) await kv.delete(CODE_PREFIX + v.h);
-  await kv.delete(TEMPKEY_PREFIX + id);
-  return true;
+export async function revokeTempkey(env, id) {
+  if (!isTempkeyId(id)) return false;
+  const now = Date.now();
+  const row = await onAuthDb(env, REALM, (db, r) => db.prepare(
+    'UPDATE tempkey SET revoked_at = ? WHERE realm = ? AND id = ? AND revoked_at = 0 AND expires_at > ? RETURNING id'
+  ).bind(now, r.id, id, now).first());
+  return !!row;
 }
 
 /**
- * 按临时码找钥匙；找不到或已过期返回 null。KV 出错抛错。
- * @param {any} kv
+ * 按临时码找钥匙；找不到或已过期返回 null。D1 出错抛错。
+ * @param {any} env
  * @param {string} pepper
  * @param {string} code 规范化后的临时码
  */
-export async function findByCode(kv, pepper, code) {
+export async function findByCode(env, pepper, code) {
   const h = await hashCode(pepper, code);
-  const id = await kv.get(CODE_PREFIX + h);
-  if (!id) return null;
-  const v = await kv.get(TEMPKEY_PREFIX + id, 'json');
-  if (!v || v.h !== h || !(v.expiresAt > Date.now())) return null;
-  return v;
+  const row = await onAuthDb(env, REALM, (db, r) => db.prepare(
+    'SELECT id, name, code_hash, link, created_at, expires_at FROM tempkey WHERE realm = ? AND code_hash = ? AND revoked_at = 0 AND expires_at > ?'
+  ).bind(r.id, h, Date.now()).first());
+  if (!row || row.link) return null;
+  return rowKey(row);
 }
 
 /**
- * 钥匙是否已被作废（验访客会话时用；到期由会话票自己的 exp 管）。KV 出错抛错。
- * @param {any} kv
+ * 钥匙是否已被作废（验访客会话时用：每个请求一次主键读，主库、不缓存；到期由会话票自己的 exp 管）。D1 出错抛错。
+ * @param {any} env
  * @param {string} id
  */
-export async function isTempkeyRevoked(kv, id) {
+export async function isTempkeyRevoked(env, id) {
   if (!isTempkeyId(id)) return true;
-  return (await kv.get(REVOKED_PREFIX + id)) !== null;
+  const row = await onAuthDb(env, REALM, (db, r) => db.prepare(
+    'SELECT 1 AS x FROM tempkey WHERE realm = ? AND id = ? AND revoked_at > 0'
+  ).bind(r.id, id).first());
+  return !!row;
 }
 
 /* ---------- 输错限速 ---------- */
@@ -232,44 +244,27 @@ function sleep(ms) {
 }
 
 /**
- * 本 IP 是否在冷却中；不在冷却、但全站正在减速时，先等 TEMPKEY_GLOBAL_DELAY_MS 再返回 false。KV 出错抛错。
- * @param {any} kv @param {string} ip
+ * 本 IP 是否在冷却中；不在冷却、但全站正在减速时，先等 TEMPKEY_GLOBAL_DELAY_MS 再返回 false。D1 出错抛错。
+ * @param {any} env @param {string} ip
  * @param {{sleep?:(ms:number)=>Promise<void>}} [opts] 测试可替换 sleep
  */
-export async function isTempkeyLimited(kv, ip, opts) {
-  const now = Date.now();
-  const r = await kv.get(FAIL_PREFIX + ipBucket(ip), 'json');
-  if (r && r.lockedUntil > now) return true;
-  const g = await kv.get(GLOBAL_KEY, 'json');
-  if (g && g.windowStart + GLOBAL_WINDOW_MS >= now && (g.count || 0) >= TEMPKEY_GLOBAL_SLOW_AT) {
+export async function isTempkeyLimited(env, ip, opts) {
+  const r = await readAttempt(env, REALM, LIMIT_KIND, ipBucket(ip));
+  if (r && r.lockedUntil > Date.now()) return true;
+  if (await globalHot(env, REALM, LIMIT_KIND, GLOBAL_WINDOW_MS, TEMPKEY_GLOBAL_SLOW_AT)) {
     await ((opts && opts.sleep) || sleep)(TEMPKEY_GLOBAL_DELAY_MS);
   }
   return false;
 }
 
-/** 记一次输错；返回本 IP 这次是否刚进入冷却。KV 出错抛错。 @param {any} kv @param {string} ip */
-export async function recordTempkeyFail(kv, ip) {
-  const now = Date.now();
-  let locked = false;
-  const key = FAIL_PREFIX + ipBucket(ip);
-  const r = (await kv.get(key, 'json')) || { count: 0 };
-  r.count = (r.count || 0) + 1;
-  if (r.count >= IP_MAX_FAIL) {
-    r.lockedUntil = now + IP_LOCK_MS;
-    r.count = 0;
-    locked = true;
-  }
-  await kv.put(key, JSON.stringify(r), { expirationTtl: 3600 });
-  const g = (await kv.get(GLOBAL_KEY, 'json')) || { count: 0, windowStart: now };
-  if (!g.windowStart || g.windowStart + GLOBAL_WINDOW_MS < now) {
-    g.count = 0;
-    g.windowStart = now;
-  }
-  await kv.put(GLOBAL_KEY, JSON.stringify({ count: (g.count || 0) + 1, windowStart: g.windowStart }), { expirationTtl: 7200 });
+/** 记一次输错（原子）；返回本 IP 这次是否刚进入冷却。D1 出错抛错。 @param {any} env @param {string} ip */
+export async function recordTempkeyFail(env, ip) {
+  const locked = await recordAttempt(env, REALM, LIMIT_KIND, ipBucket(ip), { max: IP_MAX_FAIL, ttlMs: HOUR, lockMs: IP_LOCK_MS });
+  await recordGlobal(env, REALM, LIMIT_KIND, GLOBAL_WINDOW_MS);
   return locked;
 }
 
-/** 输对后清掉这个 IP 的计数（失败不影响） @param {any} kv @param {string} ip */
-export async function clearTempkeyFail(kv, ip) {
-  try { await kv.delete(FAIL_PREFIX + ipBucket(ip)); } catch (e) {}
+/** 输对后清掉这个 IP 的计数（失败不影响） @param {any} env @param {string} ip */
+export async function clearTempkeyFail(env, ip) {
+  try { await clearAttempt(env, REALM, LIMIT_KIND, ipBucket(ip)); } catch (e) {}
 }

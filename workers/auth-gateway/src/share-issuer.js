@@ -5,7 +5,7 @@
  * 它不持任何钥匙、不碰认证库；临时钥匙和访客会话只在这里、只用网关原来那一份代码：
  * - createLinkKey(cookie, p)：签一把「短链钥匙」（_kernel/lock-tempkey.js createTempkey，link=true：没有临时码、锁屏上输不进来、
  *   不占 20 把上限、不出现在临时钥匙列表里）。网关自己再验一次：必须是 admin 锁屏会话 + 账号会话（cookie 是浏览器带来的原样 Cookie 头）。
- * - revokeLinkKey(cookie, id)：作废这把钥匙（revokeTempkey：写作废标记）→ 拿它进来的访客下一个请求就进不来
+ * - revokeLinkKey(cookie, id)：作废这把钥匙（revokeTempkey：D1 tempkey 行写 revoked_at，强一致）→ 拿它进来的访客下一个请求就进不来
  *   （验访客会话时查 tempkeyId 是否被作废，原样生效）。同样要 admin + 账号会话；只认 link 钥匙。
  * - openLinkSession(id, sessionSec)：访客点开带会话的短链 → 签 visitor 锁屏会话（sgx-lock-session：by=tempkey，tempkeyId=钥匙 id，lock 私钥），
  *   和锁屏输临时码进门（api/lock-tempkey-unlock.js）完全同一套；Max-Age = min(会话时长, 钥匙剩余时间)。
@@ -18,9 +18,10 @@ import { checkLockSession, checkAccountSession } from './verifier.js';
 import { ROLE_ADMIN, ROLE_VISITOR, issueLockSession } from '../functions/_kernel/lock-session.js';
 import { BY_TEMPKEY } from '../functions/_kernel/realms.js';
 import {
-  createTempkey, revokeTempkey, isTempkeyRevoked, durationMs, cleanName, isTempkeyId, TEMPKEY_PREFIX,
+  createTempkey, revokeTempkey, getTempkey, durationMs, cleanName, isTempkeyId,
 } from '../functions/_kernel/lock-tempkey.js';
 import { getPepper } from '../functions/_kernel/password.js';
+import { REALM_LOCK } from '../functions/_kernel/realms.js';
 
 /** 访客会话时长档位（秒）：30 分钟、1 / 3 / 12 小时、1 / 3 / 7 天（styrigx-share 用同一张表，单测核对两边一致） */
 export const LINK_SESSION_OPTS = Object.freeze([1800, 3600, 3 * 3600, 12 * 3600, 86400, 3 * 86400, 7 * 86400]);
@@ -46,8 +47,7 @@ async function adminError(cookie, env, meta) {
  * @returns {Promise<{ok:true, key:{id:string, expiresAt:number}}|{ok:false, error:string}>}
  */
 export async function createLinkKey(cookie, p, env) {
-  const kv = env && env.KV_LOCK_DOOR;
-  if (!kv) return { ok: false, error: 'config' };
+  if (!(env && env[REALM_LOCK.d1Binding])) return { ok: false, error: 'config' };
   const q = p && typeof p === 'object' ? p : {};
   const err = await adminError(cookie, env, q.meta);
   if (err) return { ok: false, error: err };
@@ -58,7 +58,7 @@ export async function createLinkKey(cookie, p, env) {
   const pepper = getPepper(env);
   if (!pepper) return { ok: false, error: 'config' };
   try {
-    const r = await createTempkey(kv, pepper, { name: name, ms: ms, link: true });
+    const r = await createTempkey(env, pepper, { name: name, ms: ms, link: true });
     return { ok: true, key: { id: r.key.id, expiresAt: r.key.expiresAt } };
   } catch (e) {
     return { ok: false, error: 'server' };
@@ -73,16 +73,15 @@ export async function createLinkKey(cookie, p, env) {
  * @returns {Promise<{ok:boolean, error?:string}>} 钥匙已经不在（到期 / 作废过）也算 ok
  */
 export async function revokeLinkKey(cookie, id, env, meta) {
-  const kv = env && env.KV_LOCK_DOOR;
-  if (!kv) return { ok: false, error: 'config' };
+  if (!(env && env[REALM_LOCK.d1Binding])) return { ok: false, error: 'config' };
   const err = await adminError(cookie, env, meta);
   if (err) return { ok: false, error: err };
   if (!isTempkeyId(id)) return { ok: false, error: 'params' };
   try {
-    const v = await kv.get(TEMPKEY_PREFIX + id, 'json');
+    const v = await getTempkey(env, id);
     if (!v) return { ok: true };
     if (!v.link) return { ok: false, error: 'params' }; /* 普通临时钥匙只在临时钥匙页作废 */
-    await revokeTempkey(kv, id);
+    await revokeTempkey(env, id);
     return { ok: true };
   } catch (e) {
     return { ok: false, error: 'server' };
@@ -96,11 +95,9 @@ export async function revokeLinkKey(cookie, id, env, meta) {
  * @returns {Promise<{ok:true, cookies:string[], maxAge:number}|{ok:false}>}
  */
 export async function openLinkSession(id, sessionSec, env) {
-  const kv = env && env.KV_LOCK_DOOR;
-  if (!kv || !isTempkeyId(id) || !LINK_SESSION_OPTS.includes(sessionSec)) return { ok: false };
+  if (!isTempkeyId(id) || !LINK_SESSION_OPTS.includes(sessionSec)) return { ok: false };
   try {
-    if (await isTempkeyRevoked(kv, id)) return { ok: false };
-    const v = await kv.get(TEMPKEY_PREFIX + id, 'json');
+    const v = await getTempkey(env, id); /* 作废 / 过期 → null；D1 主库，强一致 */
     if (!v || !v.link || !(v.expiresAt > Date.now())) return { ok: false };
     const left = Math.floor((v.expiresAt - Date.now()) / 1000);
     if (left < 1) return { ok: false };

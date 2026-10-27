@@ -6,7 +6,7 @@
 # Pages 只放静态文件（配置见 web/wrangler.toml），网关验完会话回源取页面。
 #
 # 安全：
-# - workers_dev = false，不开 *.workers.dev 地址（它连的是正式 KV/D1，不能有未鉴权的入口）。
+# - workers_dev = false，不开 *.workers.dev 地址（它连的是正式 D1，不能有未鉴权的入口）。
 # - SGX_ENV = "production"：middleware 按生产规则执行，非 styrigx.com 的 /api 请求一律 403。
 # - 私密值只在 Secrets Store（见文件末尾），不进仓库。
 
@@ -87,31 +87,38 @@ service = "styrigx-status"
 binding = "CHAT"
 service = "styrigx-chat"
 
-# ---- 数据绑定（正式 KV/D1）----
-# 绑定名 = <类型>_<存放的内容>（2026-10-24）：一个资源里有几套数据就绑几个名字，id 相同。
-# 认证库 styrigx-auth-gateway：
-# 同一个 namespace，键一律带域前缀（<域>-<对象>[-<附加>][:<编号>]，表见 functions/_kernel/realms.js）：
-# - KV_LOCK_DOOR：只读写 lock-*（锁屏密码 / 通行密钥 / 临时钥匙 / 纪元 / 重置）和 root-*（根凭证限速与审计）
-# - KV_ACCOUNT_LOGIN：所有 account-* 都只经这个名字（E4 起），含账号凭证本身（account-password、account-passkey:*、
-#   account-passkey-index、account-user-id、account-configured）和登录状态（account-epoch、account-passkey-challenge:*、
-#   account-device:*、account-device-revoked:*）；键名与归属见 functions/_kernel/realms.js
-[[kv_namespaces]]
-binding = "KV_LOCK_DOOR"
-id = "b796097c90104000992b7713f61e16ea"
-
-[[kv_namespaces]]
-binding = "KV_ACCOUNT_LOGIN"
-id = "b796097c90104000992b7713f61e16ea"
-
-# 账号资料库 styrigx-account（头像 KV_PROFILE、云同步 KV_SETTINGS_SYNC）和数字健康 D1_WELLBEING
-# 2026-10-24 随接口一起搬到账号 Worker styrigx-account（workers/account/wrangler.toml），网关不再绑定。
-
-# D1 styrigx-auth-gateway：D1_LOCK_RESET = recovery_switch。
+# ---- 数据绑定（正式 D1）----
+# 绑定名 = <类型>_<域>_<内容>（2026-10-24）：一个资源里有几套数据就绑几个名字，id 相同。
+# 2026-10-27 起网关的认证状态全部在 D1 styrigx-auth-gateway（强一致），不再绑定任何 KV：
+# 以前的认证库 KV（namespace b796097c90104000992b7713f61e16ea）和旧 D1 绑定名已删掉，
+# 其中值得留的旧值（密码、通行密钥、user handle、纪元、设备、临时钥匙）由 scripts/migrate-kv-to-d1.mjs 在部署前导入一次；
+# namespace 本身不删（留作回看，运行时不读）。上线顺序见 README.md「上线顺序」。
+# 账号资料库 styrigx-account（头像 KV_PROFILE、云同步、数字健康 D1_WELLBEING）在账号 Worker styrigx-account（workers/account/wrangler.toml），网关不绑定。
+#
+# D1 styrigx-auth-gateway：同一个库三个绑定名，按凭证域命名 D1_<域>_AUTH（域 = functions/_kernel/realms.js 的 lock / account / root）。
+# 每张表都有 realm 列，每个绑定只读写自己 realm 的行（tests/workers/auth-gateway/kv-binding-split.test.mjs 核对）：
+# - D1_LOCK_AUTH    = realm='lock'：纪元、锁屏密码 / 通行密钥、user handle、challenge、密码 / 临时码输错计数、临时钥匙；
+#                     另外恢复开关 recovery_switch。migrations_dir 只写在这一块（三个名字是同一个库）
+# - D1_ACCOUNT_AUTH = realm='account'：纪元、账号密码 / 通行密钥、user handle、challenge、密码输错计数、已登录设备
+# - D1_ROOT_AUTH    = realm='root'：根凭证输错计数、根凭证使用审计
+# 表：migrations/0005_lock_account_state.sql、0006_auth_state.sql（还有 0001 recovery_switch）。
+# 本 Worker 的部署 job 不跑 D1 迁移：表由代码在第一次遇到「no such table」时按同一份语句建（functions/_kernel/d1-state.js SCHEMA，幂等）。
+# 安全读（纪元、吊销、challenge、计数、临时钥匙）只读主库：代码不开 read replication / withSession。
 [[d1_databases]]
-binding = "D1_LOCK_RESET"
+binding = "D1_LOCK_AUTH"
 database_name = "styrigx-auth-gateway"
 database_id = "6931d1da-3502-480d-b0bd-de1bc4829d1d"
 migrations_dir = "migrations"
+
+[[d1_databases]]
+binding = "D1_ACCOUNT_AUTH"
+database_name = "styrigx-auth-gateway"
+database_id = "6931d1da-3502-480d-b0bd-de1bc4829d1d"
+
+[[d1_databases]]
+binding = "D1_ROOT_AUTH"
+database_name = "styrigx-auth-gateway"
+database_id = "6931d1da-3502-480d-b0bd-de1bc4829d1d"
 
 # ---- 密钥：Secrets Store ----
 # 聊天钥匙 SGX_CHAT_API_KEY 不在这里（2026-10-22 起只绑在 styrigx-chat，见 workers/chat/wrangler.toml）。

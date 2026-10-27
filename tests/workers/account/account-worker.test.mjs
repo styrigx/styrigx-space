@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { gatewayVerifier } from './_auth.mjs';
 import { testLockSession, testAccountSession } from '../auth-gateway/_tickets.mjs';
-import { genKeyPair } from '../_harness.mjs';
+import { genKeyPair, withAuthD1 } from '../_harness.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 const worker = (await import(REPO + 'workers/account/src/index.js')).default;
@@ -44,7 +44,7 @@ function makeKv(init = {}) {
 /** 网关那边的 env（钥匙 + 认证库）和账号 Worker 的 env（账号库 + AUTH 绑定）分开放，和线上一样 */
 function setup(over = {}) {
   const authKv = makeKv();
-  const gwEnv = { SGX_LOCK_PUBLIC: PUB, SGX_ACCOUNT_PUBLIC: PUB, KV_LOCK_DOOR: authKv, KV_ACCOUNT_LOGIN: authKv };
+  const gwEnv = withAuthD1({ SGX_LOCK_PUBLIC: PUB, SGX_ACCOUNT_PUBLIC: PUB, KV_LOCK_DOOR: authKv, KV_ACCOUNT_LOGIN: authKv });
   const profile = makeKv();
   const origin = [];
   const env = {
@@ -233,17 +233,18 @@ test('头像只读 KV_PROFILE：认证库里有 avatar:* 也不读', () => {
 
 test('网关 AuthVerifier.accountSession()：同 verifyAccountSession；吊销 → revoked；设备记录带浏览器 User-Agent', async () => {
   const kv = makeKv();
-  const gwEnv = { SGX_ACCOUNT_PUBLIC: PUB, KV_ACCOUNT_LOGIN: kv };
+  const gwEnv = withAuthD1({ SGX_ACCOUNT_PUBLIC: PUB, KV_ACCOUNT_LOGIN: kv }); /* account-epoch 在 D1 */
   const sid = 'BBBBBBBBBBBBBBBB';
   const t = await testAccountSession(PRIV, 'passkey', 0, Date.now(), undefined, sid);
   const ua = 'Mozilla/5.0 (Linux; Android 16; SM-S9380) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/29.0 Chrome/136.0.0.0 Mobile Safari/537.36';
   assert.deepEqual(await checkAccountSession('sgx-account-session=' + t, gwEnv, { ua, country: 'CN' }), { ok: true });
-  const rec = [...kv.m.entries()].find(([k]) => k.includes(sid));
-  assert.ok(rec, '设备记录补写了');
-  const dev = JSON.parse(rec[1].value ?? rec[1]);
+  const rec = gwEnv.D1_ACCOUNT_AUTH.rows('device').find((r) => r.device_id === sid && r.realm === 'account');
+  assert.ok(rec, '设备记录补写了（D1 device 表）');
+  const dev = JSON.parse(rec.record);
   assert.equal(dev.country, 'CN');
   assert.ok(dev.browser || dev.platform, '从 User-Agent 解析出了浏览器 / 系统');
-  await kv.put('account-device-revoked:' + sid, '1');
+  /* 单独退出：D1 device.revoked_at（强一致，下一个请求就拒） */
+  gwEnv.D1_ACCOUNT_AUTH.raw.prepare("UPDATE device SET revoked_at = ? WHERE realm = 'account' AND device_id = ?").run(Date.now(), sid);
   assert.deepEqual(await checkAccountSession('sgx-account-session=' + t, gwEnv, {}), { ok: false, reason: 'revoked' });
   assert.deepEqual(await checkAccountSession('', gwEnv), { ok: false, reason: 'no-cookie' });
 });

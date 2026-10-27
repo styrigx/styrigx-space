@@ -13,7 +13,7 @@
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { testLockSession } from './_tickets.mjs';
-import { makeKV, genKeyPair } from '../_harness.mjs';
+import { makeKV, genKeyPair, authD1For } from '../_harness.mjs';
 
 let LOCK_PRIV = '', LOCK_PUB = '';
 async function genKeys() {
@@ -21,7 +21,7 @@ async function genKeys() {
 }
 
 const testEnv = (kv) => ({
-  KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv,
+  KV_LOCK_DOOR: kv, D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), KV_ACCOUNT_LOGIN: kv,
   SGX_LOCK_PRIVATE: LOCK_PRIV,
   SGX_LOCK_PUBLIC: LOCK_PUB,
   SGX_RP_ID: 'styrigx.com',
@@ -69,11 +69,12 @@ test('必修安全项 2：by=root 会话不重签（首次配 lock 的 epoch bum
   const { reissueLockSessionWithEpoch } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
   const { signLockSessionTicket } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
   const { verifyLockSession } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
-  const kv = makeKV({ 'lock-epoch': '5' });
+  const kv = makeKV();
+  authD1For(kv).setEpoch('lock-epoch', 5); /* 纪元在 D1 */
   /* by=root 代开会话（epoch 5） */
   const rootSess = await testLockSession(LOCK_PRIV, 5, 'admin', 'password');
   /* epoch bump 到 6（模拟首次配 lock） */
-  await kv.put('lock-epoch', '6');
+  authD1For(kv).setEpoch('lock-epoch', 6);
   /* helper 应跳过，不发新 cookie */
   const headers = new Headers();
   await reissueLockSessionWithEpoch(testEnv(kv), headers, { ok: true, by: 'root', role: 'admin' }, 6);
@@ -90,10 +91,11 @@ test('必修安全项 2：by=root 会话不重签（首次配 lock 的 epoch bum
 
 
 
-test('锁屏会话纪元必须等于当前 lock-epoch：比当前大的旧票（KV 重建后纪元回到小值）也作废', async () => {
+test('锁屏会话纪元必须等于当前 lock-epoch：比当前大的旧票（存储重建后纪元回到小值）也作废', async () => {
   const { verifyLockSessionTicket } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
   if (!LOCK_PRIV) await genKeys();
-  const kv = makeKV({ 'lock-epoch': '1' });
+  const kv = makeKV();
+  authD1For(kv).setEpoch('lock-epoch', 1); /* 纪元在 D1 */
   const env = testEnv(kv);
   const ok = await testLockSession(LOCK_PRIV, 1, 'admin', 'password');
   assert.equal((await verifyLockSessionTicket(ok, env)).status, 'ok');
