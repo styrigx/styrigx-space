@@ -40,6 +40,10 @@ function d1() {
   };
 }
 
+/** 假服务绑定：SEARCH / CHAT 的 /healthz 一律 200（真 SQL 那几条只关心公开地址） */
+const okSvc = () => ({ fetch: async () => new Response('{"ok":true}', { status: 200 }) });
+const SVC = { SEARCH: okSvc(), CHAT: okSvc() };
+
 /** 假 fetch：按 url 回状态码；'timeout' 一直不回（等 abort）；'network' 直接抛 */
 function fakeFetch(map) {
   return (url, init) => new Promise((resolve, reject) => {
@@ -53,8 +57,12 @@ function fakeFetch(map) {
   });
 }
 
-test('地址：5 个（主站首页 + 三个子站 robots.txt + 规则集 healthz），没有 book / muse-invite', () => {
-  assert.deepEqual(TARGETS.map((t) => t.site), ['space', 'blog', 'daymark', 'curio', 'proxy-rules']);
+test('地址：5 个公开（主站首页 + 三个子站 robots.txt + 规则集 healthz）+ 2 个服务绑定（search / chat 的 /healthz），没有 book / muse-invite', () => {
+  assert.deepEqual(TARGETS.map((t) => t.site), ['space', 'blog', 'daymark', 'curio', 'proxy-rules', 'search', 'chat']);
+  assert.deepEqual(TARGETS.filter((t) => t.binding).map((t) => [t.site, t.binding, new URL(t.url).pathname]),
+    [['search', 'SEARCH', '/healthz'], ['chat', 'CHAT', '/healthz']]);
+  /* 公开地址都是 styrigx.com 的；服务绑定的主机名不是公网域名（只给绑定用） */
+  for (const t of TARGETS) assert.equal(/styrigx\.com$/.test(new URL(t.url).host), !t.binding, t.site);
   assert.equal(TARGETS.find((t) => t.site === 'blog').url, 'https://blog.styrigx.com/robots.txt');
   assert.ok(!TARGETS.some((t) => /book|muse-invite/.test(t.url)));
   assert.equal(FAIL_THRESHOLD, 3);
@@ -106,7 +114,7 @@ test('计划：失败 1、2 次不开故障；第 3 次开，起点是第一次�
 
 test('真 SQL：连续 3 分钟 502 开故障，第 4 分钟恢复关上；每日汇总累加；7 天前的记录整点清掉', { skip: !sqlite && '需要 node:sqlite' }, async () => {
   const db = d1();
-  const env = { D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db };
+  const env = { D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db, ...SVC };
   const M = 60000;
   const t0 = Date.UTC(2026, 9, 22, 4, 1); // 北京 12:01
   /* 先塞一条 8 天前的旧记录 */
@@ -132,7 +140,7 @@ test('真 SQL：连续 3 分钟 502 开故障，第 4 分钟恢复关上；每�
 
 test('真 SQL：汇总——当前状态、24 小时 / 30 天可用率、每日、最近检查、故障', { skip: !sqlite && '需要 node:sqlite' }, async () => {
   const db = d1();
-  const env = { D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db };
+  const env = { D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db, ...SVC };
   const M = 60000;
   const t0 = Date.UTC(2026, 9, 22, 4, 1);
   for (let i = 0; i < 4; i++) await runOnce(env, t0 + i * M, fakeFetch(i < 3 ? { 'https://curio.styrigx.com/robots.txt': 'network' } : {}));
@@ -190,7 +198,7 @@ test('读取量：每分钟一轮只读 state 和开着的故障，不读 checks
     prepare: (sql) => { sqls.push(sql); const o = { sql, bind: () => o }; return o; },
     async batch(list) { return list.map(() => ({ results: [] })); },
   };
-  await runOnce({ D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db }, Date.UTC(2026, 9, 23, 4, 1), fakeFetch({}));
+  await runOnce({ D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db, ...SVC }, Date.UTC(2026, 9, 23, 4, 1), fakeFetch({}));
   const reads = sqls.filter((q) => /^\s*select/i.test(q));
   assert.ok(reads.length > 0);
   assert.ok(reads.every((q) => !/\bchecks\b/.test(q)), reads.join(' | '));
@@ -201,7 +209,7 @@ test('读取量：每分钟一轮只读 state 和开着的故障，不读 checks
 
 test('真 SQL：第一次失败时间存在 state 里，恢复清零', { skip: !sqlite && '需要 node:sqlite' }, async () => {
   const db = d1();
-  const env = { D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db };
+  const env = { D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db, ...SVC };
   const M = 60000;
   const t0 = Date.UTC(2026, 9, 23, 4, 1);
   const bad = fakeFetch({ 'https://blog.styrigx.com/robots.txt': 502 });
@@ -212,4 +220,43 @@ test('真 SQL：第一次失败时间存在 state 里，恢复清零', { skip: !
   assert.equal((await loadPrev(db)).get('blog').firstFailAt, 0);
   const h = db.raw.prepare("SELECT * FROM hourly WHERE site = 'blog'").all();
   assert.deepEqual([h.length, h[0].total, h[0].ok_count], [1, 3, 1]);
+});
+
+test('服务绑定：search / chat 走 env 里的绑定（不走公网 fetch）；绑定 503 记 HTTP 503；没绑记 binding', async () => {
+  const seen = [];
+  const svc = (status) => ({ fetch: async (u, init) => { seen.push([String(u), init.redirect]); return new Response('', { status }); } });
+  const db = {
+    prepare: (sql) => { const o = { sql, bind: () => o }; return o; },
+    async batch(list) { return list.map(() => ({ results: [] })); },
+  };
+  const pub = [];
+  const p = await runOnce({ D1_UPTIME_MONITOR: db, SEARCH: svc(200), CHAT: svc(503) }, Date.UTC(2026, 9, 28, 4, 1),
+    (u, init) => { pub.push(String(u)); return Promise.resolve(new Response('', { status: 200 })); });
+  assert.deepEqual(seen.map((x) => x[0]).sort(), ['https://styrigx-chat/healthz', 'https://styrigx-search-index/healthz']);
+  assert.ok(seen.every((x) => x[1] === 'manual'));
+  assert.ok(!pub.some((u) => /healthz$/.test(u) && !/proxy-rules/.test(u)), pub.join(' '));
+  const by = Object.fromEntries(p.checks.map((c) => [c.site, c]));
+  assert.deepEqual([by.search.ok, by.search.code], [1, 200]);
+  assert.deepEqual([by.chat.ok, by.chat.code, by.chat.err], [0, 503, 'status']);
+  const q = await runOnce({ D1_UPTIME_MONITOR: db }, Date.UTC(2026, 9, 28, 4, 2), fakeFetch({}));
+  const by2 = Object.fromEntries(q.checks.map((c) => [c.site, c]));
+  assert.deepEqual([by2.search.ok, by2.search.code, by2.search.err], [0, 0, 'binding']);
+  assert.deepEqual([by2.chat.err, by2.space.ok], ['binding', 1]);
+});
+
+test('服务绑定：抛错记 network，不拖垮别的地址', async () => {
+  const t = TARGETS.find((x) => x.site === 'search');
+  const r = await checkOne(t, (u, i) => Promise.reject(new TypeError('binding gone')));
+  assert.deepEqual([r.ok, r.code, r.err], [false, 0, 'network']);
+  assert.deepEqual(await checkOne(t, null).then((x) => [x.ok, x.err, x.ms]), [false, 'binding', 0]);
+});
+
+test('wrangler.toml：status 绑了 SEARCH → styrigx-search-index、CHAT → styrigx-chat；deploy.yml 里 status 排在 search / chat 之后', () => {
+  const toml = readFileSync(new URL('../../../workers/status/wrangler.toml', import.meta.url), 'utf8');
+  assert.match(toml, /\[\[services\]\]\s*binding = "SEARCH"\s*service = "styrigx-search-index"/);
+  assert.match(toml, /\[\[services\]\]\s*binding = "CHAT"\s*service = "styrigx-chat"/);
+  const yml = readFileSync(new URL('../../../.github/workflows/deploy.yml', import.meta.url), 'utf8');
+  const job = yml.slice(yml.indexOf('\n  deploy-status-worker:'));
+  const needs = job.match(/\n    needs: \[([^\]]*)\]/)[1].split(',').map((x) => x.trim());
+  assert.ok(needs.includes('deploy-search-worker') && needs.includes('deploy-chat-worker'), needs.join(','));
 });

@@ -843,9 +843,11 @@ jobs:
     # 权限 Workers Scripts 编辑 + D1 编辑 + Account Settings 读取 + Secrets Store 编辑（PR3 起有 Secrets Store 绑定
     # SGX_CF_USAGE_TOKEN，部署必须 Edit，Read 报 10021，同鉴权网关）；环境只允许 main。
     # 迁移 migrations/0002_usage.sql（用量快照表）由下面的 d1 migrations apply 自动跑。
+    # 2026-10-28 起有服务绑定 SEARCH / CHAT（每分钟测它们的 /healthz）：排在 search / chat 之后，
+    # 免得新监测先上线、测到还没带 /healthz 的旧版本，误开故障。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
-    needs: [quality, passkey-e2e]
+    needs: [quality, passkey-e2e, deploy-search-worker, deploy-chat-worker]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: STYRIGX_STATUS_DEPLOY

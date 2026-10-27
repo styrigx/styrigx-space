@@ -205,6 +205,16 @@ export function handleModels(env) {
   return json(200, { ok: true, default: def, models, configured: isConfigured(env) });
 }
 
+/**
+ * GET /healthz：钥匙真读得到（不只是绑定在）且 API 地址可用 → 200；否则 503 no_key。不调上游，不回钥匙。
+ * @param {any} env
+ */
+export async function handleHealthz(env) {
+  const key = await readKey(env);
+  if (!key || !chatConfig(env).base) return json(503, { ok: false, error: 'no_key' });
+  return json(200, { ok: true });
+}
+
 /** 聊天配好了没有：有钥匙绑定（Secrets Store 绑定或本地字符串）且 API 地址可用。不读钥匙。 @param {any} env */
 export function isConfigured(env) {
   return hasKeyBinding(env) && !!chatConfig(env).base;
