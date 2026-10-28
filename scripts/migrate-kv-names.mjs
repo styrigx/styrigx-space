@@ -7,7 +7,8 @@
  *   CF_API_TOKEN     有该 namespace「Workers KV Storage: Edit」权限的 API Token
  *   CF_ACCOUNT_ID    Cloudflare 账户 id
  *   SGX_KV_NAMESPACE_ID  （可选）namespace id；不给就用认证库 KV b796097c90104000992b7713f61e16ea
- *                        （2026-10-27 起网关不再绑定 KV_LOCK_DOOR，id 不再从 wrangler.toml 读；之后的 KV → D1 导入见 scripts/migrate-kv-to-d1.mjs）
+ *                        （2026-10-27 起网关不再绑定 KV_LOCK_DOOR，id 不再从 wrangler.toml 读；之后的 KV → D1 导入见 scripts/migrate-kv-to-d1.mjs；
+ *                        这个 namespace 2026-10-29 已删除，本脚本只剩历史意义）
  *
  * 用法（按顺序；每一步都会先把整个 namespace 备份到本地 JSON）：
  *   node scripts/migrate-kv-names.mjs                 dry-run（默认）：备份 + 打印计划，不写

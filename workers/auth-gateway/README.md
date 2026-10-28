@@ -29,7 +29,7 @@ migrations/  D1 建表
 | `D1_ACCOUNT_AUTH` | `account` | 纪元、账号密码 / 通行密钥、user handle、challenge、输错计数、已登录设备 |
 | `D1_ROOT_AUTH` | `root` | 根凭证输错计数、使用审计 |
 
-表：`migrations/0001_recovery_switch.sql`、`0005_lock_account_state.sql`（epoch、passkey、password、kv_migration，每张表有 realm 列）、`0006_auth_state.sql`（user_handle、challenge、attempt_limit、tempkey、device、audit）。代码在第一次遇到「no such table」时按 `functions/_kernel/d1-state.js` 的 SCHEMA 建表（幂等，单测核对与迁移文件一致），正式部署 job 不跑迁移。以前的认证库 KV（namespace `b796097c…`）已删掉绑定，namespace 保留不删，运行时不读。
+表：`migrations/0001_recovery_switch.sql`、`0005_lock_account_state.sql`（epoch、passkey、password、kv_migration，每张表有 realm 列）、`0006_auth_state.sql`（user_handle、challenge、attempt_limit、tempkey、device、audit）。代码在第一次遇到「no such table」时按 `functions/_kernel/d1-state.js` 的 SCHEMA 建表（幂等，单测核对与迁移文件一致），正式部署 job 不跑迁移。以前的认证库 KV（namespace `b796097c…`）先删了绑定，2026-10-29 namespace 本身也已删除。
 
 ## 上线顺序（KV → D1，一次性）
 

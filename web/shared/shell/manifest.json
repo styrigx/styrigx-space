@@ -10,12 +10,12 @@
     "share.js": "1835057b213f5550b9219ea3ffb6f4a3268641865ded947e3ae5fdd7ecd65991",
     "nav.json": "1465967a1f517e1bf682874d359b41641368931689202d129db0876ee0f2e458",
     "palettes.json": "8acce76979dfeec50d305c8f84e59a83c56b7bbbfa4b45c2f85d631f90bc3c08",
-    "ui-cookie-read.js": "972a3435d5dc8221733f53524e23412ae6a32f737ab1785c2a4df88e5279398d",
+    "ui-cookie-read.js": "d563535ee2f06b3bb064890f1cc16225e645b15e4f30ca6e4dc4824365ca7978",
     "ui-cookie-contract.json": "3a532a97fe211aae8b238ad05140d2f44e6f162be4302ab613aef5c0fe1750d0",
     "favicon.js": "4bb7f9fe412988861d682b8c2a88eb93f68fc39f9fb51bd5df38441755b5d433",
     "favicon.svg": "d0140f4bb1f7fe856fc499f996b347bbbcab55c1f15e2c4a6d94b118c3aa569b",
     "README.md": "8d6f839e906cec6ef55476cafdf802fb917b83d51405ad18bd23b2cd2624b0d0"
   },
-  "version": "004e9054e471",
+  "version": "2fa07b3de2f0",
   "rulesVersion": "palette-rules-1"
 }

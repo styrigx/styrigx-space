@@ -127,9 +127,9 @@ workers/
 | `styrigx-chat` | `workers/chat/` | 聊天后端（2026-10-22 从网关拆出来）：没有公开地址，只经网关的服务绑定 `CHAT` 进来（`/api/chat` 先验同源 + 会话 + 只许管理员，回答原样流回）；转给 Gemini（或 OpenAI 兼容接口），不存对话；钥匙 `SGX_CHAT_API_KEY`（Secrets Store）和 `CHAT_*` 变量只在这里 |
 | `styrigx-proxy-rules` | `workers/proxy-rules/` | 规则集加速反代：`proxy-rules.styrigx.com`（自定义域名，不过网关），只放行 MetaCubeX/meta-rules-dat 的 geosite/geoip 规则集（`.mrs` `.yaml` `.list`），上游 jsDelivr → raw.githubusercontent，边缘缓存 24 小时 |
 
-路由登记：挂路由的是网关和账号 Worker，各自 `wrangler.toml` 里的 `[[routes]]` 就是登记表（网关整站通配，账号 Worker 四条更具体的前缀规则，Cloudflare 取最具体的一条）。2026-10-21 起三站都是整站通配（`styrigx.com/*`、`blog.styrigx.com/*`、`daymark.styrigx.com/*`）：Cloudflare 不带 `*` 的规则遇到查询串不命中，以前 `styrigx.com/?lock=1&return=…`（锁屏入口）和子站首页带查询串都绕过了网关。静态资源（`/css/` `/js/` `/fonts/` `/fav/` `/images/`、子站静态后缀）进 Worker 后第一行原样回源，不验会话、不打 `X-SGX-Runtime`。
-`scripts/check-worker-routes.mjs`（CI 跑，匹配规则在 `scripts/lib/cf-routes.mjs`，照线上实测）核对：每个 HTML 页面（含带查询串）、锁屏入口、`/api/` 都过网关，头像 / 云同步 / 数字健康归账号 Worker 且没抢走网关路由表里的任何接口，路由不重复，只登记三站域名，daymark 的句子接口仍归 `styrigx-daymark-core`。锁屏 / 解锁 / 回跳的完整状态机见 `docs/auth-state-machine.md`。
-两个 Worker 的规则由 `check-worker-routes.mjs` 一起核对，不重复、不互抢。
+路由登记：挂路由的是网关、账号 Worker 和短链 Worker，各自 `wrangler.toml` 里的 `[[routes]]` 就是登记表（网关整站通配，账号 Worker 四条、短链 Worker 两条更具体的前缀规则，Cloudflare 取最具体的一条）。2026-10-21 起各站都是整站通配（`styrigx.com/*`、`blog.styrigx.com/*`、`daymark.styrigx.com/*`、`curio.styrigx.com/*`）：Cloudflare 不带 `*` 的规则遇到查询串不命中，以前 `styrigx.com/?lock=1&return=…`（锁屏入口）和子站首页带查询串都绕过了网关。静态资源（`/css/` `/js/` `/fonts/` `/fav/` `/images/`、子站静态后缀）进 Worker 后第一行原样回源，不验会话、不打 `X-SGX-Runtime`。
+`scripts/check-worker-routes.mjs`（CI 跑，匹配规则在 `scripts/lib/cf-routes.mjs`，照线上实测）核对：每个 HTML 页面（含带查询串）、锁屏入口、`/api/` 都过网关，头像 / 云同步 / 数字健康归账号 Worker、`/s/*` 和 `/api/share*` 归短链 Worker，且都没抢走网关路由表里的任何接口，路由不重复，只登记主站和三个子站的域名，daymark 的句子接口仍归 `styrigx-daymark-core`、curio 的收藏接口仍归 `styrigx-curio-core`。锁屏 / 解锁 / 回跳的完整状态机见 `docs/auth-state-machine.md`。
+三个 Worker 的规则由 `check-worker-routes.mjs` 一起核对，不重复、不互抢。
 
 安全响应头（2026-10-25）：值只在 `workers/auth-gateway/functions/_kernel/security-headers.js` 定义一次。
 

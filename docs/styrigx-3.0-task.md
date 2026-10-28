@@ -1,5 +1,9 @@
 # Styrigx 3.0 任务书
 
+> **历史记录（2026-10-29 注）：整篇（含下面的「全局标准」和「验收标准」）是 2026-10-10 当时的规则，正文保持原样，不再是现行规则。**
+> 其中的 UI 8.5、`sgx-verified`、L6 blog/book 公钥验签、`/api/session-check`、`owner-status`、book `/read/` 等都已过时。
+> 现行分层和鉴权规则以 `docs/architecture.md`、`docs/auth-state-machine.md` 为准。
+
 ## 全局标准（Gray 2026-10-10 定，每个 PR 都按此验收）
 
 1. **命名**：Styrigx = Styrigx UI（界面+发行版）+ SGX（内核）。不用"OS"命名；文字一律写 Styrigx，不写 StyrigX。

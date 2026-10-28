@@ -1,4 +1,4 @@
-# 三站锁屏 / 解锁 / 回跳 / 管理员验证 / 账号页：状态机（2026-10-21）
+# 四站锁屏 / 解锁 / 回跳 / 管理员验证 / 账号页：状态机（2026-10-21）
 
 唯一状态源是服务端（网关 `styrigx-auth-gateway`）验签过的 cookie。前端只「反映服务端的回答」：
 页面里的 `<html data-sgx-lock-session / data-sgx-role / data-sgx-account-session / data-sgx-upgrade>`（网关注入）和
@@ -8,7 +8,7 @@
 
 | 名字 | 谁签 | 作用域 | 属性 | 寿命 | 用途 |
 |---|---|---|---|---|---|
-| `sgx-lock-session` | 网关（SGX_LOCK_PRIVATE） | `Domain=.styrigx.com; Path=/` | HttpOnly, Secure, SameSite=Lax | admin 12 h / visitor 按临时钥匙剩余时间（上限 12 h） | LockSessionTicket `by.role.epoch.exp.tempkeyId.sig`（签名串带 `sgx-lock-session\|` 前缀）；三站共用；role = `admin` / `visitor`；by = password / passkey / tempkey；admin 的 tempkeyId 为空串，visitor 必须带一把未作废的临时钥匙 id；epoch ≠ Lock 纪元即失效 |
+| `sgx-lock-session` | 网关（SGX_LOCK_PRIVATE） | `Domain=.styrigx.com; Path=/` | HttpOnly, Secure, SameSite=Lax | admin 12 h / visitor 按临时钥匙剩余时间（上限 12 h） | LockSessionTicket `by.role.epoch.exp.tempkeyId.sig`（签名串带 `sgx-lock-session\|` 前缀）；主站和 blog / daymark / curio 共用；role = `admin` / `visitor`；by = password / passkey / tempkey；admin 的 tempkeyId 为空串，visitor 必须带一把未作废的临时钥匙 id；epoch ≠ Lock 纪元即失效 |
 | （同名清除） | 网关 | host-only `Path=/` | Max-Age=0 | — | 每次签发 / 清除都附带，清掉 host-only 同名 cookie |
 | `sgx-lock-reset` | 网关（SGX_LOCK_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | LockResetTicket `by.epoch.iat.exp.sig`：重置锁屏；by = root / account |
 | `sgx-lock-reauth` | 网关（SGX_LOCK_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | LockReauthTicket `by.epoch.iat.exp.sig`：进「锁屏凭证」页前再验一次；by = password / passkey / root |
@@ -26,8 +26,8 @@ RootKey 不拥有会话：`/api/root-auth { key, purpose }` 的 purpose 只有 `
 
 ## 2. 路由（谁处理请求）
 
-`styrigx.com/*`、`blog.styrigx.com/*`、`daymark.styrigx.com/*` 全进网关；`daymark.styrigx.com/api/*` 归 `styrigx-daymark-core`
-（更具体），`daymark.styrigx.com/api/lock-session-check` 又比它更具体，归网关。
+`styrigx.com/*`、`blog.styrigx.com/*`、`daymark.styrigx.com/*`、`curio.styrigx.com/*` 全进网关；`daymark.styrigx.com/api/*` 归 `styrigx-daymark-core`、
+`curio.styrigx.com/api/*` 归 `styrigx-curio-core`（更具体），两站的 `/api/lock-session-check` 又比它更具体，归网关。
 静态资源（主站 `/css/ /js/ /fonts/ /fav/ /images/`，子站静态后缀和 `/manifest.json` 等）第一行原样回源，不验会话、不打 `X-SGX-Runtime`。
 
 Cloudflare 路由规则：不带 `*` 的规则要求整条 URL（含查询串）完全相等；带查询串就不命中（2026-10-21 线上实测，`scripts/lib/cf-routes.mjs`）。
@@ -47,7 +47,7 @@ Cloudflare 路由规则：不带 `*` 的规则要求整条 URL（含查询串）
 | 有效 | 其他页面 | 200 valid + role，no-store；账号页另注入 `data-sgx-account-session="in|out"`（in 时登录区整段不下发） |
 
 子站（`src/subsites.js`）：有效 → 回源 + no-store；无效 → 302 `https://styrigx.com/?lock=1&why=<no-cookie|invalid-session>&return=<完整地址>`；
-`/api/lock-session-check` blog 204 / daymark 200 / 无效 401。
+`/api/lock-session-check` blog 204 / daymark、curio 200 / 无效 401。
 
 `resolveReturn(return, role)`（唯一实现，首页 302 和 session-check 共用）：站内路径（不许 `//`、`/\`、`/lock/`）或 `https://*.styrigx.com`
 （无用户名密码、无反斜杠、不含已下线子站），否则回首页；已登录 + 门内页 → 安全与隐私总览；访客 + 管理员专属页 → upgrade。

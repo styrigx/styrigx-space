@@ -100,7 +100,7 @@ simple = { limit = 20, period = 60 }
 # 2026-10-27 起网关的认证状态全部在 D1 styrigx-auth-gateway（强一致），不再绑定任何 KV：
 # 以前的认证库 KV（namespace b796097c90104000992b7713f61e16ea）和旧 D1 绑定名已删掉，
 # 其中值得留的旧值（密码、通行密钥、user handle、纪元、设备、临时钥匙）由 scripts/migrate-kv-to-d1.mjs 在部署前导入一次；
-# namespace 本身不删（留作回看，运行时不读）。上线顺序见 README.md「上线顺序」。
+# namespace 本身 2026-10-29 已删除。上线顺序见 README.md「上线顺序」。
 # 账号资料库 styrigx-account（头像 KV_PROFILE、云同步、数字健康 D1_WELLBEING）在账号 Worker styrigx-account（workers/account/wrangler.toml），网关不绑定。
 #
 # D1 styrigx-auth-gateway：同一个库三个绑定名，按凭证域命名 D1_<域>_AUTH（域 = functions/_kernel/realms.js 的 lock / account / root）。

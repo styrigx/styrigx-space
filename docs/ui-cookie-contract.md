@@ -82,10 +82,10 @@ v2 内部的演进（加 `accent`、`fs` / `rm` 固定默认、`x<id>` 合并、
 | `wx` | `sgx-weather-show` 非 `"0"` → `1` | 只有数字 `0` 算关 | `1` |
 | `unit` | `sgx-temp-unit === "f"` → `f` | `f` \| `c` | `c` |
 | `loc` | `sgx-weather-loc`，缺省 `auto` | `^[a-z]{1,16}$` | `auto` |
-| `city` | `sgx-weather-city`（JSON 对象，如 `{"name":"上海","lat":31.23,"lon":121.47}`） | 普通对象 | `null` |
-| `precise` | `sgx-weather-precise`（JSON 对象） | 普通对象 | `null` |
+| `city` | 恒写 `null`（2026-10-28 #230 起；以前写 `sgx-weather-city`） | 普通对象 | `null` |
+| `precise` | 恒写 `null`（2026-10-28 #230 起；以前写 `sgx-weather-precise`） | 普通对象 | `null` |
 
-`sgx-weather`（天气数据缓存）不进 cookie。
+`sgx-weather`（天气数据缓存）不进 cookie。坐标（手动城市的经纬度、精确定位）2026-10-28 起也不进：cookie 随 `*.styrigx.com` 的每个请求发出去，主站天气读 localStorage；字段保留，读端契约不变。
 
 ### 语言（v2，2026-10-27 起）
 
