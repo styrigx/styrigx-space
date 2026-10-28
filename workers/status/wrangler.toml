@@ -11,6 +11,8 @@
 #   - 服务绑定（2026-10-28）：SEARCH → styrigx-search-index、CHAT → styrigx-chat。每分钟那一轮顺带测它们的 GET /healthz
 #     （src/targets.js 里带 binding 的两项），结果和公开地址一样记进 D1、显示在状态页。不经网关，网关不开免会话口子。
 #     绑定要求对方 Worker 已存在，所以 deploy.yml 里本 job 排在 deploy-search-worker / deploy-chat-worker 之后。
+#   - 部署后健康闸门（2026-10-28，scripts/health-gate.mjs）：deploy.yml 部署完本 Worker 后用部署 token 经 D1 REST 只读 checks 表，
+#     等部署之后的巡检；search / chat 连续失败就回滚。checks 的列（site / at / ok / err）和 checks_at 索引因此是闸门的接口，改名要一起改。
 # 这里不验 cookie。唯一的钥匙是用量那把只读 token，放在 Cloudflare Secrets Store（和鉴权网关同一个 store），仓库里不写值：
 #   Secrets Store 里建一条 secret_name = "SGX_CF_USAGE_TOKEN"，值 = 自定义 API token，Account 级只读：
 #     Account Analytics Read · D1 Read · Workers R2 Storage Read · Workers KV Storage Read

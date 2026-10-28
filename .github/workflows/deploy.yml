@@ -30,6 +30,11 @@ env:
 # 不回滚：D1 迁移（只进不退，迁移要写成兼容旧代码）、KV 数据（搜索索引）、Secrets Store、路由 / 自定义域名、已部署的其他 job。
 # 回滚下限：scripts/deploy-rollback-floor.json。线上版本低于下限（网关 / 账号 Worker 是 #226 之前的 KV 版本）就不记、不自动回滚，
 # 免得退回读旧 KV 的代码；以后存储改成旧代码读不懂的格式时在那里加一行。
+# 健康闸门第二阶段（2026-10-28，scripts/health-gate.mjs）：search / chat 没有公开地址，第一阶段只能核对版本换上了。
+# status 部署并核对后，等 styrigx-status 在部署之后跑的巡检（D1 styrigx-status 的 checks 表，经服务绑定测两者的 /healthz），
+# 连续 2 次失败（部署前就在失败的不算）→ status job 红：status 自己按原样回滚，rollback-search-worker / rollback-chat-worker
+# 用各自环境原有的 token 把出问题的那个退回部署前版本；网关 / Pages / 账号 / 分享都等 status，不会部署。
+# 读 D1 用 status 部署本来就有的 token（D1 编辑），不经网关、不开免会话口子、不加 Worker / 子域名 / secret。
 
 jobs:
   # 质量闸门：单元测试、打包检查、生成物同步、分层 / 前端守卫、锁屏 / 边缘 / 凭证接口 / 视觉 e2e、Lighthouse、stylelint。
@@ -766,6 +771,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: STYRIGX_SEARCH_INDEX_DEPLOY
+    # 给 deploy-status-worker 的健康闸门：部署前记下的版本（闸门判失败时 rollback-search-worker 退回它）和开始部署的时刻（部署前基线）
+    outputs:
+      previous: ${{ steps.live.outputs.version }}
+      started_at: ${{ steps.t0.outputs.at }}
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -795,6 +804,11 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SEARCH_INDEX_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-snapshot
+
+      - name: Record deploy start (baseline for the status health gate)
+        # 毫秒时间戳（UTC）：status 的健康闸门把这之前的最近一次巡检当「部署前」，部署前就在失败的不算这次弄坏的
+        id: t0
+        run: echo "at=$(date +%s%3N)" >> "$GITHUB_OUTPUT"
 
       - name: Deploy search Worker (styrigx-search-index)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
@@ -851,6 +865,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: STYRIGX_STATUS_DEPLOY
+    # 健康闸门的结论（scripts/health-gate.mjs）：verdict = pass / fail / binding / timeout / error；failed = 确认失败的站（逗号分隔）
+    outputs:
+      health_verdict: ${{ steps.health.outputs.verdict }}
+      health_failed: ${{ steps.health.outputs.failed }}
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -899,6 +917,19 @@ jobs:
           PREVIOUS: ${{ steps.live.outputs.version }}
         run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
 
+      - name: Post-deploy health gate (status checks of search / chat after this deploy)
+        # 健康闸门第二阶段（scripts/health-gate.mjs）：等新部署的 status 每分钟巡检（经服务绑定测 search / chat 的 /healthz）写进 D1 checks，
+        # 只认部署之后的；连续 2 次失败 → 红。最多等 5 分钟（巡检不跑 = status 自己有问题，同样红）。
+        # 红了：下面一步把 status 退回部署前版本；verdict = fail 时 rollback-search-worker / rollback-chat-worker 退回出问题的那个；
+        # 网关 / Pages / 账号 / 分享都等这个 job，不会部署。部署前就在失败的站（比如聊天没配钥匙）只打 warning。
+        # D1 REST 用 status 部署本来就有的 token（D1 编辑，同上面的 d1 migrations apply），不加 secret、不经网关。
+        id: health
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          BASELINE_UNTIL: ${{ needs.deploy-search-worker.outputs.started_at }},${{ needs.deploy-chat-worker.outputs.started_at }}
+        run: node scripts/health-gate.mjs --sites search,chat --baseline-until "$BASELINE_UNTIL"
+
       - name: Roll back to the recorded version (deploy or post-deploy check failed)
         # 前面任何一步失败且记到了部署前版本：线上已经不是那个版本就 wrangler rollback 回去并核对；线上没变（上传阶段就失败）什么都不做。
         # 只换代码版本：D1 迁移、KV 数据、Secrets Store、路由不回滚。job 照样红，后面依赖它的 job 不部署
@@ -908,6 +939,57 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
+
+  rollback-search-worker:
+    # 健康闸门（deploy-status-worker 的 Post-deploy health gate）确认 search 在部署后失败 → 退回 deploy-search-worker 记下的部署前版本。
+    # 在 search 自己的环境里跑，只用它部署本来就用的 token（Workers Scripts 编辑），同 job 内的自动回滚（含回滚下限）。
+    # 闸门没判 fail（pass / binding / timeout / error）或没记到部署前版本 → 跳过。
+    if: ${{ always() && needs.deploy-status-worker.outputs.health_verdict == 'fail' && contains(format(',{0},', needs.deploy-status-worker.outputs.health_failed), ',search,') && needs.deploy-search-worker.outputs.previous != '' }}
+    needs: [deploy-search-worker, deploy-status-worker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: STYRIGX_SEARCH_INDEX_DEPLOY
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Roll back search Worker (health gate failed)
+        # 只换代码版本；KV 里的索引（site:space）是这次上传的，不回滚（同 job 内回滚）
+        working-directory: workers/search-index
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SEARCH_INDEX_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIOUS: ${{ needs.deploy-search-worker.outputs.previous }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
+
+  rollback-chat-worker:
+    # 同 rollback-search-worker：闸门确认 chat 在部署后失败 → 退回 deploy-chat-worker 记下的部署前版本（chat 环境原有的 token）。
+    if: ${{ always() && needs.deploy-status-worker.outputs.health_verdict == 'fail' && contains(format(',{0},', needs.deploy-status-worker.outputs.health_failed), ',chat,') && needs.deploy-chat-worker.outputs.previous != '' }}
+    needs: [deploy-chat-worker, deploy-status-worker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: STYRIGX_CHAT_DEPLOY
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Roll back chat Worker (health gate failed)
+        working-directory: workers/chat
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_CHAT_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIOUS: ${{ needs.deploy-chat-worker.outputs.previous }}
         run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
   deploy-chat-worker:
@@ -926,6 +1008,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: STYRIGX_CHAT_DEPLOY
+    # 给 deploy-status-worker 的健康闸门：部署前记下的版本（闸门判失败时 rollback-chat-worker 退回它）和开始部署的时刻（部署前基线）
+    outputs:
+      previous: ${{ steps.live.outputs.version }}
+      started_at: ${{ steps.t0.outputs.at }}
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -945,6 +1031,11 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_CHAT_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-snapshot
+
+      - name: Record deploy start (baseline for the status health gate)
+        # 毫秒时间戳（UTC）：没配钥匙时 /healthz 部署前后都是 503，基线里本来就失败，闸门不会因此回滚聊天
+        id: t0
+        run: echo "at=$(date +%s%3N)" >> "$GITHUB_OUTPUT"
 
       - name: Deploy chat Worker (styrigx-chat)
         id: deploy_chat
