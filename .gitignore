@@ -1,4 +1,4 @@
-node_modules/
+node_modules
 .DS_Store
 
 # 网站构建产物（Hugo 在 web/ 里生成）
