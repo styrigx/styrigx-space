@@ -11,6 +11,7 @@ To understand the world, take it apart; to believe in it, put it back together.
 ![Hugo](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/.github/actions/setup-hugo/action.yml&query=%24..HUGO_VERSION&label=Hugo&style=flat-square&color=2563eb&logo=hugo)
 ![Tailwind CSS](https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/package-lock.json&query=%24.packages%5B%27node_modules%2Ftailwindcss%27%5D.version&label=Tailwind%20CSS&style=flat-square&color=2563eb&logo=tailwindcss)
 ![Styrigx UI](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/web/data/version.yaml&query=%24.ui&label=Styrigx%20UI&style=flat-square&color=2563eb)
+![SGX](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/web/data/version.yaml&query=%24.sgx&label=SGX&style=flat-square&color=2563eb)
 ![Deploy](https://img.shields.io/github/actions/workflow/status/styrigx/styrigx-space/deploy.yml?style=flat-square&label=Deploy&color=2563eb)
 ![License](https://img.shields.io/badge/License-MIT-2563eb?style=flat-square)
 
@@ -20,7 +21,9 @@ To understand the world, take it apart; to believe in it, put it back together.
 
 ## What is this
 
-My personal homepage, built to feel like a Samsung phone. Posts and the sites I use live as apps on the home screen. The interface is Styrigx UI, my own take on One UI 9.0, and it works on phone, tablet and DeX.
+This is Sloan Gray's personal portal — his own corner of the internet. Home, Chat, Settings and Account live here; posts live on the Blog, keeps on Curio, quotes on Daymark, all four sharing one interface. The whole site is locked by design — sharing is only ever through short links carrying a visitor key.
+
+The interface is Styrigx UI, built in-house (its version number tracks One UI's, currently 9.0), on the SGX kernel that handles sign-in and sessions. It works on phone, tablet and DeX, and feels like a Samsung phone.
 
 ## Preview
 

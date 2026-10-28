@@ -11,6 +11,7 @@
 ![Hugo](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/.github/actions/setup-hugo/action.yml&query=%24..HUGO_VERSION&label=Hugo&style=flat-square&color=2563eb&logo=hugo)
 ![Tailwind CSS](https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/package-lock.json&query=%24.packages%5B%27node_modules%2Ftailwindcss%27%5D.version&label=Tailwind%20CSS&style=flat-square&color=2563eb&logo=tailwindcss)
 ![Styrigx UI](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/web/data/version.yaml&query=%24.ui&label=Styrigx%20UI&style=flat-square&color=2563eb)
+![SGX](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/web/data/version.yaml&query=%24.sgx&label=SGX&style=flat-square&color=2563eb)
 ![Deploy](https://img.shields.io/github/actions/workflow/status/styrigx/styrigx-space/deploy.yml?style=flat-square&label=Deploy&color=2563eb)
 ![License](https://img.shields.io/badge/License-MIT-2563eb?style=flat-square)
 
@@ -20,7 +21,9 @@
 
 ## 这是什么
 
-我的个人主页，长得像一台三星手机。文章和常用的站点都是桌面上的 App，点开就能用。界面叫 Styrigx UI，参考 One UI 9.0 自己写的，手机、平板和 DeX 都能打开。
+这是 Sloan Gray 的个人门户，也是他的互联网净土：主页、聊天、设置和账号都在这里；文章在博客子站，收藏在奇趣，日刻在日刻子站，四站同一套界面。全站上锁是设计本身——分享只用带访客密钥的短链。
+
+界面是自研的 Styrigx UI（版本号与 One UI 对齐，现为 9.0），内核是管登录与会话的 SGX；手机、平板和 DeX 都能打开，长得像一台三星手机。
 
 ## 预览
 
