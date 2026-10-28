@@ -17,8 +17,8 @@ space（styrigx.com）相当于 One UI，blog、daymark、curio 等子站相当�
 
 ## 分层
 
-### L0 内核·凭证：`workers/auth-gateway/functions/_kernel/crypto.js`、`workers/auth-gateway/functions/_kernel/lock-session.js`
-- 负责 Ed25519 签名/验签、会话格式（`epoch.exp.sig`）和 cookie 名。
+### L0 内核·凭证：`workers/auth-gateway/functions/_kernel/`（`crypto.js`、`realms.js`、`lock-session.js`、`account-session.js`、`tickets.js` 等）
+- 负责 Ed25519 签名/验签、会话格式（锁屏会话 `by.role.epoch.exp.tempkeyId.sig`）和 cookie 名（`realms.js`）。
 - 不碰任何页面逻辑。
 
 ### L1 内核·权限：`workers/auth-gateway/functions/_middleware.js`
@@ -31,15 +31,17 @@ space（styrigx.com）相当于 One UI，blog、daymark、curio 等子站相当�
 
 ### L2 系统调用：`workers/auth-gateway/functions/api/*`
 - 解锁：`lock-password`、`lock-passkey`（admin 会话）、`lock-tempkey-unlock`（临时码 → visitor 会话，by=tempkey）。
-- 查询：`lock-session-check`、`lock-credentials`、`account`（账号凭证状态 + 当前账号会话；原 `owner-status` 已删除）。
+- 查询：`lock-session-check`、`lock-credentials`、`lock-entry`（锁屏上显示哪些入口，无需会话）、`layer-status`（层配置状态）、`account`（账号凭证状态 + 当前账号会话；原 `owner-status` 已删除）。
 - 账号：`account`（账号密码/账号通行密钥登录与管理；进「账号安全」前再验一次，签 3 分钟 AccountReauthTicket `sgx-account-reauth`）。
 - 锁屏凭证页的再验证：`lock-reauth`（LockReauthTicket 状态 / 清票）；由 `lock-passkey`/`lock-password`（`reauth:true`）或 `root-auth`（`purpose:'lock-reauth'`）签 3 分钟 LockReauthTicket `sgx-lock-reauth`（SGX_LOCK_* 签）。
-- 根凭证：`root-auth { key, purpose }`，purpose 只有 `lock-reauth` / `lock-reset` / `account-reauth` / `account-reset`，各签一张 3 分钟短票（by=root），不签任何会话。
+- 根凭证：`root-auth { key, purpose }`，purpose 只有 `lock-reauth` / `lock-reset` / `account-reauth` / `account-reset`，各签一张 3 分钟短票（by=root），不签任何会话；`root-audit` 只读根凭证使用记录。
+- 重置与临时钥匙：`lock-reset`（丢了锁屏凭证：先交根凭证，再按重置开关或账号凭证签 LockResetTicket）、`lock-tempkey`（账号页临时钥匙的列表 / 新建 / 作废）。
 - 签名钥匙只剩两套：账号 `SGX_ACCOUNT_*`、锁屏 `SGX_LOCK_*`（stepup、应用凭证已删除）。
-- 锁定：`lock-now`（清除 `Domain=.styrigx.com` 的 `sgx-lock-session`，子站一起上锁）。
+- 锁定：`lock-now`（清除 `Domain=.styrigx.com` 的 `sgx-lock-session`，子站一起上锁）、`lock-all-devices`（Lock 纪元 +1，所有设备一起上锁；要 LockReauthTicket）。
+- 其他：`geo`（Cloudflare 给的城市 / 坐标 / 时区）；`chat`、`search`、`status` 只做门，验锁屏会话后经服务绑定转给 styrigx-chat / styrigx-search-index / styrigx-status。
 - 前端改变会话只能通过这些接口。
 
-### L3 共享库：`assets/js/lib/`（core、util、storage、events、scheduler、i18n、theme 等）
+### L3 共享库：`assets/js/lib/`（util、storage、events、scheduler、i18n、theme 等）
 - 通用能力，不得包含鉴权逻辑：`lib/` 里不出现鉴权接口地址（`/api/lock-*`、`/api/root-*`、`/api/account`）和 `navigator.credentials`。
 - `storage` 只存偏好（主题、天气等），**禁止存解锁状态**。
 
@@ -65,7 +67,7 @@ space（styrigx.com）相当于 One UI，blog、daymark、curio 等子站相当�
   2. 把密码或通行密钥提交给 L2。
 - 删除 `sessionStorage['sgx-lock-shown']` 及所有按标签页判断的逻辑。
 
-### L5 应用：`page-*.js` + `entries/entry-*.js`
+### L5 应用：`apps/*.js` + `entries/entry-*.js`
 - 一个页面一个入口，不碰鉴权。
 - 打包（2026-10-24）：所有入口在 `layouts/partials/sgx-js-batch.html` 里一次 `js.Batch`（esbuild ESM + 代码分割），
   共享代码（core 及其依赖）拆成一个内容哈希命名的 chunk，各页共用、换页走缓存；入口 fingerprint，静态依赖的 chunk 由 baseof 输出 `modulepreload`。
@@ -92,19 +94,19 @@ space（styrigx.com）相当于 One UI，blog、daymark、curio 等子站相当�
 
 - 锁屏会话 `sgx-lock-session`（`Domain=.styrigx.com`）只回答「是否已解锁」，
   是唯一的解锁状态源；它**从不**被当作账号认证。
-- 账号会话 `sgx-account-session`（无 Domain，只发给主站；`HttpOnly; Secure; SameSite=Strict`；12 小时）
-  由 `_kernel/account-session.js` 签发与验证，格式 `by.epoch.authAt.exp.sig`，
+- 账号会话 `sgx-account-session`（无 Domain，只发给主站；`HttpOnly; Secure; SameSite=Strict`；400 天，不点退出就一直登录）
+  由 `_kernel/account-session.js` 签发与验证，格式 `by.epoch.authAt.exp.deviceId.sig`，
   用 `SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC`（Ed25519，PKCS8 / SPKI PEM）签名。
   凭证域定义在 `_kernel/realms.js` 的 `REALM_ACCOUNT`。
-- 登录入口三者平级：账号通行密钥、账号密码、根凭证；前置条件是已解锁的 admin 锁屏会话。
-- 敏感操作（「管理凭证」进门、注册/删除账号通行密钥、修改账号密码）要求 `authAt` 在 10 分钟内，
-  过旧返回 403 `account-stale`，前端回账号页重新登录。
+- 登录入口两者平级：账号通行密钥、账号密码；前置条件是已解锁的 admin 锁屏会话。根凭证不签账号会话。
+- 敏感操作（注册/删除账号通行密钥、修改账号密码）要求有效的 3 分钟 AccountReauthTicket `sgx-account-reauth`
+  （进「账号安全」子页前再验一次，离开即作废；会话还在时也认 AccountResetTicket），没有票返回 403 `reauth`，前端重新验证。
 - 改账号密码 / 删账号通行密钥时 `account-epoch` +1，其他设备的账号会话失效，当前设备重签。
 - 存储（2026-10-27 起在 D1 `styrigx-auth-gateway`，绑定 `D1_ACCOUNT_AUTH`，各表 `realm = 'account'`）：
   `password`、`passkey`、`user_handle`、`challenge`、`epoch`、`device`（已退出的 `revoked_at > 0`）；
   「已配置」由凭证推出；账号密码登录限速在 `attempt_limit`（`kind = 'password'`，规则同锁屏密码）。网关不绑 KV。
 - 缺账号钥匙 → 账号登录 503 `config`，只影响账号登录与进门，网站其余部分不受影响。
-- 敏感操作还包括重命名账号通行密钥（`rename`，同样要求近期登录，不推纪元）。
+- 敏感操作还包括重命名账号通行密钥（`rename`，同样要 AccountReauthTicket，不推纪元）。
 - 概念名 `AccountKey`（原 `OwnerKey`）：账号通行密钥注册时 WebAuthn `user.name = AccountKey`；
   通行密钥记录不再有 class 字段（键名已表明域）。`list` 返回账号 handle，
   前端支持时调 `PublicKeyCredential.signalCurrentUserDetails` 让密码管理器把旧条目改名

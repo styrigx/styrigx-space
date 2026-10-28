@@ -2,6 +2,8 @@
 /**
  * @fileoverview 一次性导入：认证库 KV 里值得留的旧值 → D1 styrigx-auth-gateway（2026-10-27，网关不再绑定 KV，运行时不读 KV）。
  *
+ * 历史脚本：导入已在 2026-10-27 上线前做完，源 namespace b796097c… 2026-10-29 已删除，本脚本不会再有可读的源。
+ *
  * 必须在部署「网关不绑 KV」的版本之前跑（顺序：本脚本 --dry-run → 本脚本 → 本脚本 --verify → 部署网关）。
  * 不跑就部署：锁屏 / 账号密码、通行密钥都读不到（锁屏、账号都按「未设置」处理，根凭证可以代开），
  * 通行密钥的 user handle 会重新生成（已注册的通行密钥校验 userHandle 失败），已登录设备、临时钥匙全部丢失。
@@ -25,7 +27,7 @@
  * 幂等：每一类（kv_migration.name = '<realm>-<内容>'）的行都用 INSERT OR IGNORE ... WHERE NOT EXISTS (该类的标记)，
  * 整类写完最后才写标记。中途失败 → 再跑一次补齐（已写的行不覆盖）；写过标记的类再跑一律跳过
  * （上线后在 D1 里改过 / 删过的不会被旧 KV 值盖回去）。纪元、user handle 本身就是 INSERT OR IGNORE（D1 里已有就不动）。
- * 只写 D1、不写也不删 KV（KV namespace 保留不动）。
+ * 只写 D1、不写也不删 KV（namespace 后来在 2026-10-29 手动删除）。
  *
  * 用法（Cloudflare REST API，不依赖 wrangler 登录；凭据只从环境变量读）：
  *   CF_API_TOKEN=… CF_ACCOUNT_ID=… node scripts/migrate-kv-to-d1.mjs --dry-run   读 KV、读 D1 的标记，打印计划（只有计数，不打印值）

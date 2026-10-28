@@ -52,8 +52,8 @@ entrypoint = "AuthVerifier"
 
 # ---- 数据绑定（正式）----
 # 账号资料库 KV styrigx-account：KV_PROFILE 只放公开的头像 avatar:*。
-# 2026-10-28 起云同步不在 KV 了（KV_SETTINGS_SYNC 绑定已删，见下面 D1_SETTINGS_SYNC）；库里剩下的旧键 account-prefs
-# 只给 scripts/migrate-prefs-kv-to-d1.mjs 一次性导入用，运行时不读。
+# 2026-10-28 起云同步不在 KV 了（KV_SETTINGS_SYNC 绑定已删，见下面 D1_SETTINGS_SYNC）；旧键 account-prefs 已导入 D1，
+# 2026-10-29 从 KV 删除，库里只剩 avatar:*。
 [[kv_namespaces]]
 binding = "KV_PROFILE"
 id = "b20701f5f48e498e897bc6f0bd81643f"
@@ -67,7 +67,7 @@ database_id = "03f60d23-9c2f-4f3d-a692-764ccaac6f5d"
 migrations_dir = "migrations"
 
 # D1_SETTINGS_SYNC = settings_sync 云同步（migrations/0002_settings_sync.sql；src/api/prefs.js，逐项新的赢在 SQL 里原子完成）。
-# 部署前先跑 scripts/migrate-prefs-kv-to-d1.mjs（--dry-run → 导入 → --verify），把 KV 里的 account-prefs 搬进来。
+# 2026-10-28 上线前用 scripts/migrate-prefs-kv-to-d1.mjs 把 KV 里的 account-prefs 导入过（旧键 2026-10-29 已删，脚本只剩历史意义）。
 [[d1_databases]]
 binding = "D1_SETTINGS_SYNC"
 database_name = "styrigx-account"

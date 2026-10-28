@@ -3,6 +3,8 @@
  * @fileoverview 一次性导入：设置云同步 KV account-prefs → D1 styrigx-account 的 settings_sync（2026-10-28，账号 Worker
  * styrigx-account 的 /api/prefs 改用 D1_SETTINGS_SYNC，删了 KV_SETTINGS_SYNC 绑定，运行时不读 KV、没有回落）。
  *
+ * 历史脚本：导入已在 2026-10-28 上线前做完，KV 里的 account-prefs 2026-10-29 已删除，本脚本不会再有可读的源。
+ *
  * 必须在部署「prefs 走 D1」的账号 Worker 之前跑（顺序：wrangler d1 migrations apply（或本脚本自己建表）→ 本脚本 --dry-run
  * → 本脚本 → 本脚本 --verify → 部署账号 Worker）。不跑就部署：云同步在服务器上是空的，各设备下次同步时把本机的设置重新推上去
  * （逐项新的赢，不会丢本机设置，但只在一台设备上改过、还没推到别的设备的值，要等那台设备再同步一次）。
@@ -14,7 +16,7 @@
  *
  * 幂等：每一行用接口同一条 UPSERT（src/api/prefs.js UPSERT_SQL）：D1 里没有 → 插入；D1 里的 t 更旧 → 覆盖；
  * D1 里的 t 相等或更新（上线后某台设备已经同步过）→ 不动。所以重复跑、中途失败再跑都安全，旧 KV 值不会盖掉 D1 里更新的设置。
- * 只写 D1、不写也不删 KV（account-prefs 留在 KV 里不动，确认无误后可以在控制台手动删）。
+ * 只写 D1、不写也不删 KV（account-prefs 后来在 2026-10-29 手动删除）。
  *
  * 用法（Cloudflare REST API，不依赖 wrangler 登录；凭据只从环境变量读；同 scripts/migrate-kv-to-d1.mjs）：
  *   CF_API_TOKEN=… CF_ACCOUNT_ID=… node scripts/migrate-prefs-kv-to-d1.mjs --dry-run   读 KV、读 D1，打印计划（只有计数，不打印值）

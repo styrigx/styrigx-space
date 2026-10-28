@@ -1265,7 +1265,7 @@ jobs:
 
   deploy-account-worker:
     # 账号 Worker styrigx-account（workers/account，2026-10-24 从网关拆出来）：头像（KV_PROFILE）、设置云同步（D1_SETTINGS_SYNC，表 settings_sync）、数字健康（D1_WELLBEING）。
-    # 上线前手动跑一次 scripts/migrate-prefs-kv-to-d1.mjs（--dry-run → apply → --verify），把旧 KV 里的 account-prefs 搬进 D1。
+    # 2026-10-28 上线前用 scripts/migrate-prefs-kv-to-d1.mjs 把旧 KV 里的 account-prefs 导入过 D1（旧键 2026-10-29 已删）。
     # 路由见 workers/account/wrangler.toml（styrigx.com/api/avatar*、/api/prefs*、/api/wellbeing*、/avatar/*，比网关的 styrigx.com/* 更具体）；
     # workers_dev=false、preview_urls=false。会话问网关：服务绑定 AUTH → styrigx-auth-gateway 的 AuthVerifier（lockSession() / accountSession()），
     # 所以排在网关之后（要先有带 accountSession() 的网关）。不持任何钥匙，CI 不传任何密值。

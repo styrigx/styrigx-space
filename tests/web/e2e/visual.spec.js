@@ -1,7 +1,7 @@
 /**
  * 2.4.0 E：视觉回归测试。
  * 5 视口 × 中英 × 深浅色 × 主要页面（/、/settings/ 等；2026-10-22 /search/ 页删除（改成原地搜索层，见 baseline-search-open）；B2-2 删除 /store/，2026-10-19 删除 /files/，
- * 2026-10-20 /browser/ 拆成 /bookmarks/ + /search/，2026-10-21 主站书签下线（迁到 珍格 Curio），/bookmarks/ 截图删除）
+ * 2026-10-20 /browser/ 拆成 /bookmarks/ + /search/，2026-10-21 主站书签下线（迁到 奇趣 Curio），/bookmarks/ 截图删除）
  * + F 的基准（弹层打开）+ 导航抽屉打开（baseline-drawer-open）+ 快捷面板打开（baseline-quick-panel-open）。
  * 首次运行：npx playwright test --update-snapshots 生成基准；
  * 后续运行自动对比，不一致即失败。

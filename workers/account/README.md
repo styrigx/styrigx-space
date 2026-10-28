@@ -16,6 +16,6 @@ migrations/         D1 styrigx-account 的表结构（0001_wellbeing.sql、0002_
 
 - 路由：`wrangler.toml` 的 `[[routes]]`，四条都比网关的 `styrigx.com/*` 更具体，前端地址不变。`scripts/check-worker-routes.mjs` 核对这几条路径归本 Worker、网关的接口和页面没被抢走。
 - 会话：门和接口都问网关（`lockSession()` = 锁屏会话，访客还要有效的临时钥匙票；`accountSession()` = 账号会话），和这些接口还在网关里时是同一套验签代码。网关不可达 → 当作无会话（fail closed）。
-- 数据：KV `styrigx-account`（`KV_PROFILE`，只放公开头像 `avatar:*`）；D1 `styrigx-account`（`D1_WELLBEING` 数字健康、`D1_SETTINGS_SYNC` 云同步，同一个库）。2026-10-28 云同步从 KV（`KV_SETTINGS_SYNC` 的 `account-prefs`）搬到 D1，运行时不读 KV、没有回落；部署前用 `scripts/migrate-prefs-kv-to-d1.mjs`（`--dry-run` → 导入 → `--verify`）一次性导入旧值。预览 KV `styrigx-account-preview` 已登记在 `[env.preview]`；预览 D1 还没建（`wrangler.toml` 里留了注释掉的占位），在那之前预览 Worker 的云同步没有存储（`/api/prefs` 登录后 500 config）。
+- 数据：KV `styrigx-account`（`KV_PROFILE`，只放公开头像 `avatar:*`）；D1 `styrigx-account`（`D1_WELLBEING` 数字健康、`D1_SETTINGS_SYNC` 云同步，同一个库）。2026-10-28 云同步从 KV（`KV_SETTINGS_SYNC` 的 `account-prefs`）搬到 D1，运行时不读 KV、没有回落；上线前用 `scripts/migrate-prefs-kv-to-d1.mjs`（`--dry-run` → 导入 → `--verify`）一次性导入了旧值，KV 里的 `account-prefs` 2026-10-29 已删除。预览 KV `styrigx-account-preview` 已登记在 `[env.preview]`；预览 D1 还没建（`wrangler.toml` 里留了注释掉的占位），在那之前预览 Worker 的云同步没有存储（`/api/prefs` 登录后 500 config）。
 - 部署：`.github/workflows/deploy.yml` 的 `deploy-account-worker`，在网关之后（要先有带 `accountSession()` 的 AuthVerifier）；先跑 `d1 migrations apply styrigx-account --remote`，再部署，再冒烟。token `styrigx-account-deploy`（GitHub 环境 `STYRIGX_ACCOUNT_DEPLOY`，只允许 main）。
 - 测试：`tests/workers/account/`。

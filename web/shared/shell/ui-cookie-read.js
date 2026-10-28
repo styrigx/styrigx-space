@@ -1,5 +1,5 @@
 /**
- * @fileoverview sgx-ui cookie 只读解析器（2026-10-22）：子站（博客 / 日刻 / 珍格）首帧前读主站写的外观，<html> 落到和主站一样的状态。
+ * @fileoverview sgx-ui cookie 只读解析器（2026-10-22）：子站（博客 / 日刻 / 奇趣）首帧前读主站写的外观，<html> 落到和主站一样的状态。
  *
  * - 主站 lib/ui-cookie.js 写（localStorage 是唯一来源，cookie 只是镜像）；子站只读，永远不写 sgx-ui。
  *   写端也用这里的 NAME / V / MODES / FONT_SIZES / PRESETS / encode / decode，两边同一份字段表，不会各说各话。
