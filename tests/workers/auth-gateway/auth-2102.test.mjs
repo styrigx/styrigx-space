@@ -121,7 +121,7 @@ test('6：verifyLockSession 无纪元存储（D1）→ d1-error（不跳过）',
 
 test('7：verify 时限速 D1 出错 → 503', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/lock-password.js');
-  const { makePasswordRecord } = await import('../../../workers/shared/password.js');
+  const { makePasswordRecord } = await import('../../../workers/auth-gateway/functions/_kernel/lib/password.js');
   const kv = makeKV();
   const env = baseEnv(kv, { SGX_PW_PEPPER: 'test-pepper' });
   /* 锁屏密码已设置（码对），只有 attempt_limit 读写抛错 */

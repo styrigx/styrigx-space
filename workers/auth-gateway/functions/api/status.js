@@ -10,7 +10,7 @@
  *   401 没会话 · 503 监测服务不可用（没绑定 / 出错）
  */
 import { verifyLockSession } from '../_kernel/lock-session.js';
-import { apiError, NO_STORE } from '../../../shared/http.js';
+import { apiError, NO_STORE } from '../_kernel/lib/http.js';
 
 
 /** @param {number} status @param {any} body */

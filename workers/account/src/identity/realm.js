@@ -10,12 +10,12 @@
  * 根密钥的限速 / 审计行就在本域：attempt_limit realm='account' kind='rootkey'、audit realm='account'。
  *
  * 存储：D1 styrigx-account（绑定 D1_ACCOUNT_AUTH），表见 migrations/0003_account_auth.sql，每张表 realm 列 = 'account'。
- * 签名串 = "<cookie 名>|<票内容>"，见 workers/shared/tickets.js。
+ * 签名串 = "<cookie 名>|<票内容>"，见 workers/account/src/lib/tickets.js。
  *
- * 叶子模块：只 import 共享模块 workers/shared/ 里同为叶子的 http.js、cookies.js。
+ * 叶子模块：只 import 共享模块 workers/account/src/lib/ 里同为叶子的 http.js、cookies.js。
  */
-import { apiError } from '../../../shared/http.js';
-import { COOKIE_EXPIRED } from '../../../shared/cookies.js';
+import { apiError } from '../lib/http.js';
+import { COOKIE_EXPIRED } from '../lib/cookies.js';
 
 export { COOKIE_EXPIRED };
 
@@ -51,7 +51,7 @@ export const SHORT_TICKET_MAX_AGE = 180;
 /**
  * 三张账号票：票名 → cookie → 私钥 → 公钥 → 时长 → cookie 属性 → 允许的 by → 纪元归哪个域。
  * - AccountSessionTicket  by.epoch.authAt.exp.deviceId
- * - AccountReauthTicket / AccountResetTicket  by.epoch.iat.exp（workers/shared/tickets.js 按本表通用签发 / 验证）
+ * - AccountReauthTicket / AccountResetTicket  by.epoch.iat.exp（workers/account/src/lib/tickets.js 按本表通用签发 / 验证）
  */
 export const TICKETS = Object.freeze({
   [ACCOUNT_SESSION_TICKET]: Object.freeze({

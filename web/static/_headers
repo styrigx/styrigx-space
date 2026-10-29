@@ -7,9 +7,9 @@
 # 页面经网关回源后网关一律改成 private, no-store（防浏览器缓存绕过锁屏）。
 #
 # 安全头（/* 那一段）由 scripts/gen-csp.mjs 生成，值的唯一来源是
-# workers/shared/security-headers.js；网关、账号 Worker、分享 Worker 发的是同一套。
+# workers/auth-gateway/functions/_kernel/lib/security-headers.js；网关、账号 Worker、分享 Worker 发的是同一套。
 
-# @gen-security-headers start（scripts/gen-csp.mjs 按 workers/shared/security-headers.js 生成，别手改）
+# @gen-security-headers start（scripts/gen-csp.mjs 按 workers/auth-gateway/functions/_kernel/lib/security-headers.js 生成，别手改）
 /*
   Strict-Transport-Security: max-age=31536000
   X-Content-Type-Options: nosniff

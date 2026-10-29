@@ -84,7 +84,7 @@ async function accountGet(kv, cookieObj, envOverrides) {
   return await onRequestGet({ request: getReq('https://styrigx.com/api/account', { Cookie: cookies(cookieObj) }), env: envFor(kv, envOverrides) });
 }
 async function seedPassword(kv, pw) {
-  const { makePasswordRecord } = await import('../../../workers/shared/password.js');
+  const { makePasswordRecord } = await import('../../../workers/auth-gateway/functions/_kernel/lib/password.js');
   authD1For(kv).putPassword('account', await makePasswordRecord(pw, PEPPER));
 }
 /** D1 device 表里这台的行（realm=account；没有 → null） */

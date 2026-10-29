@@ -1,16 +1,16 @@
 /**
- * 网关的 D1 认证状态入口：只认网关的三个域，实现在共享模块 workers/shared/d1-state.js。
+ * 网关的 D1 认证状态入口：只认网关的三个域，实现在共享模块 workers/auth-gateway/functions/_kernel/lib/d1-state.js。
  *
- * 账号拆分 PR1（零行为变化）：表结构（SCHEMA）、纪元、通行密钥、密码、user handle 的读写搬到 workers/shared/d1-state.js，
+ * 账号拆分 PR1（零行为变化）：表结构（SCHEMA）、纪元、通行密钥、密码、user handle 的读写搬到 workers/auth-gateway/functions/_kernel/lib/d1-state.js，
  * 那边只按形状认域描述对象；本文件保留原来的 realmOf（REALM_LOCK / REALM_ACCOUNT / REALM_ROOT，或它们的 id，
  * 别的一律抛 'd1-state: bad realm'），先把域解析成网关的域对象再交给共享实现。导出的名字、参数、同步 / 异步与以前完全相同。
  *
- * 读主库、出错一律抛、表不存在建表后重试一次等约定见 workers/shared/d1-state.js 文件头。
+ * 读主库、出错一律抛、表不存在建表后重试一次等约定见 workers/auth-gateway/functions/_kernel/lib/d1-state.js 文件头。
  */
 import { REALM_LOCK, REALM_ACCOUNT, REALM_ROOT } from './realms.js';
-import * as base from '../../../shared/d1-state.js';
+import * as base from './lib/d1-state.js';
 
-export { SCHEMA, withSchema, sweepExpired, parseRecord } from '../../../shared/d1-state.js';
+export { SCHEMA, withSchema, sweepExpired, parseRecord } from './lib/d1-state.js';
 
 /** @param {any} realm REALM_LOCK | REALM_ACCOUNT | REALM_ROOT，或它们的 id */
 export function realmOf(realm) {

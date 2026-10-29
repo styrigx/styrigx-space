@@ -1,7 +1,7 @@
 -- 2026-10-29 账号拆分 PR2：账号鉴权状态的表，放进账号库 D1 styrigx-account（绑定 D1_ACCOUNT_AUTH；正式 03f60d23…，预览 styrigx-test-preview）。
 -- 结构照搬网关 workers/auth-gateway/migrations/0005_lock_account_state.sql + 0006_auth_state.sql，逐列原样：
 -- 每张表都保留 realm 列，本库里值固定 'account'（= workers/account/src/identity/realm.js 的 REALM_ACCOUNT.id），
--- 共享模块 workers/shared/ 的 d1-state / attempt-limit / passkey-verify / root-limit / root-audit 不改即可用。
+-- 共享模块 workers/account/src/lib/ 的 d1-state / attempt-limit / passkey-verify / root-limit / root-audit 不改即可用。
 -- 与网关的不同只有两处（方案第 9.1 节）：
 --   user_handle 多一列 legacy_handle（默认 ''）：旧锁屏 handle，账号 Passkey 登录继续认它；
 --   导入标记表叫 data_migration（scripts/migrate-account-auth.mjs 写），不叫 kv_migration；不建 tempkey（临时钥匙留在网关）。

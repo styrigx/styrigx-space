@@ -11,7 +11,7 @@
  * 这只是防刷的总闸，不是安全门：真正的门槛仍是各端点自己的输错锁定（password-limit / root-limit / lock-tempkey）。
  * 所以绑定缺失（本地、单测、Pages 预览不支持这个绑定）或调用出错时放行，只打一行日志。
  */
-import { apiError, clientIp } from '../../../shared/http.js';
+import { apiError, clientIp } from './lib/http.js';
 
 /** 不要会话、每次会写 D1 的接口（都在 _middleware.js 的 API_WHITELIST 里） */
 export const ANON_LIMITED_APIS = Object.freeze([

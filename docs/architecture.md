@@ -20,8 +20,9 @@ space（styrigx.com）相当于 One UI，blog、daymark、curio 等子站相当�
 ### L0 内核·凭证：`workers/auth-gateway/functions/_kernel/`（`realms.js`、`lock-session.js`、`account-session.js`、`tickets.js` 等）
 - 负责 Ed25519 签名/验签、会话格式（锁屏会话 `by.role.epoch.exp.tempkeyId.sig`）和 cookie 名（`realms.js`）。
 - 不碰任何页面逻辑。
-- 与域无关的通用实现（`crypto.js`、`cookies.js`、`http.js`、`d1-state.js`、`tickets.js`、`root-*.js` 等）在共享模块 `workers/shared/`，
-  网关、账号、分享 Worker 共用；`workers/shared/` 只能相对 import 自己目录内的文件（`scripts/check-layers.mjs` 规则 15）。
+- 与域无关的通用实现（`crypto.js`、`cookies.js`、`http.js`、`d1-state.js`、`tickets.js`、`root-*.js` 等）在网关自己的 `_kernel/lib/`。
+  2026-10-30 起没有跨 Worker 的共享目录：账号（`workers/account/src/lib/`）、分享（`workers/share/src/lib/`）、chat / search-index 各自一份，
+  每份只留本 Worker 用得上的部分；每个 Worker 只能 import 自己目录下的文件，账号和网关互相不许 import（`scripts/check-layers.mjs` 规则 14）。
 
 ### L1 内核·权限：`workers/auth-gateway/functions/_middleware.js`
 - **唯一决定是否已解锁的地方**。每个页面请求都在这里判断会话。

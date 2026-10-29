@@ -153,7 +153,7 @@ test('限速按 X-Styrigx-Client-Address 分桶（IPv6 同一 /64 共用）；�
 });
 
 test('全局只减速不封锁：每小时真比对失败满 20 次后 checkRootLimit 给出 3 秒减速，不 limited', async () => {
-  const { rootLimiter } = await import('../../../workers/shared/root-limit.js');
+  const { rootLimiter } = await import('../../../workers/account/src/lib/root-limit.js');
   const env = makeEnv();
   const lim = rootLimiter(root.ROOT_REALM);
   for (let i = 0; i < 20; i++) await lim.recordRootFail(env, '192.0.2.' + i);
@@ -271,7 +271,7 @@ test('根域转接：ROOT_REALM.secret = REALM_ACCOUNT.rootKey = SGX_ACCOUNT_ROO
   assert.equal(root.ROOT_REALM.d1Binding, 'D1_ACCOUNT_AUTH');
   assert.ok(Array.isArray(root.ROOT_REALM.schema));
   assert.deepEqual(Object.keys(root.ROOT_ACTIONS), ['root-reauth', 'root-reset']);
-  const shared = readFileSync(REPO + 'workers/shared/root-check.js', 'utf8');
+  const shared = readFileSync(REPO + 'workers/account/src/lib/root-check.js', 'utf8');
   assert.match(shared, /env\[realm\.secret\]/);
   assert.doesNotMatch(shared, /realm\.rootKey/);
 });

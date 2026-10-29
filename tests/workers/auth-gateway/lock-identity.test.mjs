@@ -1,10 +1,10 @@
 /**
- * workers/shared/lock-identity.js：内部请求头名常量（账号拆分 PR1，只有常量）。
+ * workers/auth-gateway/functions/_kernel/lib/lock-identity.js：内部请求头名常量（账号拆分 PR1，只有常量）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import * as mod from '../../../workers/shared/lock-identity.js';
-import { LOCK_IDENTITY_HEADERS, CLIENT_CONTEXT_HEADERS, INTERNAL_HEADER_PREFIX } from '../../../workers/shared/lock-identity.js';
+import * as mod from '../../../workers/auth-gateway/functions/_kernel/lib/lock-identity.js';
+import { LOCK_IDENTITY_HEADERS, CLIENT_CONTEXT_HEADERS, INTERNAL_HEADER_PREFIX } from '../../../workers/auth-gateway/functions/_kernel/lib/lock-identity.js';
 
 test('只导出三个常量', () => {
   assert.deepEqual(Object.keys(mod).sort(), ['CLIENT_CONTEXT_HEADERS', 'INTERNAL_HEADER_PREFIX', 'LOCK_IDENTITY_HEADERS']);

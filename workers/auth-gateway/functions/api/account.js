@@ -24,7 +24,7 @@
  * - login-challenge → 账号通行密钥登录 challenge（purpose=login）
  * - login-passkey { cid, credential, reauth? } → 验断言（UV=1、userHandle）→ 账号会话(by=passkey)
  * - login-password { password, reauth? } → 验账号密码 → 账号会话(by=password)；
- *   规则同锁屏密码：同 IP 每连错 5 次冷却一轮，30 秒起逐轮翻倍、封顶 1 小时（429 cooldown）；全局只减速（workers/shared/password-limit.js）
+ *   规则同锁屏密码：同 IP 每连错 5 次冷却一轮，30 秒起逐轮翻倍、封顶 1 小时（429 cooldown）；全局只减速（workers/auth-gateway/functions/_kernel/lib/password-limit.js）
  *   reauth:true（进账号安全子页前再验一次）→ 另签 AccountReauthTicket，3 分钟
  * - logout → 清账号会话和 reauth / reset 票（幂等，不需会话）
  * - reauth-clear → 只清 reauth / reset 票（离开账号安全子页时调；幂等，不需会话）
@@ -49,7 +49,7 @@
  *
  * 缺 SGX_ACCOUNT_PRIVATE/PUBLIC：登录 503 config；管理操作因无法验账号会话返回 401 account。
  */
-import { b64urlEnc } from '../../../shared/crypto.js';
+import { b64urlEnc } from '../_kernel/lib/crypto.js';
 import {
   b64urlDec,
   randB64,
@@ -61,8 +61,8 @@ import {
   consumeChallenge,
   issueChallenge,
   findStoredKey,
-} from '../../../shared/passkey-verify.js';
-import { getPepper, makePasswordRecord, checkPasswordRecord, verifyRealmPassword, getPassword, hasPassword, savePassword } from '../../../shared/password.js';
+} from '../_kernel/lib/passkey-verify.js';
+import { getPepper, makePasswordRecord, checkPasswordRecord, verifyRealmPassword, getPassword, hasPassword, savePassword } from '../_kernel/lib/password.js';
 import { bumpLockEpoch, reissueLockSessionWithEpoch, ROLE_ADMIN } from '../_kernel/lock-session.js';
 import { BY_PASSKEY, BY_PASSWORD, ACCOUNT_REAUTH_TICKET, ACCOUNT_RESET_TICKET } from '../_kernel/realms.js';
 import {
@@ -79,8 +79,8 @@ import { verifyTicket, issueTicket, reissueTicketWithEpoch, clearTicket } from '
 import { isAccountEffectivelyConfigured } from '../_kernel/layers.js';
 import { REALM_ACCOUNT, REALM_LOCK, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
 import { KEY_ACCOUNT } from '../_kernel/realms.js';
-import { passwordLimiter } from '../../../shared/password-limit.js';
-import { isSameOrigin, originDenied, json, apiError, clientIp } from '../../../shared/http.js';
+import { passwordLimiter } from '../_kernel/lib/password-limit.js';
+import { isSameOrigin, originDenied, json, apiError, clientIp } from '../_kernel/lib/http.js';
 import { verifyLockSession } from '../_kernel/lock-session.js';
 import {
   getPasskeys,
@@ -219,7 +219,7 @@ async function handlePost(context) {
     if (!password || typeof password !== 'string') return apiError(400, 'params');
     const pepper = getPepper(env);
     if (!pepper) return apiError(503, 'config');
-    /* 账号密码输错限速：规则同锁屏密码（workers/shared/password-limit.js），按 IP 各域各自计数 */
+    /* 账号密码输错限速：规则同锁屏密码（workers/auth-gateway/functions/_kernel/lib/password-limit.js），按 IP 各域各自计数 */
     const limiter = passwordLimiter(env, REALM_ACCOUNT, clientIp(request));
     try {
       if (await limiter.inCooldown()) return apiError(429, 'cooldown');

@@ -12,7 +12,7 @@
  *
  * 叶子模块：只 import _kernel（crypto / realms / d1-state）。
  */
-import { b64urlEnc } from '../../../shared/crypto.js';
+import { b64urlEnc } from './lib/crypto.js';
 import { REALM_LOCK, REALM_ACCOUNT } from './realms.js';
 import {
   listPasskeyRecords,
@@ -60,7 +60,7 @@ export function providerOf(aaguid) {
 }
 
 /* randB64 / b64urlDec / cborDecode / parseRegAuthData / coseToJwk / derToRaw /
-   checkAssertAuthData / verifyAssertion 已抽到 workers/shared/passkey-verify.js（解锁、账号登录、重置锁屏共用） */
+   checkAssertAuthData / verifyAssertion 已抽到 workers/auth-gateway/functions/_kernel/lib/passkey-verify.js（解锁、账号登录、重置锁屏共用） */
 
 /**
  * 读某域已注册的通行密钥（按注册顺序）。读失败返回 []（解锁 / 登录 / 列表这些调用方本来就按「没有」处理）。

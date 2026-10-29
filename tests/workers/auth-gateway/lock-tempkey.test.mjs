@@ -15,7 +15,7 @@ import { generateKeyPairSync } from 'node:crypto';
 import * as TL from '../../../workers/auth-gateway/functions/_kernel/lock-tempkey.js';
 import { onRequestPost as tempPost } from '../../../workers/auth-gateway/functions/api/lock-tempkey.js';
 import { onRequestPost as unlockPost } from '../../../workers/auth-gateway/functions/api/lock-tempkey-unlock.js';
-import { ed25519Sign } from '../../../workers/shared/crypto.js';
+import { ed25519Sign } from '../../../workers/auth-gateway/functions/_kernel/lib/crypto.js';
 import { onRequest as mw } from '../../../workers/auth-gateway/functions/_middleware.js';
 import { verifyLockSession } from '../../../workers/auth-gateway/functions/_kernel/lock-session.js';
 import { API_ROUTES } from '../../../workers/auth-gateway/src/routes.js';

@@ -4,7 +4,7 @@
  * 和网关的不同只有两处：
  * - 存储在账号库 styrigx-account（D1_ACCOUNT_AUTH，域对象 account-store.js 的 ACCOUNT_DB_REALM，兜底建表用本库 0003）。
  * - 「上次活动地点」的国家 / 城市读网关写的身份头 X-Styrigx-Client-Country / X-Styrigx-Client-City
- *   （workers/shared/lock-identity.js CLIENT_CONTEXT_HEADERS），不读 request.cf（请求经服务绑定转进来，cf 不是浏览器的）。
+ *   （workers/account/src/lib/lock-identity.js CLIENT_CONTEXT_HEADERS），不读 request.cf（请求经服务绑定转进来，cf 不是浏览器的）。
  *
  * 每次账号登录（通行密钥 / 密码）在 sgx-account-session 票据里带一个随机 deviceId，
  * 并在 D1 device 表记一行（realm = 'account'，绑定 D1_ACCOUNT_AUTH；2026-10-27 从 KV account-device:* 搬来）：
@@ -21,11 +21,11 @@
  * 型号来自前端 navigator.userAgentData.getHighEntropyValues（登录请求体 device 字段），
  * 拿不到时只从 User-Agent 推平台和浏览器。三星常见型号映射成「Galaxy S23 Ultra」这样的名字。
  *
- * 只 import workers/shared/ 和本目录（realm.js、account-store.js）。
+ * 只 import workers/account/src/lib/ 和本目录（realm.js、account-store.js）。
  */
-import { b64urlEnc } from '../../../shared/crypto.js';
-import { onAuthDb, sweepExpired, parseRecord } from '../../../shared/d1-state.js';
-import { CLIENT_CONTEXT_HEADERS } from '../../../shared/lock-identity.js';
+import { b64urlEnc } from '../lib/crypto.js';
+import { onAuthDb, sweepExpired, parseRecord } from '../lib/d1-state.js';
+import { CLIENT_CONTEXT_HEADERS } from '../lib/lock-identity.js';
 import { REALM_ACCOUNT } from './realm.js';
 import { ACCOUNT_DB_REALM } from './account-store.js';
 
