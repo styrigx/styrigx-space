@@ -596,6 +596,15 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
+      - name: Write preview deploy marker
+        if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
+        # 本次部署的标记（run id + attempt），部署后轮询别名直到稳定返回它（下一个 Wait 步骤）。
+        # 放 /images/ 下：网关对 MAIN_STATIC_PREFIXES 原样回源、不验会话；只进这个 job 的预览 public/，不进生产构建。
+        run: |
+          mkdir -p web/public/images
+          printf '%s\n' "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" > web/public/images/e2e-deploy.txt
+          cat web/public/images/e2e-deploy.txt
+
       - name: Deploy to preview
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
@@ -605,6 +614,25 @@ jobs:
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           workingDirectory: web
           command: pages deploy public --project-name=styrigx-space --branch=passkey-e2e --commit-dirty=true
+
+      - name: Wait until preview alias serves this deployment
+        if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
+        # 别名 passkey-e2e.styrigx-space.pages.dev 刚部署后有一段时间仍会把部分请求路由到上一次部署。
+        # 上一次部署是上一次运行生成的 Ed25519 钥匙 / RootKey（PR1.5 首跑时还连着旧预览库），
+        # 请求混着打到两次部署就会出现 {"error":"session"}、轮询变慢、限速计数分散（2026-10-29 run 40904956665 两次 attempt）。
+        # 连续 10 次读到本次标记才开跑；最多等约 240 秒，超时让 CI 红（不带着混合路由跑测试）。
+        run: |
+          want="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          url="https://passkey-e2e.styrigx-space.pages.dev/images/e2e-deploy.txt"
+          ok=0; got=""
+          for i in $(seq 1 120); do
+            got="$(curl -fsS -H 'Cache-Control: no-cache' "$url?n=$i-$RANDOM" 2>/dev/null | tr -d '\r\n' || true)"
+            if [ "$got" = "$want" ]; then ok=$((ok + 1)); else ok=0; fi
+            if [ "$ok" -ge 10 ]; then echo "alias serves $want (stable after $i probes)"; exit 0; fi
+            sleep 2
+          done
+          echo "::error::preview alias did not settle on $want within ~240s (last: '$got')"
+          exit 1
 
       - name: Run WebAuthn E2E (SGX_TEST_SUITE=passkey)
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
