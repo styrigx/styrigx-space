@@ -1,7 +1,7 @@
 # styrigx-account：账号数据 Worker（CI 部署；2026-10-24 从鉴权网关 styrigx-auth-gateway 拆出来）
 #
 # 管管理员账号名下的三样数据：头像（KV_PROFILE）、设置云同步（D1_SETTINGS_SYNC，含主题等外观设置）、数字健康（D1_WELLBEING）。
-# 代码：src/（入口 index.js、门 gate.js、会话 auth.js、接口 api/、公共 lib/）+ migrations/（D1 styrigx-account）。
+# 代码：src/（部署入口 worker.js：默认 fetch = index.js，命名入口 AccountService / AccountVerifier = entrypoints.js（PR2 暗上线，网关 PR3 才绑定）；门 gate.js、会话 auth.js、接口 api/、公共 lib/）+ migrations/（D1 styrigx-account）。
 #
 # 安全：
 # - 不持任何钥匙、不绑认证库（styrigx-auth-gateway 的 KV/D1）。会话全部问网关：服务绑定 AUTH → AuthVerifier（RPC），
@@ -10,7 +10,7 @@
 # - SGX_ENV = "production"：门（src/gate.js）按生产规则执行，同网关 middleware。
 
 name = "styrigx-account"
-main = "src/index.js"
+main = "src/worker.js"
 compatibility_date = "2026-10-09"
 workers_dev = false
 preview_urls = false

@@ -67,7 +67,7 @@ test('wrangler.toml：styrigx-account、不开公开地址、四条路由、AUTH
   const toml = readFileSync(REPO + 'workers/account/wrangler.toml', 'utf8');
   const [prod, preview] = toml.split(/^\[env\.preview\]$/m);
   assert.match(prod, /^name = "styrigx-account"$/m);
-  assert.match(prod, /^main = "src\/index\.js"$/m);
+  assert.match(prod, /^main = "src\/worker\.js"$/m);
   assert.match(prod, /^workers_dev = false$/m);
   assert.match(prod, /^preview_urls = false$/m);
   assert.match(prod, /^SGX_ENV = "production"$/m);

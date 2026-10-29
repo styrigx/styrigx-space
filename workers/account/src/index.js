@@ -13,6 +13,9 @@
  * （Worker 发往同一 zone 的子请求不再进任何 Worker，直接到 Pages，和网关以前回源一样）。
  *
  * 每个响应打 X-SGX-Runtime: account（不含敏感信息），部署后冒烟据此确认路径真的进了本 Worker。
+ *
+ * 本文件的默认 fetch 是公开路由的入口（账号拆分 PR2 暗上线期间行为不变，PR3 切流后改为一律 404）。
+ * 部署入口是 worker.js（wrangler.toml 的 main）：默认导出就是这里的 default，另导出命名入口 AccountService / AccountVerifier（entrypoints.js）。
  */
 import { authFor } from './auth.js';
 import { gate } from './gate.js';
@@ -90,12 +93,15 @@ function makeContext(request, env, ctx, auth, functionPath, params) {
   };
 }
 
-/** 门放行后的去向 */
-export async function route(request, env, ctx, auth) {
+/**
+ * 门放行后的去向。
+ * routes：接口路由表，默认 API_ROUTES（公开路由用）；命名入口 AccountService（entrypoints.js）传入多了 /api/account 的表。
+ */
+export async function route(request, env, ctx, auth, routes = API_ROUTES) {
   const url = new URL(request.url);
   if (url.pathname.startsWith('/api/')) {
     const key = routeKey(url.pathname);
-    const mod = API_ROUTES.get(key);
+    const mod = routes.get(key);
     if (!mod) return apiError(404, 'not-found');
     const handler = pickHandler(mod, request.method);
     if (!handler) return apiError(405, 'method');

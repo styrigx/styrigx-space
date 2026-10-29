@@ -2,14 +2,15 @@
  * /api/account（账号 Worker，单入口 + action；账号拆分 PR2b，方案第 5.1 节）。
  *
  * 从网关 functions/api/account.js 复制改写：action 名、请求 / 响应字段、错误码、cookie、票都和网关一样，
- * 切换时前端不用改（账号页其余调用地址不变）。本块只有接口模块，还没有入口接它（PR2 后续块的 AccountService 才把请求交进来）。
+ * 切换时前端不用改（账号页其余调用地址不变）。由命名入口 AccountService（src/entrypoints.js）把网关转发的请求交进来（PR2 暗上线，PR3 网关才开始转发）。
  *
  * 身份：不验锁屏会话，只读网关写的规范身份头（workers/shared/lock-identity.js）：
  * - X-Styrigx-Lock-Role 必须是 admin（logout / reauth-clear 除外）；没有 / 不认识的值 / visitor → 401 session（同网关无 admin 会话）。
  *   白名单校验：role ∈ admin | visitor，by ∈ password | passkey | tempkey，其它值一律当作没有身份。
  * - X-Styrigx-Client-Address：输错限速分桶、审计 IP 前缀（没有 → 'unknown'）；不读 CF-Connecting-IP。
  * - X-Styrigx-Client-Country / City：设备「上次活动地点」（account-devices.js）。
- * 这些头只能由网关写：账号 Worker 只在命名入口里处理请求、默认 fetch 404、没有公开路由（方案第 3 节三道保险，入口在后续块）。
+ * 这些头只能由网关写：本接口只挂在命名入口 AccountService（src/entrypoints.js）的路由表里，默认 fetch（公开路由）没有 /api/account、
+ * 也不读这些头；PR3 起默认 fetch 一律 404、删公开路由（方案第 3 节三道保险）。
  *
  * GET /api/account → { ok, password, passkey, ready, configured, session, reauth, reset }
  *   configured（新）= password || passkey（账号是否已有任一凭证；没有就只能 root-reset 设第一把）。其余字段同网关。
