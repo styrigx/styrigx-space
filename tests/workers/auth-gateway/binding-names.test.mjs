@@ -55,7 +55,7 @@ test('鉴权网关正式 / 预览：恰好三个 D1 认证绑定（同一个库�
   }
 });
 
-test('账号 Worker 正式 / 预览：D1_SETTINGS_SYNC = D1_WELLBEING（styrigx-account），KV 只剩头像 KV_PROFILE，不碰认证库', () => {
+test('账号 Worker 正式 / 预览：D1_SETTINGS_SYNC = D1_WELLBEING = D1_ACCOUNT_AUTH（styrigx-account），KV 只剩头像 KV_PROFILE，不碰网关认证库', () => {
   const toml = read('workers/account/wrangler.toml');
   assert.doesNotMatch(toml, OLD);
   const [prod, preview] = toml.split(/^\[env\.preview\]$/m);
@@ -65,8 +65,13 @@ test('账号 Worker 正式 / 预览：D1_SETTINGS_SYNC = D1_WELLBEING（styrigx-
   assert.equal(m.KV_PROFILE, 'b20701f5f48e498e897bc6f0bd81643f');
   assert.equal(m.D1_WELLBEING, '03f60d23-9c2f-4f3d-a692-764ccaac6f5d');
   assert.equal(m.D1_SETTINGS_SYNC, m.D1_WELLBEING, '设置同步和数字健康是同一个库');
-  for (const n of AUTH.concat(AUTH_GONE)) assert.equal(m[n], undefined, '账号 Worker 不该绑 ' + n);
+  /* 2026-10-29 PR2：账号 Worker 只绑 D1_ACCOUNT_AUTH，而且指向账号库 styrigx-account（不是网关的认证库）；锁屏 / 根的认证绑定一个都不绑 */
+  assert.equal(m.D1_ACCOUNT_AUTH, m.D1_WELLBEING, 'D1_ACCOUNT_AUTH = 账号库 styrigx-account');
+  assert.notEqual(m.D1_ACCOUNT_AUTH, '6931d1da-3502-480d-b0bd-de1bc4829d1d', '不许指向网关认证库');
+  for (const n of AUTH.filter((x) => x !== 'D1_ACCOUNT_AUTH').concat(AUTH_GONE)) assert.equal(m[n], undefined, '账号 Worker 不该绑 ' + n);
   const pm = bindings(code(preview));
+  for (const n of AUTH.filter((x) => x !== 'D1_ACCOUNT_AUTH').concat(AUTH_GONE)) assert.equal(pm[n], undefined, '账号 Worker 预览不该绑 ' + n);
+  assert.equal(pm.D1_ACCOUNT_AUTH, pm.D1_WELLBEING, '预览 D1_ACCOUNT_AUTH = 测试库');
   assert.equal(pm.KV_PROFILE, '193b4d68b8ac4c6f8c0ba16b5ea78b14', '预览 KV = 测试专用 namespace');
   assert.equal(pm.KV_SETTINGS_SYNC, undefined);
   /* 预览 D1 = 测试库 styrigx-test-preview（2026-10-29），两个名字同一个库，绝不是正式库 */
