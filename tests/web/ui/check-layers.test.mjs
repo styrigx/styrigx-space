@@ -5,6 +5,7 @@
  * - 以前漏掉的 5 处网关违规（api → api、api → _middleware、src → _middleware、src → api）用原来的 import 写法喂给检查器，必须报错
  * - 解析不到文件的相对 import 报错（以前记成 unknown 放行）
  * - 前端：lib/ → auth/shell/apps、auth/ → shell/apps、shell/ → apps/、前端 → functions/、lib/ 里出现鉴权接口或 navigator.credentials
+ * - 共享模块 workers/shared/：网关各层可以 import；shared 只能相对 import shared 内文件（不得 import 网关 / 其他 Worker / 包）
  * - 注释（含 JSDoc 的 import('…') 类型）不算 import
  * - check-frontend：'https://…' 之后同一行的 alert( 查得到；window['alert'] / globalThis.confirm 查得到；注释里的不算
  */
@@ -78,8 +79,8 @@ test('check-layers：网关允许的方向（_kernel 内部、api → _kernel、
 
 test('check-layers：网关禁止的其他方向', () => {
   const bad = [
-    [GW + 'functions/_kernel/http.js', "import { onRequest } from '../_middleware.js';", /_kernel\/ 只能 import _kernel/],
-    [GW + 'functions/_kernel/http.js', "import * as a from '../api/account.js';", /_kernel\/ 只能 import _kernel/],
+    [GW + 'functions/_kernel/realms.js', "import { onRequest } from '../_middleware.js';", /_kernel\/ 只能 import _kernel/],
+    [GW + 'functions/_kernel/realms.js', "import * as a from '../api/account.js';", /_kernel\/ 只能 import _kernel/],
     [GW + 'functions/_middleware.js', "import * as a from './api/account.js';", /_middleware\.js 只能 import _kernel/],
     [GW + 'src/verifier.js', "import * as a from '../functions/api/account.js';", /src\/ 只能 import/],
     [GW + 'src/verifier.js', "import { onRequest } from '../functions/_middleware.js';", /src\/ 只能 import/],
@@ -91,6 +92,75 @@ test('check-layers：网关禁止的其他方向', () => {
     assert.equal(errs.length, 1, rel + ' ' + code + ' → ' + JSON.stringify(errs));
     assert.match(errs[0], re);
   }
+});
+
+const SH = 'workers/shared/';
+
+test('check-layers：layerOf 认 workers/shared/', () => {
+  assert.deepEqual(layers.layerOf(REPO, join(REPO, SH + 'http.js')), { area: 'shared', layer: 'shared', rel: SH + 'http.js' });
+});
+
+test('check-layers：本仓库扫描包含 workers/shared/', () => {
+  const root = fixture({
+    [SH + 'a.js']: "import * as g from '../auth-gateway/functions/_kernel/k.js';",
+    [GW + 'functions/_kernel/k.js']: 'export const k = 1;',
+  });
+  try {
+    const { errors } = layers.checkRepo(root);
+    assert.equal(errors.length, 1, errors.join('\n'));
+    assert.match(errors[0], /^workers\/shared\/a\.js: workers\/shared\/ 只能相对 import workers\/shared\/ 内的文件/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('check-layers：网关各层都可以 import workers/shared/', () => {
+  const ok = [
+    [GW + 'functions/_kernel/realms.js', "import { apiError } from '../../../shared/http.js';"],
+    [GW + 'functions/api/geo.js', "import { json } from '../../../shared/http.js';\nexport { b64urlEnc } from '../../../shared/crypto.js';"],
+    [GW + 'functions/_middleware.js', "import { json } from '../../shared/http.js';"],
+    [GW + 'src/index.js', "import { securityHeaders } from '../../shared/security-headers.js';"],
+    [GW + 'src/verifier.js', "const m = await import('../../shared/cookies.js');"],
+  ];
+  for (const [rel, code] of ok) assert.deepEqual(layers.checkFile(REPO, join(REPO, rel), code), [], rel);
+});
+
+test('check-layers：workers/shared/ 内部相对 import 允许', () => {
+  const f = join(REPO, SH + 'password.js');
+  assert.deepEqual(layers.checkFile(REPO, f, "import { b64enc } from './crypto.js';\nexport { onAuthDb } from './d1-state.js';"), []);
+});
+
+test('check-layers：workers/shared/ 禁止 import 网关、其他 Worker、前端和包', () => {
+  const f = join(REPO, SH + 'http.js');
+  const bad = [
+    "import { REALMS } from '../auth-gateway/functions/_kernel/realms.js';",
+    "import { onRequest } from '../auth-gateway/functions/_middleware.js';",
+    "import * as a from '../account/src/index.js';",
+    "export * from '../share/src/index.js';",
+    "const m = await import('../../web/assets/js/lib/b64.js');",
+    "import x from 'some-package';",
+    "import { WorkerEntrypoint } from 'cloudflare:workers';",
+  ];
+  for (const code of bad) {
+    const errs = layers.checkFile(REPO, f, code);
+    assert.equal(errs.length, 1, code + ' → ' + JSON.stringify(errs));
+    assert.match(errs[0], /workers\/shared\/ 只能相对 import workers\/shared\/ 内的文件/);
+  }
+});
+
+test('check-layers：workers/shared/ 解析不到的相对 import 报错；注释里的不算', () => {
+  const f = join(REPO, SH + 'http.js');
+  assert.match(layers.checkFile(REPO, f, "import { x } from './no-such-file.js';")[0], /import 的文件不存在/);
+  assert.deepEqual(layers.checkFile(REPO, f, "// import { REALMS } from '../auth-gateway/functions/_kernel/realms.js';"), []);
+});
+
+test('check-layers：网关仍禁止 import shared 以外的 Worker 目录；functions/ 杂项文件 import shared 仍报错', () => {
+  const a = layers.checkFile(REPO, join(REPO, GW + 'functions/_kernel/realms.js'), "import { json } from '../../../account/src/lib/http.js';");
+  assert.equal(a.length, 1);
+  assert.match(a[0], /网关目录以外/);
+  const b = layers.checkFile(REPO, join(REPO, GW + 'functions/misc.js'), "import { json } from '../../shared/http.js';");
+  assert.equal(b.length, 1);
+  assert.match(b[0], /functions\/ 下只允许/);
 });
 
 test('check-layers：解析不到的相对 import 报错（不再按 unknown 放行）', () => {

@@ -11,6 +11,7 @@
  * 「先判过期、再加一、到阈值清零并锁定」是一个原子步骤。
  *
  * 读写都走主库（d1-state.js authDb，不开 session、不缓存）。出错抛错，调用方 fail closed（503）。
+ * 参数 realm 是域描述对象（至少有 id、d1Binding；网关传 _kernel/realms.js 的 REALM_*），本模块不认识具体的域（workers/shared/ 共享模块）。
  */
 import { onAuthDb, sweepExpired } from './d1-state.js';
 
@@ -18,7 +19,7 @@ export const GLOBAL_BUCKET = '*';
 
 /**
  * 单 IP 的当前记录（过期的不认 → null）。
- * @param {any} env @param {string} realm @param {string} kind @param {string} bucket
+ * @param {any} env @param {any} realm @param {string} kind @param {string} bucket
  * @returns {Promise<{count:number, strikes:number, lockedUntil:number}|null>}
  */
 export async function readAttempt(env, realm, kind, bucket) {
@@ -32,7 +33,7 @@ export async function readAttempt(env, realm, kind, bucket) {
 
 /**
  * 全局窗口当前是否「热」（窗口内失败次数 ≥ slowAt）。
- * @param {any} env @param {string} realm @param {string} kind @param {number} windowMs @param {number} slowAt
+ * @param {any} env @param {any} realm @param {string} kind @param {number} windowMs @param {number} slowAt
  */
 export async function globalHot(env, realm, kind, windowMs, slowAt) {
   const now = Date.now();
@@ -45,7 +46,7 @@ export async function globalHot(env, realm, kind, windowMs, slowAt) {
 /**
  * 记一次单 IP 失败（原子）。本轮连错到 max 次：count 清零、锁到 now + 锁定时长（strikes 模式下 strikes +1，
  * 锁定时长按新的 strikes 查 lockTable，超出表长取最后一项）。整行 expires_at = now + ttlMs（每次失败都续）。
- * @param {any} env @param {string} realm @param {string} kind @param {string} bucket
+ * @param {any} env @param {any} realm @param {string} kind @param {string} bucket
  * @param {{max:number, ttlMs:number, lockMs?:number, lockTable?:number[]}} o lockMs：固定锁定时长；lockTable：按轮次递增（第 i 项 = 第 i+1 轮）
  * @returns {Promise<boolean>} 这次是否刚进入锁定 / 冷却
  */
@@ -83,7 +84,7 @@ export async function recordAttempt(env, realm, kind, bucket, o) {
 
 /**
  * 全局窗口 +1（原子；窗口已过 → 从 1 重新开始）。
- * @param {any} env @param {string} realm @param {string} kind @param {number} windowMs
+ * @param {any} env @param {any} realm @param {string} kind @param {number} windowMs
  */
 export async function recordGlobal(env, realm, kind, windowMs) {
   const now = Date.now();
@@ -99,7 +100,7 @@ export async function recordGlobal(env, realm, kind, windowMs) {
 
 /**
  * 清掉单 IP 的记录（验对后）。出错抛错（调用方自己决定吞不吞）。
- * @param {any} env @param {string} realm @param {string} kind @param {string} bucket
+ * @param {any} env @param {any} realm @param {string} kind @param {string} bucket
  */
 export async function clearAttempt(env, realm, kind, bucket) {
   await onAuthDb(env, realm, (db, r) => db.prepare('DELETE FROM attempt_limit WHERE realm = ? AND kind = ? AND bucket = ?').bind(r.id, kind, bucket).run());
@@ -107,7 +108,7 @@ export async function clearAttempt(env, realm, kind, bucket) {
 
 /**
  * 清掉某域某类的全部单 IP 记录（不动全局窗口）：删锁屏密码时清 IP 限速残留。
- * @param {any} env @param {string} realm @param {string} kind
+ * @param {any} env @param {any} realm @param {string} kind
  */
 export async function clearAllAttempts(env, realm, kind) {
   await onAuthDb(env, realm, (db, r) => db.prepare('DELETE FROM attempt_limit WHERE realm = ? AND kind = ? AND bucket <> ?').bind(r.id, kind, GLOBAL_BUCKET).run());

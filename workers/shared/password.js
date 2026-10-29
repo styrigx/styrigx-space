@@ -8,7 +8,6 @@
  * - 记录存在 D1 password 表（每个凭证域一行，d1-state.js；2026-10-27 从 KV 搬来：改密码后下一个请求就认新密码、不再认旧密码）
  */
 import { b64enc, b64dec, timingSafeEqual } from './crypto.js';
-import { REALM_ACCOUNT } from './realms.js';
 import { getPasswordRecord, putPasswordRecord, deletePasswordRecord } from './d1-state.js';
 
 export const ITERATIONS = 100000; // Workers PBKDF2 上限（实测：超过抛 NotSupportedError）
@@ -37,11 +36,17 @@ async function hashPassword(password, salt, iterations, pepper) {
 }
 
 /**
+ * pepper 的 Secrets Store 密钥名（不改名）。锁屏密码与账号密码共用一个 pepper：
+ * 与网关 _kernel/realms.js 里 REALM_LOCK.pepper / REALM_ACCOUNT.pepper 同值（tests/workers/auth-gateway/realms.test.mjs 核对）。
+ */
+export const PEPPER_SECRET = 'SGX_PW_PEPPER';
+
+/**
  * 获取 pepper（SGX_PW_PEPPER，锁屏密码与账号密码共用）；缺失时返回空（调用方 fail closed）。
  * @param {any} env
  */
 export function getPepper(env) {
-  return (env && env[REALM_ACCOUNT.pepper]) || '';
+  return (env && env[PEPPER_SECRET]) || '';
 }
 
 /**

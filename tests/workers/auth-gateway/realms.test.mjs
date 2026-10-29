@@ -9,7 +9,7 @@
  *   SECRET_NAMES 与 wrangler.toml 的 Secrets Store 绑定里（少一个 → 线上读不到 → fail closed）
  * - realmCookie / realmClearCookie 拼出的 Set-Cookie 与原手拼字符串相同
  * - rpConfigMissing 仍是 503 config
- * - 密码哈希搬到 _kernel/password.js 后：lock / account 各读 D1 password 表自己那一行
+ * - 密码哈希搬到 workers/shared/password.js 后：lock / account 各读 D1 password 表自己那一行
  * - 账号体系：REALM_ACCOUNT（sgx-account、SGX_ACCOUNT_*）与 lock 会话完全分开
  *
  * 运行：node --test tests/workers/auth-gateway/realms.test.mjs
@@ -170,7 +170,7 @@ test('realms：rpConfig 缺变量 → null；rpConfigMissing 仍是 503 config',
 });
 
 test('password：lock / account 各读自己的记录（D1 password 表按域一行）', async () => {
-  const pw = await import('../../../workers/auth-gateway/functions/_kernel/password.js');
+  const pw = await import('../../../workers/shared/password.js');
   assert.equal(pw.getPepper({ SGX_PW_PEPPER: 'pep' }), 'pep');
   assert.equal(pw.getPepper(undefined), '');
   const rec = await pw.makePasswordRecord('account-secret-1', 'pep');

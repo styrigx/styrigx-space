@@ -57,7 +57,7 @@ function sleep(ms) {
 
 /**
  * @param {any} env 网关 env（D1_LOCK_AUTH / D1_ACCOUNT_AUTH）
- * @param {{id:string}} realm REALM_LOCK | REALM_ACCOUNT
+ * @param {{id:string, d1Binding:string}} realm 域描述对象（网关：REALM_LOCK | REALM_ACCOUNT），原样交给 attempt-limit.js
  * @param {string} ip
  * @param {{sleep?:(ms:number)=>Promise<void>}} [opts] 测试可替换 sleep
  */
@@ -69,9 +69,9 @@ export function passwordLimiter(env, realm, ip, opts) {
     async inCooldown() {
       let hot = false;
       try {
-        const rec = await readAttempt(env, realm.id, KIND, bucket);
+        const rec = await readAttempt(env, realm, KIND, bucket);
         if (rec && rec.lockedUntil > Date.now()) return true;
-        hot = await globalHot(env, realm.id, KIND, GLOBAL_WINDOW_MS, PASSWORD_GLOBAL_SLOW_AT);
+        hot = await globalHot(env, realm, KIND, GLOBAL_WINDOW_MS, PASSWORD_GLOBAL_SLOW_AT);
       } catch (e) {
         throw new Error('d1-error');
       }
@@ -82,8 +82,8 @@ export function passwordLimiter(env, realm, ip, opts) {
     async recordFail() {
       let cooled = false;
       try {
-        cooled = await recordAttempt(env, realm.id, KIND, bucket, { max: PASSWORD_MAX_FAIL, ttlMs: STRIKE_TTL_MS, lockTable: COOLDOWN_TABLE });
-        await recordGlobal(env, realm.id, KIND, GLOBAL_WINDOW_MS);
+        cooled = await recordAttempt(env, realm, KIND, bucket, { max: PASSWORD_MAX_FAIL, ttlMs: STRIKE_TTL_MS, lockTable: COOLDOWN_TABLE });
+        await recordGlobal(env, realm, KIND, GLOBAL_WINDOW_MS);
       } catch (e) {
         throw new Error('d1-error');
       }
@@ -91,7 +91,7 @@ export function passwordLimiter(env, realm, ip, opts) {
     },
     /** 验对后清计数（含冷却轮数）。尽力而为 */
     async clearFail() {
-      try { await clearAttempt(env, realm.id, KIND, bucket); } catch (e) {}
+      try { await clearAttempt(env, realm, KIND, bucket); } catch (e) {}
     },
   };
 }

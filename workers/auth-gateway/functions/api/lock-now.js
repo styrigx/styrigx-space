@@ -11,7 +11,7 @@
 import { clearLockSessionCookie } from '../_kernel/lock-session.js';
 import { clearTicket } from '../_kernel/tickets.js';
 import { LOCK_REAUTH_TICKET, LOCK_RESET_TICKET } from '../_kernel/realms.js';
-import { apiError, json } from '../_kernel/http.js';
+import { apiError, json } from '../../../shared/http.js';
 
 /**
  * @param {any} context

@@ -25,7 +25,11 @@
  * 12. functions/_middleware.js 只能 import _kernel/
  * 13. src/ 只能 import src/ 和 functions/_kernel/；例外：src/routes.js 可以 import functions/api/（路由表），
  *     src/index.js 可以 import functions/_middleware.js（入口）
- * 14. 网关不得 import 网关目录以外的文件；非相对 import 只认 cloudflare:workers
+ * 14. 网关不得 import 网关目录以外的文件（共享模块 workers/shared/ 除外：网关各层都可以 import）；
+ *     非相对 import 只认 cloudflare:workers
+ *
+ * 共享模块（workers/shared/，账号拆分 PR1；网关、账号、分享 Worker 共用）：
+ * 15. 只能用相对路径 import workers/shared/ 内的文件（不得 import 任何 Worker 目录，也不得有非相对 import）
  *
  * 用法：node scripts/check-layers.mjs [--root <仓库根>]
  * 规则函数导出给 tests/web/ui/check-layers.test.mjs 用。
@@ -107,13 +111,14 @@ export function stripComments(src) {
  * 文件所在层。
  * @param {string} root 仓库根
  * @param {string} abs 绝对路径
- * @returns {{area:'frontend'|'gateway'|'other', layer:string, rel:string}}
+ * @returns {{area:'frontend'|'gateway'|'shared'|'other', layer:string, rel:string}}
  */
 export function layerOf(root, abs) {
   const rel = relative(root, abs).split(sep).join('/');
   let m = rel.match(/^web\/assets\/js\/([^/]+)\//);
   if (m) return { area: 'frontend', layer: m[1], rel };
   if (rel.startsWith('web/assets/js/')) return { area: 'frontend', layer: '(root)', rel };
+  if (rel.startsWith('workers/shared/')) return { area: 'shared', layer: 'shared', rel };
   if (rel.startsWith('workers/auth-gateway/functions/_kernel/')) return { area: 'gateway', layer: '_kernel', rel };
   if (rel.startsWith('workers/auth-gateway/functions/api/')) return { area: 'gateway', layer: 'api', rel };
   if (rel === 'workers/auth-gateway/functions/_middleware.js') return { area: 'gateway', layer: '_middleware', rel };
@@ -154,6 +159,8 @@ export function checkFile(root, abs, srcOverride) {
     if (!spec.startsWith('.')) {
       if (self.area === 'gateway' && !EXTERNAL_OK.has(spec)) {
         errors.push(`${r}: 网关只能 import 相对路径或 cloudflare:workers，发现 ${spec}`);
+      } else if (self.area === 'shared') {
+        errors.push(`${r}: workers/shared/ 只能相对 import workers/shared/ 内的文件，发现 ${spec}`);
       }
       continue;
     }
@@ -176,8 +183,17 @@ export function checkFile(root, abs, srcOverride) {
       continue;
     }
 
+    if (self.area === 'shared') {
+      if (t.area !== 'shared') {
+        errors.push(`${r}: workers/shared/ 只能相对 import workers/shared/ 内的文件，发现 ${t.rel} (${spec})`);
+      }
+      continue;
+    }
+
     if (self.area === 'gateway') {
-      if (t.area !== 'gateway') {
+      /* 共享模块：网关各层都可以 import（functions/ 下的杂项文件仍按下面的规则报错） */
+      if (t.area === 'shared' && self.layer !== 'functions-other') continue;
+      if (t.area !== 'gateway' && t.area !== 'shared') {
         errors.push(`${r}: 网关禁止 import 网关目录以外的文件 (${spec})`);
         continue;
       }
@@ -231,7 +247,8 @@ export function checkFile(root, abs, srcOverride) {
 export function checkRepo(root) {
   const files = walk(join(root, 'web/assets/js'))
     .concat(walk(join(root, 'workers/auth-gateway/functions')))
-    .concat(walk(join(root, 'workers/auth-gateway/src')));
+    .concat(walk(join(root, 'workers/auth-gateway/src')))
+    .concat(walk(join(root, 'workers/shared')));
   const errors = [];
   for (const f of files) errors.push(...checkFile(root, f));
   return { files: files.length, errors };

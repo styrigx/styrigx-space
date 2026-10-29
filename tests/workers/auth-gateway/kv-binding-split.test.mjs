@@ -14,7 +14,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { testLockSession, testTicket } from './_tickets.mjs';
-import { makePasswordRecord } from '../../../workers/auth-gateway/functions/_kernel/password.js';
+import { makePasswordRecord } from '../../../workers/shared/password.js';
 import { genKeyPair, makeAuthD1, forbiddenKV } from '../_harness.mjs';
 
 const API = '../../../workers/auth-gateway/functions/api/';

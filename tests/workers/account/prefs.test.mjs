@@ -82,7 +82,7 @@ async function accountGet(kv, cookieObj, envOverrides) {
   return await onRequestGet({ request: getReq('https://styrigx.com/api/account', { Cookie: cookies(cookieObj) }), env: envFor(kv, envOverrides) });
 }
 async function seedPassword(kv, pw) {
-  const { makePasswordRecord } = await import(KERNEL + 'password.js');
+  const { makePasswordRecord } = await import('../../../workers/shared/password.js');
   await kv.put('account-password', JSON.stringify(await makePasswordRecord(pw, PEPPER)));
 }
 

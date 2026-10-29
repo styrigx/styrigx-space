@@ -2,7 +2,7 @@
  * @fileoverview /api/chat：主站聊天页（/chat/，2026-10-22）的门。聊天本身在 styrigx-chat（workers/chat，2026-10-22 拆出去）。
  *
  * 网关只做门，再通过服务绑定 CHAT 转给 styrigx-chat，回答原样流回去（状态码、响应头、SSE 一字不改）：
- * - POST 只接受同源（_kernel/http.js isSameOrigin，同 /api/prefs）→ 否则 403 origin
+ * - POST 只接受同源（workers/shared/http.js isSameOrigin，同 /api/prefs）→ 否则 403 origin
  * - 锁屏会话：没有 / 无效 → 401 unauthorized；访客（visitor）→ 403 { error: 'admin_only' }（聊天额度是管理员的，访客不能用）
  * 通过后带上 X-Sgx-Role: admin 转进去（styrigx-chat 没有公开地址，这个头只可能是这里写的；不转 cookie）。
  *
@@ -15,7 +15,7 @@
  */
 import { verifyLockSession } from '../_kernel/lock-session.js';
 import { ROLE_ADMIN } from '../_kernel/lock-session.js';
-import { isSameOrigin, originDenied, json, apiError } from '../_kernel/http.js';
+import { isSameOrigin, originDenied, json, apiError } from '../../../shared/http.js';
 
 /** 服务绑定的地址：主机名随便写（只用来拼 URL），路径是 styrigx-chat 认的 */
 const CHAT_BASE = 'https://styrigx-chat';

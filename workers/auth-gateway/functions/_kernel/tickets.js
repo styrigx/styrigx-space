@@ -15,13 +15,13 @@
  * cookie：每张票各自一个 cookie（Lock / Account 的 reset、reauth 互不覆盖），只发主站（不带 Domain）、
  * HttpOnly、Secure、SameSite=Strict、Max-Age=180。不续期：3 分钟到点就失效，前端倒计时以服务端返回的 expiresAt 为准。
  *
- * 叶子模块：只 import _kernel（crypto / realms / d1-state），不 import 接口或 _middleware.js。
+ * 账号拆分 PR1（零行为变化）：签 / 解析 / 验 / 发 / 重签 / 清的通用实现搬到 workers/shared/tickets.js（按票配置对象工作，
+ * 纪元由调用方给）；本文件按票名查 TICKETS 总表、按票所在的域读 D1 纪元，导出的名字和行为与以前完全相同。
+ *
+ * 只 import _kernel（realms / d1-state）和共享模块 workers/shared/tickets.js，不 import 接口或 _middleware.js。
  */
-import { ed25519Sign, ed25519Verify } from './crypto.js';
-import { readCookie } from './cookies.js';
 import {
   TICKETS,
-  COOKIE_EXPIRED,
   LOCK_RESET_TICKET,
   LOCK_REAUTH_TICKET,
   ACCOUNT_RESET_TICKET,
@@ -29,6 +29,14 @@ import {
   REALMS,
 } from './realms.js';
 import { readEpoch } from './d1-state.js';
+import {
+  signShortTicket,
+  parseShortTicket,
+  verifyShortTicket,
+  issueShortTicket,
+  reissueShortTicketWithEpoch,
+  clearShortTicket,
+} from '../../../shared/tickets.js';
 
 /** 本文件管的四张短票 */
 export const SHORT_TICKETS = Object.freeze([LOCK_RESET_TICKET, LOCK_REAUTH_TICKET, ACCOUNT_RESET_TICKET, ACCOUNT_REAUTH_TICKET]);
@@ -60,12 +68,7 @@ export async function getTicketEpoch(env, name) {
 export async function signTicket(privatePem, name, by, epoch, now) {
   const c = ticketConf(name);
   if (!c) throw new Error('signTicket: bad ticket ' + JSON.stringify(name));
-  if (c.bys.indexOf(by) === -1) throw new Error('signTicket: bad by ' + JSON.stringify(by));
-  const iat = now || Date.now();
-  const exp = iat + c.maxAge * 1000;
-  const payload = by + '.' + epoch + '.' + iat + '.' + exp;
-  const sig = await ed25519Sign(privatePem, c.cookie + '|' + payload);
-  return payload + '.' + sig;
+  return signShortTicket(privatePem, c, by, epoch, now);
 }
 
 /**
@@ -75,18 +78,7 @@ export async function signTicket(privatePem, name, by, epoch, now) {
  * @returns {{by:string, epoch:number, iat:number, exp:number, sig:string}|null}
  */
 export function parseTicket(name, val) {
-  const c = ticketConf(name);
-  if (!c || !val || typeof val !== 'string') return null;
-  const parts = val.split('.');
-  if (parts.length !== 5) return null;
-  const by = parts[0];
-  if (c.bys.indexOf(by) === -1) return null;
-  const epoch = parseInt(parts[1], 10);
-  const iat = parseInt(parts[2], 10);
-  const exp = parseInt(parts[3], 10);
-  if (!Number.isFinite(epoch) || !Number.isFinite(iat) || !Number.isFinite(exp)) return null;
-  if (!parts[4]) return null;
-  return { by, epoch, iat, exp, sig: parts[4] };
+  return parseShortTicket(ticketConf(name), val);
 }
 
 /**
@@ -98,33 +90,7 @@ export function parseTicket(name, val) {
  *   reason: ok / no-cookie / bad-format / expired / not-yet / no-pubkey / d1-error / epoch-changed / bad-sig
  */
 export async function verifyTicket(request, env, name) {
-  try {
-    const c = ticketConf(name);
-    if (!c) return { ok: false, reason: 'bad-format' };
-    const val = readCookie(request, c.cookie);
-    if (!val) return { ok: false, reason: 'no-cookie' };
-    const p = parseTicket(name, val);
-    if (!p) return { ok: false, reason: 'bad-format' };
-    const now = Date.now();
-    if (p.exp <= now) return { ok: false, reason: 'expired' };
-    if (p.iat > now + 60000) return { ok: false, reason: 'not-yet' };
-    if (p.exp - p.iat > c.maxAge * 1000) return { ok: false, reason: 'bad-format' };
-    const pub = (env && env[c.publicKey]) || '';
-    if (!pub) return { ok: false, reason: 'no-pubkey' };
-    let cur;
-    try {
-      cur = await getTicketEpoch(env, name);
-    } catch (e) {
-      return { ok: false, reason: 'd1-error' };
-    }
-    if (p.epoch !== cur) return { ok: false, reason: 'epoch-changed' };
-    const payload = p.by + '.' + p.epoch + '.' + p.iat + '.' + p.exp;
-    const ok = await ed25519Verify(pub, c.cookie + '|' + payload, p.sig);
-    if (!ok) return { ok: false, reason: 'bad-sig' };
-    return { ok: true, reason: 'ok', by: p.by, exp: p.exp };
-  } catch (e) {
-    return { ok: false, reason: 'bad-format' };
-  }
+  return verifyShortTicket(request, env, ticketConf(name), () => getTicketEpoch(env, name));
 }
 
 /**
@@ -137,25 +103,7 @@ export async function verifyTicket(request, env, name) {
  * @param {number} [opts.epoch] 默认读 D1 当前值（纪元刚推进时传新值）
  */
 export async function issueTicket(env, headers, name, by, opts) {
-  const c = ticketConf(name);
-  if (!c) return { status: 500, body: { ok: false, error: 'server' } };
-  const priv = (env && env[c.privateKey]) || '';
-  if (!priv || !(env && env[c.publicKey])) return { status: 503, body: { ok: false, error: 'config' } };
-  let epoch = opts && typeof opts.epoch === 'number' ? opts.epoch : null;
-  if (epoch === null) {
-    try {
-      epoch = await getTicketEpoch(env, name);
-    } catch (e) {
-      return { status: 503, body: { ok: false, error: 'server' } };
-    }
-  }
-  try {
-    const v = await signTicket(priv, name, by, epoch);
-    headers.append('Set-Cookie', c.cookie + '=' + v + '; ' + c.cookieAttrs + '; Max-Age=' + c.maxAge);
-  } catch (e) {
-    return { status: 500, body: { ok: false, error: 'sign-failed' } };
-  }
-  return null;
+  return issueShortTicket(env, headers, ticketConf(name), by, opts, () => getTicketEpoch(env, name));
 }
 
 /**
@@ -166,25 +114,12 @@ export async function issueTicket(env, headers, name, by, opts) {
  * @param {number} newEpoch
  */
 export async function reissueTicketWithEpoch(env, headers, name, tv, newEpoch) {
-  if (!tv || !tv.ok || !tv.by || !tv.exp) return;
-  const c = ticketConf(name);
-  if (!c) return;
-  const priv = (env && env[c.privateKey]) || '';
-  if (!priv) return;
-  const left = tv.exp - Date.now();
-  if (left <= 0) return;
-  try {
-    const iat = tv.exp - c.maxAge * 1000;
-    const v = await signTicket(priv, name, tv.by, newEpoch, iat);
-    headers.append('Set-Cookie', c.cookie + '=' + v + '; ' + c.cookieAttrs + '; Max-Age=' + Math.ceil(left / 1000));
-  } catch (e) {}
+  return reissueShortTicketWithEpoch(env, headers, ticketConf(name), tv, newEpoch);
 }
 
 /** 清某张短票 @param {Headers} headers @param {string} name 票名 */
 export function clearTicket(headers, name) {
-  const c = ticketConf(name);
-  if (!c) return;
-  headers.append('Set-Cookie', c.cookie + '=; ' + c.cookieAttrs + '; ' + COOKIE_EXPIRED);
+  clearShortTicket(headers, ticketConf(name));
 }
 
 /* ---------- 每张票的具名入口：sign<Ticket>() / verify<Ticket>() ---------- */

@@ -1,5 +1,5 @@
 /**
- * 密码输错限速（_kernel/password-limit.js，锁屏密码 /api/lock-password verify 与账号密码共用）：
+ * 密码输错限速（workers/shared/password-limit.js，锁屏密码 /api/lock-password verify 与账号密码共用）：
  * - 每连错 5 次冷却一轮：30 秒起逐轮翻倍，封顶 1 小时；冷却中码对也 429；验对后轮数归零
  * - 全局只减速不封锁：本域每小时输错满阈值后每次校验先等，不返回 429
  * - IPv6 同一 /64 共用计数
@@ -11,7 +11,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { onRequestPost as lockPassword } from '../../../workers/auth-gateway/functions/api/lock-password.js';
-import { makePasswordRecord } from '../../../workers/auth-gateway/functions/_kernel/password.js';
+import { makePasswordRecord } from '../../../workers/shared/password.js';
 import { REALM_LOCK, REALM_ACCOUNT } from '../../../workers/auth-gateway/functions/_kernel/realms.js';
 import {
   passwordLimiter,
@@ -21,7 +21,7 @@ import {
   PASSWORD_COOLDOWN_MAX_MS,
   PASSWORD_GLOBAL_SLOW_AT,
   PASSWORD_GLOBAL_DELAY_MS,
-} from '../../../workers/auth-gateway/functions/_kernel/password-limit.js';
+} from '../../../workers/shared/password-limit.js';
 import { makeAuthD1, genKeyPair } from '../_harness.mjs';
 
 const PEPPER = 'test-pepper';

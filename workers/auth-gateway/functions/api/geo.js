@@ -1,4 +1,4 @@
-import { json } from '../_kernel/http.js';
+import { json } from '../../../shared/http.js';
 export async function onRequest(context) {
   const cf = context.request.cf || {};
   return json(200, {

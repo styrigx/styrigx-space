@@ -15,8 +15,8 @@
  * cookie 属性见 realms.js TICKETS.LockSessionTicket：Domain=.styrigx.com; SameSite=Lax（子站要读）。
  * 纪元、临时钥匙是否还在都每次读 D1 主库（不缓存），读出错一律 fail closed（签发返回 503、验证无效 d1-error）。
  */
-import { ed25519Sign, ed25519Verify } from './crypto.js';
-import { readAllCookies } from './cookies.js';
+import { ed25519Sign, ed25519Verify } from '../../../shared/crypto.js';
+import { readAllCookies } from '../../../shared/cookies.js';
 import {
   REALM_LOCK,
   TICKETS,

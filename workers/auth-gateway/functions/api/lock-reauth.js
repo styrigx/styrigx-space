@@ -21,11 +21,11 @@
  * 只接受 POST；校验 Origin；外层 try/catch 异常一律 { ok:false, error:'server' }。
  */
 import { verifyLockSession, ROLE_ADMIN } from '../_kernel/lock-session.js';
-import { isSameOrigin, originDenied, json, apiError } from '../_kernel/http.js';
+import { isSameOrigin, originDenied, json, apiError } from '../../../shared/http.js';
 import { REALM_LOCK, LOCK_REAUTH_TICKET, LOCK_RESET_TICKET } from '../_kernel/realms.js';
 import { verifyTicket, clearTicket } from '../_kernel/tickets.js';
 import { getPasskeys, PASSKEY_LOCK } from '../_kernel/passkey-store.js';
-import { hasPassword } from '../_kernel/password.js';
+import { hasPassword } from '../../../shared/password.js';
 import { TICKET_IDS } from '../_kernel/lock-manage.js';
 
 /** @param {any} context */

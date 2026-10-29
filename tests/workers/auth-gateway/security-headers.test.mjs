@@ -18,8 +18,8 @@ import { genKeyPair, authD1For } from '../_harness.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
-const SH = await import(REPO + '/workers/auth-gateway/functions/_kernel/security-headers.js');
-const { INLINE_SCRIPT_HASHES } = await import(REPO + '/workers/auth-gateway/functions/_kernel/csp-hashes.js');
+const SH = await import(REPO + '/workers/shared/security-headers.js');
+const { INLINE_SCRIPT_HASHES } = await import(REPO + '/workers/shared/csp-hashes.js');
 const worker = (await import(REPO + '/workers/auth-gateway/src/index.js')).default;
 const { _resetSecretCache } = await import(REPO + '/workers/auth-gateway/src/secrets.js');
 const { parseHeaders, headersFor, matchPattern } = await import(REPO + '/scripts/lib/pages-headers.mjs');
@@ -250,7 +250,7 @@ test('网关·/api/*：401、404、访客调管理员接口 403 都带安全头�
   assertMainHeaders(r1, '401');
   const r2 = await worker.fetch(new Request('https://styrigx.com/api/account', { headers: { Cookie: visitor } }), baseEnv(), CTX);
   assert.equal(r2.status, 403);
-  /* JSON 响应统一由 _kernel/http.js json() 发，默认 private, no-store（以前这一处手写 no-store） */
+  /* JSON 响应统一由 workers/shared/http.js json() 发，默认 private, no-store（以前这一处手写 no-store） */
   assert.equal(r2.headers.get('Cache-Control'), 'private, no-store');
   assertMainHeaders(r2, '403');
   const admin = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'admin', 'password'));

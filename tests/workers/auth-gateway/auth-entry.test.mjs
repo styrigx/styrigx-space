@@ -48,7 +48,7 @@ function baseEnv(kv, overrides) {
  * 「已配置」= D1 里真有凭证（layers.js realCredentialPresence）；旧 KV 标记 lock-configured / account-configured 不再算数。
  * configuredKV({ lock, account })：一份 kv（只当 authD1For 的钥匙），对应 D1 里写好锁屏 / 账号密码。
  */
-const { makePasswordRecord: mkPw } = await import(REPO + '/workers/auth-gateway/functions/_kernel/password.js');
+const { makePasswordRecord: mkPw } = await import(REPO + '/workers/shared/password.js');
 const LOCK_PW_REC = await mkPw('lock-pass-1', 'test-pepper');
 const ACCOUNT_PW_REC = await mkPw('account-pass-1', 'test-pepper');
 function configuredKV(o) {

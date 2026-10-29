@@ -4,9 +4,9 @@
  *
  * 从生产构建（hugo --minify -s web，产物在 web/public/）里找出所有会执行的内联 <script>
  * （没有 src，type 为空 / text/javascript / module；application/json 等数据块不算），算 sha256，写两处：
- *   1. workers/auth-gateway/functions/_kernel/csp-hashes.js —— 网关 / 账号 / 分享 Worker 的 Report-Only CSP 用
+ *   1. workers/shared/csp-hashes.js —— 网关 / 账号 / 分享 Worker 的 Report-Only CSP 用
  *   2. web/static/_headers 里 @gen-security-headers 那一段 —— Pages 静态响应的同一套安全头
- *      （值取自 _kernel/security-headers.js 的 mainSiteHeaderList()，两边不会不一致）
+ *      （值取自 workers/shared/security-headers.js 的 mainSiteHeaderList()，两边不会不一致）
  * 同时检查：HTML 里不许有 on*="…" 事件属性和 javascript: 链接（CSP 没法用哈希放行它们）。
  *
  * 哈希依赖 Hugo 版本和 --minify（压缩会改内联脚本的空白），CI 和部署都是同一条构建命令、同一个 HUGO_VERSION。
@@ -23,9 +23,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseHeaders } from './lib/pages-headers.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const HASHES_FILE = path.join(REPO, 'workers/auth-gateway/functions/_kernel/csp-hashes.js');
+export const HASHES_FILE = path.join(REPO, 'workers/shared/csp-hashes.js');
 export const HEADERS_FILE = path.join(REPO, 'web/static/_headers');
-const SECURITY = path.join(REPO, 'workers/auth-gateway/functions/_kernel/security-headers.js');
+const SECURITY = path.join(REPO, 'workers/shared/security-headers.js');
 export const GEN_START = '# @gen-security-headers start';
 export const GEN_END = '# @gen-security-headers end';
 /* CF 文档：_headers 每行最多 2000 字符 */
@@ -125,7 +125,7 @@ export function renderHashesFile(hashes) {
  */
 export function renderHeadersBlock(list) {
   return [
-    GEN_START + '（scripts/gen-csp.mjs 按 workers/auth-gateway/functions/_kernel/security-headers.js 生成，别手改）',
+    GEN_START + '（scripts/gen-csp.mjs 按 workers/shared/security-headers.js 生成，别手改）',
     '/*',
     ...list.map(([k, v]) => '  ' + k + ': ' + v),
     GEN_END,
