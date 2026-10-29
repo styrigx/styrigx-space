@@ -49,7 +49,7 @@ import {
 import { getPepper, makePasswordRecord, verifyRealmPassword, hasPassword, savePassword } from '../lib/password.js';
 import { passwordLimiter } from '../lib/password-limit.js';
 import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
-import { LOCK_IDENTITY_HEADERS, CLIENT_CONTEXT_HEADERS } from '../lib/lock-identity.js';
+import { readLockIdentity, readClientContext } from '../lib/lock-identity.js';
 import {
   BY_PASSKEY,
   BY_PASSWORD,
@@ -98,39 +98,18 @@ const CHALLENGE_TTL = CH.ttl; /* 5 分钟 */
 
 export const ROLE_ADMIN = 'admin';
 export const ROLE_VISITOR = 'visitor';
-const ROLES = Object.freeze([ROLE_ADMIN, ROLE_VISITOR]);
-const LOCK_BYS = Object.freeze(['password', 'passkey', 'tempkey']);
-
-/**
- * 网关写的锁屏身份（白名单校验）。没有 / 不认识的值 → null（= 无会话）。
- * @param {any} request
- * @returns {{role:string, by:string, tempkeyId:string}|null}
- */
-export function readLockIdentity(request) {
-  const h = request && request.headers;
-  if (!h) return null;
-  const role = String(h.get(LOCK_IDENTITY_HEADERS.role) || '').trim();
-  if (ROLES.indexOf(role) === -1) return null;
-  const byRaw = String(h.get(LOCK_IDENTITY_HEADERS.by) || '').trim();
-  const by = LOCK_BYS.indexOf(byRaw) !== -1 ? byRaw : '';
-  const tk = String(h.get(LOCK_IDENTITY_HEADERS.tempkeyId) || '').trim();
-  const tempkeyId = role === ROLE_VISITOR && /^[A-Za-z0-9_-]{1,64}$/.test(tk) ? tk : '';
-  return { role, by, tempkeyId };
-}
-
-/** 身份头是 admin 吗 @param {any} request */
+/** 身份头是 admin 吗（网关写的锁屏身份，lib/lock-identity.js readLockIdentity 白名单校验；没有 / 不认识 = 无会话） @param {any} request */
 export function isAdmin(request) {
-  const id = readLockIdentity(request);
+  const id = readLockIdentity(request && request.headers);
   return !!(id && id.role === ROLE_ADMIN);
 }
 
 /**
- * 客户端 IP：网关写的 X-Styrigx-Client-Address；没有 → 'unknown'（同 shared clientIp 的缺省）。
+ * 客户端 IP：网关写的 X-Styrigx-Client-Address（lib/lock-identity.js readClientContext 校验格式）；没有 → 'unknown'（同 lib/http.js clientIp 的缺省）。
  * @param {any} request
  */
 export function clientAddress(request) {
-  const v = request && request.headers ? String(request.headers.get(CLIENT_CONTEXT_HEADERS.address) || '').trim() : '';
-  return v && v.length <= 64 && /^[0-9A-Fa-f:.]+$/.test(v) ? v : 'unknown';
+  return readClientContext(request && request.headers).address || 'unknown';
 }
 
 /* ---------------- GET ---------------- */

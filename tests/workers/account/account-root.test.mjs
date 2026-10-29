@@ -264,14 +264,15 @@ test('writeSecurityEvent：只认 SECURITY_EVENTS 里的事件名（7 个，方�
   assert.equal(audits(env).length, 1);
 });
 
-test('根域转接：ROOT_REALM.secret = REALM_ACCOUNT.rootKey = SGX_ACCOUNT_ROOT_KEY，其余字段 = 账号库域；共享 root-check 仍只读 realm.secret（未改）', async () => {
-  assert.equal(root.ROOT_REALM.secret, 'SGX_ACCOUNT_ROOT_KEY');
+test('根域：ROOT_REALM.rootKey = REALM_ACCOUNT.rootKey = SGX_ACCOUNT_ROOT_KEY，其余字段 = 账号库域；lib/root-check 读 realm.rootKey（方案 6.2）', async () => {
+  assert.equal(root.ROOT_REALM.rootKey, 'SGX_ACCOUNT_ROOT_KEY');
+  assert.equal('secret' in root.ROOT_REALM, false);
   assert.equal(realm.REALM_ACCOUNT.rootKey, 'SGX_ACCOUNT_ROOT_KEY');
   assert.equal(root.ROOT_REALM.id, 'account');
   assert.equal(root.ROOT_REALM.d1Binding, 'D1_ACCOUNT_AUTH');
   assert.ok(Array.isArray(root.ROOT_REALM.schema));
   assert.deepEqual(Object.keys(root.ROOT_ACTIONS), ['root-reauth', 'root-reset']);
   const shared = readFileSync(REPO + 'workers/account/src/lib/root-check.js', 'utf8');
-  assert.match(shared, /env\[realm\.secret\]/);
-  assert.doesNotMatch(shared, /realm\.rootKey/);
+  assert.match(shared, /env\[realm\.rootKey\]/);
+  assert.doesNotMatch(shared, /realm\.secret/);
 });

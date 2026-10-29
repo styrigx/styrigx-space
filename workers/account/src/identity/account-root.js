@@ -6,18 +6,18 @@
  * - root-reset  { key } → AccountResetTicket（by=root）。不要账号会话；不签会话（拿票设好新凭证后正常登录）。
  * - audit-list          → { items:[{ ts, ipPrefix, ok, event }] }，最近 50 条，新的在前（根密钥使用 + 安全事件）。
  *
- * 从网关 functions/api/root-auth.js 的 account-reauth / account-reset 两条真路径复制改写，差别：
+ * 这两条路径原在网关 /api/root-auth（purpose account-reauth / account-reset；切流前网关照旧，切流后只在这里），差别：
  * - 比对的是账号自己的根密钥 SGX_ACCOUNT_ROOT_KEY（REALM_ACCOUNT.rootKey），不是锁屏根密钥；没有恢复开关。
  * - 限速行在本库 attempt_limit realm='account' kind='rootkey'；审计行在本库 audit realm='account'，
  *   path = root-reauth / root-reset（网关原来写 realm='root'、path = account-reauth / account-reset）。
  * - 没有访客 / 无会话假入口：非 admin 身份在 account.js 就 401 session（网关的门本来也不放非 admin 进账号接口）。
- * 规则不变（共享 root-check / root-limit / root-audit 同一份实现）：单 IP 连错 5 次锁 15 分钟（429 cooldown）；
+ * 规则与网关锁屏根密钥相同（本 Worker 自己的 lib/root-check / root-limit / root-audit）：单 IP 连错 5 次锁 15 分钟（429 cooldown）；
  * 全局每小时满 20 次后每次先等 3 秒；成功清计数；失败统一 401 auth，返回前对齐到 200 毫秒；
  * 缺根密钥或账号库 → 500 config；缺该票的签名钥匙 → 503 config（先于比对）；限速 / 计数 D1 出错 → 503 server；
  * 每次真比对写审计（7 天），成功时写不进审计就不签票（503 server，fail closed）。
  *
- * 共享 root-check 读 realm.secret 作密值名（网关 REALM_ROOT 的字段）；REALM_ACCOUNT 用的是 rootKey。
- * 这里在调用处转接（ROOT_REALM.secret = REALM_ACCOUNT.rootKey），不改共享模块。
+ * lib/root-check.js 读 realm.rootKey 作密值名（方案 6.2：REALM_ACCOUNT.rootKey = SGX_ACCOUNT_ROOT_KEY）；
+ * ROOT_REALM = 账号库域对象（ACCOUNT_DB_REALM，带 0003 兜底建表）+ rootKey。
  *
  * 安全事件（方案 6.2）：password-change、passkey-register、passkey-delete、passkey-rename、device-revoke、device-revoke-all、
  * login-password-cooldown 各写一行 audit（path = 事件名，保留 30 天）。尽力而为：写不进去不挡操作。
@@ -32,8 +32,8 @@ import { REALM_ACCOUNT, TICKETS, BY_ROOT, ACCOUNT_REAUTH_TICKET, ACCOUNT_RESET_T
 import { ACCOUNT_DB_REALM } from './account-store.js';
 import { verifyAccountSession, issueTicket } from './account-session.js';
 
-/** 共享 root-* 用的根域：账号库 + 密值名 SGX_ACCOUNT_ROOT_KEY（转接 realm.secret） */
-export const ROOT_REALM = Object.freeze(Object.assign({}, ACCOUNT_DB_REALM, { secret: REALM_ACCOUNT.rootKey }));
+/** lib/root-* 用的根域：账号库（ACCOUNT_DB_REALM）+ 密值名 SGX_ACCOUNT_ROOT_KEY（REALM_ACCOUNT.rootKey） */
+export const ROOT_REALM = Object.freeze(Object.assign({}, ACCOUNT_DB_REALM, { rootKey: REALM_ACCOUNT.rootKey }));
 
 const { checkRootCredential } = rootChecker(ROOT_REALM);
 const { writeRootAudit } = rootAuditor(ROOT_REALM);
@@ -81,7 +81,7 @@ export async function handleRootAction(o) {
   const conf = TICKETS[ticket];
   /* 该票的签名钥匙缺失 → 503 config（先于比对，不浪费限速次数） */
   if (!(env && env[conf.privateKey]) || !(env && env[conf.publicKey])) return apiError(503, 'config');
-  if (!(env && env[ROOT_REALM.secret]) || !(env && env[ROOT_REALM.d1Binding])) return apiError(500, 'config');
+  if (!(env && env[ROOT_REALM.rootKey]) || !(env && env[ROOT_REALM.d1Binding])) return apiError(500, 'config');
   if (ticket === ACCOUNT_REAUTH_TICKET) {
     const acc = await verifyAccountSession(request, env);
     if (!acc.ok) return apiError(401, 'account', { reason: acc.reason });
