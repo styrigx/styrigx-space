@@ -18,7 +18,7 @@
  *
  * 叶子模块：只 import _kernel（crypto / realms / d1-state）。
  */
-import { b64urlEnc } from './crypto.js';
+import { b64urlEnc } from '../../../shared/crypto.js';
 import { REALM_ACCOUNT } from './realms.js';
 import { onAuthDb, sweepExpired, parseRecord } from './d1-state.js';
 

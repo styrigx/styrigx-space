@@ -7,7 +7,7 @@
  * - 密码 / 通行密钥只读写 D1；env 里放一个碰一下就抛错的 KV 也照常工作
  * - challenge：一条 DELETE ... WHERE realm AND id AND purpose AND expires_at > now RETURNING 消费；
  *   并发两次只有一次成功；过期的在被清掉之前就不认；purpose / realm 对不上不认也不删
- * - 源码扫描：网关任何源码都不用 withSession（安全读只走主库）
+ * - 源码扫描：网关和共享模块 workers/shared/ 任何源码都不用 withSession（安全读只走主库）
  *
  * 运行：node --test tests/workers/auth-gateway/d1-state.test.mjs
  */
@@ -20,7 +20,7 @@ import {
   SCHEMA, readEpoch, bumpEpoch, getPasswordRecord, putPasswordRecord, deletePasswordRecord, listPasskeyRecords, putPasskeyRecord,
   getPasskeyRecord, deletePasskeyRecord, updatePasskeyRecord, userHandleRecord,
 } from '../../../workers/auth-gateway/functions/_kernel/d1-state.js';
-import { issueChallenge, consumeChallenge } from '../../../workers/auth-gateway/functions/_kernel/passkey-verify.js';
+import { issueChallenge, consumeChallenge } from '../../../workers/shared/passkey-verify.js';
 import { REALM_LOCK, REALM_ACCOUNT, REALM_ROOT } from '../../../workers/auth-gateway/functions/_kernel/realms.js';
 import { makeAuthD1, forbiddenKV } from '../_harness.mjs';
 
@@ -212,7 +212,7 @@ test('challenge：purpose / realm 对不上不认也不删；签发时顺手清�
 
 /* ---------------- 源码扫描 ---------------- */
 
-/** 网关源码（src/ + functions/）里的 .js，注释去掉 */
+/** 网关源码（src/ + functions/）和共享模块（workers/shared/，网关、账号、分享 Worker 共用）里的 .js */
 function gatewaySources() {
   const out = [];
   const walk = (dir) => {
@@ -224,13 +224,15 @@ function gatewaySources() {
   };
   walk(path.join(GATEWAY, 'src'));
   walk(path.join(GATEWAY, 'functions'));
+  walk(path.join(GATEWAY, '..', 'shared'));
   return out;
 }
 const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"\\])\/\/.*$/gm, '$1');
 
-test('源码扫描：网关任何源码都不用 withSession（纪元 / 吊销 / challenge / 计数只读主库）', () => {
+test('源码扫描：网关和 workers/shared/ 任何源码都不用 withSession（纪元 / 吊销 / challenge / 计数只读主库）', () => {
   const files = gatewaySources();
   assert.ok(files.length > 20, '扫到了网关源码：' + files.length);
+  assert.ok(files.some((f) => f.endsWith(path.join('shared', 'd1-state.js'))), '扫到了 workers/shared/d1-state.js');
   const bad = [];
   for (const f of files) {
     const src = readFileSync(f, 'utf8');

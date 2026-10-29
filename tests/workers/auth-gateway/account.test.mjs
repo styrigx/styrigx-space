@@ -98,7 +98,7 @@ async function accountGet(kv, cookieObj, envOverrides) {
   return await onRequestGet({ request: getReq('https://styrigx.com/api/account', { Cookie: cookies(cookieObj) }), env: envFor(kv, envOverrides) });
 }
 async function seedPassword(kv, pw) {
-  const { makePasswordRecord } = await import(KERNEL + 'password.js');
+  const { makePasswordRecord } = await import('../../../workers/shared/password.js');
   authD1For(kv).putPassword('account', await makePasswordRecord(pw, PEPPER));
 }
 /** 这份 kv 对应的 D1 替身（账号密码 / 通行密钥 / 纪元 / challenge / 计数 / 设备 / 审计都在这里） */
@@ -441,7 +441,7 @@ test('已有账号凭证（D1，只有通行密钥）：不当成首次配置，
 
 test('账号密码：短于 8 位 400 short；与锁屏密码相同 403 same-as-lock', async () => {
   const kv = makeKV();
-  const { makePasswordRecord } = await import(KERNEL + 'password.js');
+  const { makePasswordRecord } = await import('../../../workers/shared/password.js');
   d1(kv).putPassword('lock', await makePasswordRecord('lock-pass-123', PEPPER));
   const c = { 'sgx-lock-session': await adminSess(), 'sgx-account-session': await accTicket('password') };
   let r = await accountPost(kv, { action: 'password-change', password: 'short' }, c);

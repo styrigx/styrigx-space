@@ -32,7 +32,7 @@ const API = GW + 'functions/api/';
 
 const tickets = await import(GW + 'functions/_kernel/tickets.js');
 const { SHORT_TICKET_MAX_AGE } = await import(GW + 'functions/_kernel/realms.js');
-const { makePasswordRecord } = await import(GW + 'functions/_kernel/password.js');
+const { makePasswordRecord } = await import(REPO + '/workers/shared/password.js');
 
 const LOCK = await genKeyPair();
 const ACCT = await genKeyPair();

@@ -117,7 +117,7 @@ test('writeRootAudit：每次写一行（realm=root，只存 IP 前缀），不�
 });
 
 test('writeRootAudit：只追加：源码里没有 UPDATE / REPLACE / UPSERT audit；写入只发 INSERT（外加清过期行）', async () => {
-  const src = fs.readFileSync(new URL('../../../workers/auth-gateway/functions/_kernel/root-audit.js', import.meta.url), 'utf8');
+  const src = fs.readFileSync(new URL('../../../workers/shared/root-audit.js', import.meta.url), 'utf8');
   assert.doesNotMatch(src, /UPDATE\s+audit/i);
   assert.doesNotMatch(src, /(INSERT\s+OR\s+REPLACE|REPLACE\s+INTO)\s+audit/i);
   assert.doesNotMatch(src, /ON\s+CONFLICT/i);

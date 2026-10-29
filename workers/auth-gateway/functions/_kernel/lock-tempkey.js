@@ -25,11 +25,11 @@
  *   临时码 60 位随机、同时最多 20 把，穷举靠单 IP 冷却 + 减速就够。
  * 名字只在管理员侧保存和显示，访客那边永远拿不到。
  */
-import { b64urlEnc } from './crypto.js';
+import { b64urlEnc } from '../../../shared/crypto.js';
 import { REALM_LOCK } from './realms.js';
-import { ipBucket } from './http.js';
+import { ipBucket } from '../../../shared/http.js';
 import { onAuthDb, sweepExpired } from './d1-state.js';
-import { readAttempt, globalHot, recordAttempt, recordGlobal, clearAttempt } from './attempt-limit.js';
+import { readAttempt, globalHot, recordAttempt, recordGlobal, clearAttempt } from '../../../shared/attempt-limit.js';
 
 const REALM = REALM_LOCK.id;
 const LIMIT_KIND = 'tempkey';
@@ -249,9 +249,9 @@ function sleep(ms) {
  * @param {{sleep?:(ms:number)=>Promise<void>}} [opts] 测试可替换 sleep
  */
 export async function isTempkeyLimited(env, ip, opts) {
-  const r = await readAttempt(env, REALM, LIMIT_KIND, ipBucket(ip));
+  const r = await readAttempt(env, REALM_LOCK, LIMIT_KIND, ipBucket(ip));
   if (r && r.lockedUntil > Date.now()) return true;
-  if (await globalHot(env, REALM, LIMIT_KIND, GLOBAL_WINDOW_MS, TEMPKEY_GLOBAL_SLOW_AT)) {
+  if (await globalHot(env, REALM_LOCK, LIMIT_KIND, GLOBAL_WINDOW_MS, TEMPKEY_GLOBAL_SLOW_AT)) {
     await ((opts && opts.sleep) || sleep)(TEMPKEY_GLOBAL_DELAY_MS);
   }
   return false;
@@ -259,12 +259,12 @@ export async function isTempkeyLimited(env, ip, opts) {
 
 /** 记一次输错（原子）；返回本 IP 这次是否刚进入冷却。D1 出错抛错。 @param {any} env @param {string} ip */
 export async function recordTempkeyFail(env, ip) {
-  const locked = await recordAttempt(env, REALM, LIMIT_KIND, ipBucket(ip), { max: IP_MAX_FAIL, ttlMs: HOUR, lockMs: IP_LOCK_MS });
-  await recordGlobal(env, REALM, LIMIT_KIND, GLOBAL_WINDOW_MS);
+  const locked = await recordAttempt(env, REALM_LOCK, LIMIT_KIND, ipBucket(ip), { max: IP_MAX_FAIL, ttlMs: HOUR, lockMs: IP_LOCK_MS });
+  await recordGlobal(env, REALM_LOCK, LIMIT_KIND, GLOBAL_WINDOW_MS);
   return locked;
 }
 
 /** 输对后清掉这个 IP 的计数（失败不影响） @param {any} env @param {string} ip */
 export async function clearTempkeyFail(env, ip) {
-  try { await clearAttempt(env, REALM, LIMIT_KIND, ipBucket(ip)); } catch (e) {}
+  try { await clearAttempt(env, REALM_LOCK, LIMIT_KIND, ipBucket(ip)); } catch (e) {}
 }

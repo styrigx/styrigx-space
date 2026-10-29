@@ -12,7 +12,7 @@
  * - set / change { password }：需 LockReauthTicket + admin 锁屏会话，或 LockResetTicket
  * - remove：只认 LockReauthTicket（重置锁屏不能删）
  * - 锁屏密码不得与账号密码相同（双向检查；账号侧在 /api/account，错误码 same-as-account / same-as-lock）
- * - 哈希：PBKDF2-SHA256 + 随机 salt + SGX_PW_PEPPER（_kernel/password.js）；旧 hash 下次成功登录时重哈希；缺 pepper fail closed
+ * - 哈希：PBKDF2-SHA256 + 随机 salt + SGX_PW_PEPPER（workers/shared/password.js）；旧 hash 下次成功登录时重哈希；缺 pepper fail closed
  *
  * 会话可吊销：改密码 / 删密码时 lock-epoch +1，旧 cookie 失效；纪元推进后重签 reauth / reset 票 + 当前设备会话。
  * 锁定所有设备走 /api/lock-all-devices。读存储出错时 → 503，绝不继续写入。
@@ -20,7 +20,7 @@
  * 只接受 POST；校验 Origin；未设置密码时 verify 一律拒绝。
  * 外层 try/catch：任何未捕获异常都返回 JSON { ok:false, error:'server' }，不返回 500 HTML。
  */
-import { getPepper, makePasswordRecord, checkPasswordRecord, verifyRealmPassword, getPassword, hasPassword, savePassword, deletePassword } from '../_kernel/password.js';
+import { getPepper, makePasswordRecord, checkPasswordRecord, verifyRealmPassword, getPassword, hasPassword, savePassword, deletePassword } from '../../../shared/password.js';
 import { REALM_LOCK, REALM_ACCOUNT } from '../_kernel/realms.js';
 import {
   issueLockSession,
@@ -34,9 +34,9 @@ import { LOCK_REAUTH_TICKET, BY_PASSWORD } from '../_kernel/realms.js';
 import { verifyLockSession, looksVisitor } from '../_kernel/lock-session.js';
 import { isAccountEffectivelyConfigured } from '../_kernel/layers.js';
 import { getPasskeys, PASSKEY_LOCK } from '../_kernel/passkey-store.js';
-import { isSameOrigin, originDenied, json, apiError, clientIp } from '../_kernel/http.js';
-import { passwordLimiter } from '../_kernel/password-limit.js';
-import { clearAllAttempts } from '../_kernel/attempt-limit.js';
+import { isSameOrigin, originDenied, json, apiError, clientIp } from '../../../shared/http.js';
+import { passwordLimiter } from '../../../shared/password-limit.js';
+import { clearAllAttempts } from '../../../shared/attempt-limit.js';
 
 
 /** @param {any} context */

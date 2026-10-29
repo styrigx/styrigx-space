@@ -103,7 +103,7 @@ test('路由表：只有这三个接口', () => {
   assert.deepEqual([...API_ROUTES.keys()].sort(), ['/api/avatar', '/api/prefs', '/api/wellbeing']);
 });
 
-test('门：没会话 → /api/* 401 {ok:false} private, no-store（_kernel/http.js json()）；头像文件公开；不认识的头像路径 → 302 锁屏', async () => {
+test('门：没会话 → /api/* 401 {ok:false} private, no-store（workers/shared/http.js json()）；头像文件公开；不认识的头像路径 → 302 锁屏', async () => {
   const { env } = setup();
   for (const [m, p] of [['GET', '/api/wellbeing'], ['POST', '/api/wellbeing'], ['GET', '/api/prefs'], ['PUT', '/api/avatar'], ['DELETE', '/api/avatar'], ['GET', '/api/prefs/x']]) {
     const r = await call(new Request('https://styrigx.com' + p, { method: m, headers: { Origin: 'https://styrigx.com' }, body: m === 'GET' ? undefined : '{}' }), env);
@@ -272,7 +272,7 @@ test('check-worker-routes：现在的两份路由通过；账号 Worker 规则�
 });
 
 /* ---------------- 安全响应头（PR D，workers #3）：和网关主站同一套 ---------------- */
-const SECH = await import(REPO + 'workers/auth-gateway/functions/_kernel/security-headers.js');
+const SECH = await import(REPO + 'workers/shared/security-headers.js');
 
 test('安全头：头像文件、/api/* 401、www 301、不认识的头像路径 302 都带全套安全头（和网关同一份）', async () => {
   const { env } = setup();

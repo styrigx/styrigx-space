@@ -10,7 +10,7 @@
  */
 import { ROLE_ADMIN } from '../_kernel/lock-session.js';
 import { verifyLockSession } from '../_kernel/lock-session.js';
-import { json, apiError, NO_STORE } from '../_kernel/http.js';
+import { json, apiError, NO_STORE } from '../../../shared/http.js';
 
 
 /** @param {number} status @param {any} body */

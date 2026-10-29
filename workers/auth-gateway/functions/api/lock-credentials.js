@@ -13,8 +13,8 @@ import { ROLE_ADMIN } from '../_kernel/lock-session.js';
 import { verifyLockResetTicket } from '../_kernel/tickets.js';
 import { getPasskeys, PASSKEY_LOCK } from '../_kernel/passkey-store.js';
 import { REALM_LOCK } from '../_kernel/realms.js';
-import { hasPassword } from '../_kernel/password.js';
-import { json, apiError } from '../_kernel/http.js';
+import { hasPassword } from '../../../shared/password.js';
+import { json, apiError } from '../../../shared/http.js';
 
 /** @param {any} context */
 export async function onRequestGet(context) {

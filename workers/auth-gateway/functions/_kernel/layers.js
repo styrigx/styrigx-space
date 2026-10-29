@@ -18,7 +18,7 @@
 
 import { REALM_LOCK, REALM_ACCOUNT } from './realms.js';
 import { hasPasskey, PASSKEY_LOCK, PASSKEY_ACCOUNT } from './passkey-store.js';
-import { hasPassword } from './password.js';
+import { hasPassword } from '../../../shared/password.js';
 
 /* 层标识（= 凭证域 id） */
 export const LAYER_ACCOUNT = REALM_ACCOUNT.id;

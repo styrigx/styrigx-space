@@ -23,7 +23,7 @@ import {
 import { checkLockManage } from '../_kernel/lock-manage.js';
 import { clearTicket } from '../_kernel/tickets.js';
 import { LOCK_REAUTH_TICKET, REALM_LOCK } from '../_kernel/realms.js';
-import { json, apiError } from '../_kernel/http.js';
+import { json, apiError } from '../../../shared/http.js';
 
 /** @param {any} context */
 export async function onRequestPost(context) {

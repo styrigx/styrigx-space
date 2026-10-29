@@ -342,7 +342,7 @@ jobs:
             n=$((n + 1))
             case "$f" in
               # 照跑名单优先于下面的跳过规则（workflow 自身、依赖、共享外壳、前端 JS、网关内核）
-              .github/* | package.json | package-lock.json | web/shared/* | web/assets/js/* | */_kernel/*)
+              .github/* | package.json | package-lock.json | web/shared/* | web/assets/js/* | */_kernel/* | workers/shared/*)
                 verdict false "$f: always run" ;;
             esac
             [ "$st" = M ] || [ "$st" = A ] || verdict false "$st $f (deleted / type change): run"
@@ -401,7 +401,7 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         # 预览站的测试 RootKey（SGX_ROOT_KEY）和密码 pepper（SGX_PW_PEPPER）：每次运行新生成，只给这次的预览（PR：本地模拟器）用，
         # 和下面的 Ed25519 测试钥匙对一样不进仓库、不存 GitHub Secrets。网关对 RootKey 只要求去空白后非空
-        # （_kernel/crypto.js normalizeRootKey），这里用 32 字节随机数的 hex（64 个字符，无空白、无特殊字符）。
+        # （workers/shared/crypto.js normalizeRootKey），这里用 32 字节随机数的 hex（64 个字符，无空白、无特殊字符）。
         # 先 ::add-mask:: 再写进 $GITHUB_ENV，后面各步骤的日志里都打码。
         run: |
           root_key="$(openssl rand -hex 32)"

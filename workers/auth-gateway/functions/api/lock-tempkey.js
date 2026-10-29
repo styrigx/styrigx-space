@@ -13,8 +13,8 @@
 import { REALM_LOCK } from '../_kernel/realms.js';
 import { ROLE_ADMIN } from '../_kernel/lock-session.js';
 import { verifyAccountSession } from '../_kernel/account-session.js';
-import { getPepper } from '../_kernel/password.js';
-import { isSameOrigin, originDenied, json, apiError } from '../_kernel/http.js';
+import { getPepper } from '../../../shared/password.js';
+import { isSameOrigin, originDenied, json, apiError } from '../../../shared/http.js';
 import { listTempkeys, createTempkey, revokeTempkey, durationMs, cleanName, isTempkeyId } from '../_kernel/lock-tempkey.js';
 import { verifyLockSession } from '../_kernel/lock-session.js';
 

@@ -32,14 +32,14 @@
 import { checkRootCredential } from '../_kernel/root-check.js';
 import { issueTicket } from '../_kernel/tickets.js';
 import { LOCK_RESET_TICKET, BY_ACCOUNT } from '../_kernel/realms.js';
-import { randB64, verifyAssertion, rpIdHashOf, consumeChallenge, issueChallenge, findStoredKey } from '../_kernel/passkey-verify.js';
+import { randB64, verifyAssertion, rpIdHashOf, consumeChallenge, issueChallenge, findStoredKey } from '../../../shared/passkey-verify.js';
 import { getPasskeys, PASSKEY_ACCOUNT } from '../_kernel/passkey-store.js';
-import { getPepper, verifyRealmPassword, hasPassword } from '../_kernel/password.js';
+import { getPepper, verifyRealmPassword, hasPassword } from '../../../shared/password.js';
 import { recordRootFail } from '../_kernel/root-limit.js';
 import { writeRootAudit } from '../_kernel/root-audit.js';
 import { isAccountEffectivelyConfigured } from '../_kernel/layers.js';
 import { checkLockResetSwitch, claimLockResetSwitch } from '../_kernel/lock-reset-switch.js';
-import { isSameOrigin, json, apiError, clientIp } from '../_kernel/http.js';
+import { isSameOrigin, json, apiError, clientIp } from '../../../shared/http.js';
 import { looksVisitor } from '../_kernel/lock-session.js';
 import { REALM_LOCK, REALM_ACCOUNT, REALM_ROOT, realmPrivateKey, realmPublicKey, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
 

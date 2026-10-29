@@ -42,7 +42,7 @@ async function seedKey(kv, credId, cls) {
   });
 }
 async function seedPw(kv, kind, password) {
-  const { makePasswordRecord } = await import('../../../workers/auth-gateway/functions/_kernel/password.js');
+  const { makePasswordRecord } = await import('../../../workers/shared/password.js');
   authD1For(kv).putPassword(kind === 'account' ? 'account' : 'lock', await makePasswordRecord(password, 'test-pepper'));
 }
 /** 网关 env：三个 D1 绑定，没有 KV */

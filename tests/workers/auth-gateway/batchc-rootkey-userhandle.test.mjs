@@ -51,7 +51,7 @@ before(async () => {
 /* ============ B2：normalizeRootKey ============ */
 
 test('B2：normalizeRootKey 去掉所有空白字符', async () => {
-  const { normalizeRootKey } = await import('../../../workers/auth-gateway/functions/_kernel/crypto.js');
+  const { normalizeRootKey } = await import('../../../workers/shared/crypto.js');
   assert.equal(normalizeRootKey('abc def'), 'abcdef');
   assert.equal(normalizeRootKey('abc\tdef'), 'abcdef');
   assert.equal(normalizeRootKey('abc\ndef'), 'abcdef');

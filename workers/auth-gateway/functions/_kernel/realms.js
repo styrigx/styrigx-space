@@ -28,9 +28,10 @@
  * - root    根凭证（RootKey：SGX_ROOT_KEY）：只用来比对，不签名、不拥有会话；
  *           验过后只签四张 reset / reauth 票（by=root）
  *
- * 本文件几乎是叶子模块：只 import 同为叶子的 http.js（错误响应），避免循环依赖。
+ * 本文件几乎是叶子模块：只 import 共享模块里同为叶子的 http.js（错误响应）、cookies.js（COOKIE_EXPIRED），避免循环依赖。
  */
-import { apiError } from './http.js';
+import { apiError } from '../../../shared/http.js';
+import { COOKIE_EXPIRED } from '../../../shared/cookies.js';
 
 /* 钥匙概念名 */
 export const KEY_ROOT = 'RootKey';
@@ -43,8 +44,8 @@ const SHARED_SESSION_ATTRS = 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; Sam
 const ACCOUNT_SESSION_ATTRS = 'Path=/; HttpOnly; Secure; SameSite=Strict';
 /* 四张 reset / reauth 短票：只发主站、HttpOnly、Strict、3 分钟、不续期 */
 const SHORT_TICKET_ATTRS = 'Path=/; HttpOnly; Secure; SameSite=Strict';
-/* 清除 cookie 时追加的过期时间 */
-export const COOKIE_EXPIRED = 'Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT';
+/* 清除 cookie 时追加的过期时间（值在 workers/shared/cookies.js，共享短票 tickets.js 也用它） */
+export { COOKIE_EXPIRED };
 
 /* lock-epoch：Lock 纪元（锁屏会话、LockReset、LockReauth 三张票共用）；D1 epoch 表 realm='lock' 那一行 */
 export const LOCK_EPOCH = 'lock-epoch';

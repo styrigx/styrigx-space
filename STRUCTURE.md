@@ -131,7 +131,7 @@ workers/
 `scripts/check-worker-routes.mjs`（CI 跑，匹配规则在 `scripts/lib/cf-routes.mjs`，照线上实测）核对：每个 HTML 页面（含带查询串）、锁屏入口、`/api/` 都过网关，头像 / 云同步 / 数字健康归账号 Worker、`/s/*` 和 `/api/share*` 归短链 Worker，且都没抢走网关路由表里的任何接口，路由不重复，只登记主站和三个子站的域名，daymark 的句子接口仍归 `styrigx-daymark-core`、curio 的收藏接口仍归 `styrigx-curio-core`。锁屏 / 解锁 / 回跳的完整状态机见 `docs/auth-state-machine.md`。
 三个 Worker 的规则由 `check-worker-routes.mjs` 一起核对，不重复、不互抢。
 
-安全响应头（2026-10-25）：值只在 `workers/auth-gateway/functions/_kernel/security-headers.js` 定义一次。
+安全响应头（2026-10-25）：值只在 `workers/shared/security-headers.js` 定义一次。
 
 | 出口 | 加什么 |
 |---|---|
@@ -142,7 +142,7 @@ workers/
 | 网关代理的子站（blog / daymark / curio）页面和跳转 | 只有 HSTS；子站内容的 CSP 等各自审计后再加 |
 | `proxy-rules.styrigx.com` | 上游头一律不透传，只留 ETag / Last-Modified，加 nosniff |
 
-Report-Only 里的内联脚本 sha256 由 `scripts/gen-csp.mjs` 从生产构建算出（`workers/auth-gateway/functions/_kernel/csp-hashes.js`），CI 在构建后跑 `--check`。改了模板里的内联脚本：`hugo --minify -s web && node scripts/gen-csp.mjs`。
+Report-Only 里的内联脚本 sha256 由 `scripts/gen-csp.mjs` 从生产构建算出（`workers/shared/csp-hashes.js`），CI 在构建后跑 `--check`。改了模板里的内联脚本：`hugo --minify -s web && node scripts/gen-csp.mjs`。
 
 ## tests/ 测试
 
