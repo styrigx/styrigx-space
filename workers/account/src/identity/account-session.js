@@ -25,19 +25,19 @@
  * 缺 SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC：签发返回 503 config，验证一律失败
  * （reason=no-pubkey）；只影响账号登录，网站其余部分不受影响。
  *
- * 只 import workers/shared/ 和本目录（realm.js、account-store.js、account-devices.js）。
+ * 只 import workers/account/src/lib/ 和本目录（realm.js、account-store.js、account-devices.js）。
  */
-import { ed25519Sign, ed25519Verify } from '../../../shared/crypto.js';
-import { readCookie } from '../../../shared/cookies.js';
-import { readEpoch, bumpEpoch } from '../../../shared/d1-state.js';
-import { apiError } from '../../../shared/http.js';
+import { ed25519Sign, ed25519Verify } from '../lib/crypto.js';
+import { readCookie } from '../lib/cookies.js';
+import { readEpoch, bumpEpoch } from '../lib/d1-state.js';
+import { apiError } from '../lib/http.js';
 import {
   verifyShortTicket,
   issueShortTicket,
   reissueShortTicketWithEpoch,
   clearShortTicket,
   signShortTicket,
-} from '../../../shared/tickets.js';
+} from '../lib/tickets.js';
 import {
   REALM_ACCOUNT,
   ACCOUNT_SESSION_COOKIE,

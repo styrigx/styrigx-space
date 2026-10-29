@@ -666,7 +666,7 @@ test('cors.js：只认三个子站 + 主站，逐字比较；Vary 追加不重�
 });
 
 /* ---------------- 安全响应头（PR D，workers #3）：和网关主站同一套；/s/<码> 的 no-referrer 不被覆盖 ---------------- */
-const SECH = await import(REPO + 'workers/shared/security-headers.js');
+const SECH = await import(REPO + 'workers/share/src/lib/security-headers.js');
 
 test('安全头：/s/<码> 失败跳转保留 Referrer-Policy: no-referrer，其余安全头齐全；/api/share 401 和预检带安全头且 CORS 不变', async () => {
   const { env } = setup({ memory: true });

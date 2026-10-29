@@ -30,14 +30,14 @@
  *
  * 只接受 POST；校验 Origin（缺失/解析失败 403）。
  */
-import { ed25519Verify } from '../../../shared/crypto.js';
-import { readAllCookies } from '../../../shared/cookies.js';
+import { ed25519Verify } from '../_kernel/lib/crypto.js';
+import { readAllCookies } from '../_kernel/lib/cookies.js';
 import { checkRootCredential, sleep } from '../_kernel/root-check.js';
 import { ROLE_ADMIN, ROLE_VISITOR, verifyLockSession } from '../_kernel/lock-session.js';
 import { checkRootLimit, recordRootFail } from '../_kernel/root-limit.js';
 import { writeRootAudit } from '../_kernel/root-audit.js';
 import { isLockEffectivelyConfigured } from '../_kernel/layers.js';
-import { isSameOrigin, originDenied, json, apiError, clientIp } from '../../../shared/http.js';
+import { isSameOrigin, originDenied, json, apiError, clientIp } from '../_kernel/lib/http.js';
 import {
   REALM_LOCK,
   REALM_ROOT,

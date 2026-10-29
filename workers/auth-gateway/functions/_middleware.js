@@ -11,7 +11,7 @@
 
 import { verifyLockSession, ROLE_VISITOR } from './_kernel/lock-session.js';
 import { verifyLockResetTicket } from './_kernel/tickets.js';
-import { withNoStore, json, apiError } from '../../shared/http.js';
+import { withNoStore, json, apiError } from './_kernel/lib/http.js';
 import { verifyAccountSession } from './_kernel/account-session.js';
 import { isAdminOnlyPath, resolveReturn } from './_kernel/return.js';
 import { anonLimit } from './_kernel/anon-limit.js';

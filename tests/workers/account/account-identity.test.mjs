@@ -766,12 +766,12 @@ test('空账号库（迁移没跑）：第一次请求按本库 0003 建表（us
   assert.ok(one(env, 'SELECT handle FROM user_handle').handle);
 });
 
-test('依赖边界：identity/ 只 import workers/shared/ 和本目录；不碰网关、锁屏表、锁屏头以外的东西', () => {
+test('依赖边界：identity/ 只 import ../lib/ 和本目录；不碰网关、锁屏表、锁屏头以外的东西', () => {
   for (const f of readdirSync(ID_DIR)) {
     const src = readFileSync(ID_DIR + f, 'utf8');
     for (const m of src.matchAll(/(?:from|import)\s*\(?\s*'([^']+)'/g)) {
       const spec = m[1];
-      assert.ok(spec.startsWith('./') || spec.startsWith('../../../shared/'), f + ' imports ' + spec);
+      assert.ok(spec.startsWith('./') || /^\.\.\/lib\/[a-z0-9-]+\.js$/.test(spec), f + ' imports ' + spec);
     }
     const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
     assert.doesNotMatch(code, /auth-gateway|D1_LOCK_AUTH|SGX_LOCK_|SGX_ROOT_KEY|SGX_ADMIN_KEY|CF-Connecting-IP|request\.cf|tempkey \(|recovery_switch/, f);
@@ -816,7 +816,7 @@ test('安全事件只记 IP 前缀（不存完整 IP），保留 30 天；写不
 
 test('login-password 旧记录（无 peppered 标记，按无 pepper 校验）：登录成功后重写成带 pepper 的新记录', async () => {
   const env = makeEnv();
-  const { makePasswordRecord } = await import('../../../workers/shared/password.js');
+  const { makePasswordRecord } = await import('../../../workers/account/src/lib/password.js');
   const old = await makePasswordRecord('right-password-1', '');
   delete old.peppered;
   raw(env).prepare("INSERT INTO password (realm, record) VALUES ('account', ?)").run(JSON.stringify(old));

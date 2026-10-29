@@ -22,12 +22,12 @@
  * 安全事件（方案 6.2）：password-change、passkey-register、passkey-delete、passkey-rename、device-revoke、device-revoke-all、
  * login-password-cooldown 各写一行 audit（path = 事件名，保留 30 天）。尽力而为：写不进去不挡操作。
  *
- * 只 import workers/shared/ 和本目录。
+ * 只 import workers/account/src/lib/ 和本目录。
  */
-import { rootChecker } from '../../../shared/root-check.js';
-import { rootAuditor, ipPrefix } from '../../../shared/root-audit.js';
-import { onAuthDb, sweepExpired } from '../../../shared/d1-state.js';
-import { json, apiError } from '../../../shared/http.js';
+import { rootChecker } from '../lib/root-check.js';
+import { rootAuditor, ipPrefix } from '../lib/root-audit.js';
+import { onAuthDb, sweepExpired } from '../lib/d1-state.js';
+import { json, apiError } from '../lib/http.js';
 import { REALM_ACCOUNT, TICKETS, BY_ROOT, ACCOUNT_REAUTH_TICKET, ACCOUNT_RESET_TICKET } from './realm.js';
 import { ACCOUNT_DB_REALM } from './account-store.js';
 import { verifyAccountSession, issueTicket } from './account-session.js';

@@ -11,7 +11,7 @@
  * 「先判过期、再加一、到阈值清零并锁定」是一个原子步骤。
  *
  * 读写都走主库（d1-state.js authDb，不开 session、不缓存）。出错抛错，调用方 fail closed（503）。
- * 参数 realm 是域描述对象（至少有 id、d1Binding；网关传 _kernel/realms.js 的 REALM_*），本模块不认识具体的域（workers/shared/ 共享模块）。
+ * 参数 realm 是域描述对象（至少有 id、d1Binding；网关传 _kernel/realms.js 的 REALM_*），本模块不认识具体的域（workers/auth-gateway/functions/_kernel/lib/ 共享模块）。
  */
 import { onAuthDb, sweepExpired } from './d1-state.js';
 

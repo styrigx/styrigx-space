@@ -25,11 +25,11 @@
  *   临时码 60 位随机、同时最多 20 把，穷举靠单 IP 冷却 + 减速就够。
  * 名字只在管理员侧保存和显示，访客那边永远拿不到。
  */
-import { b64urlEnc } from '../../../shared/crypto.js';
+import { b64urlEnc } from './lib/crypto.js';
 import { REALM_LOCK } from './realms.js';
-import { ipBucket } from '../../../shared/http.js';
+import { ipBucket } from './lib/http.js';
 import { onAuthDb, sweepExpired } from './d1-state.js';
-import { readAttempt, globalHot, recordAttempt, recordGlobal, clearAttempt } from '../../../shared/attempt-limit.js';
+import { readAttempt, globalHot, recordAttempt, recordGlobal, clearAttempt } from './lib/attempt-limit.js';
 
 const REALM = REALM_LOCK.id;
 const LIMIT_KIND = 'tempkey';

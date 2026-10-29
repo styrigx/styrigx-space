@@ -8,7 +8,7 @@
  *
  * 其余请求原样交给静态文件（_headers、_redirects 照常生效，安全头也由 _headers 加）。
  * 这里自己发的 301 不经过 _headers，带上不依赖内容的那几个安全头（本文件是原样上传的单文件，不能 import；
- * 值抄自 workers/shared/security-headers.js，tests/workers/auth-gateway/security-headers.test.mjs 核对一致）。
+ * 值抄自 workers/auth-gateway/functions/_kernel/lib/security-headers.js，tests/workers/auth-gateway/security-headers.test.mjs 核对一致）。
  * passkey-e2e 预览部署时，CI 用网关打包出来的 _worker.js 覆盖本文件。
  */
 const HOST = 'styrigx.com';

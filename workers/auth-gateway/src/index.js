@@ -18,7 +18,7 @@
  * 不在路由表里的 /api 路径 → 404；方法不支持 → 405。
  * 静态资源（/css/ /js/ /fonts/ /fav/ /images/ 和根目录几张公开图）整站通配路由下也进 Worker，但第一行就原样回源（isMainStaticPassthrough），不验会话。
  *
- * 安全响应头（workers/shared/security-headers.js，2026-10-25 PR D）：
+ * 安全响应头（workers/auth-gateway/functions/_kernel/lib/security-headers.js，2026-10-25 PR D）：
  *   - 主站经过网关的每个响应（页面、锁屏首页、所有 302/301、/api/*、500）→ applyMainSiteHeaders
  *     （HSTS、nosniff、X-Frame-Options、Referrer-Policy、Permissions-Policy、只含非脚本指令的强制 CSP、完整的 Report-Only CSP）
  *   - 子站经过网关的响应（页面、302 到锁屏、401）→ applySubsiteHeaders（HSTS + 低风险的几项，没有才补；完整 CSP 各自审计后再加）
@@ -29,8 +29,8 @@ import { onRequest as middleware } from '../functions/_middleware.js';
 import { API_ROUTES } from './routes.js';
 import { resolveSecrets } from './secrets.js';
 import { subsiteFor, handleSubsite, isStaticAsset as isSubsiteStaticAsset } from './subsites.js';
-import { applyMainSiteHeaders, applySubsiteHeaders, applySubsiteStaticHeaders } from '../../shared/security-headers.js';
-import { apiError } from '../../shared/http.js';
+import { applyMainSiteHeaders, applySubsiteHeaders, applySubsiteStaticHeaders } from '../functions/_kernel/lib/security-headers.js';
+import { apiError } from '../functions/_kernel/lib/http.js';
 
 /* 主站静态资源目录：内容带指纹或公开（css/js/字体/收藏图标），不含任何正文。
    2026-10-21 路由改成整站通配前这些路径不过 Worker；现在进来也原样回源，行为不变。 */

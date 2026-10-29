@@ -20,7 +20,7 @@ import { BY_TEMPKEY } from '../functions/_kernel/realms.js';
 import {
   createTempkey, revokeTempkey, getTempkey, durationMs, cleanName, isTempkeyId,
 } from '../functions/_kernel/lock-tempkey.js';
-import { getPepper } from '../../shared/password.js';
+import { getPepper } from '../functions/_kernel/lib/password.js';
 import { REALM_LOCK } from '../functions/_kernel/realms.js';
 
 /** 访客会话时长档位（秒）：30 分钟、1 / 3 / 12 小时、1 / 3 / 7 天（styrigx-share 用同一张表，单测核对两边一致） */

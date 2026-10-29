@@ -18,7 +18,7 @@ import {
   run, mergeRow, FAMILIES, MARKERS, splitSql, readAccountSchema, d1IdIn, resolveDbIds, modeOf,
   ACCOUNT_SCHEMA_FILE, SWITCH_CREATE, SWITCH_COPY,
 } from '../../../scripts/migrate-account-auth.mjs';
-import { SCHEMA as GATEWAY_SCHEMA } from '../../../workers/shared/d1-state.js';
+import { SCHEMA as GATEWAY_SCHEMA } from '../../../workers/account/src/lib/d1-state.js';
 
 const ROOT = new URL('../../../', import.meta.url).pathname;
 const SCRIPT = ROOT + 'scripts/migrate-account-auth.mjs';

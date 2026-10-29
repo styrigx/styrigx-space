@@ -33,7 +33,7 @@ import {
   bumpLockEpoch,
   LOCK_SESSION_MAX_AGE,
 } from '../../../workers/auth-gateway/functions/_kernel/lock-session.js';
-import { b64urlEnc, ed25519Sign } from '../../../workers/shared/crypto.js';
+import { b64urlEnc, ed25519Sign } from '../../../workers/auth-gateway/functions/_kernel/lib/crypto.js';
 import { onRequestPost as pwPost } from '../../../workers/auth-gateway/functions/api/lock-password.js';
 import { onRequestPost as lockAllPost } from '../../../workers/auth-gateway/functions/api/lock-all-devices.js';
 import { onRequest as mw } from '../../../workers/auth-gateway/functions/_middleware.js';
@@ -76,7 +76,7 @@ async function mintSessionCookie() {
 /* 在 account-password 记录里预置密码 test-pass-12345（100000 次迭代与服务端一致） */
 /* 2.11 定稿：seed lock-password（含 pepper），供 verify 测试用 */
 async function seedPassword(kv, password = 'test-pass-12345') {
-  const { makePasswordRecord } = await import('../../../workers/shared/password.js');
+  const { makePasswordRecord } = await import('../../../workers/auth-gateway/functions/_kernel/lib/password.js');
   const rec = await makePasswordRecord(password, 'test-pepper');
   authD1For(kv).putPassword('lock', rec);
 }
