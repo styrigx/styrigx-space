@@ -16,7 +16,7 @@
  *   本地对着它跑），支持 expirationTtl / expiration，列表结果带 expiration（和 Cloudflare REST 一样）。
  * - 「读到旧值」（--stale-ms N [--stale-keys 前缀,前缀]）：以前用来复现 KV 写后读不到；网关已经不读 KV，这个选项只对
  *   appKV（现在没人用）生效，保留是为了和以前的运行方式一致（staleReads 应为 0）。D1 强一致，不模拟旧值。
- * - D1：node:sqlite 内存库（styrigx-auth-gateway-preview 的替身），实现网关用到的 prepare().bind().run() / first() / all()
+ * - D1：node:sqlite 内存库（预览测试库 styrigx-test-preview 的替身，只建网关的表），实现网关用到的 prepare().bind().run() / first() / all()
  *   和 batch()（一个事务，任何一条失败整批回滚，同 D1）。D1_LOCK_AUTH、D1_ACCOUNT_AUTH、D1_ROOT_AUTH 绑同一个库（同预览 wrangler.toml）。
  *   启动时按文件名顺序跑 workers/auth-gateway/migrations/*.sql（同 CI 的「Apply D1 migrations to preview」）；
  *   --no-migrations 不跑，模拟正式网关（部署 job 不跑迁移，表由 d1-state.js 遇到 no such table 时自建）。

@@ -80,14 +80,17 @@ test('wrangler.toml：styrigx-account、不开公开地址、四条路由、AUTH
   assert.doesNotMatch(code, /KV_SETTINGS_SYNC/);
   assert.deepEqual([...code.matchAll(/^binding = "(KV_[A-Z0-9_]+)"/gm)].map((m) => m[1]), ['KV_PROFILE', 'KV_PROFILE']);
   assert.match(prod, /KV_PROFILE 只放公开的头像 avatar:\*/);
-  assert.match(preview, /^# binding = "D1_SETTINGS_SYNC"$/m);
   assert.doesNotMatch(toml, /secrets_store_secrets|PRIVATE KEY|b796097c90104000992b7713f61e16ea|6931d1da-3502-480d-b0bd-de1bc4829d1d|5084ea8ef2444156ba48203220b93df6|d417e421-75bb-4425-bdc8-54856b88578f/);
-  /* 预览：不抢正式路由、不连正式库；预览 D1 还没建 → 只有注释掉的占位，不编 id */
+  /* 预览：不抢正式路由、不连正式库；KV / D1 都是所有 Worker 预览共用的测试资源（2026-10-29，D1 styrigx-test-preview） */
   assert.match(preview, /^routes = \[\]$/m);
   assert.match(preview, /^name = "styrigx-account-preview"$/m);
   assert.doesNotMatch(preview, /b20701f5f48e498e897bc6f0bd81643f|03f60d23-9c2f-4f3d-a692-764ccaac6f5d/);
-  assert.doesNotMatch(preview, /^\[\[env\.preview\.d1_databases\]\]$/m);
-  assert.match(preview, /^# database_id = "<PLACEHOLDER: styrigx-account-preview 的 database_id>"$/m);
+  assert.doesNotMatch(preview, /PLACEHOLDER/);
+  assert.match(preview, /\[\[env\.preview\.kv_namespaces\]\]\nbinding = "KV_PROFILE"\nid = "193b4d68b8ac4c6f8c0ba16b5ea78b14"/);
+  /* 共库：迁移记录表单独用 d1_migrations_account，不和网关 / 短链的迁移记录混在一起 */
+  for (const b of ['D1_WELLBEING', 'D1_SETTINGS_SYNC']) {
+    assert.match(preview, new RegExp('\\[\\[env\\.preview\\.d1_databases\\]\\]\\nbinding = "' + b + '"\\ndatabase_name = "styrigx-test-preview"\\ndatabase_id = "1339bb0b-f9f8-4e3d-b413-ff07ca28ce69"\\nmigrations_dir = "migrations"\\nmigrations_table = "d1_migrations_account"'), b);
+  }
 });
 
 test('迁移：wb_daily 在账号库；网关的迁移目录不再建它', async () => {

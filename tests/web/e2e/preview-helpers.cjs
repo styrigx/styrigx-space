@@ -235,7 +235,7 @@ async function apiGet(page, path) {
   return { status: resp.status(), json, resp };
 }
 
-/* ---------- 预览 D1（Cloudflare D1 REST query，只用预览库 styrigx-auth-gateway-preview） ---------- */
+/* ---------- 预览 D1（Cloudflare D1 REST query，只用预览测试库 styrigx-test-preview，库 id 由 SGX_TEST_PREVIEW_D1_ID 给） ---------- */
 /** @param {string} sql @param {any[]} [params] */
 async function d1Query(sql, params) {
   const r = await fetch(`${CF_API}/accounts/${CF_ACCOUNT}/d1/database/${D1_ID}/query`, {

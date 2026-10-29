@@ -39,8 +39,10 @@ test('鉴权网关正式 / 预览：恰好三个 D1 认证绑定（同一个库�
     for (const n of AUTH) assert.ok(m[n], p + ' 缺 ' + n);
     assert.equal(m.D1_ACCOUNT_AUTH, m.D1_LOCK_AUTH, p + '：三个名字是同一个库');
     assert.equal(m.D1_ROOT_AUTH, m.D1_LOCK_AUTH, p + '：三个名字是同一个库');
-    assert.match(src, /^database_name = "styrigx-auth-gateway(-preview)?"$/m, p);
-    for (const db of src.match(/^database_name = ".*"$/gm) || []) assert.match(db, /"styrigx-auth-gateway(-preview)?"/, p + ' ' + db);
+    /* 正式 = styrigx-auth-gateway；Pages 预览 = 所有 Worker 预览共用的测试库 styrigx-test-preview（2026-10-29） */
+    const dbName = p === 'web/wrangler.toml' ? 'styrigx-test-preview' : 'styrigx-auth-gateway';
+    assert.match(src, new RegExp('^database_name = "' + dbName + '"$', 'm'), p);
+    for (const db of src.match(/^database_name = ".*"$/gm) || []) assert.equal(db, 'database_name = "' + dbName + '"', p + ' ' + db);
     /* 没有 KV：不绑 kv_namespaces，也没有任何 KV_* 绑定名 */
     assert.doesNotMatch(src, /^\[\[(?:env\.preview\.)?kv_namespaces\]\]/m, p + '：不应再有 kv_namespaces');
     assert.doesNotMatch(src, /^binding = "KV_/m, p + '：不应再有 KV_* 绑定');
@@ -65,8 +67,12 @@ test('账号 Worker 正式 / 预览：D1_SETTINGS_SYNC = D1_WELLBEING（styrigx-
   assert.equal(m.D1_SETTINGS_SYNC, m.D1_WELLBEING, '设置同步和数字健康是同一个库');
   for (const n of AUTH.concat(AUTH_GONE)) assert.equal(m[n], undefined, '账号 Worker 不该绑 ' + n);
   const pm = bindings(code(preview));
-  assert.equal(pm.KV_PROFILE, 'a5ee2a75f00d4308959b2bea55247ff6');
+  assert.equal(pm.KV_PROFILE, '193b4d68b8ac4c6f8c0ba16b5ea78b14', '预览 KV = 测试专用 namespace');
   assert.equal(pm.KV_SETTINGS_SYNC, undefined);
+  /* 预览 D1 = 测试库 styrigx-test-preview（2026-10-29），两个名字同一个库，绝不是正式库 */
+  assert.equal(pm.D1_WELLBEING, '1339bb0b-f9f8-4e3d-b413-ff07ca28ce69');
+  assert.equal(pm.D1_SETTINGS_SYNC, pm.D1_WELLBEING);
+  assert.notEqual(pm.D1_WELLBEING, m.D1_WELLBEING);
 });
 
 test('搜索 / 监测：KV_SEARCH_INDEX、D1_UPTIME_MONITOR + D1_CLOUDFLARE_USAGE、SGX_CF_USAGE_TOKEN', () => {
@@ -79,4 +85,45 @@ test('搜索 / 监测：KV_SEARCH_INDEX、D1_UPTIME_MONITOR + D1_CLOUDFLARE_USAG
   assert.ok(m.D1_UPTIME_MONITOR);
   assert.equal(m.D1_UPTIME_MONITOR, m.D1_CLOUDFLARE_USAGE);
   assert.match(st, /binding = "SGX_CF_USAGE_TOKEN"\nstore_id = "[0-9a-f]+"\nsecret_name = "SGX_CF_USAGE_TOKEN"/);
+});
+
+test('预览统一用测试资源（2026-10-29）：网关 / 账号 / 短链的预览 D1 都是 styrigx-test-preview，迁移记录表各不相同，CI 三套迁移都跑', () => {
+  const TEST_D1 = '1339bb0b-f9f8-4e3d-b413-ff07ca28ce69';
+  const files = { 'web/wrangler.toml': 'workers/auth-gateway/wrangler.toml', 'workers/account/wrangler.toml': null, 'workers/share/wrangler.toml': null };
+  const tables = new Set();
+  for (const [p, prodPath] of Object.entries(files)) {
+    const src = code(read(p));
+    const parts = src.split(/^\[env\.preview\]$/m);
+    const prod = prodPath ? code(read(prodPath)) : parts[0];
+    const preview = prodPath ? src : parts[1];
+    const blocks = preview.split(/\n(?=\[\[)/).filter((b) => /^\[\[env\.preview\.d1_databases\]\]/.test(b));
+    assert.ok(blocks.length > 0, p + '：预览要有 D1');
+    const tbl = new Set();
+    for (const b of blocks) {
+      assert.match(b, /^database_name = "styrigx-test-preview"$/m, p);
+      assert.equal((b.match(/^database_id = "([0-9a-f-]+)"$/m) || [])[1], TEST_D1, p);
+      tbl.add((b.match(/^migrations_table = "([a-z0-9_]+)"$/m) || [, 'd1_migrations'])[1]);
+    }
+    /* 同一个 Worker 的几个绑定（同一个库）用同一张记录表；不同 Worker 不能共用 */
+    assert.equal(tbl.size, 1, p + '：' + [...tbl].join(','));
+    const t = [...tbl][0];
+    assert.ok(!tables.has(t), p + '：迁移记录表 ' + t + ' 和别的 Worker 重了');
+    tables.add(t);
+    /* 正式块不动：不出现测试库，也不改迁移记录表（改了会让正式库把迁移重跑一遍） */
+    assert.ok(!prod.split(/^\[env\.preview\]$/m)[0].includes(TEST_D1), p + '：正式不许指向测试库');
+    assert.doesNotMatch(prod.split(/^\[env\.preview\]$/m)[0], /^migrations_table = /m, p + '：正式不设 migrations_table');
+  }
+  /* 旧的预览资源一个都不许再出现（代码里，注释也不许） */
+  for (const p of Object.keys(files).concat(['.github/workflows/deploy.yml'])) {
+    assert.doesNotMatch(read(p), /styrigx-auth-gateway-preview|d417e421-75bb-4425-bdc8-54856b88578f|03e1f9f4-dd7e-47cc-abe7-79dc5afe3e81|a5ee2a75f00d4308959b2bea55247ff6|5084ea8ef2444156ba48203220b93df6/, p);
+  }
+  /* CI：部署预览前对测试库跑三套迁移（网关在 web/，账号 / 短链在各自目录，都 --env preview） */
+  const wf = read('.github/workflows/deploy.yml');
+  const step = wf.slice(wf.indexOf('- name: Apply D1 migrations to preview'), wf.indexOf('- name: Deploy to preview'));
+  assert.match(step, /working-directory: web\n/);
+  assert.match(step, /\n {10}npx --yes "wrangler@\$WRANGLER_VERSION" d1 migrations apply styrigx-test-preview --remote --env preview\n/);
+  for (const d of ['account', 'share']) {
+    assert.ok(step.includes('(cd ../workers/' + d + ' && npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply styrigx-test-preview --remote --env preview)'), d);
+  }
+  for (const t of tables) assert.ok(step.includes('FROM ' + t + ' '), 'CI 列出 ' + t);
 });

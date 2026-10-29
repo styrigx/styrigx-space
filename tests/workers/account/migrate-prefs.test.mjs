@@ -180,7 +180,7 @@ function runCli(args, base) {
   });
 }
 
-test('CLI：--dry-run → apply → apply（幂等）→ --verify；--preview 拒绝；只读 account-prefs，不写 KV', async () => {
+test('CLI：--dry-run → apply → apply（幂等）→ --verify；--preview 改读预览库、必须显式给 KV；只读 account-prefs，不写 KV', async () => {
   const st = { kv: new Map([[LEGACY_PREFS_KEY, KV_VALUE], ['avatar:v', 'v1']]), db: makeAccountD1({ migrations: false }) };
   const cf = await fakeCf(st);
   try {
@@ -199,12 +199,17 @@ test('CLI：--dry-run → apply → apply（幂等）→ --verify；--preview �
     assert.equal(r.code, 0, r.out);
     assert.match(r.out, /verify OK/);
     assert.equal(st.db.rows('settings_sync').length, 3);
-    r = await runCli(['--preview'], cf.base);
-    assert.equal(r.code, 1);
-    assert.match(r.out, /preview D1 styrigx-account-preview does not exist/);
     const kvCalls = cf.seen.filter((s) => s.includes('/storage/kv/'));
     assert.ok(kvCalls.length > 0);
     assert.ok(kvCalls.every((s) => s === 'GET /accounts/acc/storage/kv/namespaces/' + ACCOUNT_KV_NAMESPACE + '/values/account-prefs'), kvCalls.join('\n'));
+    /* --preview：不给 --account-kv 直接拒绝（预览没有默认 KV 源）；给了就读 [env.preview] 的 D1（测试库 styrigx-test-preview），绝不落到正式库 */
+    r = await runCli(['--preview'], cf.base);
+    assert.equal(r.code, 1);
+    assert.match(r.out, /--account-kv <namespace id> is required with --preview/);
+    const before = cf.seen.length;
+    r = await runCli(['--preview', '--dry-run', '--account-kv', '193b4d68b8ac4c6f8c0ba16b5ea78b14'], cf.base);
+    assert.match(r.out, /dry-run: KV 193b4d68b8ac4c6f8c0ba16b5ea78b14 \(account-prefs\) → D1 1339bb0b-f9f8-4e3d-b413-ff07ca28ce69 \(settings_sync\) \(preview\)/);
+    assert.ok(cf.seen.slice(before).every((s) => !s.includes('03f60d23-9c2f-4f3d-a692-764ccaac6f5d') && !s.includes(ACCOUNT_KV_NAMESPACE)), cf.seen.slice(before).join('\n'));
   } finally {
     await cf.close();
   }
