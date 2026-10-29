@@ -13,11 +13,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { testLockSession, TEST_TEMPKEY_ID } from './_tickets.mjs';
 import { looksVisitor } from '../../../workers/auth-gateway/functions/_kernel/lock-session.js';
-import { ed25519Sign } from '../../../workers/shared/crypto.js';
+import { ed25519Sign } from '../../../workers/auth-gateway/functions/_kernel/lib/crypto.js';
 import { onRequestPost as rootAuthPost } from '../../../workers/auth-gateway/functions/api/root-auth.js';
 import { onRequestPost as lockResetPost } from '../../../workers/auth-gateway/functions/api/lock-reset.js';
 import { genKeyPair, makeAuthD1 } from '../_harness.mjs';
-import { makePasswordRecord } from '../../../workers/shared/password.js';
+import { makePasswordRecord } from '../../../workers/auth-gateway/functions/_kernel/lib/password.js';
 
 const ROOT_KEY = 'test-root-key-12345';
 const EXPECTED_BODY = JSON.stringify({ ok: false, error: 'denied' });

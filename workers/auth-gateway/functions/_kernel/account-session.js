@@ -19,12 +19,12 @@
  *
  * 叶子模块：只 import _kernel（crypto / realms / account-devices / d1-state），不 import 接口或 _middleware.js。
  */
-import { ed25519Sign, ed25519Verify } from '../../../shared/crypto.js';
-import { readCookie } from '../../../shared/cookies.js';
+import { ed25519Sign, ed25519Verify } from './lib/crypto.js';
+import { readCookie } from './lib/cookies.js';
 import { REALM_ACCOUNT, ACCOUNT_SESSION_COOKIE, COOKIE_EXPIRED, realmPrivateKey, realmPublicKey } from './realms.js';
 import { readEpoch, bumpEpoch } from './d1-state.js';
 import { newDeviceId, isDeviceId, isRevoked, getDevice, putDevice, recordLogin, deviceInfo, TOUCH_INTERVAL_MS } from './account-devices.js';
-import { apiError } from '../../../shared/http.js';
+import { apiError } from './lib/http.js';
 
 export { ACCOUNT_SESSION_COOKIE };
 export const ACCOUNT_SESSION_MAX_AGE = REALM_ACCOUNT.maxAge; /* 400 天：不点退出就一直登录 */

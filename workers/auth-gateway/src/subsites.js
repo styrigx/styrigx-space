@@ -15,7 +15,7 @@
 import { verifyLockSession } from '../functions/_kernel/lock-session.js';
 import { stripSessionAttrs } from '../functions/_kernel/html.js';
 import { API_ROUTES } from './routes.js';
-import { json, apiError, NO_STORE } from '../../shared/http.js';
+import { json, apiError, NO_STORE } from '../functions/_kernel/lib/http.js';
 
 const MAIN_ORIGIN = 'https://styrigx.com';
 

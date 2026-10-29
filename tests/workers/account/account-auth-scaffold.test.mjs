@@ -2,7 +2,7 @@
  * 账号拆分 PR2a：账号 Worker 的鉴权脚手架（还没有入口读写，只核对结构）。
  * - migrations/0003_account_auth.sql：九张表 + audit_ts 索引，全部 IF NOT EXISTS、重复跑不出错、与 wb_daily / settings_sync 不重名；
  *   逐列照搬网关 0005 / 0006（user_handle 多 legacy_handle，data_migration 同 kv_migration 结构）；共享 d1-state 直接可用
- * - src/identity/realm.js：REALM_ACCOUNT、三张账号票与网关 _kernel/realms.js 逐字段一致（只多 rootKey / rootIssues）；只依赖 workers/shared/
+ * - src/identity/realm.js：REALM_ACCOUNT、三张账号票与网关 _kernel/realms.js 逐字段一致（只多 rootKey / rootIssues）；只依赖 workers/account/src/lib/
  * - src/secrets.js：Secrets Store → 字符串、60 秒缓存、失败不缓存；四个名字都在 wrangler.toml（同网关 store、secret_name 同网关）
  *
  * 运行：node --test tests/workers/account/account-auth-scaffold.test.mjs
@@ -19,8 +19,8 @@ const read = (p) => readFileSync(REPO + p, 'utf8');
 const acct = await import(REPO + 'workers/account/src/identity/realm.js');
 const gw = await import(REPO + 'workers/auth-gateway/functions/_kernel/realms.js');
 const { resolveSecrets, SECRET_NAMES, _resetSecretCache } = await import(REPO + 'workers/account/src/secrets.js');
-const sharedD1 = await import(REPO + 'workers/shared/d1-state.js');
-const sharedTickets = await import(REPO + 'workers/shared/tickets.js');
+const sharedD1 = await import(REPO + 'workers/account/src/lib/d1-state.js');
+const sharedTickets = await import(REPO + 'workers/account/src/lib/tickets.js');
 
 /* ---------------- 0003 建表 ---------------- */
 
@@ -181,11 +181,11 @@ test('realm：同一把钥匙、同一时刻，账号 Worker 签的短票与网�
   }
 });
 
-test('realm.js 只依赖 workers/shared/（叶子模块）', () => {
+test('realm.js 只依赖本 Worker 的 src/lib/（叶子模块）', () => {
   const src = read('workers/account/src/identity/realm.js');
   const specs = [...src.matchAll(/^\s*(?:import|export)\s[^'"]*from\s+['"]([^'"]+)['"]/gm)].map((m) => m[1]);
   assert.ok(specs.length > 0);
-  for (const s of specs) assert.match(s, /^\.\.\/\.\.\/\.\.\/shared\/[a-z0-9-]+\.js$/, s);
+  for (const s of specs) assert.match(s, /^\.\.\/lib\/[a-z0-9-]+\.js$/, s);
   assert.doesNotMatch(src, /\bimport\s*\(/);
 });
 

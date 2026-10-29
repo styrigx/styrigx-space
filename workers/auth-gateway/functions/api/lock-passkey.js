@@ -17,7 +17,7 @@
  *
  * 只接受 POST；Origin 缺失/解析失败/跨站一律 403。
  *
- * WebAuthn 校验（共享实现 workers/shared/passkey-verify.js）：
+ * WebAuthn 校验（共享实现 workers/auth-gateway/functions/_kernel/lib/passkey-verify.js）：
  * - attestationObject 是文本键 CBOR map；COSE key 严格解析（kty=2、alg=-7、crv=1）
  * - authData：rpIdHash == SHA-256(RP_ID)，UP=1，注册和解锁都要求 UV=1
  * - clientData.origin 严格等于 SGX_ORIGIN；RP_ID/ORIGIN 必须配环境变量，不回落
@@ -27,7 +27,7 @@
  * - register 带 excludeCredentials 防重复注册
  * 存储读写在 _kernel/passkey-store.js。
  */
-import { b64urlEnc } from '../../../shared/crypto.js';
+import { b64urlEnc } from '../_kernel/lib/crypto.js';
 import {
   b64urlDec,
   randB64,
@@ -38,7 +38,7 @@ import {
   rpIdHashOf,
   consumeChallenge,
   issueChallenge,
-} from '../../../shared/passkey-verify.js';
+} from '../_kernel/lib/passkey-verify.js';
 import {
   issueLockSession,
   bumpLockEpoch,
@@ -51,7 +51,7 @@ import { LOCK_REAUTH_TICKET, BY_PASSKEY } from '../_kernel/realms.js';
 import { isLockEffectivelyConfigured, isAccountEffectivelyConfigured } from '../_kernel/layers.js';
 import { verifyLockSession, looksVisitor } from '../_kernel/lock-session.js';
 import { REALM_LOCK, REALM_ACCOUNT, KEY_LOCK, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
-import { hasPassword } from '../../../shared/password.js';
+import { hasPassword } from '../_kernel/lib/password.js';
 import {
   getPasskeys,
   getPasskey,
@@ -64,7 +64,7 @@ import {
   PASSKEY_ACCOUNT,
   PASSKEY_DISPLAY_NAME,
 } from '../_kernel/passkey-store.js';
-import { isSameOrigin, originDenied, json, apiError } from '../../../shared/http.js';
+import { isSameOrigin, originDenied, json, apiError } from '../_kernel/lib/http.js';
 
 /* 锁屏通行密钥注册 / 解锁 challenge：D1 challenge 表 realm='lock'，purpose = register / auth（与账号 challenge 按 realm 隔离） */
 const CH = REALM_LOCK.challenge;
@@ -293,7 +293,7 @@ async function handlePost(context) {
       return apiError(403, 'unknown-key');
     }
     try {
-      /* 共享断言验证（workers/shared/passkey-verify.js）：clientData、authData、
+      /* 共享断言验证（workers/auth-gateway/functions/_kernel/lib/passkey-verify.js）：clientData、authData、
          signCount 递增、ES256 签名、UV=1（P0-3）。 */
       const checked = await verifyAssertion({
         credential: cred,

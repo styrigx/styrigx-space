@@ -30,8 +30,8 @@
  *
  * 本文件几乎是叶子模块：只 import 共享模块里同为叶子的 http.js（错误响应）、cookies.js（COOKIE_EXPIRED），避免循环依赖。
  */
-import { apiError } from '../../../shared/http.js';
-import { COOKIE_EXPIRED } from '../../../shared/cookies.js';
+import { apiError } from './lib/http.js';
+import { COOKIE_EXPIRED } from './lib/cookies.js';
 
 /* 钥匙概念名 */
 export const KEY_ROOT = 'RootKey';
@@ -44,7 +44,7 @@ const SHARED_SESSION_ATTRS = 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; Sam
 const ACCOUNT_SESSION_ATTRS = 'Path=/; HttpOnly; Secure; SameSite=Strict';
 /* 四张 reset / reauth 短票：只发主站、HttpOnly、Strict、3 分钟、不续期 */
 const SHORT_TICKET_ATTRS = 'Path=/; HttpOnly; Secure; SameSite=Strict';
-/* 清除 cookie 时追加的过期时间（值在 workers/shared/cookies.js，共享短票 tickets.js 也用它） */
+/* 清除 cookie 时追加的过期时间（值在 workers/auth-gateway/functions/_kernel/lib/cookies.js，共享短票 tickets.js 也用它） */
 export { COOKIE_EXPIRED };
 
 /* lock-epoch：Lock 纪元（锁屏会话、LockReset、LockReauth 三张票共用）；D1 epoch 表 realm='lock' 那一行 */

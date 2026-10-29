@@ -113,7 +113,7 @@ export const epochOf = (env) => { const r = one(env, "SELECT value FROM epoch WH
 export const setEpoch = (env, v) => raw(env).prepare("INSERT INTO epoch (realm, value) VALUES ('account', ?) ON CONFLICT (realm) DO UPDATE SET value = excluded.value").run(v);
 
 export async function seedPassword(env, pw) {
-  const { makePasswordRecord } = await import('../../../workers/shared/password.js');
+  const { makePasswordRecord } = await import('../../../workers/account/src/lib/password.js');
   raw(env).prepare("INSERT INTO password (realm, record) VALUES ('account', ?) ON CONFLICT (realm) DO UPDATE SET record = excluded.record").run(JSON.stringify(await makePasswordRecord(pw, PEPPER)));
 }
 

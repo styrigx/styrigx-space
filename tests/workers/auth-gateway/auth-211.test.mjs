@@ -55,7 +55,7 @@ function baseEnv(kv, overrides) {
  * configuredKV({ lock, account })：一份 kv（只当 authD1For 的钥匙），对应的 D1 里写好锁屏 / 账号密码。
  * 账号密码固定 'account-pass-1'，锁屏密码 'lock-pass-1'（pepper = baseEnv 的 test-pepper）。
  */
-const { makePasswordRecord: mkPw } = await import(REPO + '/workers/shared/password.js');
+const { makePasswordRecord: mkPw } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lib/password.js');
 const ACCOUNT_PW_REC = await mkPw('account-pass-1', 'test-pepper');
 const LOCK_PW_REC = await mkPw('lock-pass-1', 'test-pepper');
 function configuredKV(o) {
@@ -101,7 +101,7 @@ test('2.11 重置锁屏：开关关闭时只根凭证 → 返回 needAccount（�
 
 test('2.11 重置锁屏：开关关闭时只管理员凭证被拒（缺根凭证 → 401）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
-  const { makePasswordRecord } = await import(REPO + '/workers/shared/password.js');
+  const { makePasswordRecord } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lib/password.js');
   const kv = configuredKV({ lock: true, account: true });
   const rec = await makePasswordRecord('account-pass-1', 'test-pepper');
   authD1For(kv).putPassword('account', rec);
@@ -274,7 +274,7 @@ test('2.11 开关：根凭证错误时不读开关', async () => {
 
 test('2.11 开关：有效时单管理员凭证仍被拒（根凭证优先，不可跳过）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
-  const { makePasswordRecord } = await import(REPO + '/workers/shared/password.js');
+  const { makePasswordRecord } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lib/password.js');
   const kv = configuredKV({ lock: true, account: true });
   const rec = await makePasswordRecord('account-pass-1', 'test-pepper');
   authD1For(kv).putPassword('account', rec);
@@ -329,7 +329,7 @@ test('2.11 假入口：缺 Origin → 403（先于假入口）', async () => {
 
 test('2.11 pepper：账号密码 = 锁屏密码被拒（双向；账号侧走 /api/account）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/account.js');
-  const { makePasswordRecord } = await import(REPO + '/workers/shared/password.js');
+  const { makePasswordRecord } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lib/password.js');
   const kv = configuredKV({ lock: true, account: true }); /* 纪元在 D1，没有 → 0 */
   /* 先设锁屏密码（D1） */
   const lockRec = await makePasswordRecord('same-pass-12345', 'test-pepper');

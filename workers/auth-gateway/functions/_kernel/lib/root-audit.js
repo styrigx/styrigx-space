@@ -9,7 +9,7 @@
  * 写入失败或 D1 未绑定时返回 false。成功路径（root-auth、lock-reset 签票前）据此 fail closed：写不进审计就 503、不签票；
  * 失败 / 限流路径只写不看返回值（本来就拒绝）。
  *
- * 按域参数化（账号拆分 PR1 搬到共享模块 workers/shared/，零行为变化）：rootAuditor(realm) 给出某个根域的写 / 读审计函数，
+ * 按域参数化（账号拆分 PR1 搬到共享模块 workers/auth-gateway/functions/_kernel/lib/，零行为变化）：rootAuditor(realm) 给出某个根域的写 / 读审计函数，
  * 行的 realm 列 = realm.id、经 realm.d1Binding 读写；本模块不认识具体的域。网关 _kernel/root-audit.js 用 REALM_ROOT
  * （realm='root'、D1_ROOT_AUTH）绑好再导出，导出名字和行为与以前相同。现在仍然只有这一个根域。
  */

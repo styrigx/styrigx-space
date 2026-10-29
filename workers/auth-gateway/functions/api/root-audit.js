@@ -12,7 +12,7 @@
 import { verifyLockSession } from '../_kernel/lock-session.js';
 import { listRootAudit } from '../_kernel/root-audit.js';
 import { ROLE_ADMIN } from '../_kernel/lock-session.js';
-import { json, apiError } from '../../../shared/http.js';
+import { json, apiError } from '../_kernel/lib/http.js';
 import { REALM_ROOT } from '../_kernel/realms.js';
 
 /** 显示条数 */

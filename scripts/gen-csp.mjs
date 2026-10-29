@@ -4,9 +4,10 @@
  *
  * 从生产构建（hugo --minify -s web，产物在 web/public/）里找出所有会执行的内联 <script>
  * （没有 src，type 为空 / text/javascript / module；application/json 等数据块不算），算 sha256，写两处：
- *   1. workers/shared/csp-hashes.js —— 网关 / 账号 / 分享 Worker 的 Report-Only CSP 用
+ *   1. 各 Worker 自己的 csp-hashes.js（网关 workers/auth-gateway/functions/_kernel/lib/、账号 workers/account/src/lib/、
+ *      分享 workers/share/src/lib/，2026-10-30 起各自一份、内容相同）—— 各自 Report-Only CSP 用
  *   2. web/static/_headers 里 @gen-security-headers 那一段 —— Pages 静态响应的同一套安全头
- *      （值取自 workers/shared/security-headers.js 的 mainSiteHeaderList()，两边不会不一致）
+ *      （值取自网关 _kernel/lib/security-headers.js 的 mainSiteHeaderList()，两边不会不一致）
  * 同时检查：HTML 里不许有 on*="…" 事件属性和 javascript: 链接（CSP 没法用哈希放行它们）。
  *
  * 哈希依赖 Hugo 版本和 --minify（压缩会改内联脚本的空白），CI 和部署都是同一条构建命令、同一个 HUGO_VERSION。
@@ -23,9 +24,13 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseHeaders } from './lib/pages-headers.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const HASHES_FILE = path.join(REPO, 'workers/shared/csp-hashes.js');
+export const HASHES_FILES = Object.freeze([
+  path.join(REPO, 'workers/auth-gateway/functions/_kernel/lib/csp-hashes.js'),
+  path.join(REPO, 'workers/account/src/lib/csp-hashes.js'),
+  path.join(REPO, 'workers/share/src/lib/csp-hashes.js'),
+]);
 export const HEADERS_FILE = path.join(REPO, 'web/static/_headers');
-const SECURITY = path.join(REPO, 'workers/shared/security-headers.js');
+const SECURITY = path.join(REPO, 'workers/auth-gateway/functions/_kernel/lib/security-headers.js');
 export const GEN_START = '# @gen-security-headers start';
 export const GEN_END = '# @gen-security-headers end';
 /* CF 文档：_headers 每行最多 2000 字符 */
@@ -125,7 +130,7 @@ export function renderHashesFile(hashes) {
  */
 export function renderHeadersBlock(list) {
   return [
-    GEN_START + '（scripts/gen-csp.mjs 按 workers/shared/security-headers.js 生成，别手改）',
+    GEN_START + '（scripts/gen-csp.mjs 按 workers/auth-gateway/functions/_kernel/lib/security-headers.js 生成，别手改）',
     '/*',
     ...list.map(([k, v]) => '  ' + k + ': ' + v),
     GEN_END,
@@ -159,11 +164,13 @@ async function main() {
   const hashesText = renderHashesFile(hashes);
 
   if (check) {
-    const cur = existsSync(HASHES_FILE) ? readFileSync(HASHES_FILE, 'utf8') : '';
     let ok = true;
-    if (cur !== hashesText) {
-      ok = false;
-      console.error('gen-csp --check: ' + path.relative(REPO, HASHES_FILE) + ' 和构建产物对不上（内联脚本改过？）。重新生成：hugo --minify -s web && node scripts/gen-csp.mjs');
+    for (const f of HASHES_FILES) {
+      const cur = existsSync(f) ? readFileSync(f, 'utf8') : '';
+      if (cur !== hashesText) {
+        ok = false;
+        console.error('gen-csp --check: ' + path.relative(REPO, f) + ' 和构建产物对不上（内联脚本改过？）。重新生成：hugo --minify -s web && node scripts/gen-csp.mjs');
+      }
     }
     const { mainSiteHeaderList } = await import(pathToFileURL(SECURITY).href);
     const headersText = readFileSync(HEADERS_FILE, 'utf8');
@@ -184,7 +191,7 @@ async function main() {
     return;
   }
 
-  writeFileSync(HASHES_FILE, hashesText);
+  for (const f of HASHES_FILES) writeFileSync(f, hashesText);
   /* 先写哈希再 import：security-headers.js 读的是刚写好的 csp-hashes.js */
   const { mainSiteHeaderList } = await import(pathToFileURL(SECURITY).href);
   const headersText = readFileSync(HEADERS_FILE, 'utf8');
@@ -193,7 +200,7 @@ async function main() {
   for (const [i, l] of next.split('\n').entries()) {
     if (l.length > MAX_LINE) throw new Error('_headers:' + (i + 1) + ' 超过 ' + MAX_LINE + ' 字符（CF 上限）');
   }
-  console.log('gen-csp: 写好 ' + path.relative(REPO, HASHES_FILE) + '（' + hashes.size + ' 段内联脚本）和 web/static/_headers');
+  console.log('gen-csp: 写好 ' + HASHES_FILES.map((f) => path.relative(REPO, f)).join('、') + '（' + hashes.size + ' 段内联脚本）和 web/static/_headers');
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -10,7 +10,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { verifyTicket, signTicket, SHORT_TICKETS } from '../../../workers/auth-gateway/functions/_kernel/tickets.js';
-import { ed25519Sign } from '../../../workers/shared/crypto.js';
+import { ed25519Sign } from '../../../workers/auth-gateway/functions/_kernel/lib/crypto.js';
 import { TICKETS } from '../../../workers/auth-gateway/functions/_kernel/realms.js';
 import { makeKV, genKeyPair, authD1For } from '../_harness.mjs';
 
