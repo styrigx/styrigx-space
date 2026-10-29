@@ -247,3 +247,19 @@ test('源码扫描：网关和 workers/shared/ 任何源码都不用 withSession
   const kv = files.filter((f) => /\benv\s*(\.|\[\s*['"])KV_/.test(stripComments(readFileSync(f, 'utf8'))));
   assert.deepEqual(kv.map((f) => path.relative(GATEWAY, f)), []);
 });
+
+test('0007（user_handle 加 legacy_handle，预览共库兼容）：只有一条 ADD COLUMN；网关跑完全部迁移后 user_handle 读写照旧，代码不读写新列', async () => {
+  const sql = readFileSync(new URL('0007_user_handle_legacy_handle.sql', MIG_DIR), 'utf8');
+  assert.deepEqual(statements(sql), ["ALTER TABLE user_handle ADD COLUMN legacy_handle TEXT NOT NULL DEFAULT ''"]);
+  const db = makeAuthD1();
+  assert.deepEqual(db.raw.prepare('PRAGMA table_info(user_handle)').all().map((c) => c.name), ['realm', 'handle', 'legacy_handle']);
+  const env = envOf(db);
+  const h1 = await userHandleRecord(env, REALM_LOCK, true, () => 'LOCK-H');
+  assert.equal(h1, 'LOCK-H');
+  assert.equal(await userHandleRecord(env, REALM_LOCK, true, () => 'OTHER'), 'LOCK-H', '已有就复用');
+  assert.equal(await userHandleRecord(env, REALM_ACCOUNT, false, () => 'X'), '', '不新建 → 空');
+  assert.deepEqual({ ...db.raw.prepare("SELECT * FROM user_handle WHERE realm = 'lock'").get() }, { realm: 'lock', handle: 'LOCK-H', legacy_handle: '' });
+  /* 网关源码不碰这一列 */
+  const gwSrc = (d) => readdirSync(d).flatMap((f) => { const p = path.join(d, f); return statSync(p).isDirectory() ? gwSrc(p) : p.endsWith('.js') ? [readFileSync(p, 'utf8')] : []; });
+  assert.ok(!gwSrc(GATEWAY).some((s) => s.includes('legacy_handle')));
+});

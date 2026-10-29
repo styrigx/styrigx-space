@@ -16,7 +16,7 @@
  *   root-audit-account：G realm='root' path account-reauth / account-reset → A realm='account' path root-reauth / root-reset
  *   root-attempt-limit-lock：G realm='root' kind='rootkey' → G realm='lock'（限速行两边各一份）
  *   root-audit-lock：G realm='root' path lock-reauth / lock-reset → G realm='lock'（path 不变）
- *   lock-reset-switch：G recovery_switch → G lock_reset_switch（同 0007 的两条语句）
+ *   lock-reset-switch：G recovery_switch → G lock_reset_switch（同方案 9.4 lock_reset_switch 迁移的两条语句）
  * 不搬：challenge（切换那几分钟里正在进行的 Passkey 登录重试一次）；过期行（expires_at ≤ now）。
  *
  * 模式：
@@ -53,7 +53,7 @@ import { createHash } from 'node:crypto';
 
 export const ACCOUNT_SCHEMA_FILE = 'workers/account/migrations/0003_account_auth.sql';
 
-/** 0007_lock_reset_switch.sql（方案 9.4）的同一段 SQL：生产不跑 migrations apply，由本脚本执行 */
+/** 方案 9.4 lock_reset_switch 迁移（网关 0007 已被 legacy_handle 占用，PR3 顺延编号）的同一段 SQL：生产不跑 migrations apply，由本脚本执行 */
 export const SWITCH_CREATE = 'CREATE TABLE IF NOT EXISTS lock_reset_switch (hash TEXT PRIMARY KEY, first_seen INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0)';
 export const SWITCH_COPY = 'INSERT OR IGNORE INTO lock_reset_switch (hash, first_seen, used) SELECT hash, first_seen, used FROM recovery_switch';
 /** 0001_recovery_switch.sql（--reverse 写回旧表时表可能不在） */
@@ -421,7 +421,7 @@ async function dryRun(ctx, log, res) {
 
 async function apply(ctx, schema, log, res) {
   for (const sql of schema) await ctx.write('account', sql);
-  /* 预览两边同库：user_handle 早由网关 0006 建好，没有 legacy_handle 列 */
+  /* 预览两边同库：user_handle 由网关 0006 建好、0007 补上 legacy_handle 列；这里是防御（0007 之前的老库），列已存在就跳过 */
   try {
     await ctx.select('account', 'SELECT legacy_handle FROM user_handle LIMIT 0');
   } catch (e) {

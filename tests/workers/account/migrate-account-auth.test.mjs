@@ -30,10 +30,18 @@ const PREVIEW_DB = '1339bb0b-f9f8-4e3d-b413-ff07ca28ce69';
 
 /* ---------- 替身 ---------- */
 
-/** 网关库：跑网关全部迁移（0001 recovery_switch + 0005 / 0006 认证表） */
-function gatewayDb() {
+/** 网关 0007（user_handle 加 legacy_handle，预览共库兼容） */
+const GW_LEGACY_MIG = '0007_user_handle_legacy_handle.sql';
+/**
+ * 网关库：跑网关全部迁移（0001 recovery_switch + 0005 / 0006 认证表 + 0007 legacy_handle 列）。
+ * before0007 = true：只跑到 0006（0007 之前的老库：user_handle 没有 legacy_handle，测脚本的防御性 ALTER 补列）。
+ */
+function gatewayDb(before0007) {
   const raw = new DatabaseSync(':memory:');
-  for (const f of readdirSync(GW_MIG).filter((x) => x.endsWith('.sql')).sort()) raw.exec(readFileSync(GW_MIG + f, 'utf8'));
+  for (const f of readdirSync(GW_MIG).filter((x) => x.endsWith('.sql')).sort()) {
+    if (before0007 && f >= GW_LEGACY_MIG) continue;
+    raw.exec(readFileSync(GW_MIG + f, 'utf8'));
+  }
   return raw;
 }
 /** 账号库（PR2 之前的样子）：只有 0001 / 0002（0003 由 apply 读文件建） */
@@ -60,7 +68,7 @@ function rest(raw, name, calls) {
 }
 function pair(opts) {
   const calls = [];
-  const G = gatewayDb();
+  const G = gatewayDb(opts && opts.before0007);
   const A = opts && opts.sameDb ? G : accountDb();
   const apis = { gateway: rest(G, 'G', calls), account: rest(A, 'A', calls), sameDb: !!(opts && opts.sameDb) };
   return { G, A, apis, calls };
@@ -77,7 +85,7 @@ function seed(G) {
   x("INSERT INTO epoch VALUES ('lock', 4), ('account', 9)");
   x("INSERT INTO password VALUES ('lock', ?), ('account', ?)", pw('LOCKHASH', NOW - 20 * DAY), pw('ACCTHASH', NOW - 10 * DAY));
   x("INSERT INTO passkey VALUES ('lock', 'LOCKPK1', ?), ('account', 'ACCTPK1', ?), ('account', 'ACCTPK2', ?)", pk('LOCKPK1'), pk('ACCTPK1'), pk('ACCTPK2'));
-  x("INSERT INTO user_handle VALUES ('lock', 'LOCKHANDLE'), ('account', 'ACCTHANDLE')");
+  x("INSERT INTO user_handle (realm, handle) VALUES ('lock', 'LOCKHANDLE'), ('account', 'ACCTHANDLE')");
   x("INSERT INTO challenge VALUES ('account', 'c1', 'login', 'CHALLENGEVALUE', ?), ('lock', 'c2', 'auth', 'LOCKCH', ?)", NOW + 300000, NOW + 300000);
   const lim = "INSERT INTO attempt_limit (realm, kind, bucket, count, strikes, locked_until, window_start, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
   x(lim, 'account', 'password', '1.2.3.x', 2, 1, 0, 0, NOW + 3600000);
@@ -125,10 +133,12 @@ test('0003_account_auth.sql：9 张表；结构照搬网关 0005 / 0006（保留
   for (const s of stmts) assert.match(s, /^CREATE (TABLE|INDEX) IF NOT EXISTS /, s);
   const A = new DatabaseSync(':memory:');
   for (const s of stmts) A.exec(s);
-  const G = gatewayDb();
+  const G = gatewayDb(true);
   const cols = (db, t) => rows(db, 'PRAGMA table_info(' + t + ')').map((c) => [c.name, c.type, c.notnull, c.dflt_value, c.pk]);
   for (const t of ['epoch', 'password', 'passkey', 'challenge', 'attempt_limit', 'device', 'audit']) assert.deepEqual(cols(A, t), cols(G, t), t);
   assert.deepEqual(cols(A, 'user_handle'), [...cols(G, 'user_handle'), ['legacy_handle', 'TEXT', 1, "''", 0]]);
+  /* 网关 0007 补的列与 0003 自带的同一定义 */
+  assert.deepEqual(cols(gatewayDb(), 'user_handle'), cols(A, 'user_handle'));
   assert.deepEqual(rows(A, "PRAGMA index_info('audit_ts')").map((r) => r.name), ['realm', 'ts']);
   /* 没有锁屏的表 */
   for (const t of ['tempkey', 'recovery_switch', 'lock_reset_switch', 'kv_migration']) assert.ok(!created.includes(t), t);
@@ -137,7 +147,7 @@ test('0003_account_auth.sql：9 张表；结构照搬网关 0005 / 0006（保留
   const src = readFileSync(SCRIPT, 'utf8');
   assert.ok(src.includes(ACCOUNT_SCHEMA_FILE));
   assert.doesNotMatch(src, /CREATE TABLE IF NOT EXISTS (epoch|password|passkey|user_handle|device|audit|attempt_limit|data_migration)\b/, '建表语句只在 0003 里');
-  /* 0007 的两条语句（方案 9.4 原文） */
+  /* 方案 9.4 lock_reset_switch 迁移的两条语句（原文；网关 0007 已被 legacy_handle 占用，PR3 的迁移编号顺延） */
   assert.equal(SWITCH_CREATE, 'CREATE TABLE IF NOT EXISTS lock_reset_switch (hash TEXT PRIMARY KEY, first_seen INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0)');
   assert.equal(SWITCH_COPY, 'INSERT OR IGNORE INTO lock_reset_switch (hash, first_seen, used) SELECT hash, first_seen, used FROM recovery_switch');
   assert.deepEqual(splitSql('-- a; b\nCREATE x (a);\n\n  -- c\nCREATE y;'), ['CREATE x (a)', 'CREATE y']);
@@ -504,12 +514,13 @@ test('--cleanup：没有 --confirm 拒绝；verify 不过什么都不删；verif
 
 /* ---------- 预览：两边同一个库 ---------- */
 
-test('预览（两边同一个库 styrigx-test-preview）：apply 给网关建的 user_handle 补 legacy_handle 列并填上；root 行照样分；verify 通过；cleanup 不删账号自己的行', async () => {
-  const { G, apis } = pair({ sameDb: true });
+test('预览（两边同一个库 styrigx-test-preview）：网关 0007 已带 legacy_handle 列，apply 不再 ALTER、不报错并填上；root 行照样分；verify 通过；cleanup 不删账号自己的行', async () => {
+  const { G, apis, calls } = pair({ sameDb: true });
   seed(G);
   const res = await go(apis, 'apply');
   assert.equal(res.ok, true);
-  assert.match(res.lines.join('\n'), /user_handle: added column legacy_handle/);
+  assert.doesNotMatch(res.lines.join('\n'), /added column/);
+  assert.ok(!calls.some((c) => /ALTER TABLE/.test(c)), '列已存在：防御性 ALTER 跳过');
   assert.deepEqual(one(G, "SELECT handle, legacy_handle FROM user_handle WHERE realm = 'account'"), { handle: 'ACCTHANDLE', legacy_handle: 'LOCKHANDLE' });
   assert.deepEqual(one(G, "SELECT handle, legacy_handle FROM user_handle WHERE realm = 'lock'"), { handle: 'LOCKHANDLE', legacy_handle: '' });
   assert.deepEqual(rows(G, "SELECT id, path FROM audit WHERE realm = 'account' ORDER BY id"), [{ id: 'r1', path: 'root-reauth' }, { id: 'r2', path: 'root-reset' }]);
@@ -525,6 +536,27 @@ test('预览（两边同一个库 styrigx-test-preview）：apply 给网关建�
   assert.equal(one(G, "SELECT COUNT(*) AS n FROM audit WHERE realm = 'root'").n, 0);
   assert.equal(one(G, "SELECT COUNT(*) AS n FROM passkey WHERE realm = 'account'").n, 2, "realm='account' 就是账号自己的行，不删");
   assert.equal(one(G, "SELECT value FROM epoch WHERE realm = 'account'").value, 9);
+});
+
+test('预览老库（网关 0007 之前，user_handle 没有 legacy_handle）：apply 的防御性 ALTER 补列并填上；再跑不重复补', async () => {
+  const { G, apis } = pair({ sameDb: true, before0007: true });
+  seed(G);
+  const res = await go(apis, 'apply');
+  assert.equal(res.ok, true);
+  assert.match(res.lines.join('\n'), /user_handle: added column legacy_handle/);
+  assert.deepEqual(one(G, "SELECT handle, legacy_handle FROM user_handle WHERE realm = 'account'"), { handle: 'ACCTHANDLE', legacy_handle: 'LOCKHANDLE' });
+  const again = await go(apis, 'apply');
+  assert.equal(again.ok, true);
+  assert.doesNotMatch(again.lines.join('\n'), /added column/);
+});
+
+test('预览迁移顺序（CI：网关全部迁移 → 账号 0001–0003，同一个内存库）：不报错，user_handle 带 legacy_handle；网关代码只写 realm、handle 时新列取默认', () => {
+  const raw = gatewayDb();
+  for (const f of readdirSync(AC_MIG).filter((x) => x.endsWith('.sql')).sort()) raw.exec(readFileSync(AC_MIG + f, 'utf8'));
+  const names = rows(raw, 'PRAGMA table_info(user_handle)').map((c) => c.name);
+  assert.deepEqual(names, ['realm', 'handle', 'legacy_handle']);
+  raw.prepare('INSERT OR IGNORE INTO user_handle (realm, handle) VALUES (?, ?)').run('lock', 'H');
+  assert.deepEqual(one(raw, "SELECT * FROM user_handle WHERE realm = 'lock'"), { realm: 'lock', handle: 'H', legacy_handle: '' });
 });
 
 /* ---------- 合并规则（纯函数） ---------- */
