@@ -71,26 +71,29 @@ export function authDb(env, realm) {
 
 /**
  * 跑一次操作；遇到「no such table / no such index」就建表再整次重试一次（建表前没有任何写入成功，可以安全重试）。
- * @template T @param {any} db @param {() => Promise<T>} fn @returns {Promise<T>}
+ * schema（可选，账号拆分 PR2b）：兜底建表用的语句；不给 = 本文件的 SCHEMA（网关形状），默认行为不变。
+ * @template T @param {any} db @param {() => Promise<T>} fn @param {readonly string[]} [schema] @returns {Promise<T>}
  */
-export async function withSchema(db, fn) {
+export async function withSchema(db, fn, schema) {
   try {
     return await fn();
   } catch (e) {
     if (!/no such table/i.test(String((e && e.message) || e))) throw e;
-    for (const sql of SCHEMA) await db.prepare(sql).run();
+    for (const sql of (Array.isArray(schema) && schema.length ? schema : SCHEMA)) await db.prepare(sql).run();
     return await fn();
   }
 }
 
 /**
  * 某域 D1 上跑一次操作（authDb + withSchema）。
+ * 域描述对象带 schema（非空字符串数组）时兜底建表用它（账号 Worker：自己的 0003 建表语句，user_handle 带 legacy_handle）；
+ * 不带（网关的域）= 共享 SCHEMA，行为不变。经 onAuthDb 的共享模块（attempt-limit / passkey-verify / root-audit 等）因此不改签名就能用。
  * @template T @param {any} env @param {any} realm @param {(db:any, r:any) => Promise<T>} fn @returns {Promise<T>}
  */
 export function onAuthDb(env, realm, fn) {
   const r = realmOf(realm);
   const db = authDb(env, r);
-  return withSchema(db, () => fn(db, r));
+  return withSchema(db, () => fn(db, r), Array.isArray(r.schema) ? r.schema : undefined);
 }
 
 /**

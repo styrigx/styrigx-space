@@ -263,3 +263,33 @@ test('0007（user_handle 加 legacy_handle，预览共库兼容）：只有一�
   const gwSrc = (d) => readdirSync(d).flatMap((f) => { const p = path.join(d, f); return statSync(p).isDirectory() ? gwSrc(p) : p.endsWith('.js') ? [readFileSync(p, 'utf8')] : []; });
   assert.ok(!gwSrc(GATEWAY).some((s) => s.includes('legacy_handle')));
 });
+
+test('共享 withSchema 可选 schema（账号拆分 PR2b）：不给 → 网关 SCHEMA（默认行为不变）；给了 → 只用给的语句建表', async () => {
+  const shared = await import('../../../workers/shared/d1-state.js');
+  const db1 = makeAuthD1({ migrations: false });
+  await shared.withSchema(db1, async () => db1.prepare('SELECT 1 FROM tempkey').all());
+  const t1 = db1.raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all().map((r) => r.name);
+  assert.deepEqual(t1, ['attempt_limit', 'audit', 'challenge', 'device', 'epoch', 'kv_migration', 'passkey', 'password', 'tempkey', 'user_handle']);
+  const db2 = makeAuthD1({ migrations: false });
+  const custom = ["CREATE TABLE IF NOT EXISTS user_handle (realm TEXT PRIMARY KEY, handle TEXT NOT NULL, legacy_handle TEXT NOT NULL DEFAULT '')"];
+  await shared.withSchema(db2, async () => db2.prepare('SELECT legacy_handle FROM user_handle').all(), custom);
+  const t2 = db2.raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all().map((r) => r.name);
+  assert.deepEqual(t2, ['user_handle']);
+  /* 空数组 = 不给 */
+  const db3 = makeAuthD1({ migrations: false });
+  await shared.withSchema(db3, async () => db3.prepare('SELECT 1 FROM epoch').all(), []);
+  assert.ok(db3.raw.prepare("SELECT 1 FROM sqlite_master WHERE name = 'tempkey'").get());
+});
+
+test('共享 onAuthDb：域对象带 schema 时兜底建表用它（账号库形状）；网关的域没有 schema 字段，照旧用共享 SCHEMA', async () => {
+  const shared = await import('../../../workers/shared/d1-state.js');
+  for (const r of [REALM_LOCK, REALM_ACCOUNT, REALM_ROOT]) assert.equal('schema' in r, false, r.id);
+  const custom = Object.freeze(['CREATE TABLE IF NOT EXISTS epoch (realm TEXT PRIMARY KEY, value INTEGER NOT NULL)']);
+  const realm = { id: 'account', d1Binding: 'D1_X', schema: custom };
+  const db = makeAuthD1({ migrations: false });
+  assert.equal(await shared.bumpEpoch({ D1_X: db }, realm), 1);
+  assert.deepEqual(db.raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((r) => r.name), ['epoch']);
+  const db2 = makeAuthD1({ migrations: false });
+  assert.equal(await readEpoch(envOf(db2), REALM_LOCK), 0);
+  assert.ok(db2.raw.prepare("SELECT 1 FROM sqlite_master WHERE name = 'kv_migration'").get(), '网关：照旧建共享 SCHEMA 全套');
+});
