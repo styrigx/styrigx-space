@@ -23,7 +23,8 @@
  *   CF_API_TOKEN=… CF_ACCOUNT_ID=… node scripts/migrate-prefs-kv-to-d1.mjs             建表（CREATE ... IF NOT EXISTS）+ 写入
  *   CF_API_TOKEN=… CF_ACCOUNT_ID=… node scripts/migrate-prefs-kv-to-d1.mjs --verify    核对：KV 里的每一项在 D1 里都有，且 t 不比 KV 旧
  * 选项：--account-kv <namespace id>（默认 b20701f5…）、--account-d1 <database id>（默认 workers/account/wrangler.toml 的
- *   D1_SETTINGS_SYNC，即 styrigx-account 03f60d23-…）。没有 --preview：预览 D1 styrigx-account-preview 还没建。
+ *   D1_SETTINGS_SYNC，即 styrigx-account 03f60d23-…）；--preview：库 id 改读同文件 [env.preview] 的 D1_SETTINGS_SYNC
+ *   （测试专用库 styrigx-test-preview），这时 --account-kv 必须显式给（预览没有云同步 KV，没有默认的源）。
  *   CF_API_BASE 可指向本地模拟器。
  * Token 权限：Account → Workers KV Storage: Read（读 KV）+ D1: Edit（建表、写入；--dry-run / --verify 只读也要 D1 读）。
  */
@@ -119,17 +120,19 @@ function opt(argv, name) {
 /** @param {string[]} argv */
 async function main(argv) {
   const repo = fileURLToPath(new URL('..', import.meta.url));
-  if (argv.includes('--preview')) throw new Error('--preview is not supported: the preview D1 styrigx-account-preview does not exist yet');
+  const preview = argv.includes('--preview');
   const mode = argv.includes('--dry-run') ? 'dry-run' : argv.includes('--verify') ? 'verify' : 'apply';
   const token = process.env.CF_API_TOKEN || '';
   const account = process.env.CF_ACCOUNT_ID || '';
   if (!token || !account) throw new Error('CF_API_TOKEN and CF_ACCOUNT_ID are required');
-  const ns = opt(argv, 'account-kv') || ACCOUNT_KV_NAMESPACE;
-  if (!/^[0-9a-f]{32}$/.test(ns)) throw new Error('--account-kv must be a KV namespace id');
-  const dbId = opt(argv, 'account-d1') || d1IdOf(readFileSync(repo + 'workers/account/wrangler.toml', 'utf8'), 'D1_SETTINGS_SYNC');
-  if (!dbId) throw new Error('account D1 database id not found (D1_SETTINGS_SYNC in workers/account/wrangler.toml)');
+  const ns = opt(argv, 'account-kv') || (preview ? '' : ACCOUNT_KV_NAMESPACE);
+  if (!/^[0-9a-f]{32}$/.test(ns)) throw new Error(preview ? '--account-kv <namespace id> is required with --preview' : '--account-kv must be a KV namespace id');
+  /* 正式 / 预览各取各的一段：同一个文件里两边都有 D1_SETTINGS_SYNC */
+  const [prodToml, previewToml] = readFileSync(repo + 'workers/account/wrangler.toml', 'utf8').split(/^\[env\.preview\]$/m);
+  const dbId = opt(argv, 'account-d1') || d1IdOf((preview ? previewToml : prodToml) || '', 'D1_SETTINGS_SYNC');
+  if (!dbId) throw new Error('account D1 database id not found (D1_SETTINGS_SYNC in workers/account/wrangler.toml' + (preview ? ' [env.preview]' : '') + ')');
   const api = cfApi({ base: (process.env.CF_API_BASE || 'https://api.cloudflare.com/client/v4').replace(/\/+$/, ''), token, account });
-  console.log(`${mode}: KV ${ns} (${LEGACY_PREFS_KEY}) → D1 ${dbId} (settings_sync)`);
+  console.log(`${mode}: KV ${ns} (${LEGACY_PREFS_KEY}) → D1 ${dbId} (settings_sync)${preview ? ' (preview)' : ''}`);
   const raw = await api.kvGet(ns, LEGACY_PREFS_KEY);
   const res = await runPrefsPlan({ d1: api.d1For(dbId) }, planPrefsImport(raw), { mode, log: (s) => console.log('  ' + s) });
   if (!res.ok) {

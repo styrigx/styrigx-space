@@ -417,7 +417,7 @@ jobs:
 
       - name: Reset preview D1 (state that would change this run)
         # 每次运行换了 RootKey、pepper 和 Ed25519 钥匙对。2026-10-27 起网关的认证状态全部在 D1（不再绑定 KV），
-        # 开跑前只清预览 D1（styrigx-auth-gateway-preview）里会改变本次起始状态的表（scripts/kv-budget.mjs RESET_D1_TABLES）：
+        # 开跑前只清预览 D1（测试专用库 styrigx-test-preview）里会改变本次起始状态的表（scripts/kv-budget.mjs RESET_D1_TABLES）：
         # 密码、通行密钥（「锁屏 / 账号都未设置」）和输错计数（attempt_limit：会 429）。
         # 纪元、user handle、审计、challenge、临时钥匙、设备、重置开关不清：旧会话 / 票都是旧钥匙签的、验签先失败，
         # 其余只是过期就不认的行，不改变任何断言的前提（逐条理由见 scripts/kv-budget.mjs）。
@@ -581,12 +581,17 @@ jobs:
 
       - name: Apply D1 migrations to preview
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
-        # 部署 preview 前对 styrigx-auth-gateway-preview 跑迁移（--env preview），绝不碰 production；失败要让 CI 红。
-        # 跑完列一次已应用的迁移（d1_migrations 表）。
+        # 部署 preview 前对测试专用库 styrigx-test-preview 跑迁移（--env preview），绝不碰 production；失败要让 CI 红。
+        # 2026-10-29 起所有 Worker 的预览共用这一个库：网关（web/wrangler.toml，迁移目录 workers/auth-gateway/migrations）、
+        # 账号 Worker、短链 Worker（各自 wrangler.toml 的 [env.preview]）三套迁移都在这里跑。表名互不重叠；迁移记录表分开：
+        # 网关用默认 d1_migrations，账号 d1_migrations_account，短链 d1_migrations_share（各 toml 的 migrations_table）。
+        # 库是空的也没关系：第一次运行三套迁移全部应用，之后只补新的。跑完列一次三张记录表。
         working-directory: web
         run: |
-          npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply styrigx-auth-gateway-preview --remote --env preview
-          npx --yes "wrangler@$WRANGLER_VERSION" d1 execute styrigx-auth-gateway-preview --remote --env preview --command "SELECT id, name, applied_at FROM d1_migrations ORDER BY id"
+          npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply styrigx-test-preview --remote --env preview
+          (cd ../workers/account && npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply styrigx-test-preview --remote --env preview)
+          (cd ../workers/share && npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply styrigx-test-preview --remote --env preview)
+          npx --yes "wrangler@$WRANGLER_VERSION" d1 execute styrigx-test-preview --remote --env preview --command "SELECT 'auth-gateway' AS worker, name, applied_at FROM d1_migrations UNION ALL SELECT 'account', name, applied_at FROM d1_migrations_account UNION ALL SELECT 'share', name, applied_at FROM d1_migrations_share ORDER BY 1, 2"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

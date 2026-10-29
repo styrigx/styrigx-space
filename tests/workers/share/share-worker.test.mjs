@@ -176,7 +176,8 @@ test('wrangler.toml：名字、不开 workers.dev / 预览地址、两条路由�
   assert.match(t, /binding = "ISSUER"\nservice = "styrigx-auth-gateway"\nentrypoint = "ShareIssuer"/);
   assert.match(t, /binding = "D1_SHARE_LINK"\ndatabase_name = "styrigx-share"\n/);
   assert.match(t, /\[env\.preview\]\nname = "styrigx-share-preview"\nworkers_dev = false\npreview_urls = false\nroutes = \[\]/);
-  assert.match(t, /binding = "D1_SHARE_LINK"\ndatabase_name = "styrigx-share-preview"\n/);
+  /* 预览 D1 = 所有 Worker 预览共用的测试库（2026-10-29）；共库所以迁移记录表单独用 d1_migrations_share */
+  assert.match(t, /binding = "D1_SHARE_LINK"\ndatabase_name = "styrigx-test-preview"\ndatabase_id = "1339bb0b-f9f8-4e3d-b413-ff07ca28ce69"\nmigrations_dir = "migrations"\nmigrations_table = "d1_migrations_share"\n/);
   assert.doesNotMatch(t, /secrets_store|kv_namespaces|SGX_LOCK|SGX_ACCOUNT|PEPPER|styrigx-auth-gateway"\n(?!entrypoint)/);
 });
 

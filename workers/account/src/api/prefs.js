@@ -12,7 +12,7 @@
  * - 每次最多 80 项、值最长 600 字符、总共最多 160 项；t 不能比服务器时间快 1 分钟以上（防坏时钟把别的设备永久压住）
  * - updatedAt = 服务器最后一次真正写入的时间（MAX(updated_at)），没有数据为 0
  * - 表不存在（"no such table"，还没跑 migration）时自己补建一次再重试，同数字健康的 CREATE TABLE IF NOT EXISTS 兜底
- * - 没绑 D1_SETTINGS_SYNC → 500 config（预览环境的 D1 styrigx-account-preview 还没建，预览 Worker 暂时没有云同步存储）
+ * - 没绑 D1_SETTINGS_SYNC → 500 config（正式 / 预览的 wrangler.toml 都绑了；缺绑定只会是配置错误）
  *
  * GET  /api/prefs → { ok, items, updatedAt }
  * POST /api/prefs { changes: { key: { v, t } } } → 合并后 { ok, items, updatedAt }（只接受同源）

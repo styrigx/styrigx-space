@@ -2,7 +2,7 @@
 /**
  * @fileoverview passkey-e2e 的预览状态：清预览 D1（只清会干扰本次运行的表）+ 每次运行的用量估算。
  *
- * 2026-10-27 起网关的认证状态全部在 D1 styrigx-auth-gateway(-preview)，不再绑定 KV（以前这里按键清预览 KV，
+ * 2026-10-27 起网关的认证状态全部在 D1（正式 styrigx-auth-gateway；预览 2026-10-29 起是测试专用库 styrigx-test-preview），不再绑定 KV（以前这里按键清预览 KV，
  * 因为免费计划的 KV 写 / 删 / 列各 1000 次 / 天、全账号共用，2026-10-25 四次 passkey-e2e 用掉了约 84%）。
  * 文件名沿用（CI 和文档都按这个名字引用）。
  *
