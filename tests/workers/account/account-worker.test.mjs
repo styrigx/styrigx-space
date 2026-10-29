@@ -1,6 +1,7 @@
 /**
  * 账号 Worker styrigx-account（workers/account，2026-10-24 从网关拆出来）：
- * - wrangler.toml：名字、不开 workers.dev / 预览地址、四条路由、服务绑定 AUTH → AuthVerifier、正式 / 预览库 id、不绑认证库和钥匙
+ * - wrangler.toml：名字、不开 workers.dev / 预览地址、四条路由、服务绑定 AUTH → AuthVerifier、正式 / 预览库 id、
+ *   D1_ACCOUNT_AUTH 指向账号库（PR2）、不绑网关认证库（Secrets Store 绑定见 account-auth-scaffold.test.mjs）
  * - 门（gate.js）：和网关 middleware 对这几条路径的结论一致（没会话 401 / 302、访客调 /api/prefs 403、头像文件公开、别的域名 403）
  * - 会话问网关（真实 verifier.js）；网关不可达 / 没绑 → 当作无会话
  * - 头像：默认图回源、KV 里的图、只读 KV_PROFILE；X-SGX-Runtime: account；/api/* no-store
@@ -62,11 +63,11 @@ const CTX = { waitUntil() {} };
 const call = (req, env) => worker.fetch(req, env, CTX);
 async function sess(role) { return 'sgx-lock-session=' + (await testLockSession(PRIV, 0, role)); }
 
-test('wrangler.toml：styrigx-account、不开公开地址、四条路由、AUTH → AuthVerifier、不绑钥匙和认证库', () => {
+test('wrangler.toml：styrigx-account、不开公开地址、四条路由、AUTH → AuthVerifier、D1_ACCOUNT_AUTH → 账号库、不绑网关认证库', () => {
   const toml = readFileSync(REPO + 'workers/account/wrangler.toml', 'utf8');
   const [prod, preview] = toml.split(/^\[env\.preview\]$/m);
   assert.match(prod, /^name = "styrigx-account"$/m);
-  assert.match(prod, /^main = "src\/index\.js"$/m);
+  assert.match(prod, /^main = "src\/worker\.js"$/m);
   assert.match(prod, /^workers_dev = false$/m);
   assert.match(prod, /^preview_urls = false$/m);
   assert.match(prod, /^SGX_ENV = "production"$/m);
@@ -80,7 +81,12 @@ test('wrangler.toml：styrigx-account、不开公开地址、四条路由、AUTH
   assert.doesNotMatch(code, /KV_SETTINGS_SYNC/);
   assert.deepEqual([...code.matchAll(/^binding = "(KV_[A-Z0-9_]+)"/gm)].map((m) => m[1]), ['KV_PROFILE', 'KV_PROFILE']);
   assert.match(prod, /KV_PROFILE 只放公开的头像 avatar:\*/);
-  assert.doesNotMatch(toml, /secrets_store_secrets|PRIVATE KEY|b796097c90104000992b7713f61e16ea|6931d1da-3502-480d-b0bd-de1bc4829d1d|5084ea8ef2444156ba48203220b93df6|d417e421-75bb-4425-bdc8-54856b88578f/);
+  /* 2026-10-29 PR2：账号鉴权脚手架。D1_ACCOUNT_AUTH 指向账号库（不是网关认证库 6931d1da…），钥匙只经 Secrets Store 绑定，不写进 toml */
+  assert.doesNotMatch(toml, /PRIVATE KEY|b796097c90104000992b7713f61e16ea|6931d1da-3502-480d-b0bd-de1bc4829d1d|5084ea8ef2444156ba48203220b93df6|d417e421-75bb-4425-bdc8-54856b88578f/);
+  assert.match(prod, /\[\[d1_databases\]\]\nbinding = "D1_ACCOUNT_AUTH"\ndatabase_name = "styrigx-account"\ndatabase_id = "03f60d23-9c2f-4f3d-a692-764ccaac6f5d"\nmigrations_dir = "migrations"\n/);
+  assert.match(prod, /^SGX_RP_ID = "styrigx\.com"$/m);
+  assert.match(prod, /^SGX_ORIGIN = "https:\/\/styrigx\.com"$/m);
+  assert.doesNotMatch(prod, /^SGX_\w+_(PUBLIC|PRIVATE) = /m);
   /* 预览：不抢正式路由、不连正式库；KV / D1 都是所有 Worker 预览共用的测试资源（2026-10-29，D1 styrigx-test-preview） */
   assert.match(preview, /^routes = \[\]$/m);
   assert.match(preview, /^name = "styrigx-account-preview"$/m);
@@ -88,7 +94,7 @@ test('wrangler.toml：styrigx-account、不开公开地址、四条路由、AUTH
   assert.doesNotMatch(preview, /PLACEHOLDER/);
   assert.match(preview, /\[\[env\.preview\.kv_namespaces\]\]\nbinding = "KV_PROFILE"\nid = "193b4d68b8ac4c6f8c0ba16b5ea78b14"/);
   /* 共库：迁移记录表单独用 d1_migrations_account，不和网关 / 短链的迁移记录混在一起 */
-  for (const b of ['D1_WELLBEING', 'D1_SETTINGS_SYNC']) {
+  for (const b of ['D1_WELLBEING', 'D1_SETTINGS_SYNC', 'D1_ACCOUNT_AUTH']) {
     assert.match(preview, new RegExp('\\[\\[env\\.preview\\.d1_databases\\]\\]\\nbinding = "' + b + '"\\ndatabase_name = "styrigx-test-preview"\\ndatabase_id = "1339bb0b-f9f8-4e3d-b413-ff07ca28ce69"\\nmigrations_dir = "migrations"\\nmigrations_table = "d1_migrations_account"'), b);
   }
 });
