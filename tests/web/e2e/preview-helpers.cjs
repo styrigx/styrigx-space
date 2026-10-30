@@ -253,8 +253,8 @@ async function d1Query(sql, params) {
 /** 打开重置开关：插一行还没见过的开关（first_seen = 0，同 Sloan 在后台控制台手动插的那条，见 _kernel/lock-reset-switch.js）。
  *  先 CREATE ... IF NOT EXISTS（同代码兜底的那句）：库没跑过迁移（模拟器 --no-migrations）时网关还没读过开关、表还没建。 */
 async function armResetSwitch() {
-  await d1Query('CREATE TABLE IF NOT EXISTS recovery_switch (hash TEXT PRIMARY KEY, first_seen INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0)');
-  await d1Query('INSERT INTO recovery_switch (hash, first_seen, used) VALUES (?, 0, 0)', ['e2e-' + rand()]);
+  await d1Query('CREATE TABLE IF NOT EXISTS lock_reset_switch (hash TEXT PRIMARY KEY, first_seen INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0)');
+  await d1Query('INSERT INTO lock_reset_switch (hash, first_seen, used) VALUES (?, 0, 0)', ['e2e-' + rand()]);
 }
 /** 清掉锁屏根密钥的单 IP 限速计数（D1 attempt_limit realm='lock'、kind='rootkey'，账号拆分 PR3 起网关的根密钥计数归锁屏域；
  *  全局窗口不动）。表还没建（没跑迁移、网关还没记过数）= 没有可清的。 */

@@ -1,8 +1,9 @@
 /**
- * 2.11 补充：恢复开关（D1 recovery_switch 表，绑定 D1_LOCK_AUTH；2026-10-27 起开关本身也在 D1，不再读 KV lock-reset-switch）。
+ * 2.11 补充：恢复开关（D1 lock_reset_switch 表，绑定 D1_LOCK_AUTH；2026-10-27 起开关本身也在 D1，不再读 KV lock-reset-switch）。
+ * 表名：账号拆分方案 9.4 起叫 lock_reset_switch（迁移 migrations/0008_lock_reset_switch.sql；以前叫 recovery_switch，本模块不再读写旧表）。
  *
  * - 打开开关：Sloan 在 Cloudflare 后台 D1 styrigx-auth-gateway 的控制台手动插一行「还没见过」的开关：
- *     INSERT INTO recovery_switch (hash, first_seen, used) VALUES (lower(hex(randomblob(16))), 0, 0);
+ *     INSERT INTO lock_reset_switch (hash, first_seen, used) VALUES (lower(hex(randomblob(16))), 0, 0);
  *   hash 只是这一行的随机编号（以前是 KV 开关值的 SHA-256；旧行原样留着，都已用过或过期，不会再生效）。代码永不插入开关。
  * - 首次见到计时：服务端第一次读到 first_seen = 0 的行，原子写入首次时间（UPDATE ... WHERE first_seen = 0）；
  *   从首次时间起 24 小时内有效。
@@ -14,7 +15,8 @@
  */
 
 const SWITCH_WINDOW_MS = 24 * 3600 * 1000;
-const CREATE_SQL = 'CREATE TABLE IF NOT EXISTS recovery_switch (hash TEXT PRIMARY KEY, first_seen INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0)';
+/** 与 migrations/0008_lock_reset_switch.sql 的建表语句相同（auth-211.test.mjs 核对） */
+export const CREATE_SQL = 'CREATE TABLE IF NOT EXISTS lock_reset_switch (hash TEXT PRIMARY KEY, first_seen INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0)';
 
 /**
  * 读开关状态：优先认「计时中」的行，其次认「还没见过」的行（并开始计时）。
@@ -25,18 +27,18 @@ async function readSwitch(db, start) {
   await db.prepare(CREATE_SQL).run();
   const now = Date.now();
   const live = await db.prepare(
-    'SELECT hash FROM recovery_switch WHERE used = 0 AND first_seen > 0 AND first_seen >= ? ORDER BY first_seen DESC LIMIT 1'
+    'SELECT hash FROM lock_reset_switch WHERE used = 0 AND first_seen > 0 AND first_seen >= ? ORDER BY first_seen DESC LIMIT 1'
   ).bind(now - SWITCH_WINDOW_MS).first();
   if (live) return { valid: true, hash: String(live.hash), reason: 'within-window' };
-  const fresh = await db.prepare('SELECT hash FROM recovery_switch WHERE used = 0 AND first_seen = 0 LIMIT 1').first();
+  const fresh = await db.prepare('SELECT hash FROM lock_reset_switch WHERE used = 0 AND first_seen = 0 LIMIT 1').first();
   if (fresh) {
     if (!start) return { valid: true, hash: String(fresh.hash), reason: 'unseen' };
-    const r = await db.prepare('UPDATE recovery_switch SET first_seen = ? WHERE hash = ? AND first_seen = 0').bind(now, fresh.hash).run();
+    const r = await db.prepare('UPDATE lock_reset_switch SET first_seen = ? WHERE hash = ? AND first_seen = 0').bind(now, fresh.hash).run();
     /* 并发的另一个请求先开始了计时：同样有效（它刚写的 first_seen 就在窗口里） */
     return { valid: true, hash: String(fresh.hash), reason: r && r.meta && r.meta.changes > 0 ? 'first-seen' : 'within-window' };
   }
-  const used = await db.prepare('SELECT 1 AS x FROM recovery_switch WHERE used = 1 LIMIT 1').first();
-  const expired = await db.prepare('SELECT 1 AS x FROM recovery_switch WHERE used = 0 LIMIT 1').first();
+  const used = await db.prepare('SELECT 1 AS x FROM lock_reset_switch WHERE used = 1 LIMIT 1').first();
+  const expired = await db.prepare('SELECT 1 AS x FROM lock_reset_switch WHERE used = 0 LIMIT 1').first();
   if (expired) return { valid: false, hash: null, reason: 'expired' };
   if (used) return { valid: false, hash: null, reason: 'used' };
   return { valid: false, hash: null, reason: 'not-set' };
@@ -77,7 +79,7 @@ export async function touchLockResetSwitch(db) {
 export async function claimLockResetSwitch(db, hash) {
   try {
     if (!db || !hash) return false;
-    const r = await db.prepare('UPDATE recovery_switch SET used = 1 WHERE hash = ? AND used = 0').bind(hash).run();
+    const r = await db.prepare('UPDATE lock_reset_switch SET used = 1 WHERE hash = ? AND used = 0').bind(hash).run();
     const changes = r && r.meta ? r.meta.changes : 0;
     return changes > 0;
   } catch (e) {

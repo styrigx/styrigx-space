@@ -147,9 +147,11 @@ test('0003_account_auth.sql：9 张表；结构照搬网关 0005 / 0006（保留
   const src = readFileSync(SCRIPT, 'utf8');
   assert.ok(src.includes(ACCOUNT_SCHEMA_FILE));
   assert.doesNotMatch(src, /CREATE TABLE IF NOT EXISTS (epoch|password|passkey|user_handle|device|audit|attempt_limit|data_migration)\b/, '建表语句只在 0003 里');
-  /* 方案 9.4 lock_reset_switch 迁移的两条语句（原文；网关 0007 已被 legacy_handle 占用，PR3 的迁移编号顺延） */
+  /* 方案 9.4 lock_reset_switch 迁移的两条语句（原文；网关 0007 已被 legacy_handle 占用，迁移编号顺延为 0008） */
   assert.equal(SWITCH_CREATE, 'CREATE TABLE IF NOT EXISTS lock_reset_switch (hash TEXT PRIMARY KEY, first_seen INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0)');
   assert.equal(SWITCH_COPY, 'INSERT OR IGNORE INTO lock_reset_switch (hash, first_seen, used) SELECT hash, first_seen, used FROM recovery_switch');
+  /* 与网关 migrations/0008_lock_reset_switch.sql 逐条一致（预览走迁移、生产由本脚本执行，同一段 SQL） */
+  assert.deepEqual(splitSql(readFileSync(GW_MIG + '0008_lock_reset_switch.sql', 'utf8')), [SWITCH_CREATE, SWITCH_COPY]);
   assert.deepEqual(splitSql('-- a; b\nCREATE x (a);\n\n  -- c\nCREATE y;'), ['CREATE x (a)', 'CREATE y']);
 });
 
@@ -218,7 +220,7 @@ test('apply：账号库建表（0003）并逐行原样拷贝；root 审计 / 限
   /* 旧库：除了新加的 lock 行和 lock_reset_switch，一行没动 */
   const gAfter = snapshot(G);
   delete gAfter.lock_reset_switch;
-  delete gBefore.lock_reset_switch; /* 网关 0008_lock_reset_switch.sql 在测试库里先建了空表（同预览）；生产没有 0008，表由 apply 建 */
+  delete gBefore.lock_reset_switch; /* 网关 0008_lock_reset_switch.sql 在测试库里先建了空表（同预览）；生产不跑迁移，表由 apply / --lock-reset-switch 建 */
   gAfter.audit = gAfter.audit.filter((r) => r.realm !== 'lock');
   gAfter.attempt_limit = gAfter.attempt_limit.filter((r) => !(r.realm === 'lock' && r.kind === 'rootkey'));
   assert.deepEqual(gAfter, gBefore);
@@ -247,7 +249,7 @@ test('apply 幂等：再跑一次不写任何行；切换后新库改过 / 删�
   assert.equal(one(A, "SELECT COUNT(*) AS n FROM passkey WHERE credential_id = 'ACCTPK1'").n, 0, '删掉的不写回来');
   assert.equal(one(A, 'SELECT value FROM epoch').value, 30, '纪元不回退');
   assert.equal(one(A, 'SELECT record FROM password').record, 'NEW');
-  assert.equal(one(G, "SELECT COUNT(*) AS n FROM lock_reset_switch WHERE hash = 'SW_LATE'").n, 0, 'apply 有标记就跳过；补齐是 reconcile 的事');
+  assert.equal(one(G, "SELECT COUNT(*) AS n FROM lock_reset_switch WHERE hash = 'SW_LATE'").n, 0, 'apply 有标记就跳过；补齐是 --lock-reset-switch / reconcile 的事');
 });
 
 test('apply 中途失败：该类不写标记；再跑一次补齐，已写的不重复；之后 verify 通过', async () => {
@@ -275,6 +277,60 @@ test('apply 中途失败：该类不写标记；再跑一次补齐，已写的�
   assert.equal(rows(G, 'SELECT * FROM lock_reset_switch').length, 3);
   const v = await go(apis, 'verify');
   assert.equal(v.ok, true, v.mismatches.join('\n'));
+});
+
+/* ---------- --lock-reset-switch ---------- */
+
+test('--lock-reset-switch：类标记已在（apply 过）也照样拷——旧表后来新加的行补进新表，旧表里后来计时 / 用掉的推到新表；旧表和账号数据不动；可重复跑；之后 verify 通过', async () => {
+  const { G, A, apis, calls } = await applied();
+  /* apply 之后、部署改名代码之前，旧代码还在读写 recovery_switch：开始计时、用掉一个，Sloan 又插了一行 */
+  G.prepare("UPDATE recovery_switch SET first_seen = ? WHERE hash = 'SW_UNSEEN'").run(NOW - 500);
+  G.exec("UPDATE recovery_switch SET used = 1 WHERE hash = 'SW_TIMING'");
+  G.exec("INSERT INTO recovery_switch VALUES ('SW_LATE', 0, 0)");
+  assert.equal((await go(apis, 'verify')).ok, false, '旧表变了，verify 先不过');
+  const oldBefore = rows(G, 'SELECT * FROM recovery_switch ORDER BY hash');
+  const snapA = snapshot(A);
+  const n = calls.length;
+  const res = await go(apis, 'lock-reset-switch');
+  assert.equal(res.ok, true);
+  assert.match(res.lines.join('\n'), /^lock-reset-switch: 1 row\(s\) copied, 2 row\(s\) updated \(4 recovery_switch \/ 4 lock_reset_switch\)$/m);
+  assert.deepEqual(rows(G, 'SELECT * FROM lock_reset_switch ORDER BY hash'), oldBefore, '新表与旧表一致');
+  assert.deepEqual(rows(G, 'SELECT * FROM recovery_switch ORDER BY hash'), oldBefore, '旧表不动');
+  assert.deepEqual(snapshot(A), snapA, '账号库不动（标记已在）');
+  for (const c of calls.slice(n)) assert.match(c, /^G: |^A: SELECT |^A: INSERT OR IGNORE INTO data_migration /, c);
+  assert.ok(!calls.slice(n).some((c) => /^G: .*\b(epoch|password|passkey|user_handle|device|audit|attempt_limit|challenge|tempkey)\b/.test(c)), '只碰开关表');
+  const again = await go(apis, 'lock-reset-switch');
+  assert.equal(again.written, 0, '重复跑不写');
+  const v = await go(apis, 'verify');
+  assert.equal(v.ok, true, v.mismatches.join('\n'));
+});
+
+test('--lock-reset-switch：新表已经更严（已用 / 更早计时）不会被旧表放宽；没 apply 过时建表、拷全部行、补标记；旧表不在时什么都不拷', async () => {
+  const { G, A, apis } = pair();
+  seed(G);
+  G.exec(SWITCH_CREATE);
+  G.prepare("INSERT INTO lock_reset_switch VALUES ('SW_UNSEEN', ?, 1)").run(NOW - 50);
+  const res = await go(apis, 'lock-reset-switch');
+  assert.equal(res.ok, true);
+  assert.deepEqual(rows(G, 'SELECT hash, first_seen, used FROM lock_reset_switch ORDER BY hash'), [
+    { hash: 'SW_TIMING', first_seen: NOW - 3600000, used: 0 },
+    { hash: 'SW_UNSEEN', first_seen: NOW - 50, used: 1 },
+    { hash: 'SW_USED', first_seen: NOW - 3 * DAY, used: 1 },
+  ]);
+  assert.equal(tables(A).includes('data_migration'), false, '账号库没建过 data_migration：不建表、不写标记');
+  /* 账号库有 data_migration（apply 过的样子）时补上类标记 */
+  const p2 = pair();
+  seed(p2.G);
+  p2.A.exec('CREATE TABLE data_migration (name TEXT PRIMARY KEY, migrated_at INTEGER NOT NULL)');
+  await go(p2.apis, 'lock-reset-switch');
+  assert.deepEqual(rows(p2.A, 'SELECT name FROM data_migration'), [{ name: 'lock-reset-switch' }]);
+  assert.equal(rows(p2.G, 'SELECT * FROM lock_reset_switch').length, 3);
+  /* 旧表已被 DROP（cleanup 之后）：只确保新表在 */
+  const p3 = pair();
+  p3.G.exec('DROP TABLE recovery_switch');
+  const r3 = await go(p3.apis, 'lock-reset-switch');
+  assert.match(r3.lines.join('\n'), /no recovery_switch table, nothing to copy/);
+  assert.ok(tables(p3.G).includes('lock_reset_switch'));
 });
 
 /* ---------- --verify ---------- */
@@ -608,6 +664,8 @@ test('库 id：正式 = 网关 wrangler 的 D1_LOCK_AUTH + 账号 wrangler 的 D
   assert.equal(modeOf([]), 'apply');
   assert.equal(modeOf(['--preview', '--verify']), 'verify');
   assert.equal(modeOf(['--cleanup', '--confirm']), 'cleanup');
+  assert.equal(modeOf(['--lock-reset-switch']), 'lock-reset-switch');
+  assert.throws(() => modeOf(['--lock-reset-switch', '--verify']), /pick one mode/);
   assert.throws(() => modeOf(['--verify', '--reverse']), /pick one mode/);
 });
 

@@ -13,7 +13,7 @@
  * 都是小写 snake_case 名词、都有 realm 列（'lock' | 'account' | 'root'）。本文件管 epoch / passkey / password / user_handle；
  * challenge（passkey-verify.js）、attempt_limit（attempt-limit.js）、tempkey（lock-tempkey.js）、device（account-devices.js）、
  * audit（root-audit.js）的 SQL 在各自模块里，经这里的 authDb / withSchema 访问。kv_migration 只有导入脚本写。
- * 绑定按域：realm.d1Binding（lock → D1_LOCK_AUTH，account → D1_ACCOUNT_AUTH，root → D1_ROOT_AUTH；同一个库 styrigx-auth-gateway）。恢复开关 recovery_switch 也经 D1_LOCK_AUTH（lock-reset-switch.js）。
+ * 绑定按域：realm.d1Binding（lock → D1_LOCK_AUTH，account → D1_ACCOUNT_AUTH，root → D1_ROOT_AUTH；同一个库 styrigx-auth-gateway）。
  *
  * 上线前的 KV 旧值：scripts/migrate-kv-to-d1.mjs 在部署前跑一次写进 D1（运行时不读 KV，没有回落）。
  *

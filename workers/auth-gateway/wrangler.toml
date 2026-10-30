@@ -114,14 +114,16 @@ simple = { limit = 20, period = 60 }
 # ---- 数据绑定（正式 D1）----
 # 网关的认证状态全部在 D1 styrigx-auth-gateway（强一致），不绑定任何 KV（2026-10-27）。
 # 账号拆分 PR3（方案 10.1）：网关只经 D1_LOCK_AUTH 读写 realm='lock' 的行（纪元、锁屏密码 / 通行密钥、user handle、challenge、
-# 密码 / 临时码 / 锁屏根密钥输错计数、临时钥匙、锁屏根密钥审计）和恢复开关表 recovery_switch（改名 lock_reset_switch 留待以后）。
+# 密码 / 临时码 / 锁屏根密钥输错计数、临时钥匙、锁屏根密钥审计）和恢复开关表 lock_reset_switch（方案 9.4 由 recovery_switch 改名）。
 # 原来的 D1_ACCOUNT_AUTH / D1_ROOT_AUTH 两个绑定名删掉（网关代码不再读写 realm='account' / 'root' 的行）；
 # 库里遗留的这些行不删，账号数据已由 scripts/migrate-account-auth.mjs（Cloudflare D1 REST，不经绑定）拷到 D1 styrigx-account，
 # 观察期后 PR4 --cleanup --confirm 删除。
-# 表：migrations/0001_recovery_switch.sql、0005_lock_account_state.sql、0006_auth_state.sql（0007 给 user_handle 加 legacy_handle 列）。
+# 表：migrations/0005_lock_account_state.sql、0006_auth_state.sql（0007 给 user_handle 加 legacy_handle 列）、0008_lock_reset_switch.sql
+# （0001_recovery_switch.sql 是旧表，网关代码不再读写）。
 # 本 Worker 的部署 job 不跑 D1 迁移：表由代码在第一次遇到「no such table」时按同一份语句建（functions/_kernel/lib/d1-state.js SCHEMA，幂等）。
-# 恢复开关代码仍读写 recovery_switch；scripts/migrate-account-auth.mjs apply 会另建 lock_reset_switch 并拷行，但代码还没切过去——
-# 改名留待以后，PR4 的 --cleanup（会 DROP recovery_switch）必须在改名完成之后才能跑。
+# 恢复开关代码只读写 lock_reset_switch。正式库不跑迁移，生产顺序：先跑 scripts/migrate-account-auth.mjs --lock-reset-switch
+# （建 lock_reset_switch 并从 recovery_switch 拷行、合并已用 / 计时状态），再部署本代码，再跑 --verify；
+# --cleanup --confirm（DROP recovery_switch、删遗留的 realm='account' / 'root' 行）属于 PR4，在 --verify 通过之后执行。
 # 安全读（纪元、吊销、challenge、计数、临时钥匙）只读主库：代码不开 read replication / withSession。
 [[d1_databases]]
 binding = "D1_LOCK_AUTH"

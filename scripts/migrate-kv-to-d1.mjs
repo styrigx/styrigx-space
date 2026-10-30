@@ -21,7 +21,7 @@
  *                                                          已作废的导成 revoked_at > 0 的行）
  * 不导入（只是计数 / 一次性的，过期就没用）：*-password-fail*、*-password-cooldown:*、lock-tempkey-fail*、root-fail*、
  *   *-challenge:*、lock-tempkey-code:*（由 tempkey.code_hash 代替）、
- *   *-configured（「已配置」由凭证推出）、lock-reset-switch（开关改在 D1 recovery_switch，要用时在控制台插一行）、
+ *   *-configured（「已配置」由凭证推出）、lock-reset-switch（开关改在 D1，当时的表 recovery_switch，方案 9.4 起 lock_reset_switch；要用时在控制台插一行）、
  *   root-audit:*（7 天审计，KV 里的旧记录留在 KV 自然过期）。
  *
  * 幂等：每一类（kv_migration.name = '<realm>-<内容>'）的行都用 INSERT OR IGNORE ... WHERE NOT EXISTS (该类的标记)，

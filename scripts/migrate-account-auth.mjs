@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * @fileoverview 账号拆分（PR2 → PR4）：账号认证数据 D1 styrigx-auth-gateway → D1 styrigx-account，
- * 以及恢复开关表 recovery_switch → lock_reset_switch（同在网关库）。方案见账号拆分最终方案第 9.3 / 9.4 节。
+ * 以及恢复开关表 recovery_switch → lock_reset_switch（同在网关库；网关代码只读写 lock_reset_switch）。方案见账号拆分最终方案第 9.3 / 9.4 节。
+ * 开关表的生产顺序：--lock-reset-switch（拷行）→ 部署改名后的网关代码 → --verify → PR4 的 --cleanup --confirm（DROP recovery_switch）。
  *
  * 写法照 scripts/migrate-kv-to-d1.mjs：Cloudflare D1 REST（不依赖 wrangler 登录），凭据只从环境变量读；
  * 输出只有计数和主键，不打印任何值（密码记录、公钥、handle、IP 前缀以外的内容一律不出现）。
@@ -28,6 +29,10 @@
  *   --reconcile        切换后把窗口内旧库的变化补到新库，「更安全的赢」：epoch 取大；device revoked_at / last_seen / expires_at 取大、
  *                      新设备补入；passkey 新的补入、旧库删掉的新库也删、signCount 取大；password 按 updatedAt 新的赢；
  *                      限速行各数取大；审计补缺；开关表按 hash 合并到两边（行只在一边 → 补到另一边，used 取大，first_seen 取非 0 中较小者）
+ *   --lock-reset-switch 只搬开关表（方案 9.4 生产步骤 1，部署改名后的网关代码之前跑）：G 建 lock_reset_switch（SWITCH_CREATE），
+ *                      INSERT OR IGNORE 拷 recovery_switch 的行（SWITCH_COPY），再按 9.4 合并规则把旧表里后来变化的 used / first_seen
+ *                      推到新表（used 取大，first_seen 取非 0 中较小者；只写 lock_reset_switch，旧表不动），最后补上类标记。
+ *                      与 apply 不同：类标记已在（PR2 / PR3 时 apply 过）也照样执行，可重复跑。不碰账号库的数据（只写 A.data_migration 标记）
  *   --reverse          只在回滚时用：同一规则反方向（新 → 旧；lock_reset_switch → recovery_switch）
  *   --cleanup --confirm 观察期后：先跑一次 verify（不过就什么都不删），再删 G 里 realm='account' / 'root' 的行，DROP TABLE recovery_switch。
  *                      两边是同一个库时（预览）不删 realm='account'（那就是账号自己的行）
@@ -41,6 +46,7 @@
  *   CF_API_TOKEN=… CF_ACCOUNT_ID=… node scripts/migrate-account-auth.mjs --dry-run
  *   CF_API_TOKEN=… CF_ACCOUNT_ID=… node scripts/migrate-account-auth.mjs
  *   CF_API_TOKEN=… CF_ACCOUNT_ID=… node scripts/migrate-account-auth.mjs --verify
+ *   CF_API_TOKEN=… CF_ACCOUNT_ID=… node scripts/migrate-account-auth.mjs --lock-reset-switch
  *   … --reconcile | --reverse | --cleanup --confirm；任一模式加 --preview
  * 选项：--gateway-d1 <id>（默认 workers/auth-gateway/wrangler.toml 的 D1_LOCK_AUTH = styrigx-auth-gateway）、
  *   --account-d1 <id>（默认 workers/account/wrangler.toml 的 D1_ACCOUNT_AUTH = styrigx-account；预览同名绑定在 [env.preview]）。
@@ -53,7 +59,8 @@ import { createHash } from 'node:crypto';
 
 export const ACCOUNT_SCHEMA_FILE = 'workers/account/migrations/0003_account_auth.sql';
 
-/** 方案 9.4 lock_reset_switch 迁移（网关 0007 已被 legacy_handle 占用，PR3 顺延编号）的同一段 SQL：生产不跑 migrations apply，由本脚本执行 */
+/** 方案 9.4 lock_reset_switch 迁移（workers/auth-gateway/migrations/0008_lock_reset_switch.sql；网关 0007 已被 legacy_handle 占用，顺延编号）的同一段 SQL：
+ *  生产不跑 migrations apply，由本脚本执行（apply / --lock-reset-switch） */
 export const SWITCH_CREATE = 'CREATE TABLE IF NOT EXISTS lock_reset_switch (hash TEXT PRIMARY KEY, first_seen INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0)';
 export const SWITCH_COPY = 'INSERT OR IGNORE INTO lock_reset_switch (hash, first_seen, used) SELECT hash, first_seen, used FROM recovery_switch';
 /** 0001_recovery_switch.sql（--reverse 写回旧表时表可能不在） */
@@ -330,7 +337,7 @@ async function diffSwitch(ctx, targets) {
 
 /**
  * @param {Apis} apis 两个库（gateway = styrigx-auth-gateway，account = styrigx-account；预览两个是同一个库，sameDb = true）
- * @param {{mode: 'dry-run'|'apply'|'verify'|'reconcile'|'reverse'|'cleanup', confirm?: boolean, now?: number,
+ * @param {{mode: 'dry-run'|'apply'|'lock-reset-switch'|'verify'|'reconcile'|'reverse'|'cleanup', confirm?: boolean, now?: number,
  *   schema?: string[], log?: (s: string) => void}} o schema：A 的建表语句（默认读 0003 文件）
  * @returns {Promise<{ok: boolean, lines: string[], written: number, mismatches: string[], conflicts: string[]}>}
  */
@@ -344,6 +351,7 @@ export async function run(apis, o) {
 
   if (o.mode === 'dry-run') return dryRun(ctx, log, res);
   if (o.mode === 'apply') return apply(ctx, o.schema || readAccountSchema(), log, res);
+  if (o.mode === 'lock-reset-switch') return copySwitch(ctx, log, res);
 
   const marks = await readMarks(ctx);
   const missing = MARKERS.filter((m) => !marks.has(m));
@@ -467,6 +475,26 @@ async function apply(ctx, schema, log, res) {
   return res;
 }
 
+/** --lock-reset-switch：开关表 G recovery_switch → G lock_reset_switch（方案 9.4 生产步骤 1；可重复跑） */
+async function copySwitch(ctx, log, res) {
+  await ctx.write('gateway', SWITCH_CREATE);
+  ctx.forget();
+  if (!(await ctx.hasTable('gateway', 'recovery_switch'))) {
+    log(SWITCH_FAMILY + ': no recovery_switch table, nothing to copy');
+    return res;
+  }
+  const copied = await ctx.write('gateway', SWITCH_COPY);
+  const sw = await diffSwitch(ctx, ['lock_reset_switch']);
+  let merged = 0;
+  for (const op of sw.ops) merged += await ctx.write('gateway', op.sql, op.params);
+  if (await ctx.hasTable('account', 'data_migration')) {
+    await ctx.write('account', 'INSERT OR IGNORE INTO data_migration (name, migrated_at) VALUES (?, ?)', [SWITCH_FAMILY, ctx.now]);
+  }
+  res.written += copied + merged;
+  log(SWITCH_FAMILY + ': ' + copied + ' row(s) copied, ' + merged + ' row(s) updated (' + sw.old + ' recovery_switch / ' + sw.new + ' lock_reset_switch)');
+  return res;
+}
+
 async function cleanup(ctx, log, res) {
   const realms = ctx.apis.sameDb ? ['root'] : ['account', 'root'];
   if (ctx.apis.sameDb) log("note: same database: realm='account' rows are the account's own, not deleted");
@@ -532,7 +560,7 @@ export function resolveDbIds(repo, o) {
 
 /** @param {string[]} argv */
 export function modeOf(argv) {
-  const flags = ['--dry-run', '--verify', '--reconcile', '--reverse', '--cleanup'].filter((f) => argv.includes(f));
+  const flags = ['--dry-run', '--lock-reset-switch', '--verify', '--reconcile', '--reverse', '--cleanup'].filter((f) => argv.includes(f));
   if (flags.length > 1) throw new Error('pick one mode: ' + flags.join(' '));
   return flags.length ? /** @type {any} */ (flags[0].slice(2)) : 'apply';
 }

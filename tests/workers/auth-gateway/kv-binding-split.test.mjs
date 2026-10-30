@@ -1,6 +1,6 @@
 /**
  * D1 绑定按域分（realms.js 头注释，2026-10-27 起网关认证状态全部在 D1，不再绑定 KV）。
- * 账号拆分 PR3：网关只剩锁屏域——realm='lock' 的行（和 recovery_switch）只经 D1_LOCK_AUTH；
+ * 账号拆分 PR3：网关只剩锁屏域——realm='lock' 的行（和恢复开关表 lock_reset_switch）只经 D1_LOCK_AUTH；
  * 库里遗留的 realm='account' / realm='root' 行网关一行都不碰（PR4 清），D1_ACCOUNT_AUTH / D1_ROOT_AUTH 绑定已删。
  *
  * 线上只有一个库，读错 realm 也不会出错，所以单靠功能测试发现不了。这里把 D1_LOCK_AUTH 换成「只认 realm='lock'」的视图：
@@ -18,7 +18,7 @@ import { genKeyPair, makeAuthD1, forbiddenKV } from '../_harness.mjs';
 
 const API = '../../../workers/auth-gateway/functions/api/';
 
-/** 有 realm 列的表（0005 / 0006）；recovery_switch、kv_migration 没有 realm 列 */
+/** 有 realm 列的表（0005 / 0006）；lock_reset_switch、kv_migration 没有 realm 列 */
 const REALM_TABLES = /\b(?:FROM|INTO|UPDATE|JOIN)\s+(epoch|passkey|password|user_handle|challenge|attempt_limit|tempkey|device|audit)\b/i;
 const REALM_IDS = ['lock', 'account', 'root'];
 
@@ -26,7 +26,7 @@ const REALM_IDS = ['lock', 'account', 'root'];
  * D1 替身上的视图（网关只有 D1_LOCK_AUTH = 只认 realm='lock'），只认自己 realm 的行：
  * - 碰有 realm 列的表的语句，绑定参数里必须有自己的 realm id；
  * - 参数里出现别的 realm id（'lock' / 'account' / 'root' 原样）算越界；
- * - recovery_switch 只许经 D1_LOCK_AUTH；kv_migration 运行时谁都不许碰（只有导入脚本写）。
+ * - lock_reset_switch 只许经 D1_LOCK_AUTH；旧表 recovery_switch 运行时谁都不许碰（方案 9.4 改名，只有迁移脚本读）；kv_migration 运行时谁都不许碰（只有导入脚本写）。
  * 越界的语句照常执行（流程不被打断），记进 violations，最后断言一条都没有。
  */
 function splitD1() {
@@ -38,7 +38,8 @@ function splitD1() {
     const check = (sql, args) => {
       if (/^\s*CREATE /i.test(sql)) return; /* 兜底建表 */
       if (/\bkv_migration\b/i.test(sql)) violations.push(name + ' touches kv_migration: ' + sql);
-      if (/\brecovery_switch\b/i.test(sql) && mine !== 'lock') violations.push(name + ' touches recovery_switch: ' + sql);
+      if (/\brecovery_switch\b/i.test(sql)) violations.push(name + ' touches recovery_switch: ' + sql);
+      if (/\block_reset_switch\b/i.test(sql) && mine !== 'lock') violations.push(name + ' touches lock_reset_switch: ' + sql);
       for (const a of args) {
         if (typeof a === 'string' && REALM_IDS.includes(a) && a !== mine) violations.push(name + ' binds ' + a + ': ' + sql);
       }
