@@ -2,7 +2,7 @@
  * 网关的 D1 认证状态入口：只认锁屏域 REALM_LOCK（D1_LOCK_AUTH，realm='lock'），实现在 lib/d1-state.js。
  *
  * 账号拆分 PR3：账号域、根域从网关删掉（账号数据在账号 Worker 的 D1 styrigx-account）；传 'account' / 'root' 一律抛 'd1-state: bad realm'，
- * 网关代码因此碰不到库里遗留的 realm='account' / realm='root' 行（PR4 cleanup 删除）。
+ * 网关库里也已经没有 realm='account' / realm='root' 的行（账号拆分 PR4 由 scripts/migrate-account-auth.mjs --cleanup 删除）。
  * 读主库、出错一律抛、表不存在建表后重试一次等约定见 lib/d1-state.js 文件头。
  */
 import { REALM_LOCK } from './realms.js';

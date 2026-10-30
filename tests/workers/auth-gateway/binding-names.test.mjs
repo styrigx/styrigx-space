@@ -19,7 +19,7 @@ function bindings(toml) {
 }
 
 /* 2026-10-27 起网关认证状态全部在 D1 styrigx-auth-gateway，不再绑任何 KV。
-   账号拆分 PR3：网关只剩锁屏域 D1_LOCK_AUTH（D1_ACCOUNT_AUTH / D1_ROOT_AUTH 删掉，库里遗留的行 PR4 清）。
+   账号拆分 PR3：网关只剩锁屏域 D1_LOCK_AUTH（D1_ACCOUNT_AUTH / D1_ROOT_AUTH 删掉，库里的账号旧行 PR4 已删）。
    Pages 预览跑的是组合入口（tests/web/e2e/preview-worker.js：网关 + 账号 Worker 代码），所以预览另绑 D1_ACCOUNT_AUTH 给账号那一半，
    同一个测试库 styrigx-test-preview。 */
 const AUTH = { 'workers/auth-gateway/wrangler.toml': ['D1_LOCK_AUTH'], 'web/wrangler.toml': ['D1_LOCK_AUTH', 'D1_ACCOUNT_AUTH'] };

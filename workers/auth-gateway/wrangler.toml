@@ -115,15 +115,13 @@ simple = { limit = 20, period = 60 }
 # 网关的认证状态全部在 D1 styrigx-auth-gateway（强一致），不绑定任何 KV（2026-10-27）。
 # 账号拆分 PR3（方案 10.1）：网关只经 D1_LOCK_AUTH 读写 realm='lock' 的行（纪元、锁屏密码 / 通行密钥、user handle、challenge、
 # 密码 / 临时码 / 锁屏根密钥输错计数、临时钥匙、锁屏根密钥审计）和恢复开关表 lock_reset_switch（方案 9.4 由 recovery_switch 改名）。
-# 原来的 D1_ACCOUNT_AUTH / D1_ROOT_AUTH 两个绑定名删掉（网关代码不再读写 realm='account' / 'root' 的行）；
-# 库里遗留的这些行不删，账号数据已由 scripts/migrate-account-auth.mjs（Cloudflare D1 REST，不经绑定）拷到 D1 styrigx-account，
-# 观察期后 PR4 --cleanup --confirm 删除。
+# 原来的 D1_ACCOUNT_AUTH / D1_ROOT_AUTH 两个绑定名删掉。账号数据已由 scripts/migrate-account-auth.mjs（Cloudflare D1 REST，不经绑定）
+# 拷到 D1 styrigx-account；网关库里 realm='account' / 'root' 的旧行和旧开关表 recovery_switch 已在 PR4 由 --cleanup --confirm 删除，
+# 本库只剩锁屏数据。
 # 表：migrations/0005_lock_account_state.sql、0006_auth_state.sql（0007 给 user_handle 加 legacy_handle 列）、0008_lock_reset_switch.sql
-# （0001_recovery_switch.sql 是旧表，网关代码不再读写）。
+# （0001_recovery_switch.sql 建的旧表由 0009_drop_recovery_switch.sql 删，只对走迁移的预览库生效；正式库已由 --cleanup 删）。
 # 本 Worker 的部署 job 不跑 D1 迁移：表由代码在第一次遇到「no such table」时按同一份语句建（functions/_kernel/lib/d1-state.js SCHEMA，幂等）。
-# 恢复开关代码只读写 lock_reset_switch。正式库不跑迁移，生产顺序：先跑 scripts/migrate-account-auth.mjs --lock-reset-switch
-# （建 lock_reset_switch 并从 recovery_switch 拷行、合并已用 / 计时状态），再部署本代码，再跑 --verify；
-# --cleanup --confirm（DROP recovery_switch、删遗留的 realm='account' / 'root' 行）属于 PR4，在 --verify 通过之后执行。
+# 恢复开关代码只读写 lock_reset_switch（正式库里由 scripts/migrate-account-auth.mjs --lock-reset-switch 建表并拷过旧表的行）。
 # 安全读（纪元、吊销、challenge、计数、临时钥匙）只读主库：代码不开 read replication / withSession。
 [[d1_databases]]
 binding = "D1_LOCK_AUTH"
@@ -133,7 +131,7 @@ migrations_dir = "migrations"
 
 # ---- 密钥：Secrets Store（方案 10.1：只剩 4 个）----
 # 聊天钥匙 SGX_CHAT_API_KEY 只绑在 styrigx-chat；账号钥匙 SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC / SGX_ACCOUNT_ROOT_KEY 只绑在 styrigx-account。
-# 锁屏根密钥 SGX_ADMIN_KEY：部署 PR3 前在后台新建，值等于原 SGX_ROOT_KEY（Secrets Store 不能直接改名）；SGX_ROOT_KEY 不再被绑定，PR4 删。SGX_PW_PEPPER 与账号 Worker 绑同一个密值（方案 6.2）。
+# 锁屏根密钥 SGX_ADMIN_KEY：部署 PR3 前在后台新建，值等于原 SGX_ROOT_KEY（Secrets Store 不能直接改名）；旧的 SGX_ROOT_KEY 已在 PR4 从 Secrets Store 删除。SGX_PW_PEPPER 与账号 Worker 绑同一个密值（方案 6.2）。
 # 换钥只在 Cloudflare 后台改，不用改代码、不用重新部署（最多 60 秒生效）。store_id 是存储的编号，不是密值。
 [[secrets_store_secrets]]
 binding = "SGX_LOCK_PRIVATE"

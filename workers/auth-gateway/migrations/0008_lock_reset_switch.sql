@@ -4,7 +4,7 @@
 -- 预览（styrigx-test-preview）：CI「Apply D1 migrations to preview」跑本文件。
 -- 正式库 styrigx-auth-gateway：部署 job 不跑 d1 migrations apply，同一段 SQL 由 scripts/migrate-account-auth.mjs 执行
 -- （--lock-reset-switch 拷行，部署新代码之前跑；SWITCH_CREATE / SWITCH_COPY 与这里逐条一致，单测核对）。
--- 旧表 recovery_switch 留到 PR4：scripts/migrate-account-auth.mjs --cleanup --confirm DROP。
+-- 旧表 recovery_switch：PR4 由 scripts/migrate-account-auth.mjs --cleanup --confirm DROP（正式库），预览库由 0009_drop_recovery_switch.sql 删。
 CREATE TABLE IF NOT EXISTS lock_reset_switch (
   hash TEXT PRIMARY KEY,
   first_seen INTEGER NOT NULL,

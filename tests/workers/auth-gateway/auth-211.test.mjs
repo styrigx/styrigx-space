@@ -27,6 +27,24 @@ const REPO = new URL('../../../', import.meta.url).pathname;
 const SWITCH_MOD = await import('../../../workers/auth-gateway/functions/_kernel/lock-reset-switch.js');
 assert.equal('LOCK_RESET_SWITCH_KEY' in SWITCH_MOD, false, '开关不再是 KV 键');
 
+test('预览库按编号跑网关迁移（PR4）：0008 把旧表 recovery_switch 的行拷进 lock_reset_switch，0009 再 DROP 旧表；行原样', async () => {
+  const fs = await import('node:fs');
+  const { DatabaseSync } = await import('node:sqlite');
+  const dir = REPO + 'workers/auth-gateway/migrations/';
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
+  assert.ok(files.includes('0009_drop_recovery_switch.sql'));
+  const db = new DatabaseSync(':memory:');
+  for (const f of files) {
+    if (f === '0008_lock_reset_switch.sql') db.exec("INSERT INTO recovery_switch VALUES ('OLD_USED', 5, 1), ('OLD_UNSEEN', 0, 0)");
+    db.exec(fs.readFileSync(dir + f, 'utf8'));
+  }
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((r) => r.name);
+  assert.ok(!tables.includes('recovery_switch'), '旧表已删');
+  assert.deepEqual(db.prepare('SELECT hash, first_seen, used FROM lock_reset_switch ORDER BY hash').all().map((r) => ({ ...r })),
+    [{ hash: 'OLD_UNSEEN', first_seen: 0, used: 0 }, { hash: 'OLD_USED', first_seen: 5, used: 1 }]);
+  assert.equal(fs.readFileSync(dir + '0009_drop_recovery_switch.sql', 'utf8').replace(/--.*$/gm, '').trim(), 'DROP TABLE IF EXISTS recovery_switch;');
+});
+
 test('恢复开关表名 lock_reset_switch（方案 9.4）：CREATE_SQL 与 migrations/0008_lock_reset_switch.sql 的建表语句一致；模块去掉注释后不再出现旧表名 recovery_switch', async () => {
   const fs = await import('node:fs');
   const flat = (x) => x.replace(/\s+/g, ' ').replace(/\( /g, '(').replace(/ \)/g, ')').trim();

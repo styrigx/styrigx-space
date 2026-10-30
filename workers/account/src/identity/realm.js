@@ -86,7 +86,7 @@ export const TICKETS = Object.freeze({
 
 /**
  * 账号凭证域。前面各字段与网关 REALM_ACCOUNT 逐字段相同；rootKey / rootIssues 是本 Worker 新增（见文件头）。
- * d1Binding = D1_ACCOUNT_AUTH：本 Worker 里指向账号库 styrigx-account（网关里同名绑定指向 styrigx-auth-gateway，PR4 删）。
+ * d1Binding = D1_ACCOUNT_AUTH：本 Worker 里指向账号库 styrigx-account（网关 PR3 起不再有这个绑定，网关库里的账号旧行 PR4 已删）。
  */
 export const REALM_ACCOUNT = Object.freeze({
   id: 'account',
