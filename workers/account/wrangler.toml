@@ -17,6 +17,10 @@ compatibility_date = "2026-10-09"
 workers_dev = false
 preview_urls = false
 
+# Smart Placement：本 Worker 频繁读 D1，让 Cloudflare 把执行位置放在离数据库近的地方，降 D1 往返延迟。
+[placement]
+mode = "smart"
+
 [observability]
 enabled = true
 head_sampling_rate = 1
