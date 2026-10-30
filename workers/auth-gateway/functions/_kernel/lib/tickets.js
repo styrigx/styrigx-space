@@ -13,7 +13,7 @@
  * cookie：每张票各自一个 cookie，属性取 conf.cookieAttrs（网关：只发主站、HttpOnly、Secure、SameSite=Strict），
  * Max-Age = conf.maxAge。不续期：到点就失效，前端倒计时以服务端返回的 expiresAt 为准。
  *
- * 共享模块（workers/shared/）：只 import workers/shared/ 里的 crypto.js、cookies.js。
+ * 共享模块（workers/auth-gateway/functions/_kernel/lib/）：只 import workers/auth-gateway/functions/_kernel/lib/ 里的 crypto.js、cookies.js。
  */
 import { ed25519Sign, ed25519Verify } from './crypto.js';
 import { readCookie, COOKIE_EXPIRED } from './cookies.js';

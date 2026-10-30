@@ -75,7 +75,7 @@ function withAssets(env) {
 
 /** @param {Response} res */
 export function tagRuntime(res) {
-  /* 安全响应头和网关主站同一套（workers/shared/security-headers.js，2026-10-25 PR D）；Referrer-Policy 已设过的（/s/<码> 的 no-referrer）不覆盖 */
+  /* 安全响应头和网关主站同一套（workers/account/src/lib/security-headers.js，2026-10-25 PR D）；Referrer-Policy 已设过的（/s/<码> 的 no-referrer）不覆盖 */
   const out = applyMainSiteHeaders(res);
   out.headers.set('X-SGX-Runtime', RUNTIME);
   return out;

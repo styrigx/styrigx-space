@@ -15,10 +15,10 @@
  * cookie：每张票各自一个 cookie（Lock / Account 的 reset、reauth 互不覆盖），只发主站（不带 Domain）、
  * HttpOnly、Secure、SameSite=Strict、Max-Age=180。不续期：3 分钟到点就失效，前端倒计时以服务端返回的 expiresAt 为准。
  *
- * 账号拆分 PR1（零行为变化）：签 / 解析 / 验 / 发 / 重签 / 清的通用实现搬到 workers/shared/tickets.js（按票配置对象工作，
+ * 账号拆分 PR1（零行为变化）：签 / 解析 / 验 / 发 / 重签 / 清的通用实现搬到 workers/auth-gateway/functions/_kernel/lib/tickets.js（按票配置对象工作，
  * 纪元由调用方给）；本文件按票名查 TICKETS 总表、按票所在的域读 D1 纪元，导出的名字和行为与以前完全相同。
  *
- * 只 import _kernel（realms / d1-state）和共享模块 workers/shared/tickets.js，不 import 接口或 _middleware.js。
+ * 只 import _kernel（realms / d1-state）和共享模块 workers/auth-gateway/functions/_kernel/lib/tickets.js，不 import 接口或 _middleware.js。
  */
 import {
   TICKETS,
@@ -36,7 +36,7 @@ import {
   issueShortTicket,
   reissueShortTicketWithEpoch,
   clearShortTicket,
-} from '../../../shared/tickets.js';
+} from './lib/tickets.js';
 
 /** 本文件管的四张短票 */
 export const SHORT_TICKETS = Object.freeze([LOCK_RESET_TICKET, LOCK_REAUTH_TICKET, ACCOUNT_RESET_TICKET, ACCOUNT_REAUTH_TICKET]);

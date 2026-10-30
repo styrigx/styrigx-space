@@ -12,8 +12,8 @@
  */
 import { issueLockSession, ROLE_ADMIN, ROLE_VISITOR } from '../_kernel/lock-session.js';
 import { BY_TEMPKEY, REALM_LOCK } from '../_kernel/realms.js';
-import { getPepper } from '../../../shared/password.js';
-import { isSameOrigin, originDenied, json, apiError, clientIp } from '../../../shared/http.js';
+import { getPepper } from '../_kernel/lib/password.js';
+import { isSameOrigin, originDenied, json, apiError, clientIp } from '../_kernel/lib/http.js';
 import {
   normalizeCode,
   findByCode,

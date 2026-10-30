@@ -13,7 +13,7 @@ import { ROLE_ADMIN } from '../_kernel/lock-session.js';
 import { isLayerConfigured, LAYER_ACCOUNT, LAYER_LOCK } from '../_kernel/layers.js';
 import { REALM_LOCK, REALM_ACCOUNT } from '../_kernel/realms.js';
 import { touchLockResetSwitch } from '../_kernel/lock-reset-switch.js';
-import { json, apiError } from '../../../shared/http.js';
+import { json, apiError } from '../_kernel/lib/http.js';
 
 /** @param {any} context */
 export async function onRequestGet(context) {

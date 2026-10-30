@@ -4,7 +4,7 @@
  * 从网关 functions/api/account.js 复制改写：action 名、请求 / 响应字段、错误码、cookie、票都和网关一样，
  * 切换时前端不用改（账号页其余调用地址不变）。由命名入口 AccountService（src/entrypoints.js）把网关转发的请求交进来（PR2 暗上线，PR3 网关才开始转发）。
  *
- * 身份：不验锁屏会话，只读网关写的规范身份头（workers/shared/lock-identity.js）：
+ * 身份：不验锁屏会话，只读网关写的规范身份头（workers/account/src/lib/lock-identity.js）：
  * - X-Styrigx-Lock-Role 必须是 admin（logout / reauth-clear 除外）；没有 / 不认识的值 / visitor → 401 session（同网关无 admin 会话）。
  *   白名单校验：role ∈ admin | visitor，by ∈ password | passkey | tempkey，其它值一律当作没有身份。
  * - X-Styrigx-Client-Address：输错限速分桶、审计 IP 前缀（没有 → 'unknown'）；不读 CF-Connecting-IP。
@@ -31,9 +31,9 @@
  * - 账号库只有 D1_ACCOUNT_AUTH 一个绑定（网关要 D1_LOCK_AUTH + D1_ACCOUNT_AUTH 都在）。
  * - 另记安全事件（account-root.js writeSecurityEvent，30 天）。
  *
- * 只 import workers/shared/ 和本目录。
+ * 只 import workers/account/src/lib/ 和本目录。
  */
-import { b64urlEnc } from '../../../shared/crypto.js';
+import { b64urlEnc } from '../lib/crypto.js';
 import {
   b64urlDec,
   randB64,
@@ -45,11 +45,11 @@ import {
   consumeChallenge,
   issueChallenge,
   findStoredKey,
-} from '../../../shared/passkey-verify.js';
-import { getPepper, makePasswordRecord, verifyRealmPassword, hasPassword, savePassword } from '../../../shared/password.js';
-import { passwordLimiter } from '../../../shared/password-limit.js';
-import { isSameOrigin, originDenied, json, apiError } from '../../../shared/http.js';
-import { LOCK_IDENTITY_HEADERS, CLIENT_CONTEXT_HEADERS } from '../../../shared/lock-identity.js';
+} from '../lib/passkey-verify.js';
+import { getPepper, makePasswordRecord, verifyRealmPassword, hasPassword, savePassword } from '../lib/password.js';
+import { passwordLimiter } from '../lib/password-limit.js';
+import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
+import { LOCK_IDENTITY_HEADERS, CLIENT_CONTEXT_HEADERS } from '../lib/lock-identity.js';
 import {
   BY_PASSKEY,
   BY_PASSWORD,

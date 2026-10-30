@@ -13,9 +13,9 @@
  * user handle：handle = 账号 handle（第一次注册时生成）；legacy_handle = 拆分前锁屏用的 handle（迁移脚本拷入，'' = 没有）。
  * 账号 Passkey 登录时 userHandle 等于其中任一个都认（网关原来去读锁屏域的 handle，这里读本库的 legacy_handle 列）。
  *
- * 只 import workers/shared/ 和本目录的 realm.js。
+ * 只 import workers/account/src/lib/ 和本目录的 realm.js。
  */
-import { b64urlEnc } from '../../../shared/crypto.js';
+import { b64urlEnc } from '../lib/crypto.js';
 import {
   onAuthDb,
   listPasskeyRecords,
@@ -24,7 +24,7 @@ import {
   updatePasskeyRecord,
   deletePasskeyRecord,
   userHandleRecord,
-} from '../../../shared/d1-state.js';
+} from '../lib/d1-state.js';
 import { REALM_ACCOUNT } from './realm.js';
 
 /** 与 migrations/0003_account_auth.sql 相同的建表语句（按文件顺序；全部 IF NOT EXISTS） */

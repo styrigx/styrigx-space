@@ -7,7 +7,7 @@
  * - 密码 / 通行密钥只读写 D1；env 里放一个碰一下就抛错的 KV 也照常工作
  * - challenge：一条 DELETE ... WHERE realm AND id AND purpose AND expires_at > now RETURNING 消费；
  *   并发两次只有一次成功；过期的在被清掉之前就不认；purpose / realm 对不上不认也不删
- * - 源码扫描：网关和共享模块 workers/shared/ 任何源码都不用 withSession（安全读只走主库）
+ * - 源码扫描：网关和共享模块 workers/auth-gateway/functions/_kernel/lib/ 任何源码都不用 withSession（安全读只走主库）
  *
  * 运行：node --test tests/workers/auth-gateway/d1-state.test.mjs
  */
@@ -20,7 +20,7 @@ import {
   SCHEMA, readEpoch, bumpEpoch, getPasswordRecord, putPasswordRecord, deletePasswordRecord, listPasskeyRecords, putPasskeyRecord,
   getPasskeyRecord, deletePasskeyRecord, updatePasskeyRecord, userHandleRecord,
 } from '../../../workers/auth-gateway/functions/_kernel/d1-state.js';
-import { issueChallenge, consumeChallenge } from '../../../workers/shared/passkey-verify.js';
+import { issueChallenge, consumeChallenge } from '../../../workers/auth-gateway/functions/_kernel/lib/passkey-verify.js';
 import { REALM_LOCK, REALM_ACCOUNT, REALM_ROOT } from '../../../workers/auth-gateway/functions/_kernel/realms.js';
 import { makeAuthD1, forbiddenKV } from '../_harness.mjs';
 
@@ -212,7 +212,7 @@ test('challenge：purpose / realm 对不上不认也不删；签发时顺手清�
 
 /* ---------------- 源码扫描 ---------------- */
 
-/** 网关源码（src/ + functions/）和共享模块（workers/shared/，网关、账号、分享 Worker 共用）里的 .js */
+/** 网关源码（src/ + functions/）和共享模块（workers/auth-gateway/functions/_kernel/lib/，网关、账号、分享 Worker 共用）里的 .js */
 function gatewaySources() {
   const out = [];
   const walk = (dir) => {
@@ -224,15 +224,14 @@ function gatewaySources() {
   };
   walk(path.join(GATEWAY, 'src'));
   walk(path.join(GATEWAY, 'functions'));
-  walk(path.join(GATEWAY, '..', 'shared'));
   return out;
 }
 const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"\\])\/\/.*$/gm, '$1');
 
-test('源码扫描：网关和 workers/shared/ 任何源码都不用 withSession（纪元 / 吊销 / challenge / 计数只读主库）', () => {
+test('源码扫描：网关和 workers/auth-gateway/functions/_kernel/lib/ 任何源码都不用 withSession（纪元 / 吊销 / challenge / 计数只读主库）', () => {
   const files = gatewaySources();
   assert.ok(files.length > 20, '扫到了网关源码：' + files.length);
-  assert.ok(files.some((f) => f.endsWith(path.join('shared', 'd1-state.js'))), '扫到了 workers/shared/d1-state.js');
+  assert.ok(files.some((f) => f.endsWith(path.join('_kernel', 'lib', 'd1-state.js'))), '扫到了 workers/auth-gateway/functions/_kernel/lib/d1-state.js');
   const bad = [];
   for (const f of files) {
     const src = readFileSync(f, 'utf8');
@@ -264,8 +263,8 @@ test('0007（user_handle 加 legacy_handle，预览共库兼容）：只有一�
   assert.ok(!gwSrc(GATEWAY).some((s) => s.includes('legacy_handle')));
 });
 
-test('共享 withSchema 可选 schema（账号拆分 PR2b）：不给 → 网关 SCHEMA（默认行为不变）；给了 → 只用给的语句建表', async () => {
-  const shared = await import('../../../workers/shared/d1-state.js');
+test('账号 Worker 的 withSchema（workers/account/src/lib/d1-state.js）可选 schema：不给 → 文件里的 SCHEMA；给了 → 只用给的语句建表', async () => {
+  const shared = await import('../../../workers/account/src/lib/d1-state.js');
   const db1 = makeAuthD1({ migrations: false });
   await shared.withSchema(db1, async () => db1.prepare('SELECT 1 FROM tempkey').all());
   const t1 = db1.raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all().map((r) => r.name);
@@ -281,8 +280,8 @@ test('共享 withSchema 可选 schema（账号拆分 PR2b）：不给 → 网关
   assert.ok(db3.raw.prepare("SELECT 1 FROM sqlite_master WHERE name = 'tempkey'").get());
 });
 
-test('共享 onAuthDb：域对象带 schema 时兜底建表用它（账号库形状）；网关的域没有 schema 字段，照旧用共享 SCHEMA', async () => {
-  const shared = await import('../../../workers/shared/d1-state.js');
+test('账号 Worker 的 onAuthDb：域对象带 schema 时兜底建表用它（账号库形状）；网关的域没有 schema 字段，网关 onAuthDb 照旧用 SCHEMA', async () => {
+  const shared = await import('../../../workers/account/src/lib/d1-state.js');
   for (const r of [REALM_LOCK, REALM_ACCOUNT, REALM_ROOT]) assert.equal('schema' in r, false, r.id);
   const custom = Object.freeze(['CREATE TABLE IF NOT EXISTS epoch (realm TEXT PRIMARY KEY, value INTEGER NOT NULL)']);
   const realm = { id: 'account', d1Binding: 'D1_X', schema: custom };

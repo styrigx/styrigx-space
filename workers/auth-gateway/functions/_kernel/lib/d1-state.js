@@ -20,7 +20,7 @@
  * 出错一律抛（D1 未绑定、查询失败）；调用方按 fail closed 处理（签发 503、验票无效）。
  * 表不存在（正式网关的部署 job 不跑迁移）：建表后整次操作重试一次。
  *
- * 共享模块（workers/shared/，账号拆分 PR1 从网关 _kernel/ 搬来）：不 import 任何东西，也不认识具体的域。
+ * 网关自己的一份（2026-10-30 起各 Worker 各自实现，没有共享目录）：不 import 任何东西，也不认识具体的域。
  * 域由调用方传入域描述对象（至少有 id、d1Binding，见网关 _kernel/realms.js 的 REALM_*）；
  * 网关 _kernel/d1-state.js 包一层，只认网关的三个域（也认它们的 id），再调这里。
  */
@@ -71,29 +71,27 @@ export function authDb(env, realm) {
 
 /**
  * 跑一次操作；遇到「no such table / no such index」就建表再整次重试一次（建表前没有任何写入成功，可以安全重试）。
- * schema（可选，账号拆分 PR2b）：兜底建表用的语句；不给 = 本文件的 SCHEMA（网关形状），默认行为不变。
- * @template T @param {any} db @param {() => Promise<T>} fn @param {readonly string[]} [schema] @returns {Promise<T>}
+ * @template T @param {any} db @param {() => Promise<T>} fn @returns {Promise<T>}
  */
-export async function withSchema(db, fn, schema) {
+export async function withSchema(db, fn) {
   try {
     return await fn();
   } catch (e) {
     if (!/no such table/i.test(String((e && e.message) || e))) throw e;
-    for (const sql of (Array.isArray(schema) && schema.length ? schema : SCHEMA)) await db.prepare(sql).run();
+    for (const sql of SCHEMA) await db.prepare(sql).run();
     return await fn();
   }
 }
 
 /**
  * 某域 D1 上跑一次操作（authDb + withSchema）。
- * 域描述对象带 schema（非空字符串数组）时兜底建表用它（账号 Worker：自己的 0003 建表语句，user_handle 带 legacy_handle）；
- * 不带（网关的域）= 共享 SCHEMA，行为不变。经 onAuthDb 的共享模块（attempt-limit / passkey-verify / root-audit 等）因此不改签名就能用。
+ * 兜底建表用本文件的 SCHEMA（网关形状；账号 Worker 的 realm.schema 兜底只在账号自己那份 d1-state.js 里）。
  * @template T @param {any} env @param {any} realm @param {(db:any, r:any) => Promise<T>} fn @returns {Promise<T>}
  */
 export function onAuthDb(env, realm, fn) {
   const r = realmOf(realm);
   const db = authDb(env, r);
-  return withSchema(db, () => fn(db, r), Array.isArray(r.schema) ? r.schema : undefined);
+  return withSchema(db, () => fn(db, r));
 }
 
 /**

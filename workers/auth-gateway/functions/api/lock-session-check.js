@@ -12,7 +12,7 @@
  */
 import { verifyLockSession } from '../_kernel/lock-session.js';
 import { resolveReturn } from '../_kernel/return.js';
-import { json } from '../../../shared/http.js';
+import { json } from '../_kernel/lib/http.js';
 
 /**
  * @param {any} context

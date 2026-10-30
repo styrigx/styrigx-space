@@ -15,9 +15,9 @@
  */
 import { isLockEffectivelyConfigured, isAccountEffectivelyConfigured } from '../_kernel/layers.js';
 import { hasPasskey, PASSKEY_LOCK } from '../_kernel/passkey-store.js';
-import { hasPassword } from '../../../shared/password.js';
+import { hasPassword } from '../_kernel/lib/password.js';
 import { REALM_LOCK, REALM_ACCOUNT } from '../_kernel/realms.js';
-import { json } from '../../../shared/http.js';
+import { json } from '../_kernel/lib/http.js';
 
 /**
  * @param {any} context

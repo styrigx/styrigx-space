@@ -203,7 +203,7 @@ test('deploy.yml：passkey-e2e 的路径过滤是 denylist，做在步骤层，�
   assert.match(sh, /git merge-base "\$a" "\$b"/, 'PR 比 base...head');
   assert.match(sh, /\[ -n "\$changes" \] \|\| verdict false/, '空 diff 照跑');
   /* 照跑名单在跳过规则之前 */
-  const always = sh.indexOf('.github/* | package.json | package-lock.json | web/shared/* | web/assets/js/* | */_kernel/* | workers/shared/*)');
+  const always = sh.indexOf('.github/* | package.json | package-lock.json | web/shared/* | web/assets/js/* | */_kernel/*)');
   assert.ok(always > 0 && always < sh.indexOf('*.md | *.css)'));
   assert.match(sh, /\[ "\$st" = M \] \|\| \[ "\$st" = A \] \|\| verdict false/, '删除照跑');
   assert.match(sh, /\*\) verdict false "\$f: run"/, '其余任何文件照跑');

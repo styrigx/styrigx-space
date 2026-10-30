@@ -13,7 +13,7 @@
  *
  * 失败响应与假入口逐字节相同（401 { ok:false, error:'auth' }）；传 padTo 时在返回前对齐耗时。
  *
- * 按域参数化（账号拆分 PR1 搬到共享模块 workers/shared/，零行为变化）：rootChecker(realm) 给出某个根域的校验函数，
+ * 按域参数化（账号拆分 PR1 搬到共享模块 workers/account/src/lib/，零行为变化）：rootChecker(realm) 给出某个根域的校验函数，
  * 密值名取 realm.secret、计数 / 审计经 realm.d1Binding（同一个域的 rootLimiter / rootAuditor）；本模块不认识具体的域。
  * 网关 _kernel/root-check.js 用 REALM_ROOT（SGX_ROOT_KEY、D1_ROOT_AUTH）绑好再导出，导出名字和行为与以前相同。
  * 现在仍然只有这一个根域。
