@@ -47,7 +47,7 @@ function post(path, body, cookie, ip = '203.0.113.9') {
   if (cookie) headers.Cookie = cookie;
   return new Request('https://styrigx.com' + path, { method: 'POST', headers, body: JSON.stringify(body) });
 }
-const env = (db) => ({ SGX_LOCK_PUBLIC: PUB, SGX_LOCK_PRIVATE: PRIV, SGX_ROOT_KEY: ROOT_KEY, D1_LOCK_AUTH: db, D1_ACCOUNT_AUTH: db, D1_ROOT_AUTH: db, SGX_PW_PEPPER: 'test-pepper', ...RP });
+const env = (db) => ({ SGX_LOCK_PUBLIC: PUB, SGX_LOCK_PRIVATE: PRIV, SGX_ADMIN_KEY: ROOT_KEY, D1_LOCK_AUTH: db, SGX_PW_PEPPER: 'test-pepper', ...RP });
 const visitorCookie = async () => 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'visitor'));
 
 /* ============ looksVisitor ============ */
@@ -142,9 +142,9 @@ test('lock-reset 对照组：没有访客会话 / admin 会话 → 真比对 Roo
     assert.equal(res.status, 401);
     assert.deepEqual(await res.json(), { ok: false, error: 'auth' }, '真比对失败是 auth，不是访客的 denied');
     assert.ok(kv.calls.some((sql) => /^\s*SELECT .* FROM attempt_limit/i.test(sql)), '真路径要读限速');
-    const fail = kv.raw.prepare("SELECT count FROM attempt_limit WHERE realm = 'root' AND kind = 'rootkey' AND bucket = '198.51.100.7'").get();
+    const fail = kv.raw.prepare("SELECT count FROM attempt_limit WHERE realm = 'lock' AND kind = 'rootkey' AND bucket = '198.51.100.7'").get();
     assert.equal(fail && fail.count, 1, '真比对失败计入单 IP');
-    const audits = kv.raw.prepare("SELECT * FROM audit WHERE realm = 'root'").all();
+    const audits = kv.raw.prepare("SELECT * FROM audit WHERE realm = 'lock'").all();
     assert.equal(audits.length, 1, '写审计');
     assert.equal(audits[0].ok, 0);
   }

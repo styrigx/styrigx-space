@@ -5,7 +5,8 @@
  * - 账号登录（PR3）：顶栏页名「登录账号」；头像 + 欢迎回来；通行密钥登录（强调色主按钮）/ 密码登录（原地展开）/
  *   无法登录？；设了哪个显示哪个（读不到状态两个都显示），中英文；根凭证不再是登录入口
  * - 密码登录：错误行内提示；成功后进账号总览（账号卡、「安全与隐私」一行）
- * - 重置登录页：根凭证走 /api/root-auth { key, purpose:'account-reset' }，拿 AccountResetTicket 直接进账号安全（不签账号会话）
+ * - 重置登录页：账号根密钥走 POST /api/account { action:'root-reset', key }（账号拆分 PR3 起在账号 Worker，不再走 /api/root-auth），
+ *   拿 AccountResetTicket 直接进账号安全（不签账号会话）
  * - 通行密钥：取消系统验证不报错；点了立即 busy，只发一次 challenge
  * - 安全与隐私子页（/account/security/）：修改密码（根凭证登录时标题为「重置账号密码」）、
  *   删除通行密钥（两步确认）、注册后命名弹层（A1/A2/A3）、列表内重命名、signalCurrentUserDetails；
@@ -233,15 +234,15 @@ test.describe('账号登录', () => {
 test.describe('重置登录（/account/reset/）', () => {
   test.beforeEach(async ({ page }) => { await zh(page); });
 
-  test('顶栏页名「重置登录」；根凭证 → /api/root-auth { key, purpose:account-reset } → 直接进账号安全', async ({ page }) => {
-    let rootBody = null;
-    await mockAccount(page, {
+  test('顶栏页名「重置登录」；账号根密钥 → POST /api/account { action:root-reset, key } → 直接进账号安全', async ({ page }) => {
+    let rootAuthHit = false;
+    const calls = await mockAccount(page, {
       status: { ok: true, password: false, passkey: false, ready: true, session: null, reset: { by: 'root', expiresAt: Date.now() + 170000 } },
-      handlers: { 'passkey-list': [200, { ok: true, by: 'root', keys: [] }] },
+      handlers: { 'passkey-list': [200, { ok: true, by: 'root', keys: [] }], 'root-reset': [200, { ok: true }] },
     });
     await page.route('**/api/root-auth', async (route) => {
-      rootBody = JSON.parse(route.request().postData() || '{}');
-      await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+      rootAuthHit = true;
+      await route.fulfill({ status: 400, contentType: 'application/json', body: '{"ok":false,"error":"purpose"}' });
     });
     await page.goto('/account/reset/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-tb-title')).toHaveText('重置登录');
@@ -251,12 +252,15 @@ test.describe('重置登录（/account/reset/）', () => {
     await page.fill('#sgx-reset-root', 'root-key-xyz');
     await page.click('#sgx-reset-go');
     await expect(page).toHaveURL(/\/account\/security\/$/);
-    expect(rootBody).toMatchObject({ key: 'root-key-xyz', purpose: 'account-reset' }); /* 另带 device（型号 / 平台，设备页用） */
+    expect(calls.find((c) => c.action === 'root-reset')).toEqual({ action: 'root-reset', key: 'root-key-xyz' });
+    expect(rootAuthHit).toBe(false); /* 账号重置不碰网关的锁屏根密钥入口 */
   });
 
   test('根凭证错误 → 行内「根凭证不正确」并清空；空值提示', async ({ page }) => {
-    await mockAccount(page, { status: { ok: true, password: false, passkey: false, ready: true, session: null } });
-    await page.route('**/api/root-auth', (route) => route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false,"error":"auth"}' }));
+    await mockAccount(page, {
+      status: { ok: true, password: false, passkey: false, ready: true, session: null },
+      handlers: { 'root-reset': [401, { ok: false, error: 'auth' }] },
+    });
     await page.goto('/account/reset/', { waitUntil: 'domcontentloaded' });
     await page.click('#sgx-reset-go');
     await expect(page.locator('#sgx-reset-err')).toHaveText('请输入根凭证');

@@ -33,10 +33,11 @@ zone_name = "styrigx.com"
 [vars]
 SGX_ENV = "production"
 
-# ---- 服务绑定：都指向网关 ----
-# AUTH：AuthVerifier（lockSession() 锁屏会话、accountSession() 账号会话），和账号 Worker 同一个入口。
-# ISSUER：ShareIssuer（createLinkKey / revokeLinkKey / openLinkSession，网关 src/share-issuer.js），只有本 Worker 绑定。
-# 部署顺序：deploy.yml 里 deploy-share-worker 在 deploy-auth-worker 之后（要先有带 ShareIssuer 的网关）。
+# ---- 服务绑定 ----
+# AUTH：网关 AuthVerifier，只用 lockSession() 锁屏会话（账号拆分 PR3：网关 AuthVerifier 去掉了 accountSession()）。
+# ISSUER：网关 ShareIssuer（createLinkKey / revokeLinkKey / openLinkSession，网关 src/share-issuer.js），只有本 Worker 绑定。
+# ACCOUNT_VERIFIER：账号 Worker 的 AccountVerifier（accountSession() 账号会话，只读 RPC；方案 10.3，取代 AUTH.accountSession()）。
+# 部署顺序：deploy.yml 里 deploy-share-worker 在 deploy-auth-worker、deploy-account-worker 之后。
 [[services]]
 binding = "AUTH"
 service = "styrigx-auth-gateway"
@@ -46,6 +47,11 @@ entrypoint = "AuthVerifier"
 binding = "ISSUER"
 service = "styrigx-auth-gateway"
 entrypoint = "ShareIssuer"
+
+[[services]]
+binding = "ACCOUNT_VERIFIER"
+service = "styrigx-account"
+entrypoint = "AccountVerifier"
 
 # ---- 数据绑定（正式）----
 # D1 styrigx-share：D1_SHARE_LINK = share_link + share_fail（migrations/0001_share_links.sql）。
@@ -75,6 +81,12 @@ entrypoint = "AuthVerifier"
 binding = "ISSUER"
 service = "styrigx-auth-gateway"
 entrypoint = "ShareIssuer"
+
+# 与上面两条预览服务绑定一样指向正式名（该环境没有部署 job；方案 10.3）
+[[env.preview.services]]
+binding = "ACCOUNT_VERIFIER"
+service = "styrigx-account"
+entrypoint = "AccountVerifier"
 
 # 预览 D1 = 测试专用库 styrigx-test-preview（2026-10-29 起所有 Worker 的预览共用：网关 / 账号 / 短链的表名互不重叠）。
 # 迁移记录表单独用 d1_migrations_share：三套迁移目录进同一个库，各记各的，文件名将来重名也不会互相跳过。

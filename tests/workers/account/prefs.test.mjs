@@ -1,21 +1,20 @@
 /**
  * 账号云同步 /api/prefs（2026-10-22）：admin lock 会话 + 账号会话；逐项新的赢。
  *
- * 2026-10-24 搬到账号 Worker styrigx-account（workers/account）；会话经网关 verifier.js（_auth.mjs），登录流程仍用网关的 /api/account。
+ * 2026-10-24 搬到账号 Worker styrigx-account（workers/account）；锁屏身份经网关这一跳写成身份头、账号会话由账号 Worker 自己验（_auth.mjs）。
  *
  * 2026-10-28 存储从 KV_SETTINGS_SYNC（account-prefs）搬到 D1_SETTINGS_SYNC（D1 styrigx-account 的 settings_sync）：
  * 逐项新的赢在 SQL 里原子完成（旧 t 写不进、并发写不丢）、运行时不碰任何 KV、表不存在时自愈。
  *
  * 运行：node --test tests/workers/account/prefs.test.mjs
  */
-import { wrap } from './_auth.mjs';
+import { wrap, testAccountSession } from './_auth.mjs';
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { testLockSession, testAccountSession } from '../auth-gateway/_tickets.mjs';
+import { testLockSession } from '../auth-gateway/_tickets.mjs';
 import { makeKV, genKeyPair, authD1For, forbiddenKV } from '../_harness.mjs';
 import { makeAccountD1 } from './_d1.mjs';
 
-const API = '../../../workers/auth-gateway/functions/api/';
 const PREFS = '../../../workers/account/src/api/prefs.js';
 const KERNEL = '../../../workers/auth-gateway/functions/_kernel/';
 
@@ -35,7 +34,7 @@ function envFor(kv, overrides = {}) {
   return {
     KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, /* 只给网关替身当认证库导入来源；账号 Worker 不读 */
     D1_SETTINGS_SYNC: accountD1For(kv),
-    D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), /* 网关 AuthVerifier 读纪元（D1） */
+    D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), /* 网关这一跳验锁屏纪元（D1_LOCK_AUTH）；账号 Worker 验账号会话（D1_ACCOUNT_AUTH） */
     SGX_ROOT_KEY: ROOT_KEY,
     SGX_LOCK_PRIVATE: LOCK.priv,
     SGX_LOCK_PUBLIC: LOCK.pub,
@@ -61,7 +60,6 @@ async function visitorSess() {
   return await testLockSession(LOCK.priv, 0, 'visitor');
 }
 async function accTicket(by = 'password', authAt = Date.now(), epoch = 0, priv) {
-  const { signAccountSessionTicket } = await import(KERNEL + 'account-session.js');
   return await testAccountSession(priv || ACCOUNT.priv, by, epoch, authAt);
 }
 function cookies(o) {
@@ -77,14 +75,6 @@ function pickCookie(res, name) {
   return null;
 }
 
-async function accountGet(kv, cookieObj, envOverrides) {
-  const { onRequestGet } = await import(API + 'account.js');
-  return await onRequestGet({ request: getReq('https://styrigx.com/api/account', { Cookie: cookies(cookieObj) }), env: envFor(kv, envOverrides) });
-}
-async function seedPassword(kv, pw) {
-  const { makePasswordRecord } = await import('../../../workers/account/src/lib/password.js');
-  await kv.put('account-password', JSON.stringify(await makePasswordRecord(pw, PEPPER)));
-}
 
 
 async function prefsCall(kv, method, body, cookieObj, origin, envOverrides) {
@@ -151,7 +141,6 @@ test('POST 跨源 → 拒绝', async () => {
 
 test('被单独退出的设备（revoked）不能同步', async () => {
   const kv = makeKV();
-  const { signAccountSessionTicket } = await import(KERNEL + 'account-session.js');
   const t = await testAccountSession(ACCOUNT.priv, 'password', 0, Date.now(), undefined, 'AAAAAAAAAAAAAAAA');
   await kv.put('account-device-revoked:AAAAAAAAAAAAAAAA', '1');
   const r = await prefsCall(kv, 'GET', null, { 'sgx-lock-session': await adminSess(), 'sgx-account-session': t });

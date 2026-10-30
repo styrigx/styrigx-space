@@ -19,7 +19,7 @@ import { ed25519Sign } from '../../../workers/auth-gateway/functions/_kernel/lib
 import { onRequest as mw } from '../../../workers/auth-gateway/functions/_middleware.js';
 import { verifyLockSession } from '../../../workers/auth-gateway/functions/_kernel/lock-session.js';
 import { API_ROUTES } from '../../../workers/auth-gateway/src/routes.js';
-import { testLockSession, testAccountSession } from './_tickets.mjs';
+import { testLockSession, TEST_ACCOUNT_COOKIE, fakeAccountVerifier } from './_tickets.mjs';
 import { makeAuthD1 } from '../_harness.mjs';
 
 function pair() {
@@ -30,17 +30,15 @@ function pair() {
   };
 }
 const LOCK = pair();
-const ACCT = pair();
 const PEPPER = 'tk-pepper';
 
 /* 网关全部认证状态在 D1（三个绑定同一个库）；没有任何 KV 绑定。测试里的 db 就是 makeAuthD1() 的替身 */
 function env(db) {
   return {
-    D1_LOCK_AUTH: db, D1_ACCOUNT_AUTH: db, D1_ROOT_AUTH: db,
+    D1_LOCK_AUTH: db,
     SGX_LOCK_PRIVATE: LOCK.priv,
     SGX_LOCK_PUBLIC: LOCK.pub,
-    SGX_ACCOUNT_PRIVATE: ACCT.priv,
-    SGX_ACCOUNT_PUBLIC: ACCT.pub,
+    ACCOUNT_VERIFIER: fakeAccountVerifier(), /* 账号会话问账号 Worker（网关不持账号钥匙） */
     SGX_PW_PEPPER: PEPPER,
     SGX_ENV: 'production',
     SGX_SITE: 'space',
@@ -49,8 +47,7 @@ function env(db) {
 
 async function adminCookies() {
   const lock = await testLockSession(LOCK.priv, 0, 'admin', 'password');
-  const acct = await testAccountSession(ACCT.priv, 'password', 0, Date.now(), Date.now());
-  return 'sgx-lock-session=' + lock + '; sgx-account-session=' + acct;
+  return 'sgx-lock-session=' + lock + '; ' + TEST_ACCOUNT_COOKIE;
 }
 
 function post(url, body, cookie, ip) {
@@ -207,7 +204,7 @@ test('过期立即不认：行还没被清掉（expires_at 已过、revoked_at =
 
 /* ---------------- /api/lock-tempkey（管理） ---------------- */
 
-test('管理接口：要同源 + admin lock 会话 + 账号会话', async () => {
+test('管理接口：要同源 + admin lock 会话 + 账号会话（ACCOUNT_VERIFIER 说有）；没绑 / RPC 抛错 → 401 account', async () => {
   const db = makeAuthD1();
   const noOrigin = new Request('https://styrigx.com/api/lock-tempkey', { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: await adminCookies() }, body: '{"action":"list"}' });
   assert.equal((await tempPost({ request: noOrigin, env: env(db) })).status, 403);
@@ -218,6 +215,17 @@ test('管理接口：要同源 + admin lock 会话 + 账号会话', async () => 
   assert.equal((await r.json()).error, 'account');
   const visitor = 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, 'visitor'));
   assert.equal((await T({ action: 'list' }, visitor, db)).status, 401, '访客不是管理员');
+  for (const ACCOUNT_VERIFIER of [undefined, fakeAccountVerifier({ throws: true })]) {
+    const e = { ...env(db), ACCOUNT_VERIFIER };
+    const x = await tempPost({ request: post('https://styrigx.com/api/lock-tempkey', { action: 'list' }, await adminCookies()), env: e });
+    assert.equal(x.status, 401);
+    assert.equal((await x.json()).error, 'account');
+  }
+  const v = fakeAccountVerifier();
+  const ok = await tempPost({ request: post('https://styrigx.com/api/lock-tempkey', { action: 'list' }, await adminCookies()), env: { ...env(db), ACCOUNT_VERIFIER: v } });
+  assert.equal(ok.status, 200);
+  assert.equal(v.calls.length, 1);
+  assert.ok(v.calls[0][0].includes(TEST_ACCOUNT_COOKIE), 'Cookie 头原样交给账号 Worker');
 });
 
 test('管理接口：create → 只这一次返回临时码；list 有名字和到期；revoke', async () => {

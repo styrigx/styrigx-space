@@ -32,12 +32,10 @@ await genTestKeys();
 
 function baseEnv(kv, overrides) {
   return Object.assign({
-    KV_LOCK_DOOR: kv, D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), KV_ACCOUNT_LOGIN: kv,
-    SGX_ROOT_KEY: 'test-root-key-12345',
+    D1_LOCK_AUTH: authD1For(kv),
+    SGX_ADMIN_KEY: 'test-root-key-12345',
     SGX_LOCK_PRIVATE: TEST_PRIV_PEM,
     SGX_LOCK_PUBLIC: TEST_PUB_PEM,
-    SGX_ACCOUNT_PRIVATE: TEST_PRIV_PEM,
-    SGX_ACCOUNT_PUBLIC: TEST_PUB_PEM,
     SGX_PW_PEPPER: 'test-pepper',
     SGX_RP_ID: 'test.example.com',
     SGX_ORIGIN: 'https://test.example.com',
@@ -62,10 +60,10 @@ function configuredKV(o) {
 function d1Writes(db) {
   return db.calls.filter((sql) => /^\s*(INSERT|UPDATE|DELETE|REPLACE)/i.test(sql) && !/INSERT OR IGNORE INTO epoch/i.test(sql));
 }
-/** 根凭证限速 / 审计行（realm = 'root'） */
+/** 根凭证限速 / 审计行（realm = 'lock'） */
 const rootRows = (db) => ({
-  attempts: db.raw.prepare("SELECT * FROM attempt_limit WHERE realm = 'root'").all(),
-  audits: db.raw.prepare("SELECT * FROM audit WHERE realm = 'root'").all(),
+  attempts: db.raw.prepare("SELECT * FROM attempt_limit WHERE realm = 'lock'").all(),
+  audits: db.raw.prepare("SELECT * FROM audit WHERE realm = 'lock'").all(),
 });
 
 /* ============ 1. 锁屏入口按配置显示（补充定稿七.1） ============ */
@@ -159,40 +157,14 @@ test('认证入口：访客假入口与真失败响应逐字节相同', async ()
 
 /* ============ 4. 管理凭证弹层按钮 ============ */
 
-/* 账号体系：/api/account（GET）四种配置返回正确（取代 /api/owner-status + mgmtButtons） */
-test('行为：账号登录状态四种配置返回正确', async () => {
-  const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/account.js');
-  const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
-  const ownerCv = await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
-  const getReq = () => new Request('https://test.example.com/api/account', {
-    method: 'GET',
-    headers: { 'Cookie': 'sgx-lock-session=' + ownerCv },
-  });
-  const cases = [
-    [{}, false, false],
-    [{ 'account-password': JSON.stringify({ hash: 'x', algo: 'test' }) }, true, false],
-    [{
-      'account-passkey-index': JSON.stringify(['testcred123456']),
-      'account-passkey:testcred1234': JSON.stringify({ credId: 'testcred123456' }),
-    }, false, true],
-    [{
-      'account-password': JSON.stringify({ hash: 'x', algo: 'test' }),
-      'account-passkey-index': JSON.stringify(['testcred123456']),
-      'account-passkey:testcred1234': JSON.stringify({ credId: 'testcred123456' }),
-    }, true, true],
-  ];
-  for (const [seed, pw, pk] of cases) {
-    const kv = makeKV(seed);
-    const res = await onRequestGet({ request: getReq(), env: baseEnv(kv) });
-    const body = await res.json();
-    assert.equal(body.ok, true);
-    assert.equal(body.password, pw);
-    assert.equal(body.passkey, pk);
-    assert.equal(body.ready, true);
-    assert.equal(body.session, null, 'lock 会话不是账号会话');
-  }
-}
-);
+/* 账号体系：/api/account 账号拆分 PR3 起在账号 Worker（GET 的四种配置见 tests/workers/account/account-identity.test.mjs），网关只转发 */
+test('行为：网关里没有 /api/account 的实现（不在路由表、文件已删），只在转发表里转给 ACCOUNT', async () => {
+  const { API_ROUTES } = await import(REPO + '/workers/auth-gateway/src/routes.js');
+  const { matchForwarding } = await import(REPO + '/workers/auth-gateway/src/forwarding.js');
+  assert.equal(API_ROUTES.has('/api/account'), false);
+  assert.equal(fs.existsSync(REPO + 'workers/auth-gateway/functions/api/account.js'), false);
+  assert.equal(matchForwarding('/api/account').binding, 'ACCOUNT');
+});
 
 test('认证入口：重置锁屏 status 始终可用（不暴露管理员凭证是否配置）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
@@ -267,12 +239,8 @@ test('补充七：/api/lock-entry 四种配置返回正确', async () => {
   });
   res = await onRequestGet({ request: get('https://test.example.com/api/lock-entry'), env: baseEnv(kv) });
   j = await res.json();
-  /* 账号通行密钥不算锁屏凭证：锁屏凭证为 0、账号已配置 → resetOnly（只显示访客 + 重置锁屏）；
-     passkey / password 仍按已配置返回 true，不暴露根凭证入口 */
-  assert.equal(j.resetOnly, true, '账号通行密钥不应算锁屏通行密钥（锁屏凭证为 0 → resetOnly）');
-  assert.equal(j.accountConfigured, true);
-  assert.equal(j.passkey, true, '账号已配置时不暴露根凭证入口');
-  assert.equal(j.password, true);
+  /* 账号通行密钥不算锁屏凭证（账号拆分 PR3：网关不读账号的行，也不再有 resetOnly / accountConfigured） */
+  assert.deepEqual(j, { ok: true, passkey: false, password: false }, '账号通行密钥不应算锁屏通行密钥');
 });
 
 test('补充七：/api/lock-entry 读取失败按已配置处理（不暴露根凭证入口）', async () => {
@@ -287,7 +255,7 @@ test('补充七：/api/lock-entry 读取失败按已配置处理（不暴露根�
   assert.equal(j.ok, true);
   assert.equal(j.passkey, true, '读取失败 passkey 应按已配置处理');
   assert.equal(j.password, true, '读取失败 password 应按已配置处理');
-  assert.equal(j.resetOnly, false, '读取失败不进 resetOnly');
+  assert.equal('resetOnly' in j, false, '不再返回 resetOnly');
   /* 只有凭证表读失败（纪元等正常）同样按已配置 */
   const kv2 = makeKV();
   authD1For(kv2).failOn = (sql) => /FROM (password|passkey)\b/.test(sql);
@@ -396,12 +364,13 @@ test('行为：lockreset 记失败计数写 D1 出错 → 503', async () => {
   assert.deepEqual(await res.json(), { ok: false, error: 'server' });
 });
 
-test('行为：lockreset needAccount 带 passkey/password 布尔', async () => {
+test('行为：lockreset needLock 带锁屏凭证的 passkey/password 布尔（遗留的账号凭证不算）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
-  /* owner 只配置了密码（含 account-configured 标记） */
+  /* 锁屏只配置了密码；库里另有遗留的账号通行密钥 */
   const kv = makeKV({
-    'account-configured': '1',
-    'account-password': JSON.stringify({ hash: 'x', algo: 'test' }),
+    'lock-password': JSON.stringify({ hash: 'x', algo: 'test' }),
+    'account-passkey-index': JSON.stringify(['cid9']),
+    'account-passkey:cid9': JSON.stringify({ credId: 'cid9' }),
   });
   const env = baseEnv(kv);
   const req = postReq('https://test.example.com/api/lock-reset', {
@@ -410,43 +379,7 @@ test('行为：lockreset needAccount 带 passkey/password 布尔', async () => {
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 200);
   const body = JSON.parse(await res.text());
-  assert.equal(body.ok, true);
-  assert.equal(body.needAccount, true);
-  assert.equal(body.password, true, '应带 password=true');
-  assert.equal(body.passkey, false, '应带 passkey=false');
-});
-
-
-
-test('行为：/api/account 状态需 admin lock 会话，无会话 → 401', async () => {
-  const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/account.js');
-  const kv = makeKV({});
-  const env = baseEnv(kv);
-  const req = new Request('https://test.example.com/api/account', { method: 'GET' });
-  const res = await onRequestGet({ request: req, env });
-  assert.equal(res.status, 401, '无会话应 401');
-});
-
-test('行为：/api/account 状态只看 owner 类（账号）通行密钥', async () => {
-  const { onRequestGet } = await import(REPO + '/workers/auth-gateway/functions/api/account.js');
-  const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
-  /* 只有 lock 类 passkey，无账号密码 */
-  const kv = makeKV({
-    'lock-passkey-index': JSON.stringify(['abc123']),
-    'lock-passkey:abc123': JSON.stringify({ credId: 'abc123', publicKey: 'x' }),
-  });
-  const env = baseEnv(kv);
-  const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
-  const req = new Request('https://test.example.com/api/account', {
-    method: 'GET',
-    headers: { 'Cookie': 'sgx-lock-session=' + sessCv },
-  });
-  const res = await onRequestGet({ request: req, env });
-  assert.equal(res.status, 200);
-  const body = JSON.parse(await res.text());
-  assert.equal(body.ok, true);
-  assert.equal(body.passkey, false, '只有 lock 类时 passkey 应为 false');
-  assert.equal(body.password, false);
+  assert.deepEqual(body, { ok: true, needLock: true, passkey: false, password: true });
 });
 
 test('行为：访客会话下 root-auth 不走真路径（即使 lock 未配置也不比对）', async () => {

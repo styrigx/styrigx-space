@@ -93,6 +93,15 @@ jobs:
         working-directory: workers/account
         run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-account-dist
 
+      - name: Preview combined entry bundle check (tests/web/e2e/preview-worker.js, dry-run)
+        # passkey-e2e 真实预览的 _worker.js：网关 + 账号 Worker 两边的代码装进一个脚本（账号拆分 PR3）。PR 上走本地模拟器不打包，
+        # 这里先打一次，import 断了 PR 就红，不等到 main 的真实预览才发现。只打包不部署。
+        run: |
+          npx --yes "wrangler@$WRANGLER_VERSION" deploy tests/web/e2e/preview-worker.js --dry-run --outdir /tmp/preview-worker-dist \
+            --name sgx-preview-worker-bundle --compatibility-date "$(sed -n 's/^compatibility_date = "\(.*\)"$/\1/p' web/wrangler.toml)"
+          grep -q "X-SGX-Runtime" /tmp/preview-worker-dist/preview-worker.js
+          grep -q "X-Styrigx-Lock-Role" /tmp/preview-worker-dist/preview-worker.js
+
       - name: Share Worker bundle check (styrigx-share, dry-run)
         working-directory: workers/share
         run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-share-dist
@@ -145,10 +154,10 @@ jobs:
         run: node scripts/gen-csp.mjs --check
 
       - name: 前端技术名词检查（生产构建的 HTML 里不许出现后端变量名）
-        # 用户可见文案不得出现 OWNER_KEY / SESSION_SECRET / SGX_ROOT_KEY / SGX_PW_PEPPER / TURNSTILE_SECRET；
+        # 用户可见文案不得出现 OWNER_KEY / SESSION_SECRET / SGX_ROOT_KEY / SGX_ADMIN_KEY / SGX_ACCOUNT_ROOT_KEY / SGX_PW_PEPPER / TURNSTILE_SECRET；
         # 后端变量名只许出现在 workers/ 与注释里，不许进 web/public/ HTML。
         run: |
-          if grep -rl "OWNER_KEY\|SESSION_SECRET\|SGX_ROOT_KEY\|SGX_PW_PEPPER\|TURNSTILE_SECRET" web/public/ --include="*.html"; then
+          if grep -rl "OWNER_KEY\|SESSION_SECRET\|SGX_ROOT_KEY\|SGX_ADMIN_KEY\|SGX_ACCOUNT_ROOT_KEY\|SGX_PW_PEPPER\|TURNSTILE_SECRET" web/public/ --include="*.html"; then
             echo "FAIL: 技术变量名出现在 HTML 产物中"
             exit 1
           fi
@@ -187,7 +196,7 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      - name: Check worker routes (每个页面都过网关；头像 / 云同步 / 数字健康归账号 Worker，不抢网关的接口)
+      - name: Check worker routes (每个页面都过网关；账号 Worker 没有路由，账号路径在网关转发表里)
         run: node scripts/check-worker-routes.mjs
 
       - name: stylelint（禁止硬编码颜色）
@@ -255,13 +264,14 @@ jobs:
   passkey-e2e:
     # WebAuthn 虚拟认证器 + 真实网关代码的 E2E（tests/web/e2e/passkey.spec.js、account-challenge.spec.js）。生产部署的所有 job 都等它通过。
     # 按事件分两条路（job 名不变：passkey-e2e 是分支保护的必需检查，结论就是这个 job 的结论）：
-    # - pull_request：本地模拟器 tests/web/e2e/preview-emulator.cjs——同一份 workers/auth-gateway/src/index.js（SGX_ENV=preview），
+    # - pull_request：本地模拟器 tests/web/e2e/preview-emulator.cjs——同一个组合入口 tests/web/e2e/preview-worker.js
+    #   （网关 workers/auth-gateway/src/index.js + 账号 Worker 命名入口的实现，账号拆分 PR3；SGX_ENV=preview），
     #   D1 是 node:sqlite 内存库（网关 2026-10-27 起不绑 KV）、Cloudflare D1 / KV REST 也由它在本机模拟；env.ASSETS 读本步骤构建的 web/public。
     #   不用任何 Cloudflare secret、不部署预览、不清预览 D1 / 不跑 D1 迁移。
     # - push 到 main、workflow_dispatch：真实预览部署 passkey-e2e.styrigx-space.pages.dev + 预览 D1（下面带
     #   github.event_name != 'pull_request' 的步骤，和改动前一样）。模拟器测不到真实 D1、Pages 打包和真实绑定，
     #   所以 PR 的通过不顶替真实预览：main 的每次 push（只改文档 / 样式的除外）照跑真实预览，不再复用 PR 运行的结果。
-    # 两条路都只用每次运行在 runner 上现生成的测试凭证（RootKey、pepper；真实预览另加 Ed25519 钥匙对），绝不用生产 secret，也不存 GitHub Secrets。
+    # 两条路都只用每次运行在 runner 上现生成的测试凭证（锁屏根密钥、账号根密钥、pepper；真实预览另加 Ed25519 钥匙对），绝不用生产 secret，也不存 GitHub Secrets。
     # 真实预览只用仓库级的 CLOUDFLARE_ACCOUNT_ID 与 STYRIGX_SPACE_PAGES_DEPLOY（部署预览、写预览 D1）。
     # 外部 fork 的 PR 不跑（同仓库分支的 PR 照跑）。
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
@@ -399,26 +409,30 @@ jobs:
 
       - name: Generate preview test credentials (CI only)
         if: steps.gate.outputs.run == 'true'
-        # 预览站的测试 RootKey（SGX_ROOT_KEY）和密码 pepper（SGX_PW_PEPPER）：每次运行新生成，只给这次的预览（PR：本地模拟器）用，
-        # 和下面的 Ed25519 测试钥匙对一样不进仓库、不存 GitHub Secrets。网关对 RootKey 只要求去空白后非空
-        # （workers/auth-gateway/functions/_kernel/lib/crypto.js normalizeRootKey），这里用 32 字节随机数的 hex（64 个字符，无空白、无特殊字符）。
+        # 预览站的测试锁屏根密钥（网关 SGX_ADMIN_KEY）、测试账号根密钥（账号 Worker SGX_ACCOUNT_ROOT_KEY，两把不同）和密码 pepper（SGX_PW_PEPPER）：
+        # 每次运行新生成，只给这次的预览（PR：本地模拟器）用，和下面的 Ed25519 测试钥匙对一样不进仓库、不存 GitHub Secrets。
+        # 根密钥只要求去空白后非空（两边 lib/crypto.js normalizeRootKey），这里用 32 字节随机数的 hex（64 个字符，无空白、无特殊字符）。
         # 先 ::add-mask:: 再写进 $GITHUB_ENV，后面各步骤的日志里都打码。
         run: |
-          root_key="$(openssl rand -hex 32)"
+          admin_key="$(openssl rand -hex 32)"
+          account_root_key="$(openssl rand -hex 32)"
           pepper="$(openssl rand -hex 32)"
-          test "${#root_key}" -eq 64 && test "${#pepper}" -eq 64
-          echo "::add-mask::$root_key"
+          test "${#admin_key}" -eq 64 && test "${#account_root_key}" -eq 64 && test "${#pepper}" -eq 64
+          test "$admin_key" != "$account_root_key"
+          echo "::add-mask::$admin_key"
+          echo "::add-mask::$account_root_key"
           echo "::add-mask::$pepper"
           {
-            echo "PREVIEW_TEST_ROOT_KEY=$root_key"
+            echo "PREVIEW_TEST_ADMIN_KEY=$admin_key"
+            echo "PREVIEW_TEST_ACCOUNT_ROOT_KEY=$account_root_key"
             echo "PREVIEW_TEST_PW_PEPPER=$pepper"
           } >> "$GITHUB_ENV"
-          echo "preview test RootKey / pepper generated (preview only)"
+          echo "preview test admin key / account root key / pepper generated (preview only)"
 
       - name: Reset preview D1 (state that would change this run)
-        # 每次运行换了 RootKey、pepper 和 Ed25519 钥匙对。2026-10-27 起网关的认证状态全部在 D1（不再绑定 KV），
+        # 每次运行换了两把根密钥、pepper 和 Ed25519 钥匙对。2026-10-27 起网关的认证状态全部在 D1（不再绑定 KV），
         # 开跑前只清预览 D1（测试专用库 styrigx-test-preview）里会改变本次起始状态的表（scripts/kv-budget.mjs RESET_D1_TABLES）：
-        # 密码、通行密钥（「锁屏 / 账号都未设置」）和输错计数（attempt_limit：会 429）。
+        # 密码、通行密钥（「锁屏 / 账号都未设置」）和输错计数（attempt_limit：会 429）。网关和账号的预览表同库同名、按 realm 列分开，一起清。
         # 纪元、user handle、审计、challenge、临时钥匙、设备、重置开关不清：旧会话 / 票都是旧钥匙签的、验签先失败，
         # 其余只是过期就不认的行，不改变任何断言的前提（逐条理由见 scripts/kv-budget.mjs）。
         # 库 id 只认 web/wrangler.toml [env.preview] 的 D1_LOCK_AUTH，且断言它不是正式网关的库。D1 REST 要这个 token 有 D1 编辑。
@@ -450,15 +464,15 @@ jobs:
 
       - name: Start local preview emulator (pull_request only)
         if: steps.gate.outputs.run == 'true' && github.event_name == 'pull_request'
-        # tests/web/e2e/preview-emulator.cjs：仓库里的网关代码（不打包，直接 import workers/auth-gateway/src/index.js）+
+        # tests/web/e2e/preview-emulator.cjs：仓库里的组合入口（不打包，直接 import tests/web/e2e/preview-worker.js：网关 + 账号 Worker）+
         # node:sqlite 的 D1 + 本机的 Cloudflare D1 / KV REST；env.ASSETS 读上面构建的 web/public。Ed25519 钥匙对由它自己现生成。
-        # RootKey / pepper 用本次生成的 PREVIEW_TEST_ROOT_KEY / PREVIEW_TEST_PW_PEPPER（已打码）。固定端口 8788，和下一步的 SGX_TEST_BASE 一致。
+        # 根密钥 / pepper 用本次生成的 PREVIEW_TEST_ADMIN_KEY / PREVIEW_TEST_ACCOUNT_ROOT_KEY / PREVIEW_TEST_PW_PEPPER（已打码）。固定端口 8788，和下一步的 SGX_TEST_BASE 一致。
         # 后台跑到 job 结束（runner 收尾时回收）；日志写 emulator-log/，失败时随测试结果一起上传。
         run: |
           node -e "require('node:sqlite')" || { echo "::error::node:sqlite unavailable, the emulator's D1 needs it"; exit 1; }
           mkdir -p emulator-log
           log=emulator-log/preview-emulator.log
-          nohup node tests/web/e2e/preview-emulator.cjs --port 8788 --root-key "$PREVIEW_TEST_ROOT_KEY" --pepper "$PREVIEW_TEST_PW_PEPPER" > "$log" 2>&1 &
+          nohup node tests/web/e2e/preview-emulator.cjs --port 8788 --admin-key "$PREVIEW_TEST_ADMIN_KEY" --account-root-key "$PREVIEW_TEST_ACCOUNT_ROOT_KEY" --pepper "$PREVIEW_TEST_PW_PEPPER" > "$log" 2>&1 &
           pid=$!
           for _ in $(seq 60); do
             if curl -fsS -o /dev/null http://127.0.0.1:8788/__kv/stats; then echo "preview emulator ready on http://localhost:8788 (pid $pid)"; exit 0; fi
@@ -476,7 +490,8 @@ jobs:
         env:
           SGX_TEST_SUITE: passkey
           SGX_TEST_BASE: http://localhost:8788
-          SGX_TEST_ROOT_KEY: ${{ env.PREVIEW_TEST_ROOT_KEY }}
+          SGX_TEST_ADMIN_KEY: ${{ env.PREVIEW_TEST_ADMIN_KEY }}
+          SGX_TEST_ACCOUNT_ROOT_KEY: ${{ env.PREVIEW_TEST_ACCOUNT_ROOT_KEY }}
           SGX_TEST_CF_API: http://127.0.0.1:8788/client/v4
           SGX_TEST_CF_TOKEN: x
           SGX_TEST_CF_ACCOUNT: x
@@ -487,15 +502,18 @@ jobs:
           echo "emulator KV / D1 operations this run (not billed):"
           curl -fsS http://127.0.0.1:8788/__kv/stats | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s);for(const k of ['app','rest','d1'])console.log(k,JSON.stringify(Object.fromEntries(Object.entries(j[k]).filter(([n])=>n!=='byPrefix'))))})" || true
 
-      - name: Bundle auth gateway as the preview _worker.js
+      - name: Bundle preview _worker.js (combined entry tests/web/e2e/preview-worker.js)
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
-        # Pages 上已经没有后端代码。预览把网关的同一份代码打包成 Pages 的 _worker.js（覆盖静态的那个），
-        # 在 passkey-e2e.styrigx-space.pages.dev 上跑：页面和默认头像读 env.ASSETS，接口连预览的 D1。
+        # Pages 上已经没有后端代码。预览把组合入口打包成 Pages 的 _worker.js（覆盖静态的那个），在 passkey-e2e.styrigx-space.pages.dev 上跑：
+        # 网关和账号 Worker 两边仓库里的真实代码，网关的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 换成进程内适配器，env 按正式绑定拆给两半
+        # （账号拆分 PR3；见 preview-worker.js 文件头）。页面和默认头像读 env.ASSETS，接口连预览的 D1（D1_LOCK_AUTH / D1_ACCOUNT_AUTH 同一个测试库）。
         # 只打包不部署 Worker，不需要 Worker 权限。
         run: |
-          (cd workers/auth-gateway && npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir "$RUNNER_TEMP/gateway-dist")
-          cp "$RUNNER_TEMP/gateway-dist/worker.js" web/public/_worker.js
+          npx --yes "wrangler@$WRANGLER_VERSION" deploy tests/web/e2e/preview-worker.js --dry-run --outdir "$RUNNER_TEMP/preview-dist" \
+            --name sgx-preview-worker-bundle --compatibility-date "$(sed -n 's/^compatibility_date = "\(.*\)"$/\1/p' web/wrangler.toml)"
+          cp "$RUNNER_TEMP/preview-dist/preview-worker.js" web/public/_worker.js
           grep -q "X-SGX-Runtime" web/public/_worker.js
+          grep -q "X-Styrigx-Lock-Role" web/public/_worker.js
 
       - name: Generate Ed25519 test key pairs (CI only)
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
@@ -535,7 +553,8 @@ jobs:
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # 只写 preview 环境（PATCH deployment_configs.preview），绝不碰 production。
         # 必须在部署之前写，否则新值要到下一次部署才生效。secret 都经 env 传进来，不拼进脚本；
-        # SGX_ROOT_KEY / SGX_PW_PEPPER 用上面本次生成的 PREVIEW_TEST_ROOT_KEY / PREVIEW_TEST_PW_PEPPER（已打码）。
+        # SGX_ADMIN_KEY（网关锁屏根密钥）/ SGX_ACCOUNT_ROOT_KEY（账号根密钥）/ SGX_PW_PEPPER 用上面本次生成的值（已打码）。
+        # 账号拆分 PR3 起预览不再写 SGX_ROOT_KEY（网关代码不读它）；预览环境里以前写过的旧值是以前某次运行的测试值，不删也不被读。
         env:
           CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CF_PAGES_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
@@ -548,13 +567,15 @@ jobs:
           lock_priv, lock_pub = rd("lock-priv.pem"), rd("lock-pub.pem")
           acct_priv, acct_pub = rd("account-priv.pem"), rd("account-pub.pem")
           assert "PRIVATE KEY" in lock_priv and "PRIVATE KEY" in acct_priv
-          root_key, pepper = env["PREVIEW_TEST_ROOT_KEY"], env["PREVIEW_TEST_PW_PEPPER"]
-          assert len(root_key) == 64 and len(pepper) == 64
+          admin_key, account_root_key = env["PREVIEW_TEST_ADMIN_KEY"], env["PREVIEW_TEST_ACCOUNT_ROOT_KEY"]
+          pepper = env["PREVIEW_TEST_PW_PEPPER"]
+          assert len(admin_key) == 64 and len(account_root_key) == 64 and len(pepper) == 64 and admin_key != account_root_key
           pv = tomllib.load(open("web/wrangler.toml", "rb"))["env"]["preview"]["vars"]
           secret = lambda v: {"type": "secret_text", "value": v}
           plain = lambda v: {"type": "plain_text", "value": v}
           body = json.dumps({"deployment_configs": {"preview": {"env_vars": {
-              "SGX_ROOT_KEY": secret(root_key),
+              "SGX_ADMIN_KEY": secret(admin_key),
+              "SGX_ACCOUNT_ROOT_KEY": secret(account_root_key),
               "SGX_PW_PEPPER": secret(pepper),
               "SGX_LOCK_PRIVATE": secret(lock_priv),
               "SGX_ACCOUNT_PRIVATE": secret(acct_priv),
@@ -638,12 +659,13 @@ jobs:
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # 跑 passkey 组的全部 describe（testMatch 已限定文件，不再 --grep）。
         # 预览地址和预览 D1 id 从 web/wrangler.toml 读，不在这里重复写。
-        # SGX_TEST_ROOT_KEY 是本次生成、已写进预览 SGX_ROOT_KEY 的同一个值。
+        # SGX_TEST_ADMIN_KEY / SGX_TEST_ACCOUNT_ROOT_KEY 是本次生成、已写进预览 SGX_ADMIN_KEY / SGX_ACCOUNT_ROOT_KEY 的同一对值。
         # 测试进程写预览 D1（打开重置开关、清根凭证限速计数）用 Pages 部署 token（和上面清 D1 同一个）。
         # 测试 helper 尽量少写：缓存会话 / 进门票并用只读接口确认（tests/web/e2e/preview-helpers.cjs 文件头）。
         env:
           SGX_TEST_SUITE: passkey
-          SGX_TEST_ROOT_KEY: ${{ env.PREVIEW_TEST_ROOT_KEY }}
+          SGX_TEST_ADMIN_KEY: ${{ env.PREVIEW_TEST_ADMIN_KEY }}
+          SGX_TEST_ACCOUNT_ROOT_KEY: ${{ env.PREVIEW_TEST_ACCOUNT_ROOT_KEY }}
           SGX_TEST_CF_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
           SGX_TEST_CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
@@ -678,7 +700,7 @@ jobs:
           names = sorted(prod.keys())
           print("production vars:", names)
           # Pages 只放静态文件，会话检查全在网关；生产部署按 web/wrangler.toml 不带任何变量
-          forbidden = ["SGX_LOCK_PRIVATE", "SGX_ACCOUNT_PRIVATE", "SGX_STEPUP_PRIVATE", "SGX_APP_PRIVATE", "SGX_ROOT_KEY", "SGX_PW_PEPPER", "TURNSTILE_SECRET", "OWNER_KEY"]
+          forbidden = ["SGX_LOCK_PRIVATE", "SGX_ACCOUNT_PRIVATE", "SGX_STEPUP_PRIVATE", "SGX_APP_PRIVATE", "SGX_ROOT_KEY", "SGX_ADMIN_KEY", "SGX_ACCOUNT_ROOT_KEY", "SGX_PW_PEPPER", "TURNSTILE_SECRET", "OWNER_KEY"]
           present = [v for v in forbidden if v in names]
           assert not present, f"private vars must not be on Pages production: {present}"
           print("guard OK: no private vars on Pages production")
@@ -1196,9 +1218,13 @@ jobs:
 
   deploy-auth-worker:
     # 鉴权网关 styrigx-auth-gateway：main 上真部署。先于 Pages 部署（Pages 只放静态文件，靠网关验会话）。
-    # 路由见 workers/auth-gateway/wrangler.toml（整站通配；/api/avatar*、/api/prefs*、/api/wellbeing*、/avatar/* 由账号 Worker 的更具体路由承接）；workers_dev=false。部署后自动冒烟检查线上。
+    # 路由见 workers/auth-gateway/wrangler.toml（整站通配；workers_dev=false）。账号拆分 PR3 起 /api/account、/api/prefs*、/api/avatar*、
+    # /api/wellbeing*、/avatar/* 也归网关：验门后经服务绑定 ACCOUNT 转给账号 Worker（转发表 src/forwarding.js）。部署后自动冒烟检查线上。
     # Pages 部署（build-and-deploy）等这里成功后才开始。
-    # 服务绑定指向的 Worker 要先在：needs 里的 deploy-search-worker / deploy-status-worker / deploy-chat-worker 先部署。
+    # 部署顺序（账号拆分 PR3）：账号 → 短链 → 网关 → Pages。
+    # - 服务绑定指向的 Worker 要先在：search / status / chat，以及 ACCOUNT / ACCOUNT_VERIFIER 指向的 styrigx-account（deploy-account-worker）。
+    # - 短链排在网关之前：新网关的 AuthVerifier 去掉了 accountSession()，旧短链 Worker 还在用它问账号会话；先换上改问账号 Worker
+    #   AccountVerifier 的新短链（它对旧网关同样能用：AUTH.lockSession / ISSUER 接口没变），网关部署那一刻就没有「短链创建 / 列表 401」的窗口。
     # 密钥全在 Secrets Store，CI 不传任何密值。
     # 用专门的 token（GitHub 环境密钥 STYRIGX_AUTH_GATEWAY_DEPLOY，名字对应 Cloudflare 上的
     # styrigx-auth-gateway-deploy）：Workers Scripts 编辑 + Secrets Store 编辑（带 Secrets Store 绑定部署必须 Edit，Read 报 10021）
@@ -1207,7 +1233,7 @@ jobs:
     # 其他分支即使改了工作流也拿不到它。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
-    needs: [quality, passkey-e2e, deploy-search-worker, deploy-status-worker, deploy-chat-worker]
+    needs: [quality, passkey-e2e, deploy-search-worker, deploy-status-worker, deploy-chat-worker, deploy-account-worker, deploy-share-worker]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: STYRIGX_AUTH_GATEWAY_DEPLOY
@@ -1243,7 +1269,7 @@ jobs:
       - name: Smoke test production /api/* and pages (must be served by the Worker)
         # passkey-e2e 只测预览，测不到生产这条路，所以部署后直接打线上。
         # 只发不带 cookie 的只读请求，不登录、不写数据。路由生效可能要几秒，最多重试 6 次。
-        # 失败时网关自动退回部署前的版本（最后一步），Pages / 账号 / 分享不会部署（都等这个 job）；修好或 revert 后重新跑。
+        # 失败时网关自动退回部署前的版本（最后一步），Pages 不会部署（等这个 job）；账号 / 短链已先部署，新代码对旧网关兼容。修好或 revert 后重新跑。
         run: |
           set -u
           check() { # 路径（可带子站域名） 期望状态码
@@ -1275,7 +1301,36 @@ jobs:
           check /en/ 200 || ok=1
           check /settings/ 302 || ok=1
           check /browser/search/ 302 || ok=1
-          # 头像 / 云同步 / 数字健康归账号 Worker styrigx-account（更具体的路由），冒烟在 deploy-account-worker 里
+          # 账号（账号拆分 PR3）：/api/account 没有账号 Worker 的旧路由，一定进网关——无会话 401；伪造身份头也一样 401（网关先剥头）
+          check /api/account 401 || ok=1
+          forged() { # 路径：带伪造的 X-Styrigx-Lock-* 头，必须 401 且由网关回答（不许 200、不许进账号 Worker 的接口）
+            for i in 1 2 3 4 5 6; do
+              hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' -H 'X-Styrigx-Lock-Role: admin' -H 'X-Styrigx-Lock-By: password' "https://styrigx.com$1" || true)
+              code=$(printf '%s' "$hdr" | sed -n 's/^HTTP_CODE://p')
+              rt=$(printf '%s' "$hdr" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
+              echo "forged $1 -> $code runtime=${rt:-none} (try $i)"
+              if [ "$code" = "401" ] && [ "$rt" = "worker" ]; then return 0; fi
+              # 账号 Worker 的旧路由还没手动删（部署步骤 4）：直接进账号 Worker 的默认 fetch，一律 404，同样碰不到接口
+              if [ "$code" = "404" ] && [ "$rt" = "account" ]; then echo "::warning::$1 still hits a stale styrigx-account route (default fetch 404); delete the old routes (deploy step 4)"; return 0; fi
+              sleep 5
+            done
+            echo "::error::forged identity headers on $1 expected 401 from worker"; return 1
+          }
+          forged /api/account || ok=1
+          forged /api/prefs || ok=1
+          forged /api/wellbeing || ok=1
+          # 账号运行时标记：公开的头像文件经网关转发，响应保留账号 Worker 的 X-SGX-Runtime: account
+          avatar_ok=1
+          for i in 1 2 3 4 5 6; do
+            hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' "https://styrigx.com/avatar/96.webp?smoke=$GITHUB_RUN_ID" || true)
+            code=$(printf '%s' "$hdr" | sed -n 's/^HTTP_CODE://p')
+            rt=$(printf '%s' "$hdr" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
+            echo "/avatar/96.webp -> $code runtime=${rt:-none} (try $i)"
+            if [ "$rt" = "account" ] && [ "$code" = "200" ]; then avatar_ok=0; break; fi
+            if [ "$rt" = "account" ] && [ "$code" = "404" ]; then avatar_ok=0; echo "::warning::/avatar/* still hits a stale styrigx-account route; delete the old routes (deploy step 4), then /avatar/96.webp must be 200 account"; break; fi
+            sleep 5
+          done
+          [ $avatar_ok = 0 ] || { echo "::error::/avatar/96.webp expected X-SGX-Runtime: account"; ok=1; }
           # 子站：页面未登录 302 到主站锁屏、session-check 401，都由网关回答（子站 Pages 不持钥匙）
           check https://blog.styrigx.com/ 302 || ok=1
           check https://blog.styrigx.com/api/lock-session-check 401 || ok=1
@@ -1297,17 +1352,24 @@ jobs:
         run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
   deploy-account-worker:
-    # 账号 Worker styrigx-account（workers/account，2026-10-24 从网关拆出来）：头像（KV_PROFILE）、设置云同步（D1_SETTINGS_SYNC，表 settings_sync）、数字健康（D1_WELLBEING）。
-    # 2026-10-28 上线前用 scripts/migrate-prefs-kv-to-d1.mjs 把旧 KV 里的 account-prefs 导入过 D1（旧键 2026-10-29 已删）。
-    # 路由见 workers/account/wrangler.toml（styrigx.com/api/avatar*、/api/prefs*、/api/wellbeing*、/avatar/*，比网关的 styrigx.com/* 更具体）；
-    # workers_dev=false、preview_urls=false。会话问网关：服务绑定 AUTH → styrigx-auth-gateway 的 AuthVerifier（lockSession() / accountSession()），
-    # 所以排在网关之后（要先有带 accountSession() 的网关）。不持任何钥匙，CI 不传任何密值。
-    # 先把 D1 styrigx-account 的表结构迁到最新（migrations/，已迁过的跳过；失败要让 job 红，不 continue-on-error），再部署，再冒烟。
+    # 账号 Worker styrigx-account（workers/account）：完整的账号系统（账号拆分 PR3）——账号密码 / 通行密钥 / 设备 / 账号会话 / 账号根密钥 /
+    # 账号审计（D1_ACCOUNT_AUTH），头像（KV_PROFILE）、设置云同步（D1_SETTINGS_SYNC）、数字健康（D1_WELLBEING）。
+    # 没有任何路由（workers/account/wrangler.toml 无 [[routes]]）、workers_dev=false、preview_urls=false：只经网关的服务绑定
+    # ACCOUNT（AccountService）/ ACCOUNT_VERIFIER（AccountVerifier）和短链 Worker 的 ACCOUNT_VERIFIER 进来；默认 fetch 一律 404。
+    # 不调网关、不绑任何锁屏的东西（PR3 删掉了服务绑定 AUTH）。钥匙都在 Secrets Store（SGX_ACCOUNT_PRIVATE / PUBLIC、SGX_ACCOUNT_ROOT_KEY、
+    # SGX_PW_PEPPER），CI 不传任何密值。
+    # 部署顺序（账号拆分 PR3）：账号 → 短链 → 网关 → Pages。排在最前：网关和短链的服务绑定都指向它的命名入口（PR2 起已导出）。
+    # 和网关 / 短链一样等 status 的健康闸门（needs 里的 search / status / chat）。
+    # 注意：wrangler deploy 在配置里没有路由时不碰线上已有的路由（只在有路由时 PUT 整个列表），所以 PR3 前的 4 条旧路由
+    # （styrigx.com/api/avatar*、/api/prefs*、/api/wellbeing*、/avatar/*）部署后还在、指向这里的默认 fetch（一律 404），
+    # 要按部署步骤在网关部署后手动删掉；删之前这 4 类路径 404。
+    # 先把 D1 styrigx-account 的表结构迁到最新（migrations/，已迁过的跳过；失败要让 job 红，不 continue-on-error），再部署，再核对。
     # token：Cloudflare 上 styrigx-account-deploy = GitHub 环境 STYRIGX_ACCOUNT_DEPLOY 里的同名环境密钥 STYRIGX_ACCOUNT_DEPLOY，
-    # 权限 Workers Scripts 编辑 + Workers KV Storage 编辑 + D1 编辑 + Account Settings 读取 + styrigx.com 的 Workers Routes 编辑；环境只允许 main。
+    # 权限 Workers Scripts 编辑 + Workers KV Storage 编辑 + D1 编辑 + Secrets Store 编辑（带 Secrets Store 绑定部署必须 Edit）+ Account Settings 读取
+    # （+ styrigx.com 的 Workers Routes 编辑：PR3 起已用不到，PR4 收回）；环境只允许 main。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
-    needs: [quality, passkey-e2e, deploy-auth-worker]
+    needs: [quality, passkey-e2e, deploy-search-worker, deploy-status-worker, deploy-chat-worker]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: STYRIGX_ACCOUNT_DEPLOY
@@ -1349,34 +1411,43 @@ jobs:
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: deploy
 
-      - name: Smoke test production (avatar / prefs / wellbeing must be served by styrigx-account)
-        # 只发不带 cookie 的只读请求，不登录、不写数据。路由生效可能要几秒，最多重试 6 次。
+      - name: Post-deploy check (no public address, so check the live version)
+        # 没有公开地址：核对线上确实换成了一个吃 100% 流量的新版本（同 search / chat）。代码能不能起来由 Cloudflare 上传时校验
+        working-directory: workers/account
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_ACCOUNT_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIOUS: ${{ steps.live.outputs.version }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
+
+      - name: Smoke test production (forged identity headers never reach the account APIs)
+        # 只发不带 cookie 的只读请求。这时网关可能还是旧版本、账号的 4 条旧路由可能还在（见上），所以每条只断言「碰不到接口」：
+        # - 旧路由还在 → 进本 Worker 的默认 fetch：404 + X-SGX-Runtime: account（同时证明线上已是新代码：旧代码在这些路径回 401 / 200）；
+        # - 旧路由已删 → 进网关：无会话 401 + X-SGX-Runtime: worker。
+        # 绝不许 200（伪造的 X-Styrigx-Lock-Role: admin 不能当身份用）。
         run: |
           set -u
-          check() { # 路径 期望状态码 期望 X-SGX-Runtime
+          check() { # 路径
             for i in 1 2 3 4 5 6; do
-              hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' "https://styrigx.com$1" || true)
+              hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' -H 'X-Styrigx-Lock-Role: admin' -H 'X-Styrigx-Lock-By: password' "https://styrigx.com$1" || true)
               code=$(printf '%s' "$hdr" | sed -n 's/^HTTP_CODE://p')
               rt=$(printf '%s' "$hdr" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
-              echo "$1 -> $code runtime=${rt:-none} (try $i)"
-              if [ "$code" = "$2" ] && [ "$rt" = "$3" ]; then return 0; fi
+              echo "forged $1 -> $code runtime=${rt:-none} (try $i)"
+              if [ "$code" = "404" ] && [ "$rt" = "account" ]; then return 0; fi
+              if [ "$code" = "401" ] && [ "$rt" = "worker" ]; then return 0; fi
               sleep 5
             done
-            echo "::error::$1 expected $2 from $3"; return 1
+            echo "::error::forged identity headers on $1: expected 404 from account (stale route) or 401 from worker"; return 1
           }
           ok=0
-          # 头像：未登录也能拿（主人上传的在 KV_PROFILE）
-          check /avatar/96.webp 200 account || ok=1
-          check '/avatar/192.webp?v=smoke' 200 account || ok=1
-          # 接口：没会话 401（门照网关 middleware）
-          check /api/wellbeing 401 account || ok=1
-          check '/api/wellbeing?d=2026-01-01' 401 account || ok=1
-          check /api/prefs 401 account || ok=1
-          check /api/avatar 401 account || ok=1
+          check /api/prefs || ok=1
+          check /api/wellbeing || ok=1
+          check /api/avatar || ok=1
           # 网关的接口和页面没被抢走
-          check /api/lock-session-check 401 worker || ok=1
-          check /api/account 401 worker || ok=1
-          check /settings/wellbeing/ 302 worker || ok=1
+          for p in /api/lock-session-check; do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' "https://styrigx.com$p" || true)
+            echo "$p -> $code"; [ "$code" = "401" ] || ok=1
+          done
           exit $ok
 
       - name: Roll back to the recorded version (deploy or post-deploy check failed)
@@ -1393,15 +1464,18 @@ jobs:
   deploy-share-worker:
     # 分享短链 Worker styrigx-share（workers/share，2026-10-24）：https://styrigx.com/s/<码> + 管理员管理接口 /api/share，数据在 D1 styrigx-share（D1_SHARE_LINK）。
     # 路由见 workers/share/wrangler.toml（styrigx.com/s/*、styrigx.com/api/share*，比网关的 styrigx.com/* 更具体）；workers_dev=false、preview_urls=false。
-    # 不持任何钥匙：会话问网关 AuthVerifier（服务绑定 AUTH），签 / 作废短链钥匙、给访客换会话问网关 ShareIssuer（服务绑定 ISSUER），
-    # 所以排在网关之后（要先有带 ShareIssuer 的网关）。CI 不传任何密值。
+    # 不持任何钥匙：锁屏会话问网关 AuthVerifier.lockSession()（服务绑定 AUTH），账号会话问账号 Worker AccountVerifier（ACCOUNT_VERIFIER，
+    # 账号拆分 PR3），签 / 作废短链钥匙、给访客换会话问网关 ShareIssuer（服务绑定 ISSUER）。CI 不传任何密值。
+    # 部署顺序（账号拆分 PR3）：账号 → 短链 → 网关 → Pages。排在账号之后（ACCOUNT_VERIFIER 指向它）、网关之前：新网关的 AuthVerifier
+    # 没有 accountSession()，旧短链一碰就当无会话（短链创建 / 列表 401）；新短链对旧网关同样能用（lockSession / ShareIssuer 接口没变）。
+    # 和网关一样等 status 的健康闸门。
     # 步骤：迁移 D1 styrigx-share（migrations/；失败要让 job 红，不 continue-on-error）
     # → 查 d1_migrations 和表，确认 0001_share_links.sql 真的在库里（只看到 No migrations to apply 不算数）→ 部署 → 冒烟。
     # token：Cloudflare 上 styrigx-share-deploy = GitHub 环境 STYRIGX_SHARE_DEPLOY 里的同名环境密钥 STYRIGX_SHARE_DEPLOY，
     # 权限 Workers Scripts 编辑 + D1 编辑 + Account Settings 读取 + styrigx.com 的 Workers Routes 编辑；环境只允许 main。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
-    needs: [quality, passkey-e2e, deploy-auth-worker]
+    needs: [quality, passkey-e2e, deploy-status-worker, deploy-account-worker]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: STYRIGX_SHARE_DEPLOY
@@ -1479,11 +1553,10 @@ jobs:
           check "/s/smoke$(date +%s)xxxxxxxxxxx" 302 share 'https://styrigx.com/?lock=1' || ok=1
           # 管理接口：没会话 401（门）
           check /api/share 401 share || ok=1
-          # 网关的接口和页面没被抢走；账号 Worker 的也没有
+          # 网关的接口和页面没被抢走（这时网关可能还是旧版本：这几条新旧网关回答相同）
           check /api/lock-session-check 401 worker || ok=1
           check /settings/ 302 worker || ok=1
           check /account/tempkeys/ 302 worker || ok=1
-          check /api/wellbeing 401 account || ok=1
           exit $ok
 
       - name: Roll back to the recorded version (deploy or post-deploy check failed)

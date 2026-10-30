@@ -17,7 +17,7 @@
  * GET  /api/prefs → { ok, items, updatedAt }
  * POST /api/prefs { changes: { key: { v, t } } } → 合并后 { ok, items, updatedAt }（只接受同源）
  */
-import { ROLE_ADMIN } from '../auth.js';
+import { ROLE_ADMIN } from '../identity/account.js';
 import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
 
 const KEY_RE = /^sgx-[a-z0-9-]{1,48}$/;
@@ -52,7 +52,7 @@ function prefsDb(env) {
   return (env && env.D1_SETTINGS_SYNC) || null;
 }
 
-/** admin lock 会话 + 账号会话（都由网关 AuthVerifier 验，见 src/auth.js）；不满足返回错误响应 @param {any} context */
+/** admin lock 会话 + 账号会话（都由网关写的身份头，AccountService 读，见 src/entrypoints.js headerAuth）；不满足返回错误响应 @param {any} context */
 async function gate(context) {
   const { env, auth } = context;
   const sess = await auth.lockSession();

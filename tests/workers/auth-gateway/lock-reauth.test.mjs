@@ -3,17 +3,17 @@
  *
  * 覆盖：
  * - 短票（_kernel/tickets.js）：LockReauth / LockReset 用 SGX_LOCK_* 签、各自 cookie；签名串带 cookie 名，
- *   互相冒充不了；账号钥匙签的票验不过；by 按票限制（LockReset 只认 root / account）；纪元 = Lock 纪元
+ *   互相冒充不了；账号钥匙签的票验不过；by 按票限制（LockReset 只认 root / password / passkey）；纪元 = Lock 纪元
  * - 再验证：解锁密码 verify reauth:true 只签 LockReauthTicket 不签会话；访客写死「密码错误」不读存储；没会话 401；
  *   锁屏通行密钥 auth reauth:true 同样要 admin 会话、访客写死失败；
  *   根凭证 /api/root-auth purpose=lock-reauth 签 LockReauthTicket(by=root)
  * - /api/lock-reauth：status（凭证是否已设置 + 票有效期）、clear；LockResetTicket 无会话也能读状态
  * - 管理：lock-passkey / lock-password / lock-all-devices 没票 403 reauth、没会话 401（root-audit 只读，只要 admin 会话）；
- *   AccountReauthTicket 不能开锁屏凭证；LockResetTicket 只能 list/register/delete、set/change，不能 rename/remove
+ *   sgx-account-reauth（网关不签不验账号票）不能开锁屏凭证；LockResetTicket 只能 list/register/delete、set/change，不能 rename/remove
  * - 纪元推进（改解锁密码 / 删锁屏通行密钥）：票与当前设备会话随即重签，票剩余时间不延长
- * - 删最后一把锁屏凭证（A-2）：账号未配置 → 403 last-key；账号已配置 → 200，lock-configured 保留
+ * - 删最后一把锁屏凭证：任何时候都 403 last-key（账号拆分 PR3，不再看账号）；还有别的锁屏凭证 → 200
  * - /api/root-session 已删除；锁屏未设置时根凭证只能签 LockResetTicket（purpose=lock-reset）
- * - /api/lock-reset：签 LockResetTicket(by=account)
+ * - /api/lock-reset：根密钥 + 锁屏密码 → LockResetTicket(by=password)；不再认 accountProof
  * - 删除：/api/stepup、/api/app-token 路由不存在；源码里没有 SGX_STEPUP_* / SGX_APP_*
  *
  * 运行：node --test tests/workers/auth-gateway/lock-reauth.test.mjs
@@ -40,13 +40,11 @@ const PEPPER = 'test-pepper';
 const ROOT_KEY = 'root-secret-123';
 
 const envFor = (kv, extra = {}) => ({
-  KV_LOCK_DOOR: kv, D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), KV_ACCOUNT_LOGIN: kv,
+  D1_LOCK_AUTH: authD1For(kv),
   SGX_LOCK_PRIVATE: LOCK.priv,
   SGX_LOCK_PUBLIC: LOCK.pub,
-  SGX_ACCOUNT_PRIVATE: ACCT.priv,
-  SGX_ACCOUNT_PUBLIC: ACCT.pub,
   SGX_PW_PEPPER: PEPPER,
-  SGX_ROOT_KEY: ROOT_KEY,
+  SGX_ADMIN_KEY: ROOT_KEY,
   SGX_RP_ID: 'styrigx.com',
   SGX_ORIGIN: 'https://styrigx.com',
   ...extra,
@@ -120,12 +118,13 @@ test('短票：LockReauth / LockReset 用 SGX_LOCK_* 签，纪元 = Lock 纪元�
   assert.equal(parts[1], '4');
 });
 
-test('短票：by 按票限制（LockReset 只认 root / account；LockReauth 不认 account）；3 分钟', async () => {
-  await assert.rejects(testTicket(LOCK.priv, 'LockResetTicket', 'password', 0));
+test('短票：by 按票限制（LockReset 只认 root / password / passkey，不再认 account；LockReauth 不认 account）；账号票网关不签；3 分钟', async () => {
+  await assert.rejects(testTicket(LOCK.priv, 'LockResetTicket', 'account', 0));
+  await assert.rejects(testTicket(LOCK.priv, 'LockResetTicket', 'tempkey', 0));
   await assert.rejects(testTicket(LOCK.priv, 'LockReauthTicket', 'account', 0));
   await assert.rejects(testTicket(LOCK.priv, 'LockSessionTicket', 'root', 0));
-  const r = await resetTicket('account');
-  assert.equal(tickets.parseTicket('LockResetTicket', r).by, 'account');
+  for (const name of ['AccountReauthTicket', 'AccountResetTicket', 'AccountSessionTicket']) await assert.rejects(testTicket(LOCK.priv, name, 'root', 0), /bad ticket/);
+  for (const by of ['root', 'password', 'passkey']) assert.equal(tickets.parseTicket('LockResetTicket', await resetTicket(by)).by, by);
   assert.equal(SHORT_TICKET_MAX_AGE, 180);
 });
 
@@ -243,7 +242,8 @@ test('管理：锁屏通行密钥 list —— 没会话 401；有会话没票 40
   res = await call('sgx-lock-session=' + sess);
   assert.equal(res.status, 403);
   assert.equal((await res.json()).error, 'reauth');
-  const acct = await testTicket(ACCT.priv, 'AccountReauthTicket', 'password', 0);
+  /* 账号 reauth 票（账号 Worker 签的）：网关不认 */
+  const acct = (await testTicket(ACCT.priv, 'LockReauthTicket', 'password', 0));
   res = await call(cookies({ 'sgx-lock-session': sess, 'sgx-account-reauth': acct }));
   assert.equal((await res.json()).error, 'reauth');
   res = await call(cookies({ 'sgx-lock-session': sess, 'sgx-lock-reauth': await reauthTicket() }));
@@ -262,7 +262,7 @@ test('管理：LockResetTicket 可 list，不可 rename；可改解锁密码，�
   const credId = await seedLockKey(kv);
   const pk = (await import(API + 'lock-passkey.js')).onRequestPost;
   const pw = (await import(API + 'lock-password.js')).onRequestPost;
-  const rc = 'sgx-lock-reset=' + (await resetTicket('account'));
+  const rc = 'sgx-lock-reset=' + (await resetTicket('password'));
   let res = await pk({ request: post('/api/lock-passkey', { action: 'list' }, rc), env: envFor(kv) });
   assert.equal(res.status, 200);
   res = await pk({ request: post('/api/lock-passkey', { action: 'rename', credId, name: 'x' }, rc), env: envFor(kv) });
@@ -317,22 +317,21 @@ test('改解锁密码：epoch+1，LockReauthTicket 与当前设备会话重签�
   assert.ok(pick(res, 'sgx-lock-session'), '当前设备会话重签');
 });
 
-test('删锁屏通行密钥：epoch+1 后重签票；账号已配置时可删最后一把（lock-configured 保留），未配置 → 403 last-key', async () => {
+test('删锁屏通行密钥：最后一把（没有解锁密码）→ 403 last-key，纪元不动，即使库里有遗留的账号密码；还有解锁密码 → epoch+1 后重签票', async () => {
   const { onRequestPost } = await import(API + 'lock-passkey.js');
-  /* 账号未配置：最后一把不能删 */
-  let kv = withEpoch(1, { 'lock-configured': '1' });
+  /* 只有这一把锁屏凭证：不能删（库里遗留的账号密码不算） */
+  let kv = withEpoch(1, { 'account-password': JSON.stringify(await makePasswordRecord('acctpass99', PEPPER)) });
   let credId = await seedLockKey(kv);
   let res = await onRequestPost({ request: post('/api/lock-passkey', { action: 'delete', credId }, cookies({ 'sgx-lock-session': await adminSess(1), 'sgx-lock-reauth': await reauthTicket('passkey', 1) })), env: envFor(kv) });
   assert.equal(res.status, 403);
   assert.equal((await res.json()).error, 'last-key');
   assert.equal(lockEpoch(kv), '1');
-  /* 账号已配置（有账号密码） */
-  kv = withEpoch(1, { 'lock-configured': '1', 'account-configured': '1', 'account-password': JSON.stringify(await makePasswordRecord('acctpass99', PEPPER)) });
+  /* 还有解锁密码 */
+  kv = withEpoch(1, { 'lock-password': JSON.stringify(await makePasswordRecord('lockpass99', PEPPER)) });
   credId = await seedLockKey(kv);
   res = await onRequestPost({ request: post('/api/lock-passkey', { action: 'delete', credId }, cookies({ 'sgx-lock-session': await adminSess(1), 'sgx-lock-reauth': await reauthTicket('passkey', 1) })), env: envFor(kv) });
   assert.equal(res.status, 200);
   assert.equal(lockEpoch(kv), '2');
-  assert.equal(kv._map.get('lock-configured'), '1');
   assert.equal(tickets.parseTicket('LockReauthTicket', pick(res, 'sgx-lock-reauth')).epoch, 2);
 });
 
@@ -360,18 +359,29 @@ test('从零设置：锁屏未配置时根凭证无会话只能签 LockResetTick
   assert.equal(pick(res, 'sgx-lock-reset'), null);
 });
 
-test('/api/lock-reset：恢复开关关闭时根凭证 + 账号密码 → 签 LockResetTicket(by=account)', async () => {
-  const kv = makeKV({ 'account-configured': '1', 'account-password': JSON.stringify(await makePasswordRecord('acctpass99', PEPPER)) });
+test('/api/lock-reset：恢复开关关闭时根密钥 + 解锁密码 → 签 LockResetTicket(by=password)；accountProof（账号密码）不认', async () => {
+  const kv = makeKV({ 'lock-password': JSON.stringify(await makePasswordRecord('lockpass99', PEPPER)), 'account-password': JSON.stringify(await makePasswordRecord('acctpass99', PEPPER)) });
   const { onRequestPost } = await import(API + 'lock-reset.js');
-  const res = await onRequestPost({
+  let res = await onRequestPost({
     request: post('/api/lock-reset', { action: 'verify', rootKey: ROOT_KEY, accountProof: { type: 'password', password: 'acctpass99' } }),
+    env: envFor(kv),
+  });
+  assert.deepEqual(await res.json(), { ok: true, needLock: true, passkey: false, password: true }, 'accountProof 当作没有证明');
+  assert.equal(pick(res, 'sgx-lock-reset'), null);
+  res = await onRequestPost({
+    request: post('/api/lock-reset', { action: 'verify', rootKey: ROOT_KEY, lockProof: { type: 'password', password: 'acctpass99' } }),
+    env: envFor(kv),
+  });
+  assert.equal(res.status, 401, '账号密码不是锁屏凭证');
+  res = await onRequestPost({
+    request: post('/api/lock-reset', { action: 'verify', rootKey: ROOT_KEY, lockProof: { type: 'password', password: 'lockpass99' } }),
     env: envFor(kv),
   });
   const j = await res.json();
   assert.equal(res.status, 200, JSON.stringify(j));
-  assert.ok(!j.needAccount);
+  assert.ok(!j.needLock);
   const t = pick(res, 'sgx-lock-reset');
-  assert.ok(t && t.startsWith('account.'), t);
+  assert.ok(t && t.startsWith('password.'), t);
 });
 /* ================= 删除 ================= */
 

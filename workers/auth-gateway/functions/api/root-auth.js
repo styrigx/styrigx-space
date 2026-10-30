@@ -1,31 +1,30 @@
 /**
- * 根凭证（RootKey，SGX_ROOT_KEY）入口：比对通过后按用途签一张 reset / reauth 票（by=root）。
+ * 锁屏根密钥（RootKey，SGX_ADMIN_KEY）入口：比对通过后按用途签一张锁屏短票（by=root）。
  *
- * RootKey 不拥有会话：只用于比对（_kernel/root-check.js），不签名；本接口从不签锁屏会话或账号会话。
+ * RootKey 不拥有会话：只用于比对（_kernel/root-check.js），不签名；本接口从不签锁屏会话。
+ * 账号拆分 PR3（方案 5.2、6.2）：purpose 只剩 lock-reauth、lock-reset；账号的 root-reauth / root-reset 在账号 Worker
+ * （POST /api/account，比对账号根密钥 SGX_ACCOUNT_ROOT_KEY），两套根密钥互不相干、各自计数。
  *
- * POST /api/root-auth { key, purpose }，purpose 只有四个值（缺失 / 其它值 → 400 purpose，不比对、不计数）：
- * - 'lock-reauth'    → LockReauthTicket（sgx-lock-reauth）：安全与隐私 → 锁屏凭证；要 admin 锁屏会话
- * - 'lock-reset'     → LockResetTicket（sgx-lock-reset）：只在锁屏未设置时可用（从零设置第一把 LockKey，
- *                      无需会话）；锁屏已设置时走 /api/lock-reset（RootKey + 重置开关 / AccountKey），这里按假入口处理
- * - 'account-reauth' → AccountReauthTicket（sgx-account-reauth）：账号 → 账号安全；要 admin 锁屏会话 + 有效账号会话
- * - 'account-reset'  → AccountResetTicket（sgx-account-reset）：重置账号登录方式；要 admin 锁屏会话，不要账号会话。
- *                      重置页只认这张票，设好新 AccountKey 后正常登录（不顺带签账号会话）
- * 四张票都是 3 分钟、各自独立 cookie（见 realms.js TICKETS）。
+ * POST /api/root-auth { key, purpose }，purpose 只有两个值（缺失 / 其它值 → 400 purpose，不比对、不计数）：
+ * - 'lock-reauth' → LockReauthTicket（sgx-lock-reauth）：安全与隐私 → 锁屏凭证；要 admin 锁屏会话
+ * - 'lock-reset'  → LockResetTicket（sgx-lock-reset）：只在锁屏未设置时可用（从零设置第一把 LockKey，
+ *                   无需会话）；锁屏已设置时走 /api/lock-reset（锁屏根密钥 + 重置开关 / 锁屏凭据），这里按假入口处理
+ * 两张票都是 3 分钟、各自独立 cookie（见 realms.js TICKETS）。
  *
  * 访客假入口：访客会话（sgx-lock-session role=visitor）直接写死返回 401：
- * 不读 D1、环境变量里的任何凭证，不做任何比对；不计入根凭证限速；
+ * 不读 D1、环境变量里的任何凭证，不做任何比对；不计入根密钥限速；
  * 不写审计。状态码、响应体、响应头、固定最小延迟与真失败一致。
  * 缺 Origin 仍先 403。
  * 无会话假入口：不满足上面各用途的前置条件（无 admin 会话，且不是锁屏未设置时的 lock-reset）→ 写死 401 auth，
  * 与真失败逐字节相同；只计单 IP 限速（不比对，不计全局），全局减速时同样先等，不写审计。
  *
- * - 恒定时间比较 env.SGX_ROOT_KEY（防长度泄露）
- * - 限速：所有 root 路径共用一套（_kernel/root-limit.js）：单 IP 连错 5 次锁 15 分钟；
+ * - 恒定时间比较 env.SGX_ADMIN_KEY（防长度泄露）
+ * - 限速：锁屏根密钥的路径共用一套（_kernel/root-limit.js，attempt_limit realm='lock' kind='rootkey'）：单 IP 连错 5 次锁 15 分钟；
  *   全局只减速不封锁（每小时真比对失败满 20 次后每次先等几秒），任何人都刷不出全站暂停
  * - 失败：401 auth（并计数）；超限：429
- * - 缺 SGX_ROOT_KEY → 500 config；缺该票的签名钥匙 → 503 config
+ * - 缺 SGX_ADMIN_KEY → 500 config；缺该票的签名钥匙 → 503 config
  *
- * 审计：真路径每次使用（成功/失败）在 D1 audit 表留一行（_kernel/root-audit.js，path = purpose）；
+ * 审计：真路径每次使用（成功/失败）在 D1 audit 表留一行（_kernel/root-audit.js，realm='lock'，path = purpose）；
  * 假入口不写审计。写入失败则不签发（fail closed）。
  *
  * 只接受 POST；校验 Origin（缺失/解析失败 403）。
@@ -40,24 +39,18 @@ import { isLockEffectivelyConfigured } from '../_kernel/layers.js';
 import { isSameOrigin, originDenied, json, apiError, clientIp } from '../_kernel/lib/http.js';
 import {
   REALM_LOCK,
-  REALM_ROOT,
   TICKETS,
   BY_ROOT,
   LOCK_REAUTH_TICKET,
   LOCK_RESET_TICKET,
-  ACCOUNT_REAUTH_TICKET,
-  ACCOUNT_RESET_TICKET,
   realmPublicKey,
 } from '../_kernel/realms.js';
 import { issueTicket } from '../_kernel/tickets.js';
-import { verifyAccountSession } from '../_kernel/account-session.js';
 
 /** purpose → 签哪张票 */
 export const ROOT_PURPOSES = Object.freeze({
   'lock-reauth': LOCK_REAUTH_TICKET,
   'lock-reset': LOCK_RESET_TICKET,
-  'account-reauth': ACCOUNT_REAUTH_TICKET,
-  'account-reset': ACCOUNT_RESET_TICKET,
 });
 
 /* 假入口与真失败的统一固定最小延迟（毫秒）：防时序区分。
@@ -130,7 +123,7 @@ async function handlePost(context) {
     return apiError(401, 'denied');
   }
 
-  const rootDb = env && env[REALM_ROOT.d1Binding]; /* 根凭证限速 / 审计：D1_ROOT_AUTH */
+  const rootDb = env && env[REALM_LOCK.d1Binding]; /* 锁屏根密钥限速 / 审计：D1_LOCK_AUTH（realm='lock'） */
   const ip = clientIp(request);
 
   /* body 只读一次（purpose 决定签哪张票；key 在限流检查之后才比对） */
@@ -154,13 +147,13 @@ async function handlePost(context) {
 
   /* 真路径还是无会话假入口：
      - lock-reset：只在锁屏未设置时走真路径（从零设置，无需会话）
-     - 其余三个：有疑似有效的 admin 锁屏会话才走真路径 */
+     - lock-reauth：有疑似有效的 admin 锁屏会话才走真路径 */
   const looksAdmin = await lightSession(request, env, ROLE_ADMIN);
   const realPath = ticket === LOCK_RESET_TICKET ? !lockCfg : looksAdmin;
 
   if (!realPath) {
     /* ===== 无会话假入口：写死 401，与真失败逐字节相同 =====
-       不检查环境变量（缺 SGX_ROOT_KEY 等时也返回 401，不泄露 500 config）。
+       不检查环境变量（缺 SGX_ADMIN_KEY 等时也返回 401，不泄露 500 config）。
        限速检查与真路径相同（D1 出错时 fail closed，全局减速时同样先等）；
        失败只计单 IP、不计全局（没有比对，不算猜测，刷这里推不动全局计数）；不写审计（不让刷接口灌满审计）。
        D1 缺失时无法限速，直接返回 401（不泄露配置状态）。 */
@@ -187,7 +180,7 @@ async function handlePost(context) {
   /* ===== 真路径 =====
      缺关键配置 → 直接拒绝（fail closed）。假入口在上面已返回，这里只处理真路径，
      避免无会话时因缺环境变量泄露 500 config。该票的签名钥匙缺失 → 503 config（先于比对，不浪费限流次数）。 */
-  const rootKey = (env && env[REALM_ROOT.secret]) || ''; /* SGX_ROOT_KEY */
+  const rootKey = (env && env[REALM_LOCK.rootKey]) || ''; /* SGX_ADMIN_KEY */
   const conf = TICKETS[ticket];
   if (!(env && env[conf.privateKey]) || !(env && env[conf.publicKey])) {
     return apiError(503, 'config');
@@ -202,14 +195,9 @@ async function handlePost(context) {
     if (!sess.ok || sess.role !== ROLE_ADMIN) {
       return apiError(401, 'session');
     }
-    /* 账号再验证：本来就要已登录账号 */
-    if (ticket === ACCOUNT_REAUTH_TICKET) {
-      const acc = await verifyAccountSession(request, env);
-      if (!acc.ok) return apiError(401, 'account', { reason: acc.reason });
-    }
   }
 
-  /* 根凭证比对（限速 / 恒定时间比较 / 失败计数 / 审计）：全站共用一份实现（_kernel/root-check.js） */
+  /* 锁屏根密钥比对（限速 / 恒定时间比较 / 失败计数 / 审计）：网关里只有一份实现（_kernel/root-check.js） */
   const rc = await checkRootCredential({
     env: env,
     ip: ip,

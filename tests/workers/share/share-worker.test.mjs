@@ -18,7 +18,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { shareD1, HAS_SQLITE } from '../../fixtures/share-d1.mjs';
-import { testLockSession, testAccountSession } from '../auth-gateway/_tickets.mjs';
+import { testLockSession, TEST_ACCOUNT_COOKIE, fakeAccountVerifier } from '../auth-gateway/_tickets.mjs';
 import { makeAuthD1, genKeyPair } from '../_harness.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
@@ -26,15 +26,13 @@ const worker = (await import(REPO + 'workers/share/src/index.js')).default;
 const links = await import(REPO + 'workers/share/src/lib/links.js');
 const { _resetMem, _setRandom } = await import(REPO + 'workers/share/src/open.js');
 const issuerMod = await import(REPO + 'workers/auth-gateway/src/share-issuer.js');
-const { checkLockSession, checkAccountSession } = await import(REPO + 'workers/auth-gateway/src/verifier.js');
+const { checkLockSession } = await import(REPO + 'workers/auth-gateway/src/verifier.js');
 const { signLockSessionTicket } = await import(REPO + 'workers/auth-gateway/functions/_kernel/lock-session.js');
-const { signAccountSessionTicket } = await import(REPO + 'workers/auth-gateway/functions/_kernel/account-session.js');
 const TL = await import(REPO + 'workers/auth-gateway/functions/_kernel/lock-tempkey.js');
 const { onRequestPost: tempPost } = await import(REPO + 'workers/auth-gateway/functions/api/lock-tempkey.js');
 const { verifyLockSession } = await import(REPO + 'workers/auth-gateway/functions/_kernel/lock-session.js');
 
 const LOCK = await genKeyPair();
-const ACCT = await genKeyPair();
 const H = 3600e3;
 
 /** 网关 D1 里某把钥匙的 tempkey 行（realm=lock） */
@@ -44,9 +42,9 @@ const tkRow = (authDb, id) => authDb.rows('tempkey').find((r) => r.realm === 'lo
 function setup(d1opts) {
   const authDb = makeAuthD1(); /* 网关认证库：纪元、临时钥匙（含 link 钥匙）都在这里 */
   const gwEnv = {
-    D1_LOCK_AUTH: authDb, D1_ACCOUNT_AUTH: authDb, D1_ROOT_AUTH: authDb,
+    D1_LOCK_AUTH: authDb,
     SGX_LOCK_PRIVATE: LOCK.priv, SGX_LOCK_PUBLIC: LOCK.pub,
-    SGX_ACCOUNT_PRIVATE: ACCT.priv, SGX_ACCOUNT_PUBLIC: ACCT.pub,
+    ACCOUNT_VERIFIER: fakeAccountVerifier(), /* 网关 ShareIssuer 的账号会话也问账号 Worker */
     SGX_PW_PEPPER: 'share-test-pepper', SGX_ENV: 'production', SGX_SITE: 'space',
   };
   const db = shareD1(d1opts);
@@ -54,10 +52,8 @@ function setup(d1opts) {
   const env = {
     SGX_ENV: 'production',
     D1_SHARE_LINK: db,
-    AUTH: {
-      lockSession: (c) => checkLockSession(c, gwEnv),
-      accountSession: (c, m) => checkAccountSession(c, gwEnv, m),
-    },
+    AUTH: { lockSession: (c) => checkLockSession(c, gwEnv) }, /* 网关 AuthVerifier 只剩 lockSession() */
+    ACCOUNT_VERIFIER: fakeAccountVerifier(), /* 账号会话：账号 Worker 的 AccountVerifier（方案 10.3） */
     ISSUER: {
       createLinkKey: (c, p) => { calls.push('create'); return issuerMod.createLinkKey(c, p, gwEnv); },
       revokeLinkKey: (c, id, m) => { calls.push('revoke'); return issuerMod.revokeLinkKey(c, id, gwEnv, m); },
@@ -70,8 +66,7 @@ function setup(d1opts) {
 
 async function adminCookie() {
   const lock = await testLockSession(LOCK.priv, 0, 'admin', 'password');
-  const acct = await testAccountSession(ACCT.priv, 'password', 0, Date.now(), Date.now());
-  return 'sgx-lock-session=' + lock + '; sgx-account-session=' + acct;
+  return 'sgx-lock-session=' + lock + '; ' + TEST_ACCOUNT_COOKIE;
 }
 
 const ctx = { waitUntil() {} };
@@ -166,7 +161,7 @@ test('有效期、会话档位和网关一致；会话不超过有效期；名�
   assert.equal(links.cleanName('a'.repeat(25)), null);
 });
 
-test('wrangler.toml：名字、不开 workers.dev / 预览地址、两条路由、AUTH / ISSUER 绑定、D1_SHARE_LINK；预览 routes = []；不绑钥匙和认证库', () => {
+test('wrangler.toml：名字、不开 workers.dev / 预览地址、两条路由、AUTH / ISSUER / ACCOUNT_VERIFIER 绑定、D1_SHARE_LINK；预览 routes = []；不绑钥匙和认证库', () => {
   const t = readFileSync(REPO + 'workers/share/wrangler.toml', 'utf8');
   assert.match(t, /^name = "styrigx-share"$/m);
   assert.match(t, /^workers_dev = false$/m);
@@ -174,11 +169,13 @@ test('wrangler.toml：名字、不开 workers.dev / 预览地址、两条路由�
   assert.deepEqual([...t.matchAll(/^pattern = "([^"]+)"$/gm)].map((m) => m[1]), ['styrigx.com/s/*', 'styrigx.com/api/share*']);
   assert.match(t, /binding = "AUTH"\nservice = "styrigx-auth-gateway"\nentrypoint = "AuthVerifier"/);
   assert.match(t, /binding = "ISSUER"\nservice = "styrigx-auth-gateway"\nentrypoint = "ShareIssuer"/);
+  assert.match(t, /^\[\[services\]\]\nbinding = "ACCOUNT_VERIFIER"\nservice = "styrigx-account"\nentrypoint = "AccountVerifier"$/m);
+  assert.match(t, /^\[\[env\.preview\.services\]\]\nbinding = "ACCOUNT_VERIFIER"\nservice = "styrigx-account"\nentrypoint = "AccountVerifier"$/m);
   assert.match(t, /binding = "D1_SHARE_LINK"\ndatabase_name = "styrigx-share"\n/);
   assert.match(t, /\[env\.preview\]\nname = "styrigx-share-preview"\nworkers_dev = false\npreview_urls = false\nroutes = \[\]/);
   /* 预览 D1 = 所有 Worker 预览共用的测试库（2026-10-29）；共库所以迁移记录表单独用 d1_migrations_share */
   assert.match(t, /binding = "D1_SHARE_LINK"\ndatabase_name = "styrigx-test-preview"\ndatabase_id = "1339bb0b-f9f8-4e3d-b413-ff07ca28ce69"\nmigrations_dir = "migrations"\nmigrations_table = "d1_migrations_share"\n/);
-  assert.doesNotMatch(t, /secrets_store|kv_namespaces|SGX_LOCK|SGX_ACCOUNT|PEPPER|styrigx-auth-gateway"\n(?!entrypoint)/);
+  assert.doesNotMatch(t, /secrets_store|kv_namespaces|SGX_LOCK|SGX_ACCOUNT|PEPPER|styrigx-(auth-gateway|account)"\n(?!entrypoint)/);
 });
 
 test('短链 Worker 不带签名逻辑：src 里不出现私钥 / pepper / 签名函数，也不 import 网关的 lock-tempkey / lock-session', () => {
@@ -198,7 +195,7 @@ test('check-worker-routes：/s/*、/api/share* 归短链 Worker；网关接口�
   assert.deepEqual(checkWorkers(gw, acct, share, apis, pages), []);
   assert.ok(checkWorkers(gw, acct, share.concat('styrigx.com/s*'), apis, pages).some((e) => e.includes('/settings/') || e.includes('/search/')));
   assert.ok(checkWorkers(gw, acct, share.concat('styrigx.com/api/s*'), apis, pages).some((e) => e.includes('/api/search')));
-  assert.ok(checkWorkers(gw, acct, share.concat('styrigx.com/api/avatar*'), apis, pages).some((e) => e.includes('两个 Worker')));
+  assert.ok(checkWorkers(gw, acct, share.concat('styrigx.com/api/avatar*'), apis, pages).some((e) => e.includes('/api/avatar')), '抢网关转发表的账号路径也报错');
   assert.ok(checkWorkers(gw, acct, share.filter((r) => !r.includes('/s/')), apis, pages).some((e) => e.includes('/s/')));
 });
 

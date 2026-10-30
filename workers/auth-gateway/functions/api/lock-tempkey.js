@@ -1,7 +1,7 @@
 /**
  * 临时 LockKey 管理（账号页「临时钥匙」）。说明见 _kernel/lock-tempkey.js。
  *
- * POST /api/lock-tempkey { action, ... }（只接受同源；需管理员锁屏会话 + 有效账号会话，和账号页设备管理同一道门槛）
+ * POST /api/lock-tempkey { action, ... }（只接受同源；需管理员锁屏会话 + 有效账号会话（ACCOUNT_VERIFIER.accountSession()），和账号页设备管理同一道门槛）
  * - list → { keys: [{ id, name, createdAt, expiresAt }] }（只列还有效的，新到旧）
  * - create { name?, hours? | days? } → { key, code }
  *     有效期：hours 1–24 的整数，或 days 3 / 7 / 15 / 30（二选一）；名字可空，最多 24 字
@@ -12,7 +12,7 @@
  */
 import { REALM_LOCK } from '../_kernel/realms.js';
 import { ROLE_ADMIN } from '../_kernel/lock-session.js';
-import { verifyAccountSession } from '../_kernel/account-session.js';
+import { askAccountSessionFor } from '../_kernel/account-rpc.js';
 import { getPepper } from '../_kernel/lib/password.js';
 import { isSameOrigin, originDenied, json, apiError } from '../_kernel/lib/http.js';
 import { listTempkeys, createTempkey, revokeTempkey, durationMs, cleanName, isTempkeyId } from '../_kernel/lock-tempkey.js';
@@ -40,7 +40,7 @@ async function handle(context) {
   if (!isSameOrigin(request)) return originDenied();
   const sess = await verifyLockSession(request, env);
   if (!sess.ok || sess.role !== ROLE_ADMIN) return apiError(401, 'session');
-  const acc = await verifyAccountSession(request, env);
+  const acc = await askAccountSessionFor(request, env); /* 账号会话：经 ACCOUNT_VERIFIER 问账号 Worker（方案第 2 节） */
   if (!acc.ok) return apiError(401, 'account', { reason: acc.reason });
   if (!lockDb) return apiError(500, 'config');
 

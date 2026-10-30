@@ -14,8 +14,8 @@
  * 每次记失败都是原子 UPSERT（并发的失败不会互相覆盖）。
  *
  * 按域参数化（账号拆分 PR1 搬到共享模块 workers/auth-gateway/functions/_kernel/lib/，零行为变化）：rootLimiter(realm) 给出某个根域的一套限速函数，
- * 行的 realm 列 = realm.id、经 realm.d1Binding 读写；本模块不认识具体的域。网关 _kernel/root-limit.js 用 REALM_ROOT
- * （realm='root'、D1_ROOT_AUTH）绑好再导出，导出名字和行为与以前相同。现在仍然只有这一个根域。
+ * 行的 realm 列 = realm.id、经 realm.d1Binding 读写；本模块不认识具体的域。网关 _kernel/root-limit.js 用 REALM_LOCK
+ * （realm='lock'、kind='rootkey'、D1_LOCK_AUTH；账号拆分 PR3 起锁屏根密钥的计数归锁屏域，原来的 REALM_ROOT 已删）绑好再导出。
  */
 import { ipBucket } from './http.js';
 import { readAttempt, globalHot, recordAttempt, recordGlobal, clearAttempt } from './attempt-limit.js';
@@ -31,12 +31,12 @@ const IP_TTL_MS = 3600 * 1000;
 
 /**
  * 某个根域的限速函数。
- * @param {{id:string, d1Binding:string}} realm 根域描述对象（网关：REALM_ROOT）
+ * @param {{id:string, d1Binding:string}} realm 根域描述对象（网关：REALM_LOCK）
  */
 export function rootLimiter(realm) {
   /**
    * 检查是否被限速。D1 出错时抛错（调用方返回 503）。
-   * @param {any} env 网关 env（D1_ROOT_AUTH）
+   * @param {any} env 网关 env（D1_LOCK_AUTH）
    * @param {string} ip
    * @returns {Promise<{limited:boolean, delayMs:number}>} delayMs：全局减速时比对前要等的毫秒数
    */

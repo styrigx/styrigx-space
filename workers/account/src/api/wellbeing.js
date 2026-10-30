@@ -18,7 +18,7 @@
  * 不涉及任何密钥 / 会话签发；未绑定 D1_WELLBEING（本地）时 POST 204、GET 返回空。
  * 2026-10-24 起在账号 Worker styrigx-account（D1 styrigx-account，迁移在 workers/account/migrations/）。
  */
-import { ROLE_ADMIN } from '../auth.js';
+import { ROLE_ADMIN } from '../identity/account.js';
 import { json } from '../lib/http.js';
 
 const KEY_RE = /^(home|files|browser|settings|book|blog)$|^(book|post):[A-Za-z0-9_\-./%]{1,80}$/;
@@ -110,7 +110,7 @@ const NO_STORE = { 'Cache-Control': 'private, no-store' };
 /** @param {any} context */
 export async function onRequestPost(context) {
   const { request, env } = context;
-  const sess = await context.auth.lockSession(); /* 网关 AuthVerifier 验（src/auth.js） */
+  const sess = await context.auth.lockSession(); /* 网关写的身份头（src/entrypoints.js headerAuth） */
   if (!sess.ok) return new Response(null, { status: 401, headers: NO_STORE });
   if (sess.role !== ROLE_ADMIN) return new Response(null, { status: 204, headers: NO_STORE });
   const db = env && env.D1_WELLBEING;
@@ -148,7 +148,7 @@ export async function onRequestPost(context) {
 /** @param {any} context */
 export async function onRequestGet(context) {
   const { request, env } = context;
-  const sess = await context.auth.lockSession(); /* 网关 AuthVerifier 验（src/auth.js） */
+  const sess = await context.auth.lockSession(); /* 网关写的身份头（src/entrypoints.js headerAuth） */
   if (!sess.ok) return json(401, { ok: false }, NO_STORE);
   const url = new URL(request.url);
   const qd = url.searchParams.get('d') || '';

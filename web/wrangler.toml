@@ -23,14 +23,15 @@ SGX_ORIGIN = "https://passkey-e2e.styrigx-space.pages.dev"
 SGX_RP_ID = "passkey-e2e.styrigx-space.pages.dev"
 SGX_SITE = "space"
 
-# 预览网关只绑 D1（2026-10-27 起网关不再用 KV）。
-# 头像 / 云同步 / 数字健康 2026-10-24 搬到账号 Worker styrigx-account（workers/account），预览网关不绑账号数据；
-# 预览里 /api/avatar、/api/prefs、/api/wellbeing 回 404（passkey-e2e 不测它们），/avatar/<尺寸>.webp 是静态默认图。
+# 预览只绑 D1（2026-10-27 起网关不再用 KV）。
+# 账号拆分 PR3：预览的 _worker.js 是组合入口 tests/web/e2e/preview-worker.js（网关 + 账号 Worker 两边的代码，网关的 ACCOUNT /
+# ACCOUNT_VERIFIER 换成进程内适配器，只给 CI 用）。账号那一半用 D1_ACCOUNT_AUTH（同一个测试库）；预览不绑账号资料库
+# （KV_PROFILE / D1_SETTINGS_SYNC / D1_WELLBEING），passkey-e2e 不测它们，/avatar/<尺寸>.webp 落到静态默认图（env.ASSETS）。
 [env.preview]
 # preview D1 绑定（styrigx-test-preview：所有 Worker 的预览共用的测试专用库，2026-10-29 起；绝不指向正式库 styrigx-auth-gateway）。
 # 同库还有账号 Worker、短链 Worker 的预览表（workers/account、workers/share 的 [env.preview]），表名互不重叠；
 # 本块用默认迁移记录表 d1_migrations（同正式网关），那两个 Worker 各用自己的 migrations_table。
-# 绑定名同正式（workers/auth-gateway/wrangler.toml）：D1_<域>_AUTH，同一个库三个名字；迁移文件和网关放在一起
+# 绑定名同正式：D1_LOCK_AUTH（网关）、D1_ACCOUNT_AUTH（账号 Worker），同一个库两个名字；网关迁移文件和网关放在一起
 # （workers/auth-gateway/migrations/），migrations_dir 只写在 D1_LOCK_AUTH 这一块。
 [[env.preview.d1_databases]]
 binding = "D1_LOCK_AUTH"
@@ -40,10 +41,5 @@ migrations_dir = "../workers/auth-gateway/migrations"
 
 [[env.preview.d1_databases]]
 binding = "D1_ACCOUNT_AUTH"
-database_name = "styrigx-test-preview"
-database_id = "1339bb0b-f9f8-4e3d-b413-ff07ca28ce69"
-
-[[env.preview.d1_databases]]
-binding = "D1_ROOT_AUTH"
 database_name = "styrigx-test-preview"
 database_id = "1339bb0b-f9f8-4e3d-b413-ff07ca28ce69"

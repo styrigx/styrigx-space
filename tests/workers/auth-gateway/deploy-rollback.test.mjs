@@ -140,14 +140,24 @@ test('回滚下限：floor 文件里网关和账号 Worker 都要求 D1 绑定�
   const acToml = readFileSync(path.join(REPO, 'workers/account/wrangler.toml'), 'utf8');
   const gw = floorFor(workerNameFromToml(gwToml));
   const ac = floorFor(workerNameFromToml(acToml));
-  assert.deepEqual(gw && gw.requireBindings, ['D1_LOCK_AUTH', 'D1_ACCOUNT_AUTH', 'D1_ROOT_AUTH']);
-  assert.deepEqual(ac && ac.requireBindings, ['D1_SETTINGS_SYNC']);
+  /* 账号拆分 PR3：网关要有转发绑定 ACCOUNT 和新名 SGX_ADMIN_KEY，账号要有账号库 D1_ACCOUNT_AUTH（自动回滚不退过拆分点） */
+  assert.deepEqual(gw && gw.requireBindings, ['D1_LOCK_AUTH', 'ACCOUNT', 'SGX_ADMIN_KEY']);
+  assert.deepEqual(ac && ac.requireBindings, ['D1_ACCOUNT_AUTH', 'D1_SETTINGS_SYNC']);
   // 要求的绑定当前 wrangler.toml 里确实有（否则每次部署都记不到目标）
   for (const [toml, f] of [[gwToml, gw], [acToml, ac]]) {
     for (const n of /** @type {any} */ (f).requireBindings) assert.match(toml, new RegExp('^binding = "' + n + '"$', 'm'));
   }
   assert.equal(floorFor('styrigx-chat'), null);
   assert.equal(floorFor('$comment'), null);
+});
+
+test('回滚下限：bindings 里的服务绑定 / Secrets Store 绑定也按名字认（拆分前的网关版本没有 ACCOUNT、绑的是旧名 → 不满足）', () => {
+  const gw = floorFor('styrigx-auth-gateway');
+  const v = (list) => JSON.stringify({ id: V1, metadata: { created_on: 'Fri 2026-10-30 8:00 AM CST (UTC+08:00)' }, resources: { bindings: list } });
+  const after = [{ type: 'd1', name: 'D1_LOCK_AUTH' }, { type: 'service', name: 'ACCOUNT' }, { type: 'service', name: 'ACCOUNT_VERIFIER' }, { type: 'secrets_store_secret', name: 'SGX_ADMIN_KEY' }];
+  assert.equal(checkFloor(v(after), gw).ok, true);
+  const before = [{ type: 'd1', name: 'D1_LOCK_AUTH' }, { type: 'd1', name: 'D1_ACCOUNT_AUTH' }, { type: 'd1', name: 'D1_ROOT_AUTH' }, { type: 'secrets_store_secret', name: 'SGX_ROOT_KEY' }];
+  assert.match(checkFloor(v(before), gw).reason, /missing binding\(s\) ACCOUNT, SGX_ADMIN_KEY/);
 });
 
 test('回滚下限：checkFloor 缺绑定 / 太早 / 坏 JSON → 不满足', () => {
@@ -310,4 +320,25 @@ test('deploy.yml：回滚不加新 secret（只用各 job 原有的部署 token 
   const allowed = new Set(['CLOUDFLARE_ACCOUNT_ID', 'STYRIGX_SPACE_PAGES_DEPLOY', ...Object.values(WORKER_JOBS).map((c) => c.secret)]);
   const used = new Set([...readFileSync(path.join(REPO, '.github/workflows/deploy.yml'), 'utf8').matchAll(/secrets\.([A-Z0-9_]+)/g)].map((m) => m[1]));
   for (const s of used) assert.ok(allowed.has(s), 'unexpected secret ' + s);
+});
+
+test('deploy.yml：账号拆分 PR3 部署顺序 账号 → 短链 → 网关 → Pages（网关部署时短链已改问账号 Worker，没有 401 窗口）', () => {
+  const needs = (/** @type {string} */ j) => [].concat(wf.jobs[j].needs || []);
+  /* 账号最先：和网关一样等 status 的健康闸门，但不等网关 */
+  for (const n of ['deploy-search-worker', 'deploy-status-worker', 'deploy-chat-worker']) assert.ok(needs('deploy-account-worker').includes(n), n);
+  assert.ok(!needs('deploy-account-worker').includes('deploy-auth-worker'));
+  /* 短链：账号之后（ACCOUNT_VERIFIER 指向它）、网关之前 */
+  assert.ok(needs('deploy-share-worker').includes('deploy-account-worker'));
+  assert.ok(needs('deploy-share-worker').includes('deploy-status-worker'));
+  assert.ok(!needs('deploy-share-worker').includes('deploy-auth-worker'));
+  /* 网关：账号、短链都在之后才部署；Pages 等网关 */
+  assert.ok(needs('deploy-auth-worker').includes('deploy-account-worker'));
+  assert.ok(needs('deploy-auth-worker').includes('deploy-share-worker'));
+  assert.ok(needs('build-and-deploy').includes('deploy-auth-worker'));
+  /* 网关冒烟：伪造身份头必须 401（或旧路由残留时账号默认 fetch 404），头像带账号运行时标记 */
+  const smoke = wf.jobs['deploy-auth-worker'].steps.find((s) => /^Smoke test/.test(s.name)).run;
+  assert.match(smoke, /X-Styrigx-Lock-Role: admin/);
+  assert.match(smoke, /forged \/api\/account/);
+  assert.match(smoke, /\/avatar\/96\.webp/);
+  assert.match(smoke, /"\$rt" = "account"/);
 });

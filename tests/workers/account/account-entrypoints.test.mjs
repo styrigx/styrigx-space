@@ -1,10 +1,10 @@
 /**
- * 账号 Worker 命名入口（workers/account/src/entrypoints.js、worker.js；账号拆分 PR2c）：
- * - worker.js：默认导出 = index.js 的 default（公开路由行为不变），另导出 AccountService / AccountVerifier
- * - AccountService：只信网关转发来的身份头（白名单校验，复用 identity/account.js readLockIdentity），不问 AUTH；
- *   路由 = 现有三条 + /api/account；门（gate.js）结论同默认 fetch
- * - 信任边界：同名 x-styrigx-* 头打到默认 fetch 不起作用（会话照旧问网关 AuthVerifier），默认 fetch 没有 /api/account；
- *   AccountService 无条件信任这些头，前提是网关剥掉入站同名头（方案第 3 节第一道保险，PR3）
+ * 账号 Worker 命名入口（workers/account/src/entrypoints.js、worker.js；账号拆分 PR3）：
+ * - worker.js：默认导出 = index.js 的 default（一律 404），另导出 AccountService / AccountVerifier
+ * - AccountService：只信网关转发来的身份头（白名单校验，lib/lock-identity.js readLockIdentity），没有任何回调网关的绑定；
+ *   路由 = /api/account + 三个账号数据接口；最小门（lockIdentityDenial）结论同网关的门
+ * - 信任边界：默认 fetch 一律 404（伪造的 x-styrigx-* 头不起作用）；AccountService 无条件信任这些头，
+ *   前提是网关剥掉入站同名头（方案第 3 节第一道保险，forwarding.test 覆盖）
  * - AccountVerifier.accountSession(cookieHeader, clientContext)：正反例，只验不签
  *
  * 运行：node --test tests/workers/account/account-entrypoints.test.mjs
@@ -12,9 +12,8 @@
 import './_cf-workers.mjs';
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { gatewayVerifier } from './_auth.mjs';
 import { testLockSession } from '../auth-gateway/_tickets.mjs';
-import { genKeyPair, withAuthD1, postReq } from '../_harness.mjs';
+import { genKeyPair, postReq } from '../_harness.mjs';
 import { makeAccountD1 } from './_d1.mjs';
 import { K, keys, idHeaders, accSession, seedPassword, setEpoch, one, PEPPER, ROOT_KEY, TEST_DEVICE_ID, pickCookie } from './_identity.mjs';
 
@@ -32,11 +31,10 @@ const ORIGIN = 'https://styrigx.com';
 
 beforeEach(() => _resetSecretCache());
 
-/** 账号 Worker env：账号库（三个绑定同一个库）+ 账号钥匙；AUTH 默认是会记调用的网关替身 */
+/** 账号 Worker env：账号库（三个绑定同一个库）+ 账号钥匙；没有任何网关绑定（calls 留着证明没人回调网关） */
 function makeEnv(over = {}) {
   const db = makeAccountD1();
   const calls = [];
-  const gw = gatewayVerifier(withAuthD1({ SGX_LOCK_PUBLIC: LOCK_PUB }));
   const env = {
     SGX_ENV: 'production',
     D1_ACCOUNT_AUTH: db,
@@ -50,10 +48,6 @@ function makeEnv(over = {}) {
     SGX_PW_PEPPER: PEPPER,
     SGX_RP_ID: 'styrigx.com',
     SGX_ORIGIN: ORIGIN,
-    AUTH: {
-      lockSession: (c) => { calls.push('lock'); return gw.lockSession(c); },
-      accountSession: (c, m) => { calls.push('account'); return gw.accountSession(c, m); },
-    },
     ...over,
   };
   return { env, calls };
@@ -75,15 +69,14 @@ test('worker.js：默认导出就是 index.js 的 default；AccountService / Acc
   assert.equal(ep.AccountVerifier.prototype.fetch, undefined);
 });
 
-test('路由表：默认 fetch 仍只有三条；AccountService = 三条 + /api/account（同一批模块）', () => {
-  assert.deepEqual([...index.API_ROUTES.keys()].sort(), ['/api/avatar', '/api/prefs', '/api/wellbeing']);
-  assert.deepEqual([...ep.SERVICE_API_ROUTES.keys()].sort(), ['/api/account', '/api/avatar', '/api/prefs', '/api/wellbeing']);
-  for (const [k, m] of index.API_ROUTES) assert.equal(ep.SERVICE_API_ROUTES.get(k), m, k);
+test('路由表：AccountService = /api/account + 三个账号数据接口（index.js API_ROUTES 同一张表）', () => {
+  assert.deepEqual([...index.API_ROUTES.keys()].sort(), ['/api/account', '/api/avatar', '/api/prefs', '/api/wellbeing']);
+  assert.equal(ep.SERVICE_API_ROUTES, index.API_ROUTES);
 });
 
 /* ---------------- AccountService ---------------- */
 
-test('AccountService：admin 身份头 → GET /api/account 200（X-SGX-Runtime: account、no-store），不问 AUTH', async () => {
+test('AccountService：admin 身份头 → GET /api/account 200（X-SGX-Runtime: account、no-store），不回调网关', async () => {
   const { env, calls } = makeEnv();
   const r = await service(env).fetch(req('/api/account', { headers: idHeaders() }));
   assert.equal(r.status, 200);
@@ -95,8 +88,8 @@ test('AccountService：admin 身份头 → GET /api/account 200（X-SGX-Runtime:
   assert.deepEqual(calls, []);
 });
 
-test('AccountService：没有身份头 → /api/* 401 {ok:false}（门）；头像文件照旧公开；没有 AUTH 绑定也不出错', async () => {
-  const { env, calls } = makeEnv({ AUTH: undefined });
+test('AccountService：没有身份头 → /api/* 401 {ok:false}（最小门）；头像文件照旧公开', async () => {
+  const { env, calls } = makeEnv();
   for (const [m, p] of [['GET', '/api/account'], ['POST', '/api/account'], ['GET', '/api/prefs'], ['GET', '/api/wellbeing'], ['PUT', '/api/avatar']]) {
     const r = await service(env).fetch(req(p, { method: m, body: m === 'GET' ? undefined : '{}' }));
     assert.equal(r.status, 401, m + ' ' + p);
@@ -133,7 +126,7 @@ test('AccountService：访客身份头 → /api/prefs 403 role（门）、/api/a
   assert.equal((await r.json()).error, 'session');
 });
 
-test('AccountService：/api/prefs 的账号会话在本 Worker 验（账号库），不经 AUTH；没账号会话 401 account', async () => {
+test('AccountService：/api/prefs 的账号会话在本 Worker 验（账号库），不回调网关；没账号会话 401 account', async () => {
   const { env, calls } = makeEnv();
   let r = await service(env).fetch(req('/api/prefs', { headers: idHeaders() }));
   assert.equal(r.status, 401);
@@ -164,39 +157,37 @@ test('AccountService：处理中抛错 → 500 internal（仍打 X-SGX-Runtime�
   assert.equal(r.headers.get('X-SGX-Runtime'), 'account');
 });
 
-/* ---------------- 默认 fetch（公开路由）：与 PR2 前一致，不信同名头 ---------------- */
+/* ---------------- 默认 fetch：一律 404（第二道保险） ---------------- */
 
-test('默认 fetch：伪造的 x-styrigx-* admin 头不被信任——没锁屏会话照旧 401，会话仍问 AUTH（AuthVerifier 不认就是没会话）', async () => {
-  const { env, calls } = makeEnv();
-  for (const p of ['/api/wellbeing', '/api/prefs']) {
-    const r = await index.default.fetch(req(p, { headers: { ...idHeaders(), Cookie: 'theme=dark' } }), env, CTX);
-    assert.equal(r.status, 401, p);
-    assert.deepEqual(await r.json(), { ok: false });
-  }
-  assert.ok(calls.includes('lock'));
-});
-
-test('默认 fetch：没有 /api/account（有效 admin 锁屏会话 + 伪造身份头也是 404 not-found）', async () => {
+test('默认 fetch：任何路径一律 404，伪造的 x-styrigx-* admin 头 + 有效锁屏 cookie 也碰不到接口', async () => {
   const { env } = makeEnv();
   const ck = 'sgx-lock-session=' + (await testLockSession(LOCK_PRIV, 0, 'admin'));
-  for (const m of ['GET', 'POST']) {
-    const r = await index.default.fetch(req('/api/account', { method: m, headers: { ...idHeaders(), Cookie: ck }, body: m === 'POST' ? '{"action":"login-password"}' : undefined }), env, CTX);
-    assert.equal(r.status, 404, m);
+  for (const [m, p] of [['GET', '/api/account'], ['POST', '/api/account'], ['GET', '/api/wellbeing'], ['GET', '/api/prefs'], ['GET', '/avatar/32.webp']]) {
+    const r = await index.default.fetch(req(p, { method: m, headers: { ...idHeaders(), Cookie: ck }, body: m === 'POST' ? '{"action":"login-password"}' : undefined }), env, CTX);
+    assert.equal(r.status, 404, m + ' ' + p);
     assert.equal((await r.json()).error, 'not-found');
+    assert.equal(r.headers.get('X-SGX-Runtime'), 'account');
   }
 });
 
-test('默认 fetch：有效锁屏会话照旧放行（经 AUTH）；访客 /api/prefs 403 role；头像公开——与 PR2 前同结论', async () => {
-  const { env, calls } = makeEnv();
-  const admin = 'sgx-lock-session=' + (await testLockSession(LOCK_PRIV, 0, 'admin'));
-  const visitor = 'sgx-lock-session=' + (await testLockSession(LOCK_PRIV, 0, 'visitor'));
-  let r = await index.default.fetch(req('/api/wellbeing', { headers: { Cookie: admin } }), env, CTX);
-  assert.equal(r.status, 200);
-  r = await index.default.fetch(req('/api/prefs', { headers: { Cookie: visitor } }), env, CTX);
-  assert.equal(r.status, 403);
-  r = await index.default.fetch(req('/avatar/32.webp'), env, CTX);
-  assert.equal(r.status, 200);
-  assert.ok(calls.includes('lock'));
+test('默认 fetch：不读 env（不碰账号库 / 钥匙）', async () => {
+  let touched = 0;
+  const env = new Proxy({}, { get() { touched++; return undefined; } });
+  const r = await index.default.fetch(req('/api/account', { headers: idHeaders() }), env, CTX);
+  assert.equal(r.status, 404);
+  assert.equal(touched, 0);
+});
+
+test('源码：账号 Worker 没有任何回调网关的代码（不读 env.AUTH、不 import 网关目录、没有 auth.js / gate.js）', async () => {
+  const { readdirSync, readFileSync, existsSync } = await import('node:fs');
+  const root = new URL(SRC, import.meta.url).pathname;
+  assert.equal(existsSync(root + 'auth.js'), false);
+  assert.equal(existsSync(root + 'gate.js'), false);
+  const walk = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(d + e.name + '/') : [d + e.name]));
+  for (const f of walk(root).filter((x) => x.endsWith('.js'))) {
+    const code = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    assert.doesNotMatch(code, /env\.AUTH\b|env\[['"]AUTH['"]\]|AuthVerifier|auth-gateway|D1_LOCK_AUTH|SGX_LOCK_|SGX_ADMIN_KEY|lock_reset_switch/, f);
+  }
 });
 
 /* ---------------- AccountVerifier ---------------- */
@@ -247,4 +238,23 @@ test('verifierRequest：只带 Cookie / User-Agent / 地点头，不带锁屏身
   assert.equal(r.headers.get('X-Styrigx-Client-City'), 'Shanghai');
   assert.equal(r.headers.get('X-Styrigx-Lock-Role'), null);
   assert.deepEqual([...r.headers.keys()].sort(), ['cookie', 'user-agent', 'x-styrigx-client-city', 'x-styrigx-client-country']);
+});
+
+test('lockIdentityDenial：只按身份头的结论拒；/api/* 无身份 401、访客调 /api/prefs（含子路径）403 role；/api/prefsX、/api/account、/avatar/* 不在这里拒', async () => {
+  const deny = (p, id) => ep.lockIdentityDenial(new Request(ORIGIN + p), id);
+  const admin = { role: 'admin', by: 'password', tempkeyId: '' };
+  const visitor = { role: 'visitor', by: 'tempkey', tempkeyId: 'tk1' };
+  assert.equal(deny('/api/prefs', admin), null);
+  assert.equal(deny('/avatar/96.webp', null), null, '头像文件公开');
+  const r401 = deny('/api/wellbeing', null);
+  assert.equal(r401.status, 401);
+  assert.deepEqual(await r401.json(), { ok: false });
+  for (const p of ['/api/prefs', '/api/prefs/']) {
+    const r = deny(p, visitor);
+    assert.equal(r.status, 403, p);
+    assert.equal((await r.json()).error, 'role');
+  }
+  assert.equal(deny('/api/prefsX', visitor), null, '不是 /api/prefs 的子路径');
+  assert.equal(deny('/api/account', visitor), null, '访客调 /api/account 交给 identity/account.js');
+  assert.equal(deny('/api/wellbeing', visitor), null);
 });

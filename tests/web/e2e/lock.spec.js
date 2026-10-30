@@ -551,7 +551,9 @@ test.describe('lock method sheet row feedback (批次 A 验收修复 P2)', () =>
   });
 });
 
-test.describe('A-2 锁屏凭证清空态（resetOnly）/ 启动站（PR3：只剩「无法登录？」）', () => {
+test.describe('A-2 锁屏凭证清空态 / 启动站（PR3：只剩「无法登录？」）', () => {
+  /* 账号拆分 PR3：lock-entry 只回锁屏自己的 passkey / password（resetOnly / accountConfigured 已删），
+     「清空态」就是两项都是 false；多带的旧字段前端不认 */
   test('锁屏凭证清空：方法弹层只显示访客 +「无法登录？」（无通行密钥/密码/根凭证入口）', async ({ page }) => {
     await blockExternalRequests(page);
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
@@ -561,7 +563,7 @@ test.describe('A-2 锁屏凭证清空态（resetOnly）/ 启动站（PR3：只�
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ ok: true, passkey: true, password: true, accountConfigured: true, resetOnly: true }),
+        body: JSON.stringify({ ok: true, passkey: false, password: false, accountConfigured: true, resetOnly: true }),
       });
     });
     await gotoLock(page);
@@ -581,7 +583,7 @@ test.describe('A-2 锁屏凭证清空态（resetOnly）/ 启动站（PR3：只�
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ ok: true, passkey: false, password: false, accountConfigured: false, resetOnly: false }),
+        body: JSON.stringify({ ok: true, passkey: false, password: false }),
       });
     });
     const calls = [];
@@ -610,16 +612,17 @@ test.describe('PR3 锁屏：无法登录？→ 弹层原地切到重置登录', 
     await freezeTime(page);
   });
 
-  test('根凭证 → needAccount → 账号凭证行（账号通行密钥 / 账号密码，没有「管理员」字样）→ 账号密码通过 → /settings/security/lock/', async ({ page }) => {
+  /* 账号拆分 PR3：第 2 步是锁屏凭证（lockProof；网关不读账号凭证），服务端回 needLock */
+  test('根凭证 → needLock → 锁屏凭证行（锁屏通行密钥 / 解锁密码，没有「管理员」「账号」字样）→ 解锁密码通过 → /settings/security/lock/', async ({ page }) => {
     const bodies = [];
     await page.route('**/api/lock-reset', async (route) => {
       const b = JSON.parse(route.request().postData() || '{}');
       bodies.push(b);
-      if (b.accountProof) {
+      if (b.lockProof) {
         await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
         return;
       }
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, needAccount: true, passkey: true, password: true }) });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, needLock: true, passkey: true, password: true }) });
     });
     await page.route('**/settings/security/lock/', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p id="landed">ok</p>' }));
     await gotoLock(page);
@@ -632,18 +635,19 @@ test.describe('PR3 锁屏：无法登录？→ 弹层原地切到重置登录', 
     await expect(page.locator('.sgx-reset input[autocomplete="username"]')).toHaveValue('RootKey');
     await page.fill('#sgx-reset-root', 'root-key');
     await page.click('#sgx-reset-go');
-    await expect(page.locator('.sgx-reset[data-step="account"]')).toBeVisible();
-    await expect(page.locator('.sgx-reset-opts .sgx-credential-rowtitle')).toHaveText(['账号通行密钥', '账号密码']);
+    await expect(page.locator('.sgx-reset[data-step="lock"]')).toBeVisible();
+    await expect(page.locator('.sgx-reset-opts .sgx-credential-rowtitle')).toHaveText(['锁屏通行密钥', '解锁密码']);
     await expect(page.locator('#sgx-method-sheet')).not.toContainText('管理员');
-    await page.locator('.sgx-credential-row').filter({ hasText: '账号密码' }).click();
-    await page.locator('.sgx-credential-expand input[type="password"]').fill('acct-pw');
+    await expect(page.locator('#sgx-method-sheet')).not.toContainText('账号');
+    await page.locator('.sgx-credential-row').filter({ hasText: '解锁密码' }).click();
+    await page.locator('.sgx-credential-expand input[type="password"]').fill('lock-pw');
     await page.locator('.sgx-credential-expand .sgx-credential-btn-primary').click();
     await expect(page.locator('#landed')).toBeVisible({ timeout: 8000 });
     expect(bodies[0]).toEqual({ action: 'verify', rootKey: 'root-key' });
-    expect(bodies[1]).toEqual({ action: 'verify', rootKey: 'root-key', accountProof: { type: 'password', password: 'acct-pw' } });
+    expect(bodies[1]).toEqual({ action: 'verify', rootKey: 'root-key', lockProof: { type: 'password', password: 'lock-pw' } });
   });
 
-  test('恢复开关有效（verify 直接 ok）→ 不要账号凭证，直接去锁屏凭证页；根凭证错误 → 行内「验证失败」并清空', async ({ page }) => {
+  test('恢复开关有效（verify 直接 ok）→ 不要锁屏凭证，直接去锁屏凭证页；根凭证错误 → 行内「验证失败」并清空', async ({ page }) => {
     let n = 0;
     await page.route('**/api/lock-reset', async (route) => {
       n++;

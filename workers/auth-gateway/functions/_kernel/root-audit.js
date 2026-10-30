@@ -1,13 +1,12 @@
 /**
- * 根凭证审计（所有 root 路径共用一套：/api/root-auth、/api/lock-reset、/api/root-audit 读）。
- *
- * 实现在共享模块 workers/auth-gateway/functions/_kernel/lib/root-audit.js（按域参数化，账号拆分 PR1，零行为变化）；本文件只用网关的根域
- * REALM_ROOT（D1 audit 表 realm='root'、D1_ROOT_AUTH）绑好再导出，名字、参数和行为与以前相同。
+ * 锁屏根密钥审计（/api/root-auth、/api/lock-reset 写，/api/root-audit 读）。
+ * 实现在 lib/root-audit.js（按域参数化）；本文件用 REALM_LOCK（D1 audit 表 realm='lock'、D1_LOCK_AUTH）绑好再导出。
+ * 账号根密钥的审计在账号 Worker（POST /api/account audit-list），这里不读。
  * 只追加、保留 7 天；写不进去返回 false（成功路径据此 fail closed）。
  */
-import { REALM_ROOT } from './realms.js';
+import { REALM_LOCK } from './realms.js';
 import { rootAuditor } from './lib/root-audit.js';
 
 export { ipPrefix } from './lib/root-audit.js';
 
-export const { writeRootAudit, listRootAudit } = rootAuditor(REALM_ROOT);
+export const { writeRootAudit, listRootAudit } = rootAuditor(REALM_LOCK);

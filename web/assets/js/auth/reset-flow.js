@@ -3,21 +3,21 @@
  * 锁屏弹层里的「无法登录？」→ 弹层原地切到同一个界面。两处只是提交函数不同。
  *
  * 流程（服务端决定下一步）：
- * 1. 根凭证（全站唯一的根凭证输入框 createRootField）→ submitRoot(key)
+ * 1. 根密钥（全站唯一的根密钥输入框 createRootField；锁屏重置交锁屏根密钥，账号重置交账号根密钥）→ submitRoot(key)
  *    - resolve {}（或 { done:true }）→ 完成 → onDone()
- *    - resolve { needAccount: { passkey, password } } → 第 2 步
+ *    - resolve { needLock: { passkey, password } } → 第 2 步（只有锁屏重置会出现：恢复开关无效时，账号拆分 PR3）
  *    - reject { message, clear? } → 行内报错
- * 2. 账号凭证（与账号登录同一套验证行 auth/cred-rows.js：账号通行密钥 / 账号密码，按服务端给的配置显示）
- *    → account.passkey() / account.password(value)（调用方把第 1 步的根凭证一起提交）→ onDone()
+ * 2. 锁屏凭证（与锁屏解锁同一类凭证，验证行 auth/cred-rows.js：锁屏通行密钥 / 解锁密码，按服务端给的配置显示）
+ *    → lock.passkey() / lock.password(value)（调用方把第 1 步的根密钥一起提交）→ onDone()
  *
- * 根凭证只存在闭包里，完成 / 卸载即清空，不挂 window、不留在 DOM。
+ * 根密钥只存在闭包里，完成 / 卸载即清空，不挂 window、不留在 DOM。
  * 文案自带中英（锁屏在每个页面都可能出现，不依赖账号页的 i18n 表）。
  * 本文件在 lib/ 层：不 import shell/ 或 apps/。
  */
 import { onEnter, focusNoScroll } from './auth-flow.js';
 import { bindSubmitButton } from '../lib/dialog-behavior.js';
 import { renderCredRows, createRootField, CRED_ICONS } from './cred-rows.js';
-import { KEY_ACCOUNT } from '../lib/key-names.js';
+import { KEY_LOCK } from '../lib/key-names.js';
 
 const TXT = {
   title: { zh: '重置登录', en: 'Reset sign-in' },
@@ -25,13 +25,13 @@ const TXT = {
   rootPh: { zh: '根凭证', en: 'Root credential' },
   next: { zh: '下一步', en: 'Continue' },
   enterRoot: { zh: '请输入根凭证', en: 'Enter root credential' },
-  step2: { zh: '再验证一次账号凭证', en: 'Now verify your account credential' },
-  noAccount: { zh: '账号还没有设置登录方式，无法用账号凭证验证。', en: 'No account credential is set, so it can’t be used to verify.' },
-  recover: { zh: '账号凭证也无法使用？可在站点后台开启一次性恢复，24 小时内有效', en: 'Account credential unavailable too? Enable one-time recovery in the site admin, valid for 24 hours.' },
-  mPasskey: { zh: '账号通行密钥', en: 'Account passkey' },
+  step2: { zh: '再验证一次锁屏凭证', en: 'Now verify your lock credential' },
+  noLock: { zh: '锁屏还没有设置凭证，无法用锁屏凭证验证。', en: 'No lock credential is set, so it can’t be used to verify.' },
+  recover: { zh: '锁屏凭证也无法使用？可在站点后台开启一次性恢复，24 小时内有效', en: 'Lock credential unavailable too? Enable one-time recovery in the site admin, valid for 24 hours.' },
+  mPasskey: { zh: '锁屏通行密钥', en: 'Lock passkey' },
   mPasskeySub: { zh: '使用指纹或设备锁屏', en: 'Use fingerprint or device screen lock' },
-  mPassword: { zh: '账号密码', en: 'Account password' },
-  mPasswordSub: { zh: '输入账号密码', en: 'Enter account password' },
+  mPassword: { zh: '解锁密码', en: 'Unlock password' },
+  mPasswordSub: { zh: '输入解锁密码', en: 'Enter unlock password' },
   verifyBtn: { zh: '验证', en: 'Verify' },
   enterCred: { zh: '请输入凭证', en: 'Enter credential' },
   passkeyBusy: { zh: '正在唤起通行密钥…', en: 'Opening passkey…' },
@@ -52,10 +52,10 @@ export function resetT(en) {
  * @param {object} o
  * @param {HTMLElement} o.el 容器
  * @param {boolean} o.en
- * @param {(key: string) => Promise<{needAccount?: {passkey?: boolean, password?: boolean}}|void>} o.submitRoot
- * @param {(rootKey: string) => {passkey: () => Promise<any>, password: (v: string) => Promise<any>}} [o.account] 第 2 步提交
+ * @param {(key: string) => Promise<{needLock?: {passkey?: boolean, password?: boolean}}|void>} o.submitRoot
+ * @param {(rootKey: string) => {passkey: () => Promise<any>, password: (v: string) => Promise<any>}} [o.lock] 第 2 步提交（锁屏凭证）
  * @param {() => void} o.onDone
- * @param {(step: 'root'|'account') => void} [o.onStep]
+ * @param {(step: 'root'|'lock') => void} [o.onStep]
  * @param {boolean} [o.autofocus] 默认 true
  * @returns {{destroy: () => void}}
  */
@@ -103,10 +103,10 @@ export function mountResetFlow(o) {
       go.disabled = true;
       o.submitRoot(v).then(function (r) {
         if (!alive) return;
-        if (r && r.needAccount) {
+        if (r && r.needLock) {
           rootKey = v;
           rf.input.value = '';
-          step2(r.needAccount);
+          step2(r.needLock);
           return;
         }
         rootKey = '';
@@ -131,10 +131,10 @@ export function mountResetFlow(o) {
   /** @param {{passkey?: boolean, password?: boolean}} need */
   function step2(need) {
     el.textContent = '';
-    if (o.onStep) o.onStep('account');
+    if (o.onStep) o.onStep('lock');
     const wrap = document.createElement('div');
     wrap.className = 'sgx-reset';
-    wrap.dataset.step = 'account';
+    wrap.dataset.step = 'lock';
     const lead = document.createElement('p');
     lead.className = 'sgx-reset-lead';
     lead.textContent = t('step2');
@@ -146,7 +146,7 @@ export function mountResetFlow(o) {
     hint.className = 'sgx-reset-recover-hint';
     hint.textContent = t('recover');
     el.appendChild(wrap);
-    const sub = o.account ? o.account(rootKey) : null;
+    const sub = o.lock ? o.lock(rootKey) : null;
     const guard = function (fn) {
       return function (/** @type {any} */ v) {
         if (!rootKey) return Promise.reject({ message: t('sessionLost') });
@@ -155,11 +155,11 @@ export function mountResetFlow(o) {
     };
     const defs = [];
     if (sub && need.passkey) defs.push({ kind: 'passkey', field: 'webauthn', icon: CRED_ICONS.passkey, title: t('mPasskey'), sub: t('mPasskeySub'), submit: guard(sub.passkey) });
-    if (sub && need.password) defs.push({ kind: 'password', field: 'password', icon: CRED_ICONS.password, title: t('mPassword'), sub: t('mPasswordSub'), submit: guard(sub.password), pmUser: KEY_ACCOUNT });
+    if (sub && need.password) defs.push({ kind: 'password', field: 'password', icon: CRED_ICONS.password, title: t('mPassword'), sub: t('mPasswordSub'), submit: guard(sub.password), pmUser: KEY_LOCK });
     if (!defs.length) {
       const none = document.createElement('p');
       none.className = 'sgx-reset-none';
-      none.textContent = t('noAccount');
+      none.textContent = t('noLock');
       rows.appendChild(none);
     } else {
       renderCredRows({

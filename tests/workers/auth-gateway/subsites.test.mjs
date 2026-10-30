@@ -31,7 +31,7 @@ function env(epoch = '0') {
     seen,
     SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB,
     KV_LOCK_DOOR: { async get() { return null; } },
-    D1_LOCK_AUTH: d1, D1_ACCOUNT_AUTH: d1, D1_ROOT_AUTH: d1,
+    D1_LOCK_AUTH: d1,
     ASSETS: {
       async fetch(req) {
         seen.push(new URL(req.url).hostname + new URL(req.url).pathname);

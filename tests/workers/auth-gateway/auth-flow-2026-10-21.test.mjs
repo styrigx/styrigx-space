@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { testLockSession, testAccountSession } from './_tickets.mjs';
+import { testLockSession, TEST_ACCOUNT_COOKIE, fakeAccountVerifier } from './_tickets.mjs';
 import { genKeyPair, makeAuthD1 } from '../_harness.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -26,7 +26,6 @@ const REPO = path.resolve(__dirname, '../../..');
 const worker = (await import(REPO + '/workers/auth-gateway/src/index.js')).default;
 const { readRoutes, pickRoute, routeMatches } = await import(REPO + '/scripts/lib/cf-routes.mjs');
 const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
-const { signAccountSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/account-session.js');
 
 const { priv: PRIV, pub: PUB } = await genKeyPair();
 const CTX = { waitUntil() {} };
@@ -40,11 +39,11 @@ function env() {
   const seen = [];
   const d1 = makeAuthD1(); /* 纪元在 D1，空库 → 0 */
   return {
-    D1_LOCK_AUTH: d1, D1_ACCOUNT_AUTH: d1, D1_ROOT_AUTH: d1,
+    D1_LOCK_AUTH: d1,
     seen,
-    SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, SGX_ACCOUNT_PUBLIC: PUB,
-    KV_LOCK_DOOR: { async get() { return null; }, async put() {} },
-    KV_ACCOUNT_LOGIN: { async get() { return null; }, async put() {} },
+    SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB,
+    /* 账号会话：网关经 ACCOUNT_VERIFIER 问账号 Worker（账号拆分 PR3），替身只认 TEST_ACCOUNT_COOKIE */
+    ACCOUNT_VERIFIER: fakeAccountVerifier(),
     ASSETS: {
       async fetch(req) {
         const u = new URL(req.url);
@@ -58,7 +57,7 @@ function env() {
   };
 }
 const lockCookie = async (role) => 'sgx-lock-session=' + (await testLockSession(PRIV, 0, role));
-const accountCookie = async () => 'sgx-account-session=' + (await testAccountSession(PRIV, 'passkey', 0, Date.now()));
+const accountCookie = async () => TEST_ACCOUNT_COOKIE;
 const get = (url, cookie) => worker.fetch(new Request(url, { headers: cookie ? { Cookie: cookie } : {} }), env(), CTX);
 
 /* ---------------- A. 路由 ---------------- */
@@ -219,6 +218,16 @@ test('E 账号页（管理员，无账号会话）：data-sgx-account-session=ou
   assert.match(html, /data-sgx-account-session="out"/);
   assert.match(html, /<div id="acct-login" class="acct-login">/);
   assert.match(html, /<div id="acct-main" hidden>/);
+});
+test('E 账号页（管理员）：ACCOUNT_VERIFIER 没绑 / RPC 出错 → 不给首帧提示（前端停在中性态等 GET /api/account）', async () => {
+  for (const verifier of [undefined, fakeAccountVerifier({ throws: true })]) {
+    const e = env();
+    e.ACCOUNT_VERIFIER = verifier;
+    const res = await worker.fetch(new Request('https://styrigx.com/account/', { headers: { Cookie: (await lockCookie('admin')) + '; ' + TEST_ACCOUNT_COOKIE } }), e, CTX);
+    const html = await res.text();
+    assert.equal(res.status, 200);
+    assert.doesNotMatch(html, /data-sgx-account-session="(in|out)"/);
+  }
 });
 test('E 账号页模板：登录区默认 hidden，并被 SGX-ACCT-LOGIN 标记包住（safeHTML）', () => {
   const tpl = fs.readFileSync(path.join(REPO, 'web/layouts/_default/account.html'), 'utf8');

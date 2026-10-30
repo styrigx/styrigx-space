@@ -6,7 +6,7 @@
  * - 账号密码：login-password
  * reauth:true 时服务端在账号会话之外另签 3 分钟 AccountReauthTicket（账号安全子页用）。
  * 三个提交都带 device（lib/device-hints.js：型号 / 平台），服务端记进设置 › 账号 › 设备。
- * root(value)：重置登录（账号）第一步，POST /api/root-auth { purpose:'account-reset' }（不是登录入口）→ AccountResetTicket。
+ * root(value)：重置登录（账号）第一步，POST /api/account { action:'root-reset', key }（账号根密钥，不是登录入口）→ AccountResetTicket。
  *
  * 行的渲染在 auth/cred-rows.js（锁屏弹层的重置登录也用它）。
  * 放在 lib/：账号页（apps/account*.js）和锁屏凭证页（apps/security-lock.js）都 import 它。
@@ -56,10 +56,10 @@ export function accountSubmitters(t, opts) {
       throw { message: t('errNetwork') };
     });
   }
-  /** 重置登录（账号）第一步：根凭证 → AccountResetTicket（3 分钟；不签账号会话，设好新凭证后正常登录） @param {string} value */
+  /** 重置登录（账号）第一步：账号根密钥 → AccountResetTicket（3 分钟；不签账号会话，设好新凭证后正常登录；账号拆分 PR3 起在账号 Worker） @param {string} value */
   function root(value) {
-    const body = { key: value, purpose: 'account-reset' };
-    return postJSON('/api/root-auth', body).then(function (res) {
+    const body = { action: 'root-reset', key: value };
+    return postJSON(ACCOUNT_API, body).then(function (res) {
       if (res.j && res.j.ok) return;
       if (res.s === 429) throw { message: t('errLocked') };
       if (res.j && res.j.error === 'config') throw { message: t('errConfig') };

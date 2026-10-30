@@ -13,15 +13,18 @@
  * 以前在 KV 时写后读最长约 60 秒才一致（现在 D1 强一致）：写完马上要读的地方仍先轮询到服务端看见新值（h.KV_SETTLE，见 preview-helpers.cjs
  * 文件头「写后读」），所以写状态的用例单条超时放到 h.KV_TEST_TIMEOUT（名字沿用）。
  *
- * 运行：SGX_TEST_SUITE=passkey SGX_TEST_BASE=https://<preview> SGX_TEST_ROOT_KEY=<预览测试 RootKey> \
+ * 预览站的 _worker.js 是组合入口 preview-worker.js（网关 + 账号 Worker 两边的真实代码，账号拆分 PR3）。
+ *
+ * 运行：SGX_TEST_SUITE=passkey SGX_TEST_BASE=https://<preview> SGX_TEST_ADMIN_KEY=<预览测试锁屏根密钥> \
+ *   SGX_TEST_ACCOUNT_ROOT_KEY=<预览测试账号根密钥> \
  *   [SGX_TEST_CF_TOKEN=… SGX_TEST_CF_ACCOUNT=… SGX_TEST_PREVIEW_D1_ID=…] \
  *   npx playwright test --config=tests/config/playwright.config.js
- * 本地没配 SGX_TEST_BASE / SGX_TEST_ROOT_KEY 时跳过；CI（CI=true）里缺了直接失败。
+ * 本地没配 SGX_TEST_BASE / SGX_TEST_ADMIN_KEY / SGX_TEST_ACCOUNT_ROOT_KEY 时跳过；CI（CI=true）里缺了直接失败。
  */
 const { test, expect } = require('@playwright/test');
 const h = require('./preview-helpers.cjs');
 
-const { BASE, ORIGIN, ROOT_KEY, SESSION, REAUTH } = h;
+const { BASE, ORIGIN, ADMIN_KEY, SESSION, REAUTH } = h;
 
 test.describe('锁屏凭证 e2e（预览站）', () => {
   h.requirePreview(test);
@@ -295,16 +298,16 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
     await h.armResetSwitch();
     let first = null;
     await expect.poll(async () => {
-      const r = await h.api(page, '/api/lock-reset', { action: 'verify', rootKey: ROOT_KEY });
-      if (r.status === 200 && r.json && r.json.ok && !r.json.needAccount) { first = r; return 'ticket'; }
+      const r = await h.api(page, '/api/lock-reset', { action: 'verify', rootKey: ADMIN_KEY });
+      if (r.status === 200 && r.json && r.json.ok && !r.json.needLock) { first = r; return 'ticket'; }
       return r.status + ' ' + JSON.stringify(r.json);
     }, { timeout: 90000, intervals: [3000, 10000, 15000, 20000] }).toBe('ticket');
     expect(h.setCookieLine(first.resp, 'sgx-lock-reset')).toContain('sgx-lock-reset=');
 
-    /* 已用过：账号已配置 → 200 needAccount；账号未配置 → 401 auth。两种都不签票 */
-    const again = await h.api(page, '/api/lock-reset', { action: 'verify', rootKey: ROOT_KEY });
+    /* 已用过：锁屏凭证已设置 → 200 needLock（再验锁屏凭证）；都没设置 → 401 auth。两种都不签票（账号拆分 PR3 起网关不读账号凭证） */
+    const again = await h.api(page, '/api/lock-reset', { action: 'verify', rootKey: ADMIN_KEY });
     expect(h.setCookieLine(again.resp, 'sgx-lock-reset')).toBe('');
-    if (again.status === 200) expect(again.json.needAccount).toBe(true);
+    if (again.status === 200) expect(again.json.needLock).toBe(true);
     else expect(again.status).toBe(401);
   });
 

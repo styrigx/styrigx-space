@@ -1,5 +1,6 @@
 /**
- * D1：重置登录第 2 步（锁屏弹层「无法登录？」→ 根凭证 → needAccount → 账号凭证行）通行密钥行 busy 态与取消不误报（e2e，mock WebAuthn）。
+ * D1：重置登录第 2 步（锁屏弹层「无法登录？」→ 锁屏根密钥 → needLock → 锁屏凭证行）通行密钥行 busy 态与取消不误报（e2e，mock WebAuthn）。
+ * 账号拆分 PR3：第 2 步验的是锁屏凭证（lockProof），网关不再读账号凭证。
  * PR3：行与账号登录同一套（auth/cred-rows.js），错误都在行内；验证时隐藏的是方法弹层 #sgx-method-sheet。
  *
  * 量化验收：
@@ -40,8 +41,8 @@ async function mockLockConfig(page) {
 }
 
 /**
- * /api/lock-reset mock：verify(身份) → needAccount；challenge → 计数；
- * verify(带 accountProof) → ok。
+ * /api/lock-reset mock：verify(根密钥) → needLock；challenge → 计数；
+ * verify(带 lockProof) → ok。
  * @param {import('@playwright/test').Page} page
  * @param {{challenge:number}} counters
  */
@@ -60,7 +61,7 @@ async function mockLockreset(page, counters) {
       });
       return;
     }
-    if (body.action === 'verify' && body.accountProof) {
+    if (body.action === 'verify' && body.lockProof) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -72,7 +73,7 @@ async function mockLockreset(page, counters) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ ok: true, needAccount: true, passkey: true, password: true }),
+        body: JSON.stringify({ ok: true, needLock: true, passkey: true, password: true }),
       });
       return;
     }
@@ -184,7 +185,7 @@ test.describe('reset (2/2) passkey busy', () => {
     await expect(rowErr).toHaveText('已取消验证，可重新选择');
     
     /* 留在本页：标题仍是 (2/2)，URL 未变 */
-    await expect(page.locator('.sgx-reset[data-step="account"]')).toBeVisible();
+    await expect(page.locator('.sgx-reset[data-step="lock"]')).toBeVisible();
     await expect(page.locator('#sgx-reset-title')).toHaveText('重置登录');
     expect(page.url()).toContain('?lock=1');
   });
@@ -211,7 +212,7 @@ test.describe('reset (2/2) passkey busy', () => {
     expect(text).not.toBe('pkNoKey');
     expect(text.length).toBeGreaterThan(0);
     /* 留在本页 */
-    await expect(page.locator('.sgx-reset[data-step="account"]')).toBeVisible();
+    await expect(page.locator('.sgx-reset[data-step="lock"]')).toBeVisible();
     await expect(page.locator('#sgx-reset-title')).toHaveText('重置登录');
   });
 
@@ -258,7 +259,7 @@ test.describe('reset (2/2) passkey busy', () => {
     await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row .sgx-credential-spin')).toHaveCount(0, { timeout: 8000 });
     await expect(page.locator('#sgx-method-sheet')).not.toHaveCSS('visibility', 'hidden');
     await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] > .sgx-credential-err')).toHaveText('这台设备上没有这把钥匙');
-    await expect(page.locator('.sgx-reset[data-step="account"]')).toBeVisible();
+    await expect(page.locator('.sgx-reset[data-step="lock"]')).toBeVisible();
     await expect(page.locator('#sgx-reset-title')).toHaveText('重置登录');
     expect(page.url()).toContain('?lock=1');
     /* 副标题/箭头恢复，两行可点 */
@@ -285,7 +286,7 @@ test.describe('reset (2/2) passkey busy', () => {
     await expect(page.locator('#sgx-method-sheet')).not.toHaveCSS('visibility', 'hidden');
     /* PR3：重置登录的错误都在行内（同一套验证行） */
     await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] > .sgx-credential-err')).toHaveText('通行密钥验证失败');
-    await expect(page.locator('.sgx-reset[data-step="account"]')).toBeVisible();
+    await expect(page.locator('.sgx-reset[data-step="lock"]')).toBeVisible();
     await expect(page.locator('#sgx-reset-title')).toHaveText('重置登录');
     expect(page.url()).toContain('?lock=1');
   });

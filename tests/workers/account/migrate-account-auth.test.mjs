@@ -218,6 +218,7 @@ test('apply：账号库建表（0003）并逐行原样拷贝；root 审计 / 限
   /* 旧库：除了新加的 lock 行和 lock_reset_switch，一行没动 */
   const gAfter = snapshot(G);
   delete gAfter.lock_reset_switch;
+  delete gBefore.lock_reset_switch; /* 网关 0008_lock_reset_switch.sql 在测试库里先建了空表（同预览）；生产没有 0008，表由 apply 建 */
   gAfter.audit = gAfter.audit.filter((r) => r.realm !== 'lock');
   gAfter.attempt_limit = gAfter.attempt_limit.filter((r) => !(r.realm === 'lock' && r.kind === 'rootkey'));
   assert.deepEqual(gAfter, gBefore);
