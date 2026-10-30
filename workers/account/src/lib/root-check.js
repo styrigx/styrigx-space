@@ -1,22 +1,16 @@
 /**
- * 根凭证（SGX_ROOT_KEY）校验：全站只有这一份实现（PR3「根凭证统一」）。
+ * 根密钥（SGX_ACCOUNT_ROOT_KEY）校验：全站只有这一份实现（PR3「根凭证统一」）。
  *
- * 用到根凭证的两条路径都走这里，再各自按用途签票：
- * - /api/root-auth   purpose=lock-reauth / lock-reset / account-reauth / account-reset
- *                    → 对应的 reset / reauth 票（by=root）；lock-reset 只在锁屏未设置时可用
- *                                      （「重置登录」：根凭证不是普通登录入口，只用来重置账号登录方式）
- * - /api/lock-reset  verify          → 重置开关有效：LockResetTicket(by=root)；
- *                                      否则 needAccount，再验账号凭证 → LockResetTicket(by=account)
+ * 账号 Worker 里只有一条路径用它：POST /api/account 的 root-reauth / root-reset（identity/account-root.js），再按用途签账号短票。
  *
  * 本函数只做：共用限速检查（全局减速时先等）→ 恒定时间比对（两边去空白）→ 失败计数 + 审计 / 成功清计数。
  * 不签任何票，不读重置开关。fail closed：限速或计数 D1 出错一律 503。
  *
  * 失败响应与假入口逐字节相同（401 { ok:false, error:'auth' }）；传 padTo 时在返回前对齐耗时。
  *
- * 按域参数化（账号拆分 PR1 搬到共享模块 workers/account/src/lib/，零行为变化）：rootChecker(realm) 给出某个根域的校验函数，
- * 密值名取 realm.secret、计数 / 审计经 realm.d1Binding（同一个域的 rootLimiter / rootAuditor）；本模块不认识具体的域。
- * 网关 _kernel/root-check.js 用 REALM_ROOT（SGX_ROOT_KEY、D1_ROOT_AUTH）绑好再导出，导出名字和行为与以前相同。
- * 现在仍然只有这一个根域。
+ * 按域参数化：rootChecker(realm) 给出某个根域的校验函数，
+ * 密值名取 realm.rootKey（方案 6.2：REALM_LOCK / REALM_ACCOUNT 各带 rootKey）、计数 / 审计经 realm.d1Binding（同一个域的 rootLimiter / rootAuditor）；本模块不认识具体的域。
+ * 账号 identity/account-root.js 用账号库上的 REALM_ACCOUNT（SGX_ACCOUNT_ROOT_KEY、D1_ACCOUNT_AUTH）绑好再用。
  */
 import { timingSafeEqual, normalizeRootKey } from './crypto.js';
 import { rootLimiter } from './root-limit.js';
@@ -25,7 +19,7 @@ import { apiError } from './http.js';
 
 /**
  * 某个根域的校验函数。
- * @param {{id:string, d1Binding:string, secret:string}} realm 根域描述对象（网关：REALM_ROOT）
+ * @param {{id:string, d1Binding:string, rootKey:string}} realm 根域描述对象（REALM_ACCOUNT）
  */
 export function rootChecker(realm) {
   const { checkRootLimit, recordRootFail, clearRootFail } = rootLimiter(realm);
@@ -42,7 +36,7 @@ export function rootChecker(realm) {
    */
   async function checkRootCredential(o) {
     const { env, ip, auditPath } = o;
-    const rootKey = (env && env[realm.secret]) || ''; /* 网关：SGX_ROOT_KEY */
+    const rootKey = (env && env[realm.rootKey]) || ''; /* SGX_ACCOUNT_ROOT_KEY */
     if (!rootKey || !(env && env[realm.d1Binding])) {
       return { ok: false, response: apiError(500, 'config') };
     }

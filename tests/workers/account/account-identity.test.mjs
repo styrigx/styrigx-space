@@ -16,6 +16,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { postReq } from '../_harness.mjs';
 import { makeAccountD1 } from './_d1.mjs';
+import { readLockIdentity, readClientContext } from '../../../workers/account/src/lib/lock-identity.js';
 import {
   K, keys, makeEnv, post, get, accSession, reauth, reset, full, pickCookie, setCookies, one, all, raw, epochOf, setEpoch,
   seedPassword, seedPasskey, setHandles, assertion, passkeyLogin, makeAttestationCredential,
@@ -45,7 +46,7 @@ const parseSess = (v) => { const [by, epoch, authAt, exp, deviceId] = v.split('.
 /* ================= 身份头 ================= */
 
 test('readLockIdentity：白名单——role 只认 admin / visitor，by 只认 password / passkey / tempkey，其它值当作没有；tempkeyId 只给访客', () => {
-  const r = (h) => account.readLockIdentity(new Request(URL_, { headers: h }));
+  const r = (h) => readLockIdentity(new Request(URL_, { headers: h }).headers);
   assert.deepEqual(r({ 'X-Styrigx-Lock-Role': 'admin', 'X-Styrigx-Lock-By': 'passkey' }), { role: 'admin', by: 'passkey', tempkeyId: '' });
   assert.deepEqual(r({ 'x-styrigx-lock-role': 'visitor', 'x-styrigx-lock-by': 'tempkey', 'x-styrigx-lock-tempkey-id': 'tk_1' }), { role: 'visitor', by: 'tempkey', tempkeyId: 'tk_1' });
   assert.equal(r({}), null);
@@ -64,6 +65,25 @@ test('clientAddress：读 X-Styrigx-Client-Address；不认 CF-Connecting-IP / X
   assert.equal(c({ 'CF-Connecting-IP': '5.6.7.8', 'X-Forwarded-For': '9.9.9.9' }), 'unknown');
   assert.equal(c({ 'X-Styrigx-Client-Address': 'evil; drop' }), 'unknown');
   assert.equal(c({ 'X-Styrigx-Client-Address': '1'.repeat(80) }), 'unknown');
+});
+
+test('readClientContext：address 只认 IP 字符（≤64）；country ≤4、city ≤40 且无控制字符，不合规整项 → \'\'；没有 headers → 三项空', () => {
+  const c = (h) => readClientContext(new Request(URL_, { headers: h }).headers);
+  assert.deepEqual(c({ 'X-Styrigx-Client-Address': ' 1.2.3.4 ', 'X-Styrigx-Client-Country': 'JP', 'X-Styrigx-Client-City': 'Tokyo' }), { address: '1.2.3.4', country: 'JP', city: 'Tokyo' });
+  assert.deepEqual(c({ 'X-Styrigx-Client-Address': 'evil; drop', 'X-Styrigx-Client-Country': 'JAPAN', 'X-Styrigx-Client-City': 'x'.repeat(41) }), { address: '', country: '', city: '' });
+  assert.deepEqual(c({ 'X-Styrigx-Client-City': 'Tok\u0007yo' }), { address: '', country: '', city: '' });
+  assert.deepEqual(c({ 'CF-IPCountry': 'US' }), { address: '', country: '', city: '' }, '不读 Cloudflare 自己的头');
+  assert.deepEqual(readClientContext(null), { address: '', country: '', city: '' });
+  assert.equal(readLockIdentity(null), null);
+  assert.equal(readLockIdentity({}), null);
+});
+
+test('lib/lock-identity.js：账号侧只读——导出头名常量 + readLockIdentity / readClientContext，没有写头 / 剥头的函数；不 import 任何东西', async () => {
+  const mod = await import('../../../workers/account/src/lib/lock-identity.js');
+  assert.deepEqual(Object.keys(mod).sort(), ['CLIENT_CONTEXT_HEADERS', 'LOCK_IDENTITY_HEADERS', 'readClientContext', 'readLockIdentity']);
+  const src = readFileSync(new URL('../../../workers/account/src/lib/lock-identity.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(src, /^\s*import\s/m);
+  assert.equal('readLockIdentity' in account, false, 'identity/account.js 不再自带一份白名单');
 });
 
 test('GET：没有身份头 / 访客 / 不认识的角色 → 401 session；只带锁屏会话 cookie 也不算（不验锁屏会话）', async () => {
@@ -659,7 +679,7 @@ test('设备「上次活动地点」：读 X-Styrigx-Client-Country / City，不
   const req = new Request(URL_, { headers: { 'X-Styrigx-Client-Country': 'JP', 'X-Styrigx-Client-City': 'Tokyo\u0007', 'User-Agent': 'Mozilla/5.0 (Linux; Android 14; SM-S918B Build/X) Chrome/120' } });
   Object.defineProperty(req, 'cf', { value: { country: 'US', city: 'Ashburn' } });
   const info = devices.deviceInfo(req, null);
-  assert.deepEqual([info.country, info.city, info.platform, info.browser, info.model], ['JP', 'Tokyo', 'Android', 'Chrome', 'SM-S918B']);
+  assert.deepEqual([info.country, info.city, info.platform, info.browser, info.model], ['JP', '', 'Android', 'Chrome', 'SM-S918B'], '带控制字符的城市整项不认（lib/lock-identity.js readClientContext 白名单）');
   const env = makeEnv();
   await devices.putDevice(env, { deviceId: TEST_DEVICE_ID, by: 'password', country: 'CN', city: 'Beijing', lastSeen: Date.now() - 31 * 60 * 1000 });
   raw(env).prepare('UPDATE device SET last_seen = ?').run(Date.now() - 31 * 60 * 1000);

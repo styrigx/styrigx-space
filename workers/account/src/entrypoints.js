@@ -1,7 +1,7 @@
 /**
  * @fileoverview 账号 Worker 的命名入口（账号拆分 PR2c，方案第 2、3、4、10.2 节）：
  * - AccountService（WorkerEntrypoint，fetch）：网关经服务绑定 ACCOUNT 转发过来的请求。
- *   读网关写的规范身份头（workers/account/src/lib/lock-identity.js 的头名；白名单校验复用 identity/account.js 的 readLockIdentity）
+ *   读网关写的规范身份头（lib/lock-identity.js readLockIdentity，白名单校验）
  *   → 现有账号路由表（头像、设置云同步、数字健康）+ 新的 /api/account（identity/account.js）。
  * - AccountVerifier（WorkerEntrypoint，RPC）：accountSession(cookieHeader, clientContext) 只回账号会话的校验结论，不签发任何东西。
  *
@@ -18,12 +18,11 @@
  */
 import { WorkerEntrypoint } from 'cloudflare:workers';
 import { MAX_COOKIE_HEADER } from './lib/cookies.js';
-import { CLIENT_CONTEXT_HEADERS } from './lib/lock-identity.js';
+import { CLIENT_CONTEXT_HEADERS, readLockIdentity } from './lib/lock-identity.js';
 import { API_ROUTES, route, tagRuntime } from './index.js';
 import { gate } from './gate.js';
 import { withNoStore, apiError } from './lib/http.js';
 import { resolveSecrets } from './secrets.js';
-import { readLockIdentity } from './identity/account.js';
 import { verifyAccountSession } from './identity/account-session.js';
 import * as accountApi from './identity/account.js';
 
@@ -40,7 +39,7 @@ const MAX_UA = 512;
  * @param {Record<string, any>} env 已换好密钥字符串的 env
  */
 export function headerAuth(request, env) {
-  const id = readLockIdentity(request);
+  const id = readLockIdentity(request && request.headers);
   const lock = id
     ? { ok: true, role: id.role, reason: 'ok' }
     : { ok: false, role: null, reason: 'no-identity' };
