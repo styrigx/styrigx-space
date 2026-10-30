@@ -3,7 +3,7 @@
  *
  * - 锁屏凭证任何时候都不许删到 0（403 last-key）：网关读不到账号凭证，不再按「账号是否已配置」放行。
  * - lock-entry 只回锁屏自己的 passkey / password，不再有 resetOnly / accountConfigured；
- *   库里遗留的 realm='account' 行（PR4 才删）不算锁屏凭证，网关也不读。
+ *   realm='account' 的行（正式网关库 PR4 已删，这里故意摆一行）不算锁屏凭证，网关也不读。
  * - 空站（无任何锁屏凭证）→ passkey / password 都是 false（A 启动流程保留，根凭证代开入口仍显示）。
  * - 网关运行时不碰 KV（生产残留 layer:lock-emptied 不读不写）。
  *

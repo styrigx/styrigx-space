@@ -3,8 +3,9 @@
  * 不访问网络：两个库都是 node:sqlite 内存库，套一层 D1 REST query 的替身（同 kv-migration.test.mjs 的 restD1）；
  * main() 用本地 HTTP 替身（CF_API_BASE）跑子进程，核对 --preview 的库 id 和退出码。
  *
- * 覆盖：--dry-run / apply / --verify / --reconcile / --reverse / --cleanup --confirm / --preview；幂等重跑；中途失败重跑补齐；
- * reconcile「更安全的赢」每条规则；reverse 方向；cleanup 必须先 verify；预览两边同库。
+ * 覆盖：--dry-run / apply / --lock-reset-switch / --verify / --cleanup --confirm / --preview；幂等重跑；中途失败重跑补齐；
+ * 合并规则（verify 用）每条规则；cleanup 必须先 verify；预览两边同库。
+ * PR4 删掉了切换期专用的 --reconcile / --reverse（cleanup 之后没有旧边可合并 / 可写回）及其用例。
  *
  * 运行：node --test tests/workers/account/migrate-account-auth.test.mjs
  */
@@ -32,13 +33,16 @@ const PREVIEW_DB = '1339bb0b-f9f8-4e3d-b413-ff07ca28ce69';
 
 /** 网关 0007（user_handle 加 legacy_handle，预览共库兼容） */
 const GW_LEGACY_MIG = '0007_user_handle_legacy_handle.sql';
+/** 网关 0009（PR4 删旧开关表）：脚本处理的是 cleanup 之前的网关库，这里的替身只跑到 0008 */
+const GW_DROP_MIG = '0009_drop_recovery_switch.sql';
 /**
- * 网关库：跑网关全部迁移（0001 recovery_switch + 0005 / 0006 认证表 + 0007 legacy_handle 列）。
+ * 网关库（cleanup 之前的样子）：跑网关迁移到 0008（0001 recovery_switch + 0005 / 0006 认证表 + 0007 legacy_handle 列 + 0008 lock_reset_switch）。
  * before0007 = true：只跑到 0006（0007 之前的老库：user_handle 没有 legacy_handle，测脚本的防御性 ALTER 补列）。
  */
 function gatewayDb(before0007) {
   const raw = new DatabaseSync(':memory:');
   for (const f of readdirSync(GW_MIG).filter((x) => x.endsWith('.sql')).sort()) {
+    if (f >= GW_DROP_MIG) continue;
     if (before0007 && f >= GW_LEGACY_MIG) continue;
     raw.exec(readFileSync(GW_MIG + f, 'utf8'));
   }
@@ -241,7 +245,7 @@ test('apply 幂等：再跑一次不写任何行；切换后新库改过 / 删�
   assert.deepEqual(snapshot(A), snapA);
   assert.deepEqual(snapshot(G), snapG);
   assert.match(again.lines.join('\n'), /account-passkey: already migrated, skipped/);
-  /* 新库上线后：删了一把通行密钥、改了密码、纪元推进；旧库又新加了开关行（窗口内不该发生，由 reconcile 处理） */
+  /* 新库上线后：删了一把通行密钥、改了密码、纪元推进；旧库又新加了开关行（由 --lock-reset-switch 处理） */
   A.exec("DELETE FROM passkey WHERE credential_id = 'ACCTPK1'; UPDATE epoch SET value = 30; UPDATE password SET record = 'NEW'");
   G.exec("INSERT INTO recovery_switch VALUES ('SW_LATE', 0, 0)");
   const third = await go(apis, 'apply');
@@ -249,7 +253,7 @@ test('apply 幂等：再跑一次不写任何行；切换后新库改过 / 删�
   assert.equal(one(A, "SELECT COUNT(*) AS n FROM passkey WHERE credential_id = 'ACCTPK1'").n, 0, '删掉的不写回来');
   assert.equal(one(A, 'SELECT value FROM epoch').value, 30, '纪元不回退');
   assert.equal(one(A, 'SELECT record FROM password').record, 'NEW');
-  assert.equal(one(G, "SELECT COUNT(*) AS n FROM lock_reset_switch WHERE hash = 'SW_LATE'").n, 0, 'apply 有标记就跳过；补齐是 --lock-reset-switch / reconcile 的事');
+  assert.equal(one(G, "SELECT COUNT(*) AS n FROM lock_reset_switch WHERE hash = 'SW_LATE'").n, 0, 'apply 有标记就跳过；补齐是 --lock-reset-switch 的事');
 });
 
 test('apply 中途失败：该类不写标记；再跑一次补齐，已写的不重复；之后 verify 通过', async () => {
@@ -369,174 +373,6 @@ test('--verify：apply 前失败（列出缺的标记和主键）；apply 后通
   for (const v of ['ACCTHASH', 'PUBX', 'HANDLE']) assert.ok(!out.includes(v), v);
 });
 
-/* ---------- --reconcile ---------- */
-
-test('--reconcile「更安全的赢」：纪元取大、设备退出取大 / 新设备补入、通行密钥新增补入 / 旧库删的新库也删 / signCount 取大、密码 updatedAt 新的赢、审计 / 限速补齐；新库自己的新东西不动', async () => {
-  const { G, A, apis } = await applied();
-  /* 切换窗口里旧网关（旧库）的写入 */
-  G.exec("UPDATE epoch SET value = 11 WHERE realm = 'account'");
-  G.prepare("UPDATE device SET revoked_at = ? WHERE device_id = 'DEV1'").run(NOW - 1000);
-  G.prepare("INSERT INTO device VALUES ('account', 'DEV4', ?, ?, 0, ?)").run(dev('DEV4', { createdAt: NOW - 100 }), NOW - 100, NOW + 400 * DAY);
-  G.prepare("INSERT INTO passkey VALUES ('account', 'ACCTPK3', ?)").run(pk('ACCTPK3', { createdAt: NOW - 100 }));
-  G.exec("DELETE FROM passkey WHERE realm = 'account' AND credential_id = 'ACCTPK2'");
-  G.prepare("UPDATE passkey SET record = ? WHERE realm = 'account' AND credential_id = 'ACCTPK1'").run(pk('ACCTPK1', { signCount: 9, lastUsedAt: NOW - 50 }));
-  G.prepare("UPDATE password SET record = ? WHERE realm = 'account'").run(pw('WINDOWHASH', NOW - 200));
-  G.prepare("INSERT INTO audit VALUES ('root', 'r7', ?, '2.2.2.x', 1, 0, '', 'account-reset', ?)").run(NOW - 300, NOW + 7 * DAY);
-  G.prepare("INSERT INTO audit VALUES ('root', 'r8', ?, '2.2.2.x', 0, 0, '', 'lock-reauth', ?)").run(NOW - 300, NOW + 7 * DAY);
-  G.exec("UPDATE attempt_limit SET count = 4, locked_until = 123 WHERE realm = 'root' AND bucket = '5.5.5.x'");
-  /* 新账号 Worker 上线后的写入（它的赢） */
-  A.exec("UPDATE epoch SET value = 13");
-  A.prepare("INSERT INTO passkey VALUES ('account', 'ACCTPK9', ?)").run(pk('ACCTPK9', { createdAt: NOW }));
-  A.prepare("INSERT INTO device VALUES ('account', 'DEV9', ?, ?, 0, ?)").run(dev('DEV9'), NOW, NOW + 400 * DAY);
-  A.exec("DELETE FROM device WHERE device_id = 'DEV2'"); /* 例如 prune；拷过的不补回 */
-  A.exec("UPDATE attempt_limit SET count = 10 WHERE kind = 'rootkey' AND bucket = '*'");
-
-  const res = await go(apis, 'reconcile');
-  assert.equal(res.ok, true, res.conflicts.join('\n'));
-  assert.equal(one(A, 'SELECT value FROM epoch').value, 13, '纪元取大（新库更大就不动）');
-  G.exec("UPDATE epoch SET value = 20 WHERE realm = 'account'");
-  await go(apis, 'reconcile');
-  assert.equal(one(A, 'SELECT value FROM epoch').value, 20, '纪元取大（旧库更大就推上去）');
-  assert.equal(one(A, "SELECT revoked_at FROM device WHERE device_id = 'DEV1'").revoked_at, NOW - 1000, '窗口内退出的设备在新库也退出');
-  assert.ok(one(A, "SELECT 1 AS x FROM device WHERE device_id = 'DEV4'"), '窗口内的新设备补入');
-  assert.ok(one(A, "SELECT 1 AS x FROM device WHERE device_id = 'DEV9'"), '新库自己的设备不动');
-  assert.equal(one(A, "SELECT 1 AS x FROM device WHERE device_id = 'DEV2'"), null, '拷过、新库删了的设备不补回');
-  const pks = rows(A, 'SELECT credential_id FROM passkey ORDER BY credential_id').map((r) => r.credential_id);
-  assert.deepEqual(pks, ['ACCTPK1', 'ACCTPK3', 'ACCTPK9'], '新的补入、旧库删的新库也删、新库自己的不动');
-  const r1 = JSON.parse(one(A, "SELECT record FROM passkey WHERE credential_id = 'ACCTPK1'").record);
-  assert.equal(r1.signCount, 9, 'signCount 取大');
-  assert.equal(r1.lastUsedAt, 0, '其余字段新库的赢');
-  assert.equal(JSON.parse(one(A, 'SELECT record FROM password').record).hash, 'WINDOWHASH', 'updatedAt 新的赢');
-  assert.deepEqual(one(A, "SELECT realm, path FROM audit WHERE id = 'r7'"), { realm: 'account', path: 'root-reset' });
-  assert.deepEqual(one(G, "SELECT realm, path FROM audit WHERE realm = 'lock' AND id = 'r8'"), { realm: 'lock', path: 'lock-reauth' });
-  assert.deepEqual(one(A, "SELECT count, locked_until FROM attempt_limit WHERE kind = 'rootkey' AND bucket = '5.5.5.x'"), { count: 4, locked_until: 123 });
-  assert.equal(one(A, "SELECT count FROM attempt_limit WHERE kind = 'rootkey' AND bucket = '*'").count, 10, '计数取大（新库更大不动）');
-  assert.deepEqual(one(G, "SELECT count, locked_until FROM attempt_limit WHERE realm = 'lock' AND kind = 'rootkey' AND bucket = '5.5.5.x'"), { count: 4, locked_until: 123 });
-  assert.ok(rows(A, 'SELECT name FROM data_migration').some((r) => r.name === 'account-passkey:ACCTPK3'), '补入的也记成拷过');
-  const v = await go(apis, 'verify');
-  assert.equal(v.ok, true, v.mismatches.join('\n'));
-  /* 幂等：再跑什么都不写 */
-  const snapA = snapshot(A);
-  const snapG = snapshot(G);
-  const again = await go(apis, 'reconcile');
-  assert.equal(again.written, 0);
-  assert.deepEqual(snapshot(A), snapA);
-  assert.deepEqual(snapshot(G), snapG);
-  /* 新库删了窗口后补进来的那把：旧库还有，也不补回 */
-  A.exec("DELETE FROM passkey WHERE credential_id = 'ACCTPK3'");
-  await go(apis, 'reconcile');
-  assert.equal(one(A, "SELECT 1 AS x FROM passkey WHERE credential_id = 'ACCTPK3'"), null);
-});
-
-test('--reconcile 密码：新库 updatedAt 更新就不动；updatedAt 相同而记录不同 → 列为冲突、不改、退出码非 0', async () => {
-  const { G, A, apis } = await applied();
-  A.prepare('UPDATE password SET record = ?').run(pw('NEWERHASH', NOW));
-  G.prepare("UPDATE password SET record = ? WHERE realm = 'account'").run(pw('OLDERHASH', NOW - DAY));
-  assert.equal((await go(apis, 'reconcile')).ok, true);
-  assert.equal(JSON.parse(one(A, 'SELECT record FROM password').record).hash, 'NEWERHASH');
-  G.prepare("UPDATE password SET record = ? WHERE realm = 'account'").run(pw('TIEHASH', NOW));
-  const res = await go(apis, 'reconcile');
-  assert.equal(res.ok, false);
-  assert.deepEqual(res.conflicts, ['account-password password {"realm":"account"} (same-updatedAt-different-record)']);
-  assert.equal(JSON.parse(one(A, 'SELECT record FROM password').record).hash, 'NEWERHASH');
-  assert.ok(!res.lines.join('\n').includes('TIEHASH'));
-  assert.equal((await go(apis, 'verify')).ok, false, '冲突也让 verify 失败');
-});
-
-test('--reconcile 开关表（9.4）：按 hash 合并到两边——只在一边的补到另一边；used 取大；first_seen 取非 0 中较小者', async () => {
-  const { G, apis } = await applied();
-  /* 旧代码在窗口里给没见过的开关开始计时、用掉了计时中的那个；新代码给同一个没见过的开关记了更晚的时间；新表多一行 */
-  G.prepare("UPDATE recovery_switch SET first_seen = ? WHERE hash = 'SW_UNSEEN'").run(NOW - 500);
-  G.exec("UPDATE recovery_switch SET used = 1 WHERE hash = 'SW_TIMING'");
-  G.prepare("UPDATE lock_reset_switch SET first_seen = ? WHERE hash = 'SW_UNSEEN'").run(NOW - 100);
-  G.exec("INSERT INTO lock_reset_switch VALUES ('SW_NEW', 0, 0)");
-  G.prepare("INSERT INTO recovery_switch VALUES ('SW_OLDONLY', ?, 0)").run(NOW - 10);
-  const res = await go(apis, 'reconcile');
-  assert.equal(res.ok, true);
-  const want = [
-    { hash: 'SW_NEW', first_seen: 0, used: 0 },
-    { hash: 'SW_OLDONLY', first_seen: NOW - 10, used: 0 },
-    { hash: 'SW_TIMING', first_seen: NOW - 3600000, used: 1 },
-    { hash: 'SW_UNSEEN', first_seen: NOW - 500, used: 0 },
-    { hash: 'SW_USED', first_seen: NOW - 3 * DAY, used: 1 },
-  ];
-  assert.deepEqual(rows(G, 'SELECT hash, first_seen, used FROM lock_reset_switch ORDER BY hash'), want);
-  assert.deepEqual(rows(G, 'SELECT hash, first_seen, used FROM recovery_switch ORDER BY hash'), want);
-  /* 一边 0、一边非 0：取非 0 */
-  G.exec("UPDATE recovery_switch SET first_seen = 777 WHERE hash = 'SW_NEW'");
-  await go(apis, 'reconcile');
-  assert.equal(one(G, "SELECT first_seen FROM lock_reset_switch WHERE hash = 'SW_NEW'").first_seen, 777);
-  assert.equal((await go(apis, 'verify')).ok, true);
-});
-
-test('--reconcile / --reverse：apply 没跑完就拒绝（什么都不写）', async () => {
-  const { G, A, apis } = pair();
-  seed(G);
-  const snap = snapshot(G);
-  await assert.rejects(go(apis, 'reconcile'), /apply not finished/);
-  await assert.rejects(go(apis, 'reverse'), /apply not finished/);
-  assert.deepEqual(snapshot(G), snap);
-  assert.deepEqual(tables(A), ['settings_sync', 'wb_daily']);
-});
-
-/* ---------- --reverse ---------- */
-
-test('--reverse（回滚）：同一规则反方向——新库的纪元 / 设备退出 / 新通行密钥 / 删除 / signCount / 新密码 / 审计 / 限速写回旧库；lock_reset_switch 的已用 / 已计时写回 recovery_switch', async () => {
-  const { G, A, apis } = await applied();
-  /* 观察期内新账号 Worker 的写入 */
-  A.exec("UPDATE epoch SET value = 12");
-  A.prepare("UPDATE device SET revoked_at = ? WHERE device_id = 'DEV1'").run(NOW - 5);
-  A.prepare("INSERT INTO device VALUES ('account', 'DEV9', ?, ?, 0, ?)").run(dev('DEV9', { createdAt: NOW }), NOW, NOW + 400 * DAY);
-  A.prepare("INSERT INTO passkey VALUES ('account', 'ACCTPK9', ?)").run(pk('ACCTPK9', { createdAt: NOW }));
-  A.exec("DELETE FROM passkey WHERE credential_id = 'ACCTPK2'");
-  A.prepare("UPDATE passkey SET record = ? WHERE credential_id = 'ACCTPK1'").run(pk('ACCTPK1', { signCount: 40 }));
-  A.prepare('UPDATE password SET record = ?').run(pw('ROLLBACKHASH', NOW));
-  A.prepare("INSERT INTO audit VALUES ('account', 'n1', ?, '3.3.3.x', 1, 0, '', 'root-reauth', ?)").run(NOW, NOW + 7 * DAY);
-  A.prepare("INSERT INTO audit VALUES ('account', 'n2', ?, '3.3.3.x', 1, 0, '', 'password-change', ?)").run(NOW, NOW + 30 * DAY);
-  A.exec("UPDATE attempt_limit SET count = 15 WHERE kind = 'rootkey' AND bucket = '*'");
-  /* 新网关：锁屏根密钥审计 / 限速、用掉一个开关、给没见过的开关计时 */
-  G.prepare("INSERT INTO audit VALUES ('lock', 'n3', ?, '3.3.3.x', 0, 0, '', 'lock-reset', ?)").run(NOW, NOW + 7 * DAY);
-  G.exec("UPDATE attempt_limit SET count = 9 WHERE realm = 'lock' AND kind = 'rootkey' AND bucket = '5.5.5.x'");
-  G.exec("UPDATE lock_reset_switch SET used = 1 WHERE hash = 'SW_TIMING'");
-  G.prepare("UPDATE lock_reset_switch SET first_seen = ? WHERE hash = 'SW_UNSEEN'").run(NOW - 7);
-  const aSnap = snapshot(A);
-
-  const res = await go(apis, 'reverse');
-  assert.equal(res.ok, true, res.conflicts.join('\n'));
-  const aAfter = snapshot(A);
-  const newMarks = aAfter.data_migration.map((r) => r.name).filter((n) => !aSnap.data_migration.some((r) => r.name === n));
-  assert.deepEqual(newMarks.sort(), ['account-device:DEV9', 'account-passkey:ACCTPK9'], '账号库只多了「拷过」的主键标记');
-  delete aAfter.data_migration;
-  delete aSnap.data_migration;
-  assert.deepEqual(aAfter, aSnap, 'reverse 不改账号库的数据');
-  assert.equal(one(G, "SELECT value FROM epoch WHERE realm = 'account'").value, 12);
-  assert.equal(one(G, "SELECT value FROM epoch WHERE realm = 'lock'").value, 4, '锁屏纪元不动');
-  assert.equal(one(G, "SELECT revoked_at FROM device WHERE device_id = 'DEV1'").revoked_at, NOW - 5);
-  assert.ok(one(G, "SELECT 1 AS x FROM device WHERE device_id = 'DEV9'"));
-  assert.deepEqual(rows(G, "SELECT credential_id FROM passkey WHERE realm = 'account' ORDER BY credential_id").map((r) => r.credential_id), ['ACCTPK1', 'ACCTPK9']);
-  assert.equal(JSON.parse(one(G, "SELECT record FROM passkey WHERE realm = 'account' AND credential_id = 'ACCTPK1'").record).signCount, 40);
-  assert.equal(one(G, "SELECT COUNT(*) AS n FROM passkey WHERE realm = 'lock'").n, 1, '锁屏通行密钥不动');
-  assert.equal(JSON.parse(one(G, "SELECT record FROM password WHERE realm = 'account'").record).hash, 'ROLLBACKHASH');
-  assert.equal(JSON.parse(one(G, "SELECT record FROM password WHERE realm = 'lock'").record).hash, 'LOCKHASH');
-  assert.deepEqual(one(G, "SELECT realm, path FROM audit WHERE id = 'n1'"), { realm: 'root', path: 'account-reauth' }, '账号根密钥审计写回旧根域');
-  assert.deepEqual(one(G, "SELECT realm, path FROM audit WHERE realm = 'root' AND id = 'n3'"), { realm: 'root', path: 'lock-reset' }, '锁屏根密钥审计写回旧根域');
-  assert.equal(one(G, "SELECT count FROM attempt_limit WHERE realm = 'root' AND bucket = '*'").count, 15);
-  assert.equal(one(G, "SELECT count FROM attempt_limit WHERE realm = 'root' AND bucket = '5.5.5.x'").count, 9);
-  assert.deepEqual(one(G, "SELECT used FROM recovery_switch WHERE hash = 'SW_TIMING'"), { used: 1 }, '已用的开关在旧表也是已用（旧代码不会让它复活）');
-  assert.equal(one(G, "SELECT first_seen FROM recovery_switch WHERE hash = 'SW_UNSEEN'").first_seen, NOW - 7);
-  /* 幂等 */
-  const snapG = snapshot(G);
-  assert.equal((await go(apis, 'reverse')).written, 0);
-  assert.deepEqual(snapshot(G), snapG);
-});
-
-test('--reverse：recovery_switch 不在（旧代码会自己建）时先建表再写回', async () => {
-  const { G, apis } = await applied();
-  G.exec("UPDATE lock_reset_switch SET used = 1 WHERE hash = 'SW_UNSEEN'; DROP TABLE recovery_switch");
-  assert.equal((await go(apis, 'reverse')).ok, true);
-  assert.deepEqual(rows(G, 'SELECT * FROM recovery_switch ORDER BY hash'), rows(G, 'SELECT * FROM lock_reset_switch ORDER BY hash'));
-});
-
 /* ---------- --cleanup --confirm ---------- */
 
 test('--cleanup：没有 --confirm 拒绝；verify 不过什么都不删；verify 过了删网关库 realm=account / root 的行并 DROP recovery_switch，锁屏和账号库不动', async () => {
@@ -551,8 +387,8 @@ test('--cleanup：没有 --confirm 拒绝；verify 不过什么都不删；verif
   assert.match(no.lines.join('\n'), /cleanup aborted: nothing deleted/);
   assert.deepEqual(snapshot(G), snapG);
   for (const c of calls.slice(n)) assert.match(c, /^[GA]: SELECT /, c);
-  /* reconcile 补齐后 → 删 */
-  await go(apis, 'reconcile');
+  /* 新库补上那台设备（新库不落后）后 → 删 */
+  A.prepare("INSERT INTO device VALUES ('account', 'DEVLATE', ?, 0, 0, ?)").run(dev('DEVLATE'), NOW + DAY);
   const aSnap = snapshot(A);
   const lockBefore = Object.fromEntries(['epoch', 'password', 'passkey', 'user_handle', 'challenge', 'attempt_limit', 'audit', 'tempkey', 'lock_reset_switch']
     .map((t) => [t, rows(G, 'SELECT * FROM ' + t + (t === 'lock_reset_switch' ? '' : " WHERE realm = 'lock'") + ' ORDER BY 1, 2')]));
@@ -586,7 +422,6 @@ test('预览（两边同一个库 styrigx-test-preview）：网关 0007 已带 l
   assert.equal((await go(apis, 'apply')).written, 0);
   const v = await go(apis, 'verify');
   assert.equal(v.ok, true, v.mismatches.join('\n'));
-  assert.equal((await go(apis, 'reconcile')).written, 0);
   const c = await go(apis, 'cleanup', { confirm: true });
   assert.equal(c.ok, true);
   assert.match(c.lines.join('\n'), /same database/);
@@ -648,7 +483,7 @@ test('mergeRow：每条规则只把目标边往更新 / 更严推，从不放宽
 
 /* ---------- --preview / 库 id / main ---------- */
 
-test('库 id：正式 = 网关 wrangler 的 D1_LOCK_AUTH + 账号 wrangler 的 D1_ACCOUNT_AUTH（不再兜底 D1_SETTINGS_SYNC）；--preview 只读 [env.preview]（styrigx-test-preview）', () => {
+test('库 id：正式 = 网关 wrangler 的 D1_LOCK_AUTH + 账号 wrangler 的 D1_ACCOUNT_AUTH（不再兜底 D1_SETTINGS_SYNC）；--preview 只读 [env.preview]（styrigx-test-preview）', async () => {
   const prod = resolveDbIds(ROOT, {});
   assert.equal(prod.gateway, '6931d1da-3502-480d-b0bd-de1bc4829d1d');
   assert.equal(prod.account, '03f60d23-9c2f-4f3d-a692-764ccaac6f5d');
@@ -666,7 +501,11 @@ test('库 id：正式 = 网关 wrangler 的 D1_LOCK_AUTH + 账号 wrangler 的 D
   assert.equal(modeOf(['--cleanup', '--confirm']), 'cleanup');
   assert.equal(modeOf(['--lock-reset-switch']), 'lock-reset-switch');
   assert.throws(() => modeOf(['--lock-reset-switch', '--verify']), /pick one mode/);
-  assert.throws(() => modeOf(['--verify', '--reverse']), /pick one mode/);
+  assert.throws(() => modeOf(['--verify', '--cleanup']), /pick one mode/);
+  /* PR4：切换期专用的 --reconcile / --reverse 已删：明确拒绝，不会落到默认的 apply */
+  assert.throws(() => modeOf(['--reconcile']), /removed in PR4/);
+  assert.throws(() => modeOf(['--reverse', '--preview']), /removed in PR4/);
+  await assert.rejects(go(pair().apis, 'reconcile'), /unknown mode/);
 });
 
 /** 本地 D1 REST 替身：库 id → 内存库；记下每次请求的库 id */

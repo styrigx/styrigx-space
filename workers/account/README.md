@@ -49,5 +49,5 @@ migrations/              D1 styrigx-account：0001_wellbeing.sql、0002_settings
 ## 分层与边界
 
 - 只 import 自己目录 `workers/account/` 下的文件和 `cloudflare:workers`；不 import 网关，网关也不 import 这里（`scripts/check-layers.mjs` 规则 14）。不存在 `workers/shared`（规则 15），需要的通用件在 `src/lib/` 各自一份。
-- 账号的数据：2026-10-28 云同步从 KV（`account-prefs`）搬到 D1，运行时不读 KV、没有回落。账号鉴权数据 2026-10-30 由 `scripts/migrate-account-auth.mjs` 从网关库拷到本库；网关库里的旧行 PR4 `--cleanup` 才删（7 天观察期后）。
+- 账号的数据：2026-10-28 云同步从 KV（`account-prefs`）搬到 D1，运行时不读 KV、没有回落。账号鉴权数据 2026-10-30 由 `scripts/migrate-account-auth.mjs` 从网关库拷到本库；网关库里的旧行已在 PR4 由 `--cleanup --confirm` 删除（Sloan 2026-10-30 决定不等 7 天观察期）。
 - 测试：`tests/workers/account/`。

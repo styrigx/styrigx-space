@@ -115,7 +115,7 @@ space（styrigx.com）相当于 One UI，blog、daymark、curio 等子站相当�
 - 敏感操作（注册/删除账号通行密钥、修改账号密码）要求有效的 3 分钟 AccountReauthTicket `sgx-account-reauth`
   （进「账号安全」子页前再验一次，离开即作废；会话还在时也认 AccountResetTicket），没有票返回 403 `reauth`，前端重新验证。
 - 改账号密码 / 删账号通行密钥时 `account-epoch` +1，其他设备的账号会话失效，当前设备重签。
-- 存储（账号拆分 PR3 起在 D1 `styrigx-account`，账号 Worker 的绑定 `D1_ACCOUNT_AUTH`，各表 `realm = 'account'`；网关库里遗留的旧行 PR4 清理）：
+- 存储（账号拆分 PR3 起在 D1 `styrigx-account`，账号 Worker 的绑定 `D1_ACCOUNT_AUTH`，各表 `realm = 'account'`；网关库里的旧行已在 PR4 删除）：
   `password`、`passkey`、`user_handle`、`challenge`、`epoch`、`device`（已退出的 `revoked_at > 0`）；
   「已配置」由凭证推出；账号密码登录限速在 `attempt_limit`（`kind = 'password'`，规则同锁屏密码）。
 - 缺账号钥匙 → 账号登录 503 `config`，只影响账号登录与进门，网站其余部分不受影响。
@@ -129,12 +129,10 @@ space（styrigx.com）相当于 One UI，blog、daymark、curio 等子站相当�
   `/account/security/`（`apps/account-security.js`）。顶栏没有 ‹ 返回（2026-10-20 删除），
   返回走浏览器 / 系统返回。原管理员凭证页（`security-owner`）已删除。
 - 遗留项（照实记录）：网关发给 chat / search 的内部请求仍写旧头 `X-Sgx-Role`（那两个 Worker 仍认它，统一留待以后）；
-  网关库里 `realm='account'` / `'root'` 的旧行和 Secrets Store 里不再被绑定的 `SGX_ROOT_KEY` 到 PR4 才清理。
-- 恢复开关表（账号拆分方案 9.4）：已改名 `lock_reset_switch`（网关 `migrations/0008_lock_reset_switch.sql`），网关代码只读写新表，
-  后台开开关插行用 `INSERT INTO lock_reset_switch …`。正式库不跑迁移，生产顺序：
-  ① `node scripts/migrate-account-auth.mjs --lock-reset-switch`（建表、从 `recovery_switch` 拷行并合并已用 / 计时状态）→
-  ② 部署改名后的网关代码 → ③ `node scripts/migrate-account-auth.mjs --verify`（开关表不一致就再跑 ① 再跑 ③）。
-  旧表 `recovery_switch` 由 PR4 的 `--cleanup --confirm` DROP，在 ③ 通过之后执行。
+- 账号拆分已完成（PR4）：D1 `styrigx-auth-gateway` 不再存账号数据，只剩锁屏数据（`realm='lock'` 的行和恢复开关表 `lock_reset_switch`）；
+  网关库里 `realm='account'` / `'root'` 的旧行和旧开关表 `recovery_switch` 已由 `scripts/migrate-account-auth.mjs --cleanup --confirm` 删除
+  （预览库走网关 `migrations/0009_drop_recovery_switch.sql`）；Secrets Store 里的旧 `SGX_ROOT_KEY` 已删除。
+- 恢复开关表（账号拆分方案 9.4）：叫 `lock_reset_switch`（网关 `migrations/0008_lock_reset_switch.sql`），后台开开关插行用 `INSERT INTO lock_reset_switch …`。
 
 ## 锁定与过期
 

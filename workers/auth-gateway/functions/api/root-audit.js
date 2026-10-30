@@ -9,7 +9,7 @@
  * - 只读；D1 失败 → 503
  *
  * 存储：D1 audit 表（realm = 'lock'，经 D1_LOCK_AUTH，_kernel/root-audit.js）：一条 ORDER BY ts DESC LIMIT 50。
- * 账号拆分前写在 realm='root' 的旧审计行不再读（7 天自然过期，PR4 cleanup 删除）。
+ * 账号拆分前写在 realm='root' 的旧审计行已在 PR4 由 --cleanup 删除（锁屏那一半先由 apply 拷成 realm='lock'）。
  */
 import { verifyLockSession } from '../_kernel/lock-session.js';
 import { listRootAudit } from '../_kernel/root-audit.js';

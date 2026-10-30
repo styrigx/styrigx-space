@@ -10,10 +10,10 @@
  * - LockKey：「安全与隐私 → 锁屏凭证」里存放的钥匙（解锁密码、锁屏通行密钥）
  *
  * 存储：D1 styrigx-auth-gateway，只经 D1_LOCK_AUTH 读写 realm='lock' 的行和恢复开关表 lock_reset_switch
- * （方案 9.4 由 recovery_switch 改名；网关代码不再读写旧表 recovery_switch。生产顺序：先跑 scripts/migrate-account-auth.mjs --lock-reset-switch（拷行），再部署本代码，再跑 --verify；--cleanup --confirm（DROP recovery_switch）属于 PR4，在这之后执行）。
+ * （方案 9.4 由 recovery_switch 改名；旧表已在 PR4 由 scripts/migrate-account-auth.mjs --cleanup --confirm DROP，预览库走 migrations/0009）。
  * 表见 migrations/0005_lock_account_state.sql、0006_auth_state.sql、0008_lock_reset_switch.sql（读写入口 d1-state.js 与各 _kernel 模块）。
  * 锁屏根密钥的限速（attempt_limit kind='rootkey'）和审计（audit）也是 realm='lock' 的行。
- * 库里遗留的 realm='account' / realm='root' 行由 PR4 scripts/migrate-account-auth.mjs --cleanup 删除，网关代码不读。
+ * 网关库里没有 realm='account' / realm='root' 的行（账号数据在账号 Worker 的 D1 styrigx-account；网关库的旧行 PR4 已由 --cleanup 删除）。
  *
  * 三张票（见 TICKETS），SGX_LOCK_* 签名，共用 Lock 纪元：
  * - LockSessionTicket（锁屏解锁后的 admin / visitor 会话）
@@ -114,7 +114,7 @@ export const REALM_LOCK = Object.freeze({
   epoch: LOCK_EPOCH, /* 纪元名（票里的纪元归属；D1 epoch 表按 realm 存一行） */
   /* challenge 表的 purpose（锁屏通行密钥注册 / 解锁，重置锁屏时验锁屏通行密钥）；5 分钟 */
   challenge: Object.freeze({ register: 'register', auth: 'auth', reset: 'reset', ttl: 300 }),
-  /* 锁屏根密钥（方案 6.2）：Secrets Store 名 SGX_ADMIN_KEY（后台新建一份，值等于原 SGX_ROOT_KEY；Secrets Store 不能直接改名，SGX_ROOT_KEY 不再被绑定、PR4 删）；只比对、不签会话 */
+  /* 锁屏根密钥（方案 6.2）：Secrets Store 名 SGX_ADMIN_KEY（后台新建一份，值等于原 SGX_ROOT_KEY；Secrets Store 不能直接改名，旧的 SGX_ROOT_KEY 已在 PR4 删除）；只比对、不签会话 */
   rootKey: 'SGX_ADMIN_KEY',
   /* 锁屏根密钥验过后能签的票（by=root） */
   rootIssues: Object.freeze([LOCK_REAUTH_TICKET, LOCK_RESET_TICKET]),

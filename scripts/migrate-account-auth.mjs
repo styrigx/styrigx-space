@@ -2,14 +2,16 @@
 /**
  * @fileoverview 账号拆分（PR2 → PR4）：账号认证数据 D1 styrigx-auth-gateway → D1 styrigx-account，
  * 以及恢复开关表 recovery_switch → lock_reset_switch（同在网关库；网关代码只读写 lock_reset_switch）。方案见账号拆分最终方案第 9.3 / 9.4 节。
- * 开关表的生产顺序：--lock-reset-switch（拷行）→ 部署改名后的网关代码 → --verify → PR4 的 --cleanup --confirm（DROP recovery_switch）。
+ * 生产上已按顺序执行完：apply → PR3 切流 → --lock-reset-switch（拷行）→ 部署改名后的网关代码 → --verify → --cleanup --confirm
+ * （删网关库 realm='account' / 'root' 的行、DROP recovery_switch）。PR4 起网关库不再有账号数据和旧开关表；
+ * 切换期专用的 --reconcile（切换窗口补齐、开关表双向合并）和 --reverse（回滚写回旧库）在 cleanup 之后没有旧边可合并 / 可写回，PR4 删除。
  *
  * 写法照 scripts/migrate-kv-to-d1.mjs：Cloudflare D1 REST（不依赖 wrangler 登录），凭据只从环境变量读；
  * 输出只有计数和主键，不打印任何值（密码记录、公钥、handle、IP 前缀以外的内容一律不出现）。
  *
  * 搬什么（「旧」= 网关库 G，「新」= 账号库 A；lock 两类和开关表的新旧都在 G）：
  *   account-epoch / account-password / account-passkey / account-device：G realm='account' → A，逐行原样
- *     （device 含已退出的行；passkey / device 另在 A.data_migration 记「拷过」的主键，见 reconcile）
+ *     （device 含已退出的行；passkey / device 另在 A.data_migration 记「拷过」的主键，见下）
  *   account-user-handle：G 账号 handle → A.handle；G 锁屏 handle → A.legacy_handle（账号登录继续认旧锁屏 handle）
  *   account-attempt-limit：G realm='account'（kind ≠ rootkey）→ A
  *   account-audit：G realm='account'（path 不是 root-reauth / root-reset）→ A（现在网关不写这种行，通常 0 条）
@@ -26,28 +28,23 @@
  *                      整类写完才写 A.data_migration 的类标记（中途失败 → 重跑补齐；有标记的类重跑跳过）
  *   --verify           按主键比较两边（行哈希 + 下面的规则）：新库每行都「至少和旧库一样新 / 一样安全」才算一致；
  *                      不一致逐条列出类名和主键，退出码 1。只读
- *   --reconcile        切换后把窗口内旧库的变化补到新库，「更安全的赢」：epoch 取大；device revoked_at / last_seen / expires_at 取大、
- *                      新设备补入；passkey 新的补入、旧库删掉的新库也删、signCount 取大；password 按 updatedAt 新的赢；
- *                      限速行各数取大；审计补缺；开关表按 hash 合并到两边（行只在一边 → 补到另一边，used 取大，first_seen 取非 0 中较小者）
  *   --lock-reset-switch 只搬开关表（方案 9.4 生产步骤 1，部署改名后的网关代码之前跑）：G 建 lock_reset_switch（SWITCH_CREATE），
  *                      INSERT OR IGNORE 拷 recovery_switch 的行（SWITCH_COPY），再按 9.4 合并规则把旧表里后来变化的 used / first_seen
  *                      推到新表（used 取大，first_seen 取非 0 中较小者；只写 lock_reset_switch，旧表不动），最后补上类标记。
  *                      与 apply 不同：类标记已在（PR2 / PR3 时 apply 过）也照样执行，可重复跑。不碰账号库的数据（只写 A.data_migration 标记）
- *   --reverse          只在回滚时用：同一规则反方向（新 → 旧；lock_reset_switch → recovery_switch）
- *   --cleanup --confirm 观察期后：先跑一次 verify（不过就什么都不删），再删 G 里 realm='account' / 'root' 的行，DROP TABLE recovery_switch。
+ *   --cleanup --confirm 先跑一次 verify（不过就什么都不删），再删 G 里 realm='account' / 'root' 的行，DROP TABLE recovery_switch。
  *                      两边是同一个库时（预览）不删 realm='account'（那就是账号自己的行）
  *   --preview          库 id 读 web/wrangler.toml 和 workers/account/wrangler.toml 的 [env.preview]（测试库 styrigx-test-preview，两边同一个库）
  *
- * 「另一边删掉的」和「新加的」怎么分：passkey / device 拷过的主键记在 A.data_migration（name = '<类名>:<主键>'）。
- *   一边有、另一边没有：记过 → 是被删的（删除赢：passkey 在有的那边也删，device 不补回去——被 prune 的设备票已随纪元失效）；
- *   没记过 → 是新加的，补过去并记上。
+ * 「新库删掉的」和「没拷过的」怎么分（verify 用）：passkey / device 拷过的主键记在 A.data_migration（name = '<类名>:<主键>'）。
+ *   旧库有、新库没有：记过 → 是新库后来删的，不算不一致；没记过 → 没拷过，算不一致。
  *
  * 用法：
  *   CF_API_TOKEN=… CF_ACCOUNT_ID=… node scripts/migrate-account-auth.mjs --dry-run
  *   CF_API_TOKEN=… CF_ACCOUNT_ID=… node scripts/migrate-account-auth.mjs
  *   CF_API_TOKEN=… CF_ACCOUNT_ID=… node scripts/migrate-account-auth.mjs --verify
  *   CF_API_TOKEN=… CF_ACCOUNT_ID=… node scripts/migrate-account-auth.mjs --lock-reset-switch
- *   … --reconcile | --reverse | --cleanup --confirm；任一模式加 --preview
+ *   … --cleanup --confirm；任一模式加 --preview
  * 选项：--gateway-d1 <id>（默认 workers/auth-gateway/wrangler.toml 的 D1_LOCK_AUTH = styrigx-auth-gateway）、
  *   --account-d1 <id>（默认 workers/account/wrangler.toml 的 D1_ACCOUNT_AUTH = styrigx-account；预览同名绑定在 [env.preview]）。
  *   CF_API_BASE 可指向 tests/web/e2e/preview-emulator.cjs 本地跑。
@@ -63,8 +60,6 @@ export const ACCOUNT_SCHEMA_FILE = 'workers/account/migrations/0003_account_auth
  *  生产不跑 migrations apply，由本脚本执行（apply / --lock-reset-switch） */
 export const SWITCH_CREATE = 'CREATE TABLE IF NOT EXISTS lock_reset_switch (hash TEXT PRIMARY KEY, first_seen INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0)';
 export const SWITCH_COPY = 'INSERT OR IGNORE INTO lock_reset_switch (hash, first_seen, used) SELECT hash, first_seen, used FROM recovery_switch';
-/** 0001_recovery_switch.sql（--reverse 写回旧表时表可能不在） */
-export const RECOVERY_CREATE = 'CREATE TABLE IF NOT EXISTS recovery_switch (hash TEXT PRIMARY KEY, first_seen INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0)';
 
 /** 旧根域审计 path → 账号根密钥审计 path */
 export const ROOT_PATH_TO_ACCOUNT = Object.freeze({ 'account-reauth': 'root-reauth', 'account-reset': 'root-reset' });
@@ -93,7 +88,6 @@ const q = (s) => "'" + s + "'";
 const inList = (xs) => '(' + xs.map(q).join(', ') + ')';
 const ACCOUNT_ROOT_PATHS = Object.keys(ROOT_PATH_TO_ACCOUNT);
 const NEW_ROOT_PATHS = Object.values(ROOT_PATH_TO_ACCOUNT);
-const PATH_TO_OLD = Object.fromEntries(Object.entries(ROOT_PATH_TO_ACCOUNT).map(([a, b]) => [b, a]));
 
 const LIMIT_COLS = ['realm', 'kind', 'bucket', 'count', 'strikes', 'locked_until', 'window_start', 'expires_at'];
 const LIMIT_MAX = ['count', 'strikes', 'locked_until', 'window_start', 'expires_at'];
@@ -101,46 +95,45 @@ const AUDIT_COLS = ['realm', 'id', 'ts', 'ip_prefix', 'ok', 'decoy', 'via', 'pat
 const withRealm = (realm) => (r) => Object.assign({}, r, { realm });
 
 /**
- * 一类数据：旧边（old）和新边（new）各在哪个库、哪些行；toNew / toOld 把一行换成另一边的形状。
+ * 一类数据：旧边（old）和新边（new）各在哪个库、哪些行；toNew 把旧边的一行换成新边的形状。
  * rule：合并规则（见 mergeRow）。expires：表有 expires_at（读源时跳过过期行）。baseline：记「拷过」的主键。
  * @typedef {{name: string, table: string, key: string[], cols: string[], rule: string, expires?: boolean, baseline?: boolean,
  *   max?: string[], old: {db: 'gateway'|'account', where: string, cols?: string[]}, new: {db: 'gateway'|'account', where: string, cols?: string[]},
- *   toNew: (r: any) => any, toOld: (r: any) => any}} Family
+ *   toNew: (r: any) => any}} Family
  */
 /** @type {ReadonlyArray<Family>} */
 export const FAMILIES = Object.freeze([
   { name: 'account-epoch', table: 'epoch', key: ['realm'], cols: ['realm', 'value'], rule: 'max', max: ['value'],
-    old: { db: 'gateway', where: "realm = 'account'" }, new: { db: 'account', where: "realm = 'account'" }, toNew: (r) => r, toOld: (r) => r },
+    old: { db: 'gateway', where: "realm = 'account'" }, new: { db: 'account', where: "realm = 'account'" }, toNew: (r) => r },
   { name: 'account-password', table: 'password', key: ['realm'], cols: ['realm', 'record'], rule: 'password',
-    old: { db: 'gateway', where: "realm = 'account'" }, new: { db: 'account', where: "realm = 'account'" }, toNew: (r) => r, toOld: (r) => r },
+    old: { db: 'gateway', where: "realm = 'account'" }, new: { db: 'account', where: "realm = 'account'" }, toNew: (r) => r },
   { name: 'account-passkey', table: 'passkey', key: ['realm', 'credential_id'], cols: ['realm', 'credential_id', 'record'], rule: 'passkey', baseline: true,
-    old: { db: 'gateway', where: "realm = 'account'" }, new: { db: 'account', where: "realm = 'account'" }, toNew: (r) => r, toOld: (r) => r },
+    old: { db: 'gateway', where: "realm = 'account'" }, new: { db: 'account', where: "realm = 'account'" }, toNew: (r) => r },
   { name: 'account-user-handle', table: 'user_handle', key: ['realm'], cols: ['realm', 'handle', 'legacy_handle'], rule: 'user-handle',
     old: { db: 'gateway', where: "realm = 'account'", cols: ['realm', 'handle'] }, new: { db: 'account', where: "realm = 'account'" },
-    toNew: (r) => r, toOld: (r) => r },
+    toNew: (r) => r },
   { name: 'account-device', table: 'device', key: ['realm', 'device_id'], cols: ['realm', 'device_id', 'record', 'last_seen', 'revoked_at', 'expires_at'],
     rule: 'max', max: ['last_seen', 'revoked_at', 'expires_at'], expires: true, baseline: true,
-    old: { db: 'gateway', where: "realm = 'account'" }, new: { db: 'account', where: "realm = 'account'" }, toNew: (r) => r, toOld: (r) => r },
+    old: { db: 'gateway', where: "realm = 'account'" }, new: { db: 'account', where: "realm = 'account'" }, toNew: (r) => r },
   { name: 'account-attempt-limit', table: 'attempt_limit', key: ['realm', 'kind', 'bucket'], cols: LIMIT_COLS, rule: 'max', max: LIMIT_MAX, expires: true,
     old: { db: 'gateway', where: "realm = 'account' AND kind <> 'rootkey'" }, new: { db: 'account', where: "realm = 'account' AND kind <> 'rootkey'" },
-    toNew: (r) => r, toOld: (r) => r },
+    toNew: (r) => r },
   { name: 'account-audit', table: 'audit', key: ['realm', 'id'], cols: AUDIT_COLS, rule: 'append', expires: true,
     old: { db: 'gateway', where: "realm = 'account' AND path NOT IN " + inList(NEW_ROOT_PATHS) },
-    new: { db: 'account', where: "realm = 'account' AND path NOT IN " + inList(NEW_ROOT_PATHS) }, toNew: (r) => r, toOld: (r) => r },
+    new: { db: 'account', where: "realm = 'account' AND path NOT IN " + inList(NEW_ROOT_PATHS) }, toNew: (r) => r },
   { name: 'root-attempt-limit-account', table: 'attempt_limit', key: ['realm', 'kind', 'bucket'], cols: LIMIT_COLS, rule: 'max', max: LIMIT_MAX, expires: true,
     old: { db: 'gateway', where: "realm = 'root' AND kind = 'rootkey'" }, new: { db: 'account', where: "realm = 'account' AND kind = 'rootkey'" },
-    toNew: withRealm('account'), toOld: withRealm('root') },
+    toNew: withRealm('account') },
   { name: 'root-audit-account', table: 'audit', key: ['realm', 'id'], cols: AUDIT_COLS, rule: 'append', expires: true,
     old: { db: 'gateway', where: "realm = 'root' AND path IN " + inList(ACCOUNT_ROOT_PATHS) },
     new: { db: 'account', where: "realm = 'account' AND path IN " + inList(NEW_ROOT_PATHS) },
-    toNew: (r) => Object.assign({}, r, { realm: 'account', path: ROOT_PATH_TO_ACCOUNT[r.path] }),
-    toOld: (r) => Object.assign({}, r, { realm: 'root', path: PATH_TO_OLD[r.path] }) },
+    toNew: (r) => Object.assign({}, r, { realm: 'account', path: ROOT_PATH_TO_ACCOUNT[r.path] }) },
   { name: 'root-attempt-limit-lock', table: 'attempt_limit', key: ['realm', 'kind', 'bucket'], cols: LIMIT_COLS, rule: 'max', max: LIMIT_MAX, expires: true,
     old: { db: 'gateway', where: "realm = 'root' AND kind = 'rootkey'" }, new: { db: 'gateway', where: "realm = 'lock' AND kind = 'rootkey'" },
-    toNew: withRealm('lock'), toOld: withRealm('root') },
+    toNew: withRealm('lock') },
   { name: 'root-audit-lock', table: 'audit', key: ['realm', 'id'], cols: AUDIT_COLS, rule: 'append', expires: true,
     old: { db: 'gateway', where: "realm = 'root' AND path IN " + inList(LOCK_ROOT_PATHS) },
-    new: { db: 'gateway', where: "realm = 'lock' AND path IN " + inList(LOCK_ROOT_PATHS) }, toNew: withRealm('lock'), toOld: withRealm('root') },
+    new: { db: 'gateway', where: "realm = 'lock' AND path IN " + inList(LOCK_ROOT_PATHS) }, toNew: withRealm('lock') },
 ]);
 /** 开关表单独一类（两边都在 G，按 hash 双向合并） */
 export const SWITCH_FAMILY = 'lock-reset-switch';
@@ -286,28 +279,26 @@ export function mergeRow(fam, s, d, c) {
 }
 
 /**
- * 一类数据从 from 边到 to 边的差异（不执行）。
- * @param {any} ctx @param {Family} fam @param {'old'|'new'} from @param {Set<string>} marks
+ * 一类数据旧边 → 新边的差异（不执行；verify / cleanup 用）。
+ * @param {any} ctx @param {Family} fam @param {Set<string>} marks
  */
-async function diffFamily(ctx, fam, from, marks) {
-  const to = from === 'old' ? 'new' : 'old';
-  const map = from === 'old' ? fam.toNew : fam.toOld;
-  const src = (await readSide(ctx, fam, from, true)).map(map);
-  const dst = await readSide(ctx, fam, to, false);
-  const dstCols = fam[to].cols || fam.cols;
+async function diffFamily(ctx, fam, marks) {
+  const src = (await readSide(ctx, fam, 'old', true)).map(fam.toNew);
+  const dst = await readSide(ctx, fam, 'new', false);
+  const dstCols = fam.new.cols || fam.cols;
   const S = new Map(src.map((r) => [keyOf(fam, r), r]));
   const D = new Map(dst.map((r) => [keyOf(fam, r), r]));
   const out = [];
   for (const k of [...new Set([...S.keys(), ...D.keys()])].sort()) {
     const s = S.get(k) || null;
     const d = D.get(k) || null;
-    for (const op of mergeRow(fam, s, d, { marks, dstCols })) out.push(Object.assign({ db: fam[to].db, key: keyObj(fam, s || d) }, op));
+    for (const op of mergeRow(fam, s, d, { marks, dstCols })) out.push(Object.assign({ db: fam.new.db, key: keyObj(fam, s || d) }, op));
   }
   return { ops: out, src: src.length, dst: dst.length };
 }
 
-/** 开关表：按 hash 合并两张表（G recovery_switch = old，G lock_reset_switch = new）。targets：要写哪边 */
-async function diffSwitch(ctx, targets) {
+/** 开关表：按 hash 把 G recovery_switch（old）合并进 G lock_reset_switch（new）——只算新表要补 / 要推严的行（旧表不写） */
+async function diffSwitch(ctx) {
   const read = async (t) => ((await ctx.hasTable('gateway', t)) ? ctx.select('gateway', 'SELECT hash, first_seen, used FROM ' + t + ' ORDER BY hash') : []);
   const O = new Map((await read('recovery_switch')).map((r) => [String(r.hash), r]));
   const N = new Map((await read('lock_reset_switch')).map((r) => [String(r.hash), r]));
@@ -317,8 +308,7 @@ async function diffSwitch(ctx, targets) {
     const n = N.get(h);
     const firsts = [o, n].filter(Boolean).map((r) => num(r.first_seen)).filter((x) => x > 0);
     const merged = { hash: h, used: Math.max(...[o, n].filter(Boolean).map((r) => num(r.used))), first_seen: firsts.length ? Math.min(...firsts) : 0 };
-    for (const [table, row] of [['recovery_switch', o], ['lock_reset_switch', n]]) {
-      if (!targets.includes(table)) continue;
+    for (const [table, row] of [['lock_reset_switch', n]]) {
       if (!row) {
         ops.push({ op: 'insert', why: 'missing', db: 'gateway', table, key: { hash: h }, sql: 'INSERT OR IGNORE INTO ' + table + ' (hash, first_seen, used) VALUES (?, ?, ?)', params: [h, merged.first_seen, merged.used] });
       } else if (num(row.used) !== merged.used || num(row.first_seen) !== merged.first_seen) {
@@ -337,7 +327,7 @@ async function diffSwitch(ctx, targets) {
 
 /**
  * @param {Apis} apis 两个库（gateway = styrigx-auth-gateway，account = styrigx-account；预览两个是同一个库，sameDb = true）
- * @param {{mode: 'dry-run'|'apply'|'lock-reset-switch'|'verify'|'reconcile'|'reverse'|'cleanup', confirm?: boolean, now?: number,
+ * @param {{mode: 'dry-run'|'apply'|'lock-reset-switch'|'verify'|'cleanup', confirm?: boolean, now?: number,
  *   schema?: string[], log?: (s: string) => void}} o schema：A 的建表语句（默认读 0003 文件）
  * @returns {Promise<{ok: boolean, lines: string[], written: number, mismatches: string[], conflicts: string[]}>}
  */
@@ -360,14 +350,14 @@ export async function run(apis, o) {
     if (o.mode === 'cleanup' && !o.confirm) throw new Error('--cleanup deletes data: add --confirm');
     for (const m of missing) res.mismatches.push(m + ' (marker missing: apply not finished)');
     for (const fam of FAMILIES) {
-      const d = await diffFamily(ctx, fam, 'old', marks);
+      const d = await diffFamily(ctx, fam, marks);
       for (const op of d.ops) {
         if (op.op === 'baseline') continue;
         (op.op === 'conflict' ? res.conflicts : res.mismatches).push(fmt(fam.name, Object.assign({ table: fam.table }, op)));
       }
       log(fam.name + ': ' + d.src + ' old / ' + d.dst + ' new row(s), ' + d.ops.filter((x) => x.op !== 'baseline').length + ' mismatch(es)');
     }
-    const sw = await diffSwitch(ctx, ['lock_reset_switch']);
+    const sw = await diffSwitch(ctx);
     for (const op of sw.ops) res.mismatches.push(fmt(SWITCH_FAMILY, op));
     log(SWITCH_FAMILY + ': ' + sw.old + ' recovery_switch / ' + sw.new + ' lock_reset_switch row(s), ' + sw.ops.length + ' mismatch(es)');
     const bad = res.mismatches.length + res.conflicts.length;
@@ -380,33 +370,7 @@ export async function run(apis, o) {
     return cleanup(ctx, log, res);
   }
 
-  /* reconcile（旧 → 新）/ reverse（新 → 旧） */
-  if (missing.length) throw new Error('apply not finished (markers missing: ' + missing.join(', ') + '); run apply first');
-  const from = o.mode === 'reverse' ? 'new' : 'old';
-  for (const fam of FAMILIES) {
-    const d = await diffFamily(ctx, fam, from, marks);
-    const n = { insert: 0, update: 0, delete: 0, conflict: 0 };
-    for (const op of d.ops) {
-      if (op.op === 'conflict') { n.conflict++; res.conflicts.push(fmt(fam.name, Object.assign({ table: fam.table }, op))); continue; }
-      if (op.op === 'baseline') { await ctx.write('account', op.sql, [op.params[0], now]); continue; }
-      const c = await ctx.write(/** @type {any} */ (op.db), op.sql, op.params);
-      n[op.op] += c;
-      res.written += c;
-    }
-    log(fam.name + ': ' + n.insert + ' inserted, ' + n.update + ' updated, ' + n.delete + ' deleted' + (n.conflict ? ', ' + n.conflict + ' conflict(s) left as is' : ''));
-  }
-  /* 开关表：两边都补齐（回滚时旧表必须拿到已用 / 已计时的状态） */
-  await ctx.write('gateway', SWITCH_CREATE);
-  await ctx.write('gateway', RECOVERY_CREATE);
-  ctx.forget();
-  const sw = await diffSwitch(ctx, ['recovery_switch', 'lock_reset_switch']);
-  let swn = 0;
-  for (const op of sw.ops) swn += await ctx.write('gateway', op.sql, op.params);
-  res.written += swn;
-  log(SWITCH_FAMILY + ': ' + swn + ' row(s) merged');
-  for (const c of res.conflicts) log('conflict: ' + c);
-  res.ok = res.conflicts.length === 0;
-  return res;
+  throw new Error('unknown mode: ' + o.mode);
 }
 
 async function dryRun(ctx, log, res) {
@@ -484,7 +448,7 @@ async function copySwitch(ctx, log, res) {
     return res;
   }
   const copied = await ctx.write('gateway', SWITCH_COPY);
-  const sw = await diffSwitch(ctx, ['lock_reset_switch']);
+  const sw = await diffSwitch(ctx);
   let merged = 0;
   for (const op of sw.ops) merged += await ctx.write('gateway', op.sql, op.params);
   if (await ctx.hasTable('account', 'data_migration')) {
@@ -560,7 +524,10 @@ export function resolveDbIds(repo, o) {
 
 /** @param {string[]} argv */
 export function modeOf(argv) {
-  const flags = ['--dry-run', '--lock-reset-switch', '--verify', '--reconcile', '--reverse', '--cleanup'].filter((f) => argv.includes(f));
+  /* PR4 删掉的切换期模式：明确拒绝，不能落到默认的 apply */
+  const removed = ['--reconcile', '--reverse'].filter((f) => argv.includes(f));
+  if (removed.length) throw new Error(removed.join(' ') + ' removed in PR4 (gateway account rows and recovery_switch are gone after --cleanup)');
+  const flags = ['--dry-run', '--lock-reset-switch', '--verify', '--cleanup'].filter((f) => argv.includes(f));
   if (flags.length > 1) throw new Error('pick one mode: ' + flags.join(' '));
   return flags.length ? /** @type {any} */ (flags[0].slice(2)) : 'apply';
 }

@@ -1365,8 +1365,8 @@ jobs:
     # 要按部署步骤在网关部署后手动删掉；删之前这 4 类路径 404。
     # 先把 D1 styrigx-account 的表结构迁到最新（migrations/，已迁过的跳过；失败要让 job 红，不 continue-on-error），再部署，再核对。
     # token：Cloudflare 上 styrigx-account-deploy = GitHub 环境 STYRIGX_ACCOUNT_DEPLOY 里的同名环境密钥 STYRIGX_ACCOUNT_DEPLOY，
-    # 权限 Workers Scripts 编辑 + Workers KV Storage 编辑 + D1 编辑 + Secrets Store 编辑（带 Secrets Store 绑定部署必须 Edit）+ Account Settings 读取
-    # （+ styrigx.com 的 Workers Routes 编辑：PR3 起已用不到，PR4 收回）；环境只允许 main。
+    # 权限 Workers Scripts 编辑 + Workers KV Storage 编辑 + D1 编辑 + Secrets Store 编辑（带 Secrets Store 绑定部署必须 Edit）+ Account Settings 读取；
+    # 没有路由，不需要 Workers Routes 权限；环境只允许 main。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     needs: [quality, passkey-e2e, deploy-search-worker, deploy-status-worker, deploy-chat-worker]

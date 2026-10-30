@@ -32,7 +32,7 @@ migrations/  D1 styrigx-auth-gateway 建表
 | Secrets Store | `SGX_PW_PEPPER` | 密码哈希 pepper；与账号 Worker 绑同一个密值（有意共用，Sloan 2026-10-30 确认不拆） |
 
 - 网关只有这 4 个密钥（`SGX_LOCK_*`、`SGX_ADMIN_KEY`、`SGX_PW_PEPPER`）。账号钥匙 `SGX_ACCOUNT_PRIVATE` / `SGX_ACCOUNT_PUBLIC` 和账号根密钥 `SGX_ACCOUNT_ROOT_KEY` 只绑在账号 Worker；网关不绑 `D1_ACCOUNT_AUTH` / `D1_ROOT_AUTH`，代码里也没有 `REALM_ACCOUNT` / `REALM_ROOT`。
-- `SGX_ADMIN_KEY` 要在部署 PR3 之前在 Secrets Store 新建，值等于原 `SGX_ROOT_KEY`（Secrets Store 不能直接改名）。PR3 起没有代码再绑定 `SGX_ROOT_KEY`，它在 Secrets Store 里留到 PR4 再删。
+- `SGX_ADMIN_KEY` 在部署 PR3 之前在 Secrets Store 新建，值等于原 `SGX_ROOT_KEY`（Secrets Store 不能直接改名）。旧的 `SGX_ROOT_KEY` 已在 PR4 从 Secrets Store 删除，任何 Worker 都不再绑定它。
 - 换钥只在 Cloudflare 后台改，不用改代码或重新部署（最多 60 秒生效）。
 - 不开 `*.workers.dev`、不开预览地址；只通过 `styrigx.com` 等路由访问。
 
@@ -52,7 +52,7 @@ migrations/  D1 styrigx-auth-gateway 建表
 
 网关的认证状态全部在 D1 `styrigx-auth-gateway`（强一致，写完下一个请求就读到），只有一个绑定名 `D1_LOCK_AUTH`（凭证域见 `functions/_kernel/realms.js` 的 `REALM_LOCK`）：纪元、锁屏密码 / 通行密钥、user handle、challenge、密码 / 临时码 / 锁屏根密钥输错计数、临时钥匙、锁屏根密钥审计（都是 `realm='lock'`），另外恢复开关表 `lock_reset_switch`（方案 9.4 由 `recovery_switch` 改名，网关代码不再读写旧表）。
 
-表：`migrations/0005_lock_account_state.sql`（epoch、passkey、password、kv_migration，每张表有 realm 列）、`0006_auth_state.sql`（user_handle、challenge、attempt_limit、tempkey、device、audit）、`0007_user_handle_legacy_handle.sql`、`0008_lock_reset_switch.sql`（恢复开关表；`0001_recovery_switch.sql` 是旧表）。代码在第一次遇到「no such table」时按 `functions/_kernel/lib/d1-state.js` 的 SCHEMA 建表（幂等，单测核对与迁移文件一致），正式部署 job 不跑迁移。
+表：`migrations/0005_lock_account_state.sql`（epoch、passkey、password、kv_migration，每张表有 realm 列）、`0006_auth_state.sql`（user_handle、challenge、attempt_limit、tempkey、device、audit）、`0007_user_handle_legacy_handle.sql`、`0008_lock_reset_switch.sql`（恢复开关表）、`0009_drop_recovery_switch.sql`（删 `0001_recovery_switch.sql` 建的旧表，只对走迁移的预览库生效）。代码在第一次遇到「no such table」时按 `functions/_kernel/lib/d1-state.js` 的 SCHEMA 建表（幂等，单测核对与迁移文件一致），正式部署 job 不跑迁移。
 
 恢复开关：在 D1 `styrigx-auth-gateway` 控制台插一行即可开启（首次读到起 24 小时内有效，用一次作废）：
 `INSERT INTO lock_reset_switch (hash, first_seen, used) VALUES (lower(hex(randomblob(16))), 0, 0);`
@@ -60,6 +60,5 @@ migrations/  D1 styrigx-auth-gateway 建表
 ## 遗留项（照实记录）
 
 - `X-Sgx-Role`：网关发给 chat / search 的内部请求仍写旧头 `X-Sgx-Role`（`functions/api/chat.js`、`search.js`），那两个 Worker 也仍认它；账号 Worker 只认 `X-Styrigx-Lock-*`。统一留待以后。
-- 恢复开关表已改名 `lock_reset_switch`（方案 9.4），网关代码只读写新表。正式库不跑迁移，生产顺序：① `node scripts/migrate-account-auth.mjs --lock-reset-switch`（建表、从 `recovery_switch` 拷行并合并已用 / 计时状态）→ ② 部署改名后的网关代码 → ③ `node scripts/migrate-account-auth.mjs --verify`（开关表有不一致就再跑 ① 再跑 ③）。旧表 `recovery_switch` 由 PR4 的 `--cleanup --confirm` DROP，在 ③ 通过之后执行。改名部署之后不要再往旧表插开关行。
-- PR4 才清理：D1 `styrigx-auth-gateway` 里遗留的 `realm='account'` / `'root'` 行（账号数据已由 `scripts/migrate-account-auth.mjs` 拷到 D1 `styrigx-account`；`--cleanup` 要等 7 天观察期）、Secrets Store 里已不被绑定的 `SGX_ROOT_KEY`。
+- 账号拆分已完成（PR4）：D1 `styrigx-auth-gateway` 只剩锁屏数据（`realm='lock'` 的行和 `lock_reset_switch`）。账号数据在 D1 `styrigx-account`（`scripts/migrate-account-auth.mjs` 拷过去）；网关库里 `realm='account'` / `'root'` 的旧行和旧开关表 `recovery_switch` 已由 `--cleanup --confirm` 删除；Secrets Store 里的旧 `SGX_ROOT_KEY` 已删除。恢复开关表改名（方案 9.4）的生产顺序当时是：`--lock-reset-switch` 拷行 → 部署改名代码 → `--verify` → `--cleanup --confirm`。
 - 历史：2026-10-27 认证状态从 KV 搬到 D1（`scripts/migrate-kv-to-d1.mjs`，一次性，已完成），旧认证库 KV namespace 2026-10-29 已删除。

@@ -10,10 +10,10 @@
  * （tests/workers/auth-gateway/d1-state.test.mjs 扫网关源码核对：任何地方出现 session API 调用就失败。）
  *
  * 表（migrations/0005_lock_account_state.sql、0006_auth_state.sql，库 styrigx-auth-gateway；SCHEMA 是同一份语句的代码兜底）：
- * 都是小写 snake_case 名词、都有 realm 列（网关只读写 'lock'；库里遗留的 'account' / 'root' 行 PR4 清）。本文件管 epoch / passkey / password / user_handle；
+ * 都是小写 snake_case 名词、都有 realm 列（网关只读写 'lock'；'account' / 'root' 的行账号拆分 PR4 已从网关库删除）。本文件管 epoch / passkey / password / user_handle；
  * challenge（passkey-verify.js）、attempt_limit（attempt-limit.js）、tempkey（lock-tempkey.js）、
  * audit（root-audit.js）的 SQL 在各自模块里，经这里的 authDb / withSchema 访问。kv_migration 只有导入脚本写。
- * 绑定按域：realm.d1Binding（账号拆分 PR3 起网关只有 lock → D1_LOCK_AUTH；库里遗留的 realm='account' / 'root' 行网关不再读写，PR4 清）。
+ * 绑定按域：realm.d1Binding（账号拆分 PR3 起网关只有 lock → D1_LOCK_AUTH；网关库 PR4 起只剩 realm='lock' 的行）。
  * 恢复开关表 lock_reset_switch 也经 D1_LOCK_AUTH（lock-reset-switch.js，迁移 migrations/0008_lock_reset_switch.sql）。
  *
  * 上线前的 KV 旧值：scripts/migrate-kv-to-d1.mjs 在部署前跑一次写进 D1（运行时不读 KV，没有回落）。
