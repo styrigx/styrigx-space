@@ -129,8 +129,12 @@ space（styrigx.com）相当于 One UI，blog、daymark、curio 等子站相当�
   `/account/security/`（`apps/account-security.js`）。顶栏没有 ‹ 返回（2026-10-20 删除），
   返回走浏览器 / 系统返回。原管理员凭证页（`security-owner`）已删除。
 - 遗留项（照实记录）：网关发给 chat / search 的内部请求仍写旧头 `X-Sgx-Role`（那两个 Worker 仍认它，统一留待以后）；
-  恢复开关表仍叫 `recovery_switch`（改名 `lock_reset_switch` 留待以后，且必须在 PR4 `--cleanup` 之前完成，因为 `--cleanup` 会 DROP 它）；
   网关库里 `realm='account'` / `'root'` 的旧行和 Secrets Store 里不再被绑定的 `SGX_ROOT_KEY` 到 PR4 才清理。
+- 恢复开关表（账号拆分方案 9.4）：已改名 `lock_reset_switch`（网关 `migrations/0008_lock_reset_switch.sql`），网关代码只读写新表，
+  后台开开关插行用 `INSERT INTO lock_reset_switch …`。正式库不跑迁移，生产顺序：
+  ① `node scripts/migrate-account-auth.mjs --lock-reset-switch`（建表、从 `recovery_switch` 拷行并合并已用 / 计时状态）→
+  ② 部署改名后的网关代码 → ③ `node scripts/migrate-account-auth.mjs --verify`（开关表不一致就再跑 ① 再跑 ③）。
+  旧表 `recovery_switch` 由 PR4 的 `--cleanup --confirm` DROP，在 ③ 通过之后执行。
 
 ## 锁定与过期
 

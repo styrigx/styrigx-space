@@ -34,7 +34,7 @@ export const PER_RUN_ESTIMATE = Object.freeze({ read: 0, write: 0, delete: 0, li
  * - audit：只追加的审计（7 天后不认），只有 /api/root-audit 读，passkey 组不测它。
  * - challenge：一次性随机 cid（5 分钟后不认），新运行拿不到旧 cid。
  * - tempkey、device：passkey 组不创建临时钥匙，也不做成功的账号登录；都有 expires_at。
- * - recovery_switch：签过票的行标了已用，永不再生效；用例要用时插一行新的（preview-helpers.cjs armResetSwitch）。
+ * - lock_reset_switch（旧表 recovery_switch 网关已不读写）：签过票的行标了已用，永不再生效；用例要用时插一行新的（preview-helpers.cjs armResetSwitch）。
  * - kv_migration：只有导入脚本写，运行时不读。
  */
 export const RESET_D1_TABLES = Object.freeze(['passkey', 'password', 'attempt_limit']);

@@ -23,9 +23,26 @@ import { makeKV, genKeyPair, postReq, authD1For } from '../_harness.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 
-/* 恢复开关：2026-10-27 起在 D1 recovery_switch 表（D1_LOCK_AUTH），不再有 KV 键（模块不再导出键名） */
+/* 恢复开关：2026-10-27 起在 D1（D1_LOCK_AUTH），不再有 KV 键（模块不再导出键名）；方案 9.4 起表名 lock_reset_switch */
 const SWITCH_MOD = await import('../../../workers/auth-gateway/functions/_kernel/lock-reset-switch.js');
 assert.equal('LOCK_RESET_SWITCH_KEY' in SWITCH_MOD, false, '开关不再是 KV 键');
+
+test('恢复开关表名 lock_reset_switch（方案 9.4）：CREATE_SQL 与 migrations/0008_lock_reset_switch.sql 的建表语句一致；模块去掉注释后不再出现旧表名 recovery_switch', async () => {
+  const fs = await import('node:fs');
+  const flat = (x) => x.replace(/\s+/g, ' ').replace(/\( /g, '(').replace(/ \)/g, ')').trim();
+  const mig = fs.readFileSync(REPO + 'workers/auth-gateway/migrations/0008_lock_reset_switch.sql', 'utf8')
+    .split('\n').map((l) => l.replace(/--.*$/, '')).join('\n').split(';').map(flat).filter(Boolean);
+  assert.equal(mig[0], SWITCH_MOD.CREATE_SQL);
+  assert.equal(mig[1], 'INSERT OR IGNORE INTO lock_reset_switch (hash, first_seen, used) SELECT hash, first_seen, used FROM recovery_switch');
+  const code = fs.readFileSync(REPO + 'workers/auth-gateway/functions/_kernel/lock-reset-switch.js', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.doesNotMatch(code, /recovery_switch/);
+  assert.equal((code.match(/\block_reset_switch\b/g) || []).length, 7, 'CREATE_SQL + 6 条读写');
+  /* 网关运行时代码（functions/、src/）去掉注释后都不再读写旧表 */
+  const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(d + '/' + e.name) : /\.m?js$/.test(e.name) ? [d + '/' + e.name] : []));
+  for (const f of [...walk(REPO + 'workers/auth-gateway/functions'), ...walk(REPO + 'workers/auth-gateway/src')]) {
+    assert.doesNotMatch(fs.readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''), /recovery_switch/, f);
+  }
+});
 
 /* 测试用 Ed25519 密钥（运行时生成，仅测试，不用于生产） */
 let TEST_PRIV_PEM = '';
@@ -175,18 +192,18 @@ test('2.11 重置锁屏：锁屏凭证一项都没有且开关关闭 → status 
   assert.equal(body.error, 'auth');
 });
 
-/* ============ 4. 恢复开关（D1 recovery_switch：计时 / 单次；表名本 PR 不改） ============ */
+/* ============ 4. 恢复开关（D1 lock_reset_switch：计时 / 单次） ============ */
 
 const DAY_MS = 24 * 3600 * 1000;
 /** 某份 kv 对应的那个 D1（baseEnv 里三个绑定都是它） */
 const switchDb = (kv) => authD1For(kv);
 /** 模拟 Sloan 在 D1 控制台插一行「还没见过」的开关（firstSeen = 0），或摆一行已计时 / 已用的 */
 function openSwitch(db, hash, firstSeen = 0, used = 0) {
-  db.raw.prepare('INSERT INTO recovery_switch (hash, first_seen, used) VALUES (?, ?, ?)').run(hash, firstSeen, used);
+  db.raw.prepare('INSERT INTO lock_reset_switch (hash, first_seen, used) VALUES (?, ?, ?)').run(hash, firstSeen, used);
 }
-const switchRows = (db) => db.raw.prepare('SELECT * FROM recovery_switch ORDER BY hash').all().map((r) => Object.assign({}, r));
+const switchRows = (db) => db.raw.prepare('SELECT * FROM lock_reset_switch ORDER BY hash').all().map((r) => Object.assign({}, r));
 /** 读过 / 写过开关表没有（看执行过的 SQL） */
-const touchedSwitch = (db) => db.calls.some((sql) => /recovery_switch/.test(sql));
+const touchedSwitch = (db) => db.calls.some((sql) => /lock_reset_switch|recovery_switch/.test(sql));
 
 function switchEnv(kv, hash) {
   const env = baseEnv(kv);
@@ -197,7 +214,7 @@ function switchEnv(kv, hash) {
 test('2.11 开关：不存在 → 关闭（根凭证正确后返回 needLock）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
   const kv = configuredKV({ lock: true });
-  const env = switchEnv(kv); /* recovery_switch 没有行 */
+  const env = switchEnv(kv); /* lock_reset_switch 没有行 */
   const req = postReq('https://test.example.com/api/lock-reset', {
     action: 'verify', rootKey: 'test-root-key-12345',
   });
@@ -277,7 +294,7 @@ test('2.11 开关：D1 缺失/失败 → fail closed', async () => {
   /* D1 抛错（即使有可用的行） */
   const db = switchDb(makeKV());
   openSwitch(db, 'some');
-  db.failOn = (sql) => /recovery_switch/.test(sql);
+  db.failOn = (sql) => /lock_reset_switch/.test(sql);
   const r2 = await checkLockResetSwitch(db);
   assert.equal(r2.valid, false);
   assert.equal(r2.reason, 'd1-error');
@@ -290,7 +307,7 @@ test('2.11 开关：D1 出错时重置路径不签 lockreset（单根）', async
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
   const kv = configuredKV({ lock: true });
   const env = switchEnv(kv, 'switch-1');
-  switchDb(kv).failOn = (sql) => /recovery_switch/.test(sql);
+  switchDb(kv).failOn = (sql) => /lock_reset_switch/.test(sql);
   const res = await onRequestPost({ request: postReq('https://test.example.com/api/lock-reset', { action: 'verify', rootKey: 'test-root-key-12345' }), env });
   const body = await res.json();
   assert.notDeepEqual(body, { ok: true }, '开关读不到不能当打开');
@@ -471,7 +488,7 @@ test('2.11 补充二：计时 24 小时后，开关在重置路径上已失效',
   await touchLockResetSwitch(db);
   assert.ok(switchRows(db)[0].first_seen > 0);
   /* 把首次时间拨到 25 小时前（模拟过期） */
-  db.raw.prepare('UPDATE recovery_switch SET first_seen = ? WHERE hash = ?').run(Date.now() - 25 * 3600 * 1000, 'timer-1');
+  db.raw.prepare('UPDATE lock_reset_switch SET first_seen = ? WHERE hash = ?').run(Date.now() - 25 * 3600 * 1000, 'timer-1');
   /* 重置路径：根凭证正确，但开关已过期 → needLock（而非 lockreset） */
   const req = postReq('https://test.example.com/api/lock-reset', {
     action: 'verify', rootKey: 'test-root-key-12345',
@@ -487,7 +504,7 @@ test('2.11 补充二：计时 24 小时后，开关在重置路径上已失效',
 
 /* ============ 11. 补充四：恢复开关提示仅出现在重置第二步 ============ */
 
-test('2.11 补充四：根凭证错误的 lockreset 响应不含 lock-reset-switch / recovery_switch', async () => {
+test('2.11 补充四：根凭证错误的 lockreset 响应不含 lock-reset-switch / lock_reset_switch / recovery_switch', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
   const kv = configuredKV({ lock: true });
   const env = switchEnv(kv, 'some-secret');
@@ -497,10 +514,10 @@ test('2.11 补充四：根凭证错误的 lockreset 响应不含 lock-reset-swit
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 401);
   const text = await res.text();
-  assert.ok(!text.includes('lock-reset-switch') && !text.includes('recovery_switch') && !text.includes('some-secret'), '错误响应不应泄露开关');
+  assert.ok(!text.includes('lock-reset-switch') && !text.includes('lock_reset_switch') && !text.includes('recovery_switch') && !text.includes('some-secret'), '错误响应不应泄露开关');
 });
 
-test('2.11 补充四：访客假入口（root-auth）响应不含 lock-reset-switch / recovery_switch', async () => {
+test('2.11 补充四：访客假入口（root-auth）响应不含 lock-reset-switch / lock_reset_switch / recovery_switch', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
   const kv = configuredKV({ lock: true });
   const env = switchEnv(kv, 'some-secret');
@@ -509,7 +526,7 @@ test('2.11 补充四：访客假入口（root-auth）响应不含 lock-reset-swi
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 401);
   const text = await res.text();
-  assert.ok(!text.includes('lock-reset-switch') && !text.includes('recovery_switch') && !text.includes('some-secret'), '假入口响应不应泄露开关');
+  assert.ok(!text.includes('lock-reset-switch') && !text.includes('lock_reset_switch') && !text.includes('recovery_switch') && !text.includes('some-secret'), '假入口响应不应泄露开关');
 });
 
 test('2.11 补充四：C2 重置第二步恢复提示（lock.js，无键名）', async () => {

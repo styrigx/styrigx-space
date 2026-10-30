@@ -14,7 +14,7 @@
  * challenge（passkey-verify.js）、attempt_limit（attempt-limit.js）、tempkey（lock-tempkey.js）、
  * audit（root-audit.js）的 SQL 在各自模块里，经这里的 authDb / withSchema 访问。kv_migration 只有导入脚本写。
  * 绑定按域：realm.d1Binding（账号拆分 PR3 起网关只有 lock → D1_LOCK_AUTH；库里遗留的 realm='account' / 'root' 行网关不再读写，PR4 清）。
- * 恢复开关 recovery_switch 也经 D1_LOCK_AUTH（lock-reset-switch.js）。
+ * 恢复开关表 lock_reset_switch 也经 D1_LOCK_AUTH（lock-reset-switch.js，迁移 migrations/0008_lock_reset_switch.sql）。
  *
  * 上线前的 KV 旧值：scripts/migrate-kv-to-d1.mjs 在部署前跑一次写进 D1（运行时不读 KV，没有回落）。
  *

@@ -211,9 +211,9 @@ function loadState() {
   if (!STATE || !fs.existsSync(STATE)) return;
   const s = JSON.parse(fs.readFileSync(STATE, 'utf8'));
   for (const [k, e] of Object.entries(s.kv || {})) store.set(k, e);
-  /* 旧格式（只有 recovery_switch）也认 */
-  const tables = s.d1 || (s.recovery_switch ? { recovery_switch: s.recovery_switch } : {});
-  if (tables.recovery_switch) db.exec('CREATE TABLE IF NOT EXISTS recovery_switch (hash TEXT PRIMARY KEY, first_seen INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0)');
+  /* 旧格式（只有 recovery_switch 一个键）也认：那些是开关行，方案 9.4 起载入 lock_reset_switch */
+  const tables = s.d1 || (s.recovery_switch ? { lock_reset_switch: s.recovery_switch } : {});
+  if (tables.lock_reset_switch) db.exec('CREATE TABLE IF NOT EXISTS lock_reset_switch (hash TEXT PRIMARY KEY, first_seen INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0)');
   const have = new Set(d1Tables());
   for (const [t, rows] of Object.entries(tables)) {
     if (!have.has(t) || !/^[a-z_]+$/.test(t)) continue; /* --no-migrations 时表还没建：交给网关自建，不恢复 */

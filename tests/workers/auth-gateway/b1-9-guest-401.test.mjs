@@ -39,7 +39,7 @@ const CONFIGURED = true;
 /** 网关发过的 D1 语句数 */
 const totalCalls = (db) => db.calls.length;
 /** 整库快照（root 限速 / 审计 / 开关 / 凭证），用来断言「什么都没写」 */
-const snapshot = (db) => ['attempt_limit', 'audit', 'recovery_switch', 'password', 'passkey', 'epoch', 'challenge']
+const snapshot = (db) => ['attempt_limit', 'audit', 'lock_reset_switch', 'password', 'passkey', 'epoch', 'challenge']
   .map((t) => { try { return t + ':' + JSON.stringify(db.raw.prepare('SELECT * FROM ' + t).all()); } catch (e) { return t + ':-'; } });
 
 function post(path, body, cookie, ip = '203.0.113.9') {

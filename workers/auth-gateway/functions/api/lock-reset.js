@@ -5,7 +5,7 @@
  *
  * verify 步骤：
  * 1. 验 SGX_ADMIN_KEY（_kernel/root-check.js：限速 → 比对 → 计数 / 审计）。错 → 401 auth。
- * 2. 根密钥正确后才读重置开关（_kernel/lock-reset-switch.js：D1 recovery_switch 表，开关 + 计时 / 单次都在 D1；改名 lock_reset_switch 留待以后）。
+ * 2. 根密钥正确后才读重置开关（_kernel/lock-reset-switch.js：D1 lock_reset_switch 表，开关 + 计时 / 单次都在 D1）。
  *    开关有效 → 原子 claim → 签 LockResetTicket（by=root，审计 via=switch）。claim 被并发抢走 → 按开关无效处理。
  * 3. 开关无效 → 验锁屏凭据（锁屏密码或锁屏通行密钥）：
  *    - 无 lockProof → 200 { ok:true, needLock:true, passkey, password }（布尔值 = 锁屏有没有对应凭据；
@@ -151,7 +151,7 @@ async function handlePost(context) {
     if (!rc.ok) return rc.response;
 
     /* --- 步骤 2：根密钥正确后才读重置开关 --- */
-    const db = env && env[REALM_LOCK.d1Binding]; /* recovery_switch 经 D1_LOCK_AUTH */
+    const db = env && env[REALM_LOCK.d1Binding]; /* lock_reset_switch 经 D1_LOCK_AUTH */
     const sw = await checkLockResetSwitch(db);
     if (sw.valid) {
       /* 开关路径：原子标记已用（抢不到则视为已用，走锁屏凭据路径） */
