@@ -3,7 +3,7 @@
 # 管管理员账号的全部身份和数据：账号密码、账号 Passkey、已登录设备、账号会话 / reauth / reset、Account 纪元、
 # 账号根密钥 SGX_ACCOUNT_ROOT_KEY、账号审计（D1_ACCOUNT_AUTH），以及头像（KV_PROFILE）、设置云同步（D1_SETTINGS_SYNC）、数字健康（D1_WELLBEING）。
 # 代码：src/（部署入口 worker.js：默认 fetch = index.js（一律 404），命名入口 AccountService / AccountVerifier = entrypoints.js；
-# 账号身份 identity/、接口 api/、公共 lib/）+ migrations/（D1 styrigx-account）。分层与边界见 docs/architecture/account-worker.md。
+# 账号身份 identity/、接口 api/、公共 lib/）+ migrations/（D1 styrigx-account）。分层与边界见 workers/account/README.md、docs/architecture.md「Worker 边界」。
 #
 # 安全（方案第 3 节三道保险）：
 # - 没有任何 [[routes]]：请求只经网关 styrigx-auth-gateway 的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 进来（网关先验锁屏、剥外部 x-styrigx-* 头、写规范身份头）。

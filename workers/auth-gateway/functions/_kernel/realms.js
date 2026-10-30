@@ -114,7 +114,7 @@ export const REALM_LOCK = Object.freeze({
   epoch: LOCK_EPOCH, /* 纪元名（票里的纪元归属；D1 epoch 表按 realm 存一行） */
   /* challenge 表的 purpose（锁屏通行密钥注册 / 解锁，重置锁屏时验锁屏通行密钥）；5 分钟 */
   challenge: Object.freeze({ register: 'register', auth: 'auth', reset: 'reset', ttl: 300 }),
-  /* 锁屏根密钥（方案 6.2）：Secrets Store 名 SGX_ADMIN_KEY（后台由原 SGX_ROOT_KEY 改名，值不变）；只比对、不签会话 */
+  /* 锁屏根密钥（方案 6.2）：Secrets Store 名 SGX_ADMIN_KEY（后台新建一份，值等于原 SGX_ROOT_KEY；Secrets Store 不能直接改名，SGX_ROOT_KEY 不再被绑定、PR4 删）；只比对、不签会话 */
   rootKey: 'SGX_ADMIN_KEY',
   /* 锁屏根密钥验过后能签的票（by=root） */
   rootIssues: Object.freeze([LOCK_REAUTH_TICKET, LOCK_RESET_TICKET]),

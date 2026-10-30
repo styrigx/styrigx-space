@@ -3,7 +3,7 @@
 主站聊天页（`/chat/`）的后端，2026-10-22 从鉴权网关拆出来。只做「联网检索 + 回答」：把浏览器发来的整段对话转给模型（默认 Gemini 2.5 Flash + Google 搜索接地，也可以接 OpenAI 兼容接口），把回答以 SSE 流回去，不存任何对话。
 
 ```
-src/index.js  入口：只认 GET /models、POST /chat，只认网关写的 X-Sgx-Role: admin
+src/index.js  入口：只认 GET /models、POST /chat，只认网关写的 X-Sgx-Role: admin（旧头名，网关仍写；统一成 X-Styrigx-Lock-* 留待以后）
 src/chat.js   内核：请求校验、模型白名单（CHAT_MODELS）、上游调用、SSE 转换、错误映射
 ```
 

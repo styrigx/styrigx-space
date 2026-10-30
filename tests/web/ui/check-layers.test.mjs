@@ -7,11 +7,13 @@
  * - 前端：lib/ → auth/shell/apps、auth/ → shell/apps、shell/ → apps/、前端 → functions/、lib/ 里出现鉴权接口或 navigator.credentials
  * - 每个 Worker 只能 import 自己目录 workers/<名字>/ 下的文件；账号和网关互相不许 import；没有共享目录（2026-10-30）
  * - 注释（含 JSDoc 的 import('…') 类型）不算 import
+ * - Worker 边界（账号拆分 PR3e）：规则 15 不许有 workers/shared；规则 16 网关源码（含 wrangler.toml，注释除外）不许出现账号鉴权标识；
+ *   规则 17 账号 Worker 的 wrangler.toml 不许有路由。每条都故意违反一次，检查必须报错
  * - check-frontend：'https://…' 之后同一行的 alert( 查得到；window['alert'] / globalThis.confirm 查得到；注释里的不算
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readdirSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -290,6 +292,134 @@ test('check-frontend：独立 token 变量', () => {
   for (const code of ['const csrfToken = 1;', 'submitToken(token2);', "// let token = 1"]) {
     assert.deepEqual(frontend.checkSource('web/assets/js/apps/x.js', code), [], code);
   }
+});
+
+/* ---------------- Worker 边界（规则 15-17，账号拆分 PR3e） ---------------- */
+
+test('规则 15：workers/shared 目录存在就失败；import workers/shared/ 也失败（文件不存在时同样给规则 15 的信息）', () => {
+  const root = fixture({
+    ['workers/shared/lock-identity.js']: 'export const h = 1;',
+    ['workers/chat/src/index.js']: "import { h } from '../../shared/lock-identity.js';",
+    [AC + 'src/a.js']: "import { h } from '../../shared/gone.js';",
+  });
+  try {
+    const { errors } = layers.checkRepo(root);
+    assert.ok(errors.includes('workers/shared: 不许存在（规则 15：2026-10-30 起没有跨 Worker 的共享目录，每个 Worker 各自实现）'), errors.join('\n'));
+    assert.match(errors.find((e) => e.startsWith('workers/chat/src/index.js:')), /禁止 import workers\/shared（规则 15/);
+    assert.match(errors.find((e) => e.startsWith(AC + 'src/a.js:')), /禁止 import workers\/shared（规则 15/);
+    assert.equal(errors.length, 3, errors.join('\n'));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+  assert.equal(existsSync(join(REPO, 'workers/shared')), false, '本仓库没有 workers/shared');
+});
+
+/* PR3d 的残留 grep 列表（网关里删光的账号鉴权标识），每个都必须被规则 16 抓到 */
+const ACCOUNT_AUTH_IDS = [
+  'SGX_ACCOUNT_PRIVATE', 'SGX_ACCOUNT_PUBLIC', 'SGX_ACCOUNT_ROOT_KEY', 'SGX_ROOT_KEY',
+  'D1_ACCOUNT_AUTH', 'D1_ROOT_AUTH', 'REALM_ACCOUNT', 'REALM_ROOT', 'BY_ACCOUNT', 'PASSKEY_ACCOUNT',
+  'checkAccountSession', 'verifyAccountSession', 'issueAccountSession', 'clearAccountSession',
+  'AccountSessionTicket', 'AccountReauthTicket', 'AccountResetTicket', 'signAccountReauthTicket', 'verifyAccountResetTicket',
+  'ACCOUNT_SESSION_TICKET', 'ACCOUNT_REAUTH_TICKET', 'ACCOUNT_RESET_COOKIE', 'ACCOUNT_EPOCH', 'bumpAccountEpoch',
+  'accountKeysReady', 'isAccountEffectivelyConfigured',
+];
+
+test('规则 16：网关源码里出现任一账号鉴权标识都报错，信息带文件:行号、标识和规则号', () => {
+  const f = join(REPO, GW + 'src/rpc.js');
+  for (const id of ACCOUNT_AUTH_IDS) {
+    const errs = layers.checkFile(REPO, f, `const x = ${id};`);
+    assert.equal(errs.length, 1, id + ' → ' + JSON.stringify(errs));
+    assert.equal(errs[0], `${GW}src/rpc.js:1: 网关源码禁止出现账号鉴权标识 ${id}（规则 16：账号鉴权只在 workers/account/，网关只经 ACCOUNT_VERIFIER.accountSession() 拿结论）`);
+  }
+  const cookie = layers.checkFile(REPO, join(REPO, GW + 'functions/api/lock-now.js'), "clear('sgx-account-reauth');");
+  assert.match(cookie[0], /账号鉴权标识 sgx-account-reauth/);
+  /* 多行块注释之后，行号仍按原文 */
+  const ln = layers.checkFile(REPO, join(REPO, GW + 'functions/_kernel/realms.js'), "/* a\n b\n */\nconst ok = 1;\nexport const r = env.SGX_ROOT_KEY;");
+  assert.equal(ln.length, 1);
+  assert.match(ln[0], /^workers\/auth-gateway\/functions\/_kernel\/realms\.js:5: .*SGX_ROOT_KEY/);
+});
+
+test('规则 16：注释、ACCOUNT_VERIFIER.accountSession()、首帧提示属性名不算；账号 Worker 自己用这些标识不算', () => {
+  const f = join(REPO, GW + 'functions/_kernel/account-rpc.js');
+  for (const code of [
+    '// SGX_ACCOUNT_ROOT_KEY 只绑在账号 Worker',
+    '/* 原来的 REALM_ROOT、D1_ROOT_AUTH 已删；AccountReauthTicket 在账号 Worker */',
+    '/** @see checkAccountSession */ export const a = 1;',
+    "const r = await env.ACCOUNT_VERIFIER.accountSession(cookie, ctx);",
+    "html.replace('<html', '<html data-sgx-account-session=\"in\"');",
+    "const u = 'https://x/'; // verifyAccountSession",
+  ]) {
+    assert.deepEqual(layers.checkFile(REPO, f, code), [], code);
+  }
+  assert.deepEqual(layers.checkFile(REPO, join(REPO, AC + 'src/entrypoints.js'), "import { verifyAccountSession } from './identity/account-session.js';\nconst k = env.SGX_ACCOUNT_ROOT_KEY;"), []);
+});
+
+test('规则 16：网关 wrangler.toml 去掉 # 注释后也查；checkRepo 会读它', () => {
+  const rel = GW + 'wrangler.toml';
+  assert.deepEqual(layers.checkGatewayAccountAuth(rel, '# 原来的 D1_ACCOUNT_AUTH / D1_ROOT_AUTH 两个绑定名删掉\nbinding = "D1_LOCK_AUTH" # 不是 SGX_ROOT_KEY', 'toml'), []);
+  const bad = layers.checkGatewayAccountAuth(rel, '[[secrets_store_secrets]]\nbinding = "SGX_ACCOUNT_PRIVATE"\nsecret_name = "SGX_ACCOUNT_PRIVATE" # 注释', 'toml');
+  assert.equal(bad.length, 2, bad.join('\n'));
+  assert.match(bad[0], /^workers\/auth-gateway\/wrangler\.toml:2: 网关源码禁止出现账号鉴权标识 SGX_ACCOUNT_PRIVATE（规则 16/);
+  const root = fixture({
+    [GW + 'wrangler.toml']: 'name = "styrigx-auth-gateway"\n[[d1_databases]]\nbinding = "D1_ROOT_AUTH"\n',
+    [GW + 'src/index.js']: "export const k = 'SGX_ADMIN_KEY';",
+  });
+  try {
+    const { errors } = layers.checkRepo(root);
+    assert.equal(errors.length, 1, errors.join('\n'));
+    assert.match(errors[0], /^workers\/auth-gateway\/wrangler\.toml:3: .*D1_ROOT_AUTH/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('规则 17：账号 Worker 的 wrangler.toml 不许有路由（[[routes]]、env 下的 routes、route =、非空 routes）；routes = [] 和注释允许', () => {
+  const rel = AC + 'wrangler.toml';
+  const bad = [
+    '[[routes]]\npattern = "styrigx.com/api/prefs*"\nzone_name = "styrigx.com"',
+    '[[env.preview.routes]]\npattern = "x.styrigx.com/*"',
+    'route = "styrigx.com/avatar/*"',
+    'routes = [ { pattern = "styrigx.com/api/avatar*", zone_name = "styrigx.com" } ]',
+    'routes = [\n  "styrigx.com/api/wellbeing*",\n]',
+    '[env.preview]\nroutes = ["styrigx.com/*"]',
+    'env.preview.routes = ["styrigx.com/*"]',
+  ];
+  for (const src of bad) {
+    const errs = layers.checkAccountToml(rel, src);
+    assert.equal(errs.length, 1, src + ' → ' + JSON.stringify(errs));
+    assert.match(errs[0], /^workers\/account\/wrangler\.toml:\d+: 账号 Worker 不许有公开路由，发现「.+」（规则 17：/);
+  }
+  for (const src of [
+    '[env.preview]\nworkers_dev = false\nroutes = []',
+    '# [[routes]] 已删\n# route = "styrigx.com/avatar/*"',
+    'name = "styrigx-account" # routes = ["x"]',
+    'main = "src/worker.js"',
+  ]) {
+    assert.deepEqual(layers.checkAccountToml(rel, src), [], src);
+  }
+  const root = fixture({ [rel]: 'name = "styrigx-account"\n\n[[routes]]\npattern = "styrigx.com/avatar/*"\n' });
+  try {
+    const { errors } = layers.checkRepo(root);
+    assert.deepEqual(errors, ['workers/account/wrangler.toml:3: 账号 Worker 不许有公开路由，发现「[[routes]]」（规则 17：账号请求只经网关服务绑定 ACCOUNT 进来，路径在 workers/auth-gateway/src/forwarding.js 登记）']);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('规则 16、17：本仓库的网关源码和两个 wrangler.toml 都通过（账号 Worker 0 条路由，网关里没有账号鉴权标识）', () => {
+  const gw = layers.walk(join(REPO, GW));
+  assert.ok(gw.length >= 50, String(gw.length));
+  const errs = [];
+  for (const f of gw) errs.push(...layers.checkGatewayAccountAuth(f, readFileSync(f, 'utf8')));
+  errs.push(...layers.checkGatewayAccountAuth(GW + 'wrangler.toml', readFileSync(join(REPO, GW + 'wrangler.toml'), 'utf8'), 'toml'));
+  errs.push(...layers.checkAccountToml(AC + 'wrangler.toml', readFileSync(join(REPO, AC + 'wrangler.toml'), 'utf8')));
+  assert.deepEqual(errs, []);
+});
+
+test('maskComments：注释换成空格、换行保留；字符串里的 // 不当注释', () => {
+  assert.equal(layers.maskComments("a /* x\ny */ b // c\nd"), "a     \n     b     \nd");
+  assert.equal(layers.maskComments("u = 'https://x'; // c"), "u = 'https://x';     ");
+  assert.equal(layers.stripTomlComments('a = "x#y" # c\n# d\nb = 1'), 'a = "x#y" \n\nb = 1');
 });
 
 test('stripComments：字符串里的 // 和 /* 不当注释', () => {

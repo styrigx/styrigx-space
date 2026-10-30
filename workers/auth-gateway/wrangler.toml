@@ -131,7 +131,7 @@ migrations_dir = "migrations"
 
 # ---- 密钥：Secrets Store（方案 10.1：只剩 4 个）----
 # 聊天钥匙 SGX_CHAT_API_KEY 只绑在 styrigx-chat；账号钥匙 SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC / SGX_ACCOUNT_ROOT_KEY 只绑在 styrigx-account。
-# 锁屏根密钥 SGX_ADMIN_KEY：后台由原 SGX_ROOT_KEY 改名而来（值不变）。SGX_PW_PEPPER 与账号 Worker 绑同一个密值（方案 6.2）。
+# 锁屏根密钥 SGX_ADMIN_KEY：部署 PR3 前在后台新建，值等于原 SGX_ROOT_KEY（Secrets Store 不能直接改名）；SGX_ROOT_KEY 不再被绑定，PR4 删。SGX_PW_PEPPER 与账号 Worker 绑同一个密值（方案 6.2）。
 # 换钥只在 Cloudflare 后台改，不用改代码、不用重新部署（最多 60 秒生效）。store_id 是存储的编号，不是密值。
 [[secrets_store_secrets]]
 binding = "SGX_LOCK_PRIVATE"
