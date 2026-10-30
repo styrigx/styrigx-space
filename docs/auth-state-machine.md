@@ -10,17 +10,17 @@
 |---|---|---|---|---|---|
 | `sgx-lock-session` | 网关（SGX_LOCK_PRIVATE） | `Domain=.styrigx.com; Path=/` | HttpOnly, Secure, SameSite=Lax | admin 12 h / visitor 按临时钥匙剩余时间（上限 12 h） | LockSessionTicket `by.role.epoch.exp.tempkeyId.sig`（签名串带 `sgx-lock-session\|` 前缀）；主站和 blog / daymark / curio 共用；role = `admin` / `visitor`；by = password / passkey / tempkey；admin 的 tempkeyId 为空串，visitor 必须带一把未作废的临时钥匙 id；epoch ≠ Lock 纪元即失效 |
 | （同名清除） | 网关 | host-only `Path=/` | Max-Age=0 | — | 每次签发 / 清除都附带，清掉 host-only 同名 cookie |
-| `sgx-lock-reset` | 网关（SGX_LOCK_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | LockResetTicket `by.epoch.iat.exp.sig`：重置锁屏；by = root / account |
+| `sgx-lock-reset` | 网关（SGX_LOCK_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | LockResetTicket `by.epoch.iat.exp.sig`：重置锁屏；by = root / password / passkey（锁屏根密钥 + 恢复开关，或锁屏根密钥 + 锁屏凭证） |
 | `sgx-lock-reauth` | 网关（SGX_LOCK_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | LockReauthTicket `by.epoch.iat.exp.sig`：进「锁屏凭证」页前再验一次；by = password / passkey / root |
-| `sgx-account-session` | 网关（SGX_ACCOUNT_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 400 天 | AccountSessionTicket `by.epoch.authAt.exp.deviceId.sig`：账号会话（与锁屏会话无关）；by = password / passkey；Account 纪元变了或设备被单独退出即失效 |
-| `sgx-account-reset` | 网关（SGX_ACCOUNT_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | AccountResetTicket `by.epoch.iat.exp.sig`：重置账号登录方式；by = root |
-| `sgx-account-reauth` | 网关（SGX_ACCOUNT_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | AccountReauthTicket `by.epoch.iat.exp.sig`：进「账号安全」页前再验一次；by = password / passkey / root |
+| `sgx-account-session` | 账号 Worker（SGX_ACCOUNT_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 400 天 | AccountSessionTicket `by.epoch.authAt.exp.deviceId.sig`：账号会话（与锁屏会话无关）；by = password / passkey；Account 纪元变了或设备被单独退出即失效 |
+| `sgx-account-reset` | 账号 Worker（SGX_ACCOUNT_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | AccountResetTicket `by.epoch.iat.exp.sig`：重置账号登录方式；by = root |
+| `sgx-account-reauth` | 账号 Worker（SGX_ACCOUNT_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | AccountReauthTicket `by.epoch.iat.exp.sig`：进「账号安全」页前再验一次；by = password / passkey / root |
 | `sgx-ui` | 主站 JS | `Domain=styrigx.com` | Secure, SameSite=Lax（非 HttpOnly） | 400 天 | 只有外观设置，子站读；不含任何会话信息 |
 
-六张票的总表在 `workers/auth-gateway/functions/_kernel/realms.js`（`TICKETS`）。签名串一律是 `<cookie 名>|<票内容>`，
+六张票分两处登记：锁屏三张在网关 `workers/auth-gateway/functions/_kernel/realms.js`（`TICKETS`），账号三张在账号 Worker `workers/account/src/identity/realm.js`（`TICKETS`）；网关不签、不验账号票（账号拆分 PR3）。签名串一律是 `<cookie 名>|<票内容>`，
 同一把私钥签的票互相冒充不了。Lock 三张票共用 Lock 纪元，Account 三张票共用 Account 纪元。
-RootKey 不拥有会话：`/api/root-auth { key, purpose }` 的 purpose 只有 `lock-reauth` / `lock-reset` / `account-reauth` / `account-reset`，
-各签一张对应的短票（by=root）；LockSessionTicket 的 by 永远没有 root。
+RootKey 不拥有会话，两把各管各的：锁屏根密钥 `SGX_ADMIN_KEY` 走网关 `/api/root-auth { key, purpose }`，purpose 只有 `lock-reauth` / `lock-reset`；
+账号根密钥 `SGX_ACCOUNT_ROOT_KEY` 走账号 Worker `POST /api/account { action:'root-reauth' | 'root-reset', key }`。各签一张对应的短票（by=root）；LockSessionTicket 的 by 永远没有 root。
 
 立即锁定 = `POST /api/lock-now` 清 `sgx-lock-session`（两条）+ `sgx-lock-reauth` + `sgx-lock-reset`。锁定所有设备 = Lock 纪元 +1。
 
@@ -29,6 +29,9 @@ RootKey 不拥有会话：`/api/root-auth { key, purpose }` 的 purpose 只有 `
 `styrigx.com/*`、`blog.styrigx.com/*`、`daymark.styrigx.com/*`、`curio.styrigx.com/*` 全进网关；`daymark.styrigx.com/api/*` 归 `styrigx-daymark-core`、
 `curio.styrigx.com/api/*` 归 `styrigx-curio-core`（更具体），两站的 `/api/lock-session-check` 又比它更具体，归网关。
 静态资源（主站 `/css/ /js/ /fonts/ /fav/ /images/`，子站静态后缀和 `/manifest.json` 等）第一行原样回源，不验会话、不打 `X-SGX-Runtime`。
+
+账号路径（`/api/account`、`/api/prefs*`、`/api/avatar*`、`/api/wellbeing*`、`/avatar/*`）同样归网关的 `styrigx.com/*`：网关验门后经服务绑定 `ACCOUNT` 转给账号 Worker
+（转发表 `workers/auth-gateway/src/forwarding.js`）。账号 Worker 没有任何路由（账号拆分 PR3）。
 
 Cloudflare 路由规则：不带 `*` 的规则要求整条 URL（含查询串）完全相等；带查询串就不命中（2026-10-21 线上实测，`scripts/lib/cf-routes.mjs`）。
 
@@ -82,7 +85,7 @@ Cloudflare 路由规则：不带 `*` 的规则要求整条 URL（含查询串）
 不出锁屏、不跳页；取消不调任何接口（访客会话保留）；通过 → 服务端签 admin 锁屏会话 → 跳目标页。
 入口：安全与隐私页里访客点「锁屏凭证」（`apps/security.js`）、服务端 upgrade 页（`data-sgx-upgrade`）。
 
-账号页（`apps/account.js`）：登录区、总览默认都隐藏；网关注入 `data-sgx-account-session`：`in` → 登录区不下发、总览首帧可见；
+账号页（`apps/account.js`）：登录区、总览默认都隐藏；网关注入 `data-sgx-account-session`（经 `ACCOUNT_VERIFIER` 问账号 Worker；没绑定 / RPC 出错就不给属性）：`in` → 登录区不下发、总览首帧可见；
 `out` → 登录区首帧可见；没有属性 → 中性，等 `/api/account`。只有服务端说「未登录」才出现「欢迎回来」。
 
 不预渲染：站内链接不再用 Speculation Rules prerender（预渲染启用的是按下那一刻的会话状态快照）。
@@ -90,6 +93,6 @@ Cloudflare 路由规则：不带 `*` 的规则要求整条 URL（含查询串）
 ## 5. 测试
 
 - 单测：`tests/workers/auth-gateway/auth-flow-2026-10-21.test.mjs`
-- 端到端：`SGX_TEST_SUITE=edge`（`tests/web/e2e/edge-flow.spec.js` + `edge-harness.cjs`）：真实网关代码 + wrangler.toml 路由 + 线上匹配规则 +
+- 端到端：`SGX_TEST_SUITE=edge`（`tests/web/e2e/edge-flow.spec.js` + `edge-harness.cjs`）：真实网关代码 + 账号 Worker 代码（两边绑定和钥匙按正式环境拆开）+ wrangler.toml 路由 + 线上匹配规则 +
   真实域名（本地 HTTPS 代理）+ CDP 虚拟认证器 + 假 Turnstile
 - 锁屏套件：`SGX_TEST_SUITE=lock`（http-server + mock，覆盖界面细节）

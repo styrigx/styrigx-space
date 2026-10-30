@@ -29,6 +29,16 @@
  * 所有 Worker（workers/<名字>/，2026-10-30 起没有共享目录，每个 Worker 各自实现）：
  * 14. 每个 Worker 只能相对 import 自己目录 workers/<名字>/ 下的文件；账号（workers/account/）和网关（workers/auth-gateway/）
  *     互相不许 import，别的 Worker 之间也一样，没有任何例外；非相对 import 只认 cloudflare:workers
+ * 15. 不许有 workers/shared（2026-10-30 删除，账号拆分 PR3a）：目录本身存在就失败，任何文件 import workers/shared/ 也失败
+ *
+ * Worker 边界（账号拆分 PR3e，按 PR3d 之后的事实）：
+ * 16. 网关源码（workers/auth-gateway/ 下的 .js / .mjs / .cjs 和 wrangler.toml）去掉注释后不许出现账号鉴权标识
+ *     （GATEWAY_ACCOUNT_AUTH_RE：SGX_ACCOUNT_*、SGX_ROOT_KEY、D1_ACCOUNT_AUTH、D1_ROOT_AUTH、REALM_ACCOUNT、REALM_ROOT、
+ *     checkAccountSession、verifyAccountSession、Account*Ticket / ACCOUNT_*_TICKET、账号 cookie 名等）。
+ *     账号鉴权全在账号 Worker；网关只经 ACCOUNT_VERIFIER.accountSession() 拿结论（accountSession 不算违规），
+ *     首帧提示属性名 data-sgx-account-session 不算。
+ * 17. 账号 Worker 的 workers/account/wrangler.toml 不许有路由：[[routes]] / [[env.*.routes]]、route = …、非空的 routes = [...]
+ *     （[env.preview] 的 routes = [] 允许）；账号请求只经网关的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 进来。
  *
  * 用法：node scripts/check-layers.mjs [--root <仓库根>]
  * 规则函数导出给 tests/web/ui/check-layers.test.mjs 用。
@@ -150,6 +160,130 @@ const LIB_AUTH_RE = /\/api\/(?:lock-|root-|account\b)|navigator\s*\.\s*credentia
 
 const EXTERNAL_OK = new Set(['cloudflare:workers']);
 
+/* 规则 15 */
+export const SHARED_DIR = 'workers/shared';
+
+/* 规则 16：网关源码里不许出现的账号鉴权标识（参照 PR3d 的残留 grep 列表；大小写敏感） */
+export const GATEWAY_ACCOUNT_AUTH_RE = new RegExp([
+  String.raw`\bSGX_ACCOUNT_\w+`,
+  String.raw`\bSGX_ROOT_KEY\b`,
+  String.raw`\bD1_ACCOUNT_AUTH\b`,
+  String.raw`\bD1_ROOT_AUTH\b`,
+  String.raw`\bREALM_ACCOUNT\b`,
+  String.raw`\bREALM_ROOT\b`,
+  String.raw`\b(?:BY|KEY|LAYER|PASSKEY)_ACCOUNT\b`,
+  String.raw`\bACCOUNT_EPOCH\b`,
+  String.raw`\bACCOUNT_(?:SESSION|REAUTH|RESET)_[A-Z_]+\b`,
+  String.raw`\b(?:check|verify|issue|clear)AccountSession\w*`,
+  String.raw`\w*Account\w*Ticket\b`,
+  String.raw`\b(?:bump|get)AccountEpoch\b`,
+  String.raw`\b(?:accountKeysReady|accountConfigMissing|isAccountEffectivelyConfigured)\b`,
+  String.raw`(?<!data-)\bsgx-account-(?:session|reauth|reset)\b`,
+].join('|'), 'g');
+
+/**
+ * 把注释换成空格（换行保留，行号对得上）。字符串规则同 stripComments。
+ * @param {string} src
+ */
+export function maskComments(src) {
+  let out = '';
+  let i = 0;
+  const n = src.length;
+  const blank = (t) => t.replace(/[^\n]/g, ' ');
+  while (i < n) {
+    const c = src[i];
+    const d = src[i + 1];
+    if (c === '/' && d === '*') {
+      const end = src.indexOf('*/', i + 2);
+      const j = end < 0 ? n : end + 2;
+      out += blank(src.slice(i, j));
+      i = j;
+      continue;
+    }
+    if (c === '/' && d === '/') {
+      const end = src.indexOf('\n', i);
+      const j = end < 0 ? n : end;
+      out += blank(src.slice(i, j));
+      i = j;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === '`') {
+      let j = i + 1;
+      while (j < n && src[j] !== c) {
+        if (src[j] === '\\') j++;
+        else if (c !== '`' && src[j] === '\n') break;
+        j++;
+      }
+      out += src.slice(i, j + 1);
+      i = j + 1;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+
+/**
+ * TOML 去注释：每行 # 之后（不在引号里的）换成空，行数不变。
+ * @param {string} src
+ */
+export function stripTomlComments(src) {
+  return src.split('\n').map((line) => {
+    let q = '';
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (q) {
+        if (c === '\\' && q === '"') i++;
+        else if (c === q) q = '';
+      } else if (c === '"' || c === "'") q = c;
+      else if (c === '#') return line.slice(0, i);
+    }
+    return line;
+  }).join('\n');
+}
+
+/**
+ * 规则 16：网关源码里的账号鉴权标识（注释除外）。
+ * @param {string} rel 仓库相对路径（报错用）
+ * @param {string} src 源码
+ * @param {'js'|'toml'} [kind]
+ * @returns {string[]}
+ */
+export function checkGatewayAccountAuth(rel, src, kind = 'js') {
+  const code = kind === 'toml' ? stripTomlComments(src) : maskComments(src);
+  const errors = [];
+  const lines = code.split('\n');
+  for (let ln = 0; ln < lines.length; ln++) {
+    const re = new RegExp(GATEWAY_ACCOUNT_AUTH_RE.source, 'g');
+    let m;
+    while ((m = re.exec(lines[ln]))) {
+      errors.push(`${rel}:${ln + 1}: 网关源码禁止出现账号鉴权标识 ${m[0]}（规则 16：账号鉴权只在 workers/account/，网关只经 ACCOUNT_VERIFIER.accountSession() 拿结论）`);
+    }
+  }
+  return errors;
+}
+
+/**
+ * 规则 17：账号 Worker 的 wrangler.toml 不许有路由。
+ * @param {string} rel
+ * @param {string} src
+ * @returns {string[]}
+ */
+export function checkAccountToml(rel, src) {
+  const errors = [];
+  const lines = stripTomlComments(src).split('\n');
+  for (let ln = 0; ln < lines.length; ln++) {
+    const t = lines[ln].trim();
+    let bad = '';
+    if (/^\[\[\s*(?:env\.[\w-]+\.)?routes\s*\]\]$/.test(t)) bad = t;
+    const kv = t.match(/^(?:env\.[\w-]+\.)?(route|routes)\s*=\s*(.*)$/);
+    if (kv && (kv[1] === 'route' || !/^\[\s*\]$/.test(kv[2]))) bad = t;
+    if (bad) errors.push(`${rel}:${ln + 1}: 账号 Worker 不许有公开路由，发现「${bad}」（规则 17：账号请求只经网关服务绑定 ACCOUNT 进来，路径在 workers/auth-gateway/src/forwarding.js 登记）`);
+  }
+  return errors;
+}
+
 /**
  * 查一个文件，返回违规列表。
  * @param {string} root
@@ -174,6 +308,11 @@ export function checkFile(root, abs, srcOverride) {
       continue;
     }
     const target = resolve(dirname(abs), spec);
+    const targetRel = relative(root, target).split(sep).join('/');
+    if (targetRel === SHARED_DIR || targetRel.startsWith(SHARED_DIR + '/')) {
+      errors.push(`${r}: 禁止 import workers/shared（规则 15：没有跨 Worker 的共享目录，每个 Worker 各自一份）(${spec})`);
+      continue;
+    }
     if (!existsSync(target) || statSync(target).isDirectory()) {
       errors.push(`${r}: import 的文件不存在（${spec}）`);
       continue;
@@ -195,6 +334,7 @@ export function checkFile(root, abs, srcOverride) {
     /* 规则 14：每个 Worker 只能 import 自己目录下的文件；账号和网关互相不许 import */
     if (self.area === 'gateway' || self.area === 'worker') {
       if (t.worker !== self.worker) {
+        /* 规则 14 */
         const pair = new Set([self.worker, t.worker]);
         if (pair.has('account') && pair.has('auth-gateway')) {
           errors.push(`${r}: 账号和网关互相不许 import，发现 ${t.rel} (${spec})`);
@@ -224,6 +364,8 @@ export function checkFile(root, abs, srcOverride) {
       }
     }
   }
+
+  if (self.area === 'gateway') errors.push(...checkGatewayAccountAuth(r, src));
 
   if (self.area === 'frontend') {
     if (self.layer === 'lib' && LIB_AUTH_RE.test(code)) {
@@ -259,6 +401,13 @@ export function checkRepo(root) {
   const files = walk(join(root, 'web/assets/js')).concat(walk(join(root, 'workers')));
   const errors = [];
   for (const f of files) errors.push(...checkFile(root, f));
+  if (existsSync(join(root, SHARED_DIR))) {
+    errors.push(`${SHARED_DIR}: 不许存在（规则 15：2026-10-30 起没有跨 Worker 的共享目录，每个 Worker 各自实现）`);
+  }
+  const gwToml = join(root, 'workers/auth-gateway/wrangler.toml');
+  if (existsSync(gwToml)) errors.push(...checkGatewayAccountAuth('workers/auth-gateway/wrangler.toml', readFileSync(gwToml, 'utf8'), 'toml'));
+  const acToml = join(root, 'workers/account/wrangler.toml');
+  if (existsSync(acToml)) errors.push(...checkAccountToml('workers/account/wrangler.toml', readFileSync(acToml, 'utf8')));
   return { files: files.length, errors };
 }
 

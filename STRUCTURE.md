@@ -119,19 +119,23 @@ workers/
 
 | Worker | 目录 | 管什么 |
 |---|---|---|
-| `styrigx-auth-gateway` | `workers/auth-gateway/` | 主站会话和锁屏后端：签发和校验会话、二次验证、账号登录、其余接口；`/api/*` 和全部页面先过它，页面验完回源 Pages 取静态文件；blog、daymark、curio 子站的页面也由它验会话（`src/subsites.js`）；所有公私钥只在这里（Secrets Store）；认证状态在 D1 `styrigx-auth-gateway`（`D1_LOCK_AUTH` / `D1_ACCOUNT_AUTH` / `D1_ROOT_AUTH`，2026-10-27 起不绑 KV，上线顺序见 `workers/auth-gateway/README.md`） |
-| `styrigx-account` | `workers/account/` | 管理员账号名下的数据（2026-10-24 从网关拆出来）：头像（KV `KV_PROFILE`，只放公开的 `avatar:*`）、设置云同步含主题等外观（D1 `styrigx-account` 的 `settings_sync`，绑定 `D1_SETTINGS_SYNC`）、数字健康（同库 `wb_daily`，绑定 `D1_WELLBEING`）。自己挂 `styrigx.com/api/avatar*`、`/api/prefs*`、`/api/wellbeing*`、`/avatar/*` 四条比网关更具体的路由（前端地址不变）；不持钥匙，会话经网关的服务绑定 RPC `AuthVerifier` 验 |
-| `styrigx-share` | `workers/share/` | 分享短链（2026-10-24）：`https://styrigx.com/s/<码>` 和管理员管理接口 `/api/share`，数据在 D1 `styrigx-share`（`D1_SHARE_LINK`）。自己挂 `styrigx.com/s/*`、`/api/share*` 两条比网关更具体的路由；不持钥匙，会话经网关 `AuthVerifier` 验，短链钥匙和访客会话由网关的服务绑定 RPC `ShareIssuer` 签 |
+| `styrigx-auth-gateway` | `workers/auth-gateway/` | 主站锁屏后端：签发和校验锁屏会话、锁屏凭证与再验证、锁屏根密钥、其余接口；`/api/*` 和全部页面先过它，页面验完回源 Pages 取静态文件；账号路径（`/api/account`、`/api/prefs*`、`/api/avatar*`、`/api/wellbeing*`、`/avatar/*`）验门后经服务绑定 `ACCOUNT` 转给账号 Worker（转发表 `src/forwarding.js`）；blog、daymark、curio 子站的页面也由它验会话（`src/subsites.js`）；钥匙只有 `SGX_LOCK_*`、`SGX_ADMIN_KEY`、`SGX_PW_PEPPER`（Secrets Store）；认证状态在 D1 `styrigx-auth-gateway`（只有 `D1_LOCK_AUTH`，不绑 KV）。没有任何账号鉴权代码，见 `workers/auth-gateway/README.md` |
+| `styrigx-account` | `workers/account/` | 完整的账号系统（账号拆分 PR3）：账号密码 / 通行密钥、已登录设备、账号会话与短票、账号根密钥、账号审计（D1 `styrigx-account`，`D1_ACCOUNT_AUTH`），以及头像（KV `KV_PROFILE`，只放公开的 `avatar:*`）、设置云同步含主题等外观（同库 `settings_sync`，`D1_SETTINGS_SYNC`）、数字健康（同库 `wb_daily`，`D1_WELLBEING`）。**没有公开路由**：只经网关的服务绑定 `ACCOUNT`（AccountService，读网关写的身份头）和 `ACCOUNT_VERIFIER`（AccountVerifier，只读账号会话 RPC）进来，默认 fetch 一律 404；钥匙 `SGX_ACCOUNT_PRIVATE` / `SGX_ACCOUNT_PUBLIC`、`SGX_ACCOUNT_ROOT_KEY`、`SGX_PW_PEPPER`；不调网关，见 `workers/account/README.md` |
+| `styrigx-share` | `workers/share/` | 分享短链（2026-10-24）：`https://styrigx.com/s/<码>` 和管理员管理接口 `/api/share`，数据在 D1 `styrigx-share`（`D1_SHARE_LINK`）。自己挂 `styrigx.com/s/*`、`/api/share*` 两条比网关更具体的路由；不持钥匙，锁屏会话经网关 `AuthVerifier` 验、账号会话经账号 Worker `AccountVerifier` 验，短链钥匙和访客会话由网关的服务绑定 RPC `ShareIssuer` 签 |
 | `styrigx-search-index` | `workers/search-index/` | 全站搜索：没有公开地址，只经网关的服务绑定 `SEARCH` 进来（`/api/search` 先验会话）；索引在 KV `styrigx-search-index` |
 | `styrigx-status` | `workers/status/` | 站点监测：cron 每分钟检查主站、博客、日刻、奇趣、规则集，每小时读一次 Cloudflare 用量，结果在 D1 `styrigx-status`；没有公开地址，只经网关的服务绑定 `STATUS` 进来（`/api/status` 先验会话，账号 → 服务状态页读它） |
 | `styrigx-chat` | `workers/chat/` | 聊天后端（2026-10-22 从网关拆出来）：没有公开地址，只经网关的服务绑定 `CHAT` 进来（`/api/chat` 先验同源 + 会话 + 只许管理员，回答原样流回）；转给 Gemini（或 OpenAI 兼容接口），不存对话；钥匙 `SGX_CHAT_API_KEY`（Secrets Store）和 `CHAT_*` 变量只在这里 |
 | `styrigx-proxy-rules` | `workers/proxy-rules/` | 规则集加速反代：`proxy-rules.styrigx.com`（自定义域名，不过网关），只放行 MetaCubeX/meta-rules-dat 的 geosite/geoip 规则集（`.mrs` `.yaml` `.list`），上游 jsDelivr → raw.githubusercontent，边缘缓存 24 小时 |
 
-路由登记：挂路由的是网关、账号 Worker 和短链 Worker，各自 `wrangler.toml` 里的 `[[routes]]` 就是登记表（网关整站通配，账号 Worker 四条、短链 Worker 两条更具体的前缀规则，Cloudflare 取最具体的一条）。2026-10-21 起各站都是整站通配（`styrigx.com/*`、`blog.styrigx.com/*`、`daymark.styrigx.com/*`、`curio.styrigx.com/*`）：Cloudflare 不带 `*` 的规则遇到查询串不命中，以前 `styrigx.com/?lock=1&return=…`（锁屏入口）和子站首页带查询串都绕过了网关。静态资源（`/css/` `/js/` `/fonts/` `/fav/` `/images/`、子站静态后缀）进 Worker 后第一行原样回源，不验会话、不打 `X-SGX-Runtime`。
-`scripts/check-worker-routes.mjs`（CI 跑，匹配规则在 `scripts/lib/cf-routes.mjs`，照线上实测）核对：每个 HTML 页面（含带查询串）、锁屏入口、`/api/` 都过网关，头像 / 云同步 / 数字健康归账号 Worker、`/s/*` 和 `/api/share*` 归短链 Worker，且都没抢走网关路由表里的任何接口，路由不重复，只登记主站和三个子站的域名，daymark 的句子接口仍归 `styrigx-daymark-core`、curio 的收藏接口仍归 `styrigx-curio-core`。锁屏 / 解锁 / 回跳的完整状态机见 `docs/auth-state-machine.md`。
-三个 Worker 的规则由 `check-worker-routes.mjs` 一起核对，不重复、不互抢。
+路由登记：挂路由的只有网关和短链 Worker，各自 `wrangler.toml` 里的 `[[routes]]` 就是登记表（网关整站通配，短链 Worker 两条更具体的前缀规则，Cloudflare 取最具体的一条）。账号 Worker 没有任何路由（账号拆分 PR3 删掉原来的四条），它的路径归网关的 `styrigx.com/*`，再按网关转发表 `workers/auth-gateway/src/forwarding.js` 转过去；`scripts/check-layers.mjs` 规则 17 禁止账号 Worker 的 `wrangler.toml` 出现非空 routes。2026-10-21 起各站都是整站通配（`styrigx.com/*`、`blog.styrigx.com/*`、`daymark.styrigx.com/*`、`curio.styrigx.com/*`）：Cloudflare 不带 `*` 的规则遇到查询串不命中，以前 `styrigx.com/?lock=1&return=…`（锁屏入口）和子站首页带查询串都绕过了网关。静态资源（`/css/` `/js/` `/fonts/` `/fav/` `/images/`、子站静态后缀）进 Worker 后第一行原样回源，不验会话、不打 `X-SGX-Runtime`。
+`scripts/check-worker-routes.mjs`（CI 跑，匹配规则在 `scripts/lib/cf-routes.mjs`，照线上实测）核对：每个 HTML 页面（含带查询串）、锁屏入口、`/api/` 都过网关，账号 Worker 0 条路由、头像 / 云同步 / 数字健康 / `/api/account` 在网关转发表里、`/s/*` 和 `/api/share*` 归短链 Worker，且都没抢走网关路由表里的任何接口，路由不重复，只登记主站和三个子站的域名，daymark 的句子接口仍归 `styrigx-daymark-core`、curio 的收藏接口仍归 `styrigx-curio-core`。锁屏 / 解锁 / 回跳的完整状态机见 `docs/auth-state-machine.md`。
+网关、账号、短链三个 Worker 的 `wrangler.toml` 由 `check-worker-routes.mjs` 一起核对，不重复、不互抢。
 
-安全响应头（2026-10-25）：值只在 `workers/auth-gateway/functions/_kernel/lib/security-headers.js` 定义一次。
+部署顺序（`.github/workflows/deploy.yml`）：搜索 / 聊天 / 监测 → 账号 → 短链 → 网关 → Pages。预览 / 测试资源（KV、D1，以后的 R2）所有 Worker 只用一个 `styrigx-test-preview`（`tests/workers/auth-gateway/preview-resources.test.mjs` 守卫）。
+
+Worker 之间的边界（`scripts/check-layers.mjs`，CI 必过）：每个 Worker 只 import 自己目录下的文件，Worker 之间互不 import；没有 `workers/shared` 这类公共目录（2026-10-30 删除，各 Worker 各自一份）；网关源码不许出现账号鉴权标识；账号 Worker 不许有路由。规则见 `docs/architecture.md`「Worker 边界」。
+
+安全响应头（2026-10-25）：网关的值在 `workers/auth-gateway/functions/_kernel/lib/security-headers.js`；账号、短链 Worker 各自一份同值的 `src/lib/security-headers.js`（2026-10-30 起没有 `workers/shared`，单测核对与网关同值），`scripts/gen-csp.mjs` 同时生成三份 `csp-hashes.js`。
 
 | 出口 | 加什么 |
 |---|---|
@@ -170,8 +174,8 @@ tests/
 | `web/ui/` | 前端单元测试（`node --test`） |
 | `workers/_harness.mjs`、`_harness.cjs` | 测试台公共件：内存 KV（`makeKV`）、内存认证 D1（`makeAuthD1`，node:sqlite）、`derToPem`、`genKeyPair`、`postReq`；e2e 的 `edge-harness.cjs` / `cred-e2e-helpers.cjs` 也用 `_harness.cjs`，不再各写一份 |
 | `workers/auth-gateway/` | 鉴权单元测试（`node --test`） |
-| `workers/account/` | 账号 Worker 单元测试（头像、云同步、数字健康、门、路由；会话经网关真实的 verifier.js） |
-| `workers/share/` | 短链 Worker 单元测试（规则、生成 / 打开 / 作废、权限、限速、路由；钥匙和会话经网关真实的 share-issuer.js / verifier.js） |
+| `workers/account/` | 账号 Worker 单元测试（账号身份、头像、云同步、数字健康、命名入口与身份头、没有公开路由） |
+| `workers/share/` | 短链 Worker 单元测试（规则、生成 / 打开 / 作废、权限、限速、路由；钥匙和锁屏会话经网关真实的 share-issuer.js / verifier.js，账号会话用替身 AccountVerifier） |
 | `workers/search-index/` | 全站搜索单元测试 |
 | `workers/status/` | 站点监测单元测试（检查、汇总、用量；有 `node:sqlite` 时跑真 SQL） |
 | `workers/chat/` | 聊天 Worker 单元测试（网关那边的门和转发在 `workers/auth-gateway/chat-api.test.mjs`） |
