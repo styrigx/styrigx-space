@@ -28,6 +28,10 @@ compatibility_flags = ["global_fetch_strictly_public"]
 workers_dev = false
 preview_urls = false
 
+# Smart Placement：本 Worker 频繁读 D1（每分钟巡检写 checks、每小时用量），让 Cloudflare 把执行位置放在离数据库近的地方，降 D1 往返延迟。
+[placement]
+mode = "smart"
+
 [triggers]
 # 第一条：每分钟检查各站；第二条：每小时 41 分收一次用量（index.js 按 event.cron 分流）。
 # 注意：免费账号整个账号最多 5 个 Cron Trigger（https://developers.cloudflare.com/workers/platform/limits/），这里占 2 个。
