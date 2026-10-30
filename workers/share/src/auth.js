@@ -1,7 +1,9 @@
 /**
- * @fileoverview 分享短链 Worker 的会话判断（本 Worker 自己一份，2026-10-30 起不再 import 账号 Worker 的 auth.js）：
- * 浏览器带来的 Cookie 头原样交给网关的 AuthVerifier（服务绑定 AUTH，RPC），网关只回结论；同一请求各只问一次；
- * 网关不可达 / 绑定没配 → 当作无会话（fail closed）。本 Worker 不持任何钥匙、不绑认证库。
+ * @fileoverview 分享短链 Worker 的会话判断（本 Worker 自己一份，不 import 任何别的 Worker 的代码）：
+ * 浏览器带来的 Cookie 头原样交给验证方，只回结论；同一请求各只问一次；不可达 / 绑定没配 → 当作无会话（fail closed）。
+ * - lockSession()    → 网关 AuthVerifier（服务绑定 AUTH）
+ * - accountSession() → 账号 Worker AccountVerifier（服务绑定 ACCOUNT_VERIFIER，方案 10.3；账号拆分 PR3 起网关不再验账号会话）
+ * 本 Worker 不持任何钥匙、不绑认证库。
  */
 
 export const ROLE_ADMIN = 'admin';
@@ -16,6 +18,7 @@ const MAX_COOKIE_HEADER = 8192;
 export function authFor(request, env) {
   const cookie = cookieOf(request);
   const verifier = env && env.AUTH;
+  const accountVerifier = env && env.ACCOUNT_VERIFIER;
   /** @type {Promise<any>|null} */
   let sessP = null;
   /** @type {Promise<any>|null} */
@@ -26,7 +29,7 @@ export function authFor(request, env) {
       return sessP;
     },
     accountSession() {
-      if (!accP) accP = askAccountSession(verifier, cookie, verifierMetaOf(request));
+      if (!accP) accP = askAccountSession(accountVerifier, cookie, verifierMetaOf(request));
       return accP;
     },
   };

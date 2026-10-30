@@ -1,35 +1,37 @@
 /**
- * @fileoverview styrigx-account：账号数据 Worker 入口（2026-10-24 从鉴权网关拆出来）。
+ * @fileoverview styrigx-account：账号 Worker 的路由表与默认 fetch（账号拆分 PR3：完整的账号系统）。
  *
- * 管三样东西，都是「管理员账号名下的数据」：
- * - 头像：GET /avatar/<尺寸>.webp（公开）、PUT / DELETE /api/avatar（只许管理员）→ KV_PROFILE（styrigx-account 里的 avatar:*）
- * - 设置云同步（外观 / 主题 / 时区天气 / 搜索引擎等）：GET / POST /api/prefs（管理员 + 账号会话）→ D1_SETTINGS_SYNC（D1 styrigx-account 的 settings_sync）
- * - 数字健康：POST / GET /api/wellbeing → D1_WELLBEING（D1 styrigx-account 的 wb_daily）
+ * 管管理员账号的全部身份和数据：
+ * - 账号身份：POST / GET /api/account（identity/account.js：账号密码、账号 Passkey、设备、账号会话 / reauth / reset、
+ *   账号根密钥 SGX_ACCOUNT_ROOT_KEY、账号审计）
+ * - 头像：GET /avatar/<尺寸>.webp（公开）、PUT / DELETE /api/avatar（只许管理员）→ KV_PROFILE
+ * - 设置云同步：GET / POST /api/prefs（管理员 + 账号会话）→ D1_SETTINGS_SYNC
+ * - 数字健康：POST / GET /api/wellbeing → D1_WELLBEING
  *
- * 前端地址不变：本 Worker 在 styrigx.com 上挂了比网关 styrigx.com/* 更具体的路由（wrangler.toml），这几条路径直接进这里。
- * 会话不在这里验：门（gate.js，照搬网关 middleware）和接口都问网关的 AuthVerifier（auth.js，服务绑定 AUTH）。
+ * 请求只经网关进来（浏览器 → 网关验锁屏、剥外部 x-styrigx-* 头、写规范身份头 → 服务绑定 ACCOUNT → 命名入口 AccountService，
+ * 见 entrypoints.js）。本 Worker 没有任何公开路由（wrangler.toml 无 [[routes]]、workers_dev = false、preview_urls = false），
+ * 默认导出的 fetch 一律 404（方案第 3 节第二道保险：即使线上残留公开路由，伪造的头也碰不到任何接口）。
  *
  * 默认头像（没上传过）：读 Pages 上的静态文件 static/avatar/<尺寸>.webp。生产没有 env.ASSETS，发子请求到同一地址
- * （Worker 发往同一 zone 的子请求不再进任何 Worker，直接到 Pages，和网关以前回源一样）。
+ * （Worker 发往同一 zone 的子请求不再进任何 Worker，直接到 Pages）。
  *
- * 每个响应打 X-SGX-Runtime: account（不含敏感信息），部署后冒烟据此确认路径真的进了本 Worker。
- *
- * 本文件的默认 fetch 是公开路由的入口（账号拆分 PR2 暗上线期间行为不变，PR3 切流后改为一律 404）。
+ * 每个响应打 X-SGX-Runtime: account（不含敏感信息）：网关转发时保留，部署后冒烟据此确认路径真的进了本 Worker。
  * 部署入口是 worker.js（wrangler.toml 的 main）：默认导出就是这里的 default，另导出命名入口 AccountService / AccountVerifier（entrypoints.js）。
  */
-import { authFor } from './auth.js';
-import { gate } from './gate.js';
-import { withNoStore, apiError } from './lib/http.js';
+import { apiError } from './lib/http.js';
 import { applyMainSiteHeaders } from './lib/security-headers.js';
 import * as avatar from './api/avatar.js';
 import * as avatarFile from './api/avatar-file.js';
 import * as prefs from './api/prefs.js';
 import * as wellbeing from './api/wellbeing.js';
+import * as account from './identity/account.js';
 
 export const RUNTIME = 'account';
 
+/** 接口路由表（只经 AccountService 用；网关转发表 workers/auth-gateway/src/forwarding.js 里的 /api/* 路径与这里一一对应） */
 /** @type {Map<string, Record<string, Function>>} */
 export const API_ROUTES = new Map([
+  ['/api/account', account],
   ['/api/avatar', avatar],
   ['/api/prefs', prefs],
   ['/api/wellbeing', wellbeing],
@@ -75,7 +77,7 @@ function withAssets(env) {
 
 /** @param {Response} res */
 export function tagRuntime(res) {
-  /* 安全响应头和网关主站同一套（workers/account/src/lib/security-headers.js，2026-10-25 PR D）；Referrer-Policy 已设过的（/s/<码> 的 no-referrer）不覆盖 */
+  /* 安全响应头和网关主站同值（本 Worker 自己的 lib/security-headers.js，gen-csp 与网关那份一起生成，单测核对同值）；Referrer-Policy 已设过的不覆盖 */
   const out = applyMainSiteHeaders(res);
   out.headers.set('X-SGX-Runtime', RUNTIME);
   return out;
@@ -94,8 +96,8 @@ function makeContext(request, env, ctx, auth, functionPath, params) {
 }
 
 /**
- * 门放行后的去向。
- * routes：接口路由表，默认 API_ROUTES（公开路由用）；命名入口 AccountService（entrypoints.js）传入多了 /api/account 的表。
+ * AccountService 放行后的去向（entrypoints.js serviceFetch 调）。
+ * routes：接口路由表，默认 API_ROUTES。
  */
 export async function route(request, env, ctx, auth, routes = API_ROUTES) {
   const url = new URL(request.url);
@@ -113,27 +115,17 @@ export async function route(request, env, ctx, auth, routes = API_ROUTES) {
     if (!handler) return fromOrigin(request, env); /* 只有 GET 有处理函数，其他方法落到静态文件（同网关） */
     return handler(makeContext(request, withAssets(env), ctx, auth, '/avatar/[file]', { file: m[1] }));
   }
-  /* 路由只登记了上面几条；万一进来别的路径，按网关的规矩回源，不在这里出页面 */
-  return fromOrigin(request, env);
+  /* 网关只转发表里的路径；别的路径不在这里出页面，也不回源 */
+  return apiError(404, 'not-found');
 }
 
+/**
+ * 默认 fetch：一律 404（方案第 3 节第二道保险）。本 Worker 只经命名入口 AccountService（网关的服务绑定 ACCOUNT）处理请求；
+ * 公网（残留路由、*.workers.dev 等）进来的请求碰不到任何接口，也不读任何 x-styrigx-* 头。
+ */
 export default {
-  /**
-   * @param {Request} request
-   * @param {Record<string, any>} env
-   * @param {{ waitUntil(p: Promise<any>): void }} ctx
-   */
-  async fetch(request, env, ctx) {
-    let isApi = false;
-    try {
-      isApi = new URL(request.url).pathname.startsWith('/api/');
-      const auth = authFor(request, env);
-      const denied = await gate(request, env, auth);
-      const res = denied || (await route(request, env, ctx, auth));
-      return tagRuntime(isApi ? withNoStore(res) : res);
-    } catch (e) {
-      console.error('[sgx-account] unhandled: ' + (e && /** @type {any} */ (e).name ? /** @type {any} */ (e).name : 'error'));
-      return tagRuntime(apiError(500, 'internal'));
-    }
+  /** @param {Request} _request */
+  async fetch(_request) {
+    return tagRuntime(apiError(404, 'not-found'));
   },
 };

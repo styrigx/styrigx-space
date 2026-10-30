@@ -5,7 +5,7 @@
  * - 单 IP 连错 5 次锁 15 分钟：锁定中码对也 429，过期后恢复；IPv6 同一 /64 共用计数
  * - 记失败是原子 UPSERT：并发 N 次失败正好计 N 次；过期行读时不认、下一次失败从 1 重新计
  * - D1 出错 → 503（fail closed）
- * 存储：D1_ROOT_AUTH，attempt_limit 表 realm='root'、kind='rootkey'（bucket = IP 分桶；全局窗口 bucket='*'）。
+ * 存储：D1_LOCK_AUTH，attempt_limit 表 realm='lock'、kind='rootkey'（bucket = IP 分桶；全局窗口 bucket='*'）。
  * 运行：node --test tests/workers/auth-gateway/root-limit.test.mjs
  */
 import { test } from 'node:test';
@@ -23,13 +23,13 @@ const { priv: PRIV, pub: PUB } = await genKeyPair();
 const ROOT_KEY = 'test-root-key-abcdef-123456';
 
 /* 三个 D1 绑定同一个库（同正式部署）；网关不绑 KV */
-const env = (db) => ({ D1_LOCK_AUTH: db, D1_ACCOUNT_AUTH: db, D1_ROOT_AUTH: db, SGX_ROOT_KEY: ROOT_KEY, SGX_LOCK_PRIVATE: PRIV, SGX_LOCK_PUBLIC: PUB });
+const env = (db) => ({ D1_LOCK_AUTH: db, SGX_ADMIN_KEY: ROOT_KEY, SGX_LOCK_PRIVATE: PRIV, SGX_LOCK_PUBLIC: PUB });
 /** attempt_limit 里根凭证的一行（不管过没过期，原样返回；没有 → null） */
-const row = (db, bucket) => db.raw.prepare("SELECT * FROM attempt_limit WHERE realm = 'root' AND kind = 'rootkey' AND bucket = ?").get(bucket) || null;
+const row = (db, bucket) => db.raw.prepare("SELECT * FROM attempt_limit WHERE realm = 'lock' AND kind = 'rootkey' AND bucket = ?").get(bucket) || null;
 /** 直接改一行（摆前提：把窗口 / 锁定挪到过去） */
 const patch = (db, bucket, cols) => {
   const keys = Object.keys(cols);
-  db.raw.prepare('UPDATE attempt_limit SET ' + keys.map((k) => k + ' = ?').join(', ') + " WHERE realm = 'root' AND kind = 'rootkey' AND bucket = ?").run(...keys.map((k) => cols[k]), bucket);
+  db.raw.prepare('UPDATE attempt_limit SET ' + keys.map((k) => k + ' = ?').join(', ') + " WHERE realm = 'lock' AND kind = 'rootkey' AND bucket = ?").run(...keys.map((k) => cols[k]), bucket);
 };
 function post(body, ip) {
   return new Request('https://styrigx.com/api/root-auth', {
@@ -82,7 +82,7 @@ test('全局计数：只有真比对失败才加；满阈值后 checkRootLimit �
 test('全局暂停不存在：全局计数爆表时正确的 RootKey 仍然通过，只是先等几秒', async () => {
   const db = makeAuthD1();
   const now = Date.now();
-  db.raw.prepare("INSERT INTO attempt_limit (realm, kind, bucket, count, window_start, expires_at) VALUES ('root', 'rootkey', '*', 100000, ?, ?)").run(now, now + 3600 * 1000);
+  db.raw.prepare("INSERT INTO attempt_limit (realm, kind, bucket, count, window_start, expires_at) VALUES ('lock', 'rootkey', '*', 100000, ?, ?)").run(now, now + 3600 * 1000);
   const t0 = Date.now();
   const ok = await real(db, ROOT_KEY, '203.0.113.8');
   assert.equal(ok.status, 200, '不是 429');
@@ -185,10 +185,10 @@ test('D1 出错 → 503（真路径和假入口都 fail closed）', async () => 
   const r = await real(db2, ROOT_KEY, '192.0.2.89');
   assert.equal(r.status, 503);
   assert.equal(r.headers.get('Set-Cookie'), null, '不签票');
-  /* 没绑 D1_ROOT_AUTH：同样拒绝 */
+  /* 没绑 D1_LOCK_AUTH：同样拒绝 */
   const e = env(makeAuthD1());
-  delete e.D1_ROOT_AUTH;
+  delete e.D1_LOCK_AUTH;
   const r3 = await rootAuth({ request: post({ key: ROOT_KEY, purpose: 'lock-reset' }, '192.0.2.90'), env: e });
-  assert.ok(r3.status >= 500, '没绑定不放行');
+  assert.ok(r3.status === 401 || r3.status >= 500, '没绑定不放行（读不到锁屏是否已配置 → 按已配置走假入口 401）');
   assert.equal(r3.headers.get('Set-Cookie'), null);
 });

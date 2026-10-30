@@ -6,7 +6,7 @@
  * - root-reset  { key } → AccountResetTicket（by=root）。不要账号会话；不签会话（拿票设好新凭证后正常登录）。
  * - audit-list          → { items:[{ ts, ipPrefix, ok, event }] }，最近 50 条，新的在前（根密钥使用 + 安全事件）。
  *
- * 这两条路径原在网关 /api/root-auth（purpose account-reauth / account-reset；切流前网关照旧，切流后只在这里），差别：
+ * 账号拆分前这两条路径在网关 /api/root-auth（purpose account-reauth / account-reset），PR3 起只在这里，差别：
  * - 比对的是账号自己的根密钥 SGX_ACCOUNT_ROOT_KEY（REALM_ACCOUNT.rootKey），不是锁屏根密钥；没有恢复开关。
  * - 限速行在本库 attempt_limit realm='account' kind='rootkey'；审计行在本库 audit realm='account'，
  *   path = root-reauth / root-reset（网关原来写 realm='root'、path = account-reauth / account-reset）。

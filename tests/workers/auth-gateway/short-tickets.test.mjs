@@ -1,5 +1,5 @@
 /**
- * 四张 reset / reauth 短票（_kernel/tickets.js verifyTicket）的时间窗口：
+ * 两张锁屏 reset / reauth 短票（_kernel/tickets.js verifyTicket；账号的两张账号拆分 PR3 起只在账号 Worker）的时间窗口：
  * - expired：exp <= now（签发 181 秒前的票）
  * - not-yet：iat > now + 60s（时钟偏差容忍 60 秒，之内照常有效）
  * - 超长：exp − iat > 该票 maxAge → bad-format（签名本身是对的，也不认）
@@ -15,16 +15,13 @@ import { TICKETS } from '../../../workers/auth-gateway/functions/_kernel/realms.
 import { makeKV, genKeyPair, authD1For } from '../_harness.mjs';
 
 const LOCK = await genKeyPair();
-const ACCOUNT = await genKeyPair();
 const EPOCH = 3;
 
 const kv = makeKV();
 authD1For(kv).setEpoch('lock-epoch', EPOCH); /* 纪元在 D1 */
-authD1For(kv).setEpoch('account-epoch', EPOCH);
 const env = {
   SGX_LOCK_PRIVATE: LOCK.priv, SGX_LOCK_PUBLIC: LOCK.pub,
-  SGX_ACCOUNT_PRIVATE: ACCOUNT.priv, SGX_ACCOUNT_PUBLIC: ACCOUNT.pub,
-  KV_LOCK_DOOR: kv, D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), KV_ACCOUNT_LOGIN: kv,
+  D1_LOCK_AUTH: authD1For(kv),
 };
 const privOf = (name) => env[TICKETS[name].privateKey];
 const reqWith = (name, val) => new Request('https://styrigx.com/', { headers: { Cookie: TICKETS[name].cookie + '=' + val } });
@@ -35,8 +32,9 @@ async function rawTicket(name, by, epoch, iat, exp) {
   return payload + '.' + (await ed25519Sign(privOf(name), TICKETS[name].cookie + '|' + payload));
 }
 
-test('四张短票都在表里，时长都是 180 秒', () => {
-  assert.equal(SHORT_TICKETS.length, 4);
+test('两张锁屏短票都在表里，时长都是 180 秒；账号短票不在网关', () => {
+  assert.deepEqual([...SHORT_TICKETS], ['LockResetTicket', 'LockReauthTicket']);
+  for (const name of ['AccountResetTicket', 'AccountReauthTicket', 'AccountSessionTicket']) assert.equal(TICKETS[name], undefined, name);
   for (const name of SHORT_TICKETS) assert.equal(TICKETS[name].maxAge, 180, name);
 });
 

@@ -14,7 +14,7 @@ import { genKeyPair, authD1For } from '../_harness.mjs';
 
 const { priv: PRIV, pub: PUB } = await genKeyPair();
 const KV = { async get() { return null; }, async put() {}, async delete() {} };
-const ENV = { SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, KV_LOCK_DOOR: KV, D1_LOCK_AUTH: authD1For(KV), D1_ACCOUNT_AUTH: authD1For(KV) , D1_ROOT_AUTH: authD1For(KV)};
+const ENV = { SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, KV_LOCK_DOOR: KV, D1_LOCK_AUTH: authD1For(KV) , D1_LOCK_AUTH: authD1For(KV)};
 const cookie = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'admin'));
 
 /* 原样拼在查询串里的 return 值（浏览器地址栏 / 攻击链接里的写法） */

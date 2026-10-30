@@ -5,7 +5,7 @@
 ```
 src/index.js        入口：/s/<码> → open.js；/api/share → api/share.js；X-SGX-Runtime: share
 src/gate.js         门：只认 styrigx.com；/s/* 谁都能开；/api/share* 只许管理员（访客 403、没会话 401）
-src/auth.js         会话：直接用账号 Worker 的 auth.js（问网关 AuthVerifier，服务绑定 AUTH）
+src/auth.js         会话：本 Worker 自己一份（锁屏会话问网关 AuthVerifier / AUTH，账号会话问账号 Worker AccountVerifier / ACCOUNT_VERIFIER）
 src/open.js         打开短链：普通 → 302；带会话 → 请网关 ShareIssuer 签访客会话 → 302（去掉码）；失败统一 302 /?lock=1；限速
 src/api/share.js    POST /api/share { list | create | revoke }（管理员 + 账号会话；同源，子站只许 create + reuse）
 src/lib/links.js    规则（码、有效期、会话档位、目标：站内路径或 styrigx.com / 三个子站的 https 地址）、复用查询和 D1 语句

@@ -4,7 +4,7 @@
  * - 全局只减速不封锁：本域每小时输错满阈值后每次校验先等，不返回 429
  * - IPv6 同一 /64 共用计数
  * - 记失败是一条原子 UPSERT：并发 N 次输错正好计 N 次；过期行读时不认、下一次从头计
- * 存储：D1 attempt_limit 表，realm = 'lock'（D1_LOCK_AUTH）/ 'account'（D1_ACCOUNT_AUTH），kind = 'password'；
+ * 存储：D1 attempt_limit 表，realm = 'lock'（D1_LOCK_AUTH），kind = 'password'；按域参数化（第二个域用测试对象）；
  * 单 IP 行 count / strikes / locked_until / expires_at，全局窗口 bucket = '*'（旧格式 KV 计数不导入，见 scripts/migrate-kv-to-d1.mjs）。
  * 运行：node --test tests/workers/auth-gateway/password-limit.test.mjs
  */
@@ -12,7 +12,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { onRequestPost as lockPassword } from '../../../workers/auth-gateway/functions/api/lock-password.js';
 import { makePasswordRecord } from '../../../workers/auth-gateway/functions/_kernel/lib/password.js';
-import { REALM_LOCK, REALM_ACCOUNT } from '../../../workers/auth-gateway/functions/_kernel/realms.js';
+import { REALM_LOCK } from '../../../workers/auth-gateway/functions/_kernel/realms.js';
+/* lib/password-limit.js 按域参数化：第二个域用测试对象核对两域互不影响（网关自己只有锁屏域） */
+const REALM_ACCOUNT = Object.freeze({ id: 'account', d1Binding: 'D1_LOCK_AUTH' });
 import {
   passwordLimiter,
   cooldownMs,
@@ -30,7 +32,7 @@ const { priv: PRIV, pub: PUB } = await genKeyPair();
 
 const IP = '198.51.100.20';
 /* 三个 D1 绑定同一个库（同正式部署）；网关不绑 KV */
-const envOf = (db) => ({ D1_LOCK_AUTH: db, D1_ACCOUNT_AUTH: db, D1_ROOT_AUTH: db, SGX_PW_PEPPER: PEPPER, SGX_LOCK_PRIVATE: PRIV, SGX_LOCK_PUBLIC: PUB });
+const envOf = (db) => ({ D1_LOCK_AUTH: db, SGX_PW_PEPPER: PEPPER, SGX_LOCK_PRIVATE: PRIV, SGX_LOCK_PUBLIC: PUB });
 function verify(db, password, ip = IP) {
   return lockPassword({
     request: new Request('https://styrigx.com/api/lock-password', {

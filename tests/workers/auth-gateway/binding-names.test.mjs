@@ -18,8 +18,11 @@ function bindings(toml) {
   return out;
 }
 
-/* 2026-10-27 起网关认证状态全部在 D1 styrigx-auth-gateway：三个按凭证域命名的绑定（D1_<域>_AUTH），同一个库，不再绑任何 KV */
-const AUTH = ['D1_LOCK_AUTH', 'D1_ACCOUNT_AUTH', 'D1_ROOT_AUTH'];
+/* 2026-10-27 起网关认证状态全部在 D1 styrigx-auth-gateway，不再绑任何 KV。
+   账号拆分 PR3：网关只剩锁屏域 D1_LOCK_AUTH（D1_ACCOUNT_AUTH / D1_ROOT_AUTH 删掉，库里遗留的行 PR4 清）。
+   Pages 预览跑的是组合入口（tests/web/e2e/preview-worker.js：网关 + 账号 Worker 代码），所以预览另绑 D1_ACCOUNT_AUTH 给账号那一半，
+   同一个测试库 styrigx-test-preview。 */
+const AUTH = { 'workers/auth-gateway/wrangler.toml': ['D1_LOCK_AUTH'], 'web/wrangler.toml': ['D1_LOCK_AUTH', 'D1_ACCOUNT_AUTH'] };
 /* 以前的认证 KV / 重置开关 D1 绑定名：网关和 Pages 预览都不能再出现 */
 const AUTH_GONE = ['KV_LOCK_DOOR', 'KV_ACCOUNT_LOGIN', 'D1_LOCK_RESET', 'D1_LOCK_DOOR', 'D1_ACCOUNT_LOGIN'];
 /* 2026-10-24 起在账号 Worker styrigx-account（workers/account），网关和 Pages 预览都不再绑定 */
@@ -28,17 +31,16 @@ const OLD = /\b(OWNER_KV|ACCOUNT_KV|SGX_D1|SEARCH_KV|STATUS_DB)\b|"CF_USAGE_TOKE
 /** 去掉 # 注释（注释里可以提旧名字，绑定里不行） */
 const code = (toml) => toml.split('\n').map((l) => l.replace(/#.*$/, '')).join('\n');
 
-test('鉴权网关正式 / 预览：恰好三个 D1 认证绑定（同一个库），没有任何 KV；不再绑账号库', () => {
+test('鉴权网关正式只绑 D1_LOCK_AUTH；Pages 预览（组合入口）另绑 D1_ACCOUNT_AUTH，同一个库；没有任何 KV；不绑 D1_ROOT_AUTH / 账号资料库', () => {
   for (const p of ['workers/auth-gateway/wrangler.toml', 'web/wrangler.toml']) {
     const toml = read(p);
     const src = code(toml);
     assert.doesNotMatch(toml, OLD, p);
     const m = bindings(toml);
     const d1 = [...src.matchAll(/^\[\[(?:env\.preview\.)?d1_databases\]\]\s*\nbinding = "([A-Z0-9_]+)"/gm)].map((x) => x[1]);
-    assert.deepEqual(d1.slice().sort(), AUTH.slice().sort(), p + '：D1 绑定恰好是这三个');
-    for (const n of AUTH) assert.ok(m[n], p + ' 缺 ' + n);
-    assert.equal(m.D1_ACCOUNT_AUTH, m.D1_LOCK_AUTH, p + '：三个名字是同一个库');
-    assert.equal(m.D1_ROOT_AUTH, m.D1_LOCK_AUTH, p + '：三个名字是同一个库');
+    assert.deepEqual(d1.slice().sort(), AUTH[p].slice().sort(), p + '：D1 绑定恰好是这几个');
+    for (const n of AUTH[p]) assert.equal(m[n], m.D1_LOCK_AUTH, p + '：' + n + ' 与 D1_LOCK_AUTH 同一个库');
+    assert.equal(m.D1_ROOT_AUTH, undefined, p + '：D1_ROOT_AUTH 已删（根域并入锁屏域）');
     /* 正式 = styrigx-auth-gateway；Pages 预览 = 所有 Worker 预览共用的测试库 styrigx-test-preview（2026-10-29） */
     const dbName = p === 'web/wrangler.toml' ? 'styrigx-test-preview' : 'styrigx-auth-gateway';
     assert.match(src, new RegExp('^database_name = "' + dbName + '"$', 'm'), p);
@@ -68,9 +70,9 @@ test('账号 Worker 正式 / 预览：D1_SETTINGS_SYNC = D1_WELLBEING = D1_ACCOU
   /* 2026-10-29 PR2：账号 Worker 只绑 D1_ACCOUNT_AUTH，而且指向账号库 styrigx-account（不是网关的认证库）；锁屏 / 根的认证绑定一个都不绑 */
   assert.equal(m.D1_ACCOUNT_AUTH, m.D1_WELLBEING, 'D1_ACCOUNT_AUTH = 账号库 styrigx-account');
   assert.notEqual(m.D1_ACCOUNT_AUTH, '6931d1da-3502-480d-b0bd-de1bc4829d1d', '不许指向网关认证库');
-  for (const n of AUTH.filter((x) => x !== 'D1_ACCOUNT_AUTH').concat(AUTH_GONE)) assert.equal(m[n], undefined, '账号 Worker 不该绑 ' + n);
+  for (const n of ['D1_LOCK_AUTH', 'D1_ROOT_AUTH'].concat(AUTH_GONE)) assert.equal(m[n], undefined, '账号 Worker 不该绑 ' + n);
   const pm = bindings(code(preview));
-  for (const n of AUTH.filter((x) => x !== 'D1_ACCOUNT_AUTH').concat(AUTH_GONE)) assert.equal(pm[n], undefined, '账号 Worker 预览不该绑 ' + n);
+  for (const n of ['D1_LOCK_AUTH', 'D1_ROOT_AUTH'].concat(AUTH_GONE)) assert.equal(pm[n], undefined, '账号 Worker 预览不该绑 ' + n);
   assert.equal(pm.D1_ACCOUNT_AUTH, pm.D1_WELLBEING, '预览 D1_ACCOUNT_AUTH = 测试库');
   assert.equal(pm.KV_PROFILE, '193b4d68b8ac4c6f8c0ba16b5ea78b14', '预览 KV = 测试专用 namespace');
   assert.equal(pm.KV_SETTINGS_SYNC, undefined);

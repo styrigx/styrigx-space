@@ -1,19 +1,19 @@
 /**
  * 通行密钥存储（锁屏、账号两域共用的读写层）。
  *
- * 锁屏通行密钥接口（api/lock-passkey.js）、账号接口（api/account.js）、重置锁屏（api/lock-reset.js）、
+ * 锁屏通行密钥接口（api/lock-passkey.js）、重置锁屏（api/lock-reset.js）、
  * 锁屏凭证状态等都从这里读写。
  *
- * 存储（2026-10-27 起）：D1 styrigx-auth-gateway 的 passkey 表（d1-state.js；lock 经 D1_LOCK_AUTH，account 经 D1_ACCOUNT_AUTH），
+ * 存储（2026-10-27 起）：D1 styrigx-auth-gateway 的 passkey 表（d1-state.js；只经 D1_LOCK_AUTH 读写 realm='lock' 的行），
  * 每把一行 (realm, credential_id, record)，record 字段顺序固定、不写 class。D1 强一致：注册 / 删除后下一个请求就能读到，
  * 不再有 KV 索引的「读-改-写丢钥匙」和「刚注册锁屏找不到」。上线前 KV 里的记录由 scripts/migrate-kv-to-d1.mjs 导入。
  * 用户 handle 在 D1 user_handle 表（每个 realm 一行，第一次注册时生成；以前的 KV lock-user-id / account-user-id 由导入脚本搬来）。
- * 每个函数第一个业务参数是域：PASSKEY_LOCK（LockKey）/ PASSKEY_ACCOUNT（AccountKey）。
+ * 每个函数第一个业务参数是域：只有 PASSKEY_LOCK（LockKey；账号通行密钥 2026-10-30 起只在账号 Worker）。
  *
  * 叶子模块：只 import _kernel（crypto / realms / d1-state）。
  */
 import { b64urlEnc } from './lib/crypto.js';
-import { REALM_LOCK, REALM_ACCOUNT } from './realms.js';
+import { REALM_LOCK } from './realms.js';
 import {
   listPasskeyRecords,
   hasPasskeyRecord,
@@ -24,16 +24,15 @@ import {
   userHandleRecord,
 } from './d1-state.js';
 
-/* 通行密钥所属的域（= 凭证域 id）：锁屏通行密钥（LockKey）/ 账号通行密钥（AccountKey） */
+/* 通行密钥所属的域（= 凭证域 id）：网关只有锁屏通行密钥（LockKey）；账号通行密钥在账号 Worker */
 export const PASSKEY_LOCK = REALM_LOCK.id;
-export const PASSKEY_ACCOUNT = REALM_ACCOUNT.id;
 
-/** @param {string} domain 只认锁屏、账号两域 */
+/** @param {string} domain 只认锁屏域 */
 function checkDomain(domain) {
-  if (domain === PASSKEY_LOCK || domain === PASSKEY_ACCOUNT) return domain;
+  if (domain === PASSKEY_LOCK) return domain;
   throw new Error('passkey-store: bad domain ' + JSON.stringify(domain));
 }
-/* 通行密钥注册时 WebAuthn user.displayName（写死，用户不填；锁屏、账号两域相同） */
+/* 通行密钥注册时 WebAuthn user.displayName（写死，用户不填；账号 Worker 用同一个值） */
 export const PASSKEY_DISPLAY_NAME = 'Sloan Gray';
 
 /* AAGUID → 密码管理器（只用于显示，不参与安全判断）。
@@ -148,7 +147,7 @@ export async function deletePasskey(env, domain, credId) {
 
 /**
  * 获取或创建固定用户 ID（32 字节随机，D1 user_handle 表）。读写失败返回 null（调用方 503 / 跳过校验，同以前）。
- * 锁屏、账号两域各用一个 handle，不共用，防止 Samsung Pass 把 AccountKey 覆盖到 LockKey 上。
+ * 锁屏域自己一个 handle（账号 Worker 另有自己的），不共用，防止 Samsung Pass 把 AccountKey 覆盖到 LockKey 上。
  * @param {any} env
  * @param {string} domain PASSKEY_ACCOUNT | PASSKEY_LOCK
  */

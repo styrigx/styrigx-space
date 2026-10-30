@@ -56,8 +56,8 @@ function sleep(ms) {
 }
 
 /**
- * @param {any} env 网关 env（D1_LOCK_AUTH / D1_ACCOUNT_AUTH）
- * @param {{id:string, d1Binding:string}} realm 域描述对象（网关：REALM_LOCK | REALM_ACCOUNT），原样交给 attempt-limit.js
+ * @param {any} env 网关 env（D1_LOCK_AUTH）
+ * @param {{id:string, d1Binding:string}} realm 域描述对象（网关：REALM_LOCK；账号拆分 PR3 起网关没有账号域），原样交给 attempt-limit.js
  * @param {string} ip
  * @param {{sleep?:(ms:number)=>Promise<void>}} [opts] 测试可替换 sleep
  */

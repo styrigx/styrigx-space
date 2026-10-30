@@ -6,7 +6,7 @@
  *   管理员 + 四张合法图 → 写四张 + 版本号。
  * - DELETE /api/avatar：管理员 → 删版本号和四张；访客 403。
  *
- * 账号 Worker styrigx-account（workers/account，2026-10-24 从网关搬来）；会话经网关 verifier.js（_auth.mjs）。
+ * 账号 Worker styrigx-account（workers/account，2026-10-24 从网关搬来）；锁屏身份经网关这一跳写成身份头（_auth.mjs）。
  *
  * 运行：node --test tests/workers/account/avatar.test.mjs
  */

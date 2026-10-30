@@ -31,12 +31,12 @@ async function genKeys() {
   ({ priv: LOCK_PRIV, pub: LOCK_PUB } = await genKeyPair());
 }
 
-const SGX_ROOT_KEY = 'test-root-key-2102';
+const SGX_ADMIN_KEY = 'test-root-key-2102';
 
 function baseEnv(kv, overrides = {}) {
   return {
-    KV_LOCK_DOOR: kv, D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), KV_ACCOUNT_LOGIN: kv,
-    SGX_ROOT_KEY,
+    KV_LOCK_DOOR: kv, D1_LOCK_AUTH: authD1For(kv), KV_ACCOUNT_LOGIN: kv,
+    SGX_ADMIN_KEY,
     SGX_LOCK_PRIVATE: LOCK_PRIV,
     SGX_LOCK_PUBLIC: LOCK_PUB,
     SGX_RP_ID: 'styrigx.com',
@@ -146,15 +146,15 @@ test('8：root-auth 审计写入失败 → 503 且无 cookie', async () => {
   const kv = makeKV();
   const env = baseEnv(kv);
   /* 让审计写入失败：D1 audit 表的 INSERT 抛错，其他放行 */
-  env.D1_ROOT_AUTH.failOn = (sql) => /^\s*INSERT INTO audit/i.test(sql);
-  const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY, purpose: 'lock-reset' });
+  env.D1_LOCK_AUTH.failOn = (sql) => /^\s*INSERT INTO audit/i.test(sql);
+  const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ADMIN_KEY, purpose: 'lock-reset' });
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 503, '审计失败应 503');
   const cookies = res.headers.getSetCookie ? res.headers.getSetCookie() : [];
   const all = (cookies || []).join(';');
   assert.ok(!all.includes('sgx-lock-session='), '审计失败不得签发会话');
   assert.equal(res.headers.get('Set-Cookie'), null, '审计失败不签任何票');
-  assert.equal(env.D1_ROOT_AUTH.raw.prepare('SELECT COUNT(*) AS n FROM audit').get().n, 0);
+  assert.equal(env.D1_LOCK_AUTH.raw.prepare('SELECT COUNT(*) AS n FROM audit').get().n, 0);
 });
 
 /* ============ 9：Origin 缺失/解析失败 → 403 ============ */
@@ -162,7 +162,7 @@ test('8：root-auth 审计写入失败 → 503 且无 cookie', async () => {
 test('9a：root-auth 缺 Origin → 403', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
-  const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY, purpose: 'lock-reset' }, { Origin: null });
+  const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ADMIN_KEY, purpose: 'lock-reset' }, { Origin: null });
   const res = await onRequestPost({ request: req, env: baseEnv(kv) });
   assert.equal(res.status, 403);
   assert.equal((await res.json()).error, 'origin');
@@ -171,7 +171,7 @@ test('9a：root-auth 缺 Origin → 403', async () => {
 test('9b：root-auth Origin 解析失败 → 403', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
   const kv = makeKV();
-  const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ROOT_KEY, purpose: 'lock-reset' }, { Origin: '::not-a-url::' });
+  const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ADMIN_KEY, purpose: 'lock-reset' }, { Origin: '::not-a-url::' });
   const res = await onRequestPost({ request: req, env: baseEnv(kv) });
   assert.equal(res.status, 403);
 });

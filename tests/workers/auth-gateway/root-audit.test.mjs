@@ -1,6 +1,6 @@
 /**
- * 根凭证审计（_kernel/root-audit.js + GET /api/root-audit）：
- * - 存储：D1_ROOT_AUTH 的 audit 表，realm = 'root'；只追加（INSERT，不 UPDATE / REPLACE），保留 7 天（expires_at），过期行读时不认
+ * 锁屏根密钥审计（_kernel/root-audit.js + GET /api/root-audit）：
+ * - 存储：D1_LOCK_AUTH 的 audit 表，realm = 'lock'；只追加（INSERT，不 UPDATE / REPLACE），保留 7 天（expires_at），过期行读时不认
  * - GET 返回最新的 50 条（gateway 审计 #8）：一条 ORDER BY ts DESC LIMIT 50；新的在前
  * - 只给时间、IP 前缀、结果三项；只要 admin 锁屏会话
  *
@@ -19,11 +19,11 @@ const { priv: PRIV, pub: PUB } = await genKeyPair();
 const DAY = 86400e3;
 
 /* 三个 D1 绑定同一个库（同正式部署）；纪元在 D1，空库 → 0 */
-const envOf = (db) => ({ SGX_LOCK_PUBLIC: PUB, D1_LOCK_AUTH: db, D1_ACCOUNT_AUTH: db, D1_ROOT_AUTH: db });
+const envOf = (db) => ({ SGX_LOCK_PUBLIC: PUB, D1_LOCK_AUTH: db });
 
 /** 直接摆一行审计（不走网关代码） */
 function putAudit(db, row) {
-  const r = { realm: 'root', decoy: 0, via: '', path: '', ...row };
+  const r = { realm: 'lock', decoy: 0, via: '', path: '', ...row };
   if (r.expires_at === undefined) r.expires_at = r.ts + 7 * DAY;
   db.raw.prepare('INSERT INTO audit (realm, id, ts, ip_prefix, ok, decoy, via, path, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
     .run(r.realm, r.id, r.ts, r.ip_prefix, r.ok ? 1 : 0, r.decoy ? 1 : 0, r.via, r.path, r.expires_at);
@@ -70,21 +70,21 @@ test('root-audit：过期（超过 7 天）的行不返回；别的 realm 的行
   const now = Date.now();
   putAudit(db, { id: 'old', ts: now - 8 * DAY, ip_prefix: 'old', ok: true });
   putAudit(db, { id: 'edge', ts: now - DAY, ip_prefix: 'edge', ok: true, expires_at: now - 1 });
-  putAudit(db, { id: 'other', realm: 'lock', ts: now - 1000, ip_prefix: 'other', ok: true });
+  putAudit(db, { id: 'other', realm: 'account', ts: now - 1000, ip_prefix: 'other', ok: true });
   putAudit(db, { id: 'new', ts: now - 2000, ip_prefix: 'new', ok: false });
   const res = await onRequestGet({ request: await req(), env: envOf(db) });
   const { items } = await res.json();
   assert.deepEqual(items.map((x) => x.ipPrefix), ['new']);
 });
 
-test('root-audit：D1 查询出错 → 503 server；没绑 D1_ROOT_AUTH → 500 config', async () => {
+test('root-audit：D1 查询出错 → 503 server；没绑 D1_LOCK_AUTH → 500 config', async () => {
   const db = makeAuthD1();
   db.failOn = (sql) => /FROM audit/.test(sql);
   const res = await onRequestGet({ request: await req(), env: envOf(db) });
   assert.equal(res.status, 503);
   assert.deepEqual(await res.json(), { ok: false, error: 'server' });
   const env = envOf(makeAuthD1());
-  delete env.D1_ROOT_AUTH;
+  delete env.D1_LOCK_AUTH;
   const res2 = await onRequestGet({ request: await req(), env });
   assert.equal(res2.status, 500);
   assert.deepEqual(await res2.json(), { ok: false, error: 'config' });
@@ -92,7 +92,7 @@ test('root-audit：D1 查询出错 → 503 server；没绑 D1_ROOT_AUTH → 500 
 
 /* ===== 写入：只追加 ===== */
 
-test('writeRootAudit：每次写一行（realm=root，只存 IP 前缀），不覆盖已有行；读出新的在前', async () => {
+test('writeRootAudit：每次写一行（realm=lock，只存 IP 前缀），不覆盖已有行；读出新的在前', async () => {
   const db = makeAuthD1();
   const env = envOf(db);
   assert.equal(await writeRootAudit(env, '203.0.113.45', false, { path: 'lock-reset', decoy: true, via: 'switch' }), true);
@@ -104,7 +104,7 @@ test('writeRootAudit：每次写一行（realm=root，只存 IP 前缀），不�
   assert.equal(rows.length, 7);
   assert.equal(new Set(rows.map((r) => r.id)).size, 7, 'id 不重复');
   for (const r of rows) {
-    assert.equal(r.realm, 'root');
+    assert.equal(r.realm, 'lock');
     assert.ok(r.expires_at > r.ts + 7 * DAY - 1000 && r.expires_at <= r.ts + 7 * DAY, '保留 7 天');
     assert.ok(!r.ip_prefix.includes('45') && !r.ip_prefix.includes(':5:6'), '不存完整 IP');
   }

@@ -36,13 +36,13 @@ test('清预览 D1：只清 passkey / password / attempt_limit（「是否已设
   for (const t of RESET_D1_TABLES) assert.match(mig, new RegExp('CREATE TABLE IF NOT EXISTS ' + t + ' \\('), t);
 });
 
-test('清预览 D1：库 id 取 web/wrangler.toml 预览的 D1_LOCK_AUTH，三个名字同一个库，且不是正式库', () => {
+test('清预览 D1：库 id 取 web/wrangler.toml 预览的 D1_LOCK_AUTH，和组合预览账号那一半的 D1_ACCOUNT_AUTH 同一个库，且不是正式库', () => {
   const pvToml = readFileSync(path.join(REPO, 'web/wrangler.toml'), 'utf8');
   const prodToml = readFileSync(path.join(REPO, 'workers/auth-gateway/wrangler.toml'), 'utf8');
   const pv = previewD1Id(REPO);
   assert.equal(pv, d1DatabaseId(pvToml, REALM_LOCK.d1Binding));
-  assert.equal(pv, d1DatabaseId(pvToml, 'D1_ACCOUNT_AUTH'), '预览三个 D1 名字同一个库');
-  assert.equal(pv, d1DatabaseId(pvToml, 'D1_ROOT_AUTH'), '预览三个 D1 名字同一个库');
+  assert.equal(pv, d1DatabaseId(pvToml, 'D1_ACCOUNT_AUTH'), '预览两个 D1 名字同一个库');
+  assert.equal(d1DatabaseId(pvToml, 'D1_ROOT_AUTH'), '', 'D1_ROOT_AUTH 已删');
   assert.notEqual(pv, d1DatabaseId(prodToml, 'D1_LOCK_AUTH'));
   assert.equal(d1DatabaseId('[[d1_databases]]\nbinding = "X"\ndatabase_id = "ab-cd"\n', 'X'), 'ab-cd');
   assert.equal(d1DatabaseId('[[kv_namespaces]]\nbinding = "X"\nid = "abcd"\n', 'X'), '', '只认 d1_databases 块');
@@ -129,7 +129,7 @@ test('deploy.yml：PR → 本地模拟器（不用 Cloudflare secret、不部署
   assert.ok(usesSecrets.length >= 6);
   for (const s of usesSecrets) assert.ok(String(s.if).includes(NOT_PR), s.name + ': ' + s.if);
   /* 真实预览那条路的步骤：只在 main / 手动运行 */
-  for (const n of ['Require Cloudflare secrets', 'Reset preview D1', 'Bundle auth gateway as the preview _worker.js',
+  for (const n of ['Require Cloudflare secrets', 'Reset preview D1', 'Bundle preview _worker.js',
     'Generate Ed25519 test key pairs', "Put this run's public keys", 'Set preview test secrets', 'Apply D1 migrations to preview',
     'Deploy to preview', PREVIEW_RUN, 'Guard - no private vars on Pages production']) {
     assert.ok(String(step(n).if).includes(NOT_PR), n);
@@ -159,14 +159,15 @@ test('deploy.yml：PR → 本地模拟器（不用 Cloudflare secret、不部署
   assert.ok(pos('Build site') < pos(EMU_START) && pos(EMU_START) < pos(EMU_RUN), '先建站、再起模拟器、再跑用例');
   assert.ok(pos('Generate preview test credentials') < pos(EMU_START));
   assert.match(start.run, /node -e "require\('node:sqlite'\)"/);
-  assert.match(start.run, /node tests\/web\/e2e\/preview-emulator\.cjs --port 8788 --root-key "\$PREVIEW_TEST_ROOT_KEY" --pepper "\$PREVIEW_TEST_PW_PEPPER" > "\$log" 2>&1 &/);
+  assert.match(start.run, /node tests\/web\/e2e\/preview-emulator\.cjs --port 8788 --admin-key "\$PREVIEW_TEST_ADMIN_KEY" --account-root-key "\$PREVIEW_TEST_ACCOUNT_ROOT_KEY" --pepper "\$PREVIEW_TEST_PW_PEPPER" > "\$log" 2>&1 &/);
   assert.match(start.run, /curl -fsS -o \/dev\/null http:\/\/127\.0\.0\.1:8788\/__kv\/stats/, '等它就绪');
   assert.match(start.run, /exit 1\s*$/, '超时就红');
   /* 用例变量按 preview-emulator.cjs 文件头；端口和起模拟器的一致 */
   assert.deepEqual(emu.env, {
     SGX_TEST_SUITE: 'passkey',
     SGX_TEST_BASE: 'http://localhost:8788',
-    SGX_TEST_ROOT_KEY: '${{ env.PREVIEW_TEST_ROOT_KEY }}',
+    SGX_TEST_ADMIN_KEY: '${{ env.PREVIEW_TEST_ADMIN_KEY }}',
+    SGX_TEST_ACCOUNT_ROOT_KEY: '${{ env.PREVIEW_TEST_ACCOUNT_ROOT_KEY }}',
     SGX_TEST_CF_API: 'http://127.0.0.1:8788/client/v4',
     SGX_TEST_CF_TOKEN: 'x',
     SGX_TEST_CF_ACCOUNT: 'x',

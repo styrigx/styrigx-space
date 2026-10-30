@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 /**
- * 核对网关 Worker 路由登记（workers/auth-gateway/wrangler.toml 的 [[routes]]），
- * 以及账号 Worker styrigx-account（workers/account/wrangler.toml，2026-10-24 拆出来）、
+ * 核对网关 Worker 路由登记（workers/auth-gateway/wrangler.toml 的 [[routes]]）、网关转发表（workers/auth-gateway/src/forwarding.js），
+ * 账号 Worker styrigx-account（workers/account/wrangler.toml：账号拆分 PR3 起一条路由都没有）、
  * 短链 Worker styrigx-share（workers/share/wrangler.toml，2026-10-24）的更具体路由。
  * 路由匹配按线上实测的规则（scripts/lib/cf-routes.mjs）：不带 * 的规则遇到查询串不命中。
  * 以前这里写的是「不看查询串」，于是 styrigx.com/ 这类精确规则看着覆盖了首页，
  * 实际 /?lock=1&return=…（锁屏入口）和子站首页 /?utm=… 都绕过了网关（2026-10-21）。
  * 1. 主站每个 HTML 页面都被路由覆盖，带查询串（?x=1）也覆盖
  * 2. 接口和头像（/api/、/avatar/）被路由覆盖
- * 2b. 头像 / 云同步 / 数字健康（/api/avatar、/api/prefs、/api/wellbeing、/avatar/*，带查询串也算）归账号 Worker；
- *     网关路由表（src/routes.js）里的每个接口、每个页面仍归网关（账号 Worker 的前缀规则不能抢走别的路径）；
- *     账号 Worker 只登记 styrigx.com，两边规则不重复
+ * 2b. 账号路径（/api/account、/api/avatar、/api/prefs、/api/wellbeing、/avatar/*，带查询串也算）归网关（方案第 4 节）：
+ *     都被网关路由覆盖，且都在网关转发表 src/forwarding.js 里、转给 ACCOUNT；转发表的路径不在网关路由表 src/routes.js 里（不两处处理）；
+ *     账号 Worker 没有任何路由（wrangler.toml 无 [[routes]]）
  * 2c. 分享短链（/s/<码>、/api/share，带查询串也算）归短链 Worker styrigx-share（workers/share/wrangler.toml，2026-10-24）；
- *     规则同 2b：网关的每个接口、每个页面仍归网关，账号 Worker 的路径仍归账号 Worker，两个 Worker 互不抢
+ *     网关的每个接口、每个页面、每条转发路径仍归网关
  * 3. 路由不重复，只登记 styrigx.com 和 SUBSITE_HOSTS 里的域名
  * 4. 子站必须登记的路径（含首页 + 查询串）都覆盖
  * 5. daymark 的句子接口（daymark.styrigx.com/api/*，styrigx-daymark-core）、curio 的收藏接口（curio.styrigx.com/api/*，styrigx-curio-core）
@@ -26,6 +26,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readRoutes, routeMatches, pickRoute } from './lib/cf-routes.mjs';
+import { FORWARDING, matchForwarding } from '../workers/auth-gateway/src/forwarding.js';
 
 export { readRoutes, routeMatches };
 
@@ -38,9 +39,12 @@ const EXEMPT = new Set(['/404.html']);
 const MUST_ROUTE = ['/api/geo', '/api/lock-session-check',
   '/?lock=1', '/?lock=1&why=no-cookie&return=https%3A%2F%2Fblog.styrigx.com%2F', '/?return=%2Fsettings%2Fsecurity%2Flock%2F',
   '/en/?lock=1', '/files-index.json'];
-/* 必须归账号 Worker（styrigx-account）的路径 */
-const ACCOUNT_MUST = ['/api/avatar', '/api/prefs', '/api/prefs/', '/api/wellbeing', '/api/wellbeing?d=2026-10-24',
+/* 账号路径：必须归网关、在转发表里转给 ACCOUNT（账号 Worker styrigx-account 没有路由） */
+const ACCOUNT_MUST = ['/api/account', '/api/account?x=1', '/api/avatar', '/api/prefs', '/api/prefs/', '/api/wellbeing', '/api/wellbeing?d=2026-10-24',
   '/avatar/32.webp', '/avatar/96.webp', '/avatar/192.webp?v=abc', '/avatar/512.webp'];
+/* 转发表允许的绑定、门 */
+const FORWARD_BINDINGS = new Set(['ACCOUNT']);
+const FORWARD_GATES = new Set(['admin', 'session', 'public']);
 /* 必须归短链 Worker（styrigx-share）的路径 */
 const SHARE_MUST = ['/s/AAAAAAAAAAAAAAAAAAAAAA', '/s/AAAAAAAAAAAAAAAAAAAAAA/', '/s/AAAAAAAAAAAAAAAAAAAAAA?x=1', '/s/', '/api/share', '/api/share/', '/api/share?x=1'];
 /* 子站：域名 → 必须登记的路径 */
@@ -155,23 +159,52 @@ export function checkSplit(gateway, workers, gatewayApis, pagePaths) {
 }
 
 /**
- * 账号 Worker 的路由（只看账号 Worker；保留给已有单测）。
- * @param {string[]} gateway @param {string[]} account @param {string[]} gatewayApis @param {string[]} pagePaths
+ * 账号路径归网关、走转发表；账号 Worker 一条路由都没有（方案第 4 节）。
+ * @param {string[]} gateway 网关的路由
+ * @param {string[]} account 账号 Worker 的路由（必须为空）
+ * @param {string[]} gatewayApis 网关路由表里的接口
+ * @param {string[]} pagePaths 主站页面
+ * @param {ReadonlyArray<{path:string, binding:string, gate:string}>} [forwarding] 转发表，默认 src/forwarding.js 的 FORWARDING
  */
-export function checkAccount(gateway, account, gatewayApis, pagePaths) {
-  return checkSplit(gateway, [{ name: 'account', label: '账号 Worker', routes: account, must: ACCOUNT_MUST }], gatewayApis, pagePaths);
+export function checkAccount(gateway, account, gatewayApis, pagePaths, forwarding = FORWARDING) {
+  const errors = [];
+  for (const r of account) errors.push('账号 Worker 不许有路由（账号路径归网关、经转发表转发）：' + r);
+  if (!forwarding || !forwarding.length) return errors.concat('转发表是空的（workers/auth-gateway/src/forwarding.js）');
+  const ruleFor = (p) => forwarding.find((r) => (r.path.endsWith('/') ? p.startsWith(r.path) : (p === r.path || p.startsWith(r.path + '/')))) || null;
+  const seen = new Set();
+  for (const r of forwarding) {
+    if (seen.has(r.path)) errors.push('转发表重复：' + r.path);
+    seen.add(r.path);
+    if (!FORWARD_BINDINGS.has(r.binding)) errors.push('转发表绑定不认识：' + r.path + ' → ' + r.binding);
+    if (!FORWARD_GATES.has(r.gate)) errors.push('转发表门不认识：' + r.path + ' → ' + r.gate);
+    if (!r.path.startsWith('/')) errors.push('转发表路径要以 / 开头：' + r.path);
+    for (const a of gatewayApis) if (ruleFor(a) === r) errors.push('转发表路径同时在网关路由表 src/routes.js 里：' + a);
+  }
+  const all = gateway.concat(account);
+  for (const p of ACCOUNT_MUST) {
+    const r = pickRoute(all, HOST, p);
+    if (!r || account.includes(r)) errors.push('账号路径应归网关却不是：' + p + '（现在 → ' + (r ? 'account' : '没有路由') + '）');
+    const rule = ruleFor(p.split('?')[0]);
+    if (!rule || rule.binding !== 'ACCOUNT') errors.push('账号路径不在转发表里（或没转给 ACCOUNT）：' + p);
+  }
+  for (const p of pagePaths) {
+    if (!EXEMPT.has(p) && ruleFor(p)) errors.push('页面被转发表抢走了：' + p);
+  }
+  return errors;
 }
 
 /**
- * 网关 + 账号 Worker + 短链 Worker 一起核对。
+ * 网关 + 转发表 + 账号 Worker + 短链 Worker 一起核对。
  * @param {string[]} gateway @param {string[]} account @param {string[]} share @param {string[]} gatewayApis @param {string[]} pagePaths
  */
 export function checkWorkers(gateway, account, share, gatewayApis, pagePaths) {
-  return checkSplit(gateway, [
-    { name: 'account', label: '账号 Worker', routes: account, must: ACCOUNT_MUST },
-    { name: 'share', label: '短链 Worker', routes: share, must: SHARE_MUST },
-  ], gatewayApis, pagePaths);
+  const fwdPaths = ACCOUNT_MUST.filter((p) => !p.includes('?'));
+  return checkAccount(gateway, account, gatewayApis, pagePaths).concat(
+    checkSplit(gateway, [{ name: 'share', label: '短链 Worker', routes: share, must: SHARE_MUST }], gatewayApis.concat(fwdPaths), pagePaths),
+  );
 }
+
+export { matchForwarding };
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const routes = readRoutes(readFileSync(path.join(REPO, 'workers/auth-gateway/wrangler.toml'), 'utf8'));
@@ -198,5 +231,5 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     for (const e of errors) console.error('✗ ' + e);
     process.exit(1);
   }
-  console.log(`check-worker-routes.mjs: 通过（网关 ${routes.length} 条 + 账号 ${accountRoutes.length} 条 + 短链 ${shareRoutes.length} 条路由，${gatewayApis.length} 个网关接口，${pages.length} 个页面）`);
+  console.log(`check-worker-routes.mjs: 通过（网关 ${routes.length} 条 + 账号 ${accountRoutes.length} 条 + 短链 ${shareRoutes.length} 条路由，${gatewayApis.length} 个网关接口，转发表 ${FORWARDING.length} 条，${pages.length} 个页面）`);
 }

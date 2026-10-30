@@ -4,7 +4,7 @@
  * 短链本身（码、目标地址、列表、限速、D1 存储）在分享短链 Worker styrigx-share（workers/share）。
  * 它不持任何钥匙、不碰认证库；临时钥匙和访客会话只在这里、只用网关原来那一份代码：
  * - createLinkKey(cookie, p)：签一把「短链钥匙」（_kernel/lock-tempkey.js createTempkey，link=true：没有临时码、锁屏上输不进来、
- *   不占 20 把上限、不出现在临时钥匙列表里）。网关自己再验一次：必须是 admin 锁屏会话 + 账号会话（cookie 是浏览器带来的原样 Cookie 头）。
+ *   不占 20 把上限、不出现在临时钥匙列表里）。网关自己再验一次：必须是 admin 锁屏会话 + 账号会话（账号会话经 ACCOUNT_VERIFIER 问账号 Worker；cookie 是浏览器带来的原样 Cookie 头）。
  * - revokeLinkKey(cookie, id)：作废这把钥匙（revokeTempkey：D1 tempkey 行写 revoked_at，强一致）→ 拿它进来的访客下一个请求就进不来
  *   （验访客会话时查 tempkeyId 是否被作废，原样生效）。同样要 admin + 账号会话；只认 link 钥匙。
  * - openLinkSession(id, sessionSec)：访客点开带会话的短链 → 签 visitor 锁屏会话（sgx-lock-session：by=tempkey，tempkeyId=钥匙 id，lock 私钥），
@@ -14,7 +14,8 @@
  * ShareIssuer 是单独的入口（不是 AuthVerifier 的方法）：只有 styrigx-share 绑定它，daymark / account 等拿到的 AuthVerifier 调不到。
  * 公网进不来：RPC 入口没有路由，wrangler 只把 default 挂到 styrigx.com/*。
  */
-import { checkLockSession, checkAccountSession } from './verifier.js';
+import { checkLockSession } from './verifier.js';
+import { askAccountSession } from '../functions/_kernel/account-rpc.js';
 import { ROLE_ADMIN, ROLE_VISITOR, issueLockSession } from '../functions/_kernel/lock-session.js';
 import { BY_TEMPKEY } from '../functions/_kernel/realms.js';
 import {
@@ -35,7 +36,7 @@ export const LINK_SESSION_OPTS = Object.freeze([1800, 3600, 3 * 3600, 12 * 3600,
 async function adminError(cookie, env, meta) {
   const s = await checkLockSession(cookie, env);
   if (!s.ok || s.role !== ROLE_ADMIN) return 'session';
-  const a = await checkAccountSession(cookie, env, meta);
+  const a = await askAccountSession(env, cookie, meta); /* 账号会话：经 ACCOUNT_VERIFIER 问账号 Worker（方案第 2 节） */
   if (!a.ok) return 'account';
   return '';
 }

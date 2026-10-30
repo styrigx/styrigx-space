@@ -12,7 +12,7 @@
 import { verifyLockSession, ROLE_VISITOR } from './_kernel/lock-session.js';
 import { verifyLockResetTicket } from './_kernel/tickets.js';
 import { withNoStore, json, apiError } from './_kernel/lib/http.js';
-import { verifyAccountSession } from './_kernel/account-session.js';
+import { askAccountSessionFor } from './_kernel/account-rpc.js';
 import { isAdminOnlyPath, resolveReturn } from './_kernel/return.js';
 import { anonLimit } from './_kernel/anon-limit.js';
 import { injectSessionState, injectUpgradeState } from './_kernel/html.js';
@@ -23,9 +23,10 @@ const LOCK_RESET_PATHS = [
   '/en/settings/security/lock/',
 ];
 /* 2.8.0：管理员专属 API（visitor 调用 → 403）。
-   云同步 /api/prefs 2026-10-24 搬到账号 Worker styrigx-account，同样的访客 403 在 workers/account/src/gate.js。 */
+   账号拆分 PR3：/api/account、/api/prefs 经转发表（src/forwarding.js）转给账号 Worker，门在这里（/api/prefs 从账号 Worker 的 gate.js 收回）。 */
 const ADMIN_ONLY_APIS = [
   '/api/account',
+  '/api/prefs',
   '/api/lock-password',
   '/api/lock-passkey',
   '/api/lock-all-devices',
@@ -48,7 +49,6 @@ function isAdminOnlyApi(pathname) {
 const API_WHITELIST = [
   '/api/root-auth',
   '/api/lock-reset',
-  '/api/layer-status',
   '/api/root-audit',
   '/api/lock-password',
   '/api/lock-passkey',
@@ -61,8 +61,7 @@ const API_WHITELIST = [
 ];
 const STATIC_RE = /\.(css|js|woff2|woff|ttf|png|svg|ico|json|xml|webmanifest)$/i;
 /* 主站头像 /avatar/<尺寸>.webp（锁屏、首页、子站都用），公开放行；其他图片仍要先解锁。
-   线上 /avatar/* 由账号 Worker styrigx-account 承接（同样的放行规则在 workers/account/src/gate.js）；
-   这里留着给 passkey-e2e 预览（网关打包成 Pages 的 _worker.js，头像落到静态默认图）。 */
+   放行后由网关转发给账号 Worker（src/forwarding.js 的 /avatar/，gate='public'）。 */
 const AVATAR_FILE_RE = /^\/avatar\/(32|96|192|512)\.webp$/;
 /* 首页由 L1 特殊处理（见下）：始终返回页面并注入 data-sgx-lock-session，不再走白名单 */
 
@@ -176,6 +175,8 @@ async function handleRequest(context) {
   if (isProd && site === 'space') {
     const isHomepage = pathname === '/' || pathname === '/en' || pathname === '/en/';
     const sess = await verifyLockSession(request, env);
+    /* 验过的结论交给转发（src/index.js forward）：写身份头不再重验 */
+    if (context.data) context.data.lockSession = sess;
     const sessionValid = sess.ok;
     const role = sess.role; /* 'admin'|'visitor'|null */
     const isVisitor = role === ROLE_VISITOR;
@@ -278,10 +279,12 @@ async function handleRequest(context) {
       if (ct.includes('text/html')) {
         let account = null;
         if (isAccountPage(pathname)) {
+          /* 首帧提示：经 ACCOUNT_VERIFIER 问账号 Worker（方案第 2 节）；读不到（没绑定 / RPC 出错）→ 不给提示，前端停在中性态等 /api/account */
           try {
-            account = (await verifyAccountSession(request, env)).ok ? 'in' : 'out';
+            const a = await askAccountSessionFor(request, env);
+            account = a.ok ? 'in' : (a.reason === 'no-verifier' || a.reason === 'rpc-error' ? null : 'out');
           } catch (e) {
-            account = null; /* 读不到：不给提示，前端停在中性态等 /api/account */
+            account = null;
           }
         }
         return injectSessionState(res, 'valid', role, account);

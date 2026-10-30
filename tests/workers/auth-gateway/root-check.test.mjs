@@ -5,7 +5,7 @@
  * - 被限速（429）、限速 D1 读出错（503）、计数写 D1 出错（503）：不走到比对，也不调 padTo
  * root-auth 把 padTo 接到自己的 t0 上：真路径失败与无会话假入口都对齐同一个耗时。
  *
- * 存储：D1_ROOT_AUTH（realm='root'）的 attempt_limit（kind='rootkey'）和 audit 两张表。
+ * 存储：D1_LOCK_AUTH（realm='lock'）的 attempt_limit（kind='rootkey'）和 audit 两张表。
  *
  * 运行：node --test tests/workers/auth-gateway/root-check.test.mjs
  */
@@ -33,9 +33,9 @@ function setup() {
   const db = makeAuthD1();
   const padTo = async () => { db.calls.push('padTo'); };
   const log = () => db.calls.map((c) => (c === 'padTo' ? c : classify(c))).filter(Boolean);
-  const attempt = (bucket) => db.raw.prepare("SELECT * FROM attempt_limit WHERE realm = 'root' AND kind = 'rootkey' AND bucket = ?").get(bucket) || null;
+  const attempt = (bucket) => db.raw.prepare("SELECT * FROM attempt_limit WHERE realm = 'lock' AND kind = 'rootkey' AND bucket = ?").get(bucket) || null;
   const audits = () => db.raw.prepare('SELECT * FROM audit ORDER BY ts, id').all().map((r) => Object.assign({}, r));
-  return { db, padTo, log, attempt, audits, env: { SGX_ROOT_KEY: ROOT_KEY, D1_ROOT_AUTH: db } };
+  return { db, padTo, log, attempt, audits, env: { SGX_ADMIN_KEY: ROOT_KEY, D1_LOCK_AUTH: db } };
 }
 const run = (s, key, ip = '192.0.2.10') => checkRootCredential({ env: s.env, ip, key, auditPath: 'lock-reset', padTo: s.padTo });
 
@@ -51,7 +51,7 @@ test('比对失败：计数 → 审计 → padTo → 401 auth（padTo 在审计�
   assert.equal(s.attempt('*').count, 1);
   const a = s.audits();
   assert.equal(a.length, 1);
-  assert.equal(a[0].realm, 'root');
+  assert.equal(a[0].realm, 'lock');
   assert.equal(a[0].ok, 0);
   assert.equal(a[0].path, 'lock-reset');
   assert.equal(a[0].ip_prefix, '192.0.2.x', '只存 IP 前缀');
@@ -91,7 +91,7 @@ test('比对成功：不调 padTo；清掉本 IP 计数（全局窗口不动）�
 test('本 IP 被锁（429 cooldown）：写审计，不比对、不 padTo', async () => {
   const s = setup();
   const now = Date.now();
-  s.db.raw.prepare("INSERT INTO attempt_limit (realm, kind, bucket, count, strikes, locked_until, window_start, expires_at) VALUES ('root', 'rootkey', '192.0.2.10', 0, 0, ?, ?, ?)")
+  s.db.raw.prepare("INSERT INTO attempt_limit (realm, kind, bucket, count, strikes, locked_until, window_start, expires_at) VALUES ('lock', 'rootkey', '192.0.2.10', 0, 0, ?, ?, ?)")
     .run(now + 60000, now, now + 3600000);
   const r = await run(s, ROOT_KEY);
   assert.equal(r.response.status, 429);
@@ -104,7 +104,7 @@ test('本 IP 被锁（429 cooldown）：写审计，不比对、不 padTo', asyn
 test('锁定行已过期（expires_at 过了）：读时不认，照常比对', async () => {
   const s = setup();
   const now = Date.now();
-  s.db.raw.prepare("INSERT INTO attempt_limit (realm, kind, bucket, count, strikes, locked_until, window_start, expires_at) VALUES ('root', 'rootkey', '192.0.2.10', 0, 0, ?, ?, ?)")
+  s.db.raw.prepare("INSERT INTO attempt_limit (realm, kind, bucket, count, strikes, locked_until, window_start, expires_at) VALUES ('lock', 'rootkey', '192.0.2.10', 0, 0, ?, ?, ?)")
     .run(now + 60000, now - 7200000, now - 1);
   const r = await run(s, ROOT_KEY);
   assert.equal(r.ok, true);
@@ -129,8 +129,8 @@ test('失败计数写不进去：503 server（fail closed），不 padTo', async
   assert.equal(s.attempt('192.0.2.10'), null);
 });
 
-test('没绑 D1_ROOT_AUTH：500 config（不比对）', async () => {
-  const r = await checkRootCredential({ env: { SGX_ROOT_KEY: ROOT_KEY }, ip: '192.0.2.12', key: ROOT_KEY, auditPath: 'lock-reset' });
+test('没绑 D1_LOCK_AUTH：500 config（不比对）', async () => {
+  const r = await checkRootCredential({ env: { SGX_ADMIN_KEY: ROOT_KEY }, ip: '192.0.2.12', key: ROOT_KEY, auditPath: 'lock-reset' });
   assert.equal(r.ok, false);
   assert.equal(r.response.status, 500);
 });

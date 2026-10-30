@@ -3,13 +3,11 @@
  *
  * 代替 Pages 的「按文件路由」。functions/api/ 新增或删除文件时这里要同步，
  * tests/workers/auth-gateway/auth-worker.test.mjs 会检查两边一致，漏了 CI 会红。
- * 头像（/api/avatar、/avatar/*）、云同步（/api/prefs）、数字健康（/api/wellbeing）2026-10-24 搬到账号 Worker
- * styrigx-account（workers/account，有自己的路由），不在这里。
+ * 账号（/api/account、/api/prefs*、/api/avatar*、/api/wellbeing*、/avatar/*）不在这里：它们在转发表 src/forwarding.js，
+ * 网关验完门后转给账号 Worker styrigx-account（账号拆分 PR3）。/api/layer-status 已删（前端无调用方）。
  */
-import * as account from '../functions/api/account.js';
 import * as chat from '../functions/api/chat.js';
 import * as geo from '../functions/api/geo.js';
-import * as layerStatus from '../functions/api/layer-status.js';
 import * as lockAllDevices from '../functions/api/lock-all-devices.js';
 import * as lockCredentials from '../functions/api/lock-credentials.js';
 import * as lockEntry from '../functions/api/lock-entry.js';
@@ -28,10 +26,8 @@ import * as status from '../functions/api/status.js';
 
 /** @type {Map<string, Record<string, Function>>} */
 export const API_ROUTES = new Map([
-  ['/api/account', account],
   ['/api/chat', chat],
   ['/api/geo', geo],
-  ['/api/layer-status', layerStatus],
   ['/api/lock-all-devices', lockAllDevices],
   ['/api/lock-credentials', lockCredentials],
   ['/api/lock-entry', lockEntry],

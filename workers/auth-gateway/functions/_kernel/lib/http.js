@@ -64,8 +64,6 @@ export const ERROR_CODES = Object.freeze({
   'not-set': [403],
   exists: [403],
   'last-key': [403],
-  'same-as-lock': [403],
-  'same-as-account': [403],
   short: [400],
   password: [400],
   cooldown: [429],

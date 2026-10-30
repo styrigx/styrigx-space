@@ -30,7 +30,7 @@ const post = (path, ip = '203.0.113.9', cookie = '') => new Request('https://sty
   body: '{"action":"challenge","type":"auth"}',
 });
 const DB = makeAuthD1();
-const env = (limiter) => ({ D1_LOCK_AUTH: DB, D1_ACCOUNT_AUTH: DB, D1_ROOT_AUTH: DB, SGX_SITE: 'space', SGX_ENV: 'production', SGX_LOCK_PUBLIC: PUB, SGX_LOCK_PRIVATE: PRIV, ANON_LIMITER: limiter });
+const env = (limiter) => ({ D1_LOCK_AUTH: DB, SGX_SITE: 'space', SGX_ENV: 'production', SGX_LOCK_PUBLIC: PUB, SGX_LOCK_PRIVATE: PRIV, ANON_LIMITER: limiter });
 
 test('五个无会话写接口：每个 IP 超过上限 → 429 cooldown + Retry-After，retryAfter = 周期', async () => {
   for (const path of ANON_LIMITED_APIS) {

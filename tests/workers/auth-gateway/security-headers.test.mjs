@@ -40,7 +40,7 @@ function makeKv() {
 }
 function baseEnv(over = {}) {
   const kv = makeKv();
-  return { SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, KV_LOCK_DOOR: kv, D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), KV_ACCOUNT_LOGIN: kv, ...over };
+  return { SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, KV_LOCK_DOOR: kv, D1_LOCK_AUTH: authD1For(kv), KV_ACCOUNT_LOGIN: kv, ...over };
 }
 const CTX = { waitUntil() {} };
 const PAGE = '<!DOCTYPE html><html lang="zh"><head></head><body><!-- SGX-DESKTOP-START -->desk<!-- SGX-DESKTOP-END -->x</body></html>';

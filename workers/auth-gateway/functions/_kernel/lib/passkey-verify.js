@@ -269,7 +269,7 @@ export async function rpIdHashOf(rpId) {
 /**
  * 存一个一次性 challenge（D1 challenge 表），返回 cid（16 字节随机，base64url）。顺手清掉本域已过期的。出错抛错。
  * @param {any} env
- * @param {any} realm REALM_LOCK | REALM_ACCOUNT（或 id）
+ * @param {any} realm REALM_LOCK（或 id；账号拆分 PR3 起网关只有锁屏域）
  * @param {string} purpose realm.challenge 里的值（lock: register / auth / reset；account: login / register）
  * @param {string} challenge 下发给浏览器的 challenge
  * @param {number} ttlSec 有效秒数

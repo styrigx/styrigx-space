@@ -31,7 +31,6 @@ function env({ epoch = '0', kvThrows = false } = {}) {
       },
     },
     D1_LOCK_AUTH: d1,
-    D1_ACCOUNT_AUTH: d1,
   };
 }
 

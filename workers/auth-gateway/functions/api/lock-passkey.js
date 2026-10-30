@@ -1,8 +1,7 @@
 /**
  * 锁屏通行密钥（LockKey 的通行密钥）：注册、解锁、进锁屏凭证的门、列表、重命名、删除。
  *
- * 原「管理员通行密钥」接口按域拆分：它只管锁屏通行密钥（账号通行密钥早已只在 /api/account 管理），
- * 所以只拆出本接口，没有另造 /api/account-passkey。请求体不再带 pkClass（路径就是域）。
+ * 只管锁屏通行密钥（账号通行密钥在账号 Worker 的 POST /api/account，网关不碰；两边各自查重，不跨域比对，方案第 2 节）。
  *
  * POST /api/lock-passkey
  * - { action: 'challenge', type: 'register'|'auth' } → 返回 challenge
@@ -48,9 +47,9 @@ import {
 import { checkLockManage, TICKET_IDS } from '../_kernel/lock-manage.js';
 import { issueTicket, reissueTicketWithEpoch } from '../_kernel/tickets.js';
 import { LOCK_REAUTH_TICKET, BY_PASSKEY } from '../_kernel/realms.js';
-import { isLockEffectivelyConfigured, isAccountEffectivelyConfigured } from '../_kernel/layers.js';
+import { isLockEffectivelyConfigured } from '../_kernel/layers.js';
 import { verifyLockSession, looksVisitor } from '../_kernel/lock-session.js';
-import { REALM_LOCK, REALM_ACCOUNT, KEY_LOCK, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
+import { REALM_LOCK, KEY_LOCK, rpConfig, rpConfigMissing } from '../_kernel/realms.js';
 import { hasPassword } from '../_kernel/lib/password.js';
 import {
   getPasskeys,
@@ -61,7 +60,6 @@ import {
   getUserHandle,
   providerOf,
   PASSKEY_LOCK,
-  PASSKEY_ACCOUNT,
   PASSKEY_DISPLAY_NAME,
 } from '../_kernel/passkey-store.js';
 import { isSameOrigin, originDenied, json, apiError } from '../_kernel/lib/http.js';
@@ -106,7 +104,7 @@ async function handlePost(context) {
   }
   /* Origin 必须与本站同 host（CSRF 防护），缺失或解析失败一律 403 */
   if (!isSameOrigin(request)) return originDenied();
-  if (!(env && env[REALM_LOCK.d1Binding] && env[REALM_ACCOUNT.d1Binding])) return apiError(500, 'config');
+  if (!(env && env[REALM_LOCK.d1Binding])) return apiError(500, 'config');
 
   let body;
   try { body = await request.json(); } catch (e) {
@@ -213,12 +211,11 @@ async function handlePost(context) {
           aaguid = h.slice(0,8) + '-' + h.slice(8,12) + '-' + h.slice(12,16) + '-' + h.slice(16,20) + '-' + h.slice(20);
         }
       } catch (e) {}
-      /* 存储（同 credId 去重；每把一个 key）。同一把凭据已登记为账号通行密钥 → 拒绝（一把凭据只属于一个域） */
+      /* 存储（同 credId 去重；每把一个 key） */
       const now = Date.now();
       const deviceName = String((body && body.name) || '').slice(0, 40);
-      if (await getPasskey(env, PASSKEY_ACCOUNT, credIdB64)) throw new Error('invalid-class');
       const existing = await getPasskey(env, PASSKEY_LOCK, credIdB64);
-      /* 存之前看锁屏层是不是已经配置过（D1 里已有锁屏 / 账号凭证，_kernel/layers.js；读失败按已配置） */
+      /* 存之前看锁屏层是不是已经配置过（D1 里已有锁屏凭证，_kernel/layers.js；读失败按已配置） */
       const lockWasConfigured = await isLockEffectivelyConfigured(env);
       /* AAGUID 映射 provider，作为默认名 */
       const mappedProvider = providerOf(aaguid);
@@ -254,8 +251,7 @@ async function handlePost(context) {
     } catch (e) {
       /* 具体原因只写控制台；UV 失败返回专属错误码，其他仍返回普通错误 */
       console.error('[lock-passkey-register]', e && e.message ? e.message : e);
-      const code = (e && e.message === 'uv-required') ? 'uv-required'
-        : (e && e.message === 'invalid-class') ? 'class' : 'verify';
+      const code = (e && e.message === 'uv-required') ? 'uv-required' : 'verify';
       return json(403, { ok: false, error: code });
     }
   }
@@ -394,23 +390,15 @@ async function handlePost(context) {
     if (!mg.ok) {
       return json(mg.status, mg.body);
     }
-    /* A-2：锁屏凭证减到 0 的那次删除，只在账号已有效配置时允许；
-       账号未配置时禁止（403 last-key）。判断在任何 mutation 之前。 */
+    /* 锁屏凭证任何时候都不许删到 0（方案第 15 节 U3）：没有锁屏密码且这是最后一把锁屏通行密钥 → 403 last-key。
+       读失败按「没有锁屏密码」处理（fail closed）。判断在任何 mutation 之前。 */
     let hasLockPassword = false;
     try {
       hasLockPassword = await hasPassword(env, REALM_LOCK);
     } catch (e) {}
     const lockKeys = (await getPasskeys(env, PASSKEY_LOCK));
     if (!hasLockPassword && lockKeys.length <= 1) {
-      let accountCfg = true;
-      try {
-        accountCfg = await isAccountEffectivelyConfigured(env);
-      } catch (e) {
-        accountCfg = true;
-      }
-      if (!accountCfg) {
-        return apiError(403, 'last-key');
-      }
+      return apiError(403, 'last-key');
     }
     /* 先推进纪元，成功才删（fail closed；纪元推进失败则密钥仍在）。 */
     let newEpoch = null;
@@ -424,7 +412,6 @@ async function handlePost(context) {
     } catch (e) {
       return apiError(503, 'server');
     }
-    /* 删完后锁屏层是否还算已配置由真实凭证推出（_kernel/layers.js：账号已配置时锁屏层仍算已配置），不另存标记 */
     /* 纪元推进后重签 reauth / reset 票 + 当前设备会话，保持门内连续操作不中断、当前设备不掉线。 */
     const headers = new Headers();
     if (newEpoch !== null) {

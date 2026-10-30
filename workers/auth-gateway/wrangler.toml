@@ -1,7 +1,9 @@
 # styrigx-auth-gateway：鉴权网关（CI 部署；承接 styrigx.com、blog.styrigx.com、daymark.styrigx.com、curio.styrigx.com 整站请求：会话检查 + 接口；静态资源原样回源）
 #
 # 主站后端代码在本目录：src/（入口、路由表、密钥）+ functions/（middleware、接口、内核）+ migrations/（D1）。
-# 头像 / 云同步 / 数字健康在账号 Worker styrigx-account（workers/account，2026-10-24 拆出来，自己挂更具体的路由，会话经本 Worker 的 AuthVerifier RPC 验）。
+# 账号（账号密码 / 通行密钥 / 设备 / 账号会话、头像、云同步、数字健康）在账号 Worker styrigx-account（workers/account）：
+# 账号拆分 PR3 起它没有任何公开路由，/api/account、/api/prefs*、/api/avatar*、/api/wellbeing*、/avatar/* 由本 Worker 验门后
+# 经服务绑定 ACCOUNT 转发（转发表 src/forwarding.js）。
 # 分享短链（/s/*、/api/share*）在短链 Worker styrigx-share（workers/share，2026-10-24），同样挂更具体的路由；短链钥匙和访客会话由本 Worker 的 ShareIssuer RPC 签。
 # Pages 只放静态文件（配置见 web/wrangler.toml），网关验完会话回源取页面。
 #
@@ -68,6 +70,20 @@ SGX_RP_ID = "styrigx.com"
 # 聊天的 CHAT_* 变量（模型、白名单、联网开关）在 styrigx-chat（workers/chat/wrangler.toml），网关不带。
 
 # ---- 服务绑定 ----
+# 账号 Worker styrigx-account（workers/account；没有公开地址，只能从这里进；方案第 1、10.1 节）：
+# - ACCOUNT（entrypoint AccountService）：转发表 src/forwarding.js 里的路径验完门后原样转过去，写全套身份头（X-Styrigx-Lock-* / X-Styrigx-Client-*）
+# - ACCOUNT_VERIFIER（entrypoint AccountVerifier）：只读 RPC accountSession()——临时钥匙管理、短链签发、账号页首帧提示用
+# 部署顺序：deploy.yml 里 deploy-account-worker 先于本 Worker（命名入口 PR2 已导出）。
+[[services]]
+binding = "ACCOUNT"
+service = "styrigx-account"
+entrypoint = "AccountService"
+
+[[services]]
+binding = "ACCOUNT_VERIFIER"
+service = "styrigx-account"
+entrypoint = "AccountVerifier"
+
 # 全站搜索 styrigx-search-index（workers/search-index；没有公开地址，只能从这里进）。/api/search 验完会话转给它。
 # 部署顺序：deploy.yml 里 deploy-search-worker 先于本 Worker。
 [[services]]
@@ -96,21 +112,16 @@ namespace_id = "2801"
 simple = { limit = 20, period = 60 }
 
 # ---- 数据绑定（正式 D1）----
-# 绑定名 = <类型>_<域>_<内容>（2026-10-24）：一个资源里有几套数据就绑几个名字，id 相同。
-# 2026-10-27 起网关的认证状态全部在 D1 styrigx-auth-gateway（强一致），不再绑定任何 KV：
-# 以前的认证库 KV（namespace b796097c90104000992b7713f61e16ea）和旧 D1 绑定名已删掉，
-# 其中值得留的旧值（密码、通行密钥、user handle、纪元、设备、临时钥匙）由 scripts/migrate-kv-to-d1.mjs 在部署前导入一次；
-# namespace 本身 2026-10-29 已删除。上线顺序见 README.md「上线顺序」。
-# 账号资料库 styrigx-account（头像 KV_PROFILE、云同步、数字健康 D1_WELLBEING）在账号 Worker styrigx-account（workers/account/wrangler.toml），网关不绑定。
-#
-# D1 styrigx-auth-gateway：同一个库三个绑定名，按凭证域命名 D1_<域>_AUTH（域 = functions/_kernel/realms.js 的 lock / account / root）。
-# 每张表都有 realm 列，每个绑定只读写自己 realm 的行（tests/workers/auth-gateway/kv-binding-split.test.mjs 核对）：
-# - D1_LOCK_AUTH    = realm='lock'：纪元、锁屏密码 / 通行密钥、user handle、challenge、密码 / 临时码输错计数、临时钥匙；
-#                     另外恢复开关 recovery_switch。migrations_dir 只写在这一块（三个名字是同一个库）
-# - D1_ACCOUNT_AUTH = realm='account'：纪元、账号密码 / 通行密钥、user handle、challenge、密码输错计数、已登录设备
-# - D1_ROOT_AUTH    = realm='root'：根凭证输错计数、根凭证使用审计
-# 表：migrations/0005_lock_account_state.sql、0006_auth_state.sql（还有 0001 recovery_switch）。
-# 本 Worker 的部署 job 不跑 D1 迁移：表由代码在第一次遇到「no such table」时按同一份语句建（functions/_kernel/d1-state.js SCHEMA，幂等）。
+# 网关的认证状态全部在 D1 styrigx-auth-gateway（强一致），不绑定任何 KV（2026-10-27）。
+# 账号拆分 PR3（方案 10.1）：网关只经 D1_LOCK_AUTH 读写 realm='lock' 的行（纪元、锁屏密码 / 通行密钥、user handle、challenge、
+# 密码 / 临时码 / 锁屏根密钥输错计数、临时钥匙、锁屏根密钥审计）和恢复开关表 recovery_switch（改名 lock_reset_switch 留待以后）。
+# 原来的 D1_ACCOUNT_AUTH / D1_ROOT_AUTH 两个绑定名删掉（网关代码不再读写 realm='account' / 'root' 的行）；
+# 库里遗留的这些行不删，账号数据已由 scripts/migrate-account-auth.mjs（Cloudflare D1 REST，不经绑定）拷到 D1 styrigx-account，
+# 观察期后 PR4 --cleanup --confirm 删除。
+# 表：migrations/0001_recovery_switch.sql、0005_lock_account_state.sql、0006_auth_state.sql（0007 给 user_handle 加 legacy_handle 列）。
+# 本 Worker 的部署 job 不跑 D1 迁移：表由代码在第一次遇到「no such table」时按同一份语句建（functions/_kernel/lib/d1-state.js SCHEMA，幂等）。
+# 恢复开关代码仍读写 recovery_switch；scripts/migrate-account-auth.mjs apply 会另建 lock_reset_switch 并拷行，但代码还没切过去——
+# 改名留待以后，PR4 的 --cleanup（会 DROP recovery_switch）必须在改名完成之后才能跑。
 # 安全读（纪元、吊销、challenge、计数、临时钥匙）只读主库：代码不开 read replication / withSession。
 [[d1_databases]]
 binding = "D1_LOCK_AUTH"
@@ -118,34 +129,19 @@ database_name = "styrigx-auth-gateway"
 database_id = "6931d1da-3502-480d-b0bd-de1bc4829d1d"
 migrations_dir = "migrations"
 
-[[d1_databases]]
-binding = "D1_ACCOUNT_AUTH"
-database_name = "styrigx-auth-gateway"
-database_id = "6931d1da-3502-480d-b0bd-de1bc4829d1d"
-
-[[d1_databases]]
-binding = "D1_ROOT_AUTH"
-database_name = "styrigx-auth-gateway"
-database_id = "6931d1da-3502-480d-b0bd-de1bc4829d1d"
-
-# ---- 密钥：Secrets Store ----
-# 聊天钥匙 SGX_CHAT_API_KEY 不在这里（2026-10-22 起只绑在 styrigx-chat，见 workers/chat/wrangler.toml）。
-# 4 个私密值 + 2 把公钥全放 Secrets Store（2026-10-23 访客改临时 LockKey，TURNSTILE_SECRET 不再绑定）（签名钥匙只剩账号 SGX_ACCOUNT_*、锁屏 SGX_LOCK_* 两套）：换钥只在 Cloudflare 后台改，不用改代码、不用重新部署（最多 60 秒生效）。
-# store_id 是存储的编号，不是密值。
+# ---- 密钥：Secrets Store（方案 10.1：只剩 4 个）----
+# 聊天钥匙 SGX_CHAT_API_KEY 只绑在 styrigx-chat；账号钥匙 SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC / SGX_ACCOUNT_ROOT_KEY 只绑在 styrigx-account。
+# 锁屏根密钥 SGX_ADMIN_KEY：后台由原 SGX_ROOT_KEY 改名而来（值不变）。SGX_PW_PEPPER 与账号 Worker 绑同一个密值（方案 6.2）。
+# 换钥只在 Cloudflare 后台改，不用改代码、不用重新部署（最多 60 秒生效）。store_id 是存储的编号，不是密值。
 [[secrets_store_secrets]]
 binding = "SGX_LOCK_PRIVATE"
 store_id = "a5a984f365424401bad5ad6ddcd44479"
 secret_name = "SGX_LOCK_PRIVATE"
 
 [[secrets_store_secrets]]
-binding = "SGX_ACCOUNT_PRIVATE"
+binding = "SGX_ADMIN_KEY"
 store_id = "a5a984f365424401bad5ad6ddcd44479"
-secret_name = "SGX_ACCOUNT_PRIVATE"
-
-[[secrets_store_secrets]]
-binding = "SGX_ROOT_KEY"
-store_id = "a5a984f365424401bad5ad6ddcd44479"
-secret_name = "SGX_ROOT_KEY"
+secret_name = "SGX_ADMIN_KEY"
 
 [[secrets_store_secrets]]
 binding = "SGX_PW_PEPPER"
@@ -156,8 +152,3 @@ secret_name = "SGX_PW_PEPPER"
 binding = "SGX_LOCK_PUBLIC"
 store_id = "a5a984f365424401bad5ad6ddcd44479"
 secret_name = "SGX_LOCK_PUBLIC"
-
-[[secrets_store_secrets]]
-binding = "SGX_ACCOUNT_PUBLIC"
-store_id = "a5a984f365424401bad5ad6ddcd44479"
-secret_name = "SGX_ACCOUNT_PUBLIC"

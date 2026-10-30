@@ -37,7 +37,7 @@ async function hashPassword(password, salt, iterations, pepper) {
 
 /**
  * pepper 的 Secrets Store 密钥名（不改名）。锁屏密码与账号密码共用一个 pepper：
- * 与网关 _kernel/realms.js 里 REALM_LOCK.pepper / REALM_ACCOUNT.pepper 同值（tests/workers/auth-gateway/realms.test.mjs 核对）。
+ * 网关 _kernel/realms.js 的 REALM_LOCK.pepper 同值；账号 Worker 自己一份代码读同一个密值（方案 6.2，Sloan 2026-10-30 定不拆）。
  */
 export const PEPPER_SECRET = 'SGX_PW_PEPPER';
 
@@ -95,7 +95,7 @@ export async function makePasswordRecord(password, pepper) {
 /**
  * 读某个凭证域的密码记录（没设置 → null）。出错抛错（调用方返回 503）。
  * @param {any} env
- * @param {{id:string}} realm REALM_LOCK / REALM_ACCOUNT
+ * @param {{id:string}} realm REALM_LOCK（账号拆分 PR3 起网关只有锁屏域）
  */
 export async function getPassword(env, realm) {
   return getPasswordRecord(env, realm);
@@ -130,7 +130,7 @@ export async function deletePassword(env, realm) {
 /**
  * 校验某个凭证域的密码。读出错时抛错（调用方返回 503）。
  * @param {any} env
- * @param {{id:string}} realm REALM_LOCK / REALM_ACCOUNT
+ * @param {{id:string}} realm REALM_LOCK（账号拆分 PR3 起网关只有锁屏域）
  * @param {string} pepper
  * @param {string} password
  * @returns {Promise<{ok:boolean, set:boolean, needsRehash:boolean}>}

@@ -80,9 +80,9 @@ test('check-layers：网关允许的方向（_kernel 内部、api → _kernel、
 test('check-layers：网关禁止的其他方向', () => {
   const bad = [
     [GW + 'functions/_kernel/realms.js', "import { onRequest } from '../_middleware.js';", /_kernel\/ 只能 import _kernel/],
-    [GW + 'functions/_kernel/realms.js', "import * as a from '../api/account.js';", /_kernel\/ 只能 import _kernel/],
-    [GW + 'functions/_middleware.js', "import * as a from './api/account.js';", /_middleware\.js 只能 import _kernel/],
-    [GW + 'src/verifier.js', "import * as a from '../functions/api/account.js';", /src\/ 只能 import/],
+    [GW + 'functions/_kernel/realms.js', "import * as a from '../api/geo.js';", /_kernel\/ 只能 import _kernel/],
+    [GW + 'functions/_middleware.js', "import * as a from './api/geo.js';", /_middleware\.js 只能 import _kernel/],
+    [GW + 'src/verifier.js', "import * as a from '../functions/api/geo.js';", /src\/ 只能 import/],
     [GW + 'src/verifier.js', "import { onRequest } from '../functions/_middleware.js';", /src\/ 只能 import/],
     [GW + 'functions/api/geo.js', "import x from 'some-package';", /只能 import 相对路径或 cloudflare:workers/],
     [GW + 'functions/api/geo.js', "import { json } from '../../../account/src/lib/http.js';", /账号和网关互相不许 import/],

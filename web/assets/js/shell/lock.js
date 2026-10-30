@@ -292,10 +292,10 @@ export function showLockScreen() {
       .then(function (j) {
         methodSheetLoading = false;
         if (methodSheet) return;
-        var cfg = { passkey: true, password: true, accountConfigured: true };
+        var cfg = { passkey: true, password: true };
         if (j && j.ok) {
-          /* A-2：透传 resetOnly / accountConfigured（不透传则 resetOnly 恒 false，锁屏清空态仍显示通行密钥/密码入口） */
-          cfg = { passkey: !!j.passkey, password: !!j.password, resetOnly: !!j.resetOnly, accountConfigured: j.accountConfigured !== false };
+          /* 账号拆分 PR3：lock-entry 只回锁屏自己的 passkey / password（不再有 resetOnly / accountConfigured） */
+          cfg = { passkey: !!j.passkey, password: !!j.password };
         }
         buildMethodSheet(cfg);
       })
@@ -303,20 +303,18 @@ export function showLockScreen() {
         methodSheetLoading = false;
         if (methodSheet) return;
         /* 读取失败按已配置处理：不暴露根凭证入口 */
-        buildMethodSheet({ passkey: true, password: true, accountConfigured: true });
+        buildMethodSheet({ passkey: true, password: true });
       });
   }
   /**
    * 按锁屏凭证配置构建方法弹层。
-   * @param {{passkey:boolean, password:boolean, resetOnly?:boolean, accountConfigured?:boolean}} cfg
+   * @param {{passkey:boolean, password:boolean}} cfg
    */
   function buildMethodSheet(cfg) {
     const hasPk = !!(window.PublicKeyCredential);
-    /* A-2：resetOnly 时只渲染访客 +「无法登录？」（不渲染通行密钥/密码入口）。
-       PR3：根凭证不再是单独一行；锁屏凭证都没设置（启动站）时，「无法登录？」里的根凭证走 root-auth 引导。 */
-    const resetOnly = !!cfg.resetOnly;
-    const showPk = !resetOnly && cfg.passkey && hasPk;
-    const showPw = !resetOnly && cfg.password;
+    /* PR3：根凭证不再是单独一行；锁屏凭证都没设置（启动站）时，「无法登录？」里的根凭证走 root-auth 引导。 */
+    const showPk = cfg.passkey && hasPk;
+    const showPw = cfg.password;
     /* 批次 A 验收修复 P2：方法行点击轻触觉反馈。(b) 行 busy 不适用：
        点击即关弹层并在同一 tick 打开下一态；通行密钥行 → openPk() 已有带转圈的加载态。 */
     /** @type {import('../auth/auth-sheet.js').MethodOpt[]} */
@@ -582,18 +580,18 @@ export function showLockScreen() {
   /* ---------- 重置登录（PR3：方法弹层里的「无法登录？」原地切到 auth/reset-flow.js） ----------
      与账号页 /account/reset/ 同一个界面，提交不同：
      - 锁屏凭证已设置（或读不到配置，按已设置处理）：根凭证 → POST /api/lock-reset verify；
-       恢复开关有效直接拿到重置锁屏票（sgx-lock-reset）；否则服务端回 needAccount → 再验账号凭证（账号通行密钥 / 账号密码，
-       与账号登录同一套验证行）→ 重置锁屏票 → 去 /settings/security/lock/ 重设解锁方式。
+       恢复开关有效直接拿到重置锁屏票（sgx-lock-reset）；否则服务端回 needLock → 再验锁屏凭证（锁屏通行密钥 / 解锁密码，
+       账号拆分 PR3 起网关不读账号凭证）→ 重置锁屏票 → 去 /settings/security/lock/ 重设解锁方式。
      - 锁屏凭证都没设置（启动站）：视为从零重置——根凭证 → POST /api/root-auth { purpose:'lock-reset' }
        （重置锁屏票 by=root）→ 同样去 /settings/security/lock/ 设第一把锁屏凭证，再正常解锁进站。
        根凭证不拥有会话，也不是单独的解锁入口。
      根凭证只存在 reset-flow 的闭包里。 */
   /**
    * @param {HTMLElement} cardEl 方法弹层卡片
-   * @param {{passkey:boolean, password:boolean, resetOnly?:boolean}} cfg
+   * @param {{passkey:boolean, password:boolean}} cfg
    */
   function openResetInSheet(cardEl, cfg) {
-    const bootstrap = !cfg.resetOnly && !cfg.passkey && !cfg.password;
+    const bootstrap = !cfg.passkey && !cfg.password;
     const T = resetT(en);
     cardEl.innerHTML =
       '<div class="sheet-handle" aria-hidden="true"></div>' +
@@ -616,7 +614,7 @@ export function showLockScreen() {
     const netErr = function () { throw { message: en ? 'Network error' : '网络错误' }; };
     const tooMany = { message: en ? 'Too many attempts' : '尝试次数过多' };
     const failed = { message: en ? 'Verification failed' : '验证失败', clear: true };
-    /* 键盘避让：根凭证框、第二步展开的账号密码框，聚焦时卡片随键盘上移（与其他弹层同一套 followKeyboard） */
+    /* 键盘避让：根凭证框、第二步展开的解锁密码框，聚焦时卡片随键盘上移（与其他弹层同一套 followKeyboard） */
     let kbStop = null;
     /** @type {any} */ let kbFor = null;
     on(host, 'focusin', function (/** @type {FocusEvent} */ e) {
@@ -640,16 +638,16 @@ export function showLockScreen() {
         }
         return post('/api/lock-reset', { action: 'verify', rootKey: key }).then(function (res) {
           if (res.s === 200 && res.j && res.j.ok) {
-            return res.j.needAccount ? { needAccount: { passkey: !!res.j.passkey, password: !!res.j.password } } : {};
+            return res.j.needLock ? { needLock: { passkey: !!res.j.passkey, password: !!res.j.password } } : {};
           }
           if (res.s === 429) throw tooMany;
           throw failed;
         }, netErr);
       },
-      account: function (rootKey) {
+      lock: function (rootKey) {
         const verify = function (proof) {
-          return post('/api/lock-reset', { action: 'verify', rootKey: rootKey, accountProof: proof }).then(function (res) {
-            if (res.s === 200 && res.j && res.j.ok && !res.j.needAccount) return;
+          return post('/api/lock-reset', { action: 'verify', rootKey: rootKey, lockProof: proof }).then(function (res) {
+            if (res.s === 200 && res.j && res.j.ok && !res.j.needLock) return;
             if (res.s === 429) throw tooMany;
             throw failed;
           }, netErr);

@@ -1,8 +1,7 @@
 /**
  * 锁屏密码（LockKey 的密码）：解锁验证、进锁屏凭证的门、设置 / 修改 / 删除。
  *
- * 原「管理员密码」接口按域拆分：它只管锁屏密码（账号密码早已只在 /api/account 管理，
- * 见 action password-change），所以只拆出本接口，没有另造 /api/account-password。
+ * 只管锁屏密码（账号密码在账号 Worker 的 POST /api/account password-change，网关不碰）。
  * 请求体不再带 kind（路径就是域）。
  *
  * POST /api/lock-password
@@ -11,7 +10,6 @@
  *   reauth:true（有 admin 锁屏会话）不签会话，改签 3 分钟 LockReauthTicket（安全与隐私 → 锁屏凭证）
  * - set / change { password }：需 LockReauthTicket + admin 锁屏会话，或 LockResetTicket
  * - remove：只认 LockReauthTicket（重置锁屏不能删）
- * - 锁屏密码不得与账号密码相同（双向检查；账号侧在 /api/account，错误码 same-as-account / same-as-lock）
  * - 哈希：PBKDF2-SHA256 + 随机 salt + SGX_PW_PEPPER（workers/auth-gateway/functions/_kernel/lib/password.js）；旧 hash 下次成功登录时重哈希；缺 pepper fail closed
  *
  * 会话可吊销：改密码 / 删密码时 lock-epoch +1，旧 cookie 失效；纪元推进后重签 reauth / reset 票 + 当前设备会话。
@@ -20,8 +18,8 @@
  * 只接受 POST；校验 Origin；未设置密码时 verify 一律拒绝。
  * 外层 try/catch：任何未捕获异常都返回 JSON { ok:false, error:'server' }，不返回 500 HTML。
  */
-import { getPepper, makePasswordRecord, checkPasswordRecord, verifyRealmPassword, getPassword, hasPassword, savePassword, deletePassword } from '../_kernel/lib/password.js';
-import { REALM_LOCK, REALM_ACCOUNT } from '../_kernel/realms.js';
+import { getPepper, makePasswordRecord, verifyRealmPassword, getPassword, hasPassword, savePassword, deletePassword } from '../_kernel/lib/password.js';
+import { REALM_LOCK } from '../_kernel/realms.js';
 import {
   issueLockSession,
   bumpLockEpoch,
@@ -32,7 +30,6 @@ import { checkLockManage } from '../_kernel/lock-manage.js';
 import { issueTicket, reissueTicketWithEpoch } from '../_kernel/tickets.js';
 import { LOCK_REAUTH_TICKET, BY_PASSWORD } from '../_kernel/realms.js';
 import { verifyLockSession, looksVisitor } from '../_kernel/lock-session.js';
-import { isAccountEffectivelyConfigured } from '../_kernel/layers.js';
 import { getPasskeys, PASSKEY_LOCK } from '../_kernel/passkey-store.js';
 import { isSameOrigin, originDenied, json, apiError, clientIp } from '../_kernel/lib/http.js';
 import { passwordLimiter } from '../_kernel/lib/password-limit.js';
@@ -58,7 +55,7 @@ async function handlePost(context) {
   }
   /* Origin 必须与本站同 host（CSRF 防护），缺失或解析失败一律 403 */
   if (!isSameOrigin(request)) return originDenied();
-  if (!(env && env[REALM_LOCK.d1Binding] && env[REALM_ACCOUNT.d1Binding])) {
+  if (!(env && env[REALM_LOCK.d1Binding])) {
     return apiError(500, 'config');
   }
 
@@ -170,24 +167,15 @@ async function handlePost(context) {
 
     /* remove：删除密码，同时清掉失败计数和锁定 */
     if (action === 'remove') {
-      /* A-2：删锁屏密码且删后锁屏凭证归零（无锁屏通行密钥）时，
-         只在账号已有效配置时允许；账号未配置时 403 last-key。
-         检查在任何 mutation 之前。 */
+      /* 锁屏凭证任何时候都不许删到 0（方案第 15 节 U3）：删后无锁屏通行密钥 → 403 last-key。
+         读失败按「没有别的凭证」处理（fail closed）。检查在任何 mutation 之前。 */
       {
         let lockKeys = [];
         try {
           lockKeys = await getPasskeys(env, PASSKEY_LOCK);
         } catch (e) {}
         if (lockKeys.length === 0) {
-          let accountCfg = true;
-          try {
-            accountCfg = await isAccountEffectivelyConfigured(env);
-          } catch (e) {
-            accountCfg = true;
-          }
-          if (!accountCfg) {
-            return apiError(403, 'last-key');
-          }
+          return apiError(403, 'last-key');
         }
       }
       try {
@@ -230,19 +218,6 @@ async function handlePost(context) {
       }
     }
 
-
-    /* 锁屏密码不得与账号密码相同（双向检查；账号侧见 /api/account 的 same-as-lock）。 */
-    try {
-      const other = await getPassword(env, REALM_ACCOUNT);
-      if (other && other.hash) {
-        const cr = await checkPasswordRecord(other, newPassword, pepper);
-        if (cr.ok) {
-          return apiError(403, 'same-as-account');
-        }
-      }
-    } catch (e) {
-      return apiError(503, 'server');
-    }
 
     /* 哈希并存储（peppered 标记） */
     try {

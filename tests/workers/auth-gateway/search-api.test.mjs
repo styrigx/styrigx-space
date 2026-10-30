@@ -4,7 +4,7 @@
  */
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { testLockSession, testAccountSession } from './_tickets.mjs';
+import { testLockSession } from './_tickets.mjs';
 import { makeKV, genKeyPair, authD1For } from '../_harness.mjs';
 
 const API = '../../../workers/auth-gateway/functions/api/';
@@ -41,10 +41,6 @@ async function visitorSess() {
   const { signLockSessionTicket } = await import(KERNEL + 'lock-session.js');
   return await testLockSession(LOCK.priv, 0, 'visitor');
 }
-async function accTicket(by = 'password', authAt = Date.now(), epoch = 0, priv) {
-  const { signAccountSessionTicket } = await import(KERNEL + 'account-session.js');
-  return await testAccountSession(priv || ACCOUNT.priv, by, epoch, authAt);
-}
 function cookies(o) {
   return Object.entries(o).filter(([, v]) => v).map(([k, v]) => k + '=' + v).join('; ');
 }
@@ -58,14 +54,6 @@ function pickCookie(res, name) {
   return null;
 }
 
-async function accountGet(kv, cookieObj, envOverrides) {
-  const { onRequestGet } = await import(API + 'account.js');
-  return await onRequestGet({ request: getReq('https://styrigx.com/api/account', { Cookie: cookies(cookieObj) }), env: envFor(kv, envOverrides) });
-}
-async function seedPassword(kv, pw) {
-  const { makePasswordRecord } = await import('../../../workers/auth-gateway/functions/_kernel/lib/password.js');
-  await kv.put('account-password', JSON.stringify(await makePasswordRecord(pw, PEPPER)));
-}
 
 
 

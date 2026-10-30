@@ -13,24 +13,23 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  getPasskeys, getPasskey, hasPasskey, savePasskey, updatePasskey, deletePasskey, PASSKEY_LOCK, PASSKEY_ACCOUNT,
+  getPasskeys, getPasskey, hasPasskey, savePasskey, updatePasskey, deletePasskey, PASSKEY_LOCK,
 } from '../../../workers/auth-gateway/functions/_kernel/passkey-store.js';
 import { makeKV, makeAuthD1, authD1For, forbiddenKV } from '../_harness.mjs';
 
-const IDX = { [PASSKEY_LOCK]: 'lock-passkey-index', [PASSKEY_ACCOUNT]: 'account-passkey-index' };
-const PREFIX = { [PASSKEY_LOCK]: 'lock-passkey:', [PASSKEY_ACCOUNT]: 'account-passkey:' };
+const IDX = { [PASSKEY_LOCK]: 'lock-passkey-index' };
+const PREFIX = { [PASSKEY_LOCK]: 'lock-passkey:' };
 const kvKey = (domain, credId) => PREFIX[domain] + credId.slice(0, 12);
 const rec = (credId) => JSON.stringify({ name: 'k', credId, publicKey: 'pk', signCount: 0 });
 
 /** 网关 env：三个 D1 绑定同一个库（同线上），没有 KV */
 function noKvEnv(db) {
   const d = db || makeAuthD1();
-  return { D1_LOCK_AUTH: d, D1_ACCOUNT_AUTH: d, D1_ROOT_AUTH: d };
+  return { D1_LOCK_AUTH: d };
 }
 const ids = (list) => list.map((k) => k.credId);
 
-for (const domain of [PASSKEY_LOCK, PASSKEY_ACCOUNT]) {
-  const other = domain === PASSKEY_LOCK ? PASSKEY_ACCOUNT : PASSKEY_LOCK;
+for (const domain of [PASSKEY_LOCK]) {
   const A = domain + 'credAAAAAAAAAAAAAAAA';
   const B = domain + 'credBBBBBBBBBBBBBBBB';
   const C = domain + 'credCCCCCCCCCCCCCCCC';
@@ -42,7 +41,8 @@ for (const domain of [PASSKEY_LOCK, PASSKEY_ACCOUNT]) {
     await Promise.all([savePasskey(env, domain, { credId: C, publicKey: 'pk' }), getPasskeys(env, domain)]);
     assert.deepEqual(ids(await getPasskeys(env, domain)), [A, B, C], '按注册顺序');
     assert.equal(await hasPasskey(env, domain), true);
-    assert.deepEqual(await getPasskeys(env, other), [], '另一个域看不到');
+    env.D1_LOCK_AUTH.raw.prepare("INSERT INTO passkey (realm, credential_id, record) VALUES ('account', 'acctcred', '{}')").run();
+    assert.deepEqual(ids(await getPasskeys(env, domain)), [A, B, C], '库里遗留的账号通行密钥行看不到');
   });
 
   test(domain + '：删一把不影响别的；同 credId 再注册是覆盖不是多一把', async () => {
@@ -77,7 +77,6 @@ for (const domain of [PASSKEY_LOCK, PASSKEY_ACCOUNT]) {
     const db = authD1For(kv); /* = 部署前跑过 scripts/migrate-kv-to-d1.mjs */
     const env = noKvEnv(db);
     assert.deepEqual(ids(await getPasskeys(env, domain)), [B, A], '按 KV 索引的顺序');
-    assert.deepEqual(await getPasskeys(env, other), [], '另一个域看不到');
     await deletePasskey(env, domain, A);
     await deletePasskey(env, domain, B);
     assert.deepEqual(await getPasskeys(env, domain), [], '删光了不会从 KV 读回来');
@@ -117,6 +116,13 @@ test('D1 读不到（绑定缺失 / 查询出错）：getPasskeys / getPasskey �
   const db = makeAuthD1();
   db.failOn = (sql) => /passkey/.test(sql);
   const env = noKvEnv(db);
-  assert.deepEqual(await getPasskeys(env, PASSKEY_ACCOUNT), []);
-  await assert.rejects(deletePasskey(env, PASSKEY_ACCOUNT, 'x'));
+  assert.deepEqual(await getPasskeys(env, PASSKEY_LOCK), []);
+  await assert.rejects(deletePasskey(env, PASSKEY_LOCK, 'x'));
+});
+
+test('账号拆分 PR3：网关只认锁屏域——account 域一律抛 bad domain（账号通行密钥只在账号 Worker）', async () => {
+  const env = noKvEnv();
+  await assert.rejects(getPasskeys(env, 'account'), /bad domain/);
+  await assert.rejects(savePasskey(env, 'account', { credId: 'x', publicKey: 'pk' }), /bad domain/);
+  await assert.rejects(hasPasskey(env, 'account'), /bad domain/);
 });

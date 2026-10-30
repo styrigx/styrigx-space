@@ -263,24 +263,30 @@ test('R5 对照：管理员没有账号会话 → 只出登录区（欢迎回来
   expect(await page.evaluate(() => window.__sawMain)).toBe(false);
 });
 
-test('R7 账号 Worker（2026-10-24 拆出来）：头像 / 数字健康 / 云同步走 styrigx-account，页面和其他接口仍走网关', async ({ page, context }) => {
+test('R7 账号 Worker（账号拆分 PR3 起没有公开路由）：头像 / 数字健康 / 云同步经网关转发到 styrigx-account，页面和其他接口仍走网关', async ({ page, context }) => {
   edge.log.length = 0;
-  /* 锁着：锁屏头像照常出来（公开），由账号 Worker 回 */
+  /* 锁着：锁屏头像照常出来（公开），网关转发、由账号 Worker 回（X-SGX-Runtime 保留 account） */
   await page.goto(MAIN + '/');
   await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
   const av = await page.evaluate(() => fetch('/avatar/96.webp', { cache: 'no-store' }).then((r) => [r.status, r.headers.get('x-sgx-runtime'), r.headers.get('etag')]));
   expect(av).toEqual([200, 'account', '"d-96"']);
-  const anon = await page.evaluate(() => fetch('/api/wellbeing', { cache: 'no-store' }).then((r) => r.status));
-  expect(anon).toBe(401);
+  /* 没会话：网关的门先拒，不转发 */
+  const anon = await page.evaluate(() => fetch('/api/wellbeing', { cache: 'no-store' }).then((r) => [r.status, r.headers.get('x-sgx-runtime')]));
+  expect(anon).toEqual([401, 'worker']);
+  /* 伪造身份头也一样：网关先剥掉外来的 x-styrigx-*，门照样按 cookie 判 */
+  const forged = await page.evaluate(() => fetch('/api/prefs', { cache: 'no-store', headers: { 'X-Styrigx-Lock-Role': 'admin' } }).then((r) => [r.status, r.headers.get('x-sgx-runtime')]));
+  expect(forged).toEqual([401, 'worker']);
   /* 管理员：数字健康可读，云同步没登账号 → 401 account；接口地址不变 */
   await setSession(context, 'admin');
   await page.goto(MAIN + '/settings/wellbeing/');
-  const wb = await page.evaluate(() => fetch('/api/wellbeing?d=2026-10-24', { cache: 'no-store' }).then((r) => r.json().then((j) => [r.status, j.ok])));
-  expect(wb).toEqual([200, true]);
+  const wb = await page.evaluate(() => fetch('/api/wellbeing?d=2026-10-24', { cache: 'no-store' }).then((r) => r.json().then((j) => [r.status, j.ok, r.headers.get('x-sgx-runtime')])));
+  expect(wb).toEqual([200, true, 'account']);
   const pr = await page.evaluate(() => fetch('/api/prefs', { cache: 'no-store' }).then((r) => r.json().then((j) => [r.status, j.error])));
   expect(pr).toEqual([401, 'account']);
   const by = (re) => edge.log.filter((l) => re.test(new URL(l[2]).pathname)).map((l) => l[0]);
-  expect(new Set(by(/^\/(avatar\/|api\/(wellbeing|prefs|avatar))/))).toEqual(new Set(['account']));
+  /* 浏览器的请求都进网关（路由 styrigx.com/*）；账号的接口再经服务绑定转一跳（log 'account'）；没有一条走账号 Worker 自己的路由 */
+  expect(new Set(by(/^\/(avatar\/|api\/(wellbeing|prefs|avatar))/))).toEqual(new Set(['worker', 'account']));
+  expect(by(/^\/(avatar\/|api\/(wellbeing|prefs|avatar))/).filter((x) => x === 'account').length).toBeGreaterThanOrEqual(3);
   expect(new Set(by(/^\/(settings\/wellbeing\/|api\/session-check)$/))).toEqual(new Set(['worker']));
 });
 

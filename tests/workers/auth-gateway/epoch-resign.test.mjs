@@ -21,7 +21,7 @@ async function genKeys() {
 }
 
 const testEnv = (kv) => ({
-  KV_LOCK_DOOR: kv, D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), KV_ACCOUNT_LOGIN: kv,
+  KV_LOCK_DOOR: kv, D1_LOCK_AUTH: authD1For(kv), KV_ACCOUNT_LOGIN: kv,
   SGX_LOCK_PRIVATE: LOCK_PRIV,
   SGX_LOCK_PUBLIC: LOCK_PUB,
   SGX_RP_ID: 'styrigx.com',

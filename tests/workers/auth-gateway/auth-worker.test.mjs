@@ -42,7 +42,7 @@ function makeKv() {
 const store = (v) => ({ get: async () => v });
 function baseEnv() {
   const kv = makeKv();
-  return { SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, KV_LOCK_DOOR: kv, D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), KV_ACCOUNT_LOGIN: kv };
+  return { SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, D1_LOCK_AUTH: authD1For(kv) };
 }
 const CTX = { waitUntil() {} };
 
@@ -51,14 +51,18 @@ test('路由表与 functions/api/*.js 一一对应', () => {
   assert.deepEqual([...API_ROUTES.keys()].sort(), files);
 });
 
-test('wrangler.toml：不开 workers.dev、生产模式、6 个密钥全走 Secrets Store、填了真实 store_id', () => {
+test('wrangler.toml：不开 workers.dev、生产模式、4 个密钥全走 Secrets Store、填了真实 store_id；账号钥匙不绑', () => {
   const toml = readFileSync(REPO + '/workers/auth-gateway/wrangler.toml', 'utf8');
   assert.match(toml, /^workers_dev = false$/m);
   assert.match(toml, /^SGX_ENV = "production"$/m);
   for (const n of SECRET_NAMES) {
     assert.match(toml, new RegExp(`binding = "${n}"\\nstore_id = "[^"]+"\\nsecret_name = "${n}"`));
   }
-  assert.equal(SECRET_NAMES.length, 6);
+  assert.deepEqual([...SECRET_NAMES].sort(), ['SGX_ADMIN_KEY', 'SGX_LOCK_PRIVATE', 'SGX_LOCK_PUBLIC', 'SGX_PW_PEPPER']);
+  /* 账号拆分 PR3：账号钥匙、账号根密钥只绑在账号 Worker；锁屏根密钥后台改名为 SGX_ADMIN_KEY（旧名 SGX_ROOT_KEY 不再绑定） */
+  const code = toml.split('\n').filter((l) => !l.trim().startsWith('#')).join('\n');
+  assert.doesNotMatch(code, /SGX_ACCOUNT_|SGX_ROOT_KEY|D1_ACCOUNT_AUTH|D1_ROOT_AUTH/);
+  for (const ep of ['AccountService', 'AccountVerifier']) assert.match(code, new RegExp(`service = "styrigx-account"\\nentrypoint = "${ep}"`), ep);
   assert.ok(!SECRET_NAMES.includes('TURNSTILE_SECRET'), 'Turnstile 已删，不再绑定');
   /* 2026-10-21：三站整站通配（不带 * 的规则遇到查询串不命中，锁屏入口 /?lock=1 曾因此绕过网关）。
      只接 styrigx.com 和登记过的子站；除 daymark、curio 的 session-check（要比各自 core 的 /api/* 更具体）外不许有精确规则。
@@ -90,13 +94,13 @@ test('routeKey / pickHandler 与 Pages 一致', () => {
 test('resolveSecrets：绑定 → 字符串；字符串原样；其他绑定不动', async () => {
   _resetSecretCache();
   const kv = makeKv();
-  const env = { SGX_LOCK_PRIVATE: store('L'), SGX_PW_PEPPER: 'P', KV_LOCK_DOOR: kv, D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), KV_ACCOUNT_LOGIN: kv, SGX_SITE: 'space' };
+  const env = { SGX_LOCK_PRIVATE: store('L'), SGX_PW_PEPPER: 'P', KV_LOCK_DOOR: kv, D1_LOCK_AUTH: authD1For(kv), KV_ACCOUNT_LOGIN: kv, SGX_SITE: 'space' };
   const out = await resolveSecrets(env, 1000);
   assert.equal(out.SGX_LOCK_PRIVATE, 'L');
   assert.equal(out.SGX_PW_PEPPER, 'P');
   assert.equal(out.KV_LOCK_DOOR, kv);
   assert.equal(out.SGX_SITE, 'space');
-  assert.equal('SGX_ROOT_KEY' in out, false);
+  assert.equal('SGX_ADMIN_KEY' in out, false);
   assert.equal(typeof env.SGX_LOCK_PRIVATE, 'object'); /* 不改原 env */
 });
 
@@ -104,16 +108,16 @@ test('resolveSecrets：60 秒缓存；取值失败留空且不缓存', async () 
   _resetSecretCache();
   let n = 0;
   const counting = { get: async () => { n++; return 'v' + n; } };
-  assert.equal((await resolveSecrets({ SGX_ROOT_KEY: counting }, 0)).SGX_ROOT_KEY, 'v1');
-  assert.equal((await resolveSecrets({ SGX_ROOT_KEY: counting }, 30_000)).SGX_ROOT_KEY, 'v1');
-  assert.equal((await resolveSecrets({ SGX_ROOT_KEY: counting }, 61_000)).SGX_ROOT_KEY, 'v2');
+  assert.equal((await resolveSecrets({ SGX_ADMIN_KEY: counting }, 0)).SGX_ADMIN_KEY, 'v1');
+  assert.equal((await resolveSecrets({ SGX_ADMIN_KEY: counting }, 30_000)).SGX_ADMIN_KEY, 'v1');
+  assert.equal((await resolveSecrets({ SGX_ADMIN_KEY: counting }, 61_000)).SGX_ADMIN_KEY, 'v2');
 
   _resetSecretCache();
   let fail = true;
   const flaky = { get: async () => { if (fail) throw new Error('x'); return 'ok'; } };
-  assert.equal((await resolveSecrets({ SGX_ROOT_KEY: flaky }, 0)).SGX_ROOT_KEY, '');
+  assert.equal((await resolveSecrets({ SGX_ADMIN_KEY: flaky }, 0)).SGX_ADMIN_KEY, '');
   fail = false;
-  assert.equal((await resolveSecrets({ SGX_ROOT_KEY: flaky }, 1)).SGX_ROOT_KEY, 'ok');
+  assert.equal((await resolveSecrets({ SGX_ADMIN_KEY: flaky }, 1)).SGX_ADMIN_KEY, 'ok');
 });
 
 /* 页面：网关验会话，放行后回源（这里把 fetch 换成假的 Pages） */
@@ -288,15 +292,19 @@ test('一致性：访客调管理员接口 / 无会话调非白名单接口', as
   await same((h) => new Request('https://styrigx.com/api/geo-nope', { headers: h }));
 });
 
-test('头像 / 云同步 / 数字健康已搬到账号 Worker：网关路由表里没有，有会话打过来 → 404', async () => {
-  for (const p of ['/api/avatar', '/api/prefs', '/api/wellbeing']) assert.equal(API_ROUTES.has(p), false, p);
+test('账号路径（/api/account、头像、云同步、数字健康）不在网关路由表；有会话打过来但没绑 ACCOUNT → 503 upstream（不落回 404 / 回源）', async () => {
+  for (const p of ['/api/account', '/api/avatar', '/api/prefs', '/api/wellbeing']) assert.equal(API_ROUTES.has(p), false, p);
   _resetSecretCache();
   const env = baseEnv();
   const ck = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'admin', 'password'));
-  for (const p of ['/api/avatar', '/api/prefs', '/api/wellbeing']) {
-    const res = await worker.fetch(new Request('https://styrigx.com' + p, { headers: { Cookie: ck } }), env, CTX);
-    assert.equal(res.status, 404, p);
-  }
+  await withOrigin('X', async (calls) => {
+    for (const p of ['/api/account', '/api/avatar', '/api/prefs', '/api/wellbeing']) {
+      const res = await worker.fetch(new Request('https://styrigx.com' + p, { headers: { Cookie: ck } }), env, CTX);
+      assert.equal(res.status, 503, p);
+      assert.deepEqual(await res.json(), { ok: false, error: 'upstream' }, p);
+    }
+    assert.equal(calls.length, 0, '不回源');
+  });
 });
 
 /* ---- Pages 只放静态文件：后端代码全在网关 ---- */
@@ -334,35 +342,45 @@ test('Pages 静态 _worker.js：pages.dev 地址 301 到 styrigx.com，styrigx.c
   assert.deepEqual(seen, ['https://styrigx.com/css/main.css']);
 });
 
-test('头像 /avatar/<尺寸>.webp 进了网关（只有预览会这样，线上归账号 Worker）：未登录放行、原样回源静态默认图', async () => {
+test('头像 /avatar/<尺寸>.webp：未登录放行，转给账号 Worker（ACCOUNT，不带身份头）；尺寸不对 → 302 锁屏', async () => {
   _resetSecretCache();
-  await withOrigin('IMG', async (calls) => {
-    const res = await worker.fetch(new Request('https://styrigx.com/avatar/96.webp'), baseEnv(), CTX);
+  const seen = [];
+  const env = Object.assign(baseEnv(), {
+    ACCOUNT: { fetch: async (req) => { seen.push(req); return new Response('IMG', { headers: { 'Content-Type': 'image/webp', 'X-SGX-Runtime': 'account' } }); } },
+  });
+  await withOrigin('X', async (calls) => {
+    const res = await worker.fetch(new Request('https://styrigx.com/avatar/96.webp?v=3'), env, CTX);
     assert.equal(res.status, 200);
-    assert.equal(res.headers.get('X-SGX-Runtime'), 'worker');
+    assert.equal(res.headers.get('X-SGX-Runtime'), 'account', '账号写的运行时标记保留');
     assert.equal(await res.text(), 'IMG');
-    assert.equal(calls.length, 1);
-    assert.equal(new URL(calls[0].url).pathname, '/avatar/96.webp');
-    const bad = await worker.fetch(new Request('https://styrigx.com/avatar/100.webp'), baseEnv(), CTX);
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0].url, 'https://styrigx.com/avatar/96.webp?v=3');
+    assert.equal(seen[0].headers.get('X-Styrigx-Lock-Role'), null, '没有锁屏会话不写身份头');
+    const bad = await worker.fetch(new Request('https://styrigx.com/avatar/100.webp'), env, CTX);
     assert.equal(bad.status, 302);
+    assert.equal(seen.length, 1, '门没过的不转发');
+    assert.equal(calls.length, 0, '不回源');
   });
 });
 
-test('预览（作为 Pages 的 _worker.js 运行，有 env.ASSETS）：页面和默认头像都读 ASSETS，不发子请求', async () => {
+test('预览（作为 Pages 的 _worker.js 运行，有 env.ASSETS）：页面读 ASSETS 不发子请求；账号路径照样只转 ACCOUNT（组合预览入口 tests/web/e2e/preview-worker.js 接上）', async () => {
   _resetSecretCache();
   const seen = [];
+  const acct = [];
   const env = {
     SGX_ENV: 'preview', /* web/wrangler.toml [env.preview.vars] 与 deploy.yml 预览变量同值 */
     SGX_SITE: 'space',
-    KV_LOCK_DOOR: makeKv(),
     ASSETS: { fetch: async (req) => { seen.push(new URL(req.url || req).pathname); return new Response(PAGE, { headers: { 'Content-Type': 'text/html' } }); } },
+    ACCOUNT: { fetch: async (req) => { acct.push(new URL(req.url).pathname); return new Response('IMG', { headers: { 'X-SGX-Runtime': 'account' } }); } },
   };
   await withOrigin('X', async (calls) => {
     const page = await worker.fetch(new Request('https://passkey-e2e.styrigx-space.pages.dev/settings/'), env, CTX);
     assert.equal(page.status, 200);
     const av = await worker.fetch(new Request('https://passkey-e2e.styrigx-space.pages.dev/avatar/32.webp'), env, CTX);
-    assert.equal(av.status, 200); /* 预览没有账号 Worker：头像就是静态默认图 */
-    assert.deepEqual(seen, ['/settings/', '/avatar/32.webp']);
+    assert.equal(av.status, 200);
+    assert.equal(av.headers.get('X-SGX-Runtime'), 'account');
+    assert.deepEqual(seen, ['/settings/']);
+    assert.deepEqual(acct, ['/avatar/32.webp']);
     assert.equal(calls.length, 0);
   });
 });

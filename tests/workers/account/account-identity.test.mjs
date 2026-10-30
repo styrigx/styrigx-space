@@ -715,21 +715,26 @@ test('设备列表上限 DEVICE_LIST_MAX=50（最近活跃在前）；当前设�
 
 /* ================= 票：与网关格式一致 ================= */
 
-test('切换不掉线：网关签的账号会话 / reauth / reset 票（同一对钥匙、同纪元）在账号 Worker 照样有效', async () => {
-  const gwSess = await import('../../../workers/auth-gateway/functions/_kernel/account-session.js');
-  const gwTickets = await import('../../../workers/auth-gateway/functions/_kernel/tickets.js');
+test('切换不掉线：按拆分前（网关）的票格式手工签的账号会话 / reauth / reset 票（同一对钥匙、同纪元）在账号 Worker 照样有效', async () => {
+  const { ed25519Sign } = await import('../../../workers/account/src/lib/crypto.js');
   const env = makeEnv();
   setEpoch(env, 7);
-  const s = await gwSess.signAccountSessionTicket(K.ACCOUNT.priv, { by: 'passkey', epoch: 7, authAt: Date.now(), deviceId: TEST_DEVICE_ID });
-  const rt = await gwTickets.signAccountReauthTicket(K.ACCOUNT.priv, 'root', 7);
-  const xt = await gwTickets.signAccountResetTicket(K.ACCOUNT.priv, 'root', 7);
+  const now = Date.now();
+  /* 方案第 8 节：sgx-account-session = by.epoch.authAt.exp.deviceId.sig；两张短票 = by.epoch.iat.exp.sig；签名串带 cookie 名前缀 */
+  const signed = async (cookie, payload) => payload + '.' + (await ed25519Sign(K.ACCOUNT.priv, cookie + '|' + payload));
+  const s = await signed('sgx-account-session', 'passkey.7.' + now + '.' + (now + 34560000 * 1000) + '.' + TEST_DEVICE_ID);
+  const rt = await signed('sgx-account-reauth', 'root.7.' + now + '.' + (now + 180000));
+  const xt = await signed('sgx-account-reset', 'root.7.' + now + '.' + (now + 180000));
   const j = await (await get(env, { 'sgx-account-session': s, 'sgx-account-reauth': rt, 'sgx-account-reset': xt })).json();
   assert.equal(j.session.by, 'passkey');
   assert.equal(j.reauth.by, 'root');
   assert.equal(j.reset.by, 'root');
-  /* 反过来：这里签的会话票，网关的解析器认同一格式 */
+  /* 这里签的会话票同一格式：六段、第五段是设备 id */
   const mine = await accSession('password', 7);
-  assert.deepEqual(gwSess.parseAccountSessionTicket(mine), session.parseAccountSessionTicket(mine));
+  const p = session.parseAccountSessionTicket(mine);
+  assert.equal(mine.split('.').length, 6);
+  assert.equal(p.by, 'password');
+  assert.equal(p.epoch, 7);
 });
 
 test('账号会话：篡改 deviceId → bad-sig；别的钥匙签 → bad-sig；纪元不对 → epoch-changed；五段旧格式 → bad-format；锁屏会话 cookie 不算', async () => {
