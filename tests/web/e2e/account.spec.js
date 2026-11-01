@@ -918,7 +918,10 @@ test.describe('设置 → 安全与隐私 → 临时钥匙（2026-10-23，取代
   });
 
   test('只认管理员锁屏会话：401（不论 error 是什么）→ 只提示回锁屏重新解锁，不跳账号页', async ({ page }) => {
-    await page.route('**/api/lock-tempkey', (route) => route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false,"error":"session"}' }));
+    /* 锁屏会话失效时两个接口都回 401；同页的分享短链区块也会拉 /api/share，不拦就会被它的错误提示盖掉 */
+    const unauth = (/** @type {import('@playwright/test').Route} */ route) => route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false,"error":"session"}' });
+    await page.route('**/api/lock-tempkey', unauth);
+    await page.route('**/api/share', unauth);
     await page.goto(TK, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-toast')).toContainText('会话已失效，请回到锁屏重新解锁');
     expect(new URL(page.url()).pathname).toBe(TK);
