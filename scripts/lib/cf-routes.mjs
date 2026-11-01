@@ -5,13 +5,13 @@
  *   styrigx.com/            → 走网关（x-sgx-runtime: worker）
  *   styrigx.com/?x=1        → 不走网关，Pages 直出（public, max-age=300，没有 data-sgx-lock-session）
  *   styrigx.com/en/?lock=1  → 走网关（styrigx.com/en/* 是前缀规则）
- *   blog.styrigx.com/about?a → 走网关（blog.styrigx.com/about* 前缀规则连查询串一起比）
+ *   （当时的博客子域名）/about?a → 走网关（/about* 前缀规则连查询串一起比）
  * 所以：
  *   - 不带 * 的规则是「整条 URL（host + path + 查询串）完全相等」才命中，带查询串就不命中；
  *   - 结尾 * 的规则是对 host + path + 查询串做前缀匹配；
  *   - 多条命中时取最具体（最长）的一条。
  * 以前 scripts/check-worker-routes.mjs 写的是「不看查询串」，和线上不符，
- * 导致 styrigx.com/?lock=1&return=…（锁屏入口本身）、blog/daymark 首页带任意查询串都不过网关。
+ * 导致 styrigx.com/?lock=1&return=…（锁屏入口本身）、子站首页带任意查询串都不过网关。
  */
 
 /** @param {string} toml wrangler.toml 全文 */

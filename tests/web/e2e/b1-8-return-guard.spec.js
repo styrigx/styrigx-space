@@ -22,8 +22,8 @@
 const { test } = require('@playwright/test');
 const { blockExternalRequests, expect } = require('./helpers');
 
-const TARGET_DAYMARK = 'https://daymark.styrigx.com/';
-const TARGET_BLOG = 'https://blog.styrigx.com/';
+const TARGET_DAYMARK = 'https://atlas.styrigx.com/daymark/';
+const TARGET_BLOG = 'https://atlas.styrigx.com/blog/';
 
 /* 拦截由 JS 触发的导航（sgxReplace 的 location.replace），放行测试代码的 page.goto。
    注意：addInitScript 设置的 __allowNav 在每次导航都会重跑，先设 true。 */
@@ -40,7 +40,7 @@ function trackJumps(page) {
     try {
       if (!r.isNavigationRequest() || r.frame() !== page.mainFrame()) return;
       page.__navCount = (page.__navCount || 0) + 1;
-      if (!/^https:\/\/(blog|daymark)\.styrigx\.com\//.test(r.url())) return;
+      if (!/^https:\/\/atlas\.styrigx\.com\/(blog|daymark)\//.test(r.url())) return;
       page.__jumps.push(r.url());
     } catch (e) {}
   });
@@ -97,7 +97,7 @@ async function settle(page) {
 /* /api/lock-session-check 的服务端契约 mock：已解锁 → {ok, role, next=return}；未解锁 → 401 */
 async function mockSessionCheck(page) {
   /* 去子站的导航回 204：浏览器留在当前页（不进 chrome-error 页），sessionStorage 记录可读 */
-  await page.route(/^https:\/\/(blog|daymark)\.styrigx\.com\//, (r) => r.fulfill({ status: 204, body: '' }));
+  await page.route(/^https:\/\/atlas\.styrigx\.com\/(blog|daymark)\//, (r) => r.fulfill({ status: 204, body: '' }));
   await page.route('**/api/lock-session-check*', async (route) => {
     if (page.__locked) return route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false}' });
     const ret = new URL(route.request().url()).searchParams.get('return');

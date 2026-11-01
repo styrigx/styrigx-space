@@ -62,7 +62,7 @@ const get = (url, cookie) => worker.fetch(new Request(url, { headers: cookie ? {
 
 /* ---------------- A. 路由 ---------------- */
 const ROUTES = readRoutes(fs.readFileSync(path.join(REPO, 'workers/auth-gateway/wrangler.toml'), 'utf8'));
-const OTHER = ['daymark.styrigx.com/api/*', 'curio.styrigx.com/api/*']; /* styrigx-daymark-core、styrigx-curio-core（各自的仓库） */
+const OTHER = ['atlas.styrigx.com/daymark/api/*', 'atlas.styrigx.com/curio/api/*']; /* styrigx-daymark-core、styrigx-curio-core（styrigx-atlas 仓库） */
 
 test('A 路由匹配规则照线上实测：不带 * 的规则遇到查询串不命中；* 规则连查询串前缀匹配', () => {
   assert.equal(routeMatches('styrigx.com/', 'styrigx.com', '/'), true);
@@ -74,13 +74,13 @@ test('A 路由匹配规则照线上实测：不带 * 的规则遇到查询串不
 test('A 锁屏入口、带查询串的首页、所有页面都过网关（改前 styrigx.com/?lock=1 直达 Pages）', () => {
   const mustGateway = [
     ['styrigx.com', '/'], ['styrigx.com', '/?lock=1'],
-    ['styrigx.com', '/?lock=1&why=no-cookie&return=https%3A%2F%2Fblog.styrigx.com%2F'],
+    ['styrigx.com', '/?lock=1&why=no-cookie&return=https%3A%2F%2Fatlas.styrigx.com%2Fblog%2F'],
     ['styrigx.com', '/?return=%2Fsettings%2Fsecurity%2Flock%2F'], ['styrigx.com', '/en/?lock=1'],
     ['styrigx.com', '/settings/security/lock/'], ['styrigx.com', '/files-index.json'], ['styrigx.com', '/brand-new-page/'],
-    ['blog.styrigx.com', '/'], ['blog.styrigx.com', '/?utm=1'], ['blog.styrigx.com', '/rss.xml?a'], ['blog.styrigx.com', '/post/x/?a'],
-    ['daymark.styrigx.com', '/'], ['daymark.styrigx.com', '/?x=1'], ['daymark.styrigx.com', '/sitemap.xml?a'],
-    ['daymark.styrigx.com', '/api/lock-session-check'],
-    ['curio.styrigx.com', '/'], ['curio.styrigx.com', '/?x=1'], ['curio.styrigx.com', '/en/?a'], ['curio.styrigx.com', '/api/lock-session-check'],
+    ['atlas.styrigx.com', '/'], ['atlas.styrigx.com', '/api/lock-session-check'], ['atlas.styrigx.com', '/api/search?q=a'],
+    ['atlas.styrigx.com', '/blog/'], ['atlas.styrigx.com', '/blog/?utm=1'], ['atlas.styrigx.com', '/blog/rss.xml?a'], ['atlas.styrigx.com', '/blog/post/x/?a'],
+    ['atlas.styrigx.com', '/daymark/'], ['atlas.styrigx.com', '/daymark/?x=1'], ['atlas.styrigx.com', '/daymark/sitemap.xml?a'],
+    ['atlas.styrigx.com', '/curio/'], ['atlas.styrigx.com', '/curio/?x=1'], ['atlas.styrigx.com', '/curio/en/?a'],
   ];
   for (const [h, p] of mustGateway) {
     const mine = pickRoute(ROUTES, h, p);
@@ -88,11 +88,13 @@ test('A 锁屏入口、带查询串的首页、所有页面都过网关（改前
     assert.ok(mine && !(other && other.length > mine.length), 'not via gateway: ' + h + p);
   }
   /* daymark 句子接口仍归 daymark-core（更具体的规则优先） */
-  assert.equal(pickRoute(OTHER, 'daymark.styrigx.com', '/api/today').length > pickRoute(ROUTES, 'daymark.styrigx.com', '/api/today').length, true);
+  assert.equal(pickRoute(OTHER, 'atlas.styrigx.com', '/daymark/api/today').length > pickRoute(ROUTES, 'atlas.styrigx.com', '/daymark/api/today').length, true);
   /* curio 收藏接口归 curio-core */
-  for (const p of ['/api/links', '/api/icon?id=1', '/api/import', '/api/export']) {
-    assert.equal(pickRoute(OTHER, 'curio.styrigx.com', p).length > pickRoute(ROUTES, 'curio.styrigx.com', p).length, true, p);
+  for (const p of ['/curio/api/links', '/curio/api/icon?id=1', '/curio/api/import', '/curio/api/export']) {
+    assert.equal(pickRoute(OTHER, 'atlas.styrigx.com', p).length > pickRoute(ROUTES, 'atlas.styrigx.com', p).length, true, p);
   }
+  /* 旧子域名不再登记：一条网关路由都不命中（不跳转） */
+  for (const h of ['blog.styrigx.com', 'daymark.styrigx.com', 'curio.styrigx.com']) assert.equal(pickRoute(ROUTES, h, '/'), null, h);
 });
 
 test('A 静态资源进 Worker 后原样回源：不验会话、不 302', async () => {
@@ -102,19 +104,19 @@ test('A 静态资源进 Worker 后原样回源：不验会话、不 302', async 
   assert.equal(await res.text(), 'css');
   assert.deepEqual(e.seen, ['styrigx.com/css/main.abc.css']);
   assert.equal(res.headers.get('X-SGX-Runtime'), null, '静态资源原样回源，不打网关标记');
-  const m = await worker.fetch(new Request('https://blog.styrigx.com/manifest.json'), env(), CTX);
+  const m = await worker.fetch(new Request('https://atlas.styrigx.com/blog/manifest.json'), env(), CTX);
   assert.equal(m.status, 200);
-  const css = await worker.fetch(new Request('https://blog.styrigx.com/css/main.abc.css'), env(), CTX);
+  const css = await worker.fetch(new Request('https://atlas.styrigx.com/blog/css/main.abc.css'), env(), CTX);
   assert.equal(css.status, 200);
   assert.equal(css.headers.get('X-SGX-Runtime'), null, '子站 CI 冒烟要求静态资源 runtime=none');
   /* 子站页面仍是网关回的 302 */
-  const pg = await worker.fetch(new Request('https://blog.styrigx.com/?utm=1'), env(), CTX);
+  const pg = await worker.fetch(new Request('https://atlas.styrigx.com/blog/?utm=1'), env(), CTX);
   assert.equal(pg.status, 302);
   assert.equal(pg.headers.get('X-SGX-Runtime'), 'worker');
 });
 
 test('A 无会话打开 /?lock=1：网关给锁屏态页面（no-store、带 data-sgx-lock-session），不是 Pages 原样', async () => {
-  const res = await get('https://styrigx.com/?lock=1&why=no-cookie&return=https%3A%2F%2Fblog.styrigx.com%2F');
+  const res = await get('https://styrigx.com/?lock=1&why=no-cookie&return=https%3A%2F%2Fatlas.styrigx.com%2Fblog%2F');
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('Cache-Control'), 'private, no-store');
   assert.match(await res.text(), /<html data-sgx-lock-session="locked"/);
@@ -127,17 +129,19 @@ async function check(qs, cookie) {
 }
 
 test('B session-check?return：服务端给校验过的 next（子站原地址）', async () => {
-  const r = await check('?return=' + encodeURIComponent('https://blog.styrigx.com/post/x/'), await lockCookie('admin'));
+  const r = await check('?return=' + encodeURIComponent('https://atlas.styrigx.com/blog/post/x/'), await lockCookie('admin'));
   assert.equal(r.status, 200);
   assert.equal(r.cc, 'private, no-store');
-  assert.deepEqual(r.j, { ok: true, role: 'admin', next: 'https://blog.styrigx.com/post/x/', upgrade: false });
+  assert.deepEqual(r.j, { ok: true, role: 'admin', next: 'https://atlas.styrigx.com/blog/post/x/', upgrade: false });
 });
 
 test('B session-check?return：不合法 return → 首页；退役子站 → 首页；无 return → next null', async () => {
   const c = await lockCookie('admin');
   assert.equal((await check('?return=' + encodeURIComponent('https://evil.example/'), c)).j.next, '/');
   assert.equal((await check('?return=' + encodeURIComponent('//evil.example/'), c)).j.next, '/');
-  assert.equal((await check('?return=' + encodeURIComponent('https://book.styrigx.com/'), c)).j.next, '/');
+  for (const h of ['book.styrigx.com', 'blog.styrigx.com', 'daymark.styrigx.com', 'curio.styrigx.com']) {
+    assert.equal((await check('?return=' + encodeURIComponent('https://' + h + '/'), c)).j.next, '/', h);
+  }
   assert.equal((await check('', c)).j.next, null);
   /* 无 return：整份正文（原 session-security「有效会话 → 200 {ok:true, role}」） */
   const plain = await check('', c);
@@ -153,7 +157,7 @@ test('B session-check：访客 + 管理员专属 return → upgrade（就地管�
   assert.equal(o.j.upgrade, false);
   assert.equal(o.j.next, '/settings/security/');
   /* 子站同名路径不是管理员专属页 */
-  const s = await check('?return=' + encodeURIComponent('https://blog.styrigx.com/settings/security/lock/'), await lockCookie('visitor'));
+  const s = await check('?return=' + encodeURIComponent('https://atlas.styrigx.com/settings/security/lock/'), await lockCookie('visitor'));
   assert.equal(s.j.upgrade, false);
   /* 访客、无 return：整份正文带 visitor 角色（原 session-security「2.8.0：session-check 返回 visitor 角色」） */
   const vp = await check('', await lockCookie('visitor'));

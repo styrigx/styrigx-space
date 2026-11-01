@@ -42,7 +42,7 @@ export const CSP_ENFORCED = "frame-ancestors 'none'; object-src 'none'; base-uri
 export const CONNECT_EXTERNAL = [
   'https://api.open-meteo.com',
   'https://geocoding-api.open-meteo.com',
-  'https://daymark.styrigx.com',
+  'https://atlas.styrigx.com',
 ];
 
 /** 只报告、不拦截的完整 CSP（主站） */

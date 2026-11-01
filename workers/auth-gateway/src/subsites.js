@@ -1,12 +1,14 @@
 /**
- * @fileoverview 子站门禁：blog.styrigx.com、daymark.styrigx.com、curio.styrigx.com 的会话检查由网关统一做。
+ * @fileoverview 子站门禁：图志 atlas.styrigx.com（/blog/、/curio/、/daymark/ 三站同一个 Pages）的会话检查由网关统一做。
  *
- * 子站 Pages 不再持有任何公钥、不再带验票代码。网关在子站的页面路径上（路由见 wrangler.toml）：
+ * 子站 Pages 不再持有任何公钥、不再带验票代码。网关接管整个 atlas.styrigx.com（路由见 wrangler.toml）；
+ * /curio/api/*、/daymark/api/* 是更具体的路由，归两个接口 Worker（styrigx-atlas 仓库），不进网关：
  *   - 会话有效（admin 或 visitor，与主站同一套 verifyLockSession：验签 + exp + epoch）→ 回源取页面，
  *     HTML 加 private, no-store（防锁定后切回标签页看到缓存的旧页面）
  *   - 会话无效：页面 302 到主站锁屏（?lock=1&why=…&return=原地址），/api/* 回 401 JSON（fetch 不跟跳转）
- *   - /api/search：全站搜索，和主站同一个处理（路由表 routes.js 里的 /api/search）
- *   - /api/lock-session-check：子站前端切回标签页时问的，网关直接回答（blog 认 204，daymark、curio 认 200 {ok:true}）
+ *   - /api/search：全站搜索（三站共用，在图志根上），和主站同一个处理（路由表 routes.js 里的 /api/search）
+ *   - /api/lock-session-check：三站前端切回标签页时问的（在图志根上），网关直接回答：有效 204，失效 401 {ok:false, why}
+ *     （blog 认 204；curio、daymark 只认 401，其他状态什么都不做）
  *   - 静态资源后缀（被页面路由顺带覆盖到的 js/css/字体/图片）直接回源，不验会话，与原子站白名单一致
  *
  * 子站不做角色区分：admin、visitor 都能看页面（与原子站 middleware 一致）；
@@ -19,14 +21,16 @@ import { json, apiError, NO_STORE } from '../functions/_kernel/lib/http.js';
 
 const MAIN_ORIGIN = 'https://styrigx.com';
 
+/** 图志：三个子站共用的唯一主机 */
+export const ATLAS_HOST = 'atlas.styrigx.com';
+
 /**
- * 子站登记表：hostname → 配置。新增子站在这里加一项，并在 wrangler.toml 登记它要验的路径。
- * sessionCheckOk：会话有效时 /api/lock-session-check 的回答格式（沿用各子站前端已有的约定）。
+ * 图志里的子站：第一段路径 → 配置。新增子站在这里加一项（图志 Pages 和 styrigx-atlas 仓库同步加目录）。
  */
 export const SUBSITES = Object.freeze({
-  'blog.styrigx.com': { site: 'blog', sessionCheckOk: 'no-content' },
-  'daymark.styrigx.com': { site: 'daymark', sessionCheckOk: 'json' },
-  'curio.styrigx.com': { site: 'curio', sessionCheckOk: 'json' },
+  blog: { site: 'blog' },
+  curio: { site: 'curio' },
+  daymark: { site: 'daymark' },
 });
 
 /* 不验会话的静态资源后缀（不含正文内容）。和原子站 middleware 白名单一致。 */
@@ -37,8 +41,8 @@ const STATIC_EXT = new Set([
 ]);
 
 /* 不带正文的公开文件（以前子站只登记页面目录，这些都不过网关；改成整站通配后照旧放行）。
-   manifest 由浏览器不带 cookie 去取，挡了就是坏图标。 */
-const PUBLIC_FILES = new Set(['/manifest.json', '/site.webmanifest', '/robots.txt', '/favicon.ico']);
+   manifest 由浏览器不带 cookie 去取，挡了就是坏图标。robots.txt、favicon.ico 在图志根上，manifest 只有博客有。 */
+const PUBLIC_FILES = new Set(['/robots.txt', '/favicon.ico', '/blog/manifest.json']);
 
 /** @param {string} pathname */
 export function isStaticAsset(pathname) {
@@ -49,9 +53,21 @@ export function isStaticAsset(pathname) {
   return STATIC_EXT.has(pathname.slice(dot + 1).toLowerCase());
 }
 
-/** @param {string} hostname */
+/**
+ * 网关要不要按子站处理这个主机：只有图志。
+ * @param {string} hostname
+ */
 export function subsiteFor(hostname) {
-  return Object.prototype.hasOwnProperty.call(SUBSITES, hostname) ? SUBSITES[hostname] : null;
+  return hostname === ATLAS_HOST ? { host: ATLAS_HOST } : null;
+}
+
+/**
+ * 路径属于哪个子站（第一段）：/curio/xxx → curio。根上的文件和不认识的目录返回 null（照样要会话，只是日志里记 atlas）。
+ * @param {string} pathname
+ */
+export function siteOf(pathname) {
+  const seg = pathname.split('/')[1] || '';
+  return Object.prototype.hasOwnProperty.call(SUBSITES, seg) ? SUBSITES[seg].site : null;
 }
 
 
@@ -118,12 +134,7 @@ export async function handleSubsite(request, env, origin) {
   if (path === '/api/lock-session-check') {
     if (request.method !== 'GET' && request.method !== 'HEAD') return apiError(405, 'method');
     const sess = await verifyLockSession(request, env);
-    if (sess.ok) {
-      if (conf.sessionCheckOk === 'no-content') {
-        return new Response(null, { status: 204, headers: { 'Cache-Control': NO_STORE } });
-      }
-      return json(200, { ok: true });
-    }
+    if (sess.ok) return new Response(null, { status: 204, headers: { 'Cache-Control': NO_STORE } });
     return json(401, { ok: false, why: sess.reason === 'no-cookie' ? 'no-cookie' : 'invalid-session' });
   }
 
@@ -139,7 +150,8 @@ export async function handleSubsite(request, env, origin) {
   if (sess.ok) return subsitePage(await origin(request), sess.role);
 
   const why = sess.reason === 'no-cookie' ? 'no-cookie' : 'invalid-session';
-  console.log('[sgx-subsite] deny site=' + conf.site + ' reason=' + sess.reason);
-  if (path.startsWith('/api/')) return apiError(401, 'unauthorized');
+  console.log('[sgx-subsite] deny site=' + (siteOf(path) || 'atlas') + ' reason=' + sess.reason);
+  /* 根上的 /api/* 和各站的 /<站>/api/*（正常归接口 Worker，漏到网关时）都回 401 JSON，fetch 不跟跳转 */
+  if (path.startsWith('/api/') || /^\/[^/]+\/api\//.test(path)) return apiError(401, 'unauthorized');
   return lockRedirect(url, why);
 }

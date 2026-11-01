@@ -17,5 +17,5 @@ test('列出页面地址的文件和页面仍走网关', () => {
   for (const p of ['/og.png/x', '/x/og.png', '/sitemap.xml', '/files-index.json', '/en/files-index.json', '/', '/settings/', '/robots.txt/x', '/x/robots.txt']) {
     assert.equal(isMainStaticPassthrough(u(p)), false, p);
   }
-  assert.equal(isMainStaticPassthrough(u('/robots.txt', 'blog.styrigx.com')), false);
+  assert.equal(isMainStaticPassthrough(u('/robots.txt', 'atlas.styrigx.com')), false);
 });

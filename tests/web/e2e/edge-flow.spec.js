@@ -22,8 +22,8 @@ test.use({ launchOptions: { args: LAUNCH.args }, proxy: LAUNCH.proxy, viewport: 
 
 
 const MAIN = 'https://styrigx.com';
-const BLOG = 'https://blog.styrigx.com';
-const DAYMARK = 'https://daymark.styrigx.com';
+const BLOG = 'https://atlas.styrigx.com/blog';
+const DAYMARK = 'https://atlas.styrigx.com/daymark';
 
 /** @type {Awaited<ReturnType<typeof startEdge>>} */
 let edge;
@@ -111,7 +111,7 @@ test('R1 daymark 直接打开 → 主站锁屏 → 访客（临时钥匙）→ �
   await page.click('#sgx-temp-go');
   await page.waitForURL(DAYMARK + '/', { timeout: 20000 });
   await expect(page.locator('#sub-content')).toContainText('SUBSITE-CONTENT daymark');
-  expect(await page.evaluate(() => fetch('/api/lock-session-check').then((r) => r.status))).toBe(200);
+  expect(await page.evaluate(() => fetch('/api/lock-session-check').then((r) => r.status))).toBe(204);
 });
 
 test('R1 子站首页带任意查询串也必须过网关（未登录 → 302 锁屏，不能直出正文）', async ({ page }) => {

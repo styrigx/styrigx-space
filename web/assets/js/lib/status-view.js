@@ -177,7 +177,7 @@ export function siteName(s, en) {
   return (s && (en ? s.en || s.zh : s.zh || s.en)) || (s && s.site) || '';
 }
 
-/** 地址的域名（blog.styrigx.com） @param {string} url */
+/** 地址的域名（atlas.styrigx.com） @param {string} url */
 export function hostOf(url) {
   try {
     return new URL(url).host;

@@ -1288,7 +1288,7 @@ jobs:
           check /api/lock-session-check 401 || ok=1
           # 全站搜索：没会话 401（网关先拦），子站同样
           check '/api/search?q=a' 401 || ok=1
-          check 'https://blog.styrigx.com/api/search?q=a' 401 || ok=1
+          check 'https://atlas.styrigx.com/api/search?q=a' 401 || ok=1
           # 站点监测：没会话 401
           check /api/status 401 || ok=1
           # 聊天：没会话 401（网关先拦，不进 styrigx-chat）
@@ -1330,9 +1330,11 @@ jobs:
             sleep 5
           done
           [ $avatar_ok = 0 ] || { echo "::error::/avatar/96.webp expected X-SGX-Runtime: account"; ok=1; }
-          # 子站：页面未登录 302 到主站锁屏、session-check 401，都由网关回答（子站 Pages 不持钥匙）
-          check https://blog.styrigx.com/ 302 || ok=1
-          check https://blog.styrigx.com/api/lock-session-check 401 || ok=1
+          # 图志：三站页面未登录 302 到主站锁屏、根上的 session-check 401，都由网关回答（图志 Pages 不持钥匙）
+          check https://atlas.styrigx.com/blog/ 302 || ok=1
+          check https://atlas.styrigx.com/curio/ 302 || ok=1
+          check https://atlas.styrigx.com/daymark/ 302 || ok=1
+          check https://atlas.styrigx.com/api/lock-session-check 401 || ok=1
           # 静态资源不过网关：不能带 worker 标记
           css=$(curl -sS -o /dev/null -D - https://styrigx.com/robots.txt | tr -d '\r' | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
           echo "/robots.txt runtime=${css:-none}"

@@ -1,5 +1,5 @@
 /**
- * @fileoverview 日刻 · 今日一句（daymark.styrigx.com/api/today，公开只读，CORS 只放 https://styrigx.com）。
+ * @fileoverview 日刻 · 今日一句（atlas.styrigx.com/daymark/api/today，公开只读，CORS 只放 https://styrigx.com）。
  *
  * 主页小组件（layouts/index.html #w-daymark，整张卡点进日刻）与锁屏（shell/lock.js，只展示、不可点）共用：
  * - daymarkCardHtml()：卡片内部结构（与主页模板同一套 data-dm 槽位与 dm-w-* 样式）
@@ -11,7 +11,7 @@
  */
 import { getJSON, setJSON } from './storage.js';
 
-export const DAYMARK_API = 'https://daymark.styrigx.com/api/today';
+export const DAYMARK_API = 'https://atlas.styrigx.com/daymark/api/today';
 export const DAYMARK_CACHE = 'sgx-daymark-today';
 
 const DM_ICON = '<svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15.5" rx="2.5"/><path d="M8.5 3v4M15.5 3v4"/><path d="M10.5 11.2c-1.3.5-2 1.6-2 3.3v1.3"/><path d="M8.5 15.8h1.8v-1.9H8.6"/><path d="M15.5 11.2c-1.3.5-2 1.6-2 3.3v1.3"/><path d="M13.5 15.8h1.8v-1.9h-1.7"/></svg>';

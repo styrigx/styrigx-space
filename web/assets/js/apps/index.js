@@ -393,7 +393,7 @@ export function mountHome(o) {
   }
   const clock = clockPart();
   const wx = weatherPart();
-  /* 日刻 · 今日一句：daymark.styrigx.com/api/today（公开只读）。与锁屏共用 lib/daymark-today.js：
+  /* 日刻 · 今日一句：atlas.styrigx.com/daymark/api/today（公开只读）。与锁屏共用 lib/daymark-today.js：
      先画本地缓存（同一天才用），再静默拉新；拉失败且没缓存 → 卡片保持隐藏。只在挂上时拉一次。 */
   const dm = document.getElementById('w-daymark');
   if (dm) mountDaymarkToday(dm, { en: document.documentElement.lang === 'en' });

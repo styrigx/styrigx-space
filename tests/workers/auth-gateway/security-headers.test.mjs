@@ -114,7 +114,7 @@ test('Report-Only CSP：script-src 是 self + 每个内联脚本哈希，没有 
   assert.deepEqual(script.slice(1).sort(), INLINE_SCRIPT_HASHES.map((h) => "'" + h + "'").sort());
   assert.doesNotMatch(script.join(' '), /unsafe|\*|https?:/);
   assert.deepEqual(d.get('default-src'), ["'self'"]);
-  assert.deepEqual(d.get('connect-src'), ["'self'", 'https://api.open-meteo.com', 'https://geocoding-api.open-meteo.com', 'https://daymark.styrigx.com']);
+  assert.deepEqual(d.get('connect-src'), ["'self'", 'https://api.open-meteo.com', 'https://geocoding-api.open-meteo.com', 'https://atlas.styrigx.com']);
   assert.deepEqual(d.get('frame-ancestors'), ["'none'"]);
   assert.deepEqual(d.get('object-src'), ["'none'"]);
   /* 不报到任何地方：匿名流量不能触发写 KV（看违规用浏览器控制台） */
@@ -302,7 +302,7 @@ test('网关·子站：302 到锁屏、401、会话有效的页面都带子站�
   _resetSecretCache();
   const admin = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'admin', 'password'));
   await withOrigin('<html><head></head><body>blog</body></html>', async () => {
-    for (const host of ['blog.styrigx.com', 'daymark.styrigx.com', 'curio.styrigx.com']) {
+    for (const host of ['atlas.styrigx.com/blog', 'atlas.styrigx.com/daymark', 'atlas.styrigx.com/curio']) {
       const lock = await worker.fetch(new Request('https://' + host + '/posts/x/'), baseEnv(), CTX);
       assert.equal(lock.status, 302, host);
       assert.equal(lock.headers.get('Strict-Transport-Security'), SH.HSTS);
@@ -320,7 +320,7 @@ test('网关·子站：302 到锁屏、401、会话有效的页面都带子站�
   });
   /* 子站静态资源原样回源，只补 HSTS、nosniff，不加 CSP / X-Frame-Options 等 */
   await withOrigin('x', async () => {
-    for (const host of ['blog.styrigx.com', 'daymark.styrigx.com', 'curio.styrigx.com']) {
+    for (const host of ['atlas.styrigx.com/blog', 'atlas.styrigx.com/daymark', 'atlas.styrigx.com/curio']) {
       const st = await worker.fetch(new Request('https://' + host + '/js/app.js'), baseEnv(), CTX);
       assert.equal(st.status, 200, host);
       assert.equal(st.headers.get('Strict-Transport-Security'), SH.HSTS, host);
