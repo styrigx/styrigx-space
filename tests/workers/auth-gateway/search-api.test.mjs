@@ -101,17 +101,17 @@ test('/api/search：没绑定 503；上游抛错 503；空查询直接空结果�
   assert.equal((await searchCall(makeKV(), 'x'.repeat(101), sess, null)).status, 400);
 });
 
-test('子站 /api/search 也走网关：blog 上没会话 401、有会话转发', async () => {
+test('子站 /api/search 也走网关：图志上没会话 401、有会话转发', async () => {
   const { handleSubsite } = await import('../../../workers/auth-gateway/src/subsites.js');
   const log = [];
   const env = Object.assign(envFor(makeKV()), { SEARCH: fakeSearch(log) });
   const origin = async () => new Response('origin', { status: 200 });
-  let r = await handleSubsite(new Request('https://blog.styrigx.com/api/search?q=a'), env, origin);
+  let r = await handleSubsite(new Request('https://atlas.styrigx.com/api/search?q=a'), env, origin);
   assert.equal(r.status, 401);
-  r = await handleSubsite(new Request('https://blog.styrigx.com/api/search?q=a', { headers: { Cookie: 'sgx-lock-session=' + await visitorSess() } }), env, origin);
+  r = await handleSubsite(new Request('https://atlas.styrigx.com/api/search?q=a', { headers: { Cookie: 'sgx-lock-session=' + await visitorSess() } }), env, origin);
   assert.equal(r.status, 200);
   assert.equal(log[0].role, 'visitor');
-  r = await handleSubsite(new Request('https://blog.styrigx.com/api/search?q=a', { method: 'POST', headers: { Cookie: 'sgx-lock-session=' + await visitorSess() } }), env, origin);
+  r = await handleSubsite(new Request('https://atlas.styrigx.com/api/search?q=a', { method: 'POST', headers: { Cookie: 'sgx-lock-session=' + await visitorSess() } }), env, origin);
   assert.equal(r.status, 405);
 });
 

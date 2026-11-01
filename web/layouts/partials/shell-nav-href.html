@@ -1,5 +1,7 @@
-{{/* 导航抽屉项地址（web/data/shell-nav.json 一项 + 是否英文）：主站自己的项用站内相对地址，子站项用绝对地址；英文加 /en 前缀 */}}
+{{/* 导航抽屉项地址（web/data/shell-nav.json 一项 + 是否英文）：主站自己的项用站内相对地址，子站项用绝对地址；
+   英文：主站加 /en 前缀，图志各站在站目录后加 en/（/curio/ → /curio/en/） */}}
+{{ $main := eq .it.origin "https://styrigx.com" }}
 {{ $p := .it.path }}
-{{ if .en }}{{ $p = printf "/en%s" .it.path }}{{ end }}
+{{ if .en }}{{ if $main }}{{ $p = printf "/en%s" .it.path }}{{ else }}{{ $p = printf "%sen/" .it.path }}{{ end }}{{ end }}
 {{ if ne .it.origin "https://styrigx.com" }}{{ $p = printf "%s%s" .it.origin $p }}{{ end }}
 {{ return $p }}

@@ -8,7 +8,7 @@
  * 经服务绑定 ACCOUNT（styrigx-account / AccountService）转发，写全套身份头（forwardToService）；账号的响应保留 X-SGX-Runtime: account。
  * 转发表里的路径只转发：没绑定 ACCOUNT 或绑定出错 → 503 upstream。
  * 静态资源目录（MAIN_STATIC_PREFIXES）第一行就原样回源，不验会话、不改响应。
- * 子站（blog.styrigx.com、daymark.styrigx.com、curio.styrigx.com）的页面会话检查也在这里（src/subsites.js），子站 Pages 不持钥匙。
+ * 子站（图志 atlas.styrigx.com 的 /blog/ /curio/ /daymark/）的页面会话检查也在这里（src/subsites.js），子站 Pages 不持钥匙。
  * 主站的后端代码只在这里（workers/auth-gateway/functions/），Pages 只放静态文件：
  *   1. Secrets Store 的私密值换成字符串（secrets.js）
  *   2. 先跑 functions/_middleware.js（会话、角色、白名单、no-store、锁屏瘦身）

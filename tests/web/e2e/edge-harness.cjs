@@ -1,8 +1,7 @@
 /**
  * 本地「边缘」测试台（edge-flow.spec.js 用）：把线上三站的请求链原样搭在本机。
  *
- * - 浏览器经本地 HTTP 代理（CONNECT）访问真实域名 https://styrigx.com、https://blog.styrigx.com、
- *   https://daymark.styrigx.com；代理把 TLS 接到本机 HTTPS 服务（临时自签证书，
+ * - 浏览器经本地 HTTP 代理（CONNECT）访问真实域名 https://styrigx.com、https://atlas.styrigx.com（图志：/blog/ /curio/ /daymark/）；代理把 TLS 接到本机 HTTPS 服务（临时自签证书，
  *   Chromium 用 --ignore-certificate-errors-spki-list 信任它，页面是正常安全上下文，WebAuthn 可用）。
  * - 路由按 workers/auth-gateway/wrangler.toml、workers/account/wrangler.toml、workers/share/wrangler.toml 的 [[routes]]，用 scripts/lib/cf-routes.mjs
  *   （线上实测的匹配规则：不带 * 的规则遇到查询串不命中；多条命中取最具体的）决定这次请求走网关、短链 Worker 还是直达 Pages。
@@ -35,9 +34,9 @@ const { makeKV, makeAuthD1, derToPem } = require('../../workers/_harness.cjs');
 
 const REPO = process.env.SGX_EDGE_REPO || path.join(__dirname, '..', '..', '..');
 const PROXY_PORT = Number(process.env.SGX_EDGE_PROXY_PORT || 8941);
-const HOSTS = ['styrigx.com', 'blog.styrigx.com', 'daymark.styrigx.com'];
-/* 别的 Worker 的路由（不在本仓库）：daymark 的句子接口 Worker */
-const OTHER_WORKER_ROUTES = ['daymark.styrigx.com/api/*'];
+const HOSTS = ['styrigx.com', 'atlas.styrigx.com'];
+/* 别的 Worker 的路由（不在本仓库，styrigx-atlas）：日刻、奇趣的接口 Worker */
+const OTHER_WORKER_ROUTES = ['atlas.styrigx.com/daymark/api/*', 'atlas.styrigx.com/curio/api/*'];
 
 /* ---------- 证书（模块加载时同步生成，spec 的 test.use 要用 SPKI） ---------- */
 const CERT_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sgx-edge-'));
@@ -90,16 +89,18 @@ function mainPages(req) {
   return new Response(fs.readFileSync(file), { status: 200, headers: { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': cc } });
 }
 
-/** 子站 Pages：固定页面（正文带 SUBSITE-CONTENT 标记，测试据此判断「真的进了子站」） */
+/** 图志 Pages：各站固定页面（正文带 SUBSITE-CONTENT 标记，测试据此判断「真的进了子站」） */
 function subPages(req) {
   const u = new URL(req.url);
-  const site = u.hostname.split('.')[0];
-  if (u.pathname === '/' || u.pathname.startsWith('/post/') || u.pathname === '/en/' || u.pathname === '/zh/') {
+  const m = /^\/(blog|curio|daymark)(\/.*)$/.exec(u.pathname);
+  const site = m ? m[1] : 'atlas';
+  const rest = m ? m[2] : u.pathname;
+  if (m && (rest === '/' || rest.startsWith('/post/') || rest === '/en/' || rest === '/zh/')) {
     const html = '<!doctype html><html lang="zh"><head><meta charset="utf-8"><title>' + site + '</title></head>' +
       '<body><main id="sub-content">SUBSITE-CONTENT ' + site + ' ' + u.pathname + '</main></body></html>';
     return new Response(html, { status: 200, headers: { 'Content-Type': MIME.html, 'Cache-Control': 'public, max-age=0, must-revalidate' } });
   }
-  if (u.pathname === '/manifest.json') return Response.json({ name: site });
+  if (u.pathname === '/blog/manifest.json') return Response.json({ name: site });
   return new Response('not found', { status: 404, headers: { 'Content-Type': 'text/plain' } });
 }
 

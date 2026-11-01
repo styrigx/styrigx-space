@@ -21,8 +21,8 @@ export function isAdminOnlyPath(pathname) {
 }
 
 const MAIN_ORIGIN = 'https://styrigx.com';
-/* 已下线的子站：不再作为回跳目标 */
-const RETIRED_RETURN_HOSTS = new Set(['book.styrigx.com', 'book-preview.styrigx.com']);
+/* 已下线的子站：不再作为回跳目标（blog / curio / daymark 2026-11-02 并入图志 atlas.styrigx.com） */
+const RETIRED_RETURN_HOSTS = new Set(['book.styrigx.com', 'book-preview.styrigx.com', 'blog.styrigx.com', 'curio.styrigx.com', 'daymark.styrigx.com']);
 const UNSAFE_RETURN_RE = /[\u0000-\u001f\u007f\\]/;
 
 /**

@@ -1,4 +1,4 @@
-# styrigx-auth-gateway：鉴权网关（CI 部署；承接 styrigx.com、blog.styrigx.com、daymark.styrigx.com、curio.styrigx.com 整站请求：会话检查 + 接口；静态资源原样回源）
+# styrigx-auth-gateway：鉴权网关（CI 部署；承接 styrigx.com、atlas.styrigx.com 整站请求：会话检查 + 接口；静态资源原样回源）
 #
 # 主站后端代码在本目录：src/（入口、路由表、密钥）+ functions/（middleware、接口、内核）+ migrations/（D1）。
 # 账号（账号密码 / 通行密钥 / 设备 / 账号会话、头像、云同步、数字健康）在账号 Worker styrigx-account（workers/account）：
@@ -26,39 +26,23 @@ enabled = true
 head_sampling_rate = 1
 
 # 路由：本文件就是网关 Worker 路由的唯一登记处（scripts/check-worker-routes.mjs 在 CI 里核对）。
-# 2026-10-21 起三站都是整站一条通配路由（host/*）：
-# - Cloudflare 的路由规则不带 * 时要求整条 URL（含查询串）完全相等。以前登记的 styrigx.com/、blog.styrigx.com/、
-#   daymark.styrigx.com/ 这类精确规则遇到 ?lock=1、?utm=… 就不命中 → 请求直达 Pages：
-#   锁屏入口 styrigx.com/?lock=1&return=… 没有会话标记、解锁后回不去子站；子站首页带任意查询串不验会话直出正文。
+# 两个主机都是整站一条通配路由（host/*）：
+# - Cloudflare 的路由规则不带 * 时要求整条 URL（含查询串）完全相等，遇到 ?lock=1、?utm=… 就不命中 → 请求直达 Pages：
+#   锁屏入口 styrigx.com/?lock=1&return=… 没有会话标记；子站页面带任意查询串不验会话直出正文。
 # - 通配后新增页面目录不会漏登记（fail closed）。静态资源（/css/ /js/ /fonts/ /fav/ /images/）也进 Worker，
 #   但在 src/index.js 第一行就原样回源，不验会话、不改响应（与以前不登记时行为一致）。
-# - 更具体的规则优先：daymark.styrigx.com/api/*（styrigx-daymark-core，另一个仓库）仍归句子接口 Worker；
-#   daymark.styrigx.com/api/lock-session-check 比它更具体，归网关。curio 同理：curio.styrigx.com/api/* 归 styrigx-curio-core
-#   （styrigx-curio 仓库，收藏接口），curio.styrigx.com/api/lock-session-check 归网关。
+# - 图志 atlas.styrigx.com（2026-11-02，博客 / 奇趣 / 日刻合成一个 Pages，各占 /blog/ /curio/ /daymark/）：
+#   页面、根上的 /api/lock-session-check、/api/search 都归网关；更具体的 atlas.styrigx.com/curio/api/*、
+#   atlas.styrigx.com/daymark/api/* 归两个接口 Worker（styrigx-atlas 仓库），网关这里不登记比它们更具体的规则。
+#   旧的 blog / daymark / curio 子域名不再登记（不跳转）。
 # 注意：Pages 上已经没有后端代码，删掉路由 = 页面不验会话，不能靠删路由回滚；出问题时 revert 对应提交重新部署。
 [[routes]]
 pattern = "styrigx.com/*"
 zone_name = "styrigx.com"
 
-# ---- 子站（src/subsites.js）----
+# ---- 图志（src/subsites.js）----
 [[routes]]
-pattern = "blog.styrigx.com/*"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "daymark.styrigx.com/*"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "daymark.styrigx.com/api/lock-session-check"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "curio.styrigx.com/*"
-zone_name = "styrigx.com"
-
-[[routes]]
-pattern = "curio.styrigx.com/api/lock-session-check"
+pattern = "atlas.styrigx.com/*"
 zone_name = "styrigx.com"
 
 # ---- 明文变量（公钥在 Secrets Store）----

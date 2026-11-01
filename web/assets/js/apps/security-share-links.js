@@ -33,10 +33,10 @@ export function durMs(d) {
 }
 
 /** 目标能指向的站（同服务端 workers/share/src/lib/links.js TARGET_HOSTS） */
-export const TARGET_HOSTS = ['styrigx.com', 'blog.styrigx.com', 'daymark.styrigx.com', 'curio.styrigx.com'];
+export const TARGET_HOSTS = ['styrigx.com', 'atlas.styrigx.com'];
 
 /**
- * 目标输入 → 提交值：空 = '/'；站内路径（/ 开头，不能 // 或 /\）或 https://（styrigx.com / 三个子站）地址，
+ * 目标输入 → 提交值：空 = '/'；站内路径（/ 开头，不能 // 或 /\）或 https://（styrigx.com / 图志 atlas.styrigx.com）地址，
  * 不带端口 / 用户名；不含空白和反斜杠。服务端再严格校验并规范化一次。不合法返回 null。
  * @param {string} v
  */

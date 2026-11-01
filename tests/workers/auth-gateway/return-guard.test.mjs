@@ -45,7 +45,8 @@ test('safeReturn：合法站内路径与白名单子站照常，返回规范化�
   assert.equal(safeReturn('/en/'), '/en/');
   assert.equal(safeReturn('/a/../b/'), '/b/');
   assert.equal(safeReturn('/search/?q=a%2Fb'), '/search/?q=a%2Fb');
-  assert.equal(safeReturn('https://blog.styrigx.com/post/x/'), 'https://blog.styrigx.com/post/x/');
+  assert.equal(safeReturn('https://atlas.styrigx.com/blog/post/x/'), 'https://atlas.styrigx.com/blog/post/x/');
+  for (const h of ['blog.styrigx.com', 'daymark.styrigx.com', 'curio.styrigx.com']) assert.equal(safeReturn('https://' + h + '/'), null, h + ' 已并入图志');
   assert.equal(safeReturn('https://styrigx.com'), 'https://styrigx.com/');
   assert.equal(safeReturn('/lock/'), null, '/lock/ 解锁后无页面');
   assert.equal(safeReturn(''), null);

@@ -65,7 +65,7 @@ test('nav.json：主站 / 奇趣 / 日刻 / 博客，没有设置；抽屉头搜
   assert.deepEqual(nav.items.map((i) => i.id), ['home', 'curio', 'daymark', 'blog']);
   // 2026-10-21：书签项换成子站 奇趣 Curio（主站书签功能下线）
   const curio = nav.items.find((i) => i.id === 'curio');
-  assert.deepEqual([curio.icon, curio.origin, curio.path, curio.en], ['nav-curio', 'https://curio.styrigx.com', '/', 'Curio']);
+  assert.deepEqual([curio.icon, curio.origin, curio.path, curio.en], ['nav-curio', 'https://atlas.styrigx.com', '/curio/', 'Curio']);
   // 2026-10-21：设置从抽屉挪到主站快捷面板顶栏，外壳不再要求有设置项（子站之后同步）
   assert.deepEqual(nav.footer, []);
   assert.ok(![...nav.items, ...nav.footer].some((i) => i.id === 'settings'));

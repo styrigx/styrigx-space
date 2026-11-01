@@ -8,7 +8,7 @@
  * - 2026-10-22：长条左端的搜索图标删了（长条 = 页名 · 快捷面板图标，页名仍居中）；/search/ 页删了（只剩跳转页）。
  * - 九宫格 → Gmail 式左侧导航抽屉：首页 / 奇趣 / 日刻 / 博客（2026-10-21 起没有 设置；书签项换成子站 奇趣 Curio，入口在快捷面板齿轮）；每项有描边图标，
  *   当前页是药丸高亮；没有 我的文件 / 帮助与反馈；点遮罩 / Esc / 系统返回关闭。
- * - 2026-10-21 主站书签下线（迁到子站 奇趣 Curio）：/bookmarks/ 线上 301 到 curio.styrigx.com；/browser/ → 首页搜索层（site-search.spec.js）。
+ * - 2026-10-21 主站书签下线（迁到子站 奇趣 Curio）：/bookmarks/ 以前 301 到奇趣，2026-11-02 并入图志时删掉了跳转；/browser/ → 首页搜索层（site-search.spec.js）。
  * - 搜索引擎搬到 设置 › 安全与隐私 › 隐私（清除浏览记录 2026-10-22 随最近搜索删掉）。
  */
 const { test } = require('@playwright/test');
@@ -85,10 +85,10 @@ test.describe('导航抽屉', () => {
     await expect(drawer(page).locator('a[href*="/files/"]')).toHaveCount(0);
     /* 链接 */
     await expect(items.nth(0)).toHaveAttribute('href', '/');
-    await expect(items.nth(1)).toHaveAttribute('href', 'https://curio.styrigx.com/');
+    await expect(items.nth(1)).toHaveAttribute('href', 'https://atlas.styrigx.com/curio/');
     await expect(items.nth(1)).toHaveAttribute('data-nav', 'curio');
-    await expect(items.nth(2)).toHaveAttribute('href', 'https://daymark.styrigx.com/');
-    await expect(items.nth(3)).toHaveAttribute('href', 'https://blog.styrigx.com/');
+    await expect(items.nth(2)).toHaveAttribute('href', 'https://atlas.styrigx.com/daymark/');
+    await expect(items.nth(3)).toHaveAttribute('href', 'https://atlas.styrigx.com/blog/');
     /* 设置子页：抽屉里没有对应项，没有高亮 */
     await expect(drawer(page).locator('[aria-current="page"]')).toHaveCount(0);
     /* 抽屉贴左边 */
@@ -116,7 +116,7 @@ test.describe('导航抽屉', () => {
     await go(page, '/en/', 'en');
     await openDrawer(page);
     await expect(drawer(page).locator('.sgx-drawer-label')).toHaveText(['Space', 'Curio', 'Daymark', 'Blog']);
-    await expect(drawer(page).locator('.sgx-drawer-item').nth(1)).toHaveAttribute('href', 'https://curio.styrigx.com/en/');
+    await expect(drawer(page).locator('.sgx-drawer-item').nth(1)).toHaveAttribute('href', 'https://atlas.styrigx.com/curio/en/');
     const s = drawer(page).locator('.sgx-drawer-foot a.sgx-drawer-search');
     await expect(s).toHaveAttribute('href', '/en/search/');
     await expect(s).toHaveAttribute('aria-label', 'Search');

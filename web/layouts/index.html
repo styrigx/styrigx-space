@@ -68,12 +68,12 @@
     </div>
     {{ end }}{{/* /weather-show */}}
 
-    <!-- 日刻 · 今日一句（2026-10-20）：读 daymark.styrigx.com/api/today（公开只读，CORS 只放主站），
+    <!-- 日刻 · 今日一句（2026-10-20）：读 atlas.styrigx.com/daymark/api/today（公开只读，CORS 只放主站），
          整张卡点进日刻。没拿到数据前隐藏（同天气），当天没有公开句子时显示空状态 + 去记一句。
          apps/index.js 填字；本地缓存 sgx-daymark-today 先画上次的，再静默刷新。
          CI 测试构建（SGX_TEST_NO_WEATHER=1，同天气）不输出：要跨站请求，会让 Lighthouse errors-in-console 误报。 -->
     {{ if ne (getenv "SGX_TEST_NO_WEATHER") "1" }}
-    {{ $dmUrl := cond $isEn "https://daymark.styrigx.com/en/" "https://daymark.styrigx.com/" }}
+    {{ $dmUrl := cond $isEn "https://atlas.styrigx.com/daymark/en/" "https://atlas.styrigx.com/daymark/" }}
     <a id="w-daymark" href="{{ $dmUrl }}" class="widget dm-w col-span-4 lg:col-span-4 bg-m-container-lowest text-m-on-surface border border-m-outline p-5 sm:p-6 overflow-hidden relative animate-fade-up hidden" style="animation-delay:.32s" aria-label="{{ if $isEn }}Daymark · Line of the day{{ else }}日刻 · 今日一句{{ end }}">
       <span class="dm-w-mark" aria-hidden="true">&ldquo;</span>
       <div class="relative flex items-center justify-between gap-3">

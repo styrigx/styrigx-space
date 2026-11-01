@@ -79,16 +79,16 @@ export function sessionSeconds(sec, ms) {
 }
 
 /** 目标能指向的站（只认这几个主机，https、默认端口） */
-export const TARGET_HOSTS = Object.freeze(['styrigx.com', 'blog.styrigx.com', 'daymark.styrigx.com', 'curio.styrigx.com']);
+export const TARGET_HOSTS = Object.freeze(['styrigx.com', 'atlas.styrigx.com']);
 /** 存目标前去掉的查询参数（锁屏 / 回跳 / 分享自己的参数，带进去会把人送回锁屏或绕圈） */
 export const STRIP_PARAMS = Object.freeze(['lock', 'why', 'return', 'share']);
 const ABS_RE = /^https:\/\/([a-z0-9.-]+)(?=[/?#]|$)/i;
 
 /**
- * 目标：站内相对路径，或 styrigx.com 及三个子站的 https 地址。规范化后返回：主站 → pathname + search + hash（如 /blog/?a=1），
- * 子站 → 完整地址（如 https://blog.styrigx.com/post/x/）。空 = '/'。不合法返回 null。
+ * 目标：站内相对路径，或 styrigx.com 及图志 atlas.styrigx.com 的 https 地址。规范化后返回：主站 → pathname + search + hash（如 /blog/?a=1），
+ * 图志 → 完整地址（如 https://atlas.styrigx.com/blog/post/x/）。空 = '/'。不合法返回 null。
  * 拒绝：别的主机（含 styrigx.com.evil.com）、http:、// 开头、带端口（含 :443）、带用户名密码、javascript: 等别的协议、
- * 控制字符 / 空白 / 反斜杠、主站 /s/ 和任何站 /api/、超长。
+ * 控制字符 / 空白 / 反斜杠、主站 /s/ 和任何站 /api/（图志还有各站的 /<站>/api/）、超长。
  * @param {any} to
  * @returns {string|null}
  */
@@ -120,6 +120,7 @@ export function cleanTarget(to) {
   /* /..//evil.com 这类解析后 pathname 以 // 开头的，存成相对路径会变成协议相对地址 */
   if (p.startsWith('//')) return null;
   if (p === '/api' || p.startsWith('/api/')) return null;
+  if (base !== ORIGIN && /^\/[^/]+\/api(\/|$)/.test(p)) return null;
   if (base === ORIGIN && (p === '/s' || p.startsWith('/s/'))) return null;
   for (const k of STRIP_PARAMS) u.searchParams.delete(k);
   const rel = p + u.search + u.hash;

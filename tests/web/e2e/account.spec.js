@@ -1016,8 +1016,8 @@ test.describe('设置 → 安全与隐私 → 临时钥匙页 › 分享短链�
     const st = await mockShare(page);
     await page.goto(TK, { waitUntil: 'domcontentloaded' });
     await page.locator('#acct-sl-new').click();
-    for (const bad of ['https://evil.example/', '//evil.example', 'evil.example', '/a b', 'http://blog.styrigx.com/', 'https://styrigx.com.evil.com/',
-      'https://blog.styrigx.com:8443/', 'https://u@blog.styrigx.com/', 'javascript:alert(1)']) {
+    for (const bad of ['https://evil.example/', '//evil.example', 'evil.example', '/a b', 'http://atlas.styrigx.com/', 'https://styrigx.com.evil.com/', 'https://blog.styrigx.com/',
+      'https://atlas.styrigx.com:8443/', 'https://u@atlas.styrigx.com/', 'javascript:alert(1)']) {
       await page.fill('#sl-to', bad);
       await page.click('#sl-go');
       await expect(page.locator('#sl-err')).toHaveText('只能填 styrigx.com 及子站的链接');
@@ -1025,15 +1025,15 @@ test.describe('设置 → 安全与隐私 → 临时钥匙页 › 分享短链�
     expect(st.calls.some((c) => c.action === 'create')).toBe(false);
   });
 
-  test('目标填子站完整链接（https://blog.styrigx.com/post/…）：不报错，原样提交给服务端规范化', async ({ page }) => {
+  test('目标填图志完整链接（https://atlas.styrigx.com/blog/post/…）：不报错，原样提交给服务端规范化', async ({ page }) => {
     const st = await mockShare(page);
     await page.goto(TK, { waitUntil: 'domcontentloaded' });
     await page.locator('#acct-sl-new').click();
-    await page.fill('#sl-to', 'https://blog.styrigx.com/post/hello-world/');
+    await page.fill('#sl-to', 'https://atlas.styrigx.com/blog/post/hello-world/');
     await page.click('#sl-go');
     await expect(page.locator('#sl-done')).toBeVisible();
     await expect(page.locator('#sl-err')).toBeHidden();
-    expect(st.calls.find((c) => c.action === 'create').to).toBe('https://blog.styrigx.com/post/hello-world/');
+    expect(st.calls.find((c) => c.action === 'create').to).toBe('https://atlas.styrigx.com/blog/post/hello-world/');
   });
 
   test('列表：已作废 / 已过期标状态、没有复制和作废；有效的作废两步确认 → 变成「已作废」', async ({ page }) => {

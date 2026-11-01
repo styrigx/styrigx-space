@@ -14,9 +14,9 @@
  * 2c. 分享短链（/s/<码>、/api/share，带查询串也算）归短链 Worker styrigx-share（workers/share/wrangler.toml，2026-10-24）；
  *     网关的每个接口、每个页面、每条转发路径仍归网关
  * 3. 路由不重复，只登记 styrigx.com 和 SUBSITE_HOSTS 里的域名
- * 4. 子站必须登记的路径（含首页 + 查询串）都覆盖
- * 5. daymark 的句子接口（daymark.styrigx.com/api/*，styrigx-daymark-core）、curio 的收藏接口（curio.styrigx.com/api/*，styrigx-curio-core）
- *    不能被网关更具体的规则抢走（session-check 除外）
+ * 4. 图志（atlas.styrigx.com：/blog/ /curio/ /daymark/）必须登记的路径（含各站首页 + 查询串、根上的锁屏复查和搜索）都覆盖
+ * 5. 日刻的句子接口（atlas.styrigx.com/daymark/api/*，styrigx-daymark-core）、奇趣的收藏接口（atlas.styrigx.com/curio/api/*，
+ *    styrigx-curio-core）不能被网关更具体的规则抢走
  * 静态资源现在也进网关（整站通配），由 src/index.js / subsites.js 原样回源；单测 auth-flow-2026-10-21 覆盖。
  *
  * 需要先构建网站（hugo --minify -s web），读 web/public/ 下的 .html。
@@ -37,7 +37,7 @@ const PUBLIC_DIR = path.join(REPO, 'web/public');
 const EXEMPT = new Set(['/404.html']);
 /* 必须过网关的非页面路径（含锁屏入口本身，带查询串） */
 const MUST_ROUTE = ['/api/geo', '/api/lock-session-check',
-  '/?lock=1', '/?lock=1&why=no-cookie&return=https%3A%2F%2Fblog.styrigx.com%2F', '/?return=%2Fsettings%2Fsecurity%2Flock%2F',
+  '/?lock=1', '/?lock=1&why=no-cookie&return=https%3A%2F%2Fatlas.styrigx.com%2Fblog%2F', '/?return=%2Fsettings%2Fsecurity%2Flock%2F',
   '/en/?lock=1', '/files-index.json'];
 /* 账号路径：必须归网关、在转发表里转给 ACCOUNT（账号 Worker styrigx-account 没有路由） */
 const ACCOUNT_MUST = ['/api/account', '/api/account?x=1', '/api/avatar', '/api/prefs', '/api/prefs/', '/api/wellbeing', '/api/wellbeing?d=2026-10-24',
@@ -47,20 +47,18 @@ const FORWARD_BINDINGS = new Set(['ACCOUNT']);
 const FORWARD_GATES = new Set(['admin', 'session', 'public']);
 /* 必须归短链 Worker（styrigx-share）的路径 */
 const SHARE_MUST = ['/s/AAAAAAAAAAAAAAAAAAAAAA', '/s/AAAAAAAAAAAAAAAAAAAAAA/', '/s/AAAAAAAAAAAAAAAAAAAAAA?x=1', '/s/', '/api/share', '/api/share/', '/api/share?x=1'];
-/* 子站：域名 → 必须登记的路径 */
+/* 子站：域名 → 必须登记的路径（图志一个域名下三站；2026-11-02 起旧的 blog / daymark / curio 子域名不再登记） */
 const SUBSITE_HOSTS = {
-  'blog.styrigx.com': {
-    mustRoute: ['/', '/?utm=1', '/about/', '/archives/', '/post/x/', '/post/x/?a', '/tags/x/', '/en/', '/en/?a', '/rss.xml', '/rss.xml?a', '/api/lock-session-check'],
-  },
-  'daymark.styrigx.com': {
-    mustRoute: ['/', '/?x=1', '/en/', '/zh/', '/sitemap.xml', '/sitemap.xml?a', '/api/lock-session-check'],
-    /* 归 styrigx-daymark-core 的接口：网关不得有比 daymark.styrigx.com/api/* 更具体的规则 */
-    otherWorker: { pattern: 'daymark.styrigx.com/api/*', samples: ['/api/quotes', '/api/today'] },
-  },
-  'curio.styrigx.com': {
-    mustRoute: ['/', '/?x=1', '/en/', '/zh/', '/sitemap.xml', '/sitemap.xml?a', '/#c/1', '/api/lock-session-check'],
-    /* 归 styrigx-curio-core 的接口：网关不得有比 curio.styrigx.com/api/* 更具体的规则 */
-    otherWorker: { pattern: 'curio.styrigx.com/api/*', samples: ['/api/links', '/api/icon?id=1', '/api/import', '/api/export', '/api/preview?url=x'] },
+  'atlas.styrigx.com': {
+    mustRoute: ['/', '/?x=1', '/robots.txt', '/api/lock-session-check', '/api/search?q=a',
+      '/blog/', '/blog/?utm=1', '/blog/post/x/', '/blog/post/x/?a', '/blog/tags/x/', '/blog/en/', '/blog/en/?a', '/blog/rss.xml', '/blog/rss.xml?a',
+      '/curio/', '/curio/?x=1', '/curio/en/', '/curio/zh/', '/curio/sitemap.xml', '/curio/sitemap.xml?a',
+      '/daymark/', '/daymark/?x=1', '/daymark/en/', '/daymark/zh/', '/daymark/sitemap.xml', '/daymark/sitemap.xml?a'],
+    /* 归两个接口 Worker 的路径：网关不得有比它们更具体的规则 */
+    otherWorkers: [
+      { pattern: 'atlas.styrigx.com/daymark/api/*', samples: ['/daymark/api/quotes', '/daymark/api/today'] },
+      { pattern: 'atlas.styrigx.com/curio/api/*', samples: ['/curio/api/links', '/curio/api/icon?id=1', '/curio/api/import', '/curio/api/export', '/curio/api/preview?url=x'] },
+    ],
   },
 };
 
@@ -92,10 +90,10 @@ export function check(routes, pagePaths) {
     for (const p of conf.mustRoute) {
       if (!pickRoute(routes, host, p)) errors.push('子站路径没有路由（不过网关）：' + host + p);
     }
-    if (conf.otherWorker) {
-      for (const p of conf.otherWorker.samples) {
+    for (const ow of conf.otherWorkers || []) {
+      for (const p of ow.samples) {
         const mine = pickRoute(routes, host, p);
-        if (mine && mine.length >= conf.otherWorker.pattern.length) errors.push('网关抢了别的 Worker 的路径：' + host + p + ' ← ' + mine);
+        if (mine && mine.length >= ow.pattern.length) errors.push('网关抢了别的 Worker 的路径：' + host + p + ' ← ' + mine);
       }
     }
   }

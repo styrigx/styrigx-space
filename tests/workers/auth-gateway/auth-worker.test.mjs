@@ -64,13 +64,11 @@ test('wrangler.toml：不开 workers.dev、生产模式、4 个密钥全走 Secr
   assert.doesNotMatch(code, /SGX_ACCOUNT_|SGX_ROOT_KEY|D1_ACCOUNT_AUTH|D1_ROOT_AUTH/);
   for (const ep of ['AccountService', 'AccountVerifier']) assert.match(code, new RegExp(`service = "styrigx-account"\\nentrypoint = "${ep}"`), ep);
   assert.ok(!SECRET_NAMES.includes('TURNSTILE_SECRET'), 'Turnstile 已删，不再绑定');
-  /* 2026-10-21：三站整站通配（不带 * 的规则遇到查询串不命中，锁屏入口 /?lock=1 曾因此绕过网关）。
-     只接 styrigx.com 和登记过的子站；除 daymark、curio 的 session-check（要比各自 core 的 /api/* 更具体）外不许有精确规则。
+  /* 2026-10-21：整站通配（不带 * 的规则遇到查询串不命中，锁屏入口 /?lock=1 曾因此绕过网关）。
+     2026-11-02 起只接 styrigx.com 和图志 atlas.styrigx.com，两条都是通配，不许有精确规则；旧 blog / daymark / curio 子域名不再登记。
      完整核对见 scripts/check-worker-routes.mjs。 */
   const routes = [...toml.matchAll(/^pattern = "([^"]+)"$/gm)].map(m => m[1]);
-  for (const h of ['styrigx.com', 'blog.styrigx.com', 'daymark.styrigx.com', 'curio.styrigx.com']) assert.ok(routes.includes(h + '/*'), h + '/*');
-  for (const r of routes) assert.match(r, /^(styrigx|blog\.styrigx|daymark\.styrigx|curio\.styrigx)\.com\//);
-  for (const r of routes) assert.ok(r.endsWith('*') || r === 'daymark.styrigx.com/api/lock-session-check' || r === 'curio.styrigx.com/api/lock-session-check', '精确规则遇到查询串不命中：' + r);
+  assert.deepEqual(routes, ['styrigx.com/*', 'atlas.styrigx.com/*']);
   assert.ok(!routes.some(r => r.startsWith('*')), '不能通配子域名');
   /* 书库已下线：不再路由 book / book-preview，也不再绑定 styrigx-books D1 */
   assert.ok(!routes.some(r => /^book(-preview)?\.styrigx\.com\//.test(r)), '书库已下线，不能再有 book 路由');
