@@ -1,9 +1,8 @@
 /**
- * @fileoverview 账号 → 服务状态（/account/status/）：取 GET /api/status、渲染横幅 / 站点卡 / 近期故障，页面可见时每 60 秒刷新。
- * 2026-10-24 PR4：原来是顶栏三栏的「状态」页（/status/，apps/status.js），整页挪进账号页成为子页，旧页面删除；数据和行为不变。
+ * @fileoverview 设置 → 服务状态（/settings/status/）：取 GET /api/status、渲染横幅 / 站点卡 / 近期故障，页面可见时每 60 秒刷新。
+ * 2026-10-24 PR4：原来是顶栏三栏的「状态」页（/status/，apps/status.js），整页挪进账号页成为子页；之后从账号页搬到设置，旧地址删除；数据和行为不变。
  *
- * - 账号区子页：GET /api/account 明确说没有账号会话 → 回账号页登录，登录后回本页（account-common.js requireAccountSession）。
- *   读不到（网络 / 访客）不跳；访客本来就进不了账号区（网关 302 回首页）。数据本身仍只要锁屏会话（/api/status 不变）。
+ * - 管理员专属页（网关 _kernel/return.js ADMIN_ONLY_PATHS，访客 302），只认管理员锁屏会话，不问账号会话。
  * - 同源 cookie（credentials: 'same-origin'），no-store；网关验锁屏会话（admin / visitor 都行），没会话 401。
  * - 首帧（2026-10-24 PR3）：本机存着上次成功拿到的数据（localStorage sgx-status-cache，24 小时内）就先直接画出来，
  *   页脚是那份数据的「更新于 hh:mm」，同时照常请求，回来再换成新数据；没有缓存才出骨架。401 时清掉缓存。
@@ -16,14 +15,13 @@
  * - 再下面是「用量」（PR3）：data.usage 有 → 每项值 / 上限 / 进度条 + 「更新于 N 分钟前」；null → 「用量未配置」等一行提示。
  * - 页底「根凭证使用记录」折叠区（<details id="st-audit">）：默认收起，第一次展开才请求 GET /api/root-audit（KV list + 最多 50 次 get，
  *   所以不随页面加载、也不随 60 秒刷新）；成功后本页不再重复取，失败可点「重试」，401 只提示重新解锁。
- *   页面不做角色判断（访客进不了账号区，网关 302），接口服务端照样只认 admin 锁屏会话。
+ *   页面不做角色判断（访客进不了本页，网关 302），接口服务端照样只认 admin 锁屏会话。
  * 渲染全在 lib/status-view.js（纯函数，单测覆盖）；这里只管 DOM 和请求。
  */
 import { on } from '../lib/events.js';
 import { loadI18n } from '../lib/i18n.js';
 import { isEn } from '../lib/util.js';
 import { visibleInterval } from '../lib/scheduler.js';
-import { requireAccountSession } from './account-common.js';
 import { bannerInfo, bjDay, buildSlots, esc, fmtBjTime, isEmptySummary, renderAudit, renderIncidents, renderQuota, renderSite, renderUsage, slotText } from '../lib/status-view.js';
 
 export const STATUS_API = '/api/status';
@@ -242,9 +240,6 @@ function init() {
       loadAudit();
     });
   }
-
-  /* 账号区：没有账号会话 → 回账号页登录（不挡首帧，和下面的状态请求同时发） */
-  requireAccountSession(en);
 
   /* 首帧：有上次的数据就先画（不等网络），下面的第一次请求回来再换新 */
   const cached = readCache(Date.now());

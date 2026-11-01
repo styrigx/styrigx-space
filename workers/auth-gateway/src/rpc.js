@@ -26,22 +26,21 @@ export class AuthVerifier extends WorkerEntrypoint {
 
 export class ShareIssuer extends WorkerEntrypoint {
   /**
-   * 签一把短链钥匙（要管理员 + 账号会话）。
+   * 签一把短链钥匙（只要管理员锁屏会话）。
    * @param {string} cookieHeader
-   * @param {{hours?:number, days?:number, name?:string, meta?:any}} p
+   * @param {{hours?:number, days?:number, name?:string}} p
    */
   async createLinkKey(cookieHeader, p) {
     return createLinkKey(cookieHeader, p, await resolveSecrets(this.env));
   }
 
   /**
-   * 作废短链钥匙（要管理员 + 账号会话）。
+   * 作废短链钥匙（只要管理员锁屏会话）。
    * @param {string} cookieHeader
    * @param {string} id
-   * @param {any} [meta]
    */
-  async revokeLinkKey(cookieHeader, id, meta) {
-    return revokeLinkKey(cookieHeader, id, await resolveSecrets(this.env), meta);
+  async revokeLinkKey(cookieHeader, id) {
+    return revokeLinkKey(cookieHeader, id, await resolveSecrets(this.env));
   }
 
   /**

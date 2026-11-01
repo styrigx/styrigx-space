@@ -19,7 +19,7 @@
 /** 生成短链的接口（分享短链 Worker styrigx-share；CORS 只认三个子站） */
 export const SHARE_API = 'https://styrigx.com/api/share';
 export const SHARE_ORIGIN = 'https://styrigx.com';
-/** 管理员一键分享的档位：链接 24 小时、点开后能看 12 小时（和账号页「新建分享短链」的默认一样） */
+/** 管理员一键分享的档位：链接 24 小时、点开后能看 12 小时（和设置 → 临时钥匙页「新建分享短链」的默认一样） */
 export const QUICK = Object.freeze({ hours: 24, session: 12 * 3600 });
 /** 分享地址里去掉的查询参数（同服务端 STRIP_PARAMS） */
 export const STRIP_PARAMS = Object.freeze(['lock', 'why', 'return', 'share']);
@@ -31,7 +31,7 @@ const STR = {
     copied: '已复制分享链接',
     copyFail: '复制失败，请稍后再试',
     busy: '正在生成分享链接…',
-    login: '主站账号会话已失效，请回主站重新登录后再分享',
+    session: '主站管理员会话已失效，请回主站重新解锁后再分享',
     full: '分享短链已满 20 条，先去主站作废几条',
     fail: '生成分享链接失败，请稍后再试',
   },
@@ -40,7 +40,7 @@ const STR = {
     copied: 'Share link copied',
     copyFail: 'Couldn’t copy. Please try again',
     busy: 'Creating share link…',
-    login: 'Your account session on styrigx.com has expired. Sign in there again to share',
+    session: 'Your admin session on styrigx.com has expired. Unlock it there again to share',
     full: 'You already have 20 share links. Revoke some on styrigx.com first',
     fail: 'Couldn’t create a share link. Please try again',
   },
@@ -69,7 +69,7 @@ export function roleOf(doc) {
 /** 接口错误 → 文案键 @param {number} status @param {any} j */
 export function errKey(status, j) {
   const e = j && j.error;
-  if (status === 401 || e === 'session' || e === 'account') return 'login';
+  if (status === 401 || e === 'session') return 'session';
   if (status === 409 || e === 'full') return 'full';
   return 'fail';
 }

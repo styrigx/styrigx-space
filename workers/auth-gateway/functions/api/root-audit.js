@@ -1,10 +1,10 @@
 /**
- * 锁屏根密钥（SGX_ADMIN_KEY）使用审计列表：账号 → 服务状态页底部的「根密钥使用记录」折叠区展开时才请求（apps/account-status.js；
+ * 锁屏根密钥（SGX_ADMIN_KEY）使用审计列表：设置 → 服务状态页底部的「根密钥使用记录」折叠区展开时才请求（apps/settings-status.js；
  * 前端同时请求账号 Worker 的 audit-list，合成一张表并标注「锁屏 / 账号」，方案 5.2）。
  *
  * GET /api/root-audit
  * - 只要 admin 锁屏会话（访客 / 无会话 / 坏会话 → 401 session）。不要 LockReauthTicket：
- *   只读、不含凭证；页面在账号区里，访客被网关 302 出 /account/*，管理员已解锁；这里仍在服务端校验 admin，防直接调接口。
+ *   只读、不含凭证；页面是管理员专属页（_kernel/return.js ADMIN_ONLY_PATHS），访客被网关 302 出去，管理员已解锁；这里仍在服务端校验 admin，防直接调接口。
  * - 返回最近 50 条审计（时间、IP 前缀、结果），新的在前；不返回 decoy / via / path 标记
  * - 只读；D1 失败 → 503
  *

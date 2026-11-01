@@ -1,10 +1,11 @@
 /**
  * @fileoverview 安全与隐私页。
- * - 两个入口（访客与管理员看到完全一样）：锁屏凭证、立即锁定。
+ * - 三个入口（访客与管理员看到完全一样）：锁屏凭证、临时钥匙、立即锁定。
  * - 锁屏凭证 → /settings/security/lock/（门在那一页：锁屏凭证或根凭证验一次，3 分钟reauth 票）。
  *   访客（服务端注入 data-sgx-role="visitor"）点它：不跳页，就地弹管理员验证层（shell/upgrade.js
  *   openAdminVerify：只有通行密钥 / 密码，没有访客入口）；通过 → 进锁屏凭证页；取消 → 原页，访客会话不动。
  *   以前是跳过去由中间件 302 到 /?lock=1&return=…，那一页不过网关 → 整个锁屏闪一下（2026-10-21）。
+ * - 临时钥匙 → /settings/security/tempkeys/（含分享短链；管理员专属页，只认管理员锁屏会话）。访客点它同样就地弹管理员验证层。
  * - 立即锁定：调服务端 /api/lock-now 清除会话 cookie 后重载，回到锁屏。
  * - 从 GET /api/lock-credentials（需 admin 会话）读取锁屏凭证是否已设置，渲染状态卡片与锁屏凭证行副标题（访客不调用）。
  * - localStorage 统一走 storage.js。
@@ -87,15 +88,19 @@ import { openAdminVerify } from '../shell/upgrade.js';
       });
   }
 
-  /* 访客点「锁屏凭证」：就地管理员验证（见文件头） */
-  const lockCred = /** @type {HTMLAnchorElement|null} */ (document.getElementById('sec-lock-cred'));
-  if (lockCred) {
-    on(lockCred, 'click', function (/** @type {MouseEvent} */ e) {
+  /* 访客点「锁屏凭证」「临时钥匙」：就地管理员验证（见文件头） */
+  [
+    ['sec-lock-cred', en ? '/en/settings/security/lock/' : '/settings/security/lock/'],
+    ['sec-tempkeys', en ? '/en/settings/security/tempkeys/' : '/settings/security/tempkeys/'],
+  ].forEach(function (pair) {
+    const a = /** @type {HTMLAnchorElement|null} */ (document.getElementById(pair[0]));
+    if (!a) return;
+    on(a, 'click', function (/** @type {MouseEvent} */ e) {
       if (document.documentElement.dataset.sgxRole !== 'visitor') return;
       e.preventDefault();
-      openAdminVerify(lockCred.getAttribute('href') || (en ? '/en/settings/security/lock/' : '/settings/security/lock/'));
+      openAdminVerify(a.getAttribute('href') || pair[1]);
     });
-  }
+  });
 
   /* B1-1 立即锁定：确认层 + /api/lock-now 在 auth/lock-now.js（顶栏快捷面板的「立即锁定」磁贴共用同一份） */
   const lockNow = document.getElementById('sec-locknow');

@@ -1,12 +1,12 @@
 /**
- * @fileoverview 分享短链管理：POST /api/share { action }（同源；子站只许 create + reuse；管理员锁屏会话 + 账号会话，门已拦掉访客和没会话的）。
+ * @fileoverview 分享短链管理：POST /api/share { action }（同源；子站只许 create + reuse；只认管理员锁屏会话，门已拦掉访客和没会话的）。
  *
  * - list → { links: [view] }（新到旧；含已过期 / 已作废的，留 7 天后删；字段见 lib/links.js view）
  * - create { name?, hours? | days?, to?, session? } → { link: view }
  *     有效期：hours 1–24 或 days 3 / 7 / 15 / 30；to 站内相对路径或 styrigx.com / 三个子站的 https 地址（默认 /，lib/links.js cleanTarget）；
  *     session = 访客会话秒数（0 / 不传 = 普通短链，不签钥匙、不发会话），只收 1800 / 3600 / 10800 / 43200 / 86400 / 259200 / 604800，
  *     且不超过有效期；同时有效最多 20 条（409 full）。
- *     带会话：请网关（ISSUER → ShareIssuer.createLinkKey）签一把新的短链钥匙，网关再验一次管理员 + 账号会话；
+ *     带会话：请网关（ISSUER → ShareIssuer.createLinkKey）签一把新的短链钥匙，网关再验一次管理员锁屏会话；
  *     短链到期时间 = 钥匙到期时间。写 D1 失败 → 把刚签的钥匙作废，不留孤儿。
  * - create 加 reuse:true（子站顶栏分享按钮用）：已有同一目标（规范化后）、同一会话档位、同一有效期、没作废、还剩 ≥ 12 小时的短链
  *     → 直接返回它（{ link, reused:true }），不签新钥匙、不占名额，临时钥匙列表不会越点越长；名字超过 24 字截断（按钮拿页面标题当名字）。
@@ -15,7 +15,7 @@
  */
 import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
 import { isSubsiteOrigin } from '../lib/cors.js';
-import { ROLE_ADMIN, metaOf, cookieOf } from '../auth.js';
+import { ROLE_ADMIN, cookieOf } from '../auth.js';
 import {
   SQL, SHARE_MAX, NAME_MAX, KEEP_DEAD_MS, REUSE_MIN_LEFT_MS, REUSE_SLACK_MS, durationMs, cleanName, cleanTarget, sessionSeconds,
   newCode, newId, isId, view, first, all, run,
@@ -39,7 +39,7 @@ export async function onRequestPost(context) {
 
 /** 网关回的错误码 → 本接口的响应 @param {string} e */
 function issuerError(e) {
-  if (e === 'session' || e === 'account') return json(401, { ok: false, error: e });
+  if (e === 'session') return json(401, { ok: false, error: e });
   if (e === 'duration' || e === 'name' || e === 'params') return json(400, { ok: false, error: e });
   return apiError(503, 'server');
 }
@@ -51,8 +51,6 @@ async function handle(context) {
   if (cross && !isSubsiteOrigin(request)) return originDenied();
   const sess = await auth.lockSession();
   if (!sess.ok || sess.role !== ROLE_ADMIN) return apiError(401, 'session');
-  const acc = await auth.accountSession();
-  if (!acc.ok) return apiError(401, 'account', { reason: acc.reason });
   const db = env && env.D1_SHARE_LINK;
   const issuer = env && env.ISSUER;
   if (!db) return apiError(500, 'config');
@@ -106,7 +104,7 @@ async function handle(context) {
       if (!issuer || typeof issuer.createLinkKey !== 'function') return apiError(503, 'config');
       let r;
       try {
-        r = await issuer.createLinkKey(cookieOf(request), { hours: dur.hours, days: dur.days, name: name, meta: metaOf(request) });
+        r = await issuer.createLinkKey(cookieOf(request), { hours: dur.hours, days: dur.days, name: name });
       } catch (e) {
         return apiError(503, 'server');
       }
@@ -120,7 +118,7 @@ async function handle(context) {
       await run(db, SQL.insert, id, code, name, to, session, keyId, now, expiresAt);
     } catch (e) {
       if (keyId) {
-        try { await issuer.revokeLinkKey(cookieOf(request), keyId, metaOf(request)); } catch (e2) {}
+        try { await issuer.revokeLinkKey(cookieOf(request), keyId); } catch (e2) {}
       }
       return apiError(503, 'server');
     }
@@ -143,7 +141,7 @@ async function handle(context) {
       if (!issuer || typeof issuer.revokeLinkKey !== 'function') return apiError(503, 'config');
       let r;
       try {
-        r = await issuer.revokeLinkKey(cookieOf(request), row.key_id, metaOf(request));
+        r = await issuer.revokeLinkKey(cookieOf(request), row.key_id);
       } catch (e) {
         return apiError(503, 'server');
       }

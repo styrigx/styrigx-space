@@ -1,8 +1,8 @@
 /**
- * 账号 → 服务状态页的「根凭证使用记录」折叠区：
+ * 设置 → 服务状态页的「根凭证使用记录」折叠区：
  * - 渲染（lib/status-view.js renderAudit，纯函数）：合计行、每条结果 / 北京时间 / IP 前缀、空状态、满 50 条提示、转义、坏数据跳过；
  * - 源码守卫：模板里是默认收起的 <details>（不带 open）、没有内联脚本、中英文案齐全；
- *   apps/account-status.js 只在折叠区展开（toggle 且 open）时请求 GET /api/root-audit，页面加载和 60 秒刷新都不碰它；
+ *   apps/settings-status.js 只在折叠区展开（toggle 且 open）时请求 GET /api/root-audit，页面加载和 60 秒刷新都不碰它；
  *   页面没有角色判断（admin 由网关和接口服务端保证）。
  * 运行：node --test tests/web/ui/root-audit-panel.test.mjs
  */
@@ -79,7 +79,7 @@ test('renderAudit：IP 前缀转义；没有前缀显示「未知 IP」；没有
 });
 
 test('模板：默认收起的 <details id="st-audit">，标题 / 摘要中英都有，没有内联脚本，没有角色判断', () => {
-  const tpl = read('web/layouts/_default/account-status.html');
+  const tpl = read('web/layouts/_default/settings-status.html');
   const m = tpl.match(/<details id="st-audit"[^>]*>/);
   assert.ok(m, '有 <details id="st-audit">');
   assert.ok(!/\bopen\b/.test(m[0]), '默认收起');
@@ -90,8 +90,8 @@ test('模板：默认收起的 <details id="st-audit">，标题 / 摘要中英�
   assert.ok(!/sgx-role|data-sgx-role|visitor|admin/i.test(tpl.replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, '')), '页面不做角色判断');
 });
 
-test('apps/account-status.js：只在折叠区展开时请求 /api/root-audit；加载和 60 秒刷新不碰它；成功后不重复取', () => {
-  const js = read('web/assets/js/apps/account-status.js');
+test('apps/settings-status.js：只在折叠区展开时请求 /api/root-audit；加载和 60 秒刷新不碰它；成功后不重复取', () => {
+  const js = read('web/assets/js/apps/settings-status.js');
   assert.match(js, /export const AUDIT_API = '\/api\/root-audit';/);
   assert.equal((js.match(/fetch\(AUDIT_API/g) || []).length, 1, '只有一处请求');
   const code = js.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');

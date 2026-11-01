@@ -4,9 +4,9 @@
  * 短链本身（码、目标地址、列表、限速、D1 存储）在分享短链 Worker styrigx-share（workers/share）。
  * 它不持任何钥匙、不碰认证库；临时钥匙和访客会话只在这里、只用网关原来那一份代码：
  * - createLinkKey(cookie, p)：签一把「短链钥匙」（_kernel/lock-tempkey.js createTempkey，link=true：没有临时码、锁屏上输不进来、
- *   不占 20 把上限、不出现在临时钥匙列表里）。网关自己再验一次：必须是 admin 锁屏会话 + 账号会话（账号会话经 ACCOUNT_VERIFIER 问账号 Worker；cookie 是浏览器带来的原样 Cookie 头）。
+ *   不占 20 把上限、不出现在临时钥匙列表里）。网关自己再验一次：必须是 admin 锁屏会话（只认锁屏会话，不问账号会话；cookie 是浏览器带来的原样 Cookie 头）。
  * - revokeLinkKey(cookie, id)：作废这把钥匙（revokeTempkey：D1 tempkey 行写 revoked_at，强一致）→ 拿它进来的访客下一个请求就进不来
- *   （验访客会话时查 tempkeyId 是否被作废，原样生效）。同样要 admin + 账号会话；只认 link 钥匙。
+ *   （验访客会话时查 tempkeyId 是否被作废，原样生效）。同样只要 admin 锁屏会话；只认 link 钥匙。
  * - openLinkSession(id, sessionSec)：访客点开带会话的短链 → 签 visitor 锁屏会话（sgx-lock-session：by=tempkey，tempkeyId=钥匙 id，lock 私钥），
  *   和锁屏输临时码进门（api/lock-tempkey-unlock.js）完全同一套；Max-Age = min(会话时长, 钥匙剩余时间)。
  *   只回 Set-Cookie 头的值（由 styrigx-share 原样放进这次 302），不回任何钥匙或签名材料。
@@ -15,7 +15,6 @@
  * 公网进不来：RPC 入口没有路由，wrangler 只把 default 挂到 styrigx.com/*。
  */
 import { checkLockSession } from './verifier.js';
-import { askAccountSession } from '../functions/_kernel/account-rpc.js';
 import { ROLE_ADMIN, ROLE_VISITOR, issueLockSession } from '../functions/_kernel/lock-session.js';
 import { BY_TEMPKEY } from '../functions/_kernel/realms.js';
 import {
@@ -28,29 +27,26 @@ import { REALM_LOCK } from '../functions/_kernel/realms.js';
 export const LINK_SESSION_OPTS = Object.freeze([1800, 3600, 3 * 3600, 12 * 3600, 86400, 3 * 86400, 7 * 86400]);
 
 /**
- * admin 锁屏会话 + 账号会话，否则返回错误码。
+ * 只认 admin 锁屏会话，否则返回错误码。
  * @param {string} cookie
  * @param {Record<string, any>} env
- * @param {any} [meta]
  */
-async function adminError(cookie, env, meta) {
+async function adminError(cookie, env) {
   const s = await checkLockSession(cookie, env);
   if (!s.ok || s.role !== ROLE_ADMIN) return 'session';
-  const a = await askAccountSession(env, cookie, meta); /* 账号会话：经 ACCOUNT_VERIFIER 问账号 Worker（方案第 2 节） */
-  if (!a.ok) return 'account';
   return '';
 }
 
 /**
  * @param {string} cookie 浏览器发来的 Cookie 头
- * @param {{hours?:number, days?:number, name?:string, meta?:any}} p
+ * @param {{hours?:number, days?:number, name?:string}} p
  * @param {Record<string, any>} env 已换好密钥字符串的 env
  * @returns {Promise<{ok:true, key:{id:string, expiresAt:number}}|{ok:false, error:string}>}
  */
 export async function createLinkKey(cookie, p, env) {
   if (!(env && env[REALM_LOCK.d1Binding])) return { ok: false, error: 'config' };
   const q = p && typeof p === 'object' ? p : {};
-  const err = await adminError(cookie, env, q.meta);
+  const err = await adminError(cookie, env);
   if (err) return { ok: false, error: err };
   const ms = durationMs({ hours: q.hours, days: q.days });
   if (!ms) return { ok: false, error: 'duration' };
@@ -70,12 +66,11 @@ export async function createLinkKey(cookie, p, env) {
  * @param {string} cookie
  * @param {string} id
  * @param {Record<string, any>} env
- * @param {any} [meta]
  * @returns {Promise<{ok:boolean, error?:string}>} 钥匙已经不在（到期 / 作废过）也算 ok
  */
-export async function revokeLinkKey(cookie, id, env, meta) {
+export async function revokeLinkKey(cookie, id, env) {
   if (!(env && env[REALM_LOCK.d1Binding])) return { ok: false, error: 'config' };
-  const err = await adminError(cookie, env, meta);
+  const err = await adminError(cookie, env);
   if (err) return { ok: false, error: err };
   if (!isTempkeyId(id)) return { ok: false, error: 'params' };
   try {

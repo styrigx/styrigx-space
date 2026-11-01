@@ -1,5 +1,5 @@
 /**
- * @fileoverview 账号 → 临时钥匙页里的「分享短链」（https://styrigx.com/s/<码>，2026-10-24）。
+ * @fileoverview 设置 → 安全与隐私 → 临时钥匙页里的「分享短链」（https://styrigx.com/s/<码>，2026-10-24）。
  *
  * 接口：POST /api/share（分享短链 Worker styrigx-share，workers/share）{ action:'list' | 'create' | 'revoke' }。
  * - 进页 list → 列表：名字 + 类型（带会话 / 普通）+ 状态（有效 / 已过期 / 已作废）、打开的页面、到期时间和剩余、
@@ -8,15 +8,14 @@
  *   +「带临时会话」开关（默认开）+ 点开后能看多久（30 分钟–7 天，比链接有效期长的档位禁用）
  *   → create → 弹层原地换成链接 + 复制；关掉开关 = 普通短链（session 0），服务端不签钥匙、不发会话
  * - 码不在页面地址里出现；复制的是 location.origin + /s/<码>
- * 账号会话 / lock 会话失效的处理与临时钥匙列表一致（apps/account-tempkeys.js）。
+ * 只认管理员锁屏会话（不问账号会话）；lock 会话失效的处理与临时钥匙列表一致（apps/security-tempkeys.js）。
  */
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
-import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose } from '../lib/dialog-behavior.js';
 import { postJSON, errText } from '../auth/account-api.js';
-import { accountUrl, createT } from './account-common.js';
-import { leftText, durationParam } from './account-tempkeys.js';
+import { createT } from './account-common.js';
+import { leftText, durationParam } from './security-tempkeys.js';
 
 /** 分享短链管理接口（styrigx-share） */
 export const SHARE_API = '/api/share';
@@ -133,15 +132,10 @@ export function metaLines(t, en, l, now) {
   /** @type {Array<{id:string, name:string, createdAt:number, expiresAt:number, to:string, session:number, path:string}>} */
   let links = [];
 
-  function goLogin() {
-    sgxReplace(accountUrl(en) + '?return=' + encodeURIComponent(location.pathname));
-  }
-
   /** @param {{s:number, j:any}} res @returns {boolean} 已处理 */
   function authFail(res) {
     if (res.s !== 401) return false;
-    if (res.j && res.j.error === 'session') toast(t('sessExp'));
-    else goLogin();
+    toast(t('sessExp'));
     return true;
   }
 

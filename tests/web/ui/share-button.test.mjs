@@ -65,8 +65,8 @@ test('createLink：请求形状（跨源带 cookie、reuse、24h / 12h、名字�
   assert.deepEqual(calls[0].body, { action: 'create', reuse: true, name: '一'.repeat(24), to: 'https://blog.styrigx.com/post/a/', hours: 24, session: 43200 });
 });
 
-test('createLink：401 → login，409 → full，500 / 网络错 / 响应里没有像样的 path → fail', async () => {
-  const cases = [[401, { ok: false }, 'login'], [401, { ok: false, error: 'account' }, 'login'], [409, { ok: false, error: 'full' }, 'full'],
+test('createLink：401 → session，409 → full，500 / 网络错 / 响应里没有像样的 path → fail', async () => {
+  const cases = [[401, { ok: false }, 'session'], [401, { ok: false, error: 'session' }, 'session'], [409, { ok: false, error: 'full' }, 'full'],
     [503, { ok: false, error: 'server' }, 'fail'], [403, { ok: false, error: 'origin' }, 'fail'], ['throw', null, 'fail'],
     [200, { ok: true, link: { path: 'https://evil.com/' } }, 'fail'], [200, { ok: true, link: {} }, 'fail'], [200, null, 'fail']];
   for (const [st, body, key] of cases) {
@@ -157,7 +157,7 @@ test('mountShare 管理员：接口失败 → 只 toast 原因，不分享也不
   assert.equal(await m.share(), 'error');
   assert.deepEqual(log, []);
   assert.equal(toasts.length, 1);
-  assert.match(toasts[0], /重新登录/);
+  assert.match(toasts[0], /重新解锁/);
   assert.ok(!d.cls.has('is-busy'));
 
   const v = fakeDom('visitor');

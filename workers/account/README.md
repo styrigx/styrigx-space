@@ -23,7 +23,7 @@ migrations/              D1 styrigx-account：0001_wellbeing.sql、0002_settings
 2. **默认 fetch 一律 404**：即使线上残留公开路由，伪造的头也碰不到任何接口。
 3. **只有 `AccountService` 读身份头**：网关写的 `X-Styrigx-Lock-*`（Role / By / Tempkey-Id）、`X-Styrigx-Client-*`（Address / Country / City）（`src/lib/lock-identity.js` 白名单校验）。纵深防御：没有身份头的 `/api/*` → 401，访客调 `/api/prefs` → 403。
 
-`AccountVerifier.accountSession(cookieHeader, clientContext)` 只回账号会话的校验结论、不签任何东西。调用方：网关（服务绑定 `ACCOUNT_VERIFIER`：临时钥匙管理、短链签发、账号页首帧提示）、短链 Worker `styrigx-share`（同名绑定：短链列表）。
+`AccountVerifier.accountSession(cookieHeader, clientContext)` 只回账号会话的校验结论、不签任何东西。调用方：只有网关（服务绑定 `ACCOUNT_VERIFIER`：账号页首帧提示）。临时钥匙管理、短链签发只认管理员锁屏会话，短链 Worker `styrigx-share` 不再绑定它。
 
 本 Worker 不调网关、不绑任何锁屏数据或钥匙（没有 `[[services]] AUTH`）。
 

@@ -4,7 +4,7 @@
  *   读网关写的规范身份头（lib/lock-identity.js readLockIdentity，白名单校验）→ 路由表 index.js API_ROUTES（/api/account、头像、
  *   设置云同步、数字健康）+ 头像文件 /avatar/<尺寸>.webp。
  * - AccountVerifier（WorkerEntrypoint，RPC）：accountSession(cookieHeader, clientContext) 只回账号会话的校验结论，不签发任何东西
- *   （网关的临时钥匙管理、短链签发、账号页首帧提示，短链 Worker 的短链列表用）。
+ *   （只有网关的账号页首帧提示用；临时钥匙管理、短链只认管理员锁屏会话，不再问它）。
  *
  * 信任边界：本入口无条件信任 x-styrigx-* 头。它只能经服务绑定进来（没有公网路由能到命名入口），
  * 而网关 fetch 第一步剥掉入站请求里所有 x-styrigx-* 头，再按验过的锁屏会话重写（方案第 3 节第一道保险）。
@@ -143,7 +143,7 @@ export class AccountService extends WorkerEntrypoint {
   }
 }
 
-/** 账号会话只读校验（服务绑定 ACCOUNT_VERIFIER：网关的临时钥匙管理、短链签发、首帧提示；短链 Worker 的短链列表） */
+/** 账号会话只读校验（服务绑定 ACCOUNT_VERIFIER：网关的账号页首帧提示） */
 export class AccountVerifier extends WorkerEntrypoint {
   /**
    * @param {string} cookieHeader 浏览器发来的 Cookie 头

@@ -1,6 +1,7 @@
 /**
  * @fileoverview 账号页共用：账号总览（/account/，含登录区）和各子页
- * （设备 /account/devices/、临时钥匙、安全与隐私 /account/security/、云同步 /account/sync/、服务状态 /account/status/）。
+ * （设备 /account/devices/、安全与隐私 /account/security/、云同步 /account/sync/）。
+ * 设置里的临时钥匙页（/settings/security/tempkeys/）也用这里的 createT（同一份 #sgx-i18n-account 文案），不问账号会话。
  * 2026-10-24 PR4：「账号信息」子页（/account/profile/）删除，登录方式和「退出账号」挪进设备页「此设备」卡。
  *
  * - i18n：各页模板都输出同一份 #sgx-i18n-account（partials/account-i18n.html）
@@ -26,8 +27,8 @@ export function accountUrl(en) {
 export function securityUrl(en) {
   return en ? '/en/account/security/' : '/account/security/';
 }
-/** 账号总览登录后可回跳的本站路径（只接受账号的子页：安全与隐私、设备、云同步、服务状态） */
-export const ACCOUNT_RETURN_RE = /^\/(en\/)?account\/(security|devices|sync|status)\/$/;
+/** 账号总览登录后可回跳的本站路径（只接受账号的子页：安全与隐私、设备、云同步） */
+export const ACCOUNT_RETURN_RE = /^\/(en\/)?account\/(security|devices|sync)\/$/;
 
 /** 回账号页登录，登录后回当前子页 @param {boolean} en */
 export function goAccountLogin(en) {

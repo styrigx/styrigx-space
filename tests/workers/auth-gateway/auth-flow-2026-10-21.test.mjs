@@ -199,7 +199,7 @@ test('D 首页模板用 safeHTML 输出瘦身标记（Go 模板会删 HTML 注�
 
 /* ---------------- E. 账号页首帧 ---------------- */
 test('E 账号页（访客）：访客眼里没有账号——/account/ 及子页（中英）一律 302 回首页，不出页面', async () => {
-  for (const p of ['/account/', '/account/devices/', '/account/tempkeys/', '/account/security/', '/en/account/', '/en/account/profile/']) {
+  for (const p of ['/account/', '/account/devices/', '/account/sync/', '/account/security/', '/en/account/', '/en/account/profile/']) {
     const res = await get('https://styrigx.com' + p, (await lockCookie('visitor')) + '; ' + (await accountCookie()));
     assert.equal(res.status, 302, p);
     assert.equal(res.headers.get('Location'), 'https://styrigx.com' + (p.startsWith('/en/') ? '/en/' : '/'), p);

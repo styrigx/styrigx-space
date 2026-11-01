@@ -1221,10 +1221,9 @@ jobs:
     # 路由见 workers/auth-gateway/wrangler.toml（整站通配；workers_dev=false）。账号拆分 PR3 起 /api/account、/api/prefs*、/api/avatar*、
     # /api/wellbeing*、/avatar/* 也归网关：验门后经服务绑定 ACCOUNT 转给账号 Worker（转发表 src/forwarding.js）。部署后自动冒烟检查线上。
     # Pages 部署（build-and-deploy）等这里成功后才开始。
-    # 部署顺序（账号拆分 PR3）：账号 → 短链 → 网关 → Pages。
+    # 部署顺序：账号、短链（互不依赖，可并行）→ 网关 → Pages。
     # - 服务绑定指向的 Worker 要先在：search / status / chat，以及 ACCOUNT / ACCOUNT_VERIFIER 指向的 styrigx-account（deploy-account-worker）。
-    # - 短链排在网关之前：新网关的 AuthVerifier 去掉了 accountSession()，旧短链 Worker 还在用它问账号会话；先换上改问账号 Worker
-    #   AccountVerifier 的新短链（它对旧网关同样能用：AUTH.lockSession / ISSUER 接口没变），网关部署那一刻就没有「短链创建 / 列表 401」的窗口。
+    # - 短链排在网关之前：短链只认管理员锁屏会话（AUTH.lockSession），对新旧网关同样能用（AUTH.lockSession / ISSUER 接口没变）。
     # 密钥全在 Secrets Store，CI 不传任何密值。
     # 用专门的 token（GitHub 环境密钥 STYRIGX_AUTH_GATEWAY_DEPLOY，名字对应 Cloudflare 上的
     # styrigx-auth-gateway-deploy）：Workers Scripts 编辑 + Secrets Store 编辑（带 Secrets Store 绑定部署必须 Edit，Read 报 10021）
@@ -1355,10 +1354,10 @@ jobs:
     # 账号 Worker styrigx-account（workers/account）：完整的账号系统（账号拆分 PR3）——账号密码 / 通行密钥 / 设备 / 账号会话 / 账号根密钥 /
     # 账号审计（D1_ACCOUNT_AUTH），头像（KV_PROFILE）、设置云同步（D1_SETTINGS_SYNC）、数字健康（D1_WELLBEING）。
     # 没有任何路由（workers/account/wrangler.toml 无 [[routes]]）、workers_dev=false、preview_urls=false：只经网关的服务绑定
-    # ACCOUNT（AccountService）/ ACCOUNT_VERIFIER（AccountVerifier）和短链 Worker 的 ACCOUNT_VERIFIER 进来；默认 fetch 一律 404。
+    # ACCOUNT（AccountService）/ ACCOUNT_VERIFIER（AccountVerifier）进来（短链 Worker 不再绑它）；默认 fetch 一律 404。
     # 不调网关、不绑任何锁屏的东西（PR3 删掉了服务绑定 AUTH）。钥匙都在 Secrets Store（SGX_ACCOUNT_PRIVATE / PUBLIC、SGX_ACCOUNT_ROOT_KEY、
     # SGX_PW_PEPPER），CI 不传任何密值。
-    # 部署顺序（账号拆分 PR3）：账号 → 短链 → 网关 → Pages。排在最前：网关和短链的服务绑定都指向它的命名入口（PR2 起已导出）。
+    # 部署顺序：账号、短链（互不依赖，可并行）→ 网关 → Pages。排在网关之前：网关的服务绑定指向它的命名入口（PR2 起已导出）。
     # 和网关 / 短链一样等 status 的健康闸门（needs 里的 search / status / chat）。
     # 注意：wrangler deploy 在配置里没有路由时不碰线上已有的路由（只在有路由时 PUT 整个列表），所以 PR3 前的 4 条旧路由
     # （styrigx.com/api/avatar*、/api/prefs*、/api/wellbeing*、/avatar/*）部署后还在、指向这里的默认 fetch（一律 404），
@@ -1464,10 +1463,11 @@ jobs:
   deploy-share-worker:
     # 分享短链 Worker styrigx-share（workers/share，2026-10-24）：https://styrigx.com/s/<码> + 管理员管理接口 /api/share，数据在 D1 styrigx-share（D1_SHARE_LINK）。
     # 路由见 workers/share/wrangler.toml（styrigx.com/s/*、styrigx.com/api/share*，比网关的 styrigx.com/* 更具体）；workers_dev=false、preview_urls=false。
-    # 不持任何钥匙：锁屏会话问网关 AuthVerifier.lockSession()（服务绑定 AUTH），账号会话问账号 Worker AccountVerifier（ACCOUNT_VERIFIER，
-    # 账号拆分 PR3），签 / 作废短链钥匙、给访客换会话问网关 ShareIssuer（服务绑定 ISSUER）。CI 不传任何密值。
-    # 部署顺序（账号拆分 PR3）：账号 → 短链 → 网关 → Pages。排在账号之后（ACCOUNT_VERIFIER 指向它）、网关之前：新网关的 AuthVerifier
-    # 没有 accountSession()，旧短链一碰就当无会话（短链创建 / 列表 401）；新短链对旧网关同样能用（lockSession / ShareIssuer 接口没变）。
+    # 不持任何钥匙：只认管理员锁屏会话，问网关 AuthVerifier.lockSession()（服务绑定 AUTH），不问账号会话（不绑账号 Worker）；
+    # 签 / 作废短链钥匙、给访客换会话问网关 ShareIssuer（服务绑定 ISSUER）。CI 不传任何密值。
+    # 部署顺序：账号、短链（互不依赖，可并行）→ 网关 → Pages。短链不绑账号 Worker，所以不再等 deploy-account-worker（needs 里已去掉）；
+    # 仍排在网关之前：新短链对旧网关同样能用（lockSession / ShareIssuer 接口没变，旧网关的 ShareIssuer 仍会多验一次账号会话）；
+    # 新网关的 ShareIssuer 只验管理员锁屏会话。
     # 和网关一样等 status 的健康闸门。
     # 步骤：迁移 D1 styrigx-share（migrations/；失败要让 job 红，不 continue-on-error）
     # → 查 d1_migrations 和表，确认 0001_share_links.sql 真的在库里（只看到 No migrations to apply 不算数）→ 部署 → 冒烟。
@@ -1475,7 +1475,7 @@ jobs:
     # 权限 Workers Scripts 编辑 + D1 编辑 + Account Settings 读取 + styrigx.com 的 Workers Routes 编辑；环境只允许 main。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
-    needs: [quality, passkey-e2e, deploy-status-worker, deploy-account-worker]
+    needs: [quality, passkey-e2e, deploy-status-worker]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: STYRIGX_SHARE_DEPLOY
@@ -1556,7 +1556,7 @@ jobs:
           # 网关的接口和页面没被抢走（这时网关可能还是旧版本：这几条新旧网关回答相同）
           check /api/lock-session-check 401 worker || ok=1
           check /settings/ 302 worker || ok=1
-          check /account/tempkeys/ 302 worker || ok=1
+          check /settings/security/tempkeys/ 302 worker || ok=1
           exit $ok
 
       - name: Roll back to the recorded version (deploy or post-deploy check failed)

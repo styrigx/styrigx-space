@@ -41,8 +41,8 @@ DeX
 | Home | `/en/` | One of the three top-bar tabs: profile card, dual clocks, weather, Daymark's quote of the day and screen time. |
 | Search | Navigation drawer footer | In-place search layer (no page change): on-site results, search with your chosen engine; pick the engine in Settings › Security and privacy. Old `/en/search/?q=` links open it on the home page. |
 | Chat | `/en/chat/` | One of the three top-bar tabs: web-search Q&A (admin only; Gemini 2.5 Flash with Google Search grounding, streamed from `/api/chat` with sources; the gateway checks the session, then hands it to the `styrigx-chat` Worker). The conversation lives only in this tab and is gone when you close it. |
-| Settings | `/en/settings/` | One of the three top-bar tabs: display, language, layout and other system settings, stored locally (synced once you sign in to the account). |
-| Account | `/en/account/` | Opened from the avatar in the drawer head (admin only): account sign-in, service status (current state, latency, 90-day uptime and recent incidents for the main site, Blog, Daymark, Curio and Proxy rules via `/api/status`, refreshed every minute), cloud sync, devices, temporary keys, account security. |
+| Settings | `/en/settings/` | One of the three top-bar tabs: display, language, layout and other system settings, stored locally (synced once you sign in to the account). Admins also get service status (current state, latency, 90-day uptime and recent incidents for the main site, Blog, Daymark, Curio and Proxy rules via `/api/status`, refreshed every minute) and temporary keys (with share links) under Security and privacy; both pages need only the admin lock session. |
+| Account | `/en/account/` | Opened from the avatar in the drawer head (admin only): account sign-in, cloud sync, devices, account security. |
 
 ## A few Styrigx UI details
 

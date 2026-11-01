@@ -39,7 +39,7 @@ space（styrigx.com）相当于 One UI，blog、daymark、curio 等子站相当�
 - 账号：`/api/account`、`/api/prefs*`、`/api/avatar*`、`/api/wellbeing*`、`/avatar/*` 不在这一层：网关 `_middleware.js` 验门后经服务绑定 `ACCOUNT` 转给账号 Worker（转发表 `src/forwarding.js`，见下面「账号会话」）。
 - 锁屏凭证页的再验证：`lock-reauth`（LockReauthTicket 状态 / 清票）；由 `lock-passkey`/`lock-password`（`reauth:true`）或 `root-auth`（`purpose:'lock-reauth'`）签 3 分钟 LockReauthTicket `sgx-lock-reauth`（SGX_LOCK_* 签）。
 - 锁屏根密钥（`SGX_ADMIN_KEY`）：`root-auth { key, purpose }`，purpose 只有 `lock-reauth` / `lock-reset`，各签一张 3 分钟锁屏短票（by=root），不签任何会话；`root-audit` 只读锁屏根密钥使用记录。账号根密钥 `SGX_ACCOUNT_ROOT_KEY` 在账号 Worker（`POST /api/account { action:'root-reauth' | 'root-reset' }`），两套互不相干、各自计数。
-- 重置与临时钥匙：`lock-reset`（丢了锁屏凭证：先交锁屏根密钥，再按重置开关或锁屏凭证（`needLock` / `lockProof`）签 LockResetTicket；不读账号的任何东西）、`lock-tempkey`（账号页临时钥匙的列表 / 新建 / 作废；账号会话经 `ACCOUNT_VERIFIER` 问账号 Worker）。
+- 重置与临时钥匙：`lock-reset`（丢了锁屏凭证：先交锁屏根密钥，再按重置开关或锁屏凭证（`needLock` / `lockProof`）签 LockResetTicket；不读账号的任何东西）、`lock-tempkey`（设置 → 安全与隐私 → 临时钥匙页的列表 / 新建 / 作废；只认管理员锁屏会话，不问账号会话）。
 - 网关只有 4 个密钥：锁屏签名钥匙 `SGX_LOCK_PRIVATE` / `SGX_LOCK_PUBLIC`、锁屏根密钥 `SGX_ADMIN_KEY`、密码 pepper `SGX_PW_PEPPER`（与账号 Worker 共用同一个密值）。账号签名钥匙 `SGX_ACCOUNT_*` 和 `SGX_ACCOUNT_ROOT_KEY` 只在账号 Worker（stepup、应用凭证已删除）。
 - 锁定：`lock-now`（清除 `Domain=.styrigx.com` 的 `sgx-lock-session`，子站一起上锁）、`lock-all-devices`（Lock 纪元 +1，所有设备一起上锁；要 LockReauthTicket）。
 - 其他：`geo`（Cloudflare 给的城市 / 坐标 / 时区）；`chat`、`search`、`status` 只做门，验锁屏会话后经服务绑定转给 styrigx-chat / styrigx-search-index / styrigx-status。
@@ -110,7 +110,7 @@ space（styrigx.com）相当于 One UI，blog、daymark、curio 等子站相当�
   凭证域定义在 `workers/account/src/identity/realm.js` 的 `REALM_ACCOUNT`。
 - 请求路径（账号拆分 PR3）：浏览器 → 网关（验锁屏门、剥外来 `x-styrigx-*` / `x-sgx-role` 头、按验过的锁屏会话写 `X-Styrigx-Lock-*` / `X-Styrigx-Client-*`）
   → 服务绑定 `ACCOUNT` → 账号 Worker 命名入口 `AccountService`。账号 Worker 没有公开路由，默认 fetch 一律 404。
-  网关和短链 Worker 需要账号会话结论时经 `ACCOUNT_VERIFIER`（`AccountVerifier.accountSession()`）问账号 Worker。
+  网关只有账号页首帧提示还要账号会话结论，经 `ACCOUNT_VERIFIER`（`AccountVerifier.accountSession()`）问账号 Worker；临时钥匙、短链只认管理员锁屏会话，短链 Worker 不绑账号 Worker。
 - 登录入口两者平级：账号通行密钥、账号密码；前置条件是已解锁的 admin 锁屏会话。账号根密钥不签账号会话。
 - 敏感操作（注册/删除账号通行密钥、修改账号密码）要求有效的 3 分钟 AccountReauthTicket `sgx-account-reauth`
   （进「账号安全」子页前再验一次，离开即作废；会话还在时也认 AccountResetTicket），没有票返回 403 `reauth`，前端重新验证。

@@ -42,7 +42,7 @@
 
   {{/* DeX：左右双栏（左栏分类导航，右栏详情窗格）。
        标题区已移到上方（.set-dex-head），左栏不再放标题。
-       security 仍是独立页面，点导航直接跳转。 */}}
+       security、status 仍是独立页面，点导航直接跳转。 */}}
   <div class="set-dex-cols">
   <div class="set-col-l">
     <aside class="set-side" aria-label="{{ if $isEn }}Categories{{ else }}分类{{ end }}">
@@ -63,7 +63,7 @@
     <h2 class="set-right-title" id="set-right-title"></h2>
     <div class="set-main min-w-0" id="set-panes">
       {{ range $cats }}
-      {{ if ne .id "security" }}
+      {{ if not (in (slice "security" "status") .id) }}
       {{ partial (printf "setcat-%s.html" .id) (dict "isEn" $isEn "featMap" $featMap "palettes" $palettes) }}
       {{ end }}
       {{ end }}
