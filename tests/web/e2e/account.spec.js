@@ -409,7 +409,7 @@ test.describe('安全与隐私子页', () => {
 test.describe('账号总览', () => {
   test.beforeEach(async ({ page }) => { await zh(page); });
 
-  test('PR4：账号卡点了不跳页（没有「账号信息」子页）；两组：设备 / 账号安全 / 临时钥匙，云同步 / 服务状态', async ({ page }) => {
+  test('PR4：账号卡点了不跳页（没有「账号信息」子页）；两组：设备 / 账号安全，云同步（临时钥匙、服务状态已搬到设置，账号页没有入口）', async ({ page }) => {
     await mockAccount(page, {
       status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }),
       handlers: { 'passkey-list': [200, { ok: true, keys: [] }] },
@@ -425,7 +425,8 @@ test.describe('账号总览', () => {
     expect(new URL(page.url()).pathname).toBe('/account/');
     await expect(page.locator('a[href*="/account/profile/"]')).toHaveCount(0);
     const groups = await page.locator('#acct-main section').evaluateAll((els) => els.map((x) => Array.from(x.querySelectorAll('.acct-row')).map((r) => r.id)));
-    expect(groups).toEqual([['acct-dev-row', 'acct-sec-row', 'acct-tk-row'], ['acct-sync-row', 'acct-st-row']]);
+    expect(groups).toEqual([['acct-dev-row', 'acct-sec-row'], ['acct-sync-row']]);
+    await expect(page.locator('#acct-main a[href*="/tempkeys/"], #acct-main a[href*="/status/"]')).toHaveCount(0);
   });
 });
 
@@ -823,7 +824,11 @@ test.describe('设备子页（2026-10-22）', () => {
   });
 });
 
-test.describe('账号 → 临时钥匙（2026-10-23，取代 Turnstile 访客进入）', () => {
+/* 临时钥匙（含分享短链）从账号页搬到设置 → 安全与隐私 → 临时钥匙（/settings/security/tempkeys/），旧地址删除、不跳转。
+   只认管理员锁屏会话、不问账号会话：静态构建 + API mock 下不用准备账号会话（不 mock /api/account）。 */
+const TK = '/settings/security/tempkeys/';
+
+test.describe('设置 → 安全与隐私 → 临时钥匙（2026-10-23，取代 Turnstile 访客进入）', () => {
   test.beforeEach(async ({ page }) => { await zh(page); });
 
   /** mock /api/lock-tempkey：keys 是服务端的「有效钥匙」列表 */
@@ -846,17 +851,13 @@ test.describe('账号 → 临时钥匙（2026-10-23，取代 Turnstile 访客进
     return st;
   }
 
-  test('总览有「临时钥匙」一行 → 子页；新建（名字 + 7 天）→ 只显示一次临时码，可复制；列表显示名字和剩余时间', async ({ page, context }) => {
+  test('安全与隐私有「临时钥匙」一行 → 临时钥匙页；新建（名字 + 7 天）→ 只显示一次临时码，可复制；列表显示名字和剩余时间', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-    await mockAccount(page, {
-      status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }),
-      handlers: { list: [200, { ok: true, keys: [] }] },
-    });
     const st = await mockTemp(page);
-    await page.goto('/account/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#acct-tk-row')).toContainText('临时钥匙');
-    await page.locator('#acct-tk-row').click();
-    await page.waitForURL(/\/account\/tempkeys\/$/);
+    await page.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#sec-tempkeys')).toContainText('临时钥匙');
+    await page.locator('#sec-tempkeys').click();
+    await page.waitForURL(/\/settings\/security\/tempkeys\/$/);
     await expect(page.locator('#acct-tk')).toBeVisible();
     await expect(page.locator('#acct-tk-empty')).toBeVisible();
     await page.locator('#acct-tk-new').click();
@@ -890,7 +891,7 @@ test.describe('账号 → 临时钥匙（2026-10-23，取代 Turnstile 访客进
     const st = await mockTemp(page, [
       { id: 'a000000000000001', name: '', createdAt: Date.now(), expiresAt: Date.now() + 2 * 3600e3 + 5 * 60e3 },
     ]);
-    await page.goto('/account/tempkeys/', { waitUntil: 'domcontentloaded' });
+    await page.goto(TK, { waitUntil: 'domcontentloaded' });
     const row = page.locator('#acct-tk-list .acct-dev-item').first();
     await expect(row).toContainText('未命名');
     await expect(row).toContainText(/剩余 2 小时 [56] 分钟/);
@@ -909,25 +910,23 @@ test.describe('账号 → 临时钥匙（2026-10-23，取代 Turnstile 访客进
       if (b.action === 'list') return route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"keys":[]}' });
       return route.fulfill({ status: 409, contentType: 'application/json', body: '{"ok":false,"error":"full"}' });
     });
-    await page.goto('/account/tempkeys/', { waitUntil: 'domcontentloaded' });
+    await page.goto(TK, { waitUntil: 'domcontentloaded' });
     await page.locator('#acct-tk-new').click();
     await page.click('#tk-go');
     await expect(page.locator('#tk-err')).toHaveText('最多同时 20 把，先作废几把');
     await expect(page.locator('#tk-dlg')).toBeVisible();
   });
 
-  test('没有账号会话（401 account）→ 跳账号页 ?return=子页', async ({ page }) => {
-    await mockAccount(page, {
-      status: { ok: true, password: true, passkey: false, ready: true, session: null },
-      handlers: {},
-    });
-    await page.route('**/api/lock-tempkey', (route) => route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false,"error":"account"}' }));
-    await page.goto('/account/tempkeys/', { waitUntil: 'domcontentloaded' });
-    await page.waitForURL(/\/account\/\?return=%2Faccount%2Ftempkeys%2F$/);
+  test('只认管理员锁屏会话：401（不论 error 是什么）→ 只提示回锁屏重新解锁，不跳账号页', async ({ page }) => {
+    await page.route('**/api/lock-tempkey', (route) => route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false,"error":"session"}' }));
+    await page.goto(TK, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.sgx-toast')).toContainText('会话已失效，请回到锁屏重新解锁');
+    expect(new URL(page.url()).pathname).toBe(TK);
   });
+
 });
 
-test.describe('账号 → 临时钥匙页 › 分享短链（2026-10-24，/api/share = styrigx-share）', () => {
+test.describe('设置 → 安全与隐私 → 临时钥匙页 › 分享短链（2026-10-24，/api/share = styrigx-share）', () => {
   test.beforeEach(async ({ page }) => {
     await zh(page);
     await page.route('**/api/lock-tempkey', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"keys":[]}' }));
@@ -962,7 +961,7 @@ test.describe('账号 → 临时钥匙页 › 分享短链（2026-10-24，/api/s
   test('入口在临时钥匙页第二行；生成带会话短链（名字 + 6 小时 + /blog/ + 1 小时会话）→ 弹层显示 https://…/s/<码>，可复制；列表写清类型 / 目标 / 到期 / 会话', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     const st = await mockShare(page);
-    await page.goto('/account/tempkeys/', { waitUntil: 'domcontentloaded' });
+    await page.goto(TK, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#acct-sl-empty')).toBeVisible();
     await expect(page.locator('#acct-sl-new')).toContainText('新建分享短链');
     await page.locator('#acct-sl-new').click();
@@ -995,7 +994,7 @@ test.describe('账号 → 临时钥匙页 › 分享短链（2026-10-24，/api/s
 
   test('关掉「带临时会话」= 普通短链（session 0）；列表标「普通」，没有会话那一行', async ({ page }) => {
     const st = await mockShare(page);
-    await page.goto('/account/tempkeys/', { waitUntil: 'domcontentloaded' });
+    await page.goto(TK, { waitUntil: 'domcontentloaded' });
     await page.locator('#acct-sl-new').click();
     await page.click('#sl-sess-row');
     await expect(page.locator('#sl-sess-sw')).toHaveAttribute('aria-checked', 'false');
@@ -1012,7 +1011,7 @@ test.describe('账号 → 临时钥匙页 › 分享短链（2026-10-24，/api/s
 
   test('目标不是站内路径或 styrigx.com 子站链接：弹层报错，不发请求', async ({ page }) => {
     const st = await mockShare(page);
-    await page.goto('/account/tempkeys/', { waitUntil: 'domcontentloaded' });
+    await page.goto(TK, { waitUntil: 'domcontentloaded' });
     await page.locator('#acct-sl-new').click();
     for (const bad of ['https://evil.example/', '//evil.example', 'evil.example', '/a b', 'http://blog.styrigx.com/', 'https://styrigx.com.evil.com/',
       'https://blog.styrigx.com:8443/', 'https://u@blog.styrigx.com/', 'javascript:alert(1)']) {
@@ -1025,7 +1024,7 @@ test.describe('账号 → 临时钥匙页 › 分享短链（2026-10-24，/api/s
 
   test('目标填子站完整链接（https://blog.styrigx.com/post/…）：不报错，原样提交给服务端规范化', async ({ page }) => {
     const st = await mockShare(page);
-    await page.goto('/account/tempkeys/', { waitUntil: 'domcontentloaded' });
+    await page.goto(TK, { waitUntil: 'domcontentloaded' });
     await page.locator('#acct-sl-new').click();
     await page.fill('#sl-to', 'https://blog.styrigx.com/post/hello-world/');
     await page.click('#sl-go');
@@ -1042,7 +1041,7 @@ test.describe('账号 → 临时钥匙页 › 分享短链（2026-10-24，/api/s
       { id: 's000000000000002', name: 'B', to: '/', session: 0, createdAt: now - 1, expiresAt: now - 1000, revokedAt: 0, status: 'expired', opens: 0, lastOpenAt: 0, openFor: 0, sessionLeft: 0 },
       { id: 's000000000000003', name: 'C', to: '/', session: 3600, createdAt: now - 2, expiresAt: now + 3600e3, revokedAt: now - 60e3, status: 'revoked', opens: 0, lastOpenAt: 0, openFor: 0, sessionLeft: 0 },
     ]);
-    await page.goto('/account/tempkeys/', { waitUntil: 'domcontentloaded' });
+    await page.goto(TK, { waitUntil: 'domcontentloaded' });
     const rows = page.locator('#acct-sl-list .sl-item');
     await expect(rows).toHaveCount(3);
     await expect(rows.nth(0)).toContainText('最近一次发出的会话剩余 20 分钟');
@@ -1066,7 +1065,7 @@ test.describe('账号 → 临时钥匙页 › 分享短链（2026-10-24，/api/s
       if (b.action === 'list') return route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"links":[]}' });
       return route.fulfill({ status: 409, contentType: 'application/json', body: '{"ok":false,"error":"full"}' });
     });
-    await page.goto('/account/tempkeys/', { waitUntil: 'domcontentloaded' });
+    await page.goto(TK, { waitUntil: 'domcontentloaded' });
     await page.locator('#acct-sl-new').click();
     await page.click('#sl-go');
     await expect(page.locator('#sl-err')).toHaveText('最多同时 20 条，先作废几条');
@@ -1182,7 +1181,7 @@ test.describe('账号页是独立页 /account/（2026-10-22 从 /settings/accoun
       status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }),
       handlers: { 'passkey-list': [200, { ok: true, keys: [] }], 'device-list': [200, { ok: true, devices: [] }] },
     });
-    for (const p of ['/account/', '/account/security/', '/account/reset/', '/account/devices/', '/account/tempkeys/', '/account/sync/', '/account/status/']) {
+    for (const p of ['/account/', '/account/security/', '/account/reset/', '/account/devices/', '/account/sync/']) {
       await page.goto(p, { waitUntil: 'domcontentloaded' });
       await expect(page.locator('main .acct-layout')).toHaveCount(1);
       await expect(page.locator('main .set-layout, main .set-row, main .set-ic, main .set-gh, main .sec-note')).toHaveCount(0);

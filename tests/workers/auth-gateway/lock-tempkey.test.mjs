@@ -4,9 +4,9 @@
  *
  * - 临时码：12 位 Crockford Base32，规范化（大小写 / 连字符 / 空格 / O→0、I L→1）
  * - 有效期：1–24 小时、3 / 7 / 15 / 30 天，别的一律 400
- * - /api/lock-tempkey：要 admin lock 会话 + 账号会话；list / create / revoke；名字只在管理员侧
+ * - /api/lock-tempkey：只要 admin lock 会话（不问账号会话）；list / create / revoke；名字只在管理员侧
  * - /api/lock-tempkey-unlock：对 → visitor 锁屏会话（by=tempkey，票里带 tempkeyId）；错 → 403，同 IP 连错 5 次 429
- * - middleware：visitor 会话没有 tempkeyId / 钥匙被作废 → 当作没会话；访客打不开账号页
+ * - middleware：visitor 会话没有 tempkeyId / 钥匙被作废 → 当作没会话；访客打不开账号页和临时钥匙页
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -19,7 +19,7 @@ import { ed25519Sign } from '../../../workers/auth-gateway/functions/_kernel/lib
 import { onRequest as mw } from '../../../workers/auth-gateway/functions/_middleware.js';
 import { verifyLockSession } from '../../../workers/auth-gateway/functions/_kernel/lock-session.js';
 import { API_ROUTES } from '../../../workers/auth-gateway/src/routes.js';
-import { testLockSession, TEST_ACCOUNT_COOKIE, fakeAccountVerifier } from './_tickets.mjs';
+import { testLockSession } from './_tickets.mjs';
 import { makeAuthD1 } from '../_harness.mjs';
 
 function pair() {
@@ -38,7 +38,6 @@ function env(db) {
     D1_LOCK_AUTH: db,
     SGX_LOCK_PRIVATE: LOCK.priv,
     SGX_LOCK_PUBLIC: LOCK.pub,
-    ACCOUNT_VERIFIER: fakeAccountVerifier(), /* 账号会话问账号 Worker（网关不持账号钥匙） */
     SGX_PW_PEPPER: PEPPER,
     SGX_ENV: 'production',
     SGX_SITE: 'space',
@@ -47,7 +46,7 @@ function env(db) {
 
 async function adminCookies() {
   const lock = await testLockSession(LOCK.priv, 0, 'admin', 'password');
-  return 'sgx-lock-session=' + lock + '; ' + TEST_ACCOUNT_COOKIE;
+  return 'sgx-lock-session=' + lock; /* 只有锁屏会话，没有账号会话 cookie */
 }
 
 function post(url, body, cookie, ip) {
@@ -204,28 +203,36 @@ test('过期立即不认：行还没被清掉（expires_at 已过、revoked_at =
 
 /* ---------------- /api/lock-tempkey（管理） ---------------- */
 
-test('管理接口：要同源 + admin lock 会话 + 账号会话（ACCOUNT_VERIFIER 说有）；没绑 / RPC 抛错 → 401 account', async () => {
+test('管理接口：要同源 + admin lock 会话；不问账号会话（没有账号 cookie、没绑 ACCOUNT_VERIFIER 也能 list）', async () => {
   const db = makeAuthD1();
   const noOrigin = new Request('https://styrigx.com/api/lock-tempkey', { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: await adminCookies() }, body: '{"action":"list"}' });
   assert.equal((await tempPost({ request: noOrigin, env: env(db) })).status, 403);
-  assert.equal((await T({ action: 'list' }, '', db)).status, 401);
-  const lockOnly = 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, 'admin', 'password'));
-  const r = await T({ action: 'list' }, lockOnly, db);
-  assert.equal(r.status, 401);
-  assert.equal((await r.json()).error, 'account');
+  const none = await T({ action: 'list' }, '', db);
+  assert.equal(none.status, 401);
+  assert.equal((await none.json()).error, 'session');
   const visitor = 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, 'visitor'));
-  assert.equal((await T({ action: 'list' }, visitor, db)).status, 401, '访客不是管理员');
-  for (const ACCOUNT_VERIFIER of [undefined, fakeAccountVerifier({ throws: true })]) {
-    const e = { ...env(db), ACCOUNT_VERIFIER };
-    const x = await tempPost({ request: post('https://styrigx.com/api/lock-tempkey', { action: 'list' }, await adminCookies()), env: e });
-    assert.equal(x.status, 401);
-    assert.equal((await x.json()).error, 'account');
-  }
-  const v = fakeAccountVerifier();
-  const ok = await tempPost({ request: post('https://styrigx.com/api/lock-tempkey', { action: 'list' }, await adminCookies()), env: { ...env(db), ACCOUNT_VERIFIER: v } });
+  const v = await T({ action: 'list' }, visitor, db);
+  assert.equal(v.status, 401, '访客不是管理员');
+  assert.equal((await v.json()).error, 'session');
+  /* 绑了一个一碰就抛的 ACCOUNT_VERIFIER：管理接口根本不该问它 */
+  let asked = 0;
+  const trap = { accountSession() { asked++; throw new Error('不该问账号会话'); } };
+  const ok = await tempPost({ request: post('https://styrigx.com/api/lock-tempkey', { action: 'list' }, await adminCookies()), env: { ...env(db), ACCOUNT_VERIFIER: trap } });
   assert.equal(ok.status, 200);
-  assert.equal(v.calls.length, 1);
-  assert.ok(v.calls[0][0].includes(TEST_ACCOUNT_COOKIE), 'Cookie 头原样交给账号 Worker');
+  assert.equal(asked, 0);
+});
+
+test('管理接口：只有 admin 锁屏会话、没有账号会话 → 能签也能废', async () => {
+  const db = makeAuthD1();
+  const lockOnly = 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, 'admin', 'password'));
+  assert.ok(!/sgx-account-session/.test(lockOnly));
+  let r = await T({ action: 'create', name: '无账号', hours: 2 }, lockOnly, db);
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.match(j.code, /^[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}$/);
+  r = await T({ action: 'revoke', id: j.key.id }, lockOnly, db);
+  assert.equal(r.status, 200);
+  assert.deepEqual(await TL.listTempkeys(env(db)), []);
 });
 
 test('管理接口：create → 只这一次返回临时码；list 有名字和到期；revoke', async () => {
@@ -364,13 +371,18 @@ test('middleware：作废钥匙 → 拿它进来的访客下一个请求就进�
   assert.equal((await mw({ request: page('/blog/', admin), env: env(db), next })).status, 200);
 });
 
-test('middleware：访客打不开账号页（302 回首页），也调不了临时钥匙管理接口', async () => {
+test('middleware：访客打不开账号页（302 回首页）和临时钥匙页（302 到首页的管理员验证），也调不了临时钥匙管理接口', async () => {
   const db = makeAuthD1();
   const { cookie } = await visitorFor(db);
-  for (const p of ['/account/', '/account/tempkeys/', '/en/account/devices/']) {
+  for (const p of ['/account/', '/en/account/devices/']) {
     const res = await mw({ request: page(p, cookie), env: env(db), next });
     assert.equal(res.status, 302, p);
     assert.equal(res.headers.get('Location'), 'https://styrigx.com' + (p.startsWith('/en/') ? '/en/' : '/'));
+  }
+  for (const p of ['/settings/security/tempkeys/', '/en/settings/security/tempkeys/']) {
+    const res = await mw({ request: page(p, cookie), env: env(db), next });
+    assert.equal(res.status, 302, p);
+    assert.equal(res.headers.get('Location'), 'https://styrigx.com' + (p.startsWith('/en/') ? '/en/' : '/') + '?return=' + encodeURIComponent(p));
   }
   const api = await mw({ request: post('https://styrigx.com/api/lock-tempkey', { action: 'list' }, cookie), env: env(db), next });
   assert.equal(api.status, 403);

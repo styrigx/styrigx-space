@@ -7479,7 +7479,7 @@
   .acct-note { font-size: 12px; color: var(--sgx-text-secondary); padding: 0 4px; margin: 0; }
   /* 卡片下面紧跟的说明、后面还有下一组（2026-10-24 PR4：设备页「此设备」卡下的保持登录说明、云同步页总开关下的说明）：上 8 下 24，和组间距一致 */
   .acct-note.acct-note-gap { margin: 8px 0 24px; }
-  /* 2026-10-23 账号 → 临时钥匙：新建弹层（名字 + 有效期下拉）和签发后的临时码 */
+  /* 2026-10-23 临时钥匙（设置 → 安全与隐私 → 临时钥匙）：新建弹层（名字 + 有效期下拉）和签发后的临时码 */
   .tk-form, .tk-done { display: flex; flex-direction: column; align-items: stretch; gap: 12px; width: 100%; max-width: 320px; &[hidden] { display: none; } }
   .tk-form .sgx-pw-input { max-width: none; }
   .tk-label { font-size: 13px; color: var(--sgx-text-secondary); margin: 4px 4px -6px; }
@@ -8057,8 +8057,8 @@
 
 /* ===== components 层（续）：服务状态 ===== */
 @layer sgx-components {
-  /* ===== 服务状态（账号 → 服务状态 /account/status/；2026-10-22 PR2 起是顶栏「状态」页，2026-10-24 PR4 挪进账号页；
-     layouts/_default/account-status.html + apps/account-status.js）。外框是账号页的 .acct-layout（内容列 720），.st-wrap 只是里面的竖排列 =====
+  /* ===== 服务状态（设置 → 服务状态 /settings/status/；2026-10-22 PR2 起是顶栏「状态」页，2026-10-24 PR4 挪进账号页，之后搬到设置；
+     layouts/_default/settings-status.html + apps/settings-status.js）。外框是账号页的 .acct-layout（内容列 720），.st-wrap 只是里面的竖排列 =====
      横幅（全部正常 = 第三色容器 / 有故障 = danger 容器）→ 每站一张卡（站名 + 域名、状态 chip、最近一次检查、90 格可用率条）→ 近期故障。
      色块：ok = --sgx-success（固定成功绿，不随主题变；卡片上 ≥4.5:1）、minor 部分故障 = --m-warm、down = --sgx-danger、没数据 = 最高层容器。手机格间距 1px。 */
   .st-wrap { display: flex; flex-direction: column; gap: 12px; }
@@ -8279,7 +8279,7 @@
   .st-inc-site { font-size: 15px; font-weight: 700; }
   .st-inc-cause { margin: 4px 0 0; font-size: 13px; }
   .st-inc-time { display: flex; flex-wrap: wrap; gap: 0 6px; margin: 2px 0 0; font-size: 12px; line-height: 1.5; color: var(--sgx-text-secondary); font-variant-numeric: tabular-nums; }
-  /* 根凭证使用记录（账号 → 服务状态页底）：<details> 折叠卡，展开才加载（apps/account-status.js） */
+  /* 根凭证使用记录（设置 → 服务状态页底）：<details> 折叠卡，展开才加载（apps/settings-status.js） */
   .st-audit-wrap { margin-top: 12px; }
   .st-audit-card { overflow: hidden; border: 1px solid var(--m-outline); color: var(--sgx-text-primary); }
   .st-audit-sum { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 12px 18px;

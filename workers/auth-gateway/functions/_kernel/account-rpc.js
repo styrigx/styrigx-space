@@ -1,8 +1,9 @@
 /**
  * 网关 → 账号 Worker 的只读 RPC：ACCOUNT_VERIFIER.accountSession()（方案第 2、10.1 节）。
  *
- * 网关不再持账号钥匙、不读账号库；仍要账号会话的锁屏侧功能（临时钥匙管理 api/lock-tempkey.js、短链签发 / 作废 src/share-issuer.js、
- * 账号页首帧提示 _middleware.js）都经服务绑定 ACCOUNT_VERIFIER（styrigx-account / AccountVerifier）问一句，只拿结论。
+ * 网关不再持账号钥匙、不读账号库；网关里只剩账号页首帧提示（_middleware.js）还要知道账号会话，经服务绑定 ACCOUNT_VERIFIER
+ * （styrigx-account / AccountVerifier）问一句，只拿结论。临时钥匙管理（api/lock-tempkey.js）和短链签发 / 作废（src/share-issuer.js）
+ * 只认管理员锁屏会话，不再问账号会话。
  * 绑定没配 / RPC 抛错 / 回了看不懂的东西 → 按「无账号会话」处理（fail closed），reason 只是原因代号。
  *
  * 不 import 任何账号代码（账号与网关互相不许 import，scripts/check-layers.mjs 规则 14）。
@@ -16,7 +17,7 @@ const MAX_UA = 512;
  * @param {Request|null|undefined} request
  * @returns {{ua?:string, country?:string, city?:string}}
  */
-export function verifierContextOf(request) {
+function verifierContextOf(request) {
   /** @type {{ua?:string, country?:string, city?:string}} */
   const m = {};
   if (!request) return m;
@@ -35,7 +36,7 @@ export function verifierContextOf(request) {
  * @param {{ua?:string, country?:string, city?:string}} [clientContext]
  * @returns {Promise<{ok:boolean, reason:string}>}
  */
-export async function askAccountSession(env, cookieHeader, clientContext) {
+async function askAccountSession(env, cookieHeader, clientContext) {
   const v = env && env.ACCOUNT_VERIFIER;
   if (!v || typeof v.accountSession !== 'function') return { ok: false, reason: 'no-verifier' };
   const cookie = typeof cookieHeader === 'string' ? cookieHeader.slice(0, MAX_COOKIE_HEADER) : '';
@@ -51,7 +52,7 @@ export async function askAccountSession(env, cookieHeader, clientContext) {
 }
 
 /**
- * 请求版：取请求的 Cookie 头和客户端上下文再问。
+ * 请求版：取请求的 Cookie 头和客户端上下文再问（唯一导出，只给 _middleware.js 账号页首帧提示用）。
  * @param {Request} request @param {Record<string, any>} env
  */
 export function askAccountSessionFor(request, env) {

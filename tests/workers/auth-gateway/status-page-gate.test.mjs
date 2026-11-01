@@ -1,7 +1,8 @@
 /**
- * 聊天 /chat/ 与服务状态 /account/status/（含 /en/）和其他主站内页一样过网关 _middleware：
+ * 聊天 /chat/ 与服务状态 /settings/status/（含 /en/）和其他主站内页一样过网关 _middleware：
  *   没会话 / 坏 cookie → 302 到首页锁屏（?lock=1&return=<原路径>，no-store）；admin 会话放行（200）；
- *   visitor：聊天放行，服务状态 2026-10-24 PR4 起在账号区里（原顶栏「状态」页 /status/ 删除）→ 和其他账号子页一样 302 回首页。
+ *   visitor：聊天放行；服务状态是管理员专属页（_kernel/return.js ADMIN_ONLY_PATHS）→ 和锁屏凭证页一样 302 到首页的管理员验证（?return=）。
+ *   服务状态页只认管理员锁屏会话，不问账号会话（没有账号 cookie、没绑 ACCOUNT_VERIFIER 也 200）。
  *   /api/status 本身的会话校验见 tests/workers/auth-gateway/search-api.test.mjs。
  * 运行：node --test tests/workers/auth-gateway/status-page-gate.test.mjs
  * Ed25519 测试密钥在测试内临时生成，不用生产密钥。
@@ -31,10 +32,10 @@ function ctx(url, cookie) {
   };
 }
 
-const PAGES = ['/account/status/', '/en/account/status/', '/chat/', '/en/chat/'];
-const ACCOUNT = (p) => p.includes('/account/');
+const PAGES = ['/settings/status/', '/en/settings/status/', '/chat/', '/en/chat/'];
+const ADMIN_ONLY = (p) => p.includes('/settings/status/');
 
-test('没会话：/account/status/、/chat/（中英）302 到首页锁屏，return = 原路径，no-store', async () => {
+test('没会话：/settings/status/、/chat/（中英）302 到首页锁屏，return = 原路径，no-store', async () => {
   for (const p of PAGES) {
     for (const cookie of ['', 'garbage.1.2']) {
       const r = await mw(ctx('https://styrigx.com' + p + '?x=1', cookie));
@@ -47,14 +48,14 @@ test('没会话：/account/status/、/chat/（中英）302 到首页锁屏，ret
   }
 });
 
-test('admin 会话：/account/status/、/chat/（中英）都放行 200；visitor：聊天 200，服务状态（账号区）302 回首页', async () => {
+test('admin 会话（没有账号会话）：/settings/status/、/chat/（中英）都放行 200；visitor：聊天 200，服务状态 302 到首页的管理员验证', async () => {
   for (const role of ['admin', 'visitor']) {
     const cookie = role === 'admin' ? await testLockSession(PRIV, 0, 'admin') : await testLockSession(PRIV, 0, 'visitor');
     for (const p of PAGES) {
       const r = await mw(ctx('https://styrigx.com' + p, cookie));
-      if (role === 'visitor' && ACCOUNT(p)) {
+      if (role === 'visitor' && ADMIN_ONLY(p)) {
         assert.equal(r.status, 302, 'visitor 访问 ' + p + ' 应 302');
-        assert.equal(r.headers.get('Location'), 'https://styrigx.com' + (p.startsWith('/en/') ? '/en/' : '/'));
+        assert.equal(r.headers.get('Location'), 'https://styrigx.com' + (p.startsWith('/en/') ? '/en/' : '/') + '?return=' + encodeURIComponent(p));
         continue;
       }
       assert.equal(r.status, 200, role + ' 访问 ' + p + ' 应 200');

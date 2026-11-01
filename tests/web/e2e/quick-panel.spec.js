@@ -67,7 +67,7 @@ test.describe('顶栏：右圆 = 快捷面板按钮', () => {
       expect(order).toEqual(['sgx-tb-nav', 'sgx-tb-pill', 'sgx-tb-end']);
       const inner = await page.evaluate(() =>
         Array.from(document.querySelector('.sgx-tb-pill').children).map((el) => el.className.split(' ')[0]));
-      /* 主页、设置首页长条里是三栏标签（2026-10-22；PR4 第三栏换成设置，account-status.spec.js），其他页是页名 */
+      /* 主页、设置首页长条里是三栏标签（2026-10-22；PR4 第三栏换成设置，settings-status.spec.js），其他页是页名 */
       expect(inner).toEqual([TABS(path) ? 'sgx-tb-tabs' : 'sgx-tb-title']);
       const q = page.locator('.sgx-tb-quick');
       expect(await q.evaluate((el) => el.tagName)).toBe('BUTTON');

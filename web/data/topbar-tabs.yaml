@@ -1,6 +1,6 @@
 # 主站顶栏三栏（2026-10-22，只在主站；子站顶栏不变，共享外壳 web/shared/shell/* 不动）。
 # 主页 / 聊天 / 设置这三页的长条里不放页名，换成这三个标签（当前页 aria-current="page"，药丸高亮）；左右滑按这个顺序切换。
-# 2026-10-24 PR4：第三栏「状态」换成「设置」（设置首页 /settings/）；服务状态挪进账号页「服务状态」一行（/account/status/），旧 /status/ 页删除、不留跳转。
+# 2026-10-24 PR4：第三栏「状态」换成「设置」（设置首页 /settings/）；服务状态挪进账号页（之后搬到设置 /settings/status/），旧 /status/ 页删除、不留跳转。
 # 其他页（设置子页、账号……）长条照旧只有页名。模板：partials/topbar-tabs.html；样式：input.css「主站顶栏三栏」。
 # 2026-10-24 页内切换：三个地址照旧各自直出完整 HTML（直接打开 / 刷新 / 分享 / 没 JS 都照常）；进来以后另外两栏在同一个文档里切换
 # （shell/inpage-tabs.js：后台取另外两页的 HTML、只抽 <main> 内容区，pushState / popstate；三页各一个入口 entries/entry-tab-<id>.js，另两栏按需 import entries/lazy-<id>.js）。

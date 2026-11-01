@@ -1,14 +1,18 @@
 /**
  * ?return= 回跳：校验（safeReturn）和「解锁后去哪」（resolveReturn）的唯一实现。
  * 首页 302（_middleware.js）和 /api/lock-session-check 共用；前端不做白名单，只照着跳。
- * 管理员专属页（锁屏凭证页）的路径表也在这里，middleware 的访客 302 用同一份。
+ * 管理员专属页（锁屏凭证页、临时钥匙页、服务状态页）的路径表也在这里，middleware 的访客 302 用同一份。
  */
 import { ROLE_VISITOR } from './lock-session.js';
 
-/* 访客可进安全与隐私总览页（/settings/security/）；锁屏凭证页要 admin 会话。 */
+/* 访客可进安全与隐私总览页（/settings/security/）；锁屏凭证页、临时钥匙页（含短链）、服务状态页要 admin 会话。 */
 export const ADMIN_ONLY_PATHS = Object.freeze([
   '/settings/security/lock/',
   '/en/settings/security/lock/',
+  '/settings/security/tempkeys/',
+  '/en/settings/security/tempkeys/',
+  '/settings/status/',
+  '/en/settings/status/',
 ]);
 
 /** @param {string} pathname */
@@ -68,7 +72,7 @@ export function safeReturn(ret) {
 /**
  * 解锁后去哪（唯一实现；首页 302 和 /api/lock-session-check?return= 共用，前端不做白名单）。
  * - return 不合法 → 首页
- * - 已登录用户 return 指向门内页（锁屏凭证页）→ 安全与隐私总览（定稿 #1）
+ * - 已登录用户 return 指向门内页（ADMIN_ONLY_PATHS）→ 安全与隐私总览（定稿 #1）
  * - 访客 + 管理员专属 return → upgrade（不跳；就地管理员验证）
  * @param {string} ret 原始 return 参数
  * @param {string|null} role 'admin'|'visitor'

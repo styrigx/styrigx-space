@@ -337,9 +337,9 @@ test('R8 锁屏态不接管顶栏三栏：点标签照旧整页导航（网关 3
 
 /* ---------------- R9 分享短链（2026-10-24，styrigx-share）：/s/* 经线上路由规则进短链 Worker，钥匙和会话由网关签 ---------------- */
 
-async function setAdminAccount(context) {
+/** 短链管理（设置 → 安全与隐私 → 临时钥匙 /settings/security/tempkeys/）只认管理员锁屏会话，不要账号会话 */
+async function setAdmin(context) {
   await setSession(context, 'admin');
-  await context.addCookies([{ name: 'sgx-account-session', value: await edge.mintAccount(), domain: 'styrigx.com', path: '/', secure: true, httpOnly: true, sameSite: 'Strict' }]);
 }
 
 /** 管理员在页面里调 /api/share（同源 fetch，带真实 cookie） */
@@ -350,8 +350,8 @@ async function shareApi(page, body) {
 
 /** 管理员建一条短链，然后清掉所有 cookie（变成没登录的陌生人） */
 async function makeLink(page, context, body) {
-  await setAdminAccount(context);
-  await page.goto(MAIN + '/account/tempkeys/');
+  await setAdmin(context);
+  await page.goto(MAIN + '/settings/security/tempkeys/');
   const r = await shareApi(page, Object.assign({ action: 'create' }, body));
   expect(r.s, JSON.stringify(r.j)).toBe(200);
   await context.clearCookies();
@@ -361,9 +361,9 @@ async function makeLink(page, context, body) {
 test.describe('R9 分享短链', () => {
   test.beforeEach(async () => { await edge.resetShareLimit(); });
 
-  test('R9 管理员在账号页生成带会话短链 → 陌生人点开：直接以访客进到目标页，不出锁屏；地址栏 / Referer 里没有码', async ({ page, context }) => {
-    await setAdminAccount(context);
-    await page.goto(MAIN + '/account/tempkeys/');
+  test('R9 管理员在临时钥匙页生成带会话短链 → 陌生人点开：直接以访客进到目标页，不出锁屏；地址栏 / Referer 里没有码', async ({ page, context }) => {
+    await setAdmin(context);
+    await page.goto(MAIN + '/settings/security/tempkeys/');
     await page.click('#acct-sl-new');
     await expect(page.locator('#sl-dlg')).toBeVisible();
     await page.fill('#sl-name', '小明');
@@ -395,8 +395,8 @@ test.describe('R9 分享短链', () => {
       expect(ref).not.toContain(code);
     }
     expect(await page.evaluate(() => location.href + document.referrer)).not.toContain(code);
-    /* 访客和临时钥匙访客一样：进不了账号页、管不了短链 */
-    await page.goto(MAIN + '/account/tempkeys/');
+    /* 访客和临时钥匙访客一样：进不了临时钥匙页（管理员专属，网关 302 回主页）、管不了短链 */
+    await page.goto(MAIN + '/settings/security/tempkeys/');
     expect(new URL(page.url()).pathname).toBe('/');
     const api = await shareApi(page, { action: 'list' });
     expect(api.s).toBe(403);
@@ -420,8 +420,8 @@ test.describe('R9 分享短链', () => {
     /* 管理员作废（另开一个页面登录管理员，访客那一页的 cookie 不动） */
     const adminCtx = await context.browser().newContext({ proxy: LAUNCH.proxy, ignoreHTTPSErrors: false });
     const op = await adminCtx.newPage();
-    await setAdminAccount(adminCtx);
-    await op.goto(MAIN + '/account/tempkeys/');
+    await setAdmin(adminCtx);
+    await op.goto(MAIN + '/settings/security/tempkeys/');
     expect((await shareApi(op, { action: 'revoke', id: live.id })).s).toBe(200);
     const expired = (await shareApi(op, { action: 'create', hours: 1 })).j.link;
     if (edge.shareDb.raw) edge.shareDb.raw.prepare('UPDATE share_link SET expires_at = ? WHERE id = ?').run(Date.now() - 1, expired.id);
@@ -447,8 +447,8 @@ test.describe('R9 分享短链', () => {
   });
 
   test('R9 开放重定向被拒：目标只能是站内相对路径', async ({ page, context }) => {
-    await setAdminAccount(context);
-    await page.goto(MAIN + '/account/tempkeys/');
+    await setAdmin(context);
+    await page.goto(MAIN + '/settings/security/tempkeys/');
     for (const to of ['//evil.example', 'https://evil.example/', '/\\evil.example', 'evil.example', 'javascript:alert(1)']) {
       const r = await shareApi(page, { action: 'create', hours: 1, to });
       expect(r.s, to).toBe(400);

@@ -11,7 +11,7 @@
  * 两个图标各 40px 圆形点击区、对称内缩（图标中心距长条外缘 26 = 圆半径），页名在长条正中，长条在屏幕正中。
  * 顶栏 v8（2026-10-22，三个站同一套）：九宫格圆 | 长条（只有页名）| 右圆（每站自定义；主站 = 快捷面板）；头像挪进导航抽屉头（字标右边）。
  * 主站顶栏三栏（2026-10-22 PR2，只在主站）：主页 / 聊天 / 设置（2026-10-24 PR4 第三栏由「状态」换成「设置」）这三页长条里是三个标签（.sgx-tb-tabs），
- * 不放页名；其他页照旧只有页名。三栏本身的验收见 account-status.spec.js。
+ * 不放页名；其他页照旧只有页名。三栏本身的验收见 settings-status.spec.js。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, nextFrames, animationsDone, scrolledTo, armNavProbe, expect } = require('./helpers');
@@ -62,7 +62,7 @@ for (const dark of [false, true]) {
         }
         expect(near(end.width, 52)).toBe(true);
         await expect(page.locator('.sgx-tb-back, [data-go-back], .sgx-tb-more, .sgx-tb-search, #sgx-tb-search, .sgx-tb-me, .sgx-topbar .sgx-tb-avatar')).toHaveCount(0);
-        /* 顶栏 = 两个圆 + 一个长条；右圆就是快捷面板按钮；长条里只有页名（主页 / 设置首页 = 主页 / 聊天 / 设置三栏，见 account-status.spec.js） */
+        /* 顶栏 = 两个圆 + 一个长条；右圆就是快捷面板按钮；长条里只有页名（主页 / 设置首页 = 主页 / 聊天 / 设置三栏，见 settings-status.spec.js） */
         const home = path === '/' || path === '/settings/';
         expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className))).toEqual(['sgx-tb-nav', home ? 'sgx-tb-pill sgx-tb-pill-tabs' : 'sgx-tb-pill', 'sgx-tb-end sgx-tb-quick']);
         expect(await page.locator('.sgx-tb-pill > *').evaluateAll((els) => els.map((e) => e.className))).toEqual([home ? 'sgx-tb-tabs' : 'sgx-tb-title']);
@@ -95,9 +95,9 @@ test.describe('390×844 行为', () => {
     await expect(page.locator('[data-tb-more]')).toHaveCount(0);
   });
 
-  /* 主页（/、/en/）、设置首页（/settings/、/en/settings/）长条里是三栏标签、没有页名（account-status.spec.js） */
+  /* 主页（/、/en/）、设置首页（/settings/、/en/settings/）长条里是三栏标签、没有页名（settings-status.spec.js） */
   const NAMES = [
-    ['/account/status/', '服务状态'],
+    ['/settings/status/', '服务状态'],
     ['/account/sync/', '云同步'],
     /* PR3：账号页没登录（这里没有账号会话）时页名是「登录账号」，登录后才是「账号」 */
     ['/account/', '登录账号'],
@@ -105,7 +105,7 @@ test.describe('390×844 行为', () => {
     ['/settings/security/', '安全与隐私'],
     ['/settings/security/lock/', '锁屏凭证'],
     ['/settings/display/', '显示'],
-    ['/en/account/status/', 'Service status'],
+    ['/en/settings/status/', 'Service status'],
     ['/en/account/', 'Sign in'],
     ['/en/account/reset/', 'Reset sign-in'],
   ];

@@ -1,7 +1,7 @@
 /**
- * @fileoverview 账号 → 临时钥匙（/account/tempkeys/）：给访客的临时 LockKey。
+ * @fileoverview 设置 → 安全与隐私 → 临时钥匙（/settings/security/tempkeys/）：给访客的临时 LockKey。
  *
- * - 进页 POST /api/lock-tempkey { action:'list' }：没有账号会话（401 account）→ 回账号页登录，登录后回本页；
+ * - 只认管理员锁屏会话（不问账号会话）。进页 POST /api/lock-tempkey { action:'list' }：
  *   lock 会话失效（401 session）→ 提示回锁屏
  * - 「新建临时钥匙」→ 弹层：名字（可空，最多 24 字，只有管理员看得到）+ 有效期（1–24 小时 / 3 / 7 / 15 / 30 天）
  *   → create → 弹层原地换成临时码（只显示这一次）+ 复制
@@ -9,10 +9,9 @@
  */
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
-import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose } from '../lib/dialog-behavior.js';
 import { postJSON, errText } from '../auth/account-api.js';
-import { accountUrl, createT } from './account-common.js';
+import { createT } from './account-common.js';
 
 export const TEMPKEY_API = '/api/lock-tempkey';
 
@@ -64,15 +63,10 @@ export function durationParam(v) {
   /** @type {Array<{id:string, name:string, createdAt:number, expiresAt:number}>} */
   let keys = [];
 
-  function goLogin() {
-    sgxReplace(accountUrl(en) + '?return=' + encodeURIComponent(location.pathname));
-  }
-
   /** @param {{s:number, j:any}} res @returns {boolean} 已处理 */
   function authFail(res) {
     if (res.s !== 401) return false;
-    if (res.j && res.j.error === 'session') toast(t('sessExp'));
-    else goLogin();
+    toast(t('sessExp'));
     return true;
   }
 

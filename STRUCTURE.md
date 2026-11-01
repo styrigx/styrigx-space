@@ -121,9 +121,9 @@ workers/
 |---|---|---|
 | `styrigx-auth-gateway` | `workers/auth-gateway/` | 主站锁屏后端：签发和校验锁屏会话、锁屏凭证与再验证、锁屏根密钥、其余接口；`/api/*` 和全部页面先过它，页面验完回源 Pages 取静态文件；账号路径（`/api/account`、`/api/prefs*`、`/api/avatar*`、`/api/wellbeing*`、`/avatar/*`）验门后经服务绑定 `ACCOUNT` 转给账号 Worker（转发表 `src/forwarding.js`）；blog、daymark、curio 子站的页面也由它验会话（`src/subsites.js`）；钥匙只有 `SGX_LOCK_*`、`SGX_ADMIN_KEY`、`SGX_PW_PEPPER`（Secrets Store）；认证状态在 D1 `styrigx-auth-gateway`（只有 `D1_LOCK_AUTH`，不绑 KV）。没有任何账号鉴权代码，见 `workers/auth-gateway/README.md` |
 | `styrigx-account` | `workers/account/` | 完整的账号系统（账号拆分 PR3）：账号密码 / 通行密钥、已登录设备、账号会话与短票、账号根密钥、账号审计（D1 `styrigx-account`，`D1_ACCOUNT_AUTH`），以及头像（KV `KV_PROFILE`，只放公开的 `avatar:*`）、设置云同步含主题等外观（同库 `settings_sync`，`D1_SETTINGS_SYNC`）、数字健康（同库 `wb_daily`，`D1_WELLBEING`）。**没有公开路由**：只经网关的服务绑定 `ACCOUNT`（AccountService，读网关写的身份头）和 `ACCOUNT_VERIFIER`（AccountVerifier，只读账号会话 RPC）进来，默认 fetch 一律 404；钥匙 `SGX_ACCOUNT_PRIVATE` / `SGX_ACCOUNT_PUBLIC`、`SGX_ACCOUNT_ROOT_KEY`、`SGX_PW_PEPPER`；不调网关，见 `workers/account/README.md` |
-| `styrigx-share` | `workers/share/` | 分享短链（2026-10-24）：`https://styrigx.com/s/<码>` 和管理员管理接口 `/api/share`，数据在 D1 `styrigx-share`（`D1_SHARE_LINK`）。自己挂 `styrigx.com/s/*`、`/api/share*` 两条比网关更具体的路由；不持钥匙，锁屏会话经网关 `AuthVerifier` 验、账号会话经账号 Worker `AccountVerifier` 验，短链钥匙和访客会话由网关的服务绑定 RPC `ShareIssuer` 签 |
+| `styrigx-share` | `workers/share/` | 分享短链（2026-10-24）：`https://styrigx.com/s/<码>` 和管理员管理接口 `/api/share`，数据在 D1 `styrigx-share`（`D1_SHARE_LINK`）。自己挂 `styrigx.com/s/*`、`/api/share*` 两条比网关更具体的路由；不持钥匙，只认管理员锁屏会话（经网关 `AuthVerifier` 验，不问账号会话），短链钥匙和访客会话由网关的服务绑定 RPC `ShareIssuer` 签 |
 | `styrigx-search-index` | `workers/search-index/` | 全站搜索：没有公开地址，只经网关的服务绑定 `SEARCH` 进来（`/api/search` 先验会话）；索引在 KV `styrigx-search-index` |
-| `styrigx-status` | `workers/status/` | 站点监测：cron 每分钟检查主站、博客、日刻、奇趣、规则集，每小时读一次 Cloudflare 用量，结果在 D1 `styrigx-status`；没有公开地址，只经网关的服务绑定 `STATUS` 进来（`/api/status` 先验会话，账号 → 服务状态页读它） |
+| `styrigx-status` | `workers/status/` | 站点监测：cron 每分钟检查主站、博客、日刻、奇趣、规则集，每小时读一次 Cloudflare 用量，结果在 D1 `styrigx-status`；没有公开地址，只经网关的服务绑定 `STATUS` 进来（`/api/status` 先验会话，设置 → 服务状态页读它） |
 | `styrigx-chat` | `workers/chat/` | 聊天后端（2026-10-22 从网关拆出来）：没有公开地址，只经网关的服务绑定 `CHAT` 进来（`/api/chat` 先验同源 + 会话 + 只许管理员，回答原样流回）；转给 Gemini（或 OpenAI 兼容接口），不存对话；钥匙 `SGX_CHAT_API_KEY`（Secrets Store）和 `CHAT_*` 变量只在这里 |
 | `styrigx-proxy-rules` | `workers/proxy-rules/` | 规则集加速反代：`proxy-rules.styrigx.com`（自定义域名，不过网关），只放行 MetaCubeX/meta-rules-dat 的 geosite/geoip 规则集（`.mrs` `.yaml` `.list`），上游 jsDelivr → raw.githubusercontent，边缘缓存 24 小时 |
 
@@ -175,7 +175,7 @@ tests/
 | `workers/_harness.mjs`、`_harness.cjs` | 测试台公共件：内存 KV（`makeKV`）、内存认证 D1（`makeAuthD1`，node:sqlite）、`derToPem`、`genKeyPair`、`postReq`；e2e 的 `edge-harness.cjs` / `cred-e2e-helpers.cjs` 也用 `_harness.cjs`，不再各写一份 |
 | `workers/auth-gateway/` | 鉴权单元测试（`node --test`） |
 | `workers/account/` | 账号 Worker 单元测试（账号身份、头像、云同步、数字健康、命名入口与身份头、没有公开路由） |
-| `workers/share/` | 短链 Worker 单元测试（规则、生成 / 打开 / 作废、权限、限速、路由；钥匙和锁屏会话经网关真实的 share-issuer.js / verifier.js，账号会话用替身 AccountVerifier） |
+| `workers/share/` | 短链 Worker 单元测试（规则、生成 / 打开 / 作废、权限、限速、路由；钥匙和锁屏会话经网关真实的 share-issuer.js / verifier.js；不问账号会话） |
 | `workers/search-index/` | 全站搜索单元测试 |
 | `workers/status/` | 站点监测单元测试（检查、汇总、用量；有 `node:sqlite` 时跑真 SQL） |
 | `workers/chat/` | 聊天 Worker 单元测试（网关那边的门和转发在 `workers/auth-gateway/chat-api.test.mjs`） |

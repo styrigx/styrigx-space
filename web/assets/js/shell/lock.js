@@ -13,7 +13,7 @@
  *   拖动条、标题字号位置、按钮样式一致）；弹层背景完全不透明；打开时底层
  *   名字与入口设 visibility:hidden + inert；容器无 outline，:focus-visible 只在
  *   内部可交互元素上用本站焦点色。
- * - 临时钥匙：admin 在账号页签发（12 位，XXXX-XXXX-XXXX），访客在这里输入 → POST /api/lock-tempkey-unlock
+ * - 临时钥匙：admin 在设置 → 安全与隐私 → 临时钥匙页签发（12 位，XXXX-XXXX-XXXX），访客在这里输入 → POST /api/lock-tempkey-unlock
  *   → 访客会话（没有账号、设置里的锁屏凭证等 admin 权限）。
  */
 import { on } from '../lib/events.js';

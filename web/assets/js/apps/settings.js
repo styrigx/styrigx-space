@@ -667,7 +667,7 @@ export function mountSettings() {
       var b = e.target && e.target.closest ? e.target.closest('.set-cat') : null;
       if (!b) return;
       var id = b.getAttribute('data-cat') || '';
-      if (id === 'security') return; /* 独立页面，不拦截 */
+      if (id === 'security' || id === 'status') return; /* 独立页面，不拦截 */
       if (!isWide) return; /* 移动端没有双栏（导航隐藏），照常跳转 */
       e.preventDefault();
       showPane(id, b.getAttribute('data-title') || '');

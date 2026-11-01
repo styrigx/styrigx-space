@@ -322,13 +322,13 @@ test('deploy.yml：回滚不加新 secret（只用各 job 原有的部署 token 
   for (const s of used) assert.ok(allowed.has(s), 'unexpected secret ' + s);
 });
 
-test('deploy.yml：账号拆分 PR3 部署顺序 账号 → 短链 → 网关 → Pages（网关部署时短链已改问账号 Worker，没有 401 窗口）', () => {
+test('deploy.yml：部署顺序 账号、短链（可并行）→ 网关 → Pages（短链不再绑账号 Worker）', () => {
   const needs = (/** @type {string} */ j) => [].concat(wf.jobs[j].needs || []);
   /* 账号最先：和网关一样等 status 的健康闸门，但不等网关 */
   for (const n of ['deploy-search-worker', 'deploy-status-worker', 'deploy-chat-worker']) assert.ok(needs('deploy-account-worker').includes(n), n);
   assert.ok(!needs('deploy-account-worker').includes('deploy-auth-worker'));
-  /* 短链：账号之后（ACCOUNT_VERIFIER 指向它）、网关之前 */
-  assert.ok(needs('deploy-share-worker').includes('deploy-account-worker'));
+  /* 短链：不再绑 ACCOUNT_VERIFIER，不等账号；网关之前 */
+  assert.ok(!needs('deploy-share-worker').includes('deploy-account-worker'));
   assert.ok(needs('deploy-share-worker').includes('deploy-status-worker'));
   assert.ok(!needs('deploy-share-worker').includes('deploy-auth-worker'));
   /* 网关：账号、短链都在之后才部署；Pages 等网关 */

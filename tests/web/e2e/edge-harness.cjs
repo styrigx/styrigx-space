@@ -18,8 +18,8 @@
  * - 访客进入用临时 LockKey：seedTempkey() 在 KV 里签发一把，返回临时码（2026-10-23 取代 Turnstile）。
  * - seedPasskey()：在 KV 里登记一把锁屏通行密钥，返回 CDP WebAuthn.addCredential 用的参数。
  * - 分享短链 Worker = workers/share/src/index.js（路由 workers/share/wrangler.toml：/s/*、/api/share*），D1 用 tests/fixtures/share-d1.mjs，
- *   服务绑定 AUTH 接网关 verifier.js（只用 lockSession）、ISSUER 接网关 src/share-issuer.js（ShareIssuer RPC 里跑的同一份代码）、
- *   ACCOUNT_VERIFIER 接账号 Worker 的 checkAccountSession。
+ *   服务绑定 AUTH 接网关 verifier.js（只用 lockSession）、ISSUER 接网关 src/share-issuer.js（ShareIssuer RPC 里跑的同一份代码）；
+ *   不绑 ACCOUNT_VERIFIER（短链管理只认管理员锁屏会话，不问账号会话；同正式 workers/share/wrangler.toml）。
  */
 const https = require('node:https');
 const http = require('node:http');
@@ -149,7 +149,7 @@ async function startEdge() {
     SGX_ACCOUNT_ROOT_KEY: 'edge-test-account-root-key-not-a-secret', SGX_PW_PEPPER: 'edge-test-pepper',
     ASSETS: assets,
   };
-  /* 账号 Worker 的两个命名入口，形状同服务绑定（网关、短链 Worker 共用） */
+  /* 账号 Worker 的两个命名入口，形状同服务绑定（只给网关；短链 Worker 不绑账号） */
   const ACCOUNT = {
     fetch: async (req) => {
       const res = await accountEntry.serviceFetch(req, accountEnv, { waitUntil() {} });
@@ -175,7 +175,6 @@ async function startEdge() {
     SGX_ENV: 'production',
     D1_SHARE_LINK: shareDb,
     AUTH: { lockSession: (c) => verifier.checkLockSession(c, env) },
-    ACCOUNT_VERIFIER,
     ISSUER: {
       createLinkKey: (c, p) => issuer.createLinkKey(c, p, env),
       revokeLinkKey: (c, id, m) => issuer.revokeLinkKey(c, id, env, m),

@@ -1,7 +1,8 @@
 /**
  * 2.6.0：设置二级页。真实断言（不 mock 自家逻辑）：
- * - Mobile /settings/ 只留 6 分类入口（账户卡已移到账号页 /account/），无选项组（B2-2 新增 Good Lock，B2-4 删除应用；
- *   2026-10-23 PR-E：Good Lock 改名高级功能，常规管理 / 辅助功能删除，分组卡片 [显示 风格] [安全与隐私] [高级功能 数字健康] [关于本站]）
+ * - Mobile /settings/ 只留 7 分类入口（账户卡已移到账号页 /account/），无选项组（B2-2 新增 Good Lock，B2-4 删除应用；
+ *   2026-10-23 PR-E：Good Lock 改名高级功能，常规管理 / 辅助功能删除，分组卡片 [显示 风格] [安全与隐私] [高级功能 数字健康] [关于本站]；
+ *   之后服务状态从账号页搬来，成为第 7 项「服务状态」，和安全与隐私一样是独立页面 /settings/status/）
  * - DeX/PC /settings/ 左右双栏：左分类导航、右详情窗格（复用子页同一套 partial）
  * - 7 个子页可达、有对应选项组（2026-10-20 起顶栏没有返回键）
  * - 旧 hash 跳转到子页
@@ -17,6 +18,7 @@ const CATS = [
   { id: 'security', zh: '安全与隐私', en: 'Security and privacy' },
   { id: 'advanced', zh: '高级功能', en: 'Advanced features' },
   { id: 'wellbeing', zh: '数字健康', en: 'Digital wellbeing' },
+  { id: 'status', zh: '服务状态', en: 'Service status' },
   { id: 'about', zh: '关于本站', en: 'About' },
 ];
 
@@ -38,12 +40,12 @@ async function pinLang(pg, lang) {
 /* Mobile（竖屏）：单列分类列表 */
 test.use({ viewport: { width: 412, height: 915 } });
 
-test('settings home (mobile): 6 category links, each in its own card, no account card, no option groups', async ({ page: pg }) => {
+test('settings home (mobile): 7 category links, each in its own card, no account card, no option groups', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await gotoSettings(pg, '/settings/');
   // 账户卡已移到账号页（顶栏右圆头像进入），设置页不再有
   await expect(pg.locator('.sgx-account-card')).toHaveCount(0);
-  // 6 个分类入口（2.8.0：分类列表由 .set-main 内 aria-label="分类" 的容器承载；2026-10-23 起每项单独一张卡片）
+  // 7 个分类入口（2.8.0：分类列表由 .set-main 内 aria-label="分类" 的容器承载；2026-10-23 起每项单独一张卡片）
   const catList = pg.locator('.set-main [aria-label="分类"]');
   for (const c of CATS) {
     const link = catList.locator(`.set-row[href="/settings/${c.id}/"]`);
@@ -60,6 +62,7 @@ test('settings home (mobile): 6 category links, each in its own card, no account
     ['/settings/security/'],
     ['/settings/advanced/'],
     ['/settings/wellbeing/'],
+    ['/settings/status/'],
     ['/settings/about/'],
   ]);
   // 2026-10-23：卡片只有名称，没有灰色副标题
@@ -81,10 +84,10 @@ test.describe('settings home (dex): two-pane', () => {
   test('left nav switches right pane in place', async ({ page: pg }) => {
     await pinLang(pg, 'zh');
     await gotoSettings(pg, '/settings/');
-    // 左栏导航可见、6 项
+    // 左栏导航可见、7 项
     const nav = pg.locator('#set-cat-nav');
     await expect(nav).toBeVisible();
-    await expect(nav.locator('.set-cat')).toHaveCount(6);
+    await expect(nav.locator('.set-cat')).toHaveCount(7);
     // 移动端列表隐藏
     await expect(pg.locator('.set-mobile-only')).toBeHidden();
     // 默认显示 display 窗格
@@ -96,13 +99,16 @@ test.describe('settings home (dex): two-pane', () => {
     await expect(pg.locator('#sg-display')).toBeHidden();
     await expect(pg.locator('#set-right-title')).toContainText('风格');
     expect(new URL(pg.url()).pathname).toBe('/settings/');
+    // 服务状态也是独立页面：导航项直接链到 /settings/status/（点击不拦截，不在右窗格里）
+    await expect(nav.locator('[data-cat="status"]')).toHaveAttribute('href', '/settings/status/');
+    await expect(pg.locator('#sg-status')).toHaveCount(0);
     // 点安全与隐私：跳独立页面
     await nav.locator('[data-cat="security"]').click();
     await pg.waitForURL('**/settings/security/', { timeout: 10000 });
   });
 });
 
-test('settings home (en): 6 category links', async ({ page: pg }) => {
+test('settings home (en): 7 category links', async ({ page: pg }) => {
   await pinLang(pg, 'en');
   await gotoSettings(pg, '/en/settings/');
   for (const c of CATS) {
@@ -133,7 +139,7 @@ const GONE = {
 };
 
 for (const c of CATS) {
-  if (c.id === 'security') continue; // security 子页已有测试覆盖
+  if (c.id === 'security' || c.id === 'status') continue; // security、status 是独立页面，各有测试覆盖（status 见 settings-status.spec.js）
   test(`subpage /settings/${c.id}/: no back button + options`, async ({ page: pg }) => {
     await pinLang(pg, 'zh');
     await gotoSettings(pg, `/settings/${c.id}/`);
@@ -224,12 +230,12 @@ test.describe('unlock methods entry relocation', () => {
     await expect(pg.locator('#sgx-unlock-link')).toHaveCount(0);
   });
 
-  test('security page: two entries (owner credential moved to account avatar), no unlock-methods', async ({ page: pg }) => {
+  test('security page: three entries (owner credential moved to account avatar), no unlock-methods', async ({ page: pg }) => {
     await pinLang(pg, 'zh');
     await blockExternalRequests(pg);
     await pg.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
     await expect(pg.locator('.set-layout').first()).toBeVisible({ timeout: 15000 });
-    /* 安全页两项（锁屏凭证/立即锁定）；管理凭证已删除；账号在导航抽屉头的头像（2026-10-22 从顶栏右圆挪进去） */
+    /* 安全页三项（锁屏凭证/临时钥匙/立即锁定；临时钥匙从账号页搬来）；管理凭证已删除；账号在导航抽屉头的头像（2026-10-22 从顶栏右圆挪进去） */
     await expect(pg.locator('#sec-unlock-methods')).toHaveCount(0);
     await expect(pg.locator('#sec-owner-cred')).toHaveCount(0);
     await expect(pg.locator('.sgx-drawer-me')).toHaveAttribute('href', '/account/');
@@ -238,12 +244,16 @@ test.describe('unlock methods entry relocation', () => {
     await expect(lockCred).toHaveCount(1);
     await expect(lockCred).toContainText('锁屏凭证');
     await expect(lockCred).toHaveAttribute('href', '/settings/security/lock/');
+    const tk = pg.locator('#sec-tempkeys');
+    await expect(tk).toHaveCount(1);
+    await expect(tk).toContainText('临时钥匙');
+    await expect(tk).toHaveAttribute('href', '/settings/security/tempkeys/');
     const locknow = pg.locator('#sec-locknow');
     await expect(locknow).toHaveCount(1);
     await expect(locknow).toContainText('立即锁定');
   });
 
-  test('security page (en): two entries', async ({ page: pg }) => {
+  test('security page (en): three entries', async ({ page: pg }) => {
     await pinLang(pg, 'en');
     await blockExternalRequests(pg);
     await pg.goto('/en/settings/security/', { waitUntil: 'domcontentloaded' });
@@ -251,6 +261,8 @@ test.describe('unlock methods entry relocation', () => {
     await expect(pg.locator('#sec-unlock-methods')).toHaveCount(0);
     await expect(pg.locator('#sec-owner-cred')).toHaveCount(0);
     await expect(pg.locator('#sec-lock-cred')).toContainText('Lock screen credentials');
+    await expect(pg.locator('#sec-tempkeys')).toContainText('Temporary keys');
+    await expect(pg.locator('#sec-tempkeys')).toHaveAttribute('href', '/en/settings/security/tempkeys/');
     await expect(pg.locator('#sec-locknow')).toContainText('Lock now');
   });
 });

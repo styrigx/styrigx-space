@@ -31,7 +31,7 @@ const ADMIN_ONLY_APIS = [
   '/api/lock-passkey',
   '/api/lock-all-devices',
   '/api/lock-reauth',
-  '/api/lock-tempkey', /* 临时钥匙管理：还要账号会话（接口里验） */
+  '/api/lock-tempkey', /* 临时钥匙管理：只认管理员锁屏会话（接口里再验一次 admin） */
 ];
 /* 认证类 action（visitor 可调用，用于就地升级为管理员：锁屏密码 verify、锁屏通行密钥 challenge / auth） */
 const AUTH_ACTIONS = new Set(['verify', 'challenge', 'register', 'auth']);
@@ -230,7 +230,7 @@ async function handleRequest(context) {
       return injectSessionState(res, sessionValid ? 'valid' : 'locked', role);
     }
 
-    /* 访客直接打开管理员专属路径（锁屏凭证页）→ 302 到首页的「管理员验证」（?return=，不带 lock=1）：
+    /* 访客直接打开管理员专属路径（锁屏凭证页、临时钥匙页、服务状态页）→ 302 到首页的「管理员验证」（?return=，不带 lock=1）：
        首页按 访客 + 管理员专属 return 返回 upgrade 态，前端只弹管理员验证层，不出锁屏、不动访客会话。
        （站内点「锁屏凭证」不走这里：security.js 对访客就地弹同一个验证层，不跳页。）
        以前带 lock=1，并且 styrigx.com/ 路由不认查询串 → 锁屏页从 Pages 直出、没有会话标记 → 整个锁屏闪一下。 */

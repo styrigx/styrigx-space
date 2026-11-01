@@ -1,6 +1,6 @@
 /**
- * @fileoverview 服务状态（账号 → 服务状态 /account/status/；2026-10-24 PR4 前是顶栏「状态」页）的纯函数：北京时间格式、时长、可用率、每日色块、当前状态，以及卡片 / 故障列表的 HTML。
- * 没有 DOM、没有请求（apps/account-status.js 负责取 /api/status、插进页面、每 60 秒刷新），node --test 直接测
+ * @fileoverview 服务状态（设置 → 服务状态 /settings/status/；2026-10-24 PR4 前是顶栏「状态」页）的纯函数：北京时间格式、时长、可用率、每日色块、当前状态，以及卡片 / 故障列表的 HTML。
+ * 没有 DOM、没有请求（apps/settings-status.js 负责取 /api/status、插进页面、每 60 秒刷新），node --test 直接测
  * （tests/web/ui/status-view.test.mjs）。
  *
  * 数据形状 = /api/status（网关转 styrigx-status 的 /summary，见 workers/status/src/monitor.js summary）：
@@ -274,7 +274,7 @@ export function uptime90(s) {
 }
 
 /**
- * 一张站点卡（article.st-card）。色块是 span，整条 role="img" 带可读的总结；点色块的说明由 apps/account-status.js 填进 .st-detail。
+ * 一张站点卡（article.st-card）。色块是 span，整条 role="img" 带可读的总结；点色块的说明由 apps/settings-status.js 填进 .st-detail。
  * @param {any} s
  * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, en:boolean, now:number, today:string}} ctx
  */
@@ -340,7 +340,7 @@ export function renderIncidents(incidents, ctx) {
   return '<ul class="st-inc-list">' + items.join('') + '</ul>';
 }
 
-/* ===== 根凭证使用记录（GET /api/root-audit；账号 → 服务状态页底部的折叠区，展开才请求）=====
+/* ===== 根凭证使用记录（GET /api/root-audit；设置 → 服务状态页底部的折叠区，展开才请求）=====
  * 接口给 { ok, items: [{ ts, ipPrefix, ok }] }，已按新到旧排好、最多 AUDIT_MAX 条，记录保留 7 天。 */
 
 /** 接口一次最多给几条（同 workers/auth-gateway/functions/api/root-audit.js AUDIT_SHOW） */
@@ -542,7 +542,7 @@ export function usageRow(x, ctx) {
  *            r2: { class_a, class_b, free, other, since, limits: { class_a, class_b } } | null,
  *            errors: { [part]: code } } | null
  *   quota_reason: null | 'not-configured' | 'secret-missing' | 'api-error' | 'db'
- *   没有 quota 字段（旧版监测 Worker）→ 整块不显示（apps/account-status.js）。
+ *   没有 quota 字段（旧版监测 Worker）→ 整块不显示（apps/settings-status.js）。
  * 额度用完服务直接报错（KV 写 429、D1 拒绝、Workers 1027），所以门槛比存储量严：≥ 80% 琥珀（warn），≥ 95% 红（crit）。 */
 
 export const QUOTA_WARN = 80;

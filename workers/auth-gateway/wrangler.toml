@@ -72,7 +72,7 @@ SGX_RP_ID = "styrigx.com"
 # ---- 服务绑定 ----
 # 账号 Worker styrigx-account（workers/account；没有公开地址，只能从这里进；方案第 1、10.1 节）：
 # - ACCOUNT（entrypoint AccountService）：转发表 src/forwarding.js 里的路径验完门后原样转过去，写全套身份头（X-Styrigx-Lock-* / X-Styrigx-Client-*）
-# - ACCOUNT_VERIFIER（entrypoint AccountVerifier）：只读 RPC accountSession()——临时钥匙管理、短链签发、账号页首帧提示用
+# - ACCOUNT_VERIFIER（entrypoint AccountVerifier）：只读 RPC accountSession()——只有账号页首帧提示用（临时钥匙、短链只认管理员锁屏会话）
 # 部署顺序：deploy.yml 里 deploy-account-worker 先于本 Worker（命名入口 PR2 已导出）。
 [[services]]
 binding = "ACCOUNT"

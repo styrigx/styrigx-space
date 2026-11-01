@@ -23,7 +23,7 @@ const VIEWPORTS = {
 /* 账号页（独立页 /account/，2026-10-22 从 /settings/account/ 挪出）三星式总览：/account/ 拍登录后的总览（登录区由下方 account-login-* 覆盖），
    新增安全与隐私子页 /account/security/（已过门；倒计时数字在截图里遮罩），
    账号信息子页 /account/profile/ 2026-10-24 PR4 删除（登录方式 / 退出账号挪进设备页「此设备」卡），截图一并删除；
-   PR4 新增的账号子页（服务状态 / 云同步 / 设备）只拍手机，见文件末尾 account-sub-* */
+   PR4 新增的账号子页（云同步 / 设备）只拍手机，见文件末尾 account-sub-*；服务状态、临时钥匙搬到设置后也只拍手机，见文件末尾 settings-status-* / settings-tempkeys-* */
 const PAGES = ['/', '/settings/', '/settings/security/', '/settings/security/lock/', '/account/', '/account/security/', '/account/reset/'];
 const LANGS = [
   { prefix: '', name: 'zh' },
@@ -319,21 +319,23 @@ for (const lang of DOOR_LANGS) {
   }
 }
 
-/* ===== 账号子页（2026-10-24 PR4）：服务状态（原顶栏「状态」页挪进来）/ 云同步（总开关 + 同步项）/ 设备（此设备卡：登录方式 + 退出账号）=====
- * 手机 412×915 × 中英 × 深浅色。/api/status 用 tests/fixtures/status-summary.cjs（含用量），/api/account 固定已登录、设备列表固定两台。 */
+/* ===== 子页（只拍手机）：账号子页（2026-10-24 PR4）云同步（总开关 + 同步项）/ 设备（此设备卡：登录方式 + 退出账号）；
+ * 设置里的管理员专属页：服务状态（/settings/status/，原顶栏「状态」页 → 账号页 → 设置）/ 临时钥匙（/settings/security/tempkeys/，原账号 → 临时钥匙）=====
+ * 截图名 mobile-<stem>-<lang>-<theme>：账号子页 stem = account-sub-<id>，设置页 stem = settings-status / settings-tempkeys（2026-11 从 account-sub-status / account-sub-tempkeys 改名，页面内容不变）。
+ * 手机 412×915 × 中英 × 深浅色。/api/status 用 tests/fixtures/status-summary.cjs（含用量），/api/account 固定已登录（设置页不读它）、设备列表固定两台。 */
 const fxStatus = require('../../fixtures/status-summary.cjs');
 const SUB_PAGES = [
-  ['status', '/account/status/', async (pg) => { await expect(pg.locator('#st-root')).toHaveAttribute('data-state', 'ready', { timeout: 10000 }); }],
-  ['sync', '/account/sync/', async (pg) => { await expect(pg.locator('[data-sync-key="sgx-theme-mode"] [data-sync-val]')).not.toHaveText('', { timeout: 10000 }); }],
-  ['devices', '/account/devices/', async (pg) => { await expect(pg.locator('#acct-devices')).toBeVisible({ timeout: 10000 }); await expect(pg.locator('#acct-by')).not.toHaveText(''); }],
+  ['settings-status', '/settings/status/', async (pg) => { await expect(pg.locator('#st-root')).toHaveAttribute('data-state', 'ready', { timeout: 10000 }); }],
+  ['account-sub-sync', '/account/sync/', async (pg) => { await expect(pg.locator('[data-sync-key="sgx-theme-mode"] [data-sync-val]')).not.toHaveText('', { timeout: 10000 }); }],
+  ['account-sub-devices', '/account/devices/', async (pg) => { await expect(pg.locator('#acct-devices')).toBeVisible({ timeout: 10000 }); await expect(pg.locator('#acct-by')).not.toHaveText(''); }],
   /* 2026-10-24 分享短链：临时钥匙页（临时钥匙 + 分享短链两张列表），数据见 tests/fixtures/share-links.cjs */
-  ['tempkeys', '/account/tempkeys/', async (pg) => { await expect(pg.locator('#acct-sl-list .sl-item')).toHaveCount(3, { timeout: 10000 }); await expect(pg.locator('#acct-tk-list .acct-dev-item')).toHaveCount(1); }],
+  ['settings-tempkeys', '/settings/security/tempkeys/', async (pg) => { await expect(pg.locator('#acct-sl-list .sl-item')).toHaveCount(3, { timeout: 10000 }); await expect(pg.locator('#acct-tk-list .acct-dev-item')).toHaveCount(1); }],
 ];
 const fxShare = require('../../fixtures/share-links.cjs');
 for (const lang of LANGS) {
   for (const theme of THEMES) {
-    for (const [id, path, ready] of SUB_PAGES) {
-      const name = `mobile-account-sub-${id}-${lang.name}-${theme.name}`;
+    for (const [stem, path, ready] of SUB_PAGES) {
+      const name = `mobile-${stem}-${lang.name}-${theme.name}`;
       test(name, async ({ page: pg }) => {
         await pg.setViewportSize(VIEWPORTS.mobile);
         await blockExternalRequests(pg);
@@ -373,15 +375,15 @@ for (const lang of LANGS) {
 }
 
 /* ===== 服务状态页底「根凭证使用记录」展开态（2026-10-26）：手机 412×915 × 中英 × 深浅色 =====
- * 默认收起态已在 mobile-account-sub-status-*（首屏，不含页底折叠区）；这里点开摘要、等两条记录渲染完，把折叠区滚到视口里拍首屏。
- * 数据：/api/status 同 account-sub-status；/api/root-audit 固定两条（一条成功、一条失败），时间相对 fxStatus.NOW。 */
+ * 默认收起态已在 mobile-settings-status-*（首屏，不含页底折叠区）；这里点开摘要、等两条记录渲染完，把折叠区滚到视口里拍首屏。
+ * 数据：/api/status 同 settings-status；/api/root-audit 固定两条（一条成功、一条失败），时间相对 fxStatus.NOW。 */
 const AUDIT_ITEMS = [
   { ts: fxStatus.NOW - 30 * 60 * 1000, ipPrefix: '203.0.113.x', ok: true },
   { ts: fxStatus.NOW - 26 * 3600 * 1000, ipPrefix: '2001:db8:1:2::x', ok: false },
 ];
 for (const lang of LANGS) {
   for (const theme of THEMES) {
-    const name = `mobile-account-sub-status-audit-open-${lang.name}-${theme.name}`;
+    const name = `mobile-settings-status-audit-open-${lang.name}-${theme.name}`;
     test(name, async ({ page: pg }) => {
       await pg.setViewportSize(VIEWPORTS.mobile);
       await blockExternalRequests(pg);
@@ -402,7 +404,7 @@ for (const lang of LANGS) {
         content: 'html{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans CJK SC","Noto Sans CJK",sans-serif !important}',
       });
       await freezeTime(pg);
-      await pg.goto(lang.prefix + '/account/status/', { waitUntil: 'domcontentloaded' });
+      await pg.goto(lang.prefix + '/settings/status/', { waitUntil: 'domcontentloaded' });
       await waitPageReady(pg);
       await expect(pg.locator('#st-root')).toHaveAttribute('data-state', 'ready', { timeout: 10000 });
       await pg.locator('#st-audit summary').click();

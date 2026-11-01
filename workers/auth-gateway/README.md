@@ -14,7 +14,7 @@ migrations/  D1 styrigx-auth-gateway 建表
 
 - 网关 fetch 第一步剥掉入站请求里所有 `x-styrigx-*` 和 `x-sgx-role` 头（下游只认网关自己写的）。
 - 账号路径（转发表 `src/forwarding.js`）：`/api/account`、`/api/prefs*`、`/api/avatar*`、`/api/wellbeing*`、`/avatar/*`。`_middleware.js` 先验门（`/api/account`、`/api/prefs*` 只许管理员；`/api/avatar*`、`/api/wellbeing*` 要有会话；`/avatar/*` 公开），放行后经服务绑定 `ACCOUNT`（entrypoint `AccountService`）原样转给账号 Worker，并按验过的锁屏会话写规范身份头 `X-Styrigx-Lock-*` / `X-Styrigx-Client-*`。没绑定或绑定出错 → 503 upstream，不落回网关路由表、不回源静态文件。转发回来的响应保留 `X-SGX-Runtime: account`。
-- 网关自己要知道「账号会话是否有效」时（临时钥匙管理 `/api/lock-tempkey`、短链签发 `ShareIssuer`、账号页首帧提示 `data-sgx-account-session`），只经服务绑定 `ACCOUNT_VERIFIER`（entrypoint `AccountVerifier`）调只读 RPC `accountSession(cookieHeader, clientContext)`（`functions/_kernel/account-rpc.js`），拿到的只是结论，网关不验账号票、不读账号库。
+- 网关自己要知道「账号会话是否有效」的只剩账号页首帧提示 `data-sgx-account-session`：只经服务绑定 `ACCOUNT_VERIFIER`（entrypoint `AccountVerifier`）调只读 RPC `accountSession(cookieHeader, clientContext)`（`functions/_kernel/account-rpc.js`），拿到的只是结论，网关不验账号票、不读账号库。临时钥匙管理 `/api/lock-tempkey`（含短链钥匙，`ShareIssuer`）和服务状态页只认管理员锁屏会话，不问账号会话。
 - 子站：`blog.styrigx.com`、`daymark.styrigx.com`、`curio.styrigx.com` 的路由（整站通配 `<域名>/*`）也登记在 `wrangler.toml`，网关验锁屏会话（admin、visitor 都放行）后回源子站 Pages；未登录 302 到主站锁屏，`/api/lock-session-check` 由网关直接回答。子站登记表在 `src/subsites.js`，新增子站要在那里加一项并登记路由。子站 Pages 不持任何钥匙。
 - 后端拆出去的其他 Worker（都没有公开地址，只经本网关的服务绑定进来，网关先验会话）：全站搜索 `SEARCH` → `styrigx-search-index`、站点监测 `STATUS` → `styrigx-status`、聊天 `CHAT` → `styrigx-chat`（`/api/chat` 验同源 + 会话 + 只许管理员后转过去，回答原样流回；聊天钥匙 `SGX_CHAT_API_KEY` 和 `CHAT_*` 变量只在 `workers/chat/`，网关不绑）。
 - 给其他 Worker 的 RPC：`AuthVerifier.lockSession(cookieHeader)` → `{ok, role}`（role 为 `admin` / `visitor`），只回答锁屏会话（PR3 起没有 `accountSession()`；账号会话问账号 Worker 的 `AccountVerifier`）。调用方：`styrigx-daymark-core`、`styrigx-curio-core`、`styrigx-share`；调用方 wrangler.toml 写 `[[services]] binding = "AUTH"`、`service = "styrigx-auth-gateway"`、`entrypoint = "AuthVerifier"`。`ShareIssuer` 只给 `styrigx-share`（签 / 作废短链钥匙、点开时换访客会话）。只能经服务绑定调用，公网进不来。
@@ -44,7 +44,7 @@ migrations/  D1 styrigx-auth-gateway 建表
 
 ## 部署和回滚
 
-- 部署顺序（`.github/workflows/deploy.yml`）：搜索 / 聊天 / 监测 → **账号 → 短链 → 网关 → Pages**。账号先上（网关要转发给它的命名入口）；短链在网关之前（短链已改问账号 Worker 的 `AccountVerifier`，网关上线那一刻短链不会出现 401 窗口）；网关冒烟通过后才部署 Pages。
+- 部署顺序（`.github/workflows/deploy.yml`）：搜索 / 聊天 / 监测 → **账号 → 短链 → 网关 → Pages**。账号先上（网关要转发给它的命名入口）；短链在网关之前（短链只认管理员锁屏会话，对新旧网关都能用）；网关冒烟通过后才部署 Pages。
 - 回滚：Pages 上已经没有后端代码，不能靠删路由回滚（删了页面就不验会话）。main 部署时冒烟失败，CI 自动 `wrangler rollback` 到部署前的版本（`scripts/deploy-rollback.mjs`，只换代码版本，D1 / KV 数据和路由都不回滚）。部署前的版本低于回滚下限（`scripts/deploy-rollback-floor.json`：本 Worker 要求目标版本带 `D1_LOCK_AUTH`、`ACCOUNT`、`SGX_ADMIN_KEY` 绑定，即账号拆分 PR3 之后的代码）就不记、不自动回滚。要回到更早的代码就 revert 对应提交重新部署。
 - 预览（passkey-e2e）：CI 把组合入口 `tests/web/e2e/preview-worker.js`（网关 + 账号 Worker 两边的真实代码，env 按正式绑定拆开）打包成 Pages 的 `_worker.js`，部署到 `passkey-e2e.styrigx-space.pages.dev`。预览资源只用一个 `styrigx-test-preview`（D1 / KV 都是这个名字；网关、账号、短链共用，PR3b 单测守卫）；测试用的 `SGX_ADMIN_KEY`、`SGX_ACCOUNT_ROOT_KEY`（两把不同）和 `SGX_PW_PEPPER` 每次运行现生成，不进 toml、不进 GitHub Secrets。
 

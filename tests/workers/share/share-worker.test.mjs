@@ -7,18 +7,18 @@
  * D1：有 node:sqlite 时真 SQL（migrations + lib/links.js 的语句）和内存替身各跑一遍；Node 20 只跑内存替身。
  *
  * - 规则：码 128 位、目标只收站内相对路径（防开放重定向）、有效期 / 会话档位和网关一致、会话不超过有效期
- * - 生成：带会话 → 网关签一把 link 钥匙（不在临时钥匙列表、不占 20 把）；普通 → 不签；网关再验一次管理员 + 账号会话
+ * - 生成：带会话 → 网关签一把 link 钥匙（不在临时钥匙列表、不占 20 把）；普通 → 不签；网关再验一次管理员锁屏会话（不问账号会话）
  * - 点开：带会话 → visitor 会话（by=tempkey，票里带 tempkeyId）（Max-Age = min(会话, 剩余)），302 到干净目标；普通 → 只 302；管理员不降级；
  *   预取 / HEAD 不发会话；不存在 / 过期 / 作废 / 格式不对 → 同一个响应；限速
  * - 作废：带会话的连钥匙一起作废，已发出的访客会话下一个请求就进不来
- * - 权限：只有管理员 + 账号会话能管；访客 403、没会话 401、跨源 403
+ * - 权限：只认管理员锁屏会话（不问账号会话）；访客 403、没会话 401、跨源 403
  * - 路由：/s/*、/api/share* 归短链 Worker，网关的接口和页面一条没被抢
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { shareD1, HAS_SQLITE } from '../../fixtures/share-d1.mjs';
-import { testLockSession, TEST_ACCOUNT_COOKIE, fakeAccountVerifier } from '../auth-gateway/_tickets.mjs';
+import { testLockSession } from '../auth-gateway/_tickets.mjs';
 import { makeAuthD1, genKeyPair } from '../_harness.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
@@ -44,7 +44,6 @@ function setup(d1opts) {
   const gwEnv = {
     D1_LOCK_AUTH: authDb,
     SGX_LOCK_PRIVATE: LOCK.priv, SGX_LOCK_PUBLIC: LOCK.pub,
-    ACCOUNT_VERIFIER: fakeAccountVerifier(), /* 网关 ShareIssuer 的账号会话也问账号 Worker */
     SGX_PW_PEPPER: 'share-test-pepper', SGX_ENV: 'production', SGX_SITE: 'space',
   };
   const db = shareD1(d1opts);
@@ -53,10 +52,9 @@ function setup(d1opts) {
     SGX_ENV: 'production',
     D1_SHARE_LINK: db,
     AUTH: { lockSession: (c) => checkLockSession(c, gwEnv) }, /* 网关 AuthVerifier 只剩 lockSession() */
-    ACCOUNT_VERIFIER: fakeAccountVerifier(), /* 账号会话：账号 Worker 的 AccountVerifier（方案 10.3） */
     ISSUER: {
       createLinkKey: (c, p) => { calls.push('create'); return issuerMod.createLinkKey(c, p, gwEnv); },
-      revokeLinkKey: (c, id, m) => { calls.push('revoke'); return issuerMod.revokeLinkKey(c, id, gwEnv, m); },
+      revokeLinkKey: (c, id) => { calls.push('revoke'); return issuerMod.revokeLinkKey(c, id, gwEnv); },
       openLinkSession: (id, s) => { calls.push('open'); return issuerMod.openLinkSession(id, s, gwEnv); },
     },
   };
@@ -66,7 +64,7 @@ function setup(d1opts) {
 
 async function adminCookie() {
   const lock = await testLockSession(LOCK.priv, 0, 'admin', 'password');
-  return 'sgx-lock-session=' + lock + '; ' + TEST_ACCOUNT_COOKIE;
+  return 'sgx-lock-session=' + lock; /* 只有锁屏会话，没有账号会话 cookie */
 }
 
 const ctx = { waitUntil() {} };
@@ -161,7 +159,7 @@ test('有效期、会话档位和网关一致；会话不超过有效期；名�
   assert.equal(links.cleanName('a'.repeat(25)), null);
 });
 
-test('wrangler.toml：名字、不开 workers.dev / 预览地址、两条路由、AUTH / ISSUER / ACCOUNT_VERIFIER 绑定、D1_SHARE_LINK；预览 routes = []；不绑钥匙和认证库', () => {
+test('wrangler.toml：名字、不开 workers.dev / 预览地址、两条路由、AUTH / ISSUER 绑定（不绑 ACCOUNT_VERIFIER）、D1_SHARE_LINK；预览 routes = []；不绑钥匙和认证库', () => {
   const t = readFileSync(REPO + 'workers/share/wrangler.toml', 'utf8');
   assert.match(t, /^name = "styrigx-share"$/m);
   assert.match(t, /^workers_dev = false$/m);
@@ -169,8 +167,7 @@ test('wrangler.toml：名字、不开 workers.dev / 预览地址、两条路由�
   assert.deepEqual([...t.matchAll(/^pattern = "([^"]+)"$/gm)].map((m) => m[1]), ['styrigx.com/s/*', 'styrigx.com/api/share*']);
   assert.match(t, /binding = "AUTH"\nservice = "styrigx-auth-gateway"\nentrypoint = "AuthVerifier"/);
   assert.match(t, /binding = "ISSUER"\nservice = "styrigx-auth-gateway"\nentrypoint = "ShareIssuer"/);
-  assert.match(t, /^\[\[services\]\]\nbinding = "ACCOUNT_VERIFIER"\nservice = "styrigx-account"\nentrypoint = "AccountVerifier"$/m);
-  assert.match(t, /^\[\[env\.preview\.services\]\]\nbinding = "ACCOUNT_VERIFIER"\nservice = "styrigx-account"\nentrypoint = "AccountVerifier"$/m);
+  assert.doesNotMatch(t, /ACCOUNT_VERIFIER|AccountVerifier|service = "styrigx-account"/, '短链只认管理员锁屏会话，正式和 preview 都不绑账号 Worker');
   assert.match(t, /binding = "D1_SHARE_LINK"\ndatabase_name = "styrigx-share"\n/);
   assert.match(t, /\[env\.preview\]\nname = "styrigx-share-preview"\nworkers_dev = false\npreview_urls = false\nroutes = \[\]/);
   /* 预览 D1 = 所有 Worker 预览共用的测试库（2026-10-29）；共库所以迁移记录表单独用 d1_migrations_share */
@@ -191,7 +188,7 @@ test('check-worker-routes：/s/*、/api/share* 归短链 Worker；网关接口�
   const acct = readRoutes(readFileSync(REPO + 'workers/account/wrangler.toml', 'utf8'));
   const share = readRoutes(readFileSync(REPO + 'workers/share/wrangler.toml', 'utf8'));
   const apis = readApiRoutes(readFileSync(REPO + 'workers/auth-gateway/src/routes.js', 'utf8'));
-  const pages = ['/', '/account/', '/account/tempkeys/', '/settings/', '/search/', '/en/settings/'];
+  const pages = ['/', '/account/', '/settings/security/tempkeys/', '/settings/', '/search/', '/en/settings/'];
   assert.deepEqual(checkWorkers(gw, acct, share, apis, pages), []);
   assert.ok(checkWorkers(gw, acct, share.concat('styrigx.com/s*'), apis, pages).some((e) => e.includes('/settings/') || e.includes('/search/')));
   assert.ok(checkWorkers(gw, acct, share.concat('styrigx.com/api/s*'), apis, pages).some((e) => e.includes('/api/search')));
@@ -398,7 +395,7 @@ for (const K of KINDS) {
     assert.equal(r.s, 200, JSON.stringify(r.j));
   });
 
-  T('权限：访客 403、没会话 401、跨源 403、管理员缺账号会话 401；网关 ShareIssuer 自己也要管理员 + 账号会话', async () => {
+  T('权限：访客 403、没会话 401、跨源 403；网关 ShareIssuer 自己也要管理员锁屏会话', async () => {
     const { env, gwEnv } = mk();
     const l = (await api(env, { action: 'create', hours: 2, session: 1800 })).j.link;
     const visitor = cookiesFrom(await open(env, l.path));
@@ -409,13 +406,8 @@ for (const K of KINDS) {
     assert.equal(r.s, 403);
     assert.equal((await api(env, { action: 'list' }, '')).s, 401);
     assert.equal((await api(env, { action: 'list' }, undefined, 'https://evil.com')).s, 403);
-    const lockOnly = 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, 'admin', 'password'));
-    r = await api(env, { action: 'list' }, lockOnly);
-    assert.equal(r.s, 401);
-    assert.equal(r.j.error, 'account');
-    /* 直接调网关内部接口：没有管理员 + 账号会话就不签、不作废 */
+    /* 直接调网关内部接口：没有管理员锁屏会话就不签、不作废 */
     assert.deepEqual(await issuerMod.createLinkKey(visitor, { hours: 1 }, gwEnv), { ok: false, error: 'session' });
-    assert.deepEqual(await issuerMod.createLinkKey(lockOnly, { hours: 1 }, gwEnv), { ok: false, error: 'account' });
     assert.deepEqual(await issuerMod.createLinkKey('', { hours: 1 }, gwEnv), { ok: false, error: 'session' });
     assert.deepEqual(await issuerMod.revokeLinkKey(visitor, 'A'.repeat(16), gwEnv), { ok: false, error: 'session' });
     const admin = await adminCookie();
@@ -428,6 +420,26 @@ for (const K of KINDS) {
     assert.equal(g.status, 405);
     const other = await worker.fetch(new Request('https://styrigx.com/api/shared', { method: 'POST', headers: { Cookie: admin, Origin: 'https://styrigx.com' } }), env, ctx);
     assert.equal(other.status, 404);
+  });
+
+  T('只有管理员锁屏会话、没有账号会话（两边绑了一碰就抛的 ACCOUNT_VERIFIER 也不问）：能签带会话的短链，也能作废；网关 ShareIssuer 直接签 / 废也行', async () => {
+    const { env, gwEnv, authDb } = mk();
+    let asked = 0;
+    const trap = { accountSession() { asked++; throw new Error('不该问账号会话'); } };
+    env.ACCOUNT_VERIFIER = trap;
+    gwEnv.ACCOUNT_VERIFIER = trap;
+    const lockOnly = 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, 'admin', 'password'));
+    const c = await api(env, { action: 'create', hours: 2, session: 1800 }, lockOnly);
+    assert.equal(c.s, 200, JSON.stringify(c.j));
+    const keyId = authDb.rows('tempkey').find((r) => r.realm === 'lock' && r.link)?.id;
+    assert.ok(keyId, '网关签了 link 钥匙');
+    const rv = await api(env, { action: 'revoke', id: c.j.link.id }, lockOnly);
+    assert.equal(rv.s, 200);
+    assert.ok(tkRow(authDb, keyId).revoked_at > 0);
+    const k = await issuerMod.createLinkKey(lockOnly, { hours: 1 }, gwEnv);
+    assert.equal(k.ok, true);
+    assert.deepEqual(await issuerMod.revokeLinkKey(lockOnly, k.key.id, gwEnv), { ok: true });
+    assert.equal(asked, 0);
   });
 
   T('限速：同一 IP 10 次打不开 → 15 分钟内真码也走失败响应；换 IP 不受影响；锁住后不再写 D1', async () => {
