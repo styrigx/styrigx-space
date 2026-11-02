@@ -1,0 +1,25 @@
+{{- /* 目录树（原 src/components/blog/TocTree.astro，结构、class、data-* 一致）。
+参数：.items .level（默认 1）.path .prefix（id 前缀）.navLink（抽屉里的目录） */ -}}
+{{- $level := .level | default 1 -}}
+{{- $path := .path | default "" -}}
+{{- $prefix := .prefix | default "toc" -}}
+{{- $nav := .navLink -}}
+<ol class="toc-tree{{ if gt $level 1 }} toc-tree-nested{{ end }}">
+{{- range $i, $it := .items }}
+  {{- $key := cond (ne $path "") (printf "%s-%d" $path (add $i 1)) (printf "%d" (add $i 1)) }}
+  {{- $bid := printf "%s-%s-children" $prefix $key }}
+  {{- $has := gt (len $it.children) 0 }}
+  <li class="toc-tree-item{{ if $has }} has-children{{ end }}"{{ if $has }} data-toc-expanded="false"{{ end }}>
+    <div class="toc-row">
+      {{- if $has }}<button class="toc-branch-toggle" type="button" aria-label="Expand section" aria-expanded="false" aria-controls="{{ $bid }}" data-toc-toggle><i aria-hidden="true"></i></button>
+      {{- else }}<span class="toc-branch-spacer" aria-hidden="true"></span>{{ end }}
+      <a href="{{ $it.href | safeURL }}"{{ if $nav }} data-nav-toc-link{{ end }} data-toc-link data-toc-hash="{{ $it.href }}">{{ $it.label }}</a>
+    </div>
+    {{- if $has }}
+    <div class="toc-children" id="{{ $bid }}" data-toc-branch>
+      {{ partial "toc-tree.html" (dict "items" $it.children "level" (add $level 1) "path" $key "prefix" $prefix "navLink" $nav) }}
+    </div>
+    {{- end }}
+  </li>
+{{- end }}
+</ol>

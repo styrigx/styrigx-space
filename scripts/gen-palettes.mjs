@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 /**
- * 主题色角色 token：把 22 套七色调色板（1 背景色 + 6 前景撞色，2026-10-23 PR-G；web/data/palette-roles.json，亮 / 暗各 94 个角色 + 状态层
+ * 主题色角色 token：把 22 套七色调色板（1 背景色 + 6 前景撞色，2026-10-23 PR-G；web/atlas/data/palette-roles.json，亮 / 暗各 94 个角色 + 状态层
  * + 色调 token：背景 7 档 --sgx-bg-1..7、前景 6 色 --sgx-fg-1..6 及 -tint / -ink）
- * 生成进 web/assets/css/input.css 的 tokens 层（两行标记之间，见 BEGIN / END），值不手敲。
+ * 生成进 web/atlas/assets/css/input.css 的 tokens 层（两行标记之间，见 BEGIN / END），值不手敲。
  *
  * 每个预设生成两段：
  *   :root[data-palette="<id>"]       浅色
  *   :root.dark[data-palette="<id>"]  深色（站点的深色是 <html class="dark">）
  * 默认色板 dustyblue（雾霾蓝）不写 data-palette，所以 dustyblue 写在 :root / :root.dark 上（同时兜住未知的 data-palette 值）。
  * 变量名：--sgx-<角色>（bg-gradient 拆成 --sgx-bg-gradient-1..3；状态层 --sgx-state-color / -hover / -focus / -pressed / -selected / -dragged），
- * 和自定义种子在运行时写的变量名同一个函数出（web/assets/js/lib/palette-scheme.js 的 roleDecls）。
+ * 和自定义种子在运行时写的变量名同一个函数出（web/atlas/assets/js/lib/palette-scheme.js 的 roleDecls）。
  * 每个预设另写 --sgx-seed（= 色板种子，ui-cookie 把它同步给子站）。
  *
  * 用法：node scripts/gen-palettes.mjs          重新生成
@@ -20,11 +20,11 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { roleDecls, toneDecls, presetRoles, rolesFor, PRESETS, DEFAULT_ID } from '../web/assets/js/lib/palette-scheme.js';
+import { roleDecls, toneDecls, presetRoles, rolesFor, PRESETS, DEFAULT_ID } from '../web/atlas/assets/js/lib/palette-scheme.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const JSON_PATH = path.join(REPO, 'web/data/palette-roles.json');
-const CSS_PATH = path.join(REPO, 'web/assets/css/input.css');
+const JSON_PATH = path.join(REPO, 'web/atlas/data/palette-roles.json');
+const CSS_PATH = path.join(REPO, 'web/atlas/assets/css/input.css');
 const BEGIN = '/* @gen-palettes:begin（scripts/gen-palettes.mjs 由 web/data/palette-roles.json 生成，勿手改） */';
 const END = '/* @gen-palettes:end */';
 const ORDER = PRESETS.map((p) => p.id);
@@ -97,7 +97,7 @@ if (isMain) {
   const next = splice(css, renderBlock(data));
   if (process.argv.includes('--check')) {
     if (next !== css) {
-      console.error('input.css 的色板角色和 web/data/palette-roles.json 不一致：运行 node scripts/gen-palettes.mjs');
+      console.error('input.css 的色板角色和 web/atlas/data/palette-roles.json 不一致：运行 node scripts/gen-palettes.mjs');
       process.exit(1);
     }
     console.log('palettes in sync');

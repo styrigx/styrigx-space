@@ -1,0 +1,4 @@
+{{- /* 回到顶部：外观复用共享外壳的顶栏圆钮 .sgx-tb-nav（毛玻璃 52px 圆），.scroll-top-button 只管位置和出现 / 隐藏 */ -}}
+<span class="scroll-top-marker" data-scroll-top-marker aria-hidden="true"></span>
+<button class="sgx-tb-nav scroll-top-button" type="button" aria-label="{{ i18n "scrollTop" }}" title="{{ i18n "scrollTop" }}" data-scroll-top-button>{{ partial "icon.html" (dict "name" "arrow-up" "size" 22) }}</button>
+{{ partial "script.html" (dict "name" "scroll-top.ts") }}

@@ -2,7 +2,7 @@
 
 ## 职责
 
-主站鉴权网关：锁屏会话和锁屏凭证的全部后端代码在这里。承接 `styrigx.com` 和图志 `atlas.styrigx.com` 的整站请求：先验锁屏会话，页面验完回源 Pages 取静态文件，接口在本 Worker 回答或经服务绑定转给内部 Worker。Pages 本身只放静态文件（配置见 `web/wrangler.toml`）。
+主站鉴权网关：锁屏会话和锁屏凭证的全部后端代码在这里。承接 `styrigx.com` 和图志 `atlas.styrigx.com` 的整站请求：先验锁屏会话，页面验完回源 Pages 取静态文件，接口在本 Worker 回答或经服务绑定转给内部 Worker。Pages 本身只放静态文件（配置见 `web/atlas/wrangler.toml`）。
 
 **账号不在这里**（账号拆分 PR3 起）：账号密码 / 账号通行密钥 / 已登录设备 / 账号会话 / 账号根密钥、头像、设置云同步、数字健康都在账号 Worker `styrigx-account`（`workers/account/`）。浏览器的账号请求一律先进网关，网关验门后经服务绑定 `ACCOUNT` 转发。网关源码里没有任何账号鉴权代码、账号绑定或账号钥匙（`scripts/check-layers.mjs` 规则 16 核对）。
 

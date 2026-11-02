@@ -1,0 +1,88 @@
+{{- /* 顶栏「沉浸式 app」（三个子站同主站 v8 一套，2026-10-22）：左圆九宫格 · 中间长条 · 右圆分享。
+- 九宫格：Gmail 式左侧导航抽屉，和主站 styrigx-space 同一份（主站 / 奇趣 / 日刻 / 博客；头部字标 + 头像（链主站），底栏搜索框）；博客是当前项。
+  项、图标、样式（宽度、毛玻璃、tonal 当前项、字体）都来自主站共享外壳：data/sgx-shell/nav.json + assets/css/sgx-shell.css
+  （scripts/sync-shell.mjs 同步，勿手改）。
+- 长条（.mode）：
+  tabs    列表页（首页）：分段滑块 首页 · 文章 · 专题，强调色指示器滑到当前页签；面板切换见 assets/js/blog/app-tabs.ts。
+          （同主站首页长条里放三个标签）
+  links   标签页 / 404 等子页：只有页名（.title，不给就用页面标题；.sgx-tb-title 居中、太长省略号），不放图标。
+  article 文章页：只有页名（文章标题）；长条底边一条强调色细线是阅读进度。
+- 抽屉：导航项分隔线下面，文章页（≥2 个标题）再加「目录」（.toc：partials/toc-items.html 的结果）。
+- 右圆 .sgx-tb-end.sgx-tb-share（共享外壳 .sgx-tb-end 样式，52px 圆 + 22px 图标，同左边九宫格圆；2026-10-24 留言板撤了，只剩分享；管理员和访客一样）：
+  共享外壳 share.js（entries/topnav.ts 挂上）：管理员生成带临时会话的短链再系统分享，访客分享当前页地址；没有系统分享就复制。
+参数：.page .mode .title .toc */ -}}
+{{- $lang := .page.Language.Lang -}}
+{{- $isEn := eq $lang "en" -}}
+{{- $mode := .mode | default "links" -}}
+{{- $nav := index hugo.Data "sgx-shell" "nav" -}}
+{{- $home := site.Home.RelPermalink -}}
+{{- $tabs := slice (dict "id" "home" "label" (i18n "tabHome")) (dict "id" "posts" "label" (i18n "tabPosts")) (dict "id" "topics" "label" (i18n "tabTopics")) -}}
+{{- $title := .title | default .page.Title -}}
+{{- $toc := .toc | default slice -}}
+{{- $hasToc := and (eq $mode "article") (ge (len (partial "toc-flat.html" $toc)) 2) -}}
+<header class="sgx-site-nav" data-sgx-topbar-root data-mode="{{ $mode }}">
+  <div class="sgx-topbar">
+    <button type="button" class="sgx-tb-nav" data-sgx-apps aria-label="{{ cond $isEn $nav.label.en $nav.label.zh }}" aria-haspopup="dialog" aria-controls="sgx-drawer" aria-expanded="false">{{ index $nav.icons "apps-grid" | safeHTML }}</button>
+    <div class="sgx-tb-pill sgx-tb-pill--{{ $mode }}">
+      {{- if eq $mode "tabs" }}
+      <div class="sgx-seg" role="tablist" aria-label="{{ i18n "tabs" }}" data-sgx-seg style="--seg-pos:0">
+        <span class="sgx-seg-ind" aria-hidden="true"></span>
+        {{- range $i, $t := $tabs }}
+        <button type="button" role="tab" class="sgx-seg-btn" id="sgx-tab-{{ $t.id }}" aria-controls="sgx-pane-{{ $t.id }}" aria-selected="{{ cond (eq $i 0) "true" "false" }}" tabindex="{{ cond (eq $i 0) 0 -1 }}" data-sgx-tab="{{ $t.id }}">{{ $t.label }}</button>
+        {{- end }}
+      </div>
+      {{- else }}
+      <span class="sgx-tb-title">{{ $title }}</span>
+      {{- end }}
+      {{- if eq $mode "article" }}
+      <span class="sgx-tb-progress" role="progressbar" aria-label="{{ i18n "progress" }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-sgx-progress></span>
+      {{- end }}
+    </div>
+    <button type="button" class="sgx-tb-end sgx-tb-share" data-sgx-share aria-label="{{ i18n "shareNative" }}">{{ index $nav.icons "share" | safeHTML }}</button>
+  </div>
+
+  <dialog id="sgx-drawer" class="sgx-drawer" aria-label="{{ cond $isEn $nav.label.en $nav.label.zh }}" data-sgx-sheet="drawer">
+    <nav class="sgx-drawer-sheet" data-sgx-sheet-panel>
+      {{- /* 抽屉头 = 字标（nav.json wordmark）+ 右边的头像圆（共享外壳 .sgx-drawer-me）：点了去主站账号页（nav.json me.href = /account/；英文页去 /en/account/） */}}
+      {{- $me := $nav.me.href }}{{ if $isEn }}{{ $me = replace $me "https://styrigx.com/" "https://styrigx.com/en/" }}{{ end }}
+      <div class="sgx-drawer-head"><span class="sgx-drawer-brand">{{ $nav.wordmark | safeHTML }}</span><a class="sgx-drawer-me" href="{{ $me }}" aria-label="{{ cond $isEn $nav.me.en $nav.me.zh }}"><img src="{{ $nav.me.avatar }}" alt="" width="52" height="52"></a></div>
+      <div class="sgx-drawer-body">
+      <ul class="sgx-drawer-list">
+        {{- range $nav.items }}
+        {{- /* 图志三站（blog / curio / daymark）同在 atlas.styrigx.com 下，按 id 走 /<id>/（英文 /<id>/en/），博客自己用站内地址；其余项（主站）用 origin + path */}}
+        {{- $href := "" }}
+        {{- if in (slice "blog" "curio" "daymark") .id }}
+        {{- $href = printf "/%s/%s" .id (cond $isEn "en/" "") }}
+        {{- if ne .id "blog" }}{{ $href = print "https://atlas.styrigx.com" $href }}{{ end }}
+        {{- else }}
+        {{- $href = print .origin (cond $isEn (print "/en" .path) .path) }}
+        {{- end }}
+        <li><a class="sgx-drawer-item" href="{{ $href }}" data-nav="{{ .id }}"{{ if eq .id "blog" }} aria-current="page"{{ end }}><span class="sgx-drawer-ic">{{ index $nav.icons .icon | safeHTML }}</span><span class="sgx-drawer-label">{{ cond $isEn .en .zh }}</span></a></li>
+        {{- end }}
+      </ul>
+      {{- /* 导航项下的分隔线（同主站 .sgx-drawer-sep，CSS 在 blog/components.css） */}}
+      <hr class="sgx-drawer-sep" aria-hidden="true">
+      {{- with $nav.footer }}
+      <hr class="sgx-drawer-div">
+      <ul class="sgx-drawer-list">
+        {{- range . }}
+        {{- $path := cond $isEn (print "/en" .path) .path }}
+        <li><a class="sgx-drawer-item" href="{{ .origin }}{{ $path }}" data-nav="{{ .id }}"><span class="sgx-drawer-ic">{{ index $nav.icons .icon | safeHTML }}</span><span class="sgx-drawer-label">{{ cond $isEn .en .zh }}</span></a></li>
+        {{- end }}
+      </ul>
+      {{- end }}
+      {{- if $hasToc }}
+      <section class="sgx-drawer-toc" aria-labelledby="sgx-drawer-toc-title" data-toc-root>
+        <p id="sgx-drawer-toc-title" class="sgx-drawer-sub">{{ i18n "toc" }}</p>
+        {{ partial "toc-tree.html" (dict "items" $toc "prefix" "drawer-toc" "navLink" true) }}
+      </section>
+      {{- end }}
+      </div>
+      {{- /* 底栏搜索框（同主站）：entries/topnav.ts 点击时原地打开搜索层（entries/search-host.js），不跳站；href 只是没 JS 时的退路 */}}
+      {{- $sp := $nav.search.path }}{{ if $isEn }}{{ $sp = print "/en" $sp }}{{ end }}
+      <div class="sgx-drawer-foot"><a class="sgx-drawer-search" href="{{ $nav.search.origin }}{{ $sp }}" aria-label="{{ cond $isEn $nav.search.en $nav.search.zh }}"><span class="sgx-drawer-search-ic">{{ index $nav.icons $nav.search.icon | safeHTML }}</span><span class="sgx-drawer-search-label" aria-hidden="true">{{ cond $isEn $nav.search.en $nav.search.zh }}</span></a></div>
+    </nav>
+  </dialog>
+</header>
+{{ partial "script.html" (dict "name" "search-host.js") }}
+{{ partial "script.html" (dict "name" "topnav.ts") }}

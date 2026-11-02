@@ -7,7 +7,7 @@
  * 文件名沿用（CI 和文档都按这个名字引用）。
  *
  * 用法（CI 的 passkey-e2e job；本地可配 CF_API_BASE 指向 tests/web/e2e/preview-emulator.cjs）：
- *   node scripts/kv-budget.mjs reset-preview   清预览 D1 的 RESET_D1_TABLES（库 id 从 web/wrangler.toml 读，见 previewD1Id）
+ *   node scripts/kv-budget.mjs reset-preview   清预览 D1 的 RESET_D1_TABLES（库 id 从 web/atlas/wrangler.toml 读，见 previewD1Id）
  *   node scripts/kv-budget.mjs estimate        打印每次运行的估算
  * 环境变量：CF_ACCOUNT_ID、CF_API_TOKEN（要 D1 编辑）；CF_API_BASE（默认 https://api.cloudflare.com/client/v4）。
  */
@@ -55,11 +55,11 @@ export function d1DatabaseId(toml, binding) {
 }
 
 /**
- * 预览 D1 的库 id：web/wrangler.toml [env.preview] 的 D1_LOCK_AUTH，并断言它不是正式网关的库。
+ * 预览 D1 的库 id：web/atlas/wrangler.toml [env.preview] 的 D1_LOCK_AUTH，并断言它不是正式网关的库。
  * @param {string} repo 仓库根目录
  */
 export function previewD1Id(repo) {
-  const pv = d1DatabaseId(readFileSync(repo + '/web/wrangler.toml', 'utf8'), REALM_LOCK.d1Binding);
+  const pv = d1DatabaseId(readFileSync(repo + '/web/atlas/wrangler.toml', 'utf8'), REALM_LOCK.d1Binding);
   const prod = d1DatabaseId(readFileSync(repo + '/workers/auth-gateway/wrangler.toml', 'utf8'), REALM_LOCK.d1Binding);
   if (!pv || !prod || pv === prod) throw new Error('preview D1 id missing or equal to the production gateway D1');
   return pv;

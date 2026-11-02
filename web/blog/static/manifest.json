@@ -1,0 +1,22 @@
+{
+  "name": "Styrigx",
+  "short_name": "Styrigx",
+  "description": "Sloan Gray 的个人博客",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    {
+      "src": "https://styrigx.com/avatar/192.webp",
+      "sizes": "192x192",
+      "type": "image/webp"
+    },
+    {
+      "src": "https://styrigx.com/avatar/512.webp",
+      "sizes": "512x512",
+      "type": "image/webp",
+      "purpose": "any"
+    }
+  ]
+}

@@ -15,9 +15,9 @@ import { renderAll, READER_SRC } from '../../../scripts/gen-shell.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const READER = readFileSync(READER_SRC, 'utf8');
-const WRITER = readFileSync(path.join(REPO, 'web/assets/js/lib/ui-cookie.js'), 'utf8');
+const WRITER = readFileSync(path.join(REPO, 'web/atlas/assets/js/lib/ui-cookie.js'), 'utf8');
 const fx = JSON.parse(readFileSync(FIXTURE, 'utf8'));
-const palettes = JSON.parse(readFileSync(path.join(REPO, 'web/shared/shell/palettes.json'), 'utf8'));
+const palettes = JSON.parse(readFileSync(path.join(REPO, 'web/atlas/shared/shell/palettes.json'), 'utf8'));
 
 /** 最小 DOM 桩：<html> 的 class / attribute / style，<head> 里的 <style>，localStorage，matchMedia */
 function makeEl(tag) {
@@ -167,8 +167,8 @@ test('共享外壳原样带上读端 / 夹具 / 图标', () => {
   const files = renderAll();
   assert.equal(files['ui-cookie-read.js'], READER);
   assert.equal(files['ui-cookie-contract.json'], readFileSync(FIXTURE, 'utf8'));
-  assert.equal(files['favicon.js'], readFileSync(path.join(REPO, 'web/assets/js/shell/favicon.js'), 'utf8'));
-  assert.equal(files['favicon.svg'], readFileSync(path.join(REPO, 'web/static/favicon.svg'), 'utf8'));
+  assert.equal(files['favicon.js'], readFileSync(path.join(REPO, 'web/atlas/assets/js/shell/favicon.js'), 'utf8'));
+  assert.equal(files['favicon.svg'], readFileSync(path.join(REPO, 'web/atlas/static/favicon.svg'), 'utf8'));
   const m = JSON.parse(files['manifest.json']);
   for (const k of ['ui-cookie-read.js', 'ui-cookie-contract.json', 'favicon.js', 'favicon.svg']) assert.ok(m.files[k], k);
   assert.match(files['README.md'], /SgxUI\.apply\(document\.documentElement/);

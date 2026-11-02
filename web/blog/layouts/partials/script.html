@@ -1,0 +1,6 @@
+{{- /* 打包一个 JS 入口（web/assets/js/entries/<name>）：esbuild 压缩 + 内容指纹，输出 <script type="module">。
+用法：partial "script.html" (dict "name" "topnav.ts")，可选 "params"（入口里 import * as params from '@params'） */ -}}
+{{- $opts := dict "minify" hugo.IsProduction "target" "es2020" "format" "esm" -}}
+{{- with .params }}{{ $opts = merge $opts (dict "params" .) }}{{ end -}}
+{{- $r := resources.Get (print "js/entries/" .name) | js.Build $opts | fingerprint -}}
+<script type="module" src="{{ $r.RelPermalink }}"></script>

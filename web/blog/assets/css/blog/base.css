@@ -1,0 +1,239 @@
+/* 基础排版：最早取自 @navfolio/theme-default 的 global.css（MIT，Copyright (c) 2026 Navfolio；
+   其中 Bear Blog 部分 MIT，https://github.com/HermanMartinus/bearblog/blob/master/LICENSE.md）。
+   颜色只用共享外壳的色彩角色（--sgx-*，sgx-shell.css）。 */
+
+:root {
+  --layout-shell-width: 1168px;
+  --layout-page-gutter: 32px;
+  --layout-page-top: 126px;
+  --layout-page-bottom: 72px;
+  --page-header-spacing: 54px;
+  --page-header-spacing-mobile: 28px;
+  /* 字体：界面和正文都用主站的 Inter（拉丁）+ 系统中文字体；Maple Mono 只给代码。 */
+  --font-ui: Inter, 'Inter Fallback', ui-sans-serif, system-ui, -apple-system, 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+  /* 代码：Maple Mono（拉丁）→ 中文落到 'Sgx Code CJK'（code.css 里按等宽节奏放大到 2ch）→ 系统等宽 */
+  --font-code: 'Maple Mono', 'Sgx Code CJK', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Noto Sans Mono CJK SC', monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* 和主站一致：不预留滚动条槽（主站 2026-10-23 删了 layout-pc，也不再设 scrollbar-gutter），外壳框和顶栏两侧圆与主站同一位置 */
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  background: transparent;
+  color: var(--sgx-text-primary);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+main {
+  width: min(100%, var(--layout-shell-width));
+  max-width: none;
+  margin: auto;
+  padding: var(--layout-page-top) var(--layout-page-gutter) var(--layout-page-bottom);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0 0 0.5rem 0;
+  color: var(--sgx-text-primary);
+  font-family: var(--font-ui);
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+h1 {
+  font-size: 3.052em;
+}
+
+h2 {
+  font-size: 2.441em;
+}
+
+h3 {
+  font-size: 1.953em;
+}
+
+h4 {
+  font-size: 1.563em;
+}
+
+h5 {
+  font-size: 1.25em;
+}
+
+strong,
+b {
+  font-weight: 700;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+p {
+  margin-bottom: 1em;
+}
+
+input {
+  font-size: 16px;
+}
+
+table {
+  width: 100%;
+}
+
+.markdown-table-scroll {
+  max-width: 100%;
+  margin: 28px 0 30px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.markdown-table-scroll table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+}
+
+.markdown-table-scroll th {
+  white-space: nowrap;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+blockquote {
+  border-left: 4px solid;
+  padding: 0 0 0 20px;
+  margin: 0;
+  font-size: 1.333em;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--sgx-divider);
+}
+
+.site-icon {
+  display: inline-block;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  flex: 0 0 var(--icon-size);
+  vertical-align: middle;
+}
+
+/* 标签页标题区（term.html） */
+.archive-header-shared {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+  gap: 32px;
+  align-items: stretch;
+}
+
+.archive-header-main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+.archive-header-shared .archive-kicker {
+  margin: 0;
+  color: var(--sgx-primary);
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.archive-header-shared .archive-title {
+  max-width: 760px;
+  margin: 8px 0 0;
+  color: var(--sgx-text-primary);
+  font-size: clamp(2.4rem, 5.5vw, 4rem);
+  line-height: 1.08;
+}
+
+.archive-header-shared .archive-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  max-width: 300px;
+  margin: 0;
+  text-align: center;
+}
+
+.archive-header-shared .archive-subtitle {
+  max-width: 30ch;
+  margin: 0;
+  color: var(--sgx-text-secondary);
+  font-family: var(--font-ui);
+  font-size: 1.03rem;
+  line-height: 1.76;
+}
+
+.page-header-spacing {
+  margin-bottom: var(--page-header-spacing);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+@media (max-width: 720px) {
+  main {
+    padding: 92px 18px 42px;
+  }
+
+  .page-header-spacing {
+    margin-bottom: var(--page-header-spacing-mobile);
+  }
+
+  .archive-header-shared {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .archive-header-shared .archive-copy {
+    display: block;
+    max-width: none;
+    text-align: left;
+  }
+
+  .archive-header-shared .archive-title {
+    font-size: 2.08rem;
+    line-height: 1.1;
+  }
+}

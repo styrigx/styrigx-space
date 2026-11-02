@@ -9,7 +9,7 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const root = path.join(__dirname, '..', 'web');
+const root = path.join(__dirname, '..', 'web', 'atlas');
 const minify = process.argv.includes('--minify');
 const tmpTw = path.join(root, 'assets/css/.tw-out.css');
 

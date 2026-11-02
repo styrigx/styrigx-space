@@ -21,15 +21,15 @@ function walk(dir) {
 }
 
 test('语音搜索删干净：没有 voice.js / voice-sheet.js、SpeechRecognition、麦克风按钮、语音文案和样式', () => {
-  assert.equal(existsSync(path.join(REPO, 'web/assets/js/shell/voice.js')), false);
-  assert.equal(existsSync(path.join(REPO, 'web/assets/js/shell/voice-sheet.js')), false);
-  for (const f of walk('web/assets/js')) {
+  assert.equal(existsSync(path.join(REPO, 'web/atlas/assets/js/shell/voice.js')), false);
+  assert.equal(existsSync(path.join(REPO, 'web/atlas/assets/js/shell/voice-sheet.js')), false);
+  for (const f of walk('web/atlas/assets/js')) {
     const s = rd(f);
     assert.doesNotMatch(s, /SpeechRecognition|voiceSheet|voiceInput|data-mic|#voice/, f);
   }
-  for (const f of walk('web/layouts')) assert.doesNotMatch(rd(f), /data-mic|sgx-cap-mic|"vsAria"|"noSr"|eq \$name "mic"/, f);
-  const css = rd('web/assets/css/input.css');
+  for (const f of walk('web/atlas/layouts')) assert.doesNotMatch(rd(f), /data-mic|sgx-cap-mic|"vsAria"|"noSr"|eq \$name "mic"/, f);
+  const css = rd('web/atlas/assets/css/input.css');
   assert.doesNotMatch(css, /sgx-cap-mic|sgx-vs-|sgx-mic-pulse/);
-  assert.doesNotMatch(rd('web/data/features.yaml'), /voice|speech|mic/i);
+  assert.doesNotMatch(rd('web/atlas/data/features.yaml'), /voice|speech|mic/i);
   assert.doesNotMatch(rd('scripts/check-layers.mjs'), /'voice/);
 });

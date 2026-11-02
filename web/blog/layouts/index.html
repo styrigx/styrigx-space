@@ -1,0 +1,129 @@
+{{- /* 博客唯一的列表页（= 博客首页，原 src/components/blog/BlogHome.astro），沉浸式 app：
+顶栏分段滑块 首页 · 文章 · 专题 切换三个面板（assets/js/blog/app-tabs.ts）。
+首页：最新 3 篇 + 最新的系列卡（没有大标题区，h1 只给读屏 / 搜索引擎）。
+文章：全部文章列表。专题：系列 → 分类 → 标签，点分类 / 标签就地筛出文章。 */ -}}
+{{ define "head" }}
+{{- $alt := dict "zh" ("" | relURL) "en" ("en/" | relURL) -}}
+{{ partial "head.html" (dict "page" . "title" (printf "%s | %s" (i18n "blogTitle") site.Title) "description" site.Params.description "alt" $alt) }}
+{{ end }}
+{{ define "body" }}
+{{- $isEn := eq .Language.Lang "en" -}}
+{{- $posts := partial "posts-sorted.html" (dict "pages" (where site.RegularPages "Section" "post")) -}}
+{{- $latest := first 3 $posts -}}
+{{- $series := partial "groups.html" (dict "posts" $posts "field" "series") -}}
+{{- $cats := partial "groups.html" (dict "posts" $posts "field" "categories") -}}
+{{- $tags := partial "groups.html" (dict "posts" $posts "field" "tags") -}}
+<body class="page-home">
+{{ partial "topnav.html" (dict "page" . "mode" "tabs") }}
+<main class="oui-archive-wrap">
+  <div class="sgx-panes" data-sgx-panes data-tab="home">
+    <div class="sgx-panes-track" data-sgx-track>
+      <section class="sgx-pane is-active" id="sgx-pane-home" role="tabpanel" aria-labelledby="sgx-tab-home" data-pane="home">
+        <h1 class="sgx-visually-hidden">{{ i18n "blogTitle" }}</h1>
+        {{- if $latest }}
+        <section class="sgx-sec" aria-labelledby="sgx-latest-title">
+          <div class="sgx-sec-head">
+            <h2 class="sgx-sec-title" id="sgx-latest-title">{{ i18n "latest" }}</h2>
+            <button type="button" class="sgx-sec-more" data-sgx-goto="posts">{{ i18n "allPosts" }} →</button>
+          </div>
+          <ul class="latest-list">
+            {{- range $latest }}
+            <li><a class="latest-card" href="{{ .RelPermalink }}"><strong>{{ .Title }}</strong>{{ partial "date.html" .Date }}</a></li>
+            {{- end }}
+          </ul>
+        </section>
+        {{- else }}
+        <p class="empty-note">{{ i18n "emptyArchives" }}</p>
+        {{- end }}
+        {{- with index $series 0 }}
+        <section class="sgx-sec" aria-labelledby="sgx-home-series-title">
+          <div class="sgx-sec-head">
+            <h2 class="sgx-sec-title" id="sgx-home-series-title">{{ i18n "series" }}</h2>
+            <button type="button" class="sgx-sec-more" data-sgx-goto="topics">{{ i18n "tabTopics" }} →</button>
+          </div>
+          {{ partial "series-card.html" (dict "s" . "target" false) }}
+        </section>
+        {{- end }}
+      </section>
+
+      <section class="sgx-pane" id="sgx-pane-posts" role="tabpanel" aria-labelledby="sgx-tab-posts" data-pane="posts" inert>
+        <div class="sgx-sec-head">
+          <h2 class="sgx-sec-title">{{ i18n "allPosts" }} · {{ i18n "postCount" (dict "Count" (len $posts)) }}</h2>
+        </div>
+        {{- if $posts }}
+        <ol class="notes-list">
+          {{- range $i, $p := $posts }}
+          <li class="note-entry">
+            <span class="note-num">{{ printf "%02d" (add $i 1) }}</span>
+            <div class="note-body">
+              <h3 class="note-title"><a href="{{ $p.RelPermalink }}">{{ $p.Title }}</a></h3>
+              <div class="note-meta">
+                {{ partial "date.html" $p.Date }}
+                {{- range first 4 ($p.Params.tags | default slice) }}
+                <a href="#topics/tag/{{ partial "group-slug.html" . | urlquery }}">#{{ . }}</a>
+                {{- end }}
+              </div>
+              {{- with $p.Description }}<p class="note-desc">{{ . }}</p>{{ end }}
+            </div>
+          </li>
+          {{- end }}
+        </ol>
+        {{- else }}
+        <p class="empty-note">{{ i18n "emptyArchives" }}</p>
+        {{- end }}
+      </section>
+
+      <section class="sgx-pane" id="sgx-pane-topics" role="tabpanel" aria-labelledby="sgx-tab-topics" data-pane="topics" inert>
+        <section class="topic-results sgx-sec" data-topic-results hidden aria-live="polite">
+          <div class="sgx-sec-head">
+            <h2 class="sgx-sec-title" data-topic-results-title></h2>
+            <button type="button" class="sgx-sec-more" data-topic-clear>{{ i18n "clear" }}</button>
+          </div>
+          <ol class="notes-list">
+            {{- range $posts }}
+            {{- $ts := slice }}{{ range (.Params.tags | default slice) }}{{ $ts = $ts | append (partial "group-slug.html" .) }}{{ end }}
+            {{- $cs := slice }}{{ range (.Params.categories | default slice) }}{{ $cs = $cs | append (partial "group-slug.html" .) }}{{ end }}
+            <li class="note-entry is-compact" data-topic-post data-tags="{{ delimit $ts " " }}" data-cats="{{ delimit $cs " " }}" hidden>
+              <div class="note-body">
+                <h3 class="note-title"><a href="{{ .RelPermalink }}">{{ .Title }}</a></h3>
+                <div class="note-meta">{{ partial "date.html" .Date }}</div>
+              </div>
+            </li>
+            {{- end }}
+          </ol>
+        </section>
+        {{- if $series }}
+        <section class="sgx-sec" aria-labelledby="sgx-series-title">
+          <div class="sgx-sec-head"><h2 class="sgx-sec-title" id="sgx-series-title">{{ i18n "series" }}</h2></div>
+          {{- range $series }}
+          {{ partial "series-card.html" (dict "s" . "target" true) }}
+          {{- end }}
+        </section>
+        {{- end }}
+        {{- if $cats }}
+        <section class="sgx-sec" aria-labelledby="sgx-cats-title">
+          <div class="sgx-sec-head"><h2 class="sgx-sec-title" id="sgx-cats-title">{{ i18n "categories" }}</h2></div>
+          <div class="chip-wall">
+            {{- range $cats }}
+            <button type="button" class="chip" aria-pressed="false" data-topic-filter="category:{{ .slug }}" data-label="{{ .name }}">{{ .name }} <span class="count">{{ .count }}</span></button>
+            {{- end }}
+          </div>
+        </section>
+        {{- end }}
+        {{- if $tags }}
+        <section class="sgx-sec" aria-labelledby="sgx-tags-title">
+          <div class="sgx-sec-head"><h2 class="sgx-sec-title" id="sgx-tags-title">{{ i18n "tags" }}</h2></div>
+          <div class="chip-wall">
+            {{- range $tags }}
+            <button type="button" class="chip" aria-pressed="false" data-topic-filter="tag:{{ .slug }}" data-label="#{{ .name }}">{{ .name }} <span class="count">{{ .count }}</span></button>
+            {{- end }}
+          </div>
+        </section>
+        {{- end }}
+      </section>
+    </div>
+  </div>
+</main>
+{{ partial "script.html" (dict "name" "home.ts") }}
+</body>
+{{ end }}

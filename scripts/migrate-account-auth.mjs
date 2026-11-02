@@ -34,7 +34,7 @@
  *                      与 apply 不同：类标记已在（PR2 / PR3 时 apply 过）也照样执行，可重复跑。不碰账号库的数据（只写 A.data_migration 标记）
  *   --cleanup --confirm 先跑一次 verify（不过就什么都不删），再删 G 里 realm='account' / 'root' 的行，DROP TABLE recovery_switch。
  *                      两边是同一个库时（预览）不删 realm='account'（那就是账号自己的行）
- *   --preview          库 id 读 web/wrangler.toml 和 workers/account/wrangler.toml 的 [env.preview]（测试库 styrigx-test-preview，两边同一个库）
+ *   --preview          库 id 读 web/atlas/wrangler.toml 和 workers/account/wrangler.toml 的 [env.preview]（测试库 styrigx-test-preview，两边同一个库）
  *
  * 「新库删掉的」和「没拷过的」怎么分（verify 用）：passkey / device 拷过的主键记在 A.data_migration（name = '<类名>:<主键>'）。
  *   旧库有、新库没有：记过 → 是新库后来删的，不算不一致；没记过 → 没拷过，算不一致。
@@ -508,14 +508,14 @@ export function d1IdIn(toml, binding, preview) {
 }
 
 /**
- * 两个库的 id。网关：D1_LOCK_AUTH（正式 workers/auth-gateway/wrangler.toml，预览 web/wrangler.toml）；
+ * 两个库的 id。网关：D1_LOCK_AUTH（正式 workers/auth-gateway/wrangler.toml，预览 web/atlas/wrangler.toml）；
  * 账号：workers/account/wrangler.toml 的 D1_ACCOUNT_AUTH（正式和 [env.preview] 都有，PR2a 加的）。
  * @param {string} repo @param {{preview?: boolean, gatewayD1?: string, accountD1?: string}} o
  */
 export function resolveDbIds(repo, o) {
   const read = (p) => readFileSync(repo.replace(/\/?$/, '/') + p, 'utf8');
   const pv = !!o.preview;
-  const gw = o.gatewayD1 || d1IdIn(read(pv ? 'web/wrangler.toml' : 'workers/auth-gateway/wrangler.toml'), 'D1_LOCK_AUTH', pv);
+  const gw = o.gatewayD1 || d1IdIn(read(pv ? 'web/atlas/wrangler.toml' : 'workers/auth-gateway/wrangler.toml'), 'D1_LOCK_AUTH', pv);
   const ac = o.accountD1 || d1IdIn(read('workers/account/wrangler.toml'), 'D1_ACCOUNT_AUTH', pv);
   if (!gw) throw new Error('gateway D1 database id not found (D1_LOCK_AUTH)');
   if (!ac) throw new Error('account D1 database id not found (D1_ACCOUNT_AUTH)');

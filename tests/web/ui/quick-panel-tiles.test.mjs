@@ -11,13 +11,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const rd = (p) => readFileSync(new URL('../../../' + p, import.meta.url), 'utf8');
-const base = rd('web/layouts/_default/baseof.html');
+const base = rd('web/atlas/layouts/_default/baseof.html');
 const qpHtml = base.slice(base.indexOf('<dialog id="sgx-qp"'), base.indexOf('</dialog>', base.indexOf('<dialog id="sgx-qp"')));
-const theme = rd('web/layouts/partials/setcat-theme.html');
-const qpJs = rd('web/assets/js/shell/quick-panel.js');
-const setJs = rd('web/assets/js/apps/settings.js');
-const css = rd('web/assets/css/input.css');
-const feats = rd('web/data/features.yaml');
+const theme = rd('web/atlas/layouts/partials/setcat-theme.html');
+const qpJs = rd('web/atlas/assets/js/shell/quick-panel.js');
+const setJs = rd('web/atlas/assets/js/apps/settings.js');
+const css = rd('web/atlas/assets/css/input.css');
+const feats = rd('web/atlas/data/features.yaml');
 
 test('快捷面板磁贴：dark / system / lang / lock，没有减弱动效和字体大小', () => {
   const tiles = [...qpHtml.matchAll(/data-qp="([a-z]+)"/g)].map((m) => m[1]);

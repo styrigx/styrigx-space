@@ -1,0 +1,68 @@
+# styrigx-curio-core：奇趣的核心 Worker（收藏的存、读、导入导出、图标缓存）（CI 部署；承接 atlas.styrigx.com/curio/api/*）
+#
+# 全部后端代码都在本目录：src/（入口、路由表、接口）+ migrations/（D1）。
+# Pages（styrigx-curio，配置见 web/wrangler.toml）只放静态文件；页面的会话检查在主站鉴权网关。
+#
+# 安全：
+# - 本 Worker 不持任何钥匙。会话交给鉴权网关验（服务绑定 AUTH → AuthVerifier）。
+# - 全站搜索：本 Worker 自己把收藏 / 设备 / 游戏写进 KV styrigx-search-index 的 site:curio（src/search-index.js）。
+# - workers_dev = false、preview_urls = false：只通过 atlas.styrigx.com/curio/api/* 的路由访问（它连的是正式 D1 / R2）。
+
+name = "styrigx-curio-core"
+main = "src/index.js"
+compatibility_date = "2026-10-21"
+workers_dev = false
+preview_urls = false
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+# 路由：atlas.styrigx.com/curio/api/*（图志的单一域名下，本站前缀 /curio）。
+# 页面路径和 /api/lock-session-check、/api/search 登记在主站鉴权网关（styrigx-space 仓库 workers/auth-gateway/wrangler.toml），这里只管本站接口。
+[[routes]]
+pattern = "atlas.styrigx.com/curio/api/*"
+zone_name = "styrigx.com"
+
+# D1 styrigx-curio-core：一个库里三套独立数据，各绑一个名字（value 相同）：
+#   D1_FINDS   发现：links、cats、imports
+#   D1_DEVICES 设备：devices
+#   D1_GAMES   游戏：games
+# 跨两套数据的单条 SQL / batch（如搜索索引、照片清扫、设备 + 游戏一起读）用主表那套的绑定，代码里有注释。
+# migrations_dir 只配在第一条上：`wrangler d1 migrations apply styrigx-curio-core` 按 database_name 找到的就是它。
+[[d1_databases]]
+binding = "D1_FINDS"
+database_name = "styrigx-curio-core"
+database_id = "26ae9cd2-43c9-4bc0-b558-b35560ed9d7c"
+migrations_dir = "migrations"
+
+[[d1_databases]]
+binding = "D1_DEVICES"
+database_name = "styrigx-curio-core"
+database_id = "26ae9cd2-43c9-4bc0-b558-b35560ed9d7c"
+
+[[d1_databases]]
+binding = "D1_GAMES"
+database_name = "styrigx-curio-core"
+database_id = "26ae9cd2-43c9-4bc0-b558-b35560ed9d7c"
+
+# R2：icons/（网站小图标缓存）、imports/（每次导入的浏览器书签原文，备份，不自动删）、photos/（设备照片 / 游戏封面；每天清扫没人引用的）
+[[r2_buckets]]
+binding = "R2_PHOTOS"
+bucket_name = "styrigx-curio-core"
+
+# 验票：主站鉴权网关的 RPC 入口 AuthVerifier（lockSession）。
+[[services]]
+binding = "AUTH"
+service = "styrigx-auth-gateway"
+entrypoint = "AuthVerifier"
+
+# 全站搜索索引：KV styrigx-search-index（主站 styrigx-search-index Worker 读）。本 Worker 只写自己那条 site:curio：
+# 改内容的写接口成功后重建（ctx.waitUntil），下面的 Cron 每小时兜底一次。格式见 src/search-index.js。
+[[kv_namespaces]]
+binding = "KV_SEARCH_INDEX"
+id = "bd1babcc3fe74d58994e254c74d34ced"
+
+# Cron：每小时第 23 分重建一次搜索索引（首次部署后也靠它填上）；UTC 19:23（北京 03:23）那轮顺带清扫 R2 photos/ 里没人引用的照片。
+[triggers]
+crons = ["23 * * * *"]

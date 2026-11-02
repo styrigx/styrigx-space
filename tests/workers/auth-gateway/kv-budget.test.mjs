@@ -36,8 +36,8 @@ test('清预览 D1：只清 passkey / password / attempt_limit（「是否已设
   for (const t of RESET_D1_TABLES) assert.match(mig, new RegExp('CREATE TABLE IF NOT EXISTS ' + t + ' \\('), t);
 });
 
-test('清预览 D1：库 id 取 web/wrangler.toml 预览的 D1_LOCK_AUTH，和组合预览账号那一半的 D1_ACCOUNT_AUTH 同一个库，且不是正式库', () => {
-  const pvToml = readFileSync(path.join(REPO, 'web/wrangler.toml'), 'utf8');
+test('清预览 D1：库 id 取 web/atlas/wrangler.toml 预览的 D1_LOCK_AUTH，和组合预览账号那一半的 D1_ACCOUNT_AUTH 同一个库，且不是正式库', () => {
+  const pvToml = readFileSync(path.join(REPO, 'web/atlas/wrangler.toml'), 'utf8');
   const prodToml = readFileSync(path.join(REPO, 'workers/auth-gateway/wrangler.toml'), 'utf8');
   const pv = previewD1Id(REPO);
   assert.equal(pv, d1DatabaseId(pvToml, REALM_LOCK.d1Binding));
@@ -134,7 +134,7 @@ test('deploy.yml：PR → 本地模拟器（不用 Cloudflare secret、不部署
     'Deploy to preview', PREVIEW_RUN, 'Guard - no private vars on Pages production']) {
     assert.ok(String(step(n).if).includes(NOT_PR), n);
   }
-  /* 真实预览的用例步骤原样：读 web/wrangler.toml 的预览地址，用 Pages 部署 token */
+  /* 真实预览的用例步骤原样：读 web/atlas/wrangler.toml 的预览地址，用 Pages 部署 token */
   const pv = step(PREVIEW_RUN);
   assert.equal(pv.env.SGX_TEST_CF_TOKEN, '${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}');
   assert.match(pv.run, /export SGX_TEST_BASE=/);
@@ -145,7 +145,7 @@ test('deploy.yml：PR → 本地模拟器（不用 Cloudflare secret、不部署
   for (const n of ['Setup Node', 'Generate preview test credentials', 'Setup Hugo', 'Install dependencies', 'Playwright Chromium', 'Build CSS', 'Build site']) {
     assert.equal(step(n).if, GATE, n);
   }
-  assert.equal(step('Build site').run, 'hugo --minify -s web');
+  assert.equal(step('Build site').run, 'hugo --minify -s web/atlas');
 
   /* PR：模拟器 */
   const start = step(EMU_START);
@@ -204,7 +204,7 @@ test('deploy.yml：passkey-e2e 的路径过滤是 denylist，做在步骤层，�
   assert.match(sh, /git merge-base "\$a" "\$b"/, 'PR 比 base...head');
   assert.match(sh, /\[ -n "\$changes" \] \|\| verdict false/, '空 diff 照跑');
   /* 照跑名单在跳过规则之前 */
-  const always = sh.indexOf('.github/* | package.json | package-lock.json | web/shared/* | web/assets/js/* | workers/auth-gateway/src/core/* | workers/auth-gateway/src/lib/*)');
+  const always = sh.indexOf('.github/* | package.json | package-lock.json | web/atlas/shared/* | web/atlas/assets/js/* | workers/auth-gateway/src/core/* | workers/auth-gateway/src/lib/*)');
   assert.ok(always > 0 && always < sh.indexOf('*.md | *.css)'));
   assert.match(sh, /\[ "\$st" = M \] \|\| \[ "\$st" = A \] \|\| verdict false/, '删除照跑');
   assert.match(sh, /\*\) verdict false "\$f: run"/, '其余任何文件照跑');

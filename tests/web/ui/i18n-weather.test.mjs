@@ -16,13 +16,13 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../../..');
-const featuresYaml = readFileSync(join(root, 'web/data/features.yaml'), 'utf8');
-const baseofHtml = readFileSync(join(root, 'web/layouts/_default/baseof.html'), 'utf8');
-const settingsJs = readFileSync(join(root, 'web/assets/js/apps/settings.js'), 'utf8');
+const featuresYaml = readFileSync(join(root, 'web/atlas/data/features.yaml'), 'utf8');
+const baseofHtml = readFileSync(join(root, 'web/atlas/layouts/_default/baseof.html'), 'utf8');
+const settingsJs = readFileSync(join(root, 'web/atlas/assets/js/apps/settings.js'), 'utf8');
 /* 语言等偏好的 setter 在 lib/prefs.js（设置页和顶栏快捷面板共用） */
-const prefsJs = readFileSync(join(root, 'web/assets/js/lib/prefs.js'), 'utf8');
-const indexJs = readFileSync(join(root, 'web/assets/js/apps/index.js'), 'utf8');
-const featureHtml = readFileSync(join(root, 'web/layouts/partials/feature.html'), 'utf8');
+const prefsJs = readFileSync(join(root, 'web/atlas/assets/js/lib/prefs.js'), 'utf8');
+const indexJs = readFileSync(join(root, 'web/atlas/assets/js/apps/index.js'), 'utf8');
+const featureHtml = readFileSync(join(root, 'web/atlas/layouts/partials/feature.html'), 'utf8');
 
 /* 简单解析 lang feature 的 options（避免引入 yaml 依赖） */
 function getLangOptions() {

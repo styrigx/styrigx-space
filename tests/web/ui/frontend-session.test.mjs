@@ -20,9 +20,9 @@ import { onRequestPost as lockPost, onRequestGet as lockGet } from '../../../wor
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 /* 2026-10-26（frontend-js #6）：锁屏拆成守卫 shell/lock-guard.js（core 里）+ 界面 shell/lock.js（按需加载），两份合起来查 */
-const lockJs = readFileSync(join(root, 'web/assets/js/shell/lock-guard.js'), 'utf8') + '\n' + readFileSync(join(root, 'web/assets/js/shell/lock.js'), 'utf8');
-const secJs = readFileSync(join(root, 'web/assets/js/apps/security.js'), 'utf8');
-const cardHtml = readFileSync(join(root, 'web/layouts/partials/sgx-account-card.html'), 'utf8');
+const lockJs = readFileSync(join(root, 'web/atlas/assets/js/shell/lock-guard.js'), 'utf8') + '\n' + readFileSync(join(root, 'web/atlas/assets/js/shell/lock.js'), 'utf8');
+const secJs = readFileSync(join(root, 'web/atlas/assets/js/apps/security.js'), 'utf8');
+const cardHtml = readFileSync(join(root, 'web/atlas/layouts/partials/sgx-account-card.html'), 'utf8');
 
 test('lock.js：不再读写 sgx-lock-shown', () => {
   assert.ok(!lockJs.includes('sgx-lock-shown'), 'lock.js 不应再出现 sgx-lock-shown');
@@ -42,7 +42,7 @@ test('lock.js：会话有效时分发 sgx:session 事件', () => {
 });
 
 test('page-security.js：立即锁定调 POST /api/lock-now（确认层与请求在 auth/lock-now.js，安全页和快捷面板共用）', () => {
-  const lockNowJs = readFileSync(join(root, 'web/assets/js/auth/lock-now.js'), 'utf8');
+  const lockNowJs = readFileSync(join(root, 'web/atlas/assets/js/auth/lock-now.js'), 'utf8');
   assert.ok(!secJs.includes('sgx-lock-shown'), '不应再出现 sgx-lock-shown');
   assert.ok(secJs.includes("from '../auth/lock-now.js'") && secJs.includes('confirmLockNow()'), '安全页应调用共用的 confirmLockNow');
   assert.ok(!lockNowJs.includes('sgx-lock-shown'), '不应再出现 sgx-lock-shown');
@@ -55,18 +55,18 @@ test('sgx-account-card.html：只保留名字和头像（解锁入口已移走�
   assert.ok(!cardHtml.includes('sgx-unlock-link'), '孤立的解锁入口应已删掉');
   assert.ok(!cardHtml.includes('sgx:session'), '账户卡不再监听会话事件');
   assert.ok(cardHtml.includes('sgx-account-card'), '账户卡主体保留');
-  const setHtml = readFileSync(join(root, 'web/layouts/_default/settings.html'), 'utf8');
-  const acctHtml = readFileSync(join(root, 'web/layouts/_default/account.html'), 'utf8');
+  const setHtml = readFileSync(join(root, 'web/atlas/layouts/_default/settings.html'), 'utf8');
+  const acctHtml = readFileSync(join(root, 'web/atlas/layouts/_default/account.html'), 'utf8');
   assert.ok(!setHtml.includes('sgx-account-card'), '设置页不再放账号卡');
   assert.ok(acctHtml.includes('partial "sgx-account-card.html"'), '账号页总览放账号卡');
-  const setEntry = readFileSync(join(root, 'web/assets/js/entries/entry-settings.js'), 'utf8');
-  const acctEntry = readFileSync(join(root, 'web/assets/js/entries/entry-account.js'), 'utf8');
+  const setEntry = readFileSync(join(root, 'web/atlas/assets/js/entries/entry-settings.js'), 'utf8');
+  const acctEntry = readFileSync(join(root, 'web/atlas/assets/js/entries/entry-account.js'), 'utf8');
   assert.ok(!setEntry.includes('initAvatarEdit'), '设置页入口不再加载换头像');
   assert.ok(acctEntry.includes('initAvatarEdit()'), '账号页入口加载换头像');
 });
 
 test('security.html：安全分组两个入口（锁屏凭证/立即锁定）；没有管理凭证、应用凭证；账号在顶栏头像', () => {
-  const secHtml = readFileSync('web/layouts/_default/security.html', 'utf8');
+  const secHtml = readFileSync('web/atlas/layouts/_default/security.html', 'utf8');
   assert.ok(!secHtml.includes('id="sec-owner-cred"'), '管理员凭证入口已移到顶栏头像（账号页）');
   assert.ok(!secHtml.includes('id="sec-mgmt-cred"'), '管理凭证已删除');
   assert.ok(!secHtml.includes('管理凭证'), '不应再出现「管理凭证」');
@@ -74,12 +74,12 @@ test('security.html：安全分组两个入口（锁屏凭证/立即锁定）；
   assert.ok(secHtml.includes('锁屏凭证'), '中文标题');
   assert.ok(secHtml.includes('id="sec-locknow"'), '应有立即锁定入口');
   assert.ok(!secHtml.includes('id="sec-app-row"'), '不应有应用验证');
-  const base = readFileSync('web/layouts/_default/baseof.html', 'utf8');
+  const base = readFileSync('web/atlas/layouts/_default/baseof.html', 'utf8');
   assert.ok(base.includes('<a class="sgx-drawer-me" href="{{ $acctUrl }}"'), '抽屉头的头像链到账号页');
 });
 
 test('security.js：读锁屏凭证状态，不再走 stepup；无角色条件渲染', () => {
-  const js = readFileSync('web/assets/js/apps/security.js', 'utf8');
+  const js = readFileSync('web/atlas/assets/js/apps/security.js', 'utf8');
   assert.ok(!/stepup/i.test(js), '不应再有 stepup');
   assert.ok(js.includes("'/api/lock-credentials'"), '状态卡片读 /api/lock-credentials');
   assert.ok(js.includes("getElementById('sec-locknow')"), '应操作立即锁定入口');

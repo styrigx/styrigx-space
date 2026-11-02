@@ -7,7 +7,7 @@
 ## 全局标准（Gray 2026-10-10 定，每个 PR 都按此验收）
 
 1. **命名**：Styrigx = Styrigx UI（界面+发行版）+ SGX（内核）。不用"OS"命名；文字一律写 Styrigx，不写 StyrigX。
-2. **版本**：UI 版本对齐 One UI，当前 8.5；内核沿开发版本线，队列里的 2.6.0/2.7.0/2.8.0/3.0.0 都是 SGX 版本。对外显示为「Styrigx UI 8.5 · SGX x.y」。版本只从 `data/version.yaml` 读，禁止硬编码；`hugo.yaml` 里旧的版本字段和 README 徽章都改为从这里取。（2026-10-27 注：2026-10-18 根目录分层 873a21f 起该文件在 `web/data/version.yaml`；当前为 ui "9.0" / sgx "3.0.0"，由 B2-7 PR #113（merge 7f02a6a，2026-10-17）改定，不是本队列的 3.0.0 项。）
+2. **版本**：UI 版本对齐 One UI，当前 8.5；内核沿开发版本线，队列里的 2.6.0/2.7.0/2.8.0/3.0.0 都是 SGX 版本。对外显示为「Styrigx UI 8.5 · SGX x.y」。版本只从 `data/version.yaml` 读，禁止硬编码；`hugo.yaml` 里旧的版本字段和 README 徽章都改为从这里取。（2026-10-27 注：2026-10-18 根目录分层 873a21f 起该文件在 `web/atlas/data/version.yaml`；当前为 ui "9.0" / sgx "3.0.0"，由 B2-7 PR #113（merge 7f02a6a，2026-10-17）改定，不是本队列的 3.0.0 项。）
 3. **锁屏**：唯一状态源是服务端 sgx-verified（Domain=.styrigx.com; Path=/）。禁止用 sessionStorage、localStorage、BroadcastChannel、前端内存或标签页状态另做鉴权。
 4. **分层**（docs/architecture.md）：L0 凭证与签名 → L1 middleware（唯一鉴权判断，含 return 校验）→ L2 api → L3 共享库（不含鉴权）→ L4 shell/锁屏（只显示和提交）→ L5 页面应用 → L6 blog/book（只用公钥验签，book 的 D1/绑定保留）。上层只能调用下层，不能跨层，也不能重复实现下层职责。
 5. **规则**：只走 PR；不直推 main；不 force push；只用 PUT /pulls/{n}/merge，禁止手造 merge commit；每个分支从最新 main 开；不删测试、不跳过测试；不删或清空生产 KV/D1；不动 Cloudflare 后台和密钥；不留兼容层。同一问题修两轮仍失败就停下不合，报告 Gray。

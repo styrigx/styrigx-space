@@ -1,0 +1,15 @@
+{{- /* /sitemap-0.xml：两种语言的全部页面（首页、文章、标签页），和旧站同样不含 404 与跳转页 */ -}}
+{{- if eq site.Language.Lang "zh" -}}
+{{- $urls := slice -}}
+{{- range hugo.Sites -}}
+  {{- range .Pages -}}
+    {{- if and (in (slice "home" "page" "term") .Kind) (not .Params.private) -}}
+      {{- $urls = $urls | append .Permalink -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- printf `<?xml version="1.0" encoding="UTF-8"?>` | safeHTML -}}
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1" xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
+{{- range sort (uniq $urls) -}}<url><loc>{{ . }}</loc></url>{{- end -}}
+</urlset>
+{{- end -}}

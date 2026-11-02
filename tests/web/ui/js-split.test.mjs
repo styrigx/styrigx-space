@@ -16,8 +16,8 @@ import { dirname, join } from 'node:path';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 const rd = (p) => readFileSync(join(root, p), 'utf8');
-const base = rd('web/layouts/_default/baseof.html');
-const ENTRY_DIR = 'web/assets/js/entries';
+const base = rd('web/atlas/layouts/_default/baseof.html');
+const ENTRY_DIR = 'web/atlas/assets/js/entries';
 
 function batchList() {
   const m = base.match(/partialCached "sgx-js-batch\.html" \(dict "defines" \$featDefines "entries" \(slice ([^)]*)\)\)/);
@@ -37,16 +37,16 @@ test('各页模板 sgx-entry 指向的入口都在列表里', () => {
   const list = batchList();
   const walk = (d) => readdirSync(join(root, d), { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(d + '/' + e.name) : e.name.endsWith('.html') ? [d + '/' + e.name] : []));
   let n = 0;
-  for (const f of walk('web/layouts')) {
+  for (const f of walk('web/atlas/layouts')) {
     for (const m of rd(f).matchAll(/\.Scratch\.Set "sgx-entry" "([^"]+)\.js"/g)) {
       n++;
       assert.ok(list.includes(m[1]), `${f}: ${m[1]} 不在批量构建列表里`);
     }
   }
   assert.ok(n >= 12, '模板里应有各页入口');
-  assert.ok(rd('web/layouts/index.html').includes('"sgx-entry" "entry-tab-home.js"'));
-  assert.ok(rd('web/layouts/_default/chat.html').includes('"sgx-entry" "entry-tab-chat.js"'));
-  assert.ok(rd('web/layouts/_default/settings.html').includes('"sgx-entry" "entry-tab-settings.js"'));
+  assert.ok(rd('web/atlas/layouts/index.html').includes('"sgx-entry" "entry-tab-home.js"'));
+  assert.ok(rd('web/atlas/layouts/_default/chat.html').includes('"sgx-entry" "entry-tab-chat.js"'));
+  assert.ok(rd('web/atlas/layouts/_default/settings.html').includes('"sgx-entry" "entry-tab-settings.js"'));
 });
 
 test('三栏入口：当前栏静态挂、另两栏 import(lazy-*.js)，keep / top 一致', () => {
@@ -88,27 +88,27 @@ test('baseof：modulepreload + 构建签名 + 入口加载失败只自动刷新�
   const head = base.slice(0, base.indexOf('</head>'));
   assert.ok(head.includes("localStorage.getItem('sgx-theme-mode')"), '主题预读仍在 head 内联');
   assert.ok(!/<script[^>]*type="module"/.test(head), 'head 里不放 module 脚本');
-  const part = rd('web/layouts/partials/sgx-js-batch.html');
+  const part = rd('web/atlas/layouts/partials/sgx-js-batch.html');
   assert.ok(part.includes('js.Batch "js/sgx"') && part.includes('| fingerprint'), 'js.Batch 构建，入口 fingerprint（/js/* 是 immutable 缓存）');
 });
 
 test('inpage-tabs.js / core.js：构建签名比对、模块失败整页导航、成功清标记', () => {
-  const tabs = rd('web/assets/js/shell/inpage-tabs.js');
+  const tabs = rd('web/atlas/assets/js/shell/inpage-tabs.js');
   assert.ok(tabs.includes("script[type=\"module\"][data-sgx-js]"), '用 data-sgx-js 判断同一次构建');
   assert.ok(!tabs.includes('/js/entries/'), '不再按入口地址判断（三栏入口不同）');
   assert.ok(tabs.includes("const RETRY_KEY = 'sgx-js-retry'"));
   assert.ok(/if \(p\.modFailed\) return hardNav\(p\.href, push\);/.test(tabs), '预取失败过：点标签直接整页导航');
   assert.ok(/Promise\.all\(\[load\(p\), loadMod\(p\)\]\)/.test(tabs), '切栏等 HTML 和模块都到');
   assert.ok(/sessionStorage\.getItem\(RETRY_KEY\) === path\) return false;/.test(tabs), '同一地址只自动一次');
-  const core = rd('web/assets/js/shell/core.js');
+  const core = rd('web/atlas/assets/js/shell/core.js');
   assert.ok(core.includes("sessionStorage.getItem('sgx-js-retry') === location.pathname"), 'core 初始化成功清标记');
 });
 
 test('锁屏 / 升级按需加载（frontend-js #6）：core 只带守卫，界面和鉴权模块不进每页的 core', () => {
-  const core = rd('web/assets/js/shell/core.js');
+  const core = rd('web/atlas/assets/js/shell/core.js');
   assert.ok(core.includes("import { initLock, initUpgrade } from './lock-guard.js';"), 'core 从 lock-guard.js 取 initLock / initUpgrade');
   assert.ok(!/from '\.\/(lock|upgrade)\.js'/.test(core), 'core 不静态 import 锁屏界面 / 升级层');
-  const guard = rd('web/assets/js/shell/lock-guard.js');
+  const guard = rd('web/atlas/assets/js/shell/lock-guard.js');
   const staticImports = [...guard.matchAll(/^import [^\n]* from '([^']+)';$/gm)].map((m) => m[1]);
   assert.deepEqual(staticImports, ['../lib/diag-jumptrace.js'], '守卫只静态依赖 lib/diag-jumptrace.js');
   assert.ok(guard.includes("import('./lock.js')") && guard.includes("import('./upgrade.js')"), '界面按需 import()');
@@ -121,13 +121,13 @@ test('锁屏 / 升级按需加载（frontend-js #6）：core 只带守卫，界�
   /* initLock 不再直接画锁屏 */
   const init = guard.slice(guard.indexOf('export function initLock()'), guard.indexOf('function showLockCover()'));
   assert.ok(!init.includes('showLockScreen'), 'initLock 不直接调锁屏界面');
-  const lock = rd('web/assets/js/shell/lock.js');
+  const lock = rd('web/atlas/assets/js/shell/lock.js');
   assert.ok(lock.includes('export function showLockScreen()') && lock.includes("getElementById('sgx-lock-cover')"), '锁屏画上后撤掉遮罩');
-  assert.ok(!rd('web/assets/js/shell/upgrade.js').includes('export function initUpgrade'), 'initUpgrade 只在守卫里一份');
+  assert.ok(!rd('web/atlas/assets/js/shell/upgrade.js').includes('export function initUpgrade'), 'initUpgrade 只在守卫里一份');
 });
 
 test('锁屏按需加载 × 页面自带的门（2026-10-26 回归）：门内页撤锁屏走 releaseLockScreen，晚到的锁屏界面不再画上', () => {
-  const guard = rd('web/assets/js/shell/lock-guard.js');
+  const guard = rd('web/atlas/assets/js/shell/lock-guard.js');
   const rel = guard.slice(guard.indexOf('export function releaseLockScreen()'));
   assert.ok(rel.includes('lockReleased = true'), '释放是粘性的');
   assert.ok(rel.includes("getElementById('sgx-lock')") && rel.includes("getElementById('sgx-lock-cover')"), '已画的锁屏和守卫遮罩都撤');
@@ -135,7 +135,7 @@ test('锁屏按需加载 × 页面自带的门（2026-10-26 回归）：门内�
   assert.ok(/^\s*if \(lockReleased\) return;/m.test(open), '释放后不再盖遮罩');
   assert.ok(/\.then\(function \(m\) \{[\s\S]*?if \(lockReleased\) return;[\s\S]*?m\.showLockScreen\(\);/.test(open), 'import 回来时已释放就不画锁屏');
   /* 门内页不再自己删 #sgx-lock（只删 DOM 会被随后按需画上的锁屏盖住） */
-  for (const f of ['web/assets/js/apps/security-lock.js', 'web/assets/js/apps/app-gate.js']) {
+  for (const f of ['web/atlas/assets/js/apps/security-lock.js', 'web/atlas/assets/js/apps/app-gate.js']) {
     const src = rd(f);
     assert.ok(src.includes("import { releaseLockScreen } from '../shell/lock-guard.js';"), f + ' 经 releaseLockScreen');
     assert.ok(!src.includes("getElementById('sgx-lock')"), f + ' 不再手删 #sgx-lock');

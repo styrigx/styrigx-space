@@ -125,10 +125,10 @@ git clone https://github.com/styrigx/styrigx-space.git
 cd styrigx-space
 npm ci
 npm run build:css
-hugo server -s web          # http://localhost:1313
+hugo server -s web/atlas          # http://localhost:1313
 ```
 
-Production build: `hugo --minify -s web`, output in `web/public/`. Each Worker's README explains how to run it locally.
+Production build: `hugo --minify -s web/atlas`, output in `web/atlas/public/`. Each Worker's README explains how to run it locally.
 
 ## Testing and CI
 
@@ -145,7 +145,7 @@ Pull requests must pass `quality` and `passkey-e2e` (squash-only, linear history
 
 ```
 styrigx-space/
-├─ web/        the site (Hugo), published by Cloudflare Pages
+├─ web/        site packages: atlas/ is the main site (Hugo, published by Cloudflare Pages); blog/ curio/ daymark/ are the subsites
 ├─ workers/    all Workers, one directory each
 ├─ tests/      tests, grouped by what they test
 ├─ scripts/    build, generators and static checks

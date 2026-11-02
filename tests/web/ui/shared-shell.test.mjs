@@ -1,5 +1,5 @@
 /**
- * 共享外壳 web/shared/shell（scripts/gen-shell.mjs 生成，子站 sync-shell.mjs 同步）：
+ * 共享外壳 web/atlas/shared/shell（scripts/gen-shell.mjs 生成，子站 sync-shell.mjs 同步）：
  * 生成物必须和源头一致；外壳 CSS 只用色彩角色，不写死颜色；抽屉项 / 图标齐全。
  */
 import { test } from 'node:test';
@@ -12,9 +12,9 @@ import { renderAll, OUT_DIR, SHELL_REGIONS, extractRegion } from '../../../scrip
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const files = renderAll();
-const ROLES = JSON.parse(readFileSync(path.join(REPO, 'web/data/palette-roles.json'), 'utf8'));
+const ROLES = JSON.parse(readFileSync(path.join(REPO, 'web/atlas/data/palette-roles.json'), 'utf8'));
 
-test('web/shared/shell 和源头一致（改了源头要重跑 node scripts/gen-shell.mjs）', () => {
+test('web/atlas/shared/shell 和源头一致（改了源头要重跑 node scripts/gen-shell.mjs）', () => {
   for (const [k, v] of Object.entries(files)) assert.equal(readFileSync(path.join(OUT_DIR, k), 'utf8'), v, k);
 });
 
@@ -24,7 +24,7 @@ test('manifest 的 sha256 对得上每个文件', () => {
 });
 
 test('外壳 CSS 段只用 --sgx-* 角色：没有十六进制颜色、没有旧 --m-* 令牌', () => {
-  const css = readFileSync(path.join(REPO, 'web/assets/css/input.css'), 'utf8');
+  const css = readFileSync(path.join(REPO, 'web/atlas/assets/css/input.css'), 'utf8');
   for (const n of SHELL_REGIONS) {
     const r = extractRegion(css, n).replace(/\/\*[\s\S]*?\*\//g, '');
     assert.doesNotMatch(r, /#[0-9a-fA-F]{3,8}\b/, n);
@@ -128,23 +128,23 @@ test('顶栏 v8（2026-10-22）：九宫格圆 | 只有页名的长条 | 右圆 
   assert.match(s, /\.sgx-drawer-head \{[^}]*align-items: center;\s*justify-content: space-between;/);
   assert.match(s, /:root \{ --sgx-drawer-me: var\(--sgx-tb-btn\); \}/);
   assert.match(s, /\.sgx-drawer-me \{[^}]*width: var\(--sgx-drawer-me\); height: var\(--sgx-drawer-me\); border-radius: 999px;[^}]*box-shadow: var\(--sgx-mat-shadow\);/);
-  const base = readFileSync(path.join(REPO, 'web/layouts/_default/baseof.html'), 'utf8');
+  const base = readFileSync(path.join(REPO, 'web/atlas/layouts/_default/baseof.html'), 'utf8');
   /* 主站顶栏三栏（2026-10-22 PR2，只在主站）：主页 / 聊天 / 状态三页长条里是 partials/topbar-tabs.html，其他页仍只有页名 */
   assert.match(base, /<div class="sgx-tb-pill\{\{ if \$tabCur \}\} sgx-tb-pill-tabs\{\{ end \}\}">\{\{ if \$tabCur \}\}\{\{ partial "topbar-tabs\.html" \(dict "isEn" \$isEn "cur" \$tabCur\) \}\}\{\{ else \}\}<span class="sgx-tb-title">\{\{ \$pageName \}\}<\/span>\{\{ end \}\}<\/div>\n\s*\{\{ partial "topbar-end\.html"/);
   /* 三栏样式只在主站段，不进共享外壳 */
   assert.doesNotMatch(s, /sgx-tb-tab/);
-  const end = readFileSync(path.join(REPO, 'web/layouts/partials/topbar-end.html'), 'utf8');
+  const end = readFileSync(path.join(REPO, 'web/atlas/layouts/partials/topbar-end.html'), 'utf8');
   assert.match(end, /<button type="button" class="sgx-tb-end sgx-tb-quick"/);
 });
 
 test('搜索层：search.js 原样复制 shell/search-layer.js、不 import 任何东西；shell.css 有 search 段；引擎表和 engines.js 一致', async () => {
-  const src = readFileSync(path.join(REPO, 'web/assets/js/shell/search-layer.js'), 'utf8');
+  const src = readFileSync(path.join(REPO, 'web/atlas/assets/js/shell/search-layer.js'), 'utf8');
   assert.equal(files['search.js'], src);
   assert.doesNotMatch(src.replace(/\/\*[\s\S]*?\*\//g, ''), /^\s*import\s|\bimport\s*\(/m);
   assert.match(files['shell.css'], /\/\* ---- search ---- \*\/[\s\S]*\.sgx-srch \{ position: fixed; inset: 0;/);
   assert.match(files['shell.css'], /\.sgx-drawer\.sgx-srch-ghost \{ z-index: 60;/);
-  const engSrc = readFileSync(path.join(REPO, 'web/assets/js/shell/engines.js'), 'utf8');
-  const { ENGINES, looksLikeUrl } = await import('../../../web/assets/js/shell/search-layer.js');
+  const engSrc = readFileSync(path.join(REPO, 'web/atlas/assets/js/shell/engines.js'), 'utf8');
+  const { ENGINES, looksLikeUrl } = await import('../../../web/atlas/assets/js/shell/search-layer.js');
   for (const [id, e] of Object.entries(ENGINES)) {
     assert.ok(engSrc.includes(`${id}: { n: '${e.n}', u: '${e.u}'`), id);
   }

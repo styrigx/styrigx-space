@@ -43,11 +43,11 @@ jobs:
         run: node scripts/build-css.cjs --minify
       - name: Update lock screen baseline (生产构建，锁屏启用；同 deploy.yml 的锁屏截图步骤)
         run: |
-          hugo --minify -s web
+          hugo --minify -s web/atlas
           SGX_TEST_SUITE=lock npx playwright test --config=tests/config/playwright.config.js --grep "baseline screenshot" --update-snapshots
       - name: Test build (same as deploy.yml visual step)
         run: |
-          hugo --minify -s web
+          hugo --minify -s web/atlas
         env:
           SGX_TEST_NO_LOCK: "1"
           SGX_TEST_NO_WEATHER: "1"
@@ -56,7 +56,7 @@ jobs:
       - name: Commit snapshots only
         id: commit
         run: |
-          git checkout -- web/data/ 2>/dev/null || true   # 生产构建生成的数据文件不提交
+          git checkout -- web/atlas/data/ 2>/dev/null || true   # 生产构建生成的数据文件不提交
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add tests/web/e2e/visual/visual.spec.js-snapshots tests/web/e2e/visual/lock.spec.js-snapshots

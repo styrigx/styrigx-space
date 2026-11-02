@@ -1,5 +1,5 @@
 /**
- * 服务状态（/settings/status/，之前在账号页，2026-10-24 PR4 前是 /status/）渲染 / 格式函数（web/assets/js/lib/status-view.js）：北京时间、时长、可用率、每日色块、
+ * 服务状态（/settings/status/，之前在账号页，2026-10-24 PR4 前是 /status/）渲染 / 格式函数（web/atlas/assets/js/lib/status-view.js）：北京时间、时长、可用率、每日色块、
  * 当前状态、横幅、站点卡和故障列表的 HTML。假数据：tests/fixtures/status-summary.cjs（Playwright 同一份）。
  * 运行：node --test tests/web/ui/status-view.test.mjs
  */
@@ -9,11 +9,11 @@ import { readFileSync } from 'node:fs';
 import {
   esc, bjDay, addDays, fmtDay, fmtBjTime, fmtDur, fmtAgo, fmtPct, pctOf, dayLevel, buildSlots, siteState, siteName, hostOf,
   causeText, lastText, isEmptySummary, bannerInfo, sortIncidents, slotText, uptime90, renderSite, renderIncidents, BAR_DAYS,
-} from '../../../web/assets/js/lib/status-view.js';
+} from '../../../web/atlas/assets/js/lib/status-view.js';
 import fx from '../../fixtures/status-summary.cjs';
 
 /* 文案直接读模板里的那份（partials/status-i18n.html 的 dict "key" (dict "zh" … "en" …)），和页面上一致 */
-const SRC = readFileSync(new URL('../../../web/layouts/partials/status-i18n.html', import.meta.url), 'utf8');
+const SRC = readFileSync(new URL('../../../web/atlas/layouts/partials/status-i18n.html', import.meta.url), 'utf8');
 const DICT = {};
 for (const m of SRC.matchAll(/"(\w+)" \(dict "zh" "([^"]*)" "en" "([^"]*)"\)/g)) DICT[m[1]] = { zh: m[2], en: m[3] };
 

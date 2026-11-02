@@ -1,0 +1,17 @@
+{{- /* 代码块（新设计，取代 Expressive Code）：一个圆角容器（--blog-code-surface = surface-container-high），
+顶部一条小标题栏：语言 · 文件名（```lang {filename="x"} 或 {title="x"}）· 复制按钮；
+Chroma 输出 class，行号在同一行里（.ln，左侧安静的槽，横向滚动时贴住左边），不换行、横向滚动；
+hl_lines 高亮行（```go {hl_lines="2-3"}），linenos=false 可关行号。配色见 assets/css/blog/code-tokens.css（从色彩角色生成）。 */ -}}
+{{- $lang := .Type | default "text" -}}
+{{- $label := cond (in (slice "text" "plaintext" "txt" "") $lang) (i18n "codePlain") $lang -}}
+{{- $file := or .Attributes.filename .Attributes.title "" -}}
+{{- $opts := merge (dict "lineNos" "inline" "lineNumbersInTable" false "noClasses" false) .Options -}}
+{{- if eq (printf "%v" (index .Options "linenos")) "false" }}{{ $opts = merge $opts (dict "lineNos" false) }}{{ end -}}
+<figure class="code-block" data-lang="{{ $lang }}">
+  <figcaption class="code-head">
+    <span class="code-lang">{{ $label }}</span>
+    {{- with $file }}<span class="code-file">{{ . }}</span>{{ end }}
+    <button type="button" class="code-copy" data-code-copy data-copied-label="{{ i18n "codeCopied" }}" aria-label="{{ i18n "codeCopy" }}">{{ partial "icon.html" (dict "name" "copy" "size" 15 "class" "code-copy-ic") }}{{ partial "icon.html" (dict "name" "check" "size" 15 "class" "code-copied-ic") }}<span data-code-copy-label>{{ i18n "codeCopy" }}</span></button>
+  </figcaption>
+  {{ transform.Highlight .Inner $lang $opts }}
+</figure>

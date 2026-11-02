@@ -20,9 +20,9 @@ export const TEST_PREVIEW_NAME = 'styrigx-test-preview';
 export const TEST_PREVIEW_D1_ID = '1339bb0b-f9f8-4e3d-b413-ff07ca28ce69';
 export const TEST_PREVIEW_KV_ID = '193b4d68b8ac4c6f8c0ba16b5ea78b14';
 
-/** 仓库里所有 wrangler.toml：web/ 和 workers/<名字>/ */
+/** 仓库里所有 wrangler.toml：web/atlas/ 和 workers/<名字>/ */
 function wranglerFiles() {
-  const out = ['web/wrangler.toml'];
+  const out = ['web/atlas/wrangler.toml'];
   for (const d of readdirSync(REPO + 'workers', { withFileTypes: true })) {
     if (d.isDirectory() && existsSync(REPO + 'workers/' + d.name + '/wrangler.toml')) out.push('workers/' + d.name + '/wrangler.toml');
   }

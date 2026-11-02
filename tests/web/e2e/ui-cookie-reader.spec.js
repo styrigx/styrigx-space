@@ -10,7 +10,7 @@ const { blockExternalRequests, freezeTime, expect } = require('./helpers');
 
 test.use({ viewport: { width: 412, height: 915 } });
 
-const SHELL = path.join(__dirname, '../../../web/shared/shell');
+const SHELL = path.join(__dirname, '../../../web/atlas/shared/shell');
 const shell = (f) => fs.readFileSync(path.join(SHELL, f), 'utf8');
 const SUB = '/__ui-cookie-subsite/';
 

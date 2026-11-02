@@ -13,7 +13,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 
 const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../..');
-const baseof = readFileSync(path.join(REPO, 'web/layouts/_default/baseof.html'), 'utf8');
+const baseof = readFileSync(path.join(REPO, 'web/atlas/layouts/_default/baseof.html'), 'utf8');
 const start = baseof.indexOf('/* 用户偏好预读：在渲染前应用，避免闪烁 */');
 assert.ok(start > 0, '找到预读脚本');
 const end = baseof.indexOf('})();', start) + '})();'.length;

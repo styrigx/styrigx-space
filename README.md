@@ -125,10 +125,10 @@ git clone https://github.com/styrigx/styrigx-space.git
 cd styrigx-space
 npm ci
 npm run build:css
-hugo server -s web          # http://localhost:1313
+hugo server -s web/atlas          # http://localhost:1313
 ```
 
-生产构建：`hugo --minify -s web`，产物在 `web/public/`。各 Worker 的本地运行方式见各自目录下的 README。
+生产构建：`hugo --minify -s web/atlas`，产物在 `web/atlas/public/`。各 Worker 的本地运行方式见各自目录下的 README。
 
 ## 测试与 CI
 
@@ -145,7 +145,7 @@ PR 必须通过 `quality` 和 `passkey-e2e` 才能合并（只允许 squash，�
 
 ```
 styrigx-space/
-├─ web/        网站本体（Hugo），由 Cloudflare Pages 发布
+├─ web/        网站包：atlas/ 主站（Hugo，由 Cloudflare Pages 发布），blog/ curio/ daymark/ 子站
 ├─ workers/    全部 Worker，一个目录一个
 ├─ tests/      测试，按对象分目录
 ├─ scripts/    构建、生成、静态检查脚本

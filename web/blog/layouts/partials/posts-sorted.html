@@ -1,0 +1,21 @@
+{{- /* 文章排序（原 utils/content-dates.ts）。
+.mode "list"（默认，sortByDateDesc）：日期新→旧；同一天按 id 降序，但 -vN 后缀按数字比（v2 > v1）。
+.mode "archive"（sortBlogPostsForArchive，标签页用）：日期新→旧；同一天按 id 升序。id = 文件名（不含 .md）。 */ -}}
+{{- $rows := slice -}}
+{{- range .pages -}}
+  {{- $id := .File.ContentBaseName -}}
+  {{- $ver := 0 -}}
+  {{- with findRESubmatch `-v(\d+)$` $id 1 }}{{ $ver = int (index (index . 0) 1) }}{{ end -}}
+  {{- $rows = $rows | append (dict "p" . "d" (.Date.Format "20060102150405") "v" (printf "%06d" $ver) "id" $id) -}}
+{{- end -}}
+{{- if eq .mode "archive" -}}
+  {{- $rows = sort $rows "id" "asc" -}}
+  {{- $rows = sort $rows "d" "desc" -}}
+{{- else -}}
+  {{- $rows = sort $rows "id" "desc" -}}
+  {{- $rows = sort $rows "v" "desc" -}}
+  {{- $rows = sort $rows "d" "desc" -}}
+{{- end -}}
+{{- $out := slice -}}
+{{- range $rows }}{{ $out = $out | append .p }}{{ end -}}
+{{- return $out -}}

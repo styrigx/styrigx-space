@@ -26,7 +26,7 @@ globalThis.document = {
   getElementById: (id) => (id === 'sgx-i18n-core' ? { textContent: I18N_JSON } : null),
 };
 
-const { upgradePasskeyErrorText } = await import('../../../web/assets/js/shell/upgrade.js');
+const { upgradePasskeyErrorText } = await import('../../../web/atlas/assets/js/shell/upgrade.js');
 
 function setLang(lang) {
   globalThis.document.documentElement.lang = lang;

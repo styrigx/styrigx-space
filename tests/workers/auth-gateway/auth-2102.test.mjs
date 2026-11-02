@@ -188,7 +188,7 @@ test('9c：lock-passkey 缺 Origin → 403', async () => {
 /* ============ 1：管理密钥入口静态检查 ============ */
 
 test('1a：锁屏方法弹层按配置显示入口（PR3：根凭证 / 重置锁屏两行合并成「无法登录？」）', () => {
-  const src = fs.readFileSync(path.join(REPO, 'web/assets/js/shell/lock.js'), 'utf8');
+  const src = fs.readFileSync(path.join(REPO, 'web/atlas/assets/js/shell/lock.js'), 'utf8');
   /* 根凭证不再是单独一行；都没设置（启动站）时「无法登录？」里的根凭证走 root-auth 引导 */
   assert.ok(!src.includes("'sgx-mopt-mk'") && !src.includes('id="sgx-mopt-mk"'), '不应再有根凭证一行');
   assert.ok(src.includes('sgx-mopt-cant'), '应有「无法登录？」');
@@ -204,7 +204,7 @@ test('1a：锁屏方法弹层按配置显示入口（PR3：根凭证 / 重置锁
 });
 
 test('1b：升级弹层没有根凭证入口（RootKey 不拥有会话，不能把访客升级成 admin）', () => {
-  const src = fs.readFileSync(path.join(REPO, 'web/assets/js/shell/upgrade.js'), 'utf8');
+  const src = fs.readFileSync(path.join(REPO, 'web/atlas/assets/js/shell/upgrade.js'), 'utf8');
   assert.ok(!src.includes('sgx-upgrade-mk'), '升级弹层不应有根凭证按钮');
   assert.ok(!src.includes('/api/root-auth') && !src.includes('/api/root-session'), '不调 root-auth / root-session');
   assert.ok(src.includes("'Admin verification'"), '文案是 admin 验证');

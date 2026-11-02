@@ -1,0 +1,29 @@
+title: '日刻'
+# 图志（atlas.styrigx.com）下的子路径：页面、资源、接口都在 /daymark/ 下（中文 /daymark/，英文 /daymark/en/）
+baseURL: 'https://atlas.styrigx.com/daymark/'
+defaultContentLanguage: zh
+defaultContentLanguageInSubdir: false
+hasCJKLanguage: true
+languages:
+  zh:
+    label: 中文
+    weight: 1
+  en:
+    label: English
+    weight: 2
+theme: []
+
+# robots.txt 只有图志根上的一份 root/robots.txt（Disallow: /，整个 atlas.styrigx.com 共用）。设 true 时 Hugo 内置模板会生成本站子目录里的 robots.txt（爬虫不读，白生成）
+enableRobotsTXT: false
+enableEmoji: true
+
+markup:
+  goldmark:
+    renderer:
+      unsafe: true
+
+params:
+  description: 'Sloan Gray 的日刻：每天刻下一句值得记住的话'
+  version: '1.1.0'
+
+disableKinds: ['taxonomy', 'term', 'rss', 'section']

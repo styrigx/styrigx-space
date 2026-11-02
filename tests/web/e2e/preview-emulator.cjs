@@ -12,7 +12,7 @@
  * 模拟的东西：
  * - 网关 + 账号 Worker：组合入口 tests/web/e2e/preview-worker.js（和 CI 打成预览 _worker.js 的是同一个文件：网关
  *   workers/auth-gateway/src/app.js + 账号 workers/account/src/rpc/ 的 AccountService / AccountVerifier 实现，
- *   网关的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 换成进程内适配器），SGX_ENV=preview，env.ASSETS 读 web/public（先 hugo 构建生产版）。
+ *   网关的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 换成进程内适配器），SGX_ENV=preview，env.ASSETS 读 web/atlas/public（先 hugo 构建生产版）。
  *   cloudflare:workers 用 tests/workers/account/_cf-workers.mjs 的替身。
  * - KV：网关不再绑定 KV（2026-10-27 起认证状态全在 D1）。内存 KV 只留给 Cloudflare KV REST（scripts/migrate-kv-to-d1.mjs
  *   本地对着它跑），支持 expirationTtl / expiration，列表结果带 expiration（和 Cloudflare REST 一样）。
@@ -151,7 +151,7 @@ const appKV = {
 /* ---------- D1（node:sqlite） ---------- */
 const { DatabaseSync } = require('node:sqlite');
 const db = new DatabaseSync(':memory:');
-/* 同 CI「Apply D1 migrations to preview」的顺序：网关（web/wrangler.toml）→ 账号（workers/account/wrangler.toml [env.preview]） */
+/* 同 CI「Apply D1 migrations to preview」的顺序：网关（web/atlas/wrangler.toml）→ 账号（workers/account/wrangler.toml [env.preview]） */
 const MIGRATIONS = [path.join(REPO, 'workers/auth-gateway/migrations'), path.join(REPO, 'workers/account/migrations')];
 function applyMigrations() {
   for (const dir of MIGRATIONS) {
@@ -240,7 +240,7 @@ const MIME = {
   html: 'text/html; charset=utf-8', css: 'text/css', js: 'text/javascript', json: 'application/json', xml: 'application/xml',
   webp: 'image/webp', png: 'image/png', svg: 'image/svg+xml', ico: 'image/x-icon', woff2: 'font/woff2', txt: 'text/plain',
 };
-const PUB = path.join(REPO, 'web/public');
+const PUB = path.join(REPO, 'web/atlas/public');
 function assets(req) {
   const u = new URL(req.url);
   const p = decodeURIComponent(u.pathname);

@@ -12,7 +12,7 @@
  *     该机制已删除，残留即 bug）。只匹配独立的 token 标识符，不误伤
  *     csrfToken、__token 等合法命名（词边界匹配）。
  *
- * 扫描范围：web/assets/js/ 和 web/shared/shell/（同步给子站的外壳脚本）。
+ * 扫描范围：web/atlas/assets/js/ 和 web/atlas/shared/shell/（同步给子站的外壳脚本）。
  * 去注释按词法走（字符串里的 // 不当注释），以前用正则去注释，'https://…' 之后同一行的代码会被当注释吞掉，
  * 那一行的 alert( 就查不到。
  * 原生弹窗除了裸调用和 window.，也查 globalThis. / self. / top. 和 window['alert'] 这种写法。
@@ -135,7 +135,7 @@ export function checkSource(r, src) {
  * @returns {{files:number, errors:string[]}}
  */
 export function checkRepo(root) {
-  const files = walk(join(root, 'web/assets/js')).concat(walk(join(root, 'web/shared/shell')));
+  const files = walk(join(root, 'web/atlas/assets/js')).concat(walk(join(root, 'web/atlas/shared/shell')));
   const errors = [];
   for (const f of files) {
     const r = relative(root, f).split(sep).join('/');

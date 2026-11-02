@@ -1,5 +1,5 @@
 /**
- * 聊天页（/chat/）纯函数（web/assets/js/lib/chat-view.js）：安全 Markdown（XSS：<script>、onerror、javascript: 链接）、
+ * 聊天页（/chat/）纯函数（web/atlas/assets/js/lib/chat-view.js）：安全 Markdown（XSS：<script>、onerror、javascript: 链接）、
  * 段落 / 粗体 / 行内代码 / 代码块 / 列表 / 链接、来源 chip、SSE 解析（跨块）、发给 /api/chat 的对话裁剪、错误文案；
  * 以及 apps/chat.js 用到的文案都在 partials/chat-i18n.html 里（中英都有）。
  * 运行：node --test tests/web/ui/chat-view.test.mjs
@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import {
   buildPayload, createSseParser, errorInfo, renderInline, renderMarkdown, renderSources, safeUrl, sourceLabel, MAX_MESSAGES, MAX_TOTAL,
   parseModels, pickModel, modelOptionsHtml, modelFootText, modelsSayNoKey,
-} from '../../../web/assets/js/lib/chat-view.js';
+} from '../../../web/atlas/assets/js/lib/chat-view.js';
 
 /** 渲染结果里不允许出现的东西：任何真标签都只能是白名单里的 */
 const ALLOWED_TAGS = new Set(['p', 'br', 'strong', 'em', 'code', 'pre', 'ul', 'ol', 'li', 'a', 'blockquote', 'hr']);
@@ -232,10 +232,10 @@ test('modelFootText：模型名；没联网 → 「· 未联网」；没有模�
 });
 
 test('文案：apps/chat.js 用到的 key 在 chat-i18n.html 里都有中英', () => {
-  const src = readFileSync(new URL('../../../web/layouts/partials/chat-i18n.html', import.meta.url), 'utf8');
+  const src = readFileSync(new URL('../../../web/atlas/layouts/partials/chat-i18n.html', import.meta.url), 'utf8');
   const dict = {};
   for (const m of src.matchAll(/"([A-Za-z0-9]+)" \(dict "zh" "([^"]*)" "en" "([^"]*)"\)/g)) dict[m[1]] = { zh: m[2], en: m[3] };
-  const app = readFileSync(new URL('../../../web/assets/js/apps/chat.js', import.meta.url), 'utf8');
+  const app = readFileSync(new URL('../../../web/atlas/assets/js/apps/chat.js', import.meta.url), 'utf8');
   const used = new Set([...app.matchAll(/\bt\('([A-Za-z0-9]+)'\)/g)].map((m) => m[1]));
   for (const k of ['errRate', 'errNoKey', 'errTooLong', 'errUpstream', 'errRateModel', 'errModel', 'errBadModel']) used.add(k);
   for (const k of ['errAuth', 'errAuthSub', 'adminOnly', 'adminOnlySub', 'stop', 'send']) used.add(k);

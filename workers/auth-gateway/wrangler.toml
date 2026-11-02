@@ -5,7 +5,7 @@
 # 账号拆分 PR3 起它没有任何公开路由，/api/account、/api/prefs*、/api/avatar*、/api/wellbeing*、/avatar/* 由本 Worker 验门后
 # 经服务绑定 ACCOUNT 转发（src/router.js 的转发表 FORWARDING）。
 # 分享短链（/s/*、/api/share*）在短链 Worker styrigx-share（workers/share，2026-10-24），同样挂更具体的路由；短链钥匙和访客会话由本 Worker 的 ShareIssuer RPC 签。
-# Pages 只放静态文件（配置见 web/wrangler.toml），网关验完会话回源取页面。
+# Pages 只放静态文件（配置见 web/atlas/wrangler.toml），网关验完会话回源取页面。
 #
 # 安全：
 # - workers_dev = false，不开 *.workers.dev 地址（它连的是正式 D1，不能有未鉴权的入口）。

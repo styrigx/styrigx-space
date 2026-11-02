@@ -19,7 +19,7 @@
  *    styrigx-curio-core）不能被网关更具体的规则抢走
  * 静态资源现在也进网关（整站通配），由 src/app.js（主站）/ src/gate.js 图志关口原样回源；单测 auth-flow-2026-10-21 覆盖。
  *
- * 需要先构建网站（hugo --minify -s web），读 web/public/ 下的 .html。
+ * 需要先构建网站（hugo --minify -s web/atlas），读 web/atlas/public/ 下的 .html。
  * 用法：node scripts/check-worker-routes.mjs
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -32,7 +32,7 @@ export { readRoutes, routeMatches };
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HOST = 'styrigx.com';
-const PUBLIC_DIR = path.join(REPO, 'web/public');
+const PUBLIC_DIR = path.join(REPO, 'web/atlas/public');
 /* 不需要过网关的 HTML：Pages 对不存在的路径直接回 404.html，本来就没人拦 */
 const EXEMPT = new Set(['/404.html']);
 /* 必须过网关的非页面路径（含锁屏入口本身，带查询串） */
@@ -62,7 +62,7 @@ const SUBSITE_HOSTS = {
   },
 };
 
-/** web/public 里的 a/b/index.html → /a/b/；其他 .html 原样 */
+/** web/atlas/public 里的 a/b/index.html → /a/b/；其他 .html 原样 */
 export function htmlToPath(rel) {
   const p = '/' + rel.split(path.sep).join('/');
   return p.endsWith('/index.html') ? p.slice(0, -'index.html'.length) : p;
@@ -213,11 +213,11 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   try {
     pages = walk(PUBLIC_DIR).map(htmlToPath);
   } catch (e) {
-    console.error('check-worker-routes.mjs: 读不到 web/public，先运行 hugo --minify -s web');
+    console.error('check-worker-routes.mjs: 读不到 web/atlas/public，先运行 hugo --minify -s web/atlas');
     process.exit(1);
   }
   if (!pages.length) {
-    console.error('check-worker-routes.mjs: web/public 里没有 HTML，先构建网站');
+    console.error('check-worker-routes.mjs: web/atlas/public 里没有 HTML，先构建网站');
     process.exit(1);
   }
   if (gatewayApis.length < 10) {
