@@ -53,13 +53,19 @@ jobs:
           SGX_TEST_NO_WEATHER: "1"
       - name: Update snapshots
         run: npx playwright test --config=tests/config/playwright.config.js visual.spec.js --update-snapshots
+      - name: Update blog snapshots (子站：三站构建 → 拼单树 dist/site → 博客视觉回归；同 deploy.yml 的子站 Playwright)
+        # 合并 PR2：博客视觉基线 tests/blog/e2e/blog-visual.spec.js-snapshots 对着拼好的树生成（主站用上一步的测试构建，只为拼树）
+        run: |
+          npm run build:sites
+          node scripts/assemble.mjs
+          npx playwright test --config=tests/blog/config/playwright.config.js blog-visual.spec.js --update-snapshots
       - name: Commit snapshots only
         id: commit
         run: |
           git checkout -- web/atlas/data/ 2>/dev/null || true   # 生产构建生成的数据文件不提交
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add tests/web/e2e/visual/visual.spec.js-snapshots tests/web/e2e/visual/lock.spec.js-snapshots
+          git add tests/web/e2e/visual/visual.spec.js-snapshots tests/web/e2e/visual/lock.spec.js-snapshots tests/blog/e2e/blog-visual.spec.js-snapshots
           git diff --cached --quiet && echo "基线无变化" && exit 0
           git diff --cached --stat
           git commit -m "[UI] CI 更新视觉基线 (ubuntu-24.04)"

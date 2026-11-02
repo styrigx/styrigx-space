@@ -1,6 +1,7 @@
 title: '奇趣'
-# 图志（atlas.styrigx.com）下的子路径：页面、资源、接口都在 /curio/ 下（中文 /curio/，英文 /curio/en/）
-baseURL: 'https://atlas.styrigx.com/curio/'
+# 主站单树（styrigx.com）下的子路径：页面、资源、接口都在 /curio/ 下（中文 /curio/，英文 /curio/en/）。
+# 2026-11 合并 PR2 起产物由 scripts/assemble.mjs 拼进主站 Pages（dist/site/curio/）；合并 PR3 之前线上入口仍是 atlas.styrigx.com/curio/（styrigx-atlas 仓库部署）
+baseURL: 'https://styrigx.com/curio/'
 defaultContentLanguage: zh
 defaultContentLanguageInSubdir: false
 hasCJKLanguage: true

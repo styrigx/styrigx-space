@@ -1,23 +1,28 @@
 #!/usr/bin/env node
 /**
- * 同步主站共享外壳（styrigx/styrigx-space 的 web/shared/shell）：色彩角色、顶栏材质、导航抽屉、自定义主题色引擎、抽屉项。
- * 主站是唯一来源；本仓库只存一份「供应商副本」，放在标记段 / 供应商目录里，勿手改。
+ * 同步主站共享外壳（本仓库 styrigx/styrigx-space 的 web/atlas/shared/shell；2026-11-02 合并 PR1 之前在 web/shared/shell）：
+ * 色彩角色、顶栏材质、导航抽屉、自定义主题色引擎、抽屉项。主站是唯一来源；本站只存一份「供应商副本」，放在标记段 / 供应商目录里，勿手改。
  *
- * 用法：
- *   node scripts/sync-shell.mjs                    从 styrigx-space@main 拉取并写入；lock 记下 main 当时的完整提交 SHA（锁定版本）
- *   node scripts/sync-shell.mjs --ref <分支|提交>    指定主站的 ref（同样解析成完整提交 SHA 写进 lock）
- *   node scripts/sync-shell.mjs --from <主站目录>    从本地主站检出读（主站改动还没合并时用；lock 不是 SHA，--check 会要求重新同步）
- *   node scripts/sync-shell.mjs --check            CI 用：① 供应商副本没被手改（和 sgx-shell.lock.json 一致）
- *                                                  ② 副本确实来自主站：按 lock 锁定的提交 SHA 拉主站外壳，版本和文件指纹都要和 lock 一致；
- *                                                     主站 main 前进不会让本检查变红（升级外壳 = 显式跑一次同步、改 lock 的 PR）
- *                                                  ③ 主站 main 上有更新的外壳时只打 ::notice::，不算失败。
- *                                                  拉主站失败只提示、不算失败（加 --strict 则失败）。
+ * 合并 PR2 起子站和主站同仓：默认直接读本仓库，不走网络。
+ * 用法（在仓库根运行；<站> = blog / curio / daymark）：
+ *   node scripts/<站>/sync-shell.mjs                  读本仓库工作区的主站外壳写入副本；lock 记下本仓库 HEAD 的完整提交 SHA
+ *                                                    （外壳目录有未提交改动时记 worktree，--check 会要求提交后再同步一次）
+ *   node scripts/<站>/sync-shell.mjs --ref <分支|提交>  改从 GitHub 上的 styrigx-space 拉（解析成完整提交 SHA 写进 lock）
+ *   node scripts/<站>/sync-shell.mjs --from <目录>     从另一份主站检出读（lock 不是 SHA，--check 会要求重新同步）
+ *   node scripts/<站>/sync-shell.mjs --check          CI 用：① 供应商副本没被手改（和 sgx-shell.lock.json 一致）
+ *                                                    ② 副本确实来自主站：读 lock 锁定的提交上、lock 记的目录（dir）里的外壳，
+ *                                                       版本和文件指纹都要和 lock 一致。本仓库有这个提交（完整克隆）就用本地 git 读，
+ *                                                       不一致即失败；没有（CI 的浅克隆）才去 GitHub 拉，拉不到只提示、不算失败（加 --strict 则失败）
+ *                                                    ③ 本仓库工作区的主站外壳比 lock 新时只打 ::notice::，不算失败
+ *                                                       （升级外壳 = 显式跑一次同步、改 lock 的 PR，会改子站外观，单独提）
  *
- * 拉取：先读 manifest.json，再逐个拉文件并校验 sha256，全部通过才写盘。
- * __SITE_CONFIG__ 段是本仓库独有的写入位置，其余代码两个子站（blog / daymark）一字不差。
+ * 读取：先读 manifest.json，再逐个读文件并校验 sha256，全部通过才写盘。外壳目录按来源自适应：lock 记了 dir 就按它，
+ * 新同步先找 web/atlas/shared/shell、没有再找 web/shared/shell（旧提交）。
+ * __SITE_CONFIG__ 段是各站独有的写入位置，其余代码三站（blog / curio / daymark）一字不差。
  */
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -49,59 +54,84 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const SITE_DIR = 'curio';
 const siteFile = (p) => path.join(REPO, p.replace(/^web\//, 'web/' + SITE_DIR + '/').replace(/^tests\//, 'tests/' + SITE_DIR + '/'));
 const UPSTREAM = 'styrigx/styrigx-space';
-const UP_DIR = 'web/shared/shell';
+/** 主站外壳目录：新的在前（合并 PR1 起），旧提交上是 web/shared/shell */
+export const SHELL_DIRS = Object.freeze(['web/atlas/shared/shell', 'web/shared/shell']);
+const LEGACY_DIR = SHELL_DIRS[1];
 const LOCK = path.join(REPO, 'web', SITE_DIR, 'sgx-shell.lock.json');
+const SELF = `node scripts/${SITE_DIR}/sync-shell.mjs`;
 export const BEGIN = '/* @sgx-shell:begin';
 export const END = '/* @sgx-shell:end */';
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
+const isSha = (s) => /^[0-9a-f]{40}$/.test(String(s));
+
+/** 本仓库的 git（读不到 / 不是 git 仓库时抛错，调用方兜底） */
+function git(args) {
+  return execFileSync('git', ['-C', REPO, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 });
+}
+/** 本仓库里有没有这个提交（CI 是 depth 1 的浅克隆，旧提交通常没有） */
+export function hasLocalCommit(ref) {
+  if (!isSha(ref)) return false;
+  try { git(['cat-file', '-e', ref + '^{commit}']); return true; } catch { return false; }
+}
 
 function args(argv) {
-  const o = { ref: 'main', from: '', check: false, strict: false, refGiven: false };
+  const o = { ref: 'main', from: REPO, check: false, strict: false, refGiven: false, fromGiven: false };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--check') o.check = true;
     else if (a === '--strict') o.strict = true;
     else if (a === '--ref') { o.ref = argv[++i]; o.refGiven = true; }
-    else if (a === '--from') o.from = argv[++i];
+    else if (a === '--from') { o.from = argv[++i]; o.fromGiven = true; }
     else throw new Error('未知参数 ' + a);
   }
+  /* --ref 不带 --from：从 GitHub 拉 */
+  if (o.refGiven && !o.fromGiven) o.from = '';
   return o;
 }
 
-/** @returns {Promise<{status:number, text:string}>} */
-async function getUpstream(o, name) {
+/**
+ * 读主站外壳目录里的一个文件。来源三选一：o.commit（本仓库 git 里的某个提交）、o.from（目录）、GitHub（o.ref）。
+ * @returns {Promise<{status:number, text:string}>}
+ */
+async function getUpstream(o, dir, name) {
+  if (o.commit) {
+    try { return { status: 200, text: git(['show', `${o.commit}:${dir}/${name}`]) }; } catch { return { status: 404, text: '' }; }
+  }
   if (o.from) {
-    const p = path.resolve(o.from, UP_DIR, name);
+    const p = path.resolve(o.from, dir, name);
     return existsSync(p) ? { status: 200, text: readFileSync(p, 'utf8') } : { status: 404, text: '' };
   }
-  const url = `https://raw.githubusercontent.com/${UPSTREAM}/${encodeURIComponent(o.ref).replace(/%2F/g, '/')}/${UP_DIR}/${name}`;
+  const url = `https://raw.githubusercontent.com/${UPSTREAM}/${encodeURIComponent(o.ref).replace(/%2F/g, '/')}/${dir}/${name}`;
   const r = await fetch(url, { headers: { 'cache-control': 'no-cache' } });
   return { status: r.status, text: r.status === 200 ? await r.text() : '' };
 }
 
-/** 拉 manifest + 全部文件并校验；manifest 不存在返回 null */
+/** 读 manifest + 全部文件并校验；o.dir 给了就只读它，否则按 SHELL_DIRS 先新后旧找。都没有返回 null */
 export async function fetchBundle(o) {
-  const m = await getUpstream(o, 'manifest.json');
-  if (m.status === 404) return null;
-  if (m.status !== 200) throw new Error(`拉取 manifest.json 失败：HTTP ${m.status}`);
-  const manifest = JSON.parse(m.text);
-  const files = { 'manifest.json': m.text };
-  for (const [name, h] of Object.entries(manifest.files)) {
-    const r = await getUpstream(o, name);
-    if (r.status !== 200) throw new Error(`拉取 ${name} 失败：HTTP ${r.status}`);
-    if (sha(r.text) !== h) throw new Error(`${name} 的 sha256 和 manifest 不一致（主站生成物过期？）`);
-    files[name] = r.text;
+  for (const dir of o.dir ? [o.dir] : SHELL_DIRS) {
+    const m = await getUpstream(o, dir, 'manifest.json');
+    if (m.status === 404) continue;
+    if (m.status !== 200) throw new Error(`读取 ${dir}/manifest.json 失败：HTTP ${m.status}`);
+    const manifest = JSON.parse(m.text);
+    const files = { 'manifest.json': m.text };
+    for (const [name, h] of Object.entries(manifest.files)) {
+      const r = await getUpstream(o, dir, name);
+      if (r.status !== 200) throw new Error(`读取 ${dir}/${name} 失败：HTTP ${r.status}`);
+      if (sha(r.text) !== h) throw new Error(`${dir}/${name} 的 sha256 和 manifest 不一致（主站生成物过期？）`);
+      files[name] = r.text;
+    }
+    return { manifest, files, dir };
   }
-  return { manifest, files };
+  return null;
 }
 
 /** 标记段内容（不含首尾标记行） */
 function blockBody(parts, files) {
   return parts.map((n) => `/* ---- ${n} ---- */\n` + files[n].replace(/\n$/, '')).join('\n');
 }
-function beginLine(label, manifest) {
-  return `${BEGIN} ${UPSTREAM}@${label} ${UP_DIR} v${manifest.version}（scripts/sync-shell.mjs 写入，勿手改） */`;
+function beginLine(label, manifest, dir) {
+  return `${BEGIN} ${UPSTREAM}@${label} ${dir} v${manifest.version}（scripts/${SITE_DIR}/sync-shell.mjs 写入，勿手改） */`;
 }
 
 /** 文件里标记段之间的内容（不含标记行）；没有标记返回 null */
@@ -120,9 +150,10 @@ function spliceBlock(text, block) {
   return text.slice(0, a) + block + text.slice(b + END.length);
 }
 
-/** 按 SITE 配置算出每个目标文件的新内容；返回 { 相对路径: 内容 } 和 { 相对路径: 校验内容 } */
+/** 按 SITE 配置算出每个目标文件的新内容；返回 { 相对路径: 内容 } 和 { 相对路径: 校验内容 }（bundle.dir 缺省按旧目录写标记行） */
 export function renderTargets(bundle, label, current = (p) => (existsSync(siteFile(p)) ? readFileSync(siteFile(p), 'utf8') : '')) {
   const { manifest, files } = bundle;
+  const dir = bundle.dir || LEGACY_DIR;
   const out = {};
   const guard = {};
   for (const t of SITE.targets) {
@@ -132,7 +163,7 @@ export function renderTargets(bundle, label, current = (p) => (existsSync(siteFi
       guard[t.path] = body;
       continue;
     }
-    const block = beginLine(label, manifest) + '\n' + body + '\n' + END;
+    const block = beginLine(label, manifest, dir) + '\n' + body + '\n' + END;
     if (t.kind === 'splice') out[t.path] = spliceBlock(current(t.path), block);
     else out[t.path] = (t.head || '') + block + '\n';
     guard[t.path] = body;
@@ -140,10 +171,22 @@ export function renderTargets(bundle, label, current = (p) => (existsSync(siteFi
   return { out, guard };
 }
 
+/** 本仓库工作区读外壳时 lock 记什么：外壳目录和 HEAD 一致 → HEAD 的完整 SHA；有未提交改动 / 读不到 git → worktree */
+function localLabel(dir) {
+  try {
+    const head = git(['rev-parse', 'HEAD']).trim();
+    const dirty = git(['status', '--porcelain', '--', dir]).trim();
+    return isSha(head) && !dirty ? head : 'worktree';
+  } catch {
+    return 'worktree';
+  }
+}
+
 async function main() {
   const o = args(process.argv);
+  const sameRepo = !o.fromGiven && !o.refGiven;
   if (o.check) {
-    if (!existsSync(LOCK)) { console.error('缺少 sgx-shell.lock.json：先运行 node scripts/sync-shell.mjs'); process.exit(1); }
+    if (!existsSync(LOCK)) { console.error(`缺少 web/${SITE_DIR}/sgx-shell.lock.json：先运行 ${SELF}`); process.exit(1); }
     const lock = JSON.parse(readFileSync(LOCK, 'utf8'));
     const bad = [];
     for (const t of SITE.targets) {
@@ -151,68 +194,85 @@ async function main() {
       const body = t.kind === 'json' ? text : readBlock(text);
       if (body === null || sha(body) !== lock.vendored[t.path]) bad.push(t.path);
     }
-    if (bad.length) { console.error('共享外壳副本被手改或缺失：' + bad.join('、') + '；改主站后运行 node scripts/sync-shell.mjs'); process.exit(1); }
-    /* ② 按 lock 锁定的提交核对（--ref / --from 显式给了就用给的） */
-    const pinned = /^[0-9a-f]{40}$/.test(String(lock.ref)) ? lock.ref : '';
-    const ref = o.refGiven || o.from ? o.ref : pinned;
-    if (!ref) {
-      console.error(`sgx-shell.lock.json 的 ref（${lock.ref}）不是主站的完整提交 SHA：运行 node scripts/sync-shell.mjs 重新同步（会锁定到主站当时的提交）`);
-      process.exit(1);
+    if (bad.length) { console.error('共享外壳副本被手改或缺失：' + bad.join('、') + `；改主站后运行 ${SELF}`); process.exit(1); }
+    /* ② 按 lock 锁定的提交、lock 记的目录核对（--ref / --from 显式给了就用给的） */
+    let src;
+    let where;
+    let local = false;
+    if (sameRepo) {
+      if (!isSha(lock.ref)) {
+        console.error(`web/${SITE_DIR}/sgx-shell.lock.json 的 ref（${lock.ref}）不是完整提交 SHA：提交主站外壳后运行 ${SELF} 重新同步（会锁定到当时的提交）`);
+        process.exit(1);
+      }
+      local = hasLocalCommit(lock.ref);
+      src = local ? { commit: lock.ref } : { ref: lock.ref, from: '' };
+      where = `${lock.ref}（${local ? '本仓库 git' : 'GitHub'}）`;
+    } else {
+      src = { ref: o.ref, from: o.from };
+      where = o.from ? path.resolve(o.from) : o.ref;
     }
     let up;
-    try { up = await fetchBundle({ ...o, ref }); } catch (e) {
-      console.error(`读取主站外壳失败（${ref}）：${e.message}`); process.exit(o.strict ? 1 : 0);
+    /* 锁定提交按 lock 记的目录读；显式给的 --from / --ref 按来源自适应 */
+    try { up = await fetchBundle({ ...src, dir: sameRepo ? lock.dir || '' : '' }); } catch (e) {
+      console.error(`读取主站外壳失败（${where}）：${e.message}`);
+      process.exit(o.strict || local ? 1 : 0);
     }
     if (!up) {
-      const msg = `主站 ${UPSTREAM}@${ref} 上还没有 ${UP_DIR}（外壳尚未合并）；保留本地副本 v${lock.version}（来自 ${lock.ref}）`;
-      if (o.strict) { console.error(msg); process.exit(1); }
+      const msg = `主站 ${where} 上没有 ${lock.dir || SHELL_DIRS.join(' / ')}；保留本地副本 v${lock.version}（来自 ${lock.ref}）`;
+      if (o.strict || local) { console.error(msg); process.exit(1); }
       console.log('::notice::' + msg);
       return;
     }
     const sameFiles = JSON.stringify(Object.entries(up.manifest.files).sort()) === JSON.stringify(Object.entries(lock.files || {}).sort());
     if (up.manifest.version !== lock.version || !sameFiles) {
-      console.error(`sgx-shell.lock.json 和主站 ${ref} 上的外壳对不上：lock 记的是 v${lock.version}，主站这个提交上是 v${up.manifest.version}；运行 node scripts/sync-shell.mjs 重新同步`);
+      console.error(`web/${SITE_DIR}/sgx-shell.lock.json 和主站 ${where} 上的外壳对不上：lock 记的是 v${lock.version}，那里是 v${up.manifest.version}；运行 ${SELF} 重新同步`);
       process.exit(1);
     }
-    console.log(`shared shell matches the pinned main-site commit: v${lock.version} (${ref})`);
-    /* ③ 只提示：主站 main 上的外壳更新了（升级要显式同步，不让无关 PR 变红） */
-    if (!o.refGiven && !o.from) {
+    console.log(`shared shell matches the pinned main-site commit: v${lock.version} (${where} ${up.dir})`);
+    /* ③ 只提示：本仓库工作区的主站外壳更新了（升级要显式同步，不让无关 PR 变红） */
+    if (sameRepo) {
       try {
-        const m = await getUpstream({ ...o, ref: 'main' }, 'manifest.json');
-        const latest = m.status === 200 ? JSON.parse(m.text).version : '';
-        if (latest && latest !== lock.version) console.log(`::notice::主站 main 上的共享外壳是 v${latest}（本仓库锁定 v${lock.version}）；要升级就运行 node scripts/sync-shell.mjs 并提交`);
-      } catch { /* 只是提示，拉不到就算了 */ }
+        const cur = await fetchBundle({ from: REPO, dir: SHELL_DIRS[0] });
+        if (cur && cur.manifest.version !== lock.version) {
+          console.log(`::notice::本仓库主站的共享外壳是 v${cur.manifest.version}（${SITE_DIR} 锁定 v${lock.version}）；要升级就运行 ${SELF} 并提交`);
+        }
+      } catch { /* 只是提示，读不到就算了 */ }
     }
     return;
   }
-  /* 从 GitHub 拉时先把 ref 解析成完整提交 SHA：lock 锁定到这个提交，--check 只和它比 */
+  /* 同仓：读工作区；GitHub：先把 ref 解析成完整提交 SHA，lock 锁定到这个提交，--check 只和它比 */
   let label = o.ref;
-  if (o.from) label = `${o.ref}（本地 ${path.basename(path.resolve(o.from))}）`;
-  else if (!/^[0-9a-f]{40}$/.test(o.ref)) {
+  let src = { from: o.from, ref: o.ref };
+  if (sameRepo) {
+    const probe = await fetchBundle({ from: REPO });
+    label = probe ? localLabel(probe.dir) : 'worktree';
+  } else if (o.from) {
+    label = `${o.ref}（本地 ${path.basename(path.resolve(o.from))}）`;
+  } else if (!isSha(o.ref)) {
     const r = await fetch(`https://api.github.com/repos/${UPSTREAM}/commits/${encodeURIComponent(o.ref)}`, { headers: { accept: 'application/vnd.github.sha' } });
     const s = (await r.text()).trim();
-    if (r.status !== 200 || !/^[0-9a-f]{40}$/.test(s)) throw new Error(`解析主站 ${o.ref} 的提交 SHA 失败：HTTP ${r.status}`);
+    if (r.status !== 200 || !isSha(s)) throw new Error(`解析主站 ${o.ref} 的提交 SHA 失败：HTTP ${r.status}`);
     label = s;
+    src = { from: '', ref: s };
   }
-  if (!o.from) o.ref = label;
-  const bundle = await fetchBundle(o);
-  if (!bundle) { console.error(`主站 ${UPSTREAM}@${o.ref} 上没有 ${UP_DIR}`); process.exit(1); }
+  const bundle = await fetchBundle(src);
+  if (!bundle) { console.error(`主站 ${o.from ? path.resolve(o.from) : UPSTREAM + '@' + src.ref} 上没有 ${SHELL_DIRS.join(' / ')}`); process.exit(1); }
   const { out, guard } = renderTargets(bundle, label);
   for (const [p, text] of Object.entries(out)) {
     mkdirSync(path.dirname(siteFile(p)), { recursive: true });
     writeFileSync(siteFile(p), text);
   }
   const lock = {
-    _note: 'scripts/sync-shell.mjs 写入，勿手改：记录本仓库的共享外壳副本来自主站哪个版本',
+    _note: `scripts/${SITE_DIR}/sync-shell.mjs 写入，勿手改：记录本站的共享外壳副本来自主站哪个版本`,
     source: UPSTREAM,
-    dir: UP_DIR,
+    dir: bundle.dir,
     ref: label,
     version: bundle.manifest.version,
     files: bundle.manifest.files,
     vendored: Object.fromEntries(Object.entries(guard).map(([p, b]) => [p, sha(b)])),
   };
   writeFileSync(LOCK, JSON.stringify(lock, null, 2) + '\n');
-  console.log(`shared shell v${bundle.manifest.version} ← ${UPSTREAM}@${label}：` + Object.keys(out).join(', '));
+  console.log(`shared shell v${bundle.manifest.version} ← ${UPSTREAM}@${label} ${bundle.dir}：` + Object.keys(out).join(', '));
 }
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);

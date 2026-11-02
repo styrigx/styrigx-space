@@ -1,8 +1,9 @@
 # 图志 · 博客（atlas.styrigx.com/blog/）：Hugo，和主站 styrigx-space 同栈（web/ = 网站本体，hugo --minify -s web → web/public/）。
 # 中文是默认语言（不带前缀），英文在 /en/。所有旧地址（Astro 时期）原样保留，见 tests/url-map.json。
 title: 'Styrigx'
-# 图志（atlas.styrigx.com）下的子路径：页面、资源都在 /blog/ 下（中文 /blog/，英文 /blog/en/）
-baseURL: 'https://atlas.styrigx.com/blog/'
+# 主站单树（styrigx.com）下的子路径：页面、资源都在 /blog/ 下（中文 /blog/，英文 /blog/en/）。
+# 2026-11 合并 PR2 起产物由 scripts/assemble.mjs 拼进主站 Pages（dist/site/blog/）；合并 PR3 之前线上入口仍是 atlas.styrigx.com/blog/（styrigx-atlas 仓库部署）
+baseURL: 'https://styrigx.com/blog/'
 defaultContentLanguage: zh
 defaultContentLanguageInSubdir: false
 hasCJKLanguage: true

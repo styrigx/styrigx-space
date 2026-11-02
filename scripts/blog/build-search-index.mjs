@@ -21,8 +21,9 @@ import { fileURLToPath } from 'node:url';
 
 /* 2026-11-02 并进 styrigx-space：仓库根是 REPO，博客页面包在 web/blog/ */
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-/** 博客在图志下的地址（不带结尾斜杠）；条目链接 = SITE_URL + 产物里的相对地址 */
-export const SITE_URL = 'https://atlas.styrigx.com/blog';
+/** 博客的地址（不带结尾斜杠，和 web/blog/hugo.yaml 的 baseURL 一致）；条目链接 = SITE_URL + 产物里的相对地址。
+ *  合并 PR2 起跟 baseURL 一起改到主域名；本仓库到合并 PR3 才上传 site:blog，之前线上索引仍由 styrigx-atlas 仓库写 */
+export const SITE_URL = 'https://styrigx.com/blog';
 export const TEXT_MAX = 2000;
 export const SUBTITLE_MAX = 120;
 const LANGS = /** @type {const} */ (['zh', 'en']);

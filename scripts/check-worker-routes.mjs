@@ -20,6 +20,8 @@
  * 静态资源现在也进网关（整站通配），由 src/app.js（主站）/ src/gate.js 图志关口原样回源；单测 auth-flow-2026-10-21 覆盖。
  *
  * 需要先构建网站（hugo --minify -s web/atlas），读 web/atlas/public/ 下的 .html。
+ * 只扫主站产物，不扫拼好的单树 dist/site/（合并 PR2）：子站 /blog/ /curio/ /daymark/ 的页面在 styrigx.com 上由网关整站通配
+ * styrigx.com/* 接住、走主站中间件验会话；子站前缀分发逻辑在合并 PR3，那时再把三站前缀登记进来。
  * 用法：node scripts/check-worker-routes.mjs
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';

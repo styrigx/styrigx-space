@@ -186,13 +186,63 @@ jobs:
           node scripts/build-search-index.mjs --out "$RUNNER_TEMP/search-index/search-space.json"
           test -s "$RUNNER_TEMP/search-index/search-space.json"
 
+      - name: Build subsites (blog / curio / daymark → web/<站>/public/)
+        # 合并 PR2：三站各自构建（scripts/build-sites.mjs --sites：Tailwind CLI → hugo --minify --cleanDestinationDir -s web/<站>）。
+        # 各站 baseURL 是 https://styrigx.com/<站>/；主站已在上面单独构建（要带 SGX_BUILD_SHA），这里不重建主站
+        run: npm run build:sites
+
+      - name: Subsite unit tests (blog / curio / daymark pages + curio-core / daymark-core)
+        # 页面（网址、模板、锁屏同步、外观继承、共享外壳副本）+ 接口 Worker（node:sqlite 真跑 D1 的 SQL）+ 博客搜索索引
+        run: npm run test:sites
+
+      - name: Assemble single tree (web/atlas/public + web/<站>/public → dist/site/)
+        # 紧跟主站生产构建：后面的锁测 / 视觉步骤会重建 web/atlas/public（测试构建），拼树必须用这一份。
+        # 子站产物带 _worker.js / _headers / _redirects / robots.txt、主站产物里已有 blog/ curio/ daymark/、哪个包没构建 → 失败
+        run: node scripts/assemble.mjs
+
+      - name: Check single tree (根文件归主站、三站都在、子站 /js/ 带指纹、/curio/ /daymark/ 和根上没有多余图片)
+        run: |
+          set -u
+          T=dist/site
+          fail() { echo "::error::$1"; exit 1; }
+          for f in _worker.js _headers _redirects index.html 404.html robots.txt; do test -s "$T/$f" || fail "$T/$f missing"; done
+          # 域名根文件全部来自主站产物（web/atlas/static），子站目录里一个都没有
+          for f in _worker.js _headers _redirects robots.txt 404.html index.html; do cmp -s "web/atlas/public/$f" "$T/$f" || fail "$T/$f is not the main-site file"; done
+          grep -q "'styrigx.com'" "$T/_worker.js" || fail "_worker.js host is not styrigx.com"
+          if grep -q "X-SGX-Runtime" "$T/_worker.js"; then fail "gateway bundle in production Pages build"; fi
+          grep -q "Content-Security-Policy" "$T/_headers" || fail "_headers lost the security headers"
+          for s in blog curio daymark; do
+            for f in index.html en/index.html 404.html; do test -s "$T/$s/$f" || fail "$T/$s/$f missing"; done
+            for f in _worker.js _headers _redirects robots.txt; do test ! -e "$T/$s/$f" || fail "$T/$s/$f must not exist (root-only file)"; done
+            grep -q "^/$s/js/\*$" "$T/_headers" || fail "_headers has no /$s/js/* cache rule"
+          done
+          # 子站 /js/ 引用都带内容指纹（_headers 给它们一年 immutable）
+          refs=$(grep -rhoE 'src="?/(blog|curio|daymark)/js/[a-zA-Z0-9_./-]+\.js' "$T/blog" "$T/curio" "$T/daymark" | sort -u || true)
+          bad=$(echo "$refs" | grep -vE '\.[0-9a-f]{8,}\.(js|mjs)$' | grep -v '^$' || true)
+          [ -z "$bad" ] || fail "unversioned subsite /js/ refs: $bad"
+          # 图片一律要过会话（2026-10-29）：/curio/ /daymark/ 一张都不许有；根上只许主站已有的 /images/ /avatar/ /fav/ og.png favicon.*
+          IMG='\.(png|apng|jpe?g|jfif|pjpeg|pjp|gif|webp|avif|svgz?|ico|cur|bmp|tiff?|heic|heif|jxl)$'
+          bad=$(find "$T" -type f ! -path "$T/blog/*" | grep -iE "$IMG" | grep -vE "^$T/(images|avatar|fav)/|^$T/(og\.png|favicon\.ico|favicon\.svg)$" || true)
+          [ -z "$bad" ] || fail "image files outside /blog/ and the main-site image dirs: $bad"
+          # 拼树单测的真实构建一组（Unit tests 那一步还没构建，跳过了；这里补跑）
+          node --test tests/web/ui/assemble.test.mjs
+          echo "OK: single tree $(find "$T" -type f | wc -l) files"
+
+      - name: Blog search index builds (site:blog)
+        # 每个分支都跑：网址和构建产物对不上 / 0 篇文章 → 红。只写 RUNNER_TEMP，不进 dist/site（含 private 文章，不随 Pages 发出去）。
+        # 合并 PR3 之前不上传：线上 site:blog 仍由 styrigx-atlas 仓库写
+        run: |
+          node scripts/blog/build-search-index.mjs --out "$RUNNER_TEMP/search-index/search-blog.json"
+          test -s "$RUNNER_TEMP/search-index/search-blog.json"
+
       - name: Upload production site (for build-and-deploy)
-        # 只在会部署的 main 运行上传；后面的锁测 / 预览 / 视觉步骤会重建 web/atlas/public，所以紧跟生产构建和检查之后上传
+        # 只在会部署的 main 运行上传；后面的锁测 / 预览 / 视觉步骤会重建 web/atlas/public，所以紧跟生产构建和检查之后上传。
+        # 合并 PR2 起上传拼好的单树 dist/site（主站在根上，三站在 /blog/ /curio/ /daymark/），build-and-deploy 原样部署
         if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: site-production
-          path: web/atlas/public/
+          path: dist/site/
           if-no-files-found: error
           retention-days: 1
 
@@ -216,19 +266,28 @@ jobs:
           node scripts/blog/gen-code-tokens.mjs --check
           for s in blog curio daymark; do node "scripts/$s/sync-shell.mjs" --check; done
 
-      - name: Subsite builds + unit tests (blog / curio / daymark; PR1 只测不部署)
-        # 三站各自构建（Tailwind CLI → hugo -s web/<站>，产物留在 web/<站>/public/，不上传、不进主站 Pages 产物；拼树和部署是 PR2 / PR3）。
-        # 单测：页面（网址、模板、锁屏同步、外观继承、共享外壳副本）+ 接口 Worker（node:sqlite 真跑 D1 的 SQL）+ 博客搜索索引
-        run: |
-          node scripts/blog/build-css.mjs
-          hugo --minify --cleanDestinationDir -s web/blog
-          for s in curio daymark; do
-            npx --no-install tailwindcss -i "web/$s/assets/css/input.css" -o "web/$s/assets/css/main.css" --minify
-            hugo --minify --cleanDestinationDir -s "web/$s"
-          done
-          node scripts/blog/build-search-index.mjs --out "$RUNNER_TEMP/search-index/search-blog.json"
-          test -s "$RUNNER_TEMP/search-index/search-blog.json"
-          node --test tests/blog/*.test.mjs tests/curio/web/*.test.mjs tests/daymark/web/*.test.mjs tests/workers/curio-core/*.test.mjs tests/workers/daymark-core/*.test.mjs
+      - name: Subsite Playwright - blog (behaviour + visual regression, against dist/site)
+        # 对着拼好的单树 dist/site（scripts/blog/serve-static.mjs 模拟 Pages 回静态文件），博客在 /blog/ 下。
+        # 视觉基线 tests/blog/e2e/blog-visual.spec.js-snapshots 来自 styrigx-atlas（Playwright 1.64.1，Chromium 1248 与本仓 1.64.0 同一版本）；
+        # 有像素差就走 update-snapshots.yml（同 runner、同字体 action）重生成
+        run: npx playwright test --config=tests/blog/config/playwright.config.js
+
+      - name: Subsite Playwright - curio (phone E2E, against dist/site)
+        run: npx playwright test --config=tests/curio/config/playwright.e2e.config.js
+
+      - name: Subsite Playwright - daymark (phone E2E, against dist/site)
+        run: npx playwright test --config=tests/daymark/config/playwright.e2e.config.js
+
+      - name: Upload subsite test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: subsite-test-results
+          path: |
+            tests/blog/test-results/
+            tests/blog/playwright-report/
+            test-results/
+          retention-days: 30
 
       - name: stylelint（禁止硬编码颜色）
         run: npx stylelint --config tests/config/stylelintrc.json "web/atlas/assets/css/input.css"
@@ -775,9 +834,14 @@ jobs:
           path: web/atlas/public
 
       - name: Assert static-only Pages build
-        # 生产部署只能带静态的 _worker.js（只做 pages.dev → styrigx.com 跳转），不能带网关代码
+        # 生产部署只能带静态的 _worker.js（pages.dev → styrigx.com 跳转 + 子站图片 / 过渡期 xml 404），不能带网关代码。
+        # 合并 PR2 起产物是拼好的单树：三站在 /blog/ /curio/ /daymark/ 下，子站目录里没有域名根文件
         run: |
           for f in _headers _redirects index.html; do test -s "web/atlas/public/$f" || { echo "::error::web/atlas/public/$f missing"; exit 1; }; done
+          for s in blog curio daymark; do
+            test -s "web/atlas/public/$s/index.html" || { echo "::error::web/atlas/public/$s/index.html missing (single tree not assembled?)"; exit 1; }
+            for f in _worker.js _headers _redirects robots.txt; do test ! -e "web/atlas/public/$s/$f" || { echo "::error::web/atlas/public/$s/$f must not exist"; exit 1; }; done
+          done
           grep -q "Content-Security-Policy" web/atlas/public/_headers
           test -f web/atlas/public/_worker.js
           grep -q "styrigx.com" web/atlas/public/_worker.js
@@ -835,6 +899,58 @@ jobs:
             sleep 5
           done
           echo "::error::styrigx.com/ does not serve build $short"; exit 1
+
+      - name: Smoke test single tree (subsites behind the main-site middleware, pages.dev redirect, no subsite images / feeds)
+        # 合并 PR2：网关还没有子站前缀逻辑，styrigx.com/<站>/ 由网关整站通配接住、走主站中间件。只发不带 cookie 的只读请求：
+        # - 三站首页未登录：302 到 https://styrigx.com/?lock=1&return=%2F<站>%2F，X-SGX-Runtime: worker（主站中间件只对 / 和 /en/ 直出 200 锁屏）
+        # - 三站指纹 CSS：200 text/css（主站中间件的公开后缀白名单直接回源 → 证明这次部署的树里真的有 /<站>/）
+        # - /curio/、/daymark/ 图片路径、三站 .xml：不得拿到内容（网关公开后缀直接回源 → _worker.js 404；以后网关改成验会话就是 302）
+        # - styrigx-space.pages.dev/blog/：301 到 https://styrigx.com/blog/（或同 /settings/ 一样被 Access 拦在登录页）
+        run: |
+          set -u
+          ok=0
+          hdr() { curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' "$1" | tr -d '\r' || true; }
+          field() { printf '%s' "$1" | awk -F': ' -v h="$2" 'tolower($1)==h{print $2}' | tail -1; }
+          code_of() { printf '%s' "$1" | sed -n 's/^HTTP_CODE://p'; }
+          for s in blog curio daymark; do
+            pass=1
+            for i in 1 2 3 4 5 6; do
+              h=$(hdr "https://styrigx.com/$s/"); code=$(code_of "$h"); rt=$(field "$h" x-sgx-runtime); loc=$(field "$h" location)
+              echo "styrigx.com/$s/ -> $code runtime=${rt:-none} location=${loc:-none} (try $i)"
+              case "$code $rt $loc" in "302 worker https://styrigx.com/?lock=1&return=%2F$s%2F"*) pass=0; break ;; esac
+              sleep 5
+            done
+            [ $pass = 0 ] || { echo "::error::styrigx.com/$s/ expected 302 to the lock screen from the gateway"; ok=1; }
+            css=$(cd "web/atlas/public/$s" && find css -name '*.css' | head -1)
+            if [ -z "$css" ]; then echo "::error::no css/*.css in the $s package"; ok=1; continue; fi
+            pass=1
+            for i in 1 2 3 4 5 6; do
+              h=$(hdr "https://styrigx.com/$s/$css"); code=$(code_of "$h"); ct=$(field "$h" content-type)
+              echo "styrigx.com/$s/$css -> $code ${ct:-no-type} (try $i)"
+              case "$code $ct" in "200 text/css"*) pass=0; break ;; esac
+              sleep 5
+            done
+            [ $pass = 0 ] || { echo "::error::styrigx.com/$s/$css not served from this deployment"; ok=1; }
+          done
+          for p in /curio/sgx-image-probe.png /daymark/sgx-image-probe.png /blog/rss.xml /blog/sitemap-index.xml /curio/sitemap.xml /daymark/sitemap.xml; do
+            h=$(hdr "https://styrigx.com$p"); code=$(code_of "$h"); ct=$(field "$h" content-type)
+            echo "styrigx.com$p -> $code ${ct:-no-type}"
+            case "$code" in 404|302) ;; *) echo "::error::styrigx.com$p without session answered $code"; ok=1 ;; esac
+            case "$ct" in image/*|*xml*) echo "::error::styrigx.com$p without session returned $ct"; ok=1 ;; esac
+          done
+          pass=1
+          for i in 1 2 3 4 5 6; do
+            h=$(hdr https://styrigx-space.pages.dev/blog/); code=$(code_of "$h"); loc=$(field "$h" location)
+            echo "pages.dev /blog/ -> $code ${loc:-none} (try $i)"
+            if [ "$code" = "301" ] && [ "$loc" = "https://styrigx.com/blog/" ]; then pass=0; break; fi
+            case "$loc" in
+              https://styrigx.cloudflareaccess.com/cdn-cgi/access/login/styrigx-space.pages.dev\?*)
+                [ "$code" = "302" ] && { pass=0; break; } ;;
+            esac
+            sleep 5
+          done
+          [ $pass = 0 ] || { echo "::error::pages.dev /blog/ neither redirected to styrigx.com/blog/ nor sat behind Access"; ok=1; }
+          exit $ok
 
       - name: Roll back Pages production (deploy or smoke failed)
         # 前面任何一步失败且记到了部署前的 deployment：生产已经不是它就调 Pages 回滚 API 退回去并核对；没变（上传就失败）什么都不做。job 照样红
