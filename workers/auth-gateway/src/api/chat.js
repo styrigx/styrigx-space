@@ -13,7 +13,7 @@
  *       503 no_key（没绑定 CHAT = 聊天没配置）· 502 upstream（调 styrigx-chat 抛错）
  * 钥匙 SGX_CHAT_API_KEY 和 CHAT_* 变量都只在 styrigx-chat（workers/chat/wrangler.toml），网关不碰。
  */
-import { verifyLockSession } from '../core/lock-session.js';
+import { lockSessionOf } from '../core/lock-session.js';
 import { ROLE_ADMIN } from '../core/lock-session.js';
 import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
 
@@ -21,9 +21,9 @@ import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
 const CHAT_BASE = 'https://styrigx-chat';
 
 /** @param {number} status @param {any} body */
-/** 门：会话 + 只许管理员。通过 → null；否则错误响应 @param {Request} request @param {any} env */
-async function adminGate(request, env) {
-  const sess = await verifyLockSession(request, env);
+/** 门：会话 + 只许管理员。通过 → null；否则错误响应。会话先用关口验过的结论，没有再自己验 @param {any} context */
+async function adminGate(context) {
+  const sess = await lockSessionOf(context);
   if (!sess.ok) return apiError(401, 'unauthorized');
   if (sess.role !== ROLE_ADMIN) return apiError(403, 'admin_only');
   return null;
@@ -48,19 +48,21 @@ async function forward(env, fwd, tag) {
 
 /**
  * GET /api/chat：模型列表（页面的模型切换）。不看 Origin（同源 GET 浏览器不带 Origin）。
- * @param {{request: Request, env: any}} ctx
+ * @param {{request: Request, env: any, data?: any}} context
  */
-export async function onRequestGet({ request, env }) {
-  const denied = await adminGate(request, env);
+export async function onRequestGet(context) {
+  const { env } = context;
+  const denied = await adminGate(context);
   if (denied) return denied;
   return forward(env, new Request(CHAT_BASE + '/models', { method: 'GET', headers: { 'X-Sgx-Role': 'admin' } }), 'models');
 }
 
-/** @param {{request: Request, env: any}} ctx */
-export async function onRequestPost({ request, env }) {
+/** @param {{request: Request, env: any, data?: any}} context */
+export async function onRequestPost(context) {
+  const { request, env } = context;
   if (request.method !== 'POST') return apiError(405, 'method');
   if (!isSameOrigin(request)) return originDenied();
-  const denied = await adminGate(request, env);
+  const denied = await adminGate(context);
   if (denied) return denied;
   /** @type {Record<string, string>} */
   const headers = { 'X-Sgx-Role': 'admin' };

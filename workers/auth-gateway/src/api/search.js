@@ -9,14 +9,15 @@
  *   401 没会话 · 400 参数 · 503 搜索服务不可用（没绑定 / 出错）
  */
 import { ROLE_ADMIN } from '../core/lock-session.js';
-import { verifyLockSession } from '../core/lock-session.js';
+import { lockSessionOf } from '../core/lock-session.js';
 import { json, apiError, NO_STORE } from '../lib/http.js';
 
 
 /** @param {number} status @param {any} body */
-/** @param {{request: Request, env: any}} ctx */
-export async function onRequestGet({ request, env }) {
-  const sess = await verifyLockSession(request, env);
+/** @param {{request: Request, env: any, data?: any}} context */
+export async function onRequestGet(context) {
+  const { request, env } = context;
+  const sess = await lockSessionOf(context);
   if (!sess.ok) return apiError(401, 'unauthorized');
   const url = new URL(request.url);
   const q = (url.searchParams.get('q') || '').trim();
