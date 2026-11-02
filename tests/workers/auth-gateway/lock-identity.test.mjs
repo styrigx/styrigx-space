@@ -1,7 +1,7 @@
 /**
  * 网关写身份头的一侧（账号拆分 PR3，方案第 3 节）：
  * - src/core/lock-identity.js：头名常量、stripInternalHeaders、writeLockIdentity（只写白名单里的值）
- * - src/index.js 第一步剥掉外来的 x-styrigx-* / x-sgx-role；账号路径（src/forwarding.js）门过了才经 ACCOUNT 转发，
+ * - src/app.js 第一步剥掉外来的 x-styrigx-* / x-sgx-role；账号路径（src/router.js 的 FORWARDING）门过了才经 ACCOUNT 转发，
  *   身份头由网关按验过的锁屏会话写；ACCOUNT 没绑 / 出错 → 503 upstream（fail closed）。
  */
 import { test } from 'node:test';

@@ -36,6 +36,14 @@
  * 17. 账号 Worker 的 workers/account/wrangler.toml 不许有路由：[[routes]] / [[env.*.routes]]、route = …、非空的 routes = [...]
  *     （[env.preview] 的 routes = [] 允许）；账号请求只经网关的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 进来。
  *
+ * Worker 骨架防回退（2026-11-02，骨架契约见 workers/README.md）：
+ * 18. workers/** 下不许有 functions/ 或 _kernel/ 目录（Pages Functions 时代的旧目录，网关 2026-11-02 已全部并进 src/）
+ * 19. 每个 Worker 的 wrangler.toml 顶层 main 必须是 "src/index.js"
+ * 20. 每个 Worker 目录必须有 README.md
+ * 21. 每个 Worker 的 package.json 必须有非空字符串 name
+ *     （19–21 的 Worker 目录 = workers/ 下有 wrangler.toml 的子目录；workers/ 下每个子目录都得有 wrangler.toml，
+ *     tests/web/ui/check-layers.test.mjs 核对。只管这四条，依赖方向不在这里查）
+ *
  * 用法：node scripts/check-layers.mjs [--root <仓库根>]
  * 规则函数导出给 tests/web/ui/check-layers.test.mjs 用。
  */
@@ -368,6 +376,58 @@ export function checkFile(root, abs, srcOverride) {
   return errors;
 }
 
+/** 规则 18：旧目录名 */
+export const LEGACY_WORKER_DIRS = Object.freeze(['functions', '_kernel']);
+
+/**
+ * 规则 18–21：Worker 骨架防回退。
+ * @param {string} root 仓库根
+ * @returns {string[]}
+ */
+export function checkWorkerSkeleton(root) {
+  const errors = [];
+  const base = join(root, 'workers');
+  if (!existsSync(base)) return errors;
+  const workers = readdirSync(base, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name).sort();
+  for (const w of workers) {
+    const dir = join(base, w);
+    /* 规则 18 */
+    const stack = [dir];
+    while (stack.length) {
+      const d = stack.pop();
+      for (const e of readdirSync(d, { withFileTypes: true })) {
+        if (!e.isDirectory() || e.name === 'node_modules' || e.name === '.wrangler') continue;
+        const p = join(d, e.name);
+        if (LEGACY_WORKER_DIRS.includes(e.name)) {
+          errors.push(`${relative(root, p).split(sep).join('/')}: 不许有 ${e.name}/ 目录（规则 18：代码一律放 src/，骨架见 workers/README.md）`);
+        }
+        stack.push(p);
+      }
+    }
+    /* 规则 19–21 只管 Worker 目录（有 wrangler.toml） */
+    const tomlPath = join(dir, 'wrangler.toml');
+    if (!existsSync(tomlPath)) continue;
+    /* 规则 19 */
+    {
+      const top = stripTomlComments(readFileSync(tomlPath, 'utf8')).split(/^\s*\[/m)[0];
+      const m = top.match(/^\s*main\s*=\s*"([^"]*)"\s*$/m);
+      if (!m || m[1] !== 'src/index.js') {
+        errors.push(`workers/${w}/wrangler.toml: main 必须是 "src/index.js"，现在是 ${m ? JSON.stringify(m[1]) : '（没写）'}（规则 19）`);
+      }
+    }
+    /* 规则 20 */
+    if (!existsSync(join(dir, 'README.md'))) errors.push(`workers/${w}: 缺 README.md（规则 20）`);
+    /* 规则 21 */
+    const pkgPath = join(dir, 'package.json');
+    let name = null;
+    if (existsSync(pkgPath)) {
+      try { name = JSON.parse(readFileSync(pkgPath, 'utf8')).name; } catch (e) { name = null; }
+    }
+    if (typeof name !== 'string' || !name) errors.push(`workers/${w}/package.json: 必须有 name（规则 21）`);
+  }
+  return errors;
+}
+
 /**
  * 查整个仓库。
  * @param {string} root
@@ -384,6 +444,7 @@ export function checkRepo(root) {
   if (existsSync(gwToml)) errors.push(...checkGatewayAccountAuth('workers/auth-gateway/wrangler.toml', readFileSync(gwToml, 'utf8'), 'toml'));
   const acToml = join(root, 'workers/account/wrangler.toml');
   if (existsSync(acToml)) errors.push(...checkAccountToml('workers/account/wrangler.toml', readFileSync(acToml, 'utf8')));
+  errors.push(...checkWorkerSkeleton(root));
   return { files: files.length, errors };
 }
 

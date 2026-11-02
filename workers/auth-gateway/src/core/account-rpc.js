@@ -13,7 +13,7 @@ const MAX_COOKIE_HEADER = 8192;
 const MAX_UA = 512;
 
 /**
- * AccountVerifier 的 clientContext：User-Agent、cf 国家城市（账号设备 lastSeen / 地点用；同 workers/account/src/entrypoints.js verifierRequest）。
+ * AccountVerifier 的 clientContext：User-Agent、cf 国家城市（账号设备 lastSeen / 地点用；同 workers/account/src/rpc/account-verifier.js verifierRequest）。
  * @param {Request|null|undefined} request
  * @returns {{ua?:string, country?:string, city?:string}}
  */

@@ -17,7 +17,7 @@
  * 4. 图志（atlas.styrigx.com：/blog/ /curio/ /daymark/）必须登记的路径（含各站首页 + 查询串、根上的锁屏复查和搜索）都覆盖
  * 5. 日刻的句子接口（atlas.styrigx.com/daymark/api/*，styrigx-daymark-core）、奇趣的收藏接口（atlas.styrigx.com/curio/api/*，
  *    styrigx-curio-core）不能被网关更具体的规则抢走
- * 静态资源现在也进网关（整站通配），由 src/index.js / subsites.js 原样回源；单测 auth-flow-2026-10-21 覆盖。
+ * 静态资源现在也进网关（整站通配），由 src/app.js（主站）/ src/gate.js 图志关口原样回源；单测 auth-flow-2026-10-21 覆盖。
  *
  * 需要先构建网站（hugo --minify -s web），读 web/public/ 下的 .html。
  * 用法：node scripts/check-worker-routes.mjs

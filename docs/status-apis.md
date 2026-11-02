@@ -2,7 +2,7 @@
 
 六个只读状态接口（账号状态由 `account` 报；锁屏凭证页的再验证由 `lock-reauth` 报 LockReauthTicket 状态）的分工：谁回答、鉴权要求、返回口径、调用方、用途。
 
-账号拆分 PR3 起，`GET /api/account` 由账号 Worker `styrigx-account` 回答（代码 `workers/account/src/identity/account.js`）：浏览器照旧请求 `styrigx.com/api/account`，网关 `_middleware.js` 先验门，再经服务绑定 `ACCOUNT`（AccountService）转发（转发表 `workers/auth-gateway/src/forwarding.js`）。其余接口都在本目录，由网关回答。网关不读账号凭证、不验账号票，`/api/layer-status` 已删除（前端无调用方）。
+账号拆分 PR3 起，`GET /api/account` 由账号 Worker `styrigx-account` 回答（代码 `workers/account/src/api/account.js`）：浏览器照旧请求 `styrigx.com/api/account`，网关 `workers/auth-gateway/src/gate.js`（主站关口 `onRequest`）先验门，再经服务绑定 `ACCOUNT`（AccountService）转发（转发表 `workers/auth-gateway/src/router.js` 的 `FORWARDING`）。其余接口都在网关 `workers/auth-gateway/src/api/`，由网关回答。网关不读账号凭证、不验账号票，`/api/layer-status` 已删除（前端无调用方）。
 
 共同约束：只返回「是否已设置」，绝不返回敏感数据（密码 hash、公钥、私钥、
 cookie 值、挑战原文）。调用方列表由 `grep web/assets/js/` 下的 fetch 调用整理，
@@ -40,7 +40,7 @@ cookie 值、挑战原文）。调用方列表由 `grep web/assets/js/` 下的 f
 
 ## 账号会话（sgx-account-session）说明
 
-- 账号会话、AccountReauthTicket、AccountResetTicket 全部由账号 Worker 签发和验证（`workers/account/src/identity/account-session.js`，`SGX_ACCOUNT_PRIVATE / PUBLIC`）。网关不签、不验；网关需要结论时经 `ACCOUNT_VERIFIER.accountSession()` 问账号 Worker。
+- 账号会话、AccountReauthTicket、AccountResetTicket 全部由账号 Worker 签发和验证（`workers/account/src/core/account-session.js`，`SGX_ACCOUNT_PRIVATE / PUBLIC`）。网关不签、不验；网关需要结论时经 `ACCOUNT_VERIFIER.accountSession()` 问账号 Worker。
 - 账号登录两个入口：账号通行密钥（`POST /api/account` login-challenge + login-passkey）、
   账号密码（login-password）。账号根密钥不是登录入口：「无法登录？」→「重置登录」
   （`POST /api/account { action:'root-reset', key }`，比对 `SGX_ACCOUNT_ROOT_KEY`）只签 AccountResetTicket（`sgx-account-reset`，by=root），重置页设好新 AccountKey 后正常登录（不顺带签账号会话）。`root-reauth` 同理签 AccountReauthTicket（要有效账号会话）。
