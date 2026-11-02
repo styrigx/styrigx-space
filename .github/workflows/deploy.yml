@@ -51,7 +51,7 @@ jobs:
         # 旧名字（SGX_ED25519_* → SGX_LOCK_*，SGX_STEPUP_KEY 已删，OWNER_KEY → SGX_ROOT_KEY）不许回到代码里。
         # 不扫 tests/：改名守卫测试里会故意写旧名字。
         run: |
-          if grep -rnE "SGX_ED25519_|SGX_STEPUP_KEY|OWNER_KEY" --include="*.js" --include="*.mjs" --include="*.cjs" --include="*.html" workers/ scripts/ web/assets/ web/layouts/; then
+          if grep -rnE "SGX_ED25519_|SGX_STEPUP_KEY|OWNER_KEY" --include="*.js" --include="*.mjs" --include="*.cjs" --include="*.html" workers/ scripts/ web/atlas/assets/ web/atlas/layouts/; then
             echo "::error::legacy secret / variable name found (see above)"
             exit 1
           fi
@@ -98,7 +98,7 @@ jobs:
         # 这里先打一次，import 断了 PR 就红，不等到 main 的真实预览才发现。只打包不部署。
         run: |
           npx --yes "wrangler@$WRANGLER_VERSION" deploy tests/web/e2e/preview-worker.js --dry-run --outdir /tmp/preview-worker-dist \
-            --name sgx-preview-worker-bundle --compatibility-date "$(sed -n 's/^compatibility_date = "\(.*\)"$/\1/p' web/wrangler.toml)"
+            --name sgx-preview-worker-bundle --compatibility-date "$(sed -n 's/^compatibility_date = "\(.*\)"$/\1/p' web/atlas/wrangler.toml)"
           grep -q "X-SGX-Runtime" /tmp/preview-worker-dist/preview-worker.js
           grep -q "X-Styrigx-Lock-Role" /tmp/preview-worker-dist/preview-worker.js
 
@@ -122,7 +122,16 @@ jobs:
         working-directory: workers/proxy-rules
         run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-proxy-rules-dist
 
-      - name: Shared shell in sync (web/shared/shell ← palette-roles / input.css @shell / shell-nav)
+      - name: Curio core Worker bundle check (styrigx-curio-core, dry-run)
+        # 子站接口 Worker（2026-11-02 从 styrigx-atlas 搬来，PR1 只进仓、只打包检查；线上部署在合并 PR3 之前仍由 styrigx-atlas 仓库负责）
+        working-directory: workers/curio-core
+        run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-curio-core-dist
+
+      - name: Daymark core Worker bundle check (styrigx-daymark-core, dry-run)
+        working-directory: workers/daymark-core
+        run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-daymark-core-dist
+
+      - name: Shared shell in sync (web/atlas/shared/shell ← palette-roles / input.css @shell / shell-nav)
         # 子站（blog / daymark）用 scripts/sync-shell.mjs 从这里同步外壳；改了源头忘了重新生成 → 红
         run: node scripts/gen-shell.mjs --check
 
@@ -145,19 +154,19 @@ jobs:
       - name: Build site (生产构建，锁屏启用)
         # 这一份就是要上线的 Pages 产物（main 上传 artifact 给 build-and-deploy / deploy-search-worker 复用，不再各自重建），
         # 所以和以前 Pages job 一样带构建 SHA
-        run: hugo --minify -s web
+        run: hugo --minify -s web/atlas
         env:
           SGX_BUILD_SHA: ${{ github.sha }}
 
-      - name: CSP hashes in sync (内联脚本 sha256 ← 生产构建；web/static/_headers 安全头 ← security-headers.js)
-        # 改了模板里的内联脚本就要重新生成：hugo --minify -s web && node scripts/gen-csp.mjs
+      - name: CSP hashes in sync (内联脚本 sha256 ← 生产构建；web/atlas/static/_headers 安全头 ← security-headers.js)
+        # 改了模板里的内联脚本就要重新生成：hugo --minify -s web/atlas && node scripts/gen-csp.mjs
         run: node scripts/gen-csp.mjs --check
 
       - name: 前端技术名词检查（生产构建的 HTML 里不许出现后端变量名）
         # 用户可见文案不得出现 OWNER_KEY / SESSION_SECRET / SGX_ROOT_KEY / SGX_ADMIN_KEY / SGX_ACCOUNT_ROOT_KEY / SGX_PW_PEPPER / TURNSTILE_SECRET；
-        # 后端变量名只许出现在 workers/ 与注释里，不许进 web/public/ HTML。
+        # 后端变量名只许出现在 workers/ 与注释里，不许进 web/atlas/public/ HTML。
         run: |
-          if grep -rl "OWNER_KEY\|SESSION_SECRET\|SGX_ROOT_KEY\|SGX_ADMIN_KEY\|SGX_ACCOUNT_ROOT_KEY\|SGX_PW_PEPPER\|TURNSTILE_SECRET" web/public/ --include="*.html"; then
+          if grep -rl "OWNER_KEY\|SESSION_SECRET\|SGX_ROOT_KEY\|SGX_ADMIN_KEY\|SGX_ACCOUNT_ROOT_KEY\|SGX_PW_PEPPER\|TURNSTILE_SECRET" web/atlas/public/ --include="*.html"; then
             echo "FAIL: 技术变量名出现在 HTML 产物中"
             exit 1
           fi
@@ -166,10 +175,10 @@ jobs:
       - name: Check production build artifacts (Pages 需要的产物都在)
         # 下面上传的就是这份；_worker.js（pages.dev → styrigx.com 跳转，不能带网关代码）、_headers（含 CSP）、_redirects
         run: |
-          for f in _worker.js _headers _redirects index.html; do test -s "web/public/$f" || { echo "::error::web/public/$f missing"; exit 1; }; done
-          grep -q "styrigx.com" web/public/_worker.js
-          if grep -q "X-SGX-Runtime" web/public/_worker.js; then echo "::error::gateway bundle in production Pages build"; exit 1; fi
-          grep -q "Content-Security-Policy" web/public/_headers
+          for f in _worker.js _headers _redirects index.html; do test -s "web/atlas/public/$f" || { echo "::error::web/atlas/public/$f missing"; exit 1; }; done
+          grep -q "styrigx.com" web/atlas/public/_worker.js
+          if grep -q "X-SGX-Runtime" web/atlas/public/_worker.js; then echo "::error::gateway bundle in production Pages build"; exit 1; fi
+          grep -q "Content-Security-Policy" web/atlas/public/_headers
 
       - name: Build search index (site:space, from the production build)
         # PR 上也跑（不需密钥、几秒）：#217 只在 main 跑这步，输出目录不存在的问题合并后才暴露
@@ -178,12 +187,12 @@ jobs:
           test -s "$RUNNER_TEMP/search-index/search-space.json"
 
       - name: Upload production site (for build-and-deploy)
-        # 只在会部署的 main 运行上传；后面的锁测 / 预览 / 视觉步骤会重建 web/public，所以紧跟生产构建和检查之后上传
+        # 只在会部署的 main 运行上传；后面的锁测 / 预览 / 视觉步骤会重建 web/atlas/public，所以紧跟生产构建和检查之后上传
         if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: site-production
-          path: web/public/
+          path: web/atlas/public/
           if-no-files-found: error
           retention-days: 1
 
@@ -199,8 +208,30 @@ jobs:
       - name: Check worker routes (每个页面都过网关；账号 Worker 没有路由，账号路径在网关转发表里)
         run: node scripts/check-worker-routes.mjs
 
+      - name: Subsite generated files in sync (curio seed SQL, blog code tokens, shared shell copies)
+        # curio：workers/curio-core/migrations/0002_seed.sql ← scripts/curio/data/seed.json；blog：code-tokens.css ← 色彩角色；
+        # 三站的共享外壳副本和各自 web/<站>/sgx-shell.lock.json 锁定的主站提交一致（拉主站失败只提示、不算失败，同 styrigx-atlas）
+        run: |
+          node scripts/curio/gen-seed-sql.mjs --check
+          node scripts/blog/gen-code-tokens.mjs --check
+          for s in blog curio daymark; do node "scripts/$s/sync-shell.mjs" --check; done
+
+      - name: Subsite builds + unit tests (blog / curio / daymark; PR1 只测不部署)
+        # 三站各自构建（Tailwind CLI → hugo -s web/<站>，产物留在 web/<站>/public/，不上传、不进主站 Pages 产物；拼树和部署是 PR2 / PR3）。
+        # 单测：页面（网址、模板、锁屏同步、外观继承、共享外壳副本）+ 接口 Worker（node:sqlite 真跑 D1 的 SQL）+ 博客搜索索引
+        run: |
+          node scripts/blog/build-css.mjs
+          hugo --minify --cleanDestinationDir -s web/blog
+          for s in curio daymark; do
+            npx --no-install tailwindcss -i "web/$s/assets/css/input.css" -o "web/$s/assets/css/main.css" --minify
+            hugo --minify --cleanDestinationDir -s "web/$s"
+          done
+          node scripts/blog/build-search-index.mjs --out "$RUNNER_TEMP/search-index/search-blog.json"
+          test -s "$RUNNER_TEMP/search-index/search-blog.json"
+          node --test tests/blog/*.test.mjs tests/curio/web/*.test.mjs tests/daymark/web/*.test.mjs tests/workers/curio-core/*.test.mjs tests/workers/daymark-core/*.test.mjs
+
       - name: stylelint（禁止硬编码颜色）
-        run: npx stylelint --config tests/config/stylelintrc.json "web/assets/css/input.css"
+        run: npx stylelint --config tests/config/stylelintrc.json "web/atlas/assets/css/input.css"
 
       - name: Lock screen tests (生产构建，锁屏启用；含 lock-flags 的 lock-gate 开)
         # 截图基线在下一步单独跑
@@ -220,7 +251,7 @@ jobs:
       - name: Lock flags test (lock-gate off)
         # lock-gate 关：锁屏完全不出现（要单独构建）
         run: |
-          SGX_TEST_LOCK_GATE=0 hugo --minify -s web
+          SGX_TEST_LOCK_GATE=0 hugo --minify -s web/atlas
           SGX_TEST_SUITE=lock SGX_TEST_FLAGS=gate-off npx playwright test --config=tests/config/playwright.config.js lock-flags.spec.js
 
       - name: Upload lock test artifacts on failure
@@ -234,7 +265,7 @@ jobs:
 
       - name: Rebuild for visual / Lighthouse (测试构建，锁屏禁用)
         # 视觉回归和 Lighthouse 用锁屏禁用的构建，避免锁屏干扰
-        run: hugo --minify -s web
+        run: hugo --minify -s web/atlas
         env:
           SGX_TEST_NO_LOCK: "1"
           # 测试构建禁用天气组件（依赖外网，CI 不稳定会让 Lighthouse errors-in-console 误报）；生产构建绝不设置
@@ -258,7 +289,7 @@ jobs:
       - name: Lighthouse CI
         # lhci 自己起服务（见 tests/config/lighthouserc.json 的 startServerCommand）；gzip 模拟线上 Cloudflare 压缩
         run: |
-          find web/public -type f \( -name '*.html' -o -name '*.css' -o -name '*.js' \) -exec gzip -k -9 {} \;
+          find web/atlas/public -type f \( -name '*.html' -o -name '*.css' -o -name '*.js' \) -exec gzip -k -9 {} \;
           npx lhci autorun --config=tests/config/lighthouserc.json
 
   passkey-e2e:
@@ -266,7 +297,7 @@ jobs:
     # 按事件分两条路（job 名不变：passkey-e2e 是分支保护的必需检查，结论就是这个 job 的结论）：
     # - pull_request：本地模拟器 tests/web/e2e/preview-emulator.cjs——同一个组合入口 tests/web/e2e/preview-worker.js
     #   （网关 workers/auth-gateway/src/app.js + 账号 Worker 命名入口的实现，账号拆分 PR3；SGX_ENV=preview），
-    #   D1 是 node:sqlite 内存库（网关 2026-10-27 起不绑 KV）、Cloudflare D1 / KV REST 也由它在本机模拟；env.ASSETS 读本步骤构建的 web/public。
+    #   D1 是 node:sqlite 内存库（网关 2026-10-27 起不绑 KV）、Cloudflare D1 / KV REST 也由它在本机模拟；env.ASSETS 读本步骤构建的 web/atlas/public。
     #   不用任何 Cloudflare secret、不部署预览、不清预览 D1 / 不跑 D1 迁移。
     # - push 到 main、workflow_dispatch：真实预览部署 passkey-e2e.styrigx-space.pages.dev + 预览 D1（下面带
     #   github.event_name != 'pull_request' 的步骤，和改动前一样）。模拟器测不到真实 D1、Pages 打包和真实绑定，
@@ -297,12 +328,12 @@ jobs:
         id: scope
         # 路径过滤做在步骤层，不用 workflow 级 paths：这个 job 照样启动、以成功结束，分支保护的必需检查不会一直挂着。
         # 反着写（denylist）：只有本次改动的文件「全部」属于下面几类才跳过，其余任何改动都照跑——
-        #   *.md（文档、README；web/content 另算，见下）、*.css（web/assets/css/ 样式源等）、
+        #   *.md（文档、README；web/atlas/content 另算，见下）、*.css（web/atlas/assets/css/ 样式源等）、
         #   tests/**/*-snapshots/*.png（视觉基线）、图片（png / jpg / jpeg / webp / gif / avif / svg / ico）、
-        #   web/content/*.md 只改 title / linkTitle / description / summary / keywords（这里的页面只有 front matter，
+        #   web/atlas/content/*.md 只改 title / linkTitle / description / summary / keywords（这里的页面只有 front matter，
         #   url / layout 决定路由，E2E 正好走这些页面，改了就照跑；新增页面也照跑）。
-        # 照跑名单优先于上面的跳过规则：.github/**（workflow 本身）、package.json、package-lock.json、web/shared/**、
-        #   web/assets/js/**（含 shell/）、网关内核 workers/auth-gateway/src/core/**、src/lib/**（原 _kernel/**）。删除、类型变化也一律照跑。
+        # 照跑名单优先于上面的跳过规则：.github/**（workflow 本身）、package.json、package-lock.json、web/atlas/shared/**、
+        #   web/atlas/assets/js/**（含 shell/）、网关内核 workers/auth-gateway/src/core/**、src/lib/**（原 _kernel/**）。删除、类型变化也一律照跑。
         # PR 比 base...head（合并基点起 PR 自己的改动）；push 直接比 before 和 after 两棵树（快进时等同 before...after，
         # 强推时把被覆盖掉的改动也算进来）；before 全零（新分支）、workflow_dispatch、拿不到 SHA、fetch / diff 出错、空 diff 都照跑。
         # 本步意外报错也不拦：continue-on-error，拿不到 docs_only=true 就照跑。
@@ -326,7 +357,7 @@ jobs:
           if [ -z "$a" ] || [ -z "$b" ] || [[ "$a" =~ $zero ]] || [[ "$b" =~ $zero ]]; then
             verdict false "no usable base ($a...$b, e.g. a new branch): run"
           fi
-          # 只要提交和目录树（blob:none），不下文件内容；web/content 要比对 front matter 时 git 按需补那几个文件
+          # 只要提交和目录树（blob:none），不下文件内容；web/atlas/content 要比对 front matter 时 git 按需补那几个文件
           # checkout 是 depth 1 的浅克隆：先补全历史（否则 base 或 head 正好是浅边界时找不到合并基点）
           deepen=(); [ "$(git rev-parse --is-shallow-repository)" = true ] && deepen=(--unshallow)
           git fetch --no-tags --quiet --filter=blob:none "${deepen[@]}" origin "$a" "$b" || verdict false "fetch $a / $b failed: run"
@@ -352,12 +383,12 @@ jobs:
             n=$((n + 1))
             case "$f" in
               # 照跑名单优先于下面的跳过规则（workflow 自身、依赖、共享外壳、前端 JS、网关内核 src/core/、src/lib/）
-              .github/* | package.json | package-lock.json | web/shared/* | web/assets/js/* | workers/auth-gateway/src/core/* | workers/auth-gateway/src/lib/*)
+              .github/* | package.json | package-lock.json | web/atlas/shared/* | web/atlas/assets/js/* | workers/auth-gateway/src/core/* | workers/auth-gateway/src/lib/*)
                 verdict false "$f: always run" ;;
             esac
             [ "$st" = M ] || [ "$st" = A ] || verdict false "$st $f (deleted / type change): run"
             case "$f" in
-              web/content/*.md)
+              web/atlas/content/*.md)
                 [ "$st" = M ] || verdict false "A $f (new page / route): run"
                 if ! old="$(fm "$from" "$f")" || ! new="$(fm "$b" "$f")"; then verdict false "$f: cannot read front matter: run"; fi
                 if [ "$old" != "$new" ] || [ "$new" = NO-YAML-FRONT-MATTER ]; then
@@ -435,7 +466,7 @@ jobs:
         # 密码、通行密钥（「锁屏 / 账号都未设置」）和输错计数（attempt_limit：会 429）。网关和账号的预览表同库同名、按 realm 列分开，一起清。
         # 纪元、user handle、审计、challenge、临时钥匙、设备、重置开关不清：旧会话 / 票都是旧钥匙签的、验签先失败，
         # 其余只是过期就不认的行，不改变任何断言的前提（逐条理由见 scripts/kv-budget.mjs）。
-        # 库 id 只认 web/wrangler.toml [env.preview] 的 D1_LOCK_AUTH，且断言它不是正式网关的库。D1 REST 要这个 token 有 D1 编辑。
+        # 库 id 只认 web/atlas/wrangler.toml [env.preview] 的 D1_LOCK_AUTH，且断言它不是正式网关的库。D1 REST 要这个 token 有 D1 编辑。
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         env:
           CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -460,12 +491,12 @@ jobs:
 
       - name: Build site
         if: steps.gate.outputs.run == 'true'
-        run: hugo --minify -s web
+        run: hugo --minify -s web/atlas
 
       - name: Start local preview emulator (pull_request only)
         if: steps.gate.outputs.run == 'true' && github.event_name == 'pull_request'
         # tests/web/e2e/preview-emulator.cjs：仓库里的组合入口（不打包，直接 import tests/web/e2e/preview-worker.js：网关 + 账号 Worker）+
-        # node:sqlite 的 D1 + 本机的 Cloudflare D1 / KV REST；env.ASSETS 读上面构建的 web/public。Ed25519 钥匙对由它自己现生成。
+        # node:sqlite 的 D1 + 本机的 Cloudflare D1 / KV REST；env.ASSETS 读上面构建的 web/atlas/public。Ed25519 钥匙对由它自己现生成。
         # 根密钥 / pepper 用本次生成的 PREVIEW_TEST_ADMIN_KEY / PREVIEW_TEST_ACCOUNT_ROOT_KEY / PREVIEW_TEST_PW_PEPPER（已打码）。固定端口 8788，和下一步的 SGX_TEST_BASE 一致。
         # 后台跑到 job 结束（runner 收尾时回收）；日志写 emulator-log/，失败时随测试结果一起上传。
         run: |
@@ -510,10 +541,10 @@ jobs:
         # 只打包不部署 Worker，不需要 Worker 权限。
         run: |
           npx --yes "wrangler@$WRANGLER_VERSION" deploy tests/web/e2e/preview-worker.js --dry-run --outdir "$RUNNER_TEMP/preview-dist" \
-            --name sgx-preview-worker-bundle --compatibility-date "$(sed -n 's/^compatibility_date = "\(.*\)"$/\1/p' web/wrangler.toml)"
-          cp "$RUNNER_TEMP/preview-dist/preview-worker.js" web/public/_worker.js
-          grep -q "X-SGX-Runtime" web/public/_worker.js
-          grep -q "X-Styrigx-Lock-Role" web/public/_worker.js
+            --name sgx-preview-worker-bundle --compatibility-date "$(sed -n 's/^compatibility_date = "\(.*\)"$/\1/p' web/atlas/wrangler.toml)"
+          cp "$RUNNER_TEMP/preview-dist/preview-worker.js" web/atlas/public/_worker.js
+          grep -q "X-SGX-Runtime" web/atlas/public/_worker.js
+          grep -q "X-Styrigx-Lock-Role" web/atlas/public/_worker.js
 
       - name: Generate Ed25519 test key pairs (CI only)
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
@@ -526,9 +557,9 @@ jobs:
           done
           echo "Ed25519 test key pairs generated (preview only)"
 
-      - name: Put this run's public keys into web/wrangler.toml (runner copy only)
+      - name: Put this run's public keys into web/atlas/wrangler.toml (runner copy only)
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
-        # web/wrangler.toml 是 Pages 的配置源：部署时它的 [env.preview.vars] 覆盖后台的明文变量。
+        # web/atlas/wrangler.toml 是 Pages 的配置源：部署时它的 [env.preview.vars] 覆盖后台的明文变量。
         # 仓库里那份 SGX_LOCK_PUBLIC 是固定值，和本次生成的私钥对不上，所以部署前在 runner 里换成本次的公钥，
         # 并补上账号域公钥。不提交，只影响这次部署。
         run: |
@@ -537,7 +568,7 @@ jobs:
           tmp = os.environ["RUNNER_TEMP"]
           lock_pub = open(f"{tmp}/lock-pub.pem").read()
           acct_pub = open(f"{tmp}/account-pub.pem").read()
-          path = "web/wrangler.toml"
+          path = "web/atlas/wrangler.toml"
           s = open(path).read()
           pat = re.compile(r'^SGX_LOCK_PUBLIC = .*$', re.M)
           assert len(pat.findall(s)) == 1, "expected exactly one SGX_LOCK_PUBLIC line"
@@ -546,7 +577,7 @@ jobs:
           open(path, "w").write(s)
           v = tomllib.loads(s)["env"]["preview"]["vars"]
           assert v["SGX_LOCK_PUBLIC"] == lock_pub and v["SGX_ACCOUNT_PUBLIC"] == acct_pub and v["SGX_ENV"] == "preview"
-          print("preview public keys written to the runner copy of web/wrangler.toml")
+          print("preview public keys written to the runner copy of web/atlas/wrangler.toml")
           PYEOF
 
       - name: Set preview test secrets (preview only)
@@ -570,7 +601,7 @@ jobs:
           admin_key, account_root_key = env["PREVIEW_TEST_ADMIN_KEY"], env["PREVIEW_TEST_ACCOUNT_ROOT_KEY"]
           pepper = env["PREVIEW_TEST_PW_PEPPER"]
           assert len(admin_key) == 64 and len(account_root_key) == 64 and len(pepper) == 64 and admin_key != account_root_key
-          pv = tomllib.load(open("web/wrangler.toml", "rb"))["env"]["preview"]["vars"]
+          pv = tomllib.load(open("web/atlas/wrangler.toml", "rb"))["env"]["preview"]["vars"]
           secret = lambda v: {"type": "secret_text", "value": v}
           plain = lambda v: {"type": "plain_text", "value": v}
           body = json.dumps({"deployment_configs": {"preview": {"env_vars": {
@@ -579,7 +610,7 @@ jobs:
               "SGX_PW_PEPPER": secret(pepper),
               "SGX_LOCK_PRIVATE": secret(lock_priv),
               "SGX_ACCOUNT_PRIVATE": secret(acct_priv),
-              # 下面这些也在 web/wrangler.toml 里（部署时以它为准）；这里写同样的值，两边不会不一致
+              # 下面这些也在 web/atlas/wrangler.toml 里（部署时以它为准）；这里写同样的值，两边不会不一致
               "SGX_LOCK_PUBLIC": plain(lock_pub),
               "SGX_ACCOUNT_PUBLIC": plain(acct_pub),
               "SGX_SITE": plain(pv["SGX_SITE"]),
@@ -603,15 +634,15 @@ jobs:
       - name: Apply D1 migrations to preview
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # 部署 preview 前对测试专用库 styrigx-test-preview 跑迁移（--env preview），绝不碰 production；失败要让 CI 红。
-        # 2026-10-29 起所有 Worker 的预览共用这一个库：网关（web/wrangler.toml，迁移目录 workers/auth-gateway/migrations）、
+        # 2026-10-29 起所有 Worker 的预览共用这一个库：网关（web/atlas/wrangler.toml，迁移目录 workers/auth-gateway/migrations）、
         # 账号 Worker、短链 Worker（各自 wrangler.toml 的 [env.preview]）三套迁移都在这里跑。表名互不重叠；迁移记录表分开：
         # 网关用默认 d1_migrations，账号 d1_migrations_account，短链 d1_migrations_share（各 toml 的 migrations_table）。
         # 库是空的也没关系：第一次运行三套迁移全部应用，之后只补新的。跑完列一次三张记录表。
-        working-directory: web
+        working-directory: web/atlas
         run: |
           npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply styrigx-test-preview --remote --env preview
-          (cd ../workers/account && npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply styrigx-test-preview --remote --env preview)
-          (cd ../workers/share && npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply styrigx-test-preview --remote --env preview)
+          (cd ../../workers/account && npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply styrigx-test-preview --remote --env preview)
+          (cd ../../workers/share && npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply styrigx-test-preview --remote --env preview)
           npx --yes "wrangler@$WRANGLER_VERSION" d1 execute styrigx-test-preview --remote --env preview --command "SELECT 'auth-gateway' AS worker, name, applied_at FROM d1_migrations UNION ALL SELECT 'account', name, applied_at FROM d1_migrations_account UNION ALL SELECT 'share', name, applied_at FROM d1_migrations_share ORDER BY 1, 2"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
@@ -622,9 +653,9 @@ jobs:
         # 本次部署的标记（run id + attempt），部署后轮询别名直到稳定返回它（下一个 Wait 步骤）。
         # 放 /images/ 下：网关对 MAIN_STATIC_PREFIXES 原样回源、不验会话；只进这个 job 的预览 public/，不进生产构建。
         run: |
-          mkdir -p web/public/images
-          printf '%s\n' "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" > web/public/images/e2e-deploy.txt
-          cat web/public/images/e2e-deploy.txt
+          mkdir -p web/atlas/public/images
+          printf '%s\n' "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" > web/atlas/public/images/e2e-deploy.txt
+          cat web/atlas/public/images/e2e-deploy.txt
 
       - name: Deploy to preview
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
@@ -633,7 +664,7 @@ jobs:
           apiToken: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
-          workingDirectory: web
+          workingDirectory: web/atlas
           command: pages deploy public --project-name=styrigx-space --branch=passkey-e2e --commit-dirty=true
 
       - name: Wait until preview alias serves this deployment
@@ -658,7 +689,7 @@ jobs:
       - name: Run WebAuthn E2E (SGX_TEST_SUITE=passkey)
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # 跑 passkey 组的全部 describe（testMatch 已限定文件，不再 --grep）。
-        # 预览地址和预览 D1 id 从 web/wrangler.toml 读，不在这里重复写。
+        # 预览地址和预览 D1 id 从 web/atlas/wrangler.toml 读，不在这里重复写。
         # SGX_TEST_ADMIN_KEY / SGX_TEST_ACCOUNT_ROOT_KEY 是本次生成、已写进预览 SGX_ADMIN_KEY / SGX_ACCOUNT_ROOT_KEY 的同一对值。
         # 测试进程写预览 D1（打开重置开关、清根凭证限速计数）用 Pages 部署 token（和上面清 D1 同一个）。
         # 测试 helper 尽量少写：缓存会话 / 进门票并用只读接口确认（tests/web/e2e/preview-helpers.cjs 文件头）。
@@ -671,7 +702,7 @@ jobs:
         run: |
           eval "$(python3 - <<'PYEOF'
           import shlex, tomllib
-          p = tomllib.load(open("web/wrangler.toml", "rb"))["env"]["preview"]
+          p = tomllib.load(open("web/atlas/wrangler.toml", "rb"))["env"]["preview"]
           d1 = [k["database_id"] for k in p["d1_databases"] if k["binding"] == "D1_LOCK_AUTH"][0]
           print("export SGX_TEST_BASE=" + shlex.quote(p["vars"]["SGX_ORIGIN"]))
           print("export SGX_TEST_PREVIEW_D1_ID=" + shlex.quote(d1))
@@ -699,7 +730,7 @@ jobs:
           prod = r["result"]["deployment_configs"]["production"].get("env_vars") or {}
           names = sorted(prod.keys())
           print("production vars:", names)
-          # Pages 只放静态文件，会话检查全在网关；生产部署按 web/wrangler.toml 不带任何变量
+          # Pages 只放静态文件，会话检查全在网关；生产部署按 web/atlas/wrangler.toml 不带任何变量
           forbidden = ["SGX_LOCK_PRIVATE", "SGX_ACCOUNT_PRIVATE", "SGX_STEPUP_PRIVATE", "SGX_APP_PRIVATE", "SGX_ROOT_KEY", "SGX_ADMIN_KEY", "SGX_ACCOUNT_ROOT_KEY", "SGX_PW_PEPPER", "TURNSTILE_SECRET", "OWNER_KEY"]
           present = [v for v in forbidden if v in names]
           assert not present, f"private vars must not be on Pages production: {present}"
@@ -741,16 +772,16 @@ jobs:
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: site-production
-          path: web/public
+          path: web/atlas/public
 
       - name: Assert static-only Pages build
         # 生产部署只能带静态的 _worker.js（只做 pages.dev → styrigx.com 跳转），不能带网关代码
         run: |
-          for f in _headers _redirects index.html; do test -s "web/public/$f" || { echo "::error::web/public/$f missing"; exit 1; }; done
-          grep -q "Content-Security-Policy" web/public/_headers
-          test -f web/public/_worker.js
-          grep -q "styrigx.com" web/public/_worker.js
-          if grep -q "X-SGX-Runtime" web/public/_worker.js; then echo "::error::gateway bundle in production Pages build"; exit 1; fi
+          for f in _headers _redirects index.html; do test -s "web/atlas/public/$f" || { echo "::error::web/atlas/public/$f missing"; exit 1; }; done
+          grep -q "Content-Security-Policy" web/atlas/public/_headers
+          test -f web/atlas/public/_worker.js
+          grep -q "styrigx.com" web/atlas/public/_worker.js
+          if grep -q "X-SGX-Runtime" web/atlas/public/_worker.js; then echo "::error::gateway bundle in production Pages build"; exit 1; fi
 
       - name: Record live Pages production deployment (rollback target)
         # 部署前记下生产当前的 deployment（项目的 canonical_deployment；scripts/deploy-rollback.mjs）。还没有生产部署 / 记录失败 → 空，
@@ -768,7 +799,7 @@ jobs:
           apiToken: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
-          workingDirectory: web
+          workingDirectory: web/atlas
           command: pages deploy public --project-name=styrigx-space --commit-dirty=true
 
       - name: Smoke test Pages (pages.dev must redirect, pages still behind the gateway)

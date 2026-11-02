@@ -12,7 +12,7 @@ Object.defineProperty(globalThis, 'navigator', {
   value: { credentials: { get: async (opts) => { seen = opts; return { id: 'cred' }; } } },
 });
 
-const { getPasskeyAssertion } = await import('../../../web/assets/js/auth/passkey-assert.js');
+const { getPasskeyAssertion } = await import('../../../web/atlas/assets/js/auth/passkey-assert.js');
 
 test('signal 在顶层、publicKey 里没有 signal；timeout 30000；原选项不被改', async () => {
   const options = { challenge: new Uint8Array([1, 2, 3]), rpId: 'styrigx.com' };
@@ -27,7 +27,7 @@ test('signal 在顶层、publicKey 里没有 signal；timeout 30000；原选项�
 });
 
 /* ---- frontend-js #9：五处断言共用 assertionOptions / assertionToJSON ---- */
-const { assertionOptions, assertionToJSON, isPasskeyCancel } = await import('../../../web/assets/js/auth/passkey-assert.js');
+const { assertionOptions, assertionToJSON, isPasskeyCancel } = await import('../../../web/atlas/assets/js/auth/passkey-assert.js');
 const { readFileSync } = await import('node:fs');
 const { join, dirname } = await import('node:path');
 const { fileURLToPath } = await import('node:url');
@@ -56,7 +56,7 @@ test('assertionOptions / assertionToJSON / isPasskeyCancel', () => {
 });
 
 test('全站的通行密钥断言都经 getPasskeyAssertion + assertionToJSON：没有别处手写 credentials.get / 断言序列化', () => {
-  const files = ['web/assets/js/shell/lock.js', 'web/assets/js/shell/upgrade.js', 'web/assets/js/apps/security-lock.js', 'web/assets/js/auth/account-methods.js'];
+  const files = ['web/atlas/assets/js/shell/lock.js', 'web/atlas/assets/js/shell/upgrade.js', 'web/atlas/assets/js/apps/security-lock.js', 'web/atlas/assets/js/auth/account-methods.js'];
   let flows = 0;
   for (const f of files) {
     const src = readFileSync(join(ROOT, f), 'utf8');

@@ -2,10 +2,10 @@
 /**
  * sgx-ui cookie 契约夹具（2026-10-22）：tests/fixtures/ui-cookie-contract.json。
  *
- * - writer 用例：在 Node 里给主站真写端 web/assets/js/lib/ui-cookie.js 搭一个最小 window / localStorage / document.cookie，
+ * - writer 用例：在 Node 里给主站真写端 web/atlas/assets/js/lib/ui-cookie.js 搭一个最小 window / localStorage / document.cookie，
  *   按 local（localStorage）跑 syncUiCookie()，记下它写出的 cookie 值——夹具里的 cookie 就是写端的真实产出。
  * - handmade 用例：写端写不出来的（旧 v1、旧 v2 没有 accent、未知版本、乱码、字段不合法），手写。
- * - 每个用例带读端 web/assets/js/lib/ui-cookie-read.js 的期望：read()、resolve(系统浅 / 深)、apply() 后 <html> 的状态。
+ * - 每个用例带读端 web/atlas/assets/js/lib/ui-cookie-read.js 的期望：read()、resolve(系统浅 / 深)、apply() 后 <html> 的状态。
  *   期望值是这里按契约写死的，不是拿读端自己算的（读端改错了，单测会和夹具对不上）。
  * - 共享外壳（gen-shell.mjs）把夹具原样带给子站，子站仓库可以跑同一套断言。
  *
@@ -18,8 +18,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const FIXTURE = path.join(REPO, 'tests/fixtures/ui-cookie-contract.json');
-const WRITER = path.join(REPO, 'web/assets/js/lib/ui-cookie.js');
-const ROLES = path.join(REPO, 'web/data/palette-roles.json');
+const WRITER = path.join(REPO, 'web/atlas/assets/js/lib/ui-cookie.js');
+const ROLES = path.join(REPO, 'web/atlas/data/palette-roles.json');
 /** 夹具里 mat 用的固定时间（写端第一次写时记 Date.now()） */
 export const NOW = 1761062400000;
 
@@ -31,7 +31,7 @@ const SEEDS = Object.fromEntries(Object.entries(JSON.parse(readFileSync(ROLES, '
 /** 2026-10-23 PR-G 之前的预设种子（读端 LEGACY_SEEDS，旧 cookie 的 accent 仍当预设） */
 const OLD = { forest: '#2f6b4f', rose: '#984061', lake: '#2f5f86' };
 /** 读端的旧种子表原文（ui-cookie-read.js 的 LEGACY_SEEDS），期望按同一张表算 */
-const LEGACY = JSON.parse(readFileSync(path.join(REPO, 'web/assets/js/lib/ui-cookie-read.js'), 'utf8').match(/var LEGACY_SEEDS = (\{[^}]*\});/)[1]);
+const LEGACY = JSON.parse(readFileSync(path.join(REPO, 'web/atlas/assets/js/lib/ui-cookie-read.js'), 'utf8').match(/var LEGACY_SEEDS = (\{[^}]*\});/)[1]);
 
 /* 写端用例：local = 主站 localStorage；expect = 读端 read() 期望（省略的字段 = V2 默认） */
 const WRITER_CASES = [

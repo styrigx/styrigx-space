@@ -1,0 +1,13 @@
+{{- /* 目录树（原 utils/toc-tree.ts buildTocTree：h2–h6，按层级嵌套）。
+输入：.Fragments.Headings（或其子树）；输出：[{href label children}]。h1 这一层（Hugo 的占位节点）直接展开。 */ -}}
+{{- $out := slice -}}
+{{- range . -}}
+  {{- if lt .Level 2 -}}
+    {{- $out = $out | append (partial "toc-items.html" .Headings) -}}
+  {{- else if .ID -}}
+    {{- $out = $out | append (dict "href" (print "#" .ID) "label" (.Title | plainify | htmlUnescape) "children" (partial "toc-items.html" .Headings)) -}}
+  {{- else -}}
+    {{- $out = $out | append (partial "toc-items.html" .Headings) -}}
+  {{- end -}}
+{{- end -}}
+{{- return $out -}}

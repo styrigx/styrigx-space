@@ -1,5 +1,5 @@
 /**
- * 子站顶栏分享按钮（web/assets/js/shell/share-button.js → 共享外壳 share.js，2026-10-24）。
+ * 子站顶栏分享按钮（web/atlas/assets/js/shell/share-button.js → 共享外壳 share.js，2026-10-24）。
  * 管理员：POST https://styrigx.com/api/share（credentials include、reuse、24 小时 / 12 小时会话、页面标题当名字）→ 系统分享 / 复制兜底；
  * 访客：直接分享当前页地址；生成中再点不理；失败只 toast，不拿原地址冒充短链。
  */
@@ -11,12 +11,12 @@ import { fileURLToPath } from 'node:url';
 import { renderAll } from '../../../scripts/gen-shell.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const S = await import(path.join(REPO, 'web/assets/js/shell/share-button.js'));
+const S = await import(path.join(REPO, 'web/atlas/assets/js/shell/share-button.js'));
 const CODE = 'AbCdEfGhIjKlMnOpQrStUv';
 
 test('共享外壳 share.js = shell/share-button.js 原样；不 import；nav.json 带 share 图标；shell.css 有胶囊 / 忙碌 / toast 样式', () => {
   const files = renderAll();
-  assert.equal(files['share.js'], readFileSync(path.join(REPO, 'web/assets/js/shell/share-button.js'), 'utf8'));
+  assert.equal(files['share.js'], readFileSync(path.join(REPO, 'web/atlas/assets/js/shell/share-button.js'), 'utf8'));
   assert.doesNotMatch(files['share.js'], /^\s*import\s/m);
   assert.match(JSON.parse(files['nav.json']).icons.share, /^<svg[\s\S]*<\/svg>$/);
   for (const sel of ['.sgx-tb-end-group {', '.sgx-tb-gbtn {', '.sgx-tb-gbtn.is-busy svg', '.sgx-share-toast {', '.sgx-share-toast.show']) {

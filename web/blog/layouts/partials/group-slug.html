@@ -1,0 +1,8 @@
+{{- /* 分组名 → slug（原 utils/content-groups.ts slugifyGroupName）：小写、去引号、& → and、非字母数字连成 -、去首尾 -。
+专题筛选 hash（#topics/tag/<slug>、#topics/series/<slug>）用它；标签页地址用 Hugo 的词条地址（对现有标签两者一致，tests/urls.test.mjs 会核对）。 */ -}}
+{{- $s := . | strings.TrimSpace | lower -}}
+{{- $s = replaceRE `['"]` "" $s -}}
+{{- $s = replaceRE `&` " and " $s -}}
+{{- $s = replaceRE `[^\p{L}\p{N}]+` "-" $s -}}
+{{- $s = strings.Trim $s "-" -}}
+{{- return (cond (eq $s "") "untitled" $s) -}}

@@ -24,7 +24,7 @@ Object.defineProperty(globalThis, 'navigator', {
 globalThis.window = /** @type {any} */ ({ PublicKeyCredential: function () {} });
 
 const { registerPasskey, attestationToJSON, creationOptions, genPkPrefillName, cleanPasskeyName } =
-  await import('../../../web/assets/js/auth/passkey-register.js');
+  await import('../../../web/atlas/assets/js/auth/passkey-register.js');
 
 const B = (s) => new TextEncoder().encode(s).buffer;
 const fakeCred = () => ({ id: 'cid-1', rawId: B('raw'), type: 'public-key', response: { clientDataJSON: B('cd'), attestationObject: B('ao') } });
@@ -122,7 +122,7 @@ test('creationOptions：服务端没给用户名时用页面兜底；预填名�
 });
 
 test('两页都只经 passkey-register.js 注册：不再手写 credentials.create / 命名弹层；锁屏页没有 r.status 未定义的分支', () => {
-  for (const f of ['web/assets/js/apps/security-lock.js', 'web/assets/js/apps/account-security.js']) {
+  for (const f of ['web/atlas/assets/js/apps/security-lock.js', 'web/atlas/assets/js/apps/account-security.js']) {
     const src = rd(f);
     assert.ok(src.includes("from '../auth/passkey-register.js'"), f);
     assert.ok(src.includes('registerPasskey({') && src.includes('createPkNameDialog({'), f);
@@ -131,6 +131,6 @@ test('两页都只经 passkey-register.js 注册：不再手写 credentials.crea
     assert.ok(src.includes("genPkPrefillName(t('pkUnnamed'))"), f + ' 预填名兜底走 i18n（锁屏页以前写死「通行密钥」）');
   }
   /* 全站只有这一处 credentials.create */
-  const lib = rd('web/assets/js/auth/passkey-register.js');
+  const lib = rd('web/atlas/assets/js/auth/passkey-register.js');
   assert.ok(lib.includes('navigator.credentials.create'));
 });

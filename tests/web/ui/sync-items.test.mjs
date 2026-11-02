@@ -12,15 +12,15 @@ import { readFileSync } from 'node:fs';
 import yaml from 'js-yaml';
 
 const rd = (p) => readFileSync(new URL('../../../' + p, import.meta.url), 'utf8');
-const feats = /** @type {any} */ (yaml.load(rd('web/data/features.yaml'))).features;
-const si = /** @type {any} */ (yaml.load(rd('web/data/sync-items.yaml')));
+const feats = /** @type {any} */ (yaml.load(rd('web/atlas/data/features.yaml'))).features;
+const si = /** @type {any} */ (yaml.load(rd('web/atlas/data/sync-items.yaml')));
 
 /* features.js 从页面里的 #sgx-features 读定义（baseof 由 features.yaml 生成：id / key / type / default / storage） */
 const featDefs = feats.map((f) => Object.assign({ id: f.id, key: f.key, type: f.type, default: f.default }, f.storage ? { storage: f.storage } : {}));
 globalThis.window = globalThis.window || { addEventListener() {}, dispatchEvent() {} };
 globalThis.document = { getElementById: (id) => (id === 'sgx-features' ? { textContent: JSON.stringify(featDefs) } : null), documentElement: { getAttribute() { return null; } }, cookie: '' };
-const { syncKeys } = await import('../../../web/assets/js/lib/cloud-sync.js');
-const { valueText, defOf } = await import('../../../web/assets/js/lib/sync-items.js');
+const { syncKeys } = await import('../../../web/atlas/assets/js/lib/cloud-sync.js');
+const { valueText, defOf } = await import('../../../web/atlas/assets/js/lib/sync-items.js');
 
 const listed = si.groups.flatMap((g) => g.keys);
 
@@ -91,10 +91,10 @@ test('defOf：从行的 data-* 读定义', () => {
 });
 
 test('模板：按 sync-items.yaml 渲染、有总开关；文案（account-i18n）中英都有', () => {
-  const tpl = rd('web/layouts/_default/account-sync.html');
+  const tpl = rd('web/atlas/layouts/_default/account-sync.html');
   assert.match(tpl, /index site\.Data "sync-items"/);
   assert.match(tpl, /id="acct-sync-sw" role="switch"/);
   assert.match(tpl, /data-sync-key="\{\{ \$k \}\}"/);
-  const i18n = rd('web/layouts/partials/account-i18n.html');
+  const i18n = rd('web/atlas/layouts/partials/account-i18n.html');
   for (const k of Object.keys(T)) assert.match(i18n, new RegExp('"' + k + '" \\(dict "zh" "[^"]+" "en" "[^"]+"\\)'), k);
 });

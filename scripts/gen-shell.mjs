@@ -2,21 +2,21 @@
 /**
  * 共享外壳（shared shell）：主站是唯一来源，子站（blog / daymark）用各自仓库的 scripts/sync-shell.mjs 一条命令同步。
  *
- * 生成 web/shared/shell/（勿手改，改源头后重跑本脚本）：
- *   tokens.css         22 套七色调色板的色彩角色 + 色调 token（--sgx-bg-1..7 / --sgx-fg-1..6；web/data/palette-roles.json，和 input.css 里 @gen-palettes 同一个函数）
+ * 生成 web/atlas/shared/shell/（勿手改，改源头后重跑本脚本）：
+ *   tokens.css         22 套七色调色板的色彩角色 + 色调 token（--sgx-bg-1..7 / --sgx-fg-1..6；web/atlas/data/palette-roles.json，和 input.css 里 @gen-palettes 同一个函数）
  *                      + 调色板派生 token（tag / chart）+ 组件别名层
  *   shell.css          顶栏（九宫格圆 / 只有页名的长条 / 右圆）、导航抽屉（含抽屉头头像）、原地搜索层：input.css 里 /* @shell:begin <名> *\/ … /* @shell:end <名> *\/ 之间的原文
- *   palette-scheme.js  自定义 #rrggbb 种子 → 整套角色的引擎（web/assets/js/lib/palette-scheme.js 原样复制）
- *   search.js          原地搜索层（web/assets/js/shell/search-layer.js 原样复制；不 import 任何东西，样式在 shell.css 的 search 段）
- *   share.js           子站顶栏分享按钮（web/assets/js/shell/share-button.js 原样复制；不 import 任何东西，样式在 shell.css 的 topbar-frame 段）
- *   nav.json           导航抽屉的项（web/data/shell-nav.json）+ 用到的图标 SVG（web/layouts/partials/icon.html）
- *                      + 抽屉头字标 SVG wordmark（web/layouts/partials/shell-wordmark.html；brand 文字照旧保留）
+ *   palette-scheme.js  自定义 #rrggbb 种子 → 整套角色的引擎（web/atlas/assets/js/lib/palette-scheme.js 原样复制）
+ *   search.js          原地搜索层（web/atlas/assets/js/shell/search-layer.js 原样复制；不 import 任何东西，样式在 shell.css 的 search 段）
+ *   share.js           子站顶栏分享按钮（web/atlas/assets/js/shell/share-button.js 原样复制；不 import 任何东西，样式在 shell.css 的 topbar-frame 段）
+ *   nav.json           导航抽屉的项（web/atlas/data/shell-nav.json）+ 用到的图标 SVG（web/atlas/layouts/partials/icon.html）
+ *                      + 抽屉头字标 SVG wordmark（web/atlas/layouts/partials/shell-wordmark.html；brand 文字照旧保留）
  *   palettes.json      预设 id / 名字 / 分组 / 种子 / 背景色 / 6 前景 + 每套亮暗的 Shell + Semantic token 值（含 bg-1..7、chart-1..6）
  *                      + 默认值 + 子站自定义色缓存版本号（子站只消费，不自己定义主题色）
- *   ui-cookie-read.js  sgx-ui cookie 只读解析器（web/assets/js/lib/ui-cookie-read.js 原样复制；经典脚本 ES5，子站内联进 <head>）
+ *   ui-cookie-read.js  sgx-ui cookie 只读解析器（web/atlas/assets/js/lib/ui-cookie-read.js 原样复制；经典脚本 ES5，子站内联进 <head>）
  *                      源文件里 @ui-cookie-presets 段（预设 id → 种子 + 引擎版本）由本脚本按 palette-roles.json 重写
  *   ui-cookie-contract.json  写端真实产出的 cookie + 读端期望（tests/fixtures/ui-cookie-contract.json 原样复制，gen-ui-cookie-contract.mjs 生成）
- *   favicon.js / favicon.svg  标签页图标跟主题色（web/assets/js/shell/favicon.js、web/static/favicon.svg 原样复制）
+ *   favicon.js / favicon.svg  标签页图标跟主题色（web/atlas/assets/js/shell/favicon.js、web/atlas/static/favicon.svg 原样复制）
  *   manifest.json      上面每个文件的 sha256（子站同步时逐个校验）
  *   README.md          说明
  *
@@ -28,23 +28,23 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderBlock } from './gen-palettes.mjs';
-import { DEFAULT_ID, GROUPS } from '../web/assets/js/lib/palette-scheme.js';
+import { DEFAULT_ID, GROUPS } from '../web/atlas/assets/js/lib/palette-scheme.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const OUT_DIR = path.join(REPO, 'web/shared/shell');
+export const OUT_DIR = path.join(REPO, 'web/atlas/shared/shell');
 const SRC = {
-  roles: path.join(REPO, 'web/data/palette-roles.json'),
-  css: path.join(REPO, 'web/assets/css/input.css'),
-  scheme: path.join(REPO, 'web/assets/js/lib/palette-scheme.js'),
-  nav: path.join(REPO, 'web/data/shell-nav.json'),
-  icons: path.join(REPO, 'web/layouts/partials/icon.html'),
-  wordmark: path.join(REPO, 'web/layouts/partials/shell-wordmark.html'),
-  search: path.join(REPO, 'web/assets/js/shell/search-layer.js'),
-  share: path.join(REPO, 'web/assets/js/shell/share-button.js'),
-  reader: path.join(REPO, 'web/assets/js/lib/ui-cookie-read.js'),
+  roles: path.join(REPO, 'web/atlas/data/palette-roles.json'),
+  css: path.join(REPO, 'web/atlas/assets/css/input.css'),
+  scheme: path.join(REPO, 'web/atlas/assets/js/lib/palette-scheme.js'),
+  nav: path.join(REPO, 'web/atlas/data/shell-nav.json'),
+  icons: path.join(REPO, 'web/atlas/layouts/partials/icon.html'),
+  wordmark: path.join(REPO, 'web/atlas/layouts/partials/shell-wordmark.html'),
+  search: path.join(REPO, 'web/atlas/assets/js/shell/search-layer.js'),
+  share: path.join(REPO, 'web/atlas/assets/js/shell/share-button.js'),
+  reader: path.join(REPO, 'web/atlas/assets/js/lib/ui-cookie-read.js'),
   contract: path.join(REPO, 'tests/fixtures/ui-cookie-contract.json'),
-  favicon: path.join(REPO, 'web/assets/js/shell/favicon.js'),
-  faviconSvg: path.join(REPO, 'web/static/favicon.svg'),
+  favicon: path.join(REPO, 'web/atlas/assets/js/shell/favicon.js'),
+  faviconSvg: path.join(REPO, 'web/atlas/static/favicon.svg'),
 };
 export const READER_SRC = SRC.reader;
 /** shell.css 里按这个顺序拼 input.css 的标记段 */
@@ -230,6 +230,8 @@ function renderPalettes(data, schemeSrc) {
   );
 }
 
+/* 生成物里写的来源路径（下面 README、HEAD()、_generated、manifest 的 dir）保持搬家前的 web/… 写法：改字就会改生成物、外壳版本号跟着变，
+   三站副本要重新同步。2026-11-02 主站包搬进 web/atlas/ 时没动（合并 PR1 只搬不改），合并 PR2 改同步方式时一起改。 */
 const README = `# web/shared/shell（生成物，勿手改）
 
 主站（styrigx-space）和子站（styrigx-blog、styrigx-daymark、styrigx-curio）共用的外壳：色彩角色、顶栏材质、导航抽屉、原地搜索层、自定义主题色引擎、抽屉项、外观 cookie 读端、标签页图标。
@@ -380,10 +382,10 @@ if (isMain) {
       const p = path.join(OUT_DIR, k);
       if (!existsSync(p) || readFileSync(p, 'utf8') !== v) bad.push(k);
     }
-    if (readFileSync(SRC.reader, 'utf8') !== files['ui-cookie-read.js']) bad.push('web/assets/js/lib/ui-cookie-read.js 的 @ui-cookie-presets 段');
+    if (readFileSync(SRC.reader, 'utf8') !== files['ui-cookie-read.js']) bad.push('web/atlas/assets/js/lib/ui-cookie-read.js 的 @ui-cookie-presets 段');
     const extra = existsSync(OUT_DIR) ? readdirSync(OUT_DIR).filter((f) => !(f in files)) : [];
     if (bad.length || extra.length) {
-      console.error('web/shared/shell 和源头不一致：' + [...bad, ...extra.map((f) => f + '（多余）')].join('、') + '；运行 node scripts/gen-shell.mjs');
+      console.error('web/atlas/shared/shell 和源头不一致：' + [...bad, ...extra.map((f) => f + '（多余）')].join('、') + '；运行 node scripts/gen-shell.mjs');
       process.exit(1);
     }
     console.log('shared shell in sync:', JSON.parse(files['manifest.json']).version);
@@ -391,6 +393,6 @@ if (isMain) {
     mkdirSync(OUT_DIR, { recursive: true });
     if (readFileSync(SRC.reader, 'utf8') !== files['ui-cookie-read.js']) writeFileSync(SRC.reader, files['ui-cookie-read.js']);
     for (const [k, v] of Object.entries(files)) writeFileSync(path.join(OUT_DIR, k), v);
-    console.log('web/shared/shell regenerated:', Object.keys(files).join(', '), JSON.parse(files['manifest.json']).version);
+    console.log('web/atlas/shared/shell regenerated:', Object.keys(files).join(', '), JSON.parse(files['manifest.json']).version);
   }
 }

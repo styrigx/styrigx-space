@@ -99,7 +99,7 @@ test('强制 CSP 只含不会拦脚本的指令：没有 script-src / style-src 
   }
   assert.doesNotMatch(SH.CSP_ENFORCED, /script|unsafe|nonce|sha256/i);
   /* 强制的那一份所有出口都一样：_worker.js 的常量也要过同一条 */
-  const pw = readFileSync(REPO + '/web/static/_worker.js', 'utf8');
+  const pw = readFileSync(REPO + '/web/atlas/static/_worker.js', 'utf8');
   const m = pw.match(/'Content-Security-Policy': "([^"]+)"/);
   assert.ok(m, '_worker.js 里有强制 CSP');
   assert.equal(m[1], SH.CSP_ENFORCED);
@@ -335,7 +335,7 @@ test('网关·子站：302 到锁屏、401、会话有效的页面都带子站�
 /* ---------------- Pages ---------------- */
 
 test('Pages _worker.js：pages.dev 的 301 带安全头，值和 security-headers.js 一致', async () => {
-  const pagesWorker = (await import(REPO + '/web/static/_worker.js')).default;
+  const pagesWorker = (await import(REPO + '/web/atlas/static/_worker.js')).default;
   const res = await pagesWorker.fetch(new Request('https://abc.styrigx-space.pages.dev/chat/'), { ASSETS: { fetch: async () => new Response('x') } });
   assert.equal(res.status, 301);
   assert.equal(res.headers.get('Location'), 'https://styrigx.com/chat/');
@@ -346,7 +346,7 @@ test('Pages _worker.js：pages.dev 的 301 带安全头，值和 security-header
   }
 });
 
-const HEADERS_TEXT = readFileSync(REPO + '/web/static/_headers', 'utf8');
+const HEADERS_TEXT = readFileSync(REPO + '/web/atlas/static/_headers', 'utf8');
 const RULES = parseHeaders(HEADERS_TEXT);
 
 test('_headers 匹配器：splat / 精确 / 占位符', () => {
@@ -433,19 +433,19 @@ function walk(dir, out = []) {
 
 test('模板：会执行的内联脚本只在 baseof（5 段）、alias、search-redirect；settings / setcat-advanced 已搬进模块；没有 on*= 属性', () => {
   const where = {};
-  for (const f of walk(REPO + '/web/layouts')) {
+  for (const f of walk(REPO + '/web/atlas/layouts')) {
     const src = readFileSync(f, 'utf8').replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, '');
     const n = gen.inlineScripts(src).length;
-    if (n) where[path.relative(REPO + '/web/layouts', f)] = n;
+    if (n) where[path.relative(REPO + '/web/atlas/layouts', f)] = n;
     assert.deepEqual(gen.unhashable(src.replace(/\{\{[\s\S]*?\}\}/g, '')), [], f);
   }
   assert.deepEqual(where, { '_default/baseof.html': 5, '_default/search-redirect.html': 1, 'alias.html': 1 });
   /* alias / search-redirect：脚本正文里不插模板值（每页一字不差 → 一个哈希），目标地址在 <html data-sgx-*> */
   for (const f of ['alias.html', '_default/search-redirect.html']) {
-    const [body] = gen.inlineScripts(readFileSync(REPO + '/web/layouts/' + f, 'utf8'));
+    const [body] = gen.inlineScripts(readFileSync(REPO + '/web/atlas/layouts/' + f, 'utf8'));
     assert.doesNotMatch(body, /\{\{/, f);
   }
-  const settingsJs = readFileSync(REPO + '/web/assets/js/apps/settings.js', 'utf8');
+  const settingsJs = readFileSync(REPO + '/web/atlas/assets/js/apps/settings.js', 'utf8');
   assert.match(settingsJs, /export function legacyHashRedirect\(\)/);
   assert.match(settingsJs, /'sg-goodlock': 'advanced'/);
   assert.match(settingsJs, /querySelectorAll\('\.gl-row'\)/);

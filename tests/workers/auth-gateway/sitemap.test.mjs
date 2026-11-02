@@ -15,7 +15,7 @@ import { PUBLIC_PAGE_PATHS, isPublicPage } from '../../../workers/auth-gateway/s
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
 test('public-pages.yaml 与 public-pages.js 同步', () => {
-  const yaml = readFileSync(join(root, 'web/data', 'public-pages.yaml'), 'utf8');
+  const yaml = readFileSync(join(root, 'web/atlas/data', 'public-pages.yaml'), 'utf8');
   const yamlPaths = yaml
     .split('\n')
     .filter(l => l.trim().startsWith('- /'))
@@ -23,7 +23,7 @@ test('public-pages.yaml 与 public-pages.js 同步', () => {
   assert.deepEqual(
     [...PUBLIC_PAGE_PATHS].sort(),
     [...yamlPaths].sort(),
-    'web/data/public-pages.yaml 与 src/gate.js 的公开页清单不一致'
+    'web/atlas/data/public-pages.yaml 与 src/gate.js 的公开页清单不一致'
   );
 });
 
@@ -47,7 +47,7 @@ test('isPublicPage 识别公开页（/en 无斜杠也认）', () => {
 });
 
 test('sitemap.xml 模板只从 public-pages.yaml 取页（无锁住页面）', () => {
-  const tpl = readFileSync(join(root, 'web/layouts', 'sitemap.xml'), 'utf8');
+  const tpl = readFileSync(join(root, 'web/atlas/layouts', 'sitemap.xml'), 'utf8');
   /* 必须引用数据源，不直接遍历 .Data.Pages */
   assert.match(tpl, /index \.Site\.Data "public-pages"/, 'sitemap.xml 应从 data/public-pages.yaml 读取');
   assert.doesNotMatch(tpl, /\.Data\.Pages/, 'sitemap.xml 不应直接遍历所有页面');

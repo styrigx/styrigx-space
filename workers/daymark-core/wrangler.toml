@@ -1,0 +1,47 @@
+# styrigx-daymark-core：日刻的核心 Worker（存句子、读句子、今日一句）（CI 部署；承接 atlas.styrigx.com/daymark/api/*）
+#
+# 全部后端代码都在本目录：src/（入口、路由表、接口）+ migrations/（D1）。
+# Pages（styrigx-daymark，配置见 web/wrangler.toml）只放静态文件；页面的会话检查在主站鉴权网关。
+#
+# 安全：
+# - 本 Worker 不持任何钥匙。会话交给鉴权网关验（服务绑定 AUTH → AuthVerifier.lockSession）。
+# - workers_dev = false、preview_urls = false：只通过 atlas.styrigx.com/daymark/api/* 的路由访问（它连的是正式 D1）。
+
+name = "styrigx-daymark-core"
+main = "src/index.js"
+compatibility_date = "2026-10-20"
+workers_dev = false
+preview_urls = false
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+# 路由：atlas.styrigx.com/daymark/api/*（图志的单一域名下，本站前缀 /daymark）。
+# 页面路径和 /api/lock-session-check、/api/search 登记在主站鉴权网关（styrigx-space 仓库 workers/auth-gateway/wrangler.toml），这里只管本站接口。
+[[routes]]
+pattern = "atlas.styrigx.com/daymark/api/*"
+zone_name = "styrigx.com"
+
+[[d1_databases]]
+binding = "D1_QUOTES"
+database_name = "styrigx-daymark-core"
+database_id = "27f93d06-9cd9-48d9-bd77-8584f68adb1e"
+migrations_dir = "migrations"
+
+# 验票：主站鉴权网关的 RPC 入口 AuthVerifier（lockSession(cookieHeader) → {ok, role: admin|visitor}）。
+# 网关必须先部署出 AuthVerifier 入口，本 Worker 才能部署（CI 的 Gate check 会核对）。
+[[services]]
+binding = "AUTH"
+service = "styrigx-auth-gateway"
+entrypoint = "AuthVerifier"
+
+# 全站搜索索引：KV styrigx-search-index（主站 workers/search-index 读它），本 Worker 只写 site:daymark 这一条。
+# 写接口成功后重建（src/search-index.js），下面的 Cron 每小时兜底；KV 里只有句子的标题、署名、链接，不是钥匙。
+[[kv_namespaces]]
+binding = "KV_SEARCH_INDEX"
+id = "bd1babcc3fe74d58994e254c74d34ced"
+
+# Cron：每小时第 17 分重建一次搜索索引（首次部署后也靠它填上）。
+[triggers]
+crons = ["17 * * * *"]

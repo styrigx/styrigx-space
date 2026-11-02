@@ -1,0 +1,24 @@
+{{- /* 文章卡列表（原 src/components/blog/BlogPostList.astro）。参数：.posts */ -}}
+<ul class="post-stack">
+  {{- range $i, $p := .posts }}
+  <li class="post-item">
+    <article class="post-link cover-style-card without-thumb" data-archive-post-href="{{ $p.RelPermalink }}">
+      <div class="post-copy">
+        <div>
+          <h2 class="title"><span class="post-index" aria-hidden="true"><span class="post-index-number">{{ printf "%02d" (add $i 1) }}</span>{{ partial "icon.html" (dict "name" "chevrons-right" "size" 20 "class" "post-index-icon") }}</span><a class="title-link" href="{{ $p.RelPermalink }}">{{ $p.Title }}</a></h2>
+          <div class="date">
+            {{- partial "meta-item.html" (dict "kind" "date" "content" (partial "date.html" $p.Date)) -}}
+            {{- with $p.GetTerms "tags" -}}
+            {{- $links := "" -}}
+            {{- range . }}{{ $links = print $links (printf `<a class="post-tag" href="%s">#%s</a>` .RelPermalink (.LinkTitle | htmlEscape)) }}{{ end -}}
+            {{- partial "meta-item.html" (dict "kind" "tags" "separated" true "class" "post-tags" "content" $links) -}}
+            {{- end -}}
+          </div>
+        </div>
+        <p class="post-excerpt">{{ $p.Description }}</p>
+      </div>
+    </article>
+  </li>
+  {{- end }}
+</ul>
+{{ partial "script.html" (dict "name" "post-list.js") }}

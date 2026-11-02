@@ -1,5 +1,5 @@
 /**
- * @fileoverview 生成文件，别手改：node scripts/gen-csp.mjs（先 hugo --minify -s web）。CI 用 --check 核对。
+ * @fileoverview 生成文件，别手改：node scripts/gen-csp.mjs（先 hugo --minify -s web/atlas）。CI 用 --check 核对。
  * 生产构建里每段会执行的内联 <script> 的 sha256，给 security-headers.js 的 Content-Security-Policy-Report-Only 用。
  */
 export const INLINE_SCRIPT_HASHES = Object.freeze([

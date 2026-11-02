@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * 生成主站的全站搜索索引 web/public/search-index.json（styrigx-search-index 的 KV site:space）。
+ * 生成主站的全站搜索索引 web/atlas/public/search-index.json（styrigx-search-index 的 KV site:space）。
  *
- * 来源（都在 hugo 构建后的 web/public/ 里）：
+ * 来源（都在 hugo 构建后的 web/atlas/public/ 里）：
  *   - files-index.json：我的站点、应用（type site / app）。博客文章不在这里：博客自己写 KV site:blog，
  *     主站不再顺带
  *   - settings/**、en/settings/**、account/**、en/account/** 每个页面：标题取 <title> 去掉「 | Styrigx」，类型 setting
@@ -10,7 +10,7 @@
  *   - data/features.yaml 里用户能改的开关（user: true、build: true、有 section 页）：名字 + 选项名，跳到所在设置页
  * 格式见 workers/search-index/src/rank.js 顶部。deploy.yml 的 deploy-search-worker 把它写进 KV。
  *
- * 用法：node scripts/build-search-index.mjs [--out <文件>]（默认 web/public/search-index.json）
+ * 用法：node scripts/build-search-index.mjs [--out <文件>]（默认 web/atlas/public/search-index.json）
  */
 import { readFileSync, writeFileSync, readdirSync, statSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const PUB = path.join(REPO, 'web/public');
+const PUB = path.join(REPO, 'web/atlas/public');
 const ORIGIN = 'https://styrigx.com';
 
 /** @param {string} s */
@@ -81,7 +81,7 @@ export function build() {
     if (p && !/\/settings\/$/.test(parent)) x.subtitle = p.title;
   }
   /* 功能开关 */
-  const feats = /** @type {any} */ (yaml.load(readFileSync(path.join(REPO, 'web/data/features.yaml'), 'utf8'))).features || [];
+  const feats = /** @type {any} */ (yaml.load(readFileSync(path.join(REPO, 'web/atlas/data/features.yaml'), 'utf8'))).features || [];
   for (const f of feats) {
     if (!f || !f.user || f.build === false || !f.section || !f.name) continue;
     for (const lang of ['zh', 'en']) {

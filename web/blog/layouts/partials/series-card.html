@@ -1,0 +1,12 @@
+{{- /* 系列卡（原 BlogHome.astro）。参数：.s（groups.html 的一组）.target（专题页的卡带 id，可被 #topics/series/<slug> 定位） */ -}}
+<article class="series-card"{{ if .target }} data-series-card="{{ .s.slug }}" id="series-{{ .s.slug }}"{{ end }}>
+  <div class="series-card-head">
+    <h3 class="series-card-name">{{ .s.name }}</h3>
+    <span class="series-card-count">{{ i18n "postCount" (dict "Count" .s.count) }}</span>
+  </div>
+  <ol>
+    {{- range $i, $p := .s.posts }}
+    <li><span>{{ printf "%02d" (add $i 1) }}</span><a href="{{ $p.RelPermalink }}">{{ $p.Title }}</a></li>
+    {{- end }}
+  </ol>
+</article>

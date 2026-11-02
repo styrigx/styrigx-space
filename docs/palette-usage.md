@@ -1,11 +1,11 @@
 # 调色板怎么用（七色调色板，2026-10-23 PR-G）
 
 > 适用：主站（本 PR 落地）；共享外壳完整导出全部 token，子站以后按需接入（见七），本 PR 不改子站仓库。
-> 数据源（**唯一一处**颜色值）：`web/assets/js/lib/palette-scheme.js` 的 `THEMES` + `FG_POOL`。
-> `web/data/palettes.yaml`（id / c / 名字 / 分组）和定稿夹具 `tests/fixtures/palette-v0.3.json` 都只是**被单测逐项核对的副本**，改了源头忘了改副本单测就红，不会悄悄漂移；
-> 设置风格页的色块 / 首页缩略预览卡、快捷面板色块都从生成的 `web/data/palette-roles.json` 取值（`partials/palette-tile-vars.html`），和页面上的角色同一份数据。
-> → `node scripts/gen-palettes.mjs --roles` → `web/data/palette-roles.json` + `input.css` 的 `@gen-palettes` 段
-> → `node scripts/gen-shell.mjs` → `web/shared/shell/tokens.css` / `palettes.json`（子站同步用）。
+> 数据源（**唯一一处**颜色值）：`web/atlas/assets/js/lib/palette-scheme.js` 的 `THEMES` + `FG_POOL`。
+> `web/atlas/data/palettes.yaml`（id / c / 名字 / 分组）和定稿夹具 `tests/fixtures/palette-v0.3.json` 都只是**被单测逐项核对的副本**，改了源头忘了改副本单测就红，不会悄悄漂移；
+> 设置风格页的色块 / 首页缩略预览卡、快捷面板色块都从生成的 `web/atlas/data/palette-roles.json` 取值（`partials/palette-tile-vars.html`），和页面上的角色同一份数据。
+> → `node scripts/gen-palettes.mjs --roles` → `web/atlas/data/palette-roles.json` + `input.css` 的 `@gen-palettes` 段
+> → `node scripts/gen-shell.mjs` → `web/atlas/shared/shell/tokens.css` / `palettes.json`（子站同步用）。
 
 ## 一、一套调色板是什么
 
@@ -132,7 +132,7 @@
 
 合成底审计（单测）：玻璃卡、顶栏、抽屉 = 材质（surface 88%）叠在光晕 `bg-1..7` 任一档（最浅、最深都算）上；快捷面板磁贴玻璃、夜间时钟卡同样按合成色核对。
 
-## 六、导出 token 全目录（`web/shared/shell/palettes.json` / `tokens.css`）
+## 六、导出 token 全目录（`web/atlas/shared/shell/palettes.json` / `tokens.css`）
 
 主站组件只引用 Shell + Semantic；共享外壳**完整导出**下面这些（22 套 × 亮 / 暗，值与 `tokens.css` 同名 `--sgx-*` 变量一致），子站按需索取。
 `palettes.json` 顶层带 `schemeVersion`（引擎哈希）和 **`rulesVersion: "palette-rules-1"`**（本文这套用法规则的版本；`manifest.json` 里同样有 `rulesVersion`，挨着 `version`）。
@@ -160,7 +160,7 @@
 
 ## 八、改调色板
 
-1. `palette-scheme.js` 的 `THEMES` 加 / 改一行（6 个前景从 `FG_POOL` 挑），`web/data/palettes.yaml`、`web/data/features.yaml` 的 palette 选项同步。
+1. `palette-scheme.js` 的 `THEMES` 加 / 改一行（6 个前景从 `FG_POOL` 挑），`web/atlas/data/palettes.yaml`、`web/atlas/data/features.yaml` 的 palette 选项同步。
 2. `node scripts/gen-palettes.mjs --roles`、`node scripts/gen-shell.mjs`，再各跑一次 `--check`。
 3. 单测 `tests/web/ui/palette-scheme.test.mjs` 会核对：对比度审计全过、中性彩度 ≤ 0.012、danger / success 不变、前景 ink 在 tint 上 ≥4.5:1、
    填充档 on 色 ≥4.5:1、光晕只用 `--sgx-bg-*`、22 套没有手调深色值、palettes.yaml / 定稿夹具和 THEMES 一致。

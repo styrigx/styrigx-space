@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fmtDaymarkDay, daymarkByline, daymarkCardHtml } from '../../../web/assets/js/lib/daymark-today.js';
+import { fmtDaymarkDay, daymarkByline, daymarkCardHtml } from '../../../web/atlas/assets/js/lib/daymark-today.js';
 
 test('日期格式：中文 10月21日，英文 Oct 21；非法返回空', () => {
   assert.equal(fmtDaymarkDay('2026-10-21', false), '10月21日');

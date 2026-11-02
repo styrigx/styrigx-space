@@ -1,0 +1,9 @@
+/* Tailwind 4 部分（和主站 web/assets/css/tw-input.css 同一套：@tailwindcss/cli 单独构建，再拼到博客样式前面）。
+   博客现在的模板没有用 Tailwind 工具类，这里只扫模板，用到了才会生成；不引 preflight（博客没有 Tailwind 重置）。 */
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+@source "../../layouts";
+@source "../../content";
+
+@custom-variant dark (&:where(.dark, .dark *));

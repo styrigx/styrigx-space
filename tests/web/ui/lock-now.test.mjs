@@ -31,7 +31,7 @@ let fetchImpl = null;
 const fetchCalls = [];
 globalThis.fetch = (url, opts) => { fetchCalls.push({ url, opts }); return fetchImpl(); };
 
-const { doLock } = await import('../../../web/assets/js/auth/lock-now.js');
+const { doLock } = await import('../../../web/atlas/assets/js/auth/lock-now.js');
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
 beforeEach(() => {

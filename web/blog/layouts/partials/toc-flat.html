@@ -1,0 +1,4 @@
+{{- /* 目录项总数用的扁平列表（原 countTocItems） */ -}}
+{{- $out := slice -}}
+{{- range . }}{{ $out = $out | append .href | append (partial "toc-flat.html" .children) }}{{ end -}}
+{{- return $out -}}

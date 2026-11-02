@@ -1,0 +1,55 @@
+{{- /* 系列 / 分类 / 标签分组（原 utils/content-groups.ts）。输入：.posts（已发布、本语言）.field（series|categories|tags）。
+输出：[{name slug count posts}]：
+- series：组内按 seriesOrder 升序、再按日期升序、再按 id；组之间按最新一篇的日期降序、再按名字。
+- 其他：按篇数降序、再按名字。 */ -}}
+{{- $field := .field -}}
+{{- $m := dict -}}
+{{- $order := slice -}}
+{{- range .posts -}}
+  {{- $p := . -}}
+  {{- $seen := dict -}}
+  {{- range (index .Params $field | default slice) -}}
+    {{- $name := . | strings.TrimSpace -}}
+    {{- if $name -}}
+      {{- $slug := partial "group-slug.html" $name -}}
+      {{- if not (index $seen $slug) -}}
+        {{- $seen = merge $seen (dict $slug true) -}}
+        {{- with index $m $slug -}}
+          {{- $m = merge $m (dict $slug (merge . (dict "posts" (.posts | append $p)))) -}}
+        {{- else -}}
+          {{- $m = merge $m (dict $slug (dict "name" $name "slug" $slug "posts" (slice $p))) -}}
+          {{- $order = $order | append $slug -}}
+        {{- end -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- $groups := slice -}}
+{{- range $order -}}
+  {{- $g := index $m . -}}
+  {{- $ps := $g.posts -}}
+  {{- $latest := "" -}}
+  {{- if eq $field "series" -}}
+    {{- $rows := slice -}}
+    {{- range $ps -}}
+      {{- $so := .Params.seriesOrder | default 999999 -}}
+      {{- $rows = $rows | append (dict "p" . "o" (printf "%09d" (int $so)) "d" (.Date.Format "20060102150405") "id" .File.ContentBaseName) -}}
+      {{- if gt (.Date.Format "20060102150405") $latest }}{{ $latest = .Date.Format "20060102150405" }}{{ end -}}
+    {{- end -}}
+    {{- $rows = sort $rows "id" "asc" -}}
+    {{- $rows = sort $rows "d" "asc" -}}
+    {{- $rows = sort $rows "o" "asc" -}}
+    {{- $ps = slice -}}
+    {{- range $rows }}{{ $ps = $ps | append .p }}{{ end -}}
+  {{- end -}}
+  {{- /* 名字排序同原站的 localeCompare('zh-Hans-CN')：中文名排在拉丁字母前（CLDR zh 的脚本重排），中文之间按拼音（Hugo 的语言排序规则） */ -}}
+  {{- $sk := cond (findRE `^\p{Han}` $g.name 1) (print "0" $g.name) (print "1" $g.name) -}}
+  {{- $groups = $groups | append (dict "name" $g.name "slug" $g.slug "count" (len $ps) "posts" $ps "latest" $latest "sk" $sk) -}}
+{{- end -}}
+{{- $groups = sort $groups "sk" "asc" -}}
+{{- if eq $field "series" -}}
+  {{- $groups = sort $groups "latest" "desc" -}}
+{{- else -}}
+  {{- $groups = sort $groups "count" "desc" -}}
+{{- end -}}
+{{- return $groups -}}

@@ -1,6 +1,6 @@
 /**
- * PR3 主题色角色 token → 2026-10-23 PR-G 七色调色板：22 套（1 背景色 + 6 前景撞色；web/data/palette-roles.json）→ input.css（scripts/gen-palettes.mjs），
- * 自定义 #rrggbb 种子 → 同一套角色（web/assets/js/lib/palette-scheme.js，设计稿 scheme.js 的移植）。
+ * PR3 主题色角色 token → 2026-10-23 PR-G 七色调色板：22 套（1 背景色 + 6 前景撞色；web/atlas/data/palette-roles.json）→ input.css（scripts/gen-palettes.mjs），
+ * 自定义 #rrggbb 种子 → 同一套角色（web/atlas/assets/js/lib/palette-scheme.js，设计稿 scheme.js 的移植）。
  * 定稿设计稿的数据在 tests/fixtures/palette-v0.3.json（id / 名字 / 背景色 / 6 前景 / 前景色池）。
  */
 import { test } from 'node:test';
@@ -8,13 +8,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mixHex, presetRoles, rolesFor, rolesCss, roleDecls, toneDecls, contrast, hexToOklch, audit, bgTones, fgTones, PRESETS, DEFAULT_ID, FG_POOL } from '../../../web/assets/js/lib/palette-scheme.js';
+import { mixHex, presetRoles, rolesFor, rolesCss, roleDecls, toneDecls, contrast, hexToOklch, audit, bgTones, fgTones, PRESETS, DEFAULT_ID, FG_POOL } from '../../../web/atlas/assets/js/lib/palette-scheme.js';
 import { renderBlock, splice } from '../../../scripts/gen-palettes.mjs';
-import { ACCENT_CACHE_VER } from '../../../web/assets/js/lib/accent.js';
+import { ACCENT_CACHE_VER } from '../../../web/atlas/assets/js/lib/accent.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const DATA = JSON.parse(readFileSync(path.join(REPO, 'web/data/palette-roles.json'), 'utf8'));
-const CSS = readFileSync(path.join(REPO, 'web/assets/css/input.css'), 'utf8');
+const DATA = JSON.parse(readFileSync(path.join(REPO, 'web/atlas/data/palette-roles.json'), 'utf8'));
+const CSS = readFileSync(path.join(REPO, 'web/atlas/assets/css/input.css'), 'utf8');
 const V3 = JSON.parse(readFileSync(path.join(REPO, 'tests/fixtures/palette-v0.3.json'), 'utf8'));
 const hueDist = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
 const hue = (h) => hexToOklch(h).h;
@@ -130,7 +130,7 @@ test('自定义种子运行时写的变量名 = 预设的变量名（角色 + �
 });
 
 test('色板列表（palettes.yaml）和角色 JSON 同一组 id / 背景色', () => {
-  const yaml = readFileSync(path.join(REPO, 'web/data/palettes.yaml'), 'utf8');
+  const yaml = readFileSync(path.join(REPO, 'web/atlas/data/palettes.yaml'), 'utf8');
   const items = [...yaml.matchAll(/- id: (\w+)\n\s+c: "(#[0-9a-f]{6})"/g)].map((m) => [m[1], m[2]]);
   assert.equal(items.length, 22);
   assert.deepEqual(items.map((x) => x[0]), Object.keys(DATA.presets));
@@ -145,7 +145,7 @@ test('色板列表（palettes.yaml）和角色 JSON 同一组 id / 背景色', (
 });
 
 test('baseof 首屏内联脚本认的缓存前缀 = lib/accent.js 的版本', () => {
-  const html = readFileSync(path.join(REPO, 'web/layouts/_default/baseof.html'), 'utf8');
+  const html = readFileSync(path.join(REPO, 'web/atlas/layouts/_default/baseof.html'), 'utf8');
   assert.ok(html.includes(`ach='${ACCENT_CACHE_VER}|'+ac`), 'baseof 的 sgx-accent-css 前缀与 ACCENT_CACHE_VER 不一致');
 });
 
@@ -298,7 +298,7 @@ test('按钮 / 开关 / 进度在 CSS 里读填充档：--sgx-btn-primary-* = pr
 });
 
 test('大面积块中性化：首页名片 = 中性玻璃卡（不是 primary-container）；夜间时钟不是渐变深色块；状态页 / 安全状态的「正常」读 success 不读 tertiary', () => {
-  const home = readFileSync(path.join(REPO, 'web/layouts/index.html'), 'utf8');
+  const home = readFileSync(path.join(REPO, 'web/atlas/layouts/index.html'), 'utf8');
   const prof = home.match(/<div id="w-profile" class="([^"]+)"/)[1];
   assert.match(prof, /\bbg-m-container-lowest\b/);
   assert.doesNotMatch(prof, /primary-container|secondary-container|tertiary-container/);

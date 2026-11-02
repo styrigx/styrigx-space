@@ -1,0 +1,52 @@
+{{- /* <head>：原 Navfolio 主题 BaseHead + 博客 BaseHead（元信息、图标、RSS、站点地图、跟随主站设置、字体、样式）。
+参数：.page（当前页）、.title、.description、.alt（中 / 英版本地址，有才给） */ -}}
+{{- $p := .page -}}
+{{- $title := .title -}}
+{{- $desc := .description | default site.Params.description -}}
+{{- $canonical := $p.Permalink -}}
+{{- $og := "og.png" | absURL -}}
+{{- $rss := "rss.xml" | absLangURL -}}
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+{{ partial "sgx-inherit.html" (dict "alt" .alt) }}
+{{- /* 布局模式（同主站 baseof __layoutMode() 的自动规则：宽 ≥ 840、高 ≥ 500 且横屏 = DeX，否则 Mobile）：
+   决定外壳框最宽（Mobile 640 / DeX 1440，one-ui.css），顶栏两侧圆和主站同一位置。博客没有自己的布局开关。 */}}
+<script>(function(){var d=document.documentElement,w=window.innerWidth||1280,h=window.innerHeight||800;d.classList.add(w>=840&&h>=500&&w>h?'layout-dex':'layout-mobile')})();</script>
+{{- /* 标签页图标、主屏图标都用主站头像（主站设置页可换），和奇趣、日刻一样直接指过去 */}}
+<link rel="icon" href="https://styrigx.com/avatar/32.webp">
+<link rel="apple-touch-icon" href="https://styrigx.com/avatar/192.webp">
+<link rel="manifest" href="{{ "manifest.json" | relURL }}">
+<meta name="theme-color" content="#fdfdf9">
+<link rel="sitemap" href="{{ "sitemap-index.xml" | relURL }}">
+<link rel="alternate" type="application/rss+xml" title="{{ site.Title }}" href="{{ $rss }}">
+{{ hugo.Generator }}
+<link rel="canonical" href="{{ $canonical }}">
+<title>{{ $title }}</title>
+<meta name="title" content="{{ $title }}">
+<meta name="description" content="{{ $desc }}">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{ $canonical }}">
+<meta property="og:title" content="{{ $title }}">
+<meta property="og:description" content="{{ $desc }}">
+<meta property="og:image" content="{{ $og }}">
+<meta property="twitter:card" content="summary_large_image">
+<meta property="twitter:url" content="{{ $canonical }}">
+<meta property="twitter:title" content="{{ $title }}">
+<meta property="twitter:description" content="{{ $desc }}">
+<meta property="twitter:image" content="{{ $og }}">
+{{- /* 界面字体和主站一样（Inter，只含拉丁字符；中文落到系统字体）；代码用 Maple Mono（只给代码用） */}}
+<link rel="preload" href="{{ "fonts/inter-latin.woff2" | relURL }}" as="font" type="font/woff2" crossorigin>
+<style>
+@font-face{font-family:'Inter';font-style:normal;font-weight:400 800;font-display:optional;src:url('{{ "fonts/inter-latin.woff2" | relURL }}') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+@font-face{font-family:'Inter Fallback';src:local('Arial');size-adjust:107%;ascent-override:90%;descent-override:23%;line-gap-override:0%;}
+@font-face{font-family:'Maple Mono';font-style:normal;font-weight:400;font-display:swap;src:url('{{ "fonts/maple-mono-latin-400.woff2" | relURL }}') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+@font-face{font-family:'Maple Mono';font-style:normal;font-weight:700;font-display:swap;src:url('{{ "fonts/maple-mono-latin-700.woff2" | relURL }}') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+</style>
+{{- $css := resources.Get "css/main.css" -}}
+{{- if not $css }}{{ errorf "web/assets/css/main.css 不存在：先跑 node scripts/build-css.mjs（Tailwind 4 CLI）" }}{{ end }}
+<link rel="stylesheet" href="{{ ($css | minify | fingerprint).RelPermalink }}">
+{{- /* 锁屏同步：主站「立即锁定」后，切回博客标签页时问一次 /api/lock-session-check（图志根上的网关路由），失效就跳主站锁屏 */}}
+{{- $lock := resources.Get "js/blog/sgx-lock-check.js" | minify | fingerprint }}
+<script src="{{ $lock.RelPermalink }}" defer></script>
+{{- $scheme := resources.Get "js/sgx/shell/palette-scheme.js" | js.Build (dict "minify" hugo.IsProduction "target" "es2020" "format" "esm" "targetPath" "js/palette-scheme.js") | fingerprint -}}
+{{ partial "script.html" (dict "name" "inherit.ts" "params" (dict "schemeUrl" $scheme.RelPermalink)) }}

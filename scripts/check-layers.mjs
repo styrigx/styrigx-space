@@ -6,12 +6,12 @@
  * 解析不到文件的相对 import 直接报错：以前这种情况记成 'unknown' 并且放行，
  * api → api（'./lock-reauth.js'）、api → middleware（'../_middleware.js'）都因此漏检。
  *
- * 前端（web/assets/js/）：
+ * 前端（web/atlas/assets/js/）：
  *  1. lib/ 只能 import lib/（不得 import auth/、shell/、apps/、entries/）
  *  2. auth/ 只能 import lib/、auth/（鉴权与凭证流程；不得 import shell/、apps/、entries/）
  *  3. shell/ 不得 import apps/、entries/
  *  4. apps/ 不得 import entries/
- *  5. 前端不得 import web/assets/js/ 以外的文件（前后端隔离，含 functions/、workers/）
+ *  5. 前端不得 import web/atlas/assets/js/ 以外的文件（前后端隔离，含 functions/、workers/）
  *  6. lib/ 不得包含鉴权逻辑：不得出现鉴权接口地址（/api/lock-*、/api/root-*、/api/account）
  *     和 navigator.credentials（这些放 auth/）
  *  7. 前端代码禁止出现 cookie 名 `sgx-lock-session`（HttpOnly，前端读不到；`data-sgx-lock-session` 属性名不算）
@@ -129,9 +129,9 @@ export function stripComments(src) {
  */
 export function layerOf(root, abs) {
   const rel = relative(root, abs).split(sep).join('/');
-  let m = rel.match(/^web\/assets\/js\/([^/]+)\//);
+  let m = rel.match(/^web\/atlas\/assets\/js\/([^/]+)\//);
   if (m) return { area: 'frontend', layer: m[1], rel };
-  if (rel.startsWith('web/assets/js/')) return { area: 'frontend', layer: '(root)', rel };
+  if (rel.startsWith('web/atlas/assets/js/')) return { area: 'frontend', layer: '(root)', rel };
   const g = gatewayLayer(rel);
   if (g) return { area: 'gateway', layer: g, rel, worker: 'auth-gateway' };
   m = rel.match(/^workers\/([^/]+)\//);
@@ -321,7 +321,7 @@ export function checkFile(root, abs, srcOverride) {
 
     if (self.area === 'frontend') {
       if (t.area !== 'frontend') {
-        errors.push(`${r}: 前端禁止 import web/assets/js/ 以外的文件 (${spec})`);
+        errors.push(`${r}: 前端禁止 import web/atlas/assets/js/ 以外的文件 (${spec})`);
         continue;
       }
       const allowed = FRONTEND_ALLOWED[self.layer];
@@ -434,7 +434,7 @@ export function checkWorkerSkeleton(root) {
  * @returns {{files:number, errors:string[]}}
  */
 export function checkRepo(root) {
-  const files = walk(join(root, 'web/assets/js')).concat(walk(join(root, 'workers')));
+  const files = walk(join(root, 'web/atlas/assets/js')).concat(walk(join(root, 'workers')));
   const errors = [];
   for (const f of files) errors.push(...checkFile(root, f));
   if (existsSync(join(root, SHARED_DIR))) {

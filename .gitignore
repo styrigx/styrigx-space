@@ -1,13 +1,26 @@
 node_modules
 .DS_Store
 
-# 网站构建产物（Hugo 在 web/ 里生成）
-web/public/
-web/resources/
-web/.hugo_build.lock
-web/hugo_stats.json
-web/assets/css/main.css
-web/data/tailwind.json
+# 网站构建产物（Hugo 在 web/atlas/ 里生成）
+web/atlas/public/
+web/atlas/resources/
+web/atlas/.hugo_build.lock
+web/atlas/hugo_stats.json
+web/atlas/assets/css/main.css
+web/atlas/data/tailwind.json
+
+# 子站包（web/blog、web/curio、web/daymark）的构建产物：各站 Hugo + Tailwind CLI
+web/*/public/
+web/*/resources/
+web/*/.hugo_build.lock
+web/*/hugo_stats.json
+web/blog/assets/css/main.css
+web/blog/assets/css/.tw-out.css
+web/curio/assets/css/main.css
+web/daymark/assets/css/main.css
+
+# 博客搜索索引（含私密文章，从不随页面发布）
+search-index.*.json
 
 # 测试产物
 test-results/
@@ -17,3 +30,6 @@ emulator-log/
 
 # KV 迁移备份（明文；脚本默认写到仓库外，这里兜底）
 kv-backup-*.json
+
+# 拼好的单树（scripts/assemble.mjs，合并 PR2）
+dist/

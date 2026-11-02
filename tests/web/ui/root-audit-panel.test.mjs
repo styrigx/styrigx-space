@@ -9,11 +9,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { renderAudit, AUDIT_MAX } from '../../../web/assets/js/lib/status-view.js';
+import { renderAudit, AUDIT_MAX } from '../../../web/atlas/assets/js/lib/status-view.js';
 import { AUDIT_SHOW } from '../../../workers/auth-gateway/src/api/root-audit.js';
 
 const read = (p) => readFileSync(new URL('../../../' + p, import.meta.url), 'utf8');
-const I18N = read('web/layouts/partials/status-i18n.html');
+const I18N = read('web/atlas/layouts/partials/status-i18n.html');
 const DICT = {};
 for (const m of I18N.matchAll(/"(\w+)" \(dict "zh" "([^"]*)" "en" "([^"]*)"\)/g)) DICT[m[1]] = { zh: m[2], en: m[3] };
 
@@ -79,7 +79,7 @@ test('renderAudit：IP 前缀转义；没有前缀显示「未知 IP」；没有
 });
 
 test('模板：默认收起的 <details id="st-audit">，标题 / 摘要中英都有，没有内联脚本，没有角色判断', () => {
-  const tpl = read('web/layouts/_default/settings-status.html');
+  const tpl = read('web/atlas/layouts/_default/settings-status.html');
   const m = tpl.match(/<details id="st-audit"[^>]*>/);
   assert.ok(m, '有 <details id="st-audit">');
   assert.ok(!/\bopen\b/.test(m[0]), '默认收起');
@@ -91,7 +91,7 @@ test('模板：默认收起的 <details id="st-audit">，标题 / 摘要中英�
 });
 
 test('apps/settings-status.js：只在折叠区展开时请求 /api/root-audit；加载和 60 秒刷新不碰它；成功后不重复取', () => {
-  const js = read('web/assets/js/apps/settings-status.js');
+  const js = read('web/atlas/assets/js/apps/settings-status.js');
   assert.match(js, /export const AUDIT_API = '\/api\/root-audit';/);
   assert.equal((js.match(/fetch\(AUDIT_API/g) || []).length, 1, '只有一处请求');
   const code = js.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');

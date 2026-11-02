@@ -1,5 +1,5 @@
 /**
- * 服务状态「用量」区块（PR3，web/assets/js/lib/status-view.js）：数字 / 字节格式、百分比、进度条等级（> 70% 琥珀、> 90% 红）、
+ * 服务状态「用量」区块（PR3，web/atlas/assets/js/lib/status-view.js）：数字 / 字节格式、百分比、进度条等级（> 70% 琥珀、> 90% 红）、
  * 条目顺序、某项拿不到、usage = null 的提示、「更新于 N 分钟前（北京时间）」、转义。假数据：tests/fixtures/status-summary.cjs usage()。
  * 运行：node --test tests/web/ui/status-usage-view.test.mjs
  */
@@ -8,10 +8,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   fmtCount, fmtBytes, usagePct, fmtUsagePct, usageLevel, usageItems, renderUsage, USAGE_WARN, USAGE_CRIT,
-} from '../../../web/assets/js/lib/status-view.js';
+} from '../../../web/atlas/assets/js/lib/status-view.js';
 import fx from '../../fixtures/status-summary.cjs';
 
-const SRC = readFileSync(new URL('../../../web/layouts/partials/status-i18n.html', import.meta.url), 'utf8');
+const SRC = readFileSync(new URL('../../../web/atlas/layouts/partials/status-i18n.html', import.meta.url), 'utf8');
 const DICT = {};
 for (const m of SRC.matchAll(/"(\w+)" \(dict "zh" "([^"]*)" "en" "([^"]*)"\)/g)) DICT[m[1]] = { zh: m[2], en: m[3] };
 

@@ -9,9 +9,9 @@ import { wrap } from './_auth.mjs';
 
 const onRequestPost = wrap(rawPost);
 const onRequestGet = wrap(rawGet);
-import { buildBody, localDay } from '../../../web/assets/js/lib/wb-track.js';
-import { wbAreaOf } from '../../../web/assets/js/lib/wb-area.js';
-import { fmtDur } from '../../../web/assets/js/lib/wb-view.js';
+import { buildBody, localDay } from '../../../web/atlas/assets/js/lib/wb-track.js';
+import { wbAreaOf } from '../../../web/atlas/assets/js/lib/wb-area.js';
+import { fmtDur } from '../../../web/atlas/assets/js/lib/wb-view.js';
 
 const NOW = Date.parse('2026-10-17T09:00:00Z');
 

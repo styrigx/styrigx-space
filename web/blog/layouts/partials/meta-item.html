@@ -1,0 +1,5 @@
+{{- /* 元信息一项（原 MetadataItem.astro，分隔样式 = icon）。参数：.kind（date|words|reading|tags）.separated .class .content（HTML） */ -}}
+{{- $icons := dict "date" "pencil-line" "words" "pen-tool" "reading" "book-open-check" "tags" "tags" -}}
+{{- $sep := .separated | default false -}}
+<span class="metadata-item metadata-item-{{ .kind }}{{ if $sep }} metadata-item-separated{{ end }} metadata-item-icon{{ with .class }} {{ . }}{{ end }}">{{ partial "icon.html" (dict "name" (index $icons .kind) "size" 14 "class" "metadata-icon") }}<span class="metadata-content">{{ .content | safeHTML }}</span></span>
+{{- /**/ -}}

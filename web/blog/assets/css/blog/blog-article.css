@@ -1,0 +1,212 @@
+/* 文章页版式：最早取自 @navfolio/theme-default 的 blog-article.css（MIT，Copyright (c) 2026 Navfolio）。
+   颜色只用共享外壳的色彩角色（--sgx-*）；代码块在 code.css。 */
+html {
+  scroll-behavior: smooth;
+}
+
+.blog-detail-page {
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: transparent;
+  color: var(--sgx-text-primary);
+}
+
+.blog-background {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.blog-layout {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 780px) 252px;
+  gap: 48px;
+  width: min(100%, var(--layout-shell-width));
+  max-width: none;
+  margin: 0 auto;
+  padding: var(--layout-page-top) var(--layout-page-gutter) var(--layout-page-bottom);
+}
+
+.blog-layout-centered {
+  display: block;
+  width: min(100%, var(--layout-shell-width));
+}
+
+.article-column {
+  min-width: 0;
+}
+
+.blog-layout-centered .article-column {
+  width: 100%;
+  margin: 0 auto;
+}
+
+.blog-layout-centered .article-card {
+  --article-content-max: 100%;
+}
+
+.blog-layout-centered .article-content {
+  max-width: none;
+}
+
+.right-sidebar-inner {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+}
+
+.article-after-related {
+  width: min(100%, var(--article-content-max, 720px));
+  margin-top: 40px;
+}
+
+.blog-layout-centered .article-after-related {
+  width: 100%;
+}
+
+.article-after-related .related-list {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.article-after-related a {
+  align-content: start;
+  min-height: 96px;
+  padding: 12px;
+  border: 1px solid var(--sgx-divider);
+  border-radius: 7px;
+  background: var(--sgx-mat);
+}
+
+.right-sidebar-inner {
+  position: sticky;
+  top: 96px;
+  align-self: start;
+}
+
+.blog-card {
+  border: 1px solid var(--sgx-divider);
+  border-radius: 8px;
+  background: var(--sgx-mat);
+  box-shadow: var(--sgx-mat-shadow);
+}
+
+.article-card {
+  --article-content-max: 720px;
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.article-content {
+  width: min(100%, var(--article-content-max));
+  max-width: var(--article-content-max);
+  min-width: 0;
+  color: var(--sgx-text-primary);
+  font-family: var(--font-ui);
+  font-size: 18px;
+  line-height: 1.75;
+}
+
+.article-content h1,
+.article-content h2 {
+  color: var(--sgx-text-primary);
+  font-family: var(--font-ui);
+  line-height: 1.2;
+}
+
+.article-content h1 {
+  margin-top: 64px;
+  margin-bottom: 24px;
+  font-size: 2.25rem;
+}
+
+.article-content h2 {
+  margin-top: 56px;
+  margin-bottom: 20px;
+  font-size: 1.9rem;
+}
+
+.article-content h3 {
+  margin-top: 38px;
+  margin-bottom: 16px;
+  color: var(--sgx-text-primary);
+  font-family: var(--font-ui);
+  font-size: 1.35rem;
+}
+
+.article-content h4,
+.article-content h5,
+.article-content h6 {
+  margin-top: 30px;
+  margin-bottom: 12px;
+  color: var(--sgx-text-primary);
+  font-family: var(--font-ui);
+  font-size: 1em;
+  line-height: 1.35;
+}
+
+.article-content p {
+  margin: 0 0 22px;
+}
+
+.article-content a {
+  color: var(--sgx-primary);
+  font-weight: 700;
+  text-decoration-color: color-mix(in srgb, var(--sgx-primary) 32%, transparent);
+  text-underline-offset: 4px;
+}
+
+.article-content blockquote {
+  margin: 34px 0;
+  padding: 18px 22px 18px 26px;
+  border: 1px solid var(--sgx-divider);
+  border-left: 3px solid color-mix(in srgb, var(--sgx-primary) 42%, transparent);
+  border-radius: 7px;
+  background: var(--sgx-surface-container-low);
+  color: var(--sgx-text-primary);
+  font-family: var(--font-ui);
+  font-size: 1.08rem;
+}
+
+@media (max-width: 1180px) {
+  .blog-layout {
+    grid-template-columns: minmax(0, 720px) 238px;
+    justify-content: center;
+    width: min(100%, 1040px);
+  }
+
+  .blog-layout-centered {
+    display: block;
+    width: min(100%, var(--layout-shell-width));
+  }
+}
+
+@media (max-width: 900px) {
+  .blog-layout {
+    display: block;
+    max-width: 760px;
+    padding: 88px 16px 36px;
+  }
+
+  .right-sidebar {
+    display: none;
+  }
+
+  .article-after-related .related-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .article-card {
+    padding: 0;
+    border-radius: 8px;
+  }
+}

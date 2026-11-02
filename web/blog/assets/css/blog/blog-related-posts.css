@@ -1,0 +1,51 @@
+/* 文章底部「相关文章」：最早取自 @navfolio/theme-default 的 blog-related-posts.css（MIT，Copyright (c) 2026 Navfolio）。
+   颜色只用共享外壳的色彩角色（--sgx-*）。 */
+.related-posts {
+  padding: 18px;
+}
+
+.related-posts h2 {
+  margin: 0 0 14px;
+  color: var(--sgx-text-primary);
+  font-size: 0.9rem;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.related-list {
+  display: grid;
+  gap: 12px;
+}
+
+.related-posts a {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 5px;
+  align-items: center;
+  color: var(--sgx-text-primary);
+  text-decoration: none;
+}
+
+.related-posts a:hover strong {
+  color: var(--sgx-primary);
+}
+
+.related-posts span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.related-posts strong {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 0.86rem;
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.related-posts small {
+  color: var(--sgx-text-tertiary);
+  font-size: 0.75rem;
+}

@@ -85,7 +85,7 @@ function extractServerCodes() {
 
 /** 提取 ERR_KEY 的码 → i18n key，以及 NEED_VERIFY_CODES。 */
 function extractFrontendMaps() {
-  const src = read('web/assets/js/apps/app-gate.js');
+  const src = read('web/atlas/assets/js/apps/app-gate.js');
   const errBlock = src.match(/var ERR_KEY = \{([\s\S]*?)\};/);
   assert.ok(errBlock, '应能找到 ERR_KEY 定义');
   const errKey = new Map();
@@ -117,7 +117,7 @@ test('same-as-lock / same-as-account 必须在 ERR_KEY 里（双向相同密码�
 test('每个 ERR_KEY 的 i18n key 都在门内模板里定义', () => {
   const { errKey } = extractFrontendMaps();
   const templates = [
-    'web/layouts/_default/security-lock.html',
+    'web/atlas/layouts/_default/security-lock.html',
   ];
   for (const t of templates) {
     const src = read(t);

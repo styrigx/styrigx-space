@@ -69,7 +69,7 @@ const rootRows = (db) => ({
 /* ============ 1. 锁屏入口按配置显示（补充定稿七.1） ============ */
 
 test('认证入口：锁屏方法弹层按锁屏凭证配置显示入口（PR3：最下面一行「无法登录？」）', () => {
-  const src = fs.readFileSync(path.join(REPO, 'web/assets/js/shell/lock.js'), 'utf8');
+  const src = fs.readFileSync(path.join(REPO, 'web/atlas/assets/js/shell/lock.js'), 'utf8');
   /* 配置以服务端 /api/lock-entry 为准 */
   assert.ok(src.includes('/api/lock-entry'), '应从 /api/lock-entry 读取配置');
   assert.ok(src.includes('sgx-mopt-visitor'), '应有访客进入');
@@ -179,7 +179,7 @@ test('认证入口：重置锁屏 status 始终可用（不暴露管理员凭证
 });
 
 test('认证入口：前端重置弹层不再出现「重置锁屏不可用」', () => {
-  const src = fs.readFileSync(path.join(REPO, 'web/assets/js/shell/lock.js'), 'utf8');
+  const src = fs.readFileSync(path.join(REPO, 'web/atlas/assets/js/shell/lock.js'), 'utf8');
   assert.ok(!src.includes('重置锁屏不可用'), '不应再有「重置锁屏不可用」文案');
   assert.ok(!src.includes('Reset is not available'), '不应再有英文不可用文案');
   /* openReset 直接显示第一步，不再调 status */

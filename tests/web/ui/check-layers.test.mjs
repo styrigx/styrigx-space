@@ -36,7 +36,7 @@ const GW = 'workers/auth-gateway/';
 
 /** 规则 19–21 要的骨架文件（README.md、带 name 的 package.json）：fixture 里的 Worker 目录有 wrangler.toml 时补上，免得干扰别的规则 @param {string} dir 如 'workers/account/' */
 const skeletonFiles = (dir) => ({ [dir + 'README.md']: '# x\n', [dir + 'package.json']: '{"name":"x","private":true,"type":"module"}' });
-const FE = 'web/assets/js/';
+const FE = 'web/atlas/assets/js/';
 
 test('check-layers：本仓库通过', () => {
   const { files, errors } = layers.checkRepo(REPO);
@@ -44,7 +44,7 @@ test('check-layers：本仓库通过', () => {
   assert.ok(files > 130, '扫描了各 Worker 的 src/ 和前端：' + files);
 });
 
-test('check-frontend：本仓库通过（含 web/shared/shell）', () => {
+test('check-frontend：本仓库通过（含 web/atlas/shared/shell）', () => {
   const { files, errors } = frontend.checkRepo(REPO);
   assert.deepEqual(errors, []);
   assert.ok(files > 90, String(files));
@@ -164,20 +164,20 @@ test('check-layers：前端层方向', () => {
     [FE + 'auth/y.js']: 'export const y = 1;',
     [FE + 'shell/s.js']: "import { x } from '../auth/x.js';\nimport { b } from '../lib/b.js';\nimport { p } from '../apps/p.js';",
     [FE + 'apps/p.js']: "import { s } from '../shell/s.js';\nimport { x } from '../auth/x.js';\nimport { e } from '../entries/e.js';",
-    [FE + 'entries/e.js']: "import { p } from '../apps/p.js';\nimport { k } from '../../../../workers/auth-gateway/src/core/k.js';",
+    [FE + 'entries/e.js']: "import { p } from '../apps/p.js';\nimport { k } from '../../../../../workers/auth-gateway/src/core/k.js';",
     [GW + 'src/core/k.js']: 'export const k = 1;',
   });
   try {
     const { errors } = layers.checkRepo(root);
     const want = [
-      'web/assets/js/lib/a.js: lib/ 禁止 import shell/',
-      'web/assets/js/lib/a.js: lib/ 禁止 import auth/',
-      'web/assets/js/lib/a.js: lib/ 禁止 import apps/',
-      'web/assets/js/auth/x.js: auth/ 禁止 import shell/',
-      'web/assets/js/auth/x.js: auth/ 禁止 import apps/',
-      'web/assets/js/shell/s.js: shell/ 禁止 import apps/',
-      'web/assets/js/apps/p.js: apps/ 禁止 import entries/',
-      'web/assets/js/entries/e.js: 前端禁止 import web/assets/js/ 以外的文件',
+      'web/atlas/assets/js/lib/a.js: lib/ 禁止 import shell/',
+      'web/atlas/assets/js/lib/a.js: lib/ 禁止 import auth/',
+      'web/atlas/assets/js/lib/a.js: lib/ 禁止 import apps/',
+      'web/atlas/assets/js/auth/x.js: auth/ 禁止 import shell/',
+      'web/atlas/assets/js/auth/x.js: auth/ 禁止 import apps/',
+      'web/atlas/assets/js/shell/s.js: shell/ 禁止 import apps/',
+      'web/atlas/assets/js/apps/p.js: apps/ 禁止 import entries/',
+      'web/atlas/assets/js/entries/e.js: 前端禁止 import web/atlas/assets/js/ 以外的文件',
     ];
     for (const w of want) assert.ok(errors.some((e) => e.startsWith(w)), '缺：' + w + '\n' + errors.join('\n'));
     assert.equal(errors.length, want.length, errors.join('\n'));
@@ -223,7 +223,7 @@ test('check-frontend：原生弹窗的各种写法', () => {
     "const u = 'https://styrigx.com/'; alert(u);",
   ];
   for (const code of bad) {
-    const errs = frontend.checkSource('web/assets/js/apps/x.js', code);
+    const errs = frontend.checkSource('web/atlas/assets/js/apps/x.js', code);
     assert.equal(errs.length, 1, code + ' → ' + JSON.stringify(errs));
     assert.match(errs[0], /禁止原生弹窗/);
   }
@@ -233,22 +233,22 @@ test('check-frontend：原生弹窗的各种写法', () => {
     "confirmLockNow();",
     "const u = 'https://a/'; // alert(u)",
   ]) {
-    assert.deepEqual(frontend.checkSource('web/assets/js/apps/x.js', code), [], code);
+    assert.deepEqual(frontend.checkSource('web/atlas/assets/js/apps/x.js', code), [], code);
   }
 });
 
 test('check-frontend：行号按原文（多行块注释之后）', () => {
-  const errs = frontend.checkSource('web/assets/js/apps/x.js', "/* a\n b\n c */\nconst s = 'http://x';\nalert(s);");
+  const errs = frontend.checkSource('web/atlas/assets/js/apps/x.js', "/* a\n b\n c */\nconst s = 'http://x';\nalert(s);");
   assert.equal(errs.length, 1);
-  assert.match(errs[0], /^web\/assets\/js\/apps\/x\.js:5:/);
+  assert.match(errs[0], /^web\/atlas\/assets\/js\/apps\/x\.js:5:/);
 });
 
 test('check-frontend：独立 token 变量', () => {
   for (const code of ['let token = 1;', 'token = x;', 'function f(token) {}', '(token) => token', 'post({ token: t })', 'post({ a, token })']) {
-    assert.equal(frontend.checkSource('web/assets/js/apps/x.js', code).length, 1, code);
+    assert.equal(frontend.checkSource('web/atlas/assets/js/apps/x.js', code).length, 1, code);
   }
   for (const code of ['const csrfToken = 1;', 'submitToken(token2);', "// let token = 1"]) {
-    assert.deepEqual(frontend.checkSource('web/assets/js/apps/x.js', code), [], code);
+    assert.deepEqual(frontend.checkSource('web/atlas/assets/js/apps/x.js', code), [], code);
   }
 });
 

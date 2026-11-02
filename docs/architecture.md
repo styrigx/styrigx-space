@@ -63,7 +63,7 @@ space（styrigx.com）相当于 One UI，图志 atlas.styrigx.com 的 blog、day
 - 只能 import `lib/` 和 `auth/`；`shell/`（lock.js、upgrade.js、quick-panel.js）和 `apps/` 用它。
 
 ### 依赖方向（`scripts/check-layers.mjs`，CI 必过）
-- 前端：`lib` ← `auth` ← `shell` ← `apps` ← `entries`，只能向左 import；前端不 import `web/assets/js/` 以外的文件。
+- 前端：`lib` ← `auth` ← `shell` ← `apps` ← `entries`，只能向左 import；前端不 import `web/atlas/assets/js/` 以外的文件。
 - Worker：骨架和依赖链见 [`workers/README.md`](../workers/README.md)（脚本不查 Worker 内部的依赖方向，只查下面的边界和骨架防回退）。
 - 相对 import 解析不到文件也算失败。
 

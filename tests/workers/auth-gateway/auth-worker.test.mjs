@@ -309,14 +309,14 @@ test('账号路径（/api/account、头像、云同步、数字健康）不在�
 
 test('仓库：根目录没有 functions/、migrations/、wrangler.toml（Pages 部署不会再带后端代码）', () => {
   for (const p of ['functions', 'migrations', 'wrangler.toml']) {
-    assert.equal(existsSync(REPO + '/' + p), false, p + ' 应该在 workers/auth-gateway/ 或 web/ 下');
+    assert.equal(existsSync(REPO + '/' + p), false, p + ' 应该在 workers/auth-gateway/ 或 web/atlas/ 下');
   }
   assert.ok(existsSync(REPO + '/workers/auth-gateway/src/gate.js'));
   assert.ok(existsSync(REPO + '/workers/auth-gateway/migrations'));
 });
 
-test('web/wrangler.toml：Pages 生产没有变量和绑定，预览不连正式库', () => {
-  const toml = readFileSync(REPO + '/web/wrangler.toml', 'utf8');
+test('web/atlas/wrangler.toml：Pages 生产没有变量和绑定，预览不连正式库', () => {
+  const toml = readFileSync(REPO + '/web/atlas/wrangler.toml', 'utf8');
   const top = toml.split(/^\[/m)[0];
   assert.match(top, /^pages_build_output_dir = "public"$/m);
   assert.doesNotMatch(toml, /^\[vars\]$/m);
@@ -326,7 +326,7 @@ test('web/wrangler.toml：Pages 生产没有变量和绑定，预览不连正式
 });
 
 test('Pages 静态 _worker.js：pages.dev 地址 301 到 styrigx.com，styrigx.com 原样交给静态文件', async () => {
-  const pagesWorker = (await import(REPO + '/web/static/_worker.js')).default;
+  const pagesWorker = (await import(REPO + '/web/atlas/static/_worker.js')).default;
   const seen = [];
   const env = { ASSETS: { fetch: async (req) => { seen.push(req.url); return new Response('static'); } } };
   for (const h of ['styrigx-space.pages.dev', 'abc123.styrigx-space.pages.dev', 'passkey-e2e.styrigx-space.pages.dev']) {
@@ -366,7 +366,7 @@ test('预览（作为 Pages 的 _worker.js 运行，有 env.ASSETS）：页面�
   const seen = [];
   const acct = [];
   const env = {
-    SGX_ENV: 'preview', /* web/wrangler.toml [env.preview.vars] 与 deploy.yml 预览变量同值 */
+    SGX_ENV: 'preview', /* web/atlas/wrangler.toml [env.preview.vars] 与 deploy.yml 预览变量同值 */
     SGX_SITE: 'space',
     ASSETS: { fetch: async (req) => { seen.push(new URL(req.url || req).pathname); return new Response(PAGE, { headers: { 'Content-Type': 'text/html' } }); } },
     ACCOUNT: { fetch: async (req) => { acct.push(new URL(req.url).pathname); return new Response('IMG', { headers: { 'X-SGX-Runtime': 'account' } }); } },
@@ -384,13 +384,13 @@ test('预览（作为 Pages 的 _worker.js 运行，有 env.ASSETS）：页面�
 });
 
 test('预览显式设 SGX_ENV=preview（网关缺 SGX_ENV 按生产处理，不设预览地址就只剩 301/403）', () => {
-  const pagesToml = readFileSync(REPO + '/web/wrangler.toml', 'utf8');
+  const pagesToml = readFileSync(REPO + '/web/atlas/wrangler.toml', 'utf8');
   const vars = pagesToml.slice(pagesToml.indexOf('[env.preview.vars]'));
   assert.match(vars.slice(0, vars.indexOf('\n[', 1)), /^SGX_ENV = "preview"$/m);
   /* deploy.yml 写预览变量时 SGX_ENV 取自同一份 toml（不在工作流里另写一个值） */
   const wf = readFileSync(REPO + '/.github/workflows/deploy.yml', 'utf8');
   assert.match(wf, /"SGX_ENV": plain\(pv\["SGX_ENV"\]\)/);
-  assert.match(wf, /pv = tomllib\.load\(open\("web\/wrangler\.toml", "rb"\)\)\["env"\]\["preview"\]\["vars"\]/);
+  assert.match(wf, /pv = tomllib\.load\(open\("web\/atlas\/wrangler\.toml", "rb"\)\)\["env"\]\["preview"\]\["vars"\]/);
 });
 
 test('路由：账号 → 安全与隐私子页（/account/security/ 与 /en/）过网关', async () => {
@@ -399,7 +399,7 @@ test('路由：账号 → 安全与隐私子页（/account/security/ 与 /en/）
   for (const p of ['/account/', '/account/security/', '/en/account/security/']) {
     assert.ok(routes.some((r) => routeMatches(r, 'styrigx.com', p)), p + ' 应被路由覆盖');
   }
-  for (const f of ['web/content/account-security.md', 'web/content/en/account-security.md']) {
+  for (const f of ['web/atlas/content/account-security.md', 'web/atlas/content/en/account-security.md']) {
     assert.ok(existsSync(path.join(REPO, f)), f + ' 应存在');
   }
 });

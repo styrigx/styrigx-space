@@ -385,9 +385,9 @@ test('migrate-kv-to-d1 readKv：只为计划要的键取值，带上 KV 的过�
   assert.doesNotMatch(src, /\/bulk/);
 });
 
-test('migrate-kv-to-d1 d1IdOf：默认库 = 网关 wrangler.toml 的 D1_LOCK_AUTH（styrigx-auth-gateway）；--preview 读 web/wrangler.toml，两者不同', () => {
+test('migrate-kv-to-d1 d1IdOf：默认库 = 网关 wrangler.toml 的 D1_LOCK_AUTH（styrigx-auth-gateway）；--preview 读 web/atlas/wrangler.toml，两者不同', () => {
   const prod = readFileSync(new URL('../../../workers/auth-gateway/wrangler.toml', import.meta.url), 'utf8');
-  const pv = readFileSync(new URL('../../../web/wrangler.toml', import.meta.url), 'utf8');
+  const pv = readFileSync(new URL('../../../web/atlas/wrangler.toml', import.meta.url), 'utf8');
   assert.equal(d1IdOf(prod, 'D1_LOCK_AUTH'), '6931d1da-3502-480d-b0bd-de1bc4829d1d');
   assert.ok(d1IdOf(pv, 'D1_LOCK_AUTH'));
   assert.notEqual(d1IdOf(pv, 'D1_LOCK_AUTH'), d1IdOf(prod, 'D1_LOCK_AUTH'));

@@ -11,7 +11,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const postcss = require('postcss');
 const { minifyCss, squash, squashSelector } = require('../../../scripts/lib/css-min.cjs');
-const SRC = readFileSync(new URL('../../../web/assets/css/input.css', import.meta.url), 'utf8');
+const SRC = readFileSync(new URL('../../../web/atlas/assets/css/input.css', import.meta.url), 'utf8');
 
 /** 规整成「看 token」的形式：空白收成一个、逗号两边不留空格（引号外） */
 const tok = (s) => squashSelector(String(s));

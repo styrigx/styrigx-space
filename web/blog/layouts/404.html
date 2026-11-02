@@ -1,0 +1,18 @@
+{{- /* 404（原 src/pages/404.astro）。Cloudflare Pages 回最近的 404.html：/404.html（中文）、/en/404.html（英文） */ -}}
+{{ define "head" }}
+{{ partial "head.html" (dict "page" . "title" "404 Not Found" "description" (i18n "notFoundDesc")) }}
+{{ end }}
+{{ define "body" }}
+<body class="page-404">
+{{ partial "topnav.html" (dict "page" . "mode" "links" "title" (i18n "notFoundPill")) }}
+<div class="oui-notfound" role="main" aria-labelledby="not-found-title">
+  <div>
+    <p class="num" aria-hidden="true">404</p>
+    <h1 id="not-found-title">{{ i18n "notFoundTitle" }}</h1>
+    <p>{{ i18n "notFoundBody" }}</p>
+    <div class="oui-action-row"><a class="oui-btn-primary" href="{{ site.Home.RelPermalink }}">{{ i18n "notFoundBack" }}</a></div>
+  </div>
+</div>
+{{ partial "scroll-top.html" . }}
+</body>
+{{ end }}

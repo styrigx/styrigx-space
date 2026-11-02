@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 
 globalThis.location = /** @type {any} */ ({ hostname: 'styrigx.com' });
 globalThis.window = /** @type {any} */ (globalThis);
-const mod = await import('../../../web/assets/js/apps/account-common.js');
+const mod = await import('../../../web/atlas/assets/js/apps/account-common.js');
 
 test('signalAccountName：不支持 signalCurrentUserDetails → 不发', () => {
   mod._resetSignalForTest();

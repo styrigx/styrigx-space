@@ -66,6 +66,6 @@ test('admin 会话（没有账号会话）：/settings/status/、/chat/（中英
 
 test('旧的顶栏「状态」页 /status/ 已删除：网关不认这个路径，也没有跳转规则', async () => {
   const { readFileSync } = await import('node:fs');
-  const red = readFileSync(new URL('../../../web/static/_redirects', import.meta.url), 'utf8');
+  const red = readFileSync(new URL('../../../web/atlas/static/_redirects', import.meta.url), 'utf8');
   assert.doesNotMatch(red, /^\/(en\/)?status/m);
 });
