@@ -15,7 +15,7 @@ import { ROLE_ADMIN } from '../core/lock-session.js';
 import { getPepper } from '../core/password.js';
 import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
 import { listTempkeys, createTempkey, revokeTempkey, durationMs, cleanName, isTempkeyId } from '../core/lock-tempkey.js';
-import { verifyLockSession } from '../core/lock-session.js';
+import { lockSessionOf } from '../core/lock-session.js';
 
 /** @param {object} body @param {number} [status] */
 /** @param {any} context */
@@ -37,7 +37,8 @@ async function handle(context) {
   const { request, env } = context;
   const lockDb = env && env[REALM_LOCK.d1Binding]; /* D1_LOCK_AUTH（纪元、临时钥匙都在这里）：没绑 → 500 config */
   if (!isSameOrigin(request)) return originDenied();
-  const sess = await verifyLockSession(request, env);
+  /* 会话先用关口验过的结论（没有就自己验）；admin 角色这里再判一次 */
+  const sess = await lockSessionOf(context);
   if (!sess.ok || sess.role !== ROLE_ADMIN) return apiError(401, 'session');
   if (!lockDb) return apiError(500, 'config');
 

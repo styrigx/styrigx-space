@@ -302,3 +302,15 @@ export async function checkLockSession(cookieHeader, env) {
   const s = await verifyLockSession(cookieRequest(cookieHeader), env);
   return s.ok ? { ok: true, role: s.role } : { ok: false, reason: s.reason };
 }
+
+/**
+ * /api/* 处理函数取锁屏会话：先用关口（gate.js）验过、放进 context.data.lockSession 的结论（一次请求只验一次）；
+ * 没有（非生产关口不验、图志关口直接调用、单测直接调用）就回落到自己验。
+ * @param {{ request: Request, env: any, data?: any }} context
+ */
+export async function lockSessionOf(context) {
+  const d = context && context.data;
+  const s = d && d.lockSession;
+  if (s && typeof s === 'object' && typeof s.ok === 'boolean') return s;
+  return verifyLockSession(context.request, context.env);
+}

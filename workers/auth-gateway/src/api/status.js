@@ -9,14 +9,15 @@
  *     （字段见 workers/status/src/monitor.js summary、src/usage.js、src/quota.js；原样转发，网关不缓存）
  *   401 没会话 · 503 监测服务不可用（没绑定 / 出错）
  */
-import { verifyLockSession } from '../core/lock-session.js';
+import { lockSessionOf } from '../core/lock-session.js';
 import { apiError, NO_STORE } from '../lib/http.js';
 
 
 /** @param {number} status @param {any} body */
-/** @param {{request: Request, env: any}} ctx */
-export async function onRequestGet({ request, env }) {
-  const sess = await verifyLockSession(request, env);
+/** @param {{request: Request, env: any, data?: any}} context */
+export async function onRequestGet(context) {
+  const { env } = context;
+  const sess = await lockSessionOf(context);
   if (!sess.ok) return apiError(401, 'unauthorized');
   const svc = env && env.STATUS;
   if (!svc || typeof svc.fetch !== 'function') return apiError(503, 'upstream');
