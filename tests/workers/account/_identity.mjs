@@ -1,5 +1,5 @@
 /**
- * 账号身份接口（workers/account/src/identity/，账号拆分 PR2b）单测的公共测试台。
+ * 账号身份接口（workers/account/src/api/account.js + src/core/，账号拆分 PR2b；原 identity/）单测的公共测试台。
  *
  * - keys()：一次生成 ACCOUNT / OTHER 两对 Ed25519 钥匙（before 里调）
  * - makeEnv(overrides?)：账号 Worker env：D1_ACCOUNT_AUTH（node:sqlite 替身，跑过账号全部迁移）、账号票钥匙、根密钥、pepper、RP
@@ -15,8 +15,8 @@ import { makeAccountD1 } from './_d1.mjs';
 const require = createRequire(import.meta.url);
 export const { makeAttestationCredential } = require('../../web/e2e/cred-e2e-helpers.cjs');
 
-const ID = '../../../workers/account/src/identity/';
-export const account = await import(ID + 'account.js');
+const ID = '../../../workers/account/src/core/';
+export const account = await import('../../../workers/account/src/api/account.js');
 export const session = await import(ID + 'account-session.js');
 export const devices = await import(ID + 'account-devices.js');
 export const root = await import(ID + 'account-root.js');

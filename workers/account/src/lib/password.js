@@ -37,7 +37,7 @@ async function hashPassword(password, salt, iterations, pepper) {
 
 /**
  * pepper 的 Secrets Store 密钥名（不改名）。锁屏密码与账号密码共用一个 pepper：
- * 与网关 _kernel/realms.js 里 REALM_LOCK.pepper / REALM_ACCOUNT.pepper 同值（tests/workers/auth-gateway/realms.test.mjs 核对）。
+ * 与网关 src/core/realms.js 里 REALM_LOCK.pepper / REALM_ACCOUNT.pepper 同值（tests/workers/auth-gateway/realms.test.mjs 核对）。
  */
 export const PEPPER_SECRET = 'SGX_PW_PEPPER';
 

@@ -19,9 +19,10 @@ import { genKeyPair, withAuthD1 } from '../_harness.mjs';
 import { makeAccountD1 } from './_d1.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
-const worker = (await import(REPO + 'workers/account/src/index.js')).default;
-const { API_ROUTES } = await import(REPO + 'workers/account/src/index.js');
-const { checkAccountSession, serviceFetch } = await import(REPO + 'workers/account/src/entrypoints.js');
+const worker = (await import(REPO + 'workers/account/src/app.js')).default;
+const { API_ROUTES } = await import(REPO + 'workers/account/src/router.js');
+const { serviceFetch } = await import(REPO + 'workers/account/src/rpc/account-service.js');
+const { checkAccountSession } = await import(REPO + 'workers/account/src/rpc/account-verifier.js');
 const { KEY_VER, keyOf, avatarKv } = await import(REPO + 'workers/account/src/lib/avatar.js');
 
 const { priv: PRIV, pub: PUB } = await genKeyPair();
@@ -67,7 +68,7 @@ test('wrangler.toml：styrigx-account、不开公开地址、没有路由、没�
   const code = toml.split('\n').map((l) => l.replace(/#.*$/, '')).join('\n');
   const [prod, preview] = code.split(/^\[env\.preview\]$/m);
   assert.match(prod, /^name = "styrigx-account"$/m);
-  assert.match(prod, /^main = "src\/worker\.js"$/m);
+  assert.match(prod, /^main = "src\/index\.js"$/m);
   assert.match(prod, /^workers_dev = false$/m);
   assert.match(prod, /^preview_urls = false$/m);
   assert.match(prod, /^SGX_ENV = "production"$/m);

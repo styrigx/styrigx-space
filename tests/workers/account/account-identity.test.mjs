@@ -1,5 +1,5 @@
 /**
- * 账号拆分 PR2b：账号 Worker 的 /api/account 身份接口（workers/account/src/identity/）。
+ * 账号拆分 PR2b：账号 Worker 的 /api/account 身份接口（workers/account/src/api/account.js + src/core/，原 identity/）。
  * 从网关 tests/workers/auth-gateway/account.test.mjs、account-devices.test.mjs 复制改写：
  * - 身份只看网关写的规范头（X-Styrigx-Lock-Role 必须 admin，logout / reauth-clear 除外），不读锁屏会话 cookie
  * - 客户端地址 / 国家 / 城市读 X-Styrigx-Client-*（不读 CF-Connecting-IP、request.cf）
@@ -24,7 +24,10 @@ import {
 } from './_identity.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
-const ID_DIR = REPO + 'workers/account/src/identity/';
+const ID_DIR = REPO + 'workers/account/src/core/';
+const ACCOUNT_API = REPO + 'workers/account/src/api/account.js';
+/* 原 identity/ 的六个文件：/api/account 处理函数 + core/ 里的五个 */
+const ID_FILES = [ACCOUNT_API, ...['account-devices.js', 'account-root.js', 'account-session.js', 'account-store.js', 'realm.js'].map((f) => ID_DIR + f)];
 
 before(keys);
 
@@ -83,7 +86,7 @@ test('lib/lock-identity.js：账号侧只读——导出头名常量 + readLockI
   assert.deepEqual(Object.keys(mod).sort(), ['CLIENT_CONTEXT_HEADERS', 'LOCK_IDENTITY_HEADERS', 'readClientContext', 'readLockIdentity']);
   const src = readFileSync(new URL('../../../workers/account/src/lib/lock-identity.js', import.meta.url), 'utf8');
   assert.doesNotMatch(src, /^\s*import\s/m);
-  assert.equal('readLockIdentity' in account, false, 'identity/account.js 不再自带一份白名单');
+  assert.equal('readLockIdentity' in account, false, 'api/account.js 不再自带一份白名单');
 });
 
 test('GET：没有身份头 / 访客 / 不认识的角色 → 401 session；只带锁屏会话 cookie 也不算（不验锁屏会话）', async () => {
@@ -474,7 +477,7 @@ test('password-change：不再有「不得与锁屏密码相同」检查（锁�
   const env = makeEnv();
   const r = await post(env, { action: 'password-change', password: 'lock-pass-123' }, await full());
   assert.equal(r.status, 200);
-  const src = readFileSync(ID_DIR + 'account.js', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const src = readFileSync(ACCOUNT_API, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
   assert.doesNotMatch(src, /same-as-lock|REALM_LOCK|'lock'/);
 });
 
@@ -545,7 +548,7 @@ test('passkey-register：challenge 只能用一次（403 challenge）；origin �
   const r2 = await post(env, { action: 'passkey-register', cid: ch.cid, credential: bad }, c);
   assert.equal((await r2.json()).error, 'challenge');
   assert.equal(one(env, 'SELECT COUNT(*) AS n FROM passkey').n, 0);
-  assert.doesNotMatch(readFileSync(ID_DIR + 'account.js', 'utf8'), /'class'/);
+  assert.doesNotMatch(readFileSync(ACCOUNT_API, 'utf8'), /'class'/);
 });
 
 test('passkey-delete：先推纪元再删；当前设备重签、reset 票重签；不存在 404 not-found；缺 credId 400 params；记安全事件', async () => {
@@ -791,12 +794,13 @@ test('空账号库（迁移没跑）：第一次请求按本库 0003 建表（us
   assert.ok(one(env, 'SELECT handle FROM user_handle').handle);
 });
 
-test('依赖边界：identity/ 只 import ../lib/ 和本目录；不碰网关、锁屏表、锁屏头以外的东西', () => {
-  for (const f of readdirSync(ID_DIR)) {
-    const src = readFileSync(ID_DIR + f, 'utf8');
+test('依赖边界：账号身份（api/account.js + core/ 原 identity/ 的五个）只 import ../lib/ 和 core/；不碰网关、锁屏表、锁屏头以外的东西', () => {
+  for (const f of ID_FILES) {
+    const src = readFileSync(f, 'utf8');
     for (const m of src.matchAll(/(?:from|import)\s*\(?\s*'([^']+)'/g)) {
       const spec = m[1];
-      assert.ok(spec.startsWith('./') || /^\.\.\/lib\/[a-z0-9-]+\.js$/.test(spec), f + ' imports ' + spec);
+      const ok = f === ACCOUNT_API ? /^\.\.\/(?:lib|core)\/[a-z0-9-]+\.js$/.test(spec) : (spec.startsWith('./') || /^\.\.\/lib\/[a-z0-9-]+\.js$/.test(spec));
+      assert.ok(ok, f + ' imports ' + spec);
     }
     const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
     assert.doesNotMatch(code, /auth-gateway|D1_LOCK_AUTH|SGX_LOCK_|SGX_ROOT_KEY|SGX_ADMIN_KEY|CF-Connecting-IP|request\.cf|tempkey \(|recovery_switch/, f);

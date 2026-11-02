@@ -1,6 +1,6 @@
 /**
- * 账号 Worker 命名入口（workers/account/src/entrypoints.js、worker.js；账号拆分 PR3）：
- * - worker.js：默认导出 = index.js 的 default（一律 404），另导出 AccountService / AccountVerifier
+ * 账号 Worker 命名入口（workers/account/src/rpc/account-service.js、rpc/account-verifier.js、gate.js；部署入口 index.js；账号拆分 PR3）：
+ * - index.js：默认导出 = app.js 的 default（一律 404），另导出 AccountService / AccountVerifier（只核对源码，单测不 import index.js）
  * - AccountService：只信网关转发来的身份头（白名单校验，lib/lock-identity.js readLockIdentity），没有任何回调网关的绑定；
  *   路由 = /api/account + 三个账号数据接口；最小门（lockIdentityDenial）结论同网关的门
  * - 信任边界：默认 fetch 一律 404（伪造的 x-styrigx-* 头不起作用）；AccountService 无条件信任这些头，
@@ -19,9 +19,12 @@ import { K, keys, idHeaders, accSession, seedPassword, setEpoch, one, PEPPER, RO
 
 const SRC = '../../../workers/account/src/';
 const { WorkerEntrypoint } = await import('cloudflare:workers');
-const index = await import(SRC + 'index.js');
-const worker = await import(SRC + 'worker.js');
-const ep = await import(SRC + 'entrypoints.js');
+const app = await import(SRC + 'app.js');
+const router = await import(SRC + 'router.js');
+/* 原 index.js 的两样（默认 fetch、接口路由表）、原 entrypoints.js 的命名入口和门，2026-11-02 起分在 app / router / rpc / gate */
+const index = { default: app.default, API_ROUTES: router.API_ROUTES };
+const ep = { ...(await import(SRC + 'rpc/account-service.js')), ...(await import(SRC + 'rpc/account-verifier.js')), ...(await import(SRC + 'gate.js')) };
+const { readFileSync } = await import('node:fs');
 const { _resetSecretCache } = await import(SRC + 'secrets.js');
 
 await keys();
@@ -59,9 +62,12 @@ const accCookie = async (o) => 'sgx-account-session=' + (await accSession('passw
 
 /* ---------------- 导出 ---------------- */
 
-test('worker.js：默认导出就是 index.js 的 default；AccountService / AccountVerifier 是 WorkerEntrypoint 子类', () => {
-  assert.equal(worker.default, index.default);
-  assert.deepEqual(Object.keys(worker).sort(), ['AccountService', 'AccountVerifier', 'default']);
+test('index.js：默认导出就是 app.js 的 default；AccountService / AccountVerifier 是 WorkerEntrypoint 子类', () => {
+  const entry = readFileSync(new URL(SRC + 'index.js', import.meta.url), 'utf8');
+  assert.match(entry, /export \{ default \} from '\.\/app\.js'/);
+  assert.match(entry, /export \{ AccountService \} from '\.\/rpc\/account-service\.js'/);
+  assert.match(entry, /export \{ AccountVerifier \} from '\.\/rpc\/account-verifier\.js'/);
+  assert.equal((entry.match(/^export /gm) || []).length, 3, '只接线：三条再导出');
   assert.ok(new ep.AccountService(CTX, {}) instanceof WorkerEntrypoint);
   assert.ok(new ep.AccountVerifier(CTX, {}) instanceof WorkerEntrypoint);
   assert.equal(typeof ep.AccountService.prototype.fetch, 'function');
@@ -69,7 +75,7 @@ test('worker.js：默认导出就是 index.js 的 default；AccountService / Acc
   assert.equal(ep.AccountVerifier.prototype.fetch, undefined);
 });
 
-test('路由表：AccountService = /api/account + 三个账号数据接口（index.js API_ROUTES 同一张表）', () => {
+test('路由表：AccountService = /api/account + 三个账号数据接口（router.js API_ROUTES 同一张表）', () => {
   assert.deepEqual([...index.API_ROUTES.keys()].sort(), ['/api/account', '/api/avatar', '/api/prefs', '/api/wellbeing']);
   assert.equal(ep.SERVICE_API_ROUTES, index.API_ROUTES);
 });
@@ -178,11 +184,10 @@ test('默认 fetch：不读 env（不碰账号库 / 钥匙）', async () => {
   assert.equal(touched, 0);
 });
 
-test('源码：账号 Worker 没有任何回调网关的代码（不读 env.AUTH、不 import 网关目录、没有 auth.js / gate.js）', async () => {
+test('源码：账号 Worker 没有任何回调网关的代码（不读 env.AUTH、不 import 网关目录、没有 auth.js；gate.js 只读网关写的身份头）', async () => {
   const { readdirSync, readFileSync, existsSync } = await import('node:fs');
   const root = new URL(SRC, import.meta.url).pathname;
   assert.equal(existsSync(root + 'auth.js'), false);
-  assert.equal(existsSync(root + 'gate.js'), false);
   const walk = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(d + e.name + '/') : [d + e.name]));
   for (const f of walk(root).filter((x) => x.endsWith('.js'))) {
     const code = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
@@ -255,6 +260,6 @@ test('lockIdentityDenial：只按身份头的结论拒；/api/* 无身份 401、
     assert.equal((await r.json()).error, 'role');
   }
   assert.equal(deny('/api/prefsX', visitor), null, '不是 /api/prefs 的子路径');
-  assert.equal(deny('/api/account', visitor), null, '访客调 /api/account 交给 identity/account.js');
+  assert.equal(deny('/api/account', visitor), null, '访客调 /api/account 交给 api/account.js');
   assert.equal(deny('/api/wellbeing', visitor), null);
 });

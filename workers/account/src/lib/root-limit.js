@@ -13,9 +13,8 @@
  * - bucket = '*'：每小时窗口的失败次数
  * 每次记失败都是原子 UPSERT（并发的失败不会互相覆盖）。
  *
- * 按域参数化（账号拆分 PR1 搬到共享模块 workers/account/src/lib/，零行为变化）：rootLimiter(realm) 给出某个根域的一套限速函数，
- * 行的 realm 列 = realm.id、经 realm.d1Binding 读写；本模块不认识具体的域。网关 _kernel/root-limit.js 用 REALM_ROOT
- * （realm='root'、D1_ROOT_AUTH）绑好再导出，导出名字和行为与以前相同。现在仍然只有这一个根域。
+ * 按域参数化：rootLimiter(realm) 给出某个根域的一套函数，行的 realm 列 = realm.id、经 realm.d1Binding 读写；本模块不认识具体的域。
+ * 账号 Worker 只有一个根域：core/account-root.js 用账号库上的 REALM_ACCOUNT（realm='account'、D1_ACCOUNT_AUTH）绑好再用。
  */
 import { ipBucket } from './http.js';
 import { readAttempt, globalHot, recordAttempt, recordGlobal, clearAttempt } from './attempt-limit.js';

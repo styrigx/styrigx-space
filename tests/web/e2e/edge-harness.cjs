@@ -9,11 +9,11 @@
  *   这样「路由表漏了某种 URL」在本地也能复现，不再被 http-server + page.route 的 mock 掩盖。
  * - 网关 = 仓库里真实的 workers/auth-gateway/src/app.js（真实验签、epoch、Set-Cookie 属性），env 只给正式网关绑的东西
  *   （锁屏钥匙、SGX_ADMIN_KEY、pepper、D1_LOCK_AUTH）；服务绑定 ACCOUNT / ACCOUNT_VERIFIER 接账号 Worker 命名入口的实现
- *   （workers/account/src/entrypoints.js serviceFetch / checkAccountSession，AccountService / AccountVerifier 里跑的同一份代码）。
+ *   （workers/account/src/rpc/account-service.js serviceFetch / rpc/account-verifier.js checkAccountSession，AccountService / AccountVerifier 里跑的同一份代码）。
  *   账号 Worker 自己一对 Ed25519 钥匙、账号根密钥和自己的库（tests/workers/account/_d1.mjs：账号鉴权表 + 云同步），
  *   头像 KV_PROFILE 用内存 KV。转发到账号的每一跳在 log 里另记一条 'account'。
  *   Pages = web/public（主站，Cache-Control 照 _headers 的 /*）和两个子站的固定页面。
- *   cloudflare:workers（entrypoints.js 引入）用 tests/workers/account/_cf-workers.mjs 的替身。
+ *   cloudflare:workers（rpc/*.js 引入）用 tests/workers/account/_cf-workers.mjs 的替身。
  * - 访客进入用临时 LockKey：seedTempkey() 在 KV 里签发一把，返回临时码（2026-10-23 取代 Turnstile）。
  * - seedPasskey()：在 KV 里登记一把锁屏通行密钥，返回 CDP WebAuthn.addCredential 用的参数。
  * - 分享短链 Worker = workers/share/src/index.js（路由 workers/share/wrangler.toml：/s/*、/api/share*），D1 用 tests/fixtures/share-d1.mjs，
@@ -119,9 +119,9 @@ async function startEdge() {
   const shareRoutes = readRoutes(fs.readFileSync(path.join(REPO, 'workers/share/wrangler.toml'), 'utf8'));
   const allRoutes = routes.concat(accountRoutes, shareRoutes);
   const gateway = (await mod('workers/auth-gateway/src/app.js')).default;
-  await mod('tests/workers/account/_cf-workers.mjs'); /* cloudflare:workers 替身，要在 import entrypoints.js 之前 */
-  const accountEntry = await mod('workers/account/src/entrypoints.js');
-  const account = (await mod('workers/account/src/index.js')).default; /* 默认 fetch：一律 404（只在 toml 里还有路由时用到） */
+  await mod('tests/workers/account/_cf-workers.mjs'); /* cloudflare:workers 替身，要在 import rpc/*.js 之前 */
+  const accountEntry = { ...(await mod('workers/account/src/rpc/account-service.js')), ...(await mod('workers/account/src/rpc/account-verifier.js')) };
+  const account = (await mod('workers/account/src/app.js')).default; /* 默认 fetch：一律 404（只在 toml 里还有路由时用到） */
   const verifier = await mod('workers/auth-gateway/src/core/lock-session.js');
   const share = (await mod('workers/share/src/index.js')).default;
   const issuer = await mod('workers/auth-gateway/src/core/link-keys.js');
@@ -304,7 +304,7 @@ async function startEdge() {
 
   /** 账号会话 cookie 值（sgx-account-session，by=passkey，账号 Worker 当前的 Account 纪元，账号钥匙签） */
   async function mintAccount() {
-    const acc = await mod('workers/account/src/identity/account-session.js');
+    const acc = await mod('workers/account/src/core/account-session.js');
     const ep = await acc.getAccountEpoch(accountEnv);
     return acc.signAccountSessionTicket(acctPrivPem, { by: 'passkey', epoch: ep, authAt: Date.now(), deviceId: 'edgedeviceedgede' });
   }

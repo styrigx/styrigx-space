@@ -2,7 +2,7 @@
  * @fileoverview 安全响应头（纵深防御）的唯一定义处。
  *
  * 谁在用：
- * - 网关（src/index.js）：主站 styrigx.com 经过网关的每个响应（页面、锁屏首页、302、/api/*）→ applyMainSiteHeaders
+ * - 网关（src/app.js）：主站 styrigx.com 经过网关的每个响应（页面、锁屏首页、302、/api/*）→ applyMainSiteHeaders
  *   子站（blog / daymark / curio）经过网关的响应 → applySubsiteHeaders（低风险的一组，见下）
  *   子站静态资源直通回源 → applySubsiteStaticHeaders（只补 HSTS、nosniff）
  * - 账号 Worker、分享短链 Worker（styrigx.com 上更具体的路由）→ applyMainSiteHeaders

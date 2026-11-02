@@ -119,7 +119,7 @@ test('check-layers：交叉 import 一律失败——账号 ↔ 网关（任何�
 });
 
 test('check-layers：Worker 的非相对 import 只认 cloudflare:workers；注释里的不算', () => {
-  const f = join(REPO, AC + 'src/entrypoints.js');
+  const f = join(REPO, AC + 'src/rpc/account-service.js');
   assert.deepEqual(layers.checkFile(REPO, f, "import { WorkerEntrypoint } from 'cloudflare:workers';"), []);
   assert.match(layers.checkFile(REPO, f, "import x from 'some-package';")[0], /只能 import 相对路径或 cloudflare:workers/);
   assert.deepEqual(layers.checkFile(REPO, f, "// import { a } from '../../auth-gateway/src/index.js';"), []);
@@ -306,7 +306,7 @@ test('规则 16：注释、ACCOUNT_VERIFIER.accountSession()、首帧提示属�
   ]) {
     assert.deepEqual(layers.checkFile(REPO, f, code), [], code);
   }
-  assert.deepEqual(layers.checkFile(REPO, join(REPO, AC + 'src/entrypoints.js'), "import { verifyAccountSession } from './identity/account-session.js';\nconst k = env.SGX_ACCOUNT_ROOT_KEY;"), []);
+  assert.deepEqual(layers.checkFile(REPO, join(REPO, AC + 'src/rpc/account-verifier.js'), "import { verifyAccountSession } from '../core/account-session.js';\nconst k = env.SGX_ACCOUNT_ROOT_KEY;"), []);
 });
 
 test('规则 16：网关 wrangler.toml 去掉 # 注释后也查；checkRepo 会读它', () => {

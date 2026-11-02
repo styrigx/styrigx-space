@@ -1,10 +1,10 @@
 /**
- * reset / reauth 短票的通用签发、验证（账号拆分 PR1 从网关 _kernel/tickets.js 抽出的通用部分）。
+ * reset / reauth 短票的通用签发、验证（账号拆分 PR1 从网关 src/core/tickets.js 抽出的通用部分）。
  *
- * 不认识具体的票：每个函数都接一个票配置对象 conf（网关 _kernel/realms.js TICKETS 里的一项）：
+ * 不认识具体的票：每个函数都接一个票配置对象 conf（本 Worker core/realm.js TICKETS 里的一项）：
  *   { cookie, privateKey, publicKey, maxAge, cookieAttrs, bys }
  * 纪元由调用方给（readEpoch：() => Promise<number>，出错抛错），本模块不碰 D1、不认识域。
- * 网关 _kernel/tickets.js 按票名查总表、按票所在的域读纪元，再调这里；具名入口（signLockResetTicket 等）都在那边。
+ * core/account-session.js 按票名查 TICKETS、读 Account 纪元，再调这里；具名入口（signTicket / verifyTicket 等）都在那边。
  *
  * 票内容：by.epoch.iat.exp，最后一段是签名：
  *   sig = Ed25519(<该票的私钥>, "<cookie 名>|by.epoch.iat.exp")
@@ -13,7 +13,7 @@
  * cookie：每张票各自一个 cookie，属性取 conf.cookieAttrs（网关：只发主站、HttpOnly、Secure、SameSite=Strict），
  * Max-Age = conf.maxAge。不续期：到点就失效，前端倒计时以服务端返回的 expiresAt 为准。
  *
- * 共享模块（workers/account/src/lib/）：只 import workers/account/src/lib/ 里的 crypto.js、cookies.js。
+ * 本 Worker lib/ 里的通用模块：只 import 同目录的 crypto.js、cookies.js。
  */
 import { ed25519Sign, ed25519Verify } from './crypto.js';
 import { readCookie, COOKIE_EXPIRED } from './cookies.js';

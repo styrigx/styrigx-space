@@ -2,8 +2,8 @@
 #
 # 管管理员账号的全部身份和数据：账号密码、账号 Passkey、已登录设备、账号会话 / reauth / reset、Account 纪元、
 # 账号根密钥 SGX_ACCOUNT_ROOT_KEY、账号审计（D1_ACCOUNT_AUTH），以及头像（KV_PROFILE）、设置云同步（D1_SETTINGS_SYNC）、数字健康（D1_WELLBEING）。
-# 代码：src/（部署入口 worker.js：默认 fetch = index.js（一律 404），命名入口 AccountService / AccountVerifier = entrypoints.js；
-# 账号身份 identity/、接口 api/、公共 lib/）+ migrations/（D1 styrigx-account）。分层与边界见 workers/account/README.md、docs/architecture.md「Worker 边界」。
+# 代码：src/（部署入口 index.js：默认 fetch = app.js（一律 404），命名入口 rpc/account-service.js AccountService、rpc/account-verifier.js AccountVerifier；
+# 身份头门 gate.js、路由 router.js、接口 api/、账号身份 core/、公共 lib/）+ migrations/（D1 styrigx-account）。分层与边界见 workers/account/README.md、docs/architecture.md「Worker 边界」。
 #
 # 安全（方案第 3 节三道保险）：
 # - 没有任何 [[routes]]：请求只经网关 styrigx-auth-gateway 的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 进来（网关先验锁屏、剥外部 x-styrigx-* 头、写规范身份头）。
@@ -12,7 +12,7 @@
 # - 不调网关、不绑任何锁屏数据或钥匙（不再有 [[services]] AUTH）。
 
 name = "styrigx-account"
-main = "src/worker.js"
+main = "src/index.js"
 compatibility_date = "2026-10-09"
 workers_dev = false
 preview_urls = false
@@ -26,7 +26,7 @@ enabled = true
 head_sampling_rate = 1
 
 # 路由：没有（账号拆分 PR3 删掉原来的 4 条 styrigx.com/api/avatar*、/api/prefs*、/api/wellbeing*、/avatar/*；方案第 4 节）。
-# 这几条路径归网关的 styrigx.com/*，在网关转发表 workers/auth-gateway/src/forwarding.js 里；scripts/check-worker-routes.mjs 核对本 Worker 没有任何路由。
+# 这几条路径归网关的 styrigx.com/*，在网关转发表 workers/auth-gateway/src/router.js FORWARDING 里；scripts/check-worker-routes.mjs 核对本 Worker 没有任何路由。
 # 部署后要在 Cloudflare 后台核对 styrigx.com 的 Workers Routes 里已经没有指向 styrigx-account 的路由（残留就手删；残留期间默认 fetch 也只回 404）。
 
 [vars]
@@ -60,7 +60,7 @@ database_id = "03f60d23-9c2f-4f3d-a692-764ccaac6f5d"
 migrations_dir = "migrations"
 
 # D1_ACCOUNT_AUTH = 账号鉴权状态（2026-10-29 PR2，migrations/0003_account_auth.sql：epoch、password、passkey、user_handle、challenge、
-# attempt_limit、device、audit、data_migration，每张表 realm 列 = 'account'；见 src/identity/realm.js REALM_ACCOUNT.d1Binding）。
+# attempt_limit、device、audit、data_migration，每张表 realm 列 = 'account'；见 src/core/realm.js REALM_ACCOUNT.d1Binding）。
 # 同一个库 styrigx-account（网关原来同名的 D1_ACCOUNT_AUTH 绑定 PR3 已删）。表随账号部署 job 的 d1 migrations apply 建好。
 [[d1_databases]]
 binding = "D1_ACCOUNT_AUTH"

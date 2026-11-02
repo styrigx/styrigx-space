@@ -3,7 +3,7 @@
  * - makeKV：内存 KV（tests/workers/_harness.cjs，和 Worker 单测同一份，这里转出）。
  * - startCredentialTestServer(port)：启动本地测试服务器，/api/lock-password、/api/lock-passkey、/api/lock-reauth
  *   路由到网关 src/api/ 下的真实 handler（onRequestPost）；/api/account 走网关的转发（src/router.js forward：验锁屏会话、
- *   剥头、写身份头）→ 账号 Worker AccountService 的实现（workers/account/src/entrypoints.js serviceFetch），同正式的两跳（账号拆分 PR3）。
+ *   剥头、写身份头）→ 账号 Worker AccountService 的实现（workers/account/src/rpc/account-service.js serviceFetch），同正式的两跳（账号拆分 PR3）。
  *   网关 env 只绑正式网关有的（锁屏钥匙、SGX_ADMIN_KEY、pepper、D1_LOCK_AUTH、ACCOUNT / ACCOUNT_VERIFIER）；账号 env 自己一对钥匙、
  *   账号根密钥、D1_ACCOUNT_AUTH。两边的 D1 绑定接同一个库（同预览共库 styrigx-test-preview，表按 realm 列分开），
  *   d1.password('account') 这类观测照旧。返回 { kv, d1, env, accountEnv, close, mintAuth, … }。
@@ -11,7 +11,7 @@
  *   （UV=1；CDP 虚拟认证器开 UV 会抛 NotAllowedError，故不用浏览器仪式）。
  * - mintAuth(by)：按当前 Lock 纪元重签 admin 锁屏会话 + LockReauthTicket（sgx-lock-reauth）
  * - mintAccount(by, authAt)：账号会话（sgx-account-session，by 只能 password|passkey）；mintAccountReauth(by)：AccountReauthTicket（sgx-account-reauth）；
- *   mintAccountReset()：AccountResetTicket（sgx-account-reset，by=root）。都用账号 Worker 的代码和账号钥匙签（workers/account/src/identity/account-session.js）
+ *   mintAccountReset()：AccountResetTicket（sgx-account-reset，by=root）。都用账号 Worker 的代码和账号钥匙签（workers/account/src/core/account-session.js）
  *   （set/change/remove/register 会推进 epoch，每次鉴权操作前重签）。
  */
 const http = require('node:http');
@@ -142,10 +142,13 @@ async function startCredentialTestServer(port) {
   const acctPubPem = derToPem(await crypto.subtle.exportKey('spki', akp.publicKey), 'PUBLIC KEY');
   // 动态 import 用字符串拼接避开静态分析（Playwright 会误判 'import' 关键字）
   const dynImport = new Function('u', 'return ' + 'im' + 'port(u)');
-  /* cloudflare:workers 替身：要在 import 账号 Worker 的 entrypoints.js 之前 */
+  /* cloudflare:workers 替身：要在 import 账号 Worker 的 rpc/*.js 之前 */
   await dynImport(pathToFileURL(path.join(REPO, 'tests/workers/account/_cf-workers.mjs')).href);
   const gwRouter = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/src/router.js')).href);
-  const acctEntry = await dynImport(pathToFileURL(path.join(REPO, 'workers/account/src/entrypoints.js')).href);
+  const acctEntry = {
+    ...(await dynImport(pathToFileURL(path.join(REPO, 'workers/account/src/rpc/account-service.js')).href)),
+    ...(await dynImport(pathToFileURL(path.join(REPO, 'workers/account/src/rpc/account-verifier.js')).href)),
+  };
   /* 账号 Worker 的 env（同 workers/account/wrangler.toml 的绑定；资料库不用） */
   const accountEnv = {
     D1_ACCOUNT_AUTH: d1,
@@ -173,7 +176,7 @@ async function startCredentialTestServer(port) {
   const sessMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/src/core/lock-session.js')).href);
   const doorApi = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/src/api/lock-reauth.js')).href);
   const ticketsMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/src/core/tickets.js')).href);
-  const acctSess = await dynImport(pathToFileURL(path.join(REPO, 'workers/account/src/identity/account-session.js')).href);
+  const acctSess = await dynImport(pathToFileURL(path.join(REPO, 'workers/account/src/core/account-session.js')).href);
   /* /api/account：网关转发（验锁屏会话 → 写身份头 → ACCOUNT.fetch），GET / POST 同一条路 */
   const accountViaGateway = ({ request, env: e }) => gwRouter.forward(request, e, {});
 

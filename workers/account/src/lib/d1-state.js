@@ -1,28 +1,28 @@
 /**
- * D1 里的网关认证状态（2026-10-27 从 KV 全部搬来；网关不再绑定 KV）。
+ * D1 里的认证状态（2026-10-27 从 KV 全部搬来）。账号 Worker 这份只读写账号域：D1_ACCOUNT_AUTH（库 styrigx-account）。
  *
  * 为什么搬：Workers KV 最终一致，边缘读最长约 60 秒才看到新值。认证状态几乎都是「写完马上要读到」的：
  * 纪元（吊销）、通行密钥、密码、作废临时钥匙、单独退出设备、单次使用的 challenge、输错计数。
  * D1 读强一致（同一个库只有一个主库）。
  *
- * 读主库（安全读的硬性要求）：网关不开 D1 read replication，也不用 D1 session API。纪元、吊销（临时钥匙、设备）、challenge、
+ * 读主库（安全读的硬性要求）：不开 D1 read replication，也不用 D1 session API。纪元、吊销（临时钥匙、设备）、challenge、
  * 输错计数、临时钥匙这些安全读只走绑定本身（= 主库）；内存和 KV 都不缓存，任何吊销判断都以这一次请求读到的 D1 为准。
- * （tests/workers/auth-gateway/d1-state.test.mjs 扫网关源码核对：任何地方出现 session API 调用就失败。）
+ * （网关那份由 tests/workers/auth-gateway/d1-state.test.mjs 扫源码核对；本 Worker 这份目前没有同样的扫描。）
  *
- * 表（migrations/0005_lock_account_state.sql、0006_auth_state.sql，库 styrigx-auth-gateway；SCHEMA 是同一份语句的代码兜底）：
+ * 表：SCHEMA 照搬网关 migrations/0005_lock_account_state.sql、0006_auth_state.sql 的语句（账号库实际建表用本 Worker migrations/0003_account_auth.sql，
+ * core/account-store.js 带自己的 schema 兜底）：
  * 都是小写 snake_case 名词、都有 realm 列（'lock' | 'account' | 'root'）。本文件管 epoch / passkey / password / user_handle；
  * challenge（passkey-verify.js）、attempt_limit（attempt-limit.js）、tempkey（lock-tempkey.js）、device（account-devices.js）、
  * audit（root-audit.js）的 SQL 在各自模块里，经这里的 authDb / withSchema 访问。kv_migration 只有导入脚本写。
- * 绑定按域：realm.d1Binding（lock → D1_LOCK_AUTH，account → D1_ACCOUNT_AUTH，root → D1_ROOT_AUTH；同一个库 styrigx-auth-gateway）。
+ * 绑定按域：realm.d1Binding（本 Worker 只有 account → D1_ACCOUNT_AUTH）。
  *
  * 上线前的 KV 旧值：scripts/migrate-kv-to-d1.mjs 在部署前跑一次写进 D1（运行时不读 KV，没有回落）。
  *
  * 出错一律抛（D1 未绑定、查询失败）；调用方按 fail closed 处理（签发 503、验票无效）。
- * 表不存在（正式网关的部署 job 不跑迁移）：建表后整次操作重试一次。
+ * 表不存在（迁移没跑的库）：建表后整次操作重试一次。
  *
- * 共享模块（workers/account/src/lib/，账号拆分 PR1 从网关 _kernel/ 搬来）：不 import 任何东西，也不认识具体的域。
- * 域由调用方传入域描述对象（至少有 id、d1Binding，见网关 _kernel/realms.js 的 REALM_*）；
- * 网关 _kernel/d1-state.js 包一层，只认网关的三个域（也认它们的 id），再调这里。
+ * 账号 Worker 自己的一份（账号拆分 PR1 从网关搬来，2026-10-30 起各 Worker 各自实现，没有共享目录）：不 import 任何东西，也不认识具体的域。
+ * 域由调用方传入域描述对象（至少有 id、d1Binding；账号 Worker 传 core/realm.js 的 REALM_ACCOUNT，经 core/account-store.js 带上 schema）。
  */
 
 /**
@@ -48,7 +48,7 @@ export const SCHEMA = Object.freeze([
 
 /**
  * 域描述对象（至少有非空的 id、d1Binding）。只按形状校验，不认识具体的域：具体有哪些域由调用方决定
- * （网关 _kernel/d1-state.js 的 realmOf 只放行网关自己的域）。不像域描述的一律抛错。
+ * 不像域描述的一律抛错。
  * @param {any} realm
  * @returns {{id:string, d1Binding:string}}
  */
