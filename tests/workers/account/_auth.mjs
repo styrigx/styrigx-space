@@ -13,12 +13,13 @@ import './_cf-workers.mjs';
 import { verifyLockSession } from '../../../workers/auth-gateway/src/core/lock-session.js';
 import { writeLockIdentity } from '../../../workers/auth-gateway/src/core/lock-identity.js';
 import { clientContextOf } from '../../../workers/auth-gateway/src/core/forward.js';
-import { signAccountSessionTicket, signTicket } from '../../../workers/account/src/identity/account-session.js';
-import { TICKETS, ACCOUNT_SESSION_COOKIE } from '../../../workers/account/src/identity/realm.js';
+import { signAccountSessionTicket, signTicket } from '../../../workers/account/src/core/account-session.js';
+import { TICKETS, ACCOUNT_SESSION_COOKIE } from '../../../workers/account/src/core/realm.js';
 import { TEST_DEVICE_ID } from '../auth-gateway/_tickets.mjs';
 
-/* entrypoints.js 静态 import 了 cloudflare:workers：替身（_cf-workers.mjs）注册好之后再动态 import */
-const { headerAuth, serviceFetch } = await import('../../../workers/account/src/entrypoints.js');
+/* rpc/*.js 静态 import 了 cloudflare:workers：替身（_cf-workers.mjs）注册好之后再动态 import */
+const { headerAuth } = await import('../../../workers/account/src/gate.js');
+const { serviceFetch } = await import('../../../workers/account/src/rpc/account-service.js');
 
 /**
  * 网关这一跳：验锁屏 cookie → 写身份头（其余原样）。

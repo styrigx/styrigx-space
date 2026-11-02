@@ -1,6 +1,6 @@
 /**
  * @fileoverview API 公共小工具：JSON 响应、错误响应、客户端 IP、同源校验、no-store、限速分桶。
- * 网关（functions/、src/）和账号 / 分享 Worker（各自 lib/http.js 转出）都用这一份。
+ * 账号 Worker 自己的一份（网关、分享 Worker 各自一份同名同义的 lib/http.js）。
  */
 
 /** /api/* 默认的缓存头（middleware 兜底加的也是这个） */

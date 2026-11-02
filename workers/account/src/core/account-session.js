@@ -19,7 +19,7 @@
  * - epoch：Account 纪元（D1 epoch 表 realm='account' 那一行，见 d1-state.js；改账号密码 / 删账号通行密钥时 +1）
  * - authAt：本次登录验证时刻（毫秒）；重签（纪元推进后保持当前设备）时保留原值
  * - exp：过期时刻（毫秒）
- * - deviceId：本次登录的设备 id（_kernel/account-devices.js；设备页列出、可单独退出，黑名单命中 reason=revoked）
+ * - deviceId：本次登录的设备 id（core/account-devices.js；设备页列出、可单独退出，黑名单命中 reason=revoked）
  * 其它格式一律无效。
  *
  * 缺 SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC：签发返回 503 config，验证一律失败

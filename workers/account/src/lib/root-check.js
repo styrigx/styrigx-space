@@ -1,7 +1,7 @@
 /**
  * 根密钥（SGX_ACCOUNT_ROOT_KEY）校验：全站只有这一份实现（PR3「根凭证统一」）。
  *
- * 账号 Worker 里只有一条路径用它：POST /api/account 的 root-reauth / root-reset（identity/account-root.js），再按用途签账号短票。
+ * 账号 Worker 里只有一条路径用它：POST /api/account 的 root-reauth / root-reset（core/account-root.js），再按用途签账号短票。
  *
  * 本函数只做：共用限速检查（全局减速时先等）→ 恒定时间比对（两边去空白）→ 失败计数 + 审计 / 成功清计数。
  * 不签任何票，不读重置开关。fail closed：限速或计数 D1 出错一律 503。
@@ -10,7 +10,7 @@
  *
  * 按域参数化：rootChecker(realm) 给出某个根域的校验函数，
  * 密值名取 realm.rootKey（方案 6.2：REALM_LOCK / REALM_ACCOUNT 各带 rootKey）、计数 / 审计经 realm.d1Binding（同一个域的 rootLimiter / rootAuditor）；本模块不认识具体的域。
- * 账号 identity/account-root.js 用账号库上的 REALM_ACCOUNT（SGX_ACCOUNT_ROOT_KEY、D1_ACCOUNT_AUTH）绑好再用。
+ * 账号 core/account-root.js 用账号库上的 REALM_ACCOUNT（SGX_ACCOUNT_ROOT_KEY、D1_ACCOUNT_AUTH）绑好再用。
  */
 import { timingSafeEqual, normalizeRootKey } from './crypto.js';
 import { rootLimiter } from './root-limit.js';
