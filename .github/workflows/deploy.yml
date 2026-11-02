@@ -134,7 +134,7 @@ jobs:
 
       - name: Layer boundary check (SGX 3.0 分层规范)
         # 依赖方向（docs/architecture.md）：前端 lib ← auth ← shell ← apps ← entries；lib 不含鉴权接口；
-        # Worker 之间：每个 Worker 只 import 自己目录下的文件，没有 workers/shared；网关不许出现账号鉴权标识；账号 Worker 不许有路由（规则 14–17）；
+        # Worker 之间：每个 Worker 只 import 自己目录下的文件，没有 workers/shared；网关不许出现账号鉴权标识；账号 Worker 不许有路由（规则 14–17）；Worker 骨架防回退（规则 18–21，见 workers/README.md）；
         # 相对 import 解析不到文件也算失败；前端禁止 sgx-lock-session（cookie 名）/sgx-lock-shown；禁止用 storage 存解锁状态
         run: node scripts/check-layers.mjs
 
@@ -1219,7 +1219,7 @@ jobs:
   deploy-auth-worker:
     # 鉴权网关 styrigx-auth-gateway：main 上真部署。先于 Pages 部署（Pages 只放静态文件，靠网关验会话）。
     # 路由见 workers/auth-gateway/wrangler.toml（整站通配；workers_dev=false）。账号拆分 PR3 起 /api/account、/api/prefs*、/api/avatar*、
-    # /api/wellbeing*、/avatar/* 也归网关：验门后经服务绑定 ACCOUNT 转给账号 Worker（转发表 src/forwarding.js）。部署后自动冒烟检查线上。
+    # /api/wellbeing*、/avatar/* 也归网关：验门后经服务绑定 ACCOUNT 转给账号 Worker（src/router.js 的转发表 FORWARDING）。部署后自动冒烟检查线上。
     # Pages 部署（build-and-deploy）等这里成功后才开始。
     # 部署顺序：账号、短链（互不依赖，可并行）→ 网关 → Pages。
     # - 服务绑定指向的 Worker 要先在：search / status / chat，以及 ACCOUNT / ACCOUNT_VERIFIER 指向的 styrigx-account（deploy-account-worker）。

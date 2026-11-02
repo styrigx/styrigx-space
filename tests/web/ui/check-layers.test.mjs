@@ -33,6 +33,9 @@ function fixture(files) {
 }
 
 const GW = 'workers/auth-gateway/';
+
+/** 规则 19–21 要的骨架文件（README.md、带 name 的 package.json）：fixture 里的 Worker 目录有 wrangler.toml 时补上，免得干扰别的规则 @param {string} dir 如 'workers/account/' */
+const skeletonFiles = (dir) => ({ [dir + 'README.md']: '# x\n', [dir + 'package.json']: '{"name":"x","private":true,"type":"module"}' });
 const FE = 'web/assets/js/';
 
 test('check-layers：本仓库通过', () => {
@@ -316,13 +319,14 @@ test('规则 16：网关 wrangler.toml 去掉 # 注释后也查；checkRepo 会�
   assert.equal(bad.length, 2, bad.join('\n'));
   assert.match(bad[0], /^workers\/auth-gateway\/wrangler\.toml:2: 网关源码禁止出现账号鉴权标识 SGX_ACCOUNT_PRIVATE（规则 16/);
   const root = fixture({
-    [GW + 'wrangler.toml']: 'name = "styrigx-auth-gateway"\n[[d1_databases]]\nbinding = "D1_ROOT_AUTH"\n',
+    [GW + 'wrangler.toml']: 'name = "styrigx-auth-gateway"\nmain = "src/index.js"\n[[d1_databases]]\nbinding = "D1_ROOT_AUTH"\n',
     [GW + 'src/index.js']: "export const k = 'SGX_ADMIN_KEY';",
+    ...skeletonFiles(GW),
   });
   try {
     const { errors } = layers.checkRepo(root);
     assert.equal(errors.length, 1, errors.join('\n'));
-    assert.match(errors[0], /^workers\/auth-gateway\/wrangler\.toml:3: .*D1_ROOT_AUTH/);
+    assert.match(errors[0], /^workers\/auth-gateway\/wrangler\.toml:4: .*D1_ROOT_AUTH/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -352,7 +356,7 @@ test('规则 17：账号 Worker 的 wrangler.toml 不许有路由（[[routes]]�
   ]) {
     assert.deepEqual(layers.checkAccountToml(rel, src), [], src);
   }
-  const root = fixture({ [rel]: 'name = "styrigx-account"\n\n[[routes]]\npattern = "styrigx.com/avatar/*"\n' });
+  const root = fixture({ [rel]: 'name = "styrigx-account"\nmain = "src/index.js"\n[[routes]]\npattern = "styrigx.com/avatar/*"\n', ...skeletonFiles(AC) });
   try {
     const { errors } = layers.checkRepo(root);
     assert.deepEqual(errors, ['workers/account/wrangler.toml:3: 账号 Worker 不许有公开路由，发现「[[routes]]」（规则 17：账号请求只经网关服务绑定 ACCOUNT 进来，路径在 workers/auth-gateway/src/router.js 登记）']);
@@ -380,4 +384,101 @@ test('maskComments：注释换成空格、换行保留；字符串里的 // 不�
 test('stripComments：字符串里的 // 和 /* 不当注释', () => {
   assert.equal(layers.stripComments("a('https://x/*y') // c\nb"), "a('https://x/*y') \nb");
   assert.equal(frontend.stripComments("x = '//'; // c"), "x = '//';     ");
+});
+
+/* ---------------- 规则 18–21：Worker 骨架防回退（2026-11-02） ---------------- */
+
+/** 一个合规的最小 Worker（wrangler.toml main = src/index.js、README.md、带 name 的 package.json） */
+const okWorker = (w) => ({
+  [`workers/${w}/wrangler.toml`]: `name = "styrigx-${w}"\nmain = "src/index.js"\n`,
+  [`workers/${w}/src/index.js`]: 'export default {};',
+  ...skeletonFiles(`workers/${w}/`),
+});
+
+test('规则 18–21：本仓库每个 Worker 都通过；合规的最小 Worker 不报错', () => {
+  assert.deepEqual(layers.checkWorkerSkeleton(REPO), []);
+  const root = fixture(okWorker('demo'));
+  try {
+    assert.deepEqual(layers.checkRepo(root).errors, []);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('规则 18：workers/** 下出现 functions/ 或 _kernel/（任何深度）都报错', () => {
+  const root = fixture({
+    ...okWorker('demo'),
+    'workers/demo/functions/_middleware.js': 'export const a = 1;',
+    'workers/demo/src/_kernel/lib/http.js': 'export const b = 1;',
+  });
+  try {
+    const errs = layers.checkWorkerSkeleton(root).sort();
+    assert.equal(errs.length, 2, errs.join('\n'));
+    assert.match(errs[0], /^workers\/demo\/functions: 不许有 functions\/ 目录（规则 18/);
+    assert.match(errs[1], /^workers\/demo\/src\/_kernel: 不许有 _kernel\/ 目录（规则 18/);
+    assert.ok(layers.checkRepo(root).errors.some((e) => /规则 18/.test(e)), 'checkRepo 也报');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('规则 19：wrangler.toml 的 main 必须是 src/index.js（旧的 src/worker.js、没写都报；注释和 [env.*] 里的不算）', () => {
+  for (const [toml, re] of [
+    ['name = "styrigx-demo"\nmain = "src/worker.js"\n', /main 必须是 "src\/index\.js"，现在是 "src\/worker\.js"（规则 19）/],
+    ['name = "styrigx-demo"\n# main = "src/index.js"\n', /现在是 （没写）（规则 19）/],
+    ['name = "styrigx-demo"\n[env.preview]\nmain = "src/index.js"\n', /现在是 （没写）（规则 19）/],
+  ]) {
+    const root = fixture({ ...okWorker('demo'), 'workers/demo/wrangler.toml': toml });
+    try {
+      const errs = layers.checkWorkerSkeleton(root);
+      assert.equal(errs.length, 1, toml + ' → ' + JSON.stringify(errs));
+      assert.match(errs[0], re);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test('规则 20、21：缺 README.md、package.json 没有 name（或坏 JSON、没有文件）都报错', () => {
+  const root = fixture({
+    ...okWorker('a'), ...okWorker('b'), ...okWorker('c'), ...okWorker('d'),
+    'workers/b/package.json': '{ "private": true, "type": "module" }',
+    'workers/c/package.json': '{ name: broken',
+  });
+  rmSync(join(root, 'workers/a/README.md'));
+  rmSync(join(root, 'workers/d/package.json'));
+  try {
+    const errs = layers.checkWorkerSkeleton(root);
+    assert.deepEqual(errs, [
+      'workers/a: 缺 README.md（规则 20）',
+      'workers/b/package.json: 必须有 name（规则 21）',
+      'workers/c/package.json: 必须有 name（规则 21）',
+      'workers/d/package.json: 必须有 name（规则 21）',
+    ]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('规则 19–21 只管带 wrangler.toml 的目录：没有 wrangler.toml 的目录缺 main / README / name 都不报（规则 18 照查）', () => {
+  const root = fixture({
+    ...okWorker('demo'),
+    'workers/notes/scratch.txt': 'x',
+    'workers/notes/package.json': '{ "private": true }',
+  });
+  try {
+    assert.deepEqual(layers.checkWorkerSkeleton(root), []);
+    mkdirSync(join(root, 'workers/notes/_kernel'), { recursive: true });
+    const errs = layers.checkWorkerSkeleton(root);
+    assert.equal(errs.length, 1, errs.join('\n'));
+    assert.match(errs[0], /^workers\/notes\/_kernel: 不许有 _kernel\/ 目录（规则 18/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('本仓库：workers/ 下每个子目录都有 wrangler.toml（规则 19–21 不会因为漏了 toml 而漏查）', () => {
+  const dirs = readdirSync(join(REPO, 'workers'), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
+  assert.ok(dirs.length >= 7, dirs.join(','));
+  for (const d of dirs) assert.ok(existsSync(join(REPO, 'workers', d, 'wrangler.toml')), `workers/${d} 缺 wrangler.toml`);
 });

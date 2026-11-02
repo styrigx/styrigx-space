@@ -1,13 +1,13 @@
 # 外壳 UI cookie 契约：`sgx-ui`（2026-10-26，C10）
 
-> 适用：主站 styrigx-space 写；子站 styrigx-blog / styrigx-daymark / styrigx-curio 只读。
+> 适用：主站 styrigx-space 写；图志 atlas.styrigx.com（styrigx-atlas 仓库：根页和 /blog/、/curio/、/daymark/ 三站）只读。
 > 本文只描述**现状**（主站 main 上的写端 / 读端 / 夹具），不改任何代码。
 > 真源头是代码：写端 `web/assets/js/lib/ui-cookie.js`，字段表 / 版本 / 编解码 `web/assets/js/lib/ui-cookie-read.js`，
 > 夹具 `tests/fixtures/ui-cookie-contract.json`（`scripts/gen-ui-cookie-contract.mjs` 跑真写端生成）。本文和代码不一致时以代码为准，并顺手改本文。
 
 ## 一、它是什么
 
-主站的外观和时钟 / 天气设置存在主站 localStorage（**唯一来源**）。子站在别的子域，读不到主站 localStorage，
+主站的外观和时钟 / 天气设置存在主站 localStorage（**唯一来源**）。图志在另一个子域 `atlas.styrigx.com`，读不到主站 localStorage，
 所以主站把这些设置**镜像**到一个 `styrigx.com` 域的 cookie，子站在 `<head>` 里首帧前同步读它，让深浅色、色板、主题色和主站一致、不闪屏。
 
 - 只放 UI 设置，**不放任何凭证 / 会话信息**（会话 cookie 见 `docs/auth-state-machine.md`）。
@@ -23,7 +23,7 @@ sgx-ui=<base64url(UTF-8 JSON)>; Domain=styrigx.com; Path=/; Max-Age=34560000; Sa
 | 属性 | 值 | 说明 |
 |---|---|---|
 | 名字 | `sgx-ui` | `SgxUI.NAME`（`ui-cookie-read.js`） |
-| Domain | `styrigx.com` | 三站共享（`styrigx.com`、`blog.` / `daymark.` / `curio.` 子域都带上） |
+| Domain | `styrigx.com` | 主站和图志共享（`styrigx.com`、`atlas.styrigx.com` 都带上） |
 | Path | `/` | |
 | Max-Age | `34560000`（400 天） | 浏览器上限；主站每次访问都会按需重写，所以旧格式 cookie 最多能活 400 天（见「五、旧数据」） |
 | SameSite | `Lax` | |
@@ -139,17 +139,15 @@ cookie 最长活 400 天，所以旧格式都要能读：
 
 共享外壳分发的读端是 `web/shared/shell/ui-cookie-read.js`（= `web/assets/js/lib/ui-cookie-read.js` 原样），契约夹具是 `web/shared/shell/ui-cookie-contract.json`
 （= `tests/fixtures/ui-cookie-contract.json` 原样），接入说明见 `web/shared/shell/README.md`。
-**但三个子站目前都还没内联这个共享读端**：各自的 `sync-shell.mjs` 只把它记进 `sgx-shell.lock.json`，没有写进仓库；页面用的是各站自己的实现：
+图志（styrigx-atlas 仓库，`atlas.styrigx.com` 的根页和 `/blog/`、`/curio/`、`/daymark/`）用各站的 `sync-shell.mjs` 同步共享外壳；
+它那边各站怎样内联读端、在读端后面加了什么，以 styrigx-atlas 仓库为准，本文不逐站登记（本仓库核对不了）。
 
 | 站 | 读 `sgx-ui` 的文件 | 首帧前怎么跑 |
 |---|---|---|
 | 主站（自检） | `web/assets/js/lib/ui-cookie-read.js`（写端 `ui-cookie.js` import 它拿字段表） | 主站页面不读 cookie；`tests/web/ui/ui-cookie-contract.test.mjs`、`tests/web/e2e/ui-cookie-reader.spec.js` 用它验契约 |
-| styrigx-blog | `web/layouts/partials/sgx-inherit.html`（内联脚本）；自定义色异步部分 `web/assets/js/entries/inherit.ts` | partial 直接内联进 `<head>` |
-| styrigx-daymark | `web/assets/js/sgx/lib/ui-inherit.js` | `web/assets/js/sgx/ui-inherit-run.js` 经 `js.Build` 打成 IIFE，由 `web/layouts/_default/baseof.html` 内联 |
-| styrigx-curio | `web/assets/js/sgx/lib/ui-inherit.js` | 同 daymark：`ui-inherit-run.js` → `baseof.html` 内联 |
+| 图志各站 | 共享读端 `web/shared/shell/ui-cookie-read.js` 的同步副本，加各站自己的一小段 | 见 styrigx-atlas 仓库 |
 
-这些子站实现和本契约有已知出入（版本不校验、仍认 `theme` 别名、大写 `accent`、不认 `LEGACY_SEEDS`、用 `data-sgx-seed`；daymark / curio 还把默认色板当成 `lake`），
-收敛到共享读端是后续任务；在那之前**改契约时要逐个核对这三处实现**。
+改契约时先改共享读端，再在图志仓库跑 `sync-shell.mjs`，并逐站核对各站自己的那一小段。
 
 ## 八、怎么安全地改格式
 
@@ -169,13 +167,13 @@ cookie 最长活 400 天，所以旧格式都要能读：
    node --test tests/web/ui/ui-cookie-contract.test.mjs
    ```
    端到端：`tests/web/e2e/ui-cookie-reader.spec.js`（Playwright，需要先 `hugo --minify -s web`）。
-5. 主站合并后，**每个子站**：`node scripts/sync-shell.mjs` 拉新外壳（`sgx-shell.lock.json` 跟着变），再按「七」的表改各自的读端和单测 / e2e。
+5. 主站合并后，**图志仓库的每个站**：`node scripts/sync-shell.mjs` 拉新外壳（`sgx-shell.lock.json` 跟着变），再逐站核对各自那一小段和单测 / e2e。
    子站读端要能在主站上线新写端之前、之后都正常（新字段缺失 = 默认）。
 
 ### 不兼容的改动（改字段含义、删字段、换编码）—— 升 `v`
 
 - `ui-cookie-read.js` 里 `V` 加一，`VERSIONS` 加上新版本，**旧版本继续留在 `VERSIONS` 里至少 400 天**（cookie 寿命），`normalize()` 按 `v` 分支迁移旧值。
-- 先让所有读端（共享读端 + 「七」里的三处子站实现）认识新版本，再上线写端；否则旧读端会把新 cookie 当「没有」（共享读端）或按错的字段解释（目前子站实现不校验版本）。
+- 先让所有读端（共享读端 + 图志各站跟在读端后面的那一小段）认识新版本，再上线写端；否则旧读端会把新 cookie 当「没有」（共享读端）或按错的字段解释。
 - 夹具里补「新版本」「旧版本」两类用例；「未知版本 v3」那条用例要换成下一个未用的版本号。
 - 其余步骤同上（重生成夹具 → `gen-shell.mjs` → 两个 `--check` → 子站同步并改读端）。
 

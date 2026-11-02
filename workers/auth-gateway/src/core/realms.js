@@ -2,7 +2,7 @@
  * 锁屏凭证域（realm='lock'）与三张锁屏票的配置：用哪把签名钥匙、发什么 cookie、数据在 D1 的哪一行（realm 列）。
  *
  * 账号拆分 PR3（方案第 2、6.2、8 节）：网关只管锁屏。账号凭证（AccountKey）、账号三张票、Account 纪元、账号根密钥
- * 全在账号 Worker styrigx-account（workers/account/src/identity/realm.js）；网关不读账号的表、不持账号钥匙。
+ * 全在账号 Worker styrigx-account（workers/account/src/core/realm.js）；网关不读账号的表、不持账号钥匙。
  * 原来的根域 REALM_ROOT 和 BY_ACCOUNT 删除：锁屏根密钥并入 REALM_LOCK（rootKey = 'SGX_ADMIN_KEY'，rootIssues = 两张锁屏短票）。
  *
  * 钥匙概念名：

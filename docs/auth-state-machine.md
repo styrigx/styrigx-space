@@ -17,7 +17,7 @@
 | `sgx-account-reauth` | 账号 Worker（SGX_ACCOUNT_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | AccountReauthTicket `by.epoch.iat.exp.sig`：进「账号安全」页前再验一次；by = password / passkey / root |
 | `sgx-ui` | 主站 JS | `Domain=styrigx.com` | Secure, SameSite=Lax（非 HttpOnly） | 400 天 | 只有外观设置，子站读；不含任何会话信息 |
 
-六张票分两处登记：锁屏三张在网关 `workers/auth-gateway/functions/_kernel/realms.js`（`TICKETS`），账号三张在账号 Worker `workers/account/src/identity/realm.js`（`TICKETS`）；网关不签、不验账号票（账号拆分 PR3）。签名串一律是 `<cookie 名>|<票内容>`，
+六张票分两处登记：锁屏三张在网关 `workers/auth-gateway/src/core/realms.js`（`TICKETS`），账号三张在账号 Worker `workers/account/src/core/realm.js`（`TICKETS`）；网关不签、不验账号票（账号拆分 PR3）。签名串一律是 `<cookie 名>|<票内容>`，
 同一把私钥签的票互相冒充不了。Lock 三张票共用 Lock 纪元，Account 三张票共用 Account 纪元。
 RootKey 不拥有会话，两把各管各的：锁屏根密钥 `SGX_ADMIN_KEY` 走网关 `/api/root-auth { key, purpose }`，purpose 只有 `lock-reauth` / `lock-reset`；
 账号根密钥 `SGX_ACCOUNT_ROOT_KEY` 走账号 Worker `POST /api/account { action:'root-reauth' | 'root-reset', key }`。各签一张对应的短票（by=root）；LockSessionTicket 的 by 永远没有 root。
@@ -26,18 +26,19 @@ RootKey 不拥有会话，两把各管各的：锁屏根密钥 `SGX_ADMIN_KEY` �
 
 ## 2. 路由（谁处理请求）
 
-`styrigx.com/*`、`blog.styrigx.com/*`、`daymark.styrigx.com/*`、`curio.styrigx.com/*` 全进网关；`daymark.styrigx.com/api/*` 归 `styrigx-daymark-core`、
-`curio.styrigx.com/api/*` 归 `styrigx-curio-core`（更具体），两站的 `/api/lock-session-check` 又比它更具体，归网关。
-静态资源（主站 `/css/ /js/ /fonts/ /fav/ /images/`，子站静态后缀和 `/manifest.json` 等）第一行原样回源，不验会话、不打 `X-SGX-Runtime`。
+网关只登记两条路由：`styrigx.com/*`、`atlas.styrigx.com/*`（图志一个 Pages，三站各占 `/blog/`、`/curio/`、`/daymark/`）。
+`atlas.styrigx.com/daymark/api/*` 归 `styrigx-daymark-core`、`atlas.styrigx.com/curio/api/*` 归 `styrigx-curio-core`（更具体，styrigx-atlas 仓库）；
+图志根上的 `/api/lock-session-check`、`/api/search` 归网关。旧子域名 blog / daymark / curio.styrigx.com 已停用，不再登记。
+静态资源（主站 `/css/ /js/ /fonts/ /fav/ /images/`，图志静态后缀和 `/robots.txt`、`/favicon.ico`、`/blog/manifest.json`）第一行原样回源，不验会话、不打 `X-SGX-Runtime`。
 
 账号路径（`/api/account`、`/api/prefs*`、`/api/avatar*`、`/api/wellbeing*`、`/avatar/*`）同样归网关的 `styrigx.com/*`：网关验门后经服务绑定 `ACCOUNT` 转给账号 Worker
-（转发表 `workers/auth-gateway/src/forwarding.js`）。账号 Worker 没有任何路由（账号拆分 PR3）。
+（转发表 `workers/auth-gateway/src/router.js` 的 `FORWARDING`）。账号 Worker 没有任何路由（账号拆分 PR3）。
 
 Cloudflare 路由规则：不带 `*` 的规则要求整条 URL（含查询串）完全相等；带查询串就不命中（2026-10-21 线上实测，`scripts/lib/cf-routes.mjs`）。
 
 ## 3. 网关的判定（页面）
 
-主站（`functions/_middleware.js`）：
+主站（`workers/auth-gateway/src/gate.js` 的 `onRequest`）：
 
 | 会话 | 路径 | 结果 |
 |---|---|---|
@@ -49,8 +50,8 @@ Cloudflare 路由规则：不带 `*` 的规则要求整条 URL（含查询串）
 | 访客 | 锁屏凭证页 `/settings/security/lock/` | 302 `/?return=<该页>`（管理员验证，不带 `lock=1`） |
 | 有效 | 其他页面 | 200 valid + role，no-store；账号页另注入 `data-sgx-account-session="in|out"`（in 时登录区整段不下发） |
 
-子站（`src/subsites.js`）：有效 → 回源 + no-store；无效 → 302 `https://styrigx.com/?lock=1&why=<no-cookie|invalid-session>&return=<完整地址>`；
-`/api/lock-session-check` blog 204 / daymark、curio 200 / 无效 401。
+图志（`workers/auth-gateway/src/gate.js` 的 `handleSubsite`）：有效 → 回源 + no-store；无效 → 302 `https://styrigx.com/?lock=1&why=<no-cookie|invalid-session>&return=<完整地址>`；
+图志根上的 `/api/lock-session-check`：有效 204、无效 401 `{ ok:false }`（`src/api/lock-session-check.js`）。
 
 `resolveReturn(return, role)`（唯一实现，首页 302 和 session-check 共用）：站内路径（不许 `//`、`/\`、`/lock/`）或 `https://*.styrigx.com`
 （无用户名密码、无反斜杠、不含已下线子站），否则回首页；已登录 + 门内页 → 安全与隐私总览；访客 + 管理员专属页 → upgrade。

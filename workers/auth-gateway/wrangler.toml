@@ -1,6 +1,6 @@
 # styrigx-auth-gateway：鉴权网关（CI 部署；承接 styrigx.com、atlas.styrigx.com 整站请求：会话检查 + 接口；静态资源原样回源）
 #
-# 主站后端代码在本目录：src/（入口、关口、路由表、接口、内核、密钥）+ migrations/（D1）。
+# 主站后端代码在本目录：src/（入口、关口、路由表、接口、内核、密钥；骨架见 workers/README.md）+ migrations/（D1）。
 # 账号（账号密码 / 通行密钥 / 设备 / 账号会话、头像、云同步、数字健康）在账号 Worker styrigx-account（workers/account）：
 # 账号拆分 PR3 起它没有任何公开路由，/api/account、/api/prefs*、/api/avatar*、/api/wellbeing*、/avatar/* 由本 Worker 验门后
 # 经服务绑定 ACCOUNT 转发（src/router.js 的转发表 FORWARDING）。
@@ -30,7 +30,7 @@ head_sampling_rate = 1
 # - Cloudflare 的路由规则不带 * 时要求整条 URL（含查询串）完全相等，遇到 ?lock=1、?utm=… 就不命中 → 请求直达 Pages：
 #   锁屏入口 styrigx.com/?lock=1&return=… 没有会话标记；子站页面带任意查询串不验会话直出正文。
 # - 通配后新增页面目录不会漏登记（fail closed）。静态资源（/css/ /js/ /fonts/ /fav/ /images/）也进 Worker，
-#   但在 src/index.js 第一行就原样回源，不验会话、不改响应（与以前不登记时行为一致）。
+#   但在 src/app.js 第一步就原样回源，不验会话、不改响应（与以前不登记时行为一致）。
 # - 图志 atlas.styrigx.com（2026-11-02，博客 / 奇趣 / 日刻合成一个 Pages，各占 /blog/ /curio/ /daymark/）：
 #   页面、根上的 /api/lock-session-check、/api/search 都归网关；更具体的 atlas.styrigx.com/curio/api/*、
 #   atlas.styrigx.com/daymark/api/* 归两个接口 Worker（styrigx-atlas 仓库），网关这里不登记比它们更具体的规则。
