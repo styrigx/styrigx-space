@@ -211,8 +211,13 @@ async function handlePost(context) {
 
     /* set：未设置过才能设 */
     if (action === 'set') {
+      /* 读失败 → 503，不当成「不存在」去写（fail closed，同上面 remove 的守卫） */
       let existing = null;
-      try { existing = await getPassword(env, REALM_LOCK); } catch (e) {}
+      try {
+        existing = await getPassword(env, REALM_LOCK);
+      } catch (e) {
+        return apiError(503, 'server');
+      }
       if (existing && existing.hash) {
         return apiError(403, 'exists');
       }
