@@ -1,6 +1,7 @@
 title: '日刻'
-# 图志（atlas.styrigx.com）下的子路径：页面、资源、接口都在 /daymark/ 下（中文 /daymark/，英文 /daymark/en/）
-baseURL: 'https://atlas.styrigx.com/daymark/'
+# 主站单树（styrigx.com）下的子路径：页面、资源、接口都在 /daymark/ 下（中文 /daymark/，英文 /daymark/en/）。
+# 2026-11 合并 PR2 起产物由 scripts/assemble.mjs 拼进主站 Pages（dist/site/daymark/）；合并 PR3 之前线上入口仍是 atlas.styrigx.com/daymark/（styrigx-atlas 仓库部署）
+baseURL: 'https://styrigx.com/daymark/'
 defaultContentLanguage: zh
 defaultContentLanguageInSubdir: false
 hasCJKLanguage: true

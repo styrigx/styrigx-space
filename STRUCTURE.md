@@ -2,7 +2,7 @@
 
 按用途分层，根目录只放入口文件和顶层目录。改一处不牵连别处：换网站构建工具只动 `web/`，加 Worker 只动 `workers/`。
 
-2026-11-02 起 `web/` 是包容器（主站 space 容纳子站包，PR1 搬运）：主站整套在 `web/atlas/`，博客、奇趣、日刻各自整套在 `web/blog/`、`web/curio/`、`web/daymark/`；`scripts/`、`tests/`、`workers/`、`docs/` 里子站的东西按站分目录。合并 PR3 之前子站线上仍由 styrigx-atlas 仓库部署，这里的子站文件只构建、只测试；改子站以本仓库为准（冻结规则见合并方案）。
+2026-11-02 起 `web/` 是包容器（主站 space 容纳子站包，PR1 搬运）：主站整套在 `web/atlas/`，博客、奇趣、日刻各自整套在 `web/blog/`、`web/curio/`、`web/daymark/`；`scripts/`、`tests/`、`workers/`、`docs/` 里子站的东西按站分目录。合并 PR2 起四包拼成一棵树（`scripts/assemble.mjs` → `dist/site/`）随主站 Pages 一起部署，`styrigx.com/<站>/` 经网关主站中间件门禁；合并 PR3 之前子站的正式入口和接口仍在 atlas.styrigx.com（styrigx-atlas 仓库部署）；改子站以本仓库为准（冻结规则见合并方案）。
 
 ## 根目录
 
@@ -162,8 +162,10 @@ tests/
 
 ```bash
 node --test tests/workers/*/*.test.mjs tests/web/ui/*.test.mjs
-# 子站单测要先构建子站（命令见 .github/workflows/deploy.yml 的 Subsite builds + unit tests）
-node --test tests/blog/*.test.mjs tests/curio/web/*.test.mjs tests/daymark/web/*.test.mjs
+# 四包构建 + 拼单树（主站 web/atlas/public + 三站 web/<站>/public → dist/site/）；只构建子站用 npm run build:sites
+npm run build
+npm run test:sites   # 子站单测（要先构建子站）
+npx playwright test --config=tests/blog/config/playwright.config.js   # 子站 e2e 对着 dist/site（curio / daymark 同理）
 npx playwright test --config=tests/config/playwright.config.js
 ```
 
@@ -171,6 +173,7 @@ npx playwright test --config=tests/config/playwright.config.js
 
 | 位置 | 是什么 |
 |---|---|
+| `scripts/build-sites.mjs`、`scripts/assemble.mjs` | 四包各自构建、拼成一棵树 `dist/site/`（合并 PR2）：主站产物整份在根上，域名根文件（`_worker.js` `_headers` `_redirects` `robots.txt` `404.html`）只归主站；三站在 `/blog/` `/curio/` `/daymark/` 下，各带自己的 `404.html`。CI 部署的 Pages 产物就是这棵树 |
 | `scripts/blog/` | 博客：`build-css.mjs`、`build-search-index.mjs`（KV `site:blog`）、`gen-code-tokens.mjs`、`serve-static.mjs`、`sync-shell.mjs` |
 | `scripts/curio/` | 奇趣：`gen-seed-sql.mjs`（`data/seed.json` → `workers/curio-core/migrations/0002_seed.sql`）、`sync-shell.mjs` |
 | `scripts/daymark/` | 日刻：`gen-seed-sql.mjs`、`sync-shell.mjs` |

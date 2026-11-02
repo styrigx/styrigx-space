@@ -72,9 +72,9 @@ test('索引：跳过草稿，标 private，网址按语言拼，副标题取描
       title: '你好世界',
       subtitle: '第一篇：测试 & 描述',
       text: '小节 & 标题 正文加粗，链接这里。 echo hi',
-      url: 'https://atlas.styrigx.com/blog/post/2026-01-01-hello/',
+      url: 'https://styrigx.com/blog/post/2026-01-01-hello/',
     });
-    assert.equal(byId['post-2026-01-01-hello-en'].url, 'https://atlas.styrigx.com/blog/en/post/2026-01-01-hello/');
+    assert.equal(byId['post-2026-01-01-hello-en'].url, 'https://styrigx.com/blog/en/post/2026-01-01-hello/');
     assert.equal(byId['post-2026-01-01-hello-en'].lang, 'en');
     assert.equal(byId['post-2026-01-01-hello-en'].subtitle, 'Tag');
     assert.equal(byId['post-2026-01-01-hello-en'].text, 'don\u2019t \u2014 stop');
@@ -115,7 +115,7 @@ test('真实构建：每篇非草稿文章都在索引里，网址和站点地�
   assert.equal(posts.length, expected);
   const sitemap = new Set([...readFileSync(path.join(ROOT, 'web/blog/public/sitemap-0.xml'), 'utf8').matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => decodeURI(m[1])));
   for (const p of posts) {
-    assert.match(p.url, /^https:\/\/atlas\.styrigx\.com\/blog\/(en\/)?post\/[^/]+\/$/);
+    assert.match(p.url, /^https:\/\/styrigx\.com\/blog\/(en\/)?post\/[^/]+\/$/);
     if (!p.private) assert.ok(sitemap.has(p.url), p.url + ' 不在站点地图里');
     assert.ok(p.title && p.text.length > 100, p.url + ' 缺标题或正文');
     assert.ok([...p.text].length <= TEXT_MAX);
