@@ -135,7 +135,7 @@ workers/
 
 Worker 之间的边界（`scripts/check-layers.mjs`，CI 必过）：每个 Worker 只 import 自己目录下的文件，Worker 之间互不 import；没有 `workers/shared` 这类公共目录（2026-10-30 删除，各 Worker 各自一份）；网关源码不许出现账号鉴权标识；账号 Worker 不许有路由。规则见 `docs/architecture.md`「Worker 边界」。
 
-安全响应头（2026-10-25）：网关的值在 `workers/auth-gateway/functions/_kernel/lib/security-headers.js`；账号、短链 Worker 各自一份同值的 `src/lib/security-headers.js`（2026-10-30 起没有 `workers/shared`，单测核对与网关同值），`scripts/gen-csp.mjs` 同时生成三份 `csp-hashes.js`。
+安全响应头（2026-10-25）：网关的值在 `workers/auth-gateway/src/lib/security-headers.js`；账号、短链 Worker 各自一份同值的 `src/lib/security-headers.js`（2026-10-30 起没有 `workers/shared`，单测核对与网关同值），`scripts/gen-csp.mjs` 同时生成三份 `csp-hashes.js`。
 
 | 出口 | 加什么 |
 |---|---|
@@ -146,7 +146,7 @@ Worker 之间的边界（`scripts/check-layers.mjs`，CI 必过）：每个 Work
 | 网关代理的子站（blog / daymark / curio）页面和跳转 | 只有 HSTS；子站内容的 CSP 等各自审计后再加 |
 | `proxy-rules.styrigx.com` | 上游头一律不透传，只留 ETag / Last-Modified，加 nosniff |
 
-Report-Only 里的内联脚本 sha256 由 `scripts/gen-csp.mjs` 从生产构建算出（`workers/auth-gateway/functions/_kernel/lib/csp-hashes.js`），CI 在构建后跑 `--check`。改了模板里的内联脚本：`hugo --minify -s web && node scripts/gen-csp.mjs`。
+Report-Only 里的内联脚本 sha256 由 `scripts/gen-csp.mjs` 从生产构建算出（`workers/auth-gateway/src/lib/csp-hashes.js`），CI 在构建后跑 `--check`。改了模板里的内联脚本：`hugo --minify -s web && node scripts/gen-csp.mjs`。
 
 ## tests/ 测试
 

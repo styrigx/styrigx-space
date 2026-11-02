@@ -2,7 +2,7 @@
  * @fileoverview 设置 → 服务状态（/settings/status/）：取 GET /api/status、渲染横幅 / 站点卡 / 近期故障，页面可见时每 60 秒刷新。
  * 2026-10-24 PR4：原来是顶栏三栏的「状态」页（/status/，apps/status.js），整页挪进账号页成为子页；之后从账号页搬到设置，旧地址删除；数据和行为不变。
  *
- * - 管理员专属页（网关 _kernel/return.js ADMIN_ONLY_PATHS，访客 302），只认管理员锁屏会话，不问账号会话。
+ * - 管理员专属页（网关 src/core/return.js ADMIN_ONLY_PATHS，访客 302），只认管理员锁屏会话，不问账号会话。
  * - 同源 cookie（credentials: 'same-origin'），no-store；网关验锁屏会话（admin / visitor 都行），没会话 401。
  * - 首帧（2026-10-24 PR3）：本机存着上次成功拿到的数据（localStorage sgx-status-cache，24 小时内）就先直接画出来，
  *   页脚是那份数据的「更新于 hh:mm」，同时照常请求，回来再换成新数据；没有缓存才出骨架。401 时清掉缓存。

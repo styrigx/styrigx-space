@@ -34,7 +34,8 @@ export function apiError(status, code, extra, headers) {
 }
 
 /**
- * 网关 / 账号 / 分享 Worker 返回的全部 error 码和各自用到的 HTTP 状态（只登记，不改写）。
+ * 全仓 error 码登记表：网关 / 账号 / 分享 Worker 返回的全部 error 码和各自用到的 HTTP 状态（只登记，不改写）。
+ * 账号 / 分享 Worker 的 lib/http.js 各有一份副本；tests/workers/auth-gateway/error-codes.test.mjs 只按这一份核对。
  * 新加一个码要在这里登记；前端怎么显示见 tests/workers/auth-gateway/error-codes.test.mjs。
  */
 export const ERROR_CODES = Object.freeze({

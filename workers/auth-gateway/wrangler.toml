@@ -1,6 +1,6 @@
 # styrigx-auth-gateway：鉴权网关（CI 部署；承接 styrigx.com、atlas.styrigx.com 整站请求：会话检查 + 接口；静态资源原样回源）
 #
-# 主站后端代码在本目录：src/（入口、关口、路由表、接口、内核、密钥；骨架见 workers/README.md）+ migrations/（D1）。
+# 主站后端代码在本目录：src/（入口、关口、路由表、接口、内核、密钥）+ migrations/（D1）。
 # 账号（账号密码 / 通行密钥 / 设备 / 账号会话、头像、云同步、数字健康）在账号 Worker styrigx-account（workers/account）：
 # 账号拆分 PR3 起它没有任何公开路由，/api/account、/api/prefs*、/api/avatar*、/api/wellbeing*、/avatar/* 由本 Worker 验门后
 # 经服务绑定 ACCOUNT 转发（src/router.js 的转发表 FORWARDING）。

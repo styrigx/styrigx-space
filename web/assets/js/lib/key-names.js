@@ -1,5 +1,5 @@
 /**
- * @fileoverview 钥匙概念名（全仓统一）——前端镜像，与 workers/auth-gateway/functions/_kernel/realms.js 的 KEY_* 同值。
+ * @fileoverview 钥匙概念名（全仓统一）——前端镜像，与 workers/auth-gateway/src/core/realms.js 的 KEY_* 同值。
  * 概念名：RootKey / AccountKey / LockKey。
  */
 

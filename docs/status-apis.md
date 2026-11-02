@@ -46,7 +46,7 @@ cookie 值、挑战原文）。调用方列表由 `grep web/assets/js/` 下的 f
   （`POST /api/account { action:'root-reset', key }`，比对 `SGX_ACCOUNT_ROOT_KEY`）只签 AccountResetTicket（`sgx-account-reset`，by=root），重置页设好新 AccountKey 后正常登录（不顺带签账号会话）。`root-reauth` 同理签 AccountReauthTicket（要有效账号会话）。
 - 锁屏弹层的「无法登录？」只管锁屏（`auth/reset-flow.js`）：锁屏根密钥 → `POST /api/lock-reset verify`；
   恢复开关无效时服务端返回 `needLock`，再验锁屏凭证（锁屏通行密钥 / 锁屏密码，`lockProof`）。网关不读账号凭证。
-  锁屏根密钥比对只在网关 `_kernel/root-check.js`（`SGX_ADMIN_KEY`）；账号根密钥比对只在账号 Worker `src/lib/root-check.js`（`SGX_ACCOUNT_ROOT_KEY`），两套互不相干、各自计数。
+  锁屏根密钥比对只在网关 `src/core/root-check.js`（`SGX_ADMIN_KEY`）；账号根密钥比对只在账号 Worker `src/lib/root-check.js`（`SGX_ACCOUNT_ROOT_KEY`），两套互不相干、各自计数。
 - 前置条件是已解锁的 admin 锁屏会话，但锁屏会话**从不**被当作账号认证。
 - 锁屏凭证页的 LockReauthTicket（`sgx-lock-reauth`）由锁屏凭证（`lock-passkey auth` / `lock-password verify`
   带 `reauth:true`）或锁屏根密钥（`root-auth` `purpose:'lock-reauth'`）签发，SGX_LOCK_* 签名，与账号会话无关。
