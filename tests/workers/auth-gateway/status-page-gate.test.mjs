@@ -1,7 +1,7 @@
 /**
- * 聊天 /chat/ 与服务状态 /settings/status/（含 /en/）和其他主站内页一样过网关 _middleware：
+ * 聊天 /chat/ 与服务状态 /settings/status/（含 /en/）和其他主站内页一样过网关 gate.js：
  *   没会话 / 坏 cookie → 302 到首页锁屏（?lock=1&return=<原路径>，no-store）；admin 会话放行（200）；
- *   visitor：聊天放行；服务状态是管理员专属页（_kernel/return.js ADMIN_ONLY_PATHS）→ 和锁屏凭证页一样 302 到首页的管理员验证（?return=）。
+ *   visitor：聊天放行；服务状态是管理员专属页（src/core/return.js ADMIN_ONLY_PATHS）→ 和锁屏凭证页一样 302 到首页的管理员验证（?return=）。
  *   服务状态页只认管理员锁屏会话，不问账号会话（没有账号 cookie、没绑 ACCOUNT_VERIFIER 也 200）。
  *   /api/status 本身的会话校验见 tests/workers/auth-gateway/search-api.test.mjs。
  * 运行：node --test tests/workers/auth-gateway/status-page-gate.test.mjs
@@ -9,8 +9,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { signLockSessionTicket } from '../../../workers/auth-gateway/functions/_kernel/lock-session.js';
-import { onRequest as mw } from '../../../workers/auth-gateway/functions/_middleware.js';
+import { signLockSessionTicket } from '../../../workers/auth-gateway/src/core/lock-session.js';
+import { onRequest as mw } from '../../../workers/auth-gateway/src/gate.js';
 import { testLockSession } from './_tickets.mjs';
 import { genKeyPair, withAuthD1 } from '../_harness.mjs';
 

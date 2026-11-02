@@ -2,7 +2,7 @@
  * @fileoverview 鉴权 Worker：把 Secrets Store 绑定换成普通字符串。
  *
  * Secrets Store 绑定是对象，要 `await env.X.get()` 才拿到值；
- * functions/ 里的代码全按 Pages 的写法直接读 `env.X` 字符串。
+ * api/、core/ 里的代码全按 Pages 的写法直接读 `env.X` 字符串。
  * 这里在每个请求开始时统一取一次，换成字符串后再交给原代码，原代码一行不改。
  *
  * - 已经是字符串的（本地测试、或以后改回普通 Secret）原样保留。

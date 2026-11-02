@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * 一次性迁移：认证库 KV（KV_LOCK_DOOR / KV_ACCOUNT_LOGIN，同一个 namespace）的键名改成第 5 层的新名字。
- * 新键名表见 workers/auth-gateway/functions/_kernel/realms.js；说明见 workers/auth-gateway/README.md「KV 键名迁移」。
+ * 新键名表见 workers/auth-gateway/src/core/realms.js；说明见 workers/auth-gateway/README.md「KV 键名迁移」。
  *
  * 用 Cloudflare REST API（不依赖 wrangler 登录），凭据只从环境变量读，不写进仓库：
  *   CF_API_TOKEN     有该 namespace「Workers KV Storage: Edit」权限的 API Token

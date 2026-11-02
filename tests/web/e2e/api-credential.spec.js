@@ -5,7 +5,7 @@
  *
  * - 不 mock fetch：浏览器用真实 fetch 发请求到 cred-e2e-helpers.cjs 启动的
  *   本地测试服务器；
- * - 测试服务器跑的是 functions/api/ 下的真实 handler（onRequestPost），
+ * - 测试服务器跑的是网关 src/api/ 下的真实 handler（onRequestPost），
  *   配内存 KV；断言 KV 中对应键更新、通行密钥 class 正确。
  * - register 的 WebAuthn 仪式由 Node 端合成 attestation（见 helper 注释）。
  *

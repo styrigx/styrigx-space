@@ -250,7 +250,7 @@ async function d1Query(sql, params) {
   const j = await r.json();
   return (j && j.result && j.result[0]) || {};
 }
-/** 打开重置开关：插一行还没见过的开关（first_seen = 0，同 Sloan 在后台控制台手动插的那条，见 _kernel/lock-reset-switch.js）。
+/** 打开重置开关：插一行还没见过的开关（first_seen = 0，同 Sloan 在后台控制台手动插的那条，见网关 src/core/lock-reset-switch.js）。
  *  先 CREATE ... IF NOT EXISTS（同代码兜底的那句）：库没跑过迁移（模拟器 --no-migrations）时网关还没读过开关、表还没建。 */
 async function armResetSwitch() {
   await d1Query('CREATE TABLE IF NOT EXISTS lock_reset_switch (hash TEXT PRIMARY KEY, first_seen INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0)');

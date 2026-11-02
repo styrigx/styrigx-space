@@ -85,7 +85,7 @@ jobs:
           node --test tests/workers/auth-gateway/*.test.mjs tests/workers/account/*.test.mjs tests/workers/share/*.test.mjs tests/workers/chat/*.test.mjs tests/workers/search-index/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs tests/web/ui/*.test.mjs
 
       - name: Auth Worker bundle check (styrigx-auth-gateway, dry-run)
-        # 主站后端代码全在 workers/auth-gateway（src/ + functions/）；只打包不部署，import 断了 CI 就红
+        # 主站后端代码全在 workers/auth-gateway/src/；只打包不部署，import 断了 CI 就红
         working-directory: workers/auth-gateway
         run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-auth-gateway-dist
 
@@ -134,7 +134,7 @@ jobs:
 
       - name: Layer boundary check (SGX 3.0 分层规范)
         # 依赖方向（docs/architecture.md）：前端 lib ← auth ← shell ← apps ← entries；lib 不含鉴权接口；
-        # 网关 _kernel / api / _middleware 只 import _kernel，src 只 import src 和 _kernel（routes.js、index.js 例外）；
+        # Worker 之间：每个 Worker 只 import 自己目录下的文件，没有 workers/shared；网关不许出现账号鉴权标识；账号 Worker 不许有路由（规则 14–17）；
         # 相对 import 解析不到文件也算失败；前端禁止 sgx-lock-session（cookie 名）/sgx-lock-shown；禁止用 storage 存解锁状态
         run: node scripts/check-layers.mjs
 
@@ -265,7 +265,7 @@ jobs:
     # WebAuthn 虚拟认证器 + 真实网关代码的 E2E（tests/web/e2e/passkey.spec.js、account-challenge.spec.js）。生产部署的所有 job 都等它通过。
     # 按事件分两条路（job 名不变：passkey-e2e 是分支保护的必需检查，结论就是这个 job 的结论）：
     # - pull_request：本地模拟器 tests/web/e2e/preview-emulator.cjs——同一个组合入口 tests/web/e2e/preview-worker.js
-    #   （网关 workers/auth-gateway/src/index.js + 账号 Worker 命名入口的实现，账号拆分 PR3；SGX_ENV=preview），
+    #   （网关 workers/auth-gateway/src/app.js + 账号 Worker 命名入口的实现，账号拆分 PR3；SGX_ENV=preview），
     #   D1 是 node:sqlite 内存库（网关 2026-10-27 起不绑 KV）、Cloudflare D1 / KV REST 也由它在本机模拟；env.ASSETS 读本步骤构建的 web/public。
     #   不用任何 Cloudflare secret、不部署预览、不清预览 D1 / 不跑 D1 迁移。
     # - push 到 main、workflow_dispatch：真实预览部署 passkey-e2e.styrigx-space.pages.dev + 预览 D1（下面带
@@ -302,7 +302,7 @@ jobs:
         #   web/content/*.md 只改 title / linkTitle / description / summary / keywords（这里的页面只有 front matter，
         #   url / layout 决定路由，E2E 正好走这些页面，改了就照跑；新增页面也照跑）。
         # 照跑名单优先于上面的跳过规则：.github/**（workflow 本身）、package.json、package-lock.json、web/shared/**、
-        #   web/assets/js/**（含 shell/）、任何 _kernel/**。删除、类型变化也一律照跑。
+        #   web/assets/js/**（含 shell/）、网关内核 workers/auth-gateway/src/core/**、src/lib/**（原 _kernel/**）。删除、类型变化也一律照跑。
         # PR 比 base...head（合并基点起 PR 自己的改动）；push 直接比 before 和 after 两棵树（快进时等同 before...after，
         # 强推时把被覆盖掉的改动也算进来）；before 全零（新分支）、workflow_dispatch、拿不到 SHA、fetch / diff 出错、空 diff 都照跑。
         # 本步意外报错也不拦：continue-on-error，拿不到 docs_only=true 就照跑。
@@ -351,8 +351,8 @@ jobs:
           while IFS=$'\t' read -r st f; do
             n=$((n + 1))
             case "$f" in
-              # 照跑名单优先于下面的跳过规则（workflow 自身、依赖、共享外壳、前端 JS、网关内核（含 _kernel/lib/））
-              .github/* | package.json | package-lock.json | web/shared/* | web/assets/js/* | */_kernel/*)
+              # 照跑名单优先于下面的跳过规则（workflow 自身、依赖、共享外壳、前端 JS、网关内核 src/core/、src/lib/）
+              .github/* | package.json | package-lock.json | web/shared/* | web/assets/js/* | workers/auth-gateway/src/core/* | workers/auth-gateway/src/lib/*)
                 verdict false "$f: always run" ;;
             esac
             [ "$st" = M ] || [ "$st" = A ] || verdict false "$st $f (deleted / type change): run"

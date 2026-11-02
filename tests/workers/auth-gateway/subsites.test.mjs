@@ -1,5 +1,5 @@
 /**
- * 网关子站门禁（workers/auth-gateway/src/subsites.js）：图志 atlas.styrigx.com 的 /blog/、/curio/、/daymark/
+ * 网关子站门禁（workers/auth-gateway/src/gate.js）：图志 atlas.styrigx.com 的 /blog/、/curio/、/daymark/
  * - 页面：会话有效回源（HTML 加 no-store），无效 302 主站锁屏（带 why 和 return）
  * - 根上的 /api/lock-session-check：有效 204，无效 401
  * - 静态资源后缀不验会话
@@ -17,9 +17,9 @@ import { genKeyPair, makeAuthD1 } from '../_harness.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
-const worker = (await import(REPO + '/workers/auth-gateway/src/index.js')).default;
-const { isStaticAsset, subsiteFor, siteOf, markSubsiteRole } = await import(REPO + '/workers/auth-gateway/src/subsites.js');
-const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
+const worker = (await import(REPO + '/workers/auth-gateway/src/app.js')).default;
+const { isStaticAsset, subsiteFor, siteOf, markSubsiteRole } = await import(REPO + '/workers/auth-gateway/src/gate.js');
+const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/src/core/lock-session.js');
 
 const { priv: PRIV, pub: PUB } = await genKeyPair();
 

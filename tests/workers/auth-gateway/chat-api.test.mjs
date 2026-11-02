@@ -1,5 +1,5 @@
 /**
- * 聊天 /api/chat（网关，functions/api/chat.js）：2026-10-22 起网关只做门 + 转发，聊天本身在 styrigx-chat（workers/chat）。
+ * 聊天 /api/chat（网关，src/api/chat.js）：2026-10-22 起网关只做门 + 转发，聊天本身在 styrigx-chat（workers/chat）。
  * 这里测：门（同源 / 会话 / 只许管理员，GET 和 POST）、转发（服务绑定 CHAT、路径、X-Sgx-Role、请求体原样、不转 cookie）、
  * 响应原样流回（状态码 / 头 / SSE 不缓冲）、没绑定 503 no_key、绑定抛错 502 upstream、wrangler.toml（CHAT 绑定，
  * 没有 CHAT_* 变量和聊天钥匙绑定）、中间件；再接上真的 styrigx-chat 跑一遍端到端（上游 fetch mock）。
@@ -10,9 +10,9 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { signLockSessionTicket } from '../../../workers/auth-gateway/functions/_kernel/lock-session.js';
-import * as chat from '../../../workers/auth-gateway/functions/api/chat.js';
-import { API_ROUTES } from '../../../workers/auth-gateway/src/routes.js';
+import { signLockSessionTicket } from '../../../workers/auth-gateway/src/core/lock-session.js';
+import * as chat from '../../../workers/auth-gateway/src/api/chat.js';
+import { API_ROUTES } from '../../../workers/auth-gateway/src/router.js';
 import { SECRET_NAMES } from '../../../workers/auth-gateway/src/secrets.js';
 import chatWorker from '../../../workers/chat/src/index.js';
 import { testLockSession } from './_tickets.mjs';
@@ -146,7 +146,7 @@ test('GET 门：没会话 / 坏会话 401、访客 403 admin_only；管理员 �
   assert.equal(svcLog[0].method, 'GET');
   assert.equal(svcLog[0].headers['x-sgx-role'], 'admin');
   assert.ok(!('cookie' in svcLog[0].headers), '不转 cookie');
-  const { pickHandler } = await import('../../../workers/auth-gateway/src/index.js');
+  const { pickHandler } = await import('../../../workers/auth-gateway/src/router.js');
   assert.equal(pickHandler(API_ROUTES.get('/api/chat'), 'GET'), chat.onRequestGet);
   assert.equal(pickHandler(API_ROUTES.get('/api/chat'), 'POST'), chat.onRequestPost);
 });
@@ -224,7 +224,7 @@ test('没绑定 CHAT → 503 no_key（GET / POST）；调 styrigx-chat 抛错 �
 });
 
 test('gateway 中间件：/api/chat 没会话 401（不进接口）；访客能到接口（由接口回 admin_only）', async () => {
-  const { onRequest: mw } = await import('../../../workers/auth-gateway/functions/_middleware.js');
+  const { onRequest: mw } = await import('../../../workers/auth-gateway/src/gate.js');
   const mk = (cookie) => ({
     request: new Request('https://styrigx.com/api/chat', { method: 'POST', headers: Object.assign({ Origin: 'https://styrigx.com', 'Content-Type': 'application/json' }, cookie ? { Cookie: 'sgx-lock-session=' + cookie } : {}), body: JSON.stringify({ messages: MSGS }) }),
     env: env(),

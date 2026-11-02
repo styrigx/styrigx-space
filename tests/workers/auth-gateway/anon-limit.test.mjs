@@ -1,5 +1,5 @@
 /**
- * 无会话写接口的按 IP 总限流（_kernel/anon-limit.js + _middleware.js，2026-10-28 PR2）。
+ * 无会话写接口的按 IP 总限流（src/core/anon-limit.js + gate.js，2026-10-28 PR2）。
  * - 无会话 POST 那五个接口：先过 ANON_LIMITER（按 CF-Connecting-IP），超了 429 cooldown + Retry-After，不进端点
  * - 有效会话（任何角色）、GET、别的接口：不过限流器
  * - 绑定缺失 / 限流器抛错：放行（防刷总闸，不是安全门）
@@ -10,8 +10,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { testLockSession } from './_tickets.mjs';
 import { genKeyPair, makeAuthD1 } from '../_harness.mjs';
-import { anonLimit, ANON_LIMITED_APIS, ANON_LIMIT_PERIOD } from '../../../workers/auth-gateway/functions/_kernel/anon-limit.js';
-import { onRequest } from '../../../workers/auth-gateway/functions/_middleware.js';
+import { anonLimit, ANON_LIMITED_APIS, ANON_LIMIT_PERIOD } from '../../../workers/auth-gateway/src/core/anon-limit.js';
+import { onRequest } from '../../../workers/auth-gateway/src/gate.js';
 
 const { priv: PRIV, pub: PUB } = await genKeyPair();
 

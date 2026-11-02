@@ -2,7 +2,7 @@
  * LockReauthTicket / LockResetTicket（锁屏凭证再验证、重置锁屏）+ 删除应用凭证。
  *
  * 覆盖：
- * - 短票（_kernel/tickets.js）：LockReauth / LockReset 用 SGX_LOCK_* 签、各自 cookie；签名串带 cookie 名，
+ * - 短票（src/core/tickets.js）：LockReauth / LockReset 用 SGX_LOCK_* 签、各自 cookie；签名串带 cookie 名，
  *   互相冒充不了；账号钥匙签的票验不过；by 按票限制（LockReset 只认 root / password / passkey）；纪元 = Lock 纪元
  * - 再验证：解锁密码 verify reauth:true 只签 LockReauthTicket 不签会话；访客写死「密码错误」不读存储；没会话 401；
  *   锁屏通行密钥 auth reauth:true 同样要 admin 会话、访客写死失败；
@@ -28,11 +28,11 @@ import { makeKV, genKeyPair, authD1For } from '../_harness.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const GW = REPO + '/workers/auth-gateway/';
-const API = GW + 'functions/api/';
+const API = GW + 'src/api/';
 
-const tickets = await import(GW + 'functions/_kernel/tickets.js');
-const { SHORT_TICKET_MAX_AGE } = await import(GW + 'functions/_kernel/realms.js');
-const { makePasswordRecord } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lib/password.js');
+const tickets = await import(GW + 'src/core/tickets.js');
+const { SHORT_TICKET_MAX_AGE } = await import(GW + 'src/core/realms.js');
+const { makePasswordRecord } = await import(REPO + '/workers/auth-gateway/src/core/password.js');
 
 const LOCK = await genKeyPair();
 const ACCT = await genKeyPair();
@@ -338,7 +338,7 @@ test('删锁屏通行密钥：最后一把（没有解锁密码）→ 403 last-k
 /* ================= 根凭证 / 重置锁屏 ================= */
 
 test('/api/root-session 已删除：路由和文件都不在', async () => {
-  const { API_ROUTES } = await import(GW + 'src/routes.js');
+  const { API_ROUTES } = await import(GW + 'src/router.js');
   assert.ok(!API_ROUTES.has('/api/root-session'));
   assert.ok(!existsSync(API + 'root-session.js'));
   assert.ok(!existsSync(REPO + '/web/assets/js/lib/root-session.js'));
@@ -386,7 +386,7 @@ test('/api/lock-reset：恢复开关关闭时根密钥 + 解锁密码 → 签 Lo
 /* ================= 删除 ================= */
 
 test('删除：/api/stepup、/api/app-token 路由与文件都不在；源码不再引用 SGX_STEPUP_* / SGX_APP_*', async () => {
-  const { API_ROUTES } = await import(GW + 'src/routes.js');
+  const { API_ROUTES } = await import(GW + 'src/router.js');
   assert.ok(!API_ROUTES.has('/api/stepup'));
   assert.ok(!API_ROUTES.has('/api/app-token'));
   assert.ok(API_ROUTES.has('/api/lock-reauth'));
@@ -399,7 +399,6 @@ test('删除：/api/stepup、/api/app-token 路由与文件都不在；源码不
       else if (e.name.endsWith('.js')) files.push(path.join(d, e.name));
     }
   };
-  walk(GW + 'functions');
   walk(GW + 'src');
   walk(REPO + '/web/assets/js');
   for (const f of files) {

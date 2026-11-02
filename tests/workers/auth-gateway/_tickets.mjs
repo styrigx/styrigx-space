@@ -1,14 +1,14 @@
 /**
- * 测试用：按三张锁屏票的真实格式签测试 cookie 值（与 workers/auth-gateway/functions/_kernel 同一套签名函数）。
+ * 测试用：按三张锁屏票的真实格式签测试 cookie 值（与 workers/auth-gateway/src/core 同一套签名函数）。
  * 账号票（会话 / reauth / reset）只在账号 Worker 签：见 tests/workers/account/_auth.mjs（账号拆分 PR3）。
  * - testLockSession(priv, epoch, role, by?)：role 'admin' | 'visitor'；admin 的 by 默认 password（可传 passkey）；
  *   visitor 固定 by=tempkey、tempkeyId=TEST_TEMPKEY_ID（验票只查这把钥匙有没有被作废）
  * - testTicket(priv, name, by, epoch, now?)：两张锁屏 reset / reauth 短票（name 用 realms.js 的票名常量）
  * - *Cookie() 版本直接返回「cookie名=值」
  */
-import { signLockSessionTicket } from '../../../workers/auth-gateway/functions/_kernel/lock-session.js';
-import { signTicket } from '../../../workers/auth-gateway/functions/_kernel/tickets.js';
-import { TICKETS, LOCK_SESSION_COOKIE } from '../../../workers/auth-gateway/functions/_kernel/realms.js';
+import { signLockSessionTicket } from '../../../workers/auth-gateway/src/core/lock-session.js';
+import { signTicket } from '../../../workers/auth-gateway/src/core/tickets.js';
+import { TICKETS, LOCK_SESSION_COOKIE } from '../../../workers/auth-gateway/src/core/realms.js';
 
 export const TEST_TEMPKEY_ID = 'tktesttesttest01';
 export const TEST_DEVICE_ID = 'devtestdevtest01';

@@ -1,5 +1,5 @@
 /**
- * 分享短链 Worker styrigx-share（workers/share，2026-10-24）+ 网关 ShareIssuer（workers/auth-gateway/src/share-issuer.js）。
+ * 分享短链 Worker styrigx-share（workers/share，2026-10-24）+ 网关 ShareIssuer（workers/auth-gateway/src/core/link-keys.js）。
  * 运行：node --test tests/workers/share/*.test.mjs
  *
  * 两边都跑真代码：短链 Worker 的 default.fetch；服务绑定 AUTH / ISSUER 接到网关真实的 verifier.js / share-issuer.js
@@ -25,12 +25,12 @@ const REPO = new URL('../../../', import.meta.url).pathname;
 const worker = (await import(REPO + 'workers/share/src/index.js')).default;
 const links = await import(REPO + 'workers/share/src/lib/links.js');
 const { _resetMem, _setRandom } = await import(REPO + 'workers/share/src/open.js');
-const issuerMod = await import(REPO + 'workers/auth-gateway/src/share-issuer.js');
-const { checkLockSession } = await import(REPO + 'workers/auth-gateway/src/verifier.js');
-const { signLockSessionTicket } = await import(REPO + 'workers/auth-gateway/functions/_kernel/lock-session.js');
-const TL = await import(REPO + 'workers/auth-gateway/functions/_kernel/lock-tempkey.js');
-const { onRequestPost: tempPost } = await import(REPO + 'workers/auth-gateway/functions/api/lock-tempkey.js');
-const { verifyLockSession } = await import(REPO + 'workers/auth-gateway/functions/_kernel/lock-session.js');
+const issuerMod = await import(REPO + 'workers/auth-gateway/src/core/link-keys.js');
+const { checkLockSession } = await import(REPO + 'workers/auth-gateway/src/core/lock-session.js');
+const { signLockSessionTicket } = await import(REPO + 'workers/auth-gateway/src/core/lock-session.js');
+const TL = await import(REPO + 'workers/auth-gateway/src/core/lock-tempkey.js');
+const { onRequestPost: tempPost } = await import(REPO + 'workers/auth-gateway/src/api/lock-tempkey.js');
+const { verifyLockSession } = await import(REPO + 'workers/auth-gateway/src/core/lock-session.js');
 
 const LOCK = await genKeyPair();
 const H = 3600e3;
@@ -190,7 +190,7 @@ test('check-worker-routes：/s/*、/api/share* 归短链 Worker；网关接口�
   const gw = readRoutes(readFileSync(REPO + 'workers/auth-gateway/wrangler.toml', 'utf8'));
   const acct = readRoutes(readFileSync(REPO + 'workers/account/wrangler.toml', 'utf8'));
   const share = readRoutes(readFileSync(REPO + 'workers/share/wrangler.toml', 'utf8'));
-  const apis = readApiRoutes(readFileSync(REPO + 'workers/auth-gateway/src/routes.js', 'utf8'));
+  const apis = readApiRoutes(readFileSync(REPO + 'workers/auth-gateway/src/router.js', 'utf8'));
   const pages = ['/', '/account/', '/settings/security/tempkeys/', '/settings/', '/search/', '/en/settings/'];
   assert.deepEqual(checkWorkers(gw, acct, share, apis, pages), []);
   assert.ok(checkWorkers(gw, acct, share.concat('styrigx.com/s*'), apis, pages).some((e) => e.includes('/settings/') || e.includes('/search/')));

@@ -2,7 +2,7 @@
  * 凭证类 API 真请求 e2e 的共享 helper（Item 25）。
  * - makeKV：内存 KV（tests/workers/_harness.cjs，和 Worker 单测同一份，这里转出）。
  * - startCredentialTestServer(port)：启动本地测试服务器，/api/lock-password、/api/lock-passkey、/api/lock-reauth
- *   路由到网关 functions/api/ 下的真实 handler（onRequestPost）；/api/account 走网关的转发（src/index.js forward：验锁屏会话、
+ *   路由到网关 src/api/ 下的真实 handler（onRequestPost）；/api/account 走网关的转发（src/router.js forward：验锁屏会话、
  *   剥头、写身份头）→ 账号 Worker AccountService 的实现（workers/account/src/entrypoints.js serviceFetch），同正式的两跳（账号拆分 PR3）。
  *   网关 env 只绑正式网关有的（锁屏钥匙、SGX_ADMIN_KEY、pepper、D1_LOCK_AUTH、ACCOUNT / ACCOUNT_VERIFIER）；账号 env 自己一对钥匙、
  *   账号根密钥、D1_ACCOUNT_AUTH。两边的 D1 绑定接同一个库（同预览共库 styrigx-test-preview，表按 realm 列分开），
@@ -144,7 +144,7 @@ async function startCredentialTestServer(port) {
   const dynImport = new Function('u', 'return ' + 'im' + 'port(u)');
   /* cloudflare:workers 替身：要在 import 账号 Worker 的 entrypoints.js 之前 */
   await dynImport(pathToFileURL(path.join(REPO, 'tests/workers/account/_cf-workers.mjs')).href);
-  const gwIndex = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/src/index.js')).href);
+  const gwRouter = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/src/router.js')).href);
   const acctEntry = await dynImport(pathToFileURL(path.join(REPO, 'workers/account/src/entrypoints.js')).href);
   /* 账号 Worker 的 env（同 workers/account/wrangler.toml 的绑定；资料库不用） */
   const accountEnv = {
@@ -168,14 +168,14 @@ async function startCredentialTestServer(port) {
     ACCOUNT: { fetch: (req) => acctEntry.serviceFetch(req, accountEnv, { waitUntil() {} }) },
     ACCOUNT_VERIFIER: { accountSession: (c, m) => acctEntry.checkAccountSession(accountEnv, c, m) },
   };
-  const pwMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/api/lock-password.js')).href);
-  const pkMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/api/lock-passkey.js')).href);
-  const sessMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/_kernel/lock-session.js')).href);
-  const doorApi = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/api/lock-reauth.js')).href);
-  const ticketsMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/functions/_kernel/tickets.js')).href);
+  const pwMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/src/api/lock-password.js')).href);
+  const pkMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/src/api/lock-passkey.js')).href);
+  const sessMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/src/core/lock-session.js')).href);
+  const doorApi = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/src/api/lock-reauth.js')).href);
+  const ticketsMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/src/core/tickets.js')).href);
   const acctSess = await dynImport(pathToFileURL(path.join(REPO, 'workers/account/src/identity/account-session.js')).href);
   /* /api/account：网关转发（验锁屏会话 → 写身份头 → ACCOUNT.fetch），GET / POST 同一条路 */
-  const accountViaGateway = ({ request, env: e }) => gwIndex.forward(request, e, {});
+  const accountViaGateway = ({ request, env: e }) => gwRouter.forward(request, e, {});
 
   const server = http.createServer(async (req, res) => {
     try {

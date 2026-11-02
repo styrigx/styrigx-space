@@ -1,7 +1,7 @@
 /**
  * 2.8.0 搜索收录整理测试
  *
- * 1. data/public-pages.yaml 与 functions/_kernel/public-pages.js 保持同步
+ * 1. data/public-pages.yaml 与 src/gate.js 保持同步
  *    （白名单和 L1 middleware 的公开路径用同一个数据源）
  * 2. sitemap 只收录公开页（未登录返回 200 的页面）
  */
@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { PUBLIC_PAGE_PATHS, isPublicPage } from '../../../workers/auth-gateway/functions/_kernel/public-pages.js';
+import { PUBLIC_PAGE_PATHS, isPublicPage } from '../../../workers/auth-gateway/src/gate.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
@@ -23,7 +23,7 @@ test('public-pages.yaml 与 public-pages.js 同步', () => {
   assert.deepEqual(
     [...PUBLIC_PAGE_PATHS].sort(),
     [...yamlPaths].sort(),
-    'web/data/public-pages.yaml 与 functions/_kernel/public-pages.js 的公开页清单不一致'
+    'web/data/public-pages.yaml 与 src/gate.js 的公开页清单不一致'
   );
 });
 

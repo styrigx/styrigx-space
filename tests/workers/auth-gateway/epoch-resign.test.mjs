@@ -66,9 +66,9 @@ before(async () => {
 /* ============ 审查返工：必修安全项 1/2，helper 层跳过 by=root ============ */
 
 test('必修安全项 2：by=root 会话不重签（首次配 lock 的 epoch bump 不被抵消）', async () => {
-  const { reissueLockSessionWithEpoch } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
-  const { signLockSessionTicket } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
-  const { verifyLockSession } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { reissueLockSessionWithEpoch } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
+  const { signLockSessionTicket } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
+  const { verifyLockSession } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
   const kv = makeKV();
   authD1For(kv).setEpoch('lock-epoch', 5); /* 纪元在 D1 */
   /* by=root 代开会话（epoch 5） */
@@ -92,7 +92,7 @@ test('必修安全项 2：by=root 会话不重签（首次配 lock 的 epoch bum
 
 
 test('锁屏会话纪元必须等于当前 lock-epoch：比当前大的旧票（存储重建后纪元回到小值）也作废', async () => {
-  const { verifyLockSessionTicket } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { verifyLockSessionTicket } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
   if (!LOCK_PRIV) await genKeys();
   const kv = makeKV();
   authD1For(kv).setEpoch('lock-epoch', 1); /* 纪元在 D1 */

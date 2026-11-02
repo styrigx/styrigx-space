@@ -47,7 +47,7 @@ before(async () => {
 /* ============ B2：normalizeRootKey ============ */
 
 test('B2：normalizeRootKey 去掉所有空白字符', async () => {
-  const { normalizeRootKey } = await import('../../../workers/auth-gateway/functions/_kernel/lib/crypto.js');
+  const { normalizeRootKey } = await import('../../../workers/auth-gateway/src/lib/crypto.js');
   assert.equal(normalizeRootKey('abc def'), 'abcdef');
   assert.equal(normalizeRootKey('abc\tdef'), 'abcdef');
   assert.equal(normalizeRootKey('abc\ndef'), 'abcdef');
@@ -60,7 +60,7 @@ test('B2：normalizeRootKey 去掉所有空白字符', async () => {
 });
 
 test('B2：root-auth 带换行通过', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/root-auth.js');
   const kv = makeKV();
   /* 引导模式：lock 未配置时无会话也能校验根凭证 */
   const req = postReq('https://styrigx.com/api/root-auth', { key: 'test-root-key-\nabc123', purpose: 'lock-reset' });
@@ -71,7 +71,7 @@ test('B2：root-auth 带换行通过', async () => {
 });
 
 test('B2：root-auth 首尾空格通过', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/root-auth.js');
   const kv = makeKV();
   const req = postReq('https://styrigx.com/api/root-auth', { key: '  test-root-key-abc123  ', purpose: 'lock-reset' });
   const res = await onRequestPost({ request: req, env: authEnv(kv) });
@@ -80,7 +80,7 @@ test('B2：root-auth 首尾空格通过', async () => {
 });
 
 test('B2：root-auth 不带换行通过（回归）', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/root-auth.js');
   const kv = makeKV();
   const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ADMIN_KEY, purpose: 'lock-reset' });
   const res = await onRequestPost({ request: req, env: authEnv(kv) });
@@ -89,7 +89,7 @@ test('B2：root-auth 不带换行通过（回归）', async () => {
 });
 
 test('B2：root-auth 改一个字符失败', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/root-auth.js');
   const kv = makeKV();
   const req = postReq('https://styrigx.com/api/root-auth', { key: 'test-root-key-abc124', purpose: 'lock-reset' }, { 'CF-Connecting-IP': '10.0.0.1' });
   const res = await onRequestPost({ request: req, env: authEnv(kv) });
@@ -99,7 +99,7 @@ test('B2：root-auth 改一个字符失败', async () => {
 });
 
 test('B2：root-auth 空串失败（去空白后为空一律拒绝）', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/root-auth.js');
   const kv = makeKV();
   const req = postReq('https://styrigx.com/api/root-auth', { key: '   \n\t  ', purpose: 'lock-reset' }, { 'CF-Connecting-IP': '10.0.0.2' });
   const res = await onRequestPost({ request: req, env: authEnv(kv) });
@@ -109,7 +109,7 @@ test('B2：root-auth 空串失败（去空白后为空一律拒绝）', async ()
 });
 
 test('B2：lockreset verify 带换行通过', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/lock-reset.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/lock-reset.js');
   const kv = makeKV();
   /* 锁屏已配置（D1 里有锁屏密码）：根凭证正确后走 needLock 分支（不是 401 auth） */
   authD1For(kv).putPassword('lock', { salt: 's', hash: 'h', iterations: 100000, peppered: true });
@@ -124,8 +124,8 @@ test('B2：lockreset verify 带换行通过', async () => {
 /* ============ C4：user handle 按类别区分（D1 user_handle 表，每个 realm 一行） ============ */
 
 test('C4：网关只有锁屏 user handle；同域再取复用；只读取不新建；存在 D1 user_handle 的 realm=lock 行；account / app 一律 bad domain', async () => {
-  const { getUserHandle, peekUserHandle, PASSKEY_LOCK } = await import('../../../workers/auth-gateway/functions/_kernel/passkey-store.js');
-  const ps = await import('../../../workers/auth-gateway/functions/_kernel/passkey-store.js');
+  const { getUserHandle, peekUserHandle, PASSKEY_LOCK } = await import('../../../workers/auth-gateway/src/core/passkey-store.js');
+  const ps = await import('../../../workers/auth-gateway/src/core/passkey-store.js');
   assert.equal('PASSKEY_ACCOUNT' in ps, false, '账号通行密钥域不在网关');
   const kv = makeKV();
   const env = authEnv(kv);
@@ -146,7 +146,7 @@ test('C4：网关只有锁屏 user handle；同域再取复用；只读取不新
 });
 
 test('C4：上线前 KV 里的锁屏 user handle 由导入脚本搬进 D1，原样复用（已注册的通行密钥 userHandle 还对得上）；D1 出错 → null', async () => {
-  const { getUserHandle, PASSKEY_LOCK } = await import('../../../workers/auth-gateway/functions/_kernel/passkey-store.js');
+  const { getUserHandle, PASSKEY_LOCK } = await import('../../../workers/auth-gateway/src/core/passkey-store.js');
   const kv = makeKV({ 'lock-user-id': 'legacy-lock-handle', 'account-user-id': 'legacy-acct-handle' });
   const env = authEnv(kv);
   assert.equal(await getUserHandle(env, PASSKEY_LOCK), 'legacy-lock-handle');

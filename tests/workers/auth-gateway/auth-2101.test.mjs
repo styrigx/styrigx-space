@@ -46,7 +46,7 @@ before(async () => {
 
 
 test('A2：错误根密钥 → 401 并计数', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/root-auth.js');
   const kv = makeKV();
   const env = authEnv(kv);
   for (let i = 0; i < 3; i++) {
@@ -59,7 +59,7 @@ test('A2：错误根密钥 → 401 并计数', async () => {
 });
 
 test('A2：超限 → 429', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/root-auth.js');
   const kv = makeKV();
   const env = authEnv(kv);
   for (let i = 0; i < 6; i++) {
@@ -72,7 +72,7 @@ test('A2：超限 → 429', async () => {
 });
 
 test('A2：缺 SGX_ADMIN_KEY → 拒绝', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/root-auth.js');
   const kv = makeKV();
   const req = postReq('https://styrigx.com/api/root-auth', { key: 'anything', purpose: 'lock-reset' });
   const res = await onRequestPost({ request: req, env: authEnv(kv, { SGX_ADMIN_KEY: '' }) });
@@ -82,7 +82,7 @@ test('A2：缺 SGX_ADMIN_KEY → 拒绝', async () => {
 
 
 test('A2：每次使用写审计记录', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/root-auth.js');
   const kv = makeKV();
   const env = authEnv(kv);
   await onRequestPost({ request: postReq('https://styrigx.com/api/root-auth', { key: SGX_ADMIN_KEY, purpose: 'lock-reset' }, { 'CF-Connecting-IP': '9.9.9.9' }), env });
@@ -97,7 +97,7 @@ test('A2：每次使用写审计记录', async () => {
 });
 
 test('A2：D1 出错 fail closed（无会话假入口：限速读不到 → 503 server，不是 500 config）', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/root-auth.js');
   const kv = makeKV();
   const env = authEnv(kv);
   env.D1_LOCK_AUTH.failOn = () => true;
@@ -110,11 +110,11 @@ test('A2：D1 出错 fail closed（无会话假入口：限速读不到 → 503 
 });
 
 test('A2：D1 出错 fail closed（真路径：锁屏未设置、限速表读出错 → 503 server，对的 RootKey 也不签票）', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/root-auth.js');
   const kv = makeKV();
   const env = authEnv(kv);
   env.D1_LOCK_AUTH.failOn = (sql) => /attempt_limit/.test(sql);
-  const { isLockEffectivelyConfigured } = await import('../../../workers/auth-gateway/functions/_kernel/layers.js');
+  const { isLockEffectivelyConfigured } = await import('../../../workers/auth-gateway/src/core/lock-configured.js');
   assert.equal(await isLockEffectivelyConfigured(env), false, '前提：锁屏未设置，lock-reset 走真路径');
   const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ADMIN_KEY, purpose: 'lock-reset' });
   const res = await onRequestPost({ request: req, env });
@@ -126,7 +126,7 @@ test('A2：D1 出错 fail closed（真路径：锁屏未设置、限速表读出
 /* ============ B6：register 要求 admin 会话 ============ */
 
 test('B6：无会话时 register challenge → 401', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/lock-passkey.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/lock-passkey.js');
   const kv = makeKV();
   const env = authEnv(kv);
   const req = postReq('https://styrigx.com/api/lock-passkey', { action: 'challenge', type: 'register' });

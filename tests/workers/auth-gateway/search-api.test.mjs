@@ -7,8 +7,8 @@ import assert from 'node:assert/strict';
 import { testLockSession } from './_tickets.mjs';
 import { makeKV, genKeyPair, authD1For } from '../_harness.mjs';
 
-const API = '../../../workers/auth-gateway/functions/api/';
-const KERNEL = '../../../workers/auth-gateway/functions/_kernel/';
+const API = '../../../workers/auth-gateway/src/api/';
+const KERNEL = '../../../workers/auth-gateway/src/core/';
 
 let LOCK, ACCOUNT, OTHER;
 const ROOT_KEY = 'test-root-key-account-123';
@@ -102,7 +102,7 @@ test('/api/search：没绑定 503；上游抛错 503；空查询直接空结果�
 });
 
 test('子站 /api/search 也走网关：图志上没会话 401、有会话转发', async () => {
-  const { handleSubsite } = await import('../../../workers/auth-gateway/src/subsites.js');
+  const { handleSubsite } = await import('../../../workers/auth-gateway/src/gate.js');
   const log = [];
   const env = Object.assign(envFor(makeKV()), { SEARCH: fakeSearch(log) });
   const origin = async () => new Response('origin', { status: 200 });

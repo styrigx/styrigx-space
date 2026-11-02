@@ -3,7 +3,7 @@
  * 原说明：全站锁屏（2.4.0 H；2026-10-23 访客进入改临时 LockKey，去掉 Turnstile）。
  * 分层规范 L4：lock.js 只负责两件事——
  * 1. 按 L1（middleware 注入的 <html data-sgx-lock-session>）画锁屏，不自己判断会话；
- * 2. 把密码或通行密钥提交给 L2（functions/api/*）。
+ * 2. 把密码或通行密钥提交给 L2（workers/auth-gateway/src/api/*）。
  * 唯一状态源是服务端签发的 sgx-lock-session 会话；禁止用 sessionStorage、
  * localStorage、前端内存或标签页状态另做判断。
  * - 点头像（电脑回车/空格）→ 解锁方式弹层：访客进入（输入临时钥匙）/ 通行密钥 / 密码；
@@ -457,7 +457,7 @@ export function showLockScreen() {
           closeDialog('success');
           unlock();
         } else if (j.error === 'cooldown') {
-          /* retryAfter（秒）：网关无会话总限流（_kernel/anon-limit.js）给的；没有就是临时码自己的 15 分钟锁 */
+          /* retryAfter（秒）：网关无会话总限流（src/core/anon-limit.js）给的；没有就是临时码自己的 15 分钟锁 */
           tempLockedUntil = Date.now() + (j.retryAfter > 0 ? j.retryAfter * 1000 : 15 * 60000);
           showError(en ? 'Too many attempts' : '尝试次数过多');
           tempCountdown();

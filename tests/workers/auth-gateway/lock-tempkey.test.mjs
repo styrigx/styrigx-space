@@ -12,13 +12,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync } from 'node:crypto';
 
-import * as TL from '../../../workers/auth-gateway/functions/_kernel/lock-tempkey.js';
-import { onRequestPost as tempPost } from '../../../workers/auth-gateway/functions/api/lock-tempkey.js';
-import { onRequestPost as unlockPost } from '../../../workers/auth-gateway/functions/api/lock-tempkey-unlock.js';
-import { ed25519Sign } from '../../../workers/auth-gateway/functions/_kernel/lib/crypto.js';
-import { onRequest as mw } from '../../../workers/auth-gateway/functions/_middleware.js';
-import { verifyLockSession } from '../../../workers/auth-gateway/functions/_kernel/lock-session.js';
-import { API_ROUTES } from '../../../workers/auth-gateway/src/routes.js';
+import * as TL from '../../../workers/auth-gateway/src/core/lock-tempkey.js';
+import { onRequestPost as tempPost } from '../../../workers/auth-gateway/src/api/lock-tempkey.js';
+import { onRequestPost as unlockPost } from '../../../workers/auth-gateway/src/api/lock-tempkey-unlock.js';
+import { ed25519Sign } from '../../../workers/auth-gateway/src/lib/crypto.js';
+import { onRequest as mw } from '../../../workers/auth-gateway/src/gate.js';
+import { verifyLockSession } from '../../../workers/auth-gateway/src/core/lock-session.js';
+import { API_ROUTES } from '../../../workers/auth-gateway/src/router.js';
 import { testLockSession } from './_tickets.mjs';
 import { makeAuthD1 } from '../_harness.mjs';
 

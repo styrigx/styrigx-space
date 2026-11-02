@@ -7,7 +7,7 @@
  *   （线上实测的匹配规则：不带 * 的规则遇到查询串不命中；多条命中取最具体的）决定这次请求走网关、短链 Worker 还是直达 Pages。
  *   账号 Worker 账号拆分 PR3 起没有路由（读到有就照样挂上，测试会因此红），只经网关的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 进来。
  *   这样「路由表漏了某种 URL」在本地也能复现，不再被 http-server + page.route 的 mock 掩盖。
- * - 网关 = 仓库里真实的 workers/auth-gateway/src/index.js（真实验签、epoch、Set-Cookie 属性），env 只给正式网关绑的东西
+ * - 网关 = 仓库里真实的 workers/auth-gateway/src/app.js（真实验签、epoch、Set-Cookie 属性），env 只给正式网关绑的东西
  *   （锁屏钥匙、SGX_ADMIN_KEY、pepper、D1_LOCK_AUTH）；服务绑定 ACCOUNT / ACCOUNT_VERIFIER 接账号 Worker 命名入口的实现
  *   （workers/account/src/entrypoints.js serviceFetch / checkAccountSession，AccountService / AccountVerifier 里跑的同一份代码）。
  *   账号 Worker 自己一对 Ed25519 钥匙、账号根密钥和自己的库（tests/workers/account/_d1.mjs：账号鉴权表 + 云同步），
@@ -118,16 +118,16 @@ async function startEdge() {
   const accountRoutes = readRoutes(fs.readFileSync(path.join(REPO, 'workers/account/wrangler.toml'), 'utf8'));
   const shareRoutes = readRoutes(fs.readFileSync(path.join(REPO, 'workers/share/wrangler.toml'), 'utf8'));
   const allRoutes = routes.concat(accountRoutes, shareRoutes);
-  const gateway = (await mod('workers/auth-gateway/src/index.js')).default;
+  const gateway = (await mod('workers/auth-gateway/src/app.js')).default;
   await mod('tests/workers/account/_cf-workers.mjs'); /* cloudflare:workers 替身，要在 import entrypoints.js 之前 */
   const accountEntry = await mod('workers/account/src/entrypoints.js');
   const account = (await mod('workers/account/src/index.js')).default; /* 默认 fetch：一律 404（只在 toml 里还有路由时用到） */
-  const verifier = await mod('workers/auth-gateway/src/verifier.js');
+  const verifier = await mod('workers/auth-gateway/src/core/lock-session.js');
   const share = (await mod('workers/share/src/index.js')).default;
-  const issuer = await mod('workers/auth-gateway/src/share-issuer.js');
+  const issuer = await mod('workers/auth-gateway/src/core/link-keys.js');
   const { shareD1 } = await mod('tests/fixtures/share-d1.mjs');
-  const sessMod = await mod('workers/auth-gateway/functions/_kernel/lock-session.js');
-  const tempMod = await mod('workers/auth-gateway/functions/_kernel/lock-tempkey.js');
+  const sessMod = await mod('workers/auth-gateway/src/core/lock-session.js');
+  const tempMod = await mod('workers/auth-gateway/src/core/lock-tempkey.js');
 
   const kv = makeKV();
   const d1 = makeAuthD1(); /* 网关 D1（全部认证状态） */
@@ -266,7 +266,7 @@ async function startEdge() {
   await new Promise((r) => proxy.listen(PROXY_PORT, '127.0.0.1', r));
 
   async function seedPasskey() {
-    const pk = await mod('workers/auth-gateway/functions/_kernel/passkey-store.js');
+    const pk = await mod('workers/auth-gateway/src/core/passkey-store.js');
     const kp = nodeCrypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
     const jwk = kp.publicKey.export({ format: 'jwk' });
     const credId = nodeCrypto.randomBytes(32);

@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-import { onRequestPost as lockPost, onRequestGet as lockGet } from '../../../workers/auth-gateway/functions/api/lock-now.js';
+import { onRequestPost as lockPost, onRequestGet as lockGet } from '../../../workers/auth-gateway/src/api/lock-now.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 /* 2026-10-26（frontend-js #6）：锁屏拆成守卫 shell/lock-guard.js（core 里）+ 界面 shell/lock.js（按需加载），两份合起来查 */

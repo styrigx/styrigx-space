@@ -1,5 +1,5 @@
 /**
- * 服务绑定验票（workers/auth-gateway/src/verifier.js，RPC 入口 AuthVerifier 只是薄包装）：
+ * 服务绑定验票（workers/auth-gateway/src/core/lock-session.js，RPC 入口 AuthVerifier 只是薄包装）：
  * - checkLockSession：与网关验页面同一套逻辑；只回结论
  * - wrangler 入口导出 AuthVerifier
  *
@@ -14,8 +14,8 @@ import { testLockSession } from './_tickets.mjs';
 import { genKeyPair, makeAuthD1 } from '../_harness.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const { checkLockSession } = await import(REPO + '/workers/auth-gateway/src/verifier.js');
-const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
+const { checkLockSession } = await import(REPO + '/workers/auth-gateway/src/core/lock-session.js');
+const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/src/core/lock-session.js');
 
 const LOCK = await genKeyPair();
 
@@ -53,15 +53,16 @@ test('checkLockSession：访客/管理员有效，回角色；没有 cookie、�
 
 test('部署入口导出 AuthVerifier、ShareIssuer（短链 Worker 专用），wrangler main 指向它', () => {
   const toml = readFileSync(REPO + '/workers/auth-gateway/wrangler.toml', 'utf8');
-  assert.match(toml, /^main = "src\/worker\.js"$/m);
-  const src = readFileSync(REPO + '/workers/auth-gateway/src/worker.js', 'utf8');
-  assert.match(src, /export \{ default \} from '\.\/index\.js'/);
-  assert.match(src, /export \{ AuthVerifier, ShareIssuer \} from '\.\/rpc\.js'/);
-  const rpc = readFileSync(REPO + '/workers/auth-gateway/src/rpc.js', 'utf8');
-  assert.match(rpc, /class AuthVerifier extends WorkerEntrypoint/);
-  assert.match(rpc, /class ShareIssuer extends WorkerEntrypoint/);
+  assert.match(toml, /^main = "src\/index\.js"$/m);
+  const src = readFileSync(REPO + '/workers/auth-gateway/src/index.js', 'utf8');
+  assert.match(src, /export \{ default \} from '\.\/app\.js'/);
+  assert.match(src, /export \{ AuthVerifier \} from '\.\/rpc\/auth-verifier\.js'/);
+  assert.match(src, /export \{ ShareIssuer \} from '\.\/rpc\/share-issuer\.js'/);
+  const av = readFileSync(REPO + '/workers/auth-gateway/src/rpc/auth-verifier.js', 'utf8');
+  const si = readFileSync(REPO + '/workers/auth-gateway/src/rpc/share-issuer.js', 'utf8');
+  assert.match(av, /class AuthVerifier extends WorkerEntrypoint/);
+  assert.match(si, /class ShareIssuer extends WorkerEntrypoint/);
   /* AuthVerifier 只有验票，签钥匙 / 发会话只在 ShareIssuer（只有 styrigx-share 绑定它） */
-  const sv = rpc.slice(rpc.indexOf('class AuthVerifier'), rpc.indexOf('class ShareIssuer'));
-  assert.doesNotMatch(sv, /createLinkKey|revokeLinkKey|openLinkSession/);
+  assert.doesNotMatch(av, /class ShareIssuer|createLinkKey|revokeLinkKey|openLinkSession/);
 });
 
