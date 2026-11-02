@@ -23,9 +23,9 @@ import { genKeyPair, makeAuthD1 } from '../_harness.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
-const worker = (await import(REPO + '/workers/auth-gateway/src/index.js')).default;
+const worker = (await import(REPO + '/workers/auth-gateway/src/app.js')).default;
 const { readRoutes, pickRoute, routeMatches } = await import(REPO + '/scripts/lib/cf-routes.mjs');
-const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
+const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/src/core/lock-session.js');
 
 const { priv: PRIV, pub: PUB } = await genKeyPair();
 const CTX = { waitUntil() {} };

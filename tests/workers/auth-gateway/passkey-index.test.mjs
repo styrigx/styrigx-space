@@ -1,5 +1,5 @@
 /**
- * 通行密钥存储（_kernel/passkey-store.js → d1-state.js）不丢钥匙、不复活钥匙（gateway 审计 #12；2026-10-27 搬到 D1）。
+ * 通行密钥存储（src/core/passkey-store.js → d1-state.js）不丢钥匙、不复活钥匙（gateway 审计 #12；2026-10-27 搬到 D1）。
  *
  * 以前的 KV 索引是「读-改-写」：60 秒内连续注册两把，第二次读到旧索引就把第一把挤出去（不自愈）；删除同理。
  * 现在每把一行 D1（强一致），没有索引可丢。这里核对：
@@ -14,7 +14,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   getPasskeys, getPasskey, hasPasskey, savePasskey, updatePasskey, deletePasskey, PASSKEY_LOCK,
-} from '../../../workers/auth-gateway/functions/_kernel/passkey-store.js';
+} from '../../../workers/auth-gateway/src/core/passkey-store.js';
 import { makeKV, makeAuthD1, authD1For, forbiddenKV } from '../_harness.mjs';
 
 const IDX = { [PASSKEY_LOCK]: 'lock-passkey-index' };

@@ -1,5 +1,5 @@
 /**
- * _kernel/d1-state.js 与 D1 上的认证状态（2026-10-27 全部从 KV 搬来；网关不再绑定 KV，运行时不读 KV、没有回落）。
+ * src/core/d1-state.js 与 D1 上的认证状态（2026-10-27 全部从 KV 搬来；网关不再绑定 KV，运行时不读 KV、没有回落）。
  * - 建表语句（SCHEMA）与 migrations/0005_lock_account_state.sql + 0006_auth_state.sql 逐条一致；迁移编号不和别的撞
  * - 正式网关不跑迁移：表不存在时第一次查询自建，再整次重试
  * - 纪元：每次都读 D1（不缓存，D1 里一变下一次读就是新值）；原子自增（并发推进拿到的值两两不同）；新库从 0 起步
@@ -7,7 +7,7 @@
  * - 密码 / 通行密钥只读写 D1；env 里放一个碰一下就抛错的 KV 也照常工作
  * - challenge：一条 DELETE ... WHERE realm AND id AND purpose AND expires_at > now RETURNING 消费；
  *   并发两次只有一次成功；过期的在被清掉之前就不认；purpose / realm 对不上不认也不删
- * - 源码扫描：网关和共享模块 workers/auth-gateway/functions/_kernel/lib/ 任何源码都不用 withSession（安全读只走主库）
+ * - 源码扫描：网关和共享模块 workers/auth-gateway/src/lib/ 任何源码都不用 withSession（安全读只走主库）
  *
  * 运行：node --test tests/workers/auth-gateway/d1-state.test.mjs
  */
@@ -19,9 +19,9 @@ import { fileURLToPath } from 'node:url';
 import {
   SCHEMA, readEpoch, bumpEpoch, getPasswordRecord, putPasswordRecord, deletePasswordRecord, listPasskeyRecords, putPasskeyRecord,
   getPasskeyRecord, deletePasskeyRecord, updatePasskeyRecord, userHandleRecord,
-} from '../../../workers/auth-gateway/functions/_kernel/d1-state.js';
-import { issueChallenge, consumeChallenge } from '../../../workers/auth-gateway/functions/_kernel/lib/passkey-verify.js';
-import { REALM_LOCK } from '../../../workers/auth-gateway/functions/_kernel/realms.js';
+} from '../../../workers/auth-gateway/src/core/d1-state.js';
+import { issueChallenge, consumeChallenge } from '../../../workers/auth-gateway/src/core/passkey-verify.js';
+import { REALM_LOCK } from '../../../workers/auth-gateway/src/core/realms.js';
 import { makeAuthD1, forbiddenKV } from '../_harness.mjs';
 
 const MIG_DIR = new URL('../../../workers/auth-gateway/migrations/', import.meta.url);
@@ -223,7 +223,7 @@ test('challenge：purpose / realm 对不上不认也不删；签发时顺手清�
 
 /* ---------------- 源码扫描 ---------------- */
 
-/** 网关源码（src/ + functions/）和共享模块（workers/auth-gateway/functions/_kernel/lib/，网关、账号、分享 Worker 共用）里的 .js */
+/** 网关源码（src/）里的 .js */
 function gatewaySources() {
   const out = [];
   const walk = (dir) => {
@@ -234,15 +234,14 @@ function gatewaySources() {
     }
   };
   walk(path.join(GATEWAY, 'src'));
-  walk(path.join(GATEWAY, 'functions'));
   return out;
 }
 const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"\\])\/\/.*$/gm, '$1');
 
-test('源码扫描：网关和 workers/auth-gateway/functions/_kernel/lib/ 任何源码都不用 withSession（纪元 / 吊销 / challenge / 计数只读主库）', () => {
+test('源码扫描：网关和 workers/auth-gateway/src/lib/ 任何源码都不用 withSession（纪元 / 吊销 / challenge / 计数只读主库）', () => {
   const files = gatewaySources();
   assert.ok(files.length > 20, '扫到了网关源码：' + files.length);
-  assert.ok(files.some((f) => f.endsWith(path.join('_kernel', 'lib', 'd1-state.js'))), '扫到了 workers/auth-gateway/functions/_kernel/lib/d1-state.js');
+  assert.ok(files.some((f) => f.endsWith(path.join('core', 'd1-state.js'))), '扫到了 workers/auth-gateway/src/core/d1-state.js');
   const bad = [];
   for (const f of files) {
     const src = readFileSync(f, 'utf8');

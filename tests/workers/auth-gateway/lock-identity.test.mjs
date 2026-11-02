@@ -1,20 +1,20 @@
 /**
  * 网关写身份头的一侧（账号拆分 PR3，方案第 3 节）：
- * - functions/_kernel/lib/lock-identity.js：头名常量、stripInternalHeaders、writeLockIdentity（只写白名单里的值）
+ * - src/core/lock-identity.js：头名常量、stripInternalHeaders、writeLockIdentity（只写白名单里的值）
  * - src/index.js 第一步剥掉外来的 x-styrigx-* / x-sgx-role；账号路径（src/forwarding.js）门过了才经 ACCOUNT 转发，
  *   身份头由网关按验过的锁屏会话写；ACCOUNT 没绑 / 出错 → 503 upstream（fail closed）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import * as mod from '../../../workers/auth-gateway/functions/_kernel/lib/lock-identity.js';
+import * as mod from '../../../workers/auth-gateway/src/core/lock-identity.js';
 import {
   LOCK_IDENTITY_HEADERS, CLIENT_CONTEXT_HEADERS, INTERNAL_HEADER_PREFIX, stripInternalHeaders, writeLockIdentity,
-} from '../../../workers/auth-gateway/functions/_kernel/lib/lock-identity.js';
-import { FORWARDING, matchForwarding } from '../../../workers/auth-gateway/src/forwarding.js';
+} from '../../../workers/auth-gateway/src/core/lock-identity.js';
+import { FORWARDING, matchForwarding } from '../../../workers/auth-gateway/src/router.js';
 import { testLockSession } from './_tickets.mjs';
 import { genKeyPair, authD1For, makeKV } from '../_harness.mjs';
 
-const worker = (await import('../../../workers/auth-gateway/src/index.js')).default;
+const worker = (await import('../../../workers/auth-gateway/src/app.js')).default;
 const { _resetSecretCache } = await import('../../../workers/auth-gateway/src/secrets.js');
 const { priv: PRIV, pub: PUB } = await genKeyPair();
 const CTX = { waitUntil() {} };

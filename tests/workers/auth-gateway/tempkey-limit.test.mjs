@@ -1,5 +1,5 @@
 /**
- * 临时码输错限速（_kernel/lock-tempkey.js）：
+ * 临时码输错限速（src/core/lock-tempkey.js）：
  * - 单 IP 连错 5 次冷却 15 分钟（IPv6 按 /64 分桶，换地址绕不开）
  * - 全站只减速、不封锁：每小时错满 TEMPKEY_GLOBAL_SLOW_AT 次后每次先等 TEMPKEY_GLOBAL_DELAY_MS，
  *   以前的「全站错 30 次暂停 1 小时」已去掉（别人刷错就能让所有访客进不来），全站那一行（D1 attempt_limit bucket='*'）的 locked_until 不再生效
@@ -13,8 +13,8 @@ import { generateKeyPairSync } from 'node:crypto';
 import {
   isTempkeyLimited, recordTempkeyFail, clearTempkeyFail, createTempkey,
   TEMPKEY_GLOBAL_SLOW_AT, TEMPKEY_GLOBAL_DELAY_MS,
-} from '../../../workers/auth-gateway/functions/_kernel/lock-tempkey.js';
-import { onRequestPost as unlockPost } from '../../../workers/auth-gateway/functions/api/lock-tempkey-unlock.js';
+} from '../../../workers/auth-gateway/src/core/lock-tempkey.js';
+import { onRequestPost as unlockPost } from '../../../workers/auth-gateway/src/api/lock-tempkey-unlock.js';
 import { makeAuthD1 } from '../_harness.mjs';
 
 /* 输错计数在 D1 attempt_limit 表：realm='lock'、kind='tempkey'；全站一行 bucket='*' */

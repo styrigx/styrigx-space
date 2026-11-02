@@ -1,5 +1,5 @@
 /**
- * 凭证域配置（_kernel/realms.js）钉死测试：账号拆分 PR3 起网关只有锁屏一个域，线上格式一个字都不能变。
+ * 凭证域配置（src/core/realms.js）钉死测试：账号拆分 PR3 起网关只有锁屏一个域，线上格式一个字都不能变。
  *
  * 覆盖：
  * - REALM_LOCK 的 cookie 名 / 属性 / 有效期 / 钥匙名 / D1 绑定钉死；锁屏根密钥并入 REALM_LOCK（rootKey = SGX_ADMIN_KEY、rootIssues = 两张锁屏短票）
@@ -15,7 +15,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import * as R from '../../../workers/auth-gateway/functions/_kernel/realms.js';
+import * as R from '../../../workers/auth-gateway/src/core/realms.js';
 import { SECRET_NAMES } from '../../../workers/auth-gateway/src/secrets.js';
 import { withAuthD1 } from '../_harness.mjs';
 
@@ -52,7 +52,7 @@ test('realms：只经 D1_LOCK_AUTH；不再有账号域 / 根域；没有任何 
 });
 
 test('realms：三张锁屏票总表（cookie / 钥匙 / 时长 / 属性 / by / 纪元），session 文件导出同一份值', async () => {
-  const session = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
+  const session = await import('../../../workers/auth-gateway/src/core/lock-session.js');
   assert.equal(session.LOCK_SESSION_COOKIE, 'sgx-lock-session');
   assert.equal(session.LOCK_SESSION_COOKIE_ATTRS, 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax');
   assert.equal(session.LOCK_SESSION_MAX_AGE, 43200);
@@ -119,8 +119,8 @@ test('realms：rpConfig 缺变量 → null；rpConfigMissing 仍是 503 config',
 });
 
 test('password：锁屏读 D1 password 表 realm=lock 那一行；库里遗留的账号行网关读不到（d1-state 只认 lock 域）', async () => {
-  const pw = await import('../../../workers/auth-gateway/functions/_kernel/lib/password.js');
-  const d1 = await import('../../../workers/auth-gateway/functions/_kernel/d1-state.js');
+  const pw = await import('../../../workers/auth-gateway/src/core/password.js');
+  const d1 = await import('../../../workers/auth-gateway/src/core/d1-state.js');
   assert.equal(pw.getPepper({ SGX_PW_PEPPER: 'pep' }), 'pep');
   assert.equal(pw.getPepper(undefined), '');
   const rec = await pw.makePasswordRecord('lock-secret-1', 'pep');

@@ -18,9 +18,9 @@ import { genKeyPair, authD1For } from '../_harness.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
-const SH = await import(REPO + '/workers/auth-gateway/functions/_kernel/lib/security-headers.js');
-const { INLINE_SCRIPT_HASHES } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lib/csp-hashes.js');
-const worker = (await import(REPO + '/workers/auth-gateway/src/index.js')).default;
+const SH = await import(REPO + '/workers/auth-gateway/src/lib/security-headers.js');
+const { INLINE_SCRIPT_HASHES } = await import(REPO + '/workers/auth-gateway/src/lib/csp-hashes.js');
+const worker = (await import(REPO + '/workers/auth-gateway/src/app.js')).default;
 const { _resetSecretCache } = await import(REPO + '/workers/auth-gateway/src/secrets.js');
 const { parseHeaders, headersFor, matchPattern } = await import(REPO + '/scripts/lib/pages-headers.mjs');
 const gen = await import(REPO + '/scripts/gen-csp.mjs');
@@ -250,7 +250,7 @@ test('网关·/api/*：401、404、访客调管理员接口 403 都带安全头�
   assertMainHeaders(r1, '401');
   const r2 = await worker.fetch(new Request('https://styrigx.com/api/account', { headers: { Cookie: visitor } }), baseEnv(), CTX);
   assert.equal(r2.status, 403);
-  /* JSON 响应统一由 workers/auth-gateway/functions/_kernel/lib/http.js json() 发，默认 private, no-store（以前这一处手写 no-store） */
+  /* JSON 响应统一由 workers/auth-gateway/src/lib/http.js json() 发，默认 private, no-store（以前这一处手写 no-store） */
   assert.equal(r2.headers.get('Cache-Control'), 'private, no-store');
   assertMainHeaders(r2, '403');
   const admin = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'admin', 'password'));
@@ -460,10 +460,10 @@ test('账号 / 分享 Worker 自己的 security-headers.js、csp-hashes.js 与�
     assert.deepEqual(other.mainSiteHeaderList(), SH.mainSiteHeaderList(), dir);
     const h = await import(REPO + dir + 'csp-hashes.js');
     assert.deepEqual([...h.INLINE_SCRIPT_HASHES], [...INLINE_SCRIPT_HASHES], dir);
-    assert.equal(readFileSync(REPO + dir + 'csp-hashes.js', 'utf8'), readFileSync(REPO + '/workers/auth-gateway/functions/_kernel/lib/csp-hashes.js', 'utf8'), dir + ' csp-hashes.js 逐字相同');
+    assert.equal(readFileSync(REPO + dir + 'csp-hashes.js', 'utf8'), readFileSync(REPO + '/workers/auth-gateway/src/lib/csp-hashes.js', 'utf8'), dir + ' csp-hashes.js 逐字相同');
   }
   assert.deepEqual(gen.HASHES_FILES.map((f) => f.slice(REPO.length)), [
-    '/workers/auth-gateway/functions/_kernel/lib/csp-hashes.js',
+    '/workers/auth-gateway/src/lib/csp-hashes.js',
     '/workers/account/src/lib/csp-hashes.js',
     '/workers/share/src/lib/csp-hashes.js',
   ]);

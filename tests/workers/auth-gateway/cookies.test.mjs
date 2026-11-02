@@ -1,5 +1,5 @@
 /**
- * workers/auth-gateway/functions/_kernel/lib/cookies.js：网关读 Cookie 头的唯一实现。
+ * workers/auth-gateway/src/lib/cookies.js：网关读 Cookie 头的唯一实现。
  *
  * - 语义和以前四处手写的解析（account-session / tickets 的 readCookie、lock-session 的 allLockSessionCookies、
  *   root-auth 的 lightSession 循环）逐字一致：拿以前的实现当参照，对一批刁钻的 Cookie 头逐个比结果
@@ -11,8 +11,8 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readCookie, readAllCookies, MAX_COOKIE_HEADER } from '../../../workers/auth-gateway/functions/_kernel/lib/cookies.js';
-import { looksVisitor } from '../../../workers/auth-gateway/functions/_kernel/lock-session.js';
+import { readCookie, readAllCookies, MAX_COOKIE_HEADER } from '../../../workers/auth-gateway/src/lib/cookies.js';
+import { looksVisitor } from '../../../workers/auth-gateway/src/core/lock-session.js';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 
@@ -113,7 +113,7 @@ test('looksVisitor：六段访客票（合法 tempkeyId）才算；五段旧格�
   assert.equal(looksVisitor(req('sgx-lock-sessionx=' + visitor6)), false);
 });
 
-test('源码守卫：网关里只有 _kernel/lib/cookies.js 自己切 Cookie 头', () => {
+test('源码守卫：网关里只有 src/lib/cookies.js 自己切 Cookie 头', () => {
   const root = join(REPO, 'workers');
   const files = [];
   const walk = (d) => {
@@ -122,11 +122,10 @@ test('源码守卫：网关里只有 _kernel/lib/cookies.js 自己切 Cookie 头
       if (statSync(p).isDirectory()) { if (e !== 'node_modules') walk(p); } else if (p.endsWith('.js')) files.push(p);
     }
   };
-  walk(join(root, 'auth-gateway/functions'));
   walk(join(root, 'auth-gateway/src'));
   const offenders = [];
   for (const f of files) {
-    if (f.endsWith('/workers/auth-gateway/functions/_kernel/lib/cookies.js')) continue;
+    if (f.endsWith('/workers/auth-gateway/src/lib/cookies.js')) continue;
     const src = readFileSync(f, 'utf8');
     if (/headers\.get\(\s*['"]cookie['"]\s*\)/i.test(src) && /split\(\s*['"];['"]\s*\)/.test(src)) offenders.push(f.slice(root.length + 1));
   }

@@ -40,7 +40,7 @@
  */
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
-import { SCHEMA } from '../workers/auth-gateway/functions/_kernel/d1-state.js';
+import { SCHEMA } from '../workers/auth-gateway/src/core/d1-state.js';
 
 export const AUTH_KV_NAMESPACE = 'b796097c90104000992b7713f61e16ea';
 /** 账号会话 400 天（device 行的默认 expires_at，同 realms.js REALM_ACCOUNT.maxAge） */

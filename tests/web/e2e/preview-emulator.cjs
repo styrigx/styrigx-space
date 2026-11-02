@@ -11,7 +11,7 @@
  *
  * 模拟的东西：
  * - 网关 + 账号 Worker：组合入口 tests/web/e2e/preview-worker.js（和 CI 打成预览 _worker.js 的是同一个文件：网关
- *   workers/auth-gateway/src/index.js + 账号 workers/account/src/entrypoints.js 的 AccountService / AccountVerifier 实现，
+ *   workers/auth-gateway/src/app.js + 账号 workers/account/src/entrypoints.js 的 AccountService / AccountVerifier 实现，
  *   网关的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 换成进程内适配器），SGX_ENV=preview，env.ASSETS 读 web/public（先 hugo 构建生产版）。
  *   cloudflare:workers 用 tests/workers/account/_cf-workers.mjs 的替身。
  * - KV：网关不再绑定 KV（2026-10-27 起认证状态全在 D1）。内存 KV 只留给 Cloudflare KV REST（scripts/migrate-kv-to-d1.mjs

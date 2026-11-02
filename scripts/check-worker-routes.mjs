@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 核对网关 Worker 路由登记（workers/auth-gateway/wrangler.toml 的 [[routes]]）、网关转发表（workers/auth-gateway/src/forwarding.js），
+ * 核对网关 Worker 路由登记（workers/auth-gateway/wrangler.toml 的 [[routes]]）、网关转发表（workers/auth-gateway/src/router.js），
  * 账号 Worker styrigx-account（workers/account/wrangler.toml：账号拆分 PR3 起一条路由都没有）、
  * 短链 Worker styrigx-share（workers/share/wrangler.toml，2026-10-24）的更具体路由。
  * 路由匹配按线上实测的规则（scripts/lib/cf-routes.mjs）：不带 * 的规则遇到查询串不命中。
@@ -9,7 +9,7 @@
  * 1. 主站每个 HTML 页面都被路由覆盖，带查询串（?x=1）也覆盖
  * 2. 接口和头像（/api/、/avatar/）被路由覆盖
  * 2b. 账号路径（/api/account、/api/avatar、/api/prefs、/api/wellbeing、/avatar/*，带查询串也算）归网关（方案第 4 节）：
- *     都被网关路由覆盖，且都在网关转发表 src/forwarding.js 里、转给 ACCOUNT；转发表的路径不在网关路由表 src/routes.js 里（不两处处理）；
+ *     都被网关路由覆盖，且都在网关转发表 src/router.js FORWARDING 里、转给 ACCOUNT；转发表的路径不在网关路由表 API_ROUTES 里（不两处处理）；
  *     账号 Worker 没有任何路由（wrangler.toml 无 [[routes]]）
  * 2c. 分享短链（/s/<码>、/api/share，带查询串也算）归短链 Worker styrigx-share（workers/share/wrangler.toml，2026-10-24）；
  *     网关的每个接口、每个页面、每条转发路径仍归网关
@@ -26,7 +26,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readRoutes, routeMatches, pickRoute } from './lib/cf-routes.mjs';
-import { FORWARDING, matchForwarding } from '../workers/auth-gateway/src/forwarding.js';
+import { FORWARDING, matchForwarding } from '../workers/auth-gateway/src/router.js';
 
 export { readRoutes, routeMatches };
 
@@ -108,7 +108,7 @@ export function check(routes, pagePaths) {
   return errors;
 }
 
-/** 网关路由表里的接口路径（workers/auth-gateway/src/routes.js 的 ['/api/x', mod]） @param {string} js */
+/** 网关路由表里的接口路径（workers/auth-gateway/src/router.js 的 ['/api/x', mod]） @param {string} js */
 export function readApiRoutes(js) {
   return [...js.matchAll(/\[\s*'(\/api\/[a-z0-9-]+)'\s*,/g)].map((m) => m[1]);
 }
@@ -162,12 +162,12 @@ export function checkSplit(gateway, workers, gatewayApis, pagePaths) {
  * @param {string[]} account 账号 Worker 的路由（必须为空）
  * @param {string[]} gatewayApis 网关路由表里的接口
  * @param {string[]} pagePaths 主站页面
- * @param {ReadonlyArray<{path:string, binding:string, gate:string}>} [forwarding] 转发表，默认 src/forwarding.js 的 FORWARDING
+ * @param {ReadonlyArray<{path:string, binding:string, gate:string}>} [forwarding] 转发表，默认 src/router.js 的 FORWARDING
  */
 export function checkAccount(gateway, account, gatewayApis, pagePaths, forwarding = FORWARDING) {
   const errors = [];
   for (const r of account) errors.push('账号 Worker 不许有路由（账号路径归网关、经转发表转发）：' + r);
-  if (!forwarding || !forwarding.length) return errors.concat('转发表是空的（workers/auth-gateway/src/forwarding.js）');
+  if (!forwarding || !forwarding.length) return errors.concat('转发表是空的（workers/auth-gateway/src/router.js）');
   const ruleFor = (p) => forwarding.find((r) => (r.path.endsWith('/') ? p.startsWith(r.path) : (p === r.path || p.startsWith(r.path + '/')))) || null;
   const seen = new Set();
   for (const r of forwarding) {
@@ -176,7 +176,7 @@ export function checkAccount(gateway, account, gatewayApis, pagePaths, forwardin
     if (!FORWARD_BINDINGS.has(r.binding)) errors.push('转发表绑定不认识：' + r.path + ' → ' + r.binding);
     if (!FORWARD_GATES.has(r.gate)) errors.push('转发表门不认识：' + r.path + ' → ' + r.gate);
     if (!r.path.startsWith('/')) errors.push('转发表路径要以 / 开头：' + r.path);
-    for (const a of gatewayApis) if (ruleFor(a) === r) errors.push('转发表路径同时在网关路由表 src/routes.js 里：' + a);
+    for (const a of gatewayApis) if (ruleFor(a) === r) errors.push('转发表路径同时在网关路由表 src/router.js API_ROUTES 里：' + a);
   }
   const all = gateway.concat(account);
   for (const p of ACCOUNT_MUST) {
@@ -208,7 +208,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const routes = readRoutes(readFileSync(path.join(REPO, 'workers/auth-gateway/wrangler.toml'), 'utf8'));
   const accountRoutes = readRoutes(readFileSync(path.join(REPO, 'workers/account/wrangler.toml'), 'utf8'));
   const shareRoutes = readRoutes(readFileSync(path.join(REPO, 'workers/share/wrangler.toml'), 'utf8'));
-  const gatewayApis = readApiRoutes(readFileSync(path.join(REPO, 'workers/auth-gateway/src/routes.js'), 'utf8'));
+  const gatewayApis = readApiRoutes(readFileSync(path.join(REPO, 'workers/auth-gateway/src/router.js'), 'utf8'));
   let pages;
   try {
     pages = walk(PUBLIC_DIR).map(htmlToPath);
@@ -221,7 +221,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     process.exit(1);
   }
   if (gatewayApis.length < 10) {
-    console.error('check-worker-routes.mjs: 没读到网关路由表（workers/auth-gateway/src/routes.js）');
+    console.error('check-worker-routes.mjs: 没读到网关路由表（workers/auth-gateway/src/router.js）');
     process.exit(1);
   }
   const errors = check(routes, pages).concat(checkWorkers(routes, accountRoutes, shareRoutes, gatewayApis, pages));

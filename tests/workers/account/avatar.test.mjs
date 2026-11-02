@@ -25,7 +25,7 @@ const avatarApi = await import(REPO + '/workers/account/src/api/avatar.js');
 const onRequestPut = wrap(avatarApi.onRequestPut);
 const onRequestDelete = wrap(avatarApi.onRequestDelete);
 const { sniffImage, sizeOfFile } = await import(REPO + '/workers/account/src/lib/avatar.js');
-const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
+const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/src/core/lock-session.js');
 
 const { priv: PRIV, pub: PUB } = await genKeyPair();
 

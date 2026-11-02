@@ -1,6 +1,6 @@
 /**
  * 鉴权 Worker（workers/auth-gateway）：
- * - 路由表与 functions/api/ 文件一一对应（新增接口忘了登记 → CI 红）
+ * - 路由表与 src/api/ 文件一一对应（新增接口忘了登记 → CI 红）
  * - 方法挑选、尾斜杠与 Pages 一致
  * - Secrets Store 绑定换成字符串；取值失败留空且不缓存
  * - 同一请求走 Worker 和走 Pages（middleware + 接口）结果一致
@@ -18,13 +18,13 @@ import { genKeyPair, authD1For } from '../_harness.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
-const worker = (await import(REPO + '/workers/auth-gateway/src/index.js')).default;
-const { routeKey, pickHandler } = await import(REPO + '/workers/auth-gateway/src/index.js');
-const { API_ROUTES } = await import(REPO + '/workers/auth-gateway/src/routes.js');
+const worker = (await import(REPO + '/workers/auth-gateway/src/app.js')).default;
+const { routeKey, pickHandler } = await import(REPO + '/workers/auth-gateway/src/router.js');
+const { API_ROUTES } = await import(REPO + '/workers/auth-gateway/src/router.js');
 const { resolveSecrets, SECRET_NAMES, _resetSecretCache } = await import(REPO + '/workers/auth-gateway/src/secrets.js');
-const pagesMw = await import(REPO + '/workers/auth-gateway/functions/_middleware.js');
-const htmlKernel = await import(REPO + '/workers/auth-gateway/functions/_kernel/html.js');
-const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lock-session.js');
+const pagesMw = await import(REPO + '/workers/auth-gateway/src/gate.js');
+const htmlKernel = await import(REPO + '/workers/auth-gateway/src/gate.js');
+const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/src/core/lock-session.js');
 
 const { priv: PRIV, pub: PUB } = await genKeyPair();
 
@@ -46,8 +46,8 @@ function baseEnv() {
 }
 const CTX = { waitUntil() {} };
 
-test('路由表与 functions/api/*.js 一一对应', () => {
-  const files = readdirSync(REPO + '/workers/auth-gateway/functions/api').filter(f => f.endsWith('.js')).map(f => '/api/' + f.slice(0, -3)).sort();
+test('路由表与 src/api/*.js 一一对应', () => {
+  const files = readdirSync(REPO + '/workers/auth-gateway/src/api').filter(f => f.endsWith('.js')).map(f => '/api/' + f.slice(0, -3)).sort();
   assert.deepEqual([...API_ROUTES.keys()].sort(), files);
 });
 
@@ -311,7 +311,7 @@ test('仓库：根目录没有 functions/、migrations/、wrangler.toml（Pages 
   for (const p of ['functions', 'migrations', 'wrangler.toml']) {
     assert.equal(existsSync(REPO + '/' + p), false, p + ' 应该在 workers/auth-gateway/ 或 web/ 下');
   }
-  assert.ok(existsSync(REPO + '/workers/auth-gateway/functions/_middleware.js'));
+  assert.ok(existsSync(REPO + '/workers/auth-gateway/src/gate.js'));
   assert.ok(existsSync(REPO + '/workers/auth-gateway/migrations'));
 });
 

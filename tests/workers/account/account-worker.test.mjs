@@ -116,7 +116,7 @@ test('迁移：wb_daily 在账号库；网关的迁移目录不再建它', async
 
 test('路由表：/api/account + 三个账号数据接口（与网关转发表 /api/* 条目一一对应）', async () => {
   assert.deepEqual([...API_ROUTES.keys()].sort(), ['/api/account', '/api/avatar', '/api/prefs', '/api/wellbeing']);
-  const { FORWARDING } = await import(REPO + 'workers/auth-gateway/src/forwarding.js');
+  const { FORWARDING } = await import(REPO + 'workers/auth-gateway/src/router.js');
   assert.deepEqual(FORWARDING.filter((r) => r.path.startsWith('/api/')).map((r) => r.path).sort(), [...API_ROUTES.keys()].sort());
 });
 
@@ -281,7 +281,7 @@ test('check-worker-routes：现在通过；账号 Worker 只要登记任何一�
   const { readRoutes, readApiRoutes, checkAccount } = await import(REPO + 'scripts/check-worker-routes.mjs');
   const gw = readRoutes(readFileSync(REPO + 'workers/auth-gateway/wrangler.toml', 'utf8'));
   const acct = readRoutes(readFileSync(REPO + 'workers/account/wrangler.toml', 'utf8'));
-  const apis = readApiRoutes(readFileSync(REPO + 'workers/auth-gateway/src/routes.js', 'utf8'));
+  const apis = readApiRoutes(readFileSync(REPO + 'workers/auth-gateway/src/router.js', 'utf8'));
   assert.deepEqual(acct, []);
   assert.ok(!apis.includes('/api/account') && apis.includes('/api/geo') && !apis.includes('/api/prefs'));
   const pages = ['/', '/account/', '/settings/wellbeing/', '/en/settings/'];

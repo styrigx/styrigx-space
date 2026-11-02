@@ -13,10 +13,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { testLockSession, testTicket } from './_tickets.mjs';
-import { makePasswordRecord } from '../../../workers/auth-gateway/functions/_kernel/lib/password.js';
+import { makePasswordRecord } from '../../../workers/auth-gateway/src/core/password.js';
 import { genKeyPair, makeAuthD1, forbiddenKV } from '../_harness.mjs';
 
-const API = '../../../workers/auth-gateway/functions/api/';
+const API = '../../../workers/auth-gateway/src/api/';
 
 /** 有 realm 列的表（0005 / 0006）；lock_reset_switch、kv_migration 没有 realm 列 */
 const REALM_TABLES = /\b(?:FROM|INTO|UPDATE|JOIN)\s+(epoch|passkey|password|user_handle|challenge|attempt_limit|tempkey|device|audit)\b/i;

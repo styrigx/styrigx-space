@@ -19,12 +19,8 @@
  *  9. 前端代码不得用 sessionStorage/localStorage 保存解锁状态
  *     （key 匹配：unlock、sgx-lock、session；storage.js 本身除外）
  *
- * 网关（workers/auth-gateway/）：
- * 10. functions/_kernel/ 只能 import _kernel/
- * 11. functions/api/ 只能 import _kernel/（api 之间不互相 import，也不 import _middleware）
- * 12. functions/_middleware.js 只能 import _kernel/
- * 13. src/ 只能 import src/ 和 functions/_kernel/；例外：src/routes.js 可以 import functions/api/（路由表），
- *     src/index.js 可以 import functions/_middleware.js（入口）
+ * 10–13（网关 functions/_kernel、functions/api、_middleware、src 之间的方向）：2026-11-02 Worker 骨架统一后网关没有 functions/ 了，
+ *     这四条随之退役（编号不复用）；防止退回旧目录的是规则 18。
  *
  * 所有 Worker（workers/<名字>/，2026-10-30 起没有共享目录，每个 Worker 各自实现）：
  * 14. 每个 Worker 只能相对 import 自己目录 workers/<名字>/ 下的文件；账号（workers/account/）和网关（workers/auth-gateway/）
@@ -135,12 +131,8 @@ export function layerOf(root, abs) {
   return { area: 'other', layer: 'other', rel };
 }
 
-/** 网关内的层；不在网关目录 → null @param {string} rel */
+/** 网关内的层（2026-11-02 起只分 src / 其他，方向规则 10–13 随 functions/ 一起退役）；不在网关目录 → null @param {string} rel */
 function gatewayLayer(rel) {
-  if (rel.startsWith('workers/auth-gateway/functions/_kernel/')) return '_kernel';
-  if (rel.startsWith('workers/auth-gateway/functions/api/')) return 'api';
-  if (rel === 'workers/auth-gateway/functions/_middleware.js') return '_middleware';
-  if (rel.startsWith('workers/auth-gateway/functions/')) return 'functions-other';
   if (rel.startsWith('workers/auth-gateway/src/')) return 'src';
   if (rel.startsWith('workers/auth-gateway/')) return 'gateway-other';
   return null;
@@ -279,7 +271,7 @@ export function checkAccountToml(rel, src) {
     if (/^\[\[\s*(?:env\.[\w-]+\.)?routes\s*\]\]$/.test(t)) bad = t;
     const kv = t.match(/^(?:env\.[\w-]+\.)?(route|routes)\s*=\s*(.*)$/);
     if (kv && (kv[1] === 'route' || !/^\[\s*\]$/.test(kv[2]))) bad = t;
-    if (bad) errors.push(`${rel}:${ln + 1}: 账号 Worker 不许有公开路由，发现「${bad}」（规则 17：账号请求只经网关服务绑定 ACCOUNT 进来，路径在 workers/auth-gateway/src/forwarding.js 登记）`);
+    if (bad) errors.push(`${rel}:${ln + 1}: 账号 Worker 不许有公开路由，发现「${bad}」（规则 17：账号请求只经网关服务绑定 ACCOUNT 进来，路径在 workers/auth-gateway/src/router.js 登记）`);
   }
   return errors;
 }
@@ -347,22 +339,6 @@ export function checkFile(root, abs, srcOverride) {
       }
     }
 
-    if (self.area === 'gateway') {
-      if (self.layer === '_kernel' && t.layer !== '_kernel') {
-        errors.push(`${r}: functions/_kernel/ 只能 import _kernel/，发现 ${t.layer} (${spec})`);
-      } else if (self.layer === 'api' && t.layer !== '_kernel') {
-        errors.push(`${r}: functions/api/ 只能 import _kernel/，发现 ${t.layer} (${spec})`);
-      } else if (self.layer === '_middleware' && t.layer !== '_kernel') {
-        errors.push(`${r}: functions/_middleware.js 只能 import _kernel/，发现 ${t.layer} (${spec})`);
-      } else if (self.layer === 'src') {
-        const ok = t.layer === 'src' || t.layer === '_kernel' ||
-          (r === 'workers/auth-gateway/src/routes.js' && t.layer === 'api') ||
-          (r === 'workers/auth-gateway/src/index.js' && t.layer === '_middleware');
-        if (!ok) errors.push(`${r}: src/ 只能 import src/ 和 functions/_kernel/（路由表、入口例外），发现 ${t.layer} (${spec})`);
-      } else if (self.layer === 'functions-other') {
-        errors.push(`${r}: functions/ 下只允许 _kernel/、api/、_middleware.js`);
-      }
-    }
   }
 
   if (self.area === 'gateway') errors.push(...checkGatewayAccountAuth(r, src));

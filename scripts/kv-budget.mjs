@@ -13,7 +13,7 @@
  */
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
-import { REALM_LOCK } from '../workers/auth-gateway/functions/_kernel/realms.js';
+import { REALM_LOCK } from '../workers/auth-gateway/src/core/realms.js';
 
 /**
  * 一次 passkey-e2e 运行的用量估算（上限）。KV：网关和测试都不再碰 KV，全为 0。

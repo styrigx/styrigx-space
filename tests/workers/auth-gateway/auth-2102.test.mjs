@@ -48,7 +48,7 @@ function baseEnv(kv, overrides = {}) {
 
 /* 签一个有效的 admin 会话 cookie（role.epoch.exp.sig） */
 async function makeSessionCookie(env, role = 'admin') {
-  const { signLockSessionTicket } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { signLockSessionTicket } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
   const epoch = 0;
   return await testLockSession(env.SGX_LOCK_PRIVATE, epoch, role);
 }
@@ -80,7 +80,7 @@ before(async () => {
 /* ============ 5：SGX_SITE 配错 fail closed ============ */
 
 test('5：SGX_SITE=blog 时主站 middleware 拒绝（500）', async () => {
-  const { onRequest } = await import('../../../workers/auth-gateway/functions/_middleware.js');
+  const { onRequest } = await import('../../../workers/auth-gateway/src/gate.js');
   const req = new Request('https://styrigx.com/settings/', { method: 'GET' });
   const res = await onRequest({
     request: req,
@@ -91,7 +91,7 @@ test('5：SGX_SITE=blog 时主站 middleware 拒绝（500）', async () => {
 });
 
 test('5b：SGX_SITE 缺失时主站 middleware 拒绝（500）', async () => {
-  const { onRequest } = await import('../../../workers/auth-gateway/functions/_middleware.js');
+  const { onRequest } = await import('../../../workers/auth-gateway/src/gate.js');
   const req = new Request('https://styrigx.com/api/lock-session-check', { method: 'GET' });
   const res = await onRequest({
     request: req,
@@ -105,9 +105,9 @@ test('5b：SGX_SITE 缺失时主站 middleware 拒绝（500）', async () => {
 /* ============ 6：纪元存储（D1_LOCK_AUTH）没绑时 epoch 检查 fail closed ============ */
 
 test('6：verifyLockSession 无纪元存储（D1）→ d1-error（不跳过）', async () => {
-  const { verifyLockSession } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { verifyLockSession } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
   /* 造一个格式正确但无法验 epoch 的 cookie：用真密钥签名 */
-  const { signLockSessionTicket } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { signLockSessionTicket } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
   const val = await testLockSession(LOCK_PRIV, 0, 'admin', 'password');
   const req = new Request('https://styrigx.com/', {
     headers: { 'Cookie': 'sgx-lock-session=' + val },
@@ -120,8 +120,8 @@ test('6：verifyLockSession 无纪元存储（D1）→ d1-error（不跳过）',
 /* ============ 7：密码限速 D1 出错 → 503 ============ */
 
 test('7：verify 时限速 D1 出错 → 503', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/lock-password.js');
-  const { makePasswordRecord } = await import('../../../workers/auth-gateway/functions/_kernel/lib/password.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/lock-password.js');
+  const { makePasswordRecord } = await import('../../../workers/auth-gateway/src/core/password.js');
   const kv = makeKV();
   const env = baseEnv(kv, { SGX_PW_PEPPER: 'test-pepper' });
   /* 锁屏密码已设置（码对），只有 attempt_limit 读写抛错 */
@@ -142,7 +142,7 @@ test('7：verify 时限速 D1 出错 → 503', async () => {
 /* ============ 8：审计写入失败 → 不签发会话 ============ */
 
 test('8：root-auth 审计写入失败 → 503 且无 cookie', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/root-auth.js');
   const kv = makeKV();
   const env = baseEnv(kv);
   /* 让审计写入失败：D1 audit 表的 INSERT 抛错，其他放行 */
@@ -160,7 +160,7 @@ test('8：root-auth 审计写入失败 → 503 且无 cookie', async () => {
 /* ============ 9：Origin 缺失/解析失败 → 403 ============ */
 
 test('9a：root-auth 缺 Origin → 403', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/root-auth.js');
   const kv = makeKV();
   const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ADMIN_KEY, purpose: 'lock-reset' }, { Origin: null });
   const res = await onRequestPost({ request: req, env: baseEnv(kv) });
@@ -169,7 +169,7 @@ test('9a：root-auth 缺 Origin → 403', async () => {
 });
 
 test('9b：root-auth Origin 解析失败 → 403', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/root-auth.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/root-auth.js');
   const kv = makeKV();
   const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ADMIN_KEY, purpose: 'lock-reset' }, { Origin: '::not-a-url::' });
   const res = await onRequestPost({ request: req, env: baseEnv(kv) });
@@ -177,7 +177,7 @@ test('9b：root-auth Origin 解析失败 → 403', async () => {
 });
 
 test('9c：lock-passkey 缺 Origin → 403', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/lock-passkey.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/lock-passkey.js');
   const kv = makeKV();
   const req = postReq('https://styrigx.com/api/lock-passkey', { action: 'list' }, { Origin: null });
   const res = await onRequestPost({ request: req, env: baseEnv(kv) });

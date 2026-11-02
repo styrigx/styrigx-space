@@ -4,7 +4,7 @@
  * 正式环境是两个 Worker：网关 styrigx-auth-gateway 经服务绑定 ACCOUNT（AccountService）/ ACCOUNT_VERIFIER（AccountVerifier）
  * 调账号 Worker styrigx-account。预览只有一个 Pages 项目（passkey-e2e.styrigx-space.pages.dev），它的 _worker.js 只能是一个脚本，
  * 所以这里把两边仓库里的真实代码装进同一个脚本：
- * - 网关那一半 = workers/auth-gateway/src/index.js 的 default.fetch（剥头、门、转发表、锁屏接口全是正式代码）；
+ * - 网关那一半 = workers/auth-gateway/src/app.js 的 default.fetch（剥头、门、转发表、锁屏接口全是正式代码）；
  * - 账号那一半 = workers/account/src/entrypoints.js 的 serviceFetch（AccountService.fetch 的实现）和 checkAccountSession
  *   （AccountVerifier.accountSession 的实现），包成和服务绑定同形状的进程内适配器，挂到网关 env 的 ACCOUNT / ACCOUNT_VERIFIER 上。
  *
@@ -17,7 +17,7 @@
  * 打包：deploy.yml「Bundle preview _worker.js」用 wrangler deploy --dry-run 打这个文件；本地模拟器 preview-emulator.cjs 直接 import。
  * cloudflare:workers 由 entrypoints.js 引入（WorkerEntrypoint，这里不用）；node 里由 tests/workers/account/_cf-workers.mjs 提供替身。
  */
-import gateway from '../../../workers/auth-gateway/src/index.js';
+import gateway from '../../../workers/auth-gateway/src/app.js';
 import { serviceFetch, checkAccountSession } from '../../../workers/account/src/entrypoints.js';
 
 /** 账号那一半能看到的 env 键（同 workers/account/wrangler.toml 的绑定 / 变量；预览不绑账号资料库，有就带上） */

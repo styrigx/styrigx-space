@@ -1,5 +1,5 @@
 /**
- * 两张锁屏 reset / reauth 短票（_kernel/tickets.js verifyTicket；账号的两张账号拆分 PR3 起只在账号 Worker）的时间窗口：
+ * 两张锁屏 reset / reauth 短票（src/core/tickets.js verifyTicket；账号的两张账号拆分 PR3 起只在账号 Worker）的时间窗口：
  * - expired：exp <= now（签发 181 秒前的票）
  * - not-yet：iat > now + 60s（时钟偏差容忍 60 秒，之内照常有效）
  * - 超长：exp − iat > 该票 maxAge → bad-format（签名本身是对的，也不认）
@@ -9,9 +9,9 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { verifyTicket, signTicket, SHORT_TICKETS } from '../../../workers/auth-gateway/functions/_kernel/tickets.js';
-import { ed25519Sign } from '../../../workers/auth-gateway/functions/_kernel/lib/crypto.js';
-import { TICKETS } from '../../../workers/auth-gateway/functions/_kernel/realms.js';
+import { verifyTicket, signTicket, SHORT_TICKETS } from '../../../workers/auth-gateway/src/core/tickets.js';
+import { ed25519Sign } from '../../../workers/auth-gateway/src/lib/crypto.js';
+import { TICKETS } from '../../../workers/auth-gateway/src/core/realms.js';
 import { makeKV, genKeyPair, authD1For } from '../_harness.mjs';
 
 const LOCK = await genKeyPair();

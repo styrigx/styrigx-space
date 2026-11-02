@@ -1,5 +1,5 @@
 /**
- * 根凭证限速（_kernel/root-limit.js + /api/root-auth）：
+ * 根凭证限速（src/core/root-limit.js + /api/root-auth）：
  * - 无会话假入口只计单 IP，不推全局计数（刷假入口锁不住主人）
  * - 全局只减速不封锁：全局计数满 ROOT_GLOBAL_SLOW_AT 后比对前先等 ROOT_GLOBAL_DELAY_MS，正确的 RootKey 照样通过
  * - 单 IP 连错 5 次锁 15 分钟：锁定中码对也 429，过期后恢复；IPv6 同一 /64 共用计数
@@ -10,13 +10,13 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { onRequestPost as rootAuth } from '../../../workers/auth-gateway/functions/api/root-auth.js';
+import { onRequestPost as rootAuth } from '../../../workers/auth-gateway/src/api/root-auth.js';
 import {
   checkRootLimit,
   recordRootFail,
   ROOT_GLOBAL_SLOW_AT,
   ROOT_GLOBAL_DELAY_MS,
-} from '../../../workers/auth-gateway/functions/_kernel/root-limit.js';
+} from '../../../workers/auth-gateway/src/core/root-limit.js';
 import { makeAuthD1, genKeyPair } from '../_harness.mjs';
 
 const { priv: PRIV, pub: PUB } = await genKeyPair();

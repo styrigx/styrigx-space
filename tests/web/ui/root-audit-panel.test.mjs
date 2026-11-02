@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { renderAudit, AUDIT_MAX } from '../../../web/assets/js/lib/status-view.js';
-import { AUDIT_SHOW } from '../../../workers/auth-gateway/functions/api/root-audit.js';
+import { AUDIT_SHOW } from '../../../workers/auth-gateway/src/api/root-audit.js';
 
 const read = (p) => readFileSync(new URL('../../../' + p, import.meta.url), 'utf8');
 const I18N = read('web/layouts/partials/status-i18n.html');

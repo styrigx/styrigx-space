@@ -7,7 +7,7 @@
  * - 纪元接口已删除（第 6 层）
  * - /api/lock-all-devices（2.8.0 独立 L2 API）：admin 会话 → epoch+1、清 cookie 带 Domain、
  *   KV 出错 → 503 且不写入；visitor 会话 → 403；无会话 → 401；旧三段式 cookie 无效
- * - _middleware：缺 SGX_LOCK_PUBLIC 时生产环境 fail closed（只放白名单）；
+ * - gate.js：缺 SGX_LOCK_PUBLIC 时生产环境 fail closed（只放白名单）；
  *   过期 cookie 被拒；旧 epoch cookie 被拒；伪造签名被拒；
  *   未验证的非白名单路径 302 到 https://styrigx.com/?lock=1&return=<站内路径>
  *   （Cache-Control: no-store，不再返回 200 锁屏 HTML）；
@@ -32,11 +32,11 @@ import {
   getLockEpoch,
   bumpLockEpoch,
   LOCK_SESSION_MAX_AGE,
-} from '../../../workers/auth-gateway/functions/_kernel/lock-session.js';
-import { b64urlEnc, ed25519Sign } from '../../../workers/auth-gateway/functions/_kernel/lib/crypto.js';
-import { onRequestPost as pwPost } from '../../../workers/auth-gateway/functions/api/lock-password.js';
-import { onRequestPost as lockAllPost } from '../../../workers/auth-gateway/functions/api/lock-all-devices.js';
-import { onRequest as mw } from '../../../workers/auth-gateway/functions/_middleware.js';
+} from '../../../workers/auth-gateway/src/core/lock-session.js';
+import { b64urlEnc, ed25519Sign } from '../../../workers/auth-gateway/src/lib/crypto.js';
+import { onRequestPost as pwPost } from '../../../workers/auth-gateway/src/api/lock-password.js';
+import { onRequestPost as lockAllPost } from '../../../workers/auth-gateway/src/api/lock-all-devices.js';
+import { onRequest as mw } from '../../../workers/auth-gateway/src/gate.js';
 import { testLockSession } from './_tickets.mjs';
 import { makeKV, genKeyPair, postReq, authD1For, forbiddenKV } from '../_harness.mjs';
 
@@ -69,14 +69,14 @@ async function genTestKeys() {
 
 /* 2.10.2：签发测试用 admin 会话 cookie */
 async function mintSessionCookie() {
-  const { signLockSessionTicket } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { signLockSessionTicket } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
   return await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
 }
 
 /* 在 account-password 记录里预置密码 test-pass-12345（100000 次迭代与服务端一致） */
 /* 2.11 定稿：seed lock-password（含 pepper），供 verify 测试用 */
 async function seedPassword(kv, password = 'test-pass-12345') {
-  const { makePasswordRecord } = await import('../../../workers/auth-gateway/functions/_kernel/lib/password.js');
+  const { makePasswordRecord } = await import('../../../workers/auth-gateway/src/core/password.js');
   const rec = await makePasswordRecord(password, 'test-pepper');
   authD1For(kv).putPassword('lock', rec);
 }
@@ -171,10 +171,10 @@ test('bumpLockEpoch：D1 没绑 → 抛错；env 里的 KV 碰一下就抛错也
  * ================================================================ */
 
 test('纪元接口已删除：路由表里没有，文件也不在', async () => {
-  const { API_ROUTES } = await import('../../../workers/auth-gateway/src/routes.js');
+  const { API_ROUTES } = await import('../../../workers/auth-gateway/src/router.js');
   assert.equal(API_ROUTES.has('/api/lock-epoch'), false);
   const fs = await import('node:fs');
-  assert.equal(fs.existsSync(new URL('../../../workers/auth-gateway/functions/api/lock-epoch.js', import.meta.url)), false);
+  assert.equal(fs.existsSync(new URL('../../../workers/auth-gateway/src/api/lock-epoch.js', import.meta.url)), false);
 });
 
 /* ================================================================
@@ -589,8 +589,8 @@ test('password verify 通过：Set-Cookie 属性齐全（Path/Secure/HttpOnly/Sa
 });
 
 test('临时 LockKey 进门通过：Set-Cookie 属性齐全（visitor 锁屏会话带 tempkeyId，Max-Age = 剩余时间封顶 12 小时；没有 sgx-tk）', async () => {
-  const { onRequestPost: tkPost } = await import('../../../workers/auth-gateway/functions/api/lock-tempkey-unlock.js');
-  const { createTempkey } = await import('../../../workers/auth-gateway/functions/_kernel/lock-tempkey.js');
+  const { onRequestPost: tkPost } = await import('../../../workers/auth-gateway/src/api/lock-tempkey-unlock.js');
+  const { createTempkey } = await import('../../../workers/auth-gateway/src/core/lock-tempkey.js');
   const kv = makeKV();
   const { code } = await createTempkey(stores(kv), 'test-pepper', { name: '', ms: 30 * 24 * 3600 * 1000 });
   const env = { D1_LOCK_AUTH: authD1For(kv), SGX_LOCK_PRIVATE: TEST_PRIV_PEM, SGX_PW_PEPPER: 'test-pepper' };
@@ -609,7 +609,7 @@ test('临时 LockKey 进门通过：Set-Cookie 属性齐全（visitor 锁屏会�
 });
 
 test('passkey auth 通过：Set-Cookie 属性齐全', async () => {
-  const { onRequestPost: pkPost } = await import('../../../workers/auth-gateway/functions/api/lock-passkey.js');
+  const { onRequestPost: pkPost } = await import('../../../workers/auth-gateway/src/api/lock-passkey.js');
   const b64url = (buf) => Buffer.from(buf).toString('base64')
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
@@ -700,7 +700,7 @@ test('passkey auth 通过：Set-Cookie 属性齐全', async () => {
 /* ---------- issueLockSession 单元 ---------- */
 
 test('diag: issueLockSession 无 SGX_LOCK_PRIVATE → 500 no-session-key（不签发）', async () => {
-  const { issueLockSession } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { issueLockSession } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
   const headers = new Headers();
   const err = await issueLockSession({ ...stores() }, headers, { by: 'password', role: 'admin' });
   assert.deepEqual(err, { status: 500, body: { ok: false, error: 'no-session-key' } });
@@ -708,7 +708,7 @@ test('diag: issueLockSession 无 SGX_LOCK_PRIVATE → 500 no-session-key（不�
 });
 
 test('diag: issueLockSession 私钥格式错误 → 500 session-sign-failed', async () => {
-  const { issueLockSession } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { issueLockSession } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
   const headers = new Headers();
   const err = await issueLockSession({ ...stores(), SGX_LOCK_PRIVATE: 'not-a-key' }, headers, { by: 'password', role: 'admin' });
   assert.deepEqual(err, { status: 500, body: { ok: false, error: 'session-sign-failed' } });
@@ -716,7 +716,7 @@ test('diag: issueLockSession 私钥格式错误 → 500 session-sign-failed', as
 });
 
 test('diag: issueLockSession 读纪元出错（D1）→ 503（不签发）', async () => {
-  const { issueLockSession } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { issueLockSession } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
   const headers = new Headers();
   const kv = makeKV();
   authD1For(kv).failOn = () => true;
@@ -727,7 +727,7 @@ test('diag: issueLockSession 读纪元出错（D1）→ 503（不签发）', asy
 });
 
 test('diag: issueLockSession 正常 → null 且 Set-Cookie 已设置', async () => {
-  const { issueLockSession, LOCK_SESSION_COOKIE } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { issueLockSession, LOCK_SESSION_COOKIE } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
   assert.equal(LOCK_SESSION_COOKIE, 'sgx-lock-session');
   const headers = new Headers();
   const err = await issueLockSession({ ...stores(), SGX_LOCK_PRIVATE: TEST_PRIV_PEM }, headers, { by: 'password', role: 'admin' });
@@ -748,8 +748,8 @@ test('diag: password verify 无 SGX_LOCK_PRIVATE → 500 no-session-key（不是
 });
 
 test('diag: 临时 LockKey 进门 无 SGX_LOCK_PRIVATE → 500 no-session-key，不下发 cookie', async () => {
-  const { onRequestPost: tkPost } = await import('../../../workers/auth-gateway/functions/api/lock-tempkey-unlock.js');
-  const { createTempkey } = await import('../../../workers/auth-gateway/functions/_kernel/lock-tempkey.js');
+  const { onRequestPost: tkPost } = await import('../../../workers/auth-gateway/src/api/lock-tempkey-unlock.js');
+  const { createTempkey } = await import('../../../workers/auth-gateway/src/core/lock-tempkey.js');
   const kv = makeKV();
   const { code } = await createTempkey(stores(kv), 'test-pepper', { name: '', ms: 3600 * 1000 });
   const env = { D1_LOCK_AUTH: authD1For(kv), SGX_PW_PEPPER: 'test-pepper' };
@@ -820,7 +820,7 @@ async function buildPasskeyAuthFixture() {
 }
 
 test('diag: passkey auth 无 SGX_LOCK_PRIVATE → 500 no-session-key（不被吞成 403）', async () => {
-  const { onRequestPost: pkPost } = await import('../../../workers/auth-gateway/functions/api/lock-passkey.js');
+  const { onRequestPost: pkPost } = await import('../../../workers/auth-gateway/src/api/lock-passkey.js');
   const { kv, body } = await buildPasskeyAuthFixture();
   const env = {
     D1_LOCK_AUTH: authD1For(kv),
@@ -834,7 +834,7 @@ test('diag: passkey auth 无 SGX_LOCK_PRIVATE → 500 no-session-key（不被吞
 });
 
 test('diag: passkey auth 私钥格式错误 → 500 session-sign-failed（不被吞成 403）', async () => {
-  const { onRequestPost: pkPost } = await import('../../../workers/auth-gateway/functions/api/lock-passkey.js');
+  const { onRequestPost: pkPost } = await import('../../../workers/auth-gateway/src/api/lock-passkey.js');
   const { kv, body } = await buildPasskeyAuthFixture();
   const env = {
     D1_LOCK_AUTH: authD1For(kv),
@@ -851,7 +851,7 @@ test('diag: passkey auth 私钥格式错误 → 500 session-sign-failed（不被
 /* ---------- 写入/读取对账 ---------- */
 
 test('diag: 写入/读取对账：signLockSessionTicket 签发的 cookie 能被 middleware 验签放行', async () => {
-  const { LOCK_SESSION_COOKIE } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { LOCK_SESSION_COOKIE } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
   assert.equal(LOCK_SESSION_COOKIE, 'sgx-lock-session');
   const cv = await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
   /* LockSessionTicket：by.role.epoch.exp.tempkeyId.sig（admin 的 tempkeyId 为空串） */
@@ -1006,7 +1006,7 @@ test('middleware：首页有会话 → 200 + data-sgx-lock-session="valid"', asy
 /* ============ 2.8.0：搜索收录 + 锁屏瘦身 ============ */
 
 test('2.8.0：锁屏态首页剥离桌面内容（SGX-DESKTOP markers）', async () => {
-  const { injectSessionState } = await import('../../../workers/auth-gateway/functions/_kernel/html.js');
+  const { injectSessionState } = await import('../../../workers/auth-gateway/src/gate.js');
   const html = '<html lang="zh"><head></head><body>' +
     '<!-- SGX-DESKTOP-START --><div>书单歌单小组件</div><!-- SGX-DESKTOP-END -->' +
     '<div id="nav">导航</div></body></html>';
@@ -1018,7 +1018,7 @@ test('2.8.0：锁屏态首页剥离桌面内容（SGX-DESKTOP markers）', async
 });
 
 test('2.8.0：锁屏态首页带 X-Robots-Tag: noindex', async () => {
-  const { injectSessionState } = await import('../../../workers/auth-gateway/functions/_kernel/html.js');
+  const { injectSessionState } = await import('../../../workers/auth-gateway/src/gate.js');
   const res = new Response('<html><body></body></html>', {
     headers: { 'Content-Type': 'text/html' },
   });
@@ -1047,7 +1047,7 @@ test('2.8.0：未验证 302 带 X-Robots-Tag: noindex', async () => {
  * ================================================================ */
 
 async function visitorCookie(epoch = 0) {
-  const { signLockSessionTicket } = await import('../../../workers/auth-gateway/functions/_kernel/lock-session.js');
+  const { signLockSessionTicket } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
   return await testLockSession(TEST_PRIV_PEM, epoch, 'visitor');
 }
 
@@ -1111,7 +1111,7 @@ test('visitor 进 /settings/display/ 严格 200；/settings/security/ 总览 200
 
 test('LockResetTicket 只放行 /settings/security/lock/，不开总览；LockReauthTicket 不能代替', async () => {
   await genTestKeys();
-  const { signLockResetTicket, signLockReauthTicket } = await import('../../../workers/auth-gateway/functions/_kernel/tickets.js');
+  const { signLockResetTicket, signLockReauthTicket } = await import('../../../workers/auth-gateway/src/core/tickets.js');
   const ticket = 'sgx-lock-reset=' + (await signLockResetTicket(TEST_PRIV_PEM, 'password', 0));
   const lockTicket = 'sgx-lock-reauth=' + (await signLockReauthTicket(TEST_PRIV_PEM, 'root', 0));
   const env = {
@@ -1237,7 +1237,7 @@ test('2.9.3：middleware 放行 visitor 的 POST /api/lock-now（调 next）', a
 });
 
 test('2.9.3：POST /api/lock-now handler 返回 200 并清除 sgx-verified', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/lock-now.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/lock-now.js');
   const vCookie = await visitorCookie(0);
   for (const cookie of [vCookie, null]) {
     const r = await onRequestPost({

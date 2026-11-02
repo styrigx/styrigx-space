@@ -33,7 +33,7 @@ function seedKey(kv, credId, realm) {
   });
 }
 async function seedPw(kv, realm, password) {
-  const { makePasswordRecord } = await import('../../../workers/auth-gateway/functions/_kernel/lib/password.js');
+  const { makePasswordRecord } = await import('../../../workers/auth-gateway/src/core/password.js');
   authD1For(kv).putPassword(realm, await makePasswordRecord(password, 'test-pepper'));
 }
 /** admin 锁屏会话 + LockReauthTicket（进锁屏凭证管理的门） */
@@ -48,7 +48,7 @@ before(async () => {
 });
 
 test('lock-entry：只有遗留的账号凭证、没有锁屏凭证 → passkey / password 都是 false；不再返回 resetOnly / accountConfigured', async () => {
-  const { onRequestGet } = await import('../../../workers/auth-gateway/functions/api/lock-entry.js');
+  const { onRequestGet } = await import('../../../workers/auth-gateway/src/api/lock-entry.js');
   const kv = makeKV({ 'layer:lock-emptied': '1' }); /* 生产 KV 里的残留：网关运行时不读 KV */
   await seedPw(kv, 'account', 'account-password-123');
   seedKey(kv, 'acct-key-0001', 'account');
@@ -59,7 +59,7 @@ test('lock-entry：只有遗留的账号凭证、没有锁屏凭证 → passkey 
 });
 
 test('lock-entry：有锁屏密码 → password=true、passkey=false；空站 → 两个 false；没绑锁屏库 → 按已配置（两个 true）', async () => {
-  const { onRequestGet } = await import('../../../workers/auth-gateway/functions/api/lock-entry.js');
+  const { onRequestGet } = await import('../../../workers/auth-gateway/src/api/lock-entry.js');
   const kv = makeKV();
   await seedPw(kv, 'lock', 'lock-password-1234');
   assert.deepEqual(await (await onRequestGet({ env: envFor(kv) })).json(), { ok: true, passkey: false, password: true });
@@ -71,7 +71,7 @@ test('lock-entry：有锁屏密码 → password=true、passkey=false；空站 �
 });
 
 test('删最后一把锁屏通行密钥（没有锁屏密码）→ 403 last-key，即使库里有遗留的账号凭证；钥匙还在', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/lock-passkey.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/lock-passkey.js');
   const kv = makeKV();
   seedKey(kv, 'lock-key-0001', 'lock');
   await seedPw(kv, 'account', 'account-password-123');
@@ -86,7 +86,7 @@ test('删最后一把锁屏通行密钥（没有锁屏密码）→ 403 last-key�
 });
 
 test('删锁屏密码且没有锁屏通行密钥 → 403 last-key（即使库里有遗留的账号凭证）；有锁屏通行密钥时可删', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/functions/api/lock-password.js');
+  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/lock-password.js');
   const kv = makeKV();
   await seedPw(kv, 'lock', 'lock-password-1234');
   await seedPw(kv, 'account', 'account-password-123');

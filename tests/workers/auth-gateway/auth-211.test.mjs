@@ -24,7 +24,7 @@ import { makeKV, genKeyPair, postReq, authD1For } from '../_harness.mjs';
 const REPO = new URL('../../../', import.meta.url).pathname;
 
 /* 恢复开关：2026-10-27 起在 D1（D1_LOCK_AUTH），不再有 KV 键（模块不再导出键名）；方案 9.4 起表名 lock_reset_switch */
-const SWITCH_MOD = await import('../../../workers/auth-gateway/functions/_kernel/lock-reset-switch.js');
+const SWITCH_MOD = await import('../../../workers/auth-gateway/src/core/lock-reset-switch.js');
 assert.equal('LOCK_RESET_SWITCH_KEY' in SWITCH_MOD, false, '开关不再是 KV 键');
 
 test('预览库按编号跑网关迁移（PR4）：0008 把旧表 recovery_switch 的行拷进 lock_reset_switch，0009 再 DROP 旧表；行原样', async () => {
@@ -52,12 +52,12 @@ test('恢复开关表名 lock_reset_switch（方案 9.4）：CREATE_SQL 与 migr
     .split('\n').map((l) => l.replace(/--.*$/, '')).join('\n').split(';').map(flat).filter(Boolean);
   assert.equal(mig[0], SWITCH_MOD.CREATE_SQL);
   assert.equal(mig[1], 'INSERT OR IGNORE INTO lock_reset_switch (hash, first_seen, used) SELECT hash, first_seen, used FROM recovery_switch');
-  const code = fs.readFileSync(REPO + 'workers/auth-gateway/functions/_kernel/lock-reset-switch.js', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const code = fs.readFileSync(REPO + 'workers/auth-gateway/src/core/lock-reset-switch.js', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
   assert.doesNotMatch(code, /recovery_switch/);
   assert.equal((code.match(/\block_reset_switch\b/g) || []).length, 7, 'CREATE_SQL + 6 条读写');
-  /* 网关运行时代码（functions/、src/）去掉注释后都不再读写旧表 */
+  /* 网关运行时代码（src/）去掉注释后都不再读写旧表 */
   const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(d + '/' + e.name) : /\.m?js$/.test(e.name) ? [d + '/' + e.name] : []));
-  for (const f of [...walk(REPO + 'workers/auth-gateway/functions'), ...walk(REPO + 'workers/auth-gateway/src')]) {
+  for (const f of walk(REPO + 'workers/auth-gateway/src')) {
     assert.doesNotMatch(fs.readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''), /recovery_switch/, f);
   }
 });
@@ -89,7 +89,7 @@ function baseEnv(kv, overrides) {
  * realm='account' 的密码（拆分前遗留的行，网关不该读到它）。
  * 账号密码固定 'account-pass-1'，锁屏密码 'lock-pass-1'（pepper = baseEnv 的 test-pepper）。
  */
-const { makePasswordRecord: mkPw } = await import(REPO + '/workers/auth-gateway/functions/_kernel/lib/password.js');
+const { makePasswordRecord: mkPw } = await import(REPO + '/workers/auth-gateway/src/core/password.js');
 const ACCOUNT_PW_REC = await mkPw('account-pass-1', 'test-pepper');
 const LOCK_PW_REC = await mkPw('lock-pass-1', 'test-pepper');
 function configuredKV(o) {
@@ -108,7 +108,7 @@ function configuredKV(o) {
 
 
 test('2.11 无 lock 会话：单用根凭证进入口 1 被拒（无会话且 lock 已配置 → 假入口 401 auth）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/root-auth.js');
   const kv = configuredKV({ lock: true });
   const env = baseEnv(kv);
   const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345', purpose: 'lock-reauth' });
@@ -121,7 +121,7 @@ test('2.11 无 lock 会话：单用根凭证进入口 1 被拒（无会话且 lo
 /* ============ 3. 重置锁屏 ============ */
 
 test('2.11 重置锁屏：开关关闭时只根凭证 → 返回 needLock（带锁屏凭证的 passkey / password 布尔）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
   const kv = configuredKV({ lock: true, account: true });
   const env = baseEnv(kv); /* 无开关 → 关闭 */
   const req = postReq('https://test.example.com/api/lock-reset', {
@@ -135,7 +135,7 @@ test('2.11 重置锁屏：开关关闭时只根凭证 → 返回 needLock（带�
 });
 
 test('2.11 重置锁屏：开关关闭时只锁屏凭证被拒（缺根密钥 → 401）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
   const kv = configuredKV({ lock: true });
   const env = baseEnv(kv);
   const req = postReq('https://test.example.com/api/lock-reset', {
@@ -149,8 +149,8 @@ test('2.11 重置锁屏：开关关闭时只锁屏凭证被拒（缺根密钥 �
 });
 
 test('2.11 重置锁屏：根密钥 + 锁屏密码 → LockResetTicket(by=password)；锁屏密码错 → 401 auth 并计入根密钥限速', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
-  const { verifyLockResetTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/tickets.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
+  const { verifyLockResetTicket } = await import(REPO + '/workers/auth-gateway/src/core/tickets.js');
   const kv = configuredKV({ lock: true });
   const env = baseEnv(kv);
   const h = { 'CF-Connecting-IP': '9.9.9.1' };
@@ -173,7 +173,7 @@ test('2.11 重置锁屏：根密钥 + 锁屏密码 → LockResetTicket(by=passwo
 });
 
 test('2.11 重置锁屏：库里遗留的账号密码不算锁屏凭证（网关不读 realm=account）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
   const kv = configuredKV({ account: true }); /* 只有拆分前遗留的账号密码行 */
   const env = baseEnv(kv);
   const res = await onRequestPost({ request: postReq('https://test.example.com/api/lock-reset', {
@@ -183,7 +183,7 @@ test('2.11 重置锁屏：库里遗留的账号密码不算锁屏凭证（网关
 });
 
 test('2.11 重置锁屏：challenge 只下发锁屏通行密钥；没有锁屏通行密钥 → 403 not-set', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
   const kv = configuredKV({ lock: true });
   const res = await onRequestPost({ request: postReq('https://test.example.com/api/lock-reset', { action: 'challenge' }), env: baseEnv(kv) });
   assert.equal(res.status, 403);
@@ -191,7 +191,7 @@ test('2.11 重置锁屏：challenge 只下发锁屏通行密钥；没有锁屏�
 });
 
 test('2.11 重置锁屏：锁屏凭证一项都没有且开关关闭 → status 始终可用，verify 通用 401 auth（不泄露 not-set）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
   const kv = configuredKV({ account: true }); /* 锁屏没有任何凭证（库里只有遗留的账号行） */
   const env = baseEnv(kv);
   const st = postReq('https://test.example.com/api/lock-reset', { action: 'status' });
@@ -230,7 +230,7 @@ function switchEnv(kv, hash) {
 }
 
 test('2.11 开关：不存在 → 关闭（根凭证正确后返回 needLock）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
   const kv = configuredKV({ lock: true });
   const env = switchEnv(kv); /* lock_reset_switch 没有行 */
   const req = postReq('https://test.example.com/api/lock-reset', {
@@ -245,7 +245,7 @@ test('2.11 开关：不存在 → 关闭（根凭证正确后返回 needLock）'
 
 
 test('2.11 开关：已用后再用 → 关闭（返回 needLock）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
   const kv = configuredKV({ lock: true });
   const env = switchEnv(kv, 'switch-1');
   /* 第一次：成功（单根拿到 lockreset），开关标记已用 */
@@ -284,7 +284,7 @@ test('2.11 开关：过期（24h+）→ 关闭；同时还有一行没见过的 
 });
 
 test('2.11 开关：插新行重新开启', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
   const kv = configuredKV({ lock: true });
   /* 旧行已用 */
   const env1 = switchEnv(kv, 'old');
@@ -322,7 +322,7 @@ test('2.11 开关：D1 缺失/失败 → fail closed', async () => {
 });
 
 test('2.11 开关：D1 出错时重置路径不签 lockreset（单根）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
   const kv = configuredKV({ lock: true });
   const env = switchEnv(kv, 'switch-1');
   switchDb(kv).failOn = (sql) => /lock_reset_switch/.test(sql);
@@ -333,7 +333,7 @@ test('2.11 开关：D1 出错时重置路径不签 lockreset（单根）', async
 });
 
 test('2.11 开关：根凭证错误时不读开关', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
   const kv = configuredKV({ lock: true });
   const env = switchEnv(kv, 'secret');
   const db = switchDb(kv);
@@ -348,7 +348,7 @@ test('2.11 开关：根凭证错误时不读开关', async () => {
 });
 
 test('2.11 开关：有效时单锁屏凭证仍被拒（根密钥优先，不可跳过）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
   const kv = configuredKV({ lock: true });
   const env = switchEnv(kv, 'switch-1');
   /* 有 lockProof 但无 rootKey → 401（根密钥不可跳过） */
@@ -364,7 +364,7 @@ test('2.11 开关：有效时单锁屏凭证仍被拒（根密钥优先，不可
 /* ============ 5. 假入口 ============ */
 
 test('2.11 假入口：访客提交正确根凭证 → 401 auth，与错误密钥响应逐字节相同', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/root-auth.js');
   const kv1 = configuredKV({ lock: true });
   const kv2 = configuredKV({ lock: true });
   const env1 = baseEnv(kv1);
@@ -384,7 +384,7 @@ test('2.11 假入口：访客提交正确根凭证 → 401 auth，与错误密�
 });
 
 test('2.11 假入口：缺 Origin → 403（先于假入口）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/root-auth.js');
   const kv = configuredKV({ lock: true });
   const env = baseEnv(kv);
   const req = new Request('https://test.example.com/api/root-auth', {
@@ -400,8 +400,8 @@ test('2.11 假入口：缺 Origin → 403（先于假入口）', async () => {
 
 
 test('2.11 pepper：锁屏密码不再与账号密码比对（库里遗留同值的账号密码也照样能设）；AccountReauthTicket 进不了锁屏密码接口', async () => {
-  const { onRequestPost: pwPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-password.js');
-  const { signLockReauthTicket } = await import(REPO + '/workers/auth-gateway/functions/_kernel/tickets.js');
+  const { onRequestPost: pwPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-password.js');
+  const { signLockReauthTicket } = await import(REPO + '/workers/auth-gateway/src/core/tickets.js');
   const kv = configuredKV({ lock: true, account: true }); /* 纪元在 D1，没有 → 0；遗留账号密码 = account-pass-1 */
   const env = baseEnv(kv);
   const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
@@ -420,7 +420,7 @@ test('2.11 pepper：锁屏密码不再与账号密码比对（库里遗留同值
 /* ============ 8. root-auth ============ */
 
 test('2.11 root-auth：错误密钥 401 auth（引导模式）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/root-auth.js');
   const kv = makeKV(); /* lock 未配置 → 引导模式 */
   const env = baseEnv(kv);
   const req = postReq('https://test.example.com/api/root-auth', { key: 'wrong-key', purpose: 'lock-reauth' });
@@ -430,7 +430,7 @@ test('2.11 root-auth：错误密钥 401 auth（引导模式）', async () => {
 });
 
 test('2.11 root-auth：缺 Origin 403 origin', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/root-auth.js');
   const kv = makeKV();
   const env = baseEnv(kv);
   const req = new Request('https://test.example.com/api/root-auth', {
@@ -445,15 +445,15 @@ test('2.11 root-auth：缺 Origin 403 origin', async () => {
 
 test('2.11 root-auth：旧 /api/owner-auth 不再可用（文件不存在）', async () => {
   const fs = await import('node:fs');
-  assert.equal(fs.existsSync(REPO + '/workers/auth-gateway/functions/api/owner-auth.js'), false);
+  assert.equal(fs.existsSync(REPO + '/workers/auth-gateway/src/api/owner-auth.js'), false);
 });
 
 /* ============ 9. 限速 ============ */
 
 test('2.11 限速：根凭证各路径共用计数（root-auth 失败计入 lockreset 限速）', async () => {
-  const { checkRootLimit, recordRootFail } = await import(REPO + '/workers/auth-gateway/functions/_kernel/root-limit.js');
-  const { onRequestPost: rootAuth } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
-  const { onRequestPost: lockReset } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
+  const { checkRootLimit, recordRootFail } = await import(REPO + '/workers/auth-gateway/src/core/root-limit.js');
+  const { onRequestPost: rootAuth } = await import(REPO + '/workers/auth-gateway/src/api/root-auth.js');
+  const { onRequestPost: lockReset } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
   const kv = configuredKV({ lock: true });
   const env = baseEnv(kv);
   const ip = '1.2.3.4';
@@ -483,8 +483,8 @@ test('2.11 限速：根凭证各路径共用计数（root-auth 失败计入 lock
 
 test('2.11 补充二：/api/layer-status 已删（账号拆分 PR3：前端无调用方；开关计时由 touchLockResetSwitch 直接测）', async () => {
   const fs = await import('node:fs');
-  assert.equal(fs.existsSync(REPO + '/workers/auth-gateway/functions/api/layer-status.js'), false);
-  const { API_ROUTES } = await import(REPO + '/workers/auth-gateway/src/routes.js');
+  assert.equal(fs.existsSync(REPO + '/workers/auth-gateway/src/api/layer-status.js'), false);
+  const { API_ROUTES } = await import(REPO + '/workers/auth-gateway/src/router.js');
   assert.equal(API_ROUTES.has('/api/layer-status'), false);
   const { touchLockResetSwitch } = SWITCH_MOD;
   const kv = configuredKV({ lock: true });
@@ -497,7 +497,7 @@ test('2.11 补充二：/api/layer-status 已删（账号拆分 PR3：前端无�
 });
 
 test('2.11 补充二：计时 24 小时后，开关在重置路径上已失效', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
   const { touchLockResetSwitch } = SWITCH_MOD;
   const kv = configuredKV({ lock: true });
   const env0 = switchEnv(kv, 'timer-1');
@@ -523,7 +523,7 @@ test('2.11 补充二：计时 24 小时后，开关在重置路径上已失效',
 /* ============ 11. 补充四：恢复开关提示仅出现在重置第二步 ============ */
 
 test('2.11 补充四：根凭证错误的 lockreset 响应不含 lock-reset-switch / lock_reset_switch / recovery_switch', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/lock-reset.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
   const kv = configuredKV({ lock: true });
   const env = switchEnv(kv, 'some-secret');
   const req = postReq('https://test.example.com/api/lock-reset', {
@@ -536,7 +536,7 @@ test('2.11 补充四：根凭证错误的 lockreset 响应不含 lock-reset-swit
 });
 
 test('2.11 补充四：访客假入口（root-auth）响应不含 lock-reset-switch / lock_reset_switch / recovery_switch', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/functions/api/root-auth.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/root-auth.js');
   const kv = configuredKV({ lock: true });
   const env = switchEnv(kv, 'some-secret');
   /* 访客无会话，提交错误密钥 → 假入口 401 */

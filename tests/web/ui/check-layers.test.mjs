@@ -2,7 +2,6 @@
  * 分层检查器（scripts/check-layers.mjs）和前端规范检查器（scripts/check-frontend.mjs）的单测。
  *
  * - 本仓库现在两者都通过
- * - 以前漏掉的 5 处网关违规（api → api、api → _middleware、src → _middleware、src → api）用原来的 import 写法喂给检查器，必须报错
  * - 解析不到文件的相对 import 报错（以前记成 unknown 放行）
  * - 前端：lib/ → auth/shell/apps、auth/ → shell/apps、shell/ → apps/、前端 → functions/、lib/ 里出现鉴权接口或 navigator.credentials
  * - 每个 Worker 只能 import 自己目录 workers/<名字>/ 下的文件；账号和网关互相不许 import；没有共享目录（2026-10-30）
@@ -39,7 +38,7 @@ const FE = 'web/assets/js/';
 test('check-layers：本仓库通过', () => {
   const { files, errors } = layers.checkRepo(REPO);
   assert.deepEqual(errors, []);
-  assert.ok(files > 130, '扫描了网关 functions/、src/ 和前端：' + files);
+  assert.ok(files > 130, '扫描了各 Worker 的 src/ 和前端：' + files);
 });
 
 test('check-frontend：本仓库通过（含 web/shared/shell）', () => {
@@ -48,47 +47,11 @@ test('check-frontend：本仓库通过（含 web/shared/shell）', () => {
   assert.ok(files > 90, String(files));
 });
 
-test('check-layers：以前漏掉的 5 处网关违规，用原来的 import 写法都报错', () => {
-  const api = (n) => join(REPO, GW + 'functions/api/' + n);
-  const src = (n) => join(REPO, GW + 'src/' + n);
-  const cases = [
-    [api('lock-password.js'), "import { checkLockManage } from './lock-reauth.js';", /functions\/api\/ 只能 import _kernel\/，发现 api/],
-    [api('lock-passkey.js'), "import { checkLockManage, TICKET_IDS } from './lock-reauth.js';", /发现 api/],
-    [api('lock-all-devices.js'), "import { checkLockManage } from './lock-reauth.js';", /发现 api/],
-    [api('lock-session-check.js'), "import { resolveReturn } from '../_middleware.js';", /发现 _middleware/],
-    [src('subsites.js'), "import { stripSessionAttrs } from '../functions/_middleware.js';", /src\/ 只能 import/],
-    [src('subsites.js'), "import * as searchApi from '../functions/api/search.js';", /src\/ 只能 import/],
-  ];
-  for (const [file, code, re] of cases) {
-    const errs = layers.checkFile(REPO, file, code);
-    assert.equal(errs.length, 1, code + ' → ' + JSON.stringify(errs));
-    assert.match(errs[0], re);
-  }
-});
-
-test('check-layers：网关允许的方向（_kernel 内部、api → _kernel、路由表 → api、入口 → middleware、src 内部）', () => {
-  const ok = [
-    [GW + 'functions/_kernel/return.js', "import { ROLE_VISITOR } from './lock-session.js';"],
-    [GW + 'functions/api/lock-reauth.js', "import { TICKET_IDS } from '../_kernel/lock-manage.js';"],
-    [GW + 'functions/_middleware.js', "import { resolveReturn } from './_kernel/return.js';"],
-    [GW + 'src/routes.js', "import * as search from '../functions/api/search.js';"],
-    [GW + 'src/index.js', "import { onRequest } from '../functions/_middleware.js';\nimport { API_ROUTES } from './routes.js';"],
-    [GW + 'src/subsites.js', "import { stripSessionAttrs } from '../functions/_kernel/html.js';\nimport { API_ROUTES } from './routes.js';"],
-    [GW + 'src/rpc.js', "import { WorkerEntrypoint } from 'cloudflare:workers';"],
-  ];
-  for (const [rel, code] of ok) assert.deepEqual(layers.checkFile(REPO, join(REPO, rel), code), [], rel);
-});
-
-test('check-layers：网关禁止的其他方向', () => {
+test('check-layers：网关禁止的 import（外部包、账号、其他 Worker）', () => {
   const bad = [
-    [GW + 'functions/_kernel/realms.js', "import { onRequest } from '../_middleware.js';", /_kernel\/ 只能 import _kernel/],
-    [GW + 'functions/_kernel/realms.js', "import * as a from '../api/geo.js';", /_kernel\/ 只能 import _kernel/],
-    [GW + 'functions/_middleware.js', "import * as a from './api/geo.js';", /_middleware\.js 只能 import _kernel/],
-    [GW + 'src/verifier.js', "import * as a from '../functions/api/geo.js';", /src\/ 只能 import/],
-    [GW + 'src/verifier.js', "import { onRequest } from '../functions/_middleware.js';", /src\/ 只能 import/],
-    [GW + 'functions/api/geo.js', "import x from 'some-package';", /只能 import 相对路径或 cloudflare:workers/],
-    [GW + 'functions/api/geo.js', "import { json } from '../../../account/src/lib/http.js';", /账号和网关互相不许 import/],
-    [GW + 'functions/api/geo.js', "import { json } from '../../../share/src/lib/http.js';", /网关目录以外/],
+    [GW + 'src/api/geo.js', "import x from 'some-package';", /只能 import 相对路径或 cloudflare:workers/],
+    [GW + 'src/api/geo.js', "import { json } from '../../../account/src/lib/http.js';", /账号和网关互相不许 import/],
+    [GW + 'src/api/geo.js', "import { json } from '../../../share/src/lib/http.js';", /网关目录以外/],
   ];
   for (const [rel, code, re] of bad) {
     const errs = layers.checkFile(REPO, join(REPO, rel), code);
@@ -99,9 +62,9 @@ test('check-layers：网关禁止的其他方向', () => {
 
 const AC = 'workers/account/';
 
-test('check-layers：layerOf 认每个 Worker 目录；网关仍细分层', () => {
+test('check-layers：layerOf 认每个 Worker 目录', () => {
   assert.deepEqual(layers.layerOf(REPO, join(REPO, AC + 'src/lib/http.js')), { area: 'worker', layer: 'account', rel: AC + 'src/lib/http.js', worker: 'account' });
-  assert.deepEqual(layers.layerOf(REPO, join(REPO, GW + 'functions/_kernel/lib/http.js')), { area: 'gateway', layer: '_kernel', rel: GW + 'functions/_kernel/lib/http.js', worker: 'auth-gateway' });
+  assert.deepEqual(layers.layerOf(REPO, join(REPO, GW + 'src/lib/http.js')), { area: 'gateway', layer: 'src', rel: GW + 'src/lib/http.js', worker: 'auth-gateway' });
   assert.equal(layers.layerOf(REPO, join(REPO, 'workers/chat/src/index.js')).worker, 'chat');
 });
 
@@ -126,12 +89,12 @@ test('check-layers：workers/ 下每个目录都是一个 Worker（有自己的 
 
 test('check-layers：交叉 import 一律失败——账号 ↔ 网关（任何层）、Worker 之间、Worker 以外的公共目录', () => {
   const root = fixture({
-    [AC + 'src/x.js']: "import { a } from '../../auth-gateway/functions/_kernel/lib/http.js';",
+    [AC + 'src/x.js']: "import { a } from '../../auth-gateway/src/lib/http.js';",
     [AC + 'src/y.js']: "export { s } from '../../auth-gateway/src/index.js';",
-    [GW + 'functions/_kernel/lib/http.js']: 'export const a = 1;',
+    [GW + 'src/lib/http.js']: 'export const a = 1;',
     [GW + 'src/index.js']: 'export const s = 1;',
-    [GW + 'functions/_kernel/k.js']: "import { b } from '../../../account/src/lib/b.js';",
-    [GW + 'functions/api/p.js']: "const m = await import('../../../account/src/lib/b.js');",
+    [GW + 'src/core/k.js']: "import { b } from '../../../account/src/lib/b.js';",
+    [GW + 'src/api/p.js']: "const m = await import('../../../account/src/lib/b.js');",
     [GW + 'src/v.js']: "import { b } from '../../account/src/lib/b.js';",
     [AC + 'src/lib/b.js']: 'export const b = 1;',
     ['workers/share/src/auth.js']: "export { authFor } from '../../account/src/lib/b.js';",
@@ -142,7 +105,7 @@ test('check-layers：交叉 import 一律失败——账号 ↔ 网关（任何�
   try {
     const { errors } = layers.checkRepo(root);
     const by = (f) => errors.filter((e) => e.startsWith(f + ':'));
-    for (const f of [AC + 'src/x.js', AC + 'src/y.js', GW + 'functions/_kernel/k.js', GW + 'functions/api/p.js', GW + 'src/v.js']) {
+    for (const f of [AC + 'src/x.js', AC + 'src/y.js', GW + 'src/core/k.js', GW + 'src/api/p.js', GW + 'src/v.js']) {
       assert.equal(by(f).length, 1, f + ' → ' + JSON.stringify(errors));
       assert.match(by(f)[0], /账号和网关互相不许 import/);
     }
@@ -163,16 +126,8 @@ test('check-layers：Worker 的非相对 import 只认 cloudflare:workers；注�
   assert.match(layers.checkFile(REPO, f, "import { x } from './no-such-file.js';")[0], /import 的文件不存在/);
 });
 
-test('check-layers：网关 functions/ 杂项文件仍报错；_kernel/lib 属于 _kernel', () => {
-  const a = layers.checkFile(REPO, join(REPO, GW + 'functions/api/geo.js'), "import { json } from '../_kernel/lib/http.js';");
-  assert.deepEqual(a, []);
-  const b = layers.checkFile(REPO, join(REPO, GW + 'functions/misc.js'), "import { json } from './_kernel/lib/http.js';");
-  assert.equal(b.length, 1);
-  assert.match(b[0], /functions\/ 下只允许/);
-});
-
 test('check-layers：解析不到的相对 import 报错（不再按 unknown 放行）', () => {
-  const errs = layers.checkFile(REPO, join(REPO, GW + 'functions/api/geo.js'), "import { x } from './no-such-file.js';");
+  const errs = layers.checkFile(REPO, join(REPO, GW + 'src/api/geo.js'), "import { x } from './no-such-file.js';");
   assert.equal(errs.length, 1);
   assert.match(errs[0], /import 的文件不存在/);
   const errs2 = layers.checkFile(REPO, join(REPO, FE + 'shell/nav.js'), "import { x } from './scheduler.js';");
@@ -180,9 +135,9 @@ test('check-layers：解析不到的相对 import 报错（不再按 unknown 放
 });
 
 test('check-layers：export … from 和动态 import() 也算', () => {
-  const a = layers.checkFile(REPO, join(REPO, GW + 'functions/api/geo.js'), "export { checkLockManage } from './lock-reauth.js';");
+  const a = layers.checkFile(REPO, join(REPO, GW + 'src/api/geo.js'), "export { json } from '../../../account/src/lib/http.js';");
   assert.equal(a.length, 1);
-  const b = layers.checkFile(REPO, join(REPO, GW + 'functions/api/geo.js'), "const m = await import('../_middleware.js');");
+  const b = layers.checkFile(REPO, join(REPO, GW + 'src/api/geo.js'), "const m = await import('../../../share/src/lib/http.js');");
   assert.equal(b.length, 1);
   const c = layers.checkFile(REPO, join(REPO, FE + 'lib/util.js'), "export * from '../shell/core.js';");
   assert.equal(c.length, 1);
@@ -206,8 +161,8 @@ test('check-layers：前端层方向', () => {
     [FE + 'auth/y.js']: 'export const y = 1;',
     [FE + 'shell/s.js']: "import { x } from '../auth/x.js';\nimport { b } from '../lib/b.js';\nimport { p } from '../apps/p.js';",
     [FE + 'apps/p.js']: "import { s } from '../shell/s.js';\nimport { x } from '../auth/x.js';\nimport { e } from '../entries/e.js';",
-    [FE + 'entries/e.js']: "import { p } from '../apps/p.js';\nimport { k } from '../../../../workers/auth-gateway/functions/_kernel/k.js';",
-    [GW + 'functions/_kernel/k.js']: 'export const k = 1;',
+    [FE + 'entries/e.js']: "import { p } from '../apps/p.js';\nimport { k } from '../../../../workers/auth-gateway/src/core/k.js';",
+    [GW + 'src/core/k.js']: 'export const k = 1;',
   });
   try {
     const { errors } = layers.checkRepo(root);
@@ -325,22 +280,22 @@ const ACCOUNT_AUTH_IDS = [
 ];
 
 test('规则 16：网关源码里出现任一账号鉴权标识都报错，信息带文件:行号、标识和规则号', () => {
-  const f = join(REPO, GW + 'src/rpc.js');
+  const f = join(REPO, GW + 'src/rpc/auth-verifier.js');
   for (const id of ACCOUNT_AUTH_IDS) {
     const errs = layers.checkFile(REPO, f, `const x = ${id};`);
     assert.equal(errs.length, 1, id + ' → ' + JSON.stringify(errs));
-    assert.equal(errs[0], `${GW}src/rpc.js:1: 网关源码禁止出现账号鉴权标识 ${id}（规则 16：账号鉴权只在 workers/account/，网关只经 ACCOUNT_VERIFIER.accountSession() 拿结论）`);
+    assert.equal(errs[0], `${GW}src/rpc/auth-verifier.js:1: 网关源码禁止出现账号鉴权标识 ${id}（规则 16：账号鉴权只在 workers/account/，网关只经 ACCOUNT_VERIFIER.accountSession() 拿结论）`);
   }
-  const cookie = layers.checkFile(REPO, join(REPO, GW + 'functions/api/lock-now.js'), "clear('sgx-account-reauth');");
+  const cookie = layers.checkFile(REPO, join(REPO, GW + 'src/api/lock-now.js'), "clear('sgx-account-reauth');");
   assert.match(cookie[0], /账号鉴权标识 sgx-account-reauth/);
   /* 多行块注释之后，行号仍按原文 */
-  const ln = layers.checkFile(REPO, join(REPO, GW + 'functions/_kernel/realms.js'), "/* a\n b\n */\nconst ok = 1;\nexport const r = env.SGX_ROOT_KEY;");
+  const ln = layers.checkFile(REPO, join(REPO, GW + 'src/core/realms.js'), "/* a\n b\n */\nconst ok = 1;\nexport const r = env.SGX_ROOT_KEY;");
   assert.equal(ln.length, 1);
-  assert.match(ln[0], /^workers\/auth-gateway\/functions\/_kernel\/realms\.js:5: .*SGX_ROOT_KEY/);
+  assert.match(ln[0], /^workers\/auth-gateway\/src\/core\/realms\.js:5: .*SGX_ROOT_KEY/);
 });
 
 test('规则 16：注释、ACCOUNT_VERIFIER.accountSession()、首帧提示属性名不算；账号 Worker 自己用这些标识不算', () => {
-  const f = join(REPO, GW + 'functions/_kernel/account-rpc.js');
+  const f = join(REPO, GW + 'src/core/account-rpc.js');
   for (const code of [
     '// SGX_ACCOUNT_ROOT_KEY 只绑在账号 Worker',
     '/* 原来的 REALM_ROOT、D1_ROOT_AUTH 已删；AccountReauthTicket 在账号 Worker */',
@@ -400,7 +355,7 @@ test('规则 17：账号 Worker 的 wrangler.toml 不许有路由（[[routes]]�
   const root = fixture({ [rel]: 'name = "styrigx-account"\n\n[[routes]]\npattern = "styrigx.com/avatar/*"\n' });
   try {
     const { errors } = layers.checkRepo(root);
-    assert.deepEqual(errors, ['workers/account/wrangler.toml:3: 账号 Worker 不许有公开路由，发现「[[routes]]」（规则 17：账号请求只经网关服务绑定 ACCOUNT 进来，路径在 workers/auth-gateway/src/forwarding.js 登记）']);
+    assert.deepEqual(errors, ['workers/account/wrangler.toml:3: 账号 Worker 不许有公开路由，发现「[[routes]]」（规则 17：账号请求只经网关服务绑定 ACCOUNT 进来，路径在 workers/auth-gateway/src/router.js 登记）']);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

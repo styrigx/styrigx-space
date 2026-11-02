@@ -1,5 +1,5 @@
 /**
- * 锁屏根密钥审计（_kernel/root-audit.js + GET /api/root-audit）：
+ * 锁屏根密钥审计（src/core/root-audit.js + GET /api/root-audit）：
  * - 存储：D1_LOCK_AUTH 的 audit 表，realm = 'lock'；只追加（INSERT，不 UPDATE / REPLACE），保留 7 天（expires_at），过期行读时不认
  * - GET 返回最新的 50 条（gateway 审计 #8）：一条 ORDER BY ts DESC LIMIT 50；新的在前
  * - 只给时间、IP 前缀、结果三项；只要 admin 锁屏会话
@@ -9,10 +9,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { onRequestGet, AUDIT_SHOW } from '../../../workers/auth-gateway/functions/api/root-audit.js';
-import { writeRootAudit, listRootAudit, ipPrefix } from '../../../workers/auth-gateway/functions/_kernel/root-audit.js';
+import { onRequestGet, AUDIT_SHOW } from '../../../workers/auth-gateway/src/api/root-audit.js';
+import { writeRootAudit, listRootAudit, ipPrefix } from '../../../workers/auth-gateway/src/core/root-audit.js';
 import { testLockSessionCookie, testTicketCookie } from './_tickets.mjs';
-import { LOCK_REAUTH_TICKET } from '../../../workers/auth-gateway/functions/_kernel/realms.js';
+import { LOCK_REAUTH_TICKET } from '../../../workers/auth-gateway/src/core/realms.js';
 import { genKeyPair, makeAuthD1 } from '../_harness.mjs';
 
 const { priv: PRIV, pub: PUB } = await genKeyPair();
@@ -117,7 +117,7 @@ test('writeRootAudit：每次写一行（realm=lock，只存 IP 前缀），不�
 });
 
 test('writeRootAudit：只追加：源码里没有 UPDATE / REPLACE / UPSERT audit；写入只发 INSERT（外加清过期行）', async () => {
-  const src = fs.readFileSync(new URL('../../../workers/auth-gateway/functions/_kernel/lib/root-audit.js', import.meta.url), 'utf8');
+  const src = fs.readFileSync(new URL('../../../workers/auth-gateway/src/core/root-audit.js', import.meta.url), 'utf8');
   assert.doesNotMatch(src, /UPDATE\s+audit/i);
   assert.doesNotMatch(src, /(INSERT\s+OR\s+REPLACE|REPLACE\s+INTO)\s+audit/i);
   assert.doesNotMatch(src, /ON\s+CONFLICT/i);

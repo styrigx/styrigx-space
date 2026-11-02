@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isMainStaticPassthrough } from '../../../workers/auth-gateway/src/index.js';
+import { isMainStaticPassthrough } from '../../../workers/auth-gateway/src/app.js';
 
 const u = (p, h = 'styrigx.com') => new URL(`https://${h}${p}`);
 

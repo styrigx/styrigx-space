@@ -16,7 +16,7 @@ import { makeKV, genKeyPair, authD1For, forbiddenKV } from '../_harness.mjs';
 import { makeAccountD1 } from './_d1.mjs';
 
 const PREFS = '../../../workers/account/src/api/prefs.js';
-const KERNEL = '../../../workers/auth-gateway/functions/_kernel/';
+const KERNEL = '../../../workers/auth-gateway/src/core/';
 
 let LOCK, ACCOUNT, OTHER;
 const ROOT_KEY = 'test-root-key-account-123';

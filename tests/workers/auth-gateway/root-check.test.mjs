@@ -1,5 +1,5 @@
 /**
- * 根凭证比对（_kernel/root-check.js checkRootCredential）的耗时对齐 padTo：
+ * 根凭证比对（src/core/root-check.js checkRootCredential）的耗时对齐 padTo：
  * - 比对失败：先计数、再写审计，最后调 padTo，然后才返回 401 auth（真失败与假入口耗时一致）
  * - 比对成功：不调 padTo
  * - 被限速（429）、限速 D1 读出错（503）、计数写 D1 出错（503）：不走到比对，也不调 padTo
@@ -11,7 +11,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { checkRootCredential } from '../../../workers/auth-gateway/functions/_kernel/root-check.js';
+import { checkRootCredential } from '../../../workers/auth-gateway/src/core/root-check.js';
 import { makeAuthD1 } from '../_harness.mjs';
 
 const ROOT_KEY = 'root-key-for-tests-0123456789';

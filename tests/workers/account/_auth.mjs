@@ -10,9 +10,9 @@
  * - testAccountSession / testAccountSessionCookie / testAccountTicket*：用账号 Worker 的签名函数签账号票
  */
 import './_cf-workers.mjs';
-import { verifyLockSession } from '../../../workers/auth-gateway/functions/_kernel/lock-session.js';
-import { writeLockIdentity } from '../../../workers/auth-gateway/functions/_kernel/lib/lock-identity.js';
-import { clientContextOf } from '../../../workers/auth-gateway/functions/_kernel/forward.js';
+import { verifyLockSession } from '../../../workers/auth-gateway/src/core/lock-session.js';
+import { writeLockIdentity } from '../../../workers/auth-gateway/src/core/lock-identity.js';
+import { clientContextOf } from '../../../workers/auth-gateway/src/core/forward.js';
 import { signAccountSessionTicket, signTicket } from '../../../workers/account/src/identity/account-session.js';
 import { TICKETS, ACCOUNT_SESSION_COOKIE } from '../../../workers/account/src/identity/realm.js';
 import { TEST_DEVICE_ID } from '../auth-gateway/_tickets.mjs';
