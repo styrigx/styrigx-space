@@ -20,6 +20,6 @@ migrations/         D1 styrigx-share 的表结构（0001_share_links.sql：share
 - 数据：D1 `styrigx-share`（绑定 `D1_SHARE_LINK`）；预览 D1 是所有 Worker 的预览共用的测试库 `styrigx-test-preview`，登记在 `[env.preview]`（迁移记录表 `d1_migrations_share`；passkey-e2e 部署预览前会跑这套迁移；还没有部署预览 Worker 的 CI job）。
 - 部署：`.github/workflows/deploy.yml` 的 `deploy-share-worker`，顺序 账号 ∥ 短链 → 网关 → Pages（不再依赖账号 Worker；在网关之前：新短链对新旧网关都能用）；先迁移 D1 并查 `d1_migrations` 确认，再部署，再冒烟。
   token `styrigx-share-deploy`（GitHub 环境 `STYRIGX_SHARE_DEPLOY`，只允许 main）。
-- 图志顶栏分享按钮（2026-10-24，共享外壳 share.js）：管理员点它 → 跨源 POST `{action:'create', reuse:true, to:当前页, hours:24, session:43200}`；
+- 子站顶栏分享按钮（2026-10-24，共享外壳 share.js）：管理员点它 → POST `/api/share` `{action:'create', reuse:true, to:当前页, hours:24, session:43200}`（合并 PR3 起三站在 styrigx.com/<站>/ 下，与主站同源，不再跨源）；
   同一页、同档位、还剩 ≥ 12 小时的有效短链直接复用（不签新钥匙，临时钥匙列表不变长）。
 - 测试：`tests/workers/share/`；边缘测试台 `tests/web/e2e/edge-flow.spec.js` 的 R9。
