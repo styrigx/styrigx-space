@@ -246,8 +246,11 @@ test('写接口回 401 account（账号会话刚过期）不刷新页面、提�
   await expect(page.locator('#cu-fab')).toBeVisible();
   const before = reloads;
   await page.locator('#cu-fab').click();
-  await page.locator('#f-url').fill('https://a.example/');
-  await page.locator('#f-name').fill('A');
+  /* 与「收藏」用例同一路径：等编辑框打开，用「自动填」带出名字（手机视口下直接 fill #f-name 不稳） */
+  await expect(page.locator('#edit-wrap')).toHaveClass(/open/);
+  await page.locator('#f-url').fill('mdn.dev');
+  await page.locator('#f-fill').click();
+  await expect(page.locator('#f-name')).toHaveValue('MDN Web Docs');
   await page.locator('#edit-save').click();
   await expect(page.locator('#edit-err')).toHaveText('登录账号后可编辑。');
   await page.locator('#edit-wrap button[data-close="edit"]').click();
