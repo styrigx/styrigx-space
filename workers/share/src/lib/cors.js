@@ -1,7 +1,9 @@
 /**
- * @fileoverview /api/share 的跨源（2026-10-24）：图志三站顶栏的分享按钮从子站页面直接 POST https://styrigx.com/api/share。
+ * @fileoverview /api/share 的跨源（2026-10-24）：三站顶栏的分享按钮从子站页面直接 POST https://styrigx.com/api/share。
  *
- * - 只认这几个 Origin（逐字相等，不认通配 / 后缀）：图志 https://atlas.styrigx.com（博客 / 奇趣 / 日刻同一个源）
+ * 合并 PR3（2026-11-03）起三站在 styrigx.com/<站>/ 下，和主站同源，分享按钮的请求不再跨源（Origin = https://styrigx.com）。
+ * - 只认这几个 Origin（逐字相等，不认通配 / 后缀）：旧图志 https://atlas.styrigx.com 过渡期保留（atlas.styrigx.com 的页面已 301 到主域名，
+ *   浏览器不会再以这个源发请求，留着无害；以后的清理 PR 删）
  *   （主站 https://styrigx.com 是同源，不需要 CORS 头，这里也认，回同样的头无害）。
  * - 认的：Access-Control-Allow-Origin = 这个 Origin、Allow-Credentials: true（要带 Domain=styrigx.com 的会话 cookie）；
  *   预检（OPTIONS）只放行 POST + Content-Type，204 + Max-Age 600。不认的 Origin：预检 403、正式请求不带任何 Allow 头（浏览器读不到响应）。
@@ -10,7 +12,7 @@
  */
 
 export const MAIN_ORIGIN = 'https://styrigx.com';
-/** 能跨源调 /api/share 的子站（逐字比较） */
+/** 能跨源调 /api/share 的源（逐字比较）：只剩旧图志域名，过渡期保留 */
 export const CORS_ORIGINS = Object.freeze(['https://atlas.styrigx.com']);
 
 /** 请求的 Origin 如果是子站之一（或主站），返回它；否则 '' @param {Request} request */

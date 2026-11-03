@@ -1,14 +1,18 @@
 /**
  * @fileoverview styrigx-auth-gateway 的默认 handler（src/index.js 的 default）：请求的总流程。
  *
- * 承接 styrigx.com、atlas.styrigx.com 整站（路由见 wrangler.toml）：/api/*、全部页面。
+ * 承接 styrigx.com、atlas.styrigx.com 整站（路由见 wrangler.toml）：/api/*、全部页面；atlas.styrigx.com 合并 PR3 起只做 301。
  * fetch 第一步剥掉入站请求里所有 x-styrigx-* 和旧的 x-sgx-role（主站、子站回源、静态直通都剥；方案第 3 节第一道保险）。
  * 客户端上下文（IP、cf 国家城市）从原请求取（core/forward.js clientContextOf），放进关口 context.data.clientContext。
  * 静态资源目录（MAIN_STATIC_PREFIXES）和根目录几张公开图第一行就原样回源（isMainStaticPassthrough），不验会话、不改响应。
+ * 顺序（合并 PR3，2026-11-03）：
+ *   1. 旧图志 atlas.styrigx.com 任意路径 → 301 https://styrigx.com 同路径 + 查询串（gate.js atlasRedirect；不验会话、不回源、不解密钥）
+ *   2. 主站静态直通（isMainStaticPassthrough）
+ *   3. 子站前缀（styrigx.com/blog/ /curio/ /daymark/，gate.js subsiteOf）的静态后缀 → 原样回源（只补 HSTS、nosniff）
  * 主站的后端代码只在本 Worker，Pages 只放静态文件：
- *   1. Secrets Store 的私密值换成字符串（secrets.js）
- *   2. 图志 atlas.styrigx.com（/blog/ /curio/ /daymark/）：gate.js handleSubsite（图志关口），图志 Pages 不持钥匙
- *   3. 主站：先跑 gate.js onRequest（主站关口：会话、角色、白名单、no-store、锁屏瘦身），放行后交给 router.js route：
+ *   4. Secrets Store 的私密值换成字符串（secrets.js）
+ *   5. 子站前缀的页面：gate.js handleSubsite（子站关口），Pages 不持钥匙
+ *   6. 主站其余路径：先跑 gate.js onRequest（主站关口：会话、角色、白名单、no-store、锁屏瘦身），放行后交给 router.js route：
  *      转发表（账号路径经服务绑定 ACCOUNT 转给 styrigx-account，写全套身份头；账号的响应保留 X-SGX-Runtime: account）
  *      → /api/* 路由表（api/<名字>.js；不在表里 404、方法不支持 405）→ 其他（页面）回源取静态文件
  *
@@ -18,11 +22,12 @@
  * 安全响应头（lib/security-headers.js，2026-10-25 PR D）：
  *   - 主站经过网关的每个响应（页面、锁屏首页、所有 302/301、/api/*、500）→ applyMainSiteHeaders
  *     （HSTS、nosniff、X-Frame-Options、Referrer-Policy、Permissions-Policy、只含非脚本指令的强制 CSP、完整的 Report-Only CSP）
- *   - 图志经过网关的响应（页面、302 到锁屏、401）→ applySubsiteHeaders（HSTS + 低风险的几项，没有才补；完整 CSP 各自审计后再加）
- *   - 图志静态资源直通 → applySubsiteStaticHeaders（只补 HSTS、nosniff）
+ *   - atlas.styrigx.com 的 301 → applyMainSiteHeaders（同主站其他跳转）
+ *   - 子站经过网关的响应（页面、302 到锁屏、401）→ applySubsiteHeaders（HSTS + 低风险的几项，没有才补；完整 CSP 各自审计后再加）
+ *   - 子站静态资源直通 → applySubsiteStaticHeaders（只补 HSTS、nosniff）
  *   - 原样回源的静态资源不改（不打 X-SGX-Runtime 也不加头），由 Pages 的 _headers 加同一套
  */
-import { onRequest as middleware, subsiteFor, handleSubsite, isStaticAsset as isSubsiteStaticAsset } from './gate.js';
+import { onRequest as middleware, subsiteOf, handleSubsite, isStaticAsset as isSubsiteStaticAsset, ATLAS_HOST, atlasRedirect, normPath } from './gate.js';
 import { route, fromOrigin, makeContext } from './router.js';
 import { resolveSecrets } from './secrets.js';
 import { applyMainSiteHeaders, applySubsiteHeaders, applySubsiteStaticHeaders } from './lib/security-headers.js';
@@ -38,9 +43,14 @@ export const MAIN_STATIC_PREFIXES = ['/css/', '/js/', '/fonts/', '/fav/', '/imag
    sitemap.xml / files-index.json 列出页面地址，仍走网关。 */
 export const MAIN_PUBLIC_ROOT_FILES = new Set(['/robots.txt', '/favicon.ico', '/favicon.svg', '/og.png']);
 
-/** @param {URL} url */
+/**
+ * 合并 PR3 起只认「本来就规整」的路径：带百分号编码、反斜杠、多斜杠、. / .. 段的不直通（回源时 Pages 自己解码，
+ * /css/..%2Fsettings/ 这类解码后指向哪里说不准），交给主站关口照常验（fail closed）。静态文件名都是 ASCII，不受影响。
+ * @param {URL} url
+ */
 export function isMainStaticPassthrough(url) {
   if (url.hostname !== 'styrigx.com') return false;
+  if (/[%\\]/.test(url.pathname) || normPath(url.pathname) !== url.pathname.toLowerCase()) return false;
   if (MAIN_PUBLIC_ROOT_FILES.has(url.pathname)) return true;
   return MAIN_STATIC_PREFIXES.some((p) => url.pathname.startsWith(p));
 }
@@ -66,13 +76,17 @@ export default {
     const clientContext = clientContextOf(rawRequest);
     const request = stripRequest(rawRequest);
     const url0 = new URL(request.url);
-    /* 静态资源：原样回源，不验会话、不打 X-SGX-Runtime（与以前不登记路由时一致；子站 CI 冒烟据此确认静态资源不验会话） */
-    if (isMainStaticPassthrough(url0)) return fromOrigin(request, rawEnv);
-    if (subsiteFor(url0.hostname) && isSubsiteStaticAsset(url0.pathname) && url0.pathname !== '/api/lock-session-check') {
+    /* 旧图志域名：任意路径 301 到主域名同路径（接口 Worker 的 atlas.styrigx.com/<站>/api/* 旧路由更具体，不进这里） */
+    if (url0.hostname === ATLAS_HOST) return applyMainSiteHeaders(tagRuntime(atlasRedirect(url0)));
+    /* 子站前缀先判（按归一后的路径：编码 / 大小写 / 多斜杠 / .. 绕法都算子站，不会落到主站的静态直通或公开后缀白名单） */
+    const sub = subsiteOf(url0);
+    /* 主站静态资源：原样回源，不验会话、不打 X-SGX-Runtime（与以前不登记路由时一致；CI 冒烟据此确认静态资源不验会话） */
+    if (!sub && isMainStaticPassthrough(url0)) return fromOrigin(request, rawEnv);
+    if (sub && isSubsiteStaticAsset(url0.pathname)) {
       return applySubsiteStaticHeaders(await fromOrigin(request, rawEnv));
     }
     const env = await resolveSecrets(rawEnv);
-    const isSub = !!subsiteFor(url0.hostname);
+    const isSub = !!sub;
     const secure = isSub ? applySubsiteHeaders : applyMainSiteHeaders;
     try {
       if (isSub) {

@@ -8,7 +8,7 @@
 
 Sloan Gray 的个人门户：主页、聊天、设置与账号，以及守住整个站点家族的鉴权网关。
 
-[styrigx.com](https://styrigx.com) · [图志 atlas.styrigx.com](https://atlas.styrigx.com/blog/) · [GitHub @styrigx](https://github.com/styrigx) · [X @styrigx](https://x.com/styrigx)
+[styrigx.com](https://styrigx.com) · [博客 styrigx.com/blog/](https://styrigx.com/blog/) · [GitHub @styrigx](https://github.com/styrigx) · [X @styrigx](https://x.com/styrigx)
 
 ![Hugo](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/.github/actions/setup-hugo/action.yml&query=%24..HUGO_VERSION&label=Hugo&style=flat-square&color=2563eb&logo=hugo)
 ![Tailwind CSS](https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/package-lock.json&query=%24.packages%5B%27node_modules%2Ftailwindcss%27%5D.version&label=Tailwind%20CSS&style=flat-square&color=2563eb&logo=tailwindcss)
@@ -40,8 +40,8 @@ Sloan Gray 的个人门户：主页、聊天、设置与账号，以及守住整
 这是 styrigx.com 的源码仓库，也是整个站点家族的「系统仓库」：
 
 - **门户**：主页、聊天、设置、账号四个应用，中英双语。
-- **鉴权网关**：主站和图志（atlas.styrigx.com）的每个页面、每个接口都先经过它。全站上锁是设计本身，对外分享只用带访客密钥的短链。
-- **共享外壳**：顶栏、导航抽屉、搜索层由这里生成，图志按固定提交同步使用。
+- **鉴权网关**：主站和子站（博客、奇趣、日刻，在 `styrigx.com/<站>/`）的每个页面、每个接口都先经过它；旧图志域名 atlas.styrigx.com 任意路径 301 到 styrigx.com 同路径。全站上锁是设计本身，对外分享只用带访客密钥的短链。
+- **共享外壳**：顶栏、导航抽屉、搜索层由这里生成，子站按锁定的外壳版本（git tree 哈希）同步一份副本。
 - **共享 CI**：Hugo、Node、Playwright 的安装步骤以 composite action 形式发布（`v*` tag），图志按 tag 引用。
 
 界面是自研的 **Styrigx UI**，版本号与 One UI 对齐；内核 **SGX** 管登录与会话。手机、平板和 DeX 都能用，体验接近一台三星手机。
@@ -71,10 +71,11 @@ Sloan Gray 的个人门户：主页、聊天、设置与账号，以及守住整
 flowchart LR
   V([访客]) --> GW
   subgraph CF[Cloudflare]
-    GW[styrigx-auth-gateway<br/>styrigx.com/*<br/>atlas.styrigx.com/*]
+    GW[styrigx-auth-gateway<br/>styrigx.com/*<br/>atlas.styrigx.com/* → 301]
     SH[styrigx-share<br/>/s/* · /api/share*]
-    GW --> P1[(Pages<br/>styrigx-space)]
-    GW --> P2[(Pages<br/>styrigx-atlas)]
+    CC[styrigx-curio-core<br/>/curio/api/*]
+    DC[styrigx-daymark-core<br/>/daymark/api/*]
+    GW --> P1[(Pages<br/>styrigx-space<br/>主站 + /blog/ /curio/ /daymark/)]
     GW -. 服务绑定 .-> AC[styrigx-account]
     GW -. 服务绑定 .-> CH[styrigx-chat]
     GW -. 服务绑定 .-> SE[styrigx-search-index]
@@ -82,20 +83,24 @@ flowchart LR
     PR[styrigx-proxy-rules<br/>proxy-rules.styrigx.com]
   end
   V --> SH
+  V --> CC
+  V --> DC
   V --> PR
 ```
 
 | Worker | 职责 | 入口 |
 |---|---|---|
-| `styrigx-auth-gateway` | 锁屏会话的签发与校验、锁屏凭证、管理员接口；所有页面验完会话再回源 Pages | `styrigx.com/*`、`atlas.styrigx.com/*` |
+| `styrigx-auth-gateway` | 锁屏会话的签发与校验、锁屏凭证、管理员接口；所有页面（含 `/blog/`、`/curio/`、`/daymark/` 子站）验完会话再回源 Pages；旧域名 atlas.styrigx.com 只做 301 | `styrigx.com/*`、`atlas.styrigx.com/*` |
 | `styrigx-account` | 账号系统：密码、通行密钥、设备、账号根密钥、头像、云同步、数字健康 | 只走网关服务绑定，无公开路由 |
 | `styrigx-share` | 分享短链与管理接口 | `styrigx.com/s/*`、`styrigx.com/api/share*` |
 | `styrigx-chat` | 聊天后端，转发给模型，不存对话 | 只走网关服务绑定 |
 | `styrigx-search-index` | 全站搜索（KV 索引） | 只走网关服务绑定 |
 | `styrigx-status` | 每分钟监测，每小时读取用量（D1） | 只走网关服务绑定 |
 | `styrigx-proxy-rules` | 规则集加速反代，仅放行指定上游 | `proxy-rules.styrigx.com`（不经网关） |
+| `styrigx-curio-core` | 奇趣接口（D1 + R2） | `styrigx.com/curio/api/*`（比网关更具体；`atlas.styrigx.com/curio/api/*` 旧路由过渡期保留） |
+| `styrigx-daymark-core` | 日刻接口（D1） | `styrigx.com/daymark/api/*`（同上） |
 
-图志的两个接口 Worker（`styrigx-curio-core`、`styrigx-daymark-core`）在 [styrigx-atlas](https://github.com/styrigx/styrigx-atlas) 仓库。
+子站和主站是同一个 Pages 项目里的一棵树（主站在根上，三站在 `/blog/`、`/curio/`、`/daymark/`），一次部署。
 
 ## 安全模型
 
@@ -139,7 +144,7 @@ hugo server -s web/atlas          # http://localhost:1313
 | 静态检查 | 生成物一致性（外壳、CSP、配色、cookie 契约）、Worker 路由登记、前端分层、样式检查 |
 | passkey-e2e | 在预览环境用真实 Worker 跑通行密钥全流程 |
 
-PR 必须通过 `quality` 和 `passkey-e2e` 才能合并（只允许 squash，线性历史）。合并到 main 后自动部署 Pages 与 7 个 Worker；每一步部署后都有冒烟检查，失败即自动回滚到上一个版本；搜索、聊天另有基于监测数据的健康门禁。依赖由 Renovate 每周一更新。
+PR 必须通过 `quality` 和 `passkey-e2e` 才能合并（只允许 squash，线性历史）。合并到 main 后自动部署 Pages 与 9 个 Worker，顺序是接口 Worker（含奇趣、日刻）→ 网关 → Pages；每一步部署后都有冒烟检查，失败即自动回滚到上一个版本；搜索、聊天另有基于监测数据的健康门禁。依赖由 Renovate 每周一更新。
 
 ## 仓库结构
 
@@ -159,8 +164,9 @@ styrigx-space/
 
 | 仓库 | 地址 | 内容 |
 |---|---|---|
-| **styrigx-space**（本仓库） | [styrigx.com](https://styrigx.com) | 门户与鉴权网关 |
-| [styrigx-atlas](https://github.com/styrigx/styrigx-atlas) | [atlas.styrigx.com](https://atlas.styrigx.com/blog/) | 图志：博客、奇趣、日刻 |
+| **styrigx-space**（本仓库） | [styrigx.com](https://styrigx.com) | 门户与鉴权网关；子站 [博客](https://styrigx.com/blog/)、[奇趣](https://styrigx.com/curio/)、[日刻](https://styrigx.com/daymark/)（2026-11 从 styrigx-atlas 并入） |
+
+旧图志域名 atlas.styrigx.com 的任意路径 301 到 styrigx.com 同路径（保留查询串）。
 
 ## 许可
 

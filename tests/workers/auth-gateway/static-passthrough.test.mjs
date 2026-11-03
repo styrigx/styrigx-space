@@ -19,3 +19,11 @@ test('列出页面地址的文件和页面仍走网关', () => {
   }
   assert.equal(isMainStaticPassthrough(u('/robots.txt', 'atlas.styrigx.com')), false);
 });
+
+test('合并 PR3：带编码 / 反斜杠 / 多斜杠的路径不直通（交给关口照常验；. / .. 段 URL 解析时已经消掉），大写的指纹文件名照常直通', () => {
+  for (const p of ['/css/..%2Fsettings/', '/css/%2e%2e/blog/rss.xml', '/js/..%2F..%2Fblog/rss.xml', '/css//main.css', '/css%2Fmain.css', '/fonts/a%20b.woff2']) {
+    assert.equal(isMainStaticPassthrough(u(p)), false, p);
+  }
+  assert.equal(isMainStaticPassthrough(u('/js/sgx/chunk-2GU7LU6A.js')), true);
+  assert.equal(isMainStaticPassthrough(u('/css/main.css', 'atlas.styrigx.com')), false);
+});

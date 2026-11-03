@@ -16,7 +16,7 @@ import { etagMatches, imageResponse, notModified, r2Etag } from './_image.js';
 export const ICON_MAX_BYTES = 262144;
 export const MISS_TTL_MS = 7 * 24 * 3600e3;
 const TIMEOUT_MS = 6000;
-const UA = 'Mozilla/5.0 (compatible; StyrigxCurio/1.0; +https://atlas.styrigx.com/curio/)';
+const UA = 'Mozilla/5.0 (compatible; StyrigxCurio/1.0; +https://styrigx.com/curio/)';
 
 async function sha(s) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));

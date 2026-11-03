@@ -3,9 +3,9 @@
   "label": { "zh": "导航", "en": "Navigation" },
   "items": [
     { "id": "home", "icon": "nav-home", "zh": "主站", "en": "Space", "origin": "https://styrigx.com", "path": "/" },
-    { "id": "curio", "icon": "nav-curio", "zh": "奇趣", "en": "Curio", "origin": "https://atlas.styrigx.com", "path": "/curio/" },
-    { "id": "daymark", "icon": "nav-daymark", "zh": "日刻", "en": "Daymark", "origin": "https://atlas.styrigx.com", "path": "/daymark/" },
-    { "id": "blog", "icon": "nav-blog", "zh": "博客", "en": "Blog", "origin": "https://atlas.styrigx.com", "path": "/blog/" }
+    { "id": "curio", "icon": "nav-curio", "zh": "奇趣", "en": "Curio", "origin": "https://styrigx.com", "path": "/curio/" },
+    { "id": "daymark", "icon": "nav-daymark", "zh": "日刻", "en": "Daymark", "origin": "https://styrigx.com", "path": "/daymark/" },
+    { "id": "blog", "icon": "nav-blog", "zh": "博客", "en": "Blog", "origin": "https://styrigx.com", "path": "/blog/" }
   ],
   "footer": [],
   "me": { "zh": "账号", "en": "Account", "href": "https://styrigx.com/account/", "avatar": "https://styrigx.com/avatar/192.webp" },

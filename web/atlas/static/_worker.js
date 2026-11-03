@@ -1,5 +1,5 @@
 /**
- * Pages 生产部署的 _worker.js：只做这几件事 ——
+ * Pages 生产部署的 _worker.js：只做这两件事 ——
  *   1. 不是 styrigx.com 的访问一律 301 到 styrigx.com（保留路径和查询串）；
  *   2. 奇趣、日刻（/curio/、/daymark/，合并 PR2 起拼在同一棵树里）一张图片都不出：路径后缀或回答的 Content-Type 像图片的，
  *      一律 404（no-store、不带图片字节）。Sloan 2026-10-29「一律都得过验证」：Pages 不验会话，网关对子站图片后缀
@@ -7,10 +7,8 @@
  *      /<站>/api/*（先问网关会话）出。规则搬自 styrigx-atlas 的 root/_worker.js，只是 host 判断仍是 styrigx.com
  *      （不能沿用 atlas 版的 atlas.styrigx.com：网关回源 styrigx.com 会被它弹走）。主站（/images/、/avatar/、/og.png、收藏图标）
  *      和博客（/blog/og.png 社交预览图）不受影响。跳转（3xx）不带正文，原样放行。
- *   3. 过渡期（合并 PR2 起、PR3 网关接管子站前缀前）：三站的 .xml（博客全文 RSS、站点地图）一律 404 no-store。
- *      原因：PR2 时 styrigx.com/<站>/ 还走主站中间件，它的公开后缀白名单（gate.js STATIC_RE 含 xml / json）会让
- *      /blog/rss.xml（全文）、/blog/sitemap-*.xml、/curio/sitemap.xml 等不验会话就回源拿到；atlas.styrigx.com 上这些要会话。
- *      PR3 网关按子站前缀验会话（子站 STATIC_EXT 不含 xml）后删掉这一条（tests/web/ui/assemble.test.mjs 同步改）。
+ *   （合并 PR2 的过渡规则「三站 .xml 一律 404」在 PR3 删掉：网关按子站前缀验会话，xml / json 不在子站的免会话后缀里，
+ *    博客全文 RSS、站点地图没有会话一律 302 到锁屏，见 workers/auth-gateway/src/gate.js 子站关口。）
  *
  * 主站的会话检查和接口全在鉴权网关（workers/auth-gateway），它挂在 styrigx.com 的路由上；
  * Pages 本身只放静态文件，没有任何密钥和数据绑定。
@@ -33,9 +31,6 @@ const REDIRECT_SECURITY_HEADERS = {
 
 /** 不出图片的子站前缀（图片只从接口 Worker 出）；主站和 /blog/ 不在这里 */
 const NO_IMAGE_PREFIXES = ['/curio/', '/daymark/'];
-
-/** 过渡期不出 .xml 的子站前缀（见文件头第 3 条；合并 PR3 删） */
-const NO_XML_PREFIXES = ['/blog/', '/curio/', '/daymark/'];
 
 /* 图片后缀（含少见的格式；大小写不敏感），和 styrigx-atlas root/_worker.js 同一张表 */
 const IMAGE_EXT = /\.(png|apng|jpe?g|jfif|pjpeg|pjp|gif|webp|avif|svgz?|ico|cur|bmp|tiff?|heic|heif|jxl)$/i;
@@ -70,9 +65,7 @@ export default {
     /* 跳转不带正文，放行；跳到的地址再来一次请求还会经过这里 */
     if (res.status >= 300 && res.status < 400) return res;
     const p = normPath(url.pathname);
-    const noImage = NO_IMAGE_PREFIXES.some((x) => p.startsWith(x)) && imageLike(p, res.headers.get('Content-Type'));
-    const noXml = NO_XML_PREFIXES.some((x) => p.startsWith(x)) && (/\.xml$/.test(p) || /^\s*(application|text)\/(rss\+|atom\+)?xml/i.test(res.headers.get('Content-Type') || ''));
-    if (noImage || noXml) {
+    if (NO_IMAGE_PREFIXES.some((x) => p.startsWith(x)) && imageLike(p, res.headers.get('Content-Type'))) {
       if (res.body) res.body.cancel().catch(() => {});
       return new Response('not found', {
         status: 404,

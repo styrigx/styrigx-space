@@ -26,10 +26,11 @@ RootKey 不拥有会话，两把各管各的：锁屏根密钥 `SGX_ADMIN_KEY` �
 
 ## 2. 路由（谁处理请求）
 
-网关只登记两条路由：`styrigx.com/*`、`atlas.styrigx.com/*`（图志一个 Pages，三站各占 `/blog/`、`/curio/`、`/daymark/`）。
-`atlas.styrigx.com/daymark/api/*` 归 `styrigx-daymark-core`、`atlas.styrigx.com/curio/api/*` 归 `styrigx-curio-core`（更具体，styrigx-atlas 仓库）；
-图志根上的 `/api/lock-session-check`、`/api/search` 归网关。旧子域名 blog / daymark / curio.styrigx.com 已停用，不再登记。
-静态资源（主站 `/css/ /js/ /fonts/ /fav/ /images/`，图志静态后缀和 `/robots.txt`、`/favicon.ico`、`/blog/manifest.json`）第一行原样回源，不验会话、不打 `X-SGX-Runtime`。
+网关只登记两条路由：`styrigx.com/*`（主站和三个子站同一个 Pages、一棵树，三站各占 `/blog/`、`/curio/`、`/daymark/`，按路径前缀走子站关口）、
+`atlas.styrigx.com/*`（合并 PR3 起只做 301 到 `https://styrigx.com` 同路径 + 查询串，不验会话、不回源）。
+`styrigx.com/daymark/api/*` 归 `styrigx-daymark-core`、`styrigx.com/curio/api/*` 归 `styrigx-curio-core`（更具体，本仓库 `workers/<站>-core`；atlas 上的旧接口路由过渡期保留）；
+子站页面用的 `/api/lock-session-check`、`/api/search` 就是主站根上的同一个接口，归网关。旧子域名 blog / daymark / curio.styrigx.com 已停用，不再登记。
+静态资源（主站 `/css/ /js/ /fonts/ /fav/ /images/`，子站前缀下的静态后缀，如 `/blog/manifest.json`）第一行原样回源，不验会话、不打 `X-SGX-Runtime`。
 
 账号路径（`/api/account`、`/api/prefs*`、`/api/avatar*`、`/api/wellbeing*`、`/avatar/*`）同样归网关的 `styrigx.com/*`：网关验门后经服务绑定 `ACCOUNT` 转给账号 Worker
 （转发表 `workers/auth-gateway/src/router.js` 的 `FORWARDING`）。账号 Worker 没有任何路由（账号拆分 PR3）。

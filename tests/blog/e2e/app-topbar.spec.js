@@ -316,7 +316,7 @@ test.describe('导航抽屉', () => {
     await expect(drawer(page).locator('hr.sgx-drawer-sep')).toHaveCount(1);
     await expect(drawer(page).locator('[data-nav="daymark"]')).toHaveAttribute(
       'href',
-      'https://atlas.styrigx.com/daymark/',
+      '/daymark/',
     );
     await expect(drawer(page).locator('.sgx-drawer-me')).toHaveAttribute(
       'href',

@@ -1,11 +1,10 @@
 {{/* 导航抽屉项地址（共享外壳 nav.json 一项 + 是否英文）。
-   图志三站（blog / curio / daymark）同在 atlas.styrigx.com 下，按 id 走 /<id>/（英文 /<id>/en/），奇趣自己的项用站内相对地址；
+   三站（blog / curio / daymark）和主站同在 styrigx.com 下（合并 PR3），按 id 走站内相对地址 /<id>/（英文 /<id>/en/）；
    其余项（主站等）用 nav.json 的 origin + path，英文加 /en 前缀。 */}}
 {{ $atlas := slice "blog" "curio" "daymark" }}
 {{ $p := "" }}
 {{ if in $atlas .it.id }}
   {{ $p = printf "/%s/%s" .it.id (cond .en "en/" "") }}
-  {{ if ne .it.id "curio" }}{{ $p = printf "https://atlas.styrigx.com%s" $p }}{{ end }}
 {{ else }}
   {{ $p = .it.path }}
   {{ if .en }}{{ $p = printf "/en%s" .it.path }}{{ end }}

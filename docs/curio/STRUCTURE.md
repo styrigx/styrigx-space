@@ -1,11 +1,12 @@
 # 奇趣（sites/curio/）结构
 
-图志仓库（styrigx-atlas）里的奇趣，线上在 `https://atlas.styrigx.com/curio/`（英文 `/curio/en/`），接口在 `/curio/api/*`。
+奇趣原在图志仓库（styrigx-atlas），2026-11-02 并入本仓库；线上在 `https://styrigx.com/curio/`（英文 `/curio/en/`），接口在 `styrigx.com/curio/api/*`；旧地址 `atlas.styrigx.com/curio/…` 301 到主域名同路径。
+下面的目录树是并入前的布局，现在的位置（`web/curio/`、`workers/curio-core/`、`tests/curio/`、`scripts/curio/`）见仓库根 `STRUCTURE.md`。
 仓库整体（三站合成一个 Pages、共用的 `root/`、CI）见仓库根 README。改页面只动 `web/`，改接口只动 `workers/core/`。
 
 ```
 sites/curio/
-├─ web/          网站本体（Hugo，baseURL https://atlas.styrigx.com/curio/），产物由仓库根 scripts/assemble.mjs 合进 public/curio/
+├─ web/          网站本体（Hugo，baseURL https://styrigx.com/curio/），产物由仓库根 scripts/assemble.mjs 合进 public/curio/
 ├─ workers/
 │  └─ core/      Worker styrigx-curio-core：收藏的存、读、导入导出、图标缓存
 ├─ data/         初始收藏 seed.json（迁自主站书签）
@@ -35,7 +36,7 @@ sites/curio/
 
 | 位置 | 是什么 |
 |---|---|
-| `wrangler.toml` | 路由 `atlas.styrigx.com/curio/api/*`、D1 绑定 `D1_FINDS`（links、cats、imports）/ `D1_DEVICES`（devices）/ `D1_GAMES`（games）（同一个库 styrigx-curio-core）、R2 绑定 `R2_PHOTOS`、网关服务绑定 `AUTH`、全站搜索 KV `KV_SEARCH_INDEX`、每小时 Cron |
+| `wrangler.toml` | 路由 `styrigx.com/curio/api/*`（`atlas.styrigx.com/curio/api/*` 旧路由过渡期保留）、D1 绑定 `D1_FINDS`（links、cats、imports）/ `D1_DEVICES`（devices）/ `D1_GAMES`（games）（同一个库 styrigx-curio-core）、R2 绑定 `R2_PHOTOS`、网关服务绑定 `AUTH`、全站搜索 KV `KV_SEARCH_INDEX`、每小时 Cron |
 | `src/index.js` | 入口（公开地址 `/curio/api/*` 去掉 `/curio` 前缀后按路由表找）：全部 `/api/*` 先问网关会话（没有公开接口） |
 | `src/search-index.js` | 全站搜索索引：收藏 / 设备 / 游戏 → KV `site:curio`（改内容的写接口成功后重建 + Cron 每小时兜底，内容没变不写 KV；私密的标 `private`） |
 | `src/routes.js` | 路由表（与 `src/api/` 一一对应，测试核对） |
@@ -56,4 +57,4 @@ sites/curio/
 
 ## 部署
 
-见仓库根 `.github/workflows/deploy.yml`：测试 → 构建合成 → 网关闸门 → 两个 core（D1 迁移 + 部署）→ Pages `styrigx-atlas` → 冒烟。
+见仓库根 `.github/workflows/deploy.yml`（合并 PR3 起）：测试 → 接口 Worker（两个 core：D1 迁移 + 部署，挂 `styrigx.com/<站>/api/*`）→ 网关 → Pages `styrigx-space`（主站 + 三站一棵树）→ 冒烟（主域名 + atlas 301）。

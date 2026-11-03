@@ -168,28 +168,29 @@ describe('网址回归（图志 /blog/ 下）', () => {
     );
   });
 
-  it('导航抽屉：主站 / 奇趣 / 日刻 / 博客（主站共享外壳 nav.json 的项；图志三站按 id 走 atlas.styrigx.com/<站>/）；头像去主站账号页，底栏搜索去主站搜索', async () => {
+  it('导航抽屉：主站 / 奇趣 / 日刻 / 博客（主站共享外壳 nav.json 的项；三站和主站同在 styrigx.com，按 id 走相对地址 /<站>/）；头像去主站账号页，底栏搜索去主站搜索', async () => {
     const html = await (await fetch(base + '/blog/')).text();
     const hrefs = [...html.matchAll(/class="sgx-drawer-item"[^>]*href="([^"]+)"/g)].map(
       (m) => m[1],
     );
     assert.deepEqual(hrefs, [
       'https://styrigx.com/',
-      'https://atlas.styrigx.com/curio/',
-      'https://atlas.styrigx.com/daymark/',
+      '/curio/',
+      '/daymark/',
       '/blog/',
     ]);
     assert.match(html, /<a class="sgx-drawer-me" href="https:\/\/styrigx\.com\/account\/"/);
     assert.match(html, /<a class="sgx-drawer-search" href="https:\/\/styrigx\.com\/search\/"/);
     assert.doesNotMatch(html, /book\.styrigx\.com/, '书库已下线');
+    assert.doesNotMatch(html, /atlas\.styrigx\.com/, '合并 PR3：不再有旧图志域名');
     const en = await (await fetch(base + '/blog/en/')).text();
     const enHrefs = [...en.matchAll(/class="sgx-drawer-item"[^>]*href="([^"]+)"/g)].map(
       (m) => m[1],
     );
     assert.deepEqual(enHrefs, [
       'https://styrigx.com/en/',
-      'https://atlas.styrigx.com/curio/en/',
-      'https://atlas.styrigx.com/daymark/en/',
+      '/curio/en/',
+      '/daymark/en/',
       '/blog/en/',
     ]);
     assert.match(en, /<a class="sgx-drawer-me" href="https:\/\/styrigx\.com\/en\/account\/"/);

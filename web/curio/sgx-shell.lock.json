@@ -1,8 +1,9 @@
 {
-  "_note": "scripts/sync-shell.mjs 写入，勿手改：记录本仓库的共享外壳副本来自主站哪个版本",
+  "_note": "scripts/curio/sync-shell.mjs 写入，勿手改：tree 是本站共享外壳副本对应的主站外壳目录（dir）的 git tree 哈希；from 只作记录",
   "source": "styrigx/styrigx-space",
   "dir": "web/shared/shell",
-  "ref": "5df9d0130e5243bb2e12220788cee4f13b7f3796",
+  "tree": "bec36e3176ca3329b6dfe94fda6ab675e0dff090",
+  "from": "5df9d0130e5243bb2e12220788cee4f13b7f3796",
   "version": "004e9054e471",
   "files": {
     "tokens.css": "f56a0696035458455a1c210634bd9c3abdb3d6acb332e00f5e327f90e528fba8",

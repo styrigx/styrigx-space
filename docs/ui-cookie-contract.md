@@ -1,14 +1,14 @@
 # 外壳 UI cookie 契约：`sgx-ui`（2026-10-26，C10）
 
-> 适用：主站 styrigx-space 写；图志 atlas.styrigx.com（styrigx-atlas 仓库：根页和 /blog/、/curio/、/daymark/ 三站）只读。
+> 适用：主站 styrigx-space 写；子站 `styrigx.com/blog/`、`/curio/`、`/daymark/`（2026-11 从 styrigx-atlas 并入本仓库 `web/<站>/`）只读。
 > 本文只描述**现状**（主站 main 上的写端 / 读端 / 夹具），不改任何代码。
 > 真源头是代码：写端 `web/atlas/assets/js/lib/ui-cookie.js`，字段表 / 版本 / 编解码 `web/atlas/assets/js/lib/ui-cookie-read.js`，
 > 夹具 `tests/fixtures/ui-cookie-contract.json`（`scripts/gen-ui-cookie-contract.mjs` 跑真写端生成）。本文和代码不一致时以代码为准，并顺手改本文。
 
 ## 一、它是什么
 
-主站的外观和时钟 / 天气设置存在主站 localStorage（**唯一来源**）。图志在另一个子域 `atlas.styrigx.com`，读不到主站 localStorage，
-所以主站把这些设置**镜像**到一个 `styrigx.com` 域的 cookie，子站在 `<head>` 里首帧前同步读它，让深浅色、色板、主题色和主站一致、不闪屏。
+主站的外观和时钟 / 天气设置存在主站 localStorage（**唯一来源**）。子站原先在另一个子域 `atlas.styrigx.com`，读不到主站 localStorage，
+所以主站把这些设置**镜像**到一个 `styrigx.com` 域的 cookie（合并 PR3 起子站和主站同源、atlas 只做 301，读端仍读这个 cookie，机制未改），子站在 `<head>` 里首帧前同步读它，让深浅色、色板、主题色和主站一致、不闪屏。
 
 - 只放 UI 设置，**不放任何凭证 / 会话信息**（会话 cookie 见 `docs/auth-state-machine.md`）。
 - 主站写，子站**只读、永远不写** `sgx-ui`。
@@ -23,7 +23,7 @@ sgx-ui=<base64url(UTF-8 JSON)>; Domain=styrigx.com; Path=/; Max-Age=34560000; Sa
 | 属性 | 值 | 说明 |
 |---|---|---|
 | 名字 | `sgx-ui` | `SgxUI.NAME`（`ui-cookie-read.js`） |
-| Domain | `styrigx.com` | 主站和图志共享（`styrigx.com`、`atlas.styrigx.com` 都带上） |
+| Domain | `styrigx.com` | 主站和子站共享（`styrigx.com` 及其子域都带上；子站现在就在 `styrigx.com/<站>/`） |
 | Path | `/` | |
 | Max-Age | `34560000`（400 天） | 浏览器上限；主站每次访问都会按需重写，所以旧格式 cookie 最多能活 400 天（见「五、旧数据」） |
 | SameSite | `Lax` | |
@@ -139,15 +139,15 @@ cookie 最长活 400 天，所以旧格式都要能读：
 
 共享外壳分发的读端是 `web/atlas/shared/shell/ui-cookie-read.js`（= `web/atlas/assets/js/lib/ui-cookie-read.js` 原样），契约夹具是 `web/atlas/shared/shell/ui-cookie-contract.json`
 （= `tests/fixtures/ui-cookie-contract.json` 原样），接入说明见 `web/atlas/shared/shell/README.md`。
-图志（styrigx-atlas 仓库，`atlas.styrigx.com` 的根页和 `/blog/`、`/curio/`、`/daymark/`）用各站的 `sync-shell.mjs` 同步共享外壳；
-它那边各站怎样内联读端、在读端后面加了什么，以 styrigx-atlas 仓库为准，本文不逐站登记（本仓库核对不了）。
+子站（`styrigx.com/blog/`、`/curio/`、`/daymark/`）用各站的 `scripts/<站>/sync-shell.mjs` 同步共享外壳（`web/<站>/sgx-shell.lock.json` 锁外壳目录的 git tree 哈希）；
+各站怎样内联读端、在读端后面加了什么，以各站 `web/<站>/` 和 sync-shell 的 `__SITE_CONFIG__` 段为准，本文不逐站登记。
 
 | 站 | 读 `sgx-ui` 的文件 | 首帧前怎么跑 |
 |---|---|---|
 | 主站（自检） | `web/atlas/assets/js/lib/ui-cookie-read.js`（写端 `ui-cookie.js` import 它拿字段表） | 主站页面不读 cookie；`tests/web/ui/ui-cookie-contract.test.mjs`、`tests/web/e2e/ui-cookie-reader.spec.js` 用它验契约 |
-| 图志各站 | 共享读端 `web/atlas/shared/shell/ui-cookie-read.js` 的同步副本，加各站自己的一小段 | 见 styrigx-atlas 仓库 |
+| 子站各站 | 共享读端 `web/atlas/shared/shell/ui-cookie-read.js` 的同步副本，加各站自己的一小段 | 见各站 `web/<站>/` |
 
-改契约时先改共享读端，再在图志仓库跑 `sync-shell.mjs`，并逐站核对各站自己的那一小段。
+改契约时先改共享读端，再跑各站的 `node scripts/<站>/sync-shell.mjs`，并逐站核对各站自己的那一小段。
 
 ## 八、怎么安全地改格式
 

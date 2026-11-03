@@ -101,12 +101,12 @@ export function initGoodLock() {
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const home = en ? '/en/' : '/',
-        links = en ? 'https://atlas.styrigx.com/curio/en/' : 'https://atlas.styrigx.com/curio/', /* g l：奇趣 Curio（主站书签已迁走） */
+        links = en ? '/curio/en/' : '/curio/', /* g l：奇趣 Curio（主站书签已迁走；合并 PR3 起在主域名 /curio/） */
         setUrl = en ? '/en/settings/' : '/settings/';
       if (pending) {
         pending = false;
         if (timer) clearTimeout(timer);
-        const map = { h: home, l: links, b: en ? 'https://atlas.styrigx.com/blog/en/' : 'https://atlas.styrigx.com/blog/', s: setUrl };
+        const map = { h: home, l: links, b: en ? '/blog/en/' : '/blog/', s: setUrl };
         const u = map[e.key];
         if (u) {
           e.preventDefault();

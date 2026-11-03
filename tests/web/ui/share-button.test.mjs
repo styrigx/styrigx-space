@@ -25,9 +25,10 @@ test('共享外壳 share.js = shell/share-button.js 原样；不 import；nav.js
 });
 
 test('pageUrl：origin + pathname + search，去掉 lock / why / return / share，不带 #', () => {
-  assert.equal(S.pageUrl({ origin: 'https://blog.styrigx.com', pathname: '/post/a/', search: '' }), 'https://blog.styrigx.com/post/a/');
-  assert.equal(S.pageUrl({ origin: 'https://blog.styrigx.com', pathname: '/p/', search: '?lock=1&q=x&return=%2F&why=a&share=1' }), 'https://blog.styrigx.com/p/?q=x');
-  assert.equal(S.pageUrl({ origin: 'https://curio.styrigx.com', pathname: '/', search: '?lock=1' }), 'https://curio.styrigx.com/');
+  /* 合并 PR3 起三站在主域名 /blog/ /curio/ /daymark/ 下 */
+  assert.equal(S.pageUrl({ origin: 'https://styrigx.com', pathname: '/blog/post/a/', search: '' }), 'https://styrigx.com/blog/post/a/');
+  assert.equal(S.pageUrl({ origin: 'https://styrigx.com', pathname: '/blog/p/', search: '?lock=1&q=x&return=%2F&why=a&share=1' }), 'https://styrigx.com/blog/p/?q=x');
+  assert.equal(S.pageUrl({ origin: 'https://styrigx.com', pathname: '/curio/', search: '?lock=1' }), 'https://styrigx.com/curio/');
 });
 
 test('linkName：去控制字符、合并空白、最多 24 字（按字符不是按 UTF-16）', () => {
@@ -56,13 +57,13 @@ function fakeFetch(status, body) {
 
 test('createLink：请求形状（跨源带 cookie、reuse、24h / 12h、名字截断）；成功给 https://styrigx.com/s/<码>', async () => {
   const { f, calls } = fakeFetch(200, { ok: true, reused: true, link: { path: '/s/' + CODE } });
-  const r = await S.createLink({ url: 'https://blog.styrigx.com/post/a/', title: '一'.repeat(30), fetch: f });
+  const r = await S.createLink({ url: 'https://styrigx.com/blog/post/a/', title: '一'.repeat(30), fetch: f });
   assert.deepEqual(r, { ok: true, url: 'https://styrigx.com/s/' + CODE, reused: true });
   assert.equal(calls[0].url, 'https://styrigx.com/api/share');
   assert.equal(calls[0].init.method, 'POST');
   assert.equal(calls[0].init.credentials, 'include');
   assert.deepEqual(calls[0].init.headers, { 'Content-Type': 'application/json' });
-  assert.deepEqual(calls[0].body, { action: 'create', reuse: true, name: '一'.repeat(24), to: 'https://blog.styrigx.com/post/a/', hours: 24, session: 43200 });
+  assert.deepEqual(calls[0].body, { action: 'create', reuse: true, name: '一'.repeat(24), to: 'https://styrigx.com/blog/post/a/', hours: 24, session: 43200 });
 });
 
 test('createLink：401 → session，409 → full，500 / 网络错 / 响应里没有像样的 path → fail', async () => {
@@ -131,7 +132,7 @@ test('mountShare 管理员：生成中 aria-busy + is-busy，再点不理（只�
     return new Promise((res) => { release = () => res({ ok: true, status: 200, json: async () => ({ ok: true, link: { path: '/s/' + CODE } }) }); });
   };
   const { nav, log } = fakeNav({ share: 'ok' });
-  const m = S.mountShare({ doc: d.doc, nav, fetch: f, toast: () => {}, url: () => 'https://blog.styrigx.com/p/' });
+  const m = S.mountShare({ doc: d.doc, nav, fetch: f, toast: () => {}, url: () => 'https://styrigx.com/blog/p/' });
   const p1 = m.share();
   assert.equal(d.attrs['aria-busy'], 'true');
   assert.ok(d.cls.has('is-busy'));
@@ -144,7 +145,7 @@ test('mountShare 管理员：生成中 aria-busy + is-busy，再点不理（只�
   assert.equal(d.attrs['aria-busy'], undefined);
   assert.ok(!d.cls.has('is-busy'));
   assert.deepEqual(log, [['share', { title: '文章 · 博客', url: 'https://styrigx.com/s/' + CODE }]]);
-  assert.equal(calls[0].to, 'https://blog.styrigx.com/p/');
+  assert.equal(calls[0].to, 'https://styrigx.com/blog/p/');
   assert.equal(calls[0].name, '文章 · 博客');
 });
 
@@ -153,7 +154,7 @@ test('mountShare 管理员：接口失败 → 只 toast 原因，不分享也不
   const { nav, log } = fakeNav({ share: 'ok' });
   const toasts = [];
   const { f } = fakeFetch(401, { ok: false });
-  const m = S.mountShare({ doc: d.doc, nav, fetch: f, toast: (x) => toasts.push(x), url: () => 'https://blog.styrigx.com/p/' });
+  const m = S.mountShare({ doc: d.doc, nav, fetch: f, toast: (x) => toasts.push(x), url: () => 'https://styrigx.com/blog/p/' });
   assert.equal(await m.share(), 'error');
   assert.deepEqual(log, []);
   assert.equal(toasts.length, 1);
@@ -163,9 +164,9 @@ test('mountShare 管理员：接口失败 → 只 toast 原因，不分享也不
   const v = fakeDom('visitor');
   const vn = fakeNav({ share: 'ok' });
   let fetched = 0;
-  const vm = S.mountShare({ doc: v.doc, nav: vn.nav, fetch: () => { fetched++; }, toast: () => {}, url: () => 'https://daymark.styrigx.com/' });
+  const vm = S.mountShare({ doc: v.doc, nav: vn.nav, fetch: () => { fetched++; }, toast: () => {}, url: () => 'https://styrigx.com/daymark/' });
   assert.equal(await vm.share(), 'shared');
   assert.equal(fetched, 0);
-  assert.deepEqual(vn.log, [['share', { title: '文章 · 博客', url: 'https://daymark.styrigx.com/' }]]);
+  assert.deepEqual(vn.log, [['share', { title: '文章 · 博客', url: 'https://styrigx.com/daymark/' }]]);
   assert.equal(S.mountShare({ doc: v.doc, nav: vn.nav }), null, '同一个按钮只绑一次');
 });

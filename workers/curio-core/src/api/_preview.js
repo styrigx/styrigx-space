@@ -11,7 +11,7 @@
 export const PREVIEW_TIMEOUT_MS = 6000;
 export const PREVIEW_MAX_BYTES = 262144;
 const MAX_HOPS = 3;
-const UA = 'Mozilla/5.0 (compatible; StyrigxCurio/1.0; +https://atlas.styrigx.com/curio/)';
+const UA = 'Mozilla/5.0 (compatible; StyrigxCurio/1.0; +https://styrigx.com/curio/)';
 
 /**
  * 这个网址能不能抓。

@@ -22,8 +22,10 @@ test.use({ launchOptions: { args: LAUNCH.args }, proxy: LAUNCH.proxy, viewport: 
 
 
 const MAIN = 'https://styrigx.com';
-const BLOG = 'https://atlas.styrigx.com/blog';
-const DAYMARK = 'https://atlas.styrigx.com/daymark';
+/* 合并 PR3：子站在主域名的 /blog/ /daymark/ 下；旧图志 atlas.styrigx.com 由网关 301 过来 */
+const BLOG = 'https://styrigx.com/blog';
+const DAYMARK = 'https://styrigx.com/daymark';
+const ATLAS = 'https://atlas.styrigx.com';
 
 /** @type {Awaited<ReturnType<typeof startEdge>>} */
 let edge;
@@ -111,7 +113,10 @@ test('R1 daymark 直接打开 → 主站锁屏 → 访客（临时钥匙）→ �
   await page.click('#sgx-temp-go');
   await page.waitForURL(DAYMARK + '/', { timeout: 20000 });
   await expect(page.locator('#sub-content')).toContainText('SUBSITE-CONTENT daymark');
-  expect(await page.evaluate(() => fetch('/api/lock-session-check').then((r) => r.status))).toBe(204);
+  /* 合并 PR3：子站和主站同源，/api/lock-session-check 由主站路由回答（有效 200 {ok:true}；以前 atlas 根上由子站关口回 204） */
+  const check = await page.evaluate(() => fetch('/api/lock-session-check').then(async (r) => ({ status: r.status, body: await r.json() })));
+  expect(check.status).toBe(200);
+  expect(check.body.ok).toBe(true);
 });
 
 test('R1 子站首页带任意查询串也必须过网关（未登录 → 302 锁屏，不能直出正文）', async ({ page }) => {
@@ -121,6 +126,21 @@ test('R1 子站首页带任意查询串也必须过网关（未登录 → 302 �
     await expect(page.locator('#sub-content')).toHaveCount(0);
     await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
   }
+});
+
+test('R9 旧书签 atlas.styrigx.com（合并 PR3）：任意路径 301 到主域名同路径 + 查询串；没会话再到锁屏，有会话直接进子站', async ({ page, context }) => {
+  await page.goto(ATLAS + '/blog/post/hello/?a=1');
+  expect(page.url()).toContain(MAIN + '/?lock=1');
+  expect(page.url()).toContain('return=' + encodeURIComponent(BLOG + '/post/hello/?a=1'));
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
+  await setSession(context, 'visitor');
+  await page.goto(ATLAS + '/daymark/en/?x=1');
+  expect(page.url()).toBe(DAYMARK + '/en/?x=1');
+  await expect(page.locator('#sub-content')).toContainText('SUBSITE-CONTENT daymark /daymark/en/');
+  /* 旧图志从不回源：301 都是网关回的 */
+  const hits = edge.log.filter((l) => String(l[2]).startsWith(ATLAS));
+  expect(hits.length).toBeGreaterThan(0);
+  for (const l of hits) expect(l[3], l.join(' ')).toBe(301);
 });
 
 test('R2 主站解锁（通行密钥）→ 刷新仍是解锁的', async ({ page }) => {

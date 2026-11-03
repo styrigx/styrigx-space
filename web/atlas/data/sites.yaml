@@ -9,7 +9,7 @@
 - id: blog
   title: 博客
   subtitle: 个人博客
-  url: https://atlas.styrigx.com/blog/
+  url: https://styrigx.com/blog/
   icon: pen
-  host: atlas.styrigx.com
+  host: styrigx.com
   lock: redirect

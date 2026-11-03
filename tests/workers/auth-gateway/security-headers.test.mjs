@@ -105,7 +105,7 @@ test('强制 CSP 只含不会拦脚本的指令：没有 script-src / style-src 
   assert.equal(m[1], SH.CSP_ENFORCED);
 });
 
-test('Report-Only CSP：script-src 是 self + 每个内联脚本哈希，没有 unsafe-inline / unsafe-eval；外连只有天气和日刻', () => {
+test('Report-Only CSP：script-src 是 self + 每个内联脚本哈希，没有 unsafe-inline / unsafe-eval；外连只有天气（日刻合并 PR3 起同源）', () => {
   assert.ok(INLINE_SCRIPT_HASHES.length >= 5, '至少有 baseof 的首屏脚本');
   for (const h of INLINE_SCRIPT_HASHES) assert.match(h, /^sha256-[A-Za-z0-9+/]{43}=$/);
   const d = cspDirectives(SH.CSP_REPORT_ONLY);
@@ -114,7 +114,7 @@ test('Report-Only CSP：script-src 是 self + 每个内联脚本哈希，没有 
   assert.deepEqual(script.slice(1).sort(), INLINE_SCRIPT_HASHES.map((h) => "'" + h + "'").sort());
   assert.doesNotMatch(script.join(' '), /unsafe|\*|https?:/);
   assert.deepEqual(d.get('default-src'), ["'self'"]);
-  assert.deepEqual(d.get('connect-src'), ["'self'", 'https://api.open-meteo.com', 'https://geocoding-api.open-meteo.com', 'https://atlas.styrigx.com']);
+  assert.deepEqual(d.get('connect-src'), ["'self'", 'https://api.open-meteo.com', 'https://geocoding-api.open-meteo.com']);
   assert.deepEqual(d.get('frame-ancestors'), ["'none'"]);
   assert.deepEqual(d.get('object-src'), ["'none'"]);
   /* 不报到任何地方：匿名流量不能触发写 KV（看违规用浏览器控制台） */
@@ -302,12 +302,12 @@ test('网关·子站：302 到锁屏、401、会话有效的页面都带子站�
   _resetSecretCache();
   const admin = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'admin', 'password'));
   await withOrigin('<html><head></head><body>blog</body></html>', async () => {
-    for (const host of ['atlas.styrigx.com/blog', 'atlas.styrigx.com/daymark', 'atlas.styrigx.com/curio']) {
+    for (const host of ['styrigx.com/blog', 'styrigx.com/daymark', 'styrigx.com/curio']) {
       const lock = await worker.fetch(new Request('https://' + host + '/posts/x/'), baseEnv(), CTX);
       assert.equal(lock.status, 302, host);
       assert.equal(lock.headers.get('Strict-Transport-Security'), SH.HSTS);
       assertSubsiteHeaders(lock, host + ' 302');
-      const api = await worker.fetch(new Request('https://' + host + '/api/whatever'), baseEnv(), CTX);
+      const api = await worker.fetch(new Request('https://' + host + '/api/whatever'), baseEnv(), CTX); /* 漏到网关的 /<站>/api/* */
       assert.equal(api.status, 401);
       assert.equal(api.headers.get('Strict-Transport-Security'), SH.HSTS);
       assertSubsiteHeaders(api, host + ' 401');
@@ -320,7 +320,7 @@ test('网关·子站：302 到锁屏、401、会话有效的页面都带子站�
   });
   /* 子站静态资源原样回源，只补 HSTS、nosniff，不加 CSP / X-Frame-Options 等 */
   await withOrigin('x', async () => {
-    for (const host of ['atlas.styrigx.com/blog', 'atlas.styrigx.com/daymark', 'atlas.styrigx.com/curio']) {
+    for (const host of ['styrigx.com/blog', 'styrigx.com/daymark', 'styrigx.com/curio']) {
       const st = await worker.fetch(new Request('https://' + host + '/js/app.js'), baseEnv(), CTX);
       assert.equal(st.status, 200, host);
       assert.equal(st.headers.get('Strict-Transport-Security'), SH.HSTS, host);

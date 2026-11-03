@@ -1,7 +1,8 @@
 /**
  * 本地「边缘」测试台（edge-flow.spec.js 用）：把线上三站的请求链原样搭在本机。
  *
- * - 浏览器经本地 HTTP 代理（CONNECT）访问真实域名 https://styrigx.com、https://atlas.styrigx.com（图志：/blog/ /curio/ /daymark/）；代理把 TLS 接到本机 HTTPS 服务（临时自签证书，
+ * - 浏览器经本地 HTTP 代理（CONNECT）访问真实域名 https://styrigx.com（含子站 /blog/ /curio/ /daymark/，合并 PR3）、https://atlas.styrigx.com（旧图志，网关 301）；
+ *   代理把 TLS 接到本机 HTTPS 服务（临时自签证书，
  *   Chromium 用 --ignore-certificate-errors-spki-list 信任它，页面是正常安全上下文，WebAuthn 可用）。
  * - 路由按 workers/auth-gateway/wrangler.toml、workers/account/wrangler.toml、workers/share/wrangler.toml 的 [[routes]]，用 scripts/lib/cf-routes.mjs
  *   （线上实测的匹配规则：不带 * 的规则遇到查询串不命中；多条命中取最具体的）决定这次请求走网关、短链 Worker 还是直达 Pages。
@@ -12,7 +13,7 @@
  *   （workers/account/src/rpc/account-service.js serviceFetch / rpc/account-verifier.js checkAccountSession，AccountService / AccountVerifier 里跑的同一份代码）。
  *   账号 Worker 自己一对 Ed25519 钥匙、账号根密钥和自己的库（tests/workers/account/_d1.mjs：账号鉴权表 + 云同步），
  *   头像 KV_PROFILE 用内存 KV。转发到账号的每一跳在 log 里另记一条 'account'。
- *   Pages = web/atlas/public（主站，Cache-Control 照 _headers 的 /*）和两个子站的固定页面。
+ *   Pages = 单树：web/atlas/public（主站，Cache-Control 照 _headers 的 /*）+ /blog/ /curio/ /daymark/ 下子站的固定页面。
  *   cloudflare:workers（rpc/*.js 引入）用 tests/workers/account/_cf-workers.mjs 的替身。
  * - 访客进入用临时 LockKey：seedTempkey() 在 KV 里签发一把，返回临时码（2026-10-23 取代 Turnstile）。
  * - seedPasskey()：在 KV 里登记一把锁屏通行密钥，返回 CDP WebAuthn.addCredential 用的参数。
@@ -35,8 +36,8 @@ const { makeKV, makeAuthD1, derToPem } = require('../../workers/_harness.cjs');
 const REPO = process.env.SGX_EDGE_REPO || path.join(__dirname, '..', '..', '..');
 const PROXY_PORT = Number(process.env.SGX_EDGE_PROXY_PORT || 8941);
 const HOSTS = ['styrigx.com', 'atlas.styrigx.com'];
-/* 别的 Worker 的路由（不在本仓库，styrigx-atlas）：日刻、奇趣的接口 Worker */
-const OTHER_WORKER_ROUTES = ['atlas.styrigx.com/daymark/api/*', 'atlas.styrigx.com/curio/api/*'];
+/* 别的 Worker 的路由：日刻、奇趣的接口 Worker（workers/daymark-core、workers/curio-core 的 wrangler.toml；测试台里一律 404，只为让路由按线上取最具体的） */
+const OTHER_WORKER_TOMLS = ['workers/daymark-core/wrangler.toml', 'workers/curio-core/wrangler.toml'];
 
 /* ---------- 证书（模块加载时同步生成，spec 的 test.use 要用 SPKI） ---------- */
 const CERT_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sgx-edge-'));
@@ -89,7 +90,7 @@ function mainPages(req) {
   return new Response(fs.readFileSync(file), { status: 200, headers: { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': cc } });
 }
 
-/** 图志 Pages：各站固定页面（正文带 SUBSITE-CONTENT 标记，测试据此判断「真的进了子站」） */
+/** 单树里的子站：各站固定页面（正文带 SUBSITE-CONTENT 标记，测试据此判断「真的进了子站」） */
 function subPages(req) {
   const u = new URL(req.url);
   const m = /^\/(blog|curio|daymark)(\/.*)$/.exec(u.pathname);
@@ -104,8 +105,11 @@ function subPages(req) {
   return new Response('not found', { status: 404, headers: { 'Content-Type': 'text/plain' } });
 }
 
+/* 合并 PR3：一个 Pages（styrigx-space）一棵树，子站在 /blog/ /curio/ /daymark/ 下；atlas.styrigx.com 不会回源（网关 301） */
 function pagesFor(req) {
-  return new URL(req.url).hostname === 'styrigx.com' ? mainPages(req) : subPages(req);
+  const u = new URL(req.url);
+  if (u.hostname !== 'styrigx.com') return new Response('no pages on ' + u.hostname, { status: 421, headers: { 'Content-Type': 'text/plain' } });
+  return /^\/(blog|curio|daymark)(\/|$)/.test(u.pathname) ? subPages(req) : mainPages(req);
 }
 
 /**
@@ -118,6 +122,7 @@ async function startEdge() {
   const accountRoutes = readRoutes(fs.readFileSync(path.join(REPO, 'workers/account/wrangler.toml'), 'utf8'));
   const shareRoutes = readRoutes(fs.readFileSync(path.join(REPO, 'workers/share/wrangler.toml'), 'utf8'));
   const allRoutes = routes.concat(accountRoutes, shareRoutes);
+  const OTHER_WORKER_ROUTES = OTHER_WORKER_TOMLS.flatMap((f) => readRoutes(fs.readFileSync(path.join(REPO, f), 'utf8')));
   const gateway = (await mod('workers/auth-gateway/src/app.js')).default;
   await mod('tests/workers/account/_cf-workers.mjs'); /* cloudflare:workers 替身，要在 import rpc/*.js 之前 */
   const accountEntry = { ...(await mod('workers/account/src/rpc/account-service.js')), ...(await mod('workers/account/src/rpc/account-verifier.js')) };

@@ -1,10 +1,10 @@
 /**
- * @fileoverview styrigx-curio-core：奇趣接口 Worker（路由 atlas.styrigx.com/curio/api/*，见 wrangler.toml）。
+ * @fileoverview styrigx-curio-core：奇趣接口 Worker（路由 styrigx.com/curio/api/*，过渡期兼 atlas.styrigx.com/curio/api/*，见 wrangler.toml）。
  *
  * 数据接口都在这里，D1（D1_FINDS / D1_DEVICES / D1_GAMES，同一个库）和 R2（R2_PHOTOS：图标缓存、导入原文备份、设备照片）只绑在本 Worker 上；Pages 只放静态文件。
  * 本 Worker 不持任何钥匙：会话交给主站鉴权网关验（服务绑定 AUTH，见 src/api/_auth.js）。
  *
- * 请求顺序（下面的 /api/* 都是去掉 /curio 前缀后的路径，公开地址是 atlas.styrigx.com/curio/api/*）：
+ * 请求顺序（下面的 /api/* 都是去掉 /curio 前缀后的路径，公开地址是 styrigx.com/curio/api/*）：
  *   1. 所有 /api/*：先问网关会话（admin、visitor 都可）；无效 → 401 JSON（不 302，fetch 不跟跳转）。没有公开接口。
  *      角色放进 context.data.role，handler 用 sessionRole(context) 直接取，每个请求只问网关一次。
  *   2. 按路由表交给 src/api/<路径>.js；写操作自己再要求 admin（读 context.data.role）+ 同源
@@ -83,7 +83,7 @@ function tag(res) {
   return out;
 }
 
-/** 本站在图志（atlas.styrigx.com）下的前缀：接口公开地址是 {BASE}/api/*，路由表按去掉前缀后的 /api/* 登记 */
+/** 本站在主域名（styrigx.com；旧图志 atlas.styrigx.com 同一前缀）下的前缀：接口公开地址是 {BASE}/api/*，路由表按去掉前缀后的 /api/* 登记 */
 export const BASE = '/curio';
 
 /** 公开地址 → 路由表里的路径（/curio/api/x → /api/x）；不是本站接口返回 '' */
