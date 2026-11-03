@@ -12,12 +12,33 @@
 |---|---|---|
 | `default` | `src/app.js` | 默认 fetch 一律 404（第二道保险：即使线上残留公开路由，伪造的头也碰不到任何接口） |
 | `AccountService` | `src/rpc/account-service.js` | 网关经服务绑定 `ACCOUNT` 转发来的请求：`serviceFetch` → `gate.js` → `router.js` |
-| `AccountVerifier` | `src/rpc/account-verifier.js` | 只读 RPC `accountSession(cookieHeader, clientContext)` → `{ ok }` 或 `{ ok:false, reason }`，不签任何东西。调用方只有网关（服务绑定 `ACCOUNT_VERIFIER`：账号页首帧提示） |
+| `AccountVerifier` | `src/rpc/account-verifier.js` | 只读 RPC，不签任何东西，调用方只有网关（服务绑定 `ACCOUNT_VERIFIER`）：`accountSession(cookieHeader, clientContext)` → `{ ok }` 或 `{ ok:false, reason }`（账号页首帧提示）；`authorize(cookieHeader, clientContext, opts)` → 授权结论（见下文「结论」） |
 
 - `src/gate.js`：只有 `AccountService` 读身份头——网关写的 `X-Styrigx-Lock-*`（Role / By / Tempkey-Id）、`X-Styrigx-Client-*`（Address / Country / City），`src/lib/lock-identity.js` 白名单校验。纵深防御：没有身份头的 `/api/*` → 401，访客调 `/api/prefs` → 403 role；访客调 `/api/account` 由 `api/account.js` 自己回 401 session。
 - `src/router.js`：接口路由表 `API_ROUTES` 和头像文件 `/avatar/<尺寸>.webp`。
-- `src/api/account.js`：`/api/account` 单入口 + action；账号身份的其余部分在 `src/core/`（`account-session.js` 账号会话与两张短票、`account-devices.js` 已登录设备、`account-root.js` 账号根密钥与审计、`account-store.js` 账号库域对象、`realm.js` 的 `REALM_ACCOUNT` 与三张账号票）。
+- `src/api/account.js`：`/api/account` 单入口 + action；账号身份的其余部分在 `src/core/`（`scopes.js` 作用域表、`authz.js` 授权判断、`account-session.js` 账号会话与两张短票、`account-devices.js` 已登录设备、`account-root.js` 账号根密钥与审计、`account-store.js` 账号库域对象、`realm.js` 的 `REALM_ACCOUNT` 与三张账号票）。
 - `src/lib/`：本 Worker 自己的一份通用件和账号域实现（crypto、cookies、http、d1-state、passkey-verify、password*、root-*、tickets、lock-identity、avatar、security-headers、csp-hashes），不 import 网关或任何别的 Worker。
+
+## 结论
+
+授权骨架（P2-1，设计方案 2.3.3、2.4、4.2）：本 Worker 是授权的唯一来源。作用域表和授权判断只在这里有一份，网关和下游只认字符串，不 import。
+
+- 作用域表 `src/core/scopes.js`：按应用（= 数据域）各一个写作用域；读私密跟账号会话走，不要作用域；敏感操作另要账号复验（`sgx-account-reauth`），不再多拆作用域。id 规则 `<应用>.<动作>`，全小写，只用 `[a-z.]`；以后加应用只在这里加一行。
+
+  | 作用域 | 应用（授权卡，中 / 英） | 另要账号复验的敏感操作 |
+  |---|---|---|
+  | `curio.write` | 奇趣 / Curio | `POST /curio/api/import` |
+  | `daymark.write` | 日刻 / Daymark | — |
+  | `prefs.sync` | 设置同步 / Settings sync | — |
+  | `wellbeing.write` | 数字健康 / Digital wellbeing | — |
+  | `avatar.write` | 头像 / Avatar | — |
+
+- 授权判断 `src/core/authz.js`：
+  - `grantedScopes(env, accountSession)`：**骨架阶段**账号会话有效 → 作用域表里的全部作用域（行为上等于现在「账号会话能做一切」）；第 3 件实现（另批）只把它换成读授权记录（已授权 ∩ 作用域表），签名和结论形状不变。
+  - `authorize(env, request, opts)` → `{ ok, reason, deviceId, scopes, reauth }`：验账号会话（过期、纪元变了、设备已退出都是 `ok:false`，`reason` 是原因代号）→ `deviceId` 取自票 → `scopes` 按字母排序 → 只有 `opts.reauth === true` 才读 `sgx-account-reauth`。只读不签，永不抛错。
+- RPC：`AccountVerifier.authorize(cookieHeader, clientContext, opts)` 原样回上面的结论；网关 `core/account-rpc.js` 的 `askAuthorize` 问它，再由网关 `core/conclusion.js` 交给下游（RPC 结论 / 结论头，见网关 README「结论」）。
+- 现状（P2-1）：只新增，没有调用方，现有接口的判断一行没改。网关转来的请求多了 `X-Styrigx-Lock-Session: 1`（与 `X-Styrigx-Lock-Role` 并存），本 Worker 还不读它；P2-2 起 `/api/account`、`/api/prefs`、`/api/avatar`、`/api/wellbeing` 改用同一份 `core/authz.js` 判断并改读它，P2-3 删 role。
+- 测试：`tests/workers/account/authz.test.mjs`、`account-entrypoints.test.mjs`。
 
 ## 路由
 
