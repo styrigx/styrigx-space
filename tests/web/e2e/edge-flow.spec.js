@@ -113,7 +113,10 @@ test('R1 daymark 直接打开 → 主站锁屏 → 访客（临时钥匙）→ �
   await page.click('#sgx-temp-go');
   await page.waitForURL(DAYMARK + '/', { timeout: 20000 });
   await expect(page.locator('#sub-content')).toContainText('SUBSITE-CONTENT daymark');
-  expect(await page.evaluate(() => fetch('/api/lock-session-check').then((r) => r.status))).toBe(204);
+  /* 合并 PR3：子站和主站同源，/api/lock-session-check 由主站路由回答（有效 200 {ok:true}；以前 atlas 根上由子站关口回 204） */
+  const check = await page.evaluate(() => fetch('/api/lock-session-check').then(async (r) => ({ status: r.status, body: await r.json() })));
+  expect(check.status).toBe(200);
+  expect(check.body.ok).toBe(true);
 });
 
 test('R1 子站首页带任意查询串也必须过网关（未登录 → 302 锁屏，不能直出正文）', async ({ page }) => {
