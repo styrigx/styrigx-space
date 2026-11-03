@@ -252,7 +252,7 @@ test('拾录 · 账号没登录：只有公开句子、没有记一句和锁；�
   await expect(page.locator('.dm-lock')).toHaveCount(0);
   await expect(page.locator('#dm-signin')).toBeVisible();
   await expect(page.locator('#dm-signin a')).toHaveText('登录账号后可编辑');
-  await expect(page.locator('#dm-signin a')).toHaveAttribute('href', '/account/');
+  await expect(page.locator('#dm-signin a')).toHaveAttribute('href', 'https://styrigx.com/account/');
 });
 
 test('拾录 · 写接口回 401 account（账号会话刚过期）：不刷新页面，编辑弹层提示登录账号', async ({ page }) => {

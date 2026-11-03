@@ -92,7 +92,7 @@ test('访客：顶栏分段滑块（没有搜索栏）、抽屉同主站；没�
   /* 编辑入口换成「登录账号后可编辑」，链到主站账号页 */
   await expect(page.locator('#cu-signin')).toBeVisible();
   await expect(page.locator('#cu-signin a')).toHaveText('登录账号后可编辑');
-  await expect(page.locator('#cu-signin a')).toHaveAttribute('href', '/account/');
+  await expect(page.locator('#cu-signin a')).toHaveAttribute('href', 'https://styrigx.com/account/');
   const gh = page.locator('.cu-tile[data-id="11"]');
   await expect(gh).toHaveAttribute('href', 'https://github.com/');
   await expect(gh).toHaveAttribute('target', '_blank');
