@@ -273,7 +273,7 @@ jobs:
 
       - name: Subsite generated files in sync (curio seed SQL, blog code tokens, shared shell copies)
         # curio：workers/curio-core/migrations/0002_seed.sql ← scripts/curio/data/seed.json；blog：code-tokens.css ← 色彩角色；
-        # 三站的共享外壳副本和各自 web/<站>/sgx-shell.lock.json 锁定的主站提交一致（拉主站失败只提示、不算失败，同 styrigx-atlas）
+        # 三站的共享外壳副本和各自 web/<站>/sgx-shell.lock.json 锁定的主站外壳 tree 一致（本地 git 核对；浅克隆取不到旧 tree 只提示、不算失败）
         run: |
           node scripts/curio/gen-seed-sql.mjs --check
           node scripts/blog/gen-code-tokens.mjs --check

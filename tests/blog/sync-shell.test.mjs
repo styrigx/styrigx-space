@@ -1,4 +1,4 @@
-// 主站共享外壳副本（scripts/sync-shell.mjs 写入）：没被手改，sgx-shell.lock.json 的指纹对得上；渲染逻辑稳定。
+// 主站共享外壳副本（scripts/blog/sync-shell.mjs 写入）：没被手改，sgx-shell.lock.json 的指纹对得上；渲染逻辑稳定。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -49,6 +49,7 @@ test('renderTargets：标记段带来源和版本，内容按 manifest 拼接', 
   }
 });
 
-test('lock 锁定到主站的完整提交 SHA（--check 只和这个提交比，不跟主站 main 走）', () => {
-  assert.match(lock.ref, /^[0-9a-f]{40}$/, 'sgx-shell.lock.json 的 ref 要是 40 位提交 SHA：运行 node scripts/sync-shell.mjs 重新同步');
+test('lock 锁定主站外壳目录的 git tree 哈希（squash 合并后提交没了，tree 仍在；--check 只和这个 tree 比，不跟主站 main 走）', () => {
+  assert.match(lock.tree, /^[0-9a-f]{40}$/, 'sgx-shell.lock.json 的 tree 要是 40 位 git tree 哈希：运行 node scripts/blog/sync-shell.mjs --migrate-lock（旧格式）或重新同步');
+  assert.equal(lock.ref, undefined, '新格式 lock 不再有 ref（from 只作记录）');
 });
