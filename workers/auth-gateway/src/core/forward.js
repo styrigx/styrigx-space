@@ -8,7 +8,7 @@
  *   URL、方法、正文、Cookie、Origin 原样（账号侧 isSameOrigin 在转发后仍成立）。出错原样抛给调用方（router.js forward 映射成 503 upstream）。
  *
  * 用户：只有 router.js forward()（router.js 转发表 FORWARDING → 服务绑定 ACCOUNT）。chat / search / status 不经这里：
- * api/chat.js、api/search.js 自己新建内部请求并写 X-Sgx-Role，api/status.js 不写身份头。
+ * api/search.js 自己新建内部请求并写账号结论头（core/conclusion.js，P2-2）；api/chat.js 新建内部请求不带身份头（P2-2 起门只在网关）；api/status.js 不写身份头。
  */
 import { clientIp } from '../lib/http.js';
 import { stripInternalHeaders, writeLockIdentity } from './lock-identity.js';

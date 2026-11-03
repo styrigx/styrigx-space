@@ -5,9 +5,10 @@
  * 浏览器每次把整段对话（只在 sessionStorage）发给网关 /api/chat，网关验完门转进来，这里转给模型、把回答以 SSE 流回去，什么都不留。
  *
  * 门在网关（workers/auth-gateway/functions/api/chat.js），这里不验 cookie：
- * - 同源 POST（否则 403 origin）、锁屏会话（没有 / 无效 → 401）、只许管理员（访客 → 403 admin_only），都由网关先做。
- * - 本 Worker 没有公开地址（workers_dev / preview_urls 关、没有路由），唯一入口是网关的服务绑定 CHAT；
- *   入口（src/index.js）再要求网关写的 X-Sgx-Role: admin，没有就 403 admin_only（双保险）。
+ * - 同源 POST（否则 403 origin）、锁屏会话（没有 / 无效 → 401）、过渡期只许 admin 锁屏（访客 → 403 admin_only）、
+ *   账号会话（没有 → 401 account，P2-2），都由网关先做。
+ * - 本 Worker 没有公开地址（workers_dev / preview_urls 关、没有路由），唯一入口是网关的服务绑定 CHAT；门只在网关（方案 2.3.1），
+ *   P2-2 起入口不再看旧角色头。
  *
  *   GET  /models → 200 { ok:true, default:'<id>', models:[{ id, label, search }], configured }（网关 GET /api/chat 原样转回）
  *     configured = 钥匙绑定在不在（不读钥匙）；false → 页面直接显示「聊天还没配置」卡。

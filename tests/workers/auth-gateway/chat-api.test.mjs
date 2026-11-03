@@ -1,6 +1,6 @@
 /**
  * 聊天 /api/chat（网关，src/api/chat.js）：2026-10-22 起网关只做门 + 转发，聊天本身在 styrigx-chat（workers/chat）。
- * 这里测：门（同源 / 会话 / 只许管理员，GET 和 POST）、转发（服务绑定 CHAT、路径、X-Sgx-Role、请求体原样、不转 cookie）、
+ * 这里测：门（同源 / 会话 / 过渡期只许 admin 锁屏 / 账号会话（P2-2），GET 和 POST）、转发（服务绑定 CHAT、路径、不带身份头、请求体原样、不转 cookie）、
  * 响应原样流回（状态码 / 头 / SSE 不缓冲）、没绑定 503 no_key、绑定抛错 502 upstream、wrangler.toml（CHAT 绑定，
  * 没有 CHAT_* 变量和聊天钥匙绑定）、中间件；再接上真的 styrigx-chat 跑一遍端到端（上游 fetch mock）。
  * 聊天内核（校验、模型、SSE 转换、错误映射）见 tests/workers/chat/chat.test.mjs。
@@ -42,21 +42,41 @@ function svc(fn) {
 }
 const noCall = () => svc(() => { throw new Error('不应转给 styrigx-chat'); });
 
+/** 账号 Worker AccountVerifier 替身（P2-2）：Cookie 里有 sgx-account-session=ok → 有账号会话；=boom → RPC 抛错 */
+let verifierCalls = 0;
+const ACCOUNT_VERIFIER = {
+  async authorize(cookie) {
+    verifierCalls++;
+    if (/sgx-account-session=boom/.test(cookie)) throw new Error('rpc');
+    if (/sgx-account-session=ok/.test(cookie)) return { ok: true, reason: 'ok', deviceId: 'devtestdevtest01', scopes: ['curio.write'], reauth: false };
+    return { ok: false, reason: 'missing' };
+  },
+};
+
 function env(over = {}) {
   svcLog = [];
-  return withAuthD1({ SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, KV_LOCK_DOOR: kv(), CHAT: noCall(), ...over });
+  return withAuthD1({ SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, KV_LOCK_DOOR: kv(), CHAT: noCall(), ACCOUNT_VERIFIER, ...over });
 }
 
 const MSGS = [{ role: 'user', text: 'Hugo 最新版本？' }];
-function req(body, { cookie = ADMIN, origin = 'https://styrigx.com', raw } = {}) {
+/** acc：账号会话 cookie 的值（默认 'ok' = 有账号会话；null = 不带） */
+function cookieOf(cookie, acc) {
+  const c = [];
+  if (cookie) c.push('sgx-lock-session=' + cookie);
+  if (acc) c.push('sgx-account-session=' + acc);
+  return c.join('; ');
+}
+function req(body, { cookie = ADMIN, acc = 'ok', origin = 'https://styrigx.com', raw } = {}) {
   const headers = { 'Content-Type': 'application/json' };
-  if (cookie) headers.Cookie = 'sgx-lock-session=' + cookie;
+  const ck = cookieOf(cookie, acc);
+  if (ck) headers.Cookie = ck;
   if (origin) headers.Origin = origin;
   return new Request('https://styrigx.com/api/chat', { method: 'POST', headers, body: raw !== undefined ? raw : JSON.stringify(body) });
 }
-function getReq({ cookie = ADMIN, origin } = {}) {
+function getReq({ cookie = ADMIN, acc = 'ok', origin } = {}) {
   const headers = {};
-  if (cookie) headers.Cookie = 'sgx-lock-session=' + cookie;
+  const ck = cookieOf(cookie, acc);
+  if (ck) headers.Cookie = ck;
   if (origin) headers.Origin = origin;
   return new Request('https://styrigx.com/api/chat', { method: 'GET', headers });
 }
@@ -144,14 +164,14 @@ test('GET 门：没会话 / 坏会话 401、访客 403 admin_only；管理员 �
   assert.equal(svcLog.length, 3);
   assert.equal(svcLog[0].url, 'https://styrigx-chat/models');
   assert.equal(svcLog[0].method, 'GET');
-  assert.equal(svcLog[0].headers['x-sgx-role'], 'admin');
+  assert.deepEqual(Object.keys(svcLog[0].headers).filter((k) => k.startsWith('x-')), [], 'P2-2 起不带任何身份头（门只在网关）');
   assert.ok(!('cookie' in svcLog[0].headers), '不转 cookie');
   const { pickHandler } = await import('../../../workers/auth-gateway/src/router.js');
   assert.equal(pickHandler(API_ROUTES.get('/api/chat'), 'GET'), chat.onRequestGet);
   assert.equal(pickHandler(API_ROUTES.get('/api/chat'), 'POST'), chat.onRequestPost);
 });
 
-test('POST 转发：POST https://styrigx-chat/chat、X-Sgx-Role: admin、Content-Type 原样、请求体一字不改（坏 JSON 也原样，由 styrigx-chat 回 400）、不转 cookie / Origin、带 signal', async () => {
+test('POST 转发：POST https://styrigx-chat/chat、不带身份头（P2-2）、Content-Type 原样、请求体一字不改（坏 JSON 也原样，由 styrigx-chat 回 400）、不转 cookie / Origin、带 signal', async () => {
   const e = env({ CHAT: svc(() => jsonRes(400, { ok: false, error: 'bad_request' })) });
   const raw = JSON.stringify({ messages: MSGS, model: 'gemini-2.5-flash-lite' });
   let r = await call(req(null, { raw }), e);
@@ -160,7 +180,8 @@ test('POST 转发：POST https://styrigx-chat/chat、X-Sgx-Role: admin、Content
   const f = svcLog[0];
   assert.equal(f.url, 'https://styrigx-chat/chat');
   assert.equal(f.method, 'POST');
-  assert.equal(f.headers['x-sgx-role'], 'admin');
+  assert.equal(f.headers['x-sgx-role'], undefined);
+  assert.deepEqual(Object.keys(f.headers).filter((k) => k.startsWith('x-')), []);
   assert.equal(f.headers['content-type'], 'application/json');
   assert.equal(f.body, raw);
   assert.ok(!('cookie' in f.headers) && !('origin' in f.headers));
@@ -221,6 +242,27 @@ test('没绑定 CHAT → 503 no_key（GET / POST）；调 styrigx-chat 抛错 �
   assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
   r = await getCall(getReq(), env({ CHAT: boom }));
   assert.equal(r.status, 502);
+});
+
+test('账号会话（P2-2 过渡门槛）：admin 锁屏但没账号会话 → 401 account（GET / POST），不转给 styrigx-chat；账号 RPC 抛错 / 没绑定也是 401 account；访客先被 403 admin_only 拦、不问账号', async () => {
+  const e = env();
+  for (const acc of [null, 'bad', 'boom']) {
+    let r = await call(req({ messages: MSGS }, { acc }), e);
+    assert.equal(r.status, 401, String(acc));
+    assert.deepEqual(await r.json(), { ok: false, error: 'account' });
+    assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
+    r = await getCall(getReq({ acc }), e);
+    assert.equal(r.status, 401);
+    assert.equal((await r.json()).error, 'account');
+  }
+  let r = await call(req({ messages: MSGS }), env({ ACCOUNT_VERIFIER: undefined }));
+  assert.equal(r.status, 401);
+  assert.equal((await r.json()).error, 'account');
+  verifierCalls = 0;
+  r = await call(req({ messages: MSGS }, { cookie: VISITOR }), e);
+  assert.equal(r.status, 403);
+  assert.equal(verifierCalls, 0, '访客不问账号');
+  assert.equal(svcLog.length, 0);
 });
 
 test('gateway 中间件：/api/chat 没会话 401（不进接口）；访客能到接口（由接口回 admin_only）', async () => {

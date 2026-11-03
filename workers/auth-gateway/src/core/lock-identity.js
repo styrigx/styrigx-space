@@ -3,8 +3,8 @@
  * workers/account/src/lib/lock-identity.js（readLockIdentity / readClientContext，同一份白名单）。
  *
  * 网关把锁屏身份、客户端上下文转给账号 Worker 时用的头名和写法：只用在 router.js 转发表里的路径
- * （router.js forward → core/forward.js forwardToService）。chat / search 不用这套头：api/chat.js、api/search.js
- * 新建内部请求、自己写 X-Sgx-Role（styrigx-chat / styrigx-search-index 仍只认它，改名留待以后）；api/status.js 不带任何身份头。
+ * （router.js forward → core/forward.js forwardToService）。chat / search 不用这套头：api/search.js 新建内部请求、写账号结论头
+ * （core/conclusion.js，P2-2）；api/chat.js 新建内部请求、不带身份头（门只在网关，P2-2）；api/status.js 不带任何身份头。
  * 头名大小写不敏感（Headers 会统一小写）；剥离外来同名头时按 INTERNAL_HEADER_PREFIX（小写）匹配前缀。
  *
  * - stripInternalHeaders(headers)：删掉所有 x-styrigx-* 和 x-sgx-role（网关 fetch 第一步剥浏览器带来的；writeLockIdentity 写之前再剥一次）
@@ -36,8 +36,8 @@ export const CLIENT_CONTEXT_HEADERS = Object.freeze({
 /** 所有内部头的公共前缀（小写） */
 export const INTERNAL_HEADER_PREFIX = 'x-styrigx-';
 
-/** X-Sgx-Role：网关新建发给 chat / search 的内部请求时自己写（api/chat.js、api/search.js），那两个 Worker 仍认它；
- *  浏览器带来的同名头在网关 fetch 第一步剥掉，不会经回源 / 转发带到任何下游。转发给账号 Worker 的请求里也没有它（账号只读 X-Styrigx-*）。 */
+/** X-Sgx-Role：旧内部头。P2-2 起网关不再写、下游也不再读；浏览器带来的同名头仍在网关 fetch 第一步剥掉（留着这道保险），
+ *  不会经回源 / 转发带到任何下游。 */
 const LEGACY_ROLE_HEADER = 'x-sgx-role';
 
 /* 白名单 */
