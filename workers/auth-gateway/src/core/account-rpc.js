@@ -1,10 +1,12 @@
 /**
- * 网关 → 账号 Worker 的只读 RPC：ACCOUNT_VERIFIER.accountSession()（方案第 2、10.1 节）。
+ * 网关 → 账号 Worker 的只读 RPC：ACCOUNT_VERIFIER.accountSession() / authorize()（方案第 2、10.1 节；authorize 是授权骨架 P2-1，方案 2.3.3）。
  *
- * 网关不再持账号钥匙、不读账号库；网关里只剩账号页首帧提示（gate.js）还要知道账号会话，经服务绑定 ACCOUNT_VERIFIER
- * （styrigx-account / AccountVerifier）问一句，只拿结论。临时钥匙管理（api/lock-tempkey.js）和短链签发 / 作废（core/link-keys.js）
- * 只认管理员锁屏会话，不再问账号会话。
- * 绑定没配 / RPC 抛错 / 回了看不懂的东西 → 按「无账号会话」处理（fail closed），reason 只是原因代号。
+ * 网关不再持账号钥匙、不读账号库，经服务绑定 ACCOUNT_VERIFIER（styrigx-account / AccountVerifier）问一句，只拿结论：
+ * - askAccountSessionFor：账号页首帧提示（gate.js）用。临时钥匙管理（api/lock-tempkey.js）和短链签发 / 作废（core/link-keys.js）
+ *   只认管理员锁屏会话，不再问账号会话。
+ * - askAuthorize：授权结论（core/conclusion.js 组装网关结论时用；P2-1 只新增，还没有调用方）。
+ * 绑定没配 / RPC 抛错 / 回了看不懂的东西 → 按「无账号会话」处理（fail closed，account.ok=false），reason 只是原因代号。
+ * askAuthorize 只管传话和「ok 是不是 true」；deviceId、作用域的白名单校验在 core/conclusion.js。
  *
  * 不 import 任何账号代码（账号与网关互相不许 import，scripts/check-layers.mjs 规则 14）。
  */
@@ -52,7 +54,54 @@ async function askAccountSession(env, cookieHeader, clientContext) {
 }
 
 /**
- * 请求版：取请求的 Cookie 头和客户端上下文再问（唯一导出，只给 gate.js 账号页首帧提示用）。
+ * RPC 传进来的 clientContext（子站接口 Worker 经 AuthVerifier.conclusion 转来的）只留 ua / country / city 三个字符串，截长。
+ * @param {any} c
+ * @returns {{ua?:string, country?:string, city?:string}}
+ */
+function cleanVerifierContext(c) {
+  /** @type {{ua?:string, country?:string, city?:string}} */
+  const m = {};
+  if (!c || typeof c !== 'object') return m;
+  if (typeof c.ua === 'string' && c.ua) m.ua = c.ua.slice(0, MAX_UA);
+  if (typeof c.country === 'string' && c.country) m.country = c.country.slice(0, 4);
+  if (typeof c.city === 'string' && c.city) m.city = c.city.slice(0, 40);
+  return m;
+}
+
+/**
+ * @typedef {{ ok: boolean, reason: string, deviceId: any, scopes: any, reauth: any }} AskedAuthorization
+ *   ok=true 时 deviceId / scopes / reauth 是账号 Worker 回的原样值（白名单校验在 core/conclusion.js）；ok=false 时为 '' / [] / false
+ */
+
+/**
+ * 问账号 Worker 要授权结论（AccountVerifier.authorize）。
+ * 绑定没配 → no-verifier；没 cookie → no-cookie（不问）；RPC 抛错 → rpc-error；回的不是对象 / ok 不是 true → ok=false。
+ * @param {Record<string, any>} env
+ * @param {string} cookieHeader 浏览器发来的 Cookie 头（原样）
+ * @param {any} [clientContext] { ua, country, city }
+ * @param {{reauth?:boolean}} [opts] 只认 reauth === true
+ * @returns {Promise<AskedAuthorization>}
+ */
+export async function askAuthorize(env, cookieHeader, clientContext, opts) {
+  const no = (/** @type {string} */ reason) => ({ ok: false, reason, deviceId: '', scopes: [], reauth: false });
+  const v = env && env.ACCOUNT_VERIFIER;
+  if (!v || typeof v.authorize !== 'function') return no('no-verifier');
+  const cookie = typeof cookieHeader === 'string' ? cookieHeader.slice(0, MAX_COOKIE_HEADER) : '';
+  if (!cookie) return no('no-cookie');
+  const want = { reauth: !!(opts && typeof opts === 'object' && opts.reauth === true) };
+  try {
+    const r = await v.authorize(cookie, cleanVerifierContext(clientContext), want);
+    if (!r || typeof r !== 'object') return no('bad-reply');
+    if (r.ok !== true) return no((typeof r.reason === 'string' && r.reason) || 'denied');
+    return { ok: true, reason: 'ok', deviceId: r.deviceId, scopes: r.scopes, reauth: r.reauth };
+  } catch (e) {
+    console.error('[sgx-auth] account authorize rpc failed: ' + (e && /** @type {any} */ (e).name ? /** @type {any} */ (e).name : 'error'));
+    return no('rpc-error');
+  }
+}
+
+/**
+ * 请求版：取请求的 Cookie 头和客户端上下文再问（只给 gate.js 账号页首帧提示用）。
  * @param {Request} request @param {Record<string, any>} env
  */
 export function askAccountSessionFor(request, env) {

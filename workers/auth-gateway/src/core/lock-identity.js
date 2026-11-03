@@ -10,13 +10,17 @@
  * - stripInternalHeaders(headers)：删掉所有 x-styrigx-* 和 x-sgx-role（网关 fetch 第一步剥浏览器带来的；writeLockIdentity 写之前再剥一次）
  * - writeLockIdentity(headers, lockSession, clientContext)：先剥，再按验过的锁屏会话写身份头和客户端上下文头（只写白名单里的值）
  *
+ * X-Styrigx-Lock-Session: 1（授权骨架 P2-1，方案 2.3.1）：网关验过的锁屏会话有效（进门）。与 X-Styrigx-Lock-Role **并存**，
+ * 有身份就写；账号 Worker 现在还不读它（P2-2 起改读它，P2-3 删 X-Styrigx-Lock-Role）。
+ *
  * 不带会话 id、不签名（方案第 3 节）：靠三道保险——网关剥头、账号 Worker 只在命名入口读头（默认 fetch 一律 404）、账号 Worker 没有公开路由
  * （wrangler.toml 无 [[routes]]；PR3 前的 4 条旧路由 wrangler deploy 不会自动删，部署后手动删，删之前进来的请求也只碰到默认 fetch 的 404）。
  * 不 import 任何东西。
  */
 
-/** 锁屏身份：角色、凭什么解的锁、临时钥匙 id */
+/** 锁屏身份：进门有效、角色、凭什么解的锁、临时钥匙 id */
 export const LOCK_IDENTITY_HEADERS = Object.freeze({
+  session: 'X-Styrigx-Lock-Session',
   role: 'X-Styrigx-Lock-Role',
   by: 'X-Styrigx-Lock-By',
   tempkeyId: 'X-Styrigx-Lock-Tempkey-Id',
@@ -102,6 +106,7 @@ function normalizeLockIdentity(s) {
 
 /**
  * 先剥掉所有内部头，再按验过的锁屏会话写身份头、按客户端上下文写上下文头（只写白名单里的非空值）。
+ * 有身份 → X-Styrigx-Lock-Session: 1 + X-Styrigx-Lock-Role（两者并存）+ 白名单里的 By / Tempkey-Id。
  * 没有锁屏会话 → 不带任何 X-Styrigx-Lock-* 头（= 下游看到的是无会话）。
  * @param {Headers} headers 要写的头（就地改）
  * @param {any} lockSession verifyLockSession 的结论 { ok, role, by?, tempkeyId? }
@@ -112,6 +117,7 @@ export function writeLockIdentity(headers, lockSession, clientContext) {
   stripInternalHeaders(headers);
   const id = normalizeLockIdentity(lockSession);
   if (id) {
+    headers.set(LOCK_IDENTITY_HEADERS.session, '1');
     headers.set(LOCK_IDENTITY_HEADERS.role, id.role);
     if (id.by) headers.set(LOCK_IDENTITY_HEADERS.by, id.by);
     if (id.tempkeyId) headers.set(LOCK_IDENTITY_HEADERS.tempkeyId, id.tempkeyId);

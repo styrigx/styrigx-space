@@ -6,6 +6,8 @@
  * - 信任边界：默认 fetch 一律 404（伪造的 x-styrigx-* 头不起作用）；AccountService 无条件信任这些头，
  *   前提是网关剥掉入站同名头（方案第 3 节第一道保险，forwarding.test 覆盖）
  * - AccountVerifier.accountSession(cookieHeader, clientContext)：正反例，只验不签
+ * - AccountVerifier.authorize(cookieHeader, clientContext, opts)（P2-1）：授权结论 { ok, reason, deviceId, scopes, reauth }；
+ *   opts 只认 reauth === true；坏参数、缺钥匙、账号库出错都不抛
  *
  * 运行：node --test tests/workers/account/account-entrypoints.test.mjs
  */
@@ -15,7 +17,7 @@ import assert from 'node:assert/strict';
 import { testLockSession } from '../auth-gateway/_tickets.mjs';
 import { genKeyPair, postReq } from '../_harness.mjs';
 import { makeAccountD1 } from './_d1.mjs';
-import { K, keys, idHeaders, accSession, seedPassword, setEpoch, one, PEPPER, ROOT_KEY, TEST_DEVICE_ID, pickCookie } from './_identity.mjs';
+import { K, keys, idHeaders, accSession, reauth, seedPassword, setEpoch, one, PEPPER, ROOT_KEY, TEST_DEVICE_ID, pickCookie } from './_identity.mjs';
 
 const SRC = '../../../workers/account/src/';
 const { WorkerEntrypoint } = await import('cloudflare:workers');
@@ -72,6 +74,7 @@ test('index.js：默认导出就是 app.js 的 default；AccountService / Accoun
   assert.ok(new ep.AccountVerifier(CTX, {}) instanceof WorkerEntrypoint);
   assert.equal(typeof ep.AccountService.prototype.fetch, 'function');
   assert.equal(typeof ep.AccountVerifier.prototype.accountSession, 'function');
+  assert.equal(typeof ep.AccountVerifier.prototype.authorize, 'function');
   assert.equal(ep.AccountVerifier.prototype.fetch, undefined);
 });
 
@@ -233,6 +236,71 @@ test('AccountVerifier：缺钥匙 → no-pubkey；账号库出错 → d1-error�
   _resetSecretCache();
   ({ env } = makeEnv({ D1_ACCOUNT_AUTH: { prepare() { throw new Error('down'); }, batch() { throw new Error('down'); } } }));
   assert.deepEqual(await new ep.AccountVerifier(CTX, env).accountSession(await accCookie()), { ok: false, reason: 'd1-error' });
+});
+
+/* ---------------- AccountVerifier.authorize（P2-1） ---------------- */
+
+const ALL_SCOPES = ['avatar.write', 'curio.write', 'daymark.write', 'prefs.sync', 'wellbeing.write'];
+const DENY = (reason) => ({ ok: false, reason, deviceId: '', scopes: [], reauth: false });
+
+test('AccountVerifier.authorize：有效账号会话 → ok、deviceId、全部作用域（骨架阶段）、reauth=false；不签发、纪元不变', async () => {
+  const { env, calls } = makeEnv();
+  const v = new ep.AccountVerifier(CTX, env);
+  const r = await v.authorize(await accCookie(), { ua: 'UA', country: 'JP', city: 'Tokyo' });
+  assert.deepEqual(r, { ok: true, reason: 'ok', deviceId: TEST_DEVICE_ID, scopes: ALL_SCOPES, reauth: false });
+  const ep0 = one({ D1_ACCOUNT_AUTH: env.D1_ACCOUNT_AUTH }, "SELECT value FROM epoch WHERE realm = 'account'");
+  assert.ok(!ep0 || Number(ep0.value) === 0);
+  assert.deepEqual(calls, []);
+});
+
+test('AccountVerifier.authorize：opts.reauth === true 才验 sgx-account-reauth；别的写法一律当没要', async () => {
+  const { env } = makeEnv();
+  const v = new ep.AccountVerifier(CTX, env);
+  const ck = (await accCookie()) + '; sgx-account-reauth=' + (await reauth());
+  assert.equal((await v.authorize(ck, {}, { reauth: true })).reauth, true);
+  for (const o of [undefined, null, {}, { reauth: 'true' }, { reauth: 1 }, 'reauth', [true]]) {
+    const r = await v.authorize(ck, {}, /** @type {any} */ (o));
+    assert.equal(r.ok, true, JSON.stringify(o));
+    assert.equal(r.reauth, false, JSON.stringify(o));
+  }
+  assert.equal((await v.authorize(await accCookie(), {}, { reauth: true })).reauth, false, '没复验票');
+});
+
+test('AccountVerifier.authorize：反例——没 cookie / 非字符串 / 只有锁屏会话 / 格式错 / 别的钥匙签 / 纪元变了 / 过期 / 设备已退出', async () => {
+  const { env } = makeEnv();
+  const v = new ep.AccountVerifier(CTX, env);
+  const lock = 'sgx-lock-session=' + (await testLockSession(LOCK_PRIV, 0, 'admin'));
+  assert.deepEqual(await v.authorize('', {}), DENY('no-cookie'));
+  assert.deepEqual(await v.authorize(undefined), DENY('no-cookie'));
+  assert.deepEqual(await v.authorize({ Cookie: 'x' }), DENY('no-cookie'));
+  assert.deepEqual(await v.authorize(lock), DENY('no-cookie'));
+  assert.deepEqual(await v.authorize('sgx-account-session=garbage'), DENY('bad-format'));
+  assert.deepEqual(await v.authorize(await accCookie({ priv: K.OTHER.priv })), DENY('bad-sig'));
+  const old = 'sgx-account-session=' + (await accSession('password', 0, Date.now() - 500 * 86400000, { now: Date.now() - 500 * 86400000 }));
+  assert.deepEqual(await v.authorize(old), DENY('expired'));
+  const { revokeDevice } = await import(SRC + 'core/account-devices.js');
+  await revokeDevice({ D1_ACCOUNT_AUTH: env.D1_ACCOUNT_AUTH }, TEST_DEVICE_ID);
+  assert.deepEqual(await v.authorize(await accCookie()), DENY('revoked'));
+  setEpoch({ D1_ACCOUNT_AUTH: env.D1_ACCOUNT_AUTH }, 3);
+  assert.deepEqual(await v.authorize(await accCookie()), DENY('epoch-changed'));
+});
+
+test('AccountVerifier.authorize：缺钥匙 → no-pubkey；账号库出错 → d1-error，都不抛；Secrets Store 绑定对象也能读', async () => {
+  let { env } = makeEnv({ SGX_ACCOUNT_PUBLIC: undefined });
+  assert.deepEqual(await new ep.AccountVerifier(CTX, env).authorize(await accCookie()), DENY('no-pubkey'));
+  _resetSecretCache();
+  ({ env } = makeEnv({ D1_ACCOUNT_AUTH: { prepare() { throw new Error('down'); }, batch() { throw new Error('down'); } } }));
+  assert.deepEqual(await new ep.AccountVerifier(CTX, env).authorize(await accCookie()), DENY('d1-error'));
+  _resetSecretCache();
+  const store = (x) => ({ get: async () => x });
+  ({ env } = makeEnv({ SGX_ACCOUNT_PRIVATE: store(K.ACCOUNT.priv), SGX_ACCOUNT_PUBLIC: store(K.ACCOUNT.pub) }));
+  assert.equal((await new ep.AccountVerifier(CTX, env).authorize(await accCookie())).ok, true);
+});
+
+test('checkAuthorize：env 缺省也不抛（fail closed）', async () => {
+  const r = await ep.checkAuthorize(undefined, 'sgx-account-session=garbage', {}, {});
+  assert.equal(r.ok, false);
+  assert.deepEqual(Object.keys(r).sort(), ['deviceId', 'ok', 'reason', 'reauth', 'scopes']);
 });
 
 test('verifierRequest：只带 Cookie / User-Agent / 地点头，不带锁屏身份头；超长 cookie 截断', () => {

@@ -71,7 +71,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 ### Worker 边界（`scripts/check-layers.mjs` 规则 14-21，CI 必过）
 - 14：每个 Worker 只能相对 import 自己目录 `workers/<名字>/` 下的文件，Worker 之间（账号 ↔ 网关、短链、chat 等）一律不许 import；非相对 import 只认 `cloudflare:workers`。
 - 15：不许出现 `workers/shared` 目录（2026-10-30 删除；通用件每个 Worker 各自一份）。
-- 16：网关源码（`workers/auth-gateway/` 下的 `.js` / `.mjs` / `.cjs` 和 `wrangler.toml`，注释除外）不许出现账号鉴权标识：`SGX_ACCOUNT_*`、`SGX_ROOT_KEY`、`D1_ACCOUNT_AUTH`、`D1_ROOT_AUTH`、`REALM_ACCOUNT`、`REALM_ROOT`、`checkAccountSession`、`verifyAccountSession`、`Account*Ticket` / `ACCOUNT_*_TICKET` 等（完整列表在脚本的 `GATEWAY_ACCOUNT_AUTH_RE`）。网关只经 `ACCOUNT_VERIFIER.accountSession()` 拿账号会话结论。
+- 16：网关源码（`workers/auth-gateway/` 下的 `.js` / `.mjs` / `.cjs` 和 `wrangler.toml`，注释除外）不许出现账号鉴权标识：`SGX_ACCOUNT_*`、`SGX_ROOT_KEY`、`D1_ACCOUNT_AUTH`、`D1_ROOT_AUTH`、`REALM_ACCOUNT`、`REALM_ROOT`、`checkAccountSession`、`verifyAccountSession`、`Account*Ticket` / `ACCOUNT_*_TICKET` 等（完整列表在脚本的 `GATEWAY_ACCOUNT_AUTH_RE`）。网关只经 `ACCOUNT_VERIFIER.accountSession()` / `authorize()` 拿账号结论（字段名用 `account.reauth` 这类，不写账号票名）。
 - 17：账号 Worker 的 `workers/account/wrangler.toml` 不许有路由（`[[routes]]`、`route = …`、非空的 `routes = [...]`；`[env.preview]` 的 `routes = []` 允许），账号请求只经网关的服务绑定进来。
 - 18–21：Worker 骨架防回退（`workers/**` 没有 `functions/`、`_kernel/`；`main = "src/index.js"`；每个 Worker 有 `README.md`；`package.json` 有 `name`），各条见 [`workers/README.md`](../workers/README.md)。
 
@@ -142,6 +142,29 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
   网关库里 `realm='account'` / `'root'` 的旧行和旧开关表 `recovery_switch` 已由 `scripts/migrate-account-auth.mjs --cleanup --confirm` 删除
   （预览库走网关 `migrations/0009_drop_recovery_switch.sql`）；Secrets Store 里的旧 `SGX_ROOT_KEY` 已删除。
 - 恢复开关表（账号拆分方案 9.4）：叫 `lock_reset_switch`（网关 `migrations/0008_lock_reset_switch.sql`），后台开开关插行用 `INSERT INTO lock_reset_switch …`。
+
+## 网关结论（授权骨架，P2-1）
+
+门归网站、账号管授权：网关只验门（锁屏会话）；能不能写、能不能读私密由账号 Worker 回答（`workers/account/src/core/authz.js`，作用域表 `core/scopes.js`）；网关把结论交给下游，下游只信结论。依赖方向：浏览器 → 网关（验门）→ 需要授权时网关经 `ACCOUNT_VERIFIER.authorize()` 问账号 Worker → RPC 回结论对象（`AuthVerifier.conclusion()`）/ HTTP 转发写结论头。账号 Worker 不调网关，网关不读账号库（规则 14、16 不变）。
+
+结论头（网关 fetch 第一步照旧剥掉所有入站 `x-styrigx-*`、`x-sgx-role`，再按验过的结果重写；只写白名单值，某一项没有就不写这个头，不写 `0`）：
+
+| 头 | 值 | 含义 | 谁写（P2-1 起） |
+|---|---|---|---|
+| `X-Styrigx-Lock-Session` | `1` | 进门有效（网关验过的锁屏会话） | `core/lock-identity.js`，转发给账号 Worker 时写；与 `X-Styrigx-Lock-Role` 并存到 P2-3 |
+| `X-Styrigx-Lock-By` | `password` \| `passkey` \| `tempkey` | 进门方式，只作审计 | `core/lock-identity.js`（不变） |
+| `X-Styrigx-Lock-Tempkey-Id` | `<id>` | 审计，只在 `by=tempkey` 时有 | `core/lock-identity.js`（不变） |
+| `X-Styrigx-Account-Session` | `1` | 网关问过账号 Worker，账号会话有效 | `core/conclusion.js` `writeAccountConclusion` |
+| `X-Styrigx-Account-Device` | `<deviceId>` | 审计 / 设备区分 | 同上 |
+| `X-Styrigx-Account-Scopes` | `curio.write daymark.write` | 已授权 ∩ 已知作用域，空格分隔，按字母排序 | 同上 |
+| `X-Styrigx-Account-Reauth` | `1` | 账号复验短票有效（本次请求需要时才问） | 同上 |
+| `X-Styrigx-Client-Address` / `-Country` / `-City` | — | 客户端上下文 | `core/lock-identity.js`（不变） |
+
+- `X-Styrigx-Account-*` 只写给两处：`styrigx-ai`（第 4 件）和 P4-2 之前过渡期的 `search-index`（`/api/search`）。账号 Worker 自己验账号会话和作用域，网关只给它写 `X-Styrigx-Lock-*` 和 `X-Styrigx-Client-*`。
+- RPC 结论 `AuthVerifier.conclusion(cookieHeader, clientContext, opts)` → `{ lock: { ok, by, tempkeyId, reason }, account: { ok, deviceId, scopes, reauth, reason } }`；`lock.ok=false` 时不问账号；账号绑定没配、RPC 出错、回了看不懂的东西 → `account.ok=false`。子站接口 Worker（curio-core、daymark-core）P2-2 起用它。
+- 骨架阶段账号会话自动拥有全部作用域；第 3 件实现只换 `grantedScopes` 的数据源，函数签名、RPC 形状、结论头都不变。
+- 将来删掉的：`X-Styrigx-Lock-Role`（转发给账号）、`X-Sgx-Role`（发给 chat / search-index），P2-3 删。
+- P2-1 只新增，没有调用方，线上行为不变。
 
 ## 锁定与过期
 

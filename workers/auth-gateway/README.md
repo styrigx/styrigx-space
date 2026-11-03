@@ -13,7 +13,7 @@
 | 导出 | 文件 | 做什么 |
 |---|---|---|
 | `default` | `src/app.js` | 公网请求的总流程：剥头 → 静态资源直通 → 取密钥 → 关口 → 路由 |
-| `AuthVerifier` | `src/rpc/auth-verifier.js` | RPC `lockSession(cookieHeader)` → `{ ok, role }` 或 `{ ok:false, reason }`（逻辑在 `core/lock-session.js` `checkLockSession`）。调用方：`styrigx-daymark-core`、`styrigx-curio-core`（styrigx-atlas 仓库）、`styrigx-share`；调用方写 `[[services]] binding = "AUTH"`、`service = "styrigx-auth-gateway"`、`entrypoint = "AuthVerifier"` |
+| `AuthVerifier` | `src/rpc/auth-verifier.js` | RPC `lockSession(cookieHeader)` → `{ ok, role }` 或 `{ ok:false, reason }`（逻辑在 `core/lock-session.js` `checkLockSession`）；`conclusion(cookieHeader, clientContext, opts)` → 网关结论（见下文「结论」，逻辑在 `core/conclusion.js`）。调用方：`styrigx-daymark-core`、`styrigx-curio-core`（styrigx-atlas 仓库）、`styrigx-share`；调用方写 `[[services]] binding = "AUTH"`、`service = "styrigx-auth-gateway"`、`entrypoint = "AuthVerifier"` |
 | `ShareIssuer` | `src/rpc/share-issuer.js` | 只给 `styrigx-share`：签 / 作废短链钥匙、点开时换访客会话（逻辑在 `core/link-keys.js`） |
 
 请求在 `src/` 里的走向：
@@ -21,7 +21,29 @@
 - `app.js` 第一步剥掉入站请求里所有 `x-styrigx-*` 和 `x-sgx-role` 头（下游只认网关自己写的）；主站静态资源（`/css/ /js/ /fonts/ /fav/ /images/` 和根目录几张公开图）原样回源，不验会话、不打 `X-SGX-Runtime`。
 - `gate.js`：主站关口 `onRequest`（会话、角色、白名单、no-store、锁屏瘦身、HTML 会话标记）和子站关口 `handleSubsite`（`styrigx.com/blog/`、`/curio/`、`/daymark/` 按路径前缀；`atlasRedirect` 把 `atlas.styrigx.com` 301 到主域名）。
 - `router.js`：主站关口放行后，转发表 `FORWARDING` → `/api/*` 路由表 `API_ROUTES`（`api/<名字>.js`）→ 回源。新增接口：加 `src/api/<名字>.js`，在 `API_ROUTES` 登记一行（单测核对两边一一对应）。
-- `core/` 业务（会话、票据、凭证、D1 状态、限流、转发帮手、问账号 Worker 的 `account-rpc.js`），`lib/` 通用件，`secrets.js` 把 Secrets Store 绑定换成字符串。
+- `core/` 业务（会话、票据、凭证、D1 状态、限流、转发帮手、问账号 Worker 的 `account-rpc.js`、组装结论的 `conclusion.js`），`lib/` 通用件，`secrets.js` 把 Secrets Store 绑定换成字符串。
+
+## 结论
+
+授权骨架（P2-1，设计方案 2.3、4.3）：网关验门；需要授权时经 `ACCOUNT_VERIFIER` 问账号 Worker（`core/account-rpc.js` `askAuthorize` → `AccountVerifier.authorize()`）；再把结论交给下游——RPC 调用回结论对象，HTTP 转发写结论头。下游只信结论。网关不读账号库、不持账号钥匙，作用域只认字符串格式，不 import 账号的作用域表（规则 14、16）。
+
+- **RPC 结论** `AuthVerifier.conclusion(cookieHeader, clientContext, opts)`（`core/conclusion.js` `conclusionFor`）：
+
+  ```
+  { lock:    { ok, by, tempkeyId, reason },
+    account: { ok, deviceId, scopes: string[], reauth, reason } }
+  // opts: { reauth?: boolean }  只有需要账号复验结论的接口才传 true（账号侧多读一张票）
+  ```
+
+  - `lock.ok=false` 时不问账号：`account = { ok:false, reason:'no-lock' }`（进门是前置）。
+  - 账号绑定没配（`no-verifier`）、RPC 抛错（`rpc-error`）、回了看不懂的东西（`bad-reply`）→ `account.ok=false`（fail closed）。
+  - 白名单：`lock.by` 只认 `password` / `passkey` / `tempkey`，`tempkeyId` 只在 `by=tempkey` 时有；`deviceId` 只认 `[A-Za-z0-9_-]{8,32}`；作用域只认 `<应用>.<动作>`（`[a-z.]`），不合格式的丢掉，去重、按字母排序；`reauth` 只认 `true`。
+  - 下游写法（P2-2 起）：要作用域 = `account.ok && account.scopes.includes('<站>.write')`；读私密 = `account.ok`；敏感 = 再加 `account.reauth`。
+- **HTTP 结论头**：`core/conclusion.js` `writeAccountConclusion(headers, account)` 先剥掉所有 `X-Styrigx-Account-*`，再只写白名单值，某一项没有就不写（不写 `0`）。表见 `docs/architecture.md`「网关结论」。浏览器带来的同名头在 `app.js` 第一步（剥所有 `x-styrigx-*`）就没了。
+- **锁侧转发头**：`core/lock-identity.js` 转发给账号 Worker 时，有锁屏身份就额外写 `X-Styrigx-Lock-Session: 1`，与 `X-Styrigx-Lock-Role` 并存（账号 Worker P2-2 起改读它，P2-3 删 role）。
+- 命名：网关代码里只用 `account.reauth` / `X-Styrigx-Account-Reauth` 这类字段名，不出现账号票名（`scripts/check-layers.mjs` 规则 16）。
+- 现状（P2-1）：只新增，没有调用方，现有判断一行没改。P2-2 起子站接口 Worker 改调 `conclusion()`；结论头只写给 `styrigx-ai`（第 4 件）和 P4-2 之前过渡期的 `search-index`。
+- 测试：`tests/workers/auth-gateway/conclusion.test.mjs`、`verifier.test.mjs`、`lock-identity.test.mjs`。
 
 ## 路由
 
